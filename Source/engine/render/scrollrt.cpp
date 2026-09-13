@@ -49,6 +49,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/ornate_border.h" // SidePanelContentBottom - the orbs are clipped to it while a side panel is open
 #include "oracool/game_clock.h"
+#include "oracool/spell_timers.h"
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
 #include "oracool/inventory_layout.h"
@@ -1522,6 +1523,10 @@ void DrawView(const Surface &out, Point startPosition)
 		oracool::DrawEventLogWindow(out);
 		oracool::DrawGameClock(out);
 		oracool::DrawGameSpeedReadout(out);
+		// Anchored to the mini-map's frame, so hidden wherever the mini-map's corner is covered -
+		// including the Crafting book, which the other corner widgets predate.
+		if (!oracool::IsCraftingMenuOpen())
+			oracool::DrawSpellTimers(out);
 	}
 #ifdef _DEBUG
 	bool debugGridTextNeeded = IsDebugGridTextNeeded();

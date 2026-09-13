@@ -5532,6 +5532,48 @@ void SpawnTheodore(Point position, bool sendmsg)
 	SpawnRewardItem(IDI_THEODORE, position, sendmsg);
 }
 
+void FinishOracoolDrop(int ii, Point position)
+{
+	// The fork's drop hooks build their item with InitializeItem or MakeSetItem rather than
+	// SetupAllItems, so they never passed through SetupItem - and SetupItem is where a dropped item
+	// is given its tumble. Without it an item has no sprites: DrawItem returns before drawing it,
+	// no label is queued, and _iSelFlag stays 0, so it cannot be picked up either. It was there all
+	// along, invisible, until the level was saved and loaded again (user, 2026-09-13: "i never
+	// encounter drop of set items but many times if i revisit area i have cleared of mobs i find a
+	// number of set items"). That reload gave it sprites with a frame count of 0 and frame 0 - the
+	// tumble's first, mid-air frame - which is the "unproportionally big and away from their label".
+	GetSuperItemSpace(position, static_cast<int8_t>(ii));
+	StartDropTumble(Items[ii]);
+}
+
+void StartDropTumble(Item &item)
+{
+	// Played while in the level, settled while it is still loading - SetupItem's own rule.
+	item.setNewAnimation(MyPlayer != nullptr && MyPlayer->pLvlLoad == 0);
+}
+
+bool RepairFloorItemAnimation(Item &item)
+{
+	if (item.isEmpty())
+		return false;
+	const int8_t frames = ItemAnimLs[GetItemDropAnimIndexFor(item)];
+	if (item.AnimInfo.numberOfFrames == frames && item.AnimInfo.currentFrame >= 0 && item.AnimInfo.currentFrame < frames)
+		return false;
+	// Settled rather than replayed: the item has been lying there since before the save. The vanilla
+	// specials keep what RespawnItem gives them - the Magic Rock turns on its pedestal rather than
+	// resting, and the quest items that are selected by _iSelFlag 2 stay selectable that way.
+	const uint8_t selFlag = item._iSelFlag;
+	if (item._iCurs == ICURS_MAGIC_ROCK) {
+		item.setNewAnimation(true);
+		item._iSelFlag = selFlag != 0 ? selFlag : 1;
+		return true;
+	}
+	item.setNewAnimation(false);
+	if (selFlag == 2)
+		item._iSelFlag = 2;
+	return true;
+}
+
 void RespawnItem(Item &item, bool flipFlag)
 {
 	int it = GetItemDropAnimIndexFor(item);
@@ -5709,8 +5751,7 @@ void TrySpawnSignet(const Monster &monster, bool sendmsg)
 	InitializeItem(signet, IDI_ORACOOL_SIGNET_LEARNING);
 	GenerateNewSeed(signet);
 	signet._iIdentified = true; // it has no rolls to hide
-	Point position = monster.position.tile;
-	GetSuperItemSpace(position, ii);
+	FinishOracoolDrop(ii, monster.position.tile);
 	if (sendmsg)
 		NetSendCmdPItem(false, CMD_SPAWNITEM, signet.position, signet);
 }
@@ -5825,8 +5866,7 @@ void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg)
 
 	const int ii = AllocateItem();
 	Items[ii] = item.pop();
-	Point position = monster.position.tile;
-	GetSuperItemSpace(position, ii);
+	FinishOracoolDrop(ii, monster.position.tile);
 	LogNoteworthyItemDrop(Items[ii]);
 	if (sendmsg)
 		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
@@ -5946,8 +5986,7 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 	InitializeItem(gem, idx);
 	GenerateNewSeed(gem);
 	gem._iIdentified = true; // a gem has no rolls to hide
-	Point position = monster.position.tile;
-	GetSuperItemSpace(position, ii);
+	FinishOracoolDrop(ii, monster.position.tile);
 	if (sendmsg)
 		NetSendCmdPItem(false, CMD_SPAWNITEM, gem.position, gem);
 }

@@ -84,6 +84,9 @@ void ClearRfa12ActivesState();
 void ClearRfa12ActivesForMonster(const Monster &monster);
 void ClearRfa12ActiveBuffs(Player &player);
 
+/** @brief Ticks left on @p player's timed buff from @p spell; 0 when not carried, or @p spell leaves no buff. For the countdown column. */
+int Rfa12BuffTicks(const Player &player, SpellID spell);
+
 /** @brief Frostbite: the extra cold damage @p monster takes, in percent. */
 int Rfa12FrostbitePercent(const Monster &monster);
 

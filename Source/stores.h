@@ -264,6 +264,16 @@ std::vector<oracool::ShopSlot> GetShopStock(TalkID id);
  */
 void ShopSelectIndex(TalkID id, int index);
 
+/**
+ * @brief Ctrl+right click: buys a STACK of the restocking potion at entry @p index of tab @p id - up to
+ * 99, as many as the gold pays for, and as many as fit the belt or the backpack in one stack.
+ *
+ * @return how many were bought; -1 when the gesture does not apply (not a restocking potion, no gold
+ * for one, no room for one), in which case the caller runs the ordinary single purchase, whose own
+ * NoMoney/NoRoom screens say why.
+ */
+int ShopBuyPotionStack(TalkID id, int index);
+
 /** @brief The bulk actions tab @p id offers right now, already gated on the options that hide them. */
 std::vector<oracool::ShopAction> GetShopActions(TalkID id);
 

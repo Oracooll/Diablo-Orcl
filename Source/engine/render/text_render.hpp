@@ -101,6 +101,13 @@ enum text_color : uint16_t {
 	ColorInGameUiYellowDark,
 	/** Oracool: magic damage on the character sheet, RGB 208,98,98, brightened from 104,49,49 (user, 2026-09-11). A value, no file. */
 	ColorMagicDamage,
+	/** Oracool: the consumables by function - scrolls, elixirs, oils, trap runes, salvage, maps (user, 2026-09-13). Values, no files. */
+	ColorScroll,
+	ColorElixir,
+	ColorOil,
+	ColorTrap,
+	ColorSalvage,
+	ColorMap,
 };
 
 /**

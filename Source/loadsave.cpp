@@ -1285,6 +1285,9 @@ void LoadDroppedItems(LoadHelper &file, size_t savedItemCount)
 		LoadItem(file, item);
 
 		if (!item.isEmpty()) {
+			// Oracool: a drop saved before its hook started the tumble carries a frame count of 0 and
+			// draws the first, mid-air frame, oversized and off its label (2026-09-13).
+			RepairFloorItemAnimation(item);
 			// Loaded a valid item
 			ActiveItemCount++;
 			// populate its location in the lookup table with the offset in the Items array + 1 (so 0 can be used for "no item")

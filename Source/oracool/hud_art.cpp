@@ -2526,6 +2526,20 @@ bool TryDrawGlyphInWell(const Surface &out, Rectangle well, HeroClass heroClass,
 	return true;
 }
 
+void DrawTimedSpellIcon(const Surface &out, Rectangle cell, HeroClass heroClass, SpellID spell)
+{
+	const ClassTreeSkill treeSkill = ClassTreeSkillForSpell(heroClass, spell);
+	if (treeSkill != ClassTreeSkill::None && !IsLegacySpell(spell)) {
+		// Two pixels in on every side: the glyph fills its 40px box edge to edge, and flush with the
+		// square it would read as a cut-out rather than an icon standing on blue.
+		const Rectangle inner { { cell.position.x + 2, cell.position.y + 2 }, { cell.size.width - 4, cell.size.height - 4 } };
+		DrawClassTreeIconScaledTo(out, inner, heroClass, ClassTreeIconIndex(treeSkill));
+		return;
+	}
+	SetSpellTrans(SpellType::Spell);
+	DrawSmallSpellIconCoveringClipped(out, cell, spell);
+}
+
 bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, SkillPlateTint tint)
 {
 	// FILLS @p well, plate and icon both, rather than centring naturally-sized art in it (user,

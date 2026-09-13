@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include <SDL.h>
 #include <fmt/format.h>
 
 #include "control.h"
@@ -1270,7 +1271,13 @@ bool CheckShopGridClick(Point position, bool rightClick)
 		if (rightClick) {
 			// The purchase. ShopSelectIndex runs the vendor's own handler and, since 2026-08-26,
 			// answers the confirmation itself - so this one gesture is the whole transaction.
-			ShopSelectIndex(stextflag, stock[placed[hovered].stockIndex].index);
+			//
+			// With Ctrl held, a restocking potion is bought as a whole stack (2026-09-13). Anything the
+			// stack buy does not apply to falls through to the single purchase, so Ctrl never makes a
+			// right click do nothing.
+			const int stockIndex = stock[placed[hovered].stockIndex].index;
+			if ((SDL_GetModState() & KMOD_CTRL) == 0 || ShopBuyPotionStack(stextflag, stockIndex) < 0)
+				ShopSelectIndex(stextflag, stockIndex);
 		} else {
 			// Looking, not buying. The selection moves so the footer describes this item, and
 			// nothing is spent - which is what makes a right click safe to be unconfirmed.

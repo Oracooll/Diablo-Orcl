@@ -4545,6 +4545,88 @@ std::vector<oracool::ShopSlot> GetShopStock(TalkID id)
 	return stock;
 }
 
+namespace {
+
+/** @brief Whether entry @p index of tab @p id restocks rather than sells out - each vendor's own rule, as its buy handler applies it. */
+bool IsReplenishingShopEntry(TalkID id, int index)
+{
+	if (index < 0)
+		return false;
+	switch (id) {
+	case TalkID::HealerBuy:
+		return index < (gbIsMultiplayer ? 3 : 2); // HealerBuyItemAt keeps these
+	case TalkID::WitchBuy:
+		return index < 3; // RemoveWitchStockItem keeps these
+	case TalkID::SmithConsumables: {
+		const std::vector<ConsumablesStockEntry> entries = SmithConsumablesStock();
+		return static_cast<size_t>(index) < entries.size() && entries[static_cast<size_t>(index)].isReplenishing();
+	}
+	default:
+		return false;
+	}
+}
+
+bool IsStackBuyPotion(const Item &item)
+{
+	return IsAnyOf(item._iMiscId, IMISC_HEAL, IMISC_FULLHEAL, IMISC_MANA, IMISC_FULLMANA, IMISC_REJUV, IMISC_FULLREJUV);
+}
+
+} // namespace
+
+int ShopBuyPotionStack(TalkID id, int index)
+{
+	// Ctrl+right click (user, 2026-09-13: "make ctrl+right click on a consumable potion in the vendors
+	// to purchase a stack of up to 99 of these, limited by amount of available money, or free slots in
+	// the belt/inv grid"). Only a potion the vendor RESTOCKS: a one-off potion is one item, and buying
+	// "a stack" of it would conjure copies the shop never had.
+	if (!oracool::IsSinglePlayer() || !IsReplenishingShopEntry(id, index))
+		return -1;
+	const std::vector<oracool::ShopSlot> stock = GetShopStock(id);
+	const oracool::ShopSlot *slot = nullptr;
+	for (const oracool::ShopSlot &candidate : stock) {
+		if (candidate.index == index) {
+			slot = &candidate;
+			break;
+		}
+	}
+	if (slot == nullptr || slot->item == nullptr || slot->item->isEmpty() || !IsStackBuyPotion(*slot->item) || slot->price <= 0)
+		return -1;
+
+	const int affordable = static_cast<int>(std::min<uint32_t>(TotalPlayerGold() / static_cast<uint32_t>(slot->price), Item::MaxStackCount));
+	if (affordable <= 0)
+		return -1; // the ordinary purchase path says why: its NoMoney screen
+
+	// Prepared the way each vendor's single purchase prepares one - a fresh seed for a restocking
+	// entry, and Pepin's potions sold unidentified and without their create info.
+	Item stack = *slot->item;
+	stack._iSeed = AdvanceRndSeed();
+	const bool pepin = id == TalkID::HealerBuy
+	    || (id == TalkID::SmithConsumables && SmithConsumablesStock()[static_cast<size_t>(index)].vendor == ConsumablesVendor::Pepin);
+	if (id == TalkID::SmithConsumables && pepin)
+		stack._iCreateInfo = 0;
+	if (pepin && stack._iMagical == ITEM_QUALITY_NORMAL)
+		stack._iIdentified = false;
+
+	// The largest stack that fits. Placement is all-or-nothing and a stack goes whole to the belt or
+	// whole to the backpack (INV-01), so the probe's answer for N is exactly what the commit will do.
+	int count = affordable;
+	for (; count > 0; count--) {
+		Item probe = stack;
+		probe.setStackCount(count);
+		if (StoreAutoPlace(probe, /*persistItem=*/false))
+			break;
+	}
+	if (count <= 0)
+		return -1; // the ordinary purchase path says why: its NoRoom screen
+
+	stack.setStackCount(count);
+	TakePlrsMoney(slot->price * count);
+	StoreAutoPlace(stack, /*persistItem=*/true);
+	CalcPlrInv(*MyPlayer, true);
+	PlaySFX(IS_GOLD); // once for the stack - the coins changing hands, as ConfirmEnter plays for one
+	return count;
+}
+
 void ShopSelectIndex(TalkID id, int index)
 {
 	if (index < 0)

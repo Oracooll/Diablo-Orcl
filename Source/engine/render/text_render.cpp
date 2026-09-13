@@ -83,7 +83,7 @@ constexpr std::array<int, 10> LineHeights = { 12, 26, 38, 42, 50, 22, 11, 10, 9,
 constexpr int SmallFontTallLineHeight = 16;
 std::array<int, 10> BaseLineOffset = { -3, -2, -3, -6, -7, 3, -3, -3, -2, -2 };
 
-std::array<const char *, 37> ColorTranslations = {
+std::array<const char *, 43> ColorTranslations = {
 	"fonts\\goldui.trn",
 	"fonts\\grayui.trn",
 	"fonts\\golduis.trn",
@@ -145,6 +145,12 @@ std::array<const char *, 37> ColorTranslations = {
 	nullptr, // oracool_uiyellow: a value in RgbDefinedColors since stage 4 (v1.11.010)
 	nullptr, // oracool_uiyellowdark: a value in RgbDefinedColors since stage 4 (v1.11.010)
 	nullptr, // magic damage: a value in RgbDefinedColors from the start (2026-09-11), never a file
+	nullptr, // scroll: a value (2026-09-13)
+	nullptr, // elixir: a value (2026-09-13)
+	nullptr, // oil: a value (2026-09-13)
+	nullptr, // trap rune: a value (2026-09-13)
+	nullptr, // salvage: a value (2026-09-13)
+	nullptr, // map: a value (2026-09-13)
 };
 
 std::array<std::optional<std::array<uint8_t, 256>>, ColorTranslations.size()> ColorTranslationsData;
@@ -243,6 +249,22 @@ constexpr RgbDefinedColor RgbDefinedColors[] = {
 	    { 0xD06262, 0xD06262, 0xD06262, 0xBE5959, 0xB05353, 0xA44D4D, 0x984848, 0x8A4141, 0x7C3A3A, 0x703535, 0x622E2E, 0x542828, 0x482222, 0x381A1A, 0x241111, 0x120909 } },
 	{ ColorGray7,
 	    { 0xA3A3A3, 0x949494, 0x858585, 0x737373, 0x666666, 0x595959, 0x4C4C4C, 0x3D3D3D, 0x2E2E2E, 0x1E1E1E, 0x111111, 0x111111, 0x111111, 0x111111, 0x111111, 0x111111 } }, // was fonts\\oracool_gray7.trn
+	// The consumables by FUNCTION (user, 2026-09-13: "use color font for all consumables which still use
+	// basic white font based on their function"). Each is its base value held flat across the top three
+	// shades, then stepped down the magic-damage ramp's ratios - the same recipe, so they read at the same
+	// weight as the colours already on the floor.
+	{ ColorScroll,
+	    { 0x6CD8E8, 0x6CD8E8, 0x6CD8E8, 0x63C5D4, 0x5BB7C4, 0x55AAB7, 0x4F9EAA, 0x488F9A, 0x40818A, 0x3A747D, 0x33666D, 0x2C575E, 0x254B50, 0x1D3A3E, 0x132528, 0x091314 } },
+	{ ColorElixir,
+	    { 0xB48CFF, 0xB48CFF, 0xB48CFF, 0xA580E9, 0x9876D8, 0x8E6EC9, 0x8466BA, 0x785DA9, 0x6B5398, 0x614B89, 0x554278, 0x493967, 0x3E3058, 0x302645, 0x1F182C, 0x100C16 } },
+	{ ColorOil,
+	    { 0xA8BCD0, 0xA8BCD0, 0xA8BCD0, 0x9AACBE, 0x8E9FB0, 0x8494A4, 0x7B8998, 0x707D8A, 0x64707C, 0x5A6570, 0x4F5962, 0x444C54, 0x3A4148, 0x2D3338, 0x1D2124, 0x0F1012 } },
+	{ ColorTrap,
+	    { 0xFF7A3C, 0xFF7A3C, 0xFF7A3C, 0xE97037, 0xD86733, 0xC9602F, 0xBA592C, 0xA95128, 0x984924, 0x894220, 0x78391C, 0x673118, 0x582A15, 0x452110, 0x2C150A, 0x160B05 } },
+	{ ColorSalvage,
+	    { 0xC8A078, 0xC8A078, 0xC8A078, 0xB7926E, 0xA98766, 0x9E7E5F, 0x927558, 0x856A50, 0x775F48, 0x6C5641, 0x5E4B39, 0x514130, 0x45372A, 0x362B20, 0x231C15, 0x110E0A } },
+	{ ColorMap,
+	    { 0x6FD8A8, 0x6FD8A8, 0x6FD8A8, 0x65C59A, 0x5EB78E, 0x57AA84, 0x519E7B, 0x4A8F70, 0x428164, 0x3C745A, 0x34664F, 0x2D5744, 0x264B3A, 0x1E3A2D, 0x13251D, 0x0A130F } },
 };
 bool RgbDefaultsApplied = false;
 /** The definition applied from RgbDefinedColors; a hex from DefineTextColorRgb wins over it while set. */
@@ -393,6 +415,18 @@ text_color GetColorFromFlags(UiFlags flags)
 		return ColorGray7;
 	case UiFlagsColorIndex(UiFlags::ColorMagicDamage):
 		return ColorMagicDamage;
+	case UiFlagsColorIndex(UiFlags::ColorScroll):
+		return ColorScroll;
+	case UiFlagsColorIndex(UiFlags::ColorElixir):
+		return ColorElixir;
+	case UiFlagsColorIndex(UiFlags::ColorOil):
+		return ColorOil;
+	case UiFlagsColorIndex(UiFlags::ColorTrap):
+		return ColorTrap;
+	case UiFlagsColorIndex(UiFlags::ColorSalvage):
+		return ColorSalvage;
+	case UiFlagsColorIndex(UiFlags::ColorMap):
+		return ColorMap;
 	case UiFlagsColorIndex(UiFlags::ColorWhitegold):
 	default:
 		return ColorWhitegold;

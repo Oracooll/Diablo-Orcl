@@ -29,6 +29,7 @@
 #include "oracool/ornate_border.h"
 #include "oracool/salvage.h"
 #include "oracool/socket_overlay.h"
+#include "oracool/runewords.h"
 #include "oracool/ui_sound.h"
 #include "stores.h"
 #include "utils/format_int.hpp"
@@ -383,11 +384,17 @@ enum class StashSortTier {
 	Set = 3,
 	Unique = 4,
 	Primal = 5,
-	LAST = Primal,
+	/** An assembled runeword, whatever its base's quality (user, 2026-09-13: "put assembled runewords in separate stash tab"). */
+	Runeword = 6,
+	LAST = Runeword,
 };
 
 StashSortTier StashSortTierOf(const Item &item)
 {
+	// A finished runeword before any quality: its base is usually a plain or magic piece, and the
+	// point of the page is that the words are found together, not among the bases they were made on.
+	if (oracool::GetActiveRuneword(item) != nullptr)
+		return StashSortTier::Runeword;
 	// The fork's tier field first: it is the more specific answer, and Set and Primal exist ONLY
 	// here. A set piece is marked ITEM_QUALITY_UNIQUE by MakeSetItem, so reading _iMagical first
 	// would put every green item on the gold page - the same trap getTextColor documents.
@@ -1504,12 +1511,14 @@ void SortStash(Player &player)
 	// first one unoccupied by items." Materials are pulled out of the ordinary sort entirely; what
 	// is left packs as it always did, which is also what decides which page comes up empty.
 	for (const Item &item : pool) {
-		if (IsOracoolRuneIdx(item.IDidx) || IsOracoolGemIdx(item.IDidx) || IsOracoolSalvageIdx(item.IDidx)
-		    || IsOracoolJewelIdx(item.IDidx)) {
+		// The SOCKETABLE consumables - runes, gems, jewels - have the material page; every other
+		// consumable, the salvage materials included, has the page after it (user, 2026-09-13: "divide
+		// socketable and unsocketable consumables in different tabs, one after the other").
+		if (IsOracoolRuneIdx(item.IDidx) || IsOracoolGemIdx(item.IDidx) || IsOracoolJewelIdx(item.IDidx)) {
 			materials.push_back(item);
 			continue;
 		}
-		if (item.isStackableConsumable()) {
+		if (item.isStackableConsumable() || IsOracoolSalvageIdx(item.IDidx)) {
 			consumables.push_back(item);
 			continue;
 		}
@@ -1573,6 +1582,69 @@ void SortStash(Player &player)
 		AutoPlaceItemInStash(player, entry.item, true);
 	}
 
+	// Lays @p items out in FAMILY blocks (familyOf), row by row, each item in the first free rectangle
+	// its size below the previous family's lowest row, on the first empty page. When that page cannot
+	// take the next item, the layout carries on at the top of the next EMPTY page - never on a page of
+	// other kinds (user, 2026-09-13: "when a consumables stash tab is full move other consumables to
+	// another separate tab of their own, dont place them in tabs with different types of items").
+	// Only a stash with no empty page left falls back to the ordinary first-fit scan, because an item
+	// in the wrong tab is still better than an item lost.
+	const auto placeInBlocks = [&player](const std::vector<Item> &items, const auto &familyOf) {
+		if (items.empty())
+			return;
+		unsigned page = FirstEmptyStashPage();
+		if (page >= CountStashPages) {
+			for (const Item &item : items)
+				AutoPlaceItemInStash(player, item, true);
+			return;
+		}
+		// The grid is a map, so asking for a page creates it; every cell of a fresh page reads free.
+		const auto fits = [](unsigned onPage, Point topLeft, Size size) {
+			if (topLeft.x + size.width > StashGridColumns || topLeft.y + size.height > StashGridRows)
+				return false;
+			const StashStruct::StashGrid &grid = Stash.stashGrids[onPage];
+			for (Point p : PointsInRectangle(Rectangle { topLeft, size })) {
+				if (grid[p.x][p.y] != 0)
+					return false;
+			}
+			return true;
+		};
+		const auto placeFrom = [&fits](unsigned onPage, int top, const Item &item, int &bottom) {
+			const Size size = GetInventorySize(item);
+			for (int y = top; y < StashGridRows; y++) {
+				for (int x = 0; x < StashGridColumns; x++) {
+					if (!fits(onPage, { x, y }, size))
+						continue;
+					PlaceStashItemAt(onPage, { x, y }, item, size);
+					bottom = std::max(bottom, y + size.height);
+					return true;
+				}
+			}
+			return false;
+		};
+		int familyTop = 0;    // the row the current family's scan starts on
+		int familyBottom = 0; // one past the lowest row the current family has used
+		int lastFamily = -1;
+		for (const Item &item : items) {
+			const int itemFamily = familyOf(item);
+			if (itemFamily != lastFamily) {
+				familyTop = familyBottom;
+				lastFamily = itemFamily;
+			}
+			if (placeFrom(page, familyTop, item, familyBottom))
+				continue;
+			const unsigned next = FirstEmptyStashPageFrom(page + 1);
+			if (next < CountStashPages) {
+				page = next;
+				familyTop = 0;
+				familyBottom = 0;
+				if (placeFrom(page, familyTop, item, familyBottom))
+					continue;
+			}
+			AutoPlaceItemInStash(player, item, true); // no empty page left: anywhere it fits
+		}
+	};
+
 	// ---------------------------------------------------------------------------------------
 	// The material page
 	// ---------------------------------------------------------------------------------------
@@ -1620,10 +1692,9 @@ void SortStash(Player &player)
 	                    [](const Item &item) { return item.isEmpty(); }),
 	    materials.end());
 
-	unsigned materialsPage = CountStashPages; // the page the materials took, for the consumables to share
+	std::vector<Item> materialSpill; // socketables the material page could not hold, for a page of their own
 	if (!materials.empty()) {
 		const unsigned page = FirstEmptyStashPage();
-		materialsPage = page;
 		if (page >= CountStashPages) {
 			// No empty page. Fall back to the ordinary scan so nothing is lost.
 			for (const Item &item : materials)
@@ -1635,23 +1706,9 @@ void SortStash(Player &player)
 			constexpr int GemTopRow = StashGridRows - static_cast<int>(oracool::GemQualityCount);
 			static_assert(GemTopRow > RuneRows, "the rune and gem blocks would overlap");
 
-			// The seven salvage materials get a row of their own between the two blocks (user,
-			// 2026-08-20: "land them in a row of their own sorted left to right from white to
-			// darkgey somewhere inbetween runes and bems").
-			//
-			// Row 6 rather than a computed midpoint: it leaves rows 4-5 free directly under the
-			// runes, which is where rune overflow lands, so the commonest overflow case never has
-			// to step over the material row to find space.
-			//
-			// Left to right in enum order, which IS white to dark grey - the generator emits the
-			// seven in the order the user listed both the colours and the salvage buttons, so
-			// "IDidx - the first material" is the column, and no second ordering table can drift
-			// from the first.
-			constexpr int SalvageRow = 6;
-			static_assert(SalvageRow > RuneRows && SalvageRow < GemTopRow,
-			    "the salvage row must sit between the rune and gem blocks");
-			static_assert(oracool::SalvageTierCount <= StashGridColumns,
-			    "the seven materials must fit across one row");
+			// The seven salvage materials had a row between the two blocks here (2026-08-20). They
+			// cannot go in a socket, so since 2026-09-13 they sort with the unsocketable consumables
+			// on the next page, still white to dark grey in one family block.
 
 			// Jewels: three rows directly ABOVE the gems, one row per grade, one column per
 			// family. Flawed on top and Radiant on the bottom, so the reading order down the block
@@ -1664,7 +1721,7 @@ void SortStash(Player &player)
 			constexpr int JewelColumns = 5;
 			constexpr int JewelRows = 3;
 			constexpr int JewelTopRow = GemTopRow - JewelRows;
-			static_assert(JewelTopRow > SalvageRow, "the jewel block would collide with the salvage row");
+			static_assert(JewelTopRow > RuneRows, "the jewel block would collide with the rune block");
 			static_assert(JewelColumns <= StashGridColumns, "a jewel grade must fit across one row");
 			static_assert(JewelColumns * JewelRows == IDI_ORACOOL_JEWEL_WARDING_RADIANT - IDI_ORACOOL_JEWEL_FERVOR_FLAWED + 1,
 			    "the jewel block is not the size of the jewel family");
@@ -1683,8 +1740,6 @@ void SortStash(Player &player)
 						cell = { static_cast<int>(p % StashGridColumns), static_cast<int>(p / StashGridColumns) };
 						break;
 					}
-				} else if (IsOracoolSalvageIdx(item.IDidx)) {
-					cell = { item.IDidx - IDI_ORACOOL_SALVAGE_WHITE_SCALES, SalvageRow };
 				} else if (IsOracoolJewelIdx(item.IDidx)) {
 					const int offset = item.IDidx - IDI_ORACOOL_JEWEL_FERVOR_FLAWED;
 					cell = { offset % JewelColumns, JewelTopRow + offset / JewelColumns };
@@ -1717,25 +1772,25 @@ void SortStash(Player &player)
 					slot++;
 					break;
 				}
-				// The band is full too - an extreme case, but losing the item is not an option.
+				// The band is full too - an extreme case. What is left goes on a page of its own
+				// after this one, never among other kinds (user, 2026-09-13).
 				if (!placed)
-					AutoPlaceItemInStash(player, item, true);
+					materialSpill.push_back(item);
 			}
 		}
 	}
+	placeInBlocks(materialSpill, [](const Item &) { return 0; });
 
 	Stash.dirty = true;
 	if (&player == MyPlayer)
 		oracool::ScheduleAutoSaveForStashChange();
 
-	// THE CONSUMABLES on the MATERIALS page (user, 2026-09-05: "find a unallocated slot on the
-	// runes/gems dedicated tab and we keep all of them there"). The materials' layout allots its
-	// blocks - runes, salvage, jewels, gems - and leaves cells free between and beside them; the
-	// consumables take those free cells in row order, kind by kind - potions and elixirs in the
-	// belt's own order, then scrolls by spell, then the runes and oils - one cell per stack.
-	// Already merged to stacks of 99 above, so a kind takes as few cells as it can. If there is no
-	// materials page (nothing to sort there) they take the next empty page; what the page cannot
-	// hold falls to the ordinary first-fit placement.
+	// THE UNSOCKETABLE CONSUMABLES on a page of their own, the one after the socketables (user,
+	// 2026-09-13: "divide socketable and unsocketable consumables in different tabs, one after the
+	// other. socketable consumables to be the first of the two"). They shared the material page's free
+	// cells from 2026-09-05 until then. Family blocks as before - potions, elixirs, scrolls by spell,
+	// books by spell, oils, the Hellfire trap runes, the salvage materials, anything else - and a page
+	// that fills hands over to the next empty one (placeInBlocks). Already merged to stacks of 99.
 	if (!consumables.empty()) {
 		// FAMILIES, each starting on a fresh row (user, 2026-09-07: "still issues with books sorting
 		// in stash" - the books, being one more misc id in the sequence, were sorted into the middle
@@ -1744,6 +1799,10 @@ void SortStash(Player &player)
 		// potions, elixirs, scrolls by spell, BOOKS by spell, oils, the Hellfire trap runes, and
 		// anything else last. Within a family the order is the belt's (misc id) or the spell's.
 		const auto family = [](const Item &item) {
+			// Left to right in enum order, which IS white to dark grey (the generator emits the seven in
+			// the order the user listed the colours and the salvage buttons).
+			if (IsOracoolSalvageIdx(item.IDidx))
+				return 6;
 			if (item.isScroll())
 				return 2;
 			if (item._iMiscId == IMISC_BOOK)
@@ -1769,67 +1828,24 @@ void SortStash(Player &player)
 				return 4;
 			if (item._iMiscId > IMISC_RUNEFIRST && item._iMiscId < IMISC_RUNELAST)
 				return 5;
-			return 6;
+			return 7;
 		};
+		// Wide enough that no id of one family reaches into the next: item indices run past a thousand.
 		const auto kindKey = [&family](const Item &item) {
 			const int f = family(item);
 			if (f == 2 || f == 3)
-				return f * 1000 + static_cast<int>(item._iSpell);
-			return f * 1000 + static_cast<int>(item._iMiscId);
+				return f * 100000 + static_cast<int>(item._iSpell);
+			if (f == 6)
+				return f * 100000 + static_cast<int>(item.IDidx);
+			return f * 100000 + static_cast<int>(item._iMiscId);
 		};
 		std::stable_sort(consumables.begin(), consumables.end(), [&kindKey](const Item &a, const Item &b) {
 			return kindKey(a) < kindKey(b);
 		});
-		const unsigned page = materialsPage < CountStashPages ? materialsPage : FirstEmptyStashPage();
-		if (page >= CountStashPages) {
-			for (const Item &item : consumables)
-				AutoPlaceItemInStash(player, item, true);
-		} else {
-			// Redone 2026-09-07 (user: "redo the logic again to avoid current issues. overlapping
-			// adjacent books and when second row of adjacent family occurs"). The first cut walked
-			// CELLS and put every stack on one cell, so a 2x2 book overlapped its neighbours and
-			// the family after it started on the row its bottom half occupied. This one walks
-			// FOOTPRINTS: each item takes the first free rectangle its size, scanning row by row
-			// from the family's top row, and a family's top row is the first row below everything
-			// the previous family placed. So a family is a block, and the next block starts under
-			// the whole of it, books included.
-			//
-			// The grid is a map, so asking for the page creates it; every cell of a fresh page reads
-			// free, and the materials laid out above have already claimed theirs.
-			const StashStruct::StashGrid &grid = Stash.stashGrids[page];
-			const auto fits = [&grid](Point topLeft, Size size) {
-				if (topLeft.x + size.width > StashGridColumns || topLeft.y + size.height > StashGridRows)
-					return false;
-				for (Point p : PointsInRectangle(Rectangle { topLeft, size })) {
-					if (grid[p.x][p.y] != 0)
-						return false;
-				}
-				return true;
-			};
-			int familyTop = 0;    // the row the current family's scan starts on
-			int familyBottom = 0; // one past the lowest row the current family has used
-			int lastFamily = -1;
-			for (const Item &item : consumables) {
-				if (family(item) != lastFamily) {
-					familyTop = familyBottom;
-					lastFamily = family(item);
-				}
-				const Size size = GetInventorySize(item);
-				bool placed = false;
-				for (int y = familyTop; y < StashGridRows && !placed; y++) {
-					for (int x = 0; x < StashGridColumns; x++) {
-						if (!fits({ x, y }, size))
-							continue;
-						PlaceStashItemAt(page, { x, y }, item, size);
-						familyBottom = std::max(familyBottom, y + size.height);
-						placed = true;
-						break;
-					}
-				}
-				if (!placed)
-					AutoPlaceItemInStash(player, item, true); // the page is full: anywhere it fits
-			}
-		}
+		// Footprints, not cells (2026-09-07: "overlapping adjacent books and when second row of
+		// adjacent family occurs"): each item takes the first free rectangle its size, and a family
+		// starts under the whole of the one before it, books included. See placeInBlocks.
+		placeInBlocks(consumables, family);
 	}
 
 	// Back to the first page. SortStash used to set it once, before placing anything, and leaving

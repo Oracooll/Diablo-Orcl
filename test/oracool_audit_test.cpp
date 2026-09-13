@@ -5032,16 +5032,15 @@ TEST(OracoolAudit, SalvageBucketsPartitionAndRefuseMaterials)
 }
 
 /**
- * The salvage materials get a row of their own between the runes and the gems.
+ * The salvage materials sort onto the UNSOCKETABLE consumables' page, the one after the runes and gems,
+ * white to dark grey along one row.
  *
- * User, 2026-08-20: "land them in a row of their own sorted left to right from white to darkgey
- * somewhere inbetween runes and bems."
- *
- * The column is derived from the item index the same way the code derives it, so this cannot agree
- * with the order drifting - and enum order IS white to dark grey, because the generator emits the
- * seven in the order the user listed both the colours and the salvage buttons.
+ * User, 2026-08-20: "land them in a row of their own sorted left to right from white to darkgey" -
+ * which they kept - and 2026-09-13: "divide socketable and unsocketable consumables in different tabs,
+ * one after the other. socketable consumables to be the first of the two." A salvage material cannot
+ * go in a socket, so it left the rune-and-gem page for the page after it.
  */
-TEST(OracoolAudit, SortGivesSalvageMaterialsTheirOwnRow)
+TEST(OracoolAudit, SortPutsSalvageOnThePageAfterTheSocketables)
 {
 	Stash.stashList.clear();
 	Stash.stashGrids.clear();
@@ -5053,7 +5052,7 @@ TEST(OracoolAudit, SortGivesSalvageMaterialsTheirOwnRow)
 		AutoPlaceItemInStash(*MyPlayer, item, true);
 	};
 
-	deposit(IDI_ORACOOL_HELM); // keeps page 0, so the materials land on page 1
+	deposit(IDI_ORACOOL_HELM); // keeps page 0, so the socketables land on page 1
 	deposit(IDI_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES);
 	deposit(IDI_ORACOOL_SALVAGE_WHITE_SCALES);
 	deposit(IDI_ORACOOL_RUNE_EL);
@@ -5061,11 +5060,12 @@ TEST(OracoolAudit, SortGivesSalvageMaterialsTheirOwnRow)
 
 	SortStash(*MyPlayer);
 
-	constexpr unsigned MaterialPage = 1;
-	const auto rowOf = [](_item_indexes idx) {
+	constexpr unsigned SocketablePage = 1;
+	constexpr unsigned ConsumablePage = 2;
+	const auto cellOf = [](unsigned page, _item_indexes idx) {
 		for (int x = 0; x < StashGridColumns; x++) {
 			for (int y = 0; y < StashGridRows; y++) {
-				const StashStruct::StashCell id = Stash.stashGrids[MaterialPage][x][y];
+				const StashStruct::StashCell id = Stash.stashGrids[page][x][y];
 				if (id != 0 && Stash.stashList[id - 1].IDidx == idx)
 					return Point { x, y };
 			}
@@ -5073,26 +5073,246 @@ TEST(OracoolAudit, SortGivesSalvageMaterialsTheirOwnRow)
 		return Point { -1, -1 };
 	};
 
-	const Point white = rowOf(IDI_ORACOOL_SALVAGE_WHITE_SCALES);
-	const Point grey = rowOf(IDI_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES);
-	ASSERT_NE(white.x, -1) << "White Scales were not placed";
-	ASSERT_NE(grey.x, -1) << "Ethereal Imbueities were not placed";
+	// The socketables keep their page.
+	EXPECT_NE(cellOf(SocketablePage, IDI_ORACOOL_RUNE_EL).x, -1) << "El left the socketables' page";
+	EXPECT_NE(cellOf(SocketablePage, IDI_ORACOOL_GEM_RUBY_PERFECT).x, -1) << "the ruby left the socketables' page";
+	EXPECT_EQ(cellOf(SocketablePage, IDI_ORACOOL_SALVAGE_WHITE_SCALES).x, -1) << "salvage is still on the socketables' page";
 
-	EXPECT_EQ(white.y, grey.y) << "the seven materials must share ONE row";
-	EXPECT_EQ(white.x, 0) << "white is the leftmost of the row";
-	EXPECT_EQ(grey.x, oracool::SalvageTierCount - 1) << "dark grey is the rightmost of the row";
-
-	// And that row genuinely sits between the two blocks.
-	const Point el = rowOf(IDI_ORACOOL_RUNE_EL);
-	const Point ruby = rowOf(IDI_ORACOOL_GEM_RUBY_PERFECT);
-	ASSERT_NE(el.x, -1);
-	ASSERT_NE(ruby.x, -1);
-	EXPECT_GT(white.y, el.y) << "the material row must be below the runes";
-	EXPECT_LT(white.y, ruby.y) << "the material row must be above the gems";
+	const Point white = cellOf(ConsumablePage, IDI_ORACOOL_SALVAGE_WHITE_SCALES);
+	const Point grey = cellOf(ConsumablePage, IDI_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES);
+	ASSERT_NE(white.x, -1) << "White Scales are not on the page after the socketables";
+	ASSERT_NE(grey.x, -1) << "Ethereal Imbueities are not on the page after the socketables";
+	EXPECT_EQ(white.y, grey.y) << "the materials must share ONE row";
+	EXPECT_LT(white.x, grey.x) << "white sorts left of dark grey";
 
 	Stash.stashList.clear();
 	Stash.stashGrids.clear();
 	Stash.SetPage(0);
+}
+
+/**
+ * An assembled runeword sorts onto a page of its own, after every quality tier.
+ *
+ * User, 2026-09-13: "when sorting the stash put assembled runewords in separate stash tab". Steel
+ * (Tir El) in a two-socket sword is the words' own test fixture; the plain sword beside it is the same
+ * base, so only the runeword can be what separates them.
+ */
+TEST(OracoolAudit, SortPutsRunewordsOnAPageOfTheirOwn)
+{
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+
+	int swordIdx = -1;
+	for (int i = 0; i <= IDI_LAST; i++) {
+		if (AllItemsList[i].itype == ItemType::Sword && AllItemsList[i].iRnd != IDROP_NEVER) {
+			swordIdx = static_cast<int>(i);
+			break;
+		}
+	}
+	ASSERT_NE(swordIdx, -1) << "no droppable sword base in the item table";
+
+	devilution::Item plain;
+	InitializeItem(plain, static_cast<_item_indexes>(swordIdx));
+	devilution::Item steel = plain;
+	steel._iSocketCount = 2;
+	steel._iSocketed[0] = IDI_ORACOOL_RUNE_TIR;
+	steel._iSocketed[1] = IDI_ORACOOL_RUNE_EL;
+	ASSERT_NE(oracool::GetActiveRuneword(steel), nullptr) << "the fixture is not a runeword";
+
+	ASSERT_TRUE(AutoPlaceItemInStash(*MyPlayer, steel, true));
+	ASSERT_TRUE(AutoPlaceItemInStash(*MyPlayer, plain, true));
+
+	SortStash(*MyPlayer);
+
+	const auto pageHolding = [](bool wantRuneword) {
+		for (unsigned page = 0; page < 4; page++) {
+			for (int x = 0; x < StashGridColumns; x++) {
+				for (int y = 0; y < StashGridRows; y++) {
+					const StashStruct::StashCell id = Stash.stashGrids[page][x][y];
+					if (id != 0 && (oracool::GetActiveRuneword(Stash.stashList[id - 1]) != nullptr) == wantRuneword)
+						return static_cast<int>(page);
+				}
+			}
+		}
+		return -1;
+	};
+	EXPECT_EQ(pageHolding(false), 0) << "the plain sword should keep page 0";
+	EXPECT_EQ(pageHolding(true), 1) << "the runeword should have the next page to itself";
+
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+}
+
+/**
+ * Consumables that outgrow their page carry on on the next EMPTY page, never among other kinds.
+ *
+ * User, 2026-09-13: "when a consumables stash tab is full move other consumables to another separate tab
+ * of their own, dont place them in tabs with different types of items." Before, the overflow fell to the
+ * ordinary first-fit scan, which begins at page 0 - the gear's page.
+ */
+TEST(OracoolAudit, SortOverflowsConsumablesOntoAPageOfTheirOwn)
+{
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+
+	devilution::Item helm;
+	InitializeItem(helm, IDI_ORACOOL_HELM);
+	ASSERT_TRUE(AutoPlaceItemInStash(*MyPlayer, helm, true));
+
+	// More full stacks than one page has cells, so the consumables need a second page. Full stacks do
+	// not merge, so each keeps a cell of its own.
+	const int stacks = StashGridColumns * StashGridRows + 10;
+	devilution::Item potion;
+	InitializeItem(potion, IDI_HEAL);
+	potion.setStackCount(devilution::Item::MaxStackCount);
+	for (int i = 0; i < stacks; i++)
+		ASSERT_TRUE(AutoPlaceItemInStash(*MyPlayer, potion, true)) << "deposit " << i;
+
+	SortStash(*MyPlayer);
+
+	int helmsWithPotions = 0;
+	int potionsOnHelmPage = 0;
+	int potionsPlaced = 0;
+	std::set<unsigned> potionPages;
+	for (unsigned page = 0; page < 8; page++) {
+		bool hasHelm = false;
+		int potions = 0;
+		for (int x = 0; x < StashGridColumns; x++) {
+			for (int y = 0; y < StashGridRows; y++) {
+				const StashStruct::StashCell id = Stash.stashGrids[page][x][y];
+				if (id == 0)
+					continue;
+				if (Stash.stashList[id - 1]._itype == ItemType::Helm)
+					hasHelm = true;
+				else
+					potions++;
+			}
+		}
+		if (hasHelm && potions > 0)
+			helmsWithPotions++;
+		if (hasHelm)
+			potionsOnHelmPage += potions;
+		if (potions > 0)
+			potionPages.insert(page);
+		potionsPlaced += potions;
+	}
+	EXPECT_EQ(helmsWithPotions, 0) << "a potion landed on the gear's page";
+	EXPECT_EQ(potionsOnHelmPage, 0);
+	EXPECT_EQ(potionsPlaced, stacks) << "a stack went missing";
+	EXPECT_EQ(potionPages, (std::set<unsigned> { 1, 2 })) << "the potions should fill page 1 and carry on to page 2";
+
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+}
+
+/**
+ * Every consumable wears a colour by its function; none is left in the plain white.
+ *
+ * User, 2026-09-13: "use color font for all consumables which still use basic white font based on their
+ * function." Found by misc id in the item table rather than by name, so a renamed scroll still counts.
+ */
+TEST(OracoolAudit, ConsumableNamesAreColouredByFunction)
+{
+	const auto firstWith = [](item_misc_id misc) {
+		for (int i = 0; i <= IDI_LAST; i++) {
+			if (AllItemsList[i].iMiscId == misc)
+				return i;
+		}
+		return -1;
+	};
+	const auto colourOf = [](int idx) {
+		devilution::Item item;
+		InitializeItem(item, static_cast<_item_indexes>(idx));
+		return item.getTextColor();
+	};
+	const struct {
+		item_misc_id misc;
+		UiFlags colour;
+		const char *what;
+	} cases[] = {
+		{ IMISC_SCROLL, UiFlags::ColorScroll, "a scroll casts a spell" },
+		{ IMISC_SCROLLT, UiFlags::ColorScroll, "a targeted scroll casts a spell" },
+		{ IMISC_ELIXSTR, UiFlags::ColorElixir, "an elixir raises a stat for good" },
+		{ IMISC_ELIXVIT, UiFlags::ColorElixir, "an elixir raises a stat for good" },
+		{ IMISC_OILSHARP, UiFlags::ColorOil, "an oil improves gear" },
+		{ IMISC_RUNEF, UiFlags::ColorTrap, "a trap rune lays a trap" },
+		{ IMISC_HEAL, UiFlags::ColorBrightRed3, "healing stays red" },
+		{ IMISC_MANA, UiFlags::ColorBrightBlue3, "mana stays blue" },
+		{ IMISC_BOOK, UiFlags::ColorGold6, "books stay gold" },
+	};
+	for (const auto &c : cases) {
+		const int idx = firstWith(c.misc);
+		if (idx < 0)
+			continue; // a kind this item table does not carry
+		EXPECT_EQ(colourOf(idx), c.colour) << AllItemsList[idx].iName << ": " << c.what;
+	}
+	EXPECT_EQ(colourOf(IDI_ORACOOL_RUNE_EL), UiFlags::ColorOrange7) << "runes go in sockets";
+	EXPECT_EQ(colourOf(IDI_ORACOOL_GEM_RUBY_PERFECT), UiFlags::ColorOrange7) << "gems go in sockets, as runes do";
+	EXPECT_EQ(colourOf(IDI_ORACOOL_SALVAGE_WHITE_SCALES), UiFlags::ColorSalvage) << "salvage is a crafting reagent";
+
+	// And the sweep the request is about: no stackable consumable is left white.
+	for (int i = 0; i <= IDI_LAST; i++) {
+		if (AllItemsList[i].iRnd == IDROP_NEVER && !IsOracoolSalvageIdx(i))
+			continue;
+		devilution::Item item;
+		InitializeItem(item, static_cast<_item_indexes>(i));
+		if (!item.isStackableConsumable())
+			continue;
+		EXPECT_NE(item.getTextColor(), UiFlags::ColorWhite) << AllItemsList[i].iName << " is still plain white";
+	}
+}
+
+/**
+ * A drop from the fork's own hooks tumbles when it lands, and one saved before that was true is
+ * repaired when its level loads.
+ *
+ * User, 2026-09-13: "i never encounter drop of set items but many times if i revisit area i have
+ * cleared of mobs i find a number of set items", then "when i revisit an area ... they appear
+ * unproportionaly big and away from their label" - charms, orbs and set items. The named-set, socketable
+ * and signet hooks built their item without SetupAllItems, so it never reached SetupItem and never got
+ * its tumble: no sprites (DrawItem skipped it, no label, not clickable) until a reload handed it sprites
+ * with a frame count of 0 - frame 0, the tumble's first, mid-air frame.
+ */
+TEST(OracoolAudit, OracoolDropsTumbleAndReloadRepairsOnesThatDidNot)
+{
+	// What a hook left on the floor before the fix, as the level save writes it and reads it back:
+	// no animation at all.
+	devilution::Item &stale = Items[0];
+	InitializeItem(stale, IDI_ORACOOL_CHARM_VIGOR);
+	stale.AnimInfo = {};
+	stale._iSelFlag = 0;
+	stale._iAnimFlag = false;
+
+	EXPECT_TRUE(RepairFloorItemAnimation(stale)) << "a drop with no tumble was not recognised";
+	EXPECT_EQ(stale.AnimInfo.numberOfFrames, 13) << "every tumble in the game is 13 frames";
+	EXPECT_EQ(stale.AnimInfo.currentFrame, stale.AnimInfo.numberOfFrames - 1) << "a reloaded drop is settled, on its last frame";
+	EXPECT_FALSE(stale._iAnimFlag);
+	EXPECT_EQ(stale._iSelFlag, 1) << "a repaired drop must be clickable";
+	EXPECT_FALSE(RepairFloorItemAnimation(stale)) << "a settled drop is left alone";
+
+	// A frame past the end is as wrong as no frames at all.
+	stale.AnimInfo.currentFrame = 40;
+	EXPECT_TRUE(RepairFloorItemAnimation(stale));
+	EXPECT_EQ(stale.AnimInfo.currentFrame, 12);
+
+	// And the tumble the hooks' placement starts (FinishOracoolDrop = GetSuperItemSpace + this; the tile
+	// search needs a loaded level, which a headless test does not have).
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Item &fresh = Items[1];
+	InitializeItem(fresh, IDI_ORACOOL_SIGNET_LEARNING);
+	fresh.AnimInfo = {};
+	MyPlayer->pLvlLoad = 0;
+	StartDropTumble(fresh);
+	EXPECT_EQ(fresh.AnimInfo.numberOfFrames, 13) << "a hook's drop landed without its tumble";
+	EXPECT_TRUE(fresh._iAnimFlag) << "a drop made in play should play its tumble";
+
+	Items[0].clear();
+	Items[1].clear();
 }
 
 /**
@@ -11709,7 +11929,9 @@ TEST(OracoolAudit, UiFlagsCarryColourAsATwelveBitField)
 		UiFlags::ColorBlue, UiFlags::ColorOrange, UiFlags::ColorButtonface, UiFlags::ColorButtonpushed,
 		UiFlags::ColorUiYellow, UiFlags::ColorUiYellowDark, UiFlags::ColorOracoolGreen, UiFlags::ColorGray5,
 		UiFlags::ColorBeige2, UiFlags::ColorYellow3, UiFlags::ColorBrightRed3, UiFlags::ColorBrightBlue3,
-		UiFlags::ColorGold6, UiFlags::ColorOrange7, UiFlags::ColorGray7
+		UiFlags::ColorGold6, UiFlags::ColorOrange7, UiFlags::ColorGray7, UiFlags::ColorMagicDamage,
+		UiFlags::ColorScroll, UiFlags::ColorElixir, UiFlags::ColorOil, UiFlags::ColorTrap, UiFlags::ColorSalvage,
+		UiFlags::ColorMap
 	};
 	std::set<unsigned> seen;
 	for (const UiFlags color : all) {

@@ -148,6 +148,78 @@ TEST_F(StoresTest,SmithConsumablesBuy_AfterClearingSlotWithStaleMatchingData_Ite
 	EXPECT_TRUE(foundInInv || foundOnBelt) << "Purchased Potion of Healing is missing from both inventory and belt";
 }
 
+// Ctrl+right click buys a STACK of a restocking potion (user, 2026-09-13: "purchase a stack of up to
+// 99 of these, limited by amount of available money, or free slots in the belt/inv grid").
+TEST_F(StoresTest,CtrlRightClickBuysAPotionStackLimitedByGoldAndCappedAt99)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Warrior);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+	const auto clearCarried = [] {
+		for (int i = 0; i < InventoryGridCells; i++) {
+			MyPlayer->InvList[i].clear();
+			MyPlayer->InvGrid[i] = 0;
+		}
+		MyPlayer->_pNumInv = 0;
+		for (auto &beltItem : MyPlayer->SpdList)
+			beltItem.clear();
+	};
+	const auto healingCarried = [] {
+		int units = 0;
+		for (int i = 0; i < MyPlayer->_pNumInv; i++) {
+			if (MyPlayer->InvList[i]._iMiscId == IMISC_HEAL)
+				units += MyPlayer->InvList[i].stackCount();
+		}
+		for (auto &beltItem : MyPlayer->SpdList) {
+			if (!beltItem.isEmpty() && beltItem._iMiscId == IMISC_HEAL)
+				units += beltItem.stackCount();
+		}
+		return units;
+	};
+	clearCarried();
+
+	InitStores();
+	for (devilution::Item &item : witchitem)
+		item.clear();
+	for (devilution::Item &item : healitem)
+		item.clear();
+	StartStore(TalkID::SmithConsumables);
+
+	// Entry 0 is Pepin's restocking Potion of Healing (see the test above).
+	const std::vector<oracool::ShopSlot> stock = GetShopStock(TalkID::SmithConsumables);
+	ASSERT_FALSE(stock.empty());
+	ASSERT_EQ(stock[0].item->_iMiscId, IMISC_HEAL);
+	const int price = stock[0].price;
+	ASSERT_GT(price, 0);
+
+	// Gold for exactly thirty: thirty, and every coin of it spent.
+	Stash.gold = 0;
+	MyPlayer->_pGold = price * 30;
+	EXPECT_EQ(ShopBuyPotionStack(TalkID::SmithConsumables, stock[0].index), 30);
+	EXPECT_EQ(healingCarried(), 30) << "the stack did not arrive whole";
+	EXPECT_EQ(TotalPlayerGold(), 0u) << "thirty potions should cost thirty prices";
+
+	// Gold for far more: one stack, capped at 99.
+	clearCarried();
+	MyPlayer->_pGold = price * 500;
+	EXPECT_EQ(ShopBuyPotionStack(TalkID::SmithConsumables, stock[0].index), devilution::Item::MaxStackCount);
+	EXPECT_EQ(healingCarried(), devilution::Item::MaxStackCount);
+	EXPECT_EQ(TotalPlayerGold(), static_cast<uint32_t>(price * (500 - devilution::Item::MaxStackCount)));
+
+	// Not enough for one: the gesture declines, and the ordinary purchase is left to say so.
+	clearCarried();
+	MyPlayer->_pGold = price - 1;
+	EXPECT_EQ(ShopBuyPotionStack(TalkID::SmithConsumables, stock[0].index), -1);
+	EXPECT_EQ(healingCarried(), 0);
+
+	// A one-off entry is never multiplied: Adria's own stock past her three pinned slots.
+	InitializeItem(witchitem[5], IDI_MANA);
+	MyPlayer->_pGold = 100000;
+	EXPECT_EQ(ShopBuyPotionStack(TalkID::WitchBuy, 5), -1) << "a potion that sells out was bought as a stack";
+}
+
 // Oracool Tabbed Inventory: Griswold's Sell Items list previously only ever scanned InvList and
 // the belt, so an item moved into one of the 9 extra tabs was invisible to him - it never
 // appeared in the sell list at all, even though it was a perfectly ordinary sellable item.

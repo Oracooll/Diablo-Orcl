@@ -562,7 +562,7 @@ void SetSpellTransRed()
 }
 
 
-void DrawSmallSpellIconCoveringClipped(const Surface &out, Rectangle cell)
+void DrawSmallSpellIconCoveringClipped(const Surface &out, Rectangle cell, SpellID spell)
 {
 	if (!SmallSpellIcons)
 		return;
@@ -586,7 +586,7 @@ void DrawSmallSpellIconCoveringClipped(const Surface &out, Rectangle cell)
 		shrunkPercent = percent;
 	}
 
-	const ClxSprite plate = (*shrunk)[SpellITbl[static_cast<int16_t>(SpellID::Null)]];
+	const ClxSprite plate = (*shrunk)[SpellITbl[static_cast<int16_t>(spell)]];
 	const Surface clipped = out.subregion(cell.position.x, cell.position.y, cell.size.width, cell.size.height);
 	// Centred on the overhang, which is at most one pixel per axis.
 	const Point centred { (cell.size.width - static_cast<int>(plate.width())) / 2,

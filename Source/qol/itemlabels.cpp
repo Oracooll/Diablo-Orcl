@@ -141,9 +141,15 @@ void AddItemToLabelQueue(int id, Point position)
 	// would let the red digits overhang the plate and collide with the next label unseen.
 	int nameWidth = textWidth + suffixWidth;
 	nameWidth += MarginX * 2;
-	int index = GetItemDropAnimIndex(item._iCurs);
+	// Oracool: keyed by the tumble the item actually wears, not by its cursor's. Since the worn-slot and
+	// exotic-base tumbles (2026-09-12) the two differ, and whichever item measured a cursor's slot first
+	// set the label offset for every item sharing it. Measured on a frame that exists, clamped: a drop
+	// whose animation was never started once poisoned the cache for the rest of the session (2026-09-13).
+	int index = GetItemDropAnimIndexFor(item);
 	if (!labelCenterOffsets[index]) {
-		std::pair<int, int> itemBounds = ClxMeasureSolidHorizontalBounds((*item.AnimInfo.sprites)[item.AnimInfo.currentFrame]);
+		const int lastFrame = static_cast<int>(ClxSpriteList { *item.AnimInfo.sprites }.numSprites()) - 1;
+		const int frame = std::clamp(static_cast<int>(item.AnimInfo.currentFrame), 0, std::max(lastFrame, 0));
+		std::pair<int, int> itemBounds = ClxMeasureSolidHorizontalBounds((*item.AnimInfo.sprites)[frame]);
 		labelCenterOffsets[index].emplace((itemBounds.first + itemBounds.second) / 2);
 	}
 

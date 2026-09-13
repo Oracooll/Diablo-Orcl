@@ -527,6 +527,15 @@ Rectangle SkillPointsNumberRect(Point origin);
 constexpr Size PointsIconSize { 64, 64 };
 
 /**
+ * @brief A timed spell's icon on the countdown column's blue square (spell_timers.cpp), filling @p cell.
+ *
+ * A spell this fork added draws its tree glyph for @p heroClass over the square the caller filled; a
+ * legacy spell (Infravision, Etherealize, Search, Rage) draws its own engine icon, shrunk to the
+ * cell, on the plate in the engine's blue spell tint - its blue backing is the plate itself.
+ */
+void DrawTimedSpellIcon(const Surface &out, Rectangle cell, HeroClass heroClass, SpellID spell);
+
+/**
  * @brief How many frames @p heroClass's skill-tree strip actually holds, or 0 if it did not load.
  *
  * Exported so a test can compare it against the class's real row count, because **nothing did**.

@@ -1897,6 +1897,30 @@ void ClearRfa12ActiveBuffs(Player &player)
 		CalcPlrInv(player, false);
 }
 
+int Rfa12BuffTicks(const Player &player, SpellID spell)
+{
+	// The casts that StartBuff, and the buff each starts - CastOnce's cases, read the other way round.
+	Buff buff;
+	switch (spell) {
+	case SpellID::RallyingCry: buff = Buff::Rally; break;
+	case SpellID::IronWill: buff = Buff::IronWill; break;
+	case SpellID::Bloodcall: buff = Buff::Bloodcall; break;
+	case SpellID::StaticCharge: buff = Buff::StaticCharge; break;
+	case SpellID::Conduit: buff = Buff::Conduit; break;
+	case SpellID::Immolate: buff = Buff::Immolate; break;
+	case SpellID::ChordOfWarding: buff = Buff::Chord; break;
+	case SpellID::Feedback: buff = Buff::Feedback; break;
+	case SpellID::MusicOfTheSpheres: buff = Buff::Spheres; break;
+	case SpellID::Saga: buff = Buff::Saga; break;
+	case SpellID::MantraOfClarity: buff = Buff::Clarity; break;
+	case SpellID::MantraOfEvasion: buff = Buff::Evasion; break;
+	case SpellID::MantraOfRetribution: buff = Buff::Retribution; break;
+	case SpellID::AstralProjection: buff = Buff::Astral; break;
+	default: return 0;
+	}
+	return std::max(StateOf(player).ticks[static_cast<size_t>(buff)], 0);
+}
+
 int Rfa12FrostbitePercent(const Monster &monster)
 {
 	return FrostbitePercentOn(monster);

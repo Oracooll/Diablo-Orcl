@@ -868,14 +868,38 @@ struct Item {
 				return UiFlags::ColorBrightBlue3;
 			case IMISC_REJUV:
 			case IMISC_FULLREJUV:
+			case IMISC_ARENAPOT: // restores everything, as a rejuvenation does
 				return UiFlags::ColorYellow3;
 			case IMISC_BOOK:
+			case IMISC_ORACOOL_SIGNET: // teaches, as a book does
 				return UiFlags::ColorGold6;
+			// The rest of the consumables by FUNCTION (user, 2026-09-13: "use color font for all
+			// consumables which still use basic white font based on their function").
+			case IMISC_SCROLL:
+			case IMISC_SCROLLT:
+				return UiFlags::ColorScroll;
+			case IMISC_ELIXSTR:
+			case IMISC_ELIXMAG:
+			case IMISC_ELIXDEX:
+			case IMISC_ELIXVIT:
+			case IMISC_SPECELIX:
+				return UiFlags::ColorElixir;
+			case IMISC_ORACOOL_MAP:
+				return UiFlags::ColorMap;
 			default:
 				break;
 			}
-			if (IsOracoolRuneIdx(IDidx))
+			// An oil and a Mystic Orb do the same thing to a piece of gear - improve it, for good - so
+			// they read the same.
+			if ((_iMiscId > IMISC_OILFIRST && _iMiscId < IMISC_OILLAST) || IsOracoolOrbIdx(IDidx))
+				return UiFlags::ColorOil;
+			if (_iMiscId > IMISC_RUNEFIRST && _iMiscId < IMISC_RUNELAST)
+				return UiFlags::ColorTrap;
+			// Everything that goes in a socket wears the runes' orange: the function is the socket.
+			if (IsOracoolRuneIdx(IDidx) || IsOracoolGemIdx(IDidx) || IsOracoolJewelIdx(IDidx))
 				return UiFlags::ColorOrange7;
+			if (IsOracoolSalvageIdx(IDidx))
+				return UiFlags::ColorSalvage;
 		}
 		switch (_iMagical) {
 		case ITEM_QUALITY_MAGIC:
@@ -1135,6 +1159,25 @@ void DeleteItem(int i);
 void ProcessItems();
 void FreeItemGFX();
 void GetItemFrm(Item &item);
+
+/**
+ * @brief Oracool: places a freshly built drop at the free tile nearest @p position AND starts its tumble.
+ *
+ * For the fork's drop hooks, which build items without SetupAllItems and so never reach SetupItem.
+ * Placing without the tumble leaves an item with no sprites - invisible, unlabelled and unclickable
+ * until the level is reloaded (2026-09-13). Every hook that allocates an item goes through this.
+ */
+void FinishOracoolDrop(int ii, Point position);
+
+/** @brief The tumble half of FinishOracoolDrop: gives @p item its drop animation, played in the level and settled while it loads. */
+void StartDropTumble(Item &item);
+
+/**
+ * @brief Oracool: settles a floor item whose saved animation is not its tumble's - a frame count or
+ * frame that does not exist. True if it had to. Called on every item a level loads, which is what
+ * repairs the drops already lying in saves from before FinishOracoolDrop.
+ */
+bool RepairFloorItemAnimation(Item &item);
 
 /**
  * @brief Oracool: the drop animation an item of @p animIndex tumbles to the ground with.

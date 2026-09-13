@@ -139,6 +139,22 @@ enum class UiFlags : uint64_t {
 	ColorGray7             = 28ULL << UiFlagsColorShift,
 	/** @brief Magic damage on the character sheet: RGB 208,98,98, brightened from 104,49,49 (user, 2026-09-11). A value, no file. */
 	ColorMagicDamage       = 29ULL << UiFlagsColorShift,
+	/**
+	 * @brief The consumables that had no colour, one per FUNCTION (user, 2026-09-13: "use color font for
+	 * all consumables which still use basic white font based on their function"). Values, no files.
+	 */
+	/** @brief Scrolls - cast a spell once: cyan 108,216,232. */
+	ColorScroll            = 30ULL << UiFlagsColorShift,
+	/** @brief Elixirs - a stat raised for good: violet 180,140,255. */
+	ColorElixir            = 31ULL << UiFlagsColorShift,
+	/** @brief Oils - improve a piece of gear: steel 168,188,208. */
+	ColorOil               = 32ULL << UiFlagsColorShift,
+	/** @brief Hellfire's trap runes - a trap laid on the floor: red-orange 255,122,60. */
+	ColorTrap              = 33ULL << UiFlagsColorShift,
+	/** @brief Salvage materials - crafting reagents: bronze 200,160,120. */
+	ColorSalvage           = 34ULL << UiFlagsColorShift,
+	/** @brief Sealed Maps - open an encounter: teal 111,216,168. */
+	ColorMap               = 35ULL << UiFlagsColorShift,
 
 	// Bits 40-47 fell free on 2026-09-07 when the colours moved into the field at 48-59; 60-63 are
 	// free too. A NEW COLOUR is a new index in the field, not a bit - see ColorMask.

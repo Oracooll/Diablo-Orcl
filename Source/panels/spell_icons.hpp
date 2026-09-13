@@ -87,9 +87,10 @@ void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spel
 
 /**
  * @brief The blank plate scaled to COVER @p cell and clipped to it - the shrinking twin of the two
- * above, for cells smaller than the plate (the belt). Uses the current translation table.
+ * above, for cells smaller than the plate (the belt). Uses the current translation table. With a
+ * @p spell, that spell's icon rather than the blank plate (the countdown column's 28px squares).
  */
-void DrawSmallSpellIconCoveringClipped(const Surface &out, Rectangle cell);
+void DrawSmallSpellIconCoveringClipped(const Surface &out, Rectangle cell, SpellID spell = SpellID::Null);
 
 /**
  * @brief The 56px sheet's frame centred in @p cell with no resampling - for the Abilities window,
