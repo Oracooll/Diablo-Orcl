@@ -5354,6 +5354,70 @@ TEST(OracoolAudit, OracoolDropsTumbleAndReloadRepairsOnesThatDidNot)
 }
 
 /**
+ * No item tumbles to the floor as leather unless it IS light armour.
+ *
+ * The 2026-09-13 ground audit built every floor-reachable item and found 228 - the fork's tier helms,
+ * armours and shields, and uniques and set pieces on weapons, helms, armour, shields and jewellery -
+ * landing on larmor, because their own icon ids are past what the cursor table can place. User: "do the
+ * mapping fix for the 202 items" (and the 26 amulets ride the ring until RfA-14's sheet arrives). This is
+ * that audit, kept as the regression: the same three walks, every item checked.
+ */
+TEST(OracoolAudit, NoDroppableItemTumblesAsLeatherUnlessItIsLightArmour)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	Players[0] = {};
+	Players[0]._pLevel = 50;
+	gbIsHellfire = true;
+	gbIsMultiplayer = false;
+
+	const int leather = [] {
+		for (int i = 0; i < ITEMTYPES; i++) {
+			if (std::string_view(GetItemDropName(i)) == "larmor")
+				return i;
+		}
+		return -1;
+	}();
+	ASSERT_NE(leather, -1);
+
+	int checked = 0;
+	const auto check = [&](const char *kind, const devilution::Item &item) {
+		checked++;
+		if (item._itype == ItemType::LightArmor)
+			return;
+		EXPECT_NE(GetItemDropAnimIndexFor(item), leather)
+		    << kind << " '" << item._iIName << "' (type " << static_cast<int>(item._itype) << ", icon "
+		    << item._iCurs << ") tumbles as leather armour";
+	};
+	for (int i = 0; i <= IDI_LAST; i++) {
+		if (AllItemsList[i].iRnd == IDROP_NEVER)
+			continue;
+		devilution::Item item;
+		InitializeItem(item, static_cast<_item_indexes>(i));
+		if (!item.isEmpty())
+			check("base", item);
+	}
+	for (size_t u = 0; u < UniqueItemCount; u++) {
+		devilution::Item item;
+		if (CreateUniqueVendorItem(Players[0], item, static_cast<_unique_items>(u)))
+			check("unique", item);
+	}
+	for (const oracool::ItemSetDefinition &set : oracool::ItemSets) {
+		for (int i = 0; i < set.itemCount; i++) {
+			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
+			const int base = oracool::BaseItemForSetPiece(def);
+			if (base < 0)
+				continue;
+			devilution::Item item;
+			InitializeItem(item, static_cast<_item_indexes>(base));
+			oracool::MakeSetItem(item, def);
+			check("set piece", item);
+		}
+	}
+	EXPECT_GT(checked, 600) << "the walk reached too few items to mean anything";
+}
+
+/**
  * The Sanctified Order: one title per hardest difficulty Diablo has fallen on.
  *
  * User, 2026-09-13: "go with Sanctified Order, but switch wanderer with adventurer, and exalted with

@@ -317,6 +317,18 @@ int8_t GetItemDropAnimIndex(uint16_t curs)
  * Falls through to the cursor-id function for everything it does not recognise, which is every
  * vanilla item and all eight socketable families.
  */
+// Vanilla's own sheets, by their position in ItemDropNames - the shapes the fork's icons are re-keyed to
+// below. Mace (6) and shield (7) are declared in items.h, where a missile already borrows them.
+constexpr int8_t MediumArmorDropAnimIndex = 0; // armor2 - 15 frames, the one target that is not 13
+constexpr int8_t AxeDropAnimIndex = 1;         // axe
+constexpr int8_t BowDropAnimIndex = 3;         // bow
+constexpr int8_t HelmDropAnimIndex = 5;        // helmut
+constexpr int8_t SwordDropAnimIndex = 8;       // swrdflip
+constexpr int8_t StaffDropAnimIndex = 11;      // staff
+constexpr int8_t RingDropAnimIndex = 12;       // ring
+constexpr int8_t OracoolFallbackDropAnim = 14; // larmor - GetItemDropAnimIndex's answer for an unplaced fork icon
+constexpr int8_t HeavyArmorDropAnimIndex = 17; // fplatear
+
 int8_t GetItemDropAnimIndexFor(const Item &item)
 {
 	// NB: the calls out of this function go to the CURSOR-ID form, never back to this one. A bulk
@@ -373,7 +385,45 @@ int8_t GetItemDropAnimIndexFor(const Item &item)
 		}
 	}
 
-	return GetItemDropAnimIndex(item._iCurs);
+	// THE ITEM'S TYPE, for everything carrying its own Oracool icon that the cursor-id table cannot
+	// place (2026-09-13, the ground-tumble audit). The fork's tier helms, armours and shields, and every
+	// unique and set piece built on a weapon, helm, armour, shield or piece of jewellery, carry an icon
+	// id past ICURS_ORACOOL_FIRST, so GetItemDropAnimIndex falls back to larmor for them - 228 items were
+	// flopping to the floor as leather. Vanilla already has the right sheet for every one of those
+	// shapes; this points them at it. RfA-08 promised this mapping and it was never written.
+	//
+	// Only the FALLBACK is re-keyed: the eight socketable families answer by cursor range above larmor,
+	// and a light armour keeps larmor because larmor IS its shape.
+	const int8_t byCursor = GetItemDropAnimIndex(item._iCurs);
+	if (item._iCurs < ICURS_ORACOOL_FIRST || byCursor != OracoolFallbackDropAnim)
+		return byCursor;
+	switch (item._itype) {
+	case ItemType::Sword:
+		return SwordDropAnimIndex;
+	case ItemType::Axe:
+		return AxeDropAnimIndex;
+	case ItemType::Mace:
+		return MaceDropAnimIndex;
+	case ItemType::Bow:
+		return BowDropAnimIndex;
+	case ItemType::Staff:
+		return StaffDropAnimIndex;
+	case ItemType::Helm:
+		return HelmDropAnimIndex;
+	case ItemType::MediumArmor:
+		return MediumArmorDropAnimIndex;
+	case ItemType::HeavyArmor:
+		return HeavyArmorDropAnimIndex;
+	case ItemType::Shield:
+		return ShieldDropAnimIndex;
+	// Amulets as well as rings: an amulet has no sheet of its own yet (RfA-14 requests one), and the ring
+	// is what vanilla's own amulets have always tumbled as - a better stand-in than a piece of leather.
+	case ItemType::Ring:
+	case ItemType::Amulet:
+		return RingDropAnimIndex;
+	default:
+		return byCursor;
+	}
 }
 
 namespace {
