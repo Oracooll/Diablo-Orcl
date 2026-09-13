@@ -79,11 +79,33 @@ The results are published as the **Orcl Drop Ladder** artifact.
   exists for better rolls".
 - Uniques: vanilla's 2% window (16% for a unique monster), the 1-in-10 cut from v1.11.125, and once per game each.
 
-## Results (Hell/Hell, floor 16, ordinary monster)
+## Results
 
-| | Before | After |
-|---|---|---|
-| Rare per kill | 0.57% | _see artifact_ |
+Rare drops per ordinary kill, measured over 24,000 kills per place with each floor's own monster types and the
+user's diablo.ini (Rare 6, Buffed 3, Primal 1):
+
+| Floor 16 | Before | After | One rare every (after) |
+|---|---|---|---|
+| Normal (alvl 16) | 0.67% | 0.21% | ~470 kills |
+| Nightmare (alvl 32) | 0.75% | 0.76% | ~130 kills |
+| Hell (alvl 48) | 0.71% | 1.45% | ~70 kills |
+| Torment (alvl 64) | 0.67% | 1.71% | ~60 kills |
+
+**Before, every difficulty paid the same.** The rate rose only with the monster types' authored levels.
+
+**After, it climbs with the ladder:**
+
+- **Floor 1:** 0.05% on Normal, 0.28% on Nightmare, 0.68% on Hell, 1.45% on Torment.
+- **Buffed uniques and primals** climb the same way: Hell floor 16 buffed 0.04% → 0.14%, Torment floor 8 primal
+  0% → 0.03%.
+- **The Nest and Crypt** now pay the Caves' and Hell's rungs. On Hell floor 20 that is 0.28% → 1.35%.
+
+**Normal's deeper floors pay less than before.** Their monsters were authored at 20–30, above the area level
+(13–16) those floors sit on. That is the ladder working as the wiki describes it: the generosity sits in the harder
+difficulties, not in Normal's last floors. It is still worth the user's eye.
+
+The sample counts are small at the top tiers (a handful of primals and uniques per place), so those two columns are
+indicative rather than precise. The full table and chart are in the **Orcl Drop Ladder** artifact.
 
 ## Tests
 
