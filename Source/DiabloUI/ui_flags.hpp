@@ -155,6 +155,17 @@ enum class UiFlags : uint64_t {
 	ColorSalvage           = 34ULL << UiFlagsColorShift,
 	/** @brief Sealed Maps - open an encounter: teal 111,216,168. */
 	ColorMap               = 35ULL << UiFlagsColorShift,
+	/**
+	 * @brief The hero titles' three pale colours as VALUES (2026-09-13). White, Blue and Whitegold are
+	 * vanilla files built for a LEVEL palette, and the hero select screen draws on the menu palette,
+	 * where those files land on the wrong entries - the titles read off-colour there and right in play.
+	 */
+	/** @brief Adventurer: white 244,244,244. */
+	ColorTitleWhite        = 36ULL << UiFlagsColorShift,
+	/** @brief Slayer: blue 140,156,255. */
+	ColorTitleBlue         = 37ULL << UiFlagsColorShift,
+	/** @brief Conqueror: white gold 242,222,168. */
+	ColorTitleWhitegold    = 38ULL << UiFlagsColorShift,
 
 	// Bits 40-47 fell free on 2026-09-07 when the colours moved into the field at 48-59; 60-63 are
 	// free too. A NEW COLOUR is a new index in the field, not a bit - see ColorMask.

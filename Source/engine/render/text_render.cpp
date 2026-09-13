@@ -83,7 +83,7 @@ constexpr std::array<int, 10> LineHeights = { 12, 26, 38, 42, 50, 22, 11, 10, 9,
 constexpr int SmallFontTallLineHeight = 16;
 std::array<int, 10> BaseLineOffset = { -3, -2, -3, -6, -7, 3, -3, -3, -2, -2 };
 
-std::array<const char *, 43> ColorTranslations = {
+std::array<const char *, 46> ColorTranslations = {
 	"fonts\\goldui.trn",
 	"fonts\\grayui.trn",
 	"fonts\\golduis.trn",
@@ -151,6 +151,9 @@ std::array<const char *, 43> ColorTranslations = {
 	nullptr, // trap rune: a value (2026-09-13)
 	nullptr, // salvage: a value (2026-09-13)
 	nullptr, // map: a value (2026-09-13)
+	nullptr, // title white: a value (2026-09-13)
+	nullptr, // title blue: a value (2026-09-13)
+	nullptr, // title white gold: a value (2026-09-13)
 };
 
 std::array<std::optional<std::array<uint8_t, 256>>, ColorTranslations.size()> ColorTranslationsData;
@@ -265,6 +268,16 @@ constexpr RgbDefinedColor RgbDefinedColors[] = {
 	    { 0xC8A078, 0xC8A078, 0xC8A078, 0xB7926E, 0xA98766, 0x9E7E5F, 0x927558, 0x856A50, 0x775F48, 0x6C5641, 0x5E4B39, 0x514130, 0x45372A, 0x362B20, 0x231C15, 0x110E0A } },
 	{ ColorMap,
 	    { 0x6FD8A8, 0x6FD8A8, 0x6FD8A8, 0x65C59A, 0x5EB78E, 0x57AA84, 0x519E7B, 0x4A8F70, 0x428164, 0x3C745A, 0x34664F, 0x2D5744, 0x264B3A, 0x1E3A2D, 0x13251D, 0x0A130F } },
+	// The hero titles' pale three (2026-09-13, "colors of hero titles in hero select screen are not ok").
+	// The title had worn ColorWhite, ColorBlue and ColorWhitegold - vanilla files that read right only
+	// through a level palette, so on the hero select screen's menu palette they drew off-colour. The same
+	// three hues as values, on the consumables' recipe, read alike on both screens.
+	{ ColorTitleWhite,
+	    { 0xF4F4F4, 0xF4F4F4, 0xF4F4F4, 0xE0E0E0, 0xCECECE, 0xC0C0C0, 0xB2B2B2, 0xA3A3A3, 0x919191, 0x838383, 0x737373, 0x636363, 0x545454, 0x424242, 0x2B2B2B, 0x141414 } },
+	{ ColorTitleBlue,
+	    { 0x8C9CFF, 0x8C9CFF, 0x8C9CFF, 0x808FEA, 0x7683D7, 0x6E7BC9, 0x6672BB, 0x5D68AA, 0x535C97, 0x4B5489, 0x424A78, 0x394068, 0x303557, 0x262A44, 0x191B2D, 0x0C0D15 } },
+	{ ColorTitleWhitegold,
+	    { 0xF2DEA8, 0xF2DEA8, 0xF2DEA8, 0xDECC9A, 0xCCBB8E, 0xBEAF84, 0xB1A27B, 0xA19470, 0x8F8464, 0x82775A, 0x72694F, 0x635A44, 0x534C3A, 0x413C2D, 0x2B271E, 0x14120E } },
 };
 bool RgbDefaultsApplied = false;
 /** The definition applied from RgbDefinedColors; a hex from DefineTextColorRgb wins over it while set. */
@@ -427,6 +440,12 @@ text_color GetColorFromFlags(UiFlags flags)
 		return ColorSalvage;
 	case UiFlagsColorIndex(UiFlags::ColorMap):
 		return ColorMap;
+	case UiFlagsColorIndex(UiFlags::ColorTitleWhite):
+		return ColorTitleWhite;
+	case UiFlagsColorIndex(UiFlags::ColorTitleBlue):
+		return ColorTitleBlue;
+	case UiFlagsColorIndex(UiFlags::ColorTitleWhitegold):
+		return ColorTitleWhitegold;
 	case UiFlagsColorIndex(UiFlags::ColorWhitegold):
 	default:
 		return ColorWhitegold;

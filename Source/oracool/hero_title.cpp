@@ -15,12 +15,19 @@ struct TitleRung {
 	UiFlags color;
 };
 
-/** @brief Indexed by pDiabloKillLevel: no kill, then one rung per difficulty (user, 2026-09-13). */
+/**
+ * @brief Indexed by pDiabloKillLevel: no kill, then one rung per difficulty (user, 2026-09-13).
+ *
+ * Every colour is a VALUE, never a file. The title is drawn twice - the stats panel in play and the
+ * hero select column on the menu palette - and ColorWhite, ColorBlue and ColorWhitegold are vanilla
+ * .trn files that only read right through a level palette; on the hero select screen they came out
+ * off-colour. The Title* three are those colours defined by value.
+ */
 constexpr std::array<TitleRung, 5> Rungs { {
-	{ N_("Adventurer"), UiFlags::ColorWhite },
-	{ N_("Slayer"), UiFlags::ColorBlue },
+	{ N_("Adventurer"), UiFlags::ColorTitleWhite },
+	{ N_("Slayer"), UiFlags::ColorTitleBlue },
 	{ N_("Champion"), UiFlags::ColorYellow3 },
-	{ N_("Conqueror"), UiFlags::ColorWhitegold },
+	{ N_("Conqueror"), UiFlags::ColorTitleWhitegold },
 	{ N_("Sanctified"), UiFlags::ColorBeige2 },
 } };
 // A difficulty added to the ladder needs a rung, or its conquerors would read one title short.

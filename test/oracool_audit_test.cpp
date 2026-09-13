@@ -5558,15 +5558,21 @@ TEST(OracoolAudit, HeroTitlesFollowTheHardestDiabloKill)
 		const char *title;
 		UiFlags colour;
 	} rungs[] = {
-		{ 0, "Adventurer", UiFlags::ColorWhite },
-		{ 1, "Slayer", UiFlags::ColorBlue },
+		{ 0, "Adventurer", UiFlags::ColorTitleWhite },
+		{ 1, "Slayer", UiFlags::ColorTitleBlue },
 		{ 2, "Champion", UiFlags::ColorYellow3 },
-		{ 3, "Conqueror", UiFlags::ColorWhitegold },
+		{ 3, "Conqueror", UiFlags::ColorTitleWhitegold },
 		{ 4, "Sanctified", UiFlags::ColorBeige2 },
 	};
 	for (const auto &rung : rungs) {
 		EXPECT_STREQ(oracool::HeroTitleFor(rung.killLevel), rung.title) << "kill level " << static_cast<int>(rung.killLevel);
 		EXPECT_EQ(oracool::HeroTitleColorFor(rung.killLevel), rung.colour) << rung.title;
+		// The hero select screen draws on the MENU palette, where a vanilla level-palette .trn lands
+		// off-colour. Every title colour must be a value, which reads the same on either palette.
+		const UiFlags c = rung.colour;
+		EXPECT_TRUE(c != UiFlags::ColorWhite && c != UiFlags::ColorBlue && c != UiFlags::ColorWhitegold
+		    && c != UiFlags::ColorRed && c != UiFlags::ColorYellow && c != UiFlags::ColorBlack)
+		    << rung.title << " wears a level-palette file colour, which reads wrong on the hero select screen";
 	}
 	// The kill level is 1 + the difficulty, so Torment is the last rung.
 	EXPECT_STREQ(oracool::HeroTitleFor(static_cast<uint8_t>(DIFF_TORMENT + 1)), "Sanctified");

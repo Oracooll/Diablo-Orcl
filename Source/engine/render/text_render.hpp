@@ -108,6 +108,10 @@ enum text_color : uint16_t {
 	ColorTrap,
 	ColorSalvage,
 	ColorMap,
+	/** Oracool: the hero titles' white, blue and white gold as values, so they read the same on the menu palette as in play (2026-09-13). */
+	ColorTitleWhite,
+	ColorTitleBlue,
+	ColorTitleWhitegold,
 };
 
 /**
