@@ -12674,7 +12674,11 @@ TEST(OracoolRfa12, AllOneHundredSixtyTwoAreOnTheirPagesAndTheFortyEightWithoutAS
 		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skill);
 		EXPECT_NE(data.page, oracool::RetiredFromTreePage) << data.name;
 		EXPECT_LT(data.page, oracool::PassiveSkillsPage) << data.name << " belongs on a class page";
-		EXPECT_EQ(data.spellId, SpellID::Invalid) << data.name;
+		// An active is cast, readied and levelled through its own spell id (v1.11.111); nothing else has one.
+		if (data.kind == oracool::ClassTreeKind::Active)
+			EXPECT_GT(data.spellId, SpellID::GrimWard) << data.name << " needs its own spell id";
+		else
+			EXPECT_EQ(data.spellId, SpellID::Invalid) << data.name;
 		const bool placeholder = std::string(data.description).find("Not yet built") != std::string::npos;
 		EXPECT_NE(data.implemented, placeholder) << data.name << " says one thing and does another";
 		if (!data.implemented)

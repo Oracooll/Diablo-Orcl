@@ -163,6 +163,14 @@ const uint8_t SpellITbl[] = {
 	26, 26, 26,
 	// The three Round 9 corpse cries.
 	26, 26, 26,
+	// The 114 RfA-12 actives (2026-09-13). Their art is the class strips' (placeholder letters until RfA-13's
+	// glyphs), drawn through TryDrawSkillSpellIcon; a bare plate here is only what a forgetful new draw site shows.
+	26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+	26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+	26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+	26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+	26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+	26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
 };
 static_assert(sizeof(SpellITbl) / sizeof(SpellITbl[0]) == MAX_SPELLS,
     "every SpellID needs an icon frame - this table is indexed by the enum");

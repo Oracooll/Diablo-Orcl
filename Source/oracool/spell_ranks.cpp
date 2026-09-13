@@ -125,6 +125,13 @@ constexpr int SpellBand[] = {
 	0, 0, 0,
 	// The three Round 9 corpse cries.
 	0, 0, 0,
+	// The 114 RfA-12 actives (2026-09-13), all earned on the tree.
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 static_assert(sizeof(SpellBand) / sizeof(SpellBand[0]) == MAX_SPELLS,
     "every SpellID needs a band - this table is indexed by the enum");

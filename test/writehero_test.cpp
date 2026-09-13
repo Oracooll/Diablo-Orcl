@@ -787,10 +787,14 @@ TEST(Writehero, pfile_write_hero)
 	//      oracool::MaxSkillsPerClass, because the RfA-12 skills (162 of them, appended to the end of every
 	//      class block) take each class to 72 or 73 rows. Count-prefixed as ever, so a 64-entry hero lands
 	//      in the first 64 slots with the rest zeroed. PlayerPack is untouched.
+	// 1.11.110: NOTHING - SpellID widened to int16_t and SpellMask to four words, and this hash did not
+	//      move, which is the proof that neither change touched a saved byte.
+	// 1.11.111: 114 BYTES, same skill-investment chunk as Rounds 1-9 - MAX_SPELLS 126 -> 240 for the
+	//      RfA-12 actives' spell ids. Count-prefixed, so a 126-entry hero loads into the first 126.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "4c95802db08ae1d27350ce144de64ab4bf3807b79228b929b5f863d74cbfc2e7");
+	    "02cd633394aa6be8599f1eec26b7a0fb6c15e227733d47056d4f829e22c930d2");
 }
 
 } // namespace
