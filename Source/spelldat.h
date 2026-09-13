@@ -44,7 +44,7 @@ enum class SpellType : uint8_t {
 	Invalid,
 };
 
-enum class SpellID : int8_t {
+enum class SpellID : int16_t {
 	Null,
 	FIRST = Null,
 	Firebolt,
@@ -274,6 +274,12 @@ enum class SpellID : int8_t {
 struct SpellMask {
 	uint64_t low = 0;
 	uint64_t high = 0;
+	/**
+	 * @brief Ids 129-256 (2026-09-13). The RfA-12 skills took the enum past 128; like `high`, these two
+	 * are never persisted - everything above the low word is rebuilt from investment on every load.
+	 */
+	uint64_t third = 0;
+	uint64_t fourth = 0;
 
 	constexpr SpellMask() = default;
 	/** @brief From a saved or literal uint64: the low word, as every existing site means it. */
@@ -286,26 +292,37 @@ struct SpellMask {
 	    , high(highWord)
 	{
 	}
+	constexpr SpellMask(uint64_t lowWord, uint64_t highWord, uint64_t thirdWord, uint64_t fourthWord)
+	    : low(lowWord)
+	    , high(highWord)
+	    , third(thirdWord)
+	    , fourth(fourthWord)
+	{
+	}
 
-	[[nodiscard]] constexpr bool any() const { return (low | high) != 0; }
+	[[nodiscard]] constexpr bool any() const { return (low | high | third | fourth) != 0; }
 	[[nodiscard]] constexpr bool none() const { return !any(); }
 
-	constexpr SpellMask operator&(SpellMask other) const { return { low & other.low, high & other.high }; }
-	constexpr SpellMask operator|(SpellMask other) const { return { low | other.low, high | other.high }; }
-	constexpr SpellMask operator~() const { return { ~low, ~high }; }
+	constexpr SpellMask operator&(SpellMask other) const { return { low & other.low, high & other.high, third & other.third, fourth & other.fourth }; }
+	constexpr SpellMask operator|(SpellMask other) const { return { low | other.low, high | other.high, third | other.third, fourth | other.fourth }; }
+	constexpr SpellMask operator~() const { return { ~low, ~high, ~third, ~fourth }; }
 	constexpr SpellMask &operator&=(SpellMask other)
 	{
 		low &= other.low;
 		high &= other.high;
+		third &= other.third;
+		fourth &= other.fourth;
 		return *this;
 	}
 	constexpr SpellMask &operator|=(SpellMask other)
 	{
 		low |= other.low;
 		high |= other.high;
+		third |= other.third;
+		fourth |= other.fourth;
 		return *this;
 	}
-	constexpr bool operator==(SpellMask other) const { return low == other.low && high == other.high; }
+	constexpr bool operator==(SpellMask other) const { return low == other.low && high == other.high && third == other.third && fourth == other.fourth; }
 	constexpr bool operator!=(SpellMask other) const { return !(*this == other); }
 };
 
@@ -322,15 +339,17 @@ struct SpellMask {
  * shift past the word is undefined and on this compiler silently wraps, so the new spell would
  * quietly share an old one's bit.
  */
-static_assert(static_cast<int>(SpellID::LAST) <= 128,
-    "spell ids past 128 do not fit SpellMask - add a third word, and check what saves it");
+static_assert(static_cast<int>(SpellID::LAST) <= 256,
+    "spell ids past 256 do not fit SpellMask - add a fifth word, and check what saves it");
 // ...and the ENUM's own storage, which is a separate and lower ceiling. SpellID is int8_t, so id 128
 // would wrap to -128 exactly as MissileID::Warcry did in Round 6 - and every table indexed by this
 // enum would then be read from before its first row. The assert above cannot catch that: 128 passes
 // it. Nine rounds of appending took this from 52 to 125.
-static_assert(static_cast<int>(SpellID::LAST) <= 127,
-    "SpellID is int8_t - one more spell wraps the enum negative. Widen it to int16_t first, and "
-    "check every static_cast<int8_t> and every byte that stores a spell id.");
+// int16_t since 2026-09-13 (the RfA-12 skills). The storage ceiling is no longer the enum's but the
+// BYTE that oracool::PackReadiedSpell writes for a readied spell and a hotkey - id + 1, so 254 is the
+// last id a byte can carry. Past that, those chunks need a second byte.
+static_assert(static_cast<int>(SpellID::LAST) <= 254,
+    "a readied spell is saved as id + 1 in one byte - widen PackReadiedSpell and its chunks first");
 
 /**
  * @brief Whether @p spell shipped with Diablo or Hellfire, rather than being one this fork added.

@@ -2186,9 +2186,9 @@ void OperateBook(Player &player, Object &book, bool sendmsg)
 
 	if (setlvlnum == SL_BONECHAMB) {
 		if (sendmsg) {
-			uint8_t newSpellLevel = player._pSplLvl[static_cast<int8_t>(SpellID::Guardian)] + 1;
+			uint8_t newSpellLevel = player._pSplLvl[static_cast<int16_t>(SpellID::Guardian)] + 1;
 			if (newSpellLevel <= MaxSpellLevel) {
-				player._pSplLvl[static_cast<int8_t>(SpellID::Guardian)] = newSpellLevel;
+				player._pSplLvl[static_cast<int16_t>(SpellID::Guardian)] = newSpellLevel;
 				NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, static_cast<uint16_t>(SpellID::Guardian), newSpellLevel);
 			}
 
@@ -2822,11 +2822,11 @@ void OperateShrineCostOfWisdom(Player &player, SpellID spellId, diablo_message m
 
 	player._pMemSpells |= GetSpellBitmask(spellId);
 
-	uint8_t curSpellLevel = player._pSplLvl[static_cast<int8_t>(spellId)];
+	uint8_t curSpellLevel = player._pSplLvl[static_cast<int16_t>(spellId)];
 	int spellLevelsGained = 0;
 	if (curSpellLevel < MaxSpellLevel) {
 		uint8_t newSpellLevel = std::min(static_cast<uint8_t>(curSpellLevel + 2), MaxSpellLevel);
-		player._pSplLvl[static_cast<int8_t>(spellId)] = newSpellLevel;
+		player._pSplLvl[static_cast<int16_t>(spellId)] = newSpellLevel;
 		NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, static_cast<uint16_t>(spellId), newSpellLevel);
 		spellLevelsGained = newSpellLevel - curSpellLevel;
 	}

@@ -220,7 +220,7 @@ void DrawLargeSpellIcon(const Surface &out, Point position, SpellID spell)
 #ifdef UNPACKED_MPQS
 	DrawSpellSprite(out, position, (*LargeSpellIconsBackground)[0]);
 #endif
-	DrawSpellSprite(out, position, (*LargeSpellIcons)[SpellITbl[static_cast<int8_t>(spell)]]);
+	DrawSpellSprite(out, position, (*LargeSpellIcons)[SpellITbl[static_cast<int16_t>(spell)]]);
 }
 
 void DrawSmallSpellIcon(const Surface &out, Point position, SpellID spell)
@@ -233,7 +233,7 @@ void DrawSmallSpellIcon(const Surface &out, Point position, SpellID spell)
 #ifdef UNPACKED_MPQS
 	DrawSpellSprite(out, position, (*SmallSpellIconsBackground)[0]);
 #endif
-	DrawSpellSprite(out, position, (*SmallSpellIcons)[SpellITbl[static_cast<int8_t>(spell)]]);
+	DrawSpellSprite(out, position, (*SmallSpellIcons)[SpellITbl[static_cast<int16_t>(spell)]]);
 }
 
 Size GetSmallSpellIconSize()
@@ -450,7 +450,7 @@ void DrawSmallSpellIconScaledTo(const Surface &out, Rectangle cell)
 	// raw enum value instead (as this did when first written, 2026-08-17) picks whatever real spell
 	// icon happens to sit at that index, which is exactly what the user saw: "i see other icons on
 	// top".
-	const ClxSprite plate = (*scaled)[SpellITbl[static_cast<int8_t>(SpellID::Null)]];
+	const ClxSprite plate = (*scaled)[SpellITbl[static_cast<int16_t>(SpellID::Null)]];
 	const Point centred { cell.position.x + (cell.size.width - static_cast<int>(plate.width())) / 2,
 		cell.position.y + (cell.size.height - static_cast<int>(plate.height())) / 2 };
 	// CLX is drawn from the sprite's BOTTOM-left, the convention every other call here follows.
@@ -485,7 +485,7 @@ void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spel
 		fittedPercent = clamped;
 	}
 
-	const ClxSprite plate = (*fitted)[SpellITbl[static_cast<int8_t>(spell)]];
+	const ClxSprite plate = (*fitted)[SpellITbl[static_cast<int16_t>(spell)]];
 	const Point centred { cell.position.x + (cell.size.width - static_cast<int>(plate.width())) / 2,
 		cell.position.y + (cell.size.height - static_cast<int>(plate.height())) / 2 };
 	ClxDrawTRN(out, { centred.x, centred.y + static_cast<int>(plate.height()) - 1 }, plate, SplTransTbl);
@@ -500,7 +500,7 @@ void DrawLargeSpellIconCentredIn(const Surface &out, Rectangle cell, SpellID spe
 	// backing stay" - it is in the history if the idea comes back.
 	if (!LargeSpellIcons)
 		return;
-	const ClxSprite icon = (*LargeSpellIcons)[SpellITbl[static_cast<int8_t>(spell)]];
+	const ClxSprite icon = (*LargeSpellIcons)[SpellITbl[static_cast<int16_t>(spell)]];
 	const int w = static_cast<int>(icon.width());
 	const int h = static_cast<int>(icon.height());
 	const Point centred { cell.position.x + (cell.size.width - w) / 2, cell.position.y + (cell.size.height - h) / 2 };
@@ -578,7 +578,7 @@ void DrawSmallSpellIconCoveringClipped(const Surface &out, Rectangle cell)
 		shrunkPercent = percent;
 	}
 
-	const ClxSprite plate = (*shrunk)[SpellITbl[static_cast<int8_t>(SpellID::Null)]];
+	const ClxSprite plate = (*shrunk)[SpellITbl[static_cast<int16_t>(SpellID::Null)]];
 	const Surface clipped = out.subregion(cell.position.x, cell.position.y, cell.size.width, cell.size.height);
 	// Centred on the overhang, which is at most one pixel per axis.
 	const Point centred { (cell.size.width - static_cast<int>(plate.width())) / 2,

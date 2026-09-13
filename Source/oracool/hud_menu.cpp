@@ -471,7 +471,7 @@ bool CastTownPortalAtFeet()
 		return false;
 
 	NetSendCmdLocParam3(true, CMD_SPELLXY, MyPlayer->position.tile,
-	    static_cast<int8_t>(SpellID::TownPortal), static_cast<uint8_t>(SpellType::Spell), 0);
+	    static_cast<int16_t>(SpellID::TownPortal), static_cast<uint8_t>(SpellType::Spell), 0);
 	return true;
 }
 

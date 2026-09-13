@@ -73,15 +73,23 @@ constexpr SpellMask GetSpellBitmask(SpellID spellId)
 {
 	// Oracool, Round 2 (2026-09-03): two words now - see SpellMask. Id 1 is bit 0 of the low word,
 	// exactly as it always was, so every saved mask keeps its meaning; id 65 is bit 0 of the high.
-	const int index = static_cast<int8_t>(spellId) - 1;
+	const int index = static_cast<int>(spellId) - 1;
 	// Total over the enum: Null and Invalid gave a negative shift, which is undefined behaviour,
 	// and a malformed readied scroll in a save could reach it (external audit, 2026-09-06: SAV-02).
 	// An empty mask is the right answer for "no spell".
-	if (index < 0 || index >= 128)
-		return SpellMask { 0, 0 };
-	if (index < 64)
-		return SpellMask { 1ULL << index, 0 };
-	return SpellMask { 0, 1ULL << (index - 64) };
+	if (index < 0 || index >= 256)
+		return SpellMask {};
+	const uint64_t bit = 1ULL << (index % 64);
+	switch (index / 64) {
+	case 0:
+		return SpellMask { bit, 0, 0, 0 };
+	case 1:
+		return SpellMask { 0, bit, 0, 0 };
+	case 2:
+		return SpellMask { 0, 0, bit, 0 };
+	default:
+		return SpellMask { 0, 0, 0, bit };
+	}
 }
 
 } // namespace devilution

@@ -30,7 +30,7 @@ namespace devilution {
  * complete type once declared, which is all a by-value parameter needs - so the declaration is
  * enough, and it adds no edge to the include graph.
  */
-enum class SpellID : int8_t;
+enum class SpellID : int16_t;
 
 #define INV_SLOT_SIZE_PX 28
 #define INV_SLOT_HALF_SIZE_PX (INV_SLOT_SIZE_PX / 2)

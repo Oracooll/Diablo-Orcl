@@ -1649,7 +1649,7 @@ void ValidatePlayer()
 	}
 
 	SpellMask msk;
-	for (int b = static_cast<int8_t>(SpellID::Firebolt); b < MAX_SPELLS; b++) {
+	for (int b = static_cast<int16_t>(SpellID::Firebolt); b < MAX_SPELLS; b++) {
 		if (GetSpellBookLevel((SpellID)b) != -1) {
 			msk |= GetSpellBitmask(static_cast<SpellID>(b));
 			// The book-level store is 64 wide; a book spell with a higher id would have indexed
@@ -2623,7 +2623,7 @@ void CreatePlayer(Player &player, HeroClass c)
 	player._pSpellFlags = SpellFlag::None;
 
 	if (player._pClass == HeroClass::Sorcerer) {
-		player._pSplLvl[static_cast<int8_t>(SpellID::Firebolt)] = 2;
+		player._pSplLvl[static_cast<int16_t>(SpellID::Firebolt)] = 2;
 	}
 
 	// Initializing the hotkey bindings to no selection
@@ -3791,7 +3791,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 				LastMouseButtonSpell = spellID;
 				LastMouseButtonSpellType = spellType;
 				LastMouseButtonAction = MouseActionType::Spell;
-				NetSendCmdLocParam3(true, CMD_SPELLXY, cursPosition, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), 0);
+				NetSendCmdLocParam3(true, CMD_SPELLXY, cursPosition, static_cast<int16_t>(spellID), static_cast<uint8_t>(spellType), 0);
 				return;
 			}
 			// No dash for Charge here, deliberately (self-audit, 2026-08-15): the dash is a
@@ -3853,7 +3853,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			LastMouseButtonSpell = spellID;
 			LastMouseButtonSpellType = spellType;
 			LastMouseButtonAction = MouseActionType::SpellMonsterTarget;
-			NetSendCmdParam4(true, CMD_SPELLID, pcursmonst, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), 0);
+			NetSendCmdParam4(true, CMD_SPELLID, pcursmonst, static_cast<int16_t>(spellID), static_cast<uint8_t>(spellType), 0);
 			return;
 		}
 
@@ -3886,16 +3886,16 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	if (IsWallSpell(spellID)) {
 		LastMouseButtonAction = MouseActionType::Spell;
 		Direction sd = GetDirection(myPlayer.position.tile, cursPosition);
-		NetSendCmdLocParam4(true, CMD_SPELLXYD, cursPosition, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), static_cast<uint16_t>(sd), spellFrom);
+		NetSendCmdLocParam4(true, CMD_SPELLXYD, cursPosition, static_cast<int16_t>(spellID), static_cast<uint8_t>(spellType), static_cast<uint16_t>(sd), spellFrom);
 	} else if (pcursmonst != -1 && !isShiftHeld) {
 		LastMouseButtonAction = MouseActionType::SpellMonsterTarget;
-		NetSendCmdParam4(true, CMD_SPELLID, pcursmonst, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), spellFrom);
+		NetSendCmdParam4(true, CMD_SPELLID, pcursmonst, static_cast<int16_t>(spellID), static_cast<uint8_t>(spellType), spellFrom);
 	} else if (pcursplr != -1 && !isShiftHeld && !myPlayer.friendlyMode) {
 		LastMouseButtonAction = MouseActionType::SpellPlayerTarget;
-		NetSendCmdParam4(true, CMD_SPELLPID, pcursplr, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), spellFrom);
+		NetSendCmdParam4(true, CMD_SPELLPID, pcursplr, static_cast<int16_t>(spellID), static_cast<uint8_t>(spellType), spellFrom);
 	} else {
 		LastMouseButtonAction = MouseActionType::Spell;
-		NetSendCmdLocParam3(true, CMD_SPELLXY, cursPosition, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), spellFrom);
+		NetSendCmdLocParam3(true, CMD_SPELLXY, cursPosition, static_cast<int16_t>(spellID), static_cast<uint8_t>(spellType), spellFrom);
 	}
 }
 

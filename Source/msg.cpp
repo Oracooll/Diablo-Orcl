@@ -1460,7 +1460,7 @@ bool InitNewSpell(Player &player, uint16_t wParamSpellID, uint16_t wParamSpellTy
 	wParamSpellType = SDL_SwapLE16(wParamSpellType);
 	wParamSpellFrom = SDL_SwapLE16(wParamSpellFrom);
 
-	if (wParamSpellID > static_cast<int8_t>(SpellID::LAST))
+	if (wParamSpellID > static_cast<int16_t>(SpellID::LAST))
 		return false;
 	auto spellID = static_cast<SpellID>(wParamSpellID);
 	if (!IsValidSpell(spellID)) {

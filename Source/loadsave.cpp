@@ -1350,7 +1350,7 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<int32_t>(item._iAC);
 	file.WriteLE<uint32_t>(static_cast<uint32_t>(item._iFlags));
 	file.WriteLE<int32_t>(item._iMiscId);
-	file.WriteLE<int32_t>(static_cast<int8_t>(item._iSpell));
+	file.WriteLE<int32_t>(static_cast<int16_t>(item._iSpell));
 	file.WriteLE<int32_t>(item._iCharges);
 	file.WriteLE<int32_t>(item._iMaxCharges);
 	file.WriteLE<int32_t>(item._iDurability);
@@ -1492,17 +1492,17 @@ void SavePlayer(SaveHelper &file, const Player &player)
 	file.WriteLE<int32_t>(player.lightId);
 	file.WriteLE<int32_t>(1); // _pvid
 
-	file.WriteLE<int32_t>(static_cast<int8_t>(player.queuedSpell.spellId));
+	file.WriteLE<int32_t>(static_cast<int16_t>(player.queuedSpell.spellId));
 	file.WriteLE<int8_t>(static_cast<int8_t>(player.queuedSpell.spellType));
 	file.WriteLE<int8_t>(player.queuedSpell.spellFrom);
 	file.Skip(2); // Alignment
-	file.WriteLE<int32_t>(static_cast<int8_t>(player.inventorySpell));
+	file.WriteLE<int32_t>(static_cast<int16_t>(player.inventorySpell));
 	file.WriteLE<uint8_t>(oracool::PackReadiedSpell(player._pLRSpell)); // was _pTSplType, see LoadPlayer
 	file.Skip(3);                                                       // Alignment
-	file.WriteLE<int32_t>(static_cast<int8_t>(player._pRSpell));
+	file.WriteLE<int32_t>(static_cast<int16_t>(player._pRSpell));
 	file.WriteLE<int8_t>(static_cast<uint8_t>(player._pRSplType));
 	file.Skip(3); // Alignment
-	file.WriteLE<int32_t>(static_cast<int8_t>(player._pSBkSpell));
+	file.WriteLE<int32_t>(static_cast<int16_t>(player._pSBkSpell));
 	file.Skip<int8_t>(); // Skip _pSBkSplType
 
 	for (uint8_t spellLevel : player._pSplLvl)
@@ -2695,20 +2695,20 @@ void SaveHotkeys(SaveWriter &saveWriter, const Player &player)
 
 	// Write the spell hotkeys
 	for (auto &spellId : player._pSplHotKey) {
-		file.WriteLE<int32_t>(static_cast<int8_t>(spellId));
+		file.WriteLE<int32_t>(static_cast<int16_t>(spellId));
 	}
 	for (auto &spellType : player._pSplTHotKey) {
 		file.WriteLE<uint8_t>(static_cast<uint8_t>(spellType));
 	}
 
 	// Write the selected spell last
-	file.WriteLE<int32_t>(static_cast<int8_t>(player._pRSpell));
+	file.WriteLE<int32_t>(static_cast<int16_t>(player._pRSpell));
 	file.WriteLE<uint8_t>(static_cast<uint8_t>(player._pRSplType));
 
 	// The left button's, appended after vanilla's trailer - see HotkeysSizeWithLeft. Without this
 	// pair the load path above has nothing to restore, and InitPlayer's reset is the last word on
 	// what the left button holds.
-	file.WriteLE<int32_t>(static_cast<int8_t>(player._pLRSpell));
+	file.WriteLE<int32_t>(static_cast<int16_t>(player._pLRSpell));
 	file.WriteLE<uint8_t>(static_cast<uint8_t>(player._pLRSplType));
 }
 

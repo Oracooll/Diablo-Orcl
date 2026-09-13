@@ -926,7 +926,7 @@ void GetBookSpell(Item &item, int lvl)
 	// paths that build an item without one (InitializeItem, RecreateItem).
 	const int ilvl = item._iOracoolItemLevel > 0 ? item._iOracoolItemLevel : lvl * 2;
 
-	int s = static_cast<int8_t>(SpellID::Firebolt);
+	int s = static_cast<int16_t>(SpellID::Firebolt);
 	SpellID bs = SpellID::Firebolt;
 	while (rv > 0) {
 		int sLevel = GetSpellBookLevel(static_cast<SpellID>(s));
@@ -1854,7 +1854,7 @@ void GetStaffSpell(const Player &player, Item &item, int lvl, bool onlygood)
 	if (gbIsSpawn && lvl > 10)
 		lvl = 10;
 
-	int s = static_cast<int8_t>(SpellID::Firebolt);
+	int s = static_cast<int16_t>(SpellID::Firebolt);
 	SpellID bs = SpellID::Null;
 	while (rv > 0) {
 		int sLevel = GetSpellStaffLevel(static_cast<SpellID>(s));
@@ -1866,12 +1866,12 @@ void GetStaffSpell(const Player &player, Item &item, int lvl, bool onlygood)
 			bs = static_cast<SpellID>(s);
 		}
 		s++;
-		if (!gbIsMultiplayer && s == static_cast<int8_t>(SpellID::Resurrect))
-			s = static_cast<int8_t>(SpellID::Telekinesis);
-		if (!gbIsMultiplayer && s == static_cast<int8_t>(SpellID::HealOther))
-			s = static_cast<int8_t>(SpellID::BloodStar);
+		if (!gbIsMultiplayer && s == static_cast<int16_t>(SpellID::Resurrect))
+			s = static_cast<int16_t>(SpellID::Telekinesis);
+		if (!gbIsMultiplayer && s == static_cast<int16_t>(SpellID::HealOther))
+			s = static_cast<int16_t>(SpellID::BloodStar);
 		if (s == maxSpells)
-			s = static_cast<int8_t>(SpellID::Firebolt);
+			s = static_cast<int16_t>(SpellID::Firebolt);
 	}
 
 	// Oracool: a Staff of Town Portal would carry charges of an ability the player already has
@@ -7113,11 +7113,11 @@ void UseItem(size_t pnum, item_misc_id mid, SpellID spellID, int spellFrom)
 				target = player.position.future + Displacement(player._pdir);
 			// Use CMD_SPELLXY because it's the same behavior as normal casting
 			assert(IsValidSpellFrom(spellFrom));
-			NetSendCmdLocParam3(true, CMD_SPELLXY, target, static_cast<int8_t>(spellID), static_cast<uint8_t>(SpellType::Scroll), static_cast<uint16_t>(spellFrom));
+			NetSendCmdLocParam3(true, CMD_SPELLXY, target, static_cast<int16_t>(spellID), static_cast<uint8_t>(SpellType::Scroll), static_cast<uint16_t>(spellFrom));
 		}
 		break;
 	case IMISC_BOOK: {
-		uint8_t newSpellLevel = player._pSplLvl[static_cast<int8_t>(spellID)] + 1;
+		uint8_t newSpellLevel = player._pSplLvl[static_cast<int16_t>(spellID)] + 1;
 		// The level band and the Rule of Rangs, asked as one question (user, 2026-08-19: "apply lvl
 		// req rule to books as well"). A book that would raise the spell past what the reader's level
 		// allows is refused outright - it is not consumed, no mana is granted, nothing happens.
@@ -7127,7 +7127,7 @@ void UseItem(size_t pnum, item_misc_id mid, SpellID spellID, int spellFrom)
 		if (!oracool::CanReadSpellBookTo(player, spellID, newSpellLevel))
 			return; // the caller refuses first; this is the backstop, and it consumes nothing
 		if (newSpellLevel <= MaxSpellLevel) {
-			player._pSplLvl[static_cast<int8_t>(spellID)] = newSpellLevel;
+			player._pSplLvl[static_cast<int16_t>(spellID)] = newSpellLevel;
 			NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, static_cast<uint16_t>(spellID), newSpellLevel);
 			// SAYS WHAT WAS LEARNED. A read used to be a page-turn sound and nothing else, so a
 			// player who had just spent a thousand gold could not tell whether anything had
@@ -8817,7 +8817,7 @@ void Item::updateRequiredStatsCacheForPlayer(const Player &player)
 {
 	if (_itype == ItemType::Misc && _iMiscId == IMISC_BOOK) {
 		_iMinMag = GetSpellData(_iSpell).minInt;
-		int8_t spellLevel = player._pSplLvl[static_cast<int8_t>(_iSpell)];
+		int8_t spellLevel = player._pSplLvl[static_cast<int16_t>(_iSpell)];
 		while (spellLevel != 0) {
 			_iMinMag += 20 * _iMinMag / 100;
 			spellLevel--;

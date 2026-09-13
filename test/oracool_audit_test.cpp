@@ -11134,7 +11134,11 @@ TEST(OracoolAudit, SpellBitmaskIsEmptyForNonSpells)
 	EXPECT_EQ(GetSpellBitmask(SpellID::Invalid).high, 0u);
 	EXPECT_EQ(GetSpellBitmask(SpellID::Firebolt).low, 1u);
 	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(65)).high, 1u) << "id 65 is bit 0 of the high word";
-	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(MAX_SPELLS - 1)).high, 1ULL << (MAX_SPELLS - 2 - 64));
+	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(128)).high, 1ULL << 63) << "id 128 is the last bit of the high word";
+	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(129)).third, 1u) << "id 129 is bit 0 of the third word";
+	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(129)).high, 0u);
+	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(256)).fourth, 1ULL << 63) << "id 256 is the last bit the mask holds";
+	EXPECT_TRUE(GetSpellBitmask(static_cast<SpellID>(257)).none());
 }
 
 

@@ -42,17 +42,17 @@ uint8_t PackReadiedSpell(SpellID spell)
 {
 	if (!IsValidSpell(spell))
 		return 0;
-	// +1 so that SpellID::Null (0) and "nothing readied" stay distinguishable. MAX_SPELLS is 59 (it
-	// was 53 when this was written; Charge and the six Paladin skills grew it), so the largest value
-	// written is 59 and the byte never overflows.
-	return static_cast<uint8_t>(static_cast<int8_t>(spell) + 1);
+	// +1 so that SpellID::Null (0) and "nothing readied" stay distinguishable. Read and written as a
+	// plain int since SpellID widened to int16_t (2026-09-13): through int8_t, id 128 would have packed
+	// as byte 129 and unpacked as -127. spelldat.h asserts the last id still fits the byte.
+	return static_cast<uint8_t>(static_cast<int>(spell) + 1);
 }
 
 void UnpackReadiedSpell(const Player &player, uint8_t packed, SpellID &spell, SpellType &type)
 {
 	if (packed == 0)
 		return;
-	const auto stored = static_cast<SpellID>(static_cast<int8_t>(packed - 1));
+	const auto stored = static_cast<SpellID>(static_cast<int>(packed) - 1);
 	if (!IsValidSpell(stored))
 		return;
 	const SpellType derived = ReadiedSpellType(player, stored);
