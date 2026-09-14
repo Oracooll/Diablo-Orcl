@@ -74,6 +74,7 @@
 #include "oracool/furious_charge.h"
 #include "oracool/shop_toast.h"
 #include "oracool/game_speed.h"
+#include "oracool/decoy.h"
 #include "oracool/event_log.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/hud_layout.h"
@@ -2225,6 +2226,7 @@ void GameLogic()
 		gGameLogicStep = GameLogicStep::ProcessTowners;
 		ProcessTowners();
 		oracool::ProcessTownStashChest(); // the stash chest's lid - ProcessObjects does not run in town
+		oracool::ProcessTownValkyries();  // the Rogue's town companion - ProcessMonsters does not run in town either
 		gGameLogicStep = GameLogicStep::ProcessItemsTown;
 		ProcessItems();
 		gGameLogicStep = GameLogicStep::ProcessMissilesTown;

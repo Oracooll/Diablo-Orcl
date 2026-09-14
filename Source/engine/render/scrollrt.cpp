@@ -37,6 +37,7 @@
 #include "nthread.h"
 #include "options.h"
 #include "oracool/attack_skills.h"
+#include "oracool/decoy.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
@@ -1078,6 +1079,7 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 	if (static_cast<size_t>(playerId - 1) < Players.size()) {
 		DrawPlayerHelper(out, Players[playerId - 1], tilePosition, targetBufferPosition);
 	}
+	oracool::DrawTownValkyries(out, tilePosition, targetBufferPosition); // town only; see oracool/decoy.h
 	if (dMonster[tilePosition.x][tilePosition.y] != 0) {
 		DrawMonsterHelper(out, tilePosition, targetBufferPosition);
 	}

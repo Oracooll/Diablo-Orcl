@@ -936,10 +936,17 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::Valkyrie:
 		// The engine's Golem at the rank, kept until she falls - no spirit's thirty seconds, and no earlier
 		// summon's clock left running to end her.
+		// In town (user, 2026-09-14: "i also want to be able to cast this skill in town") there is no golem slot, so she
+		// comes as a companion who follows and never fights - oracool/decoy.h.
+		if (leveltype == DTYPE_TOWN)
+			return SummonTownValkyrie(player, target);
 		if (!CanSummonHere(player))
 			return false;
 		if (AddMissile(here, target, player._pdir, MissileID::Golem, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, r) == nullptr)
 			return false;
+		// And she looks like a Valkyrie, not a Golem (user, 2026-09-14): the Rogue in heavy armour, sword and shield, in gold.
+		if (Monster &valkyrie = Monsters[player.getId()]; valkyrie.position.tile != GolemHoldingCell)
+			MakeValkyrie(valkyrie);
 		StateOf(player).summonTicks = 0;
 		return true;
 	case SpellID::Decoy: {

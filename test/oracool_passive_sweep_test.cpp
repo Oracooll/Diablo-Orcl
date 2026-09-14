@@ -162,6 +162,23 @@ TEST(OracoolCensusNotes, NoSummonWhereThereIsNoGolemSlot)
 	setlevel = savedSet;
 }
 
+// User, 2026-09-14: "valkyrie is producing a regular golem" and "i also want to be able to cast this skill in town".
+// Out of town there is no companion to call, and a level load sends any away. (The sheets themselves come from the
+// player's archive, which headless tests do not have.)
+TEST(OracoolCensusNotes, TheTownValkyrieOnlyAnswersInTown)
+{
+	const dungeon_type savedType = leveltype;
+	oracool::ClearTownValkyries();
+	devilution::Player &rogue = FreshHero(HeroClass::Rogue);
+	leveltype = DTYPE_CATHEDRAL;
+	EXPECT_FALSE(oracool::SummonTownValkyrie(rogue, rogue.position.tile)) << "a dungeon Valkyrie is the golem slot's";
+	EXPECT_FALSE(oracool::HasTownValkyrie(0));
+	EXPECT_FALSE(oracool::HasTownValkyrie(MAX_PLRS)) << "out of range is never a companion";
+	oracool::ClearTownValkyries();
+	EXPECT_FALSE(oracool::HasTownValkyrie(0));
+	leveltype = savedType;
+}
+
 // User, 2026-09-14: "remove this class from our mod ... Hide them, dont remove them."
 TEST(OracoolHiddenClass, TheBardAndHisInstrumentsAreHiddenNotDeleted)
 {

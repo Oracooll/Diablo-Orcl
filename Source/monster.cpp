@@ -3589,6 +3589,8 @@ void InitLevelMonsters()
 	monstimgtot = 0;
 	// The scaled sheets are views onto sprite data that is about to be replaced, so they go first.
 	oracool::ClearMonsterScaleCache();
+	// A town Valkyrie belongs to the town she was called in; every level load, town included, sends her away.
+	oracool::ClearTownValkyries();
 	// So are the telemetry kill clocks, which are keyed by monster SLOT - and the slots are about to
 	// be handed to different monsters. A clock left running by a monster that was wounded and never
 	// killed would otherwise be read as the next occupant's time-to-kill.
