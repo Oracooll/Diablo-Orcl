@@ -5174,7 +5174,12 @@ void ReleaseCompanionBody(Monster &slot)
 	slot.position.future = { 0, 0 };
 	slot.position.old = { 0, 0 };
 	slot.isInvalid = false;
+	// Not targeting a monster means enemy is a PLAYER index, and ProcessMonsters asserts exactly that - clearing the flag
+	// with a monster id left in enemy stopped the game the moment a Valkyrie's time ran out (user, 2026-09-14).
 	slot.flags &= ~MFLAG_TARGETS_MONSTER;
+	slot.flags |= MFLAG_NO_ENEMY;
+	slot.enemy = 0;
+	slot.enemyPosition = {};
 	slot.mode = MonsterMode::Stand;
 }
 

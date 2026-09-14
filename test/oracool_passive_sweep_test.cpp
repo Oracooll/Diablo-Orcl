@@ -124,6 +124,32 @@ TEST(OracoolCompanion, TheValkyrieGrowsTheWayTheUserAsked)
 	EXPECT_EQ(oracool::CompanionAttackOf(CompanionKind::Talic), oracool::CompanionAttack::Melee);
 }
 
+// User, 2026-09-14: "an error occured when timer ran out on the valkyrie" - assertion monster.enemy < MAX_PLRS. A
+// released body stops targeting monsters, so its enemy must name a player again.
+TEST(OracoolCompanion, ALetGoBodyTargetsNoMonster)
+{
+	const Point holdingCell { 1, 0 }; // monster.cpp's GolemHoldingCell, which the test DLL cannot see
+	devilution::Monster &slot = Monsters[1];
+	// Monster cannot be copied; keep what the release touches.
+	const auto savedFlags = slot.flags;
+	const auto savedEnemy = slot.enemy;
+	const auto savedEnemyPosition = slot.enemyPosition;
+	const auto savedPosition = slot.position;
+	const auto savedMode = slot.mode;
+	slot.position.tile = holdingCell; // nothing on the map to clear
+	slot.flags |= MFLAG_TARGETS_MONSTER;
+	slot.enemy = 57;
+	ReleaseCompanionBody(slot);
+	EXPECT_EQ(slot.flags & MFLAG_TARGETS_MONSTER, 0u);
+	EXPECT_LT(slot.enemy, MAX_PLRS) << "ProcessMonsters asserts a player index when no monster is targeted";
+	EXPECT_EQ(Point(slot.position.tile), holdingCell);
+	slot.flags = savedFlags;
+	slot.enemy = savedEnemy;
+	slot.enemyPosition = savedEnemyPosition;
+	slot.position = savedPosition;
+	slot.mode = savedMode;
+}
+
 TEST(OracoolCompanion, FourSkillsCallCompanionsAndTheStanceCycles)
 {
 	for (SpellID spell : { SpellID::Valkyrie, SpellID::AncestralCall, SpellID::SpiritGuardian, SpellID::Decoy })
