@@ -16,6 +16,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
 #include "oracool/class_tree.h"
+#include "oracool/decoy.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
@@ -916,6 +917,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			decoy.golemToHit = 0;
 			decoy.maxHitPoints *= 2;
 			decoy.hitPoints = decoy.maxHitPoints;
+			// And it wears the Rogue, as a blue ghost (user, 2026-09-14) - oracool/decoy.h.
+			MakeDecoy(player, decoy);
 		}
 		StateOf(player).summonTicks = (15 + (r - 1)) * TicksPerSecond;
 		return true;

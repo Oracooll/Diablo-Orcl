@@ -574,7 +574,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Avoid"), N_("A chance to slip an arrow: 10%, +4% per rank, 40% at most."), Rog, 1, 2, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Penetrate"), N_("Sharpens your aim with anything you wield."), Rog, 1, 3, 0, Kind::Passive, SpellID::Invalid, true },
 	// User note, 2026-09-14: "Summon recolored clone. Use Golem mechanic to control it." The Golem slot, disarmed.
-	{ N_("Decoy"), N_("A double stands at the cursor for 15 seconds, +1 per level, drawing the enemy's blows. It strikes no one, and it replaces any other summon."), Rog, 1, 3, 1, Kind::Active, SpellID::Decoy, true },
+	{ N_("Decoy"), N_("A blue ghost of yourself stands at the cursor for 15 seconds, +1 per level, drawing the enemy's blows. It strikes no one, and it replaces any other summon."), Rog, 1, 3, 1, Kind::Active, SpellID::Decoy, true },
 	{ N_("Evade"), N_("A chance to slip a blow while moving: 10%, +4% per rank, 40% at most."), Rog, 1, 4, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Valkyrie"), N_("Calls a warrior to fight beside you. Mapped onto this engine's Golem, which is the same idea."),
 	    Rog, 1, 5, 0, Kind::Active, SpellID::Golem, true },

@@ -30,6 +30,7 @@
 #include "oracool/chill.h"
 #include "oracool/class_tree.h" // SlowPlayer - a cold hit's chill on the stride
 #include "oracool/cold.h"
+#include "oracool/decoy.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/rogue_arrows.h"
@@ -2996,6 +2997,9 @@ void AddGolem(Missile &missile, AddMissileParameter &parameter)
 	int playerId = missile._misource;
 	Player &player = Players[playerId];
 	Monster &golem = Monsters[playerId];
+	// A new summon is not the old Decoy: it wears its own sprites again (oracool/decoy.h). The Decoy cast dresses
+	// the slot again after this, when it is a Decoy that is being summoned.
+	oracool::ClearDecoy(golem);
 
 	if (golem.position.tile != GolemHoldingCell && &player == MyPlayer)
 		KillMyGolem();

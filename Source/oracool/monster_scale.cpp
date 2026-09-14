@@ -6,6 +6,7 @@
 #include "dead.h"
 #include "diablo.h"
 #include "levels/gendung.h"
+#include "oracool/decoy.h"
 #include "oracool/sprite_scale.h"
 
 namespace devilution::oracool {
@@ -150,6 +151,9 @@ MonsterSize GetMonsterSize(const Monster &monster)
 
 const AnimStruct *GetScaledAnim(const Monster &monster, MonsterGraphic graphic)
 {
+	// The Rogue's Decoy wears her sheets (oracool/decoy.h) - asked here because this is where both binders ask.
+	if (const AnimStruct *decoy = GetDecoyAnim(monster, graphic))
+		return decoy;
 	const unsigned percent = MonsterSizePercent(GetMonsterSize(monster));
 	if (percent == 100)
 		return nullptr;

@@ -10,7 +10,9 @@
 #include <set>
 #include <string>
 
+#include "monster.h"
 #include "oracool/class_tree.h"
+#include "oracool/decoy.h"
 #include "oracool/hidden_classes.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
@@ -95,6 +97,17 @@ TEST(OracoolCensusNotes, CustomEngineeringStrengthensRunesOnlyWhenSlotted)
 	ASSERT_TRUE(oracool::SetPassiveSlot(player, 0, ClassTreeSkill::CustomEngineering));
 	EXPECT_EQ(oracool::PassiveRuneLevelBonus(player), 3);
 	ClearSlots(player);
+}
+
+// User, 2026-09-14: the Decoy wears the Rogue. With no sheets loaded nothing is a decoy, so no monster is
+// ever handed an animation that is not there.
+TEST(OracoolCensusNotes, NothingIsADecoyUntilOneIsCast)
+{
+	oracool::ClearDecoys();
+	EXPECT_FALSE(oracool::IsDecoy(Monsters[0]));
+	EXPECT_EQ(oracool::GetDecoyAnim(Monsters[0], MonsterGraphic::Stand), nullptr);
+	devilution::Monster local {};
+	EXPECT_FALSE(oracool::IsDecoy(local)) << "a monster outside the table is never a decoy";
 }
 
 // User, 2026-09-14: "remove this class from our mod ... Hide them, dont remove them."

@@ -41,6 +41,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/warcries.h"
 #include "oracool/monster_difficulty.h"
+#include "oracool/decoy.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/warcries.h"
@@ -3857,6 +3858,8 @@ void WeakenNaKrul()
 
 void InitGolems()
 {
+	// A new level's golem slots start as golems - no decoy's sheets carried over (oracool/decoy.h).
+	oracool::ClearDecoys();
 	if (!setlevel) {
 		for (int i = 0; i < MAX_PLRS; i++)
 			AddMonster(GolemHoldingCell, Direction::South, 0, false);
