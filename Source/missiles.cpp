@@ -3354,6 +3354,106 @@ void UseMissileGraphic(Missile &missile, MissileGraphicID graphic)
 	SetMissAnim(missile, graphic);
 }
 
+namespace {
+
+/**
+ * @brief Where a census effect's sheet meets the floor, as a still missile's offset. AddWarcryRing's rule: a
+ * sprite hangs from its tile by its cell's bottom edge, +y moves it down, and the tile's centre is 16px above
+ * that edge. The anchors are the delivery's notes (RfA-16 batch 35).
+ */
+Displacement CensusEffectOffset(MissileID type)
+{
+	switch (type) {
+	case MissileID::MeteorFall:
+	case MissileID::ThunderBolt:
+		return { 0, -13 }; // touchdown 3px above the cell bottom (meteor y 157 of 160, bolt y 189 of 192)
+	case MissileID::MeteorImpact:
+		return { 0, 22 }; // the burst's floor centre is y 90 of 128, 38px above the bottom
+	case MissileID::AcidCloud:
+		return { 0, -3 }; // the vapour's baseline is y 91 of 96
+	default:
+		return { 0, 0 };
+	}
+}
+
+/** @brief Meteor impact: frames 1-10 burst once, 11-14 are the ground burn, looped for as long as it burns. */
+constexpr int MeteorImpactBurnFrame = 11;
+
+} // namespace
+
+/**
+ * @brief Oracool (2026-09-14, RfA-16): a census skill's effect standing on a tile - Meteor's fall and impact,
+ * Thunder Storm's bolt, the javelins' acid cloud. Drawn only; the skill's blows land in rfa12_actives and
+ * aura_field. The fall and the bolt play their frames once; the impact and the cloud last the caller's
+ * duration, passed as the missile's damage, in ticks.
+ */
+void AddCensusEffect(Missile &missile, AddMissileParameter &parameter)
+{
+	if (!MissileArtLoaded(missile._miAnimType)) {
+		missile._miDelFlag = true; // sheet not in the archive: the caller shows its placeholder
+		return;
+	}
+	missile.position.tile = parameter.dst;
+	missile.position.start = parameter.dst;
+	missile.position.offset = CensusEffectOffset(missile._mitype);
+	if (IsAnyOf(missile._mitype, MissileID::MeteorFall, MissileID::ThunderBolt))
+		missile._mirange = missile._miAnimLen * std::max<int>(missile._miAnimDelay, 1);
+	else
+		missile._mirange = std::max(missile._midam, missile._miAnimLen);
+}
+
+void ProcessCensusEffect(Missile &missile)
+{
+	missile._mirange--;
+	if (missile._mirange <= 0) {
+		missile._miDelFlag = true;
+		if (missile._mlid != NO_LIGHT)
+			AddUnLight(missile._mlid);
+		return;
+	}
+	if (missile._mlid == NO_LIGHT && IsAnyOf(missile._mitype, MissileID::MeteorImpact, MissileID::ThunderBolt))
+		missile._mlid = AddLight(missile.position.tile, 8);
+	if (missile._mitype == MissileID::MeteorImpact && missile._miAnimFrame >= MeteorImpactBurnFrame) {
+		missile._miAnimDelay = 3; // the embers flicker slower than the burst
+		// On the last frame, about to step: step back to the burn's first frame instead of the burst's.
+		if (missile._miAnimFrame >= missile._miAnimLen && missile._miAnimCnt + 1 >= missile._miAnimDelay)
+			missile._miAnimFrame = MeteorImpactBurnFrame - 1;
+	}
+	PutMissile(missile);
+}
+
+/**
+ * @brief Oracool (2026-09-14, RfA-16): Poison and Plague Javelin's javelin, flying from the Rogue to where
+ * the skill already struck. Drawn only. Sixteen facings, like the arrows.
+ */
+void AddAcidJavelin(Missile &missile, AddMissileParameter &parameter)
+{
+	if (!MissileArtLoaded(MissileGraphicID::AcidJavelin)) {
+		missile._miDelFlag = true;
+		return;
+	}
+	Point dst = parameter.dst;
+	if (missile.position.start == dst)
+		dst += parameter.midir;
+	UpdateMissileVelocity(missile, dst, 32);
+	SetMissDir(missile, GetDirection16(missile.position.start, dst));
+	missile.var1 = dst.x;
+	missile.var2 = dst.y;
+	// Arrow speed covers a tile in a tick or two; the destination check below normally ends it first.
+	missile._mirange = 2 * missile.position.start.WalkingDistance(dst) + 4;
+}
+
+void ProcessAcidJavelin(Missile &missile)
+{
+	missile._mirange--;
+	MoveMissile(missile, [](Point) { return true; }); // nothing stops it: the blow has already landed
+	if (missile._mirange <= 0 || missile.position.tile == Point { missile.var1, missile.var2 }) {
+		missile._miDelFlag = true;
+		return;
+	}
+	PutMissile(missile);
+}
+
 /**
  * @brief Oracool (2026-09-11): the shockwave a cry leaves on the floor. Drawn, never hits - the cry's
  * effect is CastWarcry's. Plays its twelve frames once under the crier, then goes.

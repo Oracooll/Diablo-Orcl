@@ -9,6 +9,7 @@
 #include "engine/points_in_rectangle_range.hpp"
 #include "engine/random.hpp"
 #include "levels/gendung.h"
+#include "misdat.h"
 #include "missiles.h"
 #include "monster.h"
 #include "oracool/chill.h"
@@ -193,8 +194,9 @@ void ProcessThunderStorm(Player &player)
 	Monster &target = *near[GenerateRnd(static_cast<int32_t>(near.size()))];
 	const Point tile = target.position.tile;
 	AuraStrike(player, target, DamageType::Lightning, RollDamage({ 1, 20 + 10 * (points - 1) }));
-	// The bolt's own art is RfA-16; until then the strike marks the floor where it fell.
-	AddMissile(tile, tile, player._pdir, MissileID::WarcryRing, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
+	// RfA-16's bolt falls where it struck; without its sheet the floor shockwave marks the spot instead.
+	const MissileID mark = MissileArtLoaded(MissileGraphicID::ThunderBolt) ? MissileID::ThunderBolt : MissileID::WarcryRing;
+	AddMissile(tile, tile, player._pdir, mark, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
 }
 
 /** @brief Whether @p monster is close enough to the local player for an aura of @p points. */

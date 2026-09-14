@@ -12,12 +12,13 @@
  * (the engine's arrow carries the wielder's damage range). The weapon is not dropped - the next blow swings it.
  *
  * Needs a sword or an axe in hand, one- or two-handed, with or without a shield; a bow is a bow. Its art - a
- * spinning sword and a spinning axe - is RfA-16; until it arrives the throw flies as an arrow.
+ * spinning sword and a spinning axe - is RfA-16 (delivered 2026-09-14); without those sheets it flies as an arrow.
  */
 
 #include <optional>
 
 #include "engine/point.hpp"
+#include "misdat.h"
 #include "spelldat.h"
 
 namespace devilution {
@@ -30,6 +31,9 @@ bool IsWeaponThrow(SpellID spell);
 
 /** @brief Whether @p player holds something to throw: a sword or an axe, and no bow. */
 bool CanThrowWeapon(const Player &player);
+
+/** @brief The spinning sheet @p player's throw wears: the axe's if an axe is in hand, the sword's otherwise. */
+MissileGraphicID ThrownWeaponGraphic(const Player &player);
 
 /** @brief Arms the next swing to throw at @p target, or disarms it. */
 void ArmWeaponThrow(std::optional<Point> target);

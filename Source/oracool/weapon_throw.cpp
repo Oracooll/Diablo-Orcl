@@ -1,6 +1,7 @@
 #include "oracool/weapon_throw.h"
 
 #include "engine/direction.hpp"
+#include "misdat.h"
 #include "missiles.h"
 #include "oracool/rage.h"
 #include "player.h"
@@ -30,6 +31,15 @@ bool CanThrowWeapon(const Player &player)
 	return false;
 }
 
+MissileGraphicID ThrownWeaponGraphic(const Player &player)
+{
+	for (const Item &item : { player.InvBody[INVLOC_HAND_LEFT], player.InvBody[INVLOC_HAND_RIGHT] }) {
+		if (!item.isEmpty() && item._iStatFlag && item._itype == ItemType::Axe)
+			return MissileGraphicID::ThrownAxe;
+	}
+	return MissileGraphicID::ThrownSword;
+}
+
 void ArmWeaponThrow(std::optional<Point> target)
 {
 	ArmedTarget = target;
@@ -47,8 +57,13 @@ bool ThrowArmedWeapon(Player &player)
 	const Point from = player.position.tile;
 	const Point dst = target == from ? from + player._pdir : target;
 	// The engine's arrow flies with the wielder's own damage range (ProcessArrow), which is exactly a thrown weapon.
-	if (AddMissile(from, dst, GetDirection(from, dst), MissileID::Arrow, TARGET_MONSTERS, static_cast<int>(player.getId()), 4, 0) == nullptr)
+	Missile *thrown = AddMissile(from, dst, GetDirection(from, dst), MissileID::Arrow, TARGET_MONSTERS, static_cast<int>(player.getId()), 4, 0);
+	if (thrown == nullptr)
 		return false;
+	// And it looks like the weapon, spinning (RfA-16): the axe's sheet for an axe, the sword's otherwise.
+	const MissileGraphicID spin = ThrownWeaponGraphic(player);
+	if (MissileArtLoaded(spin))
+		UseMissileGraphic(*thrown, spin);
 	SettleSkill(player, SpellID::WeaponThrow, /*landedBlows=*/0);
 	return true;
 }

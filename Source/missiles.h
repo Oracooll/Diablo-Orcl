@@ -427,6 +427,8 @@ void AddEtherealize(Missile &missile, AddMissileParameter &parameter);
 void AddBlessedHammer(Missile &missile, AddMissileParameter &parameter);
 void AddWarcryRing(Missile &missile, AddMissileParameter &parameter);
 void AddBlessedShieldImpact(Missile &missile, AddMissileParameter &parameter);
+void AddCensusEffect(Missile &missile, AddMissileParameter &parameter);
+void AddAcidJavelin(Missile &missile, AddMissileParameter &parameter);
 /** @brief Oracool: SetMissAnim for code outside missiles.cpp - dresses a missile in one graphic. */
 void UseMissileGraphic(Missile &missile, MissileGraphicID graphic);
 void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter);
@@ -498,6 +500,8 @@ void ProcessInfravision(Missile &missile);
 void ProcessEtherealize(Missile &missile);
 void ProcessBlessedHammer(Missile &missile);
 void ProcessWarcryRing(Missile &missile);
+void ProcessCensusEffect(Missile &missile);
+void ProcessAcidJavelin(Missile &missile);
 /**
  * @brief Oracool: where Blessed Hammer is, in screen pixels from its caster's tile, @p ticks after
  * the cast. The one formula both the sprite and the hit read, so the two cannot drift apart.

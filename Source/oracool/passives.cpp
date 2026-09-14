@@ -684,11 +684,14 @@ void OnPassiveArrowLoosed(Player &player, Point target)
 		return;
 	if (++ClocksFor(player).arrowsLoosed % 4 != 0)
 		return;
-	// The grenade: the engine's Fireball, lobbed after the arrow at a quarter of the Rogue's level. Its own art is RfA-16.
+	// The grenade: the engine's Fireball, lobbed after the arrow at a quarter of the Rogue's level, wearing RfA-16's
+	// tumbling clay bomb in flight. Its burst is still the Fireball's own explosion (ProcessFireball swaps to it).
 	const Point from = player.position.tile;
 	const Point dst = target == from ? from + player._pdir : target;
-	AddMissile(from, dst, GetDirection(from, dst), MissileID::Fireball, TARGET_MONSTERS, static_cast<int>(player.getId()), 0,
-	    std::max(player._pLevel / 4, 1));
+	Missile *grenade = AddMissile(from, dst, GetDirection(from, dst), MissileID::Fireball, TARGET_MONSTERS,
+	    static_cast<int>(player.getId()), 0, std::max(player._pLevel / 4, 1));
+	if (grenade != nullptr && MissileArtLoaded(MissileGraphicID::Grenade))
+		UseMissileGraphic(*grenade, MissileGraphicID::Grenade);
 }
 
 int PassiveWarcryDurationPercent(const Player &player)

@@ -201,6 +201,18 @@ void Ring(Player &player, Point tile)
 	AddMissile(tile, tile, player._pdir, MissileID::WarcryRing, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
 }
 
+/**
+ * @brief A census skill's own art (RfA-16) from @p from to @p tile, lasting @p ticks where the effect loops.
+ * False, spawning nothing, while its sheet is not in the archive - the caller keeps its placeholder then.
+ */
+bool Show(Player &player, MissileID effect, MissileGraphicID art, Point from, Point tile, int ticks = 0)
+{
+	if (!MissileArtLoaded(art))
+		return false;
+	AddMissile(from, tile, GetDirection(from, tile), effect, TARGET_MONSTERS, static_cast<int>(player.getId()), ticks, 0);
+	return true;
+}
+
 bool TeleportTo(Player &player, Point dst)
 {
 	if (dst == player.position.tile || !InDungeonBounds(dst))
@@ -903,8 +915,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	// ---- the census notes (2026-09-14) ----
 	case SpellID::Meteor:
-		// A second to fall, three to burn: TickField does both.
+		// A second to fall, three to burn: TickField does both. The rock's ten frames take that second.
 		NewField(player, spell, target, 4 * TicksPerSecond, r);
+		Show(player, MissileID::MeteorFall, MissileGraphicID::Meteor, target, target);
 		return true;
 	case SpellID::Decoy: {
 		// The Golem slot, disarmed: it stands, draws blows, and strikes no one.
@@ -931,13 +944,17 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const Point pool = m.position.tile;
 		Strike(player, m, DamageType::Acid, Percent(WeaponBlow(player), 60 + 5 * (r - 1)));
 		NewField(player, spell, pool, 3 * TicksPerSecond, r);
+		Show(player, MissileID::AcidJavelin, MissileGraphicID::AcidJavelin, here, pool);
+		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, pool, pool, 3 * TicksPerSecond);
 		return true;
 	}
 	case SpellID::PlagueJavelin: {
 		const auto line = MonstersOnLine(here, target, 8);
 		const Point burst = line.empty() ? Clamped(here, target, 8) : Point(line.front()->position.tile);
 		NewField(player, spell, burst, 5 * TicksPerSecond, r);
-		Ring(player, burst);
+		Show(player, MissileID::AcidJavelin, MissileGraphicID::AcidJavelin, here, burst);
+		if (!Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, burst, burst, 5 * TicksPerSecond))
+			Ring(player, burst);
 		return true;
 	}
 	case SpellID::ValkyriesSpear: {
@@ -1385,7 +1402,9 @@ void TickField(Player &player, Field &field)
 			const Range d = Scale(r, 20, 40, 8, 12);
 			for (Monster *m : MonstersWithin(field.tile, 2))
 				Strike(player, *m, DamageType::Fire, Rolled(d));
-			Ring(player, field.tile);
+			// The burst, then its ground burn for the rest of the field's life.
+			if (!Show(player, MissileID::MeteorImpact, MissileGraphicID::MeteorImpact, field.tile, field.tile, field.ticksLeft))
+				Ring(player, field.tile);
 		} else if (field.step == 1 && field.clock % TicksPerSecond == 0) {
 			const Range burn = Scale(r, 3, 6, 1, 2);
 			for (Monster *m : MonstersWithin(field.tile, 1))
@@ -1404,7 +1423,8 @@ void TickField(Player &player, Field &field)
 			const Range d = Scale(r, 4, 8, 2, 3);
 			for (Monster *m : MonstersWithin(field.tile, 2))
 				Strike(player, *m, DamageType::Acid, Rolled(d));
-			Ring(player, field.tile);
+			if (!MissileArtLoaded(MissileGraphicID::AcidCloud))
+				Ring(player, field.tile); // the cloud shows the pulse's reach while it hangs there
 		}
 		break;
 	case SpellID::FurnaceMouth:

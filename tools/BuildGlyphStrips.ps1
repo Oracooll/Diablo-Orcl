@@ -46,7 +46,9 @@ foreach ($e in $manifest) { $byKey[("{0}|{1}|{2}" -f $e.class, $e.page, $e.name)
 # place. Found by the 2026-09-12 asset sweep; batch-13 restored and batch-26 filed beside it.
 # batch-31 (2026-09-13): the RfA-12 skills' glyphs, RfA-13. Its shadows are corrected to the house offset by
 # tools\FixBatch31GlyphShadows.ps1 first - run that before this whenever the pack changes.
-$extraPacks = @('batch-13-skill-glyphs', 'batch-26-sorceress-glyphs', 'batch-31-new-skill-glyphs')
+# batch-36 (2026-09-14, RfA-16): the six rows renamed by the census notes. Its shadows are already exact, and
+# its manifest.json was written at intake from the delivery's notes (the pack shipped without one).
+$extraPacks = @('batch-13-skill-glyphs', 'batch-26-sorceress-glyphs', 'batch-31-new-skill-glyphs', 'batch-36-census-glyphs')
 foreach ($extra in $extraPacks) {
   $extraRoot = Join-Path (Split-Path -Parent $pack) $extra
   $extraManifest = Get-Content (Join-Path $extraRoot 'manifest.json') -Raw | ConvertFrom-Json
@@ -196,7 +198,15 @@ Write-Host ("glyph keys across all packs: {0}, used: {1}" -f $byKey.Count, $used
 if ($missing.Count -gt 0) { Write-Host "rows with NO glyph (kept their old frame):"; $missing | ForEach-Object { Write-Host "  $_" } }
 # The three retired rows are expected to match nothing: they are out of the tree by design and their
 # glyphs stay in the pack. Naming them keeps every remaining line of this report meaningful.
+# The six after them are the rows the census notes renamed (2026-09-14); batch-36 drew their new glyphs, and
+# the old ones stay in their packs.
 $expectedUnused = @(
+  'Barbarian|COMBAT SKILLS|Double Throw',
+  'Paladin|PASSIVE SKILLS|Lord Commander',
+  'Paladin|PASSIVE SKILLS|Long Arm of the Law',
+  'Barbarian|COMBAT MASTERIES|Increased Stamina',
+  'Sorceress|PASSIVE SKILLS|Evocation',
+  'Monk|PASSIVE SKILLS|Beacon of Ytar',
   'Paladin|COMBAT SKILLS|Holy Bolt',
   'Barbarian|PASSIVE SKILLS|Boon of Bul-Kathos',
   'Rogue|PASSIVE SKILLS|Ballistics'

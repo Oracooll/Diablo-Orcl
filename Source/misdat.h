@@ -149,6 +149,19 @@ enum class MissileGraphicID : uint8_t {
 	HitFire,
 	HitLightning,
 	HitCold,
+	/**
+	 * Oracool (2026-09-14): RfA-16's batch 35, the art for the skills built from the census notes.
+	 * PngOnly like the nine above: the thrown weapons dress Weapon Throw's arrow, the grenade dresses
+	 * Grenadier's Fireball, and the rest are the census effects' own missiles.
+	 */
+	ThrownSword,
+	ThrownAxe,
+	AcidJavelin,
+	AcidCloud,
+	Meteor,
+	MeteorImpact,
+	ThunderBolt,
+	Grenade,
 	None,
 };
 

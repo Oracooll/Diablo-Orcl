@@ -10,12 +10,14 @@
 #include <set>
 #include <string>
 
+#include "misdat.h"
 #include "monster.h"
 #include "oracool/class_tree.h"
 #include "oracool/decoy.h"
 #include "oracool/hidden_classes.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
+#include "oracool/weapon_throw.h"
 #include "player.h"
 #include "spells.h"
 
@@ -108,6 +110,21 @@ TEST(OracoolCensusNotes, NothingIsADecoyUntilOneIsCast)
 	EXPECT_EQ(oracool::GetDecoyAnim(Monsters[0], MonsterGraphic::Stand), nullptr);
 	devilution::Monster local {};
 	EXPECT_FALSE(oracool::IsDecoy(local)) << "a monster outside the table is never a decoy";
+}
+
+// RfA-16 (2026-09-14): each census effect is its own drawn-only missile wearing its own sheet, and the throw
+// picks the sword's spin with nothing in hand. (MissileArtLoaded reads MissileSpriteData, which the test DLL does
+// not export, so it is not asked here.)
+TEST(OracoolCensusNotes, TheCensusArtIsWiredToItsSkills)
+{
+	EXPECT_EQ(GetMissileData(MissileID::AcidJavelin).mFileNum, MissileGraphicID::AcidJavelin);
+	EXPECT_EQ(GetMissileData(MissileID::AcidCloud).mFileNum, MissileGraphicID::AcidCloud);
+	EXPECT_EQ(GetMissileData(MissileID::MeteorFall).mFileNum, MissileGraphicID::Meteor);
+	EXPECT_EQ(GetMissileData(MissileID::MeteorImpact).mFileNum, MissileGraphicID::MeteorImpact);
+	EXPECT_EQ(GetMissileData(MissileID::ThunderBolt).mFileNum, MissileGraphicID::ThunderBolt);
+
+	devilution::Player &player = FreshHero(HeroClass::Barbarian);
+	EXPECT_EQ(oracool::ThrownWeaponGraphic(player), MissileGraphicID::ThrownSword);
 }
 
 // User, 2026-09-14: "remove this class from our mod ... Hide them, dont remove them."

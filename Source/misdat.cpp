@@ -192,6 +192,12 @@ const MissileData MissilesData[] = {
 // Oracool (2026-09-11): Blessed Shield's hit flash - holyexpl, scaled by AddBlessedShieldImpact, lit and
 // timed by the generic explosion. It deals nothing; the shield dealt the damage.
 /*BlessedShieldImpact*/  { &AddBlessedShieldImpact, &ProcessMissileExplosion,     SFX_NONE,    SFX_NONE,    MissileGraphicID::HolyBoltExplosion,    Magic,                 MissileMovementDistribution::Disabled    },
+// Oracool (2026-09-14, RfA-16): the census skills' art. Drawn only - they strike nothing.
+/*AcidJavelin*/          { &AddAcidJavelin,         &ProcessAcidJavelin,          SFX_NONE,    SFX_NONE,    MissileGraphicID::AcidJavelin,          Physical,              MissileMovementDistribution::Disabled    },
+/*AcidCloud*/            { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::AcidCloud,            Physical,              MissileMovementDistribution::Disabled    },
+/*MeteorFall*/           { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::Meteor,               Physical,              MissileMovementDistribution::Disabled    },
+/*MeteorImpact*/         { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::MeteorImpact,         Physical,              MissileMovementDistribution::Disabled    },
+/*ThunderBolt*/          { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::ThunderBolt,          Physical,              MissileMovementDistribution::Disabled    },
 	// clang-format on
 };
 
@@ -199,7 +205,7 @@ const MissileData MissilesData[] = {
 // silently shifts every missile past it onto another's behaviour. Pinned after Round 6 appended
 // MissileID::Warcry - which, at the enum's old int8_t, wrapped to -128 and read this table from
 // before its first row. See MissileID in spelldat.h for that story.
-static_assert(sizeof(MissilesData) / sizeof(MissilesData[0]) == static_cast<size_t>(MissileID::BlessedShieldImpact) + 1,
+static_assert(sizeof(MissilesData) / sizeof(MissilesData[0]) == static_cast<size_t>(MissileID::ThunderBolt) + 1,
     "MissilesData needs a row for every MissileID, in the enum's order");
 
 namespace {
@@ -363,6 +369,16 @@ MissileFileData MissileSpriteData[] = {
 /*HitFire*/                  { {},               64,           0, "hit_fire",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_6       },
 /*HitLightning*/             { {},               64,           0, "hit_lightning",     1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_6       },
 /*HitCold*/                  { {},               64,           0, "hit_cold",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_6       },
+// RfA-16 (2026-09-14), batch 35. Cells and frame counts are the delivery's notes; animWidth2 is (frame - 64) / 2.
+// The javelin is sixteen facings of one frame. Cloud, meteor and bolt step every second tick (delay row 2).
+/*ThrownSword*/              { {},               48,          -8, "thrown_sword",      1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
+/*ThrownAxe*/                { {},               48,          -8, "thrown_axe",        1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
+/*AcidJavelin*/              { {},               64,           0, "acid_javelin",     16, MissileGraphicsFlags::PngOnly,                 0, AnimLen_1       },
+/*AcidCloud*/                { {},              128,          32, "acid_cloud",        1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_12      },
+/*Meteor*/                   { {},               96,          16, "meteor",            1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_10      },
+/*MeteorImpact*/             { {},              160,          48, "meteor_impact",     1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_14      },
+/*ThunderBolt*/              { {},               64,           0, "thunder_bolt",      1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_8       },
+/*Grenade*/                  { {},               32,         -16, "grenade",           1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };

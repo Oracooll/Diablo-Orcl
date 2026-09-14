@@ -686,6 +686,16 @@ enum class MissileID : int16_t {
 	 * Drawn and lit only, no damage. See AddBlessedShieldImpact.
 	 */
 	BlessedShieldImpact,
+	/**
+	 * Oracool (2026-09-14, RfA-16): the census skills' own art - drawn only, no damage; the blows are
+	 * rfa12_actives' and aura_field's. Each removes itself while its sheet is not in the archive, and
+	 * the caller keeps its placeholder. See AddCensusEffect and AddAcidJavelin.
+	 */
+	AcidJavelin,
+	AcidCloud,
+	MeteorFall,
+	MeteorImpact,
+	ThunderBolt,
 	Null = -1,
 	// clang-format on
 };
