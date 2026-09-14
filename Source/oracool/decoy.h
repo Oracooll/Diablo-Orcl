@@ -49,6 +49,21 @@ void ClearDecoys();
 /** @brief Whether @p monster's slot wears hero sheets - a Decoy or a Valkyrie. */
 bool IsDecoy(const Monster &monster);
 
+/**
+ * @brief Whether @p monster is a dungeon Valkyrie (user, 2026-09-14: "make her shot bow and make her invulnerable and
+ * everlasting once cast. the dmg she does equals the dmg my hero is making."). The Golem AI shoots her owner's arrows
+ * from her instead of swinging, and no damage lands on her. True even if her sheets failed to load.
+ */
+bool IsValkyrie(const Monster &monster);
+
+/** @brief Remembers (or forgets) that @p player has called her Valkyrie - once called she returns on every level. */
+void SetValkyrieCalled(const Player &player, bool called);
+
+bool IsValkyrieCalled(size_t playerId);
+
+/** @brief The 0-based frame of her shot at which the arrow leaves the bow - the Rogue bow sheet's own. */
+int ValkyrieReleaseFrame();
+
 /** @brief The dressed slot's animation for @p graphic, or nullptr when @p monster is not dressed. Asked by GetScaledAnim. */
 const AnimStruct *GetDecoyAnim(const Monster &monster, MonsterGraphic graphic);
 

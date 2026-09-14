@@ -36,9 +36,13 @@ struct HeroSheets {
 
 std::array<HeroSheets, MAX_PLRS> Decoys;
 
-/** @brief The Valkyrie's dress: heavy armour (ArmourChar 'h'), sword and shield. */
+/** @brief Which dungeon slots are Valkyries (see IsValkyrie), and which Rogues have called theirs. */
+std::array<bool, MAX_PLRS> ValkyrieSlots {};
+std::array<bool, MAX_PLRS> ValkyrieCalled {};
+
+/** @brief The Valkyrie's dress: heavy armour (ArmourChar 'h') and a bow - she shoots (user, 2026-09-14). */
 constexpr size_t ValkyrieArmour = 2;
-constexpr PlayerWeaponGraphic ValkyrieWeapon = PlayerWeaponGraphic::SwordShield;
+constexpr PlayerWeaponGraphic ValkyrieWeapon = PlayerWeaponGraphic::Bow;
 /** @brief Below this brightness a colour is the sheets' outline and shadow - see RampTranslation. */
 constexpr int ShadowLuminance = 40;
 
@@ -254,6 +258,7 @@ void MakeValkyrie(Monster &golem)
 	if (id >= MAX_PLRS)
 		return;
 	ClearDecoy(golem);
+	ValkyrieSlots[id] = true; // her rules hold even if the archive has no sheet to dress her in
 	if (!LoadValkyrieSheets(Decoys[id], /*town=*/false))
 		return;
 	golem.uniqueMonsterTRN = ValkyrieTranslation();
@@ -263,7 +268,10 @@ void MakeValkyrie(Monster &golem)
 void ClearDecoy(Monster &golem)
 {
 	const size_t id = golem.getId();
-	if (id >= MAX_PLRS || !Decoys[id].active)
+	if (id >= MAX_PLRS)
+		return;
+	ValkyrieSlots[id] = false;
+	if (!Decoys[id].active)
 		return;
 	Decoys[id] = HeroSheets {};
 	golem.uniqueMonsterTRN = nullptr;
@@ -273,6 +281,30 @@ void ClearDecoys()
 {
 	for (HeroSheets &set : Decoys)
 		set = HeroSheets {};
+	ValkyrieSlots.fill(false);
+}
+
+bool IsValkyrie(const Monster &monster)
+{
+	if (&monster < &Monsters[0] || &monster >= &Monsters[0] + MAX_PLRS)
+		return false;
+	return ValkyrieSlots[monster.getId()];
+}
+
+void SetValkyrieCalled(const Player &player, bool called)
+{
+	if (const size_t id = player.getId(); id < MAX_PLRS)
+		ValkyrieCalled[id] = called;
+}
+
+bool IsValkyrieCalled(size_t playerId)
+{
+	return playerId < MAX_PLRS && ValkyrieCalled[playerId];
+}
+
+int ValkyrieReleaseFrame()
+{
+	return std::max(PlayersAnimData[static_cast<size_t>(HeroClass::Rogue)].bowActionFrame - 1, 0);
 }
 
 bool IsDecoy(const Monster &monster)
@@ -325,6 +357,13 @@ void ProcessTownValkyries()
 		return;
 	for (size_t id = 0; id < MAX_PLRS; id++) {
 		TownValkyrie &v = TownValkyries[id];
+		// Once called she is everlasting: she is back beside her Rogue on every return to town. Asked once a second,
+		// so an archive without her sheets is not searched every tick.
+		static std::array<int, MAX_PLRS> recallClock {};
+		if (!v.sheets.active && ValkyrieCalled[id] && id < Players.size() && Players[id].plractive && ++recallClock[id] >= 20) {
+			recallClock[id] = 0;
+			SummonTownValkyrie(Players[id], Players[id].position.tile);
+		}
 		if (!v.sheets.active)
 			continue;
 		if (id >= Players.size() || !Players[id].plractive) {

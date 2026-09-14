@@ -18,6 +18,7 @@
 #include "oracool/hidden_classes.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
+#include "oracool/rfa12_actives.h"
 #include "oracool/skill_points.h"
 #include "oracool/weapon_throw.h"
 #include "player.h"
@@ -177,6 +178,25 @@ TEST(OracoolCensusNotes, TheTownValkyrieOnlyAnswersInTown)
 	oracool::ClearTownValkyries();
 	EXPECT_FALSE(oracool::HasTownValkyrie(0));
 	leveltype = savedType;
+}
+
+// User, 2026-09-14: "make her shot bow and make her invulnerable and everlasting once cast." Nothing is a Valkyrie
+// until one is dressed, a call is remembered per Rogue, and a new game forgets it.
+TEST(OracoolCensusNotes, TheValkyrieIsRememberedUntilANewGame)
+{
+	oracool::ClearDecoys();
+	EXPECT_FALSE(oracool::IsValkyrie(Monsters[0]));
+	devilution::Monster local {};
+	EXPECT_FALSE(oracool::IsValkyrie(local)) << "a monster outside the table is never a Valkyrie";
+
+	devilution::Player &rogue = FreshHero(HeroClass::Rogue);
+	EXPECT_FALSE(oracool::IsValkyrieCalled(0));
+	oracool::SetValkyrieCalled(rogue, true);
+	EXPECT_TRUE(oracool::IsValkyrieCalled(0));
+	EXPECT_FALSE(oracool::IsValkyrieCalled(MAX_PLRS));
+	oracool::ClearRfa12ActiveBuffs(rogue);
+	EXPECT_FALSE(oracool::IsValkyrieCalled(0)) << "a new game starts with no Valkyrie called";
+	EXPECT_GE(oracool::ValkyrieReleaseFrame(), 0);
 }
 
 // User, 2026-09-14: "remove this class from our mod ... Hide them, dont remove them."

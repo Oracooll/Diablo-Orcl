@@ -876,6 +876,9 @@ void NewMonsterAnim(Monster &monster, MonsterGraphic graphic, Direction md, Anim
 
 void StartMonsterGotHit(Monster &monster)
 {
+	// Nor does a blow move her: this also snaps a walking monster back to the tile it left.
+	if (oracool::IsValkyrie(monster))
+		return;
 	if (monster.type().type != MT_GOLEM) {
 		auto animationFlags = gGameLogicStep < GameLogicStep::ProcessMonsters ? AnimationDistributionFlags::ProcessAnimationPending : AnimationDistributionFlags::None;
 		int8_t numSkippedFrames = (gbIsHellfire && monster.type().type == MT_DIABLO) ? 4 : 0;
@@ -1632,8 +1635,33 @@ bool MonsterAttack(Monster &monster)
 	return false;
 }
 
+/**
+ * @brief The Valkyrie's shot (user, 2026-09-14: "the dmg she does equals the dmg my hero is making"). The arrow is her
+ * OWNER's - player-sourced, so ProcessArrow and MonsterMHit give it the hero's own damage, bonuses, to-hit, kills and
+ * experience - loosed from the Valkyrie's tile at the Rogue bow sheet's release frame.
+ */
+bool ValkyrieShoot(Monster &valkyrie)
+{
+	const int release = std::min(oracool::ValkyrieReleaseFrame(), std::max(valkyrie.animInfo.numberOfFrames - 1, 0));
+	if (valkyrie.animInfo.currentFrame == release) {
+		const size_t owner = valkyrie.getId();
+		if (owner < Players.size() && Players[owner].plractive) {
+			AddMissile(valkyrie.position.tile, valkyrie.enemyPosition, valkyrie.direction, MissileID::Arrow, TARGET_MONSTERS,
+			    static_cast<int>(owner), 4, 0);
+			PlaySfxLoc(PS_BFIRE, valkyrie.position.tile);
+		}
+	}
+	if (valkyrie.animInfo.isLastFrame()) {
+		M_StartStand(valkyrie, valkyrie.direction);
+		return true;
+	}
+	return false;
+}
+
 bool MonsterRangedAttack(Monster &monster)
 {
+	if (oracool::IsValkyrie(monster))
+		return ValkyrieShoot(monster);
 	if (monster.animInfo.currentFrame == monster.data().animFrameNum - 1) {
 		const auto &missileType = static_cast<MissileID>(monster.var1);
 		if (missileType != MissileID::Null) {
@@ -4031,6 +4059,9 @@ void AddDoppelganger(Monster &monster)
 
 void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage)
 {
+	// The Valkyrie is invulnerable (user, 2026-09-14). Every blow on a monster lands here, so she is spared here.
+	if (oracool::IsValkyrie(monster))
+		return;
 	AddFloatingNumber(damageType, monster, damage);
 
 	// The time-to-kill clock starts HERE, where damage lands, not in M_StartHit where the monster
@@ -4394,6 +4425,9 @@ bool Walk(Monster &monster, Direction md)
 	return true;
 }
 
+/** @brief How far the Valkyrie shoots, in walking tiles. */
+constexpr int ValkyrieShotRange = 8;
+
 void GolumAi(Monster &golem)
 {
 	if (golem.position.tile.x == 1 && golem.position.tile.y == 0) {
@@ -4407,7 +4441,7 @@ void GolumAi(Monster &golem)
 	if ((golem.flags & MFLAG_TARGETS_MONSTER) == 0)
 		UpdateEnemy(golem);
 
-	if (golem.mode == MonsterMode::MeleeAttack) {
+	if (IsAnyOf(golem.mode, MonsterMode::MeleeAttack, MonsterMode::RangedAttack)) {
 		return;
 	}
 
@@ -4416,7 +4450,16 @@ void GolumAi(Monster &golem)
 		int mex = golem.position.tile.x - enemy.position.future.x;
 		int mey = golem.position.tile.y - enemy.position.future.y;
 		golem.direction = GetDirection(golem.position.tile, enemy.position.tile);
-		if (abs(mex) < 2 && abs(mey) < 2) {
+		if (oracool::IsValkyrie(golem)) {
+			// The Valkyrie shoots (user, 2026-09-14): from where she stands, at anything in reach she can see. Out of
+			// reach she closes in like the Golem, below.
+			if (golem.position.tile.WalkingDistance(enemy.position.tile) <= ValkyrieShotRange
+			    && LineClearMissile(golem.position.tile, enemy.position.tile)) {
+				golem.enemyPosition = enemy.position.tile;
+				StartRangedAttack(golem, MissileID::Arrow, 0);
+				return;
+			}
+		} else if (abs(mex) < 2 && abs(mey) < 2) {
 			golem.enemyPosition = enemy.position.tile;
 			if (enemy.activeForTicks == 0) {
 				enemy.activeForTicks = UINT8_MAX;
