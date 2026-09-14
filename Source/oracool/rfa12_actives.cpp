@@ -900,6 +900,43 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Stagger(*line.front(), 2 * TicksPerSecond);
 		return true;
 	}
+	// ---- the census notes (2026-09-14) ----
+	case SpellID::Meteor:
+		// A second to fall, three to burn: TickField does both.
+		NewField(player, spell, target, 4 * TicksPerSecond, r);
+		return true;
+	case SpellID::Decoy: {
+		// The Golem slot, disarmed: it stands, draws blows, and strikes no one.
+		if (!Summon(player, target, r))
+			return false;
+		Monster &decoy = Monsters[player.getId()];
+		if (decoy.position.tile != GolemHoldingCell) {
+			decoy.minDamage = 0;
+			decoy.maxDamage = 0;
+			decoy.golemToHit = 0;
+			decoy.maxHitPoints *= 2;
+			decoy.hitPoints = decoy.maxHitPoints;
+		}
+		StateOf(player).summonTicks = (15 + (r - 1)) * TicksPerSecond;
+		return true;
+	}
+	case SpellID::PoisonJavelin: {
+		const auto line = MonstersOnLine(here, target, 8);
+		if (line.empty())
+			return false;
+		Monster &m = *line.front();
+		const Point pool = m.position.tile;
+		Strike(player, m, DamageType::Acid, Percent(WeaponBlow(player), 60 + 5 * (r - 1)));
+		NewField(player, spell, pool, 3 * TicksPerSecond, r);
+		return true;
+	}
+	case SpellID::PlagueJavelin: {
+		const auto line = MonstersOnLine(here, target, 8);
+		const Point burst = line.empty() ? Clamped(here, target, 8) : Point(line.front()->position.tile);
+		NewField(player, spell, burst, 5 * TicksPerSecond, r);
+		Ring(player, burst);
+		return true;
+	}
 	case SpellID::ValkyriesSpear: {
 		for (Monster *m : MonstersWithin(target, 1))
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 150 + 15 * (r - 1)));
@@ -1338,6 +1375,35 @@ void TickField(Player &player, Field &field)
 		}
 		break;
 	}
+	// ---- the census notes (2026-09-14) ----
+	case SpellID::Meteor:
+		if (field.step == 0 && field.clock >= TicksPerSecond) {
+			field.step = 1;
+			const Range d = Scale(r, 20, 40, 8, 12);
+			for (Monster *m : MonstersWithin(field.tile, 2))
+				Strike(player, *m, DamageType::Fire, Rolled(d));
+			Ring(player, field.tile);
+		} else if (field.step == 1 && field.clock % TicksPerSecond == 0) {
+			const Range burn = Scale(r, 3, 6, 1, 2);
+			for (Monster *m : MonstersWithin(field.tile, 1))
+				Strike(player, *m, DamageType::Fire, Rolled(burn));
+		}
+		break;
+	case SpellID::PoisonJavelin:
+		if (field.clock % TicksPerSecond == 0) {
+			const Range d = Scale(r, 2, 4, 1, 1);
+			for (Monster *m : MonstersWithin(field.tile, 1))
+				Strike(player, *m, DamageType::Acid, Rolled(d));
+		}
+		break;
+	case SpellID::PlagueJavelin:
+		if (field.clock % TicksPerSecond == 0) {
+			const Range d = Scale(r, 4, 8, 2, 3);
+			for (Monster *m : MonstersWithin(field.tile, 2))
+				Strike(player, *m, DamageType::Acid, Rolled(d));
+			Ring(player, field.tile);
+		}
+		break;
 	case SpellID::FurnaceMouth:
 		if (field.clock % TicksPerSecond == 0) {
 			const Range d = Scale(r, 4, 9, 2, 4);

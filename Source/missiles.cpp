@@ -757,6 +757,9 @@ void AddRune(Missile &missile, Point dst, MissileID missileID)
 		if (runePosition) {
 			missile.position.tile = *runePosition;
 			missile.var1 = static_cast<int8_t>(missileID);
+			// Custom Engineering (Rogue, 2026-09-14): the rune strikes as if three levels stronger.
+			if (missile.sourceType() == MissileSource::Player)
+				missile._mispllvl += oracool::PassiveRuneLevelBonus(*missile.sourcePlayer());
 			missile._mlid = AddLight(missile.position.tile, 8);
 			return;
 		}

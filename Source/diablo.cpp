@@ -60,6 +60,7 @@
 #include "multi.h"
 #include "nthread.h"
 #include "objects.h"
+#include "oracool/weapon_throw.h"
 #include "oracool/attack_skills.h"
 #include "oracool/shutdown_watchdog.h"
 #include "oracool/skill_picker.h"
@@ -340,6 +341,7 @@ void LeftMouseCmd(bool bShift)
 	oracool::ArmMeleeSkill(std::nullopt);
 	oracool::ArmArrowSkill(std::nullopt); // and the bow latch, for the same reason - see rogue_arrows.h
 	oracool::ArmClassMeleeSkill(std::nullopt); // and the Barbarian and Monk latch - see melee_skills.h
+	oracool::ArmWeaponThrow(std::nullopt); // and the Barbarian's throw - see weapon_throw.h
 
 	// Oracool: bug postmortem (2026-08-11) - this used to assert that the click was outside
 	// GetMainPanel(), which held while the old 640x128 panel swallowed every click inside its rect.
@@ -750,6 +752,7 @@ void RightMouseBasicAttack(bool isShiftHeld)
 	oracool::ArmMeleeSkill(std::nullopt);
 	oracool::ArmArrowSkill(std::nullopt); // and the bow latch, for the same reason - see rogue_arrows.h
 	oracool::ArmClassMeleeSkill(std::nullopt); // and the Barbarian and Monk latch - see melee_skills.h
+	oracool::ArmWeaponThrow(std::nullopt); // and the Barbarian's throw - see weapon_throw.h
 
 	Player &myPlayer = *MyPlayer;
 	if (leveltype == DTYPE_TOWN) {

@@ -2222,8 +2222,9 @@ TEST(OracoolClassTree, EveryInertRowContributesNothing)
 		checked++;
 	}
 
-	// 32 rows stayed inert after the all-heroes sweep (2026-09-14); a floor under that still catches an inverted flag.
-	EXPECT_GT(checked, 25) << "almost nothing was inert - did the implemented flag get inverted?";
+	// After the census notes (2026-09-14) the inert rows are the hidden Bard's fifteen and two retired rows; a floor
+	// under that still catches an inverted flag.
+	EXPECT_GT(checked, 10) << "almost nothing was inert - did the implemented flag get inverted?";
 }
 
 
@@ -2306,7 +2307,7 @@ TEST(OracoolClassTree, EveryClassHasAPassiveSkillsPageAndEveryRowOnItIsAnInertSi
 			EXPECT_EQ(data.spellId, SpellID::Invalid) << data.name;
 		}
 	}
-	EXPECT_EQ(built, 97u) << "Round 5 built forty-one Passive Skills page rows, Heavenly Strength (2026-09-11) the forty-second, Unforgiving (2026-09-14) the forty-third, the Barbarian's last seven (2026-09-14) the fiftieth, the all-heroes sweep (2026-09-14) forty-three more, and the four replacements for rows the engine could not carry (2026-09-14) the ninety-seventh (plus the Rogue's four Passive & Magic rows, which are not on this page)";
+	EXPECT_EQ(built, 99u) << "Round 5 built forty-one Passive Skills page rows, Heavenly Strength (2026-09-11) the forty-second, Unforgiving (2026-09-14) the forty-third, the Barbarian's last seven (2026-09-14) the fiftieth, the all-heroes sweep (2026-09-14) forty-three more, the four replacements for rows the engine could not carry (2026-09-14) the ninety-seventh, and Custom Engineering and Grenadier from the census notes (2026-09-14) the ninety-ninth (plus the Rogue's four Passive & Magic rows, which are not on this page)";
 }
 
 TEST(OracoolClassTree, AddingThePassivePagesMovedNoExistingSkillsSaveSlot)
@@ -5729,7 +5730,8 @@ TEST(OracoolAudit, EveryAuraHasAGroundRing)
 		ASSERT_NE(id, nullptr) << data.name << " is an aura with no ground ring";
 		EXPECT_TRUE(ids.insert(id).second) << data.name << " shares the ring file " << id;
 	}
-	EXPECT_EQ(auras, 57) << "the aura count moved - a new aura needs a ring in AuraFiles and RfA art";
+	// 59 since the Sorceress's Static Field and Thunder Storm became auras (2026-09-14); their rings are requested in RfA-16.
+	EXPECT_EQ(auras, 59) << "the aura count moved - a new aura needs a ring in AuraFiles and RfA art";
 }
 
 /**

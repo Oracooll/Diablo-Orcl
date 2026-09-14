@@ -62,7 +62,7 @@ struct AuraFile {
 	const char *id;
 };
 
-constexpr std::array<AuraFile, 57> AuraFiles { {
+constexpr std::array<AuraFile, 59> AuraFiles { {
     // Offensive
     { Skill::Might, "might" },
     { Skill::HolyFire, "holy_fire" },
@@ -126,6 +126,9 @@ constexpr std::array<AuraFile, 57> AuraFiles { {
     { Skill::HymnOfRenewal, "hymn_of_renewal" },
     { Skill::SymphonyOfWar, "symphony_of_war" },
     { Skill::SovereignMeasure, "sovereign_measure" },
+    // The Sorceress's two auras (2026-09-14) - rings requested in RfA-16; until delivered they burn without one.
+    { Skill::StaticField, "static_field" },
+    { Skill::ThunderStorm, "thunder_storm" },
 } };
 
 std::array<AuraArt, AuraFiles.size()> Art;

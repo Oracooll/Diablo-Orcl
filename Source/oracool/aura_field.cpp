@@ -133,6 +133,70 @@ void ProcessHolyPulse(Player &player)
 	    static_cast<int>(player.getId()), 0, 0);
 }
 
+/** @brief The monsters an aura of the local player may strike within @p radius tiles. Gathered before striking. */
+std::vector<Monster *> AuraTargetsWithin(const Player &player, int radius)
+{
+	std::vector<Monster *> found;
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		Monster &monster = Monsters[ActiveMonsters[i]];
+		if ((monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
+			continue;
+		if (player.position.tile.WalkingDistance(monster.position.tile) <= radius)
+			found.push_back(&monster);
+	}
+	return found;
+}
+
+/**
+ * @brief Static Field (Sorcerer, user note 2026-09-14: "like DMG aura of Paladin. Similar to Holy Fire").
+ *
+ * Holy Fire's pulse and reach, but the strike is a share of what the monster has LEFT, Diablo II's way:
+ * 4% at one point, +1% a point, 20% at most; a unique loses half. At least one point of damage.
+ */
+void ProcessStaticField(Player &player)
+{
+	static int clock = HolyPulseTicks - 1;
+	const int points = LitAuraPoints(Skill::StaticField);
+	if (points <= 0) {
+		clock = HolyPulseTicks - 1;
+		return;
+	}
+	if (++clock < HolyPulseTicks)
+		return;
+	clock = 0;
+	const int percent = std::min(4 + (points - 1), 20);
+	for (Monster *monster : AuraTargetsWithin(player, HolyPulseRadius(points))) {
+		int damage = monster->hitPoints * percent / 100;
+		if (monster->isUnique())
+			damage /= 2;
+		AuraStrike(player, *monster, DamageType::Lightning, std::max(damage, 1 << 6));
+	}
+	AddMissile(player.position.tile, player.position.tile, player._pdir, MissileID::WarcryRing, TARGET_MONSTERS,
+	    static_cast<int>(player.getId()), 0, 0);
+}
+
+/** @brief Thunder Storm (Sorcerer, 2026-09-14): every HolyPulseTicks a bolt falls on one enemy within 6 tiles. */
+void ProcessThunderStorm(Player &player)
+{
+	static int clock = 0;
+	const int points = LitAuraPoints(Skill::ThunderStorm);
+	if (points <= 0) {
+		clock = 0;
+		return;
+	}
+	if (++clock < HolyPulseTicks)
+		return;
+	clock = 0;
+	const std::vector<Monster *> near = AuraTargetsWithin(player, 6);
+	if (near.empty())
+		return;
+	Monster &target = *near[GenerateRnd(static_cast<int32_t>(near.size()))];
+	const Point tile = target.position.tile;
+	AuraStrike(player, target, DamageType::Lightning, RollDamage({ 1, 20 + 10 * (points - 1) }));
+	// The bolt's own art is RfA-16; until then the strike marks the floor where it fell.
+	AddMissile(tile, tile, player._pdir, MissileID::WarcryRing, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
+}
+
 /** @brief Whether @p monster is close enough to the local player for an aura of @p points. */
 bool WithinAura(const Monster &monster, int points)
 {
@@ -284,6 +348,8 @@ void ProcessOutwardAura(Player &player)
 		return;
 
 	ProcessHolyPulse(player);
+	ProcessStaticField(player);
+	ProcessThunderStorm(player);
 
 	const int sanctuary = LitAuraPoints(Skill::Sanctuary);
 	if (sanctuary <= 0)

@@ -791,10 +791,12 @@ TEST(Writehero, pfile_write_hero)
 	//      move, which is the proof that neither change touched a saved byte.
 	// 1.11.111: 114 BYTES, same skill-investment chunk as Rounds 1-9 - MAX_SPELLS 126 -> 240 for the
 	//      RfA-12 actives' spell ids. Count-prefixed, so a 126-entry hero loads into the first 126.
+	// 1.12.008: FIVE BYTES, same chunk - MAX_SPELLS 240 -> 245 for the census notes' Meteor, Decoy, Poison
+	//      Javelin, Plague Javelin and Weapon Throw. Count-prefixed, so a 240-entry hero loads into the first 240.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "02cd633394aa6be8599f1eec26b7a0fb6c15e227733d47056d4f829e22c930d2");
+	    "6fa7b80f7bc20f9688546159d7debee83cfb2af511ee5f89788fd9ab6650559b");
 }
 
 } // namespace

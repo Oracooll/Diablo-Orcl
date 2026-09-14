@@ -296,7 +296,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Leap"), N_("Vault to the spot under the cursor, over anything in the way - four tiles, a tile further every three ranks."), Bar, 0, 1, 0, Kind::Active, SpellID::Leap, true },
 	{ N_("Double Swing"), N_("Two blows in one swing, the second at 75% damage, +5% per rank."), Bar, 0, 1, 1, Kind::Active, SpellID::DoubleSwing, true },
 	{ N_("Stun"), N_("A blow that leaves the target reeling for 1.5 seconds, +20% longer per rank. Uniques shrug it off."), Bar, 0, 2, 0, Kind::Active, SpellID::Stun, true },
-	{ N_("Double Throw"), N_("Hurl both thrown weapons at once. Inert: this engine has no thrown weapons."), Bar, 0, 2, 1, Kind::Active, SpellID::Invalid, false },
+	// User note, 2026-09-14: "We remove Double Throw ... but we need to keep single weapon throw ... using normal attack animation."
+	{ N_("Weapon Throw"), N_("Hurl the sword or axe in your hand at the enemy under the cursor for its full damage, with your ordinary attack; it is back in your grip for the next blow."), Bar, 0, 2, 1, Kind::Active, SpellID::WeaponThrow, true },
 	{ N_("Leap Attack"), N_("Leap onto a distant enemy; the blow you land there is at +50% damage, +10% per rank."), Bar, 0, 3, 0, Kind::Active, SpellID::LeapAttack, true },
 	{ N_("Concentrate"), N_("A focused blow at +50% damage, +10% per rank. The steadiness half is not built yet."), Bar, 0, 3, 1, Kind::Active, SpellID::Concentrate, true },
 	{ N_("Frenzy"), N_("Two blows in one swing, both at 100% damage, +10% per rank."), Bar, 0, 4, 0, Kind::Active, SpellID::Frenzy, true },
@@ -308,7 +309,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Mace Mastery"), N_("Sharpens your aim and your blow with any mace or club held."), Bar, 1, 0, 2, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Pole Arm Mastery"), N_("Sharpens your aim and your blow with a staff - this engine's nearest pole arm."),
 	    Bar, 1, 1, 0, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Throwing Mastery"), N_("Mastery of thrown weapons. Inert: this engine has none."), Bar, 1, 1, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Throwing Mastery"), N_("Mastery of the thrown weapon: Weapon Throw lands +10% damage, +6% per level."), Bar, 1, 1, 1, Kind::Passive, SpellID::Invalid, true },
 	// Built 2026-09-14: the engine has no spear ItemType, but the Spear and Pike BASES have been told apart
 	// since RfA-12's Brace and Long Reach (WieldingSpearOrPike), so the old "no spear type" reason no longer held.
 	{ N_("Spear Mastery"), N_("Mastery of spears and pikes: +10% chance to hit, +5% per level, and +10% damage, +6% per level, while one is held."), Bar, 1, 1, 2, Kind::Passive, SpellID::Invalid, true },
@@ -442,13 +443,15 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Cold Mastery"), N_("Every rank adds 6% to all cold damage. From rank 3 a resisting monster keeps only 50% of its protection; from rank 6, none."), Sor, 0, 5, 1, Kind::Passive, SpellID::Invalid, true },
 	// --- Lightning Spells: most of this page is a wiring job - the engine already has the spells.
 	{ N_("Charged Bolt"), N_("Looses a spray of erratic bolts. This engine's Charged Bolt, raised by its books rather than by skill points."), Sor, 1, 0, 0, Kind::Active, SpellID::ChargedBolt, true },
-	{ N_("Static Field"), N_("Strips a share of the life from everything near. Inert: no analogue exists here."), Sor, 1, 1, 0, Kind::Active, SpellID::Invalid, false },
+	// User note, 2026-09-14: "this should work like DMG aura of Paladin. Similar to Holy Fire." - an aura, pulsing in aura_field.cpp.
+	{ N_("Static Field"), N_("An aura. Every second and a half the air around you cracks: everything within reach loses 4% of its remaining life as lightning, +1% per level, to 20%. Uniques lose half as much."), Sor, 1, 1, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Telekinesis"), N_("Works objects and gathers items at a distance. This engine's Telekinesis, raised by its books rather than by skill points."), Sor, 1, 1, 1, Kind::Active, SpellID::Telekinesis, true },
 	{ N_("Nova"), N_("A ring of lightning bursting outward. This engine's Nova, raised by its books rather than by skill points."), Sor, 1, 2, 0, Kind::Active, SpellID::Nova, true },
 	{ N_("Lightning"), N_("A bolt that strikes in a line. This engine's Lightning, raised by its books rather than by skill points."), Sor, 1, 2, 1, Kind::Active, SpellID::Lightning, true },
 	{ N_("Chain Lightning"), N_("A bolt that leaps between enemies. This engine's Chain Lightning, raised by its books rather than by skill points."), Sor, 1, 3, 0, Kind::Active, SpellID::ChainLightning, true },
 	{ N_("Teleport"), N_("Step instantly to a place you can see. This engine's Teleport, raised by its books rather than by skill points."), Sor, 1, 3, 1, Kind::Active, SpellID::Teleport, true },
-	{ N_("Thunder Storm"), N_("A storm that strikes on its own as you fight. Inert: no analogue exists here."), Sor, 1, 4, 0, Kind::Active, SpellID::Invalid, false },
+	// User note, 2026-09-14: an aura like Holy Fire - the storm strikes on its own while it burns.
+	{ N_("Thunder Storm"), N_("An aura. Every second and a half a bolt falls on one enemy within 6 tiles of you for 1-20 lightning damage, +10 per level."), Sor, 1, 4, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Energy Shield"), N_("Mana takes the damage your life would. This engine's Mana Shield, raised by its books rather than by skill points."), Sor, 1, 4, 1, Kind::Active, SpellID::ManaShield, true },
 	{ N_("Lightning Mastery"), N_("Your blows carry lightning, and lightning troubles you less. Not D2's spell scaling: this engine deepens a spell by its LEVEL, and has no per-element channel to raise."), Sor, 1, 5, 0, Kind::Passive, SpellID::Invalid, true },
 	// --- Fire Spells ---
@@ -459,7 +462,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Fire Ball"), N_("A bursting ball of flame. This engine's Fireball, raised by its books rather than by skill points."), Sor, 2, 2, 1, Kind::Active, SpellID::Fireball, true },
 	{ N_("Fire Wall"), N_("A wall of flame across the ground. This engine's Fire Wall, raised by its books rather than by skill points."), Sor, 2, 3, 0, Kind::Active, SpellID::FireWall, true },
 	{ N_("Enchant"), N_("Your weapon burns: every blow carries fire. A passive rather than a cast buff, since a tree skill with no spell slot has no way to be cast."), Sor, 2, 3, 1, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Meteor"), N_("Calls a burning rock down from the sky. Inert: no analogue exists here."), Sor, 2, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Meteor"), N_("A burning rock falls on the cursor a second after the cast: 20-40 fire damage, +8-12 per level, to everything within 2 tiles, and the ground burns for 3 seconds."), Sor, 2, 4, 0, Kind::Active, SpellID::Meteor, true },
 	{ N_("Fire Mastery"), N_("Fire burns for you and less against you. Not D2's spell scaling: this engine deepens a spell by its LEVEL, and has no per-element channel to raise."), Sor, 2, 5, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Hydra"), N_("Sets a fire-breathing head to guard a spot. Mapped onto this engine's Guardian, which is the same idea."), Sor, 2, 5, 0, Kind::Active, SpellID::Guardian, true },
 
@@ -570,7 +573,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Slow Missiles"), N_("For 20 seconds, +4 per rank, 50% of the arrows aimed at you turn aside, +5% per rank."), Rog, 1, 2, 0, Kind::Active, SpellID::SlowMissiles, true },
 	{ N_("Avoid"), N_("A chance to slip an arrow: 10%, +4% per rank, 40% at most."), Rog, 1, 2, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Penetrate"), N_("Sharpens your aim with anything you wield."), Rog, 1, 3, 0, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Decoy"), N_("A double of yourself to draw fire. Not yet built."), Rog, 1, 3, 1, Kind::Active, SpellID::Invalid, false },
+	// User note, 2026-09-14: "Summon recolored clone. Use Golem mechanic to control it." The Golem slot, disarmed.
+	{ N_("Decoy"), N_("A double stands at the cursor for 15 seconds, +1 per level, drawing the enemy's blows. It strikes no one, and it replaces any other summon."), Rog, 1, 3, 1, Kind::Active, SpellID::Decoy, true },
 	{ N_("Evade"), N_("A chance to slip a blow while moving: 10%, +4% per rank, 40% at most."), Rog, 1, 4, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Valkyrie"), N_("Calls a warrior to fight beside you. Mapped onto this engine's Golem, which is the same idea."),
 	    Rog, 1, 5, 0, Kind::Active, SpellID::Golem, true },
@@ -578,11 +582,12 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// --- Javelin & Spear ---
 	{ N_("Jab"), N_("Three quick thrusts in one motion, the second and third at 50% damage, +5% per rank."), Rog, 2, 0, 0, Kind::Active, SpellID::Jab, true },
 	{ N_("Power Strike"), N_("A thrust at +30% damage, +5% per rank, with 1-4 lightning damage per rank on top of it."), Rog, 2, 1, 0, Kind::Active, SpellID::PowerStrike, true },
-	{ N_("Poison Javelin"), N_("A javelin trailing venom. Inert: this engine has no poison."), Rog, 2, 1, 1, Kind::Active, SpellID::Invalid, false },
+	// User note, 2026-09-14: "This engine has Acid, so use Acid."
+	{ N_("Poison Javelin"), N_("A javelin of acid: the first enemy in its path takes 60% of your weapon's damage as acid, +5% per level, and the acid eats at the ground under it for 3 seconds."), Rog, 2, 1, 1, Kind::Active, SpellID::PoisonJavelin, true },
 	{ N_("Impale"), N_("A savage thrust at +100% damage, +20% per rank."), Rog, 2, 2, 0, Kind::Active, SpellID::Impale, true },
 	{ N_("Charged Strike"), N_("A thrust at +20% damage, +5% per rank, that throws off two charged bolts toward the target, one more every two ranks."), Rog, 2, 2, 1, Kind::Active, SpellID::ChargedStrike, true },
 	{ N_("Lightning Bolt"), N_("Hurl a bolt of lightning that races along the ground toward the target, at the rank. No javelin exists here; the bolt carries itself."), Rog, 2, 3, 0, Kind::Active, SpellID::LightningBoltSkill, true },
-	{ N_("Plague Javelin"), N_("A javelin trailing a cloud of pestilence. Inert: this engine has no poison."), Rog, 2, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Plague Javelin"), N_("A javelin that bursts into a cloud of acid where it strikes: 4-8 acid damage, +2-3 per level, every second for 5 seconds to everything within 2 tiles."), Rog, 2, 3, 1, Kind::Active, SpellID::PlagueJavelin, true },
 	{ N_("Fend"), N_("Every swing also strikes everything around you at 80% damage, +5% per rank."), Rog, 2, 4, 0, Kind::Active, SpellID::Fend, true },
 	{ N_("Lightning Strike"), N_("A thrust at +20% damage, +5% per rank, whose lightning leaps on from the target to the next enemy, and the next."), Rog, 2, 5, 0, Kind::Active, SpellID::LightningStrike, true },
 	{ N_("Lightning Fury"), N_("Hurl lightning that bursts outward in every direction at once, at the rank."), Rog, 2, 5, 1, Kind::Active, SpellID::LightningFury, true },
@@ -610,10 +615,12 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Rog, 3, 3, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Perfectionist"), N_("+10% armour and +10 to every resistance."),
 	    Rog, 3, 3, 1, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Custom Engineering"), N_("Your traps and sentries last +100% longer and you may set more. Not yet built: this engine has no traps or sentries."),
-	    Rog, 3, 3, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Grenadier"), N_("Your grenades hit harder, burst wider, and one falls when you do. Not yet built: this engine has no grenades."),
-	    Rog, 3, 4, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	// User note, 2026-09-14: "Diablo Hellfire introduces trap runes. Use their mechanics."
+	{ N_("Custom Engineering"), N_("The rune traps you set strike as if three levels stronger, and half the time the rune is not used up."),
+	    Rog, 3, 3, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	// User note, 2026-09-14: "Use Magic Star mechanics for granades." A lobbed fire burst after every fourth arrow.
+	{ N_("Grenadier"), N_("Every fourth arrow you loose is followed by a grenade that bursts in flame where it lands."),
+	    Rog, 3, 4, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Sharpshooter"), N_("Every second without a critical blow adds 4% to the chance of one; a critical blow deals double and starts the count again."),
 	    Rog, 3, 4, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	// Off the page (user, 2026-09-12: "i dont want 19th (lvl 36) skill"), as the Barbarian's Boon of

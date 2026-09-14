@@ -9,6 +9,7 @@
 #include <fmt/core.h>
 
 #include "control.h"
+#include "oracool/weapon_throw.h"
 #include "oracool/gems.h"
 #include "oracool/inventory_layout.h"
 #include "controls/plrctrls.h"
@@ -934,7 +935,9 @@ bool DoAttack(Player &player)
 
 	bool didhit = false;
 
-	if (player.AnimInfo.currentFrame == hitFrame - 1) {
+	if (player.AnimInfo.currentFrame == hitFrame - 1 && oracool::ThrowArmedWeapon(player)) {
+		// Weapon Throw: this swing let go of the weapon instead of striking with it (oracool/weapon_throw.h).
+	} else if (player.AnimInfo.currentFrame == hitFrame - 1) {
 		Point position = player.position.tile + player._pdir;
 		Monster *monster = FindMonsterAtPosition(position);
 		// Long Reach (RfA-12): with a staff, spear or pike, a swing at an empty tile reaches the enemy beyond it.
@@ -1064,6 +1067,10 @@ bool DoRangeAttack(Player &player)
 	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::MultipleArrows) && player.AnimInfo.currentFrame == player._pAFNum + 1) {
 		arrows = 2;
 	}
+
+	// Grenadier (Rogue, 2026-09-14) counts the shots this frame looses.
+	if (arrows > 0 && &player == MyPlayer)
+		oracool::OnPassiveArrowLoosed(player, player.position.temp);
 
 	for (int arrow = 0; arrow < arrows; arrow++) {
 		int xoff = 0;
@@ -3771,6 +3778,25 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			LastMouseButtonAction = MouseActionType::Attack;
 			NetSendCmdLoc(MyPlayerId, true, CMD_RATTACKXY, cursPosition);
 		}
+		return;
+	}
+
+	// Weapon Throw (Barbarian, user note 2026-09-14): the ordinary attack, in place, toward the cursor - and at the hit
+	// frame DoAttack throws the weapon instead of swinging it (oracool/weapon_throw.h).
+	if (oracool::IsWeaponThrow(spellID)) {
+		if (!oracool::CanThrowWeapon(myPlayer)) {
+			myPlayer.Say(HeroSpeech::ICantDoThat);
+			return;
+		}
+		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
+			myPlayer.Say(HeroSpeech::NotEnoughMana);
+			return;
+		}
+		oracool::ArmClassMeleeSkill(std::nullopt);
+		oracool::ArmRfa12Melee(std::nullopt);
+		oracool::ArmWeaponThrow(cursPosition);
+		LastMouseButtonAction = MouseActionType::Attack;
+		NetSendCmdLoc(MyPlayerId, true, CMD_SATTACKXY, cursPosition);
 		return;
 	}
 

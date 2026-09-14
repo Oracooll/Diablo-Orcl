@@ -52,6 +52,7 @@ struct Clocks {
 	int crescendoStacks = 0;    // Crescendo: blows landed under this song
 	std::array<SpellID, 3> comboSpells { SpellID::Invalid, SpellID::Invalid, SpellID::Invalid }; // Combination Strike
 	std::array<int, 3> comboTicks {};
+	int arrowsLoosed = 0;       // Grenadier: arrows since the last grenade
 };
 
 std::array<Clocks, MAX_PLRS> ClocksOf;
@@ -388,6 +389,9 @@ int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool 
 		percent += 20;
 	if (!melee && player._pMana * 2 > player._pMaxMana && PassiveActive(player, Skill::ManaAttunement))
 		percent += 15;
+	// Throwing Mastery (Barbarian, 2026-09-14): a missile from a Barbarian with no bow is a thrown weapon.
+	if (!melee && player._pClass == HeroClass::Barbarian && !player.UsesRangedWeapon() && PassiveActive(player, Skill::ThrowingMastery))
+		percent += 10 + 6 * (ClassTreeInvestment(player, Skill::ThrowingMastery) - 1);
 	return percent;
 }
 
@@ -662,6 +666,29 @@ bool PassiveShrugsOffStagger(Player &player)
 int PassiveSlowShortenPercent(const Player &player)
 {
 	return PassiveActive(player, Skill::Juggernaut) ? 50 : 0;
+}
+
+int PassiveRuneLevelBonus(const Player &player)
+{
+	return PassiveActive(player, Skill::CustomEngineering) ? 3 : 0;
+}
+
+bool PassiveSparesRune(const Player &player)
+{
+	return PassiveActive(player, Skill::CustomEngineering) && GenerateRnd(2) == 0;
+}
+
+void OnPassiveArrowLoosed(Player &player, Point target)
+{
+	if (!PassiveActive(player, Skill::Grenadier))
+		return;
+	if (++ClocksFor(player).arrowsLoosed % 4 != 0)
+		return;
+	// The grenade: the engine's Fireball, lobbed after the arrow at a quarter of the Rogue's level. Its own art is RfA-16.
+	const Point from = player.position.tile;
+	const Point dst = target == from ? from + player._pdir : target;
+	AddMissile(from, dst, GetDirection(from, dst), MissileID::Fireball, TARGET_MONSTERS, static_cast<int>(player.getId()), 0,
+	    std::max(player._pLevel / 4, 1));
 }
 
 int PassiveWarcryDurationPercent(const Player &player)

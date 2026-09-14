@@ -76,6 +76,7 @@ int RageCost(SpellID spell)
 	case SpellID::ThreateningShout:
 	case SpellID::WarCry:
 	case SpellID::Whirlwind:
+	case SpellID::WeaponThrow: // a new skill (2026-09-14), priced like the Barbarian's other attacks
 		return 10;
 	default:
 		return 0;

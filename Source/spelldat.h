@@ -18,7 +18,7 @@ namespace devilution {
 // `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable spells, so a new id is a candidate for books
 // and staves unless its sBookLvl and sStaffLvl are both -1. All seven skills' are, deliberately -
 // they are earned by level, not found. MAX_ITEM_SPELLS below is the belt-and-braces on that.
-#define MAX_SPELLS 240
+#define MAX_SPELLS 245
 
 /**
  * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
@@ -368,8 +368,14 @@ enum class SpellID : int16_t {
 	WaveOfLight,
 	AstralProjection,
 	AncestralCourt,
+	// The skills the user's census notes asked for (2026-09-14): four inert rows made real, and the Barbarian's throw.
+	Meteor,
+	Decoy,
+	PoisonJavelin,
+	PlagueJavelin,
+	WeaponThrow,
 
-	LAST = AncestralCourt,
+	LAST = WeaponThrow,
 	Invalid = -1,
 };
 

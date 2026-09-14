@@ -32,6 +32,7 @@
  */
 #pragma once
 
+#include "engine/point.hpp"
 #include "oracool/class_tree.h"
 #include "spelldat.h"
 
@@ -105,6 +106,15 @@ int PassiveMonsterDamagePercent(const Monster &monster);
 
 /** @brief Change to @p spell's mana price - Chant of Resonance - in percent. */
 int PassiveManaCostPercent(const Player &player, SpellID spell);
+
+/** @brief Custom Engineering: spell levels a rune trap @p player sets gains. Asked by AddRune. */
+int PassiveRuneLevelBonus(const Player &player);
+
+/** @brief Custom Engineering: whether this rune is set without being used up. Asked by ConsumeScroll. */
+bool PassiveSparesRune(const Player &player);
+
+/** @brief @p player loosed arrows this frame toward @p target - Grenadier counts them. Asked by DoRangeAttack. */
+void OnPassiveArrowLoosed(Player &player, Point target);
 
 /** @brief Change to one named skill's damage - Blunt, Towering Shield - in percent. */
 int PassiveSkillDamagePercent(const Player &player, SpellID spell);

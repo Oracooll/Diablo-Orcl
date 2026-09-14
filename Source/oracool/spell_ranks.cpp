@@ -132,6 +132,8 @@ constexpr int SpellBand[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	// The census notes' five (2026-09-14), all earned on the tree.
+	0, 0, 0, 0, 0,
 };
 static_assert(sizeof(SpellBand) / sizeof(SpellBand[0]) == MAX_SPELLS,
     "every SpellID needs a band - this table is indexed by the enum");

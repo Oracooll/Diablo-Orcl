@@ -13,6 +13,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/hidden_classes.h"
 #include "oracool/passives.h"
+#include "oracool/rage.h"
 #include "player.h"
 #include "spells.h"
 
@@ -47,7 +48,6 @@ void ClearSlots(devilution::Player &player)
 TEST(OracoolPassiveSweep, EveryInertPassiveSaysWhyAndEveryBuiltOneDoesNot)
 {
 	const std::set<std::string> stillInert = {
-		"Custom Engineering", "Grenadier",
 		"Sustain", "Encore", "Countermelody", "Improvisation", "Refrain", "Timbre", "Virtuoso", "Overture",
 		"Reverberation", "Boon of Bul-Kathos", "Ballistics",
 	};
@@ -66,6 +66,35 @@ TEST(OracoolPassiveSweep, EveryInertPassiveSaysWhyAndEveryBuiltOneDoesNot)
 		}
 		EXPECT_EQ(description.find("Not yet built") != std::string::npos, !data.implemented) << data.name;
 	}
+}
+
+// The census notes (2026-09-14): the ten rows the user asked to be adjusted to the engine, all built.
+TEST(OracoolCensusNotes, TheTenNotedSkillsAreBuiltTheWayTheNotesAsked)
+{
+	for (ClassTreeSkill skill : { ClassTreeSkill::DoubleThrow, ClassTreeSkill::ThrowingMastery, ClassTreeSkill::StaticField,
+	         ClassTreeSkill::ThunderStorm, ClassTreeSkill::Meteor, ClassTreeSkill::Decoy, ClassTreeSkill::PoisonJavelin,
+	         ClassTreeSkill::PlagueJavelin, ClassTreeSkill::CustomEngineering, ClassTreeSkill::Grenadier }) {
+		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skill);
+		EXPECT_TRUE(data.implemented) << data.name;
+	}
+	EXPECT_EQ(oracool::ClassTreeSpellId(ClassTreeSkill::DoubleThrow), SpellID::WeaponThrow) << "Double Throw became the single throw";
+	EXPECT_STREQ(oracool::GetClassTreeSkillData(ClassTreeSkill::DoubleThrow).name, "Weapon Throw");
+	EXPECT_EQ(oracool::ClassTreeSpellId(ClassTreeSkill::Meteor), SpellID::Meteor);
+	EXPECT_EQ(oracool::ClassTreeSpellId(ClassTreeSkill::Decoy), SpellID::Decoy);
+	EXPECT_EQ(oracool::ClassTreeSpellId(ClassTreeSkill::PoisonJavelin), SpellID::PoisonJavelin);
+	EXPECT_EQ(oracool::ClassTreeSpellId(ClassTreeSkill::PlagueJavelin), SpellID::PlagueJavelin);
+	EXPECT_EQ(oracool::GetClassTreeSkillData(ClassTreeSkill::StaticField).kind, oracool::ClassTreeKind::Aura) << "like Holy Fire";
+	EXPECT_EQ(oracool::GetClassTreeSkillData(ClassTreeSkill::ThunderStorm).kind, oracool::ClassTreeKind::Aura);
+	EXPECT_EQ(oracool::RageCost(SpellID::WeaponThrow), 10) << "a Barbarian skill needs a Rage role";
+}
+
+TEST(OracoolCensusNotes, CustomEngineeringStrengthensRunesOnlyWhenSlotted)
+{
+	devilution::Player &player = FreshHero(HeroClass::Rogue);
+	EXPECT_EQ(oracool::PassiveRuneLevelBonus(player), 0);
+	ASSERT_TRUE(oracool::SetPassiveSlot(player, 0, ClassTreeSkill::CustomEngineering));
+	EXPECT_EQ(oracool::PassiveRuneLevelBonus(player), 3);
+	ClearSlots(player);
 }
 
 // User, 2026-09-14: "remove this class from our mod ... Hide them, dont remove them."

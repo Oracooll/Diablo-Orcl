@@ -302,6 +302,12 @@ const SpellData SpellsData[] = {
 /*SpellID::WaveOfLight*/      { P_("spell", "Wave of Light"),       IS_CAST2,           0,            0,          9, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,   MissileID::Null,    },         0,         4,          0,          0 },
 /*SpellID::AstralProjection*/  { P_("spell", "Astral Projection"),   IS_CAST2,           0,            0,         12, Magic,                        -1,         -1,       0, { MissileID::Warcry,   MissileID::Null,    },         0,         6,          0,          0 },
 /*SpellID::AncestralCourt*/   { P_("spell", "Ancestral Court"),     IS_CAST2,           0,            0,         15, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,   MissileID::Null,    },         0,         7,          0,          0 },
+// The census notes (2026-09-14). Cast ones ride MissileID::Warcry into CastRfa12Active; Weapon Throw is swung and throws.
+/*SpellID::Meteor*/           { P_("spell", "Meteor"),              IS_CAST2,           0,            0,         20, Fire | Targeted,              -1,         -1,       0, { MissileID::Warcry,   MissileID::Null,    },         0,         9,          0,          0 },
+/*SpellID::Decoy*/            { P_("spell", "Decoy"),               IS_CAST2,           0,            0,         12, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,   MissileID::Null,    },         0,         5,          0,          0 },
+/*SpellID::PoisonJavelin*/    { P_("spell", "Poison Javelin"),      IS_CAST2,           0,            0,          6, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,   MissileID::Null,    },         0,         2,          0,          0 },
+/*SpellID::PlagueJavelin*/    { P_("spell", "Plague Javelin"),      IS_CAST2,           0,            0,         12, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,   MissileID::Null,    },         0,         5,          0,          0 },
+/*SpellID::WeaponThrow*/      { P_("spell", "Weapon Throw"),        IS_CAST2,           0,            0,          4, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,     MissileID::Null,    },         0,         2,          0,          0 },
 	// clang-format on
 };
 

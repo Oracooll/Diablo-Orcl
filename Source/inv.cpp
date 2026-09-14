@@ -25,6 +25,7 @@
 #include "levels/town.h"
 #include "minitext.h"
 #include "options.h"
+#include "oracool/passives.h"
 #include "oracool/auto_save.h"
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
@@ -3736,6 +3737,11 @@ void RefillBeltSlotFromInventory(Player &player, int spdIndex, _item_indexes idx
 void ConsumeScroll(Player &player)
 {
 	const SpellID spellId = player.executedSpell.spellId;
+
+	// Custom Engineering (Rogue, 2026-09-14): half the time the rune is set without being used up.
+	if (IsAnyOf(spellId, SpellID::RuneOfFire, SpellID::RuneOfLight, SpellID::RuneOfNova, SpellID::RuneOfImmolation, SpellID::RuneOfStone)
+	    && oracool::PassiveSparesRune(player))
+		return;
 
 	const auto isCurrentSpell = [spellId](const Item &item) {
 		return item.isScrollOf(spellId) || item.isRuneOf(spellId);
