@@ -1338,7 +1338,7 @@ void SyncLightPosition(Monster &monster)
 
 void MonsterIdle(Monster &monster)
 {
-	if (monster.type().type == MT_GOLEM)
+	if (monster.type().type == MT_GOLEM && !oracool::IsDecoy(monster)) // see M_StartStand
 		monster.changeAnimationData(MonsterGraphic::Walk);
 	else
 		monster.changeAnimationData(MonsterGraphic::Stand);
@@ -4094,7 +4094,9 @@ bool M_Talker(const Monster &monster)
 void M_StartStand(Monster &monster, Direction md)
 {
 	ClearMVars(monster);
-	if (monster.type().type == MT_GOLEM)
+	// The Golem has no stand sheet and stands on its walk. A slot dressed in hero sheets (a Valkyrie or a Decoy) has a
+	// real stand - user, 2026-09-14: "when she is standing in one place she is still looping walking animation".
+	if (monster.type().type == MT_GOLEM && !oracool::IsDecoy(monster))
 		NewMonsterAnim(monster, MonsterGraphic::Walk, md);
 	else
 		NewMonsterAnim(monster, MonsterGraphic::Stand, md);
