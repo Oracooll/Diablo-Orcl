@@ -7,7 +7,10 @@
 
 #include <gtest/gtest.h>
 
+#include <string>
+
 #include "oracool/class_tree.h"
+#include "oracool/passives.h"
 #include "oracool/rage.h"
 #include "player.h"
 #include "spells.h"
@@ -164,6 +167,36 @@ TEST(OracoolRage, UnforgivingIsTheLevelTenPassive)
 	EXPECT_TRUE(oracool::GetClassTreeSkillData(oracool::ClassTreeSkill::Unforgiving).implemented);
 	EXPECT_EQ(oracool::PassiveSkillRequiredLevel(oracool::ClassTreeSkill::InspiringPresence), 30) << "the two swapped cells";
 	EXPECT_EQ(oracool::PassiveSkillRequiredLevel(oracool::ClassTreeSkill::Rampage), 36) << "the last cell did not move";
+}
+
+// The Barbarian's passive page, fully built (2026-09-14).
+TEST(OracoolRage, EveryBarbarianPassiveOnThePageIsBuilt)
+{
+	for (oracool::ClassTreeSkill skill : { oracool::ClassTreeSkill::PoundOfFlesh, oracool::ClassTreeSkill::WeaponsMaster,
+	         oracool::ClassTreeSkill::InspiringPresence, oracool::ClassTreeSkill::BerserkerRage, oracool::ClassTreeSkill::NoEscape,
+	         oracool::ClassTreeSkill::Juggernaut, oracool::ClassTreeSkill::EarthenMight, oracool::ClassTreeSkill::Unforgiving }) {
+		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skill);
+		EXPECT_TRUE(data.implemented) << data.name;
+		EXPECT_EQ(std::string(data.description).find("Not yet built"), std::string::npos) << data.name;
+	}
+}
+
+TEST(OracoolRage, JuggernautAndInspiringPresenceAnswerOnlyWhenSlotted)
+{
+	devilution::Player &player = FreshBarbarian();
+	player._pLevel = 36;
+	for (int slot = 0; slot < static_cast<int>(oracool::PassiveSlotCount); slot++)
+		oracool::ClearPassiveSlot(player, slot);
+	EXPECT_EQ(oracool::PassiveSlowShortenPercent(player), 0);
+	EXPECT_EQ(oracool::PassiveWarcryDurationPercent(player), 100);
+
+	ASSERT_TRUE(oracool::SetPassiveSlot(player, 0, oracool::ClassTreeSkill::Juggernaut));
+	ASSERT_TRUE(oracool::SetPassiveSlot(player, 1, oracool::ClassTreeSkill::InspiringPresence));
+	EXPECT_EQ(oracool::PassiveSlowShortenPercent(player), 50);
+	EXPECT_EQ(oracool::PassiveWarcryDurationPercent(player), 200);
+
+	for (int slot = 0; slot < static_cast<int>(oracool::PassiveSlotCount); slot++)
+		oracool::ClearPassiveSlot(player, slot);
 }
 
 TEST(OracoolRage, ANewLevelStartsEmpty)

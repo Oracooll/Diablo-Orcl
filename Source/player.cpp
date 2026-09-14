@@ -3073,6 +3073,9 @@ void StartPlrHit(Player &player, int dam, bool forcehit)
 	// Anthem of Valor, and Grip of Iron with one enemy beside you (RfA-12): the blow lands, the flinch does not.
 	if (!forcehit && oracool::PlayerHoldsAgainstHit(player))
 		return;
+	// Juggernaut (Barbarian, 2026-09-14): half the staggers do not take, and one that does may heal.
+	if (!forcehit && oracool::PassiveShrugsOffStagger(player))
+		return;
 
 	int8_t skippedAnimationFrames = 0;
 	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastestHitRecovery)) {

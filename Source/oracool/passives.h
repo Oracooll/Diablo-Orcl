@@ -73,6 +73,18 @@ bool PassiveCheatsDeath(Player &player);
 /** @brief A blow @p player landed on @p target for @p damage (in the engine's 1/64 life units). */
 void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee);
 
+/**
+ * @brief Juggernaut: a stagger @p player would take is shrugged off half the time; one that lands has
+ * a 30% chance to heal a fifth of life, once every ten seconds. Asked by StartPlrHit.
+ */
+bool PassiveShrugsOffStagger(Player &player);
+
+/** @brief Juggernaut: how much shorter a slow on @p player runs, in percent. Asked by SlowPlayer. */
+int PassiveSlowShortenPercent(const Player &player);
+
+/** @brief Inspiring Presence: a warcry blessing's length, in percent of its normal length. Asked by the warcries' StartBuff. */
+int PassiveWarcryDurationPercent(const Player &player);
+
 /** @brief @p player spent @p cost mana (1/64 units) on a skill or spell. */
 void OnPassiveManaSpent(Player &player, int cost);
 

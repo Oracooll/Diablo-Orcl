@@ -15,6 +15,7 @@
 #include "monster.h"
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
+#include "oracool/passives.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/rfa12_effects.h"
@@ -59,6 +60,8 @@ bool IsSheetBuff(SpellID spell)
 /** @brief Starts or refreshes a buff. False if the caster already carries it at (nearly) full length. */
 bool StartBuff(Player &player, SpellID spell, int rank, int ticks)
 {
+	// Inspiring Presence (Barbarian, 2026-09-14): the blessing lasts twice as long.
+	ticks = ticks * PassiveWarcryDurationPercent(player) / 100;
 	Buff *slot = FindBuff(player, spell);
 	if (slot != nullptr) {
 		// Recasting a buff you carry refreshes it - but not while it is still nearly full, which
@@ -525,6 +528,15 @@ int EffectiveMonsterArmor(const Monster &monster)
 	const int armor = PackAdjustedArmor(monster);
 	// Condemnation (RfA-12) strips a share on top of what a cry has.
 	return armor + armor * (MonsterDebuffArmorPercent(monster) - Rfa12MonsterArmorCutPercent(monster)) / 100;
+}
+
+bool AnyWarcryBuffActive(const Player &player)
+{
+	for (const Buff &buff : Buffs[player.getId()]) {
+		if (buff.ticksLeft > 0)
+			return true;
+	}
+	return false;
 }
 
 void ProcessWarcriesTick(Player &player)

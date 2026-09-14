@@ -306,7 +306,9 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Pole Arm Mastery"), N_("Sharpens your aim and your blow with a staff - this engine's nearest pole arm."),
 	    Bar, 1, 1, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Throwing Mastery"), N_("Mastery of thrown weapons. Inert: this engine has none."), Bar, 1, 1, 1, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Spear Mastery"), N_("Mastery of spears. Inert: this engine has no spear type."), Bar, 1, 1, 2, Kind::Passive, SpellID::Invalid, false },
+	// Built 2026-09-14: the engine has no spear ItemType, but the Spear and Pike BASES have been told apart
+	// since RfA-12's Brace and Long Reach (WieldingSpearOrPike), so the old "no spear type" reason no longer held.
+	{ N_("Spear Mastery"), N_("Mastery of spears and pikes: +10% chance to hit, +5% per level, and +10% damage, +6% per level, while one is held."), Bar, 1, 1, 2, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Increased Stamina"), N_("Lengthens your wind. Inert: this engine tracks no stamina."), Bar, 1, 2, 0, Kind::Passive, SpellID::Invalid, false },
 	{ N_("Iron Skin"), N_("Toughens your hide, raising armour class."), Bar, 1, 3, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Increased Speed"), N_("You run rather than walk, wherever you are."), Bar, 1, 4, 0, Kind::Passive, SpellID::Invalid, true },
@@ -324,20 +326,20 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Battle Command"), N_("A command that deepens every skill you have by a rank for 30 seconds, +5 per rank."), Bar, 2, 5, 1, Kind::Active, SpellID::BattleCommand, true },
 
 	// ---- Passive Skills (page 3) ----
-	{ N_("Pound of Flesh"), N_("Healing taken from the fallen leaves you mending and quickened, and it stacks. Not yet built."),
-	    Bar, 3, 0, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Pound of Flesh"), N_("Every kill heals 3% of your life."),
+	    Bar, 3, 0, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Ruthless"), N_("+40% damage against anything below 33% of its life."),
 	    Bar, 3, 0, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Nerves of Steel"), N_("Once a minute a killing blow leaves you standing at 33% of your life instead."),
 	    Bar, 3, 0, 2, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Weapons Master"), N_("Each family of weapon lends its own gift - damage, precision, speed or fury. Not yet built."),
-	    Bar, 3, 1, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Weapons Master"), N_("Your weapon lends its gift: a sword +15% damage, an axe +15% chance to hit, a staff a faster attack, a mace 1 Rage for every blow that lands."),
+	    Bar, 3, 1, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	// Swapped cells with Unforgiving (user, 2026-09-14: "move unforgiving passive to lvl10 slot"): its
 	// row stays here, its cell is Unforgiving's old one at level 30.
-	{ N_("Inspiring Presence"), N_("Your shouts last +100% longer and leave everyone near you mending. Not yet built."),
-	    Bar, 3, 4, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Berserker Rage"), N_("Near the height of your fury you strike far harder. Not yet built."),
-	    Bar, 3, 1, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Inspiring Presence"), N_("Your warcries' blessings last twice as long, and while one is on you, 1% of your life returns every second."),
+	    Bar, 3, 4, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Berserker Rage"), N_("+25% damage while your Rage is at half or more."),
+	    Bar, 3, 1, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Bloodthirst"), N_("50% of every point of Rage you spend returns as life."),
 	    Bar, 3, 2, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Animosity"), N_("You hold twenty more Rage."),
@@ -346,14 +348,14 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 3, 2, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Tough as Nails"), N_("+25% armour."),
 	    Bar, 3, 3, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("No Escape"), N_("What you throw and what you hurl lands harder on the distant. Not yet built."),
-	    Bar, 3, 3, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("No Escape"), N_("+25% damage to enemies 5 or more tiles away."),
+	    Bar, 3, 3, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Relentless"), N_("Below 33% of your life, every blow deals -25% damage to you."),
 	    Bar, 3, 3, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Brawler"), N_("With three or more enemies pressing close, +20% damage to everything you do."),
 	    Bar, 3, 4, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Juggernaut"), N_("What would hold you fast holds you 50% as long, and may give you back your life. Not yet built."),
-	    Bar, 3, 4, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Juggernaut"), N_("Slows hold you half as long and half the blows that would stagger you do not. A blow that does has a 30% chance to heal 20% of your life, once every 10 seconds."),
+	    Bar, 3, 4, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	// The level-10 cell since 2026-09-14 (user: "move unforgiving passive to lvl10 slot and develop it").
 	// Built in oracool/rage.cpp, ProcessRageTick.
 	{ N_("Unforgiving"), N_("Your Rage no longer drains when the fighting stops - it rises, 2 a second once the last battle's 5 seconds of fury have passed."),
@@ -364,8 +366,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// RetiredFromTreePage.
 	{ N_("Boon of Bul-Kathos"), N_("Your earthquake, your ancients and your berserking all return far sooner. Not yet built."),
 	    Bar, RetiredFromTreePage, 5, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Earthen Might"), N_("Splitting the ground fills you with fury. Not yet built."),
-	    Bar, 3, 5, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Earthen Might"), N_("Ground Stomp, Seismic Slam and Earthquake give 3 Rage for every enemy they strike."),
+	    Bar, 3, 5, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Sword and Board"), N_("Behind a shield you take -30% damage."),
 	    Bar, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Rampage"), N_("Every kill lends +5% damage for 5 seconds, stacking five high."),
@@ -1070,6 +1072,22 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 			totals.bonusToHit += Scaled(points, 10, 5);
 			totals.bonusDamage += Scaled(points, 10, 6);
 		}
+		break;
+	case Skill::SpearMastery:
+		if (WieldingSpearOrPike(player)) {
+			totals.bonusToHit += Scaled(points, 10, 5);
+			totals.bonusDamage += Scaled(points, 10, 6);
+		}
+		break;
+	// Weapons Master (2026-09-14): each family its own gift. The mace's - Rage per landed blow - is a
+	// rule, not a number, and lives in passives.cpp's OnPassiveHit.
+	case Skill::WeaponsMaster:
+		if (WieldingType(player, ItemType::Sword))
+			totals.bonusDamage += 15;
+		if (WieldingType(player, ItemType::Axe))
+			totals.bonusToHit += 15;
+		if (WieldingType(player, ItemType::Staff))
+			totals.flags |= ItemSpecialEffect::FastAttack;
 		break;
 	// --- Round 5 (2026-09-03): the passives that are a NUMBER on the sheet. The ones that are a
 	//     rule - a chance, a condition read at the moment of a blow - live in oracool/passives.cpp.
@@ -2510,7 +2528,8 @@ int PlayerSlowPercent(const Player &player)
 void SlowPlayer(const Player &player, int ticks, int percent)
 {
 	// Cleansing (2026-09-12): under it, a slow or a chill wears off sooner.
-	ticks = ticks * (100 - std::max(CleansingShortenPercent(player), Rfa12SlowShortenPercent(player))) / 100;
+	// Juggernaut (2026-09-14): the Barbarian's own half.
+	ticks = ticks * (100 - std::max({ CleansingShortenPercent(player), Rfa12SlowShortenPercent(player), PassiveSlowShortenPercent(player) })) / 100;
 	if (ticks <= 0)
 		return;
 	MovementSlow &slow = MovementSlows[player.getId()];

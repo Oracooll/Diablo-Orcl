@@ -86,6 +86,9 @@ int EffectiveMonsterArmor(const Monster &monster);
 /** @brief One game tick: buffs run down, the held auras and Tranquility do their per-tick work. */
 void ProcessWarcriesTick(Player &player);
 
+/** @brief Whether any warcry blessing is on @p player - Inspiring Presence's mend asks. */
+bool AnyWarcryBuffActive(const Player &player);
+
 /** @brief Empties the monsters' side - debuffs, conversions, wards. Called where the chill table is cleared, once per level. */
 void ClearWarcries();
 

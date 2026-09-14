@@ -9,6 +9,8 @@
 #include "missiles.h"
 #include "monster.h"
 #include "oracool/chill.h"
+#include "oracool/rage.h"
+#include "oracool/warcries.h"
 #include "player.h"
 
 namespace devilution::oracool {
@@ -24,6 +26,8 @@ struct Clocks {
 	int rampageTicks = 0;      // ...and ticks left before they fall off
 	int cheatDeathCooldown = 0; // ticks until the next save is allowed
 	int cadenceCount = 0;      // Cadence: melee blows since the last beat
+	int inspireTicks = 0;      // Inspiring Presence: ticks under a warcry blessing, for the per-second mend
+	int juggernautCooldown = 0; // Juggernaut: ticks until the next heal may fire
 };
 
 std::array<Clocks, MAX_PLRS> ClocksOf;
@@ -37,6 +41,16 @@ constexpr int StillnessTicks = 30;      // a moment: a second and a half
 constexpr int RampageHoldTicks = 100;   // five seconds
 constexpr int RampageMaxStacks = 5;
 constexpr int CheatDeathCooldownTicks = 1200; // a minute
+constexpr int JuggernautCooldownTicks = 200;  // ten seconds
+
+bool WieldingMace(const Player &player)
+{
+	for (const Item &item : { player.InvBody[INVLOC_HAND_LEFT], player.InvBody[INVLOC_HAND_RIGHT] }) {
+		if (!item.isEmpty() && item._iStatFlag && item._itype == ItemType::Mace)
+			return true;
+	}
+	return false;
+}
 
 bool WearingShield(const Player &player)
 {
@@ -164,6 +178,11 @@ int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool 
 		percent += ClocksFor(player).rampageStacks * 5;
 	if (PassiveActive(player, Skill::UnwaveringWill) && Still(player))
 		percent += 10;
+	// The Barbarian's (2026-09-14). Berserker Rage reads the pool at the moment of the blow.
+	if (PassiveActive(player, Skill::BerserkerRage) && UsesRage(player) && player._pRage * 2 >= MaxRage(player))
+		percent += 25;
+	if (PassiveActive(player, Skill::NoEscape) && distance >= 5)
+		percent += 25;
 	// The beat: the third blow since the last one. Counted in OnPassiveHit, read here, so the
 	// blow that IS the beat carries the bonus and the count restarts after it lands.
 	if (melee && PassiveActive(player, Skill::Cadence) && ClocksFor(player).cadenceCount == 2)
@@ -224,6 +243,34 @@ void OnPassiveHit(Player &player, const Monster & /*target*/, int damage, bool m
 		Clocks &clocks = ClocksFor(player);
 		clocks.cadenceCount = (clocks.cadenceCount + 1) % 3;
 	}
+	// Weapons Master's mace: a point of Rage for every blow that lands, with or without a skill.
+	if (melee && PassiveActive(player, Skill::WeaponsMaster) && WieldingMace(player))
+		GainRage(player, 1);
+}
+
+bool PassiveShrugsOffStagger(Player &player)
+{
+	if (!PassiveActive(player, Skill::Juggernaut))
+		return false;
+	if (GenerateRnd(100) < 50)
+		return true;
+	// The stagger lands - and sometimes gives something back.
+	Clocks &clocks = ClocksFor(player);
+	if (clocks.juggernautCooldown == 0 && GenerateRnd(100) < 30) {
+		Heal(player, player._pMaxHP / 5);
+		clocks.juggernautCooldown = JuggernautCooldownTicks;
+	}
+	return false;
+}
+
+int PassiveSlowShortenPercent(const Player &player)
+{
+	return PassiveActive(player, Skill::Juggernaut) ? 50 : 0;
+}
+
+int PassiveWarcryDurationPercent(const Player &player)
+{
+	return PassiveActive(player, Skill::InspiringPresence) ? 200 : 100;
 }
 
 void OnPassiveManaSpent(Player &player, int cost)
@@ -243,6 +290,8 @@ void OnPassiveMonsterKilled(Player &player, const Monster &monster)
 	}
 	if (PassiveActive(player, Skill::Requiem) && player.position.tile.WalkingDistance(monster.position.tile) <= 4)
 		Heal(player, player._pMaxHP / 50);
+	if (PassiveActive(player, Skill::PoundOfFlesh))
+		Heal(player, player._pMaxHP * 3 / 100);
 }
 
 bool PassiveRunActive(const Player &player)
@@ -259,6 +308,15 @@ void ProcessPassivesTick(Player &player)
 		clocks.rampageStacks = 0;
 	if (clocks.cheatDeathCooldown > 0)
 		clocks.cheatDeathCooldown--;
+	if (clocks.juggernautCooldown > 0)
+		clocks.juggernautCooldown--;
+	// Inspiring Presence: under any warcry blessing, a hundredth of your life every second.
+	if (player._pHitPoints > 0 && PassiveActive(player, Skill::InspiringPresence) && AnyWarcryBuffActive(player)) {
+		if (++clocks.inspireTicks % 20 == 0)
+			Heal(player, player._pMaxHP / 100);
+	} else {
+		clocks.inspireTicks = 0;
+	}
 	// Brooding: still for a moment, and then a hundredth of your life every second.
 	if (player._pHitPoints > 0 && Still(player) && PassiveActive(player, Skill::Brooding)
 	    && (clocks.stillTicks - StillnessTicks) % 20 == 0)

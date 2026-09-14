@@ -54,6 +54,15 @@ int WeaponBlow(const Player &player)
 	return std::max(dam, 1) << 6;
 }
 
+/** @brief Earthen Might (Barbarian, 2026-09-14): 3 Rage for every enemy the ground-splitters strike. */
+void EarthenMightRage(Player &player, size_t struck)
+{
+	if (struck == 0 || !PassiveActive(player, ClassTreeSkill::EarthenMight))
+		return;
+	NoteRageCombat(player);
+	GainRage(player, 3 * static_cast<int>(struck));
+}
+
 bool Hittable(const Monster &monster)
 {
 	return (monster.hitPoints >> 6) > 0 && !monster.isPlayerMinion() && monster.isPossibleToHit();
@@ -542,12 +551,14 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const auto around = MonstersWithin(here, 1);
 		for (Monster *m : around)
 			Stagger(*m, 30 + 4 * (r - 1));
+		EarthenMightRage(player, around.size());
 		return !around.empty();
 	}
 	case SpellID::SeismicSlam: {
 		const auto line = MonstersOnLine(here, target, 5);
 		for (Monster *m : line)
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 80 + 10 * (r - 1)));
+		EarthenMightRage(player, line.size());
 		Ring(player, here);
 		return true;
 	}
@@ -1226,8 +1237,10 @@ void TickField(Player &player, Field &field)
 	switch (field.spell) {
 	case SpellID::Earthquake:
 		if (field.clock % TicksPerSecond == 0) {
-			for (Monster *m : MonstersWithin(field.tile, 3))
+			const auto shaken = MonstersWithin(field.tile, 3);
+			for (Monster *m : shaken)
 				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 30 + 5 * (r - 1)));
+			EarthenMightRage(player, shaken.size());
 			Ring(player, field.tile);
 		}
 		break;
