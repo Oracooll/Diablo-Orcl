@@ -2994,6 +2994,12 @@ void AddGolem(Missile &missile, AddMissileParameter &parameter)
 {
 	missile._miDelFlag = true;
 
+	// Oracool: every spell is castable in town, but town (and a quest's set level) never runs InitGolems' slot
+	// setup, so Monsters[playerId] is no golem there. Spawning into it drew a monster with no type data -
+	// the user's crash casting Valkyrie in town (2026-09-14, access violation in Monster::exp).
+	if (!LevelHasGolemSlots())
+		return;
+
 	int playerId = missile._misource;
 	Player &player = Players[playerId];
 	Monster &golem = Monsters[playerId];

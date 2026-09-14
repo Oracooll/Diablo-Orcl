@@ -10,6 +10,7 @@
 #include <set>
 #include <string>
 
+#include "levels/gendung.h"
 #include "misdat.h"
 #include "monster.h"
 #include "oracool/class_tree.h"
@@ -140,6 +141,25 @@ TEST(OracoolCensusNotes, ValkyrieTakesSkillPointsNotBooks)
 	rogue._pUnspentSkillPoints = 1;
 	EXPECT_TRUE(oracool::CanInvestClassTreePoint(rogue, ClassTreeSkill::Valkyrie));
 	rogue._pUnspentSkillPoints = 0;
+}
+
+// User, 2026-09-14: "i tried casting valkyrie - game crashed." In town. Town and a quest's set level have no golem
+// slot, so no summon may be spawned into one there.
+TEST(OracoolCensusNotes, NoSummonWhereThereIsNoGolemSlot)
+{
+	const dungeon_type savedType = leveltype;
+	const bool savedSet = setlevel;
+
+	setlevel = false;
+	leveltype = DTYPE_TOWN;
+	EXPECT_FALSE(LevelHasGolemSlots()) << "town never runs InitGolems";
+	leveltype = DTYPE_CATHEDRAL;
+	EXPECT_TRUE(LevelHasGolemSlots());
+	setlevel = true;
+	EXPECT_FALSE(LevelHasGolemSlots()) << "a set level runs InitGolems but adds no slot";
+
+	leveltype = savedType;
+	setlevel = savedSet;
 }
 
 // User, 2026-09-14: "remove this class from our mod ... Hide them, dont remove them."

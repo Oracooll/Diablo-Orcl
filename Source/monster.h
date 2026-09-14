@@ -478,6 +478,8 @@ void GetLevelMTypes();
 void InitMonsterSND(CMonster &monsterType);
 void InitMonsterGFX(CMonster &monsterType);
 void WeakenNaKrul();
+/** @brief Oracool: whether this level has the golem slots summons stand in - not town, not a quest's set level. */
+bool LevelHasGolemSlots();
 void InitGolems();
 void InitMonsters();
 void SetMapMonsters(const uint16_t *dunData, Point startPosition);

@@ -515,9 +515,23 @@ void Bleed(const Monster &monster, int ticks, int perSecond)
 	BleedMonster(monster, ticks, perSecond << 6);
 }
 
+/**
+ * @brief Whether a summon can stand here: town and a quest's set level have no golem slot (LevelHasGolemSlots),
+ * and casting one there crashed the game (user, 2026-09-14). The hero says so instead.
+ */
+bool CanSummonHere(Player &player)
+{
+	if (LevelHasGolemSlots())
+		return true;
+	player.Say(HeroSpeech::ICantCastThatHere);
+	return false;
+}
+
 /** @brief Summons @p player's spirit at @p target for thirty seconds, as the engine's Golem at the rank. */
 bool Summon(Player &player, Point target, int rank)
 {
+	if (!CanSummonHere(player))
+		return false;
 	if (AddMissile(player.position.tile, target, player._pdir, MissileID::Golem, TARGET_MONSTERS,
 	        static_cast<int>(player.getId()), 0, rank)
 	    == nullptr)
@@ -922,6 +936,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::Valkyrie:
 		// The engine's Golem at the rank, kept until she falls - no spirit's thirty seconds, and no earlier
 		// summon's clock left running to end her.
+		if (!CanSummonHere(player))
+			return false;
 		if (AddMissile(here, target, player._pdir, MissileID::Golem, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, r) == nullptr)
 			return false;
 		StateOf(player).summonTicks = 0;

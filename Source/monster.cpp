@@ -3856,6 +3856,13 @@ void WeakenNaKrul()
 	monster.maxHitPoints = hp;
 }
 
+bool LevelHasGolemSlots()
+{
+	// The same two conditions InitGolems' callers and its own body apply: town never calls it, and a set level
+	// calls it but adds nothing.
+	return leveltype != DTYPE_TOWN && !setlevel;
+}
+
 void InitGolems()
 {
 	// A new level's golem slots start as golems - no decoy's sheets carried over (oracool/decoy.h).
