@@ -578,7 +578,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Evade"), N_("A chance to slip a blow while moving: 10%, +4% per rank, 40% at most."), Rog, 1, 4, 0, Kind::Passive, SpellID::Invalid, true },
 	// User, 2026-09-14: it asked for a book and wore the Golem's red icon, because it rode SpellID::Golem - a book
 	// spell. Its own id now: skill points and the Valkyrie glyph. The body is still the Golem.
-	{ N_("Valkyrie"), N_("Calls a Valkyrie archer to fight beside you, for good: she cannot be harmed, her arrows strike as hard as yours, and she returns on every level. Another summon takes her place only while it lasts."),
+	{ N_("Valkyrie"), N_("Calls a Valkyrie archer to guard you, for good: she keeps within 3 tiles of you and shoots the enemy nearest you, her arrows strike as hard as yours, she cannot be harmed, and she returns on every level."),
 	    Rog, 1, 5, 0, Kind::Active, SpellID::Valkyrie, true },
 	{ N_("Pierce"), N_("Your arrows may carry on through what they strike: 15%, +5% per rank, 60% at most."), Rog, 1, 5, 1, Kind::Passive, SpellID::Invalid, true },
 	// --- Javelin & Spear ---

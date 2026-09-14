@@ -4427,10 +4427,112 @@ bool Walk(Monster &monster, Direction md)
 
 /** @brief How far the Valkyrie shoots, in walking tiles. */
 constexpr int ValkyrieShotRange = 8;
+/** @brief She keeps within this many tiles of her Rogue (user, 2026-09-14: "stick close to me - 2-3 tiles range")... */
+constexpr int ValkyrieLeash = 3;
+/** @brief ...drifts back in once further than this when there is nothing to shoot... */
+constexpr int ValkyrieStayClose = 2;
+/** @brief ...and simply reappears beside her past this - a teleport, a portal, a long run. */
+constexpr int ValkyrieRegroup = 10;
+
+/** @brief One step toward @p to, straight or up to two turns aside. */
+bool ValkyrieStepToward(Monster &valkyrie, Point to)
+{
+	const Direction toward = GetDirection(valkyrie.position.tile, to);
+	for (Direction dir : { toward, Left(toward), Right(toward), Left(Left(toward)), Right(Right(toward)) }) {
+		if (Walk(valkyrie, dir))
+			return true;
+	}
+	return false;
+}
+
+/** @brief Puts her on a free tile beside @p owner, standing. False if there is none within three tiles. */
+bool ValkyrieRegroupAt(Monster &valkyrie, Point owner)
+{
+	for (int radius = 1; radius <= 3; radius++) {
+		for (int dy = -radius; dy <= radius; dy++) {
+			for (int dx = -radius; dx <= radius; dx++) {
+				if (std::max(std::abs(dx), std::abs(dy)) != radius)
+					continue;
+				const Point tile = owner + Displacement { dx, dy };
+				if (!InDungeonBounds(tile) || !IsTileAvailable(valkyrie, tile))
+					continue;
+				M_ClearSquares(valkyrie);
+				dMonster[valkyrie.position.tile.x][valkyrie.position.tile.y] = 0;
+				valkyrie.position.tile = tile;
+				valkyrie.position.future = tile;
+				valkyrie.position.old = tile;
+				dMonster[tile.x][tile.y] = valkyrie.getId() + 1;
+				M_StartStand(valkyrie, GetDirection(tile, owner));
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/**
+ * @brief The enemy the Valkyrie shoots: of those she can see within ValkyrieShotRange, the one CLOSEST TO HER ROGUE
+ * (user, 2026-09-14: "shoot whoever is closest") - she guards the hero, so the nearest threat to the hero goes first.
+ */
+Monster *ValkyrieTarget(const Monster &valkyrie, Point owner)
+{
+	Monster *best = nullptr;
+	int bestDistance = 0;
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		Monster &monster = Monsters[ActiveMonsters[i]];
+		if (monster.isPlayerMinion() || (monster.hitPoints >> 6) <= 0 || !monster.isPossibleToHit() || (monster.flags & MFLAG_HIDDEN) != 0)
+			continue;
+		if (valkyrie.position.tile.WalkingDistance(monster.position.tile) > ValkyrieShotRange
+		    || !LineClearMissile(valkyrie.position.tile, monster.position.tile))
+			continue;
+		const int distance = owner.WalkingDistance(monster.position.tile);
+		if (best == nullptr || distance < bestDistance) {
+			best = &monster;
+			bestDistance = distance;
+		}
+	}
+	return best;
+}
+
+/**
+ * @brief The Valkyrie's own brain, in place of the Golem's (user, 2026-09-14: "i want valkyrie to stick close to me -
+ * 2-3 tiles range and shoot whoever is closest"). Staying near comes first: past the leash she walks back before she
+ * shoots. Within it she shoots the enemy nearest her Rogue, and with nothing to shoot she drifts back to two tiles.
+ */
+void ValkyrieAi(Monster &valkyrie)
+{
+	if (IsAnyOf(valkyrie.mode, MonsterMode::Death, MonsterMode::SpecialStand, MonsterMode::MeleeAttack, MonsterMode::RangedAttack)
+	    || valkyrie.isWalking())
+		return;
+	const size_t ownerId = valkyrie.getId();
+	if (ownerId >= Players.size() || !Players[ownerId].plractive)
+		return;
+	const Point owner = Players[ownerId].position.tile;
+	const int distance = valkyrie.position.tile.WalkingDistance(owner);
+
+	if (distance > ValkyrieRegroup && ValkyrieRegroupAt(valkyrie, owner))
+		return;
+	if (distance > ValkyrieLeash && ValkyrieStepToward(valkyrie, owner))
+		return;
+	if (Monster *target = ValkyrieTarget(valkyrie, owner); target != nullptr) {
+		valkyrie.enemy = static_cast<uint8_t>(target->getId());
+		valkyrie.enemyPosition = target->position.tile;
+		valkyrie.direction = GetDirection(valkyrie.position.tile, target->position.tile);
+		StartRangedAttack(valkyrie, MissileID::Arrow, 0);
+		return;
+	}
+	if (distance > ValkyrieStayClose)
+		ValkyrieStepToward(valkyrie, owner);
+}
 
 void GolumAi(Monster &golem)
 {
 	if (golem.position.tile.x == 1 && golem.position.tile.y == 0) {
+		return;
+	}
+
+	if (oracool::IsValkyrie(golem)) {
+		ValkyrieAi(golem);
 		return;
 	}
 
@@ -4450,16 +4552,7 @@ void GolumAi(Monster &golem)
 		int mex = golem.position.tile.x - enemy.position.future.x;
 		int mey = golem.position.tile.y - enemy.position.future.y;
 		golem.direction = GetDirection(golem.position.tile, enemy.position.tile);
-		if (oracool::IsValkyrie(golem)) {
-			// The Valkyrie shoots (user, 2026-09-14): from where she stands, at anything in reach she can see. Out of
-			// reach she closes in like the Golem, below.
-			if (golem.position.tile.WalkingDistance(enemy.position.tile) <= ValkyrieShotRange
-			    && LineClearMissile(golem.position.tile, enemy.position.tile)) {
-				golem.enemyPosition = enemy.position.tile;
-				StartRangedAttack(golem, MissileID::Arrow, 0);
-				return;
-			}
-		} else if (abs(mex) < 2 && abs(mey) < 2) {
+		if (abs(mex) < 2 && abs(mey) < 2) {
 			golem.enemyPosition = enemy.position.tile;
 			if (enemy.activeForTicks == 0) {
 				enemy.activeForTicks = UINT8_MAX;
