@@ -37,7 +37,7 @@
 #include "nthread.h"
 #include "options.h"
 #include "oracool/attack_skills.h"
-#include "oracool/decoy.h"
+#include "oracool/companion.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
@@ -1079,7 +1079,7 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 	if (static_cast<size_t>(playerId - 1) < Players.size()) {
 		DrawPlayerHelper(out, Players[playerId - 1], tilePosition, targetBufferPosition);
 	}
-	oracool::DrawTownValkyries(out, tilePosition, targetBufferPosition); // town only; see oracool/decoy.h
+	oracool::DrawTownCompanions(out, tilePosition, targetBufferPosition); // town only; see oracool/companion.h
 	if (dMonster[tilePosition.x][tilePosition.y] != 0) {
 		DrawMonsterHelper(out, tilePosition, targetBufferPosition);
 	}
@@ -1526,6 +1526,7 @@ void DrawView(const Surface &out, Point startPosition)
 		oracool::DrawEventLogWindow(out);
 		oracool::DrawGameClock(out);
 		oracool::DrawGameSpeedReadout(out);
+		oracool::DrawCompanionHud(out); // under the clock's speed band
 		// Anchored to the mini-map's frame, so hidden wherever the mini-map's corner is covered -
 		// including the Crafting book, which the other corner widgets predate.
 		if (!oracool::IsCraftingMenuOpen())

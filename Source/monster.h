@@ -547,6 +547,14 @@ void ActivateSkeleton(Monster &monster, Point position);
 Monster *PreSpawnSkeleton();
 void TalktoMonster(Player &player, Monster &monster);
 void SpawnGolem(Player &player, Monster &golem, Point position, Missile &missile);
+/** @brief Oracool (oracool/companion.h): stands a companion's body up in a golem slot, with no network message. */
+void SpawnCompanionBody(Monster &slot, Point position, Direction facing);
+/** @brief Oracool: a companion's body leaves the level quietly - no death, back to the holding cell. */
+void ReleaseCompanionBody(Monster &slot);
+/** @brief Oracool: a companion moved to @p tile at once, standing. */
+void MoveCompanionTo(Monster &companion, Point tile);
+/** @brief Oracool: a companion moved to the nearest free tile around @p centre, within @p maxRadius. */
+bool PlaceCompanionNear(Monster &companion, Point centre, int maxRadius);
 bool CanTalkToMonst(const Monster &monster);
 int encode_enemy(Monster &monster);
 void decode_enemy(Monster &monster, int enemyId);

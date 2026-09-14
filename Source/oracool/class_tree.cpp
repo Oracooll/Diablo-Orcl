@@ -422,7 +422,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 2, 3, 1, Kind::Active, SpellID::IronWill, true },
 	{ N_("Bloodcall"), N_("For 10 seconds, every kill restores 3 life and 2 Rage, +1 each per level."),
 	    Bar, 2, 3, 2, Kind::Active, SpellID::Bloodcall, true },
-	{ N_("Ancestral Call"), N_("Summons an ancestral warrior beside the cursor for 30 seconds, stronger with every level."),
+	{ N_("Ancestral Call"), N_("Calls the three Ancients for 20 seconds, +2 per level: Korlic leaps into the fray, Talic whirls, and Madawc hurls his hammer. Each strikes for 35% of your damage, +3% per level."),
 	    Bar, 2, 4, 2, Kind::Active, SpellID::AncestralCall, true },
 	{ N_("Earthshaker Cry"), N_("A roar that strikes everything within 8 tiles for 5-10 magic damage, +3-5 per level, and stuns it for 2 seconds. Uniques shrug off the stun."),
 	    Bar, 2, 5, 2, Kind::Active, SpellID::EarthshakerCry, true },
@@ -574,11 +574,11 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Avoid"), N_("A chance to slip an arrow: 10%, +4% per rank, 40% at most."), Rog, 1, 2, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Penetrate"), N_("Sharpens your aim with anything you wield."), Rog, 1, 3, 0, Kind::Passive, SpellID::Invalid, true },
 	// User note, 2026-09-14: "Summon recolored clone. Use Golem mechanic to control it." The Golem slot, disarmed.
-	{ N_("Decoy"), N_("A blue ghost of yourself stands at the cursor for 15 seconds, +1 per level, drawing the enemy's blows. It strikes no one, and it replaces any other summon."), Rog, 1, 3, 1, Kind::Active, SpellID::Decoy, true },
+	{ N_("Decoy"), N_("A blue ghost of yourself stands at the cursor for 15 seconds, +1 per level. It strikes no one, but everything near it attacks it instead of you."), Rog, 1, 3, 1, Kind::Active, SpellID::Decoy, true },
 	{ N_("Evade"), N_("A chance to slip a blow while moving: 10%, +4% per rank, 40% at most."), Rog, 1, 4, 0, Kind::Passive, SpellID::Invalid, true },
 	// User, 2026-09-14: it asked for a book and wore the Golem's red icon, because it rode SpellID::Golem - a book
 	// spell. Its own id now: skill points and the Valkyrie glyph. The body is still the Golem.
-	{ N_("Valkyrie"), N_("Calls a Valkyrie archer to guard you, for good: she keeps within 3 tiles of you and shoots the enemy nearest you, her arrows strike as hard as yours, she cannot be harmed, and she returns on every level."),
+	{ N_("Valkyrie"), N_("Calls a Valkyrie archer to guard you for 30 seconds, +5 per level. She keeps close and shoots what you strike, or the enemy nearest you, for 50% of your damage, +5% per level, with a volley every 8 seconds. 150 life, rising to 1000 at level 20; her resistances reach 90%."),
 	    Rog, 1, 5, 0, Kind::Active, SpellID::Valkyrie, true },
 	{ N_("Pierce"), N_("Your arrows may carry on through what they strike: 15%, +5% per rank, 60% at most."), Rog, 1, 5, 1, Kind::Passive, SpellID::Invalid, true },
 	// --- Javelin & Spear ---
@@ -981,7 +981,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 2, 2, 1, Kind::Active, SpellID::MantraOfRetribution, true },
 	{ N_("Serenity"), N_("Every slow and chill on you ends at once."),
 	    Monk, 2, 2, 2, Kind::Active, SpellID::Serenity, true },
-	{ N_("Spirit Guardian"), N_("Summons a spirit guardian beside the cursor for 30 seconds, stronger with every level."),
+	{ N_("Spirit Guardian"), N_("A spirit guardian stands at your side for 30 seconds, +5 per level. It strikes for 30% of your damage, +3% per level, holds the enemies that come near it, and every 8 seconds taunts all around it."),
 	    Monk, 2, 3, 1, Kind::Active, SpellID::SpiritGuardian, true },
 	{ N_("Wave of Light"), N_("A spectral bell crashes down on the cursor: 7-14 magic damage within 2 tiles, +3-5 per level."),
 	    Monk, 2, 3, 2, Kind::Active, SpellID::WaveOfLight, true },

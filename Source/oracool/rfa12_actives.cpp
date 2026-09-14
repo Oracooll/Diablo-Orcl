@@ -16,7 +16,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
 #include "oracool/class_tree.h"
-#include "oracool/decoy.h"
+#include "oracool/companion.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
@@ -340,8 +340,6 @@ struct PlayerState {
 	int crucibleTicks = 0;
 	Point crucibleTile;
 	// Ancestral Call / Spirit Guardian: the summon's clock.
-	int summonTicks = 0;
-	int valkyrieWait = 0; // ticks the everlasting Valkyrie's slot has stood empty
 	// Heaven's Descent and Leaping Crane land a tick after the teleport.
 	int landingTicks = 0;
 	Point landingTile;
@@ -516,52 +514,6 @@ void Bleed(const Monster &monster, int ticks, int perSecond)
 	BleedMonster(monster, ticks, perSecond << 6);
 }
 
-/**
- * @brief Whether a summon can stand here: town and a quest's set level have no golem slot (LevelHasGolemSlots),
- * and casting one there crashed the game (user, 2026-09-14). The hero says so instead.
- */
-bool CanSummonHere(Player &player)
-{
-	if (LevelHasGolemSlots())
-		return true;
-	player.Say(HeroSpeech::ICantCastThatHere);
-	return false;
-}
-
-/**
- * @brief @p player's Valkyrie at @p target. In a dungeon: the engine's Golem at the rank, kept - no spirit's thirty
- * seconds, and no earlier summon's clock left to end her - dressed as a gold archer (MakeValkyrie), shooting her
- * owner's own arrows and taking no damage (monster.cpp asks IsValkyrie). In town (user, 2026-09-14: "i also want to
- * be able to cast this skill in town") there is no golem slot, so she comes as a companion who follows and never
- * fights - oracool/decoy.h.
- */
-bool CallValkyrie(Player &player, Point target, int rank)
-{
-	if (leveltype == DTYPE_TOWN)
-		return SummonTownValkyrie(player, target);
-	if (!CanSummonHere(player))
-		return false;
-	if (AddMissile(player.position.tile, target, player._pdir, MissileID::Golem, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, rank) == nullptr)
-		return false;
-	if (Monster &valkyrie = Monsters[player.getId()]; valkyrie.position.tile != GolemHoldingCell)
-		MakeValkyrie(valkyrie);
-	StateOf(player).summonTicks = 0;
-	return true;
-}
-
-/** @brief Summons @p player's spirit at @p target for thirty seconds, as the engine's Golem at the rank. */
-bool Summon(Player &player, Point target, int rank)
-{
-	if (!CanSummonHere(player))
-		return false;
-	if (AddMissile(player.position.tile, target, player._pdir, MissileID::Golem, TARGET_MONSTERS,
-	        static_cast<int>(player.getId()), 0, rank)
-	    == nullptr)
-		return false;
-	StateOf(player).summonTicks = 30 * TicksPerSecond;
-	return true;
-}
-
 bool CastOnce(Player &player, SpellID spell, Point target, int r)
 {
 	const Point here = player.position.tile;
@@ -656,7 +608,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	case SpellID::AncestralCall:
 	case SpellID::SpiritGuardian:
-		return Summon(player, target, r);
+		// Companions (user, 2026-09-14) - the Ancients together, and the Monk's guardian. oracool/companion.h.
+		return SummonCompanions(player, spell, target, r);
 	case SpellID::EarthshakerCry: {
 		const auto heard = MonstersWithin(here, 8);
 		const Range d = Scale(r, 5, 10, 3, 5);
@@ -956,28 +909,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Show(player, MissileID::MeteorFall, MissileGraphicID::Meteor, target, target);
 		return true;
 	case SpellID::Valkyrie:
-		if (!CallValkyrie(player, target, r))
-			return false;
-		// Everlasting once cast (user, 2026-09-14): ProcessRfa12ActivesTick and ProcessTownValkyries bring her back.
-		SetValkyrieCalled(player, true);
-		return true;
-	case SpellID::Decoy: {
-		// The Golem slot, disarmed: it stands, draws blows, and strikes no one.
-		if (!Summon(player, target, r))
-			return false;
-		Monster &decoy = Monsters[player.getId()];
-		if (decoy.position.tile != GolemHoldingCell) {
-			decoy.minDamage = 0;
-			decoy.maxDamage = 0;
-			decoy.golemToHit = 0;
-			decoy.maxHitPoints *= 2;
-			decoy.hitPoints = decoy.maxHitPoints;
-			// And it wears the Rogue, as a blue ghost (user, 2026-09-14) - oracool/decoy.h.
-			MakeDecoy(player, decoy);
-		}
-		StateOf(player).summonTicks = (15 + (r - 1)) * TicksPerSecond;
-		return true;
-	}
+	case SpellID::Decoy:
+		// Companions (user, 2026-09-14): the Valkyrie archer, and the Decoy that draws every blow. oracool/companion.h.
+		return SummonCompanions(player, spell, target, r);
 	case SpellID::PoisonJavelin: {
 		const auto line = MonstersOnLine(here, target, 8);
 		if (line.empty())
@@ -1898,6 +1832,9 @@ void ProcessRfa12ActivesTick(Player &player)
 		return;
 	PlayerState &state = StateOf(player);
 
+	// Companions keep their own time, on every level and whether or not the owner stands (oracool/companion.h).
+	ProcessCompanions(player);
+
 	// Buffs run down; a sheet buff that ends takes its numbers with it.
 	for (size_t i = 0; i < state.ticks.size(); i++) {
 		if (state.ticks[i] > 0 && --state.ticks[i] == 0 && IsSheetBuff(static_cast<Buff>(i)))
@@ -1947,22 +1884,6 @@ void ProcessRfa12ActivesTick(Player &player)
 		}
 	}
 
-	// The everlasting Valkyrie (user, 2026-09-14): once called, she is back within a second whenever her slot stands
-	// empty - a new level, or a Decoy or spirit that had the slot and has gone. Silent where no slot exists (a quest's
-	// set level), and forgotten if the skill has no points left. Town is ProcessTownValkyries'.
-	if (IsValkyrieCalled(player.getId()) && leveltype != DTYPE_TOWN) {
-		if (player.GetSpellLevel(SpellID::Valkyrie) <= 0) {
-			SetValkyrieCalled(player, false);
-		} else if (LevelHasGolemSlots() && state.summonTicks == 0 && Monsters[player.getId()].position.tile == GolemHoldingCell) {
-			if (++state.valkyrieWait >= TicksPerSecond) {
-				state.valkyrieWait = 0;
-				CallValkyrie(player, player.position.tile, RankOf(player, SpellID::Valkyrie));
-			}
-		} else {
-			state.valkyrieWait = 0;
-		}
-	}
-
 	if (state.crucibleTicks > 0)
 		state.crucibleTicks--;
 	if (state.claimTicks > 0)
@@ -1974,13 +1895,6 @@ void ProcessRfa12ActivesTick(Player &player)
 		if (Hittable(m) && player.position.tile.WalkingDistance(m.position.tile) <= 1)
 			Strike(player, m, DamageType::Physical, state.echoDamage);
 		state.echoMonster = -1;
-	}
-
-	// The summoned spirit's thirty seconds.
-	if (state.summonTicks > 0 && --state.summonTicks == 0) {
-		Monster &golem = Monsters[player.getId()];
-		if (golem.position.tile != GolemHoldingCell && (golem.hitPoints >> 6) > 0)
-			KillMyGolem();
 	}
 
 	TickLanding(player, state);
@@ -2054,8 +1968,8 @@ void ClearRfa12ActivesForMonster(const Monster &monster)
 
 void ClearRfa12ActiveBuffs(Player &player)
 {
-	// A new game: no Valkyrie called yet. The flag is a static and would otherwise follow one character into the next.
-	SetValkyrieCalled(player, false);
+	// A new game: no companions. They are statics and would otherwise follow one character into the next.
+	ForgetCompanions();
 	bool sheetMoved = false;
 	PlayerState &state = StateOf(player);
 	for (size_t i = 0; i < state.ticks.size(); i++) {

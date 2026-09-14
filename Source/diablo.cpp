@@ -74,7 +74,7 @@
 #include "oracool/furious_charge.h"
 #include "oracool/shop_toast.h"
 #include "oracool/game_speed.h"
-#include "oracool/decoy.h"
+#include "oracool/companion.h"
 #include "oracool/event_log.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/hud_layout.h"
@@ -628,6 +628,8 @@ void LeftMouseDown(uint16_t modState)
 						NewCursor(CURSOR_HAND);
 					}
 				}
+			} else if (oracool::HandleCompanionHudClick(MousePosition)) {
+				// the companion panel's stance line took the click (oracool/companion.h)
 			} else {
 				CheckLvlBtn();
 				if (!lvlbtndown) {
@@ -2226,7 +2228,7 @@ void GameLogic()
 		gGameLogicStep = GameLogicStep::ProcessTowners;
 		ProcessTowners();
 		oracool::ProcessTownStashChest(); // the stash chest's lid - ProcessObjects does not run in town
-		oracool::ProcessTownValkyries();  // the Rogue's town companion - ProcessMonsters does not run in town either
+		oracool::ProcessTownCompanions(); // companions in town - ProcessMonsters does not run here either
 		gGameLogicStep = GameLogicStep::ProcessItemsTown;
 		ProcessItems();
 		gGameLogicStep = GameLogicStep::ProcessMissilesTown;
@@ -2802,6 +2804,18 @@ void InitKeymapActions()
 		    // gszProductName is already built by SetApplicationVersions() from ORACOOL_VERSION,
 		    // so reusing it here keeps this message correct across every version bump for free.
 		    EventPlrMsg(gszProductName, UiFlags::ColorWhite);
+	    },
+	    nullptr,
+	    CanPlayerTakeAction);
+	// Oracool, companions (2026-09-14): J was free. The panel's stance line is the mouse's way to the same thing.
+	sgOptions.Keymapper.AddAction(
+	    "CompanionStance",
+	    N_("Companion stance"),
+	    N_("Cycles your companions between Follow, Hold position, Aggressive and Passive."),
+	    'J',
+	    [] {
+		    oracool::CycleCompanionStance();
+		    oracool::AnnounceCompanionStance();
 	    },
 	    nullptr,
 	    CanPlayerTakeAction);

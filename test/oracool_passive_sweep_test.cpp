@@ -14,7 +14,7 @@
 #include "misdat.h"
 #include "monster.h"
 #include "oracool/class_tree.h"
-#include "oracool/decoy.h"
+#include "oracool/companion.h"
 #include "oracool/hidden_classes.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
@@ -104,15 +104,48 @@ TEST(OracoolCensusNotes, CustomEngineeringStrengthensRunesOnlyWhenSlotted)
 	ClearSlots(player);
 }
 
-// User, 2026-09-14: the Decoy wears the Rogue. With no sheets loaded nothing is a decoy, so no monster is
-// ever handed an animation that is not there.
-TEST(OracoolCensusNotes, NothingIsADecoyUntilOneIsCast)
+// User, 2026-09-14, Companions. The Valkyrie's numbers are the user's own: "30 sec on level 1 and up 5 sec every
+// level", "up to 1000hp at lvl 20 and more onwards", "she should reach res 90% rather soon".
+TEST(OracoolCompanion, TheValkyrieGrowsTheWayTheUserAsked)
 {
-	oracool::ClearDecoys();
-	EXPECT_FALSE(oracool::IsDecoy(Monsters[0]));
-	EXPECT_EQ(oracool::GetDecoyAnim(Monsters[0], MonsterGraphic::Stand), nullptr);
+	using oracool::CompanionKind;
+	const oracool::CompanionStats first = oracool::CompanionStatsAt(CompanionKind::Valkyrie, 1);
+	EXPECT_EQ(first.seconds, 30);
+	EXPECT_EQ(oracool::CompanionStatsAt(CompanionKind::Valkyrie, 2).seconds, 35);
+	EXPECT_EQ(first.hitPoints, 150);
+	EXPECT_EQ(oracool::CompanionStatsAt(CompanionKind::Valkyrie, 20).hitPoints, 1000);
+	EXPECT_GT(oracool::CompanionStatsAt(CompanionKind::Valkyrie, 25).hitPoints, 1000) << "and more onwards";
+	EXPECT_LT(oracool::CompanionStatsAt(CompanionKind::Valkyrie, 10).elementalResist, 90);
+	EXPECT_EQ(oracool::CompanionStatsAt(CompanionKind::Valkyrie, 11).elementalResist, 90) << "rather soon";
+	EXPECT_EQ(oracool::CompanionStatsAt(CompanionKind::Valkyrie, 40).elementalResist, 90) << "and never past it";
+	EXPECT_EQ(first.damagePercent, 50);
+	EXPECT_EQ(oracool::CompanionStatsAt(CompanionKind::Decoy, 10).damagePercent, 0) << "a decoy strikes no one";
+	EXPECT_EQ(oracool::CompanionAttackOf(CompanionKind::Valkyrie), oracool::CompanionAttack::Bow);
+	EXPECT_EQ(oracool::CompanionAttackOf(CompanionKind::Talic), oracool::CompanionAttack::Melee);
+}
+
+TEST(OracoolCompanion, FourSkillsCallCompanionsAndTheStanceCycles)
+{
+	for (SpellID spell : { SpellID::Valkyrie, SpellID::AncestralCall, SpellID::SpiritGuardian, SpellID::Decoy })
+		EXPECT_TRUE(oracool::IsCompanionSpell(spell)) << static_cast<int>(spell);
+	EXPECT_FALSE(oracool::IsCompanionSpell(SpellID::Golem)) << "the Golem spell stays the engine's own";
+
+	oracool::ForgetCompanions();
+	EXPECT_FALSE(oracool::IsCompanion(Monsters[0]));
+	EXPECT_EQ(oracool::GetCompanionAnim(Monsters[1], MonsterGraphic::Stand), nullptr);
 	devilution::Monster local {};
-	EXPECT_FALSE(oracool::IsDecoy(local)) << "a monster outside the table is never a decoy";
+	EXPECT_FALSE(oracool::IsCompanion(local)) << "a monster outside the table is never a companion";
+	EXPECT_EQ(oracool::CompanionDamageTaken(local, DamageType::Fire, 640), 640) << "only a companion resists";
+	EXPECT_FALSE(oracool::HasCompanion(oracool::CompanionKind::Valkyrie));
+
+	EXPECT_EQ(oracool::GetCompanionStance(), oracool::CompanionStance::Follow);
+	oracool::CycleCompanionStance();
+	EXPECT_EQ(oracool::GetCompanionStance(), oracool::CompanionStance::Hold);
+	oracool::CycleCompanionStance();
+	oracool::CycleCompanionStance();
+	oracool::CycleCompanionStance();
+	EXPECT_EQ(oracool::GetCompanionStance(), oracool::CompanionStance::Follow) << "four stances, round again";
+	oracool::ForgetCompanions();
 }
 
 // RfA-16 (2026-09-14): each census effect is its own drawn-only missile wearing its own sheet, and the throw
@@ -161,42 +194,6 @@ TEST(OracoolCensusNotes, NoSummonWhereThereIsNoGolemSlot)
 
 	leveltype = savedType;
 	setlevel = savedSet;
-}
-
-// User, 2026-09-14: "valkyrie is producing a regular golem" and "i also want to be able to cast this skill in town".
-// Out of town there is no companion to call, and a level load sends any away. (The sheets themselves come from the
-// player's archive, which headless tests do not have.)
-TEST(OracoolCensusNotes, TheTownValkyrieOnlyAnswersInTown)
-{
-	const dungeon_type savedType = leveltype;
-	oracool::ClearTownValkyries();
-	devilution::Player &rogue = FreshHero(HeroClass::Rogue);
-	leveltype = DTYPE_CATHEDRAL;
-	EXPECT_FALSE(oracool::SummonTownValkyrie(rogue, rogue.position.tile)) << "a dungeon Valkyrie is the golem slot's";
-	EXPECT_FALSE(oracool::HasTownValkyrie(0));
-	EXPECT_FALSE(oracool::HasTownValkyrie(MAX_PLRS)) << "out of range is never a companion";
-	oracool::ClearTownValkyries();
-	EXPECT_FALSE(oracool::HasTownValkyrie(0));
-	leveltype = savedType;
-}
-
-// User, 2026-09-14: "make her shot bow and make her invulnerable and everlasting once cast." Nothing is a Valkyrie
-// until one is dressed, a call is remembered per Rogue, and a new game forgets it.
-TEST(OracoolCensusNotes, TheValkyrieIsRememberedUntilANewGame)
-{
-	oracool::ClearDecoys();
-	EXPECT_FALSE(oracool::IsValkyrie(Monsters[0]));
-	devilution::Monster local {};
-	EXPECT_FALSE(oracool::IsValkyrie(local)) << "a monster outside the table is never a Valkyrie";
-
-	devilution::Player &rogue = FreshHero(HeroClass::Rogue);
-	EXPECT_FALSE(oracool::IsValkyrieCalled(0));
-	oracool::SetValkyrieCalled(rogue, true);
-	EXPECT_TRUE(oracool::IsValkyrieCalled(0));
-	EXPECT_FALSE(oracool::IsValkyrieCalled(MAX_PLRS));
-	oracool::ClearRfa12ActiveBuffs(rogue);
-	EXPECT_FALSE(oracool::IsValkyrieCalled(0)) << "a new game starts with no Valkyrie called";
-	EXPECT_GE(oracool::ValkyrieReleaseFrame(), 0);
 }
 
 // User, 2026-09-14: "remove this class from our mod ... Hide them, dont remove them."

@@ -57,6 +57,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/class_tree.h"
+#include "oracool/companion.h"
 #include "oracool/readied_spells.h"
 #include "oracool/run_toggle.h"
 #include "oracool/skill_points.h"
@@ -180,6 +181,7 @@ void HandleWalkMode(Player &player, Direction dir)
 	if (!PlrDirOK(player, dir)) {
 		return;
 	}
+	oracool::CompanionsMakeWay(player, player.position.tile + dir);
 
 	player._pdir = dir;
 
@@ -3588,7 +3590,11 @@ bool PosOkPlayer(const Player &player, Point position)
 		if (dMonster[position.x][position.y] <= 0) {
 			return false;
 		}
-		if ((Monsters[dMonster[position.x][position.y] - 1].hitPoints >> 6) > 0) {
+		const Monster &standing = Monsters[dMonster[position.x][position.y] - 1];
+		// Your own companion steps aside: you walk through it, and it takes the tile you left (oracool/companion.h).
+		if (oracool::CompanionMakesWay(player, standing))
+			return true;
+		if ((standing.hitPoints >> 6) > 0) {
 			return false;
 		}
 	}

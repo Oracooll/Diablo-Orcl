@@ -30,7 +30,7 @@
 #include "oracool/chill.h"
 #include "oracool/class_tree.h" // SlowPlayer - a cold hit's chill on the stride
 #include "oracool/cold.h"
-#include "oracool/decoy.h"
+#include "oracool/companion.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/rogue_arrows.h"
@@ -268,9 +268,20 @@ int ProjectileTrapDamage(Missile &missile)
 	return currlevel + GenerateRnd(2 * currlevel);
 }
 
+namespace {
+
+/** @brief Oracool: the percent of its owner's damage the companion arrow being checked deals - see CheckMissileCol. */
+int CompanionHitPercent = 0;
+
+} // namespace
+
 bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, MissileID t, DamageType damageType, bool shift, int spellLevel)
 {
 	auto &monster = Monsters[monsterId];
+
+	// A companion is never struck by its own side's missiles - its owner's, or its own arrows (oracool/companion.h).
+	if (oracool::IsCompanion(monster))
+		return false;
 
 	if (!monster.isPossibleToHit() || monster.isImmune(t, damageType))
 		return false;
@@ -343,6 +354,9 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	dam += dam * (oracool::PassiveDamageDealtPercent(player, monster, false) + oracool::Rfa12DamageDealtPercent(player, monster, false)
 	           + (damageType == DamageType::Cold ? oracool::Rfa12ColdDamagePercent(monster) : 0)) / 100;
 
+	// A companion's arrow: its share of the whole blow, bonuses and passives included.
+	if (CompanionHitPercent > 0)
+		dam = std::max(dam * CompanionHitPercent / 100, 1);
 	if (&player == MyPlayer)
 		ApplyMonsterDamage(damageType, monster, dam);
 	if (&player == MyPlayer && missileData.isArrow())
@@ -537,7 +551,9 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			// then the missile can potentially hit this target
 			isMonsterHit = MonsterTrapHit(mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted);
 		} else if (IsAnyOf(missile._micaster, TARGET_BOTH, TARGET_MONSTERS)) {
+			CompanionHitPercent = missile.companionPercent;
 			isMonsterHit = MonsterMHit(missile._misource, mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, missile._mispllvl);
+			CompanionHitPercent = 0;
 		}
 	}
 
@@ -3003,9 +3019,8 @@ void AddGolem(Missile &missile, AddMissileParameter &parameter)
 	int playerId = missile._misource;
 	Player &player = Players[playerId];
 	Monster &golem = Monsters[playerId];
-	// A new summon is not the old Decoy: it wears its own sprites again (oracool/decoy.h). The Decoy cast dresses
-	// the slot again after this, when it is a Decoy that is being summoned.
-	oracool::ClearDecoy(golem);
+	// The Golem spell takes this slot: a companion standing in it (a multiplayer owner's own slot) waits for another.
+	oracool::ForgetCompanionInSlot(golem);
 
 	if (golem.position.tile != GolemHoldingCell && &player == MyPlayer)
 		KillMyGolem();

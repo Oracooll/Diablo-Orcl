@@ -41,7 +41,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/warcries.h"
 #include "oracool/monster_difficulty.h"
-#include "oracool/decoy.h"
+#include "oracool/companion.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/warcries.h"
@@ -876,8 +876,8 @@ void NewMonsterAnim(Monster &monster, MonsterGraphic graphic, Direction md, Anim
 
 void StartMonsterGotHit(Monster &monster)
 {
-	// Nor does a blow move her: this also snaps a walking monster back to the tile it left.
-	if (oracool::IsValkyrie(monster))
+	// A companion does not flinch - and this would also snap a walking one back to the tile it left.
+	if (oracool::IsCompanion(monster))
 		return;
 	if (monster.type().type != MT_GOLEM) {
 		auto animationFlags = gGameLogicStep < GameLogicStep::ProcessMonsters ? AnimationDistributionFlags::ProcessAnimationPending : AnimationDistributionFlags::None;
@@ -956,6 +956,14 @@ void UpdateEnemy(Monster &monster)
 			target = otherMonster.position.future;
 			bestDist = dist;
 			bestsameroom = sameroom;
+		}
+	}
+	// A companion guard or decoy holds the attention of what comes near it (oracool/companion.h).
+	if (!isPlayerMinion) {
+		if (const int guard = oracool::CompanionTauntTarget(monster); guard >= 0) {
+			monster.flags |= MFLAG_TARGETS_MONSTER;
+			menemy = guard;
+			target = Monsters[guard].position.future;
 		}
 	}
 	if (menemy != -1) {
@@ -1338,7 +1346,7 @@ void SyncLightPosition(Monster &monster)
 
 void MonsterIdle(Monster &monster)
 {
-	if (monster.type().type == MT_GOLEM && !oracool::IsDecoy(monster)) // see M_StartStand
+	if (monster.type().type == MT_GOLEM && !oracool::IsCompanion(monster)) // see M_StartStand
 		monster.changeAnimationData(MonsterGraphic::Walk);
 	else
 		monster.changeAnimationData(MonsterGraphic::Stand);
@@ -1409,7 +1417,7 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 	int dam = (mind + GenerateRnd(maxd - mind + 1)) << 6;
 	ApplyMonsterDamage(DamageType::Physical, target, dam);
 
-	if (attacker.isPlayerMinion()) {
+	if (attacker.isPlayerMinion() && attacker.getId() < Players.size()) {
 		int playerId = attacker.getId();
 		const Player &player = Players[playerId];
 		target.tag(player);
@@ -1604,8 +1612,12 @@ void MonsterAttackEnemy(Monster &monster, int hit, int minDam, int maxDam)
 		MonsterAttackPlayer(monster, Players[monster.enemy], hit, minDam, maxDam);
 }
 
+bool CompanionMeleeAttack(Monster &companion); // defined beside CompanionRangedAttack, below
+
 bool MonsterAttack(Monster &monster)
 {
+	if (oracool::IsCompanion(monster))
+		return CompanionMeleeAttack(monster);
 	if (monster.animInfo.currentFrame == monster.data().animFrameNum - 1) {
 		// Phase 3.4: a champion's Might reaches its pack here, at the one place an ordinary
 		// monster's own damage is read for a swing. Queried, never written - see oracool/aura_field.h.
@@ -1636,23 +1648,29 @@ bool MonsterAttack(Monster &monster)
 }
 
 /**
- * @brief The Valkyrie's shot (user, 2026-09-14: "the dmg she does equals the dmg my hero is making"). The arrow is her
- * OWNER's - player-sourced, so ProcessArrow and MonsterMHit give it the hero's own damage, bonuses, to-hit, kills and
- * experience - loosed from the Valkyrie's tile at the Rogue bow sheet's release frame.
+ * @brief A companion's shot: the bow drawn on its own sheet, the arrows loosed at the sheet's release frame by
+ * CompanionShot - its owner's arrows, at the companion's share of the owner's damage.
  */
-bool ValkyrieShoot(Monster &valkyrie)
+bool CompanionRangedAttack(Monster &companion)
 {
-	const int release = std::min(oracool::ValkyrieReleaseFrame(), std::max(valkyrie.animInfo.numberOfFrames - 1, 0));
-	if (valkyrie.animInfo.currentFrame == release) {
-		const size_t owner = valkyrie.getId();
-		if (owner < Players.size() && Players[owner].plractive) {
-			AddMissile(valkyrie.position.tile, valkyrie.enemyPosition, valkyrie.direction, MissileID::Arrow, TARGET_MONSTERS,
-			    static_cast<int>(owner), 4, 0);
-			PlaySfxLoc(PS_BFIRE, valkyrie.position.tile);
-		}
+	const int release = std::min(oracool::CompanionActionFrame(companion), std::max(companion.animInfo.numberOfFrames - 1, 0));
+	if (companion.animInfo.currentFrame == release)
+		oracool::CompanionShot(companion);
+	if (companion.animInfo.isLastFrame()) {
+		M_StartStand(companion, companion.direction);
+		return true;
 	}
-	if (valkyrie.animInfo.isLastFrame()) {
-		M_StartStand(valkyrie, valkyrie.direction);
+	return false;
+}
+
+/** @brief A companion's swing: the blow lands at its sheet's action frame, as its owner's (CompanionMeleeHit). */
+bool CompanionMeleeAttack(Monster &companion)
+{
+	const int strike = std::min(oracool::CompanionActionFrame(companion), std::max(companion.animInfo.numberOfFrames - 1, 0));
+	if (companion.animInfo.currentFrame == strike)
+		oracool::CompanionMeleeHit(companion);
+	if (companion.animInfo.isLastFrame()) {
+		M_StartStand(companion, companion.direction);
 		return true;
 	}
 	return false;
@@ -1660,8 +1678,8 @@ bool ValkyrieShoot(Monster &valkyrie)
 
 bool MonsterRangedAttack(Monster &monster)
 {
-	if (oracool::IsValkyrie(monster))
-		return ValkyrieShoot(monster);
+	if (oracool::IsCompanion(monster))
+		return CompanionRangedAttack(monster);
 	if (monster.animInfo.currentFrame == monster.data().animFrameNum - 1) {
 		const auto &missileType = static_cast<MissileID>(monster.var1);
 		if (missileType != MissileID::Null) {
@@ -3617,8 +3635,8 @@ void InitLevelMonsters()
 	monstimgtot = 0;
 	// The scaled sheets are views onto sprite data that is about to be replaced, so they go first.
 	oracool::ClearMonsterScaleCache();
-	// A town Valkyrie belongs to the town she was called in; every level load, town included, sends her away.
-	oracool::ClearTownValkyries();
+	// Companions' bodies and town figures belong to the level being left; the companions come back on the new one.
+	oracool::OnCompanionLevelLoad();
 	// So are the telemetry kill clocks, which are keyed by monster SLOT - and the slots are about to
 	// be handed to different monsters. A clock left running by a monster that was wounded and never
 	// killed would otherwise be read as the next occupant's time-to-kill.
@@ -3895,8 +3913,6 @@ bool LevelHasGolemSlots()
 
 void InitGolems()
 {
-	// A new level's golem slots start as golems - no decoy's sheets carried over (oracool/decoy.h).
-	oracool::ClearDecoys();
 	if (!setlevel) {
 		for (int i = 0; i < MAX_PLRS; i++)
 			AddMonster(GolemHoldingCell, Direction::South, 0, false);
@@ -4059,9 +4075,13 @@ void AddDoppelganger(Monster &monster)
 
 void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage)
 {
-	// The Valkyrie is invulnerable (user, 2026-09-14). Every blow on a monster lands here, so she is spared here.
-	if (oracool::IsValkyrie(monster))
-		return;
+	// A companion has life and resistances (user, 2026-09-14: "make her have health instead of invulnerable"). Every
+	// blow on a monster lands here, so its resistances are taken here.
+	if (oracool::IsCompanion(monster)) {
+		damage = oracool::CompanionDamageTaken(monster, damageType, damage);
+		if (damage <= 0)
+			return;
+	}
 	AddFloatingNumber(damageType, monster, damage);
 
 	// The time-to-kill clock starts HERE, where damage lands, not in M_StartHit where the monster
@@ -4094,9 +4114,9 @@ bool M_Talker(const Monster &monster)
 void M_StartStand(Monster &monster, Direction md)
 {
 	ClearMVars(monster);
-	// The Golem has no stand sheet and stands on its walk. A slot dressed in hero sheets (a Valkyrie or a Decoy) has a
+	// The Golem has no stand sheet and stands on its walk. A slot dressed in hero sheets (any companion) has a
 	// real stand - user, 2026-09-14: "when she is standing in one place she is still looping walking animation".
-	if (monster.type().type == MT_GOLEM && !oracool::IsDecoy(monster))
+	if (monster.type().type == MT_GOLEM && !oracool::IsCompanion(monster))
 		NewMonsterAnim(monster, MonsterGraphic::Walk, md);
 	else
 		NewMonsterAnim(monster, MonsterGraphic::Stand, md);
@@ -4163,6 +4183,7 @@ void StunMonster(Monster &monster, int ticks)
 void M_StartHit(Monster &monster, const Player &player, int dam)
 {
 	monster.tag(player);
+	oracool::NoteOwnerStruck(player, monster); // the companions' focus
 	// Phase 0.9: the time-to-kill clock starts at the first player hit that connects.
 	oracool::TelemetryRecordFirstHit(monster);
 	if (IsHardHit(monster, dam)) {
@@ -4427,104 +4448,77 @@ bool Walk(Monster &monster, Direction md)
 	return true;
 }
 
-/** @brief How far the Valkyrie shoots, in walking tiles. */
-constexpr int ValkyrieShotRange = 8;
-/** @brief She keeps within this many tiles of her Rogue (user, 2026-09-14: "stick close to me - 2-3 tiles range")... */
-constexpr int ValkyrieLeash = 3;
-/** @brief ...drifts back in once further than this when there is nothing to shoot... */
-constexpr int ValkyrieStayClose = 2;
-/** @brief ...and simply reappears beside her past this - a teleport, a portal, a long run. */
-constexpr int ValkyrieRegroup = 10;
-
 /** @brief One step toward @p to, straight or up to two turns aside. */
-bool ValkyrieStepToward(Monster &valkyrie, Point to)
+bool CompanionStepToward(Monster &companion, Point to)
 {
-	const Direction toward = GetDirection(valkyrie.position.tile, to);
+	const Direction toward = GetDirection(companion.position.tile, to);
 	for (Direction dir : { toward, Left(toward), Right(toward), Left(Left(toward)), Right(Right(toward)) }) {
-		if (Walk(valkyrie, dir))
+		if (Walk(companion, dir))
 			return true;
 	}
 	return false;
 }
 
-/** @brief Puts her on a free tile beside @p owner, standing. False if there is none within three tiles. */
-bool ValkyrieRegroupAt(Monster &valkyrie, Point owner)
+/**
+ * @brief A companion's own brain, in place of the Golem's (oracool/companion.h). GetCompanionOrders says where it
+ * belongs and how far it may range for the stance; PickCompanionTarget says what it fights.
+ *
+ * Staying near comes first: past the regroup distance it reappears beside its owner, past the leash it walks back.
+ * Then it fights - an ability when one is ready, else its bow or its blade - and with nothing to fight it settles back
+ * into formation. Left behind mid-step, it hurries: a frame more a tick, twice the pace.
+ */
+void CompanionAi(Monster &companion)
 {
-	for (int radius = 1; radius <= 3; radius++) {
-		for (int dy = -radius; dy <= radius; dy++) {
-			for (int dx = -radius; dx <= radius; dx++) {
-				if (std::max(std::abs(dx), std::abs(dy)) != radius)
-					continue;
-				const Point tile = owner + Displacement { dx, dy };
-				if (!InDungeonBounds(tile) || !IsTileAvailable(valkyrie, tile))
-					continue;
-				M_ClearSquares(valkyrie);
-				dMonster[valkyrie.position.tile.x][valkyrie.position.tile.y] = 0;
-				valkyrie.position.tile = tile;
-				valkyrie.position.future = tile;
-				valkyrie.position.old = tile;
-				dMonster[tile.x][tile.y] = valkyrie.getId() + 1;
-				M_StartStand(valkyrie, GetDirection(tile, owner));
-				return true;
+	const oracool::CompanionOrders orders = oracool::GetCompanionOrders(companion);
+	if (!orders.valid)
+		return;
+	const int distance = companion.position.tile.WalkingDistance(orders.owner);
+	if (companion.isWalking()) {
+		if (distance > orders.leash && companion.animInfo.currentFrame < companion.animInfo.numberOfFrames - 2)
+			companion.animInfo.currentFrame++;
+		return;
+	}
+	if (IsAnyOf(companion.mode, MonsterMode::Death, MonsterMode::SpecialStand, MonsterMode::MeleeAttack, MonsterMode::RangedAttack))
+		return;
+
+	if (distance > orders.regroup && PlaceCompanionNear(companion, orders.owner, 3)) {
+		oracool::OnCompanionRegrouped(companion);
+		return;
+	}
+	if (distance > orders.leash && CompanionStepToward(companion, orders.home))
+		return;
+
+	if (Monster *target = oracool::PickCompanionTarget(companion, orders); target != nullptr) {
+		companion.enemy = static_cast<uint8_t>(target->getId());
+		companion.flags |= MFLAG_TARGETS_MONSTER;
+		companion.enemyPosition = target->position.tile;
+		companion.direction = GetDirection(companion.position.tile, target->position.tile);
+		oracool::AimCompanion(companion, *target);
+		switch (oracool::TryCompanionAbility(companion, *target)) {
+		case oracool::CompanionAct::Acted:
+			return;
+		case oracool::CompanionAct::Volley:
+			StartRangedAttack(companion, MissileID::Arrow, 0);
+			return;
+		case oracool::CompanionAct::None:
+			break;
+		}
+		if (orders.attack == oracool::CompanionAttack::Bow) {
+			StartRangedAttack(companion, MissileID::Arrow, 0);
+			return;
+		}
+		if (orders.attack == oracool::CompanionAttack::Melee) {
+			if (companion.position.tile.WalkingDistance(target->position.tile) <= 1) {
+				StartAttack(companion);
+				return;
 			}
+			if (CompanionStepToward(companion, target->position.tile))
+				return;
 		}
 	}
-	return false;
-}
 
-/**
- * @brief The enemy the Valkyrie shoots: of those she can see within ValkyrieShotRange, the one CLOSEST TO HER ROGUE
- * (user, 2026-09-14: "shoot whoever is closest") - she guards the hero, so the nearest threat to the hero goes first.
- */
-Monster *ValkyrieTarget(const Monster &valkyrie, Point owner)
-{
-	Monster *best = nullptr;
-	int bestDistance = 0;
-	for (size_t i = 0; i < ActiveMonsterCount; i++) {
-		Monster &monster = Monsters[ActiveMonsters[i]];
-		if (monster.isPlayerMinion() || (monster.hitPoints >> 6) <= 0 || !monster.isPossibleToHit() || (monster.flags & MFLAG_HIDDEN) != 0)
-			continue;
-		if (valkyrie.position.tile.WalkingDistance(monster.position.tile) > ValkyrieShotRange
-		    || !LineClearMissile(valkyrie.position.tile, monster.position.tile))
-			continue;
-		const int distance = owner.WalkingDistance(monster.position.tile);
-		if (best == nullptr || distance < bestDistance) {
-			best = &monster;
-			bestDistance = distance;
-		}
-	}
-	return best;
-}
-
-/**
- * @brief The Valkyrie's own brain, in place of the Golem's (user, 2026-09-14: "i want valkyrie to stick close to me -
- * 2-3 tiles range and shoot whoever is closest"). Staying near comes first: past the leash she walks back before she
- * shoots. Within it she shoots the enemy nearest her Rogue, and with nothing to shoot she drifts back to two tiles.
- */
-void ValkyrieAi(Monster &valkyrie)
-{
-	if (IsAnyOf(valkyrie.mode, MonsterMode::Death, MonsterMode::SpecialStand, MonsterMode::MeleeAttack, MonsterMode::RangedAttack)
-	    || valkyrie.isWalking())
-		return;
-	const size_t ownerId = valkyrie.getId();
-	if (ownerId >= Players.size() || !Players[ownerId].plractive)
-		return;
-	const Point owner = Players[ownerId].position.tile;
-	const int distance = valkyrie.position.tile.WalkingDistance(owner);
-
-	if (distance > ValkyrieRegroup && ValkyrieRegroupAt(valkyrie, owner))
-		return;
-	if (distance > ValkyrieLeash && ValkyrieStepToward(valkyrie, owner))
-		return;
-	if (Monster *target = ValkyrieTarget(valkyrie, owner); target != nullptr) {
-		valkyrie.enemy = static_cast<uint8_t>(target->getId());
-		valkyrie.enemyPosition = target->position.tile;
-		valkyrie.direction = GetDirection(valkyrie.position.tile, target->position.tile);
-		StartRangedAttack(valkyrie, MissileID::Arrow, 0);
-		return;
-	}
-	if (distance > ValkyrieStayClose)
-		ValkyrieStepToward(valkyrie, owner);
+	if (distance > orders.settle)
+		CompanionStepToward(companion, orders.home);
 }
 
 void GolumAi(Monster &golem)
@@ -4533,8 +4527,8 @@ void GolumAi(Monster &golem)
 		return;
 	}
 
-	if (oracool::IsValkyrie(golem)) {
-		ValkyrieAi(golem);
+	if (oracool::IsCompanion(golem)) {
+		CompanionAi(golem);
 		return;
 	}
 
@@ -5155,6 +5149,63 @@ void TalktoMonster(Player &player, Monster &monster)
 			NetSendCmdQuest(true, Quests[Q_GARBUD]);
 		}
 	}
+}
+
+void SpawnCompanionBody(Monster &slot, Point position, Direction facing)
+{
+	dMonster[position.x][position.y] = slot.getId() + 1;
+	slot.position.tile = position;
+	slot.position.future = position;
+	slot.position.old = position;
+	slot.pathCount = 0;
+	slot.isInvalid = false;
+	slot.flags |= MFLAG_GOLEM;
+	StartSpecialStand(slot, facing);
+	UpdateEnemy(slot);
+}
+
+void ReleaseCompanionBody(Monster &slot)
+{
+	if (slot.position.tile != GolemHoldingCell && InDungeonBounds(slot.position.tile)) {
+		M_ClearSquares(slot);
+		dMonster[slot.position.tile.x][slot.position.tile.y] = 0;
+	}
+	slot.position.tile = GolemHoldingCell;
+	slot.position.future = { 0, 0 };
+	slot.position.old = { 0, 0 };
+	slot.isInvalid = false;
+	slot.flags &= ~MFLAG_TARGETS_MONSTER;
+	slot.mode = MonsterMode::Stand;
+}
+
+void MoveCompanionTo(Monster &companion, Point tile)
+{
+	M_ClearSquares(companion);
+	dMonster[companion.position.tile.x][companion.position.tile.y] = 0;
+	companion.position.tile = tile;
+	companion.position.future = tile;
+	companion.position.old = tile;
+	dMonster[tile.x][tile.y] = companion.getId() + 1;
+	M_StartStand(companion, companion.direction);
+}
+
+bool PlaceCompanionNear(Monster &companion, Point centre, int maxRadius)
+{
+	for (int radius = 1; radius <= maxRadius; radius++) {
+		for (int dy = -radius; dy <= radius; dy++) {
+			for (int dx = -radius; dx <= radius; dx++) {
+				if (std::max(std::abs(dx), std::abs(dy)) != radius)
+					continue;
+				const Point tile = centre + Displacement { dx, dy };
+				if (!InDungeonBounds(tile) || !IsTileAvailable(companion, tile))
+					continue;
+				MoveCompanionTo(companion, tile);
+				companion.direction = GetDirection(tile, centre);
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 void SpawnGolem(Player &player, Monster &golem, Point position, Missile &missile)
