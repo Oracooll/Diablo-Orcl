@@ -39,6 +39,8 @@ std::array<HeroSheets, MAX_PLRS> Decoys;
 /** @brief The Valkyrie's dress: heavy armour (ArmourChar 'h'), sword and shield. */
 constexpr size_t ValkyrieArmour = 2;
 constexpr PlayerWeaponGraphic ValkyrieWeapon = PlayerWeaponGraphic::SwordShield;
+/** @brief Below this brightness a colour is the sheets' outline and shadow - see RampTranslation. */
+constexpr int ShadowLuminance = 40;
 
 /**
  * @brief Every colour to one palette ramp by its brightness.
@@ -47,12 +49,18 @@ constexpr PlayerWeaponGraphic ValkyrieWeapon = PlayerWeaponGraphic::SwordShield;
  * summon reads as a glow rather than a bruise, and never quite white. The monster draw path lights a translated
  * ordinary monster after translating it, so a dungeon summon still darkens in shadow.
  */
-std::unique_ptr<uint8_t[]> RampTranslation(uint8_t ramp, int lightest)
+std::unique_ptr<uint8_t[]> RampTranslation(uint8_t ramp, int lightest, bool keepShadow = false)
 {
 	auto trn = std::make_unique<uint8_t[]>(256);
 	for (int i = 0; i < 256; i++) {
 		const SDL_Color &c = orig_palette[static_cast<size_t>(i)];
 		const int luminance = (c.r * 30 + c.g * 59 + c.b * 11) / 100;
+		// The sheets' near-black - the outline and the shadow under the feet - stays itself when asked, so the figure
+		// keeps a black shadow instead of a dark-gold one.
+		if (keepShadow && luminance < ShadowLuminance) {
+			trn[static_cast<size_t>(i)] = static_cast<uint8_t>(i);
+			continue;
+		}
 		const int shade = std::clamp(15 - lightest - luminance * (16 - lightest) / 255, 0, 15);
 		trn[static_cast<size_t>(i)] = static_cast<uint8_t>(ramp + shade);
 	}
@@ -65,10 +73,13 @@ std::unique_ptr<uint8_t[]> BlueGhostTranslation()
 	return RampTranslation(PAL16_BLUE, 2);
 }
 
-/** @brief The Valkyrie's gold: the yellow ramp, three shades light. */
+/**
+ * @brief The Valkyrie's gold: the yellow ramp pushed three shades DARK, with her black shadow kept (user, 2026-09-14:
+ * "can you make valkyrie darker and with black shadow?"). Three shades light was a pale glow.
+ */
 std::unique_ptr<uint8_t[]> ValkyrieTranslation()
 {
-	return RampTranslation(PAL16_YELLOW, 3);
+	return RampTranslation(PAL16_YELLOW, -3, /*keepShadow=*/true);
 }
 
 /** @brief Loads one sheet of @p cls in @p armour and @p weapon into @p set at @p graphic. False if the archive lacks it. */
@@ -157,15 +168,28 @@ struct TownValkyrie {
 	Point tile {};
 	Point next {};
 	Direction dir = Direction::South;
-	int stepTick = 0; // 0 standing, else ticks into a step toward `next`
+	int stepTick = 0;  // 0 standing, else ticks into a step toward `next`
+	int stepTicks = 0; // how long this step takes
 	int frame = 0;
 	int frameTick = 0;
 };
 
 std::array<TownValkyrie, MAX_PLRS> TownValkyries;
 
-/** @brief A tile step takes this many ticks - the town walk's eight frames, one a tick. */
+/** @brief A tile step takes this many ticks - the town walk's eight frames, one a tick... */
 constexpr int TownStepTicks = 8;
+/** @brief ...or half that when she has fallen behind, so a running Rogue does not leave her to teleport. */
+constexpr int TownHurryTicks = 4;
+constexpr int HurryDistance = 4;
+
+/**
+ * @brief One tile's walk in screen pixels per direction - the renderer's own MovingOffset (GetOffsetForWalking).
+ *
+ * NOT Displacement::worldToScreen(): its vertical axis is the camera's, the opposite sign, and v1.12.013 used it -
+ * she slid a whole step the wrong way, then snapped onto the right tile (user: "like she walks in the wrong
+ * direction then teleports close to me").
+ */
+constexpr Displacement WalkStep[8] = { { 0, 32 }, { -32, 16 }, { -64, 0 }, { -32, -16 }, { 0, -32 }, { 32, -16 }, { 64, 0 }, { 32, 16 } };
 /** @brief She follows once her Rogue is further than this... */
 constexpr int FollowDistance = 2;
 /** @brief ...and simply reappears beside her past this (a waypoint, a portal back, a long run). */
@@ -311,8 +335,8 @@ void ProcessTownValkyries()
 
 		if (v.stepTick > 0) {
 			const int frames = std::max<int>(TownAnim(v).frames, 1);
-			v.frame = (v.stepTick * frames / TownStepTicks) % frames;
-			if (++v.stepTick > TownStepTicks) {
+			v.frame = (v.stepTick * frames / v.stepTicks) % frames;
+			if (++v.stepTick > v.stepTicks) {
 				v.tile = v.next;
 				v.stepTick = 0;
 				v.frame = 0;
@@ -333,6 +357,7 @@ void ProcessTownValkyries()
 				if (TownTileFree(step)) {
 					v.dir = dir;
 					v.next = step;
+					v.stepTicks = distance > HurryDistance ? TownHurryTicks : TownStepTicks;
 					v.stepTick = 1;
 					v.frame = 0;
 					break;
@@ -368,8 +393,8 @@ void DrawTownValkyries(const Surface &out, Point tilePosition, Point targetBuffe
 		Point position = targetBufferPosition;
 		if (v.stepTick > 0) {
 			// Part of the way to the next tile, in screen pixels.
-			const Displacement step = Displacement(v.dir).worldToScreen();
-			position += Displacement { step.deltaX * v.stepTick / TownStepTicks, step.deltaY * v.stepTick / TownStepTicks };
+			const Displacement step = WalkStep[static_cast<size_t>(v.dir)];
+			position += Displacement { step.deltaX * v.stepTick / v.stepTicks, step.deltaY * v.stepTick / v.stepTicks };
 		}
 		// Centred on the tile the way a player's sprite is: half of what the sprite is wider than a 64px tile.
 		position.x -= (static_cast<int>(sprite.width()) - 64) / 2;
