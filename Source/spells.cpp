@@ -167,6 +167,9 @@ int GetManaAmountAtLevel(const Player &player, SpellID sn, int spellLevel)
 		ma -= ma / 4;
 	}
 
+	// Chant of Resonance (2026-09-14): the Monk's mantras, cheaper.
+	ma += ma * oracool::PassiveManaCostPercent(player, sn) / 100;
+
 	if (GetSpellData(sn).sMinMana > ma >> 6) {
 		ma = GetSpellData(sn).sMinMana << 6;
 	}

@@ -5,6 +5,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/furious_charge.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/passives.h" // Towering Shield
 #include "oracool/skill_sounds.h"
 #include "oracool/oracool.h"
 #include "player.h"
@@ -282,7 +283,7 @@ int PaladinMeleeDamagePercent(const Player &player)
 	if (*ArmedSkill == PaladinSkill::Charge)
 		return IsChargeBlowArmed() ? ChargeBlowPercentAt(rank) : 0;
 	if (*ArmedSkill == PaladinSkill::ShieldBash && CanUsePaladinSkill(player, PaladinSkill::ShieldBash))
-		return SmiteDamagePercentAt(rank);
+		return SmiteDamagePercentAt(rank) + PassiveSkillDamagePercent(player, SpellID::ShieldBash); // Towering Shield (2026-09-14)
 	return 0;
 }
 

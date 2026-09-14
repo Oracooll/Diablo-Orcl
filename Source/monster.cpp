@@ -1462,7 +1462,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 
 	// Oracool, Round 6: what a cry or a song has done to this monster - Battle Cry and Dirge of Dread
 	// blunt the blow, Weaken the aim.
-	if (const int weakened = oracool::MonsterDebuffDamagePercent(monster) + oracool::Rfa12MonsterDamagePercent(monster); weakened != 0) {
+	if (const int weakened = oracool::MonsterDebuffDamagePercent(monster) + oracool::Rfa12MonsterDamagePercent(monster) + oracool::PassiveMonsterDamagePercent(monster); weakened != 0) {
 		minDam += minDam * weakened / 100;
 		maxDam = std::max(maxDam + maxDam * weakened / 100, minDam);
 	}
@@ -1487,7 +1487,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 	if ((player._pmode == PM_STAND || player._pmode == PM_ATTACK) && player._pBlockFlag) {
 		blkper = GenerateRnd(100);
 	}
-	int blk = player.GetBlockChance() + oracool::Rfa12BlockBonus(player) - (monster.level(sgGameInitInfo.nDifficulty) * 2);
+	int blk = player.GetBlockChance() + oracool::Rfa12BlockBonus(player) + oracool::PassiveBlockBonus(player) - (monster.level(sgGameInitInfo.nDifficulty) * 2);
 	blk = clamp(blk, 0, 100);
 	if (hper >= hit)
 		return;

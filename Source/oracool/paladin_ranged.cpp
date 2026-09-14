@@ -5,6 +5,7 @@
 #include "monster.h"
 #include "oracool/class_tree.h"
 #include "oracool/paladin_melee.h" // HasShieldEquipped
+#include "oracool/passives.h"      // Blunt, Towering Shield
 #include "oracool/skill_sounds.h"
 #include "player.h"
 #include <fmt/format.h>
@@ -101,7 +102,8 @@ bool CastBlessedShield(Player &player, Point target, int spellLevel)
 {
 	// No shield check here any more: requiresShield is part of IsPaladinSkillUnlocked, which
 	// CanUsePaladinSkill already asked before this ran, so a shieldless Paladin never gets here.
-	const int damage = RollWeaponDamage(player) * BlessedShieldPercentAt(spellLevel) / 100;
+	// Towering Shield (2026-09-14) on top.
+	const int damage = RollWeaponDamage(player) * (BlessedShieldPercentAt(spellLevel) * (100 + PassiveSkillDamagePercent(player, SpellID::BlessedShield)) / 100) / 100;
 	// Room for the missile is checked BEFORE the mana is taken - AddMissile returns nullptr on
 	// a full pool, and this used to spend first and discard that result (audit, 2026-08-26).
 	if (!MissilePoolHasRoom())
@@ -129,7 +131,8 @@ bool CastBlessedShield(Player &player, Point target, int spellLevel)
  */
 bool CastBlessedHammer(Player &player, int spellLevel)
 {
-	const int damage = RollWeaponDamage(player) * BlessedHammerPercentAt(spellLevel) / 100;
+	// Blunt (2026-09-14) on top.
+	const int damage = RollWeaponDamage(player) * (BlessedHammerPercentAt(spellLevel) * (100 + PassiveSkillDamagePercent(player, SpellID::BlessedHammer)) / 100) / 100;
 	// Room for the missile is checked BEFORE the mana is taken - AddMissile returns nullptr on
 	// a full pool, and this used to spend first and discard that result (audit, 2026-08-26).
 	if (!MissilePoolHasRoom())

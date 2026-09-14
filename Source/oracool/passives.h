@@ -75,9 +75,39 @@ void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee)
 
 /**
  * @brief Juggernaut: a stagger @p player would take is shrugged off half the time; one that lands has
- * a 30% chance to heal a fifth of life, once every ten seconds. Asked by StartPlrHit.
+ * a 30% chance to heal a fifth of life, once every ten seconds. Stagecraft: never while a song plays.
+ * Asked by StartPlrHit.
  */
 bool PassiveShrugsOffStagger(Player &player);
+
+// ---- the all-heroes sweep (2026-09-14) ----
+
+/** @brief A missile @p player's spell or arrow landed on @p target - Paralysis, Temporal Flux, Thrill of the Hunt, the element marks. */
+void OnPassiveMissileHit(Player &player, const Monster &target, int damage, DamageType damageType, bool arrow);
+
+/** @brief @p player blocked a blow - Insurmountable, Renewal, Counterstroke. Asked by StartPlrBlock. */
+void OnPassiveBlock(Player &player);
+
+/** @brief @p player just lost @p damage life (1/64 units) - Galvanizing Ward, Illusionist. Asked by ApplyPlrDamage. */
+void OnPassiveDamaged(Player &player, int damage);
+
+/** @brief Block chance added by Hold Your Ground and Reed in the Wind, in percent. */
+int PassiveBlockBonus(const Player &player);
+
+/** @brief Iron Maiden: share of a melee blow returned to the attacker, in percent, on top of Thorns. */
+int PassiveThornsPercent(const Player &player);
+
+/** @brief The bursts of speed - Illusionist, Tactical Advantage, Hot Pursuit - in percent. Asked by MovementSpeedBonusPercent. */
+int PassiveMoveSpeedBonus(const Player &player);
+
+/** @brief Change to a blow @p monster deals the local player - Numbing Traps, Dissonance - in percent. */
+int PassiveMonsterDamagePercent(const Monster &monster);
+
+/** @brief Change to @p spell's mana price - Chant of Resonance - in percent. */
+int PassiveManaCostPercent(const Player &player, SpellID spell);
+
+/** @brief Change to one named skill's damage - Blunt, Towering Shield - in percent. */
+int PassiveSkillDamagePercent(const Player &player, SpellID spell);
 
 /** @brief Juggernaut: how much shorter a slow on @p player runs, in percent. Asked by SlowPlayer. */
 int PassiveSlowShortenPercent(const Player &player);

@@ -3024,6 +3024,8 @@ void StartPlrBlock(Player &player, Direction dir)
 	}
 
 	PlaySfxLoc(IS_ISWORD, player.position.tile);
+	// Insurmountable, Renewal, Counterstroke (2026-09-14): a block is an event.
+	oracool::OnPassiveBlock(player);
 
 	int8_t skippedAnimationFrames = 0;
 	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastBlock)) {
@@ -3287,6 +3289,8 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 	RedrawComponent(PanelDrawComponent::Health);
 	player._pHitPoints -= totalDamage;
 	player._pHPBase -= totalDamage;
+	// Galvanizing Ward's clock and Illusionist's burst (2026-09-14) answer a blow actually taken.
+	oracool::OnPassiveDamaged(player, totalDamage);
 	if (player._pHitPoints > player._pMaxHP) {
 		player._pHitPoints = player._pMaxHP;
 		player._pHPBase = player._pMaxHPBase;
