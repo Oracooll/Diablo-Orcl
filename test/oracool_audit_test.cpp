@@ -2306,7 +2306,7 @@ TEST(OracoolClassTree, EveryClassHasAPassiveSkillsPageAndEveryRowOnItIsAnInertSi
 			EXPECT_EQ(data.spellId, SpellID::Invalid) << data.name;
 		}
 	}
-	EXPECT_EQ(built, 93u) << "Round 5 built forty-one Passive Skills page rows, Heavenly Strength (2026-09-11) the forty-second, Unforgiving (2026-09-14) the forty-third, the Barbarian's last seven (2026-09-14) the fiftieth, and the all-heroes sweep (2026-09-14) forty-three more (plus the Rogue's four Passive & Magic rows, which are not on this page)";
+	EXPECT_EQ(built, 97u) << "Round 5 built forty-one Passive Skills page rows, Heavenly Strength (2026-09-11) the forty-second, Unforgiving (2026-09-14) the forty-third, the Barbarian's last seven (2026-09-14) the fiftieth, the all-heroes sweep (2026-09-14) forty-three more, and the four replacements for rows the engine could not carry (2026-09-14) the ninety-seventh (plus the Rogue's four Passive & Magic rows, which are not on this page)";
 }
 
 TEST(OracoolClassTree, AddingThePassivePagesMovedNoExistingSkillsSaveSlot)

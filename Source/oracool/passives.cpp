@@ -383,6 +383,11 @@ int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool 
 	}
 	if (clocks.momentumBlows > 0 && PassiveActive(player, Skill::Momentum))
 		percent += 25;
+	// The replacements for the rows the engine could not carry (2026-09-14).
+	if (PassiveActive(player, Skill::Sanctified) && IsAnyOf(target.data().monsterClass, MonsterClass::Undead, MonsterClass::Demon))
+		percent += 20;
+	if (!melee && player._pMana * 2 > player._pMaxMana && PassiveActive(player, Skill::ManaAttunement))
+		percent += 15;
 	return percent;
 }
 
@@ -598,7 +603,11 @@ int PassiveThornsPercent(const Player &player)
 int PassiveMoveSpeedBonus(const Player &player)
 {
 	const Clocks &clocks = ClocksFor(player);
-	return clocks.hasteTicks > 0 ? clocks.hastePercent : 0;
+	int bonus = clocks.hasteTicks > 0 ? clocks.hastePercent : 0;
+	// Crusader's Stride (2026-09-14): while an aura burns.
+	if (SongPlaying(player) && PassiveActive(player, Skill::CrusadersStride))
+		bonus += 15;
+	return bonus;
 }
 
 int PassiveMonsterDamagePercent(const Monster &monster)
@@ -680,6 +689,10 @@ void ProcessPassivesTick(Player &player)
 	if (player._pHitPoints > 0 && Still(player) && PassiveActive(player, Skill::Brooding)
 	    && (clocks.stillTicks - StillnessTicks) % 20 == 0)
 		Heal(player, player._pMaxHP / 100);
+	// Serene Mind (2026-09-14): still for a moment, and then a fiftieth of your mana every second.
+	if (player._pHitPoints > 0 && Still(player) && PassiveActive(player, Skill::SereneMind)
+	    && (clocks.stillTicks - StillnessTicks) % 20 == 0)
+		RestoreMana(player, player._pMaxMana / 50);
 	// Inspiring Presence: under any warcry blessing, a hundredth of your life every second.
 	if (player._pHitPoints > 0 && PassiveActive(player, Skill::InspiringPresence) && AnyWarcryBuffActive(player)) {
 		if (++clocks.inspireTicks % 20 == 0)

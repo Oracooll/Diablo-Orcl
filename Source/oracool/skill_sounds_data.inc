@@ -28,7 +28,7 @@ const SkillSound SkillSounds[] = {
 	{ Skill::GrimWard, SkillSoundEvent::Cast, "sfx\\skills\\barbarian\\warcries\\grim-ward-cast.wav" },
 	{ Skill::Howl, SkillSoundEvent::Cast, "sfx\\skills\\barbarian\\warcries\\howl-cast.wav" },
 	{ Skill::IncreasedSpeed, SkillSoundEvent::Learn, "sfx\\skills\\barbarian\\combat-masteries\\increased-speed-learn.wav" },
-	{ Skill::IncreasedStamina, SkillSoundEvent::Learn, "sfx\\skills\\barbarian\\combat-masteries\\increased-stamina-learn.wav" },
+	{ Skill::Toughness, SkillSoundEvent::Learn, "sfx\\skills\\barbarian\\combat-masteries\\increased-stamina-learn.wav" },
 	{ Skill::IronSkin, SkillSoundEvent::Learn, "sfx\\skills\\barbarian\\combat-masteries\\iron-skin-learn.wav" },
 	{ Skill::Leap, SkillSoundEvent::Cast, "sfx\\skills\\barbarian\\combat-skills\\leap-cast.wav" },
 	{ Skill::Leap, SkillSoundEvent::Impact, "sfx\\skills\\barbarian\\combat-skills\\leap-impact.wav" },

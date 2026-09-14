@@ -154,9 +154,9 @@ enum class ClassTreeSkill : uint16_t {
 	HolyCause,
 	Wrathful,
 	DivineFortress,
-	LordCommander,
+	CrusadersStride, // was Lord Commander (2026-09-14)
 	HoldYourGround,
-	LongArmOfTheLaw,
+	Sanctified, // was Long Arm of the Law (2026-09-14)
 	IronMaiden,
 	Renewal,
 	Finery,
@@ -211,7 +211,7 @@ enum class ClassTreeSkill : uint16_t {
 	PoleArmMastery,
 	ThrowingMastery,
 	SpearMastery,
-	IncreasedStamina,
+	Toughness, // was Increased Stamina (2026-09-14)
 	IronSkin,
 	IncreasedSpeed,
 	NaturalResistance,
@@ -325,7 +325,7 @@ enum class ClassTreeSkill : uint16_t {
 	// points a live character has already paid.
 	PowerHungry,
 	Blur,
-	Evocation,
+	ManaAttunement, // was Evocation (2026-09-14)
 	GlassCannon,
 	Prodigy,
 	AstralPresence,
@@ -602,7 +602,7 @@ enum class ClassTreeSkill : uint16_t {
 	SixthSense,
 	Determination,
 	RelentlessAssault,
-	BeaconOfYtar,
+	SereneMind, // was Beacon of Ytar (2026-09-14)
 	Alacrity,
 	MonkHarmony,
 	CombinationStrike,

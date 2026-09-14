@@ -47,7 +47,7 @@ void ClearSlots(devilution::Player &player)
 TEST(OracoolPassiveSweep, EveryInertPassiveSaysWhyAndEveryBuiltOneDoesNot)
 {
 	const std::set<std::string> stillInert = {
-		"Lord Commander", "Long Arm of the Law", "Evocation", "Beacon of Ytar", "Custom Engineering", "Grenadier",
+		"Custom Engineering", "Grenadier",
 		"Sustain", "Encore", "Countermelody", "Improvisation", "Refrain", "Timbre", "Virtuoso", "Overture",
 		"Reverberation", "Boon of Bul-Kathos", "Ballistics",
 	};

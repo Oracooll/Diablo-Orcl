@@ -222,12 +222,15 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 3, 2, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Divine Fortress"), N_("Behind a shield your armour is +25%."),
 	    Pal, 3, 3, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Lord Commander"), N_("Your mount, your bombardment and your phalanx all answer sooner and hit harder. Not yet built: this engine has no mount, bombardment or phalanx."),
-	    Pal, 3, 3, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	// Replaced 2026-09-14 (user note: "Invent a new passive skill which works with current engine capabilities") -
+	// Lord Commander asked for a mount, a bombardment and a phalanx this engine does not have.
+	{ N_("Crusader's Stride"), N_("While an aura burns, you move 15% faster."),
+	    Pal, 3, 3, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Hold Your Ground"), N_("+20% chance to block."),
 	    Pal, 3, 3, 2, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Long Arm of the Law"), N_("Every law you declare holds its power longer. Not yet built: auras here have no duration to lengthen."),
-	    Pal, 3, 4, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	// Replaced 2026-09-14 (user note) - Long Arm of the Law lengthened aura durations, and auras here have none.
+	{ N_("Sanctified"), N_("+20% damage against the undead and demons."),
+	    Pal, 3, 4, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Iron Maiden"), N_("What strikes you in melee takes 50% of the blow back, on top of Thorns."),
 	    Pal, 3, 4, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Renewal"), N_("Every blow you block heals 3% of your life."),
@@ -309,7 +312,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// Built 2026-09-14: the engine has no spear ItemType, but the Spear and Pike BASES have been told apart
 	// since RfA-12's Brace and Long Reach (WieldingSpearOrPike), so the old "no spear type" reason no longer held.
 	{ N_("Spear Mastery"), N_("Mastery of spears and pikes: +10% chance to hit, +5% per level, and +10% damage, +6% per level, while one is held."), Bar, 1, 1, 2, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Increased Stamina"), N_("Lengthens your wind. Inert: this engine tracks no stamina."), Bar, 1, 2, 0, Kind::Passive, SpellID::Invalid, false },
+	// Replaced 2026-09-14 (user note) - Increased Stamina lengthened a wind this engine does not track.
+	{ N_("Toughness"), N_("+5 Vitality, +2 per level."), Bar, 1, 2, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Iron Skin"), N_("Toughens your hide, raising armour class."), Bar, 1, 3, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Increased Speed"), N_("You run rather than walk, wherever you are."), Bar, 1, 4, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Natural Resistance"), N_("Hardens you against fire, lightning and magic alike."), Bar, 1, 5, 0, Kind::Passive, SpellID::Invalid, true },
@@ -464,8 +468,9 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 3, 0, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Blur"), N_("Everything that strikes you deals -17% damage."),
 	    Sor, 3, 0, 1, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Evocation"), N_("Every cooldown you carry comes round sooner. Not yet built: skills here have no cooldowns."),
-	    Sor, 3, 0, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	// Replaced 2026-09-14 (user note) - Evocation shortened cooldowns, and skills here have none.
+	{ N_("Mana Attunement"), N_("+15% spell damage while your mana is above half."),
+	    Sor, 3, 0, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Glass Cannon"), N_("+15% damage and -10% armour."),
 	    Sor, 3, 1, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Prodigy"), N_("Spells costing 6 mana or less give 3 of it back."),
@@ -893,8 +898,9 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 3, 2, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Relentless Assault"), N_("+30% damage against anything frozen or reeling."),
 	    Monk, 3, 3, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Beacon of Ytar"), N_("Every cooldown you carry comes round sooner. Not yet built: skills here have no cooldowns."),
-	    Monk, 3, 3, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	// Replaced 2026-09-14 (user note) - Beacon of Ytar shortened cooldowns, and skills here have none.
+	{ N_("Serene Mind"), N_("Stand still for a moment and 2% of your mana returns every second."),
+	    Monk, 3, 3, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Alacrity"), N_("You attack faster."),
 	    Monk, 3, 3, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Harmony"), N_("Every resistance fifteen points higher."),
@@ -1132,6 +1138,9 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		// The engine's mana IS this fork's fury, arcane power, wrath, hatred and spirit; twenty points
 		// of it - in the 1/64 units mana is kept in (2026-09-14: this was a bare 20, a third of a point).
 		totals.mana += 20 << 6;
+		break;
+	case Skill::Toughness:
+		totals.vitality += Scaled(points, 5, 2);
 		break;
 	// ---- the all-heroes sweep (2026-09-14): the sheet halves of the new passives ----
 	case Skill::TheGuardiansPath:
