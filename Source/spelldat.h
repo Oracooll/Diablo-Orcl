@@ -18,7 +18,7 @@ namespace devilution {
 // `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable spells, so a new id is a candidate for books
 // and staves unless its sBookLvl and sStaffLvl are both -1. All seven skills' are, deliberately -
 // they are earned by level, not found. MAX_ITEM_SPELLS below is the belt-and-braces on that.
-#define MAX_SPELLS 245
+#define MAX_SPELLS 246
 
 /**
  * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
@@ -374,8 +374,11 @@ enum class SpellID : int16_t {
 	PoisonJavelin,
 	PlagueJavelin,
 	WeaponThrow,
+	// The Rogue's Valkyrie (user, 2026-09-14): her own id, so she is raised by skill points and wears her glyph.
+	// She rode the Golem's BOOK spell before, which made the row a book row. Her body is still the Golem.
+	Valkyrie,
 
-	LAST = WeaponThrow,
+	LAST = Valkyrie,
 	Invalid = -1,
 };
 

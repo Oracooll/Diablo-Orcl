@@ -919,6 +919,13 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		NewField(player, spell, target, 4 * TicksPerSecond, r);
 		Show(player, MissileID::MeteorFall, MissileGraphicID::Meteor, target, target);
 		return true;
+	case SpellID::Valkyrie:
+		// The engine's Golem at the rank, kept until she falls - no spirit's thirty seconds, and no earlier
+		// summon's clock left running to end her.
+		if (AddMissile(here, target, player._pdir, MissileID::Golem, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, r) == nullptr)
+			return false;
+		StateOf(player).summonTicks = 0;
+		return true;
 	case SpellID::Decoy: {
 		// The Golem slot, disarmed: it stands, draws blows, and strikes no one.
 		if (!Summon(player, target, r))

@@ -793,10 +793,12 @@ TEST(Writehero, pfile_write_hero)
 	//      RfA-12 actives' spell ids. Count-prefixed, so a 126-entry hero loads into the first 126.
 	// 1.12.008: FIVE BYTES, same chunk - MAX_SPELLS 240 -> 245 for the census notes' Meteor, Decoy, Poison
 	//      Javelin, Plague Javelin and Weapon Throw. Count-prefixed, so a 240-entry hero loads into the first 240.
+	// 1.12.011: ONE BYTE, same chunk - MAX_SPELLS 245 -> 246 for the Rogue's Valkyrie, which left the Golem's book
+	//      spell for an id of its own.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "6fa7b80f7bc20f9688546159d7debee83cfb2af511ee5f89788fd9ab6650559b");
+	    "8fb27cee42ae9a8773324cc1a00c52fbd56f8b0f56f649787f718a1235e45135");
 }
 
 } // namespace

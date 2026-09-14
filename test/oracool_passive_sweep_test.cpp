@@ -17,6 +17,7 @@
 #include "oracool/hidden_classes.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
+#include "oracool/skill_points.h"
 #include "oracool/weapon_throw.h"
 #include "player.h"
 #include "spells.h"
@@ -125,6 +126,20 @@ TEST(OracoolCensusNotes, TheCensusArtIsWiredToItsSkills)
 
 	devilution::Player &player = FreshHero(HeroClass::Barbarian);
 	EXPECT_EQ(oracool::ThrownWeaponGraphic(player), MissileGraphicID::ThrownSword);
+}
+
+// User, 2026-09-14: "2 problems with valkyrie skill - the icon and the fact that it requires book!" It rode the
+// Golem's book spell; its own id takes points and draws the class strip's glyph, not the legacy Golem icon.
+TEST(OracoolCensusNotes, ValkyrieTakesSkillPointsNotBooks)
+{
+	EXPECT_EQ(oracool::ClassTreeSpellId(ClassTreeSkill::Valkyrie), SpellID::Valkyrie);
+	EXPECT_FALSE(oracool::IsClassTreeRowRetiredAsSpell(ClassTreeSkill::Valkyrie));
+	EXPECT_FALSE(oracool::SpellHasBook(SpellID::Valkyrie)) << "earned on the tree, never found";
+
+	devilution::Player &rogue = FreshHero(HeroClass::Rogue);
+	rogue._pUnspentSkillPoints = 1;
+	EXPECT_TRUE(oracool::CanInvestClassTreePoint(rogue, ClassTreeSkill::Valkyrie));
+	rogue._pUnspentSkillPoints = 0;
 }
 
 // User, 2026-09-14: "remove this class from our mod ... Hide them, dont remove them."

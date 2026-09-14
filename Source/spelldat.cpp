@@ -308,6 +308,8 @@ const SpellData SpellsData[] = {
 /*SpellID::PoisonJavelin*/    { P_("spell", "Poison Javelin"),      IS_CAST2,           0,            0,          6, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,   MissileID::Null,    },         0,         2,          0,          0 },
 /*SpellID::PlagueJavelin*/    { P_("spell", "Plague Javelin"),      IS_CAST2,           0,            0,         12, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,   MissileID::Null,    },         0,         5,          0,          0 },
 /*SpellID::WeaponThrow*/      { P_("spell", "Weapon Throw"),        IS_CAST2,           0,            0,          4, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,     MissileID::Null,    },         0,         2,          0,          0 },
+// Valkyrie (2026-09-14): no book and no staff (-1, -1), so it is earned on the tree and never found.
+/*SpellID::Valkyrie*/         { P_("spell", "Valkyrie"),            IS_CAST2,           0,            0,         15, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,   MissileID::Null,    },         0,         7,          0,          0 },
 	// clang-format on
 };
 
