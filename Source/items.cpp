@@ -36,6 +36,7 @@
 #include "minitext.h"
 #include "missiles.h"
 #include "options.h"
+#include "oracool/hidden_classes.h"
 #include "oracool/item_tiers.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/player_resistance.h"
@@ -2202,6 +2203,10 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 		// also gates save/network validation and would strip scrolls a character already carries.
 		if (oracool::IsBuiltInPortalAbility(item.iSpell))
 			continue;
+		// The hidden Bard's instrument and hymn book (2026-09-14, oracool/hidden_classes.h): the same kind of
+		// generation-only filter, for the same reason - carried ones still load.
+		if (oracool::IsHiddenItemIdx(i))
+			continue;
 		if (!isItemOkay(item))
 			continue;
 		ril[ri] = static_cast<_item_indexes>(i);
@@ -4130,6 +4135,9 @@ bool IsUniqueAvailable(int i)
 bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid)
 {
 	if (uid == UITEM_INVALID || !IsUniqueAvailable(uid))
+		return false;
+	// A unique on a hidden class's base is not for sale (oracool/hidden_classes.h).
+	if (oracool::IsHiddenItemBase(UniqueItems[uid].UIItemId))
 		return false;
 
 	_item_indexes baseItemIndex = IDI_GOLD;

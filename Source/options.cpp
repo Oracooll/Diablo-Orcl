@@ -1367,7 +1367,10 @@ GameplayOptions::GameplayOptions()
     // Turning it off is safe for a Bard that already exists: the class vanishes from the new-hero
     // list, but its starting Sword and Dagger stay available to IsItemAvailable() either way, so
     // they are not stripped off the character on load. See the note there.
-    , testBard("Test Bard", OptionEntryFlags::CantChangeInGame, N_("Test Bard"), N_("Force the Bard character type to appear in the hero selection menu."), true)
+    //
+    // 2026-09-14: the Bard is HIDDEN from the mod (oracool/hidden_classes.h) - the switch is invisible and
+    // off, and the hero screen ignores it while the class is hidden.
+    , testBard("Test Bard", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::Invisible, N_("Test Bard"), N_("Force the Bard character type to appear in the hero selection menu."), false)
     // Oracool: user request - the Barbarian is on by default. It is a Hellfire class that vanilla
     // hides behind this switch; Oracool wants it in the hero list from the start, and flipping the
     // default here is the whole change - the option stays, so it can still be turned off.

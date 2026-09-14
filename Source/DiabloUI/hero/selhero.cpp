@@ -20,6 +20,7 @@
 #include "menu.h"
 #include "options.h"
 #include "oracool/hero_preview.h"
+#include "oracool/hidden_classes.h"
 #include "oracool/hero_stats_column.h"
 #include "oracool/ui_backgrounds.h"
 #include "pfile.h"
@@ -204,6 +205,10 @@ UiArtTextButton *SELLIST_DIALOG_DELETE_BUTTON;
 
 bool SelHeroGetHeroInfo(_uiheroinfo *pInfo)
 {
+	// A hero of a hidden class is left out of the list; its save file is not touched (oracool/hidden_classes.h).
+	if (oracool::IsClassHidden(pInfo->heroclass))
+		return true;
+
 	selhero_heros[selhero_SaveCount] = *pInfo;
 
 	selhero_SaveCount++;
@@ -281,7 +286,8 @@ void SelheroListSelect(int value)
 		// its two starting weapons are compiled in. hfbard.mpq only ever replaced the voice, which is
 		// why `gbBard` merely forces the row on when that archive happens to be present - the option
 		// below is what actually offers the class, and it now defaults to on.
-		if (gbBard || *sgOptions.Gameplay.testBard) {
+		// Hidden since 2026-09-14 (oracool/hidden_classes.h): neither the archive nor the switch offers it.
+		if (!oracool::IsClassHidden(HeroClass::Bard) && (gbBard || *sgOptions.Gameplay.testBard)) {
 			vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Bard"), static_cast<int>(HeroClass::Bard)));
 		}
 		// The character list's own row height and font, centred in the same band it uses. The old

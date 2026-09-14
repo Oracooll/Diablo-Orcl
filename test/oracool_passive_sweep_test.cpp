@@ -11,6 +11,7 @@
 #include <string>
 
 #include "oracool/class_tree.h"
+#include "oracool/hidden_classes.h"
 #include "oracool/passives.h"
 #include "player.h"
 #include "spells.h"
@@ -65,6 +66,23 @@ TEST(OracoolPassiveSweep, EveryInertPassiveSaysWhyAndEveryBuiltOneDoesNot)
 		}
 		EXPECT_EQ(description.find("Not yet built") != std::string::npos, !data.implemented) << data.name;
 	}
+}
+
+// User, 2026-09-14: "remove this class from our mod ... Hide them, dont remove them."
+TEST(OracoolHiddenClass, TheBardAndHisInstrumentsAreHiddenNotDeleted)
+{
+	EXPECT_TRUE(oracool::IsClassHidden(HeroClass::Bard));
+	for (HeroClass shown : { HeroClass::Warrior, HeroClass::Rogue, HeroClass::Sorcerer, HeroClass::Monk, HeroClass::Barbarian })
+		EXPECT_FALSE(oracool::IsClassHidden(shown));
+
+	EXPECT_TRUE(oracool::IsHiddenItemIdx(IDI_ORACOOL_UNQBASE_WAR_LUTE));
+	EXPECT_TRUE(oracool::IsHiddenItemIdx(IDI_ORACOOL_UNQBASE_CANTICLE));
+	EXPECT_FALSE(oracool::IsHiddenItemIdx(IDI_ORACOOL_UNQBASE_ARCANE_FOCUS)) << "shares the Canticle's tumble, not its fate";
+	EXPECT_FALSE(oracool::IsHiddenItemIdx(IDI_ORACOOL_UNQBASE_SPEAR));
+
+	// Hidden, not deleted: the rows are still there for the class's return.
+	EXPECT_STREQ(AllItemsList[IDI_ORACOOL_UNQBASE_WAR_LUTE].iName, "War Lute");
+	EXPECT_EQ(oracool::GetClassTreeSkillData(ClassTreeSkill::MelodyOfLife).heroClass, HeroClass::Bard);
 }
 
 TEST(OracoolPassiveSweep, HoldYourGroundAddsBlockOnlyWhenSlotted)
