@@ -2850,10 +2850,12 @@ void AddPlrMonstExper(int lvl, int exp, char pmask)
 
 void InitPlayer(Player &player, bool firstTime)
 {
-	// Every level starts with an empty Rage pool (oracool/rage.h). Rage is combat, not a store.
-	oracool::ResetRage(player);
-
 	if (firstTime) {
+		// The Rage pool starts empty on a NEW CHARACTER only (user, 2026-09-16: "barb should carry his
+		// rage over dungeon levels"). It used to be emptied on every level entry, which meant a
+		// staircase taken mid-fight cost the whole pool; the calm clock in oracool/rage.h is what
+		// drains it, and a level change is not a reason to stop being angry.
+		oracool::ResetRage(player);
 		// NORMALISED, not cleared (user, 2026-09-02: "forgetting lmb skill isnt [fixed]. fix it.").
 		//
 		// This reset exists for one narrow reason, recorded when the left pair was added: value-

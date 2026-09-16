@@ -64,7 +64,12 @@ void GainRage(Player &player, int points);
  * so the pool does not drain while the fighting goes on. A swing at an empty tile is not combat.
  */
 void NoteRageCombat(Player &player);
-/** @brief Empties the pool and resets the drain clock - every level entry. */
+/**
+ * @brief Empties the pool and resets the drain clock - a NEW CHARACTER only.
+ *
+ * Not on a level change (user, 2026-09-16): Rage is carried down the stairs and back into town, and
+ * only the calm clock drains it.
+ */
 void ResetRage(Player &player);
 /** @brief The out-of-combat drain. Called once per game tick from ProcessClassTreeTick. */
 void ProcessRageTick(Player &player);
