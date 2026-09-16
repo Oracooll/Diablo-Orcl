@@ -101,4 +101,12 @@ OptionalOwnedClxSpriteList LoadPngItemDropSheet(const char *name, uint16_t frame
  */
 OptionalOwnedClxSpriteList LoadPngSpriteList(const char *path, uint16_t frameWidth, const char *palettePath = nullptr);
 
+/**
+ * @brief @p sheet redrawn at @p percent of its size, nearest neighbour, or nullopt for 100 (or a
+ * sheet it cannot take apart). Frames keep their feet on the floor: a sprite is drawn anchored at
+ * its bottom and centred by its own width, so a larger frame grows upward and stays centred with no
+ * offset work anywhere else. For the Barbarian's 120% body - see oracool/hero_look.h.
+ */
+OptionalOwnedClxSpriteSheet ScaleSpriteSheet(ClxSpriteSheet sheet, int percent);
+
 } // namespace devilution::oracool

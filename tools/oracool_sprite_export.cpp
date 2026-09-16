@@ -156,6 +156,10 @@ int main(int argc, char **argv)
 	for (int i = 3; i < argc; i++)
 		if (std::strcmp(argv[i], "--verify") == 0)
 			verify = true;
+	bool dumpPalette = false;
+	for (int i = 1; i < argc; i++)
+		if (std::strcmp(argv[i], "--dump-palette") == 0)
+			dumpPalette = true;
 
 	size_t classIndex = 0;
 	bool found = false;
@@ -182,6 +186,15 @@ int main(int argc, char **argv)
 	}
 
 	LoadFileInMem("levels\\towndata\\town.pal", TownPalette);
+
+	// --dump-palette prints the table the export was coloured with, one line per index. Dye work needs
+	// to know which index RANGES a body part occupies, and a PNG only carries the colours; this is the
+	// other half of that lookup.
+	if (dumpPalette) {
+		for (int i = 0; i < 256; i++)
+			std::printf("%3d %3d %3d %3d\n", i, TownPalette[i * 3], TownPalette[i * 3 + 1], TownPalette[i * 3 + 2]);
+		return 0;
+	}
 
 	RecursivelyCreateDir(outDir.c_str());
 

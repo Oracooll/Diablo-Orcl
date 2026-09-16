@@ -11,6 +11,7 @@
 
 #include "engine/load_file.hpp"
 #include "engine/point.hpp"
+#include "engine/render/clx_render.hpp"
 #include "engine/surface.hpp"
 #include "utils/endian_write.hpp"
 #include "utils/log.hpp"
@@ -288,6 +289,86 @@ OptionalOwnedClxSpriteList LoadPngItemDropSheet(const char *name, uint16_t frame
 	char path[MaxMpqPathSize];
 	*BufCopy(path, "items\\", name, ".png") = '\0';
 	return LoadPngSpriteList(path, frameWidth);
+}
+
+OptionalOwnedClxSpriteSheet ScaleSpriteSheet(ClxSpriteSheet sheet, int percent)
+{
+	if (percent <= 0 || percent == 100 || sheet.numLists() == 0)
+		return std::nullopt;
+
+	// The mask pass draws through a table whose every entry is 1, which is the only reliable way to
+	// know WHICH pixels a frame touched: a sprite pixel is free to be palette index 0 (the foot shadow
+	// is), so "still zero" does not mean "not drawn". Same two-pass trick as the export tool.
+	std::array<uint8_t, 256> opaque;
+	opaque.fill(1);
+
+	std::vector<OwnedClxSpriteList> lists;
+	lists.reserve(sheet.numLists());
+	for (size_t dir = 0; dir < sheet.numLists(); dir++) {
+		const ClxSpriteList list = sheet[dir];
+		const int frames = static_cast<int>(list.numSprites());
+		int cellWidth = 0;
+		int cellHeight = 0;
+		for (int i = 0; i < frames; i++) {
+			cellWidth = std::max(cellWidth, static_cast<int>(list[static_cast<size_t>(i)].width()));
+			cellHeight = std::max(cellHeight, static_cast<int>(list[static_cast<size_t>(i)].height()));
+		}
+		if (frames == 0 || cellWidth == 0 || cellHeight == 0)
+			return std::nullopt;
+
+		// Every frame rendered into one tall column, feet on its cell's floor - the anchor ClxDraw
+		// draws a sprite at, so a taller result grows upward from the ground and needs no offset.
+		OwnedSurface colour(cellWidth, cellHeight * frames);
+		OwnedSurface mask(cellWidth, cellHeight * frames);
+		for (int y = 0; y < cellHeight * frames; y++) {
+			std::memset(&colour[Point { 0, y }], 0, static_cast<size_t>(cellWidth));
+			std::memset(&mask[Point { 0, y }], 0, static_cast<size_t>(cellWidth));
+		}
+		std::array<bool, 256> used {};
+		for (int i = 0; i < frames; i++) {
+			const ClxSprite sprite = list[static_cast<size_t>(i)];
+			ClxDraw(colour, { 0, (i + 1) * cellHeight - 1 }, sprite);
+			ClxDrawTRN(mask, { 0, (i + 1) * cellHeight - 1 }, sprite, opaque.data());
+		}
+		for (int y = 0; y < cellHeight * frames; y++) {
+			const uint8_t *maskRow = &mask[Point { 0, y }];
+			const uint8_t *colourRow = &colour[Point { 0, y }];
+			for (int x = 0; x < cellWidth; x++)
+				if (maskRow[x] != 0)
+					used[colourRow[x]] = true;
+		}
+		// SurfaceToClx needs one index to mean "no pixel"; any the sprite never draws will do.
+		int transparent = -1;
+		for (int i = 0; i < 256; i++) {
+			if (!used[static_cast<size_t>(i)]) {
+				transparent = i;
+				break;
+			}
+		}
+		if (transparent < 0)
+			return std::nullopt;
+
+		// Nearest neighbour. At 120% every fifth row and column is doubled, which on a 96-pixel body
+		// is invisible in motion; a filter would blur the palette indices, and there is no such thing
+		// as an in-between index.
+		const int scaledWidth = std::max(1, (cellWidth * percent + 50) / 100);
+		const int scaledHeight = std::max(1, (cellHeight * percent + 50) / 100);
+		OwnedSurface scaled(scaledWidth, scaledHeight * frames);
+		for (int i = 0; i < frames; i++) {
+			for (int y = 0; y < scaledHeight; y++) {
+				const int sourceY = i * cellHeight + std::min(cellHeight - 1, y * cellHeight / scaledHeight);
+				const uint8_t *maskRow = &mask[Point { 0, sourceY }];
+				const uint8_t *colourRow = &colour[Point { 0, sourceY }];
+				uint8_t *dst = &scaled[Point { 0, i * scaledHeight + y }];
+				for (int x = 0; x < scaledWidth; x++) {
+					const int sourceX = std::min(cellWidth - 1, x * cellWidth / scaledWidth);
+					dst[x] = maskRow[sourceX] != 0 ? colourRow[sourceX] : static_cast<uint8_t>(transparent);
+				}
+			}
+		}
+		lists.push_back(SurfaceToClx(scaled, static_cast<unsigned>(frames), static_cast<uint8_t>(transparent)));
+	}
+	return CombineListsIntoSheet(lists);
 }
 
 } // namespace devilution::oracool

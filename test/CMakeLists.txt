@@ -35,6 +35,7 @@ set(tests
   oracool_rage_test
   oracool_passive_sweep_test
   oracool_town_objects_test
+  oracool_hero_look_test
   pack_test
   path_test
   player_test

@@ -11,6 +11,7 @@
 #include "control.h"
 #include "oracool/weapon_throw.h"
 #include "oracool/gems.h"
+#include "oracool/hero_look.h"
 #include "oracool/inventory_layout.h"
 #include "controls/plrctrls.h"
 #include "cursor.h"
@@ -2443,6 +2444,16 @@ void LoadPlrGFX(Player &player, player_graphic graphic)
 	std::optional<std::array<uint8_t, 256>> trn = GetClassTRN(player);
 	if (trn) {
 		ClxApplyTrans(*animationData.sprites, trn->data());
+	}
+
+	// Oracool: the class's own look on the borrowed body (2026-09-16) - the Barbarian's dye, baked
+	// into the indices exactly as the class TRN above is, and then the whole sheet blown up. Both are
+	// load-time, so drawing is untouched. See oracool/hero_look.h.
+	if (const uint8_t *dye = oracool::HeroDyeTrn(player); dye != nullptr)
+		ClxApplyTrans(*animationData.sprites, dye);
+	if (const int scale = oracool::SpriteScalePercent(player._pClass); scale != 100) {
+		if (OptionalOwnedClxSpriteSheet scaled = oracool::ScaleSpriteSheet(*animationData.sprites, scale))
+			animationData.sprites = std::move(scaled);
 	}
 }
 
