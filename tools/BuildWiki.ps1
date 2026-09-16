@@ -296,6 +296,13 @@ function ConvertFixed([string]$raw) {
 }
 
 $playerdat = Read-SourceFile 'playerdat.cpp'
+# Hidden classes - oracool/hidden_classes.h. A hidden class keeps every row of its data (that is the
+# point of hiding rather than deleting it), so the tables below still carry the Bard; what changes is
+# that the wiki must not call him a playable hero. Parsed rather than typed, so resurrecting him is
+# still the one-line change that header promises.
+$hiddenClassNames = @([regex]::Matches((Read-SourceFile 'oracool/hidden_classes.h'), 'heroClass == HeroClass::(\w+)') |
+    ForEach-Object { $_.Groups[1].Value })
+Write-Host ("           hidden classes: {0}" -f $(if ($hiddenClassNames.Count) { $hiddenClassNames -join ', ' } else { 'none' }))
 $classes = New-Object System.Collections.ArrayList
 # Bounded to the PlayersData table. The sprite table below it repeats the same "/* HeroClass::X */"
 # comment on every row, so an unbounded walk found each class twice - twelve classes for six.
@@ -315,6 +322,7 @@ foreach ($line in ($classBody -split "`n")) {
     [void]$classes.Add([ordered]@{
             enum      = $enum
             name      = $name
+            hidden    = ($hiddenClassNames -contains $enum)
             # Positional from className: 0 name, 1 sprite path, 2 str, 3 mag, 4 dex, 5 vit,
             # 6-9 the maxima, 10 block bonus, 11-18 the life and mana curves, 19 the class skill.
             baseStr   = [int]$parts[2]
@@ -617,7 +625,14 @@ $mechanics = [ordered]@{
     maxSpellLevel     = [int](Get-Constant $playerH 'constexpr uint8_t MaxSpellLevel = (\d+)')
     maxCharacterLevel = [int](Get-Constant $playerH 'constexpr int MaxCharacterLevel = (\d+)')
     maxInvestment     = [int](Get-Constant $pointsH 'constexpr int MaxSkillInvestment = (\d+)')
-    spellBands        = @(1, 6, 12, 18, 24, 30)
+    # Two ladders, PARSED rather than typed - and they are not the same list, which is what the wiki
+    # got wrong until 2026-09-16: a spell sits in one of six bands, a class-tree skill in one of seven
+    # tiers, the seventh opening at 36. Both pages said "six tiers" for both, and skills.html then
+    # sliced the seventh off its own typed copy so the page could not contradict itself.
+    spellBands        = @([regex]::Match((Read-SourceFile 'oracool/spell_ranks.h'), 'SpellLevelBands\[\]\s*=\s*\{([^}]*)\}').Groups[1].Value -split ',' |
+        ForEach-Object { [int]$_.Trim() })
+    tierLevels        = @([regex]::Match((Read-SourceFile 'oracool/class_tree.cpp'), 'TierLevels\[\]\s*=\s*\{([^}]*)\}').Groups[1].Value -split ',' |
+        ForEach-Object { [int]$_.Trim() })
     tierScales        = @()
     tierWeights       = @()
 }

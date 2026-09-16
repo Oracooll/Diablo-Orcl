@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Core mechanics - Diablo Orcl</title>
-<link rel="stylesheet" href="wiki.css?v=1.11.106">
+<link rel="stylesheet" href="wiki.css?v=1.12.019">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
 </head>
@@ -46,9 +46,11 @@ function and the combat curve is untouched.</div>
 		<a href="spells.html">Spells</a>.</li>
 </ul>
 
-<h2>Spell and skill tiers</h2>
-<p>Every spell and every class-tree skill sits in one of six tiers, by the character level it
-demands: <b id="bands"></b>. Below its tier a spell cannot be learned and its book cannot be read.</p>
+<h2>Spell bands and skill tiers</h2>
+<p>Every spell sits in one of six <b>level bands</b>, by the character level it demands:
+<b id="bands"></b>. Below its band a spell cannot be learned and its book cannot be read.</p>
+<p>A class-tree skill sits in one of <b>seven tiers</b> instead - the same six levels, and a seventh
+at <b id="toptier"></b>, which the trees have and the spell list does not.</p>
 
 <h2>The Rule of Rangs</h2>
 <p>Each rank of a skill or spell costs one more character level than the rank before it, counting
@@ -94,7 +96,7 @@ class's main stats, so a sorcerer's two-handed weapons lean toward staves and a 
 toward the ones strength wears.</p>
 <ul>
 <li><b>Main stats only</b> - Strength, Magic and Dexterity, weighted by each class's own stat profile.
-A Bard wants all three equally, so its drops barely lean at all.</li>
+A class that wants all three equally barely leans at all - which was the hidden Bard's case.</li>
 <li><b>Nothing is locked out.</b> Every item can drop for every class, and the fifth of drops that do
 not lean are fully random.</li>
 <li><b>Gold, potions and scrolls are never touched</b>, and multiplayer drops do not lean.</li>
@@ -184,10 +186,12 @@ see <a href="sockets.html">Sockets and gems</a>.</p>
 <footer></footer>
 </main>
 </div>
-<script src="data.js?v=1.11.106"></script>
-<script src="wiki.js?v=1.11.106"></script>
+<script src="data.js?v=1.12.019"></script>
+<script src="wiki.js?v=1.12.019"></script>
 <script>
 document.getElementById('bands').textContent = WIKI.mechanics.spellBands.join(', ');
+document.getElementById('toptier').textContent =
+	WIKI.mechanics.tierLevels[WIKI.mechanics.tierLevels.length - 1];
 document.getElementById('maxinv').textContent = WIKI.mechanics.maxInvestment;
 document.getElementById('maxinv2').textContent = WIKI.mechanics.maxInvestment;
 document.getElementById('maxclvl').textContent = WIKI.mechanics.maxCharacterLevel;

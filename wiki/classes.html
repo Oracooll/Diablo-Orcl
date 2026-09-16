@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Classes - Diablo Orcl</title>
-<link rel="stylesheet" href="wiki.css?v=1.11.106">
+<link rel="stylesheet" href="wiki.css?v=1.12.019">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
 </head>
@@ -13,8 +13,13 @@
 <nav class="side"></nav>
 <main>
 <h1>Classes</h1>
-<p class="lede">Six heroes. They differ in starting stats, in how far each stat can be raised, and in
-how much life and mana a level or a point buys - and each has its own four-page skill tree.</p>
+<p class="lede">Five heroes to choose from. They differ in starting stats, in how far each stat can be
+raised, and in how much life and mana a level or a point buys - and each has its own four-page skill
+tree. The Barbarian is the exception to the mana half: he spends <b>Rage</b> instead, built by
+fighting rather than bought with Magic.</p>
+<div class="note">The <b>Bard</b> is hidden as of v1.12.006 and cannot be created - his rows are kept
+here, and in every table below, because the class is hidden rather than deleted. A Necromancer is
+planned for his place.</div>
 
 <h2>At a glance</h2>
 <div class="cards" id="cards"></div>
@@ -66,18 +71,19 @@ them.</p>
 <footer></footer>
 </main>
 </div>
-<script src="data.js?v=1.11.106"></script>
-<script src="wiki.js?v=1.11.106"></script>
+<script src="data.js?v=1.12.019"></script>
+<script src="wiki.js?v=1.12.019"></script>
 <script>
 const classes = WIKI.classes;
 
 document.getElementById('cards').innerHTML = classes.map(function (c) {
 	const tree = WIKI.skills.filter(function (s) { return s.class === c.name; });
 	const built = tree.filter(function (s) { return s.implemented; }).length;
-	return '<div class="card"><b>' + c.name + '</b><span>' +
+	return '<div class="card"><b>' + c.name + (c.hidden ? ' (hidden)' : '') + '</b><span>' +
 		'Str ' + c.baseStr + ' / Mag ' + c.baseMag + ' / Dex ' + c.baseDex + ' / Vit ' + c.baseVit + '<br>' +
 		'max Str ' + c.maxStr + ', max Mag ' + c.maxMag + '<br>' +
-		tree.length + ' tree skills, ' + built + ' built</span></div>';
+		tree.length + ' tree skills, ' + built + ' built' +
+		(c.hidden ? '<br>not offered at character creation' : '') + '</span></div>';
 }).join('');
 
 function fill(id, cells) {
