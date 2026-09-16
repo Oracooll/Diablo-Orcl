@@ -69,7 +69,7 @@ event log records the transaction. With nothing invested the line sits greyed ou
 rebuilding a character from scratch.</p>
 
 <h3>Levski's Roar</h3>
-<p>The crafting monument, one tile north of the stash. A 3x4 grid, all seventeen recipes, and a recipe book -
+<p>The crafting monument, one tile north of the stash. A 3x4 grid, all <span class="n-recipes"></span> recipes, and a recipe book -
 including <b>Free the Sockets</b>, which takes gems, runes and jewels back out of an item and
 returns all of them intact - the item keeps its sockets, and nothing is destroyed. See
 <a href="sockets.html">Sockets and gems</a>.</p>
@@ -97,6 +97,9 @@ open portals are both marked on the mini-map.</p>
 <script src="data.js?v=1.12.019"></script>
 <script src="wiki.js?v=1.12.019"></script>
 <script>
+/* The monument's recipe count, from the data - it was typed as "seventeen" (2026-09-16). */
+document.querySelectorAll('.n-recipes').forEach(function (e) { e.textContent = WIKI.socketRules.recipes.length; });
+
 const quests = WIKI.quests.map(function (q) {
 	return Object.assign({}, q, {
 		area: q.level > 0 ? areaOfLevel(q.level) : '',

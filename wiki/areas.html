@@ -44,7 +44,7 @@ better rolls and deeper tiers, not for new things.</div>
 
 <h2>What the area level drives</h2>
 <ul>
-	<li><b>Monster loot level</b> - the area level, +3 for a unique, +2 for a champion.</li>
+	<li><b>Monster loot level</b> - the area level, +<span class="n-uniq"></span> for a unique, +<span class="n-champ"></span> for a champion.</li>
 	<li><b>Chests, floor spawns and quest rewards</b> - the area level directly.</li>
 	<li><b>Gold piles</b> - the amount scales with it.</li>
 	<li><b>Vendor stock</b> - separately: the vendor's own level, lifted by the difficulty block.</li>
@@ -74,6 +74,10 @@ one. Shops use their own level, described in <a href="tiers.html">Base tiers</a>
 <script src="data.js?v=1.12.019"></script>
 <script src="wiki.js?v=1.12.019"></script>
 <script>
+/* The loot-level bonuses, from items.cpp through data.js - they were typed here (2026-09-16). */
+document.querySelectorAll('.n-uniq').forEach(function (e) { e.textContent = WIKI.mechanics.lootLevelUnique; });
+document.querySelectorAll('.n-champ').forEach(function (e) { e.textContent = WIKI.mechanics.lootLevelChampion; });
+
 const AREAS = ['Cathedral', 'Catacombs', 'Caves', 'Hell', 'Nest', 'Crypt'];
 const DIFFS = ['Normal', 'Nightmare', 'Hell', 'Torment'];
 // The rung each area stands on. The Nest repeats the Caves' and the Crypt repeats Hell's.

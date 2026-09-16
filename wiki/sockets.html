@@ -211,7 +211,7 @@ window so you can read while you work.</p>
 what is in front of it, so putting in only what a recipe needs is how you pick it - which is how
 the Horadric Cube always worked.</p>
 <p><b>The monument is the only place a recipe produces anything.</b> There is no backpack crafting:
-the belt's burger-menu Crafting window lists all seventeen recipes in the same order the monument's
+the belt's burger-menu Crafting window lists all <span class="n-recipes"></span> recipes in the same order the monument's
 own book does, but it is a book - a row there is something to read, and clicking one says where to
 go. Everything is made at Levski's Roar.</p>
 <div class="tablewrap"><table id="recipes">
@@ -247,6 +247,7 @@ arrived yet.</div>
 const R = WIKI.socketRules;
 
 document.getElementById('helcap').textContent = WIKI.mechanics.helRequirementCap; // was typed as 60
+document.querySelectorAll('.n-recipes').forEach(function (e) { e.textContent = WIKI.socketRules.recipes.length; });
 document.getElementById('socketpct').textContent = R.socketedPercent + '%';
 document.getElementById('socketweights').textContent = R.socketWeights.join(' / ');
 document.getElementById('cap').textContent = R.charmActiveCap;

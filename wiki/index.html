@@ -45,7 +45,7 @@ game's own source tables, so every number below is the number the build actually
 	<a class="card" href="skills.html"><b>Class skill trees</b><span id="c-trees">Skills across every class, bought with points earned per level</span></a>
 	<a class="card" href="mechanics.html"><b>The Rule of Rangs</b><span>Each rank costs one more character level than the last, up to 30 points in any one skill</span></a>
 	<a class="card" href="ui.html"><b>A rebuilt HUD</b><span>Corner orbs, a four-slot belt, an Abilities window and a limestone theme</span></a>
-	<a class="card" href="sockets.html"><b>A socket economy</b><span>Thirty-five gems, thirty-three runes, fifteen jewels, eight Mystic Orbs and 370 runewords, all riding plain white items</span></a>
+	<a class="card" href="sockets.html"><b>A socket economy</b><span id="c-sockets">Gems, runes, jewels, Mystic Orbs and runewords, all riding plain white items</span></a>
 	<a class="card" href="saving.html"><b>Autosave only</b><span>No save button, no Continue - the character persists and the dungeon never does</span></a>
 	<a class="card" href="mechanics.html"><b>Naked heroes</b><span>Characters start with nothing at all, by default</span></a>
 </div>
@@ -85,6 +85,11 @@ document.getElementById('stats').innerHTML = counts.map(c =>
 const bookSpells = WIKI.spells.filter(s => s.role === 'book spell').length;
 document.getElementById('c-spells').textContent =
 	bookSpells + ' book spells with their level bands, mana curves and missiles';
+// The socket families were typed here as words - "thirty-five gems, thirty-three runes" (2026-09-16).
+document.getElementById('c-sockets').textContent =
+	(WIKI.gems.length * WIKI.gemQualities.length) + ' gems, ' + WIKI.runes.length + ' runes, '
+	+ WIKI.jewels.length + ' jewels, eight Mystic Orbs and ' + WIKI.runewords.length
+	+ ' runewords, all riding plain white items';
 document.getElementById('c-trees').textContent =
 	WIKI.skills.length + ' skills across '
 	+ WIKI.classes.filter(function (c) { return !c.hidden; }).length
