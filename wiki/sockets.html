@@ -96,7 +96,7 @@ by Hell/Hell</b> - the rung by which everything in the game must be obtainable. 
 rung, which is what makes the ascend recipe a real ladder rather than a formality.</p>
 <div id="runes"></div>
 <div class="note"><b>Two runes act on the item, not on you.</b> <b>Hel</b> cuts the host's own
-strength, magic and dexterity requirements by 20% - they stack, capped at 60%, and what the item
+strength, magic and dexterity requirements by 20% - they stack, capped at <span id="helcap"></span>%, and what the item
 panel prints is what the game actually checks. <b>Zod</b> makes the host indestructible.</div>
 
 <h2>Runewords</h2>
@@ -246,6 +246,7 @@ arrived yet.</div>
 <script>
 const R = WIKI.socketRules;
 
+document.getElementById('helcap').textContent = WIKI.mechanics.helRequirementCap; // was typed as 60
 document.getElementById('socketpct').textContent = R.socketedPercent + '%';
 document.getElementById('socketweights').textContent = R.socketWeights.join(' / ');
 document.getElementById('cap').textContent = R.charmActiveCap;

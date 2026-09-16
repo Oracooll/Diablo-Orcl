@@ -607,6 +607,12 @@ function Get-Constant([string]$text, [string]$pattern) {
     return '?'
 }
 
+# Torment's multiplier entry, cut out whole first: its own description contains commas, so counting
+# arguments from the front finds the wrong ones. The entry runs to the closing "})" of its list.
+$tormentEntry = [regex]::Match((Read-SourceFile 'options.cpp'), '(?s)tormentDifficultyMultiplier\(.*?\}\)').Value
+$tormentTenths = @([regex]::Matches([regex]::Match($tormentEntry, '(?s)\{(.*?)\}').Groups[1].Value, '\d+') |
+    ForEach-Object { [int]$_.Value })
+
 $tiersCpp = Read-SourceFile 'oracool/item_tiers.cpp'
 $areaH = Read-SourceFile 'oracool/area_level.h'
 $ranksH = Read-SourceFile 'oracool/spell_ranks.h'
@@ -633,6 +639,23 @@ $mechanics = [ordered]@{
         ForEach-Object { [int]$_.Trim() })
     tierLevels        = @([regex]::Match((Read-SourceFile 'oracool/class_tree.cpp'), 'TierLevels\[\]\s*=\s*\{([^}]*)\}').Groups[1].Value -split ',' |
         ForEach-Object { [int]$_.Trim() })
+    # The numbers the PROSE states, parsed for the same reason the tables are (user, 2026-09-16:
+    # "sweep the typed numbers too"). Each was typed on a page and each was checked by hand once;
+    # parsed, they cannot need checking again.
+    namePoolWords     = [int][regex]::Match((Read-SourceFile 'oracool/item_names.cpp'), 'std::array<const char \*, (\d+)> Adjectives').Groups[1].Value *
+        [int][regex]::Match((Read-SourceFile 'oracool/item_names.cpp'), 'std::array<const char \*, (\d+)> Nouns').Groups[1].Value
+    aimedDropPercent  = [int][regex]::Match((Read-SourceFile 'oracool/smart_loot.cpp'), 'AimedDropPercent\s*=\s*(\d+)').Groups[1].Value
+    lootLevelUnique   = [int][regex]::Match((Read-SourceFile 'items.cpp'), 'isUnique\(\)\)\s*\r?\n\s*level \+= (\d+)').Groups[1].Value
+    lootLevelChampion = [int][regex]::Match((Read-SourceFile 'items.cpp'), 'LesserUniqueAffix::None\)\s*\r?\n\s*level \+= (\d+)').Groups[1].Value
+    helRequirementCap = [int][regex]::Match((Read-SourceFile 'oracool/gems.cpp'), 'std::min\(percent, (\d+)\)').Groups[1].Value
+    monsterLevelBonus = @([regex]::Matches((Read-SourceFile 'monster.cpp'), 'baseLevel \+= (\d+);') | ForEach-Object { [int]$_.Groups[1].Value })
+    # Torment's multiplier, stored in options.cpp as tenths: the default, then the ends of the list
+    # the option offers. The page said "default 2.0, range 1.1 to 5.0" in words.
+    tormentMultiplier = [ordered]@{
+        default = [int][regex]::Match($tormentEntry, '\),\s*(\d+),\s*\{').Groups[1].Value
+        min     = $(if ($tormentTenths.Count) { $tormentTenths[0] } else { 0 })
+        max     = $(if ($tormentTenths.Count) { $tormentTenths[-1] } else { 0 })
+    }
     tierScales        = @()
     tierWeights       = @()
 }

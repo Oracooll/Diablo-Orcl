@@ -26,10 +26,10 @@ difficulty-by-difficulty stat block.</p>
 <tbody>
 <tr><td><b>Combat level</b> (the Level column below)</td>
 	<td>To-hit, block chance, experience awarded, some missile damage</td>
-	<td>+15 in Nightmare, +30 in Hell, +30 x multiplier in Torment</td></tr>
+	<td>+<span class="n-nightmare"></span> in Nightmare, +<span class="n-hell"></span> in Hell, +<span class="n-hell"></span> x multiplier in Torment</td></tr>
 <tr><td><b>Loot level</b> (mlvl)</td>
 	<td>Which bases can drop, which tier, how good the roll</td>
-	<td>The <a href="areas.html">area level</a>, +3 for a unique, +2 for a champion</td></tr>
+	<td>The <a href="areas.html">area level</a>, +<span class="n-uniq"></span> for a unique, +<span class="n-champ"></span> for a champion</td></tr>
 </tbody></table></div>
 <div class="note">They are deliberately separate. The combat curve is vanilla's, tuned over decades;
 the loot ladder is this build's. Merging them would rebalance every fight in the game as a side
@@ -38,7 +38,7 @@ effect of a loot change.</div>
 <h2>Difficulty scaling</h2>
 <p>Hit points and damage scale with difficulty on top of the level offsets above. Torment applies
 Hell's scaling again, multiplied by the <code>Torment Difficulty Multiplier</code> INI setting
-(default 2.0, range 1.1 to 5.0).</p>
+(default <span id="tormdef"></span>, range <span id="tormmin"></span> to <span id="tormmax"></span>).</p>
 <p>But a re-run is meant to be more than the same dungeon with fatter monsters. Three other things
 change as you climb, and none of them is a number on a health bar:</p>
 <div class="tablewrap"><table>
@@ -183,6 +183,20 @@ makeTable(document.getElementById('table'), rows, [
 // The difficulty ladder. All three columns come from source: the variant rate from
 // VariantPercentFor, the loot scale from DifficultyTreasureScale, and the modifier arrivals from
 // ChampionAffixAllowedOn's own switch, inverted into per-rung lists.
+/* The prose numbers, from the source (2026-09-16) - the combat offsets, the loot bonuses and
+   Torment's multiplier were all typed into these sentences. */
+document.querySelectorAll('.n-nightmare').forEach(function (e) { e.textContent = WIKI.mechanics.monsterLevelBonus[0]; });
+document.querySelectorAll('.n-hell').forEach(function (e) { e.textContent = WIKI.mechanics.monsterLevelBonus[1]; });
+document.querySelectorAll('.n-uniq').forEach(function (e) { e.textContent = WIKI.mechanics.lootLevelUnique; });
+document.querySelectorAll('.n-champ').forEach(function (e) { e.textContent = WIKI.mechanics.lootLevelChampion; });
+(function () {
+	const T = WIKI.mechanics.tormentMultiplier;
+	const tenths = function (v) { return (v / 10).toFixed(1); };
+	document.getElementById('tormdef').textContent = tenths(T.default);
+	document.getElementById('tormmin').textContent = tenths(T.min);
+	document.getElementById('tormmax').textContent = tenths(T.max);
+})();
+
 document.getElementById('difficultyladder').innerHTML = WIKI.difficultyLadder.map(function (d) {
 	return '<tr><td><b>' + d.name + '</b></td>'
 		+ '<td class="num">' + d.variantPercent + '%</td>'

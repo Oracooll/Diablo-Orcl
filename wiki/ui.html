@@ -79,8 +79,8 @@ scrolls it.</p>
 <tr><td>Waypoints</td><td>A waypoint</td><td>25 entries, scrolling, 43px sigils</td></tr>
 <tr><td>Event log</td><td>F11, or the burger menu</td><td>Timestamped session events</td></tr>
 <tr><td>Runeword book</td><td>W, or the burger menu</td><td>Every runeword in five columns, with recipe, rune icons and the full affix list. Filters by host slot and by rune; the yellow X at the top left selects the runes you actually hold. Opening it closes every other window - the log, the mini-map and the burger row included, since the book is 944px wide on a 960px screen</td></tr>
-<tr><td>Levski's Roar</td><td>The monument in town at tile 55,66 - one north of the stash</td><td>3x4 grid, all seventeen recipes including socket extraction. Operated from an adjacent tile</td></tr>
-<tr><td>Crafting book</td><td>The burger menu</td><td>All seventeen recipes, in the monument's own order - a reading window, not a forge. Nothing here can produce an item: clicking a row says where it is crafted. Same 944px window as the runeword book and closes the same things on opening, the mini-map included</td></tr>
+<tr><td>Levski's Roar</td><td>The monument in town at tile 55,66 - one north of the stash</td><td>3x4 grid, all <span class="n-recipes"></span> recipes including socket extraction. Operated from an adjacent tile</td></tr>
+<tr><td>Crafting book</td><td>The burger menu</td><td>All <span class="n-recipes"></span> recipes, in the monument's own order - a reading window, not a forge. Nothing here can produce an item: clicking a row says where it is crafted. Same 944px window as the runeword book and closes the same things on opening, the mini-map included</td></tr>
 </tbody></table></div>
 
 <h2>Standing interface rules</h2>
@@ -123,5 +123,10 @@ this", so the two actions had to be kept apart by geometry. Now the whole cell i
 </div>
 <script src="data.js?v=1.12.019"></script>
 <script src="wiki.js?v=1.12.019"></script>
+<script>
+/* The recipe count was typed as "seventeen" on both rows and the monument has carried eighteen since
+   socket extraction joined them (2026-09-16). Counted from the data now. */
+document.querySelectorAll('.n-recipes').forEach(function (e) { e.textContent = WIKI.socketRules.recipes.length; });
+</script>
 </body>
 </html>

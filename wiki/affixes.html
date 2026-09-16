@@ -29,7 +29,7 @@ is independent of <a href="tiers.html">base tier</a> - any quality can appear on
 <tr><td><b>Set</b></td><td><span class="tag ok">green</span></td><td>a fixed named list</td>
 	<td>A named piece of one of the fifteen sets - not a roll at all. Drops through its own hook.</td></tr>
 <tr><td><b>Unique</b></td><td><span class="tag t-torment">gold</span></td><td>the unique's own powers</td>
-	<td>The vanilla table's 110 uniques, plus 250 of this fork's own - 360 in all.</td></tr>
+	<td>The vanilla table's 110 uniques, plus this fork's own - <span id="uniqcount"></span> in all.</td></tr>
 <tr><td><b>Buffed unique</b></td><td><span class="tag t-whitegold">whitegold</span></td><td>4 to 6 affixes</td>
 	<td>An Oracool tier above rare.</td></tr>
 <tr><td><b>Primal</b></td><td><span class="tag t-orange">orange</span></td><td>6 affixes, full durability</td>
@@ -57,7 +57,7 @@ level reaches, so they stay a find at every depth rather than crowding deep loot
 </ul>
 
 <h2>Names</h2>
-<p>Magic and rolled-tier items take a two-word name from a pool of 4,096 - <i>Tarnished Doom</i>,
+<p>Magic and rolled-tier items take a two-word name from a pool of <span id="namepool"></span> - <i>Tarnished Doom</i>,
 <i>Rotting Bane</i> - derived from the item's own seed, so a name never changes and says nothing about
 what rolled. The item's description says that. Uniques, set pieces and runewords keep their authored
 names, and an item crafted up a tier keeps the name it had.</p>
@@ -105,6 +105,9 @@ function optionDefault(key, fallback) {
 const rare = optionDefault('Rare Item Drop Chance', 20);
 const buffed = optionDefault('Buffed Unique Item Drop Chance', 10);
 const primal = optionDefault('Primal Item Drop Chance', 5);
+/* Typed until 2026-09-16: the unique total and the two-word name pool (adjectives x nouns). */
+document.getElementById('uniqcount').textContent = WIKI.uniques.length;
+document.getElementById('namepool').textContent = WIKI.mechanics.namePoolWords.toLocaleString();
 document.getElementById('dr').textContent = rare;
 document.getElementById('db').textContent = buffed;
 document.getElementById('dp').textContent = primal;

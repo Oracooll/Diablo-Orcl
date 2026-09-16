@@ -24,7 +24,7 @@ code; the numbers are read from the modules that define them.</p>
 <tr><td><b>alvl</b> - area level</td><td>A property of the place. Fixed per floor per difficulty.</td>
 	<td><code>rung + 16 x difficulty</code>, so 1-64 across the 24 floors</td><td>The automap, under the difficulty line</td></tr>
 <tr><td><b>mlvl</b> - monster level</td><td>What a monster is worth as a source of loot.</td>
-	<td>The area level, +3 for a unique, +2 for a champion</td><td>Bottom-right of the monster health bar</td></tr>
+	<td>The area level, +<span class="n-uniq"></span> for a unique, +<span class="n-champ"></span> for a champion</td><td>Bottom-right of the monster health bar</td></tr>
 <tr><td><b>ilvl</b> - item level</td><td>Stamped on an item when it is generated.</td>
 	<td>The mlvl of whatever dropped it, or the alvl of the chest, floor or shop</td><td>The item's description</td></tr>
 </tbody></table></div>
@@ -135,7 +135,7 @@ costs a slot rather than filling one, which is what makes three signature reward
 before the guardian dies costs you the map.</div>
 
 <h2>Ethereal items</h2>
-<p>A ghost of an item: <b>35% more damage or armour</b>, <b>half the maximum durability</b>, and no
+<p>A ghost of an item: <b><span id="ethbonus"></span>% more damage or armour</b>, <b>half the maximum durability</b>, and no
 smith will touch it. Any durable weapon or armour can roll ethereal on the drop, at any quality.</p>
 <p>The bargain is stamped into the item's own numbers when it drops, so what you read on the item is
 what you get. <b>No smith will repair it</b> - but the crafting recipe <i>Mend the Ethereal</i> will,
@@ -144,7 +144,7 @@ for twelve Ethereal Imbueities, and the item stays ethereal.</p>
 <h2>Sockets, in one line</h2>
 <p>A quarter of plain equipment drops socketed, with as many sockets as it has 28x28 inventory
 cells - one for a ring, six for body armour or a two-hander. Every base tier can host them, and
-gems, runes and 370 runewords all live in them. That is a system of its own -
+gems, runes and <span id="rwcount"></span> runewords all live in them. That is a system of its own -
 see <a href="sockets.html">Sockets and gems</a>.</p>
 <h2>Resistance</h2>
 <p>Fire, lightning and magic resistance each reduce incoming damage of that school by their
@@ -190,6 +190,13 @@ see <a href="sockets.html">Sockets and gems</a>.</p>
 <script src="wiki.js?v=1.12.019"></script>
 <script>
 document.getElementById('bands').textContent = WIKI.mechanics.spellBands.join(', ');
+/* The prose numbers, from the source too (2026-09-16) - they used to be typed into the sentences. */
+document.querySelectorAll('.n-uniq').forEach(function (e) { e.textContent = WIKI.mechanics.lootLevelUnique; });
+document.querySelectorAll('.n-champ').forEach(function (e) { e.textContent = WIKI.mechanics.lootLevelChampion; });
+document.getElementById('ethbonus').textContent = WIKI.socketRules.etherealBonusPct - 100;
+document.getElementById('rwcount').textContent = WIKI.runewords.length;
+document.querySelectorAll('.n-nightmare').forEach(function (e) { e.textContent = WIKI.mechanics.monsterLevelBonus[0]; });
+document.querySelectorAll('.n-hell').forEach(function (e) { e.textContent = WIKI.mechanics.monsterLevelBonus[1]; });
 document.getElementById('toptier').textContent =
 	WIKI.mechanics.tierLevels[WIKI.mechanics.tierLevels.length - 1];
 document.getElementById('maxinv').textContent = WIKI.mechanics.maxInvestment;
