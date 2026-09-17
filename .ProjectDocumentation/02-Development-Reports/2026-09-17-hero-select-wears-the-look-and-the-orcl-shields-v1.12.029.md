@@ -48,3 +48,8 @@ the game is played. A test walks all sixteen, so none can fall back to "Own" unn
 no tool that renders it. What to look at: a hero holding a big shield over light armour in the list
 shows that shield (after a half-second the first time); a light-armour Barbarian shows blue and grey;
 arrowing quickly through the list never stalls.
+
+## Closed
+
+User, 2026-09-17, after an in-game pass over v1.12.029: "all works ok. dont apply on companions. mark as
+built". The gear looks (v1.12.021-029) are BUILT. Companions are excluded by decision, not by omission.
