@@ -18,6 +18,7 @@
  */
 
 #include <cstdint>
+#include <memory>
 
 namespace devilution {
 
@@ -25,6 +26,8 @@ struct Player;
 enum class HeroClass : uint8_t;
 
 namespace oracool {
+
+struct SpriteColours;
 
 /**
  * @brief How large this class's body sheets are drawn, in percent of the original. 100 = untouched.
@@ -34,11 +37,20 @@ namespace oracool {
 int SpriteScalePercent(HeroClass heroClass);
 
 /**
- * @brief The index translation to bake into the sheet LoadPlrGFX is loading for @p player, or nullptr
- * for none. Reads the class and the armour tier the sheet is for (`_pgfxnum >> 4`), which is why it
- * takes the player and not just the class.
+ * @brief The dye as an INDEX translation, or nullptr for none: each dyed index to the nearest palette
+ * entry. Since 2026-09-17 this is only the fallback - what an 8-bit target draws, and what each dyed
+ * colour is shaded like - and no longer baked into the sheet; see HeroColours. Reads the class and the
+ * armour tier (`_pgfxnum >> 4`), which is why it takes the player and not just the class.
  */
 const uint8_t *HeroDyeTrn(const Player &player);
+
+/**
+ * @brief The dye as COLOURS, or null for none - what LoadPlrGFX hangs on each sheet it loads for @p player
+ * and DrawPlayer draws through. Indices stay the Warrior's own; only what they mean changes, so the
+ * mail's sixteen greys become sixteen blues rather than eight doubled, and grey hair is a silver the
+ * palette does not have. See oracool/sprite_colours.h.
+ */
+std::shared_ptr<const SpriteColours> HeroColours(const Player &player);
 
 } // namespace oracool
 } // namespace devilution

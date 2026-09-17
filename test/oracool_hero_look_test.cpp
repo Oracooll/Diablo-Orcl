@@ -14,10 +14,13 @@
 #include <vector>
 
 #include "engine/clx_sprite.hpp"
+#include "engine/palette.h"
 #include "engine/render/clx_render.hpp"
 #include "engine/surface.hpp"
 #include "oracool/hero_look.h"
+#include "oracool/sprite_colours.h"
 #include "oracool/sprite_import.h"
+#include "lighting.h"
 #include "player.h"
 #include "utils/endian_write.hpp"
 #include "utils/surface_to_clx.hpp"
@@ -182,4 +185,127 @@ TEST(OracoolHeroLook, ScalingKeepsIndexZeroPixelsAndTheFloor)
 		EXPECT_TRUE(corner.drawn(6, 11)) << "the floor row is drawn where the corner was";
 		EXPECT_FALSE(corner.drawn(11, 0)) << "nothing floats up into the empty rows";
 	}
+}
+
+// ---------------------------------------------------------------------------------------------------
+// v1.12.022: the dye as colours, and the tables DrawPlayer draws through.
+// ---------------------------------------------------------------------------------------------------
+
+namespace {
+
+/** A palette and light tables a test can reason about: entry i is grey i, level L keeps (16-L)/16 of it. */
+void UseGreyPaletteAndLinearLight()
+{
+	for (int i = 0; i < 256; i++)
+		PaletteRGB[static_cast<size_t>(i)] = (static_cast<uint32_t>(i) << 16) | (static_cast<uint32_t>(i) << 8) | static_cast<uint32_t>(i);
+	PaletteRgbGeneration++;
+	for (size_t level = 0; level < NumLightingLevels; level++)
+		for (int i = 0; i < 256; i++)
+			LightTables[level][static_cast<size_t>(i)] = static_cast<uint8_t>(i * (16 - static_cast<int>(level)) / 16);
+}
+
+} // namespace
+
+TEST(OracoolHeroLook, ASheetLeftAloneDrawsExactlyThePaletteThroughTheLightTable)
+{
+	UseGreyPaletteAndLinearLight();
+	const oracool::SpriteColours colours;
+	for (int level : { 0, 1, 7, 15 }) {
+		const uint32_t *table = colours.Table(level);
+		for (int i = 0; i < 256; i++) {
+			const uint8_t lit = level == 0 ? static_cast<uint8_t>(i) : LightTables[static_cast<size_t>(level)][static_cast<size_t>(i)];
+			ASSERT_EQ(table[i], PaletteRGB[lit]) << "level " << level << " index " << i;
+		}
+	}
+}
+
+TEST(OracoolHeroLook, AnOwnColourIsItselfInFullLightAndDarkensWithItsFallback)
+{
+	UseGreyPaletteAndLinearLight();
+	oracool::SpriteColours colours;
+	colours.Set(10, 0x2040C0, 200); // a blue the palette does not hold, shaded like entry 200
+
+	EXPECT_TRUE(colours.HasOwn(10));
+	EXPECT_FALSE(colours.HasOwn(11));
+	EXPECT_EQ(colours.Table(0)[10], 0x2040C0U) << "full light is the colour as authored";
+	EXPECT_EQ(colours.Table(0)[11], PaletteRGB[11]) << "its neighbour is untouched";
+
+	// Level 8 keeps half of entry 200, so it keeps half of the blue - channel by channel.
+	const uint32_t half = colours.Table(8)[10];
+	EXPECT_EQ((half >> 16) & 0xFF, 0x20U / 2);
+	EXPECT_EQ((half >> 8) & 0xFF, 0x40U / 2);
+	EXPECT_EQ(half & 0xFF, 0xC0U / 2);
+
+	uint32_t previous = 0xFFFFFF;
+	for (int level = 0; level < static_cast<int>(NumLightingLevels); level++) {
+		const uint32_t blue = colours.Table(level)[10] & 0xFF;
+		EXPECT_LE(blue, previous) << "never brighter in deeper shadow, level " << level;
+		previous = blue;
+	}
+
+	// A palette change rebuilds the tables rather than serving stale ones.
+	PaletteRGB[11] = 0x123456;
+	PaletteRgbGeneration++;
+	EXPECT_EQ(colours.Table(0)[11], 0x123456U);
+}
+
+TEST(OracoolHeroLook, TheBarbariansMailIsSixteenBluesNotEightDoubled)
+{
+	const devilution::Player player = LightBarbarian();
+	const std::shared_ptr<const oracool::SpriteColours> colours = oracool::HeroColours(player);
+	ASSERT_NE(colours, nullptr);
+	const uint8_t *dye = oracool::HeroDyeTrn(player);
+
+	uint32_t previous = 0xFFFFFFFF;
+	for (int i = 240; i < 256; i++) {
+		ASSERT_TRUE(colours->HasOwn(static_cast<uint8_t>(i)));
+		const uint32_t blue = colours->Own(static_cast<uint8_t>(i));
+		EXPECT_NE(blue, previous) << "mail index " << i << " repeats its neighbour";
+		EXPECT_GT(blue & 0xFF, (blue >> 16) & 0xFF) << "mail index " << i << " is not blue";
+		EXPECT_EQ(colours->Fallback(static_cast<uint8_t>(i)), dye[i]) << "the index dye is the fallback";
+		previous = blue;
+	}
+	EXPECT_EQ(colours->Own(240), 0x4E587DU) << "the lightest mail is the lightest trouser blue";
+	EXPECT_EQ(colours->Own(255), 0x05070CU) << "and the darkest the darkest";
+	// Boots and gloves are the trousers exactly; hair is a silver; the face and the trousers are left alone.
+	EXPECT_EQ(colours->Own(216), 0x4E587DU);
+	EXPECT_EQ(colours->Own(175), 0x05070CU);
+	EXPECT_TRUE(colours->HasOwn(206));
+	EXPECT_TRUE(colours->HasOwn(207));
+	for (int i = 184; i <= 191; i++)
+		EXPECT_FALSE(colours->HasOwn(static_cast<uint8_t>(i)));
+	for (int i = 200; i <= 205; i++)
+		EXPECT_FALSE(colours->HasOwn(static_cast<uint8_t>(i)));
+
+	devilution::Player warrior = LightBarbarian();
+	warrior._pClass = HeroClass::Warrior;
+	EXPECT_EQ(oracool::HeroColours(warrior), nullptr);
+}
+
+TEST(OracoolHeroLook, DrawingThroughColoursWritesValuesOn32BitAndFallbacksOn8Bit)
+{
+	UseGreyPaletteAndLinearLight();
+	oracool::SpriteColours colours;
+	colours.Set(200, 0xAA5500, 90);
+
+	// One frame, fully painted with index 200 (TwoFrames' corner frame carries it).
+	OwnedClxSpriteList frames = TwoFrames();
+	const ClxSprite corner = ClxSpriteList { frames }[1];
+
+	OwnedSurface screen = OwnedSurface::Rgb(Side, Side);
+	for (int y = 0; y < Side; y++)
+		for (int x = 0; x < Side; x++)
+			*screen.at<uint32_t>(x, y) = 0x010203;
+	oracool::DrawSpriteWithColours(screen, { 0, Side - 1 }, corner, colours, 0);
+	EXPECT_EQ(*screen.at<uint32_t>(Side - 1, Side - 1), 0xAA5500U) << "the authored colour, not a palette entry";
+	EXPECT_EQ(*screen.at<uint32_t>(0, 0), 0x010203U) << "nothing outside the sprite is touched";
+
+	OwnedSurface indexed(Side, Side);
+	for (int y = 0; y < Side; y++)
+		std::memset(&indexed[Point { 0, y }], 3, Side);
+	oracool::DrawSpriteWithColours(indexed, { 0, Side - 1 }, corner, colours, 0);
+	EXPECT_EQ((indexed[Point { Side - 1, Side - 1 }]), 90) << "an 8-bit target gets the fallback index";
+	oracool::DrawSpriteWithColours(indexed, { 0, Side - 1 }, corner, colours, 8);
+	EXPECT_EQ((indexed[Point { Side - 1, Side - 1 }]), LightTables[8][90]) << "lit through the same table";
+	EXPECT_EQ((indexed[Point { 0, 0 }]), 3);
 }

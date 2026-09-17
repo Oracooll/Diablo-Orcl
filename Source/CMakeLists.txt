@@ -122,6 +122,7 @@ set(libdevilutionx_SRCS
   oracool/spell_descriptions.cpp
   oracool/sprite_import.cpp
   oracool/hero_look.cpp
+  oracool/sprite_colours.cpp
   oracool/ui_backgrounds.cpp
   oracool/save_indicator.cpp
   oracool/shop_toast.cpp

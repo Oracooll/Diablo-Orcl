@@ -5,6 +5,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <SDL.h>
@@ -244,6 +245,102 @@ OptionalOwnedClxSpriteSheet SpriteSheetFromSurface(SDL_Surface *surface, uint16_
 	if (lists.empty())
 		return std::nullopt;
 	return CombineListsIntoSheet(lists);
+}
+
+std::optional<ColouredSpriteSheet> ColouredSpriteSheetFromSurface(SDL_Surface *surface, uint16_t frameWidth)
+{
+	if (surface == nullptr || frameWidth == 0 || !EnsurePalette(LevelPalettePath))
+		return std::nullopt;
+	SDLSurfaceUniquePtr rgba { SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_ABGR8888, 0) };
+	if (rgba == nullptr)
+		return std::nullopt;
+	const int sheetWidth = rgba->w;
+	const int sheetHeight = rgba->h;
+	if (sheetWidth % frameWidth != 0 || sheetHeight % Facings != 0) {
+		LogWarn("Oracool sprite import: a {:d}x{:d} sheet is not a whole number of {:d}px columns by "
+		        "{:d} rows - ignoring it",
+		    sheetWidth, sheetHeight, frameWidth, Facings);
+		return std::nullopt;
+	}
+	const int frames = sheetWidth / frameWidth;
+	const int cellHeight = sheetHeight / Facings;
+	if (frames == 0 || cellHeight == 0)
+		return std::nullopt;
+	const auto *pixels = static_cast<const uint8_t *>(rgba->pixels);
+
+	// The sheet's own palette: every colour it uses, as long as there are no more than 255 of them
+	// (index 0 is "no pixel"). A sheet cut from the game's own art has a few dozen. One with more -
+	// a painted or filtered one - is folded by dropping low bits a step at a time until it fits, each
+	// surviving entry the average of the colours that fell into it; five bits a channel is 32768
+	// cells and no real sheet is still over 255 by then.
+	struct Cell {
+		uint32_t r = 0, g = 0, b = 0, count = 0;
+		uint8_t index = 0;
+	};
+	std::unordered_map<uint32_t, Cell> cells;
+	int shift = 0;
+	for (; shift <= 5; shift++) {
+		cells.clear();
+		for (int y = 0; y < sheetHeight && cells.size() <= 255; y++) {
+			const uint8_t *row = pixels + static_cast<size_t>(y) * rgba->pitch;
+			for (int x = 0; x < sheetWidth; x++) {
+				const uint8_t *p = row + static_cast<size_t>(x) * 4;
+				if (p[3] < 128)
+					continue;
+				Cell &cell = cells[(static_cast<uint32_t>(p[0] >> shift) << 16) | (static_cast<uint32_t>(p[1] >> shift) << 8) | static_cast<uint32_t>(p[2] >> shift)];
+				cell.r += p[0];
+				cell.g += p[1];
+				cell.b += p[2];
+				cell.count++;
+			}
+		}
+		if (cells.size() <= 255)
+			break;
+	}
+	if (cells.size() > 255 || cells.empty())
+		return std::nullopt;
+
+	auto colours = std::make_shared<SpriteColours>();
+	uint8_t next = 1;
+	for (auto &[key, cell] : cells) {
+		cell.index = next++;
+		const int r = static_cast<int>(cell.r / cell.count);
+		const int g = static_cast<int>(cell.g / cell.count);
+		const int b = static_cast<int>(cell.b / cell.count);
+		// The fallback is what the old importer would have drawn: the nearest shared-half entry. It
+		// now only shades the colour and stands in for it on an 8-bit target.
+		colours->Set(cell.index, (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b),
+		    NearestSharedIndex(r, g, b));
+	}
+
+	std::vector<OwnedClxSpriteList> lists;
+	lists.reserve(Facings);
+	for (int row = 0; row < Facings; row++) {
+		OwnedSurface column(frameWidth, cellHeight * frames);
+		for (int frame = 0; frame < frames; frame++) {
+			for (int y = 0; y < cellHeight; y++) {
+				uint8_t *dst = &column[Point { 0, frame * cellHeight + y }];
+				const uint8_t *src = pixels + static_cast<size_t>(row * cellHeight + y) * rgba->pitch
+				    + static_cast<size_t>(frame) * frameWidth * 4;
+				for (int x = 0; x < frameWidth; x++) {
+					const uint8_t *p = src + static_cast<size_t>(x) * 4;
+					dst[x] = p[3] < 128
+					    ? TransparentIndex
+					    : cells[(static_cast<uint32_t>(p[0] >> shift) << 16) | (static_cast<uint32_t>(p[1] >> shift) << 8) | static_cast<uint32_t>(p[2] >> shift)].index;
+				}
+			}
+		}
+		lists.push_back(SurfaceToClx(column, static_cast<unsigned>(frames), TransparentIndex));
+	}
+	return ColouredSpriteSheet { CombineListsIntoSheet(lists), std::move(colours) };
+}
+
+std::optional<ColouredSpriteSheet> LoadPngSpriteSheetColoured(const char *path, uint16_t frameWidth)
+{
+	SDLSurfaceUniquePtr png { LoadPNG(path) };
+	if (png == nullptr)
+		return std::nullopt; // no import for this animation; the caller falls back to the CL2
+	return ColouredSpriteSheetFromSurface(png.get(), frameWidth);
 }
 
 std::optional<OwnedClxSpriteListOrSheet> LoadPngMissileSheet(const char *name, uint16_t frameWidth, int rows)

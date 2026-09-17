@@ -39,6 +39,7 @@
 #include "oracool/attack_skills.h"
 #include "oracool/companion.h"
 #include "oracool/rfa12_effects.h"
+#include "oracool/sprite_colours.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
 #include "oracool/item_tint.h"
@@ -516,6 +517,25 @@ void DrawPlayerIcons(const Surface &out, const Player &player, Point position, b
  * @param tilePosition dPiece coordinates
  * @param targetBufferPosition Output buffer coordinates
  */
+/**
+ * @brief Oracool: the colours of the sheet @p sprite belongs to, or nullptr for an ordinary one.
+ *
+ * Found by address rather than remembered at NewPlrAnim, because the sprite on screen is not always
+ * AnimInfo's - previewCelSprite stands in for it - and eleven range checks a frame is nothing.
+ */
+const oracool::SpriteColours *PlayerSpriteColours(const Player &player, ClxSprite sprite)
+{
+	const uint8_t *pixels = sprite.pixelData();
+	for (const PlayerAnimationData &animation : player.AnimationData) {
+		if (!animation.sprites || animation.colours == nullptr)
+			continue;
+		const ClxSpriteSheet sheet { *animation.sprites };
+		if (pixels >= sheet.data() && pixels < sheet.data() + sheet.dataSize())
+			return animation.colours.get();
+	}
+	return nullptr;
+}
+
 void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Point targetBufferPosition)
 {
 	if (!IsTileLit(tilePosition) && !MyPlayer->_pInfraFlag && !MyPlayer->isOnArenaLevel() && leveltype != DTYPE_TOWN) {
@@ -536,14 +556,24 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 	if (static_cast<size_t>(pcursplr) < Players.size() && &player == &Players[pcursplr])
 		ClxDrawOutlineSkipColorZero(out, 165, spriteBufferPosition, sprite);
 
+	// Oracool: a sheet with colours of its own (a dyed class, an imported PNG) draws colour values; the
+	// three cases below are the same three, through its tables instead of the palette's.
+	const oracool::SpriteColours *colours = PlayerSpriteColours(player, sprite);
+
 	if (&player == MyPlayer && IsNoneOf(leveltype, DTYPE_NEST, DTYPE_CRYPT)) {
-		ClxDraw(out, spriteBufferPosition, sprite);
+		if (colours != nullptr)
+			oracool::DrawSpriteWithColours(out, spriteBufferPosition, sprite, *colours, 0);
+		else
+			ClxDraw(out, spriteBufferPosition, sprite);
 		DrawPlayerIcons(out, player, targetBufferPosition, false);
 		return;
 	}
 
 	if (!IsTileLit(tilePosition) || ((MyPlayer->_pInfraFlag || MyPlayer->isOnArenaLevel()) && LightTableIndex > 8)) {
-		ClxDrawTRN(out, spriteBufferPosition, sprite, GetInfravisionTRN());
+		if (colours != nullptr)
+			oracool::DrawSpriteWithColours(out, spriteBufferPosition, sprite, *colours, oracool::InfravisionLight);
+		else
+			ClxDrawTRN(out, spriteBufferPosition, sprite, GetInfravisionTRN());
 		DrawPlayerIcons(out, player, targetBufferPosition, true);
 		return;
 	}
@@ -554,7 +584,10 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 	else
 		LightTableIndex -= 5;
 
-	ClxDrawLight(out, spriteBufferPosition, sprite, LightTableIndex);
+	if (colours != nullptr)
+		oracool::DrawSpriteWithColours(out, spriteBufferPosition, sprite, *colours, LightTableIndex);
+	else
+		ClxDrawLight(out, spriteBufferPosition, sprite, LightTableIndex);
 	DrawPlayerIcons(out, player, targetBufferPosition, false);
 
 	LightTableIndex = l;

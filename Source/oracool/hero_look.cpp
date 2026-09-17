@@ -1,7 +1,10 @@
 #include "oracool/hero_look.h"
 
+#include <algorithm>
 #include <array>
+#include <memory>
 
+#include "oracool/sprite_colours.h"
 #include "player.h"
 
 namespace devilution::oracool {
@@ -50,6 +53,49 @@ std::array<uint8_t, 256> LightBarbarianDye()
 	return trn;
 }
 
+/**
+ * @brief The trouser ramp as colour values, 184 (lightest) to 191. The shared half of the palette is the same on
+ * every level, and brightness is a present-time transform since v1.11.022, so these are constants rather than
+ * something to read back from PaletteRGB at a moment it may not be loaded.
+ */
+constexpr std::array<uint32_t, 8> TrouserBlues = { 0x4E587D, 0x434C6F, 0x39415F, 0x2F3650, 0x252B41, 0x191E2D, 0x0D111B, 0x05070C };
+
+/** @brief The blue @p step of @p steps down the trouser ramp, blended from the two entries it falls between. */
+uint32_t TrouserBlueAt(int step, int steps)
+{
+	const int scaled = step * 7 * 256 / (steps - 1); // 0 .. 7*256
+	const int lower = std::min(scaled >> 8, 6);
+	const int t = scaled - (lower << 8);
+	const uint32_t a = TrouserBlues[static_cast<size_t>(lower)];
+	const uint32_t b = TrouserBlues[static_cast<size_t>(lower) + 1];
+	const auto channel = [&](int shift) {
+		const int from = static_cast<int>((a >> shift) & 0xFF);
+		const int to = static_cast<int>((b >> shift) & 0xFF);
+		return static_cast<uint32_t>(from + (to - from) * t / 256) << shift;
+	};
+	return channel(16) | channel(8) | channel(0);
+}
+
+std::shared_ptr<const SpriteColours> LightBarbarianColours()
+{
+	auto colours = std::make_shared<SpriteColours>();
+	const std::array<uint8_t, 256> fallback = LightBarbarianDye();
+
+	// The mail: sixteen greys to sixteen blues, a full ramp's worth of shading where the index dye had to land
+	// two greys on each of eight entries.
+	for (int i = 240; i < 256; i++)
+		colours->Set(static_cast<uint8_t>(i), TrouserBlueAt(i - 240, 16), fallback[static_cast<size_t>(i)]);
+	// Boots, belt and gloves are eight entries onto eight: the palette's own blues, exactly the trousers.
+	for (int i = 0; i < TrouserRampSize; i++) {
+		colours->Set(static_cast<uint8_t>(216 + i), TrouserBlues[static_cast<size_t>(i)], fallback[static_cast<size_t>(216 + i)]);
+		colours->Set(static_cast<uint8_t>(168 + i), TrouserBlues[static_cast<size_t>(i)], fallback[static_cast<size_t>(168 + i)]);
+	}
+	// The hair: a cool silver, lit side and shaded side. The palette's greys are dead neutral; hair is not.
+	colours->Set(206, 0x8E949C, fallback[206]);
+	colours->Set(207, 0x5C626B, fallback[207]);
+	return colours;
+}
+
 } // namespace
 
 int SpriteScalePercent(HeroClass heroClass)
@@ -65,6 +111,14 @@ const uint8_t *HeroDyeTrn(const Player &player)
 		return nullptr;
 	static const std::array<uint8_t, 256> table = LightBarbarianDye();
 	return table.data();
+}
+
+std::shared_ptr<const SpriteColours> HeroColours(const Player &player)
+{
+	if (HeroDyeTrn(player) == nullptr)
+		return nullptr;
+	static const std::shared_ptr<const SpriteColours> colours = LightBarbarianColours();
+	return colours;
 }
 
 } // namespace devilution::oracool

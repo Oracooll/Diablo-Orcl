@@ -21,10 +21,13 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
+#include <optional>
 
 #include <SDL.h>
 
 #include "engine/clx_sprite.hpp"
+#include "oracool/sprite_colours.h"
 #include "player.h"
 #include "utils/stdcompat/optional.hpp"
 
@@ -56,6 +59,26 @@ OptionalOwnedClxSpriteSheet LoadPngSpriteSheet(const char *path, uint16_t frameW
  * @p surface may be in any format; it is converted internally.
  */
 OptionalOwnedClxSpriteSheet SpriteSheetFromSurface(SDL_Surface *surface, uint16_t frameWidth);
+
+/** @brief An imported sheet and what its indices mean - see oracool/sprite_colours.h. */
+struct ColouredSpriteSheet {
+	OwnedClxSpriteSheet sheet;
+	std::shared_ptr<const SpriteColours> colours;
+};
+
+/**
+ * @brief LoadPngSpriteSheet in TRUE COLOUR (2026-09-17): the sheet keeps its own colours - up to 255 of them, as its
+ * own palette - instead of being squeezed into the 128 shared entries of the level palette. The indices of the
+ * result mean nothing without the colours that come with it; the nearest shared entry survives only as each
+ * colour's fallback, for shading and for 8-bit targets.
+ *
+ * What a player class's PNG sheets load through since the 32-bit renderer reached DrawPlayer. The quantizing
+ * loader above stays for the callers that still draw indices.
+ */
+std::optional<ColouredSpriteSheet> LoadPngSpriteSheetColoured(const char *path, uint16_t frameWidth);
+
+/** @brief The conversion on its own, for a surface already in hand - the testable half. */
+std::optional<ColouredSpriteSheet> ColouredSpriteSheetFromSurface(SDL_Surface *surface, uint16_t frameWidth);
 
 /**
  * @brief The same import for a MISSILE: `missiles\<name>.png`, or nullopt to fall back to the CL2.

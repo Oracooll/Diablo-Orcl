@@ -12,6 +12,7 @@
 #include "oracool/weapon_throw.h"
 #include "oracool/gems.h"
 #include "oracool/hero_look.h"
+#include "oracool/sprite_colours.h"
 #include "oracool/inventory_layout.h"
 #include "controls/plrctrls.h"
 #include "cursor.h"
@@ -2436,21 +2437,27 @@ void LoadPlrGFX(Player &player, player_graphic graphic)
 	*fmt::format_to(pngName, R"(plrgfx\{0}\{1}\{1}{2}.png)",
 	    oracool::ClassSpriteFolder(player._pClass), string_view(prefix, 3), szCel)
 	    = 0;
-	if (OptionalOwnedClxSpriteSheet imported = oracool::LoadPngSpriteSheet(pngName, animationWidth)) {
-		animationData.sprites = std::move(imported);
+	//
+	// In TRUE COLOUR since 2026-09-17: an imported sheet keeps its own colours and carries them as
+	// animationData.colours, which DrawPlayer draws through. Its indices mean nothing to the level
+	// palette, so the class TRN - an index translation - is for the CL2 alone.
+	animationData.colours = nullptr;
+	if (std::optional<oracool::ColouredSpriteSheet> imported = oracool::LoadPngSpriteSheetColoured(pngName, animationWidth)) {
+		animationData.sprites = std::move(imported->sheet);
+		animationData.colours = std::move(imported->colours);
 	} else {
 		animationData.sprites = LoadCl2Sheet(pszName, animationWidth);
-	}
-	std::optional<std::array<uint8_t, 256>> trn = GetClassTRN(player);
-	if (trn) {
-		ClxApplyTrans(*animationData.sprites, trn->data());
+		std::optional<std::array<uint8_t, 256>> trn = GetClassTRN(player);
+		if (trn) {
+			ClxApplyTrans(*animationData.sprites, trn->data());
+		}
+		// The class's dye, as colours rather than baked indices: the sheet stays the Warrior's own and only
+		// what its indices MEAN changes. Null for every class but the one that has a dye.
+		animationData.colours = oracool::HeroColours(player);
 	}
 
-	// Oracool: the class's own look on the borrowed body (2026-09-16) - the Barbarian's dye, baked
-	// into the indices exactly as the class TRN above is, and then the whole sheet blown up. Both are
-	// load-time, so drawing is untouched. See oracool/hero_look.h.
-	if (const uint8_t *dye = oracool::HeroDyeTrn(player); dye != nullptr)
-		ClxApplyTrans(*animationData.sprites, dye);
+	// Oracool: the class's own size on the borrowed body (2026-09-16). Scaling moves indices about and
+	// never changes one, so the colours above still describe the result. See oracool/hero_look.h.
 	if (const int scale = oracool::SpriteScalePercent(player._pClass); scale != 100) {
 		if (OptionalOwnedClxSpriteSheet scaled = oracool::ScaleSpriteSheet(*animationData.sprites, scale))
 			animationData.sprites = std::move(scaled);
@@ -2483,6 +2490,7 @@ void ResetPlayerGFX(Player &player)
 	player.AnimInfo.sprites = std::nullopt;
 	for (PlayerAnimationData &animData : player.AnimationData) {
 		animData.sprites = std::nullopt;
+		animData.colours = nullptr;
 	}
 }
 

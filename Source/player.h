@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <array>
+#include <memory>
 
 #include "diablo.h"
 #include "engine.h"
@@ -29,6 +30,10 @@
 #include "utils/stdcompat/algorithm.hpp"
 
 namespace devilution {
+
+namespace oracool {
+struct SpriteColours;
+} // namespace oracool
 
 struct Player;
 namespace oracool {
@@ -283,6 +288,13 @@ struct PlayerAnimationData {
 	 * @brief Sprite lists for each of the 8 directions.
 	 */
 	OptionalOwnedClxSpriteSheet sprites;
+
+	/**
+	 * @brief Oracool: what this sheet's indices mean as colours, or null for "the level palette, as always".
+	 * Set by LoadPlrGFX for a dyed class or an imported PNG sheet; drawn through by DrawPlayer. See
+	 * oracool/sprite_colours.h.
+	 */
+	std::shared_ptr<const oracool::SpriteColours> colours;
 
 	/**
 	 * @brief The sprite list for @p direction, or nullopt when this animation was never loaded.
