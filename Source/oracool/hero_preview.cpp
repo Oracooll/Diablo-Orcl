@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <memory>
+#include <optional>
 
 #include <SDL.h>
 #include <fmt/format.h>
@@ -16,6 +18,9 @@
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/render/clx_render.hpp"
+#include "oracool/hero_look.h"
+#include "oracool/sprite_colours.h"
+#include "oracool/sprite_mix.h"
 #include "playerdat.hpp"
 #include "utils/log.hpp"
 #include "utils/sdl_geometry.h"
@@ -58,6 +63,11 @@ constexpr int PreviewFrameMs = 150;
 OptionalOwnedClxSpriteSheet PreviewSheet;
 HeroClass LoadedClass = HeroClass::Warrior;
 int LoadedGfxNum = -1;
+uint8_t LoadedGearLook = 0;
+/** What the loaded sheet's indices mean - a dye, a mixed sheet's moved pieces - or null for a plain sheet. */
+std::shared_ptr<const SpriteColours> PreviewColours;
+/** The look being built in the background, shown plain meanwhile. */
+std::optional<PlayerSheetRequest> PendingLook;
 uint16_t LoadedWidth = 0;
 uint16_t LoadedHeight = 0;
 
@@ -210,14 +220,17 @@ int PreviewScaleFor(Rectangle area)
 
 } // namespace
 
-void SetHeroPreview(HeroClass heroClass, uint8_t gfxnum)
+void SetHeroPreview(HeroClass heroClass, uint8_t gfxnum, uint8_t gearLook)
 {
-	if (PreviewSheet && LoadedClass == heroClass && LoadedGfxNum == gfxnum)
+	if (PreviewSheet && LoadedClass == heroClass && LoadedGfxNum == gfxnum && LoadedGearLook == gearLook)
 		return;
 
 	PreviewSheet = std::nullopt;
+	PreviewColours = nullptr;
+	PendingLook.reset();
 	LoadedClass = heroClass;
 	LoadedGfxNum = gfxnum;
+	LoadedGearLook = gearLook;
 
 	const HeroClass spriteClass = SpriteClassFor(heroClass);
 	const auto weapon = static_cast<size_t>(gfxnum & 0xF);
@@ -236,13 +249,40 @@ void SetHeroPreview(HeroClass heroClass, uint8_t gfxnum)
 	    = '\0';
 
 	LoadedWidth = PlayersSpriteData[static_cast<size_t>(spriteClass)].stand;
+
+	// The look the game would draw, out of the cache the game fills (same key). Never built here and now: a list
+	// of heroes is arrowed through quickly, and half a second per hero would be felt. Unknown means "ask, show
+	// the plain sheet, swap when DrawHeroPreview sees it land".
+	const PlayerSheetRequest request = MakePlayerSheetRequest(heroClass, spriteClass, gfxnum, gearLook, "st", LoadedWidth);
+	if (WantsMixedSheet(request)) {
+		std::optional<ColouredSpriteSheet> cached;
+		switch (TakeCachedPlayerSheet(request, cached)) {
+		case CachedSheetState::Ready:
+			PreviewSheet = std::move(cached->sheet);
+			PreviewColours = std::move(cached->colours);
+			LoadedWidth = (*PreviewSheet)[0][0].width(); // the cached sheet is already at the size of the class
+			MeasurePreviewInk();
+			return;
+		case CachedSheetState::Unknown:
+			RequestPlayerSheet(request);
+			PendingLook = request;
+			break;
+		case CachedSheetState::Nothing:
+			break;
+		}
+	}
+
 	PreviewSheet = LoadCl2Sheet(path, LoadedWidth);
+	PreviewColours = HeroColoursFor(heroClass, gfxnum); // the dye of the class, on the plain sheet too
 	MeasurePreviewInk();
 }
 
 void ClearHeroPreview()
 {
 	PreviewSheet = std::nullopt;
+	PreviewColours = nullptr;
+	PendingLook.reset();
+	LoadedGearLook = 0;
 	LoadedGfxNum = -1;
 	PreviewInk = {};
 }
@@ -255,6 +295,20 @@ void FreeHeroPreview()
 
 void DrawHeroPreview(const Surface &out, Rectangle area)
 {
+	// A look being built: this screen has no game tick, so the mixer is fed from here - one archive read a frame -
+	// and the moment the sheet is settled the preview is loaded again, which now finds it in the cache.
+	if (PendingLook) {
+		PumpSpriteMixer();
+		TakeFinishedPlayerSheets(); // nobody in a menu is waiting for these; the cache has them
+		if (IsPlayerSheetSettled(*PendingLook)) {
+			const HeroClass heroClass = LoadedClass;
+			const auto gfxnum = static_cast<uint8_t>(LoadedGfxNum);
+			const uint8_t gearLook = LoadedGearLook;
+			ClearHeroPreview();
+			SetHeroPreview(heroClass, gfxnum, gearLook);
+		}
+	}
+
 	if (!PreviewSheet || !EnsureTrn())
 		return;
 
@@ -279,7 +333,15 @@ void DrawHeroPreview(const Surface &out, Rectangle area)
 	OwnedSurface frame(width, height);
 	for (int y = 0; y < height; y++)
 		std::memset(&frame[Point { 0, y }], 0, static_cast<size_t>(width));
-	ClxDrawTRN(frame, { 0, height - 1 }, sprite, LevelToUiTrn.data());
+	// This screen draws palette INDICES, so a sheet with colours of its own is shown through each colour's
+	// fallback - the nearest level entry - and only then taken to the UI palette. A blue shirt is one of eight
+	// blues here rather than sixteen; at menu scale, behind a nearest-match to another palette, that is invisible.
+	std::array<uint8_t, 256> trn = LevelToUiTrn;
+	if (PreviewColours != nullptr) {
+		for (size_t i = 1; i < 256; i++)
+			trn[i] = LevelToUiTrn[PreviewColours->Fallback(static_cast<uint8_t>(i))];
+	}
+	ClxDrawTRN(frame, { 0, height - 1 }, sprite, trn.data());
 
 	// Only the ink is scaled. Blowing up the whole frame would spend most of the area on the padding
 	// around the character and cap the figure at a third of the size it can actually be.

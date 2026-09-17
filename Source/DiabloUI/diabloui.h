@@ -87,6 +87,11 @@ struct _uiheroinfo {
 	 */
 	uint8_t gfxnum;
 	/**
+	 * @brief oracool::GearLookCode - which shield and sword the sprite shows, since v1.12.023 no longer a function of
+	 * gfxnum alone. Free on the same terms: the save is already unpacked when Game2UiPlayer runs.
+	 */
+	uint8_t gearLook = 0;
+	/**
 	 * @brief Combat readings for the character-select stats column (user, 2026-08-31).
 	 *
 	 * Free to provide, on exactly the terms gfxnum above is: pfile_ui_set_hero_infos unpacks the

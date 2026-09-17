@@ -21,6 +21,7 @@
 #include "mpq/mpq_common.hpp"
 #include "oracool/class_skills.h"   // RefreshInnateSpells - the chunks decide what the character HAS
 #include "oracool/hero_chunks.h"
+#include "oracool/sprite_mix.h"
 #include "oracool/rage.h"
 #include "oracool/readied_spells.h" // UnpackReadiedSpell - re-decoded once the chunks have landed
 #include "oracool/save_status.h"
@@ -199,6 +200,7 @@ void Game2UiPlayer(const Player &player, _uiheroinfo *heroinfo, bool bHasSaveFil
 	heroinfo->dexterity = player._pDexterity;
 	heroinfo->vitality = player._pVitality;
 	heroinfo->gfxnum = player._pgfxnum;
+	heroinfo->gearLook = oracool::GearLookCode(player);
 	// The stats column's combat half (user, 2026-08-31). CalcPlrInv has already run by the time this
 	// is called, so every one of these is a copy rather than a computation - the same free ride
 	// gfxnum takes. Life and mana are shifted out of the engine's 1/64 fixed point here, so the

@@ -115,7 +115,12 @@ const uint8_t *HeroDyeTrn(const Player &player)
 
 std::shared_ptr<const SpriteColours> HeroColours(const Player &player)
 {
-	if (HeroDyeTrn(player) == nullptr)
+	return HeroColoursFor(player._pClass, player._pgfxnum);
+}
+
+std::shared_ptr<const SpriteColours> HeroColoursFor(HeroClass heroClass, uint8_t gfxnum)
+{
+	if (heroClass != HeroClass::Barbarian || (gfxnum >> 4) != 0)
 		return nullptr;
 	static const std::shared_ptr<const SpriteColours> colours = LightBarbarianColours();
 	return colours;

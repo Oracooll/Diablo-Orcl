@@ -540,11 +540,24 @@ GearLook GearLookFor(const Player &player)
 			continue;
 		const item_cursor_graphic cursor = BaseCursor(item);
 		if (item._itype == ItemType::Shield && *sgOptions.Oracool.shieldSpritesSwap) {
-			if (IsAnyOf(cursor, ICURS_BUCKLER, ICURS_SMALL_SHIELD))
+			// The sixteen Orcl bases are one ladder (level 2 to 49), and were mapped BY WHAT THE NAME SUGGESTS rather
+			// than by position on it (user, 2026-09-17, "Option A"): by position everyone past level 34 carries the
+			// heavy look, usually on heavy armour that shows it anyway, and the swap goes quiet exactly where most of
+			// the game is played. This way all three looks are present at every stage.
+			if (IsAnyOf(cursor, ICURS_BUCKLER, ICURS_SMALL_SHIELD,
+			        // light, organic or crude: the Warrior's buckler is red, the Fallen carry small round shields
+			        ICURS_ORACOOL_LEATHER_SHIELD, ICURS_ORACOOL_BONE_SHIELD, ICURS_ORACOOL_RUBY_SHIELD, ICURS_ORACOOL_FALLEN_SHIELD,
+			        ICURS_ORACOOL_SPECTRAL_SHIELD))
 				look.shield = LookTier::Light;
-			else if (IsAnyOf(cursor, ICURS_LARGE_SHIELD, ICURS_KITE_SHIELD))
+			else if (IsAnyOf(cursor, ICURS_LARGE_SHIELD, ICURS_KITE_SHIELD,
+			             // plain bright metal, and the holy ones - the cross was drawn for a Crusader
+			             ICURS_ORACOOL_IRON_SHIELD, ICURS_ORACOOL_STEEL_SHIELD, ICURS_ORACOOL_CRUSADER_SHIELD, ICURS_ORACOOL_DIAMOND_SHIELD,
+			             ICURS_ORACOOL_GLACIAL_SHIELD, ICURS_ORACOOL_SERAPHIC_SHIELD))
 				look.shield = LookTier::Medium;
-			else if (IsAnyOf(cursor, ICURS_TOWER_SHIELD, ICURS_GOTHIC_SHIELD))
+			else if (IsAnyOf(cursor, ICURS_TOWER_SHIELD, ICURS_GOTHIC_SHIELD,
+			             // heraldic and dark slabs - Royal is the lion
+			             ICURS_ORACOOL_ROYAL_SHIELD, ICURS_ORACOOL_OBSIDIAN_SHIELD, ICURS_ORACOOL_INFERNAL_SHIELD, ICURS_ORACOOL_ONYX_SHIELD,
+			             ICURS_ORACOOL_CYBORG_SHIELD))
 				look.shield = LookTier::Heavy;
 		}
 		if (item._itype == ItemType::Sword && *sgOptions.Oracool.swordSpritesSwap
@@ -1078,6 +1091,24 @@ PlayerSheetRequest MakePlayerSheetRequest(const Player &player, HeroClass sprite
 	return request;
 }
 
+PlayerSheetRequest MakePlayerSheetRequest(HeroClass heroClass, HeroClass spriteClass, uint8_t gfxnum, uint8_t gearLookCode, const char *szCel, uint16_t frameWidth)
+{
+	PlayerSheetRequest request;
+	request.spriteClass = spriteClass;
+	request.armour = static_cast<uint8_t>(gfxnum >> 4);
+	request.weapon = static_cast<PlayerWeaponGraphic>(gfxnum & 0xF);
+	// GearLookCode, unpacked: the shield tier above bit 0, the sword in it.
+	const uint8_t shield = gearLookCode >> 1;
+	request.look.shield = shield <= static_cast<uint8_t>(LookTier::Heavy) ? static_cast<LookTier>(shield) : LookTier::Own;
+	request.look.sword = (gearLookCode & 1) != 0 ? LookTier::Heavy : LookTier::Own;
+	request.cel = szCel;
+	request.frameWidth = frameWidth;
+	request.scalePercent = SpriteScalePercent(heroClass);
+	request.dye = HeroColoursFor(heroClass, gfxnum);
+	request.dyeId = request.dye != nullptr ? 1 : 0;
+	return request;
+}
+
 bool WantsMixedSheet(const PlayerSheetRequest &request)
 {
 	// Every class that has sheets of its own: the Warrior (whom the Barbarian wears), the Rogue (whom the Bard
@@ -1162,6 +1193,13 @@ CachedSheetState TakeCachedPlayerSheet(const PlayerSheetRequest &request, std::o
 		return CachedSheetState::Nothing;
 	out = Instantiate(*cached);
 	return CachedSheetState::Ready;
+}
+
+bool IsPlayerSheetSettled(const PlayerSheetRequest &request)
+{
+	const std::string key = request.Key();
+	const std::lock_guard<std::mutex> lock(StateMutex);
+	return Memory.find(key) != Memory.end();
 }
 
 void RequestPlayerSheet(const PlayerSheetRequest &request)

@@ -94,6 +94,12 @@ struct PlayerSheetRequest {
 
 PlayerSheetRequest MakePlayerSheetRequest(const Player &player, HeroClass spriteClass, PlayerWeaponGraphic weapon, const char *szCel, uint16_t frameWidth);
 
+/**
+ * @brief The same request from what the hero-select screen has: the class, `_pgfxnum` and the GearLookCode saved
+ * beside it in _uiheroinfo. Same key as the game builds, so the two share one cache.
+ */
+PlayerSheetRequest MakePlayerSheetRequest(HeroClass heroClass, HeroClass spriteClass, uint8_t gfxnum, uint8_t gearLookCode, const char *szCel, uint16_t frameWidth);
+
 /** @brief Cheap: whether the look asks for anything on this body, weapon class and armour at all. */
 bool WantsMixedSheet(const PlayerSheetRequest &request);
 
@@ -120,6 +126,9 @@ bool LookDeclinedByCore(const PlayerSheetRequest &request);
 
 /** @brief Memory first, then `<prefs>/sprite_cache/<key>.osm`. One small file read at worst; never a mix. */
 CachedSheetState TakeCachedPlayerSheet(const PlayerSheetRequest &request, std::optional<ColouredSpriteSheet> &out);
+
+/** @brief Whether @p request is in MEMORY, built or declined. No disk, so it can be asked every frame while waiting. */
+bool IsPlayerSheetSettled(const PlayerSheetRequest &request);
 
 /** @brief Queues the sheet to be built in the background. Asking twice for the same key is asking once. */
 void RequestPlayerSheet(const PlayerSheetRequest &request);

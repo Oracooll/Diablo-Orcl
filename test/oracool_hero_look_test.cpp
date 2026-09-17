@@ -371,3 +371,45 @@ TEST(OracoolHeroLook, BigShieldsAndBigSwordsAskForTheHeavyLook)
 		EXPECT_EQ(oracool::GearLookFor(player).shield, oracool::LookTier::Light) << "cursor " << cursor;
 	}
 }
+
+TEST(OracoolHeroLook, TheSixteenOrclShieldsAreMappedByWhatTheirNameSuggests)
+{
+	// Option A, chosen by the user 2026-09-17. All sixteen must land somewhere: "Own" for one of them would mean
+	// the swap goes silent for that shield, which is the gap this table was written to close.
+	struct Row {
+		item_cursor_graphic cursor;
+		oracool::LookTier tier;
+	};
+	const Row rows[] = {
+		{ ICURS_ORACOOL_LEATHER_SHIELD, oracool::LookTier::Light },
+		{ ICURS_ORACOOL_IRON_SHIELD, oracool::LookTier::Medium },
+		{ ICURS_ORACOOL_STEEL_SHIELD, oracool::LookTier::Medium },
+		{ ICURS_ORACOOL_CRUSADER_SHIELD, oracool::LookTier::Medium },
+		{ ICURS_ORACOOL_BONE_SHIELD, oracool::LookTier::Light },
+		{ ICURS_ORACOOL_ROYAL_SHIELD, oracool::LookTier::Heavy },
+		{ ICURS_ORACOOL_OBSIDIAN_SHIELD, oracool::LookTier::Heavy },
+		{ ICURS_ORACOOL_INFERNAL_SHIELD, oracool::LookTier::Heavy },
+		{ ICURS_ORACOOL_DIAMOND_SHIELD, oracool::LookTier::Medium },
+		{ ICURS_ORACOOL_RUBY_SHIELD, oracool::LookTier::Light },
+		{ ICURS_ORACOOL_ONYX_SHIELD, oracool::LookTier::Heavy },
+		{ ICURS_ORACOOL_GLACIAL_SHIELD, oracool::LookTier::Medium },
+		{ ICURS_ORACOOL_CYBORG_SHIELD, oracool::LookTier::Heavy },
+		{ ICURS_ORACOOL_FALLEN_SHIELD, oracool::LookTier::Light },
+		{ ICURS_ORACOOL_SERAPHIC_SHIELD, oracool::LookTier::Medium },
+		{ ICURS_ORACOOL_SPECTRAL_SHIELD, oracool::LookTier::Light },
+	};
+	devilution::Player player = LightBarbarian();
+	for (const Row &row : rows) {
+		player.InvBody[INVLOC_HAND_RIGHT] = BaseItemWithCursor(row.cursor, ItemType::Shield);
+		ASSERT_NE(player.InvBody[INVLOC_HAND_RIGHT].IDidx, 0) << "no base item carries cursor " << row.cursor;
+		EXPECT_EQ(oracool::GearLookFor(player).shield, row.tier) << "cursor " << row.cursor;
+	}
+
+	// The look survives the trip through the byte the hero-select screen is given.
+	player.InvBody[INVLOC_HAND_RIGHT] = BaseItemWithCursor(ICURS_ORACOOL_ROYAL_SHIELD, ItemType::Shield);
+	player.InvBody[INVLOC_HAND_LEFT] = BaseItemWithCursor(ICURS_BROAD_SWORD, ItemType::Sword);
+	const oracool::PlayerSheetRequest viaPlayer = oracool::MakePlayerSheetRequest(player, HeroClass::Warrior, PlayerWeaponGraphic::SwordShield, "st", 96);
+	const oracool::PlayerSheetRequest viaCode = oracool::MakePlayerSheetRequest(player._pClass, HeroClass::Warrior,
+	    static_cast<uint8_t>(PlayerWeaponGraphic::SwordShield), oracool::GearLookCode(player), "st", 96);
+	EXPECT_EQ(viaPlayer.Key(), viaCode.Key()) << "the menu and the game must share one cache entry";
+}

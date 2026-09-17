@@ -177,7 +177,7 @@ void SelheroFree()
  */
 void SelheroSetStats()
 {
-	oracool::SetHeroPreview(selhero_heroInfo.heroclass, selhero_heroInfo.gfxnum);
+	oracool::SetHeroPreview(selhero_heroInfo.heroclass, selhero_heroInfo.gfxnum, selhero_heroInfo.gearLook);
 }
 
 void RenderDifficultyIndicators()
@@ -818,7 +818,7 @@ static void UiSelHeroDialog(
 			// Loaded HERE, not in the dialog: SelheroFree above has just called FreeHeroPreview, and
 			// selhero_heroInfo is this file's own. The dialog draws whatever is loaded, the same
 			// handshake the character screen itself uses between SelheroSetStats and its render loop.
-			oracool::SetHeroPreview(selhero_heroInfo.heroclass, selhero_heroInfo.gfxnum);
+			oracool::SetHeroPreview(selhero_heroInfo.heroclass, selhero_heroInfo.gfxnum, selhero_heroInfo.gearLook);
 
 			if (UiSelHeroYesNoDialog(dialogTitle, selhero_heroInfo.name))
 				fnremove(&selhero_heroInfo);

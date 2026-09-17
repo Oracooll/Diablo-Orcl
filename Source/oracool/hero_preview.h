@@ -30,10 +30,15 @@ namespace devilution::oracool {
 /**
  * @brief Loads the idle animation for @p heroClass wearing the gear @p gfxnum describes.
  *
+ * Since v1.12.029 the figure is the one the GAME draws: @p gearLook (oracool::GearLookCode, saved in
+ * _uiheroinfo) brings the shield or sword from another armour tier, and a class with a dye wears it. The mixed
+ * sheet comes out of the same cache the game fills. A look never built before is built in the background from
+ * here too - DrawHeroPreview feeds the mixer while it waits - and the plain sheet is shown until it lands.
+ *
  * Cheap to call repeatedly - it is a no-op when the class and gear are already loaded, which is what
  * makes it safe to call from the list's focus handler on every arrow key.
  */
-void SetHeroPreview(HeroClass heroClass, uint8_t gfxnum);
+void SetHeroPreview(HeroClass heroClass, uint8_t gfxnum, uint8_t gearLook = 0);
 
 /** @brief Drops the preview - the "no character under the cursor" state, e.g. an empty list. */
 void ClearHeroPreview();
