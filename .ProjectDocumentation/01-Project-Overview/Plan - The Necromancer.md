@@ -1,187 +1,191 @@
 # Plan - The Necromancer
 
-2026-09-17, written against v1.12.029. Requested by the user: "create the necromancer class. first of all -
-make a plan with everything this build will require to be completed."
-
-The seventh hero. The Bard was hidden at v1.12.006 "to introduce Necromancer in his place later", and the
-Companion feature (v1.12.018) was built with him in mind. This document lists everything the class needs, in
-the order it should be built, with the decisions that are the user's to make called out first.
+**Revision 2, 2026-09-17**, written against v1.12.029. Revision 1 listed six open decisions; the user
+answered them in the artifact *The Road to Necromancy* (https://claude.ai/artifact/85RWSQWqGn9CK2EhR1gsWq),
+and this revision is rebuilt on those answers. Revision 1 is in git (`ae32fe54`).
 
 ---
 
-## 0. Decisions needed before building
+## 0. What is decided
 
-Each has a recommendation; the build can start on the recommended path and change later at the cost noted.
-
-| # | Decision | Recommendation | Why / cost of changing later |
+| # | Question | The user's answer | Consequence |
 |---|---|---|---|
-| D1 | **A new class slot, or the Bard's?** | A NEW `HeroClass::Necromancer` (value 6). The Bard stays hidden, as asked ("Hide them, dont remove them"). | Reusing slot 4 would turn every Bard save into a Necromancer and destroy the Bard's rows. A new value costs one more row in ~20 tables. |
-| D2 | **Whose body does he wear?** | The **Sorcerer's** sheets - a robed man - dyed with `oracool/hero_look`: black and bone robes, grey skin, white hair. Free, uses what was built this week. | The Rogue/Bard sheets are a woman in leather. A body of his own is the parked paper-doll problem. Dyeing needs his three armour tiers measured the way the Warrior's light tier was. |
-| D3 | **Mana, or a resource of his own?** | **Mana** for V1. | D3's Essence (built by attacks, spent by skills) is the Rage system with other numbers - `oracool/rage` would generalise - but it doubles the design work: every skill needs a generator/spender role. Can be added later without a save break (Rage is transient). |
-| D4 | **How big is his army?** | **Stage it.** First within today's limit - 3 companion bodies plus the Golem's own slot. Then lift the limit as its own phase. | The engine gives summons the four "golem slots" `Monsters[0..3]`. An army of 8-10 skeletons means friendly monsters in ordinary slots: 8 index assumptions and 11 `MFLAG_GOLEM` sites to make slot-agnostic. Real engine work; should not block the class. |
-| D5 | **The skill list.** | Three D2 pages - **Summoning, Poison & Bone, Curses** - 18 rows each, plus 18 D3-style passives = 72 rows, the shape every other class has. The user picks/edits the list in a ledger artifact, as for the Barbarian's Rage. | The list drives the art request (72 glyphs) and the engine systems below; changing it after the RfA goes out costs glyphs. |
-| D6 | **New item bases for him?** | None for V1: he uses wands/staves/daggers that exist. | Wands, scythes and shrunken heads each need icons, tumbles and unique tables (see the Bard's War Lute and Canticle for the cost). |
+| D1 | Class slot | **A new one** (recommended) | `HeroClass::Necromancer` = 6. The Bard stays hidden and intact. |
+| D2 | Body | **The Sorcerer's, dyed** (recommended) | His three armour tiers are measured and dyed with `oracool/hero_look`; the shield-follows-item look already covers these sheets. |
+| D3 | Resource | **"Dual orb (Demon Hunter D3 style) - Mana/Essence (dark green) used for casting curses. Auto refills rather quickly."** | Two pools in one orb. Mana pays for everything it pays for today; **Essence**, dark green, pays for curses and refills quickly by itself. New HUD work and a second pay path - section 3. |
+| D4 | Army | **"Upgrade the game engine ... increase this 4 number to a lot more - as many as in D2."** | The army stops being an optional last phase and becomes the FIRST engine phase, so the Summoning page is designed for a crowd from the start - section 4. |
+| D5 | Skill pages | **Diablo II's three: Summoning, Poison & Bone, Curses** (recommended) | 54 tree rows + 18 passives; the user edits the rows in a ledger. |
+| D6 | Item bases | **"Scythes AND wands and shrunken heads."** | Three new item families: types, bases, icons, ground tumbles, uniques, drop and vendor rules - section 6. The largest addition to the plan. |
+
+Reading of D3, to be confirmed (Q8 below): Essence is a SECOND pool beside mana, not a replacement for it,
+and only curses draw on it.
 
 ---
 
-## 1. The class itself (data and plumbing)
+## 1. New questions the answers raise
 
-Everything a class is wired into, found by tracing `HeroClass::Bard` through the code (18 files) and
-`enum_size<HeroClass>` (5 files). None of it is hard; all of it is mandatory, and a missed table is a crash or a
-silent wrong default.
+Added to the artifact as D7-D11. None blocks the first two phases.
 
-**Core tables**
-- `player.h` - `HeroClass::Necromancer`, `LAST`. `CharChar` gains a letter only if he ever gets sheets of his own.
-- `playerdat.cpp` - `PlayersData` row (name, `classPath` "sorceror", base and max stats, life/mana per level,
-  block bonus), `PlayersSpriteData` and `PlayersAnimData` rows (copy the Sorcerer's - same body), `herosounds` row.
-- `player.cpp` - `GetPlayerSpriteClass` (Necromancer -> Sorcerer), the six other class switches (frame counts,
-  starting spell, per-level gains).
+| # | Question | Recommendation |
+|---|---|---|
+| D7 | **How many minions, exactly?** "As many as D2" is a formula there: skeletons and mages each 1 + rank/3 (about 8 at high rank), one golem, Revive up to rank (10-20). | Skeletons 8, Mages 8, Golem 1, Revived 10 at full rank = **27**, engine cap 32. |
+| D8 | **Essence details**: what it pays for, how big, how fast. | Curses only; pool 100; refills 0 to full in about 5 seconds; no potion touches it; not saved. |
+| D9 | **How deep is each new item family?** The Orcl shields are a 16-rung ladder; vanilla families are 6-10. | 8 bases per family (24 bases), level 1 to 45 - each needs an icon and a tumble. |
+| D10 | **Who can use them?** | Anyone can equip wands and scythes (they are weapons); shrunken heads are his alone, like the Bard's Canticle was. |
+| D11 | **What does a shrunken head look like in his hand?** It sits in the shield slot, and the sheets only know how to draw a shield there. | Draw the NO-shield sheet while a head is held: `sprite_mix` already knows a body with an empty shield hand. |
+
+---
+
+## 2. The class itself (data and plumbing) - unchanged from revision 1
+
+Traced through `HeroClass::Bard` (18 files) and `enum_size<HeroClass>` (5 files).
+
+- `player.h` enum; `playerdat.cpp` `PlayersData`, `PlayersSpriteData`, `PlayersAnimData`, `herosounds` rows
+  (Sorcerer's body and voice); `player.cpp` `GetPlayerSpriteClass` and six class switches.
 - `oracool/sprite_import.cpp` `ClassSpriteFolder`, `oracool/hero_preview.cpp` `SpriteClassFor`,
-  `engine/trn.cpp` `GetClassTRN` ("plrgfx\necromancer.trn" - optional).
-- `oracool/hero_look` - his dye, per armour tier; `oracool/sprite_mix` already covers the Sorcerer's sheets, so
-  the shield-follows-item look works for him the day he exists.
-
-**Rules with a class branch**
-- `items.cpp` - starting gear (`CreatePlrItems`), class item bonuses, the class table at 8157.
-- `inv.cpp` - 3 branches (the Bard's dual-wield rules; he takes none).
-- `spells.cpp` - cast-speed / mana-cost classes (2 branches): he belongs with the Sorcerer.
-- `missiles.cpp` - 7 class branches in damage and to-hit formulas.
-- `objects.cpp` - 9 branches: shrine effects and the class-specific speech lines on books, doors and altars.
-- `effects.cpp` - hero speech routing. **He has no voice**; he borrows the Sorcerer's lines.
-
-**Front end and HUD**
-- `DiabloUI/hero/selhero.cpp` - the class list, the stat preview, the spawn gate; `diabloui.cpp` portrait order.
-- `oracool/hud_art.cpp` - 2 per-class art switches (portrait / class emblem).
-- Character sheet, stat sheet, hero-select strings, translations glossary.
-
-**Save**
-- The hero file stores the class byte; `oracool/hero_chunks.cpp` has a table of (class, first tree index, count)
-  for the class-tree investment chunk and needs his row. No format break: a new class only adds.
-- `oracool/hidden_classes.h` untouched - the Bard stays hidden, the Necromancer is simply not in it.
+  `engine/trn.cpp` `GetClassTRN`; `oracool/hero_look` - his dye per armour tier.
+- Class branches: `items.cpp` (starting gear, class bonuses, 3 sites), `inv.cpp` (3), `spells.cpp` (2),
+  `missiles.cpp` (7), `objects.cpp` (9: shrines and class speech), `effects.cpp` (speech routing).
+- Front end and HUD: `selhero.cpp`, `diabloui.cpp` portrait order, `oracool/hud_art.cpp` (2 art switches),
+  character and stat sheets, glossary.
+- Save: class byte; `oracool/hero_chunks.cpp` (class, first tree index, count) table. Additive, no break.
 
 ---
 
-## 2. The skill tree (72 rows)
+## 3. Essence and the dual orb (D3)
 
-`oracool/class_tree` - the one skill system. He needs:
-
-- a `NECROMANCER_FIRST` block in `ClassTreeSkill` (54 tree + 18 passive rows), appended AFTER the Monk's so no
-  existing index moves (icon-strip position and the saved investment index are the same number);
-- 72 `ClassTreeSkillData` rows (name, description, page, tier, column, kind, spell id, implemented, max rank);
-- `static_assert`s for his range against `MaxSkillsPerClass` (96);
-- a `LevelUpStat` channel per row, a Rage-style resource line if D3 is ever taken;
-- new `SpellID`s for the actives (the enum is int16 since v1.11.112; `MAX_SPELLS` and the writehero hash move);
-- passives through the hooks in `oracool/passives.h`.
-
-Proposed pages (final list is D5):
-
-| Page | Flavour | Rows that exist in some form already |
-|---|---|---|
-| Summoning | Raise Skeleton, Skeletal Mage, Golems (Clay/Blood/Iron/Fire), Revive, masteries | Golem spell and its slot; Companion definitions, stances, HUD panel |
-| Poison & Bone | Teeth, Bone Spear, Bone Spirit, Bone Armor, Bone Wall/Prison, Poison Dagger/Explosion/Nova, Corpse Explosion | `SpellID::BoneSpirit` and its missile; Deep Wounds' bleed (a damage-over-time on monsters); Ice Armor's shell draw |
-| Curses | Amplify Damage, Weaken, Iron Maiden, Life Tap, Decrepify, Lower Resist, Dim Vision, Confuse, Attract, Terror | Warcries' area-effect pattern (`oracool/warcries`); aura fields |
+- `oracool/essence.{h,cpp}`, modelled on `oracool/rage`: a transient whole-number pool, `MaxEssence`,
+  `ProcessEssenceTick` (refill - the opposite sign of Rage's drain), `ClassUsesEssence`.
+- **One pay path.** `CanPaySkill` / `SettleSkill` (already the only door for skill costs since the Rage work)
+  learn a third currency: a row is priced in mana or in Essence, never both. Tooltips say "Essence Cost".
+- **The orb.** The right orb is split down the middle, Demon Hunter style: mana blue on one half, Essence dark
+  green on the other, each half filling by its own pool. `oracool/hud_art` draws the mana liquid as an ARGB
+  layer already and tints a copy for Rage; the split is two clipped draws of two tints. The numbers readout
+  becomes two lines. NOTE the palette has no green for indexed art (recorded 2026-09-12) - this works only
+  because the HUD is true colour.
+- Character sheet, hero-select preview stats and the stat sheet gain the second resource.
 
 ---
 
-## 3. Engine systems he needs that do not exist yet
+## 4. The army (D4) - now the first engine phase
 
-In build order. Each is a unit of work with its own report; sizes are Small (a session) / Medium / Large.
+**What the code already does** (checked for this revision - better than revision 1 assumed):
+`Monster::isPlayerMinion()` is a FLAG test (`MFLAG_GOLEM` without `MFLAG_BERSERK`), not a slot test.
+`UpdateEnemy` scans every active monster and already stops minions fighting each other. Berserk and the
+Barbarian's turning warcry already make ORDINARY-slot monsters fight for the player. The enemy encoding
+(`monster.cpp` 5251-5264) is general. So "a friendly monster outside the golem slots" exists today.
 
-1. **Monster curses - Medium.** A per-monster debuff state (kind, strength, ticks left), one curse at a time
-   as in D2. Hooks: damage taken (`ApplyMonsterDamage` - Amplify, Decrepify), damage dealt (Weaken), movement
-   and attack speed (Decrepify - note the constraint recorded at the aura-field work: animation timing lives on
-   the shared `CMonster`, so SPEED changes are per type, not per monster; Decrepify needs a per-monster tick
-   skip instead), target choice (`UpdateEnemy` - Attract, Confuse, Dim Vision, Terror), on-hit reflection (Iron
-   Maiden), on-hit healing (Life Tap). A curse icon over the monster and a line on the health bar. Not saved
-   (levels are not saved mid-state in V1).
-2. **Damage over time on monsters, generalised - Small.** Deep Wounds' bleed becomes one DoT channel with an
-   element, so poison is a row of data rather than a second system. Poison tint reuses the variant-recolour
-   draw path (lit TRN).
-3. **Corpses as something a skill can use - Medium.** `dCorpse` records where a body lies and how it is drawn,
-   not what it was. Needed: find the nearest corpse in range, consume it (clear the tile's corpse), and remember
-   enough about the dead (monster type, level) for Revive and for Corpse Explosion's damage. Proposed: a small
-   per-level side table filled where monsters die (`MonsterDeath`), capped, not saved.
-4. **Minions drawn as monsters, on any floor - Medium.** Companions today wear HERO sheets. Skeletons need the
-   skeleton CL2s, and monster graphics are loaded per level only for that level's roster. Needed: always-load a
-   small minion roster (as `MT_GOLEM` already is, `AddMonsterType(..., PLACE_SPECIAL)`), and a Companion
-   definition that binds a monster type's animations instead of a hero sheet. Revive binds the dead monster's own
-   type, which is loaded on that floor by definition. Golem variants are TRN recolours of the one Golem.
-5. **Companion framework extensions - Medium.** Per-definition counts that scale with rank (2 skeletons at
-   rank 1...), minions that do not expire (skeletons last until killed; Revive is timed), a panel that shows a
-   group rather than three named bodies, mastery passives feeding life and damage.
-6. **More than three bodies - Large (D4, its own phase).** Friendly monsters in ordinary monster slots:
-   make the 8 `< MAX_PLRS` assumptions and 11 `MFLAG_GOLEM` sites ask "is this a friendly summon" rather than
-   "is this index below 4"; targeting, missile friend-or-foe, the taunt hook, level change carry-over,
-   the summons-need-a-golem-slot guard (town and set levels). Until then: 3 companions + the Golem.
-7. **Bone and poison missiles - Medium, art-bound.** Teeth, Bone Spear, Poison Nova, Corpse Explosion blast,
-   Bone Wall/Prison segments (objects or stationary monsters - see the Decoy for a body that only stands).
-   All `PngOnly` missile graphics with placeholder fallbacks, the way RfA-16 landed.
-8. **Bone Armor - Small.** An absorb pool with a shell drawn over the hero: Ice Armor's shell path plus
-   Mana Shield's damage interception.
+**What is tied to the four golem slots and has to go:**
+- Companion INSTANCES are an array of 3 bound to slots 1-3 (`MaxCompanions`); the Golem spell owns slot 0 by
+  player number. Minions need a pool: `MaxMinions` = 32 bodies taken from the ordinary `Monsters[]` range.
+- Level generation fills up to `MaxMonsters` (200) less a margin of 10. It must leave the minion pool free
+  (raise `MaxMonsters` to 232, or reserve 32 of the 200 - measured choice, the arrays are static).
+- Spawn / holding cell / release (`SpawnCompanionBody`, `ReleaseCompanionBody`, `GolemHoldingCell`), the
+  level-change carry-over, `LevelHasGolemSlots` (town and set levels), the three `for i < MAX_PLRS` loops.
+- Ownership and credit: a golem is "player N's" by index. Minions carry an owner field; their kills pay the
+  owner (the Companion blows already do this by being the OWNER's blows).
+
+**What a crowd needs that three bodies did not:**
+- Moving through them: the hero already walks through companions (`CompanionsMakeWay`); twenty-seven bodies in
+  a one-tile Cathedral corridor must also yield to EACH OTHER and never wall the hero in.
+- Formation: rings around the owner by kind (warriors out front, mages behind), not three fixed offsets.
+- Cost: `CompanionAi` per minion per tick, path-finding for 27; a budget (stagger the thinking across ticks).
+- HUD: a panel of groups with counts ("Skeletons 6/8"), not three named portraits. Stances apply per group.
+- Friendly fire: the hero's and the minions' missiles pass through minions (the rule exists for companions).
+- Cursor: minions are not targets and do not steal clicks.
 
 ---
 
-## 4. Art and sound to request (one RfA)
+## 5. Skills: 72 rows on three D2 pages (D5)
 
-| Asset | Count | Notes |
-|---|---|---|
-| Skill glyphs | 72 | vanilla style, via `tools/BuildGlyphStrips.ps1`; frames detected by pixel colour, never bake a plate |
-| Missile sheets | ~8 | Teeth, Bone Spear, Poison Nova, Poison cloud, Corpse Explosion, Bone Wall, Bone Prison, curse cast ring |
-| Curse markers | ~10 | small overhead icons, one per curse (or one icon recoloured by value on the 32-bit screen) |
-| Hero portrait | 1 | hero-select portrait and the HUD class art (2 switches in `hud_art.cpp`) |
-| Body | 0 | Sorcerer's sheets, dyed (D2). Minions use the game's own skeleton and golem art |
-| Voice | 0 | Sorcerer's lines |
+`oracool/class_tree`: a `NECROMANCER_FIRST` block appended after the Monk's (no existing index moves), 72
+rows, range `static_assert`s, `LevelUpStat` channels, new `SpellID`s (the writehero hash moves once,
+deliberately), passives through `oracool/passives.h`. Curses are priced in Essence.
 
-No Blizzard archive is shipped; the dye and the minions are built from the player's own files at run time.
+Engine systems the pages need, beyond the army:
 
----
-
-## 5. Balance and content around him
-
-- `PlayersData` numbers: a caster with the lowest life, Magic as the axis; starting gear; starting skill.
-- Smart Loot: aim his drops at Magic/caster bases (the class axis table).
-- The unique-expansion package's "recommended: Bard" uniques on shared bases (32) are candidates for re-tagging.
-- Set/unique class recommendations, `+skills` affixes if they name classes.
-- Companion numbers for every minion (life, resist, damage percent, count per rank) - first guesses, then play.
-
----
-
-## 6. Tests
-
-- Class-count assumptions: every table indexed by `HeroClass` has a row (a test that walks `enum_size<HeroClass>`).
-- Class tree: 54 + 18 rows, every page/tier/column cell filled once, investment index stable, inert rows inert.
-- Passive sweep test extended to his 18.
-- `Writehero.pfile_write_hero` re-baselined once for the new SpellIDs (deliberate, with a changelog comment).
-- Curses, DoT, corpse table: unit tests with a fabricated monster (see the backpack-test pitfalls note for the traps).
-- Minion graphics and missiles cannot be tested headless: contact sheets via the export tool, then the user's eyes.
+1. **Monster curses - Medium.** One curse per monster: kind, strength, ticks. Hooks in `ApplyMonsterDamage`
+   (Amplify, Decrepify, Lower Resist), damage dealt (Weaken), `UpdateEnemy` (Attract, Confuse, Dim Vision,
+   Terror), on-hit reflection (Iron Maiden) and healing (Life Tap). Speed curses fight the shared-animation
+   constraint recorded at the aura-field work, so they slow by skipping a monster's ticks. Overhead marker and
+   a line on the health bar. Cast as an area at the cursor, like the warcries.
+2. **Damage over time, generalised - Small.** Deep Wounds' bleed becomes one channel with an element; poison
+   is then data. Poison tint through the lit-TRN variant draw path.
+3. **Corpses a skill can use - Medium.** `dCorpse` knows where a body lies, not what it was. A capped per-level
+   table filled at `MonsterDeath` (type, level, position), consumed by Raise Skeleton, Revive and Corpse
+   Explosion. Not saved.
+4. **Minions drawn as monsters on any floor - Medium.** Skeleton CL2s always loaded (as `MT_GOLEM` is, via
+   `AddMonsterType(..., PLACE_SPECIAL)`); a Companion definition that binds a monster type's animations rather
+   than hero sheets. Revive binds the dead monster's own type, loaded on that floor by definition. Golem kinds
+   are TRN recolours. An exclusion list for Revive (bosses, Diablo, types whose AI makes no sense friendly).
+5. **Bone and poison missiles - Medium, art-bound.** Teeth, Bone Spear, Poison Nova, Corpse Explosion, Bone
+   Wall / Prison. `PngOnly` with placeholder fallbacks, as RfA-16 landed.
+6. **Bone Armor - Small.** Ice Armor's shell draw plus Mana Shield's interception, as an absorb pool.
 
 ---
 
-## 7. Build order
+## 6. Wands, scythes and shrunken heads (D6)
 
-| Phase | Contents | Size | Playable result |
+Per family: an `ItemType` (APPENDED - the value is written into the tiered-item save extension), an
+`item_equip_type`, `ItemData` rows for the ladder, `UITYPE`s (new ones - the standing rule is never to add
+uniques to an existing `UITYPE`), icons in the cursor sheet, ground tumbles (through `FinishOracoolDrop` - a
+drop built without the tumble is invisible until reload), affix eligibility, Smart Loot slot and class aim,
+vendor stock (Adria for wands and heads, Griswold for scythes), salvage class, sockets by footprint, tier
+ladders, item-level ceilings, and tests.
+
+- **Wands** - one-handed caster weapon. Swung with the Sorcerer's mace-class sheets. Carries +skills,
+  faster cast, Essence or mana affixes; may hold spell charges like a staff.
+- **Scythes** - two-handed. Swung with the staff-class sheets (the only two-handed swing the Sorcerer's art
+  has). Damage-leaning, with a bonus to summons or poison.
+- **Shrunken heads** - the off-hand. Shield slot, no block. His alone (D10). Drawn as the no-shield sheet
+  (D11).
+- Uniques and sets: a first tranche per family (the unique-expansion package's "recommended: Bard" uniques on
+  shared bases are candidates to re-tag for him).
+- The item format version is bumped if `ItemType` growth requires it, per the standing rule (never protect a
+  save format); loaders still reject any other version, so this is a break for existing heroes unless the
+  "reads the previous version" Roadmap card lands first. Flagged, not decided here.
+
+---
+
+## 7. Art and sound (two requests)
+
+| RfA | Contents |
+|---|---|
+| A - with the skill ledger | 72 glyphs; ~8 missile sheets; ~10 curse markers; hero portrait; class HUD art |
+| B - with the item families | 24 base icons + 24 tumbles (D9), plus icons for the first uniques |
+| none | Body (Sorcerer's, dyed), voice (Sorcerer's), minions (the game's skeletons and golem), the orb (tinted in code) |
+
+---
+
+## 8. Build order
+
+| Phase | Contents | Size | Then you can |
 |---|---|---|---|
-| N1 | The class exists: enum, all tables in section 1, Sorcerer body with a dye, hero select, starting gear, Sorcerer's voice. Tree page shell with 72 inert rows. | Medium | A Necromancer who plays like a bare Sorcerer |
-| N2 | Skill ledger artifact; user fixes the 72 rows (D5). RfA sent for glyphs and missiles. | Small | - |
-| N3 | Bone & Poison page: DoT channel, Bone Armor, Teeth, Bone Spear, Bone Spirit, Poison skills, placeholder art. | Medium | A working caster page |
-| N4 | Corpse table, Corpse Explosion; minion graphics; Raise Skeleton, Skeletal Mage, Golems, Revive within 3 bodies + Golem; companion extensions. | Large | Summoner, small army |
-| N5 | Curses system and the Curses page. | Medium | Full three pages |
-| N6 | The 18 passives; masteries. | Medium | Complete class |
-| N7 | RfA intake: glyphs, missiles, portrait. | Small | Final look |
-| N8 | The army: friendly monsters beyond the golem slots (D4). | Large | 8-10 minions |
-| N9 | Play pass, numbers, Roadmap and census update. | Small | Built |
+| N1 | The class exists: tables, dyed Sorcerer body, hero select, starting gear, 72 inert rows | Medium | Play a Necromancer who fights like a bare Sorcerer |
+| N2 | Essence and the dual orb | Medium | See both pools; nothing spends Essence yet |
+| N3 | Skill ledger; you fix the 72 rows; RfA A goes out | Small | Read and edit his whole kit |
+| N4 | **The army engine**: minion pool of 32, crowd movement, formation, group panel, think budget | Large | Summon a debug crowd of 27 and walk a corridor with it |
+| N5 | Summoning page: corpse table, minion graphics, Skeletons, Mages, Golems, Revive, masteries | Large | Play a summoner |
+| N6 | Poison & Bone page: DoT channel, Bone Armor, the missiles | Medium | Play the caster page |
+| N7 | Curses page on Essence: the curse system | Medium | All three pages live |
+| N8 | The 18 passives | Medium | The complete kit |
+| N9 | Wands, scythes, shrunken heads; RfA B | Large | Find and wear his gear |
+| N10 | Art intake, both requests | Small | His final look |
+| N11 | Play pass, numbers, Roadmap and census | Small | Built |
 
-N1-N2 can start now. N3, N4 and N5 are independent of each other after N1. N8 is optional for calling the
-class Built - that is the user's call (D4).
+N1-N3 can start now. N4 must precede N5. N6, N7 and N9 are independent of each other and of N5.
 
 ---
 
-## 8. Risks
+## 9. Risks
 
-- **The army (D4/N8)** is the one piece that reaches deep into `monster.cpp`; everything else is additive.
-- **Decrepify / speed curses** fight the shared-animation constraint; they may have to slow by skipping ticks.
-- **Revive** inherits whatever a monster type's AI does when it is friendly - special AIs (Diablo, bosses,
-  suicidal or fleeing types) need an exclusion list.
-- **Save**: new SpellIDs move `MAX_SPELLS` again; per the standing rule the format is bumped, not protected.
-- **Art lead time**: 72 glyphs is the largest single request so far; N3-N6 run on placeholders meanwhile.
-- **Load cost**: an always-loaded minion roster adds sprite memory on every floor (the Golem already does).
+- **N4 in a Cathedral corridor.** Twenty-seven bodies in a one-tile hallway is the test that decides whether
+  "as many as D2" is pleasant in D1's maps. It is why N4 ends in a debug crowd BEFORE any summoning skill exists.
+- **Think cost**: 27 path-finders a tick in a Debug build. Budgeted, measured in N4.
+- **Monster pool**: 232 static monsters, or 32 taken from the level's 200 - the second thins late floors.
+- **Revive** inherits the dead type's AI; special AIs need an exclusion list.
+- **Speed curses** versus shared animation timing.
+- **Item format**: three new `ItemType`s may force a version bump that orphans existing heroes (section 6).
+- **Art lead time**: 72 glyphs plus 48 item images is the largest request yet; everything runs on placeholders.
+- **Scope**: this is now the largest single feature in the mod - a class, an engine change, a resource, three
+  item families. Eleven phases, several of them Large.
