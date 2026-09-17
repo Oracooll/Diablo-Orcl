@@ -262,12 +262,37 @@ int Count(const Mask &mask)
 // The pieces
 // ---------------------------------------------------------------------------------------------------
 
-/** @brief Where @p with shows a solid pixel that @p without does not: the piece the two sheets differ by. */
-Mask SolidDifference(const Frame &without, const Frame &with)
+/**
+ * @brief The palette RAMP an index belongs to: the shared half is eight-entry ramps, one per material, except the
+ * greyscale, which is sixteen (240-255) and counts as one.
+ */
+int RampOf(int16_t index)
 {
+	return index >= 240 ? 30 : index >> 3;
+}
+
+/**
+ * @brief Where @p with shows a solid pixel that @p without does not: the piece the two sheets differ by.
+ *
+ * SEEDED BY RAMP, GROWN BY INDEX (2026-09-17). Two renders of the same body are not index for index the same:
+ * the town sheets and the fire cast carry different shading noise - one step along the same ramp, all over the
+ * body - which made half the body a "difference" and had those sheets declined as strangers. A new OBJECT is a
+ * different material, so a difference starts only where the ramp changes (or there was nothing); and because a
+ * heater shield's white rim over grey plate is the same ramp as what it covers, index differences within two
+ * pixels of such a seed are taken with it.
+ */
+Mask SolidDifference(const Frame &without, const Frame &with, int w, int h)
+{
+	Mask seeds(with.size(), 0);
+	for (size_t i = 0; i < with.size(); i++) {
+		if (with[i] == Clear || with[i] == ShadowIndex)
+			continue;
+		seeds[i] = (without[i] == Clear || without[i] == ShadowIndex || RampOf(with[i]) != RampOf(without[i])) ? 1 : 0;
+	}
+	const Mask near = Dilate(seeds, w, h, 2);
 	Mask out(with.size(), 0);
 	for (size_t i = 0; i < with.size(); i++)
-		out[i] = (with[i] != Clear && with[i] != ShadowIndex && with[i] != without[i]) ? 1 : 0;
+		out[i] = (near[i] != 0 && with[i] != Clear && with[i] != ShadowIndex && with[i] != without[i]) ? 1 : 0;
 	return out;
 }
 
@@ -278,7 +303,7 @@ Mask SolidDifference(const Frame &without, const Frame &with)
  */
 Mask OwnShieldMask(const Frame &without, const Frame &with, int w, int h)
 {
-	const Mask solid = SolidDifference(without, with);
+	const Mask solid = SolidDifference(without, with, w, h);
 	std::vector<std::vector<int>> cores = Components(Erode(solid, w, h), w, h);
 	if (cores.empty())
 		return Mask(solid.size(), 0);
@@ -302,7 +327,7 @@ Mask OwnShieldMask(const Frame &without, const Frame &with, int w, int h)
  */
 Mask ForeignShieldMask(const Frame &without, const Frame &with, const Mask &ownShield, int w, int h)
 {
-	const Mask solid = SolidDifference(without, with);
+	const Mask solid = SolidDifference(without, with, w, h);
 	const Mask zone = Dilate(ownShield, w, h, 9);
 	const Mask reach = Dilate(zone, w, h, 4);
 	Mask cut(solid.size(), 0);
@@ -433,7 +458,10 @@ void FillSmallHoles(Frame &canvas, const Mask &where, int w, int h)
  */
 bool AreTwins(const Source &a, const Source &b, OwnedSurface &colour, OwnedSurface &mask)
 {
-	constexpr int TwinPercent = 58;
+	// Of the pixels both draw, how many are the same MATERIAL. Measured 2026-09-17 on every pair: the same body
+	// render scores 68-92% (town and fire included, which the old index-for-index test put at 44-56% and declined);
+	// another pose scores 42-58%.
+	constexpr int TwinPercent = 63;
 	// The answer is a fact about two files in the archive and never changes, so it is worked out once a session
 	// (and the finished sheets are cached on disk, so in practice once ever).
 	static std::mutex memoMutex;
@@ -456,7 +484,7 @@ bool AreTwins(const Source &a, const Source &b, OwnedSurface &colour, OwnedSurfa
 				if (fa[i] == Clear || fb[i] == Clear || fa[i] == ShadowIndex || fb[i] == ShadowIndex)
 					continue;
 				both++;
-				if (fa[i] == fb[i])
+				if (RampOf(fa[i]) == RampOf(fb[i]))
 					same++;
 			}
 		}
@@ -514,7 +542,17 @@ uint8_t GearLookCode(const Player &player)
 
 namespace {
 
-std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &request, const SourceLoader &load)
+/**
+ * What a piece may plausibly be. Subtraction finds whatever differs, and on some sheets what differs is not a
+ * shield or a blade: the fire cast wraps the hero in flames that differ frame for frame between the two renders,
+ * and the heavy attack vote is noisy enough to call half a torso "sword". Both were seen on contact sheets
+ * (2026-09-17) as a heavy body standing inside a light one. A real heater shield is at most about half of the
+ * figure it is on, a real blade under two hundred pixels - so a piece past these is not believed.
+ */
+constexpr int MaxShieldPercentOfFigure = 78;
+constexpr int MaxBladePixels = 320;
+
+std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &request, const SourceLoader &load, bool allowSword = true)
 {
 	if (!WantsMixedSheet(request))
 		return std::nullopt;
@@ -523,7 +561,7 @@ std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &r
 	const std::shared_ptr<const SpriteColours> &dye = request.dye;
 	const PlayerWeaponGraphic bare = WithoutShield(weapon);
 	const bool swapShield = request.look.shield == LookTier::Heavy && HasShield(weapon);
-	const bool swapSword = request.look.sword == LookTier::Heavy && bare == PlayerWeaponGraphic::Sword;
+	const bool swapSword = allowSword && request.look.sword == LookTier::Heavy && bare == PlayerWeaponGraphic::Sword;
 
 	// The canvas is this tier's sheet WITHOUT a shield: a whole body, so taking the shield away leaves no
 	// hole to patch. The block animation has no such twin - nothing to subtract from - and is left alone.
@@ -614,6 +652,10 @@ std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &r
 						canvas[i] = body[i];
 				FillSmallHoles(canvas, ownSwordGone, w, h);
 				blade = BladeMask(SwordDifference(heavySwordFrame, heavyBody), heavyBody, w, h);
+				if (Count(blade) > MaxBladePixels) {
+					// Not a blade. Start over with the sword left to its own tier; the shield may still be good.
+					return swapShield ? ComposeMixedSheet(request, load, false) : std::nullopt;
+				}
 			}
 
 			Mask shieldPlaced(canvas.size(), 0);
@@ -626,6 +668,9 @@ std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &r
 					shieldBare->Render(dir, index, colour, scratchMask, otherBare);
 					shieldShielded->Render(dir, index, colour, scratchMask, otherShielded);
 					shieldMask = ForeignShieldMask(otherBare, otherShielded, ownShield, w, h);
+					const int figure = static_cast<int>(std::count_if(otherShielded.begin(), otherShielded.end(), [](int16_t v) { return v != Clear && v != ShadowIndex; }));
+					if (Count(shieldMask) * 100 > figure * MaxShieldPercentOfFigure)
+						return std::nullopt; // not a shield: decline the sheet
 					shieldPixels = &otherShielded;
 				}
 
@@ -766,7 +811,7 @@ std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &r
 namespace {
 
 /** Bump when the mixer would produce different pixels, so old files on disk stop being believed. */
-constexpr uint32_t CacheVersion = 1;
+constexpr uint32_t CacheVersion = 3; // 2: differences seeded by ramp; town and fire sheets mix
 constexpr uint32_t CacheMagic = 0x584D534F; // "OSMX"
 
 /** A finished sheet as bytes, so any number of heroes can be handed their own copy. */

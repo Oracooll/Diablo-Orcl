@@ -2519,8 +2519,7 @@ void ResetPlayerGFX(Player &player)
 
 void PrewarmPlayerLook(Player &player)
 {
-	// Town sheets never mix (no twins), and a headless run has no sheets at all.
-	if (HeadlessMode || leveltype == DTYPE_TOWN)
+	if (HeadlessMode)
 		return;
 	const HeroClass cls = GetPlayerSpriteClass(player._pClass);
 	struct Animation {
@@ -2528,12 +2527,17 @@ void PrewarmPlayerLook(Player &player)
 		const char *cel;
 	};
 	// Every animation the look can touch, asked for the moment the gear changes - so by the first swing the
-	// attack sheet is already built, or nearly. The names are the dungeon ones LoadPlrGFX uses.
-	constexpr Animation Animations[] = {
-		{ player_graphic::Stand, "as" }, { player_graphic::Walk, "aw" }, { player_graphic::Attack, "at" }, { player_graphic::Hit, "ht" },
+	// attack sheet is already built, or nearly. The names are the ones LoadPlrGFX uses: town has its own standing
+	// and walking sheets, and no attack or hit at all.
+	const bool town = leveltype == DTYPE_TOWN;
+	const Animation Animations[] = {
+		{ player_graphic::Stand, town ? "st" : "as" }, { player_graphic::Walk, town ? "wl" : "aw" },
+		{ player_graphic::Attack, town ? nullptr : "at" }, { player_graphic::Hit, town ? nullptr : "ht" },
 		{ player_graphic::Lightning, "lm" }, { player_graphic::Fire, "fm" }, { player_graphic::Magic, "qm" },
 	};
 	for (const Animation &animation : Animations) {
+		if (animation.cel == nullptr)
+			continue;
 		const PlayerWeaponGraphic weapon = GetPlayerWeaponGraphic(animation.graphic, static_cast<PlayerWeaponGraphic>(player._pgfxnum & 0xF));
 		const oracool::PlayerSheetRequest request = oracool::MakePlayerSheetRequest(player, cls, weapon, animation.cel, GetPlayerSpriteWidth(cls, animation.graphic, weapon));
 		if (!oracool::WantsMixedSheet(request))
