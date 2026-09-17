@@ -2446,18 +2446,34 @@ void LoadPlrGFX(Player &player, player_graphic graphic)
 	if (std::optional<oracool::ColouredSpriteSheet> imported = oracool::LoadPngSpriteSheetColoured(pngName, animationWidth)) {
 		animationData.sprites = std::move(imported->sheet);
 		animationData.colours = std::move(imported->colours);
-	} else if (std::optional<oracool::ColouredSpriteSheet> mixed = oracool::MixPlayerSheet(player, cls, animWeaponId, szCel, animationWidth, oracool::HeroColours(player))) {
-		// A shield or a sword from another armour tier, by what is actually held - assembled here from the
-		// archive's own sheets. See oracool/sprite_mix.h.
-		animationData.sprites = std::move(mixed->sheet);
-		animationData.colours = std::move(mixed->colours);
 	} else {
+		// A shield or a sword from another armour tier, by what is actually held (oracool/sprite_mix.h). Never
+		// built HERE: that was a hitch on the first frame of every animation (user, 2026-09-17). A sheet built
+		// before comes out of the cache already at the size of the class; one never built is asked for in the
+		// background, the plain sheet is worn meanwhile, and PumpPlayerSheetMixer swaps it in when it arrives.
+		animationData.pendingSheetKey.clear();
+		const oracool::PlayerSheetRequest request = oracool::MakePlayerSheetRequest(player, cls, animWeaponId, szCel, animationWidth);
+		if (oracool::WantsMixedSheet(request)) {
+			std::optional<oracool::ColouredSpriteSheet> cached;
+			switch (oracool::TakeCachedPlayerSheet(request, cached)) {
+			case oracool::CachedSheetState::Ready:
+				animationData.sprites = std::move(cached->sheet);
+				animationData.colours = std::move(cached->colours);
+				return;
+			case oracool::CachedSheetState::Unknown:
+				oracool::RequestPlayerSheet(request);
+				animationData.pendingSheetKey = request.Key();
+				break;
+			case oracool::CachedSheetState::Nothing:
+				break;
+			}
+		}
 		animationData.sprites = LoadCl2Sheet(pszName, animationWidth);
 		std::optional<std::array<uint8_t, 256>> trn = GetClassTRN(player);
 		if (trn) {
 			ClxApplyTrans(*animationData.sprites, trn->data());
 		}
-		// The class's dye, as colours rather than baked indices: the sheet stays the Warrior's own and only
+		// The dye of the class, as colours rather than baked indices: the sheet stays the Warrior sheet and only
 		// what its indices MEAN changes. Null for every class but the one that has a dye.
 		animationData.colours = oracool::HeroColours(player);
 	}
@@ -2497,6 +2513,71 @@ void ResetPlayerGFX(Player &player)
 	for (PlayerAnimationData &animData : player.AnimationData) {
 		animData.sprites = std::nullopt;
 		animData.colours = nullptr;
+		animData.pendingSheetKey.clear();
+	}
+}
+
+void PrewarmPlayerLook(Player &player)
+{
+	// Town sheets never mix (no twins), and a headless run has no sheets at all.
+	if (HeadlessMode || leveltype == DTYPE_TOWN)
+		return;
+	const HeroClass cls = GetPlayerSpriteClass(player._pClass);
+	struct Animation {
+		player_graphic graphic;
+		const char *cel;
+	};
+	// Every animation the look can touch, asked for the moment the gear changes - so by the first swing the
+	// attack sheet is already built, or nearly. The names are the dungeon ones LoadPlrGFX uses.
+	constexpr Animation Animations[] = {
+		{ player_graphic::Stand, "as" }, { player_graphic::Walk, "aw" }, { player_graphic::Attack, "at" }, { player_graphic::Hit, "ht" },
+		{ player_graphic::Lightning, "lm" }, { player_graphic::Fire, "fm" }, { player_graphic::Magic, "qm" },
+	};
+	for (const Animation &animation : Animations) {
+		const PlayerWeaponGraphic weapon = GetPlayerWeaponGraphic(animation.graphic, static_cast<PlayerWeaponGraphic>(player._pgfxnum & 0xF));
+		const oracool::PlayerSheetRequest request = oracool::MakePlayerSheetRequest(player, cls, weapon, animation.cel, GetPlayerSpriteWidth(cls, animation.graphic, weapon));
+		if (!oracool::WantsMixedSheet(request))
+			continue;
+		std::optional<oracool::ColouredSpriteSheet> unused;
+		if (oracool::TakeCachedPlayerSheet(request, unused) == oracool::CachedSheetState::Unknown)
+			oracool::RequestPlayerSheet(request);
+	}
+}
+
+void PumpPlayerSheetMixer()
+{
+	if (HeadlessMode)
+		return;
+	oracool::PumpSpriteMixer();
+	for (const oracool::FinishedPlayerSheet &finished : oracool::TakeFinishedPlayerSheets()) {
+		for (Player &player : Players) {
+			for (size_t g = 0; g < player.AnimationData.size(); g++) {
+				PlayerAnimationData &animationData = player.AnimationData[g];
+				if (animationData.pendingSheetKey != finished.key)
+					continue;
+				animationData.pendingSheetKey.clear();
+				if (finished.nothing || !animationData.sprites)
+					continue;
+
+				// The sheet about to be freed may be the one on screen: AnimInfo and the preview sprite are VIEWS
+				// into it, so whichever of them points inside it is re-bound to the new sheet, never left dangling.
+				const ClxSpriteSheet old { *animationData.sprites };
+				const auto inside = [&](const uint8_t *p) { return p >= old.data() && p < old.data() + old.dataSize(); };
+				const bool showing = player.AnimInfo.sprites && inside(player.AnimInfo.sprites->data());
+				if (player.previewCelSprite && inside(player.previewCelSprite->pixelData()))
+					player.previewCelSprite = std::nullopt;
+
+				oracool::ColouredSpriteSheet fresh = finished.make();
+				animationData.sprites = std::move(fresh.sheet);
+				animationData.colours = std::move(fresh.colours);
+				if (showing) {
+					int8_t numberOfFrames;
+					int8_t ticksPerFrame;
+					player.getAnimationFramesAndTicksPerFrame(static_cast<player_graphic>(g), numberOfFrames, ticksPerFrame);
+					player.AnimInfo.changeAnimationData(animationData.spritesForDirection(player._pdir), numberOfFrames, ticksPerFrame);
+				}
+			}
+		}
 	}
 }
 

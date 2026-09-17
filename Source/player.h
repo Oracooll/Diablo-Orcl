@@ -297,6 +297,12 @@ struct PlayerAnimationData {
 	std::shared_ptr<const oracool::SpriteColours> colours;
 
 	/**
+	 * @brief Oracool: the key of the mixed sheet being built in the background for this animation, or empty.
+	 * The plain sheet is worn meanwhile and swapped when it arrives - see PumpPlayerSheetMixer.
+	 */
+	std::string pendingSheetKey;
+
+	/**
 	 * @brief The sprite list for @p direction, or nullopt when this animation was never loaded.
 	 *
 	 * Oracool audit (2026-08-16): this used to dereference `sprites` unconditionally, while its
@@ -1072,6 +1078,10 @@ Player *PlayerAtPosition(Point position);
 void LoadPlrGFX(Player &player, player_graphic graphic);
 void InitPlayerGFX(Player &player);
 void ResetPlayerGFX(Player &player);
+/** @brief Oracool: asks the background mixer for every animation of the look @p player now wears. */
+void PrewarmPlayerLook(Player &player);
+/** @brief Oracool: once a game tick - feeds the background mixer and puts finished sheets on the heroes waiting for them. */
+void PumpPlayerSheetMixer();
 
 /**
  * @brief Sets the new Player Animation with all relevant information for rendering

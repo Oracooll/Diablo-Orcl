@@ -2,8 +2,17 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <condition_variable>
+#include <cstdio>
 #include <cstring>
+#include <deque>
+#include <functional>
+#include <map>
+#include <mutex>
 #include <string>
+#include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include <fmt/format.h>
@@ -15,9 +24,12 @@
 #include "engine/surface.hpp"
 #include "itemdat.h"
 #include "items.h"
+#include "oracool/hero_look.h"
 #include "oracool/sprite_colours.h"
 #include "playerdat.hpp"
+#include "utils/file_util.h"
 #include "utils/log.hpp"
+#include "utils/paths.h"
 #include "utils/surface_to_clx.hpp"
 
 namespace devilution::oracool {
@@ -45,8 +57,9 @@ struct Geometry {
 class Source {
 public:
 	Source() = default;
-	Source(OwnedClxSpriteSheet &&sheet)
+	Source(OwnedClxSpriteSheet &&sheet, std::string name)
 	    : sheet_(std::move(sheet))
+	    , name_(std::move(name))
 	{
 		const ClxSpriteSheet view { *sheet_ };
 		if (view.numLists() != Facings)
@@ -68,6 +81,7 @@ public:
 
 	[[nodiscard]] bool ok() const { return static_cast<bool>(sheet_) && geometry_.frames > 0 && geometry_.width > 0; }
 	[[nodiscard]] const Geometry &geometry() const { return geometry_; }
+	[[nodiscard]] const std::string &name() const { return name_; }
 
 	/** @brief Frame @p index of facing @p dir, in index space. Two passes: a sprite pixel may BE index 0. */
 	void Render(int dir, int index, OwnedSurface &colour, OwnedSurface &mask, Frame &out) const
@@ -99,29 +113,69 @@ public:
 
 private:
 	OptionalOwnedClxSpriteSheet sheet_;
+	std::string name_;
 	Geometry geometry_;
 };
 
-Source LoadSource(const char *classPath, char classChar, size_t armour, PlayerWeaponGraphic weapon, const char *szCel, uint16_t frameWidth)
+using SourcePtr = std::shared_ptr<const Source>;
+/** @brief Hands over the sheet of (armour tier, weapon class) for the animation in hand, or null. */
+using SourceLoader = std::function<SourcePtr(size_t, PlayerWeaponGraphic)>;
+
+/**
+ * The voters of the sword family. The attack has fewer twins - the axe swings on its own frame count, the heavy
+ * mace on another - so the mace WITH a shield votes too: its mace and its shield are each alone in the vote and
+ * lose it.
+ */
+constexpr std::array<PlayerWeaponGraphic, 5> SwordVoters = { PlayerWeaponGraphic::Sword, PlayerWeaponGraphic::Mace,
+	PlayerWeaponGraphic::Axe, PlayerWeaponGraphic::Staff, PlayerWeaponGraphic::MaceShield };
+
+SourcePtr LoadSource(const char *classPath, char classChar, size_t armour, PlayerWeaponGraphic weapon, const char *szCel, uint16_t frameWidth)
 {
 	const char prefix[3] = { classChar, ArmourChar[armour], WepChar[static_cast<size_t>(weapon)] };
 	const std::string path = fmt::format(R"(plrgfx\{0}\{1}\{1}{2})", classPath, string_view(prefix, 3), szCel);
 	if (!FindAsset((path + DEVILUTIONX_CL2_EXT).c_str()).ok())
-		return {};
-	return Source { LoadCl2Sheet(path.c_str(), frameWidth) };
+		return nullptr;
+	return std::make_shared<const Source>(LoadCl2Sheet(path.c_str(), frameWidth), path);
 }
 
 // ---------------------------------------------------------------------------------------------------
 // Masks
 // ---------------------------------------------------------------------------------------------------
 
+/** @brief The rows and columns @p mask has anything in. A shield or a blade is a twentieth of its frame. */
+struct Box {
+	int x0, y0, x1, y1; // inclusive; x1 < x0 when empty
+	[[nodiscard]] bool empty() const { return x1 < x0; }
+};
+
+Box BoundsOf(const Mask &mask, int w, int h)
+{
+	Box box { w, h, -1, -1 };
+	for (int y = 0; y < h; y++) {
+		const uint8_t *row = &mask[static_cast<size_t>(y * w)];
+		for (int x = 0; x < w; x++) {
+			if (row[x] == 0)
+				continue;
+			box.x0 = std::min(box.x0, x);
+			box.x1 = std::max(box.x1, x);
+			box.y0 = std::min(box.y0, y);
+			box.y1 = y;
+		}
+	}
+	return box;
+}
+
 Mask Dilate(const Mask &mask, int w, int h, int radius)
 {
 	Mask current = mask;
+	Box box = BoundsOf(mask, w, h);
+	if (box.empty())
+		return current;
 	for (int step = 0; step < radius; step++) {
 		Mask next = current;
-		for (int y = 0; y < h; y++) {
-			for (int x = 0; x < w; x++) {
+		box = { std::max(0, box.x0 - 1), std::max(0, box.y0 - 1), std::min(w - 1, box.x1 + 1), std::min(h - 1, box.y1 + 1) };
+		for (int y = box.y0; y <= box.y1; y++) {
+			for (int x = box.x0; x <= box.x1; x++) {
 				if (current[static_cast<size_t>(y * w + x)] != 0)
 					continue;
 				for (int dy = -1; dy <= 1 && next[static_cast<size_t>(y * w + x)] == 0; dy++) {
@@ -144,8 +198,11 @@ Mask Dilate(const Mask &mask, int w, int h, int radius)
 Mask Erode(const Mask &mask, int w, int h)
 {
 	Mask out(mask.size(), 0);
-	for (int y = 1; y < h - 1; y++) {
-		for (int x = 1; x < w - 1; x++) {
+	const Box box = BoundsOf(mask, w, h);
+	if (box.empty())
+		return out;
+	for (int y = std::max(1, box.y0); y <= std::min(h - 2, box.y1); y++) {
+		for (int x = std::max(1, box.x0); x <= std::min(w - 2, box.x1); x++) {
 			bool all = true;
 			for (int dy = -1; dy <= 1 && all; dy++)
 				for (int dx = -1; dx <= 1; dx++)
@@ -377,6 +434,16 @@ void FillSmallHoles(Frame &canvas, const Mask &where, int w, int h)
 bool AreTwins(const Source &a, const Source &b, OwnedSurface &colour, OwnedSurface &mask)
 {
 	constexpr int TwinPercent = 58;
+	// The answer is a fact about two files in the archive and never changes, so it is worked out once a session
+	// (and the finished sheets are cached on disk, so in practice once ever).
+	static std::mutex memoMutex;
+	static std::unordered_map<std::string, bool> memo;
+	const std::string memoKey = a.name() + "|" + b.name();
+	{
+		const std::lock_guard<std::mutex> lock(memoMutex);
+		if (const auto it = memo.find(memoKey); it != memo.end())
+			return it->second;
+	}
 	Frame fa, fb;
 	int64_t same = 0;
 	int64_t both = 0;
@@ -394,7 +461,10 @@ bool AreTwins(const Source &a, const Source &b, OwnedSurface &colour, OwnedSurfa
 			}
 		}
 	}
-	return both > 0 && same * 100 >= both * TwinPercent;
+	const bool twins = both > 0 && same * 100 >= both * TwinPercent;
+	const std::lock_guard<std::mutex> lock(memoMutex);
+	memo[memoKey] = twins;
+	return twins;
 }
 
 bool HasShield(PlayerWeaponGraphic weapon)
@@ -442,46 +512,39 @@ uint8_t GearLookCode(const Player &player)
 	return static_cast<uint8_t>((look.shield == LookTier::Heavy ? 2 : 0) | (look.sword == LookTier::Heavy ? 1 : 0));
 }
 
-std::optional<ColouredSpriteSheet> MixPlayerSheet(const Player &player, HeroClass spriteClass, PlayerWeaponGraphic weapon,
-    const char *szCel, uint16_t frameWidth, const std::shared_ptr<const SpriteColours> &dye)
+namespace {
+
+std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &request, const SourceLoader &load)
 {
-	if (spriteClass != HeroClass::Warrior)
-		return std::nullopt; // the only sheets measured
-	const size_t armour = static_cast<size_t>(player._pgfxnum >> 4);
-	if (armour >= HeavyArmour)
-		return std::nullopt; // already wearing the heavy tier's pieces
-
-	const GearLook look = GearLookFor(player);
-	const PlayerWeaponGraphic bare = WithoutShield(weapon);
-	const bool swapShield = look.shield == LookTier::Heavy && HasShield(weapon);
-	const bool swapSword = look.sword == LookTier::Heavy && bare == PlayerWeaponGraphic::Sword;
-	if (!swapShield && !swapSword)
+	if (!WantsMixedSheet(request))
 		return std::nullopt;
-
-	const char *classPath = PlayersData[static_cast<size_t>(spriteClass)].classPath;
-	const char classChar = CharChar[static_cast<size_t>(spriteClass)];
-	const auto load = [&](size_t tier, PlayerWeaponGraphic w) { return LoadSource(classPath, classChar, tier, w, szCel, frameWidth); };
+	const size_t armour = request.armour;
+	const PlayerWeaponGraphic weapon = request.weapon;
+	const std::shared_ptr<const SpriteColours> &dye = request.dye;
+	const PlayerWeaponGraphic bare = WithoutShield(weapon);
+	const bool swapShield = request.look.shield == LookTier::Heavy && HasShield(weapon);
+	const bool swapSword = request.look.sword == LookTier::Heavy && bare == PlayerWeaponGraphic::Sword;
 
 	// The canvas is this tier's sheet WITHOUT a shield: a whole body, so taking the shield away leaves no
 	// hole to patch. The block animation has no such twin - nothing to subtract from - and is left alone.
-	const Source ownBare = load(armour, bare);
-	if (!ownBare.ok())
+	const SourcePtr ownBare = load(armour, bare);
+	if (ownBare == nullptr || !ownBare->ok())
 		return std::nullopt;
-	const Geometry geometry = ownBare.geometry();
+	const Geometry geometry = ownBare->geometry();
 	// Same frames, same width, and no TALLER than the canvas - a shorter sheet is rendered onto its floor.
-	const auto fits = [&](const Source &source) {
-		return source.ok() && source.geometry().frames == geometry.frames && source.geometry().width == geometry.width
-		    && source.geometry().height <= geometry.height;
+	const auto fits = [&](const SourcePtr &source) {
+		return source != nullptr && source->ok() && source->geometry().frames == geometry.frames
+		    && source->geometry().width == geometry.width && source->geometry().height <= geometry.height;
 	};
 
 	OwnedSurface colour(geometry.width, geometry.height);
 	OwnedSurface scratchMask(geometry.width, geometry.height);
-	const auto twin = [&](const Source &source) { return fits(source) && AreTwins(ownBare, source, colour, scratchMask); };
+	const auto twin = [&](const SourcePtr &source) { return fits(source) && AreTwins(*ownBare, *source, colour, scratchMask); };
 
 	const bool shielded = HasShield(weapon);
-	Source ownShielded;
-	Source shieldBare;
-	Source shieldShielded;
+	SourcePtr ownShielded;
+	SourcePtr shieldBare;
+	SourcePtr shieldShielded;
 	if (shielded) {
 		ownShielded = load(armour, weapon);
 		if (!twin(ownShielded))
@@ -489,27 +552,24 @@ std::optional<ColouredSpriteSheet> MixPlayerSheet(const Player &player, HeroClas
 		if (swapShield) {
 			shieldBare = load(HeavyArmour, bare);
 			shieldShielded = load(HeavyArmour, weapon);
-			if (!fits(shieldBare) || !fits(shieldShielded) || !AreTwins(shieldBare, shieldShielded, colour, scratchMask))
+			if (!fits(shieldBare) || !fits(shieldShielded) || !AreTwins(*shieldBare, *shieldShielded, colour, scratchMask))
 				return std::nullopt;
 		}
 	}
 
-	std::vector<Source> ownVoters;
-	std::vector<Source> heavyVoters;
-	Source heavySword;
+	std::vector<SourcePtr> ownVoters;
+	std::vector<SourcePtr> heavyVoters;
+	SourcePtr heavySword;
 	bool doSword = swapSword;
 	if (doSword) {
 		heavySword = load(HeavyArmour, PlayerWeaponGraphic::Sword);
-		for (const PlayerWeaponGraphic voter : { PlayerWeaponGraphic::Sword, PlayerWeaponGraphic::Mace, PlayerWeaponGraphic::Axe, PlayerWeaponGraphic::Staff,
-		         // The attack has fewer twins - the axe swings on its own frame count, the heavy mace on another - so the
-		         // mace WITH a shield votes too: its mace and its shield are each alone in the vote and lose it.
-		         PlayerWeaponGraphic::MaceShield }) {
-			Source own = load(armour, voter);
-			Source heavy = load(HeavyArmour, voter);
-			// A voter in another pose (the staff's attack) agrees with nobody and only adds noise.
+		for (const PlayerWeaponGraphic voter : SwordVoters) {
+			SourcePtr own = load(armour, voter);
+			SourcePtr heavy = load(HeavyArmour, voter);
+			// A voter in another pose (the staff attack) agrees with nobody and only adds noise.
 			if (twin(own))
 				ownVoters.push_back(std::move(own));
-			if (fits(heavy) && fits(heavySword) && AreTwins(heavySword, heavy, colour, scratchMask))
+			if (fits(heavy) && fits(heavySword) && AreTwins(*heavySword, *heavy, colour, scratchMask))
 				heavyVoters.push_back(std::move(heavy));
 		}
 		// Two voters cannot outvote each other: where they differ there is no majority and no body.
@@ -531,7 +591,7 @@ std::optional<ColouredSpriteSheet> MixPlayerSheet(const Player &player, HeroClas
 			const size_t slot = static_cast<size_t>(dir * geometry.frames + index);
 			Frame &canvas = composed[slot];
 			Mask &brought = foreign[slot];
-			ownBare.Render(dir, index, colour, scratchMask, bareFrame);
+			ownBare->Render(dir, index, colour, scratchMask, bareFrame);
 			canvas = bareFrame;
 			brought.assign(canvas.size(), 0);
 			Mask ownSwordGone(canvas.size(), 0);
@@ -540,13 +600,13 @@ std::optional<ColouredSpriteSheet> MixPlayerSheet(const Player &player, HeroClas
 			if (doSword) {
 				voterFrames.resize(ownVoters.size());
 				for (size_t v = 0; v < ownVoters.size(); v++)
-					ownVoters[v].Render(dir, index, colour, scratchMask, voterFrames[v]);
+					ownVoters[v]->Render(dir, index, colour, scratchMask, voterFrames[v]);
 				Vote(voterFrames, body);
 				voterFrames.resize(heavyVoters.size());
 				for (size_t v = 0; v < heavyVoters.size(); v++)
-					heavyVoters[v].Render(dir, index, colour, scratchMask, voterFrames[v]);
+					heavyVoters[v]->Render(dir, index, colour, scratchMask, voterFrames[v]);
 				Vote(voterFrames, heavyBody);
-				heavySword.Render(dir, index, colour, scratchMask, heavySwordFrame);
+				heavySword->Render(dir, index, colour, scratchMask, heavySwordFrame);
 
 				ownSwordGone = SwordDifference(bareFrame, body);
 				for (size_t i = 0; i < canvas.size(); i++)
@@ -558,13 +618,13 @@ std::optional<ColouredSpriteSheet> MixPlayerSheet(const Player &player, HeroClas
 
 			Mask shieldPlaced(canvas.size(), 0);
 			if (shielded) {
-				ownShielded.Render(dir, index, colour, scratchMask, shieldedFrame);
+				ownShielded->Render(dir, index, colour, scratchMask, shieldedFrame);
 				const Mask ownShield = OwnShieldMask(bareFrame, shieldedFrame, w, h);
 				Mask shieldMask = ownShield;
 				const Frame *shieldPixels = &shieldedFrame;
 				if (swapShield) {
-					shieldBare.Render(dir, index, colour, scratchMask, otherBare);
-					shieldShielded.Render(dir, index, colour, scratchMask, otherShielded);
+					shieldBare->Render(dir, index, colour, scratchMask, otherBare);
+					shieldShielded->Render(dir, index, colour, scratchMask, otherShielded);
 					shieldMask = ForeignShieldMask(otherBare, otherShielded, ownShield, w, h);
 					shieldPixels = &otherShielded;
 				}
@@ -688,6 +748,369 @@ std::optional<ColouredSpriteSheet> MixPlayerSheet(const Player &player, HeroClas
 		lists.push_back(SurfaceToClx(column, static_cast<unsigned>(geometry.frames), static_cast<uint8_t>(transparent)));
 	}
 	return ColouredSpriteSheet { CombineSpriteLists(lists), std::move(colours) };
+}
+
+} // namespace
+
+// =====================================================================================================
+// The request, the cache and the worker (v1.12.024)
+//
+// User, 2026-09-17: "a noticeable lag when first frame of a mixed sprite needs to occur like when i place a
+// large shield or when i initiate an attack." The mix ran on the main thread at the moment an animation was
+// first wanted. Now: a finished sheet is REMEMBERED (in memory for the session, on disk for good), it is
+// BUILT AHEAD of need on a worker thread while the hero wears the plain sheet, and the archive reads - the
+// one part that must stay on the main thread, because nothing says the MPQ reader is safe to share - are
+// spread one sheet a tick.
+// =====================================================================================================
+
+namespace {
+
+/** Bump when the mixer would produce different pixels, so old files on disk stop being believed. */
+constexpr uint32_t CacheVersion = 1;
+constexpr uint32_t CacheMagic = 0x584D534F; // "OSMX"
+
+/** A finished sheet as bytes, so any number of heroes can be handed their own copy. */
+struct CachedSheet {
+	bool nothing = false; // the mixer declined: remember that too, it is the expensive answer to reach
+	std::vector<uint8_t> data;
+	uint16_t numLists = 0;
+	std::shared_ptr<const SpriteColours> colours;
+};
+
+struct Job {
+	PlayerSheetRequest request;
+	std::string key;
+	std::vector<std::pair<size_t, PlayerWeaponGraphic>> wanted; // still to read, main thread, one a tick
+	std::map<std::pair<size_t, PlayerWeaponGraphic>, SourcePtr> loaded;
+};
+
+struct Finished {
+	std::string key;
+	std::shared_ptr<const CachedSheet> sheet;
+};
+
+std::mutex StateMutex; // guards everything below
+std::condition_variable WorkerWake;
+std::unordered_map<std::string, std::shared_ptr<const CachedSheet>> Memory;
+std::deque<std::unique_ptr<Job>> Loading;  // main thread fills `loaded`
+std::deque<std::unique_ptr<Job>> Ready;    // worker composes
+std::deque<Finished> Done;                 // main thread delivers
+std::unordered_map<std::string, bool> InFlight;
+std::thread Worker;
+std::atomic<bool> WorkerStop { false };
+
+std::string CachePath(const std::string &key)
+{
+	return paths::PrefPath() + "sprite_cache" + DirectorySeparator + key + ".osm";
+}
+
+std::shared_ptr<const CachedSheet> MakeCached(const std::optional<ColouredSpriteSheet> &result)
+{
+	auto cached = std::make_shared<CachedSheet>();
+	if (!result) {
+		cached->nothing = true;
+		return cached;
+	}
+	const ClxSpriteSheet view { result->sheet };
+	cached->data.assign(view.data(), view.data() + view.dataSize());
+	cached->numLists = view.numLists();
+	cached->colours = result->colours;
+	return cached;
+}
+
+ColouredSpriteSheet Instantiate(const CachedSheet &cached)
+{
+	std::unique_ptr<uint8_t[]> copy { new uint8_t[cached.data.size()] };
+	std::memcpy(copy.get(), cached.data.data(), cached.data.size());
+	return ColouredSpriteSheet { OwnedClxSpriteSheet { std::move(copy), cached.numLists }, cached.colours };
+}
+
+void WriteU32(std::FILE *file, uint32_t value)
+{
+	const uint8_t bytes[4] = { static_cast<uint8_t>(value), static_cast<uint8_t>(value >> 8), static_cast<uint8_t>(value >> 16), static_cast<uint8_t>(value >> 24) };
+	std::fwrite(bytes, 1, 4, file);
+}
+
+bool ReadU32(std::FILE *file, uint32_t &value)
+{
+	uint8_t bytes[4];
+	if (std::fread(bytes, 1, 4, file) != 4)
+		return false;
+	value = static_cast<uint32_t>(bytes[0]) | (static_cast<uint32_t>(bytes[1]) << 8) | (static_cast<uint32_t>(bytes[2]) << 16) | (static_cast<uint32_t>(bytes[3]) << 24);
+	return true;
+}
+
+/** magic, version, kind (0 nothing / 1 sheet), lists, size, bytes, colour count, {index, rgb, fallback}... */
+void SaveToDisk(const std::string &key, const CachedSheet &cached)
+{
+	RecursivelyCreateDir((paths::PrefPath() + "sprite_cache").c_str());
+	std::FILE *file = OpenFile(CachePath(key).c_str(), "wb");
+	if (file == nullptr)
+		return; // a cache that cannot be written is a slower game, not a broken one
+	WriteU32(file, CacheMagic);
+	WriteU32(file, CacheVersion);
+	WriteU32(file, cached.nothing ? 0 : 1);
+	WriteU32(file, cached.numLists);
+	WriteU32(file, static_cast<uint32_t>(cached.data.size()));
+	if (!cached.data.empty())
+		std::fwrite(cached.data.data(), 1, cached.data.size(), file);
+	uint32_t own = 0;
+	if (cached.colours != nullptr)
+		for (int i = 0; i < 256; i++)
+			if (cached.colours->HasOwn(static_cast<uint8_t>(i)))
+				own++;
+	WriteU32(file, cached.colours != nullptr ? own + 1 : 0); // 0 = no colours at all; n+1 = n own colours
+	if (cached.colours != nullptr) {
+		for (int i = 0; i < 256; i++) {
+			const auto index = static_cast<uint8_t>(i);
+			if (!cached.colours->HasOwn(index))
+				continue;
+			WriteU32(file, index);
+			WriteU32(file, cached.colours->Own(index));
+			WriteU32(file, cached.colours->Fallback(index));
+		}
+	}
+	std::fclose(file);
+}
+
+std::shared_ptr<const CachedSheet> LoadFromDisk(const std::string &key)
+{
+	std::FILE *file = OpenFile(CachePath(key).c_str(), "rb");
+	if (file == nullptr)
+		return nullptr;
+	auto cached = std::make_shared<CachedSheet>();
+	uint32_t magic = 0, version = 0, kind = 0, lists = 0, size = 0, colourCount = 0;
+	bool ok = ReadU32(file, magic) && ReadU32(file, version) && ReadU32(file, kind) && ReadU32(file, lists) && ReadU32(file, size)
+	    && magic == CacheMagic && version == CacheVersion && size <= 64U * 1024U * 1024U && lists <= 64;
+	if (ok) {
+		cached->nothing = kind == 0;
+		cached->numLists = static_cast<uint16_t>(lists);
+		cached->data.resize(size);
+		ok = size == 0 || std::fread(cached->data.data(), 1, size, file) == size;
+	}
+	if (ok)
+		ok = ReadU32(file, colourCount) && colourCount <= 257;
+	if (ok && colourCount > 0) {
+		auto colours = std::make_shared<SpriteColours>();
+		for (uint32_t i = 0; ok && i + 1 < colourCount; i++) {
+			uint32_t index = 0, rgb = 0, fallback = 0;
+			ok = ReadU32(file, index) && ReadU32(file, rgb) && ReadU32(file, fallback) && index < 256 && fallback < 256;
+			if (ok)
+				colours->Set(static_cast<uint8_t>(index), rgb, static_cast<uint8_t>(fallback));
+		}
+		cached->colours = std::move(colours);
+	}
+	std::fclose(file);
+	if (!ok || (!cached->nothing && (cached->data.empty() || cached->numLists == 0)))
+		return nullptr; // truncated or from another version: recompute, and the rewrite replaces it
+	return cached;
+}
+
+/** Every sheet ComposeMixedSheet might ask for, so they can be read ahead on the main thread. */
+std::vector<std::pair<size_t, PlayerWeaponGraphic>> SourcesFor(const PlayerSheetRequest &request)
+{
+	std::vector<std::pair<size_t, PlayerWeaponGraphic>> out;
+	const auto want = [&](size_t tier, PlayerWeaponGraphic weapon) {
+		const std::pair<size_t, PlayerWeaponGraphic> id { tier, weapon };
+		if (std::find(out.begin(), out.end(), id) == out.end())
+			out.push_back(id);
+	};
+	const PlayerWeaponGraphic bare = WithoutShield(request.weapon);
+	want(request.armour, bare);
+	if (HasShield(request.weapon)) {
+		want(request.armour, request.weapon);
+		if (request.look.shield == LookTier::Heavy) {
+			want(HeavyArmour, bare);
+			want(HeavyArmour, request.weapon);
+		}
+	}
+	if (request.look.sword == LookTier::Heavy && bare == PlayerWeaponGraphic::Sword) {
+		for (const PlayerWeaponGraphic voter : SwordVoters) {
+			want(request.armour, voter);
+			want(HeavyArmour, voter);
+		}
+	}
+	return out;
+}
+
+SourcePtr LoadFor(const PlayerSheetRequest &request, size_t tier, PlayerWeaponGraphic weapon)
+{
+	return LoadSource(PlayersData[static_cast<size_t>(request.spriteClass)].classPath, CharChar[static_cast<size_t>(request.spriteClass)],
+	    tier, weapon, request.cel.c_str(), request.frameWidth);
+}
+
+/** The whole derived sheet: mixed, then at the class's size. Pure CPU once the sources are in hand. */
+std::optional<ColouredSpriteSheet> BuildDerivedSheet(const PlayerSheetRequest &request, const SourceLoader &load)
+{
+	std::optional<ColouredSpriteSheet> mixed = ComposeMixedSheet(request, load);
+	if (!mixed)
+		return std::nullopt;
+	if (request.scalePercent != 100) {
+		if (OptionalOwnedClxSpriteSheet scaled = ScaleSpriteSheet(mixed->sheet, request.scalePercent))
+			mixed->sheet = std::move(*scaled);
+	}
+	return mixed;
+}
+
+void WorkerMain()
+{
+	for (;;) {
+		std::unique_ptr<Job> job;
+		{
+			std::unique_lock<std::mutex> lock(StateMutex);
+			WorkerWake.wait(lock, [] { return WorkerStop.load() || !Ready.empty(); });
+			if (WorkerStop.load())
+				return;
+			job = std::move(Ready.front());
+			Ready.pop_front();
+		}
+		const std::optional<ColouredSpriteSheet> result = BuildDerivedSheet(job->request, [&](size_t tier, PlayerWeaponGraphic weapon) -> SourcePtr {
+			const auto it = job->loaded.find({ tier, weapon });
+			return it != job->loaded.end() ? it->second : nullptr;
+		});
+		std::shared_ptr<const CachedSheet> cached = MakeCached(result);
+		SaveToDisk(job->key, *cached);
+		const std::lock_guard<std::mutex> lock(StateMutex);
+		Memory[job->key] = cached;
+		Done.push_back({ job->key, std::move(cached) });
+	}
+}
+
+} // namespace
+
+std::string PlayerSheetRequest::Key() const
+{
+	return fmt::format("{}{}{}-{}-k{}-d{}-s{}", CharChar[static_cast<size_t>(spriteClass)], ArmourChar[armour],
+	    WepChar[static_cast<size_t>(weapon)], cel, (look.shield == LookTier::Heavy ? 2 : 0) | (look.sword == LookTier::Heavy ? 1 : 0),
+	    dyeId, scalePercent);
+}
+
+PlayerSheetRequest MakePlayerSheetRequest(const Player &player, HeroClass spriteClass, PlayerWeaponGraphic weapon, const char *szCel, uint16_t frameWidth)
+{
+	PlayerSheetRequest request;
+	request.spriteClass = spriteClass;
+	request.armour = static_cast<uint8_t>(player._pgfxnum >> 4);
+	request.weapon = weapon;
+	request.look = GearLookFor(player);
+	request.cel = szCel;
+	request.frameWidth = frameWidth;
+	request.scalePercent = SpriteScalePercent(player._pClass);
+	request.dye = HeroColours(player);
+	request.dyeId = request.dye != nullptr ? 1 : 0;
+	return request;
+}
+
+bool WantsMixedSheet(const PlayerSheetRequest &request)
+{
+	if (request.spriteClass != HeroClass::Warrior)
+		return false; // the only sheets measured
+	if (request.armour >= HeavyArmour)
+		return false; // already wearing the heavy tier's pieces
+	const bool swapShield = request.look.shield == LookTier::Heavy && HasShield(request.weapon);
+	const bool swapSword = request.look.sword == LookTier::Heavy && WithoutShield(request.weapon) == PlayerWeaponGraphic::Sword;
+	return swapShield || swapSword;
+}
+
+std::optional<ColouredSpriteSheet> MixPlayerSheetNow(const PlayerSheetRequest &request)
+{
+	return BuildDerivedSheet(request, [&](size_t tier, PlayerWeaponGraphic weapon) { return LoadFor(request, tier, weapon); });
+}
+
+CachedSheetState TakeCachedPlayerSheet(const PlayerSheetRequest &request, std::optional<ColouredSpriteSheet> &out)
+{
+	const std::string key = request.Key();
+	std::shared_ptr<const CachedSheet> cached;
+	{
+		const std::lock_guard<std::mutex> lock(StateMutex);
+		if (const auto it = Memory.find(key); it != Memory.end())
+			cached = it->second;
+	}
+	if (cached == nullptr) {
+		cached = LoadFromDisk(key);
+		if (cached == nullptr)
+			return CachedSheetState::Unknown;
+		const std::lock_guard<std::mutex> lock(StateMutex);
+		Memory[key] = cached;
+	}
+	if (cached->nothing)
+		return CachedSheetState::Nothing;
+	out = Instantiate(*cached);
+	return CachedSheetState::Ready;
+}
+
+void RequestPlayerSheet(const PlayerSheetRequest &request)
+{
+	auto job = std::make_unique<Job>();
+	job->request = request;
+	job->key = request.Key();
+	job->wanted = SourcesFor(request);
+	SharedPaletteRgb(0); // read town's palette HERE, on the main thread; the worker only ever reads the table
+	const std::lock_guard<std::mutex> lock(StateMutex);
+	if (InFlight[job->key])
+		return;
+	InFlight[job->key] = true;
+	Loading.push_back(std::move(job));
+}
+
+void PumpSpriteMixer()
+{
+	// One archive read a tick. A plain animation change costs the game the same, so this is not felt.
+	Job *job = nullptr;
+	{
+		const std::lock_guard<std::mutex> lock(StateMutex);
+		if (!Loading.empty())
+			job = Loading.front().get(); // only this thread ever removes from Loading
+	}
+	if (job == nullptr)
+		return;
+	if (!job->wanted.empty()) {
+		const std::pair<size_t, PlayerWeaponGraphic> id = job->wanted.back();
+		job->wanted.pop_back();
+		job->loaded[id] = LoadFor(job->request, id.first, id.second);
+		if (!job->wanted.empty())
+			return;
+	}
+	const std::lock_guard<std::mutex> lock(StateMutex);
+	Ready.push_back(std::move(Loading.front()));
+	Loading.pop_front();
+	if (!Worker.joinable()) {
+		WorkerStop = false;
+		Worker = std::thread(WorkerMain);
+	}
+	WorkerWake.notify_one();
+}
+
+std::vector<FinishedPlayerSheet> TakeFinishedPlayerSheets()
+{
+	std::vector<FinishedPlayerSheet> out;
+	const std::lock_guard<std::mutex> lock(StateMutex);
+	while (!Done.empty()) {
+		Finished finished = std::move(Done.front());
+		Done.pop_front();
+		InFlight.erase(finished.key);
+		FinishedPlayerSheet entry;
+		entry.key = std::move(finished.key);
+		entry.nothing = finished.sheet->nothing;
+		entry.make = [sheet = std::move(finished.sheet)] { return Instantiate(*sheet); };
+		out.push_back(std::move(entry));
+	}
+	return out;
+}
+
+void ShutdownSpriteMixer()
+{
+	{
+		const std::lock_guard<std::mutex> lock(StateMutex);
+		WorkerStop = true;
+		Loading.clear();
+		Ready.clear();
+	}
+	WorkerWake.notify_all();
+	// Joined, not detached: the mutex and the queues are statics, and a thread still running while they are torn
+	// down is exactly the kind of exit that leaves a windowless process behind. A job in hand finishes first - well
+	// under a second - and no new one can start.
+	if (Worker.joinable())
+		Worker.join();
 }
 
 } // namespace devilution::oracool

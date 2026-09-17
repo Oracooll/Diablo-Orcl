@@ -4683,6 +4683,7 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		int8_t ticksPerFrame;
 		player.getAnimationFramesAndTicksPerFrame(graphic, numberOfFrames, ticksPerFrame);
 		LoadPlrGFX(player, graphic);
+		PrewarmPlayerLook(player); // Oracool: the other animations of a mixed look, built ahead of their first frame
 		OptionalClxSpriteList sprites;
 		if (!HeadlessMode)
 			sprites = player.AnimationData[static_cast<size_t>(graphic)].spritesForDirection(player._pdir);

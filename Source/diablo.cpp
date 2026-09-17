@@ -91,6 +91,7 @@
 #include "oracool/inventory_layout.h"
 #include "oracool/oracool.h"
 #include "oracool/waypoint_menu.h"
+#include "oracool/sprite_mix.h"
 #include "oracool/xp_counter.h"
 #include "options.h"
 #include "panels/charpanel.hpp" // ScrollCharacterSheet
@@ -2209,6 +2210,8 @@ void GameLogic()
 	if (!ProcessInput()) {
 		return;
 	}
+	// Oracool: one archive read for the background sprite mixer, and any sheet it has finished onto its hero.
+	PumpPlayerSheetMixer();
 	if (gbProcessPlayers) {
 		gGameLogicStep = GameLogicStep::ProcessPlayers;
 		ProcessPlayers();
@@ -3383,6 +3386,10 @@ void diablo_quit(int exitStatus)
 	// hero file is under a megabyte; twenty seconds is far beyond any honest write and still bounded.
 	// First arming wins, so this timeout governs and DiabloDeinit's own call becomes a no-op.
 	oracool::ArmShutdownWatchdog(20000);
+
+	// Oracool: the sprite mixer has a thread of its own. Joined here - AFTER the watchdog is armed, so a join that
+	// ever stalled would still be bounded - and before anything it uses is torn down.
+	oracool::ShutdownSpriteMixer();
 
 	// Oracool (audit, 2026-08-26): closing the window is a way of leaving the game, and it used to
 	// be the one way that saved nothing. SDL_WINDOWEVENT_CLOSE lands here and this function went

@@ -242,9 +242,16 @@ int main(int argc, char **argv)
 			player.InvBody[INVLOC_HAND_RIGHT] = c.shield == ICURS_POTION_OF_FULL_MANA ? devilution::Item {} : baseWith(c.shield, ItemType::Shield);
 			for (const AnimationKind &anim : Animations) {
 				const uint16_t width = widths.*(anim.width);
-				std::optional<oracool::ColouredSpriteSheet> mixed = oracool::MixPlayerSheet(player, HeroClass::Warrior, c.weapon, anim.suffix, width, nullptr);
+				// Undyed and unscaled: the PNG is coloured with the town palette, which knows nothing of a sheet's own colours.
+				oracool::PlayerSheetRequest request = oracool::MakePlayerSheetRequest(player, HeroClass::Warrior, c.weapon, anim.suffix, width);
+				request.dye = nullptr;
+				request.dyeId = 0;
+				request.scalePercent = 100;
+				const uint32_t startedAt = SDL_GetTicks();
+				std::optional<oracool::ColouredSpriteSheet> mixed = oracool::MixPlayerSheetNow(request);
+				const uint32_t took = SDL_GetTicks() - startedAt;
 				if (!mixed) {
-					std::printf("%-26s %-12s (not mixed)\n", c.name, anim.label);
+					std::printf("%-26s %-12s (not mixed)  %5u ms\n", c.name, anim.label, took);
 					continue;
 				}
 				int frames = 0;
@@ -254,8 +261,53 @@ int main(int argc, char **argv)
 					IMG_SavePNG(image, outPath.c_str());
 					SDL_FreeSurface(image);
 				}
-				std::printf("%-26s %-12s %4d frames\n", c.name, anim.label, frames);
+				std::printf("%-26s %-12s %4d frames %5u ms\n", c.name, anim.label, frames, took);
 			}
+		}
+
+		// The BACKGROUND path end to end - request, one read a pump, worker, disk, memory - checked against the
+		// synchronous answer byte for byte. What the game does, without the game.
+		{
+			player._pgfxnum = static_cast<uint8_t>(PlayerWeaponGraphic::SwordShield);
+			player.InvBody[INVLOC_HAND_LEFT] = baseWith(ICURS_BROAD_SWORD, ItemType::Sword);
+			player.InvBody[INVLOC_HAND_RIGHT] = baseWith(ICURS_TOWER_SHIELD, ItemType::Shield);
+			oracool::PlayerSheetRequest request = oracool::MakePlayerSheetRequest(player, HeroClass::Warrior, PlayerWeaponGraphic::SwordShield, "as", widths.stand);
+			request.dye = nullptr;
+			request.dyeId = 0;
+			request.scalePercent = 100;
+			std::optional<oracool::ColouredSpriteSheet> cached;
+			const oracool::CachedSheetState before = oracool::TakeCachedPlayerSheet(request, cached);
+			std::printf("\nbackground path, key %s: cache before = %s\n", request.Key().c_str(),
+			    before == oracool::CachedSheetState::Ready ? "READY (from disk)" : before == oracool::CachedSheetState::Nothing ? "nothing" : "unknown");
+			if (before == oracool::CachedSheetState::Unknown) {
+				oracool::RequestPlayerSheet(request);
+				int pumps = 0;
+				uint32_t worstPump = 0;
+				const uint32_t startedAt = SDL_GetTicks();
+				bool done = false;
+				while (!done && SDL_GetTicks() - startedAt < 60000) {
+					const uint32_t pumpAt = SDL_GetTicks();
+					oracool::PumpSpriteMixer();
+					worstPump = std::max(worstPump, SDL_GetTicks() - pumpAt);
+					pumps++;
+					done = !oracool::TakeFinishedPlayerSheets().empty();
+					SDL_Delay(5);
+				}
+				std::printf("  finished=%d after %u ms, %d pumps, worst single pump %u ms (that is all the main thread ever pays)\n", done ? 1 : 0, SDL_GetTicks() - startedAt, pumps, worstPump);
+			}
+			const uint32_t takeAt = SDL_GetTicks();
+			const oracool::CachedSheetState after = oracool::TakeCachedPlayerSheet(request, cached);
+			const uint32_t takeTook = SDL_GetTicks() - takeAt;
+			std::optional<oracool::ColouredSpriteSheet> direct = oracool::MixPlayerSheetNow(request);
+			bool same = false;
+			if (after == oracool::CachedSheetState::Ready && cached && direct) {
+				const ClxSpriteSheet a { cached->sheet };
+				const ClxSpriteSheet b { direct->sheet };
+				same = a.dataSize() == b.dataSize() && std::memcmp(a.data(), b.data(), a.dataSize()) == 0;
+			}
+			std::printf("  cache after = %s, taking it cost %u ms, identical to the synchronous mix: %s\n",
+			    after == oracool::CachedSheetState::Ready ? "READY" : "NOT READY", takeTook, same ? "YES" : "NO");
+			oracool::ShutdownSpriteMixer();
 		}
 		return 0;
 	}
