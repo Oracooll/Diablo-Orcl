@@ -1,5 +1,7 @@
 #include "oracool/companion.h"
 
+#include "oracool/minions.h"
+
 #include <algorithm>
 #include <array>
 #include <cstdlib>
@@ -656,6 +658,8 @@ bool HasCompanion(CompanionKind kind)
 
 void ForgetCompanions()
 {
+	ForgetMinions(); // the same moment: a new game has no army either
+
 	for (Instance &inst : Instances)
 		inst = Instance {};
 	for (HeroSheets &sheets : SlotSheets)
@@ -722,6 +726,8 @@ void OnCompanionLevelLoad()
 
 void ProcessCompanions(Player &owner)
 {
+	ProcessMinions(owner);
+
 	if (&owner != MyPlayer)
 		return;
 	if (FocusTicks > 0 && --FocusTicks == 0)
@@ -809,6 +815,8 @@ int CompanionTauntTarget(const Monster &monster)
 
 bool CompanionMakesWay(const Player &player, const Monster &monster)
 {
+	if (MinionMakesWay(player, monster))
+		return true;
 	const Instance *inst = InstanceInSlot(monster);
 	return inst != nullptr && inst->owner == player.getId() && !monster.isWalking() && monster.mode != MonsterMode::Death
 	    && (monster.hitPoints >> 6) > 0;
@@ -834,8 +842,10 @@ CompanionOrders GetCompanionOrders(const Monster &companion)
 {
 	CompanionOrders orders {};
 	const Instance *inst = InstanceInSlot(companion);
-	if (inst == nullptr)
+	if (inst == nullptr) {
+		GetMinionOrders(companion, orders); // a minion of the army is driven by the same brain (oracool/minions.h)
 		return orders;
+	}
 	const Player *owner = OwnerOf(*inst);
 	if (owner == nullptr || !owner->plractive)
 		return orders;
@@ -1054,6 +1064,11 @@ void OnCompanionRegrouped(const Monster &companion)
 // =================================================================================================================
 // Stance and HUD
 // =================================================================================================================
+
+const char *CompanionStanceName()
+{
+	return StanceName(Stance);
+}
 
 CompanionStance GetCompanionStance()
 {

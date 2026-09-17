@@ -31,6 +31,7 @@
 #include "monster.h"
 #include "mpq/mpq_common.hpp"
 #include "oracool/save_status.h"
+#include "oracool/minions.h"
 #include "oracool/auto_save.h"
 #include "oracool/item_tiers.h"
 #include "oracool/mystic_orbs.h"
@@ -2088,6 +2089,10 @@ void LoadAdditionalMissiles()
 
 void SaveLevel(SaveWriter &saveWriter, LevelConversionData *levelConversionData)
 {
+	// The army leaves with its owner: a level is never stored with minion bodies on it. Stored, they would come back
+	// on the next visit as ownerless friendly monsters - of a type whose sprites that visit never loaded.
+	oracool::WithdrawMinionsForLevelSave();
+
 	Player &myPlayer = *MyPlayer;
 
 	DoUnVision(myPlayer.position.tile, myPlayer._pLightRad); // fix for vision staying on the level

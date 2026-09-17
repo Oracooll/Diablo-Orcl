@@ -75,6 +75,7 @@
 #include "oracool/shop_toast.h"
 #include "oracool/game_speed.h"
 #include "oracool/companion.h"
+#include "oracool/minions.h"
 #include "oracool/event_log.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/hud_layout.h"
@@ -629,7 +630,7 @@ void LeftMouseDown(uint16_t modState)
 						NewCursor(CURSOR_HAND);
 					}
 				}
-			} else if (oracool::HandleCompanionHudClick(MousePosition)) {
+			} else if (oracool::HandleCompanionHudClick(MousePosition) || oracool::HandleMinionHudClick(MousePosition)) {
 				// the companion panel's stance line took the click (oracool/companion.h)
 			} else {
 				CheckLvlBtn();

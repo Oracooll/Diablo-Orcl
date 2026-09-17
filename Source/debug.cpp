@@ -27,6 +27,7 @@
 #include "monstdat.h"
 #include "monster.h"
 #include "oracool/hud_art.h"
+#include "oracool/minions.h"
 #include "oracool/item_sets.h"
 #include "oracool/telemetry.h"
 #include "oracool/waypoint_menu.h"
@@ -424,6 +425,41 @@ std::string DebugCmdResetLevel(const string_view parameter)
 	if (myPlayer.isOnLevel(level))
 		return StrCat("Level ", level, " can't be cleaned, cause you still occupy it!");
 	return StrCat("Level ", level, " was restored and looks fabulous.");
+}
+
+/**
+ * @brief Oracool, phase N4 of the Necromancer: a debug army, so the crowd can be walked through a corridor before
+ * any skill raises one. "army" fills every group to its cap (27 bodies); "army 12" raises twelve skeleton-bodied
+ * minions across the groups in order; "army 0" dismisses it.
+ */
+std::string DebugCmdArmy(const string_view parameter)
+{
+	if (leveltype == DTYPE_TOWN)
+		return "An army needs a dungeon.";
+	Player &myPlayer = *MyPlayer;
+	const std::string text(parameter);
+	const bool hasNumber = !text.empty();
+	const int wanted = hasNumber ? atoi(text.c_str()) : 1000;
+	if (hasNumber && wanted <= 0) {
+		oracool::DismissMinions(myPlayer);
+		return "The army is dismissed.";
+	}
+	const int level = std::max<int>(myPlayer._pLevel, 1);
+	int raised = 0;
+	for (size_t g = 0; g < oracool::MinionGroupCount && raised < wanted; g++) {
+		const auto group = static_cast<oracool::MinionGroup>(g);
+		oracool::MinionSpec spec {};
+		spec.group = group;
+		spec.type = group == oracool::MinionGroup::Mage ? MT_XSKELAX : (group == oracool::MinionGroup::Revived ? MT_TSKELAX : MT_WSKELAX);
+		spec.life = (group == oracool::MinionGroup::Golem ? 120 : 30) + 8 * level;
+		spec.minDamage = 2 + level / 2;
+		spec.maxDamage = 6 + level;
+		spec.toHit = 60 + 2 * level;
+		spec.armorClass = 10 + level;
+		while (raised < wanted && oracool::SummonMinion(myPlayer, spec, myPlayer.position.tile))
+			raised++;
+	}
+	return StrCat("Raised ", raised, ". The army stands at ", oracool::MinionCount(myPlayer), ".");
 }
 
 std::string DebugCmdGodMode(const string_view parameter)
@@ -1367,6 +1403,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "visit", "Visit a towner.", "{towner}", &DebugCmdVisitTowner },
 	{ "restart", "Resets specified {level}.", "{level} ({seed})", &DebugCmdResetLevel },
 	{ "god", "Toggles godmode.", "", &DebugCmdGodMode },
+	{ "army", "Raises a debug army of minions; a number raises that many, 0 dismisses it.", "({count})", &DebugCmdArmy },
 	{ "drawvision", "Toggles vision debug rendering.", "", &DebugCmdVision },
 	{ "drawpath", "Toggles path debug rendering.", "", &DebugCmdPath },
 	{ "fullbright", "Toggles whether light shading is in effect.", "", &DebugCmdLighting },

@@ -38,6 +38,7 @@
 #include "options.h"
 #include "oracool/attack_skills.h"
 #include "oracool/companion.h"
+#include "oracool/minions.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/sprite_colours.h"
 #include "oracool/chill.h"
@@ -1561,6 +1562,7 @@ void DrawView(const Surface &out, Point startPosition)
 		oracool::DrawGameClock(out);
 		oracool::DrawGameSpeedReadout(out);
 		oracool::DrawCompanionHud(out); // under the clock's speed band
+		oracool::DrawMinionHud(out);
 		// Anchored to the mini-map's frame, so hidden wherever the mini-map's corner is covered -
 		// including the Crafting book, which the other corner widgets predate.
 		if (!oracool::IsCraftingMenuOpen())

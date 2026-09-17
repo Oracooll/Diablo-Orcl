@@ -33,7 +33,14 @@ namespace devilution {
 struct Missile;
 struct Player;
 
-constexpr size_t MaxMonsters = 200;
+/**
+ * Oracool, 2026-09-17 (the army, oracool/minions.h): the enemies keep the 200 slots they always had, and a hero's
+ * minions get a pool of their own ABOVE them, so an army never costs a floor its monsters. Level generation and
+ * every enemy spawn count against MaxEnemyMonsters; only AddMinionBody may use the rest.
+ */
+constexpr size_t MaxEnemyMonsters = 200;
+constexpr size_t MaxMinionBodies = 32;
+constexpr size_t MaxMonsters = MaxEnemyMonsters + MaxMinionBodies;
 constexpr size_t MaxLvlMTypes = 24;
 
 enum monster_flag : uint16_t {
@@ -555,6 +562,16 @@ void ReleaseCompanionBody(Monster &slot);
 void MoveCompanionTo(Monster &companion, Point tile);
 /** @brief Oracool: a companion moved to the nearest free tile around @p centre, within @p maxRadius. */
 bool PlaceCompanionNear(Monster &companion, Point centre, int maxRadius);
+/** @brief Oracool: whether a minion of @p type could be added at all - a free body slot, and its sprites loaded or loadable. */
+bool CanAddMinionBody(_monster_id type);
+/**
+ * @brief Oracool: a minion's body (oracool/minions.h) on @p position - an ordinary monster of @p type that fights
+ * for the heroes. Loads the type's sprites if this level does not have them. Null if the tile is taken or
+ * CanAddMinionBody is false.
+ */
+Monster *AddMinionBody(Point position, Direction dir, _monster_id type);
+/** @brief Oracool: whether another ENEMY may be added - the enemies' 200, not counting minion bodies. */
+bool EnemyMonsterRoomLeft(size_t wanted = 1);
 bool CanTalkToMonst(const Monster &monster);
 int encode_enemy(Monster &monster);
 void decode_enemy(Monster &monster, int enemyId);

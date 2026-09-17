@@ -42,6 +42,7 @@
 #include "oracool/warcries.h"
 #include "oracool/monster_difficulty.h"
 #include "oracool/companion.h"
+#include "oracool/minions.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/warcries.h"
@@ -652,7 +653,7 @@ void PlaceLesserUniques()
 			return;
 		// The same headroom check the scattered monsters get. A champion plus escort is five bodies,
 		// and the pool is shared.
-		if (ActiveMonsterCount + LesserUniquePackSize + 1 > MaxMonsters - 10)
+		if (ActiveMonsterCount + LesserUniquePackSize + 1 > MaxEnemyMonsters - 10)
 			return;
 
 		PlaceLesserUniqueMonst(*choice, minionType, LesserUniquePackSize);
@@ -697,7 +698,7 @@ void PlaceNamedEncounter()
 	const std::optional<UniqueMonsterType> choice = oracool::ChooseLesserUnique(/*excludeLevelOwned=*/false);
 	if (!choice)
 		return;
-	if (ActiveMonsterCount + oracool::BossPackSize() + 1 > MaxMonsters - 10)
+	if (ActiveMonsterCount + oracool::BossPackSize() + 1 > MaxEnemyMonsters - 10)
 		return;
 
 	PlaceLesserUniqueMonst(*choice, typeIndex, oracool::BossPackSize(), /*boss=*/true);
@@ -714,7 +715,7 @@ void PlaceEndgameBoss()
 			return;
 		// A boss plus its larger escort is seven bodies, against a champion's five - the same
 		// headroom check, with the boss's own pack size in it rather than the champion's.
-		if (ActiveMonsterCount + oracool::BossPackSize() + 1 > MaxMonsters - 10)
+		if (ActiveMonsterCount + oracool::BossPackSize() + 1 > MaxEnemyMonsters - 10)
 			return;
 
 		PlaceLesserUniqueMonst(*choice, minionType, oracool::BossPackSize(), /*boss=*/true);
@@ -858,6 +859,7 @@ void DeleteMonster(size_t activeIndex)
 	// Oracool: the slot's cry state goes with the monster, so nothing waits there for the next one.
 	oracool::ClearWarcryStateForMonster(monster);
 	oracool::ClearRfa12StateForMonster(monster);
+	oracool::OnMonsterSlotFreed(monster.getId());
 
 	ActiveMonsterCount--;
 	std::swap(ActiveMonsters[activeIndex], ActiveMonsters[ActiveMonsterCount]); // This ensures alive monsters are before ActiveMonsterCount in the array and any deleted monster after
@@ -1417,7 +1419,10 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 	int dam = (mind + GenerateRnd(maxd - mind + 1)) << 6;
 	ApplyMonsterDamage(DamageType::Physical, target, dam);
 
-	if (attacker.isPlayerMinion() && attacker.getId() < Players.size()) {
+	if (const Player *armyOwner = oracool::MinionOwner(attacker); armyOwner != nullptr) {
+		// A minion's slot says nothing about whose it is; its record does (oracool/minions.h).
+		target.tag(*armyOwner);
+	} else if (attacker.isPlayerMinion() && attacker.getId() < Players.size()) {
 		int playerId = attacker.getId();
 		const Player &player = Players[playerId];
 		target.tag(player);
@@ -2714,7 +2719,7 @@ void LeoricAi(Monster &monster)
 		    && ((distanceToEnemy >= 3 && v < 4 * monster.intelligence + 35) || v < 6)
 		    && LineClearMissile(monster.position.tile, monster.enemyPosition)) {
 			Point newPosition = monster.position.tile + md;
-			if (IsTileAvailable(monster, newPosition) && ActiveMonsterCount < MaxMonsters) {
+			if (IsTileAvailable(monster, newPosition) && EnemyMonsterRoomLeft()) {
 				SpawnSkeleton(newPosition, md);
 				StartSpecialStand(monster, md);
 			}
@@ -3350,7 +3355,7 @@ void HorkDemonAi(Monster &monster)
 	if (monster.goal == MonsterGoal::Normal) {
 		if ((distanceToEnemy >= 3) && v < 2 * monster.intelligence + 43) {
 			Point position = monster.position.tile + monster.direction;
-			if (IsTileAvailable(monster, position) && ActiveMonsterCount < MaxMonsters) {
+			if (IsTileAvailable(monster, position) && EnemyMonsterRoomLeft()) {
 				StartRangedSpecialAttack(monster, MissileID::HorkSpawn, 0);
 			}
 		} else if (distanceToEnemy < 2) {
@@ -3637,6 +3642,7 @@ void InitLevelMonsters()
 	oracool::ClearMonsterScaleCache();
 	// Companions' bodies and town figures belong to the level being left; the companions come back on the new one.
 	oracool::OnCompanionLevelLoad();
+	oracool::OnMinionLevelLoad(); // the army's bodies too; its records wait for the next floor (oracool/minions.h)
 	// So are the telemetry kill clocks, which are keyed by monster SLOT - and the slots are about to
 	// be handed to different monsters. A clock left running by a monster that was wounded and never
 	// killed would otherwise be read as the next occupant's time-to-kill.
@@ -3976,8 +3982,8 @@ void InitMonsters()
 		// monsters stays the last word. At 3x a large level reaches that ceiling rather than
 		// overrunning it, which is why this needs no separate cap of its own.
 		numplacemonsters = numplacemonsters * *sgOptions.Oracool.monsterDensityPercent / 100;
-		if (ActiveMonsterCount + numplacemonsters > MaxMonsters - 10)
-			numplacemonsters = MaxMonsters - 10 - ActiveMonsterCount;
+		if (ActiveMonsterCount + numplacemonsters > MaxEnemyMonsters - 10)
+			numplacemonsters = MaxEnemyMonsters - 10 - ActiveMonsterCount;
 		totalmonsters = ActiveMonsterCount + numplacemonsters;
 		int numscattypes = 0;
 		size_t scattertypes[NUM_MTYPES];
@@ -4045,9 +4051,42 @@ void SetMapMonsters(const uint16_t *dunData, Point startPosition)
 	}
 }
 
+bool EnemyMonsterRoomLeft(size_t wanted)
+{
+	return ActiveMonsterCount + wanted <= MaxMonsters
+	    && ActiveMonsterCount - std::min(oracool::ActiveMinionBodies(), ActiveMonsterCount) + wanted <= MaxEnemyMonsters;
+}
+
+bool CanAddMinionBody(_monster_id type)
+{
+	if (leveltype == DTYPE_TOWN || ActiveMonsterCount >= MaxMonsters)
+		return false;
+	return GetMonsterTypeIndex(type) < LevelMonsterTypeCount || LevelMonsterTypeCount < MaxLvlMTypes;
+}
+
+Monster *AddMinionBody(Point position, Direction dir, _monster_id type)
+{
+	if (!CanAddMinionBody(type) || !InDungeonBounds(position) || !IsTileAvailable(position))
+		return nullptr;
+	// Loaded on demand rather than with every level (as MT_GOLEM is): a type added at level load counts against the
+	// level's sprite budget and would change which monsters a floor rolls - for every hero, army or not.
+	const size_t typeIndex = AddMonsterType(type, PLACE_SPECIAL);
+	Monster &monster = Monsters[ActiveMonsters[ActiveMonsterCount++]];
+	dMonster[position.x][position.y] = static_cast<int16_t>(monster.getId() + 1);
+	InitMonster(monster, dir, typeIndex, position);
+	// What makes it a minion to the rest of the engine: every damage path, the cursor and UpdateEnemy ask this flag.
+	monster.flags |= MFLAG_GOLEM;
+	monster.flags &= ~(MFLAG_TARGETS_MONSTER | MFLAG_BERSERK);
+	monster.enemy = 0;
+	monster.activeForTicks = UINT8_MAX;
+	monster.leaderRelation = LeaderRelation::None;
+	M_StartStand(monster, dir);
+	return &monster;
+}
+
 Monster *AddMonster(Point position, Direction dir, size_t typeIndex, bool inMap)
 {
-	if (ActiveMonsterCount < MaxMonsters) {
+	if (EnemyMonsterRoomLeft()) {
 		Monster &monster = Monsters[ActiveMonsters[ActiveMonsterCount++]];
 		if (inMap)
 			dMonster[position.x][position.y] = monster.getId() + 1;
@@ -4449,6 +4488,39 @@ bool Walk(Monster &monster, Direction md)
 	return true;
 }
 
+/**
+ * @brief The crowd in a corridor (oracool/minions.h): a minion whose way is blocked by an IDLE minion trades tiles
+ * with it. One body wide, a Cathedral passage would otherwise queue an army behind whichever skeleton reached the
+ * door first - and the ones with something to fight would be the ones at the back. Only an idle body gives way, and
+ * only to one that is going somewhere, so two idlers never swap back and forth.
+ */
+bool MinionTradesPlaces(Monster &mover, Direction toward)
+{
+	// "Going somewhere" is having something to fight. A minion merely drifting home waits its turn like anyone.
+	if (!oracool::IsMinion(mover) || (mover.flags & MFLAG_TARGETS_MONSTER) == 0)
+		return false;
+	const Point from = mover.position.tile;
+	const Point there = from + toward;
+	if (!InDungeonBounds(there))
+		return false;
+	const int id = dMonster[there.x][there.y];
+	if (id <= 0)
+		return false;
+	Monster &other = Monsters[id - 1];
+	if (!oracool::IsMinion(other) || other.mode != MonsterMode::Stand || (other.flags & MFLAG_TARGETS_MONSTER) != 0
+	    || (other.hitPoints >> 6) <= 0)
+		return false;
+	M_ClearSquares(mover);
+	M_ClearSquares(other);
+	mover.position.tile = mover.position.future = mover.position.old = there;
+	other.position.tile = other.position.future = other.position.old = from;
+	dMonster[there.x][there.y] = static_cast<int16_t>(mover.getId() + 1);
+	dMonster[from.x][from.y] = static_cast<int16_t>(other.getId() + 1);
+	mover.direction = toward;
+	M_StartStand(mover, toward);
+	return true;
+}
+
 /** @brief One step toward @p to, straight or up to two turns aside. */
 bool CompanionStepToward(Monster &companion, Point to)
 {
@@ -4457,7 +4529,7 @@ bool CompanionStepToward(Monster &companion, Point to)
 		if (Walk(companion, dir))
 			return true;
 	}
-	return false;
+	return MinionTradesPlaces(companion, toward);
 }
 
 /**
@@ -4518,8 +4590,32 @@ void CompanionAi(Monster &companion)
 		}
 	}
 
+	else if (oracool::IsMinion(companion)) {
+		// Nothing to fight: say so, which is what lets a busier minion trade places with this one. The enemy index
+		// goes back to 0 with the flag, because without the flag ProcessMonsters reads it as a PLAYER index.
+		companion.flags &= ~MFLAG_TARGETS_MONSTER;
+		companion.enemy = 0;
+	}
+
 	if (distance > orders.settle)
 		CompanionStepToward(companion, orders.home);
+}
+
+/**
+ * @brief A minion's brain: the Companion's, fed the army's orders, on a thinking budget (oracool/minions.h).
+ *
+ * Unlike a companion a minion FLINCHES - it is a monster, with a monster's hit recovery - so anything but standing
+ * or walking is left to finish.
+ */
+void MinionAi(Monster &minion, uint32_t tick)
+{
+	if (minion.isWalking()) {
+		CompanionAi(minion);
+		return;
+	}
+	if (minion.mode != MonsterMode::Stand || !oracool::MinionThinksThisTick(minion, tick))
+		return;
+	CompanionAi(minion);
 }
 
 void GolumAi(Monster &golem)
@@ -4615,6 +4711,8 @@ void DeleteMonsterList()
 
 void ProcessMonsters()
 {
+	static uint32_t minionTick = 0; // only ever compared modulo 3; its value across games means nothing
+	minionTick++;
 	DeleteMonsterList();
 
 	assert(ActiveMonsterCount <= MaxMonsters);
@@ -4687,7 +4785,9 @@ void ProcessMonsters()
 			continue;
 
 		while (true) {
-			if ((monster.flags & MFLAG_SEARCH) == 0 || !AiPlanPath(monster)) {
+			if (oracool::IsMinion(monster)) {
+				MinionAi(monster, minionTick);
+			} else if ((monster.flags & MFLAG_SEARCH) == 0 || !AiPlanPath(monster)) {
 				AiProc[static_cast<int8_t>(monster.ai)](monster);
 			}
 

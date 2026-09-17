@@ -34,6 +34,7 @@ set(tests
   oracool_audit_test
   oracool_rage_test
   oracool_essence_test
+  oracool_minions_test
   oracool_passive_sweep_test
   oracool_town_objects_test
   oracool_hero_look_test

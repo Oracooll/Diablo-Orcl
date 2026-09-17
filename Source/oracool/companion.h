@@ -134,6 +134,9 @@ enum class CompanionAct : uint8_t {
 	Volley, // start the ranged attack; CompanionShot looses a volley
 };
 
+/** @brief The shared stance's name, untranslated - the army's panel shows it too (oracool/minions.h). */
+const char *CompanionStanceName();
+
 CompanionOrders GetCompanionOrders(const Monster &companion);
 Monster *PickCompanionTarget(const Monster &companion, const CompanionOrders &orders);
 void AimCompanion(Monster &companion, const Monster &target);
