@@ -39,6 +39,7 @@
 #include "oracool/hidden_classes.h"
 #include "oracool/item_tiers.h"
 #include "oracool/rfa12_effects.h"
+#include "oracool/sprite_mix.h"
 #include "oracool/player_resistance.h"
 #include "oracool/area_level.h"
 #include "oracool/auto_save.h"
@@ -4668,8 +4669,12 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	}
 
 	const uint8_t gfxNum = static_cast<uint8_t>(animWeaponId) | static_cast<uint8_t>(animArmorId);
-	if (player._pgfxnum != gfxNum && loadgfx) {
+	// Oracool: the sheets depend on more than _pgfxnum since v1.12.023 - a Buckler and a Tower Shield are the
+	// same weapon class and not the same look (oracool/sprite_mix.h) - so a changed look reloads them too.
+	const uint8_t gearLook = oracool::GearLookCode(player);
+	if ((player._pgfxnum != gfxNum || player._pGearLook != gearLook) && loadgfx) {
 		player._pgfxnum = gfxNum;
+		player._pGearLook = gearLook;
 		ResetPlayerGFX(player);
 		SetPlrAnims(player);
 		player.previewCelSprite = std::nullopt;
@@ -4684,6 +4689,7 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		player.AnimInfo.changeAnimationData(sprites, numberOfFrames, ticksPerFrame);
 	} else {
 		player._pgfxnum = gfxNum;
+		player._pGearLook = gearLook;
 	}
 
 	if (&player == MyPlayer) {

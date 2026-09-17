@@ -20,6 +20,9 @@
 #include "oracool/hero_look.h"
 #include "oracool/sprite_colours.h"
 #include "oracool/sprite_import.h"
+#include "oracool/sprite_mix.h"
+#include "itemdat.h"
+#include "items.h"
 #include "lighting.h"
 #include "player.h"
 #include "utils/endian_write.hpp"
@@ -308,4 +311,58 @@ TEST(OracoolHeroLook, DrawingThroughColoursWritesValuesOn32BitAndFallbacksOn8Bit
 	oracool::DrawSpriteWithColours(indexed, { 0, Side - 1 }, corner, colours, 8);
 	EXPECT_EQ((indexed[Point { Side - 1, Side - 1 }]), LightTables[8][90]) << "lit through the same table";
 	EXPECT_EQ((indexed[Point { 0, 0 }]), 3);
+}
+
+// ---------------------------------------------------------------------------------------------------
+// v1.12.023: which items ask for the heavy tier's shield and sword.
+// ---------------------------------------------------------------------------------------------------
+
+namespace {
+
+/** A usable item of the first base whose own cursor is @p cursor. */
+devilution::Item BaseItemWithCursor(item_cursor_graphic cursor, ItemType type)
+{
+	devilution::Item item {};
+	for (int i = 0; i <= IDI_LAST; i++) {
+		if (AllItemsList[i].iCurs == cursor && AllItemsList[i].itype == type) {
+			item.IDidx = static_cast<_item_indexes>(i);
+			break;
+		}
+	}
+	item._itype = type;
+	item._iStatFlag = true;
+	return item;
+}
+
+} // namespace
+
+TEST(OracoolHeroLook, BigShieldsAndBigSwordsAskForTheHeavyLook)
+{
+	devilution::Player player = LightBarbarian();
+	EXPECT_EQ(oracool::GearLookCode(player), 0) << "bare hands ask for nothing";
+
+	player.InvBody[INVLOC_HAND_LEFT] = BaseItemWithCursor(ICURS_SHORT_SWORD, ItemType::Sword);
+	player.InvBody[INVLOC_HAND_RIGHT] = BaseItemWithCursor(ICURS_BUCKLER, ItemType::Shield);
+	EXPECT_EQ(oracool::GearLookCode(player), 0) << "a short sword and a buckler are the tier's own";
+
+	player.InvBody[INVLOC_HAND_RIGHT] = BaseItemWithCursor(ICURS_TOWER_SHIELD, ItemType::Shield);
+	EXPECT_EQ(oracool::GearLookFor(player).shield, oracool::LookTier::Heavy);
+	EXPECT_EQ(oracool::GearLookFor(player).sword, oracool::LookTier::Own);
+
+	player.InvBody[INVLOC_HAND_LEFT] = BaseItemWithCursor(ICURS_BROAD_SWORD, ItemType::Sword);
+	EXPECT_EQ(oracool::GearLookFor(player).sword, oracool::LookTier::Heavy);
+	EXPECT_EQ(oracool::GearLookCode(player), 3);
+
+	// An item the hero cannot use shows nothing, as it already shows no weapon class.
+	player.InvBody[INVLOC_HAND_LEFT]._iStatFlag = false;
+	EXPECT_EQ(oracool::GearLookFor(player).sword, oracool::LookTier::Own);
+
+	for (const item_cursor_graphic cursor : { ICURS_KITE_SHIELD, ICURS_TOWER_SHIELD, ICURS_GOTHIC_SHIELD }) {
+		player.InvBody[INVLOC_HAND_RIGHT] = BaseItemWithCursor(cursor, ItemType::Shield);
+		EXPECT_EQ(oracool::GearLookFor(player).shield, oracool::LookTier::Heavy) << "cursor " << cursor;
+	}
+	for (const item_cursor_graphic cursor : { ICURS_SMALL_SHIELD, ICURS_LARGE_SHIELD }) {
+		player.InvBody[INVLOC_HAND_RIGHT] = BaseItemWithCursor(cursor, ItemType::Shield);
+		EXPECT_EQ(oracool::GearLookFor(player).shield, oracool::LookTier::Own) << "cursor " << cursor;
+	}
 }

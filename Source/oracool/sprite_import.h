@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include <SDL.h>
 
@@ -76,6 +77,15 @@ struct ColouredSpriteSheet {
  * loader above stays for the callers that still draw indices.
  */
 std::optional<ColouredSpriteSheet> LoadPngSpriteSheetColoured(const char *path, uint16_t frameWidth);
+
+/** @brief Per-facing lists glued into one sheet buffer - for anything that builds a player sheet by hand. */
+OwnedClxSpriteSheet CombineSpriteLists(std::vector<OwnedClxSpriteList> &lists);
+
+/**
+ * @brief The colour of palette entry @p index as 0xRRGGBB, read from town's palette. Only the SHARED half (128-255)
+ * means the same thing on every level, and that is where player sprites live.
+ */
+uint32_t SharedPaletteRgb(uint8_t index);
 
 /** @brief The conversion on its own, for a surface already in hand - the testable half. */
 std::optional<ColouredSpriteSheet> ColouredSpriteSheetFromSurface(SDL_Surface *surface, uint16_t frameWidth);

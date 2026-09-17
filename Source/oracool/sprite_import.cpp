@@ -335,6 +335,18 @@ std::optional<ColouredSpriteSheet> ColouredSpriteSheetFromSurface(SDL_Surface *s
 	return ColouredSpriteSheet { CombineListsIntoSheet(lists), std::move(colours) };
 }
 
+OwnedClxSpriteSheet CombineSpriteLists(std::vector<OwnedClxSpriteList> &lists)
+{
+	return CombineListsIntoSheet(lists);
+}
+
+uint32_t SharedPaletteRgb(uint8_t index)
+{
+	EnsurePalette(LevelPalettePath);
+	const size_t at = static_cast<size_t>(index) * 3;
+	return (static_cast<uint32_t>(LevelPalette[at]) << 16) | (static_cast<uint32_t>(LevelPalette[at + 1]) << 8) | static_cast<uint32_t>(LevelPalette[at + 2]);
+}
+
 std::optional<ColouredSpriteSheet> LoadPngSpriteSheetColoured(const char *path, uint16_t frameWidth)
 {
 	SDLSurfaceUniquePtr png { LoadPNG(path) };

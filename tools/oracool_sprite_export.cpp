@@ -38,6 +38,10 @@
 #include "engine/surface.hpp"
 #include "init.h"
 #include "oracool/sprite_import.h"
+#include "oracool/sprite_mix.h"
+#include "itemdat.h"
+#include "items.h"
+#include "player.h"
 #include "player.h"
 #include "playerdat.hpp"
 #include "utils/file_util.h"
@@ -157,6 +161,10 @@ int main(int argc, char **argv)
 		if (std::strcmp(argv[i], "--verify") == 0)
 			verify = true;
 	bool dumpPalette = false;
+	bool mixOnly = false;
+	for (int i = 1; i < argc; i++)
+		if (std::strcmp(argv[i], "--mix") == 0)
+			mixOnly = true;
 	for (int i = 1; i < argc; i++)
 		if (std::strcmp(argv[i], "--dump-palette") == 0)
 			dumpPalette = true;
@@ -193,6 +201,62 @@ int main(int argc, char **argv)
 	if (dumpPalette) {
 		for (int i = 0; i < 256; i++)
 			std::printf("%3d %3d %3d %3d\n", i, TownPalette[i * 3], TownPalette[i * 3 + 1], TownPalette[i * 3 + 2]);
+		return 0;
+	}
+
+	// --mix writes what oracool/sprite_mix.h assembles, so the in-engine mixer can be LOOKED at without
+	// launching the game: a light Warrior holding a Tower Shield and a Broad Sword, then each alone.
+	if (mixOnly) {
+		RecursivelyCreateDir(outDir.c_str());
+		Players.resize(1);
+		devilution::Player &player = Players[0];
+		player._pClass = HeroClass::Warrior;
+		const auto baseWith = [](item_cursor_graphic cursor, ItemType type) {
+			devilution::Item item {};
+			for (int i = 0; i <= IDI_LAST; i++) {
+				if (AllItemsList[i].iCurs == cursor && AllItemsList[i].itype == type) {
+					item.IDidx = static_cast<_item_indexes>(i);
+					break;
+				}
+			}
+			item._itype = type;
+			item._iStatFlag = true;
+			return item;
+		};
+		struct Case {
+			const char *name;
+			PlayerWeaponGraphic weapon;
+			item_cursor_graphic sword;
+			item_cursor_graphic shield;
+		};
+		const Case cases[] = {
+			{ "both", PlayerWeaponGraphic::SwordShield, ICURS_BROAD_SWORD, ICURS_TOWER_SHIELD },
+			{ "shield-only", PlayerWeaponGraphic::SwordShield, ICURS_SHORT_SWORD, ICURS_TOWER_SHIELD },
+			{ "sword-only-with-buckler", PlayerWeaponGraphic::SwordShield, ICURS_BROAD_SWORD, ICURS_BUCKLER },
+			{ "sword-only", PlayerWeaponGraphic::Sword, ICURS_BROAD_SWORD, ICURS_POTION_OF_FULL_MANA },
+		};
+		const PlayerSpriteData &widths = PlayersSpriteData[static_cast<size_t>(HeroClass::Warrior)];
+		for (const Case &c : cases) {
+			player._pgfxnum = static_cast<uint8_t>(c.weapon); // light armour
+			player.InvBody[INVLOC_HAND_LEFT] = baseWith(c.sword, ItemType::Sword);
+			player.InvBody[INVLOC_HAND_RIGHT] = c.shield == ICURS_POTION_OF_FULL_MANA ? devilution::Item {} : baseWith(c.shield, ItemType::Shield);
+			for (const AnimationKind &anim : Animations) {
+				const uint16_t width = widths.*(anim.width);
+				std::optional<oracool::ColouredSpriteSheet> mixed = oracool::MixPlayerSheet(player, HeroClass::Warrior, c.weapon, anim.suffix, width, nullptr);
+				if (!mixed) {
+					std::printf("%-26s %-12s (not mixed)\n", c.name, anim.label);
+					continue;
+				}
+				int frames = 0;
+				SDL_Surface *image = BuildSheetImage(mixed->sheet, width, frames);
+				const std::string outPath = outDir + "/mix-" + c.name + "-" + anim.label + ".png";
+				if (image != nullptr) {
+					IMG_SavePNG(image, outPath.c_str());
+					SDL_FreeSurface(image);
+				}
+				std::printf("%-26s %-12s %4d frames\n", c.name, anim.label, frames);
+			}
+		}
 		return 0;
 	}
 

@@ -451,6 +451,8 @@ struct Player {
 	HeroClass _pClass;
 	int8_t _pLevel;
 	int8_t _pMaxLvl;
+	/** @brief Oracool: oracool::GearLookCode as of the last sheet load - a look that changes reloads the sheets. Transient. */
+	uint8_t _pGearLook = 0;
 	uint8_t _pgfxnum; // Bitmask indicating what variant of the sprite the player is using. The 3 lower bits define weapon (PlayerWeaponGraphic) and the higher bits define armour (starting with PlayerArmorGraphic)
 	int8_t _pISplLvlAdd;
 	/** @brief Specifies whether players are in non-PvP mode. */

@@ -13,6 +13,7 @@
 #include "oracool/gems.h"
 #include "oracool/hero_look.h"
 #include "oracool/sprite_colours.h"
+#include "oracool/sprite_mix.h"
 #include "oracool/inventory_layout.h"
 #include "controls/plrctrls.h"
 #include "cursor.h"
@@ -2445,6 +2446,11 @@ void LoadPlrGFX(Player &player, player_graphic graphic)
 	if (std::optional<oracool::ColouredSpriteSheet> imported = oracool::LoadPngSpriteSheetColoured(pngName, animationWidth)) {
 		animationData.sprites = std::move(imported->sheet);
 		animationData.colours = std::move(imported->colours);
+	} else if (std::optional<oracool::ColouredSpriteSheet> mixed = oracool::MixPlayerSheet(player, cls, animWeaponId, szCel, animationWidth, oracool::HeroColours(player))) {
+		// A shield or a sword from another armour tier, by what is actually held - assembled here from the
+		// archive's own sheets. See oracool/sprite_mix.h.
+		animationData.sprites = std::move(mixed->sheet);
+		animationData.colours = std::move(mixed->colours);
 	} else {
 		animationData.sprites = LoadCl2Sheet(pszName, animationWidth);
 		std::optional<std::array<uint8_t, 256>> trn = GetClassTRN(player);
