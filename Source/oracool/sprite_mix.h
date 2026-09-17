@@ -18,7 +18,8 @@
  *
  * Do that in the heavy tier and in the body's own tier, and the heavy pieces go where the own pieces
  * were. It is done at LOAD time, from the archive's CL2s, in palette-index space - no art is shipped and
- * drawing costs nothing - and only for the Warrior's sheets, the only ones measured.
+ * drawing costs nothing - for every class with sheets of its own (Warrior, Rogue, Sorcerer, Monk; the Barbarian
+ * and the Bard wear the first two). Both halves are INI options: "Shields Sprites Swap", "Swords Sprites Swap".
  *
  * Known limits, all seen in the proofs and none hidden: each tier holds its sword at its own angle, so a
  * heavy sword sits near a light hand rather than in it; heavy armour is bulkier, so a shield lifted from
@@ -110,6 +111,12 @@ enum class CachedSheetState : uint8_t {
 	/** Never built: load the plain sheet for now and RequestPlayerSheet. */
 	Unknown,
 };
+
+/**
+ * @brief Whether this look is known to be unwearable: its standing or its walking sheet was declined. A look is worn
+ * whole or not at all - see the definition. TakeCachedPlayerSheet and TakeFinishedPlayerSheets both apply it.
+ */
+bool LookDeclinedByCore(const PlayerSheetRequest &request);
 
 /** @brief Memory first, then `<prefs>/sprite_cache/<key>.osm`. One small file read at worst; never a mix. */
 CachedSheetState TakeCachedPlayerSheet(const PlayerSheetRequest &request, std::optional<ColouredSpriteSheet> &out);

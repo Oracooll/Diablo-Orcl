@@ -953,6 +953,10 @@ struct OracoolOptions : OptionCategoryBase {
 	 */
 	OptionEntryInt<int> panelGamma;
 	OptionEntryBoolean nakedHeroes;
+	/** @brief The shield on screen follows the shield ITEM, lifted from whichever armour tier drew it (oracool/sprite_mix.h). */
+	OptionEntryBoolean shieldSpritesSwap;
+	/** @brief The big swords are drawn as the heavy tier's longsword on a lighter body. */
+	OptionEntryBoolean swordSpritesSwap;
 	OptionEntryBoolean gameClock;
 	OptionEntryBoolean gameClock12HourFormat;
 	/** @brief Whether the game-speed readout under the clock is off, always on, or blinks on change. */

@@ -210,7 +210,8 @@ int main(int argc, char **argv)
 		RecursivelyCreateDir(outDir.c_str());
 		Players.resize(1);
 		devilution::Player &player = Players[0];
-		player._pClass = HeroClass::Warrior;
+		const auto mixClass = static_cast<HeroClass>(classIndex);
+		player._pClass = mixClass;
 		const auto baseWith = [](item_cursor_graphic cursor, ItemType type) {
 			devilution::Item item {};
 			for (int i = 0; i <= IDI_LAST; i++) {
@@ -242,7 +243,7 @@ int main(int argc, char **argv)
 			{ "H-body-L-shield", PlayerWeaponGraphic::SwordShield, ICURS_SHORT_SWORD, ICURS_BUCKLER, 2 },
 			{ "H-body-M-shield", PlayerWeaponGraphic::SwordShield, ICURS_SHORT_SWORD, ICURS_KITE_SHIELD, 2 },
 		};
-		const PlayerSpriteData &widths = PlayersSpriteData[static_cast<size_t>(HeroClass::Warrior)];
+		const PlayerSpriteData &widths = PlayersSpriteData[classIndex];
 		for (const Case &c : cases) {
 			player._pgfxnum = static_cast<uint8_t>(static_cast<uint8_t>(c.weapon) | (c.armour << 4));
 			player.InvBody[INVLOC_HAND_LEFT] = baseWith(c.sword, ItemType::Sword);
@@ -250,7 +251,7 @@ int main(int argc, char **argv)
 			for (const AnimationKind &anim : Animations) {
 				const uint16_t width = widths.*(anim.width);
 				// Undyed and unscaled: the PNG is coloured with the town palette, which knows nothing of a sheet's own colours.
-				oracool::PlayerSheetRequest request = oracool::MakePlayerSheetRequest(player, HeroClass::Warrior, c.weapon, anim.suffix, width);
+				oracool::PlayerSheetRequest request = oracool::MakePlayerSheetRequest(player, mixClass, c.weapon, anim.suffix, width);
 				request.dye = nullptr;
 				request.dyeId = 0;
 				request.scalePercent = 100;
@@ -278,7 +279,7 @@ int main(int argc, char **argv)
 			player._pgfxnum = static_cast<uint8_t>(PlayerWeaponGraphic::SwordShield);
 			player.InvBody[INVLOC_HAND_LEFT] = baseWith(ICURS_BROAD_SWORD, ItemType::Sword);
 			player.InvBody[INVLOC_HAND_RIGHT] = baseWith(ICURS_TOWER_SHIELD, ItemType::Shield);
-			oracool::PlayerSheetRequest request = oracool::MakePlayerSheetRequest(player, HeroClass::Warrior, PlayerWeaponGraphic::SwordShield, "as", widths.stand);
+			oracool::PlayerSheetRequest request = oracool::MakePlayerSheetRequest(player, mixClass, PlayerWeaponGraphic::SwordShield, "as", widths.stand);
 			request.dye = nullptr;
 			request.dyeId = 0;
 			request.scalePercent = 100;

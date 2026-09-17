@@ -23,6 +23,7 @@
 #include "engine/render/clx_render.hpp"
 #include "engine/surface.hpp"
 #include "itemdat.h"
+#include "options.h"
 #include "items.h"
 #include "oracool/hero_look.h"
 #include "oracool/sprite_colours.h"
@@ -538,7 +539,7 @@ GearLook GearLookFor(const Player &player)
 		if (item.isEmpty() || !item._iStatFlag)
 			continue;
 		const item_cursor_graphic cursor = BaseCursor(item);
-		if (item._itype == ItemType::Shield) {
+		if (item._itype == ItemType::Shield && *sgOptions.Oracool.shieldSpritesSwap) {
 			if (IsAnyOf(cursor, ICURS_BUCKLER, ICURS_SMALL_SHIELD))
 				look.shield = LookTier::Light;
 			else if (IsAnyOf(cursor, ICURS_LARGE_SHIELD, ICURS_KITE_SHIELD))
@@ -546,7 +547,7 @@ GearLook GearLookFor(const Player &player)
 			else if (IsAnyOf(cursor, ICURS_TOWER_SHIELD, ICURS_GOTHIC_SHIELD))
 				look.shield = LookTier::Heavy;
 		}
-		if (item._itype == ItemType::Sword
+		if (item._itype == ItemType::Sword && *sgOptions.Oracool.swordSpritesSwap
 		    && IsAnyOf(cursor, ICURS_LONG_SWORD, ICURS_BROAD_SWORD, ICURS_BASTARD_SWORD, ICURS_TWO_HANDED_SWORD, ICURS_GREAT_SWORD))
 			look.sword = LookTier::Heavy;
 	}
@@ -714,8 +715,8 @@ std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &r
 						const int16_t v = (*shieldPixels)[i];
 						if (v == ShadowIndex)
 							black++;
-						else if (v >= 184 && v <= 191)
-							blue++;
+						else if (RampOf(v) != 30)
+							blue++; // any colour that is not grey: a shield's FACE, whatever the class painted on it
 					}
 					fromBehind = total > 0 && blue * 20 < total && black * 100 > total * 35;
 					if (fromBehind)
@@ -831,7 +832,7 @@ std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &r
 namespace {
 
 /** Bump when the mixer would produce different pixels, so old files on disk stop being believed. */
-constexpr uint32_t CacheVersion = 4; // 4: the shield follows the item, from any tier to any body // 2: differences seeded by ramp; town and fire sheets mix
+constexpr uint32_t CacheVersion = 5; // 5: every class // 4: the shield follows the item, from any tier to any body // 2: differences seeded by ramp; town and fire sheets mix
 constexpr uint32_t CacheMagic = 0x584D534F; // "OSMX"
 
 /** A finished sheet as bytes, so any number of heroes can be handed their own copy. */
@@ -851,6 +852,7 @@ struct Job {
 
 struct Finished {
 	std::string key;
+	PlayerSheetRequest request;
 	std::shared_ptr<const CachedSheet> sheet;
 };
 
@@ -1048,7 +1050,7 @@ void WorkerMain()
 		SaveToDisk(job->key, *cached);
 		const std::lock_guard<std::mutex> lock(StateMutex);
 		Memory[job->key] = cached;
-		Done.push_back({ job->key, std::move(cached) });
+		Done.push_back({ job->key, job->request, std::move(cached) });
 	}
 }
 
@@ -1078,8 +1080,11 @@ PlayerSheetRequest MakePlayerSheetRequest(const Player &player, HeroClass sprite
 
 bool WantsMixedSheet(const PlayerSheetRequest &request)
 {
-	if (request.spriteClass != HeroClass::Warrior)
-		return false; // the only sheets measured
+	// Every class that has sheets of its own: the Warrior (whom the Barbarian wears), the Rogue (whom the Bard
+	// wears), the Sorcerer and the Monk. All four were drawn with three shields and measured 2026-09-17; the twin
+	// test declines, sheet by sheet, whatever does not subtract cleanly - the Rogue loses the most to it.
+	if (IsNoneOf(request.spriteClass, HeroClass::Warrior, HeroClass::Rogue, HeroClass::Sorcerer, HeroClass::Monk))
+		return false;
 	// The FIRE cast is never mixed. Its flames are drawn into the sheet and differ frame for frame between any two
 	// renders, so subtraction finds fire, not a shield; the size guards caught it for some pairs of tiers and not for
 	// others, where it came through as a mottled body (contact sheet, 2026-09-17). A rule that fails per pair is not
@@ -1096,8 +1101,49 @@ std::optional<ColouredSpriteSheet> MixPlayerSheetNow(const PlayerSheetRequest &r
 	return BuildDerivedSheet(request, [&](size_t tier, PlayerWeaponGraphic weapon) { return LoadFor(request, tier, weapon); });
 }
 
+namespace {
+
+/** @brief What is known about @p key without copying a sheet: memory, then disk (and then memory). */
+std::shared_ptr<const CachedSheet> Peek(const std::string &key)
+{
+	{
+		const std::lock_guard<std::mutex> lock(StateMutex);
+		if (const auto it = Memory.find(key); it != Memory.end())
+			return it->second;
+	}
+	std::shared_ptr<const CachedSheet> cached = LoadFromDisk(key);
+	if (cached != nullptr) {
+		const std::lock_guard<std::mutex> lock(StateMutex);
+		Memory[key] = cached;
+	}
+	return cached;
+}
+
+} // namespace
+
+bool LookDeclinedByCore(const PlayerSheetRequest &request)
+{
+	// A look is worn WHOLE or not at all. The mixer declines sheet by sheet, and for the Rogue that meant a Tower
+	// Shield while she walked and her own buckler the moment she stood still (her heavy standing sheets are no
+	// twins) - worse than no swap. So standing and walking are the CORE of a look: if either is known to have been
+	// declined, every animation of that look is declined with it. Town has its own pair. "Not known yet" does not
+	// decline: the core sheets are asked for first and built first, so they are known before anything else lands.
+	const bool town = request.cel == "st" || request.cel == "wl";
+	for (const char *core : { town ? "st" : "as", town ? "wl" : "aw" }) {
+		PlayerSheetRequest sibling = request;
+		sibling.cel = core;
+		const std::shared_ptr<const CachedSheet> known = Peek(sibling.Key());
+		if (known != nullptr && known->nothing)
+			return true;
+	}
+	return false;
+}
+
 CachedSheetState TakeCachedPlayerSheet(const PlayerSheetRequest &request, std::optional<ColouredSpriteSheet> &out)
 {
+	if (LookDeclinedByCore(request))
+		return CachedSheetState::Nothing;
+
 	const std::string key = request.Key();
 	std::shared_ptr<const CachedSheet> cached;
 	{
@@ -1162,15 +1208,19 @@ void PumpSpriteMixer()
 
 std::vector<FinishedPlayerSheet> TakeFinishedPlayerSheets()
 {
+	std::deque<Finished> taken;
+	{
+		const std::lock_guard<std::mutex> lock(StateMutex);
+		taken.swap(Done);
+		for (const Finished &finished : taken)
+			InFlight.erase(finished.key);
+	}
+	// Outside the lock: the core rule below looks the siblings up, and that takes the lock itself.
 	std::vector<FinishedPlayerSheet> out;
-	const std::lock_guard<std::mutex> lock(StateMutex);
-	while (!Done.empty()) {
-		Finished finished = std::move(Done.front());
-		Done.pop_front();
-		InFlight.erase(finished.key);
+	for (Finished &finished : taken) {
 		FinishedPlayerSheet entry;
-		entry.key = std::move(finished.key);
-		entry.nothing = finished.sheet->nothing;
+		entry.key = finished.key;
+		entry.nothing = finished.sheet->nothing || LookDeclinedByCore(finished.request);
 		entry.make = [sheet = std::move(finished.sheet)] { return Instantiate(*sheet); };
 		out.push_back(std::move(entry));
 	}

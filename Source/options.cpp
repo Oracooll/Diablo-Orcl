@@ -482,6 +482,12 @@ void SaveOptions()
 	setBoolean("Naked Heroes", *sgOptions.Oracool.nakedHeroes,
 	    "; ----- NAKED HEROES -------------------------------------------------------------\n; New heroes start with nothing: no weapon, no shield, no armour, no potions and no\n; gold, with both mouse buttons on the bare fist. Read ONCE, when a character is\n; created - turning it off later re-equips nobody, and turning it on strips nobody.");
 
+	setBoolean("Shields Sprites Swap", *sgOptions.Oracool.shieldSpritesSwap,
+	    "; ----- SHIELDS SPRITES SWAP -----------------------------------------------------\n; Every hero was drawn with three shields, one per armour tier, and the original game\n; shows the one that matches the ARMOUR. With this on, the shield on screen follows the\n; shield ITEM instead: Buckler and Small Shield are the light tier's, Large and Kite\n; Shield the medium tier's, Tower and Gothic Shield the heavy tier's - on any armour.\n; Built from the game's own art the first time each look is worn, then cached beside\n; the saves in sprite_cache. Takes effect on the next change of gear or of level.");
+
+	setBoolean("Swords Sprites Swap", *sgOptions.Oracool.swordSpritesSwap,
+	    "; The same for swords: Long, Broad, Bastard, Two-Handed and Great Sword are drawn as the\n; heavy tier's longsword on light and medium armour. Rougher than the shield swap - the\n; heavy sword sits near the hand rather than in it - and declined on the animations where\n; it cannot be lifted cleanly.");
+
 	setBoolean("Game Clock", *sgOptions.Oracool.gameClock,
 	    "; ----- GAME CLOCK -----------------------------------------------------------------\n; Shows the current real-world time in the screen's top-left corner.");
 
@@ -1558,6 +1564,8 @@ OracoolOptions::OracoolOptions()
     , vendorTieredStockChance("Vendor Tiered Stock Chance", OptionEntryFlags::None, N_("Vendor Tiered Stock Chance"), N_("Percent chance a vendor item is offered at a base tier above Normal. The tier follows the game difficulty."), 35, { 0, 5, 10, 15, 20, 25, 35, 50, 65, 80, 100 })
     , panelGamma("Panel Gamma", OptionEntryFlags::None, N_("Panel Gamma"), N_("Brightness of the shared side-panel canvas, as gamma in hundredths: 100 is the stone as painted, lower is lighter."), 100, { 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 110, 120 })
     , nakedHeroes("Naked Heroes", OptionEntryFlags::None, N_("Naked Heroes"), N_("New heroes start with no equipment, no potions and no gold. Read once, when the character is created."), true)
+    , shieldSpritesSwap("Shields Sprites Swap", OptionEntryFlags::None, N_("Shields Sprites Swap"), N_("The shield on your hero follows the shield you hold - buckler, steel heater or tower shield - whatever armour you wear. Takes effect on the next change of gear or level."), true)
+    , swordSpritesSwap("Swords Sprites Swap", OptionEntryFlags::None, N_("Swords Sprites Swap"), N_("Long, Broad, Bastard, Two-Handed and Great Swords are drawn as the heavy longsword on light and medium armour. Takes effect on the next change of gear or level."), true)
     , gameClock("Game Clock", OptionEntryFlags::None, N_("Game Clock"), N_("Shows the current real-world time just below the mini-map's left edge."), true)
     , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
     , gameSpeedReadout("Game Speed Readout", OptionEntryFlags::None, N_("Game Speed Readout"), N_("Whether the game speed is shown under the clock. Blink shows it for one second whenever F9 or F10 changes it."), GameSpeedReadout::Blink,
@@ -1644,6 +1652,8 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&vendorTieredStockChance,
 		&panelGamma,
 		&nakedHeroes,
+		&shieldSpritesSwap,
+		&swordSpritesSwap,
 		&gameClock,
 		&gameClock12HourFormat,
 		&gameSpeedReadout,
