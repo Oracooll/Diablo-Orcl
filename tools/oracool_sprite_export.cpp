@@ -242,11 +242,26 @@ int main(int argc, char **argv)
 			{ "M-body-H-shield", PlayerWeaponGraphic::SwordShield, ICURS_SHORT_SWORD, ICURS_TOWER_SHIELD, 1 },
 			{ "H-body-L-shield", PlayerWeaponGraphic::SwordShield, ICURS_SHORT_SWORD, ICURS_BUCKLER, 2 },
 			{ "H-body-M-shield", PlayerWeaponGraphic::SwordShield, ICURS_SHORT_SWORD, ICURS_KITE_SHIELD, 2 },
+			// the same six with a MACE in hand (user, 2026-09-17: "sprite sheets with maces should also swap shields").
+			// The weapon ITEM is irrelevant to the shield look; the weapon CLASS is what picks the sheets.
+			{ "mace-L-body-M-shield", PlayerWeaponGraphic::MaceShield, ICURS_SHORT_SWORD, ICURS_KITE_SHIELD, 0 },
+			{ "mace-L-body-H-shield", PlayerWeaponGraphic::MaceShield, ICURS_SHORT_SWORD, ICURS_TOWER_SHIELD, 0 },
+			{ "mace-M-body-L-shield", PlayerWeaponGraphic::MaceShield, ICURS_SHORT_SWORD, ICURS_BUCKLER, 1 },
+			{ "mace-M-body-H-shield", PlayerWeaponGraphic::MaceShield, ICURS_SHORT_SWORD, ICURS_TOWER_SHIELD, 1 },
+			{ "mace-H-body-L-shield", PlayerWeaponGraphic::MaceShield, ICURS_SHORT_SWORD, ICURS_BUCKLER, 2 },
+			{ "mace-H-body-M-shield", PlayerWeaponGraphic::MaceShield, ICURS_SHORT_SWORD, ICURS_KITE_SHIELD, 2 },
+			// and with EMPTY hands (user, 2026-09-17: "apply shield swapping to unarmed sheets of all classes")
+			{ "unarmed-L-body-M-shield", PlayerWeaponGraphic::UnarmedShield, ICURS_POTION_OF_FULL_MANA, ICURS_KITE_SHIELD, 0 },
+			{ "unarmed-L-body-H-shield", PlayerWeaponGraphic::UnarmedShield, ICURS_POTION_OF_FULL_MANA, ICURS_TOWER_SHIELD, 0 },
+			{ "unarmed-M-body-L-shield", PlayerWeaponGraphic::UnarmedShield, ICURS_POTION_OF_FULL_MANA, ICURS_BUCKLER, 1 },
+			{ "unarmed-M-body-H-shield", PlayerWeaponGraphic::UnarmedShield, ICURS_POTION_OF_FULL_MANA, ICURS_TOWER_SHIELD, 1 },
+			{ "unarmed-H-body-L-shield", PlayerWeaponGraphic::UnarmedShield, ICURS_POTION_OF_FULL_MANA, ICURS_BUCKLER, 2 },
+			{ "unarmed-H-body-M-shield", PlayerWeaponGraphic::UnarmedShield, ICURS_POTION_OF_FULL_MANA, ICURS_KITE_SHIELD, 2 },
 		};
 		const PlayerSpriteData &widths = PlayersSpriteData[classIndex];
 		for (const Case &c : cases) {
 			player._pgfxnum = static_cast<uint8_t>(static_cast<uint8_t>(c.weapon) | (c.armour << 4));
-			player.InvBody[INVLOC_HAND_LEFT] = baseWith(c.sword, ItemType::Sword);
+			player.InvBody[INVLOC_HAND_LEFT] = c.sword == ICURS_POTION_OF_FULL_MANA ? devilution::Item {} : baseWith(c.sword, ItemType::Sword);
 			player.InvBody[INVLOC_HAND_RIGHT] = c.shield == ICURS_POTION_OF_FULL_MANA ? devilution::Item {} : baseWith(c.shield, ItemType::Shield);
 			for (const AnimationKind &anim : Animations) {
 				const uint16_t width = widths.*(anim.width);
@@ -274,12 +289,13 @@ int main(int argc, char **argv)
 		}
 
 		// The BACKGROUND path end to end - request, one read a pump, worker, disk, memory - checked against the
-		// synchronous answer byte for byte. What the game does, without the game.
-		{
-			player._pgfxnum = static_cast<uint8_t>(PlayerWeaponGraphic::SwordShield);
-			player.InvBody[INVLOC_HAND_LEFT] = baseWith(ICURS_BROAD_SWORD, ItemType::Sword);
+		// synchronous answer byte for byte. What the game does, without the game. With a sword and with a MACE: the
+		// shield swap has to hold for both (user, 2026-09-17).
+		for (const PlayerWeaponGraphic pathWeapon : { PlayerWeaponGraphic::SwordShield, PlayerWeaponGraphic::MaceShield }) {
+			player._pgfxnum = static_cast<uint8_t>(pathWeapon);
+			player.InvBody[INVLOC_HAND_LEFT] = pathWeapon == PlayerWeaponGraphic::SwordShield ? baseWith(ICURS_SHORT_SWORD, ItemType::Sword) : baseWith(ICURS_MACE, ItemType::Mace);
 			player.InvBody[INVLOC_HAND_RIGHT] = baseWith(ICURS_TOWER_SHIELD, ItemType::Shield);
-			oracool::PlayerSheetRequest request = oracool::MakePlayerSheetRequest(player, mixClass, PlayerWeaponGraphic::SwordShield, "as", widths.stand);
+			oracool::PlayerSheetRequest request = oracool::MakePlayerSheetRequest(player, mixClass, pathWeapon, "as", widths.stand);
 			request.dye = nullptr;
 			request.dyeId = 0;
 			request.scalePercent = 100;
