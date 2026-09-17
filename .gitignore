@@ -486,5 +486,3 @@ CMakeUserPresets.json
 # Blizzard palette staged locally by tools/build_asset_studio.cmd from the extracted art; never committed (IP audit, 2026-09-07)
 tools/town.pal
 
-# Wrangler's local deploy state, written when the wiki is published to Cloudflare Pages.
-/.wrangler/

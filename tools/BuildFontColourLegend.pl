@@ -10,8 +10,8 @@ use strict; use warnings;
 # own Font 12 glyphs on the level palette, so a row shows exactly what play shows.
 #
 #   perl tools/BuildFontColourLegend.pl
-# writes .ProjectDocumentation/06-Reference/Font-Colour-Legend.html; tools/BuildWikiColoursPage.pl
-# folds it into the wiki.
+# writes .ProjectDocumentation/06-Reference/Font-Colour-Legend.html.
+# (The wiki page that folded it in was deleted 2026-09-17.)
 use Compress::Zlib;
 use MIME::Base64;
 my $repo = 'C:/Users/hroga/OneDrive/2. Personal Files/Software/Diablo/Diablo Orcl';
@@ -245,7 +245,7 @@ code{font-family:"JetBrains Mono",Consolas,monospace;font-size:12.5px;color:var(
 <li>Append the name to <code>text_color</code> in <code>engine/render/text_render.hpp</code> and a <code>nullptr</code> to <code>ColorTranslations</code> in <code>text_render.cpp</code> (the enum indexes it positionally; grow both array sizes).</li>
 <li>Add <code>{ ColorName, { sixteen 0xRRGGBB values, brightest first } }</code> to <code>RgbDefinedColors</code> in <code>text_render.cpp</code>: the glyph band, top to bottom. Copy a neighbour's row and shift the hues, or start from one value with <code>DefineTextColorRgb</code> to see it in play first.</li>
 <li>Add a <code>UiFlags::Color…</code> name in <code>DiabloUI/ui_flags.hpp</code> with the next free field index and a <code>case</code> for it in <code>GetColorFromFlags</code>.</li>
-<li>Add the row here (<code>tools/BuildFontColourLegend.pl</code>, <code>\@rows</code> and <code>%valueOf</code>) and rebuild the legend and the wiki. No MPQ repack: there is no file.</li>
+<li>Add the row here (<code>tools/BuildFontColourLegend.pl</code>, <code>\@rows</code> and <code>%valueOf</code>) and rebuild the legend. No MPQ repack: there is no file.</li>
 </ol>
 <p class="warn">Offscreen 8-bit surfaces and the golden tests still draw through the .trn, so a colour defined only by value has no look there; that is by design, nothing in play draws to one.</p>
 </section>
