@@ -98,12 +98,19 @@ struct PlayerPack {
 	 * pack.cpp's Pack/UnPackPlayer for where these get read/written.
 	 *
 	 * WIDENED 16 -> 32 BITS at 1.5.0 for Hellfire's Nest and Crypt waypoints (levels 17-24). This
-	 * is the first change to actually GROW this struct rather than repurpose spare bytes inside it,
-	 * and pfile.cpp's ReadHero only accepts a file whose size matches sizeof(PlayerPack) exactly,
-	 * so every character saved before it stopped loading. That was affordable precisely then and
-	 * probably never again: adding hellfire.mpq had just moved saves from .sv to .hsv, so the old
-	 * files were already out of reach. Any further waypoint growth is free (8 spare bits); anything
-	 * else wanting space here should still hunt for reserved bytes first.
+	 * is the first change to actually GROW this struct rather than repurpose spare bytes inside it.
+	 * At the time pfile.cpp only accepted a hero file of exactly sizeof(PlayerPack) bytes, so every
+	 * character saved before it stopped loading - affordable precisely then, because adding
+	 * hellfire.mpq had just moved saves from .sv to .hsv and the old files were already out of reach.
+	 *
+	 * THAT IS NO LONGER HOW THE FILE IS READ, and this struct is no longer where new state goes.
+	 * Since 1.6.27 ReadHero accepts `read >= sizeof(*pPack)` and hands everything past the struct to
+	 * oracool::ApplyHeroChunks as a tagged, length-prefixed CHUNK TAIL (oracool/hero_chunks.h). New
+	 * per-character state belongs in a chunk: it costs no format break, an older build skips a tag
+	 * it does not know, and nothing here has to move. Do NOT grow this struct and do not hunt it for
+	 * reserved bytes - growing it still breaks every existing hero, and the tail exists so that
+	 * nobody has to. (This comment said the opposite until 2026-09-17, and nearly sent the Signets
+	 * phase into exactly that struct growth.) Waypoint growth alone is still free: 8 spare bits.
 	 */
 	uint32_t pWaypointUnlockedNormal;    // was reserved2[2], widened at 1.5.0
 	uint8_t pSplLvl2[10];                // Hellfire spells
