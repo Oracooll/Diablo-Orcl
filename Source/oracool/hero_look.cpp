@@ -108,7 +108,10 @@ std::shared_ptr<const SpriteColours> LightBarbarianColours()
  *    of the red it replaces, so every fold keeps its place;
  *  - the skin, 160-175 (again one ramp of sixteen) and the dark end of the tan, 204-207, where his face and hands
  *    actually sit: ash, BRIGHTER than the brown it replaces - he is pale;
- *  - the boots, sash and staff bindings, 208-223: dried blood instead of orange leather, his one accent.
+ *  - the boots and sash, 214-223: dried blood instead of orange leather, his one accent;
+ *  - THE STAFF is banded from two ramps - 165-166, the bright end of the skin, and 212-213, the bright end of the
+ *    orange - which nothing else on him uses much. Ash and blood there made a candy cane (user screenshots,
+ *    v1.12.031), so 160-167 and 208-213 are one old bone, a few steps apart: the bands still read, quietly.
  *
  * The greys, the blues and the rest of the tan are left alone. One table serves all three tiers because the same
  * ramps mean the same materials on each. Own colours, not an index dye: the palette has no green at all. Each
@@ -119,10 +122,10 @@ std::shared_ptr<const SpriteColours> NecromancerColours()
 	constexpr std::array<uint32_t, 16> Robe = { 0x68877A, 0x587368, 0x4E655C, 0x475C53, 0x40534B, 0x384942, 0x31403A, 0x2A3731,
 		0x25302B, 0x202A26, 0x1B2320, 0x161D1A, 0x121715, 0x0D110F, 0x080B0A, 0x040504 };
 	constexpr std::array<uint32_t, 8> PureRed = { 0x5D796D, 0x445950, 0x32413B, 0x242E2A, 0x1C2521, 0x161C19, 0x0D1110, 0x050706 };
-	constexpr std::array<uint32_t, 16> Ash = { 0xF2F0DA, 0xEFEDD7, 0xEDEBD5, 0xEBE9D3, 0xEAE8D1, 0xE9E7D0, 0xCBC9B5, 0xB0AF9E,
+	constexpr std::array<uint32_t, 16> Ash = { 0xC9C4A8, 0xBDB89D, 0xB1AC92, 0xA5A087, 0x99947C, 0x8D8871, 0x817C67, 0x7A7666,
 		0x9D9C8C, 0x89887B, 0x767569, 0x626158, 0x4E4E46, 0x3B3B35, 0x20201D, 0x0F0F0E };
 	constexpr std::array<uint32_t, 4> DarkTan = { 0x65645B, 0x54534B, 0x2A2A26, 0x1A1917 };
-	constexpr std::array<uint32_t, 16> Blood = { 0xD8353A, 0xD8353A, 0xD8353A, 0xD8353A, 0xCD3238, 0xBA2E32, 0xA3282C, 0x8D2326,
+	constexpr std::array<uint32_t, 16> Blood = { 0xB5AE90, 0xA9A285, 0x9D967A, 0x918A70, 0x857E66, 0x79725C, 0xA3282C, 0x8D2326,
 		0x7E1F22, 0x6F1B1E, 0x5E171A, 0x4E1315, 0x401011, 0x2C0B0C, 0x1A0607, 0x0A0203 };
 
 	auto colours = std::make_shared<SpriteColours>();

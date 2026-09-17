@@ -845,7 +845,7 @@ std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &r
 namespace {
 
 /** Bump when the mixer would produce different pixels, so old files on disk stop being believed. */
-constexpr uint32_t CacheVersion = 6; // 6: the Necromancer re-dyed (a sheet stores its dye) // 5: every class // 4: the shield follows the item, from any tier to any body // 2: differences seeded by ramp; town and fire sheets mix
+constexpr uint32_t CacheVersion = 7; // 7: his staff is bone, not a candy cane // 6: the Necromancer re-dyed (a sheet stores its dye) // 5: every class // 4: the shield follows the item, from any tier to any body // 2: differences seeded by ramp; town and fire sheets mix
 constexpr uint32_t CacheMagic = 0x584D534F; // "OSMX"
 
 /** A finished sheet as bytes, so any number of heroes can be handed their own copy. */

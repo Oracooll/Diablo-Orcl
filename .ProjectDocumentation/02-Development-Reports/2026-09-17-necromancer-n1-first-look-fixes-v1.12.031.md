@@ -20,3 +20,10 @@
 
 Note for sprite_mix: its `RampOf` still treats the shared half as eight-entry ramps. It works (it only asks
 "same material?"), but paired ramps would be the truer model if that code is revisited.
+
+## Addendum, v1.12.032: the candy-cane staff
+
+User screenshots of v031 in town: the staff was striped red and white. Measured on the pixels away from the body
+in the town, walk and attack sheets: the staff is banded from 165-166 (bright end of the skin ramp) and 212-213
+(bright end of the orange), which little else on him uses. Ash on one and blood on the other made the stripes.
+160-167 and 208-213 are now one old bone a few steps apart; blood keeps 214-223 (boots, sash). `CacheVersion` 7.
