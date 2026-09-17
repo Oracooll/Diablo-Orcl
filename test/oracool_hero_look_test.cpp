@@ -343,7 +343,8 @@ TEST(OracoolHeroLook, BigShieldsAndBigSwordsAskForTheHeavyLook)
 
 	player.InvBody[INVLOC_HAND_LEFT] = BaseItemWithCursor(ICURS_SHORT_SWORD, ItemType::Sword);
 	player.InvBody[INVLOC_HAND_RIGHT] = BaseItemWithCursor(ICURS_BUCKLER, ItemType::Shield);
-	EXPECT_EQ(oracool::GearLookCode(player), 0) << "a short sword and a buckler are the tier's own";
+	EXPECT_EQ(oracool::GearLookFor(player).shield, oracool::LookTier::Light) << "a buckler is the light tier's shield";
+	EXPECT_EQ(oracool::GearLookFor(player).sword, oracool::LookTier::Own);
 
 	player.InvBody[INVLOC_HAND_RIGHT] = BaseItemWithCursor(ICURS_TOWER_SHIELD, ItemType::Shield);
 	EXPECT_EQ(oracool::GearLookFor(player).shield, oracool::LookTier::Heavy);
@@ -351,18 +352,22 @@ TEST(OracoolHeroLook, BigShieldsAndBigSwordsAskForTheHeavyLook)
 
 	player.InvBody[INVLOC_HAND_LEFT] = BaseItemWithCursor(ICURS_BROAD_SWORD, ItemType::Sword);
 	EXPECT_EQ(oracool::GearLookFor(player).sword, oracool::LookTier::Heavy);
-	EXPECT_EQ(oracool::GearLookCode(player), 3);
+	EXPECT_EQ(oracool::GearLookCode(player), (static_cast<int>(oracool::LookTier::Heavy) << 1) | 1);
 
 	// An item the hero cannot use shows nothing, as it already shows no weapon class.
 	player.InvBody[INVLOC_HAND_LEFT]._iStatFlag = false;
 	EXPECT_EQ(oracool::GearLookFor(player).sword, oracool::LookTier::Own);
 
-	for (const item_cursor_graphic cursor : { ICURS_KITE_SHIELD, ICURS_TOWER_SHIELD, ICURS_GOTHIC_SHIELD }) {
+	for (const item_cursor_graphic cursor : { ICURS_TOWER_SHIELD, ICURS_GOTHIC_SHIELD }) {
 		player.InvBody[INVLOC_HAND_RIGHT] = BaseItemWithCursor(cursor, ItemType::Shield);
 		EXPECT_EQ(oracool::GearLookFor(player).shield, oracool::LookTier::Heavy) << "cursor " << cursor;
 	}
-	for (const item_cursor_graphic cursor : { ICURS_SMALL_SHIELD, ICURS_LARGE_SHIELD }) {
+	for (const item_cursor_graphic cursor : { ICURS_LARGE_SHIELD, ICURS_KITE_SHIELD }) {
 		player.InvBody[INVLOC_HAND_RIGHT] = BaseItemWithCursor(cursor, ItemType::Shield);
-		EXPECT_EQ(oracool::GearLookFor(player).shield, oracool::LookTier::Own) << "cursor " << cursor;
+		EXPECT_EQ(oracool::GearLookFor(player).shield, oracool::LookTier::Medium) << "cursor " << cursor;
+	}
+	for (const item_cursor_graphic cursor : { ICURS_BUCKLER, ICURS_SMALL_SHIELD }) {
+		player.InvBody[INVLOC_HAND_RIGHT] = BaseItemWithCursor(cursor, ItemType::Shield);
+		EXPECT_EQ(oracool::GearLookFor(player).shield, oracool::LookTier::Light) << "cursor " << cursor;
 	}
 }

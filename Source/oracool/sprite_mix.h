@@ -38,11 +38,22 @@
 
 namespace devilution::oracool {
 
-/** @brief Which tier a piece of the look comes from. Own = whatever the body armour is. */
+/**
+ * @brief Which armour tier's sheets a piece of the look is lifted from. Own = whatever the body armour is, which
+ * is also what an item this table does not know gets. The three named tiers are ArmourChar order.
+ */
 enum class LookTier : uint8_t {
 	Own,
+	Light,
+	Medium,
 	Heavy,
 };
+
+/** @brief The ArmourChar index of @p tier, or -1 for Own. */
+constexpr int LookTierIndex(LookTier tier)
+{
+	return static_cast<int>(tier) - 1;
+}
 
 struct GearLook {
 	LookTier shield = LookTier::Own;
@@ -50,9 +61,12 @@ struct GearLook {
 };
 
 /**
- * @brief What @p player's hands say about the look: the big shields (Kite, Tower, Gothic) are the heavy
- * tier's heater shield, the big swords (Long, Broad, Bastard, Two-Handed, Great) its longsword, decided by
- * the BASE item so a unique's own cursor changes nothing. Everything else keeps its tier's look.
+ * @brief What @p player's hands say about the look, decided by the BASE item so a unique's own cursor changes
+ * nothing. Each armour tier was drawn with a shield of its own, and since v1.12.027 the shield follows the ITEM
+ * rather than the armour: Buckler and Small Shield are the light tier's round buckler, Large and Kite Shield the
+ * medium tier's steel heater with the cross, Tower and Gothic Shield the heavy tier's blue heater with the lion -
+ * on any body, so a knight in plate can carry a buckler. The big swords (Long, Broad, Bastard, Two-Handed, Great)
+ * are the heavy tier's longsword. Anything else keeps its tier's look.
  */
 GearLook GearLookFor(const Player &player);
 

@@ -228,16 +228,23 @@ int main(int argc, char **argv)
 			PlayerWeaponGraphic weapon;
 			item_cursor_graphic sword;
 			item_cursor_graphic shield;
+			uint8_t armour = 0; // ArmourChar index of the body
 		};
 		const Case cases[] = {
 			{ "both", PlayerWeaponGraphic::SwordShield, ICURS_BROAD_SWORD, ICURS_TOWER_SHIELD },
 			{ "shield-only", PlayerWeaponGraphic::SwordShield, ICURS_SHORT_SWORD, ICURS_TOWER_SHIELD },
 			{ "sword-only-with-buckler", PlayerWeaponGraphic::SwordShield, ICURS_BROAD_SWORD, ICURS_BUCKLER },
 			{ "sword-only", PlayerWeaponGraphic::Sword, ICURS_BROAD_SWORD, ICURS_POTION_OF_FULL_MANA },
+			// the shield follows the item, from any tier to any body
+			{ "L-body-M-shield", PlayerWeaponGraphic::SwordShield, ICURS_SHORT_SWORD, ICURS_KITE_SHIELD, 0 },
+			{ "M-body-L-shield", PlayerWeaponGraphic::SwordShield, ICURS_SHORT_SWORD, ICURS_BUCKLER, 1 },
+			{ "M-body-H-shield", PlayerWeaponGraphic::SwordShield, ICURS_SHORT_SWORD, ICURS_TOWER_SHIELD, 1 },
+			{ "H-body-L-shield", PlayerWeaponGraphic::SwordShield, ICURS_SHORT_SWORD, ICURS_BUCKLER, 2 },
+			{ "H-body-M-shield", PlayerWeaponGraphic::SwordShield, ICURS_SHORT_SWORD, ICURS_KITE_SHIELD, 2 },
 		};
 		const PlayerSpriteData &widths = PlayersSpriteData[static_cast<size_t>(HeroClass::Warrior)];
 		for (const Case &c : cases) {
-			player._pgfxnum = static_cast<uint8_t>(c.weapon); // light armour
+			player._pgfxnum = static_cast<uint8_t>(static_cast<uint8_t>(c.weapon) | (c.armour << 4));
 			player.InvBody[INVLOC_HAND_LEFT] = baseWith(c.sword, ItemType::Sword);
 			player.InvBody[INVLOC_HAND_RIGHT] = c.shield == ICURS_POTION_OF_FULL_MANA ? devilution::Item {} : baseWith(c.shield, ItemType::Shield);
 			for (const AnimationKind &anim : Animations) {

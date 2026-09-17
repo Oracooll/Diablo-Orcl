@@ -495,6 +495,19 @@ bool AreTwins(const Source &a, const Source &b, OwnedSurface &colour, OwnedSurfa
 	return twins;
 }
 
+/** @brief Whether the shield is to come from a tier that is not the body's own. */
+bool WantsShieldFrom(const PlayerSheetRequest &request)
+{
+	const int tier = LookTierIndex(request.look.shield);
+	return tier >= 0 && tier != static_cast<int>(request.armour);
+}
+
+/** @brief Whether the sword is to be the heavy tier's - which a heavy body already has. */
+bool WantsHeavySword(const PlayerSheetRequest &request)
+{
+	return request.look.sword == LookTier::Heavy && request.armour < HeavyArmour;
+}
+
 bool HasShield(PlayerWeaponGraphic weapon)
 {
 	return IsAnyOf(weapon, PlayerWeaponGraphic::SwordShield, PlayerWeaponGraphic::MaceShield, PlayerWeaponGraphic::UnarmedShield);
@@ -525,8 +538,14 @@ GearLook GearLookFor(const Player &player)
 		if (item.isEmpty() || !item._iStatFlag)
 			continue;
 		const item_cursor_graphic cursor = BaseCursor(item);
-		if (item._itype == ItemType::Shield && IsAnyOf(cursor, ICURS_KITE_SHIELD, ICURS_TOWER_SHIELD, ICURS_GOTHIC_SHIELD))
-			look.shield = LookTier::Heavy;
+		if (item._itype == ItemType::Shield) {
+			if (IsAnyOf(cursor, ICURS_BUCKLER, ICURS_SMALL_SHIELD))
+				look.shield = LookTier::Light;
+			else if (IsAnyOf(cursor, ICURS_LARGE_SHIELD, ICURS_KITE_SHIELD))
+				look.shield = LookTier::Medium;
+			else if (IsAnyOf(cursor, ICURS_TOWER_SHIELD, ICURS_GOTHIC_SHIELD))
+				look.shield = LookTier::Heavy;
+		}
 		if (item._itype == ItemType::Sword
 		    && IsAnyOf(cursor, ICURS_LONG_SWORD, ICURS_BROAD_SWORD, ICURS_BASTARD_SWORD, ICURS_TWO_HANDED_SWORD, ICURS_GREAT_SWORD))
 			look.sword = LookTier::Heavy;
@@ -537,7 +556,7 @@ GearLook GearLookFor(const Player &player)
 uint8_t GearLookCode(const Player &player)
 {
 	const GearLook look = GearLookFor(player);
-	return static_cast<uint8_t>((look.shield == LookTier::Heavy ? 2 : 0) | (look.sword == LookTier::Heavy ? 1 : 0));
+	return static_cast<uint8_t>((static_cast<uint8_t>(look.shield) << 1) | (look.sword == LookTier::Heavy ? 1 : 0));
 }
 
 namespace {
@@ -560,8 +579,9 @@ std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &r
 	const PlayerWeaponGraphic weapon = request.weapon;
 	const std::shared_ptr<const SpriteColours> &dye = request.dye;
 	const PlayerWeaponGraphic bare = WithoutShield(weapon);
-	const bool swapShield = request.look.shield == LookTier::Heavy && HasShield(weapon);
-	const bool swapSword = allowSword && request.look.sword == LookTier::Heavy && bare == PlayerWeaponGraphic::Sword;
+	const bool swapShield = WantsShieldFrom(request) && HasShield(weapon);
+	const size_t shieldTier = swapShield ? static_cast<size_t>(LookTierIndex(request.look.shield)) : armour;
+	const bool swapSword = allowSword && WantsHeavySword(request) && bare == PlayerWeaponGraphic::Sword;
 
 	// The canvas is this tier's sheet WITHOUT a shield: a whole body, so taking the shield away leaves no
 	// hole to patch. The block animation has no such twin - nothing to subtract from - and is left alone.
@@ -588,8 +608,8 @@ std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &r
 		if (!twin(ownShielded))
 			return std::nullopt; // not the same render with a shield added: nothing to subtract
 		if (swapShield) {
-			shieldBare = load(HeavyArmour, bare);
-			shieldShielded = load(HeavyArmour, weapon);
+			shieldBare = load(shieldTier, bare);
+			shieldShielded = load(shieldTier, weapon);
 			if (!fits(shieldBare) || !fits(shieldShielded) || !AreTwins(*shieldBare, *shieldShielded, colour, scratchMask))
 				return std::nullopt;
 		}
@@ -811,7 +831,7 @@ std::optional<ColouredSpriteSheet> ComposeMixedSheet(const PlayerSheetRequest &r
 namespace {
 
 /** Bump when the mixer would produce different pixels, so old files on disk stop being believed. */
-constexpr uint32_t CacheVersion = 3; // 2: differences seeded by ramp; town and fire sheets mix
+constexpr uint32_t CacheVersion = 4; // 4: the shield follows the item, from any tier to any body // 2: differences seeded by ramp; town and fire sheets mix
 constexpr uint32_t CacheMagic = 0x584D534F; // "OSMX"
 
 /** A finished sheet as bytes, so any number of heroes can be handed their own copy. */
@@ -974,12 +994,13 @@ std::vector<std::pair<size_t, PlayerWeaponGraphic>> SourcesFor(const PlayerSheet
 	want(request.armour, bare);
 	if (HasShield(request.weapon)) {
 		want(request.armour, request.weapon);
-		if (request.look.shield == LookTier::Heavy) {
-			want(HeavyArmour, bare);
-			want(HeavyArmour, request.weapon);
+		if (WantsShieldFrom(request)) {
+			const auto tier = static_cast<size_t>(LookTierIndex(request.look.shield));
+			want(tier, bare);
+			want(tier, request.weapon);
 		}
 	}
-	if (request.look.sword == LookTier::Heavy && bare == PlayerWeaponGraphic::Sword) {
+	if (WantsHeavySword(request) && bare == PlayerWeaponGraphic::Sword) {
 		for (const PlayerWeaponGraphic voter : SwordVoters) {
 			want(request.armour, voter);
 			want(HeavyArmour, voter);
@@ -1036,7 +1057,7 @@ void WorkerMain()
 std::string PlayerSheetRequest::Key() const
 {
 	return fmt::format("{}{}{}-{}-k{}-d{}-s{}", CharChar[static_cast<size_t>(spriteClass)], ArmourChar[armour],
-	    WepChar[static_cast<size_t>(weapon)], cel, (look.shield == LookTier::Heavy ? 2 : 0) | (look.sword == LookTier::Heavy ? 1 : 0),
+	    WepChar[static_cast<size_t>(weapon)], cel, (static_cast<int>(look.shield) << 1) | (look.sword == LookTier::Heavy ? 1 : 0),
 	    dyeId, scalePercent);
 }
 
@@ -1059,10 +1080,14 @@ bool WantsMixedSheet(const PlayerSheetRequest &request)
 {
 	if (request.spriteClass != HeroClass::Warrior)
 		return false; // the only sheets measured
-	if (request.armour >= HeavyArmour)
-		return false; // already wearing the heavy tier's pieces
-	const bool swapShield = request.look.shield == LookTier::Heavy && HasShield(request.weapon);
-	const bool swapSword = request.look.sword == LookTier::Heavy && WithoutShield(request.weapon) == PlayerWeaponGraphic::Sword;
+	// The FIRE cast is never mixed. Its flames are drawn into the sheet and differ frame for frame between any two
+	// renders, so subtraction finds fire, not a shield; the size guards caught it for some pairs of tiers and not for
+	// others, where it came through as a mottled body (contact sheet, 2026-09-17). A rule that fails per pair is not
+	// a rule: the sheet is named and left alone.
+	if (request.cel == "fm")
+		return false;
+	const bool swapShield = WantsShieldFrom(request) && HasShield(request.weapon);
+	const bool swapSword = WantsHeavySword(request) && WithoutShield(request.weapon) == PlayerWeaponGraphic::Sword;
 	return swapShield || swapSword;
 }
 
