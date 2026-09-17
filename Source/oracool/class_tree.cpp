@@ -104,6 +104,7 @@ constexpr HeroClass Sor = HeroClass::Sorcerer;
 constexpr HeroClass Rog = HeroClass::Rogue;
 constexpr HeroClass Bard = HeroClass::Bard;
 constexpr HeroClass Monk = HeroClass::Monk;
+constexpr HeroClass Nec = HeroClass::Necromancer;
 
 // Diablo II's own tier requirements, plus a seventh the Monk's design doc adds (its branches are
 // seven sequential skills, one per tier). The first six are unchanged, so no existing skill moved.
@@ -991,6 +992,157 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 2, 4, 2, Kind::Active, SpellID::AstralProjection, true },
 	{ N_("Ancestral Court"), N_("Three ancestral shades gather at the cursor and strike inward after a second: three strikes of 5-9 magic damage within 2 tiles, +2-4 per level."),
 	    Monk, 2, 5, 2, Kind::Active, SpellID::AncestralCourt, true },
+	// ======================= NECROMANCER =======================
+	// Phase N1 of "Plan - The Necromancer" (2026-09-17): the rows exist so the pages can be read and edited; every one
+	// is inert and says what it is waiting for ("Not yet built" is the phrase the tests hold inert rows to). Essence-priced rows say so in words until the pay path exists (N2).
+	// --- Summoning ---
+	{ N_("Raise Skeleton"), N_("Raise a skeleton warrior from a corpse to fight for you. One skeleton at rank 1, one more every three ranks, eight at most. Not yet built: awaits the army."),
+	    Nec, 0, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Skeleton Mastery"), N_("Your skeletons and skeletal mages gain life and damage with every rank. Not yet built: awaits the army."),
+	    Nec, 0, 0, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Command the Dead"), N_("Point at an enemy and every minion you own turns on it. Not yet built: awaits the army."),
+	    Nec, 0, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Clay Golem"), N_("Shape a golem of clay: slow, tough, and its blows slow what it strikes. You keep one golem of any kind. Not yet built: awaits the army."),
+	    Nec, 0, 1, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Golem Mastery"), N_("Your golem gains life, speed and chance to hit with every rank. Not yet built: awaits the army."),
+	    Nec, 0, 1, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Gather the Dead"), N_("Call every minion to your side at once, through walls and across the floor. Not yet built: awaits the army."),
+	    Nec, 0, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Raise Skeletal Mage"), N_("Raise a skeletal mage from a corpse; it throws fire, cold, lightning or poison from behind your line. One at rank 1, one more every three ranks, eight at most. Not yet built: awaits the army."),
+	    Nec, 0, 2, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Summon Resist"), N_("Everything you have raised resists fire, lightning and magic, more with every rank. Not yet built: awaits the army."),
+	    Nec, 0, 2, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Dark Mending"), N_("Knit your minions back together: every minion near you is healed at once. Not yet built: awaits the army."),
+	    Nec, 0, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Blood Golem"), N_("A golem of blood bound to your own life: what it takes from its enemies heals you both. Not yet built: awaits the army."),
+	    Nec, 0, 3, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Bone Plating"), N_("Your minions wear bone: armour for every one of them, more with every rank. Not yet built: awaits the army."),
+	    Nec, 0, 3, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Frenzy of the Dead"), N_("For a few seconds every minion attacks faster. Not yet built: awaits the army."),
+	    Nec, 0, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Iron Golem"), N_("A golem of iron that returns a share of every blow it takes to the one that struck it. Not yet built: awaits the army."),
+	    Nec, 0, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Lasting Bond"), N_("The Revived serve longer before they fall apart, more with every rank. Not yet built: awaits the army."),
+	    Nec, 0, 4, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Unholy Offering"), N_("Unmake one of your minions to heal yourself for a share of its life. Not yet built: awaits the army."),
+	    Nec, 0, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Fire Golem"), N_("A golem of fire: it burns what stands near it and is healed by fire. Not yet built: awaits the army."),
+	    Nec, 0, 5, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Revive"), N_("Return a dead monster to life to fight for you as it was, for a time. One at rank 1, ten at most. Paid in Essence. Not yet built: awaits the army."),
+	    Nec, 0, 5, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Army of the Dead"), N_("A host of the dead erupts at the cursor and tears at everything there for a few seconds. Not yet built: awaits the army."),
+	    Nec, 0, 5, 2, Kind::Active, SpellID::Invalid, false },
+	// --- Poison & Bone ---
+	{ N_("Teeth"), N_("A fan of barbed teeth, magic damage, one more tooth with every rank. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Bone Armor"), N_("A spinning shell of bone that absorbs physical damage until it is spent. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 0, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Poison Dagger"), N_("Your next blows with a dagger or wand poison what they strike. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Corpse Explosion"), N_("Burst a corpse: everything near it takes a share of the dead monster's life as damage. Paid in Essence. Not yet built: awaits usable corpses."),
+	    Nec, 1, 1, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Bone Splinters"), N_("Three quick splinters of bone in a narrow spread. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 1, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Blight"), N_("A bolt that bursts into a pool of poison where it lands. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Bone Wall"), N_("Raise a wall of bone across the cursor. Monsters must break it to pass. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 2, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Bone Spikes"), N_("Spikes erupt under the cursor, magic damage, and hold what they hit for a moment. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Poison Explosion"), N_("Burst a corpse into a cloud of poison. Paid in Essence. Not yet built: awaits usable corpses."),
+	    Nec, 1, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Bone Spear"), N_("A spear of bone that passes through everything in its line, magic damage. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 3, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Decompose"), N_("Rot an enemy where it stands: poison damage for as long as you hold the cast. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Marrow"), N_("Every bone skill deals more damage, more with every rank. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 3, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Bone Prison"), N_("A ring of bone closes around the target and holds it. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Bone Storm"), N_("A storm of bone shards circles you and cuts everything within two tiles. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Virulence"), N_("Your poisons last longer and bite deeper, more with every rank. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 4, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Bone Spirit"), N_("A spirit of bone that hunts the nearest enemy and strikes it for heavy magic damage. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 5, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Poison Nova"), N_("A ring of poison bolts in every direction. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 5, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Death Nova"), N_("A burst of bone and blight around you: magic damage now, poison after. Not yet built: awaits the bone and poison missiles."),
+	    Nec, 1, 5, 2, Kind::Active, SpellID::Invalid, false },
+	// --- Curses ---
+	{ N_("Amplify Damage"), N_("Cursed monsters take far more physical damage. One curse to a monster; a new one replaces the old. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Curse Mastery"), N_("Your curses last longer, more with every rank. Not yet built: awaits monster curses."),
+	    Nec, 2, 0, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Essence Tap"), N_("A cursed monster that dies returns Essence to you, more with every rank. Not yet built: awaits monster curses."),
+	    Nec, 2, 0, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Dim Vision"), N_("Cursed monsters cannot see you until you are beside them. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 1, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Weaken"), N_("Cursed monsters deal a third less damage. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 1, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Frailty"), N_("A cursed monster that falls below a sliver of its life simply dies. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Iron Maiden"), N_("Cursed monsters take a multiple of the melee damage they deal. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 2, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Terror"), N_("Cursed monsters run from you. Uniques do not. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Bane"), N_("Cursed monsters rot: poison damage for as long as the curse holds. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Confuse"), N_("Cursed monsters attack whatever is nearest, friend or foe. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 3, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Life Tap"), N_("Blows landed on a cursed monster heal the one who struck - you and your minions alike. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Wide Malice"), N_("Your curses cover more ground, more with every rank. Not yet built: awaits monster curses."),
+	    Nec, 2, 3, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Attract"), N_("The cursed monster becomes the target of every monster near it. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Decrepify"), N_("Cursed monsters are slowed, deal less damage and take more. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Death Mark"), N_("Mark one monster: when it dies, it bursts as a Corpse Explosion of your rank. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Lower Resist"), N_("Cursed monsters lose resistance to fire, lightning, magic and poison. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 5, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Soul Harvest"), N_("Tear at every cursed monster near you: damage to each, Essence to you for each. Not yet built: awaits monster curses."),
+	    Nec, 2, 5, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Doom"), N_("Cursed monsters take more damage from every source, and the curse cannot be replaced by a weaker one. Paid in Essence. Not yet built: awaits monster curses."),
+	    Nec, 2, 5, 2, Kind::Active, SpellID::Invalid, false },
+	// --- Passive Skills ---
+	{ N_("Life from Death"), N_("Monsters that die near you may leave a health globe. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 0, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Fueled by Death"), N_("Each corpse you consume quickens your step for a few seconds. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 0, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Stand Alone"), N_("More armour while you have no minions, less for each one you keep. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 0, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Swift Harvesting"), N_("Faster attacks with a scythe or wand. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 1, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Commander of the Risen Dead"), N_("Raising skeletons and mages costs less mana. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 1, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Extended Servitude"), N_("Timed minions last a quarter longer. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 1, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Rigor Mortis"), N_("Your bone skills slow what they hit. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 2, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Overwhelming Essence"), N_("Your Essence pool is larger by a fifth. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 2, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Dark Reaping"), N_("Your blows return a little Essence and a little mana. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 2, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Spreading Malediction"), N_("You deal more damage for each cursed monster near you. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 3, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Eternal Torment"), N_("Your curses never run out; they end when the monster does. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 3, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Final Service"), N_("A blow that would kill you unmakes your minions instead, once a floor. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 3, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Grisly Tribute"), N_("A share of the damage your minions deal heals you. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 4, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Draw Life"), N_("You regenerate life faster for each monster near you. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 4, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Serration"), N_("Your bone skills deal more damage the farther they have flown. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 4, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Aberrant Animator"), N_("Your minions return a share of the blows they take. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 5, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Blood is Power"), N_("Losing life shortens the wait on your skills. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 5, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Rathma's Shield"), N_("When your life falls low, nothing can harm you for a few seconds. Once a floor. Not yet built: awaits the system it modifies."),
+	    Nec, 3, 5, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 };
 
 /** @brief The first skill of @p heroClass's block, or None if the class has no tree. */
@@ -1009,6 +1161,8 @@ Skill FirstSkillOf(HeroClass heroClass)
 		return Skill::BARD_FIRST;
 	case HeroClass::Monk:
 		return Skill::MONK_FIRST;
+	case HeroClass::Necromancer:
+		return Skill::NECROMANCER_FIRST;
 	default:
 		return Skill::None;
 	}
@@ -1939,6 +2093,10 @@ string_view GetClassTreePageName(HeroClass heroClass, int page)
 		if (page == 0)
 			return _("WAY OF THE STAFF");
 		return page == 1 ? _("WAY OF THE BODY") : _("WAY OF THE SPIRIT");
+	case HeroClass::Necromancer:
+		if (page == 0)
+			return _("SUMMONING");
+		return page == 1 ? _("POISON & BONE") : _("CURSES");
 	default:
 		return {};
 	}

@@ -1848,7 +1848,7 @@ void AddMana(Missile &missile, AddMissileParameter & /*parameter*/)
 	for (int i = 0; i < missile._mispllvl; i++) {
 		manaAmount += (GenerateRnd(6) + 1) << 6;
 	}
-	if (player._pClass == HeroClass::Sorcerer)
+	if (IsAnyOf(player._pClass, HeroClass::Sorcerer, HeroClass::Necromancer))
 		manaAmount *= 2;
 	if (player._pClass == HeroClass::Rogue || player._pClass == HeroClass::Bard)
 		manaAmount += manaAmount / 2;

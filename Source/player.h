@@ -108,8 +108,10 @@ enum class HeroClass : uint8_t {
 	Monk,
 	Bard,
 	Barbarian,
+	/** Oracool, 2026-09-17: a class of his own (D1), on the Sorcerer's body (D2). The Bard keeps slot 4, hidden. */
+	Necromancer,
 
-	LAST = Barbarian
+	LAST = Necromancer
 };
 
 enum class CharacterAttribute : uint8_t {
@@ -271,13 +273,14 @@ constexpr std::array<char, 9> WepChar = {
 };
 
 /** Maps from player class to letter used in graphic files. */
-constexpr std::array<char, 6> CharChar = {
+constexpr std::array<char, 7> CharChar = {
 	'w', // warrior
 	'r', // rogue
 	's', // sorcerer
 	'm', // monk
 	'b',
 	'c',
+	's', // necromancer: the Sorcerer's sheets (GetPlayerSpriteClass sends him there first; this is the fallback)
 };
 
 /**
@@ -818,7 +821,7 @@ struct Player {
 	int GetMagicToHit() const
 	{
 		int hper = _pMagic + BaseHitChance;
-		if (_pClass == HeroClass::Sorcerer)
+		if (IsAnyOf(_pClass, HeroClass::Sorcerer, HeroClass::Necromancer))
 			hper += 20;
 		else if (_pClass == HeroClass::Bard)
 			hper += 10;

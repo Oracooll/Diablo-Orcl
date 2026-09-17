@@ -2235,7 +2235,7 @@ TEST(OracoolClassTree, EveryPageIsPopulatedAndGridPositionsAreUnique)
 	oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
 	size_t total = 0;
 	for (const HeroClass heroClass : { HeroClass::Warrior, HeroClass::Barbarian,
-	         HeroClass::Sorcerer, HeroClass::Rogue, HeroClass::Bard, HeroClass::Monk }) {
+	         HeroClass::Sorcerer, HeroClass::Rogue, HeroClass::Bard, HeroClass::Monk, HeroClass::Necromancer }) {
 	for (size_t p = 0; p < oracool::ClassTreePageCount; p++) {
 		const size_t count = oracool::BuildClassTreePage(heroClass, static_cast<int>(p), skills);
 		EXPECT_GT(count, 0u);
@@ -13354,6 +13354,8 @@ oracool::ClassTreeSkill FirstRfa12Skill(HeroClass heroClass)
 bool IsRfa12Row(oracool::ClassTreeSkill skill)
 {
 	const HeroClass heroClass = oracool::GetClassTreeSkillData(skill).heroClass;
+	if (heroClass == HeroClass::Necromancer) // his block arrived after RfA-12 and none of it is that package
+		return false;
 	return oracool::ClassTreeIconIndex(skill) >= oracool::ClassTreeIconIndex(FirstRfa12Skill(heroClass));
 }
 

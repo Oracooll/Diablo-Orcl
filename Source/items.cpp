@@ -4915,6 +4915,17 @@ void CreatePlrItems(Player &player)
 		InitializeItem(player.SpdList[1], IDI_HEAL);
 		GenerateNewSeed(player.SpdList[1]);
 		break;
+	case HeroClass::Necromancer:
+		// The Sorcerer's staff and two mana potions until the wand family exists (phase N9).
+		InitializeItem(player.InvBody[INVLOC_HAND_LEFT], gbIsHellfire ? IDI_SORCERER : IDI_SORCERER_DIABLO);
+		GenerateNewSeed(player.InvBody[INVLOC_HAND_LEFT]);
+
+		InitializeItem(player.SpdList[0], IDI_MANA);
+		GenerateNewSeed(player.SpdList[0]);
+
+		InitializeItem(player.SpdList[1], IDI_MANA);
+		GenerateNewSeed(player.SpdList[1]);
+		break;
 	case HeroClass::Barbarian:
 		InitializeItem(player.InvBody[INVLOC_HAND_LEFT], IDI_BARBARIAN);
 		GenerateNewSeed(player.InvBody[INVLOC_HAND_LEFT]);
@@ -8147,6 +8158,7 @@ void SpawnBoy(int lvl)
 					ivalue = INT_MAX;
 				break;
 			case HeroClass::Sorcerer:
+			case HeroClass::Necromancer:
 				if (IsAnyOf(itemType, ItemType::Staff, ItemType::Axe, ItemType::Bow, ItemType::Mace))
 					ivalue = INT_MAX;
 				break;

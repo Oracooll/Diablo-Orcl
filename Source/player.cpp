@@ -1715,6 +1715,10 @@ HeroClass GetPlayerSpriteClass(HeroClass cls)
 		return HeroClass::Rogue;
 	if (cls == HeroClass::Barbarian && !gbBarbarian)
 		return HeroClass::Warrior;
+	// The Necromancer has no sheets of his own and no archive that could bring any: he is the Sorcerer's body,
+	// dyed (oracool/hero_look), always.
+	if (cls == HeroClass::Necromancer)
+		return HeroClass::Sorcerer;
 	return cls;
 }
 
@@ -2035,7 +2039,7 @@ int Player::CalcPartialManaRestoreAmount() const
 {
 	int wholeManaPoints = _pMaxMana >> 6;
 	int l = ((wholeManaPoints / 8) + GenerateRnd(wholeManaPoints / 4)) << 6;
-	if (_pClass == HeroClass::Sorcerer)
+	if (IsAnyOf(_pClass, HeroClass::Sorcerer, HeroClass::Necromancer))
 		l *= 2;
 	if (IsAnyOf(_pClass, HeroClass::Rogue, HeroClass::Monk, HeroClass::Bard))
 		l += l / 2;
@@ -2735,7 +2739,9 @@ void CreatePlayer(Player &player, HeroClass c)
 	player._pLRSpell = SpellID::Invalid;
 	player._pLRSplType = SpellType::Invalid;
 
-	if (c == HeroClass::Sorcerer) {
+	// The Necromancer too, until his own first skill exists (Teeth, phase N7 of the plan): every one of his 72
+	// rows is inert at N1, and a caster with nothing to cast is not a playable class.
+	if (IsAnyOf(c, HeroClass::Sorcerer, HeroClass::Necromancer)) {
 		player._pMemSpells = GetSpellBitmask(SpellID::Firebolt);
 		player._pRSplType = SpellType::Spell;
 		player._pRSpell = SpellID::Firebolt;
@@ -2749,7 +2755,7 @@ void CreatePlayer(Player &player, HeroClass c)
 
 	player._pSpellFlags = SpellFlag::None;
 
-	if (player._pClass == HeroClass::Sorcerer) {
+	if (IsAnyOf(player._pClass, HeroClass::Sorcerer, HeroClass::Necromancer)) {
 		player._pSplLvl[static_cast<int16_t>(SpellID::Firebolt)] = 2;
 	}
 
@@ -2775,6 +2781,7 @@ void CreatePlayer(Player &player, HeroClass c)
 		break;
 	case HeroClass::Sorcerer:
 	case HeroClass::Monk:
+	case HeroClass::Necromancer:
 		animWeaponId = PlayerWeaponGraphic::Staff;
 		break;
 	}
@@ -3313,6 +3320,7 @@ StartPlayerKill(Player &player, DeathReason deathReason)
 				CopyUtf8(ear._iIName, player._pName, sizeof(ear._iIName));
 				switch (player._pClass) {
 				case HeroClass::Sorcerer:
+				case HeroClass::Necromancer:
 					ear._iCurs = ICURS_EAR_SORCERER;
 					break;
 				case HeroClass::Warrior:

@@ -269,6 +269,9 @@ void SelheroListSelect(int value)
 		}
 		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Paladin"), static_cast<int>(HeroClass::Warrior)));
 		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Sorcerer"), static_cast<int>(HeroClass::Sorcerer)));
+		// The Necromancer (2026-09-17) stands beside the class whose body he wears. No switch and no archive: he is
+		// compiled in, like the Barbarian's numbers, and needs nothing the Sorcerer does not.
+		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Necromancer"), static_cast<int>(HeroClass::Necromancer)));
 		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Rogue"), static_cast<int>(HeroClass::Rogue)));
 		// Last, because the user's ordering does not mention it - it only exists if the player supplied
 		// Hellfire's monk data.
@@ -381,6 +384,7 @@ void SelheroClassSelectorFocus(int value)
 		break;
 	case HeroClass::Sorcerer:
 	case HeroClass::Monk:
+	case HeroClass::Necromancer:
 		startingWeapon = PlayerWeaponGraphic::Staff;
 		break;
 	}

@@ -25,6 +25,7 @@
 #include "items.h"
 #include "lighting.h"
 #include "player.h"
+#include "playerdat.hpp"
 #include "utils/endian_write.hpp"
 #include "utils/surface_to_clx.hpp"
 
@@ -412,4 +413,51 @@ TEST(OracoolHeroLook, TheSixteenOrclShieldsAreMappedByWhatTheirNameSuggests)
 	const oracool::PlayerSheetRequest viaCode = oracool::MakePlayerSheetRequest(player._pClass, HeroClass::Warrior,
 	    static_cast<uint8_t>(PlayerWeaponGraphic::SwordShield), oracool::GearLookCode(player), "st", 96);
 	EXPECT_EQ(viaPlayer.Key(), viaCode.Key()) << "the menu and the game must share one cache entry";
+}
+
+// ---- The Necromancer (phase N1, 2026-09-17) ----
+
+TEST(OracoolNecromancer, HeIsASeventhClassOnTheSorcerersBody)
+{
+	EXPECT_EQ(static_cast<int>(HeroClass::Necromancer), 6) << "the class byte is saved; the Bard keeps 4 and the Barbarian 5";
+	EXPECT_EQ(enum_size<HeroClass>::value, 7U);
+	const PlayerData &data = PlayersData[static_cast<size_t>(HeroClass::Necromancer)];
+	EXPECT_STREQ(data.className, "Necromancer");
+	EXPECT_STREQ(data.classPath, PlayersData[static_cast<size_t>(HeroClass::Sorcerer)].classPath);
+	EXPECT_EQ(data.baseStr + data.baseMag + data.baseDex + data.baseVit, 85) << "every class starts on 85 points";
+	EXPECT_EQ(CharChar[static_cast<size_t>(HeroClass::Necromancer)], CharChar[static_cast<size_t>(HeroClass::Sorcerer)]);
+}
+
+TEST(OracoolNecromancer, HeIsDyedInEveryArmourTierAndTheSorcererIsNot)
+{
+	for (uint8_t armour = 0; armour < 3; armour++) {
+		const auto gfxnum = static_cast<uint8_t>((armour << 4) | static_cast<uint8_t>(PlayerWeaponGraphic::Staff));
+		const std::shared_ptr<const oracool::SpriteColours> colours = oracool::HeroColoursFor(HeroClass::Necromancer, gfxnum);
+		ASSERT_NE(colours, nullptr) << "armour tier " << static_cast<int>(armour);
+		// The robe, its trim, the heavy tier's reds and the skin have colours of their own...
+		for (const int index : { 232, 239, 224, 231, 136, 143, 168, 175 })
+			EXPECT_TRUE(colours->HasOwn(static_cast<uint8_t>(index))) << index;
+		// ...and each falls back to ITSELF, so an indexed target draws the plain Sorcerer rather than a wrong ramp.
+		EXPECT_EQ(colours->Fallback(232), 232);
+		// The greys, the tans and the boots are left alone.
+		for (const int index : { 200, 216, 240, 255, 184 })
+			EXPECT_FALSE(colours->HasOwn(static_cast<uint8_t>(index))) << index;
+		EXPECT_EQ(oracool::HeroColoursFor(HeroClass::Sorcerer, gfxnum), nullptr);
+	}
+	// The robe is darker than the red it replaces and leans green - the colour the palette does not have.
+	const uint32_t robe = oracool::HeroColoursFor(HeroClass::Necromancer, 0)->Own(232);
+	EXPECT_GT((robe >> 8) & 0xFF, (robe >> 16) & 0xFF);
+	EXPECT_GT((robe >> 8) & 0xFF, robe & 0xFF);
+}
+
+TEST(OracoolNecromancer, HisSheetsNeverShareACacheEntryWithTheSorcerers)
+{
+	const oracool::PlayerSheetRequest his = oracool::MakePlayerSheetRequest(HeroClass::Necromancer, HeroClass::Sorcerer,
+	    static_cast<uint8_t>(PlayerWeaponGraphic::Staff), 0, "as", 96);
+	const oracool::PlayerSheetRequest sorcerers = oracool::MakePlayerSheetRequest(HeroClass::Sorcerer, HeroClass::Sorcerer,
+	    static_cast<uint8_t>(PlayerWeaponGraphic::Staff), 0, "as", 96);
+	EXPECT_NE(his.Key(), sorcerers.Key());
+	EXPECT_EQ(oracool::HeroDyeId(HeroClass::Necromancer, 0), 2);
+	EXPECT_EQ(oracool::HeroDyeId(HeroClass::Barbarian, 0), 1);
+	EXPECT_EQ(oracool::HeroDyeId(HeroClass::Sorcerer, 0), 0);
 }

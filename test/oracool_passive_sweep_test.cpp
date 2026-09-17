@@ -66,7 +66,10 @@ TEST(OracoolPassiveSweep, EveryInertPassiveSaysWhyAndEveryBuiltOneDoesNot)
 		if (data.kind != oracool::ClassTreeKind::Passive)
 			continue;
 		const std::string description = data.description;
-		if (stillInert.count(data.name) != 0) {
+		// The Necromancer arrived after the sweep (2026-09-17) with every row inert; his passives are built in his own phases.
+		if (data.heroClass == HeroClass::Necromancer) {
+			EXPECT_FALSE(data.implemented) << data.name;
+		} else if (stillInert.count(data.name) != 0) {
 			EXPECT_FALSE(data.implemented) << data.name;
 		} else {
 			EXPECT_TRUE(data.implemented) << data.name << " was left unbuilt by the sweep";

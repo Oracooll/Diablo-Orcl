@@ -96,6 +96,36 @@ std::shared_ptr<const SpriteColours> LightBarbarianColours()
 	return colours;
 }
 
+/**
+ * @brief The Necromancer: the Sorcerer's body in grave clothes (plan decision D2, 2026-09-17).
+ *
+ * Measured on the exported Sorcerer sheets, all three armour tiers: the robe is the red ramp 232-239 (34% of the
+ * light figure, 14% of the heavy, 7% of the medium), its bright trim 224-231 and, on the heavy tier, the pure reds
+ * 136-143; the skin - and the staff he is born holding - is 168-175, a steady tenth of the figure in every tier.
+ * The greys, the tans and the boots are left alone. One table serves all three tiers because the same ramps mean
+ * the same materials on each.
+ *
+ * Own colours, not an index dye: the palette has no green at all and its greys are dead neutral, and a dark
+ * green-grey robe with ashen skin is neither. Each entry falls back to itself, so an indexed target simply draws
+ * the Sorcerer.
+ */
+std::shared_ptr<const SpriteColours> NecromancerColours()
+{
+	constexpr std::array<uint32_t, 8> Robe = { 0x46524B, 0x3B4640, 0x313A35, 0x272F2B, 0x1E2421, 0x151A18, 0x0D100F, 0x060807 };
+	constexpr std::array<uint32_t, 8> Trim = { 0x6B8072, 0x5B6E61, 0x4C5C51, 0x3E4B42, 0x303A33, 0x232B26, 0x171C19, 0x0C0F0D };
+	constexpr std::array<uint32_t, 8> Ash = { 0x9A988C, 0x888679, 0x767468, 0x646258, 0x524F47, 0x3F3D37, 0x272622, 0x131311 };
+
+	auto colours = std::make_shared<SpriteColours>();
+	for (int i = 0; i < 8; i++) {
+		const auto at = static_cast<size_t>(i);
+		colours->Set(static_cast<uint8_t>(232 + i), Robe[at], static_cast<uint8_t>(232 + i));
+		colours->Set(static_cast<uint8_t>(224 + i), Trim[at], static_cast<uint8_t>(224 + i));
+		colours->Set(static_cast<uint8_t>(136 + i), Trim[at], static_cast<uint8_t>(136 + i));
+		colours->Set(static_cast<uint8_t>(168 + i), Ash[at], static_cast<uint8_t>(168 + i));
+	}
+	return colours;
+}
+
 } // namespace
 
 int SpriteScalePercent(HeroClass heroClass)
@@ -120,10 +150,21 @@ std::shared_ptr<const SpriteColours> HeroColours(const Player &player)
 
 std::shared_ptr<const SpriteColours> HeroColoursFor(HeroClass heroClass, uint8_t gfxnum)
 {
+	if (heroClass == HeroClass::Necromancer) {
+		static const std::shared_ptr<const SpriteColours> colours = NecromancerColours();
+		return colours;
+	}
 	if (heroClass != HeroClass::Barbarian || (gfxnum >> 4) != 0)
 		return nullptr;
 	static const std::shared_ptr<const SpriteColours> colours = LightBarbarianColours();
 	return colours;
+}
+
+uint8_t HeroDyeId(HeroClass heroClass, uint8_t gfxnum)
+{
+	if (heroClass == HeroClass::Necromancer)
+		return 2;
+	return HeroColoursFor(heroClass, gfxnum) != nullptr ? 1 : 0;
 }
 
 } // namespace devilution::oracool

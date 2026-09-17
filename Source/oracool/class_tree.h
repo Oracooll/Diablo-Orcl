@@ -648,12 +648,93 @@ enum class ClassTreeSkill : uint16_t {
 	AstralProjection,
 	AncestralCourt,
 	MONK_LAST = AncestralCourt,
-	LAST = AncestralCourt,
+	// ======================= NECROMANCER (2026-09-17) =======================
+	// A seventh block, appended after the Monk's so no existing index moves. Diablo II's three pages at eighteen
+	// rows each, and a Passive Skills page of eighteen from Diablo III's Necromancer. All 72 are inert at N1.
+	// ---------------- Necromancer: Summoning ----------------
+	RaiseSkeleton,
+	NECROMANCER_FIRST = RaiseSkeleton,
+	SkeletonMastery,
+	CommandTheDead,
+	ClayGolem,
+	GolemMastery,
+	GatherTheDead,
+	RaiseSkeletalMage,
+	SummonResist,
+	DarkMending,
+	BloodGolem,
+	BonePlating,
+	FrenzyOfTheDead,
+	IronGolem,
+	LastingBond,
+	UnholyOffering,
+	FireGolem,
+	NecroRevive,
+	ArmyOfTheDead,
+	// ---------------- Necromancer: Poison & Bone ----------------
+	Teeth,
+	BoneArmor,
+	PoisonDagger,
+	CorpseExplosion,
+	BoneSplinters,
+	Blight,
+	BoneWall,
+	BoneSpikes,
+	PoisonExplosion,
+	BoneSpear,
+	Decompose,
+	Marrow,
+	BonePrison,
+	BoneStorm,
+	Virulence,
+	NecroBoneSpirit,
+	PoisonNova,
+	DeathNova,
+	// ---------------- Necromancer: Curses ----------------
+	AmplifyDamage,
+	CurseMastery,
+	EssenceTap,
+	DimVision,
+	NecroWeaken,
+	Frailty,
+	NecroIronMaiden,
+	Terror,
+	Bane,
+	Confuse,
+	LifeTap,
+	WideMalice,
+	Attract,
+	Decrepify,
+	DeathMark,
+	LowerResist,
+	SoulHarvest,
+	Doom,
+	// ---------------- Necromancer: Passive Skills ----------------
+	LifeFromDeath,
+	FueledByDeath,
+	StandAlone,
+	SwiftHarvesting,
+	CommanderOfTheRisenDead,
+	ExtendedServitude,
+	RigorMortis,
+	OverwhelmingEssence,
+	DarkReaping,
+	SpreadingMalediction,
+	EternalTorment,
+	FinalService,
+	GrislyTribute,
+	DrawLife,
+	Serration,
+	AberrantAnimator,
+	BloodIsPower,
+	RathmasShield,
+	NECROMANCER_LAST = RathmasShield,
+	LAST = RathmasShield,
 
 	None = 0xFFFF,
 };
 
-constexpr size_t ClassTreeSkillCount = 434; // 272 since 2026-09-06: the Paladin's Holy Bolt row removed (user: "There is a spell like this already in the game"); was 273
+constexpr size_t ClassTreeSkillCount = 506; // 434 + the Necromancer's 72 (2026-09-17); // 272 since 2026-09-06: the Paladin's Holy Bolt row removed (user: "There is a spell like this already in the game"); was 273
 /**
  * @brief The most skills any one class has - the size of the per-character investment array.
  *
@@ -693,8 +774,10 @@ static_assert(static_cast<size_t>(ClassTreeSkill::BARD_FIRST) - static_cast<size
     "the Rogue has more tree rows than _pClassTreeInvestment can hold - grow MaxSkillsPerClass AND that array together");
 static_assert(static_cast<size_t>(ClassTreeSkill::MONK_FIRST) - static_cast<size_t>(ClassTreeSkill::BARD_FIRST) <= MaxSkillsPerClass,
     "the Bard has more tree rows than _pClassTreeInvestment can hold - grow MaxSkillsPerClass AND that array together");
-static_assert(static_cast<size_t>(ClassTreeSkill::MONK_LAST) - static_cast<size_t>(ClassTreeSkill::MONK_FIRST) < MaxSkillsPerClass,
+static_assert(static_cast<size_t>(ClassTreeSkill::NECROMANCER_FIRST) - static_cast<size_t>(ClassTreeSkill::MONK_FIRST) <= MaxSkillsPerClass,
     "the Monk has more tree rows than _pClassTreeInvestment can hold - grow MaxSkillsPerClass AND that array together");
+static_assert(static_cast<size_t>(ClassTreeSkill::NECROMANCER_LAST) - static_cast<size_t>(ClassTreeSkill::NECROMANCER_FIRST) < MaxSkillsPerClass,
+    "the Necromancer has more tree rows than _pClassTreeInvestment can hold - grow MaxSkillsPerClass AND that array together");
 /** @brief Tiers a page can have. Seven since the Monk; Diablo II's five classes use the first six. */
 constexpr int ClassTreeTierCount = 7;
 /** @brief Points a single tree skill accepts, matching the spell-investment cap. */

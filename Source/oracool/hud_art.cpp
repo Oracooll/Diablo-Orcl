@@ -314,6 +314,8 @@ ArtAsset SorcTreeIconsArt { "ui\\sorc_tree_icons.png" };
 ArtAsset RogueTreeIconsArt { "ui\\rogue_tree_icons.png" };
 ArtAsset BardTreeIconsArt { "ui\\bard_tree_icons.png" };
 ArtAsset MonkTreeIconsArt { "ui\\monk_tree_icons.png" };
+/** The Necromancer's strip does not exist yet (art request A of his plan); a missing strip draws plates without icons. */
+ArtAsset NecroTreeIconsArt { "ui\\necro_tree_icons.png" };
 
 /**
  * @brief Every class tree strip, as one list the load/quantize/reset passes walk.
@@ -330,6 +332,7 @@ ArtAsset MonkTreeIconsArt { "ui\\monk_tree_icons.png" };
 ArtAsset *const ClassTreeStrips[] = {
 	&PaladinTreeIconsArt, &BarbTreeIconsArt, &SorcTreeIconsArt,
 	&RogueTreeIconsArt, &BardTreeIconsArt, &MonkTreeIconsArt,
+	&NecroTreeIconsArt,
 };
 
 /** @brief The strip @p heroClass's tree draws from, or the Paladin's as a harmless fallback. */
@@ -346,6 +349,8 @@ ArtAsset &TreeStripFor(HeroClass heroClass)
 		return BardTreeIconsArt;
 	case HeroClass::Monk:
 		return MonkTreeIconsArt;
+	case HeroClass::Necromancer:
+		return NecroTreeIconsArt;
 	default:
 		return PaladinTreeIconsArt;
 	}
@@ -395,6 +400,7 @@ ArtAsset *SilhouetteForClass(HeroClass heroClass)
 	case HeroClass::Bard:
 		return &SilhouetteArt[5];
 	case HeroClass::Sorcerer:
+	case HeroClass::Necromancer: // the Sorcerer's figure until his own is drawn
 		return &SilhouetteArt[2];
 	case HeroClass::Barbarian:
 		return &SilhouetteArt[3];

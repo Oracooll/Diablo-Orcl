@@ -810,7 +810,8 @@ void LoadHeros()
 		return;
 	const uint16_t numPortraits = ClxSpriteList { *ArtHero }.numSprites();
 
-	ArtHeroPortraitOrder = { 0, 1, 2, 2, 1, 0, 3 };
+	// Seven classes and the blank: the Necromancer (index 6) borrows the Sorcerer's face until ui_art\hero6.png exists.
+	ArtHeroPortraitOrder = { 0, 1, 2, 2, 1, 0, 2, 3 };
 	if (numPortraits >= 6) {
 		ArtHeroPortraitOrder[static_cast<std::size_t>(HeroClass::Monk)] = 3;
 		ArtHeroPortraitOrder[static_cast<std::size_t>(HeroClass::Bard)] = 4;

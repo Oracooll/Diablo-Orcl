@@ -1783,6 +1783,7 @@ void InitInv()
 		pInvCels = LoadCel("data\\inv\\inv_rog", static_cast<uint16_t>(SidePanelSize.width));
 		break;
 	case HeroClass::Sorcerer:
+	case HeroClass::Necromancer:
 		pInvCels = LoadCel("data\\inv\\inv_sor", static_cast<uint16_t>(SidePanelSize.width));
 		break;
 	case HeroClass::Monk:

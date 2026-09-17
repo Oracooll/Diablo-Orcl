@@ -100,6 +100,8 @@ HeroClass SpriteClassFor(HeroClass cls)
 		return HeroClass::Rogue;
 	if (cls == HeroClass::Barbarian && !gbBarbarian)
 		return HeroClass::Warrior;
+	if (cls == HeroClass::Necromancer)
+		return HeroClass::Sorcerer;
 	return cls;
 }
 

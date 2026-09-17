@@ -226,6 +226,8 @@ const char *ClassSpriteFolder(HeroClass heroClass)
 		return "bard";
 	case HeroClass::Barbarian:
 		return "barbarian";
+	case HeroClass::Necromancer:
+		return "necromancer";
 	default:
 		return "warrior";
 	}

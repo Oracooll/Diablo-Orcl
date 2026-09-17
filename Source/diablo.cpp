@@ -1719,7 +1719,7 @@ void DiabloParseFlags(int argc, char **argv)
 			}
 			std::ofstream dump(argv[++i], std::ios::binary);
 			gbIsHellfire = true; // the Oracool spells sit past LastDiablo, which IsValidSpell gates on
-			const char *classNames[] = { "Paladin", "Rogue", "Sorceress", "Monk", "Bard", "Barbarian" };
+			const char *classNames[] = { "Paladin", "Rogue", "Sorceress", "Monk", "Bard", "Barbarian", "Necromancer" };
 			for (size_t i = 0; i < oracool::ClassTreeSkillCount; i++) {
 				const auto skill = static_cast<oracool::ClassTreeSkill>(i);
 				const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skill);

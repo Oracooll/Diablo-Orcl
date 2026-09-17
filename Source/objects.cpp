@@ -770,6 +770,7 @@ void AddCryptObject(Object &object, int a2)
 				object._oVar2 = TEXT_RBOOKA;
 				break;
 			case HeroClass::Sorcerer:
+			case HeroClass::Necromancer:
 				object._oVar2 = TEXT_MBOOKA;
 				break;
 			case HeroClass::Monk:
@@ -790,6 +791,7 @@ void AddCryptObject(Object &object, int a2)
 				object._oVar2 = TEXT_RBOOKB;
 				break;
 			case HeroClass::Sorcerer:
+			case HeroClass::Necromancer:
 				object._oVar2 = TEXT_MBOOKB;
 				break;
 			case HeroClass::Monk:
@@ -810,6 +812,7 @@ void AddCryptObject(Object &object, int a2)
 				object._oVar2 = TEXT_RBOOKC;
 				break;
 			case HeroClass::Sorcerer:
+			case HeroClass::Necromancer:
 				object._oVar2 = TEXT_MBOOKC;
 				break;
 			case HeroClass::Monk:
@@ -2300,6 +2303,7 @@ void OperateChamberOfBoneBook(Object &questBook, bool sendmsg)
 		textdef = TEXT_RBONER;
 		break;
 	case HeroClass::Sorcerer:
+	case HeroClass::Necromancer:
 		textdef = TEXT_MBONER;
 		break;
 	case HeroClass::Monk:
@@ -2447,7 +2451,7 @@ void OperateSlainHero(const Player &player, Object &corpse, bool sendmsg)
 		CreateMagicArmor(corpse.position, ItemType::HeavyArmor, ICURS_BREAST_PLATE, sendmsg, false);
 	} else if (player._pClass == HeroClass::Rogue) {
 		CreateMagicWeapon(corpse.position, ItemType::Bow, ICURS_LONG_BATTLE_BOW, sendmsg, false);
-	} else if (player._pClass == HeroClass::Sorcerer) {
+	} else if (IsAnyOf(player._pClass, HeroClass::Sorcerer, HeroClass::Necromancer)) {
 		CreateSpellBook(corpse.position, SpellID::Lightning, sendmsg, false);
 	} else if (player._pClass == HeroClass::Monk) {
 		CreateMagicWeapon(corpse.position, ItemType::Staff, ICURS_WAR_STAFF, sendmsg, false);
@@ -3150,6 +3154,7 @@ void OperateShrineOily(Player &player, Point spawnPosition)
 		oracoolLogMessage = "+2 Dexterity";
 		break;
 	case HeroClass::Sorcerer:
+	case HeroClass::Necromancer:
 		ModifyPlrMag(player, 2);
 		oracoolLogMessage = "+2 Magic";
 		break;
@@ -4832,6 +4837,7 @@ void InitObjects()
 					spId = TEXT_RBLINDING;
 					break;
 				case HeroClass::Sorcerer:
+				case HeroClass::Necromancer:
 					spId = TEXT_MBLINDING;
 					break;
 				case HeroClass::Monk:
@@ -4858,6 +4864,7 @@ void InitObjects()
 					spId = TEXT_RBLOODY;
 					break;
 				case HeroClass::Sorcerer:
+				case HeroClass::Necromancer:
 					spId = TEXT_MBLOODY;
 					break;
 				case HeroClass::Monk:
@@ -4891,6 +4898,7 @@ void InitObjects()
 					spId = TEXT_RBLOODWAR;
 					break;
 				case HeroClass::Sorcerer:
+				case HeroClass::Necromancer:
 					spId = TEXT_MBLOODWAR;
 					break;
 				case HeroClass::Monk:

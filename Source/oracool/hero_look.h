@@ -55,5 +55,8 @@ std::shared_ptr<const SpriteColours> HeroColours(const Player &player);
 /** @brief The same from the two things it depends on - for the hero-select screen, which has no Player to ask. */
 std::shared_ptr<const SpriteColours> HeroColoursFor(HeroClass heroClass, uint8_t gfxnum);
 
+/** @brief Which dye that is, for cache keys: 0 none, 1 the light Barbarian, 2 the Necromancer. A new dye takes a new number. */
+uint8_t HeroDyeId(HeroClass heroClass, uint8_t gfxnum);
+
 } // namespace oracool
 } // namespace devilution

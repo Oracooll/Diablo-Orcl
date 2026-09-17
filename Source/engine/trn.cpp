@@ -52,6 +52,9 @@ std::optional<std::array<uint8_t, 256>> GetClassTRN(Player &player)
 	case HeroClass::Barbarian:
 		path = "plrgfx\\barbarian.trn";
 		break;
+	case HeroClass::Necromancer:
+		path = "plrgfx\\necromancer.trn"; // optional, like the rest; his look is oracool/hero_look
+		break;
 	}
 
 #ifdef _DEBUG

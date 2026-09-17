@@ -1087,7 +1087,7 @@ PlayerSheetRequest MakePlayerSheetRequest(const Player &player, HeroClass sprite
 	request.frameWidth = frameWidth;
 	request.scalePercent = SpriteScalePercent(player._pClass);
 	request.dye = HeroColours(player);
-	request.dyeId = request.dye != nullptr ? 1 : 0;
+	request.dyeId = HeroDyeId(player._pClass, player._pgfxnum);
 	return request;
 }
 
@@ -1105,7 +1105,7 @@ PlayerSheetRequest MakePlayerSheetRequest(HeroClass heroClass, HeroClass spriteC
 	request.frameWidth = frameWidth;
 	request.scalePercent = SpriteScalePercent(heroClass);
 	request.dye = HeroColoursFor(heroClass, gfxnum);
-	request.dyeId = request.dye != nullptr ? 1 : 0;
+	request.dyeId = HeroDyeId(heroClass, gfxnum);
 	return request;
 }
 
