@@ -36,6 +36,16 @@ Added to the artifact as D7-D11. None blocks the first two phases.
 
 ---
 
+### Answered 2026-09-17 (second round)
+
+| # | The user's answer | Consequence |
+|---|---|---|
+| D7 | **8 Skeletons, 8 Mages, 1 Golem, 10 Revived = 27** (recommended) | Minion pool of 32. Counts grow with rank: 1 at rank 1, +1 every 3 ranks. |
+| D8 | **Curses AND the corpse skills**; "pool of 100. fills within 20 seconds." | Essence is his death-magic pool: curses, Corpse Explosion, Revive. 5 a second is SLOW against D2's habit of chaining Corpse Explosions, so prices decide the feel - proposed: Corpse Explosion 10, a curse 25, Revive 35. Raising skeletons, bone and poison stay on mana. |
+| D9 | **8 bases per family** (recommended) | 24 bases, 48 images in art request B. |
+| D10 | **Wands and scythes for anyone; heads his alone** (recommended) | Heads are a class-only base, hidden from every other class's drops the way the Bard's were. |
+| D11 | **"light shield with head decal on it (if you can put one on the shield asset)."** | A held head is drawn as the LIGHT tier's shield whatever armour he wears - that is  as it stands ( for head items). The decal is new work: the mixer knows the shield's pixels per frame (it subtracts them), so a mark can be stamped on the frames where the face shows and the shield re-dyed bone in true colour. At game scale a head on a 20-pixel shield is a pale mark, not a portrait - to be judged on a contact sheet before it is committed to, as the shield swap was. |
+
 ## 2. The class itself (data and plumbing) - unchanged from revision 1
 
 Traced through `HeroClass::Bard` (18 files) and `enum_size<HeroClass>` (5 files).
