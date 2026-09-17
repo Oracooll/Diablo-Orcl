@@ -1,0 +1,98 @@
+/**
+ * @file oracool_essence_test.cpp
+ *
+ * The Necromancer's Essence (phase N2, v1.12.033): a second pool beside mana - 100 points, empty to full
+ * within 20 seconds, his alone, and paid through the same door as mana and Rage.
+ */
+
+#include <gtest/gtest.h>
+
+#include "oracool/essence.h"
+#include "oracool/rage.h"
+#include "player.h"
+
+using namespace devilution;
+
+namespace {
+
+devilution::Player &FreshHero(HeroClass heroClass)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = heroClass;
+	player._pHitPoints = 100 << 6;
+	player._pMaxHP = 100 << 6;
+	player._pmode = PM_STAND;
+	oracool::ResetEssence(player);
+	return player;
+}
+
+} // namespace
+
+TEST(OracoolEssence, OnlyTheNecromancerHasAPoolAndHeKeepsHisMana)
+{
+	for (const HeroClass heroClass : { HeroClass::Warrior, HeroClass::Rogue, HeroClass::Sorcerer, HeroClass::Monk, HeroClass::Bard, HeroClass::Barbarian })
+		EXPECT_FALSE(oracool::ClassUsesEssence(heroClass));
+	EXPECT_TRUE(oracool::ClassUsesEssence(HeroClass::Necromancer));
+	EXPECT_FALSE(oracool::ClassUsesRage(HeroClass::Necromancer)) << "Essence is beside mana, not instead of it";
+	EXPECT_EQ(oracool::MaxEssence(FreshHero(HeroClass::Necromancer)), 100);
+	EXPECT_EQ(oracool::MaxEssence(FreshHero(HeroClass::Sorcerer)), 0);
+}
+
+// The user's numbers: "pool of 100. fills within 20 seconds."
+TEST(OracoolEssence, ItFillsFromEmptyWithinTwentySecondsAndNotMuchSooner)
+{
+	devilution::Player &player = FreshHero(HeroClass::Necromancer);
+	EXPECT_EQ(oracool::CurrentEssence(player), 0);
+	int ticks = 0;
+	while (oracool::CurrentEssence(player) < 100 && ticks < 10000) {
+		oracool::ProcessEssenceTick(player);
+		ticks++;
+	}
+	EXPECT_LE(ticks, 20 * 20);
+	EXPECT_GE(ticks, 19 * 20);
+	// Full stays full.
+	for (int i = 0; i < 100; i++)
+		oracool::ProcessEssenceTick(player);
+	EXPECT_EQ(oracool::CurrentEssence(player), 100);
+}
+
+TEST(OracoolEssence, TheDeadRefillNothingAndOtherClassesNeverHoldAny)
+{
+	devilution::Player &dead = FreshHero(HeroClass::Necromancer);
+	dead._pHitPoints = 0;
+	for (int i = 0; i < 400; i++)
+		oracool::ProcessEssenceTick(dead);
+	EXPECT_EQ(oracool::CurrentEssence(dead), 0);
+
+	devilution::Player &sorcerer = FreshHero(HeroClass::Sorcerer);
+	sorcerer._pEssence = 50 << 6; // as if left behind by another hero in this slot
+	oracool::ProcessEssenceTick(sorcerer);
+	EXPECT_EQ(sorcerer._pEssence, 0);
+	EXPECT_FALSE(oracool::HasEssence(sorcerer, 1));
+	EXPECT_TRUE(oracool::HasEssence(sorcerer, 0));
+}
+
+TEST(OracoolEssence, SpendingAndGainingStayInsideThePool)
+{
+	devilution::Player &player = FreshHero(HeroClass::Necromancer);
+	oracool::GainEssence(player, 60);
+	EXPECT_EQ(oracool::CurrentEssence(player), 60);
+	EXPECT_TRUE(oracool::HasEssence(player, 60));
+	EXPECT_FALSE(oracool::HasEssence(player, 61));
+	oracool::SpendEssence(player, 25);
+	EXPECT_EQ(oracool::CurrentEssence(player), 35);
+	oracool::SpendEssence(player, 500);
+	EXPECT_EQ(oracool::CurrentEssence(player), 0);
+	oracool::GainEssence(player, 500);
+	EXPECT_EQ(oracool::CurrentEssence(player), 100);
+}
+
+// Nothing is priced in Essence yet, so every spell still asks the Necromancer for mana - the pay path must not
+// have changed for him or anyone until a row carries an Essence price.
+TEST(OracoolEssence, UntilARowIsPricedInEssenceEverySpellStillCostsMana)
+{
+	for (int i = 0; i <= static_cast<int>(SpellID::LAST); i++)
+		EXPECT_EQ(oracool::EssenceCost(static_cast<SpellID>(i)), 0) << i;
+}

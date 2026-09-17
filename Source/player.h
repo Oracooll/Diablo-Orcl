@@ -398,6 +398,8 @@ struct Player {
 	int _pRage;
 	/** Ticks since Rage was last gained or spent; the out-of-combat drain starts from it. */
 	int _pRageIdleTicks;
+	/** The Necromancer's Essence in 1/64 points - see oracool/essence.h. Transient: a hero enters the game with none. */
+	int _pEssence;
 	int _pIMinDam;
 	int _pIMaxDam;
 	int _pIAC;

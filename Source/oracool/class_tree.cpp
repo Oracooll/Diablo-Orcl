@@ -17,6 +17,7 @@
 #include "oracool/event_log.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h"
+#include "oracool/essence.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/skill_facts.h"
@@ -2890,6 +2891,7 @@ void ProcessClassTreeTick(Player &player)
 	ProcessOutwardAura(player);
 	ProcessPassivesTick(player);
 	ProcessRageTick(player);
+	ProcessEssenceTick(player);
 	ProcessRfa12Tick(player);
 	ProcessWarcriesTick(player);
 	TickMovementSlow(player);

@@ -6,6 +6,7 @@
 
 #include "engine/backbuffer_state.hpp"
 #include "oracool/class_tree.h"
+#include "oracool/essence.h"
 #include "oracool/passives.h"
 #include "player.h"
 #include "spells.h"
@@ -141,6 +142,9 @@ bool CanPaySkill(const Player &player, SpellID spell)
 {
 	if (UsesRage(player))
 		return player._pRage >= RageCost(spell);
+	// A row priced in Essence is paid in Essence and nothing else (oracool/essence.h) - never both.
+	if (const int essence = EssenceCost(spell); essence > 0 && UsesEssence(player))
+		return HasEssence(player, essence);
 	return player._pMana >= GetManaAmount(player, spell);
 }
 
@@ -162,6 +166,10 @@ void SettleSkill(Player &player, SpellID spell, int landedBlows)
 		}
 		return;
 	}
+	if (const int essence = EssenceCost(spell); essence > 0 && UsesEssence(player)) {
+		SpendEssence(player, essence);
+		return;
+	}
 	const int cost = GetManaAmount(player, spell);
 	player._pMana -= cost;
 	player._pManaBase -= cost;
@@ -178,6 +186,8 @@ std::string SkillResourceLine(const Player &player, SpellID spell, int level)
 			return fmt::format(fmt::runtime(_("Generates {:d} Rage")), gain);
 		return {};
 	}
+	if (const int essence = EssenceCost(spell); essence > 0 && UsesEssence(player))
+		return fmt::format(fmt::runtime(_("Essence Cost: {:d}")), essence);
 	return fmt::format(fmt::runtime(_("Mana Cost: {:d}")), GetManaAmountAtLevel(player, spell, level) >> 6);
 }
 

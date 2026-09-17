@@ -22,6 +22,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/essence.h"
 #include "oracool/rage.h"
 #include "oracool/run_toggle.h" // IsRunEnabled - which glyph the belt's toggle wears
 #include "options.h" // the HUD Plate Art switch
@@ -162,6 +163,8 @@ ArtAsset ManaOrbLiquidArt { "ui\\mana_orb_liquid.png" };
  * TintRageLiquid. Same file, same shape, so it always fits the mana cradle it is poured into.
  */
 ArtAsset RageOrbLiquidArt { "ui\\mana_orb_liquid.png" };
+/** The same liquid again, tinted the dark green of Essence at load - the right half of the Necromancer's orb. */
+ArtAsset EssenceOrbLiquidArt { "ui\\mana_orb_liquid.png" };
 ArtAsset MenuIconsArt { "ui\\menu_icons.png" };
 /**
  * Oracool V1 inventory window. The panel is one flat composition (background, paladin
@@ -796,6 +799,23 @@ void TintRageLiquid(ArtAsset &asset)
 	}
 }
 
+/**
+ * @brief Turns the blue mana liquid into Essence's dark green (user, D3: "Essence (dark green)").
+ *
+ * Brightness kept, hue replaced, like Rage's orange - but at 70% of the brightness, because "dark" is part of the
+ * answer and the mana half beside it must stay the livelier of the two. The palette has no green; this is a true
+ * colour layer, which is the only reason it can exist.
+ */
+void TintEssenceLiquid(ArtAsset &asset)
+{
+	for (size_t i = 0; i + 3 < asset.rgba.size(); i += 4) {
+		const int value = std::max({ asset.rgba[i], asset.rgba[i + 1], asset.rgba[i + 2] }) * 70 / 100;
+		asset.rgba[i] = static_cast<uint8_t>(value * 18 / 100);
+		asset.rgba[i + 1] = static_cast<uint8_t>(value);
+		asset.rgba[i + 2] = static_cast<uint8_t>(value * 38 / 100);
+	}
+}
+
 void EnsureLoadedAll()
 {
 	if (!PlateArt.loadAttempted)
@@ -811,6 +831,10 @@ void EnsureLoadedAll()
 	if (!RageOrbLiquidArt.loadAttempted) {
 		LoadPixels(RageOrbLiquidArt);
 		TintRageLiquid(RageOrbLiquidArt);
+	}
+	if (!EssenceOrbLiquidArt.loadAttempted) {
+		LoadPixels(EssenceOrbLiquidArt);
+		TintEssenceLiquid(EssenceOrbLiquidArt);
 	}
 	if (!MenuIconsArt.loadAttempted)
 		LoadPixels(MenuIconsArt);
@@ -888,6 +912,8 @@ bool NeedsQuantize()
 	if (!ManaOrbLiquidArt.rgba.empty() && !ManaOrbLiquidArt.bright)
 		return true;
 	if (!RageOrbLiquidArt.rgba.empty() && !RageOrbLiquidArt.bright)
+		return true;
+	if (!EssenceOrbLiquidArt.rgba.empty() && !EssenceOrbLiquidArt.bright)
 		return true;
 	if (!ManaOrbArt.rgba.empty() && !ManaOrbArt.bright)
 		return true;
@@ -975,6 +1001,7 @@ void EnsureQuantized()
 	QuantizeAsset(HealthOrbLiquidArt, std::nullopt);
 	QuantizeAsset(ManaOrbLiquidArt, std::nullopt);
 	QuantizeAsset(RageOrbLiquidArt, std::nullopt);
+	QuantizeAsset(EssenceOrbLiquidArt, std::nullopt);
 	// Same 50% gold as the plate, so the menu the burger button opens matches the HUD it sits on.
 	//
 	// This sheet is the one place where chrome and content share pixels: each cell is a frame with
@@ -1273,6 +1300,49 @@ void DrawOrb(const Surface &out, ArtAsset &asset, ArtAsset &liquid, Point positi
 	BlitLayer(out, asset, Layer::Bright,
 	    MakeSdlRect(0, revealTop, asset.width, asset.height - revealTop),
 	    position + Displacement { 0, revealTop });
+}
+
+/**
+ * @brief One orb, two pools: the left half fills with @p leftLiquid by the left pool, the right half with
+ * @p rightLiquid by the right one, each to its own level (user, D3: "Dual orb (Demon Hunter D3 style)").
+ *
+ * Only the liquid path - the split needs a liquid layer per pool, and a HUD without one draws the single orb.
+ * The halves meet on the sphere's centre column; the cradle goes over both, so the glass and rim are one.
+ */
+bool DrawSplitOrb(const Surface &out, ArtAsset &asset, ArtAsset &leftLiquid, ArtAsset &rightLiquid, Point position, Point sphereCenterLocal,
+    int leftValue, int leftMax, int rightValue, int rightMax)
+{
+	EnsureLoadedAll();
+	if (asset.rgba.empty())
+		return false;
+	EnsureQuantized();
+	if (!asset.bright)
+		return false;
+	for (const ArtAsset *liquid : { &leftLiquid, &rightLiquid }) {
+		if (!liquid->bright || liquid->width != asset.width || liquid->height != asset.height)
+			return false;
+	}
+
+	const int radius = GetOrbSphereRadius();
+	const int span = 2 * radius;
+	const int split = std::clamp(sphereCenterLocal.x, 0, asset.width);
+	const auto revealTopFor = [&](int value, int max) {
+		const int64_t curr = std::clamp<int64_t>(value, 0, max > 0 ? max : 0);
+		const int filledRows = max > 0 ? static_cast<int>(span * curr / max) : 0;
+		return std::clamp(sphereCenterLocal.y + radius - filledRows, 0, asset.height);
+	};
+	const int leftTop = revealTopFor(leftValue, leftMax);
+	const int rightTop = revealTopFor(rightValue, rightMax);
+	if (leftTop < asset.height && split > 0) {
+		BlitLayer(out, leftLiquid, Layer::Bright, MakeSdlRect(0, leftTop, split, asset.height - leftTop),
+		    position + Displacement { 0, leftTop });
+	}
+	if (rightTop < asset.height && split < asset.width) {
+		BlitLayer(out, rightLiquid, Layer::Bright, MakeSdlRect(split, rightTop, asset.width - split, asset.height - rightTop),
+		    position + Displacement { split, rightTop });
+	}
+	BlitLayer(out, asset, Layer::Bright, MakeSdlRect(0, 0, asset.width, asset.height), position);
+	return true;
 }
 
 } // namespace
@@ -1980,6 +2050,7 @@ void ResetHudArtCaches()
 	reset(HealthOrbLiquidArt);
 	reset(ManaOrbLiquidArt);
 	reset(RageOrbLiquidArt);
+	reset(EssenceOrbLiquidArt);
 	reset(MenuIconsArt);
 	reset(InventoryPanelArt);
 	reset(SidePanelArt);
@@ -2814,6 +2885,11 @@ void DrawManaOrb(const Surface &out, int yOffset)
 		    player._pRage, MaxRage(player));
 		return;
 	}
+	// The Necromancer's orb is two pools: mana on the left, Essence in dark green on the right (oracool/essence.h).
+	if (UsesEssence(player)
+	    && DrawSplitOrb(out, ManaOrbArt, ManaOrbLiquidArt, EssenceOrbLiquidArt, GetManaOrbRect().position + Displacement { 0, yOffset },
+	        GetManaOrbSphereCenterLocal(), player._pMana >> 6, player._pMaxMana >> 6, CurrentEssence(player), MaxEssence(player)))
+		return;
 	DrawOrb(out, ManaOrbArt, ManaOrbLiquidArt, GetManaOrbRect().position + Displacement { 0, yOffset }, GetManaOrbSphereCenterLocal(),
 	    player._pMana >> 6, player._pMaxMana >> 6);
 }

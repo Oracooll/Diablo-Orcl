@@ -1022,8 +1022,11 @@ void DrawPanelBox(const Surface &out, SDL_Rect srcRect, Point targetPosition)
  */
 void DrawFlaskValues(const Surface &out, Point pos, int currValue, int maxValue)
 {
-	UiFlags color = (currValue > 0 ? (currValue == maxValue ? UiFlags::ColorGold : UiFlags::ColorWhite) : UiFlags::ColorRed);
+	DrawFlaskValuesInColor(out, pos, currValue, maxValue, currValue > 0 ? (currValue == maxValue ? UiFlags::ColorGold : UiFlags::ColorWhite) : UiFlags::ColorRed);
+}
 
+void DrawFlaskValuesInColor(const Surface &out, Point pos, int currValue, int maxValue, UiFlags color)
+{
 	auto drawStringWithShadow = [out, color](string_view text, Point pos) {
 		DrawString(out, text, pos + Displacement { -1, -1 }, { UiFlags::ColorBlack | UiFlags::KerningFitSpacing, 0 });
 		DrawString(out, text, pos, { color | UiFlags::KerningFitSpacing, 0 });

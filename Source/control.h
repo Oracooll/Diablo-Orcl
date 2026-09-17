@@ -310,6 +310,8 @@ Point GetPanelPosition(UiPanels panel, Point offset = { 0, 0 });
  * this text readout survives, drawn centered on each orb's sphere (see scrollrt.cpp).
  */
 void DrawFlaskValues(const Surface &out, Point pos, int currValue, int maxValue);
+/** @brief The same in one fixed colour - the second pool of a split orb, which is never "wounded" red or "full" gold. */
+void DrawFlaskValuesInColor(const Surface &out, Point pos, int currValue, int maxValue, UiFlags color);
 
 /**
  * @brief calls on the active player object to update HP/Mana percentage variables

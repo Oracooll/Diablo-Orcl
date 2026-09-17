@@ -52,6 +52,7 @@
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
+#include "oracool/essence.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/warcries.h"
@@ -2973,6 +2974,7 @@ void InitPlayer(Player &player, bool firstTime)
 		// staircase taken mid-fight cost the whole pool; the calm clock in oracool/rage.h is what
 		// drains it, and a level change is not a reason to stop being angry.
 		oracool::ResetRage(player);
+		oracool::ResetEssence(player); // the same moment, for the same reason: a new game, not a new level
 		// NORMALISED, not cleared (user, 2026-09-02: "forgetting lmb skill isnt [fixed]. fix it.").
 		//
 		// This reset exists for one narrow reason, recorded when the left pair was added: value-
