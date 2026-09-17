@@ -30,7 +30,7 @@ build - those are N2 onward.
 - **Every class switch** the Sorcerer has, he has: voice bank, inventory panel, quest-book speech (9 sites in
   `objects.cpp`), shrine (+2 Magic), Slain Hero (a spell book), ear, victory film, mana potion doubling, magic
   to-hit +20, the boy's stock filter, starting look on the hero-select screen.
-- **Start**: the Sorcerer's staff, two mana potions, and Firebolt at level 2 - until Teeth exists (N7) a
+- **Start**: the Sorcerer's staff, two mana potions, and Firebolt at level 2 - until Teeth exists (N6) a
   Necromancer with nothing to cast is not playable. The wand replaces the staff in N9.
 - **Hero select**: a "Necromancer" row under the Sorcerer. The portrait is the Sorcerer's until
   `ui_art\hero6.png` exists (the override loop already looks for it).

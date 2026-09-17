@@ -2739,7 +2739,7 @@ void CreatePlayer(Player &player, HeroClass c)
 	player._pLRSpell = SpellID::Invalid;
 	player._pLRSplType = SpellType::Invalid;
 
-	// The Necromancer too, until his own first skill exists (Teeth, phase N7 of the plan): every one of his 72
+	// The Necromancer too, until his own first skill exists (Teeth, phase N6 of the plan): every one of his 72
 	// rows is inert at N1, and a caster with nothing to cast is not a playable class.
 	if (IsAnyOf(c, HeroClass::Sorcerer, HeroClass::Necromancer)) {
 		player._pMemSpells = GetSpellBitmask(SpellID::Firebolt);
