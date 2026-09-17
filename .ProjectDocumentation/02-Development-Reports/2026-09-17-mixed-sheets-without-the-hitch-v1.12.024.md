@@ -76,3 +76,17 @@ restarting the game, the mixed sheet is there from the first frame.
 
 Not run in the game. 795 tests pass; the mixer itself needs the archives and is verified through the
 export tool rather than ctest.
+
+## v1.12.025 - abort() on exit
+
+The user's first run: the lag is gone, and leaving the game raised "Debug Error! abort() has been
+called". v1.12.024 joined the worker only in `diablo_quit`. The ordinary way out - menu, then exit -
+is `DiabloMain` calling `DiabloDeinit` and returning, which never passes `diablo_quit`; the static
+`std::thread` was still joinable when the statics were destroyed, and that is `std::terminate`.
+
+`DiabloDeinit`'s own header comment records this exact lesson from 2026-08-31 (the watchdog was first
+armed at the wrong call site for the same reason), and it was not read before choosing the hook. Fixed
+twice over: `ShutdownSpriteMixer` is now called in `DiabloDeinit`, the function every exit funnels
+through, and the thread lives in a holder whose destructor joins, so a future third exit path cannot
+bring the abort back. The holder is declared after the mutex and queues it uses, so it is destroyed
+before them.

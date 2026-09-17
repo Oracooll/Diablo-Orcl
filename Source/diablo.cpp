@@ -2040,6 +2040,12 @@ void DiabloDeinit()
 	// guessing at the deadlock.
 	oracool::ArmShutdownWatchdog();
 
+	// Oracool: the sprite mixer's worker thread is stopped and joined HERE, for the very reason in the comment
+	// above - every exit funnels through this function and not through diablo_quit. v1.12.024 joined it only in
+	// diablo_quit; the ordinary way out (menu, then exit) came straight here, left the thread joinable, and the
+	// static std::thread's destructor called std::terminate: "abort() has been called" on exit (user, 2026-09-17).
+	oracool::ShutdownSpriteMixer();
+
 	FreeItemGFX();
 
 	if (gbSndInited)

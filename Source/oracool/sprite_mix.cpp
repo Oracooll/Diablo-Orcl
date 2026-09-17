@@ -796,8 +796,18 @@ std::deque<std::unique_ptr<Job>> Loading;  // main thread fills `loaded`
 std::deque<std::unique_ptr<Job>> Ready;    // worker composes
 std::deque<Finished> Done;                 // main thread delivers
 std::unordered_map<std::string, bool> InFlight;
-std::thread Worker;
 std::atomic<bool> WorkerStop { false };
+
+/**
+ * The worker, in a holder that JOINS on destruction. A bare static std::thread that is still joinable when the
+ * statics are torn down calls std::terminate - which is how v1.12.024 ended every ordinary exit in abort().
+ * ShutdownSpriteMixer is still called on the way out; this is what makes forgetting it harmless.
+ */
+struct WorkerHolder {
+	std::thread thread;
+	~WorkerHolder();
+};
+WorkerHolder WorkerThread;
 
 std::string CachePath(const std::string &key)
 {
@@ -1073,9 +1083,9 @@ void PumpSpriteMixer()
 	const std::lock_guard<std::mutex> lock(StateMutex);
 	Ready.push_back(std::move(Loading.front()));
 	Loading.pop_front();
-	if (!Worker.joinable()) {
+	if (!WorkerThread.thread.joinable()) {
 		WorkerStop = false;
-		Worker = std::thread(WorkerMain);
+		WorkerThread.thread = std::thread(WorkerMain);
 	}
 	WorkerWake.notify_one();
 }
@@ -1109,8 +1119,15 @@ void ShutdownSpriteMixer()
 	// Joined, not detached: the mutex and the queues are statics, and a thread still running while they are torn
 	// down is exactly the kind of exit that leaves a windowless process behind. A job in hand finishes first - well
 	// under a second - and no new one can start.
-	if (Worker.joinable())
-		Worker.join();
+	if (WorkerThread.thread.joinable())
+		WorkerThread.thread.join();
 }
+
+namespace {
+WorkerHolder::~WorkerHolder()
+{
+	ShutdownSpriteMixer();
+}
+} // namespace
 
 } // namespace devilution::oracool
