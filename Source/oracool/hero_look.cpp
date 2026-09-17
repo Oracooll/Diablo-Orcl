@@ -99,30 +99,42 @@ std::shared_ptr<const SpriteColours> LightBarbarianColours()
 /**
  * @brief The Necromancer: the Sorcerer's body in grave clothes (plan decision D2, 2026-09-17).
  *
- * Measured on the exported Sorcerer sheets, all three armour tiers: the robe is the red ramp 232-239 (34% of the
- * light figure, 14% of the heavy, 7% of the medium), its bright trim 224-231 and, on the heavy tier, the pure reds
- * 136-143; the skin - and the staff he is born holding - is 168-175, a steady tenth of the figure in every tier.
- * The greys, the tans and the boots are left alone. One table serves all three tiers because the same ramps mean
- * the same materials on each.
+ * Measured on the exported Sorcerer sheets, all three armour tiers. THE SHARED PALETTE'S RAMPS COME IN PAIRS: 224-239
+ * is ONE red sixteen entries long, not a bright trim beside a dark robe - the robe's lit folds are 229-231 and its
+ * body 232-237. The first dye (v1.12.030) treated the halves as two materials and sent the highlights to
+ * near-black, which flattened the cloth (user screenshot, the same day). So:
  *
- * Own colours, not an index dye: the palette has no green at all and its greys are dead neutral, and a dark
- * green-grey robe with ashen skin is neither. Each entry falls back to itself, so an indexed target simply draws
- * the Sorcerer.
+ *  - the robe, 224-239, and the heavy tier's pure reds 136-143: a dark green, each entry at 62% of the brightness
+ *    of the red it replaces, so every fold keeps its place;
+ *  - the skin, 160-175 (again one ramp of sixteen) and the dark end of the tan, 204-207, where his face and hands
+ *    actually sit: ash, BRIGHTER than the brown it replaces - he is pale;
+ *  - the boots, sash and staff bindings, 208-223: dried blood instead of orange leather, his one accent.
+ *
+ * The greys, the blues and the rest of the tan are left alone. One table serves all three tiers because the same
+ * ramps mean the same materials on each. Own colours, not an index dye: the palette has no green at all. Each
+ * entry falls back to itself, so an indexed target draws the plain Sorcerer.
  */
 std::shared_ptr<const SpriteColours> NecromancerColours()
 {
-	constexpr std::array<uint32_t, 8> Robe = { 0x46524B, 0x3B4640, 0x313A35, 0x272F2B, 0x1E2421, 0x151A18, 0x0D100F, 0x060807 };
-	constexpr std::array<uint32_t, 8> Trim = { 0x6B8072, 0x5B6E61, 0x4C5C51, 0x3E4B42, 0x303A33, 0x232B26, 0x171C19, 0x0C0F0D };
-	constexpr std::array<uint32_t, 8> Ash = { 0x9A988C, 0x888679, 0x767468, 0x646258, 0x524F47, 0x3F3D37, 0x272622, 0x131311 };
+	constexpr std::array<uint32_t, 16> Robe = { 0x68877A, 0x587368, 0x4E655C, 0x475C53, 0x40534B, 0x384942, 0x31403A, 0x2A3731,
+		0x25302B, 0x202A26, 0x1B2320, 0x161D1A, 0x121715, 0x0D110F, 0x080B0A, 0x040504 };
+	constexpr std::array<uint32_t, 8> PureRed = { 0x5D796D, 0x445950, 0x32413B, 0x242E2A, 0x1C2521, 0x161C19, 0x0D1110, 0x050706 };
+	constexpr std::array<uint32_t, 16> Ash = { 0xF2F0DA, 0xEFEDD7, 0xEDEBD5, 0xEBE9D3, 0xEAE8D1, 0xE9E7D0, 0xCBC9B5, 0xB0AF9E,
+		0x9D9C8C, 0x89887B, 0x767569, 0x626158, 0x4E4E46, 0x3B3B35, 0x20201D, 0x0F0F0E };
+	constexpr std::array<uint32_t, 4> DarkTan = { 0x65645B, 0x54534B, 0x2A2A26, 0x1A1917 };
+	constexpr std::array<uint32_t, 16> Blood = { 0xD8353A, 0xD8353A, 0xD8353A, 0xD8353A, 0xCD3238, 0xBA2E32, 0xA3282C, 0x8D2326,
+		0x7E1F22, 0x6F1B1E, 0x5E171A, 0x4E1315, 0x401011, 0x2C0B0C, 0x1A0607, 0x0A0203 };
 
 	auto colours = std::make_shared<SpriteColours>();
-	for (int i = 0; i < 8; i++) {
-		const auto at = static_cast<size_t>(i);
-		colours->Set(static_cast<uint8_t>(232 + i), Robe[at], static_cast<uint8_t>(232 + i));
-		colours->Set(static_cast<uint8_t>(224 + i), Trim[at], static_cast<uint8_t>(224 + i));
-		colours->Set(static_cast<uint8_t>(136 + i), Trim[at], static_cast<uint8_t>(136 + i));
-		colours->Set(static_cast<uint8_t>(168 + i), Ash[at], static_cast<uint8_t>(168 + i));
-	}
+	const auto set = [&](int first, const uint32_t *values, int count) {
+		for (int i = 0; i < count; i++)
+			colours->Set(static_cast<uint8_t>(first + i), values[i], static_cast<uint8_t>(first + i));
+	};
+	set(224, Robe.data(), 16);
+	set(136, PureRed.data(), 8);
+	set(160, Ash.data(), 16);
+	set(204, DarkTan.data(), 4);
+	set(208, Blood.data(), 16);
 	return colours;
 }
 

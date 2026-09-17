@@ -105,6 +105,27 @@ HeroClass SpriteClassFor(HeroClass cls)
 	return cls;
 }
 
+/** @brief The front end's palette entry closest to a colour. Never 0 - see EnsureTrn. */
+uint8_t NearestUiIndex(int r, int g, int b)
+{
+	int best = 1;
+	int bestDist = INT32_MAX;
+	for (int j = 1; j < 256; j++) {
+		const SDL_Color &c = orig_palette[j];
+		const int dr = static_cast<int>(c.r) - r;
+		const int dg = static_cast<int>(c.g) - g;
+		const int db = static_cast<int>(c.b) - b;
+		// The same channel weighting the background and HUD quantizers use, so every pass in
+		// this edition agrees about what "closest colour" means.
+		const int dist = 2 * dr * dr + 4 * dg * dg + 3 * db * db;
+		if (dist < bestDist) {
+			bestDist = dist;
+			best = j;
+		}
+	}
+	return static_cast<uint8_t>(best);
+}
+
 /**
  * @brief (Re)builds the palette translation if the screen's palette has changed under it.
  *
@@ -126,22 +147,7 @@ bool EnsureTrn()
 		const int r = levelPalette[i * 3];
 		const int g = levelPalette[i * 3 + 1];
 		const int b = levelPalette[i * 3 + 2];
-		int best = 1;
-		int bestDist = INT32_MAX;
-		for (int j = 1; j < 256; j++) {
-			const SDL_Color &c = orig_palette[j];
-			const int dr = static_cast<int>(c.r) - r;
-			const int dg = static_cast<int>(c.g) - g;
-			const int db = static_cast<int>(c.b) - b;
-			// The same channel weighting the background and HUD quantizers use, so every pass in
-			// this edition agrees about what "closest colour" means.
-			const int dist = 2 * dr * dr + 4 * dg * dg + 3 * db * db;
-			if (dist < bestDist) {
-				bestDist = dist;
-				best = j;
-			}
-		}
-		LevelToUiTrn[i] = static_cast<uint8_t>(best);
+		LevelToUiTrn[i] = NearestUiIndex(r, g, b);
 	}
 	// The sprite's own index 0 is its transparent colour and its shadow's; mapped to the nearest
 	// black it drew an opaque blob under the figure (user screenshot, 2026-09-07). 0 stays 0, which
@@ -335,13 +341,19 @@ void DrawHeroPreview(const Surface &out, Rectangle area)
 	OwnedSurface frame(width, height);
 	for (int y = 0; y < height; y++)
 		std::memset(&frame[Point { 0, y }], 0, static_cast<size_t>(width));
-	// This screen draws palette INDICES, so a sheet with colours of its own is shown through each colour's
-	// fallback - the nearest level entry - and only then taken to the UI palette. A blue shirt is one of eight
-	// blues here rather than sixteen; at menu scale, behind a nearest-match to another palette, that is invisible.
+	// This screen draws palette INDICES, so a colour a sheet owns is matched to the FRONT END's palette directly.
+	// It went through the colour's fallback index until 2026-09-17, which was right for the Barbarian (his fallbacks
+	// are the blues he is dyed) and wrong for the Necromancer, whose colours fall back to themselves: the
+	// hero-select screen showed a red Sorcerer (user report). The UI palette has greens the level palette lacks.
 	std::array<uint8_t, 256> trn = LevelToUiTrn;
 	if (PreviewColours != nullptr) {
-		for (size_t i = 1; i < 256; i++)
-			trn[i] = LevelToUiTrn[PreviewColours->Fallback(static_cast<uint8_t>(i))];
+		for (size_t i = 1; i < 256; i++) {
+			const auto index = static_cast<uint8_t>(i);
+			if (!PreviewColours->HasOwn(index))
+				continue;
+			const uint32_t rgb = PreviewColours->Own(index);
+			trn[i] = NearestUiIndex(static_cast<int>((rgb >> 16) & 0xFF), static_cast<int>((rgb >> 8) & 0xFF), static_cast<int>(rgb & 0xFF));
+		}
 	}
 	ClxDrawTRN(frame, { 0, height - 1 }, sprite, trn.data());
 

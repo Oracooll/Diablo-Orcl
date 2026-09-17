@@ -469,7 +469,7 @@ void SelheroClassSelectorSelect(int value)
 	// digits and 314px for zeros, so the cap is what actually makes a name fit rather than the font.
 	// At ten it is 139px and 209px respectively - normal names now clear it with room, and only a
 	// pathological all-caps one still reaches FitToWidth's ellipsis.
-	vecSelDlgItems.push_back(std::make_unique<UiEdit>(_("Enter Name"), selhero_heroInfo.name, 10, false, nameRect, UiFlags::AlignCenter | HeroListFontSize | UiFlags::ColorUiGold));
+	vecSelDlgItems.push_back(std::make_unique<UiEdit>(_("Enter Name"), selhero_heroInfo.name, 15, false, nameRect, UiFlags::AlignCenter | HeroListFontSize | UiFlags::ColorUiGold));
 
 	AddHeroFormButtons(vecSelDlgItems);
 

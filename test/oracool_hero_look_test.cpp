@@ -434,13 +434,13 @@ TEST(OracoolNecromancer, HeIsDyedInEveryArmourTierAndTheSorcererIsNot)
 		const auto gfxnum = static_cast<uint8_t>((armour << 4) | static_cast<uint8_t>(PlayerWeaponGraphic::Staff));
 		const std::shared_ptr<const oracool::SpriteColours> colours = oracool::HeroColoursFor(HeroClass::Necromancer, gfxnum);
 		ASSERT_NE(colours, nullptr) << "armour tier " << static_cast<int>(armour);
-		// The robe, its trim, the heavy tier's reds and the skin have colours of their own...
-		for (const int index : { 232, 239, 224, 231, 136, 143, 168, 175 })
+		// The robe (one ramp of sixteen), the pure reds, the skin, the dark tan of his face and the leather have colours of their own...
+		for (const int index : { 224, 239, 136, 143, 160, 175, 204, 207, 208, 223 })
 			EXPECT_TRUE(colours->HasOwn(static_cast<uint8_t>(index))) << index;
 		// ...and each falls back to ITSELF, so an indexed target draws the plain Sorcerer rather than a wrong ramp.
 		EXPECT_EQ(colours->Fallback(232), 232);
-		// The greys, the tans and the boots are left alone.
-		for (const int index : { 200, 216, 240, 255, 184 })
+		// The greys, the blues and the body of the tan are left alone.
+		for (const int index : { 200, 203, 240, 255, 184, 128 })
 			EXPECT_FALSE(colours->HasOwn(static_cast<uint8_t>(index))) << index;
 		EXPECT_EQ(oracool::HeroColoursFor(HeroClass::Sorcerer, gfxnum), nullptr);
 	}

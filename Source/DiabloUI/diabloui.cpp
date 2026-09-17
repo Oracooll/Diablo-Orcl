@@ -1230,6 +1230,20 @@ Rectangle LabelRect(const SDL_Rect &rect)
  * 209px, so a pathological one still can. Truncating beats the alternative, which with AlignCenter
  * is a string clipped at BOTH ends.
  */
+/**
+ * @brief A 30-point label that does not fit its box drops to 24 points rather than being cut short.
+ *
+ * User, 2026-09-17: "his class name doesnt fit in the text field" - the class list ellipsised "Necromancer". The
+ * list column is a quarter of the button row and cannot grow, so the text gives way instead; an ellipsis is still
+ * what happens to anything too long for 24 points as well.
+ */
+UiFlags ShrinkToFit(string_view text, int maxWidth, UiFlags flags, int spacing)
+{
+	if (HasAnyOf(flags, UiFlags::FontSize30) && GetLineWidth(text, GameFont30, spacing) > maxWidth)
+		return (flags & ~UiFlags::FontSize30) | UiFlags::FontSize24;
+	return flags;
+}
+
 string_view FitToWidth(string_view text, int maxWidth, GameFontTables font, int spacing, std::string &scratch)
 {
 	if (maxWidth <= 0 || GetLineWidth(text, font, spacing) <= maxWidth)
@@ -1322,7 +1336,9 @@ void Render(const UiList &uiList)
 		// label on the same centre line DrawSelector uses, so on a row taller than its text the two
 		// stop disagreeing about where the middle is. On the main menu that is a 44px disagreement.
 		const Rectangle rectangle = LabelRect(rect);
-		const UiFlags flags = uiList.GetFlags() | item.uiFlags | CenteredInBox;
+		UiFlags flags = uiList.GetFlags() | item.uiFlags | CenteredInBox;
+		if (item.args.empty() && item.m_text.find('\n') == string_view::npos)
+			flags = ShrinkToFit(item.m_text, rectangle.size.width, flags, uiList.GetSpacing());
 		// The selected row keeps its pentagrams even while a button holds focus - dimmed, to say the
 		// focus is elsewhere while still naming the row that focus came from and will return to. It
 		// used to vanish entirely, which left "Delete" with nothing on screen saying WHICH hero it
@@ -1421,7 +1437,7 @@ void Render(const UiEdit &uiEdit)
 	// would mean going back to 43 and giving up the 62px that lets a full 15-character name fit.
 	DrawString(out, uiEdit.m_value, rect,
 	    {
-	        uiEdit.GetFlags() | CenteredInBox,
+	        ShrinkToFit(uiEdit.m_value, rect.size.width, uiEdit.GetFlags(), 1) | CenteredInBox,
 	        /*spacing=*/1,
 	        /*lineHeight=*/-1,
 	        /*cursorPosition=*/static_cast<int>(uiEdit.m_cursor.position),
