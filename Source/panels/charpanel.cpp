@@ -21,6 +21,7 @@
 #include "oracool/paladin_skills.h" // a melee class skill swings the weapon, so it reads as weapon damage
 #include "oracool/player_resistance.h"
 #include "oracool/rage.h"
+#include "oracool/essence.h" // the Necromancer's second pool, a row of its own
 #include "oracool/class_tree.h"
 #include "oracool/hero_title.h"
 #include "oracool/signets.h"
@@ -407,6 +408,8 @@ StyledText GetResistInfo(int8_t resist)
 using ValueFunc = StyledText (*)();
 /** @brief A per-frame label. Returns an already-translated string - see CharRow::dynamicLabel. */
 using LabelFunc = std::string (*)();
+/** @brief Whether a row is on the sheet at all for the hero being read (CharRow::visible). */
+using VisibleFunc = bool (*)();
 
 /** @brief Rows that own a widget in the right-hand button column. `None` must stay the zero value
  * so rows can omit the field. */
@@ -457,6 +460,15 @@ struct CharRow {
 	 * a property of the row rather than of the character, and keeps its const char *.
 	 */
 	LabelFunc dynamicLabel = nullptr;
+	/**
+	 * @brief Whether the row is on the sheet at all for the hero being read; nullptr means always.
+	 *
+	 * After dynamicLabel, for the same positional reason. One row needs it: Essence (2026-09-18), the
+	 * Necromancer's second pool, which no other hero has - on their sheet it would read as a stuck zero.
+	 * A hidden row takes no height (EnsureLayout) and draws nothing (DrawRow); the layout is redone
+	 * when the set of visible rows changes, so a new hero of another class gets a fresh sheet.
+	 */
+	VisibleFunc visible = nullptr;
 };
 
 /**
@@ -667,6 +679,13 @@ const CharRow CharRows[] = {
 	    },
 	    0, CharRowExtra::None,
 	    []() { return std::string(oracool::UsesRage(*InspectPlayer) ? _("Rage") : _("Mana")); } },
+	// Essence - the Necromancer's second pool (2026-09-18, oracool/essence.h), under Mana in the orb's own
+	// green, current beside maximum like Life and Mana. Only on the sheet of a hero who has one.
+	{ N_("Essence"),
+	    []() { return StyledText { UiFlags::ColorOracoolGreen, StrCat(oracool::CurrentEssence(*InspectPlayer)) }; },
+	    []() { return StyledText { UiFlags::ColorOracoolGreen, StrCat(oracool::MaxEssence(*InspectPlayer)) }; },
+	    0, CharRowExtra::None, nullptr,
+	    []() { return InspectPlayer != nullptr && oracool::UsesEssence(*InspectPlayer); } },
 
 	// ---------------------------------------------------------------------------------------
 	// Everything below here the engine tracks and acts on, but no Diablo character sheet has
@@ -926,6 +945,23 @@ int MaxScrollOffset = 0;
 constexpr int CharScrollStep = CharRowHeight * 3;
 Point ResetButtonPosition {};
 bool LayoutReady = false;
+/** @brief The optional rows (CharRow::visible) that were on the sheet at the last layout, one bit each. */
+uint64_t LayoutVisibleRows = 0;
+
+bool RowVisible(const CharRow &row)
+{
+	return row.visible == nullptr || row.visible();
+}
+
+uint64_t VisibleRowsNow()
+{
+	uint64_t bits = 0;
+	for (size_t i = 0; i < CharRowCount; ++i) {
+		if (CharRows[i].visible != nullptr && CharRows[i].visible())
+			bits |= uint64_t { 1 } << (i % 64);
+	}
+	return bits;
+}
 
 /**
  * @brief Writes the scroll-adjusted widget positions into ChrBtnsRect and ResetButtonPosition.
@@ -963,7 +999,7 @@ void PlaceWidgets()
 
 void EnsureLayout()
 {
-	if (LayoutReady)
+	if (LayoutReady && LayoutVisibleRows == VisibleRowsNow())
 		return;
 
 	// The columns themselves are compile-time constants (see CharLabelColumnWidth). All that is
@@ -991,11 +1027,16 @@ void EnsureLayout()
 
 	int y = 0;
 	for (size_t i = 0; i < CharRowCount; ++i) {
+		if (!RowVisible(CharRows[i])) {
+			CharRowTop[i] = y; // no height: the rows below close up over it
+			continue;
+		}
 		y += CharRows[i].gapAbove;
 		CharRowTop[i] = y;
 		y += CharRowHeight;
 	}
 	CharListHeight = y;
+	LayoutVisibleRows = VisibleRowsNow();
 
 	// The list is deliberately taller than the window now - the hidden stats below Mana do not fit
 	// and are not meant to. Overshooting the bottom by less than a row would be an accident,
@@ -1016,6 +1057,8 @@ void EnsureLayout()
 void DrawRow(const Surface &content, size_t index)
 {
 	const CharRow &row = CharRows[index];
+	if (!RowVisible(row))
+		return; // not this hero's row (Essence on anyone but the Necromancer)
 	const int top = CharRowTop[index] - ScrollOffset;
 	if (top + CharRowHeight <= 0 || top >= CharContentSize.height)
 		return; // entirely scrolled out - skip the work, the clip would have hidden it anyway

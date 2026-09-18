@@ -5311,7 +5311,11 @@ void ProcessBoneSpirit(Missile &missile)
 {
 	missile._mirange--;
 	int dam = missile._midam;
-	if (missile._mimfnum == 8) {
+	// Oracool (2026-09-18, RfA-17): the Necromancer's Bone Spirit wears the delivered skull - sixteen facings
+	// and no burst set - so it turns by sixteenths and ends in the bone-hit burst; the book spell's sklball
+	// keeps its eight facings and its ninth, bursting, set.
+	const bool necroArt = missile._miAnimType == MissileGraphicID::BoneSpiritNecro;
+	if (!necroArt && missile._mimfnum == 8) {
 		ChangeLight(missile._mlid, missile.position.tile, missile._miAnimFrame);
 		if (missile._mirange == 0) {
 			missile._miDelFlag = true;
@@ -5329,11 +5333,17 @@ void ProcessBoneSpirit(Missile &missile)
 			auto *monster = FindClosest(c, 19);
 			if (monster != nullptr) {
 				missile._midam = monster->hitPoints >> 7;
-				SetMissDir(missile, GetDirection(c, monster->position.tile));
+				if (necroArt)
+					SetMissDir(missile, GetDirection16(c, monster->position.tile));
+				else
+					SetMissDir(missile, GetDirection(c, monster->position.tile));
 				UpdateMissileVelocity(missile, monster->position.tile, 16);
 			} else {
 				Direction sd = Players[missile._misource]._pdir;
-				SetMissDir(missile, sd);
+				if (necroArt)
+					SetMissDir(missile, GetDirection16(c, c + sd));
+				else
+					SetMissDir(missile, sd);
 				UpdateMissileVelocity(missile, c + sd, 16);
 			}
 		}
@@ -5343,6 +5353,12 @@ void ProcessBoneSpirit(Missile &missile)
 			ChangeLight(missile._mlid, c, 8);
 		}
 		if (missile._mirange == 0) {
+			if (necroArt) {
+				missile._miDelFlag = true;
+				AddUnLight(missile._mlid);
+				AddMissile(c, c, Direction::South, MissileID::BoneHitBurst, missile._micaster, missile._misource, 0, 0);
+				return;
+			}
 			SetMissDir(missile, 8);
 			missile.position.velocity = {};
 			missile._mirange = 7;

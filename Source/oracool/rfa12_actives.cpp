@@ -552,6 +552,8 @@ void BoneStrike(Player &player, Monster &monster, int damage)
 	Strike(player, monster, DamageType::Magic, damage * percent / 100);
 	if ((monster.hitPoints >> 6) > 0 && PassiveActive(player, ClassTreeSkill::RigorMortis))
 		ChillMonster(monster, TicksPerSecond);
+	// The bone-hit burst (batch 38) where the blow landed; nothing while the sheet is not in the archive.
+	Show(player, MissileID::BoneHitBurst, MissileGraphicID::BoneHitNecro, monster.position.tile, monster.position.tile);
 }
 
 /**
@@ -1474,11 +1476,18 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Show(player, MissileID::BoneStormEffect, MissileGraphicID::BoneStorm, here, here, 8 * TicksPerSecond); // it follows (ProcessCensusEffect)
 		return true;
 	}
-	case SpellID::NecroBoneSpirit:
-		// The book spell's own missile, at this rank: it hunts what it was aimed at and finds another if that falls.
-		AddMissile(here, target, target == here ? player._pdir : GetDirection(here, target), MissileID::BoneSpirit, TARGET_MONSTERS,
-		    static_cast<int>(player.getId()), 0, r);
+	case SpellID::NecroBoneSpirit: {
+		// The book spell's own missile and brain: it hunts what it was aimed at and finds another if that falls.
+		// Dressed in the delivered skull (batch 38, sixteen facings) when that sheet is in the archive -
+		// ProcessBoneSpirit knows the sheet, turns it by sixteenths and ends it in the bone-hit burst.
+		const Direction dir = target == here ? player._pdir : GetDirection(here, target);
+		Missile *spirit = AddMissile(here, target, dir, MissileID::BoneSpirit, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, r);
+		if (spirit != nullptr && MissileArtLoaded(MissileGraphicID::BoneSpiritNecro)) {
+			spirit->_miAnimType = MissileGraphicID::BoneSpiritNecro;
+			SetMissDir(*spirit, GetDirection16(here, target == here ? here + dir : target));
+		}
 		return true;
+	}
 	case SpellID::PoisonNova: {
 		const auto struck = MonstersWithin(here, 5);
 		for (Monster *m : struck)

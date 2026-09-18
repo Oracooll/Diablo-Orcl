@@ -644,6 +644,7 @@ constexpr int HudY = 8 + 20 + 16 + 6;
 constexpr int HudWidth = 156;
 constexpr int HeaderHeight = 16;
 constexpr int RowHeight = 20;
+constexpr int PanelTicksPerSecond = 20;
 
 Rectangle HeaderRect()
 {
@@ -675,15 +676,24 @@ void DrawMinionHud(const Surface &out)
 			continue;
 		int64_t life = 0;
 		int64_t maxLife = 0;
+		int soonest = 0; // the Revived: ticks until the first of them falls apart
 		for (const Record &record : Records) {
 			if (!Counts(record) || record.owner != MyPlayer->getId() || record.spec.group != group)
 				continue;
 			maxLife += static_cast<int64_t>(std::max(record.spec.life, 1)) << 6;
 			life += record.body >= 0 ? std::max(Monsters[record.body].hitPoints, 0) : record.lifeNow;
+			if (record.spec.ticksLeft > 0 && (soonest == 0 || record.spec.ticksLeft < soonest))
+				soonest = record.spec.ticksLeft;
 		}
 		DrawString(out, _(MinionGroupName(group)), Rectangle { Point { HudX + 4, y }, Size { barWidth, 12 } },
 		    { UiFlags::FontSize12 | UiFlags::ColorWhite });
-		DrawString(out, fmt::format("{:d}/{:d}", count, MinionGroupCap(group)),
+		// "3/10" - and for timed bodies "3/10 2:47", the time the first of them has left (N11).
+		std::string tally = fmt::format("{:d}/{:d}", count, MinionGroupCap(group));
+		if (soonest > 0) {
+			const int seconds = (soonest + PanelTicksPerSecond - 1) / PanelTicksPerSecond;
+			tally = fmt::format("{:d}/{:d}  {:d}:{:02d}", count, MinionGroupCap(group), seconds / 60, seconds % 60);
+		}
+		DrawString(out, tally,
 		    Rectangle { Point { HudX + 4, y }, Size { barWidth, 12 } }, { UiFlags::FontSize12 | UiFlags::ColorGold | UiFlags::AlignRight });
 		const int lifeWidth = static_cast<int>(std::clamp<int64_t>(barWidth * life / std::max<int64_t>(maxLife, 1), 0, barWidth));
 		FillRect(out, HudX + 4, y + 14, barWidth, 3, 0);
