@@ -39,6 +39,7 @@
 #include "oracool/attack_skills.h"
 #include "oracool/companion.h"
 #include "oracool/curses.h"
+#include "oracool/rfa12_actives.h"
 #include "oracool/minions.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/sprite_colours.h"
@@ -511,6 +512,9 @@ void DrawPlayerIcons(const Surface &out, const Player &player, Point position, b
 	// outline, one sheet for all three, worn for as long as the armour lasts.
 	if (const int frame = oracool::ColdArmourShellFrame(player); frame >= 0)
 		DrawPlayerIconHelper(out, MissileGraphicID::IceArmorShell, position, &player != MyPlayer, infraVision, frame);
+	// The Necromancer's Bone Armor (RfA-17 batch 38): three bones orbiting the body while the shell holds.
+	if (const int frame = oracool::Rfa12BoneShellFrame(player); frame >= 0)
+		DrawPlayerIconHelper(out, MissileGraphicID::BoneArmorShell, position, &player != MyPlayer, infraVision, frame);
 }
 
 /**

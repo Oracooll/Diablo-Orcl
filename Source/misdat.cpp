@@ -198,6 +198,17 @@ const MissileData MissilesData[] = {
 /*MeteorFall*/           { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::Meteor,               Physical,              MissileMovementDistribution::Disabled    },
 /*MeteorImpact*/         { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::MeteorImpact,         Physical,              MissileMovementDistribution::Disabled    },
 /*ThunderBolt*/          { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::ThunderBolt,          Physical,              MissileMovementDistribution::Disabled    },
+// The Necromancer's (2026-09-18, RfA-17 batch 38): drawn only, like the census effects. The three bolts fly the javelin's way.
+/*BoneToothBolt*/        { &AddAcidJavelin,         &ProcessAcidJavelin,          SFX_NONE,    SFX_NONE,    MissileGraphicID::BoneTooth,            Magic,                 MissileMovementDistribution::Disabled    },
+/*BoneSpearBolt*/        { &AddAcidJavelin,         &ProcessAcidJavelin,          SFX_NONE,    SFX_NONE,    MissileGraphicID::BoneSpear,            Magic,                 MissileMovementDistribution::Disabled    },
+/*PoisonBoltFlight*/     { &AddAcidJavelin,         &ProcessAcidJavelin,          SFX_NONE,    SFX_NONE,    MissileGraphicID::PoisonBolt,           Acid,                  MissileMovementDistribution::Disabled    },
+/*BoneHitBurst*/         { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::BoneHitNecro,              Magic,                 MissileMovementDistribution::Disabled    },
+/*BoneWallEffect*/       { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::BoneWall,             Magic,                 MissileMovementDistribution::Disabled    },
+/*BoneSpikesEffect*/     { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::BoneSpikes,           Magic,                 MissileMovementDistribution::Disabled    },
+/*BoneStormEffect*/      { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::BoneStorm,            Magic,                 MissileMovementDistribution::Disabled    },
+/*CorpseBurst*/          { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::CorpseExplosion,      Physical,              MissileMovementDistribution::Disabled    },
+/*RaiseDeadEffect*/      { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::RaiseDead,            Magic,                 MissileMovementDistribution::Disabled    },
+/*CurseCastEffect*/      { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::CurseCast,            Magic,                 MissileMovementDistribution::Disabled    },
 	// clang-format on
 };
 
@@ -205,7 +216,7 @@ const MissileData MissilesData[] = {
 // silently shifts every missile past it onto another's behaviour. Pinned after Round 6 appended
 // MissileID::Warcry - which, at the enum's old int8_t, wrapped to -128 and read this table from
 // before its first row. See MissileID in spelldat.h for that story.
-static_assert(sizeof(MissilesData) / sizeof(MissilesData[0]) == static_cast<size_t>(MissileID::ThunderBolt) + 1,
+static_assert(sizeof(MissilesData) / sizeof(MissilesData[0]) == static_cast<size_t>(MissileID::CurseCastEffect) + 1,
     "MissilesData needs a row for every MissileID, in the enum's order");
 
 namespace {
@@ -379,6 +390,20 @@ MissileFileData MissileSpriteData[] = {
 /*MeteorImpact*/             { {},              160,          48, "meteor_impact",     1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_14      },
 /*ThunderBolt*/              { {},               64,           0, "thunder_bolt",      1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_8       },
 /*Grenade*/                  { {},               32,         -16, "grenade",           1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
+// RfA-17 (2026-09-18), batch 38 - the Necromancer. Cells and frame counts are the delivery's notes; animWidth2 is (frame - 64) / 2.
+// The tooth, the spear and the poison bolt are sixteen facings of one frame; the wall, the raise step every second tick.
+/*BoneTooth*/                { {},               32,         -16, "bone_tooth",       16, MissileGraphicsFlags::PngOnly,                 0, AnimLen_1       },
+/*BoneSpear*/                { {},               96,          16, "bone_spear",       16, MissileGraphicsFlags::PngOnly,                 0, AnimLen_1       },
+/*BoneSpiritNecro*/          { {},               64,           0, "bone_spirit",      16, MissileGraphicsFlags::PngOnly,                 1, AnimLen_6       },
+/*BoneHitNecro*/             { {},               64,           0, "bone_hit",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
+/*BoneWall*/                 { {},               64,           0, "bone_wall",         1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_10      },
+/*BoneSpikes*/               { {},               96,          16, "bone_spikes",       1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_10      },
+/*BoneArmorShell*/           { {},               96,          16, "bone_armor_shell",  1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
+/*BoneStorm*/                { {},              160,          48, "bone_storm",        1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
+/*PoisonBolt*/               { {},               32,         -16, "poison_bolt",      16, MissileGraphicsFlags::PngOnly,                 0, AnimLen_1       },
+/*CorpseExplosion*/          { {},              160,          48, "corpse_explosion",  1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
+/*RaiseDead*/                { {},               96,          16, "raise_dead",        1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_12      },
+/*CurseCast*/                { {},              192,          64, "curse_cast",        1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };

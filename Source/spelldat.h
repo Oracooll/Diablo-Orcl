@@ -762,6 +762,20 @@ enum class MissileID : int16_t {
 	MeteorFall,
 	MeteorImpact,
 	ThunderBolt,
+	/**
+	 * Oracool (2026-09-18, RfA-17 batch 38): the Necromancer's effects, drawn only - the blows are rfa12_actives',
+	 * curses' and necro_summoning's. The three bolts use the javelin's add and process; the rest are census effects.
+	 */
+	BoneToothBolt,
+	BoneSpearBolt,
+	PoisonBoltFlight,
+	BoneHitBurst,
+	BoneWallEffect,
+	BoneSpikesEffect,
+	BoneStormEffect,
+	CorpseBurst,
+	RaiseDeadEffect,
+	CurseCastEffect,
 	Null = -1,
 	// clang-format on
 };

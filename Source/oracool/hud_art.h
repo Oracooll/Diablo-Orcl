@@ -151,6 +151,8 @@ bool HasWaypointPanelArt();
 
 /** @brief Draws one waypoint pad at @p origin - the active pad if @p active, else the dormant one. */
 void DrawWaypointIcon(const Surface &out, Point origin, bool active);
+/** @brief Curse sigil @p index (oracool::CurseKind less one) at @p origin, 24x24. False while the strip is not in the archive. */
+bool DrawCurseMarkerIcon(const Surface &out, Point origin, int index);
 
 /** @brief On-screen size of a single waypoint pad, or {0,0} if the asset is missing. */
 Size GetWaypointIconSize();

@@ -162,6 +162,22 @@ enum class MissileGraphicID : uint8_t {
 	MeteorImpact,
 	ThunderBolt,
 	Grenade,
+	/**
+	 * Oracool (2026-09-18): RfA-17's batch 38, the Necromancer's bone and poison effects and the raise, the burst and
+	 * the curse ring. PngOnly like the rest. BoneSpirit is shipped but the book spell's own missile still flies.
+	 */
+	BoneTooth,
+	BoneSpear,
+	BoneSpiritNecro,
+	BoneHitNecro,
+	BoneWall,
+	BoneSpikes,
+	BoneArmorShell,
+	BoneStorm,
+	PoisonBolt,
+	CorpseExplosion,
+	RaiseDead,
+	CurseCast,
 	None,
 };
 

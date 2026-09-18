@@ -20,7 +20,9 @@
 #include "multi.h"
 #include "oracool/chill.h"
 #include "oracool/class_tree.h"
+#include "missiles.h"
 #include "oracool/essence.h"
+#include "oracool/hud_art.h"
 #include "oracool/minions.h"
 #include "oracool/passives.h"
 #include "oracool/warcries.h"
@@ -273,6 +275,8 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
+	// The script ring on the floor (batch 38); it removes itself while the sheet is not in the archive.
+	AddMissile(target, target, player._pdir, MissileID::CurseCastEffect, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
 	return true;
 }
 
@@ -389,6 +393,7 @@ void OnCursedMonsterDeath(const Monster &monster)
 			GainEssence(*owner, 2 + 2 * tap);
 		// Death Mark: the corpse bursts as a Corpse Explosion of the curse's rank.
 		if (curse.kind == CurseKind::DeathMark) {
+			AddMissile(monster.position.tile, monster.position.tile, Direction::South, MissileID::CorpseBurst, TARGET_MONSTERS, static_cast<int>(owner->getId()), 0, 0);
 			const int share = std::clamp((monster.maxHitPoints >> 6) * std::min(40 + 5 * curse.rank, 100) / 100, 4, 400) << 6;
 			for (size_t i = 0; i < ActiveMonsterCount; i++) {
 				Monster &other = Monsters[ActiveMonsters[i]];
@@ -435,7 +440,10 @@ void DrawCurseMarker(const Surface &out, const Monster &monster, Point anchor)
 {
 	if (!Live(monster))
 		return;
-	// A lettered chip: the first letter of the curse on a dark plate, in the curse's hue. RfA-17's sigils replace it.
+	// RfA-17 batch 38's sigils (2026-09-18), 24x24, in CurseKind order; the lettered chip below stands in without the strip.
+	if (DrawCurseMarkerIcon(out, { anchor.x - 12, anchor.y - 28 }, static_cast<int>(Of(monster).kind) - 1))
+		return;
+	// A lettered chip: the first letter of the curse on a dark plate, in the curse's hue.
 	static const char *Letters = "?ADWFITBCLADMRO"; // in CurseKind order, None first
 	const char letter[2] = { Letters[static_cast<size_t>(Of(monster).kind)], '\0' };
 	UiFlags colour = UiFlags::ColorWhite;

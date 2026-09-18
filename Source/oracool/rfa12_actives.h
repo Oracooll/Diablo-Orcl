@@ -72,6 +72,8 @@ int Rfa12ActiveAbsorbDamage(Player &player, int damage);
 bool Rfa12ActiveStripsResistances(const Monster &monster);
 /** @brief Hunter's Claim: whether @p player's arrow passes by @p monster on its way to the claimed one. */
 bool Rfa12ActiveArrowIgnores(const Player &player, const Monster &monster);
+/** @brief Bone Armor's shell (RfA-17 batch 38): the frame to draw over the hero, or -1 while no shell stands. */
+int Rfa12BoneShellFrame(const Player &player);
 /** @brief Astral Projection: whether the hero is out of body, and unnoticed. */
 bool Rfa12ActiveHidesPlayer(const Player &player);
 void OnRfa12ActiveHit(Player &player, Monster &monster, int damage, bool melee);

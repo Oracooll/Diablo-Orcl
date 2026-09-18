@@ -11,6 +11,7 @@
 
 #include "engine.h"
 #include "engine/random.hpp"
+#include "missiles.h"
 #include "monster.h"
 #include "multi.h"
 #include "oracool/class_tree.h"
@@ -158,6 +159,7 @@ bool RaiseFromCorpse(Player &player, Point target, int rank, bool mage)
 		return false;
 	}
 	OnPassiveCorpseConsumed(player);
+	AddMissile(corpse->position, corpse->position, player._pdir, MissileID::RaiseDeadEffect, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
 	const MinionSpec spec = SkeletonSpec(player, rank, mage);
 	if (!SummonMinion(player, spec, corpse->position))
 		return SummonMinion(player, spec, player.position.tile);
@@ -189,6 +191,7 @@ bool Revive(Player &player, Point target, int rank)
 	if (PassiveActive(player, ClassTreeSkill::ExtendedServitude))
 		spec.ticksLeft += spec.ticksLeft / 4; // a quarter longer (N8)
 	OnPassiveCorpseConsumed(player);
+	AddMissile(corpse->position, corpse->position, player._pdir, MissileID::RaiseDeadEffect, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
 	if (!SummonMinion(player, spec, corpse->position))
 		return SummonMinion(player, spec, player.position.tile);
 	return true;

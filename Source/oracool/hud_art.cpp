@@ -297,6 +297,8 @@ ArtAsset SkillPointsFrameArt { "ui\\skill_points.png" };
  */
 ArtAsset WaypointPanelArt { "ui\\waypoint_panel.png" };
 ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };
+/** RfA-17 batch 38 (2026-09-18): the fourteen curse sigils, 24x24 each, in oracool::CurseKind order less None. */
+ArtAsset CurseMarkersArt { "ui\\curse_markers.png" };
 /**
  * The six class-tree icon strips: 56x56 cells, one frame per skill, each in its own class's
  * ClassTreeSkill order. `ClassTreeIconIndex` is the frame number - a skill's position within its
@@ -384,6 +386,7 @@ ArtAsset SilhouetteArt[] = {
 	{ "ui\\silhouette_barbarian.png" },
 	{ "ui\\silhouette_monk.png" },     // oracool-monk-silhouette-v1 (2026-09-07), GPT to that day's brief
 	{ "ui\\silhouette_bard.png" },     // cut from class-bard-greenscreen.png by tools\MakeClassSilhouette.ps1 (2026-09-07)
+	{ "ui\\silhouette_necromancer.png" }, // RfA-17 batch 37 (2026-09-18)
 };
 
 /**
@@ -403,8 +406,9 @@ ArtAsset *SilhouetteForClass(HeroClass heroClass)
 	case HeroClass::Bard:
 		return &SilhouetteArt[5];
 	case HeroClass::Sorcerer:
-	case HeroClass::Necromancer: // the Sorcerer's figure until his own is drawn
 		return &SilhouetteArt[2];
+	case HeroClass::Necromancer:
+		return &SilhouetteArt[6];
 	case HeroClass::Barbarian:
 		return &SilhouetteArt[3];
 	case HeroClass::Monk:
@@ -885,6 +889,8 @@ void EnsureLoadedAll()
 		LoadPixels(WaypointPanelArt);
 	if (!WaypointIconsArt.loadAttempted)
 		LoadPixels(WaypointIconsArt);
+	if (!CurseMarkersArt.loadAttempted)
+		LoadPixels(CurseMarkersArt);
 	for (ArtAsset *strip : ClassTreeStrips) {
 		if (!strip->loadAttempted)
 			LoadPixels(*strip);
@@ -954,6 +960,8 @@ bool NeedsQuantize()
 	if (!WaypointPanelArt.rgba.empty() && !WaypointPanelArt.bright)
 		return true;
 	if (!WaypointIconsArt.rgba.empty() && !WaypointIconsArt.bright)
+		return true;
+	if (!CurseMarkersArt.rgba.empty() && !CurseMarkersArt.bright)
 		return true;
 	for (const ArtAsset *strip : ClassTreeStrips) {
 		if (!strip->rgba.empty() && !strip->bright)
@@ -1039,6 +1047,7 @@ void EnsureQuantized()
 	QuantizeAsset(SkillPointsFrameArt, std::nullopt);
 	QuantizeAsset(WaypointPanelArt, std::nullopt);
 	QuantizeAsset(WaypointIconsArt, std::nullopt);
+	QuantizeAsset(CurseMarkersArt, std::nullopt);
 	// No tint: the tree icons are the artwork itself, not chrome - their shapes carry the meaning.
 	
 	for (ArtAsset *strip : ClassTreeStrips)
@@ -1899,6 +1908,18 @@ void DrawClassSilhouette(const Surface &out, Point panelOrigin, int areaWidth, i
  * palette ramp; these are full-colour paintings with no ramp to remap, so halving them into the
  * panel is the honest equivalent - visible, clearly inert, and no second asset to keep in step.
  */
+bool DrawCurseMarkerIcon(const Surface &out, Point origin, int index)
+{
+	EnsureLoadedAll();
+	if (CurseMarkersArt.rgba.empty())
+		return false;
+	EnsureQuantized();
+	if (!CurseMarkersArt.bright)
+		return false;
+	DrawStripIcon(out, CurseMarkersArt, origin, index, /*unlocked=*/true);
+	return true;
+}
+
 void DrawStripIcon(const Surface &out, ArtAsset &asset, Point origin, int index, bool unlocked)
 {
 	EnsureLoadedAll();
@@ -2071,6 +2092,7 @@ void ResetHudArtCaches()
 	reset(SkillPointsFrameArt);
 	reset(WaypointPanelArt);
 	reset(WaypointIconsArt);
+	reset(CurseMarkersArt);
 	for (ArtAsset *strip : ClassTreeStrips)
 		reset(*strip);
 	reset(PaladinSkillIconsArt);

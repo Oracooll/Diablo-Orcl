@@ -3394,6 +3394,17 @@ Displacement CensusEffectOffset(MissileID type)
 		return { 0, 22 }; // the burst's floor centre is y 90 of 128, 38px above the bottom
 	case MissileID::AcidCloud:
 		return { 0, -3 }; // the vapour's baseline is y 91 of 96
+	// The Necromancer's (batch 38), from the delivery's anchors: (cell height - anchor y) - 16, the ring's own rule.
+	case MissileID::BoneWallEffect:
+	case MissileID::BoneSpikesEffect:
+		return { 0, -6 }; // baseline y 91 of 96
+	case MissileID::CorpseBurst:
+		return { 0, 8 }; // the body's floor point y 104 of 128
+	case MissileID::RaiseDeadEffect:
+		return { 0, -8 }; // floor point y 120 of 128
+	case MissileID::CurseCastEffect:
+	case MissileID::BoneStormEffect:
+		return { 0, 38 }; // floor ellipse centre y 74 of 128
 	default:
 		return { 0, 0 };
 	}
@@ -3401,6 +3412,8 @@ Displacement CensusEffectOffset(MissileID type)
 
 /** @brief Meteor impact: frames 1-10 burst once, 11-14 are the ground burn, looped for as long as it burns. */
 constexpr int MeteorImpactBurnFrame = 11;
+/** @brief Bone wall: frames 1-6 rise once, 7-10 stand, looped for as long as the wall holds (batch 38's notes). */
+constexpr int BoneWallStandFrame = 7;
 
 } // namespace
 
@@ -3436,6 +3449,16 @@ void ProcessCensusEffect(Missile &missile)
 	}
 	if (missile._mlid == NO_LIGHT && IsAnyOf(missile._mitype, MissileID::MeteorImpact, MissileID::ThunderBolt))
 		missile._mlid = AddLight(missile.position.tile, 8);
+	if (missile._mitype == MissileID::BoneWallEffect && missile._miAnimFrame >= BoneWallStandFrame) {
+		if (missile._miAnimFrame >= missile._miAnimLen && missile._miAnimCnt + 1 >= missile._miAnimDelay)
+			missile._miAnimFrame = BoneWallStandFrame - 1;
+	}
+	// The bone storm follows its caster (rfa12_actives moves the field the same way).
+	if (missile._mitype == MissileID::BoneStormEffect && missile._micaster == TARGET_MONSTERS && static_cast<size_t>(missile._misource) < Players.size()) {
+		const Point here = Players[missile._misource].position.tile;
+		missile.position.tile = here;
+		missile.position.start = here;
+	}
 	if (missile._mitype == MissileID::MeteorImpact && missile._miAnimFrame >= MeteorImpactBurnFrame) {
 		missile._miAnimDelay = 3; // the embers flicker slower than the burst
 		// On the last frame, about to step: step back to the burn's first frame instead of the burst's.

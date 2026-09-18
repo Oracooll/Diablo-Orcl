@@ -8,6 +8,7 @@
 #include "automap.h"
 #include "dead.h"
 #include "engine/backbuffer_state.hpp"
+#include "engine.h"
 #include "engine/random.hpp"
 #include "items.h"
 #include "levels/gendung.h"
@@ -567,6 +568,15 @@ void Poison(Player &player, Monster &monster, int ticks, int perSecond)
 	Marks &marks = MarksOf(monster);
 	marks.poisonTicks = std::max(marks.poisonTicks, ticks);
 	marks.poisonDamage = std::max(marks.poisonDamage, perSecond << 6);
+}
+
+/** @brief A drawn bolt (batch 38) from the hero to @p to; it removes itself while its sheet is not in the archive. */
+void Bolt(Player &player, MissileID bolt, Point to)
+{
+	const Point here = player.position.tile;
+	if (to == here)
+		to = here + player._pdir;
+	AddMissile(here, to, GetDirection(here, to), bolt, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
 }
 
 /** @brief A corpse skill's burst: the corpse within reach of the cursor, taken, or nothing. */
@@ -1339,15 +1349,19 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			BoneStrike(player, *m, Rolled(d));
 			any = true;
 		}
-		Ring(player, here);
+		// The fan itself (batch 38): a tooth to each arc tile and one down the line.
+		for (const Point tile : FrontArc(player, target))
+			Bolt(player, MissileID::BoneToothBolt, tile);
+		Bolt(player, MissileID::BoneToothBolt, Clamped(here, target, 6));
+		if (!MissileArtLoaded(MissileGraphicID::BoneTooth))
+			Ring(player, here);
 		return any;
 	}
 	case SpellID::BoneArmor: {
 		PlayerState &state = StateOf(player);
 		state.bonePool = (20 + 10 * r) << 6;
 		StartBuff(player, Buff::BoneShell, 60 * TicksPerSecond, r);
-		// No shell drawn yet: the ice armour's is a player-icon overlay in scrollrt.cpp keyed on cold.cpp's state, and the bone
-		// one (RfA-17's bone_armor_shell) will be hung there the same way when its sheet arrives.
+		// The shell is a player-icon overlay in scrollrt.cpp DrawPlayerIcons, keyed on Rfa12BoneShellFrame (batch 38).
 		return true;
 	}
 	case SpellID::PoisonDagger:
@@ -1361,7 +1375,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const int share = std::clamp(corpse->maxLife * std::min(40 + 5 * r, 100) / 100, 4, 400) << 6;
 		for (Monster *m : MonstersWithin(corpse->position, 2))
 			Strike(player, *m, DamageType::Physical, share);
-		Ring(player, corpse->position);
+		if (!Show(player, MissileID::CorpseBurst, MissileGraphicID::CorpseExplosion, corpse->position, corpse->position))
+			Ring(player, corpse->position);
 		return true;
 	}
 	case SpellID::BoneSplinters: {
@@ -1371,12 +1386,15 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const Range d = Scale(r, 3, 6, 1, 2);
 		for (Monster *m : line)
 			BoneStrike(player, *m, Rolled(d));
+		for (int k = 0; k < 3; k++)
+			Bolt(player, MissileID::BoneToothBolt, Clamped(here, target, 2 + k));
 		return !line.empty();
 	}
 	case SpellID::Blight: {
 		const Point pool = Clamped(here, target, 8);
 		Field *f = NewField(player, spell, pool, 4 * TicksPerSecond, r);
 		f->clock = TicksPerSecond - 1;
+		Bolt(player, MissileID::PoisonBoltFlight, pool);
 		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, pool, pool, 4 * TicksPerSecond);
 		return true;
 	}
@@ -1385,7 +1403,17 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const Point centre = Clamped(here, target, 8);
 		Field *f = NewField(player, spell, centre, 8 * TicksPerSecond, r);
 		f->dir = Right(Right(target == here ? player._pdir : GetDirection(here, target)));
-		Ring(player, centre);
+		// The five segments (batch 38), each rising once and standing for the wall's life.
+		bool drawn = false;
+		for (int k = -2; k <= 2; k++) {
+			Point tile = centre;
+			for (int step = 0; step < std::abs(k); step++)
+				tile = tile + (k < 0 ? Opposite(f->dir) : f->dir);
+			if (InDungeonBounds(tile))
+				drawn = Show(player, MissileID::BoneWallEffect, MissileGraphicID::BoneWall, tile, tile, 8 * TicksPerSecond) || drawn;
+		}
+		if (!drawn)
+			Ring(player, centre);
 		return true;
 	}
 	case SpellID::BoneSpikes: {
@@ -1395,7 +1423,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			BoneStrike(player, *m, Rolled(d));
 			Stagger(*m, TicksPerSecond);
 		}
-		Ring(player, target);
+		if (!Show(player, MissileID::BoneSpikesEffect, MissileGraphicID::BoneSpikes, target, target))
+			Ring(player, target);
 		return true;
 	}
 	case SpellID::PoisonExplosion: {
@@ -1404,6 +1433,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			return false;
 		for (Monster *m : MonstersWithin(corpse->position, 2))
 			Poison(player, *m, 6 * TicksPerSecond, 3 + r);
+		Show(player, MissileID::CorpseBurst, MissileGraphicID::CorpseExplosion, corpse->position, corpse->position);
 		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, corpse->position, corpse->position, 3 * TicksPerSecond);
 		return true;
 	}
@@ -1412,7 +1442,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const Range d = Scale(r, 6, 12, 3, 4);
 		for (Monster *m : line)
 			BoneStrike(player, *m, Rolled(d));
-		Ring(player, here);
+		Bolt(player, MissileID::BoneSpearBolt, Clamped(here, target, 9));
+		if (!MissileArtLoaded(MissileGraphicID::BoneSpear))
+			Ring(player, here);
 		return true;
 	}
 	case SpellID::Decompose: {
@@ -1439,6 +1471,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::BoneStorm: {
 		Field *f = NewField(player, spell, here, 8 * TicksPerSecond, r);
 		f->clock = 0;
+		Show(player, MissileID::BoneStormEffect, MissileGraphicID::BoneStorm, here, here, 8 * TicksPerSecond); // it follows (ProcessCensusEffect)
 		return true;
 	}
 	case SpellID::NecroBoneSpirit:
@@ -1450,7 +1483,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const auto struck = MonstersWithin(here, 5);
 		for (Monster *m : struck)
 			Poison(player, *m, 6 * TicksPerSecond, 2 + r);
-		Ring(player, here);
+		// Sixteen bolts outward (batch 38), one a facing.
+		static const Displacement Ring16[16] = { { 0, 5 }, { -2, 5 }, { -4, 4 }, { -5, 2 }, { -5, 0 }, { -5, -2 }, { -4, -4 }, { -2, -5 }, { 0, -5 }, { 2, -5 }, { 4, -4 }, { 5, -2 }, { 5, 0 }, { 5, 2 }, { 4, 4 }, { 2, 5 } };
+		for (const Displacement &d16 : Ring16)
+			Bolt(player, MissileID::PoisonBoltFlight, here + d16);
+		if (!MissileArtLoaded(MissileGraphicID::PoisonBolt))
+			Ring(player, here);
 		return true;
 	}
 	case SpellID::DeathNova: {
@@ -1971,6 +2009,14 @@ bool Rfa12ActiveEvadesMelee(const Player &player)
 {
 	const int r = BuffRank(player, Buff::Evasion);
 	return r > 0 && GenerateRnd(100) < std::min(10 + 2 * (r - 1), 40);
+}
+
+int Rfa12BoneShellFrame(const Player &player)
+{
+	const PlayerState &state = StateOf(player);
+	if (BuffRank(player, Buff::BoneShell) <= 0 || state.bonePool <= 0)
+		return -1;
+	return GetAnimationFrame(12, 10); // twelve frames at ten a second, a slow orbit
 }
 
 int Rfa12ActiveAbsorbDamage(Player &player, int damage)
