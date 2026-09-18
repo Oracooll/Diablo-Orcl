@@ -11836,8 +11836,12 @@ TEST(OracoolAudit, SpellBitmaskIsEmptyForNonSpells)
 	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(128)).high, 1ULL << 63) << "id 128 is the last bit of the high word";
 	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(129)).third, 1u) << "id 129 is bit 0 of the third word";
 	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(129)).high, 0u);
-	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(256)).fourth, 1ULL << 63) << "id 256 is the last bit the mask holds";
-	EXPECT_TRUE(GetSpellBitmask(static_cast<SpellID>(257)).none());
+	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(256)).fourth, 1ULL << 63) << "id 256 is the last bit of the fourth word";
+	// A fifth word since 2026-09-18 (the Necromancer's Summoning page): ids 257-320.
+	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(257)).fifth, 1u) << "id 257 is bit 0 of the fifth word";
+	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(257)).fourth, 0u);
+	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(320)).fifth, 1ULL << 63) << "id 320 is the last bit the mask holds";
+	EXPECT_TRUE(GetSpellBitmask(static_cast<SpellID>(321)).none());
 }
 
 

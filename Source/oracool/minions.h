@@ -30,6 +30,7 @@
 
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
+#include "misdat.h"
 #include "monstdat.h"
 
 namespace devilution {
@@ -54,6 +55,15 @@ constexpr size_t MinionGroupCount = 4;
 int MinionGroupCap(MinionGroup group);
 const char *MinionGroupName(MinionGroup group);
 
+/** @brief The golems, each a material and a habit (oracool/necro_summoning.cpp gives the numbers). */
+enum class GolemKind : uint8_t {
+	None,
+	Clay,  // its blows slow
+	Blood, // what it takes heals it and its owner
+	Iron,  // returns a share of what it takes
+	Fire,  // burns what stands beside it; fire heals it
+};
+
 /** @brief What a summoning skill asks for. Life in whole points; the rest as a monster carries them. */
 struct MinionSpec {
 	MinionGroup group;
@@ -63,6 +73,13 @@ struct MinionSpec {
 	int maxDamage;
 	int toHit;
 	int armorClass;
+	/** Null: it fights with its blade. Anything else: it shoots this from range. */
+	MissileID missile = MissileID::Null;
+	GolemKind golem = GolemKind::None;
+	/** 0 lasts; otherwise the body falls apart when the ticks run out (the Revived). */
+	int ticksLeft = 0;
+	/** 0: its own colours; otherwise every colour to this palette ramp (RampTranslation) - the golems' materials. */
+	uint8_t ramp = 0;
 };
 
 /**
@@ -108,6 +125,26 @@ void WithdrawMinionsForLevelSave();
 void OnMonsterSlotFreed(size_t monsterId);
 /** @brief Once a tick for @p owner: re-forms the waiting part of the army around him, a few bodies a tick. */
 void ProcessMinions(Player &owner);
+
+// ---- what the skills and the engine ask of the army ----------------------------------------------------------
+
+/** @brief Every waiting or straying minion of @p owner is placed beside him now. How many moved. */
+int GatherMinions(Player &owner);
+/** @brief Every minion of @p owner within @p radius of him regains @p percent of its life. How many were healed. */
+int HealMinions(Player &owner, int radius, int percent);
+/** @brief For @p ticks every minion of @p owner strikes @p percent harder and hurries after its prey. */
+void FrenzyMinions(Player &owner, int ticks, int percent);
+/** @brief Unmakes the minion of @p owner nearest @p tile. Its full life in 1/64 points, or 0 if there was none. */
+int SacrificeMinion(Player &owner, Point tile);
+
+/** @brief A blow landing on a minion (monster.cpp ApplyMonsterDamage): Summon Resist, and fire feeding a Fire Golem. */
+int MinionDamageTaken(const Monster &monster, DamageType type, int damage);
+/** @brief What a minion's blows are multiplied by right now - Frenzy of the Dead. 100 for the rest. */
+int MinionDamagePercent(const Monster &monster);
+/** @brief A minion's blow struck @p target for @p damage (monster.cpp MonsterAttackMonster): the golems' habits. */
+void OnMinionBlow(Monster &minion, Monster &target, int damage);
+/** @brief A blow struck a minion (monster.cpp MonsterAttackMonster): the Iron Golem gives a share back. */
+void OnMinionStruck(Monster &minion, Monster &attacker, int damage);
 
 /** @brief The army panel, under the companions' (or in its place). */
 void DrawMinionHud(const Surface &out);

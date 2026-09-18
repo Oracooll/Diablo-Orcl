@@ -62,6 +62,8 @@ struct HeroSheets {
  * shifts toward the light end (negative: the dark). With @p keepShadow the near-black - outline, foot shadow - stays
  * itself (user, 2026-09-14: "darker and with black shadow").
  */
+} // namespace
+
 std::unique_ptr<uint8_t[]> RampTranslation(uint8_t ramp, int lightest, bool keepShadow)
 {
 	auto trn = std::make_unique<uint8_t[]>(256);
@@ -77,6 +79,8 @@ std::unique_ptr<uint8_t[]> RampTranslation(uint8_t ramp, int lightest, bool keep
 	}
 	return trn;
 }
+
+namespace {
 
 bool LoadSheet(HeroSheets &set, HeroClass cls, size_t armour, MonsterGraphic graphic, const char *cel, PlayerWeaponGraphic weapon,
     uint16_t width, int frames)
@@ -854,6 +858,7 @@ CompanionOrders GetCompanionOrders(const Monster &companion)
 	orders.owner = owner->position.tile;
 	orders.home = FormationHome(*owner, inst->order);
 	orders.attack = def.attack;
+	orders.missile = MissileID::Arrow;
 	if (def.role == Role::Bait) {
 		// A decoy stays where it was put and does nothing but draw blows.
 		orders.leash = orders.settle = orders.regroup = 1000;
@@ -1064,6 +1069,12 @@ void OnCompanionRegrouped(const Monster &companion)
 // =================================================================================================================
 // Stance and HUD
 // =================================================================================================================
+
+void FocusCompanionsOn(const Monster &monster, int ticks)
+{
+	FocusMonster = static_cast<int>(monster.getId());
+	FocusTicks = ticks;
+}
 
 const char *CompanionStanceName()
 {

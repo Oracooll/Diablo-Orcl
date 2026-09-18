@@ -18,7 +18,7 @@ namespace devilution {
 // `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable spells, so a new id is a candidate for books
 // and staves unless its sBookLvl and sStaffLvl are both -1. All seven skills' are, deliberately -
 // they are earned by level, not found. MAX_ITEM_SPELLS below is the belt-and-braces on that.
-#define MAX_SPELLS 246
+#define MAX_SPELLS 259
 
 /**
  * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
@@ -377,8 +377,22 @@ enum class SpellID : int16_t {
 	// The Rogue's Valkyrie (user, 2026-09-14): her own id, so she is raised by skill points and wears her glyph.
 	// She rode the Golem's BOOK spell before, which made the row a book row. Her body is still the Golem.
 	Valkyrie,
+	// The Necromancer's Summoning page (2026-09-18, phase N5). Appended, as ever; Revive is priced in Essence.
+	RaiseSkeleton,
+	CommandTheDead,
+	ClayGolem,
+	GatherTheDead,
+	RaiseSkeletalMage,
+	DarkMending,
+	BloodGolem,
+	FrenzyOfTheDead,
+	IronGolem,
+	UnholyOffering,
+	FireGolem,
+	NecroRevive,
+	ArmyOfTheDead,
 
-	LAST = Valkyrie,
+	LAST = ArmyOfTheDead,
 	Invalid = -1,
 };
 
@@ -412,6 +426,8 @@ struct SpellMask {
 	 */
 	uint64_t third = 0;
 	uint64_t fourth = 0;
+	/** @brief Ids 257-320 (2026-09-18): the Necromancer's pages took the enum past 256. Never persisted, like the rest above `low`. */
+	uint64_t fifth = 0;
 
 	constexpr SpellMask() = default;
 	/** @brief From a saved or literal uint64: the low word, as every existing site means it. */
@@ -431,19 +447,28 @@ struct SpellMask {
 	    , fourth(fourthWord)
 	{
 	}
+	constexpr SpellMask(uint64_t lowWord, uint64_t highWord, uint64_t thirdWord, uint64_t fourthWord, uint64_t fifthWord)
+	    : low(lowWord)
+	    , high(highWord)
+	    , third(thirdWord)
+	    , fourth(fourthWord)
+	    , fifth(fifthWord)
+	{
+	}
 
-	[[nodiscard]] constexpr bool any() const { return (low | high | third | fourth) != 0; }
+	[[nodiscard]] constexpr bool any() const { return (low | high | third | fourth | fifth) != 0; }
 	[[nodiscard]] constexpr bool none() const { return !any(); }
 
-	constexpr SpellMask operator&(SpellMask other) const { return { low & other.low, high & other.high, third & other.third, fourth & other.fourth }; }
-	constexpr SpellMask operator|(SpellMask other) const { return { low | other.low, high | other.high, third | other.third, fourth | other.fourth }; }
-	constexpr SpellMask operator~() const { return { ~low, ~high, ~third, ~fourth }; }
+	constexpr SpellMask operator&(SpellMask other) const { return { low & other.low, high & other.high, third & other.third, fourth & other.fourth, fifth & other.fifth }; }
+	constexpr SpellMask operator|(SpellMask other) const { return { low | other.low, high | other.high, third | other.third, fourth | other.fourth, fifth | other.fifth }; }
+	constexpr SpellMask operator~() const { return { ~low, ~high, ~third, ~fourth, ~fifth }; }
 	constexpr SpellMask &operator&=(SpellMask other)
 	{
 		low &= other.low;
 		high &= other.high;
 		third &= other.third;
 		fourth &= other.fourth;
+		fifth &= other.fifth;
 		return *this;
 	}
 	constexpr SpellMask &operator|=(SpellMask other)
@@ -452,9 +477,10 @@ struct SpellMask {
 		high |= other.high;
 		third |= other.third;
 		fourth |= other.fourth;
+		fifth |= other.fifth;
 		return *this;
 	}
-	constexpr bool operator==(SpellMask other) const { return low == other.low && high == other.high && third == other.third && fourth == other.fourth; }
+	constexpr bool operator==(SpellMask other) const { return low == other.low && high == other.high && third == other.third && fourth == other.fourth && fifth == other.fifth; }
 	constexpr bool operator!=(SpellMask other) const { return !(*this == other); }
 };
 
@@ -471,8 +497,8 @@ struct SpellMask {
  * shift past the word is undefined and on this compiler silently wraps, so the new spell would
  * quietly share an old one's bit.
  */
-static_assert(static_cast<int>(SpellID::LAST) <= 256,
-    "spell ids past 256 do not fit SpellMask - add a fifth word, and check what saves it");
+static_assert(static_cast<int>(SpellID::LAST) <= 320,
+    "spell ids past 320 do not fit SpellMask - add a sixth word, and check what saves it");
 // ...and the ENUM's own storage, which is a separate and lower ceiling. SpellID is int8_t, so id 128
 // would wrap to -128 exactly as MissileID::Warcry did in Round 6 - and every table indexed by this
 // enum would then be read from before its first row. The assert above cannot catch that: 128 passes
@@ -480,8 +506,12 @@ static_assert(static_cast<int>(SpellID::LAST) <= 256,
 // int16_t since 2026-09-13 (the RfA-12 skills). The storage ceiling is no longer the enum's but the
 // BYTE that oracool::PackReadiedSpell writes for a readied spell and a hotkey - id + 1, so 254 is the
 // last id a byte can carry. Past that, those chunks need a second byte.
-static_assert(static_cast<int>(SpellID::LAST) <= 254,
-    "a readied spell is saved as id + 1 in one byte - widen PackReadiedSpell and its chunks first");
+// ...and past 254 (2026-09-18, the Necromancer's Summoning page) the readied and hotkeyed spells are saved as
+// TWO bytes in chunks of their own (HeroChunkReadiedSpells16 and the two 16-bit hotkey chunks); the one-byte
+// fields and chunks still carry every id that fits them and 0 for the rest, so an older build reads a hero
+// without a readied spell rather than a wrong one. PlayerPack itself did not move.
+static_assert(static_cast<int>(SpellID::LAST) <= 65534,
+    "a readied spell is saved as id + 1 in two bytes");
 
 /**
  * @brief Whether @p spell shipped with Diablo or Hellfire, rather than being one this fork added.

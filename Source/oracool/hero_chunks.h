@@ -41,7 +41,7 @@ enum HeroChunkTag : uint16_t {
 	/**
 	 * @brief Phase 2's skill points, persisted from day one so the break never has to happen:
 	 * u16 unspent points, u8 count, then count bytes of per-spell invested levels (SpellID order).
-	 * Count-prefixed so MAX_SPELLS can grow without a new tag.
+	 * Count-prefixed so MAX_SPELLS can grow without a new tag - up to 255 of them; past that, HeroChunkSkillPoints16.
 	 */
 	HeroChunkSkillPoints = 1,
 	/**
@@ -166,6 +166,24 @@ enum HeroChunkTag : uint16_t {
 	 * does not belong to this character's class is dropped rather than trusted.
 	 */
 	HeroChunkAuraHotkeys = 14,
+	/**
+	 * @brief The readied pair in TWO bytes each (2026-09-18): u16 right, u16 left, PackReadiedSpell16 form - id + 1,
+	 * 0 for none. The Necromancer's Summoning page took spell ids past 254, the last a byte can carry, so
+	 * PlayerPack's two readied bytes hold 0 for such a spell and this chunk holds the truth. Applied AFTER the
+	 * tail's investments (like the hotkeys), validated the same way, and it wins over the bytes when present.
+	 */
+	HeroChunkReadiedSpells16 = 15,
+	/** @brief HeroChunkSpellHotkeys in two bytes a slot: u8 count, then u16 PackReadiedSpell16 entries. Wins over tag 7. */
+	HeroChunkSpellHotkeys16 = 16,
+	/** @brief HeroChunkSpellHotkeysLeft in two bytes a slot. Wins over tag 8. */
+	HeroChunkSpellHotkeysLeft16 = 17,
+	/**
+	 * @brief HeroChunkSkillPoints with a TWO-byte count (2026-09-18): u16 unspent points, u16 count, then count bytes of
+	 * per-spell invested levels. Tag 1's one-byte count wrapped to 3 the day MAX_SPELLS passed 255 (the Necromancer's
+	 * Summoning page), and every hero lost its investments past the third spell. Tag 1 is still written with the first
+	 * 255 for older builds; a reader that knows this tag takes it instead - it is written after tag 1 and wins.
+	 */
+	HeroChunkSkillPoints16 = 18,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

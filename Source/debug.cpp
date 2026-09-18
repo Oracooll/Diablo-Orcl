@@ -450,7 +450,13 @@ std::string DebugCmdArmy(const string_view parameter)
 		const auto group = static_cast<oracool::MinionGroup>(g);
 		oracool::MinionSpec spec {};
 		spec.group = group;
-		spec.type = group == oracool::MinionGroup::Mage ? MT_XSKELAX : (group == oracool::MinionGroup::Revived ? MT_TSKELAX : MT_WSKELAX);
+		spec.type = group == oracool::MinionGroup::Mage ? MT_XSKELBW : (group == oracool::MinionGroup::Golem ? MT_GOLEM : (group == oracool::MinionGroup::Revived ? MT_TSKELAX : MT_WSKELAX));
+		if (group == oracool::MinionGroup::Mage)
+			spec.missile = MissileID::Firebolt;
+		if (group == oracool::MinionGroup::Golem) {
+			spec.golem = oracool::GolemKind::Iron;
+			spec.ramp = 240;
+		}
 		spec.life = (group == oracool::MinionGroup::Golem ? 120 : 30) + 8 * level;
 		spec.minDamage = 2 + level / 2;
 		spec.maxDamage = 6 + level;

@@ -16,8 +16,13 @@
 #include "engine/rectangle.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
+#include "engine/backbuffer_state.hpp"
 #include "levels/gendung.h"
 #include "monster.h"
+#include "multi.h"
+#include "engine/random.hpp"
+#include "oracool/chill.h"
+#include "oracool/class_tree.h"
 #include "oracool/companion.h"
 #include "player.h"
 #include "utils/language.h"
@@ -42,6 +47,15 @@ struct Record {
 };
 
 std::array<Record, MaxMinionBodies> Records;
+
+/** Frenzy of the Dead, per owner: ticks left and the bonus. */
+struct Frenzy {
+	int ticks = 0;
+	int percent = 0;
+};
+std::array<Frenzy, MAX_PLRS> Frenzies;
+/** The Fire Golem burns what stands beside it once a second; this is the clock, per record. */
+constexpr int FireGolemPulseTicks = 20;
 /** Record index by monster slot, or -1 - the brain asks "is this a minion" for every monster, every tick. */
 std::array<int8_t, MaxMonsters> RecordOfSlot = [] {
 	std::array<int8_t, MaxMonsters> table {};
@@ -152,12 +166,56 @@ bool SpawnBody(Record &record, const Player &owner, Point near)
 			body->maxDamage = static_cast<uint8_t>(std::clamp(record.spec.maxDamage, 0, 255));
 			body->golemToHit = static_cast<uint16_t>(std::clamp(record.spec.toHit, 0, 65535));
 			body->armorClass = static_cast<uint8_t>(std::clamp(record.spec.armorClass, 0, 255));
+			if (record.spec.ramp != 0)
+				body->uniqueMonsterTRN = RampTranslation(record.spec.ramp, 2, true);
 			record.body = static_cast<int>(body->getId());
 			RecordOfSlot[body->getId()] = static_cast<int8_t>(&record - Records.data());
 			return true;
 		}
 	}
 	return false;
+}
+
+std::array<int, MaxMinionBodies> FireClocks {};
+
+/** @brief A blow of a minion's on @p monster, credited to @p owner: nothing to the immune, a quarter to the resistant. */
+void MinionHurts(const Player &owner, Monster &monster, DamageType type, int damage)
+{
+	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
+		return;
+	if (monster.isImmune(MissileID::Null, type))
+		return;
+	if (monster.isResistant(MissileID::Null, type))
+		damage >>= 2;
+	if (damage <= 0)
+		return;
+	ApplyMonsterDamage(type, monster, damage);
+	if ((monster.hitPoints >> 6) <= 0) {
+		M_StartKill(monster, owner);
+		return;
+	}
+	M_StartHit(monster, owner, damage);
+}
+
+/** @brief Once a second, every Fire Golem of @p owner burns everything standing beside it for half a blow. */
+void FireGolemsBurn(const Player &owner)
+{
+	for (size_t i = 0; i < Records.size(); i++) {
+		Record &record = Records[i];
+		if (!BodyAlive(record) || record.owner != owner.getId() || record.spec.golem != GolemKind::Fire)
+			continue;
+		if (++FireClocks[i] < FireGolemPulseTicks)
+			continue;
+		FireClocks[i] = 0;
+		const Monster &golem = Monsters[record.body];
+		for (size_t m = 0; m < ActiveMonsterCount; m++) {
+			Monster &monster = Monsters[ActiveMonsters[m]];
+			if (monster.position.tile.WalkingDistance(golem.position.tile) > 1)
+				continue;
+			const int blow = record.spec.minDamage + GenerateRnd(std::max(record.spec.maxDamage - record.spec.minDamage, 0) + 1);
+			MinionHurts(owner, monster, DamageType::Fire, (blow << 6) / 2);
+		}
+	}
 }
 
 } // namespace
@@ -288,7 +346,8 @@ bool GetMinionOrders(const Monster &monster, CompanionOrders &orders)
 	orders.valid = true;
 	orders.owner = owner.position.tile;
 	orders.home = FormationHome(owner, *record);
-	orders.attack = CompanionAttack::Melee;
+	orders.attack = record->spec.missile == MissileID::Null ? CompanionAttack::Melee : CompanionAttack::Bow;
+	orders.missile = record->spec.missile == MissileID::Null ? MissileID::Arrow : record->spec.missile;
 	// Looser than a companion's: thirty bodies cannot all stand within three tiles, and a ring of four is part of
 	// the formation. The regroup distance is what keeps a crowd from being left behind a door.
 	switch (GetCompanionStance()) {
@@ -297,7 +356,7 @@ bool GetMinionOrders(const Monster &monster, CompanionOrders &orders)
 		orders.settle = 4;
 		orders.regroup = 12;
 		orders.attacks = true;
-		orders.reach = 5;
+		orders.reach = orders.attack == CompanionAttack::Bow ? 8 : 5;
 		break;
 	case CompanionStance::Hold:
 		orders.leash = 1000;
@@ -340,6 +399,8 @@ void ForgetMinions()
 	for (Record &record : Records)
 		record = {};
 	RecordOfSlot.fill(-1);
+	for (Frenzy &frenzy : Frenzies)
+		frenzy = {};
 }
 
 void OnMinionLevelLoad()
@@ -400,8 +461,23 @@ void OnMonsterSlotFreed(size_t monsterId)
 
 void ProcessMinions(Player &owner)
 {
+	Frenzy &frenzy = Frenzies[std::min<size_t>(owner.getId(), MAX_PLRS - 1)];
+	if (frenzy.ticks > 0 && --frenzy.ticks == 0)
+		frenzy.percent = 0;
+	// The timed ones run down everywhere, town included: a Revived does not keep for being out of sight.
+	for (Record &record : Records) {
+		if (!Counts(record) || record.owner != owner.getId() || record.spec.ticksLeft <= 0)
+			continue;
+		if (--record.spec.ticksLeft > 0)
+			continue;
+		if (BodyAlive(record))
+			M_StartKill(Monsters[record.body], owner);
+		else
+			Release(record);
+	}
 	if (leveltype == DTYPE_TOWN || owner._pLvlChanging || !owner.isOnActiveLevel())
 		return;
+	FireGolemsBurn(owner);
 	int formed = 0;
 	for (Record &record : Records) {
 		if (!record.active || record.body >= 0 || record.owner != owner.getId())
@@ -411,6 +487,134 @@ void ProcessMinions(Player &owner)
 		if (++formed >= ReformPerTick)
 			break;
 	}
+}
+
+// =================================================================================================================
+// What the skills and the engine ask of the army
+// =================================================================================================================
+
+int GatherMinions(Player &owner)
+{
+	int moved = 0;
+	for (Record &record : Records) {
+		if (!BodyAlive(record) || record.owner != owner.getId())
+			continue;
+		Monster &body = Monsters[record.body];
+		if (body.position.tile.WalkingDistance(owner.position.tile) <= 2)
+			continue;
+		if (PlaceCompanionNear(body, owner.position.tile, 4))
+			moved++;
+	}
+	return moved;
+}
+
+int HealMinions(Player &owner, int radius, int percent)
+{
+	int healed = 0;
+	for (Record &record : Records) {
+		if (!BodyAlive(record) || record.owner != owner.getId())
+			continue;
+		Monster &body = Monsters[record.body];
+		if (body.position.tile.WalkingDistance(owner.position.tile) > radius || body.hitPoints >= body.maxHitPoints)
+			continue;
+		body.hitPoints = std::min(body.hitPoints + body.maxHitPoints * percent / 100, body.maxHitPoints);
+		healed++;
+	}
+	return healed;
+}
+
+void FrenzyMinions(Player &owner, int ticks, int percent)
+{
+	Frenzy &frenzy = Frenzies[std::min<size_t>(owner.getId(), MAX_PLRS - 1)];
+	frenzy.ticks = std::max(frenzy.ticks, ticks);
+	frenzy.percent = std::max(frenzy.percent, percent);
+}
+
+int SacrificeMinion(Player &owner, Point tile)
+{
+	Record *nearest = nullptr;
+	int bestDistance = 0;
+	for (Record &record : Records) {
+		if (!BodyAlive(record) || record.owner != owner.getId())
+			continue;
+		const int distance = Monsters[record.body].position.tile.WalkingDistance(tile);
+		if (nearest == nullptr || distance < bestDistance) {
+			nearest = &record;
+			bestDistance = distance;
+		}
+	}
+	if (nearest == nullptr)
+		return 0;
+	const int life = Monsters[nearest->body].maxHitPoints;
+	M_StartKill(Monsters[nearest->body], owner);
+	return life;
+}
+
+int MinionDamageTaken(const Monster &monster, DamageType type, int damage)
+{
+	const Record *record = RecordOf(monster);
+	if (record == nullptr || record->owner >= Players.size())
+		return damage;
+	const Player &owner = Players[record->owner];
+	// The Fire Golem drinks fire.
+	if (type == DamageType::Fire && record->spec.golem == GolemKind::Fire) {
+		Monster &body = Monsters[record->body];
+		body.hitPoints = std::min(body.hitPoints + damage / 2, body.maxHitPoints);
+		return 0;
+	}
+	// Summon Resist: fire, lightning and magic, a fifth at the first point and up to three quarters.
+	if (IsAnyOf(type, DamageType::Fire, DamageType::Lightning, DamageType::Magic) && IsClassTreeSkillUnlocked(owner, ClassTreeSkill::SummonResist)) {
+		const int points = ClassTreeInvestment(owner, ClassTreeSkill::SummonResist);
+		if (points > 0)
+			damage -= damage * std::min(20 + 5 * (points - 1), 75) / 100;
+	}
+	return damage;
+}
+
+int MinionDamagePercent(const Monster &monster)
+{
+	const Record *record = RecordOf(monster);
+	if (record == nullptr)
+		return 100;
+	const Frenzy &frenzy = Frenzies[std::min<size_t>(record->owner, MAX_PLRS - 1)];
+	return frenzy.ticks > 0 ? 100 + frenzy.percent : 100;
+}
+
+void OnMinionBlow(Monster &minion, Monster &target, int damage)
+{
+	Record *record = RecordOf(minion);
+	if (record == nullptr || record->owner >= Players.size() || damage <= 0)
+		return;
+	Player &owner = Players[record->owner];
+	switch (record->spec.golem) {
+	case GolemKind::Clay:
+		// Two seconds of chill for a blow that lands: the Clay Golem's whole point.
+		if ((target.hitPoints >> 6) > 0)
+			ChillMonster(target, 40);
+		break;
+	case GolemKind::Blood: {
+		// A quarter of what it takes to itself, a quarter to its owner.
+		const int share = damage / 4;
+		minion.hitPoints = std::min(minion.hitPoints + share, minion.maxHitPoints);
+		if (owner._pHitPoints > 0) {
+			owner._pHitPoints = std::min(owner._pHitPoints + share, owner._pMaxHP);
+			owner._pHPBase = std::min(owner._pHPBase + share, owner._pMaxHPBase);
+			RedrawComponent(PanelDrawComponent::Health);
+		}
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+void OnMinionStruck(Monster &minion, Monster &attacker, int damage)
+{
+	const Record *record = RecordOf(minion);
+	if (record == nullptr || record->owner >= Players.size() || damage <= 0 || record->spec.golem != GolemKind::Iron)
+		return;
+	// The Iron Golem gives a third of every blow back to whoever struck it.
+	MinionHurts(Players[record->owner], attacker, DamageType::Physical, damage / 3);
 }
 
 // =================================================================================================================

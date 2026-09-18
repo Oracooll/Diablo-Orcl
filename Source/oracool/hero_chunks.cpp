@@ -85,6 +85,17 @@ void ApplySkillPoints(Player &player, const uint8_t *payload, size_t len)
 	std::memcpy(player._pSkillInvestment, payload + 3, count);
 }
 
+/** @brief Tag 18: the same with a two-byte count. Written after tag 1, so applying in order lets it win. */
+void ApplySkillPoints16(Player &player, const uint8_t *payload, size_t len)
+{
+	if (len < 4)
+		return;
+	player._pUnspentSkillPoints = GetU16(payload);
+	const size_t count = std::min<size_t>({ GetU16(payload + 2), len - 4, MAX_SPELLS });
+	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
+	std::memcpy(player._pSkillInvestment, payload + 4, count);
+}
+
 /**
  * @brief The superseded tag-5 payload: twenty Paladin aura investments. Migrated rather than
  * dropped - the Paladin's auras sit at positions 9-28 of its class list, so aura i lands at
@@ -261,6 +272,23 @@ void ApplyWaypoints64(Player &player, const uint8_t *payload, size_t len)
  * as the fixed struct left it, and it drops a binding the character cannot cast - which is only the
  * right answer if the caller has established what the character CAN cast first. See the call site.
  */
+/** @brief The two-byte form of the same (tags 16 and 17). */
+void ApplyPackedHotkeys16(Player &player, const std::vector<uint8_t> &packed, SpellID *keys, SpellType *types)
+{
+	if (packed.empty())
+		return;
+	const size_t count = std::min<size_t>({ packed[0], (packed.size() - 1) / 2, AbilityFKeyCount });
+	for (size_t i = 0; i < count; i++) {
+		SpellID spell = SpellID::Invalid;
+		SpellType type = SpellType::Invalid;
+		UnpackReadiedSpell16(player, GetU16(packed.data() + 1 + i * 2), spell, type);
+		if (IsValidSpell(spell)) {
+			keys[i] = spell;
+			types[i] = type;
+		}
+	}
+}
+
 void ApplyPackedHotkeys(Player &player, const std::vector<uint8_t> &packed, SpellID *keys, SpellType *types)
 {
 	if (packed.empty())
@@ -287,7 +315,16 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 	{
 		const size_t at = BeginChunk(out, HeroChunkSkillPoints);
 		PutU16(out, player._pUnspentSkillPoints);
-		out.push_back(static_cast<uint8_t>(MAX_SPELLS));
+		// One byte of count carries 255 at most; the rest ride tag 18 below, which an older build simply skips.
+		const size_t inByte = std::min<size_t>(MAX_SPELLS, 255);
+		out.push_back(static_cast<uint8_t>(inByte));
+		out.insert(out.end(), player._pSkillInvestment, player._pSkillInvestment + inByte);
+		EndChunk(out, at);
+	}
+	{
+		const size_t at = BeginChunk(out, HeroChunkSkillPoints16);
+		PutU16(out, player._pUnspentSkillPoints);
+		PutU16(out, static_cast<uint16_t>(MAX_SPELLS));
 		out.insert(out.end(), player._pSkillInvestment, player._pSkillInvestment + MAX_SPELLS);
 		EndChunk(out, at);
 	}
@@ -362,6 +399,29 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 		out.push_back(static_cast<uint8_t>(AbilityFKeyCount));
 		for (size_t i = 0; i < AbilityFKeyCount; i++)
 			out.push_back(PackReadiedSpell(player._pSplLHotKey[i]));
+		EndChunk(out, at);
+	}
+
+	// The same three in two bytes (2026-09-18), because spell ids passed 254. The one-byte forms stay for older
+	// builds; a reader that knows these tags takes them instead.
+	{
+		const size_t at = BeginChunk(out, HeroChunkReadiedSpells16);
+		PutU16(out, PackReadiedSpell16(player._pRSpell));
+		PutU16(out, PackReadiedSpell16(player._pLRSpell));
+		EndChunk(out, at);
+	}
+	{
+		const size_t at = BeginChunk(out, HeroChunkSpellHotkeys16);
+		out.push_back(static_cast<uint8_t>(AbilityFKeyCount));
+		for (size_t i = 0; i < AbilityFKeyCount; i++)
+			PutU16(out, PackReadiedSpell16(player._pSplHotKey[i]));
+		EndChunk(out, at);
+	}
+	{
+		const size_t at = BeginChunk(out, HeroChunkSpellHotkeysLeft16);
+		out.push_back(static_cast<uint8_t>(AbilityFKeyCount));
+		for (size_t i = 0; i < AbilityFKeyCount; i++)
+			PutU16(out, PackReadiedSpell16(player._pSplLHotKey[i]));
 		EndChunk(out, at);
 	}
 
@@ -452,6 +512,11 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 	// see the decode below.
 	std::vector<uint8_t> packedRightHotkeys;
 	std::vector<uint8_t> packedLeftHotkeys;
+	std::vector<uint8_t> packedRightHotkeys16;
+	std::vector<uint8_t> packedLeftHotkeys16;
+	uint16_t readiedRight16 = 0;
+	uint16_t readiedLeft16 = 0;
+	bool sawReadied16 = false;
 
 	// The aura is settled after the walk, not during it - see HeroChunkActiveAura below.
 	uint16_t legacyAura = 0;
@@ -468,6 +533,9 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 		switch (tag) {
 		case HeroChunkSkillPoints:
 			ApplySkillPoints(player, payload, chunkLen);
+			break;
+		case HeroChunkSkillPoints16:
+			ApplySkillPoints16(player, payload, chunkLen);
 			break;
 		case HeroChunkWaypoints64:
 			ApplyWaypoints64(player, payload, chunkLen);
@@ -568,6 +636,19 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 		case HeroChunkSpellHotkeys:
 			packedRightHotkeys.assign(payload, payload + chunkLen);
 			break;
+		case HeroChunkSpellHotkeysLeft16:
+			packedLeftHotkeys16.assign(payload, payload + chunkLen);
+			break;
+		case HeroChunkSpellHotkeys16:
+			packedRightHotkeys16.assign(payload, payload + chunkLen);
+			break;
+		case HeroChunkReadiedSpells16:
+			if (chunkLen >= 4) {
+				readiedRight16 = GetU16(payload);
+				readiedLeft16 = GetU16(payload + 2);
+				sawReadied16 = true;
+			}
+			break;
 		default:
 			// An unknown tag is a chunk from a newer build - skipped, by design.
 			break;
@@ -610,10 +691,17 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 	//
 	// This is the same fault the readied pair had at pfile.cpp, fixed there the same way on
 	// 2026-08-31. Two stores, one mask, one ordering mistake, found twice.
-	if (!packedRightHotkeys.empty() || !packedLeftHotkeys.empty()) {
+	if (!packedRightHotkeys.empty() || !packedLeftHotkeys.empty() || !packedRightHotkeys16.empty() || !packedLeftHotkeys16.empty() || sawReadied16) {
 		RefreshInnateSpells(player);
 		ApplyPackedHotkeys(player, packedRightHotkeys, player._pSplHotKey, player._pSplTHotKey);
 		ApplyPackedHotkeys(player, packedLeftHotkeys, player._pSplLHotKey, player._pSplLTHotKey);
+		// The two-byte forms after the one-byte ones, so they win where both were written.
+		ApplyPackedHotkeys16(player, packedRightHotkeys16, player._pSplHotKey, player._pSplTHotKey);
+		ApplyPackedHotkeys16(player, packedLeftHotkeys16, player._pSplLHotKey, player._pSplLTHotKey);
+		if (sawReadied16) {
+			UnpackReadiedSpell16(player, readiedRight16, player._pRSpell, player._pRSplType);
+			UnpackReadiedSpell16(player, readiedLeft16, player._pLRSpell, player._pLRSplType);
+		}
 	}
 
 	// AFTER every chunk, because it reads _pSkillInvestment and _pUnspentSkillPoints, and the

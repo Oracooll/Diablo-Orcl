@@ -175,6 +175,8 @@ const uint8_t SpellITbl[] = {
 	26, 26, 26, 26, 26,
 	// Valkyrie (2026-09-14), drawn from the Rogue's strip like the rest.
 	26,
+	// The Necromancer's thirteen Summoning actives (2026-09-18), drawn from his strip when it exists.
+	26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
 };
 static_assert(sizeof(SpellITbl) / sizeof(SpellITbl[0]) == MAX_SPELLS,
     "every SpellID needs an icon frame - this table is indexed by the enum");

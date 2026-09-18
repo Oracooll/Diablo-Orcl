@@ -38,6 +38,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
@@ -126,6 +127,8 @@ struct CompanionOrders {
 	bool attacks;
 	int reach;
 	CompanionAttack attack;
+	/** What a ranged one shoots - a companion's arrow, a skeletal mage's bolt (oracool/minions.h). */
+	MissileID missile;
 };
 
 enum class CompanionAct : uint8_t {
@@ -133,6 +136,14 @@ enum class CompanionAct : uint8_t {
 	Acted,  // the ability happened this tick
 	Volley, // start the ranged attack; CompanionShot looses a volley
 };
+
+/** @brief Every companion and minion turns on @p monster for @p ticks - the Necromancer's Command the Dead. */
+void FocusCompanionsOn(const Monster &monster, int ticks);
+/**
+ * @brief Every colour to one palette ramp by its brightness - a monster body in one material (the golems). The ramps
+ * run light to dark from their base; @p lightest shifts toward the light end; @p keepShadow leaves the near-black.
+ */
+std::unique_ptr<uint8_t[]> RampTranslation(uint8_t ramp, int lightest, bool keepShadow);
 
 /** @brief The shared stance's name, untranslated - the army's panel shows it too (oracool/minions.h). */
 const char *CompanionStanceName();

@@ -18,6 +18,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/companion.h"
 #include "oracool/passives.h"
+#include "oracool/necro_summoning.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/stat_sheet.h"
@@ -1255,7 +1256,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	default:
-		return false;
+		// The Necromancer's pages live in their own modules and come through this door (oracool/necro_summoning.h).
+		return CastNecromancerSummoning(player, spell, target, r);
 	}
 }
 
@@ -1834,6 +1836,7 @@ void ProcessRfa12ActivesTick(Player &player)
 
 	// Companions keep their own time, on every level and whether or not the owner stands (oracool/companion.h).
 	ProcessCompanions(player);
+	ProcessNecromancerSummoningTick(player);
 
 	// Buffs run down; a sheet buff that ends takes its numbers with it.
 	for (size_t i = 0; i < state.ticks.size(); i++) {
@@ -1970,6 +1973,7 @@ void ClearRfa12ActiveBuffs(Player &player)
 {
 	// A new game: no companions. They are statics and would otherwise follow one character into the next.
 	ForgetCompanions();
+	ClearNecromancerSummoningState();
 	bool sheetMoved = false;
 	PlayerState &state = StateOf(player);
 	for (size_t i = 0; i < state.ticks.size(); i++) {

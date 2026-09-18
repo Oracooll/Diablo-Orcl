@@ -25,6 +25,8 @@ namespace oracool {
  * is the whole reason no save had to be invalidated for this.
  */
 uint8_t PackReadiedSpell(SpellID spell);
+/** @brief The same in two bytes: id + 1, 0 for none. Every id fits (spelldat.h). */
+uint16_t PackReadiedSpell16(SpellID spell);
 
 /**
  * @brief Decodes one save byte back into a readied spell.
@@ -37,6 +39,7 @@ uint8_t PackReadiedSpell(SpellID spell);
  * re-derived from them, not stored.
  */
 void UnpackReadiedSpell(const Player &player, uint8_t packed, SpellID &spell, SpellType &type);
+void UnpackReadiedSpell16(const Player &player, uint16_t packed, SpellID &spell, SpellType &type);
 
 /**
  * @brief Records @p player's two readied slots as the ones a NEW character should start with.

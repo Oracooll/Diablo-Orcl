@@ -795,10 +795,16 @@ TEST(Writehero, pfile_write_hero)
 	//      Javelin, Plague Javelin and Weapon Throw. Count-prefixed, so a 240-entry hero loads into the first 240.
 	// 1.12.011: ONE BYTE, same chunk - MAX_SPELLS 245 -> 246 for the Rogue's Valkyrie, which left the Golem's book
 	//      spell for an id of its own.
+	// 1.12.035: THE TAIL GREW, on purpose - MAX_SPELLS 246 -> 259 for the Necromancer's thirteen Summoning actives,
+	//      which took spell ids past the two ceilings the asserts in spelldat.h guarded: a readied spell's one
+	//      byte, and the one-byte COUNT of the skill-investment chunk (which wrapped to 3 at 259 - every
+	//      investment past the third spell would have been lost). Four new chunks: HeroChunkReadiedSpells16,
+	//      the two 16-bit hotkey chunks and HeroChunkSkillPoints16. The old chunks are still written, tag 1
+	//      with its first 255 entries, so an older build reads what it can. PlayerPack is untouched.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "8fb27cee42ae9a8773324cc1a00c52fbd56f8b0f56f649787f718a1235e45135");
+	    "fa22ef9eea72c561b19a98ead138326593e3b97b5f1645cbc2e7de1486f0a221");
 }
 
 } // namespace

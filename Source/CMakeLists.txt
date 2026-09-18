@@ -83,6 +83,8 @@ set(libdevilutionx_SRCS
   oracool/weapon_throw.cpp
   oracool/companion.cpp
   oracool/minions.cpp
+  oracool/corpses.cpp
+  oracool/necro_summoning.cpp
   oracool/rfa12_effects.cpp
   oracool/rfa12_actives.cpp
   oracool/skill_facts.cpp

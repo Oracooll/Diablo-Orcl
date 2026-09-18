@@ -1,5 +1,7 @@
 #include "oracool/readied_spells.h"
 
+#include <algorithm>
+
 #include "player.h"
 #include "spells.h"
 
@@ -45,7 +47,32 @@ uint8_t PackReadiedSpell(SpellID spell)
 	// +1 so that SpellID::Null (0) and "nothing readied" stay distinguishable. Read and written as a
 	// plain int since SpellID widened to int16_t (2026-09-13): through int8_t, id 128 would have packed
 	// as byte 129 and unpacked as -127. spelldat.h asserts the last id still fits the byte.
+	// An id past 254 does not fit: 0, "nothing readied", rather than a wrapped byte naming another spell. The
+	// two-byte form below carries it (2026-09-18).
+	if (static_cast<int>(spell) + 1 > 255)
+		return 0;
 	return static_cast<uint8_t>(static_cast<int>(spell) + 1);
+}
+
+uint16_t PackReadiedSpell16(SpellID spell)
+{
+	if (!IsValidSpell(spell))
+		return 0;
+	return static_cast<uint16_t>(static_cast<int>(spell) + 1);
+}
+
+void UnpackReadiedSpell16(const Player &player, uint16_t packed, SpellID &spell, SpellType &type)
+{
+	if (packed == 0)
+		return;
+	const auto stored = static_cast<SpellID>(static_cast<int>(packed) - 1);
+	if (!IsValidSpell(stored))
+		return;
+	const SpellType derived = ReadiedSpellType(player, stored);
+	if (derived == SpellType::Invalid)
+		return;
+	spell = stored;
+	type = derived;
 }
 
 void UnpackReadiedSpell(const Player &player, uint8_t packed, SpellID &spell, SpellType &type)
@@ -70,8 +97,8 @@ void RememberReadiedSpells(const Player &player)
 	if (&player != MyPlayer || !IsSinglePlayer())
 		return;
 
-	const uint8_t left = PackReadiedSpell(player._pLRSpell);
-	const uint8_t right = PackReadiedSpell(player._pRSpell);
+	const int left = PackReadiedSpell16(player._pLRSpell);
+	const int right = PackReadiedSpell16(player._pRSpell);
 	if (left == *sgOptions.Oracool.lastReadiedSpellLeft
 	    && right == *sgOptions.Oracool.lastReadiedSpellRight)
 		return;
@@ -98,9 +125,9 @@ void ApplyRememberedReadiedSpells(Player &player)
 	// CreatePlayer and should be what a first-ever character gets. A remembered byte overwrites it
 	// only when it decodes to something this character can actually use, which is exactly the
 	// condition UnpackReadiedSpell already enforces - it leaves the slot alone otherwise.
-	UnpackReadiedSpell(player, static_cast<uint8_t>(*sgOptions.Oracool.lastReadiedSpellLeft),
+	UnpackReadiedSpell16(player, static_cast<uint16_t>(std::clamp(*sgOptions.Oracool.lastReadiedSpellLeft, 0, 65535)),
 	    player._pLRSpell, player._pLRSplType);
-	UnpackReadiedSpell(player, static_cast<uint8_t>(*sgOptions.Oracool.lastReadiedSpellRight),
+	UnpackReadiedSpell16(player, static_cast<uint16_t>(std::clamp(*sgOptions.Oracool.lastReadiedSpellRight, 0, 65535)),
 	    player._pRSpell, player._pRSplType);
 }
 

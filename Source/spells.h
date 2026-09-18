@@ -77,7 +77,7 @@ constexpr SpellMask GetSpellBitmask(SpellID spellId)
 	// Total over the enum: Null and Invalid gave a negative shift, which is undefined behaviour,
 	// and a malformed readied scroll in a save could reach it (external audit, 2026-09-06: SAV-02).
 	// An empty mask is the right answer for "no spell".
-	if (index < 0 || index >= 256)
+	if (index < 0 || index >= 320)
 		return SpellMask {};
 	const uint64_t bit = 1ULL << (index % 64);
 	switch (index / 64) {
@@ -87,8 +87,10 @@ constexpr SpellMask GetSpellBitmask(SpellID spellId)
 		return SpellMask { 0, bit, 0, 0 };
 	case 2:
 		return SpellMask { 0, 0, bit, 0 };
-	default:
+	case 3:
 		return SpellMask { 0, 0, 0, bit };
+	default:
+		return SpellMask { 0, 0, 0, 0, bit }; // ids 257-320, the fifth word (2026-09-18)
 	}
 }
 

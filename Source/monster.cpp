@@ -42,6 +42,7 @@
 #include "oracool/warcries.h"
 #include "oracool/monster_difficulty.h"
 #include "oracool/companion.h"
+#include "oracool/corpses.h"
 #include "oracool/minions.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
@@ -1422,7 +1423,10 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 	if (const Player *armyOwner = oracool::MinionOwner(attacker); armyOwner != nullptr) {
 		// A minion's slot says nothing about whose it is; its record does (oracool/minions.h).
 		target.tag(*armyOwner);
-	} else if (attacker.isPlayerMinion() && attacker.getId() < Players.size()) {
+		oracool::OnMinionBlow(attacker, target, dam);
+	}
+	if (oracool::IsMinion(target))
+		oracool::OnMinionStruck(target, attacker, dam); else if (attacker.isPlayerMinion() && attacker.getId() < Players.size()) {
 		int playerId = attacker.getId();
 		const Player &player = Players[playerId];
 		target.tag(player);
@@ -1626,9 +1630,11 @@ bool MonsterAttack(Monster &monster)
 	if (monster.animInfo.currentFrame == monster.data().animFrameNum - 1) {
 		// Phase 3.4: a champion's Might reaches its pack here, at the one place an ordinary
 		// monster's own damage is read for a swing. Queried, never written - see oracool/aura_field.h.
+		// A minion's blow carries Frenzy of the Dead (oracool/minions.h); 100% for everyone else.
+		const int minionPercent = oracool::MinionDamagePercent(monster);
 		MonsterAttackEnemy(monster, monster.toHit(sgGameInitInfo.nDifficulty),
-		    oracool::PackAdjustedDamage(monster, monster.minDamage),
-		    oracool::PackAdjustedDamage(monster, monster.maxDamage));
+		    oracool::PackAdjustedDamage(monster, monster.minDamage) * minionPercent / 100,
+		    oracool::PackAdjustedDamage(monster, monster.maxDamage) * minionPercent / 100);
 		if (monster.ai != MonsterAIID::Snake)
 			PlayEffect(monster, MonsterSound::Attack);
 	}
@@ -1906,8 +1912,10 @@ void MonsterDeath(Monster &monster)
 			// Tithe of Ash (RfA-12) took the corpse: nothing is left to raise or search.
 		} else if (monster.isUnique()) {
 			AddCorpse(monster.position.tile, monster.corpseId, monster.direction);
+			oracool::RecordCorpse(monster); // what it was, for the Necromancer (oracool/corpses.h)
 		} else {
 			AddCorpse(monster.position.tile, monster.type().corpseId, monster.direction);
+			oracool::RecordCorpse(monster);
 		}
 
 		dMonster[monster.position.tile.x][monster.position.tile.y] = 0;
@@ -3643,6 +3651,7 @@ void InitLevelMonsters()
 	// Companions' bodies and town figures belong to the level being left; the companions come back on the new one.
 	oracool::OnCompanionLevelLoad();
 	oracool::OnMinionLevelLoad(); // the army's bodies too; its records wait for the next floor (oracool/minions.h)
+	oracool::ClearCorpses();      // and the last floor's dead are no use on this one (oracool/corpses.h)
 	// So are the telemetry kill clocks, which are keyed by monster SLOT - and the slots are about to
 	// be handed to different monsters. A clock left running by a monster that was wounded and never
 	// killed would otherwise be read as the next occupant's time-to-kill.
@@ -4121,6 +4130,12 @@ void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage)
 		if (damage <= 0)
 			return;
 	}
+	// A minion of the army likewise: Summon Resist, and the Fire Golem drinking fire (oracool/minions.h).
+	if (oracool::IsMinion(monster)) {
+		damage = oracool::MinionDamageTaken(monster, damageType, damage);
+		if (damage <= 0)
+			return;
+	}
 	AddFloatingNumber(damageType, monster, damage);
 
 	// The time-to-kill clock starts HERE, where damage lands, not in M_StartHit where the monster
@@ -4571,7 +4586,7 @@ void CompanionAi(Monster &companion)
 		case oracool::CompanionAct::Acted:
 			return;
 		case oracool::CompanionAct::Volley:
-			StartRangedAttack(companion, MissileID::Arrow, 0);
+			StartRangedAttack(companion, orders.missile, 0);
 			return;
 		case oracool::CompanionAct::None:
 			break;
