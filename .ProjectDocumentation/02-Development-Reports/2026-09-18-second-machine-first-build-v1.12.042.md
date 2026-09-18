@@ -66,3 +66,11 @@ Two smaller traps for the record: a batch variable named `RC` is what CMake read
 ## Related
 
 - [[2026-09-18-necromancer-n11-numbers-roadmap-and-census-v1.12.041]] - the build this one follows
+
+## Follow-up the same night: v1.12.043, the pack unblocked
+
+The user's word on the 49 leftovers: "Delete those files, rebuild." All 49 were checked against `git ls-files`
+(none tracked) and removed, with the emptied `fonts/` and `levels/` folders; nothing tracked changed. The glob is
+`CONFIGURE_DEPENDS`, so the configure picked up the shorter list on its own. Clean run, no hand steps:
+configure, `oracool.mpq` packed, `DiabloOrcl.exe` linked by ninja, **819 of 819 tests**, exe reporting
+**1.12.043**. The Debug tree on this machine is now a normal one.
