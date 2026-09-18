@@ -1,0 +1,438 @@
+<title>The Road to Necromancy</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;1,400&family=Source+Sans+3:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#ECEAF0; --surface:#F7F6FA; --raised:#FFFFFF; --ink:#1D1A24; --muted:#625C70; --line:#D3CFDC;
+  --accent:#5B2A6E; --accent-ink:#FFFFFF; --bone:#8A7F63; --ok:#2F6B4F; --warn:#96591A; --chip:#E2DFEA;
+  --shadow:0 1px 2px rgba(29,26,36,.08),0 10px 28px rgba(29,26,36,.07);
+  --display:"Spectral","Iowan Old Style",Georgia,serif;
+  --body:"Source Sans 3",system-ui,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14111A; --surface:#1C1824; --raised:#241F2E; --ink:#E8E4EF; --muted:#9A92AB; --line:#322C3F;
+  --accent:#BC92D6; --accent-ink:#1A0F22; --bone:#C9BD9A; --ok:#77C79F; --warn:#E0A461; --chip:#2A2436;
+  --shadow:0 1px 2px rgba(0,0,0,.45),0 10px 28px rgba(0,0,0,.35);
+}}
+:root[data-theme="dark"]{
+  --bg:#14111A; --surface:#1C1824; --raised:#241F2E; --ink:#E8E4EF; --muted:#9A92AB; --line:#322C3F;
+  --accent:#BC92D6; --accent-ink:#1A0F22; --bone:#C9BD9A; --ok:#77C79F; --warn:#E0A461; --chip:#2A2436;
+  --shadow:0 1px 2px rgba(0,0,0,.45),0 10px 28px rgba(0,0,0,.35);
+}
+:root[data-theme="dark"]{color-scheme:dark}
+:root[data-theme="light"]{color-scheme:light}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15.5px;line-height:1.55}
+.wrap{max-width:1040px;margin-inline:auto;padding-inline:20px;padding-block:30px 72px}
+.wrap.stretch{max-width:none}
+button{font:inherit;cursor:pointer}
+
+header.top{display:flex;flex-wrap:wrap;gap:16px 24px;align-items:flex-end;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:20px}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(32px,4.6vw,48px);line-height:1.04;margin:6px 0 0;text-wrap:balance}
+h1 em{color:var(--accent)}
+.lede{max-width:64ch;color:var(--muted);margin:14px 0 0}
+.toggles{display:flex;flex-wrap:wrap;gap:10px}
+.tog{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 12px}
+.tog:hover{border-color:var(--accent);background:var(--raised)}
+.tog .k{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tog .v{font-weight:600;min-width:3.6em;text-align:left}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+h2{font-family:var(--display);font-weight:400;font-size:27px;margin:44px 0 4px;display:flex;flex-wrap:wrap;align-items:baseline;gap:12px}
+h2 small{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--muted)}
+.sub{color:var(--muted);margin:0 0 18px;max-width:70ch}
+.notice{margin:16px 0;padding:10px 14px;border:1px solid var(--line);border-left:3px solid var(--warn);background:var(--surface);border-radius:4px;font-size:14px;color:var(--muted)}
+.empty{padding:30px 0;color:var(--muted)}
+
+/* decisions */
+.decisions{display:flex;flex-direction:column;gap:16px}
+.q{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px 22px}
+.q.answered{border-color:var(--accent)}
+.q-head{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline;justify-content:space-between}
+.q h3{font-family:var(--display);font-weight:600;font-size:21px;margin:0;line-height:1.25;text-wrap:balance}
+.q h3 span{font-family:var(--mono);font-weight:400;font-size:13px;color:var(--bone);margin-right:10px}
+.state{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:3px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.q.answered .state{background:var(--accent);color:var(--accent-ink)}
+.q .ctx{color:var(--muted);margin:10px 0 14px;max-width:74ch}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{display:grid;grid-template-columns:20px 1fr;gap:12px;align-items:start;padding:11px 14px;border:1px solid var(--line);border-radius:8px;background:var(--raised);cursor:pointer}
+.opt:hover{border-color:var(--accent)}
+.opt.on{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.opt input{margin:4px 0 0;accent-color:var(--accent);width:16px;height:16px}
+.opt b{font-weight:600}
+.opt .rec{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--bone);margin-left:8px;white-space:nowrap}
+.opt p{margin:2px 0 0;font-size:14px;color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);letter-spacing:.02em;margin-top:12px}
+.field input,.field textarea,.field select{font:inherit;font-size:14.5px;color:var(--ink);background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%}
+.field textarea{min-height:64px;resize:vertical;line-height:1.5}
+.saved{font-family:var(--mono);font-size:11px;color:var(--ok);min-height:1.2em;margin-top:8px}
+.saved.err{color:var(--warn)}
+
+/* phases */
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:14.5px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+td.id{font-family:var(--mono);color:var(--bone);white-space:nowrap}
+td.size{white-space:nowrap;color:var(--muted)}
+.pstate{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+.pstate.done{color:var(--ok)} .pstate.doing{color:var(--accent)} .pstate.todo{color:var(--muted)}
+
+/* notes */
+.add{display:grid;grid-template-columns:140px 1fr auto;gap:10px;align-items:end;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.add .field{margin-top:0}
+.add .wide{grid-column:1 / -1}
+@media (max-width:640px){.add{grid-template-columns:1fr}}
+.btn{background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent);border-radius:6px;padding:9px 16px;font-weight:600;font-size:14px;white-space:nowrap}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line);font-weight:500}
+.btn.danger{background:transparent;color:var(--warn);border-color:var(--warn)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 12px}
+.pill{font-size:13px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted)}
+.pill.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.notes{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
+.note{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.note.done{opacity:.62}
+.note.done h4{text-decoration:line-through;text-decoration-color:var(--line)}
+.note-top{display:flex;gap:10px;align-items:flex-start}
+.note-top input{margin-top:4px;width:16px;height:16px;accent-color:var(--accent)}
+.note h4{margin:0;font-size:15.5px;font-weight:600;line-height:1.3;flex:1}
+.kind{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:3px;background:var(--chip);color:var(--muted)}
+.kind.task{color:var(--accent)}
+.note p{margin:0;font-size:14px;color:var(--muted);white-space:pre-wrap}
+.note-foot{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:auto}
+.note-foot .when{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.link{background:none;border:none;color:var(--accent);font-size:13px;padding:2px 4px}
+.link:hover{text-decoration:underline}
+
+/* skill ledger */
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;border-bottom:1px solid var(--line)}
+.tab{background:none;border:none;border-bottom:2px solid transparent;padding:8px 14px;font-size:14.5px;color:var(--muted);margin-bottom:-1px}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+.tab small{font-family:var(--mono);font-size:11px;color:var(--bone);margin-left:6px}
+.tree{display:grid;grid-template-columns:64px repeat(3,minmax(0,1fr));gap:10px;min-width:640px}
+.tier{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--bone);padding-top:14px}
+.cell{display:flex;flex-direction:column;gap:6px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;min-height:112px;color:var(--ink)}
+button.cell:hover{border-color:var(--accent);background:var(--raised)}
+.cell.hole{border-style:dashed;background:transparent;color:var(--muted);font-size:13px;justify-content:center;align-items:center}
+.cell.keep{box-shadow:inset 3px 0 0 var(--ok)} .cell.change{box-shadow:inset 3px 0 0 var(--warn)} .cell.replace{box-shadow:inset 3px 0 0 var(--accent)}
+.cell b{font-family:var(--display);font-weight:600;font-size:16.5px;line-height:1.2}
+.cell p{margin:0;font-size:13px;line-height:1.45;color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:auto}
+.chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:3px;background:var(--chip);color:var(--muted)}
+.chip.essence{color:var(--ok)} .chip.mana{color:var(--accent)} .chip.v{background:var(--ink);color:var(--bg)}
+.chip.note{color:var(--warn)}
+.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:560px){.row3{grid-template-columns:1fr}}
+.hint{font-size:12.5px;color:var(--muted);margin:2px 0 0}
+
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--raised);color:var(--ink);padding:0;width:min(580px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow-y:auto;overscroll-behavior:contain;box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(10,8,14,.6)}
+dialog form{padding:22px 24px;display:flex;flex-direction:column;gap:6px}
+dialog h3{font-family:var(--display);font-weight:400;font-size:24px;margin:0 0 4px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.actions .right{margin-left:auto;display:flex;gap:10px}
+</style>
+
+<div class="wrap" id="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Diablo Orcl &middot; the seventh hero</div>
+      <h1>The Road to <em>Necromancy</em></h1>
+      <p class="lede">The decisions that shape the build. Answer them here - new ones appear as the plan sharpens - and add ideas and tasks for the class underneath. Everything saves as you go, and Claude reads this page before building.</p>
+    </div>
+    <div class="toggles">
+      <button type="button" class="tog" id="themeBtn"><span class="k">Theme</span><span class="v" id="themeLabel">Light</span></button>
+      <button type="button" class="tog" id="widthBtn"><span class="k">Width</span><span class="v" id="widthLabel">Shrink</span></button>
+    </div>
+  </header>
+
+  <div class="notice" id="notice" hidden></div>
+
+  <h2>Decisions <small id="progress"></small></h2>
+  <p class="sub">Pick an option, or choose Something else and say what. Notes are yours to use for conditions, doubts or a half-answer. Changing your mind later is fine - the latest answer is the one that counts.</p>
+  <div class="decisions" id="decisions"><div class="empty">Opening the grimoire&hellip;</div></div>
+
+  <h2>Build phases</h2>
+  <p class="sub">From the plan document. Claude updates the states here as phases land.</p>
+  <div class="scroll"><table><thead><tr><th>Phase</th><th>What it contains</th><th>Size</th><th>You can then</th><th>State</th></tr></thead><tbody id="phases"></tbody></table></div>
+
+  <h2>Skill ledger <small id="ledgerCount"></small></h2>
+  <p class="sub">His four pages as they stand in the game, laid out as the tree lays them out. Open a skill to rename it, rewrite what it does, move it to another cell, change what it costs, or mark it to be replaced. Nothing here is built yet, so everything is cheap to change - Claude reads this before building each page.</p>
+  <div class="tabs" id="tabs" role="tablist"></div>
+  <div class="scroll"><div class="tree" id="tree"></div></div>
+
+  <h2>Ideas &amp; tasks <small id="noteCount"></small></h2>
+  <p class="sub">Anything about the Necromancer: a skill you want, a look, a rule, something to check. An idea is a thought; a task is something to be done and ticked off.</p>
+  <form class="add" id="addForm">
+    <label class="field">Kind<select id="nKind"><option value="idea">Idea</option><option value="task">Task</option></select></label>
+    <label class="field">Title<input id="nTitle" maxlength="160" autocomplete="off" placeholder="Skeletons should inherit the curse the hero casts" required></label>
+    <button type="submit" class="btn" id="addBtn" disabled>Add</button>
+    <label class="field wide">Details (optional)<textarea id="nBody" maxlength="4000"></textarea></label>
+  </form>
+  <div class="filters" id="filters">
+    <button type="button" class="pill on" data-f="open">Open</button>
+    <button type="button" class="pill" data-f="idea">Ideas</button>
+    <button type="button" class="pill" data-f="task">Tasks</button>
+    <button type="button" class="pill" data-f="done">Done</button>
+    <button type="button" class="pill" data-f="all">Everything</button>
+  </div>
+  <div class="notes" id="notes"></div>
+</div>
+
+<dialog id="dlg">
+  <form method="dialog" id="editForm">
+    <h3>Edit</h3>
+    <label class="field">Kind<select id="eKind"><option value="idea">Idea</option><option value="task">Task</option></select></label>
+    <label class="field">Title<input id="eTitle" maxlength="160" autocomplete="off" required></label>
+    <label class="field">Details<textarea id="eBody" maxlength="4000" style="min-height:140px"></textarea></label>
+    <div class="saved err" id="eErr" role="alert"></div>
+    <div class="actions">
+      <button type="button" class="btn danger" id="eDel">Delete</button>
+      <div class="right"><button type="button" class="btn ghost" id="eCancel">Cancel</button><button type="submit" class="btn" id="eSave">Save</button></div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="sDlg">
+  <form method="dialog" id="sForm">
+    <h3 id="sHead">Skill</h3>
+    <label class="field">Name<input id="sName" maxlength="60" autocomplete="off" required></label>
+    <label class="field">What it does<textarea id="sDesc" maxlength="1200" style="min-height:110px"></textarea></label>
+    <div class="row3">
+      <label class="field">Kind<select id="sKind"><option>Active</option><option>Passive</option><option>Aura</option></select></label>
+      <label class="field">Paid in<select id="sPays"><option value="mana">Mana</option><option value="essence">Essence</option><option value="none">Nothing</option></select></label>
+      <label class="field">Essence cost<input id="sCost" type="number" min="0" max="100" step="1"></label>
+    </div>
+    <p class="hint">Mana costs are set with the numbers when a skill is built; an Essence cost is out of his pool of 100.</p>
+    <div class="row3">
+      <label class="field">Page<select id="sPage"></select></label>
+      <label class="field">Row (level)<select id="sTier"></select></label>
+      <label class="field">Column<select id="sCol"><option value="0">Left</option><option value="1">Middle</option><option value="2">Right</option></select></label>
+    </div>
+    <p class="hint">Moving onto a cell that is taken swaps the two skills.</p>
+    <label class="field">Your verdict<select id="sVerdict"><option value="">Not looked at yet</option><option value="keep">Keep as it is</option><option value="change">Change - see my notes</option><option value="replace">Replace with something else</option></select></label>
+    <label class="field">Notes for Claude<textarea id="sNotes" maxlength="3000" placeholder="Numbers you want, how it should feel, what to replace it with..."></textarea></label>
+    <div class="saved err" id="sErr" role="alert"></div>
+    <div class="actions"><div class="right"><button type="button" class="btn ghost" id="sCancel">Cancel</button><button type="submit" class="btn" id="sSave">Save</button></div></div>
+  </form>
+</dialog>
+
+<script>
+(function(){
+  "use strict";
+  var $=function(id){return document.getElementById(id);};
+  var root=document.documentElement;
+  var db=null, decisions=[], phases=[], notes=[], filter="open", editing=null, armed=false, timers={};
+
+  function store(k,v){try{ if(v===undefined){return localStorage.getItem(k);} localStorage.setItem(k,v);}catch(e){} return null;}
+  function el(tag,cls,text){var e=document.createElement(tag);if(cls){e.className=cls;}if(text!=null){e.textContent=text;}return e;}
+  function notice(msg){var n=$("notice");n.hidden=!msg;n.textContent=msg||"";}
+  function explain(e){var c=e&&e.code;
+    if(c==="quota_exceeded"){return "Storage is full. Delete something, then try again.";}
+    if(c==="revoked"||c==="not_granted"){return "This view can no longer save. Reload the page.";}
+    if(c==="invalid_argument"){return "That could not be saved as written. Shorten it and try again.";}
+    return "Saving failed just now. Try once more.";}
+
+  /* theme and width: one button each, naming the state you are in */
+  function isDark(){var t=root.getAttribute("data-theme");if(t){return t==="dark";}return !!(window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);}
+  function paintTheme(){var d=isDark();$("themeLabel").textContent=d?"Dark":"Light";$("themeBtn").setAttribute("aria-label","Theme: "+(d?"dark":"light")+". Switch to "+(d?"light":"dark")+".");}
+  var st=store("necro-theme");if(st==="dark"||st==="light"){root.setAttribute("data-theme",st);}
+  paintTheme();
+  $("themeBtn").addEventListener("click",function(){var t=isDark()?"light":"dark";root.setAttribute("data-theme",t);store("necro-theme",t);paintTheme();});
+  function paintWidth(on){$("wrap").classList.toggle("stretch",on);$("widthLabel").textContent=on?"Stretch":"Shrink";$("widthBtn").setAttribute("aria-label","Width: "+(on?"stretched":"shrunk")+". Switch to "+(on?"shrink":"stretch")+".");}
+  paintWidth(store("necro-width")==="stretch");
+  $("widthBtn").addEventListener("click",function(){var on=!$("wrap").classList.contains("stretch");store("necro-width",on?"stretch":"shrink");paintWidth(on);});
+
+  /* ---------- decisions ---------- */
+  function saveDecision(id,patch,mark){
+    if(!db){return;}
+    patch.updated=new Date().toISOString();
+    db.doc("decisions/"+id).update(patch).then(function(){if(mark){mark.className="saved";mark.textContent="Saved";}},
+      function(e){if(mark){mark.className="saved err";mark.textContent=explain(e);}});
+  }
+  function debounce(key,fn){clearTimeout(timers[key]);timers[key]=setTimeout(fn,650);}
+
+  function renderDecisions(){
+    var box=$("decisions");
+    /* Do not rebuild while the person is typing in one of the fields: their caret would jump. */
+    var active=document.activeElement;
+    if(active&&box.contains(active)&&(active.tagName==="TEXTAREA"||(active.tagName==="INPUT"&&active.type==="text"))){paintProgress();return;}
+    box.textContent="";
+    if(!decisions.length){box.appendChild(el("div","empty","No questions yet."));paintProgress();return;}
+    decisions.forEach(function(d,idx){
+      var answered=!!d.answer&&(d.answer!=="other"||!!d.other);
+      var card=el("section","q"+(answered?" answered":""));
+      var head=el("div","q-head"),h=el("h3");h.appendChild(el("span",null,"D"+(idx+1)));h.appendChild(document.createTextNode(d.question));
+      head.appendChild(h);head.appendChild(el("span","state",answered?"Answered":"Waiting for you"));card.appendChild(head);
+      if(d.context){card.appendChild(el("p","ctx",d.context));}
+      var opts=el("div","opts"),mark=el("div","saved");
+      var all=(d.options||[]).concat([{id:"other",label:"Something else",detail:"Say what, below."}]);
+      all.forEach(function(o){
+        var lab=el("label","opt"+(d.answer===o.id?" on":""));
+        var r=document.createElement("input");r.type="radio";r.name="d-"+d.id;r.value=o.id;r.checked=d.answer===o.id;
+        r.addEventListener("change",function(){saveDecision(d.id,{answer:o.id,answeredAt:new Date().toISOString()},mark);});
+        var txt=el("div"),b=el("b",null,o.label);txt.appendChild(b);
+        if(d.recommended===o.id){txt.appendChild(el("span","rec","recommended"));}
+        if(o.detail){txt.appendChild(el("p",null,o.detail));}
+        lab.appendChild(r);lab.appendChild(txt);opts.appendChild(lab);
+      });
+      card.appendChild(opts);
+      if(d.answer==="other"){
+        var f=el("label","field","Your answer");var inp=document.createElement("input");inp.type="text";inp.maxLength=400;inp.value=d.other||"";
+        inp.addEventListener("input",function(){mark.className="saved";mark.textContent="";debounce("o"+d.id,function(){saveDecision(d.id,{other:inp.value.trim()},mark);});});
+        f.appendChild(inp);card.appendChild(f);
+      }
+      var nf=el("label","field","Notes");var ta=document.createElement("textarea");ta.maxLength=3000;ta.value=d.notes||"";
+      ta.addEventListener("input",function(){mark.className="saved";mark.textContent="";debounce("n"+d.id,function(){saveDecision(d.id,{notes:ta.value.trim()},mark);});});
+      nf.appendChild(ta);card.appendChild(nf);card.appendChild(mark);
+      box.appendChild(card);
+    });
+    paintProgress();
+  }
+  function paintProgress(){
+    var n=decisions.filter(function(d){return !!d.answer&&(d.answer!=="other"||!!d.other);}).length;
+    $("progress").textContent=decisions.length?(n+" of "+decisions.length+" answered"):"";
+  }
+
+  /* ---------- phases ---------- */
+  function renderPhases(){
+    var tb=$("phases");tb.textContent="";
+    phases.forEach(function(p){
+      var tr=document.createElement("tr");
+      tr.appendChild(el("td","id",p.id.toUpperCase()));tr.appendChild(el("td",null,p.contents));tr.appendChild(el("td","size",p.size));tr.appendChild(el("td",null,p.result));
+      var s=p.state==="done"?"done":(p.state==="doing"?"doing":"todo");
+      var td=el("td");td.appendChild(el("span","pstate "+s,s==="done"?"Done":(s==="doing"?"In progress":"Not started")));tr.appendChild(td);
+      tb.appendChild(tr);
+    });
+  }
+
+  /* ---------- ideas and tasks ---------- */
+  function renderNotes(){
+    var box=$("notes");box.textContent="";
+    var open=notes.filter(function(n){return !n.done;}).length;
+    $("noteCount").textContent=notes.length?(open+" open, "+(notes.length-open)+" done"):"";
+    var list=notes.filter(function(n){
+      if(filter==="open"){return !n.done;} if(filter==="done"){return n.done;}
+      if(filter==="idea"){return n.kind==="idea"&&!n.done;} if(filter==="task"){return n.kind==="task"&&!n.done;} return true;});
+    if(!list.length){box.appendChild(el("div","empty",notes.length?"Nothing under this filter.":"Nothing yet. Add the first idea or task above."));return;}
+    list.forEach(function(n){
+      var c=el("article","note"+(n.done?" done":""));
+      var top=el("div","note-top");
+      var cb=document.createElement("input");cb.type="checkbox";cb.checked=n.done;cb.setAttribute("aria-label","Done");
+      cb.addEventListener("change",function(){if(!db){return;}db.doc("notes/"+n.id).update({done:cb.checked,updated:new Date().toISOString()}).catch(function(e){notice(explain(e));});});
+      top.appendChild(cb);top.appendChild(el("h4",null,n.title));top.appendChild(el("span","kind "+n.kind,n.kind));c.appendChild(top);
+      if(n.body){c.appendChild(el("p",null,n.body));}
+      var foot=el("div","note-foot");foot.appendChild(el("span","when",String(n.created||"").slice(0,10)));
+      var ed=el("button","link","Edit");ed.type="button";ed.addEventListener("click",function(){openEdit(n);});foot.appendChild(ed);
+      c.appendChild(foot);box.appendChild(c);
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("#filters .pill"),function(b){
+    b.addEventListener("click",function(){filter=b.getAttribute("data-f");
+      Array.prototype.forEach.call(document.querySelectorAll("#filters .pill"),function(x){x.classList.toggle("on",x===b);});renderNotes();});});
+
+  $("addForm").addEventListener("submit",function(ev){
+    ev.preventDefault();if(!db){return;}
+    var title=$("nTitle").value.trim();if(!title){return;}
+    var now=new Date().toISOString();$("addBtn").disabled=true;
+    db.collection("notes").add({kind:$("nKind").value,title:title,body:$("nBody").value.trim(),done:false,created:now,updated:now})
+      .then(function(){$("addBtn").disabled=false;$("nTitle").value="";$("nBody").value="";$("nTitle").focus();notice("");},
+            function(e){$("addBtn").disabled=false;notice(explain(e));});
+  });
+
+  function openEdit(n){editing=n.id;armed=false;$("eKind").value=n.kind;$("eTitle").value=n.title;$("eBody").value=n.body||"";$("eErr").textContent="";$("eDel").textContent="Delete";$("dlg").showModal();$("eTitle").focus();}
+  $("eCancel").addEventListener("click",function(){$("dlg").close();});
+  $("editForm").addEventListener("submit",function(ev){
+    ev.preventDefault();if(!db||!editing){return;}
+    var title=$("eTitle").value.trim();if(!title){$("eErr").textContent="Give it a title.";return;}
+    db.doc("notes/"+editing).update({kind:$("eKind").value,title:title,body:$("eBody").value.trim(),updated:new Date().toISOString()})
+      .then(function(){$("dlg").close();},function(e){$("eErr").textContent=explain(e);});
+  });
+  $("eDel").addEventListener("click",function(){
+    if(!db||!editing){return;}
+    if(!armed){armed=true;this.textContent="Click again to delete";return;}
+    db.doc("notes/"+editing).delete().then(function(){$("dlg").close();},function(e){$("eErr").textContent=explain(e);});
+  });
+
+  /* ---------- skill ledger ---------- */
+  var skills=[], page=0, sEditing=null;
+  var PAGES=["Summoning","Poison & Bone","Curses","Passive Skills"], LEVELS=[1,6,12,18,24,30];
+  function tierLabel(pg,t){return pg===3?("Row "+(t+1)):("Level "+LEVELS[t]);}
+  function at(pg,t,c){for(var i=0;i<skills.length;i++){var k=skills[i];if(k.page===pg&&k.tier===t&&k.column===c){return k;}}return null;}
+  function renderTabs(){
+    var box=$("tabs");box.textContent="";
+    PAGES.forEach(function(name,i){
+      var looked=skills.filter(function(k){return k.page===i&&k.verdict;}).length,total=skills.filter(function(k){return k.page===i;}).length;
+      var b=el("button","tab"+(i===page?" on":""),name);b.type="button";b.setAttribute("role","tab");b.setAttribute("aria-selected",i===page?"true":"false");
+      b.appendChild(el("small",null,looked+"/"+total));
+      b.addEventListener("click",function(){page=i;renderLedger();});box.appendChild(b);});
+  }
+  function renderLedger(){
+    renderTabs();
+    var looked=skills.filter(function(k){return k.verdict;}).length;
+    $("ledgerCount").textContent=skills.length?(looked+" of "+skills.length+" looked at"):"";
+    var tree=$("tree");tree.textContent="";
+    if(!skills.length){tree.appendChild(el("div","empty","No skills loaded yet."));return;}
+    for(var t=0;t<6;t++){
+      tree.appendChild(el("div","tier",tierLabel(page,t)));
+      for(var c=0;c<3;c++){(function(k){
+        if(!k){tree.appendChild(el("div","cell hole","empty cell"));return;}
+        var b=el("button","cell"+(k.verdict?" "+k.verdict:""));b.type="button";
+        b.appendChild(el("b",null,k.name));b.appendChild(el("p",null,k.description));
+        var ch=el("div","chips");ch.appendChild(el("span","chip",k.kind));
+        if(k.pays==="essence"){ch.appendChild(el("span","chip essence","Essence "+k.cost));}else if(k.pays==="mana"){ch.appendChild(el("span","chip mana","Mana"));}
+        if(k.verdict){ch.appendChild(el("span","chip v",k.verdict));}
+        if(k.notes){ch.appendChild(el("span","chip note","note"));}
+        b.appendChild(ch);b.addEventListener("click",function(){openSkill(k);});tree.appendChild(b);
+      })(at(page,t,c));}
+    }
+  }
+  function fillSelect(sel,labels){sel.textContent="";labels.forEach(function(l,i){var o=document.createElement("option");o.value=String(i);o.textContent=l;sel.appendChild(o);});}
+  function paintTierOptions(){var pg=Number($("sPage").value),keep=$("sTier").value;fillSelect($("sTier"),[0,1,2,3,4,5].map(function(t){return tierLabel(pg,t);}));if(keep){$("sTier").value=keep;}}
+  fillSelect($("sPage"),PAGES);$("sPage").addEventListener("change",paintTierOptions);
+  function paintCost(){$("sCost").disabled=$("sPays").value!=="essence";}
+  $("sPays").addEventListener("change",paintCost);
+  function openSkill(k){
+    sEditing=k.id;$("sHead").textContent=k.name;$("sName").value=k.name;$("sDesc").value=k.description;$("sKind").value=k.kind;$("sPays").value=k.pays;$("sCost").value=String(k.cost||0);
+    $("sPage").value=String(k.page);paintTierOptions();$("sTier").value=String(k.tier);$("sCol").value=String(k.column);$("sVerdict").value=k.verdict;$("sNotes").value=k.notes;
+    $("sErr").textContent="";paintCost();$("sDlg").showModal();$("sName").focus();
+  }
+  $("sCancel").addEventListener("click",function(){$("sDlg").close();});
+  $("sForm").addEventListener("submit",function(ev){
+    ev.preventDefault();if(!db||!sEditing){return;}
+    var me=null;skills.forEach(function(k){if(k.id===sEditing){me=k;}});if(!me){return;}
+    var name=$("sName").value.trim();if(!name){$("sErr").textContent="Give it a name.";return;}
+    var pg=Number($("sPage").value),t=Number($("sTier").value),c=Number($("sCol").value),now=new Date().toISOString();
+    var pays=$("sPays").value,cost=pays==="essence"?Math.max(0,Math.min(100,Math.round(Number($("sCost").value)||0))):0;
+    var patch={name:name,description:$("sDesc").value.trim(),kind:$("sKind").value,pays:pays,cost:cost,page:pg,tier:t,column:c,verdict:$("sVerdict").value,notes:$("sNotes").value.trim(),updated:now};
+    var other=at(pg,t,c);$("sSave").disabled=true;
+    var done=function(){$("sSave").disabled=false;page=pg;$("sDlg").close();renderLedger();},bad=function(e){$("sSave").disabled=false;$("sErr").textContent=explain(e);};
+    /* The occupant moves to where this skill was FIRST, so a failure between the two writes leaves a doubled cell to fix, never a lost skill. */
+    if(other&&other.id!==me.id){db.doc("skills/"+other.id).update({page:me.page,tier:me.tier,column:me.column,updated:now}).then(function(){return db.doc("skills/"+me.id).update(patch);}).then(done,bad);}
+    else{db.doc("skills/"+me.id).update(patch).then(done,bad);}
+  });
+
+  /* ---------- storage ---------- */
+  var use=(window.claude&&window.claude.use)?window.claude.use("db"):Promise.resolve(null);
+  use.then(function(handle){
+    if(!handle){$("decisions").textContent="";$("decisions").appendChild(el("div","empty","This page's storage is not reachable from this view."));
+      notice("Open this page inside Claude to answer and to add ideas.");return;}
+    db=handle;$("addBtn").disabled=false;
+    var fail=function(e){notice(explain(e));};
+    db.collection("decisions").orderBy("order").onSnapshot(function(s){
+      decisions=s.docs.map(function(d){var x=d.data()||{};return {id:d.id,question:String(x.question||""),context:String(x.context||""),options:Array.isArray(x.options)?x.options:[],
+        recommended:String(x.recommended||""),answer:String(x.answer||""),other:String(x.other||""),notes:String(x.notes||"")};});renderDecisions();},fail);
+    db.collection("phases").orderBy("order").onSnapshot(function(s){
+      phases=s.docs.map(function(d){var x=d.data()||{};return {id:d.id,contents:String(x.contents||""),size:String(x.size||""),result:String(x.result||""),state:String(x.state||"todo")};});renderPhases();},fail);
+    db.collection("skills").orderBy("order").onSnapshot(function(s){
+      skills=s.docs.map(function(d){var x=d.data()||{};return {id:d.id,name:String(x.name||d.id),description:String(x.description||""),kind:String(x.kind||"Active"),
+        pays:String(x.pays||"none"),cost:Number(x.cost)||0,page:Number(x.page)||0,tier:Number(x.tier)||0,column:Number(x.column)||0,verdict:String(x.verdict||""),notes:String(x.notes||"")};});
+      if(!$("sDlg").open){renderLedger();}},fail);
+    db.collection("notes").orderBy("created","desc").onSnapshot(function(s){
+      notes=s.docs.map(function(d){var x=d.data()||{};return {id:d.id,kind:x.kind==="task"?"task":"idea",title:String(x.title||"Untitled"),body:String(x.body||""),done:x.done===true,created:x.created||""};});renderNotes();},fail);
+  },function(){notice("This page's storage did not load. Reload the page.");});
+})();
+</script>

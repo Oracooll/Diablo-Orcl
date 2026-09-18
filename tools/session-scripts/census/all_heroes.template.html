@@ -1,0 +1,252 @@
+<title>Orcl Skill Census</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --ground: #efece6;
+  --panel: #f9f7f3;
+  --ink: #24201c;
+  --muted: #6b6359;
+  --rule: #d8d0c4;
+  --accent: #8f3a1e;
+  --focus: #b8541f;
+  --built: #2d6a3a;   --built-bg: #e0ede2;
+  --reword: #7a5a12;  --reword-bg: #f3e8cc;
+  --engine: #9b2f24;  --engine-bg: #f6dfdb;
+  --retired: #555a70; --retired-bg: #e3e4ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #1a1815; --panel: #23201c; --ink: #ebe5da; --muted: #a59b8e; --rule: #3a342d;
+    --accent: #e08a62; --focus: #f0a070;
+    --built: #8ccb96; --built-bg: #1f3323; --reword: #e2c16c; --reword-bg: #3a3018;
+    --engine: #f09a8c; --engine-bg: #3d211d; --retired: #aeb2cc; --retired-bg: #2a2c38;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #1a1815; --panel: #23201c; --ink: #ebe5da; --muted: #a59b8e; --rule: #3a342d;
+  --accent: #e08a62; --focus: #f0a070;
+  --built: #8ccb96; --built-bg: #1f3323; --reword: #e2c16c; --reword-bg: #3a3018;
+  --engine: #f09a8c; --engine-bg: #3d211d; --retired: #aeb2cc; --retired-bg: #2a2c38;
+}
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--ink); font: 14px/1.5 "IBM Plex Sans", system-ui, sans-serif; margin: 0; }
+main { max-width: 1180px; margin: 0 auto; padding: 36px 22px 60px; }
+header { border-bottom: 2px solid var(--accent); padding-bottom: 16px; }
+.eyebrow { font: 500 12px/1 "IBM Plex Mono", monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 42px/1.05 "Cormorant Garamond", Georgia, serif; margin: 8px 0 6px; text-wrap: balance; }
+.lede { color: var(--muted); margin: 0; max-width: 72ch; }
+.tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 20px 0 6px; }
+.tile { background: var(--panel); border: 1px solid var(--rule); padding: 12px 14px; }
+.tile b { display: block; font: 600 26px/1.1 "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+.tile span { color: var(--muted); font-size: 13px; }
+.tile.built b { color: var(--built); } .tile.reworded b { color: var(--reword); }
+.tile.engine b { color: var(--engine); } .tile.retired b { color: var(--retired); }
+.controls { position: sticky; top: 0; z-index: 2; background: var(--ground); padding: 14px 0 10px; border-bottom: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--rule); background: var(--panel); }
+.seg button { font: 500 13px/1 "IBM Plex Sans", sans-serif; border: 0; background: none; color: var(--ink); padding: 9px 11px; cursor: pointer; border-right: 1px solid var(--rule); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--panel); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+input[type="search"] { font: 14px "IBM Plex Sans", sans-serif; padding: 8px 10px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); min-width: 220px; flex: 1; }
+.count { color: var(--muted); font: 12px "IBM Plex Mono", monospace; }
+section.hero { margin-top: 26px; }
+section.hero h2 { font: 700 28px/1.1 "Cormorant Garamond", Georgia, serif; margin: 0 0 4px; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+section.hero h2 small { font: 12px "IBM Plex Mono", monospace; color: var(--muted); }
+.table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--rule); }
+table { border-collapse: collapse; width: 100%; min-width: 860px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
+th { font: 600 11px/1 "IBM Plex Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--ground); position: sticky; top: 0; }
+tr.page-row td { background: var(--ground); font: 600 11px/1 "IBM Plex Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); padding: 8px 12px; }
+td.name { font-weight: 600; white-space: nowrap; }
+td.level { font: 600 13px "IBM Plex Mono", monospace; white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; }
+td.slot, td.kind { font: 12px "IBM Plex Mono", monospace; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; font: 500 11px/1 "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: .05em; padding: 5px 7px; white-space: nowrap; }
+.pill.built { color: var(--built); background: var(--built-bg); }
+.pill.reworded { color: var(--reword); background: var(--reword-bg); }
+.pill.engine { color: var(--engine); background: var(--engine-bg); }
+.pill.retired, .pill.hidden { color: var(--retired); background: var(--retired-bg); }
+td.effect { max-width: 46ch; }
+td.why { color: var(--muted); max-width: 40ch; }
+.empty { padding: 18px; color: var(--muted); }
+td.note { min-width: 240px; }
+td.note textarea { width: 100%; min-height: 54px; resize: vertical; font: 13px/1.4 "IBM Plex Sans", sans-serif; color: var(--ink); background: var(--ground); border: 1px solid var(--rule); padding: 6px 8px; }
+tr.needs td.note textarea { border-color: var(--engine); background: var(--panel); }
+td.note textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+td.note .saved { display: block; font: 11px "IBM Plex Mono", monospace; color: var(--muted); margin-top: 3px; min-height: 14px; }
+td.note .saved.err { color: var(--engine); }
+.dbstate { font: 12px "IBM Plex Mono", monospace; color: var(--muted); }
+footer { margin-top: 34px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--rule); padding-top: 12px; }
+</style>
+
+<main>
+  <header>
+    <div class="eyebrow">Diablo Orcl · v__VERSION__ · all seven heroes</div>
+    <h1>Orcl Skill Census</h1>
+    <p class="lede">Every skill, aura and passive in the class trees after the 2026-09-14 sweep. Green works as written. Amber works, but its meaning was bent to fit the engine — check those. Red still does nothing and says what the engine lacks. Write what you want done in a row's instruction cell; it saves as you type, and Claude reads it back.</p>
+    <div class="tally">
+      <div class="tile"><b>__TOTAL__</b><span>rows in the trees</span></div>
+      <div class="tile built"><b>__BUILT__</b><span>built as written</span></div>
+      <div class="tile reworded"><b>__REWORDED__</b><span>built, reworded to fit the engine</span></div>
+      <div class="tile engine"><b>__ENGINE__</b><span>need engine work</span></div>
+      <div class="tile retired"><b>__RETIRED__</b><span>retired from the page</span></div>
+      <div class="tile retired"><b>__HIDDEN__</b><span>in a hidden class (Bard)</span></div>
+    </div>
+  </header>
+
+  <div class="controls" role="toolbar" aria-label="Filters">
+    <div class="seg" id="heroSeg" aria-label="Hero"></div>
+    <div class="seg" id="statusSeg" aria-label="Status"></div>
+    <input type="search" id="q" placeholder="Search a skill or effect" aria-label="Search">
+    <span class="count" id="count"></span>
+    <span class="dbstate" id="dbstate">Connecting instructions…</span>
+  </div>
+
+  <div id="out"></div>
+
+  <footer>Slot is tier.column on the page. Passive Skills unlock one cell every two levels (tier × 3 + column); the other pages by tier. Built from class_tree.cpp at v__VERSION__.</footer>
+</main>
+
+<script>
+const DATA = /*DATA*/;
+const CLASSES = /*CLASSES*/;
+const STATUS = { all: 'All', built: 'Built', reworded: 'Reworded', engine: 'Needs engine', retired: 'Retired', hidden: 'Hidden class', noted: 'With instruction' };
+const LABEL = { built: 'Built', reworded: 'Reworded', engine: 'Needs engine', retired: 'Retired', hidden: 'Hidden class' };
+let hero = 'all', status = 'all', query = '';
+
+// ---- instructions: one document per skill in the shared "instructions" collection ----
+const notes = new Map();      // doc id -> text
+const timers = new Map();     // doc id -> pending save
+let db = null;
+const docId = d => (d.c + '-' + d.n).replace(/[^A-Za-z0-9_\-.~:@+]/g, '-');
+function setDbState(text) { const s = document.getElementById('dbstate'); if (s) s.textContent = text; }
+async function connectDb() {
+  if (typeof claude === 'undefined' || !claude.use) { setDbState('Instructions unavailable here'); return; }
+  db = await claude.use('db');
+  if (!db) { setDbState('Instructions unavailable in this view'); render(); return; }
+  setDbState('Instructions saved to Claude');
+  db.collection('instructions').onSnapshot(snap => {
+    let changed = false;
+    for (const doc of snap.docs) {
+      const text = String((doc.data() || {}).text || '');
+      if (notes.get(doc.id) !== text && !timers.has(doc.id)) { notes.set(doc.id, text); changed = true; }
+    }
+    for (const id of [...notes.keys()]) {
+      if (!snap.docs.some(doc => doc.id === id) && !timers.has(id)) { notes.delete(id); changed = true; }
+    }
+    if (changed) refreshNotes();
+  }, err => setDbState('Instructions offline: ' + err.code));
+}
+function refreshNotes() {
+  for (const ta of document.querySelectorAll('textarea[data-id]')) {
+    if (document.activeElement !== ta) ta.value = notes.get(ta.dataset.id) || '';
+  }
+  if (status === 'noted') render();
+}
+function scheduleSave(d, ta, flag) {
+  const id = docId(d);
+  notes.set(id, ta.value);
+  flag.textContent = 'Saving…';
+  flag.classList.remove('err');
+  clearTimeout(timers.get(id));
+  timers.set(id, setTimeout(async () => {
+    const text = (notes.get(id) || '').trim();
+    try {
+      if (text) await db.doc('instructions/' + id).set({ hero: CLASSES[d.c], skill: d.n, status: LABEL[d.s], slot: d.p + ' ' + d.t + '.' + d.col, text, updatedAt: new Date().toISOString() });
+      else await db.doc('instructions/' + id).delete();
+      flag.textContent = text ? 'Saved' : '';
+    } catch (e) {
+      flag.textContent = 'Not saved: ' + (e && e.code ? e.code : 'error');
+      flag.classList.add('err');
+    } finally {
+      timers.delete(id);
+    }
+  }, 700));
+}
+try { const saved = JSON.parse(localStorage.getItem('census') || '{}'); hero = saved.hero || hero; status = saved.status || status; } catch (e) {}
+
+function el(tag, attrs, text) { const n = document.createElement(tag); if (attrs) for (const k in attrs) n.setAttribute(k, attrs[k]); if (text != null) n.textContent = text; return n; }
+
+function buildSeg(id, entries, get, set) {
+  const seg = document.getElementById(id);
+  seg.replaceChildren();
+  for (const [key, label] of entries) {
+    const b = el('button', { type: 'button', 'aria-pressed': String(get() === key) }, label);
+    b.addEventListener('click', () => { set(key); save(); render(); });
+    seg.append(b);
+  }
+}
+function save() { try { localStorage.setItem('census', JSON.stringify({ hero, status })); } catch (e) {} }
+
+function render() {
+  buildSeg('heroSeg', [['all', 'All heroes'], ...Object.entries(CLASSES)], () => hero, v => hero = v);
+  const inHero = DATA.filter(d => hero === 'all' || d.c === hero);
+  const per = s => inHero.filter(d => d.s === s).length;
+  const hasNote = d => (notes.get(docId(d)) || '').trim() !== '';
+  buildSeg('statusSeg', Object.entries(STATUS).map(([k, v]) => [k, k === 'all' ? v + ' ' + inHero.length : k === 'noted' ? v + ' ' + inHero.filter(hasNote).length : v + ' ' + per(k)]), () => status, v => status = v);
+
+  const q = query.trim().toLowerCase();
+  const matchesStatus = d => status === 'all' || (status === 'noted' ? hasNote(d) : d.s === status);
+  const rows = inHero.filter(d => matchesStatus(d) && (!q || (d.n + ' ' + d.e + ' ' + d.w + ' ' + (notes.get(docId(d)) || '')).toLowerCase().includes(q)));
+  document.getElementById('count').textContent = rows.length + ' shown';
+
+  const out = document.getElementById('out');
+  out.replaceChildren();
+  for (const [cls, name] of Object.entries(CLASSES)) {
+    const mine = rows.filter(d => d.c === cls).sort((a, b) => a.pi - b.pi || a.t - b.t || a.col - b.col);
+    if (!mine.length) continue;
+    const section = el('section', { class: 'hero' });
+    const h2 = el('h2', null, name);
+    const all = DATA.filter(d => d.c === cls);
+    h2.append(el('small', null, all.filter(d => d.s === 'built' || d.s === 'reworded').length + ' of ' + all.length + ' working'));
+    section.append(h2);
+    const wrap = el('div', { class: 'table-wrap' });
+    const table = el('table');
+    const head = el('tr');
+    for (const h of ['Skill', 'Slot', 'Level', 'Kind', 'Status', 'What it does', 'Engine note', 'Your instruction']) head.append(el('th', null, h));
+    const thead = el('thead');
+    thead.append(head);
+    table.append(thead);
+    const body = el('tbody');
+    let page = null;
+    for (const d of mine) {
+      if (d.p !== page) {
+        page = d.p;
+        const pr = el('tr', { class: 'page-row' });
+        pr.append(el('td', { colspan: '8' }, page));
+        body.append(pr);
+      }
+      const tr = el('tr', d.s === 'engine' ? { class: 'needs' } : null);
+      tr.append(el('td', { class: 'name' }, d.n));
+      tr.append(el('td', { class: 'slot' }, d.t + '.' + d.col));
+      tr.append(el('td', { class: 'level', title: d.lvn || '' }, d.lv));
+      tr.append(el('td', { class: 'kind' }, d.k));
+      const st = el('td'); st.append(el('span', { class: 'pill ' + d.s }, LABEL[d.s])); tr.append(st);
+      tr.append(el('td', { class: 'effect' }, d.e));
+      tr.append(el('td', { class: 'why' }, d.w));
+      const noteCell = el('td', { class: 'note' });
+      const ta = el('textarea', { 'data-id': docId(d), 'aria-label': 'Instruction for ' + d.n, placeholder: d.s === 'engine' ? 'What should Claude do with this one?' : 'Optional note for Claude' });
+      ta.value = notes.get(docId(d)) || '';
+      const flag = el('span', { class: 'saved' });
+      if (db) {
+        ta.addEventListener('input', () => scheduleSave(d, ta, flag));
+      } else {
+        ta.setAttribute('disabled', '');
+        ta.setAttribute('placeholder', 'Instructions are unavailable in this view');
+      }
+      noteCell.append(ta, flag);
+      tr.append(noteCell);
+      body.append(tr);
+    }
+    table.append(body);
+    wrap.append(table);
+    section.append(wrap);
+    out.append(section);
+  }
+  if (!rows.length) out.append(el('p', { class: 'empty' }, 'No skills match these filters.'));
+}
+
+document.getElementById('q').addEventListener('input', e => { query = e.target.value; render(); });
+render();
+connectDb().then(() => { if (db) render(); });
+</script>
