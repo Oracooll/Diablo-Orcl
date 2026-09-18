@@ -62,3 +62,32 @@ Ledger round-trips (hero, stash, tabs) at format 11 with the hash moved; the cap
 zero; Tempering declines indestructible; twenty Strength shards total exactly +20 worn and 0 in the pack; Refinement
 scales affixes only; rebuild and reroll keep the ledger; audit rows; every kind droppable on the 64-rung ladder; none
 in a shop pool; old orb stacks load as shards.
+
+## The answers (2026-09-19, read from the page)
+
+| # | Answer |
+|---|---|
+| D1 | **"All you can think of"** - the roster became 24 kinds (below) |
+| D2 | **Twenty** per item |
+| D3 | Refinement and Tempering stop at ten, Ease at zero requirements, stat shards free; extended to the wider roster: Stone (damage taken) ten, Radiance (light) five, Arcana (spell levels) three |
+| D4 | Lower the Strength, Magic and Dexterity requirements (no level requirement exists) |
+| D5 | +3% of each affix's value per shard, on the affix totals at sheet time |
+| D6 | The proposed numbers |
+| D7 | Orb stacks convert one for one; orbed items are rebuilt from seed and lose the baked bonus |
+| D8 | Drop the shard onto the item, as the orbs |
+| D9 | **Permanent, PLUS a Levski's Roar recipe that strips every shard from an item and returns none** |
+| D10 | Drops only, through the socketable share, deeper kinds deeper |
+
+## The roster as decided (24)
+
+Hero stats: Strength, Magic, Dexterity, Vitality (+1). Life and mana: Blood (+5 life), Spirit (+5 mana). Striking:
+Fury (+1 damage), Keenness (+2% damage), Precision (+2% to hit), Flame (+1-2 fire damage), Spark (+1-3 lightning).
+Defence: Bulwark (+2 armour), Stone (-1 damage taken, limit 10), Warding (+2 all res), Ember/Storm/Veil (+3 fire/
+lightning/magic res). Finding and seeing: Fortune (+2% MF), Avarice (+3% GF), Radiance (+1 light, limit 5), Arcana (+1
+spell levels, limit 3). Item-acting: Refinement (+3% affixes, limit 10), Tempering (+10 max durability, limit 10),
+Ease (-3 per requirement, floor 0). Left out on purpose: speed ladders and on-hit flags (switches, not numbers) and
+a one-shard indestructible. Orb indices re-labelled: Might=Strength, Grace=Dexterity, Insight=Magic, Vigour=Vitality,
+Warding, Fury, Fortune, Avarice; sixteen new kinds appended after the Necromancer bases. Drop bands: shallow from
+rung 1 (Bulwark, Ember, Storm, Veil, Radiance, Tempering, Ease), middle from the Caves' rung (the stats, Blood,
+Spirit, Fury, Keenness, Precision, Flame, Spark, Warding, Fortune, Avarice), deep from the second difficulty (Stone,
+Arcana, Refinement). RfA-18: 24 icons, one tumble, one sound.
