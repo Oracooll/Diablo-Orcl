@@ -40,6 +40,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 
 $repo = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'GemDataOrder.ps1')
 $out = if ([System.IO.Path]::IsPathRooted($OutDir)) { $OutDir } else { Join-Path $repo $OutDir }
 $artDir = $ArtDir
 if (Test-Path $artDir) { Remove-Item -Recurse -Force $artDir }
@@ -176,7 +177,7 @@ foreach ($grade in $grades) {
             $scaled = [Math]::Max(1, [int][Math]::Round($fam.Fields[$key] * $grade.Percent / 100.0))
             $parts += ".$key = $scaled"
         }
-        $effectLines += "`t{ .idx = $idi, $($parts -join ', ') }, // $name"
+        $effectLines += "`t{ .idx = $idi, $(Sort-GemDesignators ($parts -join ', ')) }, // $name"
 
         $cursor++
     }

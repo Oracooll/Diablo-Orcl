@@ -23,6 +23,7 @@
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'GemDataOrder.ps1')
 $out = Join-Path $root 'Source\oracool'
 # item-sets\, not items\ - the sheet has always lived there and this path had the wrong folder
 # (found 2026-09-12 while rebuilding the Resources folders; it predates that move).
@@ -170,7 +171,7 @@ for ($i = 0; $i -lt $runes.Count; $i++) {
 
         if ($rune.effects) {
             $comment = if ($rune.note) { " // $($rune.note)" } else { '' }
-            [void]$effectLines.Add("`t{ .idx = IDI_ORACOOL_RUNE_$upper, $($rune.effects) },$comment")
+            [void]$effectLines.Add("`t{ .idx = IDI_ORACOOL_RUNE_$upper, $(Sort-GemDesignators $rune.effects) },$comment")
         }
     }
 }
