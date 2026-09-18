@@ -15,6 +15,7 @@
 #include "monster.h"
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
+#include "oracool/curses.h"
 #include "oracool/rfa12_actives.h"
 #include "player.h"
 #include "utils/language.h"
@@ -325,6 +326,8 @@ bool MonsterMayNotice(const Monster &monster)
 	if (Rfa12ActiveHidesPlayer(player))
 		return false; // Astral Projection
 	const int distance = monster.position.tile.WalkingDistance(player.position.tile);
+	if (CursedMonsterBlinded(monster))
+		return distance <= 1; // Dim Vision (oracool/curses.h): only what stands beside it
 	if (PointsIfOn(player, Skill::Nocturne) > 0)
 		return distance <= std::max(2, player._pLightRad / 2);
 	if (PointsIfOn(player, Skill::SoftTread) > 0 && Walking(player) && ClocksOf(player).quietTicks >= SoftTreadQuietTicks)

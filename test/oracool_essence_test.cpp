@@ -7,8 +7,10 @@
 
 #include <gtest/gtest.h>
 
+#include "oracool/curses.h"
 #include "oracool/essence.h"
 #include "oracool/rage.h"
+#include "monster.h"
 #include "player.h"
 
 using namespace devilution;
@@ -89,9 +91,9 @@ TEST(OracoolEssence, SpendingAndGainingStayInsideThePool)
 	EXPECT_EQ(oracool::CurrentEssence(player), 100);
 }
 
-// The prices carried in the skill ledger (2026-09-17): the corpse skills 10, Revive 35, and nothing else - every other spell
-// still asks the Necromancer for mana.
-TEST(OracoolEssence, OnlyTheCorpseSkillsAndReviveArePricedInEssence)
+// The prices carried in the skill ledger (2026-09-17): the corpse skills 10, Revive 35, every curse 25, and nothing else -
+// every other spell (Soul Harvest included, which GIVES Essence) still asks the Necromancer for mana.
+TEST(OracoolEssence, OnlyTheCorpseSkillsReviveAndTheCursesArePricedInEssence)
 {
 	int priced = 0;
 	for (int i = 0; i <= static_cast<int>(SpellID::LAST); i++) {
@@ -103,8 +105,26 @@ TEST(OracoolEssence, OnlyTheCorpseSkillsAndReviveArePricedInEssence)
 			EXPECT_EQ(cost, 10) << i;
 		else if (spell == SpellID::NecroRevive)
 			EXPECT_EQ(cost, 35);
+		else if (oracool::IsNecromancerCurse(spell) && spell != SpellID::SoulHarvest)
+			EXPECT_EQ(cost, 25) << i;
 		else
 			EXPECT_EQ(cost, 0) << i;
 	}
-	EXPECT_EQ(priced, 3);
+	EXPECT_EQ(priced, 3 + 14);
+}
+
+// The Curses page (phase N7): fourteen curse kinds behind fifteen actives, nothing cursed until something is cast.
+TEST(OracoolCurses, FourteenKindsAndACleanSlate)
+{
+	int curses = 0;
+	for (int i = 0; i <= static_cast<int>(SpellID::LAST); i++) {
+		if (oracool::IsNecromancerCurse(static_cast<SpellID>(i)))
+			curses++;
+	}
+	EXPECT_EQ(curses, 15) << "fourteen curses and Soul Harvest";
+	oracool::ClearAllCurses();
+	for (size_t id = 0; id < MaxMonsters; id++)
+		EXPECT_EQ(oracool::CurseOn(Monsters[id]), oracool::CurseKind::None);
+	EXPECT_STREQ(oracool::CurseName(oracool::CurseKind::Doom), "Doom");
+	EXPECT_EQ(oracool::CurseLureTarget(Monsters[0]), -1);
 }

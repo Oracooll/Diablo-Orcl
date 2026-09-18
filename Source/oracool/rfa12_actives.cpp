@@ -19,6 +19,7 @@
 #include "oracool/companion.h"
 #include "oracool/passives.h"
 #include "oracool/corpses.h"
+#include "oracool/curses.h"
 #include "oracool/necro_summoning.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
@@ -1456,7 +1457,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	default:
-		// The Necromancer's other pages live in their own modules and come through this door (oracool/necro_summoning.h).
+		// The Necromancer's other pages live in their own modules and come through this door.
+		if (IsNecromancerCurse(spell))
+			return CastNecromancerCurse(player, spell, target, r);
 		return CastNecromancerSummoning(player, spell, target, r);
 	}
 }
@@ -2235,6 +2238,7 @@ void ClearRfa12ActiveBuffs(Player &player)
 	// A new game: no companions. They are statics and would otherwise follow one character into the next.
 	ForgetCompanions();
 	ClearNecromancerSummoningState();
+	ClearAllCurses();
 	bool sheetMoved = false;
 	PlayerState &state = StateOf(player);
 	for (size_t i = 0; i < state.ticks.size(); i++) {

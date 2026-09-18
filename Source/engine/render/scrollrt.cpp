@@ -38,6 +38,7 @@
 #include "options.h"
 #include "oracool/attack_skills.h"
 #include "oracool/companion.h"
+#include "oracool/curses.h"
 #include "oracool/minions.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/sprite_colours.h"
@@ -1027,6 +1028,8 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 		return;
 
 	DrawMonster(out, tilePosition, monsterRenderPosition, monster);
+	// A cursed monster wears its curse over its head (oracool/curses.h).
+	oracool::DrawCurseMarker(out, monster, monsterRenderPosition + Displacement { monster.animInfo.currentSprite().width() / 2, -monster.animInfo.currentSprite().height() });
 }
 
 /**

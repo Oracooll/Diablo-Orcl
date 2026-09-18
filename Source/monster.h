@@ -570,6 +570,8 @@ bool CanAddMinionBody(_monster_id type);
  * CanAddMinionBody is false.
  */
 Monster *AddMinionBody(Point position, Direction dir, _monster_id type);
+/** @brief Oracool: one step away from @p from, straight or up to two turns aside - Terror (oracool/curses.h). */
+bool MonsterStepAwayFrom(Monster &monster, Point from);
 /** @brief Oracool: whether another ENEMY may be added - the enemies' 200, not counting minion bodies. */
 bool EnemyMonsterRoomLeft(size_t wanted = 1);
 bool CanTalkToMonst(const Monster &monster);

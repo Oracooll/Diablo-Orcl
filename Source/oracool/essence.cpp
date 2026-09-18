@@ -54,6 +54,21 @@ int EssenceCost(SpellID spell)
 		return 10;
 	case SpellID::NecroRevive:
 		return 35;
+	case SpellID::AmplifyDamage:
+	case SpellID::DimVision:
+	case SpellID::NecroWeaken:
+	case SpellID::Frailty:
+	case SpellID::NecroIronMaiden:
+	case SpellID::Terror:
+	case SpellID::Bane:
+	case SpellID::Confuse:
+	case SpellID::LifeTap:
+	case SpellID::Attract:
+	case SpellID::Decrepify:
+	case SpellID::DeathMark:
+	case SpellID::LowerResist:
+	case SpellID::Doom:
+		return 25; // the curses (N7); Soul Harvest GIVES Essence and is priced in mana
 	default:
 		return 0;
 	}

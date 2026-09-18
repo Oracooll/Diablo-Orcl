@@ -52,6 +52,7 @@
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
+#include "oracool/curses.h"
 #include "oracool/essence.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
@@ -987,6 +988,7 @@ bool DoAttack(Player &player)
 				oracool::OnPassiveHit(player, *monster, hitDamage, true);
 			if (didhit)
 				oracool::OnRfa12Hit(player, *monster, hitDamage, true);
+				oracool::OnCursedMonsterStruck(*monster, player, nullptr, hitDamage); // Life Tap (oracool/curses.h)
 			// And the Barbarian's and Monk's (Round 4), which want the swing whether or not it
 			// landed - Whirlwind spins through an empty front tile as readily as a full one.
 			if (oracool::ApplyClassMeleeSkillOnSwing(player, monster, didhit, hitDamage))

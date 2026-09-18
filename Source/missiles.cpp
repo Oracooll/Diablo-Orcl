@@ -27,6 +27,7 @@
 #include "lighting.h"
 #include "monster.h"
 #include "oracool/aura_field.h"
+#include "oracool/curses.h"
 #include "oracool/chill.h"
 #include "oracool/class_tree.h" // SlowPlayer - a cold hit's chill on the stride
 #include "oracool/cold.h"
@@ -363,6 +364,7 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 		oracool::OnPassiveHit(*MyPlayer, monster, dam, false);
 	if (&player == MyPlayer && dam > 0)
 		oracool::OnRfa12Hit(*MyPlayer, monster, dam, false);
+		oracool::OnCursedMonsterStruck(monster, *MyPlayer, nullptr, dam); // Life Tap (oracool/curses.h)
 	// The all-heroes sweep (2026-09-14): Paralysis, Temporal Flux, Thrill of the Hunt, the element marks.
 	if (&player == MyPlayer && dam > 0)
 		oracool::OnPassiveMissileHit(*MyPlayer, monster, dam, damageType, missileData.isArrow());

@@ -17,6 +17,7 @@
 #include "oracool/event_log.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h"
+#include "oracool/curses.h"
 #include "oracool/essence.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
@@ -1070,43 +1071,43 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Nec, 1, 5, 1, Kind::Active, SpellID::PoisonNova, true },
 	{ N_("Death Nova"), N_("A burst of bone and blight around you: magic damage now, poison after."),
 	    Nec, 1, 5, 2, Kind::Active, SpellID::DeathNova, true },
-	// --- Curses ---
-	{ N_("Amplify Damage"), N_("Cursed monsters take far more physical damage. One curse to a monster; a new one replaces the old. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 0, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Curse Mastery"), N_("Your curses last longer, more with every rank. Not yet built: awaits monster curses."),
-	    Nec, 2, 0, 1, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Essence Tap"), N_("A cursed monster that dies returns Essence to you, more with every rank. Not yet built: awaits monster curses."),
-	    Nec, 2, 0, 2, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Dim Vision"), N_("Cursed monsters cannot see you until you are beside them. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 1, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Weaken"), N_("Cursed monsters deal a third less damage. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 1, 1, Kind::Active, SpellID::Invalid, false },
-	{ N_("Frailty"), N_("A cursed monster that falls below a sliver of its life simply dies. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 1, 2, Kind::Active, SpellID::Invalid, false },
-	{ N_("Iron Maiden"), N_("Cursed monsters take a multiple of the melee damage they deal. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 2, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Terror"), N_("Cursed monsters run from you. Uniques do not. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 2, 1, Kind::Active, SpellID::Invalid, false },
-	{ N_("Bane"), N_("Cursed monsters rot: poison damage for as long as the curse holds. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 2, 2, Kind::Active, SpellID::Invalid, false },
-	{ N_("Confuse"), N_("Cursed monsters attack whatever is nearest, friend or foe. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 3, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Life Tap"), N_("Blows landed on a cursed monster heal the one who struck - you and your minions alike. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 3, 1, Kind::Active, SpellID::Invalid, false },
-	{ N_("Wide Malice"), N_("Your curses cover more ground, more with every rank. Not yet built: awaits monster curses."),
-	    Nec, 2, 3, 2, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Attract"), N_("The cursed monster becomes the target of every monster near it. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 4, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Decrepify"), N_("Cursed monsters are slowed, deal less damage and take more. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 4, 1, Kind::Active, SpellID::Invalid, false },
-	{ N_("Death Mark"), N_("Mark one monster: when it dies, it bursts as a Corpse Explosion of your rank. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 4, 2, Kind::Active, SpellID::Invalid, false },
-	{ N_("Lower Resist"), N_("Cursed monsters lose resistance to fire, lightning, magic and poison. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 5, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Soul Harvest"), N_("Tear at every cursed monster near you: damage to each, Essence to you for each. Not yet built: awaits monster curses."),
-	    Nec, 2, 5, 1, Kind::Active, SpellID::Invalid, false },
-	{ N_("Doom"), N_("Cursed monsters take more damage from every source, and the curse cannot be replaced by a weaker one. Paid in Essence. Not yet built: awaits monster curses."),
-	    Nec, 2, 5, 2, Kind::Active, SpellID::Invalid, false },
+	// --- Curses --- (built at N7, 2026-09-18: oracool/curses) ---
+	{ N_("Amplify Damage"), N_("Cursed monsters take half again as much physical damage, more with every rank. One curse to a monster; a new one replaces the old."),
+	    Nec, 2, 0, 0, Kind::Active, SpellID::AmplifyDamage, true },
+	{ N_("Curse Mastery"), N_("Your curses last longer, more with every rank."),
+	    Nec, 2, 0, 1, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Essence Tap"), N_("A cursed monster that dies returns Essence to you, more with every rank."),
+	    Nec, 2, 0, 2, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Dim Vision"), N_("Cursed monsters cannot see you until you are beside them. Paid in Essence."),
+	    Nec, 2, 1, 0, Kind::Active, SpellID::DimVision, true },
+	{ N_("Weaken"), N_("Cursed monsters deal a third less damage. Paid in Essence."),
+	    Nec, 2, 1, 1, Kind::Active, SpellID::NecroWeaken, true },
+	{ N_("Frailty"), N_("A cursed monster that falls below a tenth of its life, a little more each rank, simply dies. Uniques do not."),
+	    Nec, 2, 1, 2, Kind::Active, SpellID::Frailty, true },
+	{ N_("Iron Maiden"), N_("A cursed monster takes back every blow it lands on you or your minions, and more with every rank."),
+	    Nec, 2, 2, 0, Kind::Active, SpellID::NecroIronMaiden, true },
+	{ N_("Terror"), N_("Cursed monsters run from you while the curse holds. Uniques do not."),
+	    Nec, 2, 2, 1, Kind::Active, SpellID::Terror, true },
+	{ N_("Bane"), N_("Cursed monsters rot: poison damage for as long as the curse holds. Paid in Essence."),
+	    Nec, 2, 2, 2, Kind::Active, SpellID::Bane, true },
+	{ N_("Confuse"), N_("Cursed monsters turn on whatever is nearest, friend or foe, while the curse holds. Uniques do not."),
+	    Nec, 2, 3, 0, Kind::Active, SpellID::Confuse, true },
+	{ N_("Life Tap"), N_("Blows landed on a cursed monster heal the one who struck - you and your minions alike. Paid in Essence."),
+	    Nec, 2, 3, 1, Kind::Active, SpellID::LifeTap, true },
+	{ N_("Wide Malice"), N_("Your curses cover more ground, more with every rank."),
+	    Nec, 2, 3, 2, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Attract"), N_("The cursed monster becomes the target of every monster near it. Paid in Essence."),
+	    Nec, 2, 4, 0, Kind::Active, SpellID::Attract, true },
+	{ N_("Decrepify"), N_("Cursed monsters are slowed, deal a quarter less damage and take a fifth more."),
+	    Nec, 2, 4, 1, Kind::Active, SpellID::Decrepify, true },
+	{ N_("Death Mark"), N_("Mark one monster: when it dies, it bursts as a Corpse Explosion of your rank. Paid in Essence."),
+	    Nec, 2, 4, 2, Kind::Active, SpellID::DeathMark, true },
+	{ N_("Lower Resist"), N_("Cursed monsters lose resistance to fire, lightning, magic and poison. Paid in Essence."),
+	    Nec, 2, 5, 0, Kind::Active, SpellID::LowerResist, true },
+	{ N_("Soul Harvest"), N_("Tear at every cursed monster within six tiles: magic damage to each, and five Essence to you for each."),
+	    Nec, 2, 5, 1, Kind::Active, SpellID::SoulHarvest, true },
+	{ N_("Doom"), N_("Cursed monsters take more damage from every source, and the curse cannot be replaced by a weaker one. Paid in Essence."),
+	    Nec, 2, 5, 2, Kind::Active, SpellID::Doom, true },
 	// --- Passive Skills ---
 	{ N_("Life from Death"), N_("Monsters that die near you may leave a health globe. Not yet built: awaits the system it modifies."),
 	    Nec, 3, 0, 0, Kind::Passive, SpellID::Invalid, false, 1 },
@@ -2892,6 +2893,7 @@ void ProcessClassTreeTick(Player &player)
 	ProcessPassivesTick(player);
 	ProcessRageTick(player);
 	ProcessEssenceTick(player);
+	ProcessCursesTick(player);
 	ProcessRfa12Tick(player);
 	ProcessWarcriesTick(player);
 	TickMovementSlow(player);

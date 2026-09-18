@@ -43,6 +43,7 @@
 #include "oracool/monster_difficulty.h"
 #include "oracool/companion.h"
 #include "oracool/corpses.h"
+#include "oracool/curses.h"
 #include "oracool/minions.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
@@ -861,6 +862,7 @@ void DeleteMonster(size_t activeIndex)
 	oracool::ClearWarcryStateForMonster(monster);
 	oracool::ClearRfa12StateForMonster(monster);
 	oracool::OnMonsterSlotFreed(monster.getId());
+	oracool::ClearCurseForMonster(monster);
 
 	ActiveMonsterCount--;
 	std::swap(ActiveMonsters[activeIndex], ActiveMonsters[ActiveMonsterCount]); // This ensures alive monsters are before ActiveMonsterCount in the array and any deleted monster after
@@ -967,6 +969,11 @@ void UpdateEnemy(Monster &monster)
 			monster.flags |= MFLAG_TARGETS_MONSTER;
 			menemy = guard;
 			target = Monsters[guard].position.future;
+		} else if (const int lure = oracool::CurseLureTarget(monster); lure >= 0) {
+			// Attract (oracool/curses.h): the cursed one is what its neighbours go for.
+			monster.flags |= MFLAG_TARGETS_MONSTER;
+			menemy = lure;
+			target = Monsters[lure].position.future;
 		}
 	}
 	if (menemy != -1) {
@@ -1424,9 +1431,13 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 		// A minion's slot says nothing about whose it is; its record does (oracool/minions.h).
 		target.tag(*armyOwner);
 		oracool::OnMinionBlow(attacker, target, dam);
+		oracool::OnCursedMonsterStruck(target, Players[armyOwner->getId()], &attacker, dam); // Life Tap
 	}
-	if (oracool::IsMinion(target))
-		oracool::OnMinionStruck(target, attacker, dam); else if (attacker.isPlayerMinion() && attacker.getId() < Players.size()) {
+	if (oracool::IsMinion(target)) {
+		oracool::OnMinionStruck(target, attacker, dam);
+		if (attacker.mode != MonsterMode::Death)
+			oracool::OnCursedMonsterDealtBlow(attacker, dam); // Iron Maiden
+	} else if (attacker.isPlayerMinion() && attacker.getId() < Players.size()) {
 		int playerId = attacker.getId();
 		const Player &player = Players[playerId];
 		target.tag(player);
@@ -1562,6 +1573,9 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		// in MonsterMode::Death with positive hit points - a corpse the health bar says is alive.
 		// The Thorns block immediately below has carried exactly this guard, for exactly this
 		// reason, the whole time (audit, 2026-08-26).
+		if (monster.mode != MonsterMode::Death) {
+			oracool::OnCursedMonsterDealtBlow(monster, dam); // Iron Maiden (oracool/curses.h)
+		}
 		if (monster.mode != MonsterMode::Death) {
 			oracool::OnLesserUniqueDealtDamage(monster, dam);
 			// And the boss's own drain, which is a different trait on a different field - a boss's
@@ -3652,6 +3666,7 @@ void InitLevelMonsters()
 	oracool::OnCompanionLevelLoad();
 	oracool::OnMinionLevelLoad(); // the army's bodies too; its records wait for the next floor (oracool/minions.h)
 	oracool::ClearCorpses();      // and the last floor's dead are no use on this one (oracool/corpses.h)
+	oracool::ClearAllCurses();
 	// So are the telemetry kill clocks, which are keyed by monster SLOT - and the slots are about to
 	// be handed to different monsters. A clock left running by a monster that was wounded and never
 	// killed would otherwise be read as the next occupant's time-to-kill.
@@ -4136,6 +4151,8 @@ void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage)
 		if (damage <= 0)
 			return;
 	}
+	// And a cursed one takes more (oracool/curses.h: Amplify Damage, Lower Resist, Decrepify, Doom).
+	damage = oracool::CurseDamageTaken(monster, damageType, damage);
 	AddFloatingNumber(damageType, monster, damage);
 
 	// The time-to-kill clock starts HERE, where damage lands, not in M_StartHit where the monster
@@ -4149,6 +4166,9 @@ void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage)
 	oracool::TelemetryRecordFirstHit(monster);
 
 	monster.hitPoints -= damage;
+	// Frailty: below a sliver, it simply dies (oracool/curses.h).
+	if (oracool::CurseFinishes(monster, monster.hitPoints, monster.maxHitPoints))
+		monster.hitPoints = 0;
 
 	if (monster.hitPoints >> 6 <= 0) {
 		delta_kill_monster(monster, monster.position.tile, *MyPlayer);
@@ -4286,6 +4306,7 @@ void GrantRuneKillMana(char pmask)
 
 void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 {
+	oracool::OnCursedMonsterDeath(monster); // Death Mark bursts it, Essence Tap pays (oracool/curses.h)
 	if (!monster.isPlayerMinion())
 		AddPlrMonstExper(monster.level(sgGameInitInfo.nDifficulty), monster.exp(sgGameInitInfo.nDifficulty), monster.whoHit);
 
@@ -4534,6 +4555,16 @@ bool MinionTradesPlaces(Monster &mover, Direction toward)
 	mover.direction = toward;
 	M_StartStand(mover, toward);
 	return true;
+}
+
+bool MonsterStepAwayFrom(Monster &monster, Point from)
+{
+	const Direction away = Opposite(GetDirection(monster.position.tile, from));
+	for (Direction dir : { away, Left(away), Right(away), Left(Left(away)), Right(Right(away)) }) {
+		if (Walk(monster, dir))
+			return true;
+	}
+	return false;
 }
 
 /** @brief One step toward @p to, straight or up to two turns aside. */
@@ -4802,6 +4833,8 @@ void ProcessMonsters()
 		while (true) {
 			if (oracool::IsMinion(monster)) {
 				MinionAi(monster, minionTick);
+			} else if (oracool::CursedMonsterFlees(monster)) {
+				// Terror (oracool/curses.h): its step away was its whole turn.
 			} else if ((monster.flags & MFLAG_SEARCH) == 0 || !AiPlanPath(monster)) {
 				AiProc[static_cast<int8_t>(monster.ai)](monster);
 			}

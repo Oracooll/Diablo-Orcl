@@ -18,7 +18,7 @@ namespace devilution {
 // `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable spells, so a new id is a candidate for books
 // and staves unless its sBookLvl and sStaffLvl are both -1. All seven skills' are, deliberately -
 // they are earned by level, not found. MAX_ITEM_SPELLS below is the belt-and-braces on that.
-#define MAX_SPELLS 275
+#define MAX_SPELLS 290
 
 /**
  * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
@@ -408,8 +408,24 @@ enum class SpellID : int16_t {
 	NecroBoneSpirit,
 	PoisonNova,
 	DeathNova,
+	// The Necromancer's Curses page (2026-09-18, phase N7). Every curse is priced in Essence; Soul Harvest in mana.
+	AmplifyDamage,
+	DimVision,
+	NecroWeaken,
+	Frailty,
+	NecroIronMaiden,
+	Terror,
+	Bane,
+	Confuse,
+	LifeTap,
+	Attract,
+	Decrepify,
+	DeathMark,
+	LowerResist,
+	SoulHarvest,
+	Doom,
 
-	LAST = DeathNova,
+	LAST = Doom,
 	Invalid = -1,
 };
 
