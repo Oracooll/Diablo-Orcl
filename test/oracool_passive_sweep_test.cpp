@@ -57,7 +57,6 @@ TEST(OracoolPassiveSweep, EveryInertPassiveSaysWhyAndEveryBuiltOneDoesNot)
 	const std::set<std::string> stillInert = {
 		"Sustain", "Encore", "Countermelody", "Improvisation", "Refrain", "Timbre", "Virtuoso", "Overture",
 		"Reverberation", "Boon of Bul-Kathos", "Ballistics",
-		"Swift Harvesting", // the Necromancer's, waiting for the wands and scythes (N9)
 	};
 	for (size_t i = 0; i <= static_cast<size_t>(ClassTreeSkill::LAST); i++) {
 		const auto skill = static_cast<ClassTreeSkill>(i);

@@ -54,6 +54,7 @@
 #include "oracool/rfa12_effects.h"
 #include "oracool/curses.h"
 #include "oracool/essence.h"
+#include "oracool/necro_items.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/warcries.h"
@@ -1825,6 +1826,9 @@ bool Player::CanUseItem(const Item &item) const
 
 	// Sockets v2: Hel reduces the host's own requirements. Read here rather than written into the
 	// item, so it cannot compound across the many recalculations a character sheet triggers.
+	// The shrunken heads are the Necromancer's alone (oracool/necro_items.h): red in any other hand.
+	if (!oracool::ClassMayUseItem(*this, item))
+		return false;
 	return _pStrength >= oracool::EffectiveRequirement(item, item._iMinStr)
 	    && _pMagic >= oracool::EffectiveRequirement(item, item._iMinMag)
 	    && _pDexterity >= oracool::EffectiveRequirement(item, item._iMinDex);

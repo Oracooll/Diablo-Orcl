@@ -1220,6 +1220,8 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		TrySpawnNamedSetPiece(monster, sendmsg);
 		// Phase 1: and the gems' roll, same placement for the same stream-safety reason.
 		TrySpawnOracoolGem(monster, sendmsg);
+		// The Necromancer's three item families (2026-09-18): same placement, same reason.
+		TrySpawnNecroBase(monster, sendmsg);
 		// D2MXL Phase 2b: the signet, which declines outright on an ordinary kill - same placement,
 		// same reason.
 		// Phase 4: the Sealed Map, which is the ONLY way into a named encounter. Same

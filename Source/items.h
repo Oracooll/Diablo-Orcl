@@ -1221,6 +1221,8 @@ constexpr int8_t ShieldDropAnimIndex = 7;
 void GetItemStr(Item &item);
 /** @brief Oracool: the set items' own drop hook - see items.cpp. Called from SpawnLoot after the vanilla rolls. */
 void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg);
+/** @brief Oracool: the Necromancer's wands, scythes and shrunken heads - their own drop roll (oracool/necro_items.h). */
+void TrySpawnNecroBase(const Monster &monster, bool sendmsg);
 /** @brief The fifteen NAMED sets' drop path. Distinct from the tier hook above, which drops the worn
  * ladder rather than a designed set - see the note on the definition. */
 void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg);

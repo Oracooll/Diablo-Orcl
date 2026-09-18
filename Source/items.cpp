@@ -37,6 +37,7 @@
 #include "missiles.h"
 #include "options.h"
 #include "oracool/hidden_classes.h"
+#include "oracool/necro_items.h"
 #include "oracool/item_tiers.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/sprite_mix.h"
@@ -2207,6 +2208,10 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 		// The hidden Bard's instrument and hymn book (2026-09-14, oracool/hidden_classes.h): the same kind of
 		// generation-only filter, for the same reason - carried ones still load.
 		if (oracool::IsHiddenItemIdx(i))
+			continue;
+		// The Necromancer's three families (2026-09-18) ride their own hook, TrySpawnNecroBase, for the pool-is-replayed
+		// reason above - a first attempt seated them here and the pack fixtures' items came back as other things.
+		if (oracool::IsNecroBaseIdx(i))
 			continue;
 		if (!isItemOkay(item))
 			continue;
@@ -4437,6 +4442,9 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	player._pIBonusToHit = btohit;
 	player._pIBonusAC = bac;
 	player._pIFlags = iflgs;
+	// Swift Harvesting (the Necromancer, N9): a wand or scythe in hand swings fast.
+	if (oracool::SwiftHarvestingApplies(player))
+		player._pIFlags |= ItemSpecialEffect::FastAttack;
 	player.pDamAcFlags = pDamAcFlags;
 	player._pIBonusDamMod = dmod;
 	player._pIGetHit = ghit;
@@ -5908,6 +5916,42 @@ void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg)
 	Items[ii] = item.pop();
 	Point position = monster.position.tile;
 	GetSuperItemSpace(position, ii);
+	if (sendmsg)
+		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
+}
+
+/**
+ * @brief The Necromancer's wands, scythes and shrunken heads (2026-09-18, oracool/necro_items.h): a hook of their
+ * own, for the reason on every other hook here - the pool is replayed from seeds. One kill in sixteen; the heads
+ * only while the hero is a Necromancer; a unique may roll like on any dropped base.
+ */
+void TrySpawnNecroBase(const Monster &monster, bool sendmsg)
+{
+	if (!oracool::IsSinglePlayer())
+		return;
+	constexpr int NecroDropPercent = 6;
+	if (GenerateRnd(100) >= NecroDropPercent)
+		return;
+	const int mlvl = ItemLevelOfMonster(monster);
+	_item_indexes candidates[IDI_LAST + 1];
+	int candidateCount = 0;
+	const bool heads = oracool::NecroHeadsMayDrop();
+	for (std::underlying_type_t<_item_indexes> i = IDI_ORACOOL_NECRO_WAND_FIRST; i <= IDI_ORACOOL_NECRO_HEAD_LAST; i++) {
+		if (oracool::IsNecroHeadIdx(i) && !heads)
+			continue;
+		if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
+			candidates[candidateCount++] = static_cast<_item_indexes>(i);
+	}
+	if (candidateCount == 0 || ActiveItemCount >= MAXITEMS)
+		return;
+	const _item_indexes idx = candidates[GenerateRnd(candidateCount)];
+	const int lvl = std::max(mlvl, 1);
+	Item item;
+	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), lvl, monster.isUnique() ? 15 : 1, /*onlygood=*/false,
+	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/false, std::nullopt, /*itemLevel=*/lvl);
+	const int ii = AllocateItem();
+	Items[ii] = item.pop();
+	FinishOracoolDrop(ii, monster.position.tile);
 	if (sendmsg)
 		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
 }
@@ -7536,7 +7580,7 @@ void StockSalvageCharms(Item *stock, int capacity, int lvl, uint16_t createInfoF
 }
 
 /** @brief The most Oracool gear bases a depth can offer - the whole contiguous run of them. */
-constexpr size_t OracoolGearBaseCount = IDI_ORACOOL_SPECTRAL_HELM - IDI_ORACOOL_SHOULDERS + 1;
+constexpr size_t OracoolGearBaseCount = (IDI_ORACOOL_SPECTRAL_HELM - IDI_ORACOOL_SHOULDERS + 1) + (IDI_ORACOOL_NECRO_SCYTHE_LAST - IDI_ORACOOL_NECRO_WAND_FIRST + 1);
 
 /**
  * @brief Every Oracool GEAR base this depth has opened.
@@ -7556,6 +7600,11 @@ std::pair<std::array<_item_indexes, OracoolGearBaseCount>, size_t> OracoolGearBa
 	for (std::underlying_type_t<_item_indexes> i = IDI_ORACOOL_SHOULDERS; i <= IDI_ORACOOL_SPECTRAL_HELM; i++) {
 		if (!IsItemAvailable(i))
 			continue;
+		if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= lvl)
+			bases[count++] = static_cast<_item_indexes>(i);
+	}
+	// The Necromancer's wands and scythes (2026-09-18): anyone's to buy. The heads are Adria's, and his alone.
+	for (std::underlying_type_t<_item_indexes> i = IDI_ORACOOL_NECRO_WAND_FIRST; i <= IDI_ORACOOL_NECRO_SCYTHE_LAST; i++) {
 		if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= lvl)
 			bases[count++] = static_cast<_item_indexes>(i);
 	}
@@ -8055,6 +8104,11 @@ void SpawnWitch(int lvl)
 	    [](std::underlying_type_t<_item_indexes> i) {
 		    return IsOracoolGemIdx(i) || IsOracoolRuneIdx(i) || IsOracoolJewelIdx(i);
 	    });
+	// And, for a Necromancer, a shrunken head or two: his alone, so no other hero sees them here (oracool/necro_items.h).
+	if (oracool::NecroHeadsMayDrop()) {
+		StockOracoolFixedItems(witchitem, WITCH_ITEMS, lvl, 2,
+		    [](std::underlying_type_t<_item_indexes> i) { return oracool::IsNecroHeadIdx(i); });
+	}
 
 	// The two things a spellcaster comes to Adria for, guaranteed rather than rolled for.
 	//

@@ -26,6 +26,7 @@
 #include "options.h"
 #include "items.h"
 #include "oracool/hero_look.h"
+#include "oracool/necro_items.h"
 #include "oracool/sprite_colours.h"
 #include "playerdat.hpp"
 #include "utils/file_util.h"
@@ -560,6 +561,9 @@ GearLook GearLookFor(const Player &player)
 			             ICURS_ORACOOL_CYBORG_SHIELD))
 				look.shield = LookTier::Heavy;
 		}
+		// A shrunken head is the light shield whatever it looks like (decision D11, oracool/necro_items.h).
+		if (IsNecroHeadItem(item))
+			look.shield = LookTier::Light;
 		if (item._itype == ItemType::Sword && *sgOptions.Oracool.swordSpritesSwap
 		    && IsAnyOf(cursor, ICURS_LONG_SWORD, ICURS_BROAD_SWORD, ICURS_BASTARD_SWORD, ICURS_TWO_HANDED_SWORD, ICURS_GREAT_SWORD))
 			look.sword = LookTier::Heavy;
