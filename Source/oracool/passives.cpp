@@ -11,6 +11,9 @@
 #include "monster.h"
 #include "oracool/chill.h"
 #include "oracool/melee_skills.h"
+#include "oracool/curses.h"
+#include "oracool/essence.h"
+#include "oracool/minions.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/warcries.h"
@@ -53,6 +56,12 @@ struct Clocks {
 	std::array<SpellID, 3> comboSpells { SpellID::Invalid, SpellID::Invalid, SpellID::Invalid }; // Combination Strike
 	std::array<int, 3> comboTicks {};
 	int arrowsLoosed = 0;       // Grenadier: arrows since the last grenade
+	// The Necromancer (2026-09-18, phase N8).
+	int rathmaTicks = 0;        // Rathma's Shield: ticks of nothing-can-harm-you left
+	int rathmaLevel = -1;       // ...and the floor it was spent on (once a floor)
+	int finalServiceLevel = -1; // Final Service: the floor it was spent on
+	int bloodLost = 0;          // Blood is Power: life lost since the last point of Essence, 1/64 units
+	int drawLifeTicks = 0;      // Draw Life: the second's clock
 };
 
 std::array<Clocks, MAX_PLRS> ClocksOf;
@@ -218,6 +227,12 @@ void RestoreMana(Player &player, int amount)
 	RedrawComponent(PanelDrawComponent::Mana);
 }
 
+/** @brief The floor as "once a floor" counts it: a set level is its own floor. */
+int FloorStamp()
+{
+	return setlevel ? 1000 + static_cast<int>(setlvlnum) : static_cast<int>(currlevel);
+}
+
 void Haste(Clocks &clocks, int percent, int ticks)
 {
 	clocks.hastePercent = clocks.hasteTicks > 0 ? std::max(clocks.hastePercent, percent) : percent;
@@ -268,6 +283,12 @@ int PassiveDamageTakenPercent(const Player &player, DamageType damageType)
 	int percent = 0;
 	const bool notSteel = damageType != DamageType::Physical;
 	const Clocks &clocks = ClocksFor(player);
+	// Rathma's Shield (the Necromancer): for its few seconds, nothing at all.
+	if (clocks.rathmaTicks > 0 && PassiveActive(player, Skill::RathmasShield))
+		return -100;
+	// Stand Alone: 15% with no minions, 3% less for each one, nothing at five.
+	if (PassiveActive(player, Skill::StandAlone))
+		percent -= std::max(15 - 3 * MinionCount(player), 0);
 	if (PassiveActive(player, Skill::Blur))
 		percent -= 17;
 	if (notSteel && PassiveActive(player, Skill::SixthSense))
@@ -294,6 +315,9 @@ int PassiveDamageTakenPercent(const Player &player, DamageType damageType)
 int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool melee)
 {
 	int percent = 0;
+	// Spreading Malediction (the Necromancer): 5% a cursed monster within six, 30% at most.
+	if (PassiveActive(player, Skill::SpreadingMalediction))
+		percent += std::min(5 * CursedMonstersNear(player.position.tile, 6), 30);
 	const int targetLife = target.hitPoints;
 	const int targetMax = std::max(target.maxHitPoints, 1);
 	const int distance = player.position.tile.WalkingDistance(target.position.tile);
@@ -431,6 +455,13 @@ bool ArrowPierces(Missile &missile)
 bool PassiveCheatsDeath(Player &player)
 {
 	Clocks &clocks = ClocksFor(player);
+	// Final Service (the Necromancer): the army dies in your place, once a floor. Before the cooldown - it has its own.
+	if (PassiveActive(player, Skill::FinalService) && clocks.finalServiceLevel != FloorStamp() && MinionCount(player) > 0) {
+		clocks.finalServiceLevel = FloorStamp();
+		DismissMinions(player);
+		SetPlayerHitPoints(player, player._pMaxHP / 4);
+		return true;
+	}
 	if (clocks.cheatDeathCooldown > 0)
 		return false;
 	const bool nearDeath = PassiveActive(player, Skill::NearDeathExperience);
@@ -462,6 +493,11 @@ void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee)
 	Clocks &clocks = ClocksFor(player);
 	if (damage > 0 && PassiveActive(player, Skill::Leech))
 		Heal(player, damage * 3 / 100);
+	// Dark Reaping (the Necromancer): a point of mana and a point of Essence for every blow that lands.
+	if (damage > 0 && PassiveActive(player, Skill::DarkReaping)) {
+		RestoreMana(player, 1 << 6);
+		GainEssence(player, 1);
+	}
 	if (melee && PassiveActive(player, Skill::Cadence))
 		clocks.cadenceCount = (clocks.cadenceCount + 1) % 3;
 	// Weapons Master's mace: a point of Rage for every blow that lands, with or without a skill.
@@ -556,6 +592,9 @@ void OnPassiveMonsterKilled(Player &player, const Monster &monster)
 	}
 	if (PassiveActive(player, Skill::Requiem) && player.position.tile.WalkingDistance(monster.position.tile) <= 4)
 		Heal(player, player._pMaxHP / 50);
+	// Life from Death (the Necromancer): a twenty-fifth of your life for a death within six.
+	if (PassiveActive(player, Skill::LifeFromDeath) && player.position.tile.WalkingDistance(monster.position.tile) <= 6)
+		Heal(player, player._pMaxHP / 25);
 	if (PassiveActive(player, Skill::PoundOfFlesh))
 		Heal(player, player._pMaxHP * 3 / 100);
 	if (PassiveActive(player, Skill::Dominance)) {
@@ -587,6 +626,21 @@ void OnPassiveDamaged(Player &player, int damage)
 	clocks.unharmedTicks = 0;
 	if (damage * 100 >= player._pMaxHP * 15 && PassiveActive(player, Skill::Illusionist))
 		Haste(clocks, 50, 3 * TicksPerSecond);
+	// The Necromancer (2026-09-18).
+	if (PassiveActive(player, Skill::BloodIsPower)) {
+		// Losing life feeds Essence: one point for every twenty-fifth of your life.
+		clocks.bloodLost += damage;
+		const int step = std::max(player._pMaxHP / 25, 64);
+		if (clocks.bloodLost >= step) {
+			GainEssence(player, clocks.bloodLost / step);
+			clocks.bloodLost %= step;
+		}
+	}
+	if (PassiveActive(player, Skill::RathmasShield) && clocks.rathmaLevel != FloorStamp() && player._pHitPoints > 0
+	    && player._pHitPoints * 5 < player._pMaxHP) {
+		clocks.rathmaLevel = FloorStamp();
+		clocks.rathmaTicks = 4 * TicksPerSecond;
+	}
 }
 
 int PassiveBlockBonus(const Player &player)
@@ -633,6 +687,9 @@ int PassiveManaCostPercent(const Player &player, SpellID spell)
 	if (IsAnyOf(spell, SpellID::MantraOfClarity, SpellID::MantraOfEvasion, SpellID::MantraOfRetribution)
 	    && PassiveActive(player, Skill::ChantOfResonance))
 		return -50;
+	// Commander of the Risen Dead (the Necromancer): raising costs less.
+	if (IsAnyOf(spell, SpellID::RaiseSkeleton, SpellID::RaiseSkeletalMage) && PassiveActive(player, Skill::CommanderOfTheRisenDead))
+		return -30;
 	return 0;
 }
 
@@ -731,6 +788,16 @@ void ProcessPassivesTick(Player &player)
 		clocks.inspireTicks = 0;
 	}
 
+	// ---- the Necromancer (2026-09-18) ----
+	if (clocks.rathmaTicks > 0)
+		clocks.rathmaTicks--;
+	// Draw Life: a two-hundredth of your life a second for each monster within four, five at most.
+	if (player._pHitPoints > 0 && PassiveActive(player, Skill::DrawLife) && ++clocks.drawLifeTicks % TicksPerSecond == 0) {
+		const int near = std::min(MonstersNear(player.position.tile, 4, nullptr), 5);
+		if (near > 0)
+			Heal(player, player._pMaxHP * near / 200);
+	}
+
 	// ---- the all-heroes sweep (2026-09-14) ----
 	if (clocks.hasteTicks > 0 && --clocks.hasteTicks == 0)
 		clocks.hastePercent = 0;
@@ -770,6 +837,13 @@ void ProcessPassivesTick(Player &player)
 			}
 		}
 	}
+}
+
+void OnPassiveCorpseConsumed(Player &player)
+{
+	// Fueled by Death (the Necromancer): a corpse used quickens the step for four seconds.
+	if (PassiveActive(player, Skill::FueledByDeath))
+		Haste(ClocksFor(player), 30, 4 * TicksPerSecond);
 }
 
 void ClearPassiveState()

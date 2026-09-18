@@ -61,6 +61,8 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 bool IsNecromancerCurse(SpellID spell);
 
 CurseKind CurseOn(const Monster &monster);
+/** @brief Living cursed monsters within @p radius of @p centre - Spreading Malediction. */
+int CursedMonstersNear(Point centre, int radius);
 const char *CurseName(CurseKind kind);
 
 // ---- the seams ----------------------------------------------------------------------------------------------------

@@ -130,6 +130,8 @@ void OnPassiveManaSpent(Player &player, int cost);
 
 /** @brief @p player's blow killed @p monster. */
 void OnPassiveMonsterKilled(Player &player, const Monster &monster);
+/** @brief A corpse was used by one of the Necromancer's skills (oracool/corpses.h) - Fueled by Death. */
+void OnPassiveCorpseConsumed(Player &player);
 
 /** @brief Fleet Footed: the Monk runs. Asked by IsClassTreeRunActive. */
 bool PassiveRunActive(const Player &player);

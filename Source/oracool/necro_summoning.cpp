@@ -17,6 +17,7 @@
 #include "oracool/companion.h"
 #include "oracool/corpses.h"
 #include "oracool/minions.h"
+#include "oracool/passives.h"
 #include "player.h"
 
 namespace devilution::oracool {
@@ -156,6 +157,7 @@ bool RaiseFromCorpse(Player &player, Point target, int rank, bool mage)
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
+	OnPassiveCorpseConsumed(player);
 	const MinionSpec spec = SkeletonSpec(player, rank, mage);
 	if (!SummonMinion(player, spec, corpse->position))
 		return SummonMinion(player, spec, player.position.tile);
@@ -184,6 +186,9 @@ bool Revive(Player &player, Point target, int rank)
 	spec.armorClass = corpse->armorClass;
 	// Three minutes, and half a minute more for every point of Lasting Bond.
 	spec.ticksLeft = (180 + 30 * Points(player, ClassTreeSkill::LastingBond)) * TicksPerSecond;
+	if (PassiveActive(player, ClassTreeSkill::ExtendedServitude))
+		spec.ticksLeft += spec.ticksLeft / 4; // a quarter longer (N8)
+	OnPassiveCorpseConsumed(player);
 	if (!SummonMinion(player, spec, corpse->position))
 		return SummonMinion(player, spec, player.position.tile);
 	return true;

@@ -21,6 +21,7 @@
 #include "oracool/corpses.h"
 #include "oracool/curses.h"
 #include "oracool/necro_summoning.h"
+#include "oracool/passives.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/stat_sheet.h"
@@ -541,10 +542,15 @@ int VirulencePoints(const Player &player)
 	return IsClassTreeSkillUnlocked(player, ClassTreeSkill::Virulence) ? ClassTreeInvestment(player, ClassTreeSkill::Virulence) : 0;
 }
 
-/** @brief A bone skill's blow: magic, through Marrow. */
+/** @brief A bone skill's blow: magic, through Marrow - and Serration (+5% a tile flown, 50% at most) and Rigor Mortis (a second's chill). */
 void BoneStrike(Player &player, Monster &monster, int damage)
 {
-	Strike(player, monster, DamageType::Magic, damage * MarrowPercent(player) / 100);
+	int percent = MarrowPercent(player);
+	if (PassiveActive(player, ClassTreeSkill::Serration))
+		percent += std::min(5 * player.position.tile.WalkingDistance(monster.position.tile), 50);
+	Strike(player, monster, DamageType::Magic, damage * percent / 100);
+	if ((monster.hitPoints >> 6) > 0 && PassiveActive(player, ClassTreeSkill::RigorMortis))
+		ChillMonster(monster, TicksPerSecond);
 }
 
 /**
@@ -569,6 +575,8 @@ std::optional<Corpse> BurstCorpse(Player &player, Point target)
 	std::optional<Corpse> corpse = TakeCorpseNear(target, 3, /*forRevive=*/false);
 	if (!corpse)
 		player.Say(HeroSpeech::ICantDoThat);
+	else
+		OnPassiveCorpseConsumed(player);
 	return corpse;
 }
 

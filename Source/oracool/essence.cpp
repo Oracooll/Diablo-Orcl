@@ -8,6 +8,8 @@
 #include <algorithm>
 
 #include "engine/backbuffer_state.hpp"
+#include "oracool/class_tree.h"
+#include "oracool/passives.h"
 #include "player.h"
 
 namespace devilution::oracool {
@@ -37,6 +39,9 @@ int MaxEssence(const Player &player)
 {
 	if (!UsesEssence(player))
 		return 0;
+	// Overwhelming Essence (N8): a fifth more.
+	if (PassiveActive(player, ClassTreeSkill::OverwhelmingEssence))
+		return BaseMaxEssence + BaseMaxEssence / 5;
 	return BaseMaxEssence;
 }
 

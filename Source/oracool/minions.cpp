@@ -24,6 +24,7 @@
 #include "oracool/chill.h"
 #include "oracool/class_tree.h"
 #include "oracool/companion.h"
+#include "oracool/passives.h"
 #include "player.h"
 #include "utils/language.h"
 
@@ -586,6 +587,12 @@ void OnMinionBlow(Monster &minion, Monster &target, int damage)
 	if (record == nullptr || record->owner >= Players.size() || damage <= 0)
 		return;
 	Player &owner = Players[record->owner];
+	// Grisly Tribute (N8): a tenth of every minion blow heals the owner.
+	if (owner._pHitPoints > 0 && PassiveActive(owner, ClassTreeSkill::GrislyTribute)) {
+		owner._pHitPoints = std::min(owner._pHitPoints + damage / 10, owner._pMaxHP);
+		owner._pHPBase = std::min(owner._pHPBase + damage / 10, owner._pMaxHPBase);
+		RedrawComponent(PanelDrawComponent::Health);
+	}
 	switch (record->spec.golem) {
 	case GolemKind::Clay:
 		// Two seconds of chill for a blow that lands: the Clay Golem's whole point.
@@ -611,10 +618,17 @@ void OnMinionBlow(Monster &minion, Monster &target, int damage)
 void OnMinionStruck(Monster &minion, Monster &attacker, int damage)
 {
 	const Record *record = RecordOf(minion);
-	if (record == nullptr || record->owner >= Players.size() || damage <= 0 || record->spec.golem != GolemKind::Iron)
+	if (record == nullptr || record->owner >= Players.size() || damage <= 0)
 		return;
-	// The Iron Golem gives a third of every blow back to whoever struck it.
-	MinionHurts(Players[record->owner], attacker, DamageType::Physical, damage / 3);
+	Player &owner = Players[record->owner];
+	// The Iron Golem gives a third of every blow back to whoever struck it; Aberrant Animator (N8) a fifth from any minion.
+	int share = 0;
+	if (record->spec.golem == GolemKind::Iron)
+		share += damage / 3;
+	if (PassiveActive(owner, ClassTreeSkill::AberrantAnimator))
+		share += damage / 5;
+	if (share > 0)
+		MinionHurts(owner, attacker, DamageType::Physical, share);
 }
 
 // =================================================================================================================

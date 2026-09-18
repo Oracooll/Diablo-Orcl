@@ -57,6 +57,7 @@ TEST(OracoolPassiveSweep, EveryInertPassiveSaysWhyAndEveryBuiltOneDoesNot)
 	const std::set<std::string> stillInert = {
 		"Sustain", "Encore", "Countermelody", "Improvisation", "Refrain", "Timbre", "Virtuoso", "Overture",
 		"Reverberation", "Boon of Bul-Kathos", "Ballistics",
+		"Swift Harvesting", // the Necromancer's, waiting for the wands and scythes (N9)
 	};
 	for (size_t i = 0; i <= static_cast<size_t>(ClassTreeSkill::LAST); i++) {
 		const auto skill = static_cast<ClassTreeSkill>(i);
@@ -66,10 +67,7 @@ TEST(OracoolPassiveSweep, EveryInertPassiveSaysWhyAndEveryBuiltOneDoesNot)
 		if (data.kind != oracool::ClassTreeKind::Passive)
 			continue;
 		const std::string description = data.description;
-		// The Necromancer arrived after the sweep (2026-09-17) with every row inert; his passives are built in his own phases.
-		if (data.heroClass == HeroClass::Necromancer) {
-			EXPECT_FALSE(data.implemented) << data.name;
-		} else if (stillInert.count(data.name) != 0) {
+		if (stillInert.count(data.name) != 0) {
 			EXPECT_FALSE(data.implemented) << data.name;
 		} else {
 			EXPECT_TRUE(data.implemented) << data.name << " was left unbuilt by the sweep";

@@ -22,6 +22,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/essence.h"
 #include "oracool/minions.h"
+#include "oracool/passives.h"
 #include "oracool/warcries.h"
 #include "player.h"
 #include "utils/language.h"
@@ -177,6 +178,17 @@ CurseKind CurseOn(const Monster &monster)
 	return Live(monster) ? Of(monster).kind : CurseKind::None;
 }
 
+int CursedMonstersNear(Point centre, int radius)
+{
+	int count = 0;
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		const Monster &monster = Monsters[ActiveMonsters[i]];
+		if (Live(monster) && centre.WalkingDistance(monster.position.tile) <= radius)
+			count++;
+	}
+	return count;
+}
+
 const char *CurseName(CurseKind kind)
 {
 	switch (kind) {
@@ -239,6 +251,9 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 		return false;
 	int ticks = (8 + r) * TicksPerSecond;
 	ticks += ticks * 20 * Points(player, ClassTreeSkill::CurseMastery) / 100;
+	// Eternal Torment: it ends when the monster does. (A day of ticks; the slot is cleared with the body.)
+	if (PassiveActive(player, ClassTreeSkill::EternalTorment))
+		ticks = 24 * 60 * 60 * TicksPerSecond;
 	const int radius = std::min(2 + Points(player, ClassTreeSkill::WideMalice), 5);
 	const bool single = IsAnyOf(kind, CurseKind::Attract, CurseKind::DeathMark);
 	int laid = 0;
