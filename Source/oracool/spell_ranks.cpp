@@ -138,6 +138,8 @@ constexpr int SpellBand[] = {
 	0,
 	// The Necromancer's thirteen Summoning actives (2026-09-18), all earned on the tree.
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	// His sixteen Poison & Bone actives (2026-09-18).
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 static_assert(sizeof(SpellBand) / sizeof(SpellBand[0]) == MAX_SPELLS,
     "every SpellID needs a band - this table is indexed by the enum");

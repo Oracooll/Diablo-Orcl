@@ -45,11 +45,18 @@ int CurrentEssence(const Player &player)
 	return player._pEssence >> 6;
 }
 
-int EssenceCost(SpellID /*spell*/)
+int EssenceCost(SpellID spell)
 {
-	// Nothing is priced in Essence until the curses (N7) and the corpse skills (N5, N6) have spell ids.
-	// Proposed then: Corpse Explosion 10, a curse 25, Revive 35.
-	return 0;
+	// The prices proposed on 2026-09-17 and carried in the skill ledger: the corpse skills 10, Revive 35; the curses (N7) 25.
+	switch (spell) {
+	case SpellID::CorpseExplosion:
+	case SpellID::PoisonExplosion:
+		return 10;
+	case SpellID::NecroRevive:
+		return 35;
+	default:
+		return 0;
+	}
 }
 
 bool HasEssence(const Player &player, int points)

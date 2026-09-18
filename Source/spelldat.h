@@ -18,7 +18,7 @@ namespace devilution {
 // `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable spells, so a new id is a candidate for books
 // and staves unless its sBookLvl and sStaffLvl are both -1. All seven skills' are, deliberately -
 // they are earned by level, not found. MAX_ITEM_SPELLS below is the belt-and-braces on that.
-#define MAX_SPELLS 259
+#define MAX_SPELLS 275
 
 /**
  * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
@@ -391,8 +391,25 @@ enum class SpellID : int16_t {
 	FireGolem,
 	NecroRevive,
 	ArmyOfTheDead,
+	// The Necromancer's Poison & Bone page (2026-09-18, phase N6). The two corpse skills are priced in Essence.
+	Teeth,
+	BoneArmor,
+	PoisonDagger,
+	CorpseExplosion,
+	BoneSplinters,
+	Blight,
+	BoneWall,
+	BoneSpikes,
+	PoisonExplosion,
+	BoneSpear,
+	Decompose,
+	BonePrison,
+	BoneStorm,
+	NecroBoneSpirit,
+	PoisonNova,
+	DeathNova,
 
-	LAST = ArmyOfTheDead,
+	LAST = DeathNova,
 	Invalid = -1,
 };
 

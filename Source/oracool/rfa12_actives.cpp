@@ -18,6 +18,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/companion.h"
 #include "oracool/passives.h"
+#include "oracool/corpses.h"
 #include "oracool/necro_summoning.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
@@ -268,6 +269,9 @@ struct Marks {
 	int ashenRank = 0;
 	int burnTicks = 0;
 	int burnDamage = 0;
+	// The Necromancer's poison (2026-09-18): the same shape as the burn, in acid.
+	int poisonTicks = 0;
+	int poisonDamage = 0;
 	int elegyTicks = 0;
 	int elegyDamage = 0;
 	int palmTicks = 0;
@@ -307,6 +311,8 @@ enum class Buff : uint8_t {
 	Chord,
 	Immolate,
 	Spheres,
+	Venom,     // Poison Dagger: every landed blow poisons
+	BoneShell, // Bone Armor: bonePool absorbs
 	Count,
 };
 
@@ -319,6 +325,7 @@ struct PlayerState {
 	std::array<int, static_cast<size_t>(Buff::Count)> ticks {};
 	std::array<int, static_cast<size_t>(Buff::Count)> rank {};
 	int chordPool = 0;
+	int bonePool = 0; // Bone Armor, in 1/64 points
 	int rallyPerTick = 0;
 	bool heroicCouplet = false;
 	// Staff of Echoes: the blow that will land again.
@@ -513,6 +520,55 @@ bool IsBowSkill(SpellID spell)
 void Bleed(const Monster &monster, int ticks, int perSecond)
 {
 	BleedMonster(monster, ticks, perSecond << 6);
+}
+
+// =================================================================================================
+// The Necromancer's Poison & Bone page (2026-09-18, phase N6)
+// =================================================================================================
+
+/** @brief Marrow: every bone skill +8% a point. */
+int MarrowPercent(const Player &player)
+{
+	if (!IsClassTreeSkillUnlocked(player, ClassTreeSkill::Marrow))
+		return 100;
+	return 100 + 8 * ClassTreeInvestment(player, ClassTreeSkill::Marrow);
+}
+
+/** @brief Virulence: poisons +25% longer and +10% deeper a point. */
+int VirulencePoints(const Player &player)
+{
+	return IsClassTreeSkillUnlocked(player, ClassTreeSkill::Virulence) ? ClassTreeInvestment(player, ClassTreeSkill::Virulence) : 0;
+}
+
+/** @brief A bone skill's blow: magic, through Marrow. */
+void BoneStrike(Player &player, Monster &monster, int damage)
+{
+	Strike(player, monster, DamageType::Magic, damage * MarrowPercent(player) / 100);
+}
+
+/**
+ * @brief Poisons @p monster for @p ticks at @p perSecond whole points a second, through Virulence. A stronger poison
+ * replaces a weaker; a weaker one only extends the clock.
+ */
+void Poison(Player &player, Monster &monster, int ticks, int perSecond)
+{
+	if (!Hittable(monster) || monster.isImmune(MissileID::Null, DamageType::Acid))
+		return;
+	const int v = VirulencePoints(player);
+	ticks += ticks * 25 * v / 100;
+	perSecond += perSecond * 10 * v / 100;
+	Marks &marks = MarksOf(monster);
+	marks.poisonTicks = std::max(marks.poisonTicks, ticks);
+	marks.poisonDamage = std::max(marks.poisonDamage, perSecond << 6);
+}
+
+/** @brief A corpse skill's burst: the corpse within reach of the cursor, taken, or nothing. */
+std::optional<Corpse> BurstCorpse(Player &player, Point target)
+{
+	std::optional<Corpse> corpse = TakeCorpseNear(target, 3, /*forRevive=*/false);
+	if (!corpse)
+		player.Say(HeroSpeech::ICantDoThat);
+	return corpse;
 }
 
 bool CastOnce(Player &player, SpellID spell, Point target, int r)
@@ -1255,8 +1311,152 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		f->clock = 0;
 		return true;
 	}
+	// ---------------- Necromancer: Poison & Bone ----------------
+	case SpellID::Teeth: {
+		// A fan: the front arc's three tiles, and one more tooth a rank flies on to the next monster in the line.
+		bool any = false;
+		const Range d = Scale(r, 2, 5, 1, 2);
+		for (const Point tile : FrontArc(player, target)) {
+			Monster *m = FindMonsterAtPosition(tile);
+			if (m == nullptr || !Hittable(*m))
+				continue;
+			BoneStrike(player, *m, Rolled(d));
+			any = true;
+		}
+		auto line = MonstersOnLine(here, target, 6);
+		if (line.size() > static_cast<size_t>(2 + r))
+			line.resize(static_cast<size_t>(2 + r));
+		for (Monster *m : line) {
+			BoneStrike(player, *m, Rolled(d));
+			any = true;
+		}
+		Ring(player, here);
+		return any;
+	}
+	case SpellID::BoneArmor: {
+		PlayerState &state = StateOf(player);
+		state.bonePool = (20 + 10 * r) << 6;
+		StartBuff(player, Buff::BoneShell, 60 * TicksPerSecond, r);
+		// No shell drawn yet: the ice armour's is a player-icon overlay in scrollrt.cpp keyed on cold.cpp's state, and the bone
+		// one (RfA-17's bone_armor_shell) will be hung there the same way when its sheet arrives.
+		return true;
+	}
+	case SpellID::PoisonDagger:
+		StartBuff(player, Buff::Venom, 20 * TicksPerSecond, r);
+		return true;
+	case SpellID::CorpseExplosion: {
+		const std::optional<Corpse> corpse = BurstCorpse(player, target);
+		if (!corpse)
+			return false;
+		// A share of the dead one's life, physical, to everything within two tiles - Diablo II's own rule.
+		const int share = std::clamp(corpse->maxLife * std::min(40 + 5 * r, 100) / 100, 4, 400) << 6;
+		for (Monster *m : MonstersWithin(corpse->position, 2))
+			Strike(player, *m, DamageType::Physical, share);
+		Ring(player, corpse->position);
+		return true;
+	}
+	case SpellID::BoneSplinters: {
+		auto line = MonstersOnLine(here, target, 4);
+		if (line.size() > 3)
+			line.resize(3);
+		const Range d = Scale(r, 3, 6, 1, 2);
+		for (Monster *m : line)
+			BoneStrike(player, *m, Rolled(d));
+		return !line.empty();
+	}
+	case SpellID::Blight: {
+		const Point pool = Clamped(here, target, 8);
+		Field *f = NewField(player, spell, pool, 4 * TicksPerSecond, r);
+		f->clock = TicksPerSecond - 1;
+		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, pool, pool, 4 * TicksPerSecond);
+		return true;
+	}
+	case SpellID::BoneWall: {
+		// A line of five across the cursor, at right angles to the cast.
+		const Point centre = Clamped(here, target, 8);
+		Field *f = NewField(player, spell, centre, 8 * TicksPerSecond, r);
+		f->dir = Right(Right(target == here ? player._pdir : GetDirection(here, target)));
+		Ring(player, centre);
+		return true;
+	}
+	case SpellID::BoneSpikes: {
+		const auto struck = MonstersWithin(target, 1);
+		const Range d = Scale(r, 4, 9, 2, 3);
+		for (Monster *m : struck) {
+			BoneStrike(player, *m, Rolled(d));
+			Stagger(*m, TicksPerSecond);
+		}
+		Ring(player, target);
+		return true;
+	}
+	case SpellID::PoisonExplosion: {
+		const std::optional<Corpse> corpse = BurstCorpse(player, target);
+		if (!corpse)
+			return false;
+		for (Monster *m : MonstersWithin(corpse->position, 2))
+			Poison(player, *m, 6 * TicksPerSecond, 3 + r);
+		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, corpse->position, corpse->position, 3 * TicksPerSecond);
+		return true;
+	}
+	case SpellID::BoneSpear: {
+		const auto line = MonstersOnLine(here, target, 9);
+		const Range d = Scale(r, 6, 12, 3, 4);
+		for (Monster *m : line)
+			BoneStrike(player, *m, Rolled(d));
+		Ring(player, here);
+		return true;
+	}
+	case SpellID::Decompose: {
+		Monster *m = FindMonsterAtPosition(target);
+		if (m == nullptr || !Hittable(*m)) {
+			player.Say(HeroSpeech::ICantDoThat);
+			return false;
+		}
+		Poison(player, *m, 5 * TicksPerSecond, 5 + 2 * r);
+		return true;
+	}
+	case SpellID::BonePrison: {
+		Monster *m = FindMonsterAtPosition(target);
+		if (m == nullptr || !Hittable(*m)) {
+			player.Say(HeroSpeech::ICantDoThat);
+			return false;
+		}
+		Field *f = NewField(player, spell, m->position.tile, 3 * TicksPerSecond, r);
+		f->step = static_cast<int>(m->getId());
+		Stagger(*m, 3 * TicksPerSecond);
+		Ring(player, m->position.tile);
+		return true;
+	}
+	case SpellID::BoneStorm: {
+		Field *f = NewField(player, spell, here, 8 * TicksPerSecond, r);
+		f->clock = 0;
+		return true;
+	}
+	case SpellID::NecroBoneSpirit:
+		// The book spell's own missile, at this rank: it hunts what it was aimed at and finds another if that falls.
+		AddMissile(here, target, target == here ? player._pdir : GetDirection(here, target), MissileID::BoneSpirit, TARGET_MONSTERS,
+		    static_cast<int>(player.getId()), 0, r);
+		return true;
+	case SpellID::PoisonNova: {
+		const auto struck = MonstersWithin(here, 5);
+		for (Monster *m : struck)
+			Poison(player, *m, 6 * TicksPerSecond, 2 + r);
+		Ring(player, here);
+		return true;
+	}
+	case SpellID::DeathNova: {
+		const auto struck = MonstersWithin(here, 4);
+		const Range d = Scale(r, 6, 12, 2, 4);
+		for (Monster *m : struck) {
+			BoneStrike(player, *m, Rolled(d));
+			if ((m->hitPoints >> 6) > 0)
+				Poison(player, *m, 5 * TicksPerSecond, 2 + r);
+		}
+		Ring(player, here);
+		return true;
+	}
 	default:
-		// The Necromancer's pages live in their own modules and come through this door (oracool/necro_summoning.h).
+		// The Necromancer's other pages live in their own modules and come through this door (oracool/necro_summoning.h).
 		return CastNecromancerSummoning(player, spell, target, r);
 	}
 }
@@ -1270,6 +1470,45 @@ void TickField(Player &player, Field &field)
 	const int r = field.rank;
 	field.clock++;
 	switch (field.spell) {
+	// ---------------- Necromancer: Poison & Bone ----------------
+	case SpellID::Blight:
+		if (field.clock % TicksPerSecond == 0) {
+			for (Monster *m : MonstersWithin(field.tile, 1))
+				Poison(player, *m, 2 * TicksPerSecond, 2 + r);
+		}
+		break;
+	case SpellID::BoneWall:
+		// Five tiles across the cast: whatever stands in one is cut and thrown back the way it came, once a second.
+		if (field.clock % (TicksPerSecond / 2) == 0) {
+			for (int k = -2; k <= 2; k++) {
+				Point tile = field.tile;
+				for (int step = 0; step < std::abs(k); step++)
+					tile = tile + (k < 0 ? Opposite(field.dir) : field.dir);
+				Monster *m = InDungeonBounds(tile) ? FindMonsterAtPosition(tile) : nullptr;
+				if (m == nullptr || !Hittable(*m))
+					continue;
+				BoneStrike(player, *m, Rolled(Scale(r, 3, 6, 1, 2)));
+				if ((m->hitPoints >> 6) > 0)
+					Shove(*m, GetDirection(Players[field.owner].position.tile, m->position.tile));
+			}
+		}
+		break;
+	case SpellID::BonePrison:
+		if (field.clock % TicksPerSecond == 0 && field.step >= 0 && static_cast<size_t>(field.step) < MaxMonsters) {
+			Monster &held = Monsters[field.step];
+			if (Hittable(held)) {
+				BoneStrike(player, held, Rolled(Scale(r, 2, 5, 1, 2)));
+				Stagger(held, TicksPerSecond + 5);
+			}
+		}
+		break;
+	case SpellID::BoneStorm:
+		field.tile = player.position.tile; // it follows
+		if (field.clock % (TicksPerSecond / 2) == 0) {
+			for (Monster *m : MonstersWithin(field.tile, 2))
+				BoneStrike(player, *m, Rolled(Scale(r, 2, 4, 1, 1)));
+		}
+		break;
 	case SpellID::Earthquake:
 		if (field.clock % TicksPerSecond == 0) {
 			const auto shaken = MonstersWithin(field.tile, 3);
@@ -1726,7 +1965,19 @@ bool Rfa12ActiveEvadesMelee(const Player &player)
 int Rfa12ActiveAbsorbDamage(Player &player, int damage)
 {
 	PlayerState &state = StateOf(player);
-	if (damage <= 0 || BuffRank(player, Buff::Chord) <= 0 || state.chordPool <= 0)
+	if (damage <= 0)
+		return damage;
+	// Bone Armor (the Necromancer, 2026-09-18) first: it is the shell, the chord is the song.
+	if (BuffRank(player, Buff::BoneShell) > 0 && state.bonePool > 0) {
+		const int held = std::min(state.bonePool, damage);
+		state.bonePool -= held;
+		damage -= held;
+		if (state.bonePool <= 0)
+			state.ticks[static_cast<size_t>(Buff::BoneShell)] = 0;
+		if (damage <= 0)
+			return 0;
+	}
+	if (BuffRank(player, Buff::Chord) <= 0 || state.chordPool <= 0)
 		return damage;
 	const int drunk = std::min(state.chordPool, damage);
 	state.chordPool -= drunk;
@@ -1757,6 +2008,9 @@ bool Rfa12ActiveHidesPlayer(const Player &player)
 void OnRfa12ActiveHit(Player &player, Monster &monster, int damage, bool melee)
 {
 	Marks &marks = MarksOf(monster);
+	// Poison Dagger (the Necromancer, 2026-09-18): every landed weapon blow poisons.
+	if (melee && damage > 0 && BuffRank(player, Buff::Venom) > 0 && (monster.hitPoints >> 6) > 0)
+		Poison(player, monster, 4 * TicksPerSecond, 2 + BuffRank(player, Buff::Venom));
 	if (melee && marks.oathCharges > 0 && marks.oathTicks > 0 && (monster.hitPoints >> 6) > 0) {
 		marks.oathCharges--;
 		Strike(player, monster, DamageType::Magic, Rolled(Scale(marks.oathRank, 4, 8, 2, 3)));
@@ -1924,6 +2178,13 @@ void ProcessRfa12ActivesTick(Player &player)
 			marks.burnTicks--;
 			if (marks.burnTicks % TicksPerSecond == 0)
 				Strike(player, m, DamageType::Fire, marks.burnDamage);
+		}
+		if (marks.poisonTicks > 0) {
+			marks.poisonTicks--;
+			if (marks.poisonTicks % TicksPerSecond == 0)
+				Strike(player, m, DamageType::Acid, marks.poisonDamage);
+			if (marks.poisonTicks == 0)
+				marks.poisonDamage = 0;
 		}
 		if (marks.elegyTicks > 0) {
 			marks.elegyTicks--;

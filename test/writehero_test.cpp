@@ -801,10 +801,12 @@ TEST(Writehero, pfile_write_hero)
 	//      investment past the third spell would have been lost). Four new chunks: HeroChunkReadiedSpells16,
 	//      the two 16-bit hotkey chunks and HeroChunkSkillPoints16. The old chunks are still written, tag 1
 	//      with its first 255 entries, so an older build reads what it can. PlayerPack is untouched.
+	// 1.12.036: SIXTEEN BYTES in the two skill-point chunks - MAX_SPELLS 259 -> 275 for the Necromancer's Poison & Bone
+	//      actives. Count-prefixed (tag 18 in two bytes now), so a 259-entry hero loads into the first 259.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "fa22ef9eea72c561b19a98ead138326593e3b97b5f1645cbc2e7de1486f0a221");
+	    "9b9136306e6dfd0c280beb726eb0992d72975e4cd71437dc440ac24888b41308");
 }
 
 } // namespace

@@ -89,10 +89,22 @@ TEST(OracoolEssence, SpendingAndGainingStayInsideThePool)
 	EXPECT_EQ(oracool::CurrentEssence(player), 100);
 }
 
-// Nothing is priced in Essence yet, so every spell still asks the Necromancer for mana - the pay path must not
-// have changed for him or anyone until a row carries an Essence price.
-TEST(OracoolEssence, UntilARowIsPricedInEssenceEverySpellStillCostsMana)
+// The prices carried in the skill ledger (2026-09-17): the corpse skills 10, Revive 35, and nothing else - every other spell
+// still asks the Necromancer for mana.
+TEST(OracoolEssence, OnlyTheCorpseSkillsAndReviveArePricedInEssence)
 {
-	for (int i = 0; i <= static_cast<int>(SpellID::LAST); i++)
-		EXPECT_EQ(oracool::EssenceCost(static_cast<SpellID>(i)), 0) << i;
+	int priced = 0;
+	for (int i = 0; i <= static_cast<int>(SpellID::LAST); i++) {
+		const auto spell = static_cast<SpellID>(i);
+		const int cost = oracool::EssenceCost(spell);
+		if (cost > 0)
+			priced++;
+		if (IsAnyOf(spell, SpellID::CorpseExplosion, SpellID::PoisonExplosion))
+			EXPECT_EQ(cost, 10) << i;
+		else if (spell == SpellID::NecroRevive)
+			EXPECT_EQ(cost, 35);
+		else
+			EXPECT_EQ(cost, 0) << i;
+	}
+	EXPECT_EQ(priced, 3);
 }
