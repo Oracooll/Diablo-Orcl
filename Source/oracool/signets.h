@@ -67,7 +67,7 @@ enum class Milestone : uint8_t {
 	SlayDreadBoss,
 	/** Completed any runeword. */
 	CompleteRuneword,
-	/** Filled an item to its Mystic Orb cap. */
+	/** Imbued an item to its limit (was the Mystic Orb cap until 2026-09-19; the saved bit is the same). */
 	FillOrbCap,
 	/** Wore enough of one named set to earn a bonus rung. */
 	WearSetBonus,

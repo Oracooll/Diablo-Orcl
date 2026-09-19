@@ -907,7 +907,7 @@ struct Item {
 			default:
 				break;
 			}
-			// An oil and a Mystic Orb do the same thing to a piece of gear - improve it, for good - so
+			// An oil and an Imbuement Shard do the same thing to a piece of gear - improve it, for good - so
 			// they read the same.
 			if ((_iMiscId > IMISC_OILFIRST && _iMiscId < IMISC_OILLAST) || IsOracoolShardIdx(IDidx))
 				return UiFlags::ColorOil;

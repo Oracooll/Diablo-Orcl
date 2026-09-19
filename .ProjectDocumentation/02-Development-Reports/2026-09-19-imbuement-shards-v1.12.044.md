@@ -88,3 +88,14 @@ At the user's word ("Fix them"). The six hand-written Necromancer uniques moved 
 array positions (a unique's `_iUid` persists, so its place is save format); `tools/GenUniqueItems.ps1` now reproduces its
 file byte for byte, as every other generator does. `tools/build_item_icons.cmd` runs all eight generators before cutting,
 so the stand-in art the specs point at exists on any machine - proven here: one pass, no hand steps. 819 of 819.
+
+## Audit pass: v1.12.046
+
+At the user's word ("run a few audits and fix what needs fixing"). Checked: Ease reaches Player::CanUseItem, the
+equip check in items.cpp and the requirement line of the panel (all three read EffectiveRequirement); the drop
+walk's candidate arrays are sized IDI_LAST + 1; the crafting window and Levski's recipe book both scroll, so the
+nineteenth recipe fits; imbue.wav has the same format as the other UI sounds; pack.cpp clamps an oversized durability
+to 254; no player-visible string names the orbs. **Fixed:** Tempering could raise maximum durability into 255, the
+engine's "indestructible" sentinel, which is also a byte in the packed hero record - the durability affix caps at 254
+for that reason, and Tempering now refuses (not clamps) a shard that would cross it, and the rebuild restore caps the
+same way; test pins 250 refused, 244 landing at 254. 819 of 819.

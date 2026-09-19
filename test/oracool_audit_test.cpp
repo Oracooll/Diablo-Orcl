@@ -7608,6 +7608,20 @@ TEST(OracoolAudit, ImbuementShardsAreCappedPerItemAndRecorded)
 	everlasting._iMaxDur = DUR_INDESTRUCTIBLE;
 	EXPECT_FALSE(CanReceiveShardKind(everlasting, ShardKind::Tempering)) << "Tempering was offered to an indestructible item";
 	EXPECT_TRUE(CanReceiveShardKind(everlasting, ShardKind::Strength)) << "an indestructible item refuses every shard";
+	// Never INTO the sentinel: 255 means indestructible and the packed record stores a byte, so the
+	// durability affix stops at 254 and Tempering must stop short of it too - refused, not clamped.
+	devilution::Item hardy;
+	InitializeItem(hardy, IDI_ORACOOL_HELM);
+	hardy._iMaxDur = 250;
+	hardy._iDurability = 250;
+	EXPECT_FALSE(CanReceiveShardKind(hardy, ShardKind::Tempering)) << "Tempering was offered where +10 would reach 255";
+	EXPECT_FALSE(TryImbue(player, hardy, tempering)) << "Tempering crossed into the indestructible sentinel";
+	EXPECT_EQ(hardy._iMaxDur, 250);
+	hardy._iMaxDur = 244;
+	hardy._iDurability = 244;
+	EXPECT_TRUE(TryImbue(player, hardy, tempering)) << "Tempering refused with room to 254";
+	EXPECT_EQ(hardy._iMaxDur, 254);
+	EXPECT_NE(hardy._iMaxDur, DUR_INDESTRUCTIBLE);
 
 	devilution::Item eased;
 	InitializeItem(eased, IDI_ORACOOL_HELM);

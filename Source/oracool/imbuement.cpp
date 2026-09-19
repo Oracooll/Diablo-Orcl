@@ -118,8 +118,11 @@ bool CanReceiveShardKind(const Item &target, ShardKind kind)
 		return false;
 	switch (kind) {
 	case ShardKind::Tempering:
-		// Durability an indestructible item does not have.
-		return target._iMaxDur != DUR_INDESTRUCTIBLE;
+		// Durability an indestructible item does not have - and never INTO the sentinel: 255 means
+		// "cannot break", and _iMaxDur is a byte in the packed hero record, so the durability affix
+		// caps at 254 (items.cpp, IPL_DUR) and a shard that would cross that line is refused outright
+		// rather than clamped, so the player is not sold a shard that does less than its line says.
+		return target._iMaxDur != DUR_INDESTRUCTIBLE && target._iMaxDur + TemperingStep < DUR_INDESTRUCTIBLE;
 	case ShardKind::Ease:
 		return EaseHasWork(target);
 	default:
@@ -300,11 +303,15 @@ void RestoreImbuements(Item &item, const ImbuementLedger &ledger)
 	item._iOracoolImbueCount = ledger.count;
 	for (int i = 0; i < ledger.count; i++)
 		item._iOracoolImbuements[i] = ledger.kinds[i];
-	// The rebuilt item came out of InitializeItem with its base durability; Tempering goes back on.
+	// The rebuilt item came out of InitializeItem with its base durability; Tempering goes back on -
+	// capped below the sentinel like the affix, because the rebuilt base may be larger than the old one.
 	const int bonus = ShardDurabilityBonus(item);
 	if (bonus > 0 && item._iMaxDur != DUR_INDESTRUCTIBLE) {
-		item._iMaxDur += bonus;
-		item._iDurability += bonus;
+		const int granted = std::min(bonus, DUR_INDESTRUCTIBLE - 1 - item._iMaxDur);
+		if (granted > 0) {
+			item._iMaxDur += granted;
+			item._iDurability += granted;
+		}
 	}
 }
 
