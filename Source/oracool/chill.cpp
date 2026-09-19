@@ -32,6 +32,13 @@ void ChillMonster(const Monster &monster, int ticks)
 	ChillTicks[id] = static_cast<uint16_t>(std::max<int>(ChillTicks[id], ticks));
 }
 
+void ClearChill(const Monster &monster)
+{
+	const size_t id = monster.getId();
+	if (id < ChillTicks.size())
+		ChillTicks[id] = 0;
+}
+
 bool IsMonsterChilled(const Monster &monster)
 {
 	const size_t id = monster.getId();

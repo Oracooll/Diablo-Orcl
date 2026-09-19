@@ -28,6 +28,7 @@
 #include "monster.h"
 #include "oracool/aura_field.h"
 #include "oracool/curses.h"
+#include "oracool/minions.h" // MinionOwner, OnMinionBlow: a minion's bolt is its owner's blow
 #include "oracool/chill.h"
 #include "oracool/class_tree.h" // SlowPlayer - a cold hit's chill on the stride
 #include "oracool/cold.h"
@@ -362,9 +363,10 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 		ApplyMonsterDamage(damageType, monster, dam);
 	if (&player == MyPlayer && missileData.isArrow())
 		oracool::OnPassiveHit(*MyPlayer, monster, dam, false);
-	if (&player == MyPlayer && dam > 0)
+	if (&player == MyPlayer && dam > 0) {
 		oracool::OnRfa12Hit(*MyPlayer, monster, dam, false);
 		oracool::OnCursedMonsterStruck(monster, *MyPlayer, nullptr, dam); // Life Tap (oracool/curses.h)
+	}
 	// The all-heroes sweep (2026-09-14): Paralysis, Temporal Flux, Thrill of the Hunt, the element marks.
 	if (&player == MyPlayer && dam > 0)
 		oracool::OnPassiveMissileHit(*MyPlayer, monster, dam, damageType, missileData.isArrow());
@@ -550,8 +552,19 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 		            || (Monsters[missile._misource].flags & MFLAG_BERSERK) != 0                    //  or the attacker is berserked
 		            || (Monsters[mid].flags & MFLAG_BERSERK) != 0                                  //  or the target is berserked
 		            ))) {
-			// then the missile can potentially hit this target
-			isMonsterHit = MonsterTrapHit(mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted);
+			// then the missile can potentially hit this target.
+			// A minion's bolt is its owner's blow (audit, 2026-09-19): tag the target BEFORE the hit,
+			// since MonsterTrapHit runs MonsterDeath itself and the kill's experience goes to whoever
+			// is tagged, and credit Life Tap and the army's on-blow effects after, as the melee seam does.
+			const Player *armyOwner = !missile.IsTrap() && missile._micaster == TARGET_PLAYERS ? oracool::MinionOwner(Monsters[missile._misource]) : nullptr;
+			if (armyOwner != nullptr)
+				Monsters[mid].tag(*armyOwner);
+			int dealt = 0;
+			isMonsterHit = MonsterTrapHit(mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, &dealt);
+			if (armyOwner != nullptr && dealt > 0) {
+				oracool::OnMinionBlow(Monsters[missile._misource], Monsters[mid], dealt);
+				oracool::OnCursedMonsterStruck(Monsters[mid], Players[armyOwner->getId()], &Monsters[missile._misource], dealt);
+			}
 		} else if (IsAnyOf(missile._micaster, TARGET_BOTH, TARGET_MONSTERS)) {
 			CompanionHitPercent = missile.companionPercent;
 			isMonsterHit = MonsterMHit(missile._misource, mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, missile._mispllvl);
@@ -1128,9 +1141,11 @@ Direction16 GetDirection16(Point p1, Point p2)
 	return ret;
 }
 
-bool MonsterTrapHit(int monsterId, int mindam, int maxdam, int dist, MissileID t, DamageType damageType, bool shift)
+bool MonsterTrapHit(int monsterId, int mindam, int maxdam, int dist, MissileID t, DamageType damageType, bool shift, int *damageDealt)
 {
 	auto &monster = Monsters[monsterId];
+	if (damageDealt != nullptr)
+		*damageDealt = 0;
 
 	if (!monster.isPossibleToHit() || monster.isImmune(t, damageType))
 		return false;
@@ -1154,6 +1169,8 @@ bool MonsterTrapHit(int monsterId, int mindam, int maxdam, int dist, MissileID t
 	if (resist)
 		dam /= 4;
 	ApplyMonsterDamage(damageType, monster, dam);
+	if (damageDealt != nullptr)
+		*damageDealt = dam;
 #ifdef _DEBUG
 	if (DebugGodMode)
 		monster.hitPoints = 0;

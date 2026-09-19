@@ -7631,6 +7631,21 @@ TEST(OracoolAudit, ImbuementShardsAreCappedPerItemAndRecorded)
 	everlasting._iMaxDur = DUR_INDESTRUCTIBLE;
 	EXPECT_FALSE(CanReceiveShardKind(everlasting, ShardKind::Tempering)) << "Tempering was offered to an indestructible item";
 	EXPECT_TRUE(CanReceiveShardKind(everlasting, ShardKind::Strength)) << "an indestructible item refuses every shard";
+	// A Zod rune marks indestructibility in _iDurability ALONE (ApplyZodToHost leaves _iMaxDur so the
+	// rune can be extracted); Tempering must see that sentinel too, or +10 makes it a destructible
+	// 265 with the rune still listed (audit, 2026-09-19).
+	devilution::Item zodded;
+	InitializeItem(zodded, IDI_ORACOOL_HELM);
+	zodded._iDurability = DUR_INDESTRUCTIBLE;
+	EXPECT_FALSE(CanReceiveShardKind(zodded, ShardKind::Tempering)) << "Tempering was offered to a Zod-socketed item";
+	EXPECT_TRUE(CanReceiveShardKind(zodded, ShardKind::Strength)) << "a Zod-socketed item refuses every shard";
+	// And a Cleanse must not turn the rune off by clamping its sentinel to the max.
+	devilution::Item cleansedZod;
+	InitializeItem(cleansedZod, IDI_ORACOOL_HELM);
+	ASSERT_TRUE(TryImbue(player, cleansedZod, tempering));
+	cleansedZod._iDurability = DUR_INDESTRUCTIBLE;
+	devilution::oracool::StripImbuements(cleansedZod);
+	EXPECT_EQ(cleansedZod._iDurability, DUR_INDESTRUCTIBLE) << "Cleanse clamped a Zod rune's sentinel away";
 	// Never INTO the sentinel: 255 means indestructible and the packed record stores a byte, so the
 	// durability affix stops at 254 and Tempering must stop short of it too - refused, not clamped.
 	devilution::Item hardy;

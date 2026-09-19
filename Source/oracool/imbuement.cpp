@@ -69,7 +69,9 @@ int Scaled(int value, int percent)
 	if (value == 0 || percent == 0)
 		return 0;
 	const int scaled = value * percent;
-	const int magnitude = (std::abs(scaled) + 50) / 100;
+	// At least one point whenever there is anything to scale: round-half-up alone left every affix
+	// under 17 at zero for a 3% shard, while the shard's line promised "every affix" (audit, 2026-09-19).
+	const int magnitude = std::max(1, (std::abs(scaled) + 50) / 100);
 	return scaled < 0 ? -magnitude : magnitude;
 }
 
@@ -88,6 +90,9 @@ const ShardDefinition *FindShardByItem(int idx)
 	}
 	return nullptr;
 }
+
+// The ledger and the item must agree on the cap, or RestoreImbuements writes past the ledger's array.
+static_assert(MaxImbuementKinds == Item::MaxOracoolImbuements, "ImbuementLedger::kinds must hold every imbuement an Item can");
 
 int ShardLimit(ShardKind kind)
 {
@@ -122,7 +127,11 @@ bool CanReceiveShardKind(const Item &target, ShardKind kind)
 		// "cannot break", and _iMaxDur is a byte in the packed hero record, so the durability affix
 		// caps at 254 (items.cpp, IPL_DUR) and a shard that would cross that line is refused outright
 		// rather than clamped, so the player is not sold a shard that does less than its line says.
-		return target._iMaxDur != DUR_INDESTRUCTIBLE && target._iMaxDur + TemperingStep < DUR_INDESTRUCTIBLE;
+		// Both sentinels: a unique's indestructibility lives in _iMaxDur, a Zod rune's in _iDurability
+		// alone (ApplyZodToHost leaves _iMaxDur so extraction can put the item back). Adding ten to a
+		// _iDurability of 255 made the item destructible with the rune still listed (audit, 2026-09-19).
+		return target._iMaxDur != DUR_INDESTRUCTIBLE && target._iDurability != DUR_INDESTRUCTIBLE
+		    && target._iMaxDur + TemperingStep < DUR_INDESTRUCTIBLE;
 	case ShardKind::Ease:
 		return EaseHasWork(target);
 	default:
@@ -310,7 +319,9 @@ void RestoreImbuements(Item &item, const ImbuementLedger &ledger)
 		const int granted = std::min(bonus, DUR_INDESTRUCTIBLE - 1 - item._iMaxDur);
 		if (granted > 0) {
 			item._iMaxDur += granted;
-			item._iDurability += granted;
+			// Not over a Zod rune's sentinel (audit, 2026-09-19): 255 + 10 is a destructible 265.
+			if (item._iDurability != DUR_INDESTRUCTIBLE)
+				item._iDurability += granted;
 		}
 	}
 }
@@ -320,7 +331,10 @@ void StripImbuements(Item &item)
 	const int bonus = ShardDurabilityBonus(item);
 	if (bonus > 0 && item._iMaxDur != DUR_INDESTRUCTIBLE) {
 		item._iMaxDur = std::max(1, item._iMaxDur - bonus);
-		item._iDurability = std::min(item._iDurability, item._iMaxDur);
+		// A Zod rune's 255 is a sentinel, not a durability; clamping it to the max would turn the
+		// rune off on a Cleanse (audit, 2026-09-19).
+		if (item._iDurability != DUR_INDESTRUCTIBLE)
+			item._iDurability = std::min(item._iDurability, item._iMaxDur);
 	}
 	item._iOracoolImbueCount = 0;
 	item._iOracoolImbuements.fill(0);

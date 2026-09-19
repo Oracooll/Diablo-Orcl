@@ -68,5 +68,7 @@ bool ChillTakesThisTick(const Monster &monster);
 
 /** @brief Forgets every chill. Called when a level's monsters are created - see the header. */
 void ClearChills();
+/** @brief Ends one monster's chill at once - for a curse that laid it and is now released (audit, 2026-09-19). */
+void ClearChill(const Monster &monster);
 
 } // namespace devilution::oracool

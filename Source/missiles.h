@@ -242,7 +242,8 @@ void GetDamageAmtAtLevel(SpellID i, int spellLevel, int *mind, int *maxd);
  * @return the direction of the p1->p2 vector
  */
 Direction16 GetDirection16(Point p1, Point p2);
-bool MonsterTrapHit(int monsterId, int mindam, int maxdam, int dist, MissileID t, DamageType damageType, bool shift);
+/** @param damageDealt When given, receives the damage applied (in 64ths), 0 when the hit missed - so a minion's bolt can credit its owner (audit, 2026-09-19). */
+bool MonsterTrapHit(int monsterId, int mindam, int maxdam, int dist, MissileID t, DamageType damageType, bool shift, int *damageDealt = nullptr);
 bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, MissileID mtype, DamageType damageType, bool shift, DeathReason deathReason, bool *blocked);
 
 /**

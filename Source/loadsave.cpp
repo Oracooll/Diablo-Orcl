@@ -35,6 +35,7 @@
 #include "oracool/auto_save.h"
 #include "oracool/item_tiers.h"
 #include "oracool/imbuement.h"
+#include "spells.h" // IsValidSpell, for the item bounds on load
 #include "oracool/readied_spells.h"
 #include "pfile.h"
 #include "playerdat.hpp"
@@ -506,10 +507,17 @@ void LoadItemData(LoadHelper &file, Item &item)
 	{
 		const uint8_t stored = std::min<uint8_t>(file.NextLE<uint8_t>(), Item::MaxOracoolImbuements);
 		uint8_t live = 0;
+		// Per-kind limits hold on load as they do at apply time (audit, 2026-09-19): a foreign or
+		// hand-edited record with twenty Arcana is not twenty spell levels.
+		std::array<uint8_t, static_cast<size_t>(oracool::ShardKind::LAST) + 1> perKind {};
 		for (int i = 0; i < Item::MaxOracoolImbuements; i++) {
 			const uint8_t kind = file.NextLE<uint8_t>();
-			if (i < stored && kind <= static_cast<uint8_t>(oracool::ShardKind::LAST))
-				item._iOracoolImbuements[live++] = kind;
+			if (i >= stored || kind > static_cast<uint8_t>(oracool::ShardKind::LAST))
+				continue;
+			if (perKind[kind] >= oracool::ShardLimit(static_cast<oracool::ShardKind>(kind)))
+				continue;
+			perKind[kind]++;
+			item._iOracoolImbuements[live++] = kind;
 		}
 		item._iOracoolImbueCount = live;
 	}
@@ -2399,6 +2407,14 @@ void RemoveInvalidItem(Item &item)
 {
 	bool isInvalid = !IsItemAvailable(item.IDidx) || !IsUniqueAvailable(item._iUid);
 
+	// Bounds that hold in Hellfire too (audit, 2026-09-19): IsUniqueAvailable has no upper bound
+	// here, and _iSpell and the affix ids index tables directly (_pSplLvl, GetSpellData, the affix
+	// table). A record past any of them is dropped rather than indexed.
+	isInvalid = isInvalid || item._iUid < 0 || static_cast<size_t>(item._iUid) >= UniqueItemCount;
+	isInvalid = isInvalid || (item._iSpell != SpellID::Null && !IsValidSpell(item._iSpell));
+	isInvalid = isInvalid || (item._iPrePower != IPL_INVALID && !IsOracoolAffixTypeValid(item._iPrePower));
+	isInvalid = isInvalid || (item._iSufPower != IPL_INVALID && !IsOracoolAffixTypeValid(item._iSufPower));
+
 	if (!gbIsHellfire) {
 		isInvalid = isInvalid || (item._itype == ItemType::Staff && GetSpellStaffLevel(item._iSpell) == -1);
 		isInvalid = isInvalid || (item._iMiscId == IMISC_BOOK && GetSpellBookLevel(item._iSpell) == -1);
@@ -2725,7 +2741,7 @@ void SaveHotkeys(SaveWriter &saveWriter, const Player &player)
 	file.WriteLE<uint8_t>(static_cast<uint8_t>(player._pLRSplType));
 }
 
-void LoadHeroItems(Player &player, uint32_t saveNumber)
+bool LoadHeroItems(Player &player, uint32_t saveNumber)
 {
 	// The slot is a PARAMETER, not the gSaveNumber global (external audit, 2026-08-17): the
 	// hero-select preview loop iterates every slot, and reading the global here meant every
@@ -2733,15 +2749,29 @@ void LoadHeroItems(Player &player, uint32_t saveNumber)
 	// number the global holds, so it is unchanged in behavior - but now by contract, not luck.
 	LoadHelper file(OpenSaveArchive(saveNumber), "heroitems");
 	if (!file.IsValid())
-		return;
+		return true;
 
 	gbIsHellfireSaveGame = file.NextBool8();
 
 	if (file.NextLE<uint8_t>() != OracoolItemFormatVersion) {
 		// The fixed-size item record grew when Oracool tier/affix data was folded directly
 		// into it; reading an older, shorter record with today's field layout would silently
-		// misalign every item after this point rather than failing cleanly.
-		app_fatal(_("This save is from an incompatible version of Diablo Orcl and cannot be loaded. Please start a new character."));
+		// misalign every item after this point rather than failing cleanly. This used to
+		// app_fatal HERE - and the hero-select screen calls this for every slot while building its
+		// list, so one hero from an older build bricked the menu for all of them with no way to
+		// delete it (audit, 2026-09-19). The caller on the real load path stops; the preview shows
+		// the hero without gear.
+		gbIsHellfireSaveGame = gbIsHellfire;
+		return false;
+	}
+
+	// The record is fixed-size, so its length is known exactly; a truncated file would otherwise
+	// read as zero-filled phantom items (LoadHelper::Next returns 0 past the end).
+	const size_t itemCount = static_cast<size_t>(NUM_INVLOC) + InventoryGridCells + MaxBeltItems;
+	const size_t expected = sizeof(uint8_t) * 2 + itemCount * (gbIsHellfireSaveGame ? HellfireItemSaveSize : DiabloItemSaveSize);
+	if (file.Size() != expected) {
+		gbIsHellfireSaveGame = gbIsHellfire;
+		return false;
 	}
 
 	LoadMatchingItems(file, player, NUM_INVLOC, player.InvBody);
@@ -2749,6 +2779,7 @@ void LoadHeroItems(Player &player, uint32_t saveNumber)
 	LoadMatchingItems(file, player, MaxBeltItems, player.SpdList);
 
 	gbIsHellfireSaveGame = gbIsHellfire;
+	return true;
 }
 
 // Oracool bug fix: user report - old Rare/Buffed Unique items pulled from the Stash showed wildly
@@ -2797,7 +2828,9 @@ void LoadStash()
 		return;
 
 	auto version = file.NextLE<uint8_t>();
-	if (version != StashVersion && version != 5) {
+	// Exactly the current version (audit, 2026-09-19): a `version == 5` branch lingered here, parsing a
+	// record with no embedded item byte as today's format; IsStashSizeValid rejected every real one.
+	if (version != StashVersion) {
 		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Orcl and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
 		return;
 	}

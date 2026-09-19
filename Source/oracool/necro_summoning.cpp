@@ -153,16 +153,27 @@ bool RaiseFromCorpse(Player &player, Point target, int rank, bool mage)
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
+	// Know that a body can stand BEFORE the corpse is eaten (audit, 2026-09-19): the corpse was
+	// taken, the haste granted and the effect played, and only then SummonMinion could refuse - a
+	// floor already carrying its full count of monster types and no skeleton among them, or no
+	// free tile - leaving a spent corpse and a fizzled cast. The type check is answerable up front;
+	// the haste and the effect wait for the body.
+	const MinionSpec spec = SkeletonSpec(player, rank, mage);
+	if (!CorpseNear(target, CorpseReach, /*forRevive=*/false) || !CanAddMinionBody(spec.type)) {
+		player.Say(HeroSpeech::ICantDoThat);
+		return false;
+	}
 	const std::optional<Corpse> corpse = TakeCorpseNear(target, CorpseReach, /*forRevive=*/false);
 	if (!corpse) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
+	if (!SummonMinion(player, spec, corpse->position) && !SummonMinion(player, spec, player.position.tile)) {
+		player.Say(HeroSpeech::ICantDoThat);
+		return false;
+	}
 	OnPassiveCorpseConsumed(player);
 	AddMissile(corpse->position, corpse->position, player._pdir, MissileID::RaiseDeadEffect, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
-	const MinionSpec spec = SkeletonSpec(player, rank, mage);
-	if (!SummonMinion(player, spec, corpse->position))
-		return SummonMinion(player, spec, player.position.tile);
 	return true;
 }
 
@@ -190,10 +201,14 @@ bool Revive(Player &player, Point target, int rank)
 	spec.ticksLeft = (180 + 30 * Points(player, ClassTreeSkill::LastingBond)) * TicksPerSecond;
 	if (PassiveActive(player, ClassTreeSkill::ExtendedServitude))
 		spec.ticksLeft += spec.ticksLeft / 4; // a quarter longer (N8)
+	// The body first, the haste and the effect after (audit, 2026-09-19) - as Raise does; the corpse's
+	// own type is on this floor by definition, so the type check Raise makes is not needed here.
+	if (!SummonMinion(player, spec, corpse->position) && !SummonMinion(player, spec, player.position.tile)) {
+		player.Say(HeroSpeech::ICantDoThat);
+		return false;
+	}
 	OnPassiveCorpseConsumed(player);
 	AddMissile(corpse->position, corpse->position, player._pdir, MissileID::RaiseDeadEffect, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
-	if (!SummonMinion(player, spec, corpse->position))
-		return SummonMinion(player, spec, player.position.tile);
 	return true;
 }
 

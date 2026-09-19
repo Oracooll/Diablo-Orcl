@@ -17,6 +17,7 @@
 #include "options.h"
 #include "oracool/save_status.h"
 #include "oracool/event_log.h"
+#include "oracool/levski_roar.h"
 #include "oracool/save_indicator.h"
 #include "pfile.h"
 #include "player.h"
@@ -83,6 +84,9 @@ bool IsSafeToSave()
 	    && stextflag == TalkID::None
 	    && !qtextflag
 	    && pcurs == CURSOR_HAND
+	    // Levski's grid is an unsaved container (audit, 2026-09-19): a hero written while items sit
+	    // in it would lose them to a crash before the window closes and returns them.
+	    && !IsLevskiRoarOpen()
 	    && !demo::IsRunning()
 	    && !demo::IsRecording();
 }

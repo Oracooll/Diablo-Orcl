@@ -45,6 +45,7 @@
 #include "oracool/corpses.h"
 #include "oracool/curses.h"
 #include "oracool/minions.h"
+#include "oracool/necro_summoning.h" // ClearNecromancerSummoningState on level load
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/warcries.h"
@@ -3710,6 +3711,7 @@ void InitLevelMonsters()
 	// Companions' bodies and town figures belong to the level being left; the companions come back on the new one.
 	oracool::OnCompanionLevelLoad();
 	oracool::OnMinionLevelLoad(); // the army's bodies too; its records wait for the next floor (oracool/minions.h)
+	oracool::ClearNecromancerSummoningState(); // an Army of the Dead's remaining pulses belong to the floor it erupted on (audit, 2026-09-19)
 	oracool::ClearCorpses();      // and the last floor's dead are no use on this one (oracool/corpses.h)
 	oracool::ClearAllCurses();
 	// So are the telemetry kill clocks, which are keyed by monster SLOT - and the slots are about to
@@ -3981,9 +3983,12 @@ void WeakenNaKrul()
 
 bool LevelHasGolemSlots()
 {
-	// The same two conditions InitGolems' callers and its own body apply: town never calls it, and a set level
-	// calls it but adds nothing.
-	return leveltype != DTYPE_TOWN && !setlevel;
+	// Town never runs InitGolems and has no slot. A set level DOES have its four: SetMapMonsters adds the
+	// MT_GOLEM type and four bodies at GolemHoldingCell while `setlevel` is true (that is why InitGolems
+	// itself adds nothing there) - the v1.12.012 note that a set level "adds no slot" read InitGolems
+	// alone and was wrong, and it kept every companion and the Golem spell out of the Skeleton King's
+	// lair, the Chamber of Bone and Lazarus' (audit, 2026-09-19).
+	return leveltype != DTYPE_TOWN;
 }
 
 void InitGolems()
@@ -4419,9 +4424,10 @@ void StartMonsterDeath(Monster &monster, const Player &player, bool sendmsg)
 {
 	monster.tag(player);
 	// Oracool, Round 5: Rampage and Requiem hear the kill.
-	if (&player == MyPlayer && monster.hitPoints >> 6 <= 0)
+	if (&player == MyPlayer && monster.hitPoints >> 6 <= 0) {
 		oracool::OnPassiveMonsterKilled(*MyPlayer, monster);
 		oracool::OnRfa12MonsterKilled(*MyPlayer, monster);
+	}
 	Direction md = GetDirection(monster.position.tile, player.position.tile);
 	MonsterDeath(monster, md, sendmsg);
 }
@@ -5375,6 +5381,13 @@ void ReleaseCompanionBody(Monster &slot)
 	slot.enemy = 0;
 	slot.enemyPosition = {};
 	slot.mode = MonsterMode::Stand;
+	// Anything that was hunting this body would take one step toward the holding cell before its next
+	// stand re-aimed it (audit, 2026-09-19): re-aim it now.
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		Monster &other = Monsters[ActiveMonsters[i]];
+		if (&other != &slot && (other.flags & MFLAG_TARGETS_MONSTER) != 0 && static_cast<size_t>(other.enemy) == slot.getId())
+			UpdateEnemy(other);
+	}
 }
 
 void MoveCompanionTo(Monster &companion, Point tile)

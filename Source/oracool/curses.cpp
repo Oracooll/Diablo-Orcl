@@ -108,6 +108,13 @@ void Release(const Monster &monster, Curse &curse)
 {
 	if (curse.turned)
 		const_cast<Monster &>(monster).flags &= ~(MFLAG_BERSERK | MFLAG_GOLEM);
+	// Weaken and Decrepify are laid through the warcry debuff and the chill with the curse's own
+	// clock; releasing the curse (a replacement, or its end) has to take those back too, or an
+	// Eternal Torment Decrepify replaced by Doom leaves the monster slowed for good (audit, 2026-09-19).
+	if (curse.kind == CurseKind::Weaken || curse.kind == CurseKind::Decrepify)
+		ClearWarcryStateForMonster(monster);
+	if (curse.kind == CurseKind::Decrepify)
+		ClearChill(monster);
 	curse = {};
 }
 

@@ -1029,7 +1029,11 @@ void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 	oracool::UnpackReadiedSpell(player, pkplr.pReadiedSpellRight, player._pRSpell, player._pRSplType);
 	oracool::UnpackReadiedSpell(player, pkplr.pReadiedSpellLeft, player._pLRSpell, player._pLRSplType);
 
-	LoadHeroItems(player, saveNum);
+	// The real load: an item record of another format stops here, with the message. The hero-select
+	// preview above tolerates it (the hero is listed without gear) so one old hero cannot brick the
+	// menu for every slot (audit, 2026-09-19).
+	if (!LoadHeroItems(player, saveNum))
+		app_fatal(_("This save is from an incompatible version of Diablo Orcl and cannot be loaded. Please start a new character."));
 	if (!gbIsMultiplayer) {
 		LoadInventoryTabs(player, saveNum);
 	}

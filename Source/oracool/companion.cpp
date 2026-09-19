@@ -643,6 +643,14 @@ bool SummonCompanions(Player &owner, SpellID spell, Point target, int rank)
 		inst->cooldown = DefOf(kind).abilitySeconds * TicksPerSecond / 2; // the first ability comes sooner
 		if (town) {
 			PlaceInTown(*inst, target);
+		} else if (inst->slot >= 0 && (Monsters[inst->slot].mode == MonsterMode::Death || Monsters[inst->slot].hitPoints <= 0)) {
+			// A recast during the body's death sheet (audit, 2026-09-19): the refresh below filled a
+			// bar on a body ProcessCompanions was about to clear, and the cast was lost. Let the dying
+			// body go and stand a new one.
+			ReleaseCompanionBody(Monsters[inst->slot]);
+			ClearSlotDress(static_cast<size_t>(inst->slot));
+			inst->slot = -1;
+			SpawnInDungeon(*inst, target, /*full=*/true);
 		} else if (inst->slot >= 0) {
 			Monster &body = Monsters[inst->slot];
 			ApplyStats(*inst, body, /*full=*/true);

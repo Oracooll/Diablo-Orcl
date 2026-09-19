@@ -1554,7 +1554,9 @@ void TickField(Player &player, Field &field)
 	case SpellID::BonePrison:
 		if (field.clock % TicksPerSecond == 0 && field.step >= 0 && static_cast<size_t>(field.step) < MaxMonsters) {
 			Monster &held = Monsters[field.step];
-			if (Hittable(held)) {
+			// The prisoner is the monster staggered ON the prison's tile; a slot refilled after its death
+			// (a fresh spawn, a re-forming minion) is somewhere else and is not cut (audit, 2026-09-19).
+			if (Hittable(held) && held.position.tile == field.tile) {
 				BoneStrike(player, held, Rolled(Scale(r, 2, 5, 1, 2)));
 				Stagger(held, TicksPerSecond + 5);
 			}

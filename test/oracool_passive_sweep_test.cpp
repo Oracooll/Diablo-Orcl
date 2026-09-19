@@ -216,7 +216,7 @@ TEST(OracoolCensusNotes, NoSummonWhereThereIsNoGolemSlot)
 	leveltype = DTYPE_CATHEDRAL;
 	EXPECT_TRUE(LevelHasGolemSlots());
 	setlevel = true;
-	EXPECT_FALSE(LevelHasGolemSlots()) << "a set level runs InitGolems but adds no slot";
+	EXPECT_TRUE(LevelHasGolemSlots()) << "a set level's four golem bodies come from SetMapMonsters, not InitGolems (audit, 2026-09-19)";
 
 	leveltype = savedType;
 	setlevel = savedSet;

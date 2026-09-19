@@ -25,7 +25,13 @@ bool IsHeaderValid(uint32_t magicNumber);
 void LoadHotkeys();
 /** @brief Loads the "heroitems" sidecar of the given save slot - a parameter so the hero-select
  * preview can read OTHER slots without touching gSaveNumber. */
-void LoadHeroItems(Player &player, uint32_t saveNumber);
+/**
+ * @brief Loads the hero's worn, packed and belt items from the slot's "heroitems" record.
+ * @return false when the record exists but is of another item format or the wrong length - the caller decides
+ *   (the real load path stops with a message; the hero-select preview shows the hero without gear). No record
+ *   at all is a fresh hero and returns true.
+ */
+bool LoadHeroItems(Player &player, uint32_t saveNumber);
 /**
  * @brief Remove invalid inventory items from the inventory grid
  * @param player The player to remove invalid items from

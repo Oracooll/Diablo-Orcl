@@ -138,9 +138,11 @@ int ShardDurabilityBonus(const Item &item);
  * InitializeItem: capture before, restore after, and the shards survive the rebuild (decision D9's
  * permanence cuts both ways - a rebuild may not delete them either).
  */
+/** @brief The ledger's capacity; imbuement.cpp asserts it equals Item::MaxOracoolImbuements. */
+constexpr int MaxImbuementKinds = 20;
 struct ImbuementLedger {
 	uint8_t count = 0;
-	std::array<uint8_t, 20> kinds {};
+	std::array<uint8_t, MaxImbuementKinds> kinds {};
 };
 ImbuementLedger CaptureImbuements(const Item &item);
 void RestoreImbuements(Item &item, const ImbuementLedger &ledger);
