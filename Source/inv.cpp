@@ -32,7 +32,7 @@
 #include "oracool/spell_ranks.h"
 #include "oracool/hud_menu.h"
 #include "engine/palette.h" // PaletteRGB, the grey socket border as a value
-#include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo, for item slot backings
+#include "engine/render/primitive_render.hpp" // TintRectRgb, the item slot backings
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
 #include "oracool/imbuement.h"
@@ -1559,204 +1559,93 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	if (size.width <= 0 || size.height <= 0)
 		return;
 
-	// Rare, Buffed Unique, and Primal all get their own backgrounds instead of inheriting
-	// Magic's blue - every Oracool tier is still ITEM_QUALITY_MAGIC under the hood (the tier
-	// is a layer added on top, not a new _iMagical value - see GetTieredItemAffixes), so
-	// without this check they were visually indistinguishable from an ordinary blue item in
-	// every inventory/belt/stash grid, even though their name and floating info panel already
-	// call out their tier. Rare matches its own yellow name color; Buffed Unique matches the
-	// same yellow background vanilla Unique items use (user request - its name color,
-	// Whitegold, is that same family); Primal matches its own orange name color.
-	// Oracool: Rare rides the PAL8_YELLOW mini-ramp, not PAL16_YELLOW. engine/palette.h says outright
-	// that "the pale PAL16_YELLOW substitutes read as unique-gold" - which is right for Buffed Unique
-	// below, and exactly the user's complaint about Rare ("now is gold", 2026-08-16). PAL8_YELLOW is
-	// the saturated yellow the rare NAME colour comes from, so the backing and the name finally agree.
-	// Deep into the ramp. PAL16 ramps run LIGHT to DARK as the offset grows - engine/palette.h says
-	// so outright: "(dark blue): PAL16_BLUE+14, (light red): PAL16_RED+2". An earlier change to +3
-	// was made believing the opposite, so it made the backings LIGHTER when the intent was to tone
-	// them down. +10 leaves a deep tint that identifies the tier without competing with the icon.
-	constexpr uint8_t TierBackingRampOffset = 10;
-
-	// Oracool: user request (2026-08-20) - sockets outrank quality in the backing.
+	// Oracool, 2026-09-19: VANILLA'S METHOD, back. DevilutionX 1.5.5 never covered the slot: it read
+	// the slot art back from the frame and moved its grey pixels one shade deeper into the item
+	// class's colour ramp, so the stone stayed stone, tinted. That could not survive this fork's
+	// true-colour panels (the test was on palette indices, of which the 32-bit screen has none), so
+	// from 2026-08-16 the backing was an opaque plate with a two-pixel border - which said the tier
+	// loudly and hid the art. TintRectRgb is the same idea on colour values: each pixel keeps its
+	// luminance and takes the tier's hue. No border anywhere (user: "build it without borders").
 	//
-	//   "Introduce a backing for the Runeword sprites. Dark gray, non transparent backing with
-	//    green outline." / "the same dark gray as runewords but with white outline."
+	// The ladder below is the one the plate had, unchanged in ORDER: sockets outrank quality (user,
+	// 2026-08-20), ethereal comes next because it is the fact a player has to act on, then the
+	// Oracool tiers (every one of which is ITEM_QUALITY_MAGIC underneath - see
+	// GetTieredItemAffixes), then vanilla's two. A plain item gets nothing at all (user, 2026-08-16:
+	// "basic item to have no backing"); vanilla's beige for it is deliberately NOT restored.
 	//
-	// Deliberately BEFORE the tier ladder rather than folded into it: a runeword forms on whatever
-	// base was to hand, so the interesting fact about a Spirit cloak is that it is a Spirit, not
-	// that its base rolled Normal. Both states are derived - GetActiveRuneword reads the sockets,
-	// and _iSocketCount is the item's own - so neither can disagree with the item panel.
-	if (!IsInspectingPlayer() && item._iSocketCount > 0) {
-		// Deep in the grey ramp. PAL16 runs light to dark, so a high offset is the dark grey the
-		// user asked for, and it stays flat behind a busy sprite.
-		constexpr uint8_t SocketBackingInterior = PAL16_GRAY + 12;
-		constexpr int SocketBorderThickness = 2;
-		const bool isRuneword = oracool::GetActiveRuneword(item) != nullptr;
-		// Bright ends of their ramps, for the same reason the ring is bright: the border has to win
-		// against the sprite it frames.
-		// Green is the PAL8_GREEN mini-ramp this fork injected over PAL8_ORANGE - eight shades, so a
-		// low offset is its bright end. White is the top of the grey ramp, which is the whitest index
-		// the shared palette has; there is no PAL16_WHITE.
-		const uint8_t border = isRuneword ? static_cast<uint8_t>(PAL8_GREEN + 1) : static_cast<uint8_t>(PAL16_GRAY);
-		// The green as a VALUE on the 32-bit screen (2026-09-10): the palette's green ramp went back to
-		// being the fire's orange. The index above is the indexed fallback and is orange there.
-		const uint32_t borderRgb = isRuneword ? 0x64A064u : PaletteRGB[PAL16_GRAY];
-		const Rectangle socketBacking { { targetPosition.x, targetPosition.y - size.height + 1 }, size };
-		FillRect(out, socketBacking.position.x, socketBacking.position.y,
-		    socketBacking.size.width, socketBacking.size.height, SocketBackingInterior);
-		for (int i = 0; i < SocketBorderThickness; i++) {
-			const int x = socketBacking.position.x + i;
-			const int y = socketBacking.position.y + i;
-			const int w = socketBacking.size.width - 2 * i;
-			const int h = socketBacking.size.height - 2 * i;
-			if (w <= 0 || h <= 0)
-				break;
-			FillRectRgb(out, x, y, w, 1, borderRgb, border);
-			FillRectRgb(out, x, y + h - 1, w, 1, borderRgb, border);
-			FillRectRgb(out, x, y, 1, h, borderRgb, border);
-			FillRectRgb(out, x + w - 1, y, 1, h, borderRgb, border);
-		}
-		return;
-	}
+	// Three numbers to tune from a screenshot, and only these: the depth vanilla's "one shade deeper"
+	// comes out at, the darker depth the socket family wears (the user asked for a DARK grey / dark
+	// green backing for them, and dark is a depth now, not an index), and the floor - the share of
+	// the hue a black pixel still shows, so a tint on a dark well reads as colour rather than as a
+	// darker well.
+	constexpr int TintDepthPercent = 90;
+	constexpr int DarkTintDepthPercent = 60;
+	constexpr int TintFloorPercent = 30;
 
-	// Oracool: ETHEREAL items (user, 2026-09-13: "make a purple-ish backing with purple outline for
-	// ethereal items"). After the socket branch - sockets already outrank quality, and an ethereal base
-	// carrying a runeword is still first a runeword - and before the tier ladder, because ethereal is the
-	// fact about the item a player has to act on: it cannot be repaired.
-	//
-	// Values on the 32-bit screen, as the set green is: the shared palette has no purple ramp, so no index
-	// could say this. The indexed fallback is the deep and bright ends of the steel-blue ramp, the nearest
-	// the palette holds.
-	if (!IsInspectingPlayer() && item._iOracoolEthereal) {
-		constexpr uint32_t EtherealInteriorRgb = 0x3A2A52u; // deep violet - dark enough not to fight the icon
-		constexpr uint32_t EtherealBorderRgb = 0xA070E0u;   // bright purple outline
-		constexpr uint8_t EtherealInteriorIndex = PAL16_BLUE + 12;
-		constexpr uint8_t EtherealBorderIndex = PAL16_BLUE + 2;
-		constexpr int EtherealBorderThickness = 2;
-		const Rectangle etherealBacking { { targetPosition.x, targetPosition.y - size.height + 1 }, size };
-		FillRectRgb(out, etherealBacking.position.x, etherealBacking.position.y,
-		    etherealBacking.size.width, etherealBacking.size.height, EtherealInteriorRgb, EtherealInteriorIndex);
-		for (int i = 0; i < EtherealBorderThickness; i++) {
-			const int x = etherealBacking.position.x + i;
-			const int y = etherealBacking.position.y + i;
-			const int w = etherealBacking.size.width - 2 * i;
-			const int h = etherealBacking.size.height - 2 * i;
-			if (w <= 0 || h <= 0)
-				break;
-			FillRectRgb(out, x, y, w, 1, EtherealBorderRgb, EtherealBorderIndex);
-			FillRectRgb(out, x, y + h - 1, w, 1, EtherealBorderRgb, EtherealBorderIndex);
-			FillRectRgb(out, x, y, 1, h, EtherealBorderRgb, EtherealBorderIndex);
-			FillRectRgb(out, x + w - 1, y, 1, h, EtherealBorderRgb, EtherealBorderIndex);
-		}
-		return;
-	}
-
-	uint8_t colorBlock;
-	uint8_t rampOffset = TierBackingRampOffset;
-	// 0 means "no value of its own - take the colour the palette index gives". Only the Set tier
-	// needs a value, because its ramp's indexed meaning is no longer its intended colour.
-	uint32_t interiorRgb = 0;
+	// Hues from the palette's own ramps where a ramp is the colour (the light end, +2, but only the
+	// hue is used - TintRectRgb normalises it). Values where the palette has no such colour: the
+	// fork's one green (0x64A064, ColorOracoolGreen's band) and the ethereal violet, both exactly the
+	// values the old borders used, so nothing changes colour by moving from a border to a tint. The
+	// index beside each is the ramp vanilla's shift uses on an indexed surface (tests); green has no
+	// ramp there, so its fallback is the orange PAL8_GREEN names - as it was.
+	uint32_t hue;
+	uint8_t fallbackRamp;
+	int depth = TintDepthPercent;
 	if (IsInspectingPlayer()) {
-		colorBlock = PAL16_ORANGE;
+		// Vanilla: every class is orange while looking at another player's gear.
+		hue = PaletteRGB[PAL16_ORANGE + 2];
+		fallbackRamp = PAL16_ORANGE;
+	} else if (item._iSocketCount > 0) {
+		// "Dark gray ... backing" for a socketed base, green for a formed runeword (user, 2026-08-20).
+		// Dark is the depth; white as a hue is the stone's own grey, so this is the well pushed down.
+		const bool isRuneword = oracool::GetActiveRuneword(item) != nullptr;
+		hue = isRuneword ? 0x64A064u : 0xFFFFFFu;
+		fallbackRamp = isRuneword ? PAL8_GREEN : PAL16_GRAY;
+		depth = DarkTintDepthPercent;
+	} else if (item._iOracoolEthereal) {
+		// "a purple-ish backing ... for ethereal items" (user, 2026-09-13).
+		hue = 0xA070E0u;
+		fallbackRamp = PAL16_BLUE;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Rare) {
-		colorBlock = PAL8_YELLOW;
-		// The mini-ramps are EIGHT shades where the PAL16 ramps are sixteen, so the 16-ramp offset
-		// would run off the end into PAL8_ORANGE - which this fork overwrote with green. Half of it
-		// lands at the same relative depth.
-		rampOffset = TierBackingRampOffset / 2;
+		// The saturated PAL8_YELLOW the rare NAME wears, not the pale unique gold (user, 2026-08-16:
+		// "now is gold").
+		hue = PaletteRGB[PAL8_YELLOW + 1];
+		fallbackRamp = PAL8_YELLOW;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::BuffedUnique) {
-		colorBlock = PAL16_YELLOW;
+		hue = PaletteRGB[PAL16_YELLOW + 2];
+		fallbackRamp = PAL16_YELLOW;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Primal) {
-		// The beige ramp since 2026-09-07, the ramp BE-2 (the Primal font colour) lives on, so the
-		// backing and the name agree (user: "Use it game-wide where necessary"). Was PAL16_ORANGE.
-		colorBlock = PAL16_BEIGE;
+		// The beige ramp the Primal font colour (BE-2) lives on, so backing and name agree.
+		hue = PaletteRGB[PAL16_BEIGE + 2];
+		fallbackRamp = PAL16_BEIGE;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Set) {
-		// Green, because "Green is for future Set Items" (user, 2026-08-16) - which is why Primal
-		// was moved off this ramp in the first place.
-		//
-		// Drawn as a VALUE. This branch used to set PAL8_ORANGE alone and let the palette supply the
-		// colour, which worked only while the fork injected a green ramp over those eight entries.
-		// That injection came OUT on 2026-09-10 because it was breaking the dungeon fires, and
-		// palette.h says the consequence plainly: "on an indexed surface this ramp is ORANGE. The
-		// 32-bit screen draws the green as values (see the three consumers)." There were four
-		// consumers. This one was never converted, so set backings have been drawing orange ever
-		// since (user, 2026-09-12: "backing of set items to be light green, not orange as it is
-		// now") - the same failure as the grey fire damage text: a colour chosen by a NAME whose
-		// meaning moved underneath it.
-		//
-		// 0x64A064 is the fork's own green, the second entry of ColorOracoolGreen's band and the
-		// exact value the runeword border beside it already uses - so there is ONE green in the
-		// game rather than a second one invented here. Lighter than the deep shades the other tiers
-		// wear, which is what was asked for; the index below stays as the indexed-surface fallback.
-		colorBlock = PAL8_GREEN;
-		rampOffset = TierBackingRampOffset / 2;
-		interiorRgb = 0x64A064u;
+		// "Green is for future Set Items" (user, 2026-08-16) and "light green, not orange"
+		// (2026-09-12): the stone's own brightness, no shade taken off.
+		hue = 0x64A064u;
+		fallbackRamp = PAL8_GREEN;
+		depth = 100;
 	} else {
 		switch (item._iMagical) {
 		case ITEM_QUALITY_MAGIC:
-			colorBlock = PAL16_BLUE;
+			hue = PaletteRGB[PAL16_BLUE + 2];
+			fallbackRamp = PAL16_BLUE;
 			break;
 		case ITEM_QUALITY_UNIQUE:
-			colorBlock = PAL16_YELLOW;
+			hue = PaletteRGB[PAL16_YELLOW + 2];
+			fallbackRamp = PAL16_YELLOW;
 			break;
 		default:
-			// Oracool: user request (2026-08-16) - "basic item to have no backing." The beige wash
-			// every plain item used to get said nothing (there is no beige in the item colour code)
-			// and cost the grid contrast; a bare slot IS the tier now. Gold rides this branch too,
-			// which reads right - a pile of coins needs no quality halo.
+			// A bare slot IS the tier. Gold rides this branch too.
 			return;
 		}
 	}
 
-	// Oracool V1 bug postmortem: this used to recolour by palette SHIFT -
-	//     if (pix >= PAL16_GRAY) pix -= PAL16_GRAY - colorBlock - 1;
-	// which only fires on pixels already in the grey ramp (240-255). That held while the slot sat
-	// on the old stone/parchment art, whose fill lived in exactly that range. The shared theme
-	// draws slots as a half-transparent fill blended through paletteTransparencyLookup, and those
-	// results land well below 240 - so the test never passed and item backgrounds vanished
-	// entirely: magic, unique, rare and every Oracool tier all rendered as bare slot.
-	//
-	// Then it became a HALF-TRANSPARENT fill, which fixed that and introduced the graininess the
-	// user reported (2026-08-16: "It is grainy or something"). A half-transparent fill looks up
-	// every pixel as tint-blended-with-whatever-is-behind-it, so the result is only as smooth as
-	// the background is flat - and the painted panel is stone texture with cracks in it. Yellow
-	// showed it worst because the mini-ramp's neighbours are far apart, so adjacent background
-	// pixels landed on visibly different blends.
-	//
-	// OPAQUE now (user request: "not transparent to avoid backgrounds protruding through them").
-	// One flat index, so no lookup, no dependence on the panel behind it, and nothing to speckle.
-	// Subtlety comes from picking a DEEP shade instead of from transparency.
-	const Rectangle backing { { targetPosition.x, targetPosition.y - size.height + 1 }, size };
-	const uint8_t interior = static_cast<uint8_t>(colorBlock + rampOffset);
-	// Through FillRectRgb for every tier, not only the Set one: on an indexed surface it uses the
-	// index and nothing changes, and on the 32-bit screen every other tier passes the colour its own
-	// index already resolves to. So this is a no-op for them and the one place a tier can state a
-	// colour the palette cannot.
-	FillRectRgb(out, backing.position.x, backing.position.y, backing.size.width, backing.size.height,
-	    interiorRgb != 0 ? interiorRgb : PaletteRGB[interior], interior);
-
-	// A border INSIDE the backing's bounds, in the item class's own colour (user request):
-	// Magic blue, Rare yellow, Unique gold - the same hue as the interior but several shades
-	// brighter, so the class reads at a glance without the fill competing with the icon.
-	//
-	// The brighter end of the SAME ramp rather than a separate colour, because PAL16 ramps run
-	// light-to-dark: subtracting from the offset is what "brighter" means here, and clamping at the
-	// ramp's own base keeps it from wrapping into the neighbouring colour.
-	constexpr int BorderThickness = 2;
-	constexpr int BorderLift = 8;
-	const uint8_t border = static_cast<uint8_t>(colorBlock + std::max(rampOffset - BorderLift, 0));
-	for (int i = 0; i < BorderThickness; i++) {
-		const int x = backing.position.x + i;
-		const int y = backing.position.y + i;
-		const int w = backing.size.width - 2 * i;
-		const int h = backing.size.height - 2 * i;
-		if (w <= 0 || h <= 0)
-			break;
-		FillRect(out, x, y, w, 1, border);
-		FillRect(out, x, y + h - 1, w, 1, border);
-		FillRect(out, x, y, 1, h, border);
-		FillRect(out, x + w - 1, y, 1, h, border);
-	}
+	// targetPosition is the footprint's bottom-left, as every caller passes it: one rectangle per
+	// item, not vanilla's one per 28x28 cell (user, 2026-08-16: "outline the entire item, not each
+	// 28x28 square" - with a tint the only difference left is whether the gutters between cells
+	// take the colour, and one piece reads better).
+	TintRectRgb(out, targetPosition.x, targetPosition.y - size.height + 1, size.width, size.height,
+	    hue, depth, TintFloorPercent, fallbackRamp);
 }
 
 bool CanBePlacedOnBelt(const Item &item)

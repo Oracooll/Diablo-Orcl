@@ -21,6 +21,27 @@ void FillRect(const Surface &out, int x, int y, int width, int height, uint8_t c
 void FillRectRgb(const Surface &out, int x, int y, int width, int height, uint32_t rgb, uint8_t fallbackIndex);
 
 /**
+ * @brief Tint what is already in a rectangle, the way vanilla tints an item's slot.
+ *
+ * DevilutionX 1.5.5's InvDrawSlotBack covers nothing: it reads the slot art back from the frame
+ * and moves every pixel in the grey ramp one shade deeper into the item class's colour ramp, so the
+ * stone's cracks and shading survive, coloured. That test is on palette INDICES and the 32-bit screen
+ * has none, and the fork's slot wells are true-colour art with nothing in the grey ramp anyway - so
+ * this is the same idea restated for colour values: each pixel keeps its luminance and takes the
+ * hue of @p hueRgb.
+ *
+ * @param hueRgb The colour whose hue the pixels take. Only the hue matters: it is normalised so its
+ *   brightest channel is full, and the pixel's own luminance supplies the brightness.
+ * @param brightnessPercent Applied to the result. 100 keeps the stone's brightness; vanilla's "one
+ *   shade deeper" is about 90; above 100 lightens.
+ * @param floorPercent The share of the hue even a black pixel shows, 0..100, so a dark well still
+ *   reads as coloured rather than as a darker well.
+ * @param fallbackRampBase On an indexed surface (tests, golden images) vanilla's own ramp shift is
+ *   used instead, into the PAL16/PAL8 ramp that starts at this index.
+ */
+void TintRectRgb(const Surface &out, int x, int y, int width, int height, uint32_t hueRgb, int brightnessPercent, int floorPercent, uint8_t fallbackRampBase);
+
+/**
  * @brief Draw a horizontal line segment in the target buffer (left to right)
  * @param out Target buffer
  * @param from Start of the line segment

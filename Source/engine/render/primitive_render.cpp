@@ -321,6 +321,52 @@ void FillRectRgb(const Surface &out, int x, int y, int width, int height, uint32
 		std::fill_n(out.at<uint32_t>(x0, row), std::max(0, x1 - x0), rgb & 0x00FFFFFF);
 }
 
+void TintRectRgb(const Surface &out, int x, int y, int width, int height, uint32_t hueRgb, int brightnessPercent, int floorPercent, uint8_t fallbackRampBase)
+{
+	const int x0 = std::max(x, 0), y0 = std::max(y, 0);
+	const int x1 = std::min(x + width, out.w()), y1 = std::min(y + height, out.h());
+	if (x1 <= x0 || y1 <= y0)
+		return;
+
+	if (out.isIndexed()) {
+		// Vanilla's shift, verbatim: only pixels in the grey ramp (PAL16_GRAY..255) move, one shade
+		// deeper into the target ramp. Anything else is left alone, as vanilla left it.
+		for (int row = y0; row < y1; row++) {
+			uint8_t *dst = out.at(x0, row);
+			for (int col = x0; col < x1; col++, dst++) {
+				if (*dst >= PAL16_GRAY)
+					*dst = static_cast<uint8_t>(*dst - (PAL16_GRAY - fallbackRampBase - 1));
+			}
+		}
+		return;
+	}
+
+	// The hue as three channel weights out of 255, the brightest at 255: 0x64A064 (the fork's green)
+	// becomes (159, 255, 159), so a pure hue never darkens on its own - the pixel's luminance does.
+	const int hr = (hueRgb >> 16) & 0xFF, hg = (hueRgb >> 8) & 0xFF, hb = hueRgb & 0xFF;
+	const int peak = std::max({ hr, hg, hb, 1 });
+	const int wr = hr * 255 / peak, wg = hg * 255 / peak, wb = hb * 255 / peak;
+	const int floorLum = std::clamp(floorPercent, 0, 100) * 255 / 100;
+	const int lumSpan = 255 - floorLum;
+	const int brightness = std::max(brightnessPercent, 0);
+
+	for (int row = y0; row < y1; row++) {
+		uint32_t *dst = out.at<uint32_t>(x0, row);
+		for (int col = x0; col < x1; col++, dst++) {
+			const uint32_t c = *dst;
+			const int r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
+			// Rec. 601 luminance, the weights RampIndexFromLuminance already uses.
+			const int lum = (299 * r + 587 * g + 114 * b) / 1000;
+			// Lifted onto the floor, then the "shade deeper" (or lighter) applied.
+			const int level = (floorLum + lum * lumSpan / 255) * brightness / 100;
+			const int nr = std::min(wr * level / 255, 255);
+			const int ng = std::min(wg * level / 255, 255);
+			const int nb = std::min(wb * level / 255, 255);
+			*dst = (c & 0xFF000000u) | (static_cast<uint32_t>(nr) << 16) | (static_cast<uint32_t>(ng) << 8) | static_cast<uint32_t>(nb);
+		}
+	}
+}
+
 bool BlitArgb(const Surface &out, const uint32_t *pixels, int srcPitch, SDL_Rect srcRect, Point position, int alphaPercent)
 {
 	if (out.isIndexed())

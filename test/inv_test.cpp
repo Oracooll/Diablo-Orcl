@@ -60,16 +60,19 @@ void clear_inventory()
 	MyPlayer->_pNumInv = 0;
 }
 
-// Ethereal items wear a purple backing and outline (user, 2026-09-13: "make a purple-ish backing with purple
-// outline for ethereal items"). Drawn onto an 8-bit surface, so what lands is the indexed fallback of the
-// values the 32-bit screen gets - steel blue standing in for a purple the palette does not hold.
-TEST_F(InvTest, EtherealItemsWearAPurpleBackingAndOutline)
+// Ethereal items wear a purple backing (user, 2026-09-13). Since v1.12.048 a backing is vanilla's TINT of the
+// slot art, not a plate, and has no border: on the 32-bit screen each pixel keeps its luminance and takes the
+// tier's hue; on an 8-bit surface - this test's - TintRectRgb uses vanilla's own shift, so a pixel in the grey
+// ramp moves ONE shade deeper into the fallback ramp and every other pixel is left alone. Steel blue stands in
+// for a purple the palette does not hold.
+TEST_F(InvTest, EtherealItemsWearAPurpleTintAndNoBorder)
 {
 	const Size size { 56, 84 };
-	// Returns { the outline's corner pixel, the fill's centre pixel }.
-	const auto drawn = [&size](const Item &item) {
+	constexpr uint8_t StoneShade = 5; // the slot art's grey, PAL16_GRAY + 5, before any tint
+	// Returns { the corner pixel, the centre pixel } after drawing over a surface filled with @p fill.
+	const auto drawn = [&size](const Item &item, uint8_t fill) {
 		OwnedSurface surf(size.width, size.height);
-		SDL_FillRect(surf.surface, nullptr, 0);
+		SDL_FillRect(surf.surface, nullptr, fill);
 		InvDrawSlotBack(surf, { 0, size.height - 1 }, size, item);
 		return std::pair<uint8_t, uint8_t> { surf[Point { 0, 0 }], surf[Point { size.width / 2, size.height / 2 }] };
 	};
@@ -78,20 +81,23 @@ TEST_F(InvTest, EtherealItemsWearAPurpleBackingAndOutline)
 	ethereal._itype = ItemType::Helm;
 	ethereal._iMagical = ITEM_QUALITY_MAGIC;
 	ethereal._iOracoolEthereal = true;
-	const auto [edge, middle] = drawn(ethereal);
-	EXPECT_EQ(middle, PAL16_BLUE + 12) << "an ethereal item's fill";
-	EXPECT_EQ(edge, PAL16_BLUE + 2) << "an ethereal item's outline";
+	const auto [edge, middle] = drawn(ethereal, PAL16_GRAY + StoneShade);
+	EXPECT_EQ(middle, PAL16_BLUE + StoneShade + 1) << "an ethereal item's tint: the stone's shade, one deeper, in the fallback ramp";
+	EXPECT_EQ(edge, middle) << "no border: the corner is tinted exactly as the centre";
 
-	// Sockets still outrank it: an ethereal base with sockets keeps the dark grey socket backing.
+	// A pixel outside the grey ramp is not the slot art and is left alone, as vanilla left it.
+	EXPECT_EQ(drawn(ethereal, 100).second, 100) << "a non-grey pixel was recoloured";
+
+	// Sockets still outrank it: an ethereal base with sockets wears the socket tint (the grey ramp itself).
 	Item socketed = ethereal;
 	socketed._iSocketCount = 2;
-	EXPECT_EQ(drawn(socketed).second, PAL16_GRAY + 12) << "a socketed ethereal item should keep the socket backing";
+	EXPECT_EQ(drawn(socketed, PAL16_GRAY + StoneShade).second, PAL16_GRAY + StoneShade + 1) << "a socketed ethereal item should keep the socket backing";
 
 	// And a plain, non-ethereal item still draws no backing at all.
 	Item plain {};
 	plain._itype = ItemType::Helm;
 	plain._iMagical = ITEM_QUALITY_NORMAL;
-	EXPECT_EQ(drawn(plain).second, 0) << "a plain item gained a backing";
+	EXPECT_EQ(drawn(plain, PAL16_GRAY + StoneShade).second, PAL16_GRAY + StoneShade) << "a plain item gained a backing";
 }
 
 // Test that the scroll is used in the inventory in correct conditions
