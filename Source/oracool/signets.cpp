@@ -7,7 +7,7 @@
 #include "multi.h"
 #include "oracool/event_log.h"
 #include "oracool/item_sets.h"
-#include "oracool/mystic_orbs.h"
+#include "oracool/imbuement.h"
 #include "inv.h"
 #include "player.h"
 #include "utils/language.h"
@@ -53,7 +53,8 @@ const char *MilestoneName(Milestone milestone)
 	case Milestone::CompleteRuneword:
 		return N_("Complete a runeword");
 	case Milestone::FillOrbCap:
-		return N_("Fill an item with Mystic Orbs");
+		// The enum value is a saved mask bit and keeps its name; the deed changed on 2026-09-19.
+		return N_("Imbue an item to its limit");
 	case Milestone::WearSetBonus:
 		return N_("Wear a set bonus");
 	}
@@ -101,9 +102,9 @@ void CheckPassiveMilestones(Player &player)
 	if (AnySetBonusActive(player))
 		ClaimMilestone(player, Milestone::WearSetBonus);
 
-	// An item at its orb cap, anywhere the player is carrying or wearing one.
+	// An item at its imbuement cap, anywhere the player is carrying or wearing one.
 	const auto atCap = [](const Item &item) {
-		return !item.isEmpty() && item._iOracoolOrbCount >= MaxOrbsPerItem;
+		return !item.isEmpty() && item._iOracoolImbueCount >= Item::MaxOracoolImbuements;
 	};
 	for (const Item &worn : player.InvBody) {
 		if (atCap(worn)) {

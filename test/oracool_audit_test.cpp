@@ -93,7 +93,7 @@
 #include "oracool/monster_variants.h"
 #include "oracool/treasure_class.h"
 #include "oracool/endgame_boss.h"
-#include "oracool/mystic_orbs.h"
+#include "oracool/imbuement.h"
 #include "oracool/signets.h"
 #include "oracool/charms.h"
 #include "oracool/area_level.h"
@@ -6462,7 +6462,7 @@ TEST(OracoolAudit, TreasureClassesGiveEveryZoneSomethingOfItsOwn)
 		// Mystic Orbs made a fifth family - so FamilyForRoll returned index 4, the loop wrote one
 		// past the end of a stack array, and the test did not fail, it HUNG. Exactly the trap the
 		// socketable drop's own candidates[] had, one file over.
-		constexpr int FamilyCount = static_cast<int>(SocketableFamily::Orb) + 1;
+		constexpr int FamilyCount = static_cast<int>(SocketableFamily::Shard) + 1;
 		int counts[FamilyCount] = {};
 		for (int roll = 0; roll < total; roll++) {
 			const int family = static_cast<int>(FamilyForRoll(tc, roll));
@@ -6475,7 +6475,7 @@ TEST(OracoolAudit, TreasureClassesGiveEveryZoneSomethingOfItsOwn)
 		EXPECT_EQ(counts[1], tc.runeWeight) << tc.name << ": the rune share is not its weight";
 		EXPECT_EQ(counts[2], tc.jewelWeight) << tc.name << ": the jewel share is not its weight";
 		EXPECT_EQ(counts[3], tc.charmWeight) << tc.name << ": the charm share is not its weight";
-		EXPECT_EQ(counts[4], tc.orbWeight) << tc.name << ": the orb share is not its weight";
+		EXPECT_EQ(counts[4], tc.shardWeight) << tc.name << ": the orb share is not its weight";
 
 		// A MAJORITY, not a tilt. A zone whose best family is 30% of the draw is a zone nobody can
 		// feel the difference of, which is the failure this whole system exists to avoid.
@@ -7359,7 +7359,7 @@ TEST(OracoolAudit, ARebuildKeepsEtherealAndNameAndStillRefusesSocketsAndOrbs)
 		EXPECT_STRNE(grid[0]._iIName, baseName.c_str()) << "a new rare kept its plain base name instead of taking one";
 	}
 
-	// ---- A SOCKETED item and an ORBED item are refused, and refusing changes nothing ----
+	// ---- A SOCKETED item is refused, and refusing changes nothing ----
 	const auto expectRefused = [&](const std::function<void(devilution::Item &)> &invest, const char *what) {
 		devilution::Item grid[LevskiGridSlots];
 		makeGear(grid[0]);
@@ -7379,21 +7379,36 @@ TEST(OracoolAudit, ARebuildKeepsEtherealAndNameAndStillRefusesSocketsAndOrbs)
 		item._iSocketed[0] = static_cast<uint16_t>(IDI_ORACOOL_GEM_RUBY_PERFECT);
 		item._iSocketed[1] = devilution::Item::EmptySocket;
 	}, "a socketed item");
-	expectRefused([](devilution::Item &item) { item._iOracoolOrbCount = 1; }, "an item carrying a Mystic Orb");
 
-	// ---- REFORGE and RECAST find their targets without IsTierRecipeGear, and destroyed orbs until
-	// GridMaterialsFor checked every rebuild itself. Each fixture is proven craftable without the orb,
-	// so the refusal cannot be passing for some other reason. ----
+	// ---- An IMBUED item is NOT refused any more (2026-09-19), and the rebuild keeps its ledger ----
+	//
+	// The Mystic Orbs were refused here because a count could not be put back. A shard is a ledger,
+	// captured before the rebuild and restored after it in TransmuteLevskiGridWith. Reforge and Recast
+	// are the two recipes that found their targets without IsTierRecipeGear and once destroyed orbs;
+	// both are asserted to keep the ledger byte for byte, Tempering's durability included.
+	devilution::Player &player = Players[0];
 	{
 		devilution::Item grid[LevskiGridSlots];
 		makeGear(grid[0]);
 		grid[0]._iMagical = ITEM_QUALITY_MAGIC;
 		grid[0]._iOracoolTier = OracoolItemTier::Rare;
-		grid[0]._iOracoolOrbCount = 1;
+		devilution::Item strength;
+		InitializeItem(strength, IDI_ORACOOL_SHARD_STRENGTH);
+		devilution::Item tempering;
+		InitializeItem(tempering, IDI_ORACOOL_SHARD_TEMPERING);
+		ASSERT_TRUE(TryImbue(player, grid[0], strength));
+		ASSERT_TRUE(TryImbue(player, grid[0], tempering));
 		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_UNIQUE_ENCRUSTMENTS, 3);
-		EXPECT_FALSE(CanCraftFromLevskiGrid(grid, 5)) << "Reforge is offered on an item carrying a Mystic Orb";
-		grid[0]._iOracoolOrbCount = 0;
-		EXPECT_TRUE(CanCraftFromLevskiGrid(grid, 5)) << "the Reforge fixture is not craftable at all - the refusal above proves nothing";
+		EXPECT_TRUE(CanCraftFromLevskiGrid(grid, 5)) << "Reforge refuses an imbued item";
+		ASSERT_FALSE(TransmuteLevskiGridWith(grid, 5).empty()) << "Reforge did not run on an imbued item";
+		EXPECT_EQ(grid[0]._iOracoolImbueCount, 2) << "Reforge lost the shard ledger";
+		EXPECT_EQ(ShardCountOfKind(grid[0], ShardKind::Strength), 1);
+		EXPECT_EQ(ShardCountOfKind(grid[0], ShardKind::Tempering), 1);
+		// The reroll re-derives the base durability, so the number itself may move; what must hold
+		// is that Tempering's ten sit on top of whatever base came out - once, not twice, not never.
+		devilution::Item stripped = grid[0];
+		StripImbuements(stripped);
+		EXPECT_EQ(grid[0]._iMaxDur - stripped._iMaxDur, 10) << "Reforge lost or doubled Tempering's durability";
 	}
 	{
 		devilution::Item grid[LevskiGridSlots];
@@ -7401,11 +7416,37 @@ TEST(OracoolAudit, ARebuildKeepsEtherealAndNameAndStillRefusesSocketsAndOrbs)
 		ASSERT_NE(helm, nullptr);
 		InitializeItem(grid[0], static_cast<_item_indexes>(BaseItemForSetPiece(*helm)));
 		MakeSetItem(grid[0], *helm);
-		grid[0]._iOracoolOrbCount = 1;
+		devilution::Item warding;
+		InitializeItem(warding, IDI_ORACOOL_SHARD_WARDING);
+		ASSERT_TRUE(TryImbue(player, grid[0], warding));
 		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS, 3);
-		EXPECT_FALSE(CanCraftFromLevskiGrid(grid, 7)) << "Recast is offered on an item carrying a Mystic Orb";
-		grid[0]._iOracoolOrbCount = 0;
-		EXPECT_TRUE(CanCraftFromLevskiGrid(grid, 7)) << "the Recast fixture is not craftable at all - the refusal above proves nothing";
+		EXPECT_TRUE(CanCraftFromLevskiGrid(grid, 7)) << "Recast refuses an imbued set piece";
+		ASSERT_FALSE(TransmuteLevskiGridWith(grid, 7).empty()) << "Recast did not run on an imbued set piece";
+		EXPECT_EQ(ShardCountOfKind(grid[0], ShardKind::Warding), 1) << "Recast lost the shard ledger";
+	}
+
+	// ---- CLEANSE (recipe 18): the one way out, and nothing comes back ----
+	{
+		devilution::Item grid[LevskiGridSlots];
+		makeGear(grid[0]);
+		const int baseMaxDur = grid[0]._iMaxDur;
+		devilution::Item tempering;
+		InitializeItem(tempering, IDI_ORACOOL_SHARD_TEMPERING);
+		devilution::Item fury;
+		InitializeItem(fury, IDI_ORACOOL_SHARD_FURY);
+		ASSERT_TRUE(TryImbue(player, grid[0], tempering));
+		ASSERT_TRUE(TryImbue(player, grid[0], fury));
+		EXPECT_GT(grid[0]._iMaxDur, baseMaxDur) << "Tempering raised nothing";
+		EXPECT_TRUE(CanCraftFromLevskiGrid(grid, 18)) << "Cleanse is not offered on an imbued item";
+		ASSERT_FALSE(TransmuteLevskiGridWith(grid, 18).empty()) << "Cleanse did not run";
+		EXPECT_EQ(grid[0]._iOracoolImbueCount, 0) << "Cleanse left shards on the item";
+		EXPECT_EQ(grid[0]._iMaxDur, baseMaxDur) << "Cleanse left Tempering's durability behind";
+		int occupied = 0;
+		for (const devilution::Item &slot : grid)
+			if (!slot.isEmpty())
+				occupied++;
+		EXPECT_EQ(occupied, 1) << "Cleanse gave something back - decision D9 says it returns none";
+		EXPECT_FALSE(CanCraftFromLevskiGrid(grid, 18)) << "Cleanse is offered on an item with no shards";
 	}
 }
 
@@ -7473,7 +7514,7 @@ TEST(OracoolAudit, ASelectedRecipeRunsOrNothingDoes)
  * of the monster's. A player decision has nowhere to be recomputed from, so it cost a byte and a
  * format bump. That makes the round trip below the load-bearing test of the whole phase.
  */
-TEST(OracoolAudit, MysticOrbsAreCappedPerItemAndSpendThemselves)
+TEST(OracoolAudit, ImbuementShardsAreCappedPerItemAndRecorded)
 {
 	using namespace devilution::oracool;
 
@@ -7481,85 +7522,141 @@ TEST(OracoolAudit, MysticOrbsAreCappedPerItemAndSpendThemselves)
 	MyPlayer = &Players[0];
 	devilution::Player &player = Players[0];
 
-	// Every orb is a real item, has a power that is not INVALID, and has a description line.
+	// Every shard is a real item with a kind, a cursor of its own and a description line.
 	int seen = 0;
 	std::set<int> cursors;
 	std::set<std::string> lines;
+	std::set<int> kinds;
 	for (int i = IDI_GOLD; i <= IDI_LAST; i++) {
-		if (!IsOracoolOrbIdx(i))
+		if (!IsOracoolShardIdx(i))
 			continue;
 		seen++;
 		const ItemData &data = AllItemsList[i];
 		EXPECT_TRUE(cursors.insert(data.iCurs).second) << data.iName << " shares a cursor";
 		EXPECT_LE(data.iCurs, ICURS_ORACOOL_LAST) << data.iName << " points past the icon strip";
-		EXPECT_NE(MysticOrbPower(i).type, IPL_INVALID) << data.iName << " grants nothing";
-		// param1 == param2, or the orb ROLLS - and a rolled orb is an affix wearing another name.
-		EXPECT_EQ(MysticOrbPower(i).param1, MysticOrbPower(i).param2)
-		    << data.iName << " rolls a range instead of granting a fixed value";
-		const std::string line = MysticOrbLine(i);
+		const ShardDefinition *def = FindShardByItem(i);
+		ASSERT_NE(def, nullptr) << data.iName << " has no kind";
+		EXPECT_TRUE(kinds.insert(static_cast<int>(def->kind)).second) << data.iName << " shares a kind";
+		EXPECT_EQ(ShardDef(def->kind).itemIndex, i) << data.iName << ": the kind table points at another item";
+		const std::string line = ShardLine(i);
 		EXPECT_FALSE(line.empty()) << data.iName << " has no description line";
-		EXPECT_TRUE(lines.insert(line).second) << "two orbs describe themselves identically";
+		EXPECT_TRUE(lines.insert(line).second) << "two shards describe themselves identically";
 		// Excluded from the seeded droppable pool, like every Oracool family - that pool is save
 		// format, and UnPackItem replays a seed through it to recover an index.
 		EXPECT_FALSE(IsOracoolGemIdx(i) || IsOracoolRuneIdx(i) || IsOracoolJewelIdx(i)
 		    || IsOracoolSalvageIdx(i) || IsOracoolCharmIdx(i))
-		    << data.iName << " reads as another family as well as an orb";
+		    << data.iName << " reads as another family as well as a shard";
+		// Every kind drops somewhere: the band is a rung of the ladder, never past Hell/Hell.
+		EXPECT_GE(data.iMinMLvl, 1) << data.iName << " never drops";
+		EXPECT_LE(data.iMinMLvl, 17) << data.iName << " starts past the deep band";
 	}
-	EXPECT_EQ(seen, 8) << "IsOracoolOrbIdx does not recognise exactly the eight orbs";
+	EXPECT_EQ(seen, ShardKindCount) << "IsOracoolShardIdx does not recognise exactly the twenty-four shards";
+	EXPECT_EQ(ShardKindCount, 24);
 
 	// ---- the CAP, which is the whole mechanism ----
 	devilution::Item helm;
 	InitializeItem(helm, IDI_ORACOOL_HELM);
-	devilution::Item orb;
-	InitializeItem(orb, IDI_ORACOOL_ORB_MIGHT);
+	devilution::Item strength;
+	InitializeItem(strength, IDI_ORACOOL_SHARD_STRENGTH);
 
-	ASSERT_TRUE(CanReceiveMysticOrb(helm)) << "a plain helm cannot take an orb";
+	ASSERT_TRUE(CanReceiveShard(helm)) << "a plain helm cannot take a shard";
 	const int baseStr = helm._iPLStr;
-	for (int i = 0; i < MaxOrbsPerItem; i++) {
-		EXPECT_TRUE(TryApplyMysticOrb(player, helm, orb)) << "orb " << i << " was refused early";
-		EXPECT_EQ(helm._iOracoolOrbCount, i + 1);
+	for (int i = 0; i < devilution::Item::MaxOracoolImbuements; i++) {
+		EXPECT_TRUE(TryImbue(player, helm, strength)) << "shard " << i << " was refused early";
+		EXPECT_EQ(helm._iOracoolImbueCount, i + 1);
 	}
-	EXPECT_GT(helm._iPLStr, baseStr) << "six Orbs of Might granted no strength at all";
+	// RECORDED, not baked: the item's own stat field is untouched; the sheet reads the ledger.
+	EXPECT_EQ(helm._iPLStr, baseStr) << "a shard wrote into the item's stat field";
+	EXPECT_EQ(ShardCountOfKind(helm, ShardKind::Strength), devilution::Item::MaxOracoolImbuements);
 
-	// The seventh is refused, and the item says so by no longer accepting.
-	EXPECT_FALSE(CanReceiveMysticOrb(helm)) << "a full item still offers room";
-	const int strAtCap = helm._iPLStr;
-	EXPECT_FALSE(TryApplyMysticOrb(player, helm, orb)) << "the cap was exceeded";
-	EXPECT_EQ(helm._iOracoolOrbCount, MaxOrbsPerItem) << "a refused orb still counted";
-	EXPECT_EQ(helm._iPLStr, strAtCap) << "a refused orb still granted its stat";
+	// The twenty-first is refused, and the item says so by no longer accepting.
+	EXPECT_FALSE(CanReceiveShard(helm)) << "a full item still offers room";
+	EXPECT_FALSE(TryImbue(player, helm, strength)) << "the cap was exceeded";
+	EXPECT_EQ(helm._iOracoolImbueCount, devilution::Item::MaxOracoolImbuements) << "a refused shard still counted";
 
-	// The cap counts ORBS, not stat sources: mixing kinds does not buy more room. That is the
-	// difference between a decision and an accumulator, and it is one `++` away from being wrong.
+	// The cap counts SHARDS, not kinds: mixing kinds does not buy more room.
 	devilution::Item mixed;
 	InitializeItem(mixed, IDI_ORACOOL_HELM);
-	devilution::Item vigour;
-	InitializeItem(vigour, IDI_ORACOOL_ORB_VIGOUR);
-	for (int i = 0; i < MaxOrbsPerItem; i++)
-		ASSERT_TRUE(TryApplyMysticOrb(player, mixed, (i % 2 == 0) ? orb : vigour));
-	EXPECT_FALSE(TryApplyMysticOrb(player, mixed, vigour))
-	    << "a different KIND of orb found room past the cap - the cap is per orb type, not per item";
+	devilution::Item vitality;
+	InitializeItem(vitality, IDI_ORACOOL_SHARD_VITALITY);
+	for (int i = 0; i < devilution::Item::MaxOracoolImbuements; i++)
+		ASSERT_TRUE(TryImbue(player, mixed, (i % 2 == 0) ? strength : vitality));
+	EXPECT_FALSE(TryImbue(player, mixed, vitality))
+	    << "a different KIND of shard found room past the cap - the cap is per kind, not per item";
+
+	// ---- the per-kind limits (decision D3) ----
+	devilution::Item refined;
+	InitializeItem(refined, IDI_ORACOOL_HELM);
+	devilution::Item refinement;
+	InitializeItem(refinement, IDI_ORACOOL_SHARD_REFINEMENT);
+	for (int i = 0; i < 10; i++)
+		ASSERT_TRUE(TryImbue(player, refined, refinement)) << "Refinement " << i << " refused before its limit";
+	EXPECT_FALSE(TryImbue(player, refined, refinement)) << "an eleventh Refinement was taken";
+	EXPECT_TRUE(CanReceiveShard(refined)) << "a kind at its limit closed the whole item";
+	EXPECT_TRUE(TryImbue(player, refined, strength)) << "another kind was refused on an item with room";
+
+	devilution::Item tempered;
+	InitializeItem(tempered, IDI_ORACOOL_HELM);
+	devilution::Item tempering;
+	InitializeItem(tempering, IDI_ORACOOL_SHARD_TEMPERING);
+	const int baseMaxDur = tempered._iMaxDur;
+	ASSERT_TRUE(TryImbue(player, tempered, tempering));
+	EXPECT_EQ(tempered._iMaxDur, baseMaxDur + 10) << "Tempering did not raise the maximum durability";
+	EXPECT_EQ(ShardDurabilityBonus(tempered), 10);
+	devilution::Item everlasting;
+	InitializeItem(everlasting, IDI_ORACOOL_HELM);
+	everlasting._iMaxDur = DUR_INDESTRUCTIBLE;
+	EXPECT_FALSE(CanReceiveShardKind(everlasting, ShardKind::Tempering)) << "Tempering was offered to an indestructible item";
+	EXPECT_TRUE(CanReceiveShardKind(everlasting, ShardKind::Strength)) << "an indestructible item refuses every shard";
+
+	devilution::Item eased;
+	InitializeItem(eased, IDI_ORACOOL_HELM);
+	eased._iMinStr = 7;
+	eased._iMinMag = 0;
+	eased._iMinDex = 0;
+	devilution::Item ease;
+	InitializeItem(ease, IDI_ORACOOL_SHARD_EASE);
+	ASSERT_TRUE(TryImbue(player, eased, ease));
+	EXPECT_EQ(EffectiveRequirement(eased, eased._iMinStr), 4) << "one Ease did not take three points off";
+	ASSERT_TRUE(TryImbue(player, eased, ease));
+	ASSERT_TRUE(TryImbue(player, eased, ease));
+	EXPECT_EQ(EffectiveRequirement(eased, eased._iMinStr), 0) << "Ease stopped above zero";
+	EXPECT_FALSE(CanReceiveShardKind(eased, ShardKind::Ease)) << "Ease was offered with nothing left to take";
+	devilution::Item unrequired;
+	InitializeItem(unrequired, IDI_ORACOOL_HELM);
+	unrequired._iMinStr = 0;
+	unrequired._iMinMag = 0;
+	unrequired._iMinDex = 0;
+	EXPECT_FALSE(CanReceiveShardKind(unrequired, ShardKind::Ease)) << "Ease was offered to an item with no requirements";
 
 	// ---- what declines ----
-	devilution::Item rune;
-	InitializeItem(rune, IDI_ORACOOL_GEM_RUBY_CHIPPED);
-	EXPECT_FALSE(CanReceiveMysticOrb(rune)) << "a gem accepts orbs";
-	devilution::Item anotherOrb;
-	InitializeItem(anotherOrb, IDI_ORACOOL_ORB_FURY);
-	EXPECT_FALSE(CanReceiveMysticOrb(anotherOrb)) << "an orb accepts orbs";
+	devilution::Item gem;
+	InitializeItem(gem, IDI_ORACOOL_GEM_RUBY_CHIPPED);
+	EXPECT_FALSE(CanReceiveShard(gem)) << "a gem accepts shards";
+	devilution::Item anotherShard;
+	InitializeItem(anotherShard, IDI_ORACOOL_SHARD_FURY);
+	EXPECT_FALSE(CanReceiveShard(anotherShard)) << "a shard accepts shards";
 	devilution::Item potion;
 	InitializeItem(potion, IDI_HEAL);
-	EXPECT_FALSE(CanReceiveMysticOrb(potion)) << "a potion accepts orbs";
+	EXPECT_FALSE(CanReceiveShard(potion)) << "a potion accepts shards";
 
-	// And a non-orb held item is not absorbed by anything.
+	// And a non-shard held item is not recorded by anything.
 	devilution::Item target;
 	InitializeItem(target, IDI_ORACOOL_HELM);
-	EXPECT_FALSE(TryApplyMysticOrb(player, target, rune)) << "a gem was absorbed as an orb";
-	EXPECT_EQ(target._iOracoolOrbCount, 0);
+	EXPECT_FALSE(TryImbue(player, target, gem)) << "a gem was recorded as a shard";
+	EXPECT_EQ(target._iOracoolImbueCount, 0);
 
-	// ---- the description line, which is how a player learns the cap before spending ----
-	EXPECT_FALSE(MysticOrbCountLine(target).empty()) << "an empty item shows no orb line";
-	EXPECT_FALSE(MysticOrbCountLine(helm).empty()) << "a FULL item stops showing its orb line";
-	EXPECT_TRUE(MysticOrbCountLine(rune).empty()) << "a gem shows an orb line";
+	// ---- the description lines, which are how a player learns the cap before spending ----
+	EXPECT_FALSE(ImbueCountLine(target).empty()) << "an empty item shows no imbue line";
+	EXPECT_FALSE(ImbueCountLine(helm).empty()) << "a FULL item stops showing its imbue line";
+	EXPECT_TRUE(ImbueCountLine(gem).empty()) << "a gem shows an imbue line";
+	EXPECT_TRUE(ImbueBreakdownLine(target).empty()) << "an empty ledger prints a breakdown";
+	EXPECT_NE(ImbueBreakdownLine(mixed).find("x10"), std::string::npos) << "the breakdown does not count the kinds";
+
+	// ---- the strip, which takes Tempering's durability back with it ----
+	StripImbuements(tempered);
+	EXPECT_EQ(tempered._iOracoolImbueCount, 0);
+	EXPECT_EQ(tempered._iMaxDur, baseMaxDur) << "the strip left Tempering's durability behind";
 }
 
 /**
@@ -7570,7 +7667,7 @@ TEST(OracoolAudit, MysticOrbsAreCappedPerItemAndSpendThemselves)
  * written but not read - or read at the wrong offset - is the failure mode that byte-shifts every
  * item after it. OracoolItemFormatVersion moved 8 -> 9 for exactly this.
  */
-TEST(OracoolAudit, TheOrbCountAndMagicFindSurviveARoundTrip)
+TEST(OracoolAudit, TheShardLedgerReachesTheSheet)
 {
 	using namespace devilution::oracool;
 
@@ -7581,34 +7678,72 @@ TEST(OracoolAudit, TheOrbCountAndMagicFindSurviveARoundTrip)
 	devilution::Item original;
 	InitializeItem(original, IDI_ORACOOL_HELM);
 	devilution::Item fortune;
-	InitializeItem(fortune, IDI_ORACOOL_ORB_FORTUNE);
-	ASSERT_TRUE(TryApplyMysticOrb(player, original, fortune));
-	ASSERT_TRUE(TryApplyMysticOrb(player, original, fortune));
-	ASSERT_EQ(original._iOracoolOrbCount, 2);
-	// IPL_MAGICFIND is new in the same version - magic find had been an ItemBonusTotals figure that
-	// only a CHARM could contribute to, so no item, affix, set rung or orb could grant it.
-	ASSERT_GT(original._iPLMagicFind, 0) << "Orb of Fortune granted no magic find";
+	InitializeItem(fortune, IDI_ORACOOL_SHARD_FORTUNE);
+	ASSERT_TRUE(TryImbue(player, original, fortune));
+	ASSERT_TRUE(TryImbue(player, original, fortune));
+	ASSERT_EQ(original._iOracoolImbueCount, 2);
+	// Recorded, not baked: the item's own magic find is untouched.
+	EXPECT_EQ(original._iPLMagicFind, 0) << "a Shard of Fortune wrote into the item's field";
 
 	// The SAVE round trip is not reachable from here - SaveItem/LoadItemData are file-local to
 	// loadsave.cpp, and PackItem is the network path, which carries no extension record at all. It
-	// is covered instead by Writehero.pfile_write_hero, whose golden output must move exactly once
-	// at this format bump and never again for this reason.
+	// is covered instead by Writehero.pfile_write_hero, whose golden output moved once at format 11.
 	//
-	// What IS asserted here is the half a round-trip test would not catch anyway: that the stat
-	// reaches the player. A field can round-trip perfectly and still be read by nothing.
-
-	// The equipment provider is what actually delivers an orb's stat to the player, so it is
-	// asserted through the totals rather than by reading the field straight back - the field being
-	// set proves nothing about whether anything consumes it.
-	// _iStatFlag is "the wearer meets this item's requirements", and it is set by CalcPlrInv rather
-	// than by InitializeItem - AddItem returns on its first line without it, so a fixture that
-	// omitted it would report a magic find of zero and read as a failure of the orb rather than of
-	// the fixture. It did, on the first run of this test.
+	// What IS asserted here is the half a round-trip test would not catch anyway: that the ledger
+	// reaches the sheet. A field can round-trip perfectly and still be read by nothing.
+	//
+	// _iStatFlag is "the wearer meets this item's requirements", set by CalcPlrInv rather than by
+	// InitializeItem - the provider returns on its first line without it.
 	original._iStatFlag = true;
 	ItemBonusTotals totals = {};
-	totals.AddItem(original);
-	EXPECT_GT(totals.magicFind, 0)
-	    << "an orbed item's magic find never reaches ItemBonusTotals - the stat is written and unread";
+	ApplyImbuementsToTotals(original, totals);
+	EXPECT_EQ(totals.magicFind, 4) << "two Shards of Fortune are not +4% magic find on the sheet";
+
+	// Twenty Shards of Strength are exactly +20, and nothing at all while the item is unusable.
+	devilution::Item sword;
+	InitializeItem(sword, IDI_ORACOOL_HELM);
+	devilution::Item strength;
+	InitializeItem(strength, IDI_ORACOOL_SHARD_STRENGTH);
+	for (int i = 0; i < devilution::Item::MaxOracoolImbuements; i++)
+		ASSERT_TRUE(TryImbue(player, sword, strength));
+	ItemBonusTotals unworn = {};
+	ApplyImbuementsToTotals(sword, unworn);
+	EXPECT_EQ(unworn.strength, 0) << "an item the wearer cannot use still imbues";
+	sword._iStatFlag = true;
+	ItemBonusTotals worn = {};
+	ApplyImbuementsToTotals(sword, worn);
+	EXPECT_EQ(worn.strength, 20) << "twenty Shards of Strength are not +20";
+
+	// Refinement scales the item's OWN affix totals - +3% per shard - and leaves the base alone.
+	devilution::Item refined;
+	InitializeItem(refined, IDI_ORACOOL_HELM);
+	refined._iStatFlag = true;
+	refined._iIdentified = true;
+	refined._iPLStr = 50;
+	refined._iPLFR = 40;
+	const int baseArmor = refined._iAC;
+	devilution::Item refinement;
+	InitializeItem(refinement, IDI_ORACOOL_SHARD_REFINEMENT);
+	for (int i = 0; i < 10; i++)
+		ASSERT_TRUE(TryImbue(player, refined, refinement));
+	ItemBonusTotals bonus = {};
+	ApplyImbuementsToTotals(refined, bonus);
+	EXPECT_EQ(bonus.strength, 15) << "ten Refinements are not +30% of +50 Strength";
+	EXPECT_EQ(bonus.fireResist, 12) << "ten Refinements are not +30% of +40 fire resistance";
+	EXPECT_EQ(bonus.armor, 0) << "Refinement scaled the BASE armour";
+	EXPECT_EQ(refined._iAC, baseArmor);
+	EXPECT_EQ(refined._iPLStr, 50) << "Refinement wrote into the item";
+
+	// Life and mana ride in 64ths, the same fixed point IPL_LIFE and IPL_MANA use.
+	devilution::Item vital;
+	InitializeItem(vital, IDI_ORACOOL_HELM);
+	vital._iStatFlag = true;
+	devilution::Item blood;
+	InitializeItem(blood, IDI_ORACOOL_SHARD_BLOOD);
+	ASSERT_TRUE(TryImbue(player, vital, blood));
+	ItemBonusTotals life = {};
+	ApplyImbuementsToTotals(vital, life);
+	EXPECT_EQ(life.hitPoints, 5 << 6) << "a Shard of Blood is not +5 life in the sheet's own units";
 }
 
 /**
@@ -7756,22 +7891,22 @@ TEST(OracoolAudit, TheSignetIsAUsableItemThatChampionsDrop)
 
 	// It is not mistaken for any other family, which is what keeps the pool exclusion honest - that
 	// exclusion is one OR-chain of hand-written ranges.
-	EXPECT_FALSE(IsOracoolOrbIdx(IDI_ORACOOL_SIGNET_LEARNING));
+	EXPECT_FALSE(IsOracoolShardIdx(IDI_ORACOOL_SIGNET_LEARNING));
 	EXPECT_FALSE(IsOracoolGemIdx(IDI_ORACOOL_SIGNET_LEARNING));
 	EXPECT_FALSE(IsOracoolRuneIdx(IDI_ORACOOL_SIGNET_LEARNING));
 	EXPECT_FALSE(IsOracoolJewelIdx(IDI_ORACOOL_SIGNET_LEARNING));
 	EXPECT_FALSE(IsOracoolSalvageIdx(IDI_ORACOOL_SIGNET_LEARNING));
 	EXPECT_FALSE(IsOracoolCharmIdx(IDI_ORACOOL_SIGNET_LEARNING));
 
-	// A signet is NOT a socketable - it must never be accepted into a socket or absorbed as an orb.
+	// A signet is NOT a socketable - it must never be accepted into a socket or recorded as a shard.
 	devilution::Item signet;
 	InitializeItem(signet, IDI_ORACOOL_SIGNET_LEARNING);
 	devilution::Item host;
 	InitializeItem(host, IDI_ORACOOL_HELM);
 	host._iSocketCount = 3;
 	EXPECT_FALSE(TrySocketGem(host, signet)) << "a signet was socketed";
-	EXPECT_FALSE(TryApplyMysticOrb(player, host, signet)) << "a signet was absorbed as a Mystic Orb";
-	EXPECT_EQ(host._iOracoolOrbCount, 0);
+	EXPECT_FALSE(TryImbue(player, host, signet)) << "a signet was recorded as an Imbuement Shard";
+	EXPECT_EQ(host._iOracoolImbueCount, 0);
 
 	// ---- the drop is champions and better ----
 	devilution::Monster ordinary {};
@@ -8126,7 +8261,7 @@ TEST(OracoolAudit, EveryNamedEncounterIsCompletelyDescribed)
 	// covered by nothing at all, which would have put three items into save format.
 	const auto excludedFromPool = [](int i) {
 		return IsOracoolGemIdx(i) || IsOracoolCharmIdx(i) || IsOracoolRuneIdx(i)
-		    || IsOracoolJewelIdx(i) || IsOracoolOrbIdx(i) || IsOracoolSignetIdx(i)
+		    || IsOracoolJewelIdx(i) || IsOracoolShardIdx(i) || IsOracoolSignetIdx(i)
 		    || IsOracoolEncounterMapIdx(i) || IsOracoolItemIdx(i);
 	};
 	for (int i = IDI_GOLD; i <= IDI_LAST; i++) {

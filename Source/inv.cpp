@@ -35,7 +35,7 @@
 #include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo, for item slot backings
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
-#include "oracool/mystic_orbs.h"
+#include "oracool/imbuement.h"
 #include "oracool/named_encounters.h"
 #include "oracool/signets.h"
 #include "oracool/inventory_layout.h"
@@ -700,20 +700,21 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 	// a beat of friction that makes the decision feel like smithing rather than a hover-swap.
 	if (il == ILOC_UNEQUIPABLE && it > 0 && player.HoldItem._itype != ItemType::Gold) {
 		Item &socketTarget = GetActiveInvListItem(player, it - 1);
-		// D2MXL-to-ORCL Phase 1: a Mystic Orb dropped onto a backpack item is CONSUMED into that
-		// item's stats. Same seam as the gem paste below and for the same reasons - it inherits the
-		// target resolution, the backpack-only rule (so orbing worn gear means carrying it first),
-		// and needs no window of its own.
+		// An Imbuement Shard dropped onto a backpack item is RECORDED on it (2026-09-19; the Mystic
+		// Orbs were consumed into the item's stats here until then). Same seam as the gem paste below
+		// and for the same reasons - it inherits the target resolution, the backpack-only rule (so
+		// imbuing worn gear means carrying it first), and needs no window of its own.
 		//
-		// Tried BEFORE the socket insert, because the two can never both apply - an orb is not a
+		// Tried BEFORE the socket insert, because the two can never both apply - a shard is not a
 		// socketable and TrySocketGem declines it - and ordering the specific test first keeps that
 		// independence obvious rather than resting on the other function's exclusion list.
-		if (oracool::TryApplyMysticOrb(player, socketTarget, player.HoldItem)) {
+		if (oracool::TryImbue(player, socketTarget, player.HoldItem)) {
 			if (&player == MyPlayer) {
-				if (!oracool::PlayUiEventSound(oracool::UiEventSound::OrbAbsorb))
+				if (!oracool::PlayUiEventSound(oracool::UiEventSound::ShardImbue))
 					PlaySFX(IS_CAST7); // the old stand-in
-				oracool::LogEvent(fmt::format("{:s} absorbed into {:s}",
-				    std::string(player.HoldItem.getName()), std::string(socketTarget.getName())));
+				oracool::LogEvent(fmt::format("{:s} imbued into {:s} ({:s})",
+				    std::string(player.HoldItem.getName()), std::string(socketTarget.getName()),
+				    oracool::ImbueBreakdownLine(socketTarget)));
 				// Phase 2: filling an item to its cap is a milestone. Checked through the passive
 				// walk rather than tested here, so "an item at its cap" has one definition.
 				oracool::CheckPassiveMilestones(player);

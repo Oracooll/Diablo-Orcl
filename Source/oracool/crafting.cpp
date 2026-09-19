@@ -1,6 +1,7 @@
 #include "oracool/crafting.h"
 
 #include "oracool/gems.h"
+#include "oracool/imbuement.h"
 #include "oracool/item_sets.h"
 #include "oracool/levski_roar.h"
 #include "oracool/runewords.h" // GetActiveRuneword - Punch Sockets must not unmake a word
@@ -105,6 +106,8 @@ const char *CraftingRecipeName(int index)
 		return N_("Mend the Ethereal");
 	case 17:
 		return N_("Punch Sockets");
+	case 18:
+		return N_("Cleanse Shards");
 	default:
 		return "";
 	}
@@ -149,6 +152,8 @@ const char *CraftingRecipeInputs(int index)
 		return N_("1 damaged ethereal item + 12 Ethereal Imbueities -> fully repaired, still ethereal");
 	case 17:
 		return N_("1 unsocketed wearable item + 1 perfect gem per socket -> sockets to its size, 1 per 28x28 cell (1-6)");
+	case 18:
+		return N_("1 imbued item -> the same item with every shard gone; nothing comes back");
 	default:
 		return "";
 	}
@@ -450,18 +455,12 @@ bool IsTierRecipeGear(const Item &item)
 	if (item.socketedCount() > 0)
 		return false;
 
-	// An ORBED item is excluded for the same shape of reason, discovered by the 2026-08-26 audit.
-	//
-	// Mystic Orbs write into the same _iPL* fields the affix roller does, and the item records only
-	// HOW MANY orbs it has taken, not which - so a reroll cannot put them back. Before the roller
-	// was taught to clear those fields, rerolling an orbed item DUPLICATED the orb bonuses on top
-	// of the new roll, which was the exploit half of that bug; afterwards it would silently delete
-	// investment the player has paid a capped, permanent resource for.
-	//
-	// Neither is acceptable, and a ledger of applied orbs is a save-format change. Refusing the
-	// item is the honest third answer: the orbs stay, and the recipe says no rather than quietly
-	// taking something away.
-	return item._iOracoolOrbCount == 0;
+	// An IMBUED item is no longer excluded (2026-09-19). The Mystic Orbs were: they wrote into the
+	// same _iPL* fields the affix roller does and the item recorded only how many, so a reroll could
+	// not put them back and refusing was the honest answer (audit, 2026-08-26). A shard is a LEDGER
+	// on the item, read at sheet time and never written into the fields - TransmuteLevskiGridWith
+	// captures it before the rebuild and restores it after, so the recipe keeps what the player paid.
+	return true;
 }
 
 /** @brief The first grid item matching @p wanted, by the tier a recipe operates on. */
@@ -584,12 +583,27 @@ int FindGridSocketedItem(const Item *grid)
     return -1;
 }
 
+/** @brief The first item carrying an Imbuement Shard, or -1 - the Cleanse recipe's one input. */
+int FindGridImbuedItem(const Item *grid)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		if (!grid[i].isEmpty() && grid[i]._iOracoolImbueCount > 0)
+			return i;
+	}
+	return -1;
+}
+
 /**
  * @brief Recipe 17, Punch Sockets (user, 2026-09-13: "Punching Sockets in Items - 1Pgem per socket. Number of
  * socket = number of 28x28px grid the item asset is made of (1-6). Pgems are consumed in the process. All
  * wearable items are eligible for socketing, no matter the type or tier.").
  */
 constexpr int PunchSocketsRecipe = 17;
+/**
+ * @brief Recipe 18, Cleanse Shards (decision D9, 2026-09-19: "Permanent + A recipe strips every shard and
+ * returns none"). One imbued item in, the same item with an empty ledger out; the shards are gone.
+ */
+constexpr int CleanseShardsRecipe = 18;
 
 bool IsPerfectGemIdx(int idx)
 {
@@ -753,14 +767,9 @@ std::vector<int> GridMaterialsFor(const Item *grid, int index)
 		}
 		if (target < 0)
 			return {};
-		// Mystic Orbs survive no rebuild: the save records how many an item took, not which, so their stats
-		// cannot be put back. IsTierRecipeGear has refused orbed items since 2026-08-26, but only for the
-		// recipes whose target finder calls it - Reforge, Ennoble and Recast find their targets without it,
-		// and silently destroyed a player's orbs (audit, 2026-09-13). Checked here, once, for every recipe
-		// that rebuilds. Recolour (8), Make Ethereal (15) and Mend (16) change the item in place.
-		const bool rebuildsTarget = index != 8 && index != 15 && index != 16;
-		if (rebuildsTarget && grid[target]._iOracoolOrbCount > 0)
-			return {};
+		// Imbued items pass (2026-09-19): the shard ledger is captured before the rebuild and put back
+		// after it in TransmuteLevskiGridWith. The orbs were refused here from 2026-09-13 because a
+		// count could not be put back; a ledger can.
 
 		const ReagentSpec spec = ReagentFor(index);
 		std::vector<int> out = FindGridReagents(grid, spec.material, spec.count);
@@ -770,6 +779,10 @@ std::vector<int> GridMaterialsFor(const Item *grid, int index)
 		// everything after it as reagent slots.
 		out.insert(out.begin(), target);
 		return out;
+	}
+	case CleanseShardsRecipe: { // one item carrying at least one shard
+		const int imbued = FindGridImbuedItem(grid);
+		return imbued < 0 ? std::vector<int> {} : std::vector<int> { imbued };
 	}
 	case PunchSocketsRecipe: {
 		// The item first, then exactly enough perfect gems for the sockets it can still take - the same
@@ -973,7 +986,20 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		const std::vector<int> reagents(materials.begin() + 1, materials.end());
 		std::string what;
 
+		// The Imbuement Shard ledger, captured before any recipe below rebuilds the item from a bare
+		// InitializeItem (Reforge, Ennoble, Recast, the tier ladder, the rerolls all do) and put back
+		// after - a shard is permanent, and that cuts both ways: a rebuild may not delete it either.
+		// The restore is keyed on the ledger having been WIPED, so a recipe that changes the item in
+		// place (Recolour, the ethereal pair) neither loses it nor doubles Tempering's durability.
+		const ImbuementLedger ledger = CaptureImbuements(target);
+
 		switch (recipe) {
+		case CleanseShardsRecipe: // CLEANSE - every shard gone, nothing back (D9)
+			if (target._iOracoolImbueCount == 0)
+				return {};
+			StripImbuements(target);
+			what = fmt::format(fmt::runtime(_("{:s}, cleansed")), std::string(target.getName()));
+			break;
 		case 5: // REFORGE - the same base, every roll taken again at its own item level
 			if (!ReforgeOracoolItem(target))
 				return {};
@@ -1118,6 +1144,14 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		default:
 			return {};
 		}
+
+		// Every rebuilding recipe re-derives the item from its base (InitializeItem or SetupAllItems),
+		// which re-derives its durability too - whether or not the ledger bytes survived the pass. So
+		// the ledger goes back on and Tempering's durability with it, for every recipe except the
+		// three that change the item in place (Recolour, the ethereal pair) and Cleanse itself.
+		const bool rebuilt = recipe != 8 && recipe != 15 && recipe != 16 && recipe != CleanseShardsRecipe;
+		if (rebuilt && ledger.count > 0)
+			RestoreImbuements(target, ledger);
 
 		ConsumeGridReagents(grid, reagents, ReagentFor(recipe).count);
 		return what;

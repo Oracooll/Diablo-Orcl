@@ -57,7 +57,9 @@ include(Fixtures.cmake)
 
 foreach(test_target ${tests})
   add_executable(${test_target} "${test_target}.cpp")
-  gtest_discover_tests(${test_target})
+  # Oracool: 30 s rather than CMake's 5 s. On 2026-09-19 a full rebuild had twelve binaries time out
+  # listing their tests while the linker saturated the CPU, and every one listed in 0.07 s alone.
+  gtest_discover_tests(${test_target} DISCOVERY_TIMEOUT 30)
   # Oracool: the whole-binary SHUFFLE lane (external audit, 2026-09-06). gtest_discover_tests runs
   # every case in its own process, which hides state that leaks between cases in one executable -
   # 17 crashes and four wrong answers were hiding that way. This runs each binary whole, in a random

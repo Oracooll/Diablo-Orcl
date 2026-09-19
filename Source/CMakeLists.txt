@@ -116,7 +116,7 @@ set(libdevilutionx_SRCS
   oracool/lesser_uniques.cpp
   oracool/monster_variants.cpp
   oracool/treasure_class.cpp
-  oracool/mystic_orbs.cpp
+  oracool/imbuement.cpp
   oracool/signets.cpp
   oracool/named_encounters.cpp
   oracool/aura_ground.cpp

@@ -1,0 +1,16 @@
+..\Resources\01-in-use-assets\items\shards\shard_blood.png,0,0,28,28,28,28,shard_blood,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_spirit.png,0,0,28,28,28,28,shard_spirit,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_keenness.png,0,0,28,28,28,28,shard_keenness,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_precision.png,0,0,28,28,28,28,shard_precision,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_flame.png,0,0,28,28,28,28,shard_flame,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_spark.png,0,0,28,28,28,28,shard_spark,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_bulwark.png,0,0,28,28,28,28,shard_bulwark,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_stone.png,0,0,28,28,28,28,shard_stone,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_ember.png,0,0,28,28,28,28,shard_ember,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_storm.png,0,0,28,28,28,28,shard_storm,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_veil.png,0,0,28,28,28,28,shard_veil,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_radiance.png,0,0,28,28,28,28,shard_radiance,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_arcana.png,0,0,28,28,28,28,shard_arcana,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_refinement.png,0,0,28,28,28,28,shard_refinement,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_tempering.png,0,0,28,28,28,28,shard_tempering,30,false,asis
+..\Resources\01-in-use-assets\items\shards\shard_ease.png,0,0,28,28,28,28,shard_ease,30,false,asis

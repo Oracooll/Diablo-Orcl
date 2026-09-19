@@ -478,7 +478,7 @@ DVL_API_FOR_TEST const ItemData AllItemsList[] = {
 #include "oracool/salvage_data.inc"
 #include "oracool/salvage_charm_data.inc"
 #include "oracool/jewels_data.inc"
-#include "oracool/mystic_orbs_data.inc"
+#include "oracool/shards_data.inc"
 #include "oracool/signets_data.inc"
 #include "oracool/growing_charms_data.inc"
 #include "oracool/encounter_items_data.inc"
@@ -538,6 +538,8 @@ DVL_API_FOR_TEST const ItemData AllItemsList[] = {
 /*IDI_ORACOOL_NECRO_HEAD_UNRAVELLER_HEAD  */ { IDROP_REGULAR, ICLASS_ARMOR, ILOC_ONEHAND,     ICURS_SMALL_SHIELD,      ItemType::Shield,    UITYPE_NECRO_HEAD_UNRAVELLER_HEAD,     N_("Unraveller Head"),   N_("Head"),     26,  41,   0,   0,   6,  13,   0,  38,   0, ItemSpecialEffect::None, IMISC_NONE, SpellID::Null, false,   5150 },
 /*IDI_ORACOOL_NECRO_HEAD_OVERSEER_HEAD    */ { IDROP_REGULAR, ICLASS_ARMOR, ILOC_ONEHAND,     ICURS_BUCKLER,           ItemType::Shield,    UITYPE_NECRO_HEAD_OVERSEER_HEAD,       N_("Overseer Head"),     N_("Head"),     33,  46,   0,   0,   7,  15,   0,  44,   0, ItemSpecialEffect::None, IMISC_NONE, SpellID::Null, false,   6150 },
 /*IDI_ORACOOL_NECRO_HEAD_BLOODLORD_SKULL  */ { IDROP_REGULAR, ICLASS_ARMOR, ILOC_ONEHAND,     ICURS_SMALL_SHIELD,      ItemType::Shield,    UITYPE_NECRO_HEAD_BLOODLORD_SKULL,     N_("Bloodlord Skull"),   N_("Head"),     40,  51,   0,   0,   8,  17,   0,  50,   0, ItemSpecialEffect::None, IMISC_NONE, SpellID::Null, false,   7150 },
+// The sixteen new Imbuement Shard kinds (2026-09-19), after the Necromancer rows - the enum's tail.
+#include "oracool/shards_data_late.inc"
 /*               */ { IDROP_NEVER,   ICLASS_NONE,   ILOC_INVALID,     ICURS_POTION_OF_FULL_MANA,         ItemType::Misc,        UITYPE_NONE,        nullptr,                           nullptr,              0,            0,        0,        0,       0,       0,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,          0 },
 	// clang-format on
 };

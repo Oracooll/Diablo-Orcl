@@ -34,7 +34,7 @@
 #include "oracool/minions.h"
 #include "oracool/auto_save.h"
 #include "oracool/item_tiers.h"
-#include "oracool/mystic_orbs.h"
+#include "oracool/imbuement.h"
 #include "oracool/readied_spells.h"
 #include "pfile.h"
 #include "playerdat.hpp"
@@ -305,7 +305,7 @@ struct LevelConversionData {
 // than a widening, but the version still moves: the record grew, and a v7 reader would run off the
 // end of every item.
 // Version 9 (D2MXL-to-ORCL Phase 1) appends TWO fields: _iPLMagicFind, the twin of v8's gold-find
-// channel, and _iOracoolOrbCount.
+// channel, and the Mystic Orb count (a byte version 11 replaced with the shard ledger - see below).
 //
 // The orb count is the first per-item value in this fork that is not derived from something. The
 // base tier, the ethereal roll and every affix come out of the item's own seed; a monster variant
@@ -316,7 +316,11 @@ struct LevelConversionData {
 // with ONE count and SIX affixes: affixes are not segregated into prefixes and suffixes any more (user: "all
 // possible combinations ... including ONLY prefixes and ONLY suffixes"), so the record says what the item is -
 // a list - rather than which vanilla table each entry was written in. The record is one byte shorter.
-constexpr uint8_t OracoolItemFormatVersion = 10;
+// Version 11 (2026-09-19) replaces the Mystic Orb count with the Imbuement Shard LEDGER: a count and
+// Item::MaxOracoolImbuements kind bytes. Which shards, not how many - which is what lets a rebuilt item
+// keep them. The record grows by twenty bytes; an older save is rejected, per the standing rule (bump,
+// do not protect).
+constexpr uint8_t OracoolItemFormatVersion = 11;
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {
@@ -494,11 +498,21 @@ void LoadItemData(LoadHelper &file, Item &item)
 	    static_cast<uint8_t>(oracool::BaseItemTier::LAST));
 	// Version 8: the gold-find bonus this item carries.
 	item._iPLGoldFind = file.NextLE<int32_t>();
-	// Version 9: the magic-find twin, and the Mystic Orb count.
+	// Version 9: the magic-find twin.
 	item._iPLMagicFind = file.NextLE<int32_t>();
-	// Clamped on read like every other extension field - a corrupted byte must cost the player an
-	// orb or two, never the ability to apply any at all.
-	item._iOracoolOrbCount = std::min<uint8_t>(file.NextLE<uint8_t>(), oracool::MaxOrbsPerItem);
+	// Version 11: the Imbuement Shard ledger - a count and twenty kind bytes, every one clamped on
+	// read like every other extension field: a corrupted byte costs the player a shard, never the
+	// ability to apply any. A kind past the table is dropped rather than kept as garbage.
+	{
+		const uint8_t stored = std::min<uint8_t>(file.NextLE<uint8_t>(), Item::MaxOracoolImbuements);
+		uint8_t live = 0;
+		for (int i = 0; i < Item::MaxOracoolImbuements; i++) {
+			const uint8_t kind = file.NextLE<uint8_t>();
+			if (i < stored && kind <= static_cast<uint8_t>(oracool::ShardKind::LAST))
+				item._iOracoolImbuements[live++] = kind;
+		}
+		item._iOracoolImbueCount = live;
+	}
 
 	// Self-healing for negative durability (user, 2026-08-27: "i have magic oracool items with
 	// negative durability"). Until WearDurabilityPoint landed, gear that broke while equipped kept
@@ -1419,9 +1433,12 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<uint8_t>(item._iOracoolBaseTier);
 	// Version 8: the gold-find bonus.
 	file.WriteLE<int32_t>(item._iPLGoldFind);
-	// Version 9: the magic-find twin, and the Mystic Orb count.
+	// Version 9: the magic-find twin.
 	file.WriteLE<int32_t>(item._iPLMagicFind);
-	file.WriteLE<uint8_t>(item._iOracoolOrbCount);
+	// Version 11: the Imbuement Shard ledger, count then every slot (the empty ones as 0).
+	file.WriteLE<uint8_t>(item._iOracoolImbueCount);
+	for (const uint8_t kind : item._iOracoolImbuements)
+		file.WriteLE<uint8_t>(kind);
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)
@@ -2298,8 +2315,12 @@ constexpr int OracoolItemExtensionSaveSize =
     + 1
     // v8: the gold-find bonus. MISSING from this sum until v9 caught it.
     + 4
-    // v9: the magic-find twin, and the Mystic Orb count.
-    + 4 + 1;
+    // v9: the magic-find twin.
+    + 4
+    // v11: the Imbuement Shard ledger - one count byte plus one kind byte per slot (the Mystic Orb
+    // count byte of v9 became the count). Found the hard way on 2026-09-19: the save-buffer guard
+    // fired on every hero save until this line existed.
+    + 1 + Item::MaxOracoolImbuements;
 const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
 const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
 

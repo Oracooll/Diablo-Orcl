@@ -8,6 +8,7 @@
 #include "items.h"
 #include "oracool/charms.h"
 #include "oracool/gems.h"
+#include "oracool/imbuement.h"
 #include "oracool/class_tree.h"
 #include "oracool/warcries.h"
 #include "oracool/item_sets.h"
@@ -190,6 +191,17 @@ void ApplySetBonuses(const BonusContext &ctx, ItemBonusTotals &totals)
 	ApplySetBonusesToTotals(*ctx.owner, totals);
 }
 
+/**
+ * Imbuement Shards (2026-09-19): every worn item's ledger, read here and nowhere else. The orbs wrote
+ * into the item's stat fields and were counted by the equipment provider; a shard is a provider of
+ * its own, which is what lets a rebuilt item keep its shards - the ledger is the only state.
+ */
+void ApplyImbuements(const BonusContext &ctx, ItemBonusTotals &totals)
+{
+	for (const Item &item : ctx.owner->InvBody)
+		ApplyImbuementsToTotals(item, totals);
+}
+
 constexpr BonusProvider Providers[] = {
 	{ "equipment", nullptr, ApplyEquipment },
 	{ "rage", RageIsRelevant, ApplyRage },
@@ -197,6 +209,7 @@ constexpr BonusProvider Providers[] = {
 	{ "charms", nullptr, ApplyCharms },
 	{ "class tree", AuraIsRelevant, ApplyAura },
 	{ "item sets", SetBonusIsRelevant, ApplySetBonuses },
+	{ "imbuements", nullptr, ApplyImbuements },
 };
 
 } // namespace

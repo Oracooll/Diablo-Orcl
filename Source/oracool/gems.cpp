@@ -1,4 +1,5 @@
 #include "oracool/gems.h"
+#include "oracool/imbuement.h"
 
 #include <fmt/format.h>
 
@@ -495,11 +496,16 @@ int EffectiveRequirement(const Item &item, int baseRequirement)
 {
 	if (baseRequirement <= 0)
 		return baseRequirement;
+	// Shards of Ease first: flat points off, and they may take a requirement all the way to zero -
+	// that is the kind's whole promise (decision D4, 2026-09-19). Read from the ledger, never stored.
+	const int eased = baseRequirement - ShardRequirementReduction(item);
+	if (eased <= 0)
+		return 0;
 	const int reduction = SocketRequirementReductionPercent(item);
 	if (reduction == 0)
-		return baseRequirement;
-	// Never below 1: a requirement that exists should still be a requirement.
-	return std::max(1, baseRequirement * (100 - reduction) / 100);
+		return eased;
+	// Never below 1: a requirement Hel leaves standing should still be a requirement.
+	return std::max(1, eased * (100 - reduction) / 100);
 }
 
 /**

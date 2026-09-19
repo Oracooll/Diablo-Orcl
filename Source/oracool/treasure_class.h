@@ -71,11 +71,11 @@ struct TreasureClass {
 	 *
 	 * Orbs join the socketable draw rather than getting a hook of their own, so which zone favours
 	 * them is a table entry beside the other four rather than a fifth rate nobody reads together
-	 * with these. They are not socketables - an orb is consumed into an item's stats - but they
+	 * with these. They are not socketables - a shard is recorded on an item - but they
 	 * drop like one, and the draw is about what a place GIVES rather than about what the thing does
 	 * afterwards.
 	 */
-	int orbWeight;
+	int shardWeight;
 	/** @brief Chance per kill, in percent, of a named set piece. */
 	int setPercent;
 };
@@ -86,7 +86,7 @@ enum class SocketableFamily : uint8_t {
 	Rune,
 	Jewel,
 	Charm,
-	Orb,
+	Shard,
 };
 
 /** @brief The class for @p dungeon. Never null - town included, which gives nothing. */

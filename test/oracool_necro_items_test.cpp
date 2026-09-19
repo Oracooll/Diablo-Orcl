@@ -19,7 +19,9 @@ TEST(OracoolNecroItems, ThreeFamiliesOfEightInOneRun)
 	EXPECT_EQ(IDI_ORACOOL_NECRO_WAND_LAST - IDI_ORACOOL_NECRO_WAND_FIRST + 1, oracool::NecroBasesPerFamily);
 	EXPECT_EQ(IDI_ORACOOL_NECRO_SCYTHE_LAST - IDI_ORACOOL_NECRO_SCYTHE_FIRST + 1, oracool::NecroBasesPerFamily);
 	EXPECT_EQ(IDI_ORACOOL_NECRO_HEAD_LAST - IDI_ORACOOL_NECRO_HEAD_FIRST + 1, oracool::NecroBasesPerFamily);
-	EXPECT_EQ(IDI_LAST, IDI_ORACOOL_NECRO_HEAD_LAST);
+	// The heads were the enum's tail until 2026-09-19; the sixteen new Imbuement Shard kinds follow them now.
+	EXPECT_EQ(IDI_ORACOOL_SHARD_BLOOD, IDI_ORACOOL_NECRO_HEAD_LAST + 1);
+	EXPECT_EQ(IDI_LAST, IDI_ORACOOL_SHARD_EASE);
 	int lastLevel = 0;
 	for (int i = IDI_ORACOOL_NECRO_WAND_FIRST; i <= IDI_ORACOOL_NECRO_HEAD_LAST; i++) {
 		const ItemData &data = AllItemsList[static_cast<size_t>(i)];

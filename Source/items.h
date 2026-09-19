@@ -603,7 +603,7 @@ struct Item {
 		// whole of their identity - which is also why they merge safely, since two gems with the
 		// same index are genuinely interchangeable.
 		if (IsOracoolGemIdx(IDidx) || IsOracoolRuneIdx(IDidx) || IsOracoolJewelIdx(IDidx)
-		    || IsOracoolOrbIdx(IDidx))
+		    || IsOracoolShardIdx(IDidx))
 			return true;
 		// The seven salvage materials, on the same reasoning: a recipe spends them exactly as it
 		// spends a rune, and they arrive in bulk - a salvaged stash produces dozens at a time.
@@ -649,8 +649,8 @@ struct Item {
 		//
 		// The salvage materials join this rule for the identical reason: every one of them is
 		// IMISC_NONE too, so the _iMiscId path would merge White Scales into Primal Vines.
-		const bool eitherIsMaterial = IsOracoolGemIdx(IDidx) || IsOracoolRuneIdx(IDidx) || IsOracoolSalvageIdx(IDidx) || IsOracoolJewelIdx(IDidx) || IsOracoolOrbIdx(IDidx)
-		    || IsOracoolGemIdx(other.IDidx) || IsOracoolRuneIdx(other.IDidx) || IsOracoolSalvageIdx(other.IDidx) || IsOracoolJewelIdx(other.IDidx) || IsOracoolOrbIdx(other.IDidx);
+		const bool eitherIsMaterial = IsOracoolGemIdx(IDidx) || IsOracoolRuneIdx(IDidx) || IsOracoolSalvageIdx(IDidx) || IsOracoolJewelIdx(IDidx) || IsOracoolShardIdx(IDidx)
+		    || IsOracoolGemIdx(other.IDidx) || IsOracoolRuneIdx(other.IDidx) || IsOracoolSalvageIdx(other.IDidx) || IsOracoolJewelIdx(other.IDidx) || IsOracoolShardIdx(other.IDidx);
 		if (eitherIsMaterial)
 			return IDidx == other.IDidx;
 
@@ -714,20 +714,22 @@ struct Item {
 	/** @brief Oracool: Faster Cast Rate +X% from this item's affix (IPL_FASTCAST). Derived, like every _iPL*. */
 	int _iPLFastCast = 0;
 
+	/** @brief Oracool: how many Imbuement Shards one item can take - decision D2 (2026-09-19). */
+	static constexpr int MaxOracoolImbuements = 20;
+
 	/**
-	 * @brief Oracool: how many Mystic Orbs have been applied to this item (v1.9.19).
+	 * @brief Oracool: the Imbuement Shard LEDGER - which kinds this item has taken, in the order they
+	 * were applied (OracoolItemFormatVersion 11, 2026-09-19; it replaced the Mystic Orbs' count byte).
 	 *
-	 * The one piece of Phase 1 that cannot be derived. Every other per-item property this fork adds
-	 * is a function of the item's seed - the base tier, the ethereal roll, the affixes - and a
-	 * monster variant or a boss trait is a function of the MONSTER's seed. This is a PLAYER
-	 * DECISION, and there is nowhere to recompute a decision from, so it costs a byte and a format
-	 * bump (OracoolItemFormatVersion 8 -> 9).
-	 *
-	 * Counts orbs, not stat sources, and that distinction is the whole mechanism: the cap is per
-	 * ITEM rather than per orb type, so six into one weapon finishes it and the seventh has to go
-	 * somewhere else. See oracool/mystic_orbs.h.
+	 * The one piece of per-item state that cannot be derived: every other property this fork adds
+	 * comes out of the item's seed or the monster's, and a shard is a PLAYER DECISION. So it is stored,
+	 * and stored as WHICH rather than how many - the orbs stored a count, wrote their stat into the
+	 * item's fields, and were therefore lost to every rebuild. A shard's effect is computed from this
+	 * ledger at sheet time (oracool/imbuement.h, the "imbuements" provider), never written here.
+	 * Entries are oracool::ShardKind values; only the first _iOracoolImbueCount are live.
 	 */
-	uint8_t _iOracoolOrbCount = 0;
+	uint8_t _iOracoolImbueCount = 0;
+	std::array<uint8_t, MaxOracoolImbuements> _iOracoolImbuements {};
 
 	OracoolItemTier _iOracoolTier = OracoolItemTier::None;
 	bool _iOracoolPerfectRoll = false;
@@ -907,7 +909,7 @@ struct Item {
 			}
 			// An oil and a Mystic Orb do the same thing to a piece of gear - improve it, for good - so
 			// they read the same.
-			if ((_iMiscId > IMISC_OILFIRST && _iMiscId < IMISC_OILLAST) || IsOracoolOrbIdx(IDidx))
+			if ((_iMiscId > IMISC_OILFIRST && _iMiscId < IMISC_OILLAST) || IsOracoolShardIdx(IDidx))
 				return UiFlags::ColorOil;
 			if (_iMiscId > IMISC_RUNEFIRST && _iMiscId < IMISC_RUNELAST)
 				return UiFlags::ColorTrap;

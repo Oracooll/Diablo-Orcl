@@ -29,9 +29,10 @@ struct Player;
 
 namespace devilution::oracool {
 
+// Nineteen since 2026-09-19: Cleanse Shards (recipe 18), the one way out of an imbuement (decision D9).
 // Eighteen since 2026-09-13: Punch Sockets (recipe 17). Both books - Levski's and the burger menu's Crafting
 // window - walk this count and the name/inputs table below, so a recipe added here is listed in both.
-constexpr int CraftingRecipeCount = 18;
+constexpr int CraftingRecipeCount = 19;
 
 // CraftingRecipeUsesGrid and CraftingRecipeVenue stood here for one version. Both existed to say
 // which of two venues a recipe belonged to, and there is only one venue now - every recipe uses the

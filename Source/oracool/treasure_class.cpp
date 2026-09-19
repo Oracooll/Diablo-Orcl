@@ -130,7 +130,7 @@ int ScaleRateForDifficulty(int percent)
 
 int TotalFamilyWeight(const TreasureClass &tc)
 {
-	return tc.gemWeight + tc.runeWeight + tc.jewelWeight + tc.charmWeight + tc.orbWeight;
+	return tc.gemWeight + tc.runeWeight + tc.jewelWeight + tc.charmWeight + tc.shardWeight;
 }
 
 SocketableFamily FamilyForRoll(const TreasureClass &tc, int roll)
@@ -148,10 +148,10 @@ SocketableFamily FamilyForRoll(const TreasureClass &tc, int roll)
 	roll -= tc.jewelWeight;
 	if (roll < tc.charmWeight)
 		return SocketableFamily::Charm;
-	// Everything left is Orb - including a roll past the end, which a caller can only produce by
+	// Everything left is Shard - including a roll past the end, which a caller can only produce by
 	// drawing against a total this function did not compute. Answering rather than reading off the
 	// end is the safe half of that; the test pins the distribution so it stays the unreachable one.
-	return SocketableFamily::Orb;
+	return SocketableFamily::Shard;
 }
 
 } // namespace devilution::oracool

@@ -196,7 +196,7 @@ namespace {
 constexpr const char *UiEventPaths[] = {
 	"sfx\\ui\\salvage.wav",
 	"sfx\\ui\\transmute.wav",
-	"sfx\\ui\\orb-absorb.wav",
+	"sfx\\ui\\imbue.wav", // RfA-18 batch 41 (2026-09-19); orb-absorb.wav until then
 	"sfx\\ui\\socket.wav",
 	"sfx\\ui\\runeword-complete.wav",
 	"sfx\\ui\\milestone.wav",

@@ -55,7 +55,7 @@
 #include "oracool/oracool.h"
 #include "oracool/runewords.h"
 #include "oracool/smart_loot.h"
-#include "oracool/mystic_orbs.h"
+#include "oracool/imbuement.h"
 #include "oracool/named_encounters.h"
 #include "oracool/salvage.h"
 #include "oracool/signets.h"
@@ -178,7 +178,7 @@ _sfx_id ItemInvSnds[] = {
 	IS_IROCK, // gemflip
 	IS_IROCK, // runeflip
 	IS_IRING, // charmflip
-	IS_IBLST, // orbflip
+	IS_IBLST, // shardflip (orbflip until 2026-09-19)
 	IS_IRING, // signetflip
 	// Oracool: batch 15's three (48-50).
 	IS_IROCK, // jewelflip
@@ -212,7 +212,7 @@ constexpr int FirstOracoolDropAnim = 43;
 constexpr int8_t OracoolGemDropAnim = 43;
 constexpr int8_t OracoolRuneDropAnim = 44;
 constexpr int8_t OracoolCharmDropAnim = 45;
-constexpr int8_t OracoolOrbDropAnim = 46;
+constexpr int8_t OracoolShardDropAnim = 46; // the orbs' slot, re-drawn as a shard by RfA-18 batch 41
 constexpr int8_t OracoolSignetDropAnim = 47;
 // Batch 15 (2026-09-11), appended after the first five.
 constexpr int8_t OracoolJewelDropAnim = 48;
@@ -254,7 +254,7 @@ constexpr std::array<uint16_t, 21> OracoolDropAnimScale {
 	90,  // gemflip        (suggested)
 	90,  // runeflip       (suggested)
 	100, // charmflip      (suggested)
-	60,  // orbflip        (suggested)
+	60,  // shardflip      (suggested)
 	50,  // signetflip     picked
 	80,  // jewelflip      (suggested)
 	90,  // salvageflip    (suggested)
@@ -283,7 +283,8 @@ static_assert(ICURS_ORACOOL_RUNE_SOL - ICURS_ORACOOL_RUNE_EL == 4);
 static_assert(ICURS_ORACOOL_GEM_SKULL_PERFECT - ICURS_ORACOOL_GEM_AMETHYST_CHIPPED == 29);
 static_assert(ICURS_ORACOOL_RUNE_ZOD - ICURS_ORACOOL_RUNE_ELD == 27);
 static_assert(ICURS_ORACOOL_CHARM_SALVAGE_ETHEREAL_IMBUEITIES - ICURS_ORACOOL_CHARM_SALVAGE_WHITE_SCALES == 6);
-static_assert(ICURS_ORACOOL_ORB_AVARICE - ICURS_ORACOOL_ORB_MIGHT == 7);
+static_assert(ICURS_ORACOOL_SHARD_AVARICE - ICURS_ORACOOL_SHARD_STRENGTH == 7);
+static_assert(ICURS_ORACOOL_SHARD_EASE - ICURS_ORACOOL_SHARD_BLOOD == 15);
 static_assert(ICURS_ORACOOL_CHARM_LEGEND - ICURS_ORACOOL_CHARM_TRIALS == 2);
 static_assert(ICURS_ORACOOL_CHARM_VAULT - ICURS_ORACOOL_CHARM_CHAPEL == 2);
 static_assert(ICURS_ORACOOL_CHARM_GREED - ICURS_ORACOOL_CHARM_VIGOR == 5);
@@ -332,8 +333,10 @@ int8_t GetItemDropAnimIndex(uint16_t curs)
 	    || InCursRange(curs, ICURS_ORACOOL_CHARM_TRIALS, ICURS_ORACOOL_CHARM_LEGEND)
 	    || InCursRange(curs, ICURS_ORACOOL_CHARM_CHAPEL, ICURS_ORACOOL_CHARM_VAULT))
 		return OracoolCharmDropAnim;
-	if (InCursRange(curs, ICURS_ORACOOL_ORB_MIGHT, ICURS_ORACOOL_ORB_AVARICE))
-		return OracoolOrbDropAnim;
+	// The Imbuement Shards' two islands (2026-09-19), one tumble for all twenty-four kinds.
+	if (InCursRange(curs, ICURS_ORACOOL_SHARD_STRENGTH, ICURS_ORACOOL_SHARD_AVARICE)
+	    || InCursRange(curs, ICURS_ORACOOL_SHARD_BLOOD, ICURS_ORACOOL_SHARD_EASE))
+		return OracoolShardDropAnim;
 	if (curs == ICURS_ORACOOL_SIGNET_LEARNING)
 		return OracoolSignetDropAnim;
 	// Jewels: the fifteen of jewels_curs.inc (five kinds, three grades).
@@ -590,7 +593,7 @@ const char *const ItemDropNames[] = {
 	"gemflip",
 	"runeflip",
 	"charmflip",
-	"orbflip",
+	"shardflip",
 	"signetflip",
 	"jewelflip",
 	"salvageflip",
@@ -2193,7 +2196,7 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 			continue;
 		// Phase 1: gems, charms and runes obey the same pool-is-save-format rule; own hooks drop them.
 		if (IsOracoolGemIdx(i) || IsOracoolCharmIdx(i) || IsOracoolRuneIdx(i) || IsOracoolJewelIdx(i)
-		    || IsOracoolOrbIdx(i) || IsOracoolSignetIdx(i) || IsOracoolEncounterMapIdx(i))
+		    || IsOracoolShardIdx(i) || IsOracoolSignetIdx(i) || IsOracoolEncounterMapIdx(i))
 			continue;
 		if (IsAnyOf(item.iSpell, SpellID::Resurrect, SpellID::HealOther) && !gbIsMultiplayer)
 			continue;
@@ -6228,13 +6231,14 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 					candidates[candidateCount++] = static_cast<_item_indexes>(i);
 			}
 		} else {
-			// The Mystic Orbs, one island again. Their qlvls are NOT flat: the four attribute orbs
-			// open early because a new character can use them at once, while find and resistance
-			// wait for the depth where those are a concern.
-			for (int i = oracool::FirstMysticOrbIdx(); i <= oracool::LastMysticOrbIdx(); i++) {
+			// The Imbuement Shards: two islands (the orbs' old indices and the tail of the enum), walked
+			// through the kind table so neither range is written here. Their qlvls are the drop bands
+			// (decision D10): shallow kinds from the first rung, the stats from the Caves' rung, and
+			// Refinement, Stone and Arcana from the second difficulty.
+			oracool::ForEachShardItem([&](int i) {
 				if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
 					candidates[candidateCount++] = static_cast<_item_indexes>(i);
-			}
+			});
 		}
 		if (candidateCount == 0 || ActiveItemCount >= MAXITEMS)
 			return;
@@ -7160,15 +7164,18 @@ void PrintItemDetails(const Item &item)
 	// Faster Cast Rate the same way (2026-09-11). Not on a unique, which prints it on its own power line.
 	if (item._iIdentified && item._iPLFastCast != 0 && !item.hasOracoolTier() && item._iMagical != ITEM_QUALITY_UNIQUE)
 		AddPanelString(fmt::format(fmt::runtime(_("{:+d}% faster cast rate")), item._iPLFastCast), ItemAffixColor);
-	// Phase 1 Mystic Orbs: how many this item has taken and how many it can. The player needs to
-	// know what is left BEFORE they spend one, because applying an orb cannot be undone - an item
-	// silently at its cap is exactly what this line exists to prevent.
-	if (const std::string orbLine = oracool::MysticOrbCountLine(item); !orbLine.empty())
-		AddPanelString(orbLine, ItemBaseStatColor);
-	// The ORB's own line, when the thing being described is the orb rather than its target.
-	if (IsOracoolOrbIdx(item.IDidx)) {
-		AddPanelString(_(oracool::MysticOrbLine(item.IDidx)), ItemAffixColor);
-		AddPanelString(_("drop onto a backpack item to absorb it"), ItemBaseStatColor);
+	// Imbuement Shards: how many this item has taken and how many it can, then WHICH. The player
+	// needs to know what is left BEFORE they spend one, because a shard cannot be taken out short of
+	// the Cleanse recipe - an item silently at its cap is exactly what the first line exists to
+	// prevent, and the second is the ledger itself, the thing the orbs could never show.
+	if (const std::string imbueLine = oracool::ImbueCountLine(item); !imbueLine.empty())
+		AddPanelString(imbueLine, ItemBaseStatColor);
+	if (const std::string kinds = oracool::ImbueBreakdownLine(item); !kinds.empty())
+		AddPanelString(kinds, ItemAffixColor);
+	// The SHARD's own line, when the thing being described is the shard rather than its target.
+	if (IsOracoolShardIdx(item.IDidx)) {
+		AddPanelString(_(oracool::ShardLine(item.IDidx)), ItemAffixColor);
+		AddPanelString(_("drop onto a backpack item to imbue it"), ItemBaseStatColor);
 	}
 	// Phase 1 charms: the effect, and the rule that governs it - the description is where the
 	// active-cap system explains itself.

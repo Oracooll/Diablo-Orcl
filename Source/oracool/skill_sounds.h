@@ -137,7 +137,7 @@ void PlaySetCompleteSound();
 enum class UiEventSound : uint8_t {
 	Salvage,
 	Transmute,
-	OrbAbsorb,
+	ShardImbue, // OrbAbsorb until 2026-09-19
 	Socket,
 	RunewordComplete,
 	// RfA-04 batch 14 (2026-09-11): four events that made no sound at all.
