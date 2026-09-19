@@ -1567,47 +1567,91 @@ int CreateGoldItemInInventorySlot(Player &player, int slotIndex, int value)
  * the 32-bit screen (through PaletteRGB). Nothing is drawn when the panel is not loaded (tests),
  * and nothing for a plain item, which never reaches this - a bare slot is still the tier.
  */
-constexpr int SlotStoneTileSize = 28;
-std::array<uint8_t, SlotStoneTileSize * SlotStoneTileSize> SlotStoneTile;
-bool SlotStoneTileReady = false;
+/*
+ * v1.12.051, from the user's first look (2026-09-19): "i dont want to see the grid lines" and "use a
+ * variety of grid stone backings ... rotate them at angles". The lines were this code's own: the
+ * 28x28 tile cut at 17,223 carried vanilla's one-pixel cell divider on its left edge, so tiling it
+ * drew a grid. The swatches are now the INTERIOR of four different cells (two pixels in from every
+ * edge, 24x24), and each 24-pixel tile of the SCREEN takes one of the four in one of the eight
+ * square orientations (rotations and flips), chosen by a hash of the tile's screen coordinates - so
+ * the stone is a fixed plane the footprint opens a window onto, the same from frame to frame, and
+ * two items side by side continue each other's texture without a seam pattern.
+ */
+constexpr int SlotStoneTileSize = 24;
+constexpr int SlotStoneSwatchCount = 4;
+constexpr int SlotStoneOrientations = 8;
+/** @brief Interiors of four vanilla backpack cells (1.5.5 InvRect: {17 + 29i, 222 + 29j} 29x29). */
+constexpr Point SlotStoneSwatchOrigins[SlotStoneSwatchCount] = { { 19, 225 }, { 48, 225 }, { 19, 254 }, { 48, 254 } };
+std::array<std::array<uint8_t, SlotStoneTileSize * SlotStoneTileSize>, SlotStoneSwatchCount> SlotStoneSwatches;
+bool SlotStoneTilesReady = false;
 
-bool EnsureSlotStoneTile()
+bool EnsureSlotStoneTiles()
 {
-	if (SlotStoneTileReady)
+	if (SlotStoneTilesReady)
 		return true;
 	if (!pInvCels)
 		return false;
 	const ClxSprite panel = (*pInvCels)[0];
-	constexpr Point StoneTileOrigin { 17, 223 };
-	OwnedSurface tile(SlotStoneTileSize, SlotStoneTileSize);
-	SDL_FillRect(tile.surface, nullptr, 0);
-	// ClxDraw places the sprite's BOTTOM-left at the position, so the panel's top-left goes to
-	// minus the origin and the wanted cell lands at (0, 0) of the tile; the rest is clipped away.
-	ClxDraw(tile, { -StoneTileOrigin.x, -StoneTileOrigin.y + static_cast<int>(panel.height()) - 1 }, panel);
-	for (int y = 0; y < SlotStoneTileSize; y++)
-		for (int x = 0; x < SlotStoneTileSize; x++)
-			SlotStoneTile[y * SlotStoneTileSize + x] = tile[Point { x, y }];
-	SlotStoneTileReady = true;
+	// The whole vanilla panel decoded once; the swatches are copied out of it.
+	OwnedSurface decoded(static_cast<int>(panel.width()), static_cast<int>(panel.height()));
+	SDL_FillRect(decoded.surface, nullptr, 0);
+	ClxDraw(decoded, { 0, static_cast<int>(panel.height()) - 1 }, panel);
+	for (int s = 0; s < SlotStoneSwatchCount; s++) {
+		const Point origin = SlotStoneSwatchOrigins[s];
+		for (int y = 0; y < SlotStoneTileSize; y++)
+			for (int x = 0; x < SlotStoneTileSize; x++)
+				SlotStoneSwatches[s][y * SlotStoneTileSize + x] = decoded[Point { origin.x + x, origin.y + y }];
+	}
+	SlotStoneTilesReady = true;
 	return true;
+}
+
+/** @brief The swatch index and orientation for the screen tile at (tx, ty): a small integer hash. */
+uint32_t SlotStoneVariantAt(int tx, int ty)
+{
+	uint32_t h = static_cast<uint32_t>(tx) * 73856093u ^ static_cast<uint32_t>(ty) * 19349663u;
+	h ^= h >> 13;
+	h *= 0x5bd1e995u;
+	h ^= h >> 15;
+	return h % (SlotStoneSwatchCount * SlotStoneOrientations);
+}
+
+/** @brief The stone index at screen pixel (x, y), x and y non-negative. */
+uint8_t SlotStoneAt(int x, int y)
+{
+	constexpr int T = SlotStoneTileSize;
+	const uint32_t variant = SlotStoneVariantAt(x / T, y / T);
+	const int u = x % T, v = y % T;
+	int su, sv;
+	switch (variant % SlotStoneOrientations) {
+	default: su = u; sv = v; break;
+	case 1: su = T - 1 - u; sv = v; break;
+	case 2: su = u; sv = T - 1 - v; break;
+	case 3: su = T - 1 - u; sv = T - 1 - v; break;
+	case 4: su = v; sv = u; break;
+	case 5: su = T - 1 - v; sv = u; break;
+	case 6: su = v; sv = T - 1 - u; break;
+	case 7: su = T - 1 - v; sv = T - 1 - u; break;
+	}
+	return SlotStoneSwatches[variant / SlotStoneOrientations][sv * T + su];
 }
 
 void DrawSlotStoneUnderlay(const Surface &out, Rectangle rect)
 {
-	if (!EnsureSlotStoneTile())
+	if (!EnsureSlotStoneTiles())
 		return;
 	const int x0 = std::max(rect.position.x, 0), y0 = std::max(rect.position.y, 0);
 	const int x1 = std::min(rect.position.x + rect.size.width, out.w());
 	const int y1 = std::min(rect.position.y + rect.size.height, out.h());
 	for (int y = y0; y < y1; y++) {
-		const int row = ((y - rect.position.y) % SlotStoneTileSize) * SlotStoneTileSize;
 		if (out.isIndexed()) {
 			uint8_t *dst = out.at(x0, y);
 			for (int x = x0; x < x1; x++, dst++)
-				*dst = SlotStoneTile[row + (x - rect.position.x) % SlotStoneTileSize];
+				*dst = SlotStoneAt(x, y);
 		} else {
 			uint32_t *dst = out.at<uint32_t>(x0, y);
 			for (int x = x0; x < x1; x++, dst++)
-				*dst = PaletteRGB[SlotStoneTile[row + (x - rect.position.x) % SlotStoneTileSize]];
+				*dst = PaletteRGB[SlotStoneAt(x, y)];
 		}
 	}
 }
@@ -1663,9 +1707,12 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 		// "Dark gray ... backing" for a socketed base, green for a formed runeword (user, 2026-08-20).
 		// Dark is the depth; white as a hue is the stone's own grey, so this is the well pushed down.
 		const bool isRuneword = oracool::GetActiveRuneword(item) != nullptr;
-		hue = isRuneword ? 0x64A064u : 0xFFFFFFu;
-		fallbackRamp = isRuneword ? PAL8_GREEN : PAL16_GRAY;
-		depth = DarkTintDepthPercent;
+		// v1.12.051: the runeword was the fork's green at 60%, a darker Set - "propose more standing-out
+		// colors" (user). Teal: no other backing is cyan, it sits well apart from Set's green and the
+		// gold rune rings read against it. Full depth now; dark was for the grey socket host.
+		hue = isRuneword ? 0x30C0B0u : 0xFFFFFFu;
+		fallbackRamp = isRuneword ? PAL16_BLUE : PAL16_GRAY;
+		depth = isRuneword ? TintDepthPercent : DarkTintDepthPercent;
 	} else if (item._iOracoolEthereal) {
 		// "a purple-ish backing ... for ethereal items" (user, 2026-09-13).
 		hue = 0xA070E0u;
@@ -1680,8 +1727,11 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 		fallbackRamp = PAL16_YELLOW;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Primal) {
 		// The beige ramp the Primal font colour (BE-2) lives on, so backing and name agree.
-		hue = PaletteRGB[PAL16_BEIGE + 2];
-		fallbackRamp = PAL16_BEIGE;
+		// v1.12.051: the beige ramp's hue is a dull rose on stone, and the user asked for a colour that
+		// stands out. Ember orange - the Primal's colour before the beige move, apart from the unique
+		// gold and the rare yellow by its red half, and in no other backing.
+		hue = 0xF07820u;
+		fallbackRamp = PAL16_ORANGE;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Set) {
 		// "Green is for future Set Items" (user, 2026-08-16) and "light green, not orange"
 		// (2026-09-12): the stone's own brightness, no shade taken off.
