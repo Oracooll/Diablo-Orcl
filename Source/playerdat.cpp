@@ -16,114 +16,116 @@
 namespace devilution {
 
 /**
- * Specifies the experience point limit of each level.
- * Levels 1-50 are vanilla Diablo's original curve, unchanged.
- * Oracool: levels 51-99 extend the curve past vanilla's cap. Each level's requirement is the
- * previous level's plus an increment that itself grows geometrically (starting at 220,000,000,
- * multiplied by 1.04 per level), landing at ~33.4 billion at level 99 (~25x the level-50
- * requirement). This keeps level 51 a gentle continuation of level 50's own pace while making
- * levels in the 90s a genuine long-term grind, meant to be fed primarily by Torment difficulty.
+ * Specifies the experience point limit of each level: ExpLvlsTbl[L] is the total experience that
+ * reaches level L + 1 (ExpLvlsTbl[1] = 500 = level 2).
+ *
+ * Oracool, 2026-09-20 (the Level Requirements plan, decision D3): DIABLO II's table, exactly, from
+ * the Arreat Summit - 500 to level 2, 3,520,485,254 to level 99. It replaces vanilla Diablo's curve
+ * to 50 and the geometric extension past it (v1.11.062), which asked 28x this much at level 50 and
+ * 9.5x at 99. The fork's monsters still pay Diablo I experience, so KillExperienceFor (player.cpp)
+ * carries Diablo II's two brakes beside it: a monster more than five levels below the hero pays
+ * mlvl / clvl of its experience, and above level 70 the gain is cut progressively.
  */
 const uint64_t ExpLvlsTbl[MaxCharacterLevel] = {
-	0,
-	2000,
-	4620,
-	8040,
-	12489,
-	18258,
-	25712,
-	35309,
-	47622,
-	63364,
-	83419,
-	108879,
-	141086,
-	181683,
-	231075,
-	313656,
-	424067,
-	571190,
-	766569,
-	1025154,
-	1366227,
-	1814568,
-	2401895,
-	3168651,
-	4166200,
-	5459523,
-	7130496,
-	9281874,
-	12042092,
-	15571031,
-	20066900,
-	25774405,
-	32994399,
-	42095202,
-	53525811,
-	67831218,
-	85670061,
-	107834823,
-	135274799,
-	169122009,
-	210720231,
-	261657253,
-	323800420,
-	399335440,
-	490808349,
-	601170414,
-	733825617,
-	892680222,
-	1082908612,
-	1310707109,
-	1530707109,
-	1759507109,
-	1997459109,
-	2244929189,
-	2502298072,
-	2769961711,
-	3048331895,
-	3337836886,
-	3638922077,
-	3952050676,
-	4277704419,
-	4616384311,
-	4968611399,
-	5334927571,
-	5715896389,
-	6112103960,
-	6524159835,
-	6952697944,
-	7398377577,
-	7861884396,
-	8343931487,
-	8845260462,
-	9366642596,
-	9908880016,
-	10472806932,
-	11059290925,
-	11669234278,
-	12303575365,
-	12963290095,
-	13649393414,
-	14362940866,
-	15105030217,
-	15876803141,
-	16679446982,
-	17514196577,
-	18382336156,
-	19285201318,
-	20224181086,
-	21200720045,
-	22216320563,
-	23272545101,
-	24371018620,
-	25513431081,
-	26701540040,
-	27937173357,
-	29222232007,
-	30558693003,
-	31948612439,
-	33394128652
+	0, // level 1 -> 2
+	500, // level 2 -> 3
+	1500, // level 3 -> 4
+	3750, // level 4 -> 5
+	7875, // level 5 -> 6
+	14175, // level 6 -> 7
+	22680, // level 7 -> 8
+	32886, // level 8 -> 9
+	44396, // level 9 -> 10
+	57715, // level 10 -> 11
+	72144, // level 11 -> 12
+	90180, // level 12 -> 13
+	112725, // level 13 -> 14
+	140906, // level 14 -> 15
+	176132, // level 15 -> 16
+	220165, // level 16 -> 17
+	275207, // level 17 -> 18
+	344008, // level 18 -> 19
+	430010, // level 19 -> 20
+	537513, // level 20 -> 21
+	671891, // level 21 -> 22
+	839864, // level 22 -> 23
+	1049830, // level 23 -> 24
+	1312287, // level 24 -> 25
+	1640359, // level 25 -> 26
+	2050449, // level 26 -> 27
+	2563061, // level 27 -> 28
+	3203826, // level 28 -> 29
+	3902260, // level 29 -> 30
+	4663553, // level 30 -> 31
+	5493363, // level 31 -> 32
+	6397855, // level 32 -> 33
+	7383752, // level 33 -> 34
+	8458379, // level 34 -> 35
+	9629723, // level 35 -> 36
+	10906488, // level 36 -> 37
+	12298162, // level 37 -> 38
+	13815086, // level 38 -> 39
+	15468534, // level 39 -> 40
+	17270791, // level 40 -> 41
+	19235252, // level 41 -> 42
+	21376515, // level 42 -> 43
+	23710491, // level 43 -> 44
+	26254525, // level 44 -> 45
+	29027522, // level 45 -> 46
+	32050088, // level 46 -> 47
+	35344686, // level 47 -> 48
+	38935798, // level 48 -> 49
+	42850109, // level 49 -> 50
+	47116709, // level 50 -> 51
+	51767302, // level 51 -> 52
+	56836449, // level 52 -> 53
+	62361819, // level 53 -> 54
+	68384473, // level 54 -> 55
+	74949165, // level 55 -> 56
+	82104680, // level 56 -> 57
+	89904191, // level 57 -> 58
+	98405658, // level 58 -> 59
+	107672256, // level 59 -> 60
+	117772849, // level 60 -> 61
+	128782495, // level 61 -> 62
+	140783010, // level 62 -> 63
+	153863570, // level 63 -> 64
+	168121381, // level 64 -> 65
+	183662396, // level 65 -> 66
+	200602101, // level 66 -> 67
+	219066380, // level 67 -> 68
+	239192444, // level 68 -> 69
+	261129853, // level 69 -> 70
+	285041630, // level 70 -> 71
+	311105466, // level 71 -> 72
+	339515048, // level 72 -> 73
+	370481492, // level 73 -> 74
+	404234916, // level 74 -> 75
+	441026148, // level 75 -> 76
+	481128591, // level 76 -> 77
+	524840254, // level 77 -> 78
+	572485967, // level 78 -> 79
+	624419793, // level 79 -> 80
+	681027665, // level 80 -> 81
+	742730244, // level 81 -> 82
+	809986056, // level 82 -> 83
+	883294891, // level 83 -> 84
+	963201521, // level 84 -> 85
+	1050299747, // level 85 -> 86
+	1145236814, // level 86 -> 87
+	1248718217, // level 87 -> 88
+	1361512946, // level 88 -> 89
+	1484459201, // level 89 -> 90
+	1618470619, // level 90 -> 91
+	1764543065, // level 91 -> 92
+	1923762030, // level 92 -> 93
+	2097310703, // level 93 -> 94
+	2286478756, // level 94 -> 95
+	2492671933, // level 95 -> 96
+	2717422497, // level 96 -> 97
+	2962400612, // level 97 -> 98
+	3229426756, // level 98 -> 99
+	3520485254 // level 99 (cap)
 };
 
 const _sfx_id herosounds[enum_size<HeroClass>::value][enum_size<HeroSpeech>::value] = {

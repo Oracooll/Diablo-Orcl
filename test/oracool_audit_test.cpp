@@ -94,6 +94,7 @@
 #include "oracool/treasure_class.h"
 #include "oracool/endgame_boss.h"
 #include "oracool/imbuement.h"
+#include "oracool/level_requirement.h"
 #include "oracool/signets.h"
 #include "oracool/charms.h"
 #include "oracool/area_level.h"
@@ -13674,4 +13675,93 @@ TEST(OracoolRfa12, SymphonyOfWarLendsHalfOfEveryOtherMelodySong)
 	EXPECT_EQ(totals.bonusToHit, 15 + 5 * 1) << "Hunter's Chant at 2 of its 4 ranks";
 	EXPECT_EQ(totals.magic, 4) << "Symphony's own level-up stat";
 	EXPECT_EQ(totals.dexterity, 0) << "an unlit song lends its number, not its level-up stat";
+}
+
+// The item level requirement (2026-09-20, the Level Requirements plan): Diablo II's max rule, derived
+// from what the item carries. Every term is pinned on its own, then the max and the Ease reduction.
+TEST(OracoolAudit, ItemLevelRequirementIsDiabloTwosRuleOnTheForksTables)
+{
+	using devilution::oracool::AffixRequiredLevel;
+	using devilution::oracool::BaseRequiredLevel;
+	using devilution::oracool::GemRequiredLevel;
+	using devilution::oracool::RequiredLevel;
+	using devilution::oracool::RuneRequiredLevel;
+
+	// Three quarters, rounded up: the deepest affix (60) asks 45, a level 1 one asks 1, 2 asks 2.
+	EXPECT_EQ(AffixRequiredLevel(60), 45);
+	EXPECT_EQ(AffixRequiredLevel(1), 1);
+	EXPECT_EQ(AffixRequiredLevel(2), 2);
+	EXPECT_EQ(AffixRequiredLevel(0), 0);
+
+	// Diablo II's rune ladder on the fork's 33: El 11, Zod 69, Hel 33.
+	EXPECT_EQ(RuneRequiredLevel(devilution::oracool::RuneAtLadderPosition(0)), 11) << "El";
+	EXPECT_EQ(RuneRequiredLevel(devilution::oracool::RuneAtLadderPosition(14)), 33) << "Hel";
+	EXPECT_EQ(RuneRequiredLevel(devilution::oracool::RuneAtLadderPosition(32)), 69) << "Zod";
+	EXPECT_EQ(RuneRequiredLevel(IDI_ORACOOL_HELM), 0) << "not a rune";
+
+	// Gems: Chipped 1 .. Perfect 18.
+	EXPECT_EQ(GemRequiredLevel(devilution::oracool::GemIndexFor(devilution::oracool::GemType::Ruby, devilution::oracool::GemQuality::Chipped)), 1);
+	EXPECT_EQ(GemRequiredLevel(devilution::oracool::GemIndexFor(devilution::oracool::GemType::Ruby, devilution::oracool::GemQuality::Perfect)), 18);
+
+	// A plain leather base on Normal asks 1; the same base on Torment asks 1 + 36.
+	devilution::Item leather;
+	InitializeItem(leather, IDI_ORACOOL_LEATHER_SHIELD);
+	EXPECT_EQ(BaseRequiredLevel(leather), 1);
+	EXPECT_EQ(RequiredLevel(leather), 1);
+	leather._iOracoolBaseTier = 3;
+	EXPECT_EQ(BaseRequiredLevel(leather), 37);
+
+	// A potion asks nothing.
+	devilution::Item potion;
+	InitializeItem(potion, IDI_HEAL);
+	EXPECT_EQ(RequiredLevel(potion), 0);
+
+	// A Zod in a socket raises the host to 69; a Shard of Ease takes three off; never below 1.
+	devilution::Item zodded;
+	InitializeItem(zodded, IDI_ORACOOL_HELM);
+	zodded._iSocketCount = 1;
+	zodded._iSocketed[0] = devilution::oracool::RuneAtLadderPosition(32);
+	EXPECT_EQ(RequiredLevel(zodded), 69);
+	zodded._iOracoolImbueCount = 1;
+	zodded._iOracoolImbuements[0] = static_cast<uint8_t>(devilution::oracool::ShardKind::Ease);
+	EXPECT_EQ(RequiredLevel(zodded), 66);
+	zodded._iSocketCount = 0;
+	zodded._iOracoolImbueCount = 20;
+	zodded._iOracoolImbuements.fill(static_cast<uint8_t>(devilution::oracool::ShardKind::Ease));
+	EXPECT_EQ(RequiredLevel(zodded), 1) << "the floor";
+
+	// An affix that rolls at 60 on a base asking 1: the affix wins at 45.
+	devilution::Item deep;
+	InitializeItem(deep, IDI_ORACOOL_LEATHER_SHIELD);
+	deep._iOracoolAffixCount = 1;
+	deep._iOracoolAffixes[0] = { IPL_ALLRES, 40, 40 };
+	const int deepAsks = RequiredLevel(deep);
+	EXPECT_GE(deepAsks, 2) << "a resist-all roll asks more than the bare base";
+	EXPECT_LE(deepAsks, 45) << "nothing asks above three quarters of the deepest affix level";
+}
+
+// Diablo II's experience table, verbatim, and the two brakes in KillExperienceFor.
+TEST(OracoolAudit, ExperienceTableIsDiabloTwosWithItsBrakes)
+{
+	EXPECT_EQ(ExpLvlsTbl[0], 0u);
+	EXPECT_EQ(ExpLvlsTbl[1], 500u) << "level 2";
+	EXPECT_EQ(ExpLvlsTbl[49], 47116709u) << "level 50";
+	EXPECT_EQ(ExpLvlsTbl[98], 3520485254u) << "level 99";
+	for (int i = 1; i < MaxCharacterLevel; i++)
+		ASSERT_GT(ExpLvlsTbl[i], ExpLvlsTbl[i - 1]) << "monotonic at " << i;
+
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = devilution::Player {};
+	player._pLevel = 30;
+	// A monster of the hero's level pays in full; one six levels below pays its share of the hero's level.
+	EXPECT_EQ(KillExperienceFor(player, 30, 1000), 1000u);
+	EXPECT_EQ(KillExperienceFor(player, 24, 1000), static_cast<uint64_t>(1000 * (1 + (24 - 30) / 10.0)) * 24 / 30);
+	// Above 70 the gain is cut: 80 pays half, 90 a tenth, 96 a twentieth.
+	player._pLevel = 80;
+	EXPECT_EQ(KillExperienceFor(player, 80, 1000), 500u);
+	player._pLevel = 90;
+	EXPECT_EQ(KillExperienceFor(player, 90, 1000), 100u);
+	player._pLevel = 96;
+	EXPECT_EQ(KillExperienceFor(player, 96, 1000), 50u);
 }

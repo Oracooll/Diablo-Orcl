@@ -117,6 +117,7 @@ set(libdevilutionx_SRCS
   oracool/monster_variants.cpp
   oracool/treasure_class.cpp
   oracool/imbuement.cpp
+  oracool/level_requirement.cpp
   oracool/venom.cpp
   oracool/signets.cpp
   oracool/named_encounters.cpp

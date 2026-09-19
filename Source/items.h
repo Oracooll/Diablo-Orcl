@@ -977,6 +977,11 @@ extern bool UniqueItemFlags[MaxUniqueItems];
 
 uint8_t GetOutlineColor(const Item &item, bool checkReq);
 /**
+ * @brief Oracool: the lowest level at which an OracoolPoolRows row with this power (and a range covering
+ * @p param1..@p param2, when one does) rolls; -1 when no pool row has the power. For oracool/level_requirement.
+ */
+int OracoolPoolAffixMinLevel(item_effect_type type, int param1, int param2);
+/**
  * @brief Oracool: the price an item actually sells for at a vendor - identified magical/unique
  * items use their real value (_iIvalue), everything else uses the base value (_ivalue), both cut
  * to a quarter and floored at 1, multiplied by stack count for a stackable consumable. Matches the

@@ -56,6 +56,7 @@
 #include "oracool/runewords.h"
 #include "oracool/smart_loot.h"
 #include "oracool/imbuement.h"
+#include "oracool/level_requirement.h"
 #include "oracool/monster_variants.h"
 #include "oracool/named_encounters.h"
 #include "oracool/salvage.h"
@@ -929,10 +930,13 @@ void CalcSelfItems(Player &player)
 		for (Item &equipment : EquippedPlayerItemsRange(player)) {
 			if (!equipment._iStatFlag)
 				continue;
+			// And the level (2026-09-20): the fourth requirement, asked here as in CanUseItem, or
+			// this pass would switch a level-gated item back on.
 			if (IsItemValid(equipment)
 			    && currstr >= oracool::EffectiveRequirement(equipment, equipment._iMinStr)
 			    && currmag >= oracool::EffectiveRequirement(equipment, equipment._iMinMag)
-			    && currdex >= oracool::EffectiveRequirement(equipment, equipment._iMinDex))
+			    && currdex >= oracool::EffectiveRequirement(equipment, equipment._iMinDex)
+			    && player._pLevel >= oracool::RequiredLevel(equipment))
 				continue;
 			changeflag = true;
 			equipment._iStatFlag = false;
@@ -2951,6 +2955,14 @@ void PrintItemInfo(const Item &item)
 		// Oracool: requirements are base information about the item, so white - see the colour
 		// scheme note in PrintItemDetails.
 		AddPanelStringRuns(std::move(text), ItemBaseStatColor, std::move(runs));
+	}
+	// The fourth requirement (2026-09-20, decision D7: always, red when unmet): the character
+	// level, derived from the item - see oracool/level_requirement.h. Its own line, since it is
+	// asked of a different number than the three stats.
+	if (const int level = oracool::RequiredLevel(item); level > 1) {
+		const Player *who = InspectPlayer != nullptr ? InspectPlayer : MyPlayer;
+		const bool unmet = who != nullptr && who->_pLevel < level;
+		AddPanelStringRuns(fmt::format(fmt::runtime(_("Required Level: {:d}")), level), unmet ? UiFlags::ColorRed : ItemBaseStatColor, {});
 	}
 }
 
@@ -9742,6 +9754,22 @@ DropOddsTally SimulateMonsterDropOdds(int dropLevel, int itemRollLevel, int item
 	}
 	ClearUniqueItemFlags();
 	return tally;
+}
+
+int OracoolPoolAffixMinLevel(item_effect_type type, int param1, int param2)
+{
+	int best = -1;
+	int fallback = -1;
+	for (const OracoolPoolRow &row : OracoolPoolRows) {
+		if (row.row.power.type != type)
+			continue;
+		const int level = row.row.PLMinLvl;
+		if (fallback < 0 || level < fallback)
+			fallback = level;
+		if (param1 >= row.row.power.param1 && param2 <= row.row.power.param2 && (best < 0 || level < best))
+			best = level;
+	}
+	return best >= 0 ? best : fallback;
 }
 
 } // namespace devilution

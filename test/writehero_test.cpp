@@ -341,7 +341,7 @@ void AssertPlayer(Player &player)
 	ASSERT_EQ(player._pMaxHP, 17408);
 	ASSERT_EQ(player._pMana, 16800);
 	ASSERT_EQ(player._pMaxMana, 16800);
-	ASSERT_EQ(player._pNextExper, 1530707109); // Oracool: level-51 threshold now that MaxCharacterLevel is 99, not the old level-50 cap value
+	ASSERT_EQ(player._pNextExper, 51767302); // Oracool: the level-51 threshold of Diablo II's table (2026-09-20), MaxCharacterLevel being 99
 	// CHANGED 2026-08-19 (v1.8.35). Two of these three were 75 - vanilla's hard cap, which this
 	// character's gear was well past. The soft cap now lets the excess through at a third of its
 	// value up to a ceiling of 90, so the pinned values moved to 89 / 16 / 90.

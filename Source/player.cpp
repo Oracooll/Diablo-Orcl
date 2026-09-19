@@ -11,6 +11,7 @@
 #include "control.h"
 #include "oracool/weapon_throw.h"
 #include "oracool/gems.h"
+#include "oracool/level_requirement.h"
 #include "oracool/hero_look.h"
 #include "oracool/sprite_colours.h"
 #include "oracool/sprite_mix.h"
@@ -1830,9 +1831,12 @@ bool Player::CanUseItem(const Item &item) const
 	// The shrunken heads are the Necromancer's alone (oracool/necro_items.h): red in any other hand.
 	if (!oracool::ClassMayUseItem(*this, item))
 		return false;
+	// The fourth requirement (2026-09-20): a character level, derived from the item -
+	// oracool/level_requirement.h. Asked here, in CalcSelfItems and on the item panel, nowhere else.
 	return _pStrength >= oracool::EffectiveRequirement(item, item._iMinStr)
 	    && _pMagic >= oracool::EffectiveRequirement(item, item._iMinMag)
-	    && _pDexterity >= oracool::EffectiveRequirement(item, item._iMinDex);
+	    && _pDexterity >= oracool::EffectiveRequirement(item, item._iMinDex)
+	    && _pLevel >= oracool::RequiredLevel(item);
 }
 
 void Player::RemoveInvItem(int iv, bool calcScrolls)
@@ -2896,6 +2900,19 @@ uint64_t KillExperienceFor(const Player &player, int monsterLevel, int monsterEx
 {
 	// Adjust xp based on difference in level between player and monster
 	uint64_t clampedExp = std::max(static_cast<int>(monsterExp * (1 + (monsterLevel - player._pLevel) / 10.0)), 0);
+
+	// Diablo II's two brakes (2026-09-20, decision D3 of the Level Requirements plan - they come
+	// with its experience table, which the fork's Diablo I monster experience would otherwise race
+	// up). One: a monster more than five levels below the hero pays its share of the hero's level
+	// (mlvl / clvl). Two: above level 70 the gain itself is cut, five points a level down to a tenth
+	// at 88, then a twentieth from 95 - the shape of Diablo II's post-70 table.
+	const int clvl = std::max<int>(1, player._pLevel);
+	if (clvl - monsterLevel > 5)
+		clampedExp = clampedExp * static_cast<uint64_t>(std::max(1, monsterLevel)) / static_cast<uint64_t>(clvl);
+	if (clvl > 70) {
+		const int percent = clvl <= 88 ? 100 - 5 * (clvl - 70) : (clvl < 95 ? 10 : 5);
+		clampedExp = clampedExp * static_cast<uint64_t>(percent) / 100;
+	}
 
 	// Prevent power leveling
 	if (gbIsMultiplayer) {

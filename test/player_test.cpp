@@ -176,7 +176,7 @@ static void AssertPlayer(devilution::Player &player)
 	ASSERT_EQ(player._pMaxHP, 2880);
 	ASSERT_EQ(player._pMana, 1440);
 	ASSERT_EQ(player._pMaxMana, 1440);
-	ASSERT_EQ(player._pNextExper, 2000);
+	ASSERT_EQ(player._pNextExper, 500); // Diablo II's table since 2026-09-20: 500 to level 2
 	ASSERT_EQ(player._pMagResist, 0);
 	ASSERT_EQ(player._pFireResist, 0);
 	ASSERT_EQ(player._pLghtResist, 0);
@@ -503,20 +503,21 @@ TEST(Player, ShouldDropGoldOnDeath_MultiplayerAlwaysDrops)
 	gbIsMultiplayer = false;
 }
 
-TEST(Player, ExpLvlsTbl_HasNinetyNineLevelsAndVanillaPrefixUnchanged)
+TEST(Player, ExpLvlsTbl_HasNinetyNineLevelsAndIsDiabloTwos)
 {
 	ASSERT_EQ(MaxCharacterLevel, 99);
 
-	// Levels 1-50 must be byte-for-byte the original vanilla table.
-	constexpr uint64_t VanillaPrefix[] = {
-		0, 2000, 4620, 8040, 12489, 18258, 25712, 35309, 47622, 63364,
-		83419, 108879, 141086, 181683, 231075, 313656, 424067, 571190, 766569, 1025154,
-		1366227, 1814568, 2401895, 3168651, 4166200, 5459523, 7130496, 9281874, 12042092, 15571031,
-		20066900, 25774405, 32994399, 42095202, 53525811, 67831218, 85670061, 107834823, 135274799, 169122009,
-		210720231, 261657253, 323800420, 399335440, 490808349, 601170414, 733825617, 892680222, 1082908612, 1310707109
+	// Diablo II's table since 2026-09-20 (the Level Requirements plan, decision D3): the first
+	// twenty levels and the cap, from the Arreat Summit. Vanilla Diablo's curve (2000 to level 2,
+	// 1,310,707,109 to level 50) is gone.
+	constexpr uint64_t DiabloTwoPrefix[] = {
+		0, 500, 1500, 3750, 7875, 14175, 22680, 32886, 44396, 57715,
+		72144, 90180, 112725, 140906, 176132, 220165, 275207, 344008, 430010, 537513
 	};
-	for (size_t i = 0; i < std::size(VanillaPrefix); i++)
-		EXPECT_EQ(ExpLvlsTbl[i], VanillaPrefix[i]) << "level " << (i + 1);
+	for (size_t i = 0; i < std::size(DiabloTwoPrefix); i++)
+		EXPECT_EQ(ExpLvlsTbl[i], DiabloTwoPrefix[i]) << "level " << (i + 1);
+	EXPECT_EQ(ExpLvlsTbl[49], 47116709u) << "level 50";
+	EXPECT_EQ(ExpLvlsTbl[98], 3520485254u) << "level 99";
 }
 
 TEST(Player, ExpLvlsTbl_ExtendedRangeIsMonotonicAndFitsUint64)
