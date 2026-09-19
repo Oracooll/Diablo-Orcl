@@ -1377,6 +1377,12 @@ void UpdateHellfireFlag(Item &item, const char *identifiedItemName);
 bool WouldSurviveNetworkValidation(const Item &item, _item_indexes idx);
 std::string DebugSpawnItem(std::string itemName);
 std::string DebugSpawnTieredItem(std::string itemName, OracoolItemTier tier);
+/** @brief One random worn or wielded item of exactly @p quality, no tier, not ethereal - givebasic / givemagic. */
+std::string DebugSpawnQualityItem(std::string itemName, item_quality quality);
+/** @brief One random piece of a named set, matching the piece or set name if given - giveset. */
+std::string DebugSpawnSetPiece(string_view parameter);
+/** @brief One formed runeword (any, or one whose name matches) on a random fitting base - giverw. */
+std::string DebugSpawnRuneword(string_view parameter);
 /** @brief Oracool: the base item each give*set slot spawns - first-in-table for an empty prefix,
  * case-insensitive (pre-lowercased) name-prefix match otherwise. Declared here for items_test:
  * this selection is exactly what a user's "givebset bone" resolves through, and the test exists

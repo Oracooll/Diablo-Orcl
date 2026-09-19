@@ -732,6 +732,28 @@ std::string DebugCmdGiveEthereal(const string_view parameter)
 	return DebugSpawnEthereal(parameter);
 }
 
+// Oracool (2026-09-19): one command per item type that drops ONE random item of it. Rare, Buffed
+// Unique and Primal had theirs; these are the four that were missing.
+std::string DebugCmdGiveBasic(const string_view parameter)
+{
+	return DebugSpawnQualityItem(std::string(parameter), ITEM_QUALITY_NORMAL);
+}
+
+std::string DebugCmdGiveMagic(const string_view parameter)
+{
+	return DebugSpawnQualityItem(std::string(parameter), ITEM_QUALITY_MAGIC);
+}
+
+std::string DebugCmdGiveSetPiece(const string_view parameter)
+{
+	return DebugSpawnSetPiece(parameter);
+}
+
+std::string DebugCmdGiveRuneword(const string_view parameter)
+{
+	return DebugSpawnRuneword(parameter);
+}
+
 std::string DebugCmdGiveSockets(const string_view parameter)
 {
 	return DebugSpawnSocketedBase(parameter);
@@ -1416,8 +1438,10 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "fill", "Refills health and mana.", "", &DebugCmdRefillHealthMana },
 	{ "changehp", "Changes health by {value} (Use a negative value to remove health).", "{value}", &DebugCmdChangeHealth },
 	{ "changemp", "Changes mana by {value} (Use a negative value to remove mana).", "{value}", &DebugCmdChangeMana },
-	{ "dropu", "Attempts to generate unique item {name}.", "{name}", &DebugCmdGenerateUniqueItem },
+	{ "dropu", "Attempts to generate unique item {name}; no name is a random unique.", "({name})", &DebugCmdGenerateUniqueItem },
 	{ "drop", "Attempts to generate item {name}.", "{name}", &DebugCmdGenerateItem },
+	{ "givebasic", "Generates one random Basic (white) worn or wielded item, optionally matching {name}.", "({name})", &DebugCmdGiveBasic },
+	{ "givemagic", "Generates one random Magic item with no Orcl tier, optionally matching {name}.", "({name})", &DebugCmdGiveMagic },
 	{ "giverare", "Attempts to generate a Rare-tier item, optionally matching {name}.", "({name})", &DebugCmdGenerateRareItem },
 	{ "giveunique", "Attempts to generate a Buffed Unique-tier item, optionally matching {name}.", "({name})", &DebugCmdGenerateBuffedUniqueItem },
 	{ "giveprimal", "Attempts to generate a Primal-tier item, optionally matching {name}.", "({name})", &DebugCmdGeneratePrimalItem },
@@ -1431,8 +1455,10 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "giverunes", "Drops all 33 runes.", "", &DebugCmdGiveRunes },
 	{ "givegems", "Drops every gem, or only quality {q} (chipped/flawed/normal/flawless/perfect).", "({q})", &DebugCmdGiveGems },
 	{ "runewords", "Toggles the runeword book.", "", &DebugCmdRunewordBook },
-	{ "giveethereal", "Spawns an ethereal item, optionally matching {name}.", "({name})", &DebugCmdGiveEthereal },
-	{ "givesockets", "Spawns a basic base with {n} empty sockets, optionally named {name}.", "({n}) ({name})", &DebugCmdGiveSockets },
+	{ "giveethereal", "Spawns one random ethereal item, optionally matching {name}.", "({name})", &DebugCmdGiveEthereal },
+	{ "givesockets", "Spawns one random basic base with {n} empty sockets (default: as many as it holds), optionally named {name}.", "({n}) ({name})", &DebugCmdGiveSockets },
+	{ "giveset", "Drops one random piece of a named set, optionally matching a piece or set {name} - giveitemset {n} for a whole set.", "({name})", &DebugCmdGiveSetPiece },
+	{ "giverw", "Drops one formed runeword on a random fitting base, optionally the word matching {name}.", "({name})", &DebugCmdGiveRuneword },
 	{ "givecharms", "Drops every charm.", "", &DebugCmdGiveCharms },
 	{ "giveitemset", "Gives every spawnable piece of named item set {n} (1-15).", "{n}", &DebugCmdGiveItemSet },
 	{ "talkto", "Interacts with a NPC whose name contains {name}.", "{name}", &DebugCmdTalkToTowner },

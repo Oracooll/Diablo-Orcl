@@ -8691,6 +8691,179 @@ std::string DebugSpawnTieredItem(std::string itemName, OracoolItemTier tier)
 }
 
 /**
+ * @brief Oracool (2026-09-19): one random item of a plain quality - `givebasic`, `givemagic`.
+ *
+ * DebugSpawnTieredItem's search loop with a different acceptance test: the roll must land on
+ * exactly @p quality, on no Oracool tier and not ethereal, and the base must be something worn or
+ * wielded - a potion is ITEM_QUALITY_NORMAL too, and is not what "a basic item" means to anyone.
+ * Asked for so that every quality has ONE command that drops ONE random item of it; `drop` alone
+ * rolls whatever the dungeon would, and the *set commands drop thirteen.
+ */
+std::string DebugSpawnQualityItem(std::string itemName, item_quality quality)
+{
+	if (ActiveItemCount >= MAXITEMS)
+		return "No space to generate the item!";
+
+	const int max_time = 3000;
+	const int max_iter = 1000000;
+
+	AsciiStrToLower(itemName);
+
+	Item testItem;
+
+	uint32_t begin = SDL_GetTicks();
+	int i = 0;
+	for (;; i++) {
+		std::uniform_int_distribution<int32_t> dist(0, INT_MAX);
+		SetRndSeed(dist(BetterRng));
+		if (SDL_GetTicks() - begin > max_time)
+			return StrCat("Item not found in ", max_time / 1000, " seconds!");
+
+		if (i > max_iter)
+			return StrCat("Item not found in ", max_iter, " tries!");
+
+		const int8_t monsterLevel = dist(BetterRng) % CF_LEVEL + 1;
+		_item_indexes idx = RndItemForMonsterLevel(monsterLevel);
+		if (IsAnyOf(idx, IDI_NONE, IDI_GOLD))
+			continue;
+		if (IsAnyOf(AllItemsList[idx].iLoc, ILOC_UNEQUIPABLE, ILOC_BELT))
+			continue;
+
+		testItem = {};
+		SetupAllItems(*MyPlayer, testItem, idx, AdvanceRndSeed(), monsterLevel, 1, false, false, false);
+
+		if (testItem._iMagical != quality || testItem._iOracoolTier != OracoolItemTier::None || testItem._iOracoolEthereal)
+			continue;
+		if (!DebugItemNameMatches(testItem, idx, itemName))
+			continue;
+		if (!WouldSurviveNetworkValidation(testItem, idx))
+			continue;
+		break;
+	}
+
+	int ii = AllocateItem();
+	auto &item = Items[ii];
+	item = testItem.pop();
+	item._iIdentified = true;
+	Point pos = MyPlayer->position.tile;
+	GetSuperItemSpace(pos, ii);
+	NetSendCmdPItem(false, CMD_SPAWNITEM, item.position, item);
+	return StrCat("Item generated successfully - iterations: ", i);
+}
+
+/**
+ * @brief Oracool (2026-09-19): one random piece of a named set - `giveset ({name})`.
+ *
+ * The name matches the piece or its set, so `giveset ashen` is any Ashen piece. Built the way
+ * givesset builds its thirteen (InitializeItem + MakeSetItem), dropped at the feet rather than
+ * placed in the pack, and through FinishOracoolDrop because nothing here ran SetupAllItems.
+ */
+std::string DebugSpawnSetPiece(string_view parameter)
+{
+	if (ActiveItemCount >= MAXITEMS)
+		return "No space to generate the item!";
+
+	const std::string wanted = AsciiStrToLower(std::string { parameter });
+	std::vector<size_t> candidates;
+	for (size_t s = 0; s < oracool::ItemSetCount; s++) {
+		const oracool::ItemSetDefinition &set = oracool::ItemSets[s];
+		const std::string setName = AsciiStrToLower(std::string { set.name });
+		for (int i = 0; i < set.itemCount; i++) {
+			const size_t pieceIdx = static_cast<size_t>(set.firstItem + i);
+			const oracool::SetItemDefinition &def = oracool::ItemSetItems[pieceIdx];
+			if (oracool::BaseItemForSetPiece(def) < 0)
+				continue; // no base for that slot in this fork - giveitemset reports these
+			if (!wanted.empty()) {
+				const std::string pieceName = AsciiStrToLower(std::string { def.name });
+				if (pieceName.find(wanted) == std::string::npos && setName.find(wanted) == std::string::npos)
+					continue;
+			}
+			candidates.push_back(pieceIdx);
+		}
+	}
+	if (candidates.empty())
+		return wanted.empty() ? "No set piece has a base item." : "No set or set piece matching that name.";
+
+	std::uniform_int_distribution<size_t> pick(0, candidates.size() - 1);
+	const oracool::SetItemDefinition &def = oracool::ItemSetItems[candidates[pick(BetterRng)]];
+
+	Item item {};
+	InitializeItem(item, static_cast<_item_indexes>(oracool::BaseItemForSetPiece(def)));
+	oracool::MakeSetItem(item, def);
+	item._iIdentified = true;
+
+	const int ii = AllocateItem();
+	Items[ii] = item.pop();
+	FinishOracoolDrop(ii, MyPlayer->position.tile);
+	NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
+	return StrCat("Dropped ", Items[ii]._iIName, ".");
+}
+
+/**
+ * @brief Oracool (2026-09-19): one formed runeword on a random fitting base - `giverw ({word})`.
+ *
+ * Picks a word (any, or one whose name contains @p parameter), then a plain base of the word's
+ * host type that can hold that many sockets, seats the runes in the word's order and lets
+ * TryCompleteRuneword name it - the same check the socket UI runs, so what drops here is exactly
+ * what a player would have built rune by rune.
+ */
+std::string DebugSpawnRuneword(string_view parameter)
+{
+	if (ActiveItemCount >= MAXITEMS)
+		return "No space to generate the item!";
+
+	const std::string wanted = AsciiStrToLower(std::string { parameter });
+	std::vector<const oracool::RunewordDefinition *> words;
+	for (size_t w = 0; w < oracool::RunewordCount(); w++) {
+		const oracool::RunewordDefinition *word = oracool::RunewordAt(w);
+		if (!wanted.empty() && AsciiStrToLower(std::string { word->name }).find(wanted) == std::string::npos)
+			continue;
+		words.push_back(word);
+	}
+	if (words.empty())
+		return "No runeword matching that name.";
+	std::uniform_int_distribution<size_t> pickWord(0, words.size() - 1);
+	const oracool::RunewordDefinition &word = *words[pickWord(BetterRng)];
+	const int runeCount = word.runeCount;
+
+	std::vector<_item_indexes> bases;
+	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; ++i) {
+		if (!IsItemAvailable(i))
+			continue;
+		if (static_cast<uint8_t>(oracool::RunewordHostForItemType(AllItemsList[i].itype)) != word.host)
+			continue;
+		Item probe;
+		GetItemAttrs(probe, static_cast<_item_indexes>(i), 1);
+		probe._iCreateInfo = 1;
+		probe._iSeed = AdvanceRndSeed();
+		SetupItem(probe);
+		if (!oracool::CanItemHaveSockets(probe) || oracool::MaxSocketsForItem(probe) < runeCount)
+			continue;
+		bases.push_back(static_cast<_item_indexes>(i));
+	}
+	if (bases.empty())
+		return StrCat("No base can hold ", word.name, "'s ", runeCount, " runes.");
+	std::uniform_int_distribution<size_t> pickBase(0, bases.size() - 1);
+
+	Item item;
+	GetItemAttrs(item, bases[pickBase(BetterRng)], 1);
+	item._iCreateInfo = 1;
+	item._iSeed = AdvanceRndSeed();
+	SetupItem(item);
+	item._iSocketCount = static_cast<uint8_t>(runeCount);
+	for (int r = 0; r < runeCount; r++)
+		item._iSocketed[r] = word.runes[r];
+	if (!oracool::TryCompleteRuneword(item))
+		return StrCat("The runes did not form ", word.name, " on ", item._iIName, ".");
+
+	const int ii = AllocateItem();
+	Items[ii] = item.pop();
+	FinishOracoolDrop(ii, MyPlayer->position.tile);
+	NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
+	return StrCat("Dropped ", Items[ii]._iIName, " (", runeCount, " runes).");
+}
+
+/**
  * @brief Oracool: user request - give{b,m,r,u,p}set. One item for every equipment slot at once.
  *
  * Picks a base item per slot by walking AllItemsList for the first entry with the right iLoc,
@@ -8875,6 +9048,8 @@ std::string DebugSpawnSocketedBase(string_view parameter)
 	AsciiStrToLower(namePrefix);
 	wantedCount = std::clamp(wantedCount, 1, static_cast<int>(Item::MaxItemSockets));
 
+	// A RANDOM candidate, not the first in the table (2026-09-19) - see DebugSpawnEthereal.
+	std::vector<_item_indexes> candidates;
 	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; ++i) {
 		if (!IsItemAvailable(i))
 			continue;
@@ -8883,18 +9058,23 @@ std::string DebugSpawnSocketedBase(string_view parameter)
 			if (name.find(namePrefix) == std::string::npos)
 				continue;
 		}
+		Item probe;
+		GetItemAttrs(probe, static_cast<_item_indexes>(i), 1);
+		probe._iCreateInfo = 1;
+		probe._iSeed = AdvanceRndSeed();
+		SetupItem(probe);
+		if (!oracool::CanItemHaveSockets(probe) || oracool::MaxSocketsForItem(probe) < wantedCount)
+			continue;
+		candidates.push_back(static_cast<_item_indexes>(i));
+	}
 
+	if (!candidates.empty()) {
+		std::uniform_int_distribution<size_t> pick(0, candidates.size() - 1);
 		Item item;
-		GetItemAttrs(item, static_cast<_item_indexes>(i), 1);
+		GetItemAttrs(item, candidates[pick(BetterRng)], 1);
 		item._iCreateInfo = 1;
 		item._iSeed = AdvanceRndSeed();
 		SetupItem(item);
-		if (!oracool::CanItemHaveSockets(item))
-			continue;
-		const int cap = oracool::MaxSocketsForItem(item);
-		if (cap < wantedCount)
-			continue;
-
 		item._iSocketCount = static_cast<uint8_t>(wantedCount);
 		item._iIdentified = true;
 
@@ -8935,6 +9115,10 @@ std::string DebugSpawnEthereal(string_view parameter)
 	std::string wanted { parameter };
 	AsciiStrToLower(wanted);
 
+	// A RANDOM candidate, not the first in the table (2026-09-19): with no name this dropped the
+	// same base every time, which made it a fixture rather than a spawner. Every base that can be
+	// ethereal (and matches the name, if any) is a candidate; one is drawn.
+	std::vector<_item_indexes> candidates;
 	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; ++i) {
 		if (!IsItemAvailable(i))
 			continue;
@@ -8943,27 +9127,35 @@ std::string DebugSpawnEthereal(string_view parameter)
 			if (name.find(wanted) == std::string::npos)
 				continue;
 		}
-
-		Item item;
-		GetItemAttrs(item, static_cast<_item_indexes>(i), 1);
-		item._iCreateInfo = 1;
-		item._iSeed = AdvanceRndSeed();
-		SetupItem(item);
-		if (!MakeItemEthereal(item))
-			continue;
-		item._iIdentified = true;
-
-		const int ii = AllocateItem();
-		Items[ii] = item.pop();
-		Point pos = MyPlayer->position.tile;
-		GetSuperItemSpace(pos, ii);
-		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
-		return StrCat("Dropped ethereal ", Items[ii]._iIName, ".");
+		Item probe;
+		GetItemAttrs(probe, static_cast<_item_indexes>(i), 1);
+		probe._iCreateInfo = 1;
+		probe._iSeed = AdvanceRndSeed();
+		SetupItem(probe);
+		if (MakeItemEthereal(probe))
+			candidates.push_back(static_cast<_item_indexes>(i));
+	}
+	if (candidates.empty()) {
+		if (!wanted.empty())
+			return "No durable weapon or armour matching that name - ethereal needs one of those.";
+		return "No durable weapon or armour available.";
 	}
 
-	if (!wanted.empty())
-		return "No durable weapon or armour matching that name - ethereal needs one of those.";
-	return "No durable weapon or armour available.";
+	std::uniform_int_distribution<size_t> pick(0, candidates.size() - 1);
+	Item item;
+	GetItemAttrs(item, candidates[pick(BetterRng)], 1);
+	item._iCreateInfo = 1;
+	item._iSeed = AdvanceRndSeed();
+	SetupItem(item);
+	MakeItemEthereal(item);
+	item._iIdentified = true;
+
+	const int ii = AllocateItem();
+	Items[ii] = item.pop();
+	Point pos = MyPlayer->position.tile;
+	GetSuperItemSpace(pos, ii);
+	NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
+	return StrCat("Dropped ethereal ", Items[ii]._iIName, ".");
 }
 
 std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical, string_view namePrefix, bool ethereal)
@@ -9051,6 +9243,22 @@ std::string DebugSpawnUniqueItem(std::string itemName)
 		return "No space to generate the item!";
 
 	AsciiStrToLower(itemName);
+
+	// No name means a RANDOM unique (2026-09-19). The empty string matched the first entry of the
+	// table, so `dropu` alone dropped the same item every time - a fixture, not a spawner.
+	if (itemName.empty()) {
+		std::vector<int> available;
+		for (int j = 0; UniqueItems[j].UIItemId != UITYPE_INVALID; j++) {
+			if (!IsUniqueAvailable(j))
+				break;
+			available.push_back(j);
+		}
+		if (available.empty())
+			return "No unique found!";
+		std::uniform_int_distribution<size_t> pick(0, available.size() - 1);
+		itemName = AsciiStrToLower(UniqueItems[available[pick(BetterRng)]].UIName);
+	}
+
 	UniqueItem uniqueItem;
 	bool foundUnique = false;
 	int uniqueIndex = 0;
