@@ -21,7 +21,7 @@ field, no save change:
 | Venomous | the blow poisons: as much again as the hit, over five seconds | `MonsterAttackPlayer` -> **`oracool/venom`** (new): a per-player bleed, refreshed not stacked, resisted as MAGIC (the fork's poison rule), ticking from `ProcessPlayers` beside the gradual healing, never the killing blow (floor 1), cleared in `InitPlayer` beside the cold armour |
 | Unyielding | cannot be knocked back | `IsKnockbackImmune` beside Relentless and Implacable |
 | Gilded | one more item on death, from the equipment pool two rungs deeper, good-item bias on (uper 15) | `TrySpawnGildedDrop` (items.cpp) at the death-drop seam beside the Necromancer bases, through `RndEquipmentForMonsterLevel` so the kill is always worth an item |
-| Luminous | carries a light (radius 5) | field at spawn: `AddLight`; the walk code moves it and the death path frees it, as a unique's light |
+| Luminous | carries a light (radius 5) | field at spawn: `AddLight`; the walk code moves it; the corpse stays lit for the rest of the level, as a unique's does (corrected 2026-09-19: the death path does NOT free it - vanilla frees a monster light only on a petrified unique's death) |
 
 Numbers (`IronhideArmorPercent` 150, `BrutalSpecialPercent` 150, `LuminousRadius` 5, the third-of-the-blow split,
 the five-second bleed) are first guesses beside Hollow's and Feral's, to be corrected from play.

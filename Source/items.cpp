@@ -8487,7 +8487,9 @@ void PutItemRecord(uint32_t nSeed, uint16_t wCI, int nIndex)
 }
 
 #ifdef _DEBUG
-std::mt19937 BetterRng;
+// Seeded (audit, 2026-09-19): default-constructed it was the fixed 5489, so the first random spawn after
+// every launch was the same item - the fixture the random spawners were written to remove.
+std::mt19937 BetterRng { std::random_device {}() };
 
 // The "drop" debug command picks a uniformly random 1-63 "monster level" purely to select
 // which item to generate (RndItemForMonsterLevel) and never checks whether that value could
@@ -8830,6 +8832,10 @@ std::string DebugSpawnRuneword(string_view parameter)
 	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; ++i) {
 		if (!IsItemAvailable(i))
 			continue;
+		// Not a quest unique's base row (The Undead Crown, Griswold's Edge...): those are IMISC_UNIQUE
+		// and would come out as a plain-quality helm wearing a runeword's name (audit, 2026-09-19).
+		if (AllItemsList[i].iMiscId == IMISC_UNIQUE)
+			continue;
 		if (static_cast<uint8_t>(oracool::RunewordHostForItemType(AllItemsList[i].itype)) != word.host)
 			continue;
 		Item probe;
@@ -9053,6 +9059,8 @@ std::string DebugSpawnSocketedBase(string_view parameter)
 	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; ++i) {
 		if (!IsItemAvailable(i))
 			continue;
+		if (AllItemsList[i].iMiscId == IMISC_UNIQUE)
+			continue; // a quest unique's base row, not a base (audit, 2026-09-19)
 		if (!namePrefix.empty()) {
 			std::string name = AsciiStrToLower(std::string { AllItemsList[i].iName });
 			if (name.find(namePrefix) == std::string::npos)
@@ -9122,6 +9130,8 @@ std::string DebugSpawnEthereal(string_view parameter)
 	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; ++i) {
 		if (!IsItemAvailable(i))
 			continue;
+		if (AllItemsList[i].iMiscId == IMISC_UNIQUE)
+			continue; // a quest unique's base row, not a base (audit, 2026-09-19)
 		if (!wanted.empty()) {
 			std::string name = AsciiStrToLower(std::string { AllItemsList[i].iName });
 			if (name.find(wanted) == std::string::npos)
@@ -9246,6 +9256,9 @@ std::string DebugSpawnUniqueItem(std::string itemName)
 
 	// No name means a RANDOM unique (2026-09-19). The empty string matched the first entry of the
 	// table, so `dropu` alone dropped the same item every time - a fixture, not a spawner.
+	UniqueItem uniqueItem;
+	bool foundUnique = false;
+	int uniqueIndex = 0;
 	if (itemName.empty()) {
 		std::vector<int> available;
 		for (int j = 0; UniqueItems[j].UIItemId != UITYPE_INVALID; j++) {
@@ -9256,13 +9269,15 @@ std::string DebugSpawnUniqueItem(std::string itemName)
 		if (available.empty())
 			return "No unique found!";
 		std::uniform_int_distribution<size_t> pick(0, available.size() - 1);
-		itemName = AsciiStrToLower(UniqueItems[available[pick(BetterRng)]].UIName);
+		// The drawn INDEX, not its name through the substring search below: "Black Meridian" is
+		// inside "Black Meridian Robe" and "The Long Vigil" inside "Hood of the Long Vigil", so a
+		// name would resolve to the wrong unique (audit, 2026-09-19).
+		uniqueIndex = available[pick(BetterRng)];
+		uniqueItem = UniqueItems[uniqueIndex];
+		itemName = AsciiStrToLower(uniqueItem.UIName);
+		foundUnique = true;
 	}
-
-	UniqueItem uniqueItem;
-	bool foundUnique = false;
-	int uniqueIndex = 0;
-	for (int j = 0; UniqueItems[j].UIItemId != UITYPE_INVALID; j++) {
+	for (int j = 0; !foundUnique && UniqueItems[j].UIItemId != UITYPE_INVALID; j++) {
 		if (!IsUniqueAvailable(j))
 			break;
 

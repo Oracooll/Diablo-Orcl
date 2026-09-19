@@ -254,7 +254,10 @@ MonsterVariant VariantOf(const Monster &monster)
 	const MonsterVariant variant = VariantForSeed(monster.rndItemSeed, leveltype);
 	// Brutal is its special attack; a type with no special has nothing for it to be, and an
 	// ordinary monster is the honest answer rather than a recolour that does nothing.
-	if (variant == MonsterVariant::Brutal && !monster.data().hasSpecial)
+	// hasSpecial alone means "has a special ANIMATION" - Fallen fleeing, Scavengers eating, Hidden
+	// vanishing - and about seventy of the eighty-odd such types deal no special damage at all
+	// (audit, 2026-09-19). Brutal needs a special that hurts.
+	if (variant == MonsterVariant::Brutal && (!monster.data().hasSpecial || monster.data().maxDamageSpecial == 0))
 		return MonsterVariant::None;
 	return variant;
 }
@@ -344,8 +347,11 @@ void ApplyMonsterVariant(Monster &monster)
 		}
 		break;
 	case MonsterVariant::Luminous:
-		// A torch-bearer: the light rides the monster (the walk code moves lightId) and the death
-		// path frees it, both exactly as a unique's light already does.
+		// A torch-bearer: the light rides the monster (the walk code moves lightId) and the corpse
+		// stays lit for the rest of the level, exactly as a unique's does (the engine frees a
+		// monster's light only on a petrified unique's death; lights are per level anyway).
+		// Never reached for a unique or champion in the making: InitMonster skips the variant for
+		// them (audit, 2026-09-19), so PrepareUniqueMonst's own light cannot orphan this one.
 		if (monster.lightId == NO_LIGHT)
 			monster.lightId = AddLight(monster.position.tile, LuminousRadius);
 		break;
@@ -367,13 +373,18 @@ void ApplyMonsterVariant(Monster &monster)
 	TintVariant(monster, shift);
 }
 
-int VariantAnimTickDelta(const Monster &monster, MonsterGraphic graphic)
+int VariantSkippedFrames(const Monster &monster, MonsterGraphic graphic)
 {
+	// Frames, not ticks (audit, 2026-09-19: every type's walk and attack already run at one tick a
+	// frame, so a tick delta was a no-op). Two of a typical eight-frame walk is a quarter faster;
+	// two of an eight-to-sixteen-frame attack is an eighth to a quarter. NewMonsterAnim bounds both.
+	constexpr int FrenziedSkippedFrames = 2;
+	constexpr int FleetSkippedFrames = 2;
 	const MonsterVariant variant = VariantOf(monster);
 	if (variant == MonsterVariant::Frenzied && graphic == MonsterGraphic::Attack)
-		return -1;
+		return FrenziedSkippedFrames;
 	if (variant == MonsterVariant::Fleet && graphic == MonsterGraphic::Walk)
-		return -1;
+		return FleetSkippedFrames;
 	return 0;
 }
 

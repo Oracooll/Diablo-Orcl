@@ -329,13 +329,17 @@ void TintRectRgb(const Surface &out, int x, int y, int width, int height, uint32
 		return;
 
 	if (out.isIndexed()) {
-		// Vanilla's shift, verbatim: only pixels in the grey ramp (PAL16_GRAY..255) move, one shade
-		// deeper into the target ramp. Anything else is left alone, as vanilla left it.
+		// Vanilla's shift: only pixels in the grey ramp (PAL16_GRAY..255) move, one shade deeper into
+		// the target ramp; anything else is left alone. Clamped to the ramp's own length, which vanilla
+		// did not do (its ramps were all sixteen shades and it never asked for the grey ramp): a
+		// sixteen-shade grey into an eight-shade PAL8 ramp, or grey's 255 into the grey ramp itself,
+		// would otherwise land in the next ramp or wrap to 0 (audit, 2026-09-19).
+		const int shades = fallbackRampBase >= PAL16_BEIGE ? 16 : 8;
 		for (int row = y0; row < y1; row++) {
 			uint8_t *dst = out.at(x0, row);
 			for (int col = x0; col < x1; col++, dst++) {
 				if (*dst >= PAL16_GRAY)
-					*dst = static_cast<uint8_t>(*dst - (PAL16_GRAY - fallbackRampBase - 1));
+					*dst = static_cast<uint8_t>(fallbackRampBase + std::min(*dst - PAL16_GRAY + 1, shades - 1));
 			}
 		}
 		return;

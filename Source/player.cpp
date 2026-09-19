@@ -3640,8 +3640,10 @@ void ProcessPlayers()
 					RedrawComponent(PanelDrawComponent::Mana);
 				}
 				oracool::ProcessGradualHealing(player);
-				// ...and the Venomous variant's bleed (2026-09-19), the same per-tick seam.
-				oracool::TickPlayerVenom(player);
+				// ...and the Venomous variant's bleed (2026-09-19), the same per-tick seam - not in
+				// town, as the life drain two lines up is not (audit, 2026-09-19).
+				if (leveltype != DTYPE_TOWN)
+					oracool::TickPlayerVenom(player);
 				// The Paladin's Prayer and Meditation auras regenerate here, beside the engine's
 				// own per-tick life and mana effects.
 				oracool::ProcessClassTreeTick(player);

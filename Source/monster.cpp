@@ -141,7 +141,10 @@ void InitMonsterTRN(CMonster &monst)
 	}
 }
 
-void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point position)
+// `ordinary` is false for a monster about to become a unique or a champion (audit, 2026-09-19): the
+// variant used to be applied to it here and then PrepareUniqueMonst wrote its identity over the
+// top - an orphaned Luminous light at the spawn tile, a champion scaled from Ironhide armour.
+void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point position, bool ordinary = true)
 {
 	// Oracool: a slot being (re)used starts with no cry on it - see ClearWarcryStateForMonster.
 	oracool::ClearWarcryStateForMonster(monster);
@@ -259,8 +262,9 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 	// Phase 3: the recoloured variants, LAST - after the difficulty ladder, so a Feral monster is
 	// 30% harder than whatever this difficulty already made it rather than 30% harder than the
 	// Normal baseline. Derived from rndItemSeed, so it costs no per-monster state and reproduces on
-	// a revisit; see oracool/monster_variants.h.
-	oracool::ApplyMonsterVariant(monster);
+	// a revisit; see oracool/monster_variants.h. Not for a unique or champion in the making.
+	if (ordinary)
+		oracool::ApplyMonsterVariant(monster);
 }
 
 bool CanPlaceMonster(Point position)
@@ -273,7 +277,7 @@ bool CanPlaceMonster(Point position)
 	    && !IsTileOccupied(position);
 }
 
-void PlaceMonster(int i, size_t typeIndex, Point position)
+void PlaceMonster(int i, size_t typeIndex, Point position, bool ordinary = true)
 {
 	if (LevelMonsterTypes[typeIndex].type == MT_NAKRUL) {
 		for (size_t j = 0; j < ActiveMonsterCount; j++) {
@@ -285,7 +289,7 @@ void PlaceMonster(int i, size_t typeIndex, Point position)
 	dMonster[position.x][position.y] = i + 1;
 
 	auto rd = static_cast<Direction>(GenerateRnd(8));
-	InitMonster(Monsters[i], rd, typeIndex, position);
+	InitMonster(Monsters[i], rd, typeIndex, position, ordinary);
 }
 
 void PlaceGroup(size_t typeIndex, unsigned num, Monster *leader = nullptr, bool leashed = false)
@@ -463,7 +467,7 @@ void PlaceUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int bosspa
 	const auto &uniqueMonsterData = UniqueMonstersData[static_cast<size_t>(uniqindex)];
 	const size_t typeIndex = GetMonsterTypeIndex(uniqueMonsterData.mtype);
 	const Point position = GetUniqueMonstPosition(uniqindex);
-	PlaceMonster(ActiveMonsterCount, typeIndex, position);
+	PlaceMonster(ActiveMonsterCount, typeIndex, position, /*ordinary=*/false);
 
 	Monster &monster = Monsters[ActiveMonsterCount];
 	ActiveMonsterCount++;
@@ -572,7 +576,7 @@ void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int 
 	const Point position = GetUniqueMonstPosition(uniqindex);
 
 	const size_t championIndex = ActiveMonsterCount;
-	PlaceMonster(championIndex, typeIndex, position);
+	PlaceMonster(championIndex, typeIndex, position, /*ordinary=*/false);
 	Monster &monster = Monsters[championIndex];
 	ActiveMonsterCount++;
 
@@ -875,13 +879,26 @@ void NewMonsterAnim(Monster &monster, MonsterGraphic graphic, Direction md, Anim
 	// size can change them. A normal monster gets the shared CMonster data exactly as before.
 	const AnimStruct *scaled = oracool::GetScaledAnim(monster, graphic);
 	const AnimStruct &animData = scaled != nullptr ? *scaled : monster.type().getAnimData(graphic);
-	monster.animInfo.setNewAnimation(animData.spritesForDirection(md), animData.frames, animData.rate, flags, numSkippedFrames, distributeFramesBeforeFrame);
-	// The Frenzied and Fleet variants (2026-09-19): one tick fewer per frame of the attack or the
-	// walk, floored at one. Here rather than in the data because the rate is per TYPE and the
-	// variant is per monster; and here rather than at the AI's attack call because this is the one
-	// place every animation of every monster starts.
-	if (const int delta = oracool::VariantAnimTickDelta(monster, graphic); delta != 0)
-		monster.animInfo.ticksPerFrame = static_cast<int8_t>(std::max(1, monster.animInfo.ticksPerFrame + delta));
+	// The Frenzied and Fleet variants (2026-09-19): FRAMES skipped from the attack or the walk, the
+	// way the player's fast attack and run are built. The first version took a tick off each frame,
+	// floored at one - and every one of the 138 types already runs its walk and attack at one tick
+	// per frame, so it never did anything (audit, 2026-09-19). Here because this is the one place
+	// every animation of every monster starts. The skip is bounded so the animation keeps at least
+	// two frames, and an attack keeps its hit frame (animFrameNum, 1-based) with a frame to spare
+	// before it; the attack distributes the skip before the hit frame, as NewPlrAnim does.
+	int8_t skipped = numSkippedFrames;
+	int8_t distributeBefore = distributeFramesBeforeFrame;
+	if (const int extra = oracool::VariantSkippedFrames(monster, graphic); extra > 0) {
+		if (graphic == MonsterGraphic::Attack) {
+			const int hitFrame = monster.data().animFrameNum;
+			skipped = static_cast<int8_t>(std::clamp<int>(skipped + extra, 0, std::max(0, hitFrame - 3)));
+			if (distributeBefore == 0)
+				distributeBefore = static_cast<int8_t>(hitFrame);
+		} else {
+			skipped = static_cast<int8_t>(std::clamp<int>(skipped + extra, 0, std::max(0, animData.frames - 2)));
+		}
+	}
+	monster.animInfo.setNewAnimation(animData.spritesForDirection(md), animData.frames, animData.rate, flags, skipped, distributeBefore);
 	monster.flags &= ~(MFLAG_LOCK_ANIMATION | MFLAG_ALLOW_SPECIAL);
 	monster.direction = md;
 }
@@ -1576,13 +1593,14 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		// lightning and meets the player's resistance to it; the rest stays physical. The total at
 		// zero resistance is the same blow - the split never adds. ApplyPlrDamage applies no
 		// resistance itself (the missiles do that before calling it), so it is done here.
+		// ONE ApplyPlrDamage call (audit, 2026-09-19): two calls let the physical part kill, a
+		// cheat-death passive restore, and the elemental part kill again - and rang every
+		// on-damaged passive twice. The element only decides how much of the third survives.
 		if (const DamageType element = oracool::VariantHitElement(monster); element != DamageType::Physical) {
 			const int elemental = dam / 3;
 			const int resist = std::clamp<int>(element == DamageType::Fire ? player._pFireResist : player._pLghtResist, 0, 75);
 			const int resisted = elemental * (100 - resist) / 100;
-			ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam - elemental);
-			if (resisted > 0)
-				ApplyPlrDamage(element, player, 0, 0, resisted);
+			ApplyPlrDamage(element, player, 0, 0, dam - elemental + resisted);
 		} else {
 			ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam);
 		}

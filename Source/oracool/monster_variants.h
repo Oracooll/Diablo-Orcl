@@ -136,8 +136,8 @@ void ApplyMonsterVariant(Monster &monster);
 // from the derived variant, so nothing is stored and a monster that is not that kind costs one
 // comparison.
 
-/** @brief Frenzied / Fleet: ticks to take off each frame of @p graphic's animation (0 for everyone else). */
-int VariantAnimTickDelta(const Monster &monster, MonsterGraphic graphic);
+/** @brief Frenzied / Fleet: frames to skip from @p graphic's animation (0 for everyone else); NewMonsterAnim bounds it. */
+int VariantSkippedFrames(const Monster &monster, MonsterGraphic graphic);
 
 /** @brief Searing / Voltaic: the element a third of this monster's blow is dealt as, or Physical. */
 DamageType VariantHitElement(const Monster &monster);

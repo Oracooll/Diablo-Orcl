@@ -14,6 +14,7 @@
 #include "controls/plrctrls.h"
 #include "cursor.h"
 #include "engine/backbuffer_state.hpp"
+#include <algorithm>
 #include <array>
 
 #include "engine/clx_sprite.hpp"
@@ -1582,7 +1583,11 @@ constexpr int SlotStoneSwatchCount = 4;
 constexpr int SlotStoneOrientations = 8;
 /** @brief Interiors of four vanilla backpack cells (1.5.5 InvRect: {17 + 29i, 222 + 29j} 29x29). */
 constexpr Point SlotStoneSwatchOrigins[SlotStoneSwatchCount] = { { 19, 225 }, { 48, 225 }, { 19, 254 }, { 48, 254 } };
-std::array<std::array<uint8_t, SlotStoneTileSize * SlotStoneTileSize>, SlotStoneSwatchCount> SlotStoneSwatches;
+constexpr int SlotStoneVariantCount = SlotStoneSwatchCount * SlotStoneOrientations;
+/** @brief Every swatch in every orientation, baked once (audit, 2026-09-19: the per-pixel hash and
+ *  rotation cost a few milliseconds a frame with a full backpack and stash open; now the hash runs once
+ *  per 24-pixel tile and the rows are copied). Index = swatch * 8 + orientation. */
+std::array<std::array<uint8_t, SlotStoneTileSize * SlotStoneTileSize>, SlotStoneVariantCount> SlotStoneVariants;
 bool SlotStoneTilesReady = false;
 
 bool EnsureSlotStoneTiles()
@@ -1592,66 +1597,76 @@ bool EnsureSlotStoneTiles()
 	if (!pInvCels)
 		return false;
 	const ClxSprite panel = (*pInvCels)[0];
-	// The whole vanilla panel decoded once; the swatches are copied out of it.
+	constexpr int T = SlotStoneTileSize;
+	// A replacement inv.cel smaller than vanilla's would put a swatch past the surface (a read, not
+	// a write, but a wrong one): refuse, and the backing is the tint alone.
+	for (const Point origin : SlotStoneSwatchOrigins) {
+		if (origin.x + T > static_cast<int>(panel.width()) || origin.y + T > static_cast<int>(panel.height()))
+			return false;
+	}
+	// The whole vanilla panel decoded once; the swatches are copied out of it in every orientation.
 	OwnedSurface decoded(static_cast<int>(panel.width()), static_cast<int>(panel.height()));
 	SDL_FillRect(decoded.surface, nullptr, 0);
 	ClxDraw(decoded, { 0, static_cast<int>(panel.height()) - 1 }, panel);
 	for (int s = 0; s < SlotStoneSwatchCount; s++) {
 		const Point origin = SlotStoneSwatchOrigins[s];
-		for (int y = 0; y < SlotStoneTileSize; y++)
-			for (int x = 0; x < SlotStoneTileSize; x++)
-				SlotStoneSwatches[s][y * SlotStoneTileSize + x] = decoded[Point { origin.x + x, origin.y + y }];
+		for (int o = 0; o < SlotStoneOrientations; o++) {
+			std::array<uint8_t, T * T> &variant = SlotStoneVariants[s * SlotStoneOrientations + o];
+			for (int v = 0; v < T; v++) {
+				for (int u = 0; u < T; u++) {
+					int su, sv;
+					switch (o) {
+					default: su = u; sv = v; break;
+					case 1: su = T - 1 - u; sv = v; break;
+					case 2: su = u; sv = T - 1 - v; break;
+					case 3: su = T - 1 - u; sv = T - 1 - v; break;
+					case 4: su = v; sv = u; break;
+					case 5: su = T - 1 - v; sv = u; break;
+					case 6: su = v; sv = T - 1 - u; break;
+					case 7: su = T - 1 - v; sv = T - 1 - u; break;
+					}
+					variant[v * T + u] = decoded[Point { origin.x + su, origin.y + sv }];
+				}
+			}
+		}
 	}
 	SlotStoneTilesReady = true;
 	return true;
 }
 
-/** @brief The swatch index and orientation for the screen tile at (tx, ty): a small integer hash. */
+/** @brief The variant (swatch and orientation) for the screen tile at (tx, ty): a small integer hash. */
 uint32_t SlotStoneVariantAt(int tx, int ty)
 {
 	uint32_t h = static_cast<uint32_t>(tx) * 73856093u ^ static_cast<uint32_t>(ty) * 19349663u;
 	h ^= h >> 13;
 	h *= 0x5bd1e995u;
 	h ^= h >> 15;
-	return h % (SlotStoneSwatchCount * SlotStoneOrientations);
-}
-
-/** @brief The stone index at screen pixel (x, y), x and y non-negative. */
-uint8_t SlotStoneAt(int x, int y)
-{
-	constexpr int T = SlotStoneTileSize;
-	const uint32_t variant = SlotStoneVariantAt(x / T, y / T);
-	const int u = x % T, v = y % T;
-	int su, sv;
-	switch (variant % SlotStoneOrientations) {
-	default: su = u; sv = v; break;
-	case 1: su = T - 1 - u; sv = v; break;
-	case 2: su = u; sv = T - 1 - v; break;
-	case 3: su = T - 1 - u; sv = T - 1 - v; break;
-	case 4: su = v; sv = u; break;
-	case 5: su = T - 1 - v; sv = u; break;
-	case 6: su = v; sv = T - 1 - u; break;
-	case 7: su = T - 1 - v; sv = T - 1 - u; break;
-	}
-	return SlotStoneSwatches[variant / SlotStoneOrientations][sv * T + su];
+	return h % SlotStoneVariantCount;
 }
 
 void DrawSlotStoneUnderlay(const Surface &out, Rectangle rect)
 {
 	if (!EnsureSlotStoneTiles())
 		return;
+	constexpr int T = SlotStoneTileSize;
 	const int x0 = std::max(rect.position.x, 0), y0 = std::max(rect.position.y, 0);
 	const int x1 = std::min(rect.position.x + rect.size.width, out.w());
 	const int y1 = std::min(rect.position.y + rect.size.height, out.h());
 	for (int y = y0; y < y1; y++) {
-		if (out.isIndexed()) {
-			uint8_t *dst = out.at(x0, y);
-			for (int x = x0; x < x1; x++, dst++)
-				*dst = SlotStoneAt(x, y);
-		} else {
-			uint32_t *dst = out.at<uint32_t>(x0, y);
-			for (int x = x0; x < x1; x++, dst++)
-				*dst = PaletteRGB[SlotStoneAt(x, y)];
+		const int v = y % T;
+		// One hash per tile the row crosses, then a straight run of the tile's row.
+		for (int x = x0; x < x1;) {
+			const int u = x % T;
+			const int run = std::min(T - u, x1 - x);
+			const uint8_t *src = &SlotStoneVariants[SlotStoneVariantAt(x / T, y / T)][v * T + u];
+			if (out.isIndexed()) {
+				std::copy_n(src, run, out.at(x, y));
+			} else {
+				uint32_t *dst = out.at<uint32_t>(x, y);
+				for (int i = 0; i < run; i++)
+					dst[i] = PaletteRGB[src[i]];
+			}
+			x += run;
 		}
 	}
 }
@@ -1660,9 +1675,15 @@ void DrawSlotStoneUnderlay(const Surface &out, Rectangle rect)
 
 void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const Item &item)
 {
-	SDL_Rect srcRect = MakeSdlRect(0, 0, size.width, size.height);
-	out.Clip(&srcRect, &targetPosition);
+	// targetPosition is the footprint's BOTTOM-left, as every caller passes it. Vanilla ran
+	// Surface::Clip here, which takes a TOP-left and only trims a source rect nothing reads - so a
+	// footprint over the left edge was shifted right instead of cut (audit, 2026-09-19). Both drawing
+	// helpers clamp to the surface themselves; all this has to do is refuse an empty or off-screen one.
+	const Rectangle footprint { { targetPosition.x, targetPosition.y - size.height + 1 }, size };
 	if (size.width <= 0 || size.height <= 0)
+		return;
+	if (footprint.position.x >= out.w() || footprint.position.y >= out.h()
+	    || footprint.position.x + size.width <= 0 || footprint.position.y + size.height <= 0)
 		return;
 
 	// Oracool, 2026-09-19: VANILLA'S METHOD, back. DevilutionX 1.5.5 never covered the slot: it read
@@ -1758,7 +1779,6 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// item, not vanilla's one per 28x28 cell (user, 2026-08-16: "outline the entire item, not each
 	// 28x28 square" - with a tint the only difference left is whether the gutters between cells
 	// take the colour, and one piece reads better).
-	const Rectangle footprint { { targetPosition.x, targetPosition.y - size.height + 1 }, size };
 	DrawSlotStoneUnderlay(out, footprint);
 	TintRectRgb(out, footprint.position.x, footprint.position.y, footprint.size.width, footprint.size.height,
 	    hue, depth, TintFloorPercent, fallbackRamp);
@@ -1775,6 +1795,8 @@ bool CanBePlacedOnBelt(const Item &item)
 void FreeInvGFX()
 {
 	pInvCels = std::nullopt;
+	// The stone swatches came from this panel; the next InitInv may load another (audit, 2026-09-19).
+	SlotStoneTilesReady = false;
 }
 
 void InitInv()
