@@ -1,0 +1,9 @@
+// The Necromancer's six uniques (2026-09-18, phase N9), HAND-WRITTEN - not part of tools/GenUniqueItems.ps1, which
+// rewrites unique_items_data.inc whole and until 2026-09-19 deleted these rows on every run. They follow the generated
+// rows in itemdat.cpp, at the same positions as before: a unique's index (_iUid) is persisted, so their place is save format.
+	{ N_("Arm of King Leoric"), UITYPE_NECRO_WAND_LICH_WAND, 30, 5, 60000, { { IPL_MANA, 40, 40 }, { IPL_MAG, 10, 10 }, { IPL_SPLLVLADD, 1, 1 }, { IPL_LIGHT, 2, 2 }, { IPL_ALLRES, 15, 15 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
+	{ N_("Blackhand Key"), UITYPE_NECRO_WAND_UNHOLY_WAND, 38, 5, 90000, { { IPL_DAMP, 60, 60 }, { IPL_FASTATTACK, 2, 2 }, { IPL_MANA, 60, 60 }, { IPL_MAG, 15, 15 }, { IPL_STEALLIFE, 3, 3 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
+	{ N_("Reaper's Toll"), UITYPE_NECRO_SCYTHE_DOOM_SCYTHE, 31, 5, 70000, { { IPL_DAMP, 120, 120 }, { IPL_TOHIT, 30, 30 }, { IPL_STEALLIFE, 5, 5 }, { IPL_FASTATTACK, 2, 2 }, { IPL_STR, 10, 10 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
+	{ N_("Bonehew"), UITYPE_NECRO_SCYTHE_DEATHBRINGER, 39, 5, 110000, { { IPL_DAMP, 180, 180 }, { IPL_TOHIT, 40, 40 }, { IPL_DAMMOD, 15, 15 }, { IPL_FASTATTACK, 3, 3 }, { IPL_INDESTRUCTIBLE, 0, 0 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
+	{ N_("Homunculus"), UITYPE_NECRO_HEAD_OVERSEER_HEAD, 32, 5, 60000, { { IPL_ACP, 100, 100 }, { IPL_MANA, 40, 40 }, { IPL_ALLRES, 20, 20 }, { IPL_MAG, 10, 10 }, { IPL_SPLLVLADD, 1, 1 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
+	{ N_("Darkforce Spawn"), UITYPE_NECRO_HEAD_BLOODLORD_SKULL, 40, 5, 100000, { { IPL_ACP, 150, 150 }, { IPL_LIFE, 40, 40 }, { IPL_MANA, 40, 40 }, { IPL_ALLRES, 25, 25 }, { IPL_FIRERES, 15, 15 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },

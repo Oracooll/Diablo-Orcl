@@ -84,6 +84,21 @@ if not exist "%PALSRC%" (
 )
 copy /y "%PALSRC%" "%PAL%" >nul || exit /b 1
 echo Palette re-staged from %PALSRC%
+
+REM RUN THE GENERATORS EVERY TIME, before anything is cut. The generated specs point their stand-in art
+REM into %TEMP%\oracool-* folders that only the generators draw, so on a fresh machine (the second one,
+REM 2026-09-19: 344 specs named files that were not there) this script could not cut at all until every
+REM generator had run once by hand. Each generator is deterministic and rewrites its own files byte for
+REM byte (GenUniqueItems used to delete the six hand-written Necromancer uniques; they live in
+REM necro_uniques_data.inc since 2026-09-19 for exactly this reason), so running them here costs a
+REM minute and removes a whole class of "works on the machine that generated it" failures.
+for %%G in (GenItemSets GenUniqueItems GenSalvageMaterials GenImbuementShards GenSignets GenEncounterItems GenJewels GenGrowingCharms) do (
+  echo Generator: %%G
+  powershell -NoProfile -ExecutionPolicy Bypass -File "tools\%%G.ps1" >nul || (
+    echo ERROR: tools\%%G.ps1 failed - run it by hand to see why.
+    exit /b 1
+  )
+)
 set OUT=Packaging\resources\oracool_assets\data\inv\oracool_items.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 set EXE=%TEMP%\ItemIconCel.exe

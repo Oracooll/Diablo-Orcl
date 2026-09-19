@@ -80,3 +80,11 @@ The pack moved to `01-in-use-assets/delivered-packs/batch-41-imbuement-shards`.
 ## Related
 
 - [[Plan - Imbuement Shards]] - [[2026-09-18-second-machine-first-build-v1.12.042]]
+
+## Follow-up: v1.12.045 - the two things found on the way, fixed
+
+At the user's word ("Fix them"). The six hand-written Necromancer uniques moved out of the generated
+`unique_items_data.inc` into `Source/oracool/necro_uniques_data.inc`, included right after it in itemdat.cpp at the same
+array positions (a unique's `_iUid` persists, so its place is save format); `tools/GenUniqueItems.ps1` now reproduces its
+file byte for byte, as every other generator does. `tools/build_item_icons.cmd` runs all eight generators before cutting,
+so the stand-in art the specs point at exists on any machine - proven here: one pass, no hand steps. 819 of 819.

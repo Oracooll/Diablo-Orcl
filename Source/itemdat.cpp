@@ -877,6 +877,9 @@ const UniqueItem UniqueItems[] = {
 // the unique's own frame (506 onward in oracool_items.cel), which is how the expansion's sprites
 // reached the game without a change to any of this - one more column in the generator.
 #include "oracool/unique_items_data.inc"
+// The Necromancer's six, hand-written (2026-09-18) and kept OUT of the generated file since 2026-09-19 so a generator
+// run cannot delete them. Same positions as before: _iUid persists, so a unique's place in this array is save format.
+#include "oracool/necro_uniques_data.inc"
 
 { "",                            UITYPE_INVALID,             0,        0,        0, { {                                   }, {                                   }, {                                   }, {                                   }, {                                   }, {                                   } }  },
 	// clang-format on
