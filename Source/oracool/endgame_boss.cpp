@@ -1,4 +1,5 @@
 #include "oracool/endgame_boss.h"
+#include "oracool/monster_variants.h"
 
 #include "engine/random.hpp"
 #include "levels/gendung.h"
@@ -140,6 +141,9 @@ void ApplyBossTrait(Monster &monster)
 bool IsKnockbackImmune(const Monster &monster)
 {
 	if (monster.lesserAffix == LesserUniqueAffix::Relentless)
+		return true;
+	// The Unyielding variant (2026-09-19): an ordinary monster that stands its ground.
+	if (VariantIsKnockbackImmune(monster))
 		return true;
 	return IsEndgameBoss(monster) && SecondaryTraitFor(monster) == BossTrait::Implacable;
 }

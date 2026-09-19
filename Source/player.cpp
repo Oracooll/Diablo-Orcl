@@ -49,6 +49,7 @@
 #include "oracool/event_log.h"
 #include "oracool/class_skills.h"
 #include "oracool/cold.h"
+#include "oracool/venom.h"
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
@@ -3009,6 +3010,8 @@ void InitPlayer(Player &player, bool firstTime)
 		// A new game starts with no armour of ice on (Oracool, Round 2). The state is a static in
 		// cold.cpp and would otherwise carry from the last character to this one.
 		oracool::ClearColdArmour(player);
+		// ...and no Venomous bite still bleeding (2026-09-19): the same static, the same carry-over.
+		oracool::ClearPlayerVenom(player);
 		// ...and no cry still ringing, no passive clock still running (Rounds 5 and 6): same statics,
 		// same carry-over, same cure.
 		oracool::ClearWarcryBuffs(player);
@@ -3637,6 +3640,8 @@ void ProcessPlayers()
 					RedrawComponent(PanelDrawComponent::Mana);
 				}
 				oracool::ProcessGradualHealing(player);
+				// ...and the Venomous variant's bleed (2026-09-19), the same per-tick seam.
+				oracool::TickPlayerVenom(player);
 				// The Paladin's Prayer and Meditation auras regenerate here, beside the engine's
 				// own per-tick life and mana effects.
 				oracool::ProcessClassTreeTick(player);

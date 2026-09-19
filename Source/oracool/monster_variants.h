@@ -36,6 +36,8 @@
 namespace devilution {
 struct Monster;
 enum _difficulty : uint8_t;
+enum class MonsterGraphic : uint8_t;
+enum class DamageType : uint8_t;
 } // namespace devilution
 
 namespace devilution::oracool {
@@ -57,7 +59,32 @@ enum class MonsterVariant : uint8_t {
 	Hollow,
 	/** Hits harder, but dies faster - the mirror of Hollow. */
 	Feral,
-	LAST = Feral,
+	// The eleven of 2026-09-19 (the user's verdicts on the Monster Variants page: all approved, and
+	// "meet-able in all zones except cathedral"). APPENDED, never inserted: a seed maps to a roster
+	// position, so the order of a roster is what a monster's variant is.
+	/** Resists magic - the third resistance, next to Ashen and Stormtouched. */
+	Veiled,
+	/** Armour class up by half: harder to hit, the opposite lesson to Hollow. */
+	Ironhide,
+	/** Its special attack hits for half again as much. Only monsters with a special roll it. */
+	Brutal,
+	/** Attacks faster: one tick fewer per frame of the attack animation. */
+	Frenzied,
+	/** Walks faster: one tick fewer per frame of the walk animation. */
+	Fleet,
+	/** A third of its blow is fire, against the player's fire resistance. */
+	Searing,
+	/** A third of its blow is lightning. */
+	Voltaic,
+	/** Its blows poison: a slow bleed after the hit, resisted as magic (the fork's poison rule). */
+	Venomous,
+	/** Cannot be knocked back. */
+	Unyielding,
+	/** Drops better: its death drop rolls two rungs deeper with the good-item bias on. */
+	Gilded,
+	/** Carries a light, and so gives itself away. */
+	Luminous,
+	LAST = Luminous,
 };
 
 /** @brief Which variant @p monster is, derived from its seed and the floor it stands on. */
@@ -104,5 +131,24 @@ const char *VariantNamePrefix(MonsterVariant variant);
  * have identities of their own and would only be muddied by a second one.
  */
 void ApplyMonsterVariant(Monster &monster);
+
+// The hooks the 2026-09-19 kinds ask at seams that already exist. Each is one question, answered
+// from the derived variant, so nothing is stored and a monster that is not that kind costs one
+// comparison.
+
+/** @brief Frenzied / Fleet: ticks to take off each frame of @p graphic's animation (0 for everyone else). */
+int VariantAnimTickDelta(const Monster &monster, MonsterGraphic graphic);
+
+/** @brief Searing / Voltaic: the element a third of this monster's blow is dealt as, or Physical. */
+DamageType VariantHitElement(const Monster &monster);
+
+/** @brief Venomous: whether a landed blow poisons the player. */
+bool VariantPoisonsOnHit(const Monster &monster);
+
+/** @brief Unyielding: whether the player's knockback is refused. */
+bool VariantIsKnockbackImmune(const Monster &monster);
+
+/** @brief Gilded: whether the death drop rolls deeper and good. */
+bool VariantDropsGilded(const Monster &monster);
 
 } // namespace devilution::oracool

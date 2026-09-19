@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "lighting.h"
+#include "misdat.h"
 #include "monster.h"
 #include "multi.h"
 #include "options.h"
@@ -40,6 +42,10 @@ constexpr int HollowLifePercent = 135;
 constexpr int HollowDamagePercent = 75;
 constexpr int FeralLifePercent = 70;
 constexpr int FeralDamagePercent = 130;
+// The 2026-09-19 kinds' numbers - first guesses, to be corrected from play like Hollow's and Feral's.
+constexpr int IronhideArmorPercent = 150;
+constexpr int BrutalSpecialPercent = 150;
+constexpr int LuminousRadius = 5;
 
 /** @brief How far along its ramp a variant's colour moves. Kept to the same modest range the
  * champion tint uses, and for the same reason: any stronger and the creature stops reading as
@@ -103,14 +109,33 @@ void TintVariant(Monster &monster, int shift)
  * list somewhere - a display filter, a test's own copy - is how a roster comes to disagree with
  * itself.
  */
+// 2026-09-19, the user's rule for the eleven new kinds: "I want all of these monster variants to be
+// meet-able in all zones except cathedral." So the Cathedral keeps its two teaching variants and
+// every other dungeon offers its old subset PLUS all eleven - the old subset is kept so the Caves
+// still read as faster and meaner (no Hollow) and the Crypt still has no fire (no Ashen).
 constexpr MonsterVariant CathedralRoster[] = { MonsterVariant::Hollow, MonsterVariant::Feral };
 constexpr MonsterVariant CatacombsRoster[] = { MonsterVariant::Hollow, MonsterVariant::Feral,
-	MonsterVariant::Stormtouched };
-constexpr MonsterVariant CavesRoster[] = { MonsterVariant::Feral, MonsterVariant::Ashen };
+	MonsterVariant::Stormtouched,
+	MonsterVariant::Veiled, MonsterVariant::Ironhide, MonsterVariant::Brutal, MonsterVariant::Frenzied,
+	MonsterVariant::Fleet, MonsterVariant::Searing, MonsterVariant::Voltaic, MonsterVariant::Venomous,
+	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous };
+constexpr MonsterVariant CavesRoster[] = { MonsterVariant::Feral, MonsterVariant::Ashen,
+	MonsterVariant::Veiled, MonsterVariant::Ironhide, MonsterVariant::Brutal, MonsterVariant::Frenzied,
+	MonsterVariant::Fleet, MonsterVariant::Searing, MonsterVariant::Voltaic, MonsterVariant::Venomous,
+	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous };
 constexpr MonsterVariant HellRoster[] = { MonsterVariant::Hollow, MonsterVariant::Feral,
-	MonsterVariant::Stormtouched, MonsterVariant::Ashen };
-constexpr MonsterVariant NestRoster[] = { MonsterVariant::Feral, MonsterVariant::Ashen };
-constexpr MonsterVariant CryptRoster[] = { MonsterVariant::Hollow, MonsterVariant::Stormtouched };
+	MonsterVariant::Stormtouched, MonsterVariant::Ashen,
+	MonsterVariant::Veiled, MonsterVariant::Ironhide, MonsterVariant::Brutal, MonsterVariant::Frenzied,
+	MonsterVariant::Fleet, MonsterVariant::Searing, MonsterVariant::Voltaic, MonsterVariant::Venomous,
+	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous };
+constexpr MonsterVariant NestRoster[] = { MonsterVariant::Feral, MonsterVariant::Ashen,
+	MonsterVariant::Veiled, MonsterVariant::Ironhide, MonsterVariant::Brutal, MonsterVariant::Frenzied,
+	MonsterVariant::Fleet, MonsterVariant::Searing, MonsterVariant::Voltaic, MonsterVariant::Venomous,
+	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous };
+constexpr MonsterVariant CryptRoster[] = { MonsterVariant::Hollow, MonsterVariant::Stormtouched,
+	MonsterVariant::Veiled, MonsterVariant::Ironhide, MonsterVariant::Brutal, MonsterVariant::Frenzied,
+	MonsterVariant::Fleet, MonsterVariant::Searing, MonsterVariant::Voltaic, MonsterVariant::Venomous,
+	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous };
 
 struct Roster {
 	const MonsterVariant *variants;
@@ -226,7 +251,12 @@ MonsterVariant VariantOf(const Monster &monster)
 	if (monster.data().availability == MonsterAvailability::Never)
 		return MonsterVariant::None;
 
-	return VariantForSeed(monster.rndItemSeed, leveltype);
+	const MonsterVariant variant = VariantForSeed(monster.rndItemSeed, leveltype);
+	// Brutal is its special attack; a type with no special has nothing for it to be, and an
+	// ordinary monster is the honest answer rather than a recolour that does nothing.
+	if (variant == MonsterVariant::Brutal && !monster.data().hasSpecial)
+		return MonsterVariant::None;
+	return variant;
 }
 
 const char *VariantNamePrefix(MonsterVariant variant)
@@ -240,6 +270,28 @@ const char *VariantNamePrefix(MonsterVariant variant)
 		return N_("Hollow");
 	case MonsterVariant::Feral:
 		return N_("Feral");
+	case MonsterVariant::Veiled:
+		return N_("Veiled");
+	case MonsterVariant::Ironhide:
+		return N_("Ironhide");
+	case MonsterVariant::Brutal:
+		return N_("Brutal");
+	case MonsterVariant::Frenzied:
+		return N_("Frenzied");
+	case MonsterVariant::Fleet:
+		return N_("Fleet");
+	case MonsterVariant::Searing:
+		return N_("Searing");
+	case MonsterVariant::Voltaic:
+		return N_("Voltaic");
+	case MonsterVariant::Venomous:
+		return N_("Venomous");
+	case MonsterVariant::Unyielding:
+		return N_("Unyielding");
+	case MonsterVariant::Gilded:
+		return N_("Gilded");
+	case MonsterVariant::Luminous:
+		return N_("Luminous");
 	case MonsterVariant::None:
 		break;
 	}
@@ -274,14 +326,82 @@ void ApplyMonsterVariant(Monster &monster)
 		monster.minDamage = ScalePercent(monster.minDamage, FeralDamagePercent);
 		monster.maxDamage = ScalePercent(monster.maxDamage, FeralDamagePercent);
 		break;
+	// The eleven of 2026-09-19. The field kinds land here; the hook kinds (Frenzied, Fleet, Searing,
+	// Voltaic, Venomous, Unyielding, Gilded) are asked at their seams through the Variant* functions
+	// below and change nothing at spawn but the recolour.
+	case MonsterVariant::Veiled:
+		monster.resistance |= RESIST_MAGIC;
+		break;
+	case MonsterVariant::Ironhide:
+		monster.armorClass = ScalePercent(monster.armorClass, IronhideArmorPercent);
+		break;
+	case MonsterVariant::Brutal:
+		// A monster without a special attack never draws Brutal (VariantOf declines it), so this
+		// never lands on nothing - but the guard stays, because the draw is the part that changes.
+		if (monster.data().hasSpecial) {
+			monster.minDamageSpecial = ScalePercent(monster.minDamageSpecial, BrutalSpecialPercent);
+			monster.maxDamageSpecial = ScalePercent(monster.maxDamageSpecial, BrutalSpecialPercent);
+		}
+		break;
+	case MonsterVariant::Luminous:
+		// A torch-bearer: the light rides the monster (the walk code moves lightId) and the death
+		// path frees it, both exactly as a unique's light already does.
+		if (monster.lightId == NO_LIGHT)
+			monster.lightId = AddLight(monster.position.tile, LuminousRadius);
+		break;
+	case MonsterVariant::Frenzied:
+	case MonsterVariant::Fleet:
+	case MonsterVariant::Searing:
+	case MonsterVariant::Voltaic:
+	case MonsterVariant::Venomous:
+	case MonsterVariant::Unyielding:
+	case MonsterVariant::Gilded:
+		break;
 	case MonsterVariant::None:
 		return;
 	}
 
-	// Direction of the shift alternates with the variant, so the four do not all read as "the pale
-	// one" - two lighten and two darken.
+	// Direction of the shift alternates with the variant, so the kinds do not all read as "the pale
+	// one" - half lighten and half darken.
 	const int shift = (static_cast<int>(variant) % 2 == 0) ? VariantTintShift : -VariantTintShift;
 	TintVariant(monster, shift);
+}
+
+int VariantAnimTickDelta(const Monster &monster, MonsterGraphic graphic)
+{
+	const MonsterVariant variant = VariantOf(monster);
+	if (variant == MonsterVariant::Frenzied && graphic == MonsterGraphic::Attack)
+		return -1;
+	if (variant == MonsterVariant::Fleet && graphic == MonsterGraphic::Walk)
+		return -1;
+	return 0;
+}
+
+DamageType VariantHitElement(const Monster &monster)
+{
+	switch (VariantOf(monster)) {
+	case MonsterVariant::Searing:
+		return DamageType::Fire;
+	case MonsterVariant::Voltaic:
+		return DamageType::Lightning;
+	default:
+		return DamageType::Physical;
+	}
+}
+
+bool VariantPoisonsOnHit(const Monster &monster)
+{
+	return VariantOf(monster) == MonsterVariant::Venomous;
+}
+
+bool VariantIsKnockbackImmune(const Monster &monster)
+{
+	return VariantOf(monster) == MonsterVariant::Unyielding;
+}
+
+bool VariantDropsGilded(const Monster &monster)
+{
+	return VariantOf(monster) == MonsterVariant::Gilded;
 }
 
 } // namespace devilution::oracool

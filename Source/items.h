@@ -1225,6 +1225,8 @@ void GetItemStr(Item &item);
 void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg);
 /** @brief Oracool: the Necromancer's wands, scythes and shrunken heads - their own drop roll (oracool/necro_items.h). */
 void TrySpawnNecroBase(const Monster &monster, bool sendmsg);
+/** @brief The Gilded variant's death drop (2026-09-19): one more item, two rungs deeper, good-item bias on. */
+void TrySpawnGildedDrop(const Monster &monster, bool sendmsg);
 /** @brief The fifteen NAMED sets' drop path. Distinct from the tier hook above, which drops the worn
  * ladder rather than a designed set - see the note on the definition. */
 void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg);

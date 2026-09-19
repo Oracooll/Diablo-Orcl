@@ -6402,14 +6402,37 @@ TEST(OracoolAudit, MonsterVariantRostersArePerDungeonAndComplete)
 	}
 
 	// The shallow end is deliberately free of elemental resistances, so floor two teaches the idea
-	// without a wall the player has no answer to.
+	// without a wall the player has no answer to - and (user, 2026-09-19) free of the eleven new kinds,
+	// which are "meet-able in all zones except cathedral": the Cathedral is Hollow and Feral, nothing else.
 	for (int i = 0; i < VariantRosterSize(DTYPE_CATHEDRAL); i++) {
 		const MonsterVariant variant = VariantInRoster(DTYPE_CATHEDRAL, i);
-		EXPECT_NE(variant, MonsterVariant::Ashen) << "the Cathedral offers a fire-resistant variant";
-		EXPECT_NE(variant, MonsterVariant::Stormtouched) << "the Cathedral offers a lightning-resistant variant";
+		EXPECT_TRUE(variant == MonsterVariant::Hollow || variant == MonsterVariant::Feral)
+		    << "the Cathedral offers variant " << static_cast<int>(variant) << " - it should teach with Hollow and Feral only";
 	}
-	// Hell offers all four - the deepest floors are where the player is expected to have answers.
+	// Every other dungeon offers every one of the eleven kinds of 2026-09-19.
+	constexpr MonsterVariant NewKinds[] = { MonsterVariant::Veiled, MonsterVariant::Ironhide, MonsterVariant::Brutal,
+		MonsterVariant::Frenzied, MonsterVariant::Fleet, MonsterVariant::Searing, MonsterVariant::Voltaic,
+		MonsterVariant::Venomous, MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous };
+	for (const dungeon_type dungeon : Dungeons) {
+		if (dungeon == DTYPE_CATHEDRAL)
+			continue;
+		std::set<MonsterVariant> offered;
+		for (int i = 0; i < VariantRosterSize(dungeon); i++)
+			offered.insert(VariantInRoster(dungeon, i));
+		for (const MonsterVariant kind : NewKinds) {
+			EXPECT_EQ(offered.count(kind), 1u) << "dungeon type " << static_cast<int>(dungeon)
+			                                   << " does not offer variant " << static_cast<int>(kind);
+		}
+	}
+	// Hell offers every kind - the deepest floors are where the player is expected to have answers.
 	EXPECT_EQ(VariantRosterSize(DTYPE_HELL), static_cast<int>(MonsterVariant::LAST));
+	// Every kind has a name of its own, and no two share one - the health bar and the kill log say it.
+	std::set<std::string> prefixes;
+	for (int i = 1; i <= static_cast<int>(MonsterVariant::LAST); i++) {
+		const char *prefix = VariantNamePrefix(static_cast<MonsterVariant>(i));
+		ASSERT_NE(prefix, nullptr) << "variant " << i << " has no name";
+		EXPECT_TRUE(prefixes.insert(prefix).second) << "two variants are both called " << prefix;
+	}
 
 	// The rate is still roughly the declared 15%, whatever the roster's size.
 	int variants = 0;

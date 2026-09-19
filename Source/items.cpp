@@ -56,6 +56,7 @@
 #include "oracool/runewords.h"
 #include "oracool/smart_loot.h"
 #include "oracool/imbuement.h"
+#include "oracool/monster_variants.h"
 #include "oracool/named_encounters.h"
 #include "oracool/salvage.h"
 #include "oracool/signets.h"
@@ -5928,6 +5929,30 @@ void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg)
  * own, for the reason on every other hook here - the pool is replayed from seeds. One kill in sixteen; the heads
  * only while the hero is a Necromancer; a unique may roll like on any dropped base.
  */
+void TrySpawnGildedDrop(const Monster &monster, bool sendmsg)
+{
+	// The Gilded variant (2026-09-19): "drops better" is a SECOND item, rolled from the ordinary
+	// pool two rungs deeper than the monster and with the good-item bias on - the bias a unique
+	// monster's drop gets (uper 15). After the vanilla spawns, so the seed-driven stream stays
+	// byte-identical, and through FinishOracoolDrop so it tumbles.
+	if (!oracool::VariantDropsGilded(monster) || ActiveItemCount >= MAXITEMS)
+		return;
+	const int lvl = std::max(ItemLevelOfMonster(monster) + 2, 1);
+	// The equipment pool without the ordinary roll's nothing-and-gold outcomes: a Gilded kill is
+	// always worth an item, or the recolour is a lie.
+	const _item_indexes idx = RndEquipmentForMonsterLevel(static_cast<int8_t>(std::min(lvl, 127)));
+	if (idx == IDI_NONE)
+		return;
+	Item item;
+	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), lvl, 15, /*onlygood=*/true,
+	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/lvl);
+	const int ii = AllocateItem();
+	Items[ii] = item.pop();
+	FinishOracoolDrop(ii, monster.position.tile);
+	if (sendmsg)
+		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
+}
+
 void TrySpawnNecroBase(const Monster &monster, bool sendmsg)
 {
 	if (!oracool::IsSinglePlayer())

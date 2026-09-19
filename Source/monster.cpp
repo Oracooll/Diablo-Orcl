@@ -49,6 +49,7 @@
 #include "oracool/rfa12_effects.h"
 #include "oracool/warcries.h"
 #include "oracool/monster_variants.h"
+#include "oracool/venom.h"
 #include "oracool/endgame_boss.h"
 #include "oracool/monster_scale.h"
 #include "oracool/named_encounters.h"
@@ -875,6 +876,12 @@ void NewMonsterAnim(Monster &monster, MonsterGraphic graphic, Direction md, Anim
 	const AnimStruct *scaled = oracool::GetScaledAnim(monster, graphic);
 	const AnimStruct &animData = scaled != nullptr ? *scaled : monster.type().getAnimData(graphic);
 	monster.animInfo.setNewAnimation(animData.spritesForDirection(md), animData.frames, animData.rate, flags, numSkippedFrames, distributeFramesBeforeFrame);
+	// The Frenzied and Fleet variants (2026-09-19): one tick fewer per frame of the attack or the
+	// walk, floored at one. Here rather than in the data because the rate is per TYPE and the
+	// variant is per monster; and here rather than at the AI's attack call because this is the one
+	// place every animation of every monster starts.
+	if (const int delta = oracool::VariantAnimTickDelta(monster, graphic); delta != 0)
+		monster.animInfo.ticksPerFrame = static_cast<int8_t>(std::max(1, monster.animInfo.ticksPerFrame + delta));
 	monster.flags &= ~(MFLAG_LOCK_ANIMATION | MFLAG_ALLOW_SPECIAL);
 	monster.direction = md;
 }
@@ -1222,6 +1229,8 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		TrySpawnOracoolGem(monster, sendmsg);
 		// The Necromancer's three item families (2026-09-18): same placement, same reason.
 		TrySpawnNecroBase(monster, sendmsg);
+		// The Gilded variant's better drop (2026-09-19): same placement, same reason.
+		TrySpawnGildedDrop(monster, sendmsg);
 		// D2MXL Phase 2b: the signet, which declines outright on an ordinary kill - same placement,
 		// same reason.
 		// Phase 4: the Sealed Map, which is the ONLY way into a named encounter. Same
@@ -1563,7 +1572,23 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		// not report a death at the hands of the champion whose sprite it borrowed. Same authority
 		// the health bar and the kill log use, for the same reason.
 		oracool::NotePendingDeathSource(oracool::GetMonsterDisplayName(monster));
-		ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam);
+		// The Searing and Voltaic variants (2026-09-19): a third of the blow is dealt as fire or
+		// lightning and meets the player's resistance to it; the rest stays physical. The total at
+		// zero resistance is the same blow - the split never adds. ApplyPlrDamage applies no
+		// resistance itself (the missiles do that before calling it), so it is done here.
+		if (const DamageType element = oracool::VariantHitElement(monster); element != DamageType::Physical) {
+			const int elemental = dam / 3;
+			const int resist = std::clamp<int>(element == DamageType::Fire ? player._pFireResist : player._pLghtResist, 0, 75);
+			const int resisted = elemental * (100 - resist) / 100;
+			ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam - elemental);
+			if (resisted > 0)
+				ApplyPlrDamage(element, player, 0, 0, resisted);
+		} else {
+			ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam);
+		}
+		// The Venomous variant: a bleed after the bite - as much again as the blow, over five seconds.
+		if (oracool::VariantPoisonsOnHit(monster))
+			oracool::PoisonPlayer(player, dam, 100);
 		oracool::OnRfa12Struck(player, monster); // Retaliation's stack, Unfinished Business's memory
 		// Oracool: the one seam where "this monster wounded the player, for this much" is known, which
 		// is what a Vampiric champion needs. After the reflect subtraction, so it drains what it
