@@ -14,6 +14,8 @@
 #include "controls/plrctrls.h"
 #include "cursor.h"
 #include "engine/backbuffer_state.hpp"
+#include <array>
+
 #include "engine/clx_sprite.hpp"
 #include "engine/load_cel.hpp"
 #include "engine/render/clx_render.hpp"
@@ -1550,6 +1552,66 @@ int CreateGoldItemInInventorySlot(Player &player, int slotIndex, int value)
 	return value;
 }
 
+/**
+ * @brief Oracool (2026-09-19): vanilla's slot STONE under an item, so the tint has something to tint.
+ *
+ * The user put the two screenshots side by side: vanilla's backing reads as a wash because its wells
+ * are mid-grey textured stone and the shift keeps that texture; this fork's panel art paints every
+ * well as a near-black hole, so a luminance-keeping tint of it is a flat colour at the floor - the
+ * old plate by another route. The fix is not in the tint: it is to put stone back under the item.
+ *
+ * The stone is vanilla's own - the first backpack cell of data\inv\inv.cel, which InitInv still
+ * loads for every class (1.5.5 InvRect: {17, 222} 29x29, the 28x28 well at 17, 223). Decoded ONCE
+ * into a tile of palette indices and copied across the footprint, tiled every 28 pixels, before
+ * TintRectRgb runs. Indices rather than colours so the same tile serves the 8-bit test surface and
+ * the 32-bit screen (through PaletteRGB). Nothing is drawn when the panel is not loaded (tests),
+ * and nothing for a plain item, which never reaches this - a bare slot is still the tier.
+ */
+constexpr int SlotStoneTileSize = 28;
+std::array<uint8_t, SlotStoneTileSize * SlotStoneTileSize> SlotStoneTile;
+bool SlotStoneTileReady = false;
+
+bool EnsureSlotStoneTile()
+{
+	if (SlotStoneTileReady)
+		return true;
+	if (!pInvCels)
+		return false;
+	const ClxSprite panel = (*pInvCels)[0];
+	constexpr Point StoneTileOrigin { 17, 223 };
+	OwnedSurface tile(SlotStoneTileSize, SlotStoneTileSize);
+	SDL_FillRect(tile.surface, nullptr, 0);
+	// ClxDraw places the sprite's BOTTOM-left at the position, so the panel's top-left goes to
+	// minus the origin and the wanted cell lands at (0, 0) of the tile; the rest is clipped away.
+	ClxDraw(tile, { -StoneTileOrigin.x, -StoneTileOrigin.y + static_cast<int>(panel.height()) - 1 }, panel);
+	for (int y = 0; y < SlotStoneTileSize; y++)
+		for (int x = 0; x < SlotStoneTileSize; x++)
+			SlotStoneTile[y * SlotStoneTileSize + x] = tile[Point { x, y }];
+	SlotStoneTileReady = true;
+	return true;
+}
+
+void DrawSlotStoneUnderlay(const Surface &out, Rectangle rect)
+{
+	if (!EnsureSlotStoneTile())
+		return;
+	const int x0 = std::max(rect.position.x, 0), y0 = std::max(rect.position.y, 0);
+	const int x1 = std::min(rect.position.x + rect.size.width, out.w());
+	const int y1 = std::min(rect.position.y + rect.size.height, out.h());
+	for (int y = y0; y < y1; y++) {
+		const int row = ((y - rect.position.y) % SlotStoneTileSize) * SlotStoneTileSize;
+		if (out.isIndexed()) {
+			uint8_t *dst = out.at(x0, y);
+			for (int x = x0; x < x1; x++, dst++)
+				*dst = SlotStoneTile[row + (x - rect.position.x) % SlotStoneTileSize];
+		} else {
+			uint32_t *dst = out.at<uint32_t>(x0, y);
+			for (int x = x0; x < x1; x++, dst++)
+				*dst = PaletteRGB[SlotStoneTile[row + (x - rect.position.x) % SlotStoneTileSize]];
+		}
+	}
+}
+
 } // namespace
 
 void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const Item &item)
@@ -1580,7 +1642,9 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// darker well.
 	constexpr int TintDepthPercent = 90;
 	constexpr int DarkTintDepthPercent = 60;
-	constexpr int TintFloorPercent = 30;
+	// 30 while the tint sat on the black well, where the floor was all there was to see; 10 now that
+	// vanilla's stone is under it (DrawSlotStoneUnderlay) and the luminance carries the colour.
+	constexpr int TintFloorPercent = 10;
 
 	// Hues from the palette's own ramps where a ramp is the colour (the light end, +2, but only the
 	// hue is used - TintRectRgb normalises it). Values where the palette has no such colour: the
@@ -1644,7 +1708,9 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// item, not vanilla's one per 28x28 cell (user, 2026-08-16: "outline the entire item, not each
 	// 28x28 square" - with a tint the only difference left is whether the gutters between cells
 	// take the colour, and one piece reads better).
-	TintRectRgb(out, targetPosition.x, targetPosition.y - size.height + 1, size.width, size.height,
+	const Rectangle footprint { { targetPosition.x, targetPosition.y - size.height + 1 }, size };
+	DrawSlotStoneUnderlay(out, footprint);
+	TintRectRgb(out, footprint.position.x, footprint.position.y, footprint.size.width, footprint.size.height,
 	    hue, depth, TintFloorPercent, fallbackRamp);
 }
 
