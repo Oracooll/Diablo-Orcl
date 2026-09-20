@@ -1,5 +1,6 @@
 #include "oracool/rift.h"
 
+#include "effects.h" // PlaySfxLoc - vanilla's portal sound on the way-home portal
 #include <algorithm>
 #include <array>
 #include <string>
@@ -414,6 +415,7 @@ void LayWayHome()
 	trigs[0]._tmsg = WM_DIABRTNLVL;
 	if (MyPlayer != nullptr)
 		AddMissile(State.homeTile, State.homeTile, Direction::South, PortalFor(State.kind), TARGET_MONSTERS, MyPlayer->getId(), 0, 0);
+	PlaySfxLoc(LS_SENTINEL, State.homeTile); // vanilla's portal opening sound (user, 2026-09-20)
 }
 
 } // namespace

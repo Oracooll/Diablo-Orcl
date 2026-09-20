@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "effects.h" // PlaySfxLoc - vanilla's portal sound when the gate lights
 #include "engine/point.hpp"
 #include "levels/gendung.h"
 #include "lighting.h"
@@ -82,8 +83,10 @@ void LightGate(Object &gate, RiftKind kind, bool sound)
 		AddMissile(gate.position, gate.position, Direction::South, PortalFor(kind), TARGET_MONSTERS, MyPlayer->getId(), 0, 0);
 	// The painting itself does not change - see the frame note at the top of the file.
 	ShowFrame(gate, ClosedFrame);
+	// VANILLA's town-portal opening sound, sentinel.wav - the TownPortal missile's own cast sound (user, 2026-09-20:
+	// "when opening rift portals use vanilla portal opening sound"); UiEventSound::RiftOpen is retired here.
 	if (sound)
-		PlayUiEventSound(UiEventSound::RiftOpen);
+		PlaySfxLoc(LS_SENTINEL, gate.position);
 }
 
 } // namespace
