@@ -188,7 +188,7 @@ constexpr uint16_t OracoolLevskiRoarAnimWidth = 96;
  * inside its opening (the town portal is 96 wide, the opening 72; the stone around it makes 192). Sized
  * from the measured portal sheet, not by taste; tools\build_stonegate_cel.cmd prints what it produced.
  */
-constexpr uint16_t OracoolStonegateAnimWidth = 372; // the user's painting at 128 wide, padded 122 a side for its cast shadow (tools/ScalePainting.ps1 -ShadowLength 0.9, 2026-09-20); the painting itself stays centred on the tile. Was 128 (batch 44/45, no shadow)
+constexpr uint16_t OracoolStonegateAnimWidth = 128; // the user's painting at 128 wide, NO cast shadow: the 372-wide shadowed frame of v1.12.088 tripped the hover outline's 253-pixel sprite limit (clx_render.cpp MaxOutlineSpriteWidth) and the user dropped the shadow (2026-09-20)
 
 enum _object_id : int8_t {
 	OBJ_L1LIGHT,

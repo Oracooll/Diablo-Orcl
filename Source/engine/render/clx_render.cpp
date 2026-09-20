@@ -293,7 +293,11 @@ template <bool SkipColorIndexZero>
 void GetOutline(ClxSprite sprite, OutlinePixels &result) // NOLINT(readability-function-cognitive-complexity)
 {
 	const unsigned width = sprite.width();
-	assert(width < MaxOutlineSpriteWidth);
+	// Oracool: a sprite too wide for the row buffers gets NO outline instead of an assertion (Debug) or a
+	// stack overrun (Release) - the Rift Monument's 372-wide shadowed frame hit this on hover (2026-09-20,
+	// v1.12.088); the frame is 128 wide again, this guard keeps the next wide object from crashing.
+	if (width >= MaxOutlineSpriteWidth || sprite.height() >= MaxOutlineSpriteWidth)
+		return;
 
 	int x = 1;
 	auto y = static_cast<uint8_t>(sprite.height());
