@@ -548,14 +548,19 @@ void DrawRiftHud(const Surface &out)
 {
 	if (!InRift())
 		return;
-	// LEFT of the mini-map, bottom-aligned with it: under the map is the event log's and the chat's
-	// frame (audit, 2026-09-20), and the spell timers stack down the left from the map's top edge.
+	// UNDER the mini-map, the map's own width (user, 2026-09-20: "Kill bar and timer panel - put
+	// these under the minimap, not next to it"). It sat to the left of the map for one version, out
+	// of the event log's column; the log opens in that column and would draw under this, so the
+	// panel steps aside while the log is open - the log carries the rift's own lines anyway. The
+	// chat history draws later than this and simply covers it.
+	if (IsEventLogOpen())
+		return;
 	const Rectangle miniMap = GetMiniMapScreenRect();
-	constexpr int BarWidth = 150;
 	constexpr int BarHeight = 8;
-	constexpr int Gap = 6;
-	const int x = miniMap.position.x - Gap - BarWidth;
-	const int y = miniMap.position.y + miniMap.size.height - 22;
+	constexpr int Gap = 4;
+	const int BarWidth = miniMap.size.width;
+	const int x = miniMap.position.x;
+	const int y = miniMap.position.y + miniMap.size.height + Gap;
 
 	std::string label = RiftKindName(State.kind);
 	if (State.done)
@@ -566,8 +571,8 @@ void DrawRiftHud(const Surface &out)
 		label += fmt::format("  {:d}%", RiftProgressPercent());
 	if (State.kind == RiftKind::Guardian && !State.done)
 		label += State.timedOut ? "  out of time" : fmt::format("  {:d}:{:02d}", RiftSecondsLeft() / 60, RiftSecondsLeft() % 60);
-	DrawString(out, label, Rectangle { { x - 160, y }, { BarWidth + 160, 12 } },
-	    { UiFlags::AlignRight | UiFlags::FontSize12 | (State.timedOut ? UiFlags::ColorRed : UiFlags::ColorGold) | UiFlags::Shadowed });
+	DrawString(out, label, Rectangle { { x, y }, { BarWidth, 12 } },
+	    { UiFlags::AlignCenter | UiFlags::FontSize12 | (State.timedOut ? UiFlags::ColorRed : UiFlags::ColorGold) | UiFlags::Shadowed });
 
 	// The bar: a dark trough, the fill in the portal's colour.
 	const int barY = y + 14;

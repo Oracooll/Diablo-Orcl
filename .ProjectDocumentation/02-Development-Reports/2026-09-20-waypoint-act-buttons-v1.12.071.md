@@ -59,3 +59,9 @@ New header API for the tests and callers: `WaypointAct`, `ActiveWaypointAct`, `S
 ## Build
 
 Build 51, v1.12.071: configure, build and link clean; ctest 831/831 passed (the two new act tests included). The act glyphs went into oracool.mpq on this build's pack. Awaits the user's look: the three buttons under the title, red/orange/purple when pressed, the hover shadow, and the ten-row list under them.
+
+## v1.12.072 - three fixes from the user's look
+
+1. **The Act backings were the plate's natural 37x38, not 56x56** ("now i think you are using small backings around 28x28"). `DrawSmallSpellIconCoveringClipped` capped its scale at 100%, so a cell larger than the plate got the plate centred and unfilled. The cap is now ScaleClxList's own 400%, so `DrawPlateIn` covers any cell in both directions. The HUD menu (37x38) and the inventory tabs (28x28) are at or under 100% and are unchanged.
+2. **The Stonegate keeps its plain painted frame in every state** ("use uncut version of the stonegate asset and just overlap it with portal asset when user selects one of the portals"). The sixteen baked gold/violet glow frames of batch 45 stay in `orclgate.cel` but are never selected; an open rift is shown by the portal missile alone, standing in the arch. `ProcessStonegate` no longer animates and pins frame 1. No asset rebuild. There is no separate uncut master on disk - batch 45 delivered the seventeen cut frames only - so "uncut" here means the closed painting without the lit variants; if a master painting exists it can replace frame 1 through `build_stonegate_cel.cmd`.
+3. **The rift kill bar and clock sit under the mini-map** ("put these under the minimap, not next to it"): the map's own width, label centred, bar under it, 4px below the map's frame. Hidden while the event log is open, since the log takes that column.

@@ -642,9 +642,14 @@ void DrawSmallSpellIconCoveringClipped(const Surface &out, Rectangle cell, Spell
 	// percentage lands a 37x38 plate on a square: 81 gives 29x30, 82 gives 30x31. Rounded UP so the
 	// plate covers the cell, then CLIPPED to it, so the extra row lands nowhere - a pixel short
 	// would show the black under it as a third ring.
+	//
+	// And GROWN to a cell larger than itself (2026-09-20): the cap was 100, so the waypoint list's
+	// 56x56 Act buttons drew the 37x38 plate at its natural size, centred in a cell it did not fill -
+	// "now i think you are using small backings around 28x28" (user). "Covering" means covering in
+	// both directions; 400 is ScaleClxList's own ceiling.
 	const int percent = std::clamp(std::max((cell.size.width * 100 + natural.width - 1) / natural.width,
 	                                   (cell.size.height * 100 + natural.height - 1) / natural.height),
-	    25, 100);
+	    25, 400);
 
 	static OptionalOwnedClxSpriteList shrunk;
 	static int shrunkPercent = 0;

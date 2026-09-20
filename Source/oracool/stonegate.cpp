@@ -21,16 +21,18 @@ namespace devilution::oracool {
 namespace {
 
 /**
- * @brief The seventeen frames of objects\orclgate.cel (tools/build_stonegate_cel.cmd, batch 44):
+ * @brief The seventeen frames of objects\orclgate.cel (tools/build_stonegate_cel.cmd, batch 45):
  * 1 the closed gate, 2-9 lit gold, 10-17 lit violet. Object frames are 1-based.
+ *
+ * ONLY FRAME 1 IS SHOWN since 2026-09-20 (user: "use uncut version of the stonegate asset and just
+ * overlap it with portal asset when user selects one of the portals"). The sixteen lit frames -
+ * the artist's gold and violet glow baked into the stones, breathing over eight steps - stay in the
+ * file but are never selected: the gate is the plain painting in every state, and an open rift is
+ * shown by the portal missile alone, standing in the arch. The frames are left in the CEL rather
+ * than cut out so the file needs no rebuild and the constants below keep describing it.
  */
 constexpr uint32_t ClosedFrame = 1;
-constexpr uint32_t GoldFirst = 2;
-constexpr uint32_t PurpleFirst = 10;
-constexpr uint32_t LitFrames = 8;
 constexpr uint32_t FrameCount = 17;
-/** @brief Ticks per lit frame: the artist's sinusoidal breathing over eight frames, slow. */
-constexpr int LitDelay = 4;
 
 int GateObjectId = -1;
 
@@ -68,13 +70,14 @@ void ShowFrame(Object &gate, uint32_t frame)
 	gate._oAnimFrame = std::clamp<uint32_t>(frame, 1, FrameCount);
 }
 
-/** @brief Lights the gate for @p kind: the portal in the opening, the stone's glow, the sound. */
+/** @brief Lights the gate for @p kind: the portal in the opening over the plain painting, the sound. */
 void LightGate(Object &gate, RiftKind kind, bool sound)
 {
 	RemovePortalMissiles();
 	if (MyPlayer != nullptr)
 		AddMissile(gate.position, gate.position, Direction::South, PortalFor(kind), TARGET_MONSTERS, MyPlayer->getId(), 0, 0);
-	ShowFrame(gate, kind == RiftKind::Nephalem ? GoldFirst : PurpleFirst);
+	// The painting itself does not change - see the frame note at the top of the file.
+	ShowFrame(gate, ClosedFrame);
 	if (sound)
 		PlayUiEventSound(UiEventSound::RiftOpen);
 }
@@ -120,14 +123,11 @@ void AddStonegateObject()
 		// Town rebuilt with a rift still open: the hero died in it (plan r10) or came back through
 		// the way home. Only the way home ends it - a death AFTER the kill leaves the pile and the
 		// keystone on the floor, and the gate stays lit so they can be fetched (audit, 2026-09-20).
-		// Only the STONE is lit here: InitMissiles runs after this and would clear the portal, so
-		// RelightStonegateIfNeeded adds it from the first town tick.
-		if (ActiveRift() != RiftKind::None) {
-			if (RiftReturnedHome())
-				EndRift();
-			else
-				ShowFrame(*gate, ActiveRift() == RiftKind::Nephalem ? GoldFirst : PurpleFirst);
-		}
+		// Nothing to light on the stone any more (the painting is one frame): InitMissiles runs after
+		// this and would clear the portal, so RelightStonegateIfNeeded adds it from the first town
+		// tick, and that portal is the whole of the open state.
+		if (ActiveRift() != RiftKind::None && RiftReturnedHome())
+			EndRift();
 		return;
 	}
 	LogEvent("The Stonegate found no ground to stand on", UiFlags::ColorRed);
@@ -215,18 +215,15 @@ void LightStonegate(RiftKind kind)
 
 void ProcessStonegate()
 {
+	// Nothing to animate since 2026-09-20: the gate holds its one painted frame in every state and
+	// the portal missile carries the motion. Kept as the tick hook so the call site stays wired for
+	// the day the painting gets a state of its own again; it also pins the frame, so a stray
+	// _oAnimFrame from an older save cannot show a lit stone.
 	Object *gate = Gate();
-	const RiftKind open = ActiveRift();
-	if (gate == nullptr || open == RiftKind::None)
+	if (gate == nullptr)
 		return;
-	if (++gate->_oAnimCnt < LitDelay)
-		return;
-	gate->_oAnimCnt = 0;
-	const uint32_t first = open == RiftKind::Nephalem ? GoldFirst : PurpleFirst;
-	uint32_t frame = gate->_oAnimFrame + 1;
-	if (frame < first || frame >= first + LitFrames)
-		frame = first;
-	gate->_oAnimFrame = frame;
+	if (gate->_oAnimFrame != ClosedFrame)
+		ShowFrame(*gate, ClosedFrame);
 }
 
 } // namespace devilution::oracool
