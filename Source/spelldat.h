@@ -776,6 +776,10 @@ enum class MissileID : int16_t {
 	CorpseBurst,
 	RaiseDeadEffect,
 	CurseCastEffect,
+	// Oracool 2026-09-20: the Stonegate's rift portals (oracool/stonegate.h) - standing portals, one
+	// per colour, removed when the gate closes rather than by range.
+	RiftPortalGold,
+	RiftPortalPurple,
 	Null = -1,
 	// clang-format on
 };

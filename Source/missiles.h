@@ -466,6 +466,9 @@ void AddResurrectBeam(Missile &missile, AddMissileParameter &parameter);
 void AddTelekinesis(Missile &missile, AddMissileParameter &parameter);
 void AddBoneSpirit(Missile &missile, AddMissileParameter &parameter);
 void AddRedPortal(Missile &missile, AddMissileParameter &parameter);
+/** @brief Oracool: a rift portal standing in the Stonegate until the gate closes (oracool/stonegate.h). */
+void AddRiftPortal(Missile &missile, AddMissileParameter &parameter);
+void ProcessRiftPortal(Missile &missile);
 void AddDiabloApocalypse(Missile &missile, AddMissileParameter &parameter);
 Missile *AddMissile(Point src, Point dst, Direction midir, MissileID mitype,
     mienemy_type micaster, int id, int midam, int spllvl,

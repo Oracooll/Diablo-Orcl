@@ -43,6 +43,7 @@
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
 #include "oracool/levski_roar.h"
+#include "oracool/stonegate.h"
 #include "oracool/oracool.h"
 #include "oracool/waypoint_menu.h"
 #include "qol/stash.h"
@@ -4227,7 +4228,7 @@ void EnsureObjectGraphicsLoaded(object_graphic_id ofile, uint16_t animWidth)
 		present = FindAsset(probe).ok();
 	}
 	if (!present) {
-		const object_graphic_id fallback = ofile == OFILE_ORCLWAYP ? OFILE_MCIRL : ofile == OFILE_ORCLROAR ? OFILE_BOOK2 : ofile == OFILE_ORCLSTASH ? OFILE_CHEST3 : ofile;
+		const object_graphic_id fallback = ofile == OFILE_ORCLWAYP ? OFILE_MCIRL : ofile == OFILE_ORCLROAR ? OFILE_BOOK2 : ofile == OFILE_ORCLSTASH ? OFILE_CHEST3 : ofile == OFILE_ORCLGATE ? OFILE_BOOK2 : ofile;
 		if (fallback != ofile) {
 			for (const ObjectData &objectData : AllObjects) {
 				if (objectData.ofindex == fallback) {
@@ -4383,9 +4384,40 @@ void ApplyLevskiRoarGraphics(Object &monument)
 			// Only ever read back by the save file; DrawObject measures the sprite itself. Kept
 			// honest anyway.
 			monument._oAnimWidth = OracoolLevskiRoarAnimWidth;
+			// The Cube's sheet (batch 43, 2026-09-20) has thirteen frames where the Roar's had one;
+			// the frame count follows the sheet so ProcessLevskiCubeAnimation can tell them apart.
+			monument._oAnimLen = static_cast<uint32_t>(pObjCels[i]->numSprites());
+			if (monument._oAnimFrame < 1 || monument._oAnimFrame > monument._oAnimLen)
+				monument._oAnimFrame = 1;
 		}
 		return;
 	}
+}
+
+void ApplyStonegateGraphics(Object &gate)
+{
+	// The Stonegate (2026-09-20, batch 42): the same swap as the Roar's, onto objects\orclgate.cel.
+	if (HeadlessMode)
+		return;
+
+	EnsureObjectGraphicsLoaded(OFILE_ORCLGATE, OracoolStonegateAnimWidth);
+
+	for (int i = 0; i < numobjfiles; i++) {
+		if (ObjFileList[i] != OFILE_ORCLGATE)
+			continue;
+		if (pObjCels[i]) {
+			gate._oAnimData.emplace(*pObjCels[i]);
+			gate._oAnimWidth = OracoolStonegateAnimWidth;
+		}
+		return;
+	}
+}
+
+void PrepareStonegateCarrier()
+{
+	// Still needed even though the gate ends up wearing orclgate.cel: SetupObject looks the rock
+	// stand's own sheet up when AddObject(OBJ_STAND) runs, exactly as for the Roar.
+	EnsureObjectGraphicsLoaded(OFILE_ROCKSTAN, AllObjects[OBJ_STAND].animWidth);
 }
 
 void AddLevskiRoarObject()
@@ -5176,6 +5208,10 @@ void OperateTrap(Object &trap)
 
 void ProcessObjects()
 {
+	// The Stonegate's lit loop (oracool/stonegate.h): its frames are driven here, not by the
+	// generic advance below, because the loop is a sub-range of one sheet.
+	oracool::ProcessStonegate();
+	oracool::ProcessLevskiCubeAnimation(); // the Cube's idle loop and open pose (batch 43)
 	for (int i = 0; i < ActiveObjectCount; ++i) {
 		Object &object = Objects[ActiveObjects[i]];
 		switch (object._otype) {
@@ -5387,8 +5423,13 @@ void OperateObject(Player &player, Object &object)
 		// objects\orclroar.cel from the private archive, with the Anvil of Fury's rock stand as the
 		// fallback); in the Caves it is still the vanilla stand the Anvil quest uses, which is why
 		// this is gated on currlevel rather than on the type alone.
-		if (currlevel == 0 && sendmsg)
-			oracool::ToggleLevskiRoar();
+		// Two stands in town since 2026-09-20: the Roar and the Stonegate, told apart by identity.
+		if (currlevel == 0 && sendmsg) {
+			if (oracool::IsStonegateObject(object))
+				oracool::ToggleStonegate();
+			else
+				oracool::ToggleLevskiRoar();
+		}
 		break;
 	case OBJ_LEVER:
 	case OBJ_L5LEVER:

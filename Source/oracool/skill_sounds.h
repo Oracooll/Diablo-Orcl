@@ -145,6 +145,9 @@ enum class UiEventSound : uint8_t {
 	EncounterCleared,
 	MapUnseal,
 	SignetUse,
+	// RfA-19 batch 42 (2026-09-20): the Stonegate's portals opening and closing.
+	RiftOpen,
+	RiftClose,
 };
 
 /**
@@ -154,7 +157,7 @@ enum class UiEventSound : uint8_t {
 bool PlayUiEventSound(UiEventSound sound);
 
 /** @brief How many UiEventSound values there are, so a test can walk all of them. */
-constexpr size_t UiEventSoundCount = static_cast<size_t>(UiEventSound::SignetUse) + 1;
+constexpr size_t UiEventSoundCount = static_cast<size_t>(UiEventSound::RiftClose) + 1;
 
 /**
  * @brief The archive path @p sound is loaded from, or nullptr if @p sound is out of range.

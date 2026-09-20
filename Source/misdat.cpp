@@ -209,6 +209,8 @@ const MissileData MissilesData[] = {
 /*CorpseBurst*/          { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::CorpseExplosion,      Physical,              MissileMovementDistribution::Disabled    },
 /*RaiseDeadEffect*/      { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::RaiseDead,            Magic,                 MissileMovementDistribution::Disabled    },
 /*CurseCastEffect*/      { &AddCensusEffect,        &ProcessCensusEffect,         SFX_NONE,    SFX_NONE,    MissileGraphicID::CurseCast,            Magic,                 MissileMovementDistribution::Disabled    },
+/*RiftPortalGold*/       { &AddRiftPortal,          &ProcessRiftPortal,           SFX_NONE,    SFX_NONE,    MissileGraphicID::RiftPortalGold,       Magic,                 MissileMovementDistribution::Disabled    },
+/*RiftPortalPurple*/     { &AddRiftPortal,          &ProcessRiftPortal,           SFX_NONE,    SFX_NONE,    MissileGraphicID::RiftPortalPurple,     Magic,                 MissileMovementDistribution::Disabled    },
 	// clang-format on
 };
 
@@ -216,7 +218,7 @@ const MissileData MissilesData[] = {
 // silently shifts every missile past it onto another's behaviour. Pinned after Round 6 appended
 // MissileID::Warcry - which, at the enum's old int8_t, wrapped to -128 and read this table from
 // before its first row. See MissileID in spelldat.h for that story.
-static_assert(sizeof(MissilesData) / sizeof(MissilesData[0]) == static_cast<size_t>(MissileID::CurseCastEffect) + 1,
+static_assert(sizeof(MissilesData) / sizeof(MissilesData[0]) == static_cast<size_t>(MissileID::RiftPortalPurple) + 1,
     "MissilesData needs a row for every MissileID, in the enum's order");
 
 namespace {
@@ -404,6 +406,9 @@ MissileFileData MissileSpriteData[] = {
 /*CorpseExplosion*/          { {},              160,          48, "corpse_explosion",  1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*RaiseDead*/                { {},               96,          16, "raise_dead",        1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_12      },
 /*CurseCast*/                { {},              192,          64, "curse_cast",        1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
+// Oracool 2026-09-20: the Stonegate's portals - the town portal's own frame (96 wide, 16 frames, delay 3), one strip each.
+/*RiftPortalGold*/           { {},               96,          16, "portal_gold",       1, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      },
+/*RiftPortalPurple*/         { {},               96,          16, "portal_purple",     1, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };

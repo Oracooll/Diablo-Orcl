@@ -3833,6 +3833,16 @@ void AddRedPortal(Missile &missile, AddMissileParameter & /*parameter*/)
 	PutMissile(missile);
 }
 
+void AddRiftPortal(Missile &missile, AddMissileParameter & /*parameter*/)
+{
+	// Oracool (2026-09-20): stands until the Stonegate closes - no range, no close animation;
+	// oracool::CloseStonegate releases the light and flags it. The town portal's own frame and
+	// loop (16 frames, delay 3) come from the graphics table.
+	missile._mirange = 1;
+	missile._mlid = AddLight(missile.position.tile, 6);
+	PutMissile(missile);
+}
+
 void AddDiabloApocalypse(Missile &missile, AddMissileParameter & /*parameter*/)
 {
 	for (const Player &player : Players) {
@@ -5411,6 +5421,12 @@ void ProcessRedPortal(Missile &missile)
 		missile._miDelFlag = true;
 		AddUnLight(missile._mlid);
 	}
+	PutMissile(missile);
+}
+
+void ProcessRiftPortal(Missile &missile)
+{
+	// Nothing to count down: the generic advance loops its sixteen frames; the gate removes it.
 	PutMissile(missile);
 }
 

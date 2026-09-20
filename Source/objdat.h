@@ -145,11 +145,17 @@ enum object_graphic_id : int8_t {
 	 * ApplyLevskiRoarGraphics in objects.cpp for the two places that must both apply it.
 	 */
 	OFILE_ORCLROAR,
+	/**
+	 * @brief Oracool: the Stonegate (2026-09-20, batch 42) - objects\orclgate.cel, seventeen frames: the
+	 * closed gate, eight lit gold, eight lit violet. Like the Roar it belongs to no object type: it is an
+	 * OBJ_STAND wearing its own art (ApplyStonegateGraphics in objects.cpp; oracool/stonegate.h).
+	 */
+	OFILE_ORCLGATE,
 	OFILE_NULL = -1,
 };
 
 /** @brief Number of entries in object_graphic_id, i.e. the size every filesWidths[] array needs. */
-constexpr int NumObjectGraphicFiles = OFILE_ORCLROAR + 1;
+constexpr int NumObjectGraphicFiles = OFILE_ORCLGATE + 1;
 
 /**
  * @brief Oracool: orclstash.cel's frame width. CEL stores no width, so LoadCel must be told; a
@@ -176,6 +182,13 @@ constexpr uint16_t OracoolStashChestAnimWidth = 90; // the sarcophagus sheet's 1
  * if either moves, both move, in the same commit.
  */
 constexpr uint16_t OracoolLevskiRoarAnimWidth = 96;
+
+/**
+ * @brief Oracool: the Stonegate's frame width, three tiles - the width the portal asset needs to stand
+ * inside its opening (the town portal is 96 wide, the opening 72; the stone around it makes 192). Sized
+ * from the measured portal sheet, not by taste; tools\build_stonegate_cel.cmd prints what it produced.
+ */
+constexpr uint16_t OracoolStonegateAnimWidth = 192;
 
 enum _object_id : int8_t {
 	OBJ_L1LIGHT,

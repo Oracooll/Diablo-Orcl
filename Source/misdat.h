@@ -178,6 +178,10 @@ enum class MissileGraphicID : uint8_t {
 	CorpseExplosion,
 	RaiseDead,
 	CurseCast,
+	// Oracool 2026-09-20: the Stonegate's rift portals, two PNG strips of sixteen 96x256 frames
+	// (missiles\portal_gold.png, portal_purple.png; RfA-19 / batch 42).
+	RiftPortalGold,
+	RiftPortalPurple,
 	None,
 };
 
