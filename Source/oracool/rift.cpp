@@ -275,6 +275,11 @@ void DropKeystone(Point tile, int tier)
 
 } // namespace
 
+void DropGuardianKeystone(Point tile, int tier)
+{
+	DropKeystone(tile, tier);
+}
+
 bool EnterRift(Player &player)
 {
 	if (State.kind == RiftKind::None || !player.isOnLevel(0))

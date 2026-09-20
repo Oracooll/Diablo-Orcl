@@ -108,6 +108,11 @@ bool UseBestKeystoneFromBackpack(Player &player);
  * clock's, so a test can reason in seconds.
  */
 int NextKeystoneTier(int tier, int ticksLeft, int ticksTotal, bool timedOut);
+/**
+ * @brief Drops a Guardian Keystone of @p tier on @p tile - the guardian's drop, exposed for the
+ * `keystone` debug command (user, 2026-09-20: "i need a debug command for Guardian Rift keys").
+ */
+void DropGuardianKeystone(Point tile, int tier);
 /** @brief From town: sets the tileset and starts the set level. False outside town or with no rift open. */
 bool EnterRift(Player &player);
 /** @brief Called from the town-side portal each tick: enters when the hero walks onto the entry tile. */

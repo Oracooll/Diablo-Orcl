@@ -710,6 +710,7 @@ void LeftMouseDown(uint16_t modState)
 			// either one cleared _pLRSpell - so deleting the sheet without this would have made a
 			// left-button assignment permanent. The right button never had that problem, because it
 			// has had this shortcut since the HUD overhaul.
+			oracool::PressHudWell(/*leftWell=*/true); // the icon sinks until the release (2026-09-20)
 			if (isShiftHeld) {
 				MyPlayer->_pLRSpell = SpellID::Invalid;
 				MyPlayer->_pLRSplType = SpellType::Invalid;
@@ -749,6 +750,7 @@ void LeftMouseUp(uint16_t modState)
 	oracool::ReleaseXpCounterButton();
 	ReleaseSpellBookButtons();
 	oracool::ReleaseWaypointActButton(); // the pressed Act button springs back (2026-09-20)
+	oracool::ReleaseHudWells();          // and the pressed LMB/RMB well (2026-09-20)
 }
 
 // Oracool bug fix (2026-08-16): user report - "i cant hit with rmb with regular attack."
@@ -1282,6 +1284,7 @@ void HandleMouseButtonUp(Uint8 button, uint16_t modState)
 		// The abilities window's icon buttons sink on a RIGHT click too (a refund, an emptying, a
 		// readying to the right button), so the right release must let them go (2026-09-20).
 		ReleaseSpellBookButtons();
+		oracool::ReleaseHudWells();
 	} else {
 		sgOptions.Keymapper.KeyReleased(static_cast<SDL_Keycode>(button | KeymapperMouseButtonMask));
 	}

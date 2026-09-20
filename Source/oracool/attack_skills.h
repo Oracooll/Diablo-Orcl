@@ -93,6 +93,21 @@ const char *AttackIconDetail(AttackIcon icon, bool active);
  */
 void DrawLmbSkillWell(const Surface &out);
 
+/**
+ * @brief THE HUD BUTTONS' FEEL (user, 2026-09-20: "apply titlemov.wav on every hover over lmb/rmb/belt
+ * icons. lmb/rmb to adopt the 2,2 click relocation when clicked") - the waypoint Act buttons' recipe
+ * on the HUD: the UI move sound on the frame the cursor arrives over the LMB well, the RMB well or
+ * any of the seven belt cells; a clicked well's icon sinks 2px down and 2px left until the mouse is
+ * released, the well's painted socket staying put.
+ *
+ * TrackHudButtonHover runs once per frame from DrawLmbSkillWell (the HUD's own draw); PressHudWell
+ * is the click (diablo.cpp's LMB-well branch, control.cpp's DoPanBtn); ReleaseHudWells is called
+ * from both mouse buttons' release paths.
+ */
+void TrackHudButtonHover();
+void PressHudWell(bool leftWell);
+void ReleaseHudWells();
+
 // The basic-attack quick list - Open/Close/IsOpen/Draw/CheckClick, and the strip geometry behind
 // them - lived here until 2026-08-30 and is gone. It was the two-icon popup from 2026-08-18, and
 // the skill picker (oracool/skill_picker.h) superseded it on 2026-08-20: the two attacks are simply

@@ -1123,6 +1123,7 @@ void InitControlPan()
 void DoPanBtn()
 {
 	if (!spselflag && oracool::GetRmbSkillButtonRect().contains(MousePosition)) {
+		oracool::PressHudWell(/*leftWell=*/false); // the icon sinks until the release (2026-09-20)
 		if ((SDL_GetModState() & KMOD_SHIFT) != 0) {
 			ClearReadiedSpell(*MyPlayer);
 			// Same omission the skill picker had (audit, 2026-08-26): the shortcut that CLEARS the

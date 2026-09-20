@@ -115,6 +115,11 @@ void AddStonegateObject()
 		gate->_oSelFlag = 3;
 		gate->_oBreak = 0;
 		gate->_oSolidFlag = true;
+		// Drawn in the tile's BEFORE-characters pass, so the portal missile - drawn after it on the
+		// same tile - lands OVER the painting (user, 2026-09-20: "when rift portal is opened render it
+		// over the Rift monument, not behind"). Nothing stands on the gate's tile (it is solid), so
+		// the pass changes nothing else about how the monument sorts.
+		gate->_oPreFlag = true;
 		ApplyStonegateGraphics(*gate);
 		ShowFrame(*gate, ClosedFrame);
 		GateObjectId = gate->GetId();

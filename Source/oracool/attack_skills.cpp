@@ -12,7 +12,9 @@
 #include "oracool/badge.h"
 #include "oracool/hud_art.h"
 #include "oracool/ornate_border.h" // DrawHoverOutline
+#include "diablo.h"           // MousePosition - the HUD buttons' hover sense
 #include "oracool/hud_layout.h"
+#include "oracool/ui_sound.h"  // PlayUiMoveSound - the hover and click sound
 #include "oracool/paladin_skills.h"
 #include "panels/spell_book.hpp" // GetAbilityFKeyNumber, GetAuraFKeyNumber
 #include "utils/language.h"
@@ -195,8 +197,56 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	DrawSpellIconFittedTo(out, SkillWellPlateRect(net), spell); // the 56px frame at the 56px opening (2026-09-05)
 }
 
+namespace {
+
+/** @brief The well held down: 0 the LMB well, 1 the RMB well, -1 none. See TrackHudButtonHover in the header. */
+int PressedWell = -1;
+/** @brief The HUD button under the cursor last frame: 0 LMB well, 1 RMB well, 2 + slot a belt cell, -1 none. */
+int LastHudHover = -1;
+constexpr Displacement WellPressSink { -2, 2 };
+
+Displacement WellSink(bool leftWell)
+{
+	return PressedWell == (leftWell ? 0 : 1) ? WellPressSink : Displacement { 0, 0 };
+}
+
+int HudButtonUnder(Point mouse)
+{
+	if (GetLmbSkillButtonRect().contains(mouse))
+		return 0;
+	if (GetRmbSkillButtonRect().contains(mouse))
+		return 1;
+	for (int slot = 0; slot < BeltVisibleSlotCount; slot++) {
+		if (GetBeltSlotRect(slot).contains(mouse))
+			return 2 + slot;
+	}
+	return -1;
+}
+
+} // namespace
+
+void TrackHudButtonHover()
+{
+	const int hovered = HudButtonUnder(MousePosition);
+	if (hovered >= 0 && hovered != LastHudHover)
+		PlayUiMoveSound();
+	LastHudHover = hovered;
+}
+
+void PressHudWell(bool leftWell)
+{
+	PressedWell = leftWell ? 0 : 1;
+}
+
+void ReleaseHudWells()
+{
+	PressedWell = -1;
+}
+
 void DrawLmbSkillWell(const Surface &out)
 {
+	// The HUD's per-frame hover sense lives here because this draw runs whenever the HUD does.
+	TrackHudButtonHover();
 	if (WellIconSize().width == 0)
 		return;
 	// The points frame behind the icon (user, 2026-08-30). BEFORE the icon, obviously, but also
@@ -207,7 +257,8 @@ void DrawLmbSkillWell(const Surface &out)
 	// Always "active": a well shows what its button does right now, so there is no inactive state for
 	// it to render. The dimmed variant belongs to the Abilities window's row pair, where it says
 	// which of the two attacks is the one in your hands.
-	const Rectangle net = GetLmbSkillWellNetRect();
+	// The icon (and its badges) sink while the well is held down - the click effect (2026-09-20).
+	const Rectangle net { GetLmbSkillWellNetRect().position + WellSink(/*leftWell=*/true), GetLmbSkillWellNetRect().size };
 	DrawWellIcon(out, net, MyPlayer->_pLRSpell, MyPlayer->_pLRSplType);
 	// The LEFT button's bindings, which live in their own array (user, 2026-09-02). No fallback name:
 	// only the RMB well inherited the vanilla QuickSpell9-12 rows, and those write the right button's
@@ -228,7 +279,7 @@ void DrawRmbSkillWell(const Surface &out)
 	//
 	// No coexistence to arbitrate: lighting an aura clears the readied skill and readying a skill
 	// puts the aura out, so at most one of them is ever here. See ClearClassAuraForRightButton.
-	const Rectangle net = GetRmbSkillWellNetRect();
+	const Rectangle net { GetRmbSkillWellNetRect().position + WellSink(/*leftWell=*/false), GetRmbSkillWellNetRect().size }; // sinks while held
 	if (const ClassTreeSkill aura = GetActiveClassAura(*MyPlayer); aura != ClassTreeSkill::None) {
 		DrawClassTreeSkillInWell(out, net, MyPlayer->_pClass, ClassTreeIconIndex(aura));
 		// Badged by hand rather than through DrawWellBadges: an aura carries no SpellID - it is a

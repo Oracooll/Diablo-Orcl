@@ -6,6 +6,7 @@
 
 #ifdef _DEBUG
 
+#include <algorithm> // std::clamp - the keystone command's tier
 #include <cstdint>
 #include <cstdio>
 #include <set>
@@ -251,6 +252,24 @@ std::string DebugCmdLoadQuestMap(const string_view parameter)
  * @brief Opens a rift at the gate and walks straight in (oracool/rift.h): "rift nephalem", "rift
  * guardian 40". Town only, like the gate itself.
  */
+std::string DebugCmdKeystone(const string_view parameter)
+{
+	// A Guardian Keystone at the hero's feet (user, 2026-09-20: "i need a debug command for Guardian
+	// Rift keys"): the tier as given, or the deepest floor's tier - what a Nephalem Rift would open
+	// at - when none is. Dropped, not placed in the pack, so it goes through the same tumble and
+	// pickup a guardian's drop does.
+	Player &myPlayer = *MyPlayer;
+	int tier = parameter.empty() ? 0 : atoi(parameter.data());
+	if (tier <= 0)
+		tier = oracool::NephalemRiftTierFor(myPlayer);
+	tier = std::clamp(tier, 1, 255);
+	const int before = ActiveItemCount;
+	oracool::DropGuardianKeystone(myPlayer.position.tile, tier);
+	if (ActiveItemCount <= before)
+		return "No room for a keystone here.";
+	return StrCat("A Guardian Keystone of tier ", tier, " lies at your feet.");
+}
+
 std::string DebugCmdRift(const string_view parameter)
 {
 	Player &myPlayer = *MyPlayer;
@@ -1518,6 +1537,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "searchobject", "Searches the automap for {object}", "{object}", &DebugCmdSearchObject },
 	{ "clearsearch", "Search in the auto map is cleared", "", &DebugCmdClearSearch },
 	{ "rift", "Opens a rift at the Rift Monument and enters it: nephalem (free, the deepest floor's tier) or guardian at {tier}.", "{nephalem|guardian} ({tier})", &DebugCmdRift },
+	{ "keystone", "Drops a Guardian Keystone at your feet: of {tier}, or of the deepest floor's tier when none is given.", "({tier})", &DebugCmdKeystone },
 };
 
 } // namespace
