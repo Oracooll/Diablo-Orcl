@@ -239,9 +239,10 @@ constexpr int TextGap = 10;  // from the sigil to the name
 // 91x71 each, frame, backing and label painted in one piece (filed under
 // 01-in-use-assets\ui\act-buttons-user, shipped as ui\act_<act>.png). So the button is the PNG
 // drawn 1:1 - no bezel, no plate under it - with the abilities window's shadows around it: the
-// resting 3px cast, the doubled 6px one under the cursor. A selected act is the same button
-// recoloured in place (TintRectRgb: red, orange, purple), the frame staying dark because the tint
-// keeps every pixel's luminance.
+// resting 3px cast under an inactive act, the doubled 6px one under the cursor and under the ACTIVE
+// act. The active act shows the painting as painted; the inactive ones are desaturated in place
+// (v1.12.077 - for one build the active one was recoloured red/orange/purple instead, which the
+// user removed: "the inactive Act buttons to be desaturated. remove the coloring").
 //
 // The two earlier cuts - the 56x56 tinted spell plate in the carved bezel with ChatGPT's label
 // glyphs (v1.12.071), and vanilla's plate frame 26 at 70x70 (v1.12.073, rolled back) - are the
@@ -256,9 +257,6 @@ constexpr int ActRowTop = PanelTitleTop + PanelTitleHeight + 8;
 constexpr int ActCount = 3;
 constexpr const char *ActButtonAssets[ActCount] = { "ui\\act_diablo.png", "ui\\act_hellfire.png", "ui\\act_orcl.png" };
 constexpr const char *ActNames[ActCount] = { "Diablo Act", "Hellfire Act", "Orcl Act" };
-/** @brief The selected button's hue - red, orange, purple - and the ramp an indexed surface falls back to. */
-constexpr uint32_t ActHueRgb[ActCount] = { 0xC82828, 0xE88020, 0x8A3FC8 };
-constexpr uint8_t ActHueFallbackRamp[ActCount] = { PAL16_RED, PAL16_ORANGE, PAL16_BLUE };
 static_assert(ActCellsLeft + 2 * ActCellPitch + ActButtonSize.width <= PanelSize.width - PanelMargin,
     "the third Act button runs into the panel's right margin");
 
@@ -366,19 +364,23 @@ void DrawActButtons(const Surface &out)
 		const bool selected = static_cast<int>(ActiveAct) == act;
 		const bool isHovered = hovered == act;
 		// Shadow first, under everything, like the abilities window: the resting 3px cast, or the
-		// doubled 6px one under the cursor. The selected button keeps the resting shadow - it is
-		// pressed, and a pressed button does not lift. The painted button carries its own frame, so
-		// the shadow hugs the button's rect (no bezel to clear).
-		if (isHovered && !selected)
+		// doubled 6px one under the cursor AND under the active act (user, 2026-09-20: "i want the
+		// active act button to keep the hover shadow under it"). The painted button carries its own
+		// frame, so the shadow hugs the button's rect (no bezel to clear).
+		if (isHovered || selected)
 			DrawHoverShadow(out, cell, 0);
 		else
 			DrawDropShadow(out, cell, 0);
 		if (GetLoosePngSize(ActButtonAssets[act]).width > 0) {
-			// The user's button, 1:1; recoloured in place while selected.
+			// The user's button, 1:1, in its own colours when active or under the cursor; the other
+			// acts DESATURATED in place (user, same message: "the inactive Act buttons to be
+			// desaturated. remove the coloring they currently have applied over them when selected").
+			// A white hue through TintRectRgb is exactly that: every pixel keeps its luminance and
+			// loses its hue. The hovered inactive button wakes to colour, so the cursor finds it.
 			DrawLoosePng(out, ActButtonAssets[act], cell.position);
-			if (selected)
+			if (!selected && !isHovered)
 				TintRectRgb(out, cell.position.x, cell.position.y, cell.size.width, cell.size.height,
-				    ActHueRgb[act], /*brightnessPercent=*/100, /*floorPercent=*/20, ActHueFallbackRamp[act]);
+				    0xFFFFFFu, /*brightnessPercent=*/100, /*floorPercent=*/0, PAL16_GRAY);
 			continue;
 		}
 		// Fallback when the file is missing: the first cut - the tinted spell plate in the carved

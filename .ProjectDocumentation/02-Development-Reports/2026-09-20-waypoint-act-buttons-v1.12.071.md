@@ -102,3 +102,12 @@ Found in the Resources root: `Diablo Act Button.png`, `Hellfire Act Button.png`,
 - The hit box is the button's full rect. The plate-in-bezel look with the act's name in the font remains as the fallback when a button file is missing.
 
 Build 56, v1.12.076: clean, ctest 831/831; the three buttons packed.
+
+## v1.12.077 - active keeps the hover shadow, inactive desaturated
+
+> "i want the active act button to keep the hover shadow under it and the inactive Act buttons to be desaturated. remove the coloring they currently have applied over them when selected."
+
+- The active act's button draws with the doubled 6px hover shadow at all times, in its own painted colours; the red/orange/purple recolour is gone.
+- Inactive buttons are desaturated in place - `TintRectRgb` with a white hue keeps every pixel's luminance and drops its hue (PAL16_GRAY on an indexed surface). A hovered inactive button wakes to colour under the hover shadow, so the cursor finds it.
+
+Build 57, v1.12.077: clean, ctest 831/831.
