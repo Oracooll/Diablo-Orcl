@@ -80,9 +80,12 @@ void AddStonegateObject()
 	// tables moves. The rock stand's own sheet is loaded first because SetupObject asks for it.
 	PrepareStonegateCarrier();
 
-	// The open ground south-east of the well, away from the Roar's plaza junction (55, 66) and the
-	// path to the cathedral; the sprite is three tiles wide, so the neighbours must be clear too.
-	constexpr Point Candidates[] = { { 62, 74 }, { 63, 75 }, { 61, 73 }, { 64, 76 }, { 60, 72 }, { 65, 77 } };
+	// Beside the town portal's own landing tile (user, 2026-09-20: "next to the default town portal
+	// spawning location in tristram, just a couple or three tiles southeast of it, to avoid
+	// overlapping"). The portal lands on WarpDrop[0] = (57, 40) in portal.cpp; south-east is +x on
+	// this map, so three tiles along is (60, 40), then the tiles around it. (59, 40), (61, 40) and
+	// (63, 40) are the other players' portal slots and are avoided even though V1 is single-player.
+	constexpr Point Candidates[] = { { 60, 40 }, { 60, 41 }, { 61, 41 }, { 60, 39 }, { 62, 41 }, { 62, 42 } };
 	for (const Point &position : Candidates) {
 		if (!InDungeonBounds(position) || dObject[position.x][position.y] != 0 || TileHasAny(dPiece[position.x][position.y], TileProperties::Solid))
 			continue;

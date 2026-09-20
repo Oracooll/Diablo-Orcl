@@ -3836,8 +3836,10 @@ void AddRedPortal(Missile &missile, AddMissileParameter & /*parameter*/)
 void AddRiftPortal(Missile &missile, AddMissileParameter & /*parameter*/)
 {
 	// Oracool (2026-09-20): stands until the Stonegate closes - no range, no close animation;
-	// oracool::CloseStonegate releases the light and flags it. The town portal's own frame and
-	// loop (16 frames, delay 3) come from the graphics table.
+	// oracool::CloseStonegate releases the light and flags it. The art is VANILLA's town portal
+	// recoloured (user: "i want to use vanilla portal animation"): file 0 is the opening blossom,
+	// file 1 the standing loop, and ProcessRiftPortal switches to file 1 once the opening has run,
+	// as ProcessTownPortal does by its countdown.
 	missile._mirange = 1;
 	missile._mlid = AddLight(missile.position.tile, 6);
 	PutMissile(missile);
@@ -5426,7 +5428,10 @@ void ProcessRedPortal(Missile &missile)
 
 void ProcessRiftPortal(Missile &missile)
 {
-	// Nothing to count down: the generic advance loops its sixteen frames; the gate removes it.
+	// Nothing to count down; the gate removes it. The opening animation (file 0) plays once, then
+	// the standing loop (file 1) - checked on the last frame, before the generic advance wraps it.
+	if (missile._mimfnum == 0 && missile._miAnimFrame >= missile._miAnimLen)
+		SetMissDir(missile, 1);
 	PutMissile(missile);
 }
 

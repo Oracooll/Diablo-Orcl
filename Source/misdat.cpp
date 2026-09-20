@@ -407,8 +407,8 @@ MissileFileData MissileSpriteData[] = {
 /*RaiseDead*/                { {},               96,          16, "raise_dead",        1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_12      },
 /*CurseCast*/                { {},              192,          64, "curse_cast",        1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 // Oracool 2026-09-20: the Stonegate's portals - the town portal's own frame (96 wide, 16 frames, delay 3), one strip each.
-/*RiftPortalGold*/           { {},               96,          16, "portal_gold",       1, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      },
-/*RiftPortalPurple*/         { {},               96,          16, "portal_purple",     1, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      },
+/*RiftPortalGold*/           { {},               96,          16, "portal_gold",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // vanilla's portal1/portal2 recoloured (tools/BuildRiftPortals.ps1): row 0 opens, row 1 stands
+/*RiftPortalPurple*/         { {},               96,          16, "portal_purple",     2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };
@@ -437,7 +437,7 @@ void MissileFileData::LoadGFX()
 	// a time. animFAmt IS the direction count, so it decides the sheet's shape here as well as below;
 	// asking it once for both is what keeps a sixteen-facing sheet from being read as one row.
 	if (std::optional<OwnedClxSpriteListOrSheet> png
-	    = oracool::LoadPngMissileSheet(name, animWidth, animFAmt == 1 ? 1 : 16);
+	    = oracool::LoadPngMissileSheet(name, animWidth, animFAmt); // one row per file/direction, as the exporter writes them (2 for the portals since 2026-09-20)
 	    png.has_value()) {
 		sprites.emplace(std::move(*png));
 		return;
