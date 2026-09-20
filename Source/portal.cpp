@@ -5,6 +5,8 @@
  */
 #include "portal.h"
 
+#include <algorithm> // std::clamp - TownPortalLandingTile
+
 #include "lighting.h"
 #include "misdat.h"
 #include "missiles.h"
@@ -30,6 +32,11 @@ Point WarpDrop[MAXPORTAL] = {
 };
 
 } // namespace
+
+Point TownPortalLandingTile(int i)
+{
+	return WarpDrop[std::clamp(i, 0, MAXPORTAL - 1)];
+}
 
 void InitPortals()
 {

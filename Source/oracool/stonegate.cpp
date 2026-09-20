@@ -14,6 +14,7 @@
 #include "oracool/skill_sounds.h"
 #include "oracool/stonegate_menu.h"
 #include "player.h"
+#include "portal.h" // TownPortalLandingTile - where the inactive arch stands
 #include "utils/str_cat.hpp"
 
 namespace devilution::oracool {
@@ -36,6 +37,8 @@ constexpr uint32_t ClosedFrame = 1;
 constexpr uint32_t FrameCount = 1;
 
 int GateObjectId = -1;
+/** @brief The inactive arch on the town portal's landing tile, or -1 - see AddPortalArch. */
+int PortalArchObjectId = -1;
 
 Object *Gate()
 {
@@ -85,6 +88,38 @@ void LightGate(Object &gate, RiftKind kind, bool sound)
 
 } // namespace
 
+namespace {
+
+/**
+ * @brief The inactive copy of the monument on the town portal's landing tile (user, 2026-09-20: "Place
+ * one inactive copy of its asset on the tile the vanilla portal opens"): WarpDrop[0] = (57, 40), where
+ * AddWarpMissile stands the town portal. Its own OBJ_STAND wearing the same painting, and nothing
+ * else - unselectable (no hover, no click, no name), NOT solid (the hero walks into the portal on that
+ * tile and lands one tile past it), missiles pass, and drawn in the before-characters pass like the
+ * gate so the portal and the hero show over the arch. IsStonegateObject answers for it too, which
+ * keeps it out of IsLevskiRoarObject's "the other stand in town".
+ */
+void AddPortalArch()
+{
+	PortalArchObjectId = -1;
+	const Point tile = TownPortalLandingTile(0);
+	if (!InDungeonBounds(tile) || dObject[tile.x][tile.y] != 0)
+		return;
+	Object *arch = AddObject(OBJ_STAND, tile);
+	if (arch == nullptr)
+		return;
+	arch->_oSelFlag = 0;
+	arch->_oBreak = 0;
+	arch->_oSolidFlag = false;
+	arch->_oMissFlag = true;
+	arch->_oPreFlag = true;
+	ApplyStonegateGraphics(*arch);
+	ShowFrame(*arch, ClosedFrame);
+	PortalArchObjectId = arch->GetId();
+}
+
+} // namespace
+
 void AddStonegateObject()
 {
 	GateObjectId = -1;
@@ -95,12 +130,11 @@ void AddStonegateObject()
 	// tables moves. The rock stand's own sheet is loaded first because SetupObject asks for it.
 	PrepareStonegateCarrier();
 
-	// Beside the town portal's own landing tile (user, 2026-09-20: "next to the default town portal
-	// spawning location in tristram, just a couple or three tiles southeast of it, to avoid
-	// overlapping"). The portal lands on WarpDrop[0] = (57, 40) in portal.cpp; south-east is +x on
-	// this map, so three tiles along is (60, 40), then the tiles around it. (59, 40), (61, 40) and
-	// (63, 40) are the other players' portal slots and are avoided even though V1 is single-player.
-	constexpr Point Candidates[] = { { 60, 40 }, { 60, 41 }, { 61, 41 }, { 60, 39 }, { 62, 41 }, { 62, 42 } };
+	// At (31, 56) since 2026-09-20 (user: "Move the Rift Monument to 31:56 tile"), the tiles around it
+	// as fallbacks. It stood at (60, 40) before - three tiles south-east of the town portal's landing
+	// tile, WarpDrop[0] = (57, 40) - and that tile now carries an inactive copy of the painting
+	// instead, so the town portal opens inside an arch too (see below).
+	constexpr Point Candidates[] = { { 31, 56 }, { 31, 57 }, { 32, 57 }, { 31, 55 }, { 30, 56 }, { 32, 55 } };
 	for (const Point &position : Candidates) {
 		if (!InDungeonBounds(position) || dObject[position.x][position.y] != 0 || TileHasAny(dPiece[position.x][position.y], TileProperties::Solid))
 			continue;
@@ -134,14 +168,18 @@ void AddStonegateObject()
 		// tick, and that portal is the whole of the open state.
 		if (ActiveRift() != RiftKind::None && RiftReturnedHome())
 			EndRift();
+		AddPortalArch();
 		return;
 	}
 	LogEvent("The Rift Monument found no ground to stand on", UiFlags::ColorRed);
+	AddPortalArch();
 }
 
 bool IsStonegateObject(const Object &object)
 {
-	return GateObjectId >= 0 && &object == &Objects[GateObjectId];
+	// The gate, or the inactive arch on the portal's tile - both wear the painting, neither is the Cube.
+	return (GateObjectId >= 0 && &object == &Objects[GateObjectId])
+	    || (PortalArchObjectId >= 0 && &object == &Objects[PortalArchObjectId]);
 }
 
 RiftKind OpenRift()

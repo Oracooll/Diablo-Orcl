@@ -27,3 +27,12 @@ The gate object now sets `_oPreFlag = true`, which moves it to the tile's before
 ## Build
 
 Build 62, v1.12.082: clean, ctest 831/831. The Orcl Debug Console page republished (version 3).
+
+## v1.12.083 - the monument moves to (31, 56); an arch over the town portal
+
+> "Move the Rift Monument to 31:56 tile. Also Place one inactive copy of its asset on the tile the vanilla portal opens."
+
+- **The gate** now tries (31, 56) first, then the tiles around it, with the same solid-tile and entry-tile checks as before (the entry tile is still gate + (1, 1); a fallback is logged in red).
+- **The arch** (`AddPortalArch`, stonegate.cpp): a second OBJ_STAND wearing the same painting on `WarpDrop[0]` = (57, 40), where `AddWarpMissile` stands the town portal - so the town portal opens inside an arch. Unselectable (no hover, click or name), not solid (the hero walks into the portal on that tile and lands one tile past it), missiles pass (`_oMissFlag`), before-characters pass so the portal and the hero draw over it. `IsStonegateObject` answers for it too, which keeps `IsLevskiRoarObject` from taking it for the Cube. portal.h gains `TownPortalLandingTile(i)`, the accessor for the table.
+
+Build 63 failed (C2872: `WarpDrop` is in portal.cpp's anonymous namespace, so an extern in the header clashed); build 64 with a `TownPortalLandingTile(i)` accessor instead: clean, ctest 831/831.

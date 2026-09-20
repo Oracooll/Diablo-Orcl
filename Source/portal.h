@@ -21,6 +21,8 @@ struct Portal {
 };
 
 extern Portal Portals[MAXPORTAL];
+/** @brief Where player @p i's town portal stands in town (WarpDrop). Oracool: for the Rift Monument's inactive arch on slot 0's tile (2026-09-20). */
+Point TownPortalLandingTile(int i);
 
 void InitPortals();
 void SetPortalStats(int i, bool o, Point position, int lvl, dungeon_type lvltype, bool isSetLevel);
