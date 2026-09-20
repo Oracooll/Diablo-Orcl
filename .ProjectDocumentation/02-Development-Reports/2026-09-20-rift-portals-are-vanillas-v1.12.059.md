@@ -40,3 +40,11 @@ three times too tall for it (composite in the session's scratchpad, sent to the 
 - Build 31 died on LNK1168: a windowless `DiabloOrcl.exe` from 05:02 (the game does not exit cleanly - roadmap
   card) was stopped and the build re-run as build 32.
 - The batch-43/44 delivery sweep runs every five minutes (43d sounds + RfA-20 report, batch-44 + RfA-21 report).
+
+## v1.12.060 - batch 44 applied, minutes later
+
+RfA-21's package arrived at 09:49: seventeen 128 x 160 frames, the opening exactly x 31..96, y 49..150, plus
+the guide, the preview and a validation.json. GPT derived it from the batch-42 painting compressed to the corrected
+scale rather than repainting, and its preview composites the real standing portal in the opening: it fits with the
+margins the brief asked for. `tools/build_stonegate_cel.cmd` now reads batch 44 and wrote `orclgate.cel`
+(17 frames, 128x160, 117 KB); `OracoolStonegateAnimWidth` is 128. Build 33 green: 821/821.

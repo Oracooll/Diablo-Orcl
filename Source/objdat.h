@@ -188,7 +188,7 @@ constexpr uint16_t OracoolLevskiRoarAnimWidth = 96;
  * inside its opening (the town portal is 96 wide, the opening 72; the stone around it makes 192). Sized
  * from the measured portal sheet, not by taste; tools\build_stonegate_cel.cmd prints what it produced.
  */
-constexpr uint16_t OracoolStonegateAnimWidth = 192;
+constexpr uint16_t OracoolStonegateAnimWidth = 128; // batch 44 (RfA-21): 128x160 frames sized to the real 96x128 portal; batch 42's were 192x304
 
 enum _object_id : int8_t {
 	OBJ_L1LIGHT,

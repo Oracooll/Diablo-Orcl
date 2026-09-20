@@ -1,16 +1,17 @@
 @echo off
 REM Builds objects\orclgate.cel - the Stonegate, the town monument the rift portals open in - from the
-REM seventeen real-alpha frames of batch 42 (RfA-19, 2026-09-20): frame 0 the closed gate, 1-8 the gate
-REM lit gold, 9-16 the gate lit violet. The portal itself is a missile drawn inside the opening.
+REM seventeen real-alpha frames of batch 44 (RfA-21, 2026-09-20; batch 42's frames were cut to a
+REM mis-measured portal and stand three times too tall): frame 0 the closed gate, 1-8 the gate lit
+REM gold, 9-16 the gate lit violet. The portal itself is a missile drawn inside the opening.
 REM
-REM 192 must equal OracoolStonegateAnimWidth in Source/objdat.h. CEL stores no width, so a mismatch
-REM splits every RLE scanline at the wrong point. The tool prints the width it produced; check it.
+REM The frame width (128) must equal OracoolStonegateAnimWidth in Source/objdat.h. CEL stores no width,
+REM so a mismatch splits every RLE scanline at the wrong point. The tool prints the width it produced.
 REM
 REM Usage:  tools\build_stonegate_cel.cmd
 REM Run from the repository root.
 
 setlocal
-set FRAMES=..\Resources\02-concept-assets\delivered-packs\batch-42-stonegate-rifts\monument
+set FRAMES=..\Resources\02-concept-assets\delivered-packs\batch-44-stonegate-second-cut\monument
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\objects\orclgate.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
