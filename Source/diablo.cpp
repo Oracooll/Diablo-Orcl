@@ -82,6 +82,7 @@
 #include "oracool/crafting_menu.h"
 #include "oracool/hud_menu.h"
 #include "oracool/levski_roar.h"
+#include "oracool/rift.h"
 #include "oracool/stonegate.h"
 #include "oracool/runeword_book.h"
 #include "oracool/run_toggle.h"
@@ -235,6 +236,7 @@ void FreeGame()
 	// windows - so without this the next character started in the same session opened onto this
 	// window, already up, holding the previous character's items (audit, 2026-08-30).
 	oracool::ResetLevskiRoarForNewGame();
+	oracool::ResetRiftForNewGame(); // a rift open in one game must not be open in the next (oracool/rift.h)
 	// The log is the same shape of problem without the item duplication: its entries are a
 	// file-local deque, so the next character opened it onto the previous one's kills and crafts.
 	oracool::ClearEventLogForNewGame();
@@ -2224,6 +2226,7 @@ void GameLogic()
 		gGameLogicStep = GameLogicStep::ProcessPlayers;
 		ProcessPlayers();
 	}
+	oracool::ProcessRift(); // the Guardian clock (everywhere), the guardian's arrival (in the rift), the gate's entry tile (in town)
 	if (leveltype != DTYPE_TOWN) {
 		gGameLogicStep = GameLogicStep::ProcessMonsters;
 		ProcessMonsters();
@@ -4093,10 +4096,12 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 
 		if (firstflag || lvldir == ENTRY_LOAD || !myPlayer._pSLvlVisited[setlvlnum] || gbIsMultiplayer) {
 			InitItems();
+			oracool::FinishRiftLevel(/*fresh=*/true); // a rift's theme rooms, after the items as a floor's are
 			SavePreLighting();
 		} else {
 			LoadLevel();
 		}
+		oracool::RiftLevelPopulated(); // sizes the kill bar from what stands on the floor (a no-op off a rift)
 		if (gbIsMultiplayer) {
 			DeltaLoadLevel();
 			if (!UseMultiplayerQuests())

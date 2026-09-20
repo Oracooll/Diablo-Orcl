@@ -2795,6 +2795,12 @@ void PrintItemOil(const Item &item)
 			AddPanelString(_("use in town - the map is consumed"));
 		}
 	} break;
+	case IMISC_ORACOOL_KEYSTONE:
+		// The tier is the whole item (oracool/rift.h): it says what the rift will be before the key is spent.
+		AddPanelString(fmt::format(fmt::runtime(_("opens a Guardian Rift of tier {:d}")), item._iOracoolRiftTier));
+		AddPanelString(_("fifteen minutes, no town portal; Diablo or Na-Krul at the end"));
+		AddPanelString(_("use in town - the keystone is consumed"));
+		break;
 	case IMISC_ORACOOL_SIGNET:
 		// The cap is stated on the item itself, because it is the whole mechanism and a player who
 		// learns it only by being refused has learned it too late to plan around.
@@ -7417,10 +7423,12 @@ void UseItem(size_t pnum, item_misc_id mid, SpellID spellID, int spellFrom)
 		}
 		break;
 	case IMISC_ORACOOL_MAP:
+	case IMISC_ORACOOL_KEYSTONE:
 		// Handled in UseInvItem, not here. UseItem is given the MISC ID and not the item, and every
 		// Sealed Map shares one misc id - so this function cannot tell which encounter to open.
 		// UseInvItem has the item itself, which is also where the signet's cap gate lives and for a
-		// related reason: both need to refuse before the item is consumed.
+		// related reason: both need to refuse before the item is consumed. The keystone's tier is on
+		// the item too.
 		break;
 	case IMISC_ORACOOL_SIGNET:
 		// The refusal is the interesting half. A signet used at the lifetime cap must NOT be

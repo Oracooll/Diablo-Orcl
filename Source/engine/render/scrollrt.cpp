@@ -38,6 +38,7 @@
 #include "options.h"
 #include "oracool/attack_skills.h"
 #include "oracool/companion.h"
+#include "oracool/rift.h" // DrawRiftHud: the bar and the clock under the mini-map
 #include "oracool/curses.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/minions.h"
@@ -1572,8 +1573,10 @@ void DrawView(const Surface &out, Point startPosition)
 		oracool::DrawMinionHud(out);
 		// Anchored to the mini-map's frame, so hidden wherever the mini-map's corner is covered -
 		// including the Crafting book, which the other corner widgets predate.
-		if (!oracool::IsCraftingMenuOpen())
+		if (!oracool::IsCraftingMenuOpen()) {
 			oracool::DrawSpellTimers(out);
+			oracool::DrawRiftHud(out);
+		}
 	}
 #ifdef _DEBUG
 	bool debugGridTextNeeded = IsDebugGridTextNeeded();

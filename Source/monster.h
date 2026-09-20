@@ -216,7 +216,7 @@ struct CMonster {
 	}
 };
 
-extern CMonster LevelMonsterTypes[MaxLvlMTypes];
+extern DVL_API_FOR_TEST CMonster LevelMonsterTypes[MaxLvlMTypes]; // for the rift kill-credit test, which needs a monster with a type
 
 struct Monster { // note: missing field _mAFNum
 	std::unique_ptr<uint8_t[]> uniqueMonsterTRN;
@@ -481,6 +481,12 @@ extern bool sgbSaveSoundOn;
 
 void PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t miniontype, int bosspacksize, const UniqueMonsterData &uniqueMonsterData);
 void InitLevelMonsters();
+/**
+ * @brief Oracool rifts (oracool/rift.h): places the rift's guardian near the local hero once the kill
+ * bar is full - the Skeleton King, the Butcher or Na-Krul through PrepareUniqueMonst, Diablo as the
+ * plain MT_DIABLO body floor 16 stamps from its map. Nullptr when no tile near the hero is free this tick.
+ */
+Monster *SpawnRiftGuardian();
 void GetLevelMTypes();
 void InitMonsterSND(CMonster &monsterType);
 void InitMonsterGFX(CMonster &monsterType);

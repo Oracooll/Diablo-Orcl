@@ -755,6 +755,11 @@ struct Item {
 	 * good (oracool/level_requirement returns 1). Item format 12. Item-local, saved with the item.
 	 */
 	bool _iOracoolLevelFree = false;
+	/**
+	 * @brief The rifts (2026-09-20): a Guardian Keystone's tier - the Guardian Rift it opens. Zero on
+	 * every other item. Item format 13. Item-local, saved with the item.
+	 */
+	uint8_t _iOracoolRiftTier = 0;
 
 	/**
 	 * @brief Sockets v2 (user directive 2026-08-19): the cap is 6, because an item's socket
@@ -908,6 +913,7 @@ struct Item {
 			case IMISC_SPECELIX:
 				return UiFlags::ColorElixir;
 			case IMISC_ORACOOL_MAP:
+			case IMISC_ORACOOL_KEYSTONE: // a key to a place, as the map is
 				return UiFlags::ColorMap;
 			default:
 				break;

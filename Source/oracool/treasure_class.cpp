@@ -5,6 +5,7 @@
 #include "monster.h"
 #include "multi.h"
 #include "oracool/endgame_boss.h"
+#include "oracool/rift.h"
 
 namespace devilution::oracool {
 
@@ -95,6 +96,8 @@ int TreasureBonusFor(const Monster &monster)
 	// affix, so both of the tests below would also answer yes for one. Most specific first.
 	if (IsEndgameBoss(monster))
 		return 6;
+	if (IsRiftGuardian(monster))
+		return 6; // the rift's pile (plan r5/r8): a Dread boss's share, at the rift's tier
 	if (monster.isUnique())
 		return 4;
 	if (monster.lesserAffix != LesserUniqueAffix::None)

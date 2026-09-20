@@ -28,6 +28,7 @@
 #include "monster.h"
 #include "oracool/hud_art.h"
 #include "oracool/minions.h"
+#include "oracool/rift.h"
 #include "oracool/item_sets.h"
 #include "oracool/telemetry.h"
 #include "oracool/waypoint_menu.h"
@@ -244,6 +245,40 @@ std::string DebugCmdLoadQuestMap(const string_view parameter)
 	}
 
 	return StrCat("Mapid ", level, " is not known. Do you want to write a mod?");
+}
+
+/**
+ * @brief Opens a rift at the gate and walks straight in (oracool/rift.h): "rift nephalem", "rift
+ * guardian 40". Town only, like the gate itself.
+ */
+std::string DebugCmdRift(const string_view parameter)
+{
+	Player &myPlayer = *MyPlayer;
+	if (!myPlayer.isOnLevel(0) || setlevel)
+		return "The rifts open from town.";
+	std::string kind;
+	int tier = 0;
+	{
+		const size_t space = parameter.find(' ');
+		kind = std::string(parameter.substr(0, space));
+		if (space != string_view::npos)
+			tier = atoi(parameter.substr(space + 1).data());
+	}
+	if (kind == "guardian") {
+		if (tier <= 0)
+			tier = oracool::NephalemRiftTierFor(myPlayer);
+		if (!oracool::OpenGuardianRift(myPlayer, tier))
+			return "Could not open a Guardian Rift here.";
+	} else if (kind == "nephalem" || kind.empty()) {
+		if (!oracool::OpenNephalemRift(myPlayer))
+			return "Could not open a Nephalem Rift here.";
+	} else {
+		return "rift {nephalem|guardian} [tier]";
+	}
+	if (!oracool::EnterRift(myPlayer))
+		return "The rift would not open.";
+	return StrCat("Entering a ", oracool::RiftKindName(oracool::ActiveRift()), " at tier ", oracool::RiftTier(),
+	    "; ", oracool::RiftGuardianName(oracool::RiftGuardian()), " waits at 100%.");
 }
 
 std::string DebugCmdLoadMap(const string_view parameter)
@@ -1482,6 +1517,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "searchitem", "Searches the automap for {item}", "{item}", &DebugCmdSearchItem },
 	{ "searchobject", "Searches the automap for {object}", "{object}", &DebugCmdSearchObject },
 	{ "clearsearch", "Search in the auto map is cleared", "", &DebugCmdClearSearch },
+	{ "rift", "Opens a rift at the Stonegate and enters it: nephalem (free, the deepest floor's tier) or guardian at {tier}.", "{nephalem|guardian} ({tier})", &DebugCmdRift },
 };
 
 } // namespace

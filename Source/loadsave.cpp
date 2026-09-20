@@ -323,7 +323,8 @@ struct LevelConversionData {
 // do not protect).
 // Version 12 (2026-09-20, Levski's Cube): one byte, _iOracoolLevelFree - Kanai's Work of Cathan, the
 // level requirement removed for good. Bumped freely (user rule, 2026-09-13).
-constexpr uint8_t OracoolItemFormatVersion = 12;
+// Version 13 (2026-09-20, the rifts): one byte, _iOracoolRiftTier - a Guardian Keystone's tier.
+constexpr uint8_t OracoolItemFormatVersion = 13;
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {
@@ -525,6 +526,8 @@ void LoadItemData(LoadHelper &file, Item &item)
 	}
 	// Version 12: the level requirement removed (Levski's Cube, Work of Cathan).
 	item._iOracoolLevelFree = file.NextLE<uint8_t>() != 0;
+	// Version 13: a Guardian Keystone's tier (the rifts).
+	item._iOracoolRiftTier = file.NextLE<uint8_t>();
 
 	// Self-healing for negative durability (user, 2026-08-27: "i have magic oracool items with
 	// negative durability"). Until WearDurabilityPoint landed, gear that broke while equipped kept
@@ -1453,6 +1456,8 @@ void SaveItem(SaveHelper &file, const Item &item)
 		file.WriteLE<uint8_t>(kind);
 	// Version 12: the level requirement removed (Levski's Cube, Work of Cathan).
 	file.WriteLE<uint8_t>(item._iOracoolLevelFree ? 1 : 0);
+	// Version 13: a Guardian Keystone's tier (the rifts).
+	file.WriteLE<uint8_t>(item._iOracoolRiftTier);
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)
@@ -2336,6 +2341,8 @@ constexpr int OracoolItemExtensionSaveSize =
     // fired on every hero save until this line existed.
     + 1 + Item::MaxOracoolImbuements
     // v12: the level-free byte (Levski's Cube, Work of Cathan).
+    + 1
+    // v13: the Guardian Keystone's tier byte (the rifts, 2026-09-20).
     + 1;
 const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
 const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;

@@ -16,6 +16,8 @@
 #include "msg.h"
 #include "objdat.h"
 #include "objects.h"
+#include "oracool/rift.h" // BuildRiftLevel: the two generated set levels (2026-09-20)
+#include "player.h"
 #include "quests.h"
 #include "utils/language.h"
 
@@ -159,6 +161,12 @@ void LoadSetMap()
 		break;
 	case SL_ARENA_CIRCLE_OF_LIFE:
 		LoadArenaMap("arena\\circle_of_death.dun", { 30, 26 }, { 29, 26 });
+		break;
+	case SL_RIFT_NEPHALEM:
+	case SL_RIFT_GUARDIAN:
+		// Generated, not loaded (oracool/rift.h): a fresh floor from the rift's seed, or the same floor
+		// again under a level save when the hero comes back after dying in it.
+		oracool::BuildRiftLevel(/*fresh=*/MyPlayer == nullptr || !MyPlayer->_pSLvlVisited[setlvlnum]);
 		break;
 	case SL_NONE:
 #ifdef _DEBUG

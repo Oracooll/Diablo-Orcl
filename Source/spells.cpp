@@ -9,6 +9,8 @@
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
+#include "oracool/event_log.h"
+#include "oracool/rift.h" // RiftForbidsTownPortal (plan r9)
 #include "oracool/skill_sounds.h"
 
 #include "control.h"
@@ -246,6 +248,14 @@ SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool
 
 	if (!manaonly && pcurs != CURSOR_HAND) {
 		return SpellCheckResult::Fail_Busy;
+	}
+
+	// No town portal inside a Guardian Rift (plan r9): the only way out is the gate's own, after the
+	// guardian. Refused before any cost, from spell, scroll or staff alike.
+	if (sn == SpellID::TownPortal && oracool::RiftForbidsTownPortal()) {
+		if (&player == MyPlayer)
+			oracool::LogEvent("No portal opens inside a Guardian Rift - only the guardian's fall does.", UiFlags::ColorRed);
+		return SpellCheckResult::Fail_Level0;
 	}
 
 	if (st == SpellType::Skill) {

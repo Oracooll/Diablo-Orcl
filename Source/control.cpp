@@ -420,7 +420,7 @@ std::string TextCmdHelp(const string_view parameter)
 
 void AppendArenaOverview(std::string &ret)
 {
-	for (int arena = SL_FIRST_ARENA; arena <= SL_LAST; arena++) {
+	for (int arena = SL_FIRST_ARENA; arena <= SL_LAST_ARENA; arena++) {
 		StrAppend(ret, "\n", arena - SL_FIRST_ARENA + 1, " (", QuestLevelNames[arena], ")");
 	}
 }

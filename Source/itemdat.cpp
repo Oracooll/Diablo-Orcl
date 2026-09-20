@@ -540,6 +540,9 @@ DVL_API_FOR_TEST const ItemData AllItemsList[] = {
 /*IDI_ORACOOL_NECRO_HEAD_BLOODLORD_SKULL  */ { IDROP_REGULAR, ICLASS_ARMOR, ILOC_ONEHAND,     ICURS_SMALL_SHIELD,      ItemType::Shield,    UITYPE_NECRO_HEAD_BLOODLORD_SKULL,     N_("Bloodlord Skull"),   N_("Head"),     40,  51,   0,   0,   8,  17,   0,  50,   0, ItemSpecialEffect::None, IMISC_NONE, SpellID::Null, false,   7150 },
 // The sixteen new Imbuement Shard kinds (2026-09-19), after the Necromancer rows - the enum's tail.
 #include "oracool/shards_data_late.inc"
+// The Guardian Keystone (the rifts, 2026-09-20): never in a pool - a Nephalem Rift's guardian drops it
+// (oracool/rift.cpp) and its tier rides on the item. Used in town; consumed when the violet portal opens.
+/*IDI_ORACOOL_KEYSTONE                    */ { IDROP_NEVER,   ICLASS_MISC,   ILOC_UNEQUIPABLE, ICURS_ORACOOL_KEYSTONE,            ItemType::Misc,        UITYPE_NONE,        N_("Guardian Keystone"),           N_("Keystone"),      1,            0,        0,        0,       0,       0,        0,        0,        0, ItemSpecialEffect::None,            IMISC_ORACOOL_KEYSTONE, SpellID::Null,    true,       8000 },
 /*               */ { IDROP_NEVER,   ICLASS_NONE,   ILOC_INVALID,     ICURS_POTION_OF_FULL_MANA,         ItemType::Misc,        UITYPE_NONE,        nullptr,                           nullptr,              0,            0,        0,        0,       0,       0,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,          0 },
 	// clang-format on
 };

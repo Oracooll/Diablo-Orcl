@@ -4,6 +4,7 @@
 
 #include "multi.h"
 #include "oracool/named_encounters.h"
+#include "oracool/rift.h"
 #include "quests.h"
 #include "utils/language.h"
 
@@ -72,6 +73,11 @@ int CurrentAreaLevel()
 	// the LEAST rewarding thing on the ladder, never the most.
 	int floor = currlevel;
 	if (setlevel) {
+		// A rift's tier IS its area level (oracool/rift.h): a Nephalem Rift's is the deepest rung the
+		// hero has reached, a Guardian Rift's climbs with its keystone. Clamped to the ladder's top for
+		// the loot tables; the monsters keep scaling past it (ScaleRiftMonster).
+		if (IsRiftLevel(setlvlnum))
+			return std::clamp(RiftTier(), 1, MaxAreaLevel);
 		switch (setlvlnum) {
 		case SL_SKELKING:
 			floor = Quests[Q_SKELKING]._qlevel;

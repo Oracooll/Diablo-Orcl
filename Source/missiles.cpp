@@ -29,6 +29,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/curses.h"
 #include "oracool/minions.h" // MinionOwner, OnMinionBlow: a minion's bolt is its owner's blow
+#include "oracool/rift.h"    // TryEnterRiftFromTown: the town-side rift portal is a door
 #include "oracool/chill.h"
 #include "oracool/class_tree.h" // SlowPlayer - a cold hit's chill on the stride
 #include "oracool/cold.h"
@@ -5432,6 +5433,11 @@ void ProcessRiftPortal(Missile &missile)
 	// the standing loop (file 1) - checked on the last frame, before the generic advance wraps it.
 	if (missile._mimfnum == 0 && missile._miAnimFrame >= missile._miAnimLen)
 		SetMissDir(missile, 1);
+	// In town the portal is the door (plan r7): the hero walking onto the tile in front of the gate
+	// enters the rift, as walking into a town portal warps. Inside a rift the same missile marks the
+	// way back and the trigger under it does the work.
+	if (leveltype == DTYPE_TOWN)
+		oracool::TryEnterRiftFromTown();
 	PutMissile(missile);
 }
 

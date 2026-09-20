@@ -64,6 +64,7 @@
 #include "oracool/area_level.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/named_encounters.h"
+#include "oracool/rift.h"
 #include "oracool/class_skills.h"
 #include "oracool/crafting.h"
 #include "oracool/gradual_healing.h"
@@ -100,6 +101,7 @@
 #include "oracool/area_level.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/named_encounters.h"
+#include "oracool/rift.h"
 #include "oracool/furious_charge.h" // ChargeBlowPercentAt - Charge's arriving blow
 #include "oracool/quest_marks.h"
 #include "towners.h" // Towner and the TOWN_* types the mark is asked about
@@ -13463,6 +13465,109 @@ TEST(OracoolAudit, EveryUiEventSoundPathSurvivedTheCompiler)
 		const char *path = oracool::UiEventSoundPath(static_cast<oracool::UiEventSound>(i));
 		EXPECT_TRUE(FindAsset(path).ok()) << "the archive has no " << path;
 	}
+}
+
+// The rifts (oracool/rift.h, 2026-09-20). The two set levels must sit inside the per-player visited
+// arrays, which are NUMLEVELS long - a rift id past that would read and write off their end.
+TEST(OracoolAudit, RiftLevelsFitTheVisitedArrays)
+{
+	EXPECT_LT(static_cast<int>(SL_RIFT_GUARDIAN), NUMLEVELS);
+	EXPECT_TRUE(oracool::IsRiftLevel(SL_RIFT_NEPHALEM));
+	EXPECT_TRUE(oracool::IsRiftLevel(SL_RIFT_GUARDIAN));
+	EXPECT_FALSE(oracool::IsRiftLevel(SL_ARENA_HELL));
+	EXPECT_FALSE(IsArenaLevel(SL_RIFT_NEPHALEM)) << "a rift is not an arena: the arena list in control.cpp stops at SL_LAST_ARENA";
+	EXPECT_EQ(oracool::RiftLevelFor(oracool::RiftKind::Nephalem), SL_RIFT_NEPHALEM);
+	EXPECT_EQ(oracool::RiftLevelFor(oracool::RiftKind::Guardian), SL_RIFT_GUARDIAN);
+}
+
+// Plan r5: a Nephalem Rift scales nothing - its tier IS the floor's level on this difficulty - and a
+// Guardian Rift climbing past it adds three percent a tier, without a ceiling.
+TEST(OracoolAudit, RiftScalingIsFlatAtTheFloorAndThreePercentATierAbove)
+{
+	EXPECT_EQ(oracool::RiftScalePercent(10, 10), 100);
+	EXPECT_EQ(oracool::RiftScalePercent(5, 10), 100) << "below the floor's own level nothing is taken away";
+	EXPECT_EQ(oracool::RiftScalePercent(11, 10), 103);
+	EXPECT_EQ(oracool::RiftScalePercent(30, 10), 160);
+	EXPECT_EQ(oracool::RiftScalePercent(100, 64), 100 + 36 * oracool::RiftScalePercentPerTier) << "past rung 64 the tier keeps counting";
+}
+
+// Plan r3: the Nephalem tier is the deepest floor the hero has reached, on the ladder at the game's
+// difficulty - never a floor the hero has not seen.
+TEST(OracoolAudit, NephalemRiftTierIsTheDeepestFloorReached)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	for (bool &visited : player._pLvlVisited)
+		visited = false;
+	sgGameInitInfo.nDifficulty = DIFF_NORMAL;
+	EXPECT_EQ(oracool::NephalemRiftTierFor(player), oracool::AreaLevel(1, DIFF_NORMAL)) << "nothing visited: the first rung";
+	player._pLvlVisited[1] = true;
+	player._pLvlVisited[7] = true;
+	EXPECT_EQ(oracool::NephalemRiftTierFor(player), oracool::AreaLevel(7, DIFF_NORMAL));
+	player._pLvlVisited[22] = true; // the Crypt: a side-step onto Hell's rungs, not a deeper rung
+	EXPECT_EQ(oracool::NephalemRiftTierFor(player), oracool::AreaLevel(22, DIFF_NORMAL));
+	EXPECT_EQ(oracool::NephalemRiftTierFor(player), oracool::AreaLevel(14, DIFF_NORMAL));
+}
+
+// Plan r2: the roster is drawn from the whole game in the tier's band, and a rift on the Caves' or
+// Hell's rungs may take the Hive's and the Crypt's monsters, whose floors are those rungs' twins.
+TEST(OracoolAudit, RiftRosterBandTakesTheSideStepTwins)
+{
+	MonsterData deep = MonstersData[MT_NZOMBIE];
+	deep.availability = MonsterAvailability::Always;
+	deep.minDunLvl = 21;
+	deep.maxDunLvl = 24;
+	MonsterData shallow = deep;
+	shallow.minDunLvl = 1;
+	shallow.maxDunLvl = 3;
+	MonsterData never = deep;
+	never.availability = MonsterAvailability::Never;
+	never.minDunLvl = 1;
+	never.maxDunLvl = 24;
+
+	// No rift open: the band floor is rung 1.
+	oracool::ResetRiftForNewGame();
+	EXPECT_EQ(oracool::RiftMonsterBandFloor(), 1);
+	EXPECT_TRUE(oracool::RiftAcceptsMonster(shallow));
+	EXPECT_FALSE(oracool::RiftAcceptsMonster(deep)) << "rung 1 has no twin on floor 9";
+	EXPECT_FALSE(oracool::RiftAcceptsMonster(never));
+}
+
+// Plan r5: the next keystone - one tier up, three when more than half the clock was left, none when
+// the clock had run out. And the item that carries it is wired end to end.
+TEST(OracoolAudit, NextKeystoneTierFollowsTheClock)
+{
+	constexpr int Total = oracool::GuardianRiftSeconds * oracool::RiftTicksPerSecond;
+	EXPECT_EQ(oracool::NextKeystoneTier(10, Total / 4, Total, false), 11);
+	EXPECT_EQ(oracool::NextKeystoneTier(10, Total / 2 + 1, Total, false), 13);
+	EXPECT_EQ(oracool::NextKeystoneTier(10, 0, Total, true), 0) << "out of time: no keystone";
+	EXPECT_EQ(oracool::NextKeystoneTier(0, Total, Total, false), 4) << "a tier below 1 is treated as 1";
+
+	const ItemData &row = AllItemsList[IDI_ORACOOL_KEYSTONE];
+	EXPECT_EQ(row.iMiscId, IMISC_ORACOOL_KEYSTONE);
+	EXPECT_EQ(row.iCurs, ICURS_ORACOOL_KEYSTONE);
+	EXPECT_EQ(row.iRnd, IDROP_NEVER) << "a keystone is never in a pool: the Nephalem guardian drops it";
+	EXPECT_EQ(IDI_LAST, IDI_ORACOOL_KEYSTONE) << "appended last: the item ids are positional in every save";
+}
+
+// Plan r4: the bar's credit - one for a monster, three for a champion, five for a unique, nothing
+// for the hero's own.
+TEST(OracoolAudit, RiftKillCreditWeightsChampionsAndUniques)
+{
+	Monster monster {};
+	monster.levelType = 0;
+	LevelMonsterTypes[0].type = MT_NZOMBIE;
+	monster.uniqueType = UniqueMonsterType::None;
+	monster.lesserAffix = LesserUniqueAffix::None;
+	EXPECT_EQ(oracool::RiftKillCredit(monster), oracool::RiftCreditOrdinary);
+	monster.lesserAffix = LesserUniqueAffix::Warded;
+	EXPECT_EQ(oracool::RiftKillCredit(monster), oracool::RiftCreditChampion);
+	monster.uniqueType = UniqueMonsterType::Butcher;
+	EXPECT_EQ(oracool::RiftKillCredit(monster), oracool::RiftCreditUnique);
+	LevelMonsterTypes[0].type = MT_GOLEM;
+	monster.uniqueType = UniqueMonsterType::None;
+	monster.lesserAffix = LesserUniqueAffix::None;
+	EXPECT_EQ(oracool::RiftKillCredit(monster), 0);
 }
 
 // Nothing compared a skill-tree strip's frame count to the number of skills that index into it, and

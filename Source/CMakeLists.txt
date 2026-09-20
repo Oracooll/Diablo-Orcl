@@ -118,6 +118,7 @@ set(libdevilutionx_SRCS
   oracool/treasure_class.cpp
   oracool/imbuement.cpp
   oracool/level_requirement.cpp
+  oracool/rift.cpp
   oracool/stonegate.cpp
   oracool/venom.cpp
   oracool/signets.cpp

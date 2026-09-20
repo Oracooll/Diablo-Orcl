@@ -426,6 +426,11 @@ if not exist "Source\oracool\shards_icon_specs_late.txt" (
 )
 type "Source\oracool\shards_icon_specs_late.txt" >> "%SPECFILE%"
 
+REM The Guardian Keystone (the rifts, 2026-09-20): ONE frame after the late shards, the sheet's very
+REM last. ICURS_ORACOOL_KEYSTONE in Source\itemdat.h and the 28 in cursor.cpp's size tables assume it.
+REM Art: batch 42's keystone_guardian.png (RfA-19), copied to 01-in-use-assets\items.
+echo ..\Resources\01-in-use-assets\items\keystone_guardian.png,0,0,28,28,28,28,keystone_guardian,30,false,asis>> "%SPECFILE%"
+
 REM VERIFY EVERY SPEC'S ART EXISTS, before cutting anything.
 REM
 REM The guards above each check only that the SPEC FILE exists, never that the art it names does.

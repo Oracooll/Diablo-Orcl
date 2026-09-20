@@ -29,6 +29,7 @@
 #include "options.h"
 #include "oracool/event_log.h"
 #include "oracool/hud_art.h"
+#include "oracool/rift.h"
 #include "oracool/ornate_border.h"
 #include "panels/ui_panels.hpp"
 #include "stores.h"
@@ -546,6 +547,10 @@ bool ForceQuests()
 void CheckQuestKill(const Monster &monster, bool sendmsg)
 {
 	if (gbIsSpawn)
+		return;
+	// A rift's guardian is the Skeleton King, the Butcher, Diablo or Na-Krul in body only: killing
+	// him there settles no quest (oracool/rift.h).
+	if (oracool::InRift())
 		return;
 
 	Player &myPlayer = *MyPlayer;

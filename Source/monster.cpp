@@ -54,6 +54,7 @@
 #include "oracool/endgame_boss.h"
 #include "oracool/monster_scale.h"
 #include "oracool/named_encounters.h"
+#include "oracool/rift.h" // the rift floor's roster, its guardian, its kill bar (2026-09-20)
 #include "oracool/signets.h"
 #include "oracool/telemetry.h"
 
@@ -754,6 +755,51 @@ void PlaceUniqueMonsters()
 
 		PlaceUniqueMonst(uniqueType, minionType, 8);
 	}
+}
+
+/**
+ * @brief Fills a rift floor (oracool/rift.h) the way InitMonsters fills a dungeon floor - champions,
+ * a Dread boss and the scatter - since the `!setlevel` block below deliberately skips set levels.
+ * Then the tier's scaling over everything standing. The guardian is NOT placed here: he rises when
+ * the kill bar fills (SpawnRiftGuardian).
+ */
+void PlaceRiftMonsters()
+{
+	if (!oracool::InRift())
+		return;
+
+	PlaceLesserUniques();
+	PlaceEndgameBoss();
+
+	int na = 0;
+	for (int s = 16; s < 96; s++) {
+		for (int t = 16; t < 96; t++) {
+			if (!IsTileSolid({ s, t }))
+				na++;
+		}
+	}
+	int numplacemonsters = na / 30 * *sgOptions.Oracool.monsterDensityPercent / 100;
+	if (ActiveMonsterCount + numplacemonsters > MaxEnemyMonsters - 10)
+		numplacemonsters = static_cast<int>(MaxEnemyMonsters - 10 - ActiveMonsterCount);
+	totalmonsters = ActiveMonsterCount + numplacemonsters;
+
+	size_t scattertypes[NUM_MTYPES];
+	int numscattypes = 0;
+	for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+		if ((LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0)
+			scattertypes[numscattypes++] = i;
+	}
+	while (numscattypes > 0 && ActiveMonsterCount < totalmonsters) {
+		const size_t before = ActiveMonsterCount;
+		const size_t typeIndex = scattertypes[GenerateRnd(numscattypes)];
+		const int na2 = FlipCoin() ? 1 : GenerateRnd(3) + 3;
+		PlaceGroup(typeIndex, na2);
+		if (ActiveMonsterCount == before)
+			break;
+	}
+
+	for (size_t i = 0; i < ActiveMonsterCount; i++)
+		oracool::ScaleRiftMonster(Monsters[ActiveMonsters[i]]);
 }
 
 void PlaceQuestMonsters()
@@ -1952,7 +1998,8 @@ void ShrinkLeaderPacksize(const Monster &monster)
 void MonsterDeath(Monster &monster)
 {
 	monster.var1++;
-	if (monster.type().type == MT_DIABLO) {
+	// A rift's Diablo dies as any monster does: no camera pan, no ending (oracool/rift.h).
+	if (monster.type().type == MT_DIABLO && !oracool::InRift()) {
 		if (monster.position.tile.x < ViewPosition.x) {
 			ViewPosition.x--;
 		} else if (monster.position.tile.x > ViewPosition.x) {
@@ -3817,6 +3864,67 @@ void GetLevelMTypes()
 				typelist[i] = typelist[--nt];
 			}
 		}
+	} else if (oracool::IsRiftLevel(setlvlnum)) {
+		// A rift floor is generated, so no .dun ran SetMapMonsters: the golem bodies a set level
+		// gets from there are added here, or the companions and the Golem spell have no slot.
+		for (int i = 0; i < MAX_PLRS; i++)
+			AddMonster(GolemHoldingCell, Direction::South, 0, false);
+
+		// The guardian's type, loaded now so his sprites are in memory when the bar fills. The
+		// Skeleton King also wants a skeleton type on the floor to raise.
+		switch (oracool::RiftGuardian()) {
+		case oracool::RiftGuardianType::SkeletonKing: {
+			AddMonsterType(MT_SKING, PLACE_SPECIAL);
+			_monster_id skeltypes[NUM_MTYPES];
+			int skeletonTypeCount = 0;
+			for (_monster_id skeletonType : SkeletonTypes) {
+				if (MonstersData[skeletonType].availability == MonsterAvailability::Never)
+					continue;
+				skeltypes[skeletonTypeCount++] = skeletonType;
+			}
+			if (skeletonTypeCount > 0)
+				AddMonsterType(skeltypes[GenerateRnd(skeletonTypeCount)], PLACE_SCATTER);
+		} break;
+		case oracool::RiftGuardianType::Butcher:
+			AddMonsterType(MT_CLEAVER, PLACE_SPECIAL);
+			break;
+		case oracool::RiftGuardianType::Diablo:
+			AddMonsterType(MT_DIABLO, PLACE_SPECIAL);
+			break;
+		case oracool::RiftGuardianType::NaKrul:
+			AddMonsterType(MT_NAKRUL, PLACE_SPECIAL);
+			break;
+		}
+
+		// The roster (plan r2): a mix from the WHOLE game in the tier's band - a Caves floor full of
+		// Cathedral skeletons and Hell knights - under the same image budget a floor has.
+		_monster_id typelist[NUM_MTYPES];
+		int nt = 0;
+		for (int i = MT_NZOMBIE; i < NUM_MTYPES; i++) {
+			const auto id = static_cast<_monster_id>(i);
+			if (IsAnyOf(id, MT_GOLEM, MT_DIABLO, MT_NAKRUL, MT_SKING, MT_CLEAVER))
+				continue;
+			if (!oracool::RiftAcceptsMonster(MonstersData[i]))
+				continue;
+			typelist[nt++] = id;
+		}
+		constexpr int RiftRosterSize = 5;
+		int picked = 0;
+		while (nt > 0 && picked < RiftRosterSize && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < 4000) {
+			for (int i = 0; i < nt;) {
+				if (MonstersData[typelist[i]].image > 4000 - monstimgtot) {
+					typelist[i] = typelist[--nt];
+					continue;
+				}
+				i++;
+			}
+			if (nt == 0)
+				break;
+			const int i = GenerateRnd(nt);
+			AddMonsterType(typelist[i], PLACE_SCATTER);
+			typelist[i] = typelist[--nt];
+			picked++;
+		}
 	} else {
 		if (setlvlnum == SL_SKELKING) {
 			AddMonsterType(MT_SKING, PLACE_UNIQUE);
@@ -4027,6 +4135,7 @@ void InitMonsters()
 	// branch - the scatter below is what `!setlevel` is guarding, and an encounter arena is
 	// deliberately not scattered.
 	PlaceNamedEncounter();
+	PlaceRiftMonsters(); // a rift floor is a set level too, and wants a floor's population (oracool/rift.h)
 	if (!setlevel) {
 		if (!gbIsSpawn)
 			PlaceUniqueMonsters();
@@ -4169,6 +4278,75 @@ Monster *AddMonster(Point position, Direction dir, size_t typeIndex, bool inMap)
 	}
 
 	return nullptr;
+}
+
+Monster *SpawnRiftGuardian()
+{
+	if (MyPlayer == nullptr || !EnemyMonsterRoomLeft())
+		return nullptr;
+	const Point hero = MyPlayer->position.tile;
+
+	// Open ground near the hero (plan r4): the nearest ring of tiles from three out that can take a
+	// monster. Close enough to be the event, far enough not to land on the hero's toes.
+	std::optional<Point> spot;
+	for (int radius = 3; radius <= 12 && !spot; radius++) {
+		for (int dx = -radius; dx <= radius && !spot; dx++) {
+			for (int dy = -radius; dy <= radius; dy++) {
+				if (std::max(std::abs(dx), std::abs(dy)) != radius)
+					continue;
+				const Point candidate = hero + Displacement { dx, dy };
+				if (InDungeonBounds(candidate) && CanPlaceMonster(candidate)) {
+					spot = candidate;
+					break;
+				}
+			}
+		}
+	}
+	if (!spot)
+		return nullptr;
+
+	_monster_id type = MT_SKING;
+	std::optional<UniqueMonsterType> unique;
+	switch (oracool::RiftGuardian()) {
+	case oracool::RiftGuardianType::SkeletonKing:
+		type = MT_SKING;
+		unique = UniqueMonsterType::SkeletonKing;
+		break;
+	case oracool::RiftGuardianType::Butcher:
+		type = MT_CLEAVER;
+		unique = UniqueMonsterType::Butcher;
+		break;
+	case oracool::RiftGuardianType::Diablo:
+		type = MT_DIABLO; // no unique row: floor 16 stamps him from its map, and so does this
+		break;
+	case oracool::RiftGuardianType::NaKrul:
+		type = MT_NAKRUL;
+		unique = UniqueMonsterType::NaKrul;
+		break;
+	}
+	const size_t typeIndex = GetMonsterTypeIndex(type);
+	if (typeIndex == LevelMonsterTypeCount)
+		return nullptr; // GetLevelMTypes did not load him - nothing to raise
+
+	// AddMonster's body with ordinary=false: a guardian in the making takes no variant, exactly as
+	// a placed unique takes none (the v1.12.052 audit's rule).
+	Monster &monster = Monsters[ActiveMonsters[ActiveMonsterCount++]];
+	dMonster[spot->x][spot->y] = monster.getId() + 1;
+	InitMonster(monster, GetDirection(*spot, hero), typeIndex, *spot, /*ordinary=*/false);
+	if (unique) {
+		size_t minionType = typeIndex;
+		if (*unique == UniqueMonsterType::SkeletonKing) {
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+				if (IsSkel(LevelMonsterTypes[i].type)) {
+					minionType = i;
+					break;
+				}
+			}
+		}
+		PrepareUniqueMonst(monster, *unique, minionType, 0, UniqueMonstersData[static_cast<size_t>(*unique)]);
+	}
+	oracool::ScaleRiftMonster(monster);
+	return &monster;
 }
 
 void AddDoppelganger(Monster &monster)
@@ -4394,8 +4572,12 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	// Phase 4: a named encounter's guardian pays its reward here. GUARANTEED - the map said what it
 	// carries, and a roll would make that a lie. Does nothing off an encounter level.
 	oracool::AwardNamedEncounter(monster);
+	// The rift's kill bar, and its guardian's fall opening the way back (oracool/rift.h).
+	oracool::OnRiftMonsterKilled(monster);
 
-	if (monster.type().type == MT_DIABLO)
+	// Diablo's death is the game's end everywhere but in a rift, where he is the guardian and dies
+	// like the Butcher does (oracool/rift.h).
+	if (monster.type().type == MT_DIABLO && !oracool::InRift())
 		DiabloDeath(monster, true);
 	else
 		PlayEffect(monster, MonsterSound::Death);

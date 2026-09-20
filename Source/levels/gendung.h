@@ -42,8 +42,15 @@ enum _setlevels : int8_t {
 	SL_ARENA_HELL,
 	SL_ARENA_CIRCLE_OF_LIFE,
 
+	// Oracool (2026-09-20): the rifts behind the Stonegate - set levels that are GENERATED from a seed
+	// rather than loaded from a .dun (oracool/rift.h). Two ids, one per kind, so a Nephalem Rift and
+	// a Guardian Rift have their own level saves.
+	SL_RIFT_NEPHALEM,
+	SL_RIFT_GUARDIAN,
+
 	SL_FIRST_ARENA = SL_ARENA_CHURCH,
-	SL_LAST = SL_ARENA_CIRCLE_OF_LIFE,
+	SL_LAST_ARENA = SL_ARENA_CIRCLE_OF_LIFE,
+	SL_LAST = SL_RIFT_GUARDIAN,
 };
 
 inline bool IsArenaLevel(_setlevels setLevel)

@@ -40,6 +40,7 @@
 #include "oracool/gems.h"
 #include "oracool/imbuement.h"
 #include "oracool/named_encounters.h"
+#include "oracool/rift.h" // UseGuardianKeystone
 #include "oracool/signets.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/levski_roar.h" // ctrl+click routes into the transmute grid
@@ -4024,6 +4025,19 @@ bool UseInvItem(int cii)
 		// Consumed only once the encounter has actually opened.
 		if (&player == MyPlayer)
 			oracool::PlayUiEventSound(oracool::UiEventSound::MapUnseal);
+		player.RemoveInvItem(cii - INVITEM_INV_FIRST);
+		return true;
+	}
+
+	// A Guardian Keystone lights the Stonegate's violet portal at its tier (oracool/rift.h). Town
+	// only, and consumed only once the gate has answered - the map's rule, for the map's reason.
+	if (item->_iMiscId == IMISC_ORACOOL_KEYSTONE) {
+		if (!oracool::UseGuardianKeystone(player, *item)) {
+			player.Say(HeroSpeech::ICantUseThisYet);
+			if (&player == MyPlayer)
+				oracool::LogEvent("A keystone only turns in town, at the Stonegate.");
+			return true;
+		}
 		player.RemoveInvItem(cii - INVITEM_INV_FIRST);
 		return true;
 	}

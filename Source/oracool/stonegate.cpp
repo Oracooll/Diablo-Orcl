@@ -10,6 +10,7 @@
 #include "objdat.h"
 #include "objects.h"
 #include "oracool/event_log.h"
+#include "oracool/rift.h"
 #include "oracool/skill_sounds.h"
 #include "player.h"
 #include "utils/str_cat.hpp"
@@ -19,7 +20,7 @@ namespace devilution::oracool {
 namespace {
 
 /**
- * @brief The seventeen frames of objects\orclgate.cel (tools/build_stonegate_cel.cmd, batch 42):
+ * @brief The seventeen frames of objects\orclgate.cel (tools/build_stonegate_cel.cmd, batch 44):
  * 1 the closed gate, 2-9 lit gold, 10-17 lit violet. Object frames are 1-based.
  */
 constexpr uint32_t ClosedFrame = 1;
@@ -31,7 +32,6 @@ constexpr uint32_t FrameCount = 17;
 constexpr int LitDelay = 4;
 
 int GateObjectId = -1;
-RiftKind Open = RiftKind::None;
 
 Object *Gate()
 {
@@ -67,12 +67,22 @@ void ShowFrame(Object &gate, uint32_t frame)
 	gate._oAnimFrame = std::clamp<uint32_t>(frame, 1, FrameCount);
 }
 
+/** @brief Lights the gate for @p kind: the portal in the opening, the stone's glow, the sound. */
+void LightGate(Object &gate, RiftKind kind, bool sound)
+{
+	RemovePortalMissiles();
+	if (MyPlayer != nullptr)
+		AddMissile(gate.position, gate.position, Direction::South, PortalFor(kind), TARGET_MONSTERS, MyPlayer->getId(), 0, 0);
+	ShowFrame(gate, kind == RiftKind::Nephalem ? GoldFirst : PurpleFirst);
+	if (sound)
+		PlayUiEventSound(UiEventSound::RiftOpen);
+}
+
 } // namespace
 
 void AddStonegateObject()
 {
 	GateObjectId = -1;
-	Open = RiftKind::None;
 	if (currlevel != 0 || setlevel)
 		return;
 
@@ -100,6 +110,15 @@ void AddStonegateObject()
 		GateObjectId = gate->GetId();
 		if (position != Candidates[0])
 			LogEvent(StrCat("The Stonegate fell back to (", position.x, ", ", position.y, ")"), UiFlags::ColorRed);
+
+		// Town rebuilt with a rift still open: the hero died in it (plan r10) or came back through
+		// the way home. A cleared rift ends here; an unfinished one relights the portal, silently.
+		if (ActiveRift() != RiftKind::None) {
+			if (RiftDone())
+				EndRift();
+			else
+				LightGate(*gate, ActiveRift(), /*sound=*/false);
+		}
 		return;
 	}
 	LogEvent("The Stonegate found no ground to stand on", UiFlags::ColorRed);
@@ -112,17 +131,27 @@ bool IsStonegateObject(const Object &object)
 
 RiftKind OpenRift()
 {
-	return Open;
+	return ActiveRift();
+}
+
+bool StonegateEntryTile(Point &out)
+{
+	const Object *gate = Gate();
+	if (gate == nullptr)
+		return false;
+	// The tile in front of the opening: south on this map is +1,+1, toward the camera.
+	out = gate->position + Displacement { 1, 1 };
+	return true;
 }
 
 void CloseStonegate()
 {
 	Object *gate = Gate();
-	if (Open != RiftKind::None) {
+	if (ActiveRift() != RiftKind::None) {
 		RemovePortalMissiles();
 		PlayUiEventSound(UiEventSound::RiftClose);
 	}
-	Open = RiftKind::None;
+	EndRift();
 	if (gate != nullptr)
 		ShowFrame(*gate, ClosedFrame);
 }
@@ -132,34 +161,45 @@ void ToggleStonegate()
 	Object *gate = Gate();
 	if (gate == nullptr || MyPlayer == nullptr)
 		return;
+	Player &player = *MyPlayer;
 
-	const RiftKind next = Open == RiftKind::None ? RiftKind::Nephalem : Open == RiftKind::Nephalem ? RiftKind::Guardian : RiftKind::None;
-	if (next == RiftKind::None) {
-		CloseStonegate();
-		LogEvent("The Stonegate falls dark.", UiFlags::ColorWhitegold);
+	// Closed: a Nephalem Rift, free (plan r6). Its tier is the deepest floor the hero has reached.
+	if (ActiveRift() == RiftKind::None) {
+		if (!OpenNephalemRift(player)) {
+			LogEvent("The Stonegate does not answer.", UiFlags::ColorRed);
+			return;
+		}
+		LightGate(*gate, RiftKind::Nephalem, /*sound=*/true);
+		LogEvent(StrCat("A golden portal opens in the Stonegate: a Nephalem Rift, tier ", RiftTier(), ". Walk in; ",
+		             RiftGuardianName(RiftGuardian()), " waits at the end and drops a keystone."),
+		    UiFlags::ColorWhitegold);
 		return;
 	}
 
-	// Swap rather than stack: one portal in the opening at a time.
-	RemovePortalMissiles();
-	Open = next;
-	AddMissile(gate->position, gate->position, Direction::South, PortalFor(next), TARGET_MONSTERS, MyPlayer->getId(), 0, 0);
-	ShowFrame(*gate, next == RiftKind::Nephalem ? GoldFirst : PurpleFirst);
-	PlayUiEventSound(UiEventSound::RiftOpen);
-	LogEvent(next == RiftKind::Nephalem ? "A golden portal opens in the Stonegate: a Nephalem Rift. (The rift itself is not built yet.)"
-	                                    : "A violet portal opens in the Stonegate: a Guardian Rift. (The rift itself is not built yet.)",
-	    UiFlags::ColorWhitegold);
+	// Open: the click closes it and ends the rift. A Guardian Rift is opened by USING a keystone, not
+	// by clicking (plan r5), so the gate never cycles.
+	CloseStonegate();
+	LogEvent("The Stonegate falls dark; the rift is gone.", UiFlags::ColorWhitegold);
+}
+
+void LightStonegate(RiftKind kind)
+{
+	Object *gate = Gate();
+	if (gate == nullptr || kind == RiftKind::None)
+		return;
+	LightGate(*gate, kind, /*sound=*/true);
 }
 
 void ProcessStonegate()
 {
 	Object *gate = Gate();
-	if (gate == nullptr || Open == RiftKind::None)
+	const RiftKind open = ActiveRift();
+	if (gate == nullptr || open == RiftKind::None)
 		return;
 	if (++gate->_oAnimCnt < LitDelay)
 		return;
 	gate->_oAnimCnt = 0;
-	const uint32_t first = Open == RiftKind::Nephalem ? GoldFirst : PurpleFirst;
+	const uint32_t first = open == RiftKind::Nephalem ? GoldFirst : PurpleFirst;
 	uint32_t frame = gate->_oAnimFrame + 1;
 	if (frame < first || frame >= first + LitFrames)
 		frame = first;
