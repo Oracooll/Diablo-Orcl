@@ -544,6 +544,9 @@ const char *ShopTitle(TalkID id)
 		return N_("ADRIA");
 	case TalkID::HealerBuy:
 		return N_("PEPIN");
+	case TalkID::BoyBuy:
+	case TalkID::BoyGamble:
+		return N_("WIRT");
 	default:
 		return "";
 	}

@@ -177,6 +177,8 @@ Item witchitem[WITCH_ITEMS];
 
 int boylevel;
 Item boyitem;
+Item boyitems[BOY_ITEMS];
+Item gambleitems[GAMBLE_ITEMS];
 
 /**
  * @brief Oracool: user request - typing the Refresh Until target in-game instead of editing
@@ -1774,6 +1776,9 @@ void StoreConfirm(Item &item)
 	case TalkID::BoyBuy:
 		prompt = _("Do we have a deal?");
 		break;
+	case TalkID::BoyGamble:
+		prompt = _("Gamble on it?");
+		break;
 	case TalkID::StorytellerIdentify:
 		prompt = _("Are you sure you want to identify this item?");
 		break;
@@ -1812,17 +1817,32 @@ void StartBoy()
 	stextscrl = false;
 	AddSText(0, 2, _("Wirt the Peg-legged boy"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSLine(5);
-	if (!boyitem.isEmpty()) {
-		AddSText(0, 8, _("Talk to Wirt"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-		AddSText(0, 12, _("I have something for sale,"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-		AddSText(0, 14, _("but it will cost 50 gold"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-		AddSText(0, 16, _("just to take a look. "), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-		AddSText(0, 18, _("What have you got?"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, 20, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	} else {
-		AddSText(0, 12, _("Talk to Wirt"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-		AddSText(0, 18, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	// The 50-gold peek is gone (2026-09-20): Wirt keeps a shop now, two tabs - what he has to sell,
+	// and the gamble - like the other vendors' grids.
+	AddSText(0, 8, _("Talk to Wirt"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	AddSText(0, 12, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, 18, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+}
+
+/** @brief The grid shop's own screen state for Wirt's two tabs; the grid draws the rest. */
+void StartBoyShop()
+{
+	stextsize = true;
+	stextscrl = true;
+	stextsval = 0;
+	RenderGold = true;
+	AddSText(20, 1, _("I have these items for sale:"), UiFlags::ColorWhitegold, false);
+	AddSLine(3);
+	AddItemListBackButton();
+	for (Item &item : boyitems) {
+		if (!item.isEmpty())
+			item._iStatFlag = MyPlayer->CanUseItem(item);
 	}
+	for (Item &item : gambleitems) {
+		if (!item.isEmpty())
+			item._iStatFlag = MyPlayer->CanUseItem(item);
+	}
+	stextsmax = 0;
 }
 
 void SStartBoyBuy()
@@ -3062,46 +3082,115 @@ void WitchRechargeEnter()
 
 void BoyEnter()
 {
-	if (!boyitem.isEmpty() && stextsel == 18) {
-		if (!PlayerCanAfford(50)) {
-			stextshold = TalkID::Boy;
-			stextlhold = 18;
-			stextvhold = stextsval;
-			StartStore(TalkID::NoMoney);
-		} else {
-			TakePlrsMoney(50);
-			StartStore(TalkID::BoyBuy);
-		}
+	if (stextsel == 12) {
+		StartStore(TalkID::BoyBuy);
 		return;
 	}
-
-	if ((stextsel != 8 && !boyitem.isEmpty()) || (stextsel != 12 && boyitem.isEmpty())) {
+	if (stextsel != 8) {
 		stextflag = TalkID::None;
 		return;
 	}
-
 	talker = TOWN_PEGBOY;
 	stextshold = TalkID::Boy;
 	stextlhold = stextsel;
 	StartStore(TalkID::Gossip);
 }
 
-void BoyBuyItem(Item &item, int itemPrice)
+/** @brief Wirt's Shop tab: the grid's click, through ShopSelectIndex, lands here with the slot in stextsval. */
+void BoyShopBuyEnter()
 {
-	TakePlrsMoney(itemPrice);
-	// Phase 1 gambling: the purchase IS the reveal - the roll was made at stock time, the
-	// knowledge is what the gold bought.
-	item._iIdentified = true;
+	if (stextsel == BackButtonLine()) {
+		StartStore(TalkID::Boy);
+		stextsel = 12;
+		return;
+	}
+	stextlhold = stextsel;
+	stextvhold = stextsval;
+	stextshold = TalkID::BoyBuy;
+	const int idx = stextsval + ((stextsel - stextup) / 4);
+	if (idx < 0 || idx >= BOY_ITEMS || boyitems[idx].isEmpty())
+		return;
+	if (!PlayerCanAfford(boyitems[idx]._iIvalue)) {
+		StartStore(TalkID::NoMoney);
+		return;
+	}
+	if (!StoreAutoPlace(boyitems[idx], false)) {
+		StartStore(TalkID::NoRoom);
+		return;
+	}
+	StoreItem = boyitems[idx];
+	StartStore(TalkID::Confirm);
+}
+
+void BoyBuyItemAt(int idx)
+{
+	if (idx < 0 || idx >= BOY_ITEMS || boyitems[idx].isEmpty())
+		return;
+	Item &item = boyitems[idx];
+	TakePlrsMoney(item._iIvalue);
 	StoreAutoPlace(item, true);
-	item.clear();
-	// And the table never goes empty: a fresh unidentified roll replaces the one just sold, so
-	// gambling is a LOOP rather than a once-per-dungeon-tier event. boylevel is the once-per-tier
-	// gate; zeroing it is what lets SpawnBoy actually restock.
-	boylevel = 0;
-	SpawnBoy(MyPlayer->_pLevel);
-	stextshold = TalkID::Boy;
+	// The slot restocks in place, so the shop never empties and the grid's indices hold still.
+	RollBoyItem(item, MyPlayer->_pLevel);
+	item._iIdentified = true;
+	item._iStatFlag = MyPlayer->CanUseItem(item);
 	CalcPlrInv(*MyPlayer, true);
-	stextlhold = 12;
+	oracool::ScheduleAutoSaveForStoreTransaction();
+}
+
+/** @brief The Gamble tab's click: the base is known, the price is the gamble's; the roll waits for the gold. */
+void BoyGambleEnter()
+{
+	if (stextsel == BackButtonLine()) {
+		StartStore(TalkID::Boy);
+		stextsel = 12;
+		return;
+	}
+	stextlhold = stextsel;
+	stextvhold = stextsval;
+	stextshold = TalkID::BoyGamble;
+	const int idx = stextsval + ((stextsel - stextup) / 4);
+	if (idx < 0 || idx >= GAMBLE_ITEMS || gambleitems[idx].isEmpty())
+		return;
+	if (!PlayerCanAfford(gambleitems[idx]._iIvalue)) {
+		StartStore(TalkID::NoMoney);
+		return;
+	}
+	// Room for the BASE: the roll keeps the base, so its footprint is the result's.
+	if (!StoreAutoPlace(gambleitems[idx], false)) {
+		StartStore(TalkID::NoRoom);
+		return;
+	}
+	StoreItem = gambleitems[idx];
+	StartStore(TalkID::Confirm);
+}
+
+void GambleBuyItemAt(int idx)
+{
+	if (idx < 0 || idx >= GAMBLE_ITEMS || gambleitems[idx].isEmpty())
+		return;
+	Item &slot = gambleitems[idx];
+	const int price = slot._iIvalue;
+	const _item_indexes base = slot.IDidx;
+	TakePlrsMoney(price);
+	// The gamble: the roll happens NOW, after the gold, and the result goes to the pack identified.
+	Item result;
+	RollGambleResult(result, base, MyPlayer->_pLevel);
+	result._iStatFlag = MyPlayer->CanUseItem(result);
+	if (!StoreAutoPlace(result, true))
+		oracool::LogEvent("Wirt's gamble had nowhere to go - it fell at your feet.", UiFlags::ColorRed);
+	oracool::LogEvent(StrCat("Wirt's gamble: ", std::string(result.getName())), result.getTextColor());
+	// The slot restocks with a fresh unidentified base of the same slot at the same price.
+	const int lvl = MyPlayer->_pLevel;
+	slot = {};
+	slot._iSeed = AdvanceRndSeed();
+	SetRndSeed(slot._iSeed);
+	GetItemAttrs(slot, base, lvl);
+	slot._iIdentified = false;
+	slot._iIvalue = price;
+	slot._iCreateInfo = std::min(lvl, static_cast<int>(CF_LEVEL)) | CF_BOY;
+	slot._iStatFlag = MyPlayer->CanUseItem(slot);
+	CalcPlrInv(*MyPlayer, true);
+	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
 /**
@@ -3257,7 +3346,10 @@ void ConfirmEnter(Item &item)
 			WitchRechargeItem(item._iIvalue);
 			break;
 		case TalkID::BoyBuy:
-			BoyBuyItem(boyitem, item._iIvalue);
+			BoyBuyItemAt(stextvhold + ((stextlhold - stextup) / 4));
+			break;
+		case TalkID::BoyGamble:
+			GambleBuyItemAt(stextvhold + ((stextlhold - stextup) / 4));
 			break;
 		case TalkID::HealerBuy:
 			HealerBuyItem(item);
@@ -3641,6 +3733,7 @@ _talker_id TownerForStoreDirect(TalkID id)
 		return TOWN_HEALER;
 	case TalkID::Boy:
 	case TalkID::BoyBuy:
+	case TalkID::BoyGamble:
 		return TOWN_PEGBOY;
 	case TalkID::Storyteller:
 	case TalkID::StorytellerIdentify:
@@ -4441,7 +4534,8 @@ void StartStore(TalkID s)
 		StartBoy();
 		break;
 	case TalkID::BoyBuy:
-		SStartBoyBuy();
+	case TalkID::BoyGamble:
+		StartBoyShop(); // the grid shop with the Shop and Gamble tabs (2026-09-20)
 		break;
 	case TalkID::Healer:
 		StartHealer();
@@ -4554,6 +4648,20 @@ std::vector<oracool::ShopSlot> GetShopStock(TalkID id)
 		for (int i = 0; i < static_cast<int>(std::size(healitem)); i++) {
 			if (!healitem[i].isEmpty())
 				stock.push_back({ &healitem[i], i, healitem[i]._iIvalue });
+		}
+		break;
+	case TalkID::BoyBuy:
+		// Wirt's Shop tab (2026-09-20): a purchase restocks its slot in place, so the index is the slot.
+		for (int i = 0; i < BOY_ITEMS; i++) {
+			if (!boyitems[i].isEmpty())
+				stock.push_back({ &boyitems[i], i, boyitems[i]._iIvalue });
+		}
+		break;
+	case TalkID::BoyGamble:
+		// The Gamble tab: one unidentified base per slot; the price is the gamble's, stamped on the item.
+		for (int i = 0; i < GAMBLE_ITEMS; i++) {
+			if (!gambleitems[i].isEmpty())
+				stock.push_back({ &gambleitems[i], i, gambleitems[i]._iIvalue, /*neverTrim=*/true });
 		}
 		break;
 	case TalkID::SmithSell:
@@ -4701,6 +4809,12 @@ void ShopSelectIndex(TalkID id, int index)
 		break;
 	case TalkID::HealerBuy:
 		HealerBuyEnter();
+		break;
+	case TalkID::BoyBuy:
+		BoyShopBuyEnter();
+		break;
+	case TalkID::BoyGamble:
+		BoyGambleEnter();
 		break;
 	case TalkID::SmithSell:
 	case TalkID::WitchSell:

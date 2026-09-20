@@ -13,6 +13,7 @@ enum class ShopKind : uint8_t {
 	Smith,
 	Witch,
 	Healer,
+	Boy, // Wirt (2026-09-20): Shop and Gamble
 };
 
 ShopKind KindOf(TalkID id)
@@ -35,6 +36,9 @@ ShopKind KindOf(TalkID id)
 		return ShopKind::Witch;
 	case TalkID::HealerBuy:
 		return ShopKind::Healer;
+	case TalkID::BoyBuy:
+	case TalkID::BoyGamble:
+		return ShopKind::Boy;
 	default:
 		return ShopKind::None;
 	}
@@ -76,6 +80,10 @@ const char *ShopTabName(TalkID id)
 	case TalkID::SmithRecharge:
 	case TalkID::WitchRecharge:
 		return N_("Recharge");
+	case TalkID::BoyBuy:
+		return N_("Shop");
+	case TalkID::BoyGamble:
+		return N_("Gamble");
 	default:
 		return "";
 	}
@@ -124,6 +132,10 @@ std::vector<TalkID> ShopTabsFor(TalkID id)
 		return { TalkID::WitchBuy, TalkID::WitchSell };
 	case ShopKind::Healer:
 		return { TalkID::HealerBuy };
+	case ShopKind::Boy:
+		// Wirt (user, 2026-09-20): "two shop tabs - Shop and Gambling. Shop to be full of the type of
+		// items he is eligible to sell. Gamble to be full of items to gamble with for Gold."
+		return { TalkID::BoyBuy, TalkID::BoyGamble };
 	case ShopKind::None:
 		break;
 	}

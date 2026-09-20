@@ -68,6 +68,9 @@ enum class TalkID : uint8_t {
 	// Oracool 2026-09-20 (Levski's Cube, decision D8): Griswold's Forge tab - the gear recipes the
 	// Roar used to hold, opened in the transmute window rather than as a store screen.
 	SmithTransmute,
+	// Oracool 2026-09-20: Wirt's Gamble tab - unidentified bases by slot, rolled on the purchase
+	// (BoyBuy is his Shop tab now, a grid of what he has to sell).
+	BoyGamble,
 };
 
 /** Currently active store */
@@ -142,8 +145,14 @@ void TrimWitchStockToOnePageForTest();
 
 /** Current level of the item sold by Wirt */
 extern int boylevel;
-/** Current item sold by Wirt */
+/** Current item sold by Wirt (the old one-item table; SStartBoyBuy still reads it, nothing routes there) */
 extern Item boyitem;
+/** @brief Wirt's Shop tab (2026-09-20): what he has to sell, rolled as his one item always was, identified. */
+#define BOY_ITEMS 12
+extern DVL_API_FOR_TEST Item boyitems[BOY_ITEMS];
+/** @brief Wirt's Gamble tab: one unidentified base per slot, priced by slot and hero level; the roll happens on the purchase. */
+#define GAMBLE_ITEMS 11
+extern DVL_API_FOR_TEST Item gambleitems[GAMBLE_ITEMS];
 
 /**
  * @brief Removes entry @p idx from a fixed vendor array and closes the gap, bounded by @p capacity.

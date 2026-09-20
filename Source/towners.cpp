@@ -809,7 +809,7 @@ const TownerData TownersData[] = {
 	// user against an in-game tile-coordinate debug overlay (2026-08-09).
 	{ TOWN_WITCH,   { 43, 66 }, Direction::South,     InitWitch,     TalkToWitch       },
 	{ TOWN_BMAID,   { 53, 63 }, Direction::South,     InitBarmaid,   TalkToBarmaid     },
-	{ TOWN_PEGBOY,  { 11, 53 }, Direction::South,     InitBoy,       TalkToBoy         },
+	{ TOWN_PEGBOY,  { 54, 72 }, Direction::South,     InitBoy,       TalkToBoy         }, // Oracool: moved from the far west (11,53) into the plaza (user, 2026-09-20: "move wirt to tile 54:72")
 	{ TOWN_COW,     { 58, 16 }, Direction::SouthWest, InitCows,      TalkToCow         },
 	{ TOWN_COW,     { 56, 14 }, Direction::NorthWest, InitCows,      TalkToCow         },
 	{ TOWN_COW,     { 59, 20 }, Direction::North,     InitCows,      TalkToCow         },

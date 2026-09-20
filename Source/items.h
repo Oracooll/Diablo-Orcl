@@ -1349,6 +1349,14 @@ bool UseItemOpensHive(const Item &item, Point position);
 bool UseItemOpensGrave(const Item &item, Point position);
 void SpawnSmith(int lvl);
 void SpawnPremium(const Player &player);
+/** @brief Wirt (2026-09-20): one roll of his table into @p out, as his one item was always rolled. */
+void RollBoyItem(Item &out, int lvl);
+/** @brief Wirt's Gamble tab: GAMBLE_ITEMS unidentified bases, one per slot, priced by GamblePriceFor. */
+void SpawnGambleStock(int lvl);
+/** @brief The gamble's roll on the purchase: @p base at the hero's level -5..+4, magic or better, 1% unique. */
+void RollGambleResult(Item &out, _item_indexes base, int lvl);
+/** @brief What a gamble on a base of @p type costs at hero level @p lvl. */
+int GamblePriceFor(ItemType type, int lvl);
 
 /** @brief Sets numpremium to the number of non-empty premium slots. */
 void RecountPremiumStock();

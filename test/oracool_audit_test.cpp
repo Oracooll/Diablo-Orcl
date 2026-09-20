@@ -76,6 +76,7 @@
 #include "oracool/runeword_book.h"
 #include "oracool/hud_menu.h"
 #include "oracool/shop_grid.h"
+#include "oracool/shop_tabs.h"
 #include "oracool/shop_toast.h"
 #include "oracool/window_close.h"
 #include "oracool/inventory_layout.h"
@@ -13472,6 +13473,24 @@ TEST(OracoolAudit, EveryUiEventSoundPathSurvivedTheCompiler)
 		const char *path = oracool::UiEventSoundPath(static_cast<oracool::UiEventSound>(i));
 		EXPECT_TRUE(FindAsset(path).ok()) << "the archive has no " << path;
 	}
+}
+
+// Wirt's two tabs (2026-09-20): Shop and Gamble are grid screens of his own, and the gamble's price
+// scales with the hero - rings and amulets dearest, as Gheed had it.
+TEST(OracoolAudit, WirtHasAShopAndAGambleTabAndTheGambleScalesWithLevel)
+{
+	EXPECT_TRUE(oracool::IsShopGridScreen(TalkID::BoyBuy));
+	EXPECT_TRUE(oracool::IsShopGridScreen(TalkID::BoyGamble));
+	const std::vector<TalkID> tabs = oracool::ShopTabsFor(TalkID::BoyBuy);
+	ASSERT_EQ(tabs.size(), 2u);
+	EXPECT_EQ(tabs[0], TalkID::BoyBuy);
+	EXPECT_EQ(tabs[1], TalkID::BoyGamble);
+	EXPECT_STREQ(oracool::ShopTabName(TalkID::BoyGamble), "Gamble");
+	EXPECT_EQ(GamblePriceFor(ItemType::Ring, 10), 6000);
+	EXPECT_EQ(GamblePriceFor(ItemType::Amulet, 50), 40000);
+	EXPECT_EQ(GamblePriceFor(ItemType::Helm, 1), 200);
+	EXPECT_GT(GamblePriceFor(ItemType::Ring, 30), GamblePriceFor(ItemType::Sword, 30)) << "rings are the dear gamble";
+	EXPECT_EQ(GamblePriceFor(ItemType::Ring, 0), GamblePriceFor(ItemType::Ring, 1)) << "level 0 is treated as 1";
 }
 
 // The Cube skin's three asset paths, as the sound paths are checked: a single backslash is an escape

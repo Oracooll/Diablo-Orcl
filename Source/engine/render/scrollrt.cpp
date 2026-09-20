@@ -1707,8 +1707,11 @@ void DrawView(const Surface &out, Point startPosition)
 	oracool::DrawRunewordBook(out);
 	if (oracool::IsHudMenuOpen()) {
 		oracool::DrawHudMenu(out);
-		oracool::DrawStonegateMenu(out);
 	}
+	// The Stonegate's choice menu - drawn on its own, not under the HUD menu's flag (the first cut
+	// sat inside that if and the menu opened invisibly; user, 2026-09-20: "Clicking the stonegate
+	// does not open dialog box").
+	oracool::DrawStonegateMenu(out);
 	// Same rule as the XP pair below: kept through open windows, taken away by chat.
 	if (!talkflag) {
 		DrawLevelUpIcon(out);

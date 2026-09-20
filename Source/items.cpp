@@ -8187,8 +8187,13 @@ void SpawnWitch(int lvl)
 	SortVendor(witchitem + PinnedItemCount, WITCH_ITEMS - PinnedItemCount);
 }
 
-void SpawnBoy(int lvl)
+/**
+ * @brief One roll of Wirt's table into @p out - the body SpawnBoy always had, against the one-item
+ * global; since 2026-09-20 his Shop tab is BOY_ITEMS of these (SpawnBoy below).
+ */
+void RollBoyItem(Item &out, int lvl)
 {
+	Item &boyitem = out; // the body was written against the global of that name
 	int ivalue = 0;
 	bool keepgoing = false;
 	int count = 0;
@@ -8203,8 +8208,6 @@ void SpawnBoy(int lvl)
 	dexterity += dexterity / 5;
 	magic += magic / 5;
 
-	if (boylevel >= (lvl / 2) && !boyitem.isEmpty())
-		return;
 	do {
 		keepgoing = false;
 		boyitem = {};
@@ -8302,12 +8305,96 @@ void SpawnBoy(int lvl)
 	// Oracool: CF_LEVEL is only 6 bits wide (max 63); clamp so a level 64-99 character's raw
 	// level doesn't bleed into the adjacent flag bits of _iCreateInfo.
 	boyitem._iCreateInfo = std::min(lvl, static_cast<int>(CF_LEVEL)) | CF_BOY;
-	// Megaplan Phase 1 gambling (2026-08-16): Wirt is the gambler now. The item is UNIDENTIFIED
-	// on his table - you buy the base and the roll reveals itself in your pack (BoyBuyItem flips
-	// the flag). The magic roll happened above exactly as it always did, seeded and validation-
-	// safe (CF_BOY recreation replays the same stream); only the RELEASE of the knowledge moved
-	// to the purchase. That IS the gamble, and it is exactly how Gheed sold it in Diablo II.
-	boyitem._iIdentified = false;
+}
+
+namespace {
+
+/** @brief The Gamble tab's slots, one base each (user, 2026-09-20). Rings and amulets dearest, as Diablo II's Gheed had it. */
+constexpr ItemType GambleSlots[GAMBLE_ITEMS] = {
+	ItemType::Helm, ItemType::LightArmor, ItemType::HeavyArmor, ItemType::Shield, ItemType::Sword, ItemType::Axe,
+	ItemType::Mace, ItemType::Bow, ItemType::Staff, ItemType::Ring, ItemType::Amulet
+};
+
+} // namespace
+
+int GamblePriceFor(ItemType type, int lvl)
+{
+	int base = 200;
+	switch (type) {
+	case ItemType::Ring:
+		base = 600;
+		break;
+	case ItemType::Amulet:
+		base = 800;
+		break;
+	case ItemType::LightArmor:
+	case ItemType::MediumArmor:
+	case ItemType::HeavyArmor:
+	case ItemType::Sword:
+	case ItemType::Axe:
+	case ItemType::Mace:
+	case ItemType::Bow:
+		base = 300;
+		break;
+	case ItemType::Shield:
+	case ItemType::Staff:
+		base = 250;
+		break;
+	default:
+		break;
+	}
+	// A gold sink that scales with the hero (the roadmap's design): the price is the slot's base
+	// times the level, so a ring at level 50 is 30,000 and at 99 nearly Diablo II's 50,000.
+	return base * std::clamp(lvl, 1, MaxCharacterLevel);
+}
+
+void SpawnGambleStock(int lvl)
+{
+	const Player &player = *MyPlayer;
+	for (int i = 0; i < GAMBLE_ITEMS; i++) {
+		const ItemType type = GambleSlots[i];
+		Item &item = gambleitems[i];
+		item = {};
+		// A base of the slot the hero could wear at this level, from the vendor pool. Nothing is
+		// rolled yet - the roll is the purchase (RollGambleResult).
+		const _item_indexes idx = GetItemIndexForDroppableItem(false, [&](const ItemData &data) {
+			return data.itype == type && PremiumItemOk(player, data) && !IsUniqueExpansionBase(data) && PoolQlvl(data) <= std::max(lvl, 1);
+		});
+		if (idx == IDI_NONE)
+			continue;
+		item._iSeed = AdvanceRndSeed();
+		SetRndSeed(item._iSeed);
+		GetItemAttrs(item, idx, lvl);
+		item._iIdentified = false;
+		item._iIvalue = GamblePriceFor(type, lvl);
+		item._iCreateInfo = std::min(lvl, static_cast<int>(CF_LEVEL)) | CF_BOY;
+	}
+}
+
+void RollGambleResult(Item &out, _item_indexes base, int lvl)
+{
+	// The gamble (the roadmap's design): the base is known, the rest is the roll - at an item level
+	// of the hero's own minus five to plus four, magic or better (onlygood), a unique one time in a
+	// hundred (uper 1 is CheckUnique's percent), the fork's Rare, Set and Primal tiers by their own
+	// odds inside SetupAllItems. Identified on the purchase, as a drop is.
+	const int ilvl = std::clamp(lvl - 5 + GenerateRnd(10), 1, MaxCharacterLevel);
+	const uint32_t seed = AdvanceRndSeed();
+	SetupAllItems(*MyPlayer, out, base, seed, ilvl, /*uper=*/1, /*onlygood=*/true, /*recreate=*/false, /*pregen=*/false);
+	out._iIdentified = true;
+	out._iCreateInfo = std::min(ilvl, static_cast<int>(CF_LEVEL)) | CF_BOY;
+}
+
+void SpawnBoy(int lvl)
+{
+	// Once per level tier, like the one-item table it replaces (user, 2026-09-20: "Shop to be full of
+	// the type of items he is eligible to sell. Gamble to be full of items to gamble with for Gold").
+	if (boylevel >= (lvl / 2) && !boyitems[0].isEmpty())
+		return;
+	for (Item &item : boyitems) {
+		RollBoyItem(item, lvl);
+		item._iIdentified = true; // the Shop tab sells what it shows; the gamble is the other tab
+	}
+	SpawnGambleStock(lvl);
 	boylevel = lvl / 2;
 }
 
