@@ -169,8 +169,8 @@ size_t VisibleWaypointCount()
 //
 //   0..28     top margin (PanelTitleTop)
 //   28..66    title band, "WAYPOINT"
-//   74..145   the three Act buttons, the user's 91x71 paintings (third cut)
-//   163..611  the scrolling list viewport (448px, ten 43px rows on a 45px pitch)
+//   74..142   the three Act buttons, the user's 88x68 paintings (third cut; the shadow is the game's)
+//   160..608  the scrolling list viewport (448px, ten 43px rows on a 45px pitch)
 //   625..720  the limestone panel's frieze - deliberately left to the art
 //
 // The rows below are the PRE-ACT layout, kept for the constants that still derive from it:
@@ -234,6 +234,9 @@ constexpr int IconGap = 8;   // from the inner edge of the margin to the sigil
 constexpr int TextGap = 10;  // from the sigil to the name
 
 // THE ACT BUTTONS (user, 2026-09-20): three buttons in a row between the title and the list, one
+// (FOURTH CUT, v1.12.078: one blank 88x68 button from the user for all three, ChatGPT's label glyphs
+// over it - see ActButtonAsset below. The lines that follow describe the third cut's three
+// painted-label buttons, kept for the history of how the row got here.)
 // per act. THE USER'S OWN ART since the third cut the same day ("i made three new Act buttons to use
 // in the WP Canvas ... implement them, replacing the existing Act buttons"): Resources\<Act> Button.png,
 // 91x71 each, frame, backing and label painted in one piece (filed under
@@ -248,14 +251,26 @@ constexpr int TextGap = 10;  // from the sigil to the name
 // glyphs (v1.12.071), and vanilla's plate frame 26 at 70x70 (v1.12.073, rolled back) - are the
 // fallback and the history: the plate-in-bezel look still draws when a button file is missing.
 //
-// The row: three 91px buttons on a 100px pitch from the margin, 24..315 in the 340 panel, 9px apart.
-constexpr Size ActButtonSize { 91, 71 };
-constexpr int ActCellPitch = 100;
+// The row: three 88px buttons on a 102px pitch from the margin, 24..315 in the 340 panel, 14px apart.
+// 88x68 since the shadowless export (user, 2026-09-20: the first 91x71 files carried a soft shadow of
+// their own; "removing it will reduce the footprint of the buttons to 88x68") - the game casts the
+// shadow, and swaps it for the bigger one under the cursor and the active act.
+constexpr Size ActButtonSize { 88, 68 };
+constexpr int ActCellPitch = 102;
 constexpr int ActCellsLeft = PanelMargin;
 /** @brief Button top: 8px under the title band (PanelTitleTop + PanelTitleHeight = 66). */
 constexpr int ActRowTop = PanelTitleTop + PanelTitleHeight + 8;
 constexpr int ActCount = 3;
-constexpr const char *ActButtonAssets[ActCount] = { "ui\\act_diablo.png", "ui\\act_hellfire.png", "ui\\act_orcl.png" };
+/**
+ * @brief ONE blank button for all three acts (user, 2026-09-20: "maybe i can only send you one version
+ * of the button without the texts on it and you can place them yourself?" - Resources\88x68px
+ * Buttons.png, filed as act-buttons-user\act_button.png), with ChatGPT's label glyphs (act-glyphs,
+ * 96x56, transparent surround; ink 56 / 66 / 38 wide, 37 tall) centred over it. The 96 glyph
+ * overhangs the 88 face by 4px a side, all of it transparent air.
+ */
+constexpr const char *ActButtonAsset = "ui\\act_button.png";
+constexpr const char *ActGlyphAssets[ActCount] = { "ui\\act_diablo.png", "ui\\act_hellfire.png", "ui\\act_orcl.png" };
+constexpr Size ActGlyphSize { 96, 56 };
 constexpr const char *ActNames[ActCount] = { "Diablo Act", "Hellfire Act", "Orcl Act" };
 static_assert(ActCellsLeft + 2 * ActCellPitch + ActButtonSize.width <= PanelSize.width - PanelMargin,
     "the third Act button runs into the panel's right margin");
@@ -371,13 +386,23 @@ void DrawActButtons(const Surface &out)
 			DrawHoverShadow(out, cell, 0);
 		else
 			DrawDropShadow(out, cell, 0);
-		if (GetLoosePngSize(ActButtonAssets[act]).width > 0) {
-			// The user's button, 1:1, in its own colours when active or under the cursor; the other
-			// acts DESATURATED in place (user, same message: "the inactive Act buttons to be
-			// desaturated. remove the coloring they currently have applied over them when selected").
-			// A white hue through TintRectRgb is exactly that: every pixel keeps its luminance and
-			// loses its hue. The hovered inactive button wakes to colour, so the cursor finds it.
-			DrawLoosePng(out, ActButtonAssets[act], cell.position);
+		if (GetLoosePngSize(ActButtonAsset).width > 0) {
+			// The user's blank button, 1:1, the act's glyph centred on it, in their own colours when
+			// active or under the cursor; the other acts DESATURATED in place, glyph and all (user,
+			// 2026-09-20: "the inactive Act buttons to be desaturated. remove the coloring they
+			// currently have applied over them when selected"). A white hue through TintRectRgb is
+			// exactly that: every pixel keeps its luminance and loses its hue. The hovered inactive
+			// button wakes to colour, so the cursor finds it. The glyph is drawn BEFORE the pass so
+			// it greys with its button; a missing glyph leaves the act's name in the font instead.
+			DrawLoosePng(out, ActButtonAsset, cell.position);
+			if (GetLoosePngSize(ActGlyphAssets[act]).width > 0) {
+				DrawLoosePng(out, ActGlyphAssets[act],
+				    { cell.position.x + (cell.size.width - ActGlyphSize.width) / 2,
+				        cell.position.y + (cell.size.height - ActGlyphSize.height) / 2 });
+			} else {
+				DrawString(out, ActNames[act], cell,
+				    { UiFlags::ColorGold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+			}
 			if (!selected && !isHovered)
 				TintRectRgb(out, cell.position.x, cell.position.y, cell.size.width, cell.size.height,
 				    0xFFFFFFu, /*brightnessPercent=*/100, /*floorPercent=*/0, PAL16_GRAY);

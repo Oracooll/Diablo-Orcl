@@ -111,3 +111,9 @@ Build 56, v1.12.076: clean, ctest 831/831; the three buttons packed.
 - Inactive buttons are desaturated in place - `TintRectRgb` with a white hue keeps every pixel's luminance and drops its hue (PAL16_GRAY on an indexed surface). A hovered inactive button wakes to colour under the hover shadow, so the cursor finds it.
 
 Build 57, v1.12.077: clean, ctest 831/831.
+
+## v1.12.078 - one blank button, the glyphs over it
+
+The user's third-cut buttons carried a soft shadow of their own; the shadowless export is 88x68, and rather than three labelled files the user sent ONE blank (`Resources/88x68px Buttons.png`, filed as `act-buttons-user/act_button.png`, shipped as `ui\act_button.png`) and asked for ChatGPT's label glyphs to be placed in code. So a button is now: the game's shadow (3px resting, 6px doubled under the cursor and the active act), the blank 1:1, the act's glyph (`ui\act_<act>.png`, the 96x56 act-glyphs again) centred over it, then the desaturation pass on inactive acts - glyph greys with its button. Geometry: 88x68 on a 102px pitch from x 24, list from y 160, ten rows to 608.
+
+Build 58, v1.12.078: clean, ctest 831/831; act_button.png and the three glyphs packed.
