@@ -125,3 +125,12 @@ Build 58, v1.12.078: clean, ctest 831/831; act_button.png and the three glyphs p
 A file-local `PressedAct` is set by the click (the active act too) and cleared by the new `ReleaseWaypointActButton`, called from diablo.cpp's `LeftMouseUp` beside the other spring-back buttons, and by the menu closing. While set, the button, its glyph and the desaturation pass draw at the cell shifted by (-2, +2); the drop or hover shadow is drawn from the unshifted cell, so the face sinks toward its own shadow.
 
 Build 59, v1.12.079: clean, ctest 831/831.
+
+## v1.12.080 - titlemov on every hover and click
+
+> "i like titlemov.wav. what i want is this sound played on every hover action, on every click action on these buttons."
+
+- **Hover:** `DrawActButtons` remembers the button under the cursor from the last frame (`LastHoveredAct`) and plays the UI move sound (`IS_TITLEMOV`, `sfx\items\titlemov.wav`) on the frame the cursor arrives over a button - straight from one button to the next counts. Reset on open and close, so a cursor already over a button when the menu opens sounds too.
+- **Click:** every press sounds, the already-active act's included; until now only a press that changed the act did.
+
+Build 60, v1.12.080: clean, ctest 831/831.

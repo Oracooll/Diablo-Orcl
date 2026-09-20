@@ -142,6 +142,14 @@ int PressedAct = -1;
 constexpr Displacement ActPressSink { -2, 2 };
 
 /**
+ * @brief The Act button the cursor was over on the last frame, or -1 - so the hover sound plays
+ * once on ENTERING a button (user, 2026-09-20: "i like titlemov.wav. what i want is this sound
+ * played on every hover action, on every click action on these buttons"). Moving straight from one
+ * button to its neighbour is an entry too.
+ */
+int LastHoveredAct = -1;
+
+/**
  * @brief The act's table as a span. A plain Diablo game has no levels past 16 and
  * AddWaypointSigilObject places no sigil there, so the Hellfire act is Tristram alone outside
  * Hellfire - keyed on `gbIsHellfire` rather than on HaveMonk(): these are levels, and levels are
@@ -383,6 +391,12 @@ SkillPlateTint ActSelectedTint(WaypointAct act)
 void DrawActButtons(const Surface &out)
 {
 	const int hovered = MouseToActButton(MousePosition);
+	// The hover sound, on the frame the cursor arrives over a button - titlemov.wav, the same one
+	// the click plays (see LastHoveredAct). Sensed here because this is where hover is computed
+	// every frame; the menu has no per-tick hook of its own.
+	if (hovered >= 0 && hovered != LastHoveredAct)
+		PlayUiMoveSound();
+	LastHoveredAct = hovered;
 	for (int act = 0; act < ActCount; act++) {
 		const Rectangle cell = ActCellRect(act);
 		const bool selected = static_cast<int>(ActiveAct) == act;
@@ -507,6 +521,7 @@ void OpenWaypointMenu(Point sigilPosition)
 	// Back to Tristram at the top every time, the same reset-on-open the event log does. Reopening
 	// where you last scrolled to would be a small surprise every single time.
 	ScrollOffset = 0;
+	LastHoveredAct = -1; // so a cursor already over a button when the menu opens counts as an entry
 	// The act opens on the one the player is standing in: a sigil in the Crypt opens the Hellfire
 	// list, where the Crypt's other floors are. In town the last act chosen stays - a hub sigil has
 	// no act of its own, and the tab you were on is the tab you most likely want again.
@@ -562,6 +577,7 @@ void CloseWaypointMenu()
 {
 	WaypointMenuOpen = false;
 	PressedAct = -1;
+	LastHoveredAct = -1;
 }
 
 void ReleaseWaypointActButton()
@@ -715,10 +731,11 @@ void CheckWaypointMenuClick(Point mousePosition)
 	const int act = MouseToActButton(mousePosition);
 	if (act >= 0) {
 		PressedAct = act; // sinks until LeftMouseUp - the active act too, a press is a press
-		if (static_cast<int>(ActiveAct) != act) {
-			PlayUiMoveSound();
+		// EVERY click sounds (user, 2026-09-20), the already-active act's included; until then only
+		// a click that changed the act did.
+		PlayUiMoveSound();
+		if (static_cast<int>(ActiveAct) != act)
 			SelectWaypointAct(static_cast<WaypointAct>(act));
-		}
 		return;
 	}
 
