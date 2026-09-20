@@ -100,25 +100,6 @@ Size GetLoosePngSize(const char *assetPath);
  */
 void DrawLoosePngPart(const Surface &out, const char *assetPath, Rectangle source, Point origin);
 
-/**
- * @brief DrawLoosePng resampled to fill @p dest - the whole file, both axes.
- *
- * For a plate that is delivered at one size and worn at another: the waypoint list's Act buttons
- * (2026-09-20) wear vanilla's 56x56 spell plate frame stretched a quarter, so the "Hellfire Act"
- * label's 66px of ink clears the plate's borders.
- */
-void DrawLoosePngScaledTo(const Surface &out, const char *assetPath, Rectangle dest);
-
-/**
- * @brief DrawGridBezel's frame for @p nativeContent, RESAMPLED so its interior lands on
- * @p contentRect - for a cell the bezel family has no frame for.
- *
- * Unlike DrawGridBezel this blits the art whole, interior included, because the bands cannot be
- * scaled apart cleanly; the caller draws its plate over the interior afterwards, which is what a
- * button does anyway. The bezel's own six pixels become GridBezelInset * content / native.
- */
-void DrawGridBezelScaledTo(const Surface &out, Rectangle contentRect, Size nativeContent);
-
 void DrawSidePanelArt(const Surface &out, Point origin);
 
 // DrawSidePanelBackdrop was declared here and is gone (user, 2026-09-02: "remove the dark

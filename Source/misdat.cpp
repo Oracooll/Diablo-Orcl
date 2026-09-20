@@ -406,9 +406,12 @@ MissileFileData MissileSpriteData[] = {
 /*CorpseExplosion*/          { {},              160,          48, "corpse_explosion",  1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*RaiseDead*/                { {},               96,          16, "raise_dead",        1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_12      },
 /*CurseCast*/                { {},              192,          64, "curse_cast",        1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
-// Oracool 2026-09-20: the Stonegate's portals - the town portal's own frame (96 wide, 16 frames, delay 3), one strip each.
-/*RiftPortalGold*/           { {},               96,          16, "portal_gold",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // vanilla's portal1/portal2 recoloured (tools/BuildRiftPortals.ps1): row 0 opens, row 1 stands
-/*RiftPortalPurple*/         { {},               96,          16, "portal_purple",     2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      },
+// Oracool 2026-09-20: the Rift Monument's portals - the town portal's own animation (16 frames, delay 3), one strip each,
+// resampled to 90% by tools/BuildRiftPortals.ps1 (user, 2026-09-20: "scale down to 90%"): 86x115 frames. animWidth2 is
+// the draw's left shift, so the frame's centre sits at (width / 2 - animWidth2) right of the tile: 96 / 2 - 16 = 32 before,
+// and 86 / 2 - 11 = 32 now - the oval stays where it was.
+/*RiftPortalGold*/           { {},               86,          11, "portal_gold",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // vanilla's portal1/portal2 recoloured: row 0 opens, row 1 stands
+/*RiftPortalPurple*/         { {},               86,          11, "portal_purple",     2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };

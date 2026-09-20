@@ -1559,15 +1559,6 @@ void DrawLoosePngPart(const Surface &out, const char *assetPath, Rectangle sourc
 	    MakeSdlRect(source.position.x, source.position.y, source.size.width, source.size.height), origin);
 }
 
-void DrawLoosePngScaledTo(const Surface &out, const char *assetPath, Rectangle dest)
-{
-	const LoosePng &entry = LoosePngFor(assetPath);
-	if (entry.asset.rgba.empty() || !entry.asset.bright)
-		return;
-	BlitLayerScaled(out, entry.asset, MakeSdlRect(0, 0, entry.asset.width, entry.asset.height), dest,
-	    /*halfTransparent=*/false);
-}
-
 // DrawSidePanelBackdrop is gone (user, 2026-09-02: "remove the dark transparent rectangle from all
 // canvases, which we used with the limestone background"). It dimmed the inner opening on all six
 // windows, and it existed because the OLD limestone was light enough to fight the text laid over it.
@@ -1832,28 +1823,6 @@ void DrawGridBezel(const Surface &out, Rectangle contentRect)
 	    Point { outer.x, contentRect.position.y });
 	BlitLayer(out, entry->art, Layer::Bright, MakeSdlRect(w - inset, inset, inset, h - 2 * inset),
 	    Point { contentRect.position.x + contentRect.size.width, contentRect.position.y });
-}
-
-void DrawGridBezelScaledTo(const Surface &out, Rectangle contentRect, Size nativeContent)
-{
-	GridBezelEntry *entry = FindGridBezel(nativeContent);
-	if (entry == nullptr)
-		return;
-	EnsureLoadedAll();
-	if (entry->art.rgba.empty())
-		return;
-	EnsureQuantized();
-	if (!entry->art.bright)
-		return;
-	// The frame's six pixels scale with the content, so the outer rect is the content rect grown by
-	// the bezel's share of the art at the new size, rounded to keep the interior on the content.
-	const int outerW = contentRect.size.width * entry->art.width / nativeContent.width;
-	const int outerH = contentRect.size.height * entry->art.height / nativeContent.height;
-	const Rectangle outer { { contentRect.position.x - (outerW - contentRect.size.width) / 2,
-		                        contentRect.position.y - (outerH - contentRect.size.height) / 2 },
-		{ outerW, outerH } };
-	BlitLayerScaled(out, entry->art, MakeSdlRect(0, 0, entry->art.width, entry->art.height), outer,
-	    /*halfTransparent=*/false);
 }
 
 void DrawWaypointPanelArt(const Surface &out, Point origin)

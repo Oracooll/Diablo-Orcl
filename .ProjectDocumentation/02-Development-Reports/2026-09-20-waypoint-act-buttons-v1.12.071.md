@@ -85,3 +85,8 @@ Build 53, v1.12.073: clean, ctest 831/831; act_plate.png packed.
 - **Rename:** "Rift Monument" in the hover popup (objects.cpp), the choice menu's title, every log line, the keystone refusal and the `/rift` debug help. Code identifiers (`stonegate.*`, `IsStonegateObject`, `OFILE_ORCLGATE`) are unchanged.
 
 Build 54, v1.12.074: clean, ctest 831/831; the one-frame orclgate.cel (8905 bytes) packed.
+
+## v1.12.075 - the second cut rolled back; the portal at 90%
+
+- **Act buttons** (user: "rollback the last redesign"): v1.12.073 is reverted in full - the buttons are the v1.12.072 look again: 56x56 tinted spell plate (grey, white on hover, red/orange/purple pressed), the 2x2 bezel, the resting shadow on the pressed button, the list from y 160. `DrawLoosePngScaledTo`, `DrawGridBezelScaledTo` and `ui\act_plate.png` go with it.
+- **Portal** (user: "portal asset behind rift monument - scale down to 90% and move up 7px"): `tools/BuildRiftPortals.ps1` gained `-ScalePercent` (default 90) and resamples each frame after the recolour and fill, so the sheets are 16 x 86x115 per row; misdat's rows read 86 / 11 (the half-width keeps the oval centred where the 96 frame had it); `AddRiftPortal` lifts by 27 instead of 20.

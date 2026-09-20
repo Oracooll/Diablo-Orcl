@@ -14,7 +14,11 @@
 # Usage: powershell -NoProfile -File tools\BuildRiftPortals.ps1   (from the repo root)
 param(
     [string]$Source = "..\Resources\00-original-game-art\missiles\portal.png",
-    [string]$OutDir = "Packaging\resources\oracool_assets\missiles"
+    [string]$OutDir = "Packaging\resources\oracool_assets\missiles",
+    # 90 since 2026-09-20 (user: "portal asset behind rift monument - scale down to 90%"): each 96x128 frame
+    # is resampled to 86x115 after the recolour and fill, so misdat's rows read animWidth 86 and
+    # animWidth2 11 (which keeps the oval centred where the 96-wide frame had it).
+    [int]$ScalePercent = 90
 )
 Add-Type -AssemblyName System.Drawing
 
@@ -81,6 +85,24 @@ function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satB
     }
     [System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $data.Scan0, $n)
     $bmp.UnlockBits($data)
+    if ($ScalePercent -ne 100) {
+        $fw = [int][Math]::Floor(96 * $ScalePercent / 100); $fh = [int][Math]::Floor(128 * $ScalePercent / 100)
+        $rows = [int]($bmp.Height / 128)
+        $small = New-Object System.Drawing.Bitmap (16 * $fw), ($rows * $fh), ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+        $sg = [System.Drawing.Graphics]::FromImage($small)
+        $sg.Clear([System.Drawing.Color]::FromArgb(0, 0, 0, 0))
+        $sg.InterpolationMode = 'HighQualityBicubic'; $sg.PixelOffsetMode = 'HighQuality'; $sg.CompositingMode = 'SourceCopy'
+        # Frame by frame, so no frame bleeds into its neighbour at the resample.
+        for ($row = 0; $row -lt $rows; $row++) {
+            for ($f = 0; $f -lt 16; $f++) {
+                $sg.DrawImage($bmp, (New-Object System.Drawing.Rectangle ($f * $fw), ($row * $fh), $fw, $fh), (New-Object System.Drawing.Rectangle ($f * 96), ($row * 128), 96, 128), [System.Drawing.GraphicsUnit]::Pixel)
+            }
+        }
+        $sg.Dispose()
+        $bmp.Dispose()
+        $bmp = $small
+        Write-Host ("  frames resampled to {0}x{1} ({2}%)" -f $fw, $fh, $ScalePercent)
+    }
     $bmp.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Png)
     $bmp.Dispose()
     Write-Host ("{0} <- {1} at hue {2}" -f $outPath, $inPath, $hue)

@@ -3842,11 +3842,11 @@ void AddRiftPortal(Missile &missile, AddMissileParameter & /*parameter*/)
 	// file 1 the standing loop, and ProcessRiftPortal switches to file 1 once the opening has run,
 	// as ProcessTownPortal does by its countdown.
 	missile._mirange = 1;
-	// Lifted 20px into the arch of the Rift Monument painting (2026-09-20): the missile is bottom-anchored
+	// Lifted 27px into the arch of the Rift Monument painting (2026-09-20): the missile is bottom-anchored
 	// on the gate's tile like the object, and the painting's opening floor sits well above its footprint
 	// (the plinth is in front), so unlifted the portal stood in the plinth. Measured with
 	// tools/ScalePainting.ps1's opening readout and a composite preview.
-	missile.position.offset = { 0, -20 };
+	missile.position.offset = { 0, -27 }; // 27 = the 20 of the first fit plus the user's "move up 7px" on the 90% sheet
 	missile._mlid = AddLight(missile.position.tile, 6);
 	PutMissile(missile);
 }
