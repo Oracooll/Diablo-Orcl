@@ -84,3 +84,11 @@ recess under the grid, and a bezel on the right with eight line positions at a 2
   the bezel's lines are 20 px tall.
 
 Build 29 green: 821/821. The button art missed build 29's pack list (copied a minute after configure); build 30 (v1.12.058) carries it.
+
+## v1.12.061 - batch 43d, the Cube's sounds
+
+`sfx/cube_open.wav` (0.68 s) and `cube_transmute.wav` (0.78 s), 16-bit mono 22050 Hz, replace the placeholder
+copies in `Packaging/.../sfx/ui/`; no code change - `UiEventSound::CubeOpen/CubeTransmute` were wired at
+v1.12.057. The RfA-20 delivery report is in. The five-minute sweep did not see the `sfx/` folder for two hours
+after GPT wrote it (the user relayed "completely delivered"); OneDrive sync lag, most likely - when a delivery
+is announced, list the folder directly. Build 34 green: 821/821.
