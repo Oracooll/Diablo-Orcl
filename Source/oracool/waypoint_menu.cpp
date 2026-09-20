@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <utility>
 #include <string>
 
 #include "DiabloUI/ui_flags.hpp"
@@ -19,7 +20,8 @@
 #include "oracool/hud_menu.h" // CloseHudMenu - ditto
 #include "levels/gendung.h"
 #include "multi.h"
-#include "oracool/hud_art.h"
+#include "oracool/grid_bezel.h" // GridBezelInset, DrawGridBezel - the Act buttons' carved frames
+#include "oracool/hud_art.h"    // DrawPlateIn, DrawLoosePng - the Act buttons' backing and glyphs
 #include "oracool/ui_sound.h"
 #include "player.h"
 #include "quests.h"
@@ -90,63 +92,87 @@ string_view WaypointName(int level)
 }
 
 /**
- * @brief The dungeon level each row shows, in the order the rows appear.
+ * @brief The dungeon levels each ACT's list shows, in the order the rows appear.
  *
- * Ordered by AREA LEVEL, not by dungeon level (user, 2026-09-12: "nest waypoints to be [...] placed
- * between Hell and Caves waypoints", "Crypt to be [...] placed after Hell waypoints"). The Nest
- * shares the Caves' rungs and the Crypt shares Hell's, so sorting by depth interleaves them:
- * Caves 9-12, Nest 9-12, Hell 13-16, Crypt 13-16. Dungeon levels 17-24 are therefore NOT in numeric
- * order here.
+ * THREE LISTS since 2026-09-20 (user: "three buttons to act as Acts Waypoints: Diablo Act button -
+ * hosts Diablo dungeons waypoints; Hellfire Act button - hosts Hellfire dungeons waypoints; Orcl Act
+ * button - hosts future Orcl introduced areas waypoints"), one behind each Act button. Before that
+ * there was one list, ordered by area level with the Nest interleaved between the Caves and Hell
+ * (2026-09-12); splitting the Hellfire regions into their own act is what makes that interleaving
+ * unnecessary - within an act depth and dungeon level agree again.
  *
- * This is why the row index is no longer the destination level. LevelOfRow is the single mapping,
- * and Player::_pWaypointUnlocked and OperateWaypoint's _oVar1 stay indexed by DUNGEON level - which
- * is exactly what this table exists to keep separate from the display.
+ * Tristram heads EVERY act: it is the hub, not a Diablo dungeon, and a list you can leave from but
+ * not return home from would be a trap on the Hellfire and Orcl tabs.
+ *
+ * The row index is not the destination level. LevelOfRow is the single mapping, and
+ * Player::_pWaypointUnlocked and OperateWaypoint's _oVar1 stay indexed by DUNGEON level - which is
+ * exactly what these tables exist to keep separate from the display.
  */
-constexpr std::array<uint8_t, WaypointLevelCount> HellfireRowLevels { {
+constexpr std::array<uint8_t, 17> DiabloActLevels { {
     0,
     1, 2, 3, 4,     // Cathedral, rungs 1-4
     5, 6, 7, 8,     // Catacombs, rungs 5-8
     9, 10, 11, 12,  // Caves,     rungs 9-12
-    17, 18, 19, 20, // Nest,      rungs 9-12 as well
     13, 14, 15, 16, // Hell,      rungs 13-16
-    21, 22, 23, 24, // Crypt,     rungs 13-16 as well
+} };
+
+constexpr std::array<uint8_t, 9> HellfireActLevels { {
+    0,
+    17, 18, 19, 20, // Nest,  rungs 9-12
+    21, 22, 23, 24, // Crypt, rungs 13-16
 } };
 
 /**
- * @brief The same list for a plain Diablo game, where the Nest and the Crypt do not exist.
- *
- * Not a prefix of the table above - with the Nest interleaved, the first seventeen rows there are no
- * longer levels 0-16 - so the shorter order is written out rather than sliced off. It needs no
- * reordering at all, because without Hellfire's two regions depth and dungeon level agree.
+ * @brief The Orcl act has no areas yet - the Stonegate's rifts are set levels reached through the
+ * gate, not waypoints. Tristram alone, so the tab is a tab and not a dead button; the list says so.
  */
-constexpr std::array<uint8_t, 17> DiabloRowLevels { {
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-} };
+constexpr std::array<uint8_t, 1> OrclActLevels { { 0 } };
 
-/** @brief The dungeon level at list row @p row, or -1 if the row does not exist. */
-int LevelOfRow(size_t row)
+/** @brief Which act's list is showing. Persists across opens on purpose - see OpenWaypointMenu. */
+WaypointAct ActiveAct = WaypointAct::Diablo;
+
+/**
+ * @brief The act's table as a span. A plain Diablo game has no levels past 16 and
+ * AddWaypointSigilObject places no sigil there, so the Hellfire act is Tristram alone outside
+ * Hellfire - keyed on `gbIsHellfire` rather than on HaveMonk(): these are levels, and levels are
+ * exactly what hellfire.mpq brings.
+ */
+std::pair<const uint8_t *, size_t> ActTable(WaypointAct act)
 {
-	if (gbIsHellfire)
-		return row < HellfireRowLevels.size() ? static_cast<int>(HellfireRowLevels[row]) : -1;
-	return row < DiabloRowLevels.size() ? static_cast<int>(DiabloRowLevels[row]) : -1;
+	switch (act) {
+	case WaypointAct::Hellfire:
+		if (!gbIsHellfire)
+			return { OrclActLevels.data(), OrclActLevels.size() };
+		return { HellfireActLevels.data(), HellfireActLevels.size() };
+	case WaypointAct::Orcl:
+		return { OrclActLevels.data(), OrclActLevels.size() };
+	case WaypointAct::Diablo:
+	default:
+		return { DiabloActLevels.data(), DiabloActLevels.size() };
+	}
 }
 
-/**
- * @brief How many rows the list actually offers.
- *
- * The storage behind it is always 25 (see Player::_pWaypointUnlocked), but a plain Diablo game has
- * no levels past 16 and AddWaypointSigilObject places no sigil there, so listing the Nest and the
- * Crypt outside Hellfire would be eight rows that can never light up and can never be travelled
- * to. Keyed on `gbIsHellfire` rather than on HaveMonk(): these are levels, and levels are exactly
- * what hellfire.mpq brings.
- */
+/** @brief The dungeon level at list row @p row of the ACTIVE act, or -1 if the row does not exist. */
+int LevelOfRow(size_t row)
+{
+	return WaypointActLevelAt(ActiveAct, row);
+}
+
+/** @brief How many rows the active act's list actually offers. */
 size_t VisibleWaypointCount()
 {
-	return gbIsHellfire ? HellfireRowLevels.size() : DiabloRowLevels.size();
+	return WaypointActRowCount(ActiveAct);
 }
 
 // Oracool V1 waypoint list geometry.
 //
+//   0..28     top margin (PanelTitleTop)
+//   28..66    title band, "WAYPOINT"
+//   74..146   the three Act buttons, bezel to bezel (cells 80..136) - since 2026-09-20
+//   160..608  the scrolling list viewport (448px, ten 43px rows on a 45px pitch)
+//   625..720  the limestone panel's frieze - deliberately left to the art
+//
+// The rows below are the PRE-ACT layout, kept for the constants that still derive from it:
 //   0..24     top margin
 //   24..74    label band, "WAYPOINT"
 //   74..77    separator rule
@@ -202,18 +228,48 @@ constexpr int RowPitch = RowHeight + RowGap;
  * overlap the request was trying to remove.
  */
 constexpr int ListLift = 14;
-constexpr int ListTop = PanelMargin + LabelHeight + SeparatorHeight + SeparatorGap - ListLift;
+constexpr int OldListTop = PanelMargin + LabelHeight + SeparatorHeight + SeparatorGap - ListLift;
 constexpr int IconGap = 8;   // from the inner edge of the margin to the sigil
 constexpr int TextGap = 10;  // from the sigil to the name
 
+// THE ACT BUTTONS (user, 2026-09-20): three of the abilities window's 56x56 cells in a row between
+// the title and the list - "the 56x56 button backing + framing + shadow + hover shadow". Each is the
+// spell plate (DrawPlateIn) inside the carved 2x2 slot frame (DrawGridBezel, 6px out on every side)
+// with the slot's drop shadow, and the doubled hover shadow under the cursor - exactly the recipe
+// the abilities window's rows and passive band use, so the three read as that window's buttons and
+// not as a new control. ChatGPT's label glyphs (act-glyphs, 96x56) draw centred over each cell.
+//
+// The row: three cells on a 112px pitch starting at x 30, which is the margin plus the bezel. That
+// leaves 280px of cell span (30..310) and a gap between cells of exactly one cell, and the 96px
+// glyphs, overhanging each cell by 20px a side, still keep 16px of air between neighbours.
+constexpr int ActCellSize = 56;
+constexpr int ActCellPitch = 112;
+constexpr int ActCellsLeft = PanelMargin + GridBezelInset;
+/** @brief Cell top: 8px under the title band (PanelTitleTop + PanelTitleHeight = 66) for the bezel's 6. */
+constexpr int ActRowTop = PanelTitleTop + PanelTitleHeight + 8 + GridBezelInset;
+constexpr Size ActGlyphSize { 96, 56 };
+constexpr int ActCount = 3;
+constexpr const char *ActGlyphAssets[ActCount] = { "ui\\act_diablo.png", "ui\\act_hellfire.png", "ui\\act_orcl.png" };
+constexpr const char *ActNames[ActCount] = { "Diablo Act", "Hellfire Act", "Orcl Act" };
+static_assert(ActCellsLeft + 2 * ActCellPitch + ActCellSize + GridBezelInset <= PanelSize.width - PanelMargin,
+    "the third Act button runs into the panel's right margin");
+
 /**
- * @brief The list's visible window - TWELVE rows (user request, 2026-08-18). 25 rows are 1125px
- * tall, so the list scrolls inside this.
- *
- * Twelve full rows rather than "whatever fits above the bottom margin", which was 595px - thirteen
- * rows and a sliver, running to y 696 and straight across the limestone panel's frieze.
+ * @brief Top of the scrolling viewport: under the button row, clear of the bezel (6) and the hover
+ * shadow's 6px cast, with a dozen more of air so the first row does not sit on the shadow.
  */
-constexpr int ViewportHeight = 12 * RowPitch - RowGap;
+constexpr int ListTop = ActRowTop + ActCellSize + GridBezelInset + 6 + 12;
+static_assert(ListTop > OldListTop, "the list now starts under the Act buttons, not on the old rule");
+
+/**
+ * @brief The list's visible window - TEN rows since the Act buttons took the top of the panel
+ * (twelve from 2026-08-18 to 2026-09-20). No act has more than 17 rows now, so only the Diablo act
+ * scrolls, and by seven rows.
+ *
+ * Whole rows rather than "whatever fits above the bottom margin", so the last row is never a sliver
+ * running across the limestone panel's frieze.
+ */
+constexpr int ViewportHeight = 10 * RowPitch - RowGap;
 static_assert(ViewportHeight > 0, "the waypoint list viewport must fit between the rule and the bottom margin");
 static_assert(ListTop + ViewportHeight <= 625,
     "the waypoint list now runs across the limestone panel's frieze - raise ListTop or drop a row");
@@ -260,6 +316,77 @@ void UpdateScrollBounds()
 	ListHeight = static_cast<int>(VisibleWaypointCount()) * RowPitch;
 	MaxScrollOffset = std::max(0, ListHeight - ViewportHeight);
 	ScrollOffset = std::clamp(ScrollOffset, 0, MaxScrollOffset);
+}
+
+/** @brief Screen rect of Act button @p act's 56x56 cell - the plate, inside the bezel. */
+Rectangle ActCellRect(int act)
+{
+	const Rectangle panel = PanelRect();
+	return { { panel.position.x + ActCellsLeft + act * ActCellPitch, panel.position.y + ActRowTop },
+		{ ActCellSize, ActCellSize } };
+}
+
+/**
+ * @brief The Act button under @p mousePosition, or -1. The hit box is the cell plus its bezel - the
+ * frame is part of the button as drawn, so it is part of the button as clicked.
+ */
+int MouseToActButton(Point mousePosition)
+{
+	for (int act = 0; act < ActCount; act++) {
+		const Rectangle cell = ActCellRect(act);
+		const Rectangle withFrame { cell.position - Displacement { GridBezelInset, GridBezelInset },
+			{ cell.size.width + 2 * GridBezelInset, cell.size.height + 2 * GridBezelInset } };
+		if (withFrame.contains(mousePosition))
+			return act;
+	}
+	return -1;
+}
+
+/** @brief The selected button's backing: red, orange, purple - the user's three, in act order. */
+SkillPlateTint ActSelectedTint(WaypointAct act)
+{
+	switch (act) {
+	case WaypointAct::Hellfire:
+		return SkillPlateTint::Orange;
+	case WaypointAct::Orcl:
+		return SkillPlateTint::Purple;
+	case WaypointAct::Diablo:
+	default:
+		return SkillPlateTint::Blocked; // the red plate
+	}
+}
+
+void DrawActButtons(const Surface &out)
+{
+	const int hovered = MouseToActButton(MousePosition);
+	for (int act = 0; act < ActCount; act++) {
+		const Rectangle cell = ActCellRect(act);
+		const bool selected = static_cast<int>(ActiveAct) == act;
+		const bool isHovered = hovered == act;
+		// Shadow first, under everything, like the abilities window: the resting 3px cast, or the
+		// doubled 6px one under the cursor. The selected button keeps the resting shadow - it is
+		// pressed, and a pressed button does not lift.
+		if (isHovered && !selected)
+			DrawHoverShadow(out, cell, GridBezelInset);
+		else
+			DrawDropShadow(out, cell, GridBezelInset);
+		DrawGridBezel(out, cell);
+		// The backing: the act's colour while selected; light grey at rest and white under the
+		// cursor, the burger menu's own two resting states.
+		const SkillPlateTint tint = selected ? ActSelectedTint(static_cast<WaypointAct>(act))
+		                                     : (isHovered ? SkillPlateTint::White : SkillPlateTint::Unspent);
+		DrawPlateIn(out, cell, tint);
+		// The glyph, centred on the cell. 96 wide over a 56 cell, so it overhangs the frame by 20 a
+		// side; the label's ink is narrower than the file and the overhang is transparent air.
+		if (GetLoosePngSize(ActGlyphAssets[act]).width > 0) {
+			DrawLoosePng(out, ActGlyphAssets[act],
+			    { cell.position.x + (cell.size.width - ActGlyphSize.width) / 2,
+			        cell.position.y + (cell.size.height - ActGlyphSize.height) / 2 });
+		} else {
+			DrawString(out, ActNames[act], cell,
+			    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		}
+	}
 }
 
 int MouseToEntry(Point mousePosition)
@@ -335,6 +462,40 @@ void OpenWaypointMenu(Point sigilPosition)
 	// Back to Tristram at the top every time, the same reset-on-open the event log does. Reopening
 	// where you last scrolled to would be a small surprise every single time.
 	ScrollOffset = 0;
+	// The act opens on the one the player is standing in: a sigil in the Crypt opens the Hellfire
+	// list, where the Crypt's other floors are. In town the last act chosen stays - a hub sigil has
+	// no act of its own, and the tab you were on is the tab you most likely want again.
+	if (!setlevel && currlevel > 0)
+		ActiveAct = WaypointActOfLevel(currlevel);
+}
+
+WaypointAct ActiveWaypointAct()
+{
+	return ActiveAct;
+}
+
+void SelectWaypointAct(WaypointAct act)
+{
+	ActiveAct = act;
+	ScrollOffset = 0;
+}
+
+size_t WaypointActRowCount(WaypointAct act)
+{
+	return ActTable(act).second;
+}
+
+int WaypointActLevelAt(WaypointAct act, size_t row)
+{
+	const auto [levels, count] = ActTable(act);
+	return row < count ? static_cast<int>(levels[row]) : -1;
+}
+
+WaypointAct WaypointActOfLevel(int level)
+{
+	if (level >= 17 && level <= 24)
+		return WaypointAct::Hellfire;
+	return WaypointAct::Diablo;
 }
 
 // One row per wheel notch, so the list moves by the thing it is made of rather than by a pixel
@@ -385,8 +546,20 @@ void DrawWaypointMenu(const Surface &out)
 	DrawOutlinedString(out, "WAYPOINT", labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
 
+	DrawActButtons(out);
+
 	UpdateScrollBounds();
 	DrawScrollbar(out, panel);
+
+	// An act with nothing but Tristram says why, under its one row, in the list's own face - the
+	// Orcl act until an Orcl area gets a sigil, the Hellfire act in a plain Diablo game.
+	if (VisibleWaypointCount() == 1) {
+		const bool orcl = ActiveAct == WaypointAct::Orcl;
+		const Rectangle noteArea { { panel.position.x + PanelMargin, panel.position.y + ListTop + RowPitch },
+			{ ContentRightLimit - PanelMargin, RowHeight } };
+		DrawString(out, orcl ? "No Orcl areas yet" : "Requires Hellfire", noteArea,
+		    { UiFlags::ColorUiSilverDark | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	}
 
 	// Rows draw through a subregion covering only the scrolling area, so a row straddling its top
 	// or bottom edge is clipped there rather than spilling onto the separator above or the bottom
@@ -486,6 +659,17 @@ void DrawWaypointMenu(const Surface &out)
 
 void CheckWaypointMenuClick(Point mousePosition)
 {
+	// The Act buttons first: they sit above the list and share no pixels with it, so the order is
+	// only tidiness - but a button press is a list change, not a journey, and stays open.
+	const int act = MouseToActButton(mousePosition);
+	if (act >= 0) {
+		if (static_cast<int>(ActiveAct) != act) {
+			PlayUiMoveSound();
+			SelectWaypointAct(static_cast<WaypointAct>(act));
+		}
+		return;
+	}
+
 	const int entry = MouseToEntry(mousePosition);
 	if (entry < 0)
 		return;
@@ -542,6 +726,7 @@ void ResetWaypointMenuForNewGame()
 {
 	WaypointMenuOpen = false;
 	ScrollOffset = 0;
+	ActiveAct = WaypointAct::Diablo; // the next character starts on the Diablo tab, whatever the last one was on
 	// The one that is not merely cosmetic: an unconsumed request survives into the next character's
 	// first level load and moves them onto its waypoint. See the header for how it is left unconsumed.
 	WaypointSpawnRequested = false;

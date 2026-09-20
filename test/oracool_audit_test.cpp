@@ -13912,3 +13912,62 @@ TEST(OracoolAudit, ExperienceTableIsDiabloTwosWithItsBrakes)
 	player._pLevel = 96;
 	EXPECT_EQ(KillExperienceFor(player, 96, 1000), 50u);
 }
+
+// THE ACT BUTTONS (user, 2026-09-20: "three buttons to act as Acts Waypoints: Diablo Act button - hosts Diablo
+// dungeons waypoints; Hellfire Act button - hosts Hellfire dungeons waypoints; Orcl Act button - hosts future
+// Orcl introduced areas waypoints"). The lists behind them: every dungeon level on exactly one act, Tristram
+// heading all three, and the Hellfire act collapsing to Tristram alone outside a Hellfire game.
+TEST(OracoolWaypointActs, EveryDungeonLevelSitsOnExactlyOneAct)
+{
+	const bool wasHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+
+	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Diablo), 17u);
+	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Hellfire), 9u);
+	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Orcl), 1u) << "the Orcl act is Tristram alone until an Orcl area gets a sigil";
+
+	for (const auto act : { oracool::WaypointAct::Diablo, oracool::WaypointAct::Hellfire, oracool::WaypointAct::Orcl }) {
+		EXPECT_EQ(oracool::WaypointActLevelAt(act, 0), 0) << "Tristram heads act " << static_cast<int>(act);
+		EXPECT_EQ(oracool::WaypointActLevelAt(act, oracool::WaypointActRowCount(act)), -1) << "past the end of act " << static_cast<int>(act);
+	}
+	for (size_t row = 1; row < 17; row++)
+		EXPECT_EQ(oracool::WaypointActLevelAt(oracool::WaypointAct::Diablo, row), static_cast<int>(row)) << "Diablo act row " << row;
+	for (size_t row = 1; row < 9; row++)
+		EXPECT_EQ(oracool::WaypointActLevelAt(oracool::WaypointAct::Hellfire, row), 16 + static_cast<int>(row)) << "Hellfire act row " << row;
+
+	// Each dungeon level 1-24 appears once, on the act WaypointActOfLevel says it belongs to.
+	for (int level = 1; level <= 24; level++) {
+		const oracool::WaypointAct home = oracool::WaypointActOfLevel(level);
+		EXPECT_EQ(home, level >= 17 ? oracool::WaypointAct::Hellfire : oracool::WaypointAct::Diablo) << "level " << level;
+		int seen = 0;
+		for (const auto act : { oracool::WaypointAct::Diablo, oracool::WaypointAct::Hellfire, oracool::WaypointAct::Orcl }) {
+			for (size_t row = 0; row < oracool::WaypointActRowCount(act); row++) {
+				if (oracool::WaypointActLevelAt(act, row) == level) {
+					seen++;
+					EXPECT_EQ(act, home) << "level " << level << " listed on the wrong act";
+				}
+			}
+		}
+		EXPECT_EQ(seen, 1) << "level " << level << " should be listed exactly once across the three acts";
+	}
+
+	// A plain Diablo game has no Nest and no Crypt: the Hellfire act keeps its button but lists only Tristram.
+	gbIsHellfire = false;
+	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Hellfire), 1u);
+	EXPECT_EQ(oracool::WaypointActLevelAt(oracool::WaypointAct::Hellfire, 0), 0);
+	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Diablo), 17u) << "the Diablo act does not depend on hellfire.mpq";
+
+	gbIsHellfire = wasHellfire;
+}
+
+TEST(OracoolWaypointActs, SelectingAnActShowsItsListAndANewGameReturnsToDiablo)
+{
+	oracool::SelectWaypointAct(oracool::WaypointAct::Orcl);
+	EXPECT_EQ(oracool::ActiveWaypointAct(), oracool::WaypointAct::Orcl);
+	oracool::SelectWaypointAct(oracool::WaypointAct::Hellfire);
+	EXPECT_EQ(oracool::ActiveWaypointAct(), oracool::WaypointAct::Hellfire);
+	// The act is a file-local static (see project_statics_outlive_the_game): the new-game reset puts
+	// the next character on the Diablo tab rather than on whatever the last one was looking at.
+	oracool::ResetWaypointMenuForNewGame();
+	EXPECT_EQ(oracool::ActiveWaypointAct(), oracool::WaypointAct::Diablo);
+}

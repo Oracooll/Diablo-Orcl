@@ -377,6 +377,63 @@ void SetSpellTransGreen()
 	SplTransTbl[PAL16_ORANGE + 15] = 0;
 }
 
+namespace {
+
+/**
+ * @brief The green's mechanism for any colour the palette lacks: the plate's three ramps drawn as
+ * the eight VALUES of @p rampRgb (light to dark, two source shades per value), with @p fallback16
+ * as the PAL16 ramp an indexed surface (tests, golden images) maps onto 1:1 instead.
+ *
+ * The waypoint list's Act buttons (user, 2026-09-20: "recolour the backing into Red for Diablo Act,
+ * Orange for Hellfire Act and Purple for Orcl Act") are its first callers besides the green. Red
+ * already existed as a palette ramp; orange and purple do not exist as anything the plate art can
+ * be remapped onto, so they are values, like the green - see project_palette_has_no_green.
+ */
+void SetSpellTransValueRamp(const uint32_t (&rampRgb)[8], uint8_t fallback16)
+{
+	for (int i = 0; i < 256; i++)
+		SplTransTbl[i] = static_cast<uint8_t>(i);
+	SplTransTbl[255] = 0;
+	SplGreenOverride.fill(0);
+	SplGreenActive = true;
+
+	SplTransTbl[PAL8_YELLOW] = static_cast<uint8_t>(fallback16 + 2);
+	SplTransTbl[PAL8_YELLOW + 1] = static_cast<uint8_t>(fallback16 + 4);
+	SplTransTbl[PAL8_YELLOW + 2] = static_cast<uint8_t>(fallback16 + 6);
+	SplGreenOverride[PAL8_YELLOW] = rampRgb[1];
+	SplGreenOverride[PAL8_YELLOW + 1] = rampRgb[2];
+	SplGreenOverride[PAL8_YELLOW + 2] = rampRgb[3];
+	for (int i = 0; i < 15; i++) {
+		const int shade = std::min(i / 2, 7);
+		const auto indexed = static_cast<uint8_t>(fallback16 + i);
+		SplTransTbl[PAL16_BEIGE + i] = indexed;
+		SplTransTbl[PAL16_YELLOW + i] = indexed;
+		SplTransTbl[PAL16_ORANGE + i] = indexed;
+		SplGreenOverride[PAL16_BEIGE + i] = rampRgb[shade];
+		SplGreenOverride[PAL16_YELLOW + i] = rampRgb[shade];
+		SplGreenOverride[PAL16_ORANGE + i] = rampRgb[shade];
+	}
+	SplTransTbl[PAL16_BEIGE + 15] = 0;
+	SplTransTbl[PAL16_YELLOW + 15] = 0;
+	SplTransTbl[PAL16_ORANGE + 15] = 0;
+}
+
+} // namespace
+
+void SetSpellTransOrange()
+{
+	// A warm amber, not the palette's rusty PAL16_ORANGE - that ramp is what the gold plate already
+	// shades with, so mapping onto it would have read as "gold, slightly dirtier".
+	static constexpr uint32_t OrangeRampRgb[8] = { 0xFFC878, 0xF4A84E, 0xE08C2C, 0xC47016, 0xA4580C, 0x844406, 0x623004, 0x401E02 };
+	SetSpellTransValueRamp(OrangeRampRgb, PAL16_ORANGE);
+}
+
+void SetSpellTransPurple()
+{
+	static constexpr uint32_t PurpleRampRgb[8] = { 0xD2A6EE, 0xB484DC, 0x9664C6, 0x7A4AAC, 0x603690, 0x482672, 0x321854, 0x1E0C36 };
+	SetSpellTransValueRamp(PurpleRampRgb, PAL16_BLUE);
+}
+
 void SetSpellTransDarkGrey()
 {
 	SplGreenActive = false;

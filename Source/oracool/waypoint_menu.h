@@ -11,12 +11,36 @@
  */
 #pragma once
 
+#include <cstdint>
+
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
 
 namespace devilution::oracool {
 
 bool IsWaypointMenuOpen();
+
+/**
+ * @brief The three ACTS the list is split into (user, 2026-09-20), each behind one of the abilities
+ * window's 56x56 buttons under the title: Diablo's sixteen floors, Hellfire's Nest and Crypt, and
+ * the Orcl areas to come. Tristram heads all three. The enum's order is the buttons' order.
+ */
+enum class WaypointAct : uint8_t {
+	Diablo,
+	Hellfire,
+	Orcl,
+};
+
+/** @brief The act whose list is showing. Persists across opens; OpenWaypointMenu picks the level's act in a dungeon. */
+WaypointAct ActiveWaypointAct();
+/** @brief Shows @p act's list from the top. What a click on an Act button does. */
+void SelectWaypointAct(WaypointAct act);
+/** @brief Rows in @p act's list: 17 / 9 / 1 (Tristram alone) - the Hellfire act is 1 too outside a Hellfire game. */
+size_t WaypointActRowCount(WaypointAct act);
+/** @brief The dungeon level at row @p row of @p act's list, or -1 past its end. */
+int WaypointActLevelAt(WaypointAct act, size_t row);
+/** @brief The act a dungeon level belongs to: 17-24 are Hellfire's, everything else Diablo's. */
+WaypointAct WaypointActOfLevel(int level);
 
 /**
  * @brief Opens the travel list. Currently only the Tristram entry is selectable - no other

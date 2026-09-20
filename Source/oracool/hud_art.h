@@ -218,6 +218,13 @@ enum class SkillPlateTint : uint8_t {
 	 * green"). Drawn as colour values through SetSpellTransGreen - the palette has no green.
 	 */
 	Green,
+	/**
+	 * The waypoint list's Hellfire Act button while selected (user, 2026-09-20: "recolour the backing
+	 * into Red for Diablo Act, Orange for Hellfire Act and Purple for Orcl Act"). Values, like Green.
+	 */
+	Orange,
+	/** The waypoint list's Orcl Act button while selected. Values, like Green - the palette has no purple. */
+	Purple,
 };
 
 /**

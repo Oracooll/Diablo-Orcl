@@ -68,6 +68,10 @@ void SetSpellTransWhite();
 void SetSpellTransGreen();
 /** @brief Oracool: unlocked but UNSPENT - the plate ramps mapped onto the game's own PAL16_RED. */
 void SetSpellTransRed();
+/** @brief Oracool: the waypoint list's Hellfire Act - the plate as ORANGE colour values (the palette's orange ramp on an indexed surface). */
+void SetSpellTransOrange();
+/** @brief Oracool: the waypoint list's Orcl Act - the plate as PURPLE colour values; the palette has no purple, so PAL16_BLUE stands in when indexed. */
+void SetSpellTransPurple();
 
 /**
  * @brief Oracool: the blank plate, rescaled to cover @p cell and centred in it.
