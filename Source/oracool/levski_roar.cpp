@@ -1299,7 +1299,22 @@ void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 		const int top = box.position.y + (box.size.height - blockHeight) / 2;
 		DrawString(out, line1, Rectangle { { box.position.x, top }, { box.size.width, lineHeight } },
 		    { color | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-		const int textWidth = GetLineWidth(line2, GameFont12);
+		// Wrapped beside the plate (user, 2026-09-21: "word wrapp the word Salvaged from the Frame + Icon row to fit it
+		// within the Salvage results frame"): "7 Unique Encrustments" / "Salvaged" when one line will not fit next to
+		// the frame; the lines sit vertically centred on the plate and the row is centred by its widest line.
+		const int textRoom = box.size.width - frameOuter - SalvageFrameGap;
+		const std::string wrapped = WordWrapString(line2, textRoom, GameFont12);
+		std::vector<std::string> rows;
+		for (size_t start = 0; start <= wrapped.size();) {
+			const size_t end = wrapped.find('\n', start);
+			rows.push_back(wrapped.substr(start, end == std::string::npos ? std::string::npos : end - start));
+			if (end == std::string::npos)
+				break;
+			start = end + 1;
+		}
+		int textWidth = 0;
+		for (const std::string &row : rows)
+			textWidth = std::max(textWidth, GetLineWidth(row, GameFont12));
 		const int rowWidth = frameOuter + SalvageFrameGap + textWidth;
 		const int rowLeft = box.position.x + (box.size.width - rowWidth) / 2;
 		const int rowTop = top + lineHeight + 6;
@@ -1307,8 +1322,13 @@ void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 		FillRect(out, rowLeft + 1, rowTop + 1, SalvageFramePlate.width, SalvageFramePlate.height, PAL16_GRAY + 14); // the plate
 		if (GetLoosePngSize(SalvageMaterialSprites[t]).width > 0)
 			DrawLoosePng(out, SalvageMaterialSprites[t], { rowLeft + 3, rowTop + 3 }); // 56 in 60: two pixels of plate around it
-		DrawString(out, line2, Rectangle { { rowLeft + frameOuter + SalvageFrameGap, rowTop }, { textWidth + 4, frameOuter } },
-		    { color | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+		const int textBlock = lineHeight * static_cast<int>(rows.size());
+		int rowY = rowTop + (frameOuter - textBlock) / 2;
+		for (const std::string &row : rows) {
+			DrawString(out, row, Rectangle { { rowLeft + frameOuter + SalvageFrameGap, rowY }, { textWidth + 4, lineHeight } },
+			    { color | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+			rowY += lineHeight;
+		}
 	}
 	DrawWindowCloseButtonAt(out, CloseButtonRect(window));
 }
