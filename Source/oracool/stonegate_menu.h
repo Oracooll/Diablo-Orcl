@@ -27,5 +27,7 @@ Rectangle GetStonegateMenuRect();
 void DrawStonegateMenu(const Surface &out);
 /** @brief Routes a click. True when the menu consumed it (a click outside it closes it and is consumed too). */
 bool CheckStonegateMenuClick(Point mousePosition);
+/** @brief Lets go of a pressed button (diablo.cpp's LeftMouseUp): the face springs back from its 2px sink. */
+void ReleaseStonegateMenuButton();
 
 } // namespace devilution::oracool

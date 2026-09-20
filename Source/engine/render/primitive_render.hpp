@@ -42,6 +42,15 @@ void FillRectRgb(const Surface &out, int x, int y, int width, int height, uint32
 void TintRectRgb(const Surface &out, int x, int y, int width, int height, uint32_t hueRgb, int brightnessPercent, int floorPercent, uint8_t fallbackRampBase);
 
 /**
+ * @brief Oracool: brightens every pixel in the rect by @p percent (100 = unchanged, 115 = a notch
+ * brighter), each channel scaled and clamped, hue and saturation kept - the hover state of a painted
+ * button (the Rift Monument's menu, 2026-09-20: "when hovering over the buttons make them a notch
+ * brighter"). On an indexed surface pixels in the PAL16 ramps step one shade lighter (ramps run light
+ * to dark), anything else is left alone.
+ */
+void BrightenRectRgb(const Surface &out, int x, int y, int width, int height, int percent);
+
+/**
  * @brief Draw a horizontal line segment in the target buffer (left to right)
  * @param out Target buffer
  * @param from Start of the line segment

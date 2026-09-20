@@ -371,6 +371,39 @@ void TintRectRgb(const Surface &out, int x, int y, int width, int height, uint32
 	}
 }
 
+void BrightenRectRgb(const Surface &out, int x, int y, int width, int height, int percent)
+{
+	const int x0 = std::max(x, 0), y0 = std::max(y, 0);
+	const int x1 = std::min(x + width, out.w()), y1 = std::min(y + height, out.h());
+	if (x1 <= x0 || y1 <= y0 || percent == 100)
+		return;
+
+	if (out.isIndexed()) {
+		// One shade toward the light end of its PAL16 ramp for a pixel in one; the ramps run light to
+		// dark, so that is a step down in index, stopped at the ramp's first entry.
+		for (int row = y0; row < y1; row++) {
+			uint8_t *dst = out.at(x0, row);
+			for (int col = x0; col < x1; col++, dst++) {
+				if (*dst >= PAL16_BEIGE && *dst < 256 - 16 && (*dst - PAL16_BEIGE) % 16 != 0)
+					(*dst)--;
+			}
+		}
+		return;
+	}
+
+	const int scale = std::max(percent, 0);
+	for (int row = y0; row < y1; row++) {
+		uint32_t *dst = out.at<uint32_t>(x0, row);
+		for (int col = x0; col < x1; col++, dst++) {
+			const uint32_t c = *dst;
+			const int r = std::min(static_cast<int>((c >> 16) & 0xFF) * scale / 100, 255);
+			const int g = std::min(static_cast<int>((c >> 8) & 0xFF) * scale / 100, 255);
+			const int b = std::min(static_cast<int>(c & 0xFF) * scale / 100, 255);
+			*dst = (c & 0xFF000000u) | (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
+		}
+	}
+}
+
 bool BlitArgb(const Surface &out, const uint32_t *pixels, int srcPitch, SDL_Rect srcRect, Point position, int alphaPercent)
 {
 	if (out.isIndexed())

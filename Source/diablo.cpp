@@ -749,8 +749,9 @@ void LeftMouseUp(uint16_t modState)
 	inventorySortButtonDown = false;
 	oracool::ReleaseXpCounterButton();
 	ReleaseSpellBookButtons();
-	oracool::ReleaseWaypointActButton(); // the pressed Act button springs back (2026-09-20)
-	oracool::ReleaseHudWells();          // and the pressed LMB/RMB well (2026-09-20)
+	oracool::ReleaseWaypointActButton();   // the pressed Act button springs back (2026-09-20)
+	oracool::ReleaseHudWells();            // and the pressed LMB/RMB well (2026-09-20)
+	oracool::ReleaseStonegateMenuButton(); // and the Rift Monument menu's pressed button (2026-09-20)
 }
 
 // Oracool bug fix (2026-08-16): user report - "i cant hit with rmb with regular attack."
