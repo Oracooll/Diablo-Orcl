@@ -4035,7 +4035,7 @@ bool UseInvItem(int cii)
 		if (!oracool::UseGuardianKeystone(player, *item)) {
 			player.Say(HeroSpeech::ICantUseThisYet);
 			if (&player == MyPlayer)
-				oracool::LogEvent("A keystone only turns in town, at the Stonegate.");
+				oracool::LogEvent("A keystone only turns in town, at the Rift Monument.");
 			return true;
 		}
 		player.RemoveInvItem(cii - INVITEM_INV_FIRST);

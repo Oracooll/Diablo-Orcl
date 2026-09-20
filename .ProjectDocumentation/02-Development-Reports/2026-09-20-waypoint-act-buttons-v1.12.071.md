@@ -75,3 +75,13 @@ Three changes from the user's look:
 3. **The cell is stretched a quarter to 70x70.** Measured ink of the labels: Diablo 56px, Hellfire 66px, Orcl 38px wide, all 37px tall, so the 56 cell cut "Hellfire Act" and 70 clears it by two pixels a side (a static_assert pins that). Cells at x 30 / 135 / 240, list top at 174, still ten rows ending at 622. The 2x2 bezel has no 70px member, so `DrawGridBezelScaledTo` (new, hud_art) resamples the 56 frame's art whole to 82x82 and the plate covers its interior.
 
 Build 53, v1.12.073: clean, ctest 831/831; act_plate.png packed.
+
+## v1.12.074 - the Rift Monument
+
+> "use this asset for the Stonegate - Resources\Rift Monument.png. Rename the stonegate to Rift Monument (also in the hover text)."
+
+- **Art:** the user's painting (1161x1355, real alpha) goes through the new generic `tools/ScalePainting.ps1` (the Cube's scaler with parameters) to `Resources/01-in-use-assets/objects/rift-monument-user/rift_monument.png` at 128x149, and `tools/build_stonegate_cel.cmd` now builds `objects/orclgate.cel` from that one frame (8.9 KB, was 125 KB for batch 45's seventeen). `OracoolStonegateAnimWidth` stays 128; `FrameCount` is 1.
+- **The portal in the arch:** the painting's opening floor sits well above its footprint because the flagstone plinth is in front, so the bottom-anchored portal missile stood in the plinth. `AddRiftPortal` now lifts it with `position.offset = {0, -20}`. The monument (OBJ_STAND, `_oPreFlag` false) draws in the after-characters pass, i.e. over the missile, so the portal's outer pixels hide behind the columns and its foot behind the plinth - it reads as standing inside the arch (checked with a composite preview at 3x). The click area is tile-based and unaffected.
+- **Rename:** "Rift Monument" in the hover popup (objects.cpp), the choice menu's title, every log line, the keystone refusal and the `/rift` debug help. Code identifiers (`stonegate.*`, `IsStonegateObject`, `OFILE_ORCLGATE`) are unchanged.
+
+Build 54, v1.12.074: clean, ctest 831/831; the one-frame orclgate.cel (8905 bytes) packed.

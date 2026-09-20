@@ -21,18 +21,19 @@ namespace devilution::oracool {
 namespace {
 
 /**
- * @brief The seventeen frames of objects\orclgate.cel (tools/build_stonegate_cel.cmd, batch 45):
- * 1 the closed gate, 2-9 lit gold, 10-17 lit violet. Object frames are 1-based.
+ * @brief objects\orclgate.cel (tools/build_stonegate_cel.cmd) is ONE frame since 2026-09-20: the
+ * user's own Rift Monument painting (Resources\Rift Monument.png -> tools/ScalePainting.ps1, 128x149).
+ * The name changed with it ("Rename the stonegate to Rift Monument (also in the hover text)"): the
+ * player sees "Rift Monument" everywhere; the code keeps its Stonegate identifiers.
  *
- * ONLY FRAME 1 IS SHOWN since 2026-09-20 (user: "use uncut version of the stonegate asset and just
- * overlap it with portal asset when user selects one of the portals"). The sixteen lit frames -
- * the artist's gold and violet glow baked into the stones, breathing over eight steps - stay in the
- * file but are never selected: the gate is the plain painting in every state, and an open rift is
- * shown by the portal missile alone, standing in the arch. The frames are left in the CEL rather
- * than cut out so the file needs no rebuild and the constants below keep describing it.
+ * The painting does not change with the rift's state (user: "use uncut version of the stonegate
+ * asset and just overlap it with portal asset when user selects one of the portals"): an open rift is
+ * shown by the portal missile alone, drawn over the arch (AddRiftPortal lifts it 20px into the
+ * opening). Batch 45's seventeen-frame cut - closed plus eight gold and eight violet glow frames -
+ * is superseded and filed under 02-concept-assets. Object frames are 1-based.
  */
 constexpr uint32_t ClosedFrame = 1;
-constexpr uint32_t FrameCount = 17;
+constexpr uint32_t FrameCount = 1;
 
 int GateObjectId = -1;
 
@@ -118,7 +119,7 @@ void AddStonegateObject()
 		ShowFrame(*gate, ClosedFrame);
 		GateObjectId = gate->GetId();
 		if (position != Candidates[0])
-			LogEvent(StrCat("The Stonegate fell back to (", position.x, ", ", position.y, ")"), UiFlags::ColorRed);
+			LogEvent(StrCat("The Rift Monument fell back to (", position.x, ", ", position.y, ")"), UiFlags::ColorRed);
 
 		// Town rebuilt with a rift still open: the hero died in it (plan r10) or came back through
 		// the way home. Only the way home ends it - a death AFTER the kill leaves the pile and the
@@ -130,7 +131,7 @@ void AddStonegateObject()
 			EndRift();
 		return;
 	}
-	LogEvent("The Stonegate found no ground to stand on", UiFlags::ColorRed);
+	LogEvent("The Rift Monument found no ground to stand on", UiFlags::ColorRed);
 }
 
 bool IsStonegateObject(const Object &object)
@@ -182,11 +183,11 @@ bool OpenNephalemAtGate()
 	Player &player = *MyPlayer;
 	// Free (plan r6). Its tier is the deepest floor the hero has reached. A rift already standing ends.
 	if (!OpenNephalemRift(player)) {
-		LogEvent("The Stonegate does not answer.", UiFlags::ColorRed);
+		LogEvent("The Rift Monument does not answer.", UiFlags::ColorRed);
 		return false;
 	}
 	LightGate(*gate, RiftKind::Nephalem, /*sound=*/true);
-	LogEvent(StrCat("A golden portal opens in the Stonegate: a Nephalem Rift, tier ", RiftTier(), ". Walk in; ",
+	LogEvent(StrCat("A golden portal opens in the Rift Monument: a Nephalem Rift, tier ", RiftTier(), ". Walk in; ",
 	             RiftGuardianName(RiftGuardian()), " waits at the end and drops a keystone."),
 	    UiFlags::ColorWhitegold);
 	return true;

@@ -129,7 +129,7 @@ void DrawStonegateMenu(const Surface &out)
 	}
 	DrawWindowCloseButtonAt(out, CloseButtonRect(panel));
 
-	DrawString(out, _("The Stonegate"), Rectangle { { panel.position.x + 22, panel.position.y + TitleTop }, { 276, TitleHeight } },
+	DrawString(out, _("Rift Monument"), Rectangle { { panel.position.x + 22, panel.position.y + TitleTop }, { 276, TitleHeight } },
 	    { UiFlags::ColorGold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::Shadowed });
 	DrawString(out, _("Which portal shall it open?"), Rectangle { { panel.position.x + 22, panel.position.y + TitleTop + TitleHeight + 4 }, { 276, 16 } },
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter });
@@ -187,7 +187,7 @@ bool CheckStonegateMenuClick(Point mousePosition)
 		default:
 			if (ActiveRift() != RiftKind::None) {
 				CloseStonegate();
-				LogEvent("The Stonegate falls dark; the rift is gone.", UiFlags::ColorWhitegold);
+				LogEvent("The Rift Monument falls dark; the rift is gone.", UiFlags::ColorWhitegold);
 			}
 			break;
 		}

@@ -220,7 +220,7 @@ bool UseGuardianKeystone(Player &player, const Item &keystone)
 	if (!OpenGuardianRift(player, tier))
 		return false;
 	LightStonegate(RiftKind::Guardian);
-	LogEvent(StrCat("The keystone turns: a violet portal opens in the Stonegate - a Guardian Rift, tier ", tier,
+	LogEvent(StrCat("The keystone turns: a violet portal opens in the Rift Monument - a Guardian Rift, tier ", tier,
 	             ", fifteen minutes, no town portal. ", RiftGuardianName(State.guardian), " waits at the end."),
 	    UiFlags::ColorWhitegold);
 	return true;

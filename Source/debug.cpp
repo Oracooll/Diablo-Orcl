@@ -1517,7 +1517,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "searchitem", "Searches the automap for {item}", "{item}", &DebugCmdSearchItem },
 	{ "searchobject", "Searches the automap for {object}", "{object}", &DebugCmdSearchObject },
 	{ "clearsearch", "Search in the auto map is cleared", "", &DebugCmdClearSearch },
-	{ "rift", "Opens a rift at the Stonegate and enters it: nephalem (free, the deepest floor's tier) or guardian at {tier}.", "{nephalem|guardian} ({tier})", &DebugCmdRift },
+	{ "rift", "Opens a rift at the Rift Monument and enters it: nephalem (free, the deepest floor's tier) or guardian at {tier}.", "{nephalem|guardian} ({tier})", &DebugCmdRift },
 };
 
 } // namespace

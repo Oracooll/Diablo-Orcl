@@ -1,28 +1,30 @@
 @echo off
-REM Builds objects\orclgate.cel - the Stonegate, the town monument the rift portals open in - from the
-REM seventeen real-alpha frames of batch 44 (RfA-21, 2026-09-20; batch 42's frames were cut to a
-REM mis-measured portal and stand three times too tall): frame 0 the closed gate, 1-8 the gate lit
-REM gold, 9-16 the gate lit violet. The portal itself is a missile drawn inside the opening.
+REM Builds objects\orclgate.cel - the Rift Monument (called the Stonegate until 2026-09-20), the town
+REM monument the rift portals open in. ONE frame since 2026-09-20: the user's own painting
+REM (Resources\Rift Monument.png, 1161x1355 with real alpha) scaled to 128 wide by tools\ScalePainting.ps1.
+REM The portal is a missile drawn over it (AddRiftPortal lifts it 20px into the arch). The seventeen-frame
+REM batch 45 cut (closed + eight gold + eight violet, RfA-22) is superseded and stays filed under
+REM 02-concept-assets\delivered-packs.
 REM
 REM The frame width (128) must equal OracoolStonegateAnimWidth in Source/objdat.h. CEL stores no width,
 REM so a mismatch splits every RLE scanline at the wrong point. The tool prints the width it produced.
 REM
 REM Usage:  tools\build_stonegate_cel.cmd
-REM Run from the repository root.
+REM Run from the repository root. If the frame is missing, run first:
+REM   powershell -File tools\ScalePainting.ps1 -Source "..\Resources\Rift Monument.png" -OutDir "..\Resources\01-in-use-assets\objects\rift-monument-user" -OutName rift_monument.png -Width 128
 
 setlocal
-REM Batch 45 (RfA-22, 2026-09-20): the PAINTED cut - batch 44 was a resample of batch 42 and read as a
-REM hatched grey box in town. Same 128x160 geometry and opening, new original painting.
-set FRAMES=..\Resources\02-concept-assets\delivered-packs\batch-45-stonegate-painted\monument
+set FRAMES=..\Resources\01-in-use-assets\objects\rift-monument-user
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\objects\orclgate.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 set EXE=%TEMP%\FramesCel.exe
 
-if not exist "%FRAMES%\stonegate_closed.png" (
-  echo ERROR: stonegate frames not found under %FRAMES%
+if not exist "%FRAMES%\rift_monument.png" (
+  echo ERROR: rift_monument.png not found under %FRAMES% - run tools\ScalePainting.ps1 first, see the header
   exit /b 1
 )
 
 "%CSC%" /nologo /unsafe /optimize /target:exe /out:"%EXE%" /r:System.Drawing.dll tools\FramesCel.cs || exit /b 1
-"%EXE%" "%FRAMES%" "stonegate_closed.png;stonegate_gold_*.png;stonegate_purple_*.png" "%PAL%" "%OUT%" "%TEMP%\stonegate_preview" 0 || exit /b 1
+"%EXE%" "%FRAMES%" "rift_monument.png" "%PAL%" "%OUT%" "%TEMP%\stonegate_preview" 0 || exit /b 1
+endlocal
