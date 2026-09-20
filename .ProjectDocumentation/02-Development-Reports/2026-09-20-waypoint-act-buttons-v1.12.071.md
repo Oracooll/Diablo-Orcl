@@ -90,3 +90,15 @@ Build 54, v1.12.074: clean, ctest 831/831; the one-frame orclgate.cel (8905 byte
 
 - **Act buttons** (user: "rollback the last redesign"): v1.12.073 is reverted in full - the buttons are the v1.12.072 look again: 56x56 tinted spell plate (grey, white on hover, red/orange/purple pressed), the 2x2 bezel, the resting shadow on the pressed button, the list from y 160. `DrawLoosePngScaledTo`, `DrawGridBezelScaledTo` and `ui\act_plate.png` go with it.
 - **Portal** (user: "portal asset behind rift monument - scale down to 90% and move up 7px"): `tools/BuildRiftPortals.ps1` gained `-ScalePercent` (default 90) and resamples each frame after the recolour and fill, so the sheets are 16 x 86x115 per row; misdat's rows read 86 / 11 (the half-width keeps the oval centred where the 96 frame had it); `AddRiftPortal` lifts by 27 instead of 20.
+
+## v1.12.076 - the user's own Act buttons
+
+> "i made three new Act buttons to use in the WP Canvas. Find them in Resources and implement them, replacing the existing Act buttons."
+
+Found in the Resources root: `Diablo Act Button.png`, `Hellfire Act Button.png`, `Orcl Act Button.png` (91x71 each, frame, backing and label in one piece; 18 transparent corner pixels) plus the blank `91x71px Buttons.png` and its Paint.NET source. Filed under `Resources/01-in-use-assets/ui/act-buttons-user/` (`act_diablo/hellfire/orcl/blank.png`), the three labelled ones shipped as `ui\act_<act>.png` in place of ChatGPT's label glyphs.
+
+- The button is now the PNG drawn 1:1 with no bezel or plate under it; the abilities window's drop shadow hugs its rect, the doubled hover shadow under the cursor. A selected act is the same button recoloured in place with `TintRectRgb` (red 0xC82828 / orange 0xE88020 / purple 0x8A3FC8, floor 20%) - the dark frame stays dark since the tint keeps luminance.
+- Row: 91px buttons on a 100px pitch from x 24 (24..315), top at y 74; the list starts at 163, ten rows to 611.
+- The hit box is the button's full rect. The plate-in-bezel look with the act's name in the font remains as the fallback when a button file is missing.
+
+Build 56, v1.12.076: clean, ctest 831/831; the three buttons packed.

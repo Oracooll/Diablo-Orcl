@@ -8,6 +8,7 @@
 #include "DiabloUI/ui_flags.hpp"
 #include "control.h"
 #include "diablo.h" // MousePosition, for the hover highlight
+#include "engine/palette.h" // PAL16_RED and friends - the selected Act button's indexed fallback
 #include "engine/rectangle.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo
@@ -168,8 +169,8 @@ size_t VisibleWaypointCount()
 //
 //   0..28     top margin (PanelTitleTop)
 //   28..66    title band, "WAYPOINT"
-//   74..146   the three Act buttons, bezel to bezel (cells 80..136) - since 2026-09-20
-//   160..608  the scrolling list viewport (448px, ten 43px rows on a 45px pitch)
+//   74..145   the three Act buttons, the user's 91x71 paintings (third cut)
+//   163..611  the scrolling list viewport (448px, ten 43px rows on a 45px pitch)
 //   625..720  the limestone panel's frieze - deliberately left to the art
 //
 // The rows below are the PRE-ACT layout, kept for the constants that still derive from it:
@@ -232,33 +233,40 @@ constexpr int OldListTop = PanelMargin + LabelHeight + SeparatorHeight + Separat
 constexpr int IconGap = 8;   // from the inner edge of the margin to the sigil
 constexpr int TextGap = 10;  // from the sigil to the name
 
-// THE ACT BUTTONS (user, 2026-09-20): three of the abilities window's 56x56 cells in a row between
-// the title and the list - "the 56x56 button backing + framing + shadow + hover shadow". Each is the
-// spell plate (DrawPlateIn) inside the carved 2x2 slot frame (DrawGridBezel, 6px out on every side)
-// with the slot's drop shadow, and the doubled hover shadow under the cursor - exactly the recipe
-// the abilities window's rows and passive band use, so the three read as that window's buttons and
-// not as a new control. ChatGPT's label glyphs (act-glyphs, 96x56) draw centred over each cell.
+// THE ACT BUTTONS (user, 2026-09-20): three buttons in a row between the title and the list, one
+// per act. THE USER'S OWN ART since the third cut the same day ("i made three new Act buttons to use
+// in the WP Canvas ... implement them, replacing the existing Act buttons"): Resources\<Act> Button.png,
+// 91x71 each, frame, backing and label painted in one piece (filed under
+// 01-in-use-assets\ui\act-buttons-user, shipped as ui\act_<act>.png). So the button is the PNG
+// drawn 1:1 - no bezel, no plate under it - with the abilities window's shadows around it: the
+// resting 3px cast, the doubled 6px one under the cursor. A selected act is the same button
+// recoloured in place (TintRectRgb: red, orange, purple), the frame staying dark because the tint
+// keeps every pixel's luminance.
 //
-// The row: three cells on a 112px pitch starting at x 30, which is the margin plus the bezel. That
-// leaves 280px of cell span (30..310) and a gap between cells of exactly one cell, and the 96px
-// glyphs, overhanging each cell by 20px a side, still keep 16px of air between neighbours.
-constexpr int ActCellSize = 56;
-constexpr int ActCellPitch = 112;
-constexpr int ActCellsLeft = PanelMargin + GridBezelInset;
-/** @brief Cell top: 8px under the title band (PanelTitleTop + PanelTitleHeight = 66) for the bezel's 6. */
-constexpr int ActRowTop = PanelTitleTop + PanelTitleHeight + 8 + GridBezelInset;
-constexpr Size ActGlyphSize { 96, 56 };
+// The two earlier cuts - the 56x56 tinted spell plate in the carved bezel with ChatGPT's label
+// glyphs (v1.12.071), and vanilla's plate frame 26 at 70x70 (v1.12.073, rolled back) - are the
+// fallback and the history: the plate-in-bezel look still draws when a button file is missing.
+//
+// The row: three 91px buttons on a 100px pitch from the margin, 24..315 in the 340 panel, 9px apart.
+constexpr Size ActButtonSize { 91, 71 };
+constexpr int ActCellPitch = 100;
+constexpr int ActCellsLeft = PanelMargin;
+/** @brief Button top: 8px under the title band (PanelTitleTop + PanelTitleHeight = 66). */
+constexpr int ActRowTop = PanelTitleTop + PanelTitleHeight + 8;
 constexpr int ActCount = 3;
-constexpr const char *ActGlyphAssets[ActCount] = { "ui\\act_diablo.png", "ui\\act_hellfire.png", "ui\\act_orcl.png" };
+constexpr const char *ActButtonAssets[ActCount] = { "ui\\act_diablo.png", "ui\\act_hellfire.png", "ui\\act_orcl.png" };
 constexpr const char *ActNames[ActCount] = { "Diablo Act", "Hellfire Act", "Orcl Act" };
-static_assert(ActCellsLeft + 2 * ActCellPitch + ActCellSize + GridBezelInset <= PanelSize.width - PanelMargin,
+/** @brief The selected button's hue - red, orange, purple - and the ramp an indexed surface falls back to. */
+constexpr uint32_t ActHueRgb[ActCount] = { 0xC82828, 0xE88020, 0x8A3FC8 };
+constexpr uint8_t ActHueFallbackRamp[ActCount] = { PAL16_RED, PAL16_ORANGE, PAL16_BLUE };
+static_assert(ActCellsLeft + 2 * ActCellPitch + ActButtonSize.width <= PanelSize.width - PanelMargin,
     "the third Act button runs into the panel's right margin");
 
 /**
- * @brief Top of the scrolling viewport: under the button row, clear of the bezel (6) and the hover
- * shadow's 6px cast, with a dozen more of air so the first row does not sit on the shadow.
+ * @brief Top of the scrolling viewport: under the button row, clear of the hover shadow's 6px cast,
+ * with a dozen more of air so the first row does not sit on the shadow.
  */
-constexpr int ListTop = ActRowTop + ActCellSize + GridBezelInset + 6 + 12;
+constexpr int ListTop = ActRowTop + ActButtonSize.height + 6 + 12;
 static_assert(ListTop > OldListTop, "the list now starts under the Act buttons, not on the old rule");
 
 /**
@@ -318,25 +326,19 @@ void UpdateScrollBounds()
 	ScrollOffset = std::clamp(ScrollOffset, 0, MaxScrollOffset);
 }
 
-/** @brief Screen rect of Act button @p act's 56x56 cell - the plate, inside the bezel. */
+/** @brief Screen rect of Act button @p act: the 91x71 painted button, frame included. */
 Rectangle ActCellRect(int act)
 {
 	const Rectangle panel = PanelRect();
 	return { { panel.position.x + ActCellsLeft + act * ActCellPitch, panel.position.y + ActRowTop },
-		{ ActCellSize, ActCellSize } };
+		ActButtonSize };
 }
 
-/**
- * @brief The Act button under @p mousePosition, or -1. The hit box is the cell plus its bezel - the
- * frame is part of the button as drawn, so it is part of the button as clicked.
- */
+/** @brief The Act button under @p mousePosition, or -1. The hit box is the painted button, every pixel of it. */
 int MouseToActButton(Point mousePosition)
 {
 	for (int act = 0; act < ActCount; act++) {
-		const Rectangle cell = ActCellRect(act);
-		const Rectangle withFrame { cell.position - Displacement { GridBezelInset, GridBezelInset },
-			{ cell.size.width + 2 * GridBezelInset, cell.size.height + 2 * GridBezelInset } };
-		if (withFrame.contains(mousePosition))
+		if (ActCellRect(act).contains(mousePosition))
 			return act;
 	}
 	return -1;
@@ -365,27 +367,31 @@ void DrawActButtons(const Surface &out)
 		const bool isHovered = hovered == act;
 		// Shadow first, under everything, like the abilities window: the resting 3px cast, or the
 		// doubled 6px one under the cursor. The selected button keeps the resting shadow - it is
-		// pressed, and a pressed button does not lift.
+		// pressed, and a pressed button does not lift. The painted button carries its own frame, so
+		// the shadow hugs the button's rect (no bezel to clear).
 		if (isHovered && !selected)
-			DrawHoverShadow(out, cell, GridBezelInset);
+			DrawHoverShadow(out, cell, 0);
 		else
-			DrawDropShadow(out, cell, GridBezelInset);
-		DrawGridBezel(out, cell);
-		// The backing: the act's colour while selected; light grey at rest and white under the
-		// cursor, the burger menu's own two resting states.
+			DrawDropShadow(out, cell, 0);
+		if (GetLoosePngSize(ActButtonAssets[act]).width > 0) {
+			// The user's button, 1:1; recoloured in place while selected.
+			DrawLoosePng(out, ActButtonAssets[act], cell.position);
+			if (selected)
+				TintRectRgb(out, cell.position.x, cell.position.y, cell.size.width, cell.size.height,
+				    ActHueRgb[act], /*brightnessPercent=*/100, /*floorPercent=*/20, ActHueFallbackRamp[act]);
+			continue;
+		}
+		// Fallback when the file is missing: the first cut - the tinted spell plate in the carved
+		// 2x2 bezel (drawn INSIDE the button's rect, six pixels in, so the bezel lands on the rect's
+		// edge) with the act's name in the font.
+		const Rectangle plate { cell.position + Displacement { GridBezelInset, GridBezelInset },
+			{ cell.size.width - 2 * GridBezelInset, cell.size.height - 2 * GridBezelInset } };
+		DrawGridBezel(out, plate);
 		const SkillPlateTint tint = selected ? ActSelectedTint(static_cast<WaypointAct>(act))
 		                                     : (isHovered ? SkillPlateTint::White : SkillPlateTint::Unspent);
-		DrawPlateIn(out, cell, tint);
-		// The glyph, centred on the cell. 96 wide over a 56 cell, so it overhangs the frame by 20 a
-		// side; the label's ink is narrower than the file and the overhang is transparent air.
-		if (GetLoosePngSize(ActGlyphAssets[act]).width > 0) {
-			DrawLoosePng(out, ActGlyphAssets[act],
-			    { cell.position.x + (cell.size.width - ActGlyphSize.width) / 2,
-			        cell.position.y + (cell.size.height - ActGlyphSize.height) / 2 });
-		} else {
-			DrawString(out, ActNames[act], cell,
-			    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
-		}
+		DrawPlateIn(out, plate, tint);
+		DrawString(out, ActNames[act], plate,
+		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 }
 
