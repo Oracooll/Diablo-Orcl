@@ -186,32 +186,85 @@ constexpr int SalvageColumnGap = 10;
  * frame, the title, the grid well and every button plate with its label, so the code draws STATE
  * on top of it and nothing else.
  */
-constexpr Size FrameSize = levski_skin::WindowSize;
+constexpr Size RoarFrameSize = levski_skin::WindowSize;
 constexpr const char *LevskiBackgroundAsset = "ui\\levski_bg.png";
 
+/** @brief Lines the recipe list shows on the list skins, at a 20 px pitch. */
+constexpr int ListLines = 8;
+constexpr int ListPitch = 20;
+
 /**
- * @brief Whether the window wears the Cube's own painting (RfA-20 batch 43b, ui\cube_bg.png): the
- * Cube host, with the painting in the archive. The three artisan hosts keep the Roar's painting,
- * whose salvage block is Griswold's and whose recipe-book plate opens the tall book; the Cube's
- * painting has neither - its recipes are listed in the bezel on the right, its one button is the
- * TRANSMUTE recess under the grid. Same window, same grid, two dresses.
+ * @brief The geometry of a LIST skin: a painting (or the user's canvas) with the grid, a recipe list
+ * in a bezel, one TRANSMUTE button and the X. Two wear it: the Cube's painting (RfA-20 batch 43b,
+ * measured into levski_cube_skin.h) and the artisans' canvas (user, 2026-09-20: "Use this canvas as UI
+ * screen when i initiate Mystic (gilian) and Jeweller (ogden) special artisan abilities. Fill the black
+ * background with an interface you draw in code and i will later fill with proper asset"). Griswold's
+ * Forge keeps the Roar's painting, whose salvage plates are his.
  */
-bool CubeSkin()
+struct ListSkinGeometry {
+	Size window;
+	Point gridOrigin;
+	Rectangle transmute;
+	Rectangle list;
+	Rectangle track;
+	Rectangle close;
+	const char *background;
+	/** True for the canvas: the wells, the bezel and the button plate are drawn in code, as placeholders for art. */
+	bool codeDrawn;
+};
+
+constexpr ListSkinGeometry CubeGeometry {
+	cube_skin::WindowSize, cube_skin::GridOrigin, cube_skin::TransmuteRect, cube_skin::RecipeListRect,
+	cube_skin::ScrollTrackRect, cube_skin::CloseRect, cube_skin::BackgroundAsset, false
+};
+/**
+ * The canvas (Resources\Interface Canvas.png -> ui\artisan_canvas.png): 320x352, the ornate frame around
+ * a black interior x 22..297, y 25..326. Inside it: the title band, the 3x4 grid at the left, the recipe
+ * list at the right with its track, the button centred under them.
+ */
+constexpr const char *ArtisanCanvasAsset = "ui\\artisan_canvas.png";
+constexpr ListSkinGeometry ArtisanGeometry {
+	{ 320, 352 }, { 30, 66 }, { { 89, 296 }, { 142, 26 } }, { { 124, 66 }, { 162, ListLines * ListPitch } },
+	{ { 290, 66 }, { 4, ListLines * ListPitch } }, { { 296, 5 }, { 18, 18 } }, ArtisanCanvasAsset, true
+};
+
+/** @brief The list skin the window wears right now, or nullptr for the Roar's painting. */
+const ListSkinGeometry *ListSkin()
 {
-	return WindowHost == TransmuteHost::Cube && GetLoosePngSize(cube_skin::BackgroundAsset).width > 0;
+	// The canvas for the Cube too (user, 2026-09-20: "Use same canvas and in code drawn interface for the
+	// UI of Levski's Cube"); batch 43b's painting stays measured in levski_cube_skin.h, unworn.
+	if (WindowHost == TransmuteHost::Cube || WindowHost == TransmuteHost::Tavern || WindowHost == TransmuteHost::Barmaid) {
+		if (GetLoosePngSize(ArtisanGeometry.background).width > 0)
+			return &ArtisanGeometry;
+		if (WindowHost == TransmuteHost::Cube && GetLoosePngSize(CubeGeometry.background).width > 0)
+			return &CubeGeometry;
+	}
+	return nullptr;
 }
 
-/** @brief One of the ten painted plates, in window space. Under the Cube skin only the close X and
+/** @brief Whether the window wears a list skin (the name predates the artisans' canvas). */
+bool CubeSkin()
+{
+	return ListSkin() != nullptr;
+}
+
+Size CurrentFrameSize()
+{
+	const ListSkinGeometry *skin = ListSkin();
+	return skin != nullptr ? skin->window : RoarFrameSize;
+}
+
+/** @brief One of the ten painted plates, in window space. Under a list skin only the close X and
  * TRANSMUTE exist; every other plate is an empty rect, which contains nothing and draws nothing. */
 Rectangle ButtonRect(const Rectangle &window, int index)
 {
-	if (CubeSkin()) {
+	if (const ListSkinGeometry *skin = ListSkin(); skin != nullptr) {
 		if (index == levski_skin::Close) {
-			const Rectangle &c = cube_skin::CloseRect;
+			const Rectangle &c = skin->close;
 			return Rectangle { window.position + Displacement { c.position.x, c.position.y }, c.size };
 		}
 		if (index == levski_skin::Transmute) {
-			const Rectangle &t = cube_skin::TransmuteRect;
+			const Rectangle &t = skin->transmute;
 			return Rectangle { window.position + Displacement { t.position.x, t.position.y }, t.size };
 		}
 		return Rectangle { { 0, 0 }, { 0, 0 } };
@@ -220,19 +273,20 @@ Rectangle ButtonRect(const Rectangle &window, int index)
 	return Rectangle { window.position + Displacement { r.position.x, r.position.y }, r.size };
 }
 
-/** @brief The Cube skin's bezel line @p line (0..RecipeLines-1), in screen space. */
+/** @brief The list skin's bezel line @p line (0..ListLines-1), in screen space. */
 Rectangle CubeLineRect(const Rectangle &window, int line)
 {
-	const Rectangle &list = cube_skin::RecipeListRect;
-	return Rectangle { window.position + Displacement { list.position.x, list.position.y + line * cube_skin::RecipeLinePitch },
-		{ list.size.width, cube_skin::RecipeLinePitch } };
+	const ListSkinGeometry *skin = ListSkin();
+	const Rectangle &list = skin != nullptr ? skin->list : CubeGeometry.list;
+	return Rectangle { window.position + Displacement { list.position.x, list.position.y + line * ListPitch },
+		{ list.size.width, ListPitch } };
 }
 
-/** @brief The host's recipes in book order - the Cube skin lists one per bezel line. */
+/** @brief The host's recipes in book order - a list skin lists one per bezel line. */
 std::vector<int> CubeListRecipes();
 int CubeListMaxScroll()
 {
-	return std::max(0, static_cast<int>(CubeListRecipes().size()) - cube_skin::RecipeLines);
+	return std::max(0, static_cast<int>(CubeListRecipes().size()) - ListLines);
 }
 /** @brief The recipe on bezel line @p line after the scroll, or -1 past the end of the host's book. */
 int CubeListRecipeAt(int line)
@@ -403,8 +457,10 @@ int RecipeBookMaxScroll(const Rectangle &page)
 
 Point GridOrigin(const Rectangle &window)
 {
-	// Centred: the grid is narrower than the window's own buttons.
-	return window.position + Displacement { levski_skin::GridOrigin.x, levski_skin::GridOrigin.y };
+	// Where the skin paints its wells: the Roar's and the Cube's share (26,106); the canvas has its own.
+	const ListSkinGeometry *skin = ListSkin();
+	const Point origin = skin != nullptr ? skin->gridOrigin : levski_skin::GridOrigin;
+	return window.position + Displacement { origin.x, origin.y };
 }
 
 Rectangle CellRect(const Rectangle &window, int cell)
@@ -705,7 +761,7 @@ bool SetLevskiHoverInfoString()
 		if (CubeSkin()) {
 			// A bezel line under the cursor: the recipe's name and its formula, since the line has
 			// room for the name alone.
-			for (int line = 0; line < cube_skin::RecipeLines; line++) {
+			for (int line = 0; line < ListLines; line++) {
 				const int recipe = CubeListRecipeAt(line);
 				if (recipe < 0)
 					break;
@@ -886,17 +942,18 @@ Rectangle GetLevskiRoarRect()
 	// open and the room to the left is short of it (audit, 2026-09-08: at 960 wide the centred window
 	// leaves 287px and the 420px book clamped to x=0 covered the whole item grid). Then the window
 	// slides right exactly as far as the book needs, and no further than the screen allows.
-	int x = (gnScreenWidth - FrameSize.width) / 2;
+	const Size frame = CurrentFrameSize();
+	int x = (gnScreenWidth - frame.width) / 2;
 	if (RecipeBookOpen) {
 		const int needed = BookFrameSize(BookFrame::Tall).width + SlotGap;
 		if (x < needed)
-			x = std::min(needed, std::max(0, static_cast<int>(gnScreenWidth) - FrameSize.width));
+			x = std::min(needed, std::max(0, static_cast<int>(gnScreenWidth) - frame.width));
 	}
 	// CENTRED vertically (user, 2026-08-27: "Levski's Roar should be middle of screen"). It sat a
 	// third of the way down before, and was briefly bottom-docked by a rule that was never meant for
 	// it - the docking rule is about the side panels.
-	const int y = std::max(0, (static_cast<int>(gnScreenHeight) - FrameSize.height) / 2);
-	return Rectangle { { x, y }, FrameSize };
+	const int y = std::max(0, (static_cast<int>(gnScreenHeight) - frame.height) / 2);
+	return Rectangle { { x, y }, frame };
 }
 
 Rectangle GetLevskiRecipeBookRect()
@@ -1017,11 +1074,36 @@ void DrawLevskiRoar(const Surface &out)
 	// The painted skin. Everything the old window drew itself - frame, title, grid well, plates and
 	// labels - is in the painting; what is drawn here is STATE: items in the grid, a plate under the
 	// cursor or mid-press, and a plate dimmed because pressing it would do nothing.
-	const bool cube = CubeSkin();
-	const char *skin = cube ? cube_skin::BackgroundAsset : LevskiBackgroundAsset;
+	const ListSkinGeometry *listSkin = ListSkin();
+	const bool cube = listSkin != nullptr;
+	const char *skin = cube ? listSkin->background : LevskiBackgroundAsset;
 	if (GetLoosePngSize(skin).width == 0)
 		DrawPanelGround(out, window); // the skin did not load: the flat ground, so the window still exists
 	DrawLoosePng(out, skin, window.position);
+
+	if (cube && listSkin->codeDrawn) {
+		// The artisans' canvas: its interior is black, and everything in it is drawn here as a
+		// placeholder the user will paint over - the title, the twelve wells, the list's bezel and
+		// the button's plate. Colours from the border's own ramp so it reads as one object.
+		const char *title = WindowHost == TransmuteHost::Cube ? "Levski's Cube" : WindowHost == TransmuteHost::Tavern ? "Ogden's Table" : "Gillian's Hearth";
+		DrawString(out, _(title), Rectangle { { window.position.x + 22, window.position.y + 30 }, { 276, 26 } },
+		    { UiFlags::ColorGold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::Shadowed });
+		const Point origin = GridOrigin(window);
+		for (int cell = 0; cell < LevskiGridSlots; cell++) {
+			const Rectangle well { { origin.x + (cell % LevskiGridColumns) * levski_skin::GridPitch, origin.y + (cell / LevskiGridColumns) * levski_skin::GridPitch },
+				{ levski_skin::GridPitch, levski_skin::GridPitch } };
+			FillRect(out, well.position.x, well.position.y, well.size.width, well.size.height, PanelFillColor);
+			FillRect(out, well.position.x + 1, well.position.y + 1, well.size.width - 2, well.size.height - 2, SlotFillColor);
+		}
+		const Rectangle list { window.position + Displacement { listSkin->list.position.x - 3, listSkin->list.position.y - 3 }, { listSkin->list.size.width + 6, listSkin->list.size.height + 6 } };
+		FillRect(out, list.position.x, list.position.y, list.size.width, list.size.height, PanelFillColor);
+		FillRect(out, list.position.x + 1, list.position.y + 1, list.size.width - 2, list.size.height - 2, SlotFillColor);
+		const Rectangle track { window.position + Displacement { listSkin->track.position.x, listSkin->track.position.y }, listSkin->track.size };
+		FillRect(out, track.position.x, track.position.y, track.size.width, track.size.height, PanelFillColor);
+		const Rectangle plate = TransmuteButtonRect(window);
+		FillRect(out, plate.position.x - 1, plate.position.y - 1, plate.size.width + 2, plate.size.height + 2, PanelFillColor);
+		FillRect(out, plate.position.x, plate.position.y, plate.size.width, plate.size.height, SlotFillColor);
+	}
 
 	const int hoveredAnchor = HoveredAnchor();
 	for (int anchor = 0; anchor < LevskiGridSlots; anchor++) {
@@ -1078,7 +1160,7 @@ void DrawLevskiRoar(const Surface &out)
 		const bool hovered = button.contains(MousePosition);
 		const bool pressed = ButtonFlashActive(ButtonFlashTransmute);
 		const char *buttonArt = pressed ? cube_skin::TransmuteButtonPressedAsset : cube_skin::TransmuteButtonAsset;
-		if (GetLoosePngSize(buttonArt).width > 0) {
+		if (!listSkin->codeDrawn && GetLoosePngSize(buttonArt).width > 0) {
 			DrawLoosePng(out, buttonArt, button.position);
 		} else {
 			DrawString(out, _("TRANSMUTE"), button,
@@ -1088,7 +1170,7 @@ void DrawLevskiRoar(const Surface &out)
 			DrawHoverOutline(out, button);
 
 		CubeListScroll = std::clamp(CubeListScroll, 0, CubeListMaxScroll());
-		for (int line = 0; line < cube_skin::RecipeLines; line++) {
+		for (int line = 0; line < ListLines; line++) {
 			const int recipe = CubeListRecipeAt(line);
 			if (recipe < 0)
 				break;
@@ -1108,9 +1190,9 @@ void DrawLevskiRoar(const Surface &out)
 		// The thumb in the painted track, sized as the visible share of the book.
 		const int maxScroll = CubeListMaxScroll();
 		if (maxScroll > 0) {
-			const Rectangle &track = cube_skin::ScrollTrackRect;
-			const int count = maxScroll + cube_skin::RecipeLines;
-			const int thumbHeight = std::max(8, track.size.height * cube_skin::RecipeLines / count);
+			const Rectangle &track = listSkin->track;
+			const int count = maxScroll + ListLines;
+			const int thumbHeight = std::max(8, track.size.height * ListLines / count);
 			const int thumbTop = (track.size.height - thumbHeight) * CubeListScroll / maxScroll;
 			FillRect(out, window.position.x + track.position.x, window.position.y + track.position.y + thumbTop,
 			    track.size.width, thumbHeight, ButtonFlashColor);
@@ -1292,7 +1374,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	// The Cube skin's bezel: a click on a listed recipe selects it, on the selected one clears the
 	// selection - the tall book's rule, on the painting's own lines.
 	if (CubeSkin()) {
-		for (int line = 0; line < cube_skin::RecipeLines; line++) {
+		for (int line = 0; line < ListLines; line++) {
 			const int recipe = CubeListRecipeAt(line);
 			if (recipe < 0)
 				break;
