@@ -13436,7 +13436,7 @@ TEST(OracoolAudit, AnElementIsTheSameColourOnTheSheetAndOverTheMonsterSHead)
 // so this asks what the strings actually BECAME, and then whether the archive has them.
 TEST(OracoolAudit, EveryUiEventSoundPathSurvivedTheCompiler)
 {
-	ASSERT_EQ(oracool::UiEventSoundCount, 11u) << "a sound was added or removed; extend this test"; // 11 since the rift sounds (batch 42, 2026-09-20)
+	ASSERT_EQ(oracool::UiEventSoundCount, 13u) << "a sound was added or removed; extend this test"; // 13 since the Cube's sounds (batch 43d, 2026-09-20)
 
 	for (size_t i = 0; i < oracool::UiEventSoundCount; i++) {
 		const auto sound = static_cast<oracool::UiEventSound>(i);

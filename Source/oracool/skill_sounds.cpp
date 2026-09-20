@@ -205,6 +205,8 @@ constexpr const char *UiEventPaths[] = {
 	"sfx\\ui\\signet-use.wav",
 	"sfx\\ui\\rift_open.wav",  // RfA-19 batch 42 (2026-09-20)
 	"sfx\\ui\\rift_close.wav", // RfA-19 batch 42 (2026-09-20)
+	"sfx\\ui\\cube_open.wav",      // RfA-20 batch 43d (2026-09-20)
+	"sfx\\ui\\cube_transmute.wav", // RfA-20 batch 43d (2026-09-20)
 };
 std::unique_ptr<TSnd> UiEventCache[std::size(UiEventPaths)];
 

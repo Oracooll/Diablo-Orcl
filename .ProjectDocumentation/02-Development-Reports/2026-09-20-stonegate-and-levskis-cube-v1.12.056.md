@@ -54,3 +54,33 @@ D7 all four crafts; D8 the recipe SPLIT to the artisans.
 ## Related
 
 - [[2026-09-20-item-level-requirements-v1.12.054]] - the level requirement the Unbind rite removes.
+
+## v1.12.057 - the Cube's own window (batch 43b/43c), the same night
+
+Batch 43b (the window painting) and 43c (the TRANSMUTE button and four glyphs) landed at 03:05 and 03:15. GPT
+painted the layout the brief asked for - and the brief had described the Roar's window as "a recipe list on the
+right", which it is not: the Roar's painting carries the 4x2 block of salvage plates there. So the new painting has
+NO salvage cells and NO recipe-book plate; it has the twelve wells at the Roar's grid origin (26,106), a 142x26
+recess under the grid, and a bezel on the right with eight line positions at a 20 px pitch and a scroll track.
+
+- `oracool/levski_cube_skin.h`: the painting measured by row and column scans (recess interior 140x24 at (19,233),
+  so the button rect is (18,231) 142x26; bezel interior (179,77) 154x172, dividers every 20 px; track x 344-348;
+  the red X at (364,3) over the corner ornament).
+- `CubeSkin()` in levski_roar.cpp: the Cube host with `ui\cube_bg.png` in the archive wears it. Under it the
+  window has two controls - the X and TRANSMUTE (the 43c button art at rest / pressed; the game's gold label until
+  it loaded) - and the host's recipes are listed IN the bezel, one name per line, gold when the grid can run it,
+  whitegold otherwise, white on a filled band when selected; a click selects (again clears), the wheel scrolls a
+  line per notch while the cursor is on the window, a thumb in the painted track shows the position, and hovering
+  a line puts the name and formula on the info panel (the line has room for the name alone).
+- The artisans keep the Roar's painting, whose salvage block is now Griswold's alone: the seven tier plates are
+  drawn, hoverable and clickable only on his Forge book. Ogden's and Gillian's books show the painting's empty
+  carved cells there. (The painting's title still reads "Levski's Roar" on the artisans' books - a wart to paint
+  over when their windows get their own dress.)
+- Sounds: `UiEventSound::CubeOpen` (the Cube object opening its window) and `CubeTransmute` (a transmute on the
+  Cube's book; the artisans keep the old transmute sound). Batch 43d has not landed, so `cube_open.wav` and
+  `cube_transmute.wav` are COPIES of rift_open / transmute holding the slots - the archive test insists every path
+  names a real file. Overwrite them when the delivery comes; no code changes.
+- The four 24 px recipe glyphs (flask, hammer, arrow-through-gem, broken chain) are parked in the delivery folder:
+  the bezel's lines are 20 px tall.
+
+Build 29 green: 821/821. The button art missed build 29's pack list (copied a minute after configure); build 30 (v1.12.058) carries it.

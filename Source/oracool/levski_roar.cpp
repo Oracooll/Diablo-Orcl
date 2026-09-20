@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <string>
+#include <vector>
 
 #include "DiabloUI/ui_flags.hpp"
 #include "control.h"
@@ -28,6 +29,7 @@
 #include "oracool/event_log.h"
 #include "oracool/hud_art.h" // DrawLoosePng, DrawRedCross - the painted skin and its states
 #include "oracool/levski_roar_skin.h"
+#include "oracool/levski_cube_skin.h" // the Cube host's own painting (RfA-20 batch 43b)
 #include "oracool/book_frame.h" // the painted tall frame the recipe book wears
 #include "oracool/ornate_border.h"
 #include "oracool/salvage.h"
@@ -77,6 +79,14 @@ void DrawQuarterDarkenRect(const Surface &out, const Rectangle &rect)
 
 bool WindowOpen = false;
 bool RecipeBookOpen = false;
+/**
+ * @brief Whose book the window is open on (Levski's Cube, 2026-09-20). The Cube object opens the
+ * Cube's; Griswold's Forge tab, Ogden's table and Gillian's hearth open theirs. The window is one,
+ * the recipes shown are the host's - see RecipeBelongsTo.
+ */
+TransmuteHost WindowHost = TransmuteHost::Cube;
+/** @brief The Cube skin's recipe list, scrolled in whole lines (the bezel has eight line positions). */
+int CubeListScroll = 0;
 
 /**
  * The pressed-button flash. User request, 2026-08-20: "Make some visual feedback when i click on
@@ -179,11 +189,57 @@ constexpr int SalvageColumnGap = 10;
 constexpr Size FrameSize = levski_skin::WindowSize;
 constexpr const char *LevskiBackgroundAsset = "ui\\levski_bg.png";
 
-/** @brief One of the ten painted plates, in window space. */
+/**
+ * @brief Whether the window wears the Cube's own painting (RfA-20 batch 43b, ui\cube_bg.png): the
+ * Cube host, with the painting in the archive. The three artisan hosts keep the Roar's painting,
+ * whose salvage block is Griswold's and whose recipe-book plate opens the tall book; the Cube's
+ * painting has neither - its recipes are listed in the bezel on the right, its one button is the
+ * TRANSMUTE recess under the grid. Same window, same grid, two dresses.
+ */
+bool CubeSkin()
+{
+	return WindowHost == TransmuteHost::Cube && GetLoosePngSize(cube_skin::BackgroundAsset).width > 0;
+}
+
+/** @brief One of the ten painted plates, in window space. Under the Cube skin only the close X and
+ * TRANSMUTE exist; every other plate is an empty rect, which contains nothing and draws nothing. */
 Rectangle ButtonRect(const Rectangle &window, int index)
 {
+	if (CubeSkin()) {
+		if (index == levski_skin::Close) {
+			const Rectangle &c = cube_skin::CloseRect;
+			return Rectangle { window.position + Displacement { c.position.x, c.position.y }, c.size };
+		}
+		if (index == levski_skin::Transmute) {
+			const Rectangle &t = cube_skin::TransmuteRect;
+			return Rectangle { window.position + Displacement { t.position.x, t.position.y }, t.size };
+		}
+		return Rectangle { { 0, 0 }, { 0, 0 } };
+	}
 	const Rectangle &r = levski_skin::ButtonRects[index];
 	return Rectangle { window.position + Displacement { r.position.x, r.position.y }, r.size };
+}
+
+/** @brief The Cube skin's bezel line @p line (0..RecipeLines-1), in screen space. */
+Rectangle CubeLineRect(const Rectangle &window, int line)
+{
+	const Rectangle &list = cube_skin::RecipeListRect;
+	return Rectangle { window.position + Displacement { list.position.x, list.position.y + line * cube_skin::RecipeLinePitch },
+		{ list.size.width, cube_skin::RecipeLinePitch } };
+}
+
+/** @brief The host's recipes in book order - the Cube skin lists one per bezel line. */
+std::vector<int> CubeListRecipes();
+int CubeListMaxScroll()
+{
+	return std::max(0, static_cast<int>(CubeListRecipes().size()) - cube_skin::RecipeLines);
+}
+/** @brief The recipe on bezel line @p line after the scroll, or -1 past the end of the host's book. */
+int CubeListRecipeAt(int line)
+{
+	const std::vector<int> recipes = CubeListRecipes();
+	const int index = CubeListScroll + line;
+	return index >= 0 && index < static_cast<int>(recipes.size()) ? recipes[index] : -1;
 }
 
 Rectangle CloseButtonRect(const Rectangle &window)
@@ -263,10 +319,18 @@ void DrawPanelGround(const Surface &out, const Rectangle &rect, uint8_t fill = P
 int SelectedRecipe = -1;
 
 /** @brief Whose recipe book the open window shows (Levski's Cube, 2026-09-20). */
-TransmuteHost WindowHost = TransmuteHost::Cube;
-
 /** @brief How far the recipe book is scrolled, in pixels. Clamped on every draw. */
 int RecipeBookScroll = 0;
+
+std::vector<int> CubeListRecipes()
+{
+	std::vector<int> recipes;
+	for (int i = 0; i < CraftingRecipeCount; i++) {
+		if (RecipeBelongsTo(i, WindowHost))
+			recipes.push_back(i);
+	}
+	return recipes;
+}
 
 std::string RecipeBookText(int width)
 {
@@ -603,6 +667,14 @@ bool LevskiGridCanHold(const Item *items, int count)
 
 bool HandleLevskiRecipeBookScroll(int notches)
 {
+	if (WindowOpen && CubeSkin()) {
+		// The bezel list scrolls a line per notch, and only while the cursor is on the window - the
+		// wheel elsewhere still belongs to whatever is under it.
+		if (!GetLevskiRoarRect().contains(MousePosition))
+			return false;
+		CubeListScroll = std::clamp(CubeListScroll - notches, 0, CubeListMaxScroll());
+		return true;
+	}
 	if (!WindowOpen || !RecipeBookOpen)
 		return false;
 	const Rectangle book = GetLevskiRecipeBookRect();
@@ -630,7 +702,24 @@ bool SetLevskiHoverInfoString()
 	// SalvageAllInBackpack acts on - not the grid the cursor is next to.
 	if (WindowOpen) {
 		const Rectangle window = GetLevskiRoarRect();
+		if (CubeSkin()) {
+			// A bezel line under the cursor: the recipe's name and its formula, since the line has
+			// room for the name alone.
+			for (int line = 0; line < cube_skin::RecipeLines; line++) {
+				const int recipe = CubeListRecipeAt(line);
+				if (recipe < 0)
+					break;
+				if (!CubeLineRect(window, line).contains(MousePosition))
+					continue;
+				const bool ready = CanCraftFromLevskiGrid(GridItems, recipe);
+				SetPanelString(_(CraftingRecipeName(recipe)), ready ? UiFlags::ColorGold : UiFlags::ColorWhitegold);
+				AddPanelString(_(CraftingRecipeInputs(recipe)), UiFlags::ColorWhite);
+				return true;
+			}
+		}
 		for (int i = levski_skin::Close + 1; i < levski_skin::ButtonCount; i++) {
+			if (i >= levski_skin::SalvageFirst && WindowHost != TransmuteHost::Smith)
+				continue; // not drawn there, so not hoverable (Griswold's plates)
 			if (!ButtonRect(window, i).contains(MousePosition))
 				continue;
 			// Transmute says nothing (user, 2026-09-12: "remove the pop up text when hovering over
@@ -715,7 +804,10 @@ void ToggleLevskiRoar()
 	WindowOpen = true;
 	RecipeBookOpen = false;
 	SelectedRecipe = -1;
-	PlayUiSelectSound();
+	CubeListScroll = 0;
+	// The lid grinding a finger's width (RfA-20 batch 43d); the select click until the sound lands.
+	if (!PlayUiEventSound(UiEventSound::CubeOpen))
+		PlayUiSelectSound();
 }
 
 void OpenLevskiWindowFor(TransmuteHost host)
@@ -731,6 +823,7 @@ void OpenLevskiWindowFor(TransmuteHost host)
 	WindowOpen = true;
 	RecipeBookOpen = false;
 	SelectedRecipe = -1;
+	CubeListScroll = 0;
 	PlayUiSelectSound();
 }
 
@@ -760,6 +853,7 @@ void ResetLevskiRoarForNewGame()
 	WindowOpen = false;
 	RecipeBookOpen = false;
 	RecipeBookScroll = 0;
+	CubeListScroll = 0;
 }
 
 void CloseLevskiRoar()
@@ -922,9 +1016,11 @@ void DrawLevskiRoar(const Surface &out)
 	// The painted skin. Everything the old window drew itself - frame, title, grid well, plates and
 	// labels - is in the painting; what is drawn here is STATE: items in the grid, a plate under the
 	// cursor or mid-press, and a plate dimmed because pressing it would do nothing.
-	if (GetLoosePngSize(LevskiBackgroundAsset).width == 0)
+	const bool cube = CubeSkin();
+	const char *skin = cube ? cube_skin::BackgroundAsset : LevskiBackgroundAsset;
+	if (GetLoosePngSize(skin).width == 0)
 		DrawPanelGround(out, window); // the skin did not load: the flat ground, so the window still exists
-	DrawLoosePng(out, LevskiBackgroundAsset, window.position);
+	DrawLoosePng(out, skin, window.position);
 
 	const int hoveredAnchor = HoveredAnchor();
 	for (int anchor = 0; anchor < LevskiGridSlots; anchor++) {
@@ -972,6 +1068,55 @@ void DrawLevskiRoar(const Surface &out)
 	// it, and its frame's corner is not the rect's corner - see the cutter).
 	DrawWindowCloseButtonAt(out, CloseButtonRect(window));
 
+	if (cube) {
+		// The Cube's painting (batch 43b): TRANSMUTE is a recess under the grid, and the recipes are
+		// listed in the bezel on the right - one name per line, eight lines, the wheel scrolls them.
+		// The button art (batch 43c) goes in the recess when it lands; until then the game's own
+		// gold label names it, so the recess is never a blank slot.
+		const Rectangle button = TransmuteButtonRect(window);
+		const bool hovered = button.contains(MousePosition);
+		const bool pressed = ButtonFlashActive(ButtonFlashTransmute);
+		const char *buttonArt = pressed ? cube_skin::TransmuteButtonPressedAsset : cube_skin::TransmuteButtonAsset;
+		if (GetLoosePngSize(buttonArt).width > 0) {
+			DrawLoosePng(out, buttonArt, button.position);
+		} else {
+			DrawString(out, _("TRANSMUTE"), button,
+			    { (pressed ? UiFlags::ColorWhitegold : UiFlags::ColorGold) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		}
+		if (hovered && !pressed)
+			DrawHoverOutline(out, button);
+
+		CubeListScroll = std::clamp(CubeListScroll, 0, CubeListMaxScroll());
+		for (int line = 0; line < cube_skin::RecipeLines; line++) {
+			const int recipe = CubeListRecipeAt(line);
+			if (recipe < 0)
+				break;
+			const Rectangle row = CubeLineRect(window, line);
+			const bool ready = CanCraftFromLevskiGrid(GridItems, recipe);
+			const bool selected = SelectedRecipe == recipe;
+			if (selected) {
+				// The book's own band: the name's colour already says "ready", so the selection is a fill.
+				FillRect(out, row.position.x + 1, row.position.y + 1, row.size.width - 2, row.size.height - 2, ButtonFlashColor);
+			}
+			const Rectangle text { { row.position.x + 4, row.position.y }, { row.size.width - 8, row.size.height } };
+			DrawString(out, _(CraftingRecipeName(recipe)), text,
+			    { (selected ? UiFlags::ColorWhite : (ready ? UiFlags::ColorGold : UiFlags::ColorWhitegold)) | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+			if (!selected && text.contains(MousePosition))
+				DrawHoverOutline(out, row);
+		}
+		// The thumb in the painted track, sized as the visible share of the book.
+		const int maxScroll = CubeListMaxScroll();
+		if (maxScroll > 0) {
+			const Rectangle &track = cube_skin::ScrollTrackRect;
+			const int count = maxScroll + cube_skin::RecipeLines;
+			const int thumbHeight = std::max(8, track.size.height * cube_skin::RecipeLines / count);
+			const int thumbTop = (track.size.height - thumbHeight) * CubeListScroll / maxScroll;
+			FillRect(out, window.position.x + track.position.x, window.position.y + track.position.y + thumbTop,
+			    track.size.width, thumbHeight, ButtonFlashColor);
+		}
+		return; // no salvage block, no recipe-book plate, no tall book: the bezel IS the book
+	}
+
 	// The SALVAGE title over the block (user, 2026-09-05: "Gold, with text shadow. Appropriate font
 	// size"): 24px, the window title's own gold, and the same shadow the hero sheet's text wears.
 	// Skipped when the skin gives it no room: the 2026-09-05 painting carries SALVAGE on its own
@@ -986,6 +1131,11 @@ void DrawLevskiRoar(const Surface &out)
 	// or pressed frame replaces it while the cursor is on it or the press flash is running. Where a
 	// hover file is the plain plate (HoverIsPlain), the hover is marked with the theme's outline.
 	for (int i = levski_skin::Close + 1; i < levski_skin::ButtonCount; i++) {
+		// Salvage is Griswold's (roadmap, 2026-09-20): the seven tier plates are drawn - and work -
+		// only on his Forge. Ogden's and Gillian's books wear the same painting, whose carved cells
+		// are empty, so leaving them undrawn leaves eight empty cells and no dead buttons.
+		if (i >= levski_skin::SalvageFirst && WindowHost != TransmuteHost::Smith)
+			continue;
 		const Rectangle rect = ButtonRect(window, i);
 		const bool hovered = rect.contains(MousePosition);
 		const int flash = FlashIndexForButton(i);
@@ -1138,10 +1288,25 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 		return true;
 	}
 
+	// The Cube skin's bezel: a click on a listed recipe selects it, on the selected one clears the
+	// selection - the tall book's rule, on the painting's own lines.
+	if (CubeSkin()) {
+		for (int line = 0; line < cube_skin::RecipeLines; line++) {
+			const int recipe = CubeListRecipeAt(line);
+			if (recipe < 0)
+				break;
+			if (!CubeLineRect(window, line).contains(mousePosition))
+				continue;
+			SelectedRecipe = (SelectedRecipe == recipe) ? -1 : recipe;
+			PlayUiSelectSound();
+			return true;
+		}
+	}
+
 	// Salvage. Reports what it did, always - a button that silently does nothing because you own no
 	// rares is indistinguishable from a button that is broken, and this fork has shipped that exact
-	// ambiguity twice.
-	for (int i = 0; i < SalvageTierCount; i++) {
+	// ambiguity twice. Griswold's Forge only (the plates are not drawn on the other books).
+	for (int i = 0; WindowHost == TransmuteHost::Smith && i < SalvageTierCount; i++) {
 		if (!SalvageButtonRect(window, i).contains(mousePosition))
 			continue;
 		FlashButton(i); // fires whether or not there was anything to salvage - it acknowledges the CLICK
@@ -1214,7 +1379,10 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			LogEvent(StrCat("Levski's Roar: ", result));
 		// Salvage's sound for a transmute that MADE something. The room refusals consumed nothing
 		// and stay as quiet as the other refusals above; crafting.cpp owns their wording.
-		if (!result.empty() && !IsTransmuteRefusal(result) && !PlayUiEventSound(UiEventSound::Transmute))
+		// The Cube's own flash (RfA-20 batch 43d) on its book; the artisans keep the salvage-era sound.
+		if (!result.empty() && !IsTransmuteRefusal(result)
+		    && !(WindowHost == TransmuteHost::Cube && PlayUiEventSound(UiEventSound::CubeTransmute))
+		    && !PlayUiEventSound(UiEventSound::Transmute))
 			PlaySFX(IS_ISHIEL); // the old stand-in, if the transmute sound is not in the archive
 		return true;
 	}
