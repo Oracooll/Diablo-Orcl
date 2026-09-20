@@ -120,6 +120,7 @@ set(libdevilutionx_SRCS
   oracool/level_requirement.cpp
   oracool/rift.cpp
   oracool/stonegate.cpp
+  oracool/stonegate_menu.cpp
   oracool/venom.cpp
   oracool/signets.cpp
   oracool/named_encounters.cpp

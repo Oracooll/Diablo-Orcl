@@ -226,6 +226,30 @@ bool UseGuardianKeystone(Player &player, const Item &keystone)
 	return true;
 }
 
+int FindBestKeystoneInBackpack(const Player &player)
+{
+	int best = -1;
+	for (int i = 0; i < player._pNumInv; i++) {
+		const Item &item = player.InvList[i];
+		if (item.isEmpty() || item._iMiscId != IMISC_ORACOOL_KEYSTONE)
+			continue;
+		if (best < 0 || item._iOracoolRiftTier > player.InvList[best]._iOracoolRiftTier)
+			best = i;
+	}
+	return best;
+}
+
+bool UseBestKeystoneFromBackpack(Player &player)
+{
+	const int index = FindBestKeystoneInBackpack(player);
+	if (index < 0)
+		return false;
+	if (!UseGuardianKeystone(player, player.InvList[index]))
+		return false;
+	player.RemoveInvItem(index);
+	return true;
+}
+
 int NextKeystoneTier(int tier, int ticksLeft, int ticksTotal, bool timedOut)
 {
 	if (timedOut)

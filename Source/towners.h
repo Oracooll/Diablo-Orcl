@@ -76,6 +76,8 @@ extern Towner Towners[NUM_TOWNERS];
 Towner *GetTowner(_talker_id type);
 
 void InitTowners();
+/** @brief Ogden's queued quest speech, cleared on the take (TEXT_NONE when none): the tavern menu's "Talk to Ogden" line plays it. */
+_speech_id TakeOgdenQuestText();
 void FreeTownerGFX();
 void ProcessTowners();
 void TalkToTowner(Player &player, int t);

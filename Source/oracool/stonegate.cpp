@@ -12,6 +12,7 @@
 #include "oracool/event_log.h"
 #include "oracool/rift.h"
 #include "oracool/skill_sounds.h"
+#include "oracool/stonegate_menu.h"
 #include "player.h"
 #include "utils/str_cat.hpp"
 
@@ -166,28 +167,29 @@ void CloseStonegate()
 
 void ToggleStonegate()
 {
+	// The click asks (user, 2026-09-20): the menu offers the Nephalem Rift, the Guardian Rift by keystone,
+	// and closing the gate.
+	if (Gate() == nullptr || MyPlayer == nullptr)
+		return;
+	OpenStonegateMenu();
+}
+
+bool OpenNephalemAtGate()
+{
 	Object *gate = Gate();
 	if (gate == nullptr || MyPlayer == nullptr)
-		return;
+		return false;
 	Player &player = *MyPlayer;
-
-	// Closed: a Nephalem Rift, free (plan r6). Its tier is the deepest floor the hero has reached.
-	if (ActiveRift() == RiftKind::None) {
-		if (!OpenNephalemRift(player)) {
-			LogEvent("The Stonegate does not answer.", UiFlags::ColorRed);
-			return;
-		}
-		LightGate(*gate, RiftKind::Nephalem, /*sound=*/true);
-		LogEvent(StrCat("A golden portal opens in the Stonegate: a Nephalem Rift, tier ", RiftTier(), ". Walk in; ",
-		             RiftGuardianName(RiftGuardian()), " waits at the end and drops a keystone."),
-		    UiFlags::ColorWhitegold);
-		return;
+	// Free (plan r6). Its tier is the deepest floor the hero has reached. A rift already standing ends.
+	if (!OpenNephalemRift(player)) {
+		LogEvent("The Stonegate does not answer.", UiFlags::ColorRed);
+		return false;
 	}
-
-	// Open: the click closes it and ends the rift. A Guardian Rift is opened by USING a keystone, not
-	// by clicking (plan r5), so the gate never cycles.
-	CloseStonegate();
-	LogEvent("The Stonegate falls dark; the rift is gone.", UiFlags::ColorWhitegold);
+	LightGate(*gate, RiftKind::Nephalem, /*sound=*/true);
+	LogEvent(StrCat("A golden portal opens in the Stonegate: a Nephalem Rift, tier ", RiftTier(), ". Walk in; ",
+	             RiftGuardianName(RiftGuardian()), " waits at the end and drops a keystone."),
+	    UiFlags::ColorWhitegold);
+	return true;
 }
 
 void RelightStonegateIfNeeded()

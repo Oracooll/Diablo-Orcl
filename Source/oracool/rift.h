@@ -98,6 +98,10 @@ void EndRift();
  * lights the gate. False anywhere else, and the keystone is then not consumed.
  */
 bool UseGuardianKeystone(Player &player, const Item &keystone);
+/** @brief The highest-tier Guardian Keystone in @p player's backpack, or -1. */
+int FindBestKeystoneInBackpack(const Player &player);
+/** @brief The gate's menu choosing a Guardian Rift: the best keystone in the pack is turned and consumed. False with none, or off town. */
+bool UseBestKeystoneFromBackpack(Player &player);
 /**
  * @brief The tier of the keystone a Guardian Rift's guardian drops (plan r5): one up, three up when
  * more than half the clock was left; 0 when the clock had run out (no keystone). Ticks are the

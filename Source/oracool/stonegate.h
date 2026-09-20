@@ -36,8 +36,10 @@ void ApplyStonegateGraphics(Object &gate);
 /** @brief Loads the rock stand's own sheet before AddObject(OBJ_STAND) asks for it (objects.cpp). */
 void PrepareStonegateCarrier();
 
-/** @brief A click on the gate: closed -> a Nephalem Rift, free; open -> closed, the rift ended. */
+/** @brief A click on the gate: opens the choice menu (oracool/stonegate_menu.h). */
 void ToggleStonegate();
+/** @brief The menu's first line: a free Nephalem Rift at the deepest floor's tier; the golden portal lights. */
+bool OpenNephalemAtGate();
 
 /** @brief Lights the gate for @p kind (a keystone used in town lights the violet one). */
 void LightStonegate(RiftKind kind);

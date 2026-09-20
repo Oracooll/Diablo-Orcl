@@ -13,6 +13,8 @@
 #include "control.h"
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
+#include "oracool/rift.h"      // RiftTier: the portal's hover line
+#include "oracool/stonegate.h" // StonegateEntryTile: where a click on the portal walks to
 #include "oracool/item_tint.h"
 #include "oracool/shop_grid.h"
 #include "controls/plrctrls.h"
@@ -849,6 +851,33 @@ void CheckTown()
 	}
 }
 
+/**
+ * @brief Oracool: the rift portal in the Stonegate is a door the cursor can find (user, 2026-09-20:
+ * "clicking on the gold/purple portals when they appear should be possible ... it should cover every
+ * pixel of their asset"). The same seven-tile entrance boundary the town portal answers to - the
+ * portal's tile and the tiles its 96x128 sprite rises over - and the click walks the hero onto the
+ * entry tile in front of the gate, where TryEnterRiftFromTown takes over. The gate's own tile is the
+ * object's (it is picked first), so the ring's base still opens the gate's menu.
+ */
+void CheckRiftPortal()
+{
+	if (leveltype != DTYPE_TOWN)
+		return;
+	for (auto &missile : Missiles) {
+		if (missile._mitype != MissileID::RiftPortalGold && missile._mitype != MissileID::RiftPortalPurple)
+			continue;
+		if (!EntranceBoundaryContains(missile.position.tile, cursPosition))
+			continue;
+		Point entry;
+		if (!oracool::StonegateEntryTile(entry))
+			continue;
+		trigflag = true;
+		SetPanelString(missile._mitype == MissileID::RiftPortalGold ? _("Nephalem Rift") : _("Guardian Rift"), UiFlags::ColorWhite);
+		AddPanelString(fmt::format(fmt::runtime(_("tier {:d} - walk in")), oracool::RiftTier()));
+		cursPosition = entry;
+	}
+}
+
 void CheckRportal()
 {
 	for (auto &missile : Missiles) {
@@ -972,6 +1001,7 @@ void CheckCursMove()
 			CheckTrigForce();
 			CheckTown();
 			CheckRportal();
+			CheckRiftPortal();
 		}
 		return;
 	}
@@ -1327,6 +1357,7 @@ void CheckCursMove()
 			CheckTrigForce();
 			CheckTown();
 			CheckRportal();
+			CheckRiftPortal();
 		}
 	}
 

@@ -60,6 +60,7 @@
 #include "oracool/spell_timers.h"
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
+#include "oracool/stonegate_menu.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/window_close.h"
 #include "oracool/monster_scale.h"
@@ -1706,6 +1707,7 @@ void DrawView(const Surface &out, Point startPosition)
 	oracool::DrawRunewordBook(out);
 	if (oracool::IsHudMenuOpen()) {
 		oracool::DrawHudMenu(out);
+		oracool::DrawStonegateMenu(out);
 	}
 	// Same rule as the XP pair below: kept through open windows, taken away by chat.
 	if (!talkflag) {

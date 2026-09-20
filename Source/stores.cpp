@@ -3437,12 +3437,21 @@ void TalkEnter()
 void TavernEnter()
 {
 	switch (stextsel) {
-	case 12:
+	case 12: {
 		stextlhold = 12;
 		talker = TOWN_TAVERN;
 		stextshold = TalkID::Tavern;
+		// Ogden's quest speech waits here rather than blocking the menu on the click (towners.cpp,
+		// 2026-09-20): "Talk to Ogden" plays it once, then his ordinary gossip.
+		const _speech_id quest = TakeOgdenQuestText();
+		if (quest != TEXT_NONE) {
+			stextflag = TalkID::None;
+			InitQTextMsg(quest);
+			break;
+		}
 		StartStore(TalkID::Gossip);
 		break;
+	}
 	case 15:
 		stextflag = TalkID::None;
 		oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Tavern);

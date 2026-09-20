@@ -295,10 +295,24 @@ void TownerTalk(_speech_id message)
 	InitQTextMsg(message);
 }
 
+namespace {
+/**
+ * @brief Ogden's quest speech, held for the menu's "Talk to Ogden" line instead of being played on
+ * the click (user, 2026-09-20: "make ogden the taverner always show his menu first, not his quest
+ * dialog, because quest dialog prevents access to his menu"). The quest STATE still moves on the
+ * click as it always did; only the speech waits.
+ */
+_speech_id PendingOgdenQuestText = TEXT_NONE;
+} // namespace
+
 void TalkToBarOwner(Player &player, Towner &barOwner)
 {
+	// Every branch below that used to play its text and return now QUEUES the text and falls through
+	// to the menu, which plays it under "Talk to Ogden" (TavernEnter). The first-visit intro too.
+	const auto queue = [](_speech_id text) { PendingOgdenQuestText = text; };
 	if (!player._pLvlVisited[0]) {
-		InitQTextMsg(TEXT_INTRO);
+		queue(TEXT_INTRO);
+		StartStore(TalkID::Tavern);
 		return;
 	}
 
@@ -312,15 +326,17 @@ void TalkToBarOwner(Player &player, Towner &barOwner)
 					kingQuest._qactive = QUEST_ACTIVE;
 					kingQuest._qvar1 = 1;
 				}
-				InitQTextMsg(TEXT_KING2);
+				queue(TEXT_KING2);
 				NetSendCmdQuest(true, kingQuest);
+				StartStore(TalkID::Tavern);
 				return;
 			}
 			if (kingQuest._qactive == QUEST_DONE && kingQuest._qvar2 == 1) {
 				kingQuest._qvar2 = 2;
 				kingQuest._qvar1 = 2;
-				InitQTextMsg(TEXT_KING4);
+				queue(TEXT_KING4);
 				NetSendCmdQuest(true, kingQuest);
+				StartStore(TalkID::Tavern);
 				return;
 			}
 		}
@@ -337,7 +353,8 @@ void TalkToBarOwner(Player &player, Towner &barOwner)
 				}
 				bannerQuest._qlog = true;
 				NetSendCmdQuest(true, bannerQuest);
-				InitQTextMsg(TEXT_BANNER2);
+				queue(TEXT_BANNER2);
+				StartStore(TalkID::Tavern);
 				return;
 			}
 
@@ -346,7 +363,8 @@ void TalkToBarOwner(Player &player, Towner &barOwner)
 				bannerQuest._qvar1 = 3;
 				NetSendCmdQuest(true, bannerQuest);
 				SpawnUnique(UITEM_HARCREST, barOwner.position + Direction::SouthWest, bannerQuest._qlevel);
-				InitQTextMsg(TEXT_BANNER3);
+				queue(TEXT_BANNER3);
+				StartStore(TalkID::Tavern);
 				return;
 			}
 		}
@@ -848,6 +866,15 @@ Towner *GetTowner(_talker_id type)
 			return &towner;
 	}
 	return nullptr;
+}
+
+// Outside the file's anonymous namespace: stores.cpp's tavern menu calls it (the first cut of this
+// sat inside and did not link).
+_speech_id TakeOgdenQuestText()
+{
+	const _speech_id text = PendingOgdenQuestText;
+	PendingOgdenQuestText = TEXT_NONE;
+	return text;
 }
 
 void InitTowners()

@@ -18,7 +18,7 @@ param(
 )
 Add-Type -AssemblyName System.Drawing
 
-function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satBoost, [double]$lightGain) {
+function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satBoost, [double]$lightGain, [int[]]$fillRgb) {
     $src = [System.Drawing.Bitmap]::FromFile((Resolve-Path $inPath))
     $bmp = New-Object System.Drawing.Bitmap $src.Width, $src.Height, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
     $g = [System.Drawing.Graphics]::FromImage($bmp); $g.DrawImage($src, 0, 0, $src.Width, $src.Height); $g.Dispose(); $src.Dispose()
@@ -56,6 +56,29 @@ function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satB
         $bytes[$i + 1] = [byte][Math]::Round($rgb[1] * 255)
         $bytes[$i] = [byte][Math]::Round($rgb[2] * 255)
     }
+    # The centre (user, 2026-09-20: "fill the gold/purple portals center with gold/purple similar to
+    # the vanilla blue portal"). The exported strip's oval is hollow - its interior pixels are index 0,
+    # which the exporter writes as transparent - so every transparent pixel enclosed between the
+    # ring's opaque pixels on its row is painted the kind's own dark tone, frame by frame; the thin
+    # frames of the opening blossom enclose nothing and stay as they are.
+    if ($fillRgb -ne $null) {
+        $stride = $data.Stride
+        $width = $bmp.Width
+        for ($y = 0; $y -lt $bmp.Height; $y++) {
+            $frameH = 128
+            for ($f = 0; $f -lt 16; $f++) {
+                $x0 = $f * 96; $x1 = $x0 + 95
+                $left = -1; $right = -1
+                for ($x = $x0; $x -le $x1; $x++) { if ($bytes[$y * $stride + $x * 4 + 3] -ne 0) { if ($left -lt 0) { $left = $x }; $right = $x } }
+                if ($left -lt 0 -or $right - $left -lt 4) { continue }
+                for ($x = $left + 1; $x -lt $right; $x++) {
+                    $i = $y * $stride + $x * 4
+                    if ($bytes[$i + 3] -ne 0) { continue }
+                    $bytes[$i] = [byte]$fillRgb[2]; $bytes[$i + 1] = [byte]$fillRgb[1]; $bytes[$i + 2] = [byte]$fillRgb[0]; $bytes[$i + 3] = 255
+                }
+            }
+        }
+    }
     [System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $data.Scan0, $n)
     $bmp.UnlockBits($data)
     $bmp.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Png)
@@ -65,6 +88,6 @@ function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satB
 
 $out = (Resolve-Path $OutDir).Path
 # Gold: the yellow-orange of the game's gold text; a touch more saturation so the flame reads as metal, not straw.
-HueShift $Source (Join-Path $out "portal_gold.png") 42 1.25 1.05
+HueShift $Source (Join-Path $out "portal_gold.png") 42 1.25 1.05 @(96, 66, 8)
 # Purple: violet, the blue's own lightness - the ramp the palette never had.
-HueShift $Source (Join-Path $out "portal_purple.png") 278 1.15 1.0
+HueShift $Source (Join-Path $out "portal_purple.png") 278 1.15 1.0 @(72, 18, 100)

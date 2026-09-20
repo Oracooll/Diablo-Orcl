@@ -81,6 +81,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/crafting_menu.h"
 #include "oracool/hud_menu.h"
+#include "oracool/stonegate_menu.h"
 #include "oracool/levski_roar.h"
 #include "oracool/rift.h"
 #include "oracool/stonegate.h"
@@ -528,6 +529,11 @@ void LeftMouseDown(uint16_t modState)
 		oracool::CheckHudMenuClick(MousePosition);
 		return;
 	}
+	// The Stonegate's choice menu sits over the world: it takes every click while it is up.
+	if (oracool::IsStonegateMenuOpen()) {
+		oracool::CheckStonegateMenuClick(MousePosition);
+		return;
+	}
 
 	// The skill-point pool, tested here for exactly the reason the burger menu above is: it is
 	// drawn above the plate rather than on it, so IsPointOverHudChrome says no and the world branch
@@ -957,6 +963,7 @@ void ClosePanels()
 	oracool::CloseWaypointMenu();
 	oracool::CloseCraftingMenu();
 	oracool::CloseHudMenu();
+	oracool::CloseStonegateMenu();
 	oracool::CloseSkillPicker();
 }
 
@@ -3705,6 +3712,10 @@ bool PressEscKey()
 
 	if (oracool::IsHudMenuOpen()) {
 		oracool::CloseHudMenu();
+		rv = true;
+	}
+	if (oracool::IsStonegateMenuOpen()) {
+		oracool::CloseStonegateMenu();
 		rv = true;
 	}
 
