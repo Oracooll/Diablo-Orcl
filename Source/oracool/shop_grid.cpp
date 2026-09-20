@@ -412,6 +412,8 @@ enum class ServiceButton : uint8_t {
 	Repair,
 	RepairAll,
 	Recharge,
+	/** Wirt's two grids: lay out a fresh stock, free (user, 2026-09-20: "introduce Refresh buttons to Wirts two shops"). */
+	Refresh,
 };
 
 /**
@@ -582,6 +584,9 @@ std::vector<ServiceButton> ServicesFor(TalkID id)
 	case TalkID::WitchBuy:
 	case TalkID::WitchSell:
 		return { ServiceButton::Recharge };
+	case TalkID::BoyBuy:
+	case TalkID::BoyGamble:
+		return { ServiceButton::Refresh };
 	default:
 		return {};
 	}
@@ -606,6 +611,8 @@ std::string ServiceButtonLabel(ServiceButton service)
 		return std::string(_("Repair All"));
 	case ServiceButton::Recharge:
 		return std::string(_("Recharge"));
+	case ServiceButton::Refresh:
+		return std::string(_("Refresh"));
 	}
 	return {};
 }
@@ -849,6 +856,10 @@ void SetServiceHint(ServiceButton service)
 		AddPanelString(_("Click for the cursor, then click a staff to recharge it."), UiFlags::ColorWhite);
 		AddPanelString(_("Or drop a staff here."), UiFlags::ColorWhite);
 		AddPanelString(_("Restores full charges. Priced per staff."), UiFlags::ColorWhite);
+		break;
+	case ServiceButton::Refresh:
+		SetPanelString(_("Refresh"), UiFlags::ColorWhitegold);
+		AddPanelString(_("Wirt lays out a fresh stock on this tab. Free."), UiFlags::ColorWhite);
 		break;
 	}
 }
@@ -1256,6 +1267,8 @@ bool CheckShopGridClick(Point position, bool rightClick)
 				// The same gesture at Adria's (user, 2026-08-27: "make recharge button work as
 				// repair button").
 				ArmShopRechargeCursor();
+			else if (buttons[i].service == ServiceButton::Refresh)
+				RefreshBoyStock(stextflag); // Wirt's fresh stock, free (2026-09-20)
 			// Picking up the hammer is silent in itself; Repair all sounds when the work is done.
 			if (buttons[i].service != ServiceButton::RepairAll)
 				PlayUiSelectSound();

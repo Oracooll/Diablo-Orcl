@@ -177,6 +177,8 @@ void DrawSLine(const Surface &out, int sy);
 void DrawSTextHelp();
 void ClearSText(int s, int e);
 void StartStore(TalkID s);
+/** @brief Wirt's Refresh button (2026-09-20): a fresh stock on @p tab (BoyBuy or BoyGamble), trimmed to the page, free. */
+void RefreshBoyStock(TalkID tab);
 
 /**
  * @brief Griswold's CURATED shelves - the ones generated once per game rather than restocked.

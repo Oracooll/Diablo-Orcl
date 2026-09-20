@@ -7081,7 +7081,11 @@ TEST(OracoolAudit, CubeRecipesChargeTheirReagentAndTransformInPlace)
 		devilution::Item grid[LevskiGridSlots];
 		InitializeItem(grid[0], IDI_ORACOOL_GEM_RUBY_CHIPPED);
 		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS, 9);
-		EXPECT_EQ(FirstReadyLevskiRecipe(grid), -1) << "a recipe accepted another recipe's reagent";
+		// Since v1.12.095 nine engravings on their own DO run something - the material ladder (Refine
+		// Materials) - so the claim is narrower: no gem recipe, and nothing but the ladder, is ready.
+		const int ready = FirstReadyLevskiRecipe(grid);
+		EXPECT_TRUE(ready == -1 || ready == RefineMaterialsRecipe || ready == BreakDownMaterialsRecipe)
+		    << "a recipe accepted another recipe's reagent: " << ready;
 	}
 
 	// ---- RECAST: a set piece becomes a DIFFERENT piece of the same set ----
@@ -7508,10 +7512,15 @@ TEST(OracoolAudit, ASelectedRecipeRunsOrNothingDoes)
 	ASSERT_TRUE(CanCraftFromLevskiGrid(grid, 13)) << "Reroll Uniques is not ready";
 
 	// Choosing the cheaper one runs the cheaper one, and does NOT climb the item.
+	// Seeded, because the reroll can rise to Primal one time in fifty (v1.12.095) and the lines below need
+	// the item still on its rung; the promotion has its own line in the ladder test's neighbour.
+	devilution::SetRndSeed(7);
 	EXPECT_FALSE(TransmuteLevskiGridWith(grid, 13).empty());
 	EXPECT_EQ(grid[1].stackCount(), 4) << "the selection ran a recipe with a different cost";
-	EXPECT_EQ(grid[0]._iOracoolTier, OracoolItemTier::BuffedUnique)
-	    << "the reroll awakened the item to Primal instead - the selection was ignored";
+	// Primal is allowed ONLY through the reroll's own one-in-fifty promotion (v1.12.095): the four encrustments
+	// left above prove Reroll Uniques ran, not Awaken - which is what this line is really asserting.
+	EXPECT_TRUE(grid[0]._iOracoolTier == OracoolItemTier::BuffedUnique || grid[0]._iOracoolTier == OracoolItemTier::Primal)
+	    << "the reroll left the item on neither its rung nor the rare promotion";
 
 	// Four remain: still enough to reroll, not enough to awaken.
 	ASSERT_TRUE(CanCraftFromLevskiGrid(grid, 13));
@@ -13970,4 +13979,71 @@ TEST(OracoolWaypointActs, SelectingAnActShowsItsListAndANewGameReturnsToDiablo)
 	// the next character on the Diablo tab rather than on whatever the last one was looking at.
 	oracool::ResetWaypointMenuForNewGame();
 	EXPECT_EQ(oracool::ActiveWaypointAct(), oracool::WaypointAct::Diablo);
+}
+
+// Kanai's Darkness of Radament (2026-09-20): the salvage materials convert along their ladder on Griswold's book -
+// three of a kind refine to one of the tier above, one breaks down to two of the tier below; the ends of the ladder
+// refuse in their dead direction.
+TEST(OracoolAudit, MaterialsRefineUpAndBreakDownTheLadder)
+{
+	using namespace devilution::oracool;
+	EXPECT_EQ(HostOfRecipe(RefineMaterialsRecipe), TransmuteHost::Smith);
+	EXPECT_EQ(HostOfRecipe(BreakDownMaterialsRecipe), TransmuteHost::Smith);
+
+	devilution::Item grid[LevskiGridSlots];
+	InitializeItem(grid[0], IDI_ORACOOL_SALVAGE_MAGIC_POWDER);
+	grid[0].setStackCount(4);
+	ASSERT_TRUE(CanCraftFromLevskiGrid(grid, RefineMaterialsRecipe)) << "four Magic Powder do not refine";
+	EXPECT_FALSE(TransmuteLevskiGridWith(grid, RefineMaterialsRecipe).empty());
+	int powder = 0, fibres = 0;
+	for (const devilution::Item &slot : grid) {
+		if (slot.isEmpty())
+			continue;
+		if (slot.IDidx == IDI_ORACOOL_SALVAGE_MAGIC_POWDER)
+			powder += slot.stackCount();
+		if (slot.IDidx == IDI_ORACOOL_SALVAGE_RARE_FIBRES)
+			fibres += slot.stackCount();
+	}
+	EXPECT_EQ(powder, 1) << "three of the four powders were the price";
+	EXPECT_EQ(fibres, 1) << "one Rare Fibre is the product";
+
+	// Breaking down: with two breakable kinds of equal count the FIRST-PLACED group is the one taken, so the fibre
+	// goes in slot 0 and the powder it will join in slot 1; the fibre becomes two powders on that stack.
+	for (devilution::Item &slot : grid)
+		slot.clear();
+	InitializeItem(grid[0], IDI_ORACOOL_SALVAGE_RARE_FIBRES);
+	grid[0].setStackCount(1);
+	InitializeItem(grid[1], IDI_ORACOOL_SALVAGE_MAGIC_POWDER);
+	grid[1].setStackCount(1);
+	ASSERT_TRUE(CanCraftFromLevskiGrid(grid, BreakDownMaterialsRecipe));
+	EXPECT_FALSE(TransmuteLevskiGridWith(grid, BreakDownMaterialsRecipe).empty());
+	powder = 0;
+	int occupied = 0;
+	for (const devilution::Item &slot : grid) {
+		if (slot.isEmpty())
+			continue;
+		occupied++;
+		if (slot.IDidx == IDI_ORACOOL_SALVAGE_MAGIC_POWDER)
+			powder += slot.stackCount();
+	}
+	EXPECT_EQ(powder, 3) << "one fibre is two powders, on top of the one left";
+	EXPECT_EQ(occupied, 1) << "the product joined the existing stack instead of taking a slot";
+
+	// The ends of the ladder: Primal Vines refine into nothing, White Scales break down into nothing.
+	devilution::Item top[LevskiGridSlots];
+	InitializeItem(top[0], IDI_ORACOOL_SALVAGE_PRIMAL_VINES);
+	top[0].setStackCount(9);
+	EXPECT_FALSE(CanCraftFromLevskiGrid(top, RefineMaterialsRecipe)) << "the top rung has nothing above it";
+	EXPECT_TRUE(CanCraftFromLevskiGrid(top, BreakDownMaterialsRecipe));
+	devilution::Item bottom[LevskiGridSlots];
+	InitializeItem(bottom[0], IDI_ORACOOL_SALVAGE_WHITE_SCALES);
+	bottom[0].setStackCount(1);
+	EXPECT_FALSE(CanCraftFromLevskiGrid(bottom, BreakDownMaterialsRecipe)) << "the bottom rung has nothing below it";
+	EXPECT_FALSE(CanCraftFromLevskiGrid(bottom, RefineMaterialsRecipe)) << "one scale is short of three";
+	// And the ladder ignores what is not on it.
+	devilution::Item off[LevskiGridSlots];
+	InitializeItem(off[0], IDI_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES);
+	off[0].setStackCount(9);
+	EXPECT_FALSE(CanCraftFromLevskiGrid(off, RefineMaterialsRecipe));
+	EXPECT_FALSE(CanCraftFromLevskiGrid(off, BreakDownMaterialsRecipe));
 }

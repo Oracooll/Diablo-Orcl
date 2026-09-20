@@ -55,7 +55,7 @@ const char *ShopTabName(TalkID id)
 {
 	switch (id) {
 	case TalkID::SmithTransmute:
-		return N_("Forge");
+		return N_("Salvage"); // "Salvage" since 2026-09-20 (user: "Rename Griswold's Forge tab to Salvage. I will redesign it."); the window title is still Griswold's Forge
 	case TalkID::SmithBuy:
 		return N_("Basic");
 	case TalkID::SmithPremiumBuy:

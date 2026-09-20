@@ -3122,6 +3122,35 @@ void BoyShopBuyEnter()
 	StartStore(TalkID::Confirm);
 }
 
+} // namespace - RefreshBoyStock is exported (stores.h), its neighbours are file-local
+
+void RefreshBoyStock(TalkID tab)
+{
+	// Free, at the player's word (user, 2026-09-20: "introduce Refresh buttons to Wirts two shops"): the Shop tab
+	// is rolled again as SpawnBoy rolls it, the Gamble tab restocked with fresh bases, each cut to its page.
+	const int lvl = MyPlayer->_pLevel;
+	if (tab == TalkID::BoyBuy) {
+		for (Item &item : boyitems) {
+			RollBoyItem(item, lvl);
+			item._iIdentified = true;
+			item._iStatFlag = MyPlayer->CanUseItem(item);
+		}
+		oracool::TrimShopStockToOnePage(TalkID::BoyBuy);
+	} else if (tab == TalkID::BoyGamble) {
+		SpawnGambleStock(lvl);
+		for (Item &item : gambleitems) {
+			if (!item.isEmpty())
+				item._iStatFlag = MyPlayer->CanUseItem(item);
+		}
+		oracool::TrimShopStockToOnePage(TalkID::BoyGamble);
+	} else {
+		return;
+	}
+	oracool::ResetShopGridSelection();
+}
+
+namespace {
+
 void BoyBuyItemAt(int idx)
 {
 	if (idx < 0 || idx >= BOY_ITEMS || boyitems[idx].isEmpty())

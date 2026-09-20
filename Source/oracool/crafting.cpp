@@ -69,6 +69,48 @@ bool IsCharm(int idx)
 
 } // namespace
 
+namespace {
+
+/**
+ * @brief The salvage material ladder, bottom to top - Darkness of Radament's conversion runs along it (2026-09-20).
+ * Ethereal Imbueities are not on it: ethereal is a bargain, not a tier.
+ */
+constexpr _item_indexes MaterialLadder[] = {
+	IDI_ORACOOL_SALVAGE_WHITE_SCALES, IDI_ORACOOL_SALVAGE_MAGIC_POWDER, IDI_ORACOOL_SALVAGE_RARE_FIBRES,
+	IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS, IDI_ORACOOL_SALVAGE_UNIQUE_ENCRUSTMENTS, IDI_ORACOOL_SALVAGE_PRIMAL_VINES
+};
+constexpr int MaterialLadderRungs = static_cast<int>(sizeof(MaterialLadder) / sizeof(MaterialLadder[0]));
+constexpr int RefineMaterialsCost = 3;
+constexpr int BreakDownMaterialsYield = 2;
+
+int MaterialLadderRung(int idx)
+{
+	for (int rung = 0; rung < MaterialLadderRungs; rung++) {
+		if (MaterialLadder[rung] == idx)
+			return rung;
+	}
+	return -1;
+}
+/** @brief A ladder material with a tier above it - Primal Vines refine into nothing. */
+bool IsRefinableMaterial(int idx)
+{
+	const int rung = MaterialLadderRung(idx);
+	return rung >= 0 && rung < MaterialLadderRungs - 1;
+}
+/** @brief A ladder material with a tier below it - White Scales break down into nothing. */
+bool IsBreakableMaterial(int idx)
+{
+	return MaterialLadderRung(idx) >= 1;
+}
+
+/**
+ * @brief Reroll Uniques (13) climbs the item to Primal one time in this many (Kanai's Law of Kulle can come out
+ * Ancient or Primal; user, 2026-09-20: "make promotion very rare but possible"). Awaken (11) is the sure way up.
+ */
+constexpr int RerollPromotionOneIn = 50;
+
+} // namespace
+
 const char *CraftingRecipeName(int index)
 {
 	switch (index) {
@@ -125,6 +167,11 @@ const char *CraftingRecipeName(int index)
 		return N_("Hit Power Craft");
 	case CraftSafetyRecipe:
 		return N_("Safety Craft");
+	// Kanai's Darkness of Radament (2026-09-20): the material ladder.
+	case RefineMaterialsRecipe:
+		return N_("Refine Materials");
+	case BreakDownMaterialsRecipe:
+		return N_("Break Down Materials");
 	default:
 		return "";
 	}
@@ -185,6 +232,10 @@ const char *CraftingRecipeInputs(int index)
 		return N_("1 wearable item + 1 jewel + 1 rune + 1 perfect gem -> a Rare that always knocks back and hits harder");
 	case CraftSafetyRecipe:
 		return N_("1 wearable item + 1 jewel + 1 rune + 1 perfect gem -> a Rare that always resists all and takes less damage");
+	case RefineMaterialsRecipe:
+		return N_("3 salvage materials of one kind -> 1 of the tier above (White Scales, Magic Powder, Rare Fibres, Set Engravings, Unique Encrustments, Primal Vines)");
+	case BreakDownMaterialsRecipe:
+		return N_("1 salvage material -> 2 of the tier below");
 	default:
 		return "";
 	}
@@ -237,6 +288,10 @@ int MaterialUnitCostFor(int recipe)
 		return 1;
 	case 4: // Temper Jewels - three identical jewels
 		return 3;
+	case RefineMaterialsRecipe: // three of one ladder material
+		return RefineMaterialsCost;
+	case BreakDownMaterialsRecipe: // one ladder material
+		return 1;
 	default:
 		return 1;
 	}
@@ -915,6 +970,12 @@ std::vector<int> GridMaterialsFor(const Item *grid, int index)
 			return {};
 		return { target, jewels[0], runes[0], gems[0] };
 	}
+	// Darkness of Radament (2026-09-20): the largest same-kind group of a ladder material worth the cost, counted in
+	// stack units exactly as Refine Gems counts its stones; the top rung cannot refine, the bottom cannot break down.
+	case RefineMaterialsRecipe:
+		return LargestSameKindGridGroup(grid, FindGridMaterials(grid, IsRefinableMaterial), RefineMaterialsCost);
+	case BreakDownMaterialsRecipe:
+		return LargestSameKindGridGroup(grid, FindGridMaterials(grid, IsBreakableMaterial), 1);
 	default:
 		return {};
 	}
@@ -1002,6 +1063,8 @@ TransmuteHost HostOfRecipe(int recipe)
 	case 14:
 	case 15:
 	case 16:
+	case RefineMaterialsRecipe: // the material ladder sits beside his salvage plates (2026-09-20)
+	case BreakDownMaterialsRecipe:
 		return TransmuteHost::Smith;
 	case 0:
 	case 1:
@@ -1186,6 +1249,43 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			return std::string(grid[slot].getName());
 		}
 		return NoRoomForResult();
+	}
+	// Darkness of Radament (2026-09-20): three of one ladder material become one of the tier above, or one becomes
+	// two of the tier below. The result joins a stack of its kind with room, else takes a free slot - asked on a
+	// copy that has paid, as the potions do, so a full grid refuses before anything is spent.
+	if (recipe == RefineMaterialsRecipe || recipe == BreakDownMaterialsRecipe) {
+		const bool up = recipe == RefineMaterialsRecipe;
+		const int cost = up ? RefineMaterialsCost : 1;
+		const int made = up ? 1 : BreakDownMaterialsYield;
+		const int rung = MaterialLadderRung(grid[materials[0]].IDidx);
+		if (rung < 0 || (up && rung >= MaterialLadderRungs - 1) || (!up && rung < 1))
+			return {};
+		const _item_indexes result = MaterialLadder[rung + (up ? 1 : -1)];
+		Item scratch[GridSlots];
+		std::copy(grid, grid + GridSlots, scratch);
+		ConsumeGridReagents(scratch, materials, cost);
+		int into = -1;
+		for (int slot = 0; slot < GridSlots && into < 0; slot++) {
+			if (!scratch[slot].isEmpty() && scratch[slot].IDidx == result && scratch[slot].stackCount() + made <= Item::MaxStackCount)
+				into = slot;
+		}
+		for (int slot = 0; slot < GridSlots && into < 0; slot++) {
+			if (scratch[slot].isEmpty())
+				into = slot;
+		}
+		if (into < 0)
+			return NoRoomForResult();
+		ConsumeGridReagents(grid, materials, cost);
+		if (!grid[into].isEmpty() && grid[into].IDidx == result) {
+			grid[into].setStackCount(grid[into].stackCount() + made);
+		} else {
+			InitializeItem(grid[into], result);
+			GenerateNewSeed(grid[into]);
+			grid[into]._iIdentified = true;
+			grid[into]._iStatFlag = true;
+			grid[into].setStackCount(made);
+		}
+		return fmt::format(fmt::runtime(_("{:d} {:s}")), made, std::string(grid[into].getName()));
 	}
 	if (recipe == UnbindLevelRecipe) {
 		Item &target = grid[materials[0]];
@@ -1375,6 +1475,11 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 					return {};
 			} else if (!RetierOracoolItem(target, OracoolItemTier::BuffedUnique)) {
 				return {};
+			}
+			// Law of Kulle's rare promotion (2026-09-20): one reroll in fifty rises to Primal instead of staying on its rung.
+			if (GenerateRnd(RerollPromotionOneIn) == 0 && RetierOracoolItem(target, OracoolItemTier::Primal)) {
+				what = fmt::format(fmt::runtime(_("{:s} - and it rose to Primal!")), std::string(target.getName()));
+				break;
 			}
 			what = std::string(target.getName());
 			break;

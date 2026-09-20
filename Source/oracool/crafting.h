@@ -54,7 +54,16 @@ constexpr int CraftBloodRecipe = 22;
 constexpr int CraftCasterRecipe = 23;
 constexpr int CraftHitPowerRecipe = 24;
 constexpr int CraftSafetyRecipe = 25;
-constexpr int CraftingRecipeCount = 26;
+/**
+ * Kanai's Darkness of Radament (2026-09-20, the user's verdict on the Kanai's Cube Recipes page: "Make it work the way
+ * you suggest"): the salvage materials climb and descend a LADDER - White Scales, Magic Powder, Rare Fibres, Set
+ * Engravings, Unique Encrustments, Primal Vines - three of one kind refine to one of the tier above, one breaks down
+ * to two of the tier below (a tier's material is rarer than the one under it, so the ratios keep salvage worth
+ * doing). Both on Griswold's book beside the salvage plates; Ethereal Imbueities stand outside the ladder.
+ */
+constexpr int RefineMaterialsRecipe = 26;
+constexpr int BreakDownMaterialsRecipe = 27;
+constexpr int CraftingRecipeCount = 28;
 
 /** @brief Which host's book @p recipe is in. */
 TransmuteHost HostOfRecipe(int recipe);
