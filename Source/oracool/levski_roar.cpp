@@ -254,6 +254,45 @@ constexpr ListSkinGeometry CubeCanvasGeometry {
 	{ { 89, 293 }, { 142, 28 } }, { { 56, 30 }, { 208, 40 } }
 };
 
+/**
+ * Griswold's SALVAGE window (user, 2026-09-21, Resources\Griswold Salvage UI): a 320x352 forge painting with a
+ * "Salvage Results" plate and a dark results box painted in; seven tier icons cut from the user's sheet (2172x724,
+ * seven 271x277 tiles) and resampled to 56x56, placed as the user's assembled sample has them - row one White,
+ * Magic, Rare, Unique at y 78; row two Set, Primal, Ethereal at y 137 (measured by diffing the sample against the
+ * bare background). The title "Salvage" is the game's 30 px gold, as the Cube's. Icons brighten a notch under the
+ * cursor, sink 2 px down-left while pressed, and sound titlemov on entry and press; an icon with nothing in the
+ * pack to salvage sits under the quarter shade. NO grid and NO recipes: when this window lost its grid Griswold's
+ * gear recipes moved to the Cube's book (crafting.cpp HostOfRecipe).
+ */
+constexpr const char *SalvageCanvasAsset = "ui\\salvage_canvas.png";
+/** In SalvageTier order: White, Magic, Rare, Unique, Primal, Set, Ethereal. */
+constexpr const char *SalvageIconAssets[SalvageTierCount] = {
+	"ui\\salvage_white.png", "ui\\salvage_magic.png", "ui\\salvage_rare.png", "ui\\salvage_unique.png",
+	"ui\\salvage_primal.png", "ui\\salvage_set.png", "ui\\salvage_ethereal.png"
+};
+constexpr Rectangle SalvageIconRects[SalvageTierCount] = {
+	{ { 32, 78 }, { 56, 56 } }, { { 98, 78 }, { 56, 56 } }, { { 163, 78 }, { 56, 56 } }, { { 230, 78 }, { 56, 56 } },
+	{ { 132, 137 }, { 56, 56 } }, // Primal: the sample's second cell of row two
+	{ { 49, 137 }, { 56, 56 } },  // Set: the first
+	{ { 214, 137 }, { 56, 56 } }  // Ethereal: the third
+};
+constexpr Size SalvageWindowSize { 320, 352 };
+constexpr Rectangle SalvageWindowTitle { { 22, 30 }, { 276, 40 } };
+constexpr Rectangle SalvageResultsBox { { 30, 214 }, { 260, 106 } };
+constexpr Rectangle SalvageCloseRect { { 296, 5 }, { 18, 18 } };
+constexpr int SalvageResultLines = 7;
+int PressedSalvageIcon = -1;
+int LastHoverSalvageIcon = -1;
+/** The lines under the "Salvage Results" plate, oldest first; the box shows the last SalvageResultLines. */
+std::vector<std::string> SalvageResults;
+
+/** @brief Whether Griswold's window wears the user's painted Salvage UI (the Roar painting is the missing-file fallback). */
+bool SalvageSkin()
+{
+	return WindowHost == TransmuteHost::Smith && GetLoosePngSize(SalvageCanvasAsset).width > 0;
+}
+
+
 /** @brief The list skin the window wears right now, or nullptr for the Roar's painting. */
 const ListSkinGeometry *ListSkin()
 {
@@ -286,6 +325,8 @@ bool PaintedButtons()
 
 Size CurrentFrameSize()
 {
+	if (SalvageSkin())
+		return SalvageWindowSize;
 	const ListSkinGeometry *skin = ListSkin();
 	return skin != nullptr ? skin->window : RoarFrameSize;
 }
@@ -294,6 +335,15 @@ Size CurrentFrameSize()
  * TRANSMUTE exist; every other plate is an empty rect, which contains nothing and draws nothing. */
 Rectangle ButtonRect(const Rectangle &window, int index)
 {
+	if (SalvageSkin()) {
+		if (index == levski_skin::Close)
+			return Rectangle { window.position + Displacement { SalvageCloseRect.position.x, SalvageCloseRect.position.y }, SalvageCloseRect.size };
+		if (index >= levski_skin::SalvageFirst && index < levski_skin::SalvageFirst + SalvageTierCount) {
+			const Rectangle &r = SalvageIconRects[index - levski_skin::SalvageFirst];
+			return Rectangle { window.position + Displacement { r.position.x, r.position.y }, r.size };
+		}
+		return Rectangle { { 0, 0 }, { 0, 0 } }; // no Transmute, no Recipes on the Salvage window
+	}
 	if (const ListSkinGeometry *skin = ListSkin(); skin != nullptr) {
 		if (index == levski_skin::Close) {
 			const Rectangle &c = skin->close;
@@ -338,6 +388,8 @@ int CubeListRecipeAt(int line)
 
 Rectangle CloseButtonRect(const Rectangle &window)
 {
+	if (SalvageSkin())
+		return ButtonRect(window, levski_skin::Close);
 	return ButtonRect(window, levski_skin::Close);
 }
 
@@ -851,7 +903,11 @@ bool SetLevskiHoverInfoString()
 }
 
 bool IsLevskiRoarOpen() { return WindowOpen; }
-void ReleaseLevskiButtons() { PressedCubeButton = -1; }
+void ReleaseLevskiButtons()
+{
+	PressedCubeButton = -1;
+	PressedSalvageIcon = -1; // Griswold's salvage icons spring back too (2026-09-21)
+}
 bool IsLevskiRecipeBookOpen() { return WindowOpen && RecipeBookOpen; }
 
 bool IsLevskiRoarObject(const Object &object)
@@ -952,6 +1008,9 @@ void ResetLevskiRoarForNewGame()
 	RecipeBookOpen = false;
 	RecipeBookScroll = 0;
 	CubeListScroll = 0;
+	SalvageResults.clear();
+	PressedSalvageIcon = -1;
+	LastHoverSalvageIcon = -1;
 }
 
 void CloseLevskiRoar()
@@ -968,6 +1027,8 @@ void CloseLevskiRoar()
 	RecipeBookOpen = false;
 	PressedCubeButton = -1;
 	LastHoverCubeButton = -1;
+	PressedSalvageIcon = -1;
+	LastHoverSalvageIcon = -1;
 }
 
 bool PlaceItemInLevskiGrid(const Item &item)
@@ -1165,6 +1226,47 @@ void DrawTallRecipeBook(const Surface &out)
 	(void)cursor;
 }
 
+/** @brief Griswold's painted Salvage window: the forge, the title, the seven icons with the button feel, the results. */
+void DrawSalvageWindow(const Surface &out, const Rectangle &window)
+{
+	DrawLoosePng(out, SalvageCanvasAsset, window.position);
+	DrawString(out, _("Salvage"), Rectangle { window.position + Displacement { SalvageWindowTitle.position.x, SalvageWindowTitle.position.y }, SalvageWindowTitle.size },
+	    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	int hoveredNow = -1;
+	for (int i = 0; i < SalvageTierCount; i++) {
+		const Rectangle rect = SalvageButtonRect(window, i);
+		const bool hovered = rect.contains(MousePosition);
+		if (hovered)
+			hoveredNow = i;
+		const Rectangle face { rect.position + (PressedSalvageIcon == i ? CubeButtonSink : Displacement { 0, 0 }), rect.size };
+		if (GetLoosePngSize(SalvageIconAssets[i]).width > 0) {
+			DrawLoosePng(out, SalvageIconAssets[i], face.position);
+		} else {
+			FillRect(out, face.position.x, face.position.y, face.size.width, face.size.height, SlotFillColor);
+			DrawString(out, _(SalvageTierName(static_cast<SalvageTier>(i))), face,
+			    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		}
+		if (hovered)
+			BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, CubeHoverBrightenPercent);
+		else if (MyPlayer != nullptr && !AnySalvageableInBackpack(*MyPlayer, static_cast<SalvageTier>(i)))
+			DrawQuarterDarkenRect(out, face); // nothing of this tier in the pack: the plate sits under a shade
+	}
+	if (hoveredNow >= 0 && hoveredNow != LastHoverSalvageIcon)
+		PlayUiMoveSound();
+	LastHoverSalvageIcon = hoveredNow;
+
+	// The results under the painted "Salvage Results" plate: the last lines, oldest at the top.
+	const Rectangle box { window.position + Displacement { SalvageResultsBox.position.x, SalvageResultsBox.position.y }, SalvageResultsBox.size };
+	const int lineHeight = GetLineHeight("Ag", GameFont12);
+	const size_t first = SalvageResults.size() > static_cast<size_t>(SalvageResultLines) ? SalvageResults.size() - SalvageResultLines : 0;
+	int y = box.position.y;
+	for (size_t k = first; k < SalvageResults.size() && y + lineHeight <= box.position.y + box.size.height; k++, y += lineHeight) {
+		DrawString(out, SalvageResults[k], Rectangle { { box.position.x, y }, { box.size.width, lineHeight } },
+		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+	}
+	DrawWindowCloseButtonAt(out, CloseButtonRect(window));
+}
+
 } // namespace
 
 void DrawLevskiRoar(const Surface &out)
@@ -1173,6 +1275,10 @@ void DrawLevskiRoar(const Surface &out)
 		return;
 
 	const Rectangle window = GetLevskiRoarRect();
+	if (SalvageSkin()) {
+		DrawSalvageWindow(out, window); // Griswold's painted Salvage UI (2026-09-21): no grid, no recipes
+		return;
+	}
 	// The painted skin. Everything the old window drew itself - frame, title, grid well, plates and
 	// labels - is in the painting; what is drawn here is STATE: items in the grid, a plate under the
 	// cursor or mid-press, and a plate dimmed because pressing it would do nothing.
@@ -1472,20 +1578,29 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	for (int i = 0; WindowHost == TransmuteHost::Smith && i < SalvageTierCount; i++) {
 		if (!SalvageButtonRect(window, i).contains(mousePosition))
 			continue;
+		PressedSalvageIcon = i; // the icon sinks until LeftMouseUp (ReleaseLevskiButtons); the click sounds at the press
+		if (SalvageSkin())
+			PlayUiMoveSound();
 		FlashButton(i); // fires whether or not there was anything to salvage - it acknowledges the CLICK
 		const auto tier = static_cast<SalvageTier>(i);
 		const int consumed = SalvageAllInBackpack(*MyPlayer, tier);
 		if (consumed > 0) {
-			LogEvent(StrCat("Salvaged ", consumed, " ", _(SalvageTierName(tier)), " into ",
-			             _(AllItemsList[SalvageMaterialFor(tier)].iName)),
-			    UiFlags::ColorWhitegold);
+			const std::string made = StrCat("Salvaged ", consumed, " ", _(SalvageTierName(tier)), " into ",
+			    _(AllItemsList[SalvageMaterialFor(tier)].iName));
+			LogEvent(made, UiFlags::ColorWhitegold);
+			SalvageResults.push_back(made); // the Salvage window's results box (2026-09-21)
 			if (!PlayUiEventSound(UiEventSound::Salvage))
 				PlaySFX(IS_ISHIEL); // the old stand-in, if the salvage sound is not in the archive
 		} else {
-			LogEvent(StrCat("Nothing to salvage: ", _(SalvageTierName(tier))), UiFlags::ColorWhite);
+			const std::string none = StrCat("Nothing to salvage: ", _(SalvageTierName(tier)));
+			LogEvent(none, UiFlags::ColorWhite);
+			SalvageResults.push_back(none);
 		}
 		return true;
 	}
+
+	if (SalvageSkin())
+		return true; // the Salvage window has no grid, no Transmute and no book: everything else on it is stone
 
 	if (RecipeButtonRect(window).contains(mousePosition)) {
 		PressedCubeButton = levski_skin::Recipes; // the painted button sinks until LeftMouseUp (ReleaseLevskiButtons)

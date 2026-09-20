@@ -13987,8 +13987,8 @@ TEST(OracoolWaypointActs, SelectingAnActShowsItsListAndANewGameReturnsToDiablo)
 TEST(OracoolAudit, MaterialsRefineUpAndBreakDownTheLadder)
 {
 	using namespace devilution::oracool;
-	EXPECT_EQ(HostOfRecipe(RefineMaterialsRecipe), TransmuteHost::Smith);
-	EXPECT_EQ(HostOfRecipe(BreakDownMaterialsRecipe), TransmuteHost::Smith);
+	EXPECT_EQ(HostOfRecipe(RefineMaterialsRecipe), TransmuteHost::Cube); // the Cube's since Griswold's window became salvage-only (v1.12.096)
+	EXPECT_EQ(HostOfRecipe(BreakDownMaterialsRecipe), TransmuteHost::Cube); // the Cube's since Griswold's window became salvage-only (v1.12.096)
 
 	devilution::Item grid[LevskiGridSlots];
 	InitializeItem(grid[0], IDI_ORACOOL_SALVAGE_MAGIC_POWDER);

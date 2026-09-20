@@ -1065,7 +1065,9 @@ TransmuteHost HostOfRecipe(int recipe)
 	case 16:
 	case RefineMaterialsRecipe: // the material ladder sits beside his salvage plates (2026-09-20)
 	case BreakDownMaterialsRecipe:
-		return TransmuteHost::Smith;
+		// The CUBE since 2026-09-21: Griswold's window is the user's painted SALVAGE UI, which has no grid, so his gear
+		// recipes and the material ladder live in the Cube's book. TransmuteHost::Smith stays for the salvage window itself.
+		return TransmuteHost::Cube;
 	case 0:
 	case 1:
 	case 3:
