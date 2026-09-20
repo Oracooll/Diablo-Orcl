@@ -17,7 +17,19 @@ param(
     # blue-grey to match Tristram's rocks (user, 2026-09-20: "recolour the rift monument to match the rocks
     # scattered all over Tristram. they are very blue-ish").
     [string]$TintRgb = "",
-    [double]$TintStrength = 0.0
+    [double]$TintStrength = 0.0,
+    # A cast SHADOW on the ground, east-north-east (user, 2026-09-20: "draw a black shadow cast
+    # east-northeast from it. to look more natural"): every opaque pixel standing $hgt above the
+    # baseline lands $ShadowLength * $hgt to the right and $ShadowRise * $hgt up, as an OPAQUE dark
+    # pixel (FramesCel drops alpha under 128, and index 0 is transparent in a CEL, so a translucent
+    # black shadow would vanish). The canvas grows by the shadow's reach on BOTH sides, so the
+    # object's centre - what the engine anchors on the tile - stays where it was; the printed width
+    # is what OracoolStonegateAnimWidth must read. $ShadowBaseline is how many rows above the image
+    # bottom the ground contact line is (the painted footprint runs below the plinth).
+    [double]$ShadowLength = 0.0,
+    [double]$ShadowRise = 0.0,
+    [int]$ShadowBaseline = 12,
+    [string]$ShadowRgb = "8,8,16"
 )
 Add-Type -AssemblyName System.Drawing
 $ErrorActionPreference = "Stop"
@@ -46,6 +58,28 @@ if ($Saturation -ne 1.0 -or $Brightness -ne 1.0 -or $CoolCast -ne 0.0 -or $tint 
         $out.SetPixel($x, $y, [System.Drawing.Color]::FromArgb($c.A, [int][Math]::Max(0, [Math]::Min(255, $r)), [int][Math]::Max(0, [Math]::Min(255, $g)), [int][Math]::Max(0, [Math]::Min(255, $b))))
     } }
     Write-Host ("toned: saturation {0}, brightness {1}, cool cast {2}" -f $Saturation, $Brightness, $CoolCast)
+}
+if ($ShadowLength -gt 0) {
+    $sp = $ShadowRgb.Split(","); $shadowColor = [System.Drawing.Color]::FromArgb(255, [int]$sp[0], [int]$sp[1], [int]$sp[2])
+    $baseline = $h - 1 - $ShadowBaseline
+    $pad = [int][Math]::Ceiling($ShadowLength * $baseline) + 1
+    $wide = New-Object System.Drawing.Bitmap ($Width + 2 * $pad), $h, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $wg = [System.Drawing.Graphics]::FromImage($wide); $wg.Clear([System.Drawing.Color]::FromArgb(0, 0, 0, 0)); $wg.Dispose()
+    # The shadow first, from the silhouette above the baseline; the painting goes over it.
+    for ($y = 0; $y -le $baseline; $y++) {
+        $hgt = $baseline - $y
+        $dx = [int][Math]::Round($ShadowLength * $hgt); $dy = [int][Math]::Round($ShadowRise * $hgt)
+        for ($x = 0; $x -lt $Width; $x++) {
+            if ($out.GetPixel($x, $y).A -le 128) { continue }
+            $sx = $pad + $x + $dx; $sy = $baseline - $dy
+            if ($sx -ge 0 -and $sx -lt $wide.Width -and $sy -ge 0 -and $sy -lt $h) { $wide.SetPixel($sx, $sy, $shadowColor) }
+            # And the row under it, so the sheared rows leave no combs between them.
+            if ($sy + 1 -lt $h -and $sy + 1 -le $baseline) { $wide.SetPixel($sx, $sy + 1, $shadowColor) }
+        }
+    }
+    $wg = [System.Drawing.Graphics]::FromImage($wide); $wg.CompositingMode = 'SourceOver'; $wg.DrawImage($out, $pad, 0, $Width, $h); $wg.Dispose()
+    $out.Dispose(); $out = $wide; $Width = $wide.Width
+    Write-Host ("shadow: length {0}, rise {1}, baseline {2} rows up, canvas padded {3} a side -> {4} wide (OracoolStonegateAnimWidth)" -f $ShadowLength, $ShadowRise, $ShadowBaseline, $pad, $Width)
 }
 $out.Save((Join-Path (Resolve-Path $OutDir) $OutName), [System.Drawing.Imaging.ImageFormat]::Png)
 Write-Host ("{0} {1}x{2} from a {3}x{4} content box at ({5},{6})" -f $OutName, $Width, $h, $cw, $ch, $minx, $miny)

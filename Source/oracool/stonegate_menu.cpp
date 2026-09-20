@@ -122,7 +122,11 @@ std::string RowLabel(int row, bool &enabled)
 		return fmt::format(fmt::runtime(_("Open a Guardian Rift  (keystone, tier {:d})")), player.InvList[keystone]._iOracoolRiftTier);
 	}
 	default:
-		return std::string(ActiveRift() != RiftKind::None ? _("Close the gate - the rift ends") : _("Leave the gate dark"));
+		// LEAVE closes this menu and nothing else (user, 2026-09-20: "Leave is meant to close the Rift
+		// Monument UI"): a rift is never closed from here - a cleared Nephalem Rift closes itself a
+		// minute after its guardian falls (NephalemRiftCloseSeconds), and nothing but a new game ends
+		// one otherwise.
+		return std::string(_("Leave"));
 	}
 }
 
@@ -261,11 +265,7 @@ bool CheckStonegateMenuClick(Point mousePosition)
 				LogEvent("The keystone would not turn here.", UiFlags::ColorRed);
 			break;
 		default:
-			if (ActiveRift() != RiftKind::None) {
-				CloseStonegate();
-				LogEvent("The Rift Monument falls dark; the rift is gone.", UiFlags::ColorWhitegold);
-			}
-			break;
+			break; // Leave: the menu is already closed above, the rift - if any - stands
 		}
 		return true;
 	}

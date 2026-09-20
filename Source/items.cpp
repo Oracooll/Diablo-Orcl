@@ -2798,7 +2798,7 @@ void PrintItemOil(const Item &item)
 	case IMISC_ORACOOL_KEYSTONE:
 		// The tier is the whole item (oracool/rift.h): it says what the rift will be before the key is spent.
 		AddPanelString(fmt::format(fmt::runtime(_("opens a Guardian Rift of tier {:d}")), item._iOracoolRiftTier));
-		AddPanelString(_("fifteen minutes, no town portal; Diablo or Na-Krul at the end"));
+		AddPanelString(_("fifteen minutes; Diablo or Na-Krul at the end"));
 		AddPanelString(_("use in town - the keystone is consumed"));
 		break;
 	case IMISC_ORACOOL_SIGNET:

@@ -778,7 +778,11 @@ void PlaceRiftMonsters()
 				na++;
 		}
 	}
-	int numplacemonsters = na / 30 * *sgOptions.Oracool.monsterDensityPercent / 100;
+	// TWICE a floor's count (user, 2026-09-20: "I reached 100% very fast. Make it require twice as
+	// many kills"): the bar is a share of the floor's total credit (RiftBarPercentOfFloor), so doubling
+	// the floor doubles the kills it takes while the bar stays reachable - a share above 100% of one
+	// floor never could be. The cap below still holds.
+	int numplacemonsters = 2 * (na / 30 * *sgOptions.Oracool.monsterDensityPercent / 100);
 	if (ActiveMonsterCount + numplacemonsters > MaxEnemyMonsters - 10)
 		numplacemonsters = static_cast<int>(MaxEnemyMonsters - 10 - ActiveMonsterCount);
 	totalmonsters = ActiveMonsterCount + numplacemonsters;
@@ -4294,8 +4298,10 @@ Monster *SpawnRiftGuardian()
 	// monster. Close enough to be the event, far enough not to land on the hero's toes. NOT
 	// CanPlaceMonster: that one refuses any tile the hero can SEE, which is the point here (audit,
 	// 2026-09-20 - in a lit room nothing within twelve tiles passed it and he never rose).
+	// Out to forty tiles, not twelve (2026-09-20): a hero in a tight Hell corridor had nothing within
+	// twelve that passed, and the guardian never rose - "Diablo didn't spawn when i hit 100%".
 	std::optional<Point> spot;
-	for (int radius = 3; radius <= 12 && !spot; radius++) {
+	for (int radius = 3; radius <= 40 && !spot; radius++) {
 		for (int dx = -radius; dx <= radius && !spot; dx++) {
 			for (int dy = -radius; dy <= radius; dy++) {
 				if (std::max(std::abs(dx), std::abs(dy)) != radius)

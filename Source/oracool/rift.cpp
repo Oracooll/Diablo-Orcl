@@ -1,6 +1,7 @@
 #include "oracool/rift.h"
 
 #include <algorithm>
+#include <array>
 #include <string>
 
 #include <fmt/format.h>
@@ -60,6 +61,11 @@ struct RiftState {
 	/** The entry tile in town has to be LEFT before it can be walked into: the hero stands beside
 	 * the gate to click it, and the tile in front is where they may already be standing. */
 	bool entryArmed = false;
+	/** A cleared Nephalem Rift's closing clock (NephalemRiftCloseSeconds): ticks until the rift ends on
+	 * its own, 0 when not running. */
+	int closeTicks = 0;
+	/** Ticks until the next "the guardian found no ground" note, so a stuck spawn says so once in a while. */
+	int spawnNoteTicks = 0;
 };
 
 RiftState State;
@@ -148,7 +154,9 @@ bool InRift()
 
 bool RiftForbidsTownPortal()
 {
-	return InRift() && State.kind == RiftKind::Guardian;
+	// Nowhere, since 2026-09-20 (user: "Town portals are to be allowed in Guardian Rift"). Plan r9
+	// refused it inside a Guardian Rift for one version.
+	return false;
 }
 
 int RiftTier()
@@ -221,7 +229,7 @@ bool UseGuardianKeystone(Player &player, const Item &keystone)
 		return false;
 	LightStonegate(RiftKind::Guardian);
 	LogEvent(StrCat("The keystone turns: a violet portal opens in the Rift Monument - a Guardian Rift, tier ", tier,
-	             ", fifteen minutes, no town portal. ", RiftGuardianName(State.guardian), " waits at the end."),
+	             ", fifteen minutes. ", RiftGuardianName(State.guardian), " waits at the end."),
 	    UiFlags::ColorWhitegold);
 	return true;
 }
@@ -485,6 +493,13 @@ void OnRiftMonsterKilled(const Monster &monster)
 			LogEvent(StrCat(RiftGuardianName(State.guardian), " falls, but the clock had run out: no keystone. The portal leads home."), UiFlags::ColorWhitegold);
 		else
 			LogEvent(StrCat(RiftGuardianName(State.guardian), " falls. The rift is cleared - the portal leads home."), UiFlags::ColorWhitegold);
+		// A cleared NEPHALEM Rift closes on its own a minute later (NephalemRiftCloseSeconds): the
+		// countdown runs on the HUD, and at zero a hero still inside is put down on the new-game spawn
+		// in town and the portal is gone. Nothing else ends it - the gate's menu no longer can.
+		if (State.kind == RiftKind::Nephalem) {
+			State.closeTicks = NephalemRiftCloseSeconds * RiftTicksPerSecond;
+			LogEvent(StrCat("The rift closes in ", NephalemRiftCloseSeconds, " seconds. Take what is yours."), UiFlags::ColorWhitegold);
+		}
 		PlayUiEventSound(UiEventSound::EncounterCleared);
 		return;
 	}
@@ -507,6 +522,18 @@ void ProcessRift()
 		}
 	}
 
+	// The cleared Nephalem Rift's closing clock, wherever the hero is. At zero: a hero still inside is
+	// sent to town's new-game spawn (WM_DIABRETOWN lands on ENTRY_MAIN, the (57, 67) a new hero starts
+	// on), the portal comes down and the rift is over.
+	if (State.closeTicks > 0 && --State.closeTicks == 0) {
+		const bool inside = InRift();
+		LogEvent(inside ? "The rift closes around you and spits you out in Tristram." : "The rift has closed; the Rift Monument falls dark.", UiFlags::ColorWhitegold);
+		CloseStonegate(); // removes the portal missiles, ends the rift, the closing sound
+		if (inside && MyPlayer != nullptr)
+			StartNewLvl(*MyPlayer, WM_DIABRETOWN, 0);
+		return;
+	}
+
 	if (leveltype == DTYPE_TOWN) {
 		// The portal in the gate after town is rebuilt (a death in the rift): AddStonegateObject runs
 		// before InitMissiles clears the list, so the relight happens here, once the missiles exist.
@@ -522,8 +549,17 @@ void ProcessRift()
 	if (!InRift() || State.guardianSpawned || State.creditNeeded <= 0 || State.credit < State.creditNeeded)
 		return;
 	Monster *guardian = SpawnRiftGuardian();
-	if (guardian == nullptr)
-		return; // no room this tick; tried again next tick
+	if (guardian == nullptr) {
+		// No room this tick; tried again next tick - and SAID so every five seconds, because a bar
+		// at 100% with no guardian in sight looked like nothing happening (user, 2026-09-20: "Diablo
+		// didn't spawn when i hit 100%").
+		if (State.spawnNoteTicks <= 0) {
+			LogEvent("The guardian finds no ground to rise on near you - move to open floor.", UiFlags::ColorRed);
+			State.spawnNoteTicks = 5 * RiftTicksPerSecond;
+		}
+		State.spawnNoteTicks--;
+		return;
+	}
 	State.guardianSpawned = true;
 	State.guardianId = guardian->getId();
 	LogEvent(StrCat("The rift shudders: ", RiftGuardianName(State.guardian), " rises!"), UiFlags::ColorRed);
@@ -540,6 +576,29 @@ bool RiftTimedOut() { return State.timedOut; }
 int RiftSecondsLeft()
 {
 	return (State.ticksLeft + RiftTicksPerSecond - 1) / RiftTicksPerSecond;
+}
+
+int RiftCloseSecondsLeft()
+{
+	return (State.closeTicks + RiftTicksPerSecond - 1) / RiftTicksPerSecond;
+}
+
+const uint32_t *GuardianPortalRgbTable()
+{
+	// The violet the palette never had (2026-09-20, user: "Guardian rift portal is not purple and
+	// its core background is not purple either"): missiles\portal_purple.png is quantised to the
+	// palette on load like every PNG missile, and the shared half has blue, gold, red and grey ramps
+	// but no purple, so the hue-shifted sheet came out blue. The sheet is therefore built in
+	// vanilla's own BLUE (the PAL8_BLUE ramp, indices 128-135, with a dark blue centre fill) and the
+	// Guardian portal is drawn through this table, which sends those eight blues to a violet ramp
+	// and everything else to the palette as it is - the green plate's mechanism (SetSpellTransGreen).
+	static std::array<uint32_t, 256> table;
+	static constexpr uint32_t Violet[8] = { 0xE6B4FF, 0xC080F5, 0x9B50D8, 0x7A34B4, 0x5C2290, 0x40146A, 0x280A46, 0x140424 };
+	for (int i = 0; i < 256; i++)
+		table[static_cast<size_t>(i)] = PaletteRGB[static_cast<size_t>(i)];
+	for (int i = 0; i < 8; i++)
+		table[static_cast<size_t>(PAL8_BLUE + i)] = Violet[i];
+	return table.data();
 }
 
 int RiftProgressPercent()
@@ -568,7 +627,9 @@ void DrawRiftHud(const Surface &out)
 	const int y = miniMap.position.y + miniMap.size.height + Gap;
 
 	std::string label = RiftKindName(State.kind);
-	if (State.done)
+	if (State.done && State.closeTicks > 0)
+		label += fmt::format(": cleared - closes in {:d}s", RiftCloseSecondsLeft()); // the countdown (user, 2026-09-20)
+	else if (State.done)
 		label += ": cleared";
 	else if (State.guardianSpawned)
 		label += StrCat(": ", RiftGuardianName(State.guardian));

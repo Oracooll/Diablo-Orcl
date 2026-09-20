@@ -5,7 +5,9 @@ REM (Resources\Rift Monument.png, 1161x1355 with real alpha) scaled to 128 wide 
 REM to worn grey stone (user, 2026-09-20: "less bright and more worn-down stone grey-ish"), then cast onto the town
 REM palette's own blue-grey ramp (entries 178-188, the tone of Tristram's rocks - "they are very blue-ish"; a cast
 REM between that ramp and the neutral greys speckled at quantisation): -Saturation 0.45
-REM -Brightness 0.78 -CoolCast 0.04.
+REM -Brightness 0.42; then the user REPAINTED the master in blue slate (21:06) and it is cast onto the rocks' own dark
+REM slate (-Brightness 0.7 -TintRgb "57,65,95" -TintStrength 1.0) with a black ground shadow cast east-north-east
+REM (-ShadowLength 0.9 -ShadowRise 0.25), which pads the canvas to 372 wide - OracoolStonegateAnimWidth must match.
 REM The portal is a missile drawn over it (AddRiftPortal lifts it 20px into the arch). The seventeen-frame
 REM batch 45 cut (closed + eight gold + eight violet, RfA-22) is superseded and stays filed under
 REM 02-concept-assets\delivered-packs.
@@ -15,7 +17,7 @@ REM so a mismatch splits every RLE scanline at the wrong point. The tool prints 
 REM
 REM Usage:  tools\build_stonegate_cel.cmd
 REM Run from the repository root. If the frame is missing, run first:
-REM   powershell -File tools\ScalePainting.ps1 -Source "..\Resources\Rift Monument.png" -OutDir "..\Resources\01-in-use-assets\objects\rift-monument-user" -OutName rift_monument.png -Width 128 -Saturation 0.45 -Brightness 0.78 -TintRgb "121,127,160" -TintStrength 1.0
+REM   powershell -File tools\ScalePainting.ps1 -Source "..\Resources\Rift Monument.png" -OutDir "..\Resources\01-in-use-assets\objects\rift-monument-user" -OutName rift_monument.png -Width 128 -Brightness 0.7 -TintRgb "57,65,95" -TintStrength 1.0 -ShadowLength 0.9 -ShadowRise 0.25 -ShadowBaseline 12
 
 setlocal
 set FRAMES=..\Resources\01-in-use-assets\objects\rift-monument-user

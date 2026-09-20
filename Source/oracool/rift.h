@@ -53,6 +53,13 @@ enum class RiftGuardianType : uint8_t {
 /** @brief The Guardian Rift's clock (r9): fifteen minutes, Diablo III's number, a first value for play. */
 constexpr int GuardianRiftSeconds = 15 * 60;
 constexpr int RiftTicksPerSecond = 20;
+/**
+ * @brief A cleared NEPHALEM Rift stays open this long after its guardian falls, then closes on its own
+ * (user, 2026-09-20: "Nephalem rift stays open for 60 seconds after its boss has been killed. It cant be
+ * closed any other way. Only New Game is the option ... If the player is in the Nef Rift while countdown
+ * hits 0 player is teleported to new-game spawn location and the rift portal is now gone").
+ */
+constexpr int NephalemRiftCloseSeconds = 60;
 
 /** @brief Kill credit toward the bar (r4): an ordinary monster, a champion or variant, a unique or boss. */
 constexpr int RiftCreditOrdinary = 1;
@@ -77,7 +84,11 @@ _setlevels RiftLevelFor(RiftKind kind);
 RiftKind ActiveRift();
 /** @brief Whether the local hero is standing inside the active rift. */
 bool InRift();
-/** @brief InRift() and the rift is a Guardian Rift - the town portal is refused there (r9). */
+/**
+ * @brief Whether the town portal is refused where the hero stands. ALWAYS FALSE since 2026-09-20 (user:
+ * "Town portals are to be allowed in Guardian Rift"); plan r9's refusal is history. Kept so the spell
+ * check keeps one question to ask.
+ */
 bool RiftForbidsTownPortal();
 
 int RiftTier();
@@ -161,6 +172,14 @@ bool RiftGuardianSpawned();
 bool RiftDone();
 bool RiftTimedOut();
 int RiftSecondsLeft();
+/** @brief Seconds until a cleared Nephalem Rift closes on its own (NephalemRiftCloseSeconds), 0 when no clock runs. */
+int RiftCloseSecondsLeft();
+/**
+ * @brief The Guardian portal's draw table for the 32-bit screen: the palette as it is, except the
+ * PAL8_BLUE ramp sent to violet values - the portal's sheet is vanilla's blue, since the palette has no
+ * violet to quantise to. scrollrt.cpp draws MissileID::RiftPortalPurple through it.
+ */
+const uint32_t *GuardianPortalRgbTable();
 int RiftProgressPercent();
 
 /** @brief The bar and the clock under the mini-map while the hero is in a rift. */

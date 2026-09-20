@@ -124,8 +124,11 @@ function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satB
 $out = (Resolve-Path $OutDir).Path
 # Gold: the yellow-orange of the game's gold text; a touch more saturation so the flame reads as metal, not straw.
 HueShift $Source (Join-Path $out "portal_gold.png") 42 1.25 1.05 @(96, 66, 8)
-# Purple: violet, the blue's own lightness - the ramp the palette never had.
-HueShift $Source (Join-Path $out "portal_purple.png") 278 1.15 1.0 @(72, 18, 100)
+# Purple: NOT hue-shifted here any more (2026-09-20). The sheet is quantised to the palette on load and
+# the palette has no violet ramp, so the shifted sheet came out blue in the game. It stays vanilla's
+# BLUE (the PAL8_BLUE ramp) with a dark blue centre fill, and the game draws the Guardian portal through
+# oracool::GuardianPortalRgbTable, which sends that ramp to violet values (rift.cpp).
+HueShift $Source (Join-Path $out "portal_purple.png") -1 1.0 1.0 @(0, 0, 60)
 # The TOWN's own portal (user, 2026-09-20: "shrink the town portal asset in-town only, not in dungeons
 # to 90% and remove its shadow"): vanilla's colours, no fill, the ground shadow stripped, 90% like the
 # rift portals. MissileGraphicID::TownPortalInTown; the dungeon-side portal keeps the CL2.

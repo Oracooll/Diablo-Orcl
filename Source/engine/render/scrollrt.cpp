@@ -378,6 +378,13 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 		return;
 	const Point missileRenderPosition { targetBufferPosition + missile.position.offsetForRendering - Displacement { missile._miAnimWidth2, 0 } };
 	const ClxSprite sprite = (*missile._miAnimData)[missile._miAnimFrame - 1];
+	// Oracool: the Guardian Rift's portal is VIOLET, a colour the palette has no ramp for - its sheet
+	// is vanilla's blue and this draw sends the blue ramp to violet values (GuardianPortalRgbTable).
+	// Unlit on purpose: a portal glows.
+	if (!out.isIndexed() && missile._mitype == MissileID::RiftPortalPurple) {
+		ClxDrawRgbMap(out, missileRenderPosition, sprite, oracool::GuardianPortalRgbTable());
+		return;
+	}
 	// Oracool: a caller-supplied recolour, checked before the unique-monster one because a player's
 	// missile can never have the latter. See Missile::oracoolTrn.
 	if (missile.oracoolTrn != nullptr)
