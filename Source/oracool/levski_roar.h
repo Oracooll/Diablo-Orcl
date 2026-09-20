@@ -139,6 +139,9 @@ void DrawLevskiRoar(const Surface &out);
 /** @brief Routes a click. True when the click was consumed by the window. */
 bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld);
 
+/** @brief LeftMouseUp: the painted Cube UI's pressed button (TRANSMUTE / RECIPE BOOK) springs back (2026-09-20). */
+void ReleaseLevskiButtons();
+
 /**
  * @brief Copies @p item into the first grid slot its footprint fits. False if it does not fit.
  *

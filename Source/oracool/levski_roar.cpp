@@ -87,6 +87,9 @@ bool RecipeBookOpen = false;
 TransmuteHost WindowHost = TransmuteHost::Cube;
 /** @brief The Cube skin's recipe list, scrolled in whole lines (the bezel has eight line positions). */
 int CubeListScroll = 0;
+/** @brief The painted Cube UI's button held down (levski_skin::Transmute / Recipes) or -1, and the one under the cursor last frame. */
+int PressedCubeButton = -1;
+int LastHoverCubeButton = -1;
 
 /**
  * The pressed-button flash. User request, 2026-08-20: "Make some visual feedback when i click on
@@ -211,6 +214,10 @@ struct ListSkinGeometry {
 	const char *background;
 	/** True for the canvas: the wells, the bezel and the button plate are drawn in code, as placeholders for art. */
 	bool codeDrawn;
+	/** The RECIPE BOOK button (the user's painted Cube UI, 2026-09-20); empty on the bezel skins, which list the recipes in the window. */
+	Rectangle recipes;
+	/** Where the title is drawn in the game's own font (user: "for the title use vanilla font proper size instead of prerendered title"). */
+	Rectangle title;
 };
 
 constexpr ListSkinGeometry CubeGeometry {
@@ -227,12 +234,34 @@ constexpr ListSkinGeometry ArtisanGeometry {
 	{ 320, 352 }, { 30, 66 }, { { 89, 296 }, { 142, 26 } }, { { 124, 66 }, { 162, ListLines * ListPitch } },
 	{ { 290, 66 }, { 4, ListLines * ListPitch } }, { { 296, 5 }, { 18, 18 } }, ArtisanCanvasAsset, true
 };
+/**
+ * The USER'S Cube UI (2026-09-20, Resources\Levski's Cube UI): a 320x352 background with the grid painted in
+ * (silver rules at x 115/144/173/202, y 106/135/164/193/222 - the item cell's 28 px inside a 29 px pitch, the
+ * Roar's own pitch), a title band, the TRANSMUTE and RECIPE BOOK buttons as their own paintings (778x143 and
+ * 532x106, scaled by tools/ScalePainting.ps1 to 208x38 and 142x28 - the sizes in the user's assembled sample,
+ * "Levski Cube Full Design 2.png", 1198x1313 = the canvas at 3.74x). No bezel: the RECIPE BOOK button opens the
+ * tall book beside the window, as the Roar's plate did. The title is the game's 24 px gold in the sample's band.
+ * Buttons brighten a notch under the cursor and sink 2 px down-left while pressed (feedback_button_press_and_sound).
+ */
+constexpr const char *CubeCanvasAsset = "ui\\cube_canvas.png";
+constexpr const char *CubeTransmuteAsset = "ui\\cube_transmute.png";
+constexpr const char *CubeRecipeBookAsset = "ui\\cube_recipebook.png";
+constexpr int CubeHoverBrightenPercent = 115;
+constexpr Displacement CubeButtonSink { -2, 2 };
+constexpr ListSkinGeometry CubeCanvasGeometry {
+	{ 320, 352 }, { 116, 107 }, { { 56, 249 }, { 208, 38 } }, { { 0, 0 }, { 0, 0 } },
+	{ { 0, 0 }, { 0, 0 } }, { { 296, 5 }, { 18, 18 } }, CubeCanvasAsset, false,
+	{ { 89, 293 }, { 142, 28 } }, { { 56, 32 }, { 208, 36 } }
+};
 
 /** @brief The list skin the window wears right now, or nullptr for the Roar's painting. */
 const ListSkinGeometry *ListSkin()
 {
 	// The canvas for the Cube too (user, 2026-09-20: "Use same canvas and in code drawn interface for the
 	// UI of Levski's Cube"); batch 43b's painting stays measured in levski_cube_skin.h, unworn.
+	// The user's own Cube UI first (2026-09-20: "build Levski's Cube UI with assets from this folder").
+	if (WindowHost == TransmuteHost::Cube && GetLoosePngSize(CubeCanvasGeometry.background).width > 0)
+		return &CubeCanvasGeometry;
 	if (WindowHost == TransmuteHost::Cube || WindowHost == TransmuteHost::Tavern || WindowHost == TransmuteHost::Barmaid) {
 		if (GetLoosePngSize(ArtisanGeometry.background).width > 0)
 			return &ArtisanGeometry;
@@ -246,6 +275,13 @@ const ListSkinGeometry *ListSkin()
 bool CubeSkin()
 {
 	return ListSkin() != nullptr;
+}
+
+/** @brief Whether the window wears the user's painted Cube UI: painted buttons, no bezel, the tall book on demand. */
+bool PaintedButtons()
+{
+	const ListSkinGeometry *skin = ListSkin();
+	return skin != nullptr && skin->recipes.size.width > 0;
 }
 
 Size CurrentFrameSize()
@@ -266,6 +302,10 @@ Rectangle ButtonRect(const Rectangle &window, int index)
 		if (index == levski_skin::Transmute) {
 			const Rectangle &t = skin->transmute;
 			return Rectangle { window.position + Displacement { t.position.x, t.position.y }, t.size };
+		}
+		if (index == levski_skin::Recipes) {
+			const Rectangle &r = skin->recipes;
+			return Rectangle { window.position + Displacement { r.position.x, r.position.y }, r.size };
 		}
 		return Rectangle { { 0, 0 }, { 0, 0 } };
 	}
@@ -723,7 +763,7 @@ bool LevskiGridCanHold(const Item *items, int count)
 
 bool HandleLevskiRecipeBookScroll(int notches)
 {
-	if (WindowOpen && CubeSkin()) {
+	if (WindowOpen && CubeSkin() && !PaintedButtons()) {
 		// The bezel list scrolls a line per notch, and only while the cursor is on the window - the
 		// wheel elsewhere still belongs to whatever is under it.
 		if (!GetLevskiRoarRect().contains(MousePosition))
@@ -811,6 +851,7 @@ bool SetLevskiHoverInfoString()
 }
 
 bool IsLevskiRoarOpen() { return WindowOpen; }
+void ReleaseLevskiButtons() { PressedCubeButton = -1; }
 bool IsLevskiRecipeBookOpen() { return WindowOpen && RecipeBookOpen; }
 
 bool IsLevskiRoarObject(const Object &object)
@@ -925,6 +966,8 @@ void CloseLevskiRoar()
 		cell = 0;
 	WindowOpen = false;
 	RecipeBookOpen = false;
+	PressedCubeButton = -1;
+	LastHoverCubeButton = -1;
 }
 
 bool PlaceItemInLevskiGrid(const Item &item)
@@ -1063,6 +1106,65 @@ void DrawSpriteScaled(const Surface &out, Point topLeft, ClxSprite sprite, int s
 	}
 }
 
+/** @brief The tall recipe book beside the window: the Roar's plate opens it, and the painted Cube UI's RECIPE BOOK button. */
+void DrawTallRecipeBook(const Surface &out)
+{
+	const Rectangle page = GetLevskiRecipeBookRect();
+	// The painted tall frame (user, 2026-09-05): dark backing in its core, the bezel over it, the
+	// red X at the frame's top-right.
+	DrawBookFrame(out, BookFrame::Tall, page);
+	DrawWindowCloseButton(out, page);
+	const Rectangle inner = RecipeBookInner(page);
+	Point cursor = inner.position + Displacement { Padding, Padding };
+	const int textWidth = inner.size.width - Padding * 2;
+	DrawString(out, _("Recipes"), Rectangle { cursor, { textWidth, HeaderHeight } },
+	    { UiFlags::ColorGold | UiFlags::FontSize24 });
+	cursor.y += HeaderHeight;
+	// One wrapped block rather than two DrawStrings per recipe at a guessed row height. The name
+	// keeps its own colour, so each recipe is drawn as its own pair - but both lines are measured
+	// from the SAME wrapped text the panel was sized from, which is what stops the last one being
+	// sliced by the bottom edge.
+	// Clamped HERE, every frame, rather than only where the wheel turns - the content's height
+	// changes with the window width and with how the formulas wrap, so a scroll that was legal when
+	// it was set can be past the end by the time it is drawn.
+	RecipeBookScroll = std::clamp(RecipeBookScroll, 0, RecipeBookMaxScroll(page));
+
+	const int clipTop = inner.position.y + Padding + HeaderHeight;
+	const int clipBottom = inner.position.y + inner.size.height - Padding;
+	const std::vector<RecipeRow> rows = RecipeBookRows(page);
+	for (int i = 0; i < CraftingRecipeCount; i++) {
+		const RecipeRow &row = rows[i];
+		// Wholly outside the visible band: skipped rather than drawn and overdrawn. A partially
+		// visible row is skipped too - half a formula reads as a rendering fault, not as a hint
+		// that there is more below.
+		if (row.top < clipTop || row.top + row.height > clipBottom)
+			continue;
+
+		if (row.height == 0)
+			continue; // another host's recipe (Levski's Cube, 2026-09-20)
+		const bool ready = CanCraftFromLevskiGrid(GridItems, i);
+		const bool selected = SelectedRecipe == i;
+		if (selected) {
+			// The selection is a filled band behind the block, because the name's colour is
+			// already carrying "can this run right now" and one text colour cannot say two things.
+			FillRect(out, inner.position.x + Padding - 2, row.top - 2,
+			    textWidth + 4, row.height - 2, ButtonFlashColor);
+		}
+
+		Point rowCursor { inner.position.x + Padding, row.top };
+		const int lineHeight = GetLineHeight(_(CraftingRecipeName(i)), GameFont12);
+		DrawString(out, _(CraftingRecipeName(i)), Rectangle { rowCursor, { textWidth, lineHeight } },
+		    { (selected ? UiFlags::ColorWhite : (ready ? UiFlags::ColorGold : UiFlags::ColorWhitegold)) | UiFlags::FontSize12 });
+		rowCursor.y += lineHeight;
+
+		const std::string formula = WordWrapString(_(CraftingRecipeInputs(i)), textWidth, GameFont12);
+		const int formulaLines = static_cast<int>(std::count(formula.begin(), formula.end(), '\n')) + 1;
+		DrawString(out, formula, Rectangle { rowCursor, { textWidth, lineHeight * formulaLines } },
+		    { UiFlags::ColorWhite | UiFlags::FontSize12 });
+	}
+	(void)cursor;
+}
+
 } // namespace
 
 void DrawLevskiRoar(const Surface &out)
@@ -1150,6 +1252,36 @@ void DrawLevskiRoar(const Surface &out)
 	// The close button: the game's own red X, where the skin puts it (the painting has no plate for
 	// it, and its frame's corner is not the rect's corner - see the cutter).
 	DrawWindowCloseButtonAt(out, CloseButtonRect(window));
+
+	if (cube && listSkin->recipes.size.width > 0) {
+		// The user's painted Cube UI: the title in the game's font, the two painted buttons - brighter under the
+		// cursor, sunk while pressed, the entry sound as the cursor arrives - and the tall book when it is open.
+		DrawString(out, _("Levski's Cube"), Rectangle { window.position + Displacement { listSkin->title.position.x, listSkin->title.position.y }, listSkin->title.size },
+		    { UiFlags::ColorGold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		int hoveredNow = -1;
+		for (const int b : { static_cast<int>(levski_skin::Transmute), static_cast<int>(levski_skin::Recipes) }) {
+			const Rectangle rect = ButtonRect(window, b);
+			const bool hovered = rect.contains(MousePosition);
+			if (hovered)
+				hoveredNow = b;
+			const char *asset = b == levski_skin::Transmute ? CubeTransmuteAsset : CubeRecipeBookAsset;
+			const Rectangle face { rect.position + (PressedCubeButton == b ? CubeButtonSink : Displacement { 0, 0 }), rect.size };
+			if (GetLoosePngSize(asset).width > 0) {
+				DrawLoosePng(out, asset, face.position);
+			} else {
+				DrawString(out, b == levski_skin::Transmute ? _("TRANSMUTE") : _("RECIPE BOOK"), face,
+				    { UiFlags::ColorGold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+			}
+			if (hovered)
+				BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, CubeHoverBrightenPercent);
+		}
+		if (hoveredNow >= 0 && hoveredNow != LastHoverCubeButton)
+			PlayUiMoveSound();
+		LastHoverCubeButton = hoveredNow;
+		if (RecipeBookOpen)
+			DrawTallRecipeBook(out);
+		return;
+	}
 
 	if (cube) {
 		// The Cube's painting (batch 43b): TRANSMUTE is a recess under the grid, and the recipes are
@@ -1260,63 +1392,8 @@ void DrawLevskiRoar(const Surface &out)
 			DrawQuarterDarkenRect(out, rect); // a quarter, not a half, since 2026-09-07 - see the helper
 	}
 
-	if (!RecipeBookOpen)
-		return;
-
-	const Rectangle page = GetLevskiRecipeBookRect();
-	// The painted tall frame (user, 2026-09-05): dark backing in its core, the bezel over it, the
-	// red X at the frame's top-right.
-	DrawBookFrame(out, BookFrame::Tall, page);
-	DrawWindowCloseButton(out, page);
-	const Rectangle inner = RecipeBookInner(page);
-	Point cursor = inner.position + Displacement { Padding, Padding };
-	const int textWidth = inner.size.width - Padding * 2;
-	DrawString(out, _("Recipes"), Rectangle { cursor, { textWidth, HeaderHeight } },
-	    { UiFlags::ColorGold | UiFlags::FontSize24 });
-	cursor.y += HeaderHeight;
-	// One wrapped block rather than two DrawStrings per recipe at a guessed row height. The name
-	// keeps its own colour, so each recipe is drawn as its own pair - but both lines are measured
-	// from the SAME wrapped text the panel was sized from, which is what stops the last one being
-	// sliced by the bottom edge.
-	// Clamped HERE, every frame, rather than only where the wheel turns - the content's height
-	// changes with the window width and with how the formulas wrap, so a scroll that was legal when
-	// it was set can be past the end by the time it is drawn.
-	RecipeBookScroll = std::clamp(RecipeBookScroll, 0, RecipeBookMaxScroll(page));
-
-	const int clipTop = inner.position.y + Padding + HeaderHeight;
-	const int clipBottom = inner.position.y + inner.size.height - Padding;
-	const std::vector<RecipeRow> rows = RecipeBookRows(page);
-	for (int i = 0; i < CraftingRecipeCount; i++) {
-		const RecipeRow &row = rows[i];
-		// Wholly outside the visible band: skipped rather than drawn and overdrawn. A partially
-		// visible row is skipped too - half a formula reads as a rendering fault, not as a hint
-		// that there is more below.
-		if (row.top < clipTop || row.top + row.height > clipBottom)
-			continue;
-
-		if (row.height == 0)
-			continue; // another host's recipe (Levski's Cube, 2026-09-20)
-		const bool ready = CanCraftFromLevskiGrid(GridItems, i);
-		const bool selected = SelectedRecipe == i;
-		if (selected) {
-			// The selection is a filled band behind the block, because the name's colour is
-			// already carrying "can this run right now" and one text colour cannot say two things.
-			FillRect(out, inner.position.x + Padding - 2, row.top - 2,
-			    textWidth + 4, row.height - 2, ButtonFlashColor);
-		}
-
-		Point rowCursor { inner.position.x + Padding, row.top };
-		const int lineHeight = GetLineHeight(_(CraftingRecipeName(i)), GameFont12);
-		DrawString(out, _(CraftingRecipeName(i)), Rectangle { rowCursor, { textWidth, lineHeight } },
-		    { (selected ? UiFlags::ColorWhite : (ready ? UiFlags::ColorGold : UiFlags::ColorWhitegold)) | UiFlags::FontSize12 });
-		rowCursor.y += lineHeight;
-
-		const std::string formula = WordWrapString(_(CraftingRecipeInputs(i)), textWidth, GameFont12);
-		const int formulaLines = static_cast<int>(std::count(formula.begin(), formula.end(), '\n')) + 1;
-		DrawString(out, formula, Rectangle { rowCursor, { textWidth, lineHeight * formulaLines } },
-		    { UiFlags::ColorWhite | UiFlags::FontSize12 });
-	}
-	(void)cursor;
+	if (RecipeBookOpen)
+		DrawTallRecipeBook(out);
 }
 
 bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
@@ -1373,7 +1450,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 
 	// The Cube skin's bezel: a click on a listed recipe selects it, on the selected one clears the
 	// selection - the tall book's rule, on the painting's own lines.
-	if (CubeSkin()) {
+	if (CubeSkin() && !PaintedButtons()) {
 		for (int line = 0; line < ListLines; line++) {
 			const int recipe = CubeListRecipeAt(line);
 			if (recipe < 0)
@@ -1408,6 +1485,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	}
 
 	if (RecipeButtonRect(window).contains(mousePosition)) {
+		PressedCubeButton = levski_skin::Recipes; // the painted button sinks until LeftMouseUp (ReleaseLevskiButtons)
 		FlashButton(ButtonFlashRecipes);
 		RecipeBookOpen = !RecipeBookOpen;
 		PlayUiMoveSound();
@@ -1416,6 +1494,10 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 
 	if (TransmuteButtonRect(window).contains(mousePosition)) {
 		FlashButton(ButtonFlashTransmute);
+		if (PaintedButtons()) {
+			PressedCubeButton = levski_skin::Transmute; // sinks until LeftMouseUp; the click sounds at the press
+			PlayUiMoveSound();
+		}
 		// TRANSACTIONAL. The recipes rewrite GridItems with no idea of footprints, and freeing
 		// sockets is the one that gives back more than it takes - so the repack afterwards can find
 		// it has nowhere to put something. Before this snapshot the repack simply dropped whatever
