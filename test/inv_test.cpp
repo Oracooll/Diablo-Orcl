@@ -64,17 +64,21 @@ void clear_inventory()
 // slot art, not a plate, and has no border: on the 32-bit screen each pixel keeps its luminance and takes the
 // tier's hue; on an 8-bit surface - this test's - TintRectRgb uses vanilla's own shift, so a pixel in the grey
 // ramp moves ONE shade deeper into the fallback ramp and every other pixel is left alone. Steel blue stands in
-// for a purple the palette does not hold.
-TEST_F(InvTest, EtherealItemsWearAPurpleTintAndNoBorder)
+// for a purple the palette does not hold. Since v1.12.093 a GRID item also wears the grid frame (user,
+// 2026-09-20: "1px gold outline of their rectangular grid ... thin 1px grey grid behind their sprites"): the
+// footprint's edge is gold, every 28 px cell boundary inside is grey, and the body slots (gridLines = false)
+// get neither.
+TEST_F(InvTest, EtherealItemsWearAPurpleTintAndAGridFrame)
 {
 	const Size size { 56, 84 };
 	constexpr uint8_t StoneShade = 5; // the slot art's grey, PAL16_GRAY + 5, before any tint
-	// Returns { the corner pixel, the centre pixel } after drawing over a surface filled with @p fill.
-	const auto drawn = [&size](const Item &item, uint8_t fill) {
+	// Returns { the corner pixel, a pixel inside a cell } after drawing over a surface filled with  fill.
+	// The sample point is off the cell boundaries (x 28 is the inner grey line of a 56-wide footprint).
+	const auto drawn = [&size](const Item &item, uint8_t fill, bool gridLines = true) {
 		OwnedSurface surf(size.width, size.height);
 		SDL_FillRect(surf.surface, nullptr, fill);
-		InvDrawSlotBack(surf, { 0, size.height - 1 }, size, item);
-		return std::pair<uint8_t, uint8_t> { surf[Point { 0, 0 }], surf[Point { size.width / 2, size.height / 2 }] };
+		InvDrawSlotBack(surf, { 0, size.height - 1 }, size, item, gridLines);
+		return std::pair<uint8_t, uint8_t> { surf[Point { 0, 0 }], surf[Point { size.width / 2 + 5, size.height / 2 }] };
 	};
 
 	Item ethereal {};
@@ -83,7 +87,18 @@ TEST_F(InvTest, EtherealItemsWearAPurpleTintAndNoBorder)
 	ethereal._iOracoolEthereal = true;
 	const auto [edge, middle] = drawn(ethereal, PAL16_GRAY + StoneShade);
 	EXPECT_EQ(middle, PAL16_BLUE + StoneShade + 1) << "an ethereal item's tint: the stone's shade, one deeper, in the fallback ramp";
-	EXPECT_EQ(edge, middle) << "no border: the corner is tinted exactly as the centre";
+	EXPECT_EQ(edge, PAL16_YELLOW + 4) << "the grid frame: the footprint's corner is the 1 px gold outline";
+	{
+		OwnedSurface surf(size.width, size.height);
+		SDL_FillRect(surf.surface, nullptr, PAL16_GRAY + StoneShade);
+		InvDrawSlotBack(surf, { 0, size.height - 1 }, size, ethereal);
+		EXPECT_EQ((surf[Point { 28, 42 }]), PAL16_GRAY + 9) << "the inner cell boundary at x 28 is the 1 px grey line";
+		EXPECT_EQ((surf[Point { 10, 56 }]), PAL16_GRAY + 9) << "the inner cell boundary at y 56 is the 1 px grey line";
+		EXPECT_EQ((surf[Point { size.width - 1, size.height - 1 }]), PAL16_YELLOW + 4) << "the far corner is gold too";
+	}
+	// The body slots draw no frame: the corner is tinted exactly as the middle (the pre-v1.12.093 rule).
+	const auto [bodyEdge, bodyMiddle] = drawn(ethereal, PAL16_GRAY + StoneShade, /*gridLines=*/false);
+	EXPECT_EQ(bodyEdge, bodyMiddle) << "no border on a body slot: the corner is tinted exactly as the centre";
 
 	// A pixel outside the grey ramp is not the slot art and is left alone, as vanilla left it.
 	EXPECT_EQ(drawn(ethereal, 100).second, 100) << "a non-grey pixel was recoloured";

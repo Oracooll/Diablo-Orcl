@@ -1233,6 +1233,9 @@ void DrawLevskiRoar(const Surface &out)
 			// carries - shadows, the grey, the red X, the stack count - and the socket overlay and
 			// outline the backpack gives an item under the cursor. Nothing here is a copy of it.
 			const Point bottomLeft { topLeft.x, topLeft.y + sprite.height() - 1 };
+			// The backpack's backing under the item (2026-09-20: the tier tint, the stone, and the grid frame the
+			// user asked for on every grid but the body) - the same call, so the Cube's grid reads as the pack does.
+			InvDrawSlotBack(out, bottomLeft, footprint.size, item);
 			if (anchor == hoveredAnchor)
 				ClxDrawOutline(out, GetOutlineColor(item, true), bottomLeft, sprite);
 			DrawItem(item, out, bottomLeft, sprite);

@@ -1674,7 +1674,13 @@ void DrawSlotStoneUnderlay(const Surface &out, Rectangle rect)
 
 } // namespace
 
-void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const Item &item)
+/** @brief The grid frame under an item on a GRID (user, 2026-09-20: "add the thin 1px grey grid behind their sprites + add 1px
+ * gold outline of their rectangular grid"): a 1 px gold outline on the footprint's edge and 1 px grey lines on every
+ * cell boundary inside it. Not on the body slots. Two tunables. */
+constexpr uint8_t GridFrameGold = PAL16_YELLOW + 4;
+constexpr uint8_t GridFrameGrey = PAL16_GRAY + 9;
+
+void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const Item &item, bool gridLines)
 {
 	// targetPosition is the footprint's BOTTOM-left, as every caller passes it. Vanilla ran
 	// Surface::Clip here, which takes a TOP-left and only trims a source rect nothing reads - so a
@@ -1783,6 +1789,17 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	DrawSlotStoneUnderlay(out, footprint);
 	TintRectRgb(out, footprint.position.x, footprint.position.y, footprint.size.width, footprint.size.height,
 	    hue, depth, TintFloorPercent, fallbackRamp);
+	if (!gridLines)
+		return;
+	// The grid frame over the tint, under the sprite: grey cell lines inside, the gold outline on the edge.
+	for (int x = InventorySlotSizeInPixels.width; x < size.width; x += InventorySlotSizeInPixels.width)
+		DrawVerticalLine(out, { footprint.position.x + x, footprint.position.y }, size.height, GridFrameGrey);
+	for (int y = InventorySlotSizeInPixels.height; y < size.height; y += InventorySlotSizeInPixels.height)
+		DrawHorizontalLine(out, { footprint.position.x, footprint.position.y + y }, size.width, GridFrameGrey);
+	DrawHorizontalLine(out, footprint.position, size.width, GridFrameGold);
+	DrawHorizontalLine(out, { footprint.position.x, footprint.position.y + size.height - 1 }, size.width, GridFrameGold);
+	DrawVerticalLine(out, footprint.position, size.height, GridFrameGold);
+	DrawVerticalLine(out, { footprint.position.x + size.width - 1, footprint.position.y }, size.height, GridFrameGold);
 }
 
 bool CanBePlacedOnBelt(const Item &item)
@@ -2107,7 +2124,7 @@ void DrawInv(const Surface &out)
 		if (!myPlayer.InvBody[slot].isEmpty()) {
 			int screenX = slotPos[slot].x;
 			int screenY = slotPos[slot].y;
-			InvDrawSlotBack(out, GetPanelPosition(UiPanels::Inventory, { screenX, screenY }), { slotSize[slot].width * InventorySlotSizeInPixels.width, slotSize[slot].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot]);
+			InvDrawSlotBack(out, GetPanelPosition(UiPanels::Inventory, { screenX, screenY }), { slotSize[slot].width * InventorySlotSizeInPixels.width, slotSize[slot].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot], /*gridLines=*/false);
 
 			const int cursId = myPlayer.InvBody[slot]._iCurs + CURSOR_FIRSTITEM;
 
@@ -2137,7 +2154,7 @@ void DrawInv(const Surface &out)
 
 			if (slot == INVLOC_HAND_LEFT) {
 				if (myPlayer.GetItemLocation(myPlayer.InvBody[slot]) == ILOC_TWOHAND) {
-					InvDrawSlotBack(out, GetPanelPosition(UiPanels::Inventory, slotPos[INVLOC_HAND_RIGHT]), { slotSize[INVLOC_HAND_RIGHT].width * InventorySlotSizeInPixels.width, slotSize[INVLOC_HAND_RIGHT].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot]);
+					InvDrawSlotBack(out, GetPanelPosition(UiPanels::Inventory, slotPos[INVLOC_HAND_RIGHT]), { slotSize[INVLOC_HAND_RIGHT].width * InventorySlotSizeInPixels.width, slotSize[INVLOC_HAND_RIGHT].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot], /*gridLines=*/false);
 					const int dstX = oracool::GetInventoryPanelRect().position.x + slotPos[INVLOC_HAND_RIGHT].x + (frameSize.width == InventorySlotSizeInPixels.width ? INV_SLOT_HALF_SIZE_PX : 0) - 1;
 					const int dstY = oracool::GetInventoryPanelRect().position.y + slotPos[INVLOC_HAND_RIGHT].y;
 					ClxDrawBlended(out, { dstX, dstY }, sprite);

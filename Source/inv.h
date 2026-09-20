@@ -188,7 +188,9 @@ void AddItemToActiveInvGrid(Player &player, int invGridIndex, int invListIndex, 
 /** @brief Hit-tests the Tabbed Inventory tab buttons; switches ActiveInventoryTab and returns true if cursorPosition landed on one. */
 bool CheckInventoryTabClick(Point cursorPosition);
 
-void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const Item &item);
+/** @brief The backing under an item: the tier tint over vanilla's stone, and - on a GRID (gridLines, every grid but the
+ * body slots) - a 1 px gold outline of the footprint with 1 px grey cell lines inside (user, 2026-09-20). */
+void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const Item &item, bool gridLines = true);
 /**
  * @brief Checks whether the given item can be placed on the belt. Takes item size as well as characteristics into account. Items
  * that cannot be placed on the belt have to be placed in the inventory instead.
