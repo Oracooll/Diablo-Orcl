@@ -461,6 +461,51 @@ int ListHeight = 0;
 /** @brief Index of the tab plate being held down, or -1. Purely so it can be drawn pressed. */
 int PressedTab = -1;
 
+/**
+ * @brief The ICON BUTTONS' click and hover effects - the ones the waypoint list's Act buttons got
+ * first (user, 2026-09-20: "i like these move and sound effects we just applied on the Act buttons.
+ * Apply them on all buttons in the abilities windows, regardless if clicking on a button actually
+ * produces any meaningful effect", then narrowed to "the skills/spells/auras buttons. dont apply on
+ * the navigation buttons yet"): a tree cell (skill or aura), a passive slot or a spell row's icon
+ * sinks 2px down and 2px left from the press until the mouse is released, its shadow staying put;
+ * titlemov.wav plays on every hover ENTRY and on every click, whatever the click then does. The
+ * tab plates keep their own press wash and are not part of this.
+ *
+ * The click sounds that used to sit on the individual outcomes in CheckSBook (move on an emptying,
+ * select on a slotting or a readying) are folded into the one press sound, or a click would ring
+ * twice; a skill's own learn cue inside InvestClassTreePoint is not a click sound and stays.
+ */
+enum class IconButtonKind : uint8_t {
+	None,
+	TreeCell,    // id = the ClassTreeSkill
+	PassiveSlot, // id = the slot
+	SpellRow,    // id = the row index on the Spells sheet
+};
+struct IconButton {
+	IconButtonKind kind = IconButtonKind::None;
+	int id = -1;
+	bool operator==(const IconButton &other) const { return kind == other.kind && id == other.id; }
+	bool operator!=(const IconButton &other) const { return !(*this == other); }
+};
+IconButton PressedIcon;
+/** @brief What the cursor is over THIS frame (set by DrawHoverFeedback) and was over last frame. */
+IconButton FrameHoverIcon;
+IconButton LastHoverIcon;
+constexpr Displacement IconPressSink { -2, 2 };
+
+/** @brief The sink for @p button's face: the press offset while it is the one held down, else none. */
+Displacement PressSinkFor(IconButton button)
+{
+	return (PressedIcon.kind != IconButtonKind::None && PressedIcon == button) ? IconPressSink : Displacement { 0, 0 };
+}
+
+/** @brief A click landed on @p button: it sinks until the release, and the click sounds. */
+void PressIconButton(IconButton button)
+{
+	PressedIcon = button;
+	oracool::PlayUiMoveSound();
+}
+
 // The ClassAbilitySheetsHidden flag that used to live here is gone with the two sheets it hid.
 // It was raised on 2026-08-15 because the Paladin's Auras sheet and the Barbarian's skill sheet
 // were finished LISTS with no gameplay behind them, and a page of things that cannot be used reads
@@ -979,7 +1024,7 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	// Scaled to the sheet's icon square. The engine's spell icons carry their own bevelled plate in
 	// the art, so background and symbol scale together and there is nothing to draw underneath -
 	// unlike a tree cell, where the plate is a separate sprite behind a strip icon.
-	const Rectangle iconRect = SpellRowIconRect(top);
+	Rectangle iconRect = SpellRowIconRect(top); // shifted below while pressed - see IconButton
 	// The carved 2x2 slot frame behind the icon (user, 2026-09-02: "use the item.slot.2x2 frames
 	// behind all icons in the abilities window"). It fits without a single number changing: this
 	// window's icons are 56px, the equipment slots are 2x28, and the bezel family is keyed by exactly
@@ -990,6 +1035,7 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	// backpack's own bezel has between its cells, so it is left alone rather than paid for in row
 	// height - a taller row costs the page its last entry.
 	oracool::DrawDropShadow(content, iconRect, oracool::GridBezelInset); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
+	iconRect.position += PressSinkFor({ IconButtonKind::SpellRow, static_cast<int>(index) }); // the face sinks while pressed
 	oracool::DrawGridBezel(content, iconRect);
 	// Oracool: Charge draws its OWN art here, from the Paladin strip through TryDrawSkillSpellIcon -
 	// the call the skill wells and the speedbook already made first (2026-09-11: the book alone drew
@@ -1164,6 +1210,8 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	else if (usable)
 		tint = (bookRow || invested > 0) ? oracool::SkillPlateTint::Ready : oracool::SkillPlateTint::Unspent;
 	oracool::DrawDropShadow(content, icon, oracool::GridBezelInset); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
+	// The face sinks while pressed; the shadow above was cast from the resting rect (see IconButton).
+	icon.position += PressSinkFor({ IconButtonKind::TreeCell, static_cast<int>(skill) });
 	oracool::DrawGridBezel(content, icon);
 	// A LEGACY spell keeps its own icon here too, not the class strip's (user, 2026-09-03) - the
 	// same rule the wells and the speedbook now follow.
@@ -1267,6 +1315,7 @@ void DrawPassiveSlotBand(const Surface &content, int scroll)
 		// 56, so neighbouring frames overlap by five pixels, the same shared-rail reading the sheet
 		// rows have.
 		oracool::DrawDropShadow(content, rect, oracool::GridBezelInset); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
+		rect.position += PressSinkFor({ IconButtonKind::PassiveSlot, slot }); // the face sinks while pressed
 		oracool::DrawGridBezel(content, rect);
 		if (filled) {
 			oracool::DrawClassTreeIconOutlined(content, rect, player._pClass,
@@ -1861,6 +1910,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 					                       contentRect.position.y + rect.position.y - scroll },
 					{ AbilitiesContentRightLimit, rect.size.height } };
 				HasPendingHover = true;
+				FrameHoverIcon = { IconButtonKind::PassiveSlot, slot };
 				// The hover is a deeper shadow under the slot, not a ring (user, 2026-09-05).
 				oracool::DrawHoverShadow(content, { { rect.position.x, rect.position.y - scroll }, rect.size },
 				    oracool::GridBezelInset);
@@ -1870,6 +1920,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 		const std::optional<oracool::ClassTreeSkill> hovered = TreeCellAt(*page, local, onBar);
 		if (!hovered.has_value())
 			return;
+		FrameHoverIcon = { IconButtonKind::TreeCell, static_cast<int>(*hovered) };
 		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(*hovered);
 		const Rectangle cell = TreeIconRect(data.page, data.column, data.tier);
 		// A tree cell is an F-key target only when a CLICK on it would do something - the hotkey and
@@ -1910,6 +1961,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 			rowTop = AbilitiesListTop + static_cast<int>(index) * height;
 			rowHeight = height;
 			found = true;
+			FrameHoverIcon = { IconButtonKind::SpellRow, static_cast<int>(index) };
 			if (IsSpellKnown(rows[index]))
 				HoveredAbilitySpell = rows[index];
 			title = oracool::GetSpellDisplayName(rows[index]); // already translated
@@ -2022,7 +2074,14 @@ void DrawSpellBook(const Surface &out)
 	const int rowHeight = RowHeightFor(CurrentSheet);
 	const int scroll = CurrentScroll();
 
+	// The hover sound: DrawHoverFeedback names the icon button under the cursor this frame, and the
+	// frame it changes to one that was not under it last frame is the entry that sounds (see
+	// IconButton). Sensed here because the hover walk is per frame and the window has no tick of its own.
+	FrameHoverIcon = {};
 	DrawHoverFeedback(out, content, contentRect, scroll);
+	if (FrameHoverIcon.kind != IconButtonKind::None && FrameHoverIcon != LastHoverIcon)
+		oracool::PlayUiMoveSound();
+	LastHoverIcon = FrameHoverIcon;
 
 	if (const std::optional<int> page = TreePageOf(CurrentSheet); page.has_value()) {
 		DrawTreePage(content, *page, scroll);
@@ -2091,6 +2150,7 @@ void CheckSBook(bool assignToRightButton)
 		if (IsPassivePage(*page)) {
 			Player &me = *MyPlayer;
 			if (const int slot = PassiveSlotAt(local); slot >= 0) {
+				PressIconButton({ IconButtonKind::PassiveSlot, slot }); // sinks and sounds whatever follows
 				if (me._pLevel < oracool::PassiveSlotRequiredLevel(slot)) {
 					EventPlrMsg(fmt::format(fmt::runtime(_("This slot opens at level {:d}.")),
 					                oracool::PassiveSlotRequiredLevel(slot)),
@@ -2104,7 +2164,6 @@ void CheckSBook(bool assignToRightButton)
 						if (ArmedPassiveSlot == slot)
 							ArmedPassiveSlot = -1;
 						CalcPlrInv(me, false);
-						oracool::PlayUiMoveSound();
 						RedrawEverything();
 					}
 					return;
@@ -2112,23 +2171,19 @@ void CheckSBook(bool assignToRightButton)
 				// Clicking the armed slot again puts the gesture down. Without this the only way
 				// out of a half-finished action would be to complete it.
 				ArmedPassiveSlot = (ArmedPassiveSlot == slot) ? -1 : slot;
-				if (ArmedPassiveSlot >= 0)
-					oracool::PlayUiSelectSound();
-				else
-					oracool::PlayUiMoveSound();
 				RedrawEverything();
 				return;
 			}
 			const std::optional<oracool::ClassTreeSkill> cell = TreeCellAt(*page, local, onBar);
 			if (!cell.has_value())
 				return;
+			PressIconButton({ IconButtonKind::TreeCell, static_cast<int>(*cell) });
 			if (assignToRightButton) {
 				// Right-clicking a slotted passive pulls it out wherever it happens to be sitting,
 				// so a player who wants it gone does not have to find which slot holds it.
 				const int slot = oracool::PassiveSlotOf(me, *cell);
 				if (slot >= 0 && oracool::ClearPassiveSlot(me, slot)) {
 					CalcPlrInv(me, false);
-					oracool::PlayUiMoveSound();
 					RedrawEverything();
 				}
 				return;
@@ -2157,7 +2212,6 @@ void CheckSBook(bool assignToRightButton)
 			if (const int already = oracool::PassiveSlotOf(me, *cell); already >= 0) {
 				if (oracool::ClearPassiveSlot(me, already)) {
 					CalcPlrInv(me, false);
-					oracool::PlayUiMoveSound(); // an emptying, like the right-click above
 					RedrawEverything();
 				}
 				return;
@@ -2165,7 +2219,6 @@ void CheckSBook(bool assignToRightButton)
 			if (oracool::SetPassiveSlot(me, ArmedPassiveSlot, *cell)) {
 				ArmedPassiveSlot = -1;
 				CalcPlrInv(me, false);
-				oracool::PlayUiSelectSound();
 				RedrawEverything();
 			}
 			return;
@@ -2174,6 +2227,7 @@ void CheckSBook(bool assignToRightButton)
 		const std::optional<oracool::ClassTreeSkill> hit = TreeCellAt(*page, local, onBar);
 		if (!hit.has_value())
 			return;
+		PressIconButton({ IconButtonKind::TreeCell, static_cast<int>(*hit) }); // before every refusal below
 		// POINTS ONLY, and the whole icon is the target. User, 2026-08-20: "in abilities window we
 		// repurpose left/right clicks - left click ADDS point, right click SUBTRACTS."
 		//
@@ -2207,10 +2261,8 @@ void CheckSBook(bool assignToRightButton)
 			// The whole of "make it take effect": the aura provider and every ladder read the
 			// investment on the next totals walk.
 			CalcPlrInv(*MyPlayer, false);
-			// A refund's click is here. An invest sounds inside InvestClassTreePoint instead, because
-			// only it knows whether the skill's own learn cue rang.
-			if (assignToRightButton)
-				oracool::PlayUiMoveSound();
+			// The click already sounded at the press (PressIconButton); an invest may add the skill's
+			// own learn cue inside InvestClassTreePoint, which alone knows whether it rang.
 			RedrawEverything();
 			return;
 		}
@@ -2237,6 +2289,7 @@ void CheckSBook(bool assignToRightButton)
 		if (rowIndex >= rowCount)
 			return;
 		sn = rows[rowIndex];
+		PressIconButton({ IconButtonKind::SpellRow, static_cast<int>(rowIndex) }); // an unlearned row too
 		// The spend corners are GONE from this sheet. User rule, 2026-08-20: "Spells cant be
 		// affected by skill points, only by books. Vanila D1." A spell's level is its book level
 		// plus item bonuses, and nothing on this list spends a point any more - so the whole row is
@@ -2272,13 +2325,13 @@ void CheckSBook(bool assignToRightButton)
 		player._pLRSplType = st;
 		oracool::ScheduleAutoSaveForSkillChange();
 	}
-	oracool::PlayUiSelectSound();
-	RedrawEverything();
+	RedrawEverything(); // the click sounded at the press
 }
 
 void ReleaseSpellBookButtons()
 {
 	PressedTab = -1;
+	PressedIcon = {};
 }
 
 } // namespace devilution

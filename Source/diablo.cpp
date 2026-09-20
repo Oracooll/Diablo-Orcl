@@ -1279,6 +1279,9 @@ void HandleMouseButtonUp(Uint8 button, uint16_t modState)
 	} else if (sgbMouseDown == CLICK_RIGHT && button == SDL_BUTTON_RIGHT) {
 		LastMouseButtonAction = MouseActionType::None;
 		sgbMouseDown = CLICK_NONE;
+		// The abilities window's icon buttons sink on a RIGHT click too (a refund, an emptying, a
+		// readying to the right button), so the right release must let them go (2026-09-20).
+		ReleaseSpellBookButtons();
 	} else {
 		sgOptions.Keymapper.KeyReleased(static_cast<SDL_Keycode>(button | KeymapperMouseButtonMask));
 	}
