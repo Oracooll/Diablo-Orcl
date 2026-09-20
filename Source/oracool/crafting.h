@@ -32,7 +32,37 @@ namespace devilution::oracool {
 // Nineteen since 2026-09-19: Cleanse Shards (recipe 18), the one way out of an imbuement (decision D9).
 // Eighteen since 2026-09-13: Punch Sockets (recipe 17). Both books - Levski's and the burger menu's Crafting
 // window - walk this count and the name/inputs table below, so a recipe added here is listed in both.
-constexpr int CraftingRecipeCount = 19;
+/**
+ * Levski's Cube (2026-09-20, the Cube plan, decisions D5/D7/D8): the recipe book is split between
+ * HOSTS. The nineteen recipes the Roar had go to the three artisans as the Roadmap's cards proposed
+ * (Griswold the gear, Ogden the stones and sockets, Gillian the charms, sets, magic and shards); the
+ * Cube keeps only the Horadric and Kanai additions - rejuvenation, the four Diablo II crafts, and
+ * Kanai's Work of Cathan (a level requirement removed). Every recipe belongs to exactly one host and
+ * the window shows one host's book at a time.
+ */
+enum class TransmuteHost : uint8_t {
+	Cube,
+	Smith,
+	Tavern,
+	Barmaid,
+};
+
+constexpr int RejuvenationRecipe = 19;
+constexpr int FullRejuvenationRecipe = 20;
+constexpr int UnbindLevelRecipe = 21;
+constexpr int CraftBloodRecipe = 22;
+constexpr int CraftCasterRecipe = 23;
+constexpr int CraftHitPowerRecipe = 24;
+constexpr int CraftSafetyRecipe = 25;
+constexpr int CraftingRecipeCount = 26;
+
+/** @brief Which host's book @p recipe is in. */
+TransmuteHost HostOfRecipe(int recipe);
+bool RecipeBelongsTo(int recipe, TransmuteHost host);
+/** @brief The window title for a host ("Levski's Cube", "Griswold's Forge", ...). */
+const char *TransmuteHostTitle(TransmuteHost host);
+/** @brief FirstReadyLevskiRecipe restricted to one host's book. */
+int FirstReadyLevskiRecipeFor(const Item *grid, TransmuteHost host);
 
 // CraftingRecipeUsesGrid and CraftingRecipeVenue stood here for one version. Both existed to say
 // which of two venues a recipe belonged to, and there is only one venue now - every recipe uses the

@@ -29,6 +29,7 @@
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
+#include "oracool/crafting.h" // TransmuteHost
 #include "oracool/levski_roar_skin.h"
 
 namespace devilution {
@@ -95,6 +96,15 @@ const Item *HoveredLevskiGridItem();
 void ToggleLevskiRoar();
 /** @brief Closes the window and returns everything in the grid to the backpack. */
 void CloseLevskiRoar();
+/**
+ * @brief Levski's Cube (2026-09-20): opens the window on one host's recipe book. The Cube object opens
+ * TransmuteHost::Cube (ToggleLevskiRoar does the same); Griswold's Forge tab and Ogden's and Gillian's
+ * menu lines open theirs. Closes any open store first.
+ */
+void OpenLevskiWindowFor(TransmuteHost host);
+TransmuteHost CurrentTransmuteHost();
+/** @brief Per game tick: the Cube's twelve-frame idle loop and its open pose (a sheet of thirteen; the Roar's one frame is left alone). */
+void ProcessLevskiCubeAnimation();
 
 /**
  * @brief Clears the window and its grid outright, for game teardown. Returns nothing to anyone.

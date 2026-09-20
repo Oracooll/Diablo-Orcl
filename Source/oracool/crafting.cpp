@@ -2,6 +2,8 @@
 
 #include "oracool/gems.h"
 #include "oracool/imbuement.h"
+#include "oracool/level_requirement.h"
+#include "utils/utf8.hpp"
 #include "oracool/item_sets.h"
 #include "oracool/levski_roar.h"
 #include "oracool/runewords.h" // GetActiveRuneword - Punch Sockets must not unmake a word
@@ -108,6 +110,21 @@ const char *CraftingRecipeName(int index)
 		return N_("Punch Sockets");
 	case 18:
 		return N_("Cleanse Shards");
+	// Levski's Cube (2026-09-20): the Horadric and Kanai additions.
+	case RejuvenationRecipe:
+		return N_("Rejuvenation");
+	case FullRejuvenationRecipe:
+		return N_("Full Rejuvenation");
+	case UnbindLevelRecipe:
+		return N_("Unbind the Level");
+	case CraftBloodRecipe:
+		return N_("Blood Craft");
+	case CraftCasterRecipe:
+		return N_("Caster Craft");
+	case CraftHitPowerRecipe:
+		return N_("Hit Power Craft");
+	case CraftSafetyRecipe:
+		return N_("Safety Craft");
 	default:
 		return "";
 	}
@@ -154,6 +171,20 @@ const char *CraftingRecipeInputs(int index)
 		return N_("1 unsocketed wearable item + 1 perfect gem per socket -> sockets to its size, 1 per 28x28 cell (1-6)");
 	case 18:
 		return N_("1 imbued item -> the same item with every shard gone; nothing comes back");
+	case RejuvenationRecipe:
+		return N_("3 healing potions + 3 mana potions -> 1 rejuvenation potion");
+	case FullRejuvenationRecipe:
+		return N_("3 rejuvenation potions -> 1 full rejuvenation potion");
+	case UnbindLevelRecipe:
+		return N_("1 wearable item + 1 Shard of Ease -> its level requirement removed for good");
+	case CraftBloodRecipe:
+		return N_("1 wearable item + 1 jewel + 1 rune + 1 perfect gem -> a Rare that always leeches life and adds life");
+	case CraftCasterRecipe:
+		return N_("1 wearable item + 1 jewel + 1 rune + 1 perfect gem -> a Rare that always adds mana and magic");
+	case CraftHitPowerRecipe:
+		return N_("1 wearable item + 1 jewel + 1 rune + 1 perfect gem -> a Rare that always knocks back and hits harder");
+	case CraftSafetyRecipe:
+		return N_("1 wearable item + 1 jewel + 1 rune + 1 perfect gem -> a Rare that always resists all and takes less damage");
 	default:
 		return "";
 	}
@@ -669,6 +700,50 @@ std::vector<int> FindGridPerfectGems(const Item *grid, int count)
 }
 
 /** @brief The slots recipe @p index would consume from @p grid, empty when it cannot run. */
+/** @brief The base row of a potion kind (the rejuvenation rows carry no enumerator of their own). */
+_item_indexes FindBaseByMisc(item_misc_id misc)
+{
+	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (AllItemsList[i].iMiscId == misc)
+			return static_cast<_item_indexes>(i);
+	}
+	return IDI_NONE;
+}
+
+/** @brief Grid slots holding potions of @p misc, enough for @p count units (stack-aware), or empty. */
+std::vector<int> FindGridPotions(const Item *grid, item_misc_id misc, int count)
+{
+	std::vector<int> found;
+	int have = 0;
+	for (int i = 0; i < GridSlots && have < count; i++) {
+		if (grid[i].isEmpty() || grid[i]._iMiscId != misc)
+			continue;
+		found.push_back(i);
+		have += grid[i].stackCount();
+	}
+	return have >= count ? found : std::vector<int> {};
+}
+
+/**
+ * @brief The Cube's target (2026-09-20): the first worn-or-wielded item in the grid. With @p plainOnly,
+ * only a Basic or Magic item with no Oracool tier and no unique identity - what a Diablo II craft takes.
+ */
+int FindGridWearable(const Item *grid, bool plainOnly)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		const Item &item = grid[i];
+		if (item.isEmpty() || item.IDidx < 0 || item.IDidx > IDI_LAST)
+			continue;
+		const ItemData &data = AllItemsList[item.IDidx];
+		if (data.iLoc == ILOC_UNEQUIPABLE || data.iLoc == ILOC_BELT)
+			continue;
+		if (plainOnly && (item._iMagical == ITEM_QUALITY_UNIQUE || item._iOracoolTier != OracoolItemTier::None))
+			continue;
+		return i;
+	}
+	return -1;
+}
+
 std::vector<int> GridMaterialsFor(const Item *grid, int index)
 {
 	switch (index) {
@@ -796,6 +871,46 @@ std::vector<int> GridMaterialsFor(const Item *grid, int index)
 		out.insert(out.begin(), target);
 		return out;
 	}
+	// Levski's Cube (2026-09-20).
+	case RejuvenationRecipe: { // 3 healing + 3 mana
+		const std::vector<int> heal = FindGridPotions(grid, IMISC_HEAL, 3);
+		const std::vector<int> mana = FindGridPotions(grid, IMISC_MANA, 3);
+		if (heal.empty() || mana.empty())
+			return {};
+		std::vector<int> both = heal;
+		both.insert(both.end(), mana.begin(), mana.end());
+		return both;
+	}
+	case FullRejuvenationRecipe: // 3 rejuvenation
+		return FindGridPotions(grid, IMISC_REJUV, 3);
+	case UnbindLevelRecipe: { // a wearable that asks a level, and one Shard of Ease
+		const int target = FindGridWearable(grid, /*plainOnly=*/false);
+		if (target < 0 || grid[target]._iOracoolLevelFree || RequiredLevel(grid[target]) <= 1)
+			return {};
+		const std::vector<int> shard = FindGridReagents(grid, IDI_ORACOOL_SHARD_EASE, 1);
+		if (shard.empty())
+			return {};
+		std::vector<int> all { target };
+		all.insert(all.end(), shard.begin(), shard.end());
+		return all;
+	}
+	case CraftBloodRecipe:
+	case CraftCasterRecipe:
+	case CraftHitPowerRecipe:
+	case CraftSafetyRecipe: { // a plain wearable, a jewel, a rune and a perfect gem
+		const int target = FindGridWearable(grid, /*plainOnly=*/true);
+		if (target < 0)
+			return {};
+		const std::vector<int> jewels = FindGridMaterials(grid, IsJewel);
+		const std::vector<int> runes = FindGridMaterials(grid, IsRune);
+		std::vector<int> gems = FindGridMaterials(grid, IsGem);
+		gems.erase(std::remove_if(gems.begin(), gems.end(),
+		               [&](int i) { return !IsPerfectGem(static_cast<uint16_t>(grid[i].IDidx)); }),
+		    gems.end());
+		if (jewels.empty() || runes.empty() || gems.empty())
+			return {};
+		return { target, jewels[0], runes[0], gems[0] };
+	}
 	default:
 		return {};
 	}
@@ -866,6 +981,75 @@ std::string NoRoomToFreeStones()
 std::string NoRoomForResult()
 {
 	return std::string(_("not enough room for the result"));
+}
+
+TransmuteHost HostOfRecipe(int recipe)
+{
+	// Decision D8 (2026-09-20): the split the Roadmap's artisan cards proposed. Griswold the gear;
+	// Ogden the stones and sockets; Gillian the charms, set pieces, magic and shards; the Cube the
+	// Horadric and Kanai additions.
+	switch (recipe) {
+	case 5:
+	case 6:
+	case 10:
+	case 11:
+	case 12:
+	case 13:
+	case 14:
+	case 15:
+	case 16:
+		return TransmuteHost::Smith;
+	case 0:
+	case 1:
+	case 3:
+	case 4:
+	case 8:
+	case 17:
+		return TransmuteHost::Tavern;
+	case 2:
+	case 7:
+	case 9:
+	case 18:
+		return TransmuteHost::Barmaid;
+	default:
+		return TransmuteHost::Cube;
+	}
+}
+
+bool RecipeBelongsTo(int recipe, TransmuteHost host)
+{
+	return recipe >= 0 && recipe < CraftingRecipeCount && HostOfRecipe(recipe) == host;
+}
+
+const char *TransmuteHostTitle(TransmuteHost host)
+{
+	switch (host) {
+	case TransmuteHost::Smith:
+		return N_("Griswold's Forge");
+	case TransmuteHost::Tavern:
+		return N_("Ogden's Table");
+	case TransmuteHost::Barmaid:
+		return N_("Gillian's Hearth");
+	case TransmuteHost::Cube:
+		break;
+	}
+	return N_("Levski's Cube");
+}
+
+int FirstReadyLevskiRecipeFor(const Item *grid, TransmuteHost host)
+{
+	int best = -1;
+	size_t bestSlots = 0;
+	for (int i = 0; i < CraftingRecipeCount; i++) {
+		if (!RecipeBelongsTo(i, host))
+			continue;
+		const std::vector<int> materials = GridMaterialsFor(grid, i);
+		if (materials.empty() || materials.size() <= bestSlots)
+			continue;
+		best = i;
+		bestSlots = materials.size();
+	}
+	return best;
 }
 
 bool IsTransmuteRefusal(const std::string &result)
@@ -960,6 +1144,64 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 	// PUNCH SOCKETS. In place, like the transforms below, but its cost is not a fixed reagent count - it is one
 	// perfect gem per socket, and the number of sockets depends on the item - so it charges its own count
 	// rather than ReagentFor's. Nothing is produced, so the grid only gets emptier and no room check applies.
+	// Levski's Cube (2026-09-20): the Horadric potions, Kanai's Work of Cathan, the four crafts.
+	if (recipe == RejuvenationRecipe || recipe == FullRejuvenationRecipe) {
+		const _item_indexes result = FindBaseByMisc(recipe == RejuvenationRecipe ? IMISC_REJUV : IMISC_FULLREJUV);
+		if (result == IDI_NONE)
+			return {};
+		if (GridRoomAfter(grid, materials) < 1)
+			return NoRoomForResult();
+		if (recipe == RejuvenationRecipe) {
+			ConsumeGridReagents(grid, FindGridPotions(grid, IMISC_HEAL, 3), 3);
+			ConsumeGridReagents(grid, FindGridPotions(grid, IMISC_MANA, 3), 3);
+		} else {
+			ConsumeGridReagents(grid, materials, 3);
+		}
+		for (int slot = 0; slot < GridSlots; slot++) {
+			if (!grid[slot].isEmpty())
+				continue;
+			InitializeItem(grid[slot], result);
+			GenerateNewSeed(grid[slot]);
+			grid[slot]._iIdentified = true;
+			return std::string(grid[slot].getName());
+		}
+		return NoRoomForResult();
+	}
+	if (recipe == UnbindLevelRecipe) {
+		Item &target = grid[materials[0]];
+		const std::vector<int> shard(materials.begin() + 1, materials.end());
+		target._iOracoolLevelFree = true;
+		ConsumeGridReagents(grid, shard, 1);
+		return fmt::format(fmt::runtime(_("{:s}, unbound from its level")), std::string(target.getName()));
+	}
+	if (recipe >= CraftBloodRecipe && recipe <= CraftSafetyRecipe) {
+		Item &target = grid[materials[0]];
+		if (!RetierOracoolItem(target, OracoolItemTier::Rare))
+			return {};
+		// Diablo II's crafts each guarantee two properties on top of the Rare's own rolls. Applied
+		// through SaveItemPower and recorded in the affix list exactly as a rolled affix is, so the
+		// sheet, the tooltip and the level requirement all see them.
+		struct CraftPower {
+			const char *word;
+			ItemPower first;
+			ItemPower second;
+		};
+		const CraftPower craft = recipe == CraftBloodRecipe      ? CraftPower { N_("Blood"), { IPL_STEALLIFE, 3, 5 }, { IPL_LIFE, 15, 25 } }
+		    : recipe == CraftCasterRecipe                        ? CraftPower { N_("Caster"), { IPL_MANA, 15, 25 }, { IPL_MAG, 3, 5 } }
+		    : recipe == CraftHitPowerRecipe                      ? CraftPower { N_("Hit Power"), { IPL_KNOCKBACK, 0, 0 }, { IPL_TOHIT, 10, 15 } }
+		                                                         : CraftPower { N_("Safety"), { IPL_ALLRES, 8, 12 }, { IPL_GETHIT, -3, -1 } };
+		for (ItemPower power : { craft.first, craft.second }) {
+			const int raw = ApplyOracoolItemPower(*MyPlayer, target, power);
+			if (target._iOracoolAffixCount < Item::MaxOracoolAffixes)
+				target._iOracoolAffixes[target._iOracoolAffixCount++] = OracoolAffix { power.type, raw, 0 };
+		}
+		const std::string crafted = fmt::format("{:s} {:s}", _(craft.word), std::string(target.getName()));
+		CopyUtf8(target._iIName, crafted, sizeof(target._iIName));
+		target._iIdentified = true;
+		for (size_t i = 1; i < materials.size(); i++)
+			ConsumeGridReagents(grid, { materials[i] }, 1);
+		return crafted;
+	}
 	if (recipe == PunchSocketsRecipe) {
 		Item &host = grid[materials[0]];
 		// Counted BEFORE the host changes, because the count is what the gems pay for.

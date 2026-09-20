@@ -74,8 +74,8 @@ int MaterialFloorFor(const Item &item)
 	return std::max<int>(1, data.iMinMLvl);
 }
 
-/** @brief The lowest level at which an affix row with this power and a range covering the roll can appear. */
-int TableAffixLevel(const PLStruct *table, item_effect_type type, int param1, int param2)
+/** @brief The lowest level at which an affix row with this power whose range covers @p roll appears. */
+int TableAffixLevel(const PLStruct *table, item_effect_type type, int roll)
 {
 	int best = -1;
 	int fallback = -1;
@@ -85,26 +85,29 @@ int TableAffixLevel(const PLStruct *table, item_effect_type type, int param1, in
 		const int level = table[j].PLMinLvl;
 		if (fallback < 0 || level < fallback)
 			fallback = level;
-		if (param1 >= table[j].power.param1 && param2 <= table[j].power.param2 && (best < 0 || level < best))
+		if (roll >= table[j].power.param1 && roll <= table[j].power.param2 && (best < 0 || level < best))
 			best = level;
 	}
 	return best >= 0 ? best : fallback;
 }
 
-int AffixLevelFor(item_effect_type type, int param1, int param2)
+/**
+ * @brief The level an affix rolls at. The item's record keeps the power and the ROLLED value (the
+ * OracoolAffix's param1; its param2 is the row's price multiplier, not a range), never the row; the
+ * lowest-level row of that power whose range covers the roll is the honest reading, and the lowest
+ * row of that power when none does (a magic item's vanilla pair carries no value here at all).
+ */
+int AffixLevelFor(item_effect_type type, int roll)
 {
 	if (type == IPL_INVALID)
 		return 0;
-	// The row that rolled it is not recorded, only its power and range; the lowest-level row whose
-	// range covers the roll is the honest reading, and the lowest row of that power when none does
-	// (a magic item's vanilla pair carries no range at all).
 	int level = -1;
 	for (const PLStruct *table : { ItemPrefixes, ItemSuffixes }) {
-		const int found = TableAffixLevel(table, type, param1, param2);
+		const int found = TableAffixLevel(table, type, roll);
 		if (found >= 0 && (level < 0 || found < level))
 			level = found;
 	}
-	const int pool = OracoolPoolAffixMinLevel(type, param1, param2);
+	const int pool = OracoolPoolAffixMinLevel(type, roll, roll);
 	if (pool >= 0 && (level < 0 || pool < level))
 		level = pool;
 	return std::max(0, level);
@@ -168,14 +171,14 @@ int AffixesRequiredLevel(const Item &item)
 	int highest = 0;
 	for (uint8_t i = 0; i < item._iOracoolAffixCount && i < item._iOracoolAffixes.size(); i++) {
 		const OracoolAffix &affix = item._iOracoolAffixes[i];
-		highest = std::max(highest, AffixLevelFor(affix.type, affix.param1, affix.param2));
+		highest = std::max(highest, AffixLevelFor(affix.type, affix.param1));
 	}
 	// A magic item of vanilla's shape carries its pair here rather than in the list.
 	if (item._iOracoolAffixCount == 0) {
 		if (item._iPrePower != IPL_INVALID)
-			highest = std::max(highest, AffixLevelFor(item._iPrePower, 0, 0));
+			highest = std::max(highest, AffixLevelFor(item._iPrePower, 0));
 		if (item._iSufPower != IPL_INVALID)
-			highest = std::max(highest, AffixLevelFor(item._iSufPower, 0, 0));
+			highest = std::max(highest, AffixLevelFor(item._iSufPower, 0));
 	}
 	return AffixRequiredLevel(highest);
 }
@@ -189,6 +192,9 @@ int RequiredLevel(const Item &item)
 {
 	if (!AsksALevel(item))
 		return 0;
+	// Kanai's Work of Cathan (Levski's Cube, 2026-09-20): unbound for good.
+	if (item._iOracoolLevelFree)
+		return 1;
 
 	int level = BaseRequiredLevel(item);
 	level = std::max(level, AffixesRequiredLevel(item));

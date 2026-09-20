@@ -65,6 +65,9 @@ enum class TalkID : uint8_t {
 	Tavern,
 	Drunk,
 	Barmaid,
+	// Oracool 2026-09-20 (Levski's Cube, decision D8): Griswold's Forge tab - the gear recipes the
+	// Roar used to hold, opened in the transmute window rather than as a store screen.
+	SmithTransmute,
 };
 
 /** Currently active store */

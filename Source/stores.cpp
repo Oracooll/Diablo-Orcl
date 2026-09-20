@@ -5,6 +5,9 @@
  */
 #include "stores.h"
 
+#include "oracool/crafting.h"    // TransmuteHost (Levski's Cube, 2026-09-20)
+#include "oracool/levski_roar.h" // OpenLevskiWindowFor
+
 #include <algorithm>
 #include <iterator>
 #include <array>
@@ -2123,6 +2126,9 @@ void StartTavern()
 	AddSText(0, 3, _("Rising Sun"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 12, _("Talk to Ogden"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	// Ogden's Table (Levski's Cube plan, decision D8, 2026-09-20): the stones and sockets - refine
+	// gems, ascend runes, temper jewels, recolour gems, free and punch sockets.
+	AddSText(0, 15, _("Ogden's table: gems, runes and sockets"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSText(0, 18, _("Leave the tavern"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	storenumh = 20;
@@ -2135,6 +2141,9 @@ void StartBarmaid()
 	AddSText(0, 2, _("Gillian"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 12, _("Talk to Gillian"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	// Gillian's Hearth (Levski's Cube plan, decision D8, 2026-09-20): charms reworked, set pieces
+	// recast, magic enriched, shards cleansed.
+	AddSText(0, 15, _("Gillian's hearth: charms, sets, magic and shards"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	// Oracool: user request - the physical Stash Chest in town (see OperateStashChest in
 	// objects.cpp) replaces Gillian as the way to access and sort the Stash.
 	AddSText(0, 18, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
@@ -2190,6 +2199,12 @@ void SmithEnter()
 		break;
 	case TalkID::SmithRecharge:
 		StartStore(TalkID::SmithRecharge);
+		break;
+	case TalkID::SmithTransmute:
+		// Not a store screen: the Forge is the transmute window on Griswold's book (Levski's Cube,
+		// decision D8, 2026-09-20). Leave the store first, then open the window.
+		stextflag = TalkID::None;
+		oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Smith);
 		break;
 	case TalkID::None:
 		stextflag = TalkID::None;
@@ -3428,6 +3443,10 @@ void TavernEnter()
 		stextshold = TalkID::Tavern;
 		StartStore(TalkID::Gossip);
 		break;
+	case 15:
+		stextflag = TalkID::None;
+		oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Tavern);
+		break;
 	case 18:
 		stextflag = TalkID::None;
 		break;
@@ -3442,6 +3461,10 @@ void BarmaidEnter()
 		talker = TOWN_BMAID;
 		stextshold = TalkID::Barmaid;
 		StartStore(TalkID::Gossip);
+		break;
+	case 15:
+		stextflag = TalkID::None;
+		oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Barmaid);
 		break;
 	case 18:
 		stextflag = TalkID::None;

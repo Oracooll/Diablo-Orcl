@@ -750,6 +750,11 @@ struct Item {
 	 * synced to multiplayer or hero export, since the always-destroy behavior is untouched there.
 	 */
 	bool _iOracoolBroken = false;
+	/**
+	 * @brief Levski's Cube (2026-09-20), Kanai's Work of Cathan: the item's level requirement removed for
+	 * good (oracool/level_requirement returns 1). Item format 12. Item-local, saved with the item.
+	 */
+	bool _iOracoolLevelFree = false;
 
 	/**
 	 * @brief Sockets v2 (user directive 2026-08-19): the cap is 6, because an item's socket
@@ -981,6 +986,12 @@ uint8_t GetOutlineColor(const Item &item, bool checkReq);
  * @p param1..@p param2, when one does) rolls; -1 when no pool row has the power. For oracool/level_requirement.
  */
 int OracoolPoolAffixMinLevel(item_effect_type type, int param1, int param2);
+/**
+ * @brief Oracool: applies one property to @p item exactly as a rolled affix is applied (SaveItemPower, which
+ * stays file-local) and returns the rolled value - for Levski's Cube's crafts, whose fixed properties must
+ * land in the same fields the sheet reads. The caller records it in the affix list.
+ */
+int ApplyOracoolItemPower(const Player &player, Item &item, ItemPower &power);
 /**
  * @brief Oracool: the price an item actually sells for at a vendor - identified magical/unique
  * items use their real value (_iIvalue), everything else uses the base value (_ivalue), both cut

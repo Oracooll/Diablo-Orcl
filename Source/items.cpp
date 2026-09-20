@@ -9772,4 +9772,9 @@ int OracoolPoolAffixMinLevel(item_effect_type type, int param1, int param2)
 	return best >= 0 ? best : fallback;
 }
 
+int ApplyOracoolItemPower(const Player &player, Item &item, ItemPower &power)
+{
+	return SaveItemPower(player, item, power);
+}
+
 } // namespace devilution

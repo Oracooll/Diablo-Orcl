@@ -321,7 +321,9 @@ struct LevelConversionData {
 // Item::MaxOracoolImbuements kind bytes. Which shards, not how many - which is what lets a rebuilt item
 // keep them. The record grows by twenty bytes; an older save is rejected, per the standing rule (bump,
 // do not protect).
-constexpr uint8_t OracoolItemFormatVersion = 11;
+// Version 12 (2026-09-20, Levski's Cube): one byte, _iOracoolLevelFree - Kanai's Work of Cathan, the
+// level requirement removed for good. Bumped freely (user rule, 2026-09-13).
+constexpr uint8_t OracoolItemFormatVersion = 12;
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {
@@ -521,6 +523,8 @@ void LoadItemData(LoadHelper &file, Item &item)
 		}
 		item._iOracoolImbueCount = live;
 	}
+	// Version 12: the level requirement removed (Levski's Cube, Work of Cathan).
+	item._iOracoolLevelFree = file.NextLE<uint8_t>() != 0;
 
 	// Self-healing for negative durability (user, 2026-08-27: "i have magic oracool items with
 	// negative durability"). Until WearDurabilityPoint landed, gear that broke while equipped kept
@@ -1447,6 +1451,8 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<uint8_t>(item._iOracoolImbueCount);
 	for (const uint8_t kind : item._iOracoolImbuements)
 		file.WriteLE<uint8_t>(kind);
+	// Version 12: the level requirement removed (Levski's Cube, Work of Cathan).
+	file.WriteLE<uint8_t>(item._iOracoolLevelFree ? 1 : 0);
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)
@@ -2328,7 +2334,9 @@ constexpr int OracoolItemExtensionSaveSize =
     // v11: the Imbuement Shard ledger - one count byte plus one kind byte per slot (the Mystic Orb
     // count byte of v9 became the count). Found the hard way on 2026-09-19: the save-buffer guard
     // fired on every hero save until this line existed.
-    + 1 + Item::MaxOracoolImbuements;
+    + 1 + Item::MaxOracoolImbuements
+    // v12: the level-free byte (Levski's Cube, Work of Cathan).
+    + 1;
 const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
 const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
 

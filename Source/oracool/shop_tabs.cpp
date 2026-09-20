@@ -27,6 +27,7 @@ ShopKind KindOf(TalkID id)
 	case TalkID::SmithSell:
 	case TalkID::SmithRepair:
 	case TalkID::SmithRecharge:
+	case TalkID::SmithTransmute:
 		return ShopKind::Smith;
 	case TalkID::WitchBuy:
 	case TalkID::WitchSell:
@@ -49,6 +50,8 @@ bool IsShopTab(TalkID id)
 const char *ShopTabName(TalkID id)
 {
 	switch (id) {
+	case TalkID::SmithTransmute:
+		return N_("Forge");
 	case TalkID::SmithBuy:
 		return N_("Basic");
 	case TalkID::SmithPremiumBuy:
@@ -106,6 +109,10 @@ std::vector<TalkID> ShopTabsFor(TalkID id)
 		if (!gbIsMultiplayer)
 			tabs.push_back(TalkID::SmithConsumables);
 		tabs.push_back(TalkID::SmithSell);
+		// The Forge (Levski's Cube plan, decision D8, 2026-09-20): Griswold's share of the transmute
+		// book - reforge, ennoble, consecrate, awaken, the rerolls, ethereal and its mend. Not a store
+		// screen: the click opens the transmute window on his book.
+		tabs.push_back(TalkID::SmithTransmute);
 		// Repair and Recharge are no longer tabs. They are icon buttons on every one of this
 		// vendor's tabs (user request, 2026-08-23), because they are services performed on an item
 		// you already have rather than screens with their own stock to browse - you drop the item

@@ -1,5 +1,7 @@
 #include "oracool/levski_roar.h"
 
+#include "oracool/stonegate.h" // IsStonegateObject: the other stand in town
+
 #include <SDL.h>
 
 #include <fmt/format.h>
@@ -260,6 +262,9 @@ void DrawPanelGround(const Surface &out, const Rectangle &rect, uint8_t fill = P
  */
 int SelectedRecipe = -1;
 
+/** @brief Whose recipe book the open window shows (Levski's Cube, 2026-09-20). */
+TransmuteHost WindowHost = TransmuteHost::Cube;
+
 /** @brief How far the recipe book is scrolled, in pixels. Clamped on every draw. */
 int RecipeBookScroll = 0;
 
@@ -297,6 +302,12 @@ std::vector<RecipeRow> RecipeBookRows(const Rectangle &page)
 	const int textWidth = inner.size.width - Padding * 2;
 	int y = inner.position.y + Padding + HeaderHeight - RecipeBookScroll;
 	for (int i = 0; i < CraftingRecipeCount; i++) {
+		// A recipe of another host's book is a zero-height row: the vector stays indexed by recipe
+		// (every reader does rows[i]) and the draw and click loops skip it (Levski's Cube, 2026-09-20).
+		if (!RecipeBelongsTo(i, WindowHost)) {
+			rows.push_back({ y, 0 });
+			continue;
+		}
 		const int lineHeight = GetLineHeight(_(CraftingRecipeName(i)), GameFont12);
 		const std::string formula = WordWrapString(_(CraftingRecipeInputs(i)), textWidth, GameFont12);
 		const int formulaLines = static_cast<int>(std::count(formula.begin(), formula.end(), '\n')) + 1;
@@ -659,7 +670,37 @@ bool IsLevskiRecipeBookOpen() { return WindowOpen && RecipeBookOpen; }
 
 bool IsLevskiRoarObject(const Object &object)
 {
-	return currlevel == 0 && !setlevel && object._otype == OBJ_STAND;
+	// Two stands in town since 2026-09-20: the Stonegate is the other one (oracool/stonegate.h).
+	return currlevel == 0 && !setlevel && object._otype == OBJ_STAND && !IsStonegateObject(object);
+}
+
+void ProcessLevskiCubeAnimation()
+{
+	// Levski's Cube (batch 43, 2026-09-20): the object's sheet has thirteen frames - twelve idle, one
+	// open - where the Roar's had one. Loop the idle while the window is shut, hold the open pose
+	// while it is up. The Roar's one-frame sheet (any sheet short of thirteen) is left alone.
+	constexpr uint32_t IdleFrames = 12;
+	constexpr uint32_t OpenFrame = 13;
+	constexpr int IdleDelay = 4;
+	if (currlevel != 0 || setlevel)
+		return;
+	for (int i = 0; i < ActiveObjectCount; i++) {
+		Object &object = Objects[ActiveObjects[i]];
+		if (!IsLevskiRoarObject(object) || object._oAnimLen < OpenFrame)
+			continue;
+		object._oAnimFlag = 0;
+		if (WindowOpen) {
+			object._oAnimFrame = OpenFrame;
+			object._oAnimCnt = 0;
+			return;
+		}
+		if (++object._oAnimCnt < IdleDelay)
+			return;
+		object._oAnimCnt = 0;
+		const uint32_t next = object._oAnimFrame + 1;
+		object._oAnimFrame = (next < 1 || next > IdleFrames) ? 1 : next;
+		return;
+	}
 }
 
 void ToggleLevskiRoar()
@@ -670,9 +711,32 @@ void ToggleLevskiRoar()
 			PlayUiMoveSound();
 		return;
 	}
+	WindowHost = TransmuteHost::Cube;
 	WindowOpen = true;
 	RecipeBookOpen = false;
+	SelectedRecipe = -1;
 	PlayUiSelectSound();
+}
+
+void OpenLevskiWindowFor(TransmuteHost host)
+{
+	if (WindowOpen && WindowHost == host)
+		return;
+	if (WindowOpen) {
+		CloseLevskiRoar();
+		if (WindowOpen)
+			return; // the close was refused (no room for the grid's items); the book stays whose it was
+	}
+	WindowHost = host;
+	WindowOpen = true;
+	RecipeBookOpen = false;
+	SelectedRecipe = -1;
+	PlayUiSelectSound();
+}
+
+TransmuteHost CurrentTransmuteHost()
+{
+	return WindowHost;
 }
 
 void ResetLevskiRoarForNewGame()
@@ -997,6 +1061,8 @@ void DrawLevskiRoar(const Surface &out)
 		if (row.top < clipTop || row.top + row.height > clipBottom)
 			continue;
 
+		if (row.height == 0)
+			continue; // another host's recipe (Levski's Cube, 2026-09-20)
 		const bool ready = CanCraftFromLevskiGrid(GridItems, i);
 		const bool selected = SelectedRecipe == i;
 		if (selected) {
@@ -1053,7 +1119,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			const RecipeRow &row = rows[i];
 			if (row.top < clipTop || row.top + row.height > clipBottom)
 				continue; // not drawn, so not clickable - the invisible-cell rule from the skill picker
-			if (mousePosition.y < row.top || mousePosition.y >= row.top + row.height)
+			if (row.height == 0 || mousePosition.y < row.top || mousePosition.y >= row.top + row.height)
 				continue;
 			SelectedRecipe = (SelectedRecipe == i) ? -1 : i;
 			PlayUiSelectSound();
@@ -1121,7 +1187,9 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			LogEvent(StrCat("Levski's Roar: ", _(CraftingRecipeName(SelectedRecipe)), " is not ready"));
 			return true;
 		}
-		const std::string result = TransmuteLevskiGridWith(GridItems, SelectedRecipe);
+		// With no recipe picked, the readiest recipe of THIS host's book - never another host's.
+		const int recipe = SelectedRecipe >= 0 ? SelectedRecipe : FirstReadyLevskiRecipeFor(GridItems, WindowHost);
+		const std::string result = recipe >= 0 ? TransmuteLevskiGridWith(GridItems, recipe) : std::string {};
 		if (!RebuildGridOccupancy()) {
 			std::copy(std::begin(snapshotItems), std::end(snapshotItems), GridItems);
 			std::copy(std::begin(snapshotCells), std::end(snapshotCells), GridCells);
