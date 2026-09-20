@@ -1350,7 +1350,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 		// nothing. A selected recipe that cannot run has to say so out loud - a Transmute button
 		// that silently does nothing is the exact ambiguity this fork has shipped twice already.
 		if (SelectedRecipe >= 0 && !CanCraftFromLevskiGrid(GridItems, SelectedRecipe)) {
-			LogEvent(StrCat("Levski's Roar: ", _(CraftingRecipeName(SelectedRecipe)), " is not ready"));
+			LogEvent(StrCat("Levski's Cube: ", _(CraftingRecipeName(SelectedRecipe)), " is not ready"));
 			return true;
 		}
 		// With no recipe picked, the readiest recipe of THIS host's book - never another host's.
@@ -1377,7 +1377,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 				item._iStatFlag = MyPlayer->CanUseItem(item);
 		}
 		if (!result.empty())
-			LogEvent(StrCat("Levski's Roar: ", result));
+			LogEvent(StrCat("Levski's Cube: ", result));
 		// Salvage's sound for a transmute that MADE something. The room refusals consumed nothing
 		// and stay as quiet as the other refusals above; crafting.cpp owns their wording.
 		// The Cube's own flash (RfA-20 batch 43d) on its book; the artisans keep the salvage-era sound.

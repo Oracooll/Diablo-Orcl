@@ -5864,10 +5864,13 @@ StringOrView Object::name() const
 {
 	switch (_otype) {
 	case OBJ_STAND:
-		// Levski's Roar in town; the Anvil of Fury's stand everywhere else. Object::name()'s
+		// Levski's Cube in town (user, 2026-09-20: "edit the pop-up text to Levski's Cube") - or the
+		// Stonegate, the other stand there; the Anvil of Fury's stand everywhere else. Object::name()'s
 		// default returns nothing, which is why hovering the monument showed an outline and no
 		// popup - the object was found, it simply had nothing to say.
-		return currlevel == 0 ? _("Levski's Roar") : _("Rock Stand");
+		if (currlevel != 0)
+			return _("Rock Stand");
+		return oracool::IsStonegateObject(*this) ? _("The Stonegate") : _("Levski's Cube");
 	case OBJ_CRUX1:
 	case OBJ_CRUX2:
 	case OBJ_CRUX3:
