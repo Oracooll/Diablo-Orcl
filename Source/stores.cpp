@@ -3801,8 +3801,9 @@ void UpdateStoreState()
 	// inventory to sell), which means the player can walk while it is open, and a threshold equal to
 	// the opening one would slam the shop shut on a single step taken by accident. Five is far
 	// enough to be a decision.
-	constexpr int WalkAwayTiles = 5;
-	if (MyPlayer->position.tile.WalkingDistance(towner->position) <= WalkAwayTiles)
+	// THREE at Wirt's (user, 2026-09-20: "Auto-close Wirts vendor screen when i walk away 3 tiles"); five elsewhere.
+	const int walkAwayTiles = owner == TOWN_PEGBOY ? 3 : 5;
+	if (MyPlayer->position.tile.WalkingDistance(towner->position) <= walkAwayTiles)
 		return;
 
 	// Straight to closed, not back to the vendor's dialog: the player has left the counter, and a
@@ -4296,6 +4297,10 @@ void SetupTownStores()
 	SpawnBoy(myPlayer._pLevel);
 	SpawnPremium(myPlayer);
 	SpawnCuratedShelves(myPlayer, l);
+	// Wirt's two grids are over-supplied (BOY_ITEMS, GAMBLE_ITEMS) and cut to the page here, so both come out
+	// full with no hidden reserve (user, 2026-09-20: "Fill entire grid with stock in Wirt's shop/gamble grids").
+	oracool::TrimShopStockToOnePage(TalkID::BoyBuy);
+	oracool::TrimShopStockToOnePage(TalkID::BoyGamble);
 
 	// The shelf is decided HERE, once, rather than recomputed from an oversized array after every
 	// purchase (external audit of v1.9.92, finding 5). Each generator deliberately over-supplies so
@@ -4661,7 +4666,7 @@ std::vector<oracool::ShopSlot> GetShopStock(TalkID id)
 		// The Gamble tab: one unidentified base per slot; the price is the gamble's, stamped on the item.
 		for (int i = 0; i < GAMBLE_ITEMS; i++) {
 			if (!gambleitems[i].isEmpty())
-				stock.push_back({ &gambleitems[i], i, gambleitems[i]._iIvalue, /*neverTrim=*/true });
+				stock.push_back({ &gambleitems[i], i, gambleitems[i]._iIvalue }); // trimmed to the page like the Shop tab since 2026-09-20 (the slot restocks in place, so the page stays full)
 		}
 		break;
 	case TalkID::SmithSell:

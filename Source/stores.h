@@ -148,10 +148,10 @@ extern int boylevel;
 /** Current item sold by Wirt (the old one-item table; SStartBoyBuy still reads it, nothing routes there) */
 extern Item boyitem;
 /** @brief Wirt's Shop tab (2026-09-20): what he has to sell, rolled as his one item always was, identified. */
-#define BOY_ITEMS 12
+#define BOY_ITEMS 60 // over-supplied so the 10x16 grid comes out FULL (user, 2026-09-20: "Fill entire grid with stock in Wirt's shop/gamble grids"); TrimShopStockToOnePage cuts the rest
 extern DVL_API_FOR_TEST Item boyitems[BOY_ITEMS];
 /** @brief Wirt's Gamble tab: one unidentified base per slot, priced by slot and hero level; the roll happens on the purchase. */
-#define GAMBLE_ITEMS 11
+#define GAMBLE_ITEMS 60 // the eleven slot types cycled until the page is full, then trimmed (2026-09-20)
 extern DVL_API_FOR_TEST Item gambleitems[GAMBLE_ITEMS];
 
 /**

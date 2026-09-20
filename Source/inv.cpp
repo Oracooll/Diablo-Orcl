@@ -1677,7 +1677,7 @@ void DrawSlotStoneUnderlay(const Surface &out, Rectangle rect)
 /** @brief The grid frame under an item on a GRID (user, 2026-09-20: "add the thin 1px grey grid behind their sprites + add 1px
  * gold outline of their rectangular grid"): a 1 px gold outline on the footprint's edge and 1 px grey lines on every
  * cell boundary inside it. Not on the body slots. Two tunables. */
-constexpr uint8_t GridFrameGold = PAL16_YELLOW + 4;
+constexpr uint8_t GridFrameGold = PAL16_YELLOW + 10; // deep in the ramp (user, 2026-09-20: "make the gold outline way darker"; was +4)
 constexpr uint8_t GridFrameGrey = PAL16_GRAY + 9;
 
 void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const Item &item, bool gridLines)

@@ -251,7 +251,7 @@ constexpr Displacement CubeButtonSink { -2, 2 };
 constexpr ListSkinGeometry CubeCanvasGeometry {
 	{ 320, 352 }, { 116, 107 }, { { 56, 249 }, { 208, 38 } }, { { 0, 0 }, { 0, 0 } },
 	{ { 0, 0 }, { 0, 0 } }, { { 296, 5 }, { 18, 18 } }, CubeCanvasAsset, false,
-	{ { 89, 293 }, { 142, 28 } }, { { 56, 32 }, { 208, 36 } }
+	{ { 89, 293 }, { 142, 28 } }, { { 56, 30 }, { 208, 40 } }
 };
 
 /** @brief The list skin the window wears right now, or nullptr for the Roar's painting. */
@@ -1260,7 +1260,7 @@ void DrawLevskiRoar(const Surface &out)
 		// The user's painted Cube UI: the title in the game's font, the two painted buttons - brighter under the
 		// cursor, sunk while pressed, the entry sound as the cursor arrives - and the tall book when it is open.
 		DrawString(out, _("Levski's Cube"), Rectangle { window.position + Displacement { listSkin->title.position.x, listSkin->title.position.y }, listSkin->title.size },
-		    { UiFlags::ColorGold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 		int hoveredNow = -1;
 		for (const int b : { static_cast<int>(levski_skin::Transmute), static_cast<int>(levski_skin::Recipes) }) {
 			const Rectangle rect = ButtonRect(window, b);

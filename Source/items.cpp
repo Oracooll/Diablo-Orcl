@@ -8310,7 +8310,7 @@ void RollBoyItem(Item &out, int lvl)
 namespace {
 
 /** @brief The Gamble tab's slots, one base each (user, 2026-09-20). Rings and amulets dearest, as Diablo II's Gheed had it. */
-constexpr ItemType GambleSlots[GAMBLE_ITEMS] = {
+constexpr ItemType GambleSlots[] = { // cycled by SpawnGambleStock: GAMBLE_ITEMS is the page, not the slot count (2026-09-20)
 	ItemType::Helm, ItemType::LightArmor, ItemType::HeavyArmor, ItemType::Shield, ItemType::Sword, ItemType::Axe,
 	ItemType::Mace, ItemType::Bow, ItemType::Staff, ItemType::Ring, ItemType::Amulet
 };
@@ -8352,7 +8352,7 @@ void SpawnGambleStock(int lvl)
 {
 	const Player &player = *MyPlayer;
 	for (int i = 0; i < GAMBLE_ITEMS; i++) {
-		const ItemType type = GambleSlots[i];
+		const ItemType type = GambleSlots[i % std::size(GambleSlots)];
 		Item &item = gambleitems[i];
 		item = {};
 		// A base of the slot the hero could wear at this level, from the vendor pool. Nothing is

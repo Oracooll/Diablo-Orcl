@@ -87,14 +87,14 @@ TEST_F(InvTest, EtherealItemsWearAPurpleTintAndAGridFrame)
 	ethereal._iOracoolEthereal = true;
 	const auto [edge, middle] = drawn(ethereal, PAL16_GRAY + StoneShade);
 	EXPECT_EQ(middle, PAL16_BLUE + StoneShade + 1) << "an ethereal item's tint: the stone's shade, one deeper, in the fallback ramp";
-	EXPECT_EQ(edge, PAL16_YELLOW + 4) << "the grid frame: the footprint's corner is the 1 px gold outline";
+	EXPECT_EQ(edge, PAL16_YELLOW + 10) << "the grid frame: the footprint's corner is the 1 px gold outline";
 	{
 		OwnedSurface surf(size.width, size.height);
 		SDL_FillRect(surf.surface, nullptr, PAL16_GRAY + StoneShade);
 		InvDrawSlotBack(surf, { 0, size.height - 1 }, size, ethereal);
 		EXPECT_EQ((surf[Point { 28, 42 }]), PAL16_GRAY + 9) << "the inner cell boundary at x 28 is the 1 px grey line";
 		EXPECT_EQ((surf[Point { 10, 56 }]), PAL16_GRAY + 9) << "the inner cell boundary at y 56 is the 1 px grey line";
-		EXPECT_EQ((surf[Point { size.width - 1, size.height - 1 }]), PAL16_YELLOW + 4) << "the far corner is gold too";
+		EXPECT_EQ((surf[Point { size.width - 1, size.height - 1 }]), PAL16_YELLOW + 10) << "the far corner is gold too";
 	}
 	// The body slots draw no frame: the corner is tinted exactly as the middle (the pre-v1.12.093 rule).
 	const auto [bodyEdge, bodyMiddle] = drawn(ethereal, PAL16_GRAY + StoneShade, /*gridLines=*/false);
