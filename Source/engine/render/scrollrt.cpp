@@ -38,7 +38,8 @@
 #include "options.h"
 #include "oracool/attack_skills.h"
 #include "oracool/companion.h"
-#include "oracool/rift.h" // DrawRiftHud: the bar and the clock under the mini-map
+#include "oracool/rift.h"      // DrawRiftHud: the bar and the clock under the mini-map
+#include "oracool/stonegate.h" // IsStonegatePortalArch: the arch draws in the floor pass
 #include "oracool/curses.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/minions.h"
@@ -650,7 +651,10 @@ enum class ObjectDrawPass : uint8_t {
  */
 bool IsFloorPassObject(const Object &object)
 {
-	return object._otype == _object_id::OBJ_WAYPOINT;
+	// The Rift Monument's inactive arch over the town portal joins the waypoint here (2026-09-20): it
+	// stands one tile SOUTH-EAST of the portal so the portal's foot lands inside the opening, which
+	// would otherwise draw it over the portal - and the portal must stay on top.
+	return object._otype == _object_id::OBJ_WAYPOINT || oracool::IsStonegatePortalArch(object);
 }
 
 ObjectDrawPass GetObjectDrawPass(const Object &object)

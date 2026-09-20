@@ -102,7 +102,13 @@ namespace {
 void AddPortalArch()
 {
 	PortalArchObjectId = -1;
-	const Point tile = TownPortalLandingTile(0);
+	// ONE TILE SOUTH-EAST of the portal's tile (2026-09-20, from the user's grid screenshot): both
+	// sprites are bottom-anchored, the portal's ink ends 14px above its anchor and the painting's
+	// opening floor sits ~39px above its own (the plinth is in front), so on the same tile the portal
+	// stood in the plinth. (+1, +1) is the grid's one pure vertical step - 32px down the screen, no
+	// sideways shift - and lands the portal's foot 7px above the plinth's edge, inside the arch. The
+	// arch draws in the FLOOR pass so the portal on the earlier tile still lands over it.
+	const Point tile = TownPortalLandingTile(0) + Displacement { 1, 1 };
 	if (!InDungeonBounds(tile) || dObject[tile.x][tile.y] != 0)
 		return;
 	Object *arch = AddObject(OBJ_STAND, tile);
@@ -175,11 +181,15 @@ void AddStonegateObject()
 	AddPortalArch();
 }
 
+bool IsStonegatePortalArch(const Object &object)
+{
+	return PortalArchObjectId >= 0 && &object == &Objects[PortalArchObjectId];
+}
+
 bool IsStonegateObject(const Object &object)
 {
-	// The gate, or the inactive arch on the portal's tile - both wear the painting, neither is the Cube.
-	return (GateObjectId >= 0 && &object == &Objects[GateObjectId])
-	    || (PortalArchObjectId >= 0 && &object == &Objects[PortalArchObjectId]);
+	// The gate, or the inactive arch by the portal's tile - both wear the painting, neither is the Cube.
+	return (GateObjectId >= 0 && &object == &Objects[GateObjectId]) || IsStonegatePortalArch(object);
 }
 
 RiftKind OpenRift()

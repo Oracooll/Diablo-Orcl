@@ -27,8 +27,16 @@ namespace devilution::oracool {
 /** @brief Places the Stonegate in town. Town only; after InitTownObjectPool, like the Roar. */
 void AddStonegateObject();
 
-/** @brief Whether @p object is the Stonegate (it wears OBJ_STAND like the Roar; this tells them apart). */
+/** @brief Whether @p object is the Stonegate (it wears OBJ_STAND like the Roar; this tells them apart). Also true for the inactive arch below. */
 bool IsStonegateObject(const Object &object);
+
+/**
+ * @brief The INACTIVE copy of the painting the town portal opens in (2026-09-20). Drawn in the FLOOR
+ * pass (scrollrt.cpp's IsFloorPassObject) so the portal, standing one tile north-west of it, always
+ * draws over it whatever the tile order - the user's rule: "we dont move the portal. we move the
+ * monument. we keep the portal overlapping the monument."
+ */
+bool IsStonegatePortalArch(const Object &object);
 
 /** @brief Swaps the gate onto objects\orclgate.cel (defined in objects.cpp beside the Roar's, which owns the sheet table). */
 void ApplyStonegateGraphics(Object &gate);
