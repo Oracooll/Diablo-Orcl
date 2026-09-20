@@ -133,6 +133,15 @@ constexpr std::array<uint8_t, 1> OrclActLevels { { 0 } };
 WaypointAct ActiveAct = WaypointAct::Diablo;
 
 /**
+ * @brief The Act button held down under the mouse, or -1. THE CLICK EFFECT (user, 2026-09-20): the
+ * button and its glyph sink 2px down and 2px left from the press until the release; the shadow
+ * stays where it was, so the button reads as pushed toward its own shadow. Set by the click, cleared
+ * by ReleaseWaypointActButton from LeftMouseUp and by the menu closing.
+ */
+int PressedAct = -1;
+constexpr Displacement ActPressSink { -2, 2 };
+
+/**
  * @brief The act's table as a span. A plain Diablo game has no levels past 16 and
  * AddWaypointSigilObject places no sigil there, so the Hellfire act is Tristram alone outside
  * Hellfire - keyed on `gbIsHellfire` rather than on HaveMonk(): these are levels, and levels are
@@ -394,17 +403,20 @@ void DrawActButtons(const Surface &out)
 			// exactly that: every pixel keeps its luminance and loses its hue. The hovered inactive
 			// button wakes to colour, so the cursor finds it. The glyph is drawn BEFORE the pass so
 			// it greys with its button; a missing glyph leaves the act's name in the font instead.
-			DrawLoosePng(out, ActButtonAsset, cell.position);
+			// The face - button, glyph and the desaturation pass - sinks while pressed; the shadow
+			// drawn above stays put (see PressedAct).
+			const Rectangle face { cell.position + (PressedAct == act ? ActPressSink : Displacement { 0, 0 }), cell.size };
+			DrawLoosePng(out, ActButtonAsset, face.position);
 			if (GetLoosePngSize(ActGlyphAssets[act]).width > 0) {
 				DrawLoosePng(out, ActGlyphAssets[act],
-				    { cell.position.x + (cell.size.width - ActGlyphSize.width) / 2,
-				        cell.position.y + (cell.size.height - ActGlyphSize.height) / 2 });
+				    { face.position.x + (face.size.width - ActGlyphSize.width) / 2,
+				        face.position.y + (face.size.height - ActGlyphSize.height) / 2 });
 			} else {
-				DrawString(out, ActNames[act], cell,
+				DrawString(out, ActNames[act], face,
 				    { UiFlags::ColorGold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 			}
 			if (!selected && !isHovered)
-				TintRectRgb(out, cell.position.x, cell.position.y, cell.size.width, cell.size.height,
+				TintRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height,
 				    0xFFFFFFu, /*brightnessPercent=*/100, /*floorPercent=*/0, PAL16_GRAY);
 			continue;
 		}
@@ -549,6 +561,12 @@ void ScrollWaypointMenuDown()
 void CloseWaypointMenu()
 {
 	WaypointMenuOpen = false;
+	PressedAct = -1;
+}
+
+void ReleaseWaypointActButton()
+{
+	PressedAct = -1;
 }
 
 void DrawWaypointMenu(const Surface &out)
@@ -696,6 +714,7 @@ void CheckWaypointMenuClick(Point mousePosition)
 	// only tidiness - but a button press is a list change, not a journey, and stays open.
 	const int act = MouseToActButton(mousePosition);
 	if (act >= 0) {
+		PressedAct = act; // sinks until LeftMouseUp - the active act too, a press is a press
 		if (static_cast<int>(ActiveAct) != act) {
 			PlayUiMoveSound();
 			SelectWaypointAct(static_cast<WaypointAct>(act));

@@ -117,3 +117,11 @@ Build 57, v1.12.077: clean, ctest 831/831.
 The user's third-cut buttons carried a soft shadow of their own; the shadowless export is 88x68, and rather than three labelled files the user sent ONE blank (`Resources/88x68px Buttons.png`, filed as `act-buttons-user/act_button.png`, shipped as `ui\act_button.png`) and asked for ChatGPT's label glyphs to be placed in code. So a button is now: the game's shadow (3px resting, 6px doubled under the cursor and the active act), the blank 1:1, the act's glyph (`ui\act_<act>.png`, the 96x56 act-glyphs again) centred over it, then the desaturation pass on inactive acts - glyph greys with its button. Geometry: 88x68 on a 102px pitch from x 24, list from y 160, ten rows to 608.
 
 Build 58, v1.12.078: clean, ctest 831/831; act_button.png and the three glyphs packed.
+
+## v1.12.079 - the click effect
+
+> "When i click on an Act button move the 88x68px button+text 2px down and 2px left. Keep it there until mouse button is released. Dont move the hover shadow with it."
+
+A file-local `PressedAct` is set by the click (the active act too) and cleared by the new `ReleaseWaypointActButton`, called from diablo.cpp's `LeftMouseUp` beside the other spring-back buttons, and by the menu closing. While set, the button, its glyph and the desaturation pass draw at the cell shifted by (-2, +2); the drop or hover shadow is drawn from the unshifted cell, so the face sinks toward its own shadow.
+
+Build 59, v1.12.079: clean, ctest 831/831.

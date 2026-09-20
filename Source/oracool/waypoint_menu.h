@@ -43,6 +43,14 @@ int WaypointActLevelAt(WaypointAct act, size_t row);
 WaypointAct WaypointActOfLevel(int level);
 
 /**
+ * @brief Lets go of a pressed Act button. Called from diablo.cpp's LeftMouseUp, like every other
+ * button that sinks while the mouse is held (user, 2026-09-20: "When i click on an Act button move the
+ * 88x68px button+text 2px down and 2px left. Keep it there until mouse button is released. Dont move
+ * the hover shadow with it."). Safe to call when nothing is pressed.
+ */
+void ReleaseWaypointActButton();
+
+/**
  * @brief Opens the travel list. Currently only the Tristram entry is selectable - no other
  * waypoint has anywhere to travel to yet.
  * @param sigilPosition The tile of the waypoint object that opened this menu. Diablo's own NPC
