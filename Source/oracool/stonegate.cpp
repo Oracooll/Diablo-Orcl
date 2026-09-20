@@ -99,6 +99,11 @@ void AddStonegateObject()
 	for (const Point &position : Candidates) {
 		if (!InDungeonBounds(position) || dObject[position.x][position.y] != 0 || TileHasAny(dPiece[position.x][position.y], TileProperties::Solid))
 			continue;
+		// The entry tile in front must be walkable too, or the rift is unenterable with no message
+		// (audit, 2026-09-20).
+		const Point entry = position + Displacement { 1, 1 };
+		if (!InDungeonBounds(entry) || dObject[entry.x][entry.y] != 0 || TileHasAny(dPiece[entry.x][entry.y], TileProperties::Solid))
+			continue;
 		Object *gate = AddObject(OBJ_STAND, position);
 		if (gate == nullptr)
 			continue;
@@ -112,12 +117,15 @@ void AddStonegateObject()
 			LogEvent(StrCat("The Stonegate fell back to (", position.x, ", ", position.y, ")"), UiFlags::ColorRed);
 
 		// Town rebuilt with a rift still open: the hero died in it (plan r10) or came back through
-		// the way home. A cleared rift ends here; an unfinished one relights the portal, silently.
+		// the way home. Only the way home ends it - a death AFTER the kill leaves the pile and the
+		// keystone on the floor, and the gate stays lit so they can be fetched (audit, 2026-09-20).
+		// Only the STONE is lit here: InitMissiles runs after this and would clear the portal, so
+		// RelightStonegateIfNeeded adds it from the first town tick.
 		if (ActiveRift() != RiftKind::None) {
-			if (RiftDone())
+			if (RiftReturnedHome())
 				EndRift();
 			else
-				LightGate(*gate, ActiveRift(), /*sound=*/false);
+				ShowFrame(*gate, ActiveRift() == RiftKind::Nephalem ? GoldFirst : PurpleFirst);
 		}
 		return;
 	}
@@ -180,6 +188,19 @@ void ToggleStonegate()
 	// by clicking (plan r5), so the gate never cycles.
 	CloseStonegate();
 	LogEvent("The Stonegate falls dark; the rift is gone.", UiFlags::ColorWhitegold);
+}
+
+void RelightStonegateIfNeeded()
+{
+	Object *gate = Gate();
+	const RiftKind kind = ActiveRift();
+	if (gate == nullptr || kind == RiftKind::None || leveltype != DTYPE_TOWN)
+		return;
+	for (const Missile &missile : Missiles) {
+		if (missile._mitype == MissileID::RiftPortalGold || missile._mitype == MissileID::RiftPortalPurple)
+			return; // the portal stands
+	}
+	LightGate(*gate, kind, /*sound=*/false);
 }
 
 void LightStonegate(RiftKind kind)

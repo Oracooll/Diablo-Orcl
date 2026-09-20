@@ -9,6 +9,7 @@
 #include "automap.h"
 #include "diablo.h"
 #include "engine/palette.h"
+#include "engine/path.h" // IsTileSolid: the way home beside the guardian's corpse
 #include "engine/random.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
@@ -48,6 +49,12 @@ struct RiftState {
 	bool guardianSpawned = false;
 	int guardianId = -1;
 	bool done = false;
+	/** Where the guardian fell: the way home is laid there, and laid AGAIN on a revisit (triggers and
+	 * missiles are not in the level save). */
+	Point homeTile = { 0, 0 };
+	/** The hero walked out through the way home - only then is a cleared rift over. A death after the
+	 * kill (the pile and the keystone still on the floor) keeps it open (audit, 2026-09-20). */
+	bool returnedHome = false;
 	int ticksLeft = 0;
 	bool timedOut = false;
 	/** The entry tile in town has to be LEFT before it can be walked into: the hero stands beside
@@ -256,7 +263,9 @@ bool EnterRift(Player &player)
 
 bool TryEnterRiftFromTown()
 {
-	if (State.kind == RiftKind::None || State.done || MyPlayer == nullptr || leveltype != DTYPE_TOWN)
+	// A cleared rift is still enterable until the hero has walked out through the way home: the pile
+	// and the keystone may be lying where the guardian fell (audit, 2026-09-20).
+	if (State.kind == RiftKind::None || State.returnedHome || MyPlayer == nullptr || leveltype != DTYPE_TOWN)
 		return false;
 	Point entry;
 	if (!StonegateEntryTile(entry))
@@ -275,12 +284,24 @@ void BuildRiftLevel(bool fresh)
 	// The DRLG reads currlevel for its floor-keyed rules (quest rooms, the town-warp stairs, floor 16
 	// and 24), so it is told a plain floor of the rift's tileset for the duration and given the
 	// rift's own seed; the quests themselves are off (Quest::IsAvailable is false on any set level).
+	// Kept through the WHOLE build, not only CreateDungeon: InitObjectGFX registers the sprites by
+	// currlevel's range and InitObjects reads it for shrines, books and the like, so with the set-level
+	// id (9, 10) in it only the Caves' objects loaded and every other tileset's sarcophagus or torch
+	// was an unloaded sprite - a crash the moment one scrolled into view (audit, 2026-09-20).
 	const uint8_t savedLevel = currlevel;
 	currlevel = static_cast<uint8_t>(GenerationFloorFor(leveltype));
 	CreateDungeon(State.seed, ENTRY_MAIN); // ViewPosition lands on the up stairs, which lead nowhere here
-	currlevel = savedLevel;
 
 	InitNoTriggers(); // no stairs: the way back appears when the guardian dies
+	// An arrival safe zone: a floor's stairs get one from Freeupstairs through its triggers, and a
+	// rift has none, so the scatter could put a pack on the hero's landing tile.
+	for (int dy = -2; dy <= 2; dy++) {
+		for (int dx = -2; dx <= 2; dx++) {
+			const Point tile = ViewPosition + Displacement { dx, dy };
+			if (InDungeonBounds(tile))
+				dFlags[tile.x][tile.y] |= DungeonFlag::Populated;
+		}
+	}
 	LoadRndLvlPal(leveltype);
 	LoadLevelSOLData();
 	// The same seed for the themes on every build of this floor, so a revisit computes the rooms the
@@ -292,12 +313,22 @@ void BuildRiftLevel(bool fresh)
 	HoldThemeRooms();
 	if (fresh)
 		InitObjects();
+	currlevel = savedLevel;
 }
 
 void FinishRiftLevel(bool fresh)
 {
-	if (fresh)
-		CreateThemeRooms();
+	if (!fresh)
+		return;
+	const uint8_t savedLevel = currlevel;
+	currlevel = static_cast<uint8_t>(GenerationFloorFor(leveltype));
+	CreateThemeRooms();
+	currlevel = savedLevel;
+}
+
+uint32_t RiftRosterSeed()
+{
+	return State.seed ^ 0x0AC7u;
 }
 
 dungeon_type RiftTileset()
@@ -336,9 +367,29 @@ int RiftKillCredit(const Monster &monster)
 	return RiftCreditOrdinary;
 }
 
+namespace {
+
+/** @brief The return trigger where the guardian fell, and the rift's portal drawn on it. */
+void LayWayHome()
+{
+	numtrigs = 1;
+	trigs[0].position = State.homeTile;
+	trigs[0]._tmsg = WM_DIABRTNLVL;
+	if (MyPlayer != nullptr)
+		AddMissile(State.homeTile, State.homeTile, Direction::South, PortalFor(State.kind), TARGET_MONSTERS, MyPlayer->getId(), 0, 0);
+}
+
+} // namespace
+
 void RiftLevelPopulated()
 {
-	if (State.kind == RiftKind::None || State.creditNeeded > 0)
+	if (!InRift())
+		return;
+	// A cleared rift entered again (the hero died over the pile): the way home is not in the level
+	// save, so it is laid again where the guardian fell.
+	if (State.done)
+		LayWayHome();
+	if (State.creditNeeded > 0)
 		return; // a revisit keeps the bar it had
 	int total = 0;
 	for (size_t i = 0; i < ActiveMonsterCount; i++)
@@ -382,13 +433,19 @@ void OnRiftMonsterKilled(const Monster &monster)
 		if (State.done)
 			return;
 		State.done = true;
-		// The way back (r7): a return trigger where he fell, and the rift's own portal drawn on it
-		// so the tile is not a secret. GetMapReturnLevel answers town for a rift level.
-		numtrigs = 1;
-		trigs[0].position = monster.position.tile;
-		trigs[0]._tmsg = WM_DIABRTNLVL;
-		if (MyPlayer != nullptr)
-			AddMissile(monster.position.tile, monster.position.tile, Direction::South, PortalFor(State.kind), TARGET_MONSTERS, MyPlayer->getId(), 0, 0);
+		// The way back (r7): a return trigger BESIDE where he fell - his pile and the keystone land on
+		// his tile, and a trigger under them would warp a player home mid-pickup (audit, 2026-09-20).
+		// The rift's own portal is drawn on it so the tile is not a secret. GetMapReturnLevel answers
+		// town for a rift level.
+		State.homeTile = monster.position.tile;
+		for (int d = 0; d < 8; d++) {
+			const Point neighbour = monster.position.tile + static_cast<Direction>(d);
+			if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0) {
+				State.homeTile = neighbour;
+				break;
+			}
+		}
+		LayWayHome();
 		// The keystone (plan r5): a Nephalem guardian always drops one at the rift's tier; a Guardian
 		// guardian drops the next tier's, unless the clock ran out.
 		if (State.kind == RiftKind::Nephalem)
@@ -422,6 +479,10 @@ void ProcessRift()
 	}
 
 	if (leveltype == DTYPE_TOWN) {
+		// The portal in the gate after town is rebuilt (a death in the rift): AddStonegateObject runs
+		// before InitMissiles clears the list, so the relight happens here, once the missiles exist.
+		if (!State.returnedHome)
+			RelightStonegateIfNeeded();
 		// Arm the entry tile once the hero is off it.
 		Point entry;
 		if (MyPlayer != nullptr && StonegateEntryTile(entry) && MyPlayer->position.tile != entry)
@@ -441,6 +502,8 @@ void ProcessRift()
 }
 
 bool RiftEntered() { return State.creditNeeded > 0; }
+void RiftNoteReturnHome() { State.returnedHome = true; }
+bool RiftReturnedHome() { return State.returnedHome; }
 bool RiftGuardianSpawned() { return State.guardianSpawned; }
 bool RiftDone() { return State.done; }
 bool RiftTimedOut() { return State.timedOut; }
@@ -461,12 +524,14 @@ void DrawRiftHud(const Surface &out)
 {
 	if (!InRift())
 		return;
+	// LEFT of the mini-map, bottom-aligned with it: under the map is the event log's and the chat's
+	// frame (audit, 2026-09-20), and the spell timers stack down the left from the map's top edge.
 	const Rectangle miniMap = GetMiniMapScreenRect();
 	constexpr int BarWidth = 150;
 	constexpr int BarHeight = 8;
 	constexpr int Gap = 6;
-	const int x = miniMap.position.x + miniMap.size.width - BarWidth;
-	const int y = miniMap.position.y + miniMap.size.height + Gap;
+	const int x = miniMap.position.x - Gap - BarWidth;
+	const int y = miniMap.position.y + miniMap.size.height - 22;
 
 	std::string label = RiftKindName(State.kind);
 	if (State.done)

@@ -16,6 +16,7 @@
 #include "init.h"
 #include "options.h"
 #include "oracool/oracool.h"
+#include "oracool/rift.h"
 #include "utils/language.h"
 #include "utils/utf8.hpp"
 
@@ -887,6 +888,7 @@ void CheckTriggers()
 			StartNewLvl(myPlayer, trigs[i]._tmsg, currlevel - 1);
 			break;
 		case WM_DIABRTNLVL:
+			oracool::RiftNoteReturnHome(); // a rift ends only through its way home, not through a death (no-op elsewhere)
 			StartNewLvl(myPlayer, trigs[i]._tmsg, GetMapReturnLevel());
 			break;
 		case WM_DIABTOWNWARP:

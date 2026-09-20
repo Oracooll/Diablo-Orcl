@@ -120,6 +120,8 @@ void BuildRiftLevel(bool fresh);
 void FinishRiftLevel(bool fresh);
 /** @brief The tileset the active rift's floor is generated in. */
 dungeon_type RiftTileset();
+/** @brief The seed the roster pick is made from, so a revisit loads the types the saved monsters wear. */
+uint32_t RiftRosterSeed();
 /** @brief The dungeon floor the monster roster is drawn from (r2): the tier's rung, with the Hive/Crypt twin. */
 int RiftMonsterBandFloor();
 /** @brief Whether @p data may appear on the rift floor: available on the band floor or its side-step twin. */
@@ -143,6 +145,9 @@ void ProcessRift();
 
 /** @brief Whether the hero has been inside (the bar was sized): an entered rift is not swapped at the gate. */
 bool RiftEntered();
+/** @brief From the return trigger: the hero is walking out through the way home, so the rift may end in town. */
+void RiftNoteReturnHome();
+bool RiftReturnedHome();
 bool RiftGuardianSpawned();
 bool RiftDone();
 bool RiftTimedOut();

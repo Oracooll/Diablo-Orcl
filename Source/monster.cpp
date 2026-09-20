@@ -3865,6 +3865,10 @@ void GetLevelMTypes()
 			}
 		}
 	} else if (oracool::IsRiftLevel(setlvlnum)) {
+		// The SAME roster on every build of this floor: a revisit restores each saved monster's type
+		// INDEX, so a re-rolled list would dress the survivors in other types' sprites and animation
+		// lengths (audit, 2026-09-20).
+		SetRndSeed(oracool::RiftRosterSeed());
 		// A rift floor is generated, so no .dun ran SetMapMonsters: the golem bodies a set level
 		// gets from there are added here, or the companions and the Golem spell have no slot.
 		for (int i = 0; i < MAX_PLRS; i++)
@@ -4287,7 +4291,9 @@ Monster *SpawnRiftGuardian()
 	const Point hero = MyPlayer->position.tile;
 
 	// Open ground near the hero (plan r4): the nearest ring of tiles from three out that can take a
-	// monster. Close enough to be the event, far enough not to land on the hero's toes.
+	// monster. Close enough to be the event, far enough not to land on the hero's toes. NOT
+	// CanPlaceMonster: that one refuses any tile the hero can SEE, which is the point here (audit,
+	// 2026-09-20 - in a lit room nothing within twelve tiles passed it and he never rose).
 	std::optional<Point> spot;
 	for (int radius = 3; radius <= 12 && !spot; radius++) {
 		for (int dx = -radius; dx <= radius && !spot; dx++) {
@@ -4295,7 +4301,8 @@ Monster *SpawnRiftGuardian()
 				if (std::max(std::abs(dx), std::abs(dy)) != radius)
 					continue;
 				const Point candidate = hero + Displacement { dx, dy };
-				if (InDungeonBounds(candidate) && CanPlaceMonster(candidate)) {
+				if (InDungeonBounds(candidate) && dMonster[candidate.x][candidate.y] == 0 && dPlayer[candidate.x][candidate.y] == 0
+				    && !TileContainsSetPiece(candidate) && !IsTileOccupied(candidate)) {
 					spot = candidate;
 					break;
 				}

@@ -41,6 +41,8 @@ void ToggleStonegate();
 
 /** @brief Lights the gate for @p kind (a keystone used in town lights the violet one). */
 void LightStonegate(RiftKind kind);
+/** @brief Town, each tick: a rift is open but no portal missile stands in the gate - add it (silently). */
+void RelightStonegateIfNeeded();
 
 /** @brief Closes the gate: the portal goes, the rift ends, the stone goes cold. */
 void CloseStonegate();
