@@ -19,11 +19,13 @@
 
 namespace devilution::oracool::cube_skin {
 
-constexpr const char *BackgroundAsset = "ui\cube_bg.png";
+// Double backslashes, as every asset path here: a single one is an escape the compiler eats, and
+// "uicube_bg.png" never loads - the Cube wore the Roar's painting for a build (audit, 2026-09-20).
+constexpr const char *BackgroundAsset = "ui\\cube_bg.png";
 /** RfA-20 batch 43c: the shop's small button style, the word TRANSMUTE, at rest and pressed. Until it
  * lands the recess is labelled by the game's own gold text. */
-constexpr const char *TransmuteButtonAsset = "ui\cube_button_transmute.png";
-constexpr const char *TransmuteButtonPressedAsset = "ui\cube_button_transmute_pressed.png";
+constexpr const char *TransmuteButtonAsset = "ui\\cube_button_transmute.png";
+constexpr const char *TransmuteButtonPressedAsset = "ui\\cube_button_transmute_pressed.png";
 
 constexpr Size WindowSize { 385, 280 };
 /** The wells: brass rims at x 25-26 / 53-54, interiors of 26 px on a 28 px pitch - the Roar's grid exactly. */

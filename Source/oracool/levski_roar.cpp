@@ -778,7 +778,8 @@ void ProcessLevskiCubeAnimation()
 		if (!IsLevskiRoarObject(object) || object._oAnimLen < OpenFrame)
 			continue;
 		object._oAnimFlag = 0;
-		if (WindowOpen) {
+		// The lid parts for the CUBE's own book only, not for Griswold's or Ogden's (audit, 2026-09-20).
+		if (WindowOpen && WindowHost == TransmuteHost::Cube) {
 			object._oAnimFrame = OpenFrame;
 			object._oAnimCnt = 0;
 			return;

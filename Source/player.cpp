@@ -2898,8 +2898,11 @@ void NextPlrLevel(Player &player)
 
 uint64_t KillExperienceFor(const Player &player, int monsterLevel, int monsterExp)
 {
-	// Adjust xp based on difference in level between player and monster
-	uint64_t clampedExp = std::max(static_cast<int>(monsterExp * (1 + (monsterLevel - player._pLevel) / 10.0)), 0);
+	// Diablo I's own level-gap factor (a tenth per level either way, ZERO ten levels down) is gone
+	// with Diablo II's table: stacked under the brake below it paid nothing for most of Hell to a
+	// hero past 80, and the table's last thirty levels were out of reach (audit, 2026-09-20).
+	// Diablo II has no bonus for a monster above the hero either; the brakes are the whole rule.
+	uint64_t clampedExp = static_cast<uint64_t>(std::max(monsterExp, 0));
 
 	// Diablo II's two brakes (2026-09-20, decision D3 of the Level Requirements plan - they come
 	// with its experience table, which the fork's Diablo I monster experience would otherwise race
@@ -2923,7 +2926,8 @@ uint64_t KillExperienceFor(const Player &player, int monsterLevel, int monsterEx
 		// UINT64_C(200), not a plain 200ULL literal - uint64_t is `unsigned long` rather than
 		// `unsigned long long` on LP64 platforms (e.g. PS4), and std::min's initializer_list
 		// overload requires every element to deduce to the exact same type.
-		clampedExp = std::min({ clampedExp, /* level 0-5: */ ExpLvlsTbl[clampedPlayerLevel] / 20U, /* level 6-99: */ UINT64_C(200) * clampedPlayerLevel });
+		// The table has MaxCharacterLevel entries (0..98); a hero AT the cap reads the last one (audit, 2026-09-20).
+		clampedExp = std::min({ clampedExp, /* level 0-5: */ ExpLvlsTbl[std::min<uint32_t>(clampedPlayerLevel, MaxCharacterLevel - 1)] / 20U, /* level 6-99: */ UINT64_C(200) * clampedPlayerLevel });
 	}
 	return clampedExp;
 }

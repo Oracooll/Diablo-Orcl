@@ -64,6 +64,7 @@
 #include "oracool/area_level.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/named_encounters.h"
+#include "oracool/levski_cube_skin.h"
 #include "oracool/rift.h"
 #include "oracool/class_skills.h"
 #include "oracool/crafting.h"
@@ -101,6 +102,7 @@
 #include "oracool/area_level.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/named_encounters.h"
+#include "oracool/levski_cube_skin.h"
 #include "oracool/rift.h"
 #include "oracool/furious_charge.h" // ChargeBlowPercentAt - Charge's arriving blow
 #include "oracool/quest_marks.h"
@@ -10625,9 +10627,12 @@ TEST(OracoolAudit, AnItemInLevskisGridFillsTheHoverPanel)
 			MousePosition = { x, y };
 			if (!oracool::SetLevskiHoverInfoString())
 				continue;
+			// The Cube's painting lists its recipes in a bezel ABOVE the grid's rows, so the sweep meets
+			// a recipe name before the ring (2026-09-20, once the skin loaded): the ring is asserted
+			// where it is, not at the first hover.
+			if (InfoString.str().find("Levski Test Ring") == devilution::string_view::npos)
+				continue;
 			found = true;
-			EXPECT_NE(InfoString.str().find("Levski Test Ring"), devilution::string_view::npos)
-			    << "the hover reported something other than the item under the cursor";
 			// The invariant DrawCursorTooltip asserts on, checked here where a failure names its
 			// cause rather than popping a dialog mid-play.
 			size_t lines = 1;
@@ -12508,10 +12513,12 @@ TEST(OracoolAudit, KillExperienceIsTheClampedNumberTheKillPays)
 	player._pLevel = 20;
 	gbIsMultiplayer = false;
 
+	// Diablo II's rule since 2026-09-20 (audit pass 3): no bonus above, the mlvl/clvl share below a
+	// five-level gap, never zero. Diablo I's tenth-a-level factor is gone.
 	EXPECT_EQ(KillExperienceFor(player, 20, 1000), 1000u) << "same level: the table value";
-	EXPECT_EQ(KillExperienceFor(player, 30, 1000), 2000u) << "ten levels up pays double";
-	EXPECT_EQ(KillExperienceFor(player, 15, 1000), 500u) << "five levels down pays half";
-	EXPECT_EQ(KillExperienceFor(player, 5, 1000), 0u) << "fifteen levels down pays nothing";
+	EXPECT_EQ(KillExperienceFor(player, 30, 1000), 1000u) << "ten levels up pays the table value, no bonus";
+	EXPECT_EQ(KillExperienceFor(player, 15, 1000), 1000u) << "five levels down is inside the gap: the table value";
+	EXPECT_EQ(KillExperienceFor(player, 5, 1000), 250u) << "fifteen levels down pays its share, 5/20";
 }
 
 // SORT lays the consumables out by FAMILY, each family on rows of its own (user, 2026-09-07: "still
@@ -13467,6 +13474,20 @@ TEST(OracoolAudit, EveryUiEventSoundPathSurvivedTheCompiler)
 	}
 }
 
+// The Cube skin's three asset paths, as the sound paths are checked: a single backslash is an escape
+// the compiler eats, and "uicube_bg.png" never loads - which is exactly what shipped in v1.12.057
+// (audit, 2026-09-20).
+TEST(OracoolAudit, CubeSkinAssetPathsSurvivedTheCompiler)
+{
+	for (const char *path : { oracool::cube_skin::BackgroundAsset, oracool::cube_skin::TransmuteButtonAsset, oracool::cube_skin::TransmuteButtonPressedAsset }) {
+		const std::string p = path;
+		EXPECT_EQ(p.rfind("ui\\", 0), 0u) << p;
+		EXPECT_EQ(p.find("uicube"), std::string::npos) << p;
+	}
+	MountTestArchives();
+	EXPECT_TRUE(FindAsset(oracool::cube_skin::BackgroundAsset).ok()) << "the archive has no cube_bg.png";
+}
+
 // The rifts (oracool/rift.h, 2026-09-20). The two set levels must sit inside the per-player visited
 // arrays, which are NUMLEVELS long - a rift id past that would read and write off their end.
 TEST(OracoolAudit, RiftLevelsFitTheVisitedArrays)
@@ -13861,7 +13882,9 @@ TEST(OracoolAudit, ExperienceTableIsDiabloTwosWithItsBrakes)
 	player._pLevel = 30;
 	// A monster of the hero's level pays in full; one six levels below pays its share of the hero's level.
 	EXPECT_EQ(KillExperienceFor(player, 30, 1000), 1000u);
-	EXPECT_EQ(KillExperienceFor(player, 24, 1000), static_cast<uint64_t>(1000 * (1 + (24 - 30) / 10.0)) * 24 / 30);
+	EXPECT_EQ(KillExperienceFor(player, 24, 1000), 800u) << "mlvl / clvl and nothing else: Diablo I's gap factor is gone (audit, 2026-09-20)";
+	EXPECT_EQ(KillExperienceFor(player, 10, 1000), 1000u * 10 / 30) << "twenty levels down still pays its share, not zero";
+	EXPECT_EQ(KillExperienceFor(player, 40, 1000), 1000u) << "no bonus for a monster above the hero";
 	// Above 70 the gain is cut: 80 pays half, 90 a tenth, 96 a twentieth.
 	player._pLevel = 80;
 	EXPECT_EQ(KillExperienceFor(player, 80, 1000), 500u);

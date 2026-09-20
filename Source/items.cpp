@@ -3601,12 +3601,16 @@ struct RebuildKeepsake {
 	/** @brief The name came out of the name pool, as opposed to a base, unique or set name. */
 	bool rolledName = false;
 	std::array<char, sizeof(Item::_iIName)> name {};
+	/** Kanai's Work of Cathan is for good: a rebuild through InitializeItem (Recast, Consecrate,
+	 * Recolour) must not put the level requirement back (audit, 2026-09-20). */
+	bool levelFree = false;
 };
 
 RebuildKeepsake CaptureRebuildKeepsake(const Item &item)
 {
 	RebuildKeepsake keepsake;
 	keepsake.ethereal = item._iOracoolEthereal;
+	keepsake.levelFree = item._iOracoolLevelFree;
 	// Magic and every rolled tier are ITEM_QUALITY_MAGIC; uniques and set pieces are not.
 	keepsake.rolledName = item._iMagical == ITEM_QUALITY_MAGIC && item._iOracoolTier != OracoolItemTier::Set;
 	std::copy(std::begin(item._iIName), std::end(item._iIName), keepsake.name.begin());
@@ -3621,6 +3625,8 @@ void RestoreRebuildKeepsake(Item &item, const RebuildKeepsake &keepsake, bool ke
 {
 	if (keepsake.ethereal && !item._iOracoolEthereal)
 		MakeItemEthereal(item);
+	if (keepsake.levelFree)
+		item._iOracoolLevelFree = true;
 	if (keepName && keepsake.rolledName && item._iMagical == ITEM_QUALITY_MAGIC)
 		std::copy(keepsake.name.begin(), keepsake.name.end(), std::begin(item._iIName));
 }
@@ -4959,6 +4965,9 @@ void CreatePlrItems(Player &player)
 	case HeroClass::Barbarian:
 		InitializeItem(player.InvBody[INVLOC_HAND_LEFT], IDI_BARBARIAN);
 		GenerateNewSeed(player.InvBody[INVLOC_HAND_LEFT]);
+		// The one starter base that is NOT IDROP_NEVER (a Spiked Club, drop level 4): it asked level 4
+		// of a level-1 hero (audit, 2026-09-20). Unbound, as the Work of Cathan leaves an item.
+		player.InvBody[INVLOC_HAND_LEFT]._iOracoolLevelFree = true;
 
 		InitializeItem(player.InvBody[INVLOC_HAND_RIGHT], IDI_WARRSHLD);
 		GenerateNewSeed(player.InvBody[INVLOC_HAND_RIGHT]);

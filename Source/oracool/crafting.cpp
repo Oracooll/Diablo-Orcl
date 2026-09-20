@@ -739,6 +739,10 @@ int FindGridWearable(const Item *grid, bool plainOnly)
 			continue;
 		if (plainOnly && (item._iMagical == ITEM_QUALITY_UNIQUE || item._iOracoolTier != OracoolItemTier::None))
 			continue;
+		// A craft REBUILDS the item (RetierOracoolItem): stones inside it and shards on it would not
+		// come back, the rule IsTierRecipeGear already keeps for the rerolls (audit, 2026-09-20).
+		if (plainOnly && (item.socketedCount() > 0 || item._iOracoolImbueCount > 0))
+			continue;
 		return i;
 	}
 	return -1;
@@ -1149,8 +1153,24 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		const _item_indexes result = FindBaseByMisc(recipe == RejuvenationRecipe ? IMISC_REJUV : IMISC_FULLREJUV);
 		if (result == IDI_NONE)
 			return {};
-		if (GridRoomAfter(grid, materials) < 1)
-			return NoRoomForResult();
+		// Potions STACK, so a consumed slot is free only when the stack is spent: the room question is
+		// asked on a copy that has paid, before the real grid pays (audit, 2026-09-20 - a full grid
+		// of five-stacks ate six potions and then had nowhere to put the result).
+		{
+			Item scratch[GridSlots];
+			std::copy(grid, grid + GridSlots, scratch);
+			if (recipe == RejuvenationRecipe) {
+				ConsumeGridReagents(scratch, FindGridPotions(scratch, IMISC_HEAL, 3), 3);
+				ConsumeGridReagents(scratch, FindGridPotions(scratch, IMISC_MANA, 3), 3);
+			} else {
+				ConsumeGridReagents(scratch, materials, 3);
+			}
+			bool room = false;
+			for (int slot = 0; slot < GridSlots && !room; slot++)
+				room = scratch[slot].isEmpty();
+			if (!room)
+				return NoRoomForResult();
+		}
 		if (recipe == RejuvenationRecipe) {
 			ConsumeGridReagents(grid, FindGridPotions(grid, IMISC_HEAL, 3), 3);
 			ConsumeGridReagents(grid, FindGridPotions(grid, IMISC_MANA, 3), 3);
@@ -1186,10 +1206,13 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			ItemPower first;
 			ItemPower second;
 		};
-		const CraftPower craft = recipe == CraftBloodRecipe      ? CraftPower { N_("Blood"), { IPL_STEALLIFE, 3, 5 }, { IPL_LIFE, 15, 25 } }
+		// Ranges as SaveItemPower reads them (audit, 2026-09-20): STEALLIFE keys on param1 == 3 for
+		// the 3% flag (a 4 or 5 would have rolled and still been 3%), GETHIT is SUBTRACTED from the
+		// damage taken (so a negative range ADDED damage), and ALLRES sits on its lowest table row.
+		const CraftPower craft = recipe == CraftBloodRecipe      ? CraftPower { N_("Blood"), { IPL_STEALLIFE, 3, 3 }, { IPL_LIFE, 15, 25 } }
 		    : recipe == CraftCasterRecipe                        ? CraftPower { N_("Caster"), { IPL_MANA, 15, 25 }, { IPL_MAG, 3, 5 } }
 		    : recipe == CraftHitPowerRecipe                      ? CraftPower { N_("Hit Power"), { IPL_KNOCKBACK, 0, 0 }, { IPL_TOHIT, 10, 15 } }
-		                                                         : CraftPower { N_("Safety"), { IPL_ALLRES, 8, 12 }, { IPL_GETHIT, -3, -1 } };
+		                                                         : CraftPower { N_("Safety"), { IPL_ALLRES, 10, 15 }, { IPL_GETHIT, 1, 3 } };
 		for (ItemPower power : { craft.first, craft.second }) {
 			const int raw = ApplyOracoolItemPower(*MyPlayer, target, power);
 			if (target._iOracoolAffixCount < Item::MaxOracoolAffixes)

@@ -64,7 +64,9 @@ int MaterialFloorFor(const Item &item)
 	// hero must be able to hold what the game handed him. A unique's own number is asked elsewhere.
 	if (data.iRnd == IDROP_NEVER)
 		return 1;
-	const std::string_view name = _(data.iName);
+	// The UNTRANSLATED name: the material words are the table's English ones, and a translated
+	// "Iron Helm" would miss its floor and ask its drop level instead (audit, 2026-09-20).
+	const std::string_view name = data.iName != nullptr ? data.iName : "";
 	for (const MaterialFloor &m : MaterialFloors) {
 		if (name.size() > m.word.size() && name.substr(0, m.word.size()) == m.word && name[m.word.size()] == ' ')
 			return m.floor;
@@ -195,7 +197,6 @@ int RequiredLevel(const Item &item)
 	// Kanai's Work of Cathan (Levski's Cube, 2026-09-20): unbound for good.
 	if (item._iOracoolLevelFree)
 		return 1;
-
 	int level = BaseRequiredLevel(item);
 	level = std::max(level, AffixesRequiredLevel(item));
 

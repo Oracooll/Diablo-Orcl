@@ -4327,6 +4327,14 @@ void StartStore(TalkID s)
 	// Gated on the CURRENT screen being a grid shop, not on stextshold. That is what makes the early
 	// return safe: the screen we decline to leave is a real shop screen, so nothing is left sitting
 	// on a confirmation dialog with its own exit skipped. The classic stores keep vanilla's screen.
+	// The Forge tab is not a screen: it leaves the store and opens the transmute window on Griswold's
+	// book (Levski's Cube, D8). The tab column reaches here, not SmithEnter (audit, 2026-09-20: the
+	// tab drew an empty stock grid).
+	if (s == TalkID::SmithTransmute) {
+		stextflag = TalkID::None;
+		oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Smith);
+		return;
+	}
 	if (s == TalkID::NoMoney && oracool::IsShopGridScreen(stextflag)) {
 		oracool::ShowShopToast(std::string(_("You do not have enough gold")));
 		return;
