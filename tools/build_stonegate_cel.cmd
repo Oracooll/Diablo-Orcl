@@ -11,7 +11,9 @@ REM Usage:  tools\build_stonegate_cel.cmd
 REM Run from the repository root.
 
 setlocal
-set FRAMES=..\Resources\02-concept-assets\delivered-packs\batch-44-stonegate-second-cut\monument
+REM Batch 45 (RfA-22, 2026-09-20): the PAINTED cut - batch 44 was a resample of batch 42 and read as a
+REM hatched grey box in town. Same 128x160 geometry and opening, new original painting.
+set FRAMES=..\Resources\02-concept-assets\delivered-packs\batch-45-stonegate-painted\monument
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\objects\orclgate.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
