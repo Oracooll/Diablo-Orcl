@@ -68,7 +68,8 @@ int SalvageYield(const Item &item);
  * touching anything when the pack has no room for the materials, so a full pack cannot silently
  * destroy gear.
  */
-int SalvageAllInBackpack(Player &player, SalvageTier tier);
+int SalvageAllInBackpack(Player &player, SalvageTier tier, int *materialsMade = nullptr);
+// @p materialsMade, when given, receives how many materials were placed in the pack (the Salvage window's message, 2026-09-21).
 
 /**
  * @brief Whether @p player holds anything of @p tier anywhere in the backpack.

@@ -151,8 +151,10 @@ int SalvageYield(const Item &item)
 	return TierYield[static_cast<int>(SalvageTierOf(item))];
 }
 
-int SalvageAllInBackpack(Player &player, SalvageTier tier)
+int SalvageAllInBackpack(Player &player, SalvageTier tier, int *materialsMade)
 {
+	if (materialsMade != nullptr)
+		*materialsMade = 0;
 	// EVERY page, not just the one on screen. User report, 2026-08-20: "Salvage buttons to sweet
 	// all tabs." The original walk used the GetActive* helpers, which read whichever tab is
 	// displayed - so a button pressed on page 1 left the rares on pages 2-10 untouched, and the
@@ -219,6 +221,8 @@ int SalvageAllInBackpack(Player &player, SalvageTier tier)
 		             _(AllItemsList[SalvageMaterialFor(tier)].iName), " - they were lost"),
 		    UiFlags::ColorRed);
 	}
+	if (materialsMade != nullptr)
+		*materialsMade = placed;
 
 	return static_cast<int>(victims.size());
 }

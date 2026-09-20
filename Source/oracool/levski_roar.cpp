@@ -280,11 +280,40 @@ constexpr Size SalvageWindowSize { 320, 352 };
 constexpr Rectangle SalvageWindowTitle { { 22, 30 }, { 276, 40 } };
 constexpr Rectangle SalvageResultsBox { { 30, 214 }, { 260, 106 } };
 constexpr Rectangle SalvageCloseRect { { 296, 5 }, { 18, 18 } };
-constexpr int SalvageResultLines = 7;
 int PressedSalvageIcon = -1;
 int LastHoverSalvageIcon = -1;
-/** The lines under the "Salvage Results" plate, oldest first; the box shows the last SalvageResultLines. */
-std::vector<std::string> SalvageResults;
+/**
+ * The message under the painted "Salvage Results" plate (user, 2026-09-21: "1 message per salvage button press:
+ * X (type) Items destroyed / (Icon frame 60x60 with 56x56 high res version of salvaged material sprite) X (material
+ * name) Salvaged. Font in colour of item type. Message stays until another salvage icon is pressed ... horizontally
+ * and vertically aligned in middle of Salvage Results area"; "icon frame to have 1px outline border on the outside
+ * of these 60x60px. frame color - according to salvaged item"). The sprites are the 28 px material icons doubled
+ * (ui\salvage_mat_<tier>.png) until a painted 56 px set exists.
+ */
+struct SalvageMessageState {
+	bool shown = false;
+	SalvageTier tier = SalvageTier::White;
+	int items = 0;
+	int materials = 0;
+};
+SalvageMessageState SalvageMessage;
+/** In SalvageTier order, as the icons: White, Magic, Rare, Unique, Primal, Set, Ethereal. */
+constexpr const char *SalvageMaterialSprites[SalvageTierCount] = {
+	"ui\\salvage_mat_white.png", "ui\\salvage_mat_magic.png", "ui\\salvage_mat_rare.png", "ui\\salvage_mat_unique.png",
+	"ui\\salvage_mat_primal.png", "ui\\salvage_mat_set.png", "ui\\salvage_mat_ethereal.png"
+};
+/** "4 Rare Items destroyed" - the tier as an adjective; SalvageTierName has the plural button labels ("Whites"). */
+constexpr const char *SalvageTierAdjectives[SalvageTierCount] = {
+	N_("White"), N_("Magic"), N_("Rare"), N_("Unique"), N_("Primal"), N_("Set"), N_("Ethereal")
+};
+/** The seven item-type colours (Item::getTextColor's ladder) and their RGB for the frame's outline. */
+constexpr UiFlags SalvageTierColors[SalvageTierCount] = {
+	UiFlags::ColorWhite, UiFlags::ColorBlue, UiFlags::ColorYellow3, UiFlags::ColorWhitegold,
+	UiFlags::ColorBeige2, UiFlags::ColorOracoolGreen, UiFlags::ColorGray7
+};
+constexpr uint32_t SalvageTierRgb[SalvageTierCount] = { 0xCCCCCC, 0x9FA5C6, 0xF0EC00, 0xDDC47E, 0xCA9E9E, 0x64A064, 0x737373 };
+constexpr Size SalvageFramePlate { 60, 60 };
+constexpr int SalvageFrameGap = 8;
 
 /** @brief Whether Griswold's window wears the user's painted Salvage UI (the Roar painting is the missing-file fallback). */
 bool SalvageSkin()
@@ -1008,7 +1037,7 @@ void ResetLevskiRoarForNewGame()
 	RecipeBookOpen = false;
 	RecipeBookScroll = 0;
 	CubeListScroll = 0;
-	SalvageResults.clear();
+	SalvageMessage = {};
 	PressedSalvageIcon = -1;
 	LastHoverSalvageIcon = -1;
 }
@@ -1255,14 +1284,31 @@ void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 		PlayUiMoveSound();
 	LastHoverSalvageIcon = hoveredNow;
 
-	// The results under the painted "Salvage Results" plate: the last lines, oldest at the top.
-	const Rectangle box { window.position + Displacement { SalvageResultsBox.position.x, SalvageResultsBox.position.y }, SalvageResultsBox.size };
-	const int lineHeight = GetLineHeight("Ag", GameFont12);
-	const size_t first = SalvageResults.size() > static_cast<size_t>(SalvageResultLines) ? SalvageResults.size() - SalvageResultLines : 0;
-	int y = box.position.y;
-	for (size_t k = first; k < SalvageResults.size() && y + lineHeight <= box.position.y + box.size.height; k++, y += lineHeight) {
-		DrawString(out, SalvageResults[k], Rectangle { { box.position.x, y }, { box.size.width, lineHeight } },
-		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+	// The message (user, 2026-09-21): "X Rare Items destroyed", then the material's sprite in a 60x60 plate with a
+	// 1 px outline OUTSIDE it in the tier's colour and "X Rare Fibres Salvaged" beside it - all in the tier's colour,
+	// the block centred in the box both ways, replaced by the next press.
+	if (SalvageMessage.shown) {
+		const int t = static_cast<int>(SalvageMessage.tier);
+		const UiFlags color = SalvageTierColors[t];
+		const Rectangle box { window.position + Displacement { SalvageResultsBox.position.x, SalvageResultsBox.position.y }, SalvageResultsBox.size };
+		const std::string line1 = fmt::format(fmt::runtime(_("{:d} {:s} Items destroyed")), SalvageMessage.items, _(SalvageTierAdjectives[t]));
+		const std::string line2 = fmt::format(fmt::runtime(_("{:d} {:s} Salvaged")), SalvageMessage.materials, _(AllItemsList[SalvageMaterialFor(SalvageMessage.tier)].iName));
+		const int lineHeight = GetLineHeight(line1, GameFont12);
+		const int frameOuter = SalvageFramePlate.height + 2; // the outline sits outside the 60x60 plate
+		const int blockHeight = lineHeight + 6 + frameOuter;
+		const int top = box.position.y + (box.size.height - blockHeight) / 2;
+		DrawString(out, line1, Rectangle { { box.position.x, top }, { box.size.width, lineHeight } },
+		    { color | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		const int textWidth = GetLineWidth(line2, GameFont12);
+		const int rowWidth = frameOuter + SalvageFrameGap + textWidth;
+		const int rowLeft = box.position.x + (box.size.width - rowWidth) / 2;
+		const int rowTop = top + lineHeight + 6;
+		FillRectRgb(out, rowLeft, rowTop, frameOuter, frameOuter, SalvageTierRgb[t], PAL16_GRAY + 4); // the 1 px outline
+		FillRect(out, rowLeft + 1, rowTop + 1, SalvageFramePlate.width, SalvageFramePlate.height, PAL16_GRAY + 14); // the plate
+		if (GetLoosePngSize(SalvageMaterialSprites[t]).width > 0)
+			DrawLoosePng(out, SalvageMaterialSprites[t], { rowLeft + 3, rowTop + 3 }); // 56 in 60: two pixels of plate around it
+		DrawString(out, line2, Rectangle { { rowLeft + frameOuter + SalvageFrameGap, rowTop }, { textWidth + 4, frameOuter } },
+		    { color | UiFlags::FontSize12 | UiFlags::VerticalCenter });
 	}
 	DrawWindowCloseButtonAt(out, CloseButtonRect(window));
 }
@@ -1583,18 +1629,17 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			PlayUiMoveSound();
 		FlashButton(i); // fires whether or not there was anything to salvage - it acknowledges the CLICK
 		const auto tier = static_cast<SalvageTier>(i);
-		const int consumed = SalvageAllInBackpack(*MyPlayer, tier);
+		int materialsMade = 0;
+		const int consumed = SalvageAllInBackpack(*MyPlayer, tier, &materialsMade);
+		SalvageMessage = { true, tier, consumed, materialsMade }; // the Salvage window's message, replaced per press (2026-09-21)
 		if (consumed > 0) {
-			const std::string made = StrCat("Salvaged ", consumed, " ", _(SalvageTierName(tier)), " into ",
-			    _(AllItemsList[SalvageMaterialFor(tier)].iName));
-			LogEvent(made, UiFlags::ColorWhitegold);
-			SalvageResults.push_back(made); // the Salvage window's results box (2026-09-21)
+			LogEvent(StrCat("Salvaged ", consumed, " ", _(SalvageTierName(tier)), " into ", materialsMade, " ",
+			             _(AllItemsList[SalvageMaterialFor(tier)].iName)),
+			    UiFlags::ColorWhitegold);
 			if (!PlayUiEventSound(UiEventSound::Salvage))
 				PlaySFX(IS_ISHIEL); // the old stand-in, if the salvage sound is not in the archive
 		} else {
-			const std::string none = StrCat("Nothing to salvage: ", _(SalvageTierName(tier)));
-			LogEvent(none, UiFlags::ColorWhite);
-			SalvageResults.push_back(none);
+			LogEvent(StrCat("Nothing to salvage: ", _(SalvageTierName(tier))), UiFlags::ColorWhite);
 		}
 		return true;
 	}
