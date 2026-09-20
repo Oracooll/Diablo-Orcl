@@ -12,7 +12,12 @@ param(
     # resample, to the frame alone.
     [double]$Saturation = 1.0,
     [double]$Brightness = 1.0,
-    [double]$CoolCast = 0.0
+    [double]$CoolCast = 0.0,
+    # A colour cast toward $TintRgb ("R,G,B") by $TintStrength (0..1), luminance kept - the Rift Monument's
+    # blue-grey to match Tristram's rocks (user, 2026-09-20: "recolour the rift monument to match the rocks
+    # scattered all over Tristram. they are very blue-ish").
+    [string]$TintRgb = "",
+    [double]$TintStrength = 0.0
 )
 Add-Type -AssemblyName System.Drawing
 $ErrorActionPreference = "Stop"
@@ -28,13 +33,16 @@ $g.Clear([System.Drawing.Color]::FromArgb(0, 0, 0, 0))
 $g.InterpolationMode = 'HighQualityBicubic'; $g.SmoothingMode = 'HighQuality'; $g.PixelOffsetMode = 'HighQuality'; $g.CompositingMode = 'SourceCopy'
 $g.DrawImage($src, (New-Object System.Drawing.Rectangle 0, 0, $Width, $h), (New-Object System.Drawing.Rectangle $minx, $miny, $cw, $ch), [System.Drawing.GraphicsUnit]::Pixel)
 $g.Dispose()
-if ($Saturation -ne 1.0 -or $Brightness -ne 1.0 -or $CoolCast -ne 0.0) {
+$tint = $null
+if ($TintRgb -ne "" -and $TintStrength -gt 0) { $p = $TintRgb.Split(","); $tint = @([double]$p[0], [double]$p[1], [double]$p[2]); $tl = 0.299 * $tint[0] + 0.587 * $tint[1] + 0.114 * $tint[2]; if ($tl -le 0) { $tl = 1 } }
+if ($Saturation -ne 1.0 -or $Brightness -ne 1.0 -or $CoolCast -ne 0.0 -or $tint -ne $null) {
     for ($y = 0; $y -lt $h; $y++) { for ($x = 0; $x -lt $Width; $x++) {
         $c = $out.GetPixel($x, $y); if ($c.A -eq 0) { continue }
         $lum = 0.299 * $c.R + 0.587 * $c.G + 0.114 * $c.B
         $r = ($lum + ($c.R - $lum) * $Saturation) * $Brightness * (1.0 - $CoolCast)
         $g = ($lum + ($c.G - $lum) * $Saturation) * $Brightness
         $b = ($lum + ($c.B - $lum) * $Saturation) * $Brightness * (1.0 + $CoolCast)
+        if ($tint -ne $null) { $l2 = 0.299 * $r + 0.587 * $g + 0.114 * $b; $r = $r * (1 - $TintStrength) + $l2 * $tint[0] / $tl * $TintStrength; $g = $g * (1 - $TintStrength) + $l2 * $tint[1] / $tl * $TintStrength; $b = $b * (1 - $TintStrength) + $l2 * $tint[2] / $tl * $TintStrength }
         $out.SetPixel($x, $y, [System.Drawing.Color]::FromArgb($c.A, [int][Math]::Max(0, [Math]::Min(255, $r)), [int][Math]::Max(0, [Math]::Min(255, $g)), [int][Math]::Max(0, [Math]::Min(255, $b))))
     } }
     Write-Host ("toned: saturation {0}, brightness {1}, cool cast {2}" -f $Saturation, $Brightness, $CoolCast)

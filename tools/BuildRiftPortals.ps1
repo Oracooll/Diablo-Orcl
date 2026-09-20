@@ -22,7 +22,11 @@ param(
 )
 Add-Type -AssemblyName System.Drawing
 
-function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satBoost, [double]$lightGain, [int[]]$fillRgb) {
+# $hue -1 leaves the colours as they are (the town's own portal, 2026-09-20); $stripShadow drops the
+# ground shadow under the oval's foot - the desaturated blue-grey pixels (25,30,45 / 88,99,141 /
+# 67,76,111 / 78,88,125 / 13,17,27) in the frame's bottom band, y >= 90 of 128; the ring's own blues
+# and its near-black rim shading are not touched (user: "remove its shadow").
+function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satBoost, [double]$lightGain, [int[]]$fillRgb, [bool]$stripShadow = $false) {
     $src = [System.Drawing.Bitmap]::FromFile((Resolve-Path $inPath))
     $bmp = New-Object System.Drawing.Bitmap $src.Width, $src.Height, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
     $g = [System.Drawing.Graphics]::FromImage($bmp); $g.DrawImage($src, 0, 0, $src.Width, $src.Height); $g.Dispose(); $src.Dispose()
@@ -35,6 +39,15 @@ function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satB
     for ($i = 0; $i -lt $n; $i += 4) {
         $a = $bytes[$i + 3]
         if ($a -eq 0) { continue }
+        if ($stripShadow) {
+            $py = [int](($i / $data.Stride) % 128)
+            $r8 = [int]$bytes[$i + 2]; $g8 = [int]$bytes[$i + 1]; $b8 = [int]$bytes[$i]
+            if ($py -ge 90 -and [Math]::Abs($r8 - $g8) -lt 14 -and $b8 -ge $r8 + 8 -and $b8 -lt $r8 + 60 -and $g8 -ge 10) {
+                $bytes[$i + 3] = 0; $bytes[$i] = 0; $bytes[$i + 1] = 0; $bytes[$i + 2] = 0
+                continue
+            }
+        }
+        if ($hue -lt 0) { continue } # the colours as painted
         $b = $bytes[$i] / 255.0; $gch = $bytes[$i + 1] / 255.0; $r = $bytes[$i + 2] / 255.0
         $max = [Math]::Max($r, [Math]::Max($gch, $b)); $min = [Math]::Min($r, [Math]::Min($gch, $b))
         $l = ($max + $min) / 2.0
@@ -113,3 +126,7 @@ $out = (Resolve-Path $OutDir).Path
 HueShift $Source (Join-Path $out "portal_gold.png") 42 1.25 1.05 @(96, 66, 8)
 # Purple: violet, the blue's own lightness - the ramp the palette never had.
 HueShift $Source (Join-Path $out "portal_purple.png") 278 1.15 1.0 @(72, 18, 100)
+# The TOWN's own portal (user, 2026-09-20: "shrink the town portal asset in-town only, not in dungeons
+# to 90% and remove its shadow"): vanilla's colours, no fill, the ground shadow stripped, 90% like the
+# rift portals. MissileGraphicID::TownPortalInTown; the dungeon-side portal keeps the CL2.
+HueShift $Source (Join-Path $out "portal_town.png") -1 1.0 1.0 $null $true

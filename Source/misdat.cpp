@@ -412,6 +412,7 @@ MissileFileData MissileSpriteData[] = {
 // and 86 / 2 - 11 = 32 now - the oval stays where it was.
 /*RiftPortalGold*/           { {},               86,          11, "portal_gold",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // vanilla's portal1/portal2 recoloured: row 0 opens, row 1 stands
 /*RiftPortalPurple*/         { {},               86,          11, "portal_purple",     2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      },
+/*TownPortalInTown*/         { {},               86,          11, "portal_town",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // the town's own portal at 90%, shadow stripped (2026-09-20)
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };

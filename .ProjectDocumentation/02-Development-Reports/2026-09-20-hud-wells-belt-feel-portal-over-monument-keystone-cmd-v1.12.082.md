@@ -44,3 +44,12 @@ Build 63 failed (C2872: `WarpDrop` is in portal.cpp's anonymous namespace, so an
 `tools/ScalePainting.ps1` gained `-Saturation`, `-Brightness` and `-CoolCast` (applied to the resampled frame alone; defaults leave a painting as painted). The Rift Monument is rebuilt at saturation 0.45, brightness 0.78 and a 4% cool cast, then through `build_stonegate_cel.cmd` as before (the script's header records the numbers). Checked against the town-palette preview: the warm tan is gone, the blocks read as weathered grey with the moss and dirt kept.
 
 Build 66, v1.12.085: clean, ctest 831/831; the toned orclgate.cel packed.
+
+## v1.12.086 - the town's own portal at 90% without its shadow; the monument in Tristram's blue-grey
+
+> "we need to shrink the town portal asset in-town only, not in dungeons to 90% and remove its shadow. also try to recolour the rift monument to match the rocks scattered all over Tristram. they are very blue-ish."
+
+- **The town portal, in town only:** a third sheet from `tools/BuildRiftPortals.ps1`, `missiles\portal_town.png` - vanilla's colours (hue -1 skips the shift), no centre fill, the ground shadow stripped, resampled to 90% like the rift portals. The shadow is the desaturated blue-grey pixels under the oval's foot (25,30,45 / 88,99,141 / 67,76,111 / 78,88,125 / 13,17,27) in the frame's bottom band (y >= 90 of 128); the ring's blues and its near-black rim shading are untouched - checked on a 4x preview. New `MissileGraphicID::TownPortalInTown` (86 / 11, PngOnly, two rows); `AddTownPortal`'s town branch switches the missile onto it with `SetMissAnim`, and since `SetMissDir` keeps the graphic, the opening-to-standing switch and `AddWarpMissile`'s sync stay on the sheet. The dungeon-side portal keeps vanilla's CL2.
+- **The monument's colour:** `ScalePainting.ps1` gains `-TintRgb "R,G,B" -TintStrength` (a luminance-keeping cast). A first try at 70% toward 118,132,172 speckled blue in the town-palette preview: the global half has one blue-grey ramp (entries 178-188, 159,165,198 down to 37,43,65 - Tristram's rock tones) and a cast between it and the neutral greys made the nearest-colour quantiser alternate. So the cast is 100% toward 121,127,160 (entry 181's hue), which puts every stone pixel on that ramp's line; saturation 0.45 and brightness 0.78 as before.
+
+Build 67, v1.12.086: clean, ctest 831/831; portal_town.png and the retoned orclgate.cel packed.

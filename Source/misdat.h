@@ -182,6 +182,12 @@ enum class MissileGraphicID : uint8_t {
 	// (missiles\portal_gold.png, portal_purple.png; RfA-19 / batch 42).
 	RiftPortalGold,
 	RiftPortalPurple,
+	/**
+	 * Oracool 2026-09-20: the town portal AS IT STANDS IN TOWN - vanilla's frames at 90% with the ground
+	 * shadow stripped (missiles\portal_town.png, tools/BuildRiftPortals.ps1). AddTownPortal switches a
+	 * portal onto it in town only; the dungeon-side portal keeps TownPortal's CL2.
+	 */
+	TownPortalInTown,
 	None,
 };
 
