@@ -65,3 +65,13 @@ Build 51, v1.12.071: configure, build and link clean; ctest 831/831 passed (the 
 1. **The Act backings were the plate's natural 37x38, not 56x56** ("now i think you are using small backings around 28x28"). `DrawSmallSpellIconCoveringClipped` capped its scale at 100%, so a cell larger than the plate got the plate centred and unfilled. The cap is now ScaleClxList's own 400%, so `DrawPlateIn` covers any cell in both directions. The HUD menu (37x38) and the inventory tabs (28x28) are at or under 100% and are unchanged.
 2. **The Stonegate keeps its plain painted frame in every state** ("use uncut version of the stonegate asset and just overlap it with portal asset when user selects one of the portals"). The sixteen baked gold/violet glow frames of batch 45 stay in `orclgate.cel` but are never selected; an open rift is shown by the portal missile alone, standing in the arch. `ProcessStonegate` no longer animates and pins frame 1. No asset rebuild. There is no separate uncut master on disk - batch 45 delivered the seventeen cut frames only - so "uncut" here means the closed painting without the lit variants; if a master painting exists it can replace frame 1 through `build_stonegate_cel.cmd`.
 3. **The rift kill bar and clock sit under the mini-map** ("put these under the minimap, not next to it"): the map's own width, label centred, bar under it, 4px below the map's frame. Hidden while the event log is open, since the log takes that column.
+
+## v1.12.073 - the Act buttons' second cut
+
+Three changes from the user's look:
+
+1. **Backing = vanilla's spell plate frame 26** (`Resources/00-original-game-art/spelicon/spelicon_frame26.png`, 56x56) shipped as `ui\act_plate.png`, drawn through the new `DrawLoosePngScaledTo`. The tinted 37x38 spell plate is only the fallback when the file is missing.
+2. **Selected acts keep the hover shadow** - the doubled 6px cast stays under the pressed button, so it reads lifted. The selected plate is the same frame recoloured with `TintRectRgb` (red 0xC82828 / orange 0xE88020 / purple 0x8A3FC8, floor 20%); the Orange and Purple `SkillPlateTint`s from v1.12.071 remain for the fallback path.
+3. **The cell is stretched a quarter to 70x70.** Measured ink of the labels: Diablo 56px, Hellfire 66px, Orcl 38px wide, all 37px tall, so the 56 cell cut "Hellfire Act" and 70 clears it by two pixels a side (a static_assert pins that). Cells at x 30 / 135 / 240, list top at 174, still ten rows ending at 622. The 2x2 bezel has no 70px member, so `DrawGridBezelScaledTo` (new, hud_art) resamples the 56 frame's art whole to 82x82 and the plate covers its interior.
+
+Build 53, v1.12.073: clean, ctest 831/831; act_plate.png packed.

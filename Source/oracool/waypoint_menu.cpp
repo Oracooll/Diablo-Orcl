@@ -8,9 +8,10 @@
 #include "DiabloUI/ui_flags.hpp"
 #include "control.h"
 #include "diablo.h" // MousePosition, for the hover highlight
+#include "engine/palette.h" // PAL16_RED and friends - the selected Act plate's indexed fallback
 #include "engine/rectangle.hpp"
 #include "engine/render/clx_render.hpp"
-#include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo
+#include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo, TintRectRgb
 #include "engine/render/text_render.hpp"
 #include "oracool/area_level.h" // AreaLevel - the number in a waypoint's name
 #include "oracool/ornate_border.h"
@@ -168,8 +169,8 @@ size_t VisibleWaypointCount()
 //
 //   0..28     top margin (PanelTitleTop)
 //   28..66    title band, "WAYPOINT"
-//   74..146   the three Act buttons, bezel to bezel (cells 80..136) - since 2026-09-20
-//   160..608  the scrolling list viewport (448px, ten 43px rows on a 45px pitch)
+//   73..157   the three Act buttons, bezel to bezel (cells 80..150, 70px since the second cut)
+//   174..622  the scrolling list viewport (448px, ten 43px rows on a 45px pitch)
 //   625..720  the limestone panel's frieze - deliberately left to the art
 //
 // The rows below are the PRE-ACT layout, kept for the constants that still derive from it:
@@ -239,20 +240,32 @@ constexpr int TextGap = 10;  // from the sigil to the name
 // the abilities window's rows and passive band use, so the three read as that window's buttons and
 // not as a new control. ChatGPT's label glyphs (act-glyphs, 96x56) draw centred over each cell.
 //
-// The row: three cells on a 112px pitch starting at x 30, which is the margin plus the bezel. That
-// leaves 280px of cell span (30..310) and a gap between cells of exactly one cell, and the 96px
-// glyphs, overhanging each cell by 20px a side, still keep 16px of air between neighbours.
-constexpr int ActCellSize = 56;
-constexpr int ActCellPitch = 112;
+// THE SECOND CUT (user, 2026-09-20, after the first look): the backing is vanilla's own 56x56 spell
+// plate frame (spelicon_frame26, ui\act_plate.png) rather than the tinted 37x38 plate; the cell is
+// that plate STRETCHED A QUARTER to 70x70 so the "Hellfire Act" label's 66px of ink sits inside the
+// plate's borders (the 56 cell cut it); a selected act is the same plate recoloured through
+// TintRectRgb and KEEPS the hover shadow, so the pressed button reads lifted rather than sunk.
+//
+// The row: three 70px cells on a 105px pitch starting at x 30 (margin plus bezel), so the span is
+// 30..310 with 35px between cells; the 96px glyphs overhang each cell by 13px a side and keep 9px
+// of air between neighbours. The 2x2 bezel (native 56) is resampled to the cell.
+constexpr int ActPlateNative = 56;
+constexpr int ActCellSize = ActPlateNative * 5 / 4;
+constexpr int ActCellPitch = 105;
 constexpr int ActCellsLeft = PanelMargin + GridBezelInset;
 /** @brief Cell top: 8px under the title band (PanelTitleTop + PanelTitleHeight = 66) for the bezel's 6. */
 constexpr int ActRowTop = PanelTitleTop + PanelTitleHeight + 8 + GridBezelInset;
 constexpr Size ActGlyphSize { 96, 56 };
 constexpr int ActCount = 3;
+constexpr const char *ActPlateAsset = "ui\\act_plate.png";
 constexpr const char *ActGlyphAssets[ActCount] = { "ui\\act_diablo.png", "ui\\act_hellfire.png", "ui\\act_orcl.png" };
 constexpr const char *ActNames[ActCount] = { "Diablo Act", "Hellfire Act", "Orcl Act" };
+/** @brief The selected plate's hue - red, orange, purple - and the ramp an indexed surface falls back to. */
+constexpr uint32_t ActHueRgb[ActCount] = { 0xC82828, 0xE88020, 0x8A3FC8 };
+constexpr uint8_t ActHueFallbackRamp[ActCount] = { PAL16_RED, PAL16_ORANGE, PAL16_BLUE };
 static_assert(ActCellsLeft + 2 * ActCellPitch + ActCellSize + GridBezelInset <= PanelSize.width - PanelMargin,
     "the third Act button runs into the panel's right margin");
+static_assert(ActCellSize >= 66 + 2, "the Hellfire Act label's 66px of ink no longer clears the plate's borders");
 
 /**
  * @brief Top of the scrolling viewport: under the button row, clear of the bezel (6) and the hover
@@ -364,18 +377,25 @@ void DrawActButtons(const Surface &out)
 		const bool selected = static_cast<int>(ActiveAct) == act;
 		const bool isHovered = hovered == act;
 		// Shadow first, under everything, like the abilities window: the resting 3px cast, or the
-		// doubled 6px one under the cursor. The selected button keeps the resting shadow - it is
-		// pressed, and a pressed button does not lift.
-		if (isHovered && !selected)
+		// doubled 6px one under the cursor - and under the SELECTED button too (user, 2026-09-20:
+		// "When an act is selected - keep the hover shadow on").
+		if (isHovered || selected)
 			DrawHoverShadow(out, cell, GridBezelInset);
 		else
 			DrawDropShadow(out, cell, GridBezelInset);
-		DrawGridBezel(out, cell);
-		// The backing: the act's colour while selected; light grey at rest and white under the
-		// cursor, the burger menu's own two resting states.
-		const SkillPlateTint tint = selected ? ActSelectedTint(static_cast<WaypointAct>(act))
-		                                     : (isHovered ? SkillPlateTint::White : SkillPlateTint::Unspent);
-		DrawPlateIn(out, cell, tint);
+		DrawGridBezelScaledTo(out, cell, { ActPlateNative, ActPlateNative });
+		// The backing: vanilla's plate frame stretched to the cell, recoloured to the act's hue while
+		// selected. The tinted spell plate stands in only when the frame file is missing.
+		if (GetLoosePngSize(ActPlateAsset).width > 0) {
+			DrawLoosePngScaledTo(out, ActPlateAsset, cell);
+			if (selected)
+				TintRectRgb(out, cell.position.x, cell.position.y, cell.size.width, cell.size.height,
+				    ActHueRgb[act], /*brightnessPercent=*/100, /*floorPercent=*/20, ActHueFallbackRamp[act]);
+		} else {
+			const SkillPlateTint tint = selected ? ActSelectedTint(static_cast<WaypointAct>(act))
+			                                     : (isHovered ? SkillPlateTint::White : SkillPlateTint::Unspent);
+			DrawPlateIn(out, cell, tint);
+		}
 		// The glyph, centred on the cell. 96 wide over a 56 cell, so it overhangs the frame by 20 a
 		// side; the label's ink is narrower than the file and the overhang is transparent air.
 		if (GetLoosePngSize(ActGlyphAssets[act]).width > 0) {
