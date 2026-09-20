@@ -6,7 +6,13 @@ param(
     [Parameter(Mandatory = $true)][string]$Source,
     [Parameter(Mandatory = $true)][string]$OutDir,
     [Parameter(Mandatory = $true)][string]$OutName,
-    [int]$Width = 128
+    [int]$Width = 128,
+    # Toning (user, 2026-09-20: "make the monument asset less bright and more worn-down stone grey-ish"):
+    # saturation kept (1 = as painted), brightness kept, and a cool cast on the greys. Applied AFTER the
+    # resample, to the frame alone.
+    [double]$Saturation = 1.0,
+    [double]$Brightness = 1.0,
+    [double]$CoolCast = 0.0
 )
 Add-Type -AssemblyName System.Drawing
 $ErrorActionPreference = "Stop"
@@ -22,6 +28,17 @@ $g.Clear([System.Drawing.Color]::FromArgb(0, 0, 0, 0))
 $g.InterpolationMode = 'HighQualityBicubic'; $g.SmoothingMode = 'HighQuality'; $g.PixelOffsetMode = 'HighQuality'; $g.CompositingMode = 'SourceCopy'
 $g.DrawImage($src, (New-Object System.Drawing.Rectangle 0, 0, $Width, $h), (New-Object System.Drawing.Rectangle $minx, $miny, $cw, $ch), [System.Drawing.GraphicsUnit]::Pixel)
 $g.Dispose()
+if ($Saturation -ne 1.0 -or $Brightness -ne 1.0 -or $CoolCast -ne 0.0) {
+    for ($y = 0; $y -lt $h; $y++) { for ($x = 0; $x -lt $Width; $x++) {
+        $c = $out.GetPixel($x, $y); if ($c.A -eq 0) { continue }
+        $lum = 0.299 * $c.R + 0.587 * $c.G + 0.114 * $c.B
+        $r = ($lum + ($c.R - $lum) * $Saturation) * $Brightness * (1.0 - $CoolCast)
+        $g = ($lum + ($c.G - $lum) * $Saturation) * $Brightness
+        $b = ($lum + ($c.B - $lum) * $Saturation) * $Brightness * (1.0 + $CoolCast)
+        $out.SetPixel($x, $y, [System.Drawing.Color]::FromArgb($c.A, [int][Math]::Max(0, [Math]::Min(255, $r)), [int][Math]::Max(0, [Math]::Min(255, $g)), [int][Math]::Max(0, [Math]::Min(255, $b))))
+    } }
+    Write-Host ("toned: saturation {0}, brightness {1}, cool cast {2}" -f $Saturation, $Brightness, $CoolCast)
+}
 $out.Save((Join-Path (Resolve-Path $OutDir) $OutName), [System.Drawing.Imaging.ImageFormat]::Png)
 Write-Host ("{0} {1}x{2} from a {3}x{4} content box at ({5},{6})" -f $OutName, $Width, $h, $cw, $ch, $minx, $miny)
 # The opening: rows where opaque stone stands on both sides of a transparent run.

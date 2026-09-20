@@ -1,7 +1,9 @@
 @echo off
 REM Builds objects\orclgate.cel - the Rift Monument (called the Stonegate until 2026-09-20), the town
 REM monument the rift portals open in. ONE frame since 2026-09-20: the user's own painting
-REM (Resources\Rift Monument.png, 1161x1355 with real alpha) scaled to 128 wide by tools\ScalePainting.ps1.
+REM (Resources\Rift Monument.png, 1161x1355 with real alpha) scaled to 128 wide by tools\ScalePainting.ps1 and TONED
+REM to worn grey stone (user, 2026-09-20: "less bright and more worn-down stone grey-ish"): -Saturation 0.45
+REM -Brightness 0.78 -CoolCast 0.04.
 REM The portal is a missile drawn over it (AddRiftPortal lifts it 20px into the arch). The seventeen-frame
 REM batch 45 cut (closed + eight gold + eight violet, RfA-22) is superseded and stays filed under
 REM 02-concept-assets\delivered-packs.
@@ -11,7 +13,7 @@ REM so a mismatch splits every RLE scanline at the wrong point. The tool prints 
 REM
 REM Usage:  tools\build_stonegate_cel.cmd
 REM Run from the repository root. If the frame is missing, run first:
-REM   powershell -File tools\ScalePainting.ps1 -Source "..\Resources\Rift Monument.png" -OutDir "..\Resources\01-in-use-assets\objects\rift-monument-user" -OutName rift_monument.png -Width 128
+REM   powershell -File tools\ScalePainting.ps1 -Source "..\Resources\Rift Monument.png" -OutDir "..\Resources\01-in-use-assets\objects\rift-monument-user" -OutName rift_monument.png -Width 128 -Saturation 0.45 -Brightness 0.78 -CoolCast 0.04
 
 setlocal
 set FRAMES=..\Resources\01-in-use-assets\objects\rift-monument-user

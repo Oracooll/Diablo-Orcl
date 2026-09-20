@@ -36,3 +36,11 @@ Build 62, v1.12.082: clean, ctest 831/831. The Orcl Debug Console page republish
 - **The arch** (`AddPortalArch`, stonegate.cpp): a second OBJ_STAND wearing the same painting beside `WarpDrop[0]` = (57, 40), where `AddWarpMissile` stands the town portal - so the town portal opens inside an arch. v1.12.084: one tile SOUTH-EAST of the portal, (58, 41), after the user's grid screenshot showed the portal standing in the plinth on the shared tile (both sprites bottom-anchored; the portal's ink ends 14px above the anchor, the opening floor ~39px); (+1, +1) is the grid's pure 32px vertical step. Drawn in the FLOOR pass (`IsFloorPassObject`, with the waypoint platform) so the portal on the earlier tile still draws over it - "we dont move the portal. we move the monument. we keep the portal overlapping the monument." Unselectable (no hover, click or name), not solid (the hero walks into the portal on that tile and lands one tile past it), missiles pass (`_oMissFlag`), before-characters pass so the portal and the hero draw over it. `IsStonegateObject` answers for it too, which keeps `IsLevskiRoarObject` from taking it for the Cube. portal.h gains `TownPortalLandingTile(i)`, the accessor for the table.
 
 Build 63 failed (C2872: `WarpDrop` is in portal.cpp's anonymous namespace, so an extern in the header clashed); build 64 with a `TownPortalLandingTile(i)` accessor instead: clean, ctest 831/831.
+
+## v1.12.085 - the monument toned to worn grey stone
+
+> "make the monument asset less bright and more worn-down stone grey-ish."
+
+`tools/ScalePainting.ps1` gained `-Saturation`, `-Brightness` and `-CoolCast` (applied to the resampled frame alone; defaults leave a painting as painted). The Rift Monument is rebuilt at saturation 0.45, brightness 0.78 and a 4% cool cast, then through `build_stonegate_cel.cmd` as before (the script's header records the numbers). Checked against the town-palette preview: the warm tan is gone, the blocks read as weathered grey with the moss and dirt kept.
+
+Build 66, v1.12.085: clean, ctest 831/831; the toned orclgate.cel packed.
