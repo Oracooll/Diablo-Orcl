@@ -130,6 +130,10 @@ HueShift $Source (Join-Path $out "portal_gold.png") 42 1.25 1.05 @(96, 66, 8)
 # oracool::GuardianPortalRgbTable, which sends that ramp to violet values (rift.cpp).
 HueShift $Source (Join-Path $out "portal_purple.png") -1 1.0 1.0 @(0, 0, 60)
 # The TOWN's own portal (user, 2026-09-20: "shrink the town portal asset in-town only, not in dungeons
-# to 90% and remove its shadow"): vanilla's colours, no fill, the ground shadow stripped, 90% like the
-# rift portals. MissileGraphicID::TownPortalInTown; the dungeon-side portal keeps the CL2.
-HueShift $Source (Join-Path $out "portal_town.png") -1 1.0 1.0 $null $true
+# to 90% and remove its shadow"): vanilla's colours, the ground shadow stripped, 90% like the rift
+# portals, and the oval's interior filled BLACK - the exported strip's hollow centre is index 0, which the
+# CL2 draws as opaque black but the PNG loader reads as transparent (user, 2026-09-20: "the main blue town
+# portal asset lost its black center ... Now there is a transparent hole in the center"); opaque black
+# quantises to a near-black index above 128, never to the transparent 0. MissileGraphicID::TownPortalInTown;
+# the dungeon-side portal keeps the CL2.
+HueShift $Source (Join-Path $out "portal_town.png") -1 1.0 1.0 @(0, 0, 0) $true
