@@ -604,22 +604,26 @@ constexpr const char *GriswoldCanvasAsset = "ui\\griswold_canvas.png";
 constexpr const char *GriswoldGridCanvasAsset = "ui\\griswold_canvas_grid.png";
 
 /**
- * PEPIN'S PAGE (user, 2026-09-21: "take Pepin's new canvas and apply it").
+ * THE VENDOR PORTRAITS (user, 2026-09-21: "take Pepin's new canvas and apply it"; "the same now
+ * with Wirt").
  *
- * The healer in his own doorway, with the same 10x16 frame painted into it. Measured on the file
- * before a line was written: its ornate band runs x 26..313 and y 159..628, which is the band the
- * stash canvas, the shared grid canvas and Griswold's framed forge all carry. So this is a PAINTING
- * SWAP, not a geometry change - nothing here moves for it, and that is the whole reason it drops in.
+ * One painted 340x720 canvas per shop - the vendor standing or sitting in their own place, with the
+ * 10x16 grid's frame painted into the picture. MEASURED before a line was written, both of them:
+ * each one's ornate band runs x 26..313 and y 159..628, which is the band the stash canvas, the
+ * shared grid canvas and Griswold's framed forge all carry, around the same 280x448 grid at
+ * (30,170). So these are PAINTING SWAPS, not geometry changes - nothing moves for them, and that is
+ * the whole reason they drop in as a table entry.
  *
- * His page takes the four redactions the stash's canvas got the same day ("Apply same redactions to
+ * Each takes the four redactions the stash's canvas got the same day ("Apply same redactions to
  * canvas as Stash Canvas if relevant"): no title over the portrait, no dim over the art, no second
  * bezel inside the painted one, and one pass of fill under the grid instead of two. The fifth - the
  * cast shadow - was never drawn here, and the sixth was the stash's own SORT button.
  *
- * Unlike Griswold this is one asset, not two: Pepin has exactly ONE tab (TalkID::HealerBuy), so
- * there is no frameless page to cut a second canvas for.
+ * Unlike Griswold these are one asset each, not two. He needs a frameless cut for Salvage, which has
+ * no grid to frame; Pepin's single tab and Wirt's two both show the shelf, so one file serves.
  */
 constexpr const char *PepinCanvasAsset = "ui\\pepin_canvas.png";
+constexpr const char *WirtCanvasAsset = "ui\\wirt_canvas.png";
 constexpr const char *ShopButtonFrameAsset = "ui\\shop_button_frame.png";
 constexpr const char *ShopGoldIconAsset = "ui\\shop_gold_icon.png";
 
@@ -702,16 +706,35 @@ bool IsRedesignedShopScreen(TalkID id)
 	return IsSmithShopScreen(id) && HasShopArt(GriswoldCanvasAsset);
 }
 
-/**
- * @brief Whether @p id is Pepin's page WITH his painting behind it.
- *
- * Gated on the art for the same reason Griswold's is: without the canvas the page would lose its
- * title and its bezel and get nothing in exchange, which is a worse window than the one it replaced.
- * A build short of the asset keeps the limestone layout that matches what it can draw.
- */
-bool IsPepinPaintedScreen(TalkID id)
+/** @brief The portrait this page WOULD wear, whether or not the file is installed. */
+const char *PortraitCanvasFor(TalkID id)
 {
-	return id == TalkID::HealerBuy && HasShopArt(PepinCanvasAsset);
+	switch (id) {
+	case TalkID::HealerBuy:
+		return PepinCanvasAsset;
+	case TalkID::BoyBuy:
+	case TalkID::BoyGamble:
+		// Both of Wirt's tabs, Shop and Gamble. Both show a shelf, so both want the frame.
+		return WirtCanvasAsset;
+	default:
+		return nullptr;
+	}
+}
+
+/**
+ * @brief The portrait this page actually HAS, or nullptr - the one question the draw needs answered.
+ *
+ * Gated on the art for the same reason Griswold's page is: without the canvas the page would lose
+ * its title and its bezel and get nothing in exchange, which is a worse window than the one it
+ * replaced. A build short of the asset keeps the limestone layout that matches what it can draw.
+ *
+ * Returning the asset rather than a bool is what keeps the next vendor to one line in the table
+ * above: the draw asks "which painting" once and uses the answer for all four redactions.
+ */
+const char *PaintedPageCanvas(TalkID id)
+{
+	const char *asset = PortraitCanvasFor(id);
+	return (asset != nullptr && HasShopArt(asset)) ? asset : nullptr;
 }
 
 /** @brief Where a slot's frame sits on screen. */
@@ -1529,23 +1552,26 @@ void DrawShopGrid(const Surface &out)
 	// His grid tabs take the framed cut of the forge when it is there; the frameless one is the
 	// fallback, and remains what his Salvage page draws, that page having no grid to frame.
 	const bool griswoldFramed = redesigned && HasShopArt(GriswoldGridCanvasAsset);
-	const bool pepinFramed = IsPepinPaintedScreen(stextflag);
+	// Asked ONCE, and the answer is the painting itself: which file to blit, and - as a bool - the
+	// four redactions that come with having one.
+	const char *const portrait = PaintedPageCanvas(stextflag);
+	const bool portraitFramed = portrait != nullptr;
 	if (redesigned) {
 		// Griswold's own forge, on every one of his tabs (user, 2026-09-21: "We replace the canvas for
 		// all his tabs"). No title band with it: the painting is a portrait of the man, so naming him
 		// above it says nothing the picture does not ("We remove the title Griswold from all tabs").
 		DrawLoosePng(out, griswoldFramed ? GriswoldGridCanvasAsset : GriswoldCanvasAsset, panel.position);
-	} else if (pepinFramed) {
-		// Pepin's doorway (user, 2026-09-21). Drawn with a bare DrawLoosePng rather than through
-		// DrawSidePanelGridArt, and that IS the "remove the tint" redaction: the shared helper lays
-		// the canvas dim over whatever it draws, and this path never calls it. Same as Griswold's
-		// above, for the same reason - a half-transparent grey over a painting is the thing the user
-		// asked to be rid of on the stash.
-		DrawLoosePng(out, PepinCanvasAsset, panel.position);
+	} else if (portraitFramed) {
+		// This vendor's own place - Pepin's doorway, Wirt's alley (user, 2026-09-21). Drawn with a
+		// bare DrawLoosePng rather than through DrawSidePanelGridArt, and that IS the "remove the
+		// tint" redaction: the shared helper lays the canvas dim over whatever it draws, and this
+		// path never calls it. Same as Griswold's above, for the same reason - a half-transparent
+		// grey over a painting is the thing the user asked to be rid of on the stash.
+		DrawLoosePng(out, portrait, panel.position);
 	} else if (HasSidePanelGridArt()) {
 		// The canvas with the grid's frame painted into it (user, 2026-09-21: "apply it to all windows
-		// which use the 10x16 grid. It has new grid frame embedded in it"). Adria, Pepin and Wirt -
-		// Griswold's grid tabs took the branch above, because he keeps his forge.
+		// which use the 10x16 grid. It has new grid frame embedded in it"). Adria's, now: Griswold
+		// keeps his forge, and Pepin and Wirt took portraits of their own in the branch above.
 		DrawSidePanelGridArt(out, panel.position);
 	} else if (HasSidePanelArt()) {
 		DrawSidePanelArt(out, panel.position);
@@ -1555,10 +1581,10 @@ void DrawShopGrid(const Surface &out)
 	}
 
 	// No name over a portrait. Griswold's tabs lost theirs on 2026-09-21 ("We remove the title
-	// Griswold from all tabs"), the stash lost its own the same day, and Pepin's canvas is the same
-	// kind of picture: the man is standing in it, so printing PEPIN above him says nothing the
-	// painting does not.
-	if (!redesigned && !pepinFramed) {
+	// Griswold from all tabs") and the stash lost its own the same day; these canvases are the same
+	// kind of picture, with the vendor standing or sitting in them, so printing the name above one
+	// says nothing the painting does not.
+	if (!redesigned && !portraitFramed) {
 		const Rectangle labelArea { { panel.position.x + 16, panel.position.y + PanelTitleTop },
 			{ panel.size.width - 32, PanelTitleHeight } };
 		DrawOutlinedString(out, _(ShopTitle(stextflag)), labelArea,
@@ -1572,17 +1598,17 @@ void DrawShopGrid(const Surface &out)
 	// is under them and one leaves about half - over a painting that is the difference between a grid
 	// drawn ON the room and a dark plate laid over it.
 	//
-	// Applied to every painted canvas here, not only Pepin's: these pages are tabs of one shop in the
-	// user's own words (2026-09-21, "all tabs for all vendors are to be considered Stores"), and a
+	// Applied to every painted canvas here, not only the portraits: these pages are tabs of one shop
+	// in the user's own words (2026-09-21, "all tabs for all vendors are to be considered Stores"), and a
 	// grid that changes density as you move between vendors is the kind of difference that reads as a
 	// bug. Where there is no painting the fill is not covering art, it IS the grid's face, so the
 	// procedural path keeps its two.
-	const bool paintedFrame = griswoldFramed || pepinFramed || (!redesigned && HasSidePanelGridArt());
+	const bool paintedFrame = griswoldFramed || portraitFramed || (!redesigned && HasSidePanelGridArt());
 	DrawThemedFill(out, grid, paintedFrame ? 1 : 2);
 	// The frame is PAINTED INTO the grid canvas (2026-09-21), so drawing one here would put a second
 	// bezel inside the first. The fill above and the cell rules below still come from code - the art
 	// brings the frame and nothing else.
-	if ((!HasSidePanelGridArt() || redesigned) && !griswoldFramed && !pepinFramed) {
+	if ((!HasSidePanelGridArt() || redesigned) && !griswoldFramed && !portraitFramed) {
 		if (HasGridBezel(grid.size)) {
 			DrawGridBezel(out, grid);
 		} else {
