@@ -755,13 +755,26 @@ Rectangle ShopServiceSlotRect(int slot)
  * worth keeping (both shelves are drawn without replacement, so a refresh would reshuffle the same
  * contents and read as broken).
  */
+/**
+ * @brief Whether this page's Refresh is WIRT'S - a free reroll of the boy's shelf.
+ *
+ * His has never been one of the store's action rows: GetShopActions returns nothing for his tabs and
+ * the old wide button called RefreshBoyStock directly. So ShopTabHasRefresh is false on both of them,
+ * and a painted Refresh frame that asked only that question would sit greyed out forever on the one
+ * vendor the user asked to have it.
+ */
+bool PageRefreshesBoyStock(TalkID id)
+{
+	return IsAnyOf(id, TalkID::BoyBuy, TalkID::BoyGamble);
+}
+
 bool ShopServiceSlotEnabled(int slot, TalkID id)
 {
 	switch (ShopServiceSlotDoes[slot]) {
 	case ServiceButton::SellAll:
 		return ShopTabHasSellAll(id);
 	case ServiceButton::Refresh:
-		return ShopTabHasRefresh(id);
+		return ShopTabHasRefresh(id) || PageRefreshesBoyStock(id);
 	case ServiceButton::RefreshUntil:
 		return ShopTabHasRefreshUntil(id);
 	default:
@@ -781,6 +794,59 @@ bool ShopServiceSlotVisible(int slot, TalkID id)
 	if (ShopServiceSlotDoes[slot] != ServiceButton::RefreshUntil)
 		return true;
 	return ShopTabHasRefreshUntil(id);
+}
+
+/** @brief Defined below, beside the rest of the control row it builds. */
+std::vector<ServiceButton> ServicesFor(TalkID id);
+
+/**
+ * @brief Which of the seven painted frames page @p id actually puts on screen.
+ *
+ * Griswold shows the lot. A PORTRAIT page shows exactly one - Refresh - and only where that vendor's
+ * control row carried a Refresh to begin with (user, 2026-09-21: "just for wirt - remove the current
+ * refresh button and use Griswold one"). Pepin's row has no services at all, so he gets no frame;
+ * Wirt's had the one, so his moves from a wide word-button in the row to Griswold's painted plate at
+ * Griswold's own position, which is what "use Griswold one" asks for.
+ *
+ * THIS is the single question the draw, the hit test, the hover and the release all ask. They used to
+ * ask IsRedesignedShopScreen and then ShopServiceSlotVisible separately, which is two places for a
+ * new page to be added to and one to be forgotten in.
+ */
+bool ShopServiceSlotOnPage(int slot, TalkID id)
+{
+	if (IsRedesignedShopScreen(id))
+		return ShopServiceSlotVisible(slot, id);
+	if (PaintedPageCanvas(id) == nullptr)
+		return false;
+	if (ShopServiceSlotDoes[slot] != ServiceButton::Refresh)
+		return false;
+	const std::vector<ServiceButton> services = ServicesFor(id);
+	return std::find(services.begin(), services.end(), ServiceButton::Refresh) != services.end();
+}
+
+/** @brief Whether any painted frame is on this page - the gate the four call sites share. */
+bool PageHasServiceFrames(TalkID id)
+{
+	for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
+		if (ShopServiceSlotOnPage(slot, id))
+			return true;
+	}
+	return false;
+}
+
+/**
+ * @brief Whether @p service already has a painted frame here, and so must NOT also be a row button.
+ *
+ * The one rule that keeps Wirt from having two Refreshes: the frame is drawn from the slot table and
+ * the row is built from ServicesFor, and without this they would both be right.
+ */
+bool ServiceHasPaintedFrame(ServiceButton service, TalkID id)
+{
+	for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
+		if (ShopServiceSlotDoes[slot] == service && ShopServiceSlotOnPage(slot, id))
+			return true;
+	}
+	return false;
 }
 
 /** @brief The slot being held down, or -1. The action runs on the release, inside the same slot. */
@@ -878,8 +944,14 @@ struct ControlButton {
 std::vector<ControlButton> ShopControlButtons(TalkID id)
 {
 	std::vector<ControlButton> buttons;
-	for (ServiceButton service : ServicesFor(id))
+	for (ServiceButton service : ServicesFor(id)) {
+		// Not twice. A service with a painted frame on this page is drawn there and nowhere else
+		// (user, 2026-09-21: "just for wirt - remove the current refresh button and use Griswold
+		// one") - this is the removal half of that sentence, and the slot table is the other.
+		if (ServiceHasPaintedFrame(service, id))
+			continue;
 		buttons.push_back({ ControlKind::Service, TalkID::None, service, 0, ServiceButtonLabel(service) });
+	}
 	for (const ShopAction &action : GetShopActions(id))
 		buttons.push_back({ ControlKind::Action, TalkID::None, ServiceButton::Repair, action.line, std::string(_(action.label)) });
 	return buttons;
@@ -1107,6 +1179,10 @@ void SetServiceHint(ServiceButton service)
 	}
 }
 
+// Defined below with the rest of Griswold's furniture, which the portrait pages now borrow.
+void DrawShopServiceFrames(const Surface &out);
+void DrawShopGoldPile(const Surface &out);
+
 /**
  * @brief The control strip and the gold readout, both above the grid.
  *
@@ -1151,17 +1227,31 @@ void DrawShopControls(const Surface &out, int pageCount)
 		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 
+	// A portrait page carries Griswold's furniture instead of this row's own (user, 2026-09-21: "for
+	// wirt and pepin - remove the current gold counter and put the Griswold one"): the painted
+	// Refresh frame where the page has one, and the pile-and-number at the foot of the painting.
+	const bool portrait = PaintedPageCanvas(stextflag) != nullptr;
+	if (portrait)
+		DrawShopServiceFrames(out);
+
 	// The page arrows share the gold row rather than taking a row of their own: the space between
 	// the title band and the grid's pinned top is fully spoken for (see the static_assert above),
 	// and the gold readout is one centred line with both ends going spare.
 	const Rectangle goldLine { { panel.position.x + ShopControlsLeft, panel.position.y + ShopGoldTop },
 		{ ShopControlsWidth, ShopGoldHeight } };
-	// On the bare canvas (user, 2026-09-11: "remove the baground behind gold counter in store"). It sat on
-	// the vanilla button pressed in, or the limestone plate, before. Shadowed (user, 2026-09-05: "add text
-	// shadow to texts in vendors where needed, like behind the GOLD amount available") - asked for when it
-	// was last on the bare canvas, which is where it is again.
-	DrawString(out, fmt::format(fmt::runtime(_("Your gold: {:s}")), FormatInteger(TotalPlayerGold())), goldLine,
-	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	if (portrait) {
+		// The pile at the painting's foot, and the centred "Your gold:" line GONE with it - that
+		// line is the "current gold counter" the user asked to be rid of. The arrows below keep
+		// their place on this row; they were not part of the request.
+		DrawShopGoldPile(out);
+	} else {
+		// On the bare canvas (user, 2026-09-11: "remove the baground behind gold counter in store"). It sat on
+		// the vanilla button pressed in, or the limestone plate, before. Shadowed (user, 2026-09-05: "add text
+		// shadow to texts in vendors where needed, like behind the GOLD amount available") - asked for when it
+		// was last on the bare canvas, which is where it is again.
+		DrawString(out, fmt::format(fmt::runtime(_("Your gold: {:s}")), FormatInteger(TotalPlayerGold())), goldLine,
+		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	}
 
 	if (pageCount <= 1)
 		return;
@@ -1189,13 +1279,20 @@ constexpr int ShopServiceHoverBrighten = 115;
  * hole in it reads as a bug rather than as a rule. The grey is the same white-hue pass the inactive
  * Act buttons wear, so "not here" looks the same everywhere in the mod.
  */
-void DrawRedesignedControls(const Surface &out, int pageCount)
+/**
+ * @brief Every painted frame this page carries - Griswold's six-and-one, or a portrait's lone Refresh.
+ *
+ * Lifted out of DrawRedesignedControls when Wirt's Refresh became one of these (user, 2026-09-21).
+ * The loop is unchanged; what changed is that it is now driven by ShopServiceSlotOnPage rather than
+ * by being inside the function only Griswold calls, so a page that shows one frame draws it with the
+ * same press, grey, hover and glyph-centring rules as a page that shows seven.
+ */
+void DrawShopServiceFrames(const Surface &out)
 {
-	const Rectangle panel = GetShopPanelRect();
 	const bool frameArt = HasShopArt(ShopButtonFrameAsset);
 	int hoveredNow = -1;
 	for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
-		if (!ShopServiceSlotVisible(slot, stextflag))
+		if (!ShopServiceSlotOnPage(slot, stextflag))
 			continue;
 		const Rectangle rect = ShopServiceSlotRect(slot);
 		const bool hovered = rect.contains(MousePosition);
@@ -1231,14 +1328,33 @@ void DrawRedesignedControls(const Surface &out, int pageCount)
 	if (hoveredNow >= 0 && hoveredNow != LastHoverShopServiceSlot)
 		PlayUiMoveSound();
 	LastHoverShopServiceSlot = hoveredNow;
+}
 
-	// His gold at the foot of the painting: the pile, with the number under it. No plate and no
-	// "Your gold:" label - the pile says what the number is.
+/**
+ * @brief The gold at the foot of the painting: the pile, with the number under it.
+ *
+ * No plate and no "Your gold:" label - the pile says what the number is. Griswold's since
+ * 2026-09-21, and Pepin's and Wirt's from the same day (user: "for wirt and pepin - remove the
+ * current gold counter and put the Griswold one").
+ *
+ * ONE function at ONE pair of positions, which is the point of the request: the three shops now
+ * count gold in the same place in the same visual language, and if that place ever moves it moves
+ * for all of them.
+ */
+void DrawShopGoldPile(const Surface &out)
+{
+	const Rectangle panel = GetShopPanelRect();
 	if (HasShopArt(ShopGoldIconAsset))
 		DrawLoosePng(out, ShopGoldIconAsset, panel.position + Displacement { ShopGoldIconAt.x, ShopGoldIconAt.y });
 	DrawString(out, FormatInteger(TotalPlayerGold()),
 	    Rectangle { panel.position + Displacement { ShopGoldCountAt.x, ShopGoldCountAt.y }, { 140, ShopGoldCountHeight } },
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter | UiFlags::Shadowed });
+}
+
+void DrawRedesignedControls(const Surface &out, int pageCount)
+{
+	DrawShopServiceFrames(out);
+	DrawShopGoldPile(out);
 
 	if (pageCount <= 1)
 		return;
@@ -1376,11 +1492,11 @@ void ReleaseShopServiceButton()
 {
 	const int slot = PressedShopServiceSlot;
 	PressedShopServiceSlot = -1; // always taken, so a press that outlived its screen cannot fire late
-	if (slot < 0 || !IsRedesignedShopScreen(stextflag))
+	if (slot < 0 || !PageHasServiceFrames(stextflag))
 		return;
 	if (!ShopServiceSlotRect(slot).contains(MousePosition))
 		return; // released off the button: nothing happens
-	if (!ShopServiceSlotVisible(slot, stextflag) || !ShopServiceSlotEnabled(slot, stextflag))
+	if (!ShopServiceSlotOnPage(slot, stextflag) || !ShopServiceSlotEnabled(slot, stextflag))
 		return;
 	switch (ShopServiceSlotDoes[slot]) {
 	case ServiceButton::Repair:
@@ -1401,7 +1517,18 @@ void ReleaseShopServiceButton()
 		ShopRunSellAll(stextflag);
 		break;
 	case ServiceButton::Refresh:
-		ShopRunRefresh(stextflag);
+		// Wirt's shelf is rerolled by its own call, not by a store action row - his tabs have none
+		// (see PageRefreshesBoyStock). The frame is Griswold's; what it does is still the boy's.
+		//
+		// And it keeps the click sound the wide button had: ShopRunRefresh's action path plays one,
+		// RefreshBoyStock does not, so without this the button the user asked to REPLACE would come
+		// back silent.
+		if (PageRefreshesBoyStock(stextflag)) {
+			RefreshBoyStock(stextflag);
+			PlayUiSelectSound();
+		} else {
+			ShopRunRefresh(stextflag);
+		}
 		break;
 	case ServiceButton::RefreshUntil:
 		ShopRunRefreshUntil(stextflag);
@@ -1716,13 +1843,14 @@ bool CheckShopGridClick(Point position, bool rightClick)
 		}
 	}
 
-	// Griswold's redesigned page has its own six frames at measured positions, and the old variable
-	// rows are not drawn there - so they must not be hit-tested there either. Their rects are bare
-	// painting now, and a drop on one would repair an item with nothing on screen to explain it.
+	// The painted frames at measured positions, where a page has any - Griswold's six, or the single
+	// Refresh a portrait page carries. Where they ARE drawn the old variable rows are not, so those
+	// rects are bare painting and must not be hit-tested: a drop on one would repair an item with
+	// nothing on screen to explain it.
 	const bool redesigned = IsRedesignedShopScreen(stextflag);
-	if (redesigned) {
+	if (PageHasServiceFrames(stextflag)) {
 		for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
-			if (!ShopServiceSlotVisible(slot, stextflag) || !ShopServiceSlotRect(slot).contains(position))
+			if (!ShopServiceSlotOnPage(slot, stextflag) || !ShopServiceSlotRect(slot).contains(position))
 				continue;
 			if (!MyPlayer->HoldItem.isEmpty()) {
 				// A held item is a DROP, not a click, and only two of the six take one.
@@ -1897,11 +2025,11 @@ bool SetShopHoverInfoString()
 	const std::vector<PlacedSlot> placed = PlaceStock(stock);
 	const int hovered = PlacedSlotAt(placed, MousePosition);
 
-	// Griswold's six painted frames answer first and instead - on his page the old rows are not drawn,
-	// so their rects are bare painting and must name nothing.
-	if (IsRedesignedShopScreen(stextflag)) {
+	// The painted frames answer first and instead - where they are drawn the old rows are not, so
+	// those rects are bare painting and must name nothing.
+	if (PageHasServiceFrames(stextflag)) {
 		for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
-			if (!ShopServiceSlotVisible(slot, stextflag) || !ShopServiceSlotRect(slot).contains(MousePosition))
+			if (!ShopServiceSlotOnPage(slot, stextflag) || !ShopServiceSlotRect(slot).contains(MousePosition))
 				continue;
 			SetServiceHint(ShopServiceSlotDoes[slot]);
 			if (!ShopServiceSlotEnabled(slot, stextflag))
