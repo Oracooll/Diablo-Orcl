@@ -560,8 +560,17 @@ TEST(OracoolAudit, InnateMaskFollowsTheShield)
 	devilution::Player &player = Players[0];
 	player._pClass = HeroClass::Warrior; // the class the Paladin plays as - see ClassHasPaladinSkills
 	player._pLevel = 25;                 // past every skill's level gate
-	player.InvBody[INVLOC_HAND_LEFT].clear();
-	player.InvBody[INVLOC_HAND_RIGHT].clear();
+	// FRESH items, not clear() (audit, 2026-09-22). Item::clear() sets _itype = ItemType::None and
+	// touches nothing else, so a cleared slot keeps every other field the last item left in it -
+	// _iOracoolBroken included. This test then builds its shield by setting _itype ALONE, and
+	// HasShieldEquipped rejects a broken shield: whether the two assertions below passed therefore
+	// depended on whether an earlier test in the shuffled run had left a broken item in Players[0]'s
+	// hand. It passed standalone and failed inside oracool_audit_test_shuffled.
+	//
+	// Production is unaffected - a slot is filled by whole-struct assignment, which overwrites the
+	// stale flag. Only an item hand-built on a reused Player can inherit it.
+	player.InvBody[INVLOC_HAND_LEFT] = devilution::Item {};
+	player.InvBody[INVLOC_HAND_RIGHT] = devilution::Item {};
 
 	const SpellMask shieldBash = GetSpellBitmask(SpellID::ShieldBash);
 	const SpellMask blessedShield = GetSpellBitmask(SpellID::BlessedShield);

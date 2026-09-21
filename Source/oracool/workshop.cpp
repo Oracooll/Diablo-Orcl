@@ -41,7 +41,87 @@ namespace {
 constexpr Size PageSize { 340, 720 };
 /** Gillian's painted canvas (user, 2026-09-21); the shared side panel stands in until it is in the archive. */
 constexpr const char *MysticCanvasAsset = "ui\\mystic_workshop.png";
+/**
+ * Ogden's own table (user, 2026-09-21), with the collection's frame painted into it. The shared
+ * workshop canvas stays as the fallback, so a build short of the file still draws a whole window.
+ */
+constexpr const char *OgdenCanvasAsset = "ui\\ogden_canvas.png";
 constexpr const char *JewellerCanvasAsset = "ui\\artisan_workshop.png";
+
+/**
+ * THE COLLECTION BOARD (user, 2026-09-21: "Make an invisible 30x30, 7x5 grid and fill it with all
+ * types of Gems the same order as you use for the stash Sort function").
+ *
+ * MEASURED on his canvas: the painted frame's rules stand at x 61..63 and 276..278, its ornate bands
+ * at y 429..438 and 591..600, so the opening is x 64..275 by y 439..590 - 212 by 152. A 7x5 board of
+ * 30px cells is 210 by 150, which centres inside it with a pixel to spare on every side.
+ *
+ * INVISIBLE, as asked: no rules and no wells are drawn. The frame is the painting's, and what sits
+ * inside it is icons on their own.
+ *
+ * Seven columns by five rows is not an arbitrary fit - it is the stash's own gem layout. SortStash
+ * places a gem at `{ type, GemTopRow + quality }`: column by GemType (Amethyst, Diamond, Emerald,
+ * Ruby, Sapphire, Topaz, Skull), row by GemQuality (Chipped up to Perfect). Seven types, five
+ * qualities, thirty-five cells, thirty-five gems. The runes take the same board by ladder position,
+ * which is how the stash orders them too, and 33 of them leave the last two cells empty.
+ */
+constexpr int BoardColumns = 7;
+constexpr int BoardRows = 5;
+constexpr int BoardCellPx = 30;
+constexpr int BoardOpeningLeft = 64;
+constexpr int BoardOpeningTop = 439;
+constexpr int BoardOpeningWidth = 212;
+constexpr int BoardOpeningHeight = 152;
+constexpr Point BoardOrigin {
+	BoardOpeningLeft + (BoardOpeningWidth - BoardColumns * BoardCellPx) / 2,
+	BoardOpeningTop + (BoardOpeningHeight - BoardRows * BoardCellPx) / 2
+};
+constexpr int BoardSlots = BoardColumns * BoardRows;
+static_assert(BoardSlots >= 35, "the board no longer holds every gem");
+
+/**
+ * The row above the frame: the collection's name between two arrow plates, four pixels clear of the
+ * painted band at y 429 (the clearance every window this day uses).
+ *
+ * The plates are GRISWOLD'S - his 34x34 button frame with his sell arrow turned a quarter turn, up
+ * for the upgrade and down for the downgrade (user: "Flush left put the Sell Icon from Griswold
+ * pointing down [...] Flush with right grid border put Sell Icon from Griswold pointing Up"). Flush
+ * means flush with the BOARD's edges, not the frame's, so they line up with the icons beneath them.
+ */
+constexpr int BoardButtonSize = 34;
+constexpr int BoardRowClearance = 4;
+constexpr int BoardButtonTop = 429 - BoardRowClearance - BoardButtonSize;
+constexpr Rectangle BoardDowngradeRect { { BoardOrigin.x, BoardButtonTop }, { BoardButtonSize, BoardButtonSize } };
+constexpr Rectangle BoardUpgradeRect {
+	{ BoardOrigin.x + BoardColumns * BoardCellPx - BoardButtonSize, BoardButtonTop },
+	{ BoardButtonSize, BoardButtonSize }
+};
+constexpr Rectangle BoardTitleRect {
+	{ BoardDowngradeRect.position.x + BoardButtonSize, BoardButtonTop },
+	{ BoardUpgradeRect.position.x - BoardDowngradeRect.position.x - BoardButtonSize, BoardButtonSize }
+};
+/**
+ * The question under the grid, and its two answers (user, 2026-09-21: "Runes upgrades and downgrade
+ * to ask for confirmation, just like the salvaging. Put confirmation message and buttons under the
+ * grid").
+ *
+ * Everything here stays LEFT OF x 175, which is where the health orb's own rect begins on a 960-wide
+ * screen. Griswold's Refresh-until plate ends at 154 and the stash's gold at 165 for the same
+ * reason: below OrbClearanceBottom the window shares the screen with the orb, and a button drawn
+ * under a sphere is a button the player cannot press.
+ */
+constexpr Rectangle BoardMessageRect { { 30, 602 }, { 280, 22 } };
+constexpr Size BoardConfirmSize { 68, 24 };
+constexpr int BoardConfirmTop = 626;
+constexpr int BoardConfirmGap = 6;
+constexpr Rectangle BoardConfirmRect { { 30, BoardConfirmTop }, BoardConfirmSize };
+constexpr Rectangle BoardCancelRect { { 30 + BoardConfirmSize.width + BoardConfirmGap, BoardConfirmTop }, BoardConfirmSize };
+static_assert(BoardCancelRect.position.x + BoardCancelRect.size.width < 175,
+    "the confirmation runs under the health orb - keep it left of the orb's rect");
+
+constexpr const char *BoardButtonFrameAsset = "ui\\shop_button_frame.png";
+constexpr const char *BoardUpGlyphAsset = "ui\\shop_glyph_arrow_up.png";
+constexpr const char *BoardDownGlyphAsset = "ui\\shop_glyph_arrow_down.png";
 /** The shared canvas's opening, as every 340x720 window uses it. */
 constexpr int InnerLeft = 22;
 constexpr int InnerRight = 317;
@@ -106,6 +186,9 @@ enum class Control : uint8_t {
 	Option3,
 	Upgrade,
 	Downgrade,
+	/** The rune ladder's two answers (2026-09-21) - see PendingStep. */
+	ConfirmStep,
+	CancelStep,
 	Close,
 };
 constexpr int OptionCount = 4; // the affix as it stands, and three alternatives
@@ -115,8 +198,28 @@ WorkshopHost Host = WorkshopHost::Mystic;
 Tab OpenTab = Tab::Reroll;
 /** The one item on the bench. Returned to the pack when the window closes. */
 Item Bench;
+/**
+ * @brief The kind the board has picked, by ITEM ID rather than by row (2026-09-21).
+ *
+ * The list it replaced was built from what the pack held, so a row index meant "the Nth kind you
+ * own" - and that moved under the player the moment a conversion emptied a stack. The board shows
+ * every kind whether owned or not, so the identity of the selection is the item itself and nothing
+ * about it changes when the counts do.
+ */
+int SelectedStockIdx = -1;
+/**
+ * @brief The rune step waiting on an answer: +1 up, -1 down, 0 for no question standing.
+ *
+ * Only the RUNES ask (user, 2026-09-21: "Runes upgrades and downgrade to ask for confirmation, just
+ * like the salvaging"), and for the same reason salvage asks: a rune is the scarcest thing in the
+ * game and a misclick on Zod cannot be undone. Gems and jewels act at once.
+ *
+ * Withdrawn by anything that changes what the question was about - picking another kind, changing
+ * tab, closing the window - so a standing question can never be answered for a different rune than
+ * the one it named.
+ */
+int PendingStep = 0;
 int SelectedRow = -1;
-int StockScroll = 0;
 Control Pressed = Control::None;
 Control LastHovered = Control::None;
 std::string Board; // what the page is saying right now
@@ -252,38 +355,6 @@ bool StockMatches(Tab tab, int idx)
 	}
 }
 
-/** @brief How many of @p tab's kinds the pack holds, one row per kind, in item order. */
-struct StockRow {
-	int idx = 0;
-	int count = 0;
-};
-
-std::vector<StockRow> StockFor(const Player &player, Tab tab)
-{
-	std::vector<StockRow> rows;
-	const auto add = [&](const Item *list, int count) {
-		for (int i = 0; i < count; i++) {
-			if (list[i].isEmpty() || !StockMatches(tab, list[i].IDidx))
-				continue;
-			const int units = std::max(1, list[i].stackCount());
-			bool found = false;
-			for (StockRow &row : rows) {
-				if (row.idx == list[i].IDidx) {
-					row.count += units;
-					found = true;
-					break;
-				}
-			}
-			if (!found)
-				rows.push_back(StockRow { static_cast<int>(list[i].IDidx), units });
-		}
-	};
-	add(player.InvList, player._pNumInv);
-	for (int tabIndex = 0; tabIndex < Player::NumExtraInventoryTabs; tabIndex++)
-		add(player.InvTabList[tabIndex].data(), player._pNumInvTab[tabIndex]);
-	std::sort(rows.begin(), rows.end(), [](const StockRow &a, const StockRow &b) { return a.idx < b.idx; });
-	return rows;
-}
 
 /** @brief How many of a kind the ladder asks for a step up: three stones or jewels, two runes. */
 int StepUpCost(Tab tab)
@@ -322,6 +393,38 @@ int StepDown(Tab tab, int idx)
 			return candidate;
 	}
 	return 0;
+}
+
+/**
+ * @brief The item the board's cell @p slot stands for on @p tab, or 0 for a cell that stands for
+ * nothing (the runes' last two, the jewels' unused columns).
+ *
+ * THE STASH'S OWN ORDER, in every case, because the user asked for it by name and because a player
+ * who has sorted their stash has already learned this arrangement:
+ *  - gems: column by GemType, row by GemQuality - SortStash's `{ type, GemTopRow + quality }`;
+ *  - runes: ladder position, read left to right and down, as the stash's rune block reads;
+ *  - jewels: grade-major five to a row, the block shape the stash gives them.
+ */
+int BoardSlotItem(Tab tab, int slot)
+{
+	const int column = slot % BoardColumns;
+	const int row = slot / BoardColumns;
+	switch (tab) {
+	case Tab::Gems:
+		if (column >= static_cast<int>(GemTypeCount) || row >= static_cast<int>(GemQualityCount))
+			return 0;
+		return GemIndexFor(static_cast<GemType>(column), static_cast<GemQuality>(row));
+	case Tab::Runes:
+		return slot < static_cast<int>(RuneLadderSize()) ? RuneAtLadderPosition(slot) : 0;
+	case Tab::Jewels: {
+		// Five families across, three grades down - the stash's block, left-aligned on this board.
+		if (column >= static_cast<int>(JewelFamilyCount) || row >= static_cast<int>(JewelGradeCount))
+			return 0;
+		return IDI_ORACOOL_JEWEL_FERVOR_FLAWED + row * static_cast<int>(JewelFamilyCount) + column;
+	}
+	default:
+		return 0;
+	}
 }
 
 int CountInPack(const Player &player, int idx)
@@ -435,10 +538,17 @@ Rectangle ControlRect(Control control)
 	case Control::Option2:
 	case Control::Option3:
 		return OfferOpen ? OptionRect(static_cast<int>(control) - static_cast<int>(Control::Option0)) : Rectangle { { 0, 0 }, { 0, 0 } };
+	// The two arrow plates on the board's own row, flush with its edges - up on the right, down on
+	// the left (user, 2026-09-21). They were a pair of wide word-buttons in the middle of the page.
 	case Control::Upgrade:
-		return IsStockTab(OpenTab) ? ButtonRect(0, 0, 2) : Rectangle { { 0, 0 }, { 0, 0 } };
+		return IsStockTab(OpenTab) ? Panel(BoardUpgradeRect) : Rectangle { { 0, 0 }, { 0, 0 } };
 	case Control::Downgrade:
-		return IsStockTab(OpenTab) ? ButtonRect(0, 1, 2) : Rectangle { { 0, 0 }, { 0, 0 } };
+		return IsStockTab(OpenTab) ? Panel(BoardDowngradeRect) : Rectangle { { 0, 0 }, { 0, 0 } };
+	// The two answers exist only while a question is standing, so a stale click cannot find them.
+	case Control::ConfirmStep:
+		return PendingStep != 0 ? Panel(BoardConfirmRect) : Rectangle { { 0, 0 }, { 0, 0 } };
+	case Control::CancelStep:
+		return PendingStep != 0 ? Panel(BoardCancelRect) : Rectangle { { 0, 0 }, { 0, 0 } };
 	case Control::None:
 		break;
 	}
@@ -611,26 +721,155 @@ void DrawImbueList(const Surface &out)
 }
 
 /** @brief Ogden's list: one row per kind the pack holds, with what the player owns of it. */
-void DrawStockList(const Surface &out)
+/** @brief The board cell @p slot, in screen space. */
+Rectangle BoardSlotRect(int slot)
 {
-	const std::vector<StockRow> rows = StockFor(*MyPlayer, OpenTab);
-	if (rows.empty()) {
-		DrawString(out, _("you carry none of these"), ListRowRect(0), { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+	const Rectangle page = PageRect();
+	return Rectangle { { page.position.x + BoardOrigin.x + (slot % BoardColumns) * BoardCellPx,
+	                       page.position.y + BoardOrigin.y + (slot / BoardColumns) * BoardCellPx },
+		{ BoardCellPx, BoardCellPx } };
+}
+
+/** @brief The board cell under @p position, or -1. */
+int BoardSlotAt(Point position)
+{
+	for (int slot = 0; slot < BoardSlots; slot++) {
+		if (BoardSlotRect(slot).contains(position))
+			return slot;
+	}
+	return -1;
+}
+
+const char *BoardTitle(Tab tab)
+{
+	switch (tab) {
+	case Tab::Runes:
+		return N_("Runes Collection");
+	case Tab::Jewels:
+		return N_("Jewels Collection");
+	default:
+		return N_("Gem Collection");
+	}
+}
+
+/**
+ * @brief The whole collection: every kind on the board, owned or not, with what the pack holds.
+ *
+ * Three rules, all the user's (2026-09-21):
+ *  - a counter at the bottom left of each cell, white on a dark transparent ground;
+ *  - RED when the count is zero;
+ *  - and the icon DESATURATED for a kind not possessed, so the board reads at a glance as what has
+ *    been found and what has not.
+ *
+ * The count comes from CountInPack, which walks the backpack and its tabs - so it is "what you are
+ * carrying", not "what exists in the world", which is the only number the buttons below can act on.
+ */
+void DrawCollectionBoard(const Surface &out)
+{
+	const Player &player = *MyPlayer;
+	for (int slot = 0; slot < BoardSlots; slot++) {
+		const int idx = BoardSlotItem(OpenTab, slot);
+		if (idx == 0)
+			continue; // a cell standing for nothing: the runes' last two, the jewels' spare columns
+		const Rectangle cell = BoardSlotRect(slot);
+		const int count = CountInPack(player, idx);
+
+		const ClxSprite sprite = GetInvItemSprite(AllItemsList[idx].iCurs + CURSOR_FIRSTITEM);
+		const Point topLeft { cell.position.x + (cell.size.width - static_cast<int>(sprite.width())) / 2,
+			cell.position.y + (cell.size.height - static_cast<int>(sprite.height())) / 2 };
+		ClxDraw(out, { topLeft.x, topLeft.y + static_cast<int>(sprite.height()) - 1 }, sprite);
+		if (count == 0) {
+			// The same white-hue pass every inactive plate in this mod wears, so "you have none of
+			// these" looks the same here as "this button does nothing" does at Griswold's.
+			TintRectRgb(out, cell.position.x, cell.position.y, cell.size.width, cell.size.height,
+			    0xFFFFFFu, /*brightnessPercent=*/70, /*floorPercent=*/0, PAL16_GRAY);
+		}
+
+		// The counter, bottom left, on its own half-transparent ground so it reads over any icon.
+		const std::string text = StrCat(std::min(count, 99));
+		const int width = GetLineWidth(text, GameFont12) + 4;
+		const Rectangle box { { cell.position.x, cell.position.y + cell.size.height - 12 }, { width, 12 } };
+		DrawHalfTransparentRectTo(out, box.position.x, box.position.y, box.size.width, box.size.height);
+		DrawString(out, text, box,
+		    { (count == 0 ? UiFlags::ColorRed : UiFlags::ColorWhite) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+
+		if (idx == SelectedStockIdx)
+			OutlineRect(out, cell, FrameGold);
+		else if (cell.contains(MousePosition))
+			DrawHoverOutline(out, cell);
+	}
+
+	DrawString(out, _(BoardTitle(OpenTab)), Panel(BoardTitleRect),
+	    { UiFlags::ColorGold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+}
+
+/**
+ * @brief One of the two arrow plates: Griswold's frame, his sell arrow turned a quarter turn.
+ *
+ * Sinks on the press and springs back on the release like every button in the mod, and greys when
+ * the selection cannot take the step - nothing above Perfect, nothing below Chipped, or not enough
+ * in the pack to pay for it.
+ */
+void DrawBoardArrow(const Surface &out, Control control, bool enabled)
+{
+	const Rectangle rect = ControlRect(control);
+	if (rect.size.width == 0)
+		return;
+	const bool hovered = rect.contains(MousePosition);
+	const Rectangle face { rect.position + (Pressed == control ? PressSink : Displacement { 0, 0 }), rect.size };
+	if (GetLoosePngSize(BoardButtonFrameAsset).width > 0)
+		DrawLoosePng(out, BoardButtonFrameAsset, face.position);
+	else
+		DrawOrnateBorder(out, face);
+	const char *glyph = control == Control::Upgrade ? BoardUpGlyphAsset : BoardDownGlyphAsset;
+	if (const Size size = GetLoosePngSize(glyph); size.width > 0) {
+		DrawLoosePng(out, glyph, { face.position.x + (face.size.width - size.width) / 2,
+		                             face.position.y + (face.size.height - size.height) / 2 });
+	} else {
+		DrawString(out, control == Control::Upgrade ? "^" : "v", face,
+		    { UiFlags::ColorGold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	}
+	if (!enabled) {
+		TintRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height,
+		    0xFFFFFFu, /*brightnessPercent=*/70, /*floorPercent=*/0, PAL16_GRAY);
+	} else if (hovered) {
+		BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, 115);
+	}
+}
+
+/**
+ * @brief What the board is saying, under the grid: the standing question, or the last thing done.
+ *
+ * The question names the rune and both sides of the trade, because "are you sure?" over a board of
+ * thirty-five icons does not say which one is about to be spent.
+ */
+void DrawBoardMessage(const Surface &out)
+{
+	if (PendingStep != 0 && SelectedStockIdx > 0) {
+		const int made = PendingStep > 0 ? StepUp(OpenTab, SelectedStockIdx) : StepDown(OpenTab, SelectedStockIdx);
+		const int cost = PendingStep > 0 ? StepUpCost(OpenTab) : 1;
+		const std::string question = made == 0
+		    ? std::string(_("There is no rune that way."))
+		    : fmt::format(fmt::runtime(_("Spend {:d} {:s} for 1 {:s}?")), cost,
+		        _(AllItemsList[SelectedStockIdx].iName), _(AllItemsList[made].iName));
+		DrawString(out, question, Panel(BoardMessageRect),
+		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		for (const Control which : { Control::ConfirmStep, Control::CancelStep }) {
+			const Rectangle rect = ControlRect(which);
+			const bool confirm = which == Control::ConfirmStep;
+			const Rectangle face { rect.position + (Pressed == which ? PressSink : Displacement { 0, 0 }), rect.size };
+			FillRect(out, face.position.x + 1, face.position.y + 1, face.size.width - 2, face.size.height - 2, PlateFill);
+			OutlineRect(out, face, FrameGold);
+			DrawString(out, confirm ? _("YES") : _("NO"), face,
+			    { (confirm ? UiFlags::ColorWhitegold : UiFlags::ColorRed) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+			if (rect.contains(MousePosition))
+				BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, 115);
+		}
 		return;
 	}
-	for (int row = StockScroll; row < static_cast<int>(rows.size()) && row - StockScroll < ListLines; row++) {
-		const Rectangle rect = ListRowRect(row - StockScroll);
-		const bool selected = SelectedRow == row;
-		if (selected)
-			FillRect(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height, PlateFill);
-		DrawString(out, _(AllItemsList[rows[row].idx].iName),
-		    Rectangle { { rect.position.x + 4, rect.position.y }, { rect.size.width - 44, rect.size.height } },
-		    { (selected ? UiFlags::ColorGold : UiFlags::ColorWhite) | UiFlags::FontSize12 | UiFlags::VerticalCenter });
-		DrawString(out, StrCat(rows[row].count),
-		    Rectangle { { rect.position.x + rect.size.width - 40, rect.position.y }, { 36, rect.size.height } },
-		    { (selected ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-		if (!selected && rect.contains(MousePosition))
-			OutlineRect(out, rect, PlateEdge);
+	if (!Board.empty()) {
+		DrawString(out, Board, Panel(BoardMessageRect),
+		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
 }
 
@@ -676,7 +915,6 @@ void OpenWorkshop(WorkshopHost host)
 	Host = host;
 	WindowOpen = true;
 	OpenTab = TabsFor(host).front();
-	StockScroll = 0;
 	SelectedRow = -1;
 	OfferOpen = false;
 	Pressed = Control::None;
@@ -696,6 +934,13 @@ void CloseWorkshop()
 	OfferOpen = false;
 	Pressed = Control::None;
 	SelectedRow = -1;
+	// The board's pick and any standing rune question go with the window (audit, 2026-09-22). They
+	// were left behind: ResetWorkshopForNewGame clears them and this does not, so a question asked
+	// and walked away from was still standing - and already answered "yes" once - when the window
+	// next opened. The two functions have near-identical bodies, which is how one substitution
+	// patched the wrong one.
+	SelectedStockIdx = -1;
+	PendingStep = 0;
 }
 
 bool IsWorkshopOpen()
@@ -732,6 +977,8 @@ void ResetWorkshopForNewGame()
 	OfferOpen = false;
 	Pressed = Control::None;
 	SelectedRow = -1;
+	SelectedStockIdx = -1;
+	PendingStep = 0;
 	Bench.clear();
 	Counters.clear();
 	Board.clear();
@@ -743,7 +990,11 @@ void DrawWorkshop(const Surface &out)
 		return;
 	const Rectangle page = PageRect();
 	// The user's painted canvas, or the shared 340x720 side panel until it lands.
-	const char *canvas = Host == WorkshopHost::Mystic ? MysticCanvasAsset : JewellerCanvasAsset;
+	// Ogden's own table when it is installed (2026-09-21); the shared workshop canvas otherwise, and
+	// the side panel under that - so a build short of any of them still draws a whole window.
+	const char *canvas = MysticCanvasAsset;
+	if (Host != WorkshopHost::Mystic)
+		canvas = GetLoosePngSize(OgdenCanvasAsset).width > 0 ? OgdenCanvasAsset : JewellerCanvasAsset;
 	if (GetLoosePngSize(canvas).width > 0) {
 		DrawLoosePng(out, canvas, page.position);
 	} else if (HasSidePanelArt()) {
@@ -752,20 +1003,32 @@ void DrawWorkshop(const Surface &out)
 		DrawThemedFill(out, page);
 		DrawOrnateBorder(out, page);
 	}
-	DrawString(out, Host == WorkshopHost::Mystic ? _("Mystic Workshop") : _("Jeweller's Tables"), Panel(TitleRect),
-	    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	// NO title over a portrait (audit, 2026-09-22). The stash, Griswold's tabs and all four vendor
+	// canvases lost theirs on 2026-09-21 for the same reason: the painting has the man in it, and a
+	// name printed over his own room says nothing the picture does not. Ogden's window was the last
+	// one still doing it, and only because his canvas arrived a day later than the rule.
+	//
+	// The placeholder canvases KEEP their title - there the interior is drawn in code and the band
+	// is empty stone, so the window would otherwise have nothing naming it at all.
+	const bool painted = Host != WorkshopHost::Mystic && GetLoosePngSize(OgdenCanvasAsset).width > 0;
+	if (!painted) {
+		DrawString(out, Host == WorkshopHost::Mystic ? _("Mystic Workshop") : _("Jeweller's Tables"), Panel(TitleRect),
+		    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	}
 	DrawTabColumn(out);
 	if (!IsStockTab(OpenTab))
 		DrawBench(out);
 
 	if (IsStockTab(OpenTab)) {
-		DrawStockList(out);
-		const std::vector<StockRow> rows = StockFor(*MyPlayer, OpenTab);
-		const bool picked = SelectedRow >= 0 && SelectedRow < static_cast<int>(rows.size());
-		const int up = picked ? StepUp(OpenTab, rows[SelectedRow].idx) : 0;
-		const int down = picked ? StepDown(OpenTab, rows[SelectedRow].idx) : 0;
-		DrawPlateButton(out, Control::Upgrade, StrCat(_("UPGRADE"), "  ", StepUpCost(OpenTab), _(" -> 1")), picked && up != 0 && rows[SelectedRow].count >= StepUpCost(OpenTab));
-		DrawPlateButton(out, Control::Downgrade, StrCat(_("DOWNGRADE"), _("  1 -> 2")), picked && down != 0 && rows[SelectedRow].count >= 1);
+		// The board, and the two arrow plates on the row above it (2026-09-21). The list this
+		// replaced showed only what the pack held; the board shows the whole collection.
+		DrawCollectionBoard(out);
+		const int picked = SelectedStockIdx;
+		const int held = picked > 0 ? CountInPack(*MyPlayer, picked) : 0;
+		const int up = picked > 0 ? StepUp(OpenTab, picked) : 0;
+		const int down = picked > 0 ? StepDown(OpenTab, picked) : 0;
+		DrawBoardArrow(out, Control::Upgrade, up != 0 && held >= StepUpCost(OpenTab));
+		DrawBoardArrow(out, Control::Downgrade, down != 0 && held >= 1);
 	} else if (OpenTab == Tab::Reroll) {
 		DrawRerollList(out);
 		const bool ready = !Bench.isEmpty() && Bench._iOracoolAffixCount > 0 && SelectedRow >= 0;
@@ -779,14 +1042,22 @@ void DrawWorkshop(const Surface &out)
 
 	DrawString(out, StrCat(_("Gold"), ": ", FormatInteger(static_cast<int>(TotalPlayerGold()))), Panel(GoldRect),
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	DrawBoard(out);
+	if (IsStockTab(OpenTab)) {
+		// The old message panel runs y 336..612 and the collection board sits at 439..590 INSIDE it,
+		// so on these tabs it is not drawn at all - it would be a grey slab over every icon. The
+		// message moves under the grid with the question, which is where the user put them.
+		DrawBoardMessage(out);
+	} else {
+		DrawBoard(out);
+	}
 	DrawWindowCloseButtonAt(out, Panel(CloseRect));
 
 	// The hover sound, once as the cursor arrives on a control.
 	Control hoveredNow = Control::None;
 	for (const Control control : { Control::Tab0, Control::Tab1, Control::Tab2, Control::Tab3, Control::Reroll,
 	         Control::Imbue, Control::Remove, Control::Cleanse, Control::Upgrade, Control::Downgrade,
-	         Control::Option0, Control::Option1, Control::Option2, Control::Option3 }) {
+	         Control::Option0, Control::Option1, Control::Option2, Control::Option3,
+	         Control::ConfirmStep, Control::CancelStep }) {
 		const Rectangle rect = ControlRect(control);
 		if (rect.size.width > 0 && rect.contains(MousePosition)) {
 			hoveredNow = control;
@@ -830,6 +1101,40 @@ bool SetWorkshopHoverInfoString()
 		AddPanelString(_("Every shard off at once, and none comes back."), UiFlags::ColorWhite);
 		return true;
 	}
+	// The board and its two arrows (audit, 2026-09-22). They had NO hover text at all: the wide
+	// buttons they replaced carried "UPGRADE 3 -> 1" on their faces, so the ratio was readable
+	// without asking. A 34px glyph plate says nothing, which left the price of a step - and, on the
+	// runes, the only warning before a Zod is spent - nowhere on the screen.
+	if (IsStockTab(OpenTab)) {
+		for (const Control which : { Control::Upgrade, Control::Downgrade }) {
+			if (!ControlRect(which).contains(MousePosition))
+				continue;
+			const bool up = which == Control::Upgrade;
+			SetPanelString(up ? _("Upgrade") : _("Downgrade"), UiFlags::ColorWhitegold);
+			AddPanelString(up
+			        ? fmt::format(fmt::runtime(_("{:d} of the chosen kind for 1 of the next.")), StepUpCost(OpenTab))
+			        : std::string(_("1 of the chosen kind for 1 of the one below.")),
+			    UiFlags::ColorWhite);
+			if (!up)
+				AddPanelString(_("The step down is a price, not a refund."), UiFlags::ColorWhite);
+			if (SelectedStockIdx <= 0)
+				AddPanelString(_("Choose a kind from the board first."), UiFlags::ColorRed);
+			return true;
+		}
+		const int slot = BoardSlotAt(MousePosition);
+		if (slot >= 0) {
+			const int idx = BoardSlotItem(OpenTab, slot);
+			if (idx != 0) {
+				const int held = CountInPack(*MyPlayer, idx);
+				SetPanelString(_(AllItemsList[idx].iName), UiFlags::ColorWhitegold);
+				AddPanelString(held > 0
+				        ? fmt::format(fmt::runtime(_("You carry {:d}.")), held)
+				        : std::string(_("You carry none of these.")),
+				    held > 0 ? UiFlags::ColorWhite : UiFlags::ColorRed);
+				return true;
+			}
+		}
+	}
 	return false;
 }
 
@@ -868,6 +1173,48 @@ void RollOffers(int slot)
 }
 
 /** @brief The release's work for one control. */
+/**
+ * @brief Takes the selected kind one rung up or down the ladder.
+ *
+ * ONE for one either way DOWN (user, 2026-09-21: "runes downgrade ratio 1:1. you dont get two of the
+ * lower. sorry. price of conversion"). It gave TWO before, and the button said so - "DOWNGRADE 1 ->
+ * 2" - which made the ladder a free pump on the runes: two down and one up is a net gain when up
+ * costs two. At 1:1 the step down is what the user calls it, a price.
+ *
+ * Up still costs what the ladder asks: three gems or jewels, two runes.
+ *
+ * The sounds are the user's: a gem hitting the floor for the step up, and the glass break for the
+ * step down, which destroys what it takes. IS_SHATTER is sfx\misc\shatter.wav - in diabdat all
+ * along, never referenced by this engine until 2026-09-21.
+ */
+void RunStep(bool up)
+{
+	Player &player = *MyPlayer;
+	const int idx = SelectedStockIdx;
+	if (idx <= 0)
+		return;
+	const int made = up ? StepUp(OpenTab, idx) : StepDown(OpenTab, idx);
+	if (made == 0) {
+		SetBoard(std::string(up ? _("Nothing stands above this one.") : _("Nothing stands below this one.")));
+		return;
+	}
+	const int cost = up ? StepUpCost(OpenTab) : 1;
+	if (CountInPack(player, idx) < cost) {
+		SetBoard(fmt::format(fmt::runtime(_("You need {:d} of those.")), cost));
+		return;
+	}
+	TakeFromPack(player, idx, cost);
+	const int placed = GiveToPack(player, made, 1);
+	CalcPlrInv(player, true);
+	if (placed == 0) {
+		SetBoard(std::string(_("Your pack had no room - the work was undone.")));
+		GiveToPack(player, idx, cost); // put them back rather than swallow them
+		return;
+	}
+	SetBoard(StrCat(_("Made"), " ", placed, " ", _(AllItemsList[made].iName)));
+	PlaySFX(up ? IS_FROCK : IS_SHATTER);
+}
+
 void RunControl(Control control)
 {
 	switch (control) {
@@ -889,7 +1236,8 @@ void RunControl(Control control)
 		}
 		OpenTab = tabs[slot];
 		SelectedRow = -1;
-		StockScroll = 0;
+		SelectedStockIdx = -1;
+		PendingStep = 0;
 		OfferOpen = false;
 		Board.clear();
 		break;
@@ -1040,38 +1388,33 @@ void RunControl(Control control)
 	}
 	case Control::Upgrade:
 	case Control::Downgrade: {
-		Player &player = *MyPlayer;
-		const std::vector<StockRow> rows = StockFor(player, OpenTab);
-		if (SelectedRow < 0 || SelectedRow >= static_cast<int>(rows.size())) {
-			SetBoard(std::string(_("Choose a kind from the list first.")));
-			break;
-		}
-		const int idx = rows[SelectedRow].idx;
 		const bool up = control == Control::Upgrade;
-		const int made = up ? StepUp(OpenTab, idx) : StepDown(OpenTab, idx);
-		if (made == 0) {
-			SetBoard(std::string(up ? _("Nothing stands above this one.") : _("Nothing stands below this one.")));
+		if (SelectedStockIdx <= 0) {
+			SetBoard(std::string(_("Choose a kind from the board first.")));
 			break;
 		}
-		const int cost = up ? StepUpCost(OpenTab) : 1;
-		if (CountInPack(player, idx) < cost) {
-			SetBoard(fmt::format(fmt::runtime(_("You need {:d} of those.")), cost));
-			break;
-		}
-		TakeFromPack(player, idx, cost);
-		const int placed = GiveToPack(player, made, up ? 1 : 2);
-		CalcPlrInv(player, true);
-		SelectedRow = -1;
-		if (placed == 0) {
-			SetBoard(std::string(_("Your pack had no room - the work was undone.")));
-			GiveToPack(player, idx, cost); // put them back rather than swallow them
-			break;
-		}
-		SetBoard(StrCat(_("Made"), " ", placed, " ", _(AllItemsList[made].iName)));
-		if (!PlayUiEventSound(UiEventSound::Transmute))
+		// The runes ASK; the gems and jewels act. See PendingStep.
+		if (OpenTab == Tab::Runes) {
+			PendingStep = up ? 1 : -1;
 			PlayUiSelectSound();
+			break;
+		}
+		RunStep(up);
 		break;
 	}
+	case Control::ConfirmStep: {
+		const int step = PendingStep;
+		PendingStep = 0;
+		if (step != 0)
+			RunStep(step > 0);
+		break;
+	}
+	case Control::CancelStep:
+		// "Let me think a bit more" - the question goes and nothing else changes, the selection
+		// included, so the player can answer it again without hunting for the rune a second time.
+		PendingStep = 0;
+		PlayUiSelectSound();
+		break;
 	case Control::None:
 		break;
 	}
@@ -1089,7 +1432,8 @@ bool CheckWorkshopClick(Point position)
 	// Every control presses here and RUNS on the release - the standing rule since v1.12.102.
 	for (const Control control : { Control::Tab0, Control::Tab1, Control::Tab2, Control::Tab3, Control::Close,
 	         Control::Reroll, Control::Imbue, Control::Remove, Control::Cleanse, Control::Upgrade, Control::Downgrade,
-	         Control::Option0, Control::Option1, Control::Option2, Control::Option3 }) {
+	         Control::Option0, Control::Option1, Control::Option2, Control::Option3,
+	         Control::ConfirmStep, Control::CancelStep }) {
 		const Rectangle rect = ControlRect(control);
 		if (rect.size.width == 0 || !rect.contains(position))
 			continue;
@@ -1100,7 +1444,12 @@ bool CheckWorkshopClick(Point position)
 
 	// The bench takes an item from the cursor and gives it back to an empty hand.
 	Player &player = *MyPlayer;
-	if (Panel(SlotRect).contains(position)) {
+	// The bench is not DRAWN on a stock tab (see DrawWorkshop), so it must not be clickable there
+	// either (audit, 2026-09-22). Its rect sat live under the Gems, Runes and Jewels pages, which is
+	// every tab Ogden has: a held item dropped in that corner went onto an invisible bench and came
+	// back only when the window closed. Griswold's Salvage page learned this same lesson on
+	// 2026-09-21 - a control that is not drawn must not be hit-tested.
+	if (!IsStockTab(OpenTab) && Panel(SlotRect).contains(position)) {
 		if (!player.HoldItem.isEmpty()) {
 			if (!Bench.isEmpty()) {
 				SetBoard(std::string(_("The bench holds one item at a time.")));
@@ -1125,13 +1474,17 @@ bool CheckWorkshopClick(Point position)
 	}
 
 	if (IsStockTab(OpenTab)) {
-		const std::vector<StockRow> rows = StockFor(player, OpenTab);
-		for (int row = StockScroll; row < static_cast<int>(rows.size()) && row - StockScroll < ListLines; row++) {
-			if (!ListRowRect(row - StockScroll).contains(position))
-				continue;
-			SelectedRow = SelectedRow == row ? -1 : row;
-			PlayUiSelectSound();
-			return true;
+		// A cell picks its KIND, and clicking the picked one again clears it - the rule every list
+		// in these windows follows. A cell standing for nothing absorbs the click and does nothing,
+		// because it is still inside the frame.
+		const int slot = BoardSlotAt(position);
+		if (slot >= 0) {
+			const int idx = BoardSlotItem(OpenTab, slot);
+			if (idx != 0) {
+				SelectedStockIdx = SelectedStockIdx == idx ? -1 : idx;
+				PendingStep = 0; // a new pick withdraws whatever question was standing
+				PlayUiSelectSound();
+			}
 		}
 		return true;
 	}
