@@ -942,7 +942,17 @@ void TalkToTowner(Player &player, int t)
 		return;
 	}
 
-	towner.talk(player, towner);
+	// A docked page this towner owns - Griswold's Salvage, an artisan's workshop or recipe book -
+	// closes first (user, 2026-09-21: "It doesnt close if i click again on griswold while it is
+	// open"). Clicking a shopkeeper whose shop screen is already up puts their dialog back, which
+	// reads as the shop closing; their PAGE is a window rather than a screen, so nothing replaced it
+	// and clicking them did nothing at all. Closing it here makes the two gestures the same one.
+	//
+	// The talk still runs afterwards, so the click lands on the dialog exactly as it would have with
+	// any other tab open - unless the close was REFUSED (a page holding items with no room to give
+	// them back says so in red), in which case the refusal is the answer and the dialog would bury it.
+	if (CloseVendorPageForTowner(towner._ttype) || TownerForOpenVendorPage() != towner._ttype)
+		towner.talk(player, towner);
 }
 
 void UpdateGirlAnimAfterQuestComplete()

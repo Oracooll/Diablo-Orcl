@@ -494,8 +494,16 @@ Size CurrentFrameSize()
 Rectangle ButtonRect(const Rectangle &window, int index)
 {
 	if (const SalvageLayout *page = SalvagePage(); page != nullptr) {
-		if (index == levski_skin::Close)
+		if (index == levski_skin::Close) {
+			// The SHARED corner on the docked page (user, 2026-09-21: "Its X on the upper corner is not
+			// located properly"). Griswold's shop panel puts its X at GetWindowCloseButtonRect's corner
+			// and the Salvage page sits in exactly that rect, so a hand-authored one three pixels left
+			// and two down read as a different window wearing the same frame. The small painted page
+			// keeps its own, which is measured against art the shared corner knows nothing about.
+			if (page->docked)
+				return GetWindowCloseButtonRect(window);
 			return Rectangle { window.position + Displacement { page->close.position.x, page->close.position.y }, page->close.size };
+		}
 		if (index >= levski_skin::SalvageFirst && index < levski_skin::SalvageFirst + SalvageTierCount) {
 			const Rectangle &r = page->icons[index - levski_skin::SalvageFirst];
 			return Rectangle { window.position + Displacement { r.position.x, r.position.y }, r.size };

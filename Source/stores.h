@@ -320,6 +320,26 @@ std::vector<oracool::ShopAction> GetShopActions(TalkID id);
 /** @brief Runs the bulk action on @p line, exactly as pressing Enter on its row would. */
 void ShopActivateAction(TalkID id, int line);
 
+// Forward-declared rather than including towners.h: the enum has a fixed underlying type, so this is
+// all a declaration needs, and stores.h is included widely enough that pulling the towner header in
+// would be a real dependency for two function signatures.
+enum _talker_id : uint8_t;
+
+/**
+ * @brief Whose counter a vendor's docked PAGE belongs to, or NUM_TOWNER_TYPES when none is open.
+ *
+ * Griswold's Salvage page, Ogden's and Gillian's workshops and recipe books are windows rather than
+ * store screens - they set `stextflag` to None and open on their own - so everything that keeps a
+ * shop tied to its counter looked straight past them. This is what lets them be asked the same two
+ * questions the shop screens are asked: has the player walked away, and have they clicked the towner
+ * again (user, 2026-09-21: "Salvage tab of Griswold is not behaving like it is a part of one
+ * Griswold store [...] It needs better alignment with the other tabs behaviour").
+ */
+_talker_id TownerForOpenVendorPage();
+
+/** @brief Closes that page if it belongs to @p owner. True if it closed one. */
+bool CloseVendorPageForTowner(_talker_id owner);
+
 /**
  * @brief Whether tab @p id currently offers a bulk sale, or a fresh stock.
  *

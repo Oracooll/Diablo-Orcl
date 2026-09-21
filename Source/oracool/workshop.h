@@ -52,6 +52,8 @@ void OpenWorkshop(WorkshopHost host);
 /** @brief Closes it and gives the held item back to the pack; refuses (and says so) when the pack is full. */
 void CloseWorkshop();
 bool IsWorkshopOpen();
+/** @brief Whose workshop is open. Meaningless while it is closed - ask IsWorkshopOpen first. */
+WorkshopHost CurrentWorkshopHost();
 
 /** @brief The page's rect, docked where the shop panel sits. Empty when it is closed. */
 Rectangle GetWorkshopRect();

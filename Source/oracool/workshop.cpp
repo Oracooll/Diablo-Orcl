@@ -703,6 +703,11 @@ bool IsWorkshopOpen()
 	return WindowOpen;
 }
 
+WorkshopHost CurrentWorkshopHost()
+{
+	return Host;
+}
+
 Rectangle GetWorkshopRect()
 {
 	return WindowOpen ? PageRect() : Rectangle { { 0, 0 }, { 0, 0 } };

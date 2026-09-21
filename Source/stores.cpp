@@ -3814,8 +3814,61 @@ _talker_id TownerForStore(TalkID id)
 	return TownerForStoreDirect(stextshold);
 }
 
+_talker_id TownerForOpenVendorPage()
+{
+	// The Cube is a town OBJECT, not a counter, so a window hosted by it belongs to nobody and is
+	// left alone - walking away from a box you are standing at is not the same gesture as walking
+	// away from a shopkeeper.
+	if (oracool::IsLevskiRoarOpen()) {
+		switch (oracool::CurrentTransmuteHost()) {
+		case oracool::TransmuteHost::Smith:
+			return TOWN_SMITH;
+		case oracool::TransmuteHost::Tavern:
+			return TOWN_TAVERN;
+		case oracool::TransmuteHost::Barmaid:
+			return TOWN_BMAID;
+		case oracool::TransmuteHost::Cube:
+			return NUM_TOWNER_TYPES;
+		}
+	}
+	if (oracool::IsWorkshopOpen()) {
+		return oracool::CurrentWorkshopHost() == oracool::WorkshopHost::Mystic ? TOWN_BMAID : TOWN_TAVERN;
+	}
+	return NUM_TOWNER_TYPES;
+}
+
+bool CloseVendorPageForTowner(_talker_id owner)
+{
+	if (owner == NUM_TOWNER_TYPES || TownerForOpenVendorPage() != owner)
+		return false;
+	if (oracool::IsWorkshopOpen()) {
+		oracool::CloseWorkshop();
+		return !oracool::IsWorkshopOpen();
+	}
+	oracool::CloseLevskiRoar();
+	// CloseLevskiRoar REFUSES while the grid still holds items it cannot give back, and says so in
+	// red. That refusal is deliberate and stands here too: a page that will not close because the
+	// player's pack is full must not be closed out from under the items it is holding.
+	return !oracool::IsLevskiRoarOpen();
+}
+
 void UpdateStoreState()
 {
+	// ---- 0. A vendor's docked PAGE does not follow the player away from the counter either ----
+	//
+	// Griswold's Salvage page and the artisans' workshops are windows, not store screens: they set
+	// stextflag to None and open on their own, so the walk-away below looked straight past them and
+	// the Salvage page stayed open across the whole of town (user report, 2026-09-21).
+	//
+	// The same five tiles the shop screens use, from the same towner, so the two read as one shop.
+	if (const _talker_id pageOwner = TownerForOpenVendorPage(); pageOwner != NUM_TOWNER_TYPES
+	    && leveltype == DTYPE_TOWN && MyPlayer != nullptr) {
+		if (const Towner *towner = GetTowner(pageOwner);
+		    towner != nullptr && MyPlayer->position.tile.WalkingDistance(towner->position) > 5) {
+			CloseVendorPageForTowner(pageOwner);
+		}
+	}
+
 	// ---- 1. A service cursor cannot outlive the shop that armed it ----
 	//
 	// The audit's remedy for finding 2 was "call a cancel function from every shop exit: X, ESC,
