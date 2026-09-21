@@ -152,9 +152,41 @@ void CloseStonegateMenu()
 	LastHoveredRow = -1;
 }
 
+/**
+ * @brief LeftMouseUp: the pressed button acts, and ONLY if the release lands inside the button that was pressed
+ * (user, 2026-09-21: "apply to Rift Monument menu same click mechanic" - Griswold's CONFIRM / CANCEL rule).
+ *
+ * A release anywhere else is the user thinking a bit more: the face springs back, nothing runs, the menu stands.
+ */
 void ReleaseStonegateMenuButton()
 {
+	const int row = PressedRow;
 	PressedRow = -1;
+	if (row < 0 || !MenuOpen || MyPlayer == nullptr)
+		return;
+	const Rectangle panel = PanelRect();
+	if (!RowRect(panel, row).contains(MousePosition))
+		return; // released off the button: no rift opens and the menu is still up
+
+	bool enabled = true;
+	RowLabel(row, enabled);
+	if (!enabled) {
+		LogEvent("A Guardian Rift needs a Guardian Keystone - a Nephalem Rift's guardian drops one.", UiFlags::ColorRed);
+		return;
+	}
+	Player &player = *MyPlayer;
+	CloseStonegateMenu();
+	switch (row) {
+	case Nephalem:
+		OpenNephalemAtGate();
+		break;
+	case Guardian:
+		if (!UseBestKeystoneFromBackpack(player))
+			LogEvent("The keystone would not turn here.", UiFlags::ColorRed);
+		break;
+	default:
+		break; // Leave: the menu is already closed above, the rift - if any - stands
+	}
 }
 
 Rectangle GetStonegateMenuRect()
@@ -242,31 +274,13 @@ bool CheckStonegateMenuClick(Point mousePosition)
 		PlayUiMoveSound();
 		return true;
 	}
-	Player &player = *MyPlayer;
 	for (int row = 0; row < RowCount; row++) {
 		if (!RowRect(panel, row).contains(mousePosition))
 			continue;
-		// The press: the face sinks until the release and the click sounds, whatever it then does.
+		// The press SINKS the face and sounds, and does nothing else: ReleaseStonegateMenuButton decides, and only
+		// when the release lands inside this same button (2026-09-21).
 		PressedRow = row;
 		PlayUiMoveSound();
-		bool enabled = true;
-		RowLabel(row, enabled);
-		if (!enabled) {
-			LogEvent("A Guardian Rift needs a Guardian Keystone - a Nephalem Rift's guardian drops one.", UiFlags::ColorRed);
-			return true;
-		}
-		CloseStonegateMenu();
-		switch (row) {
-		case Nephalem:
-			OpenNephalemAtGate();
-			break;
-		case Guardian:
-			if (!UseBestKeystoneFromBackpack(player))
-				LogEvent("The keystone would not turn here.", UiFlags::ColorRed);
-			break;
-		default:
-			break; // Leave: the menu is already closed above, the rift - if any - stands
-		}
 		return true;
 	}
 	return true; // the panel's padding absorbs the click
