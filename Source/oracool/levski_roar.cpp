@@ -270,16 +270,71 @@ constexpr const char *SalvageIconAssets[SalvageTierCount] = {
 	"ui\\salvage_white.png", "ui\\salvage_magic.png", "ui\\salvage_rare.png", "ui\\salvage_unique.png",
 	"ui\\salvage_primal.png", "ui\\salvage_set.png", "ui\\salvage_ethereal.png"
 };
-constexpr Rectangle SalvageIconRects[SalvageTierCount] = {
-	{ { 32, 78 }, { 56, 56 } }, { { 98, 78 }, { 56, 56 } }, { { 163, 78 }, { 56, 56 } }, { { 230, 78 }, { 56, 56 } },
-	{ { 132, 137 }, { 56, 56 } }, // Primal: the sample's second cell of row two
-	{ { 49, 137 }, { 56, 56 } },  // Set: the first
-	{ { 214, 137 }, { 56, 56 } }  // Ethereal: the third
+/**
+ * The Salvage window has TWO pages (user, 2026-09-21: "i want to assemble a new Salvage page for griswold shop, one
+ * which is 340x720 size to fit nicely with the rest of his UI windows"). The TALL one is the shop panel's own size
+ * and dock - the forge painting (Resources\Griswold's Salvage UI Full Size.png, 862x1824, resampled 1:1 into
+ * 340x720) with the seven icons laid across the line where the lit forge gives way to the dark floor, a dark gold
+ * frame under them for the results, and everything clear of OrbClearanceBottom so the life orb is never covered.
+ * The 320x352 page of v1.12.096 stays as the fallback when the tall painting is missing.
+ */
+struct SalvageLayout {
+	Size window;
+	const char *background;
+	Rectangle title;
+	Rectangle results;
+	Rectangle close;
+	Rectangle icons[SalvageTierCount];
+	/** The tall page docks with the shop panel (bottom-left); the small one is centred like the other artisan windows. */
+	bool docked;
+	/** And draws the dark gold frame around its results area. */
+	bool goldFrame;
 };
-constexpr Size SalvageWindowSize { 320, 352 };
-constexpr Rectangle SalvageWindowTitle { { 22, 30 }, { 276, 40 } };
-constexpr Rectangle SalvageResultsBox { { 30, 214 }, { 260, 106 } };
-constexpr Rectangle SalvageCloseRect { { 296, 5 }, { 18, 18 } };
+
+constexpr const char *SalvageTallCanvasAsset = "ui\\salvage_canvas_tall.png";
+/**
+ * Measured on the resampled painting: the lit forge ends and the bare floor begins about y 378, so the first icon row
+ * overlaps it by thirty pixels. Four across then three, at the 66 px pitch the 320 page used, centred in the canvas's
+ * 22..317 opening. The results frame ends at 612 - six pixels above the inventory grid's own floor (GridBottom 618),
+ * which is where OrbClearanceBottom puts the top of the orbs.
+ */
+constexpr SalvageLayout SalvageTallPage {
+	{ 340, 720 }, SalvageTallCanvasAsset,
+	{ { 22, 26 }, { 296, 40 } },   // the title, in the dark of the smithy's roof
+	{ { 30, 480 }, { 280, 132 } }, // the results, inside the dark gold frame
+	{ { 316, 5 }, { 18, 18 } },
+	{ { { 43, 344 }, { 56, 56 } },  // White
+	    { { 109, 344 }, { 56, 56 } }, // Magic
+	    { { 175, 344 }, { 56, 56 } }, // Rare
+	    { { 241, 344 }, { 56, 56 } }, // Unique
+	    { { 142, 410 }, { 56, 56 } }, // Primal - the middle of the second row, as the user's sample has it
+	    { { 76, 410 }, { 56, 56 } },  // Set - its first
+	    { { 208, 410 }, { 56, 56 } } },// Ethereal - its last
+	true, true
+};
+
+/** The first page (v1.12.096), kept for a build without the tall painting. */
+constexpr SalvageLayout SalvageSmallPage {
+	{ 320, 352 }, SalvageCanvasAsset,
+	{ { 22, 30 }, { 276, 40 } },
+	{ { 30, 214 }, { 260, 106 } },
+	{ { 296, 5 }, { 18, 18 } },
+	{ { { 32, 78 }, { 56, 56 } }, { { 98, 78 }, { 56, 56 } }, { { 163, 78 }, { 56, 56 } }, { { 230, 78 }, { 56, 56 } },
+	    { { 132, 137 }, { 56, 56 } }, { { 49, 137 }, { 56, 56 } }, { { 214, 137 }, { 56, 56 } } },
+	false, false
+};
+
+/** @brief The Salvage page Griswold's window wears, or nullptr (another host, or no painting at all). */
+const SalvageLayout *SalvagePage()
+{
+	if (WindowHost != TransmuteHost::Smith)
+		return nullptr;
+	if (GetLoosePngSize(SalvageTallPage.background).width > 0)
+		return &SalvageTallPage;
+	if (GetLoosePngSize(SalvageSmallPage.background).width > 0)
+		return &SalvageSmallPage;
+	return nullptr;
+}
 int PressedSalvageIcon = -1;
 int LastHoverSalvageIcon = -1;
 /**
@@ -318,7 +373,7 @@ constexpr int SalvageFrameGap = 8;
 /** @brief Whether Griswold's window wears the user's painted Salvage UI (the Roar painting is the missing-file fallback). */
 bool SalvageSkin()
 {
-	return WindowHost == TransmuteHost::Smith && GetLoosePngSize(SalvageCanvasAsset).width > 0;
+	return SalvagePage() != nullptr;
 }
 
 
@@ -354,8 +409,8 @@ bool PaintedButtons()
 
 Size CurrentFrameSize()
 {
-	if (SalvageSkin())
-		return SalvageWindowSize;
+	if (const SalvageLayout *page = SalvagePage(); page != nullptr)
+		return page->window;
 	const ListSkinGeometry *skin = ListSkin();
 	return skin != nullptr ? skin->window : RoarFrameSize;
 }
@@ -364,11 +419,11 @@ Size CurrentFrameSize()
  * TRANSMUTE exist; every other plate is an empty rect, which contains nothing and draws nothing. */
 Rectangle ButtonRect(const Rectangle &window, int index)
 {
-	if (SalvageSkin()) {
+	if (const SalvageLayout *page = SalvagePage(); page != nullptr) {
 		if (index == levski_skin::Close)
-			return Rectangle { window.position + Displacement { SalvageCloseRect.position.x, SalvageCloseRect.position.y }, SalvageCloseRect.size };
+			return Rectangle { window.position + Displacement { page->close.position.x, page->close.position.y }, page->close.size };
 		if (index >= levski_skin::SalvageFirst && index < levski_skin::SalvageFirst + SalvageTierCount) {
-			const Rectangle &r = SalvageIconRects[index - levski_skin::SalvageFirst];
+			const Rectangle &r = page->icons[index - levski_skin::SalvageFirst];
 			return Rectangle { window.position + Displacement { r.position.x, r.position.y }, r.size };
 		}
 		return Rectangle { { 0, 0 }, { 0, 0 } }; // no Transmute, no Recipes on the Salvage window
@@ -1076,6 +1131,9 @@ Rectangle GetLevskiRoarRect()
 	// leaves 287px and the 420px book clamped to x=0 covered the whole item grid). Then the window
 	// slides right exactly as far as the book needs, and no further than the screen allows.
 	const Size frame = CurrentFrameSize();
+	// Griswold's tall Salvage page docks where the shop panel does - bottom-left, same size (2026-09-21).
+	if (const SalvageLayout *page = SalvagePage(); page != nullptr && page->docked)
+		return Rectangle { { 0, BottomDockedTop(frame.height) }, frame };
 	int x = (gnScreenWidth - frame.width) / 2;
 	if (RecipeBookOpen) {
 		const int needed = BookFrameSize(BookFrame::Tall).width + SlotGap;
@@ -1255,11 +1313,38 @@ void DrawTallRecipeBook(const Surface &out)
 	(void)cursor;
 }
 
+/** @brief A 1 px rectangle outline in @p rgb - four fills, so a frame is a stack of these. */
+void OutlineRectRgb(const Surface &out, Rectangle rect, uint32_t rgb, uint8_t fallback)
+{
+	FillRectRgb(out, rect.position.x, rect.position.y, rect.size.width, 1, rgb, fallback);
+	FillRectRgb(out, rect.position.x, rect.position.y + rect.size.height - 1, rect.size.width, 1, rgb, fallback);
+	FillRectRgb(out, rect.position.x, rect.position.y, 1, rect.size.height, rgb, fallback);
+	FillRectRgb(out, rect.position.x + rect.size.width - 1, rect.position.y, 1, rect.size.height, rgb, fallback);
+}
+
+/**
+ * @brief The dark gold frame around the tall page's results (user, 2026-09-21: "draw a dark gold frame for Salvage
+ * results"): a lit edge, the dark gold body and a near-black keyline either side, so it reads as carved into the
+ * painting rather than as a bright outline laid over it.
+*/
+void DrawDarkGoldFrame(const Surface &out, Rectangle inner)
+{
+	const auto grown = [](Rectangle r, int by) {
+		return Rectangle { { r.position.x - by, r.position.y - by }, { r.size.width + 2 * by, r.size.height + 2 * by } };
+	};
+	OutlineRectRgb(out, grown(inner, 3), 0x120E07, 0);                   // the shadow the frame casts outward
+	OutlineRectRgb(out, grown(inner, 2), 0x8A6A1A, PAL16_YELLOW + 8);    // the lit edge
+	OutlineRectRgb(out, grown(inner, 1), 0x5E4712, PAL16_YELLOW + 12);   // the dark gold body
+	OutlineRectRgb(out, inner, 0x120E07, 0);                             // and the keyline inside it
+}
 /** @brief Griswold's painted Salvage window: the forge, the title, the seven icons with the button feel, the results. */
 void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 {
-	DrawLoosePng(out, SalvageCanvasAsset, window.position);
-	DrawString(out, _("Salvage"), Rectangle { window.position + Displacement { SalvageWindowTitle.position.x, SalvageWindowTitle.position.y }, SalvageWindowTitle.size },
+	const SalvageLayout *page = SalvagePage();
+	if (page == nullptr)
+		return;
+	DrawLoosePng(out, page->background, window.position);
+	DrawString(out, _("Salvage"), Rectangle { window.position + Displacement { page->title.position.x, page->title.position.y }, page->title.size },
 	    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	int hoveredNow = -1;
 	for (int i = 0; i < SalvageTierCount; i++) {
@@ -1284,13 +1369,17 @@ void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 		PlayUiMoveSound();
 	LastHoverSalvageIcon = hoveredNow;
 
+	const Rectangle results { window.position + Displacement { page->results.position.x, page->results.position.y }, page->results.size };
+	if (page->goldFrame)
+		DrawDarkGoldFrame(out, results);
+
 	// The message (user, 2026-09-21): "X Rare Items destroyed", then the material's sprite in a 60x60 plate with a
 	// 1 px outline OUTSIDE it in the tier's colour and "X Rare Fibres Salvaged" beside it - all in the tier's colour,
 	// the block centred in the box both ways, replaced by the next press.
 	if (SalvageMessage.shown) {
 		const int t = static_cast<int>(SalvageMessage.tier);
 		const UiFlags color = SalvageTierColors[t];
-		const Rectangle box { window.position + Displacement { SalvageResultsBox.position.x, SalvageResultsBox.position.y }, SalvageResultsBox.size };
+		const Rectangle &box = results;
 		const std::string line1 = fmt::format(fmt::runtime(_("{:d} {:s} Items destroyed")), SalvageMessage.items, _(SalvageTierAdjectives[t]));
 		const std::string line2 = fmt::format(fmt::runtime(_("{:d} {:s} Salvaged")), SalvageMessage.materials, _(AllItemsList[SalvageMaterialFor(SalvageMessage.tier)].iName));
 		const int lineHeight = GetLineHeight(line1, GameFont12);
