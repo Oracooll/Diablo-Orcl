@@ -920,30 +920,16 @@ void DrawStash(const Surface &out)
 		else
 			oracool::DrawSidePanelGridArt(out, panel.position);
 
-		// A 2 px black shadow, 2 px down and 2 px left of the grid-and-frame combo (user, 2026-09-21).
+		// NO cast shadow (user, 2026-09-21: "is there a shadow added to stash grid? if so - remove it.
+		// it is overlapping the frame"). v1.12.122 drew a 2px black L down the left of the
+		// grid-and-frame combo and along its foot, and it was measured against the WRONG frame: the
+		// combo is the grid plus OrnateBorderWidth, which is the procedural bezel's footprint, while
+		// the frame on this canvas is painted and runs y 159..628. The strips therefore landed inside
+		// the painting rather than on the stone beside it.
 		//
-		// Drawn AFTER the canvas, not before it. The frame is painted INTO the canvas and the canvas
-		// is opaque, so a shadow laid down first would be covered by the very thing casting it - this
-		// one falls on the stone beside the frame, which is where a shadow goes.
-		//
-		// Only the L that the offset leaves UNCOVERED is drawn - a strip down the left and one along
-		// the bottom. Filling the whole offset rect would black out the grid's interior, since that
-		// rect covers it.
-		//
-		// The frame sits exactly OrnateBorderWidth outside the grid on every side, measured on the
-		// canvas: the grid's 280x448 at (30,170) against a frame running x 27..312, y 167..620.
-		constexpr int ShadowThickness = 2;
-		const Rectangle grid { GetPanelPosition(UiPanels::Stash, { StashGridLeft, StashGridTop }),
-			{ StashGridWidth, StashGridRows * StashCellPx } };
-		const Rectangle combo { grid.position - Displacement { oracool::OrnateBorderWidth, oracool::OrnateBorderWidth },
-			{ grid.size.width + 2 * oracool::OrnateBorderWidth, grid.size.height + 2 * oracool::OrnateBorderWidth } };
-		const int left = combo.position.x - ShadowThickness;
-		const int bottom = combo.position.y + combo.size.height;
-		// Down the left, from where the offset starts to the shadow's own foot.
-		FillRectRgb(out, left, combo.position.y + ShadowThickness,
-		    ShadowThickness, combo.size.height, 0x000000u, 0);
-		// And along the bottom, reaching back to meet it so the corner is not a notch.
-		FillRectRgb(out, left, bottom, combo.size.width, ShadowThickness, 0x000000u, 0);
+		// Not re-measured against the painted band, because there is nothing for it to fall on: that
+		// band reaches x 26..313 in a 340-wide panel, so a shadow two pixels left of it has seven
+		// pixels of stone and the panel's own edge bezel to share. The canvas paints its own relief.
 	} else if (oracool::HasSidePanelArt()) {
 		oracool::DrawSidePanelArt(out, panel.position);
 	} else {
