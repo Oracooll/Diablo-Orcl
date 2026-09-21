@@ -1484,10 +1484,31 @@ bool HasAbilitiesPanelArt()
 	return !AbilitiesPanelArt.rgba.empty();
 }
 
-void DrawSidePanelDim(const Surface &out, Point origin)
+void DrawSidePanelDim(const Surface &out, Point origin, const Rectangle *keepClear)
 {
 	const Rectangle inner { origin + Displacement { SidePanelCanvasInner.position.x, SidePanelCanvasInner.position.y },
 		SidePanelCanvasInner.size };
+	if (keepClear != nullptr) {
+		// The four bands around the hole. A blend cannot be undone once applied, so the hole is never
+		// covered in the first place - each band is clamped to the opening, and one that comes out
+		// empty simply draws nothing.
+		constexpr uint8_t Blend = PAL16_GRAY + 9;
+		const int holeLeft = std::max(inner.position.x, origin.x + keepClear->position.x);
+		const int holeTop = std::max(inner.position.y, origin.y + keepClear->position.y);
+		const int holeRight = std::min(inner.position.x + inner.size.width, origin.x + keepClear->position.x + keepClear->size.width);
+		const int holeBottom = std::min(inner.position.y + inner.size.height, origin.y + keepClear->position.y + keepClear->size.height);
+		const int innerRight = inner.position.x + inner.size.width;
+		const int innerBottom = inner.position.y + inner.size.height;
+		if (holeTop > inner.position.y)
+			DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y, inner.size.width, holeTop - inner.position.y, Blend);
+		if (innerBottom > holeBottom)
+			DrawHalfTransparentRectTo(out, inner.position.x, holeBottom, inner.size.width, innerBottom - holeBottom, Blend);
+		if (holeLeft > inner.position.x)
+			DrawHalfTransparentRectTo(out, inner.position.x, holeTop, holeLeft - inner.position.x, holeBottom - holeTop, Blend);
+		if (innerRight > holeRight)
+			DrawHalfTransparentRectTo(out, holeRight, holeTop, innerRight - holeRight, holeBottom - holeTop, Blend);
+		return;
+	}
 	// ONE pass, blended with DARK GREY rather than black (user, 2026-09-06: "reduce it to one pass
 	// and apply to all canvases", then "blend it with dark grey instead of black"). Each pixel becomes
 	// the average of itself and a grey ramp entry, snapped to the palette - a little
@@ -1584,7 +1605,11 @@ bool HasInventoryCanvasArt()
 void DrawInventoryCanvasArt(const Surface &out, Point origin)
 {
 	DrawLoosePng(out, InventoryCanvasAsset, origin);
-	DrawSidePanelDim(out, origin);
+	// The grid's painted frame stays UNTINTED (user, 2026-09-21). Measured on the canvas itself: the
+	// ornate band runs x 26..313 and y 412..628, which is 288x217 - the user's own figure, arrived at
+	// from the art rather than typed in.
+	constexpr Rectangle FrameKeptClear { { 26, 412 }, { 288, 217 } };
+	DrawSidePanelDim(out, origin, &FrameKeptClear);
 }
 
 bool HasSidePanelGridArt()

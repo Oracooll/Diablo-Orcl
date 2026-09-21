@@ -169,7 +169,19 @@ bool HasAbilitiesPanelArt();
  * ("reduce it to one pass and apply to all canvases"), which is why DrawSidePanelArt calls it
  * itself. Sized from SidePanelCanvasInner, so it moves with the canvas.
  */
-void DrawSidePanelDim(const Surface &out, Point origin);
+/**
+ * @brief The canvas dim. @p keepClear, when given, is a panel-relative rect left UNTINTED.
+ *
+ * The hole exists for the inventory (user, 2026-09-21: "in the inv screen cut out 288x217px area out
+ * of it because it is tinting my inv grid frame and i dont want it tinted"). The dim is one
+ * half-transparent pass over the whole opening, so a frame painted into the canvas got dimmed along
+ * with everything else - and a gold frame is the one thing on these canvases that is supposed to be
+ * bright.
+ *
+ * Drawn as the bands AROUND the hole rather than as one rect with a gap, because the pass is a blend:
+ * covering the hole and then "undoing" it is not possible once the blend has happened.
+ */
+void DrawSidePanelDim(const Surface &out, Point origin, const Rectangle *keepClear = nullptr);
 
 /** @brief Draws the 340x660 waypoint list panel with its top-left corner at @p origin. */
 void DrawWaypointPanelArt(const Surface &out, Point origin);

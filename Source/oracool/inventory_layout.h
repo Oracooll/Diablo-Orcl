@@ -141,10 +141,24 @@ constexpr const char *TabLabel(int index)
 
 constexpr int ActiveTabGrow = 0;
 
+/**
+ * @brief How much is taken off the BOTTOM of every tab (user, 2026-09-21).
+ *
+ * The painted inventory canvas puts its grid frame's top row at y 412, and the tab row - seated at
+ * TabRowY 388 and 28 tall - reached 415. Four pixels of every tab were drawn over the frame ("you
+ * need to crop the bottom 4px of the tabs row in the inv screen, because they are overlapping with
+ * my inv grid frame").
+ *
+ * Taken off the HEIGHT rather than by moving the row, because TabRowY is derived from the grid's own
+ * top and lifting it would only re-open the same gap somewhere else. The row stays seated where it
+ * is and simply stops four pixels short.
+ */
+constexpr int TabBottomCrop = 4;
+
 /** @brief Panel-relative rect of tab @p index (0 = the original backpack, 1-9 = extra tabs). */
 constexpr Rectangle GetTabRect(int index)
 {
-	return { { TabRowX + index * TabSize.width, TabRowY }, TabSize };
+	return { { TabRowX + index * TabSize.width, TabRowY }, { TabSize.width, TabSize.height - TabBottomCrop } };
 }
 
 /** @brief Rect of tab @p index when it is the selected one - inflated on all four sides. */
