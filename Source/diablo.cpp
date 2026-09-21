@@ -89,6 +89,7 @@
 #include "oracool/runeword_book.h"
 #include "oracool/run_toggle.h"
 #include "oracool/shop_grid.h"
+#include "oracool/shop_tabs.h" // IsShopTab - a tab is a panel, only a dialog is modal
 #include "oracool/ui_sound.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/melee_skills.h"
@@ -509,7 +510,12 @@ void LeftMouseDown(uint16_t modState)
 		// itself belong to the store - the rest fall through to the inventory routing below, which
 		// is what lets the player pick an item up in the first place. Every other store screen
 		// (the towner dialogs, Confirm, No money) still swallows the whole screen, as it always did.
-		if (!oracool::IsShopGridScreen(stextflag) || oracool::IsPointOverShop(MousePosition)) {
+		// IsShopTab, not IsShopGridScreen (2026-09-21). The Salvage tab became a store SCREEN that
+		// draws a painted page, and a non-grid store screen swallows the whole display - so asking the
+		// grid question here would have made that page modal, freezing the player where they stood.
+		// They could then never walk away from the counter, which is precisely the behaviour making it
+		// a store was meant to give it. Every shop TAB is a panel; only the dialogs are modal.
+		if (!oracool::IsShopTab(stextflag) || oracool::IsPointOverShop(MousePosition)) {
 			CheckStoreBtn();
 			return;
 		}

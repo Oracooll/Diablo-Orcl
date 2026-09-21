@@ -1360,7 +1360,14 @@ bool ShopVanillaButtonArtLoaded()
 
 bool IsShopGridScreen(TalkID id)
 {
-	return IsShopTab(id);
+	// A TAB is not the same thing as a GRID, and the Salvage tab is where the two part company (user,
+	// 2026-09-21: "we need to make sure all tabs for all vendors are to be considered Stores, not
+	// windows"). It is one of Griswold's tabs, it is a real store screen, and it draws a painted page
+	// instead of a shelf of items - so it belongs in the tab column and in every piece of store
+	// machinery, and nowhere near the code that draws and hit-tests a grid of stock.
+	//
+	// These two questions used to be one function because no tab had ever been anything but a grid.
+	return IsShopTab(id) && id != TalkID::SmithTransmute;
 }
 
 Rectangle GetShopPanelRect()
@@ -1388,7 +1395,11 @@ bool IsPointOverShop(Point position)
 	// them, which is the exact bug this panel already had once when towners were named through it.
 	if (GetShopPanelRect().contains(position))
 		return true;
-	if (!IsShopGridScreen(stextflag))
+	// Every shop TAB, not just the grid ones: Griswold's Salvage tab is a store screen that draws a
+	// painted page in this same rect, and its tab column is the same column. Asking IsShopGridScreen
+	// here would have left the column outside the shop's footprint while the Salvage page was up, so
+	// a click on a tab would fall through it to whatever is behind - the bug this function exists for.
+	if (!IsShopTab(stextflag))
 		return false;
 	const std::vector<TalkID> tabs = ShopTabsFor(stextflag);
 	for (size_t i = 0; i < tabs.size(); i++) {

@@ -17,6 +17,7 @@
 #include "oracool/stonegate.h" // StonegateEntryTile: where a click on the portal walks to
 #include "oracool/item_tint.h"
 #include "oracool/shop_grid.h"
+#include "oracool/shop_tabs.h" // IsShopTab - the Salvage tab is a tab without being a grid
 #include "controls/plrctrls.h"
 #include "doom.h"
 #include "engine.h"
@@ -1057,7 +1058,11 @@ void CheckCursMove()
 	// The shop panel, like the inventory below it: it covers the world, so nothing behind it may be
 	// targeted. Without this the towners in Griswold's shop were being named and highlighted through
 	// their own shop screen (user report, 2026-08-23).
-	if (oracool::IsShopGridScreen(stextflag) && oracool::IsPointOverShop(MousePosition))
+	// Every shop TAB, not just the grid ones (2026-09-21): the Salvage tab covers the world with a
+	// painted page in the same rect, so asking the grid question here would have put the towners
+	// behind it back in reach - the exact 2026-08-23 report this guard was written for, returning by
+	// the one door left open.
+	if (oracool::IsShopTab(stextflag) && oracool::IsPointOverShop(MousePosition))
 		return;
 	if (invflag && oracool::GetInventoryPanelRect().contains(MousePosition)) {
 		pcursinvitem = CheckInvHLight();

@@ -2223,9 +2223,10 @@ void SmithEnter()
 		StartStore(TalkID::SmithRecharge);
 		break;
 	case TalkID::SmithTransmute:
-		// Not a store screen: the Forge is the transmute window on Griswold's book (Levski's Cube,
-		// decision D8, 2026-09-20). Leave the store first, then open the window.
-		stextflag = TalkID::None;
+		// A real store SCREEN that happens to draw a painted page (2026-09-21). stextflag stays on the
+		// tab, which is what hands it the walk-away, the talk-to-towner close, ESC and the overlap rule
+		// that every other tab already had; UpdateStoreState keeps the page and the flag in step.
+		stextflag = TalkID::SmithTransmute;
 		oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Smith);
 		break;
 	case TalkID::None:
@@ -3768,6 +3769,7 @@ _talker_id TownerForStoreDirect(TalkID id)
 	case TalkID::SmithSetBuy:
 	case TalkID::SmithConsumables:
 	case TalkID::SmithRecharge:
+	case TalkID::SmithTransmute:
 		return TOWN_SMITH;
 	case TalkID::Witch:
 	case TalkID::WitchBuy:
@@ -3822,7 +3824,10 @@ _talker_id TownerForOpenVendorPage()
 	if (oracool::IsLevskiRoarOpen()) {
 		switch (oracool::CurrentTransmuteHost()) {
 		case oracool::TransmuteHost::Smith:
-			return TOWN_SMITH;
+			// NOT claimed here since 2026-09-21: Griswold's Salvage page is a store SCREEN now, so the
+			// store machinery owns its walk-away and its close. Answering TOWN_SMITH would have two
+			// mechanisms closing one page, and the store's is the one that also clears stextflag.
+			return NUM_TOWNER_TYPES;
 		case oracool::TransmuteHost::Tavern:
 			return TOWN_TAVERN;
 		case oracool::TransmuteHost::Barmaid:
@@ -3854,17 +3859,39 @@ bool CloseVendorPageForTowner(_talker_id owner)
 
 void UpdateStoreState()
 {
-	// ---- 0. A vendor's docked PAGE does not follow the player away from the counter either ----
+	// ---- 0. The Salvage tab's PAGE and its store flag are one thing ----
 	//
-	// Griswold's Salvage page and the artisans' workshops are windows, not store screens: they set
-	// stextflag to None and open on their own, so the walk-away below looked straight past them and
-	// the Salvage page stayed open across the whole of town (user report, 2026-09-21).
+	// The tab is a real store screen that draws a painted page (2026-09-21), which is what gives it
+	// the walk-away, the talk-to-towner close, ESC and the overlap rule the other tabs always had.
+	// Two pieces of state have to agree for that to hold: `stextflag == SmithTransmute` and the
+	// window being open.
 	//
-	// The same five tiles the shop screens use, from the same towner, so the two read as one shop.
+	// RECONCILED once a tick rather than maintained at every exit, which is the argument this file
+	// already makes for the service cursor below: `stextflag = TalkID::None` appears a dozen times
+	// here, and a list of places to also close the page would have to stay complete forever.
+	{
+		const bool pageOpen = oracool::IsLevskiRoarOpen()
+		    && oracool::CurrentTransmuteHost() == oracool::TransmuteHost::Smith;
+		if (pageOpen && stextflag != TalkID::SmithTransmute) {
+			oracool::CloseLevskiRoar();
+			// A close can be REFUSED - a page holding items with no room to give them back says so in
+			// red - and then the flag goes back rather than the two drifting apart.
+			if (oracool::IsLevskiRoarOpen())
+				stextflag = TalkID::SmithTransmute;
+		} else if (!pageOpen && stextflag == TalkID::SmithTransmute) {
+			stextflag = TalkID::None; // the page's own X closed it; the screen follows it out
+		}
+	}
+
+	// ---- 0b. The artisans' pages are NOT tabs, and still need this ----
+	//
+	// Ogden's and Gillian's workshops and recipe books are reached from a dialog row, not from a tab
+	// column, so there is no store screen for them to be. They keep the window handling: the same
+	// three tiles from the same towner, so a counter is a counter wherever you meet one.
 	if (const _talker_id pageOwner = TownerForOpenVendorPage(); pageOwner != NUM_TOWNER_TYPES
 	    && leveltype == DTYPE_TOWN && MyPlayer != nullptr) {
 		if (const Towner *towner = GetTowner(pageOwner);
-		    towner != nullptr && MyPlayer->position.tile.WalkingDistance(towner->position) > 5) {
+		    towner != nullptr && MyPlayer->position.tile.WalkingDistance(towner->position) > 3) {
 			CloseVendorPageForTowner(pageOwner);
 		}
 	}
@@ -3900,8 +3927,11 @@ void UpdateStoreState()
 	// inventory to sell), which means the player can walk while it is open, and a threshold equal to
 	// the opening one would slam the shop shut on a single step taken by accident. Five is far
 	// enough to be a decision.
-	// THREE at Wirt's (user, 2026-09-20: "Auto-close Wirts vendor screen when i walk away 3 tiles"); five elsewhere.
-	const int walkAwayTiles = owner == TOWN_PEGBOY ? 3 : 5;
+	// THREE at every counter (user, 2026-09-21: "same walk away (3 tiles) logic"), where it used to be
+	// five everywhere but Wirt's. The paragraph above argued for five, and the user has overruled it:
+	// one threshold for every vendor is what makes them all read as one kind of place. It is close to
+	// the two tiles TalkToTowner needs to OPEN a shop, so a couple of steps now closes one.
+	constexpr int walkAwayTiles = 3;
 	if (MyPlayer->position.tile.WalkingDistance(towner->position) <= walkAwayTiles)
 		return;
 
@@ -4537,7 +4567,7 @@ void StartStore(TalkID s)
 	// book (Levski's Cube, D8). The tab column reaches here, not SmithEnter (audit, 2026-09-20: the
 	// tab drew an empty stock grid).
 	if (s == TalkID::SmithTransmute) {
-		stextflag = TalkID::None;
+		stextflag = TalkID::SmithTransmute; // a store screen that draws a page - see the case above
 		oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Smith);
 		return;
 	}
@@ -5654,6 +5684,15 @@ void DrawSText(const Surface &out)
 	// A shop tab is its own panel and draws none of the text box below - see oracool/shop_grid.h.
 	// The vanilla box is still what Confirm, No money, No room and every towner dialog use, so this
 	// is a branch rather than a replacement.
+	// The Salvage tab is a shop TAB that draws a painted page rather than a grid. It is a real store
+	// screen (2026-09-21), so it takes the overlap rule below with every other tab - but it draws
+	// itself from scrollrt, and the vanilla text box must not be painted over it.
+	if (oracool::IsShopTab(stextflag) && !oracool::IsShopGridScreen(stextflag)) {
+		if (GetLeftPanelContent() != LeftPanelContent::None || oracool::IsRunewordBookOpen())
+			stextflag = TalkID::None; // UpdateStoreState's reconciliation closes the page behind it
+		return;
+	}
+
 	if (oracool::IsShopGridScreen(stextflag)) {
 		// The shop cannot share the screen with the windows that overlap it, so the newer one wins
 		// and the shop closes. Two things make this necessary rather than tidy: the shop is drawn
@@ -5815,6 +5854,11 @@ void StoreESC()
 		StartStore(stextshold);
 		stextsel = stextlhold;
 		stextsval = stextvhold;
+		break;
+	case TalkID::SmithTransmute:
+		// Straight out, not back to his dialog: the Salvage page is a shelf, and Escape on a shelf
+		// closes the shop. UpdateStoreState closes the page behind the flag.
+		stextflag = TalkID::None;
 		break;
 	case TalkID::None:
 		break;

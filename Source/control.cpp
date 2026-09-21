@@ -53,6 +53,7 @@
 #include "oracool/levski_roar.h"
 #include "oracool/workshop.h"
 #include "oracool/shop_grid.h"
+#include "oracool/shop_tabs.h" // IsShopTab - the Salvage tab is a tab without being a grid
 #include "oracool/crafting_menu.h"
 #include "oracool/ui_sound.h"
 #include "oracool/waypoint_menu.h"
@@ -276,7 +277,10 @@ bool IsOverAnyInterface(Point position)
 	// The shop is a panel rather than a modal screen (see LeftMouseDown), so only the shop's own
 	// rect counts as interface - the rest of the screen stays clickable, which is what lets an item
 	// be dragged out of the inventory to sell it.
-	if (stextflag != TalkID::None && oracool::IsShopGridScreen(stextflag)
+	// Every shop TAB, not just the grid ones (2026-09-21) - the Salvage tab is a store screen that
+	// draws a page in this same rect, and a page that does not count as interface is a page the world
+	// can be clicked through.
+	if (stextflag != TalkID::None && oracool::IsShopTab(stextflag)
 	    && oracool::IsPointOverShop(position))
 		return true;
 	return false;
