@@ -26,6 +26,7 @@
 #include "loadsave.h"
 #include "oracool/auto_save.h"
 #include "oracool/oracool.h"
+#include "oracool/shop_grid.h" // SliceButtonAxis - the loading bar is laid across the screen like every other sliced control
 #include "pfile.h"
 #include "plrmsg.h"
 #include "utils/png.h"
@@ -362,6 +363,68 @@ void DrawCutsceneBackground()
 	ClxDraw(out, { uiRectangle.position.x, 480 - 1 + uiRectangle.position.y }, (*sgpBackCel)[0]);
 }
 
+/**
+ * The end-to-end loading bar's art (user, 2026-09-21): the game's own progress-bar pair, the empty
+ * carved track and the gold fill it is revealed under, 228x37 each with the export padding - a blank
+ * top row and four columns of pure green - cut away.
+ *
+ * Loaded as TRUE-COLOUR SDL surfaces rather than through the ui\ PNG cache every window uses, and
+ * that is the whole reason they live here rather than in hud_art. The loading screen runs on the
+ * CUTSCENE's palette, not the game's - which is exactly what BarColor above exists for, one index
+ * per cutscene - so art quantised against the active palette would come out in whatever colours the
+ * cutscene happens to carry, and would change from one load screen to the next. These bypass the
+ * palette entirely, as the cutscene painting itself does.
+ */
+constexpr const char *BarTrackAsset = "ui\\loadbar_track.png";
+constexpr const char *BarFillAsset = "ui\\loadbar_fill.png";
+/**
+ * The carved end kept whole when 228 pixels of bar are laid across a wider screen: three columns of
+ * gold bevel and three of inner shadow at each end of the art.
+ */
+constexpr int BarCapWidth = 6;
+
+SDLSurfaceUniquePtr BarTrack;
+SDLSurfaceUniquePtr BarFill;
+bool BarArtLoadAttempted;
+
+/** @brief Loads the bar's two surfaces once. Either one missing leaves the gradient in charge. */
+void EnsureBarArt()
+{
+	if (BarArtLoadAttempted)
+		return;
+	BarArtLoadAttempted = true;
+	BarTrack = SDLSurfaceUniquePtr { LoadPNG(BarTrackAsset) };
+	BarFill = SDLSurfaceUniquePtr { LoadPNG(BarFillAsset) };
+	if (BarTrack == nullptr || BarFill == nullptr)
+		LogWarn("Loading bar: {:s} or {:s} is missing - the gradient bar draws instead", BarTrackAsset, BarFillAsset);
+}
+
+/**
+ * @brief Lays @p art along the screen's floor, end to end, drawing only its first @p limit pixels.
+ *
+ * 228 pixels of authored bar have to cover up to six times that, so it is laid the way every other
+ * sliced control in this mod is (SliceButtonAxis): both carved ends whole and the middle repeated
+ * between them, at 1:1 and never stretched, because a stretched bevel stops reading as carved.
+ *
+ * @p limit is what lets one function serve both sprites. The track is drawn to the full width and
+ * the fill to the progress, so the fill's leading edge is a hard cut through the middle of whichever
+ * repeat it happens to land in - which is what a bar filling up looks like.
+ */
+void BlitBarRun(const Surface &out, SDL_Surface *art, int limit)
+{
+	if (art == nullptr || limit <= 0)
+		return;
+	const int top = out.h() - art->h;
+	for (const oracool::ButtonSliceSpan &span : oracool::SliceButtonAxis(out.w(), art->w, BarCapWidth)) {
+		if (span.dest >= limit)
+			break;
+		const int length = std::min(span.length, limit - span.dest);
+		SDL_Rect src = MakeSdlRect(span.source, 0, length, art->h);
+		SDL_Rect dst = MakeSdlRect(out.region.x + span.dest, out.region.y + top, length, art->h);
+		SDL_BlitSurface(art, &src, out.surface, &dst);
+	}
+}
+
 void DrawCutsceneForeground()
 {
 	const Surface &out = GlobalBackBuffer();
@@ -380,9 +443,26 @@ void DrawCutsceneForeground()
 	// happened to land.
 	const int trackWidth = out.w();
 	const int fillWidth = static_cast<int>(sgdwProgress) * trackWidth / static_cast<int>(MaxProgress);
-	SDL_Rect rect = MakeSdlRect(out.region.x, out.region.y + out.h() - ProgressHeight, fillWidth, ProgressHeight);
 
-	if (out.isIndexed()) {
+	// The carved bar replaces the gradient wherever its art and a true-colour screen are both present
+	// (user, 2026-09-21: "assemble end-to-end loading bar during loading times using these files,
+	// replacing the current gradient loading bar"). The gradient stays as the fallback, and remains
+	// the only thing the 8-bit path can draw.
+	EnsureBarArt();
+	const bool carved = !out.isIndexed() && BarTrack != nullptr && BarFill != nullptr;
+	// The art's own height, never scaled to the gradient's 15. Stretching a 37px bevel into 15 would
+	// throw away the very carving that is the point of using it.
+	const int barHeight = carved ? BarTrack->h : ProgressHeight;
+	// What gets pushed to the screen: the WHOLE track for the carved bar, whose empty part is drawn
+	// too, and only the filled part for the gradient, which is all that ever changes there.
+	SDL_Rect rect = MakeSdlRect(out.region.x, out.region.y + out.h() - barHeight,
+	    carved ? trackWidth : fillWidth, barHeight);
+
+	if (carved) {
+		// The empty track end to end, then the fill revealed over it up to the progress.
+		BlitBarRun(out, BarTrack.get(), trackWidth);
+		BlitBarRun(out, BarFill.get(), fillWidth);
+	} else if (out.isIndexed()) {
 		// One palette index, as before. A per-column gradient here would need a nearest-palette match
 		// per column, and this is the legacy 8-bit path - the 32-bit screen is what ships.
 		//
