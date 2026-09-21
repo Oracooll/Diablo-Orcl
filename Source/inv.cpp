@@ -345,6 +345,17 @@ namespace {
 OptionalOwnedClxSpriteList pInvCels;
 
 /**
+ * @brief The backpack tab being held down, or -1. The page turns on the RELEASE, inside the same tab.
+ *
+ * The button mechanic is the game-wide default (user, 2026-09-21: "we need to make this programming
+ * mechanic a default for buttons game-wide"), and these tabs were the last strip still acting on the
+ * press. See ReleaseInventoryTabButton.
+ */
+int PressedInventoryTab = -1;
+/** @brief The 2 px down-left sink every pressed button in this mod wears. */
+constexpr Displacement InventoryTabSink { -2, 2 };
+
+/**
  * @brief Adds an item to a player's InvGrid array
  * @param player The player reference
  * @param invGridIndex Item's position in InvGrid (this should be the item's topleft grid tile)
@@ -1894,10 +1905,13 @@ void DrawInventoryTabs(const Surface &out)
 	// The tab's glyph is a ChatGPT commission (brief in .ProjectDocumentation/06-Reference); until it
 	// lands the numeral stands in, white with the text shadow, like the belt's TP and M.
 	const auto drawTab = [&](int tab, Rectangle panelRect, oracool::SkillPlateTint tint) {
-		const Rectangle screenRect { panel.position + Displacement { panelRect.position.x, panelRect.position.y }, panelRect.size };
+		const Rectangle seated { panel.position + Displacement { panelRect.position.x, panelRect.position.y }, panelRect.size };
+		// Held down: the face sinks and springs back on the release. The HIT test stays on the seated
+		// rect, so a tab cannot slide out from under a pointer that has not moved.
+		const Rectangle screenRect { seated.position + (PressedInventoryTab == tab ? InventoryTabSink : Displacement { 0, 0 }), seated.size };
 		oracool::DrawPlateIn(out, screenRect, tint);
 		const bool open = tab == ActiveInventoryTab;
-		const bool hovered = !open && screenRect.contains(MousePosition);
+		const bool hovered = !open && seated.contains(MousePosition);
 		// The chest glyph (oracool-tab-chest-glyphs-v1, in since v1.9.293): lid down on a closed tab,
 		// raised on the open one, gold under the cursor. The numerals (v1.9.292) were not liked; the
 		// font's numeral stands in when the strip is missing.
@@ -3110,6 +3124,18 @@ bool CheckInventorySortButtonClick(Point cursorPosition)
  * Switching tabs works the same whether or not an item is currently held on the cursor - that's
  * how you carry an item from one tab's view into another's.
  */
+void ReleaseInventoryTabButton()
+{
+	const int tab = PressedInventoryTab;
+	PressedInventoryTab = -1; // always taken, so a press that outlived the panel cannot turn a page late
+	if (tab < 0 || !TabbedInventoryEnabled())
+		return;
+	const Displacement panelOffset = Point { 0, 0 } - oracool::GetInventoryPanelRect().position;
+	if (!oracool::GetTabRect(tab).contains(MousePosition + panelOffset))
+		return; // released off the tab: nothing happens
+	ActiveInventoryTab = tab;
+}
+
 bool CheckInventoryTabClick(Point cursorPosition)
 {
 	if (!TabbedInventoryEnabled())
@@ -3123,9 +3149,15 @@ bool CheckInventoryTabClick(Point cursorPosition)
 	// it. Both problems are gone with the button; the tenth page is simply a page.
 	for (int tab = 0; tab < oracool::TabCount; tab++) {
 		if (oracool::GetTabRect(tab).contains(cursorPosition + panelOffset)) {
-			if (ActiveInventoryTab != tab)
-				oracool::PlayUiMoveSound(); // the tab you are on absorbs the click silently, as the shop's does
-			ActiveInventoryTab = tab;
+			// The press only SINKS the tab and sounds; the page turns on the mouse-up, and only if the
+			// release lands back inside this tab (ReleaseInventoryTabButton).
+			//
+			// EVERY tab click sounds, including the one you are already on (user, 2026-09-21: "the same
+			// sound should be played when clicking on all tabs"). It used to be silent there, on the
+			// grounds that nothing had changed - but a button that answers only sometimes reads as a
+			// button that missed the click, and the vendor and workshop columns both sound on every press.
+			PressedInventoryTab = tab;
+			oracool::PlayUiMoveSound();
 			return true;
 		}
 	}

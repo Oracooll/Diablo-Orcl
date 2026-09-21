@@ -297,7 +297,13 @@ struct SalvageLayout {
 	bool goldFrame;
 };
 
-constexpr const char *SalvageTallCanvasAsset = "ui\\salvage_canvas_tall.png";
+/**
+ * Griswold's redesigned canvas, shared with his shop tabs (user, 2026-09-21: "We replace the canvas for all his
+ * tabs, including the new Salvage tab"). One painting behind every door of his shop, so moving between the shelves
+ * and the Salvage page no longer changes the room. His old Salvage-only painting (ui\salvage_canvas_tall.png) is
+ * still in the archive and is no longer read.
+ */
+constexpr const char *SalvageTallCanvasAsset = "ui\\griswold_canvas.png";
 /**
  * Measured on the resampled painting: the lit forge ends and the bare floor begins about y 378, so the first icon row
  * overlaps it by thirty pixels. Four across then three, at the 66 px pitch the 320 page used, centred in the canvas's
@@ -306,7 +312,9 @@ constexpr const char *SalvageTallCanvasAsset = "ui\\salvage_canvas_tall.png";
  */
 constexpr SalvageLayout SalvageTallPage {
 	{ 340, 720 }, SalvageTallCanvasAsset,
-	{ { 22, 26 }, { 296, 40 } },   // the title, in the dark of the smithy's roof
+	// NO title (user, 2026-09-21: "We remove the Salvage title from Salvage tab"). An empty rect rather than an
+	// empty string, so the draw skips it outright and nothing reserves the band.
+	{ { 0, 0 }, { 0, 0 } },
 	{ { 30, 486 }, { 280, 126 } }, // the results, inside the gold frame; its title rides the top border
 	{ { 316, 5 }, { 18, 18 } },
 	// 4x2 at the row's own 66 px pitch, split by whether the plate asks first (user, 2026-09-21): row one is the
@@ -1575,8 +1583,12 @@ void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 	if (page == nullptr)
 		return;
 	DrawLoosePng(out, page->background, window.position);
-	DrawString(out, _("Salvage"), Rectangle { window.position + Displacement { page->title.position.x, page->title.position.y }, page->title.size },
-	    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	// A page with no title rect draws no title - the tall page since 2026-09-21, where the painting says whose
+	// forge this is and the tab beside it says which of his doors you came through.
+	if (page->title.size.width > 0) {
+		DrawString(out, _("Salvage"), Rectangle { window.position + Displacement { page->title.position.x, page->title.position.y }, page->title.size },
+		    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	}
 	int hoveredNow = -1;
 	for (int i = 0; i < SalvageTierCount; i++) {
 		const Rectangle rect = SalvageButtonRect(window, i);

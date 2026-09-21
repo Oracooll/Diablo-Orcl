@@ -759,6 +759,8 @@ void LeftMouseUp(uint16_t modState)
 	oracool::ReleaseWorkshopButton();       // and the artisan workshop's (2026-09-21)
 	oracool::ReleaseLevskiButtons();       // and Levski's Cube's painted TRANSMUTE / RECIPE BOOK (2026-09-20)
 	oracool::ReleaseShopTabButton();       // and the vendor tab the player was holding down (2026-09-21)
+	oracool::ReleaseShopServiceButton();   // and Griswold's six service buttons (2026-09-21)
+	ReleaseInventoryTabButton();           // and the backpack tabs, the last strip to act on the press
 }
 
 // Oracool bug fix (2026-08-16): user report - "i cant hit with rmb with regular attack."
@@ -3545,6 +3547,21 @@ bool TryIconCurs()
 				oracool::UseSalvageItemCursor(myPlayer, pcursinvtabidx, pcursinvtabitem);
 			else
 				oracool::CancelSalvageItemCursor();
+			CalcPlrInv(myPlayer, true);
+			NewCursor(CURSOR_HAND);
+			return true;
+		}
+		// Griswold's Sell button wears the same hammer (user, 2026-09-21: "when clicked use the Repair
+		// Item hammer cursor and when clicked on an item it is sold"). Asked before the paid repair,
+		// because both are armed by the shop and only ShopArmedServiceCursor separates them. It always
+		// spends the click: a refused sale leaves the item alone and puts the cursor down rather than
+		// falling through to a repair the player did not ask for.
+		if (IsShopSellCursorArmed()) {
+			if (pcursinvitem != -1 && !IsInspectingPlayer())
+				ShopSellItemAt(myPlayer, -1, pcursinvitem - INVITEM_INV_FIRST);
+			else if (pcursinvtabitem != -1 && !IsInspectingPlayer())
+				ShopSellItemAt(myPlayer, pcursinvtabidx, pcursinvtabitem);
+			DisarmShopServiceCursor();
 			CalcPlrInv(myPlayer, true);
 			NewCursor(CURSOR_HAND);
 			return true;

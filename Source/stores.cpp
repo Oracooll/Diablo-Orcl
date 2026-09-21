@@ -5054,6 +5054,67 @@ void ArmShopRepairCursor()
 	NewCursor(CURSOR_REPAIR);
 }
 
+void ArmShopSellCursor()
+{
+	// The HAMMER, not a cursor of its own (user, 2026-09-21: "when clicked use the Repair Item hammer
+	// cursor"). Sharing CURSOR_REPAIR means sharing its targeting and TryIconCurs' inventory/tab/stash
+	// routing; ShopArmedServiceCursor is what tells the click apart from a paid repair, and it is
+	// asked before either of them.
+	ShopArmedServiceCursor = ShopServiceCursor::Sell;
+	NewCursor(CURSOR_REPAIR);
+}
+
+bool ShopSellItemAt(Player &player, int tab, int index)
+{
+	if (index < 0)
+		return false;
+	Item *item = nullptr;
+	if (tab < 0) {
+		if (index >= player._pNumInv)
+			return false;
+		item = &player.InvList[index];
+	} else {
+		if (tab >= Player::NumExtraInventoryTabs || index >= player._pNumInvTab[tab])
+			return false;
+		item = &player.InvTabList[tab][index];
+	}
+	if (item->isEmpty())
+		return false;
+
+	// The vendor's OWN list of what they take, the same two functions every sell screen has always
+	// used - Adria does not buy armour and Griswold does not buy potions, and that judgement is not
+	// re-decided here.
+	const bool witch = IsWitchShopScreen(stextflag);
+	if (!witch && !oracool::IsShopGridScreen(stextflag))
+		return false;
+	if (!(witch ? WitchSellOk(*item) : SmithSellOk(*item)))
+		return false;
+
+	// Recorded UNCHANGED, with the price alongside - see SoldItem::item. Overwriting the item with
+	// its own sale price is what once made a sold-and-rebought item lose three quarters of its value.
+	const Item sold = *item;
+	const int price = GetItemSellValue(sold);
+	// The item's own cells DO free up here, unlike the held-item sale - it is in the pack, so selling
+	// it makes room the gold may need.
+	if (!StoreGoldFit(price, item)) {
+		stextshold = stextflag;
+		stextlhold = stextup;
+		StartStore(TalkID::NoRoom);
+		return false;
+	}
+
+	RecordSale(sold, price);
+	if (tab < 0)
+		player.RemoveInvItem(index, false);
+	else
+		RemoveExtraTabItem(player, tab, index);
+	CreditSaleProceeds(price);
+	PlaySFX(IS_GOLD); // the gold drop, as the user asked
+	CalcPlrInv(player, true);
+	oracool::ScheduleAutoSaveForStoreTransaction();
+	return true;
+}
+
 void ArmShopRechargeCursor()
 {
 	// Adria's twin of the above, and deliberately the same shape (user, 2026-08-27: "make recharge
@@ -5119,6 +5180,11 @@ bool IsShopRepairCursorArmed()
 bool IsShopRechargeCursorArmed()
 {
 	return ShopServiceCursorLive(ShopServiceCursor::Recharge);
+}
+
+bool IsShopSellCursorArmed()
+{
+	return ShopServiceCursorLive(ShopServiceCursor::Sell);
 }
 
 void DisarmShopServiceCursor()
@@ -5378,6 +5444,54 @@ std::vector<oracool::ShopAction> GetShopActions(TalkID id)
 		break;
 	}
 	return actions;
+}
+
+namespace {
+
+/** @brief The bulk-sale row of @p id, or -1. Read off GetShopActions so the gating cannot drift. */
+int SellAllLineOn(TalkID id)
+{
+	for (const oracool::ShopAction &action : GetShopActions(id)) {
+		if (action.line == GriswoldTabSellAllLine || action.line == SmithSellAllLine())
+			return action.line;
+	}
+	return -1;
+}
+
+/** @brief The stock-refresh row of @p id, or -1. "Refresh until" is deliberately not one of these. */
+int RefreshLineOn(TalkID id)
+{
+	for (const oracool::ShopAction &action : GetShopActions(id)) {
+		if (action.line == PremiumRefreshLine())
+			return action.line;
+	}
+	return -1;
+}
+
+} // namespace
+
+bool ShopTabHasSellAll(TalkID id)
+{
+	return SellAllLineOn(id) != -1;
+}
+
+bool ShopTabHasRefresh(TalkID id)
+{
+	return RefreshLineOn(id) != -1;
+}
+
+void ShopRunSellAll(TalkID id)
+{
+	const int line = SellAllLineOn(id);
+	if (line != -1)
+		ShopActivateAction(id, line);
+}
+
+void ShopRunRefresh(TalkID id)
+{
+	const int line = RefreshLineOn(id);
+	if (line != -1)
+		ShopActivateAction(id, line);
 }
 
 /**

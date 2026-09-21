@@ -188,6 +188,14 @@ void AddItemToActiveInvGrid(Player &player, int invGridIndex, int invListIndex, 
 /** @brief Hit-tests the Tabbed Inventory tab buttons; switches ActiveInventoryTab and returns true if cursorPosition landed on one. */
 bool CheckInventoryTabClick(Point cursorPosition);
 
+/**
+ * @brief LeftMouseUp for the backpack tabs: the pressed tab opens, if the release is inside it.
+ *
+ * The press only sinks the tab (CheckInventoryTabClick); this is where the page actually turns. The
+ * standing button mechanic, which is the default for every button in the game since 2026-09-21.
+ */
+void ReleaseInventoryTabButton();
+
 /** @brief The backing under an item: the tier tint over vanilla's stone, and - on a GRID (gridLines, every grid but the
  * body slots) - a 1 px gold outline of the footprint with 1 px grey cell lines inside (user, 2026-09-20). */
 void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const Item &item, bool gridLines = true);

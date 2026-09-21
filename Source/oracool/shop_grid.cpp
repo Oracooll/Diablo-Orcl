@@ -414,6 +414,13 @@ enum class ServiceButton : uint8_t {
 	Recharge,
 	/** Wirt's two grids: lay out a fresh stock, free (user, 2026-09-20: "introduce Refresh buttons to Wirts two shops"). */
 	Refresh,
+	/**
+	 * Griswold's redesigned page only (2026-09-21). Sell arms the hammer to sell ONE item where it
+	 * lies; Sell all is the bulk sale that was a text action on the second row before the redesign
+	 * gave every service a painted frame of its own.
+	 */
+	Sell,
+	SellAll,
 };
 
 /**
@@ -569,6 +576,111 @@ const char *ShopPriceLabel(TalkID id)
 	}
 }
 
+/*
+ * GRISWOLD'S REDESIGNED PAGE (user, 2026-09-21).
+ *
+ * His tabs wear their own painted 340x720 canvas - the forge, with Griswold standing at it - instead
+ * of the shared limestone side panel, carry no title band, and put SIX service buttons in permanent
+ * painted frames over the painting with his gold at the foot.
+ *
+ * EVERY NUMBER BELOW IS MEASURED, not chosen. The user supplied a plain canvas and a guide canvas
+ * carrying the frames and the gold in place; diffing the two gives the marks' exact boxes, which is
+ * what these are. Three frames stand either side of Griswold, who occupies the middle of his own
+ * painting - so the row reads as two groups of three rather than one run of six, and the order the
+ * user gave (Repair, Repair All, Recharge | Sell, Sell All, Refresh) falls into that split as the
+ * three things done TO your gear and the three done WITH the shelf.
+ */
+constexpr const char *GriswoldCanvasAsset = "ui\\griswold_canvas.png";
+constexpr const char *ShopButtonFrameAsset = "ui\\shop_button_frame.png";
+constexpr const char *ShopGoldIconAsset = "ui\\shop_gold_icon.png";
+
+constexpr int ShopServiceSlotCount = 6;
+/** @brief The frame art's own size; the guide's marks are exactly this, so the origins are the frames'. */
+constexpr Size ShopServiceSlotSize { 34, 34 };
+constexpr Point ShopServiceSlotAt[ShopServiceSlotCount] = {
+	{ 24, 128 }, { 60, 128 }, { 96, 128 },
+	{ 210, 128 }, { 246, 128 }, { 282, 128 }
+};
+/** @brief In the user's stated order: "Repair, Repair All, Recharge, Sell, Sell All, Refresh". */
+constexpr ServiceButton ShopServiceSlotDoes[ShopServiceSlotCount] = {
+	ServiceButton::Repair, ServiceButton::RepairAll, ServiceButton::Recharge,
+	ServiceButton::Sell, ServiceButton::SellAll, ServiceButton::Refresh
+};
+/** @brief RfA-25's 24x24 glyphs (batch 48) - the size that fits a 34x34 frame with an even margin. */
+constexpr const char *ShopServiceSlotGlyph[ShopServiceSlotCount] = {
+	"ui\\shop_glyph_repair.png", "ui\\shop_glyph_repair_all.png", "ui\\shop_glyph_recharge.png",
+	"ui\\shop_glyph_sell.png", "ui\\shop_glyph_sell_all.png", "ui\\shop_glyph_refresh.png"
+};
+/** @brief (34 - 24) / 2 - the glyph centred in its frame. */
+constexpr int ShopServiceGlyphInset = 5;
+
+/**
+ * The gold pile and its count at the foot of the painting, below the grid.
+ *
+ * The icon's origin is back-calculated: the guide's mark is the pile's INK at (27,632) and the ink
+ * sits five rows down inside the 28x28 file, so the file goes at (27,627). Placing the file where
+ * the ink was measured would have dropped the pile five pixels.
+ */
+constexpr Point ShopGoldIconAt { 27, 627 };
+constexpr Point ShopGoldCountAt { 25, 654 };
+constexpr int ShopGoldCountHeight = 16;
+
+/** @brief Griswold's shop tabs - the ones the redesign dresses. The Salvage page is its own window. */
+bool IsSmithShopScreen(TalkID id)
+{
+	return IsAnyOf(id, TalkID::SmithBuy, TalkID::SmithPremiumBuy, TalkID::SmithUniqueBuy,
+	    TalkID::SmithRareBuy, TalkID::SmithSetBuy, TalkID::SmithConsumables, TalkID::SmithSell,
+	    TalkID::SmithRepair, TalkID::SmithRecharge);
+}
+
+/**
+ * @brief Whether @p id draws the redesigned page rather than the old limestone-and-rows layout.
+ *
+ * Gated on the ART, not only on the vendor: without the canvas the six frames would float over bare
+ * limestone with nothing to anchor them, so a build short of the asset keeps the layout that matches
+ * what it can draw. Every other vendor keeps that layout too - this canvas is Griswold's forge, and
+ * Adria at a forge would be worse than Adria on limestone.
+ */
+bool IsRedesignedShopScreen(TalkID id)
+{
+	return IsSmithShopScreen(id) && HasShopArt(GriswoldCanvasAsset);
+}
+
+/** @brief Where a slot's frame sits on screen. */
+Rectangle ShopServiceSlotRect(int slot)
+{
+	const Rectangle panel = GetShopPanelRect();
+	return Rectangle { panel.position + Displacement { ShopServiceSlotAt[slot].x, ShopServiceSlotAt[slot].y },
+		ShopServiceSlotSize };
+}
+
+/**
+ * @brief Whether slot @p slot can do anything on tab @p id.
+ *
+ * Repair, Repair All, Recharge and Sell are Griswold's OWN services and are live on every one of his
+ * tabs: the frames are permanent fixtures now, so gating them per tab the way the old variable row
+ * did would leave holes in a painted row. Sell All and Refresh stay gated, because they act on the
+ * TAB rather than on the player - and Refresh in particular is absent from Unique and Set by a rule
+ * worth keeping (both shelves are drawn without replacement, so a refresh would reshuffle the same
+ * contents and read as broken).
+ */
+bool ShopServiceSlotEnabled(int slot, TalkID id)
+{
+	switch (ShopServiceSlotDoes[slot]) {
+	case ServiceButton::SellAll:
+		return ShopTabHasSellAll(id);
+	case ServiceButton::Refresh:
+		return ShopTabHasRefresh(id);
+	default:
+		return true;
+	}
+}
+
+/** @brief The slot being held down, or -1. The action runs on the release, inside the same slot. */
+int PressedShopServiceSlot = -1;
+/** @brief The slot the cursor was last over, so the hover sound fires once on entry. */
+int LastHoverShopServiceSlot = -1;
+
 /** @brief Which services this vendor performs, in draw order. Empty for a vendor with none. */
 std::vector<ServiceButton> ServicesFor(TalkID id)
 {
@@ -613,6 +725,10 @@ std::string ServiceButtonLabel(ServiceButton service)
 		return std::string(_("Recharge"));
 	case ServiceButton::Refresh:
 		return std::string(_("Refresh"));
+	case ServiceButton::Sell:
+		return std::string(_("Sell"));
+	case ServiceButton::SellAll:
+		return std::string(_("Sell all"));
 	}
 	return {};
 }
@@ -801,7 +917,11 @@ Rectangle ShopPageButtonRect(int index)
 	const int left = index == 0
 	    ? panel.position.x + ShopTabStripLeft
 	    : panel.position.x + ShopTabStripLeft + ShopTabStripWidth - PageButtonWidth;
-	return Rectangle { { left, panel.position.y + ShopGoldTop }, { PageButtonWidth, ShopGoldHeight } };
+	// The redesigned page has no gold ROW - the gold is a pile and a number at the foot of the
+	// painting - so the arrows ride at the far end of that line instead, where nothing else sits.
+	// Answered HERE rather than at each caller so the draw and the hit test cannot disagree.
+	const int top = IsRedesignedShopScreen(stextflag) ? ShopGoldCountAt.y : ShopGoldTop;
+	return Rectangle { { left, panel.position.y + top }, { PageButtonWidth, ShopGoldHeight } };
 }
 
 /** @brief The red X, top-right, same as every other Oracool window's. */
@@ -859,7 +979,16 @@ void SetServiceHint(ServiceButton service)
 		break;
 	case ServiceButton::Refresh:
 		SetPanelString(_("Refresh"), UiFlags::ColorWhitegold);
-		AddPanelString(_("Wirt lays out a fresh stock on this tab. Free."), UiFlags::ColorWhite);
+		AddPanelString(_("A fresh stock is laid out on this tab. Free."), UiFlags::ColorWhite);
+		break;
+	case ServiceButton::Sell:
+		SetPanelString(_("Sell an Item"), UiFlags::ColorWhitegold);
+		AddPanelString(_("Click for the hammer, then click any item to sell it."), UiFlags::ColorWhite);
+		AddPanelString(_("Or drop an item anywhere on this panel."), UiFlags::ColorWhite);
+		break;
+	case ServiceButton::SellAll:
+		SetPanelString(_("Sell All"), UiFlags::ColorWhitegold);
+		AddPanelString(_("Sells everything in your backpack this vendor will take."), UiFlags::ColorWhite);
 		break;
 	}
 }
@@ -932,6 +1061,73 @@ void DrawShopControls(const Surface &out, int pageCount)
 		{ 60, ShopGoldHeight } };
 	DrawString(out, StrCat(ShopGridPage + 1, "/", pageCount), pageLabel,
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+}
+
+/** @brief The 2px down-left sink every pressed button in this mod wears. */
+constexpr Displacement ShopServiceSink { -2, 2 };
+constexpr int ShopServiceHoverBrighten = 115;
+
+/**
+ * @brief Griswold's six service buttons and his gold, drawn over his own canvas.
+ *
+ * All six frames are drawn on EVERY one of his tabs. One the tab cannot do is desaturated in place
+ * rather than left out: the frames are painted fixtures at measured positions now, and a row with a
+ * hole in it reads as a bug rather than as a rule. The grey is the same white-hue pass the inactive
+ * Act buttons wear, so "not here" looks the same everywhere in the mod.
+ */
+void DrawRedesignedControls(const Surface &out, int pageCount)
+{
+	const Rectangle panel = GetShopPanelRect();
+	const bool frameArt = HasShopArt(ShopButtonFrameAsset);
+	int hoveredNow = -1;
+	for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
+		const Rectangle rect = ShopServiceSlotRect(slot);
+		const bool hovered = rect.contains(MousePosition);
+		const bool enabled = ShopServiceSlotEnabled(slot, stextflag);
+		if (hovered)
+			hoveredNow = slot;
+		// Held down: the face sinks and springs back on the release. The HIT test stays on the unsunk
+		// rect, so a button cannot slide out from under a pointer that has not moved.
+		const Rectangle face { rect.position + (PressedShopServiceSlot == slot ? ShopServiceSink : Displacement { 0, 0 }), rect.size };
+		if (frameArt)
+			DrawLoosePng(out, ShopButtonFrameAsset, face.position);
+		else
+			DrawOrnateBorder(out, face);
+		if (GetLoosePngSize(ShopServiceSlotGlyph[slot]).width > 0) {
+			DrawLoosePng(out, ShopServiceSlotGlyph[slot],
+			    { face.position.x + ShopServiceGlyphInset, face.position.y + ShopServiceGlyphInset });
+		} else {
+			// No glyph delivered: the service's own word, which a 34px frame can just hold.
+			DrawString(out, ServiceButtonLabel(ShopServiceSlotDoes[slot]), face,
+			    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		}
+		if (!enabled) {
+			TintRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height,
+			    0xFFFFFFu, /*brightnessPercent=*/70, /*floorPercent=*/0, PAL16_GRAY);
+		} else if (hovered) {
+			BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, ShopServiceHoverBrighten);
+		}
+	}
+	if (hoveredNow >= 0 && hoveredNow != LastHoverShopServiceSlot)
+		PlayUiMoveSound();
+	LastHoverShopServiceSlot = hoveredNow;
+
+	// His gold at the foot of the painting: the pile, with the number under it. No plate and no
+	// "Your gold:" label - the pile says what the number is.
+	if (HasShopArt(ShopGoldIconAsset))
+		DrawLoosePng(out, ShopGoldIconAsset, panel.position + Displacement { ShopGoldIconAt.x, ShopGoldIconAt.y });
+	DrawString(out, FormatInteger(TotalPlayerGold()),
+	    Rectangle { panel.position + Displacement { ShopGoldCountAt.x, ShopGoldCountAt.y }, { 140, ShopGoldCountHeight } },
+	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter | UiFlags::Shadowed });
+
+	if (pageCount <= 1)
+		return;
+	for (int i = 0; i < 2; i++) {
+		const Rectangle rect = ShopPageButtonRect(i);
+		DrawOrnateBorder(out, rect);
+		DrawString(out, i == 0 ? "<" : ">", rect,
+		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	}
 }
 
 /**
@@ -1054,6 +1250,40 @@ TalkID TakeReleasedShopTab()
 	if (pressed == TalkID::None || !rect.contains(MousePosition))
 		return TalkID::None; // released off the tab it was pressed on: nothing happens
 	return pressed;
+}
+
+void ReleaseShopServiceButton()
+{
+	const int slot = PressedShopServiceSlot;
+	PressedShopServiceSlot = -1; // always taken, so a press that outlived its screen cannot fire late
+	if (slot < 0 || !IsRedesignedShopScreen(stextflag))
+		return;
+	if (!ShopServiceSlotRect(slot).contains(MousePosition))
+		return; // released off the button: nothing happens
+	if (!ShopServiceSlotEnabled(slot, stextflag))
+		return;
+	switch (ShopServiceSlotDoes[slot]) {
+	case ServiceButton::Repair:
+		// The hammer, not an instant repair (user, 2026-08-27): pick it up, then click the item.
+		ArmShopRepairCursor();
+		break;
+	case ServiceButton::RepairAll:
+		ShopRepairAll();
+		break;
+	case ServiceButton::Recharge:
+		ArmShopRechargeCursor();
+		break;
+	case ServiceButton::Sell:
+		// The same hammer, on the same gesture, selling instead of repairing (user, 2026-09-21).
+		ArmShopSellCursor();
+		break;
+	case ServiceButton::SellAll:
+		ShopRunSellAll(stextflag);
+		break;
+	case ServiceButton::Refresh:
+		ShopRunRefresh(stextflag);
+		break;
+	}
 }
 
 void ReleaseShopTabButton()
@@ -1184,17 +1414,25 @@ void DrawShopGrid(const Surface &out)
 		return;
 
 	const Rectangle panel = GetShopPanelRect();
-	if (HasSidePanelArt()) {
+	const bool redesigned = IsRedesignedShopScreen(stextflag);
+	if (redesigned) {
+		// Griswold's own forge, on every one of his tabs (user, 2026-09-21: "We replace the canvas for
+		// all his tabs"). No title band with it: the painting is a portrait of the man, so naming him
+		// above it says nothing the picture does not ("We remove the title Griswold from all tabs").
+		DrawLoosePng(out, GriswoldCanvasAsset, panel.position);
+	} else if (HasSidePanelArt()) {
 		DrawSidePanelArt(out, panel.position);
 	} else {
 		DrawThemedFill(out, panel);
 		DrawOrnateBorder(out, panel);
 	}
 
-	const Rectangle labelArea { { panel.position.x + 16, panel.position.y + PanelTitleTop },
-		{ panel.size.width - 32, PanelTitleHeight } };
-	DrawOutlinedString(out, _(ShopTitle(stextflag)), labelArea,
-	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+	if (!redesigned) {
+		const Rectangle labelArea { { panel.position.x + 16, panel.position.y + PanelTitleTop },
+			{ panel.size.width - 32, PanelTitleHeight } };
+		DrawOutlinedString(out, _(ShopTitle(stextflag)), labelArea,
+		    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+	}
 
 	const Rectangle grid = GetShopGridRect();
 	DrawThemedFill(out, grid, 2);
@@ -1250,7 +1488,10 @@ void DrawShopGrid(const Surface &out)
 			ClxDraw(out, position, sprite);
 	}
 
-	DrawShopControls(out, pageCount);
+	if (redesigned)
+		DrawRedesignedControls(out, pageCount);
+	else
+		DrawShopControls(out, pageCount);
 	DrawShopTabColumn(out, stextflag);
 	DrawShopClose(out);
 }
@@ -1301,10 +1542,36 @@ bool CheckShopGridClick(Point position, bool rightClick)
 		}
 	}
 
+	// Griswold's redesigned page has its own six frames at measured positions, and the old variable
+	// rows are not drawn there - so they must not be hit-tested there either. Their rects are bare
+	// painting now, and a drop on one would repair an item with nothing on screen to explain it.
+	const bool redesigned = IsRedesignedShopScreen(stextflag);
+	if (redesigned) {
+		for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
+			if (!ShopServiceSlotRect(slot).contains(position))
+				continue;
+			if (!MyPlayer->HoldItem.isEmpty()) {
+				// A held item is a DROP, not a click, and only two of the six take one.
+				if (ShopServiceSlotDoes[slot] == ServiceButton::Repair)
+					ShopRepairHeldItem();
+				else if (ShopServiceSlotDoes[slot] == ServiceButton::Recharge)
+					ShopRechargeHeldItem();
+				return true;
+			}
+			// A greyed button absorbs the click and does nothing - it is still a button, so the click
+			// must not fall through it to the painting behind.
+			if (!ShopServiceSlotEnabled(slot, stextflag))
+				return true;
+			PressedShopServiceSlot = slot; // sinks until LeftMouseUp; the action waits for the release
+			PlayUiMoveSound();            // titlemov at the PRESS, as every other button in the mod
+			return true;
+		}
+	}
+
 	// A held item is a DROP, not a click, and the target decides what happens to it. Ahead of every
 	// other control on the panel: dropping a sword on the Repair button must repair it rather than
 	// fall through to whatever that rect does when the hand is empty.
-	const std::vector<ControlButton> buttons = ShopControlButtons(stextflag);
+	const std::vector<ControlButton> buttons = redesigned ? std::vector<ControlButton>() : ShopControlButtons(stextflag);
 	if (!MyPlayer->HoldItem.isEmpty()) {
 		for (size_t i = 0; i < buttons.size(); i++) {
 			if (buttons[i].kind != ControlKind::Service)
@@ -1456,16 +1723,29 @@ bool SetShopHoverInfoString()
 	const std::vector<PlacedSlot> placed = PlaceStock(stock);
 	const int hovered = PlacedSlotAt(placed, MousePosition);
 
-	const std::vector<ControlButton> buttons = ShopControlButtons(stextflag);
-	for (size_t i = 0; i < buttons.size(); i++) {
-		if (buttons[i].kind != ControlKind::Service)
-			continue;
-		if (!ShopControlRect(buttons, i).contains(MousePosition))
-			continue;
-		// The button says WHICH service; the hint is where what it does - and what Repair All costs
-		// - is written down.
-		SetServiceHint(buttons[i].service);
-		return true;
+	// Griswold's six painted frames answer first and instead - on his page the old rows are not drawn,
+	// so their rects are bare painting and must name nothing.
+	if (IsRedesignedShopScreen(stextflag)) {
+		for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
+			if (!ShopServiceSlotRect(slot).contains(MousePosition))
+				continue;
+			SetServiceHint(ShopServiceSlotDoes[slot]);
+			if (!ShopServiceSlotEnabled(slot, stextflag))
+				AddPanelString(_("Not on this shelf."), UiFlags::ColorRed);
+			return true;
+		}
+	} else {
+		const std::vector<ControlButton> buttons = ShopControlButtons(stextflag);
+		for (size_t i = 0; i < buttons.size(); i++) {
+			if (buttons[i].kind != ControlKind::Service)
+				continue;
+			if (!ShopControlRect(buttons, i).contains(MousePosition))
+				continue;
+			// The button says WHICH service; the hint is where what it does - and what Repair All
+			// costs - is written down.
+			SetServiceHint(buttons[i].service);
+			return true;
+		}
 	}
 
 	if (hovered < 0) {

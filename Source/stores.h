@@ -295,6 +295,20 @@ std::vector<oracool::ShopAction> GetShopActions(TalkID id);
 void ShopActivateAction(TalkID id, int line);
 
 /**
+ * @brief Whether tab @p id currently offers a bulk sale, or a fresh stock.
+ *
+ * Griswold's redesigned page (2026-09-21) draws all six of his service buttons on every tab, so it
+ * needs to ask which of them the tab can actually do rather than being handed a list of the ones it
+ * can. Both answers are derived from GetShopActions' own rows, so a gating rule can only ever be
+ * changed in the one place - the pair below cannot drift away from the list they read.
+ */
+bool ShopTabHasSellAll(TalkID id);
+bool ShopTabHasRefresh(TalkID id);
+/** @brief Runs those, if the tab has them. Does nothing if it does not. */
+void ShopRunSellAll(TalkID id);
+void ShopRunRefresh(TalkID id);
+
+/**
  * @brief Sells the item in the player's hand to the shop that is open. False if it is not taken.
  *
  * Selling is a drag now: pick an item out of the inventory and drop it on the shop panel. False
@@ -329,13 +343,32 @@ enum class ShopServiceCursor : uint8_t {
 	None,
 	Repair,
 	Recharge,
+	/**
+	 * Sell ONE item, picked where it lies (user, 2026-09-21: "Sell an item is a new button - sells
+	 * specific item, so when clicked use the Repair Item hammer cursor and when clicked on an item it
+	 * is sold"). It wears the HAMMER, the same graphic Repair does, because that is what was asked
+	 * for - so this flag is the only thing separating a sell click from a repair click, exactly as it
+	 * already separates a paid repair from the Repair skill.
+	 */
+	Sell,
 };
 
 void ArmShopRepairCursor();
 void ArmShopRechargeCursor();
+void ArmShopSellCursor();
 /** @brief Whether the paid service may run - armed AND a shop still open to charge for it. */
 bool IsShopRepairCursorArmed();
 bool IsShopRechargeCursorArmed();
+bool IsShopSellCursorArmed();
+
+/**
+ * @brief Sells the item at @p index of @p tab (-1 for the backpack) to the open vendor.
+ *
+ * What the Sell button's hammer does on a click. False when the vendor will not take it, when there
+ * is no room for the gold, or when the slot is empty - and on a false the item stays exactly where
+ * it is, because swallowing an item a vendor refuses is how you lose one.
+ */
+bool ShopSellItemAt(Player &player, int tab, int index);
 /** @brief Whether any service cursor state is left to clean up, shop open or not. */
 bool IsAnyShopServiceCursorArmed();
 

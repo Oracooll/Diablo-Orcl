@@ -90,6 +90,14 @@ TalkID TakeReleasedShopTab();
 
 /** @brief LeftMouseUp for the shop's own column: the released tab's shelf opens. */
 void ReleaseShopTabButton();
+
+/**
+ * @brief LeftMouseUp for Griswold's six service buttons: the pressed one runs, if the release is inside it.
+ *
+ * Separate from the tab column's release because the two are different controls that happen to share
+ * a mouse-up, and one swallowing the other's press would be a silent bug.
+ */
+void ReleaseShopServiceButton();
 /** @brief Whether @p id is drawn as the icon grid rather than as the vanilla text list. */
 bool IsShopGridScreen(TalkID id);
 

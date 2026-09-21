@@ -1064,8 +1064,27 @@ TEST_F(InvTest, EveryTabPositionOpensAStoragePage)
 		const Point centre = oracool::GetInventoryPanelRect().position
 		    + Displacement { r.position.x + r.size.width / 2, r.position.y + r.size.height / 2 };
 
+		// The tabs act on the RELEASE since 2026-09-21, like every other button in the game: the press
+		// only sinks the tab, and the page turns on the mouse-up inside it.
+		MousePosition = centre;
 		EXPECT_TRUE(CheckInventoryTabClick(centre)) << "tab position " << tab << " is not clickable";
+		EXPECT_EQ(ActiveInventoryTab, -1) << "tab position " << tab << " opened on the press, not the release";
+		ReleaseInventoryTabButton();
 		EXPECT_EQ(ActiveInventoryTab, tab) << "tab position " << tab << " opened the wrong page";
+	}
+
+	// And a release that lands somewhere else opens nothing - "let me think a bit more". Checked on
+	// one tab rather than all ten, because it is the release rule being tested, not the geometry.
+	{
+		ActiveInventoryTab = -1;
+		const Rectangle r = oracool::GetTabRect(3);
+		const Point centre = oracool::GetInventoryPanelRect().position
+		    + Displacement { r.position.x + r.size.width / 2, r.position.y + r.size.height / 2 };
+		MousePosition = centre;
+		EXPECT_TRUE(CheckInventoryTabClick(centre));
+		MousePosition = centre + Displacement { 0, 200 }; // dragged off the strip before letting go
+		ReleaseInventoryTabButton();
+		EXPECT_EQ(ActiveInventoryTab, -1) << "a release off the tab still turned the page";
 	}
 
 	// One page per position, and the storage to back it: tab 0 is the vanilla backpack, 1..9 index
