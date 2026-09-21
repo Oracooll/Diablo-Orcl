@@ -287,6 +287,8 @@ struct SalvageLayout {
 	Rectangle results;
 	Rectangle close;
 	Rectangle icons[SalvageTierCount];
+	/** The eighth plate: salvage ONE item, chosen with the hammer (2026-09-21). Empty on a page that has none. */
+	Rectangle itemIcon;
 	/** The tall page docks with the shop panel (bottom-left); the small one is centred like the other artisan windows. */
 	bool docked;
 	/** And draws the dark gold frame around its results area. */
@@ -305,13 +307,16 @@ constexpr SalvageLayout SalvageTallPage {
 	{ { 22, 26 }, { 296, 40 } },   // the title, in the dark of the smithy's roof
 	{ { 30, 486 }, { 280, 126 } }, // the results, inside the gold frame; its title rides the top border
 	{ { 316, 5 }, { 18, 18 } },
+	// A 4x2 grid at the row's own pitch (user, 2026-09-21: "arrange a 4x2 grid of icons keeping the distance
+	// between them as it is now on row 1"): White, Magic, Rare, Unique over Set, Primal, Ethereal, one item.
 	{ { { 43, 344 }, { 56, 56 } },  // White
 	    { { 109, 344 }, { 56, 56 } }, // Magic
 	    { { 175, 344 }, { 56, 56 } }, // Rare
 	    { { 241, 344 }, { 56, 56 } }, // Unique
-	    { { 142, 410 }, { 56, 56 } }, // Primal - the middle of the second row, as the user's sample has it
-	    { { 76, 410 }, { 56, 56 } },  // Set - its first
-	    { { 208, 410 }, { 56, 56 } } },// Ethereal - its last
+	    { { 109, 410 }, { 56, 56 } }, // Primal - second of the lower row
+	    { { 43, 410 }, { 56, 56 } },  // Set - its first
+	    { { 175, 410 }, { 56, 56 } } },// Ethereal - its third
+	{ { 241, 410 }, { 56, 56 } },   // and the hammer that takes one item
 	true, true
 };
 
@@ -323,6 +328,7 @@ constexpr SalvageLayout SalvageSmallPage {
 	{ { 296, 5 }, { 18, 18 } },
 	{ { { 32, 78 }, { 56, 56 } }, { { 98, 78 }, { 56, 56 } }, { { 163, 78 }, { 56, 56 } }, { { 230, 78 }, { 56, 56 } },
 	    { { 132, 137 }, { 56, 56 } }, { { 49, 137 }, { 56, 56 } }, { { 214, 137 }, { 56, 56 } } },
+	{ { 0, 0 }, { 0, 0 } }, // the small page has no room for the eighth plate
 	false, false
 };
 
@@ -355,6 +361,10 @@ struct SalvageMessageState {
 };
 SalvageMessageState SalvageMessage;
 /** In SalvageTier order, as the icons: White, Magic, Rare, Unique, Primal, Set, Ethereal. */
+constexpr const char *SalvageItemIconAsset = "ui\\salvage_item.png";
+/** @brief Whether the hammer is armed to break ONE item down; it lives only while this window is open. */
+bool SalvageItemCursorArmed = false;
+
 constexpr const char *SalvageMaterialSprites[SalvageTierCount] = {
 	"ui\\salvage_mat_white.png", "ui\\salvage_mat_magic.png", "ui\\salvage_mat_rare.png", "ui\\salvage_mat_unique.png",
 	"ui\\salvage_mat_primal.png", "ui\\salvage_mat_set.png", "ui\\salvage_mat_ethereal.png"
@@ -951,6 +961,15 @@ bool SetLevskiHoverInfoString()
 				return true;
 			}
 		}
+		if (const SalvageLayout *page = SalvagePage(); page != nullptr && page->itemIcon.size.width > 0) {
+			const Rectangle rect { window.position + Displacement { page->itemIcon.position.x, page->itemIcon.position.y }, page->itemIcon.size };
+			if (rect.contains(MousePosition)) {
+				SetPanelString(_("Salvage an Item"), UiFlags::ColorWhitegold);
+				AddPanelString(_("Click for the hammer, then click any item in your pack."), UiFlags::ColorWhite);
+				AddPanelString(_("It is destroyed and its materials are yours."), UiFlags::ColorWhite);
+				return true;
+			}
+		}
 		for (int i = levski_skin::Close + 1; i < levski_skin::ButtonCount; i++) {
 			if (i >= levski_skin::SalvageFirst && WindowHost != TransmuteHost::Smith)
 				continue; // not drawn there, so not hoverable (Griswold's plates)
@@ -994,6 +1013,35 @@ void ReleaseLevskiButtons()
 	PressedCubeButton = -1;
 	PressedSalvageIcon = -1; // Griswold's salvage icons spring back too (2026-09-21)
 }
+bool IsSalvageItemCursorArmed()
+{
+	return SalvageItemCursorArmed;
+}
+
+void CancelSalvageItemCursor()
+{
+	SalvageItemCursorArmed = false;
+}
+
+bool UseSalvageItemCursor(Player &player, int tab, int index)
+{
+	SalvageItemCursorArmed = false;
+	SalvageTier tier = SalvageTier::White;
+	int materials = 0;
+	if (!SalvageSingleItem(player, tab, index, &tier, &materials)) {
+		LogEvent("That cannot be salvaged.", UiFlags::ColorWhite);
+		return false;
+	}
+	// One item, so the window's message says one - the same two lines every bulk press writes.
+	SalvageMessage = { true, tier, 1, materials };
+	LogEvent(StrCat("Salvaged 1 ", _(SalvageTierName(tier)), " into ", materials, " ",
+	             _(AllItemsList[SalvageMaterialFor(tier)].iName)),
+	    UiFlags::ColorWhitegold);
+	if (!PlayUiEventSound(UiEventSound::Salvage))
+		PlaySFX(IS_ISHIEL);
+	return true;
+}
+
 bool IsLevskiRecipeBookOpen() { return WindowOpen && RecipeBookOpen; }
 
 bool IsLevskiRoarObject(const Object &object)
@@ -1097,6 +1145,11 @@ void ResetLevskiRoarForNewGame()
 	SalvageMessage = {};
 	PressedSalvageIcon = -1;
 	LastHoverSalvageIcon = -1;
+	if (SalvageItemCursorArmed) {
+		SalvageItemCursorArmed = false;
+		if (pcurs == CURSOR_REPAIR)
+			NewCursor(CURSOR_HAND);
+	}
 }
 
 void CloseLevskiRoar()
@@ -1115,6 +1168,11 @@ void CloseLevskiRoar()
 	LastHoverCubeButton = -1;
 	PressedSalvageIcon = -1;
 	LastHoverSalvageIcon = -1;
+	if (SalvageItemCursorArmed) {
+		SalvageItemCursorArmed = false;
+		if (pcurs == CURSOR_REPAIR)
+			NewCursor(CURSOR_HAND);
+	}
 }
 
 bool PlaceItemInLevskiGrid(const Item &item)
@@ -1409,6 +1467,18 @@ void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 			BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, CubeHoverBrightenPercent);
 		else if (MyPlayer != nullptr && !AnySalvageableInBackpack(*MyPlayer, static_cast<SalvageTier>(i)))
 			DrawQuarterDarkenRect(out, face); // nothing of this tier in the pack: the plate sits under a shade
+	}
+	if (page->itemIcon.size.width > 0) {
+		// The eighth plate: no tier, so no idle shade - it is about whatever the player points at next.
+		const Rectangle rect { window.position + Displacement { page->itemIcon.position.x, page->itemIcon.position.y }, page->itemIcon.size };
+		const bool hovered = rect.contains(MousePosition);
+		if (hovered)
+			hoveredNow = SalvageTierCount;
+		const Rectangle face { rect.position + (PressedSalvageIcon == SalvageTierCount ? CubeButtonSink : Displacement { 0, 0 }), rect.size };
+		if (GetLoosePngSize(SalvageItemIconAsset).width > 0)
+			DrawLoosePng(out, SalvageItemIconAsset, face.position);
+		if (hovered || SalvageItemCursorArmed)
+			BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, CubeHoverBrightenPercent);
 	}
 	if (hoveredNow >= 0 && hoveredNow != LastHoverSalvageIcon)
 		PlayUiMoveSound();
@@ -1795,10 +1865,25 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	// Salvage. Reports what it did, always - a button that silently does nothing because you own no
 	// rares is indistinguishable from a button that is broken, and this fork has shipped that exact
 	// ambiguity twice. Griswold's Forge only (the plates are not drawn on the other books).
+	// The eighth plate arms the hammer; the next click on a backpack item breaks that item down (2026-09-21).
+	if (const SalvageLayout *page = SalvagePage(); page != nullptr && page->itemIcon.size.width > 0) {
+		const Rectangle rect { window.position + Displacement { page->itemIcon.position.x, page->itemIcon.position.y }, page->itemIcon.size };
+		if (rect.contains(mousePosition)) {
+			PressedSalvageIcon = SalvageTierCount;
+			PlayUiMoveSound();
+			SalvageItemCursorArmed = true;
+			NewCursor(CURSOR_REPAIR); // vanilla's hammer, as the user asked; the click is ours
+			return true;
+		}
+	}
 	for (int i = 0; WindowHost == TransmuteHost::Smith && i < SalvageTierCount; i++) {
 		if (!SalvageButtonRect(window, i).contains(mousePosition))
 			continue;
 		PressedSalvageIcon = i; // the icon sinks until LeftMouseUp (ReleaseLevskiButtons); the click sounds at the press
+		if (SalvageItemCursorArmed) {
+			SalvageItemCursorArmed = false; // a bulk press takes the hammer back
+			NewCursor(CURSOR_HAND);
+		}
 		if (SalvageSkin())
 			PlayUiMoveSound();
 		FlashButton(i); // fires whether or not there was anything to salvage - it acknowledges the CLICK

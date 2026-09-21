@@ -68,6 +68,15 @@ int SalvageYield(const Item &item);
  * touching anything when the pack has no room for the materials, so a full pack cannot silently
  * destroy gear.
  */
+/**
+ * @brief Breaks ONE backpack item down - the Salvage page's hammer (user, 2026-09-21: "Lets the user select an
+ * individual item in inventory backpack to salvage").
+ *
+ * @p tab is -1 for the main backpack, else the extra tab's index; @p index is the item's place in that list, as
+ * pcursinvitem and pcursinvtabitem give it. False, and nothing is touched, when the item cannot be salvaged.
+ * @p tierOut and @p materialsOut receive what it was and how many materials reached the pack.
+ */
+bool SalvageSingleItem(Player &player, int tab, int index, SalvageTier *tierOut, int *materialsOut);
 int SalvageAllInBackpack(Player &player, SalvageTier tier, int *materialsMade = nullptr);
 // @p materialsMade, when given, receives how many materials were placed in the pack (the Salvage window's message, 2026-09-21).
 

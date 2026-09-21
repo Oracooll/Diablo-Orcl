@@ -227,6 +227,53 @@ int SalvageAllInBackpack(Player &player, SalvageTier tier, int *materialsMade)
 	return static_cast<int>(victims.size());
 }
 
+bool SalvageSingleItem(Player &player, int tab, int index, SalvageTier *tierOut, int *materialsOut)
+{
+	if (index < 0)
+		return false;
+	Item *item = nullptr;
+	if (tab < 0) {
+		if (index >= player._pNumInv)
+			return false;
+		item = &player.InvList[index];
+	} else {
+		if (tab >= Player::NumExtraInventoryTabs || index >= player._pNumInvTab[tab])
+			return false;
+		item = &player.InvTabList[tab][index];
+	}
+	if (!IsSalvageable(*item))
+		return false;
+	const SalvageTier tier = SalvageTierOf(*item);
+	const int materials = SalvageYield(*item);
+	if (tierOut != nullptr)
+		*tierOut = tier;
+
+	// The item goes first: it frees at least one cell, which is what guarantees the materials have
+	// somewhere to land - the same order SalvageAllInBackpack takes for the same reason.
+	if (tab < 0)
+		player.RemoveInvItem(index, false);
+	else
+		RemoveExtraTabItem(player, tab, index);
+
+	Item material;
+	InitializeItem(material, static_cast<_item_indexes>(SalvageMaterialFor(tier)));
+	material.updateRequiredStatsCacheForPlayer(player);
+	int placed = 0;
+	for (; placed < materials; placed++) {
+		Item one = material;
+		if (!AutoPlaceItemInInventory(player, one, true))
+			break;
+	}
+	if (placed < materials) {
+		LogEvent(StrCat("Salvage: no room for ", materials - placed, " ",
+		             _(AllItemsList[SalvageMaterialFor(tier)].iName), " - they were lost"),
+		    UiFlags::ColorRed);
+	}
+	if (materialsOut != nullptr)
+		*materialsOut = placed;
+	return true;
+}
+
 bool AnySalvageableInBackpack(const Player &player, SalvageTier tier)
 {
 	const auto anyIn = [&](const Item *list, int count) {

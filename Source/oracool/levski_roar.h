@@ -141,6 +141,17 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld);
 
 /** @brief LeftMouseUp: the painted Cube UI's pressed button (TRANSMUTE / RECIPE BOOK) springs back (2026-09-20). */
 void ReleaseLevskiButtons();
+/** @brief Whether Griswold's Salvage page has armed the hammer to break ONE backpack item down (2026-09-21). */
+bool IsSalvageItemCursorArmed();
+
+/** @brief Takes that hammer back without salvaging anything - a click that landed on no item. */
+void CancelSalvageItemCursor();
+
+/**
+ * @brief That hammer's click: salvages the item at @p index (@p tab -1 for the main backpack), writes the window's
+ * message and disarms. False, with a line in the log, when the item cannot be broken down.
+ */
+bool UseSalvageItemCursor(Player &player, int tab, int index);
 
 /**
  * @brief Copies @p item into the first grid slot its footprint fits. False if it does not fit.

@@ -3529,6 +3529,19 @@ bool TryIconCurs()
 	}
 
 	if (pcurs == CURSOR_REPAIR) {
+		// Griswold's Salvage page arms the same hammer to break ONE item down (2026-09-21). Asked first, and it
+		// always spends the click: a hammer armed here must never fall through to the vanilla Repair skill.
+		if (oracool::IsSalvageItemCursorArmed()) {
+			if (pcursinvitem != -1 && !IsInspectingPlayer())
+				oracool::UseSalvageItemCursor(myPlayer, -1, pcursinvitem - INVITEM_INV_FIRST);
+			else if (pcursinvtabitem != -1 && !IsInspectingPlayer())
+				oracool::UseSalvageItemCursor(myPlayer, pcursinvtabidx, pcursinvtabitem);
+			else
+				oracool::CancelSalvageItemCursor();
+			CalcPlrInv(myPlayer, true);
+			NewCursor(CURSOR_HAND);
+			return true;
+		}
 		// The SHOP's hammer borrows this whole mechanic - the cursor, the targeting, the routing
 		// below - and differs only in what the click does: full durability, and paid for. See
 		// ArmShopRepairCursor.
