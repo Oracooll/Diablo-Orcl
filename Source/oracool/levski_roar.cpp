@@ -425,11 +425,26 @@ constexpr ListSkinGeometry ArtisanWorkshopGeometry {
 	{ { 306, 96 }, { 4, ListLines * ListPitch } }, { { 316, 5 }, { 18, 18 } }, ArtisanWorkshopAsset, true,
 	{ { 0, 0 }, { 0, 0 } }, { { 22, 30 }, { 296, 36 } }, true
 };
+/**
+ * Levski's Cube at the family size (user, 2026-09-21: "Move levski's cube to 340x720 UI. Use placeholders for now.
+ * Put as many tabs as necessary"): the same docked page as the artisans', so the three windows line up. ONE page is
+ * enough - the bezel lists all seven of the Cube's recipes at once, so there is nothing for a second tab to hold
+ * until the Powers slots are built (section III of the plan, parked at D3/D4).
+ */
+constexpr const char *CubeWorkshopAsset = "ui\\cube_workshop.png";
+constexpr ListSkinGeometry CubeWorkshopGeometry {
+	{ 340, 720 }, { 30, 96 }, { { 99, 300 }, { 142, 26 } }, { { 134, 96 }, { 168, ListLines * ListPitch } },
+	{ { 306, 96 }, { 4, ListLines * ListPitch } }, { { 316, 5 }, { 18, 18 } }, CubeWorkshopAsset, true,
+	{ { 0, 0 }, { 0, 0 } }, { { 22, 30 }, { 296, 36 } }, true
+};
 /** @brief The list skin the window wears right now, or nullptr for the Roar's painting. */
 const ListSkinGeometry *ListSkin()
 {
 	// The canvas for the Cube too (user, 2026-09-20: "Use same canvas and in code drawn interface for the
 	// UI of Levski's Cube"); batch 43b's painting stays measured in levski_cube_skin.h, unworn.
+	// The Cube moved to the 340x720 page with the artisans (2026-09-21); its 320x352 painting stays in the archive.
+	if (WindowHost == TransmuteHost::Cube)
+		return &CubeWorkshopGeometry;
 	// The user's own Cube UI first (2026-09-20: "build Levski's Cube UI with assets from this folder").
 	if (WindowHost == TransmuteHost::Cube && GetLoosePngSize(CubeCanvasGeometry.background).width > 0)
 		return &CubeCanvasGeometry;
