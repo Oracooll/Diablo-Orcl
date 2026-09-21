@@ -51,6 +51,7 @@
 #include "engine/render/primitive_render.hpp"
 #include "oracool/ornate_border.h"
 #include "oracool/levski_roar.h"
+#include "oracool/workshop.h"
 #include "oracool/shop_grid.h"
 #include "oracool/crafting_menu.h"
 #include "oracool/ui_sound.h"
@@ -1341,6 +1342,8 @@ void UpdateInfoString()
 	// Levski's grid, on the same terms and for the same reason (user, 2026-09-03). Its window floats
 	// over the world, so while the cursor is on one of its items nothing behind it is hoverable -
 	// and the producers below would otherwise describe whatever is under the window.
+	if (oracool::SetWorkshopHoverInfoString())
+		return;
 	if (oracool::SetLevskiHoverInfoString())
 		return;
 

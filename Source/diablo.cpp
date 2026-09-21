@@ -82,6 +82,7 @@
 #include "oracool/crafting_menu.h"
 #include "oracool/hud_menu.h"
 #include "oracool/stonegate_menu.h"
+#include "oracool/workshop.h"
 #include "oracool/levski_roar.h"
 #include "oracool/rift.h"
 #include "oracool/stonegate.h"
@@ -530,6 +531,9 @@ void LeftMouseDown(uint16_t modState)
 		return;
 	}
 	// The Stonegate's choice menu sits over the world: it takes every click while it is up.
+	if (oracool::IsWorkshopOpen() && oracool::CheckWorkshopClick(MousePosition))
+		return;
+
 	if (oracool::IsStonegateMenuOpen()) {
 		oracool::CheckStonegateMenuClick(MousePosition);
 		return;
@@ -752,6 +756,7 @@ void LeftMouseUp(uint16_t modState)
 	oracool::ReleaseWaypointActButton();   // the pressed Act button springs back (2026-09-20)
 	oracool::ReleaseHudWells();            // and the pressed LMB/RMB well (2026-09-20)
 	oracool::ReleaseStonegateMenuButton(); // and the Rift Monument menu's pressed button (2026-09-20)
+	oracool::ReleaseWorkshopButton();       // and the artisan workshop's (2026-09-21)
 	oracool::ReleaseLevskiButtons();       // and Levski's Cube's painted TRANSMUTE / RECIPE BOOK (2026-09-20)
 }
 
@@ -969,6 +974,7 @@ void ClosePanels()
 	oracool::CloseCraftingMenu();
 	oracool::CloseHudMenu();
 	oracool::CloseStonegateMenu();
+	oracool::CloseWorkshop();
 	oracool::CloseSkillPicker();
 }
 
@@ -3738,6 +3744,7 @@ bool PressEscKey()
 	}
 	if (oracool::IsStonegateMenuOpen()) {
 		oracool::CloseStonegateMenu();
+	oracool::CloseWorkshop();
 		rv = true;
 	}
 

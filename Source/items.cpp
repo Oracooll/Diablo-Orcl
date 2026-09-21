@@ -3683,6 +3683,93 @@ bool RetierOracoolItem(Item &item, OracoolItemTier tier)
 	return tier == OracoolItemTier::None || item._iOracoolTier == tier;
 }
 
+/** @brief The affix table row @p type came from - prefixes, suffixes or the Oracool pool - or null. */
+const PLStruct *FindAffixRowForType(item_effect_type type)
+{
+	for (int i = 0; ItemPrefixes[i].power.type != IPL_INVALID; i++) {
+		if (ItemPrefixes[i].power.type == type)
+			return &ItemPrefixes[i];
+	}
+	for (int i = 0; ItemSuffixes[i].power.type != IPL_INVALID; i++) {
+		if (ItemSuffixes[i].power.type == type)
+			return &ItemSuffixes[i];
+	}
+	for (const OracoolPoolRow &row : OracoolPoolRows) {
+		if (row.row.power.type == type)
+			return &row.row;
+	}
+	return nullptr;
+}
+
+bool RollOracoolAffixFor(const Player &player, const Item &item, OracoolAffix &out, const item_effect_type *exclude, int excludeCount)
+{
+	if (item.isEmpty())
+		return false;
+	const int lvl = std::max<int>(1, item._iOracoolItemLevel);
+	const AffixItemType flgs = GetAffixItemTypeForItem(item);
+	// A SCRATCH copy: SaveItemPower writes the stat into the item as it rolls the value, and the Mystic is
+	// only being offered a row to look at. The chosen one is applied for real by the rebuild below.
+	Item scratch = item;
+	std::vector<item_effect_type> picked(exclude, exclude + std::max(0, excludeCount));
+	const std::optional<AffixCandidate> drawn = DrawUnifiedAffix(scratch, lvl, lvl, flgs, /*onlygood=*/true, gbIsHellfire,
+	    /*ignoreLevelLimits=*/false, /*prefixRoom=*/true, /*suffixRoom=*/true, /*oracoolRoom=*/true,
+	    picked.data(), static_cast<int>(picked.size()), GOE_ANY);
+	if (!drawn)
+		return false;
+	const PLStruct &affix = RowOf(*drawn);
+	ItemPower power = affix.power;
+	const int raw = SaveItemPower(player, scratch, power);
+	out = OracoolAffix { affix.power.type, raw, affix.multVal };
+	return true;
+}
+
+bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const OracoolAffix *affixes, int count)
+{
+	if (item.isEmpty())
+		return false;
+	// Rebuilt from the base and replayed, because an affix's stats are written INTO the item's fields as it
+	// is rolled and there is no way to take one back out. Everything that is not an affix is carried across:
+	// the seed and the level it was found at, its tier, its sockets and their stones, its shards, its name,
+	// the ethereal bargain and Kanai's unbound level.
+	const auto idx = static_cast<_item_indexes>(item.IDidx);
+	const int ilvl = std::max<int>(1, item._iOracoolItemLevel);
+	const OracoolItemTier tier = item._iOracoolTier;
+	const uint32_t seed = item._iSeed;
+	const uint16_t createInfo = item._iCreateInfo;
+	const bool identified = item._iIdentified;
+	const uint8_t sockets = item._iSocketCount;
+	uint16_t socketed[Item::MaxItemSockets];
+	std::copy(std::begin(item._iSocketed), std::end(item._iSocketed), std::begin(socketed));
+	const RebuildKeepsake keepsake = CaptureRebuildKeepsake(item);
+	const oracool::ImbuementLedger ledger = oracool::CaptureImbuements(item);
+
+	GetItemAttrs(item, idx, ilvl);
+	item._iSeed = seed;
+	item._iCreateInfo = createInfo;
+	item._iOracoolItemLevel = static_cast<uint8_t>(ilvl);
+	item._iOracoolTier = tier;
+	ClearOracoolAffixRecord(item);
+	for (int i = 0; i < count && item._iOracoolAffixCount < Item::MaxOracoolAffixes; i++) {
+		const PLStruct *row = FindAffixRowForType(affixes[i].type);
+		if (row == nullptr)
+			continue;
+		// A degenerate range, so the roll lands on exactly the value this affix already had.
+		ItemPower power = row->power;
+		power.param1 = affixes[i].param1;
+		power.param2 = affixes[i].param1;
+		SaveItemPower(player, item, power);
+		item._iOracoolAffixes[item._iOracoolAffixCount++] = OracoolAffix { affixes[i].type, affixes[i].param1, affixes[i].param2 };
+	}
+	if (item._iOracoolAffixCount > 0 && item._iMagical == ITEM_QUALITY_NORMAL)
+		item._iMagical = ITEM_QUALITY_MAGIC;
+	item._iSocketCount = sockets;
+	std::copy(std::begin(socketed), std::end(socketed), std::begin(item._iSocketed));
+	oracool::RestoreImbuements(item, ledger);
+	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
+	item._iIdentified = identified;
+	return true;
+}
+
 bool EnnobleOracoolRare(Item &item)
 {
 	std::vector<int> candidates = UniquesForBaseOf(item);

@@ -220,6 +220,8 @@ struct ListSkinGeometry {
 	Rectangle recipes;
 	/** Where the title is drawn in the game's own font (user: "for the title use vanilla font proper size instead of prerendered title"). */
 	Rectangle title;
+	/** The 340x720 pages dock in the shop panel's place and wear the shared side panel when they have no art of their own. */
+	bool docked = false;
 };
 
 constexpr ListSkinGeometry CubeGeometry {
@@ -411,6 +413,18 @@ bool SalvageSkin()
 }
 
 
+/**
+ * The artisans' WORKSHOP page (user, 2026-09-21: "Build Jeweller workshop with placeholder canvas and ui buttons.
+ * I will supply assets later"): the same 340x720 page and dock as Griswold's windows, with the grid, the recipe
+ * bezel, the track and the button drawn in code on the shared side panel until the art arrives at
+ * ui\artisan_workshop.png.
+ */
+constexpr const char *ArtisanWorkshopAsset = "ui\\artisan_workshop.png";
+constexpr ListSkinGeometry ArtisanWorkshopGeometry {
+	{ 340, 720 }, { 30, 96 }, { { 99, 300 }, { 142, 26 } }, { { 134, 96 }, { 168, ListLines * ListPitch } },
+	{ { 306, 96 }, { 4, ListLines * ListPitch } }, { { 316, 5 }, { 18, 18 } }, ArtisanWorkshopAsset, true,
+	{ { 0, 0 }, { 0, 0 } }, { { 22, 30 }, { 296, 36 } }, true
+};
 /** @brief The list skin the window wears right now, or nullptr for the Roar's painting. */
 const ListSkinGeometry *ListSkin()
 {
@@ -419,6 +433,9 @@ const ListSkinGeometry *ListSkin()
 	// The user's own Cube UI first (2026-09-20: "build Levski's Cube UI with assets from this folder").
 	if (WindowHost == TransmuteHost::Cube && GetLoosePngSize(CubeCanvasGeometry.background).width > 0)
 		return &CubeCanvasGeometry;
+	// Ogden and Gillian work at the 340x720 page since 2026-09-21; the Cube keeps its own painting.
+	if (WindowHost == TransmuteHost::Tavern || WindowHost == TransmuteHost::Barmaid)
+		return &ArtisanWorkshopGeometry;
 	if (WindowHost == TransmuteHost::Cube || WindowHost == TransmuteHost::Tavern || WindowHost == TransmuteHost::Barmaid) {
 		if (GetLoosePngSize(ArtisanGeometry.background).width > 0)
 			return &ArtisanGeometry;
@@ -1236,6 +1253,8 @@ Rectangle GetLevskiRoarRect()
 	// leaves 287px and the 420px book clamped to x=0 covered the whole item grid). Then the window
 	// slides right exactly as far as the book needs, and no further than the screen allows.
 	const Size frame = CurrentFrameSize();
+	if (const ListSkinGeometry *skin = ListSkin(); skin != nullptr && skin->docked)
+		return Rectangle { { 0, BottomDockedTop(frame.height) }, frame };
 	// Griswold's tall Salvage page docks where the shop panel does - bottom-left, same size (2026-09-21).
 	if (const SalvageLayout *page = SalvagePage(); page != nullptr && page->docked)
 		return Rectangle { { 0, BottomDockedTop(frame.height) }, frame };
@@ -1665,6 +1684,9 @@ void DrawLevskiRoar(const Surface &out)
 	const bool cube = listSkin != nullptr;
 	const char *skin = cube ? listSkin->background : LevskiBackgroundAsset;
 	if (GetLoosePngSize(skin).width == 0)
+		if (cube && listSkin->docked && HasSidePanelArt())
+			DrawSidePanelArt(out, window.position); // the workshop's placeholder canvas
+		else
 		DrawPanelGround(out, window); // the skin did not load: the flat ground, so the window still exists
 	DrawLoosePng(out, skin, window.position);
 

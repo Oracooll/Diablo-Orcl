@@ -999,6 +999,23 @@ int OracoolPoolAffixMinLevel(item_effect_type type, int param1, int param2);
  */
 int ApplyOracoolItemPower(const Player &player, Item &item, ItemPower &power);
 /**
+ * @brief Rolls ONE affix the Mystic could offer for @p item, at the item's own level, avoiding @p exclude.
+ *
+ * Nothing is applied: the roll happens on a scratch copy and only the record comes back, so a menu of
+ * alternatives can be shown before the player has chosen (oracool/workshop.cpp).
+ */
+bool RollOracoolAffixFor(const Player &player, const Item &item, OracoolAffix &out, const item_effect_type *exclude, int excludeCount);
+
+/**
+ * @brief Rebuilds @p item's stats from its base and exactly the affixes given, keeping everything else.
+ *
+ * The only way to take an affix OFF an item: its stats were written into the item's own fields as it was
+ * rolled. The seed, item level, tier, sockets and stones, shards, name, ethereal bargain and unbound level
+ * are all carried across.
+ */
+bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const OracoolAffix *affixes, int count);
+
+/**
  * @brief Oracool: the price an item actually sells for at a vendor - identified magical/unique
  * items use their real value (_iIvalue), everything else uses the base value (_ivalue), both cut
  * to a quarter and floored at 1, multiplied by stack count for a stackable consumable. Matches the

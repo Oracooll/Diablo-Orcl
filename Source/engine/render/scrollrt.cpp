@@ -40,6 +40,7 @@
 #include "oracool/companion.h"
 #include "oracool/rift.h"      // DrawRiftHud: the bar and the clock under the mini-map
 #include "oracool/stonegate.h" // IsStonegatePortalArch: the arch draws in the floor pass
+#include "oracool/workshop.h"
 #include "oracool/curses.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/minions.h"
@@ -1723,6 +1724,7 @@ void DrawView(const Surface &out, Point startPosition)
 	// sat inside that if and the menu opened invisibly; user, 2026-09-20: "Clicking the stonegate
 	// does not open dialog box").
 	oracool::DrawStonegateMenu(out);
+	oracool::DrawWorkshop(out);
 	// Same rule as the XP pair below: kept through open windows, taken away by chat.
 	if (!talkflag) {
 		DrawLevelUpIcon(out);

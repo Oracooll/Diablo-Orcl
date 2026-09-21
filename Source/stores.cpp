@@ -5,6 +5,8 @@
  */
 #include "stores.h"
 
+#include "oracool/workshop.h"
+
 #include "oracool/crafting.h"    // TransmuteHost (Levski's Cube, 2026-09-20)
 #include "oracool/levski_roar.h" // OpenLevskiWindowFor
 
@@ -1821,7 +1823,7 @@ void StartBoy()
 	// and the gamble - like the other vendors' grids.
 	AddSText(0, 8, _("Talk to Wirt"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	AddSText(0, 12, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 18, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, 18, _("Leave Gillian"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
 /** @brief The grid shop's own screen state for Wirt's two tabs; the grid draws the rest. */
@@ -2148,8 +2150,8 @@ void StartTavern()
 	AddSText(0, 12, _("Talk to Ogden"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	// Ogden's Table (Levski's Cube plan, decision D8, 2026-09-20): the stones and sockets - refine
 	// gems, ascend runes, temper jewels, recolour gems, free and punch sockets.
-	AddSText(0, 15, _("Ogden's table: gems, runes and sockets"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 18, _("Leave the tavern"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, 15, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, 18, _("Leave Ogden"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	storenumh = 20;
 }
@@ -2163,7 +2165,7 @@ void StartBarmaid()
 	AddSText(0, 12, _("Talk to Gillian"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	// Gillian's Hearth (Levski's Cube plan, decision D8, 2026-09-20): charms reworked, set pieces
 	// recast, magic enriched, shards cleansed.
-	AddSText(0, 15, _("Gillian's hearth: charms, sets, magic and shards"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, 15, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	// Oracool: user request - the physical Stash Chest in town (see OperateStashChest in
 	// objects.cpp) replaces Gillian as the way to access and sort the Stash.
 	AddSText(0, 18, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
@@ -3594,7 +3596,9 @@ void BarmaidEnter()
 		break;
 	case 15:
 		stextflag = TalkID::None;
-		oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Barmaid);
+		// Gillian's shop IS the Mystic Workshop (user, 2026-09-21); her recipe book is reached from the Cube's
+		// book like every other host's.
+		oracool::OpenWorkshop(oracool::WorkshopHost::Mystic);
 		break;
 	case 18:
 		stextflag = TalkID::None;
