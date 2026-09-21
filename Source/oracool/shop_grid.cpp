@@ -1393,7 +1393,6 @@ Rectangle PressedShopTabRect { { 0, 0 }, { 0, 0 } };
 /** @brief The 2 px down-left sink every pressed button in this mod wears (feedback_button_press_and_sound). */
 constexpr Displacement ShopTabSink { -2, 2 };
 
-/** @brief The tab column beside the panel, drawn after it so the tabs sit on top of nothing. */
 void DrawShopTabColumn(const Surface &out, TalkID open)
 {
 	const std::vector<TalkID> tabs = ShopTabsFor(open);
@@ -1463,6 +1462,35 @@ void DrawShopClose(const Surface &out)
 }
 
 } // namespace
+
+/** @brief The tab column beside the panel, drawn after it so the tabs sit on top of nothing. */
+Rectangle GetSideTabRect(int index)
+{
+	return ShopTabRect(static_cast<size_t>(index));
+}
+
+void DrawSideTab(const Surface &out, int index, string_view label, bool active, bool pressed)
+{
+	const bool tabArt = HasShopArt(ShopTabArt);
+	const Rectangle rect = GetSideTabRect(index);
+	const bool hovered = rect.contains(MousePosition);
+	const Rectangle face { rect.position + (pressed ? ShopTabSink : Displacement { 0, 0 }), rect.size };
+	const VanillaFace vanillaFace = active ? VanillaFace::Lit : hovered ? VanillaFace::Rest : VanillaFace::Pressed;
+	const bool vanilla = DrawVanillaButton(out, face, vanillaFace, /*onItsSide=*/true);
+	if (!vanilla && tabArt) {
+		const int state = active ? 2 : hovered ? 1 : 0;
+		DrawLoosePngPart(out, ShopTabArt, Rectangle { { state * ShopTabCell.width, 0 }, ShopTabCell }, face.position);
+	} else if (!vanilla) {
+		if (active) {
+			DrawThemedFill(out, face, 3);
+		} else {
+			DrawHalfTransparentRectTo(out, face.position.x, face.position.y, face.size.width, face.size.height);
+		}
+		DrawOrnateBorder(out, face);
+	}
+	if (!vanilla || !DrawSidewaysLabel(out, label, face, UiFlags::ColorWhitegold))
+		DrawVerticalLabel(out, label, face, active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold);
+}
 
 void DrawShopTabColumnFor(const Surface &out, TalkID open)
 {

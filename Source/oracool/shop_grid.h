@@ -50,6 +50,7 @@
 #include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
 #include "stores.h"
+#include "utils/stdcompat/string_view.hpp"
 
 namespace devilution::oracool {
 
@@ -66,6 +67,24 @@ bool ShopVanillaButtonArtLoaded();
  * tabs in view beside it (user, 2026-09-21). Drawn from the shop's own column, so the two cannot drift apart.
  */
 void DrawShopTabColumnFor(const Surface &out, TalkID open);
+
+/**
+ * @brief Slot @p index of that column, in screen space, for ANY window docked in the shop panel's rect.
+ *
+ * Levski's Cube has two tabs of its own since 2026-09-21 and is not a store, so it has no TalkID to
+ * ask the column about. It shares the geometry all the same: the window sits in exactly the shop
+ * panel's rect, so the tabs beside it must be exactly the shop's tabs or the two windows would wear
+ * the same furniture in different places.
+ */
+Rectangle GetSideTabRect(int index);
+
+/**
+ * @brief Draws one tab of that column with the shop's own art, states and sink.
+ *
+ * The label is the caller's, and so is the notion of which tab is open - that is the whole
+ * difference between this and DrawShopTabColumnFor, which knows both from the TalkID.
+ */
+void DrawSideTab(const Surface &out, int index, string_view label, bool active, bool pressed);
 
 /** @brief The tab under @p position in that column, or TalkID::None. The caller decides what switching costs. */
 TalkID ShopTabAt(Point position, TalkID open);

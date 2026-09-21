@@ -222,6 +222,17 @@ struct ListSkinGeometry {
 	Rectangle title;
 	/** The 340x720 pages dock in the shop panel's place and wear the shared side panel when they have no art of their own. */
 	bool docked = false;
+	/** How many recipe rows the list shows. The bezel skins fit eight; the Cube's recipe PAGE fits fifteen. */
+	int lines = ListLines;
+	/**
+	 * Whether this page has the transmute grid at all.
+	 *
+	 * False on the Cube's Recipes tab (2026-09-21), which is the full window given over to the list.
+	 * The grid's CONTENTS survive the switch - GridItems is window state, not page state - so a
+	 * player who laid three items out, read a formula and came back finds them where they left them.
+	 * Without this the cells would be drawn at the window's top-left corner, gridOrigin being {0,0}.
+	 */
+	bool hasGrid = true;
 };
 
 constexpr ListSkinGeometry CubeGeometry {
@@ -445,9 +456,95 @@ constexpr ListSkinGeometry CubeWorkshopGeometry {
 	{ { 306, 96 }, { 4, ListLines * ListPitch } }, { { 316, 5 }, { 18, 18 } }, CubeWorkshopAsset, true,
 	{ { 0, 0 }, { 0, 0 } }, { { 22, 30 }, { 296, 36 } }, true
 };
+/**
+ * LEVSKI'S CUBE, TWO TABS (user, 2026-09-21: "Tab Cube - ... / Tab Recipes - ...").
+ *
+ * Two painted 340x720 pages of one window, switched by a two-tab column beside it - the vendors'
+ * own column, because the Cube docks in exactly the shop panel's rect and a second kind of tab
+ * beside the same window would be two answers to one question.
+ *
+ * MEASURED on the art, both pages:
+ *   Cube page   - the grid's painted frame runs x 118..224, y 406..541, with a 3x4 well inside it:
+ *                 rules at x 156/185/214 and y 444/473/502, which is the Roar's own 28px cell on a
+ *                 29px pitch, so the grid's origin is (128,416) and NOTHING about the transmute
+ *                 logic changes. The painting simply draws the wells the code used to.
+ *   Recipe page - one ornate frame, band y 289..628 with its opening at y 306..618, x 29..310.
+ */
+constexpr const char *CubePageCanvasAsset = "ui\\cube_page_canvas.png";
+constexpr const char *CubeRecipesCanvasAsset = "ui\\cube_recipes_canvas.png";
+/**
+ * TRANSMUTE is Griswold's Refresh plate (user, 2026-09-21: "Use Griswold Refresh button as Transmute
+ * button here"), frame and glyph both - the same two files his shop draws, not copies of them.
+ *
+ * "Placed under the cube, dead center, 4px away": the painted grid frame spans x 118..224, so its
+ * centre is 171 and a 34px plate starts at 154; its foot is y 541, so four pixels of air puts the
+ * plate's top at 546. Both derived from the measurement above rather than typed in, which is what
+ * makes a recut canvas move the button with it.
+ */
+constexpr const char *CubeTransmuteFrameAsset = "ui\\shop_button_frame.png";
+constexpr const char *CubeTransmuteGlyphAsset = "ui\\shop_glyph_refresh.png";
+constexpr int CubeGridFrameLeft = 118;
+constexpr int CubeGridFrameRight = 224;
+constexpr int CubeGridFrameBottom = 541;
+constexpr int CubeTransmuteSize = 34;
+constexpr int CubeTransmuteClearance = 4;
+constexpr Rectangle CubePageTransmuteRect {
+	{ (CubeGridFrameLeft + CubeGridFrameRight + 1) / 2 - CubeTransmuteSize / 2,
+	    CubeGridFrameBottom + 1 + CubeTransmuteClearance },
+	{ CubeTransmuteSize, CubeTransmuteSize }
+};
+constexpr ListSkinGeometry CubePageGeometry {
+	{ 340, 720 }, { 128, 416 }, CubePageTransmuteRect, { { 0, 0 }, { 0, 0 } },
+	{ { 0, 0 }, { 0, 0 } }, { { 316, 5 }, { 18, 18 } }, CubePageCanvasAsset, false,
+	{ { 0, 0 }, { 0, 0 } }, // no RECIPE BOOK plate: the tab beside the window is how the list is reached now
+	{ { 0, 0 }, { 0, 0 } }, // and no title - the painting is a portrait, as every canvas this day
+	true
+};
+/**
+ * The recipe page: the list inside the painted frame, on a dark layer (user, 2026-09-21: "Put the
+ * list with recipes within the Frame. Lay a transparent dark layer under the recipes").
+ *
+ * Fifteen rows at the list's own 20px pitch is 300 of the opening's 312, which leaves six pixels of
+ * air top and bottom. The track rides the opening's right edge; the rows stop short of it.
+ */
+constexpr int CubeRecipeOpeningTop = 306;
+constexpr int CubeRecipeOpeningBottom = 618;
+constexpr int CubeRecipeOpeningLeft = 29;
+constexpr int CubeRecipeOpeningRight = 310;
+constexpr int CubeRecipeLines = 15;
+constexpr int CubeRecipeListTop = CubeRecipeOpeningTop
+    + (CubeRecipeOpeningBottom - CubeRecipeOpeningTop + 1 - CubeRecipeLines * ListPitch) / 2;
+constexpr ListSkinGeometry CubeRecipesGeometry {
+	{ 340, 720 }, { 0, 0 }, { { 0, 0 }, { 0, 0 } },
+	{ { CubeRecipeOpeningLeft + 6, CubeRecipeListTop }, { CubeRecipeOpeningRight - CubeRecipeOpeningLeft - 11 - 8, CubeRecipeLines * ListPitch } },
+	{ { CubeRecipeOpeningRight - 5, CubeRecipeListTop }, { 4, CubeRecipeLines * ListPitch } },
+	{ { 316, 5 }, { 18, 18 } }, CubeRecipesCanvasAsset, false,
+	{ { 0, 0 }, { 0, 0 } }, { { 0, 0 }, { 0, 0 } }, true, CubeRecipeLines, /*hasGrid=*/false
+};
+
+/** @brief The Cube's two tabs, in column order. */
+enum class CubeTab { Cube, Recipes };
+constexpr int CubeTabCount = 2;
+CubeTab OpenCubeTab = CubeTab::Cube;
+/** @brief The tab being held down, or -1. Acts on the release inside itself, like every button here. */
+int PressedCubeTab = -1;
+int LastHoverCubeTab = -1;
+
+/** @brief Whether the Cube wears its two painted pages - both files, or neither. */
+bool CubeTabbedPages()
+{
+	return WindowHost == TransmuteHost::Cube
+	    && GetLoosePngSize(CubePageCanvasAsset).width > 0
+	    && GetLoosePngSize(CubeRecipesCanvasAsset).width > 0;
+}
+
 /** @brief The list skin the window wears right now, or nullptr for the Roar's painting. */
 const ListSkinGeometry *ListSkin()
 {
+	// The user's two painted pages first (2026-09-21), and only when BOTH are installed: a tab that
+	// leads to a missing canvas is worse than no tabs, so the pair is all-or-nothing.
+	if (CubeTabbedPages())
+		return OpenCubeTab == CubeTab::Recipes ? &CubeRecipesGeometry : &CubePageGeometry;
 	// The canvas for the Cube too (user, 2026-09-20: "Use same canvas and in code drawn interface for the
 	// UI of Levski's Cube"); batch 43b's painting stays measured in levski_cube_skin.h, unworn.
 	// The Cube moved to the 340x720 page with the artisans (2026-09-21); its 320x352 painting stays in the archive.
@@ -472,6 +569,20 @@ const ListSkinGeometry *ListSkin()
 bool CubeSkin()
 {
 	return ListSkin() != nullptr;
+}
+
+/**
+ * @brief Whether the page on screen has the transmute grid.
+ *
+ * False only on the Cube's Recipes tab. Asked by CellAt, which is the single chokepoint every hover
+ * and every click on a cell goes through - so one test here takes the grid out of the hit map, and
+ * the draw's own gate takes it off the screen. Two places, not twelve, and they cannot disagree
+ * about which cells exist because one of them is the whole hit test.
+ */
+bool PageHasGrid()
+{
+	const ListSkinGeometry *skin = ListSkin();
+	return skin == nullptr || skin->hasGrid;
 }
 
 /** @brief Whether the window wears the user's painted Cube UI: painted buttons, no bezel, the tall book on demand. */
@@ -538,11 +649,26 @@ Rectangle CubeLineRect(const Rectangle &window, int line)
 		{ list.size.width, ListPitch } };
 }
 
+/**
+ * @brief How many rows the list on THIS page shows.
+ *
+ * A number rather than the ListLines constant since the Cube's recipe PAGE arrived (2026-09-21): the
+ * bezel skins fit eight rows beside a grid, that page gives the whole window to the list and fits
+ * fifteen. Every place that scrolls, draws or hit-tests a row asks this - a page whose draw and
+ * whose scroll clamp disagreed about its own length would lose the last recipes to a scroll that
+ * would not go far enough.
+ */
+int CurrentListLines()
+{
+	const ListSkinGeometry *skin = ListSkin();
+	return skin != nullptr && skin->lines > 0 ? skin->lines : ListLines;
+}
+
 /** @brief The host's recipes in book order - a list skin lists one per bezel line. */
 std::vector<int> CubeListRecipes();
 int CubeListMaxScroll()
 {
-	return std::max(0, static_cast<int>(CubeListRecipes().size()) - ListLines);
+	return std::max(0, static_cast<int>(CubeListRecipes().size()) - CurrentListLines());
 }
 /** @brief The recipe on bezel line @p line after the scroll, or -1 past the end of the host's book. */
 int CubeListRecipeAt(int line)
@@ -748,6 +874,8 @@ Rectangle CellHitRect(const Rectangle &window, int cell)
 /** @brief The cell under @p position, or -1. */
 int CellAt(const Rectangle &window, Point position)
 {
+	if (!PageHasGrid())
+		return -1; // the Recipes tab is the whole window: there are no cells under the pointer
 	for (int cell = 0; cell < LevskiGridSlots; cell++) {
 		if (CellHitRect(window, cell).contains(position))
 			return cell;
@@ -1019,7 +1147,7 @@ bool SetLevskiHoverInfoString()
 		if (CubeSkin()) {
 			// A bezel line under the cursor: the recipe's name and its formula, since the line has
 			// room for the name alone.
-			for (int line = 0; line < ListLines; line++) {
+			for (int line = 0; line < CurrentListLines(); line++) {
 				const int recipe = CubeListRecipeAt(line);
 				if (recipe < 0)
 					break;
@@ -1080,6 +1208,20 @@ bool SetLevskiHoverInfoString()
 bool IsLevskiRoarOpen() { return WindowOpen; }
 void ReleaseLevskiButtons()
 {
+	// The Cube's tabs spring back with everything else, and the page turns only if the release landed
+	// back inside the tab that was pressed. Always cleared, so a press that outlived its window
+	// cannot turn a page later.
+	if (const int tab = PressedCubeTab; tab >= 0) {
+		PressedCubeTab = -1;
+		if (WindowOpen && CubeTabbedPages() && GetSideTabRect(tab).contains(MousePosition)) {
+			const auto wanted = static_cast<CubeTab>(tab);
+			if (wanted != OpenCubeTab) {
+				OpenCubeTab = wanted;
+				CubeListScroll = 0; // a page that opens mid-list looks like it lost the first recipes
+				PlayUiSelectSound();
+			}
+		}
+	}
 	// Griswold's tab column beside the Salvage page springs back with everything else on it, and the shelf it
 	// was pressed on opens only if the release landed back inside the same tab.
 	if (const SalvageLayout *page = SalvagePage(); WindowOpen && page != nullptr && page->docked) {
@@ -1274,6 +1416,12 @@ void CloseLevskiRoar()
 		cell = 0;
 	WindowOpen = false;
 	RecipeBookOpen = false;
+	// The Cube reopens on its Cube tab (2026-09-21). A window that remembers which page it was on is
+	// a window that sometimes opens on the recipe list when the player came to transmute - and the
+	// grid they filled last time is emptied above, so there would be nothing to come back to.
+	OpenCubeTab = CubeTab::Cube;
+	PressedCubeTab = -1;
+	LastHoverCubeTab = -1;
 	PressedCubeButton = -1;
 	LastHoverCubeButton = -1;
 	PressedSalvageIcon = -1;
@@ -1769,7 +1917,7 @@ void DrawLevskiRoar(const Surface &out)
 	}
 
 	const int hoveredAnchor = HoveredAnchor();
-	for (int anchor = 0; anchor < LevskiGridSlots; anchor++) {
+	for (int anchor = 0; anchor < LevskiGridSlots && PageHasGrid(); anchor++) {
 		if (GridItems[anchor].isEmpty())
 			continue;
 		const Item &item = GridItems[anchor];
@@ -1817,6 +1965,23 @@ void DrawLevskiRoar(const Surface &out)
 	// it, and its frame's corner is not the rect's corner - see the cutter).
 	DrawWindowCloseButtonAt(out, CloseButtonRect(window));
 
+	// The Cube's two tabs, in the vendors' own column (user, 2026-09-21). Drawn from the shop's
+	// helper, not a copy of it: this window sits in exactly the shop panel's rect, so a column of
+	// its own would be the same furniture in a slightly different place - which is the difference
+	// the eye catches when flipping between a vendor and the Cube.
+	if (CubeTabbedPages()) {
+		int hoveredTab = -1;
+		for (int i = 0; i < CubeTabCount; i++) {
+			const auto tab = static_cast<CubeTab>(i);
+			if (GetSideTabRect(i).contains(MousePosition))
+				hoveredTab = i;
+			DrawSideTab(out, i, _(i == 0 ? "Cube" : "Recipes"), OpenCubeTab == tab, PressedCubeTab == i);
+		}
+		if (hoveredTab >= 0 && hoveredTab != LastHoverCubeTab)
+			PlayUiMoveSound(); // titlemov on entry, as every tab and button in the mod
+		LastHoverCubeTab = hoveredTab;
+	}
+
 	if (cube && listSkin->recipes.size.width > 0) {
 		// The user's painted Cube UI: the title in the game's font, the two painted buttons - brighter under the
 		// cursor, sunk while pressed, the entry sound as the cursor arrives - and the tall book when it is open.
@@ -1856,17 +2021,52 @@ void DrawLevskiRoar(const Surface &out)
 		const bool hovered = button.contains(MousePosition);
 		const bool pressed = ButtonFlashActive(ButtonFlashTransmute);
 		const char *buttonArt = pressed ? cube_skin::TransmuteButtonPressedAsset : cube_skin::TransmuteButtonAsset;
-		if (!listSkin->codeDrawn && GetLoosePngSize(buttonArt).width > 0) {
+		if (button.size.width == 0) {
+			// The Recipes tab has no Transmute at all - it is the list, nothing else.
+		} else if (CubeTabbedPages()) {
+			// GRISWOLD'S OWN PLATE (user, 2026-09-21: "Use Griswold Refresh button as Transmute
+			// button here"), frame and glyph, the same two files his shop draws. It sinks on the
+			// press like every button in the mod and centres the glyph on the glyph's own size, so
+			// a redrawn icon of another size stays centred.
+			const Rectangle face { button.position + (pressed ? CubeButtonSink : Displacement { 0, 0 }), button.size };
+			if (GetLoosePngSize(CubeTransmuteFrameAsset).width > 0)
+				DrawLoosePng(out, CubeTransmuteFrameAsset, face.position);
+			else
+				DrawOrnateBorder(out, face);
+			if (const Size glyph = GetLoosePngSize(CubeTransmuteGlyphAsset); glyph.width > 0) {
+				DrawLoosePng(out, CubeTransmuteGlyphAsset,
+				    { face.position.x + (face.size.width - glyph.width) / 2,
+				        face.position.y + (face.size.height - glyph.height) / 2 });
+			} else {
+				DrawString(out, _("T"), face,
+				    { UiFlags::ColorGold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+			}
+			if (hovered)
+				BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, CubeHoverBrightenPercent);
+		} else if (!listSkin->codeDrawn && GetLoosePngSize(buttonArt).width > 0) {
 			DrawLoosePng(out, buttonArt, button.position);
 		} else {
 			DrawString(out, _("TRANSMUTE"), button,
 			    { (pressed ? UiFlags::ColorWhitegold : UiFlags::ColorGold) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 		}
-		if (hovered && !pressed)
+		if (hovered && !pressed && button.size.width > 0 && !CubeTabbedPages())
 			DrawHoverOutline(out, button);
 
+		// The dark layer the user asked for under the recipes (2026-09-21: "Lay a transparent dark
+		// layer under the recipes"), inside the painted frame's opening and nowhere else - the frame
+		// itself stays as painted, which is the same rule every canvas this day follows.
+		//
+		// Half-transparent rather than a flat colour, so it darkens whatever the painting puts behind
+		// it and survives a recut of the art. Twice: the floor under this frame is busy stone, and one
+		// pass left the recipe names competing with it.
+		if (!listSkin->hasGrid) {
+			const Rectangle opening { window.position + Displacement { CubeRecipeOpeningLeft, CubeRecipeOpeningTop },
+				{ CubeRecipeOpeningRight - CubeRecipeOpeningLeft + 1, CubeRecipeOpeningBottom - CubeRecipeOpeningTop + 1 } };
+			DrawThemedFill(out, opening, 2);
+		}
+
 		CubeListScroll = std::clamp(CubeListScroll, 0, CubeListMaxScroll());
-		for (int line = 0; line < ListLines; line++) {
+		for (int line = 0; line < CurrentListLines(); line++) {
 			const int recipe = CubeListRecipeAt(line);
 			if (recipe < 0)
 				break;
@@ -1887,8 +2087,8 @@ void DrawLevskiRoar(const Surface &out)
 		const int maxScroll = CubeListMaxScroll();
 		if (maxScroll > 0) {
 			const Rectangle &track = listSkin->track;
-			const int count = maxScroll + ListLines;
-			const int thumbHeight = std::max(8, track.size.height * ListLines / count);
+			const int count = maxScroll + CurrentListLines();
+			const int thumbHeight = std::max(8, track.size.height * CurrentListLines() / count);
 			const int thumbTop = (track.size.height - thumbHeight) * CubeListScroll / maxScroll;
 			FillRect(out, window.position.x + track.position.x, window.position.y + track.position.y + thumbTop,
 			    track.size.width, thumbHeight, ButtonFlashColor);
@@ -1974,6 +2174,19 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 		if (PressShopTabAt(mousePosition, TalkID::SmithTransmute))
 			return true;
 	}
+	// The Cube's own two tabs, in the same column and by the same rule: the press only sinks the tab
+	// and sounds, and the page turns on the release inside it (ReleaseLevskiButtons below). Tested
+	// before the window, since the column sits OUTSIDE it - a test against the window's rect alone
+	// would let every tab click fall through to the world.
+	if (CubeTabbedPages()) {
+		for (int i = 0; i < CubeTabCount; i++) {
+			if (!GetSideTabRect(i).contains(mousePosition))
+				continue;
+			PressedCubeTab = i;
+			PlayUiMoveSound();
+			return true;
+		}
+	}
 	const Rectangle window = GetLevskiRoarRect();
 	const Rectangle book = GetLevskiRecipeBookRect();
 	const Rectangle bookInner = RecipeBookInner(book); // the rows and clips are laid out from the frame's core
@@ -2024,7 +2237,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	// The Cube skin's bezel: a click on a listed recipe selects it, on the selected one clears the
 	// selection - the tall book's rule, on the painting's own lines.
 	if (CubeSkin() && !PaintedButtons()) {
-		for (int line = 0; line < ListLines; line++) {
+		for (int line = 0; line < CurrentListLines(); line++) {
 			const int recipe = CubeListRecipeAt(line);
 			if (recipe < 0)
 				break;
