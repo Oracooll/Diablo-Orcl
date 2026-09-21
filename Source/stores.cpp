@@ -5468,6 +5468,16 @@ int RefreshLineOn(TalkID id)
 	return -1;
 }
 
+/** @brief The "Refresh until" row of @p id, or -1 - which also answers whether the option is on. */
+int RefreshUntilLineOn(TalkID id)
+{
+	for (const oracool::ShopAction &action : GetShopActions(id)) {
+		if (action.line == PremiumRefreshUntilLine())
+			return action.line;
+	}
+	return -1;
+}
+
 } // namespace
 
 bool ShopTabHasSellAll(TalkID id)
@@ -5490,6 +5500,18 @@ void ShopRunSellAll(TalkID id)
 void ShopRunRefresh(TalkID id)
 {
 	const int line = RefreshLineOn(id);
+	if (line != -1)
+		ShopActivateAction(id, line);
+}
+
+bool ShopTabHasRefreshUntil(TalkID id)
+{
+	return RefreshUntilLineOn(id) != -1;
+}
+
+void ShopRunRefreshUntil(TalkID id)
+{
+	const int line = RefreshUntilLineOn(id);
 	if (line != -1)
 		ShopActivateAction(id, line);
 }

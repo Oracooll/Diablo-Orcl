@@ -421,6 +421,8 @@ enum class ServiceButton : uint8_t {
 	 */
 	Sell,
 	SellAll,
+	/** The opt-in reroll-until-you-like-it, drawn apart from the six below the grid (2026-09-21). */
+	RefreshUntil,
 };
 
 /**
@@ -594,22 +596,39 @@ constexpr const char *GriswoldCanvasAsset = "ui\\griswold_canvas.png";
 constexpr const char *ShopButtonFrameAsset = "ui\\shop_button_frame.png";
 constexpr const char *ShopGoldIconAsset = "ui\\shop_gold_icon.png";
 
-constexpr int ShopServiceSlotCount = 6;
+/**
+ * Six in the row over the painting, plus a SEVENTH set apart below the grid beside the gold: "Refresh
+ * until" (user, 2026-09-21: "Refresh until is a bit of a cheat, so if someone activates it put a
+ * button somewhere bellow the grid near the gold counter").
+ *
+ * Its distance from the row is the point, not a leftover. The six are Griswold's ordinary services;
+ * this one rerolls the shelf until something wanted appears, it is off by default, and the user calls
+ * it a cheat - so it is drawn where an opt-in convenience belongs, apart from the honest six, and it
+ * is not there at all unless the option that grants it is on.
+ */
+constexpr int ShopServiceSlotCount = 7;
+constexpr int ShopRefreshUntilSlot = 6;
 /** @brief The frame art's own size; the guide's marks are exactly this, so the origins are the frames'. */
 constexpr Size ShopServiceSlotSize { 34, 34 };
 constexpr Point ShopServiceSlotAt[ShopServiceSlotCount] = {
 	{ 24, 128 }, { 60, 128 }, { 96, 128 },
-	{ 210, 128 }, { 246, 128 }, { 282, 128 }
+	{ 210, 128 }, { 246, 128 }, { 282, 128 },
+	// Clear of the gold count, which starts at x=25 and cannot run past ~x=105 even at eight digits.
+	{ 120, 627 }
 };
 /** @brief In the user's stated order: "Repair, Repair All, Recharge, Sell, Sell All, Refresh". */
 constexpr ServiceButton ShopServiceSlotDoes[ShopServiceSlotCount] = {
 	ServiceButton::Repair, ServiceButton::RepairAll, ServiceButton::Recharge,
-	ServiceButton::Sell, ServiceButton::SellAll, ServiceButton::Refresh
+	ServiceButton::Sell, ServiceButton::SellAll, ServiceButton::Refresh,
+	ServiceButton::RefreshUntil
 };
 /** @brief RfA-25's 24x24 glyphs (batch 48) - the size that fits a 34x34 frame with an even margin. */
 constexpr const char *ShopServiceSlotGlyph[ShopServiceSlotCount] = {
 	"ui\\shop_glyph_repair.png", "ui\\shop_glyph_repair_all.png", "ui\\shop_glyph_recharge.png",
-	"ui\\shop_glyph_sell.png", "ui\\shop_glyph_sell_all.png", "ui\\shop_glyph_refresh.png"
+	"ui\\shop_glyph_sell.png", "ui\\shop_glyph_sell_all.png", "ui\\shop_glyph_refresh.png",
+	// No glyph of its own was commissioned - it wears Refresh's, which is what it does. Its position
+	// and its hover text are what tell the two apart.
+	"ui\\shop_glyph_refresh.png"
 };
 /** @brief (34 - 24) / 2 - the glyph centred in its frame. */
 constexpr int ShopServiceGlyphInset = 5;
@@ -671,9 +690,25 @@ bool ShopServiceSlotEnabled(int slot, TalkID id)
 		return ShopTabHasSellAll(id);
 	case ServiceButton::Refresh:
 		return ShopTabHasRefresh(id);
+	case ServiceButton::RefreshUntil:
+		return ShopTabHasRefreshUntil(id);
 	default:
 		return true;
 	}
+}
+
+/**
+ * @brief Whether the slot is drawn at all - as opposed to drawn greyed.
+ *
+ * Only "Refresh until" can be absent. The six are fixtures and grey out when a tab cannot do them;
+ * this one is an opt-in the user calls a cheat, so when the option is off it is not a disabled button
+ * to wonder about - it is simply not part of the shop.
+ */
+bool ShopServiceSlotVisible(int slot, TalkID id)
+{
+	if (ShopServiceSlotDoes[slot] != ServiceButton::RefreshUntil)
+		return true;
+	return ShopTabHasRefreshUntil(id);
 }
 
 /** @brief The slot being held down, or -1. The action runs on the release, inside the same slot. */
@@ -729,6 +764,8 @@ std::string ServiceButtonLabel(ServiceButton service)
 		return std::string(_("Sell"));
 	case ServiceButton::SellAll:
 		return std::string(_("Sell all"));
+	case ServiceButton::RefreshUntil:
+		return std::string(_("Refresh until"));
 	}
 	return {};
 }
@@ -990,6 +1027,11 @@ void SetServiceHint(ServiceButton service)
 		SetPanelString(_("Sell All"), UiFlags::ColorWhitegold);
 		AddPanelString(_("Sells everything in your backpack this vendor will take."), UiFlags::ColorWhite);
 		break;
+	case ServiceButton::RefreshUntil:
+		SetPanelString(_("Refresh Until"), UiFlags::ColorWhitegold);
+		AddPanelString(_("Lays out fresh stock over and over until something"), UiFlags::ColorWhite);
+		AddPanelString(_("you asked for turns up."), UiFlags::ColorWhite);
+		break;
 	}
 }
 
@@ -1081,6 +1123,8 @@ void DrawRedesignedControls(const Surface &out, int pageCount)
 	const bool frameArt = HasShopArt(ShopButtonFrameAsset);
 	int hoveredNow = -1;
 	for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
+		if (!ShopServiceSlotVisible(slot, stextflag))
+			continue;
 		const Rectangle rect = ShopServiceSlotRect(slot);
 		const bool hovered = rect.contains(MousePosition);
 		const bool enabled = ShopServiceSlotEnabled(slot, stextflag);
@@ -1260,7 +1304,7 @@ void ReleaseShopServiceButton()
 		return;
 	if (!ShopServiceSlotRect(slot).contains(MousePosition))
 		return; // released off the button: nothing happens
-	if (!ShopServiceSlotEnabled(slot, stextflag))
+	if (!ShopServiceSlotVisible(slot, stextflag) || !ShopServiceSlotEnabled(slot, stextflag))
 		return;
 	switch (ShopServiceSlotDoes[slot]) {
 	case ServiceButton::Repair:
@@ -1282,6 +1326,9 @@ void ReleaseShopServiceButton()
 		break;
 	case ServiceButton::Refresh:
 		ShopRunRefresh(stextflag);
+		break;
+	case ServiceButton::RefreshUntil:
+		ShopRunRefreshUntil(stextflag);
 		break;
 	}
 }
@@ -1548,7 +1595,7 @@ bool CheckShopGridClick(Point position, bool rightClick)
 	const bool redesigned = IsRedesignedShopScreen(stextflag);
 	if (redesigned) {
 		for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
-			if (!ShopServiceSlotRect(slot).contains(position))
+			if (!ShopServiceSlotVisible(slot, stextflag) || !ShopServiceSlotRect(slot).contains(position))
 				continue;
 			if (!MyPlayer->HoldItem.isEmpty()) {
 				// A held item is a DROP, not a click, and only two of the six take one.
@@ -1727,7 +1774,7 @@ bool SetShopHoverInfoString()
 	// so their rects are bare painting and must name nothing.
 	if (IsRedesignedShopScreen(stextflag)) {
 		for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
-			if (!ShopServiceSlotRect(slot).contains(MousePosition))
+			if (!ShopServiceSlotVisible(slot, stextflag) || !ShopServiceSlotRect(slot).contains(MousePosition))
 				continue;
 			SetServiceHint(ShopServiceSlotDoes[slot]);
 			if (!ShopServiceSlotEnabled(slot, stextflag))

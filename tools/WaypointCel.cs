@@ -46,6 +46,14 @@ internal static class WaypointCel
 	// out by *area* instead of by opacity, which is the only kind of fade binary transparency has.
 	private const int LumaCut = 26;
 
+	// ...but ONLY for a painting being fitted. Finished pixel art (the EXACT path below) gets no luma
+	// cut at all, and that is not a tweak - it is the difference between the sprite working and not.
+	// The user's shadowed repaint has 1766 pixels under LumaCut in its dormant frame, a quarter of the
+	// sprite: the platform's own dark stone and the shadow beneath it. Cutting them left a skeleton of
+	// blue glow lines with no platform under it. There is no soft aura here to fade out by area, so
+	// there is nothing for the cut to do except delete the subject.
+	private const int ExactLumaCut = 0;
+
 	// Bounding box detection uses a far looser cut than rendering does, so the box still contains
 	// the glow the render will thin out - otherwise the two states would be framed differently.
 	private const int BboxAlphaCut = 40;
@@ -72,30 +80,50 @@ internal static class WaypointCel
 			Console.WriteLine("source {0}x{1}", source.Width, source.Height);
 
 			int half = source.Width / 2;
-			Rectangle dormantBox = new Rectangle(0, 0, half, source.Height);
-			Rectangle activeBox = new Rectangle(half, 0, source.Width - half, source.Height);
-
-			// One shared source box, expressed in each half's own coordinates, so the platform does
-			// not jump between the two frames when the game swaps them.
-			Rectangle a = ContentBox(source, dormantBox);
-			Rectangle b = ContentBox(source, activeBox);
-			b.X -= half;
-			Rectangle shared = Rectangle.Union(a, b);
-			Console.WriteLine("dormant box {0}, active box {1}, shared {2}", a, b, shared);
-
-			int frameHeight = (int)Math.Round(shared.Height * (double)FrameWidth / shared.Width);
-			Console.WriteLine("frame {0}x{1}", FrameWidth, frameHeight);
-
-			byte[][] frames = new byte[2][];
-			Rectangle[] boxes = { new Rectangle(shared.X, shared.Y, shared.Width, shared.Height),
-				new Rectangle(shared.X + half, shared.Y, shared.Width, shared.Height) };
 			string[] names = { "dormant", "active" };
+			byte[][] frames = new byte[2][];
+			int frameHeight;
 
-			for (int f = 0; f < 2; f++) {
-				using (Bitmap scaled = ScaleTo(source, boxes[f], FrameWidth, frameHeight)) {
-					frames[f] = Quantise(scaled, pal, names[f]);
-					if (previewDir != null)
-						WritePreview(frames[f], FrameWidth, frameHeight, pal, Path.Combine(previewDir, "waypoint_" + names[f] + ".png"));
+			// EXACT path (2026-09-21). A source that is ALREADY two FrameWidth-wide frames is finished
+			// pixel art, not a painting to be fitted - the user's repaint of the platform, the one with
+			// the shadow under it, arrives at 288x106. Fitting it would be actively wrong: the content
+			// box is tighter than the frame, so bbox-and-scale would blow the platform up to fill 144
+			// and eat the very margin the new shadow lives in, then resample every pixel of a sprite
+			// that is already at its final size. Taken 1:1 and only quantised.
+			if (source.Width == 2 * FrameWidth) {
+				frameHeight = source.Height;
+				Console.WriteLine("exact source: frame {0}x{1}, taken 1:1 (no bbox, no scale)", FrameWidth, frameHeight);
+				for (int f = 0; f < 2; f++) {
+					using (Bitmap cut = source.Clone(new Rectangle(f * FrameWidth, 0, FrameWidth, frameHeight), PixelFormat.Format32bppArgb)) {
+						frames[f] = Quantise(cut, pal, names[f], ExactLumaCut);
+						if (previewDir != null)
+							WritePreview(frames[f], FrameWidth, frameHeight, pal, Path.Combine(previewDir, "waypoint_" + names[f] + ".png"));
+					}
+				}
+			} else {
+				Rectangle dormantBox = new Rectangle(0, 0, half, source.Height);
+				Rectangle activeBox = new Rectangle(half, 0, source.Width - half, source.Height);
+
+				// One shared source box, expressed in each half's own coordinates, so the platform does
+				// not jump between the two frames when the game swaps them.
+				Rectangle a = ContentBox(source, dormantBox);
+				Rectangle b = ContentBox(source, activeBox);
+				b.X -= half;
+				Rectangle shared = Rectangle.Union(a, b);
+				Console.WriteLine("dormant box {0}, active box {1}, shared {2}", a, b, shared);
+
+				frameHeight = (int)Math.Round(shared.Height * (double)FrameWidth / shared.Width);
+				Console.WriteLine("frame {0}x{1}", FrameWidth, frameHeight);
+
+				Rectangle[] boxes = { new Rectangle(shared.X, shared.Y, shared.Width, shared.Height),
+					new Rectangle(shared.X + half, shared.Y, shared.Width, shared.Height) };
+
+				for (int f = 0; f < 2; f++) {
+					using (Bitmap scaled = ScaleTo(source, boxes[f], FrameWidth, frameHeight)) {
+						frames[f] = Quantise(scaled, pal, names[f], LumaCut);
+						if (previewDir != null)
+							WritePreview(frames[f], FrameWidth, frameHeight, pal, Path.Combine(previewDir, "waypoint_" + names[f] + ".png"));
+					}
 				}
 			}
 
@@ -154,7 +182,7 @@ internal static class WaypointCel
 	 * Index 0 is safe as the in-memory transparency marker precisely because the output is
 	 * restricted to 128-255 - no real pixel can ever land on it.
 	 */
-	private static byte[] Quantise(Bitmap bmp, byte[] pal, string label)
+	private static byte[] Quantise(Bitmap bmp, byte[] pal, string label, int lumaCut)
 	{
 		int w = bmp.Width, h = bmp.Height;
 		byte[] outIdx = new byte[w * h];
@@ -171,7 +199,7 @@ internal static class WaypointCel
 						int bch = row[x * 4 + 0], gch = row[x * 4 + 1], rch = row[x * 4 + 2], ach = row[x * 4 + 3];
 						if (ach < AlphaCut)
 							continue;
-						if (Math.Max(rch, Math.Max(gch, bch)) < LumaCut)
+						if (Math.Max(rch, Math.Max(gch, bch)) < lumaCut)
 							continue;
 						int key = (rch << 16) | (gch << 8) | bch;
 						byte idx;

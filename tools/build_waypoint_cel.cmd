@@ -11,7 +11,11 @@ REM Usage:  tools\build_waypoint_cel.cmd
 REM Run from the repository root.
 
 setlocal
-set ART=..\Resources\01-in-use-assets\world\waypoint-2-states.png
+REM The user's repaint WITH the platform's shadow (2026-09-21), already two 144x106 frames - so
+REM WaypointCel.cs takes it 1:1 rather than bbox-and-scaling it, which would have eaten the margin
+REM the shadow lives in. The original 1536x1024 painting (waypoint-2-states.png) still builds through
+REM the fitting path and stays in the folder.
+set ART=..\Resources\01-in-use-assets\world\waypoint-2-states-shadowed-288x106.png
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\objects\orclwayp.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe

@@ -304,9 +304,18 @@ void ShopActivateAction(TalkID id, int line);
  */
 bool ShopTabHasSellAll(TalkID id);
 bool ShopTabHasRefresh(TalkID id);
+/**
+ * @brief Whether "Refresh until" is available - which is also the answer to "is that option on".
+ *
+ * Its button is drawn apart from the other six, below the grid beside the gold (user, 2026-09-21:
+ * "Refresh until is a bit of a cheat, so if someone activates it put a button somewhere bellow the
+ * grid near the gold counter"), and only when this is true.
+ */
+bool ShopTabHasRefreshUntil(TalkID id);
 /** @brief Runs those, if the tab has them. Does nothing if it does not. */
 void ShopRunSellAll(TalkID id);
 void ShopRunRefresh(TalkID id);
+void ShopRunRefreshUntil(TalkID id);
 
 /**
  * @brief Sells the item in the player's hand to the shop that is open. False if it is not taken.
