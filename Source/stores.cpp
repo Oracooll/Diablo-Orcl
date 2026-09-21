@@ -2712,6 +2712,11 @@ void StoreSellItem()
  */
 void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 {
+	// The gold drop, once at the end rather than once per item (user, 2026-09-21: "When i click Sell
+	// All it doesnt play the proper gold sound. Substitute the current sound with gold drop sound").
+	// It sold in silence before - the only sound was the button's own click - and per item would be a
+	// rattle of twenty overlapping coins, so it sounds once, and only if something was actually sold.
+	bool soldAnything = false;
 	while (true) {
 		StartSmithSell();
 		if (storenumh == 0)
@@ -2721,6 +2726,10 @@ void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 			stextshold = returnTo;
 			stextlhold = returnTo == TalkID::SmithSell ? SmithSellAllLine() : 0;
 			stextvhold = 0;
+			// Sounds before the refusal screen too: the items sold up to that point really were sold,
+			// and leaving in silence would read as nothing having happened.
+			if (soldAnything)
+				PlaySFX(IS_GOLD);
 			StartStore(TalkID::NoRoom);
 			return;
 		}
@@ -2728,8 +2737,11 @@ void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 		// Rebuilding the list after every removal is intentional: inventory removal compacts
 		// InvList, so every later source index must be recalculated before it is used.
 		StoreSellItemAt(0);
+		soldAnything = true;
 	}
 
+	if (soldAnything)
+		PlaySFX(IS_GOLD);
 	StartStore(returnTo);
 }
 
@@ -5405,21 +5417,21 @@ std::vector<oracool::ShopAction> GetShopActions(TalkID id)
 	switch (id) {
 	case TalkID::SmithSell:
 		if (storenumh > 0)
-			actions.push_back({ N_("Sell all"), SmithSellAllLine() });
+			actions.push_back({ N_("Sell all"), SmithSellAllLine(), oracool::ShopActionKind::SellAll });
 		break;
 	case TalkID::SmithRepair:
 		if (storenumh > 0)
-			actions.push_back({ N_("Repair all"), SmithRepairAllLine() });
+			actions.push_back({ N_("Repair all"), SmithRepairAllLine(), oracool::ShopActionKind::RepairAll });
 		break;
 	case TalkID::SmithPremiumBuy:
 		if (*sgOptions.Oracool.griswoldPremiumRefresh)
-			actions.push_back({ N_("Refresh"), PremiumRefreshLine() });
+			actions.push_back({ N_("Refresh"), PremiumRefreshLine(), oracool::ShopActionKind::Refresh });
 		if (*sgOptions.Oracool.refreshUntilButton)
-			actions.push_back({ N_("Refresh until"), PremiumRefreshUntilLine() });
+			actions.push_back({ N_("Refresh until"), PremiumRefreshUntilLine(), oracool::ShopActionKind::RefreshUntil });
 		// Sell all beside the refreshes (user, 2026-09-13: "any screen that has refresh button reduce its
 		// width in half and add a second button next to it SELL ALL"). The action row divides its width
 		// between whatever is on it, so this is what halves Refresh.
-		actions.push_back({ N_("Sell all"), GriswoldTabSellAllLine });
+		actions.push_back({ N_("Sell all"), GriswoldTabSellAllLine, oracool::ShopActionKind::SellAll });
 		break;
 	// The other three shelves that REGENERATE (user, 2026-08-27: "Refresh on BASIC, RARE, SUPPLIES
 	// tabs"). Premium is not in this list because it has its own, older switch above.
@@ -5431,14 +5443,14 @@ std::vector<oracool::ShopAction> GetShopActions(TalkID id)
 	case TalkID::SmithRareBuy:
 	case TalkID::SmithConsumables:
 		if (*sgOptions.Oracool.shopStockRefresh)
-			actions.push_back({ N_("Refresh"), PremiumRefreshLine() });
-		actions.push_back({ N_("Sell all"), GriswoldTabSellAllLine });
+			actions.push_back({ N_("Refresh"), PremiumRefreshLine(), oracool::ShopActionKind::Refresh });
+		actions.push_back({ N_("Sell all"), GriswoldTabSellAllLine, oracool::ShopActionKind::SellAll });
 		break;
 	// No Refresh on these two (see above), but Sell all all the same: "sell all items from any tab of
 	// griswold shop". Alone on the row, it takes the whole width.
 	case TalkID::SmithUniqueBuy:
 	case TalkID::SmithSetBuy:
-		actions.push_back({ N_("Sell all"), GriswoldTabSellAllLine });
+		actions.push_back({ N_("Sell all"), GriswoldTabSellAllLine, oracool::ShopActionKind::SellAll });
 		break;
 	default:
 		break;
@@ -5448,31 +5460,18 @@ std::vector<oracool::ShopAction> GetShopActions(TalkID id)
 
 namespace {
 
-/** @brief The bulk-sale row of @p id, or -1. Read off GetShopActions so the gating cannot drift. */
-int SellAllLineOn(TalkID id)
+/**
+ * @brief The line of @p id's row of @p kind, or -1.
+ *
+ * Matched on KIND, never on the line number. Line indices are per-screen and collide: in English three
+ * of them land on line 20 (Sell all, Repair all and Refresh until), so a by-line lookup had the Sold
+ * tab's Sell-all row answering yes to "do you offer Refresh until" - and that button appeared there
+ * whenever the backpack held anything (user report, 2026-09-21). See ShopActionKind in stores.h.
+ */
+int ActionLineOn(TalkID id, oracool::ShopActionKind kind)
 {
 	for (const oracool::ShopAction &action : GetShopActions(id)) {
-		if (action.line == GriswoldTabSellAllLine || action.line == SmithSellAllLine())
-			return action.line;
-	}
-	return -1;
-}
-
-/** @brief The stock-refresh row of @p id, or -1. "Refresh until" is deliberately not one of these. */
-int RefreshLineOn(TalkID id)
-{
-	for (const oracool::ShopAction &action : GetShopActions(id)) {
-		if (action.line == PremiumRefreshLine())
-			return action.line;
-	}
-	return -1;
-}
-
-/** @brief The "Refresh until" row of @p id, or -1 - which also answers whether the option is on. */
-int RefreshUntilLineOn(TalkID id)
-{
-	for (const oracool::ShopAction &action : GetShopActions(id)) {
-		if (action.line == PremiumRefreshUntilLine())
+		if (action.kind == kind)
 			return action.line;
 	}
 	return -1;
@@ -5482,36 +5481,36 @@ int RefreshUntilLineOn(TalkID id)
 
 bool ShopTabHasSellAll(TalkID id)
 {
-	return SellAllLineOn(id) != -1;
+	return ActionLineOn(id, oracool::ShopActionKind::SellAll) != -1;
 }
 
 bool ShopTabHasRefresh(TalkID id)
 {
-	return RefreshLineOn(id) != -1;
+	return ActionLineOn(id, oracool::ShopActionKind::Refresh) != -1;
 }
 
 void ShopRunSellAll(TalkID id)
 {
-	const int line = SellAllLineOn(id);
+	const int line = ActionLineOn(id, oracool::ShopActionKind::SellAll);
 	if (line != -1)
 		ShopActivateAction(id, line);
 }
 
 void ShopRunRefresh(TalkID id)
 {
-	const int line = RefreshLineOn(id);
+	const int line = ActionLineOn(id, oracool::ShopActionKind::Refresh);
 	if (line != -1)
 		ShopActivateAction(id, line);
 }
 
 bool ShopTabHasRefreshUntil(TalkID id)
 {
-	return RefreshUntilLineOn(id) != -1;
+	return ActionLineOn(id, oracool::ShopActionKind::RefreshUntil) != -1;
 }
 
 void ShopRunRefreshUntil(TalkID id)
 {
-	const int line = RefreshUntilLineOn(id);
+	const int line = ActionLineOn(id, oracool::ShopActionKind::RefreshUntil);
 	if (line != -1)
 		ShopActivateAction(id, line);
 }

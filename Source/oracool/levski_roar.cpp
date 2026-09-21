@@ -1207,7 +1207,12 @@ void OpenLevskiWindowFor(TransmuteHost host)
 	RecipeBookOpen = false;
 	SelectedRecipe = -1;
 	CubeListScroll = 0;
-	PlayUiSelectSound();
+	// SILENT, on purpose (user, 2026-09-21: "There is an extra sound being played when i click Salvage tab.
+	// remove it"). Every way into this window has already sounded by the time it opens: the shop's tab column
+	// plays titlemov at the press, StoreEnter plays titlslct before it dispatches, and the workshop's tab does
+	// the same as the shop's. Adding one here made the Salvage tab answer a single click twice, which is the
+	// rule ui_sound.h states - "call these only on a path that is otherwise silent" - and this path is not.
+	// ToggleLevskiRoar, the Cube object in town, is NOT this function and keeps its own lid-grinding sound.
 }
 
 TransmuteHost CurrentTransmuteHost()

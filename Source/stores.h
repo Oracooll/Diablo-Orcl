@@ -258,9 +258,35 @@ struct ShopSlot {
  * @p line is the store text line the action still owns. The grid does not render that line, but the
  * tab's Enter handler dispatches on it, so it is what identifies the action.
  */
+/**
+ * @brief WHICH bulk action a row is, independent of the line it happens to sit on.
+ *
+ * Added 2026-09-21 to fix a reported bug. `line` is a text-list row index, and those are PER SCREEN -
+ * each screen numbers its own rows - so the same number means different things on different screens.
+ * In English `BackButtonLine()` is 22, which puts THREE of these on line 20:
+ *
+ *     SmithSellAllLine()        = BackButtonLine() - 2 = 20
+ *     SmithRepairAllLine()      = BackButtonLine() - 2 = 20
+ *     PremiumRefreshUntilLine() = BackButtonLine() - 2 = 20   (non-CJK)
+ *
+ * Griswold's redesigned page asks each tab which bulk actions it offers. Asked by LINE, the Sold
+ * tab's Sell-all row answered yes to "do you have a Refresh until" - so that button appeared on the
+ * Sold tab the moment the backpack held anything, which is what `storenumh > 0` gates Sell all on
+ * (user report: "Refresh all button appears on Sold tab when i have items in my backpack").
+ *
+ * A row's identity has to be CARRIED, not inferred from where it happens to sit.
+ */
+enum class ShopActionKind : uint8_t {
+	SellAll,
+	RepairAll,
+	Refresh,
+	RefreshUntil,
+};
+
 struct ShopAction {
 	const char *label;
 	int line;
+	ShopActionKind kind;
 };
 
 } // namespace oracool
