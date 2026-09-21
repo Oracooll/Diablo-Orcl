@@ -69,6 +69,27 @@ void DrawShopTabColumnFor(const Surface &out, TalkID open);
 
 /** @brief The tab under @p position in that column, or TalkID::None. The caller decides what switching costs. */
 TalkID ShopTabAt(Point position, TalkID open);
+
+/**
+ * @brief Presses the tab of @p open's column under @p position. True when one was pressed, so the caller stops.
+ *
+ * A vendor's tabs act on the RELEASE (user, 2026-09-21: "make all tab buttons on all vendors sinkable on click.
+ * sink holds as long as click and springs back to normal on click release. opening clicked tab counts if release
+ * happens within region of button"), which is the same rule Griswold's confirmation buttons and the Rift
+ * Monument's menu already follow. This only sinks the tab and sounds the click.
+ */
+bool PressShopTabAt(Point position, TalkID open);
+
+/**
+ * @brief The pressed tab, if the pointer is still inside it - and clears the press either way.
+ *
+ * TalkID::None when nothing was held or the release landed off the button. Called by whichever screen owns the
+ * column at the time; the shop's own answer is ReleaseShopTabButton below.
+ */
+TalkID TakeReleasedShopTab();
+
+/** @brief LeftMouseUp for the shop's own column: the released tab's shelf opens. */
+void ReleaseShopTabButton();
 /** @brief Whether @p id is drawn as the icon grid rather than as the vanilla text list. */
 bool IsShopGridScreen(TalkID id);
 

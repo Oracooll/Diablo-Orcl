@@ -1064,6 +1064,20 @@ bool SetLevskiHoverInfoString()
 bool IsLevskiRoarOpen() { return WindowOpen; }
 void ReleaseLevskiButtons()
 {
+	// Griswold's tab column beside the Salvage page springs back with everything else on it, and the shelf it
+	// was pressed on opens only if the release landed back inside the same tab.
+	if (const SalvageLayout *page = SalvagePage(); WindowOpen && page != nullptr && page->docked) {
+		const TalkID tab = TakeReleasedShopTab();
+		if (tab != TalkID::None && tab != TalkID::SmithTransmute) {
+			CloseLevskiRoar();
+			if (!WindowOpen)
+				StartStore(tab);
+			PressedCubeButton = -1;
+			PressedSalvageIcon = -1;
+			PressedConfirmButton = -1;
+			return;
+		}
+	}
 	PressedCubeButton = -1;
 	PressedSalvageIcon = -1; // Griswold's salvage icons spring back too (2026-09-21)
 	// The confirmation's two buttons act on the RELEASE, and only when it lands inside the button that was
@@ -1930,17 +1944,10 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	// shelf, and a click on Salvage itself is absorbed (2026-09-21). Tested before the window, since the column is
 	// outside it.
 	if (const SalvageLayout *page = SalvagePage(); page != nullptr && page->docked) {
-		const TalkID tab = ShopTabAt(mousePosition, TalkID::SmithTransmute);
-		if (tab != TalkID::None) {
-			if (tab != TalkID::SmithTransmute) {
-				CloseLevskiRoar();
-				if (!WindowOpen) {
-					StartStore(tab);
-					PlayUiMoveSound();
-				}
-			}
+		// The press only sinks the tab; the shelf opens on the release, in ReleaseLevskiButtons below
+		// (user, 2026-09-21: "opening clicked tab counts if release happens within region of button").
+		if (PressShopTabAt(mousePosition, TalkID::SmithTransmute))
 			return true;
-		}
 	}
 	const Rectangle window = GetLevskiRoarRect();
 	const Rectangle book = GetLevskiRecipeBookRect();

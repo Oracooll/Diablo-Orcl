@@ -525,20 +525,25 @@ void DrawTabColumn(const Surface &out)
 	for (int i = 0; i < static_cast<int>(tabs.size()); i++) {
 		const Rectangle rect = TabRect(i);
 		const bool active = tabs[i] == OpenTab;
-		FillRect(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height, active ? PlateEdge : PlateFill);
-		OutlineRect(out, rect, active ? FrameGold : PlateEdge);
+		// Held down: the face sinks and springs back on the release, like every other button here (user,
+		// 2026-09-21: "make all tab buttons on all vendors sinkable on click"). The hit test stays on the
+		// unsunk rect, so a tab cannot slide out from under a pointer that has not moved.
+		const bool held = Pressed == static_cast<Control>(static_cast<int>(Control::Tab0) + i);
+		const Rectangle face { rect.position + (held ? PressSink : Displacement { 0, 0 }), rect.size };
+		FillRect(out, face.position.x, face.position.y, face.size.width, face.size.height, active ? PlateEdge : PlateFill);
+		OutlineRect(out, face, active ? FrameGold : PlateEdge);
 		// No rotated text in this engine: a vertical label is a stack of capitals.
 		const std::string label = std::string(_(TabName(tabs[i])));
 		const int lineHeight = GetLineHeight("A", GameFont12);
-		int y = rect.position.y + (rect.size.height - static_cast<int>(label.size()) * lineHeight) / 2;
+		int y = face.position.y + (face.size.height - static_cast<int>(label.size()) * lineHeight) / 2;
 		for (const char ch : label) {
 			const std::string one(1, static_cast<char>(std::toupper(static_cast<unsigned char>(ch))));
-			DrawString(out, one, Rectangle { { rect.position.x, y }, { rect.size.width, lineHeight } },
+			DrawString(out, one, Rectangle { { face.position.x, y }, { face.size.width, lineHeight } },
 			    { (active ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12 | UiFlags::AlignCenter });
 			y += lineHeight;
 		}
 		if (rect.contains(MousePosition))
-			BrightenRectRgb(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height, HoverBrightenPercent);
+			BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, HoverBrightenPercent);
 	}
 }
 

@@ -934,6 +934,24 @@ void DrawShopControls(const Surface &out, int pageCount)
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
 }
 
+/**
+ * The tab the player is holding down, and the rect it was pressed at.
+ *
+ * Every vendor's tabs obey the standing release rule (user, 2026-09-21: "sink holds as long as click and
+ * springs back to normal on click release. opening clicked tab counts if release happens within region of
+ * button"). The press only sinks the tab and sounds; the shelf opens on the mouse-up, and only when the
+ * release lands back inside the tab that was pressed.
+ *
+ * The RECT is kept beside the id because the column is drawn for two different screens - the shop itself
+ * and Griswold's Salvage page, which is not a shop screen - so the release must not have to work out
+ * which column the press came from to find the button again.
+ */
+TalkID PressedShopTab = TalkID::None;
+Rectangle PressedShopTabRect { { 0, 0 }, { 0, 0 } };
+
+/** @brief The 2 px down-left sink every pressed button in this mod wears (feedback_button_press_and_sound). */
+constexpr Displacement ShopTabSink { -2, 2 };
+
 /** @brief The tab column beside the panel, drawn after it so the tabs sit on top of nothing. */
 void DrawShopTabColumn(const Surface &out, TalkID open)
 {
@@ -943,40 +961,49 @@ void DrawShopTabColumn(const Surface &out, TalkID open)
 		const Rectangle rect = ShopTabRect(i);
 		const bool active = tabs[i] == open;
 		const bool hovered = rect.contains(MousePosition);
+		// Held down: the face sinks 2 px down-left and springs back on the release. The HIT test stays on the
+		// unsunk rect, so a tab cannot slide out from under a pointer that has not moved.
+		const Rectangle face { rect.position + (PressedShopTab == tabs[i] ? ShopTabSink : Displacement { 0, 0 }), rect.size };
 		// The vanilla button on its side: lit for the open shelf, at rest under the pointer and pressed in
 		// otherwise, so the shelves not showing step back and the open one stands out.
-		const VanillaFace face = active ? VanillaFace::Lit : hovered ? VanillaFace::Rest : VanillaFace::Pressed;
-		const bool vanilla = DrawVanillaButton(out, rect, face, /*onItsSide=*/true);
+		const VanillaFace vanillaFace = active ? VanillaFace::Lit : hovered ? VanillaFace::Rest : VanillaFace::Pressed;
+		const bool vanilla = DrawVanillaButton(out, face, vanillaFace, /*onItsSide=*/true);
 		if (!vanilla && tabArt) {
 			// Oracool: one 26x80 cell per state - the open shelf, the one under the pointer, or at rest.
 			// Its flat edge is on the RIGHT, drawn for a tab left of its panel, so here it faces away from
 			// the panel - one of the reasons it is only the fallback now.
 			const int state = active ? 2 : hovered ? 1 : 0;
-			DrawLoosePngPart(out, ShopTabArt, Rectangle { { state * ShopTabCell.width, 0 }, ShopTabCell }, rect.position);
+			DrawLoosePngPart(out, ShopTabArt, Rectangle { { state * ShopTabCell.width, 0 }, ShopTabCell }, face.position);
 		} else if (!vanilla) {
 			// The active tab is filled solid so it reads as part of the panel; the rest are the same
 			// half-transparent plate every other floating control wears.
 			if (active) {
-				DrawThemedFill(out, rect, 3);
+				DrawThemedFill(out, face, 3);
 			} else {
-				DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
+				DrawHalfTransparentRectTo(out, face.position.x, face.position.y, face.size.width, face.size.height);
 			}
-			DrawOrnateBorder(out, rect);
+			DrawOrnateBorder(out, face);
 		}
 		const string_view label = _(ShopTabName(tabs[i]));
-		if (!vanilla || !DrawSidewaysLabel(out, label, rect, UiFlags::ColorWhitegold))
-			DrawVerticalLabel(out, label, rect, active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold);
+		if (!vanilla || !DrawSidewaysLabel(out, label, face, UiFlags::ColorWhitegold))
+			DrawVerticalLabel(out, label, face, active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold);
 	}
 }
 
-/** @brief True if the click switched tabs, so the caller stops. */
-bool CheckShopTabColumnClick(Point position)
+/**
+ * @brief True if the click landed on a tab, so the caller stops. A LEFT click opens the shelf on the RELEASE.
+ *
+ * A RIGHT click still switches at once: there is no right mouse-up in this engine to spring the tab back
+ * with, so a right-pressed tab would stay sunk until the next left click somewhere else.
+ */
+bool CheckShopTabColumnClick(Point position, bool rightClick)
 {
+	if (!rightClick)
+		return PressShopTabAt(position, stextflag);
 	const std::vector<TalkID> tabs = ShopTabsFor(stextflag);
 	for (size_t i = 0; i < tabs.size(); i++) {
 		if (!ShopTabRect(i).contains(position))
 			continue;
-		// The tab you are already on absorbs the click rather than restarting the screen.
 		if (tabs[i] != stextflag) {
 			StartStore(tabs[i]);
 			ResetShopGridSelection();
@@ -999,6 +1026,44 @@ void DrawShopClose(const Surface &out)
 void DrawShopTabColumnFor(const Surface &out, TalkID open)
 {
 	DrawShopTabColumn(out, open);
+}
+
+bool PressShopTabAt(Point position, TalkID open)
+{
+	const std::vector<TalkID> tabs = ShopTabsFor(open);
+	for (size_t i = 0; i < tabs.size(); i++) {
+		const Rectangle rect = ShopTabRect(i);
+		if (!rect.contains(position))
+			continue;
+		// The tab you are already on presses and springs back like the others; it simply has nothing to open
+		// on the release. Pressing it still absorbs the click rather than restarting the screen.
+		PressedShopTab = tabs[i];
+		PressedShopTabRect = rect;
+		PlayUiMoveSound(); // the click sounds at the PRESS, as every other button in this mod does
+		return true;
+	}
+	return false;
+}
+
+TalkID TakeReleasedShopTab()
+{
+	const TalkID pressed = PressedShopTab;
+	const Rectangle rect = PressedShopTabRect;
+	PressedShopTab = TalkID::None;
+	PressedShopTabRect = Rectangle { { 0, 0 }, { 0, 0 } };
+	if (pressed == TalkID::None || !rect.contains(MousePosition))
+		return TalkID::None; // released off the tab it was pressed on: nothing happens
+	return pressed;
+}
+
+void ReleaseShopTabButton()
+{
+	// Always taken, so a press that outlived its screen cannot leave a tab sunk or fire late.
+	const TalkID tab = TakeReleasedShopTab();
+	if (tab == TalkID::None || !IsShopGridScreen(stextflag) || tab == stextflag)
+		return;
+	StartStore(tab);
+	ResetShopGridSelection();
 }
 
 TalkID ShopTabAt(Point position, TalkID open)
@@ -1199,7 +1264,7 @@ bool CheckShopGridClick(Point position, bool rightClick)
 	// The tabs first, and BEFORE the held-item branch below: dropping an item on a tab must switch
 	// tabs rather than sell the item, because the tabs are the shop's navigation and a mis-drop on
 	// one should not cost the player a sword.
-	if (CheckShopTabColumnClick(position))
+	if (CheckShopTabColumnClick(position, rightClick))
 		return true;
 	if (ShopCloseRect().contains(position)) {
 		// Out of the shop entirely, not back to the vendor's dialog - the X on every other Oracool

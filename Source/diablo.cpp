@@ -758,6 +758,7 @@ void LeftMouseUp(uint16_t modState)
 	oracool::ReleaseStonegateMenuButton(); // and the Rift Monument menu's pressed button (2026-09-20)
 	oracool::ReleaseWorkshopButton();       // and the artisan workshop's (2026-09-21)
 	oracool::ReleaseLevskiButtons();       // and Levski's Cube's painted TRANSMUTE / RECIPE BOOK (2026-09-20)
+	oracool::ReleaseShopTabButton();       // and the vendor tab the player was holding down (2026-09-21)
 }
 
 // Oracool bug fix (2026-08-16): user report - "i cant hit with rmb with regular attack."
