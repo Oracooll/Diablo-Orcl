@@ -935,13 +935,13 @@ void DrawShopControls(const Surface &out, int pageCount)
 }
 
 /** @brief The tab column beside the panel, drawn after it so the tabs sit on top of nothing. */
-void DrawShopTabColumn(const Surface &out)
+void DrawShopTabColumn(const Surface &out, TalkID open)
 {
-	const std::vector<TalkID> tabs = ShopTabsFor(stextflag);
+	const std::vector<TalkID> tabs = ShopTabsFor(open);
 	const bool tabArt = HasShopArt(ShopTabArt);
 	for (size_t i = 0; i < tabs.size(); i++) {
 		const Rectangle rect = ShopTabRect(i);
-		const bool active = tabs[i] == stextflag;
+		const bool active = tabs[i] == open;
 		const bool hovered = rect.contains(MousePosition);
 		// The vanilla button on its side: lit for the open shelf, at rest under the pointer and pressed in
 		// otherwise, so the shelves not showing step back and the open one stands out.
@@ -995,6 +995,21 @@ void DrawShopClose(const Surface &out)
 }
 
 } // namespace
+
+void DrawShopTabColumnFor(const Surface &out, TalkID open)
+{
+	DrawShopTabColumn(out, open);
+}
+
+TalkID ShopTabAt(Point position, TalkID open)
+{
+	const std::vector<TalkID> tabs = ShopTabsFor(open);
+	for (size_t i = 0; i < tabs.size(); i++) {
+		if (ShopTabRect(i).contains(position))
+			return tabs[i];
+	}
+	return TalkID::None;
+}
 
 bool ShopVanillaButtonArtLoaded()
 {
@@ -1171,7 +1186,7 @@ void DrawShopGrid(const Surface &out)
 	}
 
 	DrawShopControls(out, pageCount);
-	DrawShopTabColumn(out);
+	DrawShopTabColumn(out, stextflag);
 	DrawShopClose(out);
 }
 

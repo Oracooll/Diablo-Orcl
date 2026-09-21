@@ -6,6 +6,7 @@
 
 #include <fmt/format.h>
 
+#include <cmath>
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -33,6 +34,7 @@
 #include "oracool/book_frame.h" // the painted tall frame the recipe book wears
 #include "oracool/ornate_border.h"
 #include "oracool/salvage.h"
+#include "oracool/shop_grid.h" // the shop's tab column, kept beside Griswold's Salvage page (2026-09-21)
 #include "oracool/skill_sounds.h"
 #include "oracool/socket_overlay.h"
 #include "oracool/ui_sound.h"
@@ -301,7 +303,7 @@ constexpr const char *SalvageTallCanvasAsset = "ui\\salvage_canvas_tall.png";
 constexpr SalvageLayout SalvageTallPage {
 	{ 340, 720 }, SalvageTallCanvasAsset,
 	{ { 22, 26 }, { 296, 40 } },   // the title, in the dark of the smithy's roof
-	{ { 30, 480 }, { 280, 132 } }, // the results, inside the dark gold frame
+	{ { 30, 486 }, { 280, 126 } }, // the results, inside the gold frame; its title rides the top border
 	{ { 316, 5 }, { 18, 18 } },
 	{ { { 43, 344 }, { 56, 56 } },  // White
 	    { { 109, 344 }, { 56, 56 } }, // Magic
@@ -1313,29 +1315,72 @@ void DrawTallRecipeBook(const Surface &out)
 	(void)cursor;
 }
 
-/** @brief A 1 px rectangle outline in @p rgb - four fills, so a frame is a stack of these. */
-void OutlineRectRgb(const Surface &out, Rectangle rect, uint32_t rgb, uint8_t fallback)
+/**
+ * @brief The Salvage Results frame (user, 2026-09-21: "make the Salvage Results frame border 1px thick and use same
+ * color you use for items sprites frame"): ONE pixel, in inv.cpp's GridFrameGold - PAL16_YELLOW + 10, the darkened
+ * gold every item on every grid is outlined with since v1.12.094, so the two frames are the same frame.
+ */
+constexpr uint8_t SalvageFrameGold = PAL16_YELLOW + 10;
+/** How far the two lines bow from the border to clear the title, and how far along it the split takes. */
+constexpr int SalvageTitleBow = 9;
+constexpr int SalvageTitleReach = 7;
+
+/**
+ * @brief A quarter ellipse of single pixels from (cx + sx*rx, cy) round to (cx, cy + sy*ry).
+ *
+ * Stepped finely enough that the pixels touch at these radii; the curve is what rounds the corners where the
+ * frame's top border splits around the title and merges back.
+ */
+void PlotQuarterArc(const Surface &out, Point centre, int rx, int ry, int sx, int sy, uint8_t color)
 {
-	FillRectRgb(out, rect.position.x, rect.position.y, rect.size.width, 1, rgb, fallback);
-	FillRectRgb(out, rect.position.x, rect.position.y + rect.size.height - 1, rect.size.width, 1, rgb, fallback);
-	FillRectRgb(out, rect.position.x, rect.position.y, 1, rect.size.height, rgb, fallback);
-	FillRectRgb(out, rect.position.x + rect.size.width - 1, rect.position.y, 1, rect.size.height, rgb, fallback);
+	constexpr int Steps = 48;
+	for (int i = 0; i <= Steps; i++) {
+		const double t = i * (M_PI / 2) / Steps;
+		const int x = centre.x + static_cast<int>(std::lround(sx * rx * std::cos(t)));
+		const int y = centre.y + static_cast<int>(std::lround(sy * ry * std::sin(t)));
+		FillRect(out, x, y, 1, 1, color);
+	}
 }
 
 /**
- * @brief The dark gold frame around the tall page's results (user, 2026-09-21: "draw a dark gold frame for Salvage
- * results"): a lit edge, the dark gold body and a near-black keyline either side, so it reads as carved into the
- * painting rather than as a bright outline laid over it.
-*/
-void DrawDarkGoldFrame(const Surface &out, Rectangle inner)
+ * @brief The frame round the results, and the title ON its top border (user, 2026-09-21: "put Salvage results title
+ * somewhere along the top border of the salvage results frame and make sure that top border reaches the title, slipts
+ * into two lines with rounded edges to outline the Salvage results text and merges again back into one border line").
+ *
+ * So the top border runs in from each side, curves apart into a line above the title and a line below it, and curves
+ * back together - one continuous 1 px line that opens around the words and closes again.
+ */
+void DrawSalvageResultsFrame(const Surface &out, Rectangle inner, string_view title)
 {
-	const auto grown = [](Rectangle r, int by) {
-		return Rectangle { { r.position.x - by, r.position.y - by }, { r.size.width + 2 * by, r.size.height + 2 * by } };
-	};
-	OutlineRectRgb(out, grown(inner, 3), 0x120E07, 0);                   // the shadow the frame casts outward
-	OutlineRectRgb(out, grown(inner, 2), 0x8A6A1A, PAL16_YELLOW + 8);    // the lit edge
-	OutlineRectRgb(out, grown(inner, 1), 0x5E4712, PAL16_YELLOW + 12);   // the dark gold body
-	OutlineRectRgb(out, inner, 0x120E07, 0);                             // and the keyline inside it
+	const Rectangle f { { inner.position.x - 1, inner.position.y - 1 }, { inner.size.width + 2, inner.size.height + 2 } };
+	const int left = f.position.x;
+	const int right = f.position.x + f.size.width - 1;
+	const int top = f.position.y;
+	const int bottom = f.position.y + f.size.height - 1;
+	FillRect(out, left, top, 1, f.size.height, SalvageFrameGold);
+	FillRect(out, right, top, 1, f.size.height, SalvageFrameGold);
+	FillRect(out, left, bottom, f.size.width, 1, SalvageFrameGold);
+	if (title.empty()) {
+		FillRect(out, left, top, f.size.width, 1, SalvageFrameGold);
+		return;
+	}
+	const int half = GetLineWidth(title, GameFont12) / 2 + 7;
+	const int centreX = f.position.x + f.size.width / 2;
+	const int splitLeft = centreX - half;
+	const int splitRight = centreX + half;
+	// The border, in from each side as far as the curve.
+	FillRect(out, left, top, splitLeft - SalvageTitleReach - left, 1, SalvageFrameGold);
+	FillRect(out, splitRight + SalvageTitleReach, top, right - splitRight - SalvageTitleReach + 1, 1, SalvageFrameGold);
+	// The two lines that hold the title between them.
+	FillRect(out, splitLeft, top - SalvageTitleBow, splitRight - splitLeft + 1, 1, SalvageFrameGold);
+	FillRect(out, splitLeft, top + SalvageTitleBow, splitRight - splitLeft + 1, 1, SalvageFrameGold);
+	// And the four rounded corners: out of the border and up, out and down, and the same again on the way back in.
+	PlotQuarterArc(out, { splitLeft, top }, SalvageTitleReach, SalvageTitleBow, -1, -1, SalvageFrameGold);
+	PlotQuarterArc(out, { splitLeft, top }, SalvageTitleReach, SalvageTitleBow, -1, 1, SalvageFrameGold);
+	PlotQuarterArc(out, { splitRight, top }, SalvageTitleReach, SalvageTitleBow, 1, -1, SalvageFrameGold);
+	PlotQuarterArc(out, { splitRight, top }, SalvageTitleReach, SalvageTitleBow, 1, 1, SalvageFrameGold);
+	DrawString(out, title, Rectangle { { splitLeft, top - SalvageTitleBow }, { splitRight - splitLeft, 2 * SalvageTitleBow } },
+	    { UiFlags::ColorGold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 }
 /** @brief Griswold's painted Salvage window: the forge, the title, the seven icons with the button feel, the results. */
 void DrawSalvageWindow(const Surface &out, const Rectangle &window)
@@ -1371,7 +1416,11 @@ void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 
 	const Rectangle results { window.position + Displacement { page->results.position.x, page->results.position.y }, page->results.size };
 	if (page->goldFrame)
-		DrawDarkGoldFrame(out, results);
+		DrawSalvageResultsFrame(out, results, _("Salvage Results"));
+	// Griswold's tabs stay in view beside his Salvage page (user, 2026-09-21: "make sure when a user clicks on
+	// Salvage tab the tabs column remains visible"), drawn from the shop's own column so the two cannot drift.
+	if (page->docked)
+		DrawShopTabColumnFor(out, TalkID::SmithTransmute);
 
 	// The message (user, 2026-09-21): "X Rare Items destroyed", then the material's sprite in a 60x60 plate with a
 	// 1 px outline OUTSIDE it in the tier's colour and "X Rare Fibres Salvaged" beside it - all in the tier's colour,
@@ -1665,6 +1714,22 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	if (!WindowOpen)
 		return false;
 
+	// The tab column beside the Salvage page: a click on another of Griswold's tabs closes this page and opens that
+	// shelf, and a click on Salvage itself is absorbed (2026-09-21). Tested before the window, since the column is
+	// outside it.
+	if (const SalvageLayout *page = SalvagePage(); page != nullptr && page->docked) {
+		const TalkID tab = ShopTabAt(mousePosition, TalkID::SmithTransmute);
+		if (tab != TalkID::None) {
+			if (tab != TalkID::SmithTransmute) {
+				CloseLevskiRoar();
+				if (!WindowOpen) {
+					StartStore(tab);
+					PlayUiMoveSound();
+				}
+			}
+			return true;
+		}
+	}
 	const Rectangle window = GetLevskiRoarRect();
 	const Rectangle book = GetLevskiRecipeBookRect();
 	const Rectangle bookInner = RecipeBookInner(book); // the rows and clips are laid out from the frame's core

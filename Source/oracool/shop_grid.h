@@ -59,6 +59,16 @@ namespace devilution::oracool {
  */
 bool ShopVanillaButtonArtLoaded();
 
+/**
+ * @brief Draws the tab column @p open's vendor shows, beside the shop panel's rect.
+ *
+ * Exported for Griswold's Salvage page, which is not a shop screen but sits in the shop panel's place and keeps his
+ * tabs in view beside it (user, 2026-09-21). Drawn from the shop's own column, so the two cannot drift apart.
+ */
+void DrawShopTabColumnFor(const Surface &out, TalkID open);
+
+/** @brief The tab under @p position in that column, or TalkID::None. The caller decides what switching costs. */
+TalkID ShopTabAt(Point position, TalkID open);
 /** @brief Whether @p id is drawn as the icon grid rather than as the vanilla text list. */
 bool IsShopGridScreen(TalkID id);
 
