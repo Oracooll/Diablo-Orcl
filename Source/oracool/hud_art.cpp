@@ -1606,11 +1606,16 @@ bool HasStashCanvasArt()
 
 void DrawStashCanvasArt(const Surface &out, Point origin)
 {
+	// The storeroom, and NOTHING over it (user, 2026-09-21: "remove the tint"). The dim every other
+	// canvas wears is gone from this one window - not reduced a pass, removed: the request is about
+	// the painting being seen, and a half-transparent grey laid over art is the thing being asked
+	// about. The frame's keep-clear rect went with it; with no dim to cut a hole in, there is no
+	// hole to cut.
+	//
+	// The other canvases keep theirs. This is the one the user asked about, and the shared dim's
+	// own note (2026-09-06, "reduce it to one pass and apply to all canvases") is a decision about
+	// those, not a rule this window has to obey.
 	DrawLoosePng(out, StashCanvasAsset, origin);
-	// The frame stays UNTINTED, as the inventory's does - the same rect, because the two canvases put
-	// their ornate band in the same place (x 26..313, y 159..628, measured on both).
-	constexpr Rectangle FrameKeptClear { { 26, 159 }, { 288, 470 } };
-	DrawSidePanelDim(out, origin, &FrameKeptClear);
 }
 
 bool HasInventoryCanvasArt()

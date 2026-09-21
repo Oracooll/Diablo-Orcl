@@ -54,15 +54,14 @@ char GoldWithdrawText[21];
 TextInputCursorState GoldWithdrawCursor;
 std::optional<NumberInputState> GoldWithdrawInputState;
 
-// Oracool V1: the shared theme and geometry - the same 340x720 window, title band and separator as
-// the inventory, character sheet, quest log, waypoint list and Abilities window.
-//   18..56     title band, "STASH" (oracool::PanelTitleTop/Height)
-//   61..87     page label, "Page N / M"
-//   92..118    nav row: << <          > >>
-//   123..149   gold row: SORT on the left, the total on the right
-//   155..161   the grid's carved frame
-//   161..654   the item grid
-//   654..720   clear - below y=660 the central HUD begins
+// Oracool V1: the shared 340x720 window, now with everything placed from the canvas's painted grid
+// frame rather than from a title band that no longer exists (user, 2026-09-21).
+//   0..138     stone - the title band is EMPTY since "remove the title of stash"
+//   139..154   the one control row: << <  Page N / M  > >>, four pixels above the frame
+//   159..628   the painted grid frame, with the 10x16 grid inside it at 170..618
+//   633..660   the gold pile (ui\shop_gold_icon.png), Griswold's own
+//   660..676   the gold total, bare, under the pile
+//   676..692   SORT, under the total (user: "move sort button under the gold counter")
 constexpr Size StashPanelSize { 340, 720 };
 constexpr int StashMargin = 24;
 constexpr int StashLabelHeight = 50;
@@ -309,17 +308,23 @@ bool GoldDisplayPressed = false;
 // Three columns since 2026-09-03, for the same reason the gold rect took a seventh: at FontSize24
 // the word fills 2 columns to the pixel, and a click target that ends exactly where its own glyphs
 // do is one the player misses from either side.
-// SORT could NOT join the row above the frame, and the arithmetic is why: the grid is 280 wide, and
-// four 34px buttons (136), two 6px gaps (12) and a centred "Page 100 / 100" at FontSize16 (~112)
-// already spend ~260 of it. Ten pixels a side is not a button. So it sits under the grid on the
-// gold's line instead, flush with the LAST column the way it used to be flush with the first - the
-// pairing with the inventory's SORT-left/gold-right header is kept, mirrored, now that the gold has
-// taken the left end.
-constexpr Rectangle StashSortButtonRect { { StashColumnX(11) - 3 * StashCellPx, StashGoldCountY },
+// UNDER the gold counter now (user, 2026-09-21: "move sort button under the gold counter"), not
+// beside it at the other end of the row. It was flush right, the mirror of the inventory's
+// SORT-left/gold-right header; the user wants the two stacked instead, so SORT takes the gold's own
+// x and the line below it and the pair reads as one block under the grid's left corner.
+//
+// Left-aligned to match, and the same three columns wide - the width is the click target, and a
+// target that ends exactly where its own glyphs do is one the player misses from either side.
+constexpr int StashSortRowY = StashGoldCountY + StashGoldRowHeight;
+constexpr Rectangle StashSortButtonRect { { GoldDisplayRect.position.x, StashSortRowY },
 	{ 3 * StashCellPx, StashGoldRowHeight } };
 
-static_assert(GoldDisplayRect.position.x + GoldDisplayRect.size.width <= StashSortButtonRect.position.x,
-    "The gold readout now runs into the SORT button beside it");
+// Stacked, so the test that mattered is the vertical one: the two rects must not overlap, and the
+// pair must still finish inside the panel rather than running off its foot.
+static_assert(GoldDisplayRect.position.y + GoldDisplayRect.size.height <= StashSortButtonRect.position.y,
+    "SORT now overlaps the gold readout it sits under");
+static_assert(StashSortButtonRect.position.y + StashSortButtonRect.size.height <= StashPanelSize.height,
+    "SORT now runs off the bottom of the stash panel");
 static_assert(StashSortButtonRect.position.x + StashSortButtonRect.size.width <= StashColumnX(11),
     "SORT runs past the last grid column");
 
@@ -946,15 +951,14 @@ void DrawStash(const Surface &out)
 		oracool::DrawOrnateBorder(out, panel);
 	}
 
-	// User request (2026-08-16): the title sits 12px from the panel's top edge, and the gold rule
-	// that used to run under it is gone - the painted background brings its own header framing, so
-	// the separator was a second line drawn across the first.
+	// No title (user, 2026-09-21: "remove the title of stash"). It stood in the shared PanelTitleTop
+	// band, outlined at FontSize30; the storeroom canvas carries its own header now and the word
+	// printed over it was a caption on a painting. The same removal Griswold's tabs had on
+	// 2026-09-21 - one window naming itself while its neighbours do not is what makes it look
+	// unfinished.
 	//
-	// The band is exactly one line tall so VerticalCenter cannot drift it: 12 means 12.
-	const Rectangle labelArea { { panel.position.x + StashMargin, panel.position.y + oracool::PanelTitleTop },
-		{ panel.size.width - 2 * StashMargin, oracool::PanelTitleHeight } };
-	oracool::DrawOutlinedString(out, _("STASH"), labelArea,
-	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+	// Nothing moves with it: every control here is placed from the grid frame, not from the title,
+	// so the band it vacated is simply stone now.
 
 	// Bug fix: the four page arrows were INVISIBLE until pressed. data\stashnavbtns.clx only holds
 	// each button's pressed frame - the unpressed state was painted into data\stash.clx, which the
@@ -992,16 +996,27 @@ void DrawStash(const Surface &out)
 		// box they were painted under; the hover lift is the field's own second colour.
 		oracool::DrawLegacyTextBox(out, rect,
 		    rect.contains(MousePosition) ? oracool::LegacyTextBoxHoverFill : oracool::LegacyTextBoxFill);
+		// NO Shadowed (user, 2026-09-21: "remove the shadows of the nav arrows"). The drop shadow was
+		// added for the stone these four used to sit on; inside the legacy box's own dark field it
+		// only thickened a 12px glyph in a 10px face, which is what made them look smudged rather
+		// than lit. SORT and the gold total keep theirs - those two ARE on open stone.
 		DrawString(out, StashNavLabel[i], rect,
 		    { UiFlags::AlignCenter | UiFlags::VerticalCenter | StashControlFont // 16 with the 16px buttons (user, 2026-09-21)
-		        | (StashButtonPressed == i ? UiFlags::ColorWhite : UiFlags::ColorGold)
-		        | UiFlags::Shadowed });
+		        | (StashButtonPressed == i ? UiFlags::ColorWhite : UiFlags::ColorGold) });
 	}
 
 	// One bevelled recess around the whole grid, the way the inventory frames its own.
 	const Rectangle gridRect { GetPanelPosition(UiPanels::Stash, { StashGridLeft, StashGridTop }),
 		{ StashGridWidth, StashGridRows * StashCellPx } };
-	oracool::DrawThemedFill(out, gridRect, 2);
+	// ONE pass over the painted canvas, two over the procedural fallback (user, 2026-09-21: "make the
+	// grid a bit transparent"). Each pass is the same half-transparent blend, so two of them leave
+	// about a quarter of what is underneath and one leaves about half - the storeroom shows through
+	// the cells now instead of being boarded over by its own inventory grid.
+	//
+	// Only where there IS a painting to show. With no canvas the fill is not covering art, it IS the
+	// grid's face, and one pass there would be a paler grid on grey stone rather than a transparent
+	// one - so the fallback keeps its two.
+	oracool::DrawThemedFill(out, gridRect, framedCanvas ? 1 : 2);
 	// Outside the cells, matching the inventory. The stash needed no repositioning for either frame:
 	// its grid already had margin on every side, and it absorbed the carved bezel's extra three
 	// pixels without losing a row - see the StashGridBottom assert.
@@ -1115,10 +1130,11 @@ void DrawStash(const Surface &out)
 	    { position + Displacement { GoldDisplayRect.position.x, GoldDisplayRect.position.y }, GoldDisplayRect.size },
 	    { UiFlags::ColorWhitegold | UiFlags::VerticalCenter | UiFlags::FontSize12 | UiFlags::Shadowed });
 
-	// Right-aligned now that it has changed ends: the word finishes on column 10's right edge.
+	// Left-aligned now that it sits UNDER the total rather than opposite it: the word starts on the
+	// same x the number starts on, so the two stack as one block instead of reading as a row.
 	DrawString(out, _("SORT"),
 	    { position + Displacement { StashSortButtonRect.position.x, StashSortButtonRect.position.y }, StashSortButtonRect.size },
-	    { UiFlags::AlignRight | UiFlags::VerticalCenter | (StashSortPressed ? UiFlags::ColorWhite : UiFlags::ColorGold) | UiFlags::FontSize12
+	    { UiFlags::VerticalCenter | (StashSortPressed ? UiFlags::ColorWhite : UiFlags::ColorGold) | UiFlags::FontSize12
 	        | UiFlags::Shadowed });
 }
 
