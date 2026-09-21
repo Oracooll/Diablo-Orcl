@@ -17,8 +17,11 @@
 #include "inv.h"
 #include "items.h"
 #include "oracool/event_log.h"
+#include "oracool/gems.h"
 #include "oracool/hud_art.h"
 #include "oracool/imbuement.h"
+#include "oracool/levski_roar.h"
+#include "oracool/crafting.h"
 #include "oracool/ornate_border.h"
 #include "oracool/runewords.h"
 #include "oracool/ui_sound.h"
@@ -37,7 +40,8 @@ namespace {
 
 constexpr Size PageSize { 340, 720 };
 /** Gillian's painted canvas (user, 2026-09-21); the shared side panel stands in until it is in the archive. */
-constexpr const char *CanvasAsset = "ui\mystic_workshop.png";
+constexpr const char *MysticCanvasAsset = "ui\\mystic_workshop.png";
+constexpr const char *JewellerCanvasAsset = "ui\\artisan_workshop.png";
 /** The shared canvas's opening, as every 340x720 window uses it. */
 constexpr int InnerLeft = 22;
 constexpr int InnerRight = 317;
@@ -74,18 +78,24 @@ constexpr uint32_t RedRgb = 0xC04030;
 constexpr int HoverBrightenPercent = 115;
 constexpr Displacement PressSink { -2, 2 };
 
+/** Every tab either workshop can show; TabsFor says which of them a host has, in column order. */
 enum class Tab : uint8_t {
 	Reroll,
 	Imbue,
-	LAST = Imbue,
+	Gems,
+	Runes,
+	Jewels,
+	Recipes,
 };
-constexpr int TabCount = static_cast<int>(Tab::LAST) + 1;
+constexpr int MaxTabs = 4;
 
 /** Every control the page can hold. The press sinks one of these; the release runs it. */
 enum class Control : uint8_t {
 	None,
-	TabReroll,
-	TabImbue,
+	Tab0,
+	Tab1,
+	Tab2,
+	Tab3,
 	Reroll,
 	Imbue,
 	Remove,
@@ -94,6 +104,8 @@ enum class Control : uint8_t {
 	Option1,
 	Option2,
 	Option3,
+	Upgrade,
+	Downgrade,
 	Close,
 };
 constexpr int OptionCount = 4; // the affix as it stands, and three alternatives
@@ -104,6 +116,7 @@ Tab OpenTab = Tab::Reroll;
 /** The one item on the bench. Returned to the pack when the window closes. */
 Item Bench;
 int SelectedRow = -1;
+int StockScroll = 0;
 Control Pressed = Control::None;
 Control LastHovered = Control::None;
 std::string Board; // what the page is saying right now
@@ -189,9 +202,190 @@ Rectangle TabRect(int index)
 	return Rectangle { { page.position.x + page.size.width, page.position.y + TabTop + index * (TabSize.height + TabGap) }, TabSize };
 }
 
-const char *TabName(int index)
+/** @brief The tabs @p host shows, in column order. */
+std::vector<Tab> TabsFor(WorkshopHost host)
 {
-	return index == static_cast<int>(Tab::Reroll) ? N_("Reroll") : N_("Imbue");
+	if (host == WorkshopHost::Mystic)
+		return { Tab::Reroll, Tab::Imbue, Tab::Recipes };
+	// Ogden's tables (user, 2026-09-21): "a list of all Gem types with the number the user curently owns of each
+	// and clicking on certain type provides Upgrade/Downgrade options", the same for runes, and his jewels beside
+	// them; his socket recipes are a tab away in his book.
+	return { Tab::Gems, Tab::Runes, Tab::Jewels, Tab::Recipes };
+}
+
+const char *TabName(Tab tab)
+{
+	switch (tab) {
+	case Tab::Reroll:
+		return N_("Reroll");
+	case Tab::Imbue:
+		return N_("Imbue");
+	case Tab::Gems:
+		return N_("Gems");
+	case Tab::Runes:
+		return N_("Runes");
+	case Tab::Jewels:
+		return N_("Jewels");
+	case Tab::Recipes:
+		break;
+	}
+	return N_("Recipes");
+}
+
+/** @brief Whether @p tab is one of Ogden's stock lists, and what it lists. */
+bool IsStockTab(Tab tab)
+{
+	return tab == Tab::Gems || tab == Tab::Runes || tab == Tab::Jewels;
+}
+
+bool StockMatches(Tab tab, int idx)
+{
+	switch (tab) {
+	case Tab::Gems:
+		return IsOracoolGemIdx(idx);
+	case Tab::Runes:
+		return IsOracoolRuneIdx(idx);
+	case Tab::Jewels:
+		return IsOracoolJewelIdx(idx);
+	default:
+		return false;
+	}
+}
+
+/** @brief How many of @p tab's kinds the pack holds, one row per kind, in item order. */
+struct StockRow {
+	int idx = 0;
+	int count = 0;
+};
+
+std::vector<StockRow> StockFor(const Player &player, Tab tab)
+{
+	std::vector<StockRow> rows;
+	const auto add = [&](const Item *list, int count) {
+		for (int i = 0; i < count; i++) {
+			if (list[i].isEmpty() || !StockMatches(tab, list[i].IDidx))
+				continue;
+			const int units = std::max(1, list[i].stackCount());
+			bool found = false;
+			for (StockRow &row : rows) {
+				if (row.idx == list[i].IDidx) {
+					row.count += units;
+					found = true;
+					break;
+				}
+			}
+			if (!found)
+				rows.push_back(StockRow { static_cast<int>(list[i].IDidx), units });
+		}
+	};
+	add(player.InvList, player._pNumInv);
+	for (int tabIndex = 0; tabIndex < Player::NumExtraInventoryTabs; tabIndex++)
+		add(player.InvTabList[tabIndex].data(), player._pNumInvTab[tabIndex]);
+	std::sort(rows.begin(), rows.end(), [](const StockRow &a, const StockRow &b) { return a.idx < b.idx; });
+	return rows;
+}
+
+/** @brief How many of a kind the ladder asks for a step up: three stones or jewels, two runes. */
+int StepUpCost(Tab tab)
+{
+	return tab == Tab::Runes ? 2 : 3;
+}
+
+/** @brief The kind one step up @p tab's ladder, or 0 at the top. */
+int StepUp(Tab tab, int idx)
+{
+	switch (tab) {
+	case Tab::Gems:
+		return NextGemQuality(static_cast<uint16_t>(idx));
+	case Tab::Runes:
+		return IsTopRune(static_cast<uint16_t>(idx)) ? 0 : NextRune(static_cast<uint16_t>(idx));
+	case Tab::Jewels:
+		return NextJewelGrade(static_cast<uint16_t>(idx));
+	default:
+		return 0;
+	}
+}
+
+/** @brief The kind one step DOWN, or 0 at the bottom - the walk back up from the foot of the ladder. */
+int StepDown(Tab tab, int idx)
+{
+	if (tab == Tab::Runes) {
+		for (size_t i = 1; i < RuneLadderSize(); i++) {
+			if (RuneAtLadderPosition(i) == idx)
+				return RuneAtLadderPosition(i - 1);
+		}
+		return 0;
+	}
+	// Gems and jewels: the rung whose step up lands on this one.
+	for (int candidate = 0; candidate < static_cast<int>(IDI_LAST) + 1; candidate++) {
+		if (StockMatches(tab, candidate) && StepUp(tab, candidate) == idx)
+			return candidate;
+	}
+	return 0;
+}
+
+int CountInPack(const Player &player, int idx)
+{
+	int total = 0;
+	const auto add = [&](const Item *list, int count) {
+		for (int i = 0; i < count; i++) {
+			if (!list[i].isEmpty() && list[i].IDidx == idx)
+				total += std::max(1, list[i].stackCount());
+		}
+	};
+	add(player.InvList, player._pNumInv);
+	for (int tab = 0; tab < Player::NumExtraInventoryTabs; tab++)
+		add(player.InvTabList[tab].data(), player._pNumInvTab[tab]);
+	return total;
+}
+
+/** @brief Takes exactly @p count of @p idx out of the pack, stacks and tabs included. */
+void TakeFromPack(Player &player, int idx, int count)
+{
+	int owed = count;
+	for (int i = player._pNumInv - 1; i >= 0 && owed > 0; i--) {
+		if (player.InvList[i].isEmpty() || player.InvList[i].IDidx != idx)
+			continue;
+		const int units = std::max(1, player.InvList[i].stackCount());
+		if (units <= owed) {
+			owed -= units;
+			player.RemoveInvItem(i, false);
+		} else {
+			player.InvList[i].setStackCount(units - owed);
+			owed = 0;
+		}
+	}
+	for (int tab = 0; tab < Player::NumExtraInventoryTabs && owed > 0; tab++) {
+		for (int i = player._pNumInvTab[tab] - 1; i >= 0 && owed > 0; i--) {
+			Item &item = player.InvTabList[tab][i];
+			if (item.isEmpty() || item.IDidx != idx)
+				continue;
+			const int units = std::max(1, item.stackCount());
+			if (units <= owed) {
+				owed -= units;
+				RemoveExtraTabItem(player, tab, i);
+			} else {
+				item.setStackCount(units - owed);
+				owed = 0;
+			}
+		}
+	}
+}
+
+/** @brief Puts @p count of @p idx into the pack. Returns how many actually fitted. */
+int GiveToPack(Player &player, int idx, int count)
+{
+	int placed = 0;
+	for (; placed < count; placed++) {
+		Item made;
+		InitializeItem(made, static_cast<_item_indexes>(idx));
+		GenerateNewSeed(made);
+		made._iIdentified = true;
+		made.updateRequiredStatsCacheForPlayer(player);
+		if (!AutoPlaceItemInInventory(player, made, true))
+			break;
+	}
+	return placed;
 }
 
 /** @brief One of the two button rows: @p row 0 is the tab's own actions, @p row 1 the second pair. */
@@ -219,10 +413,13 @@ Rectangle ListRowRect(int row)
 Rectangle ControlRect(Control control)
 {
 	switch (control) {
-	case Control::TabReroll:
-		return TabRect(static_cast<int>(Tab::Reroll));
-	case Control::TabImbue:
-		return TabRect(static_cast<int>(Tab::Imbue));
+	case Control::Tab0:
+	case Control::Tab1:
+	case Control::Tab2:
+	case Control::Tab3: {
+		const int slot = static_cast<int>(control) - static_cast<int>(Control::Tab0);
+		return slot < static_cast<int>(TabsFor(Host).size()) ? TabRect(slot) : Rectangle { { 0, 0 }, { 0, 0 } };
+	}
 	case Control::Close:
 		return Panel(CloseRect);
 	case Control::Reroll:
@@ -238,6 +435,10 @@ Rectangle ControlRect(Control control)
 	case Control::Option2:
 	case Control::Option3:
 		return OfferOpen ? OptionRect(static_cast<int>(control) - static_cast<int>(Control::Option0)) : Rectangle { { 0, 0 }, { 0, 0 } };
+	case Control::Upgrade:
+		return IsStockTab(OpenTab) ? ButtonRect(0, 0, 2) : Rectangle { { 0, 0 }, { 0, 0 } };
+	case Control::Downgrade:
+		return IsStockTab(OpenTab) ? ButtonRect(0, 1, 2) : Rectangle { { 0, 0 }, { 0, 0 } };
 	case Control::None:
 		break;
 	}
@@ -320,13 +521,14 @@ void DrawPlateButton(const Surface &out, Control control, string_view label, boo
 
 void DrawTabColumn(const Surface &out)
 {
-	for (int i = 0; i < TabCount; i++) {
+	const std::vector<Tab> tabs = TabsFor(Host);
+	for (int i = 0; i < static_cast<int>(tabs.size()); i++) {
 		const Rectangle rect = TabRect(i);
-		const bool active = static_cast<int>(OpenTab) == i;
+		const bool active = tabs[i] == OpenTab;
 		FillRect(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height, active ? PlateEdge : PlateFill);
 		OutlineRect(out, rect, active ? FrameGold : PlateEdge);
 		// No rotated text in this engine: a vertical label is a stack of capitals.
-		const std::string label = std::string(_(TabName(i)));
+		const std::string label = std::string(_(TabName(tabs[i])));
 		const int lineHeight = GetLineHeight("A", GameFont12);
 		int y = rect.position.y + (rect.size.height - static_cast<int>(label.size()) * lineHeight) / 2;
 		for (const char ch : label) {
@@ -403,6 +605,30 @@ void DrawImbueList(const Surface &out)
 		DrawString(out, _("nothing imbued yet"), ListRowRect(0), { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
 }
 
+/** @brief Ogden's list: one row per kind the pack holds, with what the player owns of it. */
+void DrawStockList(const Surface &out)
+{
+	const std::vector<StockRow> rows = StockFor(*MyPlayer, OpenTab);
+	if (rows.empty()) {
+		DrawString(out, _("you carry none of these"), ListRowRect(0), { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+		return;
+	}
+	for (int row = StockScroll; row < static_cast<int>(rows.size()) && row - StockScroll < ListLines; row++) {
+		const Rectangle rect = ListRowRect(row - StockScroll);
+		const bool selected = SelectedRow == row;
+		if (selected)
+			FillRect(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height, PlateFill);
+		DrawString(out, _(AllItemsList[rows[row].idx].iName),
+		    Rectangle { { rect.position.x + 4, rect.position.y }, { rect.size.width - 44, rect.size.height } },
+		    { (selected ? UiFlags::ColorGold : UiFlags::ColorWhite) | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+		DrawString(out, StrCat(rows[row].count),
+		    Rectangle { { rect.position.x + rect.size.width - 40, rect.position.y }, { 36, rect.size.height } },
+		    { (selected ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		if (!selected && rect.contains(MousePosition))
+			OutlineRect(out, rect, PlateEdge);
+	}
+}
+
 void DrawBoard(const Surface &out)
 {
 	const Rectangle board = Panel(BoardRect);
@@ -444,7 +670,8 @@ void OpenWorkshop(WorkshopHost host)
 {
 	Host = host;
 	WindowOpen = true;
-	OpenTab = Tab::Reroll;
+	OpenTab = TabsFor(host).front();
+	StockScroll = 0;
 	SelectedRow = -1;
 	OfferOpen = false;
 	Pressed = Control::None;
@@ -482,7 +709,7 @@ bool IsPointOverWorkshop(Point position)
 		return false;
 	if (PageRect().contains(position))
 		return true;
-	for (int i = 0; i < TabCount; i++) {
+	for (int i = 0; i < static_cast<int>(TabsFor(Host).size()); i++) {
 		if (TabRect(i).contains(position))
 			return true;
 	}
@@ -506,20 +733,30 @@ void DrawWorkshop(const Surface &out)
 		return;
 	const Rectangle page = PageRect();
 	// The user's painted canvas, or the shared 340x720 side panel until it lands.
-	if (GetLoosePngSize(CanvasAsset).width > 0) {
-		DrawLoosePng(out, CanvasAsset, page.position);
+	const char *canvas = Host == WorkshopHost::Mystic ? MysticCanvasAsset : JewellerCanvasAsset;
+	if (GetLoosePngSize(canvas).width > 0) {
+		DrawLoosePng(out, canvas, page.position);
 	} else if (HasSidePanelArt()) {
 		DrawSidePanelArt(out, page.position);
 	} else {
 		DrawThemedFill(out, page);
 		DrawOrnateBorder(out, page);
 	}
-	DrawString(out, _("Mystic Workshop"), Panel(TitleRect),
+	DrawString(out, Host == WorkshopHost::Mystic ? _("Mystic Workshop") : _("Jeweller's Tables"), Panel(TitleRect),
 	    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	DrawTabColumn(out);
-	DrawBench(out);
+	if (!IsStockTab(OpenTab))
+		DrawBench(out);
 
-	if (OpenTab == Tab::Reroll) {
+	if (IsStockTab(OpenTab)) {
+		DrawStockList(out);
+		const std::vector<StockRow> rows = StockFor(*MyPlayer, OpenTab);
+		const bool picked = SelectedRow >= 0 && SelectedRow < static_cast<int>(rows.size());
+		const int up = picked ? StepUp(OpenTab, rows[SelectedRow].idx) : 0;
+		const int down = picked ? StepDown(OpenTab, rows[SelectedRow].idx) : 0;
+		DrawPlateButton(out, Control::Upgrade, StrCat(_("UPGRADE"), "  ", StepUpCost(OpenTab), _(" -> 1")), picked && up != 0 && rows[SelectedRow].count >= StepUpCost(OpenTab));
+		DrawPlateButton(out, Control::Downgrade, StrCat(_("DOWNGRADE"), _("  1 -> 2")), picked && down != 0 && rows[SelectedRow].count >= 1);
+	} else if (OpenTab == Tab::Reroll) {
 		DrawRerollList(out);
 		const bool ready = !Bench.isEmpty() && Bench._iOracoolAffixCount > 0 && SelectedRow >= 0;
 		DrawPlateButton(out, Control::Reroll, StrCat(_("REROLL"), Bench.isEmpty() ? "" : StrCat("  ", FormatInteger(RerollPrice(Bench)))), ready);
@@ -537,8 +774,9 @@ void DrawWorkshop(const Surface &out)
 
 	// The hover sound, once as the cursor arrives on a control.
 	Control hoveredNow = Control::None;
-	for (const Control control : { Control::TabReroll, Control::TabImbue, Control::Reroll, Control::Imbue,
-	         Control::Remove, Control::Cleanse, Control::Option0, Control::Option1, Control::Option2, Control::Option3 }) {
+	for (const Control control : { Control::Tab0, Control::Tab1, Control::Tab2, Control::Tab3, Control::Reroll,
+	         Control::Imbue, Control::Remove, Control::Cleanse, Control::Upgrade, Control::Downgrade,
+	         Control::Option0, Control::Option1, Control::Option2, Control::Option3 }) {
 		const Rectangle rect = ControlRect(control);
 		if (rect.size.width > 0 && rect.contains(MousePosition)) {
 			hoveredNow = control;
@@ -623,15 +861,27 @@ void RollOffers(int slot)
 void RunControl(Control control)
 {
 	switch (control) {
-	case Control::TabReroll:
-	case Control::TabImbue: {
-		const Tab wanted = control == Control::TabReroll ? Tab::Reroll : Tab::Imbue;
-		if (OpenTab != wanted) {
-			OpenTab = wanted;
-			SelectedRow = -1;
-			OfferOpen = false;
-			Board.clear();
+	case Control::Tab0:
+	case Control::Tab1:
+	case Control::Tab2:
+	case Control::Tab3: {
+		const std::vector<Tab> tabs = TabsFor(Host);
+		const int slot = static_cast<int>(control) - static_cast<int>(Control::Tab0);
+		if (slot >= static_cast<int>(tabs.size()) || tabs[slot] == OpenTab)
+			break;
+		if (tabs[slot] == Tab::Recipes) {
+			// The artisan's own recipe book, on its docked page - the workshop stands down while it is up.
+			const WorkshopHost host = Host;
+			CloseWorkshop();
+			if (!IsWorkshopOpen())
+				OpenLevskiWindowFor(host == WorkshopHost::Mystic ? TransmuteHost::Barmaid : TransmuteHost::Tavern);
+			break;
 		}
+		OpenTab = tabs[slot];
+		SelectedRow = -1;
+		StockScroll = 0;
+		OfferOpen = false;
+		Board.clear();
 		break;
 	}
 	case Control::Close:
@@ -778,6 +1028,40 @@ void RunControl(Control control)
 			PlayUiSelectSound();
 		break;
 	}
+	case Control::Upgrade:
+	case Control::Downgrade: {
+		Player &player = *MyPlayer;
+		const std::vector<StockRow> rows = StockFor(player, OpenTab);
+		if (SelectedRow < 0 || SelectedRow >= static_cast<int>(rows.size())) {
+			SetBoard(std::string(_("Choose a kind from the list first.")));
+			break;
+		}
+		const int idx = rows[SelectedRow].idx;
+		const bool up = control == Control::Upgrade;
+		const int made = up ? StepUp(OpenTab, idx) : StepDown(OpenTab, idx);
+		if (made == 0) {
+			SetBoard(std::string(up ? _("Nothing stands above this one.") : _("Nothing stands below this one.")));
+			break;
+		}
+		const int cost = up ? StepUpCost(OpenTab) : 1;
+		if (CountInPack(player, idx) < cost) {
+			SetBoard(fmt::format(fmt::runtime(_("You need {:d} of those.")), cost));
+			break;
+		}
+		TakeFromPack(player, idx, cost);
+		const int placed = GiveToPack(player, made, up ? 1 : 2);
+		CalcPlrInv(player, true);
+		SelectedRow = -1;
+		if (placed == 0) {
+			SetBoard(std::string(_("Your pack had no room - the work was undone.")));
+			GiveToPack(player, idx, cost); // put them back rather than swallow them
+			break;
+		}
+		SetBoard(StrCat(_("Made"), " ", placed, " ", _(AllItemsList[made].iName)));
+		if (!PlayUiEventSound(UiEventSound::Transmute))
+			PlayUiSelectSound();
+		break;
+	}
 	case Control::None:
 		break;
 	}
@@ -793,9 +1077,9 @@ bool CheckWorkshopClick(Point position)
 		return false;
 
 	// Every control presses here and RUNS on the release - the standing rule since v1.12.102.
-	for (const Control control : { Control::TabReroll, Control::TabImbue, Control::Close, Control::Reroll,
-	         Control::Imbue, Control::Remove, Control::Cleanse, Control::Option0, Control::Option1,
-	         Control::Option2, Control::Option3 }) {
+	for (const Control control : { Control::Tab0, Control::Tab1, Control::Tab2, Control::Tab3, Control::Close,
+	         Control::Reroll, Control::Imbue, Control::Remove, Control::Cleanse, Control::Upgrade, Control::Downgrade,
+	         Control::Option0, Control::Option1, Control::Option2, Control::Option3 }) {
 		const Rectangle rect = ControlRect(control);
 		if (rect.size.width == 0 || !rect.contains(position))
 			continue;
@@ -830,6 +1114,17 @@ bool CheckWorkshopClick(Point position)
 		return true;
 	}
 
+	if (IsStockTab(OpenTab)) {
+		const std::vector<StockRow> rows = StockFor(player, OpenTab);
+		for (int row = StockScroll; row < static_cast<int>(rows.size()) && row - StockScroll < ListLines; row++) {
+			if (!ListRowRect(row - StockScroll).contains(position))
+				continue;
+			SelectedRow = SelectedRow == row ? -1 : row;
+			PlayUiSelectSound();
+			return true;
+		}
+		return true;
+	}
 	// A list row selects; the lists are the tab's own.
 	if (!OfferOpen && !Bench.isEmpty()) {
 		const int rows = OpenTab == Tab::Reroll ? Bench._iOracoolAffixCount : CaptureImbuements(Bench).count;

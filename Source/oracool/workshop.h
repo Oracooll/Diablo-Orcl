@@ -41,9 +41,10 @@ struct Player;
 
 namespace devilution::oracool {
 
-/** @brief Whose workshop is open. The Jeweller's page is the transmute window's docked skin; this is the Mystic's. */
+/** @brief Whose workshop is open: Gillian's bench, or Ogden's gem and rune tables. */
 enum class WorkshopHost : uint8_t {
 	Mystic,
+	Jeweller,
 };
 
 /** @brief Opens the workshop on @p host, closing whatever else shares the slot. */

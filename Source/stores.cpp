@@ -3577,7 +3577,8 @@ void TavernEnter()
 	}
 	case 15:
 		stextflag = TalkID::None;
-		oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Tavern);
+		// Ogden's shop is his workshop now (user, 2026-09-21): the gem and rune tables, his recipes a tab away.
+		oracool::OpenWorkshop(oracool::WorkshopHost::Jeweller);
 		break;
 	case 18:
 		stextflag = TalkID::None;
