@@ -624,6 +624,7 @@ constexpr const char *GriswoldGridCanvasAsset = "ui\\griswold_canvas_grid.png";
  */
 constexpr const char *PepinCanvasAsset = "ui\\pepin_canvas.png";
 constexpr const char *WirtCanvasAsset = "ui\\wirt_canvas.png";
+constexpr const char *AdriaCanvasAsset = "ui\\adria_canvas.png";
 constexpr const char *ShopButtonFrameAsset = "ui\\shop_button_frame.png";
 constexpr const char *ShopGoldIconAsset = "ui\\shop_gold_icon.png";
 
@@ -716,6 +717,10 @@ const char *PortraitCanvasFor(TalkID id)
 	case TalkID::BoyGamble:
 		// Both of Wirt's tabs, Shop and Gamble. Both show a shelf, so both want the frame.
 		return WirtCanvasAsset;
+	case TalkID::WitchBuy:
+	case TalkID::WitchSell:
+		// Adria's two, and the last vendor off the shared limestone canvas (2026-09-21).
+		return AdriaCanvasAsset;
 	default:
 		return nullptr;
 	}
@@ -802,11 +807,17 @@ std::vector<ServiceButton> ServicesFor(TalkID id);
 /**
  * @brief Which of the seven painted frames page @p id actually puts on screen.
  *
- * Griswold shows the lot. A PORTRAIT page shows exactly one - Refresh - and only where that vendor's
- * control row carried a Refresh to begin with (user, 2026-09-21: "just for wirt - remove the current
- * refresh button and use Griswold one"). Pepin's row has no services at all, so he gets no frame;
- * Wirt's had the one, so his moves from a wide word-button in the row to Griswold's painted plate at
- * Griswold's own position, which is what "use Griswold one" asks for.
+ * Griswold shows the lot. A PORTRAIT page shows Griswold's plate for EVERY service its own control
+ * row carried, at Griswold's own position for that service (user, 2026-09-21: "just for wirt -
+ * remove the current refresh button and use Griswold one", then the same for Adria).
+ *
+ * Stated as "whatever the row had" rather than as a list of vendors, which is what made Adria free:
+ * Wirt's row carried Refresh and Pepin's carried nothing, so Wirt got one plate and Pepin none - and
+ * Adria's carries Recharge, so she gets Griswold's Recharge plate without a word of new code. A rule
+ * about SERVICES rather than about NAMES is what stops the next vendor needing a case here.
+ *
+ * Note for Adria specifically: she has no Refresh to replace. GetShopActions has no Witch case and
+ * her row's one service is Recharge, so that is the button that became a painted plate.
  *
  * THIS is the single question the draw, the hit test, the hover and the release all ask. They used to
  * ask IsRedesignedShopScreen and then ShopServiceSlotVisible separately, which is two places for a
@@ -818,10 +829,8 @@ bool ShopServiceSlotOnPage(int slot, TalkID id)
 		return ShopServiceSlotVisible(slot, id);
 	if (PaintedPageCanvas(id) == nullptr)
 		return false;
-	if (ShopServiceSlotDoes[slot] != ServiceButton::Refresh)
-		return false;
 	const std::vector<ServiceButton> services = ServicesFor(id);
-	return std::find(services.begin(), services.end(), ServiceButton::Refresh) != services.end();
+	return std::find(services.begin(), services.end(), ShopServiceSlotDoes[slot]) != services.end();
 }
 
 /** @brief Whether any painted frame is on this page - the gate the four call sites share. */
