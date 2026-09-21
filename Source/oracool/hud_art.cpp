@@ -1595,7 +1595,23 @@ namespace {
 constexpr const char *SidePanelGridAsset = "ui\\panel_bg_grid.png";
 /** @brief See HasInventoryCanvasArt - the same idea at the inventory's own grid size and place. */
 constexpr const char *InventoryCanvasAsset = "ui\\panel_bg_inventory.png";
+/** @brief See HasStashCanvasArt - the stash's own room, framed for the same 10x16 grid. */
+constexpr const char *StashCanvasAsset = "ui\\stash_canvas.png";
 } // namespace
+
+bool HasStashCanvasArt()
+{
+	return GetLoosePngSize(StashCanvasAsset).width != 0;
+}
+
+void DrawStashCanvasArt(const Surface &out, Point origin)
+{
+	DrawLoosePng(out, StashCanvasAsset, origin);
+	// The frame stays UNTINTED, as the inventory's does - the same rect, because the two canvases put
+	// their ornate band in the same place (x 26..313, y 159..628, measured on both).
+	constexpr Rectangle FrameKeptClear { { 26, 159 }, { 288, 470 } };
+	DrawSidePanelDim(out, origin, &FrameKeptClear);
+}
 
 bool HasInventoryCanvasArt()
 {

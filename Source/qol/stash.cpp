@@ -143,20 +143,57 @@ constexpr int StashControlGap = 5;
  * border + margin, an expression whose value happened to be the old first row - it says nothing
  * about where the title actually ends, and the equal-gap rule is a statement about exactly that.
  */
-constexpr int StashPageLabelY = oracool::PanelTitleTop + oracool::PanelTitleHeight + StashControlGap;
-constexpr int StashPageRowY = StashPageLabelY + StashControlLineHeight + StashControlGap;
-constexpr int StashPageRowHeight = StashControlLineHeight;
+/**
+ * @brief The painted canvas's grid frame, panel-relative: its ornate band runs y 159..628.
+ *
+ * Measured on ui\stash_canvas.png (and the same on the other framed canvases). Everything the user
+ * placed "4px above the grid frame" or under it is derived from this rather than from a literal, so
+ * a recut canvas that moves the band moves the furniture with it.
+ */
+constexpr int StashFrameTop = 159;
+constexpr int StashFrameBottom = 628;
+/** @brief The air the user asked for between the controls and the frame, above and below. */
+constexpr int StashFrameClearance = 4;
+
+/**
+ * The page counter, the four nav buttons and nothing else, on ONE line four pixels above the frame
+ * (user, 2026-09-21: "move the page navigation buttons and page counter to 4px above the grid
+ * frame"). It was three stacked bands under the title; the title keeps its place and the rest of
+ * that stack is gone.
+ *
+ * The row's last pixel is StashFrameTop - StashFrameClearance - 1 = 154, so a 16px row starts at 139.
+ */
+constexpr int StashControlRowHeight = 16; // "if the font is 16px high then make the nav buttons also 16px high"
+constexpr int StashPageRowY = StashFrameTop - StashFrameClearance - StashControlRowHeight;
+constexpr int StashPageRowHeight = StashControlRowHeight;
+constexpr int StashPageLabelY = StashPageRowY; // the counter shares the line with the buttons now
 // 46x32, not 40x26: the legacy bevel draws INSIDE its rect (user, 2026-09-04: "apply legacy text box
 // borders for stash nav buttons"), so the button grew by the bevel on every side and the face the
 // glyph sits on is the same 40x26 it was. The 3px it overhangs the row either way is inside the
 // 5px StashControlGap.
 // 28x18 faces since 2026-09-05 (user: "reduce size of NAV buttons"), with the 12px glyphs; were 40x26 under the 24px face.
-constexpr Size ButtonSize { 28 + 2 * oracool::LegacyTextBoxBevel, 18 + 2 * oracool::LegacyTextBoxBevel };
+// SIXTEEN tall, the width unchanged (user, 2026-09-21: "if the font is 16px high then make the nav
+// buttons also 16px high. keep their width"). The legacy box's bevel draws INSIDE the rect, so the
+// face this leaves is 16 - 2*3 = 10; the arrow glyphs are short and sit inside it, and matching the
+// font's own height is what was asked for.
+constexpr Size ButtonSize { 28 + 2 * oracool::LegacyTextBoxBevel, StashControlRowHeight };
 /** The buttons fill their row now, so this is the row's own y. */
 constexpr int StashButtonY = StashPageRowY + (StashPageRowHeight - ButtonSize.height) / 2;
 
-constexpr int StashGoldRowY = StashPageRowY + StashPageRowHeight + StashControlGap;
-constexpr int StashGoldRowHeight = StashControlLineHeight;
+/**
+ * The gold and SORT sit UNDER the grid now, four pixels below the painted frame's foot.
+ *
+ * The gold is Griswold's pair - a pile and a number beneath it, no "GOLD:" label (user, 2026-09-21:
+ * "remove the current gold counter and place a new one, the same as in Griswold stores. Icon +
+ * counter under the grid"), at his own x so the two windows read alike.
+ */
+constexpr int StashUnderGridY = StashFrameBottom + 1 + StashFrameClearance;
+constexpr int StashGoldRowHeight = StashControlRowHeight;
+/** @brief The same pile Griswold's page draws, so the two windows count gold in one visual language. */
+constexpr const char *StashGoldIconAsset = "ui\\shop_gold_icon.png";
+constexpr Point StashGoldIconAt { 27, StashUnderGridY };
+constexpr int StashGoldIconHeight = 28; // ui\shop_gold_icon.png, the same file Griswold draws
+constexpr int StashGoldCountY = StashUnderGridY + StashGoldIconHeight - 1;
 
 /**
  * @brief Contains mappings for the four page-navigation buttons.
@@ -166,46 +203,76 @@ constexpr int StashGoldRowHeight = StashControlLineHeight;
  * needs a slot in this table - but the ORDER of the remaining four still matters, because
  * StashButtonPressed indexes both this and the nav-button art.
  */
-constexpr Rectangle StashButtonRect[] = {
-	// RE-SPACED for the 40px button (user, 2026-09-03: "rearrange them accordingly afterwards"). The
-	// old xs were the 2026-08-16 positions - each pair moved two grid columns inward to open the
-	// middle of the row - and at 27px wide they had a 5px gap between the members of a pair. At 40
-	// they would have overlapped, which is the whole of the rearranging.
-	//
-	// Anchored to the GRID rather than to literals now: the outer pair sits flush with the grid's
-	// left and right edges, the inner pair 4px in from it. That keeps the row aligned with the
-	// columns beneath it the way SORT and the gold total already are, and it stays symmetric about
-	// the panel's centre by construction rather than by two numbers happening to mirror.
-	// clang-format off
-	{ { StashColumnX(1),                            StashButtonY }, ButtonSize }, // 10 left
-	{ { StashColumnX(1) + ButtonSize.width + 4,     StashButtonY }, ButtonSize }, // 1 left
-	{ { StashColumnX(11) - 2 * ButtonSize.width - 4, StashButtonY }, ButtonSize }, // 1 right
-	{ { StashColumnX(11) - ButtonSize.width,        StashButtonY }, ButtonSize }  // 10 right
-	// clang-format on
-};
-static_assert(StashButtonRect[1].position.x + ButtonSize.width < StashButtonRect[2].position.x,
-    "the two nav-button pairs now meet in the middle of the row - narrow ButtonSize");
+/**
+ * @brief The four nav buttons, placed from the page counter's REAL drawn width.
+ *
+ * A function rather than the constexpr table this replaces, because the user asked for the buttons
+ * to sit "6px horizontally away" from the counter and the counter is centred text whose width is the
+ * font's business, not a literal's: "Page 1 / 2" and "Page 100 / 100" are not the same size. Measured
+ * once per call with GetLineWidth against the string actually being drawn, so the gap is six pixels
+ * whatever the page number does.
+ *
+ * Index order is unchanged and still matters - StashButtonPressed indexes this and the labels.
+ */
+Rectangle StashNavButtonRectAt(int index);
+
 constexpr int StashNavButtonCount = 4;
-/** @brief Drawn as text, in the same order as StashButtonRect. */
+/** @brief Drawn as text, in the same order StashNavButtonRectAt uses. */
 constexpr const char *StashNavLabel[StashNavButtonCount] = { "<<", "<", ">", ">>" };
+
+/**
+ * @brief The face the row above the grid uses.
+ *
+ * The user asked for "font16" (2026-09-21) and THIS ENGINE HAS NO 16px FACE: the tables are 8, 9,
+ * 10, 11, 12, 22 (FontSizeDialog), 24, 30, 42 and 46. Twelve is the nearest real one below the 24
+ * this replaces - 22 is nearer in number and unusable here, because its ink does not sit in the
+ * range the colour .trn tables remap, so the ColorGold this string is drawn in would be a no-op on
+ * it. That was learned from a waypoint-list screenshot on 2026-08-30 and is why 24 was chosen over
+ * 22 in the first place.
+ */
+constexpr UiFlags StashControlFont = UiFlags::FontSize12;
+constexpr GameFontTables StashControlFontTable = GameFont12;
+
+/** @brief The counter's text. One source for the string, the rect it needs and the buttons beside it. */
+std::string StashPageLabelText()
+{
+	return fmt::format(fmt::runtime(_("Page {:d} / {:d}")), Stash.GetPage() + 1, CountStashPages);
+}
+
+/** @brief The counter's own rect: its MEASURED width, centred over the grid (user, 2026-09-21). */
+Rectangle StashPageLabelRectNow()
+{
+	const int width = GetLineWidth(StashPageLabelText(), StashControlFontTable);
+	const int centre = StashGridLeft + StashGridWidth / 2;
+	return { { centre - width / 2, StashPageLabelY }, { width, StashPageRowHeight } };
+}
+
+Rectangle StashNavButtonRectAt(int index)
+{
+	// Six from the counter (user, 2026-09-21: "place the nav buttons close to the page counter - 6px
+	// horizontally away"); four between the members of a pair, which is the gap they already had.
+	//
+	// Measured rather than tabulated, because "6px from the counter" cannot be a constant: "Page 1 /
+	// 2" and "Page 100 / 100" are different widths, and a fixed table would honour the gap on one of
+	// them and nothing else.
+	constexpr int CounterGap = 6;
+	constexpr int PairGap = 4;
+	const Rectangle label = StashPageLabelRectNow();
+	const int w = ButtonSize.width;
+	const int leftOfLabel = label.position.x - CounterGap;
+	const int rightOfLabel = label.position.x + label.size.width + CounterGap;
+	switch (index) {
+	case 0: return { { leftOfLabel - 2 * w - PairGap, StashButtonY }, ButtonSize }; // "<<"
+	case 1: return { { leftOfLabel - w, StashButtonY }, ButtonSize };               // "<"
+	case 2: return { { rightOfLabel, StashButtonY }, ButtonSize };                  // ">"
+	default: return { { rightOfLabel + w + PairGap, StashButtonY }, ButtonSize };   // ">>"
+	}
+}
 
 /** @brief Shared with the inventory grid - see oracool::ThemeGridLineColor for the reasoning. */
 constexpr uint8_t StashGridLineColor = oracool::ThemeGridLineColor;
 
 
-/**
- * @brief The page number, centred over the grid on its own line above the nav buttons.
- *
- * User request (2026-08-16): "Move page 1/100 one row up (around 28px)" - the label took its own
- * line and the buttons stayed below it. StashPageLabelY now leads the stack rather than being
- * derived backwards from the button row; see the stack comment above.
- *
- * Spans the GRID's full width since 2026-09-03, where it used to be 156px starting at 92. It is
- * centred text, so the width only decides where it can overflow to - and at FontSize24 "Page 100 /
- * 100" no longer fits in 156.
- */
-constexpr Rectangle StashPageLabelRect { { StashColumnX(1), StashPageLabelY },
-	{ StashColumnX(11) - StashColumnX(1), StashPageRowHeight } };
 
 /**
  * @brief Oracool: user request - the gold total's on-screen area is the click target for
@@ -220,8 +287,10 @@ constexpr Rectangle StashPageLabelRect { { StashColumnX(1), StashPageLabelY },
 // that is the part the user asked for and the part that must not move - so the extra column is taken
 // from the empty middle of the row, and SORT widens to meet it. The assert below is what says the
 // two still cannot collide.
-constexpr Rectangle GoldDisplayRect { { StashColumnX(11) - 7 * StashCellPx, StashGoldRowY },
-	{ 7 * StashCellPx, StashGoldRowHeight } };
+// Under the grid, beneath the pile, left-aligned with it - Griswold's arrangement exactly. The rect
+// is still the click target for withdrawing gold, so it covers the number rather than the icon.
+constexpr Rectangle GoldDisplayRect { { 25, StashGoldCountY },
+	{ 140, StashGoldRowHeight } };
 bool GoldDisplayPressed = false;
 
 /**
@@ -240,13 +309,19 @@ bool GoldDisplayPressed = false;
 // Three columns since 2026-09-03, for the same reason the gold rect took a seventh: at FontSize24
 // the word fills 2 columns to the pixel, and a click target that ends exactly where its own glyphs
 // do is one the player misses from either side.
-constexpr Rectangle StashSortButtonRect { { StashColumnX(1), StashGoldRowY },
+// SORT could NOT join the row above the frame, and the arithmetic is why: the grid is 280 wide, and
+// four 34px buttons (136), two 6px gaps (12) and a centred "Page 100 / 100" at FontSize16 (~112)
+// already spend ~260 of it. Ten pixels a side is not a button. So it sits under the grid on the
+// gold's line instead, flush with the LAST column the way it used to be flush with the first - the
+// pairing with the inventory's SORT-left/gold-right header is kept, mirrored, now that the gold has
+// taken the left end.
+constexpr Rectangle StashSortButtonRect { { StashColumnX(11) - 3 * StashCellPx, StashGoldCountY },
 	{ 3 * StashCellPx, StashGoldRowHeight } };
 
-static_assert(StashSortButtonRect.position.x + StashSortButtonRect.size.width <= GoldDisplayRect.position.x,
-    "The SORT button now runs into the gold readout");
-static_assert(GoldDisplayRect.position.x + GoldDisplayRect.size.width <= StashColumnX(11),
-    "The gold readout runs past the last grid column");
+static_assert(GoldDisplayRect.position.x + GoldDisplayRect.size.width <= StashSortButtonRect.position.x,
+    "The gold readout now runs into the SORT button beside it");
+static_assert(StashSortButtonRect.position.x + StashSortButtonRect.size.width <= StashColumnX(11),
+    "SORT runs past the last grid column");
 
 constexpr Size StashGridSize { StashGridColumns, StashGridRows };
 constexpr PointsInRectangleRange<int> StashGridRange { { { 0, 0 }, StashGridSize } };
@@ -264,8 +339,9 @@ constexpr int StashGridTop = oracool::GridBottom - StashGridRows * StashCellPx;
 // cells and reaches GridFrameWidth above StashGridTop, so the old form passed while the gold row sat
 // on the stone frame above the grid - which is exactly where the previous version's row ended up,
 // flush at 161, with the bezel occupying its last six pixels.
-static_assert(StashGridTop - oracool::GridFrameWidth >= StashGoldRowY + StashGoldRowHeight,
-    "the stash grid's carved frame now starts inside the gold readout above it");
+// The control row above the grid must clear the painted frame by the clearance the user asked for.
+static_assert(StashPageRowY + StashPageRowHeight + StashFrameClearance <= StashFrameTop,
+    "the stash's control row no longer clears the painted grid frame above it");
 constexpr int StashGridBottom = StashGridTop + StashGridRows * StashCellPx;
 
 /**
@@ -764,7 +840,7 @@ void CheckStashButtonRelease(Point mousePosition)
 	if (StashButtonPressed == -1)
 		return;
 
-	Rectangle stashButton = StashButtonRect[StashButtonPressed];
+	Rectangle stashButton = StashNavButtonRectAt(StashButtonPressed);
 	stashButton.position = GetPanelPosition(UiPanels::Stash, stashButton.position);
 	if (stashButton.contains(mousePosition)) {
 		// Four buttons now, not five - Sort left this table for a text control, so the indices
@@ -810,7 +886,7 @@ void CheckStashButtonPress(Point mousePosition)
 	StashSortPressed = false;
 
 	for (int i = 0; i < StashNavButtonCount; i++) {
-		Rectangle stashButton = StashButtonRect[i];
+		Rectangle stashButton = StashNavButtonRectAt(i);
 		stashButton.position = GetPanelPosition(UiPanels::Stash, stashButton.position);
 		if (stashButton.contains(mousePosition)) {
 			StashButtonPressed = i;
@@ -830,10 +906,14 @@ void DrawStash(const Surface &out)
 	// inventory background's pair, which carries its own arches and border. The procedural fill and
 	// bevel stay as the fallback so the art is droppable rather than required.
 	const Rectangle panel = GetStashPanelRect();
-	if (oracool::HasSidePanelGridArt()) {
-		// The canvas whose opening IS this grid (user, 2026-09-21) - the stash is the window it was
-		// measured against, along with the vendors' shelves.
-		oracool::DrawSidePanelGridArt(out, panel.position);
+	const bool framedCanvas = oracool::HasStashCanvasArt() || oracool::HasSidePanelGridArt();
+	if (framedCanvas) {
+		// The stash's OWN storeroom when it is there (user, 2026-09-21), and the shared grid canvas
+		// otherwise - both put their frame in the same place, so what follows is the same either way.
+		if (oracool::HasStashCanvasArt())
+			oracool::DrawStashCanvasArt(out, panel.position);
+		else
+			oracool::DrawSidePanelGridArt(out, panel.position);
 
 		// A 2 px black shadow, 2 px down and 2 px left of the grid-and-frame combo (user, 2026-09-21).
 		//
@@ -881,7 +961,8 @@ void DrawStash(const Surface &out)
 	// theme replaced, so nothing drew them at rest. They are text now, like SORT beside them and
 	// RESET on the character sheet, which also drops the last dependency on that CEL.
 	for (int i = 0; i < StashNavButtonCount; i++) {
-		const Rectangle rect { GetPanelPosition(UiPanels::Stash, StashButtonRect[i].position), StashButtonRect[i].size };
+		const Rectangle navRect = StashNavButtonRectAt(i);
+		const Rectangle rect { GetPanelPosition(UiPanels::Stash, navRect.position), navRect.size };
 		// A 2px gold box around each (user request, 2026-08-16 - 1px first, then "make the next/prev
 		// buttons borders 2px thick"), so the four read as BUTTONS rather than as loose glyphs on the
 		// background. Drawn before the label, so the text sits inside its own frame rather than under
@@ -912,7 +993,7 @@ void DrawStash(const Surface &out)
 		oracool::DrawLegacyTextBox(out, rect,
 		    rect.contains(MousePosition) ? oracool::LegacyTextBoxHoverFill : oracool::LegacyTextBoxFill);
 		DrawString(out, StashNavLabel[i], rect,
-		    { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize12 // 12 with the smaller buttons (user, 2026-09-05: "reduce size of NAV buttons")
+		    { UiFlags::AlignCenter | UiFlags::VerticalCenter | StashControlFont // 16 with the 16px buttons (user, 2026-09-21)
 		        | (StashButtonPressed == i ? UiFlags::ColorWhite : UiFlags::ColorGold)
 		        | UiFlags::Shadowed });
 	}
@@ -926,7 +1007,7 @@ void DrawStash(const Surface &out)
 	// pixels without losing a row - see the StashGridBottom assert.
 	// Skipped entirely when the grid canvas is up: that canvas has the frame painted into it
 	// (2026-09-21), and a second bezel inside the first is what drawing one anyway would give.
-	if (!oracool::HasSidePanelGridArt()) {
+	if (!oracool::HasStashCanvasArt() && !oracool::HasSidePanelGridArt()) {
 		if (oracool::HasGridBezel(gridRect.size)) {
 			oracool::DrawDropShadow(out, gridRect, oracool::GridBezelInset); // the slot shadow (2026-09-05)
 			oracool::DrawGridBezel(out, gridRect);
@@ -1004,9 +1085,15 @@ void DrawStash(const Surface &out)
 
 	// Gold, not the row's white (user request, 2026-08-16: "use gold font") - so the page readout
 	// reads as a heading over the nav buttons rather than as another value in the row.
-	DrawString(out, fmt::format(fmt::runtime(_("Page {:d} / {:d}")), Stash.GetPage() + 1, CountStashPages),
-	    { position + Displacement { StashPageLabelRect.position.x, StashPageLabelRect.position.y }, StashPageLabelRect.size },
-	    { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::ColorGold | UiFlags::FontSize24 | UiFlags::Shadowed });
+	// FontSize16 (user, 2026-09-21: "reduce the page navigation font to font16") in the rect its own
+	// width gives it, centred over the grid - the same rect the buttons were placed from, so the six
+	// pixels either side are six pixels of the string rather than of a box around it.
+	{
+		const Rectangle label = StashPageLabelRectNow();
+		DrawString(out, StashPageLabelText(),
+		    { position + Displacement { label.position.x, label.position.y }, label.size },
+		    { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::ColorGold | StashControlFont | UiFlags::Shadowed });
+	}
 
 	// Gold in the theme's own gold, matching the inventory's readout, rather than the plain white
 	// the vanilla panel used.
@@ -1018,15 +1105,20 @@ void DrawStash(const Surface &out)
 	// two roles in the neighbouring window - if one of them casts a shadow they both must, or the
 	// pairing the 2026-08-16 layout was built on comes apart on the one detail nobody would think to
 	// check.
-	DrawString(out, StrCat(_("GOLD: "), FormatInteger(Stash.gold)),
+	// Griswold's pair, under the grid: the pile, with the number beneath it and no "GOLD:" in front
+	// (user, 2026-09-21: "remove the current gold counter and place a new one, the same as in
+	// Griswold stores. Icon + counter under the grid"). Left-aligned, because the pile is on the left
+	// and a right-aligned number under a left-aligned icon is two controls, not one.
+	if (oracool::GetLoosePngSize(StashGoldIconAsset).width > 0)
+		oracool::DrawLoosePng(out, StashGoldIconAsset, position + Displacement { StashGoldIconAt.x, StashGoldIconAt.y });
+	DrawString(out, FormatInteger(Stash.gold),
 	    { position + Displacement { GoldDisplayRect.position.x, GoldDisplayRect.position.y }, GoldDisplayRect.size },
-	    // The 12px face for both (user, 2026-09-05: "reduce font size in stash of SORT, GOLD").
-	    { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::FontSize12 | UiFlags::Shadowed });
+	    { UiFlags::ColorWhitegold | UiFlags::VerticalCenter | UiFlags::FontSize12 | UiFlags::Shadowed });
 
-	// Left-aligned for the mirror reason: the word starts on column 1's left edge.
+	// Right-aligned now that it has changed ends: the word finishes on column 10's right edge.
 	DrawString(out, _("SORT"),
 	    { position + Displacement { StashSortButtonRect.position.x, StashSortButtonRect.position.y }, StashSortButtonRect.size },
-	    { UiFlags::VerticalCenter | (StashSortPressed ? UiFlags::ColorWhite : UiFlags::ColorGold) | UiFlags::FontSize12
+	    { UiFlags::AlignRight | UiFlags::VerticalCenter | (StashSortPressed ? UiFlags::ColorWhite : UiFlags::ColorGold) | UiFlags::FontSize12
 	        | UiFlags::Shadowed });
 }
 

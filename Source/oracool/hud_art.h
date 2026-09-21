@@ -141,6 +141,17 @@ bool HasInventoryCanvasArt();
 void DrawInventoryCanvasArt(const Surface &out, Point origin);
 
 /**
+ * @brief The STASH's own canvas (user, 2026-09-21) - a storeroom, with the 10x16 grid's frame in it.
+ *
+ * `ui\stash_canvas.png`. Its frame sits where the shared grid canvas's does (measured: the ornate
+ * band runs y 159..628), so it is a painting swap rather than a geometry change - but it is the
+ * stash's own room, which is why it is a file of its own rather than a recut of `panel_bg_grid.png`
+ * that Adria, Pepin and Wirt would have inherited.
+ */
+bool HasStashCanvasArt();
+void DrawStashCanvasArt(const Surface &out, Point origin);
+
+/**
  * @brief The canvas's inner opening, panel-relative: the 340x720 canvas's bezels end at x=21 and
  * x=318, y=24 and y=695 (measured 2026-09-05), so this is what shows between them.
  */
