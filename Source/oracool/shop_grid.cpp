@@ -619,9 +619,19 @@ constexpr int ShopServiceSlotCount = 7;
 constexpr int ShopRefreshUntilSlot = 6;
 /** @brief The frame art's own size; the guide's marks are exactly this, so the origins are the frames'. */
 constexpr Size ShopServiceSlotSize { 34, 34 };
+/**
+ * The row sits FOUR pixels clear of the grid frame's top (user, 2026-09-21: "move the buttons 4px
+ * above grid frame"). The framed canvas begins its ornate band at y 159 - checked level at that row
+ * across the whole span, x 30 to 310 - and a 34px button ending four pixels short of it starts at
+ * 121: 121..154 of button, 155..158 of air, 159 of frame.
+ *
+ * It was 128, which was right against the guide canvas and three pixels into the frame on this one.
+ * Moved rather than cropped, because these are the user's painted 34x34 plates and a crop would have
+ * cut through the frame drawn into the art itself.
+ */
 constexpr Point ShopServiceSlotAt[ShopServiceSlotCount] = {
-	{ 24, 128 }, { 60, 128 }, { 96, 128 },
-	{ 210, 128 }, { 246, 128 }, { 282, 128 },
+	{ 24, 121 }, { 60, 121 }, { 96, 121 },
+	{ 210, 121 }, { 246, 121 }, { 282, 121 },
 	// Clear of the gold count, which starts at x=25 and cannot run past ~x=105 even at eight digits.
 	{ 120, 627 }
 };
