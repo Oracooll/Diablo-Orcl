@@ -113,6 +113,24 @@ void DrawSidePanelArt(const Surface &out, Point origin);
 bool HasSidePanelArt();
 
 /**
+ * @brief The side panel painted WITH the 10x16 grid's frame in it (user, 2026-09-21).
+ *
+ * `ui\panel_bg_grid.png`, a second cut of the shared canvas whose opening is the shop and stash
+ * grid's rect - x 29..310, y 169..618, which is the grid's 280x448 at (30,170) with a pixel of black
+ * around it - and whose gold bezel is painted just outside that.
+ *
+ * A SEPARATE file rather than a new shared canvas, because the shared one is worn by nine windows and
+ * six of them have no 10x16 grid: the character sheet and the spell book would have carried a frame
+ * around an opening with nothing in it. A window that wants the frame asks for this; everything else
+ * is untouched.
+ *
+ * The frame is the only thing it brings. What goes INSIDE the opening - the tinted fill and the cell
+ * rules - is still drawn in code, so the grid reads the same on this canvas as on a painting.
+ */
+bool HasSidePanelGridArt();
+void DrawSidePanelGridArt(const Surface &out, Point origin);
+
+/**
  * @brief The canvas's inner opening, panel-relative: the 340x720 canvas's bezels end at x=21 and
  * x=318, y=24 and y=695 (measured 2026-09-05), so this is what shows between them.
  */

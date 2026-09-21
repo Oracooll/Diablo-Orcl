@@ -830,7 +830,11 @@ void DrawStash(const Surface &out)
 	// inventory background's pair, which carries its own arches and border. The procedural fill and
 	// bevel stay as the fallback so the art is droppable rather than required.
 	const Rectangle panel = GetStashPanelRect();
-	if (oracool::HasSidePanelArt()) {
+	if (oracool::HasSidePanelGridArt()) {
+		// The canvas whose opening IS this grid (user, 2026-09-21) - the stash is the window it was
+		// measured against, along with the vendors' shelves.
+		oracool::DrawSidePanelGridArt(out, panel.position);
+	} else if (oracool::HasSidePanelArt()) {
 		oracool::DrawSidePanelArt(out, panel.position);
 	} else {
 		oracool::DrawThemedFill(out, panel);
@@ -895,11 +899,15 @@ void DrawStash(const Surface &out)
 	// Outside the cells, matching the inventory. The stash needed no repositioning for either frame:
 	// its grid already had margin on every side, and it absorbed the carved bezel's extra three
 	// pixels without losing a row - see the StashGridBottom assert.
-	if (oracool::HasGridBezel(gridRect.size)) {
-		oracool::DrawDropShadow(out, gridRect, oracool::GridBezelInset); // the slot shadow (2026-09-05)
-		oracool::DrawGridBezel(out, gridRect);
-	} else {
-		oracool::DrawOrnateBorderOutside(out, gridRect);
+	// Skipped entirely when the grid canvas is up: that canvas has the frame painted into it
+	// (2026-09-21), and a second bezel inside the first is what drawing one anyway would give.
+	if (!oracool::HasSidePanelGridArt()) {
+		if (oracool::HasGridBezel(gridRect.size)) {
+			oracool::DrawDropShadow(out, gridRect, oracool::GridBezelInset); // the slot shadow (2026-09-05)
+			oracool::DrawGridBezel(out, gridRect);
+		} else {
+			oracool::DrawOrnateBorderOutside(out, gridRect);
+		}
 	}
 
 	// Oracool: user request - 1px cell rules, deliberately a DIFFERENT colour from the inventory

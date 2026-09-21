@@ -1482,6 +1482,11 @@ void DrawShopGrid(const Surface &out)
 		// all his tabs"). No title band with it: the painting is a portrait of the man, so naming him
 		// above it says nothing the picture does not ("We remove the title Griswold from all tabs").
 		DrawLoosePng(out, GriswoldCanvasAsset, panel.position);
+	} else if (HasSidePanelGridArt()) {
+		// The canvas with the grid's frame painted into it (user, 2026-09-21: "apply it to all windows
+		// which use the 10x16 grid. It has new grid frame embedded in it"). Adria, Pepin and Wirt -
+		// Griswold's grid tabs took the branch above, because he keeps his forge.
+		DrawSidePanelGridArt(out, panel.position);
 	} else if (HasSidePanelArt()) {
 		DrawSidePanelArt(out, panel.position);
 	} else {
@@ -1498,10 +1503,15 @@ void DrawShopGrid(const Surface &out)
 
 	const Rectangle grid = GetShopGridRect();
 	DrawThemedFill(out, grid, 2);
-	if (HasGridBezel(grid.size)) {
-		DrawGridBezel(out, grid);
-	} else {
-		DrawOrnateBorderOutside(out, grid);
+	// The frame is PAINTED INTO the grid canvas (2026-09-21), so drawing one here would put a second
+	// bezel inside the first. The fill above and the cell rules below still come from code - the art
+	// brings the frame and nothing else.
+	if (!HasSidePanelGridArt() || redesigned) {
+		if (HasGridBezel(grid.size)) {
+			DrawGridBezel(out, grid);
+		} else {
+			DrawOrnateBorderOutside(out, grid);
+		}
 	}
 	// Same 1px dark rules as the stash, drawn on the last pixel of the preceding cell's span.
 	for (int col = 1; col < ShopGridColumns; col++)

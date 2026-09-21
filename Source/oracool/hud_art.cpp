@@ -1569,6 +1569,24 @@ void DrawLoosePngPart(const Surface &out, const char *assetPath, Rectangle sourc
 // future caller would be drawing a retired artwork's opening onto whatever panel is current. It had
 // already been re-measured once, hours earlier, for exactly that reason.
 
+namespace {
+/** @brief See HasSidePanelGridArt. Loaded through the by-path cache, so it needs no registration. */
+constexpr const char *SidePanelGridAsset = "ui\\panel_bg_grid.png";
+} // namespace
+
+bool HasSidePanelGridArt()
+{
+	return GetLoosePngSize(SidePanelGridAsset).width != 0;
+}
+
+void DrawSidePanelGridArt(const Surface &out, Point origin)
+{
+	DrawLoosePng(out, SidePanelGridAsset, origin);
+	// The same dim every canvas wears (user, 2026-09-06: "reduce it to one pass and apply to all
+	// canvases") - this is a canvas like any other, so it is not an exception to that.
+	DrawSidePanelDim(out, origin);
+}
+
 bool HasSidePanelArt()
 {
 	EnsureLoadedAll();
