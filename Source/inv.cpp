@@ -2013,7 +2013,11 @@ void DrawInv(const Surface &out)
 	// inventory background, then the procedural fill. The inventory used to be the one window with a
 	// background all its own; it joined the shared family when that family arrived, and the old art
 	// stays as the middle rung rather than being deleted.
-	if (oracool::HasSidePanelArt()) {
+	if (oracool::HasInventoryCanvasArt()) {
+		// The inventory's OWN canvas, with its 10x7 grid's frame painted in (user, 2026-09-21).
+		// Ahead of the shared panel, which carries no frame at all.
+		oracool::DrawInventoryCanvasArt(out, invPanel.position);
+	} else if (oracool::HasSidePanelArt()) {
 		oracool::DrawSidePanelArt(out, invPanel.position);
 	} else if (oracool::HasInventoryPanelArt()) {
 		oracool::DrawInventoryPanelArt(out);
@@ -2103,11 +2107,16 @@ void DrawInv(const Surface &out)
 	// all 28 of their pixels instead of surrendering 3 to the bevel. The grid was raised by the
 	// frame's width to pay for it - see GridOrigin, which subtracts it from the mana orb's
 	// clearance line rather than sitting flush against it.
-	if (gridHasBezel) {
-		oracool::DrawDropShadow(out, gridRect, oracool::GridBezelInset); // the slot shadow (2026-09-05)
-		oracool::DrawGridBezel(out, gridRect);
-	} else {
-		oracool::DrawOrnateBorderOutside(out, gridRect);
+	// The canvas has this frame painted into it since 2026-09-21, so drawing one here would put a
+	// second bezel inside the first. The fill and the 1px cell rules above are still the code's - the
+	// art brings the frame and nothing else.
+	if (!oracool::HasInventoryCanvasArt()) {
+		if (gridHasBezel) {
+			oracool::DrawDropShadow(out, gridRect, oracool::GridBezelInset); // the slot shadow (2026-09-05)
+			oracool::DrawGridBezel(out, gridRect);
+		} else {
+			oracool::DrawOrnateBorderOutside(out, gridRect);
+		}
 	}
 
 	// Oracool bug fix: user report - the game crashed as soon as one of the six new slots held an

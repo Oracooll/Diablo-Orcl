@@ -131,6 +131,16 @@ bool HasSidePanelGridArt();
 void DrawSidePanelGridArt(const Surface &out, Point origin);
 
 /**
+ * @brief The INVENTORY's own canvas, with its 10x7 grid's frame painted in (user, 2026-09-21).
+ *
+ * `ui\panel_bg_inventory.png`. A third cut rather than a reuse of either of the two above, because
+ * the inventory's grid is a different size AND a different place: 10x7 at (30,422), against the shop
+ * and stash's 10x16 at (30,170). One canvas cannot carry both frames.
+ */
+bool HasInventoryCanvasArt();
+void DrawInventoryCanvasArt(const Surface &out, Point origin);
+
+/**
  * @brief The canvas's inner opening, panel-relative: the 340x720 canvas's bezels end at x=21 and
  * x=318, y=24 and y=695 (measured 2026-09-05), so this is what shows between them.
  */

@@ -1817,7 +1817,7 @@ void StartBoy()
 {
 	stextsize = false;
 	stextscrl = false;
-	AddSText(0, 2, _("Wirt the Peg-legged boy"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 2, _("Wirt"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSLine(5);
 	// The 50-gold peek is gone (2026-09-20): Wirt keeps a shop now, two tabs - what he has to sell,
 	// and the gamble - like the other vendors' grids.
@@ -2177,7 +2177,7 @@ void StartDrunk()
 {
 	stextsize = false;
 	stextscrl = false;
-	AddSText(0, 2, _("Farnham the Drunk"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 2, _("Farnham"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 12, _("Talk to Farnham"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	AddSText(0, 18, _("Say Goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);

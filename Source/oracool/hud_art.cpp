@@ -1572,7 +1572,20 @@ void DrawLoosePngPart(const Surface &out, const char *assetPath, Rectangle sourc
 namespace {
 /** @brief See HasSidePanelGridArt. Loaded through the by-path cache, so it needs no registration. */
 constexpr const char *SidePanelGridAsset = "ui\\panel_bg_grid.png";
+/** @brief See HasInventoryCanvasArt - the same idea at the inventory's own grid size and place. */
+constexpr const char *InventoryCanvasAsset = "ui\\panel_bg_inventory.png";
 } // namespace
+
+bool HasInventoryCanvasArt()
+{
+	return GetLoosePngSize(InventoryCanvasAsset).width != 0;
+}
+
+void DrawInventoryCanvasArt(const Surface &out, Point origin)
+{
+	DrawLoosePng(out, InventoryCanvasAsset, origin);
+	DrawSidePanelDim(out, origin);
+}
 
 bool HasSidePanelGridArt()
 {
