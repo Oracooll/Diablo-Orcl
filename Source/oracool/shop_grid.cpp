@@ -630,8 +630,8 @@ constexpr const char *ShopServiceSlotGlyph[ShopServiceSlotCount] = {
 	// and its hover text are what tell the two apart.
 	"ui\\shop_glyph_refresh.png"
 };
-/** @brief (34 - 24) / 2 - the glyph centred in its frame. */
-constexpr int ShopServiceGlyphInset = 5;
+// ShopServiceGlyphInset (5, from a 24 px glyph in a 34 px frame) is GONE: the draw centres the glyph
+// on whatever size the file actually is, so the art can change without a constant here going stale.
 
 /**
  * The gold pile and its count at the foot of the painting, below the grid.
@@ -1137,9 +1137,13 @@ void DrawRedesignedControls(const Surface &out, int pageCount)
 			DrawLoosePng(out, ShopButtonFrameAsset, face.position);
 		else
 			DrawOrnateBorder(out, face);
-		if (GetLoosePngSize(ShopServiceSlotGlyph[slot]).width > 0) {
+		if (const Size glyph = GetLoosePngSize(ShopServiceSlotGlyph[slot]); glyph.width > 0) {
+			// CENTRED on the glyph's own size rather than a fixed inset (2026-09-21). The art has
+			// changed size once already - 24 px, then 28 when a set arrived at 56 and halved cleanly -
+			// and a hard-coded inset silently moves every icon off centre when it does.
 			DrawLoosePng(out, ShopServiceSlotGlyph[slot],
-			    { face.position.x + ShopServiceGlyphInset, face.position.y + ShopServiceGlyphInset });
+			    { face.position.x + (face.size.width - glyph.width) / 2,
+			        face.position.y + (face.size.height - glyph.height) / 2 });
 		} else {
 			// No glyph delivered: the service's own word, which a 34px frame can just hold.
 			DrawString(out, ServiceButtonLabel(ShopServiceSlotDoes[slot]), face,

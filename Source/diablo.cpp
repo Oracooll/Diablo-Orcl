@@ -516,6 +516,20 @@ void LeftMouseDown(uint16_t modState)
 		// They could then never walk away from the counter, which is precisely the behaviour making it
 		// a store was meant to give it. Every shop TAB is a panel; only the dialogs are modal.
 		if (!oracool::IsShopTab(stextflag) || oracool::IsPointOverShop(MousePosition)) {
+			// A shop tab that is NOT a grid draws its own page - the Salvage tab - and owns every
+			// click that lands on it. CheckStoreBtn speaks for the vanilla text box, which that page
+			// does not use, so routing there swallowed the click and nothing on the page answered:
+			// its icons, its confirmation buttons and even its tab column were all inert, while the
+			// ground outside the panel still walked the player (user report, 2026-09-21).
+			//
+			// Routed HERE rather than at the window's usual place further down, because this branch
+			// returns before reaching it.
+			// A shop TAB that is not a grid - and both halves are needed. The outer test above is also
+			// taken by the towner dialogs (which are not tabs at all), and asking only "not a grid"
+			// would hand THEIR clicks to a Levski window that happened to be open behind one.
+			if (oracool::IsShopTab(stextflag) && !oracool::IsShopGridScreen(stextflag)
+			    && oracool::CheckLevskiRoarClick(MousePosition, (modState & KMOD_CTRL) != 0))
+				return;
 			CheckStoreBtn();
 			return;
 		}
