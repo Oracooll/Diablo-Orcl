@@ -233,6 +233,15 @@ struct ListSkinGeometry {
 	 * Without this the cells would be drawn at the window's top-left corner, gridOrigin being {0,0}.
 	 */
 	bool hasGrid = true;
+	/**
+	 * The painted frame's OPENING, darkened under the recipe list (user, 2026-09-21: "Lay a
+	 * transparent dark layer under the recipes"); empty on a page that wants none.
+	 *
+	 * Carried by the page rather than written as constants the draw reads, because the two recipe
+	 * pages do NOT share it: Levski's frame opens at y 306 and Ogden's at 299, measured on each.
+	 * A shared constant would have darkened seven rows of Ogden's painted moulding.
+	 */
+	Rectangle darkLayer = { { 0, 0 }, { 0, 0 } };
 };
 
 constexpr ListSkinGeometry CubeGeometry {
@@ -473,6 +482,20 @@ constexpr ListSkinGeometry CubeWorkshopGeometry {
 constexpr const char *CubePageCanvasAsset = "ui\\cube_page_canvas.png";
 constexpr const char *CubeRecipesCanvasAsset = "ui\\cube_recipes_canvas.png";
 /**
+ * OGDEN'S CUBE TAB (user, 2026-09-21: "for ogden missing recipes we will need Cube tab canvas [...]
+ * Use the transmute button as with Levski's Cube. Same behaviour").
+ *
+ * His jeweller's table with the SAME grid frame painted into it - measured, and identical to
+ * Levski's to the pixel: frame x 118..224, y 406..541, rules at x 156/185/214 and y 444/473/502. So
+ * it shares CubePageGeometry's every number and differs only in which painting goes down, which is
+ * why "same behaviour" costs one asset and one line of the table.
+ *
+ * This is where his four recipes that need an item in hand are worked - Free the Sockets, Temper
+ * Jewels, Punch Sockets and Recolour Gems. His Gems and Runes pages are collections, and none of
+ * those four acts on a collection.
+ */
+constexpr const char *OgdenCubeCanvasAsset = "ui\\ogden_cube_canvas.png";
+/**
  * TRANSMUTE is Griswold's Refresh plate (user, 2026-09-21: "Use Griswold Refresh button as Transmute
  * button here"), frame and glyph both - the same two files his shop draws, not copies of them.
  *
@@ -500,6 +523,12 @@ constexpr ListSkinGeometry CubePageGeometry {
 	{ { 0, 0 }, { 0, 0 } }, // and no title - the painting is a portrait, as every canvas this day
 	true
 };
+/** @brief Ogden's, the same page down to the pixel with his table painted behind it instead. */
+constexpr ListSkinGeometry OgdenCubePageGeometry {
+	{ 340, 720 }, { 128, 416 }, CubePageTransmuteRect, { { 0, 0 }, { 0, 0 } },
+	{ { 0, 0 }, { 0, 0 } }, { { 316, 5 }, { 18, 18 } }, OgdenCubeCanvasAsset, false,
+	{ { 0, 0 }, { 0, 0 } }, { { 0, 0 }, { 0, 0 } }, true
+};
 /**
  * The recipe page: the list inside the painted frame, on a dark layer (user, 2026-09-21: "Put the
  * list with recipes within the Frame. Lay a transparent dark layer under the recipes").
@@ -519,7 +548,36 @@ constexpr ListSkinGeometry CubeRecipesGeometry {
 	{ { CubeRecipeOpeningLeft + 6, CubeRecipeListTop }, { CubeRecipeOpeningRight - CubeRecipeOpeningLeft - 11 - 8, CubeRecipeLines * ListPitch } },
 	{ { CubeRecipeOpeningRight - 5, CubeRecipeListTop }, { 4, CubeRecipeLines * ListPitch } },
 	{ { 316, 5 }, { 18, 18 } }, CubeRecipesCanvasAsset, false,
-	{ { 0, 0 }, { 0, 0 } }, { { 0, 0 }, { 0, 0 } }, true, CubeRecipeLines, /*hasGrid=*/false
+	{ { 0, 0 }, { 0, 0 } }, { { 0, 0 }, { 0, 0 } }, true, CubeRecipeLines, /*hasGrid=*/false,
+	{ { CubeRecipeOpeningLeft, CubeRecipeOpeningTop },
+	    { CubeRecipeOpeningRight - CubeRecipeOpeningLeft + 1, CubeRecipeOpeningBottom - CubeRecipeOpeningTop + 1 } }
+};
+
+/**
+ * OGDEN'S RECIPE PAGE (user, 2026-09-21: "here is ogden recipe tab").
+ *
+ * His jeweller's table under one ornate frame. MEASURED, and NOT Levski's: the band runs y 289..298
+ * against Levski's 289..305, so the opening starts at **299** rather than 306 and is 320 tall to his
+ * 313. Sixteen rows at the list's 20px pitch instead of fifteen.
+ *
+ * Seven pixels is exactly the kind of difference that survives an eyeball and shows up as a dark
+ * band over painted moulding - which is why the opening is measured per page and carried on the
+ * page rather than shared.
+ */
+constexpr const char *OgdenRecipesCanvasAsset = "ui\\ogden_recipes_canvas.png";
+constexpr int OgdenRecipeOpeningTop = 299;
+constexpr int OgdenRecipeOpeningBottom = 618;
+constexpr int OgdenRecipeLines = 16;
+constexpr int OgdenRecipeListTop = OgdenRecipeOpeningTop
+    + (OgdenRecipeOpeningBottom - OgdenRecipeOpeningTop + 1 - OgdenRecipeLines * ListPitch) / 2;
+constexpr ListSkinGeometry OgdenRecipesGeometry {
+	{ 340, 720 }, { 0, 0 }, { { 0, 0 }, { 0, 0 } },
+	{ { CubeRecipeOpeningLeft + 6, OgdenRecipeListTop }, { CubeRecipeOpeningRight - CubeRecipeOpeningLeft - 11 - 8, OgdenRecipeLines * ListPitch } },
+	{ { CubeRecipeOpeningRight - 5, OgdenRecipeListTop }, { 4, OgdenRecipeLines * ListPitch } },
+	{ { 316, 5 }, { 18, 18 } }, OgdenRecipesCanvasAsset, false,
+	{ { 0, 0 }, { 0, 0 } }, { { 0, 0 }, { 0, 0 } }, true, OgdenRecipeLines, /*hasGrid=*/false,
+	{ { CubeRecipeOpeningLeft, OgdenRecipeOpeningTop },
+	    { CubeRecipeOpeningRight - CubeRecipeOpeningLeft + 1, OgdenRecipeOpeningBottom - OgdenRecipeOpeningTop + 1 } }
 };
 
 /** @brief The Cube's two tabs, in column order. */
@@ -530,12 +588,36 @@ CubeTab OpenCubeTab = CubeTab::Cube;
 int PressedCubeTab = -1;
 int LastHoverCubeTab = -1;
 
-/** @brief Whether the Cube wears its two painted pages - both files, or neither. */
+/**
+ * @brief The page behind tab @p index for whichever host this window is open on, or nullptr.
+ *
+ * Two hosts have tabs. LEVSKI'S CUBE has both of its pages painted, so its Recipes tab is the user's
+ * recipe panel. OGDEN has only his Cube page painted; his Recipes tab keeps the page it already had,
+ * the shared workshop canvas with the list in its bezel, until a canvas for it arrives.
+ *
+ * Gated on the art, as every canvas this day is: a tab that leads to a page with no painting is
+ * worse than no tabs, so a host short of its file keeps the single page it had before.
+ */
+const ListSkinGeometry *TabbedPageAt(int index)
+{
+	if (WindowHost == TransmuteHost::Cube
+	    && GetLoosePngSize(CubePageCanvasAsset).width > 0
+	    && GetLoosePngSize(CubeRecipesCanvasAsset).width > 0)
+		return index == 1 ? &CubeRecipesGeometry : &CubePageGeometry;
+	if (WindowHost == TransmuteHost::Tavern && GetLoosePngSize(OgdenCubeCanvasAsset).width > 0) {
+		// His recipe page when it is installed; the page he had before when it is not, so the tab
+		// never leads somewhere unpainted.
+		if (index == 1)
+			return GetLoosePngSize(OgdenRecipesCanvasAsset).width > 0 ? &OgdenRecipesGeometry : &ArtisanWorkshopGeometry;
+		return &OgdenCubePageGeometry;
+	}
+	return nullptr;
+}
+
+/** @brief Whether this window wears tabbed pages at all. */
 bool CubeTabbedPages()
 {
-	return WindowHost == TransmuteHost::Cube
-	    && GetLoosePngSize(CubePageCanvasAsset).width > 0
-	    && GetLoosePngSize(CubeRecipesCanvasAsset).width > 0;
+	return TabbedPageAt(0) != nullptr;
 }
 
 /** @brief The list skin the window wears right now, or nullptr for the Roar's painting. */
@@ -2059,10 +2141,8 @@ void DrawLevskiRoar(const Surface &out)
 		// Half-transparent rather than a flat colour, so it darkens whatever the painting puts behind
 		// it and survives a recut of the art. Twice: the floor under this frame is busy stone, and one
 		// pass left the recipe names competing with it.
-		if (!listSkin->hasGrid) {
-			const Rectangle opening { window.position + Displacement { CubeRecipeOpeningLeft, CubeRecipeOpeningTop },
-				{ CubeRecipeOpeningRight - CubeRecipeOpeningLeft + 1, CubeRecipeOpeningBottom - CubeRecipeOpeningTop + 1 } };
-			DrawThemedFill(out, opening, 2);
+		if (const Rectangle &dark = listSkin->darkLayer; dark.size.width > 0) {
+			DrawThemedFill(out, Rectangle { window.position + Displacement { dark.position.x, dark.position.y }, dark.size }, 2);
 		}
 
 		CubeListScroll = std::clamp(CubeListScroll, 0, CubeListMaxScroll());

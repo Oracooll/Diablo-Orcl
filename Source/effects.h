@@ -1053,6 +1053,16 @@ enum _sfx_id : int16_t {
 	TSFX_TRADER1,
 	IS_CROPEN,
 	IS_CRCLOS,
+	/**
+	 * Oracool (2026-09-21): sfx\misc\shatter.wav, which has been sitting in diabdat.mpq all along
+	 * with NO entry in this enum - so DevilutionX has never played it and a search of this table for
+	 * a break sound came up empty. The user knew it existed ("there is definitely Item Broken sound
+	 * in the game. Sounds like glass braking"); probing the archive by name found it in one try.
+	 *
+	 * Appended at the END, before SFX_NONE, because sfxdata[] is indexed by this enum's order and
+	 * inserting anywhere else would silently repoint every sound after it.
+	 */
+	IS_SHATTER,
 	SFX_NONE = -1,
 };
 

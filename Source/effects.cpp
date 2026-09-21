@@ -966,6 +966,7 @@ TSFX sgSFX[] = {
 /*TSFX_TRADER1*/  { sfx_STREAM,                "sfx\\hellfire\\trader1.wav",  nullptr },
 /*IS_CROPEN*/     { sfx_MISC | sfx_HELLFIRE,   "sfx\\items\\cropen.wav",      nullptr },
 /*IS_CRCLOS*/     { sfx_MISC | sfx_HELLFIRE,   "sfx\\items\\crclos.wav",      nullptr },
+/*IS_SHATTER*/    { sfx_MISC,                  "sfx\\misc\\shatter.wav",      nullptr },
 	// clang-format on
 };
 

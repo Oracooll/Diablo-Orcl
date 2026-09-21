@@ -2309,6 +2309,11 @@ void BreakOrRemoveEquipment(Player &player, inv_body_loc bodyLocation, bool hiPr
 		Item &item = player.InvBody[bodyLocation];
 		item._iDurability = 0;
 		item._iOracoolBroken = true;
+		// The glass break (user, 2026-09-21: "There should be one played when an item reaches 0
+		// durability and gets destroyed"). Nothing sounded here before, in this fork or upstream:
+		// sfx\misc\shatter.wav sits in diabdat.mpq with no enum entry, so DevilutionX has never
+		// played it. See IS_SHATTER in effects.h.
+		PlaySFX(IS_SHATTER);
 		oracool::ScheduleAutoSaveForItemBreak();
 		return;
 	}
