@@ -593,6 +593,15 @@ const char *ShopPriceLabel(TalkID id)
  * three things done TO your gear and the three done WITH the shelf.
  */
 constexpr const char *GriswoldCanvasAsset = "ui\\griswold_canvas.png";
+/**
+ * The same forge with the 10x16 grid's frame painted into it (user, 2026-09-21), for the tabs that
+ * SHOW that grid. His Salvage page keeps the frameless cut above, because it has no grid to frame -
+ * which is what "Grid Tabs Only" in the file's own name says.
+ *
+ * Measured on it: the ornate band runs x 26..313 and y 159..628, around the grid's 280x448 at
+ * (30,170) - the same 3px-and-a-black-pixel relationship the other framed canvases have.
+ */
+constexpr const char *GriswoldGridCanvasAsset = "ui\\griswold_canvas_grid.png";
 constexpr const char *ShopButtonFrameAsset = "ui\\shop_button_frame.png";
 constexpr const char *ShopGoldIconAsset = "ui\\shop_gold_icon.png";
 
@@ -1477,11 +1486,14 @@ void DrawShopGrid(const Surface &out)
 
 	const Rectangle panel = GetShopPanelRect();
 	const bool redesigned = IsRedesignedShopScreen(stextflag);
+	// His grid tabs take the framed cut of the forge when it is there; the frameless one is the
+	// fallback, and remains what his Salvage page draws, that page having no grid to frame.
+	const bool griswoldFramed = redesigned && HasShopArt(GriswoldGridCanvasAsset);
 	if (redesigned) {
 		// Griswold's own forge, on every one of his tabs (user, 2026-09-21: "We replace the canvas for
 		// all his tabs"). No title band with it: the painting is a portrait of the man, so naming him
 		// above it says nothing the picture does not ("We remove the title Griswold from all tabs").
-		DrawLoosePng(out, GriswoldCanvasAsset, panel.position);
+		DrawLoosePng(out, griswoldFramed ? GriswoldGridCanvasAsset : GriswoldCanvasAsset, panel.position);
 	} else if (HasSidePanelGridArt()) {
 		// The canvas with the grid's frame painted into it (user, 2026-09-21: "apply it to all windows
 		// which use the 10x16 grid. It has new grid frame embedded in it"). Adria, Pepin and Wirt -
@@ -1506,7 +1518,7 @@ void DrawShopGrid(const Surface &out)
 	// The frame is PAINTED INTO the grid canvas (2026-09-21), so drawing one here would put a second
 	// bezel inside the first. The fill above and the cell rules below still come from code - the art
 	// brings the frame and nothing else.
-	if (!HasSidePanelGridArt() || redesigned) {
+	if ((!HasSidePanelGridArt() || redesigned) && !griswoldFramed) {
 		if (HasGridBezel(grid.size)) {
 			DrawGridBezel(out, grid);
 		} else {
