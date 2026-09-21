@@ -307,16 +307,16 @@ constexpr SalvageLayout SalvageTallPage {
 	{ { 22, 26 }, { 296, 40 } },   // the title, in the dark of the smithy's roof
 	{ { 30, 486 }, { 280, 126 } }, // the results, inside the gold frame; its title rides the top border
 	{ { 316, 5 }, { 18, 18 } },
-	// A 4x2 grid at the row's own pitch (user, 2026-09-21: "arrange a 4x2 grid of icons keeping the distance
-	// between them as it is now on row 1"): White, Magic, Rare, Unique over Set, Primal, Ethereal, one item.
-	{ { { 43, 344 }, { 56, 56 } },  // White
-	    { { 109, 344 }, { 56, 56 } }, // Magic
-	    { { 175, 344 }, { 56, 56 } }, // Rare
-	    { { 241, 344 }, { 56, 56 } }, // Unique
-	    { { 109, 410 }, { 56, 56 } }, // Primal - second of the lower row
-	    { { 43, 410 }, { 56, 56 } },  // Set - its first
-	    { { 175, 410 }, { 56, 56 } } },// Ethereal - its third
-	{ { 241, 410 }, { 56, 56 } },   // and the hammer that takes one item
+	// 4x2 at the row's own 66 px pitch, split by whether the plate asks first (user, 2026-09-21): row one is the
+	// hammer and the three cheap tiers, which act at once; row two is the four dear ones, which ask.
+	{ { { 109, 344 }, { 56, 56 } }, // White - "All Basics", second of the top row
+	    { { 175, 344 }, { 56, 56 } }, // Magic
+	    { { 241, 344 }, { 56, 56 } }, // Rare
+	    { { 43, 410 }, { 56, 56 } },  // Unique - the lower row asks before it destroys
+	    { { 175, 410 }, { 56, 56 } }, // Primal
+	    { { 109, 410 }, { 56, 56 } }, // Set
+	    { { 241, 410 }, { 56, 56 } } },// Ethereal
+	{ { 43, 344 }, { 56, 56 } },   // the hammer that takes one item, first of the top row
 	true, true
 };
 
@@ -362,6 +362,28 @@ struct SalvageMessageState {
 SalvageMessageState SalvageMessage;
 /** In SalvageTier order, as the icons: White, Magic, Rare, Unique, Primal, Set, Ethereal. */
 constexpr const char *SalvageItemIconAsset = "ui\\salvage_item.png";
+/**
+ * @brief The four dear tiers ask before they destroy (user, 2026-09-21: "These actions require confirmation ... Are
+ * you sure you want to destroy all (item type) items?"). The three cheap ones and the hammer act at once.
+ */
+bool SalvageTierNeedsConfirm(SalvageTier tier)
+{
+	return tier == SalvageTier::Unique || tier == SalvageTier::Set || tier == SalvageTier::Primal || tier == SalvageTier::Ethereal;
+}
+
+/** @brief The tier whose question is standing in the results frame, or -1; and the button held down in it. */
+int PendingConfirmTier = -1;
+int PressedConfirmButton = -1;
+constexpr int ConfirmButton = 0;
+constexpr int CancelButton = 1;
+constexpr Size ConfirmButtonSize { 100, 28 };
+constexpr int ConfirmButtonGap = 20;
+constexpr int ConfirmButtonBottomGap = 16;
+constexpr uint32_t ConfirmGreenRgb = 0x64A064;
+constexpr uint32_t CancelRedRgb = 0xC04030;
+/** Defined further down, beside the drawing they belong to; the release hook above them needs both. */
+Rectangle SalvageConfirmButtonRect(const Rectangle &results, int which);
+void RunSalvageTier(SalvageTier tier);
 /** @brief Whether the hammer is armed to break ONE item down; it lives only while this window is open. */
 bool SalvageItemCursorArmed = false;
 
@@ -1012,6 +1034,25 @@ void ReleaseLevskiButtons()
 {
 	PressedCubeButton = -1;
 	PressedSalvageIcon = -1; // Griswold's salvage icons spring back too (2026-09-21)
+	// The confirmation's two buttons act on the RELEASE, and only when it lands inside the button that was
+	// pressed (user, 2026-09-21: "Release of click outside the boundary of any of these buttons is considered
+	// as Let Me Think a Bit More by the user") - so a release anywhere else leaves the question standing.
+	if (PressedConfirmButton < 0)
+		return;
+	const int which = PressedConfirmButton;
+	PressedConfirmButton = -1;
+	const SalvageLayout *page = SalvagePage();
+	if (page == nullptr || PendingConfirmTier < 0)
+		return;
+	const Rectangle window = GetLevskiRoarRect();
+	const Rectangle results { window.position + Displacement { page->results.position.x, page->results.position.y }, page->results.size };
+	if (!SalvageConfirmButtonRect(results, which).contains(MousePosition))
+		return; // let me think a bit more
+	const auto tier = static_cast<SalvageTier>(PendingConfirmTier);
+	PendingConfirmTier = -1;
+	PlayUiMoveSound();
+	if (which == ConfirmButton)
+		RunSalvageTier(tier);
 }
 bool IsSalvageItemCursorArmed()
 {
@@ -1145,6 +1186,8 @@ void ResetLevskiRoarForNewGame()
 	SalvageMessage = {};
 	PressedSalvageIcon = -1;
 	LastHoverSalvageIcon = -1;
+	PendingConfirmTier = -1;
+	PressedConfirmButton = -1;
 	if (SalvageItemCursorArmed) {
 		SalvageItemCursorArmed = false;
 		if (pcurs == CURSOR_REPAIR)
@@ -1168,6 +1211,8 @@ void CloseLevskiRoar()
 	LastHoverCubeButton = -1;
 	PressedSalvageIcon = -1;
 	LastHoverSalvageIcon = -1;
+	PendingConfirmTier = -1;
+	PressedConfirmButton = -1;
 	if (SalvageItemCursorArmed) {
 		SalvageItemCursorArmed = false;
 		if (pcurs == CURSOR_REPAIR)
@@ -1400,6 +1445,41 @@ void PlotQuarterArc(const Surface &out, Point centre, int rx, int ry, int sx, in
 	}
 }
 
+/** @brief One of the two answer buttons inside @p results: CONFIRM then CANCEL, side by side along its foot. */
+Rectangle SalvageConfirmButtonRect(const Rectangle &results, int which)
+{
+	const int span = 2 * ConfirmButtonSize.width + ConfirmButtonGap;
+	const int left = results.position.x + (results.size.width - span) / 2 + which * (ConfirmButtonSize.width + ConfirmButtonGap);
+	const int top = results.position.y + results.size.height - ConfirmButtonSize.height - ConfirmButtonBottomGap;
+	return Rectangle { { left, top }, ConfirmButtonSize };
+}
+
+/** @brief A 1 px rectangle outline in @p rgb - four fills, so a framed button is a stack of these. */
+void OutlineRectRgb(const Surface &out, Rectangle rect, uint32_t rgb, uint8_t fallback)
+{
+	FillRectRgb(out, rect.position.x, rect.position.y, rect.size.width, 1, rgb, fallback);
+	FillRectRgb(out, rect.position.x, rect.position.y + rect.size.height - 1, rect.size.width, 1, rgb, fallback);
+	FillRectRgb(out, rect.position.x, rect.position.y, 1, rect.size.height, rgb, fallback);
+	FillRectRgb(out, rect.position.x + rect.size.width - 1, rect.position.y, 1, rect.size.height, rgb, fallback);
+}
+
+/** @brief Breaks every backpack item of @p tier down and writes the window's message. The answer to a plate. */
+void RunSalvageTier(SalvageTier tier)
+{
+	FlashButton(static_cast<int>(tier)); // fires whether or not there was anything to salvage - it acknowledges the CLICK
+	int materialsMade = 0;
+	const int consumed = SalvageAllInBackpack(*MyPlayer, tier, &materialsMade);
+	SalvageMessage = { true, tier, consumed, materialsMade };
+	if (consumed > 0) {
+		LogEvent(StrCat("Salvaged ", consumed, " ", _(SalvageTierName(tier)), " into ", materialsMade, " ",
+		             _(AllItemsList[SalvageMaterialFor(tier)].iName)),
+		    UiFlags::ColorWhitegold);
+		if (!PlayUiEventSound(UiEventSound::Salvage))
+			PlaySFX(IS_ISHIEL); // the old stand-in, if the salvage sound is not in the archive
+	} else {
+		LogEvent(StrCat("Nothing to salvage: ", _(SalvageTierName(tier))), UiFlags::ColorWhite);
+	}
+}
 /**
  * @brief The frame round the results, and the title ON its top border (user, 2026-09-21: "put Salvage results title
  * somewhere along the top border of the salvage results frame and make sure that top border reaches the title, slipts
@@ -1495,7 +1575,32 @@ void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 	// The message (user, 2026-09-21): "X Rare Items destroyed", then the material's sprite in a 60x60 plate with a
 	// 1 px outline OUTSIDE it in the tier's colour and "X Rare Fibres Salvaged" beside it - all in the tier's colour,
 	// the block centred in the box both ways, replaced by the next press.
-	if (SalvageMessage.shown) {
+	// The question the dear tiers ask, in the results frame (user, 2026-09-21). It stands until one of the two
+	// buttons is pressed AND released inside itself; a release anywhere else is "let me think a bit more".
+	if (PendingConfirmTier >= 0) {
+		const std::string question = fmt::format(fmt::runtime(_("Are you sure you want to destroy all {:s} items?")),
+		    _(SalvageTierAdjectives[PendingConfirmTier]));
+		const int lineHeight = GetLineHeight(question, GameFont12);
+		const std::string wrapped = WordWrapString(question, results.size.width - 16, GameFont12);
+		const int lines = static_cast<int>(std::count(wrapped.begin(), wrapped.end(), '\n')) + 1;
+		const int buttonsTop = SalvageConfirmButtonRect(results, ConfirmButton).position.y;
+		DrawString(out, wrapped, Rectangle { { results.position.x + 8, results.position.y + (buttonsTop - results.position.y - lines * lineHeight) / 2 },
+		                             { results.size.width - 16, lines * lineHeight } },
+		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter });
+		for (int which = ConfirmButton; which <= CancelButton; which++) {
+			const Rectangle rect = SalvageConfirmButtonRect(results, which);
+			const bool hovered = rect.contains(MousePosition);
+			const Rectangle face { rect.position + (PressedConfirmButton == which ? CubeButtonSink : Displacement { 0, 0 }), rect.size };
+			const uint32_t rgb = which == ConfirmButton ? ConfirmGreenRgb : CancelRedRgb;
+			FillRect(out, face.position.x + 1, face.position.y + 1, face.size.width - 2, face.size.height - 2, PAL16_GRAY + 14);
+			OutlineRectRgb(out, face, rgb, which == ConfirmButton ? PAL16_GRAY + 6 : PAL16_RED + 4);
+			DrawString(out, which == ConfirmButton ? _("CONFIRM") : _("CANCEL"), face,
+			    { (which == ConfirmButton ? UiFlags::ColorOracoolGreen : UiFlags::ColorRed) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+			if (hovered)
+				BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, CubeHoverBrightenPercent);
+		}
+	}
+	if (PendingConfirmTier < 0 && SalvageMessage.shown) {
 		const int t = static_cast<int>(SalvageMessage.tier);
 		const UiFlags color = SalvageTierColors[t];
 		const Rectangle &box = results;
@@ -1876,6 +1981,18 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			return true;
 		}
 	}
+	// The standing question owns its two buttons: the press only SINKS them, and ReleaseLevskiButtons decides,
+	// because the action and the dismissal both wait for a release inside the button that was pressed.
+	if (const SalvageLayout *page = SalvagePage(); page != nullptr && PendingConfirmTier >= 0) {
+		const Rectangle results { window.position + Displacement { page->results.position.x, page->results.position.y }, page->results.size };
+		for (int which = ConfirmButton; which <= CancelButton; which++) {
+			if (!SalvageConfirmButtonRect(results, which).contains(mousePosition))
+				continue;
+			PressedConfirmButton = which;
+			PlayUiMoveSound();
+			return true;
+		}
+	}
 	for (int i = 0; WindowHost == TransmuteHost::Smith && i < SalvageTierCount; i++) {
 		if (!SalvageButtonRect(window, i).contains(mousePosition))
 			continue;
@@ -1886,20 +2003,15 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 		}
 		if (SalvageSkin())
 			PlayUiMoveSound();
-		FlashButton(i); // fires whether or not there was anything to salvage - it acknowledges the CLICK
 		const auto tier = static_cast<SalvageTier>(i);
-		int materialsMade = 0;
-		const int consumed = SalvageAllInBackpack(*MyPlayer, tier, &materialsMade);
-		SalvageMessage = { true, tier, consumed, materialsMade }; // the Salvage window's message, replaced per press (2026-09-21)
-		if (consumed > 0) {
-			LogEvent(StrCat("Salvaged ", consumed, " ", _(SalvageTierName(tier)), " into ", materialsMade, " ",
-			             _(AllItemsList[SalvageMaterialFor(tier)].iName)),
-			    UiFlags::ColorWhitegold);
-			if (!PlayUiEventSound(UiEventSound::Salvage))
-				PlaySFX(IS_ISHIEL); // the old stand-in, if the salvage sound is not in the archive
-		} else {
-			LogEvent(StrCat("Nothing to salvage: ", _(SalvageTierName(tier))), UiFlags::ColorWhite);
+		PressedConfirmButton = -1;
+		if (SalvageSkin() && SalvageTierNeedsConfirm(tier)) {
+			// The dear tiers ask first; the question replaces whatever the frame was showing.
+			PendingConfirmTier = i;
+			return true;
 		}
+		PendingConfirmTier = -1; // a cheap plate answers the standing question by simply doing its own work
+		RunSalvageTier(tier);
 		return true;
 	}
 
