@@ -668,9 +668,11 @@ constexpr ServiceButton ShopServiceSlotDoes[ShopServiceSlotCount] = {
 constexpr const char *ShopServiceSlotGlyph[ShopServiceSlotCount] = {
 	"ui\\shop_glyph_repair.png", "ui\\shop_glyph_repair_all.png", "ui\\shop_glyph_recharge.png",
 	"ui\\shop_glyph_sell.png", "ui\\shop_glyph_sell_all.png", "ui\\shop_glyph_refresh.png",
-	// No glyph of its own was commissioned - it wears Refresh's, which is what it does. Its position
-	// and its hover text are what tell the two apart.
-	"ui\\shop_glyph_refresh.png"
+	// TWO DICE (2026-09-22). It wore Refresh's own glyph and was told apart only by its position and
+	// its hover text - two buttons on one painting carrying the same picture. Refresh keeps the
+	// circular arrows for one restock; this one rolls again and again until the stock answers, which
+	// is what a second die says and an identical pair of arrows does not.
+	"ui\\shop_glyph_refresh_until.png"
 };
 // ShopServiceGlyphInset (5, from a 24 px glyph in a 34 px frame) is GONE: the draw centres the glyph
 // on whatever size the file actually is, so the art can change without a constant here going stale.

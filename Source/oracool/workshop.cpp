@@ -312,7 +312,10 @@ constexpr Size ServiceIconSize { 34, 34 };
 constexpr int ServiceIconGap = 28;
 constexpr int ServicePriceHeight = 14;
 constexpr int ServicePriceGap = 2;
-constexpr const char *RerollGlyphAsset = "ui\\shop_glyph_refresh.png";
+// A DIE (2026-09-22), not Griswold's restock arrows. She borrowed his because his was the nearest
+// thing on the shelf, and the two services are not the same: his refreshes a shop's stock, hers
+// gambles one affix on this item. A die says the second and the arrows say the first.
+constexpr const char *RerollGlyphAsset = "ui\\shop_glyph_reroll.png";
 constexpr const char *ImbueGlyphAsset = "ui\\shop_glyph_recharge.png";
 constexpr const char *RemoveGlyphAsset = "ui\\shop_glyph_arrow_right.png";
 constexpr const char *CleanseGlyphAsset = "ui\\shop_glyph_repair.png";
