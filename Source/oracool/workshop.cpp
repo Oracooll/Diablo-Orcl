@@ -266,6 +266,28 @@ constexpr int RecipeOpeningBottom = 618;
 constexpr const char *BoardButtonFrameAsset = "ui\\shop_button_frame.png";
 constexpr const char *BoardUpGlyphAsset = "ui\\shop_glyph_arrow_up.png";
 constexpr const char *BoardDownGlyphAsset = "ui\\shop_glyph_arrow_down.png";
+
+/**
+ * GILLIAN'S SERVICES AS ICON PLATES (user, 2026-09-22), on Griswold's 34x34 frame like every other
+ * service button in the game. The icons are the user's own assignment:
+ *
+ *   Reroll  - his Refresh glyph        Imbue   - his Recharge glyph
+ *   Cleanse - his Repair glyph         Remove  - his Sell arrow, turned to point RIGHT
+ *
+ * THE PRICE IS DRAWN, not hidden in a hover hint ("Prices to be visible, not hover text"). That was
+ * the one thing the wide word-buttons did better - REROLL carried its cost on its face - and it is
+ * the reason this conversion waited for a decision rather than being inferred from the other
+ * vendors, none of whom charge for anything. So each plate gets a line beneath it, and the row is
+ * laid out with room for that line rather than packed as tightly as the plates alone would allow.
+ */
+constexpr Size ServiceIconSize { 34, 34 };
+constexpr int ServiceIconGap = 28;
+constexpr int ServicePriceHeight = 14;
+constexpr int ServicePriceGap = 2;
+constexpr const char *RerollGlyphAsset = "ui\\shop_glyph_refresh.png";
+constexpr const char *ImbueGlyphAsset = "ui\\shop_glyph_recharge.png";
+constexpr const char *RemoveGlyphAsset = "ui\\shop_glyph_arrow_right.png";
+constexpr const char *CleanseGlyphAsset = "ui\\shop_glyph_repair.png";
 constexpr Rectangle TitleRect { { 22, 26 }, { 296, 40 } };
 constexpr Rectangle CloseRect { { 316, 5 }, { 18, 18 } };
 /** The one-item slot: 2x3 inventory cells, and it holds one item whatever its size (user, 2026-09-21). */
@@ -277,10 +299,10 @@ constexpr int ListLineHeight = 20;
 constexpr int ListLines = 6;
 constexpr Rectangle ListRect { { 104, 84 }, { 206, ListLines * ListLineHeight } };
 /** The two rows of buttons under them, and the gold line under those. */
-constexpr Size ButtonSize { 136, 30 };
-constexpr int ButtonGap = 12;
+// ButtonSize, ButtonGap and ButtonRowPitch went with the word-buttons on 2026-09-22. Only the row's
+// TOP survives them: the icon plates sit on the same line the wide buttons did, so the page's
+// vertical rhythm is unchanged by the swap.
 constexpr int ButtonRowTop = 224;
-constexpr int ButtonRowPitch = 38;
 constexpr Rectangle GoldRect { { 30, 306 }, { 280, 18 } };
 /** The message area: the alternatives menu, the refusals and the last thing that happened. */
 constexpr Rectangle BoardRect { { 30, 336 }, { 280, 276 } };
@@ -780,13 +802,22 @@ int GiveToPack(Player &player, int idx, int count)
 	return placed;
 }
 
-/** @brief One of the two button rows: @p row 0 is the tab's own actions, @p row 1 the second pair. */
-Rectangle ButtonRect(int row, int column, int columns)
+// ButtonRect is GONE (2026-09-22). It placed the 136x30 word-buttons in one or two rows; every one
+// of them is a 34px icon plate now, laid out by ServiceIconRect below.
+
+/**
+ * @brief Icon @p index of a row of @p count, centred in the canvas opening.
+ *
+ * The PLATE's rect. Its price line hangs below it and is not part of the button - a click belongs to
+ * the plate, and a rect that included the number would make the price itself pressable.
+ */
+Rectangle ServiceIconRect(int index, int count)
 {
 	const Rectangle page = PageRect();
-	const int span = columns * ButtonSize.width + (columns - 1) * ButtonGap;
+	const int span = count * ServiceIconSize.width + (count - 1) * ServiceIconGap;
 	const int left = page.position.x + InnerLeft + (InnerRight - InnerLeft + 1 - span) / 2;
-	return Rectangle { { left + column * (ButtonSize.width + ButtonGap), page.position.y + ButtonRowTop + row * ButtonRowPitch }, ButtonSize };
+	return Rectangle { { left + index * (ServiceIconSize.width + ServiceIconGap), page.position.y + ButtonRowTop },
+		ServiceIconSize };
 }
 
 Rectangle OptionRect(int index)
@@ -815,14 +846,16 @@ Rectangle ControlRect(Control control)
 	}
 	case Control::Close:
 		return Panel(CloseRect);
+	// Icon plates since 2026-09-22. Her Imbue tab's three sit in ONE row now; they were two on the
+	// first row and Cleanse alone on a second, which a 34px plate makes unnecessary.
 	case Control::Reroll:
-		return OpenTab == Tab::Reroll && !OfferOpen ? ButtonRect(0, 0, 1) : Rectangle { { 0, 0 }, { 0, 0 } };
+		return OpenTab == Tab::Reroll && !OfferOpen ? ServiceIconRect(0, 1) : Rectangle { { 0, 0 }, { 0, 0 } };
 	case Control::Imbue:
-		return OpenTab == Tab::Imbue ? ButtonRect(0, 0, 2) : Rectangle { { 0, 0 }, { 0, 0 } };
+		return OpenTab == Tab::Imbue ? ServiceIconRect(0, 3) : Rectangle { { 0, 0 }, { 0, 0 } };
 	case Control::Remove:
-		return OpenTab == Tab::Imbue ? ButtonRect(0, 1, 2) : Rectangle { { 0, 0 }, { 0, 0 } };
+		return OpenTab == Tab::Imbue ? ServiceIconRect(1, 3) : Rectangle { { 0, 0 }, { 0, 0 } };
 	case Control::Cleanse:
-		return OpenTab == Tab::Imbue ? ButtonRect(1, 0, 1) : Rectangle { { 0, 0 }, { 0, 0 } };
+		return OpenTab == Tab::Imbue ? ServiceIconRect(2, 3) : Rectangle { { 0, 0 }, { 0, 0 } };
 	case Control::Option0:
 	case Control::Option1:
 	case Control::Option2:
@@ -905,21 +938,9 @@ void OutlineRectRgb(const Surface &out, const Rectangle &rect, uint32_t rgb, uin
 	FillRectRgb(out, rect.position.x + rect.size.width - 1, rect.position.y, 1, rect.size.height, rgb, fallback);
 }
 
-/** @brief A placeholder button: a dark plate in a gold frame with a gold label, pressed, hovered or idle. */
-void DrawPlateButton(const Surface &out, Control control, string_view label, bool enabled)
-{
-	const Rectangle rect = ControlRect(control);
-	if (rect.size.width == 0)
-		return;
-	const bool hovered = rect.contains(MousePosition);
-	const Rectangle face { rect.position + (Pressed == control ? PressSink : Displacement { 0, 0 }), rect.size };
-	FillRect(out, face.position.x + 1, face.position.y + 1, face.size.width - 2, face.size.height - 2, PlateFill);
-	OutlineRect(out, face, enabled ? FrameGold : PlateEdge);
-	DrawString(out, label, face,
-	    { (enabled ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	if (hovered)
-		BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, HoverBrightenPercent);
-}
+// DrawPlateButton is GONE with it. It drew the code-drawn placeholder plate these windows wore
+// before the painted art arrived - "a placeholder button", as its own comment said - and its last
+// four callers became icon plates on 2026-09-22.
 
 void DrawTabColumn(const Surface &out)
 {
@@ -1117,6 +1138,47 @@ void DrawCollectionBoard(const Surface &out)
  * the selection cannot take the step - nothing above Perfect, nothing below Chipped, or not enough
  * in the pack to pay for it.
  */
+/**
+ * @brief One of Gillian's services: Griswold's plate, her icon, and its PRICE drawn beneath it.
+ *
+ * The price line is why this exists rather than reusing DrawBoardArrow. It is drawn under the plate,
+ * never in a hover hint (user, 2026-09-22), and it is the one thing the wide word-buttons did better
+ * than an icon can - so the row is laid out around it.
+ *
+ * Red when the purse cannot cover it: a greyed plate says "not now" and the number says why, which
+ * between them is the whole answer without a click.
+ */
+void DrawServiceIcon(const Surface &out, Control control, const char *glyph, bool enabled, int price)
+{
+	const Rectangle rect = ControlRect(control);
+	if (rect.size.width == 0)
+		return;
+	const bool hovered = rect.contains(MousePosition);
+	const Rectangle face { rect.position + (Pressed == control ? PressSink : Displacement { 0, 0 }), rect.size };
+	if (GetLoosePngSize(BoardButtonFrameAsset).width > 0)
+		DrawLoosePng(out, BoardButtonFrameAsset, face.position);
+	else
+		DrawOrnateBorder(out, face);
+	if (const Size size = GetLoosePngSize(glyph); size.width > 0) {
+		DrawLoosePng(out, glyph, { face.position.x + (face.size.width - size.width) / 2,
+		                             face.position.y + (face.size.height - size.height) / 2 });
+	}
+	if (!enabled) {
+		TintRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height,
+		    0xFFFFFFu, /*brightnessPercent=*/70, /*floorPercent=*/0, PAL16_GRAY);
+	} else if (hovered) {
+		BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, HoverBrightenPercent);
+	}
+
+	// Wider than the plate by the row's own gap, so eight digits overhang into the air between icons
+	// rather than being clipped by a 34px box.
+	const Rectangle line { { rect.position.x - ServiceIconGap / 2, rect.position.y + rect.size.height + ServicePriceGap },
+		{ rect.size.width + ServiceIconGap, ServicePriceHeight } };
+	const bool afford = price <= 0 || static_cast<int>(TotalPlayerGold()) >= price;
+	DrawString(out, price > 0 ? FormatInteger(price) : std::string { _("Free") }, line,
+	    { (afford ? UiFlags::ColorWhitegold : UiFlags::ColorRed) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+}
+
 void DrawBoardArrow(const Surface &out, Control control, bool enabled)
 {
 	const Rectangle rect = ControlRect(control);
@@ -1532,12 +1594,14 @@ void DrawWorkshop(const Surface &out)
 	} else if (OpenTab == Tab::Reroll) {
 		DrawRerollList(out);
 		const bool ready = !Bench.isEmpty() && Bench._iOracoolAffixCount > 0 && SelectedRow >= 0;
-		DrawPlateButton(out, Control::Reroll, StrCat(_("REROLL"), Bench.isEmpty() ? "" : StrCat("  ", FormatInteger(RerollPrice(Bench)))), ready);
+		DrawServiceIcon(out, Control::Reroll, RerollGlyphAsset, ready, Bench.isEmpty() ? 0 : RerollPrice(Bench));
 	} else {
 		DrawImbueList(out);
-		DrawPlateButton(out, Control::Imbue, _("IMBUE"), !Bench.isEmpty());
-		DrawPlateButton(out, Control::Remove, StrCat(_("REMOVE"), Bench.isEmpty() ? "" : StrCat("  ", FormatInteger(RemovePrice(Bench)))), SelectedRow >= 0);
-		DrawPlateButton(out, Control::Cleanse, StrCat(_("CLEANSE"), Bench.isEmpty() ? "" : StrCat("  ", FormatInteger(CleansePrice(Bench)))), !Bench.isEmpty());
+		// Imbue takes the first shard the pack can spare and costs nothing, so its line reads "Free"
+		// rather than a zero - a zero beside two real prices looks like a bug in the pricing.
+		DrawServiceIcon(out, Control::Imbue, ImbueGlyphAsset, !Bench.isEmpty(), 0);
+		DrawServiceIcon(out, Control::Remove, RemoveGlyphAsset, SelectedRow >= 0, Bench.isEmpty() ? 0 : RemovePrice(Bench));
+		DrawServiceIcon(out, Control::Cleanse, CleanseGlyphAsset, !Bench.isEmpty(), Bench.isEmpty() ? 0 : CleansePrice(Bench));
 	}
 
 	// GOLD ONLY WHERE GOLD IS SPENT (user, 2026-09-22: "If there is no gold cost to ogden services, i
