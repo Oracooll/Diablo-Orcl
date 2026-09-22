@@ -308,6 +308,14 @@ enum class Control : uint8_t {
 	Transmute,
 	Close,
 };
+
+// MaxTabs was a dead constant until this (audit, 2026-09-22). It now guards the exact mistake made
+// while adding the Craft tab: a tab with no control to press it, or a Tab value inserted among the
+// slots so that `control - Control::Tab0` no longer indexes the column. Both are silent at runtime -
+// the tab simply does nothing, or the wrong one opens.
+static_assert(static_cast<int>(Control::Tab4) - static_cast<int>(Control::Tab0) + 1 == MaxTabs,
+    "the tab controls no longer match MaxTabs - a tab would have no control to press, "
+    "or the slots are no longer contiguous from Tab0");
 constexpr int OptionCount = 4; // the affix as it stands, and three alternatives
 
 bool WindowOpen = false;
@@ -1467,13 +1475,16 @@ void DrawWorkshop(const Surface &out)
 		DrawLoosePng(out, BoardGoldIconAsset, page.position + Displacement { BoardGoldIconAt.x, BoardGoldIconAt.y });
 	DrawString(out, FormatInteger(static_cast<int>(TotalPlayerGold())), Panel(BoardGoldCountRect),
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter | UiFlags::Shadowed });
-	if (IsStockTab(OpenTab)) {
-		// The old message panel runs y 336..612 and the collection board sits at 439..590 INSIDE it,
-		// so on these tabs it is not drawn at all - it would be a grey slab over every icon. The
-		// message moves under the grid with the question, which is where the user put them.
-		DrawBoardMessage(out);
-	} else {
+	// The big message panel belongs to the MYSTIC's two tabs, which is where its offers menu lives.
+	// Named rather than written as "not a stock tab" (audit, 2026-09-22): its rect is y 336..612 and
+	// it OUTLINES itself before any early return, so on every other page it drew a gold box through
+	// whatever was there - the collection board at 439..590, the craft grid at 416..541, the recipe
+	// list at 299..618. That is the third time this session a gate phrased as "not the other thing"
+	// broke the moment a third thing existed; this one says which tabs it means.
+	if (OpenTab == Tab::Reroll || OpenTab == Tab::Imbue) {
 		DrawBoard(out);
+	} else {
+		DrawBoardMessage(out);
 	}
 	DrawWindowCloseButtonAt(out, Panel(CloseRect));
 
