@@ -24,6 +24,7 @@
 #include "oracool/levski_roar.h"
 #include "oracool/crafting.h"
 #include "oracool/ornate_border.h"
+#include "oracool/recipe_list.h"
 #include "oracool/runewords.h"
 #include "oracool/shop_grid.h"
 #include "oracool/ui_sound.h"
@@ -1409,43 +1410,6 @@ void DrawCraftPage(const Surface &out)
  * Sockets") does not say what to put on the bench. The dark layer is the same two passes Levski's
  * recipe page uses, for the same reason: one left the names competing with the floor behind them.
  */
-/** @brief One drawn line of the recipe page: a recipe's name, or a wrapped line of its explanation. */
-struct RecipeTextLine {
-	std::string text;
-	bool heading;
-};
-
-/**
- * @brief Every line the recipe page has to show, wrapped to @p width.
- *
- * NO ROW LIMIT (user, 2026-09-22: "make sure description of recipes has enough room to fully display
- * explanation text. no row limits"). The page used to give each recipe exactly two lines and drop
- * whatever did not fit, which truncated every explanation longer than the frame is wide - and one of
- * his is 92 characters. Each explanation is word-wrapped to as many lines as it needs and the page
- * scrolls instead.
- */
-std::vector<RecipeTextLine> RecipeTextLines(int width)
-{
-	std::vector<RecipeTextLine> lines;
-	for (const int recipe : HostRecipes()) {
-		lines.push_back({ std::string { _(CraftingRecipeName(recipe)) }, true });
-		const std::string wrapped = WordWrapString(_(CraftingRecipeInputs(recipe)), width, GameFont12);
-		size_t start = 0;
-		for (;;) {
-			const size_t nl = wrapped.find('\n', start);
-			lines.push_back({ wrapped.substr(start, nl == std::string::npos ? std::string::npos : nl - start), false });
-			if (nl == std::string::npos)
-				break;
-			start = nl + 1;
-		}
-		lines.push_back({ std::string {}, false }); // air between recipes
-	}
-	return lines;
-}
-
-constexpr int RecipePad = 6;
-constexpr int RecipeIndent = 8;
-
 /**
  * @brief Where this artisan's recipe list is drawn.
  *
@@ -1466,55 +1430,13 @@ Rectangle RecipeOpeningRect()
 		{ RecipeOpeningRight - RecipeOpeningLeft + 1, RecipeOpeningBottom - RecipeOpeningTop + 1 } };
 }
 
-/** @brief How far the page can scroll, in pixels. Zero when everything already fits. */
-int RecipeMaxScroll()
-{
-	const Rectangle opening = RecipeOpeningRect();
-	const int lineHeight = GetLineHeight("A", GameFont12);
-	const int content = static_cast<int>(RecipeTextLines(opening.size.width - 2 * RecipePad - RecipeIndent).size()) * lineHeight;
-	return std::max(0, content - (opening.size.height - 2 * RecipePad));
-}
-
 void DrawRecipesPage(const Surface &out)
 {
 	const Rectangle opening = RecipeOpeningRect();
 	DrawThemedFill(out, opening, 2);
-
-	const int lineHeight = GetLineHeight("A", GameFont12);
-	const int width = opening.size.width - 2 * RecipePad - RecipeIndent;
-	const std::vector<RecipeTextLine> lines = RecipeTextLines(width);
-
-	// Clamped HERE, every frame, not only where the wheel turns: the content's height depends on how
-	// the explanations wrap, so a scroll that was legal when it was set can be past the end by the
-	// time it is drawn. The Levski book learned this one first.
-	RecipeScroll = std::clamp(RecipeScroll, 0, RecipeMaxScroll());
-
-	const int top = opening.position.y + RecipePad;
-	const int bottom = opening.position.y + opening.size.height - RecipePad;
-	for (size_t i = 0; i < lines.size(); i++) {
-		const int y = top + static_cast<int>(i) * lineHeight - RecipeScroll;
-		// Wholly inside the opening or not drawn at all. Half a line clipped by the frame reads as a
-		// rendering fault rather than as "there is more below" - the scroll thumb says that.
-		if (y < top || y + lineHeight > bottom)
-			continue;
-		const RecipeTextLine &line = lines[i];
-		if (line.text.empty())
-			continue;
-		DrawString(out, line.text,
-		    Rectangle { { opening.position.x + RecipePad + (line.heading ? 0 : RecipeIndent), y },
-		        { width + (line.heading ? RecipeIndent : 0), lineHeight } },
-		    { (line.heading ? UiFlags::ColorGold : UiFlags::ColorWhite) | UiFlags::FontSize12 });
-	}
-
-	// The thumb, sized as the visible share - the only thing telling the player there is more.
-	const int maxScroll = RecipeMaxScroll();
-	if (maxScroll > 0) {
-		const int trackHeight = opening.size.height - 2 * RecipePad;
-		const int content = trackHeight + maxScroll;
-		const int thumbHeight = std::max(8, trackHeight * trackHeight / content);
-		const int thumbTop = (trackHeight - thumbHeight) * RecipeScroll / maxScroll;
-		FillRect(out, opening.position.x + opening.size.width - 5, top + thumbTop, 3, thumbHeight, FrameGold);
-	}
+	// The SHARED list (2026-09-22): the Cube's page, Ogden's and Gillian's all draw through this one
+	// function, so "behave identically" is a property of the code rather than three loops kept in step.
+	DrawRecipeList(out, opening, HostRecipes(), RecipeScroll);
 }
 
 void DrawWorkshop(const Surface &out)
@@ -1675,7 +1597,7 @@ bool HandleWorkshopScroll(int notches)
 	// zooming the dungeon everywhere else in this window, which is what it did before.
 	if (!WindowOpen || OpenTab != Tab::Recipes)
 		return false;
-	const int maxScroll = RecipeMaxScroll();
+	const int maxScroll = RecipeListMaxScroll(RecipeOpeningRect(), HostRecipes());
 	if (maxScroll <= 0)
 		return false; // nothing to scroll: let the wheel fall through rather than swallow it
 	constexpr int PixelsPerNotch = 20;

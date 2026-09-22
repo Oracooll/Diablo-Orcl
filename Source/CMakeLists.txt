@@ -54,6 +54,7 @@ set(libdevilutionx_SRCS
   oracool/hero_chunks.cpp
   oracool/rng_streams.cpp
   oracool/item_tint.cpp
+  oracool/recipe_list.cpp
   oracool/runewords.cpp
   oracool/smart_loot.cpp
   oracool/sprite_scale.cpp

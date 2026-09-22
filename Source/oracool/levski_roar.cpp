@@ -28,6 +28,7 @@
 
 #include "oracool/badge.h"
 #include "oracool/crafting.h"
+#include "oracool/recipe_list.h"
 #include "oracool/event_log.h"
 #include "oracool/hud_art.h" // DrawLoosePng, DrawRedCross - the painted skin and its states
 #include "oracool/levski_roar_skin.h"
@@ -655,6 +656,23 @@ bool CubeSkin()
 }
 
 /**
+ * @brief The Cube's RECIPE page opening, or an empty rect on any other page.
+ *
+ * The page's dark layer IS its opening - it is the rect measured on the painted frame - so the list
+ * and the wheel both ask this rather than each deriving it. Empty on the grid page, which has no
+ * list at all.
+ */
+Rectangle CubeRecipeOpening()
+{
+	const ListSkinGeometry *skin = ListSkin();
+	if (skin == nullptr || skin->hasGrid || skin->darkLayer.size.width == 0)
+		return Rectangle { { 0, 0 }, { 0, 0 } };
+	const Rectangle window = GetLevskiRoarRect();
+	return Rectangle { window.position + Displacement { skin->darkLayer.position.x, skin->darkLayer.position.y },
+		skin->darkLayer.size };
+}
+
+/**
  * @brief Whether the page on screen has the transmute grid.
  *
  * False only on the Cube's Recipes tab. Asked by CellAt, which is the single chokepoint every hover
@@ -723,43 +741,15 @@ Rectangle ButtonRect(const Rectangle &window, int index)
 	return Rectangle { window.position + Displacement { r.position.x, r.position.y }, r.size };
 }
 
-/** @brief The list skin's bezel line @p line (0..ListLines-1), in screen space. */
-Rectangle CubeLineRect(const Rectangle &window, int line)
-{
-	const ListSkinGeometry *skin = ListSkin();
-	const Rectangle &list = skin != nullptr ? skin->list : CubeGeometry.list;
-	return Rectangle { window.position + Displacement { list.position.x, list.position.y + line * ListPitch },
-		{ list.size.width, ListPitch } };
-}
-
-/**
- * @brief How many rows the list on THIS page shows.
- *
- * A number rather than the ListLines constant since the Cube's recipe PAGE arrived (2026-09-21): the
- * bezel skins fit eight rows beside a grid, that page gives the whole window to the list and fits
- * fifteen. Every place that scrolls, draws or hit-tests a row asks this - a page whose draw and
- * whose scroll clamp disagreed about its own length would lose the last recipes to a scroll that
- * would not go far enough.
- */
-int CurrentListLines()
-{
-	const ListSkinGeometry *skin = ListSkin();
-	return skin != nullptr && skin->lines > 0 ? skin->lines : ListLines;
-}
-
-/** @brief The host's recipes in book order - a list skin lists one per bezel line. */
+// CubeLineRect, CurrentListLines, CubeListMaxScroll and CubeListRecipeAt are GONE (2026-09-22).
+//
+// All four served the fixed-row bezel list: a row was ListPitch tall, a page showed `lines` of them,
+// and the scroll counted rows. The shared recipe list wraps each explanation to as many lines as it
+// needs, so a recipe is a block of its own height and the scroll counts pixels - there is no row to
+// index. Their work is now RecipeListMaxScroll and RecipeListHitTest, which run the draw's own
+// arithmetic rather than a parallel model of it.
+/** @brief The host's recipes in book order. */
 std::vector<int> CubeListRecipes();
-int CubeListMaxScroll()
-{
-	return std::max(0, static_cast<int>(CubeListRecipes().size()) - CurrentListLines());
-}
-/** @brief The recipe on bezel line @p line after the scroll, or -1 past the end of the host's book. */
-int CubeListRecipeAt(int line)
-{
-	const std::vector<int> recipes = CubeListRecipes();
-	const int index = CubeListScroll + line;
-	return index >= 0 && index < static_cast<int>(recipes.size()) ? recipes[index] : -1;
-}
 
 Rectangle CloseButtonRect(const Rectangle &window)
 {
@@ -1197,7 +1187,14 @@ bool HandleLevskiRecipeBookScroll(int notches)
 		// wheel elsewhere still belongs to whatever is under it.
 		if (!GetLevskiRoarRect().contains(MousePosition))
 			return false;
-		CubeListScroll = std::clamp(CubeListScroll - notches, 0, CubeListMaxScroll());
+		const Rectangle opening = CubeRecipeOpening();
+		if (opening.size.width == 0)
+			return false; // the grid page has no list to scroll
+		const int maxScroll = RecipeListMaxScroll(opening, CubeListRecipes());
+		if (maxScroll <= 0)
+			return false; // nothing to move: let the wheel fall through
+		constexpr int PixelsPerNotch = 20;
+		CubeListScroll = std::clamp(CubeListScroll - notches * PixelsPerNotch, 0, maxScroll);
 		return true;
 	}
 	if (!WindowOpen || !RecipeBookOpen)
@@ -1228,18 +1225,20 @@ bool SetLevskiHoverInfoString()
 	if (WindowOpen) {
 		const Rectangle window = GetLevskiRoarRect();
 		if (CubeSkin()) {
-			// A bezel line under the cursor: the recipe's name and its formula, since the line has
-			// room for the name alone.
-			for (int line = 0; line < CurrentListLines(); line++) {
-				const int recipe = CubeListRecipeAt(line);
-				if (recipe < 0)
-					break;
-				if (!CubeLineRect(window, line).contains(MousePosition))
-					continue;
-				const bool ready = CanCraftFromLevskiGrid(GridItems, recipe);
-				SetPanelString(_(CraftingRecipeName(recipe)), ready ? UiFlags::ColorGold : UiFlags::ColorWhitegold);
-				AddPanelString(_(CraftingRecipeInputs(recipe)), UiFlags::ColorWhite);
-				return true;
+			// The recipe under the cursor, asked of the shared list rather than of a row table
+			// (2026-09-22): the lines are wrapped now, so a recipe is a block of them and its height
+			// depends on its own text. RecipeListHitTest runs the draw's own arithmetic backwards,
+			// which is the only way the two cannot drift.
+			//
+			// The hint still says what the page cannot: whether the grid can actually run it.
+			if (const Rectangle opening = CubeRecipeOpening(); opening.size.width > 0) {
+				const int recipe = RecipeListHitTest(opening, CubeListRecipes(), CubeListScroll, MousePosition);
+				if (recipe >= 0) {
+					const bool ready = CanCraftFromLevskiGrid(GridItems, recipe);
+					SetPanelString(_(CraftingRecipeName(recipe)), ready ? UiFlags::ColorGold : UiFlags::ColorWhitegold);
+					AddPanelString(_(CraftingRecipeInputs(recipe)), UiFlags::ColorWhite);
+					return true;
+				}
 			}
 		}
 		if (const SalvageLayout *page = SalvagePage(); page != nullptr && page->itemIcon.size.width > 0) {
@@ -2149,35 +2148,15 @@ void DrawLevskiRoar(const Surface &out)
 			DrawThemedFill(out, Rectangle { window.position + Displacement { dark.position.x, dark.position.y }, dark.size }, 2);
 		}
 
-		CubeListScroll = std::clamp(CubeListScroll, 0, CubeListMaxScroll());
-		for (int line = 0; line < CurrentListLines(); line++) {
-			const int recipe = CubeListRecipeAt(line);
-			if (recipe < 0)
-				break;
-			const Rectangle row = CubeLineRect(window, line);
-			const bool ready = CanCraftFromLevskiGrid(GridItems, recipe);
-			const bool selected = SelectedRecipe == recipe;
-			if (selected) {
-				// The book's own band: the name's colour already says "ready", so the selection is a fill.
-				FillRect(out, row.position.x + 1, row.position.y + 1, row.size.width - 2, row.size.height - 2, ButtonFlashColor);
-			}
-			const Rectangle text { { row.position.x + 4, row.position.y }, { row.size.width - 8, row.size.height } };
-			DrawString(out, _(CraftingRecipeName(recipe)), text,
-			    { (selected ? UiFlags::ColorWhite : (ready ? UiFlags::ColorGold : UiFlags::ColorWhitegold)) | UiFlags::FontSize12 | UiFlags::VerticalCenter });
-			if (!selected && text.contains(MousePosition))
-				DrawHoverOutline(out, row);
-		}
-		// The thumb in the painted track, sized as the visible share of the book.
-		const int maxScroll = CubeListMaxScroll();
-		if (maxScroll > 0) {
-			const Rectangle &track = listSkin->track;
-			const int count = maxScroll + CurrentListLines();
-			const int thumbHeight = std::max(8, track.size.height * CurrentListLines() / count);
-			const int thumbTop = (track.size.height - thumbHeight) * CubeListScroll / maxScroll;
-			FillRect(out, window.position.x + track.position.x, window.position.y + track.position.y + thumbTop,
-			    track.size.width, thumbHeight, ButtonFlashColor);
-		}
-		return; // no salvage block, no recipe-book plate, no tall book: the bezel IS the book
+		// THE SHARED LIST (2026-09-22): this page, Ogden's and Gillian's all draw through one
+		// function, so "behave identically" is a property of the code rather than of three loops kept
+		// in step. Names in gold, explanations in white and wrapped, scrolled by the wheel.
+		//
+		// The GRID page has no list at all - it drew nothing before either, but only because the loop
+		// ran against an empty rect and zero-width rows happen to be invisible.
+		if (const Rectangle opening = CubeRecipeOpening(); opening.size.width > 0)
+			DrawRecipeList(out, opening, CubeListRecipes(), CubeListScroll, SelectedRecipe);
+		return; // no salvage block, no recipe-book plate, no tall book: the page IS the book
 	}
 
 	// The SALVAGE title over the block (user, 2026-09-05: "Gold, with text shadow. Appropriate font
@@ -2321,15 +2300,15 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	// The Cube skin's bezel: a click on a listed recipe selects it, on the selected one clears the
 	// selection - the tall book's rule, on the painting's own lines.
 	if (CubeSkin() && !PaintedButtons()) {
-		for (int line = 0; line < CurrentListLines(); line++) {
-			const int recipe = CubeListRecipeAt(line);
-			if (recipe < 0)
-				break;
-			if (!CubeLineRect(window, line).contains(mousePosition))
-				continue;
-			SelectedRecipe = (SelectedRecipe == recipe) ? -1 : recipe;
-			PlayUiSelectSound();
-			return true;
+		// Asked of the shared list, like the hover above: a recipe is a wrapped BLOCK now, and
+		// clicking anywhere in its paragraph picks it rather than only its title.
+		if (const Rectangle opening = CubeRecipeOpening(); opening.size.width > 0) {
+			const int recipe = RecipeListHitTest(opening, CubeListRecipes(), CubeListScroll, mousePosition);
+			if (recipe >= 0) {
+				SelectedRecipe = (SelectedRecipe == recipe) ? -1 : recipe;
+				PlayUiSelectSound();
+				return true;
+			}
 		}
 	}
 
