@@ -7291,6 +7291,24 @@ void PrintItemDetails(const Item &item)
 	// panel instead (user request, 2026-08-16 - "just below their name and above the dmg stats").
 	if (item.hasOracoolTier() || item._iMagical == ITEM_QUALITY_UNIQUE) {
 		AddItemPowerPanelStrings(item);
+	} else if (item._iPrePower == -1 && item._iSufPower == -1 && item._iOracoolAffixCount > 0) {
+		// A PLAIN MAGIC ITEM WHOSE AFFIXES HAVE NO VANILLA SLOTS LEFT (user, 2026-09-22: "when i
+		// rerolled a weapon i stopped seeing its affixes on its pop-up display").
+		//
+		// A magic item carries its affixes TWICE: in _iPrePower/_iSufPower, which the two lines
+		// above print, and in the _iOracoolAffixes record, which until now only a tiered item
+		// printed. RebuildOracoolItemWithAffixes - the Mystic's reroll - rebuilds the item from its
+		// base with GetItemAttrs, which clears both vanilla slots, and replays the affixes through
+		// SaveItemPower, which writes the stats in and sets neither slot again. So a rerolled MAGIC
+		// weapon kept its stats and its name and lost every affix LINE; a rare or a primal was fine,
+		// because tiers print the record. That is why it read as random.
+		//
+		// Fixed in the printer rather than in the item: the record is the truth either way, and this
+		// branch runs only when nothing else has printed it, so it cannot double up. It also gives
+		// the crafted items that write straight into the record - see oracool/crafting.cpp - the
+		// affix lines they have never had.
+		for (int i = 0; i < item._iOracoolAffixCount; i++)
+			AddPanelString(PrintOracoolAffixPower(item._iOracoolAffixes[i], item), ItemAffixColor);
 	}
 	// Phase 1 ethereal: the whole bargain in one line, directly under the tier - the buffed stats
 	// already show in the numbers above, so what the line carries is the PRICE.

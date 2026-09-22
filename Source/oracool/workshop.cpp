@@ -442,18 +442,33 @@ Tab OpenTab = Tab::Reroll;
 /** The one item on the bench. Returned to the pack when the window closes. */
 Item Bench;
 /**
- * @brief Ogden's craft grid: ONE item per cell, whatever its size.
+ * @brief The craft grid, indexed by an item's TOP-LEFT cell.
  *
- * Deliberately simpler than the Cube's, which packs multi-cell footprints and keeps a separate
- * cell->anchor map. This is the BENCH's rule (2026-09-21, "a 2x3 slot that holds exactly one item
- * whatever its size") applied twelve times, and it is the format the crafting API already wants:
- * CanCraftFromLevskiGrid takes an Item array indexed by anchor, and a footprint map is a drawing
- * nicety on top of that rather than something the recipes read.
+ * FOOTPRINTS since 2026-09-22 (user: "i placed a 2x3 item in the smaller frame in Craft tab and it
+ * shrunk down to 1 slot only. Fix it. Size remains 2x3 when placed there [...] they still leave 6
+ * unoccupied slots for ingredients").
+ *
+ * It was one item per cell whatever its size, which is the BENCH's rule applied twelve times - and
+ * it was wrong the moment the grid became visible, because an item drawn to fit a 28px cell is an
+ * item shrunk to a twelfth of itself. A 2x3 takes six of the twelve cells now and leaves six, which
+ * is exactly the arithmetic the user did.
+ *
+ * The array is still indexed by anchor and still handed to CanCraftFromLevskiGrid unchanged: the
+ * cells an item covers are recorded in CraftCells beside it, not in this array, so the recipes see
+ * the same twelve-slot bag of items they always have.
  *
  * NEVER persisted - returned to the player when the window closes, exactly as the Cube's grid is, so
  * a crafting station stays out of the save format entirely.
  */
 std::array<Item, CraftSlots> CraftGrid {};
+/**
+ * @brief cell -> the anchor covering it, plus one. Zero for a free cell.
+ *
+ * The Cube's GridCells by another name and for the same reason: a 2x3 occupies six cells and every
+ * one of them has to name the same item, or the outlined item and the described item are two
+ * different items.
+ */
+std::array<int8_t, CraftSlots> CraftCells {};
 /**
  * @brief The kind the board has picked, by ITEM ID rather than by row (2026-09-21).
  *
@@ -888,8 +903,14 @@ Rectangle BenchSlotRect()
  *
  * DISTRIBUTED across that floor, as asked, rather than laid out from a fixed gap: the first plate
  * starts at the canvas's own left edge, the last ends six pixels clear of the frame, and the rest
- * are spaced evenly between them. A row of one is centred in the same band, so Reroll's plate and
- * Craft's Transmute stand on the middle plate's place and nothing jumps as the tabs change.
+ * are spaced evenly between them.
+ *
+ * A ROW OF ONE STANDS AT THE RIGHT END (user, 2026-09-22: "bring transmute icon 6px away from
+ * smaller frame of gillian in craft tab. i dont want it so far away"). It was centred in the band,
+ * which put Craft's Transmute and Reroll's plate seventy pixels from the frame they act on. The row
+ * is ANCHORED at the six-pixel clearance and distributes leftward, so a lone plate simply is that
+ * anchor - and it lands exactly where Imbue's third plate stands, which is the one place on this
+ * page the eye is already used to finding a button.
  *
  * ServiceIconGap survives only as the width the price line may overhang into; it no longer places
  * anything.
@@ -897,11 +918,12 @@ Rectangle BenchSlotRect()
 Rectangle ServiceIconRect(int index, int count)
 {
 	const Rectangle page = PageRect();
-	const int travel = MysticIconRowRight - InnerLeft + 1 - ServiceIconSize.width;
+	const int anchor = MysticIconRowRight + 1 - ServiceIconSize.width;
+	const int travel = anchor - InnerLeft;
 	// Rounded rather than truncated, so the last plate lands exactly on the six-pixel clearance
 	// instead of a pixel or two inside it.
 	const int left = count <= 1
-	    ? InnerLeft + travel / 2
+	    ? anchor
 	    : InnerLeft + (index * travel + (count - 1) / 2) / (count - 1);
 	return Rectangle { { page.position.x + left, page.position.y + MysticIconRowTop }, ServiceIconSize };
 }
@@ -1056,14 +1078,22 @@ void DrawTabColumn(const Surface &out)
  * NOTHING is drawn for an empty bench. The plate fill, the gold outline and the 2x3 of cell lines
  * this used to lay down were the bench itself, back when the window drew its own furniture; over a
  * painted frame they are a second frame inside the first, and the cell lines describe a grid the
- * painting does not have. The item is FITTED to the frame for the same reason the craft cells fit
- * theirs: the bench takes any footprint, and a 2x3 sword at 1:1 would run out over the moulding.
+ * painting does not have.
+ *
+ * AT ITS OWN SIZE, centred (user, 2026-09-22: "items keep original size when placed in that frame").
+ * It was fitted to the frame, which blew a ring up to 87x115 and shrank nothing - the opposite
+ * mistake to the craft grid's, in the same frame. Nothing needs fitting here: the frame is 87 by 115
+ * and the largest item in the game is a 2x3 at 56 by 84.
  */
 void DrawBench(const Surface &out)
 {
 	const Rectangle slot = BenchSlotRect();
-	if (!Bench.isEmpty())
-		DrawSpriteToFit(out, slot, GetInvItemSprite(Bench._iCurs + CURSOR_FIRSTITEM));
+	if (!Bench.isEmpty()) {
+		const ClxSprite sprite = GetInvItemSprite(Bench._iCurs + CURSOR_FIRSTITEM);
+		const Point topLeft { slot.position.x + (slot.size.width - static_cast<int>(sprite.width())) / 2,
+			slot.position.y + (slot.size.height - static_cast<int>(sprite.height())) / 2 };
+		DrawItem(Bench, out, { topLeft.x, topLeft.y + static_cast<int>(sprite.height()) - 1 }, sprite);
+	}
 	if (slot.contains(MousePosition))
 		DrawHoverOutline(out, slot);
 }
@@ -1078,13 +1108,26 @@ void DrawRerollList(const Surface &out)
 				DrawString(out, _("no item on the bench"), rect, { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
 			continue;
 		}
-		const bool locked = counters.lockedAffix >= 0 && counters.lockedAffix != row;
 		const bool selected = SelectedRow == row;
 		if (selected)
 			FillRect(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height, PlateFill);
+		// GREEN FOR THE ONE, RED FOR THE REST, once the item is settled (user, 2026-09-22: "when an
+		// affix is rerolled, use red font for other affixes from now on as they are now untouchable.
+		// use green text for the rerolled one").
+		//
+		// The first reroll locks this item to one affix for good - counters.lockedAffix - and until
+		// now the others were merely dimmed to whitegold, which is a shade, not an answer. Red says
+		// they cannot be worked; green says which one still can.
+		//
+		// Asked of lockedAffix rather than of the reroll count, because that field IS the rule: it
+		// is what RunControl refuses on, so the colours and the refusal cannot drift apart.
+		const bool settled = counters.lockedAffix >= 0;
+		const UiFlags colour = settled
+		    ? (row == counters.lockedAffix ? UiFlags::ColorOracoolGreen : UiFlags::ColorRed)
+		    : (selected ? UiFlags::ColorGold : UiFlags::ColorWhite);
 		const StringOrView line = PrintOracoolAffixPower(Bench._iOracoolAffixes[row], Bench);
 		DrawString(out, line.str(), Rectangle { { rect.position.x + 4, rect.position.y }, { rect.size.width - 8, rect.size.height } },
-		    { (locked ? UiFlags::ColorWhitegold : (selected ? UiFlags::ColorGold : UiFlags::ColorWhite)) | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+		    { colour | UiFlags::FontSize12 | UiFlags::VerticalCenter });
 		if (!selected && rect.contains(MousePosition))
 			OutlineRect(out, rect, PlateEdge);
 	}
@@ -1477,6 +1520,7 @@ void ResetWorkshopForNewGame()
 	// the time this runs - so it is simply dropped, which is what the Cube's grid does too.
 	for (Item &item : CraftGrid)
 		item.clear();
+	CraftCells = {};
 	Counters.clear();
 	Board.clear();
 }
@@ -1509,6 +1553,118 @@ int CraftSlotAt(Point position)
 	return -1;
 }
 
+/** @brief The screen rect the item at @p anchor covers - one cell per cell of its footprint. */
+Rectangle CraftItemRect(int anchor, Size size)
+{
+	const Rectangle first = CraftSlotRect(anchor);
+	return Rectangle { first.position,
+		{ (size.width - 1) * CraftPitch + CraftCellPx, (size.height - 1) * CraftPitch + CraftCellPx } };
+}
+
+/** @brief The ANCHOR of the item under @p position, or -1. The grid's answer to pcursinvitem. */
+int CraftAnchorAt(Point position)
+{
+	const int cell = CraftSlotAt(position);
+	if (cell < 0 || CraftCells[cell] == 0)
+		return -1;
+	return CraftCells[cell] - 1;
+}
+
+/** @brief Whether an item of @p size can sit with its top-left at @p anchor. */
+bool CraftFitsAt(int anchor, Size size)
+{
+	const int column = anchor % CraftColumns;
+	const int row = anchor / CraftColumns;
+	if (column + size.width > CraftColumns || row + size.height > CraftRows)
+		return false;
+	for (int y = 0; y < size.height; y++) {
+		for (int x = 0; x < size.width; x++) {
+			if (CraftCells[(row + y) * CraftColumns + column + x] != 0)
+				return false;
+		}
+	}
+	return true;
+}
+
+void CraftMarkCells(int anchor, Size size, int8_t value)
+{
+	const int column = anchor % CraftColumns;
+	const int row = anchor / CraftColumns;
+	for (int y = 0; y < size.height; y++) {
+		for (int x = 0; x < size.width; x++)
+			CraftCells[(row + y) * CraftColumns + column + x] = value;
+	}
+}
+
+/**
+ * @brief Puts @p item in the grid, preferring @p preferredAnchor. True if it found room.
+ *
+ * A preferred anchor of -1, or one the item does not fit at, falls back to the first cell it DOES
+ * fit at - so a click that lands a cell off still does what the player meant rather than nothing.
+ */
+bool PlaceInCraftGrid(const Item &item, int preferredAnchor)
+{
+	const Size size = GetInventorySize(item);
+	int anchor = (preferredAnchor >= 0 && CraftFitsAt(preferredAnchor, size)) ? preferredAnchor : -1;
+	for (int candidate = 0; anchor < 0 && candidate < CraftSlots; candidate++) {
+		if (CraftFitsAt(candidate, size))
+			anchor = candidate;
+	}
+	if (anchor < 0)
+		return false;
+	CraftGrid[anchor] = item;
+	CraftMarkCells(anchor, size, static_cast<int8_t>(anchor + 1));
+	return true;
+}
+
+/** @brief Lifts the item at @p anchor out of the grid, freeing every cell it covered. */
+Item TakeFromCraftGrid(int anchor)
+{
+	Item taken = CraftGrid[anchor];
+	CraftMarkCells(anchor, GetInventorySize(taken), 0);
+	CraftGrid[anchor].clear();
+	return taken;
+}
+
+/**
+ * @brief Rebuilds the occupancy map from CraftGrid. False if something could not be placed.
+ *
+ * The recipes rewrite CraftGrid in place - four powders and a sword become a sword - with no idea
+ * of footprints, and the result's size is not the inputs'. So after a transmute the map is
+ * re-derived rather than patched: collect what is there largest first, clear, and re-place. Anchors
+ * may move, which is correct; the alternative is a gem drawn over a helmet.
+ *
+ * LARGEST FIRST is the placement order, not merely a tidy one: a 2x3 placed after four gems may
+ * find six free cells that are not six free cells in a row.
+ *
+ * The return value exists because placement CAN fail - twelve array slots is not twelve free cells -
+ * and the Cube's own comment records what happens when that failure is discarded: "no room" becomes
+ * an item that quietly stops existing. The caller undoes the whole transmute instead.
+ */
+bool RebuildCraftOccupancy()
+{
+	std::array<Item, CraftSlots> items {};
+	int count = 0;
+	for (const Item &slot : CraftGrid) {
+		if (!slot.isEmpty())
+			items[count++] = slot;
+	}
+	std::sort(items.begin(), items.begin() + count, [](const Item &a, const Item &b) {
+		const Size sa = GetInventorySize(a);
+		const Size sb = GetInventorySize(b);
+		return sa.width * sa.height > sb.width * sb.height;
+	});
+	for (Item &slot : CraftGrid)
+		slot.clear();
+	CraftCells = {};
+	bool allPlaced = true;
+	for (int i = 0; i < count; i++) {
+		if (!PlaceInCraftGrid(items[i], -1))
+			allPlaced = false;
+	}
+	return allPlaced;
+}
+
 /**
  * @brief Hands the craft grid back. False when something had nowhere to go, so the window stays open.
  *
@@ -1519,10 +1675,14 @@ int CraftSlotAt(Point position)
 bool ReturnCraftGrid(Player &player)
 {
 	bool all = true;
-	for (Item &item : CraftGrid) {
+	for (int anchor = 0; anchor < CraftSlots; anchor++) {
+		Item &item = CraftGrid[anchor];
 		if (item.isEmpty())
 			continue;
 		if (AutoPlaceItemInInventory(player, item, true) || AutoPlaceItemInStash(player, item, true)) {
+			// The cells it covered go with it. A cleared item that left its footprint behind would
+			// be twelve slots' worth of invisible walls the next item could not be put down on.
+			CraftMarkCells(anchor, GetInventorySize(item), 0);
 			item.clear();
 			continue;
 		}
@@ -1662,17 +1822,24 @@ void DrawCraftPage(const Surface &out)
 	// ONE grid, both hosts (2026-09-22). Hers was a one-item bench while her canvas painted an empty
 	// frame; the multi-item painting puts the same 3x4 well in that frame, so the only difference
 	// left between her craft page and his is where the well is - see CraftGridOriginFor.
-	for (int slot = 0; slot < CraftSlots; slot++) {
-		const Item &item = CraftGrid[slot];
+	//
+	// AT ITS OWN SIZE, over the cells it occupies (user: "items keep original size when placed in
+	// that frame"). It was fitted to a single 28px cell, which shrank a 2x3 sword to a twelfth of
+	// itself and made every item on the board the same size as a gem.
+	const int hoveredAnchor = CraftAnchorAt(MousePosition);
+	for (int anchor = 0; anchor < CraftSlots; anchor++) {
+		const Item &item = CraftGrid[anchor];
 		if (item.isEmpty())
 			continue;
-		const Rectangle cell = CraftSlotRect(slot);
+		const Rectangle footprint = CraftItemRect(anchor, GetInventorySize(item));
 		const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
-		// Fitted to the cell rather than drawn at 1:1: a craft grid takes items of every footprint,
-		// and a 2x3 sword drawn at its natural size would cover half the board. See DrawSpriteToFit.
-		DrawSpriteToFit(out, cell, sprite);
-		if (cell.contains(MousePosition))
-			DrawHoverOutline(out, cell);
+		// Centred in the footprint and drawn by the inventory's own routine, so the grey for gear
+		// the character cannot use, the red X on a broken item and the stack count all come with it.
+		const Point topLeft { footprint.position.x + (footprint.size.width - static_cast<int>(sprite.width())) / 2,
+			footprint.position.y + (footprint.size.height - static_cast<int>(sprite.height())) / 2 };
+		DrawItem(item, out, { topLeft.x, topLeft.y + static_cast<int>(sprite.height()) - 1 }, sprite);
+		if (anchor == hoveredAnchor)
+			DrawHoverOutline(out, footprint);
 	}
 
 	// Griswold's Refresh plate as Transmute, as on Levski's Cube.
@@ -1958,8 +2125,8 @@ bool SetWorkshopHoverInfoString()
 	// The craft cells, both hosts. They had no hover text at all, which was survivable while the only
 	// grid was Ogden's low-painted well; hers stands in the frame her bench used to, where the player
 	// has every reason to expect a name.
-	if (const int cell = CraftSlotAt(MousePosition); cell >= 0 && !CraftGrid[cell].isEmpty()) {
-		SetPanelString(CraftGrid[cell].getName(), CraftGrid[cell].getTextColor());
+	if (const int anchor = CraftAnchorAt(MousePosition); anchor >= 0) {
+		SetPanelString(CraftGrid[anchor].getName(), CraftGrid[anchor].getTextColor());
 		return true;
 	}
 	if (ControlRect(Control::Reroll).contains(MousePosition)) {
@@ -2326,6 +2493,18 @@ void RunControl(Control control)
 		PlayUiSelectSound();
 		break;
 	case Control::Transmute: {
+		// THE WHOLE BENCH, BEFORE (2026-09-22). A recipe rewrites the grid with no idea of
+		// footprints - four powders and a sword become a sword - so the occupancy map has to be
+		// re-derived afterwards, and re-deriving it can fail: twelve array slots are not twelve free
+		// cells once items take more than one each. The snapshot is what lets that failure undo the
+		// transmute instead of losing whatever could not be laid out. The Cube learned this the hard
+		// way; see RebuildCraftOccupancy.
+		const std::array<Item, CraftSlots> benchBefore = CraftGrid;
+		const std::array<int8_t, CraftSlots> cellsBefore = CraftCells;
+		const auto restoreBench = [&benchBefore, &cellsBefore]() {
+			CraftGrid = benchBefore;
+			CraftCells = cellsBefore;
+		};
 		// HIS recipes only: FirstReadyLevskiRecipeFor is asked for TransmuteHost::Tavern, so a grid
 		// that happens to satisfy one of Griswold's or Gillian's does nothing here. The bench is
 		// Ogden's, and a recipe running at the wrong artisan's window would be a bug that looked like
@@ -2356,6 +2535,11 @@ void RunControl(Control control)
 				if (i != reagentSlot)
 					CraftGrid[i] = scratch[i];
 			}
+			if (!RebuildCraftOccupancy()) {
+				restoreBench();
+				SetBoard(std::string(_("There is no room on the bench for what that would make.")));
+				break;
+			}
 			if (reagentCount > 0)
 				TakeOwned(player, reagentIdx, reagentCount);
 			CalcPlrInv(player, true);
@@ -2370,8 +2554,20 @@ void RunControl(Control control)
 			break;
 		}
 		const std::string result = TransmuteLevskiGridWith(CraftGrid.data(), recipe);
+		if (IsTransmuteRefusal(result)) {
+			// A refusal leaves the grid as it was, so the map is still right; restore anyway rather
+			// than trust that, because "leaves it as it was" is a property of another file.
+			restoreBench();
+			SetBoard(result);
+			break;
+		}
+		if (!RebuildCraftOccupancy()) {
+			restoreBench();
+			SetBoard(std::string(_("There is no room on the bench for what that would make.")));
+			break;
+		}
 		SetBoard(result);
-		if (!IsTransmuteRefusal(result) && !PlayUiEventSound(UiEventSound::Transmute))
+		if (!PlayUiEventSound(UiEventSound::Transmute))
 			PlayUiSelectSound();
 		break;
 	}
@@ -2411,20 +2607,27 @@ bool CheckWorkshopClick(Point position)
 	// 2026-09-21 - a control that is not drawn must not be hit-tested.
 	// Ogden's craft cells: a held item goes down, an item already there comes up. One item per cell,
 	// whatever its footprint - see CraftGrid.
-	if (const int slot = CraftSlotAt(position); slot >= 0) {
+	if (const int cell = CraftSlotAt(position); cell >= 0) {
 		Player &player = *MyPlayer;
+		// The ANCHOR, not the cell: a 2x3 answers to any of its six cells, so a click on the blade
+		// of a sword picks up the sword rather than finding an empty slot beside it.
+		const int anchor = CraftAnchorAt(position);
 		if (!player.HoldItem.isEmpty()) {
-			if (!CraftGrid[slot].isEmpty()) {
+			if (anchor >= 0) {
 				SetBoard(std::string(_("That cell is taken.")));
 				return true;
 			}
-			CraftGrid[slot] = player.HoldItem;
+			// The cell under the cursor is preferred and the first that fits is the fallback, so an
+			// item too tall to start here still goes down somewhere rather than refusing silently.
+			if (!PlaceInCraftGrid(player.HoldItem, cell)) {
+				SetBoard(std::string(_("There is no room on the bench for that.")));
+				return true;
+			}
+			PlaySFX(ItemInvSnds[GetItemDropAnimIndex(player.HoldItem._iCurs)]);
 			player.HoldItem.clear();
 			NewCursor(CURSOR_HAND);
-			PlaySFX(ItemInvSnds[GetItemDropAnimIndex(CraftGrid[slot]._iCurs)]);
-		} else if (!CraftGrid[slot].isEmpty()) {
-			player.HoldItem = CraftGrid[slot];
-			CraftGrid[slot].clear();
+		} else if (anchor >= 0) {
+			player.HoldItem = TakeFromCraftGrid(anchor);
 			NewCursor(player.HoldItem._iCurs + CURSOR_FIRSTITEM);
 			PlaySFX(IS_IGRAB);
 		}

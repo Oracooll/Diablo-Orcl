@@ -31,9 +31,11 @@ $Jobs = @(
     @{ src = "Reroll - single die glyph 56x56.png";                  out = "shop_glyph_reroll.png" },
     @{ src = "Reroll - two dice glyph 56x56.png";                    out = "shop_glyph_refresh_until.png" },
     # The pump, over my objection and at the user's word (2026-09-22: "use the pump instead of the
-    # star for recharge"). It is Griswold's Recharge alone: Gillian's Imbue kept the star, which is
-    # now shop_glyph_imbue.png and is not cut by this script.
-    @{ src = "Recharge - gas pump glyph 56x56.png";                  out = "shop_glyph_recharge.png" }
+    # star for recharge"). Griswold's Recharge alone - Gillian's Imbue is its own file below.
+    @{ src = "Recharge - gas pump glyph 56x56.png";                  out = "shop_glyph_recharge.png" },
+    # Her Imbue, which held Griswold's old star for one build while it waited for a drawing of its
+    # own (user, 2026-09-22: "use this icon as Imbue button icon - Imbue - rune shield glyph").
+    @{ src = "Imbue - rune shield glyph 56x56.png";                  out = "shop_glyph_imbue.png" }
 )
 
 if (-not (Test-Path $OutDir)) { throw "asset folder not found: $OutDir - run this from the repo root" }
