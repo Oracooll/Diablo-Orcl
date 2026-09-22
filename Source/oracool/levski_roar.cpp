@@ -245,6 +245,26 @@ struct ListSkinGeometry {
 	 * A shared constant would have darkened seven rows of Ogden's painted moulding.
 	 */
 	Rectangle darkLayer = { { 0, 0 }, { 0, 0 } };
+	/**
+	 * Whether the item grids' slot art is laid in this page's cells (2026-09-22).
+	 *
+	 * True everywhere the cells are a painted WELL, which is every page that has ever had a grid -
+	 * and false on the open tesseract, whose cells are a violet hologram hanging in the air (user:
+	 * "dont apply grid texture to levskis hologram grid. leave it as it is"). A stone slot laid in
+	 * one would put masonry inside light.
+	 */
+	bool slotArt = true;
+	/**
+	 * Whether the TRANSMUTE button is part of the painting (2026-09-22).
+	 *
+	 * The tabbed pages wear Griswold's plate and glyph over their transmute rect, which is right
+	 * where the rect is a recess the art left empty for it. The open tesseract is not: its button is
+	 * the glowing diamond the painter put there (user: "as transmute button we will use the diamond
+	 * who is 72 pixels bellow the cube grid"), so laying a stone plate on it would cover the very
+	 * thing being pressed. A painted button answers with light instead of a plate: brighter under
+	 * the cursor, brighter still while held.
+	 */
+	bool paintedTransmute = false;
 };
 
 constexpr ListSkinGeometry CubeGeometry {
@@ -523,12 +543,36 @@ constexpr Rectangle CubePageTransmuteRect {
 	    CubeGridFrameBottom + 1 + CubeTransmuteClearance },
 	{ CubeTransmuteSize, CubeTransmuteSize }
 };
+/**
+ * THE OPEN TESSERACT (user, 2026-09-22: "replace levski's cube with this new asset [...] as transmute
+ * button we will use the diamond who is 72 pixels bellow the cube grid").
+ *
+ * A man facing the opened cube, with the grid floating above it as a VIOLET HOLOGRAM and the
+ * transmute diamond glowing in the tesseract below. MEASURED off the painting, not estimated:
+ *
+ *   the hologram's rules stand at x 123/124, 152, 180, 207/208 and y 103/104, 132, 160, 188,
+ *   215/216 - three columns by four rows of 28px cells on a 28px pitch, origin (124,104). That is
+ *   the Roar's own cell and the Roar's own pitch, so not one line of the transmute logic moves;
+ *
+ *   the diamond's vertices sit at x 143 and 190, y 288 and 322 - and its TOP lands at exactly
+ *   216 + 72, which is the user's "72 pixels bellow the cube grid" to the pixel. Two independent
+ *   measurements agreeing is what says the grid reading is right as well.
+ *
+ * The button is the diamond's bounding box, 48 by 35. It is wider than it is tall because the shape
+ * is, and a square over it would take in the tesseract's ribs on either side.
+ */
+constexpr Point CubeTesseractGridOrigin { 124, 104 };
+constexpr Rectangle CubeDiamondRect { { 143, 288 }, { 48, 35 } };
 constexpr ListSkinGeometry CubePageGeometry {
-	{ 340, 720 }, { 128, 416 }, CubePageTransmuteRect, { { 0, 0 }, { 0, 0 } },
+	{ 340, 720 }, CubeTesseractGridOrigin, CubeDiamondRect, { { 0, 0 }, { 0, 0 } },
 	{ { 0, 0 }, { 0, 0 } }, { { 316, 5 }, { 18, 18 } }, CubePageCanvasAsset, false,
 	{ { 0, 0 }, { 0, 0 } }, // no RECIPE BOOK plate: the tab beside the window is how the list is reached now
 	{ { 0, 0 }, { 0, 0 } }, // and no title - the painting is a portrait, as every canvas this day
-	true
+	true, ListLines, /*hasGrid=*/true, { { 0, 0 }, { 0, 0 } },
+	// NO SLOT ART (user: "dont apply grid texture to levskis hologram grid. leave it as it is").
+	// The cells are a hologram, not a well: a stone slot laid in one would put masonry inside light.
+	/*slotArt=*/false,
+	/*paintedTransmute=*/true
 };
 /** @brief Ogden's, the same page down to the pixel with his table painted behind it instead. */
 constexpr ListSkinGeometry OgdenCubePageGeometry {
@@ -2027,8 +2071,9 @@ void DrawLevskiRoar(const Surface &out)
 	// looked at it and asked for the cover. CellRect is the 28 the item sprite occupies, so the slot
 	// art and the item it holds now sit on exactly the same square.
 	//
-	// Outside the codeDrawn block above, so the painted cube gets it too.
-	if (PageHasGrid()) {
+	// Outside the codeDrawn block above, so a painted page gets it too - but ASKED OF THE PAGE, not
+	// assumed: the open tesseract's cells are a hologram and take no slot art at all.
+	if (PageHasGrid() && (listSkin == nullptr || listSkin->slotArt)) {
 		for (int cell = 0; cell < LevskiGridSlots; cell++)
 			DrawSlotBackground(out, CellRect(window, cell));
 	}
@@ -2140,6 +2185,21 @@ void DrawLevskiRoar(const Surface &out)
 		const char *buttonArt = pressed ? cube_skin::TransmuteButtonPressedAsset : cube_skin::TransmuteButtonAsset;
 		if (button.size.width == 0) {
 			// The Recipes tab has no Transmute at all - it is the list, nothing else.
+		} else if (listSkin != nullptr && listSkin->paintedTransmute) {
+			// THE DIAMOND IS THE BUTTON (2026-09-22). Nothing is drawn on it: the painting already
+			// has the thing being pressed, and Griswold's plate below would sit on top of it.
+			//
+			// It answers with LIGHT rather than with the mod's two-pixel sink, because a sink moves
+			// a painted object off the art it is part of - the tesseract's ribs would show a
+			// diamond-shaped hole beside it. Brighter under the cursor, brighter still while held.
+			//
+			// Checked BEFORE the tabbed-page branch below, which this page also satisfies: the
+			// tesseract IS a tabbed page, and the plate is what it must not get.
+			constexpr int CubeDiamondPressBrightenPercent = 140;
+			if (pressed)
+				BrightenRectRgb(out, button.position.x, button.position.y, button.size.width, button.size.height, CubeDiamondPressBrightenPercent);
+			else if (hovered)
+				BrightenRectRgb(out, button.position.x, button.position.y, button.size.width, button.size.height, CubeHoverBrightenPercent);
 		} else if (CubeTabbedPages()) {
 			// GRISWOLD'S OWN PLATE (user, 2026-09-21: "Use Griswold Refresh button as Transmute
 			// button here"), frame and glyph, the same two files his shop draws. It sinks on the
