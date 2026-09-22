@@ -186,6 +186,43 @@ static_assert(BoardCancelRect.position.x + BoardCancelRect.size.width < 175,
 static_assert(BoardGoldCountRect.position.x + BoardGoldCountRect.size.width <= BoardConfirmLeft,
     "the gold readout runs into the confirmation beside it");
 
+/**
+ * OGDEN'S CRAFT BENCH and his RECIPE PAGE (user, 2026-09-22, items 6 and 7).
+ *
+ * Both canvases were measured when they arrived on 2026-09-21 and both are reused here exactly:
+ *  - the cube page's grid frame runs x 118..224, y 406..541, with rules at x 156/185/214 and y
+ *    444/473/502 - the Roar's own 28px cell on a 29px pitch, so the grid is 3x4 at (128,416);
+ *  - the recipe page's frame opens at x 29..310, y 299..618.
+ *
+ * The Transmute plate is GRISWOLD'S Refresh frame and glyph at the grid frame's centre, four pixels
+ * below its foot - the same plate and the same derivation Levski's Cube uses, because the user asked
+ * for that button by name on both.
+ */
+constexpr const char *OgdenCubeCanvasAsset = "ui\\ogden_cube_canvas.png";
+constexpr const char *OgdenRecipesCanvasAsset = "ui\\ogden_recipes_canvas.png";
+
+constexpr int CraftColumns = 3;
+constexpr int CraftRows = 4;
+constexpr int CraftSlots = CraftColumns * CraftRows;
+constexpr int CraftPitch = 29;
+constexpr int CraftCellPx = 28;
+constexpr Point CraftGridOrigin { 128, 416 };
+constexpr int CraftFrameLeft = 118;
+constexpr int CraftFrameRight = 224;
+constexpr int CraftFrameBottom = 541;
+constexpr int CraftPlateSize = 34;
+constexpr Rectangle CraftTransmuteRect {
+	{ (CraftFrameLeft + CraftFrameRight + 1) / 2 - CraftPlateSize / 2, CraftFrameBottom + 1 + 4 },
+	{ CraftPlateSize, CraftPlateSize }
+};
+constexpr const char *CraftTransmuteGlyphAsset = "ui\\shop_glyph_refresh.png";
+
+constexpr int RecipeOpeningLeft = 29;
+constexpr int RecipeOpeningTop = 299;
+constexpr int RecipeOpeningRight = 310;
+constexpr int RecipeOpeningBottom = 618;
+constexpr int RecipeLinePitch = 20;
+
 constexpr const char *BoardButtonFrameAsset = "ui\\shop_button_frame.png";
 constexpr const char *BoardUpGlyphAsset = "ui\\shop_glyph_arrow_up.png";
 constexpr const char *BoardDownGlyphAsset = "ui\\shop_glyph_arrow_down.png";
@@ -230,17 +267,30 @@ enum class Tab : uint8_t {
 	Gems,
 	Runes,
 	Jewels,
+	/**
+	 * Ogden's bench for the recipes his collection boards cannot run (user, 2026-09-22: "There must
+	 * be another tab - Craft [...] where user performs other Ogden crafting recipes, not possible in
+	 * his other tabs").
+	 *
+	 * The boards climb ladders - three gems for one better gem - and that is all they can do. Free
+	 * the Sockets, Recolour Gems and Punch Sockets each act on an ITEM you put in front of him, so
+	 * they need a grid to put it in.
+	 */
+	Craft,
 	Recipes,
 };
-constexpr int MaxTabs = 4;
+constexpr int MaxTabs = 5;
 
 /** Every control the page can hold. The press sinks one of these; the release runs it. */
 enum class Control : uint8_t {
 	None,
+	// The tab slots must stay CONTIGUOUS and in order: every handler derives the slot index as
+	// `control - Control::Tab0`, so a value inserted among them silently renumbers the column.
 	Tab0,
 	Tab1,
 	Tab2,
 	Tab3,
+	Tab4, // Ogden's fifth, since the Craft tab (2026-09-22)
 	Reroll,
 	Imbue,
 	Remove,
@@ -254,6 +304,8 @@ enum class Control : uint8_t {
 	/** The rune ladder's two answers (2026-09-21) - see PendingStep. */
 	ConfirmStep,
 	CancelStep,
+	/** Ogden's craft bench (2026-09-22): Griswold's Refresh plate under the grid. */
+	Transmute,
 	Close,
 };
 constexpr int OptionCount = 4; // the affix as it stands, and three alternatives
@@ -263,6 +315,19 @@ WorkshopHost Host = WorkshopHost::Mystic;
 Tab OpenTab = Tab::Reroll;
 /** The one item on the bench. Returned to the pack when the window closes. */
 Item Bench;
+/**
+ * @brief Ogden's craft grid: ONE item per cell, whatever its size.
+ *
+ * Deliberately simpler than the Cube's, which packs multi-cell footprints and keeps a separate
+ * cell->anchor map. This is the BENCH's rule (2026-09-21, "a 2x3 slot that holds exactly one item
+ * whatever its size") applied twelve times, and it is the format the crafting API already wants:
+ * CanCraftFromLevskiGrid takes an Item array indexed by anchor, and a footprint map is a drawing
+ * nicety on top of that rather than something the recipes read.
+ *
+ * NEVER persisted - returned to the player when the window closes, exactly as the Cube's grid is, so
+ * a crafting station stays out of the save format entirely.
+ */
+std::array<Item, CraftSlots> CraftGrid {};
 /**
  * @brief The kind the board has picked, by ITEM ID rather than by row (2026-09-21).
  *
@@ -388,7 +453,7 @@ std::vector<Tab> TabsFor(WorkshopHost host)
 	// Ogden's tables (user, 2026-09-21): "a list of all Gem types with the number the user curently owns of each
 	// and clicking on certain type provides Upgrade/Downgrade options", the same for runes, and his jewels beside
 	// them; his socket recipes are a tab away in his book.
-	return { Tab::Gems, Tab::Runes, Tab::Jewels, Tab::Recipes };
+	return { Tab::Gems, Tab::Runes, Tab::Jewels, Tab::Craft, Tab::Recipes };
 }
 
 const char *TabName(Tab tab)
@@ -404,6 +469,8 @@ const char *TabName(Tab tab)
 		return N_("Runes");
 	case Tab::Jewels:
 		return N_("Jewels");
+	case Tab::Craft:
+		return N_("Craft");
 	case Tab::Recipes:
 		break;
 	}
@@ -694,7 +761,8 @@ Rectangle ControlRect(Control control)
 	case Control::Tab0:
 	case Control::Tab1:
 	case Control::Tab2:
-	case Control::Tab3: {
+	case Control::Tab3:
+	case Control::Tab4: {
 		const int slot = static_cast<int>(control) - static_cast<int>(Control::Tab0);
 		return slot < static_cast<int>(TabsFor(Host).size()) ? TabRect(slot) : Rectangle { { 0, 0 }, { 0, 0 } };
 	}
@@ -724,6 +792,8 @@ Rectangle ControlRect(Control control)
 		return PendingStep != 0 ? Panel(BoardConfirmRect) : Rectangle { { 0, 0 }, { 0, 0 } };
 	case Control::CancelStep:
 		return PendingStep != 0 ? Panel(BoardCancelRect) : Rectangle { { 0, 0 }, { 0, 0 } };
+	case Control::Transmute:
+		return OpenTab == Tab::Craft ? Panel(CraftTransmuteRect) : Rectangle { { 0, 0 }, { 0, 0 } };
 	case Control::None:
 		break;
 	}
@@ -1044,6 +1114,8 @@ void DrawBoardMessage(const Surface &out)
 		        _(AllItemsList[SelectedStockIdx].iName), _(AllItemsList[made].iName));
 		DrawString(out, question, Panel(BoardMessageRect),
 		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		// The TWO answers, and only those: this loop draws a YES/NO plate per entry, so anything else
+		// in it renders as a "NO" box wherever its rect happens to be.
 		for (const Control which : { Control::ConfirmStep, Control::CancelStep }) {
 			const Rectangle rect = ControlRect(which);
 			const bool confirm = which == Control::ConfirmStep;
@@ -1112,12 +1184,25 @@ void OpenWorkshop(WorkshopHost host)
 	PlayUiSelectSound();
 }
 
+// Defined below, with the rest of the craft bench, and declared HERE at oracool scope rather than in
+// the anonymous namespace above: the definition sits between the two anonymous blocks, so a
+// declaration inside one of them is a different function and the link fails on it.
+bool ReturnCraftGrid(Player &player);
+
 void CloseWorkshop()
 {
 	if (!WindowOpen)
 		return;
 	if (!ReturnBench()) {
 		LogEvent(std::string(_("Your pack is full - the bench keeps what it holds.")), UiFlags::ColorRed);
+		return;
+	}
+	// The craft grid too (2026-09-22). It is not a container: nothing may be left standing on it when
+	// the window shuts, or a player who closed the window on three gems would have to guess where
+	// they went. The window stays OPEN when there is nowhere to put them, which is the same answer
+	// the bench above gives.
+	if (!ReturnCraftGrid(*MyPlayer)) {
+		LogEvent(std::string(_("Your pack and stash are full - the bench keeps what it holds.")), UiFlags::ColorRed);
 		return;
 	}
 	WindowOpen = false;
@@ -1170,8 +1255,139 @@ void ResetWorkshopForNewGame()
 	SelectedStockIdx = -1;
 	PendingStep = 0;
 	Bench.clear();
+	// A new game starts with an empty bench. Not RETURNED - there is no player to return it to by
+	// the time this runs - so it is simply dropped, which is what the Cube's grid does too.
+	for (Item &item : CraftGrid)
+		item.clear();
 	Counters.clear();
 	Board.clear();
+}
+
+/** @brief Craft cell @p slot, in screen space. */
+Rectangle CraftSlotRect(int slot)
+{
+	const Rectangle page = PageRect();
+	return Rectangle { { page.position.x + CraftGridOrigin.x + (slot % CraftColumns) * CraftPitch,
+	                       page.position.y + CraftGridOrigin.y + (slot / CraftColumns) * CraftPitch },
+		{ CraftCellPx, CraftCellPx } };
+}
+
+/** @brief The craft cell under @p position, or -1. */
+int CraftSlotAt(Point position)
+{
+	if (OpenTab != Tab::Craft)
+		return -1;
+	for (int slot = 0; slot < CraftSlots; slot++) {
+		if (CraftSlotRect(slot).contains(position))
+			return slot;
+	}
+	return -1;
+}
+
+/**
+ * @brief Hands the craft grid back. False when something had nowhere to go, so the window stays open.
+ *
+ * The same contract as ReturnBench: a crafting station is not a container, so nothing may be left
+ * here when the window closes. Backpack first, then the stash - the order everything else in this
+ * window now uses.
+ */
+bool ReturnCraftGrid(Player &player)
+{
+	bool all = true;
+	for (Item &item : CraftGrid) {
+		if (item.isEmpty())
+			continue;
+		if (AutoPlaceItemInInventory(player, item, true) || AutoPlaceItemInStash(player, item, true)) {
+			item.clear();
+			continue;
+		}
+		all = false;
+	}
+	return all;
+}
+
+/** @brief Ogden's recipes, in book order - the ones HostOfRecipe hands him. */
+std::vector<int> OgdenRecipes()
+{
+	std::vector<int> recipes;
+	for (int i = 0; i < CraftingRecipeCount; i++) {
+		if (RecipeBelongsTo(i, TransmuteHost::Tavern))
+			recipes.push_back(i);
+	}
+	return recipes;
+}
+
+/**
+ * @brief The Craft bench: the grid over his cube canvas, and Griswold's plate under it.
+ *
+ * The canvas paints the wells, so nothing is drawn for an empty cell - what goes down here is the
+ * items in it, the plate, and a line saying what the grid can currently make.
+ */
+void DrawCraftPage(const Surface &out)
+{
+	for (int slot = 0; slot < CraftSlots; slot++) {
+		const Item &item = CraftGrid[slot];
+		if (item.isEmpty())
+			continue;
+		const Rectangle cell = CraftSlotRect(slot);
+		const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
+		// Fitted to the cell rather than drawn at 1:1: a craft grid takes items of every footprint,
+		// and a 2x3 sword drawn at its natural size would cover half the board. See DrawSpriteToFit.
+		DrawSpriteToFit(out, cell, sprite);
+		if (cell.contains(MousePosition))
+			DrawHoverOutline(out, cell);
+	}
+
+	// Griswold's Refresh plate as Transmute, as on Levski's Cube.
+	const Rectangle rect = ControlRect(Control::Transmute);
+	const bool ready = FirstReadyLevskiRecipeFor(CraftGrid.data(), TransmuteHost::Tavern) >= 0;
+	const Rectangle face { rect.position + (Pressed == Control::Transmute ? PressSink : Displacement { 0, 0 }), rect.size };
+	if (GetLoosePngSize(BoardButtonFrameAsset).width > 0)
+		DrawLoosePng(out, BoardButtonFrameAsset, face.position);
+	else
+		DrawOrnateBorder(out, face);
+	if (const Size glyph = GetLoosePngSize(CraftTransmuteGlyphAsset); glyph.width > 0) {
+		DrawLoosePng(out, CraftTransmuteGlyphAsset,
+		    { face.position.x + (face.size.width - glyph.width) / 2,
+		        face.position.y + (face.size.height - glyph.height) / 2 });
+	}
+	if (!ready) {
+		TintRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height,
+		    0xFFFFFFu, /*brightnessPercent=*/70, /*floorPercent=*/0, PAL16_GRAY);
+	} else if (rect.contains(MousePosition)) {
+		BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, HoverBrightenPercent);
+	}
+}
+
+/**
+ * @brief His recipe page: the list inside the painted frame, on a dark layer.
+ *
+ * Two lines a recipe - the name in gold, what it takes in white - because a name alone ("Punch
+ * Sockets") does not say what to put on the bench. The dark layer is the same two passes Levski's
+ * recipe page uses, for the same reason: one left the names competing with the floor behind them.
+ */
+void DrawRecipesPage(const Surface &out)
+{
+	const Rectangle page = PageRect();
+	const Rectangle opening { page.position + Displacement { RecipeOpeningLeft, RecipeOpeningTop },
+		{ RecipeOpeningRight - RecipeOpeningLeft + 1, RecipeOpeningBottom - RecipeOpeningTop + 1 } };
+	DrawThemedFill(out, opening, 2);
+
+	const std::vector<int> recipes = OgdenRecipes();
+	int y = opening.position.y + 6;
+	const int width = opening.size.width - 12;
+	for (const int recipe : recipes) {
+		if (y + 2 * RecipeLinePitch > opening.position.y + opening.size.height)
+			break; // a half-drawn recipe reads as a fault, not as "there is more"
+		DrawString(out, _(CraftingRecipeName(recipe)),
+		    Rectangle { { opening.position.x + 6, y }, { width, RecipeLinePitch } },
+		    { UiFlags::ColorGold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+		y += RecipeLinePitch;
+		DrawString(out, _(CraftingRecipeInputs(recipe)),
+		    Rectangle { { opening.position.x + 14, y }, { width - 8, RecipeLinePitch } },
+		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+		y += RecipeLinePitch;
+	}
 }
 
 void DrawWorkshop(const Surface &out)
@@ -1182,9 +1398,17 @@ void DrawWorkshop(const Surface &out)
 	// The user's painted canvas, or the shared 340x720 side panel until it lands.
 	// Ogden's own table when it is installed (2026-09-21); the shared workshop canvas otherwise, and
 	// the side panel under that - so a build short of any of them still draws a whole window.
+	// ONE CANVAS PER PAGE for Ogden (2026-09-22): his collection tabs wear the table with the board's
+	// frame, his Craft tab the cube page, his Recipes tab the recipe frame. Each falls back to the
+	// one before it, so a build short of a file still draws a whole window rather than a blank tab.
 	const char *canvas = MysticCanvasAsset;
-	if (Host != WorkshopHost::Mystic)
+	if (Host != WorkshopHost::Mystic) {
 		canvas = GetLoosePngSize(OgdenCanvasAsset).width > 0 ? OgdenCanvasAsset : JewellerCanvasAsset;
+		if (OpenTab == Tab::Craft && GetLoosePngSize(OgdenCubeCanvasAsset).width > 0)
+			canvas = OgdenCubeCanvasAsset;
+		else if (OpenTab == Tab::Recipes && GetLoosePngSize(OgdenRecipesCanvasAsset).width > 0)
+			canvas = OgdenRecipesCanvasAsset;
+	}
 	if (GetLoosePngSize(canvas).width > 0) {
 		DrawLoosePng(out, canvas, page.position);
 	} else if (HasSidePanelArt()) {
@@ -1206,7 +1430,10 @@ void DrawWorkshop(const Surface &out)
 		    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 	DrawTabColumn(out);
-	if (!IsStockTab(OpenTab))
+	// The bench belongs to the MYSTIC's two tabs and nowhere else (2026-09-22). "Not a stock tab" was
+	// close enough while those were the only other pages; with Craft and Recipes here it would draw
+	// her 2x3 slot over Ogden's cube grid and his recipe list.
+	if (OpenTab == Tab::Reroll || OpenTab == Tab::Imbue)
 		DrawBench(out);
 
 	if (IsStockTab(OpenTab)) {
@@ -1219,6 +1446,10 @@ void DrawWorkshop(const Surface &out)
 		const int down = picked > 0 ? StepDown(OpenTab, picked) : 0;
 		DrawBoardArrow(out, Control::Upgrade, up != 0 && held >= StepUpCost(OpenTab));
 		DrawBoardArrow(out, Control::Downgrade, down != 0 && held >= 1);
+	} else if (OpenTab == Tab::Craft) {
+		DrawCraftPage(out);
+	} else if (OpenTab == Tab::Recipes) {
+		DrawRecipesPage(out);
 	} else if (OpenTab == Tab::Reroll) {
 		DrawRerollList(out);
 		const bool ready = !Bench.isEmpty() && Bench._iOracoolAffixCount > 0 && SelectedRow >= 0;
@@ -1248,10 +1479,10 @@ void DrawWorkshop(const Surface &out)
 
 	// The hover sound, once as the cursor arrives on a control.
 	Control hoveredNow = Control::None;
-	for (const Control control : { Control::Tab0, Control::Tab1, Control::Tab2, Control::Tab3, Control::Reroll,
+	for (const Control control : { Control::Tab0, Control::Tab1, Control::Tab2, Control::Tab3, Control::Tab4, Control::Reroll,
 	         Control::Imbue, Control::Remove, Control::Cleanse, Control::Upgrade, Control::Downgrade,
 	         Control::Option0, Control::Option1, Control::Option2, Control::Option3,
-	         Control::ConfirmStep, Control::CancelStep }) {
+	         Control::ConfirmStep, Control::CancelStep, Control::Transmute }) {
 		const Rectangle rect = ControlRect(control);
 		if (rect.size.width > 0 && rect.contains(MousePosition)) {
 			hoveredNow = control;
@@ -1430,17 +1661,23 @@ void RunControl(Control control)
 	case Control::Tab0:
 	case Control::Tab1:
 	case Control::Tab2:
-	case Control::Tab3: {
+	case Control::Tab3:
+	case Control::Tab4: {
 		const std::vector<Tab> tabs = TabsFor(Host);
 		const int slot = static_cast<int>(control) - static_cast<int>(Control::Tab0);
 		if (slot >= static_cast<int>(tabs.size()) || tabs[slot] == OpenTab)
 			break;
-		if (tabs[slot] == Tab::Recipes) {
-			// The artisan's own recipe book, on its docked page - the workshop stands down while it is up.
-			const WorkshopHost host = Host;
+		// OGDEN'S RECIPES STAY HERE (user, 2026-09-22: "Tab recipes must not lead to Levski Cube -
+		// must lead to Ogden's recipe canvas and list recipes"). The tab used to close this window and
+		// open the Levski page, which is a different window with a different painting and its own tab
+		// column - leaving the player two clicks from the board they started on.
+		//
+		// The MYSTIC keeps the hand-off: her recipes have no page of their own here, and sending her
+		// to the shared book is better than a tab that shows nothing.
+		if (tabs[slot] == Tab::Recipes && Host == WorkshopHost::Mystic) {
 			CloseWorkshop();
 			if (!IsWorkshopOpen())
-				OpenLevskiWindowFor(host == WorkshopHost::Mystic ? TransmuteHost::Barmaid : TransmuteHost::Tavern);
+				OpenLevskiWindowFor(TransmuteHost::Barmaid);
 			break;
 		}
 		OpenTab = tabs[slot];
@@ -1624,6 +1861,22 @@ void RunControl(Control control)
 		PendingStep = 0;
 		PlayUiSelectSound();
 		break;
+	case Control::Transmute: {
+		// HIS recipes only: FirstReadyLevskiRecipeFor is asked for TransmuteHost::Tavern, so a grid
+		// that happens to satisfy one of Griswold's or Gillian's does nothing here. The bench is
+		// Ogden's, and a recipe running at the wrong artisan's window would be a bug that looked like
+		// a feature.
+		const int recipe = FirstReadyLevskiRecipeFor(CraftGrid.data(), TransmuteHost::Tavern);
+		if (recipe < 0) {
+			SetBoard(std::string(_("Nothing on the bench makes anything.")));
+			break;
+		}
+		const std::string result = TransmuteLevskiGridWith(CraftGrid.data(), recipe);
+		SetBoard(result);
+		if (!IsTransmuteRefusal(result) && !PlayUiEventSound(UiEventSound::Transmute))
+			PlayUiSelectSound();
+		break;
+	}
 	case Control::None:
 		break;
 	}
@@ -1639,10 +1892,10 @@ bool CheckWorkshopClick(Point position)
 		return false;
 
 	// Every control presses here and RUNS on the release - the standing rule since v1.12.102.
-	for (const Control control : { Control::Tab0, Control::Tab1, Control::Tab2, Control::Tab3, Control::Close,
+	for (const Control control : { Control::Tab0, Control::Tab1, Control::Tab2, Control::Tab3, Control::Tab4, Control::Close,
 	         Control::Reroll, Control::Imbue, Control::Remove, Control::Cleanse, Control::Upgrade, Control::Downgrade,
 	         Control::Option0, Control::Option1, Control::Option2, Control::Option3,
-	         Control::ConfirmStep, Control::CancelStep }) {
+	         Control::ConfirmStep, Control::CancelStep, Control::Transmute }) {
 		const Rectangle rect = ControlRect(control);
 		if (rect.size.width == 0 || !rect.contains(position))
 			continue;
@@ -1658,7 +1911,31 @@ bool CheckWorkshopClick(Point position)
 	// every tab Ogden has: a held item dropped in that corner went onto an invisible bench and came
 	// back only when the window closed. Griswold's Salvage page learned this same lesson on
 	// 2026-09-21 - a control that is not drawn must not be hit-tested.
-	if (!IsStockTab(OpenTab) && Panel(SlotRect).contains(position)) {
+	// Ogden's craft cells: a held item goes down, an item already there comes up. One item per cell,
+	// whatever its footprint - see CraftGrid.
+	if (const int slot = CraftSlotAt(position); slot >= 0) {
+		Player &player = *MyPlayer;
+		if (!player.HoldItem.isEmpty()) {
+			if (!CraftGrid[slot].isEmpty()) {
+				SetBoard(std::string(_("That cell is taken.")));
+				return true;
+			}
+			CraftGrid[slot] = player.HoldItem;
+			player.HoldItem.clear();
+			NewCursor(CURSOR_HAND);
+			PlaySFX(ItemInvSnds[GetItemDropAnimIndex(CraftGrid[slot]._iCurs)]);
+		} else if (!CraftGrid[slot].isEmpty()) {
+			player.HoldItem = CraftGrid[slot];
+			CraftGrid[slot].clear();
+			NewCursor(player.HoldItem._iCurs + CURSOR_FIRSTITEM);
+			PlaySFX(IS_IGRAB);
+		}
+		Board.clear();
+		return true;
+	}
+
+	// The bench is the MYSTIC's, on her two tabs only - the same tightening the draw got.
+	if ((OpenTab == Tab::Reroll || OpenTab == Tab::Imbue) && Panel(SlotRect).contains(position)) {
 		if (!player.HoldItem.isEmpty()) {
 			if (!Bench.isEmpty()) {
 				SetBoard(std::string(_("The bench holds one item at a time.")));
