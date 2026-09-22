@@ -517,6 +517,8 @@ void SaveOptions()
 	    "; Prevents otherwise valid Premium Items from being rejected for exceeding the\n; normal price ceiling. The resulting item's calculated price remains unchanged.");
 	setBoolean("Griswold Sell Ignores Belt", *sgOptions.Oracool.griswoldSellIgnoresBelt,
 	    "; Griswold's and Adria's sell lists skip belt items entirely, listing only the\n; backpack (including any Tabbed Inventory extra tab).");
+	setBoolean("Run Enabled", *sgOptions.Oracool.runEnabled,
+	    "; Whether the run toggle (R) is on. Written when it is flipped, so the gait you\n; left the game with is the gait the next one starts in.");
 	setBoolean("Griswold Premium Refresh", *sgOptions.Oracool.griswoldPremiumRefresh,
 	    "; Adds a free Refresh action to Premium Items, regenerating the complete stock\n; without requiring a new game.");
 	setBoolean("Griswold Refresh Until Button", *sgOptions.Oracool.refreshUntilButton,
@@ -1520,6 +1522,7 @@ OracoolOptions::OracoolOptions()
     , championExtraDropChance("Champion Extra Drop Chance", OptionEntryFlags::None, N_("Champion Extra Drop Chance"), N_("Percent chance a champion monster rolls a SECOND item on death. 100 is always, which is what it used to be."), 25, { 0, 10, 25, 50, 75, 100 })
     , buffedUniqueItemDropChance("Buffed Unique Item Drop Chance", OptionEntryFlags::None, N_("Buffed Unique Item Drop Chance"), N_("Percent chance an eligible drop becomes a Buffed Unique, checked before Rare."), 3, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 50 })
     , primalItemDropChance("Primal Item Drop Chance", OptionEntryFlags::None, N_("Primal Item Drop Chance"), N_("Percent chance an eligible drop becomes a Primal item, checked before Buffed Unique."), 1, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30 })
+    , runEnabled("Run Enabled", OptionEntryFlags::None, N_("Run Enabled"), N_("Whether the run toggle is on. Remembered between games."), false)
     , griswoldPremiumRefresh("Griswold Premium Refresh", OptionEntryFlags::None, N_("Griswold Premium Refresh"), N_("Adds a free Refresh action to Griswold's Premium Items."), true)
     , refreshUntilButton("Griswold Refresh Until Button", OptionEntryFlags::None, N_("Griswold Refresh Until Button"), N_("Searches Griswold's Premium Items for configured item names."), false)
     , refreshUntilTimeoutSeconds("Griswold Refresh Until Timeout Seconds", OptionEntryFlags::None, N_("Griswold Refresh Until Timeout Seconds"), N_("Maximum search duration; zero relies on the hard iteration limit."), 5, { 0, 1, 2, 3, 5, 10, 15, 30, 60 })
@@ -1607,6 +1610,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&lastReadiedSpellRight,
 		&buffedUniqueItemDropChance,
 		&primalItemDropChance,
+		&runEnabled,
 		&griswoldPremiumRefresh,
 		&refreshUntilButton,
 		&refreshUntilTimeoutSeconds,

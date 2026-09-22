@@ -9,6 +9,7 @@
 #include "DiabloUI/text_input.hpp"
 #include "control.h"
 #include "controls/plrctrls.h"
+#include "diablo.h" // CloseOtherShopSurfaces - one shop surface at a time
 #include "cursor.h"
 #include "engine/clx_sprite.hpp"
 #include "engine/load_clx.hpp"
@@ -779,6 +780,10 @@ void OpenStash()
 	// The reported bug (user, 2026-08-31): with the character sheet open, this set the flag and
 	// nothing else, so GetLeftPanelContent kept answering Character and the stash was open,
 	// invisible, and unclickable until the sheet was closed.
+	// The counters, the artisans' benches and the Cube share this slot, and only one of them may have
+	// it (2026-09-22). Before the flag, so a refused close leaves the other window up rather than
+	// being drawn over.
+	CloseOtherShopSurfaces();
 	TakeLeftPanelSlot(LeftPanelContent::Stash);
 	IsStashOpen = true;
 	Stash.RefreshItemStatFlags();

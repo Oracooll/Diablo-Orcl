@@ -14,6 +14,7 @@
 #include "DiabloUI/ui_flags.hpp"
 #include "control.h"
 #include "engine/render/blit_impl.hpp" // AverageRgb (v1.11)
+#include "diablo.h" // CloseOtherShopSurfaces - one shop surface at a time
 #include "cursor.h"
 #include "engine/trn.hpp" // GetInfravisionTRN - the unusable-item grey, at 3x
 #include "engine/render/clx_render.hpp"
@@ -1415,6 +1416,9 @@ void ToggleLevskiRoar()
 			PlayUiMoveSound();
 		return;
 	}
+	// Only on the OPEN half: the close above has already run, and a toggle that shuts the Cube has no
+	// business closing a counter as well (2026-09-22).
+	CloseOtherShopSurfaces();
 	WindowHost = TransmuteHost::Cube;
 	WindowOpen = true;
 	RecipeBookOpen = false;

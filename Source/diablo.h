@@ -123,6 +123,15 @@ void InitKeymapActions();
  * screen while it is up. Deliberately THIS rather than ClosePanels(): it is documented as the list
  * every new window must be added to, so a caller cannot fall behind as windows are added.
  */
+/**
+ * @brief Shuts every shop surface - a store, the stash, an artisan's window, the Cube.
+ *
+ * Called by an OPENER before it opens, so only one of them is ever up (user, 2026-09-22). Each part
+ * is a no-op when its own surface is shut, so a caller need not exempt itself; the two that can
+ * refuse (a bench with items it cannot hand back) still refuse, by design.
+ */
+void CloseOtherShopSurfaces();
+
 void CloseAllWindows();
 void SetCursorPos(Point position);
 void FreeGameMem();

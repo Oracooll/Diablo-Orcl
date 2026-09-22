@@ -863,6 +863,15 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryInt<int> lastReadiedSpellRight;
 	OptionEntryInt<int> buffedUniqueItemDropChance;
 	OptionEntryInt<int> primalItemDropChance;
+	/**
+	 * @brief Whether the run toggle is on - remembered across games (user, 2026-09-22).
+	 *
+	 * It was a file-local bool in run_toggle.cpp, so it survived one game reaching the next but died
+	 * with the process. An INI entry is what "resumed on next new game" actually means when V1 always
+	 * starts a new game: there is no character to hang it on, and the player's preferred gait is a
+	 * preference rather than save state.
+	 */
+	OptionEntryBoolean runEnabled;
 	OptionEntryBoolean griswoldPremiumRefresh;
 	OptionEntryBoolean refreshUntilButton;
 	OptionEntryInt<int> refreshUntilTimeoutSeconds;

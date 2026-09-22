@@ -81,6 +81,15 @@ bool SetWorkshopHoverInfoString();
  */
 bool HandleWorkshopScroll(int notches);
 
+/**
+ * @brief Once a tick: closes the window when the player has walked away from the artisan.
+ *
+ * Three tiles, the same threshold every vendor's tabs use since 2026-09-21 - these two windows are
+ * shops rather than floating panels, and had no distance check at all until 2026-09-22. Called
+ * beside UpdateStoreState, which does the same job for the counters.
+ */
+void UpdateWorkshopState();
+
 /** @brief Game teardown: the window, the item it holds and the per-item counters are all this file's statics. */
 void ResetWorkshopForNewGame();
 

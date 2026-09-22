@@ -3857,6 +3857,24 @@ bool CloseVendorPageForTowner(_talker_id owner)
 	return !oracool::IsLevskiRoarOpen();
 }
 
+void ForceCloseStore()
+{
+	if (stextflag == TalkID::None)
+		return;
+	DisarmShopServiceCursor();
+	// The prompt's own teardown, not just its flag (external audit of v1.9.88, finding 6). Clearing
+	// `IsRefreshUntilPromptOpen` directly makes CloseRefreshUntilPrompt a no-op ever after - it
+	// returns early on exactly that flag - so SDL_StopTextInput() never runs and the IME stays open
+	// with nothing on screen asking for text. The flag is the LAST thing that function clears, and
+	// setting it by hand is a way of skipping the other two.
+	CloseRefreshUntilPrompt();
+	stextflag = TalkID::None;
+	// NOT via StoreESC: that walks a nested screen back to its parent and re-opens it, which is
+	// right for the Escape key and wrong for "this shop is over". The walk-away has always shut a
+	// store this way; since 2026-09-22 so does opening any other shop surface, which is why the
+	// three lines are a function rather than a comment telling the next caller what to copy.
+}
+
 void UpdateStoreState()
 {
 	// ---- 0. The Salvage tab's PAGE and its store flag are one thing ----
@@ -3942,14 +3960,7 @@ void UpdateStoreState()
 	// shape here and would need the result overriding anyway. The one piece of state it would have
 	// cleaned up is the service cursor, so that is cleaned up explicitly - a hammer left armed by a
 	// shop the player has walked away from would repair the next thing they clicked and charge them.
-	DisarmShopServiceCursor();
-	// The prompt's own teardown, not just its flag (external audit of v1.9.88, finding 6). Clearing
-	// `IsRefreshUntilPromptOpen` directly makes CloseRefreshUntilPrompt a no-op ever after - it
-	// returns early on exactly that flag - so SDL_StopTextInput() never runs and the IME stays open
-	// with nothing on screen asking for text. The flag is the LAST thing that function clears, and
-	// setting it by hand is a way of skipping the other two.
-	CloseRefreshUntilPrompt();
-	stextflag = TalkID::None;
+	ForceCloseStore();
 }
 
 /**

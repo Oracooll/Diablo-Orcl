@@ -465,6 +465,16 @@ void ShopBuyBack(int index);
 
 void DrawSText(const Surface &out);
 void StoreESC();
+
+/**
+ * @brief Shuts an open store outright, with the teardown a walk-away does. No-op when none is open.
+ *
+ * NOT StoreESC, which walks a nested screen back to its parent and re-opens it - right for Escape,
+ * wrong for "this shop is over". Exported since 2026-09-22 so that opening any other shop surface
+ * (the stash, an artisan's window, the Cube) can close a counter the same way the walk-away does,
+ * rather than each caller copying three lines and one of them forgetting the prompt teardown.
+ */
+void ForceCloseStore();
 void StoreUp();
 void StoreDown();
 void StorePrior();

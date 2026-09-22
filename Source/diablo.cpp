@@ -2304,6 +2304,10 @@ void GameLogic()
 	// run everywhere. A cursor armed at Griswold's and carried down a portal is exactly the case a
 	// town-only check would miss.
 	UpdateStoreState();
+	// The artisans' windows are shops too, and get the same three-tile walk-away (2026-09-22). Beside
+	// the counters' own check rather than inside it, because they are a different window with its own
+	// refusal rule - a bench holding items it cannot give back stays open and says so.
+	oracool::UpdateWorkshopState();
 
 #ifdef _DEBUG
 	if (DebugScrollViewEnabled && (SDL_GetModState() & KMOD_SHIFT) != 0) {
@@ -2502,6 +2506,28 @@ bool CanPlayerTakeAction()
 // Oracool: moved OUT of the anonymous namespace above on 2026-08-20. It was file-local, so
 // declaring it in diablo.h produced an unresolved external rather than a working export - the
 // runeword book is its second caller and the first from another translation unit.
+void CloseOtherShopSurfaces()
+{
+	// ONE SHOP AT A TIME (user, 2026-09-22: "make sure a vendor shop or window is closed the moment i
+	// interact with other vendor or the stash or the cube").
+	//
+	// These four are the same KIND of surface - a counter, the stash, an artisan's bench, the Cube -
+	// and every one of them is a 340x720 page docked in the same slot, so two open at once means one
+	// drawn over the other. They were independent: each opener minded only its own flag.
+	//
+	// Called by the OPENERS, before they open, rather than by the closers. An opener knows it is
+	// about to take the slot; a closer does not know who wants it.
+	//
+	// Every one of these is a no-op when its own surface is shut, so the caller need not exempt
+	// itself. CloseWorkshop and CloseLevskiRoar may REFUSE - a bench holding items with nowhere to
+	// give them back stays open and says so in the log - and that refusal is deliberate and kept:
+	// losing what is on the bench would be a worse bug than two windows.
+	ForceCloseStore();
+	CloseStash();
+	oracool::CloseWorkshop();
+	oracool::CloseLevskiRoar();
+}
+
 void CloseAllWindows()
 {
 	// Oracool: the space bar's master close (user, 2026-08-19) - "space bar to close any and all

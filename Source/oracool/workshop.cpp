@@ -8,6 +8,7 @@
 #include <fmt/format.h>
 
 #include "DiabloUI/ui_flags.hpp"
+#include "diablo.h" // CloseOtherShopSurfaces - one shop surface at a time
 #include "cursor.h"
 #include "engine/palette.h"
 #include "engine/random.hpp"
@@ -32,6 +33,7 @@
 #include "effects.h"
 #include "oracool/skill_sounds.h"
 #include "stores.h"
+#include "towners.h" // GetTowner - the artisan the window belongs to, for the walk-away
 #include "utils/format_int.hpp"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -1202,6 +1204,10 @@ void DrawBoard(const Surface &out)
 
 void OpenWorkshop(WorkshopHost host)
 {
+	// The slot is shared with the counters, the stash and the Cube, and only one of them may have it
+	// (2026-09-22). Before the flags below, so a refused close - a bench with items it cannot hand
+	// back - leaves the old window up rather than being overwritten by this one's state.
+	CloseOtherShopSurfaces();
 	Host = host;
 	WindowOpen = true;
 	OpenTab = TabsFor(host).front();
@@ -1634,6 +1640,33 @@ void DrawWorkshop(const Surface &out)
 	if (hoveredNow != Control::None && hoveredNow != LastHovered)
 		PlayUiMoveSound();
 	LastHovered = hoveredNow;
+}
+
+void UpdateWorkshopState()
+{
+	if (!WindowOpen)
+		return;
+	// THE VENDORS' OWN WALK-AWAY (user, 2026-09-22: "make sure gillians tabs auto close on walkaway.
+	// They should behave like the rest tabs of vendors - like shop i believe you described it not
+	// like windows").
+	//
+	// They are right about the distinction and it was a real gap: every shop tab has closed at three
+	// tiles since 2026-09-21, and these two windows had no distance check at all - walk to the other
+	// end of town and Gillian's bench was still open over the world.
+	//
+	// THREE tiles, the same constant the counters use, read from the towner rather than from where
+	// the window was opened: the artisan is the place, and standing next to her is what keeps her
+	// page up.
+	const Towner *towner = GetTowner(Host == WorkshopHost::Mystic ? TOWN_BMAID : TOWN_TAVERN);
+	if (towner == nullptr)
+		return;
+	constexpr int WalkAwayTiles = 3;
+	if (MyPlayer->position.tile.WalkingDistance(towner->position) <= WalkAwayTiles)
+		return;
+	// CloseWorkshop may refuse - a bench or craft grid with nowhere to give its items back says so
+	// and stays up. That is the same answer it gives the close button, and it is deliberate: walking
+	// away must not destroy what is sitting on the bench.
+	CloseWorkshop();
 }
 
 bool HandleWorkshopScroll(int notches)

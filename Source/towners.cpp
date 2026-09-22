@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "cursor.h"
+#include "diablo.h" // CloseOtherShopSurfaces - one shop surface at a time
 #include "engine/clx_sprite.hpp"
 #include "engine/load_cel.hpp"
 #include "engine/load_file.hpp"
@@ -968,8 +969,16 @@ void TalkToTowner(Player &player, int t)
 	// The talk still runs afterwards, so the click lands on the dialog exactly as it would have with
 	// any other tab open - unless the close was REFUSED (a page holding items with no room to give
 	// them back says so in red), in which case the refusal is the answer and the dialog would bury it.
-	if (CloseVendorPageForTowner(towner._ttype) || TownerForOpenVendorPage() != towner._ttype)
+	if (CloseVendorPageForTowner(towner._ttype) || TownerForOpenVendorPage() != towner._ttype) {
+		// And everything that belongs to SOMEONE ELSE (user, 2026-09-22: "make sure a vendor shop or
+		// window is closed the moment i interact with other vendor or the stash or the cube").
+		//
+		// The line above closes the page THIS towner owns, which was the 2026-09-21 fix for clicking
+		// a shopkeeper whose own page was up. It says nothing about the others: with Gillian's bench
+		// open, clicking Griswold left hers on screen under his shop, both docked in the same slot.
+		CloseOtherShopSurfaces();
 		towner.talk(player, towner);
+	}
 }
 
 void UpdateGirlAnimAfterQuestComplete()
