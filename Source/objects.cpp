@@ -40,6 +40,7 @@
 #include "missiles.h"
 #include "monster.h"
 #include "options.h"
+#include "engine/palette.h" // PaletteRGB and PaletteRgbGeneration - the stash chest's gold cast
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
 #include "oracool/levski_roar.h"
@@ -2084,6 +2085,69 @@ int StashChestAnimCount = 0;
 bool StashChestHasOwnArt(const Object &chest)
 {
 	return chest._oAnimData && chest._oAnimData->numSprites() == StashChestOpenFrame;
+}
+
+/**
+ * @brief The sarcophagus's grey pushed to gold (user, 2026-09-22: "recolor stash chest to look more
+ * goldish, not that tomb grey").
+ *
+ * NOT A TRN. The screen has been 32-bit since v1.11 and a recolour here is colour VALUES, not a
+ * remap onto one of the palette's own 256 entries - which for a full gold cast would land most of
+ * the sarcophagus on whatever yellows the town palette happens to carry. SpriteColours is the mod's
+ * own answer to exactly this and it brings the lighting with it: an index given a colour of its own
+ * is darkened arithmetically by as much as the light table darkens its fallback, so the chest falls
+ * into shadow at the pace the stone beside it does.
+ *
+ * EVERY index is given its own colour and keeps ITSELF as the fallback, which means an indexed
+ * target - the golden tests, offscreen work - draws the chest exactly as it always did. The gold
+ * exists only where there are colours to put it in.
+ *
+ * The cast is luminance-preserving and applies in proportion to how GREY the source is: a stone
+ * shade goes fully gold, anything with real hue in it (a candle, a gem) keeps its own. Gold here is
+ * (255,200,80), whose luminance is 203 - the three ratios below.
+ */
+uint32_t GoldCast(uint32_t rgb)
+{
+	const int r = static_cast<int>((rgb >> 16) & 0xFF);
+	const int g = static_cast<int>((rgb >> 8) & 0xFF);
+	const int b = static_cast<int>(rgb & 0xFF);
+	const int mx = std::max({ r, g, b });
+	const int mn = std::min({ r, g, b });
+	const int saturation = mx == 0 ? 0 : (mx - mn) * 255 / mx;
+	// A straight taper: a grey takes the cast whole, a pure hue keeps itself, everything between
+	// takes the share of gold it is not already coloured.
+	//
+	// It was `saturation * 3`, which held the cast back above a third saturation - and the
+	// sarcophagus is not grey at all. It is blue-purple stone, so that gate let the gold reach the
+	// lit edges and left the body exactly the colour the user was complaining about. Measured on the
+	// art, not assumed: the five frames were decoded and rendered against the town palette to see it.
+	const int mix = 255 - saturation;
+	const int lum = (299 * r + 587 * g + 114 * b) / 1000;
+	const auto blend = [mix](int from, int to) { return from + (to - from) * mix / 255; };
+	const int gr = blend(r, std::min(255, lum * 255 / 203));
+	const int gg = blend(g, std::min(255, lum * 200 / 203));
+	const int gb = blend(b, std::min(255, lum * 80 / 203));
+	return (static_cast<uint32_t>(gr) << 16) | (static_cast<uint32_t>(gg) << 8) | static_cast<uint32_t>(gb);
+}
+
+/**
+ * @brief The cast, built from whatever palette is live and rebuilt when that changes.
+ *
+ * A file-local static outlives the game (see the statics note this file already carries elsewhere),
+ * which is safe HERE and only because nothing in it is per-game: it is a pure function of the
+ * palette, and PaletteRgbGeneration is what says the palette moved.
+ */
+const oracool::SpriteColours &StashChestColours()
+{
+	static oracool::SpriteColours colours;
+	static uint32_t builtFor = 0;
+	if (builtFor != PaletteRgbGeneration) {
+		// From 1: index 0 is the sprite's transparency and is never written.
+		for (int i = 1; i < 256; i++)
+			colours.Set(static_cast<uint8_t>(i), GoldCast(PaletteRGB[i]), static_cast<uint8_t>(i));
+		builtFor = PaletteRgbGeneration;
+	}
+	return colours;
 }
 
 /** @brief One game tick of the lid: called from ProcessObjects for the stash chest only. */
@@ -4807,6 +4871,30 @@ void ApplyPendingWaypointSpawn()
 }
 
 } // namespace oracool
+
+/**
+ * @brief Defined HERE, below the oracool block, and not beside ApplyStashChestGraphics where it
+ * reads as if it belongs.
+ *
+ * That spot is inside `namespace oracool`, which opens two hundred lines above it and closes eight
+ * hundred below - so the definition was devilution::oracool::StashChestColoursFor while objects.h
+ * declares devilution::StashChestColoursFor, and the link failed on exactly that. Third time this
+ * session a definition has landed in a namespace it looked like it was outside of; the rule is to
+ * check where the block CLOSES, not where the neighbouring function appears to sit.
+ */
+const oracool::SpriteColours *StashChestColoursFor(const Object &object)
+{
+	// The town chest wearing the sarcophagus, and nothing else. A build without the private archive
+	// puts vanilla chest3.cel here instead, and gilding the vanilla chest would be a surprise rather
+	// than the thing that was asked for.
+	if (currlevel != 0 || setlevel)
+		return nullptr;
+	if (object._otype != OBJ_CHEST3 || object.position != StashChestPosition)
+		return nullptr;
+	if (!StashChestHasOwnArt(object))
+		return nullptr;
+	return &StashChestColours();
+}
 
 void InitObjects()
 {

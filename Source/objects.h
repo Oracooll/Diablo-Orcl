@@ -14,6 +14,7 @@
 #include "itemdat.h"
 #include "monster.h"
 #include "objdat.h"
+#include "oracool/sprite_colours.h" // StashChestColoursFor - the town chest's gold cast
 #include "textdat.h"
 #include "utils/attributes.h"
 #include "utils/string_or_view.hpp"
@@ -336,6 +337,14 @@ void SyncObjectAnim(Object &object);
  * @param object The currently highlighted object
  */
 void GetObjectStr(const Object &object);
+/**
+ * @brief The gold cast the town stash chest wears, or nullptr for every other object.
+ *
+ * Oracool, 2026-09-22: the sarcophagus read as tomb grey, and the answer on a 32-bit screen is
+ * colour values rather than a palette remap - see StashChestColours in objects.cpp. Asked of the
+ * OBJECT so DrawObject stays one branch wide and nothing else has to know which chest this is.
+ */
+const oracool::SpriteColours *StashChestColoursFor(const Object &object);
 void SyncNakrulRoom();
 
 } // namespace devilution

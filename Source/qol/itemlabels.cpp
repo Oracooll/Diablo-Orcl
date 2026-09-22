@@ -239,16 +239,17 @@ void DrawItemNameLabels(const Surface &out)
 			FillRect(clippedOut, label.pos.x, label.pos.y, label.width, labelHeight, PAL8_BLUE + 6);
 		else
 			DrawHalfTransparentRectTo(clippedOut, label.pos.x, label.pos.y, label.width, labelHeight);
-		// A socketed drop is GRAY (user, 2026-09-07: "use GR-5 as font color when socketed item drops
-		// on the ground") - the Diablo II convention, where a socketed plain item reads gray on the
-		// floor. Quality still wins: a magic, rare, unique or set item keeps its own colour for the
-		// name, since that colour is what tells the qualities apart, and only its socket count goes
-		// gray. A plain socketed item is gray through and through.
-		// Ethereal supersedes it (user, 2026-09-07): an ethereal plain item is GR-7, which
-		// getTextColor answers, so the gray here yields to it.
-		const bool plainSocketed = !label.socketSuffix.empty() && item._iMagical == ITEM_QUALITY_NORMAL && !item.hasOracoolTier() && !item._iOracoolEthereal;
+		// A socketed plain item is GRAY through and through (user, 2026-09-07: "use GR-5 as font
+		// color when socketed item drops on the ground") - the Diablo II convention. Quality still
+		// wins: a magic, rare, unique or set item keeps its own colour for the name, and only its
+		// socket count goes gray.
+		//
+		// The rule moved INTO getTextColor on 2026-09-22, because it was never really the floor's:
+		// an item that read gray here turned white the moment it was picked up. This line kept a
+		// copy of the conditions, which is the other half of the same bug - two places deciding one
+		// thing. Ethereal still supersedes it, and getTextColor still answers that too.
 		DrawString(clippedOut, label.text, { { label.pos.x + MarginX, label.pos.y + labelMarginTop }, { label.width, labelHeight } },
-		    { plainSocketed ? UiFlags::ColorGray5 : item.getTextColor() });
+		    { item.getTextColor() });
 		// The socket count, in its own colour - GR-5 since 2026-09-07 (was red) so the suffix and
 		// the socket row in the description say "sockets" in one voice.
 		if (!label.socketSuffix.empty()) {

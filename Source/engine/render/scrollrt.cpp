@@ -707,7 +707,14 @@ void DrawObject(const Surface &out, Point tilePosition, Point targetBufferPositi
 	if (&objectToDraw == ObjectUnderCursor) {
 		ClxDrawOutlineSkipColorZero(out, 194, screenPosition, sprite);
 	}
-	if (objectToDraw.applyLighting) {
+	// The town stash chest wears colours of its own (2026-09-22). One branch, asked of the object -
+	// DrawSpriteWithColours takes the same light level ClxDrawLight would and falls back to the
+	// plain index draw on an indexed target, so this is the lit path with a palette of its own
+	// rather than a second way of drawing an object.
+	if (const oracool::SpriteColours *colours = StashChestColoursFor(objectToDraw); colours != nullptr) {
+		oracool::DrawSpriteWithColours(out, screenPosition, sprite, *colours,
+		    objectToDraw.applyLighting ? LightTableIndex : 0);
+	} else if (objectToDraw.applyLighting) {
 		ClxDrawLight(out, screenPosition, sprite, LightTableIndex);
 	} else {
 		ClxDraw(out, screenPosition, sprite);

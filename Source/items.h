@@ -887,6 +887,25 @@ struct Item {
 		if (_iMagical == ITEM_QUALITY_NORMAL) {
 			if (_iOracoolEthereal)
 				return UiFlags::ColorGray7;
+			// SOCKETED IS A KIND (user, 2026-09-22: "when i punch socket/sockets on basic item it
+			// should become socketed item - proper font color and all specs such item comes with").
+			//
+			// GR-5, the Diablo II convention, and it was already the rule - but only on the GROUND,
+			// written into itemlabels.cpp rather than into the item (user, 2026-09-07: "use GR-5 as
+			// font color when socketed item drops on the ground"). So a socketed base read gray on
+			// the floor and white the moment it was picked up, in the inventory, on the cursor, in
+			// the stash and at the top of its own description. Punching the sockets in made that
+			// visible, because there the item changes while the player is looking at it, but a
+			// socketed DROP had exactly the same two colours.
+			//
+			// Here rather than at each of those places, so there is one answer. The ground label
+			// asks this now and keeps only what is genuinely its own: the "[N]" suffix.
+			//
+			// Ethereal above supersedes it, as it always has. Quality wins over both - a magic or
+			// tiered item never reaches this block - which is what keeps the colour telling the
+			// qualities apart.
+			if (_iSocketCount > 0)
+				return UiFlags::ColorGray5;
 			switch (_iMiscId) {
 			case IMISC_HEAL:
 			case IMISC_FULLHEAL:
