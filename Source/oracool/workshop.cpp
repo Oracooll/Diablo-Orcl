@@ -258,10 +258,9 @@ constexpr const char *GillianCraftCanvasAsset = "ui\\gillian_craft_canvas.png";
 
 /** @brief The small frame's opening - her one-item bench, and the box her craft well sits in. */
 constexpr Rectangle MysticFrameRect { { 217, 155 }, { 87, 115 } };
-/** @brief The top of the small frame's painted band: what the icon row above it must clear. */
-constexpr int MysticFrameBandTop = 145;
-/** @brief The right edge of that band (borders x 304..313): what the icon row lines up with. */
-constexpr int MysticFrameBandRight = 313;
+/** @brief The small frame's painted band, outer edges - borders x 207..216 / 304..313, y 145..154 / 270..280. */
+constexpr int MysticFrameBandLeft = 207;
+constexpr int MysticFrameBandBottom = 280;
 
 constexpr int CraftColumns = 3;
 constexpr int CraftRows = 4;
@@ -316,30 +315,43 @@ constexpr int ServicePriceGap = 2;
 // thing on the shelf, and the two services are not the same: his refreshes a shop's stock, hers
 // gambles one affix on this item. A die says the second and the arrows say the first.
 constexpr const char *RerollGlyphAsset = "ui\\shop_glyph_reroll.png";
-constexpr const char *ImbueGlyphAsset = "ui\\shop_glyph_recharge.png";
+// HER OWN FILE since 2026-09-22, holding the star her Imbue has always worn. It was Griswold's
+// Recharge glyph, shared with him at the user's word; his became a fuel pump that day ("use the
+// pump instead of the star for recharge"), and a fuel pump is not what working a shard into an item
+// looks like. The picture on her button did not change - only which file it comes out of.
+constexpr const char *ImbueGlyphAsset = "ui\\shop_glyph_imbue.png";
 constexpr const char *RemoveGlyphAsset = "ui\\shop_glyph_arrow_right.png";
 constexpr const char *CleanseGlyphAsset = "ui\\shop_glyph_repair.png";
 constexpr Rectangle TitleRect { { 22, 26 }, { 296, 40 } };
 constexpr Rectangle CloseRect { { 316, 5 }, { 18, 18 } };
 
 /**
- * THE ICON ROW SITS ABOVE THE SMALL FRAME (user, 2026-09-22, said three times: "in tabs 1 2 3 place
- * the icon buttons over the smaller frame").
+ * THE ICON ROW SITS BESIDE THE SMALL FRAME (user, 2026-09-22: "move the icons of tabs 1 2 3 of
+ * gillian flush with lower border of smaller frame, 6px away from smaller frame, distributed
+ * parallel to the top bezel of the bigger frame").
  *
- * It used to run across the middle of the page at y 224, which was open stone while her window drew
- * its own interior. On the painted canvases that line is the small frame itself and the dress of the
- * woman beside it, so the row had to leave it.
+ * Three instructions, one place:
+ *  - FLUSH WITH THE LOWER BORDER: the plates' feet sit on y 280, the frame's outer lower edge;
+ *  - 6PX AWAY: the rightmost plate ends six pixels clear of x 207, the frame's outer left edge;
+ *  - PARALLEL TO THE BIG FRAME'S TOP BEZEL: a horizontal row, spread across the floor left of the
+ *    frame rather than packed against it.
  *
- * The WHOLE block clears the frame's painted band: the plate, the two pixels under it and the price
- * line, four pixels above y 145. Nothing overlaps the moulding.
+ * There is no room UNDER the small frame - its foot is at 280 and the big frame's bezel begins at
+ * 289, eight pixels - so beside it is the only reading of all three at once, and it is the reading
+ * that puts the row on the same line as the thing it acts on.
  *
- * SlotCells/SlotRect went with it. Her bench was a code-drawn 2x3 of inventory cells at (30,84);
- * every page that has a bench now has a frame painted round it, so the bench is that frame.
+ * THE PRICE GOES ABOVE THE PLATE HERE, which it does nowhere else. Below would put it at y 282..295
+ * and the big frame's painted bezel runs 289..298: a number half over the moulding is the one thing
+ * every canvas this week has been laid out to avoid.
  */
-constexpr int MysticIconRowHeight = ServiceIconSize.height + ServicePriceGap + ServicePriceHeight;
-constexpr int MysticIconRowClearance = 4;
-constexpr int MysticIconRowTop = MysticFrameBandTop - MysticIconRowClearance - MysticIconRowHeight;
-static_assert(MysticIconRowTop > 66, "the icon row has walked up into the canvas's top band");
+constexpr int MysticIconRowClearance = 6;
+/** The rightmost pixel the row may use: six clear of the small frame's left border. */
+constexpr int MysticIconRowRight = MysticFrameBandLeft - MysticIconRowClearance - 1;
+constexpr int MysticIconRowTop = MysticFrameBandBottom - ServiceIconSize.height + 1;
+constexpr int MysticPriceRowTop = MysticIconRowTop - ServicePriceGap - ServicePriceHeight;
+static_assert(MysticFrameBandBottom < 289, "the icon row has walked into the big frame's top bezel");
+static_assert(MysticIconRowRight - InnerLeft + 1 >= 3 * ServiceIconSize.width,
+    "the floor beside the frame no longer holds her three-plate row");
 
 /**
  * THE BIG FRAME carries the list and the message board on every one of her pages.
@@ -872,23 +884,26 @@ Rectangle BenchSlotRect()
 }
 
 /**
- * @brief Icon @p index of a row of @p count, ABOVE the small frame.
+ * @brief Icon @p index of a row of @p count, on the floor beside the small frame.
  *
- * Centred on the FRAME rather than on the page (user: "place the icon buttons over the smaller
- * frame"), then held inside the frame's own right edge - a row of three plates is 158px and the
- * frame is 87, so a row centred on it would hang four pixels off the painted moulding. Held, the row
- * ends exactly where the frame ends and reaches further left instead; it still covers the frame's
- * whole width, which is what "over" has to mean for a row wider than the thing it is over.
+ * DISTRIBUTED across that floor, as asked, rather than laid out from a fixed gap: the first plate
+ * starts at the canvas's own left edge, the last ends six pixels clear of the frame, and the rest
+ * are spaced evenly between them. A row of one is centred in the same band, so Reroll's plate and
+ * Craft's Transmute stand on the middle plate's place and nothing jumps as the tabs change.
+ *
+ * ServiceIconGap survives only as the width the price line may overhang into; it no longer places
+ * anything.
  */
 Rectangle ServiceIconRect(int index, int count)
 {
 	const Rectangle page = PageRect();
-	const int span = count * ServiceIconSize.width + (count - 1) * ServiceIconGap;
-	const int centred = MysticFrameRect.position.x + MysticFrameRect.size.width / 2 - span / 2;
-	const int left = std::clamp(centred, InnerLeft, MysticFrameBandRight + 1 - span);
-	return Rectangle { { page.position.x + left + index * (ServiceIconSize.width + ServiceIconGap),
-	                       page.position.y + MysticIconRowTop },
-		ServiceIconSize };
+	const int travel = MysticIconRowRight - InnerLeft + 1 - ServiceIconSize.width;
+	// Rounded rather than truncated, so the last plate lands exactly on the six-pixel clearance
+	// instead of a pixel or two inside it.
+	const int left = count <= 1
+	    ? InnerLeft + travel / 2
+	    : InnerLeft + (index * travel + (count - 1) / 2) / (count - 1);
+	return Rectangle { { page.position.x + left, page.position.y + MysticIconRowTop }, ServiceIconSize };
 }
 
 Rectangle OptionRect(int index)
@@ -1246,15 +1261,22 @@ void DrawServiceIcon(const Surface &out, Control control, const char *glyph, boo
 		BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, HoverBrightenPercent);
 	}
 
+	// ABOVE the plate, not below it (2026-09-22). The row's feet are flush with the small frame's
+	// lower border at y 280 and the big frame's painted bezel begins at 289, so a line under the
+	// plate would sit half on the moulding.
+	//
 	// Wider than the plate by the row's own gap, so eight digits overhang into the air between icons
-	// rather than being clipped by a 34px box - but never past the canvas's opening, because the row
-	// now ends flush with the small frame and the plate on that end has painted moulding beside it
-	// rather than air.
+	// rather than being clipped by a 34px box - but never past the canvas's opening.
+	//
+	// The overhang is SYMMETRIC and shrinks to whatever both sides can spare, because the leftmost
+	// plate of the row stands on the canvas's own inner edge: a box clamped on one side only would
+	// still be centred on itself, and its number would sit a few pixels right of the plate it prices.
 	const Rectangle page = PageRect();
-	const int lineLeft = std::max(page.position.x + InnerLeft, rect.position.x - ServiceIconGap / 2);
-	const int lineRight = std::min(page.position.x + InnerRight, rect.position.x + rect.size.width - 1 + ServiceIconGap / 2);
-	const Rectangle line { { lineLeft, rect.position.y + rect.size.height + ServicePriceGap },
-		{ std::max(rect.size.width, lineRight - lineLeft + 1), ServicePriceHeight } };
+	const int overhang = std::max(0, std::min({ ServiceIconGap / 2,
+	                                  rect.position.x - (page.position.x + InnerLeft),
+	                                  (page.position.x + InnerRight) - (rect.position.x + rect.size.width - 1) }));
+	const Rectangle line { { rect.position.x - overhang, page.position.y + MysticPriceRowTop },
+		{ rect.size.width + 2 * overhang, ServicePriceHeight } };
 	const bool afford = price <= 0 || static_cast<int>(TotalPlayerGold()) >= price;
 	DrawString(out, price > 0 ? FormatInteger(price) : std::string { _("Free") }, line,
 	    { (afford ? UiFlags::ColorWhitegold : UiFlags::ColorRed) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
