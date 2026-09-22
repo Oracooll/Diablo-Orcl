@@ -91,7 +91,45 @@ TextInputCursorState GoldDropCursor;
 char GoldDropText[21];
 namespace {
 int8_t GoldDropInvIndex;
+/**
+ * WHICH CONTAINER THE PROMPT IS SPLITTING (2026-09-22).
+ *
+ * GoldDropInvIndex alone meant "backpack list index, or belt index if it is past
+ * INVITEM_INV_LAST" - which is the whole of vanilla's world and only a third of this one. The
+ * backpack has ten pages and the stash has its own list, and the amount prompt could reach neither:
+ * a shift-right-click in an extra tab read the item at that index in TAB ONE, and in the stash it
+ * did nothing at all.
+ *
+ * The tab and the page are RECORDED rather than read at commit time, because the prompt does not
+ * capture the mouse: the player can turn to another page while it is open, and the removal would
+ * then compact the wrong list.
+ */
+int GoldDropInvTab;
+uint16_t GoldDropStashIndex = StashStruct::EmptyCell;
+unsigned GoldDropStashPage;
 std::optional<NumberInputState> GoldDropInputState;
+
+/** @brief The stack the prompt is splitting, or nullptr if it has gone since the prompt opened. */
+Item *GoldDropSourceItem()
+{
+	if (GoldDropStashIndex != StashStruct::EmptyCell) {
+		// The page has to be the one it was opened on, or RemoveStashItem would clear cell
+		// references on whichever page is showing instead - see StashStruct::RemoveStashItem, which
+		// walks GetCurrentGrid().
+		if (Stash.GetPage() != GoldDropStashPage || GoldDropStashIndex >= Stash.stashList.size())
+			return nullptr;
+		return &Stash.stashList[GoldDropStashIndex];
+	}
+	Player &player = *MyPlayer;
+	if (GoldDropInvIndex > INVITEM_INV_LAST)
+		return &player.SpdList[GoldDropInvIndex - INVITEM_BELT_FIRST];
+	const int index = GoldDropInvIndex - INVITEM_INV_FIRST;
+	if (index < 0)
+		return nullptr;
+	if (GoldDropInvTab == 0)
+		return &player.InvList[index];
+	return &player.InvTabList[GoldDropInvTab - 1][index];
+}
 } // namespace
 
 bool chrbtn[4];
@@ -687,32 +725,64 @@ void RemoveGold(Player &player, int goldIndex, int amount)
 }
 
 /**
- * @brief Splits `amount` units off a stackable consumable at inventory-or-belt index
- * `cii` (same indexing scheme as UseInvItem) onto the player's cursor.
+ * @brief Splits `amount` units off the stack the prompt was opened on, onto the cursor.
+ *
+ * FOUR CONTAINERS since 2026-09-22 (user: "shift+right click to move part of a stack should work
+ * for stacks in every tab in stash and in inventory grid"): the backpack's first page, its nine
+ * extra pages, the belt and the stash. It was the first page and the belt, because it indexed
+ * straight into InvList - which is why a split in an extra tab took a slice out of whatever
+ * happened to sit at that index in page one, and a split in the stash was never wired at all.
+ *
+ * Every container's own remover is used rather than a shared one: the backpack compacts its list
+ * and fixes up its grid references, the belt resyncs the panel, and the stash walks its page's
+ * cells. They are not interchangeable and this is the only place that has to know it.
  */
-void RemoveStackSplit(Player &player, int cii, int amount)
+void RemoveStackSplit(Player &player, int amount)
 {
-	const bool isBeltIndex = cii > INVITEM_INV_LAST;
-	const int index = isBeltIndex ? (cii - INVITEM_BELT_FIRST) : (cii - INVITEM_INV_FIRST);
-	Item &source = isBeltIndex ? player.SpdList[index] : player.InvList[index];
+	Item *source = GoldDropSourceItem();
+	if (source == nullptr || source->isEmpty() || amount <= 0 || amount > source->stackCount())
+		return;
 
-	player.HoldItem = source;
+	player.HoldItem = *source;
 	player.HoldItem.setStackCount(amount);
+	const bool emptied = source->stackCount() - amount <= 0;
 
-	if (source.stackCount() - amount <= 0) {
-		if (isBeltIndex)
+	if (GoldDropStashIndex != StashStruct::EmptyCell) {
+		if (emptied) {
+			Stash.RemoveStashItem(GoldDropStashIndex);
+		} else {
+			source->setStackCount(source->stackCount() - amount);
+		}
+		Stash.dirty = true;
+		if (&player == MyPlayer)
+			oracool::ScheduleAutoSaveForStashChange();
+	} else if (GoldDropInvIndex > INVITEM_INV_LAST) {
+		const int index = GoldDropInvIndex - INVITEM_BELT_FIRST;
+		if (emptied) {
 			player.RemoveSpdBarItem(index);
-		else
-			player.RemoveInvItem(index);
-	} else {
-		source.setStackCount(source.stackCount() - amount);
-		if (isBeltIndex) {
+		} else {
+			source->setStackCount(source->stackCount() - amount);
 			player.CalcScrolls();
 			RedrawComponent(PanelDrawComponent::Belt);
 			if (&player == MyPlayer)
 				NetSendCmdChBeltItem(false, index);
-		} else if (&player == MyPlayer) {
-			NetSyncInvItem(player, index);
+		}
+	} else {
+		const int index = GoldDropInvIndex - INVITEM_INV_FIRST;
+		if (emptied) {
+			// The page the prompt was opened on, not the one on screen. RemoveExtraTabItem takes the
+			// tab; Player::RemoveInvItem is page one's own and is what tab 0 must still use, because
+			// it is the only one that network-syncs.
+			if (GoldDropInvTab == 0)
+				player.RemoveInvItem(index);
+			else
+				RemoveExtraTabItem(player, GoldDropInvTab - 1, index);
+		} else {
+			source->setStackCount(source->stackCount() - amount);
+			// No packet format exists for an extra tab - single-player only, as everything else
+			// that touches InvTabList already notes.
+			if (GoldDropInvTab == 0 && &player == MyPlayer)
+				NetSyncInvItem(player, index);
 		}
 	}
 
@@ -1726,10 +1796,10 @@ void DrawGoldSplit(const Surface &out)
 	const TextInputCursorState &cursor = GoldDropCursor;
 	const int max = GoldDropInputState->max();
 
-	const bool splittingBeltItem = GoldDropInvIndex > INVITEM_INV_LAST;
-	const Item &sourceItem = splittingBeltItem
-	    ? MyPlayer->SpdList[GoldDropInvIndex - INVITEM_BELT_FIRST]
-	    : MyPlayer->InvList[GoldDropInvIndex - INVITEM_INV_FIRST];
+	const Item *source = GoldDropSourceItem();
+	if (source == nullptr)
+		return; // the stack went while the prompt was open - Enter will decline for the same reason
+	const Item &sourceItem = *source;
 
 	std::string description;
 	if (sourceItem._itype == ItemType::Gold) {
@@ -1781,16 +1851,15 @@ void control_drop_gold(SDL_Keycode vkey)
 	case SDLK_RETURN:
 	case SDLK_KP_ENTER: {
 		const int value = GoldDropInputState->value();
-		if (value != 0) {
-			const bool splittingBeltItem = GoldDropInvIndex > INVITEM_INV_LAST;
-			const Item &sourceItem = splittingBeltItem
-			    ? myPlayer.SpdList[GoldDropInvIndex - INVITEM_BELT_FIRST]
-			    : myPlayer.InvList[GoldDropInvIndex - INVITEM_INV_FIRST];
-			if (sourceItem._itype == ItemType::Gold) {
+		if (const Item *sourceItem = GoldDropSourceItem(); value != 0 && sourceItem != nullptr) {
+			// Gold is still the backpack's alone: RemoveGold indexes InvList directly, and gold
+			// never reaches this prompt from anywhere else - StartGoldDrop reads pcursinvitem, which
+			// is only ever set on page one, and the stash keeps its gold as a number rather than as
+			// an item in a cell.
+			if (sourceItem->_itype == ItemType::Gold)
 				RemoveGold(myPlayer, GoldDropInvIndex, value);
-			} else {
-				RemoveStackSplit(myPlayer, GoldDropInvIndex, value);
-			}
+			else
+				RemoveStackSplit(myPlayer, value);
 		}
 		CloseGoldDrop();
 	} break;
@@ -1990,6 +2059,37 @@ void OpenGoldDrop(int8_t invIndex, int max)
 {
 	DropGoldFlag = true;
 	GoldDropInvIndex = invIndex;
+	// The page the stack is ON, captured now: the prompt does not hold the mouse, so by the time
+	// the player presses Enter the inventory may be showing a different tab entirely.
+	GoldDropInvTab = ActiveInventoryTab;
+	GoldDropStashIndex = StashStruct::EmptyCell;
+	GoldDropText[0] = '\0';
+	GoldDropInputState.emplace(NumberInputState::Options {
+	    /*textOptions*/ {
+	        /*value=*/GoldDropText,
+	        /*cursor=*/&GoldDropCursor,
+	        /*maxLength=*/sizeof(GoldDropText) - 1,
+	    },
+	    /*min=*/0,
+	    /*max=*/max,
+	});
+	SDL_StartTextInput();
+}
+
+/**
+ * @brief The same prompt, for a stack in the STASH.
+ *
+ * Its own opener rather than an overload of the one above, because the stash indexes nothing like
+ * the backpack: @p stashIndex is a position in Stash.stashList and the page it is drawn on is a
+ * separate fact, which RemoveStashItem needs and cannot recover.
+ */
+void OpenStashStackSplit(uint16_t stashIndex, int max)
+{
+	DropGoldFlag = true;
+	GoldDropInvIndex = 0;
+	GoldDropInvTab = 0;
+	GoldDropStashIndex = stashIndex;
+	GoldDropStashPage = Stash.GetPage();
 	GoldDropText[0] = '\0';
 	GoldDropInputState.emplace(NumberInputState::Options {
 	    /*textOptions*/ {
@@ -2011,6 +2111,9 @@ void CloseGoldDrop()
 	DropGoldFlag = false;
 	GoldDropInputState = std::nullopt;
 	GoldDropInvIndex = 0;
+	GoldDropInvTab = 0;
+	GoldDropStashIndex = StashStruct::EmptyCell;
+	GoldDropStashPage = 0;
 }
 
 bool HandleGoldDropTextInputEvent(const SDL_Event &event)

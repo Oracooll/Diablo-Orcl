@@ -441,6 +441,13 @@ bool UseInvItem(int cii);
  * @return Whether the dialog was opened.
  */
 bool TryStartStackSplit(int cii);
+/**
+ * @brief The stash's own shift-right-click split: opens the amount prompt for the stack at
+ * @p stashIndex, on the page it is drawn on.
+ *
+ * @return Whether the dialog was opened.
+ */
+bool TryStartStashStackSplit(uint16_t stashIndex);
 void DoTelekinesis();
 int CalculateGold(Player &player);
 

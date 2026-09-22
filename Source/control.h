@@ -392,6 +392,8 @@ bool HandleTalkTextInputEvent(const SDL_Event &event);
 bool control_presskeys(SDL_Keycode vkey);
 void DiabloHotkeyMsg(uint32_t dwMsg);
 void OpenGoldDrop(int8_t invIndex, int max);
+/** @brief The same amount prompt, for a stack that lives in the stash rather than the backpack. */
+void OpenStashStackSplit(uint16_t stashIndex, int max);
 void CloseGoldDrop();
 bool HandleGoldDropTextInputEvent(const SDL_Event &event);
 extern Rectangle ChrBtnsRect[4];

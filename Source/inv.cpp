@@ -3910,8 +3910,14 @@ bool TryStartStackSplit(int cii)
 		return false;
 
 	Player &player = *MyPlayer;
+	// TAB-AWARE (user, 2026-09-22: "shift+right click to move part of a stack should work for stacks
+	// in every tab in stash and in inventory grid"). This read player.InvList directly, exactly as
+	// UseInvItem below used to - and its comment already records what that costs: pcursinvitem is a
+	// position in whichever page is displayed, so on pages two to ten the split offered whatever sat
+	// at that index in page ONE. Usually nothing, so the shift-click looked dead; sometimes a
+	// different stack, which is worse.
 	const Item &item = (cii <= INVITEM_INV_LAST)
-	    ? player.InvList[cii - INVITEM_INV_FIRST]
+	    ? GetActiveInvListItem(player, cii - INVITEM_INV_FIRST)
 	    : player.SpdList[cii - INVITEM_BELT_FIRST];
 
 	if (!item.isStackableConsumable() || item.stackCount() <= 1)
@@ -3927,6 +3933,33 @@ bool TryStartStackSplit(int cii)
 	SDL_SetTextInputRect(&rect);
 
 	OpenGoldDrop(static_cast<int8_t>(cii), item.stackCount());
+	return true;
+}
+
+bool TryStartStashStackSplit(uint16_t stashIndex)
+{
+	if (stashIndex == StashStruct::EmptyCell || stashIndex >= Stash.stashList.size())
+		return false;
+	if (!oracool::IsSinglePlayer())
+		return false;
+
+	const Item &item = Stash.stashList[stashIndex];
+	if (!item.isStackableConsumable() || item.stackCount() <= 1)
+		return false;
+
+	CloseGoldWithdraw();
+
+	if (talkflag)
+		control_reset_talk();
+
+	// The prompt is drawn against the INVENTORY panel wherever it is opened from - see DrawGoldSplit,
+	// which is gated on DropGoldFlag alone - so the text-input rect is the inventory's here too,
+	// stash or no stash.
+	const Point start = GetPanelPosition(UiPanels::Inventory, { 67, 128 });
+	SDL_Rect rect = MakeSdlRect(start.x, start.y, 180, 20);
+	SDL_SetTextInputRect(&rect);
+
+	OpenStashStackSplit(stashIndex, item.stackCount());
 	return true;
 }
 

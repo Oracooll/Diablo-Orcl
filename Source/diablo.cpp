@@ -916,7 +916,19 @@ void RightMouseDown(bool isShiftHeld)
 	// use (reading a book, drinking a potion, etc.) silently did nothing for any item stored in
 	// an extra tab. ActiveInventoryTab is still set to the tab being viewed, so UseInvItem's own
 	// GetActiveInvListItem lookup resolves the right item once given the equivalent cii encoding.
+	// SHIFT SPLITS IN THE EXTRA TABS AND THE STASH TOO (user, 2026-09-22: "shift+right click to move
+	// part of a stack should work for stacks in every tab in stash and in inventory grid").
+	//
+	// Both branches are new. The shift test above reaches pcursinvitem only, which is page one's
+	// encoding - the same blind spot the two UseInvItem lines here were added to cover, one page of
+	// code higher up. Each split attempt sits immediately before the plain use it would otherwise
+	// fall through to, so a stack that cannot be split still drinks or reads on a shift-click rather
+	// than doing nothing.
+	if (isShiftHeld && pcursinvtabitem != -1 && TryStartStackSplit(pcursinvtabitem + INVITEM_INV_FIRST))
+		return;
 	if (pcursinvtabitem != -1 && UseInvItem(pcursinvtabitem + INVITEM_INV_FIRST))
+		return;
+	if (isShiftHeld && pcursstashitem != StashStruct::EmptyCell && TryStartStashStackSplit(pcursstashitem))
 		return;
 	if (pcursstashitem != StashStruct::EmptyCell && UseStashItem(pcursstashitem))
 		return;
