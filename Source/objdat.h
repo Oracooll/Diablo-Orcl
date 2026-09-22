@@ -151,11 +151,22 @@ enum object_graphic_id : int8_t {
 	 * OBJ_STAND wearing its own art (ApplyStonegateGraphics in objects.cpp; oracool/stonegate.h).
 	 */
 	OFILE_ORCLGATE,
+	/**
+	 * @brief Oracool: Wirt's cart (2026-09-22) - objects\orclcart.cel, ONE frame, the user's own
+	 * painting at 160 wide.
+	 *
+	 * Pure scenery: an OBJ_STAND wearing its own art, like the Roar and the Stonegate, and like the
+	 * Stonegate's portal arch it is unselectable, non-solid and lets missiles through. Nothing in
+	 * the game reads it, nothing can be done to it, and the only reason it is an object at all is
+	 * that objects are what the town draws in tile order - a cart blitted at a screen position would
+	 * sit in front of the hero one step and behind him the next.
+	 */
+	OFILE_ORCLCART,
 	OFILE_NULL = -1,
 };
 
 /** @brief Number of entries in object_graphic_id, i.e. the size every filesWidths[] array needs. */
-constexpr int NumObjectGraphicFiles = OFILE_ORCLGATE + 1;
+constexpr int NumObjectGraphicFiles = OFILE_ORCLCART + 1;
 
 /**
  * @brief Oracool: orclstash.cel's frame width. CEL stores no width, so LoadCel must be told; a
@@ -188,6 +199,10 @@ constexpr uint16_t OracoolLevskiRoarAnimWidth = 96;
  * inside its opening (the town portal is 96 wide, the opening 72; the stone around it makes 192). Sized
  * from the measured portal sheet, not by taste; tools\build_stonegate_cel.cmd prints what it produced.
  */
+// Wirt's cart (2026-09-22): the user's 209x209 painting scaled to 160 by tools\ScalePainting.ps1 and
+// quantised by tools\build_wirt_cart_cel.cmd, which prints the width it produced. CEL stores no width,
+// so this number and that one must agree or every RLE scanline splits at the wrong point.
+constexpr uint16_t OracoolWirtCartAnimWidth = 160;
 constexpr uint16_t OracoolStonegateAnimWidth = 128; // the user's painting at 128 wide, NO cast shadow: the 372-wide shadowed frame of v1.12.088 tripped the hover outline's 253-pixel sprite limit (clx_render.cpp MaxOutlineSpriteWidth) and the user dropped the shadow (2026-09-20)
 
 enum _object_id : int8_t {

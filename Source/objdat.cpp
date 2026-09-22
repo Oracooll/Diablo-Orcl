@@ -360,6 +360,7 @@ const char *const ObjMasterLoadList[] = {
 	"orclstash", // Oracool: ours, from oracool.mpq - see OFILE_ORCLSTASH
 	"orclroar",  // Oracool: ours, from oracool.mpq - see OFILE_ORCLROAR
 	"orclgate",  // Oracool: ours, from oracool.mpq - see OFILE_ORCLGATE (the Stonegate)
+	"orclcart",  // Oracool: ours, from oracool.mpq - see OFILE_ORCLCART (Wirt's cart)
 };
 
 // Oracool audit (2026-08-20): object_graphic_id INDEXES this list - SetupObject and

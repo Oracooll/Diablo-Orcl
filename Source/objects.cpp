@@ -45,6 +45,7 @@
 #include "oracool/event_log.h"
 #include "oracool/levski_roar.h"
 #include "oracool/stonegate.h"
+#include "oracool/wirt_cart.h"
 #include "oracool/oracool.h"
 #include "oracool/waypoint_menu.h"
 #include "qol/stash.h"
@@ -4292,7 +4293,11 @@ void EnsureObjectGraphicsLoaded(object_graphic_id ofile, uint16_t animWidth)
 		present = FindAsset(probe).ok();
 	}
 	if (!present) {
-		const object_graphic_id fallback = ofile == OFILE_ORCLWAYP ? OFILE_MCIRL : ofile == OFILE_ORCLROAR ? OFILE_BOOK2 : ofile == OFILE_ORCLSTASH ? OFILE_CHEST3 : ofile == OFILE_ORCLGATE ? OFILE_BOOK2 : ofile;
+		// The cart has NO fallback on purpose: every other entry here is something the town needs to
+	// show, and a cart standing in as a book would be a prop nobody asked for. Without its file the
+	// art simply does not load and the object draws the rock stand it was built on - which is the
+	// one case AddWirtCartObject's own check cannot prevent, and is scenery either way.
+	const object_graphic_id fallback = ofile == OFILE_ORCLWAYP ? OFILE_MCIRL : ofile == OFILE_ORCLROAR ? OFILE_BOOK2 : ofile == OFILE_ORCLSTASH ? OFILE_CHEST3 : ofile == OFILE_ORCLGATE ? OFILE_BOOK2 : ofile;
 		if (fallback != ofile) {
 			for (const ObjectData &objectData : AllObjects) {
 				if (objectData.ofindex == fallback) {
@@ -4475,6 +4480,78 @@ void ApplyStonegateGraphics(Object &gate)
 		}
 		return;
 	}
+}
+
+namespace {
+/** @brief The cart's object index, or -1 - see IsWirtCartObject. Re-established on every town entry. */
+int WirtCartObjectId = -1;
+} // namespace
+
+bool IsWirtCartObject(const Object &object)
+{
+	return WirtCartObjectId >= 0 && &object == &Objects[WirtCartObjectId];
+}
+
+/** @brief Swaps the cart onto objects\orclcart.cel - the same instance override the Roar uses. */
+void ApplyWirtCartGraphics(Object &cart)
+{
+	if (HeadlessMode)
+		return;
+
+	EnsureObjectGraphicsLoaded(OFILE_ORCLCART, OracoolWirtCartAnimWidth);
+
+	for (int i = 0; i < numobjfiles; i++) {
+		if (ObjFileList[i] != OFILE_ORCLCART)
+			continue;
+		if (pObjCels[i]) {
+			cart._oAnimData.emplace(*pObjCels[i]);
+			cart._oAnimWidth = OracoolWirtCartAnimWidth;
+			cart._oAnimLen = 1;
+			cart._oAnimFrame = 1;
+		}
+		return;
+	}
+}
+
+void AddWirtCartObject()
+{
+	WirtCartObjectId = -1;
+	if (currlevel != 0 || setlevel)
+		return;
+
+	// SetupObject asks the TYPE for its sheet when AddObject(OBJ_STAND) runs, exactly as for the
+	// Roar and the gate, so the rock stand's own art has to be loaded even though the cart never
+	// wears it.
+	PrepareStonegateCarrier();
+
+	// BESIDE WIRT, who stands at (54,72). The user's composite parks the cart up and to the left of
+	// him on screen; in this projection -x is up-left and -y is up-right, so (52,71) is two steps
+	// up-left and one up-right of him - about 32 px left and 96 px up, which is where the painting
+	// sits in their picture.
+	//
+	// Measured by eye from a composite, not from the game, so this is the one number here most
+	// likely to want moving - as the Rift Monument's did ("Move the Rift Monument to 31:56 tile").
+	// The fallbacks are the tiles around it, in the order that keeps it near him.
+	constexpr Point Candidates[] = { { 52, 71 }, { 52, 72 }, { 53, 71 }, { 51, 71 }, { 51, 72 }, { 53, 70 } };
+	for (const Point &position : Candidates) {
+		if (!InDungeonBounds(position) || dObject[position.x][position.y] != 0)
+			continue;
+		Object *cart = AddObject(OBJ_STAND, position);
+		if (cart == nullptr)
+			return;
+		// Scenery, and nothing else: no hover, no name, no click, not solid, missiles pass. The
+		// PreFlag puts it in the before-characters pass so Wirt and the hero walk in front of it
+		// rather than being swallowed by a cart twice their height.
+		cart->_oSelFlag = 0;
+		cart->_oBreak = 0;
+		cart->_oSolidFlag = false;
+		cart->_oMissFlag = true;
+		cart->_oPreFlag = true;
+		ApplyWirtCartGraphics(*cart);
+		WirtCartObjectId = cart->GetId();
+		return;
+	}
+	LogEvent(StrCat("Wirt's cart found no free tile near (", Candidates[0].x, ", ", Candidates[0].y, ")"), UiFlags::ColorRed);
 }
 
 void PrepareStonegateCarrier()
@@ -5909,7 +5986,11 @@ void SyncObjectAnim(Object &object)
 		// AddLevskiRoarObject) - a coordinate test would silently stop matching on the day a
 		// fallback fired. Town has exactly one OBJ_STAND and it is this; the Caves' rock stands are
 		// on other levels, which the currlevel test already excludes.
-		if (currlevel == 0 && !setlevel && object._otype == OBJ_STAND)
+		//
+		// NOT the cart (2026-09-22). It is an OBJ_STAND in town too, and repainting it with the
+		// Roar's sprite here would turn a merchant's cart into a second monument on the first town
+		// reload - the same trap the Stonegate is in, which this branch has never named either.
+		if (currlevel == 0 && !setlevel && object._otype == OBJ_STAND && !oracool::IsWirtCartObject(object))
 			oracool::ApplyLevskiRoarGraphics(object);
 	}
 

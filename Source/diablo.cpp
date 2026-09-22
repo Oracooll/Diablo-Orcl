@@ -86,6 +86,7 @@
 #include "oracool/levski_roar.h"
 #include "oracool/rift.h"
 #include "oracool/stonegate.h"
+#include "oracool/wirt_cart.h"
 #include "oracool/runeword_book.h"
 #include "oracool/run_toggle.h"
 #include "oracool/shop_grid.h"
@@ -4158,6 +4159,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 			oracool::AddStashChestObject();
 			oracool::AddLevskiRoarObject();
 			oracool::AddStonegateObject(); // the rift gate (2026-09-20)
+			oracool::AddWirtCartObject();  // scenery beside Wirt (2026-09-22)
 			oracool::AddWaypointSigilObject();
 			InitStash();
 			InitItems();

@@ -1,6 +1,7 @@
 #include "oracool/levski_roar.h"
 
-#include "oracool/stonegate.h" // IsStonegateObject: the other stand in town
+#include "oracool/stonegate.h"  // IsStonegateObject: the other stand in town
+#include "oracool/wirt_cart.h" // IsWirtCartObject: and the fourth one
 
 #include <SDL.h>
 
@@ -1378,7 +1379,15 @@ bool IsLevskiRecipeBookOpen() { return WindowOpen && RecipeBookOpen; }
 bool IsLevskiRoarObject(const Object &object)
 {
 	// Two stands in town since 2026-09-20: the Stonegate is the other one (oracool/stonegate.h).
-	return currlevel == 0 && !setlevel && object._otype == OBJ_STAND && !IsStonegateObject(object);
+	// Four since 2026-09-22 - the gate's portal arch is one, and Wirt's cart is the fourth.
+	//
+	// This test is "a stand that is not the others", which is the shape that has broken three times
+	// in this codebase the moment a third thing appeared. It wants inverting: the Cube should be
+	// found by its own identity, as the gate and the cart already are. Not done with the cart,
+	// because the Cube's id would have to survive a town reload and that is a change to the Cube.
+	// Until then, every new stand in town must be named here or it becomes clickable as the Cube.
+	return currlevel == 0 && !setlevel && object._otype == OBJ_STAND
+	    && !IsStonegateObject(object) && !IsWirtCartObject(object);
 }
 
 void ProcessLevskiCubeAnimation()
