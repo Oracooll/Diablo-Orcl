@@ -42,6 +42,28 @@ constexpr int SubtitleHeight = 20;
 /** @brief Pixels scrolled off the top of the row list. Clamped in DrawCraftingMenu. */
 int ScrollOffset = 0;
 
+/**
+ * THE THREE BOOKS (user, 2026-09-22: "it should have three button to show recipes of the three
+ * crafting methods - cube, gilian, ogden. make sure recipes are put in proper button").
+ *
+ * This window listed all twenty-eight at once under a line saying every one of them was crafted at
+ * Levski's Roar. That line stopped being true when the recipes were split across three artisans on
+ * 2026-09-20, and a flat list of twenty-eight said nothing about where any of them could be run.
+ *
+ * THREE covers every recipe, and that is checked rather than assumed: HostOfRecipe returns Cube,
+ * Tavern or Barmaid and never Smith - his gear recipes moved to the Cube when his window became the
+ * Salvage page - so no recipe is left without a button to appear under.
+ */
+constexpr TransmuteHost HostButtons[] = { TransmuteHost::Cube, TransmuteHost::Tavern, TransmuteHost::Barmaid };
+constexpr int HostButtonCount = static_cast<int>(sizeof(HostButtons) / sizeof(HostButtons[0]));
+constexpr int HostButtonWidth = 200;
+constexpr int HostButtonHeight = 26;
+constexpr int HostButtonGap = 24;
+constexpr int HostButtonGapBelow = 6;
+
+/** @brief Which book is open. The Cube's, until the player picks another. */
+TransmuteHost HostFilter = TransmuteHost::Cube;
+
 } // namespace
 
 bool IsCraftingMenuOpen()
@@ -92,8 +114,13 @@ std::vector<int> ListedRecipes()
 {
 	std::vector<int> rows;
 	rows.reserve(CraftingRecipeCount);
-	for (int i = 0; i < CraftingRecipeCount; i++)
-		rows.push_back(i);
+	for (int i = 0; i < CraftingRecipeCount; i++) {
+		// The open book's own, since 2026-09-22 - the filter this comment once argued against, put
+		// back in the right place. The old filter hid recipes with nothing saying where they lived;
+		// this one is a button the player pressed, and the other two books are one click away.
+		if (RecipeBelongsTo(i, HostFilter))
+			rows.push_back(i);
+	}
 	return rows;
 }
 
@@ -113,11 +140,23 @@ Rectangle GetCraftingMenuRect()
 
 namespace {
 
-/** @brief The scrolled row area: everything under the title, inside the padding. */
+/** @brief Book button @p index, in the row under the title. */
+Rectangle HostButtonRect(int index)
+{
+	const Rectangle window = GetCraftingMenuRect();
+	const int span = HostButtonCount * HostButtonWidth + (HostButtonCount - 1) * HostButtonGap;
+	const int left = window.position.x + (window.size.width - span) / 2;
+	return Rectangle { { left + index * (HostButtonWidth + HostButtonGap),
+	                       window.position.y + WindowPadding + HeaderHeight },
+		{ HostButtonWidth, HostButtonHeight } };
+}
+
+/** @brief The scrolled row area: everything under the title, the book row and the subtitle. */
 Rectangle CraftingContentRect()
 {
 	const Rectangle window = GetCraftingMenuRect();
-	const int top = window.position.y + WindowPadding + HeaderHeight + SubtitleHeight;
+	const int top = window.position.y + WindowPadding + HeaderHeight
+	    + HostButtonHeight + HostButtonGapBelow + SubtitleHeight;
 	return Rectangle { { window.position.x + WindowPadding, top },
 		{ window.size.width - WindowPadding * 2,
 		    window.position.y + window.size.height - WindowPadding - top } };
@@ -151,11 +190,29 @@ void DrawCraftingMenu(const Surface &out)
 	        { window.size.width - WindowPadding * 2, HeaderHeight } },
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter });
 
-	// Said once, under the title, rather than once per row. It was a per-row column for one version;
-	// with the monument the only place a recipe can produce anything, every row said the same three
-	// words and the column was seventeen repetitions of a single fact.
-	DrawString(out, _("Every recipe is crafted at Levski's Roar, the monument in town."),
-	    Rectangle { window.position + Displacement { WindowPadding, WindowPadding + HeaderHeight },
+	// THE THREE BOOKS. The open one is filled and gold-edged, the others sit back - the same "this is
+	// the page you are on" the vendors' tabs use.
+	for (int i = 0; i < HostButtonCount; i++) {
+		const Rectangle rect = HostButtonRect(i);
+		const bool active = HostButtons[i] == HostFilter;
+		const bool hovered = rect.contains(MousePosition);
+		if (active)
+			FillRect(out, rect.position.x + 1, rect.position.y + 1, rect.size.width - 2, rect.size.height - 2, PAL16_GRAY + 14);
+		DrawOrnateBorder(out, rect);
+		DrawString(out, _(TransmuteHostTitle(HostButtons[i])), rect,
+		    { (active ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12
+		        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		if (hovered && !active)
+			DrawHoverOutline(out, rect);
+	}
+
+	// Said once, under the books, rather than once per row.
+	//
+	// It used to say every recipe was crafted at Levski's Roar, which stopped being true when the
+	// recipes were split across three artisans on 2026-09-20 - the window went on saying it for two
+	// days. It names the OPEN book now, so it cannot fall out of step with what is listed beneath it.
+	DrawString(out, fmt::format(fmt::runtime(_("Crafted at {:s}.")), _(TransmuteHostTitle(HostFilter))),
+	    Rectangle { window.position + Displacement { WindowPadding, WindowPadding + HeaderHeight + HostButtonHeight + HostButtonGapBelow },
 	        { window.size.width - WindowPadding * 2, SubtitleHeight } },
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter });
 
@@ -190,6 +247,18 @@ void CheckCraftingMenuClick(Point mousePosition)
 	// The close button is not tested here either: diablo.cpp's LeftMouseDown asks
 	// CheckWindowCloseButtonClick(GetLeftPanelContentRect()) before it reaches this router, so a
 	// click on the X never arrives. A second test here was dead code that read like the live one.
+	// The books first: they sit above the content area, so the early return below would swallow them.
+	for (int i = 0; i < HostButtonCount; i++) {
+		if (!HostButtonRect(i).contains(mousePosition))
+			continue;
+		if (HostButtons[i] != HostFilter) {
+			HostFilter = HostButtons[i];
+			ScrollOffset = 0; // a book always opens at the top of its own list
+		}
+		PlayUiSelectSound();
+		return;
+	}
+
 	const Rectangle content = CraftingContentRect();
 	if (!content.contains(mousePosition))
 		return; // title bar and padding are absorbed by the window, not acted on
@@ -204,9 +273,13 @@ void CheckCraftingMenuClick(Point mousePosition)
 	// A row is a thing to read, not a button. Nothing here can produce an item - the monument is the
 	// only place that can (user, 2026-08-31) - so the click is absorbed and named in the log, which
 	// is the difference between a window that ignores you and a window that has told you where to go.
+	// Names the recipe's OWN host, which since 2026-09-20 is not always the monument. It said
+	// "Levski's Roar" for every row of every book, which was wrong for eleven of the twenty-eight -
+	// and asking HostOfRecipe rather than the open filter means it stays right even if a recipe is
+	// ever moved between books.
 	PlayUiMoveSound();
-	LogEvent(fmt::format(fmt::runtime(_("{:s} is crafted at Levski's Roar, the monument in town")),
-	    _(CraftingRecipeName(rows[row]))));
+	LogEvent(fmt::format(fmt::runtime(_("{:s} is crafted at {:s}")),
+	    _(CraftingRecipeName(rows[row])), _(TransmuteHostTitle(HostOfRecipe(rows[row])))));
 }
 
 bool HandleCraftingMenuScroll(int notches)
