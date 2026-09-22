@@ -30,6 +30,7 @@
 #include "oracool/event_log.h"
 #include "oracool/hud_art.h"
 #include "oracool/rift.h"
+#include "oracool/stonegate.h"
 #include "oracool/ornate_border.h"
 #include "panels/ui_panels.hpp"
 #include "stores.h"
@@ -661,6 +662,19 @@ int GetMapReturnLevel()
 
 Point GetMapReturnPosition()
 {
+	// A RIFT COMES BACK TO THE MONUMENT (user, 2026-09-22: "when i take the exit portal i spawn next
+	// to farhnam. spawn me next to the nephalem/guardian rift monument").
+	//
+	// It came back to Farnham because a rift is a set level whose number is none of the four below,
+	// so it fell to the default - and the default is the drunk, which is where the Poisoned Water
+	// and the rest of vanilla's set pieces put you. Nothing was wrong with that until a set level
+	// existed that the player walks into from somewhere else entirely.
+	//
+	// Asked of the rift rather than added as another `case`, because the rift's level NUMBER is
+	// chosen per kind (RiftLevelFor) and a case list would have to be kept in step with it.
+	if (Point entry; oracool::InRift() && oracool::StonegateEntryTile(entry))
+		return entry;
+
 	switch (setlvlnum) {
 	case SL_SKELKING:
 		return Quests[Q_SKELKING].position + Direction::SouthEast;

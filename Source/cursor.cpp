@@ -862,8 +862,37 @@ void CheckTown()
  */
 void CheckRiftPortal()
 {
-	if (leveltype != DTYPE_TOWN)
+	if (leveltype != DTYPE_TOWN) {
+		// THE WAY HOME, inside the rift (user, 2026-09-22: "there is no hover text when hover over
+		// the portal that is opened - place a hover text Back to town. Rift Closes." and "Make the
+		// select area of this portal as big as the select (click) area of vanilla portal").
+		//
+		// Both were the same omission: this function returned here, so the portal the cleared rift
+		// opens had no cursor handling at all. What little it had came from its return TRIGGER, which
+		// is one tile - hence a click area a fraction of the sprite, and no name.
+		//
+		// EntranceBoundaryContains is vanilla's own test, the one CheckTown uses for the town portal
+		// three functions up: the portal's tile and the tiles its 96x128 sprite rises over. Asking the
+		// same question is what makes the two areas the same size rather than merely similar.
+		//
+		// cursPosition is NOT moved onto the portal's tile the way the town-side branch moves it to
+		// the gate's entry tile. Here the trigger IS the portal's tile, and trigflag sends the click
+		// to it; moving the cursor as well would walk the hero to a tile he is already standing on
+		// when he clicks the near edge.
+		if (!oracool::InRift())
+			return;
+		for (auto &missile : Missiles) {
+			if (missile._mitype != MissileID::RiftPortalGold && missile._mitype != MissileID::RiftPortalPurple)
+				continue;
+			if (!EntranceBoundaryContains(missile.position.tile, cursPosition))
+				continue;
+			trigflag = true;
+			SetPanelString(_("Back to town"), UiFlags::ColorWhite);
+			AddPanelString(_("Rift Closes"));
+			cursPosition = missile.position.tile;
+		}
 		return;
+	}
 	for (auto &missile : Missiles) {
 		if (missile._mitype != MissileID::RiftPortalGold && missile._mitype != MissileID::RiftPortalPurple)
 			continue;

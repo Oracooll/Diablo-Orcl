@@ -639,7 +639,21 @@ void DrawRiftHud(const Surface &out)
 		label += fmt::format("  {:d}%", RiftProgressPercent());
 	if (State.kind == RiftKind::Guardian && !State.done)
 		label += State.timedOut ? "  out of time" : fmt::format("  {:d}:{:02d}", RiftSecondsLeft() / 60, RiftSecondsLeft() % 60);
-	DrawString(out, label, Rectangle { { x, y }, { BarWidth, 12 } },
+	// THE LINE IS AS WIDE AS THE LINE NEEDS (user, 2026-09-22: "text with countdown timer doesnt fit
+	// the second digit of the time remaining").
+	//
+	// It was drawn in a box the width of the bar, which is the mini-map's width, and centred in it.
+	// "Nephalem Rift: cleared - closes in 30s" is wider than that, so AlignCenter put its start left
+	// of the box and the clip took the tail - the second digit of the countdown, then the s.
+	//
+	// The box now grows from the bar's centre to whatever the text measures, and is pushed back on
+	// screen if that runs it off an edge. Measured rather than widened by a guessed margin: the
+	// label's length changes with the rift's name, its percentage, its guardian and its clock, and a
+	// margin that fits the longest of those today is a margin that clips the next one.
+	const int labelWidth = std::max(BarWidth, GetLineWidth(label, GameFont12) + 2);
+	int labelX = x + (BarWidth - labelWidth) / 2;
+	labelX = std::clamp(labelX, 0, std::max(0, out.w() - labelWidth));
+	DrawString(out, label, Rectangle { { labelX, y }, { labelWidth, 12 } },
 	    { UiFlags::AlignCenter | UiFlags::FontSize12 | (State.timedOut ? UiFlags::ColorRed : UiFlags::ColorGold) | UiFlags::Shadowed });
 
 	// The bar: a dark trough, the fill in the portal's colour.
