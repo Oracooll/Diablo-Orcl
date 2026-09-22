@@ -240,6 +240,24 @@ constexpr const char *OgdenRecipesCanvasAsset = "ui\\ogden_recipes_canvas.png";
 constexpr const char *GillianRecipesCanvasAsset = "ui\\gillian_recipes_canvas.png";
 constexpr const char *GillianCubeCanvasAsset = "ui\\gillian_cube_canvas.png";
 
+/**
+ * HER CRAFT BENCH (user, 2026-09-22: "i redid gillian cube canvas. removed the grid from the small
+ * frame. it will fit one item only").
+ *
+ * MEASURED on the redone canvas: the small frame's borders run x 207..216 and 304..313, y 145..154
+ * and 270..280, so its opening is x 217..303, y 155..269 - 87 by 115. That is the same size as
+ * Ogden's 3x4 well, which means it holds an item of any footprint up to 3x4 cells while showing no
+ * cells at all: ONE item, whatever its size, which is the rule her bench has always followed.
+ *
+ * The Transmute plate sits below it, inside the big frame's opening, centred on the small frame.
+ */
+constexpr Rectangle MysticCraftBenchRect { { 217, 155 }, { 87, 115 } };
+constexpr int MysticCraftPlateSize = 34;
+constexpr Rectangle MysticTransmuteRect {
+	{ (MysticCraftBenchRect.position.x + MysticCraftBenchRect.size.width / 2) - MysticCraftPlateSize / 2, 312 },
+	{ MysticCraftPlateSize, MysticCraftPlateSize }
+};
+
 constexpr int CraftColumns = 3;
 constexpr int CraftRows = 4;
 constexpr int CraftSlots = CraftColumns * CraftRows;
@@ -518,7 +536,7 @@ Rectangle TabRect(int index)
 std::vector<Tab> TabsFor(WorkshopHost host)
 {
 	if (host == WorkshopHost::Mystic)
-		return { Tab::Reroll, Tab::Imbue, Tab::Recipes };
+		return { Tab::Reroll, Tab::Imbue, Tab::Craft, Tab::Recipes };
 	// Ogden's tables (user, 2026-09-21): "a list of all Gem types with the number the user curently owns of each
 	// and clicking on certain type provides Upgrade/Downgrade options", the same for runes, and his jewels beside
 	// them; his socket recipes are a tab away in his book.
@@ -811,6 +829,20 @@ int GiveToPack(Player &player, int idx, int count)
  * The PLATE's rect. Its price line hangs below it and is not part of the button - a click belongs to
  * the plate, and a rect that included the number would make the price itself pressable.
  */
+/**
+ * @brief Where the one-item bench is on THIS page.
+ *
+ * Her Craft tab puts it in the frame painted into that canvas; her Reroll and Imbue tabs keep the
+ * code-drawn 2x3 slot they have always used. One function, because the draw, the hover and the click
+ * must agree about where it is - and they are three different places in this file.
+ */
+Rectangle BenchSlotRect()
+{
+	if (Host == WorkshopHost::Mystic && OpenTab == Tab::Craft)
+		return Panel(MysticCraftBenchRect);
+	return Panel(SlotRect);
+}
+
 Rectangle ServiceIconRect(int index, int count)
 {
 	const Rectangle page = PageRect();
@@ -873,7 +905,10 @@ Rectangle ControlRect(Control control)
 	case Control::CancelStep:
 		return PendingStep != 0 ? Panel(BoardCancelRect) : Rectangle { { 0, 0 }, { 0, 0 } };
 	case Control::Transmute:
-		return OpenTab == Tab::Craft ? Panel(CraftTransmuteRect) : Rectangle { { 0, 0 }, { 0, 0 } };
+		// Ogden's sits under his painted well; hers sits under the small frame her canvas paints.
+		if (OpenTab != Tab::Craft)
+			return Rectangle { { 0, 0 }, { 0, 0 } };
+		return Panel(Host == WorkshopHost::Mystic ? MysticTransmuteRect : CraftTransmuteRect);
 	case Control::None:
 		break;
 	}
@@ -961,7 +996,7 @@ void DrawTabColumn(const Surface &out)
 
 void DrawBench(const Surface &out)
 {
-	const Rectangle slot = Panel(SlotRect);
+	const Rectangle slot = BenchSlotRect();
 	FillRect(out, slot.position.x, slot.position.y, slot.size.width, slot.size.height, PlateFill);
 	OutlineRect(out, slot, FrameGold);
 	// The cell lines inside it, so it reads as the 2x3 the user asked for.
@@ -1439,6 +1474,89 @@ std::vector<int> HostRecipes()
  * The canvas paints the wells, so nothing is drawn for an empty cell - what goes down here is the
  * items in it, the plate, and a line saying what the grid can currently make.
  */
+/** @brief Rework Charms - the one recipe of hers whose second input is an ITEM, not a material. */
+constexpr int ReworkCharmsRecipe = 2;
+
+/** @brief A charm from the pack, copied, with its id - for the recipe that needs a second one. */
+bool FindPackCharm(const Player &player, Item &out, int &idx)
+{
+	const auto scan = [&](const Item *list, int count) {
+		for (int i = 0; i < count; i++) {
+			if (list[i].isEmpty() || !IsOracoolCharmIdx(list[i].IDidx))
+				continue;
+			out = list[i];
+			idx = list[i].IDidx;
+			return true;
+		}
+		return false;
+	};
+	if (scan(player.InvList, player._pNumInv))
+		return true;
+	for (int tab = 0; tab < Player::NumExtraInventoryTabs; tab++) {
+		if (scan(player.InvTabList[tab].data(), player._pNumInvTab[tab]))
+			return true;
+	}
+	return false;
+}
+
+/**
+ * @brief Her first recipe the bench and the PACK can run together, or -1.
+ *
+ * REAGENTS COME FROM THE PACK (user, 2026-09-22: "yes, pull reagents from the pack"), because her
+ * bench holds one item and three of her four recipes need more than one input. That is her window's
+ * own habit already - Imbue "takes the first shard your pack can spare" - but it is a different
+ * contract from the Cube and Ogden, where everything must be placed in the grid.
+ *
+ * Built as a SCRATCH GRID and handed to CanCraftFromLevskiGrid rather than re-deciding what each
+ * recipe needs: the predicate that already answers this question is the one that must answer it, or
+ * the bench and the monument would drift apart on what counts as craftable.
+ *
+ * @p reagentIdx and @p reagentCount come back as what the pack owes, so the caller spends exactly
+ * what the test passed on.
+ */
+int FindMysticRecipe(const Player &player, std::array<Item, CraftSlots> &scratch, int &reagentIdx, int &reagentCount)
+{
+	reagentIdx = 0;
+	reagentCount = 0;
+	if (Bench.isEmpty())
+		return -1;
+	for (const int recipe : HostRecipes()) {
+		for (Item &slot : scratch)
+			slot.clear();
+		scratch[0] = Bench;
+		int wantIdx = 0;
+		int wantCount = 0;
+		const int material = CraftingRecipeReagentItem(recipe);
+		const int count = CraftingRecipeReagentCount(recipe);
+		if (count > 0) {
+			if (CountOwned(player, material) < count)
+				continue;
+			// ONE stack is enough: FindGridReagents sums stackCount across the slots it finds, so a
+			// single item carrying the whole count satisfies it exactly as N separate ones would.
+			InitializeItem(scratch[1], static_cast<_item_indexes>(material));
+			scratch[1].setStackCount(count);
+			wantIdx = material;
+			wantCount = count;
+		} else if (recipe == ReworkCharmsRecipe) {
+			// Charms do not stack, so the second one is an item rather than a count - and it is
+			// COPIED rather than rebuilt from its id, so whatever the recipe reads off it is real.
+			Item charm;
+			int charmIdx = 0;
+			if (!FindPackCharm(player, charm, charmIdx))
+				continue;
+			scratch[1] = charm;
+			wantIdx = charmIdx;
+			wantCount = 1;
+		}
+		if (!CanCraftFromLevskiGrid(scratch.data(), recipe))
+			continue;
+		reagentIdx = wantIdx;
+		reagentCount = wantCount;
+		return recipe;
+	}
+	return -1;
+}
+
 void DrawCraftPage(const Surface &out)
 {
 	// Named like the collection boards, and on THEIR line (user, 2026-09-22: "put a crafting title in
@@ -1447,22 +1565,41 @@ void DrawCraftPage(const Surface &out)
 	DrawString(out, _("Crafting"), Panel(BoardTitleRect),
 	    { UiFlags::ColorGold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 
-	for (int slot = 0; slot < CraftSlots; slot++) {
-		const Item &item = CraftGrid[slot];
-		if (item.isEmpty())
-			continue;
-		const Rectangle cell = CraftSlotRect(slot);
-		const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
-		// Fitted to the cell rather than drawn at 1:1: a craft grid takes items of every footprint,
-		// and a 2x3 sword drawn at its natural size would cover half the board. See DrawSpriteToFit.
-		DrawSpriteToFit(out, cell, sprite);
-		if (cell.contains(MousePosition))
-			DrawHoverOutline(out, cell);
+	if (Host == WorkshopHost::Mystic) {
+		// HER bench is one item in the frame her canvas paints - no cells, because the canvas draws
+		// none and her recipes take one item plus reagents from the pack.
+		const Rectangle slot = BenchSlotRect();
+		if (!Bench.isEmpty()) {
+			DrawSpriteToFit(out, slot, GetInvItemSprite(Bench._iCurs + CURSOR_FIRSTITEM));
+		}
+		if (slot.contains(MousePosition))
+			DrawHoverOutline(out, slot);
+	} else {
+		for (int slot = 0; slot < CraftSlots; slot++) {
+			const Item &item = CraftGrid[slot];
+			if (item.isEmpty())
+				continue;
+			const Rectangle cell = CraftSlotRect(slot);
+			const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
+			// Fitted to the cell rather than drawn at 1:1: a craft grid takes items of every footprint,
+			// and a 2x3 sword drawn at its natural size would cover half the board. See DrawSpriteToFit.
+			DrawSpriteToFit(out, cell, sprite);
+			if (cell.contains(MousePosition))
+				DrawHoverOutline(out, cell);
+		}
 	}
 
 	// Griswold's Refresh plate as Transmute, as on Levski's Cube.
 	const Rectangle rect = ControlRect(Control::Transmute);
-	const bool ready = FirstReadyLevskiRecipeFor(CraftGrid.data(), TransmuteHost::Tavern) >= 0;
+	bool ready = false;
+	if (Host == WorkshopHost::Mystic) {
+		std::array<Item, CraftSlots> scratch {};
+		int idx = 0;
+		int count = 0;
+		ready = FindMysticRecipe(*MyPlayer, scratch, idx, count) >= 0;
+	} else {
+		ready = FirstReadyLevskiRecipeFor(CraftGrid.data(), TransmuteHost::Tavern) >= 0;
+	}
 	const Rectangle face { rect.position + (Pressed == Control::Transmute ? PressSink : Displacement { 0, 0 }), rect.size };
 	if (GetLoosePngSize(BoardButtonFrameAsset).width > 0)
 		DrawLoosePng(out, BoardButtonFrameAsset, face.position);
@@ -1535,6 +1672,8 @@ void DrawWorkshop(const Surface &out)
 		// Her recipe page has its own painting now (2026-09-22), framed exactly as Ogden's is.
 		if (OpenTab == Tab::Recipes && GetLoosePngSize(GillianRecipesCanvasAsset).width > 0)
 			canvas = GillianRecipesCanvasAsset;
+		else if (OpenTab == Tab::Craft && GetLoosePngSize(GillianCubeCanvasAsset).width > 0)
+			canvas = GillianCubeCanvasAsset;
 	} else {
 		canvas = GetLoosePngSize(OgdenCanvasAsset).width > 0 ? OgdenCanvasAsset : JewellerCanvasAsset;
 		if (OpenTab == Tab::Craft && GetLoosePngSize(OgdenCubeCanvasAsset).width > 0)
@@ -1695,7 +1834,7 @@ bool SetWorkshopHoverInfoString()
 {
 	if (!WindowOpen)
 		return false;
-	if (Panel(SlotRect).contains(MousePosition) && !Bench.isEmpty()) {
+	if (BenchSlotRect().contains(MousePosition) && !Bench.isEmpty()) {
 		SetPanelString(Bench.getName(), Bench.getTextColor());
 		const std::string count = ImbueCountLine(Bench);
 		if (!count.empty())
@@ -2059,6 +2198,33 @@ void RunControl(Control control)
 		// that happens to satisfy one of Griswold's or Gillian's does nothing here. The bench is
 		// Ogden's, and a recipe running at the wrong artisan's window would be a bug that looked like
 		// a feature.
+		if (Host == WorkshopHost::Mystic) {
+			Player &player = *MyPlayer;
+			std::array<Item, CraftSlots> scratch {};
+			int reagentIdx = 0;
+			int reagentCount = 0;
+			const int mine = FindMysticRecipe(player, scratch, reagentIdx, reagentCount);
+			if (mine < 0) {
+				SetBoard(std::string(_("Nothing on the bench makes anything.")));
+				break;
+			}
+			const std::string made = TransmuteLevskiGridWith(scratch.data(), mine);
+			if (IsTransmuteRefusal(made)) {
+				SetBoard(made);
+				break;
+			}
+			// The reagents in the scratch grid were COPIES, made to ask the predicate its question.
+			// The real ones leave the pack HERE - after the work succeeded, never before, so a
+			// refusal cannot cost the player anything.
+			if (reagentCount > 0)
+				TakeOwned(player, reagentIdx, reagentCount);
+			Bench = scratch[0]; // the result, which TransmuteLevskiGridWith leaves in slot 0
+			CalcPlrInv(player, true);
+			SetBoard(made);
+			if (!PlayUiEventSound(UiEventSound::Transmute))
+				PlayUiSelectSound();
+			break;
+		}
 		const int recipe = FirstReadyLevskiRecipeFor(CraftGrid.data(), TransmuteHost::Tavern);
 		if (recipe < 0) {
 			SetBoard(std::string(_("Nothing on the bench makes anything.")));
@@ -2128,7 +2294,11 @@ bool CheckWorkshopClick(Point position)
 	}
 
 	// The bench is the MYSTIC's, on her two tabs only - the same tightening the draw got.
-	if ((OpenTab == Tab::Reroll || OpenTab == Tab::Imbue) && Panel(SlotRect).contains(position)) {
+	// Her Craft tab has a bench too - the frame painted into that canvas - so it joins the two tabs
+	// that always had one. Every OTHER page still has no bench and must not hit-test one.
+	if ((OpenTab == Tab::Reroll || OpenTab == Tab::Imbue
+	        || (Host == WorkshopHost::Mystic && OpenTab == Tab::Craft))
+	    && BenchSlotRect().contains(position)) {
 		if (!player.HoldItem.isEmpty()) {
 			if (!Bench.isEmpty()) {
 				SetBoard(std::string(_("The bench holds one item at a time.")));
