@@ -4539,16 +4539,36 @@ void AddWirtCartObject()
 		Object *cart = AddObject(OBJ_STAND, position);
 		if (cart == nullptr)
 			return;
-		// Scenery, and nothing else: no hover, no name, no click, not solid, missiles pass. The
-		// PreFlag puts it in the before-characters pass so Wirt and the hero walk in front of it
-		// rather than being swallowed by a cart twice their height.
+		// Scenery that STANDS IN THE WAY (user, 2026-09-22: "make it solid in a way that my hero can
+		// not walk through it"). No hover, no name, no click - but a cart is a cart, and walking
+		// through one was the thing that gave it away as a painting.
 		cart->_oSelFlag = 0;
 		cart->_oBreak = 0;
-		cart->_oSolidFlag = false;
+		cart->_oSolidFlag = true;
 		cart->_oMissFlag = true;
+		// The PreFlag puts it in the before-characters pass, so a hero walking behind it is drawn
+		// over it rather than being swallowed. It still matters with the cart solid: the tiles BEHIND
+		// it are walkable and the sprite is taller than a man.
 		cart->_oPreFlag = true;
 		ApplyWirtCartGraphics(*cart);
 		WirtCartObjectId = cart->GetId();
+
+		// TWO TILES BY TWO, the fountain's own footprint (AddFountain writes exactly these three
+		// negatives beside its own tile). dObject carries a large object as a NEGATIVE reference on
+		// the tiles it reaches into, FindObjectAtPosition resolves those by default, and
+		// IsTileWalkable asks it - so the whole cart blocks rather than just the tile it is anchored
+		// on. One solid tile under a sprite this wide would have let the hero walk through its ends.
+		//
+		// A tile already spoken for is SKIPPED rather than taken: dObject holds one reference per
+		// tile, and overwriting another object's would make that object unfindable where it stands.
+		// Partial cover is the honest outcome there, and the candidate loop has already refused the
+		// anchor tile if it was occupied.
+		const Point reach[] = { { position.x - 1, position.y }, { position.x, position.y - 1 },
+			{ position.x - 1, position.y - 1 } };
+		for (const Point &tile : reach) {
+			if (InDungeonBounds(tile) && dObject[tile.x][tile.y] == 0)
+				dObject[tile.x][tile.y] = static_cast<int8_t>(-(cart->GetId() + 1));
+		}
 		return;
 	}
 	LogEvent(StrCat("Wirt's cart found no free tile near (", Candidates[0].x, ", ", Candidates[0].y, ")"), UiFlags::ColorRed);

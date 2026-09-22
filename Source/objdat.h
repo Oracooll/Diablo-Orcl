@@ -199,10 +199,14 @@ constexpr uint16_t OracoolLevskiRoarAnimWidth = 96;
  * inside its opening (the town portal is 96 wide, the opening 72; the stone around it makes 192). Sized
  * from the measured portal sheet, not by taste; tools\build_stonegate_cel.cmd prints what it produced.
  */
-// Wirt's cart (2026-09-22): the user's 209x209 painting scaled to 160 by tools\ScalePainting.ps1 and
+// Wirt's cart (2026-09-22): the user's 209x209 painting scaled by tools\ScalePainting.ps1 and
 // quantised by tools\build_wirt_cart_cel.cmd, which prints the width it produced. CEL stores no width,
 // so this number and that one must agree or every RLE scanline splits at the wrong point.
-constexpr uint16_t OracoolWirtCartAnimWidth = 160;
+//
+// 112, thirty per cent off the 160 it shipped at (user, 2026-09-22: "the cart seems very big. reduce
+// its size by 30%"). 160 was measured off their paint.net composite, where it read 157 wide against a
+// 1:1 screenshot - so the composite was the thing that was too big, not my reading of it.
+constexpr uint16_t OracoolWirtCartAnimWidth = 112;
 constexpr uint16_t OracoolStonegateAnimWidth = 128; // the user's painting at 128 wide, NO cast shadow: the 372-wide shadowed frame of v1.12.088 tripped the hover outline's 253-pixel sprite limit (clx_render.cpp MaxOutlineSpriteWidth) and the user dropped the shadow (2026-09-20)
 
 enum _object_id : int8_t {
