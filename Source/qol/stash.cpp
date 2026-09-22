@@ -1032,6 +1032,14 @@ void DrawStash(const Surface &out)
 	// own - same expression, same colour. At a 28 pitch that pixel belongs to a slot rather than to
 	// the rule, so an occupied cell's item overdraws its own boundary; that is what the inventory
 	// has always done, and matching it is the point (user request, 2026-08-16).
+	// THE SLOT FACE, one per cell, before the rules (user, 2026-09-22: "apply this texture to all
+	// 28x28px inv/stash grids game-wide"). Under the rules on purpose: the art carries its own bevel
+	// and the rules are what the stash has always separated its cells with, so the two agree rather
+	// than the texture painting over the grid it sits in.
+	for (auto slot : StashGridRange) {
+		oracool::DrawSlotBackground(out, { GetStashSlotCoord(slot), { StashCellPx, StashCellPx } });
+	}
+
 	for (int col = 1; col < StashGridColumns; col++) {
 		const int x = gridRect.position.x + col * StashCellPx - 1;
 		DrawVerticalLine(out, { x, gridRect.position.y }, gridRect.size.height, StashGridLineColor);

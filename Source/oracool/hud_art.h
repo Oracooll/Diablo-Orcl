@@ -100,6 +100,26 @@ Size GetLoosePngSize(const char *assetPath);
  */
 void DrawLoosePngPart(const Surface &out, const char *assetPath, Rectangle source, Point origin);
 
+/**
+ * @brief The face of ONE item-grid cell (user, 2026-09-22: "apply this texture to all 28x28px
+ * inv/stash grids game-wide. also apply it to all vendors grids which might be a bit bigger").
+ *
+ * The art is a single 28x28 slot with its own bevel - light along the top and left, dark along the
+ * bottom and right - so it is drawn once per CELL rather than tiled across a grid. Every item grid
+ * in the game asks for it: the backpack and its nine extra pages, the stash's sixteen rows, the four
+ * vendor grids, Ogden's collection boards and craft well, Gillian's, and Levski's Cube.
+ *
+ * A cell that is not the art's own size gets it SCALED to fit - Ogden's gem board is 30x30 and his
+ * jewel board 42x50 - because a bevel tiled into a bigger cell would put a highlight through the
+ * middle of it.
+ *
+ * Draws nothing when the file is absent, so a build without it looks exactly as it did.
+ */
+void DrawSlotBackground(const Surface &out, Rectangle cell);
+
+/** @brief Whether the slot art is installed at all - for callers that would otherwise draw a fill. */
+bool HasSlotBackgroundArt();
+
 void DrawSidePanelArt(const Surface &out, Point origin);
 
 // DrawSidePanelBackdrop was declared here and is gone (user, 2026-09-02: "remove the dark

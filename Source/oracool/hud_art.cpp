@@ -1252,14 +1252,22 @@ void BlitLayerHalf(const Surface &out, const ArtAsset &asset, Layer layer, Point
 	BlitHalfTransparentSkipZero(out, IndexedLayer(asset, layer), position, srcTop, srcBottom, srcLeft, srcWidth);
 }
 
-/** @brief The scaled strip-cell draw, same choice of path. */
+/**
+ * @brief The scaled strip-cell draw, same choice of path.
+ *
+ * The fallback RETURNS. It called this same function, which is an infinite recursion and a stack
+ * overflow the moment a scaled draw reaches an indexed target or an asset with no true-colour
+ * layer - found 2026-09-22 while giving the item grids their slot art, which is the first caller
+ * that could plausibly land there (the golden tests draw into an indexed surface).
+ *
+ * Nothing drawn is the honest answer: there is no indexed scaler here to fall back TO, and the
+ * sibling BlitLayer's fallback is an unscaled blit that would put a 28px cell in a 42px hole.
+ */
 void BlitLayerScaled(const Surface &out, const ArtAsset &asset, SDL_Rect srcCell, Rectangle dest, bool halfTransparent)
 {
-	if (!out.isIndexed() && !asset.argb.empty()) {
-		BlitArgbScaled(out, asset.argb.data(), asset.width, srcCell, dest, halfTransparent ? 50 : 100);
-		return;
-	}
-	BlitLayerScaled(out, asset, srcCell, dest, halfTransparent);
+	if (out.isIndexed() || asset.argb.empty())
+		return; // see the note above
+	BlitArgbScaled(out, asset.argb.data(), asset.width, srcCell, dest, halfTransparent ? 50 : 100);
 }
 
 void DrawOrb(const Surface &out, ArtAsset &asset, ArtAsset &liquid, Point position, Point sphereCenterLocal, int currValue, int maxValue)
@@ -1578,6 +1586,35 @@ void DrawLoosePngPart(const Surface &out, const char *assetPath, Rectangle sourc
 		return;
 	BlitLayer(out, entry.asset, Layer::Bright,
 	    MakeSdlRect(source.position.x, source.position.y, source.size.width, source.size.height), origin);
+}
+
+namespace {
+/** @brief One item-grid cell's face - see DrawSlotBackground. */
+constexpr const char *SlotBackgroundAsset = "ui\\slot_background.png";
+} // namespace
+
+bool HasSlotBackgroundArt()
+{
+	return GetLoosePngSize(SlotBackgroundAsset).width != 0;
+}
+
+void DrawSlotBackground(const Surface &out, Rectangle cell)
+{
+	if (cell.size.width <= 0 || cell.size.height <= 0)
+		return;
+	const Size art = GetLoosePngSize(SlotBackgroundAsset);
+	if (art.width == 0)
+		return;
+	// 1:1 wherever the cell is the art's own size, which is every 28px grid in the game and so very
+	// nearly every call. The scaled path is for the two boards that are not.
+	if (cell.size.width == art.width && cell.size.height == art.height) {
+		DrawLoosePng(out, SlotBackgroundAsset, cell.position);
+		return;
+	}
+	const LoosePng &entry = LoosePngFor(SlotBackgroundAsset);
+	if (entry.asset.rgba.empty() || !entry.asset.bright)
+		return;
+	BlitLayerScaled(out, entry.asset, MakeSdlRect(0, 0, art.width, art.height), cell, /*halfTransparent=*/false);
 }
 
 // DrawSidePanelBackdrop is gone (user, 2026-09-02: "remove the dark transparent rectangle from all

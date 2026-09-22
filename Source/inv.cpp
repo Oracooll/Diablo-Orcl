@@ -1723,11 +1723,23 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// green backing for them, and dark is a depth now, not an index), and the floor - the share of
 	// the hue a black pixel still shows, so a tint on a dark well reads as colour rather than as a
 	// darker well.
-	constexpr int TintDepthPercent = 90;
-	constexpr int DarkTintDepthPercent = 60;
+	// A NUDGE BRIGHTER, all of them (user, 2026-09-22: "make tints a nudge brighter"). One constant
+	// rather than three retuned numbers, so the order the depths were chosen in - plain above dark,
+	// Set above both - survives the lift instead of having to be re-decided.
+	constexpr int TintBrightnessNudge = 15;
+	constexpr int TintDepthPercent = 90 + TintBrightnessNudge;
+	constexpr int DarkTintDepthPercent = 60 + TintBrightnessNudge;
+	/** @brief The stone's own brightness, which is what the Set backing asked for. */
+	constexpr int FullTintDepthPercent = 100 + TintBrightnessNudge;
 	// 30 while the tint sat on the black well, where the floor was all there was to see; 10 now that
-	// vanilla's stone is under it (DrawSlotStoneUnderlay) and the luminance carries the colour.
+	// there is slot art under it and the luminance carries the colour.
 	constexpr int TintFloorPercent = 10;
+	// LIT FROM BELOW (user, 2026-09-22: "can you make the tinting gradient - darker at the top,
+	// brighter at the bottom?"). The top row takes this much off the depth and the bottom row adds
+	// it, straight-line between - over the whole FOOTPRINT, not per cell, because the backing has
+	// been one piece per item since 2026-08-16 and a gradient restarting at every cell boundary
+	// would put six light bands down a 2x3 sword.
+	constexpr int TintGradientSpan = 15;
 
 	// Hues from the palette's own ramps where a ramp is the colour (the light end, +2, but only the
 	// hue is used - TintRectRgb normalises it). Values where the palette has no such colour: the
@@ -1776,7 +1788,7 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 		// (2026-09-12): the stone's own brightness, no shade taken off.
 		hue = 0x64A064u;
 		fallbackRamp = PAL8_GREEN;
-		depth = 100;
+		depth = FullTintDepthPercent;
 	} else {
 		switch (item._iMagical) {
 		case ITEM_QUALITY_MAGIC:
@@ -1797,9 +1809,46 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// item, not vanilla's one per 28x28 cell (user, 2026-08-16: "outline the entire item, not each
 	// 28x28 square" - with a tint the only difference left is whether the gutters between cells
 	// take the colour, and one piece reads better).
-	DrawSlotStoneUnderlay(out, footprint);
-	TintRectRgb(out, footprint.position.x, footprint.position.y, footprint.size.width, footprint.size.height,
-	    hue, depth, TintFloorPercent, fallbackRamp);
+	// THE SAME SLOT ART THE EMPTY CELLS WEAR, under the tint (user, 2026-09-22: "make backings of
+	// item sprites use the same texture under the tinting layer").
+	//
+	// What was here is DrawSlotStoneUnderlay - vanilla's stone, cut into four swatches and eight
+	// orientations and hashed across the footprint so the grain never repeats. That was the right
+	// answer while the grids had no art of their own: the backing had to invent a surface for the
+	// tint to sit on. They have art now, and an item's backing showing a different stone from the
+	// cell beside it is the seam the tint was meant to hide.
+	//
+	// PER CELL, not stretched across the footprint: the art is one bevelled slot, so a 2x3 sword
+	// covers six of them exactly as it covers six cells. Every caller passes a footprint that is a
+	// whole number of cells - the grid loops multiply itemCells by the cell size, and the body slots
+	// multiply slotSize - so the loop never leaves a remainder to overhang.
+	//
+	// The stone stays as the fallback. Without the file there would otherwise be nothing under the
+	// tint at all, and a tint over bare panel art is not a backing.
+	if (oracool::HasSlotBackgroundArt()) {
+		for (int y = 0; y < footprint.size.height; y += InventorySlotSizeInPixels.height) {
+			for (int x = 0; x < footprint.size.width; x += InventorySlotSizeInPixels.width) {
+				oracool::DrawSlotBackground(out,
+				    { { footprint.position.x + x, footprint.position.y + y }, InventorySlotSizeInPixels });
+			}
+		}
+	} else {
+		DrawSlotStoneUnderlay(out, footprint);
+	}
+	// Row by row, so the depth can ramp down the footprint. TintRectRgb takes one brightness for
+	// whatever rect it is given, which is exactly right for a flat tint and is why the gradient is
+	// spelled out here rather than added to it: nothing else in the game wants a graded tint, and a
+	// rect tinter that secretly ramps would surprise every other caller.
+	for (int row = 0; row < footprint.size.height; row++) {
+		// -span at the top row, +span at the bottom, straight line between. The division is by
+		// height-1 so the last row lands exactly on +span rather than one step short of it; a
+		// one-row footprint has no gradient to draw and takes the depth as it stands.
+		const int span = footprint.size.height > 1
+		    ? -TintGradientSpan + 2 * TintGradientSpan * row / (footprint.size.height - 1)
+		    : 0;
+		TintRectRgb(out, footprint.position.x, footprint.position.y + row, footprint.size.width, 1,
+		    hue, std::max(0, depth + span), TintFloorPercent, fallbackRamp);
+	}
 	if (!gridLines)
 		return;
 	// The grid frame over the tint, under the sprite: grey cell lines inside, the gold outline on the edge.
@@ -2186,6 +2235,31 @@ void DrawInv(const Surface &out)
 		}
 	}
 
+	// THE SLOT FACE, one per cell, under everything (user, 2026-09-22: "apply this texture to all
+	// 28x28px inv/stash grids game-wide"). Every cell, occupied or not - the grid is a grid whether
+	// or not there is anything in it, and the backings below are drawn per ITEM rather than per cell,
+	// so they cannot be the thing that gives an empty slot its face.
+	//
+	// ONE PIXEL, and it was wrong for as long as there has been a grid here (user, 2026-09-22: "make
+	// sure when a sprite is placed on the inv grid or on the stash grid the sprite backing texture
+	// and the grids texture align down to the last pixel").
+	//
+	// A grid item is drawn from its FOOT, and the foot of a cell whose top row is T is row T+27, not
+	// T+28. This passed T+28, so every item in the backpack - its sprite, its backing, its hover
+	// outline and its socket overlay - sat one row below the cell it belongs to, spilling into the
+	// top row of the cell beneath. The STASH has always had it right: its own offset is
+	// `INV_SLOT_SIZE_PX - 1`, and the two windows are otherwise the same code.
+	//
+	// Invisible until now, because the cell had no face to be out of step with. The inventory's own
+	// 1px cell rules are drawn at `GridOrigin + r * CellPx - 1` - the same boundaries InvRect uses
+	// and the same the stash uses - so the cell rect is the truth here and the item was the thing
+	// out of place.
+	constexpr Displacement GridItemFoot { 0, InventorySlotSizeInPixels.height - 1 };
+	for (int i = 0; i < InventoryGridCells; i++) {
+		oracool::DrawSlotBackground(out,
+		    { GetPanelPosition(UiPanels::Inventory, InvRect[i + SLOTXY_INV_FIRST].position), InventorySlotSizeInPixels });
+	}
+
 	for (int i = 0; i < InventoryGridCells; i++) {
 		int8_t cell = GetActiveInvGridCell(myPlayer, i);
 		// User request (2026-08-16): "outline the entire item, not each 28x28 square". This used to
@@ -2200,7 +2274,7 @@ void DrawInv(const Surface &out)
 			const Size itemCells = GetInventorySize(gridItem);
 			InvDrawSlotBack(
 			    out,
-			    GetPanelPosition(UiPanels::Inventory, InvRect[i + SLOTXY_INV_FIRST].position) + Displacement { 0, InventorySlotSizeInPixels.height },
+			    GetPanelPosition(UiPanels::Inventory, InvRect[i + SLOTXY_INV_FIRST].position) + GridItemFoot,
 			    { itemCells.width * InventorySlotSizeInPixels.width, itemCells.height * InventorySlotSizeInPixels.height },
 			    gridItem);
 		}
@@ -2214,7 +2288,7 @@ void DrawInv(const Surface &out)
 			int cursId = invItem._iCurs + CURSOR_FIRSTITEM;
 
 			const ClxSprite sprite = GetInvItemSprite(cursId);
-			const Point position = GetPanelPosition(UiPanels::Inventory, InvRect[j + SLOTXY_INV_FIRST].position) + Displacement { 0, InventorySlotSizeInPixels.height };
+			const Point position = GetPanelPosition(UiPanels::Inventory, InvRect[j + SLOTXY_INV_FIRST].position) + GridItemFoot;
 			const bool hovered = IsActiveInvItemHovered(ii);
 			if (hovered) {
 				ClxDrawOutline(out, GetOutlineColor(invItem, true), position, sprite);
@@ -2251,6 +2325,20 @@ void DrawInvBelt(const Surface &out)
 	for (int i = 1; i <= 4; i++) {
 		// Oracool: the gold plate under every item slot, filled or not (user, 2026-09-06).
 		oracool::DrawBeltSlotPlate(out, oracool::GetBeltSlotRect(i));
+		// THE SLOT FACE, in the plate's recess (user, 2026-09-22: "do the belt too"). Inside the
+		// plate rather than over it: the plate is this row's frame, and the recess it leaves is
+		// 28x28 by construction - "sized so the backing's recess comes out at 28x28 - the sprite's
+		// own size", as the nudge note below records. So the art lands exactly where the potion does,
+		// which is the same relationship it has to a cell in every grid.
+		//
+		// Only the four ITEM slots: 0 is the menu button and 5 the town portal, and neither is a slot.
+		{
+			const Rectangle beltCell = oracool::GetBeltSlotRect(i);
+			oracool::DrawSlotBackground(out,
+			    { { beltCell.position.x + (beltCell.size.width - InventorySlotSizeInPixels.width) / 2,
+			          beltCell.position.y + (beltCell.size.height - InventorySlotSizeInPixels.height) / 2 },
+			        InventorySlotSizeInPixels });
+		}
 		if (myPlayer.SpdList[i].isEmpty()) {
 			continue;
 		}

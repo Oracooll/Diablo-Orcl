@@ -1781,6 +1781,15 @@ void DrawShopGrid(const Surface &out)
 			DrawOrnateBorderOutside(out, grid);
 		}
 	}
+	// THE SLOT FACE, one per cell (user, 2026-09-22: "also apply it to all vendors grids"). Before
+	// the rules below, which are what has always separated these cells - the art carries its own
+	// bevel and the two agree.
+	for (int row = 0; row < ShopGridRows; row++) {
+		for (int col = 0; col < ShopGridColumns; col++) {
+			DrawSlotBackground(out,
+			    { { grid.position.x + col * ShopCellPx, grid.position.y + row * ShopCellPx }, { ShopCellPx, ShopCellPx } });
+		}
+	}
 	// Same 1px dark rules as the stash, drawn on the last pixel of the preceding cell's span.
 	for (int col = 1; col < ShopGridColumns; col++)
 		DrawVerticalLine(out, { grid.position.x + col * ShopCellPx - 1, grid.position.y }, grid.size.height, ThemeGridLineColor);

@@ -1213,6 +1213,14 @@ const char *BoardTitle(Tab tab)
 void DrawCollectionBoard(const Surface &out)
 {
 	const Player &player = *MyPlayer;
+	// THE SLOT FACE (user, 2026-09-22: "also apply it to all vendors grids which might be a bit
+	// bigger like ogden and gillian's grids"). His boards are the two grids in the game that are not
+	// 28px - gems at 30x30, jewels at 42x50 - and DrawSlotBackground scales the art to whichever it
+	// is handed. Every cell, INCLUDING the ones standing for nothing: the board's shape is the
+	// board's shape, and a hole where the runes run out would read as a fault in the painting.
+	for (int slot = 0; slot < BoardSlotCount(); slot++)
+		DrawSlotBackground(out, BoardSlotRect(slot));
+
 	for (int slot = 0; slot < BoardSlotCount(); slot++) {
 		const int idx = BoardSlotItem(OpenTab, slot);
 		if (idx == 0)
@@ -1818,6 +1826,11 @@ void DrawCraftPage(const Surface &out)
 	// between his tabs.
 	DrawString(out, _("Crafting"), Panel(BoardTitleRect),
 	    { UiFlags::ColorGold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+
+	// THE SLOT FACE in each of the twelve cells, under the items (user, 2026-09-22). Both hosts:
+	// the well is painted into each canvas, and this is what sits inside it.
+	for (int slot = 0; slot < CraftSlots; slot++)
+		DrawSlotBackground(out, CraftSlotRect(slot));
 
 	// ONE grid, both hosts (2026-09-22). Hers was a one-item bench while her canvas painted an empty
 	// frame; the multi-item painting puts the same 3x4 well in that frame, so the only difference

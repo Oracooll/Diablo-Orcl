@@ -2005,6 +2005,25 @@ void DrawLevskiRoar(const Surface &out)
 		FillRect(out, plate.position.x, plate.position.y, plate.size.width, plate.size.height, SlotFillColor);
 	}
 
+	// THE SLOT FACE in each of the twelve cells (user, 2026-09-22: "apply this texture to all 28x28px
+	// inv/stash grids game-wide", then "if levski is 29x29 scale it to 29x29").
+	//
+	// IT IS NOT 29. Measured, and the skins say so themselves: levski_skin::GridPitch and CellSize
+	// are both 28, and cube_skin's own note reads "brass rims at x 25-26 / 53-54, interiors of 26 px
+	// on a 28 px pitch - the Roar's grid exactly". The 29 is a stale line in CellRect's comment,
+	// left from a painting this window has not worn since 2026-09-05.
+	//
+	// THE FULL CELL, rims included (user, 2026-09-22: "i would like that"). It was inset a pixel to
+	// leave the painted brass rims showing, which was my caution rather than a request - the user
+	// looked at it and asked for the cover. CellRect is the 28 the item sprite occupies, so the slot
+	// art and the item it holds now sit on exactly the same square.
+	//
+	// Outside the codeDrawn block above, so the painted cube gets it too.
+	if (PageHasGrid()) {
+		for (int cell = 0; cell < LevskiGridSlots; cell++)
+			DrawSlotBackground(out, CellRect(window, cell));
+	}
+
 	const int hoveredAnchor = HoveredAnchor();
 	for (int anchor = 0; anchor < LevskiGridSlots && PageHasGrid(); anchor++) {
 		if (GridItems[anchor].isEmpty())
