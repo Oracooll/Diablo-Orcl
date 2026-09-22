@@ -72,6 +72,15 @@ void ReleaseWorkshopButton();
 /** @brief The hover text for whatever is under the cursor. True when it wrote one. */
 bool SetWorkshopHoverInfoString();
 
+/**
+ * @brief The mouse wheel over the workshop. True when it was consumed.
+ *
+ * Only Ogden's recipe page scrolls (2026-09-22), and only when its content is taller than the frame
+ * - so the wheel goes on zooming the dungeon everywhere else in this window rather than being
+ * swallowed by a page with nothing to scroll.
+ */
+bool HandleWorkshopScroll(int notches);
+
 /** @brief Game teardown: the window, the item it holds and the per-item counters are all this file's statics. */
 void ResetWorkshopForNewGame();
 

@@ -67,6 +67,16 @@ constexpr const char *JewellerCanvasAsset = "ui\\artisan_workshop.png";
  * qualities, thirty-five cells, thirty-five gems. The runes take the same board by ladder position,
  * which is how the stash orders them too, and 33 of them leave the last two cells empty.
  */
+/**
+ * The shared canvas's opening, as every 340x720 window uses it.
+ *
+ * Declared HERE, above the board geometry, because the collection title spans it - and it used to be
+ * declared two hundred lines further down, which is a compile error the moment anything up here
+ * reads it.
+ */
+constexpr int InnerLeft = 22;
+constexpr int InnerRight = 317;
+
 constexpr int BoardOpeningLeft = 64;
 constexpr int BoardOpeningTop = 439;
 constexpr int BoardOpeningWidth = 212;
@@ -131,10 +141,22 @@ constexpr Rectangle BoardUpgradeRect {
  * titles 40px upwards"). Only the title moves; the two plates keep their four-pixel clearance over
  * the painted band, so the name now stands clear of them on the open stone above.
  */
-constexpr int BoardTitleLift = 40;
+// SEVENTY: forty on 2026-09-22, then thirty more the same day ("move titles 30px upwards").
+constexpr int BoardTitleLift = 70;
+/**
+ * The title spans the canvas's whole opening, not the gap between the two arrow plates.
+ *
+ * It was that gap - about 108px - and "Gem Collection" at FontSize24 does not fit in it, so the name
+ * was cut off at both ends (user, 2026-09-22: "Titles are not fully visible. increase their text box
+ * to fit to width of canvas, without overlaping the canvas frame"). InnerLeft/InnerRight are the
+ * painted frame's own inner edges, so the box is as wide as the canvas allows and no wider.
+ *
+ * It can span the full width safely only because the title now sits seventy pixels above the plates
+ * rather than on their line.
+ */
 constexpr Rectangle BoardTitleRect {
-	{ BoardDowngradeRect.position.x + BoardButtonSize, BoardButtonTop - BoardTitleLift },
-	{ BoardUpgradeRect.position.x - BoardDowngradeRect.position.x - BoardButtonSize, BoardButtonSize }
+	{ InnerLeft, BoardButtonTop - BoardTitleLift },
+	{ InnerRight - InnerLeft + 1, BoardButtonSize }
 };
 /**
  * The question under the grid, and its two answers (user, 2026-09-21: "Runes upgrades and downgrade
@@ -221,14 +243,10 @@ constexpr int RecipeOpeningLeft = 29;
 constexpr int RecipeOpeningTop = 299;
 constexpr int RecipeOpeningRight = 310;
 constexpr int RecipeOpeningBottom = 618;
-constexpr int RecipeLinePitch = 20;
 
 constexpr const char *BoardButtonFrameAsset = "ui\\shop_button_frame.png";
 constexpr const char *BoardUpGlyphAsset = "ui\\shop_glyph_arrow_up.png";
 constexpr const char *BoardDownGlyphAsset = "ui\\shop_glyph_arrow_down.png";
-/** The shared canvas's opening, as every 340x720 window uses it. */
-constexpr int InnerLeft = 22;
-constexpr int InnerRight = 317;
 constexpr Rectangle TitleRect { { 22, 26 }, { 296, 40 } };
 constexpr Rectangle CloseRect { { 316, 5 }, { 18, 18 } };
 /** The one-item slot: 2x3 inventory cells, and it holds one item whatever its size (user, 2026-09-21). */
@@ -357,6 +375,8 @@ int SelectedStockIdx = -1;
  * the one it named.
  */
 int PendingStep = 0;
+/** @brief The recipe page's scroll, in PIXELS - the lines are not a fixed height once wrapped. */
+int RecipeScroll = 0;
 int SelectedRow = -1;
 Control Pressed = Control::None;
 Control LastHovered = Control::None;
@@ -1224,6 +1244,7 @@ void CloseWorkshop()
 	// patched the wrong one.
 	SelectedStockIdx = -1;
 	PendingStep = 0;
+	RecipeScroll = 0;
 }
 
 bool IsWorkshopOpen()
@@ -1262,6 +1283,7 @@ void ResetWorkshopForNewGame()
 	SelectedRow = -1;
 	SelectedStockIdx = -1;
 	PendingStep = 0;
+	RecipeScroll = 0;
 	Bench.clear();
 	// A new game starts with an empty bench. Not RETURNED - there is no player to return it to by
 	// the time this runs - so it is simply dropped, which is what the Cube's grid does too.
@@ -1333,6 +1355,12 @@ std::vector<int> OgdenRecipes()
  */
 void DrawCraftPage(const Surface &out)
 {
+	// Named like the collection boards, and on THEIR line (user, 2026-09-22: "put a crafting title in
+	// craft tab"). The shared rect is what stops the name jumping up or down as the player moves
+	// between his tabs.
+	DrawString(out, _("Crafting"), Panel(BoardTitleRect),
+	    { UiFlags::ColorGold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+
 	for (int slot = 0; slot < CraftSlots; slot++) {
 		const Item &item = CraftGrid[slot];
 		if (item.isEmpty())
@@ -1374,27 +1402,98 @@ void DrawCraftPage(const Surface &out)
  * Sockets") does not say what to put on the bench. The dark layer is the same two passes Levski's
  * recipe page uses, for the same reason: one left the names competing with the floor behind them.
  */
-void DrawRecipesPage(const Surface &out)
+/** @brief One drawn line of the recipe page: a recipe's name, or a wrapped line of its explanation. */
+struct RecipeTextLine {
+	std::string text;
+	bool heading;
+};
+
+/**
+ * @brief Every line the recipe page has to show, wrapped to @p width.
+ *
+ * NO ROW LIMIT (user, 2026-09-22: "make sure description of recipes has enough room to fully display
+ * explanation text. no row limits"). The page used to give each recipe exactly two lines and drop
+ * whatever did not fit, which truncated every explanation longer than the frame is wide - and one of
+ * his is 92 characters. Each explanation is word-wrapped to as many lines as it needs and the page
+ * scrolls instead.
+ */
+std::vector<RecipeTextLine> RecipeTextLines(int width)
+{
+	std::vector<RecipeTextLine> lines;
+	for (const int recipe : OgdenRecipes()) {
+		lines.push_back({ std::string { _(CraftingRecipeName(recipe)) }, true });
+		const std::string wrapped = WordWrapString(_(CraftingRecipeInputs(recipe)), width, GameFont12);
+		size_t start = 0;
+		for (;;) {
+			const size_t nl = wrapped.find('\n', start);
+			lines.push_back({ wrapped.substr(start, nl == std::string::npos ? std::string::npos : nl - start), false });
+			if (nl == std::string::npos)
+				break;
+			start = nl + 1;
+		}
+		lines.push_back({ std::string {}, false }); // air between recipes
+	}
+	return lines;
+}
+
+constexpr int RecipePad = 6;
+constexpr int RecipeIndent = 8;
+
+Rectangle RecipeOpeningRect()
 {
 	const Rectangle page = PageRect();
-	const Rectangle opening { page.position + Displacement { RecipeOpeningLeft, RecipeOpeningTop },
+	return Rectangle { page.position + Displacement { RecipeOpeningLeft, RecipeOpeningTop },
 		{ RecipeOpeningRight - RecipeOpeningLeft + 1, RecipeOpeningBottom - RecipeOpeningTop + 1 } };
+}
+
+/** @brief How far the page can scroll, in pixels. Zero when everything already fits. */
+int RecipeMaxScroll()
+{
+	const Rectangle opening = RecipeOpeningRect();
+	const int lineHeight = GetLineHeight("A", GameFont12);
+	const int content = static_cast<int>(RecipeTextLines(opening.size.width - 2 * RecipePad - RecipeIndent).size()) * lineHeight;
+	return std::max(0, content - (opening.size.height - 2 * RecipePad));
+}
+
+void DrawRecipesPage(const Surface &out)
+{
+	const Rectangle opening = RecipeOpeningRect();
 	DrawThemedFill(out, opening, 2);
 
-	const std::vector<int> recipes = OgdenRecipes();
-	int y = opening.position.y + 6;
-	const int width = opening.size.width - 12;
-	for (const int recipe : recipes) {
-		if (y + 2 * RecipeLinePitch > opening.position.y + opening.size.height)
-			break; // a half-drawn recipe reads as a fault, not as "there is more"
-		DrawString(out, _(CraftingRecipeName(recipe)),
-		    Rectangle { { opening.position.x + 6, y }, { width, RecipeLinePitch } },
-		    { UiFlags::ColorGold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
-		y += RecipeLinePitch;
-		DrawString(out, _(CraftingRecipeInputs(recipe)),
-		    Rectangle { { opening.position.x + 14, y }, { width - 8, RecipeLinePitch } },
-		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::VerticalCenter });
-		y += RecipeLinePitch;
+	const int lineHeight = GetLineHeight("A", GameFont12);
+	const int width = opening.size.width - 2 * RecipePad - RecipeIndent;
+	const std::vector<RecipeTextLine> lines = RecipeTextLines(width);
+
+	// Clamped HERE, every frame, not only where the wheel turns: the content's height depends on how
+	// the explanations wrap, so a scroll that was legal when it was set can be past the end by the
+	// time it is drawn. The Levski book learned this one first.
+	RecipeScroll = std::clamp(RecipeScroll, 0, RecipeMaxScroll());
+
+	const int top = opening.position.y + RecipePad;
+	const int bottom = opening.position.y + opening.size.height - RecipePad;
+	for (size_t i = 0; i < lines.size(); i++) {
+		const int y = top + static_cast<int>(i) * lineHeight - RecipeScroll;
+		// Wholly inside the opening or not drawn at all. Half a line clipped by the frame reads as a
+		// rendering fault rather than as "there is more below" - the scroll thumb says that.
+		if (y < top || y + lineHeight > bottom)
+			continue;
+		const RecipeTextLine &line = lines[i];
+		if (line.text.empty())
+			continue;
+		DrawString(out, line.text,
+		    Rectangle { { opening.position.x + RecipePad + (line.heading ? 0 : RecipeIndent), y },
+		        { width + (line.heading ? RecipeIndent : 0), lineHeight } },
+		    { (line.heading ? UiFlags::ColorGold : UiFlags::ColorWhite) | UiFlags::FontSize12 });
+	}
+
+	// The thumb, sized as the visible share - the only thing telling the player there is more.
+	const int maxScroll = RecipeMaxScroll();
+	if (maxScroll > 0) {
+		const int trackHeight = opening.size.height - 2 * RecipePad;
+		const int content = trackHeight + maxScroll;
+		const int thumbHeight = std::max(8, trackHeight * trackHeight / content);
+		const int thumbTop = (trackHeight - thumbHeight) * RecipeScroll / maxScroll;
+		FillRect(out, opening.position.x + opening.size.width - 5, top + thumbTop, 3, thumbHeight, FrameGold);
 	}
 }
 
@@ -1469,12 +1568,22 @@ void DrawWorkshop(const Surface &out)
 		DrawPlateButton(out, Control::Cleanse, StrCat(_("CLEANSE"), Bench.isEmpty() ? "" : StrCat("  ", FormatInteger(CleansePrice(Bench)))), !Bench.isEmpty());
 	}
 
-	// Griswold's pair, on every tab (user, 2026-09-22): the pile, with the number beneath it and no
-	// "Gold:" in front of it. The centred label that stood at y 306 is gone with the words.
-	if (GetLoosePngSize(BoardGoldIconAsset).width > 0)
-		DrawLoosePng(out, BoardGoldIconAsset, page.position + Displacement { BoardGoldIconAt.x, BoardGoldIconAt.y });
-	DrawString(out, FormatInteger(static_cast<int>(TotalPlayerGold())), Panel(BoardGoldCountRect),
-	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	// GOLD ONLY WHERE GOLD IS SPENT (user, 2026-09-22: "If there is no gold cost to ogden services, i
+	// dont see a point of showing the gold counter").
+	//
+	// They are right, and the code agrees: the only prices in this window are RerollPrice,
+	// RemovePrice and CleansePrice, all three the MYSTIC's. Ogden's ladders and his bench take
+	// materials and give items back; no path through his tabs reads the player's purse. A readout
+	// that never changes is furniture.
+	//
+	// Asked of the HOST rather than the tab, because it is the artisan who charges: every one of her
+	// pages can spend gold and none of his can.
+	if (Host == WorkshopHost::Mystic) {
+		if (GetLoosePngSize(BoardGoldIconAsset).width > 0)
+			DrawLoosePng(out, BoardGoldIconAsset, page.position + Displacement { BoardGoldIconAt.x, BoardGoldIconAt.y });
+		DrawString(out, FormatInteger(static_cast<int>(TotalPlayerGold())), Panel(BoardGoldCountRect),
+		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	}
 	// The big message panel belongs to the MYSTIC's two tabs, which is where its offers menu lives.
 	// Named rather than written as "not a stock tab" (audit, 2026-09-22): its rect is y 336..612 and
 	// it OUTLINES itself before any early return, so on every other page it drew a gold box through
@@ -1503,6 +1612,20 @@ void DrawWorkshop(const Surface &out)
 	if (hoveredNow != Control::None && hoveredNow != LastHovered)
 		PlayUiMoveSound();
 	LastHovered = hoveredNow;
+}
+
+bool HandleWorkshopScroll(int notches)
+{
+	// Only the recipe page scrolls, and only while it is the page on screen - so the wheel keeps
+	// zooming the dungeon everywhere else in this window, which is what it did before.
+	if (!WindowOpen || OpenTab != Tab::Recipes)
+		return false;
+	const int maxScroll = RecipeMaxScroll();
+	if (maxScroll <= 0)
+		return false; // nothing to scroll: let the wheel fall through rather than swallow it
+	constexpr int PixelsPerNotch = 20;
+	RecipeScroll = std::clamp(RecipeScroll - notches * PixelsPerNotch, 0, maxScroll);
+	return true;
 }
 
 bool SetWorkshopHoverInfoString()
@@ -1695,6 +1818,7 @@ void RunControl(Control control)
 		SelectedRow = -1;
 		SelectedStockIdx = -1;
 		PendingStep = 0;
+		RecipeScroll = 0;
 		OfferOpen = false;
 		Board.clear();
 		break;

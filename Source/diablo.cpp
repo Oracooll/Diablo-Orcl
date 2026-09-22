@@ -1405,6 +1405,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				oracool::ScrollSkillPicker(1);
 			} else if (oracool::HandleLevskiRecipeBookScroll(1)) {
 				// consumed - the recipe book is capped to the screen and scrolls inside the cap
+			} else if (oracool::HandleWorkshopScroll(1)) {
+				// consumed - Ogden's recipe page, which scrolls only when it overflows its frame
 			} else if (oracool::HandleRunewordBookScroll(1)) {
 				// consumed
 			} else if (oracool::HandleCraftingMenuScroll(1)) {
@@ -1461,6 +1463,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 			if (oracool::IsSkillPickerOpen()) {
 				oracool::ScrollSkillPicker(-1); // see the wheel-up branch above
 			} else if (oracool::HandleLevskiRecipeBookScroll(-1)) {
+				// consumed - see the wheel-up branch above
+			} else if (oracool::HandleWorkshopScroll(-1)) {
 				// consumed - see the wheel-up branch above
 			} else if (oracool::HandleRunewordBookScroll(-1)) {
 				// consumed
