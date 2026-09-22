@@ -1336,12 +1336,13 @@ bool ReturnCraftGrid(Player &player)
 	return all;
 }
 
-/** @brief Ogden's recipes, in book order - the ones HostOfRecipe hands him. */
-std::vector<int> OgdenRecipes()
+/** @brief This artisan's recipes, in book order - the ones HostOfRecipe hands them. */
+std::vector<int> HostRecipes()
 {
+	const TransmuteHost host = Host == WorkshopHost::Mystic ? TransmuteHost::Barmaid : TransmuteHost::Tavern;
 	std::vector<int> recipes;
 	for (int i = 0; i < CraftingRecipeCount; i++) {
-		if (RecipeBelongsTo(i, TransmuteHost::Tavern))
+		if (RecipeBelongsTo(i, host))
 			recipes.push_back(i);
 	}
 	return recipes;
@@ -1420,7 +1421,7 @@ struct RecipeTextLine {
 std::vector<RecipeTextLine> RecipeTextLines(int width)
 {
 	std::vector<RecipeTextLine> lines;
-	for (const int recipe : OgdenRecipes()) {
+	for (const int recipe : HostRecipes()) {
 		lines.push_back({ std::string { _(CraftingRecipeName(recipe)) }, true });
 		const std::string wrapped = WordWrapString(_(CraftingRecipeInputs(recipe)), width, GameFont12);
 		size_t start = 0;
@@ -1439,9 +1440,22 @@ std::vector<RecipeTextLine> RecipeTextLines(int width)
 constexpr int RecipePad = 6;
 constexpr int RecipeIndent = 8;
 
+/**
+ * @brief Where this artisan's recipe list is drawn.
+ *
+ * OGDEN has a painted recipe frame and the list goes inside it. GILLIAN does not - her canvas is a
+ * portrait with open floor and no frame at all - so hers is drawn on the floor her window already
+ * uses for text, the same rect her offers menu occupies, ending clear of the message line at 602.
+ *
+ * The dark layer is what makes either readable, so the absence of a painted frame costs her nothing
+ * but the moulding. Inventing a frame in code for her would be the one thing the other windows have
+ * all stopped doing.
+ */
 Rectangle RecipeOpeningRect()
 {
 	const Rectangle page = PageRect();
+	if (Host == WorkshopHost::Mystic)
+		return Rectangle { page.position + Displacement { BoardRect.position.x, BoardRect.position.y }, { BoardRect.size.width, 260 } };
 	return Rectangle { page.position + Displacement { RecipeOpeningLeft, RecipeOpeningTop },
 		{ RecipeOpeningRight - RecipeOpeningLeft + 1, RecipeOpeningBottom - RecipeOpeningTop + 1 } };
 }
@@ -1531,7 +1545,15 @@ void DrawWorkshop(const Surface &out)
 	//
 	// The placeholder canvases KEEP their title - there the interior is drawn in code and the band
 	// is empty stone, so the window would otherwise have nothing naming it at all.
-	const bool painted = Host != WorkshopHost::Mystic && GetLoosePngSize(OgdenCanvasAsset).width > 0;
+	// Any PAINTED canvas loses the title; only the shared code-drawn placeholder keeps one, because
+	// there the band is empty stone and the window would have nothing naming it at all.
+	//
+	// Gillian was the last window in the game still printing a name over a portrait (2026-09-22).
+	// The stash, Griswold's tabs, all four vendors and Ogden lost theirs on 2026-09-21 for the same
+	// reason - her canvas has her standing in her own workshop, and "Mystic Workshop" over it says
+	// nothing the picture does not. Asked of the CANVAS rather than the host, so a future painting
+	// gets the rule for free.
+	const bool painted = canvas != JewellerCanvasAsset && GetLoosePngSize(canvas).width > 0;
 	if (!painted) {
 		DrawString(out, Host == WorkshopHost::Mystic ? _("Mystic Workshop") : _("Jeweller's Tables"), Panel(TitleRect),
 		    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
@@ -1806,14 +1828,9 @@ void RunControl(Control control)
 		// open the Levski page, which is a different window with a different painting and its own tab
 		// column - leaving the player two clicks from the board they started on.
 		//
-		// The MYSTIC keeps the hand-off: her recipes have no page of their own here, and sending her
-		// to the shared book is better than a tab that shows nothing.
-		if (tabs[slot] == Tab::Recipes && Host == WorkshopHost::Mystic) {
-			CloseWorkshop();
-			if (!IsWorkshopOpen())
-				OpenLevskiWindowFor(TransmuteHost::Barmaid);
-			break;
-		}
+		// GILLIAN'S STAY TOO, since 2026-09-22. She kept the hand-off only because she had no page of
+		// her own; she has one now, drawn on her painting's floor, so no tab in this window leads out
+		// of it any more. That was the session's firmest rule and she was the last exception to it.
 		OpenTab = tabs[slot];
 		SelectedRow = -1;
 		SelectedStockIdx = -1;
