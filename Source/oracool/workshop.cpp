@@ -1255,10 +1255,14 @@ void DrawCollectionBoard(const Surface &out)
 			    0xFFFFFFu, /*brightnessPercent=*/70, /*floorPercent=*/0, PAL16_GRAY);
 		}
 
-		// The counter, bottom left, on its own half-transparent ground so it reads over any icon.
+		// The counter, bottom RIGHT since 2026-09-22 (user: "move the badges of items in ogden shops
+		// from bottom left to bottom right"), on its own half-transparent ground so it reads over any
+		// icon. The box is as wide as the number needs, so the right edge is the fixed one now and
+		// the box grows leftward as the count reaches three figures.
 		const std::string text = StrCat(std::min(count, 99));
 		const int width = GetLineWidth(text, GameFont12) + 4;
-		const Rectangle box { { cell.position.x, cell.position.y + cell.size.height - 12 }, { width, 12 } };
+		const Rectangle box { { cell.position.x + cell.size.width - width, cell.position.y + cell.size.height - 12 },
+			{ width, 12 } };
 		DrawHalfTransparentRectTo(out, box.position.x, box.position.y, box.size.width, box.size.height);
 		DrawString(out, text, box,
 		    { (count == 0 ? UiFlags::ColorRed : UiFlags::ColorWhite) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });

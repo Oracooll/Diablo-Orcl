@@ -1764,6 +1764,76 @@ bool TryDrawBeltGlyph(const Surface &out, ArtAsset &strip, Rectangle cell, int s
 }
 
 
+/**
+ * THE THREE BUTTON SLOTS' COLOURS (user, 2026-09-22). Values, not indices - see
+ * DrawBeltGlyphTinted. The green and the red are the mod's own, the ones ColorOracoolGreen's band
+ * and the workshop's refusals already use, so a run toggle does not introduce a fourth green.
+ */
+constexpr uint32_t BeltGlyphBlue = 0x5090E0u;
+constexpr uint32_t BeltGlyphOrange = 0xF09030u;
+constexpr uint32_t BeltGlyphGreen = 0x64A064u;
+constexpr uint32_t BeltGlyphRed = 0xC04030u;
+
+/** @brief The item grids' slot art, in a belt cell, inside the plate (user, 2026-09-22). */
+void DrawBeltSlotFace(const Surface &out, Rectangle cell)
+{
+	const Size art = GetLoosePngSize(SlotBackgroundAsset);
+	if (art.width == 0)
+		return;
+	DrawSlotBackground(out,
+	    { { cell.position.x + (cell.size.width - art.width) / 2, cell.position.y + (cell.size.height - art.height) / 2 },
+	        art });
+}
+
+/**
+ * @brief TryDrawBeltGlyph with the glyph's WHITE replaced by @p rgb (user, 2026-09-22: "tint portal
+ * icon blue. tint burger menu icon oragne. tint running icon red for walk, green for run").
+ *
+ * The same recolour DrawTabGlyph has used since 2026-09-06 - a glyph strip is one quantised surface,
+ * white on the grey ramp's light end, so a recoloured draw is that cell copied through a rule that
+ * moves the white and leaves the shadow alone.
+ *
+ * What is NEW is that the colour is a VALUE. The tab's version writes another palette index, which
+ * is all an index can do and is why there is no green in it - the palette has not one entry of it.
+ * A 32-bit target takes the rgb straight; an indexed one takes @p fallbackIndex, which is the
+ * nearest the palette has and the honest answer where there are no colours to write.
+ */
+bool DrawBeltGlyphTinted(const Surface &out, ArtAsset &strip, Rectangle cell, int state, uint32_t rgb, uint8_t fallbackIndex)
+{
+	EnsureLoadedAll();
+	if (strip.rgba.empty())
+		return false;
+	const int frame = strip.height;
+	if (!IsGlyphFrame(strip, state, frame))
+		return false;
+	EnsureQuantized();
+	if (!strip.bright)
+		return false;
+	const Point origin { cell.position.x + (cell.size.width - frame) / 2,
+		cell.position.y + (cell.size.height - frame) / 2 };
+	for (int y = 0; y < frame; y++) {
+		for (int x = 0; x < frame; x++) {
+			const uint8_t c = (*strip.bright)[Point { state * frame + x, y }];
+			if (c == 0)
+				continue;
+			const Point at = origin + Displacement { x, y };
+			if (!out.InBounds(at))
+				continue;
+			// White is the grey ramp's top three entries after quantising; anything darker is the
+			// glyph's own shadow and is left exactly as it is, so the figure keeps its relief.
+			const bool white = c >= PAL16_GRAY && c < PAL16_GRAY + 3;
+			if (!white) {
+				out.SetPixelUnchecked(at, c);
+			} else if (out.isIndexed()) {
+				out.SetPixelUnchecked(at, fallbackIndex);
+			} else {
+				*out.at<uint32_t>(at.x, at.y) = rgb;
+			}
+		}
+	}
+	return true;
+}
+
 bool DrawMenuGlyph(const Surface &out, Rectangle cell, int index)
 {
 	return TryDrawBeltGlyph(out, MenuGlyphsArt, cell, index);
@@ -1826,7 +1896,8 @@ void DrawTownPortalIcon(const Surface &out, int state)
 	// down, the same cast as the belt items' (DrawBeltItemShadow).
 	const Rectangle cell = GetBeltSlotRect(BeltTownPortalSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
-	if (!TryDrawBeltGlyph(out, TownPortalGlyphsArt, cell, state))
+	DrawBeltSlotFace(out, cell);  // and the same slot art the item cells wear (2026-09-22)
+	if (!DrawBeltGlyphTinted(out, TownPortalGlyphsArt, cell, state, BeltGlyphBlue, PAL16_BLUE + 2))
 		DrawBeltButtonText(out, cell, "TP", UiFlags::ColorBlue, state);
 }
 
@@ -1842,7 +1913,8 @@ void DrawBurgerMenuButton(const Surface &out, int state)
 	// the history at v1.9.288.
 	const Rectangle cell = GetBeltSlotRect(BeltMenuSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
-	if (!TryDrawBeltGlyph(out, BurgerMenuGlyphsArt, cell, state))
+	DrawBeltSlotFace(out, cell);  // and the same slot art the item cells wear (2026-09-22)
+	if (!DrawBeltGlyphTinted(out, BurgerMenuGlyphsArt, cell, state, BeltGlyphOrange, PAL16_ORANGE + 2))
 		DrawBeltButtonText(out, cell, "M", UiFlags::ColorGold, state);
 }
 
@@ -1858,6 +1930,7 @@ void DrawRunToggleButton(const Surface &out, int state)
 	// ambiguous the moment you stop to think about it.
 	const Rectangle cell = GetBeltSlotRect(BeltRunToggleSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate every other belt cell wears
+	DrawBeltSlotFace(out, cell);  // and the same slot art the item cells wear (2026-09-22)
 
 	// The glyph sits 2px BELOW the cell's centre (user, 2026-09-12: "bring the run/walk icons 2px
 	// downward"). The traveller is drawn standing on the cell's floor rather than floating in it,
@@ -1866,8 +1939,12 @@ void DrawRunToggleButton(const Surface &out, int state)
 	// moves.
 	constexpr int GlyphDrop = 2;
 	const Rectangle glyphCell { cell.position + Displacement { 0, GlyphDrop }, cell.size };
+	// GREEN FOR RUN, RED FOR WALK (user, 2026-09-22). The colour says which mode is ON, which is the
+	// same thing the strip choice already says - a second reading of one fact, and the one the eye
+	// gets without resolving a 24px figure's legs.
 	const bool running = IsRunEnabled();
-	if (!TryDrawBeltGlyph(out, running ? RunGlyphsArt : WalkGlyphsArt, glyphCell, state))
+	if (!DrawBeltGlyphTinted(out, running ? RunGlyphsArt : WalkGlyphsArt, glyphCell, state,
+	        running ? BeltGlyphGreen : BeltGlyphRed, running ? PAL8_GREEN + 2 : PAL16_RED + 2))
 		DrawBeltButtonText(out, glyphCell, running ? "R" : "W", UiFlags::ColorWhitegold, state);
 }
 

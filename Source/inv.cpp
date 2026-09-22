@@ -1739,7 +1739,18 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// it, straight-line between - over the whole FOOTPRINT, not per cell, because the backing has
 	// been one piece per item since 2026-08-16 and a gradient restarting at every cell boundary
 	// would put six light bands down a 2x3 sword.
-	constexpr int TintGradientSpan = 15;
+	//
+	// THIRTY-FIVE, not the fifteen it shipped at (user: "i didnt notice gradient backing. are you
+	// sure gradient backing works?"). It worked; it was imperceptible. Fifteen was chosen against
+	// vanilla's stone and never re-checked against the slot art that replaced it, and the art is
+	// nearly black: its MEDIAN luminance is 5, and 499 of its 784 pixels are under 20.
+	//
+	// TintRectRgb computes level = (floor + lum * (255-floor) / 255) * brightness / 100, so on a
+	// median pixel a span of 15 moved the result from 27 to 36 - nine levels out of 255, under three
+	// per cent, spread down 28 rows and mostly hidden behind the item's own sprite. At 35 that same
+	// pixel runs 21 to 42, a doubling, which is what the dark majority needs before a ramp reads as
+	// a ramp. The bright end is well inside the clamp: L=150 runs 112 to 224.
+	constexpr int TintGradientSpan = 35;
 
 	// Hues from the palette's own ramps where a ramp is the colour (the light end, +2, but only the
 	// hue is used - TintRectRgb normalises it). Values where the palette has no such colour: the
@@ -1823,9 +1834,16 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// whole number of cells - the grid loops multiply itemCells by the cell size, and the body slots
 	// multiply slotSize - so the loop never leaves a remainder to overhang.
 	//
-	// The stone stays as the fallback. Without the file there would otherwise be nothing under the
-	// tint at all, and a tint over bare panel art is not a backing.
-	if (oracool::HasSlotBackgroundArt()) {
+	// THE GRID'S SLOTS ONLY (user, 2026-09-22: "remove the grid texture from backing of items when
+	// they are placed in item slots on the hero"). gridLines is already exactly that question: the
+	// grid loops leave it at its default and the body slots pass false, because a worn item has no
+	// cell boundaries to rule. A helm's slot is a painted shape on the character's doll, not a cell,
+	// and a 28px grid slot tiled four times across it says the wrong thing about what it is.
+	//
+	// The stone stays as the fallback - and is now the body slots' backing for good. Without the
+	// file there would otherwise be nothing under the tint at all, and a tint over bare panel art is
+	// not a backing.
+	if (gridLines && oracool::HasSlotBackgroundArt()) {
 		for (int y = 0; y < footprint.size.height; y += InventorySlotSizeInPixels.height) {
 			for (int x = 0; x < footprint.size.width; x += InventorySlotSizeInPixels.width) {
 				oracool::DrawSlotBackground(out,
@@ -2357,7 +2375,11 @@ void DrawInvBelt(const Surface &out)
 		// painting's own holes, 28 wide like the sprite, so as on the plateless row there is nothing
 		// to nudge into and +3 would hang the potion over the rim. The +3 was the third plate's and
 		// is kept in the history with it.
-		const Displacement BeltItemNudge { 0, 0 };
+		// FOUR RIGHT (user, 2026-09-22: "move belt consumables icons 4px to the right"). The nudge
+		// was retired to zero when the fifth HUD's belt cells became the painting's own holes; the
+		// user is looking at the current painting and the potions read left in them. Measured by eye
+		// against the art, as the +3 that preceded it was.
+		const Displacement BeltItemNudge { 4, 0 };
 		const Rectangle cell = oracool::GetBeltSlotRect(i);
 		const Point position = cell.position + BeltItemNudge
 		    + Displacement { (cell.size.width - InventorySlotSizeInPixels.width) / 2,
