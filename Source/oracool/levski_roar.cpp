@@ -507,7 +507,11 @@ constexpr const char *OgdenCubeCanvasAsset = "ui\\ogden_cube_canvas.png";
  * makes a recut canvas move the button with it.
  */
 constexpr const char *CubeTransmuteFrameAsset = "ui\\shop_button_frame.png";
-constexpr const char *CubeTransmuteGlyphAsset = "ui\\shop_glyph_refresh.png";
+// The Cube's OWN transmute icon since 2026-09-22 (Resources\Levski's Cube UI\Transmute Icon.png,
+// 112x112, reduced 4:1 to the 28px every glyph on these plates is). Griswold's Refresh glyph stood
+// in for it while the plate was new - it was the nearest thing to hand, and it said "reroll" on a
+// button that transmutes.
+constexpr const char *CubeTransmuteGlyphAsset = "ui\\shop_glyph_transmute.png";
 constexpr int CubeGridFrameLeft = 118;
 constexpr int CubeGridFrameRight = 224;
 constexpr int CubeGridFrameBottom = 541;

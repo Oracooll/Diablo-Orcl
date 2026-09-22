@@ -225,6 +225,20 @@ static_assert(BoardGoldCountRect.position.x + BoardGoldCountRect.size.width <= B
  */
 constexpr const char *OgdenCubeCanvasAsset = "ui\\ogden_cube_canvas.png";
 constexpr const char *OgdenRecipesCanvasAsset = "ui\\ogden_recipes_canvas.png";
+/**
+ * GILLIAN'S PAGES (user, 2026-09-22).
+ *
+ * MEASURED, and her recipe frame is Ogden's to the pixel: the band runs y 289..298 and 619..628, so
+ * the opening is x 29..310, y 299..618 - the same numbers, which is why her list needs no geometry
+ * of its own.
+ *
+ * Her CUBE canvas carries no well: diffing her two files shows they differ in one box at x 205..313,
+ * y 145..282 and nowhere else, and a scan of x 118..224 / y 406..541 - where Ogden's 3x4 well is
+ * painted - finds nothing. So her cube page is a framed page, not a grid page, and her Craft tab
+ * waits on a canvas with a well in it rather than on code drawing one.
+ */
+constexpr const char *GillianRecipesCanvasAsset = "ui\\gillian_recipes_canvas.png";
+constexpr const char *GillianCubeCanvasAsset = "ui\\gillian_cube_canvas.png";
 
 constexpr int CraftColumns = 3;
 constexpr int CraftRows = 4;
@@ -240,7 +254,9 @@ constexpr Rectangle CraftTransmuteRect {
 	{ (CraftFrameLeft + CraftFrameRight + 1) / 2 - CraftPlateSize / 2, CraftFrameBottom + 1 + 4 },
 	{ CraftPlateSize, CraftPlateSize }
 };
-constexpr const char *CraftTransmuteGlyphAsset = "ui\\shop_glyph_refresh.png";
+// The Cube's own transmute icon, shared with it (2026-09-22). Griswold's Refresh glyph stood in
+// while the plate was new and said "reroll" on a button that transmutes.
+constexpr const char *CraftTransmuteGlyphAsset = "ui\\shop_glyph_transmute.png";
 
 constexpr int RecipeOpeningLeft = 29;
 constexpr int RecipeOpeningTop = 299;
@@ -1424,7 +1440,9 @@ void DrawCraftPage(const Surface &out)
 Rectangle RecipeOpeningRect()
 {
 	const Rectangle page = PageRect();
-	if (Host == WorkshopHost::Mystic)
+	// Her painted frame when it is installed - the same opening as Ogden's, measured - and the floor
+	// her window already used for text when it is not.
+	if (Host == WorkshopHost::Mystic && GetLoosePngSize(GillianRecipesCanvasAsset).width == 0)
 		return Rectangle { page.position + Displacement { BoardRect.position.x, BoardRect.position.y }, { BoardRect.size.width, 260 } };
 	return Rectangle { page.position + Displacement { RecipeOpeningLeft, RecipeOpeningTop },
 		{ RecipeOpeningRight - RecipeOpeningLeft + 1, RecipeOpeningBottom - RecipeOpeningTop + 1 } };
@@ -1451,7 +1469,11 @@ void DrawWorkshop(const Surface &out)
 	// frame, his Craft tab the cube page, his Recipes tab the recipe frame. Each falls back to the
 	// one before it, so a build short of a file still draws a whole window rather than a blank tab.
 	const char *canvas = MysticCanvasAsset;
-	if (Host != WorkshopHost::Mystic) {
+	if (Host == WorkshopHost::Mystic) {
+		// Her recipe page has its own painting now (2026-09-22), framed exactly as Ogden's is.
+		if (OpenTab == Tab::Recipes && GetLoosePngSize(GillianRecipesCanvasAsset).width > 0)
+			canvas = GillianRecipesCanvasAsset;
+	} else {
 		canvas = GetLoosePngSize(OgdenCanvasAsset).width > 0 ? OgdenCanvasAsset : JewellerCanvasAsset;
 		if (OpenTab == Tab::Craft && GetLoosePngSize(OgdenCubeCanvasAsset).width > 0)
 			canvas = OgdenCubeCanvasAsset;
