@@ -232,38 +232,48 @@ constexpr const char *OgdenRecipesCanvasAsset = "ui\\ogden_recipes_canvas.png";
  * the opening is x 29..310, y 299..618 - the same numbers, which is why her list needs no geometry
  * of its own.
  *
- * Her CUBE canvas carries no well: diffing her two files shows they differ in one box at x 205..313,
- * y 145..282 and nowhere else, and a scan of x 118..224 / y 406..541 - where Ogden's 3x4 well is
- * painted - finds nothing. So her cube page is a framed page, not a grid page, and her Craft tab
- * waits on a canvas with a well in it rather than on code drawing one.
+ * THREE PAGES, THREE PAINTINGS (user, 2026-09-22: "use Gillian Single Item Frame for tabs 1 and 2 -
+ * where we need to place only one item", "use Gillian Multy-Item Frame for tab 3 where we need
+ * multiple items in one grid").
+ *
+ * All three are the same room. They differ ONLY in what stands in the small frame at the top right:
+ * nothing on the single-item file, a painted 3x4 well on the multi-item one, and the recipe file has
+ * no small frame at all. So her Reroll and Imbue tabs, which hold one item whatever its footprint,
+ * wear the empty frame; her Craft tab, which needs a grid, wears the well; and the big frame beneath
+ * carries the list and the message board on every one of them.
+ *
+ * The small frame MEASURED: borders x 207..216 and 304..313, y 145..154 and 270..280, so the opening
+ * is x 217..303, y 155..269 - 87 by 115.
+ *
+ * The WELL measured on the multi-item file: bright rules at x 245 and 274, y 183, 212 and 241, which
+ * is a 3x4 of 28px cells on a 29px pitch starting at (217,155) - the Roar's own cell, exactly as
+ * Ogden's well is, just moved up into her frame. Her craft grid is therefore his code with a
+ * different origin rather than a second grid.
  */
 constexpr const char *GillianRecipesCanvasAsset = "ui\\gillian_recipes_canvas.png";
-constexpr const char *GillianCubeCanvasAsset = "ui\\gillian_cube_canvas.png";
+/** The empty small frame: ONE item, any footprint (Reroll and Imbue). */
+constexpr const char *GillianFrameCanvasAsset = "ui\\gillian_frame_canvas.png";
+/** The same room with a 3x4 well painted into that frame (Craft). */
+constexpr const char *GillianCraftCanvasAsset = "ui\\gillian_craft_canvas.png";
 
-/**
- * HER CRAFT BENCH (user, 2026-09-22: "i redid gillian cube canvas. removed the grid from the small
- * frame. it will fit one item only").
- *
- * MEASURED on the redone canvas: the small frame's borders run x 207..216 and 304..313, y 145..154
- * and 270..280, so its opening is x 217..303, y 155..269 - 87 by 115. That is the same size as
- * Ogden's 3x4 well, which means it holds an item of any footprint up to 3x4 cells while showing no
- * cells at all: ONE item, whatever its size, which is the rule her bench has always followed.
- *
- * The Transmute plate sits below it, inside the big frame's opening, centred on the small frame.
- */
-constexpr Rectangle MysticCraftBenchRect { { 217, 155 }, { 87, 115 } };
-constexpr int MysticCraftPlateSize = 34;
-constexpr Rectangle MysticTransmuteRect {
-	{ (MysticCraftBenchRect.position.x + MysticCraftBenchRect.size.width / 2) - MysticCraftPlateSize / 2, 312 },
-	{ MysticCraftPlateSize, MysticCraftPlateSize }
-};
+/** @brief The small frame's opening - her one-item bench, and the box her craft well sits in. */
+constexpr Rectangle MysticFrameRect { { 217, 155 }, { 87, 115 } };
+/** @brief The top of the small frame's painted band: what the icon row above it must clear. */
+constexpr int MysticFrameBandTop = 145;
+/** @brief The right edge of that band (borders x 304..313): what the icon row lines up with. */
+constexpr int MysticFrameBandRight = 313;
 
 constexpr int CraftColumns = 3;
 constexpr int CraftRows = 4;
 constexpr int CraftSlots = CraftColumns * CraftRows;
 constexpr int CraftPitch = 29;
 constexpr int CraftCellPx = 28;
+/** Ogden's well, painted low on his cube canvas; hers is the small frame - see CraftGridOriginFor. */
 constexpr Point CraftGridOrigin { 128, 416 };
+constexpr Point MysticCraftGridOrigin { MysticFrameRect.position.x, MysticFrameRect.position.y };
+static_assert(CraftColumns * CraftPitch - 1 <= MysticFrameRect.size.width
+        && CraftRows * CraftPitch - 1 <= MysticFrameRect.size.height,
+    "her craft grid no longer fits the frame her canvas paints it in");
 constexpr int CraftFrameLeft = 118;
 constexpr int CraftFrameRight = 224;
 constexpr int CraftFrameBottom = 541;
@@ -308,22 +318,38 @@ constexpr const char *RemoveGlyphAsset = "ui\\shop_glyph_arrow_right.png";
 constexpr const char *CleanseGlyphAsset = "ui\\shop_glyph_repair.png";
 constexpr Rectangle TitleRect { { 22, 26 }, { 296, 40 } };
 constexpr Rectangle CloseRect { { 316, 5 }, { 18, 18 } };
-/** The one-item slot: 2x3 inventory cells, and it holds one item whatever its size (user, 2026-09-21). */
-constexpr Size SlotCells { 2, 3 };
-constexpr int CellPx = INV_SLOT_SIZE_PX;
-constexpr Rectangle SlotRect { { 30, 84 }, { SlotCells.width * CellPx, SlotCells.height * CellPx } };
-/** The list beside the slot: the affixes on the Reroll tab, the shards on the Imbue tab. */
+
+/**
+ * THE ICON ROW SITS ABOVE THE SMALL FRAME (user, 2026-09-22, said three times: "in tabs 1 2 3 place
+ * the icon buttons over the smaller frame").
+ *
+ * It used to run across the middle of the page at y 224, which was open stone while her window drew
+ * its own interior. On the painted canvases that line is the small frame itself and the dress of the
+ * woman beside it, so the row had to leave it.
+ *
+ * The WHOLE block clears the frame's painted band: the plate, the two pixels under it and the price
+ * line, four pixels above y 145. Nothing overlaps the moulding.
+ *
+ * SlotCells/SlotRect went with it. Her bench was a code-drawn 2x3 of inventory cells at (30,84);
+ * every page that has a bench now has a frame painted round it, so the bench is that frame.
+ */
+constexpr int MysticIconRowHeight = ServiceIconSize.height + ServicePriceGap + ServicePriceHeight;
+constexpr int MysticIconRowClearance = 4;
+constexpr int MysticIconRowTop = MysticFrameBandTop - MysticIconRowClearance - MysticIconRowHeight;
+static_assert(MysticIconRowTop > 66, "the icon row has walked up into the canvas's top band");
+
+/**
+ * THE BIG FRAME carries the list and the message board on every one of her pages.
+ *
+ * Her list was at (104,84) and her board at (30,336), laid out for a window that drew its own walls.
+ * Both now sit inside the painted opening - x 29..310, y 299..618, the same frame her recipes use -
+ * with the list at the top of it and the board beneath, on one dark layer.
+ */
 constexpr int ListLineHeight = 20;
 constexpr int ListLines = 6;
-constexpr Rectangle ListRect { { 104, 84 }, { 206, ListLines * ListLineHeight } };
-/** The two rows of buttons under them, and the gold line under those. */
-// ButtonSize, ButtonGap and ButtonRowPitch went with the word-buttons on 2026-09-22. Only the row's
-// TOP survives them: the icon plates sit on the same line the wide buttons did, so the page's
-// vertical rhythm is unchanged by the swap.
-constexpr int ButtonRowTop = 224;
-constexpr Rectangle GoldRect { { 30, 306 }, { 280, 18 } };
+constexpr Rectangle ListRect { { 33, 305 }, { 274, ListLines * ListLineHeight } };
 /** The message area: the alternatives menu, the refusals and the last thing that happened. */
-constexpr Rectangle BoardRect { { 30, 336 }, { 280, 276 } };
+constexpr Rectangle BoardRect { { 33, 433 }, { 274, 180 } };
 constexpr int BoardLineHeight = 20;
 
 // The tab column's own geometry is GONE (2026-09-22): TabRect asks GetSideTabRect now, so the
@@ -830,25 +856,35 @@ int GiveToPack(Player &player, int idx, int count)
  * the plate, and a rect that included the number would make the price itself pressable.
  */
 /**
- * @brief Where the one-item bench is on THIS page.
+ * @brief Where the one-item bench is - the frame her single-item canvas paints, on her Reroll and
+ * Imbue tabs.
  *
- * Her Craft tab puts it in the frame painted into that canvas; her Reroll and Imbue tabs keep the
- * code-drawn 2x3 slot they have always used. One function, because the draw, the hover and the click
- * must agree about where it is - and they are three different places in this file.
+ * Her Craft tab has no bench any more: the multi-item canvas paints a 3x4 well in that same frame,
+ * so Craft uses CraftSlotRect like Ogden's does. One function, because the draw, the hover and the
+ * click must agree about where the bench is - and they are three different places in this file.
  */
 Rectangle BenchSlotRect()
 {
-	if (Host == WorkshopHost::Mystic && OpenTab == Tab::Craft)
-		return Panel(MysticCraftBenchRect);
-	return Panel(SlotRect);
+	return Panel(MysticFrameRect);
 }
 
+/**
+ * @brief Icon @p index of a row of @p count, ABOVE the small frame.
+ *
+ * Centred on the FRAME rather than on the page (user: "place the icon buttons over the smaller
+ * frame"), then held inside the frame's own right edge - a row of three plates is 158px and the
+ * frame is 87, so a row centred on it would hang four pixels off the painted moulding. Held, the row
+ * ends exactly where the frame ends and reaches further left instead; it still covers the frame's
+ * whole width, which is what "over" has to mean for a row wider than the thing it is over.
+ */
 Rectangle ServiceIconRect(int index, int count)
 {
 	const Rectangle page = PageRect();
 	const int span = count * ServiceIconSize.width + (count - 1) * ServiceIconGap;
-	const int left = page.position.x + InnerLeft + (InnerRight - InnerLeft + 1 - span) / 2;
-	return Rectangle { { left + index * (ServiceIconSize.width + ServiceIconGap), page.position.y + ButtonRowTop },
+	const int centred = MysticFrameRect.position.x + MysticFrameRect.size.width / 2 - span / 2;
+	const int left = std::clamp(centred, InnerLeft, MysticFrameBandRight + 1 - span);
+	return Rectangle { { page.position.x + left + index * (ServiceIconSize.width + ServiceIconGap),
+	                       page.position.y + MysticIconRowTop },
 		ServiceIconSize };
 }
 
@@ -905,10 +941,12 @@ Rectangle ControlRect(Control control)
 	case Control::CancelStep:
 		return PendingStep != 0 ? Panel(BoardCancelRect) : Rectangle { { 0, 0 }, { 0, 0 } };
 	case Control::Transmute:
-		// Ogden's sits under his painted well; hers sits under the small frame her canvas paints.
+		// Ogden's sits under his painted well; hers stands ABOVE her small frame, on the same line
+		// and in the same place as Reroll's plate on the tab before it, so the button does not jump
+		// as the player moves between her pages.
 		if (OpenTab != Tab::Craft)
 			return Rectangle { { 0, 0 }, { 0, 0 } };
-		return Panel(Host == WorkshopHost::Mystic ? MysticTransmuteRect : CraftTransmuteRect);
+		return Host == WorkshopHost::Mystic ? ServiceIconRect(0, 1) : Panel(CraftTransmuteRect);
 	case Control::None:
 		break;
 	}
@@ -994,22 +1032,22 @@ void DrawTabColumn(const Surface &out)
 	}
 }
 
+/**
+ * @brief The one-item bench: what stands in the small frame her canvas paints.
+ *
+ * NOTHING is drawn for an empty bench. The plate fill, the gold outline and the 2x3 of cell lines
+ * this used to lay down were the bench itself, back when the window drew its own furniture; over a
+ * painted frame they are a second frame inside the first, and the cell lines describe a grid the
+ * painting does not have. The item is FITTED to the frame for the same reason the craft cells fit
+ * theirs: the bench takes any footprint, and a 2x3 sword at 1:1 would run out over the moulding.
+ */
 void DrawBench(const Surface &out)
 {
 	const Rectangle slot = BenchSlotRect();
-	FillRect(out, slot.position.x, slot.position.y, slot.size.width, slot.size.height, PlateFill);
-	OutlineRect(out, slot, FrameGold);
-	// The cell lines inside it, so it reads as the 2x3 the user asked for.
-	for (int x = CellPx; x < slot.size.width; x += CellPx)
-		FillRect(out, slot.position.x + x, slot.position.y, 1, slot.size.height, PAL16_GRAY + 9);
-	for (int y = CellPx; y < slot.size.height; y += CellPx)
-		FillRect(out, slot.position.x, slot.position.y + y, slot.size.width, 1, PAL16_GRAY + 9);
-	if (Bench.isEmpty())
-		return;
-	const ClxSprite sprite = GetInvItemSprite(Bench._iCurs + CURSOR_FIRSTITEM);
-	const Point topLeft { slot.position.x + (slot.size.width - static_cast<int>(sprite.width())) / 2,
-		slot.position.y + (slot.size.height - static_cast<int>(sprite.height())) / 2 };
-	DrawItem(Bench, out, { topLeft.x, topLeft.y + static_cast<int>(sprite.height()) - 1 }, sprite);
+	if (!Bench.isEmpty())
+		DrawSpriteToFit(out, slot, GetInvItemSprite(Bench._iCurs + CURSOR_FIRSTITEM));
+	if (slot.contains(MousePosition))
+		DrawHoverOutline(out, slot);
 }
 
 void DrawRerollList(const Surface &out)
@@ -1206,9 +1244,14 @@ void DrawServiceIcon(const Surface &out, Control control, const char *glyph, boo
 	}
 
 	// Wider than the plate by the row's own gap, so eight digits overhang into the air between icons
-	// rather than being clipped by a 34px box.
-	const Rectangle line { { rect.position.x - ServiceIconGap / 2, rect.position.y + rect.size.height + ServicePriceGap },
-		{ rect.size.width + ServiceIconGap, ServicePriceHeight } };
+	// rather than being clipped by a 34px box - but never past the canvas's opening, because the row
+	// now ends flush with the small frame and the plate on that end has painted moulding beside it
+	// rather than air.
+	const Rectangle page = PageRect();
+	const int lineLeft = std::max(page.position.x + InnerLeft, rect.position.x - ServiceIconGap / 2);
+	const int lineRight = std::min(page.position.x + InnerRight, rect.position.x + rect.size.width - 1 + ServiceIconGap / 2);
+	const Rectangle line { { lineLeft, rect.position.y + rect.size.height + ServicePriceGap },
+		{ std::max(rect.size.width, lineRight - lineLeft + 1), ServicePriceHeight } };
 	const bool afford = price <= 0 || static_cast<int>(TotalPlayerGold()) >= price;
 	DrawString(out, price > 0 ? FormatInteger(price) : std::string { _("Free") }, line,
 	    { (afford ? UiFlags::ColorWhitegold : UiFlags::ColorRed) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
@@ -1413,12 +1456,19 @@ void ResetWorkshopForNewGame()
 	Board.clear();
 }
 
+/** @brief Where the open host's craft well is painted - low on Ogden's canvas, high in hers. */
+Point CraftGridOriginFor()
+{
+	return Host == WorkshopHost::Mystic ? MysticCraftGridOrigin : CraftGridOrigin;
+}
+
 /** @brief Craft cell @p slot, in screen space. */
 Rectangle CraftSlotRect(int slot)
 {
 	const Rectangle page = PageRect();
-	return Rectangle { { page.position.x + CraftGridOrigin.x + (slot % CraftColumns) * CraftPitch,
-	                       page.position.y + CraftGridOrigin.y + (slot / CraftColumns) * CraftPitch },
+	const Point origin = CraftGridOriginFor();
+	return Rectangle { { page.position.x + origin.x + (slot % CraftColumns) * CraftPitch,
+	                       page.position.y + origin.y + (slot / CraftColumns) * CraftPitch },
 		{ CraftCellPx, CraftCellPx } };
 }
 
@@ -1500,30 +1550,46 @@ bool FindPackCharm(const Player &player, Item &out, int &idx)
 }
 
 /**
- * @brief Her first recipe the bench and the PACK can run together, or -1.
+ * @brief Her first recipe the GRID - alone, or with what the pack can lend it - can run, or -1.
  *
- * REAGENTS COME FROM THE PACK (user, 2026-09-22: "yes, pull reagents from the pack"), because her
- * bench holds one item and three of her four recipes need more than one input. That is her window's
- * own habit already - Imbue "takes the first shard your pack can spare" - but it is a different
- * contract from the Cube and Ogden, where everything must be placed in the grid.
+ * Her well holds twelve cells since 2026-09-22, so the grid is asked FIRST and on its own, exactly
+ * as Ogden's and the Cube's are. A player who lays out every input gets the plain contract every
+ * other crafting station in the mod has.
  *
- * Built as a SCRATCH GRID and handed to CanCraftFromLevskiGrid rather than re-deciding what each
- * recipe needs: the predicate that already answers this question is the one that must answer it, or
- * the bench and the monument would drift apart on what counts as craftable.
+ * THE PACK STILL LENDS (user, 2026-09-22: "yes, pull reagents from the pack"), as a second question
+ * asked only when the grid cannot answer the first. That is her window's own habit already - Imbue
+ * "takes the first shard your pack can spare" - and it costs a player who does place the reagents
+ * nothing at all.
  *
- * @p reagentIdx and @p reagentCount come back as what the pack owes, so the caller spends exactly
- * what the test passed on.
+ * Either way the answer comes from CanCraftFromLevskiGrid rather than from this function
+ * re-deciding what a recipe needs, or her bench and the monument would drift apart on what counts
+ * as craftable.
+ *
+ * @p reagentIdx and @p reagentCount come back as what the PACK owes - zero when the grid paid for
+ * itself - and @p reagentSlot as the scratch cell the loan was put in, which is the one cell the
+ * caller must not copy back.
  */
-int FindMysticRecipe(const Player &player, std::array<Item, CraftSlots> &scratch, int &reagentIdx, int &reagentCount)
+int FindMysticRecipe(const Player &player, std::array<Item, CraftSlots> &scratch, int &reagentIdx, int &reagentCount, int &reagentSlot)
 {
 	reagentIdx = 0;
 	reagentCount = 0;
-	if (Bench.isEmpty())
-		return -1;
+	reagentSlot = -1;
 	for (const int recipe : HostRecipes()) {
-		for (Item &slot : scratch)
-			slot.clear();
-		scratch[0] = Bench;
+		// The grid as it stands. A copy, because the predicate takes a mutable grid and nothing may
+		// be spent while the question is still being asked.
+		scratch = CraftGrid;
+		if (CanCraftFromLevskiGrid(scratch.data(), recipe))
+			return recipe;
+		// NEVER slot 0: that is where TransmuteLevskiGridWith leaves the result, and the caller has
+		// to be able to skip the loan's cell when it writes the scratch grid back. A loan sitting in
+		// the cell the result comes out of makes those two the same cell.
+		int free = -1;
+		for (int i = 1; i < CraftSlots && free < 0; i++) {
+			if (scratch[i].isEmpty())
+				free = i;
+		}
+		if (free < 0)
+			continue; // a full grid has nowhere to put a loan
 		int wantIdx = 0;
 		int wantCount = 0;
 		const int material = CraftingRecipeReagentItem(recipe);
@@ -1533,8 +1599,8 @@ int FindMysticRecipe(const Player &player, std::array<Item, CraftSlots> &scratch
 				continue;
 			// ONE stack is enough: FindGridReagents sums stackCount across the slots it finds, so a
 			// single item carrying the whole count satisfies it exactly as N separate ones would.
-			InitializeItem(scratch[1], static_cast<_item_indexes>(material));
-			scratch[1].setStackCount(count);
+			InitializeItem(scratch[free], static_cast<_item_indexes>(material));
+			scratch[free].setStackCount(count);
 			wantIdx = material;
 			wantCount = count;
 		} else if (recipe == ReworkCharmsRecipe) {
@@ -1544,14 +1610,17 @@ int FindMysticRecipe(const Player &player, std::array<Item, CraftSlots> &scratch
 			int charmIdx = 0;
 			if (!FindPackCharm(player, charm, charmIdx))
 				continue;
-			scratch[1] = charm;
+			scratch[free] = charm;
 			wantIdx = charmIdx;
 			wantCount = 1;
+		} else {
+			continue; // nothing the pack could add would change the answer
 		}
 		if (!CanCraftFromLevskiGrid(scratch.data(), recipe))
 			continue;
 		reagentIdx = wantIdx;
 		reagentCount = wantCount;
+		reagentSlot = free;
 		return recipe;
 	}
 	return -1;
@@ -1565,28 +1634,20 @@ void DrawCraftPage(const Surface &out)
 	DrawString(out, _("Crafting"), Panel(BoardTitleRect),
 	    { UiFlags::ColorGold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 
-	if (Host == WorkshopHost::Mystic) {
-		// HER bench is one item in the frame her canvas paints - no cells, because the canvas draws
-		// none and her recipes take one item plus reagents from the pack.
-		const Rectangle slot = BenchSlotRect();
-		if (!Bench.isEmpty()) {
-			DrawSpriteToFit(out, slot, GetInvItemSprite(Bench._iCurs + CURSOR_FIRSTITEM));
-		}
-		if (slot.contains(MousePosition))
-			DrawHoverOutline(out, slot);
-	} else {
-		for (int slot = 0; slot < CraftSlots; slot++) {
-			const Item &item = CraftGrid[slot];
-			if (item.isEmpty())
-				continue;
-			const Rectangle cell = CraftSlotRect(slot);
-			const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
-			// Fitted to the cell rather than drawn at 1:1: a craft grid takes items of every footprint,
-			// and a 2x3 sword drawn at its natural size would cover half the board. See DrawSpriteToFit.
-			DrawSpriteToFit(out, cell, sprite);
-			if (cell.contains(MousePosition))
-				DrawHoverOutline(out, cell);
-		}
+	// ONE grid, both hosts (2026-09-22). Hers was a one-item bench while her canvas painted an empty
+	// frame; the multi-item painting puts the same 3x4 well in that frame, so the only difference
+	// left between her craft page and his is where the well is - see CraftGridOriginFor.
+	for (int slot = 0; slot < CraftSlots; slot++) {
+		const Item &item = CraftGrid[slot];
+		if (item.isEmpty())
+			continue;
+		const Rectangle cell = CraftSlotRect(slot);
+		const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
+		// Fitted to the cell rather than drawn at 1:1: a craft grid takes items of every footprint,
+		// and a 2x3 sword drawn at its natural size would cover half the board. See DrawSpriteToFit.
+		DrawSpriteToFit(out, cell, sprite);
+		if (cell.contains(MousePosition))
+			DrawHoverOutline(out, cell);
 	}
 
 	// Griswold's Refresh plate as Transmute, as on Levski's Cube.
@@ -1596,7 +1657,8 @@ void DrawCraftPage(const Surface &out)
 		std::array<Item, CraftSlots> scratch {};
 		int idx = 0;
 		int count = 0;
-		ready = FindMysticRecipe(*MyPlayer, scratch, idx, count) >= 0;
+		int loanSlot = -1;
+		ready = FindMysticRecipe(*MyPlayer, scratch, idx, count, loanSlot) >= 0;
 	} else {
 		ready = FirstReadyLevskiRecipeFor(CraftGrid.data(), TransmuteHost::Tavern) >= 0;
 	}
@@ -1636,15 +1698,23 @@ void DrawCraftPage(const Surface &out)
  * but the moulding. Inventing a frame in code for her would be the one thing the other windows have
  * all stopped doing.
  */
-Rectangle RecipeOpeningRect()
+/**
+ * @brief The big frame's opening - x 29..310, y 299..618 - on every page of either window.
+ *
+ * ONE rect since 2026-09-22. It was the recipe page's alone, with Gillian falling back to open floor
+ * when her recipe painting had not landed; her Reroll, Imbue and Craft tabs now stand on the same
+ * frame, and all four of Ogden's already did.
+ */
+Rectangle FrameOpeningRect()
 {
 	const Rectangle page = PageRect();
-	// Her painted frame when it is installed - the same opening as Ogden's, measured - and the floor
-	// her window already used for text when it is not.
-	if (Host == WorkshopHost::Mystic && GetLoosePngSize(GillianRecipesCanvasAsset).width == 0)
-		return Rectangle { page.position + Displacement { BoardRect.position.x, BoardRect.position.y }, { BoardRect.size.width, 260 } };
 	return Rectangle { page.position + Displacement { RecipeOpeningLeft, RecipeOpeningTop },
 		{ RecipeOpeningRight - RecipeOpeningLeft + 1, RecipeOpeningBottom - RecipeOpeningTop + 1 } };
+}
+
+Rectangle RecipeOpeningRect()
+{
+	return FrameOpeningRect();
 }
 
 void DrawRecipesPage(const Surface &out)
@@ -1669,11 +1739,16 @@ void DrawWorkshop(const Surface &out)
 	// one before it, so a build short of a file still draws a whole window rather than a blank tab.
 	const char *canvas = MysticCanvasAsset;
 	if (Host == WorkshopHost::Mystic) {
-		// Her recipe page has its own painting now (2026-09-22), framed exactly as Ogden's is.
+		// ONE CANVAS PER PAGE for her too (user, 2026-09-22). Her Reroll and Imbue tabs hold one item
+		// and wear the empty small frame; her Craft tab holds a grid and wears the well painted into
+		// that same frame; her Recipes tab wears the frame alone. Each falls back to the one before
+		// it, so a build short of a file still draws a whole window rather than a blank tab.
 		if (OpenTab == Tab::Recipes && GetLoosePngSize(GillianRecipesCanvasAsset).width > 0)
 			canvas = GillianRecipesCanvasAsset;
-		else if (OpenTab == Tab::Craft && GetLoosePngSize(GillianCubeCanvasAsset).width > 0)
-			canvas = GillianCubeCanvasAsset;
+		else if (OpenTab == Tab::Craft && GetLoosePngSize(GillianCraftCanvasAsset).width > 0)
+			canvas = GillianCraftCanvasAsset;
+		else if (GetLoosePngSize(GillianFrameCanvasAsset).width > 0)
+			canvas = GillianFrameCanvasAsset;
 	} else {
 		canvas = GetLoosePngSize(OgdenCanvasAsset).width > 0 ? OgdenCanvasAsset : JewellerCanvasAsset;
 		if (OpenTab == Tab::Craft && GetLoosePngSize(OgdenCubeCanvasAsset).width > 0)
@@ -1710,9 +1785,16 @@ void DrawWorkshop(const Surface &out)
 		    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 	DrawTabColumn(out);
-	// The bench belongs to the MYSTIC's two tabs and nowhere else (2026-09-22). "Not a stock tab" was
-	// close enough while those were the only other pages; with Craft and Recipes here it would draw
-	// her 2x3 slot over Ogden's cube grid and his recipe list.
+	// THE DARK LAYER under everything her big frame carries (2026-09-22). Her list and her message
+	// board used to stand on the window's own stone; they stand inside a painting now, and a painting
+	// is not a background text can be read against. The same two passes her recipe page has always
+	// used, laid once for whatever the page puts on it.
+	//
+	// Her Recipes tab lays its own, because it lays it under a list that scrolls.
+	if (Host == WorkshopHost::Mystic && OpenTab != Tab::Recipes)
+		DrawThemedFill(out, FrameOpeningRect(), 2);
+	// The bench belongs to the MYSTIC's two tabs and nowhere else (2026-09-22). Her Craft tab had one
+	// while her canvas painted an empty frame; the well painted into that frame took its place.
 	if (OpenTab == Tab::Reroll || OpenTab == Tab::Imbue)
 		DrawBench(out);
 
@@ -1765,7 +1847,10 @@ void DrawWorkshop(const Surface &out)
 	// whatever was there - the collection board at 439..590, the craft grid at 416..541, the recipe
 	// list at 299..618. That is the third time this session a gate phrased as "not the other thing"
 	// broke the moment a third thing existed; this one says which tabs it means.
-	if (OpenTab == Tab::Reroll || OpenTab == Tab::Imbue) {
+	if (Host == WorkshopHost::Mystic && OpenTab != Tab::Recipes) {
+		// Her Craft tab joins the two that always had it (2026-09-22): its big frame would otherwise
+		// stand empty under the well, and what the bench refuses - "Nothing on the bench makes
+		// anything" - has to be readable somewhere.
 		DrawBoard(out);
 	} else {
 		DrawBoardMessage(out);
@@ -1834,11 +1919,22 @@ bool SetWorkshopHoverInfoString()
 {
 	if (!WindowOpen)
 		return false;
-	if (BenchSlotRect().contains(MousePosition) && !Bench.isEmpty()) {
+	// The bench, on the two tabs that have one. Asked of the TAB as well as the rect, because the
+	// craft well now shares that rect: without the gate, an item left on the bench would name itself
+	// under a cell holding something else.
+	if ((OpenTab == Tab::Reroll || OpenTab == Tab::Imbue)
+	    && BenchSlotRect().contains(MousePosition) && !Bench.isEmpty()) {
 		SetPanelString(Bench.getName(), Bench.getTextColor());
 		const std::string count = ImbueCountLine(Bench);
 		if (!count.empty())
 			AddPanelString(count, UiFlags::ColorWhite);
+		return true;
+	}
+	// The craft cells, both hosts. They had no hover text at all, which was survivable while the only
+	// grid was Ogden's low-painted well; hers stands in the frame her bench used to, where the player
+	// has every reason to expect a name.
+	if (const int cell = CraftSlotAt(MousePosition); cell >= 0 && !CraftGrid[cell].isEmpty()) {
+		SetPanelString(CraftGrid[cell].getName(), CraftGrid[cell].getTextColor());
 		return true;
 	}
 	if (ControlRect(Control::Reroll).contains(MousePosition)) {
@@ -2011,6 +2107,17 @@ void RunControl(Control control)
 		// GILLIAN'S STAY TOO, since 2026-09-22. She kept the hand-off only because she had no page of
 		// her own; she has one now, drawn on her painting's floor, so no tab in this window leads out
 		// of it any more. That was the session's firmest rule and she was the last exception to it.
+		// THE BENCH DOES NOT TRAVEL (2026-09-22). Only Reroll and Imbue draw it, so an item left on
+		// it while the player moved to Craft or Recipes would be invisible until the window closed -
+		// and on her Craft tab it would be invisible UNDER the well that now shares its frame. It
+		// goes back to the pack on the way out, and when there is nowhere to put it the tab does not
+		// change, which is the answer CloseWorkshop gives to the same question.
+		if (tabs[slot] != Tab::Reroll && tabs[slot] != Tab::Imbue && !Bench.isEmpty()) {
+			if (!ReturnBench()) {
+				SetBoard(std::string(_("Your pack is full - the bench keeps what it holds.")));
+				break;
+			}
+		}
 		OpenTab = tabs[slot];
 		SelectedRow = -1;
 		SelectedStockIdx = -1;
@@ -2203,7 +2310,8 @@ void RunControl(Control control)
 			std::array<Item, CraftSlots> scratch {};
 			int reagentIdx = 0;
 			int reagentCount = 0;
-			const int mine = FindMysticRecipe(player, scratch, reagentIdx, reagentCount);
+			int reagentSlot = -1;
+			const int mine = FindMysticRecipe(player, scratch, reagentIdx, reagentCount, reagentSlot);
 			if (mine < 0) {
 				SetBoard(std::string(_("Nothing on the bench makes anything.")));
 				break;
@@ -2213,12 +2321,18 @@ void RunControl(Control control)
 				SetBoard(made);
 				break;
 			}
-			// The reagents in the scratch grid were COPIES, made to ask the predicate its question.
-			// The real ones leave the pack HERE - after the work succeeded, never before, so a
-			// refusal cannot cost the player anything.
+			// The scratch grid was a COPY of her well, made to ask the predicate its question, and
+			// any reagent the PACK lent it was a copy too. Both are settled HERE, after the work
+			// succeeded and never before, so a refusal cannot cost the player anything:
+			//  - the copy is written back over the real well, which is what spends what was in it;
+			//  - the loan's cell is skipped, because that item was never on the well;
+			//  - and the pack pays for the loan exactly as the test was passed.
+			for (int i = 0; i < CraftSlots; i++) {
+				if (i != reagentSlot)
+					CraftGrid[i] = scratch[i];
+			}
 			if (reagentCount > 0)
 				TakeOwned(player, reagentIdx, reagentCount);
-			Bench = scratch[0]; // the result, which TransmuteLevskiGridWith leaves in slot 0
 			CalcPlrInv(player, true);
 			SetBoard(made);
 			if (!PlayUiEventSound(UiEventSound::Transmute))
@@ -2293,11 +2407,12 @@ bool CheckWorkshopClick(Point position)
 		return true;
 	}
 
-	// The bench is the MYSTIC's, on her two tabs only - the same tightening the draw got.
-	// Her Craft tab has a bench too - the frame painted into that canvas - so it joins the two tabs
-	// that always had one. Every OTHER page still has no bench and must not hit-test one.
-	if ((OpenTab == Tab::Reroll || OpenTab == Tab::Imbue
-	        || (Host == WorkshopHost::Mystic && OpenTab == Tab::Craft))
+	// The bench is the MYSTIC's, on her two one-item tabs only - the same tightening the draw got.
+	// Her Craft tab lost its bench to the painted well above (2026-09-22) and is hit-tested by
+	// CraftSlotAt like Ogden's. Every OTHER page has no bench and must not hit-test one: a control
+	// that is not drawn must not be clickable, which is the rule an invisible bench under Ogden's
+	// collection tabs taught this file already.
+	if ((OpenTab == Tab::Reroll || OpenTab == Tab::Imbue)
 	    && BenchSlotRect().contains(position)) {
 		if (!player.HoldItem.isEmpty()) {
 			if (!Bench.isEmpty()) {
