@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <string>
 
+#include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "options.h"        // panelDocking - bottom or middle is the player's call
 #include "utils/ui_fwd.h"  // gnScreenHeight - the line the panels dock against
@@ -343,6 +344,52 @@ int BottomDockedTop(int windowHeight)
 	if (slack <= 0)
 		return 0;
 	return *sgOptions.Oracool.panelDocking == PanelDocking::Middle ? slack / 2 : slack;
+}
+
+void DrawSpriteToFit(const Surface &out, Rectangle target, ClxSprite sprite, const uint8_t *trn)
+{
+	const int sw = static_cast<int>(sprite.width());
+	const int sh = static_cast<int>(sprite.height());
+	if (sw <= 0 || sh <= 0 || target.size.width <= 0 || target.size.height <= 0)
+		return;
+
+	// The largest box with the sprite's aspect ratio that fits inside the target. Integer arithmetic
+	// throughout: the RATIO is fractional, which is the whole point, but the pixel counts are not.
+	int dw = target.size.width;
+	int dh = sh * dw / sw;
+	if (dh > target.size.height) {
+		dh = target.size.height;
+		dw = sw * dh / sh;
+	}
+	if (dw <= 0 || dh <= 0)
+		return;
+
+	// The sprite rendered once at 1:1, to be sampled from. ClxDraw takes the BOTTOM-left corner.
+	OwnedSurface scratch(sw, sh);
+	SDL_FillRect(scratch.surface, nullptr, 0);
+	ClxDraw(scratch, { 0, sh - 1 }, sprite);
+
+	const Point topLeft { target.position.x + (target.size.width - dw) / 2,
+		target.position.y + (target.size.height - dh) / 2 };
+	for (int y = 0; y < dh; y++) {
+		const int dy = topLeft.y + y;
+		if (dy < 0 || dy >= out.h())
+			continue;
+		// Destination-driven: this row asks which source row it came from. The reverse - walking the
+		// source and writing a block per pixel - cannot tile a fractional ratio without leaving gaps.
+		const int sy = y * sh / dh;
+		for (int x = 0; x < dw; x++) {
+			const int dx = topLeft.x + x;
+			if (dx < 0 || dx >= out.w())
+				continue;
+			uint8_t index = *scratch.at(x * sw / dw, sy);
+			if (index == 0)
+				continue; // transparent, as index 0 is everywhere in this engine
+			if (trn != nullptr)
+				index = trn[index];
+			out.SetPixelUnchecked({ dx, dy }, index);
+		}
+	}
 }
 
 } // namespace devilution::oracool

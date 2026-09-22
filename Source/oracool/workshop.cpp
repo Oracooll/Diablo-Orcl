@@ -24,9 +24,11 @@
 #include "oracool/crafting.h"
 #include "oracool/ornate_border.h"
 #include "oracool/runewords.h"
+#include "oracool/shop_grid.h"
 #include "oracool/ui_sound.h"
 #include "oracool/window_close.h"
 #include "player.h"
+#include "qol/stash.h"
 #include "effects.h"
 #include "oracool/skill_sounds.h"
 #include "stores.h"
@@ -65,19 +67,47 @@ constexpr const char *JewellerCanvasAsset = "ui\\artisan_workshop.png";
  * qualities, thirty-five cells, thirty-five gems. The runes take the same board by ladder position,
  * which is how the stash orders them too, and 33 of them leave the last two cells empty.
  */
-constexpr int BoardColumns = 7;
-constexpr int BoardRows = 5;
-constexpr int BoardCellPx = 30;
 constexpr int BoardOpeningLeft = 64;
 constexpr int BoardOpeningTop = 439;
 constexpr int BoardOpeningWidth = 212;
 constexpr int BoardOpeningHeight = 152;
-constexpr Point BoardOrigin {
-	BoardOpeningLeft + (BoardOpeningWidth - BoardColumns * BoardCellPx) / 2,
-	BoardOpeningTop + (BoardOpeningHeight - BoardRows * BoardCellPx) / 2
+
+/**
+ * @brief One tab's board: how many cells, and how big, inside that same opening.
+ *
+ * PER TAB since 2026-09-22 (user: "Use different invisible grid in the Jewels Tab. In that tab we
+ * need 5x3 grid, not 7x5 [...] filling it completely"). The gems and runes need thirty-five cells
+ * and get 30px ones; the jewels need fifteen and can spend the whole opening on them, so their cells
+ * are 42x50 - the opening divided by five and by three, to the pixel.
+ */
+struct BoardShape {
+	int columns;
+	int rows;
+	int cellWidth;
+	int cellHeight;
 };
-constexpr int BoardSlots = BoardColumns * BoardRows;
-static_assert(BoardSlots >= 35, "the board no longer holds every gem");
+constexpr BoardShape GemBoard { 7, 5, 30, 30 };
+constexpr BoardShape JewelBoard { 5, 3, BoardOpeningWidth / 5, BoardOpeningHeight / 3 };
+static_assert(GemBoard.columns * GemBoard.rows >= 35, "the board no longer holds every gem");
+static_assert(JewelBoard.columns * JewelBoard.rows >= 15, "the board no longer holds every jewel");
+
+// ShapeFor is defined below, with the Tab enum it switches on.
+
+/** @brief The board's top-left for @p shape, centred in the frame's opening. */
+Point BoardOriginFor(const BoardShape &shape)
+{
+	return { BoardOpeningLeft + (BoardOpeningWidth - shape.columns * shape.cellWidth) / 2,
+		BoardOpeningTop + (BoardOpeningHeight - shape.rows * shape.cellHeight) / 2 };
+}
+
+/** @brief The widest board's left edge - what the row above is aligned to, so it cannot move per tab. */
+constexpr Point BoardOrigin {
+	BoardOpeningLeft + (BoardOpeningWidth - GemBoard.columns * GemBoard.cellWidth) / 2,
+	BoardOpeningTop + (BoardOpeningHeight - GemBoard.rows * GemBoard.cellHeight) / 2
+};
+constexpr int BoardColumns = GemBoard.columns;
+constexpr int BoardCellPx = GemBoard.cellWidth;
+constexpr int BoardMaxSlots = 35;
 
 /**
  * The row above the frame: the collection's name between two arrow plates, four pixels clear of the
@@ -96,8 +126,14 @@ constexpr Rectangle BoardUpgradeRect {
 	{ BoardOrigin.x + BoardColumns * BoardCellPx - BoardButtonSize, BoardButtonTop },
 	{ BoardButtonSize, BoardButtonSize }
 };
+/**
+ * FORTY pixels above the arrow row (user, 2026-09-22: "Move Gem Collection and Rune Collection
+ * titles 40px upwards"). Only the title moves; the two plates keep their four-pixel clearance over
+ * the painted band, so the name now stands clear of them on the open stone above.
+ */
+constexpr int BoardTitleLift = 40;
 constexpr Rectangle BoardTitleRect {
-	{ BoardDowngradeRect.position.x + BoardButtonSize, BoardButtonTop },
+	{ BoardDowngradeRect.position.x + BoardButtonSize, BoardButtonTop - BoardTitleLift },
 	{ BoardUpgradeRect.position.x - BoardDowngradeRect.position.x - BoardButtonSize, BoardButtonSize }
 };
 /**
@@ -110,14 +146,45 @@ constexpr Rectangle BoardTitleRect {
  * reason: below OrbClearanceBottom the window shares the screen with the orb, and a button drawn
  * under a sphere is a button the player cannot press.
  */
-constexpr Rectangle BoardMessageRect { { 30, 602 }, { 280, 22 } };
-constexpr Size BoardConfirmSize { 68, 24 };
+constexpr Rectangle BoardMessageRect { { 22, 602 }, { 295, 20 } };
+
+/**
+ * GRISWOLD'S GOLD (user, 2026-09-22: "Remove the current gold counter from all tabs and replace with
+ * Griswold style gold counter") - the pile with the number beneath it and no "Gold:" label, because
+ * the pile says what the number is. His own file, at his own left edge.
+ *
+ * At the FOOT of the window rather than his y, because this window's own frame runs to y 600 and his
+ * grid ends at 618: the two windows put the pair under their grid, and that is a different number in
+ * each. Left of x 175 like everything else down here - see the orb note below.
+ */
+constexpr const char *BoardGoldIconAsset = "ui\\shop_gold_icon.png";
+constexpr Point BoardGoldIconAt { 27, 626 };
+constexpr int BoardGoldIconHeight = 28;
+// EIGHTY wide, not Griswold's 140: his number has the whole width under his grid, and this one
+// shares its line with the confirmation at x 110. Eight digits at FontSize12 come to about seventy.
+constexpr Rectangle BoardGoldCountRect { { 25, BoardGoldIconAt.y + BoardGoldIconHeight - 1 }, { 80, 16 } };
+
+/**
+ * The two answers sit BESIDE the gold and stacked, not in a row under it.
+ *
+ * Everything here stays LEFT OF x 175, which is where the health orb's own rect begins on a 960-wide
+ * screen. Griswold's Refresh-until plate ends at 154 and the stash's gold at 165 for the same
+ * reason: below OrbClearanceBottom the window shares the screen with the orb, and a button drawn
+ * under a sphere is a button the player cannot press. That leaves 110..172 for the pair, which is
+ * one button wide - so they stack rather than sitting side by side.
+ */
+constexpr Size BoardConfirmSize { 62, 24 };
+constexpr int BoardConfirmLeft = 110;
 constexpr int BoardConfirmTop = 626;
-constexpr int BoardConfirmGap = 6;
-constexpr Rectangle BoardConfirmRect { { 30, BoardConfirmTop }, BoardConfirmSize };
-constexpr Rectangle BoardCancelRect { { 30 + BoardConfirmSize.width + BoardConfirmGap, BoardConfirmTop }, BoardConfirmSize };
+constexpr int BoardConfirmGap = 4;
+constexpr Rectangle BoardConfirmRect { { BoardConfirmLeft, BoardConfirmTop }, BoardConfirmSize };
+constexpr Rectangle BoardCancelRect {
+	{ BoardConfirmLeft, BoardConfirmTop + BoardConfirmSize.height + BoardConfirmGap }, BoardConfirmSize
+};
 static_assert(BoardCancelRect.position.x + BoardCancelRect.size.width < 175,
     "the confirmation runs under the health orb - keep it left of the orb's rect");
+static_assert(BoardGoldCountRect.position.x + BoardGoldCountRect.size.width <= BoardConfirmLeft,
+    "the gold readout runs into the confirmation beside it");
 
 constexpr const char *BoardButtonFrameAsset = "ui\\shop_button_frame.png";
 constexpr const char *BoardUpGlyphAsset = "ui\\shop_glyph_arrow_up.png";
@@ -145,10 +212,8 @@ constexpr Rectangle GoldRect { { 30, 306 }, { 280, 18 } };
 constexpr Rectangle BoardRect { { 30, 336 }, { 280, 276 } };
 constexpr int BoardLineHeight = 20;
 
-/** The tab column, at the shop's own geometry so the two read as one family. */
-constexpr int TabTop = 96;
-constexpr Size TabSize { 27, 80 };
-constexpr int TabGap = 3;
+// The tab column's own geometry is GONE (2026-09-22): TabRect asks GetSideTabRect now, so the
+// column is the shop's rather than a copy of it that had drifted to a 27px width and a 96px top.
 
 constexpr uint8_t FrameGold = PAL16_YELLOW + 10; // the item grid's own outline gold (v1.12.094)
 constexpr uint8_t PlateFill = PAL16_GRAY + 14;
@@ -299,10 +364,20 @@ Rectangle Panel(const Rectangle &rect)
 	return Rectangle { page.position + Displacement { rect.position.x, rect.position.y }, rect.size };
 }
 
+/**
+ * @brief One tab in the column beside the page - GRISWOLD'S column, since 2026-09-22.
+ *
+ * The user asked for his tabs here ("Tabs are code drawn - replace them with tab design from
+ * Griswald - using button assets and rotated text"), and this window docks in exactly the shop
+ * panel's rect, so the tabs must be exactly the shop's tabs: a column of its own at a slightly
+ * different top or width would be the same furniture in the wrong place, which is the difference the
+ * eye catches flipping between a vendor and Ogden.
+ *
+ * The local TabTop/TabSize/TabGap this replaced are gone with it.
+ */
 Rectangle TabRect(int index)
 {
-	const Rectangle page = PageRect();
-	return Rectangle { { page.position.x + page.size.width, page.position.y + TabTop + index * (TabSize.height + TabGap) }, TabSize };
+	return GetSideTabRect(index);
 }
 
 /** @brief The tabs @p host shows, in column order. */
@@ -339,6 +414,17 @@ const char *TabName(Tab tab)
 bool IsStockTab(Tab tab)
 {
 	return tab == Tab::Gems || tab == Tab::Runes || tab == Tab::Jewels;
+}
+
+/**
+ * @brief Which board @p tab draws: the gems' and runes' 7x5 of 30px cells, or the jewels' 5x3.
+ *
+ * Defined HERE rather than beside the shapes, because it switches on Tab and the enum is declared
+ * further down the file than the geometry is.
+ */
+BoardShape ShapeFor(Tab tab)
+{
+	return tab == Tab::Jewels ? JewelBoard : GemBoard;
 }
 
 bool StockMatches(Tab tab, int idx)
@@ -407,8 +493,9 @@ int StepDown(Tab tab, int idx)
  */
 int BoardSlotItem(Tab tab, int slot)
 {
-	const int column = slot % BoardColumns;
-	const int row = slot / BoardColumns;
+	const BoardShape shape = ShapeFor(tab);
+	const int column = slot % shape.columns;
+	const int row = slot / shape.columns;
 	switch (tab) {
 	case Tab::Gems:
 		if (column >= static_cast<int>(GemTypeCount) || row >= static_cast<int>(GemQualityCount))
@@ -473,6 +560,94 @@ void TakeFromPack(Player &player, int idx, int count)
 			}
 		}
 	}
+}
+
+/**
+ * THE STASH COUNTS TOO (user, 2026-09-22: "Gems and Runes tabs must be able to see also runes and
+ * gems inside Stash, not just in Backpack").
+ *
+ * The board asked CountInPack, which walks the backpack and its tabs and stops there - so a player
+ * whose gems were all in the stash saw a board of red zeroes and greyed arrows while standing on a
+ * hoard of them. Everything below reads and spends BOTH stores, pack first.
+ *
+ * Pack first is deliberate rather than arbitrary: it is what the player is carrying, it is what they
+ * can see without opening another window, and spending it keeps the stash as the deeper store.
+ */
+int CountInStash(int idx)
+{
+	int total = 0;
+	for (const Item &item : Stash.stashList) {
+		if (!item.isEmpty() && item.IDidx == idx)
+			total += std::max(1, item.stackCount());
+	}
+	return total;
+}
+
+int CountOwned(const Player &player, int idx)
+{
+	return CountInPack(player, idx) + CountInStash(idx);
+}
+
+/** @brief Takes up to @p count of @p idx out of the stash, stacks included. */
+void TakeFromStash(int idx, int count)
+{
+	int owed = count;
+	// BACKWARDS, because RemoveStashItem erases from the list and every index after it shifts down.
+	for (int i = static_cast<int>(Stash.stashList.size()) - 1; i >= 0 && owed > 0; i--) {
+		Item &item = Stash.stashList[i];
+		if (item.isEmpty() || item.IDidx != idx)
+			continue;
+		const int units = std::max(1, item.stackCount());
+		if (units <= owed) {
+			owed -= units;
+			Stash.RemoveStashItem(static_cast<StashStruct::StashCell>(i));
+		} else {
+			item.setStackCount(units - owed);
+			owed = 0;
+		}
+	}
+}
+
+/** @brief Takes @p count of @p idx from wherever the player keeps them - the pack, then the stash. */
+void TakeOwned(Player &player, int idx, int count)
+{
+	const int fromPack = std::min(count, CountInPack(player, idx));
+	if (fromPack > 0)
+		TakeFromPack(player, idx, fromPack);
+	if (count > fromPack)
+		TakeFromStash(idx, count - fromPack);
+}
+
+/** @brief Where a made item ended up, so the board can say so under the grid. */
+enum class Landing : uint8_t {
+	Backpack,
+	Stash,
+	Ground,
+	Nowhere,
+};
+
+/**
+ * @brief Puts one @p idx where there is room: the backpack, else the stash, else the floor.
+ *
+ * The user's order exactly (2026-09-22): "land in backpack if there is enough space, otherwize land
+ * in Stash [...] If both full - drop on ground." The floor is the last resort rather than a refusal,
+ * because the materials have already been spent by the time this is called - refusing here would
+ * either swallow them or need the whole step undone, and a dropped item is at the player's feet.
+ */
+Landing GiveOwned(Player &player, int idx)
+{
+	Item made;
+	InitializeItem(made, static_cast<_item_indexes>(idx));
+	GenerateNewSeed(made);
+	made._iIdentified = true;
+	made.updateRequiredStatsCacheForPlayer(player);
+	if (AutoPlaceItemInInventory(player, made, true))
+		return Landing::Backpack;
+	if (AutoPlaceItemInStash(player, made, true))
+		return Landing::Stash;
+	if (PlaceItemInWorld(std::move(made), player.position.tile) != 0)
+		return Landing::Ground;
+	return Landing::Nowhere;
 }
 
 /** @brief Puts @p count of @p idx into the pack. Returns how many actually fitted. */
@@ -633,27 +808,16 @@ void DrawTabColumn(const Surface &out)
 {
 	const std::vector<Tab> tabs = TabsFor(Host);
 	for (int i = 0; i < static_cast<int>(tabs.size()); i++) {
-		const Rectangle rect = TabRect(i);
 		const bool active = tabs[i] == OpenTab;
 		// Held down: the face sinks and springs back on the release, like every other button here (user,
 		// 2026-09-21: "make all tab buttons on all vendors sinkable on click"). The hit test stays on the
 		// unsunk rect, so a tab cannot slide out from under a pointer that has not moved.
 		const bool held = Pressed == static_cast<Control>(static_cast<int>(Control::Tab0) + i);
-		const Rectangle face { rect.position + (held ? PressSink : Displacement { 0, 0 }), rect.size };
-		FillRect(out, face.position.x, face.position.y, face.size.width, face.size.height, active ? PlateEdge : PlateFill);
-		OutlineRect(out, face, active ? FrameGold : PlateEdge);
-		// No rotated text in this engine: a vertical label is a stack of capitals.
-		const std::string label = std::string(_(TabName(tabs[i])));
-		const int lineHeight = GetLineHeight("A", GameFont12);
-		int y = face.position.y + (face.size.height - static_cast<int>(label.size()) * lineHeight) / 2;
-		for (const char ch : label) {
-			const std::string one(1, static_cast<char>(std::toupper(static_cast<unsigned char>(ch))));
-			DrawString(out, one, Rectangle { { face.position.x, y }, { face.size.width, lineHeight } },
-			    { (active ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12 | UiFlags::AlignCenter });
-			y += lineHeight;
-		}
-		if (rect.contains(MousePosition))
-			BrightenRectRgb(out, face.position.x, face.position.y, face.size.width, face.size.height, HoverBrightenPercent);
+		// Griswold's own tab, drawn by his own helper (2026-09-22): the vanilla dialog button laid on
+		// its side with the label reading down it, the sink on the press, the hover. The plate and the
+		// stack of capitals this replaced were a code-drawn stand-in from before that art existed, and
+		// the difference showed the moment the two windows sat in the same slot.
+		DrawSideTab(out, i, _(TabName(tabs[i])), active, held);
 	}
 }
 
@@ -725,15 +889,24 @@ void DrawImbueList(const Surface &out)
 Rectangle BoardSlotRect(int slot)
 {
 	const Rectangle page = PageRect();
-	return Rectangle { { page.position.x + BoardOrigin.x + (slot % BoardColumns) * BoardCellPx,
-	                       page.position.y + BoardOrigin.y + (slot / BoardColumns) * BoardCellPx },
-		{ BoardCellPx, BoardCellPx } };
+	const BoardShape shape = ShapeFor(OpenTab);
+	const Point origin = BoardOriginFor(shape);
+	return Rectangle { { page.position.x + origin.x + (slot % shape.columns) * shape.cellWidth,
+	                       page.position.y + origin.y + (slot / shape.columns) * shape.cellHeight },
+		{ shape.cellWidth, shape.cellHeight } };
+}
+
+/** @brief How many cells the open tab's board has. */
+int BoardSlotCount()
+{
+	const BoardShape shape = ShapeFor(OpenTab);
+	return shape.columns * shape.rows;
 }
 
 /** @brief The board cell under @p position, or -1. */
 int BoardSlotAt(Point position)
 {
-	for (int slot = 0; slot < BoardSlots; slot++) {
+	for (int slot = 0; slot < BoardSlotCount(); slot++) {
 		if (BoardSlotRect(slot).contains(position))
 			return slot;
 	}
@@ -761,23 +934,40 @@ const char *BoardTitle(Tab tab)
  *  - and the icon DESATURATED for a kind not possessed, so the board reads at a glance as what has
  *    been found and what has not.
  *
- * The count comes from CountInPack, which walks the backpack and its tabs - so it is "what you are
- * carrying", not "what exists in the world", which is the only number the buttons below can act on.
+ * The count is CountOwned - the backpack, its tabs AND the stash (user, 2026-09-22). It was the pack
+ * alone, which showed a board of red zeroes and greyed arrows to a player whose gems were all in the
+ * stash. It is still "what you have", never "what exists": the arrows can only spend what it counts.
  */
 void DrawCollectionBoard(const Surface &out)
 {
 	const Player &player = *MyPlayer;
-	for (int slot = 0; slot < BoardSlots; slot++) {
+	for (int slot = 0; slot < BoardSlotCount(); slot++) {
 		const int idx = BoardSlotItem(OpenTab, slot);
 		if (idx == 0)
 			continue; // a cell standing for nothing: the runes' last two, the jewels' spare columns
 		const Rectangle cell = BoardSlotRect(slot);
-		const int count = CountInPack(player, idx);
+		const int count = CountOwned(player, idx);
 
 		const ClxSprite sprite = GetInvItemSprite(AllItemsList[idx].iCurs + CURSOR_FIRSTITEM);
-		const Point topLeft { cell.position.x + (cell.size.width - static_cast<int>(sprite.width())) / 2,
-			cell.position.y + (cell.size.height - static_cast<int>(sprite.height())) / 2 };
-		ClxDraw(out, { topLeft.x, topLeft.y + static_cast<int>(sprite.height()) - 1 }, sprite);
+		if (OpenTab == Tab::Jewels) {
+			// EIGHTY PER CENT of the jewels' roomier cell (user, 2026-09-22: "You can increase their
+			// icon size to fit 80% on new grid size"). 80% of 42x50 is 33x40, and a square 28px sprite
+			// fitted into that comes out 33 - bigger than its natural size, which is the point.
+			//
+			// DrawSpriteToFit rather than DrawSpriteScaled: the latter takes an integer factor, so it
+			// could only offer 28 or 56 here. See ornate_border.h.
+			constexpr int IconPercent = 80;
+			const Rectangle icon { { cell.position.x + cell.size.width * (100 - IconPercent) / 200,
+				                       cell.position.y + cell.size.height * (100 - IconPercent) / 200 },
+				{ cell.size.width * IconPercent / 100, cell.size.height * IconPercent / 100 } };
+			DrawSpriteToFit(out, icon, sprite);
+		} else {
+			// The gems' and runes' 30px cell is barely larger than the 28px sprite, so it is drawn at
+			// its natural size: fitting it to 80% would make these icons SMALLER, not bigger.
+			const Point topLeft { cell.position.x + (cell.size.width - static_cast<int>(sprite.width())) / 2,
+				cell.position.y + (cell.size.height - static_cast<int>(sprite.height())) / 2 };
+			ClxDraw(out, { topLeft.x, topLeft.y + static_cast<int>(sprite.height()) - 1 }, sprite);
+		}
 		if (count == 0) {
 			// The same white-hue pass every inactive plate in this mod wears, so "you have none of
 			// these" looks the same here as "this button does nothing" does at Griswold's.
@@ -1024,7 +1214,7 @@ void DrawWorkshop(const Surface &out)
 		// replaced showed only what the pack held; the board shows the whole collection.
 		DrawCollectionBoard(out);
 		const int picked = SelectedStockIdx;
-		const int held = picked > 0 ? CountInPack(*MyPlayer, picked) : 0;
+		const int held = picked > 0 ? CountOwned(*MyPlayer, picked) : 0;
 		const int up = picked > 0 ? StepUp(OpenTab, picked) : 0;
 		const int down = picked > 0 ? StepDown(OpenTab, picked) : 0;
 		DrawBoardArrow(out, Control::Upgrade, up != 0 && held >= StepUpCost(OpenTab));
@@ -1040,8 +1230,12 @@ void DrawWorkshop(const Surface &out)
 		DrawPlateButton(out, Control::Cleanse, StrCat(_("CLEANSE"), Bench.isEmpty() ? "" : StrCat("  ", FormatInteger(CleansePrice(Bench)))), !Bench.isEmpty());
 	}
 
-	DrawString(out, StrCat(_("Gold"), ": ", FormatInteger(static_cast<int>(TotalPlayerGold()))), Panel(GoldRect),
-	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	// Griswold's pair, on every tab (user, 2026-09-22): the pile, with the number beneath it and no
+	// "Gold:" in front of it. The centred label that stood at y 306 is gone with the words.
+	if (GetLoosePngSize(BoardGoldIconAsset).width > 0)
+		DrawLoosePng(out, BoardGoldIconAsset, page.position + Displacement { BoardGoldIconAt.x, BoardGoldIconAt.y });
+	DrawString(out, FormatInteger(static_cast<int>(TotalPlayerGold())), Panel(BoardGoldCountRect),
+	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	if (IsStockTab(OpenTab)) {
 		// The old message panel runs y 336..612 and the collection board sits at 439..590 INSIDE it,
 		// so on these tabs it is not drawn at all - it would be a grey slab over every icon. The
@@ -1125,7 +1319,7 @@ bool SetWorkshopHoverInfoString()
 		if (slot >= 0) {
 			const int idx = BoardSlotItem(OpenTab, slot);
 			if (idx != 0) {
-				const int held = CountInPack(*MyPlayer, idx);
+				const int held = CountOwned(*MyPlayer, idx);
 				SetPanelString(_(AllItemsList[idx].iName), UiFlags::ColorWhitegold);
 				AddPanelString(held > 0
 				        ? fmt::format(fmt::runtime(_("You carry {:d}.")), held)
@@ -1199,19 +1393,34 @@ void RunStep(bool up)
 		return;
 	}
 	const int cost = up ? StepUpCost(OpenTab) : 1;
-	if (CountInPack(player, idx) < cost) {
+	if (CountOwned(player, idx) < cost) {
 		SetBoard(fmt::format(fmt::runtime(_("You need {:d} of those.")), cost));
 		return;
 	}
-	TakeFromPack(player, idx, cost);
-	const int placed = GiveToPack(player, made, 1);
+	TakeOwned(player, idx, cost);
+	const Landing where = GiveOwned(player, made);
 	CalcPlrInv(player, true);
-	if (placed == 0) {
-		SetBoard(std::string(_("Your pack had no room - the work was undone.")));
-		GiveToPack(player, idx, cost); // put them back rather than swallow them
-		return;
+	// WHERE IT WENT, under the grid (user, 2026-09-22: "Under the grid frame is where you will inform
+	// about where the new item landed. Sent to Backpack, Sent to Stash"). The name comes with it: the
+	// board has thirty-five cells and "Sent to Stash" alone does not say what was sent.
+	// Explicitly constructed: _() hands back a string_view here, which fmt takes but std::string will
+	// not implicitly adopt.
+	const std::string name { _(AllItemsList[made].iName) };
+	switch (where) {
+	case Landing::Backpack:
+		SetBoard(fmt::format(fmt::runtime(_("{:s} - sent to Backpack")), name));
+		break;
+	case Landing::Stash:
+		SetBoard(fmt::format(fmt::runtime(_("{:s} - sent to Stash")), name));
+		break;
+	case Landing::Ground:
+		SetBoard(fmt::format(fmt::runtime(_("{:s} - both full, dropped at your feet")), name));
+		break;
+	case Landing::Nowhere:
+		// Nothing took it, not even the floor. Said plainly rather than silently swallowed.
+		SetBoard(fmt::format(fmt::runtime(_("{:s} - nowhere to put it")), name));
+		break;
 	}
-	SetBoard(StrCat(_("Made"), " ", placed, " ", _(AllItemsList[made].iName)));
 	PlaySFX(up ? IS_FROCK : IS_SHATTER);
 }
 

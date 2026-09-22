@@ -310,6 +310,21 @@ void TalkToBarOwner(Player &player, Towner &barOwner)
 	// Every branch below that used to play its text and return now QUEUES the text and falls through
 	// to the menu, which plays it under "Talk to Ogden" (TavernEnter). The first-visit intro too.
 	const auto queue = [](_speech_id text) { PendingOgdenQuestText = text; };
+
+	// HIS WELCOME, on every click (user, 2026-09-22: "Ogden is silent when clocked on - bring his
+	// welcoming audio file back").
+	//
+	// He fell silent when the quest speech was deferred on 2026-09-20: the very first branch below
+	// is `!player._pLvlVisited[0]`, which is true for any character who has not yet been down to
+	// level 1, so an early click queued the intro, opened the menu and played NOTHING. His welcome
+	// only ever reached the ear after the first dungeon visit with no quest pending.
+	//
+	// The SOUND alone, not TownerTalk: InitQTextMsg opens the quest-text panel over the menu, and
+	// keeping that panel off Ogden's click is the whole point of the 2026-09-20 change. So the
+	// greeting is heard and the menu still opens unblocked - both requests at once.
+	CowClicks = 0;
+	CowMsg = 0;
+	PlaySFX(Speeches[TEXT_OGDEN1].sfxnr);
 	if (!player._pLvlVisited[0]) {
 		queue(TEXT_INTRO);
 		StartStore(TalkID::Tavern);
@@ -370,7 +385,9 @@ void TalkToBarOwner(Player &player, Towner &barOwner)
 		}
 	}
 
-	TownerTalk(TEXT_OGDEN1);
+	// The welcome already sounded at the top, on every path. TownerTalk would play it a SECOND time
+	// and open the quest-text panel over the menu with it, which is the one thing this click must
+	// not do; the cow counters it resets are reset up there too.
 	StartStore(TalkID::Tavern);
 }
 

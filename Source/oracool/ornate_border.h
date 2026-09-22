@@ -18,6 +18,7 @@
 #include <cstdint>
 
 #include "DiabloUI/ui_flags.hpp"
+#include "engine/clx_sprite.hpp"
 #include "engine/palette.h"
 #include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
@@ -303,5 +304,23 @@ void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rec
 void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rectangle anchor, Rectangle avoid);
 /** @brief Whether @p line is one of the block builders' headings ("Current Skill Level: 3", "Next Level"), drawn gold. */
 bool IsHoverHeadingLine(string_view line);
+
+/**
+ * @brief Draws @p sprite scaled to fill @p target, keeping its aspect ratio and centred in it.
+ *
+ * A FRACTIONAL scaler (user, 2026-09-22). The one this joins - DrawSpriteScaled in levski_roar.cpp -
+ * takes an integer, so a 28px item icon can be 28 or 56 and nothing between; asked to fill four
+ * fifths of a 42px cell it could only overshoot or undershoot by a third. This takes the box instead
+ * of a factor and works out the ratio itself.
+ *
+ * Nearest-neighbour, and driven from the DESTINATION rather than the source: a source-driven loop at
+ * a fractional ratio leaves unwritten pixels wherever two destination pixels fall to one source one,
+ * which reads as holes punched through the icon. Every destination pixel asking which source pixel
+ * it came from cannot leave a gap.
+ *
+ * Index 0 is transparent, as everywhere else in this engine. @p trn remaps the indices when given,
+ * for the greyed-out draw.
+ */
+void DrawSpriteToFit(const Surface &out, Rectangle target, ClxSprite sprite, const uint8_t *trn = nullptr);
 
 } // namespace devilution::oracool
