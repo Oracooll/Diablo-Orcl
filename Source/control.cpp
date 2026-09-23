@@ -39,6 +39,7 @@
 #include "options.h"
 #include "oracool/attack_skills.h"
 #include "oracool/auto_save.h"
+#include "oracool/dev_notes.h" // LogDevelopmentNote: the /dev chat command
 #include "oracool/skill_picker.h"
 #include "oracool/class_tree.h" // the burning aura is what the RMB well holds
 #include "oracool/event_log.h"
@@ -621,8 +622,20 @@ std::string TextCmdLevelSeed(const string_view parameter)
 	    "Storybook: ", glSeedTbl[16]);
 }
 
+/**
+ * @brief /dev <note> - files a development note (user, 2026-09-23: "Type /dev in the game").
+ *
+ * In THIS list rather than debug.cpp's, which only exists under _DEBUG and speaks through the red
+ * cheat-console channel. A note is not a cheat. See oracool/dev_notes.h.
+ */
+std::string TextCmdDev(const string_view parameter)
+{
+	return oracool::LogDevelopmentNote(parameter);
+}
+
 std::vector<TextCmdItem> TextCmdList = {
 	{ N_("/help"), N_("Prints help overview or help for a specific command."), N_("[command]"), &TextCmdHelp },
+	{ N_("/dev"), N_("Files a development note in development.md, stamped with the time, the build and where you stand."), N_("<note>"), &TextCmdDev },
 	{ N_("/arena"), N_("Enter a PvP Arena."), N_("<arena-number>"), &TextCmdArena },
 	{ N_("/arenapot"), N_("Gives Arena Potions."), N_("<number>"), &TextCmdArenaPot },
 	{ N_("/inspect"), N_("Inspects stats and equipment of another player."), N_("<player name>"), &TextCmdInspect },

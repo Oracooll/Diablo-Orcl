@@ -119,6 +119,7 @@ set(libdevilutionx_SRCS
   oracool/treasure_class.cpp
   oracool/imbuement.cpp
   oracool/level_requirement.cpp
+  oracool/dev_notes.cpp
   oracool/rift.cpp
   oracool/stonegate.cpp
   oracool/stonegate_menu.cpp
@@ -370,7 +371,12 @@ file(GENERATE OUTPUT ${CONFIG_PATH} CONTENT
 #define ORACOOL_VERSION_MAJOR ${ORACOOL_VERSION_MAJOR}
 #define ORACOOL_VERSION_MINOR ${ORACOOL_VERSION_MINOR}
 #define ORACOOL_VERSION_PATCH ${ORACOOL_VERSION_PATCH}
+#define ORACOOL_SOURCE_DIR \"${CMAKE_SOURCE_DIR}\"
 ")
+# ORACOOL_SOURCE_DIR (2026-09-23) is where the in-game /dev command files its notes - development.md
+# at the repository root, the same file the notes are later processed from. oracool/dev_notes.cpp
+# reads it ONLY under _DEBUG: an unused macro emits nothing, so a release binary never carries the
+# developer's local path, and falls back to the preferences folder instead.
 
 if(DISCORD_INTEGRATION)
   target_compile_definitions(libdevilutionx PRIVATE DISCORD)
