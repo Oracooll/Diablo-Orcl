@@ -4270,6 +4270,10 @@ bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid)
 	}
 	if (baseItemIndex == IDI_GOLD)
 		return false;
+	// A unique on a shrunken head is for a Necromancer only, as the heads themselves are (audit,
+	// 2026-09-24): the shelf offered them to heroes who cannot equip them.
+	if (oracool::IsNecroHeadIdx(baseItemIndex) && !oracool::NecroHeadsMayDrop())
+		return false;
 
 	item = {};
 	item._iSeed = AdvanceRndSeed();
@@ -7785,6 +7789,27 @@ _item_indexes RndOracoolGearBase(int lvl)
 	return candidates[GenerateRnd(static_cast<int>(candidateCount))];
 }
 
+/** @brief One Oracool gear base of @p type at this depth, or IDI_NONE - Wirt's Gamble slots (2026-09-24). */
+_item_indexes RndOracoolGearBaseOfType(int lvl, ItemType type)
+{
+	const auto [candidates, candidateCount] = OracoolGearBasesFor(lvl);
+	std::array<_item_indexes, OracoolGearBaseCount> ofType {};
+	int count = 0;
+	for (size_t i = 0; i < candidateCount; i++) {
+		if (AllItemsList[candidates[i]].itype == type)
+			ofType[count++] = candidates[i];
+	}
+	if (count == 0)
+		return IDI_NONE;
+	return ofType[GenerateRnd(count)];
+}
+
+/** @brief Whether @p idx is one of the bases OracoolGearBasesFor draws from. */
+bool IsOracoolGearBase(_item_indexes idx)
+{
+	return IsOracoolItemIdx(idx) || (idx >= IDI_ORACOOL_NECRO_WAND_FIRST && idx <= IDI_ORACOOL_NECRO_SCYTHE_LAST);
+}
+
 /**
  * @brief Fills up to @p want empty slots with PLAIN Oracool gear of this depth.
  *
@@ -7821,7 +7846,11 @@ int StockOracoolVendorItems(Item *stock, int capacity, int lvl, int want)
 	if (!oracool::IsSinglePlayer() || want <= 0)
 		return 0;
 
-	const auto [candidates, candidateCount] = OracoolGearBasesFor(lvl);
+	// Gated by the CHARACTER's level as well as the vendor's (audit, 2026-09-24, user dev note: "make
+	// sure all vendors can offer orcl items"). The vendor level is capped at 16, which reached about 40
+	// of the armour expansion's 147 bases and half the Necromancer's wands and scythes; the Rare
+	// shelf found and fixed the same cap on 2026-09-12. The affix and item levels still follow lvl.
+	const auto [candidates, candidateCount] = OracoolGearBasesFor(std::max<int>(MyPlayer->_pLevel, lvl));
 	if (candidateCount == 0)
 		return 0;
 
@@ -7888,7 +7917,11 @@ int StockOracoolMagicItems(Item *stock, int capacity, int lvl, int want)
 	if (!oracool::IsSinglePlayer() || want <= 0)
 		return 0;
 
-	const auto [candidates, candidateCount] = OracoolGearBasesFor(lvl);
+	// Gated by the CHARACTER's level as well as the vendor's (audit, 2026-09-24, user dev note: "make
+	// sure all vendors can offer orcl items"). The vendor level is capped at 16, which reached about 40
+	// of the armour expansion's 147 bases and half the Necromancer's wands and scythes; the Rare
+	// shelf found and fixed the same cap on 2026-09-12. The affix and item levels still follow lvl.
+	const auto [candidates, candidateCount] = OracoolGearBasesFor(std::max<int>(MyPlayer->_pLevel, lvl));
 	if (candidateCount == 0)
 		return 0;
 
@@ -7900,8 +7933,11 @@ int StockOracoolMagicItems(Item *stock, int capacity, int lvl, int want)
 		const int itemLevel = std::clamp(lvl, 1, 30);
 		Item &item = stock[i];
 		item = {};
+		// The ITEM level lifted by the difficulty, as the Rare shelf stamps its own (audit, 2026-09-24):
+		// without it these never passed ilvl 30 and never reached a Torment tier.
 		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), itemLevel, 1, /*onlygood=*/true,
-		    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/false);
+		    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/false, std::nullopt,
+		    /*itemLevel=*/oracool::VendorItemLevel(lvl));
 		// A bare level, never CF_SMITHPREMIUM - see StockOracoolVendorItems' header for why a town
 		// stamp on an Oracool item comes back as something else after a reload.
 		item._iCreateInfo = std::min(itemLevel, 63);
@@ -8412,12 +8448,32 @@ void RollBoyItem(Item &out, int lvl)
 	boyitem._iCreateInfo = std::min(lvl, static_cast<int>(CF_LEVEL)) | CF_BOY;
 }
 
+void RollBoyShopSlot(Item &out, int slot, int lvl)
+{
+	// Every THIRD slot is Oracool gear (audit, 2026-09-24, user dev note: "make sure all vendors can
+	// offer orcl items"). His table (RndBoyItem) is the droppable pool, which refuses every Oracool
+	// base because the pool is the save format; the other shops reach the fork's gear through a
+	// second pass, and Wirt never had one. Interleaved rather than a block at the end, because
+	// TrimShopStockToOnePage cuts whatever does not fit the page and a block at the end would be
+	// the first thing cut. Magic, like the rest of his stock; the same helper Griswold's Magic tab
+	// uses, with its bare-level stamp (never CF_BOY - see StockOracoolVendorItems' header).
+	if (oracool::IsSinglePlayer() && slot % 3 == 2) {
+		out = {};
+		if (StockOracoolMagicItems(&out, 1, lvl, 1) == 1)
+			return;
+	}
+	RollBoyItem(out, lvl);
+	out._iIdentified = true; // the Shop tab sells what it shows; the gamble is the other tab
+}
+
 namespace {
 
 /** @brief The Gamble tab's slots, one base each (user, 2026-09-20). Rings and amulets dearest, as Diablo II's Gheed had it. */
 constexpr ItemType GambleSlots[] = { // cycled by SpawnGambleStock: GAMBLE_ITEMS is the page, not the slot count (2026-09-20)
 	ItemType::Helm, ItemType::LightArmor, ItemType::HeavyArmor, ItemType::Shield, ItemType::Sword, ItemType::Axe,
-	ItemType::Mace, ItemType::Bow, ItemType::Staff, ItemType::Ring, ItemType::Amulet
+	ItemType::Mace, ItemType::Bow, ItemType::Staff, ItemType::Ring, ItemType::Amulet,
+	// The fork's six worn slots (audit, 2026-09-24): Oracool bases only - the droppable pool has none.
+	ItemType::Shoulders, ItemType::Bracers, ItemType::Gloves, ItemType::Belt, ItemType::Legs, ItemType::Boots
 };
 
 } // namespace
@@ -8439,10 +8495,12 @@ int GamblePriceFor(ItemType type, int lvl)
 	case ItemType::Axe:
 	case ItemType::Mace:
 	case ItemType::Bow:
+	case ItemType::Legs:
 		base = 300;
 		break;
 	case ItemType::Shield:
 	case ItemType::Staff:
+	case ItemType::Shoulders:
 		base = 250;
 		break;
 	default:
@@ -8462,9 +8520,20 @@ void SpawnGambleStock(int lvl)
 		item = {};
 		// A base of the slot the hero could wear at this level, from the vendor pool. Nothing is
 		// rolled yet - the roll is the purchase (RollGambleResult).
-		const _item_indexes idx = GetItemIndexForDroppableItem(false, [&](const ItemData &data) {
-			return data.itype == type && PremiumItemOk(player, data) && !IsUniqueExpansionBase(data) && PoolQlvl(data) <= std::max(lvl, 1);
-		});
+		// Oracool gear too (audit, 2026-09-24): the fork's six slots draw only from it, and a third of
+		// the vanilla slots do, so a helm slot can be a Spectral Helm and not only a vanilla cap.
+		_item_indexes idx = IDI_NONE;
+		if (oracool::IsSinglePlayer() && (IsOracoolItemType(type) || GenerateRnd(3) == 0))
+			idx = RndOracoolGearBaseOfType(std::max(lvl, 1), type);
+		if (idx == IDI_NONE && !IsOracoolItemType(type)) {
+			idx = GetItemIndexForDroppableItem(false, [&](const ItemData &data) {
+				return data.itype == type && PremiumItemOk(player, data) && !IsUniqueExpansionBase(data) && PoolQlvl(data) <= std::max(lvl, 1);
+			});
+			// The pool never answers IDI_NONE: with nothing that fits it hands back a leftover index,
+			// which put another type's base in this slot at this slot's price. Checked by type.
+			if (idx != IDI_NONE && AllItemsList[idx].itype != type)
+				idx = IDI_NONE;
+		}
 		if (idx == IDI_NONE)
 			continue;
 		item._iSeed = AdvanceRndSeed();
@@ -8472,7 +8541,8 @@ void SpawnGambleStock(int lvl)
 		GetItemAttrs(item, idx, lvl);
 		item._iIdentified = false;
 		item._iIvalue = GamblePriceFor(type, lvl);
-		item._iCreateInfo = std::min(lvl, static_cast<int>(CF_LEVEL)) | CF_BOY;
+		// A bare level on an Oracool base, never a town stamp - see StockOracoolVendorItems' header.
+		item._iCreateInfo = std::min(lvl, static_cast<int>(CF_LEVEL)) | (IsOracoolGearBase(idx) ? 0 : CF_BOY);
 	}
 }
 
@@ -8486,7 +8556,7 @@ void RollGambleResult(Item &out, _item_indexes base, int lvl)
 	const uint32_t seed = AdvanceRndSeed();
 	SetupAllItems(*MyPlayer, out, base, seed, ilvl, /*uper=*/1, /*onlygood=*/true, /*recreate=*/false, /*pregen=*/false);
 	out._iIdentified = true;
-	out._iCreateInfo = std::min(ilvl, static_cast<int>(CF_LEVEL)) | CF_BOY;
+	out._iCreateInfo = std::min(ilvl, static_cast<int>(CF_LEVEL)) | (IsOracoolGearBase(base) ? 0 : CF_BOY);
 }
 
 void SpawnBoy(int lvl)
@@ -8495,10 +8565,8 @@ void SpawnBoy(int lvl)
 	// the type of items he is eligible to sell. Gamble to be full of items to gamble with for Gold").
 	if (boylevel >= (lvl / 2) && !boyitems[0].isEmpty())
 		return;
-	for (Item &item : boyitems) {
-		RollBoyItem(item, lvl);
-		item._iIdentified = true; // the Shop tab sells what it shows; the gamble is the other tab
-	}
+	for (int i = 0; i < BOY_ITEMS; i++)
+		RollBoyShopSlot(boyitems[i], i, lvl);
 	SpawnGambleStock(lvl);
 	boylevel = lvl / 2;
 }
@@ -8544,7 +8612,9 @@ void SpawnHealer(int lvl)
 	// Pepin keeps people standing up, so his Oracool line is the stat CHARMS - the same kind of
 	// steady, always-on help his potions give (user, 2026-08-27).
 	StockOracoolFixedItems(healitem, static_cast<int>(std::size(healitem)), lvl, HealerOracoolCount,
-	    [](std::underlying_type_t<_item_indexes> i) { return IsOracoolCharmIdx(i); });
+	// Never the three encounter charms: they are the named encounters' rewards, and only their levels
+	// (20/24/28, above the vendor cap of 16) kept them off this shelf until now (audit, 2026-09-24).
+	    [](std::underlying_type_t<_item_indexes> i) { return IsOracoolCharmIdx(i) && !IsOracoolEncounterCharmIdx(i); });
 
 	SortVendor(healitem + PinnedItemCount, static_cast<int>(std::size(healitem)) - PinnedItemCount);
 }

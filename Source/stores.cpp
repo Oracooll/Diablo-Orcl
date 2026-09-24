@@ -3146,10 +3146,9 @@ void RefreshBoyStock(TalkID tab)
 	// is rolled again as SpawnBoy rolls it, the Gamble tab restocked with fresh bases, each cut to its page.
 	const int lvl = MyPlayer->_pLevel;
 	if (tab == TalkID::BoyBuy) {
-		for (Item &item : boyitems) {
-			RollBoyItem(item, lvl);
-			item._iIdentified = true;
-			item._iStatFlag = MyPlayer->CanUseItem(item);
+		for (int i = 0; i < BOY_ITEMS; i++) {
+			RollBoyShopSlot(boyitems[i], i, lvl);
+			boyitems[i]._iStatFlag = MyPlayer->CanUseItem(boyitems[i]);
 		}
 		oracool::TrimShopStockToOnePage(TalkID::BoyBuy);
 	} else if (tab == TalkID::BoyGamble) {
@@ -3175,8 +3174,7 @@ void BoyBuyItemAt(int idx)
 	TakePlrsMoney(item._iIvalue);
 	StoreAutoPlace(item, true);
 	// The slot restocks in place, so the shop never empties and the grid's indices hold still.
-	RollBoyItem(item, MyPlayer->_pLevel);
-	item._iIdentified = true;
+	RollBoyShopSlot(item, idx, MyPlayer->_pLevel); // an Oracool slot restocks as one (2026-09-24)
 	item._iStatFlag = MyPlayer->CanUseItem(item);
 	CalcPlrInv(*MyPlayer, true);
 	oracool::ScheduleAutoSaveForStoreTransaction();

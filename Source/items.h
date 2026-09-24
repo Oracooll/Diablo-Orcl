@@ -1387,6 +1387,8 @@ void SpawnSmith(int lvl);
 void SpawnPremium(const Player &player);
 /** @brief Wirt (2026-09-20): one roll of his table into @p out, as his one item was always rolled. */
 void RollBoyItem(Item &out, int lvl);
+/** @brief One slot of Wirt's Shop tab: every third slot Oracool gear, the rest his own table (2026-09-24). */
+void RollBoyShopSlot(Item &out, int slot, int lvl);
 /** @brief Wirt's Gamble tab: GAMBLE_ITEMS unidentified bases, one per slot, priced by GamblePriceFor. */
 void SpawnGambleStock(int lvl);
 /** @brief The gamble's roll on the purchase: @p base at the hero's level -5..+4, magic or better, 1% unique. */
