@@ -352,10 +352,20 @@ namespace {
 
 OptionalOwnedClxSpriteList pDurIcons;
 
-char TalkSave[8][MAX_SEND_STR_LEN];
+/**
+ * @brief How long a line typed into the chat box may be.
+ *
+ * Was MAX_SEND_STR_LEN, the network packet's 80 bytes. The box is single-player now and its long
+ * lines are /dev notes (user, 2026-09-24 dev note: "dev notes are too short for me to express
+ * myself. make it take longer text"); NetSendCmdString copies with CopyUtf8 into its own 80, so a
+ * line that ever did go out would be cut there and nowhere else. The drawn box is still the real
+ * limit - see DrawTalkPan, which grows it for a note.
+ */
+constexpr size_t ChatInputMaxBytes = 640;
+char TalkSave[8][ChatInputMaxBytes];
 uint8_t TalkSaveIndex;
 uint8_t NextTalkSave;
-char TalkMessage[MAX_SEND_STR_LEN];
+char TalkMessage[ChatInputMaxBytes];
 /** @brief Oracool: whether the event log was open when chat opened, so it can be put back. */
 bool LogWasOpenBeforeChat = false;
 int sgbPlrTalkTbl;
@@ -1904,8 +1914,18 @@ void DrawTalkPan(const Surface &out)
 	// ChatInputState->truncate(len) cuts the input to it, so this rect IS the length limit. Its
 	// 250x39 at lineHeight 13 is the three rows that hold 66 zeroes.
 	const int x = mainPanelPosition.x + 200;
-	const int y = mainPanelPosition.y + 10;
-	constexpr Size TextSize { 250, 39 };
+	constexpr int LineHeight = 13;
+	constexpr int ChatRows = 3;
+	// A /dev note GROWS the box upward, a row ahead of the text (user, 2026-09-24 dev note: "dev
+	// notes are too short for me to express myself"). The font wraps per character, so the typed
+	// width over the box width is the rows used; one spare row is always open, so typing never hits
+	// the truncate below until the cap. The bottom edge stays where the three-row box's is.
+	constexpr int DevNoteMaxRows = 18;
+	int rows = ChatRows;
+	if (string_view(TalkMessage).substr(0, 4) == "/dev")
+		rows = std::clamp(GetLineWidth(TalkMessage, GameFont12, 1) / 250 + 2, ChatRows, DevNoteMaxRows);
+	const int y = mainPanelPosition.y + 10 - (rows - ChatRows) * LineHeight;
+	const Size TextSize { 250, rows * LineHeight };
 
 	// The box is the text rect plus a margin, and the frame goes OUTSIDE that - so the border never
 	// eats into the space the text measured itself against.

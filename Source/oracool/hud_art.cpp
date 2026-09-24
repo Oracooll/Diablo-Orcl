@@ -1897,8 +1897,12 @@ void DrawTownPortalIcon(const Surface &out, int state)
 	const Rectangle cell = GetBeltSlotRect(BeltTownPortalSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
 	DrawBeltSlotFace(out, cell);  // and the same slot art the item cells wear (2026-09-22)
-	if (!DrawBeltGlyphTinted(out, TownPortalGlyphsArt, cell, state, BeltGlyphBlue, PAL16_BLUE + 2))
-		DrawBeltButtonText(out, cell, "TP", UiFlags::ColorBlue, state);
+	// One right (user, 2026-09-23 dev note: "move portal icon 1px to the right"). Only the glyph
+	// moves; the plate and the slot art stay on the true cell.
+	constexpr Displacement PortalGlyphNudge { 1, 0 };
+	const Rectangle glyphCell { cell.position + PortalGlyphNudge, cell.size };
+	if (!DrawBeltGlyphTinted(out, TownPortalGlyphsArt, glyphCell, state, BeltGlyphBlue, PAL16_BLUE + 2))
+		DrawBeltButtonText(out, glyphCell, "TP", UiFlags::ColorBlue, state);
 }
 
 void DrawBurgerMenuButton(const Surface &out, int state)
@@ -1914,8 +1918,11 @@ void DrawBurgerMenuButton(const Surface &out, int state)
 	const Rectangle cell = GetBeltSlotRect(BeltMenuSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
 	DrawBeltSlotFace(out, cell);  // and the same slot art the item cells wear (2026-09-22)
-	if (!DrawBeltGlyphTinted(out, BurgerMenuGlyphsArt, cell, state, BeltGlyphOrange, PAL16_ORANGE + 2))
-		DrawBeltButtonText(out, cell, "M", UiFlags::ColorGold, state);
+	// Two right (user, 2026-09-23 dev note: "move burger menu icon 2px to the right"). Glyph only.
+	constexpr Displacement MenuGlyphNudge { 2, 0 };
+	const Rectangle glyphCell { cell.position + MenuGlyphNudge, cell.size };
+	if (!DrawBeltGlyphTinted(out, BurgerMenuGlyphsArt, glyphCell, state, BeltGlyphOrange, PAL16_ORANGE + 2))
+		DrawBeltButtonText(out, glyphCell, "M", UiFlags::ColorGold, state);
 }
 
 void DrawRunToggleButton(const Surface &out, int state)

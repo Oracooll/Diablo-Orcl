@@ -2004,8 +2004,14 @@ void DrawWorkshop(const Surface &out)
 		DrawThemedFill(out, FrameOpeningRect(), 2);
 	// The bench belongs to the MYSTIC's two tabs and nowhere else (2026-09-22). Her Craft tab had one
 	// while her canvas painted an empty frame; the well painted into that frame took its place.
-	if (OpenTab == Tab::Reroll || OpenTab == Tab::Imbue)
+	if (OpenTab == Tab::Reroll || OpenTab == Tab::Imbue) {
+		// And a dark layer in the small frame too (user, 2026-09-23 dev note: "on reroll and imbue
+		// tab of gillian put a dark transparent lay[er] in the lit little frame"). The painting lights
+		// that opening, and an item laid on a lit ground loses its edges; the same two passes the
+		// big frame takes, under the item.
+		DrawThemedFill(out, BenchSlotRect(), 2);
 		DrawBench(out);
+	}
 
 	if (IsStockTab(OpenTab)) {
 		// The board, and the two arrow plates on the row above it (2026-09-21). The list this

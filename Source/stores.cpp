@@ -1823,7 +1823,8 @@ void StartBoy()
 	// and the gamble - like the other vendors' grids.
 	AddSText(0, 8, _("Talk to Wirt"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	AddSText(0, 12, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 18, _("Leave Gillian"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	// "Leave Wirt" (user, 2026-09-23 dev note) - the menu was built from Gillian's and kept her line.
+	AddSText(0, 18, _("Leave Wirt"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
 /** @brief The grid shop's own screen state for Wirt's two tabs; the grid draws the rest. */
@@ -5796,6 +5797,10 @@ void StoreESC()
 	case TalkID::Witch:
 	case TalkID::Boy:
 	case TalkID::BoyBuy:
+	// The Gamble tab closes the way his Shop tab does (user, 2026-09-24 dev note: "space doesnt close
+	// it. esc doesnt close it"). It had no case here at all, so Escape - and Space, which comes
+	// through this same function - fell to the end of the switch and did nothing.
+	case TalkID::BoyGamble:
 	case TalkID::Healer:
 	case TalkID::Storyteller:
 	case TalkID::Tavern:

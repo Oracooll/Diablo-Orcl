@@ -2378,8 +2378,9 @@ void DrawInvBelt(const Surface &out)
 		// FOUR RIGHT (user, 2026-09-22: "move belt consumables icons 4px to the right"). The nudge
 		// was retired to zero when the fifth HUD's belt cells became the painting's own holes; the
 		// user is looking at the current painting and the potions read left in them. Measured by eye
-		// against the art, as the +3 that preceded it was.
-		const Displacement BeltItemNudge { 4, 0 };
+		// against the art, as the +3 that preceded it was. TWO BACK (user, 2026-09-23 dev note: "move
+		// belt icons 2px to the left"): four was a step too far.
+		const Displacement BeltItemNudge { 2, 0 };
 		const Rectangle cell = oracool::GetBeltSlotRect(i);
 		const Point position = cell.position + BeltItemNudge
 		    + Displacement { (cell.size.width - InventorySlotSizeInPixels.width) / 2,

@@ -356,7 +356,14 @@ void BuildRiftLevel(bool fresh)
 
 void FinishRiftLevel(bool fresh)
 {
-	if (!fresh)
+	// A RIFT's, and nothing else's (user, 2026-09-24: "assertion failed ... lighting.cpp:210 ...
+	// while entering skeleton king chambers"). The call site is the set-level fresh-entry branch,
+	// which every set level takes; without this gate the Skeleton King's lair, the Chamber of Bone
+	// and the rest ran CreateThemeRooms on the PREVIOUS floor's theme table - set levels never call
+	// InitThemes. A stale Shrine or Library theme that does not fit the new map leaves themex/themey
+	// at 0 and places its candles at (-1,0): out of dObject, and into DoLighting's assert. Where a
+	// stale theme did fit, it put stray shrines and books into a quest map. Since v1.12.062.
+	if (!fresh || !InRift())
 		return;
 	const uint8_t savedLevel = currlevel;
 	currlevel = static_cast<uint8_t>(GenerationFloorFor(leveltype));

@@ -23,6 +23,12 @@ void ToggleRun()
 {
 	const bool now = !*sgOptions.Oracool.runEnabled;
 	sgOptions.Oracool.runEnabled.SetValue(now);
+	// And WRITTEN, now (user, 2026-09-23 dev note: "make sure run/walk state is remembered between
+	// games"). v1.12.146 put the gait in the INI but only set it in memory; the INI is written at
+	// start-up and on a handful of settings screens, never on the way out, so a gait flipped in play
+	// was gone by the next launch. A flip is rare enough that writing the file each time costs
+	// nothing.
+	SaveOptions();
 	LogEvent(now ? "Running" : "Walking", UiFlags::ColorWhitegold);
 }
 

@@ -291,7 +291,31 @@ constexpr uint8_t StashGridLineColor = oracool::ThemeGridLineColor;
 // is still the click target for withdrawing gold, so it covers the number rather than the icon.
 constexpr Rectangle GoldDisplayRect { { 25, StashGoldCountY },
 	{ 140, StashGoldRowHeight } };
+/**
+ * @brief The pile itself, a button too (user, 2026-09-23 dev note: "in stash make gold icon clickable
+ * and sinkable and make it initiat[e] the draw gold window"). Its own square rather than a taller
+ * GoldDisplayRect, so the number keeps its target and the pile adds one; either press sinks the pile.
+ */
+constexpr Rectangle GoldIconRect { StashGoldIconAt, { StashGoldIconHeight, StashGoldIconHeight } };
+/** @brief How far a pressed pile sinks - the game's press, 2px down-left (feedback: button press). */
+constexpr Displacement GoldIconPressSink { -2, 2 };
 bool GoldDisplayPressed = false;
+/**
+ * @brief How far the withdraw box moves from vanilla's spot, so its FOOT is the grid frame's foot
+ * (user, 2026-09-23 dev note: "render the draw gold window flush with bottom border of grid").
+ * Vanilla draws the box's bottom row at y 178; the painted frame's band ends at StashFrameBottom.
+ * Everything the box carries - the question, the typed amount, the IME rect - moves by the same step.
+ */
+constexpr Displacement GoldWithdrawDrop { 0, StashFrameBottom - 178 };
+
+bool GoldButtonContains(Point mousePosition)
+{
+	for (const Rectangle &local : { GoldDisplayRect, GoldIconRect }) {
+		if (Rectangle { GetPanelPosition(UiPanels::Stash, local.position), local.size }.contains(mousePosition))
+			return true;
+	}
+	return false;
+}
 
 /**
  * @brief Drawn as a word rather than art, matching RESET on the character sheet.
@@ -825,9 +849,7 @@ bool StashSortPressed = false;
 void CheckStashButtonRelease(Point mousePosition)
 {
 	if (GoldDisplayPressed) {
-		Rectangle goldRect = GoldDisplayRect;
-		goldRect.position = GetPanelPosition(UiPanels::Stash, goldRect.position);
-		if (goldRect.contains(mousePosition)) {
+		if (GoldButtonContains(mousePosition)) {
 			oracool::PlayUiMoveSound(); // Oracool: the gold total is a button since Sort took its place
 			StartGoldWithdraw();
 		}
@@ -877,9 +899,7 @@ void CheckStashButtonRelease(Point mousePosition)
 
 void CheckStashButtonPress(Point mousePosition)
 {
-	Rectangle goldRect = GoldDisplayRect;
-	goldRect.position = GetPanelPosition(UiPanels::Stash, goldRect.position);
-	if (goldRect.contains(mousePosition)) {
+	if (GoldButtonContains(mousePosition)) {
 		GoldDisplayPressed = true;
 		StashButtonPressed = -1;
 		return;
@@ -1124,7 +1144,8 @@ void DrawStash(const Surface &out)
 	// Griswold stores. Icon + counter under the grid"). Left-aligned, because the pile is on the left
 	// and a right-aligned number under a left-aligned icon is two controls, not one.
 	if (oracool::GetLoosePngSize(StashGoldIconAsset).width > 0)
-		oracool::DrawLoosePng(out, StashGoldIconAsset, position + Displacement { StashGoldIconAt.x, StashGoldIconAt.y });
+		oracool::DrawLoosePng(out, StashGoldIconAsset, position + Displacement { StashGoldIconAt.x, StashGoldIconAt.y }
+		        + (GoldDisplayPressed ? GoldIconPressSink : Displacement { 0, 0 }));
 	DrawString(out, FormatInteger(Stash.gold),
 	    { position + Displacement { GoldDisplayRect.position.x, GoldDisplayRect.position.y }, GoldDisplayRect.size },
 	    { UiFlags::ColorWhitegold | UiFlags::VerticalCenter | UiFlags::FontSize12 | UiFlags::Shadowed });
@@ -1352,7 +1373,7 @@ void StartGoldWithdraw()
 	if (talkflag)
 		control_reset_talk();
 
-	const Point start = GetPanelPosition(UiPanels::Stash, { 67, 128 });
+	const Point start = GetPanelPosition(UiPanels::Stash, Point { 67, 128 } + GoldWithdrawDrop);
 	SDL_Rect rect = MakeSdlRect(start.x, start.y, 180, 20);
 	SDL_SetTextInputRect(&rect);
 
@@ -1411,7 +1432,7 @@ void DrawGoldWithdraw(const Surface &out)
 
 	const int dialogX = 30;
 
-	ClxDraw(out, GetPanelPosition(UiPanels::Stash, { dialogX, 178 }), (*pGBoxBuff)[0]);
+	ClxDraw(out, GetPanelPosition(UiPanels::Stash, Point { dialogX, 178 } + GoldWithdrawDrop), (*pGBoxBuff)[0]);
 
 	// Pre-wrap the string at spaces, otherwise DrawString would hard wrap in the middle of words
 	const std::string wrapped = WordWrapString(_("How many gold pieces do you want to withdraw?"), 200);
@@ -1419,12 +1440,12 @@ void DrawGoldWithdraw(const Surface &out)
 	// The split gold dialog is roughly 4 lines high, but we need at least one line for the player to input an amount.
 	// Using a clipping region 50 units high (approx 3 lines with a lineheight of 17) to ensure there is enough room left
 	//  for the text entered by the player.
-	DrawString(out, wrapped, { GetPanelPosition(UiPanels::Stash, { dialogX + 31, 75 }), { 200, 50 } },
+	DrawString(out, wrapped, { GetPanelPosition(UiPanels::Stash, Point { dialogX + 31, 75 } + GoldWithdrawDrop), { 200, 50 } },
 	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter, 1, 17 });
 
 	// Even a ten digit amount of gold only takes up about half a line. There's no need to wrap or clip text here so we
 	// use the Point form of DrawString.
-	DrawString(out, amountText, GetPanelPosition(UiPanels::Stash, { dialogX + 37, 128 }),
+	DrawString(out, amountText, GetPanelPosition(UiPanels::Stash, Point { dialogX + 37, 128 } + GoldWithdrawDrop),
 	    TextRenderOptions {
 	        /*flags=*/UiFlags::ColorWhite | UiFlags::PentaCursor,
 	        /*spacing=*/1,

@@ -1666,6 +1666,15 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawMonsterHealthBar(out);
 		DrawFloatingNumbers(out, startPosition, offset);
 	}
+	// The durability warnings go UNDER every window (user, 2026-09-24 dev note: "durability icons
+	// to be rendered under the inventory screen, not overlappin[g]"). They were drawn after the
+	// inventory and the spellbook, so an open inventory wore them on its face; drawn first, any
+	// window that reaches their corner covers them, as it covers the mini-map.
+#ifdef _DEBUG
+	if (!DebugClearUi)
+#endif
+		DrawDurIcon(out);
+
 	if (stextflag != TalkID::None && !qtextflag)
 		DrawSText(out);
 	if (invflag) {
@@ -1673,11 +1682,6 @@ void DrawView(const Surface &out, Point startPosition)
 	} else if (sbookflag) {
 		DrawSpellBook(out);
 	}
-
-#ifdef _DEBUG
-	if (!DebugClearUi)
-#endif
-		DrawDurIcon(out);
 
 	switch (GetLeftPanelContent()) {
 	case LeftPanelContent::Character:

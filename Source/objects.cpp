@@ -5198,6 +5198,12 @@ Object *AddObject(_object_id objType, Point objPos)
 {
 	if (ActiveObjectCount >= MAXOBJECTS)
 		return nullptr;
+	// Oracool: never write outside the map (2026-09-24). A theme room that failed its fit placed
+	// candles at (-1,0) - dObject[-1][0] is memory corruption in a Release build, and only the
+	// lighting assert that followed it caught the case in Debug. Refused here, so whatever asks next
+	// gets nothing rather than a slot in the wrong row of the array.
+	if (!InDungeonBounds(objPos))
+		return nullptr;
 
 	int oi = AvailableObjects[0];
 	AvailableObjects[0] = AvailableObjects[MAXOBJECTS - 1 - ActiveObjectCount];

@@ -34,7 +34,15 @@ const char *const QuestLevelNames[] = {
 	N_("Church Arena"),
 	N_("Hell Arena"),
 	N_("Circle of Life Arena"),
+	// Oracool: the rifts (user, 2026-09-24 dev note: "trying to open vanilla map in nephalem rift
+	// crashed the game"). SL_RIFT_NEPHALEM and SL_RIFT_GUARDIAN joined the enum on 2026-09-20 with no
+	// row here, and the automap's header reads this table by setlvlnum - one and two past its end, a
+	// wild pointer handed to the font code. The names are RiftKindName's.
+	N_("Nephalem Rift"),
+	N_("Guardian Rift"),
 };
+static_assert(sizeof(QuestLevelNames) / sizeof(QuestLevelNames[0]) == SL_LAST + 1,
+    "QuestLevelNames needs one row per _setlevels id - the automap header reads it by setlvlnum");
 
 namespace {
 
