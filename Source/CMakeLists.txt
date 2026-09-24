@@ -121,6 +121,7 @@ set(libdevilutionx_SRCS
   oracool/level_requirement.cpp
   oracool/dev_notes.cpp
   oracool/rift.cpp
+  oracool/stairless.cpp
   oracool/stonegate.cpp
   oracool/stonegate_menu.cpp
   oracool/workshop.cpp

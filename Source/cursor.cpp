@@ -862,6 +862,7 @@ void CheckTown()
  */
 void CheckRiftPortal()
 {
+	oracool::SetRiftPortalHovered(false);
 	if (leveltype != DTYPE_TOWN) {
 		// THE WAY HOME, inside the rift (user, 2026-09-22: "there is no hover text when hover over
 		// the portal that is opened - place a hover text Back to town. Rift Closes." and "Make the
@@ -888,7 +889,9 @@ void CheckRiftPortal()
 				continue;
 			trigflag = true;
 			SetPanelString(_("Back to town"), UiFlags::ColorWhite);
-			AddPanelString(_("Rift Closes"));
+			// Two ways out since 2026-09-24: the one by the arrival spot is open from the start, and only a
+			// CLEARED rift ends when the hero walks out - before that it waits for him (RiftNoteReturnHome).
+			AddPanelString(oracool::RiftDone() ? _("Rift Closes") : _("The rift stays open"));
 			cursPosition = missile.position.tile;
 		}
 		return;
@@ -903,8 +906,9 @@ void CheckRiftPortal()
 			continue;
 		trigflag = true;
 		SetPanelString(missile._mitype == MissileID::RiftPortalGold ? _("Nephalem Rift") : _("Guardian Rift"), UiFlags::ColorWhite);
-		AddPanelString(fmt::format(fmt::runtime(_("tier {:d} - walk in")), oracool::RiftTier()));
-		cursPosition = entry;
+		AddPanelString(fmt::format(fmt::runtime(_("tier {:d} - click to enter")), oracool::RiftTier()));
+		cursPosition = entry; // the click walks him toward it; he goes in once within reach (TryEnterRiftFromTown)
+		oracool::SetRiftPortalHovered(true);
 	}
 }
 
@@ -1051,6 +1055,7 @@ void CheckCursMove()
 	ActiveTabItemHovered = false;
 	panelflag = false;
 	trigflag = false;
+	oracool::SetRiftPortalHovered(false);
 
 	if (myPlayer._pInvincible) {
 		return;

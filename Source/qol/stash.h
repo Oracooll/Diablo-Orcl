@@ -131,6 +131,11 @@ int WithdrawGold(Player &player, int amount);
 void WithdrawGoldKeyPress(SDL_Keycode vkey);
 void DrawGoldWithdraw(const Surface &out);
 void CloseGoldWithdraw();
+/**
+ * @brief A press while the withdraw box is open: its red X, or the gold pile that toggles it. True when the
+ * press was one of those - the box is modal, so every other press is swallowed after this.
+ */
+bool CheckGoldWithdrawPromptPress(Point mousePosition);
 bool HandleGoldWithdrawTextInputEvent(const SDL_Event &event);
 
 /**

@@ -32,6 +32,7 @@
 #include "oracool/socket_overlay.h"
 #include "oracool/runewords.h"
 #include "oracool/ui_sound.h"
+#include "oracool/window_close.h" // the withdraw box's red X (2026-09-24)
 #include "stores.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
@@ -851,7 +852,12 @@ void CheckStashButtonRelease(Point mousePosition)
 	if (GoldDisplayPressed) {
 		if (GoldButtonContains(mousePosition)) {
 			oracool::PlayUiMoveSound(); // Oracool: the gold total is a button since Sort took its place
-			StartGoldWithdraw();
+			// A TOGGLE (user, 2026-09-24 dev note: "make clicking on the gold icon in stash to open/close
+			// the gold draw window"): the press that opened the box closes it.
+			if (IsWithdrawGoldOpen)
+				CloseGoldWithdraw();
+			else
+				StartGoldWithdraw();
 		}
 		GoldDisplayPressed = false;
 	}
@@ -1421,6 +1427,35 @@ void WithdrawGoldKeyPress(SDL_Keycode vkey)
 	}
 }
 
+/**
+ * @brief The withdraw box's rect on screen: vanilla's gold-drop plate, dropped onto the grid frame's foot.
+ * ClxDraw places the plate by its BOTTOM-left, (30, 178) before the drop, so its top is found from its height.
+ */
+Rectangle GoldWithdrawBoxRect()
+{
+	const ClxSprite plate = (*pGBoxBuff)[0];
+	const int height = plate.height();
+	return { GetPanelPosition(UiPanels::Stash, Point { 30, 178 - height + 1 } + GoldWithdrawDrop), { plate.width(), height } };
+}
+
+bool CheckGoldWithdrawPromptPress(Point mousePosition)
+{
+	if (!IsWithdrawGoldOpen || !pGBoxBuff)
+		return false;
+	// The red X in the box's top-right corner, where every window has it (user, 2026-09-24 dev note:
+	// "put the X close button on same spot on the draw gold window").
+	if (oracool::CheckWindowCloseButtonClick(GoldWithdrawBoxRect(), mousePosition)) {
+		CloseGoldWithdraw();
+		return true;
+	}
+	// And the pile, which closes what it opened - pressed here, acted on at the release.
+	if (GoldButtonContains(mousePosition)) {
+		GoldDisplayPressed = true;
+		return true;
+	}
+	return false;
+}
+
 void DrawGoldWithdraw(const Surface &out)
 {
 	if (!IsWithdrawGoldOpen) {
@@ -1453,6 +1488,7 @@ void DrawGoldWithdraw(const Surface &out)
 	        /*cursorPosition=*/static_cast<int>(cursor.position),
 	        /*highlightRange=*/ { static_cast<int>(cursor.selection.begin), static_cast<int>(cursor.selection.end) },
 	    });
+	oracool::DrawWindowCloseButton(out, GoldWithdrawBoxRect());
 }
 
 void CloseGoldWithdraw()

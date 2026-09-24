@@ -1529,6 +1529,12 @@ void StartGoldDrop()
 	CloseGoldWithdraw();
 
 	const int8_t invIndex = pcursinvitem;
+	// Page one's gold only (audit, 2026-09-24). pcursinvitem is set only on page one; a pile right-
+	// clicked on pages 2-10 reaches here through UseInvItem with it at -1, and the line below read
+	// InvList[-1 - INVITEM_INV_FIRST]. RemoveGold indexes InvList directly too, so the prompt stays
+	// page one's - and the hover tip says so (it is shown only where the split works).
+	if (invIndex < INVITEM_INV_FIRST)
+		return;
 
 	const Player &myPlayer = *MyPlayer;
 
@@ -3795,6 +3801,11 @@ int8_t CheckInvHLight()
 		// the dialog). The inventory hover pass has no ClearPanelStrings of its own; CheckPanelInfo
 		// owns that, and it only runs for the main panel.
 		SetPanelString(fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold)), UiFlags::ColorWhite);
+		// How to split it (user, 2026-09-24 dev note: "on every stackable item write a tip how to split
+		// stack and make sure tip co[r]responds to the true mechanic"). Gold's split is a PLAIN right-
+		// click (UseInvItem -> StartGoldDrop), and only on the first page, where pcursinvitem is set.
+		if (nGold > 1 && pcursinvitem >= INVITEM_INV_FIRST && ControlMode == ControlTypes::KeyboardAndMouse)
+			AddPanelString(_("Right-click to split the pile"));
 	} else {
 		// Through SetPanelString, so the name's tier colour is recorded as line 0's colour. A bare
 		// assignment leaves the per-line colour list one entry short of the block PrintItemDetails

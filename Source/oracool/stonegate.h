@@ -65,5 +65,10 @@ RiftKind OpenRift();
 
 /** @brief The tile in front of the gate that entering means walking onto. False when the gate is not placed. */
 bool StonegateEntryTile(Point &out);
+/**
+ * @brief The entry tile of the monument as town last built it, whatever level is loaded now - so a hero
+ * coming back from a rift can be put in front of it before town's objects exist (2026-09-24).
+ */
+bool StonegateLastEntryTile(Point &out);
 
 } // namespace devilution::oracool

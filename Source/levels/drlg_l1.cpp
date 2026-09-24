@@ -8,6 +8,7 @@
 #include "engine/rectangle.hpp"
 #include "levels/crypt.h"
 #include "levels/gendung.h"
+#include "oracool/stairless.h"
 #include "player.h"
 #include "quests.h"
 #include "utils/bitset2d.hpp"
@@ -1185,9 +1186,16 @@ void GenerateLevel(lvl_entry entry)
 		FixTilesPatterns();
 		AddWall();
 		FloodTransparencyValues(13);
+		oracool::RememberFloorUnderStairs();
 		if (PlaceStairs(entry))
 			break;
 	}
+
+	// A rift has no stairs (user, 2026-09-24: "they are meaningless"). The Cathedral's landing is
+	// on the floor below the stairs already; the Crypt's is on the wall row the stairs were cut
+	// into, so it steps one megatile down onto the floor under them.
+	if (oracool::TakeStairsBackOut() && leveltype == DTYPE_CRYPT && entry == ENTRY_MAIN)
+		ViewPosition += Displacement { 0, 2 };
 
 	FreeQuestSetPieces();
 

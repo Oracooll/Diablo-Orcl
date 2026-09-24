@@ -35,7 +35,6 @@ struct LogEntry {
 // (never saved to disk, never cleared mid-session otherwise), so a generous cap costs only a little
 // memory (a few hundred short strings at most) in exchange for never needing a "clear log" UI.
 constexpr size_t MaxEntries = 200;
-constexpr size_t MaxVisibleLines = 18;
 constexpr size_t MinVisibleLines = 3;
 
 constexpr int ButtonWidth = 32;
@@ -94,7 +93,10 @@ size_t VisibleLineCount()
 {
 	const int contentHeight = WindowHeight() - WindowPadding * 2 - LineHeight;
 	const int lines = contentHeight / LineHeight;
-	return static_cast<size_t>(std::clamp(lines, static_cast<int>(MinVisibleLines), static_cast<int>(MaxVisibleLines)));
+	// No ceiling (user, 2026-09-24 dev note: "make sure the event log is capable of displaying text all the
+	// way down to the bottom of the screen"). A cap of 18 lines stopped the text well short of the window
+	// the height rule above unfolds, which at 720 tall holds some thirty; the window's own height is the limit.
+	return static_cast<size_t>(std::max(lines, static_cast<int>(MinVisibleLines)));
 }
 
 Point WindowPosition()
@@ -215,7 +217,8 @@ void DrawEventLogWindow(const Surface &out)
 	// past the border. Word-wrapped up front (rather than relying on DrawString's own per-character
 	// wrap-on-overflow) so long words don't get split mid-word. Line budget is now consumed in
 	// wrapped lines, not one-line-per-entry, since a single long entry can take several.
-	const size_t lineBudget = VisibleLineCount() - 1;
+	// Every content line, down to the bottom padding - the "- 1" here left one more row empty at the foot.
+	const size_t lineBudget = VisibleLineCount();
 	size_t linesUsed = 0;
 	size_t index = 0;
 	for (const LogEntry &entry : Entries) {

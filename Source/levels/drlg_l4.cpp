@@ -13,6 +13,7 @@
 #include "monster.h"
 #include "multi.h"
 #include "objdat.h"
+#include "oracool/stairless.h"
 
 namespace devilution {
 
@@ -1164,9 +1165,14 @@ void GenerateLevel(lvl_entry entry)
 		if (currlevel == 16) {
 			LoadDiabQuads(true);
 		}
+		oracool::RememberFloorUnderStairs();
 		if (PlaceStairs(entry))
 			break;
 	}
+
+	// A rift has no stairs (user, 2026-09-24: "they are meaningless") - up, down and the town
+	// warp alike; the landing is on plain floor beside them already.
+	oracool::TakeStairsBackOut();
 
 	FreeQuestSetPieces();
 

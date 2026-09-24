@@ -12,6 +12,7 @@
 #include "monster.h"
 #include "objdat.h"
 #include "objects.h"
+#include "oracool/stairless.h"
 #include "quests.h"
 
 namespace devilution {
@@ -2021,8 +2022,14 @@ void GenerateLevel(lvl_entry entry)
 		if (GetFloorArea() < 600 || !Lockout())
 			continue;
 		MakeMegas();
+		oracool::RememberFloorUnderStairs();
 		if (!PlaceStairs(entry))
 			continue;
+		// A rift has no stairs (user, 2026-09-24: "they are meaningless"). Taken out here, before
+		// the pool, which may then use their floor. The landing sat on the wall half the stairs were
+		// cut into, so it steps one megatile down onto the open floor under them.
+		if (oracool::TakeStairsBackOut() && entry == ENTRY_MAIN)
+			ViewPosition += Displacement { 0, 2 };
 		if (Quests[Q_ANVIL].IsAvailable() && !PlaceAnvil())
 			continue;
 		if (PlacePool())

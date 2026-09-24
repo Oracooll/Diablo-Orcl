@@ -343,6 +343,9 @@ void LeftMouseCmd(bool bShift)
 {
 	bool bNear;
 
+	// A click on the rift portal asks to go in; any other world click takes it back (2026-09-24).
+	oracool::NoteWorldClickForRift();
+
 	// Oracool: this is the plain-attack path - reached when no skill is readied on the left button,
 	// or when shift forces the swing - so whatever skill an earlier click armed does not apply to
 	// what happens next. Cleared here rather than at every attack site because this is the one that
@@ -464,6 +467,11 @@ void LeftMouseDown(uint16_t modState)
 	//
 	// Swallowed rather than routed: these three have no mouse handling of their own, so there
 	// is nothing to forward a click TO. Escape and Enter are how they close.
+	//
+	// Except the withdraw box's red X and the gold pile that toggles it (2026-09-24), which the box
+	// owns and so are asked first.
+	if (CheckGoldWithdrawPromptPress(MousePosition))
+		return;
 	if (IsModalPromptOpen())
 		return;
 

@@ -2912,6 +2912,15 @@ void PrintItemMisc(const Item &item)
 		printItemMiscGamepad(item, isOil, gamepadRequiresTarget);
 		break;
 	}
+	// How to split a stack (user, 2026-09-24 dev note: "on every stackable item write a tip how to split
+	// stack and make sure tip co[r]responds to the true mechanic"). The mechanic: Shift + right-click
+	// on a stack of two or more, in the backpack (any page), the belt or the stash - TryStartStackSplit
+	// and TryStartStashStackSplit, single-player only, stackable consumables only. The tip carries
+	// the same conditions, so it never promises a split the click will not do. The mouse's alone:
+	// no pad button starts a split.
+	if (ControlMode == ControlTypes::KeyboardAndMouse && oracool::IsSinglePlayer() && item.isStackableConsumable()
+	    && item.stackCount() > 1)
+		AddPanelString(_("Shift + right-click to split the stack"));
 }
 
 /**

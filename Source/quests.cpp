@@ -672,8 +672,14 @@ Point GetMapReturnPosition()
 	//
 	// Asked of the rift rather than added as another `case`, because the rift's level NUMBER is
 	// chosen per kind (RiftLevelFor) and a case list would have to be kept in step with it.
-	if (Point entry; oracool::InRift() && oracool::StonegateEntryTile(entry))
-		return entry;
+	//
+	// Asked of the LEVEL NUMBER since 2026-09-24. It asked InRift() and the gate object, and both are
+	// wrong by the time this runs: the WM_DIABRTNLVL handler clears `setlevel` before LoadGameLevel
+	// asks, so InRift() is false, and the gate object belongs to a town that is not built yet.
+	// setlvlnum still names the level being left, and the monument's tile is remembered from the last
+	// town (RiftReturnTile).
+	if (oracool::IsRiftLevel(setlvlnum))
+		return oracool::RiftReturnTile();
 
 	switch (setlvlnum) {
 	case SL_SKELKING:

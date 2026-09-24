@@ -13549,22 +13549,31 @@ TEST(OracoolAudit, RiftScalingIsFlatAtTheFloorAndThreePercentATierAbove)
 	EXPECT_EQ(oracool::RiftScalePercent(100, 64), 100 + 36 * oracool::RiftScalePercentPerTier) << "past rung 64 the tier keeps counting";
 }
 
-// Plan r3: the Nephalem tier is the deepest floor the hero has reached, on the ladder at the game's
-// difficulty - never a floor the hero has not seen.
-TEST(OracoolAudit, NephalemRiftTierIsTheDeepestFloorReached)
+// The Nephalem tier is the HERO's (user, 2026-09-24, "hero level only"): one rung per three character
+// levels inside the difficulty's block, whatever floors were or were not visited. Replaced plan r3's
+// deepest-floor rule.
+TEST(OracoolAudit, NephalemRiftTierFollowsTheHeroLevel)
 {
 	Players.resize(1);
 	devilution::Player &player = Players[0];
 	for (bool &visited : player._pLvlVisited)
 		visited = false;
+	const auto saved = sgGameInitInfo.nDifficulty;
 	sgGameInitInfo.nDifficulty = DIFF_NORMAL;
-	EXPECT_EQ(oracool::NephalemRiftTierFor(player), oracool::AreaLevel(1, DIFF_NORMAL)) << "nothing visited: the first rung";
-	player._pLvlVisited[1] = true;
-	player._pLvlVisited[7] = true;
-	EXPECT_EQ(oracool::NephalemRiftTierFor(player), oracool::AreaLevel(7, DIFF_NORMAL));
-	player._pLvlVisited[22] = true; // the Crypt: a side-step onto Hell's rungs, not a deeper rung
-	EXPECT_EQ(oracool::NephalemRiftTierFor(player), oracool::AreaLevel(22, DIFF_NORMAL));
-	EXPECT_EQ(oracool::NephalemRiftTierFor(player), oracool::AreaLevel(14, DIFF_NORMAL));
+	player._pLevel = 1;
+	EXPECT_EQ(oracool::NephalemRiftTierFor(player), 1) << "below clvl 3 still the first rung, never zero";
+	player._pLevel = 9;
+	EXPECT_EQ(oracool::NephalemRiftTierFor(player), 3);
+	player._pLvlVisited[22] = true;
+	EXPECT_EQ(oracool::NephalemRiftTierFor(player), 3) << "a deep floor visited changes nothing";
+	player._pLevel = 30;
+	EXPECT_EQ(oracool::NephalemRiftTierFor(player), 10);
+	player._pLevel = 99;
+	EXPECT_EQ(oracool::NephalemRiftTierFor(player), oracool::RungsPerDifficulty) << "capped at the block's top";
+	sgGameInitInfo.nDifficulty = DIFF_NIGHTMARE;
+	player._pLevel = 30;
+	EXPECT_EQ(oracool::NephalemRiftTierFor(player), oracool::RungsPerDifficulty + 10) << "one block deeper per difficulty";
+	sgGameInitInfo.nDifficulty = saved;
 }
 
 // Plan r2: the roster is drawn from the whole game in the tier's band, and a rift on the Caves' or

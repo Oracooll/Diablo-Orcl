@@ -14,6 +14,7 @@
 #include "engine/size.hpp"
 #include "levels/gendung.h"
 #include "levels/setmaps.h"
+#include "oracool/stairless.h"
 #include "player.h"
 #include "quests.h"
 #include "utils/stdcompat/algorithm.hpp"
@@ -2673,9 +2674,14 @@ void GenerateLevel(lvl_entry entry)
 		SetSetPieceRoom(SetPieceRoom.position, 3);
 		FloodTransparencyValues(3);
 		FixTransparency();
+		oracool::RememberFloorUnderStairs();
 		if (PlaceStairs(entry))
 			break;
 	}
+
+	// A rift has no stairs (user, 2026-09-24: "they are meaningless"); the landing is on plain
+	// floor beside them already.
+	oracool::TakeStairsBackOut();
 
 	FreeQuestSetPieces();
 

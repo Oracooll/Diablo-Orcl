@@ -38,6 +38,9 @@ constexpr uint32_t ClosedFrame = 1;
 constexpr uint32_t FrameCount = 1;
 
 int GateObjectId = -1;
+/** @brief The monument's entry tile when town was last built; (0,0) before the first town. Town's layout
+ * is fixed, so this only ever changes if the gate fell back to another candidate tile. */
+Point LastEntryTile = { 0, 0 };
 /** @brief The inactive arch on the town portal's landing tile, or -1 - see AddPortalArch. */
 int PortalArchObjectId = -1;
 
@@ -166,6 +169,7 @@ void AddStonegateObject()
 		ApplyStonegateGraphics(*gate);
 		ShowFrame(*gate, ClosedFrame);
 		GateObjectId = gate->GetId();
+		LastEntryTile = entry;
 		if (position != Candidates[0])
 			LogEvent(StrCat("The Rift Monument fell back to (", position.x, ", ", position.y, ")"), UiFlags::ColorRed);
 
@@ -198,6 +202,14 @@ bool IsStonegateObject(const Object &object)
 RiftKind OpenRift()
 {
 	return ActiveRift();
+}
+
+bool StonegateLastEntryTile(Point &out)
+{
+	if (LastEntryTile == Point { 0, 0 })
+		return false;
+	out = LastEntryTile;
+	return true;
 }
 
 bool StonegateEntryTile(Point &out)

@@ -19,6 +19,7 @@
 #include "objects.h"
 #include "oracool/area_level.h"
 #include "oracool/ornate_border.h"
+#include "oracool/stonegate.h" // StonegateEntryTile - the Rift Monument's mini-map marker
 #include "player.h"
 #include "portal.h"
 #include "utils/language.h"
@@ -50,6 +51,8 @@ enum MapColors : uint8_t {
 	MiniMapColorsStairs = (PAL16_RED + 2),
 	/** Oracool: user request - bold mini-map-only marker color for waypoint sigils and open Town Portals */
 	MiniMapColorsWaypoint = (PAL8_BLUE + 1),
+	/** Oracool: the Rift Monument's mini-map marker - a yellow square (user, 2026-09-24) */
+	MiniMapColorsRiftMonument = PAL8_YELLOW,
 };
 
 struct AutomapTile {
@@ -1057,6 +1060,14 @@ void DrawAutomapWaypointsAndPortals(const Surface &out, Point screenCenter, cons
 	if (Portals[MyPlayerId].open && PortalOnLevel(MyPlayerId)) {
 		Point screen = AutomapMarkerScreenPosition(screenCenter, myPlayerOffset, Portals[MyPlayerId].position);
 		FillRect(out, screen.x - MarkerSize / 2, screen.y - MarkerSize / 2, MarkerSize, MarkerSize, static_cast<uint8_t>(MiniMapColorsWaypoint));
+	}
+
+	// The Rift Monument, a yellow square the size of the waypoints' (user, 2026-09-24 dev note: "the rift
+	// monument should have a minimap indicator. a yellow square"). The real gate only - the inactive copy
+	// by the town portal is scenery. Its tile is one up-left of the entry tile StonegateEntryTile answers.
+	if (Point entry; leveltype == DTYPE_TOWN && oracool::StonegateEntryTile(entry)) {
+		const Point screen = AutomapMarkerScreenPosition(screenCenter, myPlayerOffset, entry - Displacement { 1, 1 });
+		FillRect(out, screen.x - MarkerSize / 2, screen.y - MarkerSize / 2, MarkerSize, MarkerSize, static_cast<uint8_t>(MiniMapColorsRiftMonument));
 	}
 }
 

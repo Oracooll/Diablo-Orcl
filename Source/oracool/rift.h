@@ -4,7 +4,7 @@
  * Oracool: the rifts behind the Stonegate (plan page "Nephalem and Guardian Rifts", 2026-09-20;
  * the user's answers r1-r10 are on it).
  *
- * A NEPHALEM Rift is free: a click on the gate lights the golden portal, walking into it lands the
+ * A NEPHALEM Rift is free: a click on the gate lights the golden portal, a click on the portal (from within two tiles) lands the
  * hero on a freshly generated floor of a random tileset, filled with a mix of monsters from every
  * dungeon at the rift's tier. Kills fill a bar; at 100% the Skeleton King or the Butcher rises near
  * the hero. Killing him drops a pile and opens the way back. A GUARDIAN Rift is the same run with
@@ -92,7 +92,7 @@ bool InRift();
 bool RiftForbidsTownPortal();
 
 int RiftTier();
-/** @brief r3: the deepest floor @p player has reached, on the ladder at this difficulty. */
+/** @brief The Nephalem tier: one rung per three levels of @p player, inside this difficulty's block (2026-09-24). */
 int NephalemRiftTierFor(const Player &player);
 RiftGuardianType RiftGuardian();
 const char *RiftGuardianName(RiftGuardianType guardian);
@@ -126,8 +126,27 @@ int NextKeystoneTier(int tier, int ticksLeft, int ticksTotal, bool timedOut);
 void DropGuardianKeystone(Point tile, int tier);
 /** @brief From town: sets the tileset and starts the set level. False outside town or with no rift open. */
 bool EnterRift(Player &player);
-/** @brief Called from the town-side portal each tick: enters when the hero walks onto the entry tile. */
+/**
+ * @brief Called from the town-side portal each tick: enters when the hero has CLICKED the portal and is
+ * within RiftEntryReach tiles of it (user, 2026-09-24). Walking past it no longer does anything.
+ */
 bool TryEnterRiftFromTown();
+/** @brief How near the portal's tile the hero must be for a click on it to take him in. */
+constexpr int RiftEntryReach = 2;
+/** @brief The cursor found a town-side rift portal this frame (cursor.cpp sets it, and clears it). */
+void SetRiftPortalHovered(bool hovered);
+bool RiftPortalHovered();
+/**
+ * @brief A left click in the world: a click ON the portal asks to go in, any other click takes the
+ * request back, so walking away after clicking it does not land the hero in the rift anyway.
+ */
+void NoteWorldClickForRift();
+/**
+ * @brief Where a hero coming back from any rift stands in town: in front of the Rift Monument.
+ * Asked by GetMapReturnPosition by the rift's LEVEL NUMBER, because by then the rift may be over
+ * (it closed) and the town's objects are not built yet, so neither InRift() nor the gate object can answer.
+ */
+Point RiftReturnTile();
 
 /**
  * @brief LoadSetMap's rift branch: generates the floor from the rift's seed with the DRLG pretending to

@@ -31,6 +31,7 @@
 #include "oracool/lesser_uniques.h"
 #include "oracool/oracool.h" // IsSinglePlayer
 #include "oracool/skill_sounds.h"
+#include "oracool/stairless.h"
 #include "oracool/stonegate.h"
 #include "player.h"
 #include "utils/language.h"
@@ -54,14 +55,18 @@ struct RiftState {
 	/** Where the guardian fell: the way home is laid there, and laid AGAIN on a revisit (triggers and
 	 * missiles are not in the level save). */
 	Point homeTile = { 0, 0 };
+	/** The way OUT beside the arrival spot (user, 2026-09-24: "make sure exiting rift is possible through
+	 * the entry/exit point you spawn next to when first entering it"). Chosen once per rift, on the first
+	 * build, and laid again on every visit like the way home. (0,0) until then. */
+	Point arrivalTile = { 0, 0 };
 	/** The hero walked out through the way home - only then is a cleared rift over. A death after the
 	 * kill (the pile and the keystone still on the floor) keeps it open (audit, 2026-09-20). */
 	bool returnedHome = false;
 	int ticksLeft = 0;
 	bool timedOut = false;
-	/** The entry tile in town has to be LEFT before it can be walked into: the hero stands beside
-	 * the gate to click it, and the tile in front is where they may already be standing. */
-	bool entryArmed = false;
+	/** The hero clicked the town-side portal and has not clicked anywhere else since (2026-09-24): the
+	 * rift is entered once he is within RiftEntryReach of it. Replaced entryArmed, the walk-on door's guard. */
+	bool entryRequested = false;
 	/** A cleared Nephalem Rift's closing clock (NephalemRiftCloseSeconds): ticks until the rift ends on
 	 * its own, 0 when not running. */
 	int closeTicks = 0;
@@ -128,7 +133,6 @@ void OpenCommon(Player &player, RiftKind kind, int tier)
 	// A rift is always a FRESH floor: the visited flag is what makes LoadGameLevel restore a saved
 	// level instead of generating (the Sealed Maps' trick, named_encounters.cpp).
 	player._pSLvlVisited[RiftLevelFor(kind)] = false;
-	State.entryArmed = false;
 }
 
 } // namespace
@@ -167,12 +171,14 @@ int RiftTier()
 
 int NephalemRiftTierFor(const Player &player)
 {
-	int deepest = 1;
-	for (int floor = 1; floor <= AreaFloorCount && floor < NUMLEVELS; floor++) {
-		if (player._pLvlVisited[floor])
-			deepest = floor;
-	}
-	return AreaLevel(deepest, sgGameInitInfo.nDifficulty);
+	// THE HERO'S LEVEL, not the deepest floor (user, 2026-09-24, asked "how is area level of nephalem
+	// rifts decided? it should somehow be related to char level and difficulty", chose "hero level
+	// only" of four rules). One rung per three character levels inside the difficulty's block of
+	// sixteen: clvl 3-5 is rung 1, clvl 30 rung 10, clvl 48 and up the block's top. The block is the
+	// difficulty's, so the same hero's rift is 16 rungs deeper on Nightmare than on Normal. Diablo
+	// III's rule - the rift matches the hero, whatever floors he has or has not walked.
+	const int blockBase = AreaLevel(1, sgGameInitInfo.nDifficulty) - 1;
+	return blockBase + std::clamp(player._pLevel / 3, 1, RungsPerDifficulty);
 }
 
 RiftGuardianType RiftGuardian()
@@ -305,16 +311,50 @@ bool TryEnterRiftFromTown()
 	// and the keystone may be lying where the guardian fell (audit, 2026-09-20).
 	if (State.kind == RiftKind::None || State.returnedHome || MyPlayer == nullptr || leveltype != DTYPE_TOWN)
 		return false;
+	// A CLICK, and near enough (user, 2026-09-24: "there is a tile which when walked on sends you in the
+	// nephalem/guardian rifts. remove it. i want going in to only happen upon click on their portals
+	// click area while 1-2 tiles away"). The entry tile used to be a door you could stroll into; now
+	// it is only where the click walks the hero, and he goes in the moment he is within reach of the
+	// portal - at once if he clicked from beside it.
+	if (!State.entryRequested)
+		return false;
 	Point entry;
 	if (!StonegateEntryTile(entry))
 		return false;
+	const Point portal = entry - Displacement { 1, 1 }; // the portal stands on the gate's tile
 	Player &player = *MyPlayer;
-	if (player._pmode != PM_STAND || player.position.tile != entry)
+	if (player._pmode == PM_DEATH || player._pmode == PM_NEWLVL || player._pmode == PM_QUIT)
 		return false;
-	if (!State.entryArmed)
+	if (player.position.tile.WalkingDistance(portal) > RiftEntryReach)
 		return false;
+	State.entryRequested = false;
 	ClrPlrPath(player);
 	return EnterRift(player);
+}
+
+namespace {
+bool PortalHovered = false;
+} // namespace
+
+void SetRiftPortalHovered(bool hovered)
+{
+	PortalHovered = hovered;
+}
+
+bool RiftPortalHovered()
+{
+	return PortalHovered;
+}
+
+void NoteWorldClickForRift()
+{
+	State.entryRequested = PortalHovered && leveltype == DTYPE_TOWN && State.kind != RiftKind::None && !State.returnedHome;
+}
+
+Point RiftReturnTile()
+{
+	Point entry;
+	return StonegateLastEntryTile(entry) ? entry : Point { 32, 57 };
 }
 
 void BuildRiftLevel(bool fresh)
@@ -328,9 +368,20 @@ void BuildRiftLevel(bool fresh)
 	// was an unloaded sprite - a crash the moment one scrolled into view (audit, 2026-09-20).
 	const uint8_t savedLevel = currlevel;
 	currlevel = static_cast<uint8_t>(GenerationFloorFor(leveltype));
-	CreateDungeon(State.seed, ENTRY_MAIN); // ViewPosition lands on the up stairs, which lead nowhere here
+	// NO STAIRS (user, 2026-09-24: "if a rift is a single level make sure it has no stairs assets on the
+	// map. they are meaningless"). The DRLG still places them - its retry loops and random stream are the
+	// floor's own - and then hands their tiles back to the floor under them (oracool/stairless.h).
+	GeneratingStairlessLevel = true;
+	CreateDungeon(State.seed, ENTRY_MAIN); // ViewPosition lands where the up stairs' landing was
+	GeneratingStairlessLevel = false;
 
-	InitNoTriggers(); // no stairs: the way back appears when the guardian dies
+	InitNoTriggers(); // the exits are laid by RiftLevelPopulated: one by the arrival spot, one where the guardian falls
+	// Before the landing is checked: OpenFloorNear reads the tile properties these load.
+	LoadRndLvlPal(leveltype);
+	LoadLevelSOLData();
+	// The landing on open floor with open floor all round, in case a stairs miniset's landing tile
+	// is not floor once the stairs are gone.
+	ViewPosition = OpenFloorNear(ViewPosition);
 	// An arrival safe zone: a floor's stairs get one from Freeupstairs through its triggers, and a
 	// rift has none, so the scatter could put a pack on the hero's landing tile.
 	for (int dy = -2; dy <= 2; dy++) {
@@ -340,8 +391,6 @@ void BuildRiftLevel(bool fresh)
 				dFlags[tile.x][tile.y] |= DungeonFlag::Populated;
 		}
 	}
-	LoadRndLvlPal(leveltype);
-	LoadLevelSOLData();
 	// The same seed for the themes on every build of this floor, so a revisit computes the rooms the
 	// saved objects were placed in.
 	SetRndSeed(State.seed ^ 0x5EEDu);
@@ -414,15 +463,81 @@ int RiftKillCredit(const Monster &monster)
 
 namespace {
 
+/** @brief One return trigger on @p tile, and the rift's portal drawn on it. */
+void LayRiftExit(Point tile)
+{
+	if (numtrigs >= MAXTRIGGERS)
+		return;
+	trigs[numtrigs].position = tile;
+	trigs[numtrigs]._tmsg = WM_DIABRTNLVL;
+	numtrigs++;
+	if (MyPlayer != nullptr)
+		AddMissile(tile, tile, Direction::South, PortalFor(State.kind), TARGET_MONSTERS, MyPlayer->getId(), 0, 0);
+}
+
+/**
+ * @brief The way out where the hero arrived: a walkable neighbour of the arrival tile, never the tile
+ * itself (a trigger under the landing spot would send him straight back).
+ */
+void LayArrivalExit()
+{
+	if (State.arrivalTile == Point { 0, 0 }) {
+		for (int d = 0; d < 8; d++) {
+			const Point neighbour = ViewPosition + static_cast<Direction>(d);
+			if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0
+			    && dMonster[neighbour.x][neighbour.y] == 0) {
+				State.arrivalTile = neighbour;
+				break;
+			}
+		}
+	}
+	if (State.arrivalTile != Point { 0, 0 })
+		LayRiftExit(State.arrivalTile);
+}
+
 /** @brief The return trigger where the guardian fell, and the rift's portal drawn on it. */
 void LayWayHome()
 {
-	numtrigs = 1;
-	trigs[0].position = State.homeTile;
-	trigs[0]._tmsg = WM_DIABRTNLVL;
-	if (MyPlayer != nullptr)
-		AddMissile(State.homeTile, State.homeTile, Direction::South, PortalFor(State.kind), TARGET_MONSTERS, MyPlayer->getId(), 0, 0);
+	LayRiftExit(State.homeTile);
 	PlaySfxLoc(LS_SENTINEL, State.homeTile); // vanilla's portal opening sound (user, 2026-09-20)
+}
+
+/**
+ * @brief The guardian arrives (user, 2026-09-24: "i want a more scary sound when rift boss appears and
+ * more impacting sound when he is defeated"). Was the Milestone chime - a reward sound for a threat.
+ * Now his own voice where the game has one - Leoric's "The warmth of life has entered my tomb", the
+ * Butcher's "Ah, fresh meat!" - and for Diablo and Na-Krul, who have no greeting, the sting the game
+ * plays on the way into Diablo's own level. Streams: one at a time, so one line each. Under it the
+ * Milestone chime stays, so the bar's end still sounds like the bar's end.
+ */
+void PlayGuardianRisesSound(const Monster &guardian)
+{
+	(void)guardian;
+	switch (State.guardian) {
+	case RiftGuardianType::SkeletonKing:
+		PlaySFX(USFX_SKING1);
+		break;
+	case RiftGuardianType::Butcher:
+		PlaySFX(USFX_CLEAVER);
+		break;
+	case RiftGuardianType::Diablo:
+	case RiftGuardianType::NaKrul:
+		PlaySFX(PS_DIABLVLINT);
+		break;
+	}
+	PlayUiEventSound(UiEventSound::Milestone);
+}
+
+/**
+ * @brief The guardian falls: Apocalypse's blast under the cleared chime, and for Diablo his own death
+ * cry - the one the game ends on. The others' own death sounds already play with the kill.
+ */
+void PlayGuardianFallsSound()
+{
+	PlaySFX(LS_APOC);
+	if (State.guardian == RiftGuardianType::Diablo)
+		PlaySFX(USFX_DIABLOD);
+	PlayUiEventSound(UiEventSound::EncounterCleared);
 }
 
 } // namespace
@@ -431,8 +546,10 @@ void RiftLevelPopulated()
 {
 	if (!InRift())
 		return;
-	// A cleared rift entered again (the hero died over the pile): the way home is not in the level
-	// save, so it is laid again where the guardian fell.
+	// The exits are not in the level save (triggers and missiles never are), so every visit lays them:
+	// the way out by the arrival spot always, and the way home where the guardian fell once he has.
+	numtrigs = 0;
+	LayArrivalExit();
 	if (State.done)
 		LayWayHome();
 	if (State.creditNeeded > 0)
@@ -509,7 +626,7 @@ void OnRiftMonsterKilled(const Monster &monster)
 			State.closeTicks = NephalemRiftCloseSeconds * RiftTicksPerSecond;
 			LogEvent(StrCat("The rift closes in ", NephalemRiftCloseSeconds, " seconds. Take what is yours."), UiFlags::ColorWhitegold);
 		}
-		PlayUiEventSound(UiEventSound::EncounterCleared);
+		PlayGuardianFallsSound();
 		return;
 	}
 	if (State.guardianSpawned)
@@ -539,7 +656,12 @@ void ProcessRift()
 		LogEvent(inside ? "The rift closes around you and spits you out in Tristram." : "The rift has closed; the Rift Monument falls dark.", UiFlags::ColorWhitegold);
 		CloseStonegate(); // removes the portal missiles, ends the rift, the closing sound
 		if (inside && MyPlayer != nullptr)
-			StartNewLvl(*MyPlayer, WM_DIABRETOWN, 0);
+			// WM_DIABRTNLVL, the way home's own message, not WM_DIABRETOWN (user, 2026-09-24: "when nephalem
+			// rif closed and i got teleported away i spawned in [dlvl 9] ... unable to move out"). RETOWN loads
+			// the hero's plrlevel, and inside a set level that holds the SET LEVEL's number - 9 is
+			// SL_RIFT_NEPHALEM - so the close dropped him on dungeon level 9 as if he had walked there. The
+			// return path loads GetMapReturnLevel (town) and puts him in front of the monument.
+			StartNewLvl(*MyPlayer, WM_DIABRTNLVL, GetMapReturnLevel());
 		return;
 	}
 
@@ -548,10 +670,6 @@ void ProcessRift()
 		// before InitMissiles clears the list, so the relight happens here, once the missiles exist.
 		if (!State.returnedHome)
 			RelightStonegateIfNeeded();
-		// Arm the entry tile once the hero is off it.
-		Point entry;
-		if (MyPlayer != nullptr && StonegateEntryTile(entry) && MyPlayer->position.tile != entry)
-			State.entryArmed = true;
 		return;
 	}
 
@@ -572,11 +690,18 @@ void ProcessRift()
 	State.guardianSpawned = true;
 	State.guardianId = guardian->getId();
 	LogEvent(StrCat("The rift shudders: ", RiftGuardianName(State.guardian), " rises!"), UiFlags::ColorRed);
-	PlayUiEventSound(UiEventSound::Milestone);
+	PlayGuardianRisesSound(*guardian);
 }
 
 bool RiftEntered() { return State.creditNeeded > 0; }
-void RiftNoteReturnHome() { State.returnedHome = true; }
+// Only a CLEARED rift ends on the way out (2026-09-24): the way out by the arrival spot is open from the
+// start, and leaving through it before the guardian falls is a trip to town, like a town portal - the
+// rift and its bar wait for the hero to come back through the monument.
+void RiftNoteReturnHome()
+{
+	if (State.done)
+		State.returnedHome = true;
+}
 bool RiftReturnedHome() { return State.returnedHome; }
 bool RiftGuardianSpawned() { return State.guardianSpawned; }
 bool RiftDone() { return State.done; }
