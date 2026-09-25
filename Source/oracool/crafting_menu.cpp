@@ -18,6 +18,7 @@
 #include "oracool/event_log.h"
 #include "oracool/hud_menu.h"
 #include "oracool/ornate_border.h"
+#include "oracool/shop_grid.h" // DrawVendorButtonBacking - the book buttons wear the vendors' tab face
 #include "oracool/ui_sound.h"
 #include "utils/language.h"
 #include "utils/ui_fwd.h"
@@ -196,13 +197,20 @@ void DrawCraftingMenu(const Surface &out)
 		const Rectangle rect = HostButtonRect(i);
 		const bool active = HostButtons[i] == HostFilter;
 		const bool hovered = rect.contains(MousePosition);
-		if (active)
-			FillRect(out, rect.position.x + 1, rect.position.y + 1, rect.size.width - 2, rect.size.height - 2, PAL16_GRAY + 14);
-		DrawOrnateBorder(out, rect);
+		// The vendors' tab button (user, 2026-09-25 dev note: "crafting book - use vendors tab buttons backing
+		// for the three buttons here. selected crafting sheet to have its button gold, rest - grey ... texts on
+		// buttons to have text shadow 2px"). The filled plate and ornate edge stay as the fallback for a
+		// player whose archive has no vanilla button.
+		const bool vendorFace = DrawVendorButtonBacking(out, rect, active, hovered);
+		if (!vendorFace) {
+			if (active)
+				FillRect(out, rect.position.x + 1, rect.position.y + 1, rect.size.width - 2, rect.size.height - 2, PAL16_GRAY + 14);
+			DrawOrnateBorder(out, rect);
+		}
 		DrawString(out, _(TransmuteHostTitle(HostButtons[i])), rect,
-		    { (active ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12
-		        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-		if (hovered && !active)
+		    { (active ? UiFlags::ColorWhite : UiFlags::ColorWhitegold) | UiFlags::FontSize12
+		        | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		if (hovered && !active && !vendorFace)
 			DrawHoverOutline(out, rect);
 	}
 

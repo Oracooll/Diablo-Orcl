@@ -5,7 +5,9 @@
 #include <algorithm>
 #include <cassert>
 #include <iterator>
+#include <optional>
 #include <string>
+#include <utility>
 
 #include <fmt/format.h>
 
@@ -23,6 +25,7 @@
 #include "oracool/rage.h"
 #include "oracool/essence.h" // the Necromancer's second pool, a row of its own
 #include "oracool/class_tree.h"
+#include "oracool/aura_field.h" // HolyPulseDamage / SanctuaryDamage - a damaging aura's number on the sheet
 #include "oracool/hero_title.h"
 #include "oracool/signets.h"
 #include "spells.h" // IsValidSpell
@@ -177,6 +180,29 @@ oracool::ClassTreeSkill AuraOnButton(bool leftButton)
 	return oracool::GetActiveClassAura(*InspectPlayer);
 }
 
+/**
+ * @brief A DAMAGING aura on the button: its damage type and the range one pulse deals at the points in it.
+ *
+ * User, 2026-09-25 dev note: "holy fire aura does fire dmg - have its hero stats title written in red text in
+ * right button:XXXXXXXXXX. also on AURA ON row type the current dmg it is doing. also in red." The same holds
+ * for every aura that strikes: Holy Freeze (cold), Holy Shock (lightning) and Sanctuary (magic, undead only)
+ * read through here too - the numbers are the ones AuraFieldFactsAt quotes in the skill's own tooltip.
+ */
+std::optional<std::pair<DamageType, oracool::AuraDamage>> DamagingAuraOnButton(bool leftButton)
+{
+	using Skill = oracool::ClassTreeSkill;
+	const Skill aura = AuraOnButton(leftButton);
+	if (aura != Skill::HolyFire && aura != Skill::HolyFreeze && aura != Skill::HolyShock && aura != Skill::Sanctuary)
+		return std::nullopt;
+	const int points = std::max(oracool::ClassTreeInvestment(*InspectPlayer, aura), 1);
+	if (aura == Skill::Sanctuary)
+		return std::make_pair(DamageType::Magic, oracool::SanctuaryDamage(points));
+	const DamageType type = aura == Skill::HolyFire ? DamageType::Fire
+	    : aura == Skill::HolyFreeze                 ? DamageType::Cold
+	                                                : DamageType::Lightning;
+	return std::make_pair(type, oracool::HolyPulseDamage(aura, points));
+}
+
 /** @brief Whether the button's swing is the weapon's - a basic attack, or a melee class skill. */
 bool ReadiedSlotSwingsTheWeapon(SpellID spell)
 {
@@ -197,6 +223,8 @@ UiFlags ReadiedSlotColor(bool leftButton)
 {
 	const Player &player = *InspectPlayer;
 	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
+	if (const auto damaging = DamagingAuraOnButton(leftButton); damaging.has_value())
+		return DamageTypeColor(damaging->first); // a burning aura reads as its element, both rows (2026-09-25)
 	if (AuraOnButton(leftButton) != oracool::ClassTreeSkill::None)
 		return UiFlags::ColorBlue; // the "Aura:" row's colour, so the two rows agree
 	if (ReadiedSlotSwingsTheWeapon(spell))
@@ -212,6 +240,11 @@ StyledText GetReadiedSlotDamage(bool leftButton)
 	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
 
 	// An aura has no number to report; the row says it is burning, under an "Aura" label.
+	if (const auto damaging = DamagingAuraOnButton(leftButton); damaging.has_value()) {
+		// "On" and what it is doing, in the element's colour: one pulse's range, every three seconds.
+		const oracool::AuraDamage &d = damaging->second;
+		return StyledText { DamageTypeColor(damaging->first), StrCat(_("On"), ", ", d.min, "-", d.max), (d.min >= 100) ? -1 : 1 };
+	}
 	if (AuraOnButton(leftButton) != oracool::ClassTreeSkill::None)
 		return StyledText { UiFlags::ColorBlue, std::string(_("On")) };
 	if (ReadiedSlotSwingsTheWeapon(spell))

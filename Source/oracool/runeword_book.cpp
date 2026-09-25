@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include <fmt/format.h>
+
 #include "automap.h"
 #include "diablo.h" // CloseAllWindows
 #include "control.h"
@@ -20,6 +22,7 @@
 #include "oracool/hud_menu.h"
 #include "oracool/ornate_border.h"
 #include "oracool/runewords.h"
+#include "oracool/shop_grid.h" // DrawVendorButtonBacking - the filters wear the vendors' tab face
 #include "oracool/ui_sound.h"
 #include "oracool/window_close.h"
 #include "player.h"
@@ -91,6 +94,19 @@ constexpr int PossibleFilterSize = 18;
 
 int ScrollOffsetPx = 0;
 
+/**
+ * @brief The title row's buttons (user, 2026-09-25 dev note: "add more filter buttons - chest icon and buttons
+ * 2,3,4,5,6. add them on the title row. 6px apart from each other. the left most one aligned flush with left end
+ * of weapon filter button. chest icon replaces gold X, number icons filter words according to how many runes
+ * they required"). Index 0 is the chest - the Possible-Runewords toggle the yellow X used to be - and 1..5 are
+ * the rune counts 2..6.
+ */
+constexpr int TitleButtonGap = 6;
+constexpr Size TitleButtonSize { 28, TitleHeight };
+constexpr int RuneCountFilterFirst = 2;
+constexpr int RuneCountFilterCount = 5; // 2, 3, 4, 5, 6 runes
+std::array<bool, RuneCountFilterCount> RuneCountSelected {};
+
 std::array<bool, SlotFilterCount> SlotSelected {};
 std::vector<bool> RuneSelected;
 /**
@@ -124,6 +140,13 @@ bool PassesFilters(const RunewordDefinition &word)
 	const bool anySlot = std::any_of(SlotSelected.begin(), SlotSelected.end(), [](bool b) { return b; });
 	if (anySlot && (word.host >= SlotFilterCount || !SlotSelected[word.host]))
 		return false;
+	// The rune-count buttons: any of the lit counts, like the slot keys - several lit is an OR.
+	const bool anyCount = std::any_of(RuneCountSelected.begin(), RuneCountSelected.end(), [](bool b) { return b; });
+	if (anyCount) {
+		const int slot = static_cast<int>(word.runeCount) - RuneCountFilterFirst;
+		if (slot < 0 || slot >= RuneCountFilterCount || !RuneCountSelected[slot])
+			return false;
+	}
 
 	if (AnyRuneSelected()) {
 		if (PossibleMode) {
@@ -225,15 +248,18 @@ Rectangle RuneKeyRect(size_t index)
 		{ step, RuneRowHeight } };
 }
 
-/** @brief The Possible-Runewords toggle, in the window's top-LEFT corner. */
+/** @brief Title-row button @p index: 0 the chest, 1..5 the rune counts. Flush left with the Weapon key, 6px apart. */
+Rectangle TitleButtonRect(int index)
+{
+	const Rectangle window = GetRunewordBookRect();
+	return { { SlotKeyRect(0).position.x + index * (TitleButtonSize.width + TitleButtonGap), window.position.y + Padding },
+		TitleButtonSize };
+}
+
+/** @brief The Possible-Runewords toggle: the chest, first on the title row since 2026-09-25 (it was a yellow X in the corner). */
 Rectangle PossibleFilterRect()
 {
-	// The red X's mirror image across the window (user, 2026-09-05: "replace the gold cross in the
-	// top left with clone of the RED X CLOSE button, but painted in YELLOW and mirrored across the
-	// window"): the same size, the same inset, the left corner.
-	const Rectangle window = GetRunewordBookRect();
-	const Rectangle close = GetWindowCloseButtonRect(window);
-	return { { window.position.x + (window.position.x + window.size.width - (close.position.x + close.size.width)), close.position.y }, close.size };
+	return TitleButtonRect(0);
 }
 
 Rectangle ContentRect()
@@ -447,33 +473,54 @@ void DrawRunewordBook(const Surface &out)
 	    Rectangle { window.position + Displacement { Padding, Padding }, { window.size.width - Padding * 2, TitleHeight } },
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter });
 
-	// The Possible-Runewords toggle: a yellow X, lit while it is what selected the rune row.
-	// The Possible-Runewords toggle: the red X's yellow twin at the top-left, lit while it is what
-	// selected the rune row, brighter still under the cursor.
+	// THE TITLE ROW'S BUTTONS (2026-09-25): the chest - the Possible-Runewords toggle, open while it is what
+	// selected the rune row - then the rune counts 2 to 6. All wear the vendors' tab face, gold when lit.
 	const Rectangle possible = PossibleFilterRect();
 	const bool possibleHovered = possible.contains(MousePosition);
-	const uint8_t possibleGlyph = (PossibleMode || possibleHovered) ? PAL16_YELLOW + 1 : PAL16_YELLOW + 5;
-	DrawWindowCloseButtonStyled(out, possible, possibleGlyph, PAL16_YELLOW + 13);
-	if (possibleHovered) {
-		// The hover label, drawn just under the glyph so it cannot cover the title.
-		const Rectangle tip { { possible.position.x, possible.position.y + possible.size.height + 2 }, { 120, LineHeight } };
+	if (!DrawVendorButtonBacking(out, possible, PossibleMode, possibleHovered))
+		DrawOrnateBorder(out, possible);
+	DrawTabGlyph(out, possible, /*open=*/PossibleMode, /*gold=*/possibleHovered);
+	for (int c = 0; c < RuneCountFilterCount; c++) {
+		const Rectangle button = TitleButtonRect(1 + c);
+		const bool hovered = button.contains(MousePosition);
+		if (!DrawVendorButtonBacking(out, button, RuneCountSelected[c], hovered))
+			DrawOrnateBorder(out, button);
+		DrawString(out, StrCat(RuneCountFilterFirst + c), button,
+		    { (RuneCountSelected[c] || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold) | UiFlags::FontSize12
+		        | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	}
+	// The hover labels, just under the row so they cannot cover the title.
+	const auto tipUnder = [&out](Rectangle button, string_view text) {
+		const Rectangle tip { { button.position.x, button.position.y + button.size.height + 2 }, { 120, LineHeight } };
 		DrawHalfTransparentRectTo(out, tip.position.x, tip.position.y, tip.size.width, tip.size.height);
-		DrawString(out, _("Possible RW"), tip, { UiFlags::ColorWhitegold | UiFlags::FontSize12 });
+		DrawString(out, text, tip, { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::Shadowed });
+	};
+	if (possibleHovered)
+		tipUnder(possible, _("Possible RW"));
+	for (int c = 0; c < RuneCountFilterCount; c++) {
+		if (TitleButtonRect(1 + c).contains(MousePosition))
+			tipUnder(TitleButtonRect(1 + c), fmt::format(fmt::runtime(_("{:d} runes")), RuneCountFilterFirst + c));
 	}
 
 	// The plate when it shipped, the ornate border when it did not - the fallback shop_grid.cpp makes.
 	const bool keyArt = GetLoosePngSize(RunewordKeyArt).width != 0;
 	for (int i = 0; i < SlotFilterCount; i++) {
 		const Rectangle key = SlotKeyRect(i);
-		if (keyArt) {
-			const int state = SlotSelected[i] ? 2 : (key.contains(MousePosition) ? 1 : 0);
-			DrawLoosePngPart(out, RunewordKeyArt, Rectangle { { 0, state * RunewordKeyCell.height }, RunewordKeyCell }, key.position);
-		} else {
-			DrawOrnateBorder(out, key);
+		const bool hovered = key.contains(MousePosition);
+		// The vendors' tab face (user, 2026-09-25 dev note: "replace the filter buttons backing in runeword book
+		// with the backing we use for vendor tabs" ... "selected filters to have their backing gold, rest - grey.
+		// texts on buttons to have text shadow 2px"). The painted key and the ornate edge stay as fallbacks.
+		if (!DrawVendorButtonBacking(out, key, SlotSelected[i], hovered)) {
+			if (keyArt) {
+				const int state = SlotSelected[i] ? 2 : (hovered ? 1 : 0);
+				DrawLoosePngPart(out, RunewordKeyArt, Rectangle { { 0, state * RunewordKeyCell.height }, RunewordKeyCell }, key.position);
+			} else {
+				DrawOrnateBorder(out, key);
+			}
 		}
 		DrawString(out, _(SlotFilterNames[i]), key,
-		    { (key.contains(MousePosition) ? UiFlags::ColorWhite : (SlotSelected[i] ? UiFlags::ColorWhitegold : UiFlags::ColorBlue)) // white under the cursor (user, 2026-09-05)
-		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		    { (hovered || SlotSelected[i] ? UiFlags::ColorWhite : UiFlags::ColorWhitegold) // white under the cursor (user, 2026-09-05)
+		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 
 	for (size_t i = 0; i < RuneIndices.size(); i++) {
@@ -544,6 +591,15 @@ bool HandleRunewordBookClick(Point position)
 		ScrollOffsetPx = 0;
 		PlayUiMoveSound();
 		return true;
+	}
+
+	for (int c = 0; c < RuneCountFilterCount; c++) {
+		if (TitleButtonRect(1 + c).contains(position)) {
+			RuneCountSelected[c] = !RuneCountSelected[c];
+			ScrollOffsetPx = 0;
+			PlayUiMoveSound();
+			return true;
+		}
 	}
 
 	for (int i = 0; i < SlotFilterCount; i++) {

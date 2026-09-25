@@ -1191,11 +1191,17 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 			sgOptions.Graphics.fullscreen.SetValue(!IsFullScreen());
 			SaveOptions();
 #endif
-		} else if (stextflag != TalkID::None) {
+		} else if (stextflag != TalkID::None && !oracool::IsShopTab(stextflag)) {
+			// A towner's dialog, a Yes/No, a "not enough gold": Enter picks the line, as it always has.
 			StoreEnter();
 		} else if (QuestLogIsOpen) {
 			QuestlogEnter();
 		} else {
+			// A SHOP TAB is open: Enter no longer buys (user, 2026-09-25 dev notes: "enter key still initiates buy
+			// command with wirts" / "enter key initiates buy commands with vendors. stop that. enter key to open
+			// chat window when vendor shop are open"). It opened the purchase prompt for whatever the pointer or
+			// the keyboard cursor had selected, on every shop grid; now it opens the chat line like anywhere else
+			// in the world, and a purchase is a click.
 			control_type_message();
 		}
 		return;

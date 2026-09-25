@@ -1696,6 +1696,7 @@ void SortStash(Player &player)
 	std::vector<SortEntry> entries;
 	std::vector<Item> materials;
 	std::vector<Item> consumables; // potions, elixirs, scrolls - their own page on SORT (2026-09-05)
+	std::vector<Item> charms; // their own page, after the gear and before the consumables (2026-09-25)
 	entries.reserve(Stash.stashList.size());
 
 	// SORT merges EVERY stackable kind first (user, 2026-09-05: "make sure they will stack when i
@@ -1724,6 +1725,13 @@ void SortStash(Player &player)
 		if (item.isStackableConsumable() || IsOracoolSalvageIdx(item.IDidx)
 		    || (item._itype == ItemType::Misc && !IsOracoolCharmIdx(item.IDidx))) {
 			consumables.push_back(item);
+			continue;
+		}
+		// CHARMS on a page of their own (user, 2026-09-25 dev note: "charms still land on page 1 of stash moving
+		// items to page 2. move charms in their own page after items, before consumables"). They were gear of
+		// their quality tier, so a plain charm opened the plain page and pushed the gear after it along.
+		if (IsOracoolCharmIdx(item.IDidx)) {
+			charms.push_back(item);
 			continue;
 		}
 		const StashSortTier tier = StashSortTierOf(item);
@@ -1784,6 +1792,21 @@ void SortStash(Player &player)
 			Stash.SetPage(tierPage);
 		}
 		AutoPlaceItemInStash(player, entry.item, true);
+	}
+
+	// The charms' page: the first empty page after the gear, before the socketables and the consumables take
+	// theirs - they ask for "the first empty page" below, which is now the one after this. Grouped by kind
+	// (the base index), the better quality first within a kind; spills onto the next page like any run.
+	if (!charms.empty()) {
+		std::stable_sort(charms.begin(), charms.end(), [](const Item &a, const Item &b) {
+			if (a.IDidx != b.IDidx)
+				return a.IDidx < b.IDidx;
+			return StashSortTierOf(a) > StashSortTierOf(b);
+		});
+		const unsigned charmPage = FirstEmptyStashPage();
+		Stash.SetPage(charmPage < CountStashPages ? charmPage : 0);
+		for (const Item &charm : charms)
+			AutoPlaceItemInStash(player, charm, true);
 	}
 
 	// Lays @p items out in FAMILY blocks (familyOf), row by row, each item in the first free rectangle

@@ -8471,6 +8471,17 @@ void RollBoyShopSlot(Item &out, int slot, int lvl)
 		if (StockOracoolMagicItems(&out, 1, lvl, 1) == 1)
 			return;
 	}
+	// And every third slot a RARE (user, 2026-09-25 dev note: "make wirt offer a mix of blue and yellow items
+	// in his shop"): the Rare shelf's own roller, so the base is drawn from the whole catalogue - the fork's
+	// gear a third of the time - and the tier is forced, onlygood. A base that cannot carry a tier is a miss
+	// and is rolled again; after twenty misses the slot falls back to his ordinary blue roll.
+	if (oracool::IsSinglePlayer() && slot % 3 == 1) {
+		for (int attempt = 0; attempt < 20; attempt++) {
+			out = {};
+			if (CreateRareVendorItem(*MyPlayer, out, lvl))
+				return;
+		}
+	}
 	RollBoyItem(out, lvl);
 	out._iIdentified = true; // the Shop tab sells what it shows; the gamble is the other tab
 }

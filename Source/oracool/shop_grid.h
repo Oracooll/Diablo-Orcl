@@ -86,6 +86,13 @@ Rectangle GetSideTabRect(int index);
  */
 void DrawSideTab(const Surface &out, int index, string_view label, bool active, bool pressed);
 
+/**
+ * @brief The vendors' tab button laid flat across @p rect, for any other window's buttons (2026-09-25):
+ * GOLD when @p selected, grey otherwise, lighter under the pointer. False when the vanilla button is
+ * not in the player's archive (or the target is indexed) - the caller draws its own fallback then.
+ */
+bool DrawVendorButtonBacking(const Surface &out, Rectangle rect, bool selected, bool hovered);
+
 /** @brief The tab under @p position in that column, or TalkID::None. The caller decides what switching costs. */
 TalkID ShopTabAt(Point position, TalkID open);
 

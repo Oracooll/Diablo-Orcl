@@ -248,6 +248,12 @@ struct VanillaButtonFaces {
 	bool loaded = false;
 	/** @brief One 110x27 face per VanillaFace, as XRGB values. */
 	std::array<std::vector<uint32_t>, 3> faces;
+	/**
+	 * @brief The same three faces in GOLD - the SELECTED control (user, 2026-09-25 dev note: "all vendors tabs new
+	 * rule - use gold backing for the selected tab"; the inventory's tab plates have been grey/gold since
+	 * v1.9.290, the rule the vendors' tabs and the books' buttons now share).
+	 */
+	std::array<std::vector<uint32_t>, 3> goldFaces;
 };
 
 /** @brief The three faces, decoded once. Not loaded if the archive has no but_sml. */
@@ -271,11 +277,18 @@ const VanillaButtonFaces &GetVanillaButtonFaces()
 		return art;
 	}
 	std::array<uint32_t, 256> grey {};
+	std::array<uint32_t, 256> gold {};
 	for (size_t i = 0; i < grey.size(); i++) {
 		const SDL_Color c = palette[i];
 		const uint32_t luma = (299U * c.r + 587U * c.g + 114U * c.b) / 1000U;
 		const uint32_t value = std::min<uint32_t>(255U, luma * VanillaGreyPercent / 100U);
 		grey[i] = (value << 16) | (value << 8) | value;
+		// Gold of the same brightness: the red channel ahead, the blue far behind - the ramp the game's own
+		// gold lettering sits on, so the bevel and the ring read exactly as on the grey face.
+		const uint32_t r = std::min<uint32_t>(255U, luma * 125U / 100U);
+		const uint32_t g = std::min<uint32_t>(255U, luma * 98U / 100U);
+		const uint32_t b = std::min<uint32_t>(255U, luma * 42U / 100U);
+		gold[i] = (r << 16) | (g << 8) | b;
 	}
 	for (size_t f = 0; f < art.faces.size(); f++) {
 		const ClxSprite sprite = (*sprites)[f];
@@ -284,13 +297,15 @@ const VanillaButtonFaces &GetVanillaButtonFaces()
 			    VanillaButtonPath, f, sprite.width(), sprite.height(), VanillaFaceWidth, VanillaFaceTop + VanillaFaceHeight);
 			return art;
 		}
-		const OwnedSurface scratch = OwnedSurface::Rgb(sprite.width(), sprite.height());
-		RenderClxSpriteWithRgbMap(scratch, sprite, { 0, 0 }, grey.data());
-		std::vector<uint32_t> &face = art.faces[f];
-		face.resize(static_cast<size_t>(VanillaFaceWidth) * VanillaFaceHeight);
-		for (int y = 0; y < VanillaFaceHeight; y++) {
-			for (int x = 0; x < VanillaFaceWidth; x++)
-				face[static_cast<size_t>(y) * VanillaFaceWidth + x] = *scratch.at<uint32_t>(x, VanillaFaceTop + y) & 0xFFFFFFU;
+		for (const bool golden : { false, true }) {
+			const OwnedSurface scratch = OwnedSurface::Rgb(sprite.width(), sprite.height());
+			RenderClxSpriteWithRgbMap(scratch, sprite, { 0, 0 }, golden ? gold.data() : grey.data());
+			std::vector<uint32_t> &face = golden ? art.goldFaces[f] : art.faces[f];
+			face.resize(static_cast<size_t>(VanillaFaceWidth) * VanillaFaceHeight);
+			for (int y = 0; y < VanillaFaceHeight; y++) {
+				for (int x = 0; x < VanillaFaceWidth; x++)
+					face[static_cast<size_t>(y) * VanillaFaceWidth + x] = *scratch.at<uint32_t>(x, VanillaFaceTop + y) & 0xFFFFFFU;
+			}
 		}
 	}
 	art.loaded = true;
@@ -305,14 +320,14 @@ const VanillaButtonFaces &GetVanillaButtonFaces()
  * than rotated, so the light still falls from the top left as it does on every button beside it.
  * False when there is nothing to draw with, and the caller draws its fallback.
  */
-bool DrawVanillaButton(const Surface &out, Rectangle rect, VanillaFace which, bool onItsSide)
+bool DrawVanillaButton(const Surface &out, Rectangle rect, VanillaFace which, bool onItsSide, bool golden = false)
 {
 	if (out.isIndexed())
 		return false;
 	const VanillaButtonFaces &art = GetVanillaButtonFaces();
 	if (!art.loaded)
 		return false;
-	const std::vector<uint32_t> &face = art.faces[static_cast<size_t>(which)];
+	const std::vector<uint32_t> &face = (golden ? art.goldFaces : art.faces)[static_cast<size_t>(which)];
 	const int sourceWidth = onItsSide ? VanillaFaceHeight : VanillaFaceWidth;
 	const int sourceHeight = onItsSide ? VanillaFaceWidth : VanillaFaceHeight;
 	const std::vector<ButtonSliceSpan> columns = SliceButtonAxis(rect.size.width, sourceWidth, VanillaFaceCap);
@@ -1409,7 +1424,7 @@ void DrawShopTabColumn(const Surface &out, TalkID open)
 		// The vanilla button on its side: lit for the open shelf, at rest under the pointer and pressed in
 		// otherwise, so the shelves not showing step back and the open one stands out.
 		const VanillaFace vanillaFace = active ? VanillaFace::Lit : hovered ? VanillaFace::Rest : VanillaFace::Pressed;
-		const bool vanilla = DrawVanillaButton(out, face, vanillaFace, /*onItsSide=*/true);
+		const bool vanilla = DrawVanillaButton(out, face, vanillaFace, /*onItsSide=*/true, /*golden=*/active); // the open shelf in gold (2026-09-25)
 		if (!vanilla && tabArt) {
 			// Oracool: one 26x80 cell per state - the open shelf, the one under the pointer, or at rest.
 			// Its flat edge is on the RIGHT, drawn for a tab left of its panel, so here it faces away from
@@ -1427,7 +1442,7 @@ void DrawShopTabColumn(const Surface &out, TalkID open)
 			DrawOrnateBorder(out, face);
 		}
 		const string_view label = _(ShopTabName(tabs[i]));
-		if (!vanilla || !DrawSidewaysLabel(out, label, face, UiFlags::ColorWhitegold))
+		if (!vanilla || !DrawSidewaysLabel(out, label, face, active ? UiFlags::ColorWhite : UiFlags::ColorWhitegold))
 			DrawVerticalLabel(out, label, face, active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold);
 	}
 }
@@ -1478,7 +1493,7 @@ void DrawSideTab(const Surface &out, int index, string_view label, bool active, 
 	const bool hovered = rect.contains(MousePosition);
 	const Rectangle face { rect.position + (pressed ? ShopTabSink : Displacement { 0, 0 }), rect.size };
 	const VanillaFace vanillaFace = active ? VanillaFace::Lit : hovered ? VanillaFace::Rest : VanillaFace::Pressed;
-	const bool vanilla = DrawVanillaButton(out, face, vanillaFace, /*onItsSide=*/true);
+	const bool vanilla = DrawVanillaButton(out, face, vanillaFace, /*onItsSide=*/true, /*golden=*/active); // the open tab in gold (2026-09-25)
 	if (!vanilla && tabArt) {
 		const int state = active ? 2 : hovered ? 1 : 0;
 		DrawLoosePngPart(out, ShopTabArt, Rectangle { { state * ShopTabCell.width, 0 }, ShopTabCell }, face.position);
@@ -1490,8 +1505,16 @@ void DrawSideTab(const Surface &out, int index, string_view label, bool active, 
 		}
 		DrawOrnateBorder(out, face);
 	}
-	if (!vanilla || !DrawSidewaysLabel(out, label, face, UiFlags::ColorWhitegold))
+	if (!vanilla || !DrawSidewaysLabel(out, label, face, active ? UiFlags::ColorWhite : UiFlags::ColorWhitegold))
 		DrawVerticalLabel(out, label, face, active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold);
+}
+
+bool DrawVendorButtonBacking(const Surface &out, Rectangle rect, bool selected, bool hovered)
+{
+	// The vendors' tab face laid flat: gold and lit when selected, grey at rest under the pointer, grey and
+	// pressed in otherwise - the tabs' own three states, so a filter reads like a shelf.
+	const VanillaFace which = selected ? VanillaFace::Lit : hovered ? VanillaFace::Rest : VanillaFace::Pressed;
+	return DrawVanillaButton(out, rect, which, /*onItsSide=*/false, /*golden=*/selected);
 }
 
 void DrawShopTabColumnFor(const Surface &out, TalkID open)

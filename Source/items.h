@@ -1387,7 +1387,7 @@ void SpawnSmith(int lvl);
 void SpawnPremium(const Player &player);
 /** @brief Wirt (2026-09-20): one roll of his table into @p out, as his one item was always rolled. */
 void RollBoyItem(Item &out, int lvl);
-/** @brief One slot of Wirt's Shop tab: every third slot Oracool gear, the rest his own table (2026-09-24). */
+/** @brief One slot of Wirt's Shop tab: a third his own blue roll, a third Oracool blue gear (2026-09-24), a third rare (2026-09-25). */
 void RollBoyShopSlot(Item &out, int slot, int lvl);
 /** @brief Wirt's Gamble tab: GAMBLE_ITEMS unidentified bases, one per slot, priced by GamblePriceFor. */
 void SpawnGambleStock(int lvl);
