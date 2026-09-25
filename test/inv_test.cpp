@@ -36,8 +36,36 @@ public:
 		MyPlayer->InvTabList = {};
 		MyPlayer->InvTabGrid = {};
 		MyPlayer->_pNumInvTab = {};
+		// Every page open: a fresh Player is level 0, which the page gates (on by default since 2026-09-25) would
+		// lock out of pages 2-10. The gates have a test of their own below.
+		sgOptions.Oracool.inventoryTabLevelGates.SetValue(false);
 	}
 };
+
+// Inventory Tab Level Gates (user, 2026-09-25): page N opens at level 10*(N-1), and a locked page takes nothing.
+TEST_F(InvTest, TabbedInventory_LevelGatesLockPagesAndReadThemAsFull)
+{
+	sgOptions.Oracool.inventoryTabLevelGates.SetValue(true);
+	EXPECT_EQ(InventoryTabRequiredLevel(0), 0) << "the backpack itself is never gated";
+	EXPECT_EQ(InventoryTabRequiredLevel(1), 10);
+	EXPECT_EQ(InventoryTabRequiredLevel(9), 90);
+
+	MyPlayer->_pLevel = 9;
+	EXPECT_TRUE(IsInventoryTabLocked(*MyPlayer, 1));
+	Item item;
+	item._itype = ItemType::Misc; // the plain item the other extra-tab tests place
+	EXPECT_FALSE(AutoPlaceItemInExtraTabs(*MyPlayer, item, true)) << "a locked page took an item";
+	EXPECT_EQ(MyPlayer->_pNumInvTab[0], 0);
+
+	MyPlayer->_pLevel = 10;
+	EXPECT_FALSE(IsInventoryTabLocked(*MyPlayer, 1));
+	EXPECT_TRUE(IsInventoryTabLocked(*MyPlayer, 2));
+	EXPECT_TRUE(AutoPlaceItemInExtraTabs(*MyPlayer, item, true));
+	EXPECT_EQ(MyPlayer->_pNumInvTab[0], 1) << "page 2 opened at level 10 and took the item";
+
+	sgOptions.Oracool.inventoryTabLevelGates.SetValue(false);
+	EXPECT_FALSE(IsInventoryTabLocked(*MyPlayer, 9)) << "with the option off nothing is gated";
+}
 
 /* Set up a given item as a spell scroll, allowing for its usage. */
 void set_up_scroll(Item &item, SpellID spell)

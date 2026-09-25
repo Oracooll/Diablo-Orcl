@@ -2356,10 +2356,11 @@ int PassiveSkillRequiredLevel(Skill skill)
 
 int PassiveSlotRequiredLevel(int slot)
 {
-	// 1, 10, 20, 30 (user, 2026-08-25). Slot one opens immediately even though the first passive
-	// does not arrive until level 2 - an empty slot on a level-1 character is the page explaining
-	// itself, not a gap.
-	constexpr int Levels[PassiveSlotCount] = { 1, 10, 20, 30 };
+	// 10, 20, 30, 40 (user, 2026-09-25 dev note: "now that we made leveling up easier - make the 4 passive skill
+	// slots level gates 10,20,30,40"). Was 1, 10, 20, 30 (2026-08-25), set when the fork still used Diablo I's
+	// steeper early levels; the Diablo II table the fork levels on now reaches 10 in a floor or two, so the
+	// first slot waits for it. Passives still unlock from level 2 - they are learned, and slotted from 10.
+	constexpr int Levels[PassiveSlotCount] = { 10, 20, 30, 40 };
 	if (slot < 0 || slot >= static_cast<int>(PassiveSlotCount))
 		return 0;
 	return Levels[slot];

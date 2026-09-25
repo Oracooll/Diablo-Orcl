@@ -872,6 +872,11 @@ struct OracoolOptions : OptionCategoryBase {
 	 * preference rather than save state.
 	 */
 	OptionEntryBoolean runEnabled;
+	/**
+	 * @brief Backpack pages 2-10 open at character levels 10, 20 ... 90 (user, 2026-09-25). A locked page shows its
+	 * level in red, cannot be opened, and reads as FULL to every automatic placement (see IsInventoryTabLocked).
+	 */
+	OptionEntryBoolean inventoryTabLevelGates;
 	OptionEntryBoolean griswoldPremiumRefresh;
 	OptionEntryBoolean refreshUntilButton;
 	OptionEntryInt<int> refreshUntilTimeoutSeconds;

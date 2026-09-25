@@ -829,7 +829,7 @@ bool IsPassiveSkillRow(ClassTreeSkill skill);
  */
 int PassiveSkillRequiredLevel(ClassTreeSkill skill);
 
-/** @brief The character level that opens slot @p slot: 1, 10, 20, 30. */
+/** @brief The character level that opens slot @p slot: 10, 20, 30, 40 (since 2026-09-25; was 1, 10, 20, 30). */
 int PassiveSlotRequiredLevel(int slot);
 
 /** @brief How many of the four slots @p player has opened. */

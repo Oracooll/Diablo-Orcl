@@ -165,6 +165,13 @@ extern DVL_API_FOR_TEST bool ActiveTabItemHovered;
 /** @brief Whether Tabbed Inventory's UI/interaction should be active right now. */
 bool TabbedInventoryEnabled();
 /**
+ * @brief The character level backpack page @p page (0 = the backpack, 1-9 = pages 2-10) opens at, or 0 when it is
+ * not gated - page 0 always, every page with Inventory Tab Level Gates off (2026-09-25).
+ */
+int InventoryTabRequiredLevel(int page);
+/** @brief Whether @p page is still locked for @p player: not drawn open, not pressable, and FULL to every placement. */
+bool IsInventoryTabLocked(const Player &player, int page);
+/**
  * @brief Oracool Tabbed Inventory accessors: read/write the InvGrid cell, InvList item, or
  * item count for whichever backpack page ActiveInventoryTab currently selects (tab 0 = the
  * original, untouched InvGrid/InvList/_pNumInv; 1-9 = InvTabGrid/InvTabList/_pNumInvTab).

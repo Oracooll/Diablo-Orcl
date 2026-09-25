@@ -926,6 +926,9 @@ void CheckStashButtonPress(Point mousePosition)
 		stashButton.position = GetPanelPosition(UiPanels::Stash, stashButton.position);
 		if (stashButton.contains(mousePosition)) {
 			StashButtonPressed = i;
+			// The vendors' tab tick at the press (user, 2026-09-25 dev note: "the sound played when hovering over
+			// vendor tabs ... play it when hovering or clicking on stash nav buttons") - IS_TITLEMOV.
+			oracool::PlayUiMoveSound();
 			return;
 		}
 	}
@@ -981,6 +984,19 @@ void DrawStash(const Surface &out)
 	// each button's pressed frame - the unpressed state was painted into data\stash.clx, which the
 	// theme replaced, so nothing drew them at rest. They are text now, like SORT beside them and
 	// RESET on the character sheet, which also drops the last dependency on that CEL.
+	// And the same tick as the pointer enters a page button, once per entry (2026-09-25), as the vendors' tabs do.
+	{
+		static int lastHoveredNav = -1;
+		int hoveredNav = -1;
+		for (int i = 0; i < StashNavButtonCount; i++) {
+			const Rectangle navRect = StashNavButtonRectAt(i);
+			if (Rectangle { GetPanelPosition(UiPanels::Stash, navRect.position), navRect.size }.contains(MousePosition))
+				hoveredNav = i;
+		}
+		if (hoveredNav >= 0 && hoveredNav != lastHoveredNav)
+			oracool::PlayUiMoveSound();
+		lastHoveredNav = hoveredNav;
+	}
 	for (int i = 0; i < StashNavButtonCount; i++) {
 		const Rectangle navRect = StashNavButtonRectAt(i);
 		const Rectangle rect { GetPanelPosition(UiPanels::Stash, navRect.position), navRect.size };

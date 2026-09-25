@@ -176,6 +176,26 @@ bool TabbedInventoryEnabled()
 	return oracool::IsSinglePlayer();
 }
 
+int InventoryTabRequiredLevel(int page)
+{
+	// Page 2 at 10, page 3 at 20 ... page 10 at 90 (user, 2026-09-25 dev note: "lets introduce a new ini option -
+	// level gate for inv tabs. tabs 2-10 will have level gates 10,20,30,40,50,60,70,80,90"). The first page is
+	// the backpack and never locks; with the option off nothing does.
+	if (page <= 0 || page >= oracool::TabCount || !*sgOptions.Oracool.inventoryTabLevelGates)
+		return 0;
+	return page * 10;
+}
+
+bool IsInventoryTabLocked(const Player &player, int page)
+{
+	// "Read as full by the game" (the same note): a locked page takes nothing. Asked of the page in the one
+	// function every automatic placement into an extra tab goes through (AutoPlaceItemInExtraTabSlot), not
+	// done with placeholder items - an invisible item would still be saved, counted by the charm cap and
+	// the salvage totals, and could be dropped or sold; a refusal has no such second life.
+	const int level = InventoryTabRequiredLevel(page);
+	return level > 0 && player._pLevel < level;
+}
+
 /**
  * @brief Oracool Tabbed Inventory: extra tabs are inert storage only - gold stays tracked
  * through the normal InvList/_pGold path (it isn't a grid item players place by hand at all, so
@@ -1948,6 +1968,9 @@ bool InventorySortFlashActive()
 
 void DrawInventoryTabs(const Surface &out)
 {
+	// Never showing a locked page (2026-09-25): the option can be switched on with a later page open.
+	if (MyPlayer != nullptr && IsInventoryTabLocked(*MyPlayer, ActiveInventoryTab))
+		ActiveInventoryTab = 0;
 	// Oracool V1: real artwork now - roman numerals cut from the user's sheet, silver unselected
 	// and gold selected. Was code-drawn text, which the old 320x352 panel forced because the
 	// ring-to-grid gap was only ~16px tall and its background art could not be edited to make room.
@@ -1983,6 +2006,12 @@ void DrawInventoryTabs(const Surface &out)
 		// rect, so a tab cannot slide out from under a pointer that has not moved.
 		const Rectangle screenRect { seated.position + (PressedInventoryTab == tab ? InventoryTabSink : Displacement { 0, 0 }), seated.size };
 		oracool::DrawPlateIn(out, screenRect, tint);
+		// A LOCKED page (2026-09-25): no chest, its level in red on the plate - what it is waiting for.
+		if (const int level = InventoryTabRequiredLevel(tab); level > 0 && MyPlayer->_pLevel < level) {
+			DrawString(out, StrCat(level), screenRect,
+			    { UiFlags::ColorRed | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+			return;
+		}
 		const bool open = tab == ActiveInventoryTab;
 		const bool hovered = !open && seated.contains(MousePosition);
 		// The chest glyph (oracool-tab-chest-glyphs-v1, in since v1.9.293): lid down on a closed tab,
@@ -2729,6 +2758,9 @@ bool AutoPlaceItemInInventorySlot(Player &player, int slotIndex, const Item &ite
  */
 bool AutoPlaceItemInExtraTabSlot(Player &player, int tabIndex, int slotIndex, const Item &item, bool persistItem)
 {
+	// A page still level-locked is full (2026-09-25) - tabIndex is the extra tab, so the page is one past it.
+	if (IsInventoryTabLocked(player, tabIndex + 1))
+		return false;
 	auto &grid = player.InvTabGrid[tabIndex];
 
 	int yy = (slotIndex > 0) ? (10 * (slotIndex / 10)) : 0;
@@ -3113,6 +3145,10 @@ void SortInventoryBySellValue(Player &player)
 	}
 
 	for (int tab = 0; tab < Player::NumExtraInventoryTabs; tab++) {
+		// A locked page is never gathered: SORT could not put anything back on it, so whatever it holds (the
+		// option turned on mid-game) stays exactly where it is.
+		if (IsInventoryTabLocked(player, tab + 1))
+			continue;
 		for (;;) {
 			int foundIndex = -1;
 			for (int i = 0; i < player._pNumInvTab[tab]; i++) {
@@ -3280,6 +3316,12 @@ bool CheckInventoryTabClick(Point cursorPosition)
 	// it. Both problems are gone with the button; the tenth page is simply a page.
 	for (int tab = 0; tab < oracool::TabCount; tab++) {
 		if (oracool::GetTabRect(tab).contains(cursorPosition + panelOffset)) {
+			// A locked page cannot be pressed (2026-09-25): the click is taken, so it does not fall through to the
+			// grid, and the log says what opens it - a button that does nothing and says nothing reads as broken.
+			if (IsInventoryTabLocked(*MyPlayer, tab)) {
+				oracool::LogEvent(StrCat("Backpack page ", tab + 1, " opens at level ", InventoryTabRequiredLevel(tab), "."), UiFlags::ColorRed);
+				return true;
+			}
 			// The press only SINKS the tab and sounds; the page turns on the mouse-up, and only if the
 			// release lands back inside this tab (ReleaseInventoryTabButton).
 			//

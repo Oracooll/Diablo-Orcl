@@ -2417,23 +2417,26 @@ TEST(OracoolClassTree, TheOlderDiabloTwoPassivesStillCostPoints)
 	EXPECT_EQ(player._pUnspentSkillPoints, 4);
 }
 
-TEST(OracoolClassTree, FourPassiveSlotsOpenAtOneTenTwentyThirty)
+// 10, 20, 30, 40 since 2026-09-25 (user: "make the 4 passive skill slots level gates 10,20,30,40").
+TEST(OracoolClassTree, FourPassiveSlotsOpenAtTenTwentyThirtyForty)
 {
 	devilution::Player &player = FreshPaladin(1);
 	player._pClass = HeroClass::Warrior;
 
-	EXPECT_EQ(oracool::PassiveSlotRequiredLevel(0), 1);
-	EXPECT_EQ(oracool::PassiveSlotRequiredLevel(1), 10);
-	EXPECT_EQ(oracool::PassiveSlotRequiredLevel(2), 20);
-	EXPECT_EQ(oracool::PassiveSlotRequiredLevel(3), 30);
+	EXPECT_EQ(oracool::PassiveSlotRequiredLevel(0), 10);
+	EXPECT_EQ(oracool::PassiveSlotRequiredLevel(1), 20);
+	EXPECT_EQ(oracool::PassiveSlotRequiredLevel(2), 30);
+	EXPECT_EQ(oracool::PassiveSlotRequiredLevel(3), 40);
 
 	player._pLevel = 1;
-	EXPECT_EQ(oracool::UnlockedPassiveSlotCount(player), 1);
+	EXPECT_EQ(oracool::UnlockedPassiveSlotCount(player), 0);
 	player._pLevel = 9;
-	EXPECT_EQ(oracool::UnlockedPassiveSlotCount(player), 1);
+	EXPECT_EQ(oracool::UnlockedPassiveSlotCount(player), 0);
 	player._pLevel = 10;
-	EXPECT_EQ(oracool::UnlockedPassiveSlotCount(player), 2);
-	player._pLevel = 30;
+	EXPECT_EQ(oracool::UnlockedPassiveSlotCount(player), 1);
+	player._pLevel = 39;
+	EXPECT_EQ(oracool::UnlockedPassiveSlotCount(player), 3);
+	player._pLevel = 40;
 	EXPECT_EQ(oracool::UnlockedPassiveSlotCount(player), 4);
 }
 
