@@ -86,13 +86,6 @@ const char *TierName(BaseItemTier tier);
  */
 UiFlags TierColor(BaseItemTier tier);
 
-/**
- * @brief The word that goes in front of the base's name - "Jagged Short Sword".
- *
- * Empty for Normal: a Short Sword is a Short Sword, and the un-prefixed name is what makes the
- * prefixed ones read as something more.
- */
-const char *TierNamePrefix(BaseItemTier tier);
 
 /**
  * @brief Scales @p item's base numbers - damage, armour, requirements, durability and value - to

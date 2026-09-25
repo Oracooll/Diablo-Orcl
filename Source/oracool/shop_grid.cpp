@@ -2136,7 +2136,13 @@ bool SetShopHoverInfoString()
 	// buying the item.
 	ClearPanelStrings();
 	GetItemStr(*slot.item);
-	PrintItemDetails(*slot.item);
+	// The unidentified form for unidentified stock, as the backpack and the stash already print it (tooltip
+	// audit, 2026-09-25): Wirt's Gamble bases showed the identified layout - quality, tier, item level - over a
+	// base name, promising a roll that has not happened yet.
+	if (slot.item->_iIdentified)
+		PrintItemDetails(*slot.item);
+	else
+		PrintItemDur(*slot.item);
 	AddPanelString(StrCat(_(ShopPriceLabel(stextflag)), ": ", FormatInteger(slot.price)),
 	    UiFlags::ColorWhitegold);
 	return true;

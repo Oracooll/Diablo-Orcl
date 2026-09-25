@@ -2894,7 +2894,12 @@ void PrintItemMisc(const Item &item)
 	const bool isOil = (item._iMiscId >= IMISC_USEFIRST && item._iMiscId <= IMISC_USELAST)
 	    || (item._iMiscId > IMISC_OILFIRST && item._iMiscId < IMISC_OILLAST)
 	    || (item._iMiscId > IMISC_RUNEFIRST && item._iMiscId < IMISC_RUNELAST)
-	    || item._iMiscId == IMISC_ARENAPOT;
+	    || item._iMiscId == IMISC_ARENAPOT
+	    // The fork's three right-click items (tooltip audit, 2026-09-25). PrintItemOil has their description
+	    // rows - what the signet gives and how many this life has used, the keystone's rift and tier, the map's
+	    // encounter and its guardian's carry - but this gate is the only way to reach it, and their misc ids sit
+	    // outside every range above, so those rows and the "Right-click to use" hint had never been shown.
+	    || IsAnyOf(item._iMiscId, IMISC_ORACOOL_SIGNET, IMISC_ORACOOL_KEYSTONE, IMISC_ORACOOL_MAP);
 	const bool mouseRequiresTarget = (item._iMiscId == IMISC_SCROLLT && item._iSpell != SpellID::Flash)
 	    || (item._iMiscId == IMISC_SCROLL && IsAnyOf(item._iSpell, SpellID::TownPortal, SpellID::Identify));
 	const bool gamepadRequiresTarget = item.isScroll() && TargetsMonster(item._iSpell);
@@ -7329,10 +7334,36 @@ void PrintItemDetails(const Item &item)
 		AddPanelString(_("Ethereal (cannot be repaired)"), UiFlags::ColorGray7); // GR-7, the ethereal colour (2026-09-07)
 	// Movement Speed +X% from the item's own record (2026-09-07; an ordinary pool affix since 2026-09-13). A tiered item prints its records
 	// with the other affixes above, so this line is the plain and magic items'.
-	if (item._iIdentified && item._iPLMoveSpeed != 0 && !item.hasOracoolTier())
+	//
+	// NOT when a line above already said it (tooltip audit, 2026-09-25). A magic item keeps these two pool
+	// affixes in its Orcl record, which is why the rows exist - but the record IS printed when a reroll left
+	// the vanilla slots empty (the branch above), a vanilla prefix or suffix can be the stat itself, and a
+	// unique's power list can carry movement speed. Each of those printed the stat and then this printed it
+	// again.
+	const auto alreadyPrinted = [&item](item_effect_type a, item_effect_type b) {
+		const auto is = [a, b](item_effect_type t) { return t == a || t == b; };
+		if (is(item._iPrePower) || is(item._iSufPower))
+			return true;
+		if (item._iMagical == ITEM_QUALITY_UNIQUE && !item.hasOracoolTier() && item._iUid >= 0) {
+			for (const ItemPower &power : UniqueItems[item._iUid].powers) {
+				if (is(power.type))
+					return true;
+			}
+		}
+		if (!item.hasOracoolTier() && item._iMagical != ITEM_QUALITY_UNIQUE && item._iPrePower == IPL_INVALID
+		    && item._iSufPower == IPL_INVALID) {
+			for (int i = 0; i < item._iOracoolAffixCount; i++) {
+				if (is(item._iOracoolAffixes[i].type))
+					return true;
+			}
+		}
+		return false;
+	};
+	if (item._iIdentified && item._iPLMoveSpeed != 0 && !item.hasOracoolTier() && !alreadyPrinted(IPL_MOVESPEED, IPL_MOVESPEED_CURSE))
 		AddPanelString(fmt::format(fmt::runtime(_("{:+d}% movement speed")), item._iPLMoveSpeed), ItemAffixColor);
 	// Faster Cast Rate the same way (2026-09-11). Not on a unique, which prints it on its own power line.
-	if (item._iIdentified && item._iPLFastCast != 0 && !item.hasOracoolTier() && item._iMagical != ITEM_QUALITY_UNIQUE)
+	if (item._iIdentified && item._iPLFastCast != 0 && !item.hasOracoolTier() && item._iMagical != ITEM_QUALITY_UNIQUE
+	    && !alreadyPrinted(IPL_FASTCAST, IPL_FASTCAST))
 		AddPanelString(fmt::format(fmt::runtime(_("{:+d}% faster cast rate")), item._iPLFastCast), ItemAffixColor);
 	// Imbuement Shards: how many this item has taken and how many it can, then WHICH. The player
 	// needs to know what is left BEFORE they spend one, because a shard cannot be taken out short of
@@ -7461,8 +7492,10 @@ void PrintItemDur(const Item &item)
 			AddPanelString(fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges), ItemBaseStatColor);
 		}
 	}
+	// Blue on jewellery too (tooltip audit, 2026-09-25): the weapon and armour lines above are the affix blue, and
+	// this one was the default white - one message in two colours depending on the slot.
 	if (IsAnyOf(item._itype, ItemType::Ring, ItemType::Amulet))
-		AddPanelString(_("Not Identified"));
+		AddPanelString(_("Not Identified"), ItemAffixColor);
 	PrintItemInfo(item);
 }
 

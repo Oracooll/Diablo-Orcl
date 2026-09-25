@@ -129,21 +129,6 @@ UiFlags TierColor(BaseItemTier tier)
 	return UiFlags::ColorWhite;
 }
 
-const char *TierNamePrefix(BaseItemTier tier)
-{
-	switch (tier) {
-	case BaseItemTier::Nightmare:
-		return N_("Jagged");
-	case BaseItemTier::Hell:
-		return N_("Cruel");
-	case BaseItemTier::Torment:
-		return N_("Primeval");
-	case BaseItemTier::Normal:
-		break;
-	}
-	return "";
-}
-
 int BandedQlvl(int authoredQlvl)
 {
 	// 99 is the table's "never drops" sentinel, not a level - it must stay above every ilvl the
@@ -296,8 +281,9 @@ void ApplyBaseTier(Item &item, BaseItemTier tier)
 	item._ivalue = ScaleByPercent(item._ivalue, scale.value);
 	item._iIvalue = ScaleByPercent(item._iIvalue, scale.value);
 
-	// The NAME is deliberately left alone. TierNamePrefix exists for callers that want the word, but
-	// nothing prepends it to the item.
+	// The NAME is deliberately left alone: nothing prepends a tier word to it. TierNamePrefix (Jagged / Cruel /
+	// Primeval) was kept for callers that might want the word and none ever did; it was removed as dead code on
+	// 2026-09-25 (tooltip audit), and the history has it.
 	//
 	// An earlier version did, so the tier could be read in the inventory grid. Two problems, both
 	// caught by the pack tests. A magic item's name is composed as prefix + base + suffix against a
