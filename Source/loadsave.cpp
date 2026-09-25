@@ -286,8 +286,8 @@ struct LevelConversionData {
 /**
  * @brief Oracool item tier/affix data format version (v0.2.0+).
  *
- * Rare/Buffed Unique/Primal item tier identity, up to three prefixes and three suffixes each,
- * and a perfect-roll flag are folded directly into SaveItem/LoadItemData's fixed-size item
+ * An item's tier, its one affix list (every affix it carries, up to six) and a perfect-roll
+ * flag are folded directly into SaveItem/LoadItemData's fixed-size item
  * record, so every container that already calls those two functions - the backpack, belt,
  * equipped slots, the Stash, dropped ground items on every level, and Tabbed Inventory's extra
  * tabs - carries tier data with no per-container wiring to remember. This single version byte,
@@ -324,6 +324,11 @@ struct LevelConversionData {
 // Version 12 (2026-09-20, Levski's Cube): one byte, _iOracoolLevelFree - Kanai's Work of Cathan, the
 // level requirement removed for good. Bumped freely (user rule, 2026-09-13).
 // Version 13 (2026-09-20, the rifts): one byte, _iOracoolRiftTier - a Guardian Keystone's tier.
+//
+// NOT bumped on 2026-09-25, when vanilla's prefix/suffix pair left the item and a magic item's affixes moved onto
+// the list (user: "all afixes are now one pool"). The layout did not change: the pair's two bytes are still
+// written - always empty - and a version-13 item that still names affixes there has them moved onto the list as
+// it loads (MigrateLegacyAffixPair). No reader had to learn anything, so no stash could be refused.
 constexpr uint8_t OracoolItemFormatVersion = 13;
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
@@ -395,8 +400,16 @@ void LoadItemData(LoadHelper &file, Item &item)
 	item._iLMinDam = file.NextLE<int32_t>();
 	item._iLMaxDam = file.NextLE<int32_t>();
 	item._iPLEnAc = file.NextLE<int32_t>();
-	item._iPrePower = static_cast<item_effect_type>(file.NextLE<int8_t>());
-	item._iSufPower = static_cast<item_effect_type>(file.NextLE<int8_t>());
+	// Two LEGACY bytes: vanilla's prefix and suffix power types. No item field holds them since 2026-09-25 (user:
+	// "remove any trace of prefix/sufix segregation. all afixes are now one pool") - every affix is on the affix
+	// list read below. A save from before still names a magic item's table affixes here and nowhere else, so
+	// they are kept (a type past the table is dropped) and moved onto the list once it has been read.
+	const auto legacyAffixType = [](int8_t raw) {
+		const auto type = static_cast<item_effect_type>(raw);
+		return IsOracoolAffixTypeValid(type) ? type : IPL_INVALID;
+	};
+	const item_effect_type legacyAffixFirst = legacyAffixType(file.NextLE<int8_t>());
+	const item_effect_type legacyAffixSecond = legacyAffixType(file.NextLE<int8_t>());
 	file.Skip(2); // Alignment
 	item._iVAdd1 = file.NextLE<int32_t>();
 	item._iVMult1 = file.NextLE<int32_t>();
@@ -458,6 +471,9 @@ void LoadItemData(LoadHelper &file, Item &item)
 		affix.param1 = file.NextLE<int32_t>();
 		affix.param2 = file.NextLE<int32_t>();
 	}
+	// The legacy pair onto the list (see its read above). An item saved since writes two IPL_INVALID bytes there,
+	// so this does nothing for it; an older one is converted once and saved back converted.
+	MigrateLegacyAffixPair(item, legacyAffixFirst, legacyAffixSecond);
 	// Movement Speed is not a field of the record; it is re-derived from the affixes (2026-09-07), an ordinary
 	// pool affix since 2026-09-13 - see OracoolPoolRows in items.cpp.
 	item._iPLMoveSpeed = 0;
@@ -1402,8 +1418,10 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<int32_t>(item._iLMinDam);
 	file.WriteLE<int32_t>(item._iLMaxDam);
 	file.WriteLE<int32_t>(item._iPLEnAc);
-	file.WriteLE<int8_t>(item._iPrePower);
-	file.WriteLE<int8_t>(item._iSufPower);
+	// The two legacy affix bytes (vanilla's prefix and suffix), always empty since 2026-09-25: the affixes are all
+	// on the list below. Kept rather than dropped so the record's layout - and every reader of it - is unchanged.
+	file.WriteLE<int8_t>(static_cast<int8_t>(IPL_INVALID));
+	file.WriteLE<int8_t>(static_cast<int8_t>(IPL_INVALID));
 	file.Skip(2); // Alignment
 	file.WriteLE<int32_t>(item._iVAdd1);
 	file.WriteLE<int32_t>(item._iVMult1);
@@ -2427,15 +2445,17 @@ void RemoveInvalidItem(Item &item)
 	// table). A record past any of them is dropped rather than indexed.
 	isInvalid = isInvalid || item._iUid < 0 || static_cast<size_t>(item._iUid) >= UniqueItemCount;
 	isInvalid = isInvalid || (item._iSpell != SpellID::Null && !IsValidSpell(item._iSpell));
-	isInvalid = isInvalid || (item._iPrePower != IPL_INVALID && !IsOracoolAffixTypeValid(item._iPrePower));
-	isInvalid = isInvalid || (item._iSufPower != IPL_INVALID && !IsOracoolAffixTypeValid(item._iSufPower));
+	// The affix ids need no test here any more: they live on the affix list since 2026-09-25, and LoadItemData
+	// already turns a list entry - or a legacy prefix/suffix byte - past the power table into IPL_INVALID.
+	//
+	// Nor the Diablo-mode "no Hellfire power" test the prefix/suffix pair had. The list also carries this fork's
+	// own powers (Movement Speed, Faster Cast, Gold and Magic Find), which sit past IPL_LASTDIABLO by design in
+	// either mode; applied to the list, that test would delete every item that rolled one.
 
 	if (!gbIsHellfire) {
 		isInvalid = isInvalid || (item._itype == ItemType::Staff && GetSpellStaffLevel(item._iSpell) == -1);
 		isInvalid = isInvalid || (item._iMiscId == IMISC_BOOK && GetSpellBookLevel(item._iSpell) == -1);
 		isInvalid = isInvalid || item._iDamAcFlags != ItemSpecialEffectHf::None;
-		isInvalid = isInvalid || item._iPrePower > IPL_LASTDIABLO;
-		isInvalid = isInvalid || item._iSufPower > IPL_LASTDIABLO;
 	}
 
 	if (isInvalid) {

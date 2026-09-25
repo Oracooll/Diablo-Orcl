@@ -627,7 +627,9 @@ TEST_F(StoresTest,SmithSell_FourItemPage_SellAllRowNotHijackedByPremiumRedirect)
 		InitializeItem(item, shieldIdx);
 		item._iMagical = ITEM_QUALITY_MAGIC;
 		item._iIdentified = true;
-		item._iPrePower = IPL_LIGHTRES;
+		// The affix on the item's one list, where every affix lives since 2026-09-25 (it was the vanilla prefix field).
+		item._iOracoolAffixes[0] = OracoolAffix { IPL_LIGHTRES, 51, 0 };
+		item._iOracoolAffixCount = 1;
 		item._iPLLR = 51;
 		item._iAC = 2;
 		item._iDurability = 6;

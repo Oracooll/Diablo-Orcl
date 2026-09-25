@@ -276,7 +276,7 @@ TEST(GetOracoolTierPanelLabel, ReturnsDistinctWordingPerTier)
 }
 
 // A common weapon type across a wide, low-difficulty level window should always come away
-// with at least one prefix and one suffix - Rare's stated minimum identity requirement.
+// with at least two affixes, from any tables - Rare's stated minimum identity requirement.
 TEST_F(RareItemTest, GetRareItemAffixes_AlwaysProducesAtLeastTwoAffixes)
 {
 	for (int trial = 0; trial < 200; trial++) {
@@ -352,7 +352,7 @@ TEST_F(RareItemTest, GetRareItemAffixes_TagsItemAsRare)
 
 using BuffedUniqueItemTest = RareItemTest;
 
-// Buffed Unique's stated minimum: at least two prefixes and two suffixes.
+// Buffed Unique's stated minimum: at least four affixes, from any tables.
 TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_AlwaysProducesAtLeastFourAffixes)
 {
 	for (int trial = 0; trial < 200; trial++) {
@@ -1401,7 +1401,8 @@ TEST(OracoolSmartLoot, AimsTheBaseOnTheRealPoolsAndLeavesGoldRarityAndOtherClass
  * suffix and at most two of either, a magic item rolled vanilla's one-prefix-one-suffix shape, and
  * Movement Speed and Faster Cast arrived from drop-tail rolls outside every limit.
  *
- * What stays limited is STORAGE - three prefixes and three suffixes - and the assertions say so.
+ * What stays limited is the COUNT - each tier's number of places on the one affix list - and the assertions
+ * say so. (Since 2026-09-25 a magic item's affixes are all on that list too; there is no other store.)
  */
 TEST_F(RareItemTest, UnifiedAffixes_AnyCombinationWithinTheLimitAndMovementSpeedIsAnAffix)
 {

@@ -24,7 +24,9 @@ enum class ControlTypes : uint8_t {
 	VirtualGamepad,
 };
 
-extern ControlTypes ControlMode;
+// Exported to the tests (2026-09-25): the tooltip sweep prints hints that depend on the mode, and the only other
+// way to set it, DetectInputMethod, resets the cursor - which a test has no window for.
+extern DVL_API_FOR_TEST ControlTypes ControlMode;
 
 /**
  * @brief Controlling device type.

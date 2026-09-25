@@ -1,3 +1,4 @@
+#include <array>
 #include <cstdint>
 
 #include <gtest/gtest.h>
@@ -129,8 +130,12 @@ typedef struct TestItemStruct {
 	int _iFMaxDam;
 	int _iLMinDam;
 	int _iLMaxDam;
-	int8_t _iPrePower;
-	int8_t _iSufPower;
+	// The first and second TABLE affix the item rolled, -1 for none - the corpus's two affix columns, recorded
+	// when a magic item kept them in a vanilla prefix/suffix pair of fields. That pair is gone (2026-09-25: every
+	// affix is on the item's one list, in roll order), so CompareItems reads them off the list; pool affixes
+	// (Movement Speed, Faster Cast) were on the list all along and were never in these columns.
+	int8_t _iAffix1;
+	int8_t _iAffix2;
 	int8_t _iMinStr;
 	uint8_t _iMinMag;
 	int8_t _iMinDex;
@@ -204,8 +209,17 @@ static void CompareItems(const Item &item1, const TestItemStruct &item2)
 	EXPECT_EQ(item1._iFMaxDam, item2._iFMaxDam);
 	EXPECT_EQ(item1._iLMinDam, item2._iLMinDam);
 	EXPECT_EQ(item1._iLMaxDam, item2._iLMaxDam);
-	EXPECT_EQ(item1._iPrePower, item2._iPrePower);
-	EXPECT_EQ(item1._iSufPower, item2._iSufPower);
+	// The item's table affixes in roll order, off its one affix list (see TestItemStruct::_iAffix1).
+	std::array<int, 2> tableAffixes { IPL_INVALID, IPL_INVALID };
+	size_t tableAffixCount = 0;
+	for (int i = 0; i < item1._iOracoolAffixCount && tableAffixCount < tableAffixes.size(); i++) {
+		const item_effect_type type = item1._iOracoolAffixes[i].type;
+		if (type == IPL_MOVESPEED || type == IPL_MOVESPEED_CURSE || type == IPL_FASTCAST)
+			continue;
+		tableAffixes[tableAffixCount++] = type;
+	}
+	EXPECT_EQ(tableAffixes[0], item2._iAffix1);
+	EXPECT_EQ(tableAffixes[1], item2._iAffix2);
 	EXPECT_EQ(item1._iMinStr, item2._iMinStr);
 	EXPECT_EQ(item1._iMinMag, item2._iMinMag);
 	EXPECT_EQ(item1._iMinDex, item2._iMinDex);
@@ -314,7 +328,7 @@ constexpr ItemSpecialEffect GrisworldEdgeSpecialEffect = ItemSpecialEffect::Fire
 
 const TestItemStruct DiabloItems[] = {
 	// clang-format off
-	// _iIName,                       _itype,                 _iClass,  _iCurs,  _iIvalue,  _iMinDam,  _iMaxDam,  _iAC, _iFlags,                                 _iMiscId, _iSpell,               _iCharges,  _iMaxCharges,  _iDurability,  _iMaxDur,  _iPLDam,  _iPLToHit,  _iPLAC,  _iPLStr,  _iPLMag,  _iPLDex,  _iPLVit,  _iPLFR,  _iPLLR,  _iPLMR,  _iPLMana,  _iPLHP,  _iPLDamMod,  _iPLGetHit,  _iPLLight,  _iSplLvlAdd,  _iUid,  _iFMinDam,  _iFMaxDam,  _iLMinDam,  _iLMaxDam,  _iPrePower,  _iSufPower,  _iMinStr,  _iMinMag,  _iMinDex,  IDidx
+	// _iIName,                       _itype,                 _iClass,  _iCurs,  _iIvalue,  _iMinDam,  _iMaxDam,  _iAC, _iFlags,                                 _iMiscId, _iSpell,               _iCharges,  _iMaxCharges,  _iDurability,  _iMaxDur,  _iPLDam,  _iPLToHit,  _iPLAC,  _iPLStr,  _iPLMag,  _iPLDex,  _iPLVit,  _iPLFR,  _iPLLR,  _iPLMR,  _iPLMana,  _iPLHP,  _iPLDamMod,  _iPLGetHit,  _iPLLight,  _iSplLvlAdd,  _iUid,  _iFMinDam,  _iFMaxDam,  _iLMinDam,  _iLMaxDam,  _iAffix1,    _iAffix2,    _iMinStr,  _iMinMag,  _iMinDex,  IDidx
 	{ "Tarnished Doom", static_cast<ItemType>(7), 2, 98, 15283, 0, 0, 11, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 60, 60, 0, 0, 94, 0, 0, 0, 0, 0, 43, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 6, 50, 0, 0, 53 },
 	{ "Smoldering Crest", static_cast<ItemType>(13), 3, 45, 18187, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 26, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2816, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, -1, 0, 0, 0, 159 },
 	{ "Rotting Bane", static_cast<ItemType>(1), 1, 60, 21046, 2, 10, 0, static_cast<ItemSpecialEffect>(524288), 0, static_cast<SpellID>(0), 0, 0, 38, 40, 0, 57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 58, 30, 0, 30, 125 },
@@ -491,7 +505,7 @@ const ItemPack PackedSpawnItems[] = {
 
 const TestItemStruct SpawnItems[] = {
 	// clang-format off
-	// _iIName,                  _itype,           _iClass,  _iCurs,  _iIvalue,  _iMinDam,  _iMaxDam,  _iAC, _iFlags,                  _iMiscId, _iSpell,            _iCharges,  _iMaxCharges,  _iDurability,  _iMaxDur,  _iPLDam,  _iPLToHit,  _iPLAC,  _iPLStr,  _iPLMag,  _iPLDex,  _iPLVit,  _iPLFR,  _iPLLR,  _iPLMR,  _iPLMana,  _iPLHP,  _iPLDamMod,  _iPLGetHit,  _iPLLight,  _iSplLvlAdd,  _iUid,  _iFMinDam,  _iFMaxDam,  _iLMinDam,  _iLMaxDam,  _iPrePower,  _iSufPower,  _iMinStr,  _iMinMag,  _iMinDex,  IDidx
+	// _iIName,                  _itype,           _iClass,  _iCurs,  _iIvalue,  _iMinDam,  _iMaxDam,  _iAC, _iFlags,                  _iMiscId, _iSpell,            _iCharges,  _iMaxCharges,  _iDurability,  _iMaxDur,  _iPLDam,  _iPLToHit,  _iPLAC,  _iPLStr,  _iPLMag,  _iPLDex,  _iPLVit,  _iPLFR,  _iPLLR,  _iPLMR,  _iPLMana,  _iPLHP,  _iPLDamMod,  _iPLGetHit,  _iPLLight,  _iSplLvlAdd,  _iUid,  _iFMinDam,  _iFMaxDam,  _iLMinDam,  _iLMaxDam,  _iAffix1,    _iAffix2,    _iMinStr,  _iMinMag,  _iMinDex,  IDidx
 	{ "Short Staff of Firebolt", ItemType::Staff,        1,     109,         1,         2,         4,     0, ItemSpecialEffect::None,        23, SpellID::Firebolt,         50,            50,            11,        25,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,        15,         0,    151 },
 	// Oracool (2026-08-15): was "Book of Holy Bolt". A book's spell is not stored - it is re-derived
 	// from the item seed by GetItemSpell, which walks the spell enum counting the ones ELIGIBLE at
@@ -540,7 +554,7 @@ const ItemPack PackedDiabloMPItems[] = {
 
 const TestItemStruct DiabloMPItems[] = {
 	// clang-format off
-	// _iIName,                _itype,          _iClass,  _iCurs,  _iIvalue,  _iMinDam,  _iMaxDam,  _iAC, _iFlags,                  _iMiscId, _iSpell,              _iCharges,  _iMaxCharges,  _iDurability,  _iMaxDur,  _iPLDam,  _iPLToHit,  _iPLAC,  _iPLStr,  _iPLMag,  _iPLDex,  _iPLVit,  _iPLFR,  _iPLLR,  _iPLMR,  _iPLMana,  _iPLHP,  _iPLDamMod,  _iPLGetHit,  _iPLLight,  _iSplLvlAdd,  _iUid,  _iFMinDam,  _iFMaxDam,  _iLMinDam,  _iLMaxDam,  _iPrePower,  _iSufPower,  _iMinStr,  _iMinMag,  _iMinDex,  IDidx
+	// _iIName,                _itype,          _iClass,  _iCurs,  _iIvalue,  _iMinDam,  _iMaxDam,  _iAC, _iFlags,                  _iMiscId, _iSpell,              _iCharges,  _iMaxCharges,  _iDurability,  _iMaxDur,  _iPLDam,  _iPLToHit,  _iPLAC,  _iPLStr,  _iPLMag,  _iPLDex,  _iPLVit,  _iPLFR,  _iPLLR,  _iPLMR,  _iPLMana,  _iPLHP,  _iPLDamMod,  _iPLGetHit,  _iPLLight,  _iSplLvlAdd,  _iUid,  _iFMinDam,  _iFMaxDam,  _iLMinDam,  _iLMaxDam,  _iAffix1,    _iAffix2,    _iMinStr,  _iMinMag,  _iMinDex,  IDidx
 	{ "Book of Firebolt",      ItemType::Misc,        3,      87,      1000,         0,         0,     0, ItemSpecialEffect::None,        24, SpellID::Firebolt,            0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,        15,         0,    114 },
 	{ "Scroll of Resurrect",   ItemType::Misc,        3,       1,       250,         0,         0,     0, ItemSpecialEffect::None,        22, SpellID::Resurrect,           0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     34 },
 	{ "Potion of Healing",     ItemType::Misc,        3,      32,        50,         0,         0,     0, ItemSpecialEffect::None,         3, SpellID::Null,                0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     24 },

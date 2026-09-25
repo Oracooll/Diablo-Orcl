@@ -613,9 +613,9 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 	if (item._iIdentified) {
 		if (item._iOracoolTier == OracoolItemTier::Set) {
 			// A named set piece has NO rolled affixes - MakeSetItem writes its declared powers
-			// straight into the _iPL* fields, so the prefix and suffix arrays every other tier uses
-			// are empty. Audit finding, 2026-08-26: this branch did not exist, so every tiered item
-			// went through those arrays and a set piece in a store list showed no powers at all -
+			// straight into the _iPL* fields, so the affix list every other item uses is empty.
+			// Audit finding, 2026-08-26: this branch did not exist, so every tiered item went
+			// through that list and a set piece in a store list showed no powers at all -
 			// the one item family whose powers are its entire identity.
 			//
 			// Read from the definition, exactly as the description panel does (see the Set branch
@@ -631,29 +631,11 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 					AppendStrView(productLine, PrintItemPower(power.type, item));
 				}
 			}
-		} else if (item.hasOracoolTier()) {
-			// Oracool-tiered items (up to six affixes from any table, in one list) don't populate the
-			// vanilla single-prefix/single-suffix _iPrePower/_iSufPower fields, so they
-			// need their own comma-joined line built from the stored affix list instead.
-			for (int i = 0; i < item._iOracoolAffixCount; i++) {
-				if (!productLine.empty())
-					AppendStrView(productLine, _(",  "));
-				AppendStrView(productLine, PrintOracoolAffixPower(item._iOracoolAffixes[i], item));
-			}
 		} else {
-			if (item._iMagical != ITEM_QUALITY_UNIQUE) {
-				if (item._iPrePower != -1) {
-					AppendStrView(productLine, PrintItemPower(item._iPrePower, item));
-				}
-			}
-			if (item._iSufPower != -1) {
-				if (!productLine.empty())
-					AppendStrView(productLine, _(",  "));
-				AppendStrView(productLine, PrintItemPower(item._iSufPower, item));
-			}
-			// Pool affixes a magic item rolled from OracoolPoolRows - Movement Speed, Faster Cast - live in
-			// its record rather than the vanilla pair (2026-09-13), so reading the pair alone left them off
-			// this line. A vanilla unique has no record entries, so nothing is added for one.
+			// Every other item's affixes are its ONE list - Rare, Buffed Unique, Primal, magic, crafted - joined
+			// with commas (user, 2026-09-25: "all afixes are now one pool"). A magic item used to be read from a
+			// vanilla prefix/suffix pair of fields plus this list; the pair is gone and the list is the whole of
+			// it. A vanilla unique has no list entries, so nothing is added for one.
 			for (int i = 0; i < item._iOracoolAffixCount; i++) {
 				if (!productLine.empty())
 					AppendStrView(productLine, _(",  "));

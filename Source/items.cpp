@@ -1118,32 +1118,33 @@ int RndPL(int param1, int param2)
 
 int CalculateToHitBonus(int level)
 {
-	switch (level) {
-	case -50:
+	// BRACKETS, not exact keys (2026-09-25). Vanilla keyed this on the affix row's minimum damage percent - the
+	// eleven values below - and called app_fatal on anything else. The fork re-applies affixes from their stored
+	// record (the Mystic's reroll, RebuildOracoolItemWithAffixes), and a record holds the ROLLED percent, so a
+	// rerolled "King's" or "Warrior's" item arrived with, say, 57 and killed the game ("Unknown to hit bonus" -
+	// found by the tooltip sweep test, which rerolls every base). Each value now takes the bracket it falls in;
+	// the eleven exact keys land where they always did, with the same roll.
+	if (level <= -50)
 		return -RndPL(6, 10);
-	case -25:
+	if (level < 0)
 		return -RndPL(1, 5);
-	case 20:
-		return RndPL(1, 5);
-	case 36:
-		return RndPL(6, 10);
-	case 51:
-		return RndPL(11, 15);
-	case 66:
-		return RndPL(16, 20);
-	case 81:
-		return RndPL(21, 30);
-	case 96:
-		return RndPL(31, 40);
-	case 111:
-		return RndPL(41, 50);
-	case 126:
-		return RndPL(51, 75);
-	case 151:
+	if (level >= 151)
 		return RndPL(76, 100);
-	default:
-		app_fatal("Unknown to hit bonus");
-	}
+	if (level >= 126)
+		return RndPL(51, 75);
+	if (level >= 111)
+		return RndPL(41, 50);
+	if (level >= 96)
+		return RndPL(31, 40);
+	if (level >= 81)
+		return RndPL(21, 30);
+	if (level >= 66)
+		return RndPL(16, 20);
+	if (level >= 51)
+		return RndPL(11, 15);
+	if (level >= 36)
+		return RndPL(6, 10);
+	return RndPL(1, 5);
 }
 
 int SaveItemPower(const Player &player, Item &item, ItemPower &power)
@@ -1530,12 +1531,25 @@ int PLVal(int pv, int p1, int p2, int minv, int maxv)
 	return minv + (maxv - minv) * (100 * (pv - p1) / (p2 - p1)) / 100;
 }
 
+/**
+ * @brief Rolls one affix onto a magic item: its stat into the item's fields, its price into the _iVAdd/_iVMult
+ * pair, and the affix itself - type, rolled value, price multiplier - onto the item's one affix list.
+ *
+ * The list entry is the part that is new (2026-09-25, user: "we dont separate affixes into prefix/sufix
+ * anymore ... she must be able to reroll all affixes"). This used to price the affix and leave the caller
+ * to note its TYPE in a vanilla prefix or suffix field, which kept no rolled value, so Gillian's Reroll -
+ * which works from the list - never saw a magic item's affixes at all. Every roller that goes through here
+ * now records the same entry a tiered item's affixes always had. Refuses (nothing applied) when the list is
+ * full, so an affix is never applied that the item cannot list.
+ */
 void SaveItemAffix(const Player &player, Item &item, const PLStruct &affix)
 {
+	if (item._iOracoolAffixCount >= Item::MaxOracoolAffixes)
+		return;
 	auto power = affix.power;
-	int value = SaveItemPower(player, item, power);
+	const int raw = SaveItemPower(player, item, power);
 
-	value = PLVal(value, power.param1, power.param2, affix.minVal, affix.maxVal);
+	const int value = PLVal(raw, power.param1, power.param2, affix.minVal, affix.maxVal);
 	if (item._iVAdd1 != 0 || item._iVMult1 != 0) {
 		item._iVAdd2 = value;
 		item._iVMult2 = affix.multVal;
@@ -1543,6 +1557,7 @@ void SaveItemAffix(const Player &player, Item &item, const PLStruct &affix)
 		item._iVAdd1 = value;
 		item._iVMult1 = affix.multVal;
 	}
+	item._iOracoolAffixes[item._iOracoolAffixCount++] = OracoolAffix { affix.power.type, raw, affix.multVal };
 }
 
 int GetStaffPrefixId(int lvl, bool onlygood, bool hellfireItem)
@@ -1576,7 +1591,10 @@ std::string GenerateStaffName(const ItemData &baseItemData, SpellID spellId, boo
 	string_view spellName = translate ? pgettext("spell", GetSpellData(spellId).sNameText) : GetSpellData(spellId).sNameText;
 	string_view normalFmt = translate ? pgettext("spell", /* TRANSLATORS: Constructs item names. Format: {Item} of {Spell}. Example: War Staff of Firewall */ "{0} of {1}") : "{0} of {1}";
 	std::string name = fmt::format(fmt::runtime(normalFmt), baseName, spellName);
-	if (!StringInPanel(name.c_str())) {
+	// Only when the base HAS a short name (2026-09-25): the starting staves carry none (nullptr in the table), and
+	// a long name falling back to it handed a null string to the translator and faulted - found by the tooltip
+	// sweep test, which names every base. A name that runs long is better than no item.
+	if (baseItemData.iSName != nullptr && !StringInPanel(name.c_str())) {
 		string_view shortName = translate ? _(baseItemData.iSName) : baseItemData.iSName;
 		name = fmt::format(fmt::runtime(normalFmt), shortName, spellName);
 	}
@@ -1591,7 +1609,7 @@ std::string GenerateStaffNameMagical(const ItemData &baseItemData, SpellID spell
 	string_view prefixName = translate ? _(ItemPrefixes[preidx].PLName) : ItemPrefixes[preidx].PLName;
 
 	std::string identifiedName = fmt::format(fmt::runtime(magicFmt), prefixName, baseName, spellName);
-	if (forceNameLengthCheck ? *forceNameLengthCheck : !StringInPanel(identifiedName.c_str())) {
+	if (baseItemData.iSName != nullptr && (forceNameLengthCheck ? *forceNameLengthCheck : !StringInPanel(identifiedName.c_str()))) { // no short name: keep the long one (2026-09-25)
 		string_view shortName = translate ? _(baseItemData.iSName) : baseItemData.iSName;
 		identifiedName = fmt::format(fmt::runtime(magicFmt), prefixName, shortName, spellName);
 	}
@@ -1603,8 +1621,8 @@ void GetStaffPower(const Player &player, Item &item, int lvl, SpellID bs, bool o
 	int preidx = GetStaffPrefixId(lvl, onlygood, gbIsHellfire);
 	if (preidx != -1) {
 		item._iMagical = ITEM_QUALITY_MAGIC;
+		// Onto the one affix list like every other affix (2026-09-25) - SaveItemAffix records it there.
 		SaveItemAffix(player, item, ItemPrefixes[preidx]);
-		item._iPrePower = ItemPrefixes[preidx].power.type;
 	}
 
 	const ItemData &baseItemData = AllItemsList[item.IDidx];
@@ -1705,7 +1723,10 @@ const OracoolPoolRow OracoolPoolRows[] = {
 	// clang-format on
 };
 
-/** @brief Which table a drawn affix came from - and therefore where it is stored. */
+/**
+ * @brief Which DATA table holds a drawn affix's row - only so RowOf can find the row. Never stored and never
+ * a property of the item: every affix lands on the one list whatever its table (2026-09-25).
+ */
 enum class AffixSource : uint8_t {
 	Prefix,
 	Suffix,
@@ -1737,13 +1758,15 @@ const PLStruct &RowOf(AffixCandidate candidate)
  * of affixes"). The eligibility rules are the ones both old rollers applied, applied once: item type,
  * level band, only-good, the running good/evil theme, and no power type twice.
  *
- * @param prefixRoom, suffixRoom, oracoolRoom Whether the caller has somewhere to STORE an affix from each
- *        source. Storage is where "any combination" meets its one real limit - see GetTieredItemAffixes.
+ * @param room Whether the item's affix list has a free place. ONE flag since 2026-09-25: there were three - one
+ *        per table - from when a magic item stored a table's affix in its own vanilla field, and every caller
+ *        passed the same answer to all three once storage became one list (user: "all afixes are now one pool").
  */
 std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood,
-    bool hellfireItem, bool ignoreLevelLimits, bool prefixRoom, bool suffixRoom, bool oracoolRoom,
-    const item_effect_type *picked, int pickedCount, goodorevil goe)
+    bool hellfireItem, bool ignoreLevelLimits, bool room, const item_effect_type *picked, int pickedCount, goodorevil goe)
 {
+	if (!room)
+		return std::nullopt;
 	const auto eligibleIgnoringLevel = [&](const PLStruct &row) {
 		if (onlygood && !row.PLOk)
 			return false;
@@ -1781,31 +1804,29 @@ std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int
 		return eligibleIgnoringLevel(row);
 	};
 
+	// Every table's eligible rows in ONE candidate list, in the same order (and so the same draw for the same
+	// seed) as when each table had a storage flag of its own - the seeded pack corpus pins that.
 	std::vector<AffixCandidate> pool;
 	pool.reserve(512);
-	if (prefixRoom) {
-		for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
-			if (!IsPrefixValidForItemType(j, flgs, hellfireItem))
-				continue;
-			if (HasAnyOf(flgs, AffixItemType::Staff) && ItemPrefixes[j].power.type == IPL_CHARGES)
-				continue;
-			if (!eligible(ItemPrefixes[j]))
-				continue;
+	for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
+		if (!IsPrefixValidForItemType(j, flgs, hellfireItem))
+			continue;
+		if (HasAnyOf(flgs, AffixItemType::Staff) && ItemPrefixes[j].power.type == IPL_CHARGES)
+			continue;
+		if (!eligible(ItemPrefixes[j]))
+			continue;
+		pool.push_back({ AffixSource::Prefix, j });
+		if (ItemPrefixes[j].PLDouble)
 			pool.push_back({ AffixSource::Prefix, j });
-			if (ItemPrefixes[j].PLDouble)
-				pool.push_back({ AffixSource::Prefix, j });
-		}
 	}
-	if (suffixRoom) {
-		for (int j = 0; ItemSuffixes[j].power.type != IPL_INVALID; j++) {
-			if (!IsSuffixValidForItemType(j, flgs, hellfireItem))
-				continue;
-			if (!eligible(ItemSuffixes[j]))
-				continue;
-			pool.push_back({ AffixSource::Suffix, j });
-		}
+	for (int j = 0; ItemSuffixes[j].power.type != IPL_INVALID; j++) {
+		if (!IsSuffixValidForItemType(j, flgs, hellfireItem))
+			continue;
+		if (!eligible(ItemSuffixes[j]))
+			continue;
+		pool.push_back({ AffixSource::Suffix, j });
 	}
-	if (oracoolRoom) {
+	{
 		// ONE CANDIDATE PER POOL TYPE, however many level bands it has - at the strongest band the item's
 		// level reaches. Offering every eligible band made the pool's share climb with depth: at item level
 		// 50 only the deepest vanilla rows are eligible, while two of each pool type's six bands were, and a
@@ -1842,6 +1863,12 @@ std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int
 
 } // namespace
 
+/**
+ * @brief VANILLA'S roll, replayed only to rebuild a vanilla magic item's NAME from its seed - nothing here
+ * rolls or stores an affix. Its one caller is GetTranslatedItemNameMagical, which UpdateHellfireFlag uses to
+ * tell a Diablo item from a Hellfire one in a save from the original games by comparing names; the two
+ * words it finds are name parts. Every item this fork rolls keeps its affixes on the one list (2026-09-25).
+ */
 void GetItemPowerPrefixAndSuffix(int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool hellfireItem, tl::function_ref<void(const PLStruct &prefix)> prefixFound, tl::function_ref<void(const PLStruct &suffix)> suffixFound, bool ignoreLevelLimits = false)
 {
 	int preidx = -1;
@@ -1928,33 +1955,19 @@ void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, Affi
 	// on 2026-09-13 asked this loop for a third affix and it wrote past the end of picked - a fail-fast crash
 	// rather than a refusal. Production never asks for more than two; this makes that a rule, not an accident.
 	for (int i = 0; i < wanted && pickedCount < static_cast<int>(picked.size()); i++) {
-		// Table affixes live in the vanilla pair; OracoolPoolRows affixes live in the record, which is
-		// where the loader re-derives Movement Speed and Faster Cast from.
-		const bool vanillaRoom = item._iPrePower == IPL_INVALID || item._iSufPower == IPL_INVALID;
-		const bool recordRoom = item._iOracoolAffixCount < Item::MaxOracoolAffixes;
+		// EVERY affix onto the one list, whatever table its row sits in (user, 2026-09-25: "remove any trace of
+		// prefix/sufix segregation. all afixes are now one pool"). A table affix used to go to a vanilla prefix or
+		// suffix field that kept only its type, and a pool affix to the list - so a magic item's affixes lived in two
+		// places, Gillian's Reroll saw only one of them, and three readers had to add the two together.
+		const bool room = item._iOracoolAffixCount < Item::MaxOracoolAffixes;
 		const std::optional<AffixCandidate> drawn = DrawUnifiedAffix(item, minlvl, maxlvl, flgs, onlygood, gbIsHellfire,
-		    ignoreLevelLimits, vanillaRoom, vanillaRoom, recordRoom, picked.data(), pickedCount, goe);
+		    ignoreLevelLimits, room, picked.data(), pickedCount, goe);
 		if (!drawn)
 			break;
 		const PLStruct &affix = RowOf(*drawn);
-		ItemPower power = affix.power;
-		const int raw = SaveItemPower(player, item, power);
-		// Priced exactly as SaveItemAffix prices a table affix, and the pool rows are priced too - the
-		// drop-tail rolls added a stat and no value at all.
-		const int value = PLVal(raw, power.param1, power.param2, affix.minVal, affix.maxVal);
-		if (item._iVAdd1 != 0 || item._iVMult1 != 0) {
-			item._iVAdd2 = value;
-			item._iVMult2 = affix.multVal;
-		} else {
-			item._iVAdd1 = value;
-			item._iVMult1 = affix.multVal;
-		}
-		if (drawn->source == AffixSource::Oracool)
-			item._iOracoolAffixes[item._iOracoolAffixCount++] = OracoolAffix { affix.power.type, raw, affix.multVal };
-		else if (item._iPrePower == IPL_INVALID)
-			item._iPrePower = affix.power.type;
-		else
-			item._iSufPower = affix.power.type;
+		// Stat, price and list entry in one place. The pool rows are priced too - the drop-tail rolls they
+		// replaced added a stat and no value at all.
+		SaveItemAffix(player, item, affix);
 		picked[pickedCount++] = affix.power.type;
 		if (affix.PLGOE != GOE_ANY)
 			goe = affix.PLGOE;
@@ -2077,7 +2090,7 @@ void GetOilType(Item &item, int maxLvl)
 /**
  * @brief Maps an item's equipment type to the AffixItemType bit vanilla's affix tables
  * (ItemPrefixes[]/ItemSuffixes[]) filter eligibility by, mirroring GetItemBonus's dispatch
- * below. Returns AffixItemType::None for types that never carry prefix/suffix affixes.
+ * below. Returns AffixItemType::None for types that never carry affixes.
  */
 AffixItemType GetAffixItemTypeForItem(const Item &item)
 {
@@ -2542,8 +2555,16 @@ std::vector<int> UniquesForBaseOf(const Item &item)
 	const auto baseKind = AllItemsList[item.IDidx].iItemId;
 	if (baseKind == UITYPE_NONE)
 		return found;
+	// A vanilla unique is always within its OWN reach, whatever its item level says (sweep, 2026-09-25). A unique
+	// bought off the Unique shelf carried ilvl 0, so its own row failed the depth test, the list came back
+	// empty and the Cube refused to reroll it - and an under-levelled one lost itself from the "anything but
+	// the current one" pool EnnobleOracoolRare builds from this.
+	const bool isVanillaUnique = item._iMagical == ITEM_QUALITY_UNIQUE && !item.hasOracoolTier();
+	const int ownUid = isVanillaUnique ? item._iUid : -1;
 	for (int i = 0; i < static_cast<int>(UniqueItemCount); i++) {
-		if (UniqueItems[i].UIItemId == baseKind && UniqueItems[i].UIMinLvl <= item._iOracoolItemLevel)
+		if (UniqueItems[i].UIItemId != baseKind)
+			continue;
+		if (UniqueItems[i].UIMinLvl <= item._iOracoolItemLevel || i == ownUid)
 			found.push_back(i);
 	}
 	return found;
@@ -2772,6 +2793,11 @@ void PrintItemOil(const Item &item)
 	case IMISC_ELIXVIT:
 		AddPanelString(_("increase vitality"));
 		break;
+	case IMISC_SPECELIX:
+		// Hellfire's Spectral Elixir, +3 to each attribute (UseItem). It printed nothing at all - no line here and
+		// no way in through PrintItemMisc's gate (tooltip sweep, 2026-09-25).
+		AddPanelString(_("+3 to all attributes"));
+		break;
 	case IMISC_REJUV:
 		AddPanelString(_("restore some life and mana"));
 		break;
@@ -2899,7 +2925,7 @@ void PrintItemMisc(const Item &item)
 	    // rows - what the signet gives and how many this life has used, the keystone's rift and tier, the map's
 	    // encounter and its guardian's carry - but this gate is the only way to reach it, and their misc ids sit
 	    // outside every range above, so those rows and the "Right-click to use" hint had never been shown.
-	    || IsAnyOf(item._iMiscId, IMISC_ORACOOL_SIGNET, IMISC_ORACOOL_KEYSTONE, IMISC_ORACOOL_MAP);
+	    || IsAnyOf(item._iMiscId, IMISC_ORACOOL_SIGNET, IMISC_ORACOOL_KEYSTONE, IMISC_ORACOOL_MAP, IMISC_SPECELIX);
 	const bool mouseRequiresTarget = (item._iMiscId == IMISC_SCROLLT && item._iSpell != SpellID::Flash)
 	    || (item._iMiscId == IMISC_SCROLL && IsAnyOf(item._iSpell, SpellID::TownPortal, SpellID::Identify));
 	const bool gamepadRequiresTarget = item.isScroll() && TargetsMonster(item._iSpell);
@@ -2933,7 +2959,7 @@ void PrintItemMisc(const Item &item)
  *
  * The name takes the item's own tier colour (Item::getTextColor), and everything below it splits
  * into two kinds: what the item IS - its damage or armour, durability, charges, stat requirements -
- * which is white, and what has been ADDED to it - its prefixes and suffixes - which is blue. The
+ * which is white, and what has been ADDED to it - its affixes - which is blue. The
  * point is that a glance at the panel separates the base item from its rolls without reading a
  * word, and that a magic item's blue name is echoed by the blue lines that earned it.
  *
@@ -3552,7 +3578,7 @@ std::string GetTranslatedItemNameMagical(const Item &item, bool hellfireItem, bo
 		    });
 
 		identifiedName = GenerateMagicItemName(_(baseItemData.iName), pPrefix, pSufix, translate);
-		if (forceNameLengthCheck ? *forceNameLengthCheck : !StringInPanel(identifiedName.c_str())) {
+		if (baseItemData.iSName != nullptr && (forceNameLengthCheck ? *forceNameLengthCheck : !StringInPanel(identifiedName.c_str()))) { // no short name: keep the long one (2026-09-25)
 			identifiedName = GenerateMagicItemName(_(baseItemData.iSName), pPrefix, pSufix, translate);
 		}
 	}
@@ -3670,6 +3696,11 @@ bool RetierOracoolItem(Item &item, OracoolItemTier tier)
 {
 	if (item.isEmpty())
 		return false;
+	// Kept whole so a refusal below hands the item back as it came in (2026-09-25). A false return used to
+	// leave the item already rebuilt - untiered, or tiered with nothing on it - while the caller treated the
+	// craft as not having happened; Law of Kulle's Primal promotion, which tries a second retier on a rare
+	// it has just made, would then have kept the broken result.
+	const Item original = item;
 	ClearOracoolAffixRecord(item);
 	const int ilvl = item._iOracoolItemLevel;
 	const auto idx = static_cast<_item_indexes>(item.IDidx);
@@ -3694,10 +3725,21 @@ bool RetierOracoolItem(Item &item, OracoolItemTier tier)
 	// A forced tier that the roller could not actually apply - the item has no affix type, say -
 	// leaves the item rerolled but untiered, and the caller is told so rather than being allowed to
 	// charge for a climb that did not happen.
-	return tier == OracoolItemTier::None || item._iOracoolTier == tier;
+	//
+	// And a forced tier with NOTHING ON IT is refused the same way (sweep, 2026-09-25): a Rare, Buffed
+	// Unique or Primal is its affixes, and one that rolled none - an item level of 0 left the whole pool
+	// above its ceiling, which is what the Unique shelf's items carried until they were stamped - is a
+	// plain item wearing a tier's name.
+	const bool applied = tier == OracoolItemTier::None
+	    || (item._iOracoolTier == tier && item._iOracoolAffixCount > 0);
+	if (!applied) {
+		item = original;
+		return false;
+	}
+	return true;
 }
 
-/** @brief The affix table row @p type came from - prefixes, suffixes or the Oracool pool - or null. */
+/** @brief The first data row of power @p type in any of the pool's tables, or null. A type sits in one table only. */
 const PLStruct *FindAffixRowForType(item_effect_type type)
 {
 	for (int i = 0; ItemPrefixes[i].power.type != IPL_INVALID; i++) {
@@ -3726,8 +3768,7 @@ bool RollOracoolAffixFor(const Player &player, const Item &item, OracoolAffix &o
 	Item scratch = item;
 	std::vector<item_effect_type> picked(exclude, exclude + std::max(0, excludeCount));
 	const std::optional<AffixCandidate> drawn = DrawUnifiedAffix(scratch, lvl, lvl, flgs, /*onlygood=*/true, gbIsHellfire,
-	    /*ignoreLevelLimits=*/false, /*prefixRoom=*/true, /*suffixRoom=*/true, /*oracoolRoom=*/true,
-	    picked.data(), static_cast<int>(picked.size()), GOE_ANY);
+	    /*ignoreLevelLimits=*/false, /*room=*/true, picked.data(), static_cast<int>(picked.size()), GOE_ANY);
 	if (!drawn)
 		return false;
 	const PLStruct &affix = RowOf(*drawn);
@@ -3748,6 +3789,10 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	const auto idx = static_cast<_item_indexes>(item.IDidx);
 	const int ilvl = std::max<int>(1, item._iOracoolItemLevel);
 	const OracoolItemTier tier = item._iOracoolTier;
+	const bool perfectRoll = item._iOracoolPerfectRoll;
+	const auto baseTier = static_cast<oracool::BaseItemTier>(item._iOracoolBaseTier);
+	const int durability = item._iDurability;
+	const bool broken = item._iOracoolBroken;
 	const uint32_t seed = item._iSeed;
 	const uint16_t createInfo = item._iCreateInfo;
 	const bool identified = item._iIdentified;
@@ -3756,30 +3801,62 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	std::copy(std::begin(item._iSocketed), std::end(item._iSocketed), std::begin(socketed));
 	const RebuildKeepsake keepsake = CaptureRebuildKeepsake(item);
 	const oracool::ImbuementLedger ledger = oracool::CaptureImbuements(item);
+	// A staff's spell is not an affix, and GetItemAttrs puts the base's back (none, and no charges). Magic
+	// staves reach Gillian now that their affix sits on the list (2026-09-25), so the spell, its charges and
+	// the magic requirement the spell set are carried across like the sockets are.
+	const bool keepsStaffSpell = item._iMiscId == IMISC_STAFF;
+	const SpellID staffSpell = item._iSpell;
+	const int staffCharges = item._iCharges;
+	const int staffMaxCharges = item._iMaxCharges;
+	const uint8_t staffMinMag = item._iMinMag;
+	// Copied first: GetItemAttrs empties the item's affix list, and a caller may hand in that very list.
+	std::array<OracoolAffix, Item::MaxOracoolAffixes> wanted {};
+	const int wantedCount = std::clamp(count, 0, Item::MaxOracoolAffixes);
+	std::copy(affixes, affixes + wantedCount, wanted.begin());
 
 	GetItemAttrs(item, idx, ilvl);
 	item._iSeed = seed;
 	item._iCreateInfo = createInfo;
 	item._iOracoolItemLevel = static_cast<uint8_t>(ilvl);
-	item._iOracoolTier = tier;
+	// The record is cleared FIRST and the tier restored AFTER (sweep, 2026-09-25). It was the other way round,
+	// and ClearOracoolAffixRecord resets the tier - so every Rare, Buffed Unique or Primal Gillian reworked
+	// came back a magic item.
 	ClearOracoolAffixRecord(item);
-	for (int i = 0; i < count && item._iOracoolAffixCount < Item::MaxOracoolAffixes; i++) {
-		const PLStruct *row = FindAffixRowForType(affixes[i].type);
+	item._iOracoolTier = tier;
+	item._iOracoolPerfectRoll = perfectRoll;
+	// The BASE tier on the base numbers before any affix touches them, as SetupAllItems does. GetItemAttrs
+	// wrote the Normal numbers, so a Jagged or Cruel base came back from the bench with Normal damage and
+	// armour while its tooltip still named the tier.
+	oracool::ApplyBaseTier(item, baseTier);
+	for (int i = 0; i < wantedCount && item._iOracoolAffixCount < Item::MaxOracoolAffixes; i++) {
+		const PLStruct *row = FindAffixRowForType(wanted[i].type);
 		if (row == nullptr)
 			continue;
 		// A degenerate range, so the roll lands on exactly the value this affix already had.
 		ItemPower power = row->power;
-		power.param1 = affixes[i].param1;
-		power.param2 = affixes[i].param1;
+		power.param1 = wanted[i].param1;
+		power.param2 = wanted[i].param1;
 		SaveItemPower(player, item, power);
-		item._iOracoolAffixes[item._iOracoolAffixCount++] = OracoolAffix { affixes[i].type, affixes[i].param1, affixes[i].param2 };
+		item._iOracoolAffixes[item._iOracoolAffixCount++] = OracoolAffix { wanted[i].type, wanted[i].param1, wanted[i].param2 };
 	}
 	if (item._iOracoolAffixCount > 0 && item._iMagical == ITEM_QUALITY_NORMAL)
 		item._iMagical = ITEM_QUALITY_MAGIC;
+	if (keepsStaffSpell) {
+		item._iSpell = staffSpell;
+		item._iCharges = staffCharges;
+		item._iMaxCharges = staffMaxCharges;
+		item._iMinMag = staffMinMag;
+	}
 	item._iSocketCount = sockets;
 	std::copy(std::begin(socketed), std::end(socketed), std::begin(item._iSocketed));
 	oracool::RestoreImbuements(item, ledger);
 	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
+	// The wear the item had, not a free repair (sweep, 2026-09-25): GetItemAttrs set durability to the base's
+	// full value, so a reroll at the bench mended the item as a side effect. Capped by the maximum the rebuild
+	// arrived at (an ethereal item's is halved again above); an item that is now indestructible stays so.
+	if (item._iMaxDur != DUR_INDESTRUCTIBLE)
+		item._iDurability = std::min(durability, item._iMaxDur);
+	item._iOracoolBroken = broken && item._iDurability == 0;
 	item._iIdentified = identified;
 	return true;
 }
@@ -4049,7 +4126,7 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 		// Every table is offered while the list has room: the only limit is the count.
 		const bool room = item._iOracoolAffixCount < Item::MaxOracoolAffixes;
 		return DrawUnifiedAffix(item, minlvl, maxlvl, flgs, onlygood, gbIsHellfire, !withLevelLimits,
-		    room, room, room, pickedTypes.data(), pickedCount, goe);
+		    room, pickedTypes.data(), pickedCount, goe);
 	};
 
 	const bool previousForcePerfectAffixRoll = ForcePerfectAffixRoll;
@@ -4293,6 +4370,11 @@ bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid)
 	item._iSeed = AdvanceRndSeed();
 	SetRndSeed(item._iSeed);
 	GetItemAttrs(item, baseItemIndex, UniqueItems[uid].UIMinLvl);
+	// An item level, which this shelf never stamped (sweep, 2026-09-25): every unique bought here carried ilvl 0,
+	// so the Cube's Reroll Uniques and Awaken - which roll at the item's own level - found no unique within reach
+	// and nothing to roll. At least the unique's own level, lifted into the difficulty's block the way every
+	// other shelf's stock is (VendorItemLevel).
+	oracool::StampVendorItemLevel(item, std::max<int>(UniqueItems[uid].UIMinLvl, 1));
 	item._iCreateInfo = std::max<int>(UniqueItems[uid].UIMinLvl, 1) | CF_UNIQUE | CF_SMITH;
 	const bool wasGenerated = UniqueItemFlags[uid];
 	GetUniqueItem(player, item, uid);
@@ -4927,8 +5009,6 @@ void InitializeItem(Item &item, _item_indexes itemData)
 	item._iMinDex = pAllItem.iMinDex;
 	item._ivalue = pAllItem.iValue;
 	item._iIvalue = pAllItem.iValue;
-	item._iPrePower = IPL_INVALID;
-	item._iSufPower = IPL_INVALID;
 	item._iMagical = ITEM_QUALITY_NORMAL;
 	item.IDidx = static_cast<_item_indexes>(itemData);
 	if (gbIsHellfire)
@@ -5092,6 +5172,19 @@ void CreatePlrItems(Player &player)
 
 	player._pGold = goldItem._ivalue;
 
+	// The starting gear at item level 1 (tooltip sweep, 2026-09-25). InitializeItem leaves it at 0, and every Cube
+	// recipe that rolls affixes rolls at the item's own level: Enrich, the Crafts and the tier ladder took a starting
+	// sword, reported ready and made nothing - the roll at level 0 has no affix to give.
+	for (Item &item : player.InvBody) {
+		if (!item.isEmpty() && item._iOracoolItemLevel == 0)
+			item._iOracoolItemLevel = 1;
+	}
+	for (int i = 0; i < player._pNumInv; i++) {
+		Item &item = player.InvList[i];
+		if (!item.isEmpty() && item._iLoc != ILOC_UNEQUIPABLE && item._iOracoolItemLevel == 0)
+			item._iOracoolItemLevel = 1;
+	}
+
 	CalcPlrItemVals(player, false);
 }
 
@@ -5247,8 +5340,12 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)
 	item.IDidx = itemData;
 	if (gbIsHellfire)
 		item.dwBuff |= CF_HELLFIRE;
-	item._iPrePower = IPL_INVALID;
-	item._iSufPower = IPL_INVALID;
+	// The affix list, which replaced vanilla's prefix/suffix pair here (2026-09-25): every per-roll bonus is
+	// cleared above, and the list names those bonuses, so it goes with them - a vendor retry loop or a reroll
+	// that rolls the same object again must not stack a second roll's affixes onto the first's. The tier is
+	// left to the caller (RebuildOracoolItemWithAffixes puts it back; ClearOracoolAffixRecord clears it).
+	item._iOracoolAffixCount = 0;
+	item._iOracoolAffixes = {};
 
 	if (item._iMiscId == IMISC_BOOK)
 		GetBookSpell(item, lvl);
@@ -5519,7 +5616,7 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
  * the pool dealt. The two vanilla tables remain only as where the rows are written.
  *
  * GetRareItemAffixes guarantees two plus two 30% bonuses (4), GetBuffedUniqueItemAffixes four plus two
- * bonuses (6), GetPrimalItemAffixes six with no bonus. Magic is the vanilla pair.
+ * bonuses (6), GetPrimalItemAffixes six with no bonus. Magic takes two - vanilla's count, from any tables.
  *
  * Zero for plain quality, for a vanilla unique, and for a set piece: none of the three carries a
  * rolled affix at all, and a set piece's six powers are a fixed list rather than affixes.
@@ -5539,33 +5636,287 @@ DVL_API_FOR_TEST int OracoolAffixBudget(const Item &item)
 		break;
 	}
 	if (item._iMagical == ITEM_QUALITY_MAGIC)
-		return 2; // the vanilla pair: one _iPrePower and one _iSufPower
+		return 2; // one or two affixes, from any tables (GetItemPower)
 	return 0;     // plain quality, and vanilla uniques
 }
 
 /**
- * @brief Oracool: how many affixes @p item is already carrying, across BOTH stores.
+ * @brief Oracool: how many affixes @p item is already carrying - the length of its one affix list.
  *
- * Adding the two stores is the whole of the bug this was written for. A tiered item's rolled
- * affixes live in the _iOracool* arrays, but a MAGIC item's live in the vanilla _iPrePower and
- * _iSufPower fields and leave those arrays empty - so the drop tail's guard, which consulted only
- * the arrays, read zero on every magic item and never saw the affixes the item had already rolled.
- *
- * A "Garnet Cap of the Tiger" reached the player with FOUR affixes on a two-affix tier: Resist Fire
- * and Hit Points in the vanilla pair, then Movement Speed and Faster Cast appended on top.
- *
- * GetTieredItemAffixes never writes the vanilla fields, so the two branches never double-count.
+ * This used to add two stores together: a magic item kept its table affixes in a vanilla prefix/suffix pair
+ * of fields and only its pool affixes in the list, and a guard that read the list alone saw zero on every
+ * magic item (a "Garnet Cap of the Tiger" reached the player with FOUR affixes on a two-affix tier). Since
+ * 2026-09-25 every affix of every item is on the list (user: "all afixes are now one pool"), so its count is
+ * the whole answer.
  */
 DVL_API_FOR_TEST int OracoolAffixesUsed(const Item &item)
 {
-	int used = item._iOracoolAffixCount;
-	if (!item.hasOracoolTier()) {
-		if (item._iPrePower != IPL_INVALID)
-			used++;
-		if (item._iSufPower != IPL_INVALID)
-			used++;
+	return item._iOracoolAffixCount;
+}
+
+namespace {
+
+/** @brief The accumulated _iPL* stat fields one power writes into, as bits - see SaveItemPower. */
+enum LegacyAffixField : uint16_t {
+	FieldToHit = 1 << 0,
+	FieldDam = 1 << 1,
+	FieldAC = 1 << 2,
+	FieldFR = 1 << 3,
+	FieldLR = 1 << 4,
+	FieldMR = 1 << 5,
+	FieldStr = 1 << 6,
+	FieldMag = 1 << 7,
+	FieldDex = 1 << 8,
+	FieldVit = 1 << 9,
+	FieldGetHit = 1 << 10,
+	FieldHP = 1 << 11,
+	FieldMana = 1 << 12,
+	FieldDamMod = 1 << 13,
+	FieldFind = 1 << 14,
+};
+
+uint16_t LegacyAffixFields(item_effect_type type)
+{
+	switch (type) {
+	case IPL_TOHIT:
+	case IPL_TOHIT_CURSE:
+		return FieldToHit;
+	case IPL_DAMP:
+	case IPL_DAMP_CURSE:
+	case IPL_CRYSTALLINE:
+	case IPL_DECAY:
+		return FieldDam;
+	case IPL_TOHIT_DAMP:
+	case IPL_TOHIT_DAMP_CURSE:
+	case IPL_DOPPELGANGER:
+		return FieldDam | FieldToHit;
+	case IPL_ACP:
+	case IPL_ACP_CURSE:
+		return FieldAC;
+	case IPL_FIRERES:
+	case IPL_FIRERES_CURSE:
+		return FieldFR;
+	case IPL_LIGHTRES:
+	case IPL_LIGHTRES_CURSE:
+		return FieldLR;
+	case IPL_MAGICRES:
+	case IPL_MAGICRES_CURSE:
+		return FieldMR;
+	case IPL_ALLRES:
+		return FieldFR | FieldLR | FieldMR;
+	case IPL_STR:
+	case IPL_STR_CURSE:
+		return FieldStr;
+	case IPL_MAG:
+	case IPL_MAG_CURSE:
+		return FieldMag;
+	case IPL_DEX:
+	case IPL_DEX_CURSE:
+		return FieldDex;
+	case IPL_VIT:
+	case IPL_VIT_CURSE:
+		return FieldVit;
+	case IPL_ATTRIBS:
+	case IPL_ATTRIBS_CURSE:
+		return FieldStr | FieldMag | FieldDex | FieldVit;
+	case IPL_GETHIT:
+	case IPL_GETHIT_CURSE:
+		return FieldGetHit;
+	case IPL_LIFE:
+	case IPL_LIFE_CURSE:
+		return FieldHP;
+	case IPL_MANA:
+	case IPL_MANA_CURSE:
+		return FieldMana;
+	case IPL_MANATOLIFE:
+	case IPL_LIFETOMANA:
+		return FieldHP | FieldMana;
+	case IPL_DAMMOD:
+		return FieldDamMod;
+	case IPL_GOLDFIND:
+	case IPL_MAGICFIND:
+		return FieldFind;
+	default:
+		return 0;
 	}
-	return used;
+}
+
+/**
+ * @brief The rolled value a simple stat affix of @p type left in @p item's own field, as the positive
+ * magnitude the list stores (SaveItemPower applies the sign). Nothing for a type whose roll is not
+ * readable back out of one field.
+ */
+std::optional<int> LegacyAffixValueFromField(const Item &item, item_effect_type type)
+{
+	switch (type) {
+	case IPL_TOHIT:
+		return item._iPLToHit;
+	case IPL_TOHIT_CURSE:
+		return -item._iPLToHit;
+	case IPL_DAMP:
+	case IPL_TOHIT_DAMP:
+	case IPL_DOPPELGANGER:
+		return item._iPLDam; // the to-hit half is not in the list; the printer works it out from the totals
+	case IPL_DAMP_CURSE:
+	case IPL_TOHIT_DAMP_CURSE:
+		return -item._iPLDam;
+	case IPL_ACP:
+		return item._iPLAC;
+	case IPL_ACP_CURSE:
+		return -item._iPLAC;
+	case IPL_FIRERES:
+		return item._iPLFR;
+	case IPL_FIRERES_CURSE:
+		return -item._iPLFR;
+	case IPL_LIGHTRES:
+		return item._iPLLR;
+	case IPL_LIGHTRES_CURSE:
+		return -item._iPLLR;
+	case IPL_MAGICRES:
+		return item._iPLMR;
+	case IPL_MAGICRES_CURSE:
+		return -item._iPLMR;
+	case IPL_ALLRES:
+		return item._iPLFR;
+	case IPL_STR:
+	case IPL_ATTRIBS:
+		return item._iPLStr;
+	case IPL_STR_CURSE:
+	case IPL_ATTRIBS_CURSE:
+		return -item._iPLStr;
+	case IPL_MAG:
+		return item._iPLMag;
+	case IPL_MAG_CURSE:
+		return -item._iPLMag;
+	case IPL_DEX:
+		return item._iPLDex;
+	case IPL_DEX_CURSE:
+		return -item._iPLDex;
+	case IPL_VIT:
+		return item._iPLVit;
+	case IPL_VIT_CURSE:
+		return -item._iPLVit;
+	case IPL_GETHIT:
+		return -item._iPLGetHit;
+	case IPL_GETHIT_CURSE:
+		return item._iPLGetHit;
+	case IPL_LIFE:
+		return item._iPLHP / 64;
+	case IPL_LIFE_CURSE:
+		return -item._iPLHP / 64;
+	case IPL_MANA:
+		return item._iPLMana / 64;
+	case IPL_MANA_CURSE:
+		return -item._iPLMana / 64;
+	case IPL_DAMMOD:
+		return item._iPLDamMod;
+	case IPL_GOLDFIND:
+		return item._iPLGoldFind;
+	case IPL_MAGICFIND:
+		return item._iPLMagicFind;
+	default:
+		return std::nullopt;
+	}
+}
+
+/** @brief The one field LegacyAffixValueFromField reads for @p type - narrower than what the power writes. */
+uint16_t LegacyAffixReadField(item_effect_type type)
+{
+	switch (type) {
+	case IPL_TOHIT_DAMP:
+	case IPL_TOHIT_DAMP_CURSE:
+	case IPL_DOPPELGANGER:
+		return FieldDam;
+	case IPL_ALLRES:
+		return FieldFR;
+	case IPL_ATTRIBS:
+	case IPL_ATTRIBS_CURSE:
+		return FieldStr;
+	default:
+		return LegacyAffixFields(type);
+	}
+}
+
+/** @brief The price multiplier of the row of @p type whose roll range holds @p value - the band it rolled in. */
+int LegacyAffixMultVal(item_effect_type type, int value)
+{
+	const auto holds = [type, value](const PLStruct &row) {
+		return row.power.type == type && value >= std::min(row.power.param1, row.power.param2)
+		    && value <= std::max(row.power.param1, row.power.param2);
+	};
+	for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
+		if (holds(ItemPrefixes[j]))
+			return ItemPrefixes[j].multVal;
+	}
+	for (int j = 0; ItemSuffixes[j].power.type != IPL_INVALID; j++) {
+		if (holds(ItemSuffixes[j]))
+			return ItemSuffixes[j].multVal;
+	}
+	const PLStruct *row = FindAffixRowForType(type);
+	return row != nullptr ? row->multVal : 0;
+}
+
+} // namespace
+
+void MigrateLegacyAffixPair(Item &item, item_effect_type first, item_effect_type second)
+{
+	// ONE LIST (user, 2026-09-25: "remove any trace of prefix/sufix segregation. all afixes are now one pool").
+	// An item saved before that kept its table affixes' TYPES in a vanilla pair of fields and nothing else about
+	// them; the save still carries those two bytes, and this puts what they name onto the list so the item keeps
+	// its affix lines, its level requirement and a place at Gillian's bench. The stats themselves are already in
+	// the item's fields - nothing is applied here.
+	//
+	// A vanilla unique never rolled into the pair, and a type already on the list is not listed twice.
+	if (item._iMagical == ITEM_QUALITY_UNIQUE)
+		return;
+	std::array<item_effect_type, 2> legacy {};
+	int legacyCount = 0;
+	for (const item_effect_type type : { first, second }) {
+		if (type == IPL_INVALID || FindAffixRowForType(type) == nullptr)
+			continue;
+		bool listed = false;
+		for (int i = 0; i < item._iOracoolAffixCount; i++)
+			listed = listed || item._iOracoolAffixes[i].type == type;
+		if (legacyCount == 1 && legacy[0] == type)
+			listed = true;
+		if (!listed)
+			legacy[legacyCount++] = type;
+	}
+	if (legacyCount == 0)
+		return;
+
+	// Which stat fields the OTHER affixes write - a field one of them shares holds a sum, not this affix's roll.
+	const auto othersFields = [&](int self) {
+		uint16_t fields = 0;
+		for (int k = 0; k < legacyCount; k++) {
+			if (k != self)
+				fields |= LegacyAffixFields(legacy[k]);
+		}
+		for (int i = 0; i < item._iOracoolAffixCount; i++)
+			fields |= LegacyAffixFields(item._iOracoolAffixes[i].type);
+		return fields;
+	};
+
+	// The old pair first, as the tooltip printed it, then what the list already held (pool rows, crafted lines).
+	std::array<OracoolAffix, Item::MaxOracoolAffixes> merged {};
+	int mergedCount = 0;
+	for (int k = 0; k < legacyCount && mergedCount < Item::MaxOracoolAffixes; k++) {
+		const item_effect_type type = legacy[k];
+		// A simple stat's value is its field. When another affix writes the same field the field holds their
+		// SUM - still what the old pair's line printed for it (it printed the item's totals), so the line reads
+		// as it did; only an affix with no single field to read gets 0, and PrintOracoolAffixPower prints those
+		// types from the item's totals anyway.
+		int value = 0;
+		if (const std::optional<int> fromField = LegacyAffixValueFromField(item, type))
+			value = std::max(0, *fromField);
+		const bool shared = (LegacyAffixReadField(type) & othersFields(k)) != 0;
+		// The price band from the value only when the value is this affix's alone.
+		merged[mergedCount++] = OracoolAffix { type, value, LegacyAffixMultVal(type, shared ? 0 : value) };
+	}
+	for (int i = 0; i < item._iOracoolAffixCount && mergedCount < Item::MaxOracoolAffixes; i++)
+		merged[mergedCount++] = item._iOracoolAffixes[i];
+	item._iOracoolAffixes = merged;
+	item._iOracoolAffixCount = static_cast<uint8_t>(mergedCount);
 }
 
 
@@ -6695,7 +7046,9 @@ bool DoOil(Player &player, int cii, int tabIdx)
 	case IPL_INDESTRUCTIBLE:
 		return _("indestructible");
 	case IPL_LIGHT:
-		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "+{:d}% light radius")), 10 * item._iPLLight);
+		// Signed by the value, not by the power (2026-09-25): a set piece declares IPL_LIGHT with -1, and the literal
+		// '+' in front of a negative number printed "+-10% light radius".
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% light radius")), 10 * item._iPLLight);
 	case IPL_LIGHT_CURSE:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "-{:d}% light radius")), -10 * item._iPLLight);
 	case IPL_MULT_ARROWS:
@@ -6797,7 +7150,7 @@ bool DoOil(Player &player, int cii, int tabIdx)
 	case IPL_CRYSTALLINE:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "low dur, {:+d}% damage")), item._iPLDam);
 	case IPL_DOPPELGANGER:
-		return fmt::format(fmt::runtime(_("to hit: {:+d}%, {:+d}% damage")), item._iPLToHit, item._iPLDam);
+		return fmt::format(fmt::runtime(_("to hit: {:+d}%, {:+d}% damage, 10% of hits clone the foe")), item._iPLToHit, item._iPLDam);
 	case IPL_ACDEMON:
 		return _("extra AC vs demons");
 	case IPL_ACUNDEAD:
@@ -6853,6 +7206,36 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 	// while IPL_GETHIT_CURSE *increases* it (bad, positive delta) - the naming refers to what the
 	// affix does to the "get hit" stat, not to whether it's beneficial.
 	switch (affix.type) {
+	case IPL_TOHIT_DAMP:
+	case IPL_TOHIT_DAMP_CURSE:
+	case IPL_DOPPELGANGER: {
+		// The to-hit-and-damage affixes, per affix (tooltip sweep, 2026-09-25: seven primals printed "to hit: +80%,
+		// +145% damage" twice). The shared printer reads the item's TOTALS, so this affix's row carried the other
+		// to-hit affixes' share as well, and a second such affix repeated the same line. The damage is this affix's
+		// own roll (param1). Its to-hit is not in the record - param2 holds the price multiplier - so it is what
+		// the item's to-hit leaves once the plain to-hit affixes are taken out, shared between the affixes of this
+		// kind when there is more than one.
+		const int damage = affix.type == IPL_TOHIT_DAMP_CURSE ? -affix.param1 : affix.param1;
+		int toHit = item._iPLToHit;
+		int sharers = 0;
+		for (int i = 0; i < item._iOracoolAffixCount; i++) {
+			const OracoolAffix &other = item._iOracoolAffixes[i];
+			if (other.type == IPL_TOHIT)
+				toHit -= other.param1;
+			else if (other.type == IPL_TOHIT_CURSE)
+				toHit += other.param1;
+			else if (IsAnyOf(other.type, IPL_TOHIT_DAMP, IPL_TOHIT_DAMP_CURSE, IPL_DOPPELGANGER))
+				sharers++;
+		}
+		if (sharers > 1)
+			toHit /= sharers;
+		// Doppelganger's own effect named on its row (sweep, 2026-09-25): a perfect-rolled primal carried it beside a
+		// plain to-hit-and-damage affix, and the two rows read identically. player.cpp: 10% of hits on a non-unique
+		// monster other than Diablo make a copy of it.
+		if (affix.type == IPL_DOPPELGANGER)
+			return fmt::format(fmt::runtime(_("to hit: {:+d}%, {:+d}% damage, 10% of hits clone the foe")), toHit, damage);
+		return fmt::format(fmt::runtime(_("to hit: {:+d}%, {:+d}% damage")), toHit, damage);
+	}
 	case IPL_TOHIT:
 		return fmt::format(fmt::runtime(_("chance to hit: {:+d}%")), affix.param1);
 	case IPL_TOHIT_CURSE:
@@ -7061,8 +7444,8 @@ std::string PrintSetBonusPower(const ItemPower &power)
  * static box pinned beside the inventory, so these lines join the same panel-string list every
  * other line of item detail already goes into (see oracool::DrawCursorTooltip).
  *
- * Magic items are absent here on purpose: PrintItemDetails already prints their prefix and suffix
- * powers, and the old box was showing them a second time in a different place.
+ * Plain and magic items are absent here on purpose: PrintItemDetails prints their affix list itself,
+ * and the old box was showing a magic item's affixes a second time in a different place.
  */
 void AddItemPowerPanelStrings(const Item &item)
 {
@@ -7074,9 +7457,11 @@ void AddItemPowerPanelStrings(const Item &item)
 	// applies its declared powers straight into the _iPL* fields, so those arrays are empty and the
 	// description had nothing to say.
 	//
-	// PrintItemPower reads the item's own accumulated fields, which is exactly right here: a set
-	// piece has one source for each stat, so there is no accumulation to disentangle - the very
-	// problem PrintOracoolAffixPower exists to solve for multi-affix tiered items.
+	// Each power from its OWN number, through PrintOracoolAffixPower (tooltip sweep, 2026-09-25). This used to read
+	// the item's accumulated fields on the grounds that a set piece has one source per stat - but a piece can
+	// declare the same stat twice (the Sign of the Absent Star: +25 mana and +10 mana) and then both rows
+	// printed the total, "Mana: +35" twice. Types the per-affix printer does not cover still fall back to
+	// the item's field, which for a single power is the same number.
 	if (item._iOracoolTier == OracoolItemTier::Set) {
 		const oracool::SetItemDefinition *def = oracool::FindSetItemByCursor(item._iCurs);
 		if (def == nullptr)
@@ -7088,7 +7473,7 @@ void AddItemPowerPanelStrings(const Item &item)
 		for (const ItemPower &power : def->powers) {
 			if (power.type == IPL_INVALID)
 				break;
-			AddPanelString(PrintItemPower(power.type, item), ItemAffixColor);
+			AddPanelString(PrintOracoolAffixPower(OracoolAffix { power.type, power.param1, 0 }, item), ItemAffixColor);
 		}
 
 		const oracool::ItemSetDefinition *set = oracool::FindItemSetOwning(def->id);
@@ -7184,20 +7569,22 @@ void AddItemPowerPanelStrings(const Item &item)
  * merged line did not: that indestructibility was rolled rather than inherent.
  *
  * This deliberately mirrors what PrintItemDetails actually prints rather than asking the item
- * whether it has the property anywhere: a unique's powers are only listed for uniques, and an
- * Oracool tier's affixes only for tiered items, so an item can be indestructible with nothing below
- * to say so. Those keep the word on the base line, which is the only place it would appear.
+ * whether it has the property anywhere: a unique's powers are only listed for uniques, a set piece's
+ * from its definition, and the affix list for every other item, so an item can be indestructible with
+ * nothing below to say so. Those keep the word on the base line, which is the only place it would appear.
  */
 bool AffixStatesIndestructible(const Item &item)
 {
-	if (item._iPrePower == IPL_INDESTRUCTIBLE || item._iSufPower == IPL_INDESTRUCTIBLE)
-		return true;
-	if (item.hasOracoolTier()) {
+	// The one affix list is printed for every item that is neither a set piece nor a vanilla unique (2026-09-25:
+	// it used to be tiered items' list plus a magic item's vanilla prefix/suffix pair).
+	const bool listPrinted = item._iOracoolTier != OracoolItemTier::Set
+	    && (item.hasOracoolTier() || item._iMagical != ITEM_QUALITY_UNIQUE);
+	if (listPrinted) {
 		for (int i = 0; i < item._iOracoolAffixCount; i++) {
 			if (item._iOracoolAffixes[i].type == IPL_INDESTRUCTIBLE)
 				return true;
 		}
-	} else if (item._iMagical == ITEM_QUALITY_UNIQUE) {
+	} else if (item._iMagical == ITEM_QUALITY_UNIQUE && !item.hasOracoolTier()) {
 		for (const auto &power : UniqueItems[item._iUid].powers) {
 			if (power.type == IPL_INVALID)
 				break;
@@ -7299,32 +7686,18 @@ void PrintItemDetails(const Item &item)
 	if (item._iMiscId == IMISC_STAFF && item._iMaxCharges != 0) {
 		AddPanelString(fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges), ItemBaseStatColor);
 	}
-	if (item._iPrePower != -1) {
-		AddPanelString(PrintItemPower(item._iPrePower, item), ItemAffixColor);
-	}
-	if (item._iSufPower != -1) {
-		AddPanelString(PrintItemPower(item._iSufPower, item), ItemAffixColor);
-	}
 	// The tier label used to print here, between the affixes and the power list; it now leads the
 	// panel instead (user request, 2026-08-16 - "just below their name and above the dmg stats").
 	if (item.hasOracoolTier() || item._iMagical == ITEM_QUALITY_UNIQUE) {
 		AddItemPowerPanelStrings(item);
-	} else if (item._iPrePower == -1 && item._iSufPower == -1 && item._iOracoolAffixCount > 0) {
-		// A PLAIN MAGIC ITEM WHOSE AFFIXES HAVE NO VANILLA SLOTS LEFT (user, 2026-09-22: "when i
-		// rerolled a weapon i stopped seeing its affixes on its pop-up display").
+	} else {
+		// EVERY OTHER ITEM PRINTS ITS ONE AFFIX LIST - magic, crafted, a staff's affix - one line per affix
+		// from its own rolled value (user, 2026-09-25: "all afixes are now one pool").
 		//
-		// A magic item carries its affixes TWICE: in _iPrePower/_iSufPower, which the two lines
-		// above print, and in the _iOracoolAffixes record, which until now only a tiered item
-		// printed. RebuildOracoolItemWithAffixes - the Mystic's reroll - rebuilds the item from its
-		// base with GetItemAttrs, which clears both vanilla slots, and replays the affixes through
-		// SaveItemPower, which writes the stats in and sets neither slot again. So a rerolled MAGIC
-		// weapon kept its stats and its name and lost every affix LINE; a rare or a primal was fine,
-		// because tiers print the record. That is why it read as random.
-		//
-		// Fixed in the printer rather than in the item: the record is the truth either way, and this
-		// branch runs only when nothing else has printed it, so it cannot double up. It also gives
-		// the crafted items that write straight into the record - see oracool/crafting.cpp - the
-		// affix lines they have never had.
+		// A magic item used to print two vanilla prefix/suffix lines from the item's totals and this list only
+		// when those two were empty - the fix for "when i rerolled a weapon i stopped seeing its affixes on its
+		// pop-up display" (2026-09-22), because the Mystic's rebuild left the pair empty. With the pair gone
+		// the list is the only store, so it always prints and nothing can print it twice.
 		for (int i = 0; i < item._iOracoolAffixCount; i++)
 			AddPanelString(PrintOracoolAffixPower(item._iOracoolAffixes[i], item), ItemAffixColor);
 	}
@@ -7335,23 +7708,19 @@ void PrintItemDetails(const Item &item)
 	// Movement Speed +X% from the item's own record (2026-09-07; an ordinary pool affix since 2026-09-13). A tiered item prints its records
 	// with the other affixes above, so this line is the plain and magic items'.
 	//
-	// NOT when a line above already said it (tooltip audit, 2026-09-25). A magic item keeps these two pool
-	// affixes in its Orcl record, which is why the rows exist - but the record IS printed when a reroll left
-	// the vanilla slots empty (the branch above), a vanilla prefix or suffix can be the stat itself, and a
-	// unique's power list can carry movement speed. Each of those printed the stat and then this printed it
-	// again.
+	// NOT when a line above already said it (tooltip audit, 2026-09-25). The branch above prints the affix
+	// list of every plain and magic item, which is where these two pool affixes live, and a unique's power
+	// list can carry movement speed. Each of those printed the stat and then this printed it again. What is
+	// left for these rows is a stat the item has with no line of its own.
 	const auto alreadyPrinted = [&item](item_effect_type a, item_effect_type b) {
 		const auto is = [a, b](item_effect_type t) { return t == a || t == b; };
-		if (is(item._iPrePower) || is(item._iSufPower))
-			return true;
 		if (item._iMagical == ITEM_QUALITY_UNIQUE && !item.hasOracoolTier() && item._iUid >= 0) {
 			for (const ItemPower &power : UniqueItems[item._iUid].powers) {
 				if (is(power.type))
 					return true;
 			}
 		}
-		if (!item.hasOracoolTier() && item._iMagical != ITEM_QUALITY_UNIQUE && item._iPrePower == IPL_INVALID
-		    && item._iSufPower == IPL_INVALID) {
+		if (!item.hasOracoolTier() && item._iMagical != ITEM_QUALITY_UNIQUE) {
 			for (int i = 0; i < item._iOracoolAffixCount; i++) {
 				if (is(item._iOracoolAffixes[i].type))
 					return true;
@@ -9770,7 +10139,7 @@ StringOrView Item::getName() const
 		// function used to disagree on a magic item's name (e.g. popup: "Ruby Amulet", HUD:
 		// "Amulet of the Tiger", for the exact same single Resist Fire affix). The popup reads
 		// _iIName directly - the name cached once at generation time from the item's *real*
-		// rolled prefix/suffix (see GetItemPower/GetStaffPower/GetTieredItemAffixes). This
+		// rolled affixes (see GetItemPower/GetStaffPower/GetTieredItemAffixes). This
 		// function instead called GetTranslatedItemNameMagical, which recomputes the name by
 		// replaying the RNG from the item's saved seed - a replay that assumes a fixed sequence
 		// of random calls no longer matched once Oracool's own tier-roll checks

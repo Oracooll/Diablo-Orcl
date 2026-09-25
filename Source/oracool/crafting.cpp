@@ -443,6 +443,17 @@ void ConsumeGridReagents(Item *grid, const std::vector<int> &slots, int count)
 	}
 }
 
+/**
+ * @brief Whether @p item sits on one of the quest uniques' own base rows (IMISC_UNIQUE: the Butcher's Cleaver, Griswold's
+ * Edge, Arkaine's Valor, the Undead Crown ...). Such a row is the unique itself, not a base: rolling it again through
+ * SetupAllItems clears the item (its seed check), so Reforge and Awaken took it in place and handed back nothing - the
+ * unique gone, the reagents kept, no word in the log (tooltip sweep, 2026-09-25). The recipes refuse it instead.
+ */
+bool IsQuestUniqueBase(const Item &item)
+{
+	return item.IDidx >= 0 && item.IDidx <= IDI_LAST && AllItemsList[item.IDidx].iMiscId == IMISC_UNIQUE;
+}
+
 /** @brief A magic-or-better item the reforge could reroll, or -1. */
 int FindGridReforgeTarget(const Item *grid)
 {
@@ -451,6 +462,8 @@ int FindGridReforgeTarget(const Item *grid)
 		// Gear only, and only gear that HAS rolls to reroll. A white item has nothing to change,
 		// and a socketable is not gear at all.
 		if (item.isEmpty() || item._iMagical == ITEM_QUALITY_NORMAL)
+			continue;
+		if (IsQuestUniqueBase(item))
 			continue;
 		if (IsOracoolGemIdx(item.IDidx) || IsOracoolRuneIdx(item.IDidx) || IsOracoolJewelIdx(item.IDidx)
 		    || IsOracoolSalvageIdx(item.IDidx) || IsOracoolCharmIdx(item.IDidx))
@@ -506,9 +519,10 @@ int FindGridSetPieceTarget(const Item *grid)
  * @brief Every set piece whose slot suits equip location @p loc.
  *
  * Consecrate turns a rare into a set piece for the SAME SLOT, so a rare helm becomes a set helm.
- * The mapping goes through BaseItemForSetSlot - the set table's own slot word resolved to a base
- * item, whose ILOC is then compared - rather than a second slot-word table here, which is how the
- * two would come to disagree about what "off_hand" means.
+ * The mapping goes through BaseItemForSetPiece - the piece's own base, as the drops and the Set shelf build it -
+ * and that base's ILOC is compared. It went through BaseItemForSetSlot, the slot word's generic base, which maps
+ * "main_hand" to a one-handed Short Sword: no two-handed rare (a bow, a scythe) found a piece, and a crafted
+ * main-hand piece lost its bow or mace family (tooltip sweep, 2026-09-25).
  */
 std::vector<const SetItemDefinition *> SetPiecesForLoc(item_equip_type loc)
 {
@@ -518,7 +532,7 @@ std::vector<const SetItemDefinition *> SetPiecesForLoc(item_equip_type loc)
 	for (const ItemSetDefinition &set : ItemSets) {
 		for (int i = 0; i < set.itemCount; i++) {
 			const SetItemDefinition &piece = ItemSetItems[set.firstItem + i];
-			const int base = BaseItemForSetSlot(piece.slot);
+			const int base = BaseItemForSetPiece(piece);
 			if (base < 0)
 				continue;
 			if (AllItemsList[base].iLoc == loc)
@@ -533,7 +547,11 @@ bool IsTierRecipeGear(const Item &item)
 {
 	if (item.isEmpty())
 		return false;
-	if (item._iClass != ICLASS_WEAPON && item._iClass != ICLASS_ARMOR)
+	// Rings and amulets too (user, 2026-09-25: "Allow rings and amulets"). They were refused since v1.9.18 with no
+	// reason on record, while Reforge and Ennoble took them and rare rings drop; jewellery is ICLASS_MISC, so it is
+	// admitted by its slot.
+	const bool jewellery = item._iLoc == ILOC_RING || item._iLoc == ILOC_AMULET;
+	if (item._iClass != ICLASS_WEAPON && item._iClass != ICLASS_ARMOR && !jewellery)
 		return false;
 	// A socketed item is excluded from every reroll and every tier bump, for the reason Reforge
 	// already records: its stats would come back without the stones inside it, and a completed
@@ -595,6 +613,8 @@ int FindGridUniqueItem(const Item *grid)
 		// lost one of them is exactly the case worth refusing.
 		if (grid[i]._iOracoolTier == OracoolItemTier::Set || IsSetItem(grid[i]))
 			continue;
+		if (IsQuestUniqueBase(grid[i]))
+			continue; // see IsQuestUniqueBase
 		if (grid[i]._iMagical == ITEM_QUALITY_UNIQUE || grid[i]._iOracoolTier == OracoolItemTier::BuffedUnique)
 			return i;
 	}
@@ -1317,7 +1337,17 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		                                                         : CraftPower { N_("Safety"), { IPL_ALLRES, 10, 15 }, { IPL_GETHIT, 1, 3 } };
 		for (ItemPower power : { craft.first, craft.second }) {
 			const int raw = ApplyOracoolItemPower(*MyPlayer, target, power);
-			if (target._iOracoolAffixCount < Item::MaxOracoolAffixes)
+			// Joined to the Rare's own affix of the same kind when it rolled one (tooltip sweep, 2026-09-25: a Safety
+			// Craft printed "-1 damage from enemies" twice). The stat was applied twice either way; one row with the
+			// sum says what the item does, and keeps the one-row-per-kind rule the roller itself follows.
+			OracoolAffix *same = nullptr;
+			for (int i = 0; i < target._iOracoolAffixCount; i++) {
+				if (target._iOracoolAffixes[i].type == power.type)
+					same = &target._iOracoolAffixes[i];
+			}
+			if (same != nullptr)
+				same->param1 += raw;
+			else if (target._iOracoolAffixCount < Item::MaxOracoolAffixes)
 				target._iOracoolAffixes[target._iOracoolAffixCount++] = OracoolAffix { power.type, raw, 0 };
 		}
 		const std::string crafted = fmt::format("{:s} {:s}", _(craft.word), std::string(target.getName()));
@@ -1352,6 +1382,19 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		Item &target = grid[materials[0]];
 		const std::vector<int> reagents(materials.begin() + 1, materials.end());
 		std::string what;
+		// ALL OR NOTHING (tooltip sweep, 2026-09-25). Every recipe below changes the target in place, and a refusal
+		// part-way - an empty return after the rebuild had begun - left it half made or cleared: the Butcher's
+		// Cleaver went into Awaken and came back as nothing. The item is put back unless the recipe reaches its end.
+		struct RestoreUnlessDone {
+			Item &target;
+			const Item before;
+			bool done = false;
+			~RestoreUnlessDone()
+			{
+				if (!done)
+					target = before;
+			}
+		} restore { target, target };
 
 		// The Imbuement Shard ledger, captured before any recipe below rebuilds the item from a bare
 		// InitializeItem (Reforge, Ennoble, Recast, the tier ladder, the rerolls all do) and put back
@@ -1392,7 +1435,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 				const SetItemDefinition &candidate = ItemSetItems[set->firstItem + i];
 				if (candidate.cursor == target._iCurs)
 					continue;
-				if (BaseItemForSetSlot(candidate.slot) < 0)
+				if (BaseItemForSetPiece(candidate) < 0)
 					continue;
 				others.push_back(&candidate);
 			}
@@ -1404,7 +1447,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			const int keptLevel = target._iOracoolItemLevel;
 			const SetItemDefinition *chosen = others[GenerateRnd(static_cast<int32_t>(others.size()))];
 			const bool wasEthereal = target._iOracoolEthereal;
-			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetSlot(chosen->slot)));
+			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetPiece(*chosen)));
 			MakeSetItem(target, *chosen);
 			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false);
 			// InitializeItem starts from an empty Item, so the ethereal bargain went with it (audit,
@@ -1446,7 +1489,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			const int keptLevel = target._iOracoolItemLevel;
 			const SetItemDefinition *chosen = pieces[GenerateRnd(static_cast<int32_t>(pieces.size()))];
 			const bool wasEthereal = target._iOracoolEthereal;
-			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetSlot(chosen->slot)));
+			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetPiece(*chosen)));
 			MakeSetItem(target, *chosen);
 			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false);
 			// InitializeItem starts from an empty Item, so the ethereal bargain went with it (audit,
@@ -1526,6 +1569,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			RestoreImbuements(target, ledger);
 
 		ConsumeGridReagents(grid, reagents, ReagentFor(recipe).count);
+		restore.done = true;
 		return what;
 	}
 

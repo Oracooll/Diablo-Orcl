@@ -97,7 +97,7 @@ int TableAffixLevel(const PLStruct *table, item_effect_type type, int roll)
  * @brief The level an affix rolls at. The item's record keeps the power and the ROLLED value (the
  * OracoolAffix's param1; its param2 is the row's price multiplier, not a range), never the row; the
  * lowest-level row of that power whose range covers the roll is the honest reading, and the lowest
- * row of that power when none does (a magic item's vanilla pair carries no value here at all).
+ * row of that power when none does (an affix whose value could not be recovered from an old save is 0).
  */
 int AffixLevelFor(item_effect_type type, int roll)
 {
@@ -171,16 +171,12 @@ int BaseRequiredLevel(const Item &item)
 int AffixesRequiredLevel(const Item &item)
 {
 	int highest = 0;
+	// The one affix list is every affix the item carries (2026-09-25). A magic item used to keep its table
+	// affixes in a vanilla prefix/suffix pair, read here only when the list was EMPTY - so one Movement Speed
+	// on the list hid both of them from the requirement - and read at the lowest band, having no value.
 	for (uint8_t i = 0; i < item._iOracoolAffixCount && i < item._iOracoolAffixes.size(); i++) {
 		const OracoolAffix &affix = item._iOracoolAffixes[i];
 		highest = std::max(highest, AffixLevelFor(affix.type, affix.param1));
-	}
-	// A magic item of vanilla's shape carries its pair here rather than in the list.
-	if (item._iOracoolAffixCount == 0) {
-		if (item._iPrePower != IPL_INVALID)
-			highest = std::max(highest, AffixLevelFor(item._iPrePower, 0));
-		if (item._iSufPower != IPL_INVALID)
-			highest = std::max(highest, AffixLevelFor(item._iSufPower, 0));
 	}
 	return AffixRequiredLevel(highest);
 }

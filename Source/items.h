@@ -109,7 +109,10 @@ enum class OracoolItemTier : uint8_t {
 	LAST = Set,
 };
 
-/** @brief One named affix (prefix or suffix) contributing to an Oracool-tiered item. */
+/**
+ * @brief One rolled affix an item carries: its power type, the value it rolled (param1) and its price
+ * multiplier (param2). Every item's affixes are a list of these - see Item::_iOracoolAffixes.
+ */
 struct OracoolAffix {
 	item_effect_type type = IPL_INVALID;
 	int32_t param1 = 0;
@@ -326,8 +329,9 @@ struct Item {
 	int16_t _iLMinDam = 0;
 	int16_t _iLMaxDam = 0;
 	int16_t _iPLEnAc = 0;
-	enum item_effect_type _iPrePower = IPL_INVALID;
-	enum item_effect_type _iSufPower = IPL_INVALID;
+	// Vanilla's one-prefix / one-suffix pair lived here until 2026-09-25 (user: "remove any trace of prefix/sufix
+	// segregation. all afixes are now one pool"). Every affix an item carries is in _iOracoolAffixes now; the save
+	// keeps the pair's two bytes as padding and migrates an old item's pair into the list on load (loadsave.cpp).
 	int _iVAdd1 = 0;
 	int _iVMult1 = 0;
 	int _iVAdd2 = 0;
@@ -734,10 +738,11 @@ struct Item {
 	OracoolItemTier _iOracoolTier = OracoolItemTier::None;
 	bool _iOracoolPerfectRoll = false;
 	/**
-	 * @brief The item's rolled affixes that live in the record, in roll order: every affix of a Rare, Buffed Unique or
-	 * Primal, and a magic item's pool affixes (Movement Speed, Faster Cast; its table affixes sit in _iPrePower and
-	 * _iSufPower). One list since OracoolItemFormatVersion 10 - it was a prefix array and a suffix array. Which table
-	 * an affix came from is a property of its power type, never of where it is stored.
+	 * @brief EVERY rolled affix the item carries, in roll order - magic, Rare, Buffed Unique, Primal, a staff's
+	 * affix, a crafted one. One list since OracoolItemFormatVersion 10, and the ONLY list since 2026-09-25: a magic
+	 * item used to keep its table affixes in a vanilla pair of fields beside this and only its pool affixes here,
+	 * so Gillian could not reroll them and three readers had to add the two stores together (user: "she must be
+	 * able to reroll all affixes"). Which data table an affix's row came from is never stored and never matters.
 	 */
 	uint8_t _iOracoolAffixCount = 0;
 	std::array<OracoolAffix, MaxOracoolAffixes> _iOracoolAffixes;
@@ -1157,24 +1162,23 @@ bool RetierOracoolItem(Item &item, OracoolItemTier tier);
 bool MakeItemEthereal(Item &item);
 void SetupItem(Item &item);
 /**
- * @brief Rolls a Rare item's affixes (1-2 prefixes + 1-2 suffixes, at least one of each in
- * the common case) onto an already-base-initialized item, tagging it OracoolItemTier::Rare.
+ * @brief Rolls a Rare item's affixes (two guaranteed, up to four, any mix from the one pool) onto an
+ * already-base-initialized item, tagging it OracoolItemTier::Rare.
  * Exposed here (rather than kept file-local to items.cpp) so tests can exercise the affix
  * selection rules directly.
  */
 void GetRareItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits = false);
-/** @brief The MAGIC roll: one or two affixes from the unified pool - the prefix table, the suffix table
- * and the Oracool pool rows (Movement Speed, Faster Cast) together. See the definition. */
+/** @brief The MAGIC roll: one or two affixes from the one pool (every vanilla table row and the Oracool pool
+ * rows - Movement Speed, Faster Cast - together), each written to Item::_iOracoolAffixes. See the definition. */
 void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits = false);
 /**
- * @brief Rolls a Buffed Unique item's affixes (2-3 prefixes + 2-3 suffixes, at least two of
- * each in the common case) onto an already-base-initialized item, tagging it
- * OracoolItemTier::BuffedUnique. Same rules and identity bookkeeping as GetRareItemAffixes,
- * just with a higher minimum per slot.
+ * @brief Rolls a Buffed Unique item's affixes (four guaranteed, up to six, any mix from the one pool)
+ * onto an already-base-initialized item, tagging it OracoolItemTier::BuffedUnique. Same rules and
+ * identity bookkeeping as GetRareItemAffixes, just with a higher minimum.
  */
 void GetBuffedUniqueItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits = false);
 /**
- * @brief Rolls a Primal item's affixes: always exactly 3 prefixes + 3 suffixes, every one a
+ * @brief Rolls a Primal item's affixes: always exactly six, any mix from the one pool, every one a
  * "perfect roll" (forced to the maximum end of its declared range) and always beneficial-only,
  * tagging it OracoolItemTier::Primal and setting _iOracoolPerfectRoll.
  */
@@ -1299,12 +1303,19 @@ void TryAddSocketsToDroppedItem(Item &item);
 /** @brief Phase 1: the ethereal roll (5% of durable equipment, any quality): +35% primary stats,
  * half max durability, unrepairable. Drop paths only, same seed-replay rule as the sockets. */
 void TryMakeDroppedItemEthereal(Item &item);
-/** @brief Oracool: how many SUFFIX slots an item's quality tier allows in total - the D2-style hard
- * limit (magic 1, Rare 2, Buffed Unique 3, Primal 3; 0 for plain, set pieces and vanilla uniques). */
+/** @brief Oracool: how many affixes an item's quality tier allows in total, one flat count (magic 2,
+ * Rare 4, Buffed Unique 6, Primal 6; 0 for plain, set pieces and vanilla uniques). */
 DVL_API_FOR_TEST int OracoolAffixBudget(const Item &item);
-/** @brief Oracool: how many of that budget @p item has spent - the vanilla _iSufPower field AND the
- * Oracool record added together, which is the sum the drop tail used to get wrong. */
+/** @brief Oracool: how many of that budget @p item has spent - the length of its one affix list. */
 DVL_API_FOR_TEST int OracoolAffixesUsed(const Item &item);
+/**
+ * @brief Moves an item saved before 2026-09-25 onto the one affix list: the two affix TYPES it kept in the
+ * old vanilla pair of fields become entries of Item::_iOracoolAffixes (loadsave.cpp calls this on load).
+ * The pair never held the rolled value, so each entry's value is read back from the item's own stat field -
+ * the sum, when another affix writes the same field, which is what the old pair's line printed - and is 0 for
+ * a power with no single field to read (the tooltip prints those from the item's totals anyway).
+ */
+DVL_API_FOR_TEST void MigrateLegacyAffixPair(Item &item, item_effect_type first, item_effect_type second);
 /** @brief Oracool: a weapon, armour, ring or amulet base droppable by a monster of @p monsterLevel -
  * RndItemForMonsterLevel's pool without its nothing and gold outcomes, optionally in one @p slot
  * (ILOC_INVALID means any). Smart Loot's candidate source. */

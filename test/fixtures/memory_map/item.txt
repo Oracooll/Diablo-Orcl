@@ -58,8 +58,8 @@ R 32 _iFMaxDam
 R 32 _iLMinDam
 R 32 _iLMaxDam
 R 32 _iPLEnAc
-R 8 _iPrePower
-R 8 _iSufPower
+R 8 legacyAffix1
+R 8 legacyAffix2
 R 16 alignment
 R 32 _iVAdd1
 R 32 _iVMult1
