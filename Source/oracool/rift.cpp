@@ -699,7 +699,12 @@ bool RiftEntered() { return State.creditNeeded > 0; }
 // rift and its bar wait for the hero to come back through the monument.
 void RiftNoteReturnHome()
 {
-	if (State.done)
+	// A cleared NEPHALEM Rift is not ended by walking out either (user, 2026-09-24 dev note: "walking
+	// through the yellow portal after killing neph rift boss shouldnt close the rift. only the countdown
+	// timer closes the portal"). Its sixty-second clock is the only thing that ends it (ProcessRift), so
+	// the hero can step out to sell and come back for the rest of the pile. A Guardian Rift has no such
+	// clock and still ends on the way out once cleared.
+	if (State.done && State.kind != RiftKind::Nephalem)
 		State.returnedHome = true;
 }
 bool RiftReturnedHome() { return State.returnedHome; }

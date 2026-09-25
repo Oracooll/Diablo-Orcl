@@ -891,7 +891,11 @@ void CheckRiftPortal()
 			SetPanelString(_("Back to town"), UiFlags::ColorWhite);
 			// Two ways out since 2026-09-24: the one by the arrival spot is open from the start, and only a
 			// CLEARED rift ends when the hero walks out - before that it waits for him (RiftNoteReturnHome).
-			AddPanelString(oracool::RiftDone() ? _("Rift Closes") : _("The rift stays open"));
+			// A cleared Nephalem Rift is ended only by its clock (2026-09-24), so its portals say when.
+			if (oracool::RiftDone() && oracool::ActiveRift() == oracool::RiftKind::Nephalem)
+				AddPanelString(fmt::format(fmt::runtime(_("The rift closes in {:d}s")), oracool::RiftCloseSecondsLeft()));
+			else
+				AddPanelString(oracool::RiftDone() ? _("Rift Closes") : _("The rift stays open"));
 			cursPosition = missile.position.tile;
 		}
 		return;

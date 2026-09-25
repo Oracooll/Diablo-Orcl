@@ -351,6 +351,21 @@ int SmithRepairAllLine()
 	return BackButtonLine() - 2;
 }
 
+/**
+ * @brief Every towner's dialog, ONE layout (user, 2026-09-24 dev note: "check all vendors dialog windows and
+ * align positioning of all texts on them to be on identical places - talk to XXX, Leave XXXX, Enter shop,
+ * etc..."). The title had sat on line 1, 2 or 3, "Talk to" on 8, 10 or 12, the door on 12, 14 or 15 and
+ * the way out on 14, 18 or 22, worded five ways. Now: the name on 2, the question on 9, Talk on 12, the
+ * door (or the one service) on 14, a second service on 16, and "Leave <name>" on 18 - for all eight.
+ * Named, because the lines are addressed from the Enter handlers and every back path, not only drawn.
+ */
+constexpr int TownerTitleLine = 2;
+constexpr int TownerPromptLine = 9;
+constexpr int TownerTalkLine = 12;
+constexpr int TownerDoorLine = 14;
+constexpr int TownerSecondLine = 16;
+constexpr int TownerLeaveLine = 18;
+
 std::vector<TalkID> SmithMenuEntries()
 {
 	// ONE DOOR. This listed all seven services and had grown a new line every time one was added -
@@ -365,14 +380,16 @@ std::vector<TalkID> SmithMenuEntries()
 	return { TalkID::Gossip, TalkID::SmithBuy, TalkID::None };
 }
 
-int SmithMenuFirstLine(size_t entryCount)
+int SmithMenuFirstLine(size_t /*entryCount*/)
 {
-	return entryCount >= 9 ? 6 : entryCount >= 7 ? 8
-	                                             : 10;
+	// The shared layout's Talk line; the leave entry is not counted from here but sits on TownerLeaveLine.
+	return TownerTalkLine;
 }
 
 int SmithMenuLine(TalkID service)
 {
+	if (service == TalkID::None)
+		return TownerLeaveLine;
 	const std::vector<TalkID> entries = SmithMenuEntries();
 	auto position = std::find(entries.begin(), entries.end(), service);
 	if (position == entries.end()) {
@@ -715,13 +732,12 @@ void StartSmith()
 
 	stextsize = false;
 	stextscrl = false;
-	AddSText(0, 1, _("Welcome to the"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 3, _("Blacksmith's shop"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerTitleLine, _("Blacksmith's shop"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	const std::vector<TalkID> entries = SmithMenuEntries();
 	const int firstLine = SmithMenuFirstLine(entries.size());
-	AddSText(0, firstLine - 2, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerPromptLine, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	for (size_t i = 0; i < entries.size(); ++i) {
-		const int line = firstLine + static_cast<int>(i) * 2;
+		const int line = entries[i] == TalkID::None ? TownerLeaveLine : firstLine + static_cast<int>(i) * 2;
 		switch (entries[i]) {
 		case TalkID::Gossip:
 			AddSText(0, line, _("Talk to Griswold"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
@@ -753,14 +769,14 @@ void StartSmith()
 			AddSText(0, line, _("Recharge staves"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 			break;
 		case TalkID::None:
-			AddSText(0, line, _("Leave the shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+			AddSText(0, line, _("Leave Griswold"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 			break;
 		default:
 			break;
 		}
 	}
 	AddSLine(5);
-	storenumh = firstLine + static_cast<int>(entries.size() - 1) * 2;
+	storenumh = TownerLeaveLine;
 }
 
 void ScrollSmithBuy(int idx)
@@ -1288,31 +1304,30 @@ void FillManaPlayer()
  * and the back paths out of all three shop screens. It was three separate numbers before the tabs
  * collapsed them into one door, and three of those four sites would still compile after a miss.
  */
-constexpr int WitchShopDoorLine = 14;
+constexpr int WitchShopDoorLine = TownerDoorLine;
 
 void StartWitch()
 {
 	FillManaPlayer();
 	stextsize = false;
 	stextscrl = false;
-	AddSText(0, 2, _("Witch's shack"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 12, _("Talk to Adria"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	AddSText(0, TownerTitleLine, _("Witch's shack"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerPromptLine, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerTalkLine, _("Talk to Adria"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	// One door, like Griswold's - buy, sell and recharge are tabs inside it now
-	// (oracool/shop_tabs.h). Lines 16 and 18 are deliberately left empty rather than closed up: the
-	// respec below and the leave line are addressed by number from WitchEnter and from three back
-	// paths in the shop screens, and renumbering them buys nothing but a chance to miss one.
+	// (oracool/shop_tabs.h). The respec takes the shared second line and the leave line the shared
+	// leave line (2026-09-24); both were 20 and 22, the only dialog that ran past 18.
 	AddSText(0, WitchShopDoorLine, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	// Oracool Phase 2.3: the respec, at Adria (megaplan). Selectable only when there are points to
 	// reclaim; the price is on the line so the decision is made before the click.
 	if (oracool::TotalInvestedSkillPoints(*MyPlayer) > 0) {
-		AddSText(0, 20,
+		AddSText(0, TownerSecondLine,
 		    fmt::format(fmt::runtime(_("Reset skill points ({:d} gold)")), oracool::RespecCost(*MyPlayer)),
 		    UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	} else {
-		AddSText(0, 20, _("Reset skill points"), UiFlags::ColorUiSilverDark | UiFlags::AlignCenter, false);
+		AddSText(0, TownerSecondLine, _("Reset skill points"), UiFlags::ColorUiSilverDark | UiFlags::AlignCenter, false);
 	}
-	AddSText(0, 22, _("Leave the shack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, TownerLeaveLine, _("Leave Adria"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	storenumh = 20;
 }
@@ -1817,14 +1832,15 @@ void StartBoy()
 {
 	stextsize = false;
 	stextscrl = false;
-	AddSText(0, 2, _("Wirt"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerTitleLine, _("Wirt"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSLine(5);
+	AddSText(0, TownerPromptLine, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	// The 50-gold peek is gone (2026-09-20): Wirt keeps a shop now, two tabs - what he has to sell,
 	// and the gamble - like the other vendors' grids.
-	AddSText(0, 8, _("Talk to Wirt"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-	AddSText(0, 12, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, TownerTalkLine, _("Talk to Wirt"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	AddSText(0, TownerDoorLine, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	// "Leave Wirt" (user, 2026-09-23 dev note) - the menu was built from Gillian's and kept her line.
-	AddSText(0, 18, _("Leave Wirt"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, TownerLeaveLine, _("Leave Wirt"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
 /** @brief The grid shop's own screen state for Wirt's two tabs; the grid draws the rest. */
@@ -1893,12 +1909,11 @@ void StartHealer()
 	HealPlayer();
 	stextsize = false;
 	stextscrl = false;
-	AddSText(0, 1, _("Welcome to the"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 3, _("Healer's home"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 12, _("Talk to Pepin"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-	AddSText(0, 14, _("Buy items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 18, _("Leave Healer's home"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, TownerTitleLine, _("Healer's home"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerPromptLine, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerTalkLine, _("Talk to Pepin"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	AddSText(0, TownerDoorLine, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true); // a grid shop, like the others' doors
+	AddSText(0, TownerLeaveLine, _("Leave Pepin"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	storenumh = 20;
 }
@@ -1952,11 +1967,11 @@ void StartStoryteller()
 {
 	stextsize = false;
 	stextscrl = false;
-	AddSText(0, 2, _("The Town Elder"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 12, _("Talk to Cain"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-	AddSText(0, 14, _("Identify an item"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 18, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, TownerTitleLine, _("The Town Elder"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerPromptLine, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerTalkLine, _("Talk to Cain"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	AddSText(0, TownerDoorLine, _("Identify an item"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, TownerLeaveLine, _("Leave Cain"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 }
 
@@ -2145,14 +2160,13 @@ void StartTavern()
 {
 	stextsize = false;
 	stextscrl = false;
-	AddSText(0, 1, _("Welcome to the"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 3, _("Rising Sun"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 12, _("Talk to Ogden"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	AddSText(0, TownerTitleLine, _("Rising Sun"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerPromptLine, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerTalkLine, _("Talk to Ogden"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	// Ogden's Table (Levski's Cube plan, decision D8, 2026-09-20): the stones and sockets - refine
 	// gems, ascend runes, temper jewels, recolour gems, free and punch sockets.
-	AddSText(0, 15, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 18, _("Leave Ogden"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, TownerDoorLine, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, TownerLeaveLine, _("Leave Ogden"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	storenumh = 20;
 }
@@ -2161,15 +2175,15 @@ void StartBarmaid()
 {
 	stextsize = false;
 	stextscrl = false;
-	AddSText(0, 2, _("Gillian"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 12, _("Talk to Gillian"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	AddSText(0, TownerTitleLine, _("Gillian"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerPromptLine, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerTalkLine, _("Talk to Gillian"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	// Gillian's Hearth (Levski's Cube plan, decision D8, 2026-09-20): charms reworked, set pieces
 	// recast, magic enriched, shards cleansed.
-	AddSText(0, 15, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, TownerDoorLine, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	// Oracool: user request - the physical Stash Chest in town (see OperateStashChest in
 	// objects.cpp) replaces Gillian as the way to access and sort the Stash.
-	AddSText(0, 18, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, TownerLeaveLine, _("Leave Gillian"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	storenumh = 20;
 }
@@ -2178,10 +2192,10 @@ void StartDrunk()
 {
 	stextsize = false;
 	stextscrl = false;
-	AddSText(0, 2, _("Farnham"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 12, _("Talk to Farnham"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-	AddSText(0, 18, _("Say Goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, TownerTitleLine, _("Farnham"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerPromptLine, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, TownerTalkLine, _("Talk to Farnham"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	AddSText(0, TownerLeaveLine, _("Leave Farnham"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	storenumh = 20;
 }
@@ -2189,10 +2203,15 @@ void StartDrunk()
 void SmithEnter()
 {
 	const std::vector<TalkID> entries = SmithMenuEntries();
-	const int offset = stextsel - SmithMenuFirstLine(entries.size());
-	if (offset < 0 || offset % 2 != 0 || static_cast<size_t>(offset / 2) >= entries.size())
-		return;
-	const TalkID selected = entries[offset / 2];
+	TalkID selected = TalkID::None;
+	if (stextsel != TownerLeaveLine) {
+		const int offset = stextsel - SmithMenuFirstLine(entries.size());
+		if (offset < 0 || offset % 2 != 0 || static_cast<size_t>(offset / 2) >= entries.size())
+			return;
+		selected = entries[offset / 2];
+		if (selected == TalkID::None)
+			return; // the leave entry is on TownerLeaveLine, not in the list's run
+	}
 	switch (selected) {
 	case TalkID::Gossip:
 		talker = TOWN_SMITH;
@@ -2904,13 +2923,13 @@ void WitchEnter()
 		// redirected.
 		StartStore(TalkID::WitchBuy);
 		break;
-	case 20: {
+	case TownerSecondLine: {
 		// Phase 2.3: the respec. The line is unselectable with nothing invested, so reaching here
 		// means there is something to refund; the price gate still runs.
 		const int cost = oracool::RespecCost(*MyPlayer);
 		if (!PlayerCanAfford(cost)) {
 			stextshold = TalkID::Witch;
-			stextlhold = 20;
+			stextlhold = TownerSecondLine;
 			StartStore(TalkID::NoMoney);
 			break;
 		}
@@ -2927,7 +2946,7 @@ void WitchEnter()
 		StartStore(TalkID::Witch);
 		break;
 	}
-	case 22:
+	case TownerLeaveLine:
 		stextflag = TalkID::None;
 		break;
 	}
@@ -3098,11 +3117,11 @@ void WitchRechargeEnter()
 
 void BoyEnter()
 {
-	if (stextsel == 12) {
+	if (stextsel == TownerDoorLine) {
 		StartStore(TalkID::BoyBuy);
 		return;
 	}
-	if (stextsel != 8) {
+	if (stextsel != TownerTalkLine) {
 		stextflag = TalkID::None;
 		return;
 	}
@@ -3117,7 +3136,7 @@ void BoyShopBuyEnter()
 {
 	if (stextsel == BackButtonLine()) {
 		StartStore(TalkID::Boy);
-		stextsel = 12;
+		stextsel = TownerDoorLine;
 		return;
 	}
 	stextlhold = stextsel;
@@ -3185,7 +3204,7 @@ void BoyGambleEnter()
 {
 	if (stextsel == BackButtonLine()) {
 		StartStore(TalkID::Boy);
-		stextsel = 12;
+		stextsel = TownerDoorLine;
 		return;
 	}
 	stextlhold = stextsel;
@@ -3587,7 +3606,7 @@ void TavernEnter()
 		StartStore(TalkID::Gossip);
 		break;
 	}
-	case 15:
+	case TownerDoorLine:
 		stextflag = TalkID::None;
 		// Ogden's shop is his workshop now (user, 2026-09-21): the gem and rune tables, his recipes a tab away.
 		oracool::OpenWorkshop(oracool::WorkshopHost::Jeweller);
@@ -3607,7 +3626,7 @@ void BarmaidEnter()
 		stextshold = TalkID::Barmaid;
 		StartStore(TalkID::Gossip);
 		break;
-	case 15:
+	case TownerDoorLine:
 		stextflag = TalkID::None;
 		// Gillian's shop IS the Mystic Workshop (user, 2026-09-21); her recipe book is reached from the Cube's
 		// book like every other host's.

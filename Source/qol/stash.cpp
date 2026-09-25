@@ -1715,7 +1715,14 @@ void SortStash(Player &player)
 			materials.push_back(item);
 			continue;
 		}
-		if (item.isStackableConsumable() || IsOracoolSalvageIdx(item.IDidx)) {
+		// And every other thing that is not WORN (user, 2026-09-24 dev note: "when sorting stash first
+		// pages go to items, then consumables follow"; asked, "consumables landed before gear"). The
+		// one-use kinds that do not stack - Signets, Sealed Maps, Guardian Keystones - and the quest
+		// pieces and ears were filed as gear: Misc items of the Plain tier, so they sorted onto the FIRST
+		// page with the white gear, ahead of every magic, rare and unique page. A Misc item is not gear
+		// unless it is a charm, which is worn from the backpack and keeps its tier's page.
+		if (item.isStackableConsumable() || IsOracoolSalvageIdx(item.IDidx)
+		    || (item._itype == ItemType::Misc && !IsOracoolCharmIdx(item.IDidx))) {
 			consumables.push_back(item);
 			continue;
 		}
