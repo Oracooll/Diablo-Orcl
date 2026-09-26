@@ -153,7 +153,8 @@ bool AutoPlaceItemInStash(Player &player, const Item &item, bool persistItem);
  * Helms, Shields, Jewelry, then everything else), descending price within each category, packing
  * each page as tightly as the existing first-fit placement algorithm (AutoPlaceItemInStash)
  * already does. Triggered from Gillian's dialog ("Sort Stash").
+ * @return false when the sorted layout could not hold everything; the stash is then left exactly as it was.
  */
-void SortStash(Player &player);
+bool SortStash(Player &player);
 
 } // namespace devilution

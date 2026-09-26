@@ -145,6 +145,12 @@
 #include "player.h"
 #include "playerdat.hpp"
 #include "qol/stash.h"
+#include "diablo.h"   // PressEscKey - the workshop's Escape (audit of v1.12.188, UI-01)
+#include "portal.h"   // PosOkPortal - a closed rift's town portal (WORLD-01)
+#include "oracool/essence.h"
+#include "oracool/stonegate.h"
+#include "oracool/stonegate_menu.h"
+#include "oracool/workshop.h"
 #include "quests.h"
 #include "spells.h"
 #include "stores.h"
@@ -14061,4 +14067,274 @@ TEST(OracoolAudit, MaterialsRefineUpAndBreakDownTheLadder)
 	off[0].setStackCount(9);
 	EXPECT_FALSE(CanCraftFromLevskiGrid(off, RefineMaterialsRecipe));
 	EXPECT_FALSE(CanCraftFromLevskiGrid(off, BreakDownMaterialsRecipe));
+}
+
+// =================================================================================================
+// External audit of v1.12.188 (ChatGPT, 2026-09-26). Each test below failed on v1.12.188; the audit's
+// own probes are the source of the fixtures, moved in here so they run with the suite.
+// =================================================================================================
+
+namespace {
+
+/** @brief A level-50 Necromancer with 100 life, mana and Essence, standing in town, as the only player. */
+devilution::Player &AuditV188Hero()
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = *MyPlayer;
+	player = {};
+	InspectPlayer = MyPlayer;
+	player._pNumInv = 0;
+	std::fill(std::begin(player.InvGrid), std::end(player.InvGrid), 0);
+	player._pRSpell = SpellID::Invalid;
+	player._pRSplType = SpellType::Invalid;
+	player._pClass = HeroClass::Necromancer;
+	player._pLevel = 50;
+	player._pHitPoints = player._pMaxHP = player._pHPBase = player._pMaxHPBase = 100 << 6;
+	player._pMana = player._pManaBase = player._pMaxMana = player._pMaxManaBase = 100 << 6;
+	player._pEssence = 100 << 6;
+	player._pmode = PM_STAND;
+	gbIsHellfire = true;
+	gbIsMultiplayer = false;
+	pcurs = CURSOR_HAND;
+	return player;
+}
+
+} // namespace
+
+// ITEM-01 (STASH-01 of v1.11.102 again): a stash 15,999 cells full, which the one-page-per-tier sort
+// cannot pack as tightly. It used to come out four armours short; now the sort refuses and the stash
+// is left exactly as it was.
+TEST(OracoolAuditV188, StashSortThatCannotFitLeavesTheStashAlone)
+{
+	MountTestArchives(true);
+	EnsureCursorSpritesLoaded();
+	Players.resize(2);
+	MyPlayer = &Players[1]; // not the sorting player: SortStash schedules an autosave for MyPlayer
+	devilution::Player &player = Players[0];
+	player = {};
+	Stash = {};
+	Stash.SetPage(0);
+
+	devilution::Item armor {};
+	devilution::Item ring {};
+	InitializeItem(ring, IDI_TRING);
+	for (int id = IDI_GOLD + 1; id <= IDI_LAST; id++) {
+		if (AllItemsList[id].iLoc != ILOC_ARMOR)
+			continue;
+		InitializeItem(armor, static_cast<_item_indexes>(id));
+		if (GetInventorySize(armor) == Size { 2, 3 })
+			break;
+	}
+	armor._iOracoolTier = OracoolItemTier::Rare;
+	armor._iMagical = ITEM_QUALITY_MAGIC;
+	ring._iMagical = ITEM_QUALITY_MAGIC;
+	ASSERT_EQ(GetInventorySize(armor), (Size { 2, 3 }));
+	ASSERT_EQ(GetInventorySize(ring), (Size { 1, 1 }));
+
+	// A valid layout: 25 armours on page 0, eight on page 1, then a ring in every free cell but one.
+	for (int i = 0; i < 33; i++) {
+		const int page = i / 25;
+		const int k = i % 25;
+		const int x = (k % 5) * 2;
+		const int y = (k / 5) * 3;
+		armor._iSeed = i + 1;
+		Stash.stashList.push_back(armor);
+		const auto index = static_cast<uint16_t>(Stash.stashList.size());
+		for (int dy = 0; dy < 3; dy++) {
+			for (int dx = 0; dx < 2; dx++)
+				Stash.stashGrids[page][x + dx][y + dy] = index;
+		}
+	}
+	int rings = 0;
+	for (unsigned page = 0; page < 100; page++) {
+		for (int y = 0; y < StashGridRows; y++) {
+			for (int x = 0; x < StashGridColumns; x++) {
+				auto &cell = Stash.stashGrids[page][x][y];
+				if (cell != 0 || rings == 15801)
+					continue;
+				ring._iSeed = 100 + ++rings;
+				Stash.stashList.push_back(ring);
+				cell = static_cast<uint16_t>(Stash.stashList.size());
+			}
+		}
+	}
+	ASSERT_EQ(Stash.stashList.size(), 15834U);
+	const auto gridsBefore = Stash.stashGrids;
+
+	EXPECT_FALSE(SortStash(player)) << "the sorted layout cannot hold everything, so the sort must refuse";
+	EXPECT_EQ(Stash.stashList.size(), 15834U);
+	int armours = 0;
+	for (const devilution::Item &item : Stash.stashList) {
+		if (item.IDidx == armor.IDidx)
+			armours++;
+	}
+	EXPECT_EQ(armours, 33);
+	EXPECT_TRUE(Stash.stashGrids == gridsBefore) << "a refused sort must leave every item where it was";
+
+	Stash = {};
+	Stash.SetPage(0);
+}
+
+// SKL-01: the curses, the two corpse explosions and Revive are priced in Essence. The live spell path
+// checked and paid mana for them, so the Essence price was never asked.
+TEST(OracoolAuditV188, EssencePricedSkillsAreCheckedAndPaidInEssence)
+{
+	devilution::Player &player = AuditV188Hero();
+	int priced = 0;
+	for (int i = 1; i <= static_cast<int>(SpellID::LAST); i++) {
+		const auto spell = static_cast<SpellID>(i);
+		const int cost = oracool::EssenceCost(spell);
+		if (cost == 0)
+			continue;
+		priced++;
+
+		player._pEssence = 0;
+		EXPECT_NE(CheckSpell(player, spell, SpellType::Skill, true), SpellCheckResult::Success) << "spell " << i << " cast with no Essence";
+		player._pEssence = cost << 6;
+		EXPECT_EQ(CheckSpell(player, spell, SpellType::Skill, true), SpellCheckResult::Success) << "spell " << i << " refused at its exact price";
+
+		player._pEssence = 100 << 6;
+		player._pMana = player._pManaBase = 100 << 6;
+		player.executedSpell.spellType = SpellType::Skill;
+		player.executedSpell.spellId = spell;
+		ConsumeSpell(player, spell);
+		EXPECT_EQ(player._pEssence, (100 - cost) << 6) << "spell " << i << " did not pay its Essence";
+		EXPECT_EQ(player._pMana, 100 << 6) << "spell " << i << " paid mana as well";
+	}
+	EXPECT_EQ(priced, 17);
+}
+
+// SKL-02: the chill and freeze timers live beside Monsters[], by slot. Deleting a monster left them
+// there for the next monster spawned into the slot.
+TEST(OracoolAuditV188, DeletedMonsterSlotLosesItsColdTimers)
+{
+	AuditV188Hero();
+	oracool::ClearChills();
+	ActiveMonsterCount = MAX_PLRS + 1;
+	for (size_t i = 0; i < ActiveMonsterCount; i++)
+		ActiveMonsters[i] = static_cast<unsigned>(i);
+	Monster &monster = Monsters[MAX_PLRS];
+	monster = {};
+	monster.isInvalid = true;
+	oracool::ChillMonster(monster, 100);
+	oracool::FreezeMonster(monster, 50);
+
+	DeleteMonsterList();
+
+	EXPECT_EQ(ActiveMonsterCount, static_cast<size_t>(MAX_PLRS));
+	EXPECT_FALSE(oracool::IsMonsterChilled(monster));
+	EXPECT_FALSE(oracool::IsMonsterFrozen(monster));
+	oracool::ClearChills();
+	ActiveMonsterCount = 0;
+}
+
+// ITEM-02: the Mystic rebuilds every affix when one is rerolled, and the rebuild pinned both ends of a
+// range to the recorded roll, so a fire damage affix came back as 3-3. Every table row of the four
+// range powers, recorded the way a drop records it, must replay to the numbers it applied.
+TEST(OracoolAuditV188, MysticRebuildKeepsElementalDamageRanges)
+{
+	devilution::Player &player = AuditV188Hero();
+	int rows = 0;
+	const auto check = [&](const PLStruct &row) {
+		if (!IsAnyOf(row.power.type, IPL_FIREDAM, IPL_LIGHTDAM, IPL_FIRE_ARROWS, IPL_LIGHT_ARROWS))
+			return;
+		rows++;
+		devilution::Item item {};
+		InitializeItem(item, IDI_BARDSWORD);
+		item._iOracoolItemLevel = 30;
+		item._iIdentified = true;
+		ItemPower power = row.power;
+		const int raw = ApplyOracoolItemPower(player, item, power);
+		const OracoolAffix record { row.power.type, raw, row.multVal };
+		const int fireMin = item._iFMinDam;
+		const int fireMax = item._iFMaxDam;
+		const int lightMin = item._iLMinDam;
+		const int lightMax = item._iLMaxDam;
+		ASSERT_TRUE(RebuildOracoolItemWithAffixes(player, item, &record, 1));
+		EXPECT_EQ(item._iFMinDam, fireMin) << row.PLName;
+		EXPECT_EQ(item._iFMaxDam, fireMax) << row.PLName;
+		EXPECT_EQ(item._iLMinDam, lightMin) << row.PLName;
+		EXPECT_EQ(item._iLMaxDam, lightMax) << row.PLName;
+	};
+	for (int i = 0; ItemPrefixes[i].power.type != IPL_INVALID; i++)
+		check(ItemPrefixes[i]);
+	for (int i = 0; ItemSuffixes[i].power.type != IPL_INVALID; i++)
+		check(ItemSuffixes[i]);
+	EXPECT_EQ(rows, 8) << "Flaming, Lightning, three fire-arrow rows and three lightning-arrow rows";
+}
+
+// WORLD-01: a town portal cast inside a rift outlived the rift. Closing it must close the portal, and
+// leave a portal into an ordinary floor alone.
+TEST(OracoolAuditV188, ClosingARiftClosesItsTownPortal)
+{
+	devilution::Player &player = AuditV188Hero();
+	player.setLevel(0);
+	leveltype = DTYPE_TOWN;
+	setlevel = false;
+	oracool::ResetRiftForNewGame();
+	ASSERT_TRUE(oracool::OpenNephalemRift(player));
+	InitPortals();
+	ActivatePortal(0, { 40, 40 }, SL_RIFT_NEPHALEM, DTYPE_CATHEDRAL, true);
+	ActivatePortal(1, { 50, 50 }, 5, DTYPE_CATACOMBS, false);
+
+	oracool::CloseStonegate();
+
+	EXPECT_EQ(oracool::ActiveRift(), oracool::RiftKind::None);
+	EXPECT_FALSE(PosOkPortal(SL_RIFT_NEPHALEM, { 40, 40 })) << "the closed rift's portal still leads into it";
+	EXPECT_TRUE(PosOkPortal(5, { 50, 50 })) << "a portal into an ordinary floor was closed with the rift";
+	InitPortals();
+	oracool::ResetRiftForNewGame();
+}
+
+// WORLD-02: the guardian is remembered by its Monsters[] slot. Away from the rift that slot belongs to
+// some other monster, which must not be taken for the guardian.
+TEST(OracoolAuditV188, NoMonsterIsTheGuardianOutsideTheRift)
+{
+	devilution::Player &player = AuditV188Hero();
+	player.setLevel(0);
+	leveltype = DTYPE_TOWN;
+	setlevel = false;
+	oracool::ResetRiftForNewGame();
+	ASSERT_TRUE(oracool::OpenNephalemRift(player));
+	for (size_t i = 0; i < MaxMonsters; i++)
+		EXPECT_FALSE(oracool::IsRiftGuardian(Monsters[i])) << "slot " << i;
+	oracool::ResetRiftForNewGame();
+}
+
+// UI-01: Escape closed the workshop only from inside the Rift Monument menu's branch.
+TEST(OracoolAuditV188, EscapeClosesTheWorkshop)
+{
+	AuditV188Hero();
+	gnScreenWidth = 1280;
+	gnScreenHeight = 720;
+	invflag = false;
+	sbookflag = false;
+	stextflag = TalkID::None;
+	oracool::CloseStonegateMenu();
+	oracool::ResetWorkshopForNewGame();
+	oracool::OpenWorkshop(oracool::WorkshopHost::Mystic);
+	ASSERT_TRUE(oracool::IsWorkshopOpen());
+	EXPECT_TRUE(PressEscKey()) << "Escape went past the workshop to the game menu";
+	EXPECT_FALSE(oracool::IsWorkshopOpen());
+	oracool::ResetWorkshopForNewGame();
+}
+
+// UI-02: the workshop was missing from the one test that keeps a click off the world, so a right click
+// on it cast or walked beneath it.
+TEST(OracoolAuditV188, TheWorkshopIsInterface)
+{
+	AuditV188Hero();
+	gnScreenWidth = 1280;
+	gnScreenHeight = 720;
+	invflag = false;
+	sbookflag = false;
+	stextflag = TalkID::None;
+	oracool::ResetWorkshopForNewGame();
+	oracool::OpenWorkshop(oracool::WorkshopHost::Mystic);
+	const Point point = oracool::GetWorkshopRect().position + Displacement { 230, 170 };
+	ASSERT_TRUE(oracool::IsPointOverWorkshop(point));
+	EXPECT_TRUE(IsOverAnyInterface(point));
+	oracool::ResetWorkshopForNewGame();
+	EXPECT_FALSE(IsOverAnyInterface(point)) << "a closed workshop still takes the click";
 }

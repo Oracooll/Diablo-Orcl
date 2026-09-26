@@ -18,6 +18,7 @@
 #include "oracool/oracool.h"
 #include "oracool/runeword_book.h"
 #include "oracool/skill_picker.h"
+#include "oracool/workshop.h"
 #include "oracool/xp_counter.h"
 #include "utils/ui_fwd.h"
 
@@ -498,6 +499,11 @@ bool IsPointOverFloatingWindow(Point mousePosition)
 	// was in none of the rejection lists - the largest hole of the set, and the least obvious,
 	// because a click on it walks the character rather than doing nothing visible.
 	if (GetEventLogWindowRect().contains(mousePosition))
+		return true;
+	// The artisans' workshop - the Mystic's bench and the others - and its tabs, by its own hit test
+	// (external audit of v1.12.188, UI-02). Left clicks had a handler of their own, so only a right
+	// click reached the world beneath it: a cast or a walk under an open window.
+	if (IsPointOverWorkshop(mousePosition))
 		return true;
 	return false;
 }

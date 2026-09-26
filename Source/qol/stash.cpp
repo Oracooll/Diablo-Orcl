@@ -10,6 +10,7 @@
 #include "control.h"
 #include "controls/plrctrls.h"
 #include "diablo.h" // CloseOtherShopSurfaces - one shop surface at a time
+#include "error.h" // InitDiabloMsg - a sort that cannot fit says so
 #include "cursor.h"
 #include "engine/clx_sprite.hpp"
 #include "engine/load_clx.hpp"
@@ -869,8 +870,10 @@ void CheckStashButtonRelease(Point mousePosition)
 			// Oracool: user request - was withdraw gold (moved to clicking the gold total itself,
 			// see GoldDisplayRect); this control is Sort. IS_ISHIEL is the sound normally played
 			// when placing a shield into its equip slot, per the user's request.
-			SortStash(*MyPlayer);
-			PlaySFX(IS_ISHIEL);
+			if (SortStash(*MyPlayer))
+				PlaySFX(IS_ISHIEL);
+			else
+				InitDiabloMsg(_("The stash is too full to sort"));
 		}
 		StashSortPressed = false;
 	}
@@ -1698,10 +1701,33 @@ void MergeStacks(std::vector<Item> &items)
 	items.erase(std::remove_if(items.begin(), items.end(), [](const Item &item) { return item.isEmpty(); }), items.end());
 }
 
+/**
+ * @brief What the stash holds, counted in units: one per item, a stack's count for a stack. SORT merges
+ * stacks and re-seats every item, so the list changes shape, but this number must not.
+ */
+int StashUnitCount(const std::vector<Item> &items)
+{
+	int units = 0;
+	for (const Item &item : items)
+		units += item.isStackableConsumable() ? item.stackCount() : 1;
+	return units;
+}
+
 } // namespace
 
-void SortStash(Player &player)
+bool SortStash(Player &player)
 {
+	// ALL OR NOTHING (external audit of v1.12.188, ITEM-01 - STASH-01 again from v1.11.102). The re-pack
+	// below clears the stash and then seats every item again, and the one-page-per-tier layout packs less
+	// tightly than the stash it replaces: a stash that is nearly full can come out with items that no
+	// longer fit anywhere, and those were simply dropped. The stash as it was is kept here, and put back
+	// whole if the sorted one holds fewer units than went in.
+	const std::vector<Item> keptList = Stash.stashList;
+	const std::map<unsigned, StashStruct::StashGrid> keptGrids = Stash.stashGrids;
+	const unsigned keptPage = Stash.GetPage();
+	const bool keptDirty = Stash.dirty;
+	const int unitsBefore = StashUnitCount(Stash.stashList);
+
 	struct SortEntry {
 		Item item;
 		StashSortTier tier;
@@ -2024,10 +2050,6 @@ void SortStash(Player &player)
 	}
 	placeInBlocks(materialSpill, [](const Item &) { return 0; });
 
-	Stash.dirty = true;
-	if (&player == MyPlayer)
-		oracool::ScheduleAutoSaveForStashChange();
-
 	// THE UNSOCKETABLE CONSUMABLES on a page of their own, the one after the socketables (user,
 	// 2026-09-13: "divide socketable and unsocketable consumables in different tabs, one after the
 	// other. socketable consumables to be the first of the two"). They shared the material page's free
@@ -2094,7 +2116,18 @@ void SortStash(Player &player)
 	// Back to the first page. SortStash used to set it once, before placing anything, and leaving
 	// it there was free; the per-tier seating above moves it as a side effect of placing, so the
 	// player would otherwise be looking at whichever page the last tier happened to land on.
+	if (StashUnitCount(Stash.stashList) != unitsBefore) {
+		Stash.stashList = keptList;
+		Stash.stashGrids = keptGrids;
+		Stash.SetPage(keptPage);
+		Stash.dirty = keptDirty;
+		return false;
+	}
 	Stash.SetPage(0);
+	Stash.dirty = true;
+	if (&player == MyPlayer)
+		oracool::ScheduleAutoSaveForStashChange();
+	return true;
 }
 
 } // namespace devilution

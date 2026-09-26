@@ -151,6 +151,7 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 	// Oracool: a slot being (re)used starts with no cry on it - see ClearWarcryStateForMonster.
 	oracool::ClearWarcryStateForMonster(monster);
 	oracool::ClearRfa12StateForMonster(monster);
+	oracool::ClearColdStateForMonster(monster);
 	monster.direction = rd;
 	monster.position.tile = position;
 	monster.position.future = position;
@@ -919,6 +920,7 @@ void DeleteMonster(size_t activeIndex)
 	oracool::ClearRfa12StateForMonster(monster);
 	oracool::OnMonsterSlotFreed(monster.getId());
 	oracool::ClearCurseForMonster(monster);
+	oracool::ClearColdStateForMonster(monster);
 
 	ActiveMonsterCount--;
 	std::swap(ActiveMonsters[activeIndex], ActiveMonsters[ActiveMonsterCount]); // This ensures alive monsters are before ActiveMonsterCount in the array and any deleted monster after

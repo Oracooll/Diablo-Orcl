@@ -39,6 +39,15 @@ void ClearChill(const Monster &monster)
 		ChillTicks[id] = 0;
 }
 
+void ClearColdStateForMonster(const Monster &monster)
+{
+	const size_t id = monster.getId();
+	if (id < ChillTicks.size()) {
+		ChillTicks[id] = 0;
+		FreezeTicks[id] = 0;
+	}
+}
+
 bool IsMonsterChilled(const Monster &monster)
 {
 	const size_t id = monster.getId();

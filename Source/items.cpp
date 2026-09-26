@@ -3779,6 +3779,51 @@ bool RollOracoolAffixFor(const Player &player, const Item &item, OracoolAffix &o
 	return true;
 }
 
+/**
+ * @brief Whether SaveItemPower writes @p type's two parameters into two different fields - a range's two
+ * ends, or a spell and its charges - rather than rolling one value between them.
+ */
+static bool AffixUsesBothEndpoints(item_effect_type type)
+{
+	return IsAnyOf(type, IPL_FIREDAM, IPL_LIGHTDAM, IPL_FIRE_ARROWS, IPL_LIGHT_ARROWS, IPL_FIREBALL, IPL_SETDAM,
+	    IPL_ADDACLIFE, IPL_ADDMANAAC, IPL_SPELL);
+}
+
+/**
+ * @brief The table row @p affix was rolled from. A record keeps the type, the roll and the row's price
+ * multiplier but not the row, and several rows can share a type (fire arrows: 1-3, 1-6, 1-16): the row
+ * whose range holds the roll and whose multiplier matches, then any row whose range holds the roll, then
+ * the first row of the type.
+ */
+static const PLStruct *FindAffixRowForRecord(const OracoolAffix &affix)
+{
+	const PLStruct *holding = nullptr;
+	const auto consider = [&affix, &holding](const PLStruct &row) {
+		if (row.power.type != affix.type)
+			return false;
+		if (affix.param1 < std::min(row.power.param1, row.power.param2) || affix.param1 > std::max(row.power.param1, row.power.param2))
+			return false;
+		if (row.multVal == affix.param2)
+			return true;
+		if (holding == nullptr)
+			holding = &row;
+		return false;
+	};
+	for (int i = 0; ItemPrefixes[i].power.type != IPL_INVALID; i++) {
+		if (consider(ItemPrefixes[i]))
+			return &ItemPrefixes[i];
+	}
+	for (int i = 0; ItemSuffixes[i].power.type != IPL_INVALID; i++) {
+		if (consider(ItemSuffixes[i]))
+			return &ItemSuffixes[i];
+	}
+	for (const OracoolPoolRow &row : OracoolPoolRows) {
+		if (consider(row.row))
+			return &row.row;
+	}
+	return holding != nullptr ? holding : FindAffixRowForType(affix.type);
+}
+
 bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const OracoolAffix *affixes, int count)
 {
 	if (item.isEmpty())
@@ -3830,13 +3875,17 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	// armour while its tooltip still named the tier.
 	oracool::ApplyBaseTier(item, baseTier);
 	for (int i = 0; i < wantedCount && item._iOracoolAffixCount < Item::MaxOracoolAffixes; i++) {
-		const PLStruct *row = FindAffixRowForType(wanted[i].type);
+		const PLStruct *row = FindAffixRowForRecord(wanted[i]);
 		if (row == nullptr)
 			continue;
-		// A degenerate range, so the roll lands on exactly the value this affix already had.
+		// A degenerate range, so the roll lands on exactly the value this affix already had. Not for a power
+		// that writes its two parameters to two fields (external audit of v1.12.188, ITEM-02): a 3-9 fire
+		// damage affix came back from the Mystic as 3-3. Those replay their row's own pair.
 		ItemPower power = row->power;
-		power.param1 = wanted[i].param1;
-		power.param2 = wanted[i].param1;
+		if (!AffixUsesBothEndpoints(wanted[i].type)) {
+			power.param1 = wanted[i].param1;
+			power.param2 = wanted[i].param1;
+		}
 		SaveItemPower(player, item, power);
 		item._iOracoolAffixes[item._iOracoolAffixCount++] = OracoolAffix { wanted[i].type, wanted[i].param1, wanted[i].param2 };
 	}

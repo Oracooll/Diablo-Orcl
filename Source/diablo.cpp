@@ -240,6 +240,10 @@ void FreeGame()
 	// windows - so without this the next character started in the same session opened onto this
 	// window, already up, holding the previous character's items (audit, 2026-08-30).
 	oracool::ResetLevskiRoarForNewGame();
+	// The workshop's bench and craft grid the same way (external audit of v1.12.188, SAVE-01). The exit
+	// path has already handed back what it could (gamemenu.cpp); this only stops the rest reaching the
+	// next hero.
+	oracool::ResetWorkshopForNewGame();
 	oracool::ResetRiftForNewGame(); // a rift open in one game must not be open in the next (oracool/rift.h)
 	// The log is the same shape of problem without the item duplication: its entries are a
 	// file-local deque, so the next character opened it onto the previous one's kills and crafts.
@@ -3839,7 +3843,14 @@ bool PressEscKey()
 	}
 	if (oracool::IsStonegateMenuOpen()) {
 		oracool::CloseStonegateMenu();
-	oracool::CloseWorkshop();
+		rv = true;
+	}
+	// The workshop on its own (external audit of v1.12.188, UI-01): its close sat inside the monument
+	// menu's branch, so Escape reached it only when that menu was open too - and otherwise went on to
+	// the game menu, and from there to an exit that did not return the bench. The key is spent even
+	// when the close refuses (a full pack keeps the window up, and says so).
+	if (oracool::IsWorkshopOpen()) {
+		oracool::CloseWorkshop();
 		rv = true;
 	}
 

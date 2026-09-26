@@ -594,7 +594,9 @@ int RiftGuardianItemCount()
 
 bool IsRiftGuardian(const Monster &monster)
 {
-	return State.kind != RiftKind::None && State.guardianSpawned && State.guardianId == monster.getId();
+	// Inside the rift only (external audit of v1.12.188, WORLD-02): the id is a Monsters[] slot, and a rift left
+	// open while the hero walks a normal floor would otherwise crown whatever spawned into that slot there.
+	return InRift() && State.guardianSpawned && State.guardianId == monster.getId();
 }
 
 void OnRiftMonsterKilled(const Monster &monster)

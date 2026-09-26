@@ -18,6 +18,7 @@
 #include "oracool/save_status.h"
 #include "oracool/event_log.h"
 #include "oracool/levski_roar.h"
+#include "oracool/workshop.h"
 #include "oracool/save_indicator.h"
 #include "pfile.h"
 #include "player.h"
@@ -87,6 +88,8 @@ bool IsSafeToSave()
 	    // Levski's grid is an unsaved container (audit, 2026-09-19): a hero written while items sit
 	    // in it would lose them to a crash before the window closes and returns them.
 	    && !IsLevskiRoarOpen()
+	    // The workshop's bench and craft grid likewise (external audit of v1.12.188, SAVE-01).
+	    && !IsWorkshopOpen()
 	    && !demo::IsRunning()
 	    && !demo::IsRecording();
 }

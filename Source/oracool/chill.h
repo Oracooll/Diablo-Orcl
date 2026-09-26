@@ -70,5 +70,10 @@ bool ChillTakesThisTick(const Monster &monster);
 void ClearChills();
 /** @brief Ends one monster's chill at once - for a curse that laid it and is now released (audit, 2026-09-19). */
 void ClearChill(const Monster &monster);
+/**
+ * @brief Ends one slot's chill AND freeze. The slot is being freed or reused: a monster that died cold
+ * must not hand its timers to the next monster spawned into its slot (external audit of v1.12.188, SKL-02).
+ */
+void ClearColdStateForMonster(const Monster &monster);
 
 } // namespace devilution::oracool

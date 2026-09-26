@@ -5,6 +5,7 @@
  */
 #include "spells.h"
 #include "oracool/class_tree.h"
+#include "oracool/essence.h"
 #include "oracool/paladin_ranged.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h"
@@ -41,6 +42,16 @@ namespace {
 bool SkillPaysMana(SpellID spell)
 {
 	return GetSpellData(spell).sManaCost > 0 && !oracool::PaladinSkillForSpell(spell).has_value();
+}
+
+/**
+ * @brief A tree skill paid for through oracool/rage.h's facade rather than in mana: every skill of a Rage
+ * user, and a Necromancer's Essence-priced rows (external audit of v1.12.188, SKL-01: the curses, the two
+ * corpse explosions and Revive checked and paid mana here, so their Essence price was never asked).
+ */
+bool SkillPaysThroughFacade(const Player &player, SpellID spell)
+{
+	return oracool::UsesRage(player) || (oracool::EssenceCost(spell) > 0 && oracool::UsesEssence(player));
 }
 
 /**
@@ -192,9 +203,10 @@ void ConsumeSpell(Player &player, SpellID sn)
 		// apart from it so vanilla's free skills stay free without a second condition down there.
 		// The Barbarian settles in Rage instead (2026-09-13): a spender pays, a generator fills - and
 		// only now, past the fizzle check, so a Backhand that struck nothing earns nothing.
-		if (oracool::UsesRage(player)) {
+		if (SkillPaysThroughFacade(player, sn)) {
 			// A cast generator reaches here only when it struck (Backhand's cast fizzles on an empty
-			// tile), so it landed one blow. A spender's cast is not counted as a blow.
+			// tile), so it landed one blow. A spender's cast is not counted as a blow. An Essence row
+			// pays its Essence and nothing else.
 			oracool::SettleSkill(player, sn, oracool::RageGain(sn) > 0 ? 1 : 0);
 		} else if (SkillPaysMana(sn)) {
 			const int ma = GetManaAmount(player, sn);
@@ -264,7 +276,7 @@ SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool
 		// rows are SpellType::Skill because they are earned rather than read from a book, and until
 		// this line Ice Bolt was free. The Paladin's seven pay their own way in CheckPlrSpell, and are
 		// left to it - see SkillPaysMana. The Barbarian's skills ask for Rage, not mana (oracool/rage.h).
-		if (oracool::UsesRage(player))
+		if (SkillPaysThroughFacade(player, sn))
 			return oracool::CanPaySkill(player, sn) ? SpellCheckResult::Success : SpellCheckResult::Fail_NoMana;
 		if (SkillPaysMana(sn) && player._pMana < GetManaAmount(player, sn))
 			return SpellCheckResult::Fail_NoMana;

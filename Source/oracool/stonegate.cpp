@@ -70,6 +70,23 @@ void RemovePortalMissiles()
 	}
 }
 
+/**
+ * @brief Ends the rift, and with it every town portal whose far end stood in it. A portal records the
+ * set level it leads to, not which rift, so one cast inside a rift that has since closed would lead into
+ * a rift level built from the reset state (external audit of v1.12.188, WORLD-01).
+ */
+void EndRiftAndItsPortals()
+{
+	for (int i = 0; i < MAXPORTAL; i++) {
+		const Portal &portal = Portals[i];
+		if (!portal.open || !portal.setlvl || !IsRiftLevel(static_cast<_setlevels>(portal.level)))
+			continue;
+		DeactivatePortal(i);
+		RemovePortalMissile(i);
+	}
+	EndRift();
+}
+
 void ShowFrame(Object &gate, uint32_t frame)
 {
 	gate._oAnimFlag = 0;
@@ -180,7 +197,7 @@ void AddStonegateObject()
 		// this and would clear the portal, so RelightStonegateIfNeeded adds it from the first town
 		// tick, and that portal is the whole of the open state.
 		if (ActiveRift() != RiftKind::None && RiftReturnedHome())
-			EndRift();
+			EndRiftAndItsPortals();
 		AddPortalArch();
 		return;
 	}
@@ -229,7 +246,7 @@ void CloseStonegate()
 		RemovePortalMissiles();
 		PlayUiEventSound(UiEventSound::RiftClose);
 	}
-	EndRift();
+	EndRiftAndItsPortals();
 	if (gate != nullptr)
 		ShowFrame(*gate, ClosedFrame);
 }

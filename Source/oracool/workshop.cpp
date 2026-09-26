@@ -1020,12 +1020,17 @@ void SetBoard(std::string text)
 	Board = std::move(text);
 }
 
-/** @brief Gives the bench back to the pack. False - and the item stays - when there is no room. */
+/**
+ * @brief Gives the bench back to the pack, or to the stash when the pack is full - as the craft grid's
+ * items go. False - and the item stays - when neither has room. The stash since v1.12.189 (external
+ * audit, SAVE-01): leaving the game closes this window before the exit save, and a full pack must not
+ * be the reason an item is left on a bench that is not saved.
+ */
 bool ReturnBench()
 {
 	if (Bench.isEmpty())
 		return true;
-	if (!AutoPlaceItemInInventory(*MyPlayer, Bench, true))
+	if (!AutoPlaceItemInInventory(*MyPlayer, Bench, true) && !AutoPlaceItemInStash(*MyPlayer, Bench, true))
 		return false;
 	Bench.clear();
 	return true;
@@ -1465,7 +1470,7 @@ void CloseWorkshop()
 	if (!WindowOpen)
 		return;
 	if (!ReturnBench()) {
-		LogEvent(std::string(_("Your pack is full - the bench keeps what it holds.")), UiFlags::ColorRed);
+		LogEvent(std::string(_("Your pack and stash are full - the bench keeps what it holds.")), UiFlags::ColorRed);
 		return;
 	}
 	// The craft grid too (2026-09-22). It is not a container: nothing may be left standing on it when
@@ -2329,7 +2334,7 @@ void RunControl(Control control)
 		// change, which is the answer CloseWorkshop gives to the same question.
 		if (tabs[slot] != Tab::Reroll && tabs[slot] != Tab::Imbue && !Bench.isEmpty()) {
 			if (!ReturnBench()) {
-				SetBoard(std::string(_("Your pack is full - the bench keeps what it holds.")));
+				SetBoard(std::string(_("Your pack and stash are full - the bench keeps what it holds.")));
 				break;
 			}
 		}

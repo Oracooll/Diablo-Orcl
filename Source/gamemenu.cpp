@@ -15,6 +15,7 @@
 #include "options.h"
 #include "oracool/auto_save.h"
 #include "oracool/levski_roar.h" // the monument's grid is handed back before the exit save
+#include "oracool/workshop.h" // and the workshop's bench and craft grid
 #include "player.h"
 #include "utils/language.h"
 
@@ -146,6 +147,9 @@ void GamemenuNewGame(bool /*bActivate*/)
 	// It may still refuse when the pack is full; FreeGame's ResetLevskiRoarForNewGame is the
 	// backstop that stops the remainder leaking into the next character.
 	oracool::CloseLevskiRoar();
+	// The artisans' workshop is the same kind of container (external audit of v1.12.188, SAVE-01): the
+	// bench and the craft grid are not save state, and nothing closed them on the way out.
+	oracool::CloseWorkshop();
 
 	oracool::SaveOnExit();
 
