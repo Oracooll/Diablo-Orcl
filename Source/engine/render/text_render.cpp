@@ -83,7 +83,7 @@ constexpr std::array<int, 10> LineHeights = { 12, 26, 38, 42, 50, 22, 11, 10, 9,
 constexpr int SmallFontTallLineHeight = 16;
 std::array<int, 10> BaseLineOffset = { -3, -2, -3, -6, -7, 3, -3, -3, -2, -2 };
 
-std::array<const char *, 46> ColorTranslations = {
+std::array<const char *, 47> ColorTranslations = {
 	"fonts\\goldui.trn",
 	"fonts\\grayui.trn",
 	"fonts\\golduis.trn",
@@ -154,6 +154,7 @@ std::array<const char *, 46> ColorTranslations = {
 	nullptr, // title white: a value (2026-09-13)
 	nullptr, // title blue: a value (2026-09-13)
 	nullptr, // title white gold: a value (2026-09-13)
+	nullptr, // salmon: a value (2026-09-26)
 };
 
 std::array<std::optional<std::array<uint8_t, 256>>, ColorTranslations.size()> ColorTranslationsData;
@@ -234,8 +235,12 @@ constexpr RgbDefinedColor RgbDefinedColors[] = {
 	    { 0xCCCCCC, 0xB8B8B8, 0xA3A3A3, 0x949494, 0x858585, 0x737373, 0x666666, 0x595959, 0x4C4C4C, 0x3D3D3D, 0x2E2E2E, 0x1E1E1E, 0x111111, 0x111111, 0x111111, 0x111111 } }, // was fonts\\oracool_gray5.trn
 	{ ColorBeige2,
 	    { 0xE8CACA, 0xE8CACA, 0xD7B2B2, 0xCA9E9E, 0xBD8F8F, 0xB38080, 0xA87171, 0xA55A5A, 0x9C4949, 0x8B4141, 0x793939, 0x683131, 0x562929, 0x442121, 0x331919, 0x1B0E0E } }, // was fonts\\oracool_beige2.trn
+	// The rare yellow on the consumables' recipe (user, 2026-09-26 dev note: "the yellow font used for rare items
+	// ... has a lot of black dots on it making it hard to read"). The file's ramp fell from 0x575500 straight to
+	// 0x191900 for the bottom SIX of its sixteen shades, so every glyph pixel painted in them came out near black
+	// - the dots. Same hue at the top, held across three shades, then stepped down evenly like every value colour.
 	{ ColorYellow3,
-	    { 0xFEFB24, 0xFEFB24, 0xF0EC00, 0xF0EC00, 0xC3C300, 0xC3C300, 0x868600, 0x868600, 0x575500, 0x575500, 0x191900, 0x191900, 0x191900, 0x191900, 0x191900, 0x191900 } }, // was fonts\\oracool_yellow3.trn
+	    { 0xFEFB24, 0xFEFB24, 0xFEFB24, 0xE8E521, 0xD7D41E, 0xC8C61C, 0xBAB71A, 0xA9A718, 0x979615, 0x898713, 0x787611, 0x67650F, 0x58570C, 0x44440A, 0x2C2B06, 0x161603 } }, // was fonts\\oracool_yellow3.trn
 	{ ColorBrightRed3,
 	    { 0xFE2424, 0xFE2424, 0xF00000, 0xF00000, 0xBD0000, 0xBD0000, 0x910000, 0x910000, 0x5A0000, 0x5A0000, 0x230000, 0x230000, 0x230000, 0x230000, 0x230000, 0x230000 } }, // was fonts\\oracool_brightred3.trn
 	{ ColorBrightBlue3,
@@ -281,6 +286,9 @@ constexpr RgbDefinedColor RgbDefinedColors[] = {
 	    { 0x8C9CFF, 0x8C9CFF, 0x8C9CFF, 0x808FEA, 0x7683D7, 0x6E7BC9, 0x6672BB, 0x5D68AA, 0x535C97, 0x4B5489, 0x424A78, 0x394068, 0x303557, 0x262A44, 0x191B2D, 0x0C0D15 } },
 	{ ColorTitleWhitegold,
 	    { 0xF2DEA8, 0xF2DEA8, 0xF2DEA8, 0xDECC9A, 0xCCBB8E, 0xBEAF84, 0xB1A27B, 0xA19470, 0x8F8464, 0x82775A, 0x72694F, 0x635A44, 0x534C3A, 0x413C2D, 0x2B271E, 0x14120E } },
+	// The Torment tier's salmon (2026-09-26), on the same recipe.
+	{ ColorSalmon,
+	    { 0xE8826A, 0xE8826A, 0xE8826A, 0xD47761, 0xC46E5A, 0xB76754, 0xAA5F4D, 0x9A5646, 0x8A4E3F, 0x7D4639, 0x6D3D32, 0x5E352B, 0x502D25, 0x3E231D, 0x281712, 0x140B09 } },
 };
 bool RgbDefaultsApplied = false;
 /** The definition applied from RgbDefinedColors; a hex from DefineTextColorRgb wins over it while set. */
@@ -449,6 +457,8 @@ text_color GetColorFromFlags(UiFlags flags)
 		return ColorTitleBlue;
 	case UiFlagsColorIndex(UiFlags::ColorTitleWhitegold):
 		return ColorTitleWhitegold;
+	case UiFlagsColorIndex(UiFlags::ColorSalmon):
+		return ColorSalmon;
 	case UiFlagsColorIndex(UiFlags::ColorWhitegold):
 	default:
 		return ColorWhitegold;

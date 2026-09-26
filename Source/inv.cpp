@@ -1766,6 +1766,10 @@ uint32_t RimGlowHue(const Item &item, bool &quiet)
  */
 void DrawRimGlowBacking(const Surface &out, const Rectangle &footprint, uint32_t hueRgb, bool quiet)
 {
+	// HALF TRANSPARENT (user, 2026-09-26 dev note: "let's try making the new backings 50% transparent"): every
+	// pixel below is laid over what the slot already shows at this opacity - the grid's slot art, or the doll's
+	// panel - so the stone reads through the colour. One number to tune.
+	constexpr int OpacityPercent = 50;
 	constexpr uint32_t Gutter = 0x0A0908;
 	const int hue[3] = { static_cast<int>((hueRgb >> 16) & 0xFF), static_cast<int>((hueRgb >> 8) & 0xFF), static_cast<int>(hueRgb & 0xFF) };
 	// The rim inside the gutter; the glow reaches in a third of the way on a small item, 12 px at most.
@@ -1790,12 +1794,21 @@ void DrawRimGlowBacking(const Surface &out, const Rectangle &footprint, uint32_t
 			const int edgeX = std::min(col, footprint.size.width - 1 - col);
 			const int edgeY = std::min(row, footprint.size.height - 1 - row);
 			const int d = std::min(edgeX, edgeY); // 0 = the gutter, 1 = the rim
+			const auto over = [&](uint32_t rgb) {
+				const uint32_t under = *dst;
+				const auto ch = [&](int shift) {
+					const int a = static_cast<int>((rgb >> shift) & 0xFF);
+					const int b = static_cast<int>((under >> shift) & 0xFF);
+					return static_cast<uint32_t>((a * OpacityPercent + b * (100 - OpacityPercent)) / 100) << shift;
+				};
+				return (under & 0xFF000000u) | ch(16) | ch(8) | ch(0);
+			};
 			if (d == 0 || (edgeX == 1 && edgeY == 1)) {
-				*dst = Gutter;
+				*dst = over(Gutter);
 				continue;
 			}
 			if (d == 1) {
-				*dst = pack(hue[0] * 0.95F + 12, hue[1] * 0.95F + 12, hue[2] * 0.95F + 12);
+				*dst = over(pack(hue[0] * 0.95F + 12, hue[1] * 0.95F + 12, hue[2] * 0.95F + 12));
 				continue;
 			}
 			// The fill: dark, in the tier's colour, with a grain hashed from the SCREEN position so it holds
@@ -1818,7 +1831,7 @@ void DrawRimGlowBacking(const Surface &out, const Rectangle &footprint, uint32_t
 				g = g * 0.55F + hue[1] * 0.30F;
 				b = b * 0.55F + hue[2] * 0.30F;
 			}
-			*dst = pack(r, g, b);
+			*dst = over(pack(r, g, b));
 		}
 	}
 }

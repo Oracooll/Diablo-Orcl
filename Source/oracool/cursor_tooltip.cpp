@@ -889,6 +889,56 @@ void GrowTooltipRect(const Rectangle &box)
 	PrevTooltipRect.size = { right - PrevTooltipRect.position.x, bottom - PrevTooltipRect.position.y };
 }
 
+int OverlapArea(const Rectangle &a, const Rectangle &b)
+{
+	const int w = std::min(a.position.x + a.size.width, b.position.x + b.size.width) - std::max(a.position.x, b.position.x);
+	const int h = std::min(a.position.y + a.size.height, b.position.y + b.size.height) - std::max(a.position.y, b.position.y);
+	return w > 0 && h > 0 ? w * h : 0;
+}
+
+/**
+ * @brief Where an EQUIPPED ITEM panel of @p size goes, given the hovered item's panel @p hovered and the comparison
+ * panels already @p placed.
+ *
+ * Tried in order: beside the hovered panel on the right, then on the left, then stacked under each panel already
+ * placed, then over it - and the first that overlaps nothing wins, else the one that overlaps least (user,
+ * 2026-09-26 dev note: "sometime comparing an item to two equipped items results in the two equipped items tooltips
+ * overlapping. if that happens try to stack the tooltips one on top of the other to avoid overlapping. i[f]
+ * tooltips overlap in both scenarios pick the one with less overlapping"). The old rule went right, then left, and
+ * with no room on the left it pinned the second ring's panel to the screen edge, over the others.
+ */
+Point PlaceComparison(const Rectangle &hovered, const std::vector<Rectangle> &placed, Size size)
+{
+	constexpr int Gap = 6;
+	std::vector<Point> candidates {
+		{ hovered.position.x + hovered.size.width + Gap, hovered.position.y },
+		{ hovered.position.x - Gap - size.width, hovered.position.y },
+	};
+	for (const Rectangle &r : placed) {
+		candidates.push_back({ r.position.x, r.position.y + r.size.height + Gap });
+		candidates.push_back({ r.position.x, r.position.y - Gap - size.height });
+	}
+	const int maxX = std::max(0, static_cast<int>(gnScreenWidth) - size.width);
+	const int maxY = std::max(0, static_cast<int>(gnScreenHeight) - size.height);
+	Point best {};
+	int bestOverlap = -1;
+	for (Point c : candidates) {
+		c.x = std::clamp(c.x, 0, maxX);
+		c.y = std::clamp(c.y, 0, maxY);
+		const Rectangle rect { c, size };
+		int overlap = OverlapArea(rect, hovered);
+		for (const Rectangle &r : placed)
+			overlap += OverlapArea(rect, r);
+		if (bestOverlap < 0 || overlap < bestOverlap) {
+			best = c;
+			bestOverlap = overlap;
+			if (overlap == 0)
+				break;
+		}
+	}
+	return best;
+}
+
 /** @brief The hovered item as a card, with its worn counterparts beside it as the panel path does. */
 void DrawCardTooltip(const Surface &out)
 {
@@ -911,9 +961,7 @@ void DrawCardTooltip(const Surface &out)
 	if (container == nullptr || container->isEmpty())
 		return;
 	const Player &player = *InspectPlayer;
-	constexpr int SideGap = 6;
-	int nextRight = origin.x + l.size.width + SideGap;
-	int nextLeft = origin.x - SideGap;
+	std::vector<Rectangle> placed;
 	for (const inv_body_loc loc : EquippedCounterparts(player, *container)) {
 		if (&player.InvBody[loc] == container)
 			continue;
@@ -924,17 +972,10 @@ void DrawCardTooltip(const Surface &out)
 		block.runs.insert(block.runs.begin(), {});
 		const Card worn = BuildCard(block, &player.InvBody[loc]);
 		const CardLayout wl = MeasureCard(worn);
-		int cx;
-		if (nextRight + wl.size.width <= static_cast<int>(gnScreenWidth)) {
-			cx = nextRight;
-			nextRight += wl.size.width + SideGap;
-		} else {
-			cx = std::max(0, nextLeft - wl.size.width);
-			nextLeft = cx - SideGap;
-		}
-		const int cy = std::clamp(origin.y, 0, std::max(0, static_cast<int>(gnScreenHeight) - wl.size.height));
-		DrawCard(out, worn, wl, { cx, cy });
-		GrowTooltipRect({ { cx, cy }, wl.size });
+		const Point at = PlaceComparison({ origin, l.size }, placed, wl.size);
+		DrawCard(out, worn, wl, at);
+		placed.push_back({ at, wl.size });
+		GrowTooltipRect({ at, wl.size });
 	}
 }
 
@@ -993,9 +1034,7 @@ void DrawCursorTooltip(const Surface &out)
 	if (hovered == nullptr || hovered->isEmpty())
 		return;
 	const Player &player = *InspectPlayer;
-	constexpr int SideGap = 6;
-	int nextRight = box.position.x + box.size.width + SideGap;
-	int nextLeft = box.position.x - SideGap;
+	std::vector<Rectangle> placed;
 	for (const inv_body_loc loc : EquippedCounterparts(player, *hovered)) {
 		if (&player.InvBody[loc] == hovered)
 			continue; // a worn piece on the Repair or Recharge tab: nothing to compare it with but itself
@@ -1005,16 +1044,8 @@ void DrawCursorTooltip(const Surface &out)
 		block.tails.insert(block.tails.begin(), 0);
 		block.runs.insert(block.runs.begin(), {});
 		const BlockMetrics cm = MeasureBlock(block.text, /*asPanel=*/true);
-		int cx;
-		if (nextRight + cm.boxSize.width <= static_cast<int>(gnScreenWidth)) {
-			cx = nextRight;
-			nextRight += cm.boxSize.width + SideGap;
-		} else {
-			cx = std::max(0, nextLeft - cm.boxSize.width);
-			nextLeft = cx - SideGap;
-		}
-		const int cy = std::clamp(box.position.y, 0, std::max(0, static_cast<int>(gnScreenHeight) - cm.boxSize.height));
-		const Rectangle cbox { { cx, cy }, cm.boxSize };
+		const Rectangle cbox { PlaceComparison(box, placed, cm.boxSize), cm.boxSize };
+		placed.push_back(cbox);
 		DrawBlock(out, cbox, cm, block.text, block.colors, block.tails, block.runs, UiFlags::ColorWhite, /*asPanel=*/true);
 		// One dirty rect for the lot, so the erase pass covers every panel drawn this frame.
 		const int right = std::max(PrevTooltipRect.position.x + PrevTooltipRect.size.width, cbox.position.x + cbox.size.width);

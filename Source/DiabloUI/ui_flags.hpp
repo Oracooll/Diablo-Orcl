@@ -166,6 +166,8 @@ enum class UiFlags : uint64_t {
 	ColorTitleBlue         = 37ULL << UiFlagsColorShift,
 	/** @brief Conqueror: white gold 242,222,168. */
 	ColorTitleWhitegold    = 38ULL << UiFlagsColorShift,
+	/** @brief Salmon 232,130,106: the Torment tier (user, 2026-09-26: "tier torment text should be salmon"). */
+	ColorSalmon            = 39ULL << UiFlagsColorShift,
 
 	// Bits 40-47 fell free on 2026-09-07 when the colours moved into the field at 48-59; 60-63 are
 	// free too. A NEW COLOUR is a new index in the field, not a bit - see ColorMask.

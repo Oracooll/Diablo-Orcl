@@ -112,6 +112,8 @@ enum text_color : uint16_t {
 	ColorTitleWhite,
 	ColorTitleBlue,
 	ColorTitleWhitegold,
+	/** Oracool: salmon 232,130,106 - the Torment tier's text (user, 2026-09-26), the Primal backing's hue. A value, no file. */
+	ColorSalmon,
 };
 
 /**

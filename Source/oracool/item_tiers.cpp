@@ -120,9 +120,11 @@ UiFlags TierColor(BaseItemTier tier)
 	case BaseItemTier::Nightmare:
 		return UiFlags::ColorBlue;
 	case BaseItemTier::Hell:
-		return UiFlags::ColorUiGold;
+		// Gold (user, 2026-09-26: "tier hell text should be gold"). ColorUiGold is the MENU's gold file and
+		// drew blue in play; the books' gold is a value and reads the same on every palette.
+		return UiFlags::ColorGold6;
 	case BaseItemTier::Torment:
-		return UiFlags::ColorWhitegold;
+		return UiFlags::ColorSalmon; // "tier torment text should be salmon" (user, 2026-09-26)
 	case BaseItemTier::Normal:
 		break;
 	}
