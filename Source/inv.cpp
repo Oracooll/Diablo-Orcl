@@ -3,6 +3,7 @@
  *
  * Implementation of player inventory.
  */
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <utility>
@@ -1709,6 +1710,119 @@ void DrawSlotStoneUnderlay(const Surface &out, Rectangle rect)
 	}
 }
 
+/**
+ * @brief The rim colour of @p item's backing in the rim-and-glow look (user, 2026-09-26), or 0 for an item
+ * that takes no backing. Same precedence as the tint below - sockets, ethereal, the Oracool tiers, then
+ * vanilla's qualities - in colours saturated enough for a one-pixel rim to carry them. Plain items are
+ * GREY now (user: "grey backing for plain items"), uniques stay GOLD (user: "no salmon for uniques. we
+ * keep gold for uniques"), and salmon goes to the Primal ("we might use salmon for primals").
+ */
+uint32_t RimGlowHue(const Item &item, bool &quiet)
+{
+	quiet = false;
+	if (IsInspectingPlayer())
+		return 0xE8A040; // vanilla's rule, kept: every class is orange while looking at another player's gear
+	if (item._iSocketCount > 0) {
+		if (oracool::GetActiveRuneword(item) != nullptr)
+			return 0x30C0B0; // runeword teal
+		quiet = true;
+		return 0xC8D0DC; // socketed silver: paler than plain grey, so the two do not read alike
+	}
+	if (item._iOracoolEthereal)
+		return 0xA070E0;
+	if (item.hasOracoolTier()) {
+		switch (item._iOracoolTier) {
+		case OracoolItemTier::Rare:
+			return 0xF2DC4A; // the lemon rare, apart from the unique's deeper gold
+		case OracoolItemTier::BuffedUnique:
+			return 0xD4A23C;
+		case OracoolItemTier::Primal:
+			return 0xE8826A; // salmon
+		case OracoolItemTier::Set:
+			return 0x4CB050;
+		default:
+			break;
+		}
+	}
+	switch (item._iMagical) {
+	case ITEM_QUALITY_MAGIC:
+		return 0x4F7BE8;
+	case ITEM_QUALITY_UNIQUE:
+		return 0xD4A23C;
+	default:
+		break;
+	}
+	if (item._itype == ItemType::Gold)
+		return 0; // gold is money, not an item with a quality
+	quiet = true;
+	return 0x9A9A9A;
+}
+
+/**
+ * @brief The rim-and-glow backing (user, 2026-09-26, after a Diablo IV inventory). One piece per item: a
+ * one-pixel dark gutter on the footprint's edge so neighbours never merge, a rim in the tier's colour
+ * with its corners cut, a dark fill in that colour with a faint grain, and a glow fading in from the rim.
+ * The whole look is these numbers; the Rim and Glow Item Backings option switches back to the tint.
+ */
+void DrawRimGlowBacking(const Surface &out, const Rectangle &footprint, uint32_t hueRgb, bool quiet)
+{
+	constexpr uint32_t Gutter = 0x0A0908;
+	const int hue[3] = { static_cast<int>((hueRgb >> 16) & 0xFF), static_cast<int>((hueRgb >> 8) & 0xFF), static_cast<int>(hueRgb & 0xFF) };
+	// The rim inside the gutter; the glow reaches in a third of the way on a small item, 12 px at most.
+	const int innerW = footprint.size.width - 2;
+	const int innerH = footprint.size.height - 2;
+	const float reach = std::min(12.0F, static_cast<float>(std::min(innerW, innerH)) / 2.5F);
+	const float fillDepth = quiet ? 0.30F : 0.42F;
+	const float glowStrength = quiet ? 0.40F : 0.72F;
+	const auto pack = [](float r, float g, float b) {
+		const auto c = [](float v) { return static_cast<uint32_t>(std::clamp(static_cast<int>(v + 0.5F), 0, 255)); };
+		return (c(r) << 16) | (c(g) << 8) | c(b);
+	};
+	const int x0 = std::max(footprint.position.x, 0);
+	const int y0 = std::max(footprint.position.y, 0);
+	const int x1 = std::min(footprint.position.x + footprint.size.width, out.w());
+	const int y1 = std::min(footprint.position.y + footprint.size.height, out.h());
+	for (int y = y0; y < y1; y++) {
+		uint32_t *dst = out.at<uint32_t>(x0, y);
+		const int row = y - footprint.position.y;
+		for (int x = x0; x < x1; x++, dst++) {
+			const int col = x - footprint.position.x;
+			const int edgeX = std::min(col, footprint.size.width - 1 - col);
+			const int edgeY = std::min(row, footprint.size.height - 1 - row);
+			const int d = std::min(edgeX, edgeY); // 0 = the gutter, 1 = the rim
+			if (d == 0 || (edgeX == 1 && edgeY == 1)) {
+				*dst = Gutter;
+				continue;
+			}
+			if (d == 1) {
+				*dst = pack(hue[0] * 0.95F + 12, hue[1] * 0.95F + 12, hue[2] * 0.95F + 12);
+				continue;
+			}
+			// The fill: dark, in the tier's colour, with a grain hashed from the SCREEN position so it holds
+			// still while the item does and never repeats across neighbours.
+			const uint32_t hash = (static_cast<uint32_t>(x) * 73856093U) ^ (static_cast<uint32_t>(y) * 19349663U);
+			const float grain = 14.0F + static_cast<float>((hash >> 7) % 22U);
+			const float level = (0.10F + 0.90F * grain / 255.0F) * fillDepth;
+			float r = hue[0] * level;
+			float g = hue[1] * level;
+			float b = hue[2] * level;
+			const float t = static_cast<float>(d - 2) / reach;
+			if (t < 1.0F) {
+				const float k = (1.0F - t) * (1.0F - t) * glowStrength;
+				r += hue[0] * k;
+				g += hue[1] * k;
+				b += hue[2] * k;
+			}
+			if (d == 2) {
+				r = r * 0.55F + hue[0] * 0.30F;
+				g = g * 0.55F + hue[1] * 0.30F;
+				b = b * 0.55F + hue[2] * 0.30F;
+			}
+			*dst = pack(r, g, b);
+		}
+	}
+}
+
 } // namespace
 
 /** @brief The grid frame under an item on a GRID (user, 2026-09-20: "add the thin 1px grey grid behind their sprites + add 1px
@@ -1729,6 +1843,16 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	if (footprint.position.x >= out.w() || footprint.position.y >= out.h()
 	    || footprint.position.x + size.width <= 0 || footprint.position.y + size.height <= 0)
 		return;
+
+	// Oracool, 2026-09-26: the rim-and-glow look (DrawRimGlowBacking), behind its option. Everything below
+	// is the look it replaced, untouched, for the option's OFF - and for an indexed surface, which has no
+	// colours to glow with.
+	if (*sgOptions.Oracool.itemBackingRimGlow && !out.isIndexed()) {
+		bool quiet = false;
+		if (const uint32_t hue = RimGlowHue(item, quiet); hue != 0)
+			DrawRimGlowBacking(out, footprint, hue, quiet);
+		return;
+	}
 
 	// Oracool, 2026-09-19: VANILLA'S METHOD, back. DevilutionX 1.5.5 never covered the slot: it read
 	// the slot art back from the frame and moved its grey pixels one shade deeper into the item

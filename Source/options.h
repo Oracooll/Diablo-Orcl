@@ -941,6 +941,20 @@ struct OracoolOptions : OptionCategoryBase {
 	 * (2026-08-30), which is a comparison, not a decision.
 	 */
 	OptionEntryBoolean hudPlateArt;
+	/**
+	 * @brief The item backings' look: ON is the rim-and-glow (user, 2026-09-26, after a Diablo IV
+	 * inventory: one piece per item, a rim in the tier's colour, a glow fading in from it, dark gutters
+	 * between items). OFF is the tint with the gold outline and cell lines it replaced, kept whole so
+	 * the new look can be rolled back from the menu ("keep them easily rollback-able").
+	 */
+	OptionEntryBoolean itemBackingRimGlow;
+	/**
+	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
+	 * the name large, type and tier under it, the armour or damage as one big number, the item's
+	 * picture top right, the stats left-aligned, the requirements in a band at the foot). OFF is the
+	 * centred panel it replaced, kept whole for the same reason as the backings.
+	 */
+	OptionEntryBoolean itemTooltipCard;
 	OptionEntryBoolean eventLog;
 	OptionEntryBoolean balanceTelemetry;
 	/**

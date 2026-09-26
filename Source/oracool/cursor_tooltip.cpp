@@ -17,6 +17,9 @@
 #include "items.h"
 #include "player.h"
 #include "utils/language.h"
+#include "utils/str_cat.hpp"
+#include "options.h"
+#include <cstdlib>
 #include <string>
 #include <vector>
 #include "utils/ui_fwd.h"
@@ -379,6 +382,499 @@ TooltipBlock CaptureItemBlock(const Item &item)
 	return block;
 }
 
+// =================================================================================================
+// THE CARD (user, 2026-09-26, after a Diablo IV tooltip: "build the backings and the tooltips but keep
+// them easily rollback-able"). The item printer is untouched: the card lays out the SAME lines the panel
+// above draws, sorted by what each one is - the name large, the type and tier under it, the armour or
+// damage as one big number, the stats left-aligned, the requirements in a band at the foot, the item's
+// own picture top right. The Item Tooltip Card option switches back to the panel.
+// =================================================================================================
+
+/** @brief One printed line and its colours, as the panel store holds it. */
+struct CardLine {
+	std::string text;
+	UiFlags color = UiFlags::ColorWhite;
+	uint16_t tail = 0;
+	std::vector<PanelLineRun> runs;
+};
+
+/** @brief A block sorted into the card's places. */
+struct Card {
+	std::string banner; // "EQUIPPED ITEM" on a comparison card
+	CardLine title;
+	std::string subtitle;
+	std::string headValue; // "81" / "3-9"
+	std::string headLabel; // "ARMOR" / "DAMAGE"
+	std::string headNote;  // "Dur: 119/119"
+	std::vector<CardLine> body;
+	std::vector<bool> bullet; // a socketed stone's line, per body line
+	std::vector<CardLine> footer;
+	const Item *item = nullptr;
+};
+
+constexpr int CardPadX = 12;
+constexpr int CardPadTop = 10;
+constexpr int CardPadBottom = 8;
+constexpr int CardLineGap = 4;
+constexpr int CardSpriteGap = 10;
+constexpr int CardMinInnerWidth = 180;
+/** @brief The widest a name may be and still be drawn at 24: past it, the name drops to 12 rather than the card growing. */
+constexpr int CardMaxTitleWidth24 = 250;
+constexpr int CardBulletIndent = 10;
+
+bool CardStartsWith(string_view text, string_view prefix)
+{
+	return text.size() >= prefix.size() && text.substr(0, prefix.size()) == prefix;
+}
+
+/** @brief "rare armor" -> "Rare Armor". */
+std::string CardTitleCase(string_view text)
+{
+	std::string out(text);
+	bool start = true;
+	for (char &c : out) {
+		if (start && c >= 'a' && c <= 'z')
+			c = static_cast<char>(c - 'a' + 'A');
+		start = c == ' ';
+	}
+	return out;
+}
+
+std::string CardUpper(string_view text)
+{
+	std::string out(text);
+	for (char &c : out) {
+		if (c >= 'a' && c <= 'z')
+			c = static_cast<char>(c - 'a' + 'A');
+	}
+	return out;
+}
+
+Card BuildCard(const TooltipBlock &block, const Item *item)
+{
+	std::vector<CardLine> lines;
+	size_t start = 0;
+	for (size_t i = 0;; i++) {
+		const size_t newline = block.text.find('\n', start);
+		CardLine line;
+		line.text = block.text.substr(start, newline == std::string::npos ? std::string::npos : newline - start);
+		if (i < block.colors.size())
+			line.color = block.colors[i];
+		if (i < block.tails.size())
+			line.tail = block.tails[i];
+		if (i < block.runs.size())
+			line.runs = block.runs[i];
+		lines.push_back(std::move(line));
+		if (newline == std::string::npos)
+			break;
+		start = newline + 1;
+	}
+
+	Card card;
+	card.item = item;
+	size_t i = 0;
+	if (i < lines.size() && lines[i].text == _("EQUIPPED ITEM")) {
+		card.banner = lines[i].text;
+		i++;
+	}
+	if (i >= lines.size())
+		return card;
+	card.title = lines[i++];
+
+	std::string type;
+	std::string tier;
+	std::string level;
+	int socketLinesLeft = 0;
+	for (size_t first = i; i < lines.size(); i++) {
+		const CardLine &line = lines[i];
+		const string_view text = line.text;
+		// The line under the name in the name's own colour is what the item IS ("rare armor").
+		if (i == first && line.color == card.title.color && line.runs.empty() && !CardStartsWith(text, "Required")) {
+			type = line.text;
+			continue;
+		}
+		if (tier.empty() && CardStartsWith(text, "Tier: ")) {
+			tier = std::string(text.substr(6));
+			continue;
+		}
+		if (level.empty() && CardStartsWith(text, "Item Level: ")) {
+			level = std::string(text.substr(12));
+			continue;
+		}
+		if (card.headValue.empty() && (CardStartsWith(text, "armor: ") || CardStartsWith(text, "damage: "))) {
+			const bool armor = CardStartsWith(text, "armor: ");
+			const string_view rest = text.substr(armor ? 7 : 8);
+			const size_t split = rest.find("  ");
+			card.headValue = std::string(rest.substr(0, split));
+			card.headLabel = armor ? CardUpper(_("armor")) : CardUpper(_("damage"));
+			if (split != string_view::npos)
+				card.headNote = std::string(rest.substr(split + 2));
+			continue;
+		}
+		if (CardStartsWith(text, "Required")) {
+			card.footer.push_back(line);
+			continue;
+		}
+		// The stones in the sockets: as many lines as "Sockets: 2/4" says are filled.
+		bool isStone = false;
+		if (CardStartsWith(text, "Sockets: ")) {
+			socketLinesLeft = std::max(0, std::atoi(std::string(text.substr(9)).c_str()));
+		} else if (socketLinesLeft > 0 && !CardStartsWith(text, " ")) {
+			isStone = true;
+			socketLinesLeft--;
+		}
+		card.body.push_back(line);
+		card.bullet.push_back(isStone);
+	}
+
+	std::string subtitle = CardTitleCase(type);
+	const auto append = [&subtitle](const std::string &part) {
+		if (part.empty())
+			return;
+		if (!subtitle.empty())
+			subtitle += "  \xE2\x80\xA2  "; // a bullet, U+2022
+		subtitle += part;
+	};
+	if (!tier.empty())
+		append(StrCat(_("Tier"), " ", tier));
+	if (!level.empty())
+		append(StrCat(_("ilvl"), " ", level));
+	card.subtitle = subtitle;
+	return card;
+}
+
+/** @brief Draws @p line from @p x, left to right, in its colours - the head/tail and run cases as DrawBlock does. */
+void DrawCardLine(const Surface &out, const CardLine &line, int x, int y, int lineHeight)
+{
+	const UiFlags flags = UiFlags::KerningFitSpacing;
+	const string_view text = line.text;
+	const auto run = [&](string_view seg, UiFlags color) {
+		const int w = GetLineWidth(seg);
+		DrawString(out, seg, Rectangle { { x, y }, { w + 2, lineHeight } }, { color | flags, 1, lineHeight });
+		x += w;
+	};
+	if (!line.runs.empty()) {
+		size_t segStart = 0;
+		UiFlags segColor = line.color;
+		for (const PanelLineRun &r : line.runs) {
+			const size_t s = std::min<size_t>(r.start, text.size());
+			if (s > segStart)
+				run(text.substr(segStart, s - segStart), segColor);
+			segStart = s;
+			segColor = r.color;
+		}
+		if (text.size() > segStart)
+			run(text.substr(segStart), segColor);
+	} else if (line.tail > 0 && line.tail < text.size()) {
+		run(text.substr(0, line.tail), line.color);
+		run(text.substr(line.tail), UiFlags::ColorWhite);
+	} else {
+		run(text, line.color);
+	}
+}
+
+/** @brief Every size the card is laid out from, measured once. */
+struct CardLayout {
+	GameFontTables titleFont = GameFont12;
+	int line = 0; // font 12's line height
+	int stride = 0;
+	int titleHeight = 0;
+	int bigHeight = 0;
+	Size sprite;
+	int headerHeight = 0;
+	int bodyTop = 0;
+	int footerTop = 0;
+	Size size;
+};
+
+ClxSprite CardSprite(const Item &item)
+{
+	return GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
+}
+
+CardLayout MeasureCard(const Card &card)
+{
+	CardLayout l;
+	l.line = GetLineHeight("A", GameFont12);
+	l.stride = l.line + CardLineGap;
+	l.bigHeight = GetLineHeight("0", GameFont24);
+	const int title24 = GetLineWidth(card.title.text, GameFont24, 1);
+	l.titleFont = title24 <= CardMaxTitleWidth24 ? GameFont24 : GameFont12;
+	l.titleHeight = l.titleFont == GameFont24 ? l.bigHeight : l.line;
+	if (card.item != nullptr && !card.item->isEmpty()) {
+		const ClxSprite sprite = CardSprite(*card.item);
+		l.sprite = { static_cast<int>(sprite.width()), static_cast<int>(sprite.height()) };
+	}
+
+	int headerText = l.titleFont == GameFont24 ? title24 : GetLineWidth(card.title.text);
+	headerText = std::max(headerText, GetLineWidth(card.subtitle));
+	if (!card.headValue.empty()) {
+		headerText = std::max(headerText, GetLineWidth(card.headValue, GameFont24, 1) + 6 + GetLineWidth(card.headLabel)
+		        + (card.headNote.empty() ? 0 : 12 + GetLineWidth(card.headNote)));
+	}
+	int inner = std::max(CardMinInnerWidth, headerText + (l.sprite.width > 0 ? l.sprite.width + CardSpriteGap : 0));
+	for (size_t i = 0; i < card.body.size(); i++)
+		inner = std::max(inner, GetLineWidth(card.body[i].text) + (card.bullet[i] ? CardBulletIndent : 0));
+	for (const CardLine &line : card.footer)
+		inner = std::max(inner, GetLineWidth(line.text));
+	inner = std::min(inner, static_cast<int>(gnScreenWidth) - 2 * CardPadX);
+
+	int header = l.titleHeight;
+	if (!card.subtitle.empty())
+		header += 2 + l.line;
+	if (!card.headValue.empty())
+		header += 4 + l.bigHeight;
+	l.headerHeight = std::max(header, l.sprite.height);
+
+	int y = CardPadTop + (card.banner.empty() ? 0 : l.stride);
+	y += l.headerHeight + 12; // the divider sits in these twelve
+	l.bodyTop = y;
+	y += card.body.empty() ? 0 : static_cast<int>(card.body.size()) * l.stride - CardLineGap;
+	if (!card.footer.empty()) {
+		y += 10;
+		l.footerTop = y;
+		y += 6 + static_cast<int>(card.footer.size()) * l.stride - CardLineGap + 6;
+	} else {
+		y += CardPadBottom;
+	}
+	l.size = { inner + 2 * CardPadX, y };
+	return l;
+}
+
+uint32_t CardMixRgb(uint32_t a, uint32_t b, int t256)
+{
+	const auto ch = [&](int shift) {
+		const int ca = static_cast<int>((a >> shift) & 0xFF);
+		const int cb = static_cast<int>((b >> shift) & 0xFF);
+		return static_cast<uint32_t>(std::clamp(ca + (cb - ca) * t256 / 256, 0, 255)) << shift;
+	};
+	return ch(16) | ch(8) | ch(0);
+}
+
+/** @brief The card's plate: the world behind it darkened to a fifth under a warm gradient, a darker foot band, a gold frame. */
+void DrawCardPlate(const Surface &out, const Rectangle &box, int footerTop)
+{
+	const int x0 = std::max(box.position.x, 0), y0 = std::max(box.position.y, 0);
+	const int x1 = std::min(box.position.x + box.size.width, out.w());
+	const int y1 = std::min(box.position.y + box.size.height, out.h());
+	for (int y = y0; y < y1; y++) {
+		const int row = y - box.position.y;
+		const bool foot = footerTop > 0 && row >= footerTop;
+		const int t = box.size.height > 1 ? row * 256 / (box.size.height - 1) : 0;
+		const uint32_t ground = foot ? 0x080706u : CardMixRgb(0x1E1912u, 0x0D0C0Bu, t);
+		uint32_t *dst = out.at<uint32_t>(x0, y);
+		for (int x = x0; x < x1; x++, dst++) {
+			const uint32_t c = *dst;
+			const auto part = [&](int shift) {
+				const int keep = static_cast<int>((c >> shift) & 0xFF) * (foot ? 26 : 46) / 256;
+				return static_cast<uint32_t>(std::min(255, keep + static_cast<int>((ground >> shift) & 0xFF))) << shift;
+			};
+			*dst = (c & 0xFF000000u) | part(16) | part(8) | part(0);
+		}
+	}
+	const auto hline = [&](int y, int from, int to, uint32_t rgb) {
+		if (y < 0 || y >= out.h())
+			return;
+		for (int x = std::max(from, 0); x < std::min(to, out.w()); x++)
+			*out.at<uint32_t>(x, y) = rgb;
+	};
+	const auto vline = [&](int x, int from, int to, uint32_t rgb) {
+		if (x < 0 || x >= out.w())
+			return;
+		for (int y = std::max(from, 0); y < std::min(to, out.h()); y++)
+			*out.at<uint32_t>(x, y) = rgb;
+	};
+	const int left = box.position.x, top = box.position.y;
+	const int right = left + box.size.width - 1, bottom = top + box.size.height - 1;
+	if (footerTop > 0)
+		hline(top + footerTop, left + 2, right - 1, 0x3A2E1Eu);
+	// Outside in: a black edge, the gold line (brighter along the top, as if lit from above), a dark inner line.
+	hline(top, left, right + 1, 0x050403u);
+	hline(bottom, left, right + 1, 0x050403u);
+	vline(left, top, bottom + 1, 0x050403u);
+	vline(right, top, bottom + 1, 0x050403u);
+	hline(top + 1, left + 1, right, 0xC49A52u);
+	hline(bottom - 1, left + 1, right, 0x7A5C2Cu);
+	vline(left + 1, top + 1, bottom, 0x8C6A34u);
+	vline(right - 1, top + 1, bottom, 0x8C6A34u);
+	hline(top + 2, left + 2, right - 1, 0x2A2016u);
+	vline(left + 2, top + 2, bottom - 1, 0x2A2016u);
+	vline(right - 2, top + 2, bottom - 1, 0x2A2016u);
+}
+
+/** @brief A gold rule that fades out towards both ends. */
+void DrawCardDivider(const Surface &out, int x, int y, int width)
+{
+	if (y < 0 || y >= out.h())
+		return;
+	constexpr int Fade = 48;
+	for (int i = 0; i < width; i++) {
+		const int px = x + i;
+		if (px < 0 || px >= out.w())
+			continue;
+		const int edge = std::min(i, width - 1 - i);
+		const int t = std::min(256, edge * 256 / Fade) * 200 / 256;
+		uint32_t *dst = out.at<uint32_t>(px, y);
+		*dst = (*dst & 0xFF000000u) | CardMixRgb(*dst, 0xB08A48u, t);
+	}
+}
+
+/** @brief A small diamond before a socketed stone's line, in the line's own colour. */
+void DrawCardBullet(const Surface &out, Point centre, uint32_t rgb)
+{
+	for (int dy = -2; dy <= 2; dy++) {
+		const int half = 2 - std::abs(dy);
+		for (int dx = -half; dx <= half; dx++) {
+			const int x = centre.x + dx, y = centre.y + dy;
+			if (x >= 0 && y >= 0 && x < out.w() && y < out.h())
+				*out.at<uint32_t>(x, y) = rgb;
+		}
+	}
+}
+
+void DrawCard(const Surface &out, const Card &card, const CardLayout &l, Point origin)
+{
+	const Rectangle box { origin, l.size };
+	DrawCardPlate(out, box, l.footerTop);
+	const int left = origin.x + CardPadX;
+	const int innerWidth = l.size.width - 2 * CardPadX;
+	int y = origin.y + CardPadTop;
+	if (!card.banner.empty()) {
+		DrawString(out, card.banner, Rectangle { { left, y }, { innerWidth, l.line } },
+		    { UiFlags::ColorOracoolGreen | UiFlags::KerningFitSpacing, 1, l.line });
+		y += l.stride;
+	}
+	const int headerTop = y;
+	if (l.sprite.width > 0 && card.item != nullptr) {
+		// Bottom-left, as every sprite is placed; unusable items keep the red cast DrawItem gives them.
+		const Point spriteAt { origin.x + l.size.width - CardPadX - l.sprite.width, headerTop + l.sprite.height };
+		DrawItem(*card.item, out, spriteAt, CardSprite(*card.item));
+	}
+	const UiFlags titleSize = l.titleFont == GameFont24 ? UiFlags::FontSize24 : UiFlags::None;
+	DrawString(out, card.title.text, Rectangle { { left, y }, { GetLineWidth(card.title.text, l.titleFont, 1) + 4, l.titleHeight } },
+	    { card.title.color | titleSize | UiFlags::KerningFitSpacing, 1, l.titleHeight });
+	y += l.titleHeight;
+	if (!card.subtitle.empty()) {
+		y += 2;
+		DrawString(out, card.subtitle, Rectangle { { left, y }, { GetLineWidth(card.subtitle) + 4, l.line } },
+		    { UiFlags::ColorGray5 | UiFlags::KerningFitSpacing, 1, l.line });
+		y += l.line;
+	}
+	if (!card.headValue.empty()) {
+		y += 4;
+		const int valueWidth = GetLineWidth(card.headValue, GameFont24, 1);
+		DrawString(out, card.headValue, Rectangle { { left, y }, { valueWidth + 4, l.bigHeight } },
+		    { UiFlags::ColorWhite | UiFlags::FontSize24 | UiFlags::KerningFitSpacing, 1, l.bigHeight });
+		// The label on the number's baseline: font 12 set at the foot of the 24's line.
+		const int labelY = y + l.bigHeight - l.line - 2;
+		int x = left + valueWidth + 6;
+		DrawString(out, card.headLabel, Rectangle { { x, labelY }, { GetLineWidth(card.headLabel) + 4, l.line } },
+		    { UiFlags::ColorGray5 | UiFlags::KerningFitSpacing, 1, l.line });
+		if (!card.headNote.empty()) {
+			x += GetLineWidth(card.headLabel) + 12;
+			DrawString(out, card.headNote, Rectangle { { x, labelY }, { GetLineWidth(card.headNote) + 4, l.line } },
+			    { UiFlags::ColorGray5 | UiFlags::KerningFitSpacing, 1, l.line });
+		}
+	}
+	DrawCardDivider(out, left, headerTop + l.headerHeight + 6, innerWidth);
+
+	y = origin.y + l.bodyTop;
+	for (size_t i = 0; i < card.body.size(); i++) {
+		const CardLine &line = card.body[i];
+		int x = left;
+		if (card.bullet[i]) {
+			DrawCardBullet(out, { x + 3, y + l.line / 2 }, 0xB08A48u);
+			x += CardBulletIndent;
+		}
+		DrawCardLine(out, line, x, y, l.line);
+		y += l.stride;
+	}
+	if (l.footerTop > 0) {
+		y = origin.y + l.footerTop + 6;
+		for (const CardLine &line : card.footer) {
+			const int w = GetLineWidth(line.text);
+			DrawCardLine(out, line, origin.x + (l.size.width - w) / 2, y, l.line);
+			y += l.stride;
+		}
+	}
+}
+
+/** @brief The item the panel is describing: a container's, a worn or belt one, or one on the ground. */
+const Item *HoveredCardItem()
+{
+	if (const Item *item = HoveredContainerItem(); item != nullptr)
+		return item;
+	if (InspectPlayer != nullptr && pcursinvitem >= 0 && pcursinvitem < INVITEM_INV_FIRST)
+		return &InspectPlayer->InvBody[pcursinvitem];
+	if (InspectPlayer != nullptr && pcursinvitem >= INVITEM_BELT_FIRST && pcursinvitem <= INVITEM_BELT_LAST)
+		return &InspectPlayer->SpdList[pcursinvitem - INVITEM_BELT_FIRST];
+	if (pcursitem >= 0)
+		return &Items[pcursitem];
+	return nullptr;
+}
+
+void GrowTooltipRect(const Rectangle &box)
+{
+	if (PrevTooltipRect.size.width == 0) {
+		PrevTooltipRect = box;
+		return;
+	}
+	const int right = std::max(PrevTooltipRect.position.x + PrevTooltipRect.size.width, box.position.x + box.size.width);
+	const int bottom = std::max(PrevTooltipRect.position.y + PrevTooltipRect.size.height, box.position.y + box.size.height);
+	PrevTooltipRect.position.x = std::min(PrevTooltipRect.position.x, box.position.x);
+	PrevTooltipRect.position.y = std::min(PrevTooltipRect.position.y, box.position.y);
+	PrevTooltipRect.size = { right - PrevTooltipRect.position.x, bottom - PrevTooltipRect.position.y };
+}
+
+/** @brief The hovered item as a card, with its worn counterparts beside it as the panel path does. */
+void DrawCardTooltip(const Surface &out)
+{
+	const TooltipBlock hoveredBlock { std::string(InfoString.str()), InfoStringLineColors, InfoStringLineTailStart, InfoStringLineRuns };
+	const Item *hovered = HoveredCardItem();
+	const Card card = BuildCard(hoveredBlock, hovered);
+	const CardLayout l = MeasureCard(card);
+
+	const int maxX = std::max(0, static_cast<int>(gnScreenWidth) - l.size.width);
+	const int maxY = std::max(0, static_cast<int>(gnScreenHeight) - l.size.height);
+	Point origin { MousePosition.x - l.size.width / 2, MousePosition.y - l.size.height - GapAboveCursor };
+	origin.x = std::clamp(origin.x, 0, maxX);
+	if (origin.y < 0)
+		origin.y = std::min(MousePosition.y + GapAboveCursor, maxY);
+	origin.y = std::clamp(origin.y, 0, maxY);
+	DrawCard(out, card, l, origin);
+	GrowTooltipRect({ origin, l.size });
+
+	const Item *container = HoveredContainerItem();
+	if (container == nullptr || container->isEmpty())
+		return;
+	const Player &player = *InspectPlayer;
+	constexpr int SideGap = 6;
+	int nextRight = origin.x + l.size.width + SideGap;
+	int nextLeft = origin.x - SideGap;
+	for (const inv_body_loc loc : EquippedCounterparts(player, *container)) {
+		if (&player.InvBody[loc] == container)
+			continue;
+		TooltipBlock block = CaptureItemBlock(player.InvBody[loc]);
+		block.text = std::string(_("EQUIPPED ITEM")) + "\n" + block.text;
+		block.colors.insert(block.colors.begin(), UiFlags::ColorOracoolGreen);
+		block.tails.insert(block.tails.begin(), 0);
+		block.runs.insert(block.runs.begin(), {});
+		const Card worn = BuildCard(block, &player.InvBody[loc]);
+		const CardLayout wl = MeasureCard(worn);
+		int cx;
+		if (nextRight + wl.size.width <= static_cast<int>(gnScreenWidth)) {
+			cx = nextRight;
+			nextRight += wl.size.width + SideGap;
+		} else {
+			cx = std::max(0, nextLeft - wl.size.width);
+			nextLeft = cx - SideGap;
+		}
+		const int cy = std::clamp(origin.y, 0, std::max(0, static_cast<int>(gnScreenHeight) - wl.size.height));
+		DrawCard(out, worn, wl, { cx, cy });
+		GrowTooltipRect({ { cx, cy }, wl.size });
+	}
+}
+
 } // namespace
 
 void DrawCursorTooltip(const Surface &out)
@@ -389,6 +885,12 @@ void DrawCursorTooltip(const Surface &out)
 		return;
 
 	const bool asPanel = IsHoveringItem();
+	// The card (2026-09-26), behind its option; the panel below is the look it replaced, untouched, for
+	// the option's OFF - and for an indexed surface, which the card's plate cannot shade.
+	if (asPanel && *sgOptions.Oracool.itemTooltipCard && !out.isIndexed()) {
+		DrawCardTooltip(out);
+		return;
+	}
 	const BlockMetrics m = MeasureBlock(InfoString.str(), asPanel);
 	const Size boxSize = m.boxSize;
 

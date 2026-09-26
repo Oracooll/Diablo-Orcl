@@ -151,6 +151,8 @@
 #include "oracool/stonegate.h"
 #include "oracool/stonegate_menu.h"
 #include "oracool/workshop.h"
+#include "oracool/cursor_tooltip.h" // the item look preview
+#include "utils/png.h"
 #include "quests.h"
 #include "spells.h"
 #include "stores.h"
@@ -14337,4 +14339,185 @@ TEST(OracoolAuditV188, TheWorkshopIsInterface)
 	EXPECT_TRUE(IsOverAnyInterface(point));
 	oracool::ResetWorkshopForNewGame();
 	EXPECT_FALSE(IsOverAnyInterface(point)) << "a closed workshop still takes the click";
+}
+
+// =================================================================================================
+// ITEM LOOK PREVIEW (2026-09-26). Not a test: a render of the rim-and-glow backings and the tooltip card
+// through the game's own code, fonts and sprites, into item_backings_preview.png and
+// item_card_preview.png in the working directory - so the look can be judged without launching the game.
+// Disabled; run it by name: oracool_audit_test --gtest_also_run_disabled_tests --gtest_filter=OracoolPreview.*
+// =================================================================================================
+
+namespace {
+
+/** @brief The first droppable base drawn with @p curs. */
+_item_indexes PreviewIdx(int curs)
+{
+	for (int i = IDI_GOLD + 1; i < IDI_LAST; i++) {
+		if (AllItemsList[i].iCurs == curs && AllItemsList[i].iRnd != IDROP_NEVER)
+			return static_cast<_item_indexes>(i);
+	}
+	return IDI_GOLD;
+}
+
+devilution::Item PreviewBase(_item_indexes idx, uint32_t seed)
+{
+	devilution::Item item {};
+	item._iSeed = seed;
+	SetRndSeed(seed);
+	oracool::StampVendorItemLevel(item, 30);
+	GetItemAttrs(item, idx, 30);
+	item._iCreateInfo = 30;
+	item._iIdentified = true;
+	item._iStatFlag = true;
+	return item;
+}
+
+devilution::Item PreviewMagic(const devilution::Player &player, _item_indexes idx, uint32_t seed, int affixes)
+{
+	devilution::Item item = PreviewBase(idx, seed);
+	std::array<OracoolAffix, 6> rolled {};
+	item_effect_type taken[6] {};
+	int count = 0;
+	for (int i = 0; i < affixes; i++) {
+		if (!RollOracoolAffixFor(player, item, rolled[count], taken, count))
+			break;
+		taken[count] = rolled[count].type;
+		count++;
+	}
+	item._iMagical = ITEM_QUALITY_MAGIC;
+	RebuildOracoolItemWithAffixes(player, item, rolled.data(), count);
+	item._iIdentified = true;
+	item._iStatFlag = true;
+	return item;
+}
+
+/** @brief The town palette into the 32-bit tables, which a headless binary never loads (LoadPalette returns early). */
+void PreviewLoadPalette()
+{
+	std::array<uint8_t, 768> pal {};
+	LoadFileInMem("levels\\towndata\\town.pal", pal);
+	for (int i = 0; i < 256; i++) {
+		logical_palette[i] = SDL_Color { pal[i * 3], pal[i * 3 + 1], pal[i * 3 + 2], 255 };
+		PaletteRGB[i] = (static_cast<uint32_t>(pal[i * 3]) << 16) | (static_cast<uint32_t>(pal[i * 3 + 1]) << 8) | pal[i * 3 + 2];
+	}
+}
+
+void PreviewFloor(const Surface &out)
+{
+	for (int y = 0; y < out.h(); y += 28) {
+		for (int x = 0; x < out.w(); x += 28)
+			oracool::DrawSlotBackground(out, { { x, y }, { 28, 28 } });
+	}
+}
+
+void PreviewSave(const Surface &out, const char *file)
+{
+	ASSERT_EQ(IMG_SavePNG(out.surface, file), 0) << file;
+}
+
+} // namespace
+
+TEST(OracoolPreview, DISABLED_ItemBackingsAndCards)
+{
+	MountTestArchives(true);
+	EnsureCursorSpritesLoaded();
+	PreviewLoadPalette();
+	InitPNG();
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = *MyPlayer;
+	player = {};
+	InspectPlayer = MyPlayer;
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 50;
+	player._pBaseStr = player._pStrength = 200;
+	player._pBaseDex = player._pDexterity = 200;
+	player._pBaseMag = player._pMagic = 200;
+	gbIsHellfire = true;
+	gbIsMultiplayer = false;
+	pcurs = CURSOR_HAND;
+	ASSERT_TRUE(oracool::HasSlotBackgroundArt()) << "the slot art is needed for the floor";
+
+	// Every backing, one of each.
+	std::vector<std::pair<devilution::Item, const char *>> items;
+	items.emplace_back(PreviewBase(PreviewIdx(ICURS_SHORT_BOW), 11), "plain");
+	items.emplace_back(PreviewMagic(player, PreviewIdx(ICURS_LONG_SWORD), 12, 2), "magic");
+	devilution::Item rare = PreviewBase(PreviewIdx(ICURS_BREAST_PLATE), 13);
+	RetierOracoolItem(rare, OracoolItemTier::Rare);
+	items.emplace_back(rare, "rare");
+	devilution::Item buffed = PreviewBase(PreviewIdx(ICURS_KITE_SHIELD), 14);
+	RetierOracoolItem(buffed, OracoolItemTier::BuffedUnique);
+	items.emplace_back(buffed, "buffed unique");
+	devilution::Item primal = PreviewBase(PreviewIdx(ICURS_GREAT_HELM), 15);
+	RetierOracoolItem(primal, OracoolItemTier::Primal);
+	items.emplace_back(primal, "primal");
+	devilution::Item ethereal = PreviewBase(PreviewIdx(ICURS_BASTARD_SWORD), 16);
+	MakeItemEthereal(ethereal);
+	items.emplace_back(ethereal, "ethereal");
+	devilution::Item socketed = PreviewBase(PreviewIdx(ICURS_CHAIN_MAIL), 17);
+	socketed._iSocketCount = 2;
+	items.emplace_back(socketed, "socketed");
+	for (auto &[item, word] : items)
+		item._iStatFlag = true;
+
+	{
+		OwnedSurface out = OwnedSurface::Rgb(28 * 20, 28 * 8);
+		PreviewFloor(out);
+		for (int pass = 0; pass < 2; pass++) {
+			sgOptions.Oracool.itemBackingRimGlow.SetValue(pass == 0);
+			int x = 0;
+			const int y = pass == 0 ? 0 : 28 * 4;
+			for (const auto &[item, word] : items) {
+				const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
+				const Size cells { (sprite.width() + 27) / 28, (sprite.height() + 27) / 28 };
+				const Size size { cells.width * 28, cells.height * 28 };
+				const Point bottomLeft { x, y + size.height - 1 };
+				InvDrawSlotBack(out, bottomLeft, size, item);
+				DrawItem(item, out, { x + (size.width - sprite.width()) / 2, y + size.height - 1 - (size.height - sprite.height()) / 2 }, sprite);
+				x += size.width;
+			}
+		}
+		sgOptions.Oracool.itemBackingRimGlow.SetValue(true);
+		PreviewSave(out, "item_backings_preview.png");
+	}
+
+	// The card: a rare breastplate (with the plain chain mail worn, for the comparison beside it), the
+	// magic sword and the primal helm; and the rare one again as the old panel, underneath.
+	player.InvBody[INVLOC_CHEST] = PreviewBase(PreviewIdx(ICURS_CHAIN_MAIL), 21);
+	{
+		gnScreenWidth = 1400;
+		gnScreenHeight = 820;
+		OwnedSurface out = OwnedSurface::Rgb(1400, 820);
+		PreviewFloor(out);
+		const std::pair<const devilution::Item *, Point> hovers[] = {
+			{ &rare, { 200, 420 } },
+			{ &items[1].first, { 820, 420 } },
+			{ &primal, { 1200, 420 } },
+			{ &rare, { 200, 810 } },
+		};
+		// PrintItemDetails returns at once headless - lowered here as the tooltip sweep lowers it.
+		const bool savedHeadless = HeadlessMode;
+		HeadlessMode = false;
+		for (size_t i = 0; i < std::size(hovers); i++) {
+			sgOptions.Oracool.itemTooltipCard.SetValue(i < 3);
+			player.InvList[0] = *hovers[i].first;
+			player._pNumInv = 1;
+			pcursinvitem = INVITEM_INV_FIRST;
+			pcursitem = -1; // the hover pass resets these every frame; a bare test process holds zero
+			pcursstashitem = StashStruct::EmptyCell;
+			ActiveTabItemHovered = false;
+			ClearPanelStrings();
+			SetPanelString(player.InvList[0].getName(), player.InvList[0].getTextColor());
+			PrintItemDetails(player.InvList[0]);
+			MousePosition = hovers[i].second;
+			oracool::DrawCursorTooltip(out);
+		}
+		HeadlessMode = savedHeadless;
+		sgOptions.Oracool.itemTooltipCard.SetValue(true);
+		pcursinvitem = -1;
+		ClearPanelStrings();
+		PreviewSave(out, "item_card_preview.png");
+	}
+	player = {};
 }

@@ -46,8 +46,8 @@ extern DVL_API_FOR_TEST int8_t pcursinvitem;
 // first, and the test that pins it has to be able to set them.
 extern DVL_API_FOR_TEST int8_t pcursinvtabidx;
 extern DVL_API_FOR_TEST int8_t pcursinvtabitem;
-extern uint16_t pcursstashitem;
-extern int8_t pcursitem;
+extern DVL_API_FOR_TEST uint16_t pcursstashitem;
+extern DVL_API_FOR_TEST int8_t pcursitem;
 
 struct Object; // Defined in objects.h
 extern Object *ObjectUnderCursor;
