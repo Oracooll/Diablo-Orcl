@@ -1260,7 +1260,7 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		} else {
 			CreateAmulet(monster.position.tile, 13, sendmsg, false);
 		}
-	} else if (monster.type().type == MT_NAKRUL) {
+	} else if (monster.type().type == MT_NAKRUL && !oracool::IsRiftGuardian(monster)) { // a rift's Na-Krul drops like any rift guardian
 		int nSFX = IsUberRoomOpened ? USFX_NAKRUL4 : USFX_NAKRUL5;
 		if (sgGameInitInfo.bCowQuest != 0)
 			nSFX = USFX_NAKRUL6;
@@ -1273,6 +1273,12 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		CreateSpellBook(monster.position.tile, SpellID::Apocalypse, sendmsg, false);
 	} else if (!monster.isPlayerMinion()) {
 		SpawnItem(monster, monster.position.tile, sendmsg);
+		// A rift's guardian: a pile of random items, not his quest drop (user, 2026-09-26: "rift guardians/bosses to drop
+		// random items, not the uniques they drop when killed in quest"). SpawnItem skips his special treasure.
+		if (oracool::IsRiftGuardian(monster)) {
+			for (int i = 1; i < oracool::RiftGuardianItemCount(); i++)
+				SpawnItem(monster, monster.position.tile, sendmsg);
+		}
 		// Oracool: a champion is the reason to fight it, which is what D2 and D3 both understood.
 		// A SECOND roll on the same table rather than a better single one - no new item code, just
 		// another ticket in the lottery the fork already runs (Unique, then Primal, then Buffed

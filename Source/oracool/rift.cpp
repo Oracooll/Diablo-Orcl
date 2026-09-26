@@ -583,6 +583,11 @@ void ScaleRiftMonster(Monster &monster)
 	monster.armorClass = static_cast<uint8_t>(std::min(255, monster.armorClass + (pct - 100) / 6));
 }
 
+int RiftGuardianItemCount()
+{
+	return State.kind == RiftKind::Guardian ? 6 : 4;
+}
+
 bool IsRiftGuardian(const Monster &monster)
 {
 	return State.kind != RiftKind::None && State.guardianSpawned && State.guardianId == monster.getId();
@@ -749,7 +754,12 @@ int RiftProgressPercent()
 
 void DrawRiftHud(const Surface &out)
 {
-	if (!InRift())
+	// Wherever the rift is still open, not only inside it (user, 2026-09-26 dev notes: "i want to keep seeing the
+	// nephalem rift and guardian rift fill bars on when in town and same applied to countdown timers", "countdown
+	// timers need to tick while i am in town and i need to be able to see it"). The clocks always ran in town
+	// (ProcessRift is called every tick, before the town branch); only this panel was missing there. A rift that is
+	// over - none open, or a cleared Guardian Rift the hero has walked home from - shows nothing.
+	if (State.kind == RiftKind::None || State.returnedHome)
 		return;
 	// UNDER the mini-map, the map's own width (user, 2026-09-20: "Kill bar and timer panel - put
 	// these under the minimap, not next to it"). It sat to the left of the map for one version, out

@@ -38,6 +38,7 @@
 #include "options.h"
 #include "oracool/hidden_classes.h"
 #include "oracool/necro_items.h"
+#include "oracool/rift.h" // IsRiftGuardian - a rift guardian drops random items, not his quest unique
 #include "oracool/item_tiers.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/sprite_mix.h"
@@ -5530,7 +5531,9 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 	_item_indexes idx;
 	bool onlygood = true;
 
-	bool dropsSpecialTreasure = (monster.data().treasure & T_UNIQ) != 0;
+	// A rift's guardian is the Skeleton King or the Butcher without his quest (2026-09-26 dev note): no Undead Crown, no
+	// Cleaver - the unique monster's random item instead, the better base and the better quality roll.
+	bool dropsSpecialTreasure = (monster.data().treasure & T_UNIQ) != 0 && !oracool::IsRiftGuardian(monster);
 	bool dropBrain = Quests[Q_MUSHROOM]._qactive == QUEST_ACTIVE && Quests[Q_MUSHROOM]._qvar1 == QS_MUSHGIVEN;
 
 	if (dropsSpecialTreasure && !UseMultiplayerQuests()) {
