@@ -97,56 +97,47 @@ struct Rendered {
 
 } // namespace
 
-TEST(OracoolHeroLook, OnlyTheLightBarbarianIsDyed)
+// The hand recolour (RfA-28, 2026-09-26) replaced the light-armour-only band dye: BOTH heroes, EVERY armour tier.
+TEST(OracoolHeroLook, BothBorrowedBodiesAreRecolouredInEveryTierAndTheirOwnersAreNot)
 {
+	for (uint8_t armour = 0; armour < 3; armour++) {
+		const auto gfxnum = static_cast<uint8_t>(armour << 4);
+		EXPECT_NE(oracool::HeroColoursFor(HeroClass::Barbarian, gfxnum), nullptr) << "Barbarian tier " << static_cast<int>(armour);
+		EXPECT_NE(oracool::HeroColoursFor(HeroClass::Necromancer, gfxnum), nullptr) << "Necromancer tier " << static_cast<int>(armour);
+		EXPECT_EQ(oracool::HeroColoursFor(HeroClass::Warrior, gfxnum), nullptr);
+		EXPECT_EQ(oracool::HeroColoursFor(HeroClass::Sorcerer, gfxnum), nullptr);
+	}
 	devilution::Player player = LightBarbarian();
+	player._pgfxnum = 2 << 4; // heavy armour is recoloured now too
 	EXPECT_NE(oracool::HeroDyeTrn(player), nullptr);
-	player._pgfxnum = 1 << 4; // medium armour: not measured, not dyed
-	EXPECT_EQ(oracool::HeroDyeTrn(player), nullptr);
-	player._pgfxnum = 0;
 	player._pClass = HeroClass::Warrior;
 	EXPECT_EQ(oracool::HeroDyeTrn(player), nullptr);
 }
 
-TEST(OracoolHeroLook, TheDyeMapsTheMeasuredRampsAndNothingElse)
+TEST(OracoolHeroLook, TheRecolourLeavesTheOutlineAloneAndFallsBackIntoTheSharedPalette)
 {
-	const devilution::Player player = LightBarbarian();
-	const uint8_t *trn = oracool::HeroDyeTrn(player);
-	ASSERT_NE(trn, nullptr);
-
-	// Mail 240-255 -> trousers 184-191, two greys a blue, light to dark in step.
-	for (int i = 240; i < 256; i++) {
-		EXPECT_EQ(trn[i], 184 + (i - 240) / 2) << "mail index " << i;
+	for (const HeroClass hero : { HeroClass::Barbarian, HeroClass::Necromancer }) {
+		for (uint8_t armour = 0; armour < 3; armour++) {
+			const std::shared_ptr<const oracool::SpriteColours> colours = oracool::HeroColoursFor(hero, static_cast<uint8_t>(armour << 4));
+			ASSERT_NE(colours, nullptr);
+			EXPECT_FALSE(colours->HasOwn(0)) << "the outline and the shadow keep index 0";
+			int own = 0;
+			for (int i = 0; i < 256; i++) {
+				if (!colours->HasOwn(static_cast<uint8_t>(i)))
+					continue;
+				own++;
+				// An 8-bit target draws the nearest entry of the palette's shared half, the same on every level.
+				EXPECT_GE(colours->Fallback(static_cast<uint8_t>(i)), 128) << "index " << i;
+			}
+			EXPECT_GT(own, 50) << "a recolour that touches almost nothing";
+		}
 	}
-	// Boots 216-223 and gloves 168-175, one to one.
-	for (int i = 0; i < 8; i++) {
-		EXPECT_EQ(trn[216 + i], 184 + i) << "boot index " << 216 + i;
-		EXPECT_EQ(trn[168 + i], 184 + i) << "glove index " << 168 + i;
-	}
-	// Hair to visible greys; the face beside it untouched.
-	EXPECT_EQ(trn[206], 247);
-	EXPECT_EQ(trn[207], 250);
-	for (int i = 200; i <= 205; i++)
-		EXPECT_EQ(trn[i], i) << "skin index " << i;
-	// The trousers are the target, not a source.
-	for (int i = 184; i <= 191; i++)
-		EXPECT_EQ(trn[i], i) << "trouser index " << i;
-	// Everything outside the five ramps is identity - the weapon colours among them.
-	for (int i = 0; i < 168; i++)
-		EXPECT_EQ(trn[i], i) << "index " << i;
-	for (int i = 176; i < 184; i++)
-		EXPECT_EQ(trn[i], i) << "index " << i;
-	for (int i = 192; i < 200; i++)
-		EXPECT_EQ(trn[i], i) << "index " << i;
-	for (int i = 208; i < 216; i++)
-		EXPECT_EQ(trn[i], i) << "index " << i;
-	for (int i = 224; i < 240; i++)
-		EXPECT_EQ(trn[i], i) << "index " << i;
 }
 
-TEST(OracoolHeroLook, TheBarbarianIsAFifthLargerAndNobodyElseIs)
+TEST(OracoolHeroLook, EveryClassIsDrawnAtItsOwnSize)
 {
-	EXPECT_EQ(oracool::SpriteScalePercent(HeroClass::Barbarian), 120);
+	// The Barbarian's 20% was dropped on 2026-09-26 (user).
+	EXPECT_EQ(oracool::SpriteScalePercent(HeroClass::Barbarian), 100);
 	EXPECT_EQ(oracool::SpriteScalePercent(HeroClass::Warrior), 100);
 	EXPECT_EQ(oracool::SpriteScalePercent(HeroClass::Rogue), 100);
 }
@@ -253,37 +244,17 @@ TEST(OracoolHeroLook, AnOwnColourIsItselfInFullLightAndDarkensWithItsFallback)
 	EXPECT_EQ(colours.Table(0)[11], 0x123456U);
 }
 
-TEST(OracoolHeroLook, TheBarbariansMailIsSixteenBluesNotEightDoubled)
+// The brief's colours, read back from what the hand painted: the Warrior's reds (his gloves and tabard, the ramp
+// 224-239) are the Barbarian's blue in every tier, and the Sorcerer's red robe is the Necromancer's grave green.
+TEST(OracoolHeroLook, TheBarbarianWearsBlueAndTheNecromancerGreen)
 {
-	const devilution::Player player = LightBarbarian();
-	const std::shared_ptr<const oracool::SpriteColours> colours = oracool::HeroColours(player);
-	ASSERT_NE(colours, nullptr);
-	const uint8_t *dye = oracool::HeroDyeTrn(player);
-
-	uint32_t previous = 0xFFFFFFFF;
-	for (int i = 240; i < 256; i++) {
-		ASSERT_TRUE(colours->HasOwn(static_cast<uint8_t>(i)));
-		const uint32_t blue = colours->Own(static_cast<uint8_t>(i));
-		EXPECT_NE(blue, previous) << "mail index " << i << " repeats its neighbour";
-		EXPECT_GT(blue & 0xFF, (blue >> 16) & 0xFF) << "mail index " << i << " is not blue";
-		EXPECT_EQ(colours->Fallback(static_cast<uint8_t>(i)), dye[i]) << "the index dye is the fallback";
-		previous = blue;
+	for (uint8_t armour = 0; armour < 3; armour++) {
+		const uint32_t barb = oracool::HeroColoursFor(HeroClass::Barbarian, static_cast<uint8_t>(armour << 4))->Own(232);
+		EXPECT_GT(barb & 0xFF, (barb >> 16) & 0xFF) << "Barbarian tier " << static_cast<int>(armour) << " red is not blue";
+		const uint32_t robe = oracool::HeroColoursFor(HeroClass::Necromancer, static_cast<uint8_t>(armour << 4))->Own(232);
+		EXPECT_GT(((robe >> 8) & 0xFF), (robe >> 16) & 0xFF) << "Necromancer tier " << static_cast<int>(armour) << " robe is not green";
+		EXPECT_GT(((robe >> 8) & 0xFF), robe & 0xFF);
 	}
-	EXPECT_EQ(colours->Own(240), 0x4E587DU) << "the lightest mail is the lightest trouser blue";
-	EXPECT_EQ(colours->Own(255), 0x05070CU) << "and the darkest the darkest";
-	// Boots and gloves are the trousers exactly; hair is a silver; the face and the trousers are left alone.
-	EXPECT_EQ(colours->Own(216), 0x4E587DU);
-	EXPECT_EQ(colours->Own(175), 0x05070CU);
-	EXPECT_TRUE(colours->HasOwn(206));
-	EXPECT_TRUE(colours->HasOwn(207));
-	for (int i = 184; i <= 191; i++)
-		EXPECT_FALSE(colours->HasOwn(static_cast<uint8_t>(i)));
-	for (int i = 200; i <= 205; i++)
-		EXPECT_FALSE(colours->HasOwn(static_cast<uint8_t>(i)));
-
-	devilution::Player warrior = LightBarbarian();
-	warrior._pClass = HeroClass::Warrior;
-	EXPECT_EQ(oracool::HeroColours(warrior), nullptr);
 }
 
 TEST(OracoolHeroLook, DrawingThroughColoursWritesValuesOn32BitAndFallbacksOn8Bit)
@@ -428,28 +399,6 @@ TEST(OracoolNecromancer, HeIsASeventhClassOnTheSorcerersBody)
 	EXPECT_EQ(CharChar[static_cast<size_t>(HeroClass::Necromancer)], CharChar[static_cast<size_t>(HeroClass::Sorcerer)]);
 }
 
-TEST(OracoolNecromancer, HeIsDyedInEveryArmourTierAndTheSorcererIsNot)
-{
-	for (uint8_t armour = 0; armour < 3; armour++) {
-		const auto gfxnum = static_cast<uint8_t>((armour << 4) | static_cast<uint8_t>(PlayerWeaponGraphic::Staff));
-		const std::shared_ptr<const oracool::SpriteColours> colours = oracool::HeroColoursFor(HeroClass::Necromancer, gfxnum);
-		ASSERT_NE(colours, nullptr) << "armour tier " << static_cast<int>(armour);
-		// The robe (one ramp of sixteen), the pure reds, the skin, the dark tan of his face and the leather have colours of their own...
-		for (const int index : { 224, 239, 136, 143, 160, 175, 204, 207, 208, 223 })
-			EXPECT_TRUE(colours->HasOwn(static_cast<uint8_t>(index))) << index;
-		// ...and each falls back to ITSELF, so an indexed target draws the plain Sorcerer rather than a wrong ramp.
-		EXPECT_EQ(colours->Fallback(232), 232);
-		// The greys, the blues and the body of the tan are left alone.
-		for (const int index : { 200, 203, 240, 255, 184, 128 })
-			EXPECT_FALSE(colours->HasOwn(static_cast<uint8_t>(index))) << index;
-		EXPECT_EQ(oracool::HeroColoursFor(HeroClass::Sorcerer, gfxnum), nullptr);
-	}
-	// The robe is darker than the red it replaces and leans green - the colour the palette does not have.
-	const uint32_t robe = oracool::HeroColoursFor(HeroClass::Necromancer, 0)->Own(232);
-	EXPECT_GT((robe >> 8) & 0xFF, (robe >> 16) & 0xFF);
-	EXPECT_GT((robe >> 8) & 0xFF, robe & 0xFF);
-}
-
 TEST(OracoolNecromancer, HisSheetsNeverShareACacheEntryWithTheSorcerers)
 {
 	const oracool::PlayerSheetRequest his = oracool::MakePlayerSheetRequest(HeroClass::Necromancer, HeroClass::Sorcerer,
@@ -457,7 +406,10 @@ TEST(OracoolNecromancer, HisSheetsNeverShareACacheEntryWithTheSorcerers)
 	const oracool::PlayerSheetRequest sorcerers = oracool::MakePlayerSheetRequest(HeroClass::Sorcerer, HeroClass::Sorcerer,
 	    static_cast<uint8_t>(PlayerWeaponGraphic::Staff), 0, "as", 96);
 	EXPECT_NE(his.Key(), sorcerers.Key());
-	EXPECT_EQ(oracool::HeroDyeId(HeroClass::Necromancer, 0), 2);
-	EXPECT_EQ(oracool::HeroDyeId(HeroClass::Barbarian, 0), 1);
+	// One id per hero and armour tier, since each tier has its own recolour (RfA-28).
+	for (uint8_t armour = 0; armour < 3; armour++) {
+		EXPECT_EQ(oracool::HeroDyeId(HeroClass::Barbarian, static_cast<uint8_t>(armour << 4)), 1 + armour);
+		EXPECT_EQ(oracool::HeroDyeId(HeroClass::Necromancer, static_cast<uint8_t>(armour << 4)), 4 + armour);
+	}
 	EXPECT_EQ(oracool::HeroDyeId(HeroClass::Sorcerer, 0), 0);
 }

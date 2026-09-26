@@ -477,16 +477,24 @@ TEST(OracoolSkillAssets, EveryRegisteredMissileSheetIsInTheArchives)
 	MountArchivesOnce();
 	if (!HaveDiabdat())
 		GTEST_SKIP() << "needs the player's own archives for the vanilla sheets";
-	const bool haveHellfire = AssetExists("nlevels\l5data\l5.cel");
+	const bool haveHellfire = AssetExists("nlevels\\l5data\\l5.cel");
 	std::vector<std::string> missing;
 	int checked = 0;
+	int awaiting = 0;
 	for (int g = 0; g < static_cast<int>(MissileGraphicID::None); g++) {
 		const Verdict verdict = CheckMissileGraphic(static_cast<MissileGraphicID>(g), haveHellfire);
 		checked++;
+		// RfA-27's 90 effect sheets were rejected and are awaiting redelivery (2026-09-26): registered and wired, drawn
+		// only once their art arrives. Not missing - awaited. Once delivered they are checked like every other row.
+		if (verdict.missing && IsAwaitingRedeliveryArt(static_cast<MissileGraphicID>(g))) {
+			awaiting++;
+			continue;
+		}
 		if (verdict.missing)
 			missing.push_back(std::to_string(g) + ": " + verdict.text);
 	}
 	EXPECT_GT(checked, 100) << "the missile table looks empty";
+	RecordProperty("awaiting_redelivery", awaiting);
 	std::string list;
 	for (const std::string &m : missing)
 		list += "\n  " + m;

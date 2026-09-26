@@ -5,6 +5,7 @@
  */
 #include "missiles.h"
 
+#include <algorithm>
 #include <climits>
 #include <cmath>
 #include <cstdint>
@@ -3619,6 +3620,103 @@ MissileGraphicID CensusArtOverride = MissileGraphicID::None;
 /** @brief AddArtEffect's carrier: a census row that loops its sheet for the ticks it is given and does nothing else. */
 constexpr MissileID ArtEffectCarrier = MissileID::AcidCloud;
 
+/** @brief AddArtBolt's carrier: the javelin's row, which flies to its tile and ends there (AddAcidJavelin). */
+constexpr MissileID ArtBoltCarrier = MissileID::AcidJavelin;
+
+/** @brief AddArtBolt's speed for the one AddMissile call it makes; 0 the rest of the time (the javelin's own 32). */
+int ArtBoltSpeed = 0;
+
+/**
+ * @brief Where an RfA-27 sheet meets its tile, as a still missile's offset - the delivery's draw anchors (batches
+ * 52-57 notes.txt), by AddWarcryRing's rule: (cell height - anchor y) - 16. The strike flashes and the arc's spark
+ * anchor on the struck body's centre, lifted 32px off the floor. Every other sheet, and every flying one, is {0, 0}.
+ */
+Displacement ArtEffectAnchor(MissileGraphicID art)
+{
+	switch (art) {
+	case MissileGraphicID::ArcSpark:
+		return { 0, -16 };
+	case MissileGraphicID::EmberMine:
+		return { 0, -8 };
+	case MissileGraphicID::StaticCharge:
+	case MissileGraphicID::Conduit:
+	case MissileGraphicID::Immolate:
+	case MissileGraphicID::MantraOfClarity:
+	case MissileGraphicID::MantraOfEvasion:
+	case MissileGraphicID::MantraOfRetribution:
+	case MissileGraphicID::AstralProjection:
+	case MissileGraphicID::PoisonDagger:
+	case MissileGraphicID::FrenzyOfTheDead:
+	case MissileGraphicID::Serenity:
+	case MissileGraphicID::DarkMending:
+	case MissileGraphicID::UnholyOffering:
+		return { 0, -4 }; // feet at y 116 of 128 (84 of 96)
+	case MissileGraphicID::StormArc:
+	case MissileGraphicID::FuneralStarCharge:
+		return { 0, -1 }; // y 49 of 64
+	case MissileGraphicID::LightningRodBurst:
+	case MissileGraphicID::FaradayRing:
+	case MissileGraphicID::LightningRod:
+	case MissileGraphicID::StormConductor:
+	case MissileGraphicID::ShadowStep:
+	case MissileGraphicID::VaultDust:
+	case MissileGraphicID::LeapingCrane:
+	case MissileGraphicID::ShoulderGate:
+	case MissileGraphicID::GatherTheDead:
+		return { 0, 6 }; // y 74 of 96
+	case MissileGraphicID::GroundStomp:
+	case MissileGraphicID::MountainPole:
+	case MissileGraphicID::FlameRing:
+	case MissileGraphicID::AbsoluteZero:
+	case MissileGraphicID::BlindingFlash:
+	case MissileGraphicID::DeathNova:
+	case MissileGraphicID::EmberBurst:
+	case MissileGraphicID::AshenBurst:
+	case MissileGraphicID::ExplodingPalmBurst:
+	case MissileGraphicID::ValkyrieBurst:
+	case MissileGraphicID::RainOfArrows:
+	case MissileGraphicID::ArmyOfTheDead:
+	case MissileGraphicID::HeavensDescent:
+	case MissileGraphicID::BonePrison:
+	case MissileGraphicID::FuneralStarBurst:
+	case MissileGraphicID::AncestralCourt:
+	case MissileGraphicID::Earthquake:
+		return { 0, 13 }; // floor point y 99 of 128
+	case MissileGraphicID::WaveOfLight:
+		return { 0, 20 }; // y 124 of 160
+	case MissileGraphicID::WrathPillar:
+		return { 0, 27 }; // y 149 of 192
+	case MissileGraphicID::HammerOfTheAncients:
+	case MissileGraphicID::CleaveArc:
+	case MissileGraphicID::BackhandArc:
+	case MissileGraphicID::AegisSlam:
+	case MissileGraphicID::SweepArc:
+	case MissileGraphicID::LowBranch:
+	case MissileGraphicID::RearwardReach:
+	case MissileGraphicID::TurningPike:
+	case MissileGraphicID::CrusadeSweep:
+	case MissileGraphicID::DragonTailSweep:
+	case MissileGraphicID::WhirlingKick:
+		return { 0, 48 }; // the feet at the cell's centre, y 64 of 128
+	case MissileGraphicID::HolyLance:
+	case MissileGraphicID::LongThrust:
+	case MissileGraphicID::ReapingPoint:
+	case MissileGraphicID::ChillTouch:
+	case MissileGraphicID::FurnaceMouth:
+		return { 0, 80 }; // the feet at the cell's centre, y 96 of 192
+	default:
+		return { 0, 0 };
+	}
+}
+
+/** @brief The RfA-27 sheets that lie flat on the floor, drawn under whoever stands in them (_miPreFlag). */
+bool ArtEffectOnFloor(MissileGraphicID art)
+{
+	return IsAnyOf(art, MissileGraphicID::GroundStomp, MissileGraphicID::MountainPole, MissileGraphicID::FlameRing,
+	    MissileGraphicID::AbsoluteZero, MissileGraphicID::DeathNova, MissileGraphicID::Earthquake, MissileGraphicID::FaradayRing,
+	    MissileGraphicID::StormArc, MissileGraphicID::EmberMine);
+}
+
 } // namespace
 
 /**
@@ -3657,8 +3755,50 @@ Missile *AddArtEffect(Point tile, MissileGraphicID art, int playerId, int ticks)
 	CensusArtOverride = MissileGraphicID::None;
 	if (effect == nullptr || effect->_miDelFlag)
 		return nullptr;
-	effect->position.offset = { 0, 0 }; // the carrier's own anchor is the acid cloud's; the caller sets this sheet's
+	// The carrier's own anchor is the acid cloud's. An RfA-27 sheet takes its delivery anchor (and a flat one lies on the
+	// floor); every other sheet is {0, 0} and its caller sets what it needs.
+	effect->position.offset = ArtEffectAnchor(art);
+	effect->_miPreFlag = ArtEffectOnFloor(art);
 	return effect;
+}
+
+Missile *AddArtEffectFacing(Point tile, MissileGraphicID art, int playerId, int dir16, int ticks)
+{
+	Missile *effect = AddArtEffect(tile, art, playerId, ticks);
+	if (effect != nullptr)
+		SetMissDir(*effect, std::clamp(dir16, 0, 15)); // the row; the length and the delay are every row's
+	return effect;
+}
+
+void ArtEffectFollowsItsCaster(Missile &effect)
+{
+	effect.var1 = ArtEffectFollowsCaster;
+}
+
+void EndArtEffects(Point tile, MissileGraphicID art, int playerId)
+{
+	for (Missile &missile : Missiles) {
+		if (missile._mitype == ArtEffectCarrier && missile._miAnimType == art && missile._misource == playerId
+		    && missile.position.tile == tile)
+			missile._miDelFlag = true;
+	}
+}
+
+Missile *AddArtBolt(Point from, Point to, MissileGraphicID art, int playerId, int speed, MissileGraphicID arrivalArt, oracool::ClassTreeSkill impactSkill)
+{
+	if (!MissileArtLoaded(art) || !InDungeonBounds(from) || !InDungeonBounds(to))
+		return nullptr;
+	CensusArtOverride = art;
+	ArtBoltSpeed = std::max(speed, 1);
+	Missile *bolt = AddMissile(from, to, from == to ? Direction::South : GetDirection(from, to), ArtBoltCarrier, TARGET_MONSTERS, playerId, 0, 0);
+	CensusArtOverride = MissileGraphicID::None;
+	ArtBoltSpeed = 0;
+	if (bolt == nullptr || bolt->_miDelFlag)
+		return nullptr;
+	// What it leaves where it lands (var4) and the cue it lands with (var3); both 0, nothing, for the javelin's own flights.
+	bolt->var4 = arrivalArt < MissileGraphicID::None ? static_cast<int>(arrivalArt) + 1 : 0;
+	bolt->var3 = impactSkill != oracool::ClassTreeSkill::None ? static_cast<int>(impactSkill) + 1 : 0;
+	return bolt;
 }
 
 void AddColdHitFlash(Point tile, int playerId)
@@ -3708,6 +3848,9 @@ void AddAcidJavelin(Missile &missile, AddMissileParameter &parameter)
 {
 	// The missile's OWN sheet: the Necromancer's three bolts fly this way too, and asked for the javelin's until
 	// 2026-09-26 - so a build without acid_javelin.png lost all three, with sheets of their own in the archive.
+	// AddArtBolt's sheet (RfA-27) rides this row the way AddArtEffect's rides the cloud's.
+	if (CensusArtOverride != MissileGraphicID::None)
+		SetMissAnim(missile, CensusArtOverride);
 	if (!MissileArtLoaded(missile._miAnimType)) {
 		missile._miDelFlag = true;
 		return;
@@ -3715,13 +3858,29 @@ void AddAcidJavelin(Missile &missile, AddMissileParameter &parameter)
 	Point dst = parameter.dst;
 	if (missile.position.start == dst)
 		dst += parameter.midir;
-	UpdateMissileVelocity(missile, dst, 32);
+	const int speed = ArtBoltSpeed > 0 ? ArtBoltSpeed : 32;
+	UpdateMissileVelocity(missile, dst, speed);
 	SetMissDir(missile, GetDirection16(missile.position.start, dst));
 	missile.var1 = dst.x;
 	missile.var2 = dst.y;
-	// Arrow speed covers a tile in a tick or two; the destination check below normally ends it first.
-	missile._mirange = 2 * missile.position.start.WalkingDistance(dst) + 4;
+	// Arrow speed covers a tile in a tick or two; the destination check below normally ends it first. A slower
+	// AddArtBolt (a rolling wave) gets the ticks its speed needs, in the same proportion.
+	missile._mirange = std::max(64 / speed, 2) * missile.position.start.WalkingDistance(dst) + 4;
 }
+
+namespace {
+
+/** @brief AddArtBolt's landing: the sheet it leaves (var4) and the cue it lands with (var3). Nothing for the javelin's own. */
+void ArtBoltLands(const Missile &missile)
+{
+	const Point dst { missile.var1, missile.var2 };
+	if (missile.var4 > 0 && missile.var4 <= static_cast<int>(MissileGraphicID::None))
+		AddArtEffect(dst, static_cast<MissileGraphicID>(missile.var4 - 1), missile._misource);
+	if (missile.var3 > 0)
+		oracool::PlaySkillSound(static_cast<oracool::ClassTreeSkill>(missile.var3 - 1), oracool::SkillSoundEvent::Impact);
+}
+
+} // namespace
 
 void ProcessAcidJavelin(Missile &missile)
 {
@@ -3729,6 +3888,7 @@ void ProcessAcidJavelin(Missile &missile)
 	MoveMissile(missile, [](Point) { return true; }); // nothing stops it: the blow has already landed
 	if (missile._mirange <= 0 || missile.position.tile == Point { missile.var1, missile.var2 }) {
 		missile._miDelFlag = true;
+		ArtBoltLands(missile);
 		return;
 	}
 	PutMissile(missile);

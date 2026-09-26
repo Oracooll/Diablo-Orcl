@@ -612,6 +612,11 @@ void BleedMonster(const Monster &monster, int ticks, int perSecond)
 	marks.bleedDamage = std::max(marks.bleedDamage, perSecond);
 }
 
+bool MonsterBleeding(const Monster &monster)
+{
+	return MarksOf(monster).bleedTicks > 0 && (monster.hitPoints >> 6) > 0;
+}
+
 void BlockMonsterRegen(const Monster &monster, int ticks)
 {
 	MonsterMarks &marks = MarksOf(monster);

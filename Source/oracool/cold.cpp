@@ -356,7 +356,7 @@ int ColdArmourShellFrame(const Player &player)
 		return -1;
 	// Eight frames at ten a second: the "slow shimmer" the brief asks for, and it loops seamlessly
 	// because the sheet was drawn to.
-	return GetAnimationFrame(8, 10);
+	return GetAnimationFrame(8, 100); // the argument is MILLISECONDS a frame, despite its name: 100 = ten a second (was 10, a 100 fps blur)
 }
 
 const char *ColdSpellDescription(SpellID spell)

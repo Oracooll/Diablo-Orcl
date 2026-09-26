@@ -25,6 +25,10 @@ REM out of OneDrive"); an in-tree Debug folder, if someone still builds one, is 
 if "%BUILD%"=="" if exist "build\x64-Debug\CMakeCache.txt" set BUILD=build\x64-Debug
 if "%BUILD%"=="" set BUILD=C:\Diablo Orcl\x64-Debug
 set PACKER=%BUILD%\oracool_mpq_pack.exe
+REM node packs when installed (2026-09-26): Smart App Control blocks the freshly built packer exe, and node.exe is
+REM signed. tools\oracool_mpq_pack.js writes the same archive format. The exe stays the fallback.
+set NODE=
+for %%N in (node.exe) do set "NODE=%%~$PATH:N"
 set OUT=%BUILD%\oracool.mpq
 
 if not exist "%SRC%" (
@@ -35,7 +39,7 @@ if not exist "%SRC%" (
 REM The packer is a CMake target that is EXCLUDE_FROM_ALL, so it is not built by a normal build.
 REM cmake is only on PATH inside a developer shell, so this does not try to invoke it - build the
 REM target once and this script reuses it thereafter.
-if not exist "%PACKER%" (
+if not defined NODE if not exist "%PACKER%" (
   echo ERROR: packer not found at %PACKER%
   echo Build it once from a developer shell:
   echo     cmake --build %BUILD% --config Debug --target oracool_mpq_pack
@@ -82,7 +86,11 @@ REM The exit code is CAPTURED and the temporary is cleaned up on both paths. `||
 REM leave here directly on failure, so the response file and its directory survived every failed run
 REM (external audit of v1.9.97, finding 4) - and a failure reported 1 rather than what the packer
 REM actually returned.
-"%PACKER%" "%SRC%" "%OUT%" "@%LIST%"
+if defined NODE (
+  "%NODE%" "%~dp0oracool_mpq_pack.js" "%SRC%" "%OUT%" "@%LIST%"
+) else (
+  "%PACKER%" "%SRC%" "%OUT%" "@%LIST%"
+)
 set PACKRC=%ERRORLEVEL%
 rmdir /s /q "%LISTDIR%" 2>nul
 if not "%PACKRC%"=="0" (

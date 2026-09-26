@@ -23,6 +23,7 @@
 #include "oracool/curses.h"
 #include "oracool/minions.h"
 #include "oracool/passives.h"
+#include "oracool/skill_sounds.h"
 #include "player.h"
 #include "utils/language.h"
 
@@ -288,6 +289,11 @@ void HeroStrikes(Player &player, Monster &monster, DamageType type, int damage)
 void ArmyPulse(Player &player, OwnerState &state)
 {
 	const int rank = state.armyRank;
+	// RfA-27: the dead erupting and sinking back (batch 55), and the cue of their tearing (batch 51) - each of the six
+	// pulses, the local player's own. Neither is anything while it is missing.
+	AddArtEffect(state.armyTile, MissileGraphicID::ArmyOfTheDead, static_cast<int>(player.getId()));
+	if (&player == MyPlayer)
+		PlaySkillSound(ClassTreeSkill::ArmyOfTheDead, SkillSoundEvent::Impact);
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		Monster &monster = Monsters[ActiveMonsters[i]];
 		if (monster.position.tile.WalkingDistance(state.armyTile) > ArmyRadius)

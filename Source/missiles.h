@@ -19,6 +19,10 @@
 
 namespace devilution {
 
+namespace oracool {
+enum class ClassTreeSkill : uint16_t; // oracool/class_tree.h - AddArtBolt's impact cue
+} // namespace oracool
+
 constexpr WorldTilePosition GolemHoldingCell = Point { 1, 0 };
 
 struct MissilePosition {
@@ -482,6 +486,28 @@ void UseMissileGraphic(Missile &missile, MissileGraphicID graphic);
  * in the archive. The caller sets what differs: the offset, _miPreFlag for a floor patch, a held frame.
  */
 Missile *AddArtEffect(Point tile, MissileGraphicID art, int playerId, int ticks = 0);
+/**
+ * @brief Oracool (2026-09-26, RfA-27): AddArtEffect for a sixteen-facing sheet, turned to @p dir16 (Direction16 order,
+ * South clockwise - the sheets' own row order). Null, spawning nothing, while @p art is not in the archive.
+ */
+Missile *AddArtEffectFacing(Point tile, MissileGraphicID art, int playerId, int dir16, int ticks = 0);
+/** @brief Oracool (RfA-27): an AddArtEffect sheet that keeps to its caster's tile while it plays (a body overlay, a leap's dust). */
+void ArtEffectFollowsItsCaster(Missile &effect);
+/**
+ * @brief Oracool (RfA-27): ends every AddArtEffect sheet of @p art standing on @p tile for @p playerId - a field's loop
+ * whose field ended early (the rod that burst, the mine that went off, the star she walked away from).
+ */
+void EndArtEffects(Point tile, MissileGraphicID art, int playerId);
+/**
+ * @brief Oracool (2026-09-26, RfA-27): a sheet with no MissileID of its own FLYING from @p from to @p to at @p speed
+ * screen pixels a tick - the bow skills' arrows, the thrown spears, the travelling waves. Drawn only; nothing stops
+ * it, because the blow it pictures has already been dealt. It rides the javelin's row (AcidJavelin) and faces its
+ * flight by sixteenths. On arrival it may leave @p arrivalArt standing there (AddArtEffect) and play @p impactSkill's
+ * Impact cue - the local player's own, so a caller passes None for anyone else. Null, spawning nothing, while @p art
+ * is not in the archive: the caller then plays its impact at once.
+ */
+Missile *AddArtBolt(Point from, Point to, MissileGraphicID art, int playerId, int speed = 32,
+    MissileGraphicID arrivalArt = MissileGraphicID::None, oracool::ClassTreeSkill impactSkill = static_cast<oracool::ClassTreeSkill>(0xFFFF));
 /**
  * @brief Oracool (2026-09-26): hit_cold.png's flash over @p tile, where a cold hit with no impact art of its own
  * landed. A picture only - WeaponExplosion's cold branch, which rolls no damage. Nothing while the sheet is missing.

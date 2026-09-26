@@ -3,3 +3,226 @@ paladin.hammer-of-faith.cast,paladin,combat-skills,Hammer of Faith,attack,cast,s
 paladin.hammer-of-faith.impact,paladin,combat-skills,Hammer of Faith,attack,impact,sounds/paladin/combat-skills/hammer-of-faith-impact.wav,0.58,-3,,False
 paladin.blessed-shield.cast,paladin,combat-skills,Blessed Shield,attack,cast,sounds/paladin/combat-skills/blessed-shield-cast.wav,0.40,-3,,False
 paladin.blessed-shield.impact,paladin,combat-skills,Blessed Shield,attack,impact,sounds/paladin/combat-skills/blessed-shield-impact.wav,0.62,-3,,False
+paladin.valor.start,paladin,offensive-auras,Valor,aura,start,sounds/paladin/offensive-auras/valor-start.wav,1.149977,-1.500,-11.254,False
+paladin.valor.loop,paladin,offensive-auras,Valor,aura,loop,sounds/paladin/offensive-auras/valor-loop.wav,2.000000,-1.500,-7.836,True
+paladin.valor.stop,paladin,offensive-auras,Valor,aura,stop,sounds/paladin/offensive-auras/valor-stop.wav,0.649977,-1.500,-10.680,False
+paladin.radiance.start,paladin,offensive-auras,Radiance,aura,start,sounds/paladin/offensive-auras/radiance-start.wav,1.149977,-1.500,-11.655,False
+paladin.radiance.loop,paladin,offensive-auras,Radiance,aura,loop,sounds/paladin/offensive-auras/radiance-loop.wav,2.000000,-1.500,-9.605,True
+paladin.radiance.stop,paladin,offensive-auras,Radiance,aura,stop,sounds/paladin/offensive-auras/radiance-stop.wav,0.649977,-1.500,-12.117,False
+paladin.bane-of-evil.start,paladin,offensive-auras,Bane of Evil,aura,start,sounds/paladin/offensive-auras/bane-of-evil-start.wav,1.149977,-1.500,-11.158,False
+paladin.bane-of-evil.loop,paladin,offensive-auras,Bane of Evil,aura,loop,sounds/paladin/offensive-auras/bane-of-evil-loop.wav,2.000000,-1.500,-8.035,True
+paladin.bane-of-evil.stop,paladin,offensive-auras,Bane of Evil,aura,stop,sounds/paladin/offensive-auras/bane-of-evil-stop.wav,0.649977,-1.500,-10.907,False
+paladin.condemnation.start,paladin,offensive-auras,Condemnation,aura,start,sounds/paladin/offensive-auras/condemnation-start.wav,1.149977,-1.500,-11.182,False
+paladin.condemnation.loop,paladin,offensive-auras,Condemnation,aura,loop,sounds/paladin/offensive-auras/condemnation-loop.wav,2.000000,-1.500,-8.183,True
+paladin.condemnation.stop,paladin,offensive-auras,Condemnation,aura,stop,sounds/paladin/offensive-auras/condemnation-stop.wav,0.649977,-1.500,-8.611,False
+paladin.tithe-of-ash.start,paladin,offensive-auras,Tithe of Ash,aura,start,sounds/paladin/offensive-auras/tithe-of-ash-start.wav,1.149977,-1.500,-10.947,False
+paladin.tithe-of-ash.loop,paladin,offensive-auras,Tithe of Ash,aura,loop,sounds/paladin/offensive-auras/tithe-of-ash-loop.wav,2.000000,-1.500,-8.498,True
+paladin.tithe-of-ash.stop,paladin,offensive-auras,Tithe of Ash,aura,stop,sounds/paladin/offensive-auras/tithe-of-ash-stop.wav,0.649977,-1.500,-10.914,False
+paladin.retaliation.start,paladin,offensive-auras,Retaliation,aura,start,sounds/paladin/offensive-auras/retaliation-start.wav,1.149977,-1.500,-10.820,False
+paladin.retaliation.loop,paladin,offensive-auras,Retaliation,aura,loop,sounds/paladin/offensive-auras/retaliation-loop.wav,2.000000,-1.500,-8.171,True
+paladin.retaliation.stop,paladin,offensive-auras,Retaliation,aura,stop,sounds/paladin/offensive-auras/retaliation-stop.wav,0.649977,-1.500,-10.979,False
+paladin.doom-procession.start,paladin,offensive-auras,Doom Procession,aura,start,sounds/paladin/offensive-auras/doom-procession-start.wav,1.149977,-1.500,-12.208,False
+paladin.doom-procession.loop,paladin,offensive-auras,Doom Procession,aura,loop,sounds/paladin/offensive-auras/doom-procession-loop.wav,2.000000,-1.500,-8.763,True
+paladin.doom-procession.stop,paladin,offensive-auras,Doom Procession,aura,stop,sounds/paladin/offensive-auras/doom-procession-stop.wav,0.649977,-1.500,-8.713,False
+paladin.dominion.start,paladin,offensive-auras,Dominion,aura,start,sounds/paladin/offensive-auras/dominion-start.wav,1.149977,-1.500,-11.318,False
+paladin.dominion.loop,paladin,offensive-auras,Dominion,aura,loop,sounds/paladin/offensive-auras/dominion-loop.wav,2.000000,-1.500,-7.934,True
+paladin.dominion.stop,paladin,offensive-auras,Dominion,aura,stop,sounds/paladin/offensive-auras/dominion-stop.wav,0.649977,-1.500,-10.573,False
+paladin.steadfast.start,paladin,defensive-auras,Steadfast,aura,start,sounds/paladin/defensive-auras/steadfast-start.wav,1.149977,-1.500,-10.812,False
+paladin.steadfast.loop,paladin,defensive-auras,Steadfast,aura,loop,sounds/paladin/defensive-auras/steadfast-loop.wav,2.000000,-1.500,-7.007,True
+paladin.steadfast.stop,paladin,defensive-auras,Steadfast,aura,stop,sounds/paladin/defensive-auras/steadfast-stop.wav,0.649977,-1.500,-9.870,False
+paladin.resist-magic.start,paladin,defensive-auras,Resist Magic,aura,start,sounds/paladin/defensive-auras/resist-magic-start.wav,1.149977,-1.500,-12.212,False
+paladin.resist-magic.loop,paladin,defensive-auras,Resist Magic,aura,loop,sounds/paladin/defensive-auras/resist-magic-loop.wav,2.000000,-1.500,-9.129,True
+paladin.resist-magic.stop,paladin,defensive-auras,Resist Magic,aura,stop,sounds/paladin/defensive-auras/resist-magic-stop.wav,0.649977,-1.500,-12.881,False
+paladin.immovable.start,paladin,defensive-auras,Immovable,aura,start,sounds/paladin/defensive-auras/immovable-start.wav,1.149977,-1.500,-9.846,False
+paladin.immovable.loop,paladin,defensive-auras,Immovable,aura,loop,sounds/paladin/defensive-auras/immovable-loop.wav,2.000000,-1.500,-8.372,True
+paladin.immovable.stop,paladin,defensive-auras,Immovable,aura,stop,sounds/paladin/defensive-auras/immovable-stop.wav,0.649977,-1.500,-9.399,False
+paladin.warding-light.start,paladin,defensive-auras,Warding Light,aura,start,sounds/paladin/defensive-auras/warding-light-start.wav,1.149977,-1.500,-11.986,False
+paladin.warding-light.loop,paladin,defensive-auras,Warding Light,aura,loop,sounds/paladin/defensive-auras/warding-light-loop.wav,2.000000,-1.500,-9.560,True
+paladin.warding-light.stop,paladin,defensive-auras,Warding Light,aura,stop,sounds/paladin/defensive-auras/warding-light-stop.wav,0.649977,-1.500,-11.624,False
+paladin.mercy.start,paladin,defensive-auras,Mercy,aura,start,sounds/paladin/defensive-auras/mercy-start.wav,1.149977,-1.500,-11.830,False
+paladin.mercy.loop,paladin,defensive-auras,Mercy,aura,loop,sounds/paladin/defensive-auras/mercy-loop.wav,2.000000,-1.500,-8.142,True
+paladin.mercy.stop,paladin,defensive-auras,Mercy,aura,stop,sounds/paladin/defensive-auras/mercy-stop.wav,0.649977,-1.500,-10.004,False
+paladin.aura-of-protection.start,paladin,defensive-auras,Aura of Protection,aura,start,sounds/paladin/defensive-auras/aura-of-protection-start.wav,1.149977,-1.500,-11.579,False
+paladin.aura-of-protection.loop,paladin,defensive-auras,Aura of Protection,aura,loop,sounds/paladin/defensive-auras/aura-of-protection-loop.wav,2.000000,-1.500,-8.112,True
+paladin.aura-of-protection.stop,paladin,defensive-auras,Aura of Protection,aura,stop,sounds/paladin/defensive-auras/aura-of-protection-stop.wav,0.649977,-1.500,-9.082,False
+paladin.endurance.start,paladin,defensive-auras,Endurance,aura,start,sounds/paladin/defensive-auras/endurance-start.wav,1.149977,-1.500,-11.061,False
+paladin.endurance.loop,paladin,defensive-auras,Endurance,aura,loop,sounds/paladin/defensive-auras/endurance-loop.wav,2.000000,-1.500,-8.011,True
+paladin.endurance.stop,paladin,defensive-auras,Endurance,aura,stop,sounds/paladin/defensive-auras/endurance-stop.wav,0.649977,-1.500,-10.737,False
+paladin.sanctity.start,paladin,defensive-auras,Sanctity,aura,start,sounds/paladin/defensive-auras/sanctity-start.wav,1.149977,-1.500,-12.429,False
+paladin.sanctity.loop,paladin,defensive-auras,Sanctity,aura,loop,sounds/paladin/defensive-auras/sanctity-loop.wav,2.000000,-1.500,-9.445,True
+paladin.sanctity.stop,paladin,defensive-auras,Sanctity,aura,stop,sounds/paladin/defensive-auras/sanctity-stop.wav,0.649977,-1.500,-12.170,False
+paladin.votive-strike.impact,paladin,combat-skills,Votive Strike,attack,impact,sounds/paladin/combat-skills/votive-strike-impact.wav,0.900000,-1.500,-15.813,False
+paladin.judgment.impact,paladin,combat-skills,Judgment,attack,impact,sounds/paladin/combat-skills/judgment-impact.wav,0.900000,-1.500,-16.122,False
+paladin.oathbrand.impact,paladin,combat-skills,Oathbrand,attack,impact,sounds/paladin/combat-skills/oathbrand-impact.wav,0.900000,-1.500,-18.309,False
+paladin.holy-lance.impact,paladin,combat-skills,Holy Lance,attack,impact,sounds/paladin/combat-skills/holy-lance-impact.wav,0.900000,-1.500,-7.541,False
+paladin.crusade.impact,paladin,combat-skills,Crusade,attack,impact,sounds/paladin/combat-skills/crusade-impact.wav,0.900000,-1.500,-7.541,False
+paladin.aegis-slam.impact,paladin,combat-skills,Aegis Slam,attack,impact,sounds/paladin/combat-skills/aegis-slam-impact.wav,0.900000,-1.500,-13.169,False
+paladin.heaven-s-descent.cast,paladin,combat-skills,Heaven's Descent,active,cast,sounds/paladin/combat-skills/heaven-s-descent-cast.wav,0.900000,-1.500,-10.776,False
+paladin.heaven-s-descent.impact,paladin,combat-skills,Heaven's Descent,active,impact,sounds/paladin/combat-skills/heaven-s-descent-impact.wav,0.900000,-1.500,-11.779,False
+paladin.wrath-of-the-heavens.cast,paladin,combat-skills,Wrath of the Heavens,active,cast,sounds/paladin/combat-skills/wrath-of-the-heavens-cast.wav,0.900000,-1.500,-7.546,False
+paladin.wrath-of-the-heavens.impact,paladin,combat-skills,Wrath of the Heavens,active,impact,sounds/paladin/combat-skills/wrath-of-the-heavens-impact.wav,0.900000,-1.500,-11.823,False
+barbarian.cleave.impact,barbarian,combat-skills,Cleave,attack,impact,sounds/barbarian/combat-skills/cleave-impact.wav,0.900000,-1.500,-7.544,False
+barbarian.backhand.impact,barbarian,combat-skills,Backhand,attack,impact,sounds/barbarian/combat-skills/backhand-impact.wav,0.900000,-1.500,-11.280,False
+barbarian.ground-stomp.cast,barbarian,combat-skills,Ground Stomp,active,cast,sounds/barbarian/combat-skills/ground-stomp-cast.wav,0.900000,-1.500,-13.013,False
+barbarian.rend.impact,barbarian,combat-skills,Rend,attack,impact,sounds/barbarian/combat-skills/rend-impact.wav,0.900000,-1.500,-12.565,False
+barbarian.hammer-of-the-ancients.impact,barbarian,combat-skills,Hammer of the Ancients,attack,impact,sounds/barbarian/combat-skills/hammer-of-the-ancients-impact.wav,0.900000,-1.500,-7.542,False
+barbarian.seismic-slam.cast,barbarian,combat-skills,Seismic Slam,active,cast,sounds/barbarian/combat-skills/seismic-slam-cast.wav,0.900000,-1.500,-13.002,False
+barbarian.clasp-of-ruin.impact,barbarian,combat-skills,Clasp of Ruin,attack,impact,sounds/barbarian/combat-skills/clasp-of-ruin-impact.wav,0.900000,-1.500,-12.750,False
+barbarian.earthquake.cast,barbarian,combat-skills,Earthquake,active,cast,sounds/barbarian/combat-skills/earthquake-cast.wav,0.900000,-1.500,-12.623,False
+barbarian.earthquake.impact,barbarian,combat-skills,Earthquake,active,impact,sounds/barbarian/combat-skills/earthquake-impact.wav,0.900000,-1.500,-12.450,False
+barbarian.threatening-shout.cast,barbarian,warcries,Threatening Shout,warcry,cast,sounds/barbarian/warcries/threatening-shout-cast.wav,1.400000,-1.500,-12.002,False
+barbarian.rallying-cry.cast,barbarian,warcries,Rallying Cry,warcry,cast,sounds/barbarian/warcries/rallying-cry-cast.wav,1.400000,-1.500,-12.014,False
+barbarian.intimidate.cast,barbarian,warcries,Intimidate,warcry,cast,sounds/barbarian/warcries/intimidate-cast.wav,1.400000,-1.500,-11.996,False
+barbarian.split-ranks.cast,barbarian,warcries,Split Ranks,warcry,cast,sounds/barbarian/warcries/split-ranks-cast.wav,1.400000,-1.500,-13.344,False
+barbarian.iron-will.cast,barbarian,warcries,Iron Will,warcry,cast,sounds/barbarian/warcries/iron-will-cast.wav,1.400000,-1.500,-12.119,False
+barbarian.bloodcall.cast,barbarian,warcries,Bloodcall,warcry,cast,sounds/barbarian/warcries/bloodcall-cast.wav,1.400000,-1.500,-12.081,False
+barbarian.ancestral-call.cast,barbarian,warcries,Ancestral Call,warcry,cast,sounds/barbarian/warcries/ancestral-call-cast.wav,1.400000,-1.500,-11.311,False
+barbarian.ancestral-call.arrive,barbarian,warcries,Ancestral Call,warcry,arrive,sounds/barbarian/warcries/ancestral-call-arrive.wav,1.400000,-1.500,-11.888,False
+barbarian.earthshaker-cry.cast,barbarian,warcries,Earthshaker Cry,warcry,cast,sounds/barbarian/warcries/earthshaker-cry-cast.wav,1.400000,-1.500,-11.558,False
+sorcerer.chill-touch.cast,sorcerer,cold-spells,Chill Touch,active,cast,sounds/sorcerer/cold-spells/chill-touch-cast.wav,0.900000,-1.500,-12.128,False
+sorcerer.ice-needle.cast,sorcerer,cold-spells,Ice Needle,projectile,cast,sounds/sorcerer/cold-spells/ice-needle-cast.wav,0.900000,-1.500,-7.541,False
+sorcerer.ice-needle.impact,sorcerer,cold-spells,Ice Needle,projectile,impact,sounds/sorcerer/cold-spells/ice-needle-impact.wav,0.900000,-1.500,-15.967,False
+sorcerer.frostbite.cast,sorcerer,cold-spells,Frostbite,active,cast,sounds/sorcerer/cold-spells/frostbite-cast.wav,0.900000,-1.500,-14.814,False
+sorcerer.ice-lance.cast,sorcerer,cold-spells,Ice Lance,projectile,cast,sounds/sorcerer/cold-spells/ice-lance-cast.wav,0.900000,-1.500,-13.589,False
+sorcerer.ice-lance.impact,sorcerer,cold-spells,Ice Lance,projectile,impact,sounds/sorcerer/cold-spells/ice-lance-impact.wav,0.900000,-1.500,-12.735,False
+sorcerer.brittle-ground.cast,sorcerer,cold-spells,Brittle Ground,active,cast,sounds/sorcerer/cold-spells/brittle-ground-cast.wav,0.900000,-1.500,-14.255,False
+sorcerer.brittle-ground.impact,sorcerer,cold-spells,Brittle Ground,active,impact,sounds/sorcerer/cold-spells/brittle-ground-impact.wav,0.900000,-1.500,-16.471,False
+sorcerer.frozen-sentinel.cast,sorcerer,cold-spells,Frozen Sentinel,summon,cast,sounds/sorcerer/cold-spells/frozen-sentinel-cast.wav,0.900000,-1.500,-13.846,False
+sorcerer.whiteout.cast,sorcerer,cold-spells,Whiteout,active,cast,sounds/sorcerer/cold-spells/whiteout-cast.wav,0.900000,-1.500,-7.543,False
+sorcerer.absolute-zero.cast,sorcerer,cold-spells,Absolute Zero,active,cast,sounds/sorcerer/cold-spells/absolute-zero-cast.wav,0.900000,-1.500,-14.503,False
+sorcerer.arc.cast,sorcerer,lightning-spells,Arc,active,cast,sounds/sorcerer/lightning-spells/arc-cast.wav,0.900000,-1.500,-13.398,False
+sorcerer.arc.impact,sorcerer,lightning-spells,Arc,active,impact,sounds/sorcerer/lightning-spells/arc-impact.wav,0.900000,-1.500,-17.430,False
+sorcerer.static-charge.cast,sorcerer,lightning-spells,Static Charge,active,cast,sounds/sorcerer/lightning-spells/static-charge-cast.wav,0.900000,-1.500,-18.153,False
+sorcerer.static-charge.impact,sorcerer,lightning-spells,Static Charge,active,impact,sounds/sorcerer/lightning-spells/static-charge-impact.wav,0.900000,-1.500,-13.219,False
+sorcerer.conduit.cast,sorcerer,lightning-spells,Conduit,active,cast,sounds/sorcerer/lightning-spells/conduit-cast.wav,0.900000,-1.500,-7.546,False
+sorcerer.lightning-rod.cast,sorcerer,lightning-spells,Lightning Rod,active,cast,sounds/sorcerer/lightning-spells/lightning-rod-cast.wav,0.900000,-1.500,-7.545,False
+sorcerer.lightning-rod.impact,sorcerer,lightning-spells,Lightning Rod,active,impact,sounds/sorcerer/lightning-spells/lightning-rod-impact.wav,0.900000,-1.500,-13.381,False
+sorcerer.faraday-ring.cast,sorcerer,lightning-spells,Faraday Ring,active,cast,sounds/sorcerer/lightning-spells/faraday-ring-cast.wav,0.900000,-1.500,-16.355,False
+sorcerer.faraday-ring.impact,sorcerer,lightning-spells,Faraday Ring,active,impact,sounds/sorcerer/lightning-spells/faraday-ring-impact.wav,0.900000,-1.500,-11.355,False
+sorcerer.storm-crucible.cast,sorcerer,lightning-spells,Storm Crucible,active,cast,sounds/sorcerer/lightning-spells/storm-crucible-cast.wav,0.900000,-1.500,-7.546,False
+sorcerer.storm-crucible.impact,sorcerer,lightning-spells,Storm Crucible,active,impact,sounds/sorcerer/lightning-spells/storm-crucible-impact.wav,0.900000,-1.500,-16.754,False
+sorcerer.ride-the-lightning.cast,sorcerer,lightning-spells,Ride the Lightning,active,cast,sounds/sorcerer/lightning-spells/ride-the-lightning-cast.wav,0.900000,-1.500,-16.901,False
+sorcerer.cinder-touch.impact,sorcerer,fire-spells,Cinder Touch,attack,impact,sounds/sorcerer/fire-spells/cinder-touch-impact.wav,0.900000,-1.500,-7.543,False
+sorcerer.ember-mine.cast,sorcerer,fire-spells,Ember Mine,active,cast,sounds/sorcerer/fire-spells/ember-mine-cast.wav,0.900000,-1.500,-17.564,False
+sorcerer.ember-mine.impact,sorcerer,fire-spells,Ember Mine,active,impact,sounds/sorcerer/fire-spells/ember-mine-impact.wav,0.900000,-1.500,-11.740,False
+sorcerer.flame-ring.cast,sorcerer,fire-spells,Flame Ring,active,cast,sounds/sorcerer/fire-spells/flame-ring-cast.wav,0.900000,-1.500,-19.093,False
+sorcerer.ashen-brand.cast,sorcerer,fire-spells,Ashen Brand,active,cast,sounds/sorcerer/fire-spells/ashen-brand-cast.wav,0.900000,-1.500,-17.885,False
+sorcerer.ashen-brand.impact,sorcerer,fire-spells,Ashen Brand,active,impact,sounds/sorcerer/fire-spells/ashen-brand-impact.wav,0.900000,-1.500,-19.334,False
+sorcerer.furnace-mouth.cast,sorcerer,fire-spells,Furnace Mouth,active,cast,sounds/sorcerer/fire-spells/furnace-mouth-cast.wav,0.900000,-1.500,-7.541,False
+sorcerer.furnace-mouth.impact,sorcerer,fire-spells,Furnace Mouth,active,impact,sounds/sorcerer/fire-spells/furnace-mouth-impact.wav,0.900000,-1.500,-12.247,False
+sorcerer.immolate.cast,sorcerer,fire-spells,Immolate,active,cast,sounds/sorcerer/fire-spells/immolate-cast.wav,0.900000,-1.500,-18.303,False
+sorcerer.immolate.impact,sorcerer,fire-spells,Immolate,active,impact,sounds/sorcerer/fire-spells/immolate-impact.wav,0.900000,-1.500,-18.040,False
+sorcerer.funeral-star.cast,sorcerer,fire-spells,Funeral Star,active,cast,sounds/sorcerer/fire-spells/funeral-star-cast.wav,2.000000,-1.500,-7.246,False
+sorcerer.funeral-star.impact,sorcerer,fire-spells,Funeral Star,active,impact,sounds/sorcerer/fire-spells/funeral-star-impact.wav,0.900000,-1.500,-13.010,False
+rogue.barbed-shaft.cast,rogue,bow-and-crossbow,Barbed Shaft,active,cast,sounds/rogue/bow-and-crossbow/barbed-shaft-cast.wav,0.900000,-1.500,-13.274,False
+rogue.barbed-shaft.impact,rogue,bow-and-crossbow,Barbed Shaft,active,impact,sounds/rogue/bow-and-crossbow/barbed-shaft-impact.wav,0.900000,-1.500,-12.574,False
+rogue.shock-arrow.cast,rogue,bow-and-crossbow,Shock Arrow,projectile,cast,sounds/rogue/bow-and-crossbow/shock-arrow-cast.wav,0.900000,-1.500,-12.957,False
+rogue.shock-arrow.impact,rogue,bow-and-crossbow,Shock Arrow,projectile,impact,sounds/rogue/bow-and-crossbow/shock-arrow-impact.wav,0.900000,-1.500,-18.271,False
+rogue.piercing-shot.cast,rogue,bow-and-crossbow,Piercing Shot,active,cast,sounds/rogue/bow-and-crossbow/piercing-shot-cast.wav,0.900000,-1.500,-7.544,False
+rogue.piercing-shot.impact,rogue,bow-and-crossbow,Piercing Shot,active,impact,sounds/rogue/bow-and-crossbow/piercing-shot-impact.wav,0.900000,-1.500,-13.173,False
+rogue.rain-of-arrows.cast,rogue,bow-and-crossbow,Rain of Arrows,projectile,cast,sounds/rogue/bow-and-crossbow/rain-of-arrows-cast.wav,0.900000,-1.500,-7.540,False
+rogue.rain-of-arrows.impact,rogue,bow-and-crossbow,Rain of Arrows,projectile,impact,sounds/rogue/bow-and-crossbow/rain-of-arrows-impact.wav,0.900000,-1.500,-10.507,False
+rogue.crippling-shot.cast,rogue,bow-and-crossbow,Crippling Shot,active,cast,sounds/rogue/bow-and-crossbow/crippling-shot-cast.wav,0.900000,-1.500,-7.541,False
+rogue.crippling-shot.impact,rogue,bow-and-crossbow,Crippling Shot,active,impact,sounds/rogue/bow-and-crossbow/crippling-shot-impact.wav,0.900000,-1.500,-13.718,False
+rogue.hunter-s-mark.cast,rogue,bow-and-crossbow,Hunter's Mark,active,cast,sounds/rogue/bow-and-crossbow/hunter-s-mark-cast.wav,0.900000,-1.500,-7.540,False
+rogue.barrage.cast,rogue,bow-and-crossbow,Barrage,active,cast,sounds/rogue/bow-and-crossbow/barrage-cast.wav,0.900000,-1.500,-7.545,False
+rogue.phantom-volley.cast,rogue,bow-and-crossbow,Phantom Volley,active,cast,sounds/rogue/bow-and-crossbow/phantom-volley-cast.wav,0.900000,-1.500,-13.049,False
+rogue.phantom-volley.impact,rogue,bow-and-crossbow,Phantom Volley,active,impact,sounds/rogue/bow-and-crossbow/phantom-volley-impact.wav,0.900000,-1.500,-11.057,False
+rogue.shadow-step.cast,rogue,passive-and-magic,Shadow Step,active,cast,sounds/rogue/passive-and-magic/shadow-step-cast.wav,0.900000,-1.500,-9.880,False
+rogue.hunter-s-claim.cast,rogue,passive-and-magic,Hunter's Claim,active,cast,sounds/rogue/passive-and-magic/hunter-s-claim-cast.wav,0.900000,-1.500,-7.542,False
+rogue.sweep.impact,rogue,javelin-and-spear,Sweep,attack,impact,sounds/rogue/javelin-and-spear/sweep-impact.wav,0.900000,-1.500,-7.546,False
+rogue.harpoon.cast,rogue,javelin-and-spear,Harpoon,active,cast,sounds/rogue/javelin-and-spear/harpoon-cast.wav,0.900000,-1.500,-7.544,False
+rogue.harpoon.impact,rogue,javelin-and-spear,Harpoon,active,impact,sounds/rogue/javelin-and-spear/harpoon-impact.wav,0.900000,-1.500,-11.818,False
+rogue.vault.cast,rogue,javelin-and-spear,Vault,active,cast,sounds/rogue/javelin-and-spear/vault-cast.wav,0.900000,-1.500,-10.907,False
+rogue.vault.impact,rogue,javelin-and-spear,Vault,active,impact,sounds/rogue/javelin-and-spear/vault-impact.wav,0.900000,-1.500,-12.264,False
+rogue.reaping-point.impact,rogue,javelin-and-spear,Reaping Point,attack,impact,sounds/rogue/javelin-and-spear/reaping-point-impact.wav,0.900000,-1.500,-7.544,False
+rogue.anchor-javelin.cast,rogue,javelin-and-spear,Anchor Javelin,active,cast,sounds/rogue/javelin-and-spear/anchor-javelin-cast.wav,0.900000,-1.500,-7.545,False
+rogue.anchor-javelin.impact,rogue,javelin-and-spear,Anchor Javelin,active,impact,sounds/rogue/javelin-and-spear/anchor-javelin-impact.wav,0.900000,-1.500,-13.958,False
+rogue.turning-pike.impact,rogue,javelin-and-spear,Turning Pike,attack,impact,sounds/rogue/javelin-and-spear/turning-pike-impact.wav,0.900000,-1.500,-11.898,False
+rogue.valkyrie-s-spear.cast,rogue,javelin-and-spear,Valkyrie's Spear,projectile,cast,sounds/rogue/javelin-and-spear/valkyrie-s-spear-cast.wav,0.900000,-1.500,-12.449,False
+rogue.valkyrie-s-spear.impact,rogue,javelin-and-spear,Valkyrie's Spear,projectile,impact,sounds/rogue/javelin-and-spear/valkyrie-s-spear-impact.wav,0.900000,-1.500,-13.964,False
+monk.long-thrust.cast,monk,way-of-the-staff,Long Thrust,active,cast,sounds/monk/way-of-the-staff/long-thrust-cast.wav,0.900000,-1.500,-11.589,False
+monk.long-thrust.impact,monk,way-of-the-staff,Long Thrust,active,impact,sounds/monk/way-of-the-staff/long-thrust-impact.wav,0.900000,-1.500,-12.037,False
+monk.low-branch.impact,monk,way-of-the-staff,Low Branch,attack,impact,sounds/monk/way-of-the-staff/low-branch-impact.wav,0.900000,-1.500,-11.469,False
+monk.rearward-reach.cast,monk,way-of-the-staff,Rearward Reach,active,cast,sounds/monk/way-of-the-staff/rearward-reach-cast.wav,0.900000,-1.500,-13.498,False
+monk.rearward-reach.impact,monk,way-of-the-staff,Rearward Reach,active,impact,sounds/monk/way-of-the-staff/rearward-reach-impact.wav,0.900000,-1.500,-12.021,False
+monk.mountain-pole.cast,monk,way-of-the-staff,Mountain Pole,active,cast,sounds/monk/way-of-the-staff/mountain-pole-cast.wav,0.900000,-1.500,-14.063,False
+monk.bamboo-rain.cast,monk,way-of-the-staff,Bamboo Rain,active,cast,sounds/monk/way-of-the-staff/bamboo-rain-cast.wav,0.900000,-1.500,-13.402,False
+monk.bamboo-rain.impact,monk,way-of-the-staff,Bamboo Rain,active,impact,sounds/monk/way-of-the-staff/bamboo-rain-impact.wav,0.900000,-1.500,-14.309,False
+monk.dragon-tail-sweep.cast,monk,way-of-the-staff,Dragon Tail Sweep,active,cast,sounds/monk/way-of-the-staff/dragon-tail-sweep-cast.wav,0.900000,-1.500,-14.590,False
+monk.staff-of-echoes.impact,monk,way-of-the-staff,Staff of Echoes,attack,impact,sounds/monk/way-of-the-staff/staff-of-echoes-impact.wav,0.900000,-1.500,-14.069,False
+monk.heaven-splitter.cast,monk,way-of-the-staff,Heaven Splitter,active,cast,sounds/monk/way-of-the-staff/heaven-splitter-cast.wav,0.900000,-1.500,-12.422,False
+monk.thousand-reeds.cast,monk,way-of-the-staff,Thousand Reeds,active,cast,sounds/monk/way-of-the-staff/thousand-reeds-cast.wav,0.900000,-1.500,-13.726,False
+monk.tiger-claw.impact,monk,way-of-the-body,Tiger Claw,attack,impact,sounds/monk/way-of-the-body/tiger-claw-impact.wav,0.900000,-1.500,-7.541,False
+monk.leaping-crane.cast,monk,way-of-the-body,Leaping Crane,active,cast,sounds/monk/way-of-the-body/leaping-crane-cast.wav,0.900000,-1.500,-10.649,False
+monk.leaping-crane.impact,monk,way-of-the-body,Leaping Crane,active,impact,sounds/monk/way-of-the-body/leaping-crane-impact.wav,0.900000,-1.500,-13.519,False
+monk.pressure-point.impact,monk,way-of-the-body,Pressure Point,attack,impact,sounds/monk/way-of-the-body/pressure-point-impact.wav,0.900000,-1.500,-13.242,False
+monk.whirling-kick.cast,monk,way-of-the-body,Whirling Kick,active,cast,sounds/monk/way-of-the-body/whirling-kick-cast.wav,0.900000,-1.500,-13.876,False
+monk.shoulder-gate.cast,monk,way-of-the-body,Shoulder Gate,active,cast,sounds/monk/way-of-the-body/shoulder-gate-cast.wav,0.900000,-1.500,-12.965,False
+monk.seven-sided-strike.cast,monk,way-of-the-body,Seven-Sided Strike,active,cast,sounds/monk/way-of-the-body/seven-sided-strike-cast.wav,0.900000,-1.500,-12.268,False
+monk.exploding-palm.impact,monk,way-of-the-body,Exploding Palm,attack,impact,sounds/monk/way-of-the-body/exploding-palm-impact.wav,0.900000,-1.500,-12.162,False
+monk.dragon-s-wrath.cast,monk,way-of-the-body,Dragon's Wrath,active,cast,sounds/monk/way-of-the-body/dragon-s-wrath-cast.wav,0.900000,-1.500,-12.065,False
+monk.mantra-of-clarity.cast,monk,way-of-the-spirit,Mantra of Clarity,active,cast,sounds/monk/way-of-the-spirit/mantra-of-clarity-cast.wav,0.900000,-1.500,-11.909,False
+monk.mantra-of-evasion.cast,monk,way-of-the-spirit,Mantra of Evasion,active,cast,sounds/monk/way-of-the-spirit/mantra-of-evasion-cast.wav,0.900000,-1.500,-12.009,False
+monk.chi-wave.cast,monk,way-of-the-spirit,Chi Wave,projectile,cast,sounds/monk/way-of-the-spirit/chi-wave-cast.wav,0.900000,-1.500,-7.545,False
+monk.chi-wave.impact,monk,way-of-the-spirit,Chi Wave,projectile,impact,sounds/monk/way-of-the-spirit/chi-wave-impact.wav,0.900000,-1.500,-15.699,False
+monk.blinding-flash.cast,monk,way-of-the-spirit,Blinding Flash,active,cast,sounds/monk/way-of-the-spirit/blinding-flash-cast.wav,0.900000,-1.500,-18.143,False
+monk.mantra-of-retribution.cast,monk,way-of-the-spirit,Mantra of Retribution,active,cast,sounds/monk/way-of-the-spirit/mantra-of-retribution-cast.wav,0.900000,-1.500,-12.560,False
+monk.mantra-of-retribution.impact,monk,way-of-the-spirit,Mantra of Retribution,active,impact,sounds/monk/way-of-the-spirit/mantra-of-retribution-impact.wav,0.900000,-1.500,-17.144,False
+monk.serenity.cast,monk,way-of-the-spirit,Serenity,active,cast,sounds/monk/way-of-the-spirit/serenity-cast.wav,0.900000,-1.500,-14.158,False
+monk.spirit-guardian.cast,monk,way-of-the-spirit,Spirit Guardian,summon,cast,sounds/monk/way-of-the-spirit/spirit-guardian-cast.wav,0.900000,-1.500,-9.777,False
+monk.spirit-guardian.arrive,monk,way-of-the-spirit,Spirit Guardian,summon,arrive,sounds/monk/way-of-the-spirit/spirit-guardian-arrive.wav,1.149977,-1.500,-10.051,False
+monk.wave-of-light.cast,monk,way-of-the-spirit,Wave of Light,projectile,cast,sounds/monk/way-of-the-spirit/wave-of-light-cast.wav,0.900000,-1.500,-14.427,False
+monk.wave-of-light.impact,monk,way-of-the-spirit,Wave of Light,projectile,impact,sounds/monk/way-of-the-spirit/wave-of-light-impact.wav,0.900000,-1.500,-17.939,False
+monk.astral-projection.cast,monk,way-of-the-spirit,Astral Projection,active,cast,sounds/monk/way-of-the-spirit/astral-projection-cast.wav,0.900000,-1.500,-9.905,False
+monk.ancestral-court.cast,monk,way-of-the-spirit,Ancestral Court,summon,cast,sounds/monk/way-of-the-spirit/ancestral-court-cast.wav,0.900000,-1.500,-11.618,False
+monk.ancestral-court.impact,monk,way-of-the-spirit,Ancestral Court,summon,impact,sounds/monk/way-of-the-spirit/ancestral-court-impact.wav,0.900000,-1.500,-13.188,False
+necromancer.raise-skeleton.cast,necromancer,summoning,Raise Skeleton,summon,cast,sounds/necromancer/summoning/raise-skeleton-cast.wav,0.900000,-1.500,-13.221,False
+necromancer.command-the-dead.cast,necromancer,summoning,Command the Dead,active,cast,sounds/necromancer/summoning/command-the-dead-cast.wav,0.900000,-1.500,-13.422,False
+necromancer.clay-golem.cast,necromancer,summoning,Clay Golem,summon,cast,sounds/necromancer/summoning/clay-golem-cast.wav,0.900000,-1.500,-12.286,False
+necromancer.gather-the-dead.cast,necromancer,summoning,Gather the Dead,active,cast,sounds/necromancer/summoning/gather-the-dead-cast.wav,0.900000,-1.500,-13.379,False
+necromancer.raise-skeletal-mage.cast,necromancer,summoning,Raise Skeletal Mage,summon,cast,sounds/necromancer/summoning/raise-skeletal-mage-cast.wav,0.900000,-1.500,-11.400,False
+necromancer.dark-mending.cast,necromancer,summoning,Dark Mending,active,cast,sounds/necromancer/summoning/dark-mending-cast.wav,0.900000,-1.500,-12.336,False
+necromancer.blood-golem.cast,necromancer,summoning,Blood Golem,summon,cast,sounds/necromancer/summoning/blood-golem-cast.wav,0.900000,-1.500,-12.417,False
+necromancer.frenzy-of-the-dead.cast,necromancer,summoning,Frenzy of the Dead,active,cast,sounds/necromancer/summoning/frenzy-of-the-dead-cast.wav,0.900000,-1.500,-12.196,False
+necromancer.iron-golem.cast,necromancer,summoning,Iron Golem,summon,cast,sounds/necromancer/summoning/iron-golem-cast.wav,0.900000,-1.500,-7.546,False
+necromancer.unholy-offering.cast,necromancer,summoning,Unholy Offering,active,cast,sounds/necromancer/summoning/unholy-offering-cast.wav,0.900000,-1.500,-11.369,False
+necromancer.fire-golem.cast,necromancer,summoning,Fire Golem,summon,cast,sounds/necromancer/summoning/fire-golem-cast.wav,0.900000,-1.500,-11.989,False
+necromancer.revive.cast,necromancer,summoning,Revive,active,cast,sounds/necromancer/summoning/revive-cast.wav,0.900000,-1.500,-11.945,False
+necromancer.army-of-the-dead.cast,necromancer,summoning,Army of the Dead,active,cast,sounds/necromancer/summoning/army-of-the-dead-cast.wav,0.900000,-1.500,-7.541,False
+necromancer.army-of-the-dead.impact,necromancer,summoning,Army of the Dead,active,impact,sounds/necromancer/summoning/army-of-the-dead-impact.wav,0.900000,-1.500,-12.223,False
+necromancer.teeth.cast,necromancer,poison-and-bone,Teeth,active,cast,sounds/necromancer/poison-and-bone/teeth-cast.wav,0.900000,-1.500,-7.545,False
+necromancer.bone-armor.cast,necromancer,poison-and-bone,Bone Armor,active,cast,sounds/necromancer/poison-and-bone/bone-armor-cast.wav,0.900000,-1.500,-12.673,False
+necromancer.poison-dagger.cast,necromancer,poison-and-bone,Poison Dagger,active,cast,sounds/necromancer/poison-and-bone/poison-dagger-cast.wav,0.900000,-1.500,-12.709,False
+necromancer.corpse-explosion.cast,necromancer,poison-and-bone,Corpse Explosion,active,cast,sounds/necromancer/poison-and-bone/corpse-explosion-cast.wav,0.900000,-1.500,-11.694,False
+necromancer.corpse-explosion.impact,necromancer,poison-and-bone,Corpse Explosion,active,impact,sounds/necromancer/poison-and-bone/corpse-explosion-impact.wav,0.900000,-1.500,-13.835,False
+necromancer.bone-splinters.cast,necromancer,poison-and-bone,Bone Splinters,active,cast,sounds/necromancer/poison-and-bone/bone-splinters-cast.wav,0.900000,-1.500,-12.634,False
+necromancer.blight.cast,necromancer,poison-and-bone,Blight,active,cast,sounds/necromancer/poison-and-bone/blight-cast.wav,0.900000,-1.500,-7.543,False
+necromancer.blight.impact,necromancer,poison-and-bone,Blight,active,impact,sounds/necromancer/poison-and-bone/blight-impact.wav,0.900000,-1.500,-18.563,False
+necromancer.bone-wall.cast,necromancer,poison-and-bone,Bone Wall,active,cast,sounds/necromancer/poison-and-bone/bone-wall-cast.wav,0.900000,-1.500,-13.329,False
+necromancer.bone-spikes.cast,necromancer,poison-and-bone,Bone Spikes,active,cast,sounds/necromancer/poison-and-bone/bone-spikes-cast.wav,0.900000,-1.500,-7.544,False
+necromancer.poison-explosion.cast,necromancer,poison-and-bone,Poison Explosion,active,cast,sounds/necromancer/poison-and-bone/poison-explosion-cast.wav,0.900000,-1.500,-12.306,False
+necromancer.poison-explosion.impact,necromancer,poison-and-bone,Poison Explosion,active,impact,sounds/necromancer/poison-and-bone/poison-explosion-impact.wav,0.900000,-1.500,-12.286,False
+necromancer.bone-spear.cast,necromancer,poison-and-bone,Bone Spear,projectile,cast,sounds/necromancer/poison-and-bone/bone-spear-cast.wav,0.900000,-1.500,-11.494,False
+necromancer.bone-spear.impact,necromancer,poison-and-bone,Bone Spear,projectile,impact,sounds/necromancer/poison-and-bone/bone-spear-impact.wav,0.900000,-1.500,-14.370,False
+necromancer.decompose.cast,necromancer,poison-and-bone,Decompose,active,cast,sounds/necromancer/poison-and-bone/decompose-cast.wav,0.900000,-1.500,-7.540,False
+necromancer.bone-prison.cast,necromancer,poison-and-bone,Bone Prison,active,cast,sounds/necromancer/poison-and-bone/bone-prison-cast.wav,0.900000,-1.500,-11.661,False
+necromancer.bone-storm.cast,necromancer,poison-and-bone,Bone Storm,active,cast,sounds/necromancer/poison-and-bone/bone-storm-cast.wav,0.900000,-1.500,-13.696,False
+necromancer.poison-nova.cast,necromancer,poison-and-bone,Poison Nova,active,cast,sounds/necromancer/poison-and-bone/poison-nova-cast.wav,0.900000,-1.500,-7.541,False
+necromancer.death-nova.cast,necromancer,poison-and-bone,Death Nova,active,cast,sounds/necromancer/poison-and-bone/death-nova-cast.wav,0.900000,-1.500,-12.655,False
+necromancer.amplify-damage.cast,necromancer,curses,Amplify Damage,active,cast,sounds/necromancer/curses/amplify-damage-cast.wav,0.900000,-1.500,-7.543,False
+necromancer.dim-vision.cast,necromancer,curses,Dim Vision,active,cast,sounds/necromancer/curses/dim-vision-cast.wav,0.900000,-1.500,-7.542,False
+necromancer.weaken.cast,necromancer,curses,Weaken,active,cast,sounds/necromancer/curses/weaken-cast.wav,0.900000,-1.500,-7.544,False
+necromancer.frailty.cast,necromancer,curses,Frailty,active,cast,sounds/necromancer/curses/frailty-cast.wav,0.900000,-1.500,-14.924,False
+necromancer.iron-maiden.cast,necromancer,curses,Iron Maiden,active,cast,sounds/necromancer/curses/iron-maiden-cast.wav,0.900000,-1.500,-7.544,False
+necromancer.terror.cast,necromancer,curses,Terror,active,cast,sounds/necromancer/curses/terror-cast.wav,0.900000,-1.500,-7.541,False
+necromancer.bane.cast,necromancer,curses,Bane,active,cast,sounds/necromancer/curses/bane-cast.wav,0.900000,-1.500,-12.354,False
+necromancer.confuse.cast,necromancer,curses,Confuse,active,cast,sounds/necromancer/curses/confuse-cast.wav,0.900000,-1.500,-7.544,False
+necromancer.life-tap.cast,necromancer,curses,Life Tap,active,cast,sounds/necromancer/curses/life-tap-cast.wav,0.900000,-1.500,-7.543,False
+necromancer.attract.cast,necromancer,curses,Attract,active,cast,sounds/necromancer/curses/attract-cast.wav,0.900000,-1.500,-7.541,False
+necromancer.decrepify.cast,necromancer,curses,Decrepify,active,cast,sounds/necromancer/curses/decrepify-cast.wav,0.900000,-1.500,-7.543,False
+necromancer.death-mark.cast,necromancer,curses,Death Mark,active,cast,sounds/necromancer/curses/death-mark-cast.wav,0.900000,-1.500,-7.544,False
+necromancer.lower-resist.cast,necromancer,curses,Lower Resist,active,cast,sounds/necromancer/curses/lower-resist-cast.wav,0.900000,-1.500,-7.546,False
+necromancer.soul-harvest.cast,necromancer,curses,Soul Harvest,active,cast,sounds/necromancer/curses/soul-harvest-cast.wav,0.900000,-1.500,-7.544,False
+necromancer.soul-harvest.impact,necromancer,curses,Soul Harvest,active,impact,sounds/necromancer/curses/soul-harvest-impact.wav,0.900000,-1.500,-10.638,False
+necromancer.doom.cast,necromancer,curses,Doom,active,cast,sounds/necromancer/curses/doom-cast.wav,0.900000,-1.500,-15.357,False

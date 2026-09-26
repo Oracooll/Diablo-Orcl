@@ -192,8 +192,126 @@ enum class MissileGraphicID : uint8_t {
 	// Oracool 2026-09-26: the Cold pack's frozen floor (missiles\ice_ground.png, two 128x128 variants), under
 	// Brittle Ground's two tiles for as long as the field lasts. Drawn through AddArtEffect; it has no MissileID.
 	IceGround,
+	/**
+	 * Oracool 2026-09-26: RfA-27 batches 52-57, the effect sheets for the 90 skills that drew only a swing or a borrowed
+	 * ring (missiles/<name>.png). PngOnly like every sheet since the Cold pack; the skills ask MissileArtLoaded and keep
+	 * their stand-in while a sheet is missing. Most have no MissileID: AddArtEffect / AddArtBolt (missiles.h) carry them.
+	 * ONE contiguous block, the last before None (FirstRfa27Art..LastRfa27Art below): the first delivery was rejected
+	 * as placeholder art (user, 2026-09-26), so the rows and the wiring wait for the redelivery and the block can be
+	 * told apart - or dropped - as a whole.
+	 */
+	// RfA-27 batch 52, strike flashes
+	VotiveStrike,
+	JudgmentStrike,
+	OathbrandStrike,
+	RendStrike,
+	ClaspOfRuin,
+	HammerOfTheAncients,
+	CinderTouch,
+	StaffFlurry,
+	StaffEcho,
+	TigerClaw,
+	PressurePoint,
+	SevenSidedStrike,
+	ExplodingPalm,
+	// RfA-27 batch 53, arcs, sweeps and thrusts
+	CleaveArc,
+	BackhandArc,
+	AegisSlam,
+	SweepArc,
+	LowBranch,
+	RearwardReach,
+	TurningPike,
+	CrusadeSweep,
+	DragonTailSweep,
+	WhirlingKick,
+	HolyLance,
+	LongThrust,
+	ReapingPoint,
+	ChillTouch,
+	FurnaceMouth,
+	// RfA-27 batch 54, projectiles and travelling waves
+	BarbedArrow,
+	ShockArrow,
+	PiercingArrow,
+	CripplingArrow,
+	BarrageArrow,
+	PhantomArrow,
+	Harpoon,
+	AnchorJavelin,
+	ValkyrieSpear,
+	IceNeedle,
+	IceLance,
+	ArcSpark,
+	ChiWave,
+	SoulWisp,
+	SeismicWave,
+	HeavenSplitterWave,
+	DragonsWrathWave,
+	WhiteoutWall,
+	// RfA-27 batch 55, ground bursts, pillars and fields
+	GroundStomp,
+	MountainPole,
+	FlameRing,
+	AbsoluteZero,
+	BlindingFlash,
+	DeathNova,
+	EmberBurst,
+	AshenBurst,
+	ExplodingPalmBurst,
+	ValkyrieBurst,
+	RainOfArrows,
+	ArmyOfTheDead,
+	HeavensDescent,
+	BonePrison,
+	LightningRodBurst,
+	FuneralStarBurst,
+	WrathPillar,
+	WaveOfLight,
+	AncestralCourt,
+	Earthquake,
+	FaradayRing,
+	LightningRod,
+	StormConductor,
+	StormArc,
+	EmberMine,
+	FuneralStarCharge,
+	// RfA-27 batch 56, body overlays
+	StaticCharge,
+	Conduit,
+	Immolate,
+	MantraOfClarity,
+	MantraOfEvasion,
+	MantraOfRetribution,
+	AstralProjection,
+	PoisonDagger,
+	FrenzyOfTheDead,
+	Serenity,
+	DarkMending,
+	UnholyOffering,
+	// RfA-27 batch 57, movement puffs
+	ShadowStep,
+	VaultDust,
+	LeapingCrane,
+	ShoulderGate,
+	GatherTheDead,
+	RideTheLightning,
 	None,
 };
+
+/**
+ * @brief Oracool 2026-09-26: the RfA-27 block (batches 52-57), first and last row. Its sheets are registered and wired
+ * and await redelivery (the first delivery was rejected as placeholders), so the asset test counts them as awaiting
+ * art rather than missing. Every skill that draws one keeps its old stand-in until MissileArtLoaded says yes.
+ */
+constexpr MissileGraphicID FirstRfa27Art = MissileGraphicID::VotiveStrike;
+constexpr MissileGraphicID LastRfa27Art = MissileGraphicID::RideTheLightning;
+
+/** @brief Whether @p graphic is one of RfA-27's sheets awaiting redelivery (FirstRfa27Art..LastRfa27Art). */
+constexpr bool IsAwaitingRedeliveryArt(MissileGraphicID graphic)
+{
+	return graphic >= FirstRfa27Art && graphic <= LastRfa27Art;
+}
 
 /**
  * @brief Specifies what if and how movement distribution is applied

@@ -27,6 +27,8 @@
 #include "oracool/hud_art.h"
 #include "oracool/minions.h"
 #include "oracool/passives.h"
+#include "oracool/rfa12_actives.h" // Rfa12SkillMarkers: the skill markers ride beside the curse's sigil
+#include "oracool/skill_sounds.h"
 #include "oracool/warcries.h"
 #include "player.h"
 #include "utils/language.h"
@@ -306,8 +308,15 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 			Monster &monster = Monsters[ActiveMonsters[i]];
 			if (!Live(monster) || monster.position.tile.WalkingDistance(player.position.tile) > SoulHarvestRadius)
 				continue;
+			const Point from = monster.position.tile;
 			OwnerStrikes(player, monster, DamageType::Magic, (SoulHarvestMin(r) + GenerateRnd(SoulHarvestSpread(r))) << 6);
 			torn++;
+			// RfA-27: the soul torn loose - a wisp flying from it to him (batch 54), landing with the harvest's impact cue
+			// (batch 51), which the brief has play once for each cursed monster. At once while the wisp's sheet is missing.
+			const ClassTreeSkill cue = &player == MyPlayer ? ClassTreeSkill::SoulHarvest : ClassTreeSkill::None;
+			if (AddArtBolt(from, player.position.tile, MissileGraphicID::SoulWisp, static_cast<int>(player.getId()), 16, MissileGraphicID::None, cue) == nullptr
+			    && cue != ClassTreeSkill::None)
+				PlaySkillSound(cue, SkillSoundEvent::Impact);
 		}
 		if (torn == 0) {
 			player.Say(HeroSpeech::ICantDoThat);
@@ -503,10 +512,11 @@ void ClearAllCurses()
 		curse = {};
 }
 
-void DrawCurseMarker(const Surface &out, const Monster &monster, Point anchor)
+namespace {
+
+/** @brief The curse's own sigil, centred on @p anchor.x with its foot 4px above @p anchor.y - or its lettered chip. */
+void DrawCurseSigil(const Surface &out, const Monster &monster, Point anchor)
 {
-	if (!Live(monster))
-		return;
 	// RfA-17 batch 38's sigils (2026-09-18), 24x24, in CurseKind order; the lettered chip below stands in without the strip.
 	if (DrawCurseMarkerIcon(out, { anchor.x - 12, anchor.y - 28 }, static_cast<int>(Of(monster).kind) - 1))
 		return;
@@ -542,6 +552,39 @@ void DrawCurseMarker(const Surface &out, const Monster &monster, Point anchor)
 		return;
 	FillRect(out, plate.position.x, plate.position.y, plate.size.width, plate.size.height, 0);
 	DrawString(out, letter, plate, { colour | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+}
+
+} // namespace
+
+void DrawCurseMarker(const Surface &out, const Monster &monster, Point anchor)
+{
+	// RfA-27 batch 58 (2026-09-26): the skill markers - Judged, Hunted, Bleeding and the rest - share the curse's row. One
+	// line of 24px sigils centred over the head, the curse first, so neither covers the other. A skill marker takes no
+	// place while ui/skill_markers.png is not in the archive.
+	constexpr int Cell = 24;
+	constexpr int Gap = 2;
+	const bool cursed = Live(monster);
+	uint16_t marks = Rfa12SkillMarkers(monster);
+	if (marks != 0 && !HasSkillMarkerArt())
+		marks = 0;
+	int count = cursed ? 1 : 0;
+	for (int i = 0; i < SkillMarkerCount; i++) {
+		if ((marks & (1U << i)) != 0)
+			count++;
+	}
+	if (count == 0)
+		return;
+	int left = anchor.x - (count * Cell + (count - 1) * Gap) / 2;
+	if (cursed) {
+		DrawCurseSigil(out, monster, { left + Cell / 2, anchor.y });
+		left += Cell + Gap;
+	}
+	for (int i = 0; i < SkillMarkerCount; i++) {
+		if ((marks & (1U << i)) == 0)
+			continue;
+		DrawSkillMarkerIcon(out, { left, anchor.y - 28 }, i);
+		left += Cell + Gap;
+	}
 }
 
 

@@ -332,6 +332,8 @@ std::array<int8_t, MAX_PLRS> SlotInstance = [] {
 CompanionStance Stance = CompanionStance::Follow;
 int FocusMonster = -1;
 int FocusTicks = 0;
+/** Whether the focus is an ORDER (Command the Dead) rather than the automatic turn on what struck the owner - the Commanded marker. */
+bool FocusCommanded = false;
 
 Instance *InstanceInSlot(const Monster &monster)
 {
@@ -414,6 +416,14 @@ ClassTreeSkill SoundSkillOf(CompanionKind kind)
 		return ClassTreeSkill::Valkyrie;
 	case CompanionKind::Decoy:
 		return ClassTreeSkill::Decoy;
+	// RfA-27 batch 51's arrive cues: the Ancients' horn and footfalls (one cue for the three - the mixer drops the repeats
+	// of one sound inside 80ms), and the Spirit Guardian's tone.
+	case CompanionKind::Korlic:
+	case CompanionKind::Talic:
+	case CompanionKind::Madawc:
+		return ClassTreeSkill::AncestralCall;
+	case CompanionKind::SpiritGuardian:
+		return ClassTreeSkill::SpiritGuardian;
 	default:
 		return ClassTreeSkill::None;
 	}
@@ -805,6 +815,7 @@ void ForgetCompanions()
 	Stance = CompanionStance::Follow;
 	FocusMonster = -1;
 	FocusTicks = 0;
+	FocusCommanded = false;
 }
 
 // =================================================================================================================
@@ -859,6 +870,7 @@ void OnCompanionLevelLoad()
 	SlotInstance.fill(-1);
 	FocusMonster = -1;
 	FocusTicks = 0;
+	FocusCommanded = false;
 }
 
 void ProcessCompanions(Player &owner)
@@ -867,8 +879,10 @@ void ProcessCompanions(Player &owner)
 
 	if (&owner != MyPlayer)
 		return;
-	if (FocusTicks > 0 && --FocusTicks == 0)
+	if (FocusTicks > 0 && --FocusTicks == 0) {
 		FocusMonster = -1;
+		FocusCommanded = false;
+	}
 	const bool town = leveltype == DTYPE_TOWN;
 
 	// A revisited level restores whatever stood in the golem slots when it was left. A companion slot with no
@@ -923,6 +937,7 @@ void NoteOwnerStruck(const Player &player, const Monster &monster)
 		return;
 	FocusMonster = static_cast<int>(monster.getId());
 	FocusTicks = 3 * TicksPerSecond;
+	FocusCommanded = false;
 }
 
 int CompanionTauntTarget(const Monster &monster)
@@ -1203,6 +1218,12 @@ void FocusCompanionsOn(const Monster &monster, int ticks)
 {
 	FocusMonster = static_cast<int>(monster.getId());
 	FocusTicks = ticks;
+	FocusCommanded = true;
+}
+
+bool IsCommandedTarget(const Monster &monster)
+{
+	return FocusCommanded && FocusTicks > 0 && FocusMonster == static_cast<int>(monster.getId()) && (monster.hitPoints >> 6) > 0;
 }
 
 const char *CompanionStanceName()

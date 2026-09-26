@@ -18,6 +18,7 @@
 #include "engine/render/text_render.hpp"
 #include "engine/backbuffer_state.hpp"
 #include "levels/gendung.h"
+#include "missiles.h" // AddArtEffect: RfA-27's sheets on the army
 #include "monster.h"
 #include "multi.h"
 #include "engine/random.hpp"
@@ -502,8 +503,13 @@ int GatherMinions(Player &owner)
 		Monster &body = Monsters[record.body];
 		if (body.position.tile.WalkingDistance(owner.position.tile) <= GatherLeaveRadius)
 			continue;
-		if (PlaceCompanionNear(body, owner.position.tile, GatherPlaceRadius))
+		const Point left = body.position.tile;
+		if (PlaceCompanionNear(body, owner.position.tile, GatherPlaceRadius)) {
 			moved++;
+			// RfA-27 batch 57: a puff of bone dust where it was pulled from and where it stands. Nothing without the sheet.
+			AddArtEffect(left, MissileGraphicID::GatherTheDead, static_cast<int>(owner.getId()));
+			AddArtEffect(body.position.tile, MissileGraphicID::GatherTheDead, static_cast<int>(owner.getId()));
+		}
 	}
 	return moved;
 }
@@ -519,6 +525,7 @@ int HealMinions(Player &owner, int radius, int percent)
 			continue;
 		body.hitPoints = std::min(body.hitPoints + body.maxHitPoints * percent / 100, body.maxHitPoints);
 		healed++;
+		AddArtEffect(body.position.tile, MissileGraphicID::DarkMending, static_cast<int>(owner.getId())); // RfA-27 batch 56
 	}
 	return healed;
 }
@@ -546,6 +553,8 @@ int SacrificeMinion(Player &owner, Point tile)
 	if (nearest == nullptr)
 		return 0;
 	const int life = Monsters[nearest->body].maxHitPoints;
+	// RfA-27 batch 56: the minion crumbling and its wisp rising. Nothing without the sheet.
+	AddArtEffect(Monsters[nearest->body].position.tile, MissileGraphicID::UnholyOffering, static_cast<int>(owner.getId()));
 	M_StartKill(Monsters[nearest->body], owner);
 	return life;
 }

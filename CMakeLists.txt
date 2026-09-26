@@ -431,6 +431,21 @@ if(NOT UWP_LIB)
 add_executable(oracool_mpq_pack tools/oracool_mpq_pack.cpp)
 target_link_libraries(oracool_mpq_pack PRIVATE libdevilutionx)
 
+# Oracool (2026-09-26): the archives are packed by tools/oracool_mpq_pack.js through node when node is installed.
+# Windows 11's Smart App Control ("blocked by your organization's Device Guard policy", code 4551) refuses unsigned
+# programs it has no reputation for, and every build links a brand-new oracool_mpq_pack.exe - it refused that packer
+# three builds running, so new art never reached the game. node.exe is signed; the script writes the same archive
+# format (raw sectors, which the reader already takes) and verifies every entry before publishing. The C++ packer
+# stays as the fallback on a machine without node.
+find_program(ORACOOL_NODE node)
+if(ORACOOL_NODE)
+  set(ORACOOL_PACK_COMMAND "${ORACOOL_NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/oracool_mpq_pack.js")
+  set(ORACOOL_PACK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/oracool_mpq_pack.js")
+else()
+  set(ORACOOL_PACK_COMMAND oracool_mpq_pack)
+  set(ORACOOL_PACK_DEPENDS oracool_mpq_pack)
+endif()
+
 # Oracool: the original-art exporter (tools/oracool_art_export.cpp) - runs from the build directory,
 # where the archives are, and writes PNGs through the engine's own loaders. Not part of ALL.
 add_executable(oracool_art_export EXCLUDE_FROM_ALL tools/oracool_art_export.cpp)
@@ -461,11 +476,11 @@ file(GENERATE OUTPUT "${ORACOOL_MPQ_LIST}" CONTENT "${_oracool_rel_list}")
 add_custom_command(
   COMMENT "Packing oracool.mpq"
   OUTPUT "${ORACOOL_MPQ}"
-  COMMAND oracool_mpq_pack
+  COMMAND ${ORACOOL_PACK_COMMAND}
     "${CMAKE_CURRENT_SOURCE_DIR}/Packaging/resources/oracool_assets"
     "${ORACOOL_MPQ}"
     "@${ORACOOL_MPQ_LIST}"
-  DEPENDS oracool_mpq_pack ${ORACOOL_ASSET_FILES} "${ORACOOL_MPQ_LIST}"
+  DEPENDS ${ORACOOL_PACK_DEPENDS} ${ORACOOL_ASSET_FILES} "${ORACOOL_MPQ_LIST}"
   VERBATIM)
 add_custom_target(oracool_mpq DEPENDS "${ORACOOL_MPQ}")
 add_dependencies(${BIN_TARGET} oracool_mpq)
@@ -516,11 +531,11 @@ if(NOT BUILD_ASSETS_MPQ AND NOT UWP_LIB AND NOT EMSCRIPTEN)
   add_custom_command(
     COMMENT "Packing devilutionx.mpq"
     OUTPUT "${ORACOOL_DVLX_MPQ}"
-    COMMAND oracool_mpq_pack
+    COMMAND ${ORACOOL_PACK_COMMAND}
       "${DEVILUTIONX_ASSETS_OUTPUT_DIRECTORY}"
       "${ORACOOL_DVLX_MPQ}"
       "@${ORACOOL_DVLX_LIST}"
-    DEPENDS oracool_mpq_pack ${_dvlx_inputs} "${ORACOOL_DVLX_LIST}"
+    DEPENDS ${ORACOOL_PACK_DEPENDS} ${_dvlx_inputs} "${ORACOOL_DVLX_LIST}"
     VERBATIM)
   add_custom_target(oracool_devilutionx_mpq DEPENDS "${ORACOOL_DVLX_MPQ}")
   add_dependencies(${BIN_TARGET} oracool_devilutionx_mpq)

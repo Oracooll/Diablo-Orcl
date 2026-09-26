@@ -29,6 +29,7 @@
 #include "oracool/passives.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
+#include "oracool/skill_sounds.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/warcries.h"
 #include "player.h"
@@ -230,12 +231,91 @@ bool Show(Player &player, MissileID effect, MissileGraphicID art, Point from, Po
 	return true;
 }
 
-bool TeleportTo(Player &player, Point dst)
+// ---- RfA-27 (2026-09-26): the skills' own sheets and cues -----------------------------------------------------------
+// Every sheet below is drawn only - the blow it pictures is dealt by the code around it - and spawns nothing while it is
+// not in the archive (headless tests included), so the stand-in it replaced, where there was one, stays as the fallback.
+
+/** @brief @p spell's tree row for @p player's own cues, or None for anyone but the local player. */
+ClassTreeSkill CueRow(const Player &player, SpellID spell)
+{
+	if (&player != MyPlayer)
+		return ClassTreeSkill::None;
+	return ClassTreeSkillForSpell(player._pClass, spell);
+}
+
+/**
+ * @brief @p spell's delivered Impact cue, once for a resolved cast or a landed blow (RfA-27 batch 51) - the local player's
+ * own. Nothing when the row has none. No vanilla sound plays at these moments, so it is the moment's only voice.
+ */
+void Impact(const Player &player, SpellID spell)
+{
+	const ClassTreeSkill row = CueRow(player, spell);
+	if (row != ClassTreeSkill::None)
+		PlaySkillSound(row, SkillSoundEvent::Impact);
+}
+
+/** @brief A sheet standing on @p tile (AddArtEffect, with its delivery anchor). Null while it is not in the archive. */
+Missile *Art(const Player &player, MissileGraphicID art, Point tile, int ticks = 0)
+{
+	return AddArtEffect(tile, art, static_cast<int>(player.getId()), ticks);
+}
+
+/** @brief A sixteen-facing sheet on @p tile, turned to @p dir (an eight-way facing, on the sheet's even rows). */
+Missile *ArtFacing(const Player &player, MissileGraphicID art, Point tile, Direction dir, int ticks = 0)
+{
+	return AddArtEffectFacing(tile, art, static_cast<int>(player.getId()), 2 * static_cast<int>(dir), ticks);
+}
+
+/** @brief A sheet on the hero that keeps to him while it plays - a one-shot over the body. */
+void ArtOnHero(const Player &player, MissileGraphicID art)
+{
+	if (Missile *effect = Art(player, art, player.position.tile); effect != nullptr)
+		ArtEffectFollowsItsCaster(*effect);
+}
+
+/**
+ * @brief A flying sheet from @p from to @p to (AddArtBolt). It lands with @p impactSpell's Impact cue and leaves
+ * @p arrivalArt standing where it lands; while the sheet is missing both happen at once, here.
+ */
+void Fly(const Player &player, MissileGraphicID art, Point from, Point to, SpellID impactSpell = SpellID::Invalid, int speed = 32,
+    MissileGraphicID arrivalArt = MissileGraphicID::None)
+{
+	const ClassTreeSkill row = impactSpell != SpellID::Invalid ? CueRow(player, impactSpell) : ClassTreeSkill::None;
+	if (AddArtBolt(from, to, art, static_cast<int>(player.getId()), speed, arrivalArt, row) != nullptr)
+		return;
+	if (impactSpell != SpellID::Invalid)
+		Impact(player, impactSpell);
+	if (arrivalArt != MissileGraphicID::None)
+		Art(player, arrivalArt, to);
+}
+
+/** @brief The last open tile of the @p length-tile line from @p from toward @p toward - where a travelling wave stops. */
+Point LineEnd(Point from, Point toward, int length)
+{
+	const std::vector<Point> tiles = LineOfTiles(from, toward, length);
+	return tiles.empty() ? from : tiles.back();
+}
+
+/** @brief Whether @p spell's row has a cast or impact cue of its own - the teleport's borrowed chime then stays quiet. */
+bool HasOwnCue(const Player &player, SpellID spell)
+{
+	const ClassTreeSkill row = CueRow(player, spell); // the cues are the local player's own; anyone else keeps the chime
+	return row != ClassTreeSkill::None && (HasSkillSound(row, SkillSoundEvent::Cast) || HasSkillSound(row, SkillSoundEvent::Impact));
+}
+
+/**
+ * @brief Moves @p player to @p dst through the engine's Teleport. @p spell names the skill that moved him: when its row
+ * has a delivered cue (RfA-27), Teleport's own LS_ELEMENTL stays quiet - one sound per moment, the skill's.
+ */
+bool TeleportTo(Player &player, Point dst, SpellID spell = SpellID::Invalid)
 {
 	if (dst == player.position.tile || !InDungeonBounds(dst))
 		return false;
+	std::optional<_sfx_id> sound;
+	if (spell != SpellID::Invalid && HasOwnCue(player, spell))
+		sound = SFX_NONE;
 	return AddMissile(player.position.tile, dst, player._pdir, MissileID::Teleport, TARGET_MONSTERS,
-	           static_cast<int>(player.getId()), 0, 0)
+	           static_cast<int>(player.getId()), 0, 0, nullptr, sound)
 	    != nullptr;
 }
 
@@ -296,6 +376,13 @@ struct Marks {
 	int threadRank = 0;
 	int brittleCooldown = 0;
 	int whiteoutStamp = 0;
+	// RfA-27's markers (2026-09-26) for the conditions that had no clock of their own here: Anchor Javelin's pin, the
+	// slow of Crippling Shot / Low Branch / Pressure Point (the chill every cold spell lays is not this mark), Pressure
+	// Point's broken armour and Decompose's rot. They only draw a sigil; the conditions themselves are unchanged.
+	int pinTicks = 0;
+	int slowMarkTicks = 0;
+	int armourBreakTicks = 0;
+	int rotTicks = 0;
 };
 
 std::array<Marks, MaxMonsters> MonsterMarks;
@@ -993,12 +1080,27 @@ void Poison(Player &player, Monster &monster, int ticks, int perSecond)
 }
 
 /** @brief A drawn bolt (batch 38) from the hero to @p to; it removes itself while its sheet is not in the archive. */
-void Bolt(Player &player, MissileID bolt, Point to)
+Missile *Bolt(Player &player, MissileID bolt, Point to)
 {
 	const Point here = player.position.tile;
 	if (to == here)
 		to = here + player._pdir;
-	AddMissile(here, to, GetDirection(here, to), bolt, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
+	return AddMissile(here, to, GetDirection(here, to), bolt, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
+}
+
+/**
+ * @brief RfA-27: @p spell's Impact cue as @p bolt lands (ProcessAcidJavelin reads var3), or at once when the bolt was not
+ * drawn - its sheet missing, or no room for it.
+ */
+void ImpactOnLanding(const Player &player, Missile *bolt, SpellID spell)
+{
+	const ClassTreeSkill row = CueRow(player, spell);
+	if (row == ClassTreeSkill::None)
+		return;
+	if (bolt != nullptr && !bolt->_miDelFlag)
+		bolt->var3 = static_cast<int>(row) + 1;
+	else
+		PlaySkillSound(row, SkillSoundEvent::Impact);
 }
 
 /** @brief A corpse skill's burst: the corpse within reach of the cursor, taken, or nothing. */
@@ -1021,7 +1123,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	// ---------------- Paladin ----------------
 	case SpellID::HeavensDescent: {
 		const Point dst = Clamped(here, target, ReachTiles(spell, r));
-		if (!TeleportTo(player, dst))
+		if (!TeleportTo(player, dst, spell))
 			return false;
 		PlayerState &state = StateOf(player);
 		state.landingTicks = 2;
@@ -1044,6 +1146,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (behind == nullptr || !Hittable(*behind))
 			return false;
 		Strike(player, *behind, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		// RfA-27 batch 53: the arc behind him - row n is the arc behind a hero facing n, so his own facing picks it.
+		ArtFacing(player, spell == SpellID::Backhand ? MissileGraphicID::BackhandArc : MissileGraphicID::RearwardReach, here, player._pdir);
+		Impact(player, spell);
 		return true;
 	}
 	case SpellID::GroundStomp: {
@@ -1051,19 +1156,29 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		for (Monster *m : around)
 			Stagger(*m, StunTicks(spell, r));
 		EarthenMightRage(player, around.size());
-		return !around.empty();
+		if (around.empty())
+			return false;
+		// RfA-27 batch 55: the cracked ring at his feet, in place of the cry's shockwave (Rfa12CastLeavesRing).
+		Art(player, MissileGraphicID::GroundStomp, here);
+		return true;
 	}
 	case SpellID::SeismicSlam: {
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		EarthenMightRage(player, line.size());
-		Ring(player, here);
+		// RfA-27 batch 54: the ridge of broken earth rolling down the line; the cry's ring while it is missing.
+		if (MissileArtLoaded(MissileGraphicID::SeismicWave))
+			Fly(player, MissileGraphicID::SeismicWave, here, LineEnd(here, target, ReachTiles(spell, r)), SpellID::Invalid, 16);
+		else
+			Ring(player, here);
 		return true;
 	}
 	case SpellID::Earthquake: {
 		Field *f = NewField(player, spell, here, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
+		// RfA-27 batch 55: the shaking ground for the quake's four seconds; each pulse's ring while it is missing (TickField).
+		Art(player, MissileGraphicID::Earthquake, here, EffectTicks(spell, r));
 		return true;
 	}
 	case SpellID::ThreateningShout: {
@@ -1130,6 +1245,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 				ChillMonster(*m, SlowTicks(spell, r));
 			any = true;
 		}
+		// RfA-27 batch 53: the cone of frost mist through the three tiles ahead.
+		if (any)
+			ArtFacing(player, MissileGraphicID::ChillTouch, here, target == here ? player._pdir : GetDirection(here, target));
 		return any;
 	}
 	case SpellID::IceNeedle: {
@@ -1142,6 +1260,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			if ((m->hitPoints >> 6) > 0)
 				ChillMonster(*m, SlowTicks(spell, r));
 		}
+		// RfA-27 batch 54: the needle, to the farthest it struck, landing with its impact cue (at once while the sheet is missing).
+		if (!line.empty())
+			Fly(player, MissileGraphicID::IceNeedle, here, line.back()->position.tile, spell);
 		return !line.empty();
 	}
 	case SpellID::Frostbite: {
@@ -1163,6 +1284,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			if ((m->hitPoints >> 6) > 0)
 				ChillMonster(*m, SlowTicks(spell, r));
 		}
+		// RfA-27 batch 54: the lance, through to the farthest it struck, landing with its impact cue (at once without the sheet).
+		if (!line.empty())
+			Fly(player, MissileGraphicID::IceLance, here, line.back()->position.tile, spell);
 		return !line.empty();
 	}
 	case SpellID::BrittleGround: {
@@ -1190,6 +1314,11 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::Whiteout: {
 		Field *f = NewField(player, spell, here, WhiteoutTicks, r);
 		f->dir = target == here ? player._pdir : GetDirection(here, target);
+		// RfA-27 batch 54: the wall of driven snow, rolling at the field's own pace - a tile every WhiteoutStepTicks, which is
+		// 32 screen pixels north and south, 64 east and west and about 36 on the diagonals. TickField rings each step without it.
+		const int pixelsPerTile = IsAnyOf(f->dir, Direction::East, Direction::West) ? 64 : IsAnyOf(f->dir, Direction::North, Direction::South) ? 32 : 36;
+		Fly(player, MissileGraphicID::WhiteoutWall, here, LineEnd(here, here + f->dir, WhiteoutTicks / WhiteoutStepTicks), SpellID::Invalid,
+		    std::max(pixelsPerTile / WhiteoutStepTicks, 1));
 		return true;
 	}
 	case SpellID::AbsoluteZero: {
@@ -1203,7 +1332,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			else
 				FreezeMonster(*m, SlowTicks(spell, r));
 		}
-		Ring(player, here);
+		if (Art(player, MissileGraphicID::AbsoluteZero, here) == nullptr) // RfA-27 batch 55; the ring without it
+			Ring(player, here);
 		return true;
 	}
 	// ---------------- Sorceress: lightning ----------------
@@ -1217,6 +1347,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		for (int hop = 0; hop < ArcHops && m != nullptr; hop++) {
 			struck.push_back(m);
 			const Point at = m->position.tile;
+			Art(player, MissileGraphicID::ArcSpark, at); // RfA-27 batch 54: the spark on each one it leaps to
 			Strike(player, *m, DamageType::Lightning, damage);
 			damage = Percent(damage, ArcFalloffPercent);
 			Monster *next = nullptr;
@@ -1228,6 +1359,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			}
 			m = next;
 		}
+		Impact(player, spell); // RfA-27: once for the cast, however many it leapt to
 		return true;
 	}
 	case SpellID::StaticCharge:
@@ -1244,29 +1376,39 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	case SpellID::LightningRod:
 		NewField(player, spell, target, EffectTicks(spell, r), r);
+		Art(player, MissileGraphicID::LightningRod, target, EffectTicks(spell, r)); // RfA-27 batch 55: the rod, for its twelve seconds
 		return true;
 	case SpellID::FaradayRing:
 		NewField(player, spell, target, EffectTicks(spell, r), r);
+		Art(player, MissileGraphicID::FaradayRing, target, EffectTicks(spell, r)); // RfA-27 batch 55: the cage on the floor
 		return true;
 	case SpellID::StormCrucible: {
 		PlayerState &state = StateOf(player);
 		if (state.crucibleTicks <= 0) {
 			state.crucibleTicks = EffectTicks(spell, r);
 			state.crucibleTile = target;
-			Ring(player, target);
+			// RfA-27 batch 55: the first conductor, waiting for its pair; the cry's ring without it.
+			if (Art(player, MissileGraphicID::StormConductor, target, EffectTicks(spell, r)) == nullptr)
+				Ring(player, target);
 			return true;
 		}
 		Field *f = NewField(player, spell, state.crucibleTile, CrucibleTicks, r);
 		f->tile2 = target;
 		f->clock = CruciblePeriod - 1;
 		state.crucibleTicks = 0;
+		// The pair stands for the storm's three runs: the waiting one gives way to one that lasts as long as the field.
+		EndArtEffects(f->tile, MissileGraphicID::StormConductor, static_cast<int>(player.getId()));
+		Art(player, MissileGraphicID::StormConductor, f->tile, CrucibleTicks);
+		Art(player, MissileGraphicID::StormConductor, f->tile2, CrucibleTicks);
 		return true;
 	}
 	case SpellID::RideTheLightning: {
 		const Point dst = Clamped(here, target, ReachTiles(spell, r));
 		const auto line = MonstersOnLine(here, dst, here.WalkingDistance(dst));
-		if (!TeleportTo(player, dst))
+		if (!TeleportTo(player, dst, spell))
 			return false;
+		// RfA-27 batch 57: her body become the bolt, flying the way she went.
+		Fly(player, MissileGraphicID::RideTheLightning, here, dst);
 		const Range d = SkillDamage(spell, r);
 		for (Monster *m : line)
 			Strike(player, *m, DamageType::Lightning, Rolled(d));
@@ -1275,12 +1417,14 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	// ---------------- Sorceress: fire ----------------
 	case SpellID::EmberMine:
 		NewField(player, spell, target, EffectTicks(spell, r), r);
+		Art(player, MissileGraphicID::EmberMine, target, EffectTicks(spell, r)); // RfA-27 batch 55: the ember, waiting
 		return true;
 	case SpellID::FlameRing: {
 		const Range d = SkillDamage(spell, r);
 		for (Monster *m : MonstersWithin(here, ReachTiles(spell, r)))
 			Strike(player, *m, DamageType::Fire, Rolled(d));
-		Ring(player, here);
+		if (Art(player, MissileGraphicID::FlameRing, here) == nullptr) // RfA-27 batch 55; the ring without it
+			Ring(player, here);
 		return true;
 	}
 	case SpellID::AshenBrand: {
@@ -1309,6 +1453,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		state.funeralTile = target;
 		state.funeralFrom = here;
 		state.funeralRank = r;
+		Art(player, MissileGraphicID::FuneralStarCharge, target, EffectTicks(spell, r)); // RfA-27 batch 55: the star gathering
 		return true;
 	}
 	// ---------------- Rogue: bow ----------------
@@ -1316,8 +1461,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Monster *m = NearestTo(target, 1);
 		if (m == nullptr)
 			return false;
+		const Point at = m->position.tile;
 		Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		Bleed(*m, EffectTicks(spell, r), PerSecond(spell, r));
+		Fly(player, MissileGraphicID::BarbedArrow, here, at, spell); // RfA-27 batch 54: the arrow, landing with its cue
 		return true;
 	}
 	case SpellID::ShockArrow: {
@@ -1328,27 +1475,37 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		if (Monster *other = NearestTo(at, ReachTiles(spell, r), m); other != nullptr)
 			Strike(player, *other, DamageType::Lightning, Rolled(SkillDamage(spell, r)));
+		Fly(player, MissileGraphicID::ShockArrow, here, at, spell); // RfA-27 batch 54: the arrow, landing with its cue
 		return true;
 	}
 	case SpellID::PiercingShot: {
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		// RfA-27 batch 54: the arrow, through to the farthest it struck, landing with its cue.
+		if (!line.empty())
+			Fly(player, MissileGraphicID::PiercingArrow, here, line.back()->position.tile, spell);
 		return !line.empty();
 	}
 	case SpellID::RainOfArrows: {
 		for (Monster *m : MonstersWithin(target, ReachTiles(spell, r)))
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
-		Ring(player, target);
+		if (Art(player, MissileGraphicID::RainOfArrows, target) == nullptr) // RfA-27 batch 55; the ring without it
+			Ring(player, target);
+		Impact(player, spell);
 		return true;
 	}
 	case SpellID::CripplingShot: {
 		Monster *m = NearestTo(target, 1);
 		if (m == nullptr)
 			return false;
+		const Point at = m->position.tile;
 		Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
-		if ((m->hitPoints >> 6) > 0)
+		if ((m->hitPoints >> 6) > 0) {
 			ChillMonster(*m, SlowTicks(spell, r));
+			MarksOf(*m).slowMarkTicks = SlowTicks(spell, r); // RfA-27 batch 58: the Slowed sigil
+		}
+		Fly(player, MissileGraphicID::CripplingArrow, here, at, spell); // RfA-27 batch 54: the arrow, landing with its cue
 		return true;
 	}
 	case SpellID::HuntersMark: {
@@ -1363,14 +1520,24 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Monster *m = NearestTo(target, 1);
 		if (m == nullptr)
 			return false;
+		const Point at = m->position.tile;
 		for (int i = 0; i < BarrageArrows && (m->hitPoints >> 6) > 0; i++)
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		// RfA-27 batch 54: five arrows, a little slower each, so they arrive as a string rather than as one.
+		for (int i = 0; i < BarrageArrows; i++)
+			Fly(player, MissileGraphicID::BarrageArrow, here, at, SpellID::Invalid, 32 - 3 * i);
 		return true;
 	}
 	case SpellID::PhantomVolley: {
 		const auto all = MonstersWithin(here, ReachTiles(spell, r));
 		for (Monster *m : all)
 			Strike(player, *m, DamageType::Magic, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		// RfA-27 batch 54: a spectral arrow to each; the first to land carries the volley's one impact cue.
+		bool first = true;
+		for (Monster *m : all) {
+			Fly(player, MissileGraphicID::PhantomArrow, here, m->position.tile, first ? spell : SpellID::Invalid);
+			first = false;
+		}
 		return !all.empty();
 	}
 	// ---------------- Rogue: magic and spear ----------------
@@ -1379,7 +1546,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (m == nullptr)
 			return false;
 		const Point behind = m->position.tile + GetDirection(here, m->position.tile);
-		return TeleportTo(player, behind);
+		if (!TeleportTo(player, behind, spell))
+			return false;
+		// RfA-27 batch 57: the smoke where she left and where she stands.
+		Art(player, MissileGraphicID::ShadowStep, here);
+		Art(player, MissileGraphicID::ShadowStep, behind);
+		return true;
 	}
 	case SpellID::HuntersClaim: {
 		Monster *best = nullptr;
@@ -1398,21 +1570,37 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (line.empty())
 			return false;
 		Monster &m = *line.front();
+		const Point at = m.position.tile;
 		Strike(player, m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		if ((m.hitPoints >> 6) > 0) {
 			Shove(m, GetDirection(m.position.tile, here));
 			Stagger(m, StunTicks(spell, r));
 		}
+		Fly(player, MissileGraphicID::Harpoon, here, at, spell); // RfA-27 batch 54: the harpoon, landing with its cue
 		return true;
 	}
-	case SpellID::Vault:
-		return TeleportTo(player, Clamped(here, target, ReachTiles(spell, r)));
+	case SpellID::Vault: {
+		const Point dst = Clamped(here, target, ReachTiles(spell, r));
+		if (!TeleportTo(player, dst, spell))
+			return false;
+		// RfA-27 batch 57: the dust at take-off and landing, and the landing's cue.
+		Art(player, MissileGraphicID::VaultDust, here);
+		Art(player, MissileGraphicID::VaultDust, dst);
+		Impact(player, spell);
+		return true;
+	}
 	case SpellID::AnchorJavelin: {
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		if (line.empty())
 			return false;
-		Strike(player, *line.front(), DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
-		Stagger(*line.front(), StunTicks(spell, r));
+		Monster &pinned = *line.front();
+		const Point at = pinned.position.tile;
+		Strike(player, pinned, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		// RfA-27 batch 58: the Pinned sigil, for as long as the pin holds - the ones Stagger leaves alone are not pinned.
+		if (!ShrugsOff(pinned) && pinned.mode != MonsterMode::Petrified && (pinned.hitPoints >> 6) > 0)
+			MarksOf(pinned).pinTicks = StunTicks(spell, r);
+		Stagger(pinned, StunTicks(spell, r));
+		Fly(player, MissileGraphicID::AnchorJavelin, here, at, spell); // RfA-27 batch 54: the javelin, landing with its cue
 		return true;
 	}
 	// ---- the census notes (2026-09-14) ----
@@ -1449,7 +1637,11 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::ValkyriesSpear: {
 		for (Monster *m : MonstersWithin(target, ReachTiles(spell, r)))
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
-		Ring(player, target);
+		// RfA-27 batches 54-55: the spear flies and bursts where it lands, with its cue; without the spear the burst and the
+		// cue come at once, and with neither sheet the cry's ring stands in, as before.
+		if (!MissileArtLoaded(MissileGraphicID::ValkyrieSpear) && !MissileArtLoaded(MissileGraphicID::ValkyrieBurst))
+			Ring(player, target);
+		Fly(player, MissileGraphicID::ValkyrieSpear, here, target, spell, 32, MissileGraphicID::ValkyrieBurst);
 		return true;
 	}
 	// ---------------- Bard: harmony ----------------
@@ -1628,6 +1820,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (line.empty())
 			return false;
 		Strike(player, *line.front(), DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		// RfA-27 batch 53: the staff's streak along his aim, and the jab's cue.
+		ArtFacing(player, MissileGraphicID::LongThrust, here, target == here ? player._pdir : GetDirection(here, target));
+		Impact(player, spell);
 		return true;
 	}
 	case SpellID::MountainPole: {
@@ -1636,14 +1831,22 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 			Stagger(*m, StunTicks(spell, r));
 		}
-		return !around.empty();
+		if (around.empty())
+			return false;
+		// RfA-27 batch 55: the crater and its dust ring, in place of the cry's shockwave (Rfa12CastLeavesRing).
+		Art(player, MissileGraphicID::MountainPole, here);
+		return true;
 	}
 	case SpellID::BambooRain: {
 		auto nearby = MonstersWithin(here, ReachTiles(spell, r));
 		if (nearby.size() > static_cast<size_t>(BambooRainTargets))
 			nearby.resize(static_cast<size_t>(BambooRainTargets));
-		for (Monster *m : nearby)
+		for (Monster *m : nearby) {
+			Art(player, MissileGraphicID::StaffFlurry, m->position.tile); // RfA-27 batch 52: the flurry on each it strikes
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		}
+		if (!nearby.empty())
+			Impact(player, spell);
 		return !nearby.empty();
 	}
 	case SpellID::DragonTailSweep:
@@ -1653,26 +1856,37 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 			Shove(*m, GetDirection(here, m->position.tile));
 		}
-		return !around.empty();
+		if (around.empty())
+			return false;
+		// RfA-27 batch 53: the circular sweep around him.
+		Art(player, spell == SpellID::DragonTailSweep ? MissileGraphicID::DragonTailSweep : MissileGraphicID::WhirlingKick, here);
+		return true;
 	}
 	case SpellID::HeavenSplitter: {
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
-		Ring(player, here);
+		// RfA-27 batch 54: the blade of force skimming the floor down the line; the cry's ring while it is missing.
+		if (MissileArtLoaded(MissileGraphicID::HeavenSplitterWave))
+			Fly(player, MissileGraphicID::HeavenSplitterWave, here, LineEnd(here, target, ReachTiles(spell, r)), SpellID::Invalid, 16);
+		else
+			Ring(player, here);
 		return true;
 	}
 	case SpellID::ThousandReeds: {
 		const auto all = MonstersWithin(here, ReachTiles(spell, r));
-		for (Monster *m : all)
+		for (Monster *m : all) {
+			Art(player, MissileGraphicID::StaffFlurry, m->position.tile); // RfA-27 batch 52: the flurry on each it strikes
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		}
 		return !all.empty();
 	}
 	// ---------------- Monk: body ----------------
 	case SpellID::LeapingCrane: {
 		const Point dst = Clamped(here, target, ReachTiles(spell, r));
-		if (!TeleportTo(player, dst))
+		if (!TeleportTo(player, dst, spell))
 			return false;
+		Art(player, MissileGraphicID::LeapingCrane, here); // RfA-27 batch 57: the take-off; the landing's is TickLanding's
 		PlayerState &state = StateOf(player);
 		state.landingTicks = 2;
 		state.landingTile = target;
@@ -1682,8 +1896,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::ShoulderGate: {
 		const Point dst = Clamped(here, target, ReachTiles(spell, r));
-		if (!TeleportTo(player, dst))
+		if (!TeleportTo(player, dst, spell))
 			return false;
+		Art(player, MissileGraphicID::ShoulderGate, here); // RfA-27 batch 57: the rush's start; the impact ring is TickLanding's
 		PlayerState &state = StateOf(player);
 		state.landingTicks = 2;
 		state.landingTile = target;
@@ -1696,15 +1911,21 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const size_t cap = static_cast<size_t>(SevenSidedTargets(r));
 		if (nearby.size() > cap)
 			nearby.resize(cap);
-		for (Monster *m : nearby)
+		for (Monster *m : nearby) {
+			Art(player, MissileGraphicID::SevenSidedStrike, m->position.tile); // RfA-27 batch 52: on each one struck
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		}
 		return !nearby.empty();
 	}
 	case SpellID::DragonsWrath: {
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
-		Ring(player, here);
+		// RfA-27 batch 54: the wave of wind and force down the line; the cry's ring while it is missing.
+		if (MissileArtLoaded(MissileGraphicID::DragonsWrathWave))
+			Fly(player, MissileGraphicID::DragonsWrathWave, here, LineEnd(here, target, ReachTiles(spell, r)), SpellID::Invalid, 16);
+		else
+			Ring(player, here);
 		return true;
 	}
 	// ---------------- Monk: spirit ----------------
@@ -1720,9 +1941,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			return false;
 		const Range d = SkillDamage(spell, r);
 		std::vector<Monster *> struck;
+		Point from = here; // RfA-27 batch 54: the orb, from the hero to the first and on from each to the next
 		for (int hop = 0; hop < ChiWaveHops && m != nullptr; hop++) {
 			struck.push_back(m);
 			const Point at = m->position.tile;
+			Fly(player, MissileGraphicID::ChiWave, from, at, hop == 0 ? spell : SpellID::Invalid, 24);
+			from = at;
 			Strike(player, *m, DamageType::Magic, Rolled(d));
 			Monster *next = nullptr;
 			for (Monster *candidate : MonstersWithin(at, ReachTiles(spell, r))) {
@@ -1744,19 +1968,26 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			m->goalVar1 = 3;
 			m->goalVar2 = static_cast<int8_t>(GenerateRnd(8));
 		}
-		return !nearby.empty();
+		if (nearby.empty())
+			return false;
+		// RfA-27 batch 55: the flash, in place of the cry's shockwave (Rfa12CastLeavesRing).
+		Art(player, MissileGraphicID::BlindingFlash, here);
+		return true;
 	}
 	case SpellID::MantraOfRetribution:
 		StartBuff(player, Buff::Retribution, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::Serenity:
 		ClearPlayerSlow(player);
+		ArtOnHero(player, MissileGraphicID::Serenity); // RfA-27 batch 56: the ring of light washing down over him
 		return true;
 	case SpellID::WaveOfLight: {
 		const Range d = SkillDamage(spell, r);
 		for (Monster *m : MonstersWithin(target, ReachTiles(spell, r)))
 			Strike(player, *m, DamageType::Magic, Rolled(d));
-		Ring(player, target);
+		if (Art(player, MissileGraphicID::WaveOfLight, target) == nullptr) // RfA-27 batch 55: the bell; the ring without it
+			Ring(player, target);
+		Impact(player, spell);
 		return true;
 	}
 	case SpellID::AstralProjection:
@@ -1765,6 +1996,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::AncestralCourt: {
 		Field *f = NewField(player, spell, target, AncestralCourtTicks, r);
 		f->clock = 0;
+		// RfA-27 batch 55: the three shades gathering (two ticks a frame, so they strike about when the first blow lands).
+		Art(player, MissileGraphicID::AncestralCourt, target);
 		return true;
 	}
 	// ---------------- Necromancer: Poison & Bone ----------------
@@ -1814,6 +2047,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Strike(player, *m, DamageType::Physical, share);
 		if (!Show(player, MissileID::CorpseBurst, MissileGraphicID::CorpseExplosion, corpse->position, corpse->position))
 			Ring(player, corpse->position);
+		Impact(player, spell); // RfA-27 batch 51
 		return true;
 	}
 	case SpellID::BoneSplinters: {
@@ -1831,7 +2065,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const Point pool = Clamped(here, target, 8);
 		Field *f = NewField(player, spell, pool, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
-		Bolt(player, MissileID::PoisonBoltFlight, pool);
+		ImpactOnLanding(player, Bolt(player, MissileID::PoisonBoltFlight, pool), spell); // RfA-27: the splash as the bolt lands
 		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, pool, pool, EffectTicks(spell, r));
 		return true;
 	}
@@ -1872,6 +2106,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Poison(player, *m, PoisonTicks(spell), PerSecond(spell, r));
 		Show(player, MissileID::CorpseBurst, MissileGraphicID::CorpseExplosion, corpse->position, corpse->position);
 		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, corpse->position, corpse->position, 3 * TicksPerSecond);
+		Impact(player, spell); // RfA-27 batch 51
 		return true;
 	}
 	case SpellID::BoneSpear: {
@@ -1879,7 +2114,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const Range d = SkillDamage(spell, r);
 		for (Monster *m : line)
 			BoneStrike(player, *m, Rolled(d));
-		Bolt(player, MissileID::BoneSpearBolt, Clamped(here, target, ReachTiles(spell, r)));
+		ImpactOnLanding(player, Bolt(player, MissileID::BoneSpearBolt, Clamped(here, target, ReachTiles(spell, r))), spell); // RfA-27
 		if (!MissileArtLoaded(MissileGraphicID::BoneSpear))
 			Ring(player, here);
 		return true;
@@ -1891,6 +2126,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			return false;
 		}
 		Poison(player, *m, PoisonTicks(spell), PerSecond(spell, r));
+		MarksOf(*m).rotTicks = VirulentDose(player, PoisonTicks(spell), PerSecond(spell, r)).ticks; // RfA-27 batch 58: Rotting
 		return true;
 	}
 	case SpellID::BonePrison: {
@@ -1902,7 +2138,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Field *f = NewField(player, spell, m->position.tile, EffectTicks(spell, r), r);
 		f->step = static_cast<int>(m->getId());
 		Stagger(*m, StunTicks(spell, r));
-		Ring(player, m->position.tile);
+		if (Art(player, MissileGraphicID::BonePrison, m->position.tile) == nullptr) // RfA-27 batch 55; the ring without it
+			Ring(player, m->position.tile);
 		return true;
 	}
 	case SpellID::BoneStorm: {
@@ -1943,7 +2180,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			if ((m->hitPoints >> 6) > 0)
 				Poison(player, *m, PoisonTicks(spell), PerSecond(spell, r));
 		}
-		Ring(player, here);
+		if (Art(player, MissileGraphicID::DeathNova, here) == nullptr) // RfA-27 batch 55; the ring without it
+			Ring(player, here);
 		return true;
 	}
 	default:
@@ -2010,21 +2248,29 @@ void TickField(Player &player, Field &field)
 			for (Monster *m : shaken)
 				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(field.spell, r)));
 			EarthenMightRage(player, shaken.size());
-			Ring(player, field.tile);
+			if (!MissileArtLoaded(MissileGraphicID::Earthquake)) // RfA-27: the quake's own ground stands for all four seconds
+				Ring(player, field.tile);
+			Impact(player, field.spell); // one tremor pulse a second
 		}
 		break;
 	case SpellID::BrittleGround:
-		for (const Point tile : { field.tile, field.tile2 }) {
-			Monster *m = InDungeonBounds(tile) ? FindMonsterAtPosition(tile) : nullptr;
-			if (m == nullptr || !Hittable(*m) || !m->isWalking())
-				continue;
-			Marks &marks = MarksOf(*m);
-			if (marks.brittleCooldown > 0)
-				continue;
-			marks.brittleCooldown = TicksPerSecond;
-			Strike(player, *m, DamageType::Cold, Rolled(SkillDamage(field.spell, r)));
-			if ((m->hitPoints >> 6) > 0)
-				ChillMonster(*m, SlowTicks(field.spell, r));
+		{
+			bool cracked = false;
+			for (const Point tile : { field.tile, field.tile2 }) {
+				Monster *m = InDungeonBounds(tile) ? FindMonsterAtPosition(tile) : nullptr;
+				if (m == nullptr || !Hittable(*m) || !m->isWalking())
+					continue;
+				Marks &marks = MarksOf(*m);
+				if (marks.brittleCooldown > 0)
+					continue;
+				marks.brittleCooldown = TicksPerSecond;
+				Strike(player, *m, DamageType::Cold, Rolled(SkillDamage(field.spell, r)));
+				if ((m->hitPoints >> 6) > 0)
+					ChillMonster(*m, SlowTicks(field.spell, r));
+				cracked = true;
+			}
+			if (cracked)
+				Impact(player, field.spell); // RfA-27: the ice crunching underfoot, once a tick however many stepped on it
 		}
 		break;
 	case SpellID::FrozenSentinel:
@@ -2051,7 +2297,8 @@ void TickField(Player &player, Field &field)
 				if ((m->hitPoints >> 6) > 0)
 					ChillMonster(*m, SlowTicks(field.spell, r));
 			}
-			Ring(player, field.tile);
+			if (!MissileArtLoaded(MissileGraphicID::WhiteoutWall)) // RfA-27: the wall rolls on its own (CastOnce)
+				Ring(player, field.tile);
 		}
 		break;
 	case SpellID::BallLightning:
@@ -2069,6 +2316,7 @@ void TickField(Player &player, Field &field)
 	case SpellID::LightningRod:
 	case SpellID::FaradayRing: {
 		const int reach = field.spell == SpellID::FaradayRing ? FaradayRingReach : 1;
+		bool fizzled = false;
 		for (Missile &missile : Missiles) {
 			if (missile._miDelFlag || missile.sourceType() != MissileSource::Monster)
 				continue;
@@ -2080,11 +2328,18 @@ void TickField(Player &player, Field &field)
 			if (field.spell == SpellID::LightningRod) {
 				for (Monster *m : MonstersWithin(field.tile, LightningRodBurstRadius))
 					Strike(player, *m, DamageType::Lightning, Rolled(SkillDamage(field.spell, r)));
-				Ring(player, field.tile);
+				// RfA-27 batch 55: the rod bursts - its standing sheet goes, its burst plays; the ring without the burst.
+				EndArtEffects(field.tile, MissileGraphicID::LightningRod, static_cast<int>(player.getId()));
+				if (Art(player, MissileGraphicID::LightningRodBurst, field.tile) == nullptr)
+					Ring(player, field.tile);
+				Impact(player, field.spell);
 				field.ticksLeft = 0;
 				break;
 			}
+			fizzled = true;
 		}
+		if (fizzled)
+			Impact(player, field.spell); // RfA-27: Faraday Ring's fizzle, once a tick however many it caught
 		break;
 	}
 	case SpellID::StormCrucible:
@@ -2092,8 +2347,15 @@ void TickField(Player &player, Field &field)
 			const Range d = SkillDamage(field.spell, r);
 			for (Monster *m : MonstersOnLine(field.tile, field.tile2, field.tile.WalkingDistance(field.tile2)))
 				Strike(player, *m, DamageType::Lightning, Rolled(d));
-			Ring(player, field.tile);
-			Ring(player, field.tile2);
+			// RfA-27 batch 55: a segment of lightning on every tile between the pair; the two rings without the sheet.
+			if (MissileArtLoaded(MissileGraphicID::StormArc)) {
+				for (const Point tile : LineOfTiles(field.tile, field.tile2, field.tile.WalkingDistance(field.tile2)))
+					Art(player, MissileGraphicID::StormArc, tile);
+			} else {
+				Ring(player, field.tile);
+				Ring(player, field.tile2);
+			}
+			Impact(player, field.spell);
 		}
 		break;
 	case SpellID::EmberMine: {
@@ -2102,7 +2364,11 @@ void TickField(Player &player, Field &field)
 			const Range d = SkillDamage(field.spell, r);
 			for (Monster *nearby : MonstersWithin(field.tile, 1))
 				Strike(player, *nearby, DamageType::Fire, Rolled(d));
-			Ring(player, field.tile);
+			// RfA-27 batch 55: the ember goes off - its waiting sheet goes, the burst plays; the ring without the burst.
+			EndArtEffects(field.tile, MissileGraphicID::EmberMine, static_cast<int>(player.getId()));
+			if (Art(player, MissileGraphicID::EmberBurst, field.tile) == nullptr)
+				Ring(player, field.tile);
+			Impact(player, field.spell);
 			field.ticksLeft = 0;
 		}
 		break;
@@ -2144,7 +2410,10 @@ void TickField(Player &player, Field &field)
 			const Range d = SkillDamage(field.spell, r);
 			for (Monster *m : MonstersOnLine(field.tile, field.tile + field.dir, FurnaceMouthTiles))
 				Strike(player, *m, DamageType::Fire, Rolled(d));
-			Ring(player, field.tile);
+			// RfA-27 batch 53: the jet spat along the vent's facing, each of the four pulses; the ring without it.
+			if (ArtFacing(player, MissileGraphicID::FurnaceMouth, field.tile, field.dir) == nullptr)
+				Ring(player, field.tile);
+			Impact(player, field.spell);
 		}
 		break;
 	case SpellID::Firestorm:
@@ -2168,12 +2437,54 @@ void TickField(Player &player, Field &field)
 			const Range d = SkillDamage(field.spell, r);
 			for (Monster *m : MonstersWithin(field.tile, ReachTiles(field.spell, r)))
 				Strike(player, *m, DamageType::Magic, Rolled(d));
-			Ring(player, field.tile);
+			// RfA-27: the shades' sheet (CastOnce) shows the strikes; the ring without it. One cue, with the first.
+			if (!MissileArtLoaded(MissileGraphicID::AncestralCourt))
+				Ring(player, field.tile);
+			if (field.clock == TicksPerSecond)
+				Impact(player, field.spell);
 		}
 		break;
 	default:
 		break;
 	}
+}
+
+/**
+ * @brief RfA-27 batches 52-53: a swung skill's sheet - the arc or thrust from where he stood along his facing, drawn on
+ * every swing the skill was paid for, and the strike flash on what the blow landed on (@p landedOn). Nothing while a
+ * sheet is not in the archive; a swing drew nothing of its own before.
+ */
+void SwingArt(const Player &player, SpellID spell, Point from, Direction facing, std::optional<Point> landedOn)
+{
+	MissileGraphicID arc = MissileGraphicID::None;
+	MissileGraphicID flash = MissileGraphicID::None;
+	switch (spell) {
+	case SpellID::Cleave: arc = MissileGraphicID::CleaveArc; break;
+	case SpellID::AegisSlam: arc = MissileGraphicID::AegisSlam; break;
+	case SpellID::Sweep: arc = MissileGraphicID::SweepArc; break;
+	case SpellID::LowBranch: arc = MissileGraphicID::LowBranch; break;
+	case SpellID::TurningPike: arc = MissileGraphicID::TurningPike; break;
+	case SpellID::HolyLance: arc = MissileGraphicID::HolyLance; break;
+	case SpellID::ReapingPoint: arc = MissileGraphicID::ReapingPoint; break;
+	case SpellID::Crusade:
+		Art(player, MissileGraphicID::CrusadeSweep, from); // the ring-slash all round him, not along his facing
+		break;
+	case SpellID::VotiveStrike: flash = MissileGraphicID::VotiveStrike; break;
+	case SpellID::Judgment: flash = MissileGraphicID::JudgmentStrike; break;
+	case SpellID::Oathbrand: flash = MissileGraphicID::OathbrandStrike; break;
+	case SpellID::Rend: flash = MissileGraphicID::RendStrike; break;
+	case SpellID::ClaspOfRuin: flash = MissileGraphicID::ClaspOfRuin; break;
+	case SpellID::HammerOfTheAncients: flash = MissileGraphicID::HammerOfTheAncients; break;
+	case SpellID::CinderTouch: flash = MissileGraphicID::CinderTouch; break;
+	case SpellID::TigerClaw: flash = MissileGraphicID::TigerClaw; break;
+	case SpellID::PressurePoint: flash = MissileGraphicID::PressurePoint; break;
+	case SpellID::ExplodingPalm: flash = MissileGraphicID::ExplodingPalm; break;
+	default: break;
+	}
+	if (arc != MissileGraphicID::None)
+		ArtFacing(player, arc, from, facing);
+	if (flash != MissileGraphicID::None && landedOn)
+		Art(player, flash, *landedOn);
 }
 
 void TickLanding(Player &player, PlayerState &state)
@@ -2186,16 +2497,22 @@ void TickLanding(Player &player, PlayerState &state)
 		const Range d = SkillDamage(state.landingSpell, r);
 		for (Monster *m : MonstersWithin(player.position.tile, 1))
 			Strike(player, *m, DamageType::Magic, Rolled(d));
-		Ring(player, player.position.tile);
+		// RfA-27 batch 55: the holy explosion where he lands, and its cue; the ring without the sheet.
+		if (Art(player, MissileGraphicID::HeavensDescent, player.position.tile) == nullptr)
+			Ring(player, player.position.tile);
+		Impact(player, state.landingSpell);
 		break;
 	}
 	case SpellID::LeapingCrane:
 		if (Monster *m = NearestTo(player.position.tile, 1); m != nullptr)
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(state.landingSpell, r)));
+		Art(player, MissileGraphicID::LeapingCrane, player.position.tile); // RfA-27 batch 57: the landing's wind burst
+		Impact(player, state.landingSpell);
 		break;
 	case SpellID::ShoulderGate:
 		if (Monster *m = NearestTo(player.position.tile, 1); m != nullptr)
 			Stagger(*m, StunTicks(state.landingSpell, r));
+		Art(player, MissileGraphicID::ShoulderGate, player.position.tile); // RfA-27 batch 57: the impact ring
 		break;
 	default:
 		break;
@@ -2257,6 +2574,11 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	// Blows that struck a monster - the Barbarian's Rage is earned per blow (2026-09-14).
 	int landedBlows = landed ? 1 : 0;
 	const Point ahead = player.position.tile + player._pdir;
+	// Where the swing was thrown from and what it landed on, for its sheet: Turning Pike moves him, and a killing blow's
+	// monster is gone by the time anything asks.
+	const Point swungFrom = player.position.tile;
+	const Direction swungToward = player._pdir;
+	const std::optional<Point> landedOn = landed ? std::optional<Point>(front->position.tile) : std::nullopt;
 
 	switch (spell) {
 	case SpellID::VotiveStrike:
@@ -2355,7 +2677,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		if (landed) {
 			for (const Point side : { player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {
 				if (InDungeonBounds(side) && !IsTileSolid(side) && dMonster[side.x][side.y] == 0 && dPlayer[side.x][side.y] == 0) {
-					TeleportTo(player, side);
+					TeleportTo(player, side, spell); // its impact cue is the moment's sound (RfA-27)
 					break;
 				}
 			}
@@ -2365,6 +2687,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	case SpellID::LowBranch:
 		if (alive) {
 			ChillMonster(*front, SlowTicks(spell, r));
+			MarksOf(*front).slowMarkTicks = SlowTicks(spell, r); // RfA-27 batch 58: the Slowed sigil
 			struck = true;
 		}
 		break;
@@ -2387,6 +2710,9 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		if (alive) {
 			ChillMonster(*front, SlowTicks(spell, r));
 			DebuffMonster(*front, EffectTicks(spell, r), 0, -EffectPercent(spell, r));
+			// RfA-27 batch 58: the Slowed and Armour-broken sigils.
+			MarksOf(*front).slowMarkTicks = SlowTicks(spell, r);
+			MarksOf(*front).armourBreakTicks = EffectTicks(spell, r);
 			struck = true;
 		}
 		break;
@@ -2401,6 +2727,12 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	default:
 		break;
 	}
+
+	SwingArt(player, spell, swungFrom, swungToward, landedOn);
+	// RfA-27 batch 51: the blow's impact cue, once a swing that landed on anything - the weapon's own swing sound stays.
+	// Staff of Echoes' cue is its echo's (ProcessRfa12ActivesTick).
+	if ((landed || struck) && spell != SpellID::StaffOfEchoes)
+		Impact(player, spell);
 
 	// The Barbarian settles on any landed blow: Clasp of Ruin's killing blow found no living target to
 	// stagger and so earned no Rage, and Cleave earned once however many it cut (2026-09-14).
@@ -2435,6 +2767,13 @@ bool CastRfa12Active(Player &player, SpellID spell, Point target)
 
 bool Rfa12CastLeavesRing(SpellID spell)
 {
+	// RfA-27 batch 55: three of these draw a floor burst of their own now (CastOnce), and the ring is only their stand-in.
+	if (spell == SpellID::GroundStomp)
+		return !MissileArtLoaded(MissileGraphicID::GroundStomp);
+	if (spell == SpellID::MountainPole)
+		return !MissileArtLoaded(MissileGraphicID::MountainPole);
+	if (spell == SpellID::BlindingFlash)
+		return !MissileArtLoaded(MissileGraphicID::BlindingFlash);
 	return IsAnyOf(spell, SpellID::GroundStomp, SpellID::ThreateningShout, SpellID::RallyingCry, SpellID::Intimidate,
 	    SpellID::SplitRanks, SpellID::IronWill, SpellID::Bloodcall, SpellID::EarthshakerCry, SpellID::Thunderclap,
 	    SpellID::DeafeningRoar, SpellID::MountainPole, SpellID::BlindingFlash);
@@ -2462,7 +2801,72 @@ int Rfa12BoneShellFrame(const Player &player)
 	const PlayerState &state = StateOf(player);
 	if (BuffRank(player, Buff::BoneShell) <= 0 || state.bonePool <= 0)
 		return -1;
-	return GetAnimationFrame(12, 10); // twelve frames at ten a second, a slow orbit
+	return GetAnimationFrame(12, 100); // twelve frames at ten a second, a slow orbit (the argument is ms a frame; it was 10, 100 fps)
+}
+
+size_t Rfa12BodyOverlays(const Player &player, Rfa12BodyOverlay *out, size_t capacity)
+{
+	// RfA-27 batch 56: the buffs worn as a loop around the body, each for as long as it lasts - drawn like the bone shell.
+	struct Worn {
+		Buff buff;
+		MissileGraphicID art;
+		int frames;
+	};
+	static constexpr Worn Overlays[] = {
+		{ Buff::StaticCharge, MissileGraphicID::StaticCharge, 8 },
+		{ Buff::Conduit, MissileGraphicID::Conduit, 8 },
+		{ Buff::Immolate, MissileGraphicID::Immolate, 8 },
+		{ Buff::Clarity, MissileGraphicID::MantraOfClarity, 12 },
+		{ Buff::Evasion, MissileGraphicID::MantraOfEvasion, 12 },
+		{ Buff::Retribution, MissileGraphicID::MantraOfRetribution, 12 },
+		{ Buff::Astral, MissileGraphicID::AstralProjection, 12 },
+		{ Buff::Venom, MissileGraphicID::PoisonDagger, 8 },
+	};
+	size_t count = 0;
+	for (const Worn &worn : Overlays) {
+		if (count >= capacity)
+			break;
+		if (BuffRank(player, worn.buff) <= 0 || !MissileArtLoaded(worn.art))
+			continue;
+		out[count++] = { worn.art, GetAnimationFrame(worn.frames, 100) }; // ten frames a second (the argument is ms a frame)
+	}
+	return count;
+}
+
+uint16_t Rfa12SkillMarkers(const Monster &monster)
+{
+	if ((monster.hitPoints >> 6) <= 0)
+		return 0;
+	const Marks &marks = MarksOf(monster);
+	uint16_t mask = 0;
+	const auto mark = [&mask](SkillMarker marker) { mask = static_cast<uint16_t>(mask | (1U << static_cast<unsigned>(marker))); };
+	if (marks.judgmentTicks > 0)
+		mark(SkillMarker::Judged);
+	if (marks.oathTicks > 0 && marks.oathCharges > 0)
+		mark(SkillMarker::OathBranded);
+	if (marks.frostbiteTicks > 0)
+		mark(SkillMarker::Frostbitten);
+	if (marks.ashenTicks > 0)
+		mark(SkillMarker::AshenBranded);
+	if (marks.huntTicks > 0)
+		mark(SkillMarker::Hunted);
+	for (const PlayerState &state : Players12) {
+		if (state.claimTicks > 0 && state.claimMonster == static_cast<int>(monster.getId()))
+			mark(SkillMarker::Claimed);
+	}
+	if (marks.pinTicks > 0)
+		mark(SkillMarker::Pinned);
+	if (MonsterBleeding(monster))
+		mark(SkillMarker::Bleeding);
+	if (marks.slowMarkTicks > 0 && IsMonsterChilled(monster))
+		mark(SkillMarker::Slowed);
+	if (marks.armourBreakTicks > 0)
+		mark(SkillMarker::ArmourBroken);
+	if (marks.rotTicks > 0 && marks.poisonTicks > 0)
+		mark(SkillMarker::Rotting);
+	if (IsCommandedTarget(monster))
+		mark(SkillMarker::Commanded);
+	return mask;
 }
 
 int Rfa12ActiveAbsorbDamage(Player &player, int damage)
@@ -2533,10 +2937,15 @@ void OnRfa12ActiveHit(Player &player, Monster &monster, int damage, bool melee)
 
 void OnRfa12ActiveStruck(Player &player, Monster &monster)
 {
-	if (const int r = BuffRank(player, Buff::StaticCharge); r > 0)
+	// RfA-27 batch 51: each discharge's own impact cue.
+	if (const int r = BuffRank(player, Buff::StaticCharge); r > 0) {
 		Strike(player, monster, DamageType::Lightning, Rolled(SkillDamage(SpellID::StaticCharge, r)));
-	if (const int r = BuffRank(player, Buff::Retribution); r > 0 && (monster.hitPoints >> 6) > 0)
+		Impact(player, SpellID::StaticCharge);
+	}
+	if (const int r = BuffRank(player, Buff::Retribution); r > 0 && (monster.hitPoints >> 6) > 0) {
 		Strike(player, monster, DamageType::Magic, Rolled(SkillDamage(SpellID::MantraOfRetribution, r)));
+		Impact(player, SpellID::MantraOfRetribution);
+	}
 }
 
 void OnRfa12ActiveMissileStruck(Player &player, Monster &monster, int damage)
@@ -2554,14 +2963,18 @@ void OnRfa12ActiveMonsterKilled(Player &player, const Monster &monster)
 		marks.ashenTicks = 0;
 		for (Monster *m : MonstersWithin(at, 1))
 			Strike(player, *m, DamageType::Fire, Rolled(SkillDamage(SpellID::AshenBrand, r)));
-		Ring(player, at);
+		// RfA-27: the branded body bursting (batch 55) with its cue (batch 51); the ring without the sheet.
+		if (Art(player, MissileGraphicID::AshenBurst, at) == nullptr)
+			Ring(player, at);
+		Impact(player, SpellID::AshenBrand);
 	}
 	if (marks.palmTicks > 0) {
 		const int r = marks.palmRank;
 		marks.palmTicks = 0;
 		for (Monster *m : MonstersWithin(at, 1))
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(SpellID::ExplodingPalm, r)));
-		Ring(player, at);
+		if (Art(player, MissileGraphicID::ExplodingPalmBurst, at) == nullptr) // RfA-27 batch 55; the ring without it
+			Ring(player, at);
 	}
 	if (const int r = BuffRank(player, Buff::Bloodcall); r > 0) {
 		Heal(player, BloodcallLife(r) << 6);
@@ -2611,8 +3024,11 @@ void ProcessRfa12ActivesTick(Player &player)
 		RestoreMana(player, ManaFlowPerTick(r));
 	if (const int r = BuffRank(player, Buff::Immolate); r > 0 && state.ticks[static_cast<size_t>(Buff::Immolate)] % TicksPerSecond == 0) {
 		const Range d = SkillDamage(SpellID::Immolate, r);
-		for (Monster *m : MonstersWithin(player.position.tile, 1))
+		const auto burning = MonstersWithin(player.position.tile, 1);
+		for (Monster *m : burning)
 			Strike(player, *m, DamageType::Fire, Rolled(d));
+		if (!burning.empty())
+			Impact(player, SpellID::Immolate); // RfA-27: the soft burn pulse, a second, while it burns something
 	}
 	if (const int r = BuffRank(player, Buff::Spheres); r > 0 && state.ticks[static_cast<size_t>(Buff::Spheres)] % 10 == 0) {
 		const Range d = Scale(r, 1, 3, 1, 1);
@@ -2628,7 +3044,10 @@ void ProcessRfa12ActivesTick(Player &player)
 			Monster &m = *nearby[static_cast<size_t>(GenerateRnd(static_cast<int>(nearby.size())))];
 			const Point at = m.position.tile;
 			Strike(player, m, DamageType::Magic, Rolled(SkillDamage(SpellID::WrathOfTheHeavens, state.wrathRank)));
-			Ring(player, at);
+			// RfA-27: the pillar slamming down (batch 55) and its cue (batch 51), each of the five; the ring without the sheet.
+			if (Art(player, MissileGraphicID::WrathPillar, at) == nullptr)
+				Ring(player, at);
+			Impact(player, SpellID::WrathOfTheHeavens);
 		}
 	}
 
@@ -2636,11 +3055,15 @@ void ProcessRfa12ActivesTick(Player &player)
 	if (state.funeralTicks > 0) {
 		if (player.position.tile != state.funeralFrom) {
 			state.funeralTicks = 0;
+			EndArtEffects(state.funeralTile, MissileGraphicID::FuneralStarCharge, static_cast<int>(player.getId())); // she moved
 		} else if (--state.funeralTicks == 0) {
 			const Range d = SkillDamage(SpellID::FuneralStar, state.funeralRank);
 			for (Monster *m : MonstersWithin(state.funeralTile, ReachTiles(SpellID::FuneralStar, state.funeralRank)))
 				Strike(player, *m, DamageType::Fire, Rolled(d));
-			Ring(player, state.funeralTile);
+			// RfA-27: the star bursting (batch 55) and its cue (batch 51); the ring without the sheet.
+			if (Art(player, MissileGraphicID::FuneralStarBurst, state.funeralTile) == nullptr)
+				Ring(player, state.funeralTile);
+			Impact(player, SpellID::FuneralStar);
 		}
 	}
 
@@ -2652,8 +3075,12 @@ void ProcessRfa12ActivesTick(Player &player)
 	// Staff of Echoes: the blow lands again.
 	if (state.echoTicks > 0 && --state.echoTicks == 0 && state.echoMonster >= 0) {
 		Monster &m = Monsters[state.echoMonster];
-		if (Hittable(m) && player.position.tile.WalkingDistance(m.position.tile) <= 1)
+		if (Hittable(m) && player.position.tile.WalkingDistance(m.position.tile) <= 1) {
+			// RfA-27: the ghost of the blow landing again (batch 52), and the echo's cue (batch 51).
+			Art(player, MissileGraphicID::StaffEcho, m.position.tile);
 			Strike(player, m, DamageType::Physical, state.echoDamage);
+			Impact(player, SpellID::StaffOfEchoes);
+		}
 		state.echoMonster = -1;
 	}
 
@@ -2671,7 +3098,8 @@ void ProcessRfa12ActivesTick(Player &player)
 		Monster &m = Monsters[ActiveMonsters[i]];
 		Marks &marks = MarksOf(m);
 		for (int *ticks : { &marks.judgmentTicks, &marks.oathTicks, &marks.huntTicks, &marks.frostbiteTicks, &marks.tragedyTicks,
-		         &marks.satireTicks, &marks.ashenTicks, &marks.palmTicks, &marks.brittleCooldown }) {
+		         &marks.satireTicks, &marks.ashenTicks, &marks.palmTicks, &marks.brittleCooldown, &marks.pinTicks,
+		         &marks.slowMarkTicks, &marks.armourBreakTicks, &marks.rotTicks }) {
 			if (*ticks > 0)
 				(*ticks)--;
 		}

@@ -110,11 +110,16 @@ $unmatched = @()
 # that any OTHER sound with no tree row is still the hard error below: the Paladin Holy Bolt row was
 # removed on 2026-09-06 (user: "There is a spell like this already in the game").
 $retired = @("Pal|Holy Bolt")
+# Rows RENAMED in the tree after the package was cut (user notes, 2026-09-14): the package's sounds follow
+# the row to its new name. The .inc was hand-kept this way since then (Weapon Throw is still enum
+# DoubleThrow; Toughness replaced Increased Stamina), so the generator threw on these two until 2026-09-26.
+$renamed = @{ "Bar|Double Throw" = "Bar|Weapon Throw"; "Bar|Increased Stamina" = "Bar|Toughness" }
 foreach ($r in $rows | Sort-Object class, skill, event) {
     $alias = $classAlias[$r.class]
     if (-not $alias) { throw "manifest class '$($r.class)' is not one of the seven" }
     $key = "$alias|$($r.skill)"
     if ($retired -contains $key) { continue }
+    if ($renamed.ContainsKey($key)) { $key = $renamed[$key] }
     if (-not $byKey.ContainsKey($key)) { $unmatched += $key; continue }
     $ev = $eventEnum[$r.event]
     if (-not $ev) { throw "manifest event '$($r.event)' has no SkillSoundEvent" }

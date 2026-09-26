@@ -299,6 +299,8 @@ ArtAsset WaypointPanelArt { "ui\\waypoint_panel.png" };
 ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };
 /** RfA-17 batch 38 (2026-09-18): the fourteen curse sigils, 24x24 each, in oracool::CurseKind order less None. */
 ArtAsset CurseMarkersArt { "ui\\curse_markers.png" };
+/** RfA-27 batch 58 (2026-09-26): the twelve skill-marker sigils, 24x24 each, in oracool::SkillMarker order. */
+ArtAsset SkillMarkersArt { "ui\\skill_markers.png" };
 /**
  * The six class-tree icon strips: 56x56 cells, one frame per skill, each in its own class's
  * ClassTreeSkill order. `ClassTreeIconIndex` is the frame number - a skill's position within its
@@ -891,6 +893,8 @@ void EnsureLoadedAll()
 		LoadPixels(WaypointIconsArt);
 	if (!CurseMarkersArt.loadAttempted)
 		LoadPixels(CurseMarkersArt);
+	if (!SkillMarkersArt.loadAttempted)
+		LoadPixels(SkillMarkersArt);
 	for (ArtAsset *strip : ClassTreeStrips) {
 		if (!strip->loadAttempted)
 			LoadPixels(*strip);
@@ -962,6 +966,8 @@ bool NeedsQuantize()
 	if (!WaypointIconsArt.rgba.empty() && !WaypointIconsArt.bright)
 		return true;
 	if (!CurseMarkersArt.rgba.empty() && !CurseMarkersArt.bright)
+		return true;
+	if (!SkillMarkersArt.rgba.empty() && !SkillMarkersArt.bright)
 		return true;
 	for (const ArtAsset *strip : ClassTreeStrips) {
 		if (!strip->rgba.empty() && !strip->bright)
@@ -1048,6 +1054,7 @@ void EnsureQuantized()
 	QuantizeAsset(WaypointPanelArt, std::nullopt);
 	QuantizeAsset(WaypointIconsArt, std::nullopt);
 	QuantizeAsset(CurseMarkersArt, std::nullopt);
+	QuantizeAsset(SkillMarkersArt, std::nullopt);
 	// No tint: the tree icons are the artwork itself, not chrome - their shapes carry the meaning.
 	
 	for (ArtAsset *strip : ClassTreeStrips)
@@ -2118,6 +2125,25 @@ bool DrawCurseMarkerIcon(const Surface &out, Point origin, int index)
 	return true;
 }
 
+bool HasSkillMarkerArt()
+{
+	EnsureLoadedAll();
+	return !SkillMarkersArt.rgba.empty();
+}
+
+bool DrawSkillMarkerIcon(const Surface &out, Point origin, int index)
+{
+	// Loaded, quantised and drawn exactly as the curse sigils are - the two strips sit side by side over a head.
+	EnsureLoadedAll();
+	if (SkillMarkersArt.rgba.empty())
+		return false;
+	EnsureQuantized();
+	if (!SkillMarkersArt.bright)
+		return false;
+	DrawStripIcon(out, SkillMarkersArt, origin, index, /*unlocked=*/true);
+	return true;
+}
+
 void DrawStripIcon(const Surface &out, ArtAsset &asset, Point origin, int index, bool unlocked)
 {
 	EnsureLoadedAll();
@@ -2297,6 +2323,7 @@ void ResetHudArtCaches()
 	reset(WaypointPanelArt);
 	reset(WaypointIconsArt);
 	reset(CurseMarkersArt);
+	reset(SkillMarkersArt);
 	for (ArtAsset *strip : ClassTreeStrips)
 		reset(*strip);
 	reset(PaladinSkillIconsArt);

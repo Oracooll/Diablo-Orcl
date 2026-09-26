@@ -21,6 +21,7 @@
  */
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -31,6 +32,7 @@
 namespace devilution {
 struct Player;
 struct Monster;
+enum class MissileGraphicID : uint8_t; // misdat.h - the body overlays' sheets
 } // namespace devilution
 
 namespace devilution::oracool {
@@ -76,6 +78,42 @@ bool Rfa12ActiveStripsResistances(const Monster &monster);
 bool Rfa12ActiveArrowIgnores(const Player &player, const Monster &monster);
 /** @brief Bone Armor's shell (RfA-17 batch 38): the frame to draw over the hero, or -1 while no shell stands. */
 int Rfa12BoneShellFrame(const Player &player);
+
+/** @brief One loop worn around the hero's body (RfA-27 batch 56): which sheet, and which of its frames now. */
+struct Rfa12BodyOverlay {
+	MissileGraphicID art;
+	int frame;
+};
+
+/**
+ * @brief The body overlays @p player wears for his running buffs - Static Charge, Conduit, Immolate, the three mantras,
+ * Astral Projection, Poison Dagger - at most @p capacity of them into @p out. Only sheets in the archive are listed, so
+ * a missing one is simply not drawn. Returns how many were written. For scrollrt's DrawPlayerIcons.
+ */
+size_t Rfa12BodyOverlays(const Player &player, Rfa12BodyOverlay *out, size_t capacity);
+
+/**
+ * @brief The skill markers over a monster's head (RfA-27 batch 58), in ui\skill_markers.png's cell order - one bit per
+ * cell, bit N for cell N. Each is a mark or condition the skill left, drawn only while it holds.
+ */
+enum class SkillMarker : uint8_t {
+	Judged,       // Judgment
+	OathBranded,  // Oathbrand
+	Frostbitten,  // Frostbite
+	AshenBranded, // Ashen Brand
+	Hunted,       // Hunter's Mark
+	Claimed,      // Hunter's Claim
+	Pinned,       // Anchor Javelin
+	Bleeding,     // Rend, Barbed Shaft, Tiger Claw, Exploding Palm (any bleed)
+	Slowed,       // Crippling Shot, Low Branch, Pressure Point
+	ArmourBroken, // Pressure Point
+	Rotting,      // Decompose
+	Commanded,    // Command the Dead
+};
+constexpr int SkillMarkerCount = static_cast<int>(SkillMarker::Commanded) + 1;
+
+/** @brief The SkillMarker bits that hold on @p monster now; 0 for a dead one. */
+uint16_t Rfa12SkillMarkers(const Monster &monster);
 /** @brief Astral Projection: whether the hero is out of body, and unnoticed. */
 bool Rfa12ActiveHidesPlayer(const Player &player);
 void OnRfa12ActiveHit(Player &player, Monster &monster, int damage, bool melee);

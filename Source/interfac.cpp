@@ -26,6 +26,7 @@
 #include "loadsave.h"
 #include "oracool/auto_save.h"
 #include "oracool/oracool.h"
+#include "oracool/rift.h" // IsRiftLevel - each rift has its own portal painting
 #include "oracool/shop_grid.h" // SliceButtonAxis - the loading bar is laid across the screen like every other sliced control
 #include "pfile.h"
 #include "plrmsg.h"
@@ -156,11 +157,15 @@ bool LoadCutscenePng(const char *celPath)
 	return true;
 }
 
-/** @brief Decodes the loaded CEL through the loaded palette into an XRGB8888 surface. Call after LoadPalette. */
-void BuildCutsceneRgb(const char *celPath)
+/**
+ * @brief Decodes the loaded CEL through the loaded palette into an XRGB8888 surface. Call after LoadPalette.
+ * @p pngBase names the 16:9 painting to prefer (`<pngBase>.png`) - the CEL's own name for every vanilla screen, a
+ * name with no CEL behind it for the rifts' portals, whose fallback is the plain portal CEL.
+ */
+void BuildCutsceneRgb(const char *celPath, const char *pngBase)
 {
 	CutsceneRgb = nullptr;
-	if (LoadCutscenePng(celPath))
+	if (LoadCutscenePng(pngBase))
 		return;
 	if (!sgpBackCel)
 		return;
@@ -238,6 +243,10 @@ Cutscenes PickCutscene(interface_mode uMsg)
 		return CutPortal;
 	case WM_DIABSETLVL:
 	case WM_DIABRTNLVL:
+		// Into a rift and back out through its portal: its own painting both ways (user, 2026-09-26: "two new
+		// portal loading screens"). Before this a rift fell through to the Cathedral's.
+		if (oracool::IsRiftLevel(setlvlnum))
+			return setlvlnum == oracool::RiftLevelFor(oracool::RiftKind::Guardian) ? CutRiftGuardian : CutRiftNephalem;
 		if (setlvlnum == SL_BONECHAMB)
 			return CutLevel2;
 		if (setlvlnum == SL_VILEBETRAYER)
@@ -257,6 +266,7 @@ void LoadCutsceneBackground(interface_mode uMsg)
 {
 	const char *celPath;
 	const char *palPath;
+	const char *pngBase = nullptr; // the 16:9 painting when it is not named after the CEL
 
 	switch (PickCutscene(uMsg)) {
 	case CutStart:
@@ -325,12 +335,22 @@ void LoadCutsceneBackground(interface_mode uMsg)
 		palPath = "gendata\\cutgate.pal";
 		progress_id = 1;
 		break;
+	case CutRiftNephalem:
+	case CutRiftGuardian:
+		// The paintings are the user's own (oracool.mpq); the vanilla portal CEL is only the fallback when one is
+		// missing, so a rift never loads without a picture.
+		ArtCutsceneWidescreen = LoadOptionalClx("gendata\\cutportlw.clx");
+		celPath = "gendata\\cutportl";
+		palPath = "gendata\\cutportl.pal";
+		pngBase = PickCutscene(uMsg) == CutRiftGuardian ? "gendata\\cutriftg" : "gendata\\cutriftn";
+		progress_id = 1;
+		break;
 	}
 
 	assert(!sgpBackCel);
 	sgpBackCel = LoadCel(celPath, 640);
 	LoadPalette(palPath);
-	BuildCutsceneRgb(celPath); // after the palette: the CEL conversion reads it
+	BuildCutsceneRgb(celPath, pngBase != nullptr ? pngBase : celPath); // after the palette: the CEL conversion reads it
 
 	sgdwProgress = 0;
 }

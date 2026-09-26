@@ -32,7 +32,8 @@ struct SpriteColours;
 /**
  * @brief How large this class's body sheets are drawn, in percent of the original. 100 = untouched.
  *
- * User, 2026-09-16: "Can we make barb sprite 20% larger than warrior?"
+ * User, 2026-09-16: "Can we make barb sprite 20% larger than warrior?" - dropped 2026-09-26 ("drop the 20% increase
+ * in barb sprite"); every class is 100 now.
  */
 int SpriteScalePercent(HeroClass heroClass);
 
@@ -55,7 +56,7 @@ std::shared_ptr<const SpriteColours> HeroColours(const Player &player);
 /** @brief The same from the two things it depends on - for the hero-select screen, which has no Player to ask. */
 std::shared_ptr<const SpriteColours> HeroColoursFor(HeroClass heroClass, uint8_t gfxnum);
 
-/** @brief Which dye that is, for cache keys: 0 none, 1 the light Barbarian, 2 the Necromancer. A new dye takes a new number. */
+/** @brief Which dye that is, for cache keys: 0 none, 1-3 the Barbarian by armour tier, 4-6 the Necromancer. A new dye takes a new number. */
 uint8_t HeroDyeId(HeroClass heroClass, uint8_t gfxnum);
 
 } // namespace oracool

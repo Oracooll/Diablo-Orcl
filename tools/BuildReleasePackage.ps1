@@ -195,8 +195,11 @@ Write-Host "  oracool.mpq    : current"
 # packed archive, so there is one definition of "this archive is correct" rather than two.
 #
 # Timestamps stay above as an incremental-build convenience. They are not evidence.
+# node verifies when installed: the archives are packed by tools/oracool_mpq_pack.js since 2026-09-26 (Smart App
+# Control blocks the freshly built packer exe), and its --verify reads the same format back.
+$node = (Get-Command node -ErrorAction SilentlyContinue).Source
 $packer = Join-Path $BuildDir 'oracool_mpq_pack.exe'
-if (-not (Test-Path $packer)) {
+if (-not $node -and -not (Test-Path $packer)) {
     Fail ("the archive verifier is missing: $packer`n" +
           "    cmake --build $BuildDir --target oracool_mpq_pack")
 }
@@ -206,7 +209,11 @@ function Verify-Archive([string]$label, [string]$archivePath, [string]$sourceDir
         Fail ("no manifest to verify $label against: $listFile`n" +
               "    Configure and build once so CMake generates it.")
     }
-    & $packer '--verify' $sourceDir $archivePath "@$listFile" | Out-Null
+    if ($node) {
+        & $node (Join-Path $PSScriptRoot 'oracool_mpq_pack.js') '--verify' $sourceDir $archivePath "@$listFile" | Out-Null
+    } else {
+        & $packer '--verify' $sourceDir $archivePath "@$listFile" | Out-Null
+    }
     if ($LASTEXITCODE -ne 0) {
         Fail "$label does not match its sources - repack it. The verifier's output is above."
     }

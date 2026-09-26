@@ -130,6 +130,9 @@ void ApplyRfa12BuffsToTotals(const Player &player, ItemBonusTotals &totals);
 /** @brief Deep Wounds' bleed, for any skill that makes a monster bleed: @p perSecond in 1/64 units. */
 void BleedMonster(const Monster &monster, int ticks, int perSecond);
 
+/** @brief Whether @p monster is bleeding now, whoever made it bleed - the Bleeding skill marker (RfA-27 batch 58). */
+bool MonsterBleeding(const Monster &monster);
+
 /** @brief Stops @p monster regenerating for @p ticks. Lasting Wounds, Bitter Couplet. */
 void BlockMonsterRegen(const Monster &monster, int ticks);
 

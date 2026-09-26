@@ -526,6 +526,12 @@ void DrawPlayerIcons(const Surface &out, const Player &player, Point position, b
 	// The Necromancer's Bone Armor (RfA-17 batch 38): three bones orbiting the body while the shell holds.
 	if (const int frame = oracool::Rfa12BoneShellFrame(player); frame >= 0)
 		DrawPlayerIconHelper(out, MissileGraphicID::BoneArmorShell, position, &player != MyPlayer, infraVision, frame);
+	// RfA-27 batch 56: the loops worn for the running buffs (Static Charge, Conduit, Immolate, the mantras, Astral
+	// Projection, Poison Dagger), drawn as the shell is. Their feet are 12px above the cell's foot, the shell's 16: 4px up.
+	std::array<oracool::Rfa12BodyOverlay, 8> overlays;
+	const size_t worn = oracool::Rfa12BodyOverlays(player, overlays.data(), overlays.size());
+	for (size_t i = 0; i < worn; i++)
+		DrawPlayerIconHelper(out, overlays[i].art, position + Displacement { 0, -4 }, &player != MyPlayer, infraVision, overlays[i].frame);
 }
 
 /**
@@ -1053,7 +1059,11 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 		return;
 
 	DrawMonster(out, tilePosition, monsterRenderPosition, monster);
-	// A cursed monster wears its curse over its head (oracool/curses.h).
+	// RfA-27 batch 56: Frenzy of the Dead's motes over every frenzied minion, drawn like a hero's overlay from the monster's
+	// own foot point (feet at y 84 of 96: 4px above the shell rule). Nothing while the sheet is not in the archive.
+	if (oracool::IsMinion(monster) && oracool::MinionDamagePercent(monster) > 100)
+		DrawPlayerIconHelper(out, MissileGraphicID::FrenzyOfTheDead, targetBufferPosition + offset + Displacement { 0, -4 }, true, false, GetAnimationFrame(8, 100));
+	// A cursed monster wears its curse over its head (oracool/curses.h), and since RfA-27 its skill markers beside it.
 	oracool::DrawCurseMarker(out, monster, monsterRenderPosition + Displacement { monster.animInfo.currentSprite().width() / 2, -monster.animInfo.currentSprite().height() });
 }
 

@@ -1,0 +1,1694 @@
+{
+ "barbarian-medium": {
+  "0": {
+   "colour": "#000000",
+   "share": 1,
+   "pixels": 1192
+  },
+  "143": {
+   "colour": "#090F1D",
+   "share": 1,
+   "pixels": 1
+  },
+  "150": {
+   "colour": "#575500",
+   "share": 1,
+   "pixels": 2
+  },
+  "158": {
+   "colour": "#121A2B",
+   "share": 1,
+   "pixels": 64
+  },
+  "170": {
+   "colour": "#273039",
+   "share": 0.667,
+   "pixels": 3
+  },
+  "171": {
+   "colour": "#1A243D",
+   "share": 0.5,
+   "pixels": 20
+  },
+  "172": {
+   "colour": "#1A243D",
+   "share": 0.552,
+   "pixels": 105
+  },
+  "173": {
+   "colour": "#10172A",
+   "share": 0.549,
+   "pixels": 122
+  },
+  "174": {
+   "colour": "#10172A",
+   "share": 0.733,
+   "pixels": 15
+  },
+  "175": {
+   "colour": "#0C0707",
+   "share": 1,
+   "pixels": 13
+  },
+  "183": {
+   "colour": "#334269",
+   "share": 1,
+   "pixels": 1
+  },
+  "184": {
+   "colour": "#334269",
+   "share": 0.571,
+   "pixels": 7
+  },
+  "185": {
+   "colour": "#1A253A",
+   "share": 0.581,
+   "pixels": 43
+  },
+  "186": {
+   "colour": "#1A253A",
+   "share": 0.5,
+   "pixels": 100
+  },
+  "187": {
+   "colour": "#1A243D",
+   "share": 0.569,
+   "pixels": 153
+  },
+  "188": {
+   "colour": "#1A243D",
+   "share": 0.595,
+   "pixels": 205
+  },
+  "189": {
+   "colour": "#10172A",
+   "share": 0.612,
+   "pixels": 178
+  },
+  "190": {
+   "colour": "#10172A",
+   "share": 0.651,
+   "pixels": 63
+  },
+  "191": {
+   "colour": "#05070C",
+   "share": 1,
+   "pixels": 5
+  },
+  "199": {
+   "colour": "#877E54",
+   "share": 1,
+   "pixels": 21
+  },
+  "200": {
+   "colour": "#786F49",
+   "share": 1,
+   "pixels": 29
+  },
+  "201": {
+   "colour": "#69603F",
+   "share": 1,
+   "pixels": 43
+  },
+  "202": {
+   "colour": "#5B5134",
+   "share": 1,
+   "pixels": 65
+  },
+  "203": {
+   "colour": "#484027",
+   "share": 1,
+   "pixels": 99
+  },
+  "204": {
+   "colour": "#39311D",
+   "share": 1,
+   "pixels": 54
+  },
+  "205": {
+   "colour": "#1A243D",
+   "share": 0.408,
+   "pixels": 49
+  },
+  "206": {
+   "colour": "#10172A",
+   "share": 1,
+   "pixels": 2
+  },
+  "218": {
+   "colour": "#1A253A",
+   "share": 1,
+   "pixels": 4
+  },
+  "219": {
+   "colour": "#121A2B",
+   "share": 1,
+   "pixels": 17
+  },
+  "220": {
+   "colour": "#121A2B",
+   "share": 0.961,
+   "pixels": 128
+  },
+  "221": {
+   "colour": "#090F1D",
+   "share": 0.903,
+   "pixels": 269
+  },
+  "237": {
+   "colour": "#090F1D",
+   "share": 0.786,
+   "pixels": 14
+  },
+  "238": {
+   "colour": "#10172A",
+   "share": 0.714,
+   "pixels": 7
+  },
+  "242": {
+   "colour": "#CCCCCC",
+   "share": 1,
+   "pixels": 3
+  },
+  "243": {
+   "colour": "#B8B8B8",
+   "share": 1,
+   "pixels": 5
+  },
+  "244": {
+   "colour": "#A3A3A3",
+   "share": 1,
+   "pixels": 21
+  },
+  "245": {
+   "colour": "#949494",
+   "share": 1,
+   "pixels": 69
+  },
+  "246": {
+   "colour": "#858585",
+   "share": 1,
+   "pixels": 98
+  },
+  "247": {
+   "colour": "#737373",
+   "share": 1,
+   "pixels": 139
+  },
+  "248": {
+   "colour": "#666666",
+   "share": 0.838,
+   "pixels": 160
+  },
+  "249": {
+   "colour": "#595959",
+   "share": 0.801,
+   "pixels": 272
+  },
+  "250": {
+   "colour": "#4C4C4C",
+   "share": 0.806,
+   "pixels": 310
+  },
+  "251": {
+   "colour": "#3D3D3D",
+   "share": 0.811,
+   "pixels": 471
+  },
+  "252": {
+   "colour": "#2E2E2E",
+   "share": 0.934,
+   "pixels": 573
+  },
+  "253": {
+   "colour": "#1E1E1E",
+   "share": 0.957,
+   "pixels": 255
+  },
+  "254": {
+   "colour": "#111111",
+   "share": 1,
+   "pixels": 22
+  }
+ },
+ "necromancer-heavy": {
+  "0": {
+   "colour": "#000000",
+   "share": 1,
+   "pixels": 1203
+  },
+  "134": {
+   "colour": "#0E1713",
+   "share": 0.5,
+   "pixels": 6
+  },
+  "135": {
+   "colour": "#000019",
+   "share": 0.571,
+   "pixels": 7
+  },
+  "141": {
+   "colour": "#0E1713",
+   "share": 0.875,
+   "pixels": 16
+  },
+  "142": {
+   "colour": "#0E1713",
+   "share": 0.764,
+   "pixels": 195
+  },
+  "150": {
+   "colour": "#726A52",
+   "share": 1,
+   "pixels": 1
+  },
+  "158": {
+   "colour": "#201011",
+   "share": 0.875,
+   "pixels": 32
+  },
+  "159": {
+   "colour": "#08090B",
+   "share": 0.5,
+   "pixels": 4
+  },
+  "164": {
+   "colour": "#415149",
+   "share": 0.8,
+   "pixels": 5
+  },
+  "165": {
+   "colour": "#415149",
+   "share": 1,
+   "pixels": 3
+  },
+  "166": {
+   "colour": "#334139",
+   "share": 0.923,
+   "pixels": 13
+  },
+  "167": {
+   "colour": "#334139",
+   "share": 1,
+   "pixels": 23
+  },
+  "168": {
+   "colour": "#26322C",
+   "share": 0.931,
+   "pixels": 29
+  },
+  "169": {
+   "colour": "#26322C",
+   "share": 0.833,
+   "pixels": 54
+  },
+  "170": {
+   "colour": "#1A251F",
+   "share": 0.885,
+   "pixels": 52
+  },
+  "171": {
+   "colour": "#201011",
+   "share": 0.38,
+   "pixels": 71
+  },
+  "172": {
+   "colour": "#201011",
+   "share": 0.435,
+   "pixels": 131
+  },
+  "173": {
+   "colour": "#150A0C",
+   "share": 0.436,
+   "pixels": 140
+  },
+  "174": {
+   "colour": "#0E1713",
+   "share": 0.391,
+   "pixels": 46
+  },
+  "175": {
+   "colour": "#0C0707",
+   "share": 1,
+   "pixels": 132
+  },
+  "184": {
+   "colour": "#4E587D",
+   "share": 0.5,
+   "pixels": 2
+  },
+  "185": {
+   "colour": "#434C6F",
+   "share": 0.75,
+   "pixels": 4
+  },
+  "186": {
+   "colour": "#726A52",
+   "share": 0.8,
+   "pixels": 5
+  },
+  "187": {
+   "colour": "#101215",
+   "share": 0.5,
+   "pixels": 36
+  },
+  "188": {
+   "colour": "#201011",
+   "share": 0.361,
+   "pixels": 72
+  },
+  "189": {
+   "colour": "#150A0C",
+   "share": 0.543,
+   "pixels": 70
+  },
+  "190": {
+   "colour": "#08090B",
+   "share": 0.6,
+   "pixels": 10
+  },
+  "191": {
+   "colour": "#05070C",
+   "share": 1,
+   "pixels": 10
+  },
+  "194": {
+   "colour": "#DDC47E",
+   "share": 1,
+   "pixels": 1
+  },
+  "195": {
+   "colour": "#CCB775",
+   "share": 1,
+   "pixels": 3
+  },
+  "196": {
+   "colour": "#DDD3AC",
+   "share": 0.75,
+   "pixels": 8
+  },
+  "197": {
+   "colour": "#C9BE98",
+   "share": 0.833,
+   "pixels": 6
+  },
+  "198": {
+   "colour": "#C9BE98",
+   "share": 0.944,
+   "pixels": 18
+  },
+  "199": {
+   "colour": "#B4AA85",
+   "share": 0.903,
+   "pixels": 31
+  },
+  "200": {
+   "colour": "#9E9573",
+   "share": 0.821,
+   "pixels": 39
+  },
+  "201": {
+   "colour": "#9E9573",
+   "share": 0.781,
+   "pixels": 64
+  },
+  "202": {
+   "colour": "#877F61",
+   "share": 0.891,
+   "pixels": 119
+  },
+  "203": {
+   "colour": "#877F61",
+   "share": 0.839,
+   "pixels": 143
+  },
+  "204": {
+   "colour": "#6F6850",
+   "share": 0.719,
+   "pixels": 178
+  },
+  "205": {
+   "colour": "#1A251F",
+   "share": 0.352,
+   "pixels": 142
+  },
+  "206": {
+   "colour": "#08090B",
+   "share": 0.5,
+   "pixels": 28
+  },
+  "212": {
+   "colour": "#506259",
+   "share": 1,
+   "pixels": 1
+  },
+  "218": {
+   "colour": "#2C1718",
+   "share": 1,
+   "pixels": 5
+  },
+  "219": {
+   "colour": "#201011",
+   "share": 0.853,
+   "pixels": 34
+  },
+  "220": {
+   "colour": "#201011",
+   "share": 0.86,
+   "pixels": 86
+  },
+  "221": {
+   "colour": "#150A0C",
+   "share": 0.864,
+   "pixels": 140
+  },
+  "222": {
+   "colour": "#08090B",
+   "share": 0.513,
+   "pixels": 39
+  },
+  "223": {
+   "colour": "#0E1713",
+   "share": 0.5,
+   "pixels": 2
+  },
+  "228": {
+   "colour": "#415149",
+   "share": 1,
+   "pixels": 1
+  },
+  "229": {
+   "colour": "#334139",
+   "share": 1,
+   "pixels": 1
+  },
+  "230": {
+   "colour": "#26322C",
+   "share": 1,
+   "pixels": 10
+  },
+  "231": {
+   "colour": "#26322C",
+   "share": 1,
+   "pixels": 1
+  },
+  "232": {
+   "colour": "#26322C",
+   "share": 1,
+   "pixels": 15
+  },
+  "233": {
+   "colour": "#1A251F",
+   "share": 0.85,
+   "pixels": 20
+  },
+  "234": {
+   "colour": "#1A251F",
+   "share": 0.63,
+   "pixels": 46
+  },
+  "235": {
+   "colour": "#1A251F",
+   "share": 0.719,
+   "pixels": 139
+  },
+  "236": {
+   "colour": "#0E1713",
+   "share": 0.607,
+   "pixels": 84
+  },
+  "237": {
+   "colour": "#0E1713",
+   "share": 0.609,
+   "pixels": 138
+  },
+  "238": {
+   "colour": "#08090B",
+   "share": 0.5,
+   "pixels": 4
+  },
+  "239": {
+   "colour": "#0C0505",
+   "share": 1,
+   "pixels": 11
+  },
+  "244": {
+   "colour": "#A3A3A3",
+   "share": 1,
+   "pixels": 7
+  },
+  "245": {
+   "colour": "#949494",
+   "share": 1,
+   "pixels": 6
+  },
+  "246": {
+   "colour": "#858585",
+   "share": 1,
+   "pixels": 11
+  },
+  "247": {
+   "colour": "#737373",
+   "share": 0.962,
+   "pixels": 26
+  },
+  "248": {
+   "colour": "#666666",
+   "share": 0.882,
+   "pixels": 51
+  },
+  "249": {
+   "colour": "#595959",
+   "share": 0.595,
+   "pixels": 84
+  },
+  "250": {
+   "colour": "#191C20",
+   "share": 0.472,
+   "pixels": 178
+  },
+  "251": {
+   "colour": "#3D3D3D",
+   "share": 0.53,
+   "pixels": 283
+  },
+  "252": {
+   "colour": "#2E2E2E",
+   "share": 0.735,
+   "pixels": 362
+  },
+  "253": {
+   "colour": "#1E1E1E",
+   "share": 0.711,
+   "pixels": 318
+  },
+  "254": {
+   "colour": "#111111",
+   "share": 0.776,
+   "pixels": 125
+  }
+ },
+ "barbarian-heavy": {
+  "0": {
+   "colour": "#000000",
+   "share": 1,
+   "pixels": 1215
+  },
+  "167": {
+   "colour": "#334269",
+   "share": 1,
+   "pixels": 4
+  },
+  "169": {
+   "colour": "#263353",
+   "share": 1,
+   "pixels": 8
+  },
+  "170": {
+   "colour": "#1A243D",
+   "share": 0.7,
+   "pixels": 20
+  },
+  "172": {
+   "colour": "#1A243D",
+   "share": 0.623,
+   "pixels": 69
+  },
+  "173": {
+   "colour": "#10172A",
+   "share": 0.624,
+   "pixels": 178
+  },
+  "174": {
+   "colour": "#090F1D",
+   "share": 0.688,
+   "pixels": 77
+  },
+  "175": {
+   "colour": "#0C0707",
+   "share": 1,
+   "pixels": 120
+  },
+  "190": {
+   "colour": "#090F1D",
+   "share": 0.746,
+   "pixels": 59
+  },
+  "191": {
+   "colour": "#05070C",
+   "share": 1,
+   "pixels": 17
+  },
+  "198": {
+   "colour": "#988B5D",
+   "share": 1,
+   "pixels": 1
+  },
+  "199": {
+   "colour": "#877E54",
+   "share": 1,
+   "pixels": 21
+  },
+  "201": {
+   "colour": "#69603F",
+   "share": 1,
+   "pixels": 13
+  },
+  "203": {
+   "colour": "#484027",
+   "share": 1,
+   "pixels": 28
+  },
+  "204": {
+   "colour": "#39311D",
+   "share": 1,
+   "pixels": 8
+  },
+  "205": {
+   "colour": "#312816",
+   "share": 0.444,
+   "pixels": 18
+  },
+  "221": {
+   "colour": "#171D23",
+   "share": 1,
+   "pixels": 1
+  },
+  "234": {
+   "colour": "#1A243D",
+   "share": 1,
+   "pixels": 2
+  },
+  "235": {
+   "colour": "#1A243D",
+   "share": 0.6,
+   "pixels": 5
+  },
+  "237": {
+   "colour": "#171D23",
+   "share": 1,
+   "pixels": 1
+  },
+  "238": {
+   "colour": "#090F1D",
+   "share": 0.851,
+   "pixels": 74
+  },
+  "239": {
+   "colour": "#0C0505",
+   "share": 1,
+   "pixels": 3
+  },
+  "240": {
+   "colour": "#F3F3F3",
+   "share": 1,
+   "pixels": 10
+  },
+  "241": {
+   "colour": "#DEDEDE",
+   "share": 1,
+   "pixels": 12
+  },
+  "242": {
+   "colour": "#CCCCCC",
+   "share": 1,
+   "pixels": 38
+  },
+  "243": {
+   "colour": "#B8B8B8",
+   "share": 1,
+   "pixels": 34
+  },
+  "245": {
+   "colour": "#949494",
+   "share": 1,
+   "pixels": 87
+  },
+  "246": {
+   "colour": "#858585",
+   "share": 1,
+   "pixels": 100
+  },
+  "247": {
+   "colour": "#737373",
+   "share": 1,
+   "pixels": 231
+  },
+  "249": {
+   "colour": "#595959",
+   "share": 0.872,
+   "pixels": 289
+  },
+  "251": {
+   "colour": "#3D3D3D",
+   "share": 0.936,
+   "pixels": 640
+  },
+  "252": {
+   "colour": "#2E2E2E",
+   "share": 0.983,
+   "pixels": 814
+  },
+  "253": {
+   "colour": "#1E1E1E",
+   "share": 0.994,
+   "pixels": 706
+  },
+  "254": {
+   "colour": "#111111",
+   "share": 0.992,
+   "pixels": 510
+  }
+ },
+ "necromancer-medium": {
+  "0": {
+   "colour": "#000000",
+   "share": 1,
+   "pixels": 1016
+  },
+  "135": {
+   "colour": "#403A2D",
+   "share": 0.667,
+   "pixels": 3
+  },
+  "144": {
+   "colour": "#DDD3AC",
+   "share": 1,
+   "pixels": 3
+  },
+  "150": {
+   "colour": "#877F61",
+   "share": 1,
+   "pixels": 6
+  },
+  "158": {
+   "colour": "#201011",
+   "share": 0.586,
+   "pixels": 29
+  },
+  "159": {
+   "colour": "#0E1713",
+   "share": 1,
+   "pixels": 2
+  },
+  "162": {
+   "colour": "#CA9E9E",
+   "share": 1,
+   "pixels": 2
+  },
+  "163": {
+   "colour": "#BD8F8F",
+   "share": 0.667,
+   "pixels": 3
+  },
+  "164": {
+   "colour": "#492725",
+   "share": 0.5,
+   "pixels": 2
+  },
+  "166": {
+   "colour": "#334139",
+   "share": 1,
+   "pixels": 3
+  },
+  "167": {
+   "colour": "#334139",
+   "share": 1,
+   "pixels": 2
+  },
+  "168": {
+   "colour": "#26322C",
+   "share": 1,
+   "pixels": 4
+  },
+  "169": {
+   "colour": "#26322C",
+   "share": 0.538,
+   "pixels": 13
+  },
+  "170": {
+   "colour": "#1A251F",
+   "share": 0.846,
+   "pixels": 26
+  },
+  "171": {
+   "colour": "#101215",
+   "share": 0.412,
+   "pixels": 68
+  },
+  "172": {
+   "colour": "#201011",
+   "share": 0.529,
+   "pixels": 85
+  },
+  "173": {
+   "colour": "#150A0C",
+   "share": 0.376,
+   "pixels": 85
+  },
+  "174": {
+   "colour": "#0E1713",
+   "share": 0.474,
+   "pixels": 38
+  },
+  "175": {
+   "colour": "#0C0707",
+   "share": 1,
+   "pixels": 185
+  },
+  "180": {
+   "colour": "#492725",
+   "share": 0.5,
+   "pixels": 2
+  },
+  "182": {
+   "colour": "#8B8165",
+   "share": 0.75,
+   "pixels": 8
+  },
+  "183": {
+   "colour": "#8B8165",
+   "share": 1,
+   "pixels": 3
+  },
+  "184": {
+   "colour": "#8B8165",
+   "share": 0.444,
+   "pixels": 9
+  },
+  "185": {
+   "colour": "#726A52",
+   "share": 0.5,
+   "pixels": 8
+  },
+  "186": {
+   "colour": "#39415F",
+   "share": 0.333,
+   "pixels": 9
+  },
+  "187": {
+   "colour": "#101215",
+   "share": 0.343,
+   "pixels": 35
+  },
+  "188": {
+   "colour": "#201011",
+   "share": 0.448,
+   "pixels": 67
+  },
+  "189": {
+   "colour": "#150A0C",
+   "share": 0.434,
+   "pixels": 99
+  },
+  "190": {
+   "colour": "#0D111B",
+   "share": 0.25,
+   "pixels": 48
+  },
+  "191": {
+   "colour": "#05070C",
+   "share": 1,
+   "pixels": 11
+  },
+  "192": {
+   "colour": "#DDD3AC",
+   "share": 1,
+   "pixels": 2
+  },
+  "193": {
+   "colour": "#DDD3AC",
+   "share": 0.917,
+   "pixels": 12
+  },
+  "194": {
+   "colour": "#DDD3AC",
+   "share": 1,
+   "pixels": 4
+  },
+  "195": {
+   "colour": "#DDD3AC",
+   "share": 0.875,
+   "pixels": 8
+  },
+  "196": {
+   "colour": "#DDD3AC",
+   "share": 1,
+   "pixels": 7
+  },
+  "197": {
+   "colour": "#C9BE98",
+   "share": 1,
+   "pixels": 3
+  },
+  "198": {
+   "colour": "#C9BE98",
+   "share": 0.714,
+   "pixels": 21
+  },
+  "199": {
+   "colour": "#B4AA85",
+   "share": 0.875,
+   "pixels": 16
+  },
+  "200": {
+   "colour": "#9E9573",
+   "share": 0.793,
+   "pixels": 29
+  },
+  "201": {
+   "colour": "#9E9573",
+   "share": 0.81,
+   "pixels": 58
+  },
+  "202": {
+   "colour": "#877F61",
+   "share": 0.831,
+   "pixels": 130
+  },
+  "203": {
+   "colour": "#877F61",
+   "share": 0.865,
+   "pixels": 207
+  },
+  "204": {
+   "colour": "#6F6850",
+   "share": 0.796,
+   "pixels": 181
+  },
+  "205": {
+   "colour": "#312816",
+   "share": 0.36,
+   "pixels": 150
+  },
+  "206": {
+   "colour": "#08090B",
+   "share": 0.522,
+   "pixels": 23
+  },
+  "207": {
+   "colour": "#0E1713",
+   "share": 0.444,
+   "pixels": 9
+  },
+  "218": {
+   "colour": "#2C1718",
+   "share": 1,
+   "pixels": 4
+  },
+  "219": {
+   "colour": "#201011",
+   "share": 0.829,
+   "pixels": 35
+  },
+  "220": {
+   "colour": "#201011",
+   "share": 0.782,
+   "pixels": 87
+  },
+  "221": {
+   "colour": "#150A0C",
+   "share": 0.73,
+   "pixels": 126
+  },
+  "222": {
+   "colour": "#08090B",
+   "share": 0.615,
+   "pixels": 39
+  },
+  "234": {
+   "colour": "#1A251F",
+   "share": 1,
+   "pixels": 5
+  },
+  "235": {
+   "colour": "#1A251F",
+   "share": 1,
+   "pixels": 2
+  },
+  "236": {
+   "colour": "#0E1713",
+   "share": 0.737,
+   "pixels": 19
+  },
+  "237": {
+   "colour": "#0E1713",
+   "share": 0.5,
+   "pixels": 12
+  },
+  "238": {
+   "colour": "#0E1713",
+   "share": 0.667,
+   "pixels": 3
+  },
+  "239": {
+   "colour": "#0C0505",
+   "share": 1,
+   "pixels": 108
+  },
+  "244": {
+   "colour": "#A3A3A3",
+   "share": 1,
+   "pixels": 2
+  },
+  "245": {
+   "colour": "#949494",
+   "share": 1,
+   "pixels": 8
+  },
+  "246": {
+   "colour": "#858585",
+   "share": 1,
+   "pixels": 15
+  },
+  "247": {
+   "colour": "#737373",
+   "share": 1,
+   "pixels": 25
+  },
+  "248": {
+   "colour": "#666666",
+   "share": 0.825,
+   "pixels": 57
+  },
+  "249": {
+   "colour": "#23262A",
+   "share": 0.528,
+   "pixels": 89
+  },
+  "250": {
+   "colour": "#191C20",
+   "share": 0.434,
+   "pixels": 166
+  },
+  "251": {
+   "colour": "#3D3D3D",
+   "share": 0.516,
+   "pixels": 277
+  },
+  "252": {
+   "colour": "#2E2E2E",
+   "share": 0.612,
+   "pixels": 472
+  },
+  "253": {
+   "colour": "#1E1E1E",
+   "share": 0.564,
+   "pixels": 468
+  },
+  "254": {
+   "colour": "#111111",
+   "share": 0.782,
+   "pixels": 275
+  }
+ },
+ "barbarian-light": {
+  "0": {
+   "colour": "#000000",
+   "share": 1,
+   "pixels": 1112
+  },
+  "150": {
+   "colour": "#575500",
+   "share": 1,
+   "pixels": 2
+  },
+  "158": {
+   "colour": "#121A2B",
+   "share": 0.917,
+   "pixels": 48
+  },
+  "159": {
+   "colour": "#10172A",
+   "share": 0.571,
+   "pixels": 7
+  },
+  "170": {
+   "colour": "#1A243D",
+   "share": 0.588,
+   "pixels": 17
+  },
+  "171": {
+   "colour": "#121A2B",
+   "share": 0.533,
+   "pixels": 30
+  },
+  "172": {
+   "colour": "#121A2B",
+   "share": 0.628,
+   "pixels": 78
+  },
+  "173": {
+   "colour": "#090F1D",
+   "share": 0.538,
+   "pixels": 78
+  },
+  "174": {
+   "colour": "#10172A",
+   "share": 0.475,
+   "pixels": 40
+  },
+  "175": {
+   "colour": "#0C0707",
+   "share": 1,
+   "pixels": 19
+  },
+  "181": {
+   "colour": "#41537F",
+   "share": 1,
+   "pixels": 8
+  },
+  "184": {
+   "colour": "#334269",
+   "share": 1,
+   "pixels": 2
+  },
+  "185": {
+   "colour": "#263353",
+   "share": 1,
+   "pixels": 13
+  },
+  "186": {
+   "colour": "#263353",
+   "share": 0.844,
+   "pixels": 32
+  },
+  "187": {
+   "colour": "#273039",
+   "share": 0.423,
+   "pixels": 26
+  },
+  "188": {
+   "colour": "#121A2B",
+   "share": 0.52,
+   "pixels": 102
+  },
+  "189": {
+   "colour": "#090F1D",
+   "share": 0.507,
+   "pixels": 483
+  },
+  "190": {
+   "colour": "#090F1D",
+   "share": 0.515,
+   "pixels": 200
+  },
+  "191": {
+   "colour": "#05070C",
+   "share": 1,
+   "pixels": 25
+  },
+  "197": {
+   "colour": "#AB9A63",
+   "share": 1,
+   "pixels": 3
+  },
+  "198": {
+   "colour": "#988B5D",
+   "share": 1,
+   "pixels": 13
+  },
+  "199": {
+   "colour": "#877E54",
+   "share": 1,
+   "pixels": 16
+  },
+  "200": {
+   "colour": "#786F49",
+   "share": 1,
+   "pixels": 22
+  },
+  "201": {
+   "colour": "#69603F",
+   "share": 1,
+   "pixels": 44
+  },
+  "202": {
+   "colour": "#5B5134",
+   "share": 1,
+   "pixels": 97
+  },
+  "203": {
+   "colour": "#484027",
+   "share": 1,
+   "pixels": 153
+  },
+  "204": {
+   "colour": "#39311D",
+   "share": 1,
+   "pixels": 122
+  },
+  "205": {
+   "colour": "#273039",
+   "share": 0.442,
+   "pixels": 208
+  },
+  "206": {
+   "colour": "#171D23",
+   "share": 0.303,
+   "pixels": 119
+  },
+  "207": {
+   "colour": "#10172A",
+   "share": 0.423,
+   "pixels": 52
+  },
+  "218": {
+   "colour": "#263353",
+   "share": 0.667,
+   "pixels": 3
+  },
+  "219": {
+   "colour": "#121A2B",
+   "share": 0.769,
+   "pixels": 26
+  },
+  "220": {
+   "colour": "#121A2B",
+   "share": 0.689,
+   "pixels": 180
+  },
+  "221": {
+   "colour": "#090F1D",
+   "share": 0.626,
+   "pixels": 337
+  },
+  "222": {
+   "colour": "#090F1D",
+   "share": 0.519,
+   "pixels": 135
+  },
+  "223": {
+   "colour": "#10172A",
+   "share": 0.706,
+   "pixels": 34
+  },
+  "236": {
+   "colour": "#090F1D",
+   "share": 0.615,
+   "pixels": 13
+  },
+  "237": {
+   "colour": "#090F1D",
+   "share": 0.667,
+   "pixels": 3
+  },
+  "239": {
+   "colour": "#0C0505",
+   "share": 1,
+   "pixels": 24
+  },
+  "242": {
+   "colour": "#CCCCCC",
+   "share": 1,
+   "pixels": 2
+  },
+  "243": {
+   "colour": "#B8B8B8",
+   "share": 1,
+   "pixels": 7
+  },
+  "244": {
+   "colour": "#A3A3A3",
+   "share": 0.955,
+   "pixels": 22
+  },
+  "245": {
+   "colour": "#949494",
+   "share": 0.933,
+   "pixels": 45
+  },
+  "246": {
+   "colour": "#858585",
+   "share": 0.595,
+   "pixels": 42
+  },
+  "247": {
+   "colour": "#737373",
+   "share": 0.672,
+   "pixels": 64
+  },
+  "248": {
+   "colour": "#666666",
+   "share": 0.688,
+   "pixels": 64
+  },
+  "249": {
+   "colour": "#334269",
+   "share": 0.351,
+   "pixels": 97
+  },
+  "250": {
+   "colour": "#263353",
+   "share": 0.414,
+   "pixels": 111
+  },
+  "251": {
+   "colour": "#1A243D",
+   "share": 0.57,
+   "pixels": 107
+  },
+  "252": {
+   "colour": "#1A243D",
+   "share": 0.446,
+   "pixels": 130
+  },
+  "253": {
+   "colour": "#10172A",
+   "share": 0.612,
+   "pixels": 129
+  },
+  "254": {
+   "colour": "#111111",
+   "share": 0.848,
+   "pixels": 46
+  }
+ },
+ "necromancer-light": {
+  "0": {
+   "colour": "#000000",
+   "share": 1,
+   "pixels": 1025
+  },
+  "135": {
+   "colour": "#0E1713",
+   "share": 1,
+   "pixels": 1
+  },
+  "137": {
+   "colour": "#415149",
+   "share": 1,
+   "pixels": 3
+  },
+  "138": {
+   "colour": "#26322C",
+   "share": 1,
+   "pixels": 7
+  },
+  "142": {
+   "colour": "#0E1713",
+   "share": 0.891,
+   "pixels": 46
+  },
+  "143": {
+   "colour": "#150A0C",
+   "share": 1,
+   "pixels": 4
+  },
+  "150": {
+   "colour": "#877F61",
+   "share": 1,
+   "pixels": 14
+  },
+  "151": {
+   "colour": "#08090B",
+   "share": 0.333,
+   "pixels": 3
+  },
+  "158": {
+   "colour": "#1A251F",
+   "share": 0.889,
+   "pixels": 9
+  },
+  "159": {
+   "colour": "#403A2D",
+   "share": 0.444,
+   "pixels": 9
+  },
+  "165": {
+   "colour": "#A39878",
+   "share": 1,
+   "pixels": 1
+  },
+  "166": {
+   "colour": "#8B8165",
+   "share": 0.806,
+   "pixels": 36
+  },
+  "167": {
+   "colour": "#8B8165",
+   "share": 0.538,
+   "pixels": 13
+  },
+  "168": {
+   "colour": "#726A52",
+   "share": 0.48,
+   "pixels": 25
+  },
+  "169": {
+   "colour": "#26322C",
+   "share": 0.429,
+   "pixels": 49
+  },
+  "170": {
+   "colour": "#201011",
+   "share": 0.473,
+   "pixels": 131
+  },
+  "171": {
+   "colour": "#201011",
+   "share": 0.336,
+   "pixels": 137
+  },
+  "172": {
+   "colour": "#1A251F",
+   "share": 0.401,
+   "pixels": 147
+  },
+  "173": {
+   "colour": "#08090B",
+   "share": 0.42,
+   "pixels": 100
+  },
+  "174": {
+   "colour": "#150A0C",
+   "share": 0.412,
+   "pixels": 17
+  },
+  "175": {
+   "colour": "#0C0707",
+   "share": 1,
+   "pixels": 19
+  },
+  "186": {
+   "colour": "#39415F",
+   "share": 0.455,
+   "pixels": 11
+  },
+  "187": {
+   "colour": "#201011",
+   "share": 0.355,
+   "pixels": 31
+  },
+  "188": {
+   "colour": "#1A251F",
+   "share": 0.443,
+   "pixels": 97
+  },
+  "189": {
+   "colour": "#150A0C",
+   "share": 0.575,
+   "pixels": 73
+  },
+  "190": {
+   "colour": "#0D111B",
+   "share": 1,
+   "pixels": 2
+  },
+  "198": {
+   "colour": "#C9BE98",
+   "share": 1,
+   "pixels": 1
+  },
+  "199": {
+   "colour": "#B4AA85",
+   "share": 1,
+   "pixels": 6
+  },
+  "200": {
+   "colour": "#9E9573",
+   "share": 0.952,
+   "pixels": 21
+  },
+  "201": {
+   "colour": "#9E9573",
+   "share": 0.981,
+   "pixels": 53
+  },
+  "202": {
+   "colour": "#877F61",
+   "share": 0.991,
+   "pixels": 106
+  },
+  "203": {
+   "colour": "#877F61",
+   "share": 0.992,
+   "pixels": 131
+  },
+  "204": {
+   "colour": "#6F6850",
+   "share": 1,
+   "pixels": 109
+  },
+  "205": {
+   "colour": "#101215",
+   "share": 0.513,
+   "pixels": 76
+  },
+  "206": {
+   "colour": "#1A1408",
+   "share": 0.343,
+   "pixels": 35
+  },
+  "207": {
+   "colour": "#08090B",
+   "share": 0.5,
+   "pixels": 4
+  },
+  "213": {
+   "colour": "#A39878",
+   "share": 0.885,
+   "pixels": 26
+  },
+  "217": {
+   "colour": "#26322C",
+   "share": 0.857,
+   "pixels": 7
+  },
+  "218": {
+   "colour": "#26322C",
+   "share": 1,
+   "pixels": 5
+  },
+  "219": {
+   "colour": "#1A251F",
+   "share": 0.438,
+   "pixels": 16
+  },
+  "220": {
+   "colour": "#1A251F",
+   "share": 0.44,
+   "pixels": 25
+  },
+  "221": {
+   "colour": "#0E1713",
+   "share": 0.542,
+   "pixels": 48
+  },
+  "222": {
+   "colour": "#08090B",
+   "share": 0.656,
+   "pixels": 32
+  },
+  "223": {
+   "colour": "#0E1713",
+   "share": 0.857,
+   "pixels": 7
+  },
+  "229": {
+   "colour": "#334139",
+   "share": 1,
+   "pixels": 29
+  },
+  "230": {
+   "colour": "#26322C",
+   "share": 0.89,
+   "pixels": 100
+  },
+  "231": {
+   "colour": "#26322C",
+   "share": 0.794,
+   "pixels": 107
+  },
+  "232": {
+   "colour": "#26322C",
+   "share": 0.796,
+   "pixels": 157
+  },
+  "233": {
+   "colour": "#1A251F",
+   "share": 0.805,
+   "pixels": 154
+  },
+  "234": {
+   "colour": "#1A251F",
+   "share": 0.811,
+   "pixels": 249
+  },
+  "235": {
+   "colour": "#1A251F",
+   "share": 0.751,
+   "pixels": 317
+  },
+  "236": {
+   "colour": "#0E1713",
+   "share": 0.404,
+   "pixels": 114
+  },
+  "237": {
+   "colour": "#150A0C",
+   "share": 0.623,
+   "pixels": 53
+  },
+  "238": {
+   "colour": "#08090B",
+   "share": 0.444,
+   "pixels": 9
+  },
+  "244": {
+   "colour": "#A3A3A3",
+   "share": 1,
+   "pixels": 19
+  },
+  "245": {
+   "colour": "#949494",
+   "share": 1,
+   "pixels": 21
+  },
+  "246": {
+   "colour": "#858585",
+   "share": 1,
+   "pixels": 37
+  },
+  "247": {
+   "colour": "#737373",
+   "share": 0.922,
+   "pixels": 64
+  },
+  "248": {
+   "colour": "#666666",
+   "share": 0.93,
+   "pixels": 86
+  },
+  "249": {
+   "colour": "#595959",
+   "share": 0.887,
+   "pixels": 159
+  },
+  "250": {
+   "colour": "#4C4C4C",
+   "share": 0.838,
+   "pixels": 148
+  },
+  "251": {
+   "colour": "#3D3D3D",
+   "share": 0.76,
+   "pixels": 233
+  },
+  "252": {
+   "colour": "#2E2E2E",
+   "share": 0.673,
+   "pixels": 165
+  },
+  "253": {
+   "colour": "#1E1E1E",
+   "share": 0.694,
+   "pixels": 85
+  },
+  "254": {
+   "colour": "#111111",
+   "share": 0.771,
+   "pixels": 70
+  }
+ }
+}

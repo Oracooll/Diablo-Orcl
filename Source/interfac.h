@@ -50,6 +50,10 @@ enum Cutscenes : uint8_t {
 	CutPortal,
 	CutPortalRed,
 	CutGate,
+	/** The Nephalem Rift's gold portal, going in and coming out (user art, 2026-09-26). */
+	CutRiftNephalem,
+	/** The Guardian Rift's purple portal, the same both ways. */
+	CutRiftGuardian,
 };
 
 void interface_msg_pump();

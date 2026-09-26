@@ -224,6 +224,10 @@ bool HasWaypointPanelArt();
 void DrawWaypointIcon(const Surface &out, Point origin, bool active);
 /** @brief Curse sigil @p index (oracool::CurseKind less one) at @p origin, 24x24. False while the strip is not in the archive. */
 bool DrawCurseMarkerIcon(const Surface &out, Point origin, int index);
+/** @brief Whether ui/skill_markers.png (RfA-27 batch 58) is in the archive - a missing strip takes no place over a head. */
+bool HasSkillMarkerArt();
+/** @brief Skill-marker sigil @p index (oracool::SkillMarker) at @p origin, 24x24. False while the strip is not in the archive. */
+bool DrawSkillMarkerIcon(const Surface &out, Point origin, int index);
 
 /** @brief On-screen size of a single waypoint pad, or {0,0} if the asset is missing. */
 Size GetWaypointIconSize();
