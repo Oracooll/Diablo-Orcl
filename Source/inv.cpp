@@ -1710,6 +1710,12 @@ void DrawSlotStoneUnderlay(const Surface &out, Rectangle rect)
 	}
 }
 
+} // namespace
+
+int RimGlowOpacityPercent = 66; // user, 2026-09-26: "go with 66%" after the 50/60/75/90 render (was 50)
+
+namespace {
+
 /**
  * @brief The rim colour of @p item's backing in the rim-and-glow look (user, 2026-09-26), or 0 for an item
  * that takes no backing. Same precedence as the tint below - sockets, ethereal, the Oracool tiers, then
@@ -1769,7 +1775,7 @@ void DrawRimGlowBacking(const Surface &out, const Rectangle &footprint, uint32_t
 	// HALF TRANSPARENT (user, 2026-09-26 dev note: "let's try making the new backings 50% transparent"): every
 	// pixel below is laid over what the slot already shows at this opacity - the grid's slot art, or the doll's
 	// panel - so the stone reads through the colour. One number to tune.
-	constexpr int OpacityPercent = 50;
+	const int OpacityPercent = std::clamp(RimGlowOpacityPercent, 0, 100);
 	constexpr uint32_t Gutter = 0x0A0908;
 	const int hue[3] = { static_cast<int>((hueRgb >> 16) & 0xFF), static_cast<int>((hueRgb >> 8) & 0xFF), static_cast<int>(hueRgb & 0xFF) };
 	// The rim inside the gutter; the glow reaches in a third of the way on a small item, 12 px at most.

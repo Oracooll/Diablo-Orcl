@@ -14521,3 +14521,64 @@ TEST(OracoolPreview, DISABLED_ItemBackingsAndCards)
 	}
 	player = {};
 }
+
+// The backing at four opacities, one row each (user, 2026-09-26: "make 50%, 60%, 75%, 90% opaque versions of backing.
+// i want to compare"). Bow, sword, armour, shield, helm - plain, magic, rare, unique, primal. Writes
+// item_backings_opacity.png. Run by name, like the preview above.
+TEST(OracoolPreview, DISABLED_BackingOpacities)
+{
+	MountTestArchives(true);
+	EnsureCursorSpritesLoaded();
+	PreviewLoadPalette();
+	InitPNG();
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = *MyPlayer;
+	player = {};
+	InspectPlayer = MyPlayer;
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 50;
+	gbIsHellfire = true;
+	gbIsMultiplayer = false;
+
+	std::vector<devilution::Item> items;
+	items.push_back(PreviewBase(PreviewIdx(ICURS_SHORT_BOW), 11));
+	items.push_back(PreviewMagic(player, PreviewIdx(ICURS_LONG_SWORD), 12, 2));
+	devilution::Item rare = PreviewBase(PreviewIdx(ICURS_BREAST_PLATE), 13);
+	RetierOracoolItem(rare, OracoolItemTier::Rare);
+	items.push_back(rare);
+	devilution::Item buffed = PreviewBase(PreviewIdx(ICURS_KITE_SHIELD), 14);
+	RetierOracoolItem(buffed, OracoolItemTier::BuffedUnique);
+	items.push_back(buffed);
+	devilution::Item primal = PreviewBase(PreviewIdx(ICURS_GREAT_HELM), 15);
+	RetierOracoolItem(primal, OracoolItemTier::Primal);
+	items.push_back(primal);
+	for (devilution::Item &item : items)
+		item._iStatFlag = true;
+
+	constexpr int Opacities[] = { 50, 60, 75, 90 };
+	constexpr int LabelWidth = 56;
+	constexpr int RowHeight = 28 * 3 + 12;
+	OwnedSurface out = OwnedSurface::Rgb(LabelWidth + 28 * 11, RowHeight * 4 + 12);
+	PreviewFloor(out);
+	const int savedOpacity = RimGlowOpacityPercent;
+	sgOptions.Oracool.itemBackingRimGlow.SetValue(true);
+	for (int r = 0; r < 4; r++) {
+		RimGlowOpacityPercent = Opacities[r];
+		const int y = 6 + r * RowHeight;
+		FillRectRgb(out, 0, y, LabelWidth - 4, 28 * 3, 0x100E0C, 0);
+		DrawString(out, StrCat(Opacities[r], "%"), Rectangle { { 0, y }, { LabelWidth - 4, 28 * 3 } },
+		    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		int x = LabelWidth;
+		for (const devilution::Item &item : items) {
+			const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
+			const Size size { (sprite.width() + 27) / 28 * 28, (sprite.height() + 27) / 28 * 28 };
+			InvDrawSlotBack(out, { x, y + size.height - 1 }, size, item);
+			DrawItem(item, out, { x + (size.width - sprite.width()) / 2, y + size.height - 1 - (size.height - sprite.height()) / 2 }, sprite);
+			x += size.width;
+		}
+	}
+	RimGlowOpacityPercent = savedOpacity;
+	PreviewSave(out, "item_backings_opacity.png");
+	player = {};
+}

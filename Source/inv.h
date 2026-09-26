@@ -211,6 +211,9 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
  * (gold). The tooltip card wears the same colour on its plate and frame (user, 2026-09-26 dev note).
  */
 uint32_t ItemQualityRimColor(const Item &item);
+/** @brief How opaque the rim-and-glow backing is laid over the slot, in percent (user, 2026-09-26: 66). A variable so the
+ * item-look preview can render the candidates side by side. */
+extern DVL_API_FOR_TEST int RimGlowOpacityPercent;
 /**
  * @brief Checks whether the given item can be placed on the belt. Takes item size as well as characteristics into account. Items
  * that cannot be placed on the belt have to be placed in the inventory instead.
