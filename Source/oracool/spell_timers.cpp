@@ -45,11 +45,15 @@ constexpr std::array<SpellID, 7> WarcryBuffs {
 	SpellID::Vengeance, SpellID::SlowMissiles, SpellID::Tranquility
 };
 
-/** @brief The fourteen RfA-12 casts that leave a timed buff (rfa12_actives.h). */
-constexpr std::array<SpellID, 14> Rfa12Buffs {
+/**
+ * @brief The seventeen RfA-12 casts that leave a timed effect on the caster (rfa12_actives.h) - the Necromancer's
+ * Bone Armor, Poison Dagger and Bone Storm since 2026-09-26. Their icons are the letter plate until his strip lands.
+ */
+constexpr std::array<SpellID, 17> Rfa12Buffs {
 	SpellID::RallyingCry, SpellID::IronWill, SpellID::Bloodcall, SpellID::StaticCharge, SpellID::Conduit,
 	SpellID::Immolate, SpellID::ChordOfWarding, SpellID::Feedback, SpellID::MusicOfTheSpheres, SpellID::Saga,
-	SpellID::MantraOfClarity, SpellID::MantraOfEvasion, SpellID::MantraOfRetribution, SpellID::AstralProjection
+	SpellID::MantraOfClarity, SpellID::MantraOfEvasion, SpellID::MantraOfRetribution, SpellID::AstralProjection,
+	SpellID::BoneArmor, SpellID::PoisonDagger, SpellID::BoneStorm
 };
 
 /**

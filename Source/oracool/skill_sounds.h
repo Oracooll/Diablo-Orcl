@@ -72,10 +72,16 @@ struct SkillSound {
  * non-spatial anyway. A monster-side impact one day would want a pan derived from the hit tile.
  *
  * @return whether a cue existed and was played. Callers that have a FALLBACK sound need this - the
- * cast hook in StartSpell plays the vanilla sSFX only when the tree row has nothing of its own, and
- * cannot ask "did that ring?" any other way without repeating the lookup.
+ * cast hook in StartSpell plays the row's Cast cue IN PLACE of the generic IS_CAST2 (user, 2026-09-26), and
+ * the vanilla sound only when the cue is missing.
  */
 bool PlaySkillSound(ClassTreeSkill skill, SkillSoundEvent event);
+
+/** @brief The file behind @p event for @p skill, or nullptr when the row has no such cue. For tests and fallbacks. */
+DVL_API_FOR_TEST const char *SkillSoundPath(ClassTreeSkill skill, SkillSoundEvent event);
+
+/** @brief Whether @p skill has a cue for @p event - asked before choosing between it and a vanilla sound. */
+bool HasSkillSound(ClassTreeSkill skill, SkillSoundEvent event);
 
 /**
  * @brief Begins @p skill's persistent loop: the start cue, then the looping body beneath it.

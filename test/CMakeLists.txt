@@ -38,6 +38,7 @@ set(tests
   oracool_necro_items_test
   oracool_passive_sweep_test
   oracool_skill_rules_test
+  oracool_skill_assets_test
   oracool_town_objects_test
   oracool_hero_look_test
   oracool_tooltip_sweep_test

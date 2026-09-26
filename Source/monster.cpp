@@ -1804,11 +1804,15 @@ bool MonsterRangedAttack(Monster &monster)
 	if (monster.animInfo.currentFrame == monster.data().animFrameNum - 1) {
 		const auto &missileType = static_cast<MissileID>(monster.var1);
 		if (missileType != MissileID::Null) {
+			// Oracool (2026-09-26): a Skeletal Mage's shot is ONE missile at its own damage, whatever its element.
+			// Firebolt, Acid and Arrow already roll the shooter's min-max; a monster's Charged Bolt is three bolts of a
+			// flat 15, so a mage's single bolt is given the same min-max roll the other three elements make.
+			const bool minionShot = oracool::IsMinion(monster);
 			int multimissiles = 1;
-			if (missileType == MissileID::ChargedBolt)
+			if (missileType == MissileID::ChargedBolt && !minionShot)
 				multimissiles = 3;
 			for (int mi = 0; mi < multimissiles; mi++) {
-				AddMissile(
+				Missile *shot = AddMissile(
 				    monster.position.tile,
 				    monster.enemyPosition,
 				    monster.direction,
@@ -1817,6 +1821,15 @@ bool MonsterRangedAttack(Monster &monster)
 				    monster.getId(),
 				    monster.var2,
 				    0);
+				if (shot == nullptr || !minionShot)
+					continue;
+				if (missileType == MissileID::ChargedBolt)
+					shot->_midam = monster.minDamage + GenerateRnd(monster.maxDamage - monster.minDamage + 1);
+				// The bone mage's arrow wears the Necromancer's bone tooth (sixteen facings) once that sheet is in.
+				if (missileType == MissileID::Arrow && MissileArtLoaded(MissileGraphicID::BoneTooth)) {
+					shot->_miAnimType = MissileGraphicID::BoneTooth;
+					SetMissDir(*shot, GetDirection16(monster.position.tile, monster.enemyPosition));
+				}
 			}
 		}
 		PlayEffect(monster, MonsterSound::Attack);
@@ -4869,7 +4882,9 @@ void CompanionAi(Monster &companion)
 			break;
 		}
 		if (orders.attack == oracool::CompanionAttack::Bow) {
-			StartRangedAttack(companion, MissileID::Arrow, 0);
+			// The orders' own missile: a Skeletal Mage's element (necro_summoning's table), an arrow for everyone else.
+			// This was MissileID::Arrow for all until 2026-09-26, so every mage shot the same plain arrow.
+			StartRangedAttack(companion, orders.missile, 0);
 			return;
 		}
 		if (orders.attack == oracool::CompanionAttack::Melee) {

@@ -9,6 +9,7 @@
 #include <type_traits>
 
 #include "effects.h"
+#include "utils/attributes.h"
 #include "utils/enum_traits.h"
 
 namespace devilution {
@@ -841,7 +842,7 @@ struct SpellData {
 	}
 };
 
-extern const SpellData SpellsData[];
+extern DVL_API_FOR_TEST const SpellData SpellsData[];
 
 inline const SpellData &GetSpellData(SpellID spellId)
 {

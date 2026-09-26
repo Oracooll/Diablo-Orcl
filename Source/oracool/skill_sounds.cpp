@@ -101,12 +101,26 @@ bool PlaySkillSound(Skill skill, SkillSoundEvent event)
 	return true;
 }
 
+const char *SkillSoundPath(Skill skill, SkillSoundEvent event)
+{
+	const size_t index = FindSound(skill, event);
+	return index == SkillSoundCount ? nullptr : SkillSounds[index].path;
+}
+
+bool HasSkillSound(Skill skill, SkillSoundEvent event)
+{
+	return FindSound(skill, event) != SkillSoundCount;
+}
+
 void StartClassAuraLoop(Skill skill)
 {
 	// Atomic replacement, in the contract's order: the old loop and its stop cue go first, so two
 	// auras are never audible at once even for a frame.
 	StopClassAuraLoop();
-	PlaySkillSound(skill, SkillSoundEvent::Start);
+	// An aura delivered with only a CAST cue (Static Field; the Bard's Discord, Tale of Heroes, Weaken) was
+	// silent when lit, because this asked for Start alone (asset audit, 2026-09-26). Its cast is its start.
+	if (!PlaySkillSound(skill, SkillSoundEvent::Start))
+		PlaySkillSound(skill, SkillSoundEvent::Cast);
 	ResumeClassAuraLoop(skill);
 }
 

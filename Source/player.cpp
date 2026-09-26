@@ -419,14 +419,29 @@ void StartSpell(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord c
 	NewPlrAnim(player, GetPlayerGraphicForSpell(player.queuedSpell.spellId), d, animationFlags,
 	    static_cast<int8_t>(oracool::CastFrameSkip(player._pSFNum, player._pIFastCast)), player._pSFNum);
 
-	// The spell's OWN sound, and only that (user, 2026-09-03: "there is some unnecessary chatgpt
+	// The spell's OWN sound, and only one (user, 2026-09-03: "there is some unnecessary chatgpt
 	// sound played every time i cast same spells. remove it. spells have their own sounds").
 	//
 	// The class-tree sound package used to layer a cast cue on top of this for 92 of the 163 rows,
 	// so a spell with a perfectly good vanilla noise made two. The package's aura loops stay - an
 	// aura has no engine sound at all, so those are its only voice, not a second one - and so does
 	// the Learn click in the Abilities window, which is UI feedback rather than a spell.
-	PlaySfxLoc(GetSpellData(player.queuedSpell.spellId).sSFX, player.position.tile);
+	//
+	// One exception, REPLACING rather than stacking (user, 2026-09-26: the war cries' delivered shouts and
+	// the other delivered cast cues): a spell whose own sound is only the generic IS_CAST2 plays its tree
+	// row's Cast cue instead, when the row has one. The cold spells are left out - their cue already
+	// replaces the missile's launch sound (oracool/cold.h), and here it would ring twice.
+	{
+		const SpellID castSpell = player.queuedSpell.spellId;
+		const _sfx_id sound = GetSpellData(castSpell).sSFX;
+		bool played = false;
+		if (sound == IS_CAST2 && &player == MyPlayer && !oracool::IsColdSpell(castSpell)) {
+			const oracool::ClassTreeSkill row = oracool::ClassTreeSkillForSpell(player._pClass, castSpell);
+			played = row != oracool::ClassTreeSkill::None && oracool::PlaySkillSound(row, oracool::SkillSoundEvent::Cast);
+		}
+		if (!played)
+			PlaySfxLoc(sound, player.position.tile);
+	}
 
 	player._pmode = PM_SPELL;
 

@@ -1,7 +1,15 @@
-# Oracool asset pipeline: rebuilds the six class-tree icon strips (ui\<class>_tree_icons.png) and
+# Oracool asset pipeline: rebuilds the seven class-tree icon strips (ui\<class>_tree_icons.png) and
 # the attack strip (ui\attack_icons.png) from GPT's vanilla-style skill glyphs.
 #
-# Source: Resources\01-in-use-assets\delivered-packs\oracool-skill-glyphs-vanilla-v1 (2026-09-05):
+# The Necromancer (2026-09-26): his strip is ui\necro_tree_icons.png, the name hud_art.cpp loads. His
+# 72 glyphs are batch 39 (RfA-17, held; re-requested in RfA-27) and are not delivered yet, so his pack is
+# OPTIONAL below: while it is absent the script says so and writes no Necromancer strip at all. An
+# all-transparent 72-frame strip would satisfy every frame-count check while drawing nothing but letters.
+#
+# Packs live in Resources\02. Oracooll Assets\delivered-packs since the Resources reorganisation into
+# "01. Blizzard Assets" / "02. Oracooll Assets"; the 01-in-use-assets path this used to read is gone.
+#
+# Source: Resources\02. Oracooll Assets\delivered-packs\oracool-skill-glyphs-vanilla-v1 (2026-09-05):
 # 257 glyphs, 56x56 RGBA, nothing but white (243,243,243) and shadow (12,7,7) on transparency,
 # each in glyphs\<class>\<page>\<slug>.png and listed in manifest.json with its class, PAGE name and
 # skill NAME. That triple is the join: the strip's frame order IS the ClassTreeSkill order, which
@@ -25,7 +33,8 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$pack = Join-Path (Split-Path -Parent $root) 'Resources\01-in-use-assets\delivered-packs\oracool-skill-glyphs-vanilla-v1'
+$pack = Join-Path (Split-Path -Parent $root) 'Resources\02. Oracooll Assets\delivered-packs\oracool-skill-glyphs-vanilla-v1'
+if (-not (Test-Path (Join-Path $pack 'manifest.json'))) { throw "no glyph pack at $pack - has the Resources folder moved again?" }
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
 $ICON = 56
 
@@ -35,9 +44,9 @@ foreach ($e in $manifest) { $byKey[("{0}|{1}|{2}" -f $e.class, $e.page, $e.name)
 # Later glyph packs in the same format (RfA-04 batch 13, 2026-09-11: the five rows the first pack
 # missed). Each entry remembers its own pack folder; a key the first pack already has is an error
 # rather than a silent override.
-# These packs MUST live in 01-in-use-assets\delivered-packs, not 02-concept-assets: their glyphs
-# are in the shipped strips, so by the asset ledger's own rule ("the master a cutter reads to
-# produce something shipped") they are in-use art.
+# These packs MUST live beside the first one (today Resources\02. Oracooll Assets\delivered-packs; until
+# the reorganisation, 01-in-use-assets\delivered-packs): their glyphs are in the shipped strips, so by the
+# asset ledger's own rule ("the master a cutter reads to produce something shipped") they are in-use art.
 #
 # batch-13 was moved to 02- by the 2026-09-11 Resources reorganisation, which silently broke this
 # script outright - line 36's Get-Content is unguarded under $ErrorActionPreference = 'Stop', so it
@@ -48,9 +57,17 @@ foreach ($e in $manifest) { $byKey[("{0}|{1}|{2}" -f $e.class, $e.page, $e.name)
 # tools\FixBatch31GlyphShadows.ps1 first - run that before this whenever the pack changes.
 # batch-36 (2026-09-14, RfA-16): the six rows renamed by the census notes. Its shadows are already exact, and
 # its manifest.json was written at intake from the delivery's notes (the pack shipped without one).
-$extraPacks = @('batch-13-skill-glyphs', 'batch-26-sorceress-glyphs', 'batch-31-new-skill-glyphs', 'batch-36-census-glyphs')
+# batch-39 (RfA-17 / RfA-27): the Necromancer's 72 glyphs, with a manifest.json in batch-31's format (class
+# "Necromancer", page SUMMONING / POISON & BONE / CURSES / PASSIVE SKILLS). OPTIONAL until it is delivered -
+# every other pack here is required, and its absence stays the hard error it has always been.
+$extraPacks = @('batch-13-skill-glyphs', 'batch-26-sorceress-glyphs', 'batch-31-new-skill-glyphs', 'batch-36-census-glyphs', 'batch-39-necromancer-glyphs')
+$optionalPacks = @('batch-39-necromancer-glyphs')
 foreach ($extra in $extraPacks) {
   $extraRoot = Join-Path (Split-Path -Parent $pack) $extra
+  if (($optionalPacks -contains $extra) -and -not (Test-Path (Join-Path $extraRoot 'manifest.json'))) {
+    Write-Host "$extra not delivered yet (no manifest.json) - its rows keep their letters"
+    continue
+  }
   $extraManifest = Get-Content (Join-Path $extraRoot 'manifest.json') -Raw | ConvertFrom-Json
   foreach ($e in $extraManifest) {
     $k = "{0}|{1}|{2}" -f $e.class, $e.page, $e.name
@@ -73,7 +90,8 @@ $table = $src.Substring($tableStart, $tableEnd - $tableStart)
 # at $mine.Count frames, so re-running the script TRUNCATED both strips from 49 frames to 48 and
 # silently threw away the last frame. Done exactly that on 2026-09-12 and caught it by measuring the
 # files afterwards; AuditGlyphStrips.ps1 had the identical regex bug, found the same day.
-$rowRe = [regex]'\{\s*N_\("((?:[^"\\]|\\.)*)"\),\s*N_\("(?:[^"\\]|\\.)*"\),\s*(Pal|Bar|Sor|Rog|Bard|Monk),\s*(\d+|RetiredFromTreePage),'
+# Nec (2026-09-26): without it the Necromancer's 72 rows parsed as nothing, so no strip could ever be built for him.
+$rowRe = [regex]'\{\s*N_\("((?:[^"\\]|\\.)*)"\),\s*N_\("(?:[^"\\]|\\.)*"\),\s*(Pal|Bar|Sor|Rog|Bard|Monk|Nec),\s*(\d+|RetiredFromTreePage),'
 $rows = @()
 foreach ($m in $rowRe.Matches($table)) {
     $pageText = $m.Groups[3].Value
@@ -84,8 +102,8 @@ foreach ($m in $rowRe.Matches($table)) {
 }
 if ($rows.Count -lt 150) { throw "only $($rows.Count) rows parsed from class_tree.cpp" }
 
-$className = @{ Pal = 'Paladin'; Bar = 'Barbarian'; Sor = 'Sorceress'; Rog = 'Rogue'; Bard = 'Bard'; Monk = 'Monk' }
-$stripFile = @{ Pal = 'paladin_tree_icons.png'; Bar = 'barb_tree_icons.png'; Sor = 'sorc_tree_icons.png'; Rog = 'rogue_tree_icons.png'; Bard = 'bard_tree_icons.png'; Monk = 'monk_tree_icons.png' }
+$className = @{ Pal = 'Paladin'; Bar = 'Barbarian'; Sor = 'Sorceress'; Rog = 'Rogue'; Bard = 'Bard'; Monk = 'Monk'; Nec = 'Necromancer' }
+$stripFile = @{ Pal = 'paladin_tree_icons.png'; Bar = 'barb_tree_icons.png'; Sor = 'sorc_tree_icons.png'; Rog = 'rogue_tree_icons.png'; Bard = 'bard_tree_icons.png'; Monk = 'monk_tree_icons.png'; Nec = 'necro_tree_icons.png' }
 # GetClassTreePageName, page 0..3 per class.
 $pageName = @{
   Pal  = @('COMBAT SKILLS', 'OFFENSIVE AURAS', 'DEFENSIVE AURAS', 'PASSIVE SKILLS')
@@ -94,6 +112,7 @@ $pageName = @{
   Rog  = @('BOW & CROSSBOW', 'PASSIVE & MAGIC', 'JAVELIN & SPEAR', 'PASSIVE SKILLS')
   Bard = @('MELODY', 'HARMONY', 'POETRY', 'PASSIVE SKILLS')
   Monk = @('WAY OF THE STAFF', 'WAY OF THE BODY', 'WAY OF THE SPIRIT', 'PASSIVE SKILLS')
+  Nec  = @('SUMMONING', 'POISON & BONE', 'CURSES', 'PASSIVE SKILLS')
 }
 
 function IsGlyphPixel([System.Drawing.Color]$c) {
@@ -137,11 +156,13 @@ function LoadStripEditable([string]$path, [int]$frames) {
 $report = @()
 $missing = @()
 $used = @{}
-foreach ($cls in @('Pal', 'Bar', 'Sor', 'Rog', 'Bard', 'Monk')) {
+foreach ($cls in @('Pal', 'Bar', 'Sor', 'Rog', 'Bard', 'Monk', 'Nec')) {
   $mine = @($rows | Where-Object { $_.Cls -eq $cls })
+  if ($mine.Count -eq 0) { throw "no $($className[$cls]) rows parsed from class_tree.cpp" }
   $path = Join-Path $outDir $stripFile[$cls]
   $strip = LoadStripEditable $path $mine.Count
   $stamped = 0
+  $classMissing = @()
   for ($i = 0; $i -lt $mine.Count; $i++) {
     $row = $mine[$i]
     # A retired row (Page -1) is on no page, so it cannot be looked up by class|page|name. It keeps
@@ -150,15 +171,24 @@ foreach ($cls in @('Pal', 'Bar', 'Sor', 'Rog', 'Bard', 'Monk')) {
     if ($row.Page -lt 0) { continue }
     $key = "{0}|{1}|{2}" -f $className[$cls], $pageName[$cls][$row.Page], $row.Name
     $entry = $byKey[$key]
-    if ($null -eq $entry) { $missing += $key; continue }
+    if ($null -eq $entry) { $classMissing += $key; continue }
     $glyphRoot = if ($entry.PSObject.Properties['root']) { $entry.root } else { $pack }
     StampGlyph $strip $i (Join-Path $glyphRoot $entry.file)
     $used[$key] = $true
     $stamped++
   }
+  # A class with no strip on disk and not one glyph delivered (the Necromancer until batch 39) gets NO
+  # strip: an empty one would pass every frame-count check while drawing only letters. Its rows are
+  # reported once as a class rather than 72 times as missing glyphs.
+  if ($stamped -eq 0 -and -not (Test-Path $path)) {
+    $strip.Dispose()
+    $report += ("{0,-11} {1,3} rows, no glyphs delivered -> {2} NOT written" -f $className[$cls], $mine.Count, $stripFile[$cls])
+    continue
+  }
+  $missing += $classMissing
   $strip.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
   $strip.Dispose()
-  $report += ("{0,-10} {1,3} rows, {2,3} glyphs stamped -> {3}" -f $className[$cls], $mine.Count, $stamped, $stripFile[$cls])
+  $report += ("{0,-11} {1,3} rows, {2,3} glyphs stamped -> {3}" -f $className[$cls], $mine.Count, $stamped, $stripFile[$cls])
 }
 
 # ---- the attack strip: the two basic attacks, in AttackIcon order (Regular, Fist) ---------------

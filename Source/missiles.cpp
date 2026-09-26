@@ -276,6 +276,28 @@ namespace {
 /** @brief Oracool: the percent of its owner's damage the companion arrow being checked deals - see CheckMissileCol. */
 int CompanionHitPercent = 0;
 
+/**
+ * @brief Oracool (2026-09-26): whether @p missile lands in a cold impact sheet of its own - Ice Bolt and Ice Blast in
+ * ice_impact, Glacial Spike in glacial_shatter, Freezing Arrow in freezing_burst. Every other cold hit gets the
+ * hit_cold flash instead (AddColdHitFlash), so no hit shows two.
+ */
+bool HasOwnColdImpact(const Missile &missile)
+{
+	switch (missile._mitype) {
+	case MissileID::IceBolt:
+	case MissileID::IceBlast:
+	case MissileID::GlacialSpike:
+		return true;
+	case MissileID::FrostArrow:
+		return static_cast<oracool::RogueArrow>(missile.var5) == oracool::RogueArrow::FreezingArrow;
+	default:
+		return false;
+	}
+}
+
+/** @brief An AddArtEffect sheet whose var1 is this keeps to its caster's tile while it plays (ProcessCensusEffect). */
+constexpr int ArtEffectFollowsCaster = 1;
+
 } // namespace
 
 bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, MissileID t, DamageType damageType, bool shift, int spellLevel)
@@ -570,6 +592,9 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			CompanionHitPercent = missile.companionPercent;
 			isMonsterHit = MonsterMHit(missile._misource, mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, missile._mispllvl);
 			CompanionHitPercent = 0;
+			// A cold hit with no impact art of its own - a Blizzard shard, a Cold or Ice Arrow - flashes where it landed.
+			if (isMonsterHit && damageType == DamageType::Cold && !HasOwnColdImpact(missile))
+				AddColdHitFlash({ mx, my }, missile._misource);
 		}
 	}
 
@@ -588,7 +613,9 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			if (missile._micaster == TARGET_MONSTERS) {
 				if ((pid - 1) != missile._misource)
 					isPlayerHit = Plr2PlrMHit(Players[missile._misource], pid - 1, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, &blocked);
-			} else {
+			} else if (!Monsters[missile._misource].isPlayerMinion()) {
+				// A hero's own minions never shoot the hero (2026-09-26): their shots are aimed at monsters and
+				// used to wound any player standing in the line - the Skeletal Mage's firebolts made it plain.
 				Monster &monster = Monsters[missile._misource];
 				isPlayerHit = PlayerMHit(pid - 1, &monster, missile._midist, minDamage, maxDamage, missile._mitype, damageType, isDamageShifted, DeathReason::MonsterOrTrap, &blocked);
 				// Chilling Armor answers a RANGED hit; the other two armours do not, which is the
@@ -2322,7 +2349,9 @@ void AddFrostNova(Missile &missile, AddMissileParameter & /*parameter*/)
 			continue;
 		if (monster.position.tile.WalkingDistance(missile.position.tile) > 3)
 			continue;
-		MonsterMHit(missile._misource, id, minDamage, maxDamage, 0, MissileID::FrostNova, DamageType::Cold, false, missile._mispllvl);
+		// The ring has no impact sheet: each monster it catches flashes (hit_cold, 2026-09-26).
+		if (MonsterMHit(missile._misource, id, minDamage, maxDamage, 0, MissileID::FrostNova, DamageType::Cold, false, missile._mispllvl))
+			AddColdHitFlash(monster.position.tile, missile._misource);
 	}
 }
 
@@ -2398,8 +2427,14 @@ void ProcessBlizzardShard(Missile &missile)
 {
 	missile._mirange--;
 	// Frame nine of thirteen is the strike - four ticks before the end at one frame a tick.
-	if (missile._mirange == 4)
+	if (missile._mirange == 4) {
 		CheckMissileCol(missile, DamageType::Cold, missile.var3, missile.var4, false, missile.position.tile, true);
+		// The landing's own cue (audit 2026-09-26): CheckMissileCol sounds a missile's impact only when its
+		// range hits 0, and a shard strikes with four ticks left, so no shard was ever heard. Non-spatial, the
+		// local player's own storm only; snd_play_snd drops retriggers inside 80 ms, so one per shard is fine.
+		if (missile.sourceType() == MissileSource::Player && static_cast<size_t>(missile._misource) == MyPlayerId)
+			oracool::PlaySkillSound(oracool::ClassTreeSkill::Blizzard, oracool::SkillSoundEvent::Impact);
+	}
 	if (missile._mirange <= 0)
 		missile._miDelFlag = true;
 	PutMissile(missile);
@@ -2494,8 +2529,13 @@ void ProcessColdArmor(Missile &missile)
 		// Its own stop cue when it wears off - nothing sounded at that moment before, so this is a
 		// voice, not a second one. Not on death (the armour is cleared with the player), and not on a
 		// recast, which returned above and plays the new armour's start instead.
-		if (player._pHitPoints >> 6 > 0)
+		if (player._pHitPoints >> 6 > 0) {
 			oracool::PlayColdArmourExpirySound(missile);
+			// And the shell breaks where it was worn: ice_armor_break.png, once, following the hero for its ten
+			// frames (2026-09-26 - the sheet was packed and never drawn). Same frame and anchor as the shell.
+			if (Missile *shatter = AddArtEffect(player.position.tile, MissileGraphicID::IceArmorBreak, static_cast<int>(player.getId())); shatter != nullptr)
+				shatter->var1 = ArtEffectFollowsCaster;
+		}
 		RedrawEverything();
 	}
 }
@@ -2554,9 +2594,21 @@ void ProcessRogueArrow(Missile &missile)
 	const DamageType damageType = GetMissileData(missile._mitype).damageType();
 	MoveMissileAndCheckMissileCol(missile, damageType, mind, maxd, true, false);
 
+	// The glow AddElementalArrow lit at the bow travels with the arrow, as vanilla's fire arrow's does
+	// (ProcessElementalArrow) - it stayed at the Rogue's feet until 2026-09-26. var1/var2 are the tile it last lit.
+	if (missile._mlid != NO_LIGHT && missile.position.tile != Point { missile.var1, missile.var2 }) {
+		missile.var1 = missile.position.tile.x;
+		missile.var2 = missile.position.tile.y;
+		ChangeLight(missile._mlid, missile.position.tile, 5);
+	}
+
 	if (missile._mirange == 0) {
 		const Point at = missile.position.tile;
 		const Direction dir = static_cast<Direction>(missile._mimfnum);
+		// Fire Arrow lands in the burst vanilla's fire arrow lands in (magblos), drawn and lit only: the skill's fire
+		// damage is the arrow's own hit, already dealt. Exploding and Immolation Arrow keep their own endings below.
+		if (arrow == oracool::RogueArrow::FireArrow && missile._mitype == MissileID::FlameArrow)
+			AddMissile(at, at, dir, MissileID::MagmaBallExplosion, missile._micaster, missile._misource, 0, 0, &missile);
 		switch (arrow) {
 		case oracool::RogueArrow::ExplodingArrow:
 			// The burst: fire damage across the eight tiles around the stop, and the magma-ball
@@ -2761,9 +2813,30 @@ void AddMissileExplosion(Missile &missile, AddMissileParameter &parameter)
 	missile._mirange = missile._miAnimLen;
 }
 
+namespace {
+
+/**
+ * @brief Oracool (2026-09-26): WeaponExplosion's third kind, after vanilla's fire (1) and lightning (2) - the cold
+ * hit flash. A picture only: no hero carries weapon cold damage, so nothing rolls a blow for it. The cold hits
+ * that call it are the missiles' and the skills' (AddColdHitFlash).
+ */
+constexpr int WeaponExplosionColdFlash = 3;
+
+} // namespace
+
 void AddWeaponExplosion(Missile &missile, AddMissileParameter &parameter)
 {
 	missile.var2 = parameter.dst.x;
+	if (missile.var2 == WeaponExplosionColdFlash) {
+		if (!MissileArtLoaded(MissileGraphicID::HitCold)) {
+			missile._miDelFlag = true; // hit_cold.png not in the archive: no flash, as before
+			return;
+		}
+		SetMissAnim(missile, MissileGraphicID::HitCold);
+		missile._mirange = missile._miAnimLen * std::max(missile._miAnimDelay, 1);
+		missile.var4 = 1;
+		return;
+	}
 	const bool fire = parameter.dst.x == 1;
 	SetMissAnim(missile, fire ? MissileGraphicID::MagmaBallExplosion : MissileGraphicID::ChargedBolt);
 	missile._mirange = missile._miAnimLen - 1;
@@ -3537,6 +3610,15 @@ constexpr int MeteorImpactBurnFrame = 11;
 /** @brief Bone wall: frames 1-6 rise once, 7-10 stand, looped for as long as the wall holds (batch 38's notes). */
 constexpr int BoneWallStandFrame = 7;
 
+/**
+ * @brief The sheet AddArtEffect is spawning, for AddCensusEffect to wear in place of its row's own - set for the one
+ * AddMissile call and cleared after it. None the rest of the time, which leaves every census row exactly as it was.
+ */
+MissileGraphicID CensusArtOverride = MissileGraphicID::None;
+
+/** @brief AddArtEffect's carrier: a census row that loops its sheet for the ticks it is given and does nothing else. */
+constexpr MissileID ArtEffectCarrier = MissileID::AcidCloud;
+
 } // namespace
 
 /**
@@ -3547,6 +3629,8 @@ constexpr int BoneWallStandFrame = 7;
  */
 void AddCensusEffect(Missile &missile, AddMissileParameter &parameter)
 {
+	if (CensusArtOverride != MissileGraphicID::None)
+		SetMissAnim(missile, CensusArtOverride); // AddArtEffect's sheet, riding this row
 	if (!MissileArtLoaded(missile._miAnimType)) {
 		missile._miDelFlag = true; // sheet not in the archive: the caller shows its placeholder
 		return;
@@ -3554,10 +3638,34 @@ void AddCensusEffect(Missile &missile, AddMissileParameter &parameter)
 	missile.position.tile = parameter.dst;
 	missile.position.start = parameter.dst;
 	missile.position.offset = CensusEffectOffset(missile._mitype);
+	// A whole play of the sheet is its frames times the ticks each one holds - raise_dead steps every second tick,
+	// and a range of one tick a frame (2026-09-26 audit) cut it off halfway. A longer duration asked for in the
+	// missile's damage (a cloud, a wall, a burn) still wins; the fall and the bolt play exactly once.
+	const int onePlay = missile._miAnimLen * std::max<int>(missile._miAnimDelay, 1);
 	if (IsAnyOf(missile._mitype, MissileID::MeteorFall, MissileID::ThunderBolt))
-		missile._mirange = missile._miAnimLen * std::max<int>(missile._miAnimDelay, 1);
+		missile._mirange = onePlay;
 	else
-		missile._mirange = std::max(missile._midam, missile._miAnimLen);
+		missile._mirange = std::max(missile._midam, onePlay);
+}
+
+Missile *AddArtEffect(Point tile, MissileGraphicID art, int playerId, int ticks)
+{
+	if (!MissileArtLoaded(art) || !InDungeonBounds(tile))
+		return nullptr;
+	CensusArtOverride = art;
+	Missile *effect = AddMissile(tile, tile, Direction::South, ArtEffectCarrier, TARGET_MONSTERS, playerId, ticks, 0);
+	CensusArtOverride = MissileGraphicID::None;
+	if (effect == nullptr || effect->_miDelFlag)
+		return nullptr;
+	effect->position.offset = { 0, 0 }; // the carrier's own anchor is the acid cloud's; the caller sets this sheet's
+	return effect;
+}
+
+void AddColdHitFlash(Point tile, int playerId)
+{
+	if (!MissileArtLoaded(MissileGraphicID::HitCold) || !InDungeonBounds(tile))
+		return;
+	AddMissile(tile, { WeaponExplosionColdFlash, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
 }
 
 void ProcessCensusEffect(Missile &missile)
@@ -3575,8 +3683,10 @@ void ProcessCensusEffect(Missile &missile)
 		if (missile._miAnimFrame >= missile._miAnimLen && missile._miAnimCnt + 1 >= missile._miAnimDelay)
 			missile._miAnimFrame = BoneWallStandFrame - 1;
 	}
-	// The bone storm follows its caster (rfa12_actives moves the field the same way).
-	if (missile._mitype == MissileID::BoneStormEffect && missile._micaster == TARGET_MONSTERS && static_cast<size_t>(missile._misource) < Players.size()) {
+	// The bone storm follows its caster (rfa12_actives moves the field the same way), as does an AddArtEffect sheet
+	// marked to (the cold armour's break).
+	if ((missile._mitype == MissileID::BoneStormEffect || (missile._mitype == ArtEffectCarrier && missile.var1 == ArtEffectFollowsCaster))
+	    && missile._micaster == TARGET_MONSTERS && missile._misource >= 0 && static_cast<size_t>(missile._misource) < Players.size()) {
 		const Point here = Players[missile._misource].position.tile;
 		missile.position.tile = here;
 		missile.position.start = here;
@@ -3596,7 +3706,9 @@ void ProcessCensusEffect(Missile &missile)
  */
 void AddAcidJavelin(Missile &missile, AddMissileParameter &parameter)
 {
-	if (!MissileArtLoaded(MissileGraphicID::AcidJavelin)) {
+	// The missile's OWN sheet: the Necromancer's three bolts fly this way too, and asked for the javelin's until
+	// 2026-09-26 - so a build without acid_javelin.png lost all three, with sheets of their own in the archive.
+	if (!MissileArtLoaded(missile._miAnimType)) {
 		missile._miDelFlag = true;
 		return;
 	}
@@ -4836,6 +4948,17 @@ void ProcessWeaponExplosion(Missile &missile)
 	constexpr int ExpLight[10] = { 9, 10, 11, 12, 11, 10, 8, 6, 4, 2 };
 
 	missile._mirange--;
+	if (missile.var2 == WeaponExplosionColdFlash) {
+		// The cold flash: its frames once, holding the last, then gone. No roll and no light of its own.
+		if (missile._miAnimFrame >= missile._miAnimLen)
+			missile._miAnimAdd = 0;
+		if (missile._mirange <= 0) {
+			missile._miDelFlag = true;
+			return;
+		}
+		PutMissile(missile);
+		return;
+	}
 	const Player &player = Players[missile._misource];
 	int mind;
 	int maxd;
@@ -4907,6 +5030,10 @@ void ProcessAcidSplate(Missile &missile)
 	if (missile._mirange == 0) {
 		missile._miDelFlag = true;
 		int monst = missile._misource;
+		// Oracool (2026-09-26): a poison Skeletal Mage's splash leaves no pool - a puddle is a trap for players, and
+		// his army's owner would walk into it. The bolt's own hit is the mage's whole blow.
+		if (monst >= 0 && Monsters[monst].isPlayerMinion())
+			return;
 		int dam = (Monsters[monst].data().level >= 2 ? 2 : 1);
 		AddMissile(missile.position.tile, { 0, 0 }, Direction::South, MissileID::AcidPuddle, TARGET_PLAYERS, monst, dam, missile._mispllvl);
 	} else {

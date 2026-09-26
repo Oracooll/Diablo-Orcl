@@ -29,6 +29,7 @@
 #include "items.h"
 #include "levels/gendung.h"
 #include "missiles.h"
+#include "oracool/skill_sounds.h"
 #include "multi.h"
 #include "player.h"
 #include "playerdat.hpp"
@@ -405,10 +406,32 @@ void Ring(const Instance &inst, Point tile)
 	AddMissile(tile, tile, Direction::South, MissileID::WarcryRing, TARGET_MONSTERS, inst.owner, 0, 0);
 }
 
-/** @brief The arrival and departure: a pillar of light and its sound. */
-void Flourish(const Instance &inst, Point tile)
+/** @brief The tree row whose sounds a companion kind uses, or None. */
+ClassTreeSkill SoundSkillOf(CompanionKind kind)
+{
+	switch (kind) {
+	case CompanionKind::Valkyrie:
+		return ClassTreeSkill::Valkyrie;
+	case CompanionKind::Decoy:
+		return ClassTreeSkill::Decoy;
+	default:
+		return ClassTreeSkill::None;
+	}
+}
+
+/**
+ * @brief The arrival and departure: a pillar of light and its sound.
+ *
+ * An ARRIVAL plays the companion's own delivered arrive cue in place of the resurrection chime when it has one
+ * (2026-09-26 asset audit: decoy-arrive.wav and valkyrie-arrive.wav were packed and never played) - one sound for
+ * the moment, never both.
+ */
+void Flourish(const Instance &inst, Point tile, bool arriving = false)
 {
 	AddMissile(tile, tile, Direction::South, MissileID::ResurrectBeam, TARGET_MONSTERS, inst.owner, 0, 0);
+	const ClassTreeSkill row = SoundSkillOf(inst.kind);
+	if (arriving && row != ClassTreeSkill::None && inst.owner == MyPlayerId && PlaySkillSound(row, SkillSoundEvent::Arrive))
+		return;
 	PlaySfxLoc(LS_RESUR, tile);
 }
 
@@ -478,7 +501,7 @@ bool SpawnInDungeon(Instance &inst, Point near, bool full)
 	body.uniqueMonsterTRN = RampTranslation(def.ramp, def.lightest, def.keepShadow);
 	SpawnCompanionBody(body, *spot, *spot == owner->position.tile ? Direction::South : GetDirection(*spot, owner->position.tile));
 	ApplyStats(inst, body, full);
-	Flourish(inst, *spot);
+	Flourish(inst, *spot, /*arriving=*/true);
 	return true;
 }
 
@@ -595,7 +618,7 @@ bool PlaceInTown(Instance &inst, Point target)
 	t.stepTick = 0;
 	t.frame = 0;
 	t.dir = *spot == owner->position.tile ? Direction::South : GetDirection(*spot, owner->position.tile);
-	Flourish(inst, *spot);
+	Flourish(inst, *spot, /*arriving=*/true);
 	return true;
 }
 
@@ -756,7 +779,7 @@ bool SummonCompanions(Player &owner, SpellID spell, Point target, int rank)
 		} else if (inst->slot >= 0) {
 			Monster &body = Monsters[inst->slot];
 			ApplyStats(*inst, body, /*full=*/true);
-			Flourish(*inst, body.position.tile);
+			Flourish(*inst, body.position.tile, /*arriving=*/true);
 		} else {
 			SpawnInDungeon(*inst, target, /*full=*/true); // with no room yet, ProcessCompanions keeps trying
 		}

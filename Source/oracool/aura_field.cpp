@@ -94,6 +94,8 @@ void AuraStrike(Player &player, Monster &monster, DamageType type, int damage)
 	M_StartHit(monster, player, damage);
 	if (type == DamageType::Cold)
 		ChillMonster(monster, HolyPulseTicks);
+	if (type == DamageType::Cold)
+		AddColdHitFlash(monster.position.tile, static_cast<int>(player.getId())); // the frost flash (asset audit, 2026-09-26)
 }
 
 /**

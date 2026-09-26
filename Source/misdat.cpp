@@ -257,7 +257,8 @@ const std::array<uint8_t, 16> MissileAnimLengths[] {
 	{ 9, 4 },
 	{ 15, 14, 3 },
 	{ 13, 11 },
-	{ 16, 16, 16, 16, 16, 16, 16, 16, 8 }
+	{ 16, 16, 16, 16, 16, 16, 16, 16, 8 },
+	Repeat(2), // Oracool 2026-09-26: ice_ground's two variants
 };
 
 constexpr uint8_t AnimLen_0 = 0;        // NOLINT(readability-identifier-naming)
@@ -281,6 +282,7 @@ constexpr uint8_t AnimLen_9_4 = 17;     // NOLINT(readability-identifier-naming)
 constexpr uint8_t AnimLen_15_14_3 = 18; // NOLINT(readability-identifier-naming)
 constexpr uint8_t AnimLen_13_11 = 19;   // NOLINT(readability-identifier-naming)
 constexpr uint8_t AnimLen_16x8_8 = 20;  // NOLINT(readability-identifier-naming)
+constexpr uint8_t AnimLen_2 = 21;       // NOLINT(readability-identifier-naming)
 
 } // namespace
 
@@ -413,6 +415,9 @@ MissileFileData MissileSpriteData[] = {
 /*RiftPortalGold*/           { {},               86,          11, "portal_gold",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // vanilla's portal1/portal2 recoloured: row 0 opens, row 1 stands
 /*RiftPortalPurple*/         { {},               86,          11, "portal_purple",     2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      },
 /*TownPortalInTown*/         { {},               86,          11, "portal_town",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // the town's own portal at 90%, shadow stripped (2026-09-20)
+// Oracool 2026-09-26: the frozen floor, two 128x128 frames that are two VARIANTS of one patch (the Cold brief), not an
+// animation - Brittle Ground picks one a tile and holds it (rfa12_actives). The ellipse's centre is y 80 of 128.
+/*IceGround*/                { {},              128,          32, "ice_ground",        1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_2       },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };

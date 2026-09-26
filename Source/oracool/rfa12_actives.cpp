@@ -104,6 +104,10 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage)
 	if (damage <= 0)
 		return;
 	ApplyMonsterDamage(type, monster, damage);
+	// None of these cold skills has impact art of its own (Chill Touch, Ice Needle, Ice Lance, Brittle Ground,
+	// Whiteout, Absolute Zero): the cold hit flash marks the blow (hit_cold.png, 2026-09-26).
+	if (type == DamageType::Cold)
+		AddColdHitFlash(monster.position.tile, static_cast<int>(player.getId()));
 	if ((monster.hitPoints >> 6) <= 0)
 		M_StartKill(monster, player);
 	else
@@ -1148,6 +1152,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		marks.frostbiteTicks = EffectTicks(spell, r);
 		marks.frostbitePercent = EffectPercent(spell, r);
 		ChillMonster(*m, SlowTicks(spell, r));
+		AddColdHitFlash(m->position.tile, static_cast<int>(player.getId())); // a chill with no art of its own
 		return true;
 	}
 	case SpellID::IceLance: {
@@ -1163,6 +1168,20 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::BrittleGround: {
 		Field *f = NewField(player, spell, target, EffectTicks(spell, r), r);
 		f->tile2 = target + (target == here ? player._pdir : GetDirection(here, target));
+		// The frozen floor under both tiles for the field's life (ice_ground.png, 2026-09-26): one of the sheet's two
+		// variants each, held rather than animated, on the floor under whoever walks it. Nothing while it is missing.
+		int variant = 1;
+		for (const Point tile : { f->tile, f->tile2 }) {
+			if (!InDungeonBounds(tile) || IsTileSolid(tile))
+				continue;
+			if (Missile *ice = AddArtEffect(tile, MissileGraphicID::IceGround, static_cast<int>(player.getId()), EffectTicks(spell, r)); ice != nullptr) {
+				ice->_miPreFlag = true;
+				ice->position.offset = { 0, 32 }; // the patch's centre, y 80 of 128, on the tile's centre: (128 - 80) - 16
+				ice->_miAnimFrame = std::min(variant, ice->_miAnimLen);
+				ice->_miAnimAdd = 0;
+			}
+			variant++;
+		}
 		return true;
 	}
 	case SpellID::FrozenSentinel:
@@ -2750,6 +2769,18 @@ int Rfa12BuffTicks(const Player &player, SpellID spell)
 	case SpellID::MantraOfEvasion: buff = Buff::Evasion; break;
 	case SpellID::MantraOfRetribution: buff = Buff::Retribution; break;
 	case SpellID::AstralProjection: buff = Buff::Astral; break;
+	// The Necromancer's (2026-09-26). Bone Armor's clock is zeroed when its pool is spent, so the row goes with the shell.
+	case SpellID::BoneArmor: buff = Buff::BoneShell; break;
+	case SpellID::PoisonDagger: buff = Buff::Venom; break;
+	case SpellID::BoneStorm: {
+		// Not a buff but a field that follows him: the longest of his storms still blowing.
+		int ticks = 0;
+		for (const Field &field : Fields) {
+			if (field.spell == SpellID::BoneStorm && field.owner == player.getId() && field.ticksLeft > ticks)
+				ticks = field.ticksLeft;
+		}
+		return ticks;
+	}
 	default: return 0;
 	}
 	return std::max(StateOf(player).ticks[static_cast<size_t>(buff)], 0);

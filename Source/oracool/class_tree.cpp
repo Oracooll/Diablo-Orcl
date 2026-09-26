@@ -998,8 +998,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Ancestral Court"), N_("Three ancestral shades gather at the cursor and strike inward after a second: three strikes of 5-9 magic damage within 2 tiles, +2-4 per level."),
 	    Monk, 2, 5, 2, Kind::Active, SpellID::AncestralCourt, true },
 	// ======================= NECROMANCER =======================
-	// Phase N1 of "Plan - The Necromancer" (2026-09-17): the rows exist so the pages can be read and edited; every one
-	// is inert and says what it is waiting for ("Not yet built" is the phrase the tests hold inert rows to). Essence-priced rows say so in words until the pay path exists (N2).
+	// Phase N1 of "Plan - The Necromancer" (2026-09-17) added the rows; phases N2-N9 built every one of them.
 	// --- Summoning --- (built at N5, 2026-09-18: oracool/necro_summoning) ---
 	{ N_("Raise Skeleton"), N_("Raise a skeleton warrior from a corpse to fight for you. One skeleton at rank 1, one more every three ranks, eight at most."),
 	    Nec, 0, 0, 0, Kind::Active, SpellID::RaiseSkeleton, true },
@@ -1111,7 +1110,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Nec, 2, 5, 1, Kind::Active, SpellID::SoulHarvest, true },
 	{ N_("Doom"), N_("Cursed monsters take more damage from every source, and no other curse can replace it. Paid in Essence."),
 	    Nec, 2, 5, 2, Kind::Active, SpellID::Doom, true },
-	// --- Passive Skills --- (built at N8, 2026-09-18: oracool/passives with the rest of the heroes'; Swift Harvesting waits for N9) ---
+	// --- Passive Skills --- (built at N8, 2026-09-18: oracool/passives with the rest of the heroes'; Swift Harvesting at N9) ---
 	{ N_("Life from Death"), N_("A monster that dies within six tiles of you heals you a twenty-fifth of your life."),
 	    Nec, 3, 0, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Fueled by Death"), N_("Each corpse you consume quickens your step: +30% movement speed for 4 seconds."),
@@ -2332,7 +2331,10 @@ bool InvestClassTreePoint(Player &player, Skill skill)
 		    UiFlags::ColorWhitegold);
 		// The `learn` cue. Only the passives and masteries have one - an active's confirmation is its
 		// first cast. The rest get the interface click instead, so a point spent is never silent.
-		if (!PlaySkillSound(skill, SkillSoundEvent::Learn))
+		// A passive delivered with a Start cue and no Learn cue (Warmth, Enchant) rings its start rather than the
+		// generic click (asset audit, 2026-09-26: those cues were packed and never heard).
+		if (!PlaySkillSound(skill, SkillSoundEvent::Learn)
+		    && !(GetClassTreeSkillData(skill).kind == Kind::Passive && PlaySkillSound(skill, SkillSoundEvent::Start)))
 			PlayUiSelectSound();
 	}
 	ScheduleAutoSaveForSkillChange();

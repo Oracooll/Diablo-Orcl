@@ -115,8 +115,8 @@ enum class MissileGraphicID : uint8_t {
 	IceBolt,
 	IceImpact,
 	// Round 2: the rest of the pack. ice_ground.png and freezing_burst.png are in the archive but
-	// not here yet - the ground patch has no spell to leave it, and the burst is Freezing Arrow's,
-	// which is Round 3's.
+	// not here yet - the ground patch had no spell to leave it (IceGround, at the end, since Brittle
+	// Ground, 2026-09-26), and the burst is Freezing Arrow's, which is Round 3's.
 	IceBlast,
 	GlacialSpike,
 	GlacialShatter,
@@ -164,7 +164,8 @@ enum class MissileGraphicID : uint8_t {
 	Grenade,
 	/**
 	 * Oracool (2026-09-18): RfA-17's batch 38, the Necromancer's bone and poison effects and the raise, the burst and
-	 * the curse ring. PngOnly like the rest. BoneSpirit is shipped but the book spell's own missile still flies.
+	 * the curse ring. PngOnly like the rest. BoneSpiritNecro dresses the book spell's own missile (MissileID::BoneSpirit) whenever
+	 * bone_spirit.png is loaded - rfa12_actives' NecroBoneSpirit re-skins it and ProcessBoneSpirit turns it by sixteenths.
 	 */
 	BoneTooth,
 	BoneSpear,
@@ -188,6 +189,9 @@ enum class MissileGraphicID : uint8_t {
 	 * portal onto it in town only; the dungeon-side portal keeps TownPortal's CL2.
 	 */
 	TownPortalInTown,
+	// Oracool 2026-09-26: the Cold pack's frozen floor (missiles\ice_ground.png, two 128x128 variants), under
+	// Brittle Ground's two tiles for as long as the field lasts. Drawn through AddArtEffect; it has no MissileID.
+	IceGround,
 	None,
 };
 
@@ -312,7 +316,7 @@ inline const MissileData &GetMissileData(MissileID missileId)
 	return MissilesData[static_cast<std::underlying_type<MissileID>::type>(missileId)];
 }
 
-extern MissileFileData MissileSpriteData[];
+extern DVL_API_FOR_TEST MissileFileData MissileSpriteData[];
 
 inline MissileFileData &GetMissileSpriteData(MissileGraphicID graphicId)
 {

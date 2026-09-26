@@ -310,9 +310,12 @@ void OnColdArmourStruckInMelee(Player &player, Monster &monster)
 			ChillMonster(monster, FreezeTicksFor(state.level));
 		else
 			FreezeMonster(monster, FreezeTicksFor(state.level));
+		// The armour's answer has no impact art of its own: the cold hit flash on the striker (2026-09-26).
+		AddColdHitFlash(monster.position.tile, static_cast<int>(player.getId()));
 		break;
 	case SpellID::ShiverArmor: {
 		ChillMonster(monster, ChillTicksFor(state.level));
+		AddColdHitFlash(monster.position.tile, static_cast<int>(player.getId()));
 		// Ice Bolt's damage at the armour's rank, through the same table the sheet reads.
 		int minDamage;
 		int maxDamage;

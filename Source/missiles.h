@@ -475,6 +475,18 @@ void AddCensusEffect(Missile &missile, AddMissileParameter &parameter);
 void AddAcidJavelin(Missile &missile, AddMissileParameter &parameter);
 /** @brief Oracool: SetMissAnim for code outside missiles.cpp - dresses a missile in one graphic. */
 void UseMissileGraphic(Missile &missile, MissileGraphicID graphic);
+/**
+ * @brief Oracool (2026-09-26): a sheet with no MissileID of its own, standing on @p tile - drawn only, it strikes
+ * nothing. It rides a census effect's row (AcidCloud's), dressed in @p art before that row's Add runs, so it
+ * plays once when @p ticks is 0 and loops for @p ticks otherwise. Null, spawning nothing, while @p art is not
+ * in the archive. The caller sets what differs: the offset, _miPreFlag for a floor patch, a held frame.
+ */
+Missile *AddArtEffect(Point tile, MissileGraphicID art, int playerId, int ticks = 0);
+/**
+ * @brief Oracool (2026-09-26): hit_cold.png's flash over @p tile, where a cold hit with no impact art of its own
+ * landed. A picture only - WeaponExplosion's cold branch, which rolls no damage. Nothing while the sheet is missing.
+ */
+void AddColdHitFlash(Point tile, int playerId);
 void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter);
 void AddFallingMace(Missile &missile, AddMissileParameter &parameter);
 

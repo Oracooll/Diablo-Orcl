@@ -13658,7 +13658,7 @@ TEST(OracoolAudit, EveryClassTreeStripHasAFrameForEveryOneOfItsSkills)
 	MountTestArchives();
 
 	for (const HeroClass heroClass : { HeroClass::Warrior, HeroClass::Rogue, HeroClass::Sorcerer,
-	         HeroClass::Monk, HeroClass::Bard, HeroClass::Barbarian }) {
+	         HeroClass::Monk, HeroClass::Bard, HeroClass::Barbarian, HeroClass::Necromancer }) {
 		// The class's real row count, walked off the exported inverse rather than restated here -
 		// a number copied into a test is a number that can agree with nothing.
 		int rows = 0;
@@ -13667,33 +13667,23 @@ TEST(OracoolAudit, EveryClassTreeStripHasAFrameForEveryOneOfItsSkills)
 		ASSERT_GT(rows, 0) << "class " << static_cast<int>(heroClass) << " has no skills at all";
 
 		const int frames = oracool::ClassTreeStripFrameCount(heroClass);
+		// The Necromancer has no strip yet: ui\necro_tree_icons.png waits on his 72 glyphs (batch 39 - held
+		// in RfA-17, re-requested in RfA-27), and until then every one of his rows draws placeholder
+		// letters by design. Skipped ONLY while the strip is absent: the moment BuildGlyphStrips.ps1 writes
+		// one, it is held to the same frames >= rows rule as every other class.
+		if (heroClass == HeroClass::Necromancer && frames == 0)
+			continue;
 		ASSERT_GT(frames, 0) << "class " << static_cast<int>(heroClass)
 		                     << "'s tree strip did not load - the archive is missing it";
-		// The RfA-12 skills (2026-09-13) were appended before their glyphs existed - RfA-13 asks for them
-		// - and draw placeholder letters until batch 31 is built into the strips. So the strip must
-		// cover every row BEFORE that block, which is exactly the truncation this test exists to catch;
-		// once the glyphs land the strips grow past it and the check still holds.
-		const int firstAwaitingGlyph = [&] {
-			switch (heroClass) {
-			case HeroClass::Warrior:
-				return oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::VotiveStrike);
-			case HeroClass::Barbarian:
-				return oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Cleave);
-			case HeroClass::Sorcerer:
-				return oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::ChillTouch);
-			case HeroClass::Rogue:
-				return oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::BarbedShaft);
-			case HeroClass::Bard:
-				return oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::MinstrelsTune);
-			default:
-				return oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::StaffParry);
-			}
-		}();
-		ASSERT_LT(firstAwaitingGlyph, rows);
-		EXPECT_GE(frames, firstAwaitingGlyph)
-		    << "class " << static_cast<int>(heroClass) << " has " << firstAwaitingGlyph
-		    << " skills with art but only " << frames << " strip frames; the skills past the end draw "
-		    << "a bare plate and nothing reports it. A truncating strip rebuild is the way this happens.";
+		// Every row, the RfA-12 block included. Until 2026-09-26 this accepted a strip that ended just
+		// before that block, because its 162 skills were appended before their glyphs existed (RfA-13).
+		// Those glyphs are in now - the asset audit of 2026-09-26 measured one frame per row in all six
+		// strips (72/73/72/73/72/72) - so the waiver only hid the thing this test exists to catch: a
+		// rebuild that truncates a strip, here by dropping the whole RfA-12 block, would have passed.
+		EXPECT_GE(frames, rows)
+		    << "class " << static_cast<int>(heroClass) << " has " << rows << " skills but only " << frames
+		    << " strip frames; the skills past the end draw placeholder letters and nothing reports it. "
+		    << "A truncating strip rebuild is the way this happens.";
 	}
 }
 

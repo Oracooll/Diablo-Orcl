@@ -650,7 +650,7 @@ enum class ClassTreeSkill : uint16_t {
 	MONK_LAST = AncestralCourt,
 	// ======================= NECROMANCER (2026-09-17) =======================
 	// A seventh block, appended after the Monk's so no existing index moves. Diablo II's three pages at eighteen
-	// rows each, and a Passive Skills page of eighteen from Diablo III's Necromancer. All 72 are inert at N1.
+	// rows each, and a Passive Skills page of eighteen from Diablo III's Necromancer. All 72 are built (N2-N9).
 	// ---------------- Necromancer: Summoning ----------------
 	RaiseSkeleton,
 	NECROMANCER_FIRST = RaiseSkeleton,

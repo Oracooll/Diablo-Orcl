@@ -20,7 +20,7 @@
  *  - the clock (ProcessCursesTick)                                                         Bane's rot, Confuse's turning
  * Confuse turns the monster the way the Barbarian's cry does: MFLAG_BERSERK | MFLAG_GOLEM for the duration.
  *
- * A marker over the head says which curse (DrawCurseMarker): a lettered chip until RfA-17's curse sigils arrive.
+ * A marker over the head says which curse (DrawCurseMarker): a sigil from ui/curse_markers.png, or a lettered chip if it fails to load.
  * Per level, per slot, never saved.
  */
 
