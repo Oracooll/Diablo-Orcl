@@ -571,10 +571,12 @@ void DrawSkillPicker(const Surface &out)
 				// either would be a second place for the next formula change to be forgotten.
 				// The CURRENT rank only (user, 2026-09-05: "the other places can be truncated to
 				// Name or Name, Current Level Stats") - the next rank is the Abilities window's.
-				AddPanelLines(entry.spell != SpellID::Invalid
-				        ? BuildSpellStatBlock(entry.spell, /*withNext=*/false)
-				        : (entry.tree != ClassTreeSkill::None
-				                  ? ClassTreeEffectLine(*InspectPlayer, entry.tree, /*withNext=*/false)
+				// A tree row wins over its SpellID (2026-09-26): the tree block is the spell's block plus
+				// the level-up stat, which the spell block alone left out.
+				AddPanelLines(entry.tree != ClassTreeSkill::None
+				        ? ClassTreeEffectLine(*InspectPlayer, entry.tree, /*withNext=*/false)
+				        : (entry.spell != SpellID::Invalid
+				                  ? BuildSpellStatBlock(entry.spell, /*withNext=*/false)
 				                  : std::string {}));
 			}
 		}

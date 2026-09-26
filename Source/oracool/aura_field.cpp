@@ -17,6 +17,7 @@
 #include "utils/language.h"
 #include "oracool/monster_difficulty.h"
 #include "oracool/rfa12_effects.h"
+#include "oracool/warcries.h"
 #include "player.h"
 
 namespace devilution::oracool {
@@ -24,6 +25,8 @@ namespace devilution::oracool {
 namespace {
 
 using Skill = ClassTreeSkill;
+
+constexpr int TicksPerSecond = 20;
 
 /** @brief How far Sanctuary drives an undead when it repels it. Matches the Fallen's own flight. */
 constexpr int RepelDistance = 4;
@@ -165,8 +168,8 @@ void ProcessStaticField(Player &player)
 	if (++clock < HolyPulseTicks)
 		return;
 	clock = 0;
-	const int percent = std::min(4 + (points - 1), 20);
-	for (Monster *monster : AuraTargetsWithin(player, HolyPulseRadius(points))) {
+	const int percent = StaticFieldPercent(points);
+	for (Monster *monster : AuraTargetsWithin(player, AuraFieldRadius(Skill::StaticField, points))) {
 		int damage = monster->hitPoints * percent / 100;
 		if (monster->isUnique())
 			damage /= 2;
@@ -188,12 +191,12 @@ void ProcessThunderStorm(Player &player)
 	if (++clock < HolyPulseTicks)
 		return;
 	clock = 0;
-	const std::vector<Monster *> near = AuraTargetsWithin(player, 6);
+	const std::vector<Monster *> near = AuraTargetsWithin(player, AuraFieldRadius(Skill::ThunderStorm, points));
 	if (near.empty())
 		return;
 	Monster &target = *near[GenerateRnd(static_cast<int32_t>(near.size()))];
 	const Point tile = target.position.tile;
-	AuraStrike(player, target, DamageType::Lightning, RollDamage({ 1, 20 + 10 * (points - 1) }));
+	AuraStrike(player, target, DamageType::Lightning, RollDamage(ThunderStormDamage(points)));
 	// RfA-16's bolt falls where it struck; without its sheet the floor shockwave marks the spot instead.
 	const MissileID mark = MissileArtLoaded(MissileGraphicID::ThunderBolt) ? MissileID::ThunderBolt : MissileID::WarcryRing;
 	AddMissile(tile, tile, player._pdir, mark, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
@@ -249,12 +252,29 @@ int ConvictionArmorCutPercent(int points)
 	return points <= 0 ? 0 : std::min(3 * points, 60);
 }
 
+int StaticFieldPercent(int points)
+{
+	return std::min(4 + (std::max(points, 1) - 1), 20);
+}
+
+AuraDamage ThunderStormDamage(int points)
+{
+	return { 1, 20 + 10 * (std::max(points, 1) - 1) };
+}
+
+int AuraTricklePerTick(int points)
+{
+	return points <= 0 ? 0 : 2 + 2 * (points - 1);
+}
+
 bool AuraReachesMonsters(Skill aura)
 {
 	switch (aura) {
 	case Skill::HolyFire:
 	case Skill::HolyFreeze:
 	case Skill::HolyShock:
+	case Skill::StaticField:
+	case Skill::ThunderStorm:
 	case Skill::Sanctuary:
 	case Skill::Conviction:
 	case Skill::Redemption:
@@ -269,8 +289,11 @@ bool AuraReachesMonsters(Skill aura)
 
 int AuraFieldRadius(Skill aura, int points)
 {
-	if (aura == Skill::HolyFire || aura == Skill::HolyFreeze || aura == Skill::HolyShock)
+	// Static Field has Holy Fire's pulse and reach; Thunder Storm looks the same distance at every level.
+	if (aura == Skill::HolyFire || aura == Skill::HolyFreeze || aura == Skill::HolyShock || aura == Skill::StaticField)
 		return HolyPulseRadius(points);
+	if (aura == Skill::ThunderStorm)
+		return points <= 0 ? 0 : ThunderStormReach;
 	return AuraRadiusForPoints(points);
 }
 
@@ -300,6 +323,20 @@ std::string AuraFieldFactsAt(Skill aura, int points)
 		return fmt::format(fmt::runtime(_("Returns {:d}% of melee damage taken")), ThornsReturnPercentAt(p));
 	case Skill::Cleansing:
 		return fmt::format(fmt::runtime(_("Slows and chills on you wear off {:d}% sooner")), CleansingShortenPercentAt(p));
+	case Skill::StaticField:
+		return fmt::format(fmt::runtime(_("Every {:d} seconds everything in reach loses {:d}% of its remaining life as lightning (uniques half)")),
+		    HolyPulseTicks / TicksPerSecond, StaticFieldPercent(p));
+	case Skill::ThunderStorm: {
+		const AuraDamage d = ThunderStormDamage(p);
+		return fmt::format(fmt::runtime(_("Every {:d} seconds a bolt strikes one enemy in reach for {:d} - {:d} lightning damage")),
+		    HolyPulseTicks / TicksPerSecond, d.min, d.max);
+	}
+	case Skill::Redemption:
+		return fmt::format(fmt::runtime(_("Once a second the nearest corpse in reach is consumed for {:d}% of your life and mana")),
+		    RedemptionSharePercent(p));
+	case Skill::HealingMantra:
+		return fmt::format(fmt::runtime(_("Life regeneration: {:.1f} a second")),
+		    AuraTricklePerTick(p) * TicksPerSecond / 64.0);
 	default:
 		return Rfa12AuraFactsAt(aura, points);
 	}
@@ -359,7 +396,7 @@ void ProcessOutwardAura(Player &player)
 	// Once a second the hallowed ground burns the undead standing on it (2026-09-12) - champions too:
 	// they are too proud to run, not too proud to burn.
 	static int sanctuaryClock = 0;
-	const bool burn = ++sanctuaryClock % 20 == 0;
+	const bool burn = ++sanctuaryClock % TicksPerSecond == 0;
 
 	// Repulsion has to PUSH, so unlike Conviction it cannot be a question asked at the point of
 	// use - there is no such point. It rides MonsterGoal::Retreat, which is the same channel

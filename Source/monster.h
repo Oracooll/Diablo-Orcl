@@ -559,6 +559,15 @@ bool IsGoat(_monster_id mt);
 void ActivateSkeleton(Monster &monster, Point position);
 Monster *PreSpawnSkeleton();
 void TalktoMonster(Player &player, Monster &monster);
+/** @brief The Golem spell's golem at @p spellLevel for @p player: life (1/64 units), to-hit, blow. */
+struct GolemStats {
+	int maxHitPoints;
+	int toHit;
+	int minDamage;
+	int maxDamage;
+};
+/** @brief What SpawnGolem gives the golem - and what the Golem tooltip and Damage line quote. */
+GolemStats GolemStatsAt(const Player &player, int spellLevel);
 void SpawnGolem(Player &player, Monster &golem, Point position, Missile &missile);
 /** @brief Oracool (oracool/companion.h): stands a companion's body up in a golem slot, with no network message. */
 void SpawnCompanionBody(Monster &slot, Point position, Direction facing);

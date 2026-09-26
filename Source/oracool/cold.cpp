@@ -99,6 +99,9 @@ void ColdSpellDamage(const Player &player, SpellID spell, int spellLevel, int &m
 	maxDamage = -1;
 	switch (spell) {
 	case SpellID::IceBolt:
+	case SpellID::FrozenOrb:
+		// Frozen Orb's damage is its bolts': every one it sheds is an IceBolt missile at the orb's own
+		// level (ProcessFrozenOrb), and AddFirebolt rolls those from this case.
 		// Firebolt's own numbers - the brief calls it "the cold twin of the spell you cast a thousand
 		// times", and AddFirebolt is what it fires through, so these MUST agree with that function.
 		minDamage = mag / 8 + sl + 1;
@@ -160,9 +163,8 @@ void ApplyColdHit(MissileID type, int level, Monster &monster)
 	}
 }
 
-int ColdResistanceDivisor(const Player &player)
+int ColdResistanceDivisorAtRank(int rank)
 {
-	const int rank = ColdMasteryRank(player);
 	if (rank >= 6)
 		return 1;
 	if (rank >= 3)
@@ -170,9 +172,19 @@ int ColdResistanceDivisor(const Player &player)
 	return 4;
 }
 
+int ColdMasteryDamagePercentAtRank(int rank)
+{
+	return std::max(rank, 0) * 6;
+}
+
+int ColdResistanceDivisor(const Player &player)
+{
+	return ColdResistanceDivisorAtRank(ColdMasteryRank(player));
+}
+
 int ColdMasteryDamagePercent(const Player &player)
 {
-	return ColdMasteryRank(player) * 6;
+	return ColdMasteryDamagePercentAtRank(ColdMasteryRank(player));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -454,6 +466,27 @@ void PlayColdArmourExpirySound(const Missile &missile)
 	const auto skill = static_cast<ClassTreeSkill>(missile.oracoolSkill);
 	if (skill != ClassTreeSkill::None)
 		PlaySkillSound(skill, SkillSoundEvent::Stop);
+}
+
+
+std::string ColdPassiveFactsAt(ClassTreeSkill skill, int points)
+{
+	// Cold Mastery is the one cold passive whose rule lives here; the numbers are the rule's own
+	// (ColdSpellDamage and MonsterMHit read the same two functions at the hero's real rank).
+	if (skill != ClassTreeSkill::ColdMastery)
+		return {};
+	const int rank = std::max(points, 0);
+	std::string out = fmt::format(fmt::runtime(_("Cold damage: +{:d}%")), ColdMasteryDamagePercentAtRank(rank));
+	out += '\n';
+	// A resisted hit is divided by the divisor: a quarter with no mastery, a half from rank 3, all from rank 6.
+	const int keptPercent = 100 / ColdResistanceDivisorAtRank(rank);
+	if (rank < 3)
+		out += fmt::format(fmt::runtime(_("Cold-resistant monsters take {:d}% of a cold hit ({:d}% from rank 3)")), keptPercent, 100 / ColdResistanceDivisorAtRank(3));
+	else if (rank < 6)
+		out += fmt::format(fmt::runtime(_("Cold-resistant monsters take {:d}% of a cold hit ({:d}% from rank 6)")), keptPercent, 100 / ColdResistanceDivisorAtRank(6));
+	else
+		out += fmt::format(fmt::runtime(_("Cold-resistant monsters take {:d}% of a cold hit")), keptPercent);
+	return out;
 }
 
 } // namespace devilution::oracool

@@ -942,6 +942,107 @@ bool IsMissileBlockedByTile(Point tile)
 	return object != nullptr && !object->_oMissFlag;
 }
 
+// Oracool (2026-09-26): the book spells' per-level terms, one formula each. The Add/Process
+// function below that used to compute each one inline now calls it, and so does the tooltip
+// (oracool/skill_facts.cpp BookSpellFactsAt), so the Next Level block cannot quote a number the
+// cast does not use. Every duration is in game ticks, 20 a second; each of these missiles loses one
+// tick of _mirange per ProcessMissiles pass.
+
+int LightningLingerTicks(int spellLevel)
+{
+	return (spellLevel / 2) + 6;
+}
+
+int ChainLightningLeapRadius(int spellLevel)
+{
+	return std::min<int>(spellLevel + 3, MaxCrawlRadius);
+}
+
+int FireWallDurationTicks(int spellLevel)
+{
+	return 16 * (spellLevel > 0 ? 10 * (spellLevel + 1) : 10);
+}
+
+int LightningWallDurationTicks(int spellLevel)
+{
+	return 255 * (spellLevel + 1);
+}
+
+int FlameWaveSideTiles(int spellLevel)
+{
+	return (spellLevel / 2) + 2;
+}
+
+int HolyBoltSpeedAtLevel(int spellLevel)
+{
+	return HolyBoltSpeed + std::min(spellLevel * 2, 47);
+}
+
+int GuardianDurationTicks(int spellLevel, int characterLevel)
+{
+	const int range = std::min(spellLevel + (characterLevel / 2), 30) * 16;
+	return std::max(range, 30);
+}
+
+int StoneCurseDurationTicks(int spellLevel)
+{
+	return std::min(spellLevel + 6, 15) * 16;
+}
+
+int InfravisionDurationTicks(int spellLevel)
+{
+	return ScaleSpellEffect(1584, spellLevel);
+}
+
+int EtherealizeDurationTicks(int spellLevel)
+{
+	// A tenth of Infravision's base, because the description promises "briefly untouchable" and this
+	// is untouchable, not merely dark-sighted.
+	return ScaleSpellEffect(160, spellLevel);
+}
+
+int SearchDurationTicks(int spellLevel, int characterLevel)
+{
+	return (2 * characterLevel) + (10 * spellLevel) + 245;
+}
+
+int ReflectCharges(int spellLevel, int characterLevel)
+{
+	return (spellLevel != 0 ? spellLevel : 2) * characterLevel;
+}
+
+int BerserkDamageBonus(int spellLevel)
+{
+	return spellLevel;
+}
+
+namespace {
+// The Mana spell's dice: 1d10, plus 1d4 per character level, plus 1d6 per spell level (AddMana).
+constexpr int ManaSpellBaseDie = 10;
+constexpr int ManaSpellCharacterLevelDie = 4;
+constexpr int ManaSpellSpellLevelDie = 6;
+} // namespace
+
+int ManaSpellClassAmount(HeroClass heroClass, int amount)
+{
+	if (IsAnyOf(heroClass, HeroClass::Sorcerer, HeroClass::Necromancer))
+		amount *= 2;
+	if (heroClass == HeroClass::Rogue || heroClass == HeroClass::Bard)
+		amount += amount / 2;
+	return amount;
+}
+
+void ManaSpellAmountRange(const Player &player, int spellLevel, int &minAmount, int &maxAmount)
+{
+	const int characterLevels = std::max<int>(player._pLevel, 0);
+	const int spellLevels = std::max(spellLevel, 0);
+	const int lowest = 1 + characterLevels + spellLevels;
+	const int highest = ManaSpellBaseDie + (ManaSpellCharacterLevelDie * characterLevels) + (ManaSpellSpellLevelDie * spellLevels);
+	// In the cast's own 1/64 units, so the class bonus rounds the way it does there.
+	minAmount = ManaSpellClassAmount(player._pClass, lowest << 6) >> 6;
+	maxAmount = ManaSpellClassAmount(player._pClass, highest << 6) >> 6;
+}
+
 void GetDamageAmt(SpellID i, int *mind, int *maxd)
 {
 	assert(MyPlayer != nullptr);
@@ -1004,6 +1105,7 @@ void GetDamageAmtAtLevel(SpellID i, int sl, int *mind, int *maxd)
 		break;
 	case SpellID::RuneOfLight:
 	case SpellID::Lightning:
+	case SpellID::LightningBoltSkill: // the Rogue's bolt fires LightningControl, which rolls this
 		*mind = 2;
 		*maxd = 2 + myPlayer._pLevel;
 		break;
@@ -1067,6 +1169,7 @@ void GetDamageAmtAtLevel(SpellID i, int sl, int *mind, int *maxd)
 	case SpellID::Immolation:
 	case SpellID::RuneOfImmolation:
 	case SpellID::RuneOfNova:
+	case SpellID::LightningFury: // the Rogue's Lightning Fury is fired as Nova (spelldat), so it IS Nova's number
 		*mind = ScaleSpellEffect((myPlayer._pLevel + 5) / 2, sl) * 5;
 		*maxd = ScaleSpellEffect((myPlayer._pLevel + 30) / 2, sl) * 5;
 		break;
@@ -1075,10 +1178,12 @@ void GetDamageAmtAtLevel(SpellID i, int sl, int *mind, int *maxd)
 		*maxd = myPlayer._pLevel + 4;
 		*maxd += *maxd / 2;
 		break;
-	case SpellID::Golem:
-		*mind = 11;
-		*maxd = 17;
-		break;
+	case SpellID::Golem: {
+		// The golem's own blow, from the function SpawnGolem stands it up with (was a constant 11-17).
+		const GolemStats golem = GolemStatsAt(myPlayer, sl);
+		*mind = golem.minDamage;
+		*maxd = golem.maxDamage;
+	} break;
 	case SpellID::Apocalypse:
 		*mind = myPlayer._pLevel;
 		*maxd = *mind * 6;
@@ -1469,7 +1574,7 @@ void AddReflect(Missile &missile, AddMissileParameter & /*parameter*/)
 
 	Player &player = *missile.sourcePlayer();
 
-	int add = (missile._mispllvl != 0 ? missile._mispllvl : 2) * player._pLevel;
+	int add = ReflectCharges(missile._mispllvl, player._pLevel);
 	if (player.wReflections + add >= std::numeric_limits<uint16_t>::max())
 		add = 0;
 	player.wReflections += add;
@@ -1516,7 +1621,7 @@ void AddBerserk(Missile &missile, AddMissileParameter &parameter)
 	if (targetMonsterPosition) {
 		auto &monster = Monsters[abs(dMonster[targetMonsterPosition->x][targetMonsterPosition->y]) - 1];
 		Player &player = *missile.sourcePlayer();
-		const int slvl = player.GetSpellLevel(SpellID::Berserk);
+		const int slvl = BerserkDamageBonus(player.GetSpellLevel(SpellID::Berserk));
 		monster.flags |= MFLAG_BERSERK | MFLAG_GOLEM;
 		monster.minDamage = (GenerateRnd(10) + 120) * monster.minDamage / 100 + slvl;
 		monster.maxDamage = (GenerateRnd(10) + 120) * monster.maxDamage / 100 + slvl;
@@ -1788,7 +1893,7 @@ void AddLightningWall(Missile &missile, AddMissileParameter &parameter)
 {
 	UpdateMissileVelocity(missile, parameter.dst, 16);
 	missile._miAnimFrame = GenerateRnd(8) + 1;
-	missile._mirange = 255 * (missile._mispllvl + 1);
+	missile._mirange = LightningWallDurationTicks(missile._mispllvl);
 	switch (missile.sourceType()) {
 	case MissileSource::Trap:
 		missile.var1 = missile.position.start.x;
@@ -1861,17 +1966,14 @@ void AddMana(Missile &missile, AddMissileParameter & /*parameter*/)
 {
 	Player &player = Players[missile._misource];
 
-	int manaAmount = (GenerateRnd(10) + 1) << 6;
+	int manaAmount = (GenerateRnd(ManaSpellBaseDie) + 1) << 6;
 	for (int i = 0; i < player._pLevel; i++) {
-		manaAmount += (GenerateRnd(4) + 1) << 6;
+		manaAmount += (GenerateRnd(ManaSpellCharacterLevelDie) + 1) << 6;
 	}
 	for (int i = 0; i < missile._mispllvl; i++) {
-		manaAmount += (GenerateRnd(6) + 1) << 6;
+		manaAmount += (GenerateRnd(ManaSpellSpellLevelDie) + 1) << 6;
 	}
-	if (IsAnyOf(player._pClass, HeroClass::Sorcerer, HeroClass::Necromancer))
-		manaAmount *= 2;
-	if (player._pClass == HeroClass::Rogue || player._pClass == HeroClass::Bard)
-		manaAmount += manaAmount / 2;
+	manaAmount = ManaSpellClassAmount(player._pClass, manaAmount);
 	player._pMana += manaAmount;
 	if (player._pMana > player._pMaxMana)
 		player._pMana = player._pMaxMana;
@@ -1905,10 +2007,8 @@ void AddSearch(Missile &missile, AddMissileParameter & /*parameter*/)
 
 	if (&player == MyPlayer)
 		AutoMapShowItems = true;
-	int lvl = 2;
-	if (missile._misource >= 0)
-		lvl = player._pLevel * 2;
-	missile._mirange = lvl + 10 * missile._mispllvl + 245;
+	// A source-less Search counts as character level 1 (vanilla's `lvl = 2`).
+	missile._mirange = SearchDurationTicks(missile._mispllvl, missile._misource >= 0 ? static_cast<int>(player._pLevel) : 1);
 
 	for (auto &other : Missiles) {
 		if (&other != &missile && missile.isSameSource(other) && other._mitype == MissileID::Search) {
@@ -2089,7 +2189,18 @@ void AddFirebolt(Missile &missile, AddMissileParameter &parameter)
 		switch (missile.sourceType()) {
 		case MissileSource::Player: {
 			const Player &player = *missile.sourcePlayer();
-			missile._midam = GenerateRnd(10) + (player._pMagic / 8) + missile._mispllvl + 1;
+			if (missile._mitype == MissileID::IceBolt) {
+				// Oracool (2026-09-26): an ice bolt - cast, shed by Frozen Orb, or thrown back by
+				// Chilling Armor - rolls from ColdSpellDamage, the function the sheet quotes. Without
+				// Cold Mastery it is this same roll (magic/8 + level + 1, plus 0-9); with it, the
+				// mastery's percentage now reaches the bolt as its description and the sheet promise.
+				int minDamage;
+				int maxDamage;
+				oracool::ColdSpellDamage(player, SpellID::IceBolt, missile._mispllvl, minDamage, maxDamage);
+				missile._midam = minDamage + GenerateRnd(maxDamage - minDamage + 1);
+			} else {
+				missile._midam = GenerateRnd(10) + (player._pMagic / 8) + missile._mispllvl + 1;
+			}
 		} break;
 
 		case MissileSource::Monster:
@@ -2563,13 +2674,10 @@ void AddFireWall(Missile &missile, AddMissileParameter &parameter)
 	missile._midam += missile._misource >= 0 ? Players[missile._misource]._pLevel : currlevel; // BUGFIX: missing parenthesis around ternary (fixed)
 	missile._midam <<= 3;
 	UpdateMissileVelocity(missile, parameter.dst, 16);
-	int i = missile._mispllvl;
-	missile._mirange = 10;
-	if (i > 0)
-		missile._mirange *= i + 1;
+	// (10 x (level + 1), or 10 at level 0, plus the dungeon level for a trap's or monster's) x 16.
+	missile._mirange = FireWallDurationTicks(missile._mispllvl);
 	if (missile._micaster == TARGET_PLAYERS || missile._misource < 0)
-		missile._mirange += currlevel;
-	missile._mirange *= 16;
+		missile._mirange += 16 * currlevel;
 	missile.var1 = missile._mirange - missile._miAnimLen;
 }
 
@@ -2618,7 +2726,7 @@ void AddLightning(Missile &missile, AddMissileParameter &parameter)
 		else
 			missile._mirange = 10;
 	} else {
-		missile._mirange = (missile._mispllvl / 2) + 6;
+		missile._mirange = LightningLingerTicks(missile._mispllvl);
 	}
 	missile._mlid = AddLight(missile.position.tile, 4);
 }
@@ -2831,13 +2939,7 @@ void AddGuardian(Missile &missile, AddMissileParameter &parameter)
 	missile.position.start = *spawnPosition;
 
 	missile._mlid = AddLight(missile.position.tile, 1);
-	missile._mirange = missile._mispllvl + (player._pLevel / 2);
-
-	if (missile._mirange > 30)
-		missile._mirange = 30;
-	missile._mirange <<= 4;
-	if (missile._mirange < 30)
-		missile._mirange = 30;
+	missile._mirange = GuardianDurationTicks(missile._mispllvl, player._pLevel);
 
 	missile.var1 = missile._mirange - missile._miAnimLen;
 	missile.var3 = 1;
@@ -3025,11 +3127,7 @@ void AddStoneCurse(Missile &missile, AddMissileParameter &parameter)
 	// And set up the missile to unpetrify it in the future
 	missile.position.tile = *targetMonsterPosition;
 	missile.position.start = missile.position.tile;
-	missile._mirange = missile._mispllvl + 6;
-
-	if (missile._mirange > 15)
-		missile._mirange = 15;
-	missile._mirange <<= 4;
+	missile._mirange = StoneCurseDurationTicks(missile._mispllvl);
 }
 
 void AddGolem(Missile &missile, AddMissileParameter &parameter)
@@ -3172,7 +3270,7 @@ void AddFireWallControl(Missile &missile, AddMissileParameter &parameter)
 
 void AddInfravision(Missile &missile, AddMissileParameter & /*parameter*/)
 {
-	missile._mirange = ScaleSpellEffect(1584, missile._mispllvl);
+	missile._mirange = InfravisionDurationTicks(missile._mispllvl);
 }
 
 /**
@@ -3603,9 +3701,8 @@ void AddEtherealize(Missile &missile, AddMissileParameter & /*parameter*/)
 {
 	Player &player = Players[missile._misource];
 	player._pSpellFlags |= SpellFlag::Etherealize;
-	// A tenth of Infravision's base, because the description promises "briefly untouchable" and this
-	// is untouchable, not merely dark-sighted. ~8 seconds at spell level 1 on the 20-tick clock.
-	missile._mirange = ScaleSpellEffect(160, missile._mispllvl);
+	// 9 seconds at spell level 1 on the 20-tick clock (160 x 9/8 = 180 ticks).
+	missile._mirange = EtherealizeDurationTicks(missile._mispllvl);
 	RedrawEverything();
 }
 
@@ -3775,7 +3872,7 @@ void AddHolyBolt(Missile &missile, AddMissileParameter &parameter)
 	}
 	int sp = 16;
 	if (!missile.IsTrap()) {
-		sp += std::min(missile._mispllvl * 2, 47);
+		sp = HolyBoltSpeedAtLevel(missile._mispllvl);
 	}
 
 	Player &player = Players[missile._misource];
@@ -4720,7 +4817,7 @@ void ProcessChainLightning(Missile &missile)
 	Point dst { missile.var1, missile.var2 };
 	Direction dir = GetDirection(position, dst);
 	AddMissile(position, dst, dir, MissileID::LightningControl, TARGET_MONSTERS, id, 1, missile._mispllvl);
-	int rad = std::min<int>(missile._mispllvl + 3, MaxCrawlRadius);
+	int rad = ChainLightningLeapRadius(missile._mispllvl);
 	Crawl(1, rad, [&](Displacement displacement) {
 		Point target = position + displacement;
 		if (InDungeonBounds(target) && dMonster[target.x][target.y] > 0) {
@@ -5110,7 +5207,7 @@ void ProcessFlameWaveControl(Missile &missile)
 		AddMissile(na, na + sd, pdir, MissileID::FlameWave, TARGET_MONSTERS, id, 0, missile._mispllvl);
 		na += dira;
 		Point nb = src + sd + dirb;
-		for (int j = 0; j < (missile._mispllvl / 2) + 2; j++) {
+		for (int j = 0; j < FlameWaveSideTiles(missile._mispllvl); j++) {
 			pn = dPiece[na.x][na.y]; // BUGFIX: dPiece is accessed before check against dungeon size and 0
 			assert(pn >= 0 && pn <= MAXTILES);
 			if (TileHasAny(pn, TileProperties::BlockMissile) || f1 || !InDungeonBounds(na)) {

@@ -21,6 +21,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include "spelldat.h"
 
@@ -66,9 +67,10 @@ bool IsColdArmourSpell(SpellID spell);
 /**
  * @brief Damage of @p spell at rank @p spellLevel for @p player, as a min..max range.
  *
- * Both outputs are -1 for a cold spell that does no direct damage of its own - the armours, and
- * Frozen Orb, whose damage is its bolts'. THE function: GetDamageAmtAtLevel calls it for the
- * tooltip and every cold missile's Add function calls it for the hit.
+ * Both outputs are -1 for a cold spell that does no direct damage of its own - the armours. Frozen
+ * Orb answers with ONE of its bolts' damage (each is an Ice Bolt at the orb's level). THE function:
+ * GetDamageAmtAtLevel calls it for the tooltip and every cold missile's Add function calls it for
+ * the hit - Ice Bolt's through AddFirebolt since 2026-09-26.
  */
 void ColdSpellDamage(const Player &player, SpellID spell, int spellLevel, int &minDamage, int &maxDamage);
 
@@ -115,6 +117,10 @@ int ColdResistanceDivisor(const Player &player);
 
 /** @brief Cold Mastery's damage side: a percentage bonus on every cold hit, 6 per rank. */
 int ColdMasteryDamagePercent(const Player &player);
+
+/** @brief ColdResistanceDivisor and ColdMasteryDamagePercent at an explicit Cold Mastery rank - the rule itself, for the tooltip. */
+int ColdResistanceDivisorAtRank(int rank);
+int ColdMasteryDamagePercentAtRank(int rank);
 
 // ---------------------------------------------------------------------------------------------
 // The armours
@@ -163,5 +169,12 @@ int FreezeSecondsTenths(int spellLevel);
 int ChillSecondsTenths(int spellLevel);
 /** @brief What a cold spell does at @p spellLevel beyond its damage: freeze, chill, armour duration. For the tooltip. */
 std::string ColdSpellFactsAt(SpellID spell, int spellLevel);
+
+/**
+ * @brief Tooltip lines for the cold tree passives (Cold Mastery and the like) at @p points: the main effect
+ * with its numbers, from the helpers the rule reads. Empty for any other row.
+ */
+enum class ClassTreeSkill : uint16_t;
+std::string ColdPassiveFactsAt(ClassTreeSkill skill, int points);
 
 } // namespace devilution::oracool

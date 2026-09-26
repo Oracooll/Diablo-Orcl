@@ -148,6 +148,13 @@ void ClearRfa12StateForMonster(const Monster &monster);
 /** @brief Tooltip lines for what @p aura does off the sheet at @p points, or empty. */
 std::string Rfa12AuraFactsAt(ClassTreeSkill aura, int points);
 
+/**
+ * @brief Tooltip lines for the tree passives and Passive Skills page rows whose RULE lives in rfa12_effects.cpp or warcries.cpp, at
+ * @p points (1 for a Passive Skills page row): the main effect with its numbers, from the same named
+ * helpers the rule reads. Empty for any other row. See oracool/skill_facts.h for the two rules.
+ */
+std::string Rfa12PassiveFactsAt(const Player &player, ClassTreeSkill skill, int points);
+
 /** @brief Whether @p aura reaches the monsters around the player, so its radius means something. */
 bool Rfa12AuraReachesMonsters(ClassTreeSkill aura);
 

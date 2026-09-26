@@ -1101,6 +1101,11 @@ void PumpPlayerSheetMixer();
  */
 void NewPlrAnim(Player &player, player_graphic graphic, Direction dir, AnimationDistributionFlags flags = AnimationDistributionFlags::None, int8_t numSkippedFrames = 0, int8_t distributeFramesBeforeFrame = 0);
 void SetPlrAnims(Player &player);
+/**
+ * @brief Player::GetManaShieldDamageReduction at an explicit Mana Shield level: the shield takes
+ * 1/N off every blow before mana soaks it. The member and the tooltip both read this.
+ */
+int ManaShieldDamageReductionAtLevel(int spellLevel);
 void CreatePlayer(Player &player, HeroClass c);
 int CalcStatDiff(Player &player);
 #ifdef _DEBUG

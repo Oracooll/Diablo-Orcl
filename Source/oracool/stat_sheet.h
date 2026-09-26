@@ -77,6 +77,11 @@ struct ItemBonusTotals {
 	int moveSpeed = 0;
 	/** @brief Faster Cast Rate +X%: the items' IPL_FASTCAST affixes (2026-09-11). */
 	int fastCast = 0;
+	/**
+	 * @brief Armour +X%: a share of the armour everything else gives, added in CalcPlrItemVals. The skills' "+N% armour"
+	 * level-up stat (2026-09-26) - it used to land in bonusArmor, which is FLAT, so "+6% armour" gave six points.
+	 */
+	int armorPercent = 0;
 
 	/**
 	 * @brief Accumulates one item with the vanilla loop's exact semantics: nothing from an empty

@@ -52,6 +52,9 @@ void ClearReadiedSpell(Player &player);
 void EnsureValidReadiedSpell(Player &player);
 void CastSpell(int id, SpellID spl, int sx, int sy, int dx, int dy, int spllvl);
 
+/** @brief How many bolts one Charged Bolt cast looses at @p spellLevel: the spell table's one plus CastSpell's extra. Read by the tooltip too. */
+int ChargedBoltCount(int spellLevel);
+
 /**
  * @param pnum player index
  * @param rid target player index

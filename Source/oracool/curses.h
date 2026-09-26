@@ -25,9 +25,11 @@
  */
 
 #include <cstdint>
+#include <string>
 
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
+#include "oracool/class_tree.h"
 #include "spelldat.h"
 
 namespace devilution {
@@ -56,6 +58,18 @@ enum class CurseKind : uint8_t {
 	Doom,
 };
 
+/** @brief Tooltip lines for curse @p spell at @p rank for @p player (Curse Mastery, Wide Malice): duration, radius, effect. */
+std::string CurseFactsAt(const Player &player, SpellID spell, int rank);
+/**
+ * @brief Tooltip lines for the curse passives whose rule lives here - Curse Mastery, Essence Tap, Wide Malice, and
+ * the Passive Skills page's Eternal Torment - at @p points. Empty for any other row. (NecroPassiveFactsAt calls it.)
+ */
+std::string CursePassiveFactsAt(ClassTreeSkill skill, int points);
+
+/** Dim Vision: a blinded monster notices only a hero within this many tiles (rfa12_effects MonsterMayNotice). */
+constexpr int DimVisionSightTiles = 1;
+/** @brief Death Mark's burst, in percent of the dead one's life at @p rank - Corpse Explosion's own share (rfa12_actives). */
+int CorpseBurstPercent(int rank);
 /** @brief Casts one of the page's actives at rank @p rank. False fizzles the cast and refunds it. */
 bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank);
 bool IsNecromancerCurse(SpellID spell);

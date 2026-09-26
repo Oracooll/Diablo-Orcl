@@ -2019,14 +2019,19 @@ bool Player::isWalking() const
 	return IsAnyOf(_pmode, PM_WALK_NORTHWARDS, PM_WALK_SOUTHWARDS, PM_WALK_SIDEWAYS);
 }
 
-int Player::GetManaShieldDamageReduction()
+int ManaShieldDamageReductionAtLevel(int spellLevel)
 {
 	constexpr int Max = 7;
+	return 24 - std::min(spellLevel, Max) * 3;
+}
+
+int Player::GetManaShieldDamageReduction()
+{
 	// Oracool: reads the EFFECTIVE level, not the raw memorised one. Vanilla read _pSplLvl here, so
 	// neither +spell-level items nor this fork's skill investment reached the shield - the one
 	// ladder that opted out of the Phase 2.1 seam. The Monk's Spirit Ward rides this spell, and a
 	// row that takes five points has to buy something with all five.
-	return 24 - std::min(GetSpellLevel(SpellID::ManaShield), Max) * 3;
+	return ManaShieldDamageReductionAtLevel(GetSpellLevel(SpellID::ManaShield));
 }
 
 int Player::CalcPartialLifeRestoreAmount() const

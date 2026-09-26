@@ -137,6 +137,29 @@ void FrenzyMinions(Player &owner, int ticks, int percent);
 /** @brief Unmakes the minion of @p owner nearest @p tile. Its full life in 1/64 points, or 0 if there was none. */
 int SacrificeMinion(Player &owner, Point tile);
 
+// ---- the army's numbers, one place each: the rules below and the tooltips (necro_summoning.cpp) both read them ----
+
+/** Gather the Dead: a minion farther than this from its owner is called; it lands within GatherPlaceRadius. */
+constexpr int GatherLeaveRadius = 2;
+constexpr int GatherPlaceRadius = 4;
+/** The Clay Golem's landed blow chills for this many ticks (2 s). */
+constexpr int ClayGolemChillTicks = 40;
+/** The Blood Golem: 1/N of the damage it deals heals itself, and 1/N heals its owner. */
+constexpr int BloodGolemShareDivisor = 4;
+/** The Iron Golem returns 1/N of every blow it takes. */
+constexpr int IronGolemReturnDivisor = 3;
+/** The Fire Golem: once every FireGolemPulseTicks, 1/N of a blow as fire to everything beside it; fire heals it 1/N. */
+constexpr int FireGolemPulseTicks = 20;
+constexpr int FireGolemBurnDivisor = 2;
+constexpr int FireGolemFireHealDivisor = 2;
+/** Grisly Tribute (N8): 1/N of every minion blow heals the owner. */
+constexpr int GrislyTributeDivisor = 10;
+/** Aberrant Animator (N8): any minion returns 1/N of a blow it takes. */
+constexpr int AberrantAnimatorDivisor = 5;
+
+/** @brief Summon Resist at @p points: the share of fire, lightning and magic damage a minion shrugs off, in percent (0 at 0 points). */
+int SummonResistPercent(int points);
+
 /** @brief A blow landing on a minion (monster.cpp ApplyMonsterDamage): Summon Resist, and fire feeding a Fire Golem. */
 int MinionDamageTaken(const Monster &monster, DamageType type, int damage);
 /** @brief What a minion's blows are multiplied by right now - Frenzy of the Dead. 100 for the rest. */

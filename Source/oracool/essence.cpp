@@ -41,7 +41,7 @@ int MaxEssence(const Player &player)
 		return 0;
 	// Overwhelming Essence (N8): a fifth more.
 	if (PassiveActive(player, ClassTreeSkill::OverwhelmingEssence))
-		return BaseMaxEssence + BaseMaxEssence / 5;
+		return BaseMaxEssence + OverwhelmingEssenceBonus;
 	return BaseMaxEssence;
 }
 

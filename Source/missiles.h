@@ -223,6 +223,43 @@ void GetDamageAmt(SpellID i, int *mind, int *maxd);
 void GetDamageAmtAtLevel(SpellID i, int spellLevel, int *mind, int *maxd);
 
 /**
+ * Oracool (2026-09-26): the book spells' per-level terms that no Damage line shows, one formula
+ * each. The missile that runs the spell calls these AND the tooltip does (oracool/skill_facts.cpp
+ * BookSpellFactsAt), so the Next Level block quotes the cast's own number. Durations are game
+ * ticks, 20 a second.
+ */
+/** @brief How long each Lightning strike lingers on its tile (AddLightning, a player's bolt). Chain Lightning's too. */
+int LightningLingerTicks(int spellLevel);
+/** @brief Chain Lightning's reach: it arcs to every monster within this many tiles (ProcessChainLightning). */
+int ChainLightningLeapRadius(int spellLevel);
+/** @brief A player's Fire Wall segment's life (AddFireWall); Ring of Fire's flames are Fire Wall segments too. */
+int FireWallDurationTicks(int spellLevel);
+/** @brief A Lightning Wall segment's life (AddLightningWall); Rune of Light's strike is one such segment. */
+int LightningWallDurationTicks(int spellLevel);
+/** @brief Flame Wave's flames on EACH side of the centre one (ProcessFlameWaveControl): width is 2x this + 1. */
+int FlameWaveSideTiles(int spellLevel);
+/** @brief Holy Bolt's flight speed, pixels a tick (AddHolyBolt); 16 at spell level 0. */
+int HolyBoltSpeedAtLevel(int spellLevel);
+/** @brief Guardian's life (AddGuardian). */
+int GuardianDurationTicks(int spellLevel, int characterLevel);
+/** @brief How long Stone Curse holds its monster (AddStoneCurse); Rune of Stone's too. */
+int StoneCurseDurationTicks(int spellLevel);
+/** @brief Infravision's duration (AddInfravision). */
+int InfravisionDurationTicks(int spellLevel);
+/** @brief Etherealize's duration (AddEtherealize). */
+int EtherealizeDurationTicks(int spellLevel);
+/** @brief Search's duration (AddSearch); a recast adds this to the running one. */
+int SearchDurationTicks(int spellLevel, int characterLevel);
+/** @brief Reflect charges one cast adds (AddReflect). */
+int ReflectCharges(int spellLevel, int characterLevel);
+/** @brief Flat damage Berserk adds to the turned monster's blows, after the 120-129% (AddBerserk). */
+int BerserkDamageBonus(int spellLevel);
+/** @brief The Mana spell's class bonus on @p amount: double for Sorcerer/Necromancer, +50% for Rogue/Bard (AddMana). */
+int ManaSpellClassAmount(HeroClass heroClass, int amount);
+/** @brief The whole mana the Mana spell restores for @p player at @p spellLevel, lowest and highest roll. */
+void ManaSpellAmountRange(const Player &player, int spellLevel, int &minAmount, int &maxAmount);
+
+/**
  * @brief Returns the direction a vector from p1(x1, y1) to p2(x2, y2) is pointing to.
  *
  * @code{.unparsed}

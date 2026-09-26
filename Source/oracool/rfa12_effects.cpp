@@ -215,6 +215,7 @@ int UnfinishedBusinessPercent(int p) { return 3 + (p - 1) / 3; }
 int DeadGroundPercent(int p) { return 25 + 2 * (p - 1); }
 int DeadeyePercent(int p) { return 50 + 5 * (p - 1); }
 int BlockPercent(int p) { return std::min(5 + (p - 1), 30); }
+int DeepBreathPerTick(int p) { return 2 + (p - 1); } // life, 1/64 units
 AuraDamage RadianceDamage(int p) { return { 3 + (p - 1), 6 + 2 * (p - 1) }; }
 AuraDamage WakeDamage(int p) { return { 4 + 2 * (p - 1), 8 + 3 * (p - 1) }; }
 AuraDamage SovereignDamage(int p) { return { 6 + 2 * (p - 1), 10 + 3 * (p - 1) }; }
@@ -231,6 +232,16 @@ constexpr int DeadGroundCooldownTicks = 6 * TicksPerSecond;
 constexpr int ProcessionArmTicks = 2 * TicksPerSecond;
 constexpr int WakeTicks = 3 * TicksPerSecond;
 constexpr int SoftTreadQuietTicks = 3 * TicksPerSecond;
+constexpr int DeadeyeChancePercent = 10;
+constexpr int MercyBelowLifePercent = 30;
+constexpr int SanctityShortenPercent = 50;
+constexpr int RetaliationMaxStacks = 3;
+
+/** @brief A per-tick trickle in 1/64 units, as the tooltip reads it: points a second, one decimal. */
+double PerSecond(int perTick)
+{
+	return perTick * TicksPerSecond / 64.0;
+}
 
 bool DeadGroundApplies(const Player &player, const Monster &target)
 {
@@ -256,7 +267,7 @@ int Rfa12DamageDealtPercent(const Player &player, const Monster &target, bool me
 	} else {
 		if (DeadGroundApplies(player, target))
 			percent += DeadGroundPercent(PointsIfOn(player, Skill::DeadGround));
-		if (const int p = PointsIfOn(player, Skill::Deadeye); p > 0 && GenerateRnd(100) < 10)
+		if (const int p = PointsIfOn(player, Skill::Deadeye); p > 0 && GenerateRnd(100) < DeadeyeChancePercent)
 			percent += DeadeyePercent(p);
 	}
 	return percent + Rfa12ActiveDamageDealtPercent(player, target, melee);
@@ -327,7 +338,7 @@ bool MonsterMayNotice(const Monster &monster)
 		return false; // Astral Projection
 	const int distance = monster.position.tile.WalkingDistance(player.position.tile);
 	if (CursedMonsterBlinded(monster))
-		return distance <= 1; // Dim Vision (oracool/curses.h): only what stands beside it
+		return distance <= DimVisionSightTiles; // Dim Vision (oracool/curses.h): only what stands beside it
 	if (PointsIfOn(player, Skill::Nocturne) > 0)
 		return distance <= std::max(2, player._pLightRad / 2);
 	if (PointsIfOn(player, Skill::SoftTread) > 0 && Walking(player) && ClocksOf(player).quietTicks >= SoftTreadQuietTicks)
@@ -399,7 +410,7 @@ void OnRfa12Struck(Player &player, Monster &monster)
 	OnRfa12ActiveStruck(player, monster);
 	if (PointsIfOn(player, Skill::Retaliation) > 0) {
 		PlayerClocks &clocks = ClocksOf(player);
-		clocks.retaliationStacks = std::min(clocks.retaliationStacks + 1, 3);
+		clocks.retaliationStacks = std::min(clocks.retaliationStacks + 1, RetaliationMaxStacks);
 	}
 	MarksOf(monster).struckTicks = StruckMemoryTicks;
 }
@@ -408,7 +419,7 @@ void OnRfa12PlayerDamaged(Player &player)
 {
 	PlayerClocks &clocks = ClocksOf(player);
 	const int p = PointsIfOn(player, Skill::Mercy);
-	if (p <= 0 || clocks.mercyCooldown > 0 || player._pHitPoints >> 6 <= 0 || player._pHitPoints * 10 >= player._pMaxHP * 3)
+	if (p <= 0 || clocks.mercyCooldown > 0 || player._pHitPoints >> 6 <= 0 || player._pHitPoints * 100 >= player._pMaxHP * MercyBelowLifePercent)
 		return;
 	Heal(player, player._pMaxHP * MercyHealPercent(p) / 100);
 	clocks.mercyCooldown = MercyCooldownTicks;
@@ -432,7 +443,7 @@ void OnRfa12MonsterKilled(Player &player, const Monster &monster)
 
 int Rfa12SlowShortenPercent(const Player &player)
 {
-	return PointsIfOn(player, Skill::Sanctity) > 0 ? 50 : 0;
+	return PointsIfOn(player, Skill::Sanctity) > 0 ? SanctityShortenPercent : 0;
 }
 
 void ProcessRfa12Tick(Player &player)
@@ -454,7 +465,7 @@ void ProcessRfa12Tick(Player &player)
 		RestoreMana(player, 1 + (p - 1));
 	}
 	if (const int p = PointsIfOn(player, Skill::DeepBreath); p > 0)
-		Heal(player, 2 + (p - 1));
+		Heal(player, DeepBreathPerTick(p));
 
 	const bool pulse = ++clocks.pulseClock % RadiancePulseTicks == 0;
 	const bool siren = clocks.pulseClock % SirenPulseTicks == 0;
@@ -638,7 +649,8 @@ std::string Rfa12AuraFactsAt(Skill aura, int points)
 	switch (aura) {
 	case Skill::Radiance: {
 		const AuraDamage d = RadianceDamage(p);
-		return fmt::format(fmt::runtime(_("Undead in reach take {:d} - {:d} magic damage every 2 seconds")), d.min, d.max);
+		return fmt::format(fmt::runtime(_("Undead in reach take {:d} - {:d} magic damage every {:d} seconds")), d.min, d.max,
+		    RadiancePulseTicks / TicksPerSecond);
 	}
 	case Skill::BaneOfEvil:
 		return fmt::format(fmt::runtime(_("+{:d}% damage against demons and undead")), BaneOfEvilPercent(p));
@@ -647,19 +659,22 @@ std::string Rfa12AuraFactsAt(Skill aura, int points)
 	case Skill::TitheOfAsh:
 		return fmt::format(fmt::runtime(_("A kill in reach restores {:d} mana and leaves no corpse")), TitheMana(p));
 	case Skill::Retaliation:
-		return fmt::format(fmt::runtime(_("Each blow taken: +{:d}% damage on your next blow, up to three")), RetaliationPerStack(p));
+		return fmt::format(fmt::runtime(_("Each blow taken: +{:d}% damage on your next blow, stacking {:d} times")), RetaliationPerStack(p),
+		    RetaliationMaxStacks);
 	case Skill::DoomProcession: {
 		const AuraDamage d = WakeDamage(p);
-		return fmt::format(fmt::runtime(_("After 2 seconds on the move, your wake strikes for {:d} - {:d} magic damage")), d.min, d.max);
+		return fmt::format(fmt::runtime(_("After {:d} seconds on the move, each tile you leave burns for {:d} seconds: {:d} - {:d} magic damage")),
+		    ProcessionArmTicks / TicksPerSecond, WakeTicks / TicksPerSecond, d.min, d.max);
 	}
 	case Skill::Dominion:
 		return fmt::format(fmt::runtime(_("Enemies in reach deal {:d}% less damage and take {:d}% more")), DominionPercent(p), DominionPercent(p));
 	case Skill::Immovable:
 		return std::string(_("Knockback cannot move you"));
 	case Skill::Mercy:
-		return fmt::format(fmt::runtime(_("Below 30% life: heals {:d}% of your life, once every 20 seconds")), MercyHealPercent(p));
+		return fmt::format(fmt::runtime(_("Below {:d}% life: heals {:d}% of your life, once every {:d} seconds")), MercyBelowLifePercent,
+		    MercyHealPercent(p), MercyCooldownTicks / TicksPerSecond);
 	case Skill::Sanctity:
-		return std::string(_("Slows on you wear off 50% sooner"));
+		return fmt::format(fmt::runtime(_("Slows on you wear off {:d}% sooner")), SanctityShortenPercent);
 	case Skill::MinstrelsTune:
 		return std::string(_("Restores mana as it plays"));
 	case Skill::HymnOfRenewal:
@@ -676,6 +691,52 @@ std::string Rfa12AuraFactsAt(Skill aura, int points)
 		const AuraDamage d = SovereignDamage(p);
 		return fmt::format(fmt::runtime(_("With one enemy near, every 4th blow on it deals {:d} - {:d} magic damage")), d.min, d.max);
 	}
+	default:
+		return {};
+	}
+}
+
+
+std::string Rfa12PassiveFactsAt(const Player &player, ClassTreeSkill skill, int points)
+{
+	// The lines state the rule whether or not its weapon is in hand; the condition is part of the line.
+	(void)player;
+	const int p = std::max(points, 1);
+	switch (skill) {
+	case Skill::DeepWounds:
+		return fmt::format(fmt::runtime(_("Melee blows: {:d}% chance to bleed {:d} damage a second for {:d} seconds, with no regeneration")),
+		    DeepWoundsChance(p), DeepWoundsPerSecond(p), DeepWoundsTicks / TicksPerSecond);
+	case Skill::BattleHardened:
+		return fmt::format(fmt::runtime(_("Below half life: -{:d}% fire, lightning and magic damage taken")), BattleHardenedPercent(p));
+	case Skill::Bloodlust:
+		return fmt::format(fmt::runtime(_("Melee blows return {:d}% of their damage as life")), BloodlustPercent(p));
+	case Skill::UnfinishedBusiness:
+		return fmt::format(fmt::runtime(_("Killing an enemy that struck you in the last {:d} seconds heals {:d}% of your life")),
+		    StruckMemoryTicks / TicksPerSecond, UnfinishedBusinessPercent(p));
+	case Skill::LastingWounds:
+		return fmt::format(fmt::runtime(_("Enemies you strike in melee cannot regenerate life for {:d} seconds")), LastingWoundsTicks / TicksPerSecond);
+	case Skill::GripOfIron:
+		return std::string(_("While you swing with one enemy beside you, its blows do not interrupt you"));
+	case Skill::HeavyFoot:
+		return std::string(_("Holding a two-handed melee weapon: knockback cannot move you"));
+	case Skill::LongReach:
+		return std::string(_("With a staff, spear or pike, a swing at an empty tile strikes the enemy beyond it"));
+	case Skill::ScentOfBlood:
+		return fmt::format(fmt::runtime(_("Enemies you wound stay visible for {:d} seconds after they leave the light")), ScentTicks / TicksPerSecond);
+	case Skill::SoftTread:
+		return fmt::format(fmt::runtime(_("After {:d} seconds walking without attacking, monsters notice you only within two thirds of your light")),
+		    SoftTreadQuietTicks / TicksPerSecond);
+	case Skill::DeadGround:
+		return fmt::format(fmt::runtime(_("First ranged hit on an enemy still for {:d} seconds: +{:d}% damage, once every {:d} seconds per enemy")),
+		    DeadGroundStillTicks / TicksPerSecond, DeadGroundPercent(p), DeadGroundCooldownTicks / TicksPerSecond);
+	case Skill::Deadeye:
+		return fmt::format(fmt::runtime(_("Ranged hits: {:d}% chance to deal +{:d}% damage")), DeadeyeChancePercent, DeadeyePercent(p));
+	case Skill::StaffParry:
+		return fmt::format(fmt::runtime(_("Holding a staff: +{:d}% chance to block")), BlockPercent(p));
+	case Skill::Brace:
+		return fmt::format(fmt::runtime(_("Holding a spear or pike: you can block, +{:d}% chance to block")), BlockPercent(p));
+	case Skill::DeepBreath:
+		return fmt::format(fmt::runtime(_("Life regeneration: {:.1f} a second")), PerSecond(DeepBreathPerTick(p)));
 	default:
 		return {};
 	}

@@ -79,6 +79,17 @@ bool AuraReachesMonsters(ClassTreeSkill aura);
 int AuraFieldRadius(ClassTreeSkill aura, int points);
 /** @brief What @p aura does off the character sheet at @p points, as tooltip lines, or empty. */
 std::string AuraFieldFactsAt(ClassTreeSkill aura, int points);
+/** @brief Static Field's strike at @p points: the share of a monster's REMAINING life it takes, in percent. Uniques lose half. */
+int StaticFieldPercent(int points);
+/** @brief Thunder Storm's bolt at @p points, lightning: 1 - 20, +10 to the top a level. */
+AuraDamage ThunderStormDamage(int points);
+/** @brief How far Thunder Storm looks for the one enemy its bolt strikes, in tiles. The same at every level. */
+constexpr int ThunderStormReach = 6;
+/**
+ * @brief The trickle a mending aura restores per tick at @p points, in the 1/64 units life and mana are kept
+ * in: 2, +2 a point. Prayer, Meditation and Healing Mantra (class_tree.cpp's ProcessClassTreeTick).
+ */
+int AuraTricklePerTick(int points);
 
 /**
  * @brief Points of Conviction before it starts breaking immunities rather than just resistances.

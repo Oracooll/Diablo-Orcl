@@ -55,8 +55,7 @@ struct Frenzy {
 	int percent = 0;
 };
 std::array<Frenzy, MAX_PLRS> Frenzies;
-/** The Fire Golem burns what stands beside it once a second; this is the clock, per record. */
-constexpr int FireGolemPulseTicks = 20;
+// The Fire Golem burns what stands beside it once a second (FireGolemPulseTicks, minions.h); FireClocks is the clock, per record.
 /** Record index by monster slot, or -1 - the brain asks "is this a minion" for every monster, every tick. */
 std::array<int8_t, MaxMonsters> RecordOfSlot = [] {
 	std::array<int8_t, MaxMonsters> table {};
@@ -214,7 +213,7 @@ void FireGolemsBurn(const Player &owner)
 			if (monster.position.tile.WalkingDistance(golem.position.tile) > 1)
 				continue;
 			const int blow = record.spec.minDamage + GenerateRnd(std::max(record.spec.maxDamage - record.spec.minDamage, 0) + 1);
-			MinionHurts(owner, monster, DamageType::Fire, (blow << 6) / 2);
+			MinionHurts(owner, monster, DamageType::Fire, (blow << 6) / FireGolemBurnDivisor);
 		}
 	}
 }
@@ -501,9 +500,9 @@ int GatherMinions(Player &owner)
 		if (!BodyAlive(record) || record.owner != owner.getId())
 			continue;
 		Monster &body = Monsters[record.body];
-		if (body.position.tile.WalkingDistance(owner.position.tile) <= 2)
+		if (body.position.tile.WalkingDistance(owner.position.tile) <= GatherLeaveRadius)
 			continue;
-		if (PlaceCompanionNear(body, owner.position.tile, 4))
+		if (PlaceCompanionNear(body, owner.position.tile, GatherPlaceRadius))
 			moved++;
 	}
 	return moved;
@@ -560,16 +559,23 @@ int MinionDamageTaken(const Monster &monster, DamageType type, int damage)
 	// The Fire Golem drinks fire.
 	if (type == DamageType::Fire && record->spec.golem == GolemKind::Fire) {
 		Monster &body = Monsters[record->body];
-		body.hitPoints = std::min(body.hitPoints + damage / 2, body.maxHitPoints);
+		body.hitPoints = std::min(body.hitPoints + damage / FireGolemFireHealDivisor, body.maxHitPoints);
 		return 0;
 	}
 	// Summon Resist: fire, lightning and magic, a fifth at the first point and up to three quarters.
 	if (IsAnyOf(type, DamageType::Fire, DamageType::Lightning, DamageType::Magic) && IsClassTreeSkillUnlocked(owner, ClassTreeSkill::SummonResist)) {
 		const int points = ClassTreeInvestment(owner, ClassTreeSkill::SummonResist);
 		if (points > 0)
-			damage -= damage * std::min(20 + 5 * (points - 1), 75) / 100;
+			damage -= damage * SummonResistPercent(points) / 100;
 	}
 	return damage;
+}
+
+int SummonResistPercent(int points)
+{
+	if (points <= 0)
+		return 0;
+	return std::min(20 + 5 * (points - 1), 75);
 }
 
 int MinionDamagePercent(const Monster &monster)
@@ -589,19 +595,19 @@ void OnMinionBlow(Monster &minion, Monster &target, int damage)
 	Player &owner = Players[record->owner];
 	// Grisly Tribute (N8): a tenth of every minion blow heals the owner.
 	if (owner._pHitPoints > 0 && PassiveActive(owner, ClassTreeSkill::GrislyTribute)) {
-		owner._pHitPoints = std::min(owner._pHitPoints + damage / 10, owner._pMaxHP);
-		owner._pHPBase = std::min(owner._pHPBase + damage / 10, owner._pMaxHPBase);
+		owner._pHitPoints = std::min(owner._pHitPoints + damage / GrislyTributeDivisor, owner._pMaxHP);
+		owner._pHPBase = std::min(owner._pHPBase + damage / GrislyTributeDivisor, owner._pMaxHPBase);
 		RedrawComponent(PanelDrawComponent::Health);
 	}
 	switch (record->spec.golem) {
 	case GolemKind::Clay:
 		// Two seconds of chill for a blow that lands: the Clay Golem's whole point.
 		if ((target.hitPoints >> 6) > 0)
-			ChillMonster(target, 40);
+			ChillMonster(target, ClayGolemChillTicks);
 		break;
 	case GolemKind::Blood: {
 		// A quarter of what it takes to itself, a quarter to its owner.
-		const int share = damage / 4;
+		const int share = damage / BloodGolemShareDivisor;
 		minion.hitPoints = std::min(minion.hitPoints + share, minion.maxHitPoints);
 		if (owner._pHitPoints > 0) {
 			owner._pHitPoints = std::min(owner._pHitPoints + share, owner._pMaxHP);
@@ -624,9 +630,9 @@ void OnMinionStruck(Monster &minion, Monster &attacker, int damage)
 	// The Iron Golem gives a third of every blow back to whoever struck it; Aberrant Animator (N8) a fifth from any minion.
 	int share = 0;
 	if (record->spec.golem == GolemKind::Iron)
-		share += damage / 3;
+		share += damage / IronGolemReturnDivisor;
 	if (PassiveActive(owner, ClassTreeSkill::AberrantAnimator))
-		share += damage / 5;
+		share += damage / AberrantAnimatorDivisor;
 	if (share > 0)
 		MinionHurts(owner, attacker, DamageType::Physical, share);
 }

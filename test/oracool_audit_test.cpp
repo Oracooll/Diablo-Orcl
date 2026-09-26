@@ -2614,8 +2614,9 @@ TEST(OracoolClassTree, PerSkillRankCapsApplyAndZeroStillMeansTheUsualCap)
 	EXPECT_EQ(oracool::ClassTreeMaxRank(oracool::ClassTreeSkill::Might), oracool::MaxTreeInvestment)
 	    << "a row that declares no cap stopped meaning MaxTreeInvestment";
 	EXPECT_EQ(oracool::ClassTreeMaxRank(oracool::ClassTreeSkill::IronRobe), 5);
-	EXPECT_EQ(oracool::ClassTreeMaxRank(oracool::ClassTreeSkill::Enlightenment), 1)
-	    << "a branch capstone took more than its one rank";
+	// The capstones took five ranks like the rest of the ladder on 2026-09-26 (user: every skill grows with its ranks).
+	EXPECT_EQ(oracool::ClassTreeMaxRank(oracool::ClassTreeSkill::Enlightenment), 5)
+	    << "a branch capstone lost its five ranks";
 
 	devilution::Player &player = FreshPaladin();
 	player._pClass = HeroClass::Monk;
@@ -2628,9 +2629,10 @@ TEST(OracoolClassTree, PerSkillRankCapsApplyAndZeroStillMeansTheUsualCap)
 	EXPECT_FALSE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::IronRobe))
 	    << "a five-rank skill took a sixth point";
 
-	EXPECT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::PerfectVessel));
+	for (int i = 0; i < 5; i++)
+		EXPECT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::PerfectVessel)) << "capstone point " << i + 1;
 	EXPECT_FALSE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::PerfectVessel))
-	    << "a capstone took a second point";
+	    << "a capstone took a sixth point";
 
 	// The masteries were the Monk's seventh tier (level 36) until 2026-09-07, when the user set the
 	// ability pages' ceiling at level 30 ("only passive skills go as far as lvl 36"); they sit in the
@@ -2869,7 +2871,8 @@ TEST(OracoolClassTree, AuraEffectsScaleWithPointsAndInertOnesStaySilent)
 	// The auras that do their work OFF the sheet - the three holy pulses, Sanctuary and Redemption push
 	// and consume, Conviction is asked at the point of use, Thorns returns and Cleansing shortens where
 	// the blow or the slow lands - must contribute NOTHING to the totals, so the tooltip cannot claim a
-	// number the point did not buy.
+	// number the point did not buy. Their LEVEL-UP stat is the one exception (2026-09-26: every rank must grow
+	// something - Conviction and Cleansing stop early), and it is exactly what the sheet may carry.
 	for (const oracool::ClassTreeSkill inert : { oracool::ClassTreeSkill::HolyFreeze, oracool::ClassTreeSkill::HolyFire,
 	         oracool::ClassTreeSkill::HolyShock, oracool::ClassTreeSkill::Thorns,
 	         oracool::ClassTreeSkill::Sanctuary, oracool::ClassTreeSkill::Conviction,
@@ -2879,6 +2882,7 @@ TEST(OracoolClassTree, AuraEffectsScaleWithPointsAndInertOnesStaySilent)
 		ASSERT_TRUE(oracool::ToggleClassAura(p, inert));
 		oracool::ItemBonusTotals inertTotals;
 		oracool::ItemBonusTotals empty;
+		oracool::ApplyClassTreeLevelUpStat(inert, 1, empty);
 		oracool::ApplyClassTreeToTotals(p, inertTotals);
 		EXPECT_EQ(std::memcmp(&inertTotals, &empty, sizeof(empty)), 0)
 		    << _(oracool::GetClassTreeSkillData(inert).name) << " leaked an effect it does not have";

@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <string>
 #include <vector>
+
+#include <fmt/format.h>
 
 #include "automap.h"
 #include "dead.h"
@@ -17,6 +20,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
 #include "oracool/class_tree.h"
+#include "oracool/cold.h"
 #include "oracool/companion.h"
 #include "oracool/passives.h"
 #include "oracool/corpses.h"
@@ -29,6 +33,7 @@
 #include "oracool/warcries.h"
 #include "player.h"
 #include "spells.h"
+#include "utils/language.h"
 
 namespace devilution::oracool {
 
@@ -60,13 +65,16 @@ int WeaponBlow(const Player &player)
 	return std::max(dam, 1) << 6;
 }
 
+/** @brief Earthen Might: Rage for every enemy a ground skill strikes. */
+constexpr int EarthenMightPerEnemy = 3;
+
 /** @brief Earthen Might (Barbarian, 2026-09-14): 3 Rage for every enemy the ground-splitters strike. */
 void EarthenMightRage(Player &player, size_t struck)
 {
 	if (struck == 0 || !PassiveActive(player, ClassTreeSkill::EarthenMight))
 		return;
 	NoteRageCombat(player);
-	GainRage(player, 3 * static_cast<int>(struck));
+	GainRage(player, EarthenMightPerEnemy * static_cast<int>(struck));
 }
 
 bool Hittable(const Monster &monster)
@@ -434,6 +442,397 @@ int Rolled(Range r)
 	return Roll(r.min, r.max);
 }
 
+// ---- one place each (2026-09-26): the cast reads these and so does Rfa12ActiveFactsAt, so the rule and ----
+// ---- its tooltip cannot disagree. The hidden Bard's rows keep their inline numbers. ----------------------
+
+/** @brief The whole points a skill rolls, before resistances. {0, 0} for a skill that rolls none. */
+Range SkillDamage(SpellID spell, int r)
+{
+	switch (spell) {
+	case SpellID::Oathbrand: return Scale(r, 4, 8, 2, 3); // each branded blow
+	case SpellID::HeavensDescent: return Scale(r, 8, 16, 4, 6);
+	case SpellID::WrathOfTheHeavens: return Scale(r, 10, 20, 4, 7); // each pillar
+	case SpellID::EarthshakerCry: return Scale(r, 5, 10, 3, 5);
+	case SpellID::ChillTouch: return Scale(r, 3, 6, 2, 3);
+	case SpellID::IceNeedle: return Scale(r, 5, 9, 3, 4);
+	case SpellID::IceLance: return Scale(r, 6, 11, 3, 5);
+	case SpellID::BrittleGround: return Scale(r, 4, 8, 2, 3);
+	case SpellID::Whiteout: return Scale(r, 5, 10, 3, 4);
+	case SpellID::AbsoluteZero: return Scale(r, 8, 16, 4, 6);
+	case SpellID::Arc: return Scale(r, 2, 12, 2, 5); // the first strike
+	case SpellID::StaticCharge: return Scale(r, 2, 10, 1, 3);
+	case SpellID::LightningRod: return Scale(r, 4, 14, 2, 5);
+	case SpellID::StormCrucible: return Scale(r, 4, 16, 2, 6);
+	case SpellID::RideTheLightning: return Scale(r, 3, 12, 2, 4);
+	case SpellID::EmberMine: return Scale(r, 6, 12, 3, 5);
+	case SpellID::FlameRing: return Scale(r, 4, 8, 2, 3);
+	case SpellID::AshenBrand: return Scale(r, 6, 12, 3, 5);
+	case SpellID::FurnaceMouth: return Scale(r, 4, 9, 2, 4);
+	case SpellID::Immolate: return Scale(r, 3, 6, 1, 2); // a second
+	case SpellID::FuneralStar: return Scale(r, 15, 30, 6, 10);
+	case SpellID::ShockArrow: return Scale(r, 1, 6, 1, 3); // the arc
+	case SpellID::Meteor: return Scale(r, 20, 40, 8, 12); // the impact
+	case SpellID::PoisonJavelin: return Scale(r, 2, 4, 1, 1); // the pool, a second
+	case SpellID::PlagueJavelin: return Scale(r, 4, 8, 2, 3); // the cloud, a second
+	case SpellID::ChiWave: return Scale(r, 4, 8, 2, 3);
+	case SpellID::MantraOfRetribution: return Scale(r, 3, 6, 1, 2);
+	case SpellID::WaveOfLight: return Scale(r, 7, 14, 3, 5);
+	case SpellID::AncestralCourt: return Scale(r, 5, 9, 2, 4); // each strike
+	case SpellID::Teeth: return Scale(r, 2, 5, 1, 2); // each tooth
+	case SpellID::BoneSplinters: return Scale(r, 3, 6, 1, 2);
+	case SpellID::BoneWall: return Scale(r, 3, 6, 1, 2);
+	case SpellID::BoneSpikes: return Scale(r, 4, 9, 2, 3);
+	case SpellID::BoneSpear: return Scale(r, 6, 12, 3, 4);
+	case SpellID::BonePrison: return Scale(r, 2, 5, 1, 2);
+	case SpellID::BoneStorm: return Scale(r, 2, 4, 1, 1);
+	case SpellID::DeathNova: return Scale(r, 6, 12, 2, 4);
+	default: return { 0, 0 };
+	}
+}
+
+/** @brief Meteor's burning ground, a second. */
+Range MeteorBurn(int r)
+{
+	return Scale(r, 3, 6, 1, 2);
+}
+
+/** @brief A skill's share of one weapon blow, in percent. 0 for a skill that deals none. */
+int BlowPercent(SpellID spell, int r)
+{
+	const int p = r - 1;
+	switch (spell) {
+	case SpellID::HolyLance: return 80 + 5 * p;
+	case SpellID::Crusade: return 75 + 5 * p;
+	case SpellID::AegisSlam: return 60 + 5 * p; // the two beside the target
+	case SpellID::Cleave: return 70 + 5 * p;
+	case SpellID::Sweep: return 80 + 5 * p;
+	case SpellID::Backhand:
+	case SpellID::RearwardReach: return 100 + 8 * p;
+	case SpellID::SeismicSlam: return 80 + 10 * p;
+	case SpellID::Earthquake: return 30 + 5 * p; // a second
+	case SpellID::BarbedShaft: return 100 + 5 * p;
+	case SpellID::ShockArrow:
+	case SpellID::CripplingShot: return 100;
+	case SpellID::PiercingShot: return 80 + 5 * p;
+	case SpellID::RainOfArrows: return 50 + 4 * p;
+	case SpellID::Barrage: return 40 + 3 * p; // each arrow
+	case SpellID::PhantomVolley: return 40 + 3 * p;
+	case SpellID::Harpoon: return 60 + 5 * p;
+	case SpellID::ReapingPoint: return 100 + 5 * p; // the enemy beyond
+	case SpellID::AnchorJavelin: return 70 + 5 * p;
+	case SpellID::PoisonJavelin: return 60 + 5 * p;
+	case SpellID::ValkyriesSpear: return 150 + 15 * p;
+	case SpellID::LongThrust: return 100 + 8 * p;
+	case SpellID::MountainPole: return 50 + 5 * p;
+	case SpellID::BambooRain: return 70 + 5 * p;
+	case SpellID::DragonTailSweep: return 60 + 5 * p;
+	case SpellID::WhirlingKick: return 70 + 5 * p;
+	case SpellID::StaffOfEchoes: return 60 + 4 * p; // of the blow that landed
+	case SpellID::HeavenSplitter: return 120 + 10 * p;
+	case SpellID::ThousandReeds: return 40 + 3 * p;
+	case SpellID::LeapingCrane: return 80 + 5 * p;
+	case SpellID::SevenSidedStrike: return 60 + 4 * p;
+	case SpellID::ExplodingPalm: return 50 + 5 * p; // the burst
+	case SpellID::DragonsWrath: return 100 + 8 * p;
+	default: return 0;
+	}
+}
+
+/** @brief How long what a skill leaves behind lasts - buff, mark, debuff, bleed, burn or ground - in ticks. */
+int EffectTicks(SpellID spell, int r)
+{
+	const int p = r - 1;
+	switch (spell) {
+	case SpellID::Judgment: return 4 * TicksPerSecond;
+	case SpellID::Oathbrand: return 6 * TicksPerSecond;
+	case SpellID::Rend: return 4 * TicksPerSecond;
+	case SpellID::Earthquake: return 4 * TicksPerSecond;
+	case SpellID::ThreateningShout:
+	case SpellID::Intimidate: return (10 + p) * TicksPerSecond;
+	case SpellID::RallyingCry: return 5 * TicksPerSecond;
+	case SpellID::IronWill: return (20 + 2 * p) * TicksPerSecond;
+	case SpellID::Bloodcall: return 10 * TicksPerSecond;
+	case SpellID::Frostbite: return 6 * TicksPerSecond;
+	case SpellID::BrittleGround: return 6 * TicksPerSecond;
+	case SpellID::FrozenSentinel: return 15 * TicksPerSecond;
+	case SpellID::StaticCharge: return (20 + 2 * p) * TicksPerSecond;
+	case SpellID::Conduit: return 10 * TicksPerSecond;
+	case SpellID::LightningRod: return 12 * TicksPerSecond;
+	case SpellID::FaradayRing: return 4 * TicksPerSecond;
+	case SpellID::StormCrucible: return 8 * TicksPerSecond; // to place the pair
+	case SpellID::CinderTouch: return 3 * TicksPerSecond;
+	case SpellID::EmberMine: return 20 * TicksPerSecond;
+	case SpellID::AshenBrand: return 4 * TicksPerSecond;
+	case SpellID::Firestorm: return 4 * TicksPerSecond;
+	case SpellID::Immolate: return 10 * TicksPerSecond;
+	case SpellID::FuneralStar: return 2 * TicksPerSecond; // standing still
+	case SpellID::BarbedShaft: return 3 * TicksPerSecond;
+	case SpellID::HuntersMark: return (10 + p) * TicksPerSecond;
+	case SpellID::HuntersClaim: return 8 * TicksPerSecond;
+	case SpellID::Meteor: return 4 * TicksPerSecond; // a second to fall, three to burn
+	case SpellID::PoisonJavelin: return 3 * TicksPerSecond;
+	case SpellID::PlagueJavelin: return 5 * TicksPerSecond;
+	case SpellID::StaffOfEchoes: return TicksPerSecond; // until the echo
+	case SpellID::TigerClaw: return 3 * TicksPerSecond;
+	case SpellID::PressurePoint: return 6 * TicksPerSecond; // the armour
+	case SpellID::ExplodingPalm: return 6 * TicksPerSecond;
+	case SpellID::MantraOfClarity:
+	case SpellID::MantraOfEvasion:
+	case SpellID::MantraOfRetribution: return 30 * TicksPerSecond;
+	case SpellID::AstralProjection: return 6 * TicksPerSecond;
+	case SpellID::BoneArmor: return 60 * TicksPerSecond;
+	case SpellID::PoisonDagger: return 20 * TicksPerSecond;
+	case SpellID::Blight: return 4 * TicksPerSecond;
+	case SpellID::BoneWall: return 8 * TicksPerSecond;
+	case SpellID::BonePrison: return 3 * TicksPerSecond;
+	case SpellID::BoneStorm: return 8 * TicksPerSecond;
+	default: return 0;
+	}
+}
+
+/** @brief How long a skill's stun (or hold) keeps its target, in ticks. */
+int StunTicks(SpellID spell, int r)
+{
+	const int p = r - 1;
+	switch (spell) {
+	case SpellID::AegisSlam: return TicksPerSecond + 2 * p;
+	case SpellID::GroundStomp: return 30 + 4 * p;
+	case SpellID::ClaspOfRuin: return TicksPerSecond;
+	case SpellID::EarthshakerCry: return 2 * TicksPerSecond;
+	case SpellID::Harpoon: return TicksPerSecond / 2;
+	case SpellID::AnchorJavelin: return 2 * TicksPerSecond;
+	case SpellID::MountainPole: return TicksPerSecond;
+	case SpellID::ShoulderGate: return TicksPerSecond;
+	case SpellID::BoneSpikes: return TicksPerSecond;
+	case SpellID::BonePrison: return 3 * TicksPerSecond;
+	default: return 0;
+	}
+}
+
+/** @brief How long a skill's chill (half speed) - or Absolute Zero's freeze - lasts, in ticks. */
+int SlowTicks(SpellID spell, int r)
+{
+	const int p = r - 1;
+	switch (spell) {
+	case SpellID::ChillTouch: return 40 + 4 * p;
+	case SpellID::IceNeedle:
+	case SpellID::IceLance:
+	case SpellID::Whiteout: return 40;
+	case SpellID::Frostbite: return 6 * TicksPerSecond;
+	case SpellID::BrittleGround: return TicksPerSecond;
+	case SpellID::AbsoluteZero: return 2 * TicksPerSecond;
+	case SpellID::CripplingShot: return 4 * TicksPerSecond;
+	case SpellID::LowBranch:
+	case SpellID::PressurePoint: return 3 * TicksPerSecond;
+	default: return 0;
+	}
+}
+
+/** @brief A bleed's, burn's or poison's whole points a second, before Virulence. */
+int PerSecond(SpellID spell, int r)
+{
+	const int p = r - 1;
+	switch (spell) {
+	case SpellID::Rend: return 3 + 2 * p;
+	case SpellID::CinderTouch:
+	case SpellID::BarbedShaft:
+	case SpellID::TigerClaw:
+	case SpellID::PoisonDagger:
+	case SpellID::Blight:
+	case SpellID::PoisonNova:
+	case SpellID::DeathNova: return 2 + r;
+	case SpellID::ExplodingPalm: return 1 + r;
+	case SpellID::PoisonExplosion: return 3 + r;
+	case SpellID::Decompose: return 5 + 2 * r;
+	default: return 0;
+	}
+}
+
+/** @brief How long one of the Necromancer's poisons lasts on what it touches, in ticks, before Virulence. */
+int PoisonTicks(SpellID spell)
+{
+	switch (spell) {
+	case SpellID::PoisonDagger: return 4 * TicksPerSecond;
+	case SpellID::Blight: return 2 * TicksPerSecond; // renewed every second the monster stands in the pool
+	case SpellID::PoisonExplosion:
+	case SpellID::PoisonNova: return 6 * TicksPerSecond;
+	case SpellID::Decompose:
+	case SpellID::DeathNova: return 5 * TicksPerSecond;
+	default: return 0;
+	}
+}
+
+/** @brief A skill's main percent that is not a share of a blow: a mark, a cut, a heal, a resistance, a chance. */
+int EffectPercent(SpellID spell, int r)
+{
+	const int p = r - 1;
+	switch (spell) {
+	case SpellID::Judgment: return std::min(15 + p, 40); // damage taken
+	case SpellID::ThreateningShout: return std::min(15 + p, 40); // damage dealt, cut
+	case SpellID::RallyingCry: return std::min(20 + 2 * p, 50); // of maximum life
+	case SpellID::Intimidate: return std::min(15 + 2 * p, 60); // armour, cut
+	case SpellID::IronWill: return 15 + 3 * p; // fire, lightning and magic resistance
+	case SpellID::Frostbite: return std::min(20 + 2 * p, 60); // cold damage taken
+	case SpellID::Conduit: return std::min(20 + 2 * p, 60); // faster cast rate
+	case SpellID::HuntersMark: return std::min(20 + 2 * p, 60); // arrow damage taken
+	case SpellID::PressurePoint: return std::min(20 + 2 * p, 60); // armour, cut
+	case SpellID::MantraOfEvasion: return std::min(10 + 2 * p, 40); // melee blows that miss
+	case SpellID::AstralProjection: return 50; // movement speed
+	case SpellID::CorpseExplosion: return CorpseBurstPercent(r); // of the corpse's life - Death Mark's burst too (curses.h)
+	default: return 0;
+	}
+}
+
+/** @brief How far a skill reaches - its radius, line, leap or search - in tiles. */
+int ReachTiles(SpellID spell, int r)
+{
+	const int p = r - 1;
+	switch (spell) {
+	case SpellID::HeavensDescent: return 6;
+	case SpellID::WrathOfTheHeavens: return 5;
+	case SpellID::SeismicSlam: return 5;
+	case SpellID::Earthquake: return 3;
+	case SpellID::ThreateningShout:
+	case SpellID::Intimidate: return AuraRadiusForPoints(r); // earshot
+	case SpellID::SplitRanks: return 3;
+	case SpellID::EarthshakerCry: return 8;
+	case SpellID::IceNeedle:
+	case SpellID::IceLance: return 8;
+	case SpellID::AbsoluteZero: return 8;
+	case SpellID::FrozenSentinel: return 8;
+	case SpellID::RideTheLightning: return 6;
+	case SpellID::FlameRing: return 2;
+	case SpellID::FuneralStar: return 3;
+	case SpellID::PiercingShot: return 10;
+	case SpellID::RainOfArrows: return 2;
+	case SpellID::PhantomVolley: return 6;
+	case SpellID::Harpoon: return 8;
+	case SpellID::Vault: return std::min(3 + p / 5, 6);
+	case SpellID::AnchorJavelin: return 8;
+	case SpellID::PoisonJavelin: return 8;
+	case SpellID::PlagueJavelin: return 2; // the cloud
+	case SpellID::ValkyriesSpear: return 1;
+	case SpellID::LongThrust: return 2;
+	case SpellID::BambooRain: return 2;
+	case SpellID::HeavenSplitter: return 4;
+	case SpellID::ThousandReeds: return 6;
+	case SpellID::LeapingCrane: return std::min(4 + p / 4, 7);
+	case SpellID::ShoulderGate: return 2;
+	case SpellID::SevenSidedStrike: return 4;
+	case SpellID::DragonsWrath: return 8;
+	case SpellID::BlindingFlash: return 3;
+	case SpellID::WaveOfLight: return 2;
+	case SpellID::AncestralCourt: return 2;
+	case SpellID::BoneSpear: return 9;
+	case SpellID::PoisonNova: return 5;
+	case SpellID::DeathNova: return 4;
+	case SpellID::Arc:
+	case SpellID::ChiWave: return 3; // each leap
+	case SpellID::ShockArrow: return 3; // the arc
+	case SpellID::ShadowStep: return 2; // from the cursor
+	case SpellID::CorpseExplosion:
+	case SpellID::PoisonExplosion: return 2; // around the corpse
+	case SpellID::BoneSpikes: return 1;
+	case SpellID::BoneStorm: return 2;
+	default: return 0;
+	}
+}
+
+// The counts and clocks the facts quote.
+constexpr int CrusadeOthers = 3;
+constexpr int OathbrandCharges = 3;
+constexpr int WrathPillars = 5;
+constexpr int WrathPillarTicks = 12;
+constexpr int ArcHops = 3;
+constexpr int ArcFalloffPercent = 75;
+constexpr int ChiWaveHops = 4;
+constexpr int BarrageArrows = 5;
+constexpr int BambooRainTargets = 3;
+constexpr int IceNeedleTargets = 2;
+constexpr int BoneSplinterTargets = 3;
+constexpr int WhiteoutStepTicks = 6;
+constexpr int WhiteoutTicks = 8 * WhiteoutStepTicks; // eight tiles
+constexpr int BallLightningStepTicks = 10;
+constexpr int BallLightningTicks = 8 * BallLightningStepTicks; // eight tiles, a charged bolt at each
+constexpr int FrozenSentinelPeriod = 30;
+constexpr int FirestormPeriod = 8;
+constexpr int FirestormScatter = 3; // tiles either way of the cursor
+constexpr int FurnaceMouthTicks = 3 * TicksPerSecond + 1;
+constexpr int FurnaceMouthTiles = 3;
+constexpr int CruciblePeriod = 15;
+constexpr int CrucibleTicks = 3 * CruciblePeriod; // three runs
+constexpr int AncestralCourtTicks = TicksPerSecond + 15;
+constexpr int AncestralCourtStrikes = 3; // at one second, and five and ten ticks after
+constexpr int MeteorRadius = 2;
+constexpr int MeteorBurnRadius = 1;
+constexpr int LightningRodBurstRadius = 2;
+constexpr int FaradayRingReach = 2;
+constexpr int BoneWallPeriod = TicksPerSecond / 2;
+constexpr int BoneStormPeriod = TicksPerSecond / 2;
+
+/** @brief Seven-Sided Strike's enemies. */
+int SevenSidedTargets(int r)
+{
+	return std::min(3 + (r - 1) / 3, 7);
+}
+
+/** @brief Bloodcall: life (whole points) and Rage every kill. */
+int BloodcallLife(int r)
+{
+	return 3 + (r - 1);
+}
+int BloodcallRage(int r)
+{
+	return 2 + (r - 1);
+}
+
+/** @brief Conduit's and the Mantra of Clarity's mana, a tick, in 1/64 points. */
+int ManaFlowPerTick(int r)
+{
+	return 2 + (r - 1);
+}
+
+/** @brief Teeth: the teeth that fly on down the line, past the three of the fan. */
+int TeethDownTheLine(int r)
+{
+	return 2 + r;
+}
+
+/** @brief Bone Armor's shell, in whole points. */
+int BoneArmorPool(int r)
+{
+	return 20 + 10 * r;
+}
+
+/** @brief Corpse Explosion's burst floor and ceiling, whole points. */
+constexpr int CorpseBurstMin = 4;
+constexpr int CorpseBurstMax = 400;
+
+/** @brief The Necromancer's Serration (+5% a tile flown, to +50%) and Rigor Mortis (a second's chill). */
+constexpr int SerrationPerTile = 5;
+constexpr int SerrationCap = 50;
+constexpr int RigorMortisTicks = TicksPerSecond;
+
+/** @brief Marrow, +8% a point, and Virulence, +25% longer and +10% deeper a point. */
+int MarrowBonusPercent(int points)
+{
+	return 8 * points;
+}
+int VirulenceLongerPercent(int points)
+{
+	return 25 * points;
+}
+int VirulenceDeeperPercent(int points)
+{
+	return 10 * points;
+}
+
+/** @brief The number of ticks in (first, first + ticks] that fall on @p period - how often a clocked field pulses. */
+constexpr int PulseCount(int firstClock, int ticks, int period)
+{
+	return (firstClock + ticks) / period - firstClock / period;
+}
+
 // =================================================================================================
 // Swung
 // =================================================================================================
@@ -534,7 +933,7 @@ int MarrowPercent(const Player &player)
 {
 	if (!IsClassTreeSkillUnlocked(player, ClassTreeSkill::Marrow))
 		return 100;
-	return 100 + 8 * ClassTreeInvestment(player, ClassTreeSkill::Marrow);
+	return 100 + MarrowBonusPercent(ClassTreeInvestment(player, ClassTreeSkill::Marrow));
 }
 
 /** @brief Virulence: poisons +25% longer and +10% deeper a point. */
@@ -543,15 +942,34 @@ int VirulencePoints(const Player &player)
 	return IsClassTreeSkillUnlocked(player, ClassTreeSkill::Virulence) ? ClassTreeInvestment(player, ClassTreeSkill::Virulence) : 0;
 }
 
+/** @brief A poison's length (ticks) and depth (whole points a second) once @p player's Virulence has had its say. */
+struct PoisonDose {
+	int ticks;
+	int perSecond;
+};
+
+PoisonDose VirulentDose(const Player &player, int ticks, int perSecond)
+{
+	const int v = VirulencePoints(player);
+	return { ticks + ticks * VirulenceLongerPercent(v) / 100, perSecond + perSecond * VirulenceDeeperPercent(v) / 100 };
+}
+
+/** @brief A bone skill's roll through Marrow, as BoneStrike deals it (Serration's per-tile share aside). */
+Range BoneRange(const Player &player, Range d)
+{
+	const int percent = MarrowPercent(player);
+	return { d.min * percent / 100, d.max * percent / 100 };
+}
+
 /** @brief A bone skill's blow: magic, through Marrow - and Serration (+5% a tile flown, 50% at most) and Rigor Mortis (a second's chill). */
 void BoneStrike(Player &player, Monster &monster, int damage)
 {
 	int percent = MarrowPercent(player);
 	if (PassiveActive(player, ClassTreeSkill::Serration))
-		percent += std::min(5 * player.position.tile.WalkingDistance(monster.position.tile), 50);
+		percent += std::min(SerrationPerTile * player.position.tile.WalkingDistance(monster.position.tile), SerrationCap);
 	Strike(player, monster, DamageType::Magic, damage * percent / 100);
 	if ((monster.hitPoints >> 6) > 0 && PassiveActive(player, ClassTreeSkill::RigorMortis))
-		ChillMonster(monster, TicksPerSecond);
+		ChillMonster(monster, RigorMortisTicks);
 	// The bone-hit burst (batch 38) where the blow landed; nothing while the sheet is not in the archive.
 	Show(player, MissileID::BoneHitBurst, MissileGraphicID::BoneHitNecro, monster.position.tile, monster.position.tile);
 }
@@ -564,12 +982,10 @@ void Poison(Player &player, Monster &monster, int ticks, int perSecond)
 {
 	if (!Hittable(monster) || monster.isImmune(MissileID::Null, DamageType::Acid))
 		return;
-	const int v = VirulencePoints(player);
-	ticks += ticks * 25 * v / 100;
-	perSecond += perSecond * 10 * v / 100;
+	const PoisonDose dose = VirulentDose(player, ticks, perSecond);
 	Marks &marks = MarksOf(monster);
-	marks.poisonTicks = std::max(marks.poisonTicks, ticks);
-	marks.poisonDamage = std::max(marks.poisonDamage, perSecond << 6);
+	marks.poisonTicks = std::max(marks.poisonTicks, dose.ticks);
+	marks.poisonDamage = std::max(marks.poisonDamage, dose.perSecond << 6);
 }
 
 /** @brief A drawn bolt (batch 38) from the hero to @p to; it removes itself while its sheet is not in the archive. */
@@ -600,7 +1016,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	switch (spell) {
 	// ---------------- Paladin ----------------
 	case SpellID::HeavensDescent: {
-		const Point dst = Clamped(here, target, 6);
+		const Point dst = Clamped(here, target, ReachTiles(spell, r));
 		if (!TeleportTo(player, dst))
 			return false;
 		PlayerState &state = StateOf(player);
@@ -612,7 +1028,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::WrathOfTheHeavens: {
 		PlayerState &state = StateOf(player);
-		state.wrathPillars = 5;
+		state.wrathPillars = WrathPillars;
 		state.wrathClock = 0;
 		state.wrathRank = r;
 		return true;
@@ -623,52 +1039,52 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Monster *behind = FindMonsterAtPosition(here + Opposite(player._pdir));
 		if (behind == nullptr || !Hittable(*behind))
 			return false;
-		Strike(player, *behind, DamageType::Physical, Percent(WeaponBlow(player), 100 + 8 * (r - 1)));
+		Strike(player, *behind, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		return true;
 	}
 	case SpellID::GroundStomp: {
 		const auto around = MonstersWithin(here, 1);
 		for (Monster *m : around)
-			Stagger(*m, 30 + 4 * (r - 1));
+			Stagger(*m, StunTicks(spell, r));
 		EarthenMightRage(player, around.size());
 		return !around.empty();
 	}
 	case SpellID::SeismicSlam: {
-		const auto line = MonstersOnLine(here, target, 5);
+		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 80 + 10 * (r - 1)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		EarthenMightRage(player, line.size());
 		Ring(player, here);
 		return true;
 	}
 	case SpellID::Earthquake: {
-		Field *f = NewField(player, spell, here, 4 * TicksPerSecond, r);
+		Field *f = NewField(player, spell, here, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
 		return true;
 	}
 	case SpellID::ThreateningShout: {
-		const auto heard = MonstersWithin(here, earshot);
+		const auto heard = MonstersWithin(here, ReachTiles(spell, r));
 		for (Monster *m : heard)
-			DebuffMonster(*m, (10 + (r - 1)) * TicksPerSecond, -std::min(15 + (r - 1), 40), 0);
+			DebuffMonster(*m, EffectTicks(spell, r), -EffectPercent(spell, r), 0);
 		return !heard.empty();
 	}
 	case SpellID::RallyingCry: {
 		PlayerState &state = StateOf(player);
-		const int total = Percent(player._pMaxHP, std::min(20 + 2 * (r - 1), 50));
-		state.rallyPerTick = std::max(total / (5 * TicksPerSecond), 1);
-		StartBuff(player, Buff::Rally, 5 * TicksPerSecond, r);
+		const int total = Percent(player._pMaxHP, EffectPercent(spell, r));
+		state.rallyPerTick = std::max(total / EffectTicks(spell, r), 1);
+		StartBuff(player, Buff::Rally, EffectTicks(spell, r), r);
 		return true;
 	}
 	case SpellID::Intimidate: {
-		const auto heard = MonstersWithin(here, earshot);
+		const auto heard = MonstersWithin(here, ReachTiles(spell, r));
 		for (Monster *m : heard)
-			DebuffMonster(*m, (10 + (r - 1)) * TicksPerSecond, 0, -std::min(15 + 2 * (r - 1), 60));
+			DebuffMonster(*m, EffectTicks(spell, r), 0, -EffectPercent(spell, r));
 		return !heard.empty();
 	}
 	case SpellID::SplitRanks: {
 		const Direction dir = target == here ? player._pdir : GetDirection(here, target);
 		bool any = false;
-		for (Monster *m : MonstersWithin(here, 3)) {
+		for (Monster *m : MonstersWithin(here, ReachTiles(spell, r))) {
 			const Direction toward = GetDirection(here, m->position.tile);
 			const bool left = toward == Left(dir);
 			if (toward != dir && !left && toward != Right(dir))
@@ -679,48 +1095,48 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return any;
 	}
 	case SpellID::IronWill:
-		StartBuff(player, Buff::IronWill, (20 + 2 * (r - 1)) * TicksPerSecond, r);
+		StartBuff(player, Buff::IronWill, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::Bloodcall:
-		StartBuff(player, Buff::Bloodcall, 10 * TicksPerSecond, r);
+		StartBuff(player, Buff::Bloodcall, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::AncestralCall:
 	case SpellID::SpiritGuardian:
 		// Companions (user, 2026-09-14) - the Ancients together, and the Monk's guardian. oracool/companion.h.
 		return SummonCompanions(player, spell, target, r);
 	case SpellID::EarthshakerCry: {
-		const auto heard = MonstersWithin(here, 8);
-		const Range d = Scale(r, 5, 10, 3, 5);
+		const auto heard = MonstersWithin(here, ReachTiles(spell, r));
+		const Range d = SkillDamage(spell, r);
 		for (Monster *m : heard) {
 			Strike(player, *m, DamageType::Magic, Rolled(d));
-			Stagger(*m, 2 * TicksPerSecond);
+			Stagger(*m, StunTicks(spell, r));
 		}
 		return true;
 	}
 	// ---------------- Sorceress: cold ----------------
 	case SpellID::ChillTouch: {
 		bool any = false;
-		const Range d = Scale(r, 3, 6, 2, 3);
+		const Range d = SkillDamage(spell, r);
 		for (const Point tile : FrontArc(player, target)) {
 			Monster *m = FindMonsterAtPosition(tile);
 			if (m == nullptr || !Hittable(*m))
 				continue;
 			Strike(player, *m, DamageType::Cold, Rolled(d));
 			if ((m->hitPoints >> 6) > 0)
-				ChillMonster(*m, 40 + 4 * (r - 1));
+				ChillMonster(*m, SlowTicks(spell, r));
 			any = true;
 		}
 		return any;
 	}
 	case SpellID::IceNeedle: {
-		auto line = MonstersOnLine(here, target, 8);
-		if (line.size() > 2)
-			line.resize(2);
-		const Range d = Scale(r, 5, 9, 3, 4);
+		auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
+		if (line.size() > static_cast<size_t>(IceNeedleTargets))
+			line.resize(static_cast<size_t>(IceNeedleTargets));
+		const Range d = SkillDamage(spell, r);
 		for (Monster *m : line) {
 			Strike(player, *m, DamageType::Cold, Rolled(d));
 			if ((m->hitPoints >> 6) > 0)
-				ChillMonster(*m, 40);
+				ChillMonster(*m, SlowTicks(spell, r));
 		}
 		return !line.empty();
 	}
@@ -729,44 +1145,44 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (m == nullptr)
 			return false;
 		Marks &marks = MarksOf(*m);
-		marks.frostbiteTicks = 6 * TicksPerSecond;
-		marks.frostbitePercent = std::min(20 + 2 * (r - 1), 60);
-		ChillMonster(*m, 6 * TicksPerSecond);
+		marks.frostbiteTicks = EffectTicks(spell, r);
+		marks.frostbitePercent = EffectPercent(spell, r);
+		ChillMonster(*m, SlowTicks(spell, r));
 		return true;
 	}
 	case SpellID::IceLance: {
-		const auto line = MonstersOnLine(here, target, 8);
-		const Range d = Scale(r, 6, 11, 3, 5);
+		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
+		const Range d = SkillDamage(spell, r);
 		for (Monster *m : line) {
 			Strike(player, *m, DamageType::Cold, Rolled(d));
 			if ((m->hitPoints >> 6) > 0)
-				ChillMonster(*m, 40);
+				ChillMonster(*m, SlowTicks(spell, r));
 		}
 		return !line.empty();
 	}
 	case SpellID::BrittleGround: {
-		Field *f = NewField(player, spell, target, 6 * TicksPerSecond, r);
+		Field *f = NewField(player, spell, target, EffectTicks(spell, r), r);
 		f->tile2 = target + (target == here ? player._pdir : GetDirection(here, target));
 		return true;
 	}
 	case SpellID::FrozenSentinel:
-		NewField(player, spell, target, 15 * TicksPerSecond, r);
+		NewField(player, spell, target, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::Whiteout: {
-		Field *f = NewField(player, spell, here, 8 * 6, r);
+		Field *f = NewField(player, spell, here, WhiteoutTicks, r);
 		f->dir = target == here ? player._pdir : GetDirection(here, target);
 		return true;
 	}
 	case SpellID::AbsoluteZero: {
-		const Range d = Scale(r, 8, 16, 4, 6);
-		for (Monster *m : MonstersWithin(here, 8)) {
+		const Range d = SkillDamage(spell, r);
+		for (Monster *m : MonstersWithin(here, ReachTiles(spell, r))) {
 			Strike(player, *m, DamageType::Cold, Rolled(d));
 			if ((m->hitPoints >> 6) <= 0)
 				continue;
 			if (ShrugsOff(*m))
-				ChillMonster(*m, 2 * TicksPerSecond);
+				ChillMonster(*m, SlowTicks(spell, r));
 			else
-				FreezeMonster(*m, 2 * TicksPerSecond);
+				FreezeMonster(*m, SlowTicks(spell, r));
 		}
 		Ring(player, here);
 		return true;
@@ -776,16 +1192,16 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Monster *m = NearestTo(target, 3);
 		if (m == nullptr)
 			return false;
-		const Range d = Scale(r, 2, 12, 2, 5);
+		const Range d = SkillDamage(spell, r);
 		int damage = Rolled(d);
 		std::vector<Monster *> struck;
-		for (int hop = 0; hop < 3 && m != nullptr; hop++) {
+		for (int hop = 0; hop < ArcHops && m != nullptr; hop++) {
 			struck.push_back(m);
 			const Point at = m->position.tile;
 			Strike(player, *m, DamageType::Lightning, damage);
-			damage = Percent(damage, 75);
+			damage = Percent(damage, ArcFalloffPercent);
 			Monster *next = nullptr;
-			for (Monster *candidate : MonstersWithin(at, 3)) {
+			for (Monster *candidate : MonstersWithin(at, ReachTiles(spell, r))) {
 				if (std::find(struck.begin(), struck.end(), candidate) == struck.end()) {
 					next = candidate;
 					break;
@@ -796,54 +1212,54 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::StaticCharge:
-		StartBuff(player, Buff::StaticCharge, (20 + 2 * (r - 1)) * TicksPerSecond, r);
+		StartBuff(player, Buff::StaticCharge, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::BallLightning: {
-		Field *f = NewField(player, spell, here, 8 * 10, r);
+		Field *f = NewField(player, spell, here, BallLightningTicks, r);
 		f->tile2 = here;
 		f->dir = target == here ? player._pdir : GetDirection(here, target);
 		return true;
 	}
 	case SpellID::Conduit:
-		StartBuff(player, Buff::Conduit, 10 * TicksPerSecond, r);
+		StartBuff(player, Buff::Conduit, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::LightningRod:
-		NewField(player, spell, target, 12 * TicksPerSecond, r);
+		NewField(player, spell, target, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::FaradayRing:
-		NewField(player, spell, target, 4 * TicksPerSecond, r);
+		NewField(player, spell, target, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::StormCrucible: {
 		PlayerState &state = StateOf(player);
 		if (state.crucibleTicks <= 0) {
-			state.crucibleTicks = 8 * TicksPerSecond;
+			state.crucibleTicks = EffectTicks(spell, r);
 			state.crucibleTile = target;
 			Ring(player, target);
 			return true;
 		}
-		Field *f = NewField(player, spell, state.crucibleTile, 3 * 15, r);
+		Field *f = NewField(player, spell, state.crucibleTile, CrucibleTicks, r);
 		f->tile2 = target;
-		f->clock = 14;
+		f->clock = CruciblePeriod - 1;
 		state.crucibleTicks = 0;
 		return true;
 	}
 	case SpellID::RideTheLightning: {
-		const Point dst = Clamped(here, target, 6);
+		const Point dst = Clamped(here, target, ReachTiles(spell, r));
 		const auto line = MonstersOnLine(here, dst, here.WalkingDistance(dst));
 		if (!TeleportTo(player, dst))
 			return false;
-		const Range d = Scale(r, 3, 12, 2, 4);
+		const Range d = SkillDamage(spell, r);
 		for (Monster *m : line)
 			Strike(player, *m, DamageType::Lightning, Rolled(d));
 		return true;
 	}
 	// ---------------- Sorceress: fire ----------------
 	case SpellID::EmberMine:
-		NewField(player, spell, target, 20 * TicksPerSecond, r);
+		NewField(player, spell, target, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::FlameRing: {
-		const Range d = Scale(r, 4, 8, 2, 3);
-		for (Monster *m : MonstersWithin(here, 2))
+		const Range d = SkillDamage(spell, r);
+		for (Monster *m : MonstersWithin(here, ReachTiles(spell, r)))
 			Strike(player, *m, DamageType::Fire, Rolled(d));
 		Ring(player, here);
 		return true;
@@ -852,25 +1268,25 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Monster *m = NearestTo(target, 2);
 		if (m == nullptr)
 			return false;
-		MarksOf(*m).ashenTicks = 4 * TicksPerSecond;
+		MarksOf(*m).ashenTicks = EffectTicks(spell, r);
 		MarksOf(*m).ashenRank = r;
 		return true;
 	}
 	case SpellID::FurnaceMouth: {
-		Field *f = NewField(player, spell, target, 3 * TicksPerSecond + 1, r);
+		Field *f = NewField(player, spell, target, FurnaceMouthTicks, r);
 		f->dir = target == here ? player._pdir : GetDirection(here, target);
 		f->clock = TicksPerSecond - 1;
 		return true;
 	}
 	case SpellID::Firestorm:
-		NewField(player, spell, target, 4 * TicksPerSecond, r);
+		NewField(player, spell, target, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::Immolate:
-		StartBuff(player, Buff::Immolate, 10 * TicksPerSecond, r);
+		StartBuff(player, Buff::Immolate, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::FuneralStar: {
 		PlayerState &state = StateOf(player);
-		state.funeralTicks = 2 * TicksPerSecond;
+		state.funeralTicks = EffectTicks(spell, r);
 		state.funeralTile = target;
 		state.funeralFrom = here;
 		state.funeralRank = r;
@@ -881,8 +1297,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Monster *m = NearestTo(target, 1);
 		if (m == nullptr)
 			return false;
-		Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 100 + 5 * (r - 1)));
-		Bleed(*m, 3 * TicksPerSecond, 2 + r);
+		Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		Bleed(*m, EffectTicks(spell, r), PerSecond(spell, r));
 		return true;
 	}
 	case SpellID::ShockArrow: {
@@ -890,20 +1306,20 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (m == nullptr)
 			return false;
 		const Point at = m->position.tile;
-		Strike(player, *m, DamageType::Physical, WeaponBlow(player));
-		if (Monster *other = NearestTo(at, 3, m); other != nullptr)
-			Strike(player, *other, DamageType::Lightning, Rolled(Scale(r, 1, 6, 1, 3)));
+		Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		if (Monster *other = NearestTo(at, ReachTiles(spell, r), m); other != nullptr)
+			Strike(player, *other, DamageType::Lightning, Rolled(SkillDamage(spell, r)));
 		return true;
 	}
 	case SpellID::PiercingShot: {
-		const auto line = MonstersOnLine(here, target, 10);
+		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 80 + 5 * (r - 1)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		return !line.empty();
 	}
 	case SpellID::RainOfArrows: {
-		for (Monster *m : MonstersWithin(target, 2))
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 50 + 4 * (r - 1)));
+		for (Monster *m : MonstersWithin(target, ReachTiles(spell, r)))
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		Ring(player, target);
 		return true;
 	}
@@ -911,36 +1327,36 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Monster *m = NearestTo(target, 1);
 		if (m == nullptr)
 			return false;
-		Strike(player, *m, DamageType::Physical, WeaponBlow(player));
+		Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		if ((m->hitPoints >> 6) > 0)
-			ChillMonster(*m, 4 * TicksPerSecond);
+			ChillMonster(*m, SlowTicks(spell, r));
 		return true;
 	}
 	case SpellID::HuntersMark: {
 		Monster *m = NearestTo(target, 2);
 		if (m == nullptr)
 			return false;
-		MarksOf(*m).huntTicks = (10 + (r - 1)) * TicksPerSecond;
-		MarksOf(*m).huntPercent = std::min(20 + 2 * (r - 1), 60);
+		MarksOf(*m).huntTicks = EffectTicks(spell, r);
+		MarksOf(*m).huntPercent = EffectPercent(spell, r);
 		return true;
 	}
 	case SpellID::Barrage: {
 		Monster *m = NearestTo(target, 1);
 		if (m == nullptr)
 			return false;
-		for (int i = 0; i < 5 && (m->hitPoints >> 6) > 0; i++)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 40 + 3 * (r - 1)));
+		for (int i = 0; i < BarrageArrows && (m->hitPoints >> 6) > 0; i++)
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		return true;
 	}
 	case SpellID::PhantomVolley: {
-		const auto all = MonstersWithin(here, 6);
+		const auto all = MonstersWithin(here, ReachTiles(spell, r));
 		for (Monster *m : all)
-			Strike(player, *m, DamageType::Magic, Percent(WeaponBlow(player), 40 + 3 * (r - 1)));
+			Strike(player, *m, DamageType::Magic, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		return !all.empty();
 	}
 	// ---------------- Rogue: magic and spear ----------------
 	case SpellID::ShadowStep: {
-		Monster *m = NearestTo(target, 2);
+		Monster *m = NearestTo(target, ReachTiles(spell, r));
 		if (m == nullptr)
 			return false;
 		const Point behind = m->position.tile + GetDirection(here, m->position.tile);
@@ -955,35 +1371,35 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (best == nullptr)
 			return false;
 		StateOf(player).claimMonster = static_cast<int>(best->getId());
-		StateOf(player).claimTicks = 8 * TicksPerSecond;
+		StateOf(player).claimTicks = EffectTicks(spell, r);
 		return true;
 	}
 	case SpellID::Harpoon: {
-		const auto line = MonstersOnLine(here, target, 8);
+		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		if (line.empty())
 			return false;
 		Monster &m = *line.front();
-		Strike(player, m, DamageType::Physical, Percent(WeaponBlow(player), 60 + 5 * (r - 1)));
+		Strike(player, m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		if ((m.hitPoints >> 6) > 0) {
 			Shove(m, GetDirection(m.position.tile, here));
-			Stagger(m, TicksPerSecond / 2);
+			Stagger(m, StunTicks(spell, r));
 		}
 		return true;
 	}
 	case SpellID::Vault:
-		return TeleportTo(player, Clamped(here, target, std::min(3 + (r - 1) / 5, 6)));
+		return TeleportTo(player, Clamped(here, target, ReachTiles(spell, r)));
 	case SpellID::AnchorJavelin: {
-		const auto line = MonstersOnLine(here, target, 8);
+		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		if (line.empty())
 			return false;
-		Strike(player, *line.front(), DamageType::Physical, Percent(WeaponBlow(player), 70 + 5 * (r - 1)));
-		Stagger(*line.front(), 2 * TicksPerSecond);
+		Strike(player, *line.front(), DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		Stagger(*line.front(), StunTicks(spell, r));
 		return true;
 	}
 	// ---- the census notes (2026-09-14) ----
 	case SpellID::Meteor:
 		// A second to fall, three to burn: TickField does both. The rock's ten frames take that second.
-		NewField(player, spell, target, 4 * TicksPerSecond, r);
+		NewField(player, spell, target, EffectTicks(spell, r), r);
 		Show(player, MissileID::MeteorFall, MissileGraphicID::Meteor, target, target);
 		return true;
 	case SpellID::Valkyrie:
@@ -991,29 +1407,29 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// Companions (user, 2026-09-14): the Valkyrie archer, and the Decoy that draws every blow. oracool/companion.h.
 		return SummonCompanions(player, spell, target, r);
 	case SpellID::PoisonJavelin: {
-		const auto line = MonstersOnLine(here, target, 8);
+		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		if (line.empty())
 			return false;
 		Monster &m = *line.front();
 		const Point pool = m.position.tile;
-		Strike(player, m, DamageType::Acid, Percent(WeaponBlow(player), 60 + 5 * (r - 1)));
-		NewField(player, spell, pool, 3 * TicksPerSecond, r);
+		Strike(player, m, DamageType::Acid, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		NewField(player, spell, pool, EffectTicks(spell, r), r);
 		Show(player, MissileID::AcidJavelin, MissileGraphicID::AcidJavelin, here, pool);
-		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, pool, pool, 3 * TicksPerSecond);
+		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, pool, pool, EffectTicks(spell, r));
 		return true;
 	}
 	case SpellID::PlagueJavelin: {
 		const auto line = MonstersOnLine(here, target, 8);
 		const Point burst = line.empty() ? Clamped(here, target, 8) : Point(line.front()->position.tile);
-		NewField(player, spell, burst, 5 * TicksPerSecond, r);
+		NewField(player, spell, burst, EffectTicks(spell, r), r);
 		Show(player, MissileID::AcidJavelin, MissileGraphicID::AcidJavelin, here, burst);
-		if (!Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, burst, burst, 5 * TicksPerSecond))
+		if (!Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, burst, burst, EffectTicks(spell, r)))
 			Ring(player, burst);
 		return true;
 	}
 	case SpellID::ValkyriesSpear: {
-		for (Monster *m : MonstersWithin(target, 1))
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 150 + 15 * (r - 1)));
+		for (Monster *m : MonstersWithin(target, ReachTiles(spell, r)))
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		Ring(player, target);
 		return true;
 	}
@@ -1189,53 +1605,53 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	// ---------------- Monk: staff ----------------
 	case SpellID::LongThrust: {
-		const auto line = MonstersOnLine(here, target, 2);
+		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		if (line.empty())
 			return false;
-		Strike(player, *line.front(), DamageType::Physical, Percent(WeaponBlow(player), 100 + 8 * (r - 1)));
+		Strike(player, *line.front(), DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		return true;
 	}
 	case SpellID::MountainPole: {
 		const auto around = MonstersWithin(here, 1);
 		for (Monster *m : around) {
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 50 + 5 * (r - 1)));
-			Stagger(*m, TicksPerSecond);
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			Stagger(*m, StunTicks(spell, r));
 		}
 		return !around.empty();
 	}
 	case SpellID::BambooRain: {
-		auto nearby = MonstersWithin(here, 2);
-		if (nearby.size() > 3)
-			nearby.resize(3);
+		auto nearby = MonstersWithin(here, ReachTiles(spell, r));
+		if (nearby.size() > static_cast<size_t>(BambooRainTargets))
+			nearby.resize(static_cast<size_t>(BambooRainTargets));
 		for (Monster *m : nearby)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 70 + 5 * (r - 1)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		return !nearby.empty();
 	}
 	case SpellID::DragonTailSweep:
 	case SpellID::WhirlingKick: {
 		const auto around = MonstersWithin(here, 1);
 		for (Monster *m : around) {
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), (spell == SpellID::WhirlingKick ? 70 : 60) + 5 * (r - 1)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 			Shove(*m, GetDirection(here, m->position.tile));
 		}
 		return !around.empty();
 	}
 	case SpellID::HeavenSplitter: {
-		const auto line = MonstersOnLine(here, target, 4);
+		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 120 + 10 * (r - 1)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		Ring(player, here);
 		return true;
 	}
 	case SpellID::ThousandReeds: {
-		const auto all = MonstersWithin(here, 6);
+		const auto all = MonstersWithin(here, ReachTiles(spell, r));
 		for (Monster *m : all)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 40 + 3 * (r - 1)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		return !all.empty();
 	}
 	// ---------------- Monk: body ----------------
 	case SpellID::LeapingCrane: {
-		const Point dst = Clamped(here, target, std::min(4 + (r - 1) / 4, 7));
+		const Point dst = Clamped(here, target, ReachTiles(spell, r));
 		if (!TeleportTo(player, dst))
 			return false;
 		PlayerState &state = StateOf(player);
@@ -1246,7 +1662,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::ShoulderGate: {
-		const Point dst = Clamped(here, target, 2);
+		const Point dst = Clamped(here, target, ReachTiles(spell, r));
 		if (!TeleportTo(player, dst))
 			return false;
 		PlayerState &state = StateOf(player);
@@ -1257,40 +1673,40 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::SevenSidedStrike: {
-		auto nearby = MonstersWithin(target, 4);
-		const size_t cap = static_cast<size_t>(std::min(3 + (r - 1) / 3, 7));
+		auto nearby = MonstersWithin(target, ReachTiles(spell, r));
+		const size_t cap = static_cast<size_t>(SevenSidedTargets(r));
 		if (nearby.size() > cap)
 			nearby.resize(cap);
 		for (Monster *m : nearby)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 60 + 4 * (r - 1)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		return !nearby.empty();
 	}
 	case SpellID::DragonsWrath: {
-		const auto line = MonstersOnLine(here, target, 8);
+		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 100 + 8 * (r - 1)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		Ring(player, here);
 		return true;
 	}
 	// ---------------- Monk: spirit ----------------
 	case SpellID::MantraOfClarity:
-		StartBuff(player, Buff::Clarity, 30 * TicksPerSecond, r);
+		StartBuff(player, Buff::Clarity, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::MantraOfEvasion:
-		StartBuff(player, Buff::Evasion, 30 * TicksPerSecond, r);
+		StartBuff(player, Buff::Evasion, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::ChiWave: {
 		Monster *m = NearestTo(target, 3);
 		if (m == nullptr)
 			return false;
-		const Range d = Scale(r, 4, 8, 2, 3);
+		const Range d = SkillDamage(spell, r);
 		std::vector<Monster *> struck;
-		for (int hop = 0; hop < 4 && m != nullptr; hop++) {
+		for (int hop = 0; hop < ChiWaveHops && m != nullptr; hop++) {
 			struck.push_back(m);
 			const Point at = m->position.tile;
 			Strike(player, *m, DamageType::Magic, Rolled(d));
 			Monster *next = nullptr;
-			for (Monster *candidate : MonstersWithin(at, 3)) {
+			for (Monster *candidate : MonstersWithin(at, ReachTiles(spell, r))) {
 				if (std::find(struck.begin(), struck.end(), candidate) == struck.end()) {
 					next = candidate;
 					break;
@@ -1301,7 +1717,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::BlindingFlash: {
-		const auto nearby = MonstersWithin(here, 3);
+		const auto nearby = MonstersWithin(here, ReachTiles(spell, r));
 		for (Monster *m : nearby) {
 			if (ShrugsOff(*m) || m->mode == MonsterMode::Petrified)
 				continue;
@@ -1312,23 +1728,23 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return !nearby.empty();
 	}
 	case SpellID::MantraOfRetribution:
-		StartBuff(player, Buff::Retribution, 30 * TicksPerSecond, r);
+		StartBuff(player, Buff::Retribution, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::Serenity:
 		ClearPlayerSlow(player);
 		return true;
 	case SpellID::WaveOfLight: {
-		const Range d = Scale(r, 7, 14, 3, 5);
-		for (Monster *m : MonstersWithin(target, 2))
+		const Range d = SkillDamage(spell, r);
+		for (Monster *m : MonstersWithin(target, ReachTiles(spell, r)))
 			Strike(player, *m, DamageType::Magic, Rolled(d));
 		Ring(player, target);
 		return true;
 	}
 	case SpellID::AstralProjection:
-		StartBuff(player, Buff::Astral, 6 * TicksPerSecond, r);
+		StartBuff(player, Buff::Astral, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::AncestralCourt: {
-		Field *f = NewField(player, spell, target, TicksPerSecond + 15, r);
+		Field *f = NewField(player, spell, target, AncestralCourtTicks, r);
 		f->clock = 0;
 		return true;
 	}
@@ -1336,7 +1752,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::Teeth: {
 		// A fan: the front arc's three tiles, and one more tooth a rank flies on to the next monster in the line.
 		bool any = false;
-		const Range d = Scale(r, 2, 5, 1, 2);
+		const Range d = SkillDamage(spell, r);
 		for (const Point tile : FrontArc(player, target)) {
 			Monster *m = FindMonsterAtPosition(tile);
 			if (m == nullptr || !Hittable(*m))
@@ -1345,8 +1761,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			any = true;
 		}
 		auto line = MonstersOnLine(here, target, 6);
-		if (line.size() > static_cast<size_t>(2 + r))
-			line.resize(static_cast<size_t>(2 + r));
+		if (line.size() > static_cast<size_t>(TeethDownTheLine(r)))
+			line.resize(static_cast<size_t>(TeethDownTheLine(r)));
 		for (Monster *m : line) {
 			BoneStrike(player, *m, Rolled(d));
 			any = true;
@@ -1361,21 +1777,21 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::BoneArmor: {
 		PlayerState &state = StateOf(player);
-		state.bonePool = (20 + 10 * r) << 6;
-		StartBuff(player, Buff::BoneShell, 60 * TicksPerSecond, r);
+		state.bonePool = BoneArmorPool(r) << 6;
+		StartBuff(player, Buff::BoneShell, EffectTicks(spell, r), r);
 		// The shell is a player-icon overlay in scrollrt.cpp DrawPlayerIcons, keyed on Rfa12BoneShellFrame (batch 38).
 		return true;
 	}
 	case SpellID::PoisonDagger:
-		StartBuff(player, Buff::Venom, 20 * TicksPerSecond, r);
+		StartBuff(player, Buff::Venom, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::CorpseExplosion: {
 		const std::optional<Corpse> corpse = BurstCorpse(player, target);
 		if (!corpse)
 			return false;
 		// A share of the dead one's life, physical, to everything within two tiles - Diablo II's own rule.
-		const int share = std::clamp(corpse->maxLife * std::min(40 + 5 * r, 100) / 100, 4, 400) << 6;
-		for (Monster *m : MonstersWithin(corpse->position, 2))
+		const int share = std::clamp(corpse->maxLife * EffectPercent(spell, r) / 100, CorpseBurstMin, CorpseBurstMax) << 6;
+		for (Monster *m : MonstersWithin(corpse->position, ReachTiles(spell, r)))
 			Strike(player, *m, DamageType::Physical, share);
 		if (!Show(player, MissileID::CorpseBurst, MissileGraphicID::CorpseExplosion, corpse->position, corpse->position))
 			Ring(player, corpse->position);
@@ -1383,9 +1799,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::BoneSplinters: {
 		auto line = MonstersOnLine(here, target, 4);
-		if (line.size() > 3)
-			line.resize(3);
-		const Range d = Scale(r, 3, 6, 1, 2);
+		if (line.size() > static_cast<size_t>(BoneSplinterTargets))
+			line.resize(static_cast<size_t>(BoneSplinterTargets));
+		const Range d = SkillDamage(spell, r);
 		for (Monster *m : line)
 			BoneStrike(player, *m, Rolled(d));
 		for (int k = 0; k < 3; k++)
@@ -1394,16 +1810,16 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::Blight: {
 		const Point pool = Clamped(here, target, 8);
-		Field *f = NewField(player, spell, pool, 4 * TicksPerSecond, r);
+		Field *f = NewField(player, spell, pool, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
 		Bolt(player, MissileID::PoisonBoltFlight, pool);
-		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, pool, pool, 4 * TicksPerSecond);
+		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, pool, pool, EffectTicks(spell, r));
 		return true;
 	}
 	case SpellID::BoneWall: {
 		// A line of five across the cursor, at right angles to the cast.
 		const Point centre = Clamped(here, target, 8);
-		Field *f = NewField(player, spell, centre, 8 * TicksPerSecond, r);
+		Field *f = NewField(player, spell, centre, EffectTicks(spell, r), r);
 		f->dir = Right(Right(target == here ? player._pdir : GetDirection(here, target)));
 		// The five segments (batch 38), each rising once and standing for the wall's life.
 		bool drawn = false;
@@ -1412,18 +1828,18 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			for (int step = 0; step < std::abs(k); step++)
 				tile = tile + (k < 0 ? Opposite(f->dir) : f->dir);
 			if (InDungeonBounds(tile))
-				drawn = Show(player, MissileID::BoneWallEffect, MissileGraphicID::BoneWall, tile, tile, 8 * TicksPerSecond) || drawn;
+				drawn = Show(player, MissileID::BoneWallEffect, MissileGraphicID::BoneWall, tile, tile, EffectTicks(spell, r)) || drawn;
 		}
 		if (!drawn)
 			Ring(player, centre);
 		return true;
 	}
 	case SpellID::BoneSpikes: {
-		const auto struck = MonstersWithin(target, 1);
-		const Range d = Scale(r, 4, 9, 2, 3);
+		const auto struck = MonstersWithin(target, ReachTiles(spell, r));
+		const Range d = SkillDamage(spell, r);
 		for (Monster *m : struck) {
 			BoneStrike(player, *m, Rolled(d));
-			Stagger(*m, TicksPerSecond);
+			Stagger(*m, StunTicks(spell, r));
 		}
 		if (!Show(player, MissileID::BoneSpikesEffect, MissileGraphicID::BoneSpikes, target, target))
 			Ring(player, target);
@@ -1433,18 +1849,18 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const std::optional<Corpse> corpse = BurstCorpse(player, target);
 		if (!corpse)
 			return false;
-		for (Monster *m : MonstersWithin(corpse->position, 2))
-			Poison(player, *m, 6 * TicksPerSecond, 3 + r);
+		for (Monster *m : MonstersWithin(corpse->position, ReachTiles(spell, r)))
+			Poison(player, *m, PoisonTicks(spell), PerSecond(spell, r));
 		Show(player, MissileID::CorpseBurst, MissileGraphicID::CorpseExplosion, corpse->position, corpse->position);
 		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, corpse->position, corpse->position, 3 * TicksPerSecond);
 		return true;
 	}
 	case SpellID::BoneSpear: {
-		const auto line = MonstersOnLine(here, target, 9);
-		const Range d = Scale(r, 6, 12, 3, 4);
+		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
+		const Range d = SkillDamage(spell, r);
 		for (Monster *m : line)
 			BoneStrike(player, *m, Rolled(d));
-		Bolt(player, MissileID::BoneSpearBolt, Clamped(here, target, 9));
+		Bolt(player, MissileID::BoneSpearBolt, Clamped(here, target, ReachTiles(spell, r)));
 		if (!MissileArtLoaded(MissileGraphicID::BoneSpear))
 			Ring(player, here);
 		return true;
@@ -1455,7 +1871,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
-		Poison(player, *m, 5 * TicksPerSecond, 5 + 2 * r);
+		Poison(player, *m, PoisonTicks(spell), PerSecond(spell, r));
 		return true;
 	}
 	case SpellID::BonePrison: {
@@ -1464,16 +1880,16 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
-		Field *f = NewField(player, spell, m->position.tile, 3 * TicksPerSecond, r);
+		Field *f = NewField(player, spell, m->position.tile, EffectTicks(spell, r), r);
 		f->step = static_cast<int>(m->getId());
-		Stagger(*m, 3 * TicksPerSecond);
+		Stagger(*m, StunTicks(spell, r));
 		Ring(player, m->position.tile);
 		return true;
 	}
 	case SpellID::BoneStorm: {
-		Field *f = NewField(player, spell, here, 8 * TicksPerSecond, r);
+		Field *f = NewField(player, spell, here, EffectTicks(spell, r), r);
 		f->clock = 0;
-		Show(player, MissileID::BoneStormEffect, MissileGraphicID::BoneStorm, here, here, 8 * TicksPerSecond); // it follows (ProcessCensusEffect)
+		Show(player, MissileID::BoneStormEffect, MissileGraphicID::BoneStorm, here, here, EffectTicks(spell, r)); // it follows (ProcessCensusEffect)
 		return true;
 	}
 	case SpellID::NecroBoneSpirit: {
@@ -1489,9 +1905,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::PoisonNova: {
-		const auto struck = MonstersWithin(here, 5);
+		const auto struck = MonstersWithin(here, ReachTiles(spell, r));
 		for (Monster *m : struck)
-			Poison(player, *m, 6 * TicksPerSecond, 2 + r);
+			Poison(player, *m, PoisonTicks(spell), PerSecond(spell, r));
 		// Sixteen bolts outward (batch 38), one a facing.
 		static const Displacement Ring16[16] = { { 0, 5 }, { -2, 5 }, { -4, 4 }, { -5, 2 }, { -5, 0 }, { -5, -2 }, { -4, -4 }, { -2, -5 }, { 0, -5 }, { 2, -5 }, { 4, -4 }, { 5, -2 }, { 5, 0 }, { 5, 2 }, { 4, 4 }, { 2, 5 } };
 		for (const Displacement &d16 : Ring16)
@@ -1501,12 +1917,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::DeathNova: {
-		const auto struck = MonstersWithin(here, 4);
-		const Range d = Scale(r, 6, 12, 2, 4);
+		const auto struck = MonstersWithin(here, ReachTiles(spell, r));
+		const Range d = SkillDamage(spell, r);
 		for (Monster *m : struck) {
 			BoneStrike(player, *m, Rolled(d));
 			if ((m->hitPoints >> 6) > 0)
-				Poison(player, *m, 5 * TicksPerSecond, 2 + r);
+				Poison(player, *m, PoisonTicks(spell), PerSecond(spell, r));
 		}
 		Ring(player, here);
 		return true;
@@ -1532,12 +1948,12 @@ void TickField(Player &player, Field &field)
 	case SpellID::Blight:
 		if (field.clock % TicksPerSecond == 0) {
 			for (Monster *m : MonstersWithin(field.tile, 1))
-				Poison(player, *m, 2 * TicksPerSecond, 2 + r);
+				Poison(player, *m, PoisonTicks(field.spell), PerSecond(field.spell, r));
 		}
 		break;
 	case SpellID::BoneWall:
-		// Five tiles across the cast: whatever stands in one is cut and thrown back the way it came, once a second.
-		if (field.clock % (TicksPerSecond / 2) == 0) {
+		// Five tiles across the cast: whatever stands in one is cut and thrown back the way it came, twice a second.
+		if (field.clock % (field.spell == SpellID::BoneWall ? BoneWallPeriod : BoneStormPeriod) == 0) {
 			for (int k = -2; k <= 2; k++) {
 				Point tile = field.tile;
 				for (int step = 0; step < std::abs(k); step++)
@@ -1545,7 +1961,7 @@ void TickField(Player &player, Field &field)
 				Monster *m = InDungeonBounds(tile) ? FindMonsterAtPosition(tile) : nullptr;
 				if (m == nullptr || !Hittable(*m))
 					continue;
-				BoneStrike(player, *m, Rolled(Scale(r, 3, 6, 1, 2)));
+				BoneStrike(player, *m, Rolled(SkillDamage(field.spell, r)));
 				if ((m->hitPoints >> 6) > 0)
 					Shove(*m, GetDirection(Players[field.owner].position.tile, m->position.tile));
 			}
@@ -1557,23 +1973,23 @@ void TickField(Player &player, Field &field)
 			// The prisoner is the monster staggered ON the prison's tile; a slot refilled after its death
 			// (a fresh spawn, a re-forming minion) is somewhere else and is not cut (audit, 2026-09-19).
 			if (Hittable(held) && held.position.tile == field.tile) {
-				BoneStrike(player, held, Rolled(Scale(r, 2, 5, 1, 2)));
+				BoneStrike(player, held, Rolled(SkillDamage(field.spell, r)));
 				Stagger(held, TicksPerSecond + 5);
 			}
 		}
 		break;
 	case SpellID::BoneStorm:
 		field.tile = player.position.tile; // it follows
-		if (field.clock % (TicksPerSecond / 2) == 0) {
-			for (Monster *m : MonstersWithin(field.tile, 2))
-				BoneStrike(player, *m, Rolled(Scale(r, 2, 4, 1, 1)));
+		if (field.clock % (field.spell == SpellID::BoneWall ? BoneWallPeriod : BoneStormPeriod) == 0) {
+			for (Monster *m : MonstersWithin(field.tile, ReachTiles(field.spell, r)))
+				BoneStrike(player, *m, Rolled(SkillDamage(field.spell, r)));
 		}
 		break;
 	case SpellID::Earthquake:
 		if (field.clock % TicksPerSecond == 0) {
-			const auto shaken = MonstersWithin(field.tile, 3);
+			const auto shaken = MonstersWithin(field.tile, ReachTiles(field.spell, r));
 			for (Monster *m : shaken)
-				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 30 + 5 * (r - 1)));
+				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(field.spell, r)));
 			EarthenMightRage(player, shaken.size());
 			Ring(player, field.tile);
 		}
@@ -1587,21 +2003,21 @@ void TickField(Player &player, Field &field)
 			if (marks.brittleCooldown > 0)
 				continue;
 			marks.brittleCooldown = TicksPerSecond;
-			Strike(player, *m, DamageType::Cold, Rolled(Scale(r, 4, 8, 2, 3)));
+			Strike(player, *m, DamageType::Cold, Rolled(SkillDamage(field.spell, r)));
 			if ((m->hitPoints >> 6) > 0)
-				ChillMonster(*m, TicksPerSecond);
+				ChillMonster(*m, SlowTicks(field.spell, r));
 		}
 		break;
 	case SpellID::FrozenSentinel:
-		if (field.clock % 30 == 0) {
-			if (Monster *m = NearestTo(field.tile, 8); m != nullptr) {
+		if (field.clock % FrozenSentinelPeriod == 0) {
+			if (Monster *m = NearestTo(field.tile, ReachTiles(field.spell, r)); m != nullptr) {
 				AddMissile(field.tile, m->position.tile, GetDirection(field.tile, m->position.tile), MissileID::IceBolt,
 				    TARGET_MONSTERS, static_cast<int>(player.getId()), 0, r);
 			}
 		}
 		break;
 	case SpellID::Whiteout:
-		if (field.clock % 6 == 0) {
+		if (field.clock % WhiteoutStepTicks == 0) {
 			field.tile = field.tile + field.dir;
 			if (!InDungeonBounds(field.tile) || IsTileSolid(field.tile)) {
 				field.ticksLeft = 0;
@@ -1612,15 +2028,15 @@ void TickField(Player &player, Field &field)
 				if (m == nullptr || !Hittable(*m) || MarksOf(*m).whiteoutStamp == field.stamp)
 					continue;
 				MarksOf(*m).whiteoutStamp = field.stamp;
-				Strike(player, *m, DamageType::Cold, Rolled(Scale(r, 5, 10, 3, 4)));
+				Strike(player, *m, DamageType::Cold, Rolled(SkillDamage(field.spell, r)));
 				if ((m->hitPoints >> 6) > 0)
-					ChillMonster(*m, 40);
+					ChillMonster(*m, SlowTicks(field.spell, r));
 			}
 			Ring(player, field.tile);
 		}
 		break;
 	case SpellID::BallLightning:
-		if (field.clock % 10 == 0) {
+		if (field.clock % BallLightningStepTicks == 0) {
 			const Point next = field.tile2 + field.dir;
 			if (!InDungeonBounds(next) || IsTileSolid(next)) {
 				field.ticksLeft = 0;
@@ -1633,7 +2049,7 @@ void TickField(Player &player, Field &field)
 		break;
 	case SpellID::LightningRod:
 	case SpellID::FaradayRing: {
-		const int reach = field.spell == SpellID::FaradayRing ? 2 : 1;
+		const int reach = field.spell == SpellID::FaradayRing ? FaradayRingReach : 1;
 		for (Missile &missile : Missiles) {
 			if (missile._miDelFlag || missile.sourceType() != MissileSource::Monster)
 				continue;
@@ -1643,8 +2059,8 @@ void TickField(Player &player, Field &field)
 				continue;
 			missile._miDelFlag = true;
 			if (field.spell == SpellID::LightningRod) {
-				for (Monster *m : MonstersWithin(field.tile, 2))
-					Strike(player, *m, DamageType::Lightning, Rolled(Scale(r, 4, 14, 2, 5)));
+				for (Monster *m : MonstersWithin(field.tile, LightningRodBurstRadius))
+					Strike(player, *m, DamageType::Lightning, Rolled(SkillDamage(field.spell, r)));
 				Ring(player, field.tile);
 				field.ticksLeft = 0;
 				break;
@@ -1653,8 +2069,8 @@ void TickField(Player &player, Field &field)
 		break;
 	}
 	case SpellID::StormCrucible:
-		if (field.clock % 15 == 0) {
-			const Range d = Scale(r, 4, 16, 2, 6);
+		if (field.clock % CruciblePeriod == 0) {
+			const Range d = SkillDamage(field.spell, r);
 			for (Monster *m : MonstersOnLine(field.tile, field.tile2, field.tile.WalkingDistance(field.tile2)))
 				Strike(player, *m, DamageType::Lightning, Rolled(d));
 			Ring(player, field.tile);
@@ -1664,7 +2080,7 @@ void TickField(Player &player, Field &field)
 	case SpellID::EmberMine: {
 		Monster *m = FindMonsterAtPosition(field.tile);
 		if (m != nullptr && Hittable(*m)) {
-			const Range d = Scale(r, 6, 12, 3, 5);
+			const Range d = SkillDamage(field.spell, r);
 			for (Monster *nearby : MonstersWithin(field.tile, 1))
 				Strike(player, *nearby, DamageType::Fire, Rolled(d));
 			Ring(player, field.tile);
@@ -1676,29 +2092,29 @@ void TickField(Player &player, Field &field)
 	case SpellID::Meteor:
 		if (field.step == 0 && field.clock >= TicksPerSecond) {
 			field.step = 1;
-			const Range d = Scale(r, 20, 40, 8, 12);
-			for (Monster *m : MonstersWithin(field.tile, 2))
+			const Range d = SkillDamage(field.spell, r);
+			for (Monster *m : MonstersWithin(field.tile, MeteorRadius))
 				Strike(player, *m, DamageType::Fire, Rolled(d));
 			// The burst, then its ground burn for the rest of the field's life.
 			if (!Show(player, MissileID::MeteorImpact, MissileGraphicID::MeteorImpact, field.tile, field.tile, field.ticksLeft))
 				Ring(player, field.tile);
 		} else if (field.step == 1 && field.clock % TicksPerSecond == 0) {
-			const Range burn = Scale(r, 3, 6, 1, 2);
-			for (Monster *m : MonstersWithin(field.tile, 1))
+			const Range burn = MeteorBurn(r);
+			for (Monster *m : MonstersWithin(field.tile, MeteorBurnRadius))
 				Strike(player, *m, DamageType::Fire, Rolled(burn));
 		}
 		break;
 	case SpellID::PoisonJavelin:
 		if (field.clock % TicksPerSecond == 0) {
-			const Range d = Scale(r, 2, 4, 1, 1);
+			const Range d = SkillDamage(field.spell, r);
 			for (Monster *m : MonstersWithin(field.tile, 1))
 				Strike(player, *m, DamageType::Acid, Rolled(d));
 		}
 		break;
 	case SpellID::PlagueJavelin:
 		if (field.clock % TicksPerSecond == 0) {
-			const Range d = Scale(r, 4, 8, 2, 3);
-			for (Monster *m : MonstersWithin(field.tile, 2))
+			const Range d = SkillDamage(field.spell, r);
+			for (Monster *m : MonstersWithin(field.tile, ReachTiles(field.spell, r)))
 				Strike(player, *m, DamageType::Acid, Rolled(d));
 			if (!MissileArtLoaded(MissileGraphicID::AcidCloud))
 				Ring(player, field.tile); // the cloud shows the pulse's reach while it hangs there
@@ -1706,15 +2122,15 @@ void TickField(Player &player, Field &field)
 		break;
 	case SpellID::FurnaceMouth:
 		if (field.clock % TicksPerSecond == 0) {
-			const Range d = Scale(r, 4, 9, 2, 4);
-			for (Monster *m : MonstersOnLine(field.tile, field.tile + field.dir, 3))
+			const Range d = SkillDamage(field.spell, r);
+			for (Monster *m : MonstersOnLine(field.tile, field.tile + field.dir, FurnaceMouthTiles))
 				Strike(player, *m, DamageType::Fire, Rolled(d));
 			Ring(player, field.tile);
 		}
 		break;
 	case SpellID::Firestorm:
-		if (field.clock % 8 == 0) {
-			const Point landing = field.tile + Displacement { GenerateRnd(7) - 3, GenerateRnd(7) - 3 };
+		if (field.clock % FirestormPeriod == 0) {
+			const Point landing = field.tile + Displacement { GenerateRnd(2 * FirestormScatter + 1) - FirestormScatter, GenerateRnd(2 * FirestormScatter + 1) - FirestormScatter };
 			if (InDungeonBounds(landing))
 				AddMissile(player.position.tile, landing, GetDirection(player.position.tile, landing), MissileID::Fireball,
 				    TARGET_MONSTERS, static_cast<int>(player.getId()), 0, r);
@@ -1730,8 +2146,8 @@ void TickField(Player &player, Field &field)
 		break;
 	case SpellID::AncestralCourt:
 		if (IsAnyOf(field.clock, TicksPerSecond, TicksPerSecond + 5, TicksPerSecond + 10)) {
-			const Range d = Scale(r, 5, 9, 2, 4);
-			for (Monster *m : MonstersWithin(field.tile, 2))
+			const Range d = SkillDamage(field.spell, r);
+			for (Monster *m : MonstersWithin(field.tile, ReachTiles(field.spell, r)))
 				Strike(player, *m, DamageType::Magic, Rolled(d));
 			Ring(player, field.tile);
 		}
@@ -1748,7 +2164,7 @@ void TickLanding(Player &player, PlayerState &state)
 	const int r = state.landingRank;
 	switch (state.landingSpell) {
 	case SpellID::HeavensDescent: {
-		const Range d = Scale(r, 8, 16, 4, 6);
+		const Range d = SkillDamage(state.landingSpell, r);
 		for (Monster *m : MonstersWithin(player.position.tile, 1))
 			Strike(player, *m, DamageType::Magic, Rolled(d));
 		Ring(player, player.position.tile);
@@ -1756,11 +2172,11 @@ void TickLanding(Player &player, PlayerState &state)
 	}
 	case SpellID::LeapingCrane:
 		if (Monster *m = NearestTo(player.position.tile, 1); m != nullptr)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 80 + 5 * (r - 1)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(state.landingSpell, r)));
 		break;
 	case SpellID::ShoulderGate:
 		if (Monster *m = NearestTo(player.position.tile, 1); m != nullptr)
-			Stagger(*m, TicksPerSecond);
+			Stagger(*m, StunTicks(state.landingSpell, r));
 		break;
 	default:
 		break;
@@ -1832,16 +2248,16 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		break;
 	case SpellID::Judgment:
 		if (alive) {
-			MarksOf(*front).judgmentTicks = 4 * TicksPerSecond;
-			MarksOf(*front).judgmentPercent = std::min(15 + (r - 1), 40);
+			MarksOf(*front).judgmentTicks = EffectTicks(spell, r);
+			MarksOf(*front).judgmentPercent = EffectPercent(spell, r);
 			struck = true;
 		}
 		break;
 	case SpellID::Oathbrand:
 		if (alive) {
 			Marks &marks = MarksOf(*front);
-			marks.oathTicks = 6 * TicksPerSecond;
-			marks.oathCharges = 3;
+			marks.oathTicks = EffectTicks(spell, r);
+			marks.oathCharges = OathbrandCharges;
 			marks.oathRank = r;
 			struck = true;
 		}
@@ -1850,7 +2266,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		for (const Point tile : LineOfTiles(ahead, ahead + player._pdir, 2)) {
 			Monster *m = FindMonsterAtPosition(tile);
 			if (m != nullptr && Hittable(*m)) {
-				Strike(player, *m, DamageType::Magic, Percent(WeaponBlow(player), 80 + 5 * (r - 1)));
+				Strike(player, *m, DamageType::Magic, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 				struck = true;
 			}
 		}
@@ -1858,9 +2274,9 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	case SpellID::Crusade: {
 		int blows = 0;
 		for (Monster *m : MonstersWithin(player.position.tile, 1)) {
-			if (m == front || blows >= 3)
+			if (m == front || blows >= CrusadeOthers)
 				continue;
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 75 + 5 * (r - 1)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 			blows++;
 			struck = true;
 		}
@@ -1872,8 +2288,8 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			if (m == nullptr || !Hittable(*m))
 				continue;
 			if (m != front)
-				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 60 + 5 * (r - 1)));
-			Stagger(*m, TicksPerSecond + 2 * (r - 1));
+				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			Stagger(*m, StunTicks(spell, r));
 			Shove(*m, player._pdir);
 			struck = true;
 		}
@@ -1884,34 +2300,34 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			Monster *m = FindMonsterAtPosition(tile);
 			if (m == nullptr || m == front || !Hittable(*m))
 				continue;
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), (spell == SpellID::Cleave ? 70 : 80) + 5 * (r - 1)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 			struck = true;
 			landedBlows++;
 		}
 		break;
 	case SpellID::Rend:
 		if (alive) {
-			Bleed(*front, 4 * TicksPerSecond, 3 + 2 * (r - 1));
+			Bleed(*front, EffectTicks(spell, r), PerSecond(spell, r));
 			struck = true;
 		}
 		break;
 	case SpellID::ClaspOfRuin:
 		if (alive) {
-			Stagger(*front, TicksPerSecond);
+			Stagger(*front, StunTicks(spell, r));
 			struck = true;
 		}
 		break;
 	case SpellID::CinderTouch:
 		if (alive) {
-			MarksOf(*front).burnTicks = 3 * TicksPerSecond;
-			MarksOf(*front).burnDamage = (2 + r) << 6;
+			MarksOf(*front).burnTicks = EffectTicks(spell, r);
+			MarksOf(*front).burnDamage = PerSecond(spell, r) << 6;
 			struck = true;
 		}
 		break;
 	case SpellID::ReapingPoint: {
 		Monster *beyond = InDungeonBounds(ahead + player._pdir) ? FindMonsterAtPosition(ahead + player._pdir) : nullptr;
 		if (beyond != nullptr && Hittable(*beyond)) {
-			Strike(player, *beyond, DamageType::Physical, Percent(WeaponBlow(player), 100 + 5 * (r - 1)));
+			Strike(player, *beyond, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 			struck = true;
 		}
 		break;
@@ -1929,37 +2345,37 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		break;
 	case SpellID::LowBranch:
 		if (alive) {
-			ChillMonster(*front, 3 * TicksPerSecond);
+			ChillMonster(*front, SlowTicks(spell, r));
 			struck = true;
 		}
 		break;
 	case SpellID::StaffOfEchoes:
 		if (alive && frontDamage > 0) {
 			PlayerState &state = StateOf(player);
-			state.echoTicks = TicksPerSecond;
+			state.echoTicks = EffectTicks(spell, r);
 			state.echoMonster = static_cast<int>(front->getId());
-			state.echoDamage = Percent(frontDamage, 60 + 4 * (r - 1));
+			state.echoDamage = Percent(frontDamage, BlowPercent(spell, r));
 			struck = true;
 		}
 		break;
 	case SpellID::TigerClaw:
 		if (alive) {
-			Bleed(*front, 3 * TicksPerSecond, 2 + r);
+			Bleed(*front, EffectTicks(spell, r), PerSecond(spell, r));
 			struck = true;
 		}
 		break;
 	case SpellID::PressurePoint:
 		if (alive) {
-			ChillMonster(*front, 3 * TicksPerSecond);
-			DebuffMonster(*front, 6 * TicksPerSecond, 0, -std::min(20 + 2 * (r - 1), 60));
+			ChillMonster(*front, SlowTicks(spell, r));
+			DebuffMonster(*front, EffectTicks(spell, r), 0, -EffectPercent(spell, r));
 			struck = true;
 		}
 		break;
 	case SpellID::ExplodingPalm:
 		if (alive) {
-			MarksOf(*front).palmTicks = 6 * TicksPerSecond;
+			MarksOf(*front).palmTicks = EffectTicks(spell, r);
 			MarksOf(*front).palmRank = r;
-			Bleed(*front, 6 * TicksPerSecond, 1 + r);
+			Bleed(*front, EffectTicks(spell, r), PerSecond(spell, r));
 			struck = true;
 		}
 		break;
@@ -2019,7 +2435,7 @@ int Rfa12ActiveDamageDealtPercent(const Player &player, const Monster &target, b
 bool Rfa12ActiveEvadesMelee(const Player &player)
 {
 	const int r = BuffRank(player, Buff::Evasion);
-	return r > 0 && GenerateRnd(100) < std::min(10 + 2 * (r - 1), 40);
+	return r > 0 && GenerateRnd(100) < EffectPercent(SpellID::MantraOfEvasion, r);
 }
 
 int Rfa12BoneShellFrame(const Player &player)
@@ -2078,10 +2494,10 @@ void OnRfa12ActiveHit(Player &player, Monster &monster, int damage, bool melee)
 	Marks &marks = MarksOf(monster);
 	// Poison Dagger (the Necromancer, 2026-09-18): every landed weapon blow poisons.
 	if (melee && damage > 0 && BuffRank(player, Buff::Venom) > 0 && (monster.hitPoints >> 6) > 0)
-		Poison(player, monster, 4 * TicksPerSecond, 2 + BuffRank(player, Buff::Venom));
+		Poison(player, monster, PoisonTicks(SpellID::PoisonDagger), PerSecond(SpellID::PoisonDagger, BuffRank(player, Buff::Venom)));
 	if (melee && marks.oathCharges > 0 && marks.oathTicks > 0 && (monster.hitPoints >> 6) > 0) {
 		marks.oathCharges--;
-		Strike(player, monster, DamageType::Magic, Rolled(Scale(marks.oathRank, 4, 8, 2, 3)));
+		Strike(player, monster, DamageType::Magic, Rolled(SkillDamage(SpellID::Oathbrand, marks.oathRank)));
 	}
 	if (marks.tragedyTicks > 0 && damage > 0) {
 		const int share = Percent(damage, marks.tragedyPercent);
@@ -2099,9 +2515,9 @@ void OnRfa12ActiveHit(Player &player, Monster &monster, int damage, bool melee)
 void OnRfa12ActiveStruck(Player &player, Monster &monster)
 {
 	if (const int r = BuffRank(player, Buff::StaticCharge); r > 0)
-		Strike(player, monster, DamageType::Lightning, Rolled(Scale(r, 2, 10, 1, 3)));
+		Strike(player, monster, DamageType::Lightning, Rolled(SkillDamage(SpellID::StaticCharge, r)));
 	if (const int r = BuffRank(player, Buff::Retribution); r > 0 && (monster.hitPoints >> 6) > 0)
-		Strike(player, monster, DamageType::Magic, Rolled(Scale(r, 3, 6, 1, 2)));
+		Strike(player, monster, DamageType::Magic, Rolled(SkillDamage(SpellID::MantraOfRetribution, r)));
 }
 
 void OnRfa12ActiveMissileStruck(Player &player, Monster &monster, int damage)
@@ -2118,19 +2534,19 @@ void OnRfa12ActiveMonsterKilled(Player &player, const Monster &monster)
 		const int r = marks.ashenRank;
 		marks.ashenTicks = 0;
 		for (Monster *m : MonstersWithin(at, 1))
-			Strike(player, *m, DamageType::Fire, Rolled(Scale(r, 6, 12, 3, 5)));
+			Strike(player, *m, DamageType::Fire, Rolled(SkillDamage(SpellID::AshenBrand, r)));
 		Ring(player, at);
 	}
 	if (marks.palmTicks > 0) {
 		const int r = marks.palmRank;
 		marks.palmTicks = 0;
 		for (Monster *m : MonstersWithin(at, 1))
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), 50 + 5 * (r - 1)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(SpellID::ExplodingPalm, r)));
 		Ring(player, at);
 	}
 	if (const int r = BuffRank(player, Buff::Bloodcall); r > 0) {
-		Heal(player, (3 + (r - 1)) << 6);
-		GainRage(player, 2 + (r - 1)); // Rage, not mana: Bloodcall is the Barbarian's (2026-09-13)
+		Heal(player, BloodcallLife(r) << 6);
+		GainRage(player, BloodcallRage(r)); // Rage, not mana: Bloodcall is the Barbarian's (2026-09-13)
 	}
 	marks = Marks {};
 }
@@ -2138,16 +2554,16 @@ void OnRfa12ActiveMonsterKilled(Player &player, const Monster &monster)
 void ApplyRfa12ActiveBuffsToTotals(const Player &player, ItemBonusTotals &totals)
 {
 	if (const int r = BuffRank(player, Buff::IronWill); r > 0) {
-		totals.fireResist += 15 + 3 * (r - 1);
-		totals.lightningResist += 15 + 3 * (r - 1);
-		totals.magicResist += 15 + 3 * (r - 1);
+		totals.fireResist += EffectPercent(SpellID::IronWill, r);
+		totals.lightningResist += EffectPercent(SpellID::IronWill, r);
+		totals.magicResist += EffectPercent(SpellID::IronWill, r);
 	}
 	if (const int r = BuffRank(player, Buff::Conduit); r > 0)
-		totals.fastCast += std::min(20 + 2 * (r - 1), 60);
+		totals.fastCast += EffectPercent(SpellID::Conduit, r);
 	if (BuffRank(player, Buff::Saga) > 0)
 		totals.spellLevelAdd += 2;
 	if (BuffRank(player, Buff::Astral) > 0)
-		totals.moveSpeed += 50;
+		totals.moveSpeed += EffectPercent(SpellID::AstralProjection, 1);
 }
 
 void ProcessRfa12ActivesTick(Player &player)
@@ -2171,11 +2587,11 @@ void ProcessRfa12ActivesTick(Player &player)
 	if (BuffRank(player, Buff::Rally) > 0)
 		Heal(player, state.rallyPerTick);
 	if (const int r = BuffRank(player, Buff::Clarity); r > 0)
-		RestoreMana(player, 2 + (r - 1));
+		RestoreMana(player, ManaFlowPerTick(r));
 	if (const int r = BuffRank(player, Buff::Conduit); r > 0)
-		RestoreMana(player, 2 + (r - 1));
+		RestoreMana(player, ManaFlowPerTick(r));
 	if (const int r = BuffRank(player, Buff::Immolate); r > 0 && state.ticks[static_cast<size_t>(Buff::Immolate)] % TicksPerSecond == 0) {
-		const Range d = Scale(r, 3, 6, 1, 2);
+		const Range d = SkillDamage(SpellID::Immolate, r);
 		for (Monster *m : MonstersWithin(player.position.tile, 1))
 			Strike(player, *m, DamageType::Fire, Rolled(d));
 	}
@@ -2186,13 +2602,13 @@ void ProcessRfa12ActivesTick(Player &player)
 	}
 
 	// Wrath of the Heavens: a pillar every 12 ticks on a monster within five tiles.
-	if (state.wrathPillars > 0 && ++state.wrathClock % 12 == 0) {
+	if (state.wrathPillars > 0 && ++state.wrathClock % WrathPillarTicks == 0) {
 		state.wrathPillars--;
-		const auto nearby = MonstersWithin(player.position.tile, 5);
+		const auto nearby = MonstersWithin(player.position.tile, ReachTiles(SpellID::WrathOfTheHeavens, state.wrathRank));
 		if (!nearby.empty()) {
 			Monster &m = *nearby[static_cast<size_t>(GenerateRnd(static_cast<int>(nearby.size())))];
 			const Point at = m.position.tile;
-			Strike(player, m, DamageType::Magic, Rolled(Scale(state.wrathRank, 10, 20, 4, 7)));
+			Strike(player, m, DamageType::Magic, Rolled(SkillDamage(SpellID::WrathOfTheHeavens, state.wrathRank)));
 			Ring(player, at);
 		}
 	}
@@ -2202,8 +2618,8 @@ void ProcessRfa12ActivesTick(Player &player)
 		if (player.position.tile != state.funeralFrom) {
 			state.funeralTicks = 0;
 		} else if (--state.funeralTicks == 0) {
-			const Range d = Scale(state.funeralRank, 15, 30, 6, 10);
-			for (Monster *m : MonstersWithin(state.funeralTile, 3))
+			const Range d = SkillDamage(SpellID::FuneralStar, state.funeralRank);
+			for (Monster *m : MonstersWithin(state.funeralTile, ReachTiles(SpellID::FuneralStar, state.funeralRank)))
 				Strike(player, *m, DamageType::Fire, Rolled(d));
 			Ring(player, state.funeralTile);
 		}
@@ -2354,6 +2770,528 @@ const char *Rfa12ActiveDescription(SpellID spell)
 			return data.description;
 	}
 	return "";
+}
+
+
+// =================================================================================================
+// The tooltip (the two rules, user 2026-09-26): what a skill does at a rank, from the helpers above
+// =================================================================================================
+
+namespace {
+
+/** @brief @p ticks as seconds: whole where they are whole, else to a tenth. */
+std::string Secs(int ticks)
+{
+	if (ticks % TicksPerSecond == 0)
+		return fmt::format("{:d}", ticks / TicksPerSecond);
+	return fmt::format("{:.1f}", static_cast<double>(ticks) / TicksPerSecond);
+}
+
+/** @brief Mana a second from a flow of @p perTick in 1/64 points a tick. */
+double ManaPerSecond(int perTick)
+{
+	return static_cast<double>(perTick * TicksPerSecond) / 64.0;
+}
+
+struct FactLines {
+	std::string text;
+	void add(const std::string &line)
+	{
+		if (line.empty())
+			return;
+		if (!text.empty())
+			text += '\n';
+		text += line;
+	}
+};
+
+} // namespace
+
+std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
+{
+	if (IsNecromancerCurse(spell))
+		return CurseFactsAt(player, spell, rank);
+	if (IsNecromancerSummoning(spell))
+		return NecroSummoningFactsAt(player, spell, rank);
+	if (IsCompanionSpell(spell))
+		return CompanionFactsAt(spell, rank); // Valkyrie, Decoy, Ancestral Call, Spirit Guardian
+
+	const int r = std::max(rank, 1);
+	FactLines out;
+	const auto say = [&out](auto format, const auto &...args) { out.add(fmt::format(fmt::runtime(format), args...)); };
+	const auto blowBonus = [&]() { say(_("Damage: +{:d}%"), MeleeBonusPercent(spell, r)); };
+	const auto bleed = [&]() { say(_("Bleed: {:d} a second for {} s"), PerSecond(spell, r), Secs(EffectTicks(spell, r))); };
+	const auto duration = [&]() { say(_("Duration: {} s"), Secs(EffectTicks(spell, r))); };
+	const auto poison = [&]() {
+		const PoisonDose dose = VirulentDose(player, PoisonTicks(spell), PerSecond(spell, r));
+		say(_("Poison: {:d} a second for {} s"), dose.perSecond, Secs(dose.ticks));
+	};
+	const Range d = SkillDamage(spell, r);
+	const Range bone = BoneRange(player, d);
+	const int blow = BlowPercent(spell, r);
+	const int reach = ReachTiles(spell, r);
+
+	switch (spell) {
+	// ---------------- Paladin ----------------
+	case SpellID::VotiveStrike:
+		blowBonus();
+		say(_("An enemy it kills leaves no corpse"));
+		break;
+	case SpellID::Judgment:
+		blowBonus();
+		say(_("Mark: the target takes +{:d}% damage for {} s"), EffectPercent(spell, r), Secs(EffectTicks(spell, r)));
+		break;
+	case SpellID::Oathbrand:
+		blowBonus();
+		say(_("Brand: your next {:d} blows each add {:d} - {:d} magic damage, for {} s"), OathbrandCharges, d.min, d.max, Secs(EffectTicks(spell, r)));
+		break;
+	case SpellID::HolyLance:
+		say(_("The two tiles beyond the target: {:d}% of a blow, as magic"), blow);
+		break;
+	case SpellID::Crusade:
+		say(_("Also hits up to {:d} other enemies beside you at {:d}% of a blow"), CrusadeOthers, blow);
+		break;
+	case SpellID::AegisSlam:
+		say(_("The two beside the target: {:d}% of a blow"), blow);
+		say(_("Stun and knockback on the three tiles ahead: {} s"), Secs(StunTicks(spell, r)));
+		say(_("Requires a shield"));
+		break;
+	case SpellID::HeavensDescent:
+		say(_("Leap: up to {:d} tiles"), reach);
+		say(_("Magic damage: {:d} - {:d} to everything beside you"), d.min, d.max);
+		break;
+	case SpellID::WrathOfTheHeavens:
+		say(_("Pillars: {:d} over {} s, each on an enemy within {:d} tiles"), WrathPillars, Secs(WrathPillars * WrathPillarTicks), reach);
+		say(_("Magic damage: {:d} - {:d} a pillar"), d.min, d.max);
+		break;
+	// ---------------- Barbarian ----------------
+	case SpellID::Cleave:
+		say(_("Also hits the enemies beside you at {:d}% of a blow"), blow);
+		break;
+	case SpellID::Backhand:
+		say(_("The enemy behind you: {:d}% of a blow"), blow);
+		break;
+	case SpellID::GroundStomp:
+		say(_("Stun: {} s, everything beside you (uniques shrug it off)"), Secs(StunTicks(spell, r)));
+		break;
+	case SpellID::Rend:
+		blowBonus();
+		bleed();
+		break;
+	case SpellID::HammerOfTheAncients:
+		blowBonus();
+		break;
+	case SpellID::SeismicSlam:
+		say(_("Damage: {:d}% of a blow, everything on a {:d}-tile line"), blow, reach);
+		break;
+	case SpellID::ClaspOfRuin:
+		blowBonus();
+		say(_("Hold: {} s (uniques shrug it off)"), Secs(StunTicks(spell, r)));
+		break;
+	case SpellID::Earthquake:
+		say(_("Damage: {:d}% of a blow a second for {} s, within {:d} tiles"), blow, Secs(EffectTicks(spell, r)), reach);
+		break;
+	case SpellID::ThreateningShout:
+		say(_("Enemy damage: -{:d}% for {} s"), EffectPercent(spell, r), Secs(EffectTicks(spell, r)));
+		say(_("Radius: {:d} tiles"), reach);
+		break;
+	case SpellID::RallyingCry:
+		say(_("Heals: {:d}% of your life over {} s"), EffectPercent(spell, r), Secs(EffectTicks(spell, r)));
+		break;
+	case SpellID::Intimidate:
+		say(_("Enemy armour: -{:d}% for {} s"), EffectPercent(spell, r), Secs(EffectTicks(spell, r)));
+		say(_("Radius: {:d} tiles"), reach);
+		break;
+	case SpellID::SplitRanks:
+		say(_("Shoves aside the enemies ahead of you within {:d} tiles"), reach);
+		break;
+	case SpellID::IronWill:
+		say(_("Fire, lightning and magic resistance: +{:d}%"), EffectPercent(spell, r));
+		duration();
+		break;
+	case SpellID::Bloodcall:
+		say(_("Every kill: +{:d} life, +{:d} Rage"), BloodcallLife(r), BloodcallRage(r));
+		duration();
+		break;
+	case SpellID::EarthshakerCry:
+		say(_("Magic damage: {:d} - {:d} within {:d} tiles"), d.min, d.max, reach);
+		say(_("Stun: {} s (uniques shrug it off)"), Secs(StunTicks(spell, r)));
+		break;
+	case SpellID::WeaponThrow:
+		say(_("Damage: the full blow of the sword or axe in your hand, thrown"));
+		break;
+	// ---------------- Sorceress ----------------
+	case SpellID::ChillTouch:
+		say(_("Cold damage: {:d} - {:d} on the three tiles ahead"), d.min, d.max);
+		say(_("Chill: {} s"), Secs(SlowTicks(spell, r)));
+		break;
+	case SpellID::IceNeedle:
+		say(_("Cold damage: {:d} - {:d} to the first {:d} enemies on a {:d}-tile line"), d.min, d.max, IceNeedleTargets, reach);
+		say(_("Chill: {} s"), Secs(SlowTicks(spell, r)));
+		break;
+	case SpellID::Frostbite:
+		say(_("Cold damage taken: +{:d}% for {} s"), EffectPercent(spell, r), Secs(EffectTicks(spell, r)));
+		say(_("Chill: {} s"), Secs(SlowTicks(spell, r)));
+		break;
+	case SpellID::IceLance:
+		say(_("Cold damage: {:d} - {:d} to everything on a {:d}-tile line"), d.min, d.max, reach);
+		say(_("Chill: {} s"), Secs(SlowTicks(spell, r)));
+		break;
+	case SpellID::BrittleGround:
+		say(_("Cold damage: {:d} - {:d} to an enemy walking across, at most once a second"), d.min, d.max);
+		say(_("Chill: {} s"), Secs(SlowTicks(spell, r)));
+		duration();
+		break;
+	case SpellID::FrozenSentinel: {
+		say(_("An Ice Bolt at level {:d} every {} s, at the nearest enemy within {:d} tiles"), r, Secs(FrozenSentinelPeriod), reach);
+		int min = -1;
+		int max = -1;
+		ColdSpellDamage(player, SpellID::IceBolt, r, min, max);
+		if (min >= 0)
+			say(_("Cold damage: {:d} - {:d} a bolt"), min, max);
+		duration();
+		break;
+	}
+	case SpellID::Whiteout:
+		say(_("Cold damage: {:d} - {:d}, once to each enemy in a three-tile wall rolling {:d} tiles"), d.min, d.max, WhiteoutTicks / WhiteoutStepTicks);
+		say(_("Chill: {} s"), Secs(SlowTicks(spell, r)));
+		break;
+	case SpellID::AbsoluteZero:
+		say(_("Cold damage: {:d} - {:d} within {:d} tiles"), d.min, d.max, reach);
+		say(_("Freeze: {} s (uniques are chilled instead)"), Secs(SlowTicks(spell, r)));
+		break;
+	case SpellID::Arc:
+		say(_("Lightning damage: {:d} - {:d}"), d.min, d.max);
+		say(_("Leaps to {:d} more within {:d} tiles, each at {:d}% of the strike before"), ArcHops - 1, reach, ArcFalloffPercent);
+		break;
+	case SpellID::StaticCharge:
+		say(_("Lightning damage to each melee attacker: {:d} - {:d}"), d.min, d.max);
+		duration();
+		break;
+	case SpellID::BallLightning: {
+		say(_("A charged bolt at every tile, for {:d} tiles"), BallLightningTicks / BallLightningStepTicks);
+		if (MyPlayer != nullptr) {
+			int min = -1;
+			int max = -1;
+			GetDamageAmtAtLevel(SpellID::ChargedBolt, r, &min, &max);
+			if (min >= 0)
+				say(_("Lightning damage: {:d} - {:d} a bolt"), min, max);
+		}
+		break;
+	}
+	case SpellID::Conduit:
+		say(_("Faster cast rate: +{:d}%"), EffectPercent(spell, r));
+		say(_("Mana: +{:.1f} a second"), ManaPerSecond(ManaFlowPerTick(r)));
+		duration();
+		break;
+	case SpellID::LightningRod:
+		say(_("Swallows the first enemy lightning missile to come near and bursts: {:d} - {:d} lightning damage within {:d} tiles"), d.min, d.max, LightningRodBurstRadius);
+		duration();
+		break;
+	case SpellID::FaradayRing:
+		say(_("Destroys every enemy missile within {:d} tiles of it"), FaradayRingReach);
+		duration();
+		break;
+	case SpellID::StormCrucible:
+		say(_("Lightning damage: {:d} - {:d} along the line between the pair, {:d} times"), d.min, d.max,
+		    PulseCount(CruciblePeriod - 1, CrucibleTicks, CruciblePeriod));
+		say(_("Place the pair within {} s"), Secs(EffectTicks(spell, r)));
+		break;
+	case SpellID::RideTheLightning:
+		say(_("Lightning damage: {:d} - {:d} to everything on the way"), d.min, d.max);
+		say(_("Range: {:d} tiles"), reach);
+		break;
+	case SpellID::CinderTouch:
+		say(_("Fire damage: {:d} a second for {} s"), PerSecond(spell, r), Secs(EffectTicks(spell, r)));
+		break;
+	case SpellID::EmberMine:
+		say(_("Fire damage: {:d} - {:d} to everything beside it when stepped on"), d.min, d.max);
+		duration();
+		break;
+	case SpellID::FlameRing:
+		say(_("Fire damage: {:d} - {:d} within {:d} tiles"), d.min, d.max, reach);
+		break;
+	case SpellID::AshenBrand:
+		say(_("If it dies: {:d} - {:d} fire damage to everything beside it"), d.min, d.max);
+		duration();
+		break;
+	case SpellID::FurnaceMouth:
+		say(_("Fire damage: {:d} - {:d} on the {:d} tiles ahead, {:d} times a second apart"), d.min, d.max, FurnaceMouthTiles,
+		    PulseCount(TicksPerSecond - 1, FurnaceMouthTicks, TicksPerSecond));
+		break;
+	case SpellID::Firestorm: {
+		say(_("Fireballs at level {:d}: {:d} over {} s, within {:d} tiles of the cursor"), r,
+		    PulseCount(0, EffectTicks(spell, r), FirestormPeriod), Secs(EffectTicks(spell, r)), FirestormScatter);
+		if (MyPlayer != nullptr) {
+			int min = -1;
+			int max = -1;
+			GetDamageAmtAtLevel(SpellID::Fireball, r, &min, &max);
+			if (min >= 0)
+				say(_("Fire damage: {:d} - {:d} a fireball"), min, max);
+		}
+		break;
+	}
+	case SpellID::Immolate:
+		say(_("Fire damage: {:d} - {:d} a second to everything beside you"), d.min, d.max);
+		duration();
+		break;
+	case SpellID::FuneralStar:
+		say(_("Fire damage: {:d} - {:d} within {:d} tiles"), d.min, d.max, reach);
+		say(_("Stand still for {} s; moving cancels it"), Secs(EffectTicks(spell, r)));
+		break;
+	case SpellID::Meteor: {
+		const Range burn = MeteorBurn(r);
+		say(_("Fire damage: {:d} - {:d} within {:d} tiles, a second after the cast"), d.min, d.max, MeteorRadius);
+		say(_("Burning ground: {:d} - {:d} a second for {:d} s"), burn.min, burn.max, PulseCount(0, EffectTicks(spell, r), TicksPerSecond) - 1);
+		break;
+	}
+	// ---------------- Rogue ----------------
+	case SpellID::BarbedShaft:
+		say(_("Damage: {:d}% of an arrow"), blow);
+		bleed();
+		break;
+	case SpellID::ShockArrow:
+		say(_("Damage: {:d}% of an arrow"), blow);
+		say(_("Lightning damage: {:d} - {:d} to one more enemy within {:d} tiles"), d.min, d.max, reach);
+		break;
+	case SpellID::PiercingShot:
+		say(_("Damage: {:d}% of an arrow, every enemy on a {:d}-tile line"), blow, reach);
+		break;
+	case SpellID::RainOfArrows:
+		say(_("Damage: {:d}% of an arrow, everything within {:d} tiles of the cursor"), blow, reach);
+		break;
+	case SpellID::CripplingShot:
+		say(_("Damage: {:d}% of an arrow"), blow);
+		say(_("Slow: half speed for {} s"), Secs(SlowTicks(spell, r)));
+		break;
+	case SpellID::HuntersMark:
+		say(_("Arrow damage taken: +{:d}% for {} s"), EffectPercent(spell, r), Secs(EffectTicks(spell, r)));
+		break;
+	case SpellID::Barrage:
+		say(_("Arrows: {:d} at one target, each {:d}% of an arrow"), BarrageArrows, blow);
+		break;
+	case SpellID::PhantomVolley:
+		say(_("Magic damage: {:d}% of an arrow, every enemy within {:d} tiles"), blow, reach);
+		break;
+	case SpellID::ShadowStep:
+		say(_("Steps to the far side of an enemy within {:d} tiles of the cursor"), reach);
+		break;
+	case SpellID::HuntersClaim:
+		say(_("Your arrows pass every ordinary monster on the way to the claimed one, for {} s"), Secs(EffectTicks(spell, r)));
+		break;
+	case SpellID::Sweep:
+		say(_("Also hits the enemies beside you at {:d}% of a blow"), blow);
+		break;
+	case SpellID::Harpoon:
+		say(_("Damage: {:d}% of a blow, the first enemy on an {:d}-tile line"), blow, reach);
+		say(_("Drags it a tile toward you; stun {} s"), Secs(StunTicks(spell, r)));
+		break;
+	case SpellID::Vault:
+		say(_("Range: {:d} tiles"), reach);
+		break;
+	case SpellID::ReapingPoint:
+		blowBonus();
+		say(_("The enemy behind your target: {:d}% of a blow"), blow);
+		break;
+	case SpellID::AnchorJavelin:
+		say(_("Damage: {:d}% of a blow, the first enemy on an {:d}-tile line"), blow, reach);
+		say(_("Pin: {} s (uniques only take the damage)"), Secs(StunTicks(spell, r)));
+		break;
+	case SpellID::TurningPike:
+		blowBonus();
+		say(_("You pivot to a free tile beside the target"));
+		break;
+	case SpellID::ValkyriesSpear:
+		say(_("Damage: {:d}% of a blow, everything within {:d} tile of the cursor"), blow, reach);
+		break;
+	case SpellID::PoisonJavelin:
+		say(_("Acid damage: {:d}% of a blow, the first enemy on an {:d}-tile line"), blow, reach);
+		say(_("Acid pool: {:d} - {:d} a second for {:d} s, beside it"), d.min, d.max, PulseCount(0, EffectTicks(spell, r), TicksPerSecond));
+		break;
+	case SpellID::PlagueJavelin:
+		say(_("Acid damage: {:d} - {:d} a second for {:d} s, within {:d} tiles"), d.min, d.max, PulseCount(0, EffectTicks(spell, r), TicksPerSecond), reach);
+		break;
+	// ---------------- Monk ----------------
+	case SpellID::LongThrust:
+		say(_("Damage: {:d}% of a blow, the first enemy within {:d} tiles"), blow, reach);
+		break;
+	case SpellID::LowBranch:
+		say(_("Slow: half speed for {} s"), Secs(SlowTicks(spell, r)));
+		break;
+	case SpellID::RearwardReach:
+		say(_("The enemy behind you: {:d}% of a blow"), blow);
+		break;
+	case SpellID::MountainPole:
+		say(_("Damage: {:d}% of a blow, everything beside you"), blow);
+		say(_("Stun: {} s"), Secs(StunTicks(spell, r)));
+		break;
+	case SpellID::BambooRain:
+		say(_("Damage: {:d}% of a blow, up to {:d} enemies within {:d} tiles"), blow, BambooRainTargets, reach);
+		break;
+	case SpellID::DragonTailSweep:
+	case SpellID::WhirlingKick:
+		say(_("Damage: {:d}% of a blow, everything beside you"), blow);
+		say(_("Knocks back"));
+		break;
+	case SpellID::StaffOfEchoes:
+		say(_("Echo: {:d}% of the blow lands again after {} s"), blow, Secs(EffectTicks(spell, r)));
+		break;
+	case SpellID::HeavenSplitter:
+	case SpellID::DragonsWrath:
+		say(_("Damage: {:d}% of a blow, everything on a {:d}-tile line"), blow, reach);
+		break;
+	case SpellID::ThousandReeds:
+		say(_("Damage: {:d}% of a blow, every enemy within {:d} tiles"), blow, reach);
+		break;
+	case SpellID::TigerClaw:
+		blowBonus();
+		bleed();
+		break;
+	case SpellID::LeapingCrane:
+		say(_("Range: {:d} tiles"), reach);
+		say(_("Landing: {:d}% of a blow to the enemy beside you"), blow);
+		break;
+	case SpellID::PressurePoint:
+		say(_("Slow: half speed for {} s"), Secs(SlowTicks(spell, r)));
+		say(_("Enemy armour: -{:d}% for {} s"), EffectPercent(spell, r), Secs(EffectTicks(spell, r)));
+		break;
+	case SpellID::ShoulderGate:
+		say(_("Rush: up to {:d} tiles"), reach);
+		say(_("Stun: {} s"), Secs(StunTicks(spell, r)));
+		break;
+	case SpellID::SevenSidedStrike:
+		say(_("Damage: {:d}% of a blow, up to {:d} enemies within {:d} tiles of the cursor"), blow, SevenSidedTargets(r), reach);
+		break;
+	case SpellID::ExplodingPalm:
+		blowBonus();
+		bleed();
+		say(_("If it dies meanwhile: {:d}% of a blow to everything beside it"), blow);
+		break;
+	case SpellID::MantraOfClarity:
+		say(_("Mana: +{:.1f} a second"), ManaPerSecond(ManaFlowPerTick(r)));
+		duration();
+		break;
+	case SpellID::MantraOfEvasion:
+		say(_("Melee blows that miss you: {:d}%"), EffectPercent(spell, r));
+		duration();
+		break;
+	case SpellID::ChiWave:
+		say(_("Magic damage: {:d} - {:d}, up to {:d} enemies, leaping {:d} tiles"), d.min, d.max, ChiWaveHops, reach);
+		break;
+	case SpellID::BlindingFlash:
+		say(_("Enemies within {:d} tiles are blinded and wander off (uniques shrug it off)"), reach);
+		break;
+	case SpellID::MantraOfRetribution:
+		say(_("Magic damage to each melee attacker: {:d} - {:d}"), d.min, d.max);
+		duration();
+		break;
+	case SpellID::Serenity:
+		say(_("Ends every slow and chill on you"));
+		break;
+	case SpellID::WaveOfLight:
+		say(_("Magic damage: {:d} - {:d} within {:d} tiles"), d.min, d.max, reach);
+		break;
+	case SpellID::AstralProjection:
+		say(_("Movement speed: +{:d}%, and monsters that have not seen you do not notice you"), EffectPercent(spell, r));
+		duration();
+		break;
+	case SpellID::AncestralCourt:
+		say(_("Magic damage: {:d} - {:d}, {:d} strikes within {:d} tiles"), d.min, d.max, AncestralCourtStrikes, reach);
+		break;
+	// ---------------- Necromancer: Poison & Bone (bone damage includes Marrow, poison Virulence) ----------------
+	case SpellID::Teeth:
+		say(_("Magic damage: {:d} - {:d} a tooth"), bone.min, bone.max);
+		say(_("Teeth: 3 across the front, and {:d} down the line"), TeethDownTheLine(r));
+		break;
+	case SpellID::BoneArmor:
+		say(_("Absorbs: {:d} damage, for up to {} s"), BoneArmorPool(r), Secs(EffectTicks(spell, r)));
+		break;
+	case SpellID::PoisonDagger:
+		say(_("Every weapon blow you land poisons"));
+		poison();
+		duration();
+		break;
+	case SpellID::CorpseExplosion:
+		say(_("Damage: {:d}% of the corpse's life ({:d} - {:d}), within {:d} tiles"), EffectPercent(spell, r), CorpseBurstMin, CorpseBurstMax, reach);
+		break;
+	case SpellID::BoneSplinters:
+		say(_("Magic damage: {:d} - {:d}, up to {:d} enemies ahead"), bone.min, bone.max, BoneSplinterTargets);
+		break;
+	case SpellID::Blight:
+		poison();
+		say(_("Pool: {} s; standing in it renews the poison every second"), Secs(EffectTicks(spell, r)));
+		break;
+	case SpellID::BoneWall:
+		say(_("Magic damage: {:d} - {:d}, {:d} times a second, to what stands in it; it is thrown back"), bone.min, bone.max, TicksPerSecond / BoneWallPeriod);
+		duration();
+		break;
+	case SpellID::BoneSpikes:
+		say(_("Magic damage: {:d} - {:d} within {:d} tile of the cursor"), bone.min, bone.max, reach);
+		say(_("Stun: {} s"), Secs(StunTicks(spell, r)));
+		break;
+	case SpellID::PoisonExplosion:
+		poison();
+		say(_("Radius: {:d} tiles around the corpse"), reach);
+		break;
+	case SpellID::BoneSpear:
+		say(_("Magic damage: {:d} - {:d}, everything on a {:d}-tile line"), bone.min, bone.max, reach);
+		break;
+	case SpellID::Decompose:
+		poison();
+		break;
+	case SpellID::BonePrison:
+		say(_("Hold: {} s"), Secs(StunTicks(spell, r)));
+		say(_("Magic damage: {:d} - {:d} a second"), bone.min, bone.max);
+		break;
+	case SpellID::BoneStorm:
+		say(_("Magic damage: {:d} - {:d}, {:d} times a second, within {:d} tiles"), bone.min, bone.max, TicksPerSecond / BoneStormPeriod, reach);
+		duration();
+		break;
+	case SpellID::NecroBoneSpirit:
+		say(_("Damage: half the target's remaining life"));
+		break;
+	case SpellID::PoisonNova:
+		poison();
+		say(_("Radius: {:d} tiles"), reach);
+		break;
+	case SpellID::DeathNova:
+		say(_("Magic damage: {:d} - {:d} within {:d} tiles"), bone.min, bone.max, reach);
+		poison();
+		break;
+	default:
+		// The Bard's (a hidden class), and anything not cast here.
+		break;
+	}
+	return out.text;
+}
+
+std::string Rfa12ActivesPassiveFactsAt(const Player &player, ClassTreeSkill skill, int points)
+{
+	(void)player;
+	const int p = std::max(points, 1);
+	FactLines out;
+	const auto say = [&out](auto format, const auto &...args) { out.add(fmt::format(fmt::runtime(format), args...)); };
+	switch (skill) {
+	case ClassTreeSkill::Marrow:
+		say(_("Bone skill damage: +{:d}%"), MarrowBonusPercent(p));
+		break;
+	case ClassTreeSkill::Virulence:
+		say(_("Poisons last +{:d}% longer"), VirulenceLongerPercent(p));
+		say(_("Poison damage: +{:d}%"), VirulenceDeeperPercent(p));
+		break;
+	case ClassTreeSkill::EarthenMight:
+		say(_("Rage: +{:d} for every enemy Ground Stomp, Seismic Slam or Earthquake strikes"), EarthenMightPerEnemy);
+		break;
+	case ClassTreeSkill::Serration:
+		say(_("Bone damage: +{:d}% for every tile it flew, to +{:d}%"), SerrationPerTile, SerrationCap);
+		break;
+	case ClassTreeSkill::RigorMortis:
+		say(_("Bone hits chill for {} s"), Secs(RigorMortisTicks));
+		break;
+	default:
+		break;
+	}
+	return out.text;
 }
 
 } // namespace devilution::oracool

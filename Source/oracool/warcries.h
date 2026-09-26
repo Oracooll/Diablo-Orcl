@@ -115,4 +115,7 @@ void AddWarcry(Missile &missile, AddMissileParameter &parameter);
 /** @brief What @p spell does at @p rank, one fact per line: radius, duration, magnitude, chance. For the tooltip. */
 std::string WarcryFactsAt(SpellID spell, int rank);
 
+/** @brief Redemption: the share of your life and mana each corpse it consumes restores at @p points, in percent. */
+int RedemptionSharePercent(int points);
+
 } // namespace devilution::oracool

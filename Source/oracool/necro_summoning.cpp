@@ -8,6 +8,9 @@
 #include <algorithm>
 #include <array>
 #include <optional>
+#include <string>
+
+#include <fmt/format.h>
 
 #include "engine.h"
 #include "engine/random.hpp"
@@ -17,9 +20,11 @@
 #include "oracool/class_tree.h"
 #include "oracool/companion.h"
 #include "oracool/corpses.h"
+#include "oracool/curses.h"
 #include "oracool/minions.h"
 #include "oracool/passives.h"
 #include "player.h"
+#include "utils/language.h"
 
 namespace devilution::oracool {
 
@@ -28,6 +33,57 @@ namespace {
 constexpr int TicksPerSecond = 20;
 /** How far from the cursor a corpse may lie for a raise. */
 constexpr int CorpseReach = 3;
+
+// ---- the page's numbers, one place each: the rules below and NecroSummoningFactsAt / NecroPassiveFactsAt both read them ----
+
+/** Skeleton Mastery, per point, for skeletons and mages: life, damage min/max, to hit. */
+constexpr int SkeletonMasteryLife = 8;
+constexpr int SkeletonMasteryMinDamage = 1;
+constexpr int SkeletonMasteryMaxDamage = 2;
+constexpr int SkeletonMasteryToHit = 2;
+/** Golem Mastery, per point: life in percent, to hit. */
+constexpr int GolemMasteryLifePercent = 15;
+constexpr int GolemMasteryToHit = 3;
+/** Bone Plating, per point: armour for skeletons, mages and golems. */
+constexpr int BonePlatingArmour = 4;
+/** Command the Dead: the focus lasts 6 s + 1 s a rank. */
+constexpr int CommandBaseSeconds = 6;
+/** Dark Mending: minions within this many tiles of the hero. */
+constexpr int DarkMendingRadius = 8;
+/** Frenzy of the Dead: how long. */
+constexpr int FrenzySeconds = 10;
+/** Revive: three minutes, half a minute more a point of Lasting Bond; Extended Servitude adds 1/N of that. */
+constexpr int ReviveBaseSeconds = 180;
+constexpr int LastingBondSecondsPerPoint = 30;
+constexpr int ExtendedServitudeDivisor = 4;
+/** Army of the Dead: pulses, ticks between them, and their reach around the cursor. */
+constexpr int ArmyPulses = 6;
+constexpr int ArmyPulseTicks = TicksPerSecond / 2;
+constexpr int ArmyRadius = 2;
+
+int DarkMendingPercent(int rank) { return 20 + 4 * rank; }
+int FrenzyPercent(int rank) { return 40 + 4 * rank; }
+int UnholyOfferingPercent(int rank) { return std::min(30 + 3 * rank, 75); }
+int ReviveLifePercent(int rank) { return 5 * rank; }
+/** Army of the Dead: magic damage min + GenerateRnd(spread) a pulse, in whole points. */
+int ArmyDamageMin(int rank) { return 4 + 2 * rank; }
+int ArmyDamageSpread(int rank) { return 5 + 2 * rank; }
+
+int ReviveTicks(int lastingBondPoints, bool extendedServitude)
+{
+	int ticks = (ReviveBaseSeconds + LastingBondSecondsPerPoint * lastingBondPoints) * TicksPerSecond;
+	if (extendedServitude)
+		ticks += ticks / ExtendedServitudeDivisor; // a quarter longer (N8)
+	return ticks;
+}
+
+/** @brief @p ticks as seconds: "12", or "12.5" when it does not come out whole. */
+std::string SecondsText(int ticks)
+{
+	if (ticks % TicksPerSecond == 0)
+		return fmt::format("{:d}", ticks / TicksPerSecond);
+	return fmt::format("{:.1f}", static_cast<double>(ticks) / TicksPerSecond);
+}
 
 struct OwnerState {
 	/** Army of the Dead: where it erupted, how many pulses are left, ticks to the next. */
@@ -80,11 +136,11 @@ MinionSpec SkeletonSpec(const Player &player, int rank, bool mage)
 	MinionSpec spec {};
 	spec.group = mage ? MinionGroup::Mage : MinionGroup::Skeleton;
 	spec.type = mage ? MageBodyAt(rank) : SkeletonBodyAt(rank);
-	spec.life = (mage ? 14 : 20) + 6 * rank + 8 * mastery;
-	spec.minDamage = (mage ? 1 : 2) + rank / 2 + mastery;
-	spec.maxDamage = (mage ? 4 : 5) + rank + 2 * mastery;
-	spec.toHit = 60 + 4 * rank + 2 * mastery;
-	spec.armorClass = (mage ? 6 : 10) + 2 * rank + 4 * plating;
+	spec.life = (mage ? 14 : 20) + 6 * rank + SkeletonMasteryLife * mastery;
+	spec.minDamage = (mage ? 1 : 2) + rank / 2 + SkeletonMasteryMinDamage * mastery;
+	spec.maxDamage = (mage ? 4 : 5) + rank + SkeletonMasteryMaxDamage * mastery;
+	spec.toHit = 60 + 4 * rank + SkeletonMasteryToHit * mastery;
+	spec.armorClass = (mage ? 6 : 10) + 2 * rank + BonePlatingArmour * plating;
 	if (mage) {
 		// Fire, lightning, poison, bone - one of each in turn, so a line of mages is never one colour.
 		static const MissileID Elements[] = { MissileID::Firebolt, MissileID::ChargedBolt, MissileID::Acid, MissileID::Arrow };
@@ -133,9 +189,9 @@ MinionSpec GolemSpec(const Player &player, GolemKind kind, int rank)
 	case GolemKind::None:
 		break;
 	}
-	spec.life += spec.life * 15 * mastery / 100;
-	spec.toHit = 70 + 4 * rank + 3 * mastery;
-	spec.armorClass += 4 * plating;
+	spec.life += spec.life * GolemMasteryLifePercent * mastery / 100;
+	spec.toHit = 70 + 4 * rank + GolemMasteryToHit * mastery;
+	spec.armorClass += BonePlatingArmour * plating;
 	return spec;
 }
 
@@ -192,15 +248,13 @@ bool Revive(Player &player, Point target, int rank)
 	spec.group = MinionGroup::Revived;
 	spec.type = corpse->type;
 	// As it was, plus a little of the hero's craft; Diablo II's Revive gives its dead the same.
-	spec.life = corpse->maxLife + corpse->maxLife * 5 * rank / 100;
+	spec.life = corpse->maxLife + corpse->maxLife * ReviveLifePercent(rank) / 100;
 	spec.minDamage = corpse->minDamage;
 	spec.maxDamage = corpse->maxDamage;
 	spec.toHit = corpse->toHit;
 	spec.armorClass = corpse->armorClass;
 	// Three minutes, and half a minute more for every point of Lasting Bond.
-	spec.ticksLeft = (180 + 30 * Points(player, ClassTreeSkill::LastingBond)) * TicksPerSecond;
-	if (PassiveActive(player, ClassTreeSkill::ExtendedServitude))
-		spec.ticksLeft += spec.ticksLeft / 4; // a quarter longer (N8)
+	spec.ticksLeft = ReviveTicks(Points(player, ClassTreeSkill::LastingBond), PassiveActive(player, ClassTreeSkill::ExtendedServitude));
 	// The body first, the haste and the effect after (audit, 2026-09-19) - as Raise does; the corpse's
 	// own type is on this floor by definition, so the type check Raise makes is not needed here.
 	if (!SummonMinion(player, spec, corpse->position) && !SummonMinion(player, spec, player.position.tile)) {
@@ -236,9 +290,9 @@ void ArmyPulse(Player &player, OwnerState &state)
 	const int rank = state.armyRank;
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		Monster &monster = Monsters[ActiveMonsters[i]];
-		if (monster.position.tile.WalkingDistance(state.armyTile) > 2)
+		if (monster.position.tile.WalkingDistance(state.armyTile) > ArmyRadius)
 			continue;
-		const int damage = (4 + 2 * rank + GenerateRnd(5 + 2 * rank)) << 6;
+		const int damage = (ArmyDamageMin(rank) + GenerateRnd(ArmyDamageSpread(rank))) << 6;
 		HeroStrikes(player, monster, DamageType::Magic, damage);
 	}
 }
@@ -281,19 +335,19 @@ bool CastNecromancerSummoning(Player &player, SpellID spell, Point target, int r
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
-		FocusCompanionsOn(*monster, (6 + r) * TicksPerSecond);
+		FocusCompanionsOn(*monster, (CommandBaseSeconds + r) * TicksPerSecond);
 		return true;
 	}
 	case SpellID::GatherTheDead:
 		return GatherMinions(player) > 0;
 	case SpellID::DarkMending:
-		return HealMinions(player, 8, 20 + 4 * r) > 0;
+		return HealMinions(player, DarkMendingRadius, DarkMendingPercent(r)) > 0;
 	case SpellID::FrenzyOfTheDead:
 		if (MinionCount(player) == 0) {
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
-		FrenzyMinions(player, 10 * TicksPerSecond, 40 + 4 * r);
+		FrenzyMinions(player, FrenzySeconds * TicksPerSecond, FrenzyPercent(r));
 		return true;
 	case SpellID::UnholyOffering: {
 		const int life = SacrificeMinion(player, target);
@@ -301,7 +355,7 @@ bool CastNecromancerSummoning(Player &player, SpellID spell, Point target, int r
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
-		const int heal = life * std::min(30 + 3 * r, 75) / 100;
+		const int heal = life * UnholyOfferingPercent(r) / 100;
 		player._pHitPoints = std::min(player._pHitPoints + heal, player._pMaxHP);
 		player._pHPBase = std::min(player._pHPBase + heal, player._pMaxHPBase);
 		return true;
@@ -309,7 +363,7 @@ bool CastNecromancerSummoning(Player &player, SpellID spell, Point target, int r
 	case SpellID::ArmyOfTheDead: {
 		OwnerState &state = StateOf(player);
 		state.armyTile = target;
-		state.armyPulses = 6;
+		state.armyPulses = ArmyPulses;
 		state.armyClock = 0;
 		state.armyRank = r;
 		return true;
@@ -326,7 +380,7 @@ void ProcessNecromancerSummoningTick(Player &player)
 		return;
 	if (--state.armyClock > 0)
 		return;
-	state.armyClock = TicksPerSecond / 2;
+	state.armyClock = ArmyPulseTicks;
 	state.armyPulses--;
 	ArmyPulse(player, state);
 }
@@ -335,6 +389,121 @@ void ClearNecromancerSummoningState()
 {
 	for (OwnerState &state : Owners)
 		state = {};
+}
+
+
+std::string NecroSummoningFactsAt(const Player &player, SpellID spell, int rank)
+{
+	// The facts, from the same specs and helpers CastNecromancerSummoning runs, with this hero's masteries.
+	const int r = std::max(rank, 1);
+	std::string out;
+	const auto line = [&out](const std::string &s) {
+		if (!out.empty())
+			out += '\n';
+		out += s;
+	};
+	const auto percentLine = [&line](const char *format, int percent) { line(fmt::format(fmt::runtime(_(format)), percent)); };
+	const auto resistLine = [&]() {
+		const int resist = SummonResistPercent(Points(player, ClassTreeSkill::SummonResist));
+		if (resist > 0)
+			percentLine(N_("Resist fire, lightning and magic: {:d}%"), resist);
+	};
+	const auto body = [&](const MinionSpec &spec) {
+		line(fmt::format(fmt::runtime(_("Life: {:d}")), spec.life));
+		line(fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), spec.minDamage, spec.maxDamage));
+		line(fmt::format(fmt::runtime(_("Armour: {:d}")), spec.armorClass));
+		line(fmt::format(fmt::runtime(_("To hit: {:d}")), spec.toHit));
+		resistLine();
+	};
+	const auto golem = [&](GolemKind kind) { body(GolemSpec(player, kind, r)); };
+	switch (spell) {
+	case SpellID::RaiseSkeleton:
+		line(fmt::format(fmt::runtime(_("Skeletons: up to {:d}")), RaisedCountAtRank(r, MinionGroupCap(MinionGroup::Skeleton))));
+		body(SkeletonSpec(player, r, /*mage=*/false));
+		break;
+	case SpellID::RaiseSkeletalMage:
+		line(fmt::format(fmt::runtime(_("Mages: up to {:d}")), RaisedCountAtRank(r, MinionGroupCap(MinionGroup::Mage))));
+		body(SkeletonSpec(player, r, /*mage=*/true));
+		break;
+	case SpellID::ClayGolem:
+		golem(GolemKind::Clay);
+		line(fmt::format(fmt::runtime(_("Its blows chill: {:s} s")), SecondsText(ClayGolemChillTicks)));
+		break;
+	case SpellID::BloodGolem:
+		golem(GolemKind::Blood);
+		percentLine(N_("Heals itself and you: {:d}% of damage dealt"), 100 / BloodGolemShareDivisor);
+		break;
+	case SpellID::IronGolem:
+		golem(GolemKind::Iron);
+		percentLine(N_("Returns: {:d}% of blows taken"), 100 / IronGolemReturnDivisor);
+		break;
+	case SpellID::FireGolem:
+		golem(GolemKind::Fire);
+		line(fmt::format(fmt::runtime(_("Burns what stands beside it: {:d}% of a blow every {:s} s")), 100 / FireGolemBurnDivisor, SecondsText(FireGolemPulseTicks)));
+		percentLine(N_("Fire heals it: {:d}% of fire damage"), 100 / FireGolemFireHealDivisor);
+		break;
+	case SpellID::NecroRevive:
+		line(fmt::format(fmt::runtime(_("Revived: up to {:d}")), RaisedCountAtRank(r, MinionGroupCap(MinionGroup::Revived))));
+		percentLine(N_("Life: +{:d}% of its own"), ReviveLifePercent(r));
+		line(fmt::format(fmt::runtime(_("Duration: {:s} s")), SecondsText(ReviveTicks(Points(player, ClassTreeSkill::LastingBond), PassiveActive(player, ClassTreeSkill::ExtendedServitude)))));
+		line(std::string(_("Damage, armour and to hit: as in life")));
+		resistLine();
+		break;
+	case SpellID::CommandTheDead:
+		line(fmt::format(fmt::runtime(_("Duration: {:d} s")), CommandBaseSeconds + r));
+		break;
+	case SpellID::GatherTheDead:
+		line(fmt::format(fmt::runtime(_("Calls every minion farther than {:d} tiles to your side")), GatherLeaveRadius));
+		break;
+	case SpellID::DarkMending:
+		line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), DarkMendingRadius));
+		percentLine(N_("Minion life healed: {:d}%"), DarkMendingPercent(r));
+		break;
+	case SpellID::FrenzyOfTheDead:
+		line(fmt::format(fmt::runtime(_("Duration: {:d} s")), FrenzySeconds));
+		percentLine(N_("Minion damage: +{:d}%"), FrenzyPercent(r));
+		break;
+	case SpellID::UnholyOffering:
+		percentLine(N_("Heals you: {:d}% of the minion's life"), UnholyOfferingPercent(r));
+		break;
+	case SpellID::ArmyOfTheDead:
+		line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), ArmyRadius));
+		line(fmt::format(fmt::runtime(_("Magic damage: {:d} - {:d}")), ArmyDamageMin(r), ArmyDamageMin(r) + ArmyDamageSpread(r) - 1));
+		line(fmt::format(fmt::runtime(_("Strikes: {:d}, every {:s} s")), ArmyPulses, SecondsText(ArmyPulseTicks)));
+		break;
+	default:
+		break;
+	}
+	return out;
+}
+
+std::string NecroPassiveFactsAt(const Player &player, ClassTreeSkill skill, int points)
+{
+	(void)player; // every line reads @p points; the player's own investment is not the question here
+	const int p = std::max(points, 1);
+	switch (skill) {
+	case ClassTreeSkill::SkeletonMastery:
+		return fmt::format(fmt::runtime(_("Skeleton and mage life: +{:d}")), SkeletonMasteryLife * p) + '\n'
+		    + fmt::format(fmt::runtime(_("Skeleton and mage damage: +{:d} - +{:d}")), SkeletonMasteryMinDamage * p, SkeletonMasteryMaxDamage * p) + '\n'
+		    + fmt::format(fmt::runtime(_("Skeleton and mage to hit: +{:d}")), SkeletonMasteryToHit * p);
+	case ClassTreeSkill::GolemMastery:
+		return fmt::format(fmt::runtime(_("Golem life: +{:d}%")), GolemMasteryLifePercent * p) + '\n'
+		    + fmt::format(fmt::runtime(_("Golem to hit: +{:d}")), GolemMasteryToHit * p);
+	case ClassTreeSkill::BonePlating:
+		return fmt::format(fmt::runtime(_("Skeleton, mage and golem armour: +{:d}")), BonePlatingArmour * p);
+	case ClassTreeSkill::SummonResist:
+		return fmt::format(fmt::runtime(_("Minions resist fire, lightning and magic: {:d}%")), SummonResistPercent(p));
+	case ClassTreeSkill::LastingBond:
+		return fmt::format(fmt::runtime(_("Revived duration: +{:d} s")), LastingBondSecondsPerPoint * p);
+	case ClassTreeSkill::ExtendedServitude:
+		return fmt::format(fmt::runtime(_("Revived duration: +{:d}%")), 100 / ExtendedServitudeDivisor);
+	case ClassTreeSkill::GrislyTribute:
+		return fmt::format(fmt::runtime(_("Heals you: {:d}% of the damage your minions deal")), 100 / GrislyTributeDivisor);
+	case ClassTreeSkill::AberrantAnimator:
+		return fmt::format(fmt::runtime(_("Minions return: {:d}% of blows taken")), 100 / AberrantAnimatorDivisor);
+	default:
+		return CursePassiveFactsAt(skill, points); // Curse Mastery, Essence Tap, Wide Malice, Eternal Torment
+	}
 }
 
 } // namespace devilution::oracool

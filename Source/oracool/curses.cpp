@@ -9,6 +9,8 @@
 #include <array>
 #include <string>
 
+#include <fmt/format.h>
+
 #include "DiabloUI/ui_flags.hpp"
 #include "engine.h"
 #include "engine/random.hpp"
@@ -34,6 +36,65 @@ namespace devilution::oracool {
 namespace {
 
 constexpr int TicksPerSecond = 20;
+
+// ---- the curses' numbers, one place each: the rules below and CurseFactsAt / CursePassiveFactsAt both read them ----
+
+/** Duration 8 s + 1 s a rank; Curse Mastery adds a fifth of that per point. */
+constexpr int CurseBaseSeconds = 8;
+constexpr int CurseMasteryPercentPerPoint = 20;
+/** Eternal Torment: a day of ticks - the curse ends with the monster (its slot is cleared with the body). */
+constexpr int EternalTormentTicks = 24 * 60 * 60 * TicksPerSecond;
+/** Area curses: radius 2 around the cursor, +1 a point of Wide Malice, 5 at most. */
+constexpr int CurseBaseRadius = 2;
+constexpr int CurseMaxRadius = 5;
+constexpr int WeakenDamagePercent = -33;
+constexpr int DecrepifyDamagePercent = -25;
+constexpr int DecrepifyArmorPercent = -20;
+constexpr int DecrepifyTakenPercent = 20;
+/** Terror: past this distance from the hero the monster stands and shivers. */
+constexpr int TerrorFleeTiles = 9;
+/** Attract: monsters within this distance of the cursed one turn on it. */
+constexpr int AttractReach = 8;
+/** Death Mark: the burst reaches this far; the share is clamped to this many life points. */
+constexpr int DeathMarkBurstRadius = 2;
+constexpr int DeathMarkMinBurst = 4;
+constexpr int DeathMarkMaxBurst = 400;
+/** Soul Harvest: every cursed monster within this distance of the hero; Essence per monster torn. */
+constexpr int SoulHarvestRadius = 6;
+constexpr int SoulHarvestEssence = 5;
+
+int CurseTicksAt(int rank, int masteryPoints)
+{
+	int ticks = (CurseBaseSeconds + rank) * TicksPerSecond;
+	ticks += ticks * CurseMasteryPercentPerPoint * masteryPoints / 100;
+	return ticks;
+}
+
+int CurseRadiusAt(int wideMalicePoints)
+{
+	return std::min(CurseBaseRadius + wideMalicePoints, CurseMaxRadius);
+}
+
+int AmplifyPercent(int rank) { return std::min(50 + 5 * rank, 100); }
+int LowerResistPercent(int rank) { return std::min(25 + 3 * rank, 70); }
+int DoomPercent(int rank) { return std::min(15 + 2 * rank, 45); }
+int FrailtyPercent(int rank) { return std::min(10 + rank, 25); }
+int IronMaidenPercent(int rank) { return 100 + 25 * rank; }
+int LifeTapPercent(int rank) { return std::min(20 + 2 * rank, 50); }
+/** Bane: acid (the engine's poison) once a second, in whole points. */
+int BanePerSecond(int rank) { return 2 + rank; }
+/** Soul Harvest: magic damage min + GenerateRnd(spread), in whole points. */
+int SoulHarvestMin(int rank) { return 6 + 2 * rank; }
+int SoulHarvestSpread(int rank) { return 6 + 2 * rank; }
+int EssenceTapEssence(int points) { return 2 + 2 * points; }
+
+/** @brief @p ticks as seconds: "12", or "12.5" when it does not come out whole. */
+std::string SecondsText(int ticks)
+{
+	if (ticks % TicksPerSecond == 0)
+		return fmt::format("{:d}", ticks / TicksPerSecond);
+	return fmt::format("{:.1f}", static_cast<double>(ticks) / TicksPerSecond);
+}
 
 struct Curse {
 	CurseKind kind = CurseKind::None;
@@ -131,10 +192,10 @@ bool Lay(Monster &monster, CurseKind kind, int ticks, int rank, const Player &ow
 	curse.owner = owner.getId();
 	switch (kind) {
 	case CurseKind::Weaken:
-		DebuffMonster(monster, ticks, -33, 0);
+		DebuffMonster(monster, ticks, WeakenDamagePercent, 0);
 		break;
 	case CurseKind::Decrepify:
-		DebuffMonster(monster, ticks, -25, -20);
+		DebuffMonster(monster, ticks, DecrepifyDamagePercent, DecrepifyArmorPercent);
 		ChillMonster(monster, ticks);
 		break;
 	case CurseKind::Confuse:
@@ -243,27 +304,26 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 		int torn = 0;
 		for (size_t i = 0; i < ActiveMonsterCount; i++) {
 			Monster &monster = Monsters[ActiveMonsters[i]];
-			if (!Live(monster) || monster.position.tile.WalkingDistance(player.position.tile) > 6)
+			if (!Live(monster) || monster.position.tile.WalkingDistance(player.position.tile) > SoulHarvestRadius)
 				continue;
-			OwnerStrikes(player, monster, DamageType::Magic, (6 + 2 * r + GenerateRnd(6 + 2 * r)) << 6);
+			OwnerStrikes(player, monster, DamageType::Magic, (SoulHarvestMin(r) + GenerateRnd(SoulHarvestSpread(r))) << 6);
 			torn++;
 		}
 		if (torn == 0) {
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
-		GainEssence(player, 5 * torn);
+		GainEssence(player, SoulHarvestEssence * torn);
 		return true;
 	}
 	const CurseKind kind = KindOf(spell);
 	if (kind == CurseKind::None)
 		return false;
-	int ticks = (8 + r) * TicksPerSecond;
-	ticks += ticks * 20 * Points(player, ClassTreeSkill::CurseMastery) / 100;
+	int ticks = CurseTicksAt(r, Points(player, ClassTreeSkill::CurseMastery));
 	// Eternal Torment: it ends when the monster does. (A day of ticks; the slot is cleared with the body.)
 	if (PassiveActive(player, ClassTreeSkill::EternalTorment))
-		ticks = 24 * 60 * 60 * TicksPerSecond;
-	const int radius = std::min(2 + Points(player, ClassTreeSkill::WideMalice), 5);
+		ticks = EternalTormentTicks;
+	const int radius = CurseRadiusAt(Points(player, ClassTreeSkill::WideMalice));
 	const bool single = IsAnyOf(kind, CurseKind::Attract, CurseKind::DeathMark);
 	int laid = 0;
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
@@ -297,17 +357,17 @@ int CurseDamageTaken(const Monster &monster, DamageType type, int damage)
 	switch (curse.kind) {
 	case CurseKind::AmplifyDamage:
 		if (type == DamageType::Physical)
-			damage += damage * std::min(50 + 5 * curse.rank, 100) / 100;
+			damage += damage * AmplifyPercent(curse.rank) / 100;
 		break;
 	case CurseKind::LowerResist:
 		if (IsAnyOf(type, DamageType::Fire, DamageType::Lightning, DamageType::Magic, DamageType::Acid))
-			damage += damage * std::min(25 + 3 * curse.rank, 70) / 100;
+			damage += damage * LowerResistPercent(curse.rank) / 100;
 		break;
 	case CurseKind::Decrepify:
-		damage += damage * 20 / 100;
+		damage += damage * DecrepifyTakenPercent / 100;
 		break;
 	case CurseKind::Doom:
-		damage += damage * std::min(15 + 2 * curse.rank, 45) / 100;
+		damage += damage * DoomPercent(curse.rank) / 100;
 		break;
 	default:
 		break;
@@ -321,7 +381,7 @@ bool CurseFinishes(const Monster &monster, int hitPoints, int maxHitPoints)
 		return false;
 	if (monster.isUnique())
 		return false;
-	return hitPoints <= maxHitPoints * std::min(10 + Of(monster).rank, 25) / 100;
+	return hitPoints <= maxHitPoints * FrailtyPercent(Of(monster).rank) / 100;
 }
 
 void OnCursedMonsterDealtBlow(Monster &monster, int damage)
@@ -331,14 +391,14 @@ void OnCursedMonsterDealtBlow(Monster &monster, int damage)
 	Player *owner = OwnerOf(Of(monster));
 	if (owner == nullptr)
 		return;
-	OwnerStrikes(*owner, monster, DamageType::Physical, damage * (100 + 25 * Of(monster).rank) / 100);
+	OwnerStrikes(*owner, monster, DamageType::Physical, damage * IronMaidenPercent(Of(monster).rank) / 100);
 }
 
 void OnCursedMonsterStruck(const Monster &monster, Player &player, Monster *minion, int damage)
 {
 	if (!Live(monster) || Of(monster).kind != CurseKind::LifeTap || damage <= 0)
 		return;
-	const int share = damage * std::min(20 + 2 * Of(monster).rank, 50) / 100;
+	const int share = damage * LifeTapPercent(Of(monster).rank) / 100;
 	if (minion != nullptr) {
 		minion->hitPoints = std::min(minion->hitPoints + share, minion->maxHitPoints);
 		return;
@@ -364,7 +424,7 @@ bool CursedMonsterFlees(Monster &monster)
 	if (owner == nullptr)
 		return false;
 	// Far enough: it stands and shivers rather than walking off the map.
-	if (monster.position.tile.WalkingDistance(owner->position.tile) > 9)
+	if (monster.position.tile.WalkingDistance(owner->position.tile) > TerrorFleeTiles)
 		return true;
 	return MonsterStepAwayFrom(monster, owner->position.tile);
 }
@@ -378,7 +438,7 @@ int CurseLureTarget(const Monster &monster)
 		if (&other == &monster || !Live(other) || Of(other).kind != CurseKind::Attract)
 			continue;
 		const int distance = monster.position.tile.WalkingDistance(other.position.tile);
-		if (distance > 8)
+		if (distance > AttractReach)
 			continue;
 		if (best < 0 || distance < bestDistance) {
 			best = static_cast<int>(other.getId());
@@ -397,14 +457,14 @@ void OnCursedMonsterDeath(const Monster &monster)
 	if (owner != nullptr) {
 		// Essence Tap: a cursed death returns Essence.
 		if (const int tap = Points(*owner, ClassTreeSkill::EssenceTap); tap > 0)
-			GainEssence(*owner, 2 + 2 * tap);
+			GainEssence(*owner, EssenceTapEssence(tap));
 		// Death Mark: the corpse bursts as a Corpse Explosion of the curse's rank.
 		if (curse.kind == CurseKind::DeathMark) {
 			AddMissile(monster.position.tile, monster.position.tile, Direction::South, MissileID::CorpseBurst, TARGET_MONSTERS, static_cast<int>(owner->getId()), 0, 0);
-			const int share = std::clamp((monster.maxHitPoints >> 6) * std::min(40 + 5 * curse.rank, 100) / 100, 4, 400) << 6;
+			const int share = std::clamp((monster.maxHitPoints >> 6) * CorpseBurstPercent(curse.rank) / 100, DeathMarkMinBurst, DeathMarkMaxBurst) << 6;
 			for (size_t i = 0; i < ActiveMonsterCount; i++) {
 				Monster &other = Monsters[ActiveMonsters[i]];
-				if (&other == &monster || other.position.tile.WalkingDistance(monster.position.tile) > 2)
+				if (&other == &monster || other.position.tile.WalkingDistance(monster.position.tile) > DeathMarkBurstRadius)
 					continue;
 				OwnerStrikes(*owner, other, DamageType::Physical, share);
 			}
@@ -426,7 +486,7 @@ void ProcessCursesTick(Player &player)
 		}
 		curse.ticks--;
 		if (curse.kind == CurseKind::Bane && curse.ticks % TicksPerSecond == 0)
-			OwnerStrikes(player, monster, DamageType::Acid, (2 + curse.rank) << 6);
+			OwnerStrikes(player, monster, DamageType::Acid, BanePerSecond(curse.rank) << 6);
 		if (curse.ticks == 0)
 			Release(monster, curse);
 	}
@@ -482,6 +542,112 @@ void DrawCurseMarker(const Surface &out, const Monster &monster, Point anchor)
 		return;
 	FillRect(out, plate.position.x, plate.position.y, plate.size.width, plate.size.height, 0);
 	DrawString(out, letter, plate, { colour | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+}
+
+
+int CorpseBurstPercent(int rank)
+{
+	return std::min(40 + 5 * rank, 100);
+}
+
+std::string CurseFactsAt(const Player &player, SpellID spell, int rank)
+{
+	// The facts, from the same helpers CastNecromancerCurse and the seams above run.
+	const int r = std::max(rank, 1);
+	std::string out;
+	const auto line = [&out](const std::string &s) {
+		if (!out.empty())
+			out += '\n';
+		out += s;
+	};
+	const auto percentLine = [&line](const char *format, int percent) { line(fmt::format(fmt::runtime(_(format)), percent)); };
+	if (spell == SpellID::SoulHarvest) {
+		line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), SoulHarvestRadius));
+		line(fmt::format(fmt::runtime(_("Magic damage: {:d} - {:d} to each cursed monster")), SoulHarvestMin(r), SoulHarvestMin(r) + SoulHarvestSpread(r) - 1));
+		line(fmt::format(fmt::runtime(_("Essence: +{:d} for each")), SoulHarvestEssence));
+		return out;
+	}
+	const CurseKind kind = KindOf(spell);
+	if (kind == CurseKind::None)
+		return {};
+	line(fmt::format(fmt::runtime(_("Duration: {:s} s")), SecondsText(CurseTicksAt(r, Points(player, ClassTreeSkill::CurseMastery)))));
+	if (PassiveActive(player, ClassTreeSkill::EternalTorment))
+		line(std::string(_("Eternal Torment: lasts until the monster dies")));
+	if (IsAnyOf(kind, CurseKind::Attract, CurseKind::DeathMark))
+		line(std::string(_("Target: one monster")));
+	else
+		line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), CurseRadiusAt(Points(player, ClassTreeSkill::WideMalice))));
+	switch (kind) {
+	case CurseKind::AmplifyDamage:
+		percentLine(N_("Physical damage taken: +{:d}%"), AmplifyPercent(r));
+		break;
+	case CurseKind::DimVision:
+		line(fmt::format(fmt::runtime(_("Sees you only within: {:d} tile")), DimVisionSightTiles));
+		break;
+	case CurseKind::Weaken:
+		percentLine(N_("Enemy damage: {:d}%"), WeakenDamagePercent);
+		break;
+	case CurseKind::Frailty:
+		percentLine(N_("Dies below: {:d}% life"), FrailtyPercent(r));
+		line(std::string(_("Uniques are not affected")));
+		break;
+	case CurseKind::IronMaiden:
+		percentLine(N_("Returns: {:d}% of its blows"), IronMaidenPercent(r));
+		break;
+	case CurseKind::Terror:
+		line(fmt::format(fmt::runtime(_("Flees up to: {:d} tiles")), TerrorFleeTiles));
+		line(std::string(_("Uniques are not affected")));
+		break;
+	case CurseKind::Bane:
+		line(fmt::format(fmt::runtime(_("Poison damage: {:d} a second")), BanePerSecond(r)));
+		break;
+	case CurseKind::Confuse:
+		line(std::string(_("Attacks the nearest creature, friend or foe")));
+		line(std::string(_("Uniques are not affected")));
+		break;
+	case CurseKind::LifeTap:
+		percentLine(N_("Heals the striker: {:d}% of damage dealt"), LifeTapPercent(r));
+		break;
+	case CurseKind::Attract:
+		line(fmt::format(fmt::runtime(_("Draws monsters within: {:d} tiles")), AttractReach));
+		break;
+	case CurseKind::Decrepify:
+		percentLine(N_("Enemy damage: {:d}%"), DecrepifyDamagePercent);
+		percentLine(N_("Enemy armour: {:d}%"), DecrepifyArmorPercent);
+		percentLine(N_("Damage taken: +{:d}%"), DecrepifyTakenPercent);
+		line(std::string(_("Slowed to half speed")));
+		break;
+	case CurseKind::DeathMark:
+		line(fmt::format(fmt::runtime(_("Bursts on death: {:d}% of its life within {:d} tiles")), CorpseBurstPercent(r), DeathMarkBurstRadius));
+		break;
+	case CurseKind::LowerResist:
+		percentLine(N_("Fire, lightning, magic and poison damage taken: +{:d}%"), LowerResistPercent(r));
+		break;
+	case CurseKind::Doom:
+		percentLine(N_("Damage taken: +{:d}%"), DoomPercent(r));
+		line(std::string(_("No other curse can replace it")));
+		break;
+	case CurseKind::None:
+		break;
+	}
+	return out;
+}
+
+std::string CursePassiveFactsAt(ClassTreeSkill skill, int points)
+{
+	const int p = std::max(points, 1);
+	switch (skill) {
+	case ClassTreeSkill::CurseMastery:
+		return fmt::format(fmt::runtime(_("Curse duration: +{:d}%")), CurseMasteryPercentPerPoint * p);
+	case ClassTreeSkill::EssenceTap:
+		return fmt::format(fmt::runtime(_("Essence per cursed death: {:d}")), EssenceTapEssence(p));
+	case ClassTreeSkill::WideMalice:
+		return fmt::format(fmt::runtime(_("Curse radius: {:d} tiles")), CurseRadiusAt(p));
+	case ClassTreeSkill::EternalTorment:
+		return std::string(_("Curse duration: until the monster dies"));
+	default:
+		return {};
+	}
 }
 
 } // namespace devilution::oracool

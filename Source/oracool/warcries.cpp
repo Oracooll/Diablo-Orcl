@@ -125,6 +125,17 @@ int EarshotFor(int rank)
 	return AuraRadiusForPoints(rank);
 }
 
+/** @brief Taunt and Inner Sight carry two tiles past the other cries. The cast and the tooltip both read this. */
+int FarEarshotFor(int rank)
+{
+	return EarshotFor(rank) + 2;
+}
+
+// Tranquility: what stands within TranquilityReach is slowed, and TranquilityHealPercent of the Monk's
+// life returns each second. Neither grows; the duration does.
+constexpr int TranquilityReach = 2;
+constexpr int TranquilityHealPercent = 2;
+
 bool ShrugsOff(const Monster &monster)
 {
 	return monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None || monster.type().type == MT_DIABLO;
@@ -305,7 +316,7 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 	case SpellID::Howl:
 		return ForEachInEarshot(here, earshot, [&](Monster &m) { Repel(m, here, 4 + rank); }) > 0;
 	case SpellID::Taunt:
-		return ForEachInEarshot(here, earshot + 2, [&](Monster &m) {
+		return ForEachInEarshot(here, FarEarshotFor(rank), [&](Monster &m) {
 			if (m.mode == MonsterMode::Petrified)
 				return;
 			m.activeForTicks = UINT8_MAX;
@@ -373,7 +384,7 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 
 	// --- the Rogue's ---
 	case SpellID::InnerSight:
-		return ForEachInEarshot(here, earshot + 2, [&](Monster &m) {
+		return ForEachInEarshot(here, FarEarshotFor(rank), [&](Monster &m) {
 			DebuffMonster(m, (20 + 2 * (rank - 1)) * seconds, 0, -(30 + 2 * (rank - 1)));
 		}) > 0;
 	case SpellID::SlowMissiles:
@@ -516,6 +527,11 @@ int MonsterDebuffArmorPercent(const Monster &monster)
 	return std::max(percent, -90);
 }
 
+int RedemptionSharePercent(int points)
+{
+	return 2 + points;
+}
+
 int MonsterDebuffToHit(const Monster &monster)
 {
 	if (const int p = AuraPointsOn(monster, Skill::Weaken); p > 0)
@@ -573,9 +589,9 @@ void ProcessWarcriesTick(Player &player)
 	// Tranquility: the ground around the Monk is a sanctuary - what stands beside him is slowed,
 	// and every second a fiftieth of his life returns.
 	if (const Buff *tranquility = FindBuff(player, SpellID::Tranquility); tranquility != nullptr) {
-		ForEachInEarshot(player.position.tile, 2, [&](Monster &m) { ChillMonster(m, 3); });
+		ForEachInEarshot(player.position.tile, TranquilityReach, [&](Monster &m) { ChillMonster(m, 3); });
 		if (tranquility->ticksLeft % TicksPerSecond == 0 && player._pHitPoints < player._pMaxHP) {
-			const int heal = player._pMaxHP / 50;
+			const int heal = player._pMaxHP * TranquilityHealPercent / 100;
 			player._pHitPoints = std::min(player._pHitPoints + heal, player._pMaxHP);
 			player._pHPBase = std::min(player._pHPBase + heal, player._pMaxHPBase);
 			RedrawComponent(PanelDrawComponent::Health);
@@ -605,7 +621,7 @@ void ProcessWarcriesTick(Player &player)
 		if (++redemptionClock % TicksPerSecond == 0) {
 			if (const std::optional<Point> corpse = CorpseNear(player.position.tile, radius); corpse) {
 				ConsumeCorpse(*corpse);
-				const int share = 2 + points;
+				const int share = RedemptionSharePercent(points);
 				const int heal = player._pMaxHP * share / 100;
 				const int gain = player._pMaxMana * share / 100;
 				player._pHitPoints = std::min(player._pHitPoints + heal, player._pMaxHP);
@@ -682,7 +698,7 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::Tranquility:
 		return N_("A sanctuary about you for 13 seconds, +1 per rank: what stands beside you is slowed, and 2% of your life returns each second.");
 	case SpellID::InnerSight:
-		return N_("Reveals the weak points of everything in earshot: -33% armour, -2% more per rank, for 20 seconds.");
+		return N_("Reveals the weak points of everything in earshot: -30% armour, -2% more per rank, for 20 seconds.");
 	case SpellID::SlowMissiles:
 		return N_("For 20 seconds, +4 per rank, 50% of the arrows aimed at you turn aside, +5% per rank.");
 	case SpellID::Vengeance:
@@ -739,6 +755,8 @@ std::string WarcryFactsAt(SpellID spell, int rank)
 		line(fmt::format(fmt::runtime(_("Repels {:d} tiles")), 4 + rank));
 		break;
 	case SpellID::Taunt:
+		radius(FarEarshotFor(rank));
+		break;
 	case SpellID::Daze:
 		radius(earshot);
 		break;
@@ -769,7 +787,7 @@ std::string WarcryFactsAt(SpellID spell, int rank)
 		line(fmt::format(fmt::runtime(_("Sleep: {:.1f} s")), 4.0 + 0.5 * (rank - 1)));
 		break;
 	case SpellID::SoundShock:
-		radius(earshot);
+		line(std::string(_("Strikes the three tiles ahead")));
 		line(fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), 4 + 2 * rank, 10 + 4 * rank));
 		break;
 	case SpellID::BardShout:
@@ -786,10 +804,12 @@ std::string WarcryFactsAt(SpellID spell, int rank)
 		line(fmt::format(fmt::runtime(_("Fire, lightning and magic resistance: +{:d}")), 20 + 5 * (rank - 1)));
 		break;
 	case SpellID::Tranquility:
+		radius(TranquilityReach);
 		duration(12 + rank);
+		line(fmt::format(fmt::runtime(_("Slows what stands in reach; heals {:d}% of your life a second")), TranquilityHealPercent));
 		break;
 	case SpellID::InnerSight:
-		radius(earshot + 2);
+		radius(FarEarshotFor(rank));
 		duration(20 + 2 * (rank - 1));
 		line(fmt::format(fmt::runtime(_("Enemy armour: -{:d}%")), 30 + 2 * (rank - 1)));
 		break;

@@ -32,6 +32,8 @@
  */
 #pragma once
 
+#include <string>
+
 #include "engine/point.hpp"
 #include "oracool/class_tree.h"
 #include "spelldat.h"
@@ -43,6 +45,13 @@ struct Missile;
 } // namespace devilution
 
 namespace devilution::oracool {
+
+/**
+ * @brief Tooltip lines for the tree passives and Passive Skills page rows whose RULE lives in passives.cpp, at
+ * @p points (1 for a Passive Skills page row): the main effect with its numbers, from the same named
+ * helpers the rule reads. Empty for any other row. See oracool/skill_facts.h for the two rules.
+ */
+std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int points);
 
 /**
  * @brief Whether @p skill is live on @p player: implemented, its class, unlocked, and either slotted

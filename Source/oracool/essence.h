@@ -31,6 +31,8 @@ namespace oracool {
 
 /** The pool before passives, in whole points. */
 constexpr int BaseMaxEssence = 100;
+/** @brief Overwhelming Essence (N8): the pool is larger by a fifth. */
+constexpr int OverwhelmingEssenceBonus = BaseMaxEssence / 5;
 /** Seconds from empty to full. */
 constexpr int EssenceRefillSeconds = 20;
 /** Game ticks a second - the engine's fixed logic rate. */

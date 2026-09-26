@@ -1119,6 +1119,21 @@ size_t BuildClassTreePage(HeroClass heroClass, int page, ClassTreeSkill *out);
 std::string ClassTreeEffectLine(const Player &player, ClassTreeSkill skill, bool withNext = true);
 
 /**
+ * @brief One rank's lines of that block for @p skill at @p points: the main effect with its numbers,
+ * then the level-up stat - what "Current Skill Level" and "Next Level" each print (2026-09-26 rules).
+ */
+std::string ClassTreeRankBlock(const Player &player, ClassTreeSkill skill, int points);
+
+/** @brief Whether @p skill has a level-up stat - a character stat that grows with every rank. */
+bool ClassTreeHasLevelUpStat(ClassTreeSkill skill);
+
+/** @brief Adds @p skill's level-up stat at @p points to @p totals, exactly as the character sheet does. */
+void ApplyClassTreeLevelUpStat(ClassTreeSkill skill, int points, ItemBonusTotals &totals);
+
+/** @brief @p skill's level-up stat at @p points as its tooltip line, or empty without one. */
+std::string ClassTreeLevelUpLine(ClassTreeSkill skill, int points);
+
+/**
  * @brief Why @p skill cannot be readied yet, or an empty string if it can.
  *
  * Exists because a locked row used to refuse SILENTLY (user, 2026-08-18: "left/right clicks seem to

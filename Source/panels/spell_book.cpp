@@ -1777,7 +1777,6 @@ std::string BuildSpellStatBlock(SpellID sn, bool withNext)
 	const int required = GetSpellData(sn).minInt;
 	const int level = player.GetSpellLevel(sn);
 	const bool isSpell = GetSBookTrans(sn, false) == SpellType::Spell;
-	const bool heals = sn == SpellID::Healing || sn == SpellID::HealOther;
 
 	if (player._pMagic < required)
 		line(fmt::format(fmt::runtime(_("Requires {:d} Magic")), required));
@@ -1786,29 +1785,9 @@ std::string BuildSpellStatBlock(SpellID sn, bool withNext)
 	// functions the game itself runs, so the sheet and the cast cannot disagree. Mana FALLS as a
 	// spell levels here - the adjustment is subtracted - so the next block's mana is a reason to
 	// spend a point rather than a price for it, and D2 quotes it for the same reason.
+	// Shared with the Abilities window's tree rows (oracool/skill_facts.h), so a spell reads the same on both.
 	const auto levelLines = [&](int at) {
-		std::string text;
-		const auto add = [&text](const std::string &s) {
-			if (!text.empty())
-				text += '\n';
-			text += s;
-		};
-		if (const std::string resource = oracool::SkillResourceLine(player, sn, at); !resource.empty())
-			add(resource); // Mana Cost, or the Barbarian's Rage Cost / Generates
-
-		if (sn == SpellID::BoneSpirit) {
-			add(std::string(_("Damage: 1/3 of target's health")));
-			return text;
-		}
-		int min = -1;
-		int max = -1;
-		GetDamageAmtAtLevel(sn, at, &min, &max);
-		if (min != -1)
-			add(fmt::format(fmt::runtime(heals ? _("Heals: {:d} - {:d}") : _("Damage: {:d} - {:d}")), min, max));
-		const std::string facts = oracool::SkillFactsAt(sn, at); // a cold spell's freeze or chill, an arrow's count
-		if (!facts.empty())
-			add(facts);
-		return text;
+		return oracool::SpellLevelLines(player, sn, at);
 	};
 
 	// THE DIABLO II SHAPE (user, 2026-09-05): "Current Spell Level: N" over this level's numbers, a

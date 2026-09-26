@@ -39,6 +39,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
@@ -84,6 +85,11 @@ struct CompanionStats {
 };
 
 CompanionStats CompanionStatsAt(CompanionKind kind, int rank);
+/**
+ * @brief Tooltip lines for @p spell's companions at @p rank - life, resistances, damage, ability, duration - from the
+ * same numbers the companion lives by. Empty for a spell that calls none. See oracool/skill_facts.h for the two rules.
+ */
+std::string CompanionFactsAt(SpellID spell, int rank);
 const char *CompanionName(CompanionKind kind);
 CompanionAttack CompanionAttackOf(CompanionKind kind);
 bool IsCompanionSpell(SpellID spell);

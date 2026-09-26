@@ -11,7 +11,10 @@
  * when a blow lands on one, Lasting Bond when a Revived is timed.
  */
 
+#include <string>
+
 #include "engine/point.hpp"
+#include "oracool/class_tree.h"
 #include "spelldat.h"
 
 namespace devilution {
@@ -28,6 +31,16 @@ bool IsNecromancerSummoning(SpellID spell);
 void ProcessNecromancerSummoningTick(Player &player);
 /** @brief A new game. */
 void ClearNecromancerSummoningState();
+
+/** @brief Tooltip lines for summoning @p spell at @p rank for @p player (masteries read): count, life, damage, armour, duration. */
+std::string NecroSummoningFactsAt(const Player &player, SpellID spell, int rank);
+
+/**
+ * @brief Tooltip lines for the tree passives and Passive Skills page rows whose RULE lives in the Necromancer's modules (necro_summoning.cpp, curses.cpp, corpses.cpp, minions.cpp), at
+ * @p points (1 for a Passive Skills page row): the main effect with its numbers, from the same named
+ * helpers the rule reads. Empty for any other row. See oracool/skill_facts.h for the two rules.
+ */
+std::string NecroPassiveFactsAt(const Player &player, ClassTreeSkill skill, int points);
 
 /** @brief How many of a group a hero of this rank may keep: 1 at rank 1, one more every three ranks, @p cap at most. */
 int RaisedCountAtRank(int rank, int cap);

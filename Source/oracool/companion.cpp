@@ -220,6 +220,46 @@ const CompanionDef &DefOf(CompanionKind kind)
 	return Defs[static_cast<size_t>(kind)];
 }
 
+// ---- the ability numbers, one place each: TryCompanionAbility and CompanionTauntTarget read them, and so does
+// ---- CompanionFactsAt, so the rule and its tooltip cannot disagree (2026-09-26).
+
+/** @brief Every ability hits a quarter harder from this level. */
+constexpr int AbilityPowerLevel = 10;
+/** @brief Every ability comes round a quarter sooner from this level. */
+constexpr int AbilityHasteLevel = 20;
+/** @brief How far a decoy draws, how far a guard holds, and how far its taunt holds while it lasts. */
+constexpr int BaitHoldRadius = 6;
+constexpr int GuardHoldRadius = 3;
+constexpr int GuardTauntRadius = 8;
+constexpr int TauntTicks = 4 * TicksPerSecond;
+
+/** @brief An ability's power at @p rank, in percent of the owner's blow, before the ability's own share. */
+int AbilityPower(const CompanionStats &stats, int rank)
+{
+	return stats.damagePercent * (rank >= AbilityPowerLevel ? 125 : 100) / 100;
+}
+
+/** @brief The share of the owner's blow @p ability strikes for at @p power: the leap and the hammer land half again as hard. */
+int AbilityPercent(Ability ability, int power)
+{
+	return (ability == Ability::Leap || ability == Ability::HammerToss) ? power * 3 / 2 : power;
+}
+
+/** @brief The Valkyrie's volley: three arrows, five from the power level. */
+int VolleyArrows(int rank)
+{
+	return rank >= AbilityPowerLevel ? 5 : 3;
+}
+
+/** @brief How long @p def's ability takes to come round at @p rank, in ticks. */
+int AbilityCooldownTicks(const CompanionDef &def, int rank)
+{
+	int ticks = def.abilitySeconds * TicksPerSecond;
+	if (rank >= AbilityHasteLevel)
+		ticks = ticks * 3 / 4;
+	return ticks;
+}
+
 struct KindList {
 	std::array<CompanionKind, 3> kinds;
 	uint8_t count;
@@ -578,6 +618,68 @@ CompanionStats CompanionStatsAt(CompanionKind kind, int rank)
 	};
 }
 
+std::string CompanionFactsAt(SpellID spell, int rank)
+{
+	const KindList list = KindsFor(spell);
+	if (list.count == 0)
+		return {};
+	const int r = std::max(rank, 1);
+	std::string out;
+	const auto say = [&out](auto format, const auto &...args) {
+		if (!out.empty())
+			out += '\n';
+		out += fmt::format(fmt::runtime(format), args...);
+	};
+	const auto secs = [](int ticks) {
+		if (ticks % TicksPerSecond == 0)
+			return fmt::format("{:d}", ticks / TicksPerSecond);
+		return fmt::format("{:.1f}", static_cast<double>(ticks) / TicksPerSecond);
+	};
+
+	// The Ancients share one set of numbers; the first speaks for all three.
+	const CompanionKind first = list.kinds[0];
+	const CompanionStats stats = CompanionStatsAt(first, r);
+	if (list.count > 1)
+		say(_("Life: {:d} each"), stats.hitPoints);
+	else
+		say(_("Life: {:d}"), stats.hitPoints);
+	say(_("Fire, lightning, magic, cold and acid resistance: {:d}%"), stats.elementalResist);
+	say(_("Physical damage reduced: {:d}%"), stats.physicalResist);
+	if (DefOf(first).attack != CompanionAttack::None)
+		say(_("Damage: {:d}% of yours"), stats.damagePercent);
+
+	for (uint8_t i = 0; i < list.count; i++) {
+		const CompanionKind kind = list.kinds[i];
+		const CompanionDef &def = DefOf(kind);
+		const int percent = AbilityPercent(def.ability, AbilityPower(CompanionStatsAt(kind, r), r));
+		const std::string every = secs(AbilityCooldownTicks(def, r));
+		switch (def.ability) {
+		case Ability::Volley:
+			say(_("Volley: {:d} arrows every {} s"), VolleyArrows(r), every);
+			break;
+		case Ability::Leap:
+			say(_("{} leaps in: {:d}% of yours to everything around, every {} s"), _(def.name), percent, every);
+			break;
+		case Ability::Whirlwind:
+			say(_("{} whirls: {:d}% of yours to everything around, every {} s"), _(def.name), percent, every);
+			break;
+		case Ability::HammerToss:
+			say(_("{} hurls his hammer: {:d}% of yours, every {} s"), _(def.name), percent, every);
+			break;
+		case Ability::Taunt:
+			say(_("Holds the enemies within {:d} tiles; every {} s a taunt holds all within {:d} for {} s"), GuardHoldRadius, every,
+			    GuardTauntRadius, secs(TauntTicks));
+			break;
+		case Ability::None:
+			if (def.role == Role::Bait)
+				say(_("Draws every enemy within {:d} tiles"), BaitHoldRadius);
+			break;
+		}
+	}
+	say(_("Duration: {:d} s"), stats.seconds);
+	return out;
+}
+
 const char *CompanionName(CompanionKind kind)
 {
 	return DefOf(kind).name;
@@ -815,7 +917,7 @@ int CompanionTauntTarget(const Monster &monster)
 		const Monster &body = Monsters[inst.slot];
 		if (body.position.tile == GolemHoldingCell || (body.hitPoints >> 6) <= 0 || body.mode == MonsterMode::Death)
 			continue;
-		const int radius = def.role == Role::Bait ? 6 : (inst.tauntTicks > 0 ? 8 : 3);
+		const int radius = def.role == Role::Bait ? BaitHoldRadius : (inst.tauntTicks > 0 ? GuardTauntRadius : GuardHoldRadius);
 		const int distance = monster.position.tile.WalkingDistance(body.position.tile);
 		if (distance <= radius && (best < 0 || distance < bestDistance)) {
 			best = inst.slot;
@@ -958,7 +1060,7 @@ CompanionAct TryCompanionAbility(Monster &companion, Monster &target)
 	const CompanionDef &def = DefOf(inst->kind);
 	const CompanionStats stats = CompanionStatsAt(inst->kind, inst->rank);
 	// Level 10 makes every ability hit a quarter harder; level 20 brings them round a quarter sooner.
-	const int power = stats.damagePercent * (inst->rank >= 10 ? 125 : 100) / 100;
+	const int power = AbilityPower(stats, inst->rank);
 	const Point here = companion.position.tile;
 	const Point there = target.position.tile;
 	const int distance = here.WalkingDistance(there);
@@ -974,7 +1076,7 @@ CompanionAct TryCompanionAbility(Monster &companion, Monster &target)
 	case Ability::Leap:
 		if (distance >= 2 && distance <= 6 && PlaceCompanionNear(companion, there, 1)) {
 			for (Monster *monster : TargetsWithin(companion.position.tile, 1))
-				StrikeFor(*owner, *monster, OwnerBlow(*owner, power * 3 / 2));
+				StrikeFor(*owner, *monster, OwnerBlow(*owner, AbilityPercent(def.ability, power)));
 			Ring(*inst, companion.position.tile);
 			act = CompanionAct::Acted;
 		}
@@ -982,7 +1084,7 @@ CompanionAct TryCompanionAbility(Monster &companion, Monster &target)
 	case Ability::Whirlwind: {
 		const std::vector<Monster *> around = TargetsWithin(here, 1);
 		for (Monster *monster : around)
-			StrikeFor(*owner, *monster, OwnerBlow(*owner, power));
+			StrikeFor(*owner, *monster, OwnerBlow(*owner, AbilityPercent(def.ability, power)));
 		if (!around.empty()) {
 			Ring(*inst, here);
 			act = CompanionAct::Acted;
@@ -991,25 +1093,21 @@ CompanionAct TryCompanionAbility(Monster &companion, Monster &target)
 	}
 	case Ability::HammerToss:
 		if (distance <= 6 && LineClearMissile(here, there)) {
-			StrikeFor(*owner, target, OwnerBlow(*owner, power * 3 / 2));
+			StrikeFor(*owner, target, OwnerBlow(*owner, AbilityPercent(def.ability, power)));
 			Ring(*inst, there);
 			act = CompanionAct::Acted;
 		}
 		break;
 	case Ability::Taunt:
-		inst->tauntTicks = 4 * TicksPerSecond;
+		inst->tauntTicks = TauntTicks;
 		Ring(*inst, here);
 		act = CompanionAct::Acted;
 		break;
 	case Ability::None:
 		break;
 	}
-	if (act != CompanionAct::None) {
-		int ticks = def.abilitySeconds * TicksPerSecond;
-		if (inst->rank >= 20)
-			ticks = ticks * 3 / 4;
-		inst->cooldown = ticks;
-	}
+	if (act != CompanionAct::None)
+		inst->cooldown = AbilityCooldownTicks(def, inst->rank);
 	return act;
 }
 
@@ -1056,7 +1154,7 @@ void CompanionShot(Monster &companion)
 		type = MissileID::LightningArrow;
 	const Direction dir = GetDirection(from, to);
 	const Displacement side { Left(Left(dir)) };
-	const int arrows = inst->volley ? (inst->rank >= 10 ? 5 : 3) : 1;
+	const int arrows = inst->volley ? VolleyArrows(inst->rank) : 1;
 	const int percent = CompanionStatsAt(inst->kind, inst->rank).damagePercent;
 	for (int i = 0; i < arrows; i++) {
 		const int spread = (i + 1) / 2 * (i % 2 == 0 ? -1 : 1); // 0, +1, -1, +2, -2

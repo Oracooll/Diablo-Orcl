@@ -14,12 +14,15 @@
 #include "itemdat.h" // AllItemsList - Brace asks whether the weapon is a spear or pike
 #include "oracool/auto_save.h"
 #include "oracool/aura_field.h"
+#include "oracool/cold.h"
 #include "oracool/event_log.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h"
 #include "oracool/curses.h"
 #include "oracool/essence.h"
+#include "oracool/necro_summoning.h"
 #include "oracool/rage.h"
+#include "oracool/rfa12_actives.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/skill_facts.h"
 #include "oracool/skill_points.h"
@@ -180,7 +183,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Vigor"), N_("Quickens your stride: +5% movement speed per level, anywhere, and every level counts. Items with +movement speed stack with it."),
 	    Pal, 2, 3, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Meditation"), N_("Restores your mana steadily as you walk."), Pal, 2, 4, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Redemption"), N_("Once a second the nearest corpse in the field is consumed for a fiftieth of your life and mana, a hundredth more a point."),
+	{ N_("Redemption"), N_("Once a second the nearest corpse in the field is consumed for 3% of your life and mana, +1% per level."),
 	    Pal, 2, 5, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Salvation"), N_("Wards you against fire, lightning and magic alike."),
 	    Pal, 2, 5, 1, Kind::Aura, SpellID::Invalid, true },
@@ -255,7 +258,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 3, 2, Kind::Active, SpellID::HolyLance, true },
 	{ N_("Crusade"), N_("A blow that also strikes up to three other enemies beside you, each for 75% of a blow, +5% per level."),
 	    Pal, 0, 4, 1, Kind::Active, SpellID::Crusade, true },
-	{ N_("Aegis Slam"), N_("A shield slam across the three tiles ahead: everything there is knocked back and stunned for 1 second, and the two beside the target take 60% of a blow, +5% per level. Needs a shield."),
+	{ N_("Aegis Slam"), N_("A shield slam across the three tiles ahead: everything there is knocked back and stunned for 1 second, +0.1 per level, and the two beside the target take 60% of a blow, +5% per level. Needs a shield."),
 	    Pal, 0, 4, 2, Kind::Active, SpellID::AegisSlam, true },
 	{ N_("Heaven's Descent"), N_("Leap up to 6 tiles to the cursor and land in a holy explosion: 8-16 magic damage to everything beside you, +4-6 per level."),
 	    Pal, 0, 5, 1, Kind::Active, SpellID::HeavensDescent, true },
@@ -312,7 +315,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Mace Mastery"), N_("Sharpens your aim and your blow with any mace or club held."), Bar, 1, 0, 2, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Pole Arm Mastery"), N_("Sharpens your aim and your blow with a staff - this engine's nearest pole arm."),
 	    Bar, 1, 1, 0, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Throwing Mastery"), N_("Mastery of the thrown weapon: Weapon Throw lands +10% damage, +6% per level."), Bar, 1, 1, 1, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Throwing Mastery"), N_("Mastery of the thrown weapon: without a bow in hand, everything you hurl or cast lands +10% damage, +6% per level."), Bar, 1, 1, 1, Kind::Passive, SpellID::Invalid, true },
 	// Built 2026-09-14: the engine has no spear ItemType, but the Spear and Pike BASES have been told apart
 	// since RfA-12's Brace and Long Reach (WieldingSpearOrPike), so the old "no spear type" reason no longer held.
 	{ N_("Spear Mastery"), N_("Mastery of spears and pikes: +10% chance to hit, +5% per level, and +10% damage, +6% per level, while one is held."), Bar, 1, 1, 2, Kind::Passive, SpellID::Invalid, true },
@@ -443,18 +446,18 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Blizzard"), N_("Ice falls over an area for a few seconds, chilling and damaging whatever stands in it."), Sor, 0, 4, 0, Kind::Active, SpellID::Blizzard, true },
 	{ N_("Chilling Armor"), N_("Armour of ice for 24 seconds, +4 per rank: whatever hits you - near or far - is chilled and answered with an ice bolt."), Sor, 0, 4, 1, Kind::Active, SpellID::ChillingArmor, true },
 	{ N_("Frozen Orb"), N_("An orb that drifts toward its mark shedding ice bolts, then bursts into a ring of them."), Sor, 0, 5, 0, Kind::Active, SpellID::FrozenOrb, true },
-	{ N_("Cold Mastery"), N_("Every rank adds 6% to all cold damage. From rank 3 a resisting monster keeps only 50% of its protection; from rank 6, none."), Sor, 0, 5, 1, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Cold Mastery"), N_("Every rank adds 6% to all cold damage. A cold-resistant monster takes a quarter of a cold hit; from rank 3 a half, from rank 6 all of it."), Sor, 0, 5, 1, Kind::Passive, SpellID::Invalid, true },
 	// --- Lightning Spells: most of this page is a wiring job - the engine already has the spells.
 	{ N_("Charged Bolt"), N_("Looses a spray of erratic bolts. This engine's Charged Bolt, raised by its books rather than by skill points."), Sor, 1, 0, 0, Kind::Active, SpellID::ChargedBolt, true },
 	// User note, 2026-09-14: "this should work like DMG aura of Paladin. Similar to Holy Fire." - an aura, pulsing in aura_field.cpp.
-	{ N_("Static Field"), N_("An aura. Every second and a half the air around you cracks: everything within reach loses 4% of its remaining life as lightning, +1% per level, to 20%. Uniques lose half as much."), Sor, 1, 1, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Static Field"), N_("An aura. Every three seconds the air around you cracks: everything within reach loses 4% of its remaining life as lightning, +1% per level, to 20%. Uniques lose half as much."), Sor, 1, 1, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Telekinesis"), N_("Works objects and gathers items at a distance. This engine's Telekinesis, raised by its books rather than by skill points."), Sor, 1, 1, 1, Kind::Active, SpellID::Telekinesis, true },
 	{ N_("Nova"), N_("A ring of lightning bursting outward. This engine's Nova, raised by its books rather than by skill points."), Sor, 1, 2, 0, Kind::Active, SpellID::Nova, true },
 	{ N_("Lightning"), N_("A bolt that strikes in a line. This engine's Lightning, raised by its books rather than by skill points."), Sor, 1, 2, 1, Kind::Active, SpellID::Lightning, true },
 	{ N_("Chain Lightning"), N_("A bolt that leaps between enemies. This engine's Chain Lightning, raised by its books rather than by skill points."), Sor, 1, 3, 0, Kind::Active, SpellID::ChainLightning, true },
 	{ N_("Teleport"), N_("Step instantly to a place you can see. This engine's Teleport, raised by its books rather than by skill points."), Sor, 1, 3, 1, Kind::Active, SpellID::Teleport, true },
 	// User note, 2026-09-14: an aura like Holy Fire - the storm strikes on its own while it burns.
-	{ N_("Thunder Storm"), N_("An aura. Every second and a half a bolt falls on one enemy within 6 tiles of you for 1-20 lightning damage, +10 per level."), Sor, 1, 4, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Thunder Storm"), N_("An aura. Every three seconds a bolt falls on one enemy within 6 tiles of you for 1-20 lightning damage, +10 per level."), Sor, 1, 4, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Energy Shield"), N_("Mana takes the damage your life would. This engine's Mana Shield, raised by its books rather than by skill points."), Sor, 1, 4, 1, Kind::Active, SpellID::ManaShield, true },
 	{ N_("Lightning Mastery"), N_("Your blows carry lightning, and lightning troubles you less. Not D2's spell scaling: this engine deepens a spell by its LEVEL, and has no per-element channel to raise."), Sor, 1, 5, 0, Kind::Passive, SpellID::Invalid, true },
 	// --- Fire Spells ---
@@ -475,7 +478,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Blur"), N_("Everything that strikes you deals -17% damage."),
 	    Sor, 3, 0, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	// Replaced 2026-09-14 (user note) - Evocation shortened cooldowns, and skills here have none.
-	{ N_("Mana Attunement"), N_("+15% spell damage while your mana is above half."),
+	{ N_("Mana Attunement"), N_("+15% damage to your spells and arrows while your mana is above half."),
 	    Sor, 3, 0, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Glass Cannon"), N_("+15% damage and -10% armour."),
 	    Sor, 3, 1, 0, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -497,7 +500,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 3, 3, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Dominance"), N_("Every kill hardens you: 4% less damage taken for 5 seconds, stacking five high."),
 	    Sor, 3, 4, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Arcane Dynamo"), N_("Five spells costing 6 mana or less charge the next costlier spell: +60% spell damage for 3 seconds."),
+	{ N_("Arcane Dynamo"), N_("Five spells costing 6 mana or less charge the next costlier spell: +60% damage to your spells and arrows for 3 seconds."),
 	    Sor, 3, 4, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Unstable Anomaly"), N_("Once a minute a killing blow leaves you standing at 33% of your life instead, and throws back everything within 2 tiles."),
 	    Sor, 3, 4, 2, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -505,10 +508,10 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 3, 5, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Audacity"), N_("+15% damage to anything within two tiles."),
 	    Sor, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Elemental Exposure"), N_("Every element that has struck an enemy in the last 5 seconds - physical, fire, lightning, magic, cold - adds +5% damage against it."),
+	{ N_("Elemental Exposure"), N_("Every element that has struck an enemy lately - physical, fire, lightning, magic, cold; 5 seconds each, fire 3 - adds +5% damage against it."),
 	    Sor, 3, 5, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	// ---- RfA-12 skills (2026-09-13): the empty cells of the three class pages, from the final list ----
-	{ N_("Chill Touch"), N_("A cone of frost through the three tiles ahead: 3-6 cold damage, +2-3 per level, and a 2-second chill."),
+	{ N_("Chill Touch"), N_("A cone of frost through the three tiles ahead: 3-6 cold damage, +2-3 per level, and a 2-second chill, +0.2 per level."),
 	    Sor, 0, 0, 2, Kind::Active, SpellID::ChillTouch, true },
 	{ N_("Ice Needle"), N_("A needle of ice through the first enemy on its line into the second: 5-9 cold damage each, +3-4 per level, and a chill."),
 	    Sor, 0, 1, 2, Kind::Active, SpellID::IceNeedle, true },
@@ -548,11 +551,11 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 2, 1, 2, Kind::Active, SpellID::FlameRing, true },
 	{ N_("Ashen Brand"), N_("Brands an enemy for 4 seconds; if it dies, it bursts for 6-12 fire damage beside it, +3-5 per level."),
 	    Sor, 2, 2, 2, Kind::Active, SpellID::AshenBrand, true },
-	{ N_("Furnace Mouth"), N_("Opens a vent that spits flame three tiles ahead once a second for 3 seconds: 4-9 fire damage, +2-4 per level."),
+	{ N_("Furnace Mouth"), N_("Opens a vent that spits flame three tiles ahead four times, once a second: 4-9 fire damage, +2-4 per level."),
 	    Sor, 2, 3, 2, Kind::Active, SpellID::FurnaceMouth, true },
 	{ N_("Firestorm"), N_("Fireballs rain around the cursor for 4 seconds."),
 	    Sor, 2, 4, 1, Kind::Active, SpellID::Firestorm, true },
-	{ N_("Immolate"), N_("For 10 seconds you burn everything beside you: 3-6 fire damage a second, +1-2 per level."),
+	{ N_("Immolate"), N_("For 10 seconds you burn everything beside you, nine times, once a second: 3-6 fire damage, +1-2 per level."),
 	    Sor, 2, 4, 2, Kind::Active, SpellID::Immolate, true },
 	{ N_("Funeral Star"), N_("Stand still for 2 seconds and a star bursts at the cursor: 15-30 fire damage within 3 tiles, +6-10 per level. Moving cancels it."),
 	    Sor, 2, 5, 2, Kind::Active, SpellID::FuneralStar, true },
@@ -569,7 +572,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Immolation Arrow"), N_("A fire arrow that leaves a wall of flame burning where it stops."), Rog, 0, 4, 1, Kind::Active, SpellID::ImmolationArrow, true },
 	{ N_("Freezing Arrow"), N_("A frost arrow that freezes everything around where it stops."), Rog, 0, 5, 0, Kind::Active, SpellID::FreezingArrow, true },
 	// --- Passive & Magic ---
-	{ N_("Inner Sight"), N_("Reveals the weak points of everything in earshot: -33% armour, -2% more per rank, for 20 seconds."), Rog, 1, 0, 0, Kind::Active, SpellID::InnerSight, true },
+	{ N_("Inner Sight"), N_("Reveals the weak points of everything in earshot: -30% armour, -2% more per rank, for 20 seconds."), Rog, 1, 0, 0, Kind::Active, SpellID::InnerSight, true },
 	{ N_("Critical Strike"), N_("A chance to strike at +100% damage. This engine has no critical roll, so it raises your damage instead."),
 	    Rog, 1, 0, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Dodge"), N_("A chance to slip a blow while standing: 10%, +4% per rank, 40% at most."), Rog, 1, 1, 0, Kind::Passive, SpellID::Invalid, true },
@@ -758,7 +761,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bard, 3, 3, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Improvisation"), N_("Switching songs costs nothing and briefly grants both. Not yet built: switching songs already costs nothing, and two cannot play at once."),
 	    Bard, 3, 3, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Chorus"), N_("Every ally of yours within 5 tiles lends +10% damage, up to +30%."),
+	{ N_("Chorus"), N_("Every minion of yours within 5 tiles lends +10% damage, up to +30%."),
 	    Bard, 3, 4, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Overture"), N_("The first song of a fight begins at its full power. Not yet built: songs here start at full power already."),
 	    Bard, 3, 4, 1, Kind::Passive, SpellID::Invalid, false, 1 },
@@ -857,8 +860,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 0, 4, 0, Kind::Active, SpellID::WheelOfHeaven, true, 5 },
 	{ N_("Seven Reeds"), N_("Three blows in one swing, one more every three ranks up to seven, each at 60% damage."),
 	    Monk, 0, 5, 0, Kind::Active, SpellID::SevenReeds, true, 5 },
-	{ N_("Master of the Long Staff"), N_("Your mastery of the staff empowers every Way of the Staff skill. With a staff in hand: +10% damage and a sharper aim."),
-	    Monk, 0, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Master of the Long Staff"), N_("Your mastery of the staff empowers every Way of the Staff skill. With a staff in hand: +10% damage and +15% to hit, +2% and +3% per rank."),
+	    Monk, 0, 5, 1, Kind::Passive, SpellID::Invalid, true, 5 },
 	// --- Way of the Body ---
 	{ N_("Open Palm"), N_("An open-hand strike at +20% damage, +10% per rank, that drives the enemy back a tile."),
 	    Monk, 1, 0, 0, Kind::Active, SpellID::OpenPalm, true, 5 },
@@ -872,8 +875,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 1, 4, 0, Kind::Active, SpellID::PurifyingBreath, true, 5 },
 	{ N_("Hundred Fists"), N_("Four blows in one swing, one more every two ranks up to seven, each at 50% damage."),
 	    Monk, 1, 5, 0, Kind::Active, SpellID::HundredFists, true, 5 },
-	{ N_("Perfect Vessel"), N_("Your mastery of the body empowers every Way of the Body skill: +10% life, and you shake off hits faster."),
-	    Monk, 1, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Perfect Vessel"), N_("Your mastery of the body empowers every Way of the Body skill: +10% life, +2% per rank, and you shake off hits faster."),
+	    Monk, 1, 5, 1, Kind::Passive, SpellID::Invalid, true, 5 },
 	// --- Way of the Spirit ---
 	{ N_("Inner Sight"), N_("Reveal nearby objects, traps and treasure. Deepens the Monk's own Search: every point holds the sight longer."),
 	    Monk, 2, 0, 0, Kind::Active, SpellID::Search, true, 5 },
@@ -887,8 +890,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 2, 4, 0, Kind::Active, SpellID::RadiantPalm, true, 5 },
 	{ N_("Tranquility"), N_("A sanctuary about you for 13 seconds, +1 per rank: what stands beside you is slowed, and 2% of your life returns each second."),
 	    Monk, 2, 5, 0, Kind::Active, SpellID::Tranquility, true, 5 },
-	{ N_("Enlightenment"), N_("Your mastery of spirit empowers every Way of the Spirit skill: +10% mana, and +10 to every resistance."),
-	    Monk, 2, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Enlightenment"), N_("Your mastery of spirit empowers every Way of the Spirit skill: +10% mana and +10% to every resistance, +2% each per rank."),
+	    Monk, 2, 5, 1, Kind::Passive, SpellID::Invalid, true, 5 },
 	// ---- Passive Skills (page 3) ----
 	{ N_("Resolve"), N_("What you strike deals 20% less damage for 3 seconds."),
 	    Monk, 3, 0, 0, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -921,11 +924,11 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 3, 4, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Near Death Experience"), N_("Once a minute a killing blow restores 33% of your life and mana instead."),
 	    Monk, 3, 4, 2, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Unity"), N_("Every ally of yours within 5 tiles lends +10% damage, up to +30%."),
+	{ N_("Unity"), N_("Every minion of yours within 5 tiles lends +10% damage, up to +30%."),
 	    Monk, 3, 5, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Momentum"), N_("Keep moving for 2 seconds and your next 3 blows land +25% harder."),
 	    Monk, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Mythic Rhythm"), N_("Every third melee skill blow charges your spells: +40% spell damage for 3 seconds."),
+	{ N_("Mythic Rhythm"), N_("Every third melee skill blow charges your spells: +40% damage to your spells and arrows for 3 seconds."),
 	    Monk, 3, 5, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	// ---- RfA-12 skills (2026-09-13): the empty cells of the three class pages, from the final list ----
 	{ N_("Staff Parry"), N_("Holding a staff: +5% block chance, +1% per level, to 30%."),
@@ -1020,7 +1023,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Nec, 0, 3, 0, Kind::Active, SpellID::BloodGolem, true },
 	{ N_("Bone Plating"), N_("Your minions wear bone: armour for every one of them, more with every rank. Applies to the next ones you raise."),
 	    Nec, 0, 3, 1, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Frenzy of the Dead"), N_("For ten seconds every minion strikes harder and hurries after its prey."),
+	{ N_("Frenzy of the Dead"), N_("For ten seconds every minion strikes harder."),
 	    Nec, 0, 3, 2, Kind::Active, SpellID::FrenzyOfTheDead, true },
 	{ N_("Iron Golem"), N_("A golem of iron that returns a share of every blow it takes to the one that struck it."),
 	    Nec, 0, 4, 0, Kind::Active, SpellID::IronGolem, true },
@@ -1032,7 +1035,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Nec, 0, 5, 0, Kind::Active, SpellID::FireGolem, true },
 	{ N_("Revive"), N_("Return a dead monster to life to fight for you as it was, for three minutes. One at rank 1, ten at most. Paid in Essence."),
 	    Nec, 0, 5, 1, Kind::Active, SpellID::NecroRevive, true },
-	{ N_("Army of the Dead"), N_("The dead erupt at the cursor and tear at everything within two tiles, six times over three seconds."),
+	{ N_("Army of the Dead"), N_("The dead erupt at the cursor and tear at everything within two tiles, six times: at once, then every half second."),
 	    Nec, 0, 5, 2, Kind::Active, SpellID::ArmyOfTheDead, true },
 	// --- Poison & Bone --- (built at N6, 2026-09-18: rfa12_actives, the bone and poison cases) ---
 	{ N_("Teeth"), N_("A fan of barbed teeth, magic damage, one more tooth with every rank."),
@@ -1098,26 +1101,26 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Nec, 2, 3, 2, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Attract"), N_("The cursed monster becomes the target of every monster near it. Paid in Essence."),
 	    Nec, 2, 4, 0, Kind::Active, SpellID::Attract, true },
-	{ N_("Decrepify"), N_("Cursed monsters are slowed, deal a quarter less damage and take a fifth more."),
+	{ N_("Decrepify"), N_("Cursed monsters are slowed, deal a quarter less damage, take a fifth more and lose a fifth of their armour."),
 	    Nec, 2, 4, 1, Kind::Active, SpellID::Decrepify, true },
 	{ N_("Death Mark"), N_("Mark one monster: when it dies, it bursts as a Corpse Explosion of your rank. Paid in Essence."),
 	    Nec, 2, 4, 2, Kind::Active, SpellID::DeathMark, true },
-	{ N_("Lower Resist"), N_("Cursed monsters lose resistance to fire, lightning, magic and poison. Paid in Essence."),
+	{ N_("Lower Resist"), N_("Cursed monsters take more fire, lightning, magic and poison damage. Paid in Essence."),
 	    Nec, 2, 5, 0, Kind::Active, SpellID::LowerResist, true },
 	{ N_("Soul Harvest"), N_("Tear at every cursed monster within six tiles: magic damage to each, and five Essence to you for each."),
 	    Nec, 2, 5, 1, Kind::Active, SpellID::SoulHarvest, true },
-	{ N_("Doom"), N_("Cursed monsters take more damage from every source, and the curse cannot be replaced by a weaker one. Paid in Essence."),
+	{ N_("Doom"), N_("Cursed monsters take more damage from every source, and no other curse can replace it. Paid in Essence."),
 	    Nec, 2, 5, 2, Kind::Active, SpellID::Doom, true },
 	// --- Passive Skills --- (built at N8, 2026-09-18: oracool/passives with the rest of the heroes'; Swift Harvesting waits for N9) ---
 	{ N_("Life from Death"), N_("A monster that dies within six tiles of you heals you a twenty-fifth of your life."),
 	    Nec, 3, 0, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Fueled by Death"), N_("Each corpse you consume quickens your step for a few seconds."),
+	{ N_("Fueled by Death"), N_("Each corpse you consume quickens your step: +30% movement speed for 4 seconds."),
 	    Nec, 3, 0, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Stand Alone"), N_("You take 15% less damage while you have no minions, 3% less for each one you keep, down to nothing at five."),
 	    Nec, 3, 0, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Swift Harvesting"), N_("Fast attacks with a wand or scythe in hand."),
 	    Nec, 3, 1, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Commander of the Risen Dead"), N_("Raising skeletons and mages costs less mana."),
+	{ N_("Commander of the Risen Dead"), N_("Raising skeletons and mages costs 30% less mana."),
 	    Nec, 3, 1, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Extended Servitude"), N_("Timed minions last a quarter longer."),
 	    Nec, 3, 1, 2, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -1125,7 +1128,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Nec, 3, 2, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Overwhelming Essence"), N_("Your Essence pool is larger by a fifth."),
 	    Nec, 3, 2, 1, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Dark Reaping"), N_("Your blows return a little Essence and a little mana."),
+	{ N_("Dark Reaping"), N_("Each blow that lands returns 1 Essence and 1 mana."),
 	    Nec, 3, 2, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Spreading Malediction"), N_("You deal 5% more damage for each cursed monster within six tiles, up to 30%."),
 	    Nec, 3, 3, 0, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -1171,6 +1174,18 @@ Skill FirstSkillOf(HeroClass heroClass)
 }
 
 /**
+ * @brief Prayer, Meditation, the Healing Mantra and Warmth: life or mana back each game tick, in the
+ * 1/64 units the pools keep. One helper for the tick and the tooltip.
+ */
+int RegenPerTick(int points);
+
+/** @brief Endurance: the share of the base life it adds, in percent - 10, +2 a point, to 60. */
+int EnduranceLifePercent(int points)
+{
+	return points <= 0 ? 0 : std::min(10 + 2 * (points - 1), 60);
+}
+
+/**
  * @brief The shape every scaled effect uses: the first point buys @p base, each one after adds
  * @p perPoint. Zero for nothing invested, which is what keeps an unpaid skill inert.
  */
@@ -1179,6 +1194,11 @@ int Scaled(int points, int base, int perPoint)
 	if (points <= 0)
 		return 0;
 	return base + perPoint * (points - 1);
+}
+
+int RegenPerTick(int points)
+{
+	return AuraTricklePerTick(points); // aura_field.h: the same number its Healing Mantra line quotes
 }
 
 /** @brief Whether @p player is wielding @p type in either hand, for the Barbarian's masteries. */
@@ -1214,38 +1234,51 @@ bool WieldingNoWeapon(const Player &player)
 	return true;
 }
 
-/** @brief Applies one paid-for passive. Auras go through ApplyAura below. */
-void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals &totals)
+/** @brief Weapons Master's sword damage and axe aim, in percent. */
+constexpr int WeaponsMasterPercent = 15;
+/** @brief Archery's gift to the short/hunter's bows (to hit) and long/war bows (damage), in percent. */
+constexpr int ArcheryPercent = 15;
+/** @brief Finery: strength for each Orcl gem socketed in worn gear. */
+constexpr int FineryStrengthPerGem = 2;
+
+/**
+ * @brief Applies one paid-for passive. Auras go through ApplyAura below.
+ *
+ * @p assumeCondition is the TOOLTIP's question (2026-09-26): what the passive gives once its weapon or
+ * armour condition holds, so a Sword Mastery hovered with an axe in hand still shows its numbers - with
+ * PassiveConditionLine saying when they apply. The game always passes false.
+ */
+void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals &totals, bool assumeCondition = false)
 {
 	switch (skill) {
 	// --- Barbarian masteries: only while the matching weapon is actually held, which is the
 	//     whole point of a mastery and the reason the provider has a condition hook.
 	case Skill::SwordMastery:
-		if (WieldingType(player, ItemType::Sword)) {
+		if (assumeCondition || WieldingType(player, ItemType::Sword)) {
 			totals.bonusToHit += Scaled(points, 10, 5);
 			totals.bonusDamage += Scaled(points, 10, 6);
 		}
 		break;
 	case Skill::AxeMastery:
-		if (WieldingType(player, ItemType::Axe)) {
+		if (assumeCondition || WieldingType(player, ItemType::Axe)) {
 			totals.bonusToHit += Scaled(points, 10, 5);
 			totals.bonusDamage += Scaled(points, 10, 6);
 		}
 		break;
 	case Skill::MaceMastery:
-		if (WieldingType(player, ItemType::Mace)) {
+		if (assumeCondition || WieldingType(player, ItemType::Mace)) {
 			totals.bonusToHit += Scaled(points, 10, 5);
 			totals.bonusDamage += Scaled(points, 10, 6);
 		}
 		break;
 	case Skill::PoleArmMastery:
-		if (WieldingType(player, ItemType::Staff)) {
+		if (assumeCondition || WieldingType(player, ItemType::Staff)) {
 			totals.bonusToHit += Scaled(points, 10, 5);
 			totals.bonusDamage += Scaled(points, 10, 6);
 		}
 		break;
 	case Skill::SpearMastery:
-		if (WieldingSpearOrPike(player)) {
+		if (assumeCondition || WieldingSpearOrPike(player)) {
 			totals.bonusToHit += Scaled(points, 10, 5);
 			totals.bonusDamage += Scaled(points, 10, 6);
 		}
@@ -1253,10 +1286,12 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 	// Weapons Master (2026-09-14): each family its own gift. The mace's - Rage per landed blow - is a
 	// rule, not a number, and lives in passives.cpp's OnPassiveHit.
 	case Skill::WeaponsMaster:
+		if (assumeCondition)
+			break; // three gifts for three weapons - ClassTreePassiveFactsAt names each
 		if (WieldingType(player, ItemType::Sword))
-			totals.bonusDamage += 15;
+			totals.bonusDamage += WeaponsMasterPercent;
 		if (WieldingType(player, ItemType::Axe))
-			totals.bonusToHit += 15;
+			totals.bonusToHit += WeaponsMasterPercent;
 		if (WieldingType(player, ItemType::Staff))
 			totals.flags |= ItemSpecialEffect::FastAttack;
 		break;
@@ -1264,7 +1299,7 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 	//     rule - a chance, a condition read at the moment of a blow - live in oracool/passives.cpp.
 	//     Passive Skills page rows are one rank, so no Scaled(): the number is the number.
 	case Skill::DivineFortress:
-		if (WieldingType(player, ItemType::Shield))
+		if (assumeCondition || WieldingType(player, ItemType::Shield))
 			totals.bonusArmor += 25;
 		break;
 	case Skill::ToughAsNails:
@@ -1309,6 +1344,10 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		break;
 	// ---- the all-heroes sweep (2026-09-14): the sheet halves of the new passives ----
 	case Skill::TheGuardiansPath:
+		if (assumeCondition) {
+			totals.mana += 20 << 6;
+			break;
+		}
 		for (const Item &item : { player.InvBody[INVLOC_HAND_LEFT], player.InvBody[INVLOC_HAND_RIGHT] }) {
 			if (!item.isEmpty() && item._iStatFlag && item._itype == ItemType::Staff && item._iLoc == ILOC_TWOHAND) {
 				totals.mana += 20 << 6;
@@ -1322,19 +1361,21 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 				continue;
 			for (int s = 0; s < std::min<int>(item._iSocketCount, Item::MaxItemSockets); s++) {
 				if (item._iSocketed[s] != Item::EmptySocket && IsOracoolGemIdx(item._iSocketed[s]))
-					totals.strength += 2;
+					totals.strength += FineryStrengthPerGem;
 			}
 		}
 		break;
 	case Skill::Archery:
+		if (assumeCondition)
+			break; // a gift per bow family - ClassTreePassiveFactsAt names each
 		for (const Item &item : { player.InvBody[INVLOC_HAND_LEFT], player.InvBody[INVLOC_HAND_RIGHT] }) {
 			if (item.isEmpty() || !item._iStatFlag || item._itype != ItemType::Bow || item.IDidx < 0 || item.IDidx > IDI_LAST)
 				continue;
 			const unique_base_item bow = AllItemsList[static_cast<size_t>(item.IDidx)].iItemId;
 			if (bow == UITYPE_SHORTBOW || bow == UITYPE_HUNTBOW)
-				totals.bonusToHit += 15;
+				totals.bonusToHit += ArcheryPercent;
 			if (bow == UITYPE_LONGBOW || bow == UITYPE_WARBOW)
-				totals.bonusDamage += 15;
+				totals.bonusDamage += ArcheryPercent;
 			break; // the composite and battle bows' gift is a rule - passives.cpp
 		}
 		break;
@@ -1351,6 +1392,10 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		break;
 	case Skill::Fervor:
 		// One-handed: a weapon in hand that is not a two-hander.
+		if (assumeCondition) {
+			totals.flags |= ItemSpecialEffect::QuickAttack;
+			break;
+		}
 		for (const Item &item : { player.InvBody[INVLOC_HAND_LEFT], player.InvBody[INVLOC_HAND_RIGHT] }) {
 			if (!item.isEmpty() && item._iStatFlag && item._iClass == ICLASS_WEAPON && item._iLoc == ILOC_ONEHAND) {
 				totals.flags |= ItemSpecialEffect::QuickAttack;
@@ -1378,13 +1423,9 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 	// --- Sorceress: the three rows the engine can actually pay (2026-08-21) -------------------
 	//
 	// She was left with ONE working row when the books rule retired her thirteen castables, so her
-	// page was a grid of struck-out cells with nowhere to put a point. These three are the only
-	// others this engine has a channel for, and each is fitted to a real one rather than
-	// approximated into the nearest spell.
-	//
-	// The ten cold rows stay inert and always will: there is no cold damage type at all, so there
-	// is nothing to scale, resist or pierce. Static Field, Lightning Storm, Meteor and Enchant's
-	// two neighbours stay inert for the same honest reason - no analogue exists.
+	// page was a grid of struck-out cells with nowhere to put a point. These three are her sheet
+	// numbers; the cold rows (oracool/cold), Static Field and Thunder Storm (aura_field) and Meteor
+	// (rfa12_actives) were built later and act off the sheet.
 	case Skill::Enchant:
 		// The closest thing in the game to what Enchant IS: your weapon burns. D2's version is a
 		// cast buff with a duration; here the investment is the buff, which is the only shape a
@@ -1411,16 +1452,16 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		totals.lightningResist += Scaled(points, 5, 2);
 		break;
 
-	// --- Monk. The capstones are one-rank rows, so they take no per-point step at all; the
-	//     numbers below are the design doc's, mapped onto the channels this engine actually has.
+	// --- Monk. The capstones were one-rank rows until 2026-09-26, when every skill had to grow with its
+	//     ranks (user rule); they take five like the rest of the ladder, the design doc's number at rank 1.
 	case Skill::MasterOfTheLongStaff:
 		// A mastery, so it wants the weapon in hand. The engine files quarterstaves under
 		// ItemType::Staff, which is the type the Barbarian's Pole Arm mastery already tests.
 		// bonusDamage IS a percentage of weapon damage, so +10% is the doc's number exactly;
 		// bonusToHit is a flat attack-rating add, which is the nearest thing to its +15%.
-		if (WieldingType(player, ItemType::Staff)) {
-			totals.bonusDamage += 10;
-			totals.bonusToHit += 15;
+		if (assumeCondition || WieldingType(player, ItemType::Staff)) {
+			totals.bonusDamage += Scaled(points, 10, 2);
+			totals.bonusToHit += Scaled(points, 15, 3);
 		}
 		break;
 	case Skill::IronRobe:
@@ -1429,7 +1470,7 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		// it - the Monk's level-based AC is innate to the class and does not need buying twice.
 		{
 			const Item &chest = player.InvBody[INVLOC_CHEST];
-			const bool unarmoured = chest.isEmpty();
+			const bool unarmoured = assumeCondition || chest.isEmpty();
 			const bool light = !chest.isEmpty() && chest._iStatFlag && chest._itype == ItemType::LightArmor;
 			if (unarmoured || light) {
 				// getHit is a flat subtraction from damage taken, not a percentage, so the doc's
@@ -1444,14 +1485,14 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 	case Skill::PerfectVessel:
 		// A true tenth of the character's own life: _pMaxHPBase is the level-and-vitality base
 		// that totals.hitPoints is added TO, so reading it here is not circular.
-		totals.hitPoints += player._pMaxHPBase / 10;
+		totals.hitPoints += player._pMaxHPBase * Scaled(points, 10, 2) / 100;
 		totals.flags |= ItemSpecialEffect::FastHitRecovery;
 		break;
 	case Skill::Enlightenment:
-		totals.mana += player._pMaxManaBase / 10;
-		totals.fireResist += 10;
-		totals.lightningResist += 10;
-		totals.magicResist += 10;
+		totals.mana += player._pMaxManaBase * Scaled(points, 10, 2) / 100;
+		totals.fireResist += Scaled(points, 10, 2);
+		totals.lightningResist += Scaled(points, 10, 2);
+		totals.magicResist += Scaled(points, 10, 2);
 		break;
 	// --- RfA-12 (2026-09-13): the new passives that are a number on the sheet. The rules - bleeding,
 	//     blocking, reach, noticing - are oracool/rfa12_effects.cpp's.
@@ -1462,17 +1503,17 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		totals.damageMod += Scaled(points, 2, 1);
 		break;
 	case Skill::Brace:
-		if (WieldingSpearOrPike(player))
+		if (assumeCondition || WieldingSpearOrPike(player))
 			totals.bonusArmor += Scaled(points, 10, 3);
 		break;
 	case Skill::RiverStance:
-		if (WieldingType(player, ItemType::Staff)) {
+		if (assumeCondition || WieldingType(player, ItemType::Staff)) {
 			totals.moveSpeed += Scaled(points, 5, 1);
 			totals.bonusArmor += Scaled(points, 5, 2);
 		}
 		break;
 	case Skill::IronFist:
-		if (WieldingNoWeapon(player) || WieldingType(player, ItemType::Staff))
+		if (assumeCondition || WieldingNoWeapon(player) || WieldingType(player, ItemType::Staff))
 			totals.damageMod += Scaled(points, 2, 1);
 		break;
 	case Skill::MountainStance:
@@ -1661,7 +1702,7 @@ constexpr LevelUpStat LevelUpStats[] = {
 	{ Skill::HeavensDescent, StatChannel::Vitality, 3, 1, 0, 0, 1 }, // PAL-1-T6C2 Vitality +3 / +1
 	{ Skill::WrathOfTheHeavens, StatChannel::Mana, 10, 3, 0, 0, 1 }, // PAL-1-T6C3 Mana +10 / +3
 	{ Skill::Valor, StatChannel::DamageFlat, 2, 1, 0, 0, 1 }, // PAL-2-T1C2 Damage flat +2 / +1
-	{ Skill::Radiance, StatChannel::LightRadius, 1, 1, 0, 0, 5 }, // PAL-2-T1C3 Light radius +1 / +1 per 5 ranks
+	{ Skill::Radiance, StatChannel::MagicResist, 2, 1, 0, 0, 1 }, // PAL-2-T1C3 was Light radius +1 / +1 per 5 ranks; every rank must grow (2026-09-26)
 	{ Skill::BaneOfEvil, StatChannel::Magic, 2, 1, 0, 0, 1 }, // PAL-2-T2C3 Magic +2 / +1
 	{ Skill::Condemnation, StatChannel::ToHitPercent, 4, 2, 0, 0, 1 }, // PAL-2-T3C2 Chance to hit +4% / +2%
 	{ Skill::TitheOfAsh, StatChannel::FireResist, 3, 1, 0, 0, 1 }, // PAL-2-T3C3 Fire resistance +3% / +1%
@@ -1814,6 +1855,35 @@ constexpr LevelUpStat LevelUpStats[] = {
 	{ Skill::InnerFire, StatChannel::FireDamage, 1, 0, 3, 1, 1 }, // MON-3-T5C2 Fire damage +1-3 / +1 max
 	{ Skill::AstralProjection, StatChannel::MoveSpeed, 3, 1, 0, 0, 1 }, // MON-3-T5C3 Movement Speed +3% / +1%
 	{ Skill::AncestralCourt, StatChannel::Magic, 3, 1, 0, 0, 1 }, // MON-3-T6C3 Magic +3 / +1
+	// 2026-09-26, the skill rules: rows older than the RfA-12 list whose own effect stops growing (or never
+	// grew) take a level-up stat, so every rank to the cap adds something. Channels follow a similar row.
+	{ Skill::DoubleThrow, StatChannel::Strength, 2, 1, 0, 0, 1 }, // Weapon Throw, like Grip of Iron
+	{ Skill::IncreasedSpeed, StatChannel::MoveSpeed, 3, 1, 0, 0, 1 },
+	{ Skill::Leap, StatChannel::MoveSpeed, 2, 1, 0, 0, 1 }, // the vault's reach steps every three ranks
+	{ Skill::Taunt, StatChannel::ArmorFlat, 6, 2, 0, 0, 1 },
+	{ Skill::FindItem, StatChannel::MagicFind, 2, 1, 0, 0, 1 }, // its chance stops at rank 8
+	{ Skill::GuidedArrow, StatChannel::DamagePercent, 6, 3, 0, 0, 1 },
+	{ Skill::LightningBoltSkill, StatChannel::LightningDamage, 1, 0, 3, 1, 1 }, // the bolt reads character level only
+	{ Skill::MultipleShot, StatChannel::DamagePercent, 3, 1, 0, 0, 1 }, // one more arrow every two ranks
+	{ Skill::Strafe, StatChannel::DamagePercent, 3, 1, 0, 0, 1 },
+	{ Skill::Dodge, StatChannel::Dexterity, 1, 1, 0, 0, 1 }, // the chance stops at rank 8
+	{ Skill::Avoid, StatChannel::Dexterity, 1, 1, 0, 0, 1 },
+	{ Skill::Evade, StatChannel::Dexterity, 1, 1, 0, 0, 1 },
+	{ Skill::Pierce, StatChannel::ToHitPercent, 2, 1, 0, 0, 1 }, // the chance stops at rank 10
+	{ Skill::Conviction, StatChannel::MagicResist, 3, 1, 0, 0, 1 }, // the armour cut stops at rank 20
+	{ Skill::Cleansing, StatChannel::Vitality, 2, 1, 0, 0, 1 }, // the shortening stops at rank 15
+	{ Skill::StaticField, StatChannel::LightningResist, 3, 1, 0, 0, 1 }, // the share stops at rank 17
+	{ Skill::SweepingReed, StatChannel::DamagePercent, 6, 3, 0, 0, 1 },
+	{ Skill::SevenReeds, StatChannel::DamagePercent, 4, 2, 0, 0, 1 }, // a strike more every three ranks
+	{ Skill::HundredFists, StatChannel::Dexterity, 2, 1, 0, 0, 1 }, // a strike more every two ranks
+	{ Skill::BreakingCurrent, StatChannel::ToHitPercent, 3, 1, 0, 0, 1 },
+	{ Skill::FlowingStep, StatChannel::MoveSpeed, 3, 1, 0, 0, 1 },
+	{ Skill::GatherTheDead, StatChannel::Life, 8, 3, 0, 0, 1 },
+	{ Skill::NecroBoneSpirit, StatChannel::Magic, 3, 1, 0, 0, 1 },
+	{ Skill::WideMalice, StatChannel::Magic, 2, 1, 0, 0, 1 }, // the radius stops at rank 3
+	{ Skill::SummonResist, StatChannel::Vitality, 2, 1, 0, 0, 1 },
+	{ Skill::UnholyOffering, StatChannel::Life, 10, 4, 0, 0, 1 },
+	{ Skill::CorpseExplosion, StatChannel::Magic, 2, 1, 0, 0, 1 },
 };
 
 const LevelUpStat *LevelUpStatOf(Skill skill)
@@ -1864,7 +1934,7 @@ void ApplyLevelUpStat(Skill skill, int points, ItemBonusTotals &totals)
 		totals.armor += v;
 		break;
 	case StatChannel::ArmorPercent:
-		totals.bonusArmor += v;
+		totals.armorPercent += v; // a real share since 2026-09-26; bonusArmor is flat
 		break;
 	case StatChannel::ToHitPercent:
 		totals.bonusToHit += v;
@@ -1920,7 +1990,19 @@ void ApplyLevelUpStat(Skill skill, int points, ItemBonusTotals &totals)
  * Its own words rather than DescribeBonusTotals', because that prints life and mana in the 1/64 units
  * the totals keep them in - "+640 life" for ten points.
  */
+std::string LevelUpStatValue(Skill skill, int points);
+
+/**
+ * @brief The line with its label (2026-09-26): a skill whose main effect and level-up stat touch the same number
+ * (Sharpen: +2 damage and +2 damage) printed the same line twice, and a player could not tell the halves apart.
+ */
 std::string LevelUpStatLine(Skill skill, int points)
+{
+	const std::string value = LevelUpStatValue(skill, points);
+	return value.empty() ? value : fmt::format(fmt::runtime(_("Level-up bonus: {:s}")), value);
+}
+
+std::string LevelUpStatValue(Skill skill, int points)
 {
 	const LevelUpStat *stat = LevelUpStatOf(skill);
 	if (stat == nullptr || points <= 0)
@@ -2633,7 +2715,7 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 		// and Symphony of War lends half of every other Melody song the Bard has learned.
 		if (aura == Skill::Endurance && GetClassTreeSkillData(aura).implemented) {
 			const int p = ClassTreeInvestment(player, aura);
-			totals.hitPoints += player._pMaxHPBase * std::min(10 + 2 * (p - 1), 60) / 100;
+			totals.hitPoints += player._pMaxHPBase * EnduranceLifePercent(p) / 100;
 		}
 		if (aura == Skill::SymphonyOfWar && GetClassTreeSkillData(aura).implemented) {
 			const Skill first = FirstSkillOf(player._pClass);
@@ -2658,9 +2740,8 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 	// on once BOUGHT, and scales with the points in it.
 	//
 	// A Passive Skills page row is bought with nothing and scales with nothing. It is on if and only
-	// if it sits in one of the four slots, which is the whole of that page's choice. 42 of the 110 are
-	// built now and the rest are inert; this gate is what keeps a built one from applying from the
-	// grid - only a slotted row counts.
+	// if it sits in one of the four slots, which is the whole of that page's choice. This gate is what
+	// keeps a built one from applying from the grid - only a slotted row counts.
 	const Skill first = FirstSkillOf(player._pClass);
 	for (size_t i = 0; i < MaxSkillsPerClass; i++) {
 		const auto skill = static_cast<Skill>(static_cast<size_t>(first) + i);
@@ -2873,14 +2954,14 @@ void ProcessClassTreeTick(Player &player)
 		    || aura == Skill::HealingMantra;
 		const bool restoring = aura == Skill::Meditation || aura == Skill::Inspiration;
 		if (p > 0 && healing && player._pHitPoints < player._pMaxHP) {
-			const int heal = Scaled(p, 2, 2);
+			const int heal = RegenPerTick(p);
 			player._pHitPoints = std::min(player._pHitPoints + heal, player._pMaxHP);
 			player._pHPBase = std::min(player._pHPBase + heal, player._pMaxHPBase);
 			RedrawComponent(PanelDrawComponent::Health);
 		}
 		if (p > 0 && restoring && player._pMana < player._pMaxMana
 		    && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
-			const int gain = Scaled(p, 2, 2);
+			const int gain = RegenPerTick(p);
 			player._pMana = std::min(player._pMana + gain, player._pMaxMana);
 			player._pManaBase = std::min(player._pManaBase + gain, player._pMaxManaBase);
 			RedrawComponent(PanelDrawComponent::Mana);
@@ -2908,7 +2989,7 @@ void ProcessClassTreeTick(Player &player)
 	    && player._pMana < player._pMaxMana && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
 		const int p = ClassTreeInvestment(player, Skill::Warmth);
 		if (p > 0) {
-			const int gain = Scaled(p, 2, 2);
+			const int gain = RegenPerTick(p);
 			player._pMana = std::min(player._pMana + gain, player._pMaxMana);
 			player._pManaBase = std::min(player._pManaBase + gain, player._pMaxManaBase);
 			RedrawComponent(PanelDrawComponent::Mana);
@@ -2994,34 +3075,209 @@ std::string ClassTreeLockReason(const Player &player, Skill skill)
 	return {};
 }
 
+namespace {
+
+void AddTooltipLine(std::string &text, const std::string &s)
+{
+	if (s.empty())
+		return;
+	if (!text.empty())
+		text += '\n';
+	text += s;
+}
+
+/** @brief When a conditional passive's numbers apply - printed beside them whether or not it holds now. */
+const char *PassiveConditionLine(Skill skill)
+{
+	switch (skill) {
+	case Skill::SwordMastery:
+		return N_("With a sword in hand");
+	case Skill::AxeMastery:
+		return N_("With an axe in hand");
+	case Skill::MaceMastery:
+		return N_("With a mace in hand");
+	case Skill::PoleArmMastery:
+	case Skill::MasterOfTheLongStaff:
+	case Skill::RiverStance:
+		return N_("With a staff in hand");
+	case Skill::SpearMastery:
+	case Skill::Brace:
+		return N_("With a spear or pike in hand");
+	case Skill::IronFist:
+		return N_("Unarmed or with a staff");
+	case Skill::IronRobe:
+		return N_("Without body armour; half the reduction in light armour");
+	case Skill::DivineFortress:
+		return N_("With a shield");
+	case Skill::TheGuardiansPath:
+		return N_("With a two-handed staff");
+	case Skill::Fervor:
+		return N_("With a one-handed weapon");
+	default:
+		return nullptr;
+	}
+}
+
+/** @brief The rule-passives whose rule lives in this file: the walk, Warmth, and the per-weapon gifts. */
+std::string ClassTreePassiveFactsAt(Skill skill, int points)
+{
+	switch (skill) {
+	case Skill::IncreasedSpeed:
+	case Skill::FlowingStep:
+		return std::string(_("You run rather than walk"));
+	case Skill::Warmth:
+		return fmt::format(fmt::runtime(_("Mana regeneration: {:.1f} a second")), RegenPerTick(points) * 20 / 64.0);
+	case Skill::WeaponsMaster:
+		return fmt::format(fmt::runtime(_("Sword: +{:d}% damage")), WeaponsMasterPercent) + "\n"
+		    + fmt::format(fmt::runtime(_("Axe: +{:d}% to hit")), WeaponsMasterPercent) + "\n"
+		    + std::string(_("Staff: faster attack"));
+	case Skill::Archery:
+		return fmt::format(fmt::runtime(_("Short and hunter's bows: +{:d}% to hit")), ArcheryPercent) + "\n"
+		    + fmt::format(fmt::runtime(_("Long and war bows: +{:d}% damage")), ArcheryPercent);
+	case Skill::Finery:
+		return fmt::format(fmt::runtime(_("+{:d} strength for every Orcl gem socketed in what you wear")), FineryStrengthPerGem);
+	case Skill::HeavenlyStrength:
+		return std::string(_("A two-handed axe, sword, mace or staff in one hand, a shield in the other"));
+	case Skill::Animosity:
+		return fmt::format(fmt::runtime(_("Maximum Rage: +{:d}")), AnimosityRage);
+	case Skill::Unforgiving:
+		return fmt::format(fmt::runtime(_("{:d} s after a fight: Rage rises {:d} a second instead of draining")), RageCalmDelayTicks / 20, UnforgivingRagePerPulse * 20 / RageDecayIntervalTicks);
+	case Skill::SwiftHarvesting:
+		return std::string(_("With a wand or scythe in hand: fast attack"));
+	case Skill::OverwhelmingEssence:
+		return fmt::format(fmt::runtime(_("Maximum Essence: +{:d}")), OverwhelmingEssenceBonus);
+	default:
+		return {};
+	}
+}
+
+/** @brief The auras whose effect is a tick or a share of the character, which the totals cannot carry. */
+std::string ClassTreeAuraFactsAt(Skill aura, int points)
+{
+	switch (aura) {
+	case Skill::Prayer:
+		return fmt::format(fmt::runtime(_("Life regeneration: {:.1f} a second")), RegenPerTick(points) * 20 / 64.0);
+	case Skill::Meditation:
+		return fmt::format(fmt::runtime(_("Mana regeneration: {:.1f} a second")), RegenPerTick(points) * 20 / 64.0);
+	case Skill::Endurance:
+		return fmt::format(fmt::runtime(_("+{:d}% of your base life")), EnduranceLifePercent(points));
+	default:
+		return {};
+	}
+}
+
+/** @brief Every module's rule-facts for a passive, each answering only for the rows whose rule it holds. */
+std::string PassiveRuleFactsAt(const Player &player, Skill skill, int points)
+{
+	std::string out;
+	if (const char *condition = PassiveConditionLine(skill); condition != nullptr)
+		AddTooltipLine(out, std::string(_(condition)));
+	AddTooltipLine(out, ClassTreePassiveFactsAt(skill, points));
+	AddTooltipLine(out, PassiveFactsAt(player, skill, points));
+	AddTooltipLine(out, Rfa12PassiveFactsAt(player, skill, points));
+	AddTooltipLine(out, Rfa12ActivesPassiveFactsAt(player, skill, points));
+	AddTooltipLine(out, NecroPassiveFactsAt(player, skill, points));
+	AddTooltipLine(out, ColdPassiveFactsAt(skill, points));
+	return out;
+}
+
+} // namespace
+
+bool ClassTreeHasLevelUpStat(Skill skill)
+{
+	return LevelUpStatOf(skill) != nullptr;
+}
+
+void ApplyClassTreeLevelUpStat(Skill skill, int points, ItemBonusTotals &totals)
+{
+	ApplyLevelUpStat(skill, points, totals);
+}
+
+std::string ClassTreeLevelUpLine(Skill skill, int points)
+{
+	return LevelUpStatLine(skill, points);
+}
+
+std::string ClassTreeRankBlock(const Player &player, Skill skill, int points)
+{
+	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+	std::string text;
+	const auto line = [&text](const std::string &s) { AddTooltipLine(text, s); };
+	// An ACTIVE carries a SpellID, and its rank is its spell level (Player::GetSpellLevel folds the
+	// investment in), so its numbers are the spell side's - the same block the Spells sheet prints.
+	if (data.kind == Kind::Active) {
+		const int at = std::max(points, 1);
+		if (const SpellID spell = ClassTreeSpellId(skill); IsValidSpell(spell))
+			line(SpellLevelLines(player, spell, at));
+		if (data.implemented)
+			line(LevelUpStatLine(skill, at));
+		return text;
+	}
+	if (!data.implemented)
+		return text;
+	ItemBonusTotals totals {};
+	if (data.kind == Kind::Aura)
+		ApplyAura(skill, points, totals);
+	else
+		ApplyPassive(player, skill, points, totals, /*assumeCondition=*/true);
+	line(DescribeBonusTotals(totals, "\n"));
+	line(LevelUpStatLine(skill, points));
+	if (data.kind == Kind::Aura) {
+		line(ClassTreeAuraFactsAt(skill, points));
+		// What an aura does OFF the sheet - a pulse, a return, a shortening - which the totals cannot
+		// carry (2026-09-12).
+		line(AuraFieldFactsAt(skill, points));
+		// The reach only where it reaches something: it used to sit on Might and the resists too, where
+		// it meant nothing (audit, 2026-09-12).
+		if (AuraReachesMonsters(skill))
+			line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), AuraFieldRadius(skill, points)));
+	} else {
+		line(PassiveRuleFactsAt(player, skill, points));
+	}
+	return text;
+}
+
 std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext)
 {
 	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+	std::string out;
+	const auto add = [&out](const std::string &s) { AddTooltipLine(out, s); };
 	// A Passive Skills row has no points and no rank, so the usual two lines would both be lies -
-	// "Points: 0 of 1" invites a click that is refused, and the tier is not its gate.
+	// "Points: 0 of 1" invites a click that is refused, and the tier is not its gate. Its one value
+	// still prints (user, 2026-09-26: exempt from growing, not from saying what it gives).
 	if (IsPassiveSkillRow(skill)) {
 		const int required = PassiveSkillRequiredLevel(skill);
-		std::string out = player._pLevel >= required
-		    ? std::string(_("Learned"))
-		    : fmt::format(fmt::runtime(_("Learned at level {:d}")), required);
+		add(player._pLevel >= required
+		        ? std::string(_("Learned"))
+		        : fmt::format(fmt::runtime(_("Learned at level {:d}")), required));
 		const int slot = PassiveSlotOf(player, skill);
 		if (slot >= 0)
-			out += "\n" + fmt::format(fmt::runtime(_("Active - slot {:d}")), slot + 1);
+			add(fmt::format(fmt::runtime(_("Active - slot {:d}")), slot + 1));
 		else if (player._pLevel >= required)
-			out += "\n" + std::string(_("Inactive - not in a slot"));
+			add(std::string(_("Inactive - not in a slot")));
+		add(ClassTreeRankBlock(player, skill, 1));
 		if (!data.implemented)
-			out += "\n" + std::string(_("No effect yet"));
+			add(std::string(_("No effect yet")));
 		return out;
 	}
 	// A BOOK row reports the book's level, not a point count. "Points: 0 of 20" on Fire Bolt would
-	// invite a click that is always refused and describe a store this row does not use.
+	// invite a click that is always refused and describe a store this row does not use. Its numbers
+	// are the Spells sheet's, level and next level (2026-09-26).
 	if (IsClassTreeRowRetiredAsSpell(skill)) {
 		const SpellID spell = ClassTreeSpellId(skill);
 		const int level = player.GetSpellLevel(spell);
-		std::string out = level > 0
-		    ? fmt::format(fmt::runtime(_("Spell level {:d}")), level)
-		    : std::string(_("Not learned"));
-		out += "\n" + std::string(_("Raised by books, not by skill points"));
+		if (level > 0) {
+			add(fmt::format(fmt::runtime(_("Current Spell Level: {:d}")), level));
+			add(SpellLevelLines(player, spell, level));
+		} else {
+			add(std::string(_("Not learned")));
+		}
+		if (withNext) {
+			out += "\n";
+			add(std::string(level == 0 ? _("First Level") : _("Next Level")));
+			add(SpellLevelLines(player, spell, level + 1));
+		}
+		add(std::string(_("Raised by books, not by skill points")));
 		return out;
 	}
 	const int p = ClassTreeInvestment(player, skill);
@@ -3030,88 +3286,20 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 	// THE DIABLO II SHAPE (user, 2026-09-05: "look at diablo 2 description theme. we want same theme
 	// when hovering over a skill in the abilities windows"): a "Current Skill Level: N" heading with
 	// this rank's numbers under it, a gap, then "Next Level" with the next rank's numbers - the same
-	// lines, so the eye compares them row for row. Before this the block was "Points: 1 of 20 / Next
-	// point requires level 12 / Now: ... / Next point: ...", which said the same things in a shape
-	// no player had seen before.
+	// lines, so the eye compares them row for row.
 	//
 	// WHAT A RANK GRANTS, derived by RUNNING the effect, never by a second table (user, 2026-08-31:
 	// "compare yours to D2. D2 is more informative"). An aura or passive goes through the same
 	// ApplyAura / ApplyPassive the game runs, and DescribeBonusTotals names every field that moved -
 	// so the tooltip cannot promise a bonus the code does not apply. That failure has happened three
 	// times in this project (see oracool/unique_affixes.h) and a tooltip is the worst place for it.
-	// An ACTIVE carries a SpellID, and its rank is its spell level (Player::GetSpellLevel folds the
-	// investment in), so its numbers are the spell side's: damage and mana at that level, from the
-	// same two functions the Spells sheet quotes.
-	//
-	// Rows whose effect the struct cannot carry - flags, procs, bespoke behaviour - produce no lines
-	// and keep their authored sentence. Silence stays the honest answer.
-	const auto rankLines = [&](int points) {
-		std::string text;
-		const auto line = [&text](const std::string &s) {
-			if (!text.empty())
-				text += '\n';
-			text += s;
-		};
-		if (data.kind == Kind::Active) {
-			const SpellID spell = ClassTreeSpellId(skill);
-			if (IsValidSpell(spell)) {
-				const int at = std::max(points, 1);
-				int min = -1;
-				int max = -1;
-				GetDamageAmtAtLevel(spell, at, &min, &max);
-				if (min != -1)
-					line(fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), min, max));
-				if (const std::string resource = SkillResourceLine(player, spell, at); !resource.empty())
-					line(resource); // Mana Cost, or the Barbarian's Rage Cost / Generates
-				const std::string facts = SkillFactsAt(spell, at); // strikes, range, duration, stun, chance - the module's own numbers
-				if (!facts.empty())
-					line(facts);
-			}
-			if (data.implemented) {
-				const std::string stat = LevelUpStatLine(skill, std::max(points, 1));
-				if (!stat.empty())
-					line(stat);
-			}
-			return text;
-		}
-		if (!data.implemented)
-			return text;
-		ItemBonusTotals totals {};
-		if (data.kind == Kind::Aura)
-			ApplyAura(skill, points, totals);
-		else
-			ApplyPassive(player, skill, points, totals);
-		const std::string bonuses = DescribeBonusTotals(totals, "\n");
-		if (!bonuses.empty())
-			line(bonuses);
-		const std::string stat = LevelUpStatLine(skill, points);
-		if (!stat.empty())
-			line(stat);
-		if (data.kind == Kind::Aura) {
-			// What an aura does OFF the sheet - a pulse, a return, a shortening - which the totals cannot
-			// carry (2026-09-12).
-			const std::string field = AuraFieldFactsAt(skill, points);
-			if (!field.empty())
-				line(field);
-			// The reach only where it reaches something: it used to sit on Might and the resists too, where
-			// it meant nothing (audit, 2026-09-12).
-			if (AuraReachesMonsters(skill))
-				line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), AuraFieldRadius(skill, points)));
-		}
-		return text;
-	};
-
-	std::string out;
-	const auto add = [&out](const std::string &s) {
-		if (!out.empty())
-			out += '\n';
-		out += s;
-	};
+	// What the totals cannot carry - a chance, a pulse, a summon's body - each module states beside its
+	// own formula (oracool/skill_facts.h). THE TWO RULES (user, 2026-09-26): every rank grows something,
+	// and this block shows the main effect and the level-up stat, both with numbers.
+	// test/oracool_skill_rules_test.cpp walks every row of every class to its cap against it.
 	if (p > 0) {
 		add(fmt::format(fmt::runtime(_("Current Skill Level: {:d}")), p));
-		const std::string now = rankLines(p);
-		if (!now.empty())
-			add(now);
+		add(ClassTreeRankBlock(player, skill, p));
 	} else {
 		add(std::string(_("Not learned")));
 	}
@@ -3127,9 +3315,7 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 			out += "\n"; // the gap D2 leaves between the two blocks
 			add(std::string(p == 0 ? _("First Level") : _("Next Level")));
 			add(fmt::format(fmt::runtime(_("Requires level {:d}")), RankRequiredLevel(ClassTreeTierMinLevel(data.tier), p + 1)));
-			const std::string next = rankLines(p + 1);
-			if (!next.empty())
-				add(next);
+			add(ClassTreeRankBlock(player, skill, p + 1));
 		}
 	}
 	if (!data.implemented)

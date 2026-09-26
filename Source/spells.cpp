@@ -282,6 +282,11 @@ SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool
 	return SpellCheckResult::Success;
 }
 
+int ChargedBoltCount(int spellLevel)
+{
+	return (spellLevel / 2) + 4;
+}
+
 void CastSpell(int id, SpellID spl, int sx, int sy, int dx, int dy, int spllvl)
 {
 	Player &player = Players[id];
@@ -312,7 +317,8 @@ void CastSpell(int id, SpellID spl, int sx, int sy, int dx, int dy, int spllvl)
 		fizzled |= (missile == nullptr);
 	}
 	if (spl == SpellID::ChargedBolt) {
-		for (int i = (spllvl / 2) + 3; i > 0; i--) {
+		// The table's missile above is the first bolt; these are the rest.
+		for (int i = ChargedBoltCount(spllvl) - 1; i > 0; i--) {
 			Missile *missile = AddMissile({ sx, sy }, { dx, dy }, dir, MissileID::ChargedBolt, TARGET_MONSTERS, id, 0, spllvl);
 			fizzled |= (missile == nullptr);
 		}

@@ -4652,6 +4652,9 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 
 	player._pIMinDam = mind;
 	player._pIMaxDam = maxd;
+	// The skills' "+N% armour" (2026-09-26): a share of the armour the gear and the flat bonuses give.
+	if (totals.armorPercent != 0)
+		bac += (tac + bac) * totals.armorPercent / 100;
 	player._pIAC = tac;
 	player._pIBonusDam = bdam;
 	player._pIBonusToHit = btohit;

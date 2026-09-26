@@ -5615,6 +5615,16 @@ bool PlaceCompanionNear(Monster &companion, Point centre, int maxRadius)
 	return false;
 }
 
+GolemStats GolemStatsAt(const Player &player, int spellLevel)
+{
+	GolemStats stats;
+	stats.maxHitPoints = 2 * (320 * spellLevel + player._pMaxMana / 3);
+	stats.toHit = 5 * (spellLevel + 8) + 2 * player._pLevel;
+	stats.minDamage = 2 * (spellLevel + 4);
+	stats.maxDamage = 2 * (spellLevel + 8);
+	return stats;
+}
+
 void SpawnGolem(Player &player, Monster &golem, Point position, Missile &missile)
 {
 	dMonster[position.x][position.y] = golem.getId() + 1;
@@ -5622,12 +5632,14 @@ void SpawnGolem(Player &player, Monster &golem, Point position, Missile &missile
 	golem.position.future = position;
 	golem.position.old = position;
 	golem.pathCount = 0;
-	golem.maxHitPoints = 2 * (320 * missile._mispllvl + player._pMaxMana / 3);
+	// Oracool (2026-09-26): the numbers come from GolemStatsAt, which the Golem tooltip reads too.
+	const GolemStats stats = GolemStatsAt(player, missile._mispllvl);
+	golem.maxHitPoints = stats.maxHitPoints;
 	golem.hitPoints = golem.maxHitPoints;
 	golem.armorClass = 25;
-	golem.golemToHit = 5 * (missile._mispllvl + 8) + 2 * player._pLevel;
-	golem.minDamage = 2 * (missile._mispllvl + 4);
-	golem.maxDamage = 2 * (missile._mispllvl + 8);
+	golem.golemToHit = stats.toHit;
+	golem.minDamage = stats.minDamage;
+	golem.maxDamage = stats.maxDamage;
 	golem.flags |= MFLAG_GOLEM;
 	StartSpecialStand(golem, Direction::South);
 	UpdateEnemy(golem);

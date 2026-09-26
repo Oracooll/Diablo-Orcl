@@ -21,6 +21,7 @@
  */
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -35,6 +36,7 @@ struct Monster;
 namespace devilution::oracool {
 
 struct ItemBonusTotals;
+enum class ClassTreeSkill : uint16_t;
 
 /** @brief Whether @p spell is one of the 114 RfA-12 actives. */
 bool IsRfa12Active(SpellID spell);
@@ -91,6 +93,20 @@ int Rfa12BuffTicks(const Player &player, SpellID spell);
 
 /** @brief Frostbite: the extra cold damage @p monster takes, in percent. */
 int Rfa12FrostbitePercent(const Monster &monster);
+
+/**
+ * @brief Tooltip lines for what @p spell does at @p rank - its main effect with numbers, from the same
+ * named helpers the cast reads. Every RfA-12 active, the census actives, and the Necromancer's (curses and
+ * summons are routed to CurseFactsAt / NecroSummoningFactsAt). Empty for any other spell.
+ */
+std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank);
+
+/**
+ * @brief Tooltip lines for the tree passives and Passive Skills page rows whose RULE lives in rfa12_actives.cpp, at
+ * @p points (1 for a Passive Skills page row): the main effect with its numbers, from the same named
+ * helpers the rule reads. Empty for any other row. See oracool/skill_facts.h for the two rules.
+ */
+std::string Rfa12ActivesPassiveFactsAt(const Player &player, ClassTreeSkill skill, int points);
 
 /** @brief The Abilities window's sentence for @p spell - its tree row's. Empty for anything else. */
 const char *Rfa12ActiveDescription(SpellID spell);

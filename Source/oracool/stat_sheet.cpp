@@ -254,6 +254,8 @@ std::string DescribeBonusTotals(const ItemBonusTotals &totals, const char *separ
 
 	if (totals.armor != 0 || totals.bonusArmor != 0)
 		add(fmt::format(fmt::runtime(_("{:s} armour")), signedNumber(totals.armor + totals.bonusArmor)));
+	if (totals.armorPercent != 0)
+		add(fmt::format(fmt::runtime(_("{:s}% armour")), signedNumber(totals.armorPercent)));
 	if (totals.getHit != 0)
 		add(fmt::format(fmt::runtime(_("{:s} damage taken")), signedNumber(totals.getHit)));
 	if (totals.fireResist != 0)
@@ -271,10 +273,12 @@ std::string DescribeBonusTotals(const ItemBonusTotals &totals, const char *separ
 		add(fmt::format(fmt::runtime(_("{:s} dexterity")), signedNumber(totals.dexterity)));
 	if (totals.vitality != 0)
 		add(fmt::format(fmt::runtime(_("{:s} vitality")), signedNumber(totals.vitality)));
-	if (totals.hitPoints != 0)
-		add(fmt::format(fmt::runtime(_("{:s} life")), signedNumber(totals.hitPoints)));
-	if (totals.mana != 0)
-		add(fmt::format(fmt::runtime(_("{:s} mana")), signedNumber(totals.mana)));
+	// Life and mana are kept in 1/64 units (<<6); a player reads whole points (2026-09-26: Perfect Vessel's
+	// tenth of the base life read "+640 life" for a hundred).
+	if (const int life = totals.hitPoints / 64; life != 0)
+		add(fmt::format(fmt::runtime(_("{:s} life")), signedNumber(life)));
+	if (const int mana = totals.mana / 64; mana != 0)
+		add(fmt::format(fmt::runtime(_("{:s} mana")), signedNumber(mana)));
 
 	if (totals.spellLevelAdd != 0)
 		add(fmt::format(fmt::runtime(_("{:s} to spell levels")), signedNumber(totals.spellLevelAdd)));
@@ -288,6 +292,23 @@ std::string DescribeBonusTotals(const ItemBonusTotals &totals, const char *separ
 		add(fmt::format(fmt::runtime(_("{:s}% movement speed")), signedNumber(totals.moveSpeed)));
 	if (totals.fastCast != 0)
 		add(fmt::format(fmt::runtime(_("{:s}% faster cast rate")), signedNumber(totals.fastCast)));
+
+	// The speed flags (2026-09-26): a skill whose whole gift is a faster swing or a quicker recovery
+	// printed nothing, so its tooltip could not say what it gave. Fastest first - one line per family.
+	if (HasAnyOf(totals.flags, ItemSpecialEffect::FastestAttack))
+		add(std::string(_("Fastest attack")));
+	else if (HasAnyOf(totals.flags, ItemSpecialEffect::FasterAttack))
+		add(std::string(_("Faster attack")));
+	else if (HasAnyOf(totals.flags, ItemSpecialEffect::FastAttack))
+		add(std::string(_("Fast attack")));
+	else if (HasAnyOf(totals.flags, ItemSpecialEffect::QuickAttack))
+		add(std::string(_("Quick attack")));
+	if (HasAnyOf(totals.flags, ItemSpecialEffect::FastestHitRecovery))
+		add(std::string(_("Fastest hit recovery")));
+	else if (HasAnyOf(totals.flags, ItemSpecialEffect::FasterHitRecovery))
+		add(std::string(_("Faster hit recovery")));
+	else if (HasAnyOf(totals.flags, ItemSpecialEffect::FastHitRecovery))
+		add(std::string(_("Fast hit recovery")));
 
 	return out;
 }
