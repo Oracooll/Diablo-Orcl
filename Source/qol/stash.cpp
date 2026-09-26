@@ -32,6 +32,11 @@
 #include "oracool/salvage.h"
 #include "oracool/socket_overlay.h"
 #include "oracool/runewords.h"
+#include "oracool/event_log.h"
+#include "oracool/named_encounters.h"
+#include "oracool/rift.h"
+#include "oracool/signets.h"
+#include "oracool/skill_sounds.h" // PlayUiEventSound - the map's unsealing
 #include "oracool/ui_sound.h"
 #include "oracool/window_close.h" // the withdraw box's red X (2026-09-24)
 #include "stores.h"
@@ -1289,6 +1294,40 @@ bool UseStashItem(uint16_t c)
 	}
 
 	if (item->_iMiscId > IMISC_RUNEFIRST && item->_iMiscId < IMISC_RUNELAST && leveltype == DTYPE_TOWN) {
+		return true;
+	}
+
+	// The fork's three one-use items, whose effect lives in UseInvItem rather than UseItem (user, 2026-09-26
+	// dev note: "make signet of learning unable to consume if 20/20 reached"). The backpack refused a signet at
+	// the cap; this path went straight to UseItem and then removed the item - so a signet was eaten for nothing,
+	// and a keystone or a sealed map was eaten without opening anything, UseItem having no case for either.
+	if (item->_iMiscId == IMISC_ORACOOL_SIGNET && !oracool::CanConsumeSignet(*MyPlayer)) {
+		MyPlayer->Say(HeroSpeech::ICantUseThisYet);
+		oracool::LogEvent("Signet of Learning: this life has no room for another.");
+		return true;
+	}
+	if (item->_iMiscId == IMISC_ORACOOL_KEYSTONE || item->_iMiscId == IMISC_ORACOOL_MAP) {
+		bool opened = false;
+		if (item->_iMiscId == IMISC_ORACOOL_KEYSTONE) {
+			opened = oracool::UseGuardianKeystone(*MyPlayer, *item);
+			if (!opened)
+				oracool::LogEvent("A keystone only turns in town, at the Rift Monument.");
+		} else {
+			oracool::NamedEncounter encounter;
+			if (!oracool::EncounterForMapItem(item->IDidx, encounter))
+				return true;
+			opened = oracool::EnterNamedEncounter(*MyPlayer, encounter);
+			if (opened)
+				oracool::PlayUiEventSound(oracool::UiEventSound::MapUnseal);
+			else
+				oracool::LogEvent("A sealed map only opens in town.");
+		}
+		if (!opened) {
+			MyPlayer->Say(HeroSpeech::ICantUseThisYet);
+			return true;
+		}
+		Stash.RemoveStashItem(c);
+		oracool::ScheduleAutoSaveForStashChange();
 		return true;
 	}
 

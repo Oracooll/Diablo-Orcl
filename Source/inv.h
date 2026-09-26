@@ -207,6 +207,11 @@ void ReleaseInventoryTabButton();
  * body slots) - a 1 px gold outline of the footprint with 1 px grey cell lines inside (user, 2026-09-20). */
 void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const Item &item, bool gridLines = true);
 /**
+ * @brief @p item's quality colour as the rim-and-glow backing draws it, or 0 for an item with no quality colour
+ * (gold). The tooltip card wears the same colour on its plate and frame (user, 2026-09-26 dev note).
+ */
+uint32_t ItemQualityRimColor(const Item &item);
+/**
  * @brief Checks whether the given item can be placed on the belt. Takes item size as well as characteristics into account. Items
  * that cannot be placed on the belt have to be placed in the inventory instead.
  * @param item The item to be checked.

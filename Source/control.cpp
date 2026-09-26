@@ -1699,7 +1699,7 @@ void CheckChrBtns()
 	}
 }
 
-void ReleaseChrBtns(bool addAllStatPoints)
+void ReleaseChrBtns(bool addAllStatPoints, bool addFive)
 {
 	chrbtnactive = false;
 	// Same scroll gate as CheckChrBtns - a button that scrolled out from under the cursor between
@@ -1734,6 +1734,10 @@ void ReleaseChrBtns(bool addAllStatPoints)
 			int statPointsToAdd = 1;
 			if (addAllStatPoints)
 				statPointsToAdd = CapStatPointsToAdd(myPlayer._pStatPts, myPlayer, attribute);
+			else if (addFive) // ctrl+click (user, 2026-09-26 dev note: "add 5 level-up points at once")
+				statPointsToAdd = CapStatPointsToAdd(std::min(myPlayer._pStatPts, 5), myPlayer, attribute);
+			if (statPointsToAdd <= 0)
+				continue;
 			switch (attribute) {
 			case CharacterAttribute::Strength:
 				NetSendCmdParam1(true, CMD_ADDSTR, statPointsToAdd);

@@ -402,7 +402,13 @@ struct CardLine {
 struct Card {
 	std::string banner; // "EQUIPPED ITEM" on a comparison card
 	CardLine title;
-	std::string subtitle;
+	std::string subtitle; // the parts below, joined - for measuring
+	/** @brief The subtitle's parts in their colours: the type in grey, the TIER in the colour its own line had
+	 * (user, 2026-09-26 dev note: "the item tier - norm, nightmare, hell, torment to keep the colors we have
+	 * apointed to them prior to the redesign"), the item level in grey. */
+	std::vector<std::pair<std::string, UiFlags>> subtitleParts;
+	/** @brief The item's quality colour - the plate, the frame, the rule and the bullets wear it. */
+	uint32_t hue = 0xB08A48;
 	std::string headValue; // "81" / "3-9"
 	std::string headLabel; // "ARMOR" / "DAMAGE"
 	std::string headNote;  // "Dur: 119/119"
@@ -483,6 +489,7 @@ Card BuildCard(const TooltipBlock &block, const Item *item)
 
 	std::string type;
 	std::string tier;
+	UiFlags tierColor = UiFlags::ColorGray5;
 	std::string level;
 	int socketLinesLeft = 0;
 	for (size_t first = i; i < lines.size(); i++) {
@@ -495,6 +502,7 @@ Card BuildCard(const TooltipBlock &block, const Item *item)
 		}
 		if (tier.empty() && CardStartsWith(text, "Tier: ")) {
 			tier = std::string(text.substr(6));
+			tierColor = line.color;
 			continue;
 		}
 		if (level.empty() && CardStartsWith(text, "Item Level: ")) {
@@ -527,19 +535,24 @@ Card BuildCard(const TooltipBlock &block, const Item *item)
 		card.bullet.push_back(isStone);
 	}
 
-	std::string subtitle = CardTitleCase(type);
-	const auto append = [&subtitle](const std::string &part) {
+	const auto append = [&card](const std::string &part, UiFlags color) {
 		if (part.empty())
 			return;
-		if (!subtitle.empty())
-			subtitle += "  \xE2\x80\xA2  "; // a bullet, U+2022
-		subtitle += part;
+		if (!card.subtitleParts.empty())
+			card.subtitleParts.emplace_back("  \xE2\x80\xA2  ", UiFlags::ColorGray5); // a bullet, U+2022
+		card.subtitleParts.emplace_back(part, color);
 	};
+	append(CardTitleCase(type), UiFlags::ColorGray5);
 	if (!tier.empty())
-		append(StrCat(_("Tier"), " ", tier));
+		append(StrCat(_("Tier"), " ", tier), tierColor);
 	if (!level.empty())
-		append(StrCat(_("ilvl"), " ", level));
-	card.subtitle = subtitle;
+		append(StrCat(_("ilvl"), " ", level), UiFlags::ColorGray5);
+	for (const auto &[part, color] : card.subtitleParts)
+		card.subtitle += part;
+	if (item != nullptr && !item->isEmpty()) {
+		if (const uint32_t hue = ItemQualityRimColor(*item); hue != 0)
+			card.hue = hue;
+	}
 	return card;
 }
 
@@ -652,8 +665,13 @@ uint32_t CardMixRgb(uint32_t a, uint32_t b, int t256)
 }
 
 /** @brief The card's plate: the world behind it darkened to a fifth under a warm gradient, a darker foot band, a gold frame. */
-void DrawCardPlate(const Surface &out, const Rectangle &box, int footerTop)
+void DrawCardPlate(const Surface &out, const Rectangle &box, int footerTop, uint32_t hue)
 {
+	// In the ITEM'S colour (user, 2026-09-26 dev note: "make the tooltip backing and frame match the items
+	// color, not use the same frame and color for all items"): the gradient leans a seventh of the way to the
+	// hue at the top and a sixteenth at the foot, dark enough for every text colour to read on it.
+	const uint32_t groundTop = CardMixRgb(0x181512u, hue, 36);
+	const uint32_t groundBottom = CardMixRgb(0x0C0B0Au, hue, 16);
 	const int x0 = std::max(box.position.x, 0), y0 = std::max(box.position.y, 0);
 	const int x1 = std::min(box.position.x + box.size.width, out.w());
 	const int y1 = std::min(box.position.y + box.size.height, out.h());
@@ -661,7 +679,7 @@ void DrawCardPlate(const Surface &out, const Rectangle &box, int footerTop)
 		const int row = y - box.position.y;
 		const bool foot = footerTop > 0 && row >= footerTop;
 		const int t = box.size.height > 1 ? row * 256 / (box.size.height - 1) : 0;
-		const uint32_t ground = foot ? 0x080706u : CardMixRgb(0x1E1912u, 0x0D0C0Bu, t);
+		const uint32_t ground = foot ? CardMixRgb(0x080706u, hue, 10) : CardMixRgb(groundTop, groundBottom, t);
 		uint32_t *dst = out.at<uint32_t>(x0, y);
 		for (int x = x0; x < x1; x++, dst++) {
 			const uint32_t c = *dst;
@@ -687,23 +705,27 @@ void DrawCardPlate(const Surface &out, const Rectangle &box, int footerTop)
 	const int left = box.position.x, top = box.position.y;
 	const int right = left + box.size.width - 1, bottom = top + box.size.height - 1;
 	if (footerTop > 0)
-		hline(top + footerTop, left + 2, right - 1, 0x3A2E1Eu);
+		hline(top + footerTop, left + 2, right - 1, CardMixRgb(0x1A1612u, hue, 90));
 	// Outside in: a black edge, the gold line (brighter along the top, as if lit from above), a dark inner line.
 	hline(top, left, right + 1, 0x050403u);
 	hline(bottom, left, right + 1, 0x050403u);
 	vline(left, top, bottom + 1, 0x050403u);
 	vline(right, top, bottom + 1, 0x050403u);
-	hline(top + 1, left + 1, right, 0xC49A52u);
-	hline(bottom - 1, left + 1, right, 0x7A5C2Cu);
-	vline(left + 1, top + 1, bottom, 0x8C6A34u);
-	vline(right - 1, top + 1, bottom, 0x8C6A34u);
-	hline(top + 2, left + 2, right - 1, 0x2A2016u);
-	vline(left + 2, top + 2, bottom - 1, 0x2A2016u);
-	vline(right - 2, top + 2, bottom - 1, 0x2A2016u);
+	const uint32_t lit = CardMixRgb(hue, 0xFFFFFFu, 40);
+	const uint32_t side = CardMixRgb(0x000000u, hue, 205);
+	const uint32_t shade = CardMixRgb(0x000000u, hue, 140);
+	const uint32_t inner = CardMixRgb(0x0E0C0Au, hue, 56);
+	hline(top + 1, left + 1, right, lit);
+	hline(bottom - 1, left + 1, right, shade);
+	vline(left + 1, top + 1, bottom, side);
+	vline(right - 1, top + 1, bottom, side);
+	hline(top + 2, left + 2, right - 1, inner);
+	vline(left + 2, top + 2, bottom - 1, inner);
+	vline(right - 2, top + 2, bottom - 1, inner);
 }
 
 /** @brief A gold rule that fades out towards both ends. */
-void DrawCardDivider(const Surface &out, int x, int y, int width)
+void DrawCardDivider(const Surface &out, int x, int y, int width, uint32_t hue)
 {
 	if (y < 0 || y >= out.h())
 		return;
@@ -715,7 +737,7 @@ void DrawCardDivider(const Surface &out, int x, int y, int width)
 		const int edge = std::min(i, width - 1 - i);
 		const int t = std::min(256, edge * 256 / Fade) * 200 / 256;
 		uint32_t *dst = out.at<uint32_t>(px, y);
-		*dst = (*dst & 0xFF000000u) | CardMixRgb(*dst, 0xB08A48u, t);
+		*dst = (*dst & 0xFF000000u) | CardMixRgb(*dst, hue, t);
 	}
 }
 
@@ -732,10 +754,45 @@ void DrawCardBullet(const Surface &out, Point centre, uint32_t rgb)
 	}
 }
 
+/**
+ * @brief DrawString, then every pixel it painted made @p liftPercent brighter - hue kept, clamped at full. For the
+ * name (user, 2026-09-26 dev note: "make item name fonts more readable. may increase their brightnes a noth.
+ * especially the yellow rare titles"): the fonts' colour ramps are shaded for the old black panel and read dim
+ * on the card's warmer plate. Drawn and then lifted, so the name keeps its own colour, not a new one.
+ */
+void DrawStringLifted(const Surface &out, string_view text, const Rectangle &rect, const TextRenderOptions &options, int liftPercent)
+{
+	const int x0 = std::max(rect.position.x, 0), y0 = std::max(rect.position.y, 0);
+	const int x1 = std::min(rect.position.x + rect.size.width, out.w());
+	const int y1 = std::min(rect.position.y + rect.size.height, out.h());
+	if (x1 <= x0 || y1 <= y0) {
+		DrawString(out, text, rect, options);
+		return;
+	}
+	std::vector<uint32_t> before;
+	before.reserve(static_cast<size_t>((x1 - x0) * (y1 - y0)));
+	for (int y = y0; y < y1; y++)
+		before.insert(before.end(), out.at<uint32_t>(x0, y), out.at<uint32_t>(x0, y) + (x1 - x0));
+	DrawString(out, text, rect, options);
+	size_t i = 0;
+	for (int y = y0; y < y1; y++) {
+		uint32_t *dst = out.at<uint32_t>(x0, y);
+		for (int x = x0; x < x1; x++, dst++, i++) {
+			if (*dst == before[i])
+				continue;
+			const auto ch = [&](int shift) {
+				const int v = static_cast<int>((*dst >> shift) & 0xFF);
+				return static_cast<uint32_t>(std::min(255, v * (100 + liftPercent) / 100)) << shift;
+			};
+			*dst = (*dst & 0xFF000000u) | ch(16) | ch(8) | ch(0);
+		}
+	}
+}
+
 void DrawCard(const Surface &out, const Card &card, const CardLayout &l, Point origin)
 {
 	const Rectangle box { origin, l.size };
-	DrawCardPlate(out, box, l.footerTop);
+	DrawCardPlate(out, box, l.footerTop, card.hue);
 	const int left = origin.x + CardPadX;
 	const int innerWidth = l.size.width - 2 * CardPadX;
 	int y = origin.y + CardPadTop;
@@ -751,13 +808,19 @@ void DrawCard(const Surface &out, const Card &card, const CardLayout &l, Point o
 		DrawItem(*card.item, out, spriteAt, CardSprite(*card.item));
 	}
 	const UiFlags titleSize = l.titleFont == GameFont24 ? UiFlags::FontSize24 : UiFlags::None;
-	DrawString(out, card.title.text, Rectangle { { left, y }, { GetLineWidth(card.title.text, l.titleFont, 1) + 4, l.titleHeight } },
-	    { card.title.color | titleSize | UiFlags::KerningFitSpacing, 1, l.titleHeight });
+	// A notch brighter for every name, two for the rare's yellow, which is the darkest of the ramps.
+	const int lift = card.title.color == UiFlags::ColorYellow3 ? 55 : 30;
+	DrawStringLifted(out, card.title.text, Rectangle { { left, y }, { GetLineWidth(card.title.text, l.titleFont, 1) + 4, l.titleHeight } },
+	    { card.title.color | titleSize | UiFlags::KerningFitSpacing, 1, l.titleHeight }, lift);
 	y += l.titleHeight;
 	if (!card.subtitle.empty()) {
 		y += 2;
-		DrawString(out, card.subtitle, Rectangle { { left, y }, { GetLineWidth(card.subtitle) + 4, l.line } },
-		    { UiFlags::ColorGray5 | UiFlags::KerningFitSpacing, 1, l.line });
+		int x = left;
+		for (const auto &[part, color] : card.subtitleParts) {
+			const int w = GetLineWidth(part);
+			DrawString(out, part, Rectangle { { x, y }, { w + 2, l.line } }, { color | UiFlags::KerningFitSpacing, 1, l.line });
+			x += w;
+		}
 		y += l.line;
 	}
 	if (!card.headValue.empty()) {
@@ -776,14 +839,14 @@ void DrawCard(const Surface &out, const Card &card, const CardLayout &l, Point o
 			    { UiFlags::ColorGray5 | UiFlags::KerningFitSpacing, 1, l.line });
 		}
 	}
-	DrawCardDivider(out, left, headerTop + l.headerHeight + 6, innerWidth);
+	DrawCardDivider(out, left, headerTop + l.headerHeight + 6, innerWidth, card.hue);
 
 	y = origin.y + l.bodyTop;
 	for (size_t i = 0; i < card.body.size(); i++) {
 		const CardLine &line = card.body[i];
 		int x = left;
 		if (card.bullet[i]) {
-			DrawCardBullet(out, { x + 3, y + l.line / 2 }, 0xB08A48u);
+			DrawCardBullet(out, { x + 3, y + l.line / 2 }, card.hue);
 			x += CardBulletIndent;
 		}
 		DrawCardLine(out, line, x, y, l.line);

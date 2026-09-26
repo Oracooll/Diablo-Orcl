@@ -4078,6 +4078,36 @@ string_view GetItemTypeNoun(const Item &item)
 		return _("item");
 	}
 
+	// The fork's own weapon and off-hand bases borrow a vanilla ItemType for the hero's animation and the
+	// family rules - the Pike is an Axe, the Spear a Sword, the Necromancer's scythes Axes - and the type's
+	// word then named them wrongly: a Pike unique read "unique axe" under a spear-shaped icon (user,
+	// 2026-09-26 dev note: "i had a spear sprite whose name was axe"). The base answers first.
+	if (item.IDidx >= 0 && item.IDidx <= IDI_LAST) {
+		const unique_base_item base = AllItemsList[static_cast<size_t>(item.IDidx)].iItemId;
+		switch (base) {
+		case UITYPE_SPEAR:
+			return _("spear");
+		case UITYPE_PIKE:
+			return _("pike");
+		case UITYPE_WARLUTE:
+			return _("lute");
+		case UITYPE_WARQUIVER:
+			return _("quiver");
+		case UITYPE_CANTICLE:
+			return _("canticle");
+		case UITYPE_ARCANEFOCUS:
+			return _("focus");
+		default:
+			break;
+		}
+		if (base >= UITYPE_NECRO_WAND_BONE_WAND && base <= UITYPE_NECRO_WAND_UNHOLY_WAND)
+			return _("wand");
+		if (base >= UITYPE_NECRO_SCYTHE_REAPING_SCYTHE && base <= UITYPE_NECRO_SCYTHE_DEATHBRINGER)
+			return _("scythe");
+		if (base >= UITYPE_NECRO_HEAD_PRESERVED_HEAD && base <= UITYPE_NECRO_HEAD_BLOODLORD_SKULL)
+			return _("head");
+	}
+
 	switch (item._itype) {
 	case ItemType::Sword:
 		return _("sword");

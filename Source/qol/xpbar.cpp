@@ -42,7 +42,7 @@ constexpr int BarHeight = 4;
  * round as a shape this thin can read without losing its ends entirely. Indexed by distance from
  * the nearest long edge, so the same table rounds the top and the bottom.
  */
-constexpr int CornerInset[] = { 2, 1 };
+constexpr int CornerInset[] = { 0 }; // square since the frame (2026-09-26): the frame's cut corners are the rounding now
 
 // The ten-segment notches went with the halving (user, 2026-09-05: "remove the 10% indents") - a
 // 2px bite out of a 4px bar would have cut it in two.
@@ -53,6 +53,11 @@ constexpr uint8_t FilledColor = PAL16_YELLOW + 4;
 constexpr uint8_t EmptyColor = 204;
 /** @brief The edge, a shade darker than the groove, so the bar has an outline at both states. */
 constexpr uint8_t EdgeColor = 0;
+/** @brief The frame round the bar and its ten-percent marks (user, 2026-09-26: "put a grey frame around the exp
+ * bar + verticals on each 10%"). Grey from the palette's own ramp; the marks a shade darker, so the frame reads
+ * as the edge and the marks as a scale inside it. */
+constexpr uint8_t FrameColor = PAL16_GRAY + 7;
+constexpr uint8_t TickColor = PAL16_GRAY + 10;
 
 } // namespace
 
@@ -152,6 +157,22 @@ void DrawXPBar(const Surface &out)
 	const int filled = FilledWidth(*MyPlayer, bar.size.width);
 	for (int row = 0; row < bar.size.height; row++)
 		DrawBarRow(out, bar, row, filled);
+
+	// The ten-percent marks, over the fill and the groove alike, at 10% to 90%. The 2026-09-05 notches were
+	// bites out of the bar and cut a 4px bar in two; these are lines on it.
+	for (int tenth = 1; tenth < 10; tenth++) {
+		const int x = bar.position.x + bar.size.width * tenth / 10;
+		DrawVerticalLine(out, { x, bar.position.y }, bar.size.height, TickColor);
+	}
+	// The frame, a pixel outside the bar so none of its four rows is lost, with the corners cut.
+	const int left = bar.position.x - 1;
+	const int right = bar.position.x + bar.size.width;
+	const int top = bar.position.y - 1;
+	const int bottom = bar.position.y + bar.size.height;
+	DrawHorizontalLine(out, { left + 1, top }, right - left - 1, FrameColor);
+	DrawHorizontalLine(out, { left + 1, bottom }, right - left - 1, FrameColor);
+	DrawVerticalLine(out, { left, top + 1 }, bottom - top - 1, FrameColor);
+	DrawVerticalLine(out, { right, top + 1 }, bottom - top - 1, FrameColor);
 }
 
 bool CheckXPBarInfo()

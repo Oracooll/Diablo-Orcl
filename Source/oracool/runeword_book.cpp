@@ -489,18 +489,25 @@ void DrawRunewordBook(const Surface &out)
 		    { (RuneCountSelected[c] || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold) | UiFlags::FontSize12
 		        | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
-	// The hover labels, just under the row so they cannot cover the title.
+	// The hover labels, just under the row so they cannot cover the title - and drawn LAST, over everything
+	// else in the book (user, 2026-09-26 dev note: "make tooltips on runeword book filter buttons render on top
+	// of other content"). They were drawn here, before the slot filters and the rune keys, which then painted
+	// over them. Sized to their text now, on a darker plate.
 	const auto tipUnder = [&out](Rectangle button, string_view text) {
-		const Rectangle tip { { button.position.x, button.position.y + button.size.height + 2 }, { 120, LineHeight } };
+		const Rectangle tip { { button.position.x, button.position.y + button.size.height + 2 }, { GetLineWidth(text) + 8, LineHeight } };
 		DrawHalfTransparentRectTo(out, tip.position.x, tip.position.y, tip.size.width, tip.size.height);
-		DrawString(out, text, tip, { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::Shadowed });
+		DrawHalfTransparentRectTo(out, tip.position.x, tip.position.y, tip.size.width, tip.size.height);
+		DrawString(out, text, Rectangle { tip.position + Displacement { 4, 0 }, { tip.size.width - 4, tip.size.height } },
+		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::Shadowed });
 	};
-	if (possibleHovered)
-		tipUnder(possible, _("Possible RW"));
-	for (int c = 0; c < RuneCountFilterCount; c++) {
-		if (TitleButtonRect(1 + c).contains(MousePosition))
-			tipUnder(TitleButtonRect(1 + c), fmt::format(fmt::runtime(_("{:d} runes")), RuneCountFilterFirst + c));
-	}
+	const auto drawHoverTips = [&]() {
+		if (possibleHovered)
+			tipUnder(possible, _("Possible RW"));
+		for (int c = 0; c < RuneCountFilterCount; c++) {
+			if (TitleButtonRect(1 + c).contains(MousePosition))
+				tipUnder(TitleButtonRect(1 + c), fmt::format(fmt::runtime(_("{:d} runes")), RuneCountFilterFirst + c));
+		}
+	};
 
 	// The plate when it shipped, the ornate border when it did not - the fallback shop_grid.cpp makes.
 	const bool keyArt = GetLoosePngSize(RunewordKeyArt).width != 0;
@@ -538,6 +545,7 @@ void DrawRunewordBook(const Surface &out)
 	if (words.empty()) {
 		DrawString(out, _("No runewords match these filters."), content,
 		    { UiFlags::ColorGold | UiFlags::FontSize12 | UiFlags::AlignCenter });
+		drawHoverTips();
 		return;
 	}
 
@@ -564,6 +572,7 @@ void DrawRunewordBook(const Surface &out)
 			    Rectangle { { c * columnWidth, y }, { columnWidth - ColumnGap, row.height } });
 		}
 	}
+	drawHoverTips();
 }
 
 bool HandleRunewordBookClick(Point position)

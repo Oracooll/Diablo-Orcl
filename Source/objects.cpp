@@ -3285,7 +3285,10 @@ void OperateShrineMendicant(Player &player)
 	if (&player != MyPlayer)
 		return;
 
-	int gold = player._pGold / 2;
+	// Half of ALL the hero's gold, the stash's included (user, 2026-09-26 dev note: "gold to exp shrine to
+	// consume gold from stash"). TakePlrsMoney already empties the backpack first and the stash after it.
+	const int64_t allGold = static_cast<int64_t>(player._pGold) + std::max(Stash.gold, 0);
+	const int gold = static_cast<int>(std::min<int64_t>(allGold / 2, std::numeric_limits<int>::max()));
 	AddPlrExperience(player, player._pLevel, gold);
 	TakePlrsMoney(gold);
 

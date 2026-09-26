@@ -1825,6 +1825,12 @@ void DrawRimGlowBacking(const Surface &out, const Rectangle &footprint, uint32_t
 
 } // namespace
 
+uint32_t ItemQualityRimColor(const Item &item)
+{
+	bool quiet = false;
+	return RimGlowHue(item, quiet);
+}
+
 /** @brief The grid frame under an item on a GRID (user, 2026-09-20: "add the thin 1px grey grid behind their sprites + add 1px
  * gold outline of their rectangular grid"): a 1 px gold outline on the footprint's edge and 1 px grey lines on every
  * cell boundary inside it. Not on the body slots. Two tunables. */

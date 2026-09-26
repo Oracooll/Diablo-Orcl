@@ -376,7 +376,8 @@ Rectangle GetUnspentPointsFrameRect();
  */
 bool CheckUnspentPointsFrameClick(Point position);
 void CheckChrBtns();
-void ReleaseChrBtns(bool addAllStatPoints);
+/** @param addFive ctrl held: five points at once (user, 2026-09-26 dev note), capped like the rest. */
+void ReleaseChrBtns(bool addAllStatPoints, bool addFive = false);
 void DrawDurIcon(const Surface &out);
 void RedBack(const Surface &out);
 void DrawSpellBook(const Surface &out);

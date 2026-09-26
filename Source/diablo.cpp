@@ -777,7 +777,8 @@ void LeftMouseUp(uint16_t modState)
 	CheckStashButtonRelease(MousePosition);
 	if (chrbtnactive) {
 		const bool isShiftHeld = (modState & KMOD_SHIFT) != 0;
-		ReleaseChrBtns(isShiftHeld);
+		const bool isCtrlHeld = (modState & KMOD_CTRL) != 0;
+		ReleaseChrBtns(isShiftHeld, isCtrlHeld);
 	}
 	if (lvlbtndown)
 		ReleaseLvlBtn();
