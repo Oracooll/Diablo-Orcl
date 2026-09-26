@@ -2,6 +2,9 @@
 
 #include "effects.h" // PlaySfxLoc - vanilla's portal sound on the way-home portal
 #include <algorithm>
+#include <cmath>
+
+#include <SDL.h>
 #include <array>
 #include <string>
 
@@ -30,6 +33,7 @@
 #include "oracool/event_log.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/oracool.h" // IsSinglePlayer
+#include "oracool/ornate_border.h" // DrawLegacyTextBox - the rift bar's gold frame
 #include "oracool/skill_sounds.h"
 #include "oracool/stairless.h"
 #include "oracool/stonegate.h"
@@ -752,6 +756,60 @@ int RiftProgressPercent()
 	return std::clamp(State.credit * 100 / State.creditNeeded, 0, 100);
 }
 
+namespace {
+
+/** @brief @p a mixed toward @p b by @p t (0..256), per channel. */
+uint32_t MixRgb(uint32_t a, uint32_t b, int t)
+{
+	const auto ch = [&](int shift) {
+		const int from = static_cast<int>((a >> shift) & 0xFF);
+		const int to = static_cast<int>((b >> shift) & 0xFF);
+		return static_cast<uint32_t>(std::clamp(from + (to - from) * t / 256, 0, 255)) << shift;
+	};
+	return ch(16) | ch(8) | ch(0);
+}
+
+/**
+ * @brief The rift bar's fill, colour-cycling: a slow shimmer travels along it between the portal's deep and pale shades,
+ * a bright glint sweeps across it every 2.2 seconds, it is lit from above (the top rows lighter, the bottom darker), and
+ * its leading edge glows so the progress reads at a glance. Gold for a Nephalem Rift, violet for a Guardian Rift.
+ */
+void DrawRiftBarFill(const Surface &out, Point at, int width, int height, bool guardian)
+{
+	const uint32_t deep = guardian ? 0x5A1E94u : 0xA8700Eu;
+	const uint32_t base = guardian ? 0x8A3FC8u : 0xD9A21Au;
+	const uint32_t pale = guardian ? 0xD49CF5u : 0xFFE08Au;
+	const uint8_t fallback = guardian ? static_cast<uint8_t>(PAL8_BLUE) : static_cast<uint8_t>(PAL16_YELLOW + 2);
+	const uint32_t now = SDL_GetTicks();
+	const float phase = static_cast<float>(now % 1800) / 1800.0F; // the shimmer's travel, one cycle in 1.8 s
+	const int glintSpan = width + 24;
+	const int glint = static_cast<int>(now % 2200) * glintSpan / 2200 - 12; // the glint's centre column
+	for (int c = 0; c < width; c++) {
+		// Shimmer: a wave 28 columns long travelling right, mixing deep -> base -> pale.
+		const float wave = 0.5F + 0.5F * std::sin(6.2831853F * (static_cast<float>(c) / 28.0F - phase));
+		uint32_t colour = wave < 0.5F ? MixRgb(deep, base, static_cast<int>(wave * 512.0F))
+		                              : MixRgb(base, pale, static_cast<int>((wave - 0.5F) * 384.0F));
+		// The glint: a soft band of near-white six columns wide.
+		const int d = std::abs(c - glint);
+		if (d < 6)
+			colour = MixRgb(colour, 0xFFFFF0u, (6 - d) * 30);
+		// The leading edge glows.
+		if (c >= width - 2)
+			colour = MixRgb(colour, pale, 160);
+		for (int r = 0; r < height; r++) {
+			// Lit from above: +40% toward pale on the top row, down to -35% toward black on the bottom.
+			const int shade = r < height / 2 ? (height / 2 - r) * 80 / std::max(height / 2, 1) : 0;
+			const int dark = r >= height / 2 ? (r - height / 2 + 1) * 90 / std::max(height - height / 2, 1) : 0;
+			uint32_t px = shade > 0 ? MixRgb(colour, pale, shade) : colour;
+			if (dark > 0)
+				px = MixRgb(px, 0x000000u, dark);
+			FillRectRgb(out, at.x + c, at.y + r, 1, 1, px, fallback);
+		}
+	}
+}
+
+} // namespace
+
 void DrawRiftHud(const Surface &out)
 {
 	// Wherever the rift is still open, not only inside it (user, 2026-09-26 dev notes: "i want to keep seeing the
@@ -803,12 +861,15 @@ void DrawRiftHud(const Surface &out)
 	DrawString(out, label, Rectangle { { labelX, y }, { labelWidth, 12 } },
 	    { UiFlags::AlignCenter | UiFlags::FontSize12 | (State.timedOut ? UiFlags::ColorRed : UiFlags::ColorGold) | UiFlags::Shadowed });
 
-	// The bar: a dark trough, the fill in the portal's colour.
-	const int barY = y + 14;
-	FillRectRgb(out, x, barY, BarWidth, BarHeight, 0x101010u, 0);
+	// The bar (user, 2026-09-26: "make the rift bars nicer looking - put a gold frame around them and apply color
+	// cycling on them"): the legacy gold pinstripe box - the gold-amount box's own ring, dark-bright-dark around a black
+	// field - framing a fill that shimmers in the portal's colours.
+	const int barY = y + 17;
+	DrawLegacyTextBox(out, Rectangle { { x - LegacyTextBoxBevel, barY - LegacyTextBoxBevel },
+	                           { BarWidth + 2 * LegacyTextBoxBevel, BarHeight + 2 * LegacyTextBoxBevel } });
 	const int fill = BarWidth * RiftProgressPercent() / 100;
 	if (fill > 0)
-		FillRectRgb(out, x, barY, fill, BarHeight, State.kind == RiftKind::Guardian ? 0x8A3FC8u : 0xD9A21Au, 0);
+		DrawRiftBarFill(out, Point { x, barY }, fill, BarHeight, State.kind == RiftKind::Guardian);
 }
 
 void ResetRiftForNewGame()
