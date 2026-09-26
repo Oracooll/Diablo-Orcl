@@ -29,6 +29,7 @@ namespace devilution {
 struct Player;
 struct Monster;
 struct Missile;
+enum class DamageType : uint8_t; // misdat.h
 } // namespace devilution
 
 namespace devilution::oracool {
@@ -176,5 +177,43 @@ std::string ColdSpellFactsAt(SpellID spell, int spellLevel);
  */
 enum class ClassTreeSkill : uint16_t;
 std::string ColdPassiveFactsAt(ClassTreeSkill skill, int points);
+
+// ---------------------------------------------------------------------------------------------
+// Cold that reaches a HERO (2026-09-26, user: "make it as real as it is in Diablo 2")
+// ---------------------------------------------------------------------------------------------
+
+/** @brief How long a cold hit chills a hero before resistance: three seconds. */
+constexpr int PlayerChillBaseTicks = 3 * 20;
+
+/**
+ * @brief Chills @p player after a cold hit that landed, as Diablo II does: the walk slows by half (through the
+ * movement slow, so the sheet's Move speed row shows it) and the attack, the cast, the block and the hit recovery
+ * run at half speed (PlayerChillTakesThisTick). Cold resistance shortens it by its own percentage.
+ */
+void ChillPlayer(const Player &player, int ticks = PlayerChillBaseTicks);
+
+/** @brief Whether @p player is chilled now. */
+bool IsPlayerChilled(const Player &player);
+
+/**
+ * @brief Called once per player per tick, before the mode handlers: ages the chill, and answers true on every
+ * other tick of an attack, a cast, a block or a hit recovery - the ticks the cold takes.
+ */
+bool PlayerChillTakesThisTick(const Player &player);
+
+/** @brief Forgets every hero's chill (a new game, a level change). */
+void ClearPlayerChills();
+
+/**
+ * @brief The share of @p monster's melee blow that is cold, in percent: a third for the Glacial variant (through
+ * VariantHitElement, like Searing's fire), a quarter for a rift guardian or an endgame boss. 0 for the rest.
+ */
+int MonsterColdMeleePercent(const Monster &monster);
+
+/**
+ * @brief The damage type @p monster's missile carries when it reaches a hero: the Snow Witch's blue blood star and
+ * every Glacial monster's missile are cold (user's pick: "cold missile casters"); anything else keeps @p type.
+ */
+DamageType MonsterMissileElement(const Monster &monster, DamageType type);
 
 } // namespace devilution::oracool

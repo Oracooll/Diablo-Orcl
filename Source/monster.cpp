@@ -1655,11 +1655,21 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		// ONE ApplyPlrDamage call (audit, 2026-09-19): two calls let the physical part kill, a
 		// cheat-death passive restore, and the elemental part kill again - and rang every
 		// on-damaged passive twice. The element only decides how much of the third survives.
-		if (const DamageType element = oracool::VariantHitElement(monster); element != DamageType::Physical) {
-			const int elemental = dam / 3;
-			const int resist = std::clamp<int>(element == DamageType::Fire ? player._pFireResist : player._pLghtResist, 0, 75);
+		// COLD joins them (2026-09-26): the Glacial variant's third, and a quarter of a rift guardian's or an
+		// endgame boss's blow (oracool::MonsterColdMeleePercent). A cold part that lands chills, as in Diablo II.
+		const DamageType variantElement = oracool::VariantHitElement(monster);
+		const int bossCold = oracool::MonsterColdMeleePercent(monster);
+		if (variantElement != DamageType::Physical || bossCold > 0) {
+			const DamageType element = variantElement != DamageType::Physical ? variantElement : DamageType::Cold;
+			const int elemental = variantElement != DamageType::Physical ? dam / 3 : dam * bossCold / 100;
+			const int8_t raw = element == DamageType::Fire ? player._pFireResist
+			    : element == DamageType::Lightning         ? player._pLghtResist
+			                                               : player._pColdResist;
+			const int resist = std::clamp<int>(raw, 0, 75);
 			const int resisted = elemental * (100 - resist) / 100;
 			ApplyPlrDamage(element, player, 0, 0, dam - elemental + resisted);
+			if (element == DamageType::Cold)
+				oracool::ChillPlayer(player);
 		} else {
 			ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam);
 		}
@@ -4142,6 +4152,7 @@ void InitMonsters()
 	// this is what stops one character's frost from landing on another's monsters - and it belongs
 	// here, on entering a level, because that is the one event no path can skip.
 	oracool::ClearChills();
+	oracool::ClearPlayerChills(); // the heroes' chill too (2026-09-26): a level change thaws them
 	oracool::ClearPassiveState();
 	oracool::ClearRfa12State();
 	oracool::ClearWarcries();

@@ -57,6 +57,8 @@ struct ItemBonusTotals {
 	int fireResist = 0;
 	int lightningResist = 0;
 	int magicResist = 0;
+	/** @brief Cold resistance, a resistance of its own since 2026-09-26 (Item::_iPLCR, the Resist Cold aura, Sapphire, Thul). */
+	int coldResist = 0;
 	int damageMod = 0;
 	int getHit = 0;
 	int lightRadius = 0;

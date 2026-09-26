@@ -216,6 +216,7 @@ void ApplyImbuementsToTotals(const Item &item, ItemBonusTotals &totals)
 			totals.fireResist += WardingStep;
 			totals.lightningResist += WardingStep;
 			totals.magicResist += WardingStep;
+			totals.coldResist += WardingStep;
 			break;
 		case ShardKind::Fury: totals.damageMod += FuryStep; break;
 		case ShardKind::Fortune: totals.magicFind += FortuneStep; break;

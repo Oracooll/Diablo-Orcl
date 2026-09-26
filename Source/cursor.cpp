@@ -11,6 +11,7 @@
 
 #include "DiabloUI/diabloui.h"
 #include "control.h"
+#include "oracool/advanced_stats.h" // hovering the Advanced Stats window probes nothing behind it
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/rift.h"      // RiftTier: the portal's hover line
@@ -1128,6 +1129,11 @@ void CheckCursMove()
 	// Oracool V1: the book owns a 340x720 rect now, not GetRightPanel's 320x352 - hovering the part
 	// outside that slot must not highlight what is on the ground behind the window.
 	if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
+		return;
+	}
+	// The Advanced Stats window (2026-09-26), in the same slot and by the same rule: hovering it must
+	// not highlight a monster or an item on the ground behind it.
+	if (oracool::IsAdvancedStatsOpen() && oracool::GetAdvancedStatsRect().contains(MousePosition)) {
 		return;
 	}
 	// The free-floating windows - Levski's Roar, its recipe book, the runeword book. Every docked

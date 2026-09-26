@@ -56,6 +56,7 @@
 #include "oracool/shop_grid.h"
 #include "oracool/shop_tabs.h" // IsShopTab - the Salvage tab is a tab without being a grid
 #include "oracool/crafting_menu.h"
+#include "oracool/advanced_stats.h" // the right-hand slot's third window
 #include "oracool/ui_sound.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h"
@@ -327,7 +328,9 @@ bool IsOverAnyInterface(Point position)
 
 bool IsRightPanelOpen()
 {
-	return invflag || sbookflag;
+	// The Advanced Stats window (2026-09-26) takes the same slot, so it counts: the corner HUD hides
+	// behind it, the view shifts for it, and every "is the right side covered" question agrees.
+	return invflag || sbookflag || oracool::IsAdvancedStatsOpen();
 }
 bool IsOverRightPanel(Point position)
 {
@@ -335,6 +338,10 @@ bool IsOverRightPanel(Point position)
 	// grown into their own 340x720 windows, so neither may be tested against RightPanel's vanilla
 	// 320x352: a window hit-tested smaller than it draws lets clicks reach the ground beneath it.
 	if (invflag && oracool::GetInventoryPanelRect().contains(position))
+		return true;
+	// The Advanced Stats window by its own rect - never two windows in the slot at once, see
+	// oracool/advanced_stats.h, so the order against the two above does not matter.
+	if (oracool::IsAdvancedStatsOpen() && oracool::GetAdvancedStatsRect().contains(position))
 		return true;
 	return sbookflag && GetSpellBookPanelRect().contains(position);
 }
@@ -922,6 +929,9 @@ void OpenCharPanel()
 
 void CloseCharPanel()
 {
+	// The Advanced Stats window is the sheet's own extension (its button lives on the sheet), so it
+	// goes with it - putting back whatever it covered, as its ordinary close does. A no-op when shut.
+	oracool::CloseAdvancedStats();
 	chrflag = false;
 	if (IsInspectingPlayer()) {
 		InspectPlayer = MyPlayer;
@@ -1193,6 +1203,10 @@ void InitControlPan()
 	ClearPanelStrings();
 	RedrawComponent(PanelDrawComponent::Health);
 	RedrawComponent(PanelDrawComponent::Mana);
+	// A new game starts with the Advanced Stats window shut and nothing remembered under it - its
+	// state is file-local and would otherwise reach the next character. First, with restoring off, so
+	// CloseCharPanel's own close below has nothing left to put back.
+	oracool::CloseAdvancedStats(/*restoreCovered=*/false);
 	CloseCharPanel();
 	spselflag = false;
 	// sbooktab is gone with the book's six tabs - it is one scrolling list now, and its scroll
@@ -1673,11 +1687,22 @@ void CheckChrBtns()
 	if (!GetCharacterContentRect().contains(MousePosition))
 		return;
 
+	// The grouped sheet's ADVANCED STATS button (2026-09-26) - it presses here and acts on the release
+	// through ReleaseCharacterSheetAdvancedButton in LeftMouseUp. False on the list sheet.
+	if (PressCharacterSheetAdvancedButton(MousePosition))
+		return;
+
 	if (*sgOptions.Oracool.resetStatsButton && !gbIsMultiplayer) {
-		Rectangle resetButton { GetPanelPosition(UiPanels::Character, GetResetStatsButtonPosition()), ResetStatsButtonSize };
+		// GetResetStatsButtonSize, not ResetStatsButtonSize: the grouped sheet's RESET is wider.
+		Rectangle resetButton { GetPanelPosition(UiPanels::Character, GetResetStatsButtonPosition()), GetResetStatsButtonSize() };
 		if (resetButton.contains(MousePosition)) {
 			resetStatsButtonDown = true;
 			chrbtnactive = true;
+			// The grouped sheet's RESET is a button in the game-wide feel, which clicks at the press
+			// (user, 2026-09-20); the list's word-label RESET keeps its silence, and the armour-drop
+			// clunk on the release is the same for both.
+			if (*sgOptions.Oracool.heroSheetGrouped)
+				oracool::PlayUiMoveSound();
 			return;
 		}
 	}
@@ -1712,7 +1737,7 @@ void ReleaseChrBtns(bool addAllStatPoints, bool addFive)
 	}
 	if (resetStatsButtonDown) {
 		resetStatsButtonDown = false;
-		Rectangle resetButton { GetPanelPosition(UiPanels::Character, GetResetStatsButtonPosition()), ResetStatsButtonSize };
+		Rectangle resetButton { GetPanelPosition(UiPanels::Character, GetResetStatsButtonPosition()), GetResetStatsButtonSize() };
 		if (resetButton.contains(MousePosition)) {
 			ResetPlayerStats(*MyPlayer);
 			// Oracool: user request - reuses the armor-drop sound for a satisfying "clunk"

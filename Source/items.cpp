@@ -1205,10 +1205,15 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 	case IPL_MAGICRES:
 		item._iPLMR += r;
 		break;
+	case IPL_COLDRES:
+		item._iPLCR += r;
+		break;
 	case IPL_ALLRES:
+		// All four since 2026-09-26: "all resistances" includes cold, as in Diablo II.
 		item._iPLFR = std::max(item._iPLFR + r, 0);
 		item._iPLLR = std::max(item._iPLLR + r, 0);
 		item._iPLMR = std::max(item._iPLMR + r, 0);
+		item._iPLCR = std::max(item._iPLCR + r, 0);
 		break;
 	case IPL_SPLLVLADD:
 		item._iSplLvlAdd = r;
@@ -1463,6 +1468,9 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 	case IPL_MAGICRES_CURSE:
 		item._iPLMR -= r;
 		break;
+	case IPL_COLDRES_CURSE:
+		item._iPLCR -= r;
+		break;
 	case IPL_DEVASTATION:
 		item._iDamAcFlags |= ItemSpecialEffectHf::Devastation;
 		break;
@@ -1676,6 +1684,16 @@ bool FitsStaffFastCast(const Item &item)
 	return item._itype == ItemType::Staff;
 }
 
+/**
+ * @brief Armour of every kind (shields and helms included) and jewellery - NOT weapons, unlike the vanilla
+ * resistance rows. A weapon rolls from its seed through this pool, and the vanilla weapons' seeds must go on
+ * rebuilding the items they always did (pack_test pins them); a resistance belongs on what you wear anyway.
+ */
+bool FitsColdResist(const Item &item)
+{
+	return item._iClass == ICLASS_ARMOR || item._itype == ItemType::Ring || item._itype == ItemType::Amulet;
+}
+
 /** @brief One row of OracoolPoolRows: an affix row, and which items may carry it. */
 struct OracoolPoolRow {
 	PLStruct row;
@@ -1721,6 +1739,13 @@ const OracoolPoolRow OracoolPoolRows[] = {
 	{ { N_("incantation"), { IPL_FASTCAST,        18, 23 }, 20, AffixItemType::None, GOE_ANY, false, true,   4100,  6000,  7 }, FitsStaffFastCast },
 	{ { N_("incantation"), { IPL_FASTCAST,        21, 26 }, 30, AffixItemType::None, GOE_ANY, false, true,   6100, 10000,  9 }, FitsStaffFastCast },
 	{ { N_("incantation"), { IPL_FASTCAST,        25, 30 }, 45, AffixItemType::None, GOE_ANY, false, true,  10100, 15000, 11 }, FitsStaffFastCast },
+	// COLD RESISTANCE (2026-09-26, user: "make it as real as it is in Diablo 2"): the fire and lightning rows'
+	// own bands, levels and prices, so the new element is exactly as common and as strong as the old ones.
+	{ { N_("warmth"),      { IPL_COLDRES,         10, 20 },  4, AffixItemType::None, GOE_ANY, false, true,    500,  1500,  2 }, FitsColdResist },
+	{ { N_("warmth"),      { IPL_COLDRES,         21, 30 }, 10, AffixItemType::None, GOE_ANY, false, true,   2100,  3000,  2 }, FitsColdResist },
+	{ { N_("warmth"),      { IPL_COLDRES,         31, 40 }, 16, AffixItemType::None, GOE_ANY, false, true,   3100,  4000,  2 }, FitsColdResist },
+	{ { N_("warmth"),      { IPL_COLDRES,         41, 50 }, 20, AffixItemType::None, GOE_ANY, false, true,   8200, 12000,  3 }, FitsColdResist },
+	{ { N_("warmth"),      { IPL_COLDRES,         51, 60 }, 26, AffixItemType::None, GOE_ANY, false, true,  17100, 20000,  5 }, FitsColdResist },
 	// clang-format on
 };
 
@@ -1834,7 +1859,7 @@ std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int
 		// guaranteed Rare pick ignores level entirely, so all six competed. Measured 2026-09-13, Movement
 		// Speed and Faster Cast reached one magic ring in five at ilvl 50 and a fifth of Rares, against the
 		// drop tail's flat ~6% and ~8%. One candidate each keeps them competing like a single vanilla row.
-		constexpr item_effect_type PoolTypes[] = { IPL_MOVESPEED, IPL_MOVESPEED_CURSE, IPL_FASTCAST };
+		constexpr item_effect_type PoolTypes[] = { IPL_MOVESPEED, IPL_MOVESPEED_CURSE, IPL_FASTCAST, IPL_COLDRES };
 		for (const item_effect_type type : PoolTypes) {
 			int chosen = -1;
 			int gentlest = -1;
@@ -4695,6 +4720,7 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	int fr = totals.fireResist;
 	int lr = totals.lightningResist;
 	int mr = totals.magicResist;
+	int cr = totals.coldResist;
 	int dmod = totals.damageMod;
 	int ghit = totals.getHit;
 	int lrad = 10 + totals.lightRadius;
@@ -4831,12 +4857,14 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		mr += player._pLevel;
 		fr += player._pLevel;
 		lr += player._pLevel;
+		cr += player._pLevel;
 	}
 
 	if (HasAnyOf(player._pSpellFlags, SpellFlag::RageCooldown)) {
 		mr -= player._pLevel;
 		fr -= player._pLevel;
 		lr -= player._pLevel;
+		cr -= player._pLevel;
 	}
 
 	if (HasAnyOf(iflgs, ItemSpecialEffect::ZeroResistance)) {
@@ -4844,6 +4872,7 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		mr = 0;
 		fr = 0;
 		lr = 0;
+		cr = 0;
 	}
 
 	// Oracool: the soft cap and the difficulty's penetration, replacing vanilla's flat
@@ -4855,6 +4884,9 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	player._pMagResist = static_cast<int8_t>(oracool::ApplyResistanceCurve(mr, difficulty));
 	player._pFireResist = static_cast<int8_t>(oracool::ApplyResistanceCurve(fr, difficulty));
 	player._pLghtResist = static_cast<int8_t>(oracool::ApplyResistanceCurve(lr, difficulty));
+	// Cold, a resistance of its own since 2026-09-26 (user: "make it as real as it is in Diablo 2"): the same
+	// curve, the same difficulty penalty and the same cap as the other three.
+	player._pColdResist = static_cast<int8_t>(oracool::ApplyResistanceCurve(cr, difficulty));
 
 	vadd = (vadd * PlayersData[static_cast<size_t>(player._pClass)].itmLife) >> 6;
 	ihp += (vadd << 6); // BUGFIX: blood boil can cause negative shifts here (see line 757)
@@ -5368,6 +5400,7 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)
 	item._iPLFR = 0;
 	item._iPLLR = 0;
 	item._iPLMR = 0;
+	item._iPLCR = 0;
 	item._iPLMana = 0;
 	item._iPLHP = 0;
 	item._iPLDamMod = 0;
@@ -5758,6 +5791,7 @@ enum LegacyAffixField : uint16_t {
 	FieldMana = 1 << 12,
 	FieldDamMod = 1 << 13,
 	FieldFind = 1 << 14,
+	FieldCR = 1 << 15,
 };
 
 uint16_t LegacyAffixFields(item_effect_type type)
@@ -5787,8 +5821,11 @@ uint16_t LegacyAffixFields(item_effect_type type)
 	case IPL_MAGICRES:
 	case IPL_MAGICRES_CURSE:
 		return FieldMR;
+	case IPL_COLDRES:
+	case IPL_COLDRES_CURSE:
+		return FieldCR;
 	case IPL_ALLRES:
-		return FieldFR | FieldLR | FieldMR;
+		return FieldFR | FieldLR | FieldMR | FieldCR;
 	case IPL_STR:
 	case IPL_STR_CURSE:
 		return FieldStr;
@@ -5861,6 +5898,10 @@ std::optional<int> LegacyAffixValueFromField(const Item &item, item_effect_type 
 		return item._iPLMR;
 	case IPL_MAGICRES_CURSE:
 		return -item._iPLMR;
+	case IPL_COLDRES:
+		return item._iPLCR;
+	case IPL_COLDRES_CURSE:
+		return -item._iPLCR;
 	case IPL_ALLRES:
 		return item._iPLFR;
 	case IPL_STR:
@@ -7074,6 +7115,12 @@ bool DoOil(Player &player, int cii, int tabIdx)
 			return fmt::format(fmt::runtime(_("Resist Magic: {:+d}%")), item._iPLMR);
 		else
 			return fmt::format(fmt::runtime(_("Resist Magic: {:+d}% MAX")), MaxResistance);
+	case IPL_COLDRES:
+	case IPL_COLDRES_CURSE:
+		if (item._iPLCR < MaxResistance)
+			return fmt::format(fmt::runtime(_("Resist Cold: {:+d}%")), item._iPLCR);
+		else
+			return fmt::format(fmt::runtime(_("Resist Cold: {:+d}% MAX")), MaxResistance);
 	case IPL_ALLRES:
 		if (item._iPLFR < MaxResistance)
 			return fmt::format(fmt::runtime(_("Resist All: {:+d}%")), item._iPLFR);
@@ -7345,6 +7392,10 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 		return fmt::format(fmt::runtime(_("Resist Magic: {:+d}%")), affix.param1);
 	case IPL_MAGICRES_CURSE:
 		return fmt::format(fmt::runtime(_("Resist Magic: {:+d}%")), -affix.param1);
+	case IPL_COLDRES:
+		return fmt::format(fmt::runtime(_("Resist Cold: {:+d}%")), affix.param1);
+	case IPL_COLDRES_CURSE:
+		return fmt::format(fmt::runtime(_("Resist Cold: {:+d}%")), -affix.param1);
 	case IPL_ALLRES:
 		// Not in PrintItemPower's own switch - falling through to it previously read the item's shared
 		// _iPLFR field directly, which also accumulates any separately-rolled Fire/Light/Magic Resist
@@ -7455,6 +7506,8 @@ std::string PrintSetBonusPower(const ItemPower &power)
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% lightning resist")), power.param1);
 	case IPL_MAGICRES:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% magic resist")), power.param1);
+	case IPL_COLDRES:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% cold resist")), power.param1);
 	case IPL_DAMP:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% damage")), power.param1);
 	case IPL_DAMMOD:

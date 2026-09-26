@@ -618,7 +618,9 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 				// A hero's own minions never shoot the hero (2026-09-26): their shots are aimed at monsters and
 				// used to wound any player standing in the line - the Skeletal Mage's firebolts made it plain.
 				Monster &monster = Monsters[missile._misource];
-				isPlayerHit = PlayerMHit(pid - 1, &monster, missile._midist, minDamage, maxDamage, missile._mitype, damageType, isDamageShifted, DeathReason::MonsterOrTrap, &blocked);
+				// The Snow Witch's blue star and a Glacial monster's missiles strike a hero as cold (2026-09-26).
+				const DamageType element = oracool::MonsterMissileElement(monster, damageType);
+				isPlayerHit = PlayerMHit(pid - 1, &monster, missile._midist, minDamage, maxDamage, missile._mitype, element, isDamageShifted, DeathReason::MonsterOrTrap, &blocked);
 				// Chilling Armor answers a RANGED hit; the other two armours do not, which is the
 				// difference between them (Oracool, Round 2). A blocked shot is not a hit.
 				if (isPlayerHit && !blocked)
@@ -1396,8 +1398,11 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 		break;
 	case DamageType::Magic:
 	case DamageType::Acid:
-	case DamageType::Cold: // a player has no cold resistance of their own; magic stands in, as it does for acid
 		resper = player._pMagResist;
+		break;
+	case DamageType::Cold:
+		// A resistance of its own since 2026-09-26 (user: "make it as real as it is in Diablo 2"); magic stood in.
+		resper = player._pColdResist;
 		break;
 	default:
 		resper = 0;
@@ -1447,8 +1452,10 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	// the to-hit and the block above - puts a chill on the stride, a quarter off for three seconds.
 	// The sheet's Move speed row turns red for it. Every cold missile that reaches a player comes
 	// through here, so whatever casts cold at players from now on slows them without another line.
+	// Since 2026-09-26 the Diablo II chill: half speed on the walk and on every action, shortened by cold
+	// resistance (oracool::ChillPlayer). It was a quarter off the walk alone.
 	if (damageType == DamageType::Cold)
-		oracool::SlowPlayer(player, 3 * 20, 25);
+		oracool::ChillPlayer(player);
 
 	// A NEGATIVE resistance amplifies the hit (D2 rules, 2026-09-13) - a hero with no resistance gear on
 	// Torment stands at -90 and takes 190%. Applied HERE and then left to the ordinary hit below, not

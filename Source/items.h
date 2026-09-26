@@ -309,6 +309,8 @@ struct Item {
 	int16_t _iPLFR = 0;
 	int16_t _iPLLR = 0;
 	int16_t _iPLMR = 0;
+	/** Cold resistance (2026-09-26, user: "make it as real as it is in Diablo 2"). Saved since item format 14. */
+	int16_t _iPLCR = 0;
 	int16_t _iPLMana = 0;
 	int16_t _iPLHP = 0;
 	int16_t _iPLDamMod = 0;

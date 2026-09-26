@@ -481,6 +481,7 @@ void ApplyWarcryBuffsToTotals(const Player &player, ItemBonusTotals &totals)
 			totals.fireResist += 20 + 5 * (rank - 1);
 			totals.lightningResist += 20 + 5 * (rank - 1);
 			totals.magicResist += 20 + 5 * (rank - 1);
+			totals.coldResist += 20 + 5 * (rank - 1);
 			break;
 		case SpellID::Vengeance:
 			totals.fireMin += 2 + rank;
@@ -801,7 +802,7 @@ std::string WarcryFactsAt(SpellID spell, int rank)
 		break;
 	case SpellID::PurifyingBreath:
 		duration(30 + 5 * (rank - 1));
-		line(fmt::format(fmt::runtime(_("Fire, lightning and magic resistance: +{:d}")), 20 + 5 * (rank - 1)));
+		line(fmt::format(fmt::runtime(_("Fire, lightning, cold and magic resistance: +{:d}")), 20 + 5 * (rank - 1)));
 		break;
 	case SpellID::Tranquility:
 		radius(TranquilityReach);

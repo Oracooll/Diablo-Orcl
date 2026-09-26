@@ -32,7 +32,7 @@ struct GemData {
 	 * scales it by quality, unlike the flat rune fields below). */
 	int lifePerKill = 0;
 	// Armor host (body, helm, and the worn accessories).
-	int armorFireRes = 0, armorLightRes = 0, armorMagicRes = 0;
+	int armorFireRes = 0, armorLightRes = 0, armorMagicRes = 0, armorColdRes = 0;
 	int armorHitPoints = 0; // in whole HP; converted to <<6 fixed point at apply time
 	int armorMana = 0;      // whole mana; same fixed-point conversion
 	int armorBonusAc = 0;
@@ -41,7 +41,7 @@ struct GemData {
 	int armorToHit = 0;
 	int armorMagicFind = 0;
 	// Shield host.
-	int shieldFireRes = 0, shieldLightRes = 0, shieldMagicRes = 0;
+	int shieldFireRes = 0, shieldLightRes = 0, shieldMagicRes = 0, shieldColdRes = 0;
 	int shieldBonusAc = 0;
 	int shieldMana = 0;
 	bool shieldThorns = false; // ItemSpecialEffect::Thorns - a flag, so it does NOT quality-scale
@@ -85,8 +85,8 @@ constexpr GemData Gems[] = {
 	// fudged silently:
 	//   - Diamond's weapon "+% damage vs undead" has no channel -> flat damage.
 	//   - Emerald's weapon poison damage has no channel -> flat damage; its poison resists -> magic.
-	//   - Sapphire is D2's COLD gem and D1 has no cold at all -> it becomes the mana gem, its D2
-	//     armor identity (+38 mana at Perfect) extended to every host; cold resist -> magic resist.
+	//   - Sapphire is D2's COLD gem. Heroes have had a cold resistance since 2026-09-26, so its shield is
+	//     D2's again (cold resist, P: 40 = D2); the weapon keeps the mana that stood in for cold damage.
 	//   - Skull's steal percentages ride D1 flags that only exist at fixed 3%/5% and cannot scale,
 	//     so the weapon gets +life per kill instead (same drain fantasy, quality-scaled), the armor
 	//     gets life+mana (for "replenish life / regenerate mana"), and the shield keeps D2's thorns
@@ -95,16 +95,15 @@ constexpr GemData Gems[] = {
 	// Amethyst: W +8% to-hit (D2 attack rating); A +5 strength (P: +10 = D2); S +15 AC (P: +30 = D2).
 	{ .idx = IDI_ORACOOL_GEM_AMETHYST_NORMAL, .weaponToHit = 8, .armorStrength = 5, .shieldBonusAc = 15 },
 	// Diamond: W +3 damage (undead substitute); A +5% to-hit (D2 attack rating);
-	// S +10 all resists (P: +20 ~= D2's 19).
+	// S +10 all resists (P: +20 ~= D2's 19) - cold among them since 2026-09-26.
 	{ .idx = IDI_ORACOOL_GEM_DIAMOND_NORMAL, .weaponDamageMod = 3, .armorToHit = 5,
-	    .shieldFireRes = 10, .shieldLightRes = 10, .shieldMagicRes = 10 },
+	    .shieldFireRes = 10, .shieldLightRes = 10, .shieldMagicRes = 10, .shieldColdRes = 10 },
 	// Ruby: W 8-12 fire (D2's Normal ruby exactly); A +19 life (P: +38 = D2); S +20% FR (P: 40 = D2).
 	{ .idx = IDI_ORACOOL_GEM_RUBY, .weaponFireMin = 8, .weaponFireMax = 12,
 	    .armorHitPoints = 19, .shieldFireRes = 20 },
-	// Sapphire: the mana gem (cold substitute) - W +10 mana; A +19 mana (P: +38 = D2);
-	// S +12% magic resist and +10 mana.
+	// Sapphire: W +10 mana (cold damage substitute); A +19 mana (P: +38 = D2); S +20% cold resist (P: 40 = D2).
 	{ .idx = IDI_ORACOOL_GEM_SAPPHIRE, .weaponMana = 10, .armorMana = 19,
-	    .shieldMagicRes = 12, .shieldMana = 10 },
+	    .shieldColdRes = 20 },
 	// Topaz: W 1-20 lightning (P: 2-40 ~= D2's 1-40); A +12% magic find (P: 24 = D2);
 	// S +20% LR (P: 40 = D2).
 	{ .idx = IDI_ORACOOL_GEM_TOPAZ, .weaponLightMin = 1, .weaponLightMax = 20,
@@ -422,6 +421,7 @@ void ApplyGemToTotals(uint16_t gemIdx, SocketHost host, ItemBonusTotals &totals)
 		totals.fireResist += at(gem->shieldFireRes);
 		totals.lightningResist += at(gem->shieldLightRes);
 		totals.magicResist += at(gem->shieldMagicRes);
+		totals.coldResist += at(gem->shieldColdRes);
 		totals.bonusArmor += at(gem->shieldBonusAc);
 		totals.mana += at(gem->shieldMana) << 6;
 		if (gem->shieldThorns)
@@ -432,6 +432,7 @@ void ApplyGemToTotals(uint16_t gemIdx, SocketHost host, ItemBonusTotals &totals)
 		totals.fireResist += at(gem->armorFireRes);
 		totals.lightningResist += at(gem->armorLightRes);
 		totals.magicResist += at(gem->armorMagicRes);
+		totals.coldResist += at(gem->armorColdRes);
 		totals.hitPoints += at(gem->armorHitPoints) << 6; // HP fields run in <<6 fixed point
 		totals.mana += at(gem->armorMana) << 6;
 		totals.bonusArmor += at(gem->armorBonusAc);
@@ -588,6 +589,8 @@ std::string GemEffectParts(const GemData *gem, SocketHost host, int percent)
 			add(fmt::format(fmt::runtime(_("+{:d}% lightning resist")), at(gem->shieldLightRes)));
 		if (at(gem->shieldMagicRes) > 0)
 			add(fmt::format(fmt::runtime(_("+{:d}% magic resist")), at(gem->shieldMagicRes)));
+		if (at(gem->shieldColdRes) > 0)
+			add(fmt::format(fmt::runtime(_("+{:d}% cold resist")), at(gem->shieldColdRes)));
 		if (at(gem->shieldBonusAc) > 0)
 			add(fmt::format(fmt::runtime(_("+{:d} armor")), at(gem->shieldBonusAc)));
 		if (at(gem->shieldMana) > 0)
@@ -602,6 +605,8 @@ std::string GemEffectParts(const GemData *gem, SocketHost host, int percent)
 			add(fmt::format(fmt::runtime(_("+{:d}% lightning resist")), at(gem->armorLightRes)));
 		if (at(gem->armorMagicRes) > 0)
 			add(fmt::format(fmt::runtime(_("+{:d}% magic resist")), at(gem->armorMagicRes)));
+		if (at(gem->armorColdRes) > 0)
+			add(fmt::format(fmt::runtime(_("+{:d}% cold resist")), at(gem->armorColdRes)));
 		if (at(gem->armorHitPoints) > 0)
 			add(fmt::format(fmt::runtime(_("+{:d} life")), at(gem->armorHitPoints)));
 		if (at(gem->armorMana) > 0)

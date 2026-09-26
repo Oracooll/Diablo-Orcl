@@ -286,62 +286,63 @@ void AssertPlayer(Player &player)
 	ASSERT_EQ(player._pClass, HeroClass::Rogue);
 	ASSERT_EQ(player._pBaseStr, 55);
 	// The item-derived totals below moved on 2026-09-13 (v1.11.105 and v1.11.106) with the unified affix pool: this
-	// hero's magic items are rebuilt from seeds that now roll different affixes. See the resistances.
-	ASSERT_EQ(player._pStrength, 97);
-	ASSERT_EQ(player._pBaseMag, 70);
-	ASSERT_EQ(player._pMagic, 103);
-	ASSERT_EQ(player._pBaseDex, 250);
-	ASSERT_EQ(player._pDexterity, 276);
-	ASSERT_EQ(player._pBaseVit, 80);
-	ASSERT_EQ(player._pVitality, 90);
-	ASSERT_EQ(player._pLevel, 50);
-	ASSERT_EQ(player._pStatPts, 0);
-	ASSERT_EQ(player._pExperience, 1583495809);
-	ASSERT_EQ(player._pGold, 0);
-	ASSERT_EQ(player._pMaxHPBase, 12864);
-	ASSERT_EQ(player._pHPBase, 12864);
-	ASSERT_EQ(player._pBaseToBlk, 20);
-	ASSERT_EQ(player._pMaxManaBase, 11104);
-	ASSERT_EQ(player._pManaBase, 11104);
-	ASSERT_EQ(player._pMemSpells, 66309357295);
-	ASSERT_EQ(player._pNumInv, 2);
-	ASSERT_EQ(player.wReflections, 0);
-	ASSERT_EQ(player.pTownWarps, 0);
-	ASSERT_EQ(player.pDungMsgs, 0);
-	ASSERT_EQ(player.pDungMsgs2, 0);
-	ASSERT_EQ(player.pLvlLoad, 0);
-	ASSERT_EQ(player.pDiabloKillLevel, 3);
-	ASSERT_EQ(player.pManaShield, 0);
-	ASSERT_EQ(player.pDamAcFlags, ItemSpecialEffectHf::None);
+	// hero's magic items are rebuilt from seeds that now roll different affixes. See the resistances. And again on
+	// 2026-09-26 (v1.12.194): cold resistance joined the affix pool, so the same seeds roll differently once more.
+	EXPECT_EQ(player._pStrength, 97);
+	EXPECT_EQ(player._pBaseMag, 70);
+	EXPECT_EQ(player._pMagic, 98);
+	EXPECT_EQ(player._pBaseDex, 250);
+	EXPECT_EQ(player._pDexterity, 278);
+	EXPECT_EQ(player._pBaseVit, 80);
+	EXPECT_EQ(player._pVitality, 108);
+	EXPECT_EQ(player._pLevel, 50);
+	EXPECT_EQ(player._pStatPts, 0);
+	EXPECT_EQ(player._pExperience, 1583495809);
+	EXPECT_EQ(player._pGold, 0);
+	EXPECT_EQ(player._pMaxHPBase, 12864);
+	EXPECT_EQ(player._pHPBase, 12864);
+	EXPECT_EQ(player._pBaseToBlk, 20);
+	EXPECT_EQ(player._pMaxManaBase, 11104);
+	EXPECT_EQ(player._pManaBase, 11104);
+	EXPECT_EQ(player._pMemSpells, 66309357295);
+	EXPECT_EQ(player._pNumInv, 2);
+	EXPECT_EQ(player.wReflections, 0);
+	EXPECT_EQ(player.pTownWarps, 0);
+	EXPECT_EQ(player.pDungMsgs, 0);
+	EXPECT_EQ(player.pDungMsgs2, 0);
+	EXPECT_EQ(player.pLvlLoad, 0);
+	EXPECT_EQ(player.pDiabloKillLevel, 3);
+	EXPECT_EQ(player.pManaShield, 0);
+	EXPECT_EQ(player.pDamAcFlags, ItemSpecialEffectHf::None);
 
-	ASSERT_EQ(player._pmode, 0);
-	ASSERT_EQ(Count8(player.walkpath, MaxPathLength), 25);
-	ASSERT_EQ(player._pgfxnum, 36);
-	ASSERT_EQ(player.AnimInfo.ticksPerFrame, 4);
-	ASSERT_EQ(player.AnimInfo.tickCounterOfCurrentFrame, 1);
-	ASSERT_EQ(player.AnimInfo.numberOfFrames, 20);
-	ASSERT_EQ(player.AnimInfo.currentFrame, 0);
-	ASSERT_EQ(player.queuedSpell.spellId, SpellID::Invalid);
-	ASSERT_EQ(player.queuedSpell.spellType, SpellType::Invalid);
-	ASSERT_EQ(player.queuedSpell.spellFrom, 0);
-	ASSERT_EQ(player.inventorySpell, SpellID::Null);
-	ASSERT_EQ(player._pRSpell, SpellID::Invalid);
-	ASSERT_EQ(player._pRSplType, SpellType::Invalid);
-	ASSERT_EQ(player._pSBkSpell, SpellID::Invalid);
+	EXPECT_EQ(player._pmode, 0);
+	EXPECT_EQ(Count8(player.walkpath, MaxPathLength), 25);
+	EXPECT_EQ(player._pgfxnum, 36);
+	EXPECT_EQ(player.AnimInfo.ticksPerFrame, 4);
+	EXPECT_EQ(player.AnimInfo.tickCounterOfCurrentFrame, 1);
+	EXPECT_EQ(player.AnimInfo.numberOfFrames, 20);
+	EXPECT_EQ(player.AnimInfo.currentFrame, 0);
+	EXPECT_EQ(player.queuedSpell.spellId, SpellID::Invalid);
+	EXPECT_EQ(player.queuedSpell.spellType, SpellType::Invalid);
+	EXPECT_EQ(player.queuedSpell.spellFrom, 0);
+	EXPECT_EQ(player.inventorySpell, SpellID::Null);
+	EXPECT_EQ(player._pRSpell, SpellID::Invalid);
+	EXPECT_EQ(player._pRSplType, SpellType::Invalid);
+	EXPECT_EQ(player._pSBkSpell, SpellID::Invalid);
 	// EMPTY since the six vanilla class skills were retired (2026-08-19) - see the same assertion in
 	// player_test.cpp.
-	ASSERT_EQ(player._pAblSpells, 0ULL);
-	ASSERT_EQ(player._pScrlSpells, 0);
-	ASSERT_EQ(player._pSpellFlags, SpellFlag::None);
+	EXPECT_EQ(player._pAblSpells, 0ULL);
+	EXPECT_EQ(player._pScrlSpells, 0);
+	EXPECT_EQ(player._pSpellFlags, SpellFlag::None);
 	ASSERT_TRUE(player.UsesRangedWeapon());
-	ASSERT_EQ(player._pBlockFlag, 0);
-	ASSERT_EQ(player._pLightRad, 11);
-	ASSERT_EQ(player._pDamageMod, 93);
-	ASSERT_EQ(player._pHitPoints, 17408);
-	ASSERT_EQ(player._pMaxHP, 17408);
-	ASSERT_EQ(player._pMana, 16800);
-	ASSERT_EQ(player._pMaxMana, 16800);
-	ASSERT_EQ(player._pNextExper, 51767302); // Oracool: the level-51 threshold of Diablo II's table (2026-09-20), MaxCharacterLevel being 99
+	EXPECT_EQ(player._pBlockFlag, 0);
+	EXPECT_EQ(player._pLightRad, 11);
+	EXPECT_EQ(player._pDamageMod, 93);
+	EXPECT_EQ(player._pHitPoints, 15552);
+	EXPECT_EQ(player._pMaxHP, 15552);
+	EXPECT_EQ(player._pMana, 19424);
+	EXPECT_EQ(player._pMaxMana, 19424);
+	EXPECT_EQ(player._pNextExper, 51767302); // Oracool: the level-51 threshold of Diablo II's table (2026-09-20), MaxCharacterLevel being 99
 	// CHANGED 2026-08-19 (v1.8.35). Two of these three were 75 - vanilla's hard cap, which this
 	// character's gear was well past. The soft cap now lets the excess through at a third of its
 	// value up to a ceiling of 90, so the pinned values moved to 89 / 16 / 90.
@@ -353,30 +354,33 @@ void AssertPlayer(Player &player)
 	// soft cap, which means this assertion no longer exercises it; that path is pinned by
 	// OracoolAudit.ResistanceReturnsDiminishPastTheSoftCap instead. What this still proves is that the
 	// written hero reads back to exactly the character its items describe.
-	ASSERT_EQ(player._pMagResist, 0);
-	ASSERT_EQ(player._pFireResist, 0);
-	ASSERT_EQ(player._pLghtResist, 0);
-	ASSERT_EQ(CountBool(player._pLvlVisited, NUMLEVELS), 0);
-	ASSERT_EQ(CountBool(player._pSLvlVisited, NUMLEVELS), 0);
-	ASSERT_EQ(player._pNFrames, 20);
-	ASSERT_EQ(player._pWFrames, 8);
-	ASSERT_EQ(player._pAFrames, 0);
-	ASSERT_EQ(player._pAFNum, 0);
-	ASSERT_EQ(player._pSFrames, 16);
-	ASSERT_EQ(player._pSFNum, 12);
-	ASSERT_EQ(player._pHFrames, 0);
-	ASSERT_EQ(player._pDFrames, 20);
-	ASSERT_EQ(player._pBFrames, 0);
-	ASSERT_EQ(player._pIMinDam, 1);
-	ASSERT_EQ(player._pIMaxDam, 14);
-	ASSERT_EQ(player._pIAC, 115);
-	ASSERT_EQ(player._pIBonusDam, 0);
-	ASSERT_EQ(player._pIBonusToHit, 0);
-	ASSERT_EQ(player._pIBonusAC, 0);
-	ASSERT_EQ(player._pIBonusDamMod, 0);
-	ASSERT_EQ(player._pISpells, 0);
-	ASSERT_EQ(player._pIFlags, ItemSpecialEffect::None);
-	ASSERT_EQ(player._pIGetHit, 0);
+	// AND AGAIN 2026-09-26 (v1.12.194): cold resistance joined the pool, the seeds rolled differently once more, and
+	// the hero has a fourth resistance to pin.
+	EXPECT_EQ(player._pMagResist, 46);
+	EXPECT_EQ(player._pFireResist, 46);
+	EXPECT_EQ(player._pLghtResist, 45);
+	EXPECT_EQ(player._pColdResist, 0); // what her gear rolls from these seeds today
+	EXPECT_EQ(CountBool(player._pLvlVisited, NUMLEVELS), 0);
+	EXPECT_EQ(CountBool(player._pSLvlVisited, NUMLEVELS), 0);
+	EXPECT_EQ(player._pNFrames, 20);
+	EXPECT_EQ(player._pWFrames, 8);
+	EXPECT_EQ(player._pAFrames, 0);
+	EXPECT_EQ(player._pAFNum, 0);
+	EXPECT_EQ(player._pSFrames, 16);
+	EXPECT_EQ(player._pSFNum, 12);
+	EXPECT_EQ(player._pHFrames, 0);
+	EXPECT_EQ(player._pDFrames, 20);
+	EXPECT_EQ(player._pBFrames, 0);
+	EXPECT_EQ(player._pIMinDam, 1);
+	EXPECT_EQ(player._pIMaxDam, 14);
+	EXPECT_EQ(player._pIAC, 115);
+	EXPECT_EQ(player._pIBonusDam, 0);
+	EXPECT_EQ(player._pIBonusToHit, 0);
+	EXPECT_EQ(player._pIBonusAC, 0);
+	EXPECT_EQ(player._pIBonusDamMod, 0);
+	EXPECT_EQ(player._pISpells, 0);
+	EXPECT_EQ(player._pIFlags, ItemSpecialEffect::None);
+	EXPECT_EQ(player._pIGetHit, 0);
 	ASSERT_EQ(player._pISplLvlAdd, 0);
 	ASSERT_EQ(player._pIEnAc, 0);
 	ASSERT_EQ(player._pIFMinDam, 0);

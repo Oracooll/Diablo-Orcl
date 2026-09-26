@@ -6,7 +6,7 @@
 	{ .idx = IDI_ORACOOL_RUNE_ETH, .weaponToHit = 10, .armorMana = 10, .shieldMana = 10 }, // "-25% target defence" is to-hit in this engine
 	{ .idx = IDI_ORACOOL_RUNE_ITH, .weaponDamageMod = 9, .armorMana = 8, .shieldMana = 8 },
 	{ .idx = IDI_ORACOOL_RUNE_TAL, .weaponDamageMod = 5, .armorMagicRes = 30, .shieldMagicRes = 35 }, // poison has no channel; poison resist becomes magic resist
-	{ .idx = IDI_ORACOOL_RUNE_THUL, .weaponDamageMod = 8, .armorMagicRes = 30, .shieldMagicRes = 35 }, // this engine has no cold at all; cold resist becomes magic resist
+	{ .idx = IDI_ORACOOL_RUNE_THUL, .weaponDamageMod = 8, .armorColdRes = 30, .shieldColdRes = 35 }, // D2's cold resist again since 2026-09-26; the weapon's cold damage stays flat damage
 	{ .idx = IDI_ORACOOL_RUNE_AMN, .weaponFlags = ItemSpecialEffect::StealLife5, .armorFlags = ItemSpecialEffect::Thorns, .shieldFlags = ItemSpecialEffect::Thorns }, // D2's 7% life steal rides the engine's own steal flag
 	{ .idx = IDI_ORACOOL_RUNE_SHAEL, .weaponFlags = ItemSpecialEffect::FasterAttack, .armorFlags = ItemSpecialEffect::FasterHitRecovery, .shieldFlags = ItemSpecialEffect::FastBlock }, // straight onto the engine's own speed ladders
 	{ .idx = IDI_ORACOOL_RUNE_DOL, .lifePerKill = 4, .armorHitPoints = 10, .shieldMana = 10 }, // "monster flees" has no channel; replenish life becomes life per kill
@@ -17,7 +17,7 @@
 	{ .idx = IDI_ORACOOL_RUNE_FAL, .allStrength = 10 },
 	{ .idx = IDI_ORACOOL_RUNE_LEM, .allGoldFind = 75 },
 	{ .idx = IDI_ORACOOL_RUNE_PUL, .armorBonusAc = 25, .shieldBonusAc = 25, .weaponFlags = ItemSpecialEffect::TripleDemonDamage }, // the engine's own demon flag carries D2's intent
-	{ .idx = IDI_ORACOOL_RUNE_UM, .weaponDamageMod = 10, .armorFireRes = 15, .armorLightRes = 15, .armorMagicRes = 15, .shieldFireRes = 22, .shieldLightRes = 22, .shieldMagicRes = 22 }, // open wounds has no channel - it becomes flat damage
+	{ .idx = IDI_ORACOOL_RUNE_UM, .weaponDamageMod = 10, .armorFireRes = 15, .armorLightRes = 15, .armorMagicRes = 15, .armorColdRes = 15, .shieldFireRes = 22, .shieldLightRes = 22, .shieldMagicRes = 22, .shieldColdRes = 22 }, // open wounds has no channel - it becomes flat damage
 	{ .idx = IDI_ORACOOL_RUNE_MAL, .weaponDamageMod = 12, .damageReduction = 7 }, // "prevent monster heal" has no channel; magic damage reduction becomes flat
 	{ .idx = IDI_ORACOOL_RUNE_IST, .allMagicFind = 30 },
 	{ .idx = IDI_ORACOOL_RUNE_GUL, .weaponToHit = 20, .armorMagicRes = 5, .shieldMagicRes = 5 },

@@ -135,6 +135,7 @@ void ApplyRunewordToTotals(const RunewordDefinition &word, ItemBonusTotals &tota
 	totals.fireResist += word.allResists;
 	totals.lightningResist += word.allResists;
 	totals.magicResist += word.allResists;
+	totals.coldResist += word.allResists;
 	totals.bonusArmor += word.bonusAc;
 	totals.spellLevelAdd += word.spellLevels;
 	totals.mana += word.mana << 6;

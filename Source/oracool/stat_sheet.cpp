@@ -58,6 +58,7 @@ void ItemBonusTotals::AddItem(const Item &item)
 	fireResist += item._iPLFR;
 	lightningResist += item._iPLLR;
 	magicResist += item._iPLMR;
+	coldResist += item._iPLCR;
 	damageMod += item._iPLDamMod;
 	getHit += item._iPLGetHit;
 	lightRadius += item._iPLLight;
@@ -264,6 +265,8 @@ std::string DescribeBonusTotals(const ItemBonusTotals &totals, const char *separ
 		add(fmt::format(fmt::runtime(_("{:s}% lightning resist")), signedNumber(totals.lightningResist)));
 	if (totals.magicResist != 0)
 		add(fmt::format(fmt::runtime(_("{:s}% magic resist")), signedNumber(totals.magicResist)));
+	if (totals.coldResist != 0)
+		add(fmt::format(fmt::runtime(_("{:s}% cold resist")), signedNumber(totals.coldResist)));
 
 	if (totals.strength != 0)
 		add(fmt::format(fmt::runtime(_("{:s} strength")), signedNumber(totals.strength)));

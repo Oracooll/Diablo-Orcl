@@ -1418,6 +1418,13 @@ enum item_effect_type : int8_t {
 	 * the total into skipped cast frames - see oracool::CastFrameSkip.
 	 */
 	IPL_FASTCAST,
+	/**
+	 * Cold resistance +X% and its curse (2026-09-26, user: "make it as real as it is in Diablo 2"). Heroes had no
+	 * cold resistance - cold that reached them was resisted by magic. Appended like the three above, and
+	 * loadsave.cpp's IsOracoolAffixTypeValid moves with it. The field is Item::_iPLCR, saved since item format 14.
+	 */
+	IPL_COLDRES,
+	IPL_COLDRES_CURSE,
 	IPL_INVALID = -1,
 };
 

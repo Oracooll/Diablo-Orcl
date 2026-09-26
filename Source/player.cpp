@@ -3690,6 +3690,11 @@ void ProcessPlayers()
 				oracool::ProcessClassTreeTick(player);
 			}
 
+			// Chilled (2026-09-26, the Diablo II chill): every other tick of an attack, a cast, a block or a hit
+			// recovery is the cold's. The walk is slowed by the movement slow instead - see oracool::ChillPlayer.
+			if (oracool::PlayerChillTakesThisTick(player))
+				continue;
+
 			bool tplayer = false;
 			do {
 				switch (player._pmode) {

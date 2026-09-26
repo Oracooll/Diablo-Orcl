@@ -955,6 +955,16 @@ struct OracoolOptions : OptionCategoryBase {
 	 * centred panel it replaced, kept whole for the same reason as the backings.
 	 */
 	OptionEntryBoolean itemTooltipCard;
+	/**
+	 * @brief The character sheet's layout: ON is the grouped hero sheet (user, 2026-09-26, approved from
+	 * a mock-up: the name and an XP bar in a header box, the four attributes in their own boxes down the
+	 * left with the + buttons under them, the two mouse buttons, armour, to hit, the pools and the four
+	 * resistances down the right, the aura across the foot, and an ADVANCED STATS button that opens the
+	 * rarer numbers in the right-hand panel slot - oracool/advanced_stats.h). OFF is the two-column row
+	 * list it replaced (CharRows in panels/charpanel.cpp), kept whole so the new sheet can be rolled back
+	 * from the menu, the same promise as the item looks above.
+	 */
+	OptionEntryBoolean heroSheetGrouped;
 	OptionEntryBoolean eventLog;
 	OptionEntryBoolean balanceTelemetry;
 	/**

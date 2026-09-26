@@ -602,6 +602,8 @@ struct Player {
 	int8_t _pMagResist;
 	int8_t _pFireResist;
 	int8_t _pLghtResist;
+	/** Oracool (2026-09-26): cold resistance, a stat of its own as in Diablo II. Cold hits were resisted by magic until then. */
+	int8_t _pColdResist = 0;
 	bool _pInfraFlag;
 	/** Player's direction when ending movement. Also used for casting direction of SpellID::FireWall. */
 	Direction tempDirection;

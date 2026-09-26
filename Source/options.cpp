@@ -477,6 +477,8 @@ void SaveOptions()
 	    "; ----- ITEM LOOKS -----------------------------------------------------------------\n; On: each item sits on one backing with a rim in its quality colour and a glow fading\n; in from it, with dark gaps between neighbours. Off: the earlier tint, gold outline\n; and cell lines.");
 	setBoolean("Item Tooltip Card", *sgOptions.Oracool.itemTooltipCard,
 	    "; On: the item tooltip is a card - name large, type and tier under it, armour or damage\n; as one big number, the item's picture top right, stats left-aligned, requirements in\n; a band at the foot. Off: the earlier centred panel.");
+	setBoolean("Grouped Hero Sheet", *sgOptions.Oracool.heroSheetGrouped,
+	    "; On: the character sheet is drawn in boxes - name, title, level and an experience bar\n; on top, the four attributes with their + buttons down the left, the mouse buttons,\n; armour, to hit, life, mana and the four resistances down the right - and an ADVANCED\n; STATS button opens the rarer bonuses in the right-hand panel. Off: the earlier\n; two-column list.");
 
 	setInteger("Panel Gamma", *sgOptions.Oracool.panelGamma,
 	    "; ----- SIDE PANELS ---------------------------------------------------------------\n; Brightness of the 340x720 stone canvas every side panel (inventory, stash, character,\n; abilities...) is drawn on, as GAMMA in hundredths. 100 is the stone exactly as painted;\n; lower is lighter (65 = gamma 0.65 lifts the midtones about a third, blacks and\n; highlights stay put); 110-120 is darker. Values: 40-100 in steps of 5, 110, 120.\n; Read once, when the panel is first drawn - restart after changing it.");
@@ -1572,6 +1574,7 @@ OracoolOptions::OracoolOptions()
     , hudPlateArt("HUD Plate Art", OptionEntryFlags::None, N_("HUD Plate Art"), N_("Draws the stone plate behind the belt and the two skill wells. Off leaves the belt items, skill icons and both orbs in place and removes the plate and everything painted into it - the cell frames, the well rims and the Menu/Portal button faces."), true) // on since the fifth HUD (2026-09-05, "take and use"); off for the fourth (v1.9.209-212) at "revert back to the old hud"
     , itemBackingRimGlow("Rim and Glow Item Backings", OptionEntryFlags::None, N_("Rim and Glow Item Backings"), N_("Each item sits on one backing with a rim in its quality colour and a glow fading in from it. Off: the earlier tint with a gold outline and cell lines."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
+    , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("Shows a toggleable button above the durability-warning icons that opens a timestamped log of noteworthy session events."), true)
     , balanceTelemetry("Balance Telemetry", OptionEntryFlags::None, N_("Balance Telemetry"), N_("Appends kills, deaths and item pickups to balance_telemetry.csv beside your saves, as tuning data for balancing the mod. Local file only; nothing leaves your machine."), true)
     , vendorTieredStockChance("Vendor Tiered Stock Chance", OptionEntryFlags::None, N_("Vendor Tiered Stock Chance"), N_("Percent chance a vendor item is offered at a base tier above Normal. The tier follows the game difficulty."), 35, { 0, 5, 10, 15, 20, 25, 35, 50, 65, 80, 100 })
@@ -1659,6 +1662,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&hudPlateArt,
 		&itemBackingRimGlow,
 		&itemTooltipCard,
+		&heroSheetGrouped,
 		&eventLog,
 		// External audit PO-02, 2026-08-30: declared and consumed (oracool/telemetry.cpp) but never
 		// registered, so it was neither loaded nor saved nor listed in Settings - permanently stuck

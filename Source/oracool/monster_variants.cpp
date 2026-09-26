@@ -118,24 +118,29 @@ constexpr MonsterVariant CatacombsRoster[] = { MonsterVariant::Hollow, MonsterVa
 	MonsterVariant::Stormtouched,
 	MonsterVariant::Veiled, MonsterVariant::Ironhide, MonsterVariant::Brutal, MonsterVariant::Frenzied,
 	MonsterVariant::Fleet, MonsterVariant::Searing, MonsterVariant::Voltaic, MonsterVariant::Venomous,
-	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous };
+	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous,
+	MonsterVariant::Glacial };
 constexpr MonsterVariant CavesRoster[] = { MonsterVariant::Feral, MonsterVariant::Ashen,
 	MonsterVariant::Veiled, MonsterVariant::Ironhide, MonsterVariant::Brutal, MonsterVariant::Frenzied,
 	MonsterVariant::Fleet, MonsterVariant::Searing, MonsterVariant::Voltaic, MonsterVariant::Venomous,
-	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous };
+	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous,
+	MonsterVariant::Glacial };
 constexpr MonsterVariant HellRoster[] = { MonsterVariant::Hollow, MonsterVariant::Feral,
 	MonsterVariant::Stormtouched, MonsterVariant::Ashen,
 	MonsterVariant::Veiled, MonsterVariant::Ironhide, MonsterVariant::Brutal, MonsterVariant::Frenzied,
 	MonsterVariant::Fleet, MonsterVariant::Searing, MonsterVariant::Voltaic, MonsterVariant::Venomous,
-	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous };
+	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous,
+	MonsterVariant::Glacial };
 constexpr MonsterVariant NestRoster[] = { MonsterVariant::Feral, MonsterVariant::Ashen,
 	MonsterVariant::Veiled, MonsterVariant::Ironhide, MonsterVariant::Brutal, MonsterVariant::Frenzied,
 	MonsterVariant::Fleet, MonsterVariant::Searing, MonsterVariant::Voltaic, MonsterVariant::Venomous,
-	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous };
+	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous,
+	MonsterVariant::Glacial };
 constexpr MonsterVariant CryptRoster[] = { MonsterVariant::Hollow, MonsterVariant::Stormtouched,
 	MonsterVariant::Veiled, MonsterVariant::Ironhide, MonsterVariant::Brutal, MonsterVariant::Frenzied,
 	MonsterVariant::Fleet, MonsterVariant::Searing, MonsterVariant::Voltaic, MonsterVariant::Venomous,
-	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous };
+	MonsterVariant::Unyielding, MonsterVariant::Gilded, MonsterVariant::Luminous,
+	MonsterVariant::Glacial };
 
 struct Roster {
 	const MonsterVariant *variants;
@@ -295,6 +300,8 @@ const char *VariantNamePrefix(MonsterVariant variant)
 		return N_("Gilded");
 	case MonsterVariant::Luminous:
 		return N_("Luminous");
+	case MonsterVariant::Glacial:
+		return N_("Glacial");
 	case MonsterVariant::None:
 		break;
 	}
@@ -359,6 +366,7 @@ void ApplyMonsterVariant(Monster &monster)
 	case MonsterVariant::Fleet:
 	case MonsterVariant::Searing:
 	case MonsterVariant::Voltaic:
+	case MonsterVariant::Glacial:
 	case MonsterVariant::Venomous:
 	case MonsterVariant::Unyielding:
 	case MonsterVariant::Gilded:
@@ -395,6 +403,8 @@ DamageType VariantHitElement(const Monster &monster)
 		return DamageType::Fire;
 	case MonsterVariant::Voltaic:
 		return DamageType::Lightning;
+	case MonsterVariant::Glacial:
+		return DamageType::Cold;
 	default:
 		return DamageType::Physical;
 	}

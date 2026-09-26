@@ -762,7 +762,7 @@ int EffectPercent(SpellID spell, int r)
 	case SpellID::ThreateningShout: return std::min(15 + p, 40); // damage dealt, cut
 	case SpellID::RallyingCry: return std::min(20 + 2 * p, 50); // of maximum life
 	case SpellID::Intimidate: return std::min(15 + 2 * p, 60); // armour, cut
-	case SpellID::IronWill: return 15 + 3 * p; // fire, lightning and magic resistance
+	case SpellID::IronWill: return 15 + 3 * p; // fire, lightning, cold and magic resistance
 	case SpellID::Frostbite: return std::min(20 + 2 * p, 60); // cold damage taken
 	case SpellID::Conduit: return std::min(20 + 2 * p, 60); // faster cast rate
 	case SpellID::HuntersMark: return std::min(20 + 2 * p, 60); // arrow damage taken
@@ -2989,6 +2989,7 @@ void ApplyRfa12ActiveBuffsToTotals(const Player &player, ItemBonusTotals &totals
 		totals.fireResist += EffectPercent(SpellID::IronWill, r);
 		totals.lightningResist += EffectPercent(SpellID::IronWill, r);
 		totals.magicResist += EffectPercent(SpellID::IronWill, r);
+		totals.coldResist += EffectPercent(SpellID::IronWill, r);
 	}
 	if (const int r = BuffRank(player, Buff::Conduit); r > 0)
 		totals.fastCast += EffectPercent(SpellID::Conduit, r);
@@ -3365,7 +3366,7 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		say(_("Shoves aside the enemies ahead of you within {:d} tiles"), reach);
 		break;
 	case SpellID::IronWill:
-		say(_("Fire, lightning and magic resistance: +{:d}%"), EffectPercent(spell, r));
+		say(_("Fire, lightning, cold and magic resistance: +{:d}%"), EffectPercent(spell, r));
 		duration();
 		break;
 	case SpellID::Bloodcall:

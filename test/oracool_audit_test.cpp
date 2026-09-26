@@ -139,6 +139,7 @@
 #include "DiabloUI/hero/selhero.h"
 #include "DiabloUI/multi/selgame.h"
 #include "panels/charpanel.hpp"
+#include "oracool/advanced_stats.h" // the hero sheet preview
 #include "qol/floatingnumbers.h" // DamageTextColor - must agree with charpanel's table
 #include "panels/spell_book.hpp"
 #include "panels/spell_icons.hpp"
@@ -2868,13 +2869,14 @@ TEST(OracoolClassTree, AuraEffectsScaleWithPointsAndInertOnesStaySilent)
 	oracool::ApplyClassTreeToTotals(player, twoPoints);
 	EXPECT_GT(twoPoints.bonusDamage, onePoint.bonusDamage) << "the second point bought nothing";
 
-	// Resist Cold is the documented remap onto magic resistance - this engine has no cold.
+	// Resist Cold wards cold itself since 2026-09-26 (heroes have a cold resistance of their own); it warded magic before.
 	devilution::Player &cold = FreshPaladin();
 	ASSERT_TRUE(oracool::InvestClassTreePoint(cold, oracool::ClassTreeSkill::ResistCold));
 	ASSERT_TRUE(oracool::ToggleClassAura(cold, oracool::ClassTreeSkill::ResistCold));
 	oracool::ItemBonusTotals coldTotals;
 	oracool::ApplyClassTreeToTotals(cold, coldTotals);
-	EXPECT_GT(coldTotals.magicResist, 0);
+	EXPECT_GT(coldTotals.coldResist, 0);
+	EXPECT_EQ(coldTotals.magicResist, 0) << "Resist Cold still gives magic resistance";
 
 	// The auras that do their work OFF the sheet - the three holy pulses, Sanctuary and Redemption push
 	// and consume, Conviction is asked at the point of use, Thorns returns and Cleansing shortens where
@@ -14581,4 +14583,104 @@ TEST(OracoolPreview, DISABLED_BackingOpacities)
 	RimGlowOpacityPercent = savedOpacity;
 	PreviewSave(out, "item_backings_opacity.png");
 	player = {};
+}
+
+// =================================================================================================
+// Cold resistance, a stat of its own (user, 2026-09-26: "make it as real as it is in Diablo 2").
+// =================================================================================================
+
+// The two powers that give it: the cold resist affix, and "all resistances", which counts cold now.
+TEST(OracoolColdResistance, TheAffixAndAllResistanceGiveIt)
+{
+	AuditV188Hero();
+	devilution::Player &player = *MyPlayer;
+	devilution::Item ring {};
+	InitializeItem(ring, IDI_TRING);
+	ring._iStatFlag = true; // worn and usable, so the totals count it
+	ItemPower cold { IPL_COLDRES, 20, 20 };
+	ApplyOracoolItemPower(player, ring, cold);
+	EXPECT_EQ(ring._iPLCR, 20);
+	ItemPower all { IPL_ALLRES, 10, 10 };
+	ApplyOracoolItemPower(player, ring, all);
+	EXPECT_EQ(ring._iPLCR, 30) << "all resistances must include cold";
+	EXPECT_EQ(ring._iPLFR, 10);
+	EXPECT_EQ(ring._iPLMR, 10);
+	oracool::ItemBonusTotals totals;
+	totals.AddItem(ring);
+	EXPECT_EQ(totals.coldResist, 30);
+	EXPECT_EQ(totals.magicResist, 10) << "cold must not land in magic any more";
+}
+
+// The Diablo II chill: cold resistance shortens it by its own percentage, and while it lasts every other tick of
+// an attack is the cold's; a standing hero only ages it.
+TEST(OracoolColdResistance, ChillIsShortenedByResistanceAndHalvesAttacks)
+{
+	devilution::Player &player = AuditV188Hero();
+	oracool::ClearPlayerChills();
+
+	player._pColdResist = 50;
+	player._pmode = PM_STAND;
+	oracool::ChillPlayer(player, 60);
+	int ticks = 0;
+	while (oracool::IsPlayerChilled(player) && ticks < 1000) {
+		EXPECT_FALSE(oracool::PlayerChillTakesThisTick(player)) << "a standing hero loses no ticks";
+		ticks++;
+	}
+	EXPECT_EQ(ticks, 30) << "50% cold resistance halves a 60-tick chill";
+
+	player._pColdResist = 0;
+	player._pmode = PM_ATTACK;
+	oracool::ChillPlayer(player, 60);
+	int taken = 0;
+	for (int i = 0; i < 60; i++) {
+		if (oracool::PlayerChillTakesThisTick(player))
+			taken++;
+	}
+	EXPECT_EQ(taken, 30) << "a chilled attack runs at half speed";
+	EXPECT_FALSE(oracool::IsPlayerChilled(player));
+	oracool::ClearPlayerChills();
+	oracool::ClearMovementSlows(); // ChillPlayer slowed the walk too; the slow ages only in play
+	player._pColdResist = 0;
+	player._pmode = PM_STAND;
+}
+
+// The grouped hero sheet and its Advanced Stats window (2026-09-26), drawn through the game's own code into
+// hero_sheet_preview.png. Not a test - run by name, like the item look preview.
+TEST(OracoolPreview, DISABLED_HeroSheet)
+{
+	MountTestArchives(true);
+	EnsureCursorSpritesLoaded();
+	PreviewLoadPalette();
+	InitPNG();
+	gnScreenWidth = 960;
+	gnScreenHeight = 720;
+	devilution::Player &player = FreshPaladin(5);
+	player._pLevel = 34;
+	player._pExperience = 1284300;
+	InspectPlayer = MyPlayer = &player;
+	player._pUnspentSkillPoints = 2;
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::ResistCold));
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::ResistCold));
+	CalcPlrItemVals(player, false);
+	player._pHitPoints = player._pMaxHP * 9 / 10;
+	// A few bonuses so the Advanced list has rows to show.
+	player._pISplLvlAdd = 1;
+	player._pIEnAc = 12;
+	player._pIFlags |= ItemSpecialEffect::Thorns | ItemSpecialEffect::HalfTrapDamage | ItemSpecialEffect::TripleDemonDamage;
+	player._pIGetHit = -3;
+	player._pMagicFind = 25;
+	player._pGoldFind = 40;
+	player._pIFastCast = 20;
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	OwnedSurface out = OwnedSurface::Rgb(960, 720);
+	PreviewFloor(out);
+	sgOptions.Oracool.heroSheetGrouped.SetValue(true);
+	LoadCharPanel();
+	oracool::OpenAdvancedStats();
+	DrawChr(out);
+	oracool::DrawAdvancedStats(out);
+	oracool::CloseAdvancedStats(false);
+	HeadlessMode = savedHeadless;
+	PreviewSave(out, "hero_sheet_preview.png");
 }

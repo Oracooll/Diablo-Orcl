@@ -13,6 +13,9 @@
 #include "monster.h"
 #include "oracool/chill.h"
 #include "oracool/class_tree.h"
+#include "oracool/endgame_boss.h"
+#include "oracool/monster_variants.h"
+#include "oracool/rift.h"
 #include "oracool/skill_sounds.h"
 #include "player.h"
 #include "utils/language.h"
@@ -490,6 +493,77 @@ std::string ColdPassiveFactsAt(ClassTreeSkill skill, int points)
 	else
 		out += fmt::format(fmt::runtime(_("Cold-resistant monsters take {:d}% of a cold hit")), keptPercent);
 	return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Cold that reaches a hero
+// ---------------------------------------------------------------------------------------------
+
+namespace {
+
+/** Ticks of chill left, per player slot. Like the monsters' ChillTicks, never saved: a chill outlives nothing. */
+std::array<uint16_t, MAX_PLRS> PlayerChillTicks {};
+
+} // namespace
+
+void ChillPlayer(const Player &player, int ticks)
+{
+	const size_t id = player.getId();
+	if (id >= PlayerChillTicks.size())
+		return;
+	// Resistance shortens the chill by its own percentage; a negative one lengthens it, as a negative resistance
+	// deepens the damage (the D2 rule the fork already follows for the hit itself).
+	ticks = ticks * (100 - std::clamp<int>(player._pColdResist, -100, 95)) / 100;
+	if (ticks <= 0)
+		return;
+	PlayerChillTicks[id] = static_cast<uint16_t>(std::max<int>(PlayerChillTicks[id], ticks));
+	// The walk: half speed, through the one movement slow the sheet reads.
+	SlowPlayer(player, ticks, 50);
+}
+
+bool IsPlayerChilled(const Player &player)
+{
+	const size_t id = player.getId();
+	return id < PlayerChillTicks.size() && PlayerChillTicks[id] > 0;
+}
+
+bool PlayerChillTakesThisTick(const Player &player)
+{
+	const size_t id = player.getId();
+	if (id >= PlayerChillTicks.size() || PlayerChillTicks[id] == 0)
+		return false;
+	PlayerChillTicks[id]--;
+	// Only the actions: the walk is slowed by the movement slow already, and taking its ticks as well would
+	// quarter it.
+	switch (player._pmode) {
+	case PM_ATTACK:
+	case PM_RATTACK:
+	case PM_SPELL:
+	case PM_BLOCK:
+	case PM_GOTHIT:
+		return (PlayerChillTicks[id] & 1U) == 1;
+	default:
+		return false;
+	}
+}
+
+void ClearPlayerChills()
+{
+	PlayerChillTicks.fill(0);
+}
+
+int MonsterColdMeleePercent(const Monster &monster)
+{
+	if (IsRiftGuardian(monster) || IsEndgameBoss(monster))
+		return 25;
+	return 0;
+}
+
+DamageType MonsterMissileElement(const Monster &monster, DamageType type)
+{
+	if (monster.type().type == MT_SNOWWICH || VariantHitElement(monster) == DamageType::Cold)
+		return DamageType::Cold;
+	return type;
 }
 
 } // namespace devilution::oracool

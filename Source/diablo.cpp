@@ -100,6 +100,7 @@
 #include "oracool/waypoint_menu.h"
 #include "oracool/sprite_mix.h"
 #include "oracool/xp_counter.h"
+#include "oracool/advanced_stats.h" // the Advanced Stats window: its X, clicks, wheel, Escape and closes
 #include "options.h"
 #include "panels/charpanel.hpp" // ScrollCharacterSheet
 #include "panels/info_box.hpp"
@@ -628,6 +629,11 @@ void LeftMouseDown(uint16_t modState)
 				CloseInventory();
 			} else if (sbookflag && oracool::CheckWindowCloseButtonClick(GetSpellBookPanelRect(), MousePosition)) {
 				sbookflag = false;
+			} else if (oracool::IsAdvancedStatsOpen()
+			    && oracool::CheckWindowCloseButtonClick(oracool::GetAdvancedStatsRect(), MousePosition)) {
+				// The Advanced Stats window (2026-09-26), third holder of the right-hand slot. Its X
+				// puts back the inventory or Abilities window it covered - see advanced_stats.h.
+				oracool::CloseAdvancedStats();
 			} else if (oracool::IsEventLogOpen()
 			    && oracool::CheckWindowCloseButtonClick(oracool::GetEventLogWindowRect(), MousePosition)) {
 				// The log got its X in v1.9.147 (audit). It is a floating window the player opens, so
@@ -667,6 +673,8 @@ void LeftMouseDown(uint16_t modState)
 					CheckInvItem(isShiftHeld, isCtrlHeld);
 			} else if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
 				CheckSBook(/*assignToRightButton=*/false);
+			} else if (oracool::HandleAdvancedStatsClick(MousePosition)) {
+				// A readout: every click inside its rect is taken, so none reaches the ground under it.
 			} else if (!MyPlayer->HoldItem.isEmpty()) {
 				if (!TryOpenDungeonWithMouse()) {
 					Point currentPosition = MyPlayer->position.tile;
@@ -780,6 +788,7 @@ void LeftMouseUp(uint16_t modState)
 		const bool isCtrlHeld = (modState & KMOD_CTRL) != 0;
 		ReleaseChrBtns(isShiftHeld, isCtrlHeld);
 	}
+	ReleaseCharacterSheetAdvancedButton(); // the grouped sheet's ADVANCED STATS toggles on the release (2026-09-26)
 	if (lvlbtndown)
 		ReleaseLvlBtn();
 	if (stextflag != TalkID::None)
@@ -1015,6 +1024,10 @@ void ClosePanels()
 			SetCursorPos(MousePosition - Displacement { 160, 0 });
 		}
 	}
+	// FIRST, and without restoring: putting the side panels away must not have the Advanced Stats
+	// window hand the inventory it covered back open - CloseCharPanel below would otherwise do exactly
+	// that, since closing the sheet closes this window the ordinary way (advanced_stats.h).
+	oracool::CloseAdvancedStats(/*restoreCovered=*/false);
 	CloseInventory();
 	CloseCharPanel();
 	sbookflag = false;
@@ -1472,6 +1485,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				// about twice its window's height. Gated on the cursor actually being over the
 				// sheet so the wheel still zooms the dungeon everywhere else while it is open.
 				ScrollCharacterSheet(-1);
+			} else if (oracool::HandleAdvancedStatsScroll(-1)) {
+				// consumed - the Advanced Stats list, gated on the cursor being over it like the two around it
 			} else if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
 				// Oracool V1: the book is one scrolling list of every spell, not six tabbed pages.
 				ScrollSpellBook(-1);
@@ -1521,6 +1536,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 			} else if (chrflag && IsOverLeftPanel(MousePosition)) {
 				// Oracool V1: character sheet scrolling - see the wheel-up branch above.
 				ScrollCharacterSheet(1);
+			} else if (oracool::HandleAdvancedStatsScroll(1)) {
+				// consumed - see the wheel-up branch above
 			} else if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
 				// Oracool V1: spell book scrolling - see the wheel-up branch above.
 				ScrollSpellBook(1);
@@ -2574,6 +2591,9 @@ void CloseAllWindows()
 	// A window added to the game must be added HERE, not only to ClosePanels(). That is the whole
 	// point of the rule: "regardless of when they were introduced".
 	ClosePanels();
+	// The Advanced Stats window (2026-09-26). ClosePanels() above already shuts it, without handing
+	// back what it covered; named here as well because this list is the rule's own record.
+	oracool::CloseAdvancedStats(/*restoreCovered=*/false);
 	CloseStash();
 	CloseGoldWithdraw();
 	DropGoldFlag = false;
@@ -3919,6 +3939,14 @@ bool PressEscKey()
 	if (spselflag) {
 		spselflag = false;
 		rv = true;
+	}
+
+	// The Advanced Stats window on its own (2026-09-26): Escape peels it off and stops there, leaving the
+	// character sheet it was opened from - and whatever it covered - on screen, the way its red X does.
+	// Without this branch the ClosePanels() below would take the sheet and everything else with it.
+	if (oracool::IsAdvancedStatsOpen()) {
+		oracool::CloseAdvancedStats();
+		return true;
 	}
 
 	if (IsLeftPanelOpen() || IsRightPanelOpen()) {

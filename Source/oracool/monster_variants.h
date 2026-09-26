@@ -84,7 +84,12 @@ enum class MonsterVariant : uint8_t {
 	Gilded,
 	/** Carries a light, and so gives itself away. */
 	Luminous,
-	LAST = Luminous,
+	/**
+	 * A third of its blow is cold, against the hero's cold resistance, and it chills; its missiles are cold too
+	 * (2026-09-26, the ice variant the user picked when heroes got a real cold resistance). APPENDED.
+	 */
+	Glacial,
+	LAST = Glacial,
 };
 
 /** @brief Which variant @p monster is, derived from its seed and the floor it stands on. */

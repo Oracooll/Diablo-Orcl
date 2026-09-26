@@ -36,6 +36,7 @@
 #include "monster.h"
 #include "nthread.h"
 #include "options.h"
+#include "oracool/advanced_stats.h" // the right-hand slot's third window, and IsRightPanelOpen's third answer
 #include "oracool/attack_skills.h"
 #include "oracool/companion.h"
 #include "oracool/rift.h"      // DrawRiftHud: the bar and the clock under the mini-map
@@ -1691,6 +1692,10 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawInv(out);
 	} else if (sbookflag) {
 		DrawSpellBook(out);
+	} else if (oracool::IsAdvancedStatsOpen()) {
+		// The right-hand slot's third holder (2026-09-26). Never up at the same time as the two above -
+		// it covers them by putting them away - so an else-if is the whole precedence.
+		oracool::DrawAdvancedStats(out);
 	}
 
 	switch (GetLeftPanelContent()) {
@@ -1723,6 +1728,8 @@ void DrawView(const Surface &out, Point startPosition)
 		oracool::DrawWindowCloseButton(out, oracool::GetInventoryPanelRect());
 	else if (sbookflag)
 		oracool::DrawWindowCloseButton(out, GetSpellBookPanelRect());
+	else if (oracool::IsAdvancedStatsOpen())
+		oracool::DrawWindowCloseButton(out, oracool::GetAdvancedStatsRect());
 
 	// Levski's Roar is a free-floating centred window, NOT a left-panel slot, so it is drawn
 	// outside the panel switch. It spent three builds inside case LeftPanelContent::Crafting -

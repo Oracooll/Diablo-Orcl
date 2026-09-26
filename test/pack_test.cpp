@@ -3,6 +3,14 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
+#include <iostream>
+#include <string>
+
+#include <fmt/format.h>
+
+#include "utils/utf8.hpp"
+
 #include "pack.h"
 #include "utils/paths.h"
 
@@ -214,7 +222,7 @@ static void CompareItems(const Item &item1, const TestItemStruct &item2)
 	size_t tableAffixCount = 0;
 	for (int i = 0; i < item1._iOracoolAffixCount && tableAffixCount < tableAffixes.size(); i++) {
 		const item_effect_type type = item1._iOracoolAffixes[i].type;
-		if (type == IPL_MOVESPEED || type == IPL_MOVESPEED_CURSE || type == IPL_FASTCAST)
+		if (type == IPL_MOVESPEED || type == IPL_MOVESPEED_CURSE || type == IPL_FASTCAST || type == IPL_COLDRES)
 			continue;
 		tableAffixes[tableAffixCount++] = type;
 	}
@@ -329,15 +337,15 @@ constexpr ItemSpecialEffect GrisworldEdgeSpecialEffect = ItemSpecialEffect::Fire
 const TestItemStruct DiabloItems[] = {
 	// clang-format off
 	// _iIName,                       _itype,                 _iClass,  _iCurs,  _iIvalue,  _iMinDam,  _iMaxDam,  _iAC, _iFlags,                                 _iMiscId, _iSpell,               _iCharges,  _iMaxCharges,  _iDurability,  _iMaxDur,  _iPLDam,  _iPLToHit,  _iPLAC,  _iPLStr,  _iPLMag,  _iPLDex,  _iPLVit,  _iPLFR,  _iPLLR,  _iPLMR,  _iPLMana,  _iPLHP,  _iPLDamMod,  _iPLGetHit,  _iPLLight,  _iSplLvlAdd,  _iUid,  _iFMinDam,  _iFMaxDam,  _iLMinDam,  _iLMaxDam,  _iAffix1,    _iAffix2,    _iMinStr,  _iMinMag,  _iMinDex,  IDidx
-	{ "Tarnished Doom", static_cast<ItemType>(7), 2, 98, 15283, 0, 0, 11, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 60, 60, 0, 0, 94, 0, 0, 0, 0, 0, 43, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 6, 50, 0, 0, 53 },
-	{ "Smoldering Crest", static_cast<ItemType>(13), 3, 45, 18187, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 26, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2816, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, -1, 0, 0, 0, 159 },
+	{ "Tarnished Doom", static_cast<ItemType>(7), 2, 98, 3700, 0, 0, 11, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 60, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 35, 37, 50, 0, 0, 53 },
+	{ "Smoldering Crest", static_cast<ItemType>(13), 3, 45, 13054, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 26, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 44, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, -1, 0, 0, 0, 159 },
 	{ "Rotting Bane", static_cast<ItemType>(1), 1, 60, 21046, 2, 10, 0, static_cast<ItemSpecialEffect>(524288), 0, static_cast<SpellID>(0), 0, 0, 38, 40, 0, 57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 58, 30, 0, 30, 125 },
 	{ "Demonspike Coat",              ItemType::HeavyArmor,         2,     151,    251175,         0,         0,   100, ItemSpecialEffect::None,                        0, SpellID::Null,                 0,             0,           255,       255,        0,          0,       0,       10,        0,        0,        0,      50,       0,       0,         0,       0,           0,          -6,          0,            0,     78,          0,          0,          0,          0,          -1,          -1,        90,         0,         0,     70 },
-	{ "Sundered Tomb", static_cast<ItemType>(12), 3, 12, 2750, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 38, -1, 0, 0, 0, 156 },
-	{ "Silent Ward", static_cast<ItemType>(12), 3, 12, 12000, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, -1, 0, 0, 0, 156 },
-	{ "Jagged Spine", static_cast<ItemType>(12), 3, 12, 16816, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2880, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, -1, 0, 0, 0, 158 },
-	{ "Shrouded Gaze", static_cast<ItemType>(5), 2, 132, 22945, 0, 0, 18, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 56, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, -1, 60, 0, 0, 75 },
-	{ "Eternal Pyre", static_cast<ItemType>(5), 2, 147, 3599, 0, 0, 7, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 12, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, -1, 40, 0, 0, 73 },
+	{ "Sundered Tomb", static_cast<ItemType>(12), 3, 12, 2500, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, -1, 0, 0, 0, 156 },
+	{ "Silent Ward", static_cast<ItemType>(12), 3, 12, 26000, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3840, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, -1, 0, 0, 0, 156 },
+	{ "Jagged Spine", static_cast<ItemType>(12), 3, 12, 23256, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3520, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, -1, 0, 0, 0, 158 },
+	{ "Shrouded Gaze", static_cast<ItemType>(5), 2, 132, 8116, 0, 0, 18, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 255, 255, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, -1, 60, 0, 0, 75 },
+	{ "Eternal Pyre", static_cast<ItemType>(5), 2, 147, 9218, 0, 0, 7, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 12, 32, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, -1, 40, 0, 0, 73 },
 	{ "Scroll of Town Portal",        ItemType::Misc,               3,       1,       200,         0,         0,     0, ItemSpecialEffect::None,                       21, SpellID::TownPortal,           0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     27 },
 	{ "Potion of Mana",               ItemType::Misc,               3,      39,        50,         0,         0,     0, ItemSpecialEffect::None,                        6, SpellID::Null,                 0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     25 },
 	{ "Potion of Mana",               ItemType::Misc,               3,      39,        50,         0,         0,     0, ItemSpecialEffect::None,                        6, SpellID::Null,                 0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     79 },
@@ -345,14 +353,14 @@ const TestItemStruct DiabloItems[] = {
 	{ "Potion of Healing",            ItemType::Misc,               3,      32,        50,         0,         0,     0, ItemSpecialEffect::None,                        3, SpellID::Null,                 0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     24 },
 	{ "Potion of Full Healing",       ItemType::Misc,               3,      35,       150,         0,         0,     0, ItemSpecialEffect::None,                        2, SpellID::Null,                 0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     29 },
 	{ "Short Bow",                    ItemType::Bow,                1,     118,       100,         1,         4,     0, ItemSpecialEffect::None,                        0, SpellID::Null,                 0,             0,            30,        30,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,      4 },
-	{ "Ancient Fall", static_cast<ItemType>(7), 2, 98, 4197, 0, 0, 14, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 56, 60, 0, 0, 0, 0, 0, 0, 0, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, -1, 50, 0, 0, 53 },
-	{ "Umbral Shell", static_cast<ItemType>(12), 3, 12, 8145, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1664, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, -1, 0, 0, 0, 156 },
+	{ "Ancient Fall", static_cast<ItemType>(7), 2, 98, 4400, 0, 0, 14, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 56, 60, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 21, -1, 50, 0, 0, 53 },
+	{ "Umbral Shell", static_cast<ItemType>(12), 3, 12, 11595, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 156 },
 	{ "Blood Stone",                  ItemType::Misc,               5,      25,         0,         0,         0,     0, ItemSpecialEffect::None,                        0, SpellID::Null,                 0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     21 },
-	{ "Bitter Wound", static_cast<ItemType>(12), 3, 12, 5000, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, -1, 0, 0, 0, 156 },
-	{ "Rusted Rift", static_cast<ItemType>(13), 3, 45, 7800, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 26, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, -1, 0, 0, 0, 159 },
+	{ "Bitter Wound", static_cast<ItemType>(12), 3, 12, 9000, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 156 },
+	{ "Rusted Rift", static_cast<ItemType>(13), 3, 45, 10000, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 26, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1920, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, -1, 0, 0, 0, 159 },
 	{ "Buried Curse", static_cast<ItemType>(1), 1, 57, 4500, 6, 15, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 25, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 38, -1, 50, 0, 0, 127 },
 	{ "Small Shield",                 ItemType::Shield,             2,     105,        90,         0,         0,     3, ItemSpecialEffect::None,                        0, SpellID::Null,                 0,             0,            14,        24,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,        25,         0,         0,     72 },
-	{ "Bleak Tithe", static_cast<ItemType>(9), 2, 153, 13800, 0, 0, 20, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 44, 80, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 21, -1, 40, 0, 0, 65 },
+	{ "Bleak Tithe", static_cast<ItemType>(9), 2, 153, 7898, 0, 0, 20, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 44, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, -1, 40, 0, 0, 65 },
 	{ "Scroll of Healing",            ItemType::Misc,               3,       1,        50,         0,         0,     0, ItemSpecialEffect::None,                       21, SpellID::Healing,              0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     91 },
 	{ "Potion of Rejuvenation",       ItemType::Misc,               3,      37,       120,         0,         0,     0, ItemSpecialEffect::None,                       18, SpellID::Null,                 0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     81 },
 	{ "Potion of Rejuvenation",       ItemType::Misc,               3,      37,       120,         0,         0,     0, ItemSpecialEffect::None,                       18, SpellID::Null,                 0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     81 },
@@ -363,8 +371,8 @@ const TestItemStruct DiabloItems[] = {
 	{ "Searing Crypt", static_cast<ItemType>(10), 1, 109, 1, 2, 4, 0, static_cast<ItemSpecialEffect>(0), 23, static_cast<SpellID>(31), 60, 60, 10, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -384, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 34, -1, 0, 20, 0, 151 },
 	{ "Short Staff of Charged Bolt",  ItemType::Staff,              1,     109,       520,         2,         4,     0, ItemSpecialEffect::None,                       23, SpellID::ChargedBolt,          9,            40,            25,        25,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,        20,         0,    166 },
 	{ "Short Staff of Charged Bolt",  ItemType::Staff,              1,     109,         1,         2,         4,     0, ItemSpecialEffect::None,                       23, SpellID::ChargedBolt,         50,            50,            18,        25,        0,          0,       0,        0,        0,        0,        0,       0,       0,       0,         0,       0,           0,           0,          0,            0,      0,          0,          0,          0,          0,          -1,          -1,         0,        25,         0,    151 },
-	{ "Bloodied Dusk", static_cast<ItemType>(7), 2, 91, 191, 0, 0, 2, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 12, 15, 0, 0, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, -1, 0, 0, 0, 48 },
-	{ "Venomous Bane", static_cast<ItemType>(6), 2, 129, 1700, 0, 0, 7, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 30, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 58 },
+	{ "Bloodied Dusk", static_cast<ItemType>(7), 2, 91, 730, 0, 0, 2, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 12, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 48 },
+	{ "Venomous Bane", static_cast<ItemType>(6), 2, 129, 1800, 0, 0, 7, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 30, 30, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 25, -1, 0, 0, 0, 58 },
 	{ "Empyrean Band",                ItemType::Ring,               3,      18,      8000,         0,         0,     0, EmpyreanBandSpecialEffect,                     27, SpellID::Null,                 0,             0,             0,         0,        0,          0,       0,        2,        2,        2,        2,       0,       0,       0,         0,       0,           0,           0,          2,            0,      2,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,      8 },
 	{ "Optic Amulet",                 ItemType::Amulet,             3,      44,      9750,         0,         0,     0, ItemSpecialEffect::None,                       27, SpellID::Null,                 0,             0,             0,         0,        0,          0,       0,        0,        5,        0,        0,       0,      20,       0,         0,       0,           0,          -1,          2,            0,      3,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     10 },
 	{ "Ring of Truth",                ItemType::Ring,               3,      10,      9100,         0,         0,     0, ItemSpecialEffect::None,                       27, SpellID::Null,                 0,             0,             0,         0,        0,          0,       0,        0,        0,        0,        0,      10,      10,      10,         0,     640,           0,          -1,          0,            0,      4,          0,          0,          0,          0,          -1,          -1,         0,         0,         0,     11 },
@@ -376,7 +384,7 @@ const TestItemStruct DiabloItems[] = {
 	{ "Ancient Fall", static_cast<ItemType>(10), 1, 124, 7160, 8, 16, 0, static_cast<ItemSpecialEffect>(0), 23, static_cast<SpellID>(3), 56, 56, 75, 75, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, -1, 30, 20, 0, 155 },
 	{ "Ancient Fall", static_cast<ItemType>(4), 1, 122, 18575, 6, 20, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 50, 50, 73, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, -1, 55, 0, 0, 142 },
 	{ "Ancient Fall", static_cast<ItemType>(2), 1, 143, 20700, 12, 30, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 75, 75, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, -1, 80, 0, 0, 135 },
-	{ "Ancient Fall", static_cast<ItemType>(7), 2, 95, 9218, 0, 0, 10, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 18, 40, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, -1, 0, 0, 0, 52 },
+	{ "Ancient Fall", static_cast<ItemType>(7), 2, 95, 3599, 0, 0, 10, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 18, 40, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, -1, 0, 0, 0, 52 },
 	{ "Mournful Scar", static_cast<ItemType>(3), 1, 118, 2200, 1, 4, 0, static_cast<ItemSpecialEffect>(8), 0, static_cast<SpellID>(0), 0, 0, 16, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 0, 0, 42, -1, 0, 0, 0, 143 },
 	{ "Buried Verdict", static_cast<ItemType>(1), 1, 51, 220, 1, 4, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 11, 16, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 118 },
 	{ "Umbral Spine", static_cast<ItemType>(3), 1, 118, 3360, 1, 4, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 16, 30, 56, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, -1, 0, 0, 0, 143 },
@@ -387,14 +395,14 @@ const TestItemStruct DiabloItems[] = {
 	{ "Silent Doom", static_cast<ItemType>(1), 1, 62, 1, 4, 8, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 14, 20, -28, -5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, -1, 30, 0, 0, 120 },
 	{ "Vicious Verdict", static_cast<ItemType>(10), 1, 109, 3040, 2, 4, 0, static_cast<ItemSpecialEffect>(0), 23, static_cast<SpellID>(1), 98, 98, 13, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, -1, 0, 15, 0, 151 },
 	{ "Umbral Cinder", static_cast<ItemType>(1), 1, 51, 870, 1, 4, 0, static_cast<ItemSpecialEffect>(2048), 0, static_cast<SpellID>(0), 0, 0, 6, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 53, -1, 0, 0, 0, 118 },
-	{ "Sacred Abyss", static_cast<ItemType>(6), 2, 150, 1530, 0, 0, 3, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 4, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 38, -1, 0, 0, 0, 54 },
+	{ "Sacred Abyss", static_cast<ItemType>(6), 2, 150, 2030, 0, 0, 3, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 4, 12, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 21, -1, 0, 0, 0, 54 },
 	{ "Damned Bane", static_cast<ItemType>(1), 1, 67, 16935, 1, 8, 0, static_cast<ItemSpecialEffect>(32), 0, static_cast<SpellID>(0), 0, 0, 33, 45, 0, 44, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 20, 17, 0, 17, 0, 0, 124 },
 	{ "Putrid Crypt", static_cast<ItemType>(7), 2, 91, 1, 0, 0, 2, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 5, 15, 0, 0, -47, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, -1, 0, 0, 0, 48 },
 	{ "Foul Bane", static_cast<ItemType>(4), 1, 66, 1660, 1, 6, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 14, 20, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 21, -1, 0, 0, 0, 140 },
 	{ "Frozen Oath", static_cast<ItemType>(6), 2, 150, 64, 0, 0, 2, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 9, 12, 0, 0, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, -1, 0, 0, 0, 54 },
-	{ "Scarred Toll", static_cast<ItemType>(7), 2, 91, 165, 0, 0, 2, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 10, 15, 0, 0, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, -1, 0, 0, 0, 48 },
+	{ "Scarred Toll", static_cast<ItemType>(7), 2, 91, 2045, 0, 0, 2, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 10, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 48 },
 	{ "Broken Dawn", static_cast<ItemType>(1), 1, 67, 1140, 1, 8, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, -1, 17, 0, 0, 124 },
-	{ "Brutal Lament", static_cast<ItemType>(7), 2, 91, 1510, 0, 0, 1, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 5, 15, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 38, 8, 0, 0, 0, 48 },
+	{ "Brutal Lament", static_cast<ItemType>(7), 2, 91, 465, 0, 0, 1, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 5, 15, 0, 0, 39, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 30, 6, 0, 0, 0, 48 },
 	{ "Ruined Wail", static_cast<ItemType>(1), 1, 51, 868, 1, 4, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 5, 16, 45, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, -1, 0, 0, 0, 118 },
 	{ "Smoldering Pulse", static_cast<ItemType>(10), 1, 109, 5970, 2, 4, 0, static_cast<ItemSpecialEffect>(0), 23, static_cast<SpellID>(6), 36, 36, 17, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, -1, 0, 27, 0, 151 },
 	{ "Broken Curse", static_cast<ItemType>(4), 1, 59, 2100, 1, 8, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 22, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 61, 57, 16, 0, 0, 136 },
@@ -692,12 +700,12 @@ constexpr ItemSpecialEffect ThunderclapSpecialEffect = ItemSpecialEffect::FireDa
 constexpr ItemSpecialEffect ExplosiveArrows = ItemSpecialEffect::FireArrows | ItemSpecialEffect::LightningArrows;
 
 const TestItemStruct HellfireItems[] = {
-	{ "Bitter Shard", static_cast<ItemType>(12), 3, 12, 4460, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1088, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 33, -1, 0, 0, 0, 156 },
-	{ "Howling Verdict", static_cast<ItemType>(12), 3, 12, 12240, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2304, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 33, -1, 0, 0, 0, 157 },
-	{ "Bloodied Crest", static_cast<ItemType>(12), 3, 12, 5100, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, -1, 0, 0, 0, 157 },
-	{ "Radiant Crest", static_cast<ItemType>(12), 3, 12, 18368, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 27, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 19, -1, 0, 0, 0, 158 },
-	{ "Sundered Husk", static_cast<ItemType>(13), 3, 45, 13640, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 26, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 160 },
-	{ "Wicked Doom", static_cast<ItemType>(13), 3, 45, 1, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 26, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, -8, -8, -8, -8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 28, -1, 0, 0, 0, 160 },
+	{ "Bitter Shard", static_cast<ItemType>(12), 3, 12, 4500, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 38, -1, 0, 0, 0, 156 },
+	{ "Howling Verdict", static_cast<ItemType>(12), 3, 12, 6400, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 19, -1, 0, 0, 0, 157 },
+	{ "Bloodied Crest", static_cast<ItemType>(12), 3, 12, 14000, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 21, 21, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, -1, 0, 0, 0, 157 },
+	{ "Radiant Crest", static_cast<ItemType>(12), 3, 12, 25912, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 25, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27, -1, 0, 0, 0, 158 },
+	{ "Sundered Husk", static_cast<ItemType>(13), 3, 45, 14726, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 26, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, -1, 0, 0, 0, 160 },
+	{ "Wicked Doom", static_cast<ItemType>(13), 3, 45, 6193, 0, 0, 0, static_cast<ItemSpecialEffect>(0), 26, static_cast<SpellID>(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 38, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, -1, 0, 0, 0, 160 },
 	{ "The Unking's Scepter", (ItemType)2, 1, 547, 20000, 12, 30, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 75, 75, 50, 14, 0, 0, 0, 0, 4, 5, 5, 5, 0, 0, 4, 0, 0, 0, 151, 0, 0, 0, 0, -1, -1, 80, 0, 0, 135 },
 	{ "Entombed Watch", static_cast<ItemType>(4), 1, 122, 37185, 6, 20, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 127, 128, 87, 27, 0, 0, 0, 0, 0, 0, 0, 47, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 10, 55, 0, 0, 142 },
 	{ "Short Sword", (ItemType)1, 1, 64, 120, 2, 6, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 15, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 18, 0, 0, 119 },
@@ -708,9 +716,9 @@ const TestItemStruct HellfireItems[] = {
 	{ "Skull Cap", (ItemType)7, 2, 90, 25, 0, 0, 3, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 15, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 49 },
 	{ "Rags", (ItemType)6, 2, 128, 5, 0, 0, 4, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 6, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 55 },
 	{ "Quilted Armor", (ItemType)6, 2, 129, 200, 0, 0, 7, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 30, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 58 },
-	{ "Scarred Abyss", static_cast<ItemType>(6), 2, 129, 2664, 0, 0, 10, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 12, 30, 0, 0, 36, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 8, 0, 0, 0, 58 },
-	{ "Wicked Howl", static_cast<ItemType>(9), 2, 103, 42333, 0, 0, 46, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 75, 75, 0, 0, 0, 0, 0, 0, 0, 0, 58, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, -1, 60, 0, 0, 67 },
-	{ "Ancient Fall", static_cast<ItemType>(9), 2, 103, 54000, 0, 0, 49, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 63, 75, 0, 0, 0, 7, 7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27, -1, 60, 0, 0, 67 },
+	{ "Scarred Abyss", static_cast<ItemType>(6), 2, 129, 3050, 0, 0, 10, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 12, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 38, -1, 0, 0, 0, 58 },
+	{ "Wicked Howl", static_cast<ItemType>(9), 2, 103, 54720, 0, 0, 46, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 75, 75, 0, 0, 0, 0, 0, 0, 0, 38, 38, 38, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, -1, 60, 0, 0, 67 },
+	{ "Ancient Fall", static_cast<ItemType>(9), 2, 103, 71500, 0, 0, 49, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 63, 75, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -4, 0, 0, 0, 0, 0, 0, 0, 30, -1, 60, 0, 0, 67 },
 	{ "Potion of Healing", (ItemType)0, 3, 32, 50, 0, 0, 0, (ItemSpecialEffect)0, 3, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 24 },
 	{ "Potion of Full Healing", (ItemType)0, 3, 35, 150, 0, 0, 0, (ItemSpecialEffect)0, 2, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 29 },
 	{ "Potion of Mana", (ItemType)0, 3, 39, 50, 0, 0, 0, (ItemSpecialEffect)0, 6, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 25 },
@@ -737,18 +745,18 @@ const TestItemStruct HellfireItems[] = {
 	{ "Ancient Fall", static_cast<ItemType>(4), 1, 131, 5300, 2, 12, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 36, 36, 0, 18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 30, 0, 0, 141 },
 	{ "The Unbroken Zero", (ItemType)12, 3, 646, 6000, 0, 0, 0, (ItemSpecialEffect)0, 25, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 3, 3, 3, 0, 896, 0, 0, 0, 0, 250, 0, 0, 0, 0, -1, -1, 0, 0, 0, 157 },
 	{ "Ancient Fall", static_cast<ItemType>(10), 1, 124, 15626, 8, 16, 0, static_cast<ItemSpecialEffect>(0), 23, static_cast<SpellID>(0), 0, 0, 75, 75, 0, 0, 0, 0, 0, 0, 0, 0, 0, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, -1, 30, 0, 0, 155 },
-	{ "Ancient Fall", static_cast<ItemType>(5), 2, 113, 23474, 0, 0, 10, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 44, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, -1, 50, 0, 0, 74 },
+	{ "Ancient Fall", static_cast<ItemType>(5), 2, 113, 32306, 0, 0, 10, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 255, 255, 0, 0, 0, 0, 0, 0, 0, 44, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, -1, 50, 0, 0, 74 },
 	{ "Ancient Fall", static_cast<ItemType>(4), 1, 70, 15067, 3, 6, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 20, 20, 52, 13, 0, 7, 7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 27, 18, 0, 0, 139 },
 	{ "Book of Lightning", (ItemType)0, 3, 88, 3000, 0, 0, 0, (ItemSpecialEffect)0, 24, (SpellID)3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 20, 0, 114 },
 	{ "Gaunt Rift", (ItemType)1, 1, 67, 1710, 1, 8, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 23, 45, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 87, -1, 17, 0, 0, 124 },
-	{ "Ancient Fall", static_cast<ItemType>(5), 2, 105, 1280, 0, 0, 6, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 24, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, -1, 25, 0, 0, 72 },
+	{ "Ancient Fall", static_cast<ItemType>(5), 2, 105, 380, 0, 0, 6, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 24, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 35, -1, 25, 0, 0, 72 },
 	{ "The Butcher's Cleaver", (ItemType)2, 1, 106, 3650, 4, 24, 0, (ItemSpecialEffect)0, 27, (SpellID)0, 0, 0, 10, 10, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 6 },
 	{ "Ancient Fall", static_cast<ItemType>(1), 1, 72, 1900, 3, 7, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 28, 28, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, -1, 23, 0, 23, 121 },
 	{ "Ancient Fall", static_cast<ItemType>(2), 1, 142, 2250, 6, 16, 0, static_cast<ItemSpecialEffect>(2048), 0, static_cast<SpellID>(0), 0, 0, 12, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 53, -1, 30, 0, 0, 132 },
-	{ "Ancient Fall", static_cast<ItemType>(6), 2, 149, 1720, 0, 0, 3, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 18, 18, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 25, -1, 0, 0, 0, 56 },
+	{ "Ancient Fall", static_cast<ItemType>(6), 2, 149, 580, 0, 0, 3, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 18, 18, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, -1, 0, 0, 0, 56 },
 	{ "Ancient Fall", static_cast<ItemType>(4), 1, 59, 1400, 1, 8, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 32, 32, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, -1, 16, 0, 0, 136 },
 	{ "Ring of Truth", (ItemType)12, 3, 10, 9100, 0, 0, 0, (ItemSpecialEffect)0, 27, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 0, 640, 0, -1, 0, 0, 4, 0, 0, 0, 0, -1, -1, 0, 0, 0, 11 },
-	{ "Toxic Crown", static_cast<ItemType>(6), 2, 107, 2281, 0, 0, 17, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 18, 45, 0, 0, 38, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, -1, 20, 0, 0, 61 },
+	{ "Toxic Crown", static_cast<ItemType>(6), 2, 107, 1900, 0, 0, 17, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 18, 45, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, -1, 20, 0, 0, 61 },
 	{ "Damned Weave", static_cast<ItemType>(3), 1, 102, 400, 2, 5, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 26, 40, 0, 0, 0, -10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 35, 20, 0, 35, 144 },
 	{ "Dust Covenant", (ItemType)4, 1, 548, 6000, 1, 8, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 32, 32, 30, 9, 0, 0, 0, 0, 0, 0, 0, 7, 640, 0, 3, 0, 0, 0, 152, 0, 0, 0, 0, -1, -1, 16, 0, 0, 136 },
 	{ "Toxic Ember", static_cast<ItemType>(4), 1, 70, 1200, 3, 6, 0, static_cast<ItemSpecialEffect>(0), 0, static_cast<SpellID>(0), 0, 0, 8, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 38, -1, 18, 0, 0, 139 },
@@ -1630,6 +1638,100 @@ TEST_F(NetPackTest, UnPackNetPlayer_doesNotSpillPastTheBookLevels)
 	EXPECT_EQ(target._pUnspentSkillPoints, 7) << "the field after the book levels was overwritten";
 	for (size_t i = 0; i < MAX_SPELLS; i++)
 		EXPECT_EQ(target._pSkillInvestment[i], canary(i)) << "investment " << i << " was overwritten";
+}
+
+// Not a test: rewrites the golden rows. Run by name (--gtest_also_run_disabled_tests
+// --gtest_filter=PackTest.DISABLED_DumpChangedGoldenRows) after a deliberate change to item generation; it prints
+// "table index: row" for every row whose stored expectation no longer matches what the seed rolls, formatted like
+// the generated rows above, so the corpus is updated in one pass rather than one field per rebuild (2026-09-26,
+// when cold resistance joined the affix pool and changed what armour and jewellery roll).
+std::string GoldenRow(const TestItemStruct &t)
+{
+	return fmt::format("{{ \"{}\", static_cast<ItemType>({}), {}, {}, {}, {}, {}, {}, static_cast<ItemSpecialEffect>({}), {}, static_cast<SpellID>({}), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {} }},",
+	    t._iIName, static_cast<int>(t._itype), t._iClass, t._iCurs, t._iIvalue, t._iMinDam, t._iMaxDam, t._iAC,
+	    static_cast<uint32_t>(t._iFlags), t._iMiscId, static_cast<int>(t._iSpell), t._iCharges, t._iMaxCharges,
+	    t._iDurability, t._iMaxDur, t._iPLDam, t._iPLToHit, t._iPLAC, t._iPLStr, t._iPLMag, t._iPLDex, t._iPLVit,
+	    t._iPLFR, t._iPLLR, t._iPLMR, t._iPLMana, t._iPLHP, t._iPLDamMod, t._iPLGetHit, t._iPLLight,
+	    static_cast<int>(t._iSplLvlAdd), t._iUid, t._iFMinDam, t._iFMaxDam, t._iLMinDam, t._iLMaxDam,
+	    static_cast<int>(t._iAffix1), static_cast<int>(t._iAffix2), static_cast<int>(t._iMinStr),
+	    static_cast<int>(t._iMinMag), static_cast<int>(t._iMinDex), t.IDidx);
+}
+
+TestItemStruct GoldenOf(const Item &item)
+{
+	TestItemStruct t {};
+	CopyUtf8(t._iIName, item._iIName, sizeof(t._iIName));
+	t._itype = item._itype;
+	t._iClass = item._iClass;
+	t._iCurs = item._iCurs;
+	t._iIvalue = item._iIvalue;
+	t._iMinDam = item._iMinDam;
+	t._iMaxDam = item._iMaxDam;
+	t._iAC = item._iAC;
+	t._iFlags = item._iFlags;
+	t._iMiscId = item._iMiscId;
+	t._iSpell = item._iSpell;
+	t._iCharges = item._iCharges;
+	t._iMaxCharges = item._iMaxCharges;
+	t._iDurability = item._iDurability;
+	t._iMaxDur = item._iMaxDur;
+	t._iPLDam = item._iPLDam;
+	t._iPLToHit = item._iPLToHit;
+	t._iPLAC = item._iPLAC;
+	t._iPLStr = item._iPLStr;
+	t._iPLMag = item._iPLMag;
+	t._iPLDex = item._iPLDex;
+	t._iPLVit = item._iPLVit;
+	t._iPLFR = item._iPLFR;
+	t._iPLLR = item._iPLLR;
+	t._iPLMR = item._iPLMR;
+	t._iPLMana = item._iPLMana;
+	t._iPLHP = item._iPLHP;
+	t._iPLDamMod = item._iPLDamMod;
+	t._iPLGetHit = item._iPLGetHit;
+	t._iPLLight = item._iPLLight;
+	t._iSplLvlAdd = item._iSplLvlAdd;
+	t._iUid = item._iUid;
+	t._iFMinDam = item._iFMinDam;
+	t._iFMaxDam = item._iFMaxDam;
+	t._iLMinDam = item._iLMinDam;
+	t._iLMaxDam = item._iLMaxDam;
+	std::array<int, 2> tableAffixes { IPL_INVALID, IPL_INVALID };
+	size_t count = 0;
+	for (int i = 0; i < item._iOracoolAffixCount && count < tableAffixes.size(); i++) {
+		const item_effect_type type = item._iOracoolAffixes[i].type;
+		if (type == IPL_MOVESPEED || type == IPL_MOVESPEED_CURSE || type == IPL_FASTCAST || type == IPL_COLDRES)
+			continue;
+		tableAffixes[count++] = type;
+	}
+	t._iAffix1 = static_cast<int8_t>(tableAffixes[0]);
+	t._iAffix2 = static_cast<int8_t>(tableAffixes[1]);
+	t._iMinStr = item._iMinStr;
+	t._iMinMag = item._iMinMag;
+	t._iMinDex = item._iMinDex;
+	t.IDidx = item.IDidx;
+	return t;
+}
+
+TEST_F(PackTest, DISABLED_DumpChangedGoldenRows)
+{
+	Item id;
+	MyPlayer->_pMaxManaBase = 125 << 6;
+	MyPlayer->_pMaxHPBase = 125 << 6;
+	gbIsMultiplayer = false;
+	gbIsSpawn = false;
+	for (const bool hellfire : { false, true }) {
+		gbIsHellfire = hellfire;
+		const ItemPack *packed = hellfire ? PackedHellfireItems : PackedDiabloItems;
+		const TestItemStruct *expected = hellfire ? HellfireItems : DiabloItems;
+		const size_t count = hellfire ? std::size(PackedHellfireItems) : std::size(PackedDiabloItems);
+		for (size_t i = 0; i < count; i++) {
+			UnPackItem(SwappedLE(packed[i]), *MyPlayer, id, hellfire);
+			const std::string now = GoldenRow(GoldenOf(id));
+			if (now != GoldenRow(expected[i]))
+				std::cout << (hellfire ? "HF " : "D1 ") << i << ": " << now << "\n";
+		}
+	}
 }
 
 } // namespace

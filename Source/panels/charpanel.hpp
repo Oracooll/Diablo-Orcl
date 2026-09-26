@@ -39,6 +39,39 @@ Point GetCharacterContentOrigin();
 Point GetResetStatsButtonPosition();
 
 /**
+ * @brief The Reset Stats button's size, paired with GetResetStatsButtonPosition().
+ *
+ * ResetStatsButtonSize (control.h) on the list sheet; the grouped sheet (Grouped Hero Sheet option,
+ * 2026-09-26) stretches RESET across its left column. control.cpp's press and release both ask here,
+ * so the hit rect is always the drawn one.
+ */
+Size GetResetStatsButtonSize();
+
+/**
+ * @brief The grouped sheet's ADVANCED STATS button: a left press at @p mousePosition. True when it was
+ * on the button - the face sinks and clicks; the Advanced Stats window toggles on the RELEASE, inside
+ * the button (ReleaseCharacterSheetAdvancedButton). False on the list sheet, which has no such button.
+ */
+bool PressCharacterSheetAdvancedButton(Point mousePosition);
+
+/** @brief LeftMouseUp for that button. Always clears the press; acts only on a release inside it. */
+void ReleaseCharacterSheetAdvancedButton();
+
+/**
+ * @brief The sheet's derived readings, for the Advanced Stats window (oracool/advanced_stats.h), which
+ * shows them as rows of its own. Exported rather than copied so the two windows cannot disagree; all
+ * five read InspectPlayer, like everything on the sheet. See charpanel.cpp for the source each mirrors.
+ */
+int GetSheetAttackFramesSkipped();
+int GetSheetHitRecoveryFramesSkipped();
+/** @brief Block chance against an equal-level attacker, in percent; 0 without a shield. */
+int GetSheetBlockChancePercent();
+/** @brief The fixed 3/5% life steal; the random drain (RandomStealLife) is a flag of its own. */
+int GetSheetLifeStealPercent();
+/** @brief The fixed 3/5% mana steal; 0 under NoMana, which disables it. */
+int GetSheetManaStealPercent();
+
+/**
  * @brief Screen rect of the scrolling row area - below the title separator, above the bottom margin.
  *
  * Hit-testing for anything inside the sheet MUST be gated on this. The + and RESET buttons move

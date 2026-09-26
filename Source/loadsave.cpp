@@ -329,13 +329,30 @@ struct LevelConversionData {
 // the list (user: "all afixes are now one pool"). The layout did not change: the pair's two bytes are still
 // written - always empty - and a version-13 item that still names affixes there has them moved onto the list as
 // it loads (MigrateLegacyAffixPair). No reader had to learn anything, so no stash could be refused.
-constexpr uint8_t OracoolItemFormatVersion = 13;
+// Version 14 (2026-09-26, cold resistance): one int32, _iPLCR, after _iPLMR. Version 13 files are still read
+// (AcceptItemFormat), their items with no cold resistance - the first format bump that refuses nothing.
+constexpr uint8_t OracoolItemFormatVersion = 14;
+/**
+ * @brief The item format the file being read was written in. 14 added Item::_iPLCR, cold resistance (2026-09-26);
+ * a 13 file is read the old way and its items load with none - nothing a hero owned is refused for it. Set by the
+ * three item files' loaders from their header byte (AcceptItemFormat); the full game save always writes today's.
+ */
+uint8_t LoadingItemFormat = OracoolItemFormatVersion;
+
+/** @brief Whether @p version is one this build reads, remembering it for LoadItemData. */
+bool AcceptItemFormat(uint8_t version)
+{
+	if (version != OracoolItemFormatVersion && version != 13)
+		return false;
+	LoadingItemFormat = version;
+	return true;
+}
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {
 	// The bound moves with every appended power, and forgetting it is how a new power would load
 	// back as IPL_INVALID on every existing item - silently, and only after a save/load round trip.
-	return type == IPL_INVALID || (type >= 0 && type <= IPL_FASTCAST);
+	return type == IPL_INVALID || (type >= 0 && type <= IPL_COLDRES_CURSE);
 }
 
 void LoadItemData(LoadHelper &file, Item &item)
@@ -386,6 +403,7 @@ void LoadItemData(LoadHelper &file, Item &item)
 	item._iPLFR = file.NextLE<int32_t>();
 	item._iPLLR = file.NextLE<int32_t>();
 	item._iPLMR = file.NextLE<int32_t>();
+	item._iPLCR = LoadingItemFormat >= 14 ? file.NextLE<int32_t>() : 0;
 	item._iPLMana = file.NextLE<int32_t>();
 	item._iPLHP = file.NextLE<int32_t>();
 	item._iPLDamMod = file.NextLE<int32_t>();
@@ -1404,6 +1422,7 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<int32_t>(item._iPLFR);
 	file.WriteLE<int32_t>(item._iPLLR);
 	file.WriteLE<int32_t>(item._iPLMR);
+	file.WriteLE<int32_t>(item._iPLCR);
 	file.WriteLE<int32_t>(item._iPLMana);
 	file.WriteLE<int32_t>(item._iPLHP);
 	file.WriteLE<int32_t>(item._iPLDamMod);
@@ -2361,7 +2380,9 @@ constexpr int OracoolItemExtensionSaveSize =
     // v12: the level-free byte (Levski's Cube, Work of Cathan).
     + 1
     // v13: the Guardian Keystone's tier byte (the rifts, 2026-09-20).
-    + 1;
+    + 1
+    // v14: _iPLCR, cold resistance (2026-09-26) - an int32 in the vanilla block, after _iPLMR.
+    + 4;
 const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
 const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
 
@@ -2788,7 +2809,7 @@ bool LoadHeroItems(Player &player, uint32_t saveNumber)
 
 	gbIsHellfireSaveGame = file.NextBool8();
 
-	if (file.NextLE<uint8_t>() != OracoolItemFormatVersion) {
+	if (!AcceptItemFormat(file.NextLE<uint8_t>())) {
 		// The fixed-size item record grew when Oracool tier/affix data was folded directly
 		// into it; reading an older, shorter record with today's field layout would silently
 		// misalign every item after this point rather than failing cleanly. This used to
@@ -2871,7 +2892,7 @@ void LoadStash()
 	}
 	// Version 6 carries the item schema its records were written with; version 5 is the current
 	// build's own pre-audit output, parsed with today's format. See the StashVersion note.
-	if (version == StashVersion && file.NextLE<uint8_t>() != OracoolItemFormatVersion) {
+	if (version == StashVersion && !AcceptItemFormat(file.NextLE<uint8_t>())) {
 		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Orcl and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
 		return;
 	}
@@ -2981,7 +3002,7 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 	// unlike the stash it costs nothing - an unreadable tab file simply leaves the tabs empty.
 	if (version != OracoolInvTabsVersion)
 		return; // unrecognized or outgrown format; every extra tab stays empty
-	if (file.NextLE<uint8_t>() != OracoolItemFormatVersion)
+	if (!AcceptItemFormat(file.NextLE<uint8_t>()))
 		return; // the embedded item schema disagrees with this build's; see the version-3 note above
 
 	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {

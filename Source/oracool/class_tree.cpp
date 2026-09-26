@@ -175,7 +175,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Prayer"), N_("Mends your wounds steadily as you walk."), Pal, 2, 0, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Resist Fire"), N_("Hardens you against fire."), Pal, 2, 0, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Defiance"), N_("Raises your armour class."), Pal, 2, 1, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Resist Cold"), N_("Hardens you against cold. No cold exists here, so it wards against magic instead."),
+	{ N_("Resist Cold"), N_("Hardens you against cold."),
 	    Pal, 2, 1, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Cleansing"), N_("Slows and chills on you wear off 20% sooner, +5% per level."),
 	    Pal, 2, 2, 1, Kind::Aura, SpellID::Invalid, true },
@@ -185,7 +185,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Meditation"), N_("Restores your mana steadily as you walk."), Pal, 2, 4, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Redemption"), N_("Once a second the nearest corpse in the field is consumed for 3% of your life and mana, +1% per level."),
 	    Pal, 2, 5, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Salvation"), N_("Wards you against fire, lightning and magic alike."),
+	{ N_("Salvation"), N_("Wards you against fire, lightning, cold and magic alike."),
 	    Pal, 2, 5, 1, Kind::Aura, SpellID::Invalid, true },
 	// --- Combat Skills, appended out of page order (2026-08-16) ---
 	//
@@ -323,7 +323,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Toughness"), N_("+5 Vitality, +2 per level."), Bar, 1, 2, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Iron Skin"), N_("Toughens your hide, raising armour class."), Bar, 1, 3, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Increased Speed"), N_("You run rather than walk, wherever you are."), Bar, 1, 4, 0, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Natural Resistance"), N_("Hardens you against fire, lightning and magic alike."), Bar, 1, 5, 0, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Natural Resistance"), N_("Hardens you against fire, lightning, cold and magic alike."), Bar, 1, 5, 0, Kind::Passive, SpellID::Invalid, true },
 	// --- Warcries ---
 	{ N_("Howl"), N_("A howl that sends everything in earshot running, four tiles and a tile more a rank. Uniques hold their ground."), Bar, 2, 0, 0, Kind::Active, SpellID::Howl, true },
 	{ N_("Find Potion"), N_("Search a corpse near the cursor. 50% of the time, +5% per rank, it yields a potion - rarely a full one. The corpse is used up."), Bar, 2, 0, 1, Kind::Active, SpellID::FindPotion, true },
@@ -355,7 +355,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 3, 2, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Animosity"), N_("You hold twenty more Rage."),
 	    Bar, 3, 2, 1, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Superstition"), N_("+10 to fire, lightning and magic resistance."),
+	{ N_("Superstition"), N_("+10 to fire, lightning, cold and magic resistance."),
 	    Bar, 3, 2, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Tough as Nails"), N_("+25% armour."),
 	    Bar, 3, 3, 0, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -1309,16 +1309,19 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		totals.fireResist += 10;
 		totals.lightningResist += 10;
 		totals.magicResist += 10;
+		totals.coldResist += 10;
 		break;
 	case Skill::MonkHarmony:
 		totals.fireResist += 15;
 		totals.lightningResist += 15;
 		totals.magicResist += 15;
+		totals.coldResist += 15;
 		break;
 	case Skill::Superstition:
 		totals.fireResist += 10;
 		totals.lightningResist += 10;
 		totals.magicResist += 10;
+		totals.coldResist += 10;
 		break;
 	case Skill::GlassCannon:
 		totals.bonusDamage += 15;
@@ -1409,6 +1412,7 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		totals.fireResist += Scaled(points, 8, 3);
 		totals.lightningResist += Scaled(points, 8, 3);
 		totals.magicResist += Scaled(points, 8, 3);
+		totals.coldResist += Scaled(points, 8, 3);
 		break;
 	case Skill::CriticalStrike:
 		// D2 rolls a chance to double the blow; this engine has no critical roll, so the expected
@@ -1492,6 +1496,7 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		totals.fireResist += Scaled(points, 10, 2);
 		totals.lightningResist += Scaled(points, 10, 2);
 		totals.magicResist += Scaled(points, 10, 2);
+		totals.coldResist += Scaled(points, 10, 2);
 		break;
 	// --- RfA-12 (2026-09-13): the new passives that are a number on the sheet. The rules - bleeding,
 	//     blocking, reach, noticing - are oracool/rfa12_effects.cpp's.
@@ -1563,7 +1568,9 @@ void ApplyAura(Skill aura, int p, ItemBonusTotals &totals)
 		totals.bonusArmor += Scaled(p, 25, 12);
 		break;
 	case Skill::ResistCold:
-		totals.magicResist += Scaled(p, 15, 4);
+		// Cold itself since 2026-09-26, when heroes got a cold resistance (user: "make it as real as it is in
+		// Diablo 2"). It warded magic while there was no cold to ward.
+		totals.coldResist += Scaled(p, 15, 4);
 		break;
 	case Skill::ResistLightning:
 		totals.lightningResist += Scaled(p, 15, 4);
@@ -1572,6 +1579,7 @@ void ApplyAura(Skill aura, int p, ItemBonusTotals &totals)
 		totals.fireResist += Scaled(p, 10, 3);
 		totals.lightningResist += Scaled(p, 10, 3);
 		totals.magicResist += Scaled(p, 10, 3);
+		totals.coldResist += Scaled(p, 10, 3);
 		break;
 	// --- the Bard's songs. One plays at a time, which is what a bard does and what the aura
 	//     machinery already enforces.
@@ -1595,6 +1603,7 @@ void ApplyAura(Skill aura, int p, ItemBonusTotals &totals)
 		totals.fireResist += Scaled(p, 8, 3);
 		totals.lightningResist += Scaled(p, 8, 3);
 		totals.magicResist += Scaled(p, 8, 3);
+		totals.coldResist += Scaled(p, 8, 3);
 		break;
 	case Skill::TaleOfHeroes:
 		totals.strength += Scaled(p, 4, 2);
@@ -1621,11 +1630,13 @@ void ApplyAura(Skill aura, int p, ItemBonusTotals &totals)
 		totals.fireResist += Scaled(p, 8, 2);
 		totals.lightningResist += Scaled(p, 8, 2);
 		totals.magicResist += Scaled(p, 8, 2);
+		totals.coldResist += Scaled(p, 8, 2);
 		break;
 	case Skill::BalladOfResilience:
 		totals.fireResist += Scaled(p, 10, 3);
 		totals.lightningResist += Scaled(p, 10, 3);
 		totals.magicResist += Scaled(p, 10, 3);
+		totals.coldResist += Scaled(p, 10, 3);
 		break;
 	case Skill::HuntersChant:
 		totals.bonusToHit += Scaled(p, 15, 5);

@@ -28,6 +28,11 @@
 #include "oracool/aura_field.h" // HolyPulseDamage / SanctuaryDamage - a damaging aura's number on the sheet
 #include "oracool/hero_title.h"
 #include "oracool/signets.h"
+#include "oracool/advanced_stats.h" // the grouped sheet's boxes, and the window its ADVANCED STATS button opens
+#include "oracool/shop_grid.h"      // DrawVendorButtonBacking - the grouped sheet's two buttons wear the vendors' face
+#include "oracool/ui_sound.h"       // the hover-entry and press clicks on those two buttons
+#include "oracool/xp_counter.h"     // GetLevelExperienceSpan - the header's XP bar, the HUD bar's own maths
+#include "diablo.h"                 // MousePosition - hover on the grouped sheet's buttons
 #include "spells.h" // IsValidSpell
 #include "playerdat.hpp"
 #include "options.h"
@@ -293,8 +298,12 @@ std::string ReadiedSlotAmountLabel(bool leftButton)
 	return std::string(_("Damage"));
 }
 
-/** @brief The name of whatever is on a button, for the row above its damage. */
-std::string GetReadiedSlotName(bool leftButton)
+/**
+ * @brief The bare name of whatever is on a button - "Zeal", "Holy Freeze", "Attack" - with no
+ * "Left button:" in front. The grouped sheet (2026-09-26) writes the button underneath in grey instead,
+ * so it needs the name alone; the list sheet's GetReadiedSlotName below wraps this same answer.
+ */
+string_view ReadiedSlotSkillName(bool leftButton)
 {
 	const Player &player = *InspectPlayer;
 	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
@@ -306,11 +315,17 @@ std::string GetReadiedSlotName(bool leftButton)
 	// failure is silent - every name falls back to English - which is why every other display site
 	// in the game (items.cpp, objects.cpp) spells out the same pgettext.
 	const oracool::ClassTreeSkill aura = AuraOnButton(leftButton);
-	const string_view name = aura != oracool::ClassTreeSkill::None
+	return aura != oracool::ClassTreeSkill::None
 	    ? _(oracool::GetClassTreeSkillData(aura).name)
 	    : IsValidSpell(spell)
 	    ? pgettext("spell", GetSpellData(spell).sNameText)
 	    : _(/* TRANSLATORS: the plain weapon swing, when no skill is readied */ "Attack");
+}
+
+/** @brief The name of whatever is on a button, for the row above its damage. */
+std::string GetReadiedSlotName(bool leftButton)
+{
+	const string_view name = ReadiedSlotSkillName(leftButton);
 	// One format string per button rather than a translated word plus a colon: "Left" alone is
 	// ambiguous to translate and several languages need the parts in the other order.
 	return leftButton
@@ -429,6 +444,30 @@ StyledText GetResistInfo(int8_t resist)
 		style = UiFlags::ColorWhitegold;
 
 	return { style, StrCat(resist, "%") };
+}
+
+/** @brief The "To hit" reading, for both sheets - the list's row and the grouped sheet's box. */
+StyledText ToHitReading()
+{
+	const bool bow = InspectPlayer->InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow;
+	// Zeal's accuracy is added in PlayerCanHitMonster, not folded into GetMeleeToHit, so this
+	// row was reporting a number the game does not use (user, 2026-09-02: "zeal doesnt seem
+	// to increased my cth according to the hero stats screen"). It was being applied - just
+	// never shown, which is indistinguishable from not working when the sheet is how you
+	// check.
+	//
+	// IsZealReadied, not ZealToHitBonus. The latter asks ArmedMeleeSkill(), a latch that
+	// describes the swing currently being resolved - and standing in the character sheet
+	// there is no swing, so it always answered zero and this row still showed nothing (user,
+	// 2026-09-02, after the first attempt). What a sheet can honestly report is whether Zeal
+	// is on a button; the magnitude then comes from ZealToHitBonusAtRank, which is the same
+	// number the hit roll uses.
+	const int zeal = (!bow && oracool::IsZealReadied(*InspectPlayer))
+	    ? oracool::ZealToHitBonusAtRank(*InspectPlayer)
+	    : 0;
+	const int toHit = (bow ? InspectPlayer->GetRangedToHit() : InspectPlayer->GetMeleeToHit()) + zeal;
+	return StyledText { zeal > 0 ? UiFlags::ColorBlue : GetValueColor(InspectPlayer->_pIBonusToHit),
+		StrCat(toHit, "%") };
 }
 
 // Oracool V1: the sheet is a plain two-column list - every label in one right-aligned column, every
@@ -613,28 +652,10 @@ const CharRow CharRows[] = {
 	{ N_("Armor class"),
 	    []() { return StyledText { GetValueColor(InspectPlayer->_pIBonusAC), StrCat(InspectPlayer->GetArmor() + InspectPlayer->_pLevel * 2) }; },
 	    nullptr, CharRowGroupGap },
+	// The reading lives in ToHitReading (above) since the grouped sheet (2026-09-26) shows the same
+	// number in its own box - one function, so the two sheets cannot quote two accuracies.
 	{ N_("To hit"),
-	    []() {
-	        const bool bow = InspectPlayer->InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow;
-	        // Zeal's accuracy is added in PlayerCanHitMonster, not folded into GetMeleeToHit, so this
-	        // row was reporting a number the game does not use (user, 2026-09-02: "zeal doesnt seem
-	        // to increased my cth according to the hero stats screen"). It was being applied - just
-	        // never shown, which is indistinguishable from not working when the sheet is how you
-	        // check.
-	        //
-	        // IsZealReadied, not ZealToHitBonus. The latter asks ArmedMeleeSkill(), a latch that
-	        // describes the swing currently being resolved - and standing in the character sheet
-	        // there is no swing, so it always answered zero and this row still showed nothing (user,
-	        // 2026-09-02, after the first attempt). What a sheet can honestly report is whether Zeal
-	        // is on a button; the magnitude then comes from ZealToHitBonusAtRank, which is the same
-	        // number the hit roll uses.
-	        const int zeal = (!bow && oracool::IsZealReadied(*InspectPlayer))
-	            ? oracool::ZealToHitBonusAtRank(*InspectPlayer)
-	            : 0;
-	        const int toHit = (bow ? InspectPlayer->GetRangedToHit() : InspectPlayer->GetMeleeToHit()) + zeal;
-	        return StyledText { zeal > 0 ? UiFlags::ColorBlue : GetValueColor(InspectPlayer->_pIBonusToHit),
-	            StrCat(toHit, "%") };
-	    } },
+	    []() { return ToHitReading(); } },
 	// TWO damage fields, one per mouse button, each TWO ROWS - the name of what is readied, then
 	// what it does (user, 2026-08-31, after Diablo II). Either button can hold a weapon swing, an
 	// attack skill or a spell, so the old single row could only ever describe the weapon; and the
@@ -986,6 +1007,145 @@ bool RowVisible(const CharRow &row)
 	return row.visible == nullptr || row.visible();
 }
 
+// -------------------------------------------------------------------------------------------------
+// THE GROUPED SHEET (user, 2026-09-26, approved from a mock-up; the Grouped Hero Sheet option, ON by
+// default). The same 340x720 window, canvas, title and red X as the list above, laid out in boxes:
+//
+//   header      name large, title and "Level N Class" right, an XP bar, "exp of next" / "N to level"
+//   left        the four attributes - current value in the box, "base N" and the + button under it -
+//               then the unspent points and RESET
+//   right       one box per mouse button, armour class, to hit, life, mana (or rage) and essence with
+//               bars, the four resistances, and the difficulty penalty with the cap
+//   foot        the aura across the width, and ADVANCED STATS, which opens oracool/advanced_stats.h
+//
+// No gold anywhere (user: "we dont need to show gold amount in our char screen"). Everything else the
+// list carried below Mana lives in the Advanced Stats window now.
+//
+// Every coordinate below is CONTENT-relative, like the list's: the content origin is the panel's left
+// edge at GroupedContentTop, and GetCharacterContentOrigin() answers that origin while this layout is
+// on - so the + buttons and RESET, which control.cpp hit-tests through GetPanelPosition(Character,
+// ChrBtnsRect[i]) and GetResetStatsButtonPosition(), land where this layout draws them with no change
+// to the hit-testing at all. PlaceWidgets is the one place that decides, per layout.
+// -------------------------------------------------------------------------------------------------
+
+/** @brief The grouped sheet starts just under the title band: it has no separator rule to clear. */
+constexpr int GroupedContentTop = oracool::PanelTitleTop + oracool::PanelTitleHeight + 6;
+/** @brief ...and ends at the orb line like the list (see CharContentSize for why the orb, not the panel). */
+constexpr Size GroupedContentSize { CharPanelSize.width, oracool::SidePanelContentBottom - GroupedContentTop };
+static_assert(GroupedContentSize.height > 0, "Grouped character sheet has no content room left");
+/** @brief Clear of the canvas's painted side bezels; the Advanced Stats window uses the same inset. */
+constexpr int GroupedMarginX = 16;
+constexpr int GroupedColumnGap = 6;
+/** @brief The mock-up's two columns: attributes ~118 wide on the left, the rest on the right. */
+constexpr int GroupedLeftWidth = 118;
+constexpr int GroupedRightX = GroupedMarginX + GroupedLeftWidth + GroupedColumnGap;
+constexpr int GroupedRightWidth = CharPanelSize.width - GroupedMarginX - GroupedRightX;
+constexpr int GroupedFullWidth = CharPanelSize.width - 2 * GroupedMarginX;
+/** @brief Text inset inside a box, both sides. */
+constexpr int GroupedPad = 8;
+static_assert(GroupedRightX + GroupedRightWidth <= CharContentRightLimit + CharScrollbarGap,
+    "the grouped sheet's right column must stay clear of the scrollbar");
+
+constexpr int GroupedHeaderHeight = 62;
+/** @brief Where both columns begin, under the header. */
+constexpr int GroupedColumnsTop = GroupedHeaderHeight + 6;
+/** @brief An attribute: the label box, a 2px gap, the "base N" strip as tall as the + button, 4px of air. */
+constexpr int GroupedAttrLabelHeight = 26;
+constexpr int GroupedAttrStripGap = 2;
+constexpr int GroupedAttrStripHeight = 22; // IncrementAttributeButtonSize's height, so the + fills its cell
+constexpr int GroupedAttrPitch = GroupedAttrLabelHeight + GroupedAttrStripGap + GroupedAttrStripHeight + 4;
+constexpr int GroupedPointsHeight = 42;
+constexpr int GroupedResetHeight = 24; // ResetStatsButtonSize's height - the list's RESET, stretched across the column
+/** @brief The right column's box heights. */
+constexpr int GroupedButtonBoxHeight = 40;
+constexpr int GroupedLineBoxHeight = 24;
+constexpr int GroupedPoolBoxHeight = 32;
+constexpr int GroupedResistPitch = 27;
+constexpr int GroupedPenaltyHeight = 18;
+constexpr int GroupedAuraHeight = 26;
+constexpr Size GroupedAdvancedButtonSize { 200, 28 };
+
+/** @brief The layout drawn last - read by the draw, written by PlaceWidgets. Content-relative, unscrolled. */
+struct GroupedLayout {
+	int attrTop[4];
+	int pointsTop;
+	int resetTop;
+	int leftButtonTop;
+	int rightButtonTop;
+	int armorTop;
+	int toHitTop;
+	int lifeTop;
+	int manaTop;
+	int essenceTop; // -1 when the hero has no Essence
+	int resistTop;
+	int penaltyTop;
+	int auraTop;
+	int advancedTop;
+	int listHeight;
+};
+GroupedLayout Grouped {};
+/** @brief The two buttons the grouped layout adds, content-relative WITH the scroll - like ChrBtnsRect. */
+Rectangle GroupedAdvancedButton {};
+bool AdvancedButtonPressed = false;
+/** @brief Whether the pointer was over each button last frame, so the click sounds once per ENTRY. */
+bool ResetButtonHovered = false;
+bool AdvancedButtonHovered = false;
+/** @brief Which layout the last EnsureLayout built, so flipping the option mid-game re-places the widgets. */
+bool LayoutGrouped = false;
+
+bool GroupedSheet()
+{
+	return *sgOptions.Oracool.heroSheetGrouped;
+}
+
+bool GroupedShowsEssence()
+{
+	return InspectPlayer != nullptr && oracool::UsesEssence(*InspectPlayer);
+}
+
+/** @brief Computes every box's top. Only Essence changes it, and EnsureLayout re-runs when that does. */
+GroupedLayout ComputeGroupedLayout()
+{
+	GroupedLayout g {};
+	for (int i = 0; i < 4; i++)
+		g.attrTop[i] = GroupedColumnsTop + i * GroupedAttrPitch;
+	g.pointsTop = GroupedColumnsTop + 4 * GroupedAttrPitch; // the last attribute's 4px of air is the gap
+	g.resetTop = g.pointsTop + GroupedPointsHeight + 4;
+	const int leftEnd = g.resetTop + GroupedResetHeight;
+
+	int y = GroupedColumnsTop;
+	g.leftButtonTop = y;
+	y += GroupedButtonBoxHeight + 4;
+	g.rightButtonTop = y;
+	y += GroupedButtonBoxHeight + 6;
+	g.armorTop = y;
+	y += GroupedLineBoxHeight + 4;
+	g.toHitTop = y;
+	y += GroupedLineBoxHeight + 6;
+	g.lifeTop = y;
+	y += GroupedPoolBoxHeight + 4;
+	g.manaTop = y;
+	y += GroupedPoolBoxHeight + 4;
+	g.essenceTop = -1;
+	if (GroupedShowsEssence()) {
+		g.essenceTop = y;
+		y += GroupedPoolBoxHeight + 4;
+	}
+	y += 2;
+	g.resistTop = y;
+	y += 4 * GroupedResistPitch;
+	g.penaltyTop = y;
+	const int rightEnd = y + GroupedPenaltyHeight;
+
+	g.auraTop = std::max(leftEnd, rightEnd) + 8;
+	// ADVANCED STATS sits at the foot of the window, centred, as in the mock-up - pushed down only if
+	// the boxes above ever grow into it, and then the sheet scrolls like the list does.
+	g.advancedTop = std::max(GroupedContentSize.height - 6 - GroupedAdvancedButtonSize.height,
+	    g.auraTop + GroupedAuraHeight + 12);
+	g.listHeight = g.advancedTop + GroupedAdvancedButtonSize.height + 6;
+	return g;
+}
+
 uint64_t VisibleRowsNow()
 {
 	uint64_t bits = 0;
@@ -1007,6 +1167,21 @@ uint64_t VisibleRowsNow()
  */
 void PlaceWidgets()
 {
+	if (LayoutGrouped) {
+		// The grouped sheet's own positions (2026-09-26): each + in the right-hand cell of its
+		// attribute's "base N" strip, RESET across the left column under the points, ADVANCED STATS
+		// centred at the foot. Same frame and same scroll rule as the list's, so control.cpp,
+		// plrctrls.cpp and the touch renderer need no idea which layout is up.
+		for (size_t buttonId = 0; buttonId < 4; ++buttonId) {
+			Rectangle &rect = ChrBtnsRect[buttonId];
+			rect.position = { GroupedMarginX + GroupedLeftWidth - rect.size.width,
+				Grouped.attrTop[buttonId] + GroupedAttrLabelHeight + GroupedAttrStripGap - ScrollOffset };
+		}
+		ResetButtonPosition = { GroupedMarginX, Grouped.resetTop - ScrollOffset };
+		GroupedAdvancedButton = { { (CharPanelSize.width - GroupedAdvancedButtonSize.width) / 2, Grouped.advancedTop - ScrollOffset },
+			GroupedAdvancedButtonSize };
+		return;
+	}
 	for (size_t i = 0; i < CharRowCount; ++i) {
 		const int top = CharRowTop[i] - ScrollOffset;
 		switch (CharRows[i].extra) {
@@ -1032,8 +1207,12 @@ void PlaceWidgets()
 
 void EnsureLayout()
 {
-	if (LayoutReady && LayoutVisibleRows == VisibleRowsNow())
+	const bool grouped = GroupedSheet();
+	if (LayoutReady && LayoutVisibleRows == VisibleRowsNow() && LayoutGrouped == grouped)
 		return;
+	// The option flipped in Settings with the sheet open: the other layout's scroll means nothing here.
+	if (LayoutReady && LayoutGrouped != grouped)
+		ScrollOffset = 0;
 
 	// The columns themselves are compile-time constants (see CharLabelColumnWidth). All that is
 	// left to check is that the content still fits them - measured here rather than assumed, so
@@ -1075,6 +1254,14 @@ void EnsureLayout()
 	// and are not meant to. Overshooting the bottom by less than a row would be an accident,
 	// though, so the clamp is against the real total either way.
 	MaxScrollOffset = std::max(0, CharListHeight - CharContentSize.height);
+	// The grouped sheet measures itself instead (2026-09-26). It fits its window as designed, so its
+	// maximum is normally zero and it never shows a scrollbar; the arithmetic is here so that a box
+	// added later scrolls rather than slides under the orb.
+	LayoutGrouped = grouped;
+	if (grouped) {
+		Grouped = ComputeGroupedLayout();
+		MaxScrollOffset = std::max(0, Grouped.listHeight - GroupedContentSize.height);
+	}
 	ScrollOffset = std::min(ScrollOffset, MaxScrollOffset);
 	PlaceWidgets();
 	LayoutReady = true;
@@ -1161,13 +1348,13 @@ void DrawScrollbar(const Surface &out, const Rectangle &panel)
 }
 
 /**
- * @brief Draws the + buttons and RESET into the CONTENT surface, at their scrolled positions.
+ * @brief The four vanilla + sprites, at ChrBtnsRect's scrolled positions - for both layouts.
  *
- * Content-relative, like DrawRow, for the same two reasons: ChrBtnsRect and ResetButtonPosition
- * already carry the scroll (see PlaceWidgets), and drawing through the clipped subregion means a
- * button scrolled halfway out is cut at the window edge rather than drawn over the title.
+ * Split out of DrawStatButtons on 2026-09-26 so the grouped sheet draws the very same sprites with
+ * the very same show/hide rule (points to spend, not inspecting, base below 255), in the cells its own
+ * PlaceWidgets gave them. Its RESET is drawn by the grouped sheet itself.
  */
-void DrawStatButtons(const Surface &content)
+void DrawPlusButtonSprites(const Surface &content)
 {
 	if (InspectPlayer->_pStatPts > 0 && !IsInspectingPlayer()) {
 		const auto drawButton = [&content](CharacterAttribute attr, int upFrame) {
@@ -1184,6 +1371,18 @@ void DrawStatButtons(const Surface &content)
 		if (InspectPlayer->_pBaseVit < 255)
 			drawButton(CharacterAttribute::Vitality, 7);
 	}
+}
+
+/**
+ * @brief Draws the + buttons and RESET into the CONTENT surface, at their scrolled positions.
+ *
+ * Content-relative, like DrawRow, for the same two reasons: ChrBtnsRect and ResetButtonPosition
+ * already carry the scroll (see PlaceWidgets), and drawing through the clipped subregion means a
+ * button scrolled halfway out is cut at the window edge rather than drawn over the title.
+ */
+void DrawStatButtons(const Surface &content)
+{
+	DrawPlusButtonSprites(content);
 
 	if (*sgOptions.Oracool.resetStatsButton && !gbIsMultiplayer && !IsInspectingPlayer()) {
 		// Sits on the "Level-up Points" row, under the Base column the + buttons feed, so it
@@ -1195,6 +1394,408 @@ void DrawStatButtons(const Surface &content)
 		// white while pressed for visible click feedback.
 		DrawString(content, "RESET", { ResetButtonPosition, ResetStatsButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (resetStatsButtonDown ? UiFlags::ColorWhite : UiFlags::ColorGold) | CharTextShadow });
 	}
+}
+
+// ---- The grouped sheet's drawing (2026-09-26) ----------------------------------------------------
+
+/** @brief A box's text line: inset by GroupedPad left and right, @p height tall, @p yOffset below its top. */
+Rectangle BoxLine(const Rectangle &box, int yOffset, int height)
+{
+	return { { box.position.x + GroupedPad, box.position.y + yOffset }, { box.size.width - 2 * GroupedPad, height } };
+}
+
+/** @brief A content-relative rect in screen space - where the pointer has to be to be over it. */
+Rectangle ContentToScreen(const Rectangle &rect)
+{
+	const Point origin = GetCharacterContentOrigin();
+	return { { origin.x + rect.position.x, origin.y + rect.position.y }, rect.size };
+}
+
+/** @brief The click every button in this mod sounds on hover ENTRY (user, 2026-09-20), once, not every frame. */
+void SoundOnHoverEntry(bool hovered, bool &wasHovered)
+{
+	if (hovered && !wasHovered)
+		oracool::PlayUiMoveSound();
+	wasHovered = hovered;
+}
+
+/**
+ * @brief A label on the left and a value on the right of one line - the grouped sheet's basic row.
+ *
+ * The value is measured and drawn first; the label gets what is left and steps down a font size rather
+ * than run into the number (a translated "Resist lightning" is the long one).
+ */
+void DrawLabelValue(const Surface &content, const Rectangle &line, string_view label, const StyledText &value)
+{
+	DrawString(content, value.text, line,
+	    { UiFlags::AlignRight | UiFlags::VerticalCenter | value.style | CharTextShadow, value.spacing });
+	const int valueWidth = GetLineWidth(value.text, GameFont12, value.spacing);
+	const Rectangle labelRect { line.position, { std::max(line.size.width - valueWidth - 6, 16), line.size.height } };
+	oracool::DrawSheetTextFitted(content, label, labelRect, UiFlags::ColorWhite | UiFlags::VerticalCenter);
+}
+
+/**
+ * @brief The grouped sheet's two buttons - RESET and ADVANCED STATS - in the game-wide button feel
+ * (user, 2026-09-20/21): the vendors' vanilla face, gold when @p selected, a notch lighter under the
+ * pointer, and while held the FACE sinks 2px down and 2px left. The hit rect is never moved - the
+ * caller tests the unsunk rect - so a button cannot slide out from under a pointer that has not moved.
+ */
+void DrawGroupedButton(const Surface &content, const Rectangle &rect, string_view label, bool pressed, bool hovered, bool selected)
+{
+	const Rectangle face { rect.position + (pressed ? Displacement { -2, 2 } : Displacement { 0, 0 }), rect.size };
+	if (!oracool::DrawVendorButtonBacking(content, face, selected, hovered)) {
+		// No vanilla button in the player's archive (or an indexed surface): the heading plate stands in.
+		oracool::DrawSheetBox(content, face, selected ? oracool::SheetBoxTone::Heading : oracool::SheetBoxTone::Plain);
+		if (hovered)
+			BrightenRectRgb(content, face.position.x, face.position.y, face.size.width, face.size.height, 115);
+	}
+	// Gold labels on the grey face, white on the gold one - the crafting book's rule.
+	DrawString(content, label, face,
+	    { UiFlags::AlignCenter | UiFlags::VerticalCenter | (selected || pressed ? UiFlags::ColorWhite : UiFlags::ColorWhitegold) | CharTextShadow });
+}
+
+/** @brief The words for what a button's number is, by element - "fire damage", or plain "damage". */
+string_view DamageKindPhrase(DamageType type)
+{
+	switch (type) {
+	case DamageType::Fire:
+		return _("fire damage");
+	case DamageType::Cold:
+		return _("cold damage");
+	case DamageType::Lightning:
+		return _("lightning damage");
+	case DamageType::Magic:
+		return _("magic damage");
+	case DamageType::Acid:
+		return _("acid damage");
+	case DamageType::Physical:
+		break;
+	}
+	return _("damage");
+}
+
+/**
+ * @brief The grey second line of a button's box: "left button  -  damage", "right button  -  magic damage".
+ *
+ * The mock-up's replacement for the list's "Left button: Zeal" / "Damage" pair. It asks the same four
+ * questions ReadiedSlotColor does, in the same order, so the grey words and the coloured number above
+ * them always name the same thing: a burning aura's element, a quiet aura, the weapon, a heal, a spell
+ * with nothing to report (the dash), and otherwise the spell's own element.
+ */
+std::string ReadiedSlotKindText(bool leftButton)
+{
+	const Player &player = *InspectPlayer;
+	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
+	string_view kind;
+	if (const auto damaging = DamagingAuraOnButton(leftButton); damaging.has_value())
+		kind = DamageKindPhrase(damaging->first);
+	else if (AuraOnButton(leftButton) != oracool::ClassTreeSkill::None)
+		kind = _("aura");
+	else if (ReadiedSlotSwingsTheWeapon(spell))
+		kind = _("damage");
+	else if (spell == SpellID::Healing || spell == SpellID::HealOther)
+		kind = _("healing");
+	else if (GetReadiedSlotDamage(leftButton).text == "-")
+		kind = _("no damage");
+	else
+		kind = DamageKindPhrase(ReadiedSpellDamageType(spell));
+	const string_view button = leftButton ? _("left button") : _("right button");
+	return StrCat(button, "  -  ", kind);
+}
+
+/** @brief One mouse button's box: the readied name and its number on the first line, the grey kind under it. */
+void DrawGroupedButtonBox(const Surface &content, int top, bool leftButton)
+{
+	const Rectangle box { { GroupedRightX, top }, { GroupedRightWidth, GroupedButtonBoxHeight } };
+	oracool::DrawSheetBox(content, box);
+	const Rectangle line1 = BoxLine(box, 3, 18);
+	const StyledText amount = GetReadiedSlotDamage(leftButton);
+	DrawString(content, amount.text, line1,
+	    { UiFlags::AlignRight | UiFlags::VerticalCenter | amount.style | CharTextShadow, amount.spacing });
+	const int amountWidth = GetLineWidth(amount.text, GameFont12, amount.spacing);
+	const Rectangle nameRect { line1.position, { std::max(line1.size.width - amountWidth - 8, 16), line1.size.height } };
+	// Fitted: "Master of the Long Staff" beside a three-digit range is wider than the box at 12px.
+	oracool::DrawSheetTextFitted(content, ReadiedSlotSkillName(leftButton), nameRect, ReadiedSlotColor(leftButton) | UiFlags::VerticalCenter);
+	DrawString(content, ReadiedSlotKindText(leftButton), BoxLine(box, 21, 16),
+	    { UiFlags::ColorGray5 | UiFlags::FontSize11 | UiFlags::VerticalCenter | CharTextShadow });
+}
+
+/**
+ * @brief A pool's box: "Life   412 / 450" over a bar. The current number keeps the list's colouring
+ * (red below full), the maximum its own (blue when items raised it).
+ */
+void DrawGroupedPoolBox(const Surface &content, int top, string_view label, const StyledText &current, const StyledText &maximum,
+    int value, int maximumValue, uint32_t barRgb, uint8_t barFallback)
+{
+	const Rectangle box { { GroupedRightX, top }, { GroupedRightWidth, GroupedPoolBoxHeight } };
+	oracool::DrawSheetBox(content, box);
+	const Rectangle line = BoxLine(box, 3, 16);
+	DrawString(content, maximum.text, line, { UiFlags::AlignRight | UiFlags::VerticalCenter | maximum.style | CharTextShadow });
+	const int maxWidth = GetLineWidth(maximum.text, GameFont12, 1);
+	const std::string lead = StrCat(current.text, " / ");
+	const Rectangle leadRect { line.position, { line.size.width - maxWidth - 1, line.size.height } };
+	DrawString(content, lead, leadRect, { UiFlags::AlignRight | UiFlags::VerticalCenter | current.style | CharTextShadow });
+	const int pairWidth = maxWidth + 1 + GetLineWidth(lead, GameFont12, 1);
+	const Rectangle labelRect { line.position, { std::max(line.size.width - pairWidth - 6, 16), line.size.height } };
+	oracool::DrawSheetTextFitted(content, label, labelRect, UiFlags::ColorWhite | UiFlags::VerticalCenter);
+	oracool::DrawSheetBar(content, BoxLine(box, 22, 6), static_cast<uint64_t>(std::max(value, 0)),
+	    static_cast<uint64_t>(std::max(maximumValue, 0)), barRgb, barFallback);
+}
+
+/** @brief The difficulty's name, for the penalty strip - the same four words the game's menus use. */
+string_view GroupedDifficultyName()
+{
+	static constexpr const char *Names[] = { N_("Normal"), N_("Nightmare"), N_("Hell"), N_("Torment") };
+	const int difficulty = std::clamp(static_cast<int>(sgGameInitInfo.nDifficulty), 0, 3);
+	return _(Names[difficulty]);
+}
+
+/** @brief The header: name, title and level, the XP bar, and the XP line. No gold (user, 2026-09-26). */
+void DrawGroupedHeader(const Surface &content, int top)
+{
+	const Player &p = *InspectPlayer;
+	const Rectangle box { { GroupedMarginX, top }, { GroupedFullWidth, GroupedHeaderHeight } };
+	oracool::DrawSheetBox(content, box);
+	const int innerX = box.position.x + GroupedPad;
+	const int innerWidth = box.size.width - 2 * GroupedPad;
+
+	// Right: "Slayer  Level 34 Paladin" - the title in its own colour (oracool/hero_title.h), then the
+	// level and class in white.
+	const std::string levelText = fmt::format(fmt::runtime(_(/* TRANSLATORS: {:d} is the level, {:s} the class */ "Level {:d} {:s}")),
+	    p._pLevel, _(PlayersData[static_cast<std::size_t>(p._pClass)].className));
+	const string_view title = _(oracool::HeroTitleFor(p.pDiabloKillLevel));
+	const int levelWidth = GetLineWidth(levelText, GameFont12, 1);
+	const int titleWidth = GetLineWidth(title, GameFont12, 1);
+	const Rectangle rightLine { { innerX, top + 8 }, { innerWidth, 20 } };
+	DrawString(content, levelText, rightLine, { UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::ColorWhite | CharTextShadow });
+	const Rectangle titleLine { rightLine.position, { std::max(innerWidth - levelWidth - 6, 16), rightLine.size.height } };
+	DrawString(content, title, titleLine,
+	    { UiFlags::AlignRight | UiFlags::VerticalCenter | oracool::HeroTitleColorFor(p.pDiabloKillLevel) | CharTextShadow });
+
+	// Left: the name, large. A long name beside a long title steps down to the small font rather than
+	// run under the title.
+	const int nameRoom = std::max(innerWidth - levelWidth - 6 - titleWidth - 10, 16);
+	const Rectangle nameRect { { innerX, top + 4 }, { nameRoom, 28 } };
+	const string_view name = p._pName;
+	if (GetLineWidth(name, GameFont24, 1) <= nameRoom)
+		DrawString(content, name, nameRect, { UiFlags::FontSize24 | UiFlags::ColorWhitegold | UiFlags::VerticalCenter | CharTextShadow });
+	else
+		oracool::DrawSheetTextFitted(content, name, nameRect, UiFlags::ColorWhitegold | UiFlags::VerticalCenter);
+
+	// The XP bar: how far into the current level, qol/xpbar.cpp's FilledWidth arithmetic exactly -
+	// GetLevelExperienceSpan is the one authority for the span and its bounds. Full at the cap.
+	uint64_t into = 1;
+	uint64_t span = 1;
+	if (p._pLevel >= 1 && p._pLevel < static_cast<int>(MaxCharacterLevel)) {
+		span = oracool::GetLevelExperienceSpan(p);
+		const uint64_t levelStart = ExpLvlsTbl[p._pLevel - 1];
+		into = p._pExperience >= levelStart ? p._pExperience - levelStart : 0;
+	}
+	oracool::DrawSheetBar(content, { { innerX, top + 35 }, { innerWidth, 8 } }, into, span, 0xC8A04C, PAL16_YELLOW + 4);
+
+	// "1,284,300 of 1,520,000" left, "235,700 to level 35" right.
+	const Rectangle xpLine { { innerX, top + 45 }, { innerWidth, 14 } };
+	std::string left;
+	std::string right;
+	if (p._pLevel >= static_cast<int>(MaxCharacterLevel)) {
+		left = FormatInteger(p._pExperience);
+		right = std::string(_("Max level"));
+	} else {
+		left = fmt::format(fmt::runtime(_(/* TRANSLATORS: experience, "1,284,300 of 1,520,000" */ "{:s} of {:s}")),
+		    FormatInteger(p._pExperience), FormatInteger(p._pNextExper));
+		const uint64_t remaining = p._pNextExper > p._pExperience ? p._pNextExper - p._pExperience : 0;
+		right = fmt::format(fmt::runtime(_("{:s} to level {:d}")), FormatInteger(remaining), p._pLevel + 1);
+	}
+	DrawString(content, right, xpLine, { UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::ColorWhite | CharTextShadow });
+	const int rightWidth = GetLineWidth(right, GameFont12, 1);
+	oracool::DrawSheetTextFitted(content, left, { xpLine.position, { std::max(innerWidth - rightWidth - 8, 16), xpLine.size.height } },
+	    UiFlags::ColorWhite | UiFlags::VerticalCenter);
+}
+
+/** @brief The left column: four attributes, the unspent points, and RESET. */
+void DrawGroupedLeftColumn(const Surface &content)
+{
+	struct AttributeRow {
+		const char *label;
+		CharacterAttribute attribute;
+	};
+	// CharacterAttribute's order, which is ChrBtnsRect's - the same pairing the list's static_asserts pin.
+	constexpr AttributeRow Attributes[] = {
+		{ N_("Strength"), CharacterAttribute::Strength },
+		{ N_("Magic"), CharacterAttribute::Magic },
+		{ N_("Dexterity"), CharacterAttribute::Dexterity },
+		{ N_("Vitality"), CharacterAttribute::Vitality },
+	};
+	for (size_t i = 0; i < std::size(Attributes); ++i) {
+		const CharacterAttribute attribute = Attributes[i].attribute;
+		const Rectangle labelBox { { GroupedMarginX, Grouped.attrTop[i] - ScrollOffset }, { GroupedLeftWidth, GroupedAttrLabelHeight } };
+		oracool::DrawSheetBox(content, labelBox);
+		DrawLabelValue(content, BoxLine(labelBox, 0, GroupedAttrLabelHeight), LanguageTranslate(Attributes[i].label),
+		    StyledText { GetCurrentStatColor(attribute), StrCat(InspectPlayer->GetCurrentAttributeValue(attribute)) });
+
+		// "base N" in a recessed strip, and the + button's cell beside it - the cell is drawn whether or
+		// not the + is (no points to spend), so the strip keeps its shape either way.
+		const Rectangle &plus = ChrBtnsRect[static_cast<size_t>(attribute)];
+		const Rectangle strip { { GroupedMarginX, plus.position.y }, { GroupedLeftWidth - plus.size.width - 2, GroupedAttrStripHeight } };
+		oracool::DrawSheetBox(content, strip, oracool::SheetBoxTone::Recess);
+		DrawString(content, fmt::format(fmt::runtime(_("base {:d}")), InspectPlayer->GetBaseAttributeValue(attribute)),
+		    { { strip.position.x + 6, strip.position.y }, { strip.size.width - 8, strip.size.height } },
+		    { GetBaseStatColor(attribute) | UiFlags::FontSize11 | UiFlags::VerticalCenter | CharTextShadow });
+		oracool::DrawSheetBox(content, plus, oracool::SheetBoxTone::Recess);
+	}
+
+	// The unspent points - both kinds, since "what do I have left to spend" is one question (the list's
+	// 2026-08-31 audit note). Red while there is something to spend, a plain 0 otherwise.
+	const Rectangle pointsBox { { GroupedMarginX, Grouped.pointsTop - ScrollOffset }, { GroupedLeftWidth, GroupedPointsHeight } };
+	oracool::DrawSheetBox(content, pointsBox);
+	// The list's Level-up Points row clamps the pool to what the stats can still take, every frame it
+	// is drawn; the grouped sheet does the same, or the two layouts would show different numbers.
+	InspectPlayer->_pStatPts = std::min(CalcStatDiff(*InspectPlayer), InspectPlayer->_pStatPts);
+	const auto drawPoints = [&](int yOffset, int count, string_view label) {
+		const UiFlags color = count > 0 ? UiFlags::ColorRed : UiFlags::ColorWhite;
+		const int y = pointsBox.position.y + yOffset;
+		DrawString(content, StrCat(count), { { pointsBox.position.x + 4, y }, { 26, 17 } },
+		    { UiFlags::AlignRight | UiFlags::VerticalCenter | color | CharTextShadow });
+		oracool::DrawSheetTextFitted(content, label, { { pointsBox.position.x + 36, y }, { pointsBox.size.width - 40, 17 } },
+		    color | UiFlags::VerticalCenter);
+	};
+	drawPoints(3, InspectPlayer->_pStatPts, _("stat points")); // "level-up points" did not fit the column (preview render, 2026-09-26)
+	drawPoints(22, InspectPlayer->_pUnspentSkillPoints, _("skill points"));
+
+	// RESET - the list's button (same option, same gates, same press/release in control.cpp), stretched
+	// across the column and wearing the button face.
+	if (*sgOptions.Oracool.resetStatsButton && !gbIsMultiplayer && !IsInspectingPlayer()) {
+		const Rectangle reset { ResetButtonPosition, GetResetStatsButtonSize() };
+		const bool hovered = ContentToScreen(reset).contains(MousePosition) && GetCharacterContentRect().contains(MousePosition);
+		SoundOnHoverEntry(hovered, ResetButtonHovered);
+		DrawGroupedButton(content, reset, _("RESET"), resetStatsButtonDown, hovered, /*selected=*/false);
+	} else {
+		ResetButtonHovered = false;
+	}
+}
+
+/** @brief The right column: both mouse buttons, armour, to hit, the pools, the resistances and the penalty. */
+void DrawGroupedRightColumn(const Surface &content)
+{
+	const Player &p = *InspectPlayer;
+	DrawGroupedButtonBox(content, Grouped.leftButtonTop - ScrollOffset, /*leftButton=*/true);
+	DrawGroupedButtonBox(content, Grouped.rightButtonTop - ScrollOffset, /*leftButton=*/false);
+
+	// Armour class and to hit: the list's two rows' numbers and colours exactly.
+	const Rectangle armorBox { { GroupedRightX, Grouped.armorTop - ScrollOffset }, { GroupedRightWidth, GroupedLineBoxHeight } };
+	oracool::DrawSheetBox(content, armorBox);
+	DrawLabelValue(content, BoxLine(armorBox, 0, GroupedLineBoxHeight), _("Armor class"),
+	    StyledText { GetValueColor(p._pIBonusAC), StrCat(p.GetArmor() + p._pLevel * 2) });
+	const Rectangle toHitBox { { GroupedRightX, Grouped.toHitTop - ScrollOffset }, { GroupedRightWidth, GroupedLineBoxHeight } };
+	oracool::DrawSheetBox(content, toHitBox);
+	DrawLabelValue(content, BoxLine(toHitBox, 0, GroupedLineBoxHeight), _("To hit"), ToHitReading());
+
+	// Life, red.
+	DrawGroupedPoolBox(content, Grouped.lifeTop - ScrollOffset, _("Life"),
+	    StyledText { p._pHitPoints != p._pMaxHP ? UiFlags::ColorRed : GetMaxHealthColor(), StrCat(p._pHitPoints >> 6) },
+	    StyledText { GetMaxHealthColor(), StrCat(p._pMaxHP >> 6) },
+	    p._pHitPoints, p._pMaxHP, 0xB82828, PAL16_RED + 4);
+	// Mana, blue - or the Barbarian's Rage, orange and labelled so (oracool/rage.h). Rage below its
+	// maximum is the normal state, not a wound, so it is never written red.
+	if (oracool::UsesRage(p)) {
+		const int maxRage = oracool::MaxRage(p);
+		DrawGroupedPoolBox(content, Grouped.manaTop - ScrollOffset, _("Rage"),
+		    StyledText { UiFlags::ColorOrange, StrCat(p._pRage) }, StyledText { UiFlags::ColorOrange, StrCat(maxRage) },
+		    p._pRage, maxRage, 0xD07820, PAL16_ORANGE + 4);
+	} else {
+		DrawGroupedPoolBox(content, Grouped.manaTop - ScrollOffset, _("Mana"),
+		    StyledText { p._pMana != p._pMaxMana ? UiFlags::ColorRed : GetMaxManaColor(), StrCat(p._pMana >> 6) },
+		    StyledText { GetMaxManaColor(), StrCat(p._pMaxMana >> 6) },
+		    p._pMana, p._pMaxMana, 0x3050C8, PAL16_BLUE + 4);
+	}
+	// Essence, green - the Necromancer's second pool, only on the sheet of a hero who has one.
+	if (Grouped.essenceTop >= 0 && oracool::UsesEssence(p)) {
+		const int current = oracool::CurrentEssence(p);
+		const int maximum = oracool::MaxEssence(p);
+		DrawGroupedPoolBox(content, Grouped.essenceTop - ScrollOffset, _("Essence"),
+		    StyledText { UiFlags::ColorOracoolGreen, StrCat(current) }, StyledText { UiFlags::ColorOracoolGreen, StrCat(maximum) },
+		    current, maximum, 0x3C9C4C, PAL8_GREEN + 2);
+	}
+
+	// The four resistances - cold is its own stat since 2026-09-26 (player.h's _pColdResist), resisted
+	// and capped like the other three, so it reads through the same GetResistInfo colours.
+	struct ResistRow {
+		const char *label;
+		int8_t value;
+	};
+	const ResistRow resists[] = {
+		{ N_("Resist magic"), p._pMagResist },
+		{ N_("Resist fire"), p._pFireResist },
+		{ N_("Resist lightning"), p._pLghtResist },
+		{ N_("Resist cold"), p._pColdResist },
+	};
+	for (size_t i = 0; i < std::size(resists); ++i) {
+		const Rectangle box { { GroupedRightX, Grouped.resistTop + static_cast<int>(i) * GroupedResistPitch - ScrollOffset },
+			{ GroupedRightWidth, GroupedLineBoxHeight } };
+		oracool::DrawSheetBox(content, box);
+		DrawLabelValue(content, BoxLine(box, 0, GroupedLineBoxHeight), LanguageTranslate(resists[i].label), GetResistInfo(resists[i].value));
+	}
+
+	// The strip that makes the four readable (the list's 2026-08-31 audit rows, in one line): what the
+	// difficulty has already taken off, in red, and the ceiling. No penalty, no red words - just the cap.
+	const Rectangle strip { { GroupedRightX, Grouped.penaltyTop - ScrollOffset }, { GroupedRightWidth, GroupedPenaltyHeight } };
+	oracool::DrawSheetBox(content, strip, oracool::SheetBoxTone::Recess);
+	const Rectangle stripLine = BoxLine(strip, 0, GroupedPenaltyHeight);
+	DrawString(content, fmt::format(fmt::runtime(_("cap {:d}")), oracool::ResistanceHardCap), stripLine,
+	    { UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::ColorWhite | UiFlags::FontSize11 | CharTextShadow });
+	if (const int penalty = oracool::ResistancePenaltyFor(sgGameInitInfo.nDifficulty); penalty > 0) {
+		DrawString(content, StrCat(GroupedDifficultyName(), "  -", penalty), stripLine,
+		    { UiFlags::VerticalCenter | UiFlags::ColorRed | UiFlags::FontSize11 | CharTextShadow });
+	}
+}
+
+/** @brief The grouped sheet's scrollbar - the list's groove and thumb against its own content rect. */
+void DrawGroupedScrollbar(const Surface &out, const Rectangle &panel)
+{
+	if (MaxScrollOffset <= 0)
+		return;
+	const int x = panel.position.x + CharPanelSize.width - CharRightPad - CharScrollbarWidth;
+	const int top = panel.position.y + GroupedContentTop;
+	oracool::DrawThemedFill(out, { { x, top }, { CharScrollbarWidth, GroupedContentSize.height } }, 2);
+	const int thumbHeight = std::max(CharScrollbarMinThumb,
+	    GroupedContentSize.height * GroupedContentSize.height / std::max(Grouped.listHeight, 1));
+	const int travel = GroupedContentSize.height - thumbHeight;
+	const int thumbY = top + travel * ScrollOffset / MaxScrollOffset;
+	oracool::DrawOrnateSeparatorVertical(out, { x, thumbY }, thumbHeight);
+}
+
+/** @brief The whole grouped sheet, under the title DrawChr has already drawn. */
+void DrawGroupedSheet(const Surface &out, const Rectangle &panel)
+{
+	DrawGroupedScrollbar(out, panel);
+
+	// Through the clipped content subregion, as the list draws - the same frame ChrBtnsRect,
+	// ResetButtonPosition and GroupedAdvancedButton are expressed in.
+	const Rectangle contentRect = GetCharacterContentRect();
+	const Surface content = out.subregion(contentRect.position.x, contentRect.position.y,
+	    contentRect.size.width, contentRect.size.height);
+
+	DrawGroupedHeader(content, -ScrollOffset);
+	DrawGroupedLeftColumn(content);
+	DrawGroupedRightColumn(content);
+
+	// The aura across the width, by name (GetActiveClassAura, not the raw field - see the list's row).
+	const Rectangle auraBox { { GroupedMarginX, Grouped.auraTop - ScrollOffset }, { GroupedFullWidth, GroupedAuraHeight } };
+	oracool::DrawSheetBox(content, auraBox);
+	const oracool::ClassTreeSkill aura = oracool::GetActiveClassAura(*InspectPlayer);
+	DrawLabelValue(content, BoxLine(auraBox, 0, GroupedAuraHeight), _("Aura"),
+	    aura == oracool::ClassTreeSkill::None
+	        ? StyledText { UiFlags::ColorWhite, std::string(_("none")) }
+	        : StyledText { UiFlags::ColorBlue, std::string(_(oracool::GetClassTreeSkillData(aura).name)) });
+
+	// ADVANCED STATS, gold while its window is open - the vendors' "this is the page you are on".
+	const bool hovered = ContentToScreen(GroupedAdvancedButton).contains(MousePosition) && contentRect.contains(MousePosition);
+	SoundOnHoverEntry(hovered, AdvancedButtonHovered);
+	DrawGroupedButton(content, GroupedAdvancedButton, _("ADVANCED STATS  >"), AdvancedButtonPressed, hovered,
+	    oracool::IsAdvancedStatsOpen());
+
+	// Last, over their cells.
+	DrawPlusButtonSprites(content);
 }
 
 } // namespace
@@ -1299,7 +1900,9 @@ Rectangle GetCharacterPanelRect()
 Point GetCharacterContentOrigin()
 {
 	const Rectangle panel = GetCharacterPanelRect();
-	return { panel.position.x, panel.position.y + CharContentTop };
+	// The grouped sheet starts higher - it has no separator rule under the title to clear - and
+	// everything that positions against the sheet asks here, so drawing and hit-testing move together.
+	return { panel.position.x, panel.position.y + (GroupedSheet() ? GroupedContentTop : CharContentTop) };
 }
 
 Point GetResetStatsButtonPosition()
@@ -1308,10 +1911,65 @@ Point GetResetStatsButtonPosition()
 	return ResetButtonPosition;
 }
 
+Size GetResetStatsButtonSize()
+{
+	// The list's RESET is the 44x24 word in the Base column; the grouped sheet's spans its column.
+	return GroupedSheet() ? Size { GroupedLeftWidth, GroupedResetHeight } : ResetStatsButtonSize;
+}
+
 Rectangle GetCharacterContentRect()
 {
 	const Point origin = GetCharacterContentOrigin();
-	return { origin, CharContentSize };
+	return { origin, GroupedSheet() ? GroupedContentSize : CharContentSize };
+}
+
+bool PressCharacterSheetAdvancedButton(Point mousePosition)
+{
+	if (!chrflag || !GroupedSheet())
+		return false;
+	EnsureLayout();
+	if (!ContentToScreen(GroupedAdvancedButton).contains(mousePosition))
+		return false;
+	// A press only sinks the face and clicks; the window opens on the release (the game-wide rule).
+	AdvancedButtonPressed = true;
+	oracool::PlayUiMoveSound();
+	return true;
+}
+
+void ReleaseCharacterSheetAdvancedButton()
+{
+	const bool wasPressed = AdvancedButtonPressed;
+	AdvancedButtonPressed = false; // always taken, so a press that outlived the sheet cannot fire late
+	if (!wasPressed || !chrflag || !GroupedSheet())
+		return;
+	// Released inside the button it was pressed on - the unsunk rect - or it is "let me think a bit more".
+	if (ContentToScreen(GroupedAdvancedButton).contains(MousePosition) && GetCharacterContentRect().contains(MousePosition))
+		oracool::ToggleAdvancedStats();
+}
+
+int GetSheetAttackFramesSkipped()
+{
+	return AttackFramesSkipped();
+}
+
+int GetSheetHitRecoveryFramesSkipped()
+{
+	return HitRecoveryFramesSkipped();
+}
+
+int GetSheetBlockChancePercent()
+{
+	return BlockChancePercent();
+}
+
+int GetSheetLifeStealPercent()
+{
+	return LifeStealPercent();
+}
+
+int GetSheetManaStealPercent()
+{
+	return ManaStealPercent();
 }
 
 void ScrollCharacterSheet(int notches)
@@ -1354,6 +2012,13 @@ void DrawChr(const Surface &out)
 		{ panel.size.width - 2 * CharPanelMargin, oracool::PanelTitleHeight } };
 	oracool::DrawOutlinedString(out, _("CHARACTER"), labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+
+	// The grouped sheet (Grouped Hero Sheet option, 2026-09-26) - same window, title and X, its own
+	// body. Off, everything below is the list exactly as it was.
+	if (LayoutGrouped) {
+		DrawGroupedSheet(out, panel);
+		return;
+	}
 
 	DrawScrollbar(out, panel);
 

@@ -117,6 +117,7 @@ void ApplyCharmToTotals(const Player &player, uint16_t charmIdx, ItemBonusTotals
 			totals.fireResist += value;
 			totals.lightningResist += value;
 			totals.magicResist += value;
+			totals.coldResist += value;
 			break;
 		case GrowingStat::LEGEND:
 			totals.magicFind += value;
