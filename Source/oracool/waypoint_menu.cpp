@@ -20,6 +20,8 @@
 #include "inv.h"              // CloseInventory - see OpenWaypointMenu
 #include "oracool/hud_menu.h" // CloseHudMenu - ditto
 #include "levels/gendung.h"
+#include "levels/trigs.h" // IsWarpOpen - the Nest and Crypt gates
+#include "oracool/event_log.h"
 #include "multi.h"
 #include "oracool/grid_bezel.h" // GridBezelInset, DrawGridBezel - the Act buttons' carved frames
 #include "oracool/hud_art.h"    // DrawPlateIn, DrawLoosePng - the Act buttons' backing and glyphs
@@ -139,6 +141,8 @@ WaypointAct ActiveAct = WaypointAct::Diablo;
  * by ReleaseWaypointActButton from LeftMouseUp and by the menu closing.
  */
 int PressedAct = -1;
+/** @brief The list row held down, or -1: the journey starts on the release inside it (2026-09-27), as a button's act does. */
+int PressedEntry = -1;
 constexpr Displacement ActPressSink { -2, 2 };
 
 /**
@@ -577,12 +581,29 @@ void CloseWaypointMenu()
 {
 	WaypointMenuOpen = false;
 	PressedAct = -1;
+	PressedEntry = -1;
 	LastHoveredAct = -1;
 }
 
+void TravelToWaypointEntry(int entry);
+
 void ReleaseWaypointActButton()
 {
+	// The press/release rule every button follows (user, 2026-09-27: "fix the decisions for me too"): an Act switches
+	// and a row travels on the RELEASE, and only when it lands on what was pressed. Both used to act on the press.
+	const int act = PressedAct;
+	const int entry = PressedEntry;
 	PressedAct = -1;
+	PressedEntry = -1;
+	if (!WaypointMenuOpen)
+		return;
+	if (act >= 0 && MouseToActButton(MousePosition) == act) {
+		if (static_cast<int>(ActiveAct) != act)
+			SelectWaypointAct(static_cast<WaypointAct>(act));
+		return;
+	}
+	if (entry >= 0 && MouseToEntry(MousePosition) == entry)
+		TravelToWaypointEntry(entry);
 }
 
 void DrawWaypointMenu(const Surface &out)
@@ -734,14 +755,17 @@ void CheckWaypointMenuClick(Point mousePosition)
 		// EVERY click sounds (user, 2026-09-20), the already-active act's included; until then only
 		// a click that changed the act did.
 		PlayUiMoveSound();
-		if (static_cast<int>(ActiveAct) != act)
-			SelectWaypointAct(static_cast<WaypointAct>(act));
-		return;
+		return; // switches on the release (ReleaseWaypointActButton)
 	}
 
 	const int entry = MouseToEntry(mousePosition);
 	if (entry < 0)
 		return;
+	PressedEntry = entry; // travels on the release (ReleaseWaypointActButton)
+}
+
+void TravelToWaypointEntry(int entry)
+{
 	// The row index STOPPED being the destination level when the list was reordered by depth
 	// (2026-09-12): row 13 is the Nest's first floor, dungeon level 17. Everything past this line
 	// speaks in dungeon levels, which is what _pWaypointUnlocked and StartNewLvl both want.
@@ -750,6 +774,22 @@ void CheckWaypointMenuClick(Point mousePosition)
 		return;
 	if (!IsWaypointUnlocked(level))
 		return; // locked entry - no-op
+	// The quest gates the stairs and entrances keep, kept here too (audit, 2026-09-27): a waypoint is remembered across
+	// games and the quests are not, so a hero who reached level 16 once walked from town to Diablo with Lazarus alive,
+	// and into the Nest and the Crypt past entrances this game had not opened.
+	{
+		const char *closed = nullptr;
+		if (level == 16 && Quests[Q_BETRAYER]._qactive != QUEST_DONE)
+			closed = N_("The way to level 16 opens when Lazarus has fallen.");
+		else if (level >= 17 && level <= 20 && !IsWarpOpen(DTYPE_NEST))
+			closed = N_("The Hive is still sealed.");
+		else if (level >= 21 && level <= 24 && !IsWarpOpen(DTYPE_CRYPT))
+			closed = N_("The Crypt is still sealed.");
+		if (closed != nullptr) {
+			LogEvent(std::string(_(closed)), UiFlags::ColorRed);
+			return;
+		}
+	}
 
 	// Travelling and "already there" are both a row chosen, and both close the list.
 	PlayUiSelectSound();

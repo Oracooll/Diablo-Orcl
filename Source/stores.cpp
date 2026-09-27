@@ -2701,9 +2701,17 @@ void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 	bool soldAnything = false;
 	while (true) {
 		StartSmithSell();
-		if (storenumh == 0)
+		// The backpack and the belt, never pages 2-10 (user, 2026-09-27: "fix the decisions for me too"). The button says
+		// "sells everything in your backpack", and it took the extra pages too - where crafting stock is kept, gems,
+		// runes and shards Griswold buys - in one click. One item from a page still sells from the list.
+		int next = -1;
+		for (int i = 0; i < storenumh && next < 0; i++) {
+			if (storehTabIdx[i] < 0)
+				next = i;
+		}
+		if (next < 0)
 			break;
-		if (!StoreGoldFit(StoreHoldSalePrice(storehold[0]), &storehold[0])) {
+		if (!StoreGoldFit(StoreHoldSalePrice(storehold[next]), &storehold[next])) {
 			// The No Room screen returns to stextshold; a buy tab has no text line to restore.
 			stextshold = returnTo;
 			stextlhold = returnTo == TalkID::SmithSell ? SmithSellAllLine() : 0;
@@ -2718,7 +2726,7 @@ void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 
 		// Rebuilding the list after every removal is intentional: inventory removal compacts
 		// InvList, so every later source index must be recalculated before it is used.
-		StoreSellItemAt(0);
+		StoreSellItemAt(next);
 		soldAnything = true;
 	}
 

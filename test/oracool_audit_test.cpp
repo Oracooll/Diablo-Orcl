@@ -12748,6 +12748,12 @@ TEST(OracoolRenderer, ThirtyTwoBitSurfacesResolveIndicesThroughThePalette)
 	// The primitives.
 	DrawVerticalLine(rgb, { 7, 0 }, 4, 3);
 	EXPECT_EQ(*rgb.at<uint32_t>(7, 1), PaletteRGB[3]);
+	// Clipped to what FITS at the bottom (audit, 2026-09-27): it kept the overhang, and wrote past the surface.
+	FillRect(rgb, 0, 0, 8, 4, 1);
+	const Surface upperRows = rgb.subregion(0, 0, 8, 2);
+	DrawVerticalLine(upperRows, { 6, 1 }, 3, 3);
+	EXPECT_EQ(*rgb.at<uint32_t>(6, 1), PaletteRGB[3]);
+	EXPECT_EQ(*rgb.at<uint32_t>(6, 2), PaletteRGB[1]) << "nothing below the surface's last row";
 	rgb.SetPixel({ 0, 0 }, 4);
 	EXPECT_EQ(*rgb.at<uint32_t>(0, 0), PaletteRGB[4]);
 	SetHalfTransparentPixel(rgb, { 0, 0 }, 6);
@@ -13539,7 +13545,12 @@ TEST(OracoolAudit, WirtHasAShopAndAGambleTabAndTheGambleScalesWithLevel)
 	EXPECT_EQ(GamblePriceFor(ItemType::Ring, 10), 6000);
 	EXPECT_EQ(GamblePriceFor(ItemType::Amulet, 50), 40000);
 	EXPECT_EQ(GamblePriceFor(ItemType::Helm, 1), 200);
-	EXPECT_GT(GamblePriceFor(ItemType::Ring, 30), GamblePriceFor(ItemType::Sword, 30)) << "rings are the dear gamble";
+	EXPECT_GT(GamblePriceFor(ItemType::Ring, 5), GamblePriceFor(ItemType::Sword, 5)) << "rings are the dear gamble while only Normal bases roll";
+	// Worn gear follows the base tier its roll can land on (2026-09-27): at level 50 a Torment base is in play, worth up
+	// to thirty times a Normal one, and a Normal item's price made the gamble a gold faucet.
+	EXPECT_EQ(GamblePriceFor(ItemType::Sword, 50), 300 * 50 * oracool::ExpectedTierValuePercent(54) / 100);
+	EXPECT_GT(oracool::ExpectedTierValuePercent(54), 2000);
+	EXPECT_EQ(oracool::ExpectedTierValuePercent(10), 100) << "Normal only below item level 13";
 	EXPECT_EQ(GamblePriceFor(ItemType::Ring, 0), GamblePriceFor(ItemType::Ring, 1)) << "level 0 is treated as 1";
 }
 

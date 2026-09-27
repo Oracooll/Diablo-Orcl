@@ -74,6 +74,12 @@ BaseItemTier HighestTierForItemLevel(int itemLevel);
  * costs the sequence nothing.
  */
 BaseItemTier TierForItem(int itemLevel, uint32_t seed);
+/**
+ * @brief The value percent a worn item rolled at @p itemLevel carries on average - TierForItem's weights over the tiers
+ * the level allows, each tier's value scale. 100 while only Normal is allowed; about 2145 once Torment is. What a
+ * price set before the roll must follow, or the roll outruns it (Wirt's gamble, audit 2026-09-27).
+ */
+int ExpectedTierValuePercent(int itemLevel);
 
 /** @brief "Normal", "Nightmare", "Hell", "Torment" - untranslated; the caller runs it through _(). */
 const char *TierName(BaseItemTier tier);

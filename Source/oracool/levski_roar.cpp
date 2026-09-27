@@ -1623,6 +1623,21 @@ Rectangle GetLevskiRoarRect()
 	return Rectangle { { x, y }, frame };
 }
 
+bool IsPointOverLevski(Point position)
+{
+	// The window and the two side tabs beside it (user, 2026-09-27: "fix the decisions for me too"): the tabs sit OUTSIDE
+	// the window's rect, so a right click on one cast or walked, and what stood under it lit up on hover.
+	if (GetLevskiRoarRect().contains(position))
+		return true;
+	if (WindowOpen && CubeTabbedPages()) {
+		for (int i = 0; i < CubeTabCount; i++) {
+			if (GetSideTabRect(i).contains(position))
+				return true;
+		}
+	}
+	return false;
+}
+
 Rectangle GetLevskiRecipeBookRect()
 {
 	if (!IsLevskiRecipeBookOpen())

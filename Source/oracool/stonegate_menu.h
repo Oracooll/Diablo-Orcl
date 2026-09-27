@@ -11,6 +11,8 @@
  */
 #pragma once
 
+#include <SDL.h>
+
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
@@ -29,5 +31,9 @@ void DrawStonegateMenu(const Surface &out);
 bool CheckStonegateMenuClick(Point mousePosition);
 /** @brief Lets go of a pressed button (diablo.cpp's LeftMouseUp): the face springs back from its 2px sink. */
 void ReleaseStonegateMenuButton();
+/** @brief What a button does, pressed by the mouse's release or the keyboard: open a rift, or leave. */
+void ActivateStonegateRow(int row);
+/** @brief The keyboard on the open menu: Up/Down choose, Enter presses, 1-3 press directly. True when the key was taken. */
+bool HandleStonegateMenuKey(SDL_Keycode key);
 
 } // namespace devilution::oracool

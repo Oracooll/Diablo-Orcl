@@ -3794,6 +3794,20 @@ const PLStruct *FindAffixRowForType(item_effect_type type)
  * itself when it has none. One item never carries both (audit, 2026-09-27): the pick excluded only the same type, and a
  * Rare off an ordinary monster could roll +Strength beside -Strength.
  */
+int LargestAffixRollAtOrBelow(item_effect_type type, int level)
+{
+	int best = -1;
+	const auto scan = [&](const PLStruct *table) {
+		for (int j = 0; table[j].power.type != IPL_INVALID; j++) {
+			if (table[j].power.type == type && table[j].PLMinLvl <= level)
+				best = std::max({ best, table[j].power.param1, table[j].power.param2 });
+		}
+	};
+	scan(ItemPrefixes);
+	scan(ItemSuffixes);
+	return best;
+}
+
 item_effect_type AffixTwinOf(item_effect_type type)
 {
 	constexpr std::pair<item_effect_type, item_effect_type> Twins[] = {
@@ -6372,6 +6386,13 @@ void SpawnRewardItem(_item_indexes itemid, Point position, bool sendmsg)
 {
 	if (ActiveItemCount >= MAXITEMS)
 		return;
+	// Off an occupied tile, as SpawnQuestItem is (audit, 2026-09-27): Lester's reward and a boss's map land on a fixed
+	// tile, and an item already there became unreachable.
+	if (InDungeonBounds(position) && dItem[position.x][position.y] != 0) {
+		const Point free = GetSuperItemLoc(position);
+		if (free != Point { 0, 0 })
+			position = free;
+	}
 
 	int ii = AllocateItem();
 	auto &item = Items[ii];
@@ -9123,7 +9144,15 @@ int GamblePriceFor(ItemType type, int lvl)
 	}
 	// A gold sink that scales with the hero (the roadmap's design): the price is the slot's base
 	// times the level, so a ring at level 50 is 30,000 and at 99 nearly Diablo II's 50,000.
-	return base * std::clamp(lvl, 1, MaxCharacterLevel);
+	const int level = std::clamp(lvl, 1, MaxCharacterLevel);
+	int64_t price = static_cast<int64_t>(base) * level;
+	// And for worn gear, times the value its base tier is expected to carry (user, 2026-09-27: "fix the decisions for
+	// me too"). The roll can land on a Hell or Torment base, worth four to thirty times a Normal one, while the price
+	// stayed a Normal item's: from about level 42 a gambled piece sold for more than it cost - a gold faucet, not a
+	// sink. Rings and amulets carry no base tier and keep their price. The roll's item level runs to the hero's + 4.
+	if (type != ItemType::Ring && type != ItemType::Amulet)
+		price = price * oracool::ExpectedTierValuePercent(level + 4) / 100;
+	return static_cast<int>(std::min<int64_t>(price, std::numeric_limits<int>::max()));
 }
 
 void SpawnGambleStock(int lvl)

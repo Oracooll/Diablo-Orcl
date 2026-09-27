@@ -274,6 +274,15 @@ bool SummonMinion(Player &owner, const MinionSpec &spec, Point near)
 	return false;
 }
 
+bool MinionRecordFree()
+{
+	for (const Record &record : Records) {
+		if (!record.active)
+			return true;
+	}
+	return false;
+}
+
 void DismissMinions(Player &owner)
 {
 	for (size_t group = 0; group < MinionGroupCount; group++)

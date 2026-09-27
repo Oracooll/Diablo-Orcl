@@ -253,6 +253,10 @@ bool PlayUiEventSound(UiEventSound sound)
 
 void PlaySetCompleteSound()
 {
+	// Only with a mixer (audit, 2026-09-27): the other players here return without one, and an initialised archive over
+	// a mixer that never started divides by a sample rate of 0 - a machine with no audio device crashed on a completed set.
+	if (!gbSndInited)
+		return;
 	snd_play_snd(LoadCached(SetCompleteSound, SetCompletePath), VolumeOneShot, 0);
 }
 

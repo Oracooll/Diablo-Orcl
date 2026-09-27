@@ -58,6 +58,8 @@ void DrawRunewordBook(const Surface &out);
  * behind it (the standing no-click-through rule for every window in this fork).
  */
 bool HandleRunewordBookClick(Point position);
+/** @brief LeftMouseUp: the pressed filter toggles if the release lands inside it (2026-09-27). */
+void ReleaseRunewordBookButton();
 
 /** @brief Routes a mouse-wheel notch. @p delta is positive scrolling up. */
 bool HandleRunewordBookScroll(int delta);

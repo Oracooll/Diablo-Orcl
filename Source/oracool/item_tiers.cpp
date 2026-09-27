@@ -76,6 +76,18 @@ BaseItemTier HighestTierForItemLevel(int itemLevel)
 	return static_cast<BaseItemTier>(block);
 }
 
+int ExpectedTierValuePercent(int itemLevel)
+{
+	const int highest = static_cast<int>(HighestTierForItemLevel(itemLevel));
+	int total = 0;
+	int weighted = 0;
+	for (int i = 0; i <= highest; i++) {
+		total += TierWeights[i];
+		weighted += TierWeights[i] * Scales[highest - i].value;
+	}
+	return total > 0 ? weighted / total : 100;
+}
+
 BaseItemTier TierForItem(int itemLevel, uint32_t seed)
 {
 	const int highest = static_cast<int>(HighestTierForItemLevel(itemLevel));

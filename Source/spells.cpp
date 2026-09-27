@@ -61,19 +61,19 @@ bool SkillPaysThroughFacade(const Player &player, SpellID spell)
  * @param player The player whose readied spell is to be checked.
  * @return 'true' when the readied spell is currently valid, and 'false' otherwise.
  */
-bool IsReadiedSpellValid(const Player &player)
+bool IsReadiedPairValid(const Player &player, SpellID spell, SpellType type)
 {
-	switch (player._pRSplType) {
+	switch (type) {
 	case SpellType::Skill:
 	case SpellType::Spell:
 	case SpellType::Invalid:
 		return true;
 
 	case SpellType::Charges:
-		return (player._pISpells & GetSpellBitmask(player._pRSpell)) != 0;
+		return (player._pISpells & GetSpellBitmask(spell)) != 0;
 
 	case SpellType::Scroll:
-		return (player._pScrlSpells & GetSpellBitmask(player._pRSpell)) != 0;
+		return (player._pScrlSpells & GetSpellBitmask(spell)) != 0;
 
 	default:
 		return false;
@@ -246,8 +246,14 @@ void ConsumeSpell(Player &player, SpellID sn)
 
 void EnsureValidReadiedSpell(Player &player)
 {
-	if (!IsReadiedSpellValid(player)) {
+	if (!IsReadiedPairValid(player, player._pRSpell, player._pRSplType)) {
 		ClearReadiedSpell(player);
+	}
+	// The left button too (audit, 2026-09-27): only the right was checked, so a left-button scroll read to the last one,
+	// or a staff put away, left a binding that silently refused every left click on an enemy - no swing either.
+	if (!IsReadiedPairValid(player, player._pLRSpell, player._pLRSplType)) {
+		player._pLRSpell = SpellID::Invalid;
+		player._pLRSplType = SpellType::Invalid;
 	}
 }
 

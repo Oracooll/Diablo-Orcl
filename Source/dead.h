@@ -48,6 +48,8 @@ extern DVL_API_FOR_TEST Corpse Corpses[MaxCorpses];
 extern DVL_API_FOR_TEST int8_t stonendx;
 
 DVL_API_FOR_TEST void InitCorpses();
+/** @brief After LoadLevel on a revisit: the uniques' corpse entries rebuilt from the monsters that were loaded. */
+void RestoreUniqueCorpsesAfterLoad();
 void AddCorpse(Point tilePosition, int8_t dv, Direction ddir);
 void MoveLightsToCorpses();
 

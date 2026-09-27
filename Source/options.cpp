@@ -714,6 +714,13 @@ void OptionEntryEnumBase::SetActiveListIndex(size_t index)
 void OptionEntryIntBase::LoadFromIni(string_view category)
 {
 	value = GetIniInt(category.data(), key.data(), defaultValue);
+	// Inside the offered range (audit, 2026-09-27). A hand-edited value between two entries is still kept, as vanilla
+	// does; one outside every entry is clamped to the nearest end - a zoom of 0 divided by zero on every frame, and a
+	// Torment multiplier of 0 or less gave monsters no life.
+	if (!entryValues.empty()) {
+		const auto [low, high] = std::minmax_element(entryValues.begin(), entryValues.end());
+		value = std::clamp(value, *low, *high);
+	}
 	if (std::find(entryValues.begin(), entryValues.end(), value) == entryValues.end()) {
 		entryValues.push_back(value);
 		std::sort(entryValues.begin(), entryValues.end());
@@ -1491,9 +1498,9 @@ OracoolOptions::OracoolOptions()
     // user asked for 2-3 packs on Normal rising to 5-6 on Torment. The text said "100 is one" for a
     // day longer than it was true (self-audit, 2026-08-15).
     , lesserUniqueDensityPercent("Lesser Unique Density", OptionEntryFlags::CantChangeInGame, N_("Lesser Unique Density"), N_("Multiplies the champion packs a dungeon level hosts. 100 is the base 2-6 by difficulty."), 300, { 100, 150, 200, 250, 300 })
-    // Not CantChangeInGame, unlike its two siblings: they decide what a level is BUILT with and so
-    // cannot move once it exists, while the variant is derived per monster from a seed the level
-    // already carries. Changing this mid-game simply changes what the next monster rolls.
+    // CantChangeInGame like its two siblings since 2026-09-27 (audit). The variant is derived per monster from a seed the
+    // level carries, but its stat changes are applied once, at spawn, while its name and hook effects are asked live -
+    // so a mid-game change left Hollow monsters with Hollow life and no name, or made ordinary ones Gilded mid-fight.
     , monsterVariantChancePercent("Monster Variant Chance", OptionEntryFlags::CantChangeInGame, N_("Monster Variant Chance"), N_("Multiplies how often a monster is a recoloured variant. 100 is the base 15-28% by difficulty; 0 turns them off."), 100, { 0, 100, 150, 200, 250, 300 })
     , unlockAllTownEntrances("Unlock All Town Entrances", OptionEntryFlags::CantChangeInGame, N_("Unlock All Town Entrances"), N_("Unlocks later dungeon entrances in town without level requirements."), true)
     , permanentInfravision("Permanent Infravision", OptionEntryFlags::None, N_("Permanent Infravision"), N_("Continuously reveals nearby monsters through walls."), false)

@@ -198,9 +198,19 @@ MinionSpec GolemSpec(const Player &player, GolemKind kind, int rank)
 
 bool RaiseGolem(Player &player, GolemKind kind, int rank, Point target)
 {
-	// One golem of any kind: a new one replaces the old.
+	// One golem of any kind: a new one replaces the old - but only when the new one can stand (user, 2026-09-27: "fix
+	// the decisions for me too"). A cast at solid rock dismissed the old golem and raised nothing. The type and a record
+	// are known up front, and the body falls back to the hero's own side, as Raise's does.
+	const MinionSpec spec = GolemSpec(player, kind, rank);
+	if (!CanAddMinionBody(spec.type)) {
+		player.Say(HeroSpeech::ICantDoThat);
+		return false;
+	}
 	DismissMinions(player, MinionGroup::Golem);
-	return SummonMinion(player, GolemSpec(player, kind, rank), target);
+	if (SummonMinion(player, spec, target) || SummonMinion(player, spec, player.position.tile))
+		return true;
+	player.Say(HeroSpeech::ICantDoThat);
+	return false;
 }
 
 bool RaiseFromCorpse(Player &player, Point target, int rank, bool mage)
@@ -237,6 +247,12 @@ bool RaiseFromCorpse(Player &player, Point target, int rank, bool mage)
 bool Revive(Player &player, Point target, int rank)
 {
 	if (MinionCount(player, MinionGroup::Revived) >= RaisedCountAtRank(rank, MinionGroupCap(MinionGroup::Revived))) {
+		player.Say(HeroSpeech::ICantDoThat);
+		return false;
+	}
+	// A record for the body before the corpse is taken (2026-09-27): with all of them held - bodies still dying - the
+	// corpse was eaten and nothing rose.
+	if (!MinionRecordFree()) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}

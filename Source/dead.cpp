@@ -5,6 +5,7 @@
  */
 #include "dead.h"
 
+#include <array>
 #include <cstdint>
 
 #include "diablo.h"
@@ -133,6 +134,34 @@ void InitCorpses()
 	}
 
 	assert(static_cast<unsigned>(nd) <= MaxCorpses);
+}
+
+void RestoreUniqueCorpsesAfterLoad()
+{
+	// The unique half of the table, rebuilt from the monsters that were actually LOADED (user, 2026-09-27: "fix the
+	// decisions for me too"). A revisit runs InitCorpses on a monster set it generates and throws away before
+	// LoadLevel, so every unique entry described a monster that never came back: a champion killed after the revisit,
+	// and every champion body already on the floor, wore another's body and colours. Each loaded unique's saved id gets
+	// its own entry back; an entry no loaded unique claims belonged to a champion who died before - which monster that
+	// was is not saved, so its body is not drawn rather than drawn wrong.
+	std::array<bool, MaxCorpses> claimed {};
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		Monster &monster = Monsters[ActiveMonsters[i]];
+		if (!monster.isUnique())
+			continue;
+		const int id = monster.corpseId;
+		if (id <= stonendx || id > static_cast<int>(MaxCorpses)) {
+			monster.corpseId = 0; // leaves its type's body (StartMonsterDeath)
+			continue;
+		}
+		InitDeadAnimationFromMonster(Corpses[id - 1], monster.type());
+		Corpses[id - 1].translationPaletteIndex = static_cast<int>(monster.getId()) + 1;
+		claimed[id - 1] = true;
+	}
+	for (size_t k = static_cast<size_t>(stonendx); k < MaxCorpses; k++) {
+		if (!claimed[k])
+			Corpses[k] = {};
+	}
 }
 
 void AddCorpse(Point tilePosition, int8_t dv, Direction ddir)

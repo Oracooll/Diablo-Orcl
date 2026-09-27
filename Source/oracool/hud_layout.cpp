@@ -486,7 +486,7 @@ bool IsPointOverFloatingWindow(Point mousePosition)
 	// Levski's Roar, its recipe book, and the runeword book. Each getter already returns an empty
 	// rect when its window is closed, but the open-flags are tested anyway so this reads as the
 	// list it is.
-	if (IsLevskiRoarOpen() && GetLevskiRoarRect().contains(mousePosition))
+	if (IsLevskiRoarOpen() && IsPointOverLevski(mousePosition))
 		return true;
 	if (IsLevskiRecipeBookOpen() && GetLevskiRecipeBookRect().contains(mousePosition))
 		return true;

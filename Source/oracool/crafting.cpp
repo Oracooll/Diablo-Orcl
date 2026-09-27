@@ -1320,6 +1320,15 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		Item &target = grid[materials[0]];
 		if (!RetierOracoolItem(target, OracoolItemTier::Rare))
 			return {};
+		// Inside the Rare's own limits (user, 2026-09-27: "fix the decisions for me too"). The Rare rolled 2-4 affixes and
+		// the two powers below came on top - six on an item whose limit is four. It keeps two of its rolls now, and the
+		// two powers make four.
+		constexpr int CraftPowers = 2;
+		if (const int keep = std::max(0, OracoolAffixBudget(target) - CraftPowers); target._iOracoolAffixCount > keep) {
+			const std::vector<OracoolAffix> kept(target._iOracoolAffixes.begin(), target._iOracoolAffixes.begin() + keep);
+			if (!RebuildOracoolItemWithAffixes(*MyPlayer, target, kept.data(), keep))
+				return {};
+		}
 		// Diablo II's crafts each guarantee two properties on top of the Rare's own rolls. Applied
 		// through SaveItemPower and recorded in the affix list exactly as a rolled affix is, so the
 		// sheet, the tooltip and the level requirement all see them.
@@ -1336,6 +1345,13 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		    : recipe == CraftHitPowerRecipe                      ? CraftPower { N_("Hit Power"), { IPL_KNOCKBACK, 0, 0 }, { IPL_TOHIT, 10, 15 } }
 		                                                         : CraftPower { N_("Safety"), { IPL_ALLRES, 10, 15 }, { IPL_GETHIT, 1, 3 } };
 		for (ItemPower power : { craft.first, craft.second }) {
+			// And under the item-level ceiling every affix obeys: no larger than a row of its kind at or below the
+			// item's level would roll, and none at all where no such row exists yet.
+			const int ceiling = LargestAffixRollAtOrBelow(power.type, std::max<int>(1, target._iOracoolItemLevel));
+			if (ceiling < 0)
+				continue;
+			power.param1 = std::min(power.param1, ceiling);
+			power.param2 = std::min(power.param2, ceiling);
 			const int raw = ApplyOracoolItemPower(*MyPlayer, target, power);
 			// Joined to the Rare's own affix of the same kind when it rolled one (tooltip sweep, 2026-09-25: a Safety
 			// Craft printed "-1 damage from enemies" twice). The stat was applied twice either way; one row with the

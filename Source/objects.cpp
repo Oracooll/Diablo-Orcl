@@ -2975,8 +2975,12 @@ void OperateShrineEldritch(Player &player)
 			// Reinitializing the item zeroes out the seed, we save and restore here to avoid triggering false
 			// positives on duplicated item checks (e.g. when picking up the item).
 			auto seed = item._iSeed;
+			// And the stack: the fork keeps a potion stack's count in dwBuff, which InitializeItem zeroes - twenty Healing
+			// potions came out one Rejuvenation (audit, 2026-09-27).
+			const int count = item.stackCount();
 			InitializeItem(item, ItemMiscIdIdx(IMISC_REJUV));
 			item._iSeed = seed;
+			item.setStackCount(count);
 			item._iStatFlag = true;
 			potionsUpgraded++;
 			continue;
@@ -2984,8 +2988,10 @@ void OperateShrineEldritch(Player &player)
 		if (IsAnyOf(item._iMiscId, IMISC_FULLHEAL, IMISC_FULLMANA)) {
 			// As above.
 			auto seed = item._iSeed;
+			const int count = item.stackCount();
 			InitializeItem(item, ItemMiscIdIdx(IMISC_FULLREJUV));
 			item._iSeed = seed;
+			item.setStackCount(count);
 			item._iStatFlag = true;
 			potionsUpgraded++;
 			continue;

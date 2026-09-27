@@ -1195,7 +1195,7 @@ void SetServiceHint(ServiceButton service)
 		break;
 	case ServiceButton::SellAll:
 		SetPanelString(_("Sell All"), UiFlags::ColorWhitegold);
-		AddPanelString(_("Sells everything in your backpack this vendor will take."), UiFlags::ColorWhite);
+		AddPanelString(_("Sells everything on the backpack's first page this vendor will take. Pages 2-10 are left alone."), UiFlags::ColorWhite);
 		break;
 	case ServiceButton::RefreshUntil:
 		SetPanelString(_("Refresh Until"), UiFlags::ColorWhitegold);

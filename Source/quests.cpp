@@ -494,11 +494,21 @@ void CheckQuests()
 	}
 
 	if (setlevel) {
+		// Hostiles left, not slots in use (audit, 2026-09-27): the four golem slots are always taken, and the hero's own
+		// minions and companions take more - a Necromancer with his army out cleared the level and the water never cleared.
+		const auto hostilesLeft = [] {
+			for (size_t i = 0; i < ActiveMonsterCount; i++) {
+				const Monster &monster = Monsters[ActiveMonsters[i]];
+				if (ActiveMonsters[i] >= MAX_PLRS && !monster.isPlayerMinion() && (monster.hitPoints >> 6) > 0)
+					return true;
+			}
+			return false;
+		};
 		Quest &poisonWater = Quests[Q_PWATER];
 		if (setlvlnum == poisonWater._qslvl
 		    && poisonWater._qactive != QUEST_INIT
 		    && leveltype == poisonWater._qlvltype
-		    && ActiveMonsterCount == 4
+		    && !hostilesLeft()
 		    && poisonWater._qactive != QUEST_DONE) {
 			poisonWater._qactive = QUEST_DONE;
 			poisonWater._qlog = true; // even if the player skips talking to Pepin completely they should at least notice the water being purified once they cleanse the level

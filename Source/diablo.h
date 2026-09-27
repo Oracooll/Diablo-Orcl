@@ -133,6 +133,8 @@ void InitKeymapActions();
 void CloseOtherShopSurfaces();
 
 void CloseAllWindows();
+/** @brief A left click at the cursor, pressed and released, through the mouse route - the gamepad's A on the fork's windows. */
+void ClickUiAtCursor();
 void SetCursorPos(Point position);
 void FreeGameMem();
 bool StartGame(bool bNewGame, bool bSinglePlayer);

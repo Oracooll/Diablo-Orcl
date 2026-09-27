@@ -121,6 +121,8 @@ bool IsLevskiRecipeBookOpen();
 
 /** @brief The window's screen rect - used for click-through rejection like every other panel. */
 Rectangle GetLevskiRoarRect();
+/** @brief Whether @p position is over the Cube - its window or its side tabs, which sit outside the window. */
+bool IsPointOverLevski(Point position);
 /** @brief The recipe book's screen rect, empty when closed. */
 Rectangle GetLevskiRecipeBookRect();
 

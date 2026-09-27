@@ -1206,6 +1206,11 @@ void CalcOracoolTieredItemValue(Item &item, int addTotal, int multTotal);
 /** @brief The affix that undoes @p type - a stat and its curse - or @p type itself; one item never carries both. */
 item_effect_type AffixTwinOf(item_effect_type type);
 /**
+ * @brief The largest value any vanilla affix row of @p type rolls at or below @p level, or -1 when no such row exists there.
+ * What an affix added outside the roller (the Crafts) may be held to, so it obeys the item-level ceiling too.
+ */
+int LargestAffixRollAtOrBelow(item_effect_type type, int level);
+/**
  * @brief Detects and corrects the v0.3.42 "price value stored instead of the real roll" bug
  * (see GetTieredItemAffixes) on a single item that may have been generated before that fix. A
  * no-op for items without an Oracool tier, or that are already correct. Call whenever an item is

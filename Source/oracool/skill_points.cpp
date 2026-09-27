@@ -10,6 +10,7 @@
 #include "oracool/spell_ranks.h"
 #include "player.h"
 #include "spells.h"
+#include "oracool/class_skills.h" // RefreshInnateSpells
 
 namespace devilution::oracool {
 
@@ -203,6 +204,9 @@ void RefundAllSkillPoints(Player &player)
 		if (&player == MyPlayer)
 			StopClassAuraLoop();
 	}
+	// And every binding to a skill the refund took away - both buttons, the F-keys, left and right (audit, 2026-09-27).
+	// Only the ability mask was rebuilt, so a refunded Ice Bolt stayed on the left button and cast at spell level 0.
+	RefreshInnateSpells(player);
 }
 
 } // namespace devilution::oracool

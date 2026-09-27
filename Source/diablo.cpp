@@ -800,6 +800,7 @@ void LeftMouseUp(uint16_t modState)
 	oracool::ReleaseXpCounterButton();
 	ReleaseSpellBookButtons();
 	oracool::ReleaseWaypointActButton();   // the pressed Act button springs back (2026-09-20)
+	oracool::ReleaseRunewordBookButton();  // and the runeword book's pressed filter toggles (2026-09-27)
 	oracool::ReleaseHudWells();            // and the pressed LMB/RMB well (2026-09-20)
 	oracool::ReleaseStonegateMenuButton(); // and the Rift Monument menu's pressed button (2026-09-20)
 	oracool::ReleaseWorkshopButton();       // and the artisan workshop's (2026-09-21)
@@ -1101,6 +1102,10 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	if (sgnTimeoutCurs != CURSOR_NONE) {
 		return;
 	}
+
+	// The Rift Monument's menu takes its own keys first (2026-09-27): Up/Down, Enter, 1-3.
+	if (oracool::HandleStonegateMenuKey(vkey))
+		return;
 
 	// Oracool: F1-F8 are the ability hotkeys, reserved outright (user, 2026-08-17: "F1-F6 to be
 	// available for hotkeying, ergo not be used in any other way in the game"; widened to F8 on
@@ -2554,6 +2559,15 @@ bool CanPlayerTakeAction()
 	return !IsPlayerDead() && IsGameRunning() && !IsModalPromptOpen();
 }
 } // namespace
+
+void ClickUiAtCursor()
+{
+	// A left click where the cursor is, pressed and released - the whole mouse route, so a window answers exactly as it
+	// does to the mouse (user, 2026-09-27: "fix the decisions for me too" - the gamepad could point at the fork's windows
+	// with the right stick, and its A button then acted on the world behind them).
+	LeftMouseDown(0);
+	LeftMouseUp(0);
+}
 
 // Oracool: moved OUT of the anonymous namespace above on 2026-08-20. It was file-local, so
 // declaring it in diablo.h produced an unresolved external rather than a working export - the
@@ -4215,6 +4229,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 				InitCorpses();
 				IncProgress();
 				LoadLevel();
+				RestoreUniqueCorpsesAfterLoad(); // the champions' bodies from the monsters loaded, not the ones thrown away
 				IncProgress();
 			}
 		} else {
@@ -4307,6 +4322,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 			SavePreLighting();
 		} else {
 			LoadLevel();
+			RestoreUniqueCorpsesAfterLoad();
 		}
 		if (gbIsMultiplayer) {
 			DeltaLoadLevel();

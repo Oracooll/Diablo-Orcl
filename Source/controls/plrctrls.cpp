@@ -10,6 +10,9 @@
 
 #include "automap.h"
 #include "control.h"
+#include "diablo.h" // ClickUiAtCursor - A on the fork's windows
+#include "oracool/advanced_stats.h"
+#include "oracool/hud_layout.h" // IsPointOverFloatingWindow
 #include "oracool/inventory_layout.h"
 #include "controls/controller_motion.h"
 #ifndef USE_SDL1
@@ -2092,6 +2095,16 @@ void PerformPrimaryAction()
 
 			SetCursorPos(mousePos);
 		}
+		return;
+	}
+
+	// The fork's own windows answer A as a left click where the cursor is (user, 2026-09-27: "fix the decisions for me
+	// too"). The right stick already moves the cursor over them; A went to Interact() and acted on the world behind -
+	// the Rift Monument's menu, the workshop, the Cube, the waypoints could not be worked with a pad at all.
+	if (oracool::IsPointOverFloatingWindow(MousePosition)
+	    || (oracool::IsAdvancedStatsOpen() && oracool::GetAdvancedStatsRect().contains(MousePosition))
+	    || (IsOverLeftPanel(MousePosition) && IsAnyOf(GetLeftPanelContent(), LeftPanelContent::WaypointMenu, LeftPanelContent::Crafting))) {
+		ClickUiAtCursor();
 		return;
 	}
 

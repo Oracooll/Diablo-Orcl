@@ -382,6 +382,27 @@ TEST(Player, StatPointsToSpend_NeverMoreThanUnspentNorPastTheCap)
 	EXPECT_EQ(StatPointsToSpend(player, CharacterAttribute::Magic, 1), 0);
 }
 
+// A New Game cut every base stat back to the class row's vanilla maximum (audit, 2026-09-27), while every other path
+// allows 255 - a Paladin's Vitality of 130 came back as 100, the points gone.
+TEST(Player, UnPackPlayer_KeepsBaseStatsPastTheClassRowsMaximum)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Warrior);
+	devilution::Player &player = Players[0];
+	MyPlayer = &player;
+	gbIsMultiplayer = false;
+	ASSERT_LT(player.GetMaximumAttributeValue(CharacterAttribute::Vitality), 150);
+	ModifyPlrVit(player, 150 - player._pBaseVit);
+	ASSERT_EQ(player._pBaseVit, 150);
+
+	PlayerPack packed;
+	PackPlayer(packed, player);
+	UnPackPlayer(packed, player);
+
+	EXPECT_EQ(player._pBaseVit, 150);
+}
+
 TEST(Player, ResetPlayerStats_SurvivesPlayerPackRoundTrip)
 {
 	// Bug report: starting a New Game with an existing hero goes through PackPlayer/UnPackPlayer

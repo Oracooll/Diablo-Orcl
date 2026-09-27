@@ -579,6 +579,84 @@ void DrawRunewordBook(const Surface &out)
 	drawHoverTips();
 }
 
+namespace {
+
+/**
+ * @brief The filter button held down (2026-09-27): it toggles on the RELEASE inside it, the press/release rule every
+ * button follows (user: "fix the decisions for me too"). It toggled on the press.
+ */
+enum class FilterKind : int8_t {
+	None,
+	Possible,
+	RuneCount,
+	Slot,
+	Rune,
+};
+FilterKind PressedFilter = FilterKind::None;
+size_t PressedFilterIndex = 0;
+
+Rectangle PressedFilterRect()
+{
+	switch (PressedFilter) {
+	case FilterKind::Possible:
+		return PossibleFilterRect();
+	case FilterKind::RuneCount:
+		return TitleButtonRect(1 + static_cast<int>(PressedFilterIndex));
+	case FilterKind::Slot:
+		return SlotKeyRect(static_cast<int>(PressedFilterIndex));
+	case FilterKind::Rune:
+		return RuneKeyRect(PressedFilterIndex);
+	case FilterKind::None:
+		break;
+	}
+	return { { 0, 0 }, { 0, 0 } };
+}
+
+bool PressFilter(FilterKind kind, size_t index)
+{
+	PressedFilter = kind;
+	PressedFilterIndex = index;
+	PlayUiMoveSound();
+	return true;
+}
+
+} // namespace
+
+void ReleaseRunewordBookButton()
+{
+	const FilterKind kind = PressedFilter;
+	const size_t i = PressedFilterIndex;
+	const Rectangle rect = PressedFilterRect();
+	PressedFilter = FilterKind::None;
+	if (!BookOpen || kind == FilterKind::None || !rect.contains(MousePosition))
+		return;
+	switch (kind) {
+	case FilterKind::Possible:
+		if (PossibleMode) {
+			RuneSelected.assign(RuneIndices.size(), false);
+			PossibleMode = false;
+		} else {
+			ApplyPossibleFilter();
+			PossibleMode = true;
+		}
+		break;
+	case FilterKind::RuneCount:
+		RuneCountSelected[i] = !RuneCountSelected[i];
+		break;
+	case FilterKind::Slot:
+		SlotSelected[i] = !SlotSelected[i];
+		break;
+	case FilterKind::Rune:
+		if (i < RuneSelected.size())
+			RuneSelected[i] = !RuneSelected[i];
+		PossibleMode = false; // a hand-picked rune asks "requires", whatever the toggle had selected
+		break;
+	case FilterKind::None:
+		break;
+	}
+	ScrollOffsetPx = 0;
+}
+
 bool HandleRunewordBookClick(Point position)
 {
 	if (!BookOpen)
@@ -593,45 +671,23 @@ bool HandleRunewordBookClick(Point position)
 		return true;
 	}
 
-	if (PossibleFilterRect().contains(position)) {
-		if (PossibleMode) {
-			RuneSelected.assign(RuneIndices.size(), false);
-			PossibleMode = false;
-		} else {
-			ApplyPossibleFilter();
-			PossibleMode = true;
-		}
-		ScrollOffsetPx = 0;
-		PlayUiMoveSound();
-		return true;
-	}
+	// Each filter is pressed here and toggles on the release inside it (ReleaseRunewordBookButton).
+	if (PossibleFilterRect().contains(position))
+		return PressFilter(FilterKind::Possible, 0);
 
 	for (int c = 0; c < RuneCountFilterCount; c++) {
-		if (TitleButtonRect(1 + c).contains(position)) {
-			RuneCountSelected[c] = !RuneCountSelected[c];
-			ScrollOffsetPx = 0;
-			PlayUiMoveSound();
-			return true;
-		}
+		if (TitleButtonRect(1 + c).contains(position))
+			return PressFilter(FilterKind::RuneCount, static_cast<size_t>(c));
 	}
 
 	for (int i = 0; i < SlotFilterCount; i++) {
-		if (SlotKeyRect(i).contains(position)) {
-			SlotSelected[i] = !SlotSelected[i];
-			ScrollOffsetPx = 0;
-			PlayUiMoveSound();
-			return true;
-		}
+		if (SlotKeyRect(i).contains(position))
+			return PressFilter(FilterKind::Slot, static_cast<size_t>(i));
 	}
 
 	for (size_t i = 0; i < RuneIndices.size(); i++) {
-		if (RuneKeyRect(i).contains(position)) {
-			RuneSelected[i] = !RuneSelected[i];
-			PossibleMode = false; // a hand-picked rune asks "requires", whatever the toggle had selected
-			ScrollOffsetPx = 0;
-			PlayUiMoveSound();
-			return true;
-		}
+		if (RuneKeyRect(i).contains(position))
+			return PressFilter(FilterKind::Rune, i);
 	}
 
 	return true;

@@ -72,6 +72,8 @@ constexpr Displacement PressSink { -2, 2 };
 /** @brief The button held down, or -1; and the one the cursor was over last frame, for the entry sound. */
 int PressedRow = -1;
 int LastHoveredRow = -1;
+/** @brief The button the keyboard has chosen (Up/Down), or -1; lit as the mouse's hover is (2026-09-27). */
+int KeyRow = -1;
 
 enum Row : int {
 	Nephalem = 0,
@@ -142,6 +144,7 @@ void OpenStonegateMenu()
 	if (MyPlayer == nullptr)
 		return;
 	MenuOpen = true;
+	KeyRow = -1;
 	PlayUiSelectSound();
 }
 
@@ -150,6 +153,7 @@ void CloseStonegateMenu()
 	MenuOpen = false;
 	PressedRow = -1;
 	LastHoveredRow = -1;
+	KeyRow = -1;
 }
 
 /**
@@ -167,7 +171,13 @@ void ReleaseStonegateMenuButton()
 	const Rectangle panel = PanelRect();
 	if (!RowRect(panel, row).contains(MousePosition))
 		return; // released off the button: no rift opens and the menu is still up
+	ActivateStonegateRow(row);
+}
 
+void ActivateStonegateRow(int row)
+{
+	if (row < 0 || row >= RowCount || !MenuOpen || MyPlayer == nullptr)
+		return;
 	bool enabled = true;
 	RowLabel(row, enabled);
 	if (!enabled) {
@@ -210,7 +220,7 @@ void DrawStonegateMenu(const Surface &out)
 			bool enabled = true;
 			RowLabel(row, enabled);
 			const Rectangle rect = RowRect(panel, row);
-			const bool hovered = rect.contains(MousePosition);
+			const bool hovered = rect.contains(MousePosition) || row == KeyRow;
 			if (hovered)
 				hoveredNow = row;
 			const char *asset = row == Nephalem ? NephalemAsset : (row == Guardian ? (enabled ? GuardianAsset : GuardianRedAsset) : LeaveAsset);
@@ -247,7 +257,7 @@ void DrawStonegateMenu(const Surface &out)
 		bool enabled = true;
 		const std::string label = RowLabel(row, enabled);
 		const Rectangle rect = RowRect(panel, row);
-		const bool hovered = enabled && rect.contains(MousePosition);
+		const bool hovered = enabled && (rect.contains(MousePosition) || row == KeyRow);
 		// The plate, drawn in code as a placeholder for art: a stone edge around a dark well.
 		FillRect(out, rect.position.x - 1, rect.position.y - 1, rect.size.width + 2, rect.size.height + 2, PanelFillColor);
 		FillRect(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height, SlotFillColor);
@@ -255,6 +265,38 @@ void DrawStonegateMenu(const Surface &out)
 		    { (enabled ? (hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold) : UiFlags::ColorRed) | UiFlags::FontSize12 | UiFlags::VerticalCenter | UiFlags::AlignCenter });
 		if (hovered)
 			DrawHoverOutline(out, rect);
+	}
+}
+
+bool HandleStonegateMenuKey(SDL_Keycode key)
+{
+	if (!MenuOpen || MyPlayer == nullptr)
+		return false;
+	// The keyboard reaches every choice (user, 2026-09-27: "fix the decisions for me too" - the front-end rule that every
+	// window is keyboard-reachable): Up and Down choose, Enter presses, 1-3 press a button directly. Escape is
+	// PressEscKey's, as for every window.
+	switch (key) {
+	case SDLK_UP:
+		KeyRow = KeyRow <= 0 ? RowCount - 1 : KeyRow - 1;
+		PlayUiMoveSound();
+		return true;
+	case SDLK_DOWN:
+		KeyRow = KeyRow < 0 || KeyRow >= RowCount - 1 ? 0 : KeyRow + 1;
+		PlayUiMoveSound();
+		return true;
+	case SDLK_RETURN:
+	case SDLK_KP_ENTER:
+		if (KeyRow < 0)
+			return true;
+		ActivateStonegateRow(KeyRow);
+		return true;
+	case SDLK_1:
+	case SDLK_2:
+	case SDLK_3:
+		ActivateStonegateRow(static_cast<int>(key - SDLK_1));
+		return true;
+	default:
+		return false;
 	}
 }
 

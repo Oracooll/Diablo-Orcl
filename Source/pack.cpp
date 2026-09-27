@@ -436,13 +436,17 @@ void UnPackPlayer(const PlayerPack &packed, Player &player)
 
 	InitPlayer(player, true);
 
-	player._pBaseStr = std::min<uint8_t>(packed.pBaseStr, player.GetMaximumAttributeValue(CharacterAttribute::Strength));
+	// The fork's cap, 255, not the class row's vanilla maximum (audit, 2026-09-27): every other path - the + buttons,
+	// ModifyPlr*, CheckStats - lets a base stat reach 255, and this cut it back to the class row on every New Game. A
+	// Paladin who spent Vitality to 130 came back with 100 and the 30 points gone; a Barbarian lost every Magic shrine.
+	// The byte itself is the cap.
+	player._pBaseStr = packed.pBaseStr;
 	player._pStrength = player._pBaseStr;
-	player._pBaseMag = std::min<uint8_t>(packed.pBaseMag, player.GetMaximumAttributeValue(CharacterAttribute::Magic));
+	player._pBaseMag = packed.pBaseMag;
 	player._pMagic = player._pBaseMag;
-	player._pBaseDex = std::min<uint8_t>(packed.pBaseDex, player.GetMaximumAttributeValue(CharacterAttribute::Dexterity));
+	player._pBaseDex = packed.pBaseDex;
 	player._pDexterity = player._pBaseDex;
-	player._pBaseVit = std::min<uint8_t>(packed.pBaseVit, player.GetMaximumAttributeValue(CharacterAttribute::Vitality));
+	player._pBaseVit = packed.pBaseVit;
 	player._pVitality = player._pBaseVit;
 	player._pStatPts = packed.pStatPts;
 	player._pStatPtsSpentStr = SDL_SwapLE32(packed.pStatPtsSpentStr);

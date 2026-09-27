@@ -126,7 +126,9 @@ int SoundSample::SetChunkStream(std::string filePath, bool isMp3, bool logErrors
 	file_path_ = std::move(filePath);
 	isMp3_ = isMp3;
 	stream_ = CreateStream(handle, isMp3);
-	if (!stream_->open()) {
+	// CreateStream answers nullptr for a file its decoder cannot open (audit, 2026-09-27) - a truncated cue, an MP3
+	// renamed .wav - and this dereferenced it.
+	if (stream_ == nullptr || !stream_->open()) {
 		stream_ = nullptr;
 		if (logErrors)
 			LogError(LogCategory::Audio, "Aulib::Stream::open (from SoundSample::SetChunkStream) for {}: {}", file_path_, SDL_GetError());
@@ -146,7 +148,7 @@ int SoundSample::SetChunk(ArraySharedPtr<std::uint8_t> fileData, std::size_t dwB
 	}
 
 	stream_ = CreateStream(buf, isMp3_);
-	if (!stream_->open()) {
+	if (stream_ == nullptr || !stream_->open()) { // nullptr: undecodable (see SetChunkStream)
 		stream_ = nullptr;
 		file_data_ = nullptr;
 		LogError(LogCategory::Audio, "Aulib::Stream::open (from SoundSample::SetChunk): {}", SDL_GetError());

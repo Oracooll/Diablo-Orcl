@@ -168,8 +168,10 @@ void DrawVerticalLine(const Surface &out, Point from, int height, std::uint8_t c
 		height += from.y;
 		from.y = 0;
 	}
+	// What FITS below from.y (audit, 2026-09-27): this kept the overhang instead, and a line crossing the bottom edge wrote
+	// that many rows past the buffer - the full map's player arrow at the screen's last row, a frame straddling it.
 	if (from.y + height > out.h())
-		height = (from.y + height) - out.h();
+		height = out.h() - from.y;
 	return UnsafeDrawVerticalLine(out, from, height, colorIndex);
 }
 
@@ -235,14 +237,17 @@ void DrawHalfTransparentRectTo(const Surface &out, int sx, int sy, int width, in
 	if (sx < 0) {
 		width += sx;
 		sx = 0;
-	} else if (sx + width >= out.w()) {
+	}
+	// Both edges (audit, 2026-09-27): a rect starting left of the screen and wider than it kept its overlong width.
+	if (sx + width > out.w()) {
 		width = out.w() - sx;
 	}
 
 	if (sy < 0) {
 		height += sy;
 		sy = 0;
-	} else if (sy + height >= out.h()) {
+	}
+	if (sy + height > out.h()) {
 		height = out.h() - sy;
 	}
 
@@ -263,14 +268,17 @@ void DrawHalfTransparentRectTo(const Surface &out, int sx, int sy, int width, in
 	if (sx < 0) {
 		width += sx;
 		sx = 0;
-	} else if (sx + width >= out.w()) {
+	}
+	// Both edges (audit, 2026-09-27): a rect starting left of the screen and wider than it kept its overlong width.
+	if (sx + width > out.w()) {
 		width = out.w() - sx;
 	}
 
 	if (sy < 0) {
 		height += sy;
 		sy = 0;
-	} else if (sy + height >= out.h()) {
+	}
+	if (sy + height > out.h()) {
 		height = out.h() - sy;
 	}
 
