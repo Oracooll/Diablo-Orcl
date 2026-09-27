@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include <SDL.h>
@@ -363,6 +364,8 @@ bool ShopTabHasRefresh(TalkID id);
  * grid near the gold counter"), and only when this is true.
  */
 bool ShopTabHasRefreshUntil(TalkID id);
+/** @brief What Refresh Until is set to look for, as the player typed it, or empty when nothing is named yet. */
+std::string ShopRefreshUntilLookingFor();
 /** @brief Runs those, if the tab has them. Does nothing if it does not. */
 void ShopRunSellAll(TalkID id);
 void ShopRunRefresh(TalkID id);

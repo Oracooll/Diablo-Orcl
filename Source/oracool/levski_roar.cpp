@@ -29,6 +29,7 @@
 
 #include "oracool/badge.h"
 #include "oracool/crafting.h"
+#include "oracool/cursor_tooltip.h" // ShowPanelStringsAsHintCard - the buttons' card
 #include "oracool/recipe_list.h"
 #include "oracool/event_log.h"
 #include "oracool/hud_art.h" // DrawLoosePng, DrawRedCross - the painted skin and its states
@@ -1290,6 +1291,7 @@ bool SetLevskiHoverInfoString()
 					const bool ready = CanCraftFromLevskiGrid(GridItems, recipe);
 					SetPanelString(_(CraftingRecipeName(recipe)), ready ? UiFlags::ColorGold : UiFlags::ColorWhitegold);
 					AddPanelString(_(CraftingRecipeInputs(recipe)), UiFlags::ColorWhite);
+					ShowPanelStringsAsHintCard(); // the vendors' card, as every button here (dev note, 2026-09-27)
 					return true;
 				}
 			}
@@ -1300,6 +1302,7 @@ bool SetLevskiHoverInfoString()
 				SetPanelString(_("Salvage an Item"), UiFlags::ColorWhitegold);
 				AddPanelString(_("Click for the hammer, then click any item in your pack."), UiFlags::ColorWhite);
 				AddPanelString(_("It is destroyed and its materials are yours."), UiFlags::ColorWhite);
+				ShowPanelStringsAsHintCard();
 				return true;
 			}
 		}
@@ -1314,11 +1317,16 @@ bool SetLevskiHoverInfoString()
 			// button, so there is nothing else under it for the grid check below to find.
 			if (i == levski_skin::Transmute)
 				return false;
-			if (i == levski_skin::Recipes)
+			// A card with a body, as the vendors' are: the title alone was the whole tooltip.
+			if (i == levski_skin::Recipes) {
 				SetPanelString(_("Recipes"), UiFlags::ColorWhitegold);
-			else
-				SetPanelString(StrCat("Salvage all ", _(SalvageTierName(static_cast<SalvageTier>(i - levski_skin::SalvageFirst))), " in backpack"),
-				    UiFlags::ColorWhitegold);
+				AddPanelString(_("Opens the recipe book."), UiFlags::ColorWhite);
+			} else {
+				const char *tier = SalvageTierName(static_cast<SalvageTier>(i - levski_skin::SalvageFirst));
+				SetPanelString(StrCat("Salvage all ", _(tier), " in backpack"), UiFlags::ColorWhitegold);
+				AddPanelString(_("Every item of this quality on every backpack page is destroyed, and its materials are yours."), UiFlags::ColorWhite);
+			}
+			ShowPanelStringsAsHintCard();
 			return true;
 		}
 	}

@@ -1170,8 +1170,8 @@ void SetServiceHint(ServiceButton service)
 		break;
 	case ServiceButton::RepairAll: {
 		SetPanelString(_("Repair All"), UiFlags::ColorWhitegold);
-		AddPanelString(_("Repairs everything you carry and wear, dearest first,"), UiFlags::ColorWhite);
-		AddPanelString(_("until your gold runs out."), UiFlags::ColorWhite);
+		// One sentence, one string: the card wraps it (2026-09-27), where the info box needed it cut in two.
+		AddPanelString(_("Repairs everything you carry and wear, dearest first, until your gold runs out."), UiFlags::ColorWhite);
 		const int price = ShopRepairAllPrice();
 		if (price > 0)
 			AddPanelString(StrCat(_("Cost"), ": ", FormatInteger(price)), UiFlags::ColorWhitegold);
@@ -1198,11 +1198,20 @@ void SetServiceHint(ServiceButton service)
 		SetPanelString(_("Sell All"), UiFlags::ColorWhitegold);
 		AddPanelString(_("Sells everything on the backpack's first page this vendor will take. Pages 2-10 are left alone."), UiFlags::ColorWhite);
 		break;
-	case ServiceButton::RefreshUntil:
+	case ServiceButton::RefreshUntil: {
 		SetPanelString(_("Refresh Until"), UiFlags::ColorWhitegold);
-		AddPanelString(_("Lays out fresh stock over and over until something"), UiFlags::ColorWhite);
-		AddPanelString(_("you asked for turns up."), UiFlags::ColorWhite);
+		AddPanelString(_("Lays out fresh stock over and over until something you asked for turns up."), UiFlags::ColorWhite);
+		// What the old info-box explainer on the text store's row said (DrawRefreshUntilHoverTooltip), folded into the
+		// card: what it is looking for, and that the stock follows the hero's level.
+		AddPanelString(_("Click to name what to look for, then confirm to start."), UiFlags::ColorWhite);
+		const std::string lookingFor = ShopRefreshUntilLookingFor();
+		if (lookingFor.empty())
+			AddPanelString(_("Nothing named yet."), UiFlags::ColorRed);
+		else
+			AddPanelString(StrCat(_("Last search"), ": ", lookingFor), UiFlags::ColorWhitegold);
+		AddPanelString(_("What can turn up depends on your level."), UiFlags::ColorWhite);
 		break;
+	}
 	}
 }
 

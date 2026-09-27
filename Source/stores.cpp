@@ -4040,9 +4040,21 @@ void DrawRefreshUntilPrompt(const Surface &out)
  * this button, so "where hovering shows the tooltip" and "where clicking activates the button"
  * never drift apart.
  */
+std::string ShopRefreshUntilLookingFor()
+{
+	if (GetPremiumRefreshTargets().empty())
+		return {};
+	return std::string(sgOptions.Oracool.refreshUntilItemNames);
+}
+
 void DrawRefreshUntilHoverTooltip(const Surface &out)
 {
 	if (stextflag != TalkID::SmithPremiumBuy)
+		return;
+	// The Magic tab is a shop grid now, whose Refresh Until button says all of this on its own card (dev note,
+	// 2026-09-27: every vendor button's hover is the card). The old text rows are not drawn there, so this box
+	// would be explaining a row that is not on screen.
+	if (oracool::IsShopGridScreen(stextflag))
 		return;
 	if (!*sgOptions.Oracool.refreshUntilButton || gbIsMultiplayer)
 		return;

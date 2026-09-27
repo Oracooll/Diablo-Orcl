@@ -1068,6 +1068,11 @@ void ShowPanelStringsAsHintCard()
 	HintCardText = std::string(InfoString.str());
 }
 
+bool HintCardRequested()
+{
+	return !HintCardText.empty() && HintCardText == InfoString.str();
+}
+
 void DrawCursorTooltip(const Surface &out)
 {
 	PrevTooltipRect = {};

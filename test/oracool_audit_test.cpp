@@ -10692,6 +10692,9 @@ TEST(OracoolAudit, AssigningHoverTextClearsThePreviousLineColours)
  */
 TEST(OracoolAudit, AnItemInLevskisGridFillsTheHoverPanel)
 {
+	// Mounted, as in the game: the Cube's painted pages are looked up once and remembered, so a run without the
+	// archives would leave every later test in the process a Cube with no pages (shuffled ctest, 2026-09-27).
+	MountTestArchives();
 	oracool::ResetLevskiRoarForNewGame(); // a clean grid, whatever an earlier test left
 	oracool::ToggleLevskiRoar();
 	ASSERT_TRUE(oracool::IsLevskiRoarOpen()) << "test setup: the window did not open";
@@ -14509,6 +14512,74 @@ TEST(OracoolAuditV188, TheWorkshopIsInterface)
 	EXPECT_FALSE(IsOverAnyInterface(point)) << "a closed workshop still takes the click";
 }
 
+/**
+ * Every artisan button that answers the hover answers it with the vendors' hint card (dev note, 2026-09-27: "apply
+ * vendor buttons new tooltip design on all vendors/artisans all tabs every possible button which currently has hover
+ * tooltip"). The benches and grids are empty, so everything under the cursor that names itself is a control, and the
+ * cursor is swept across each window rather than placed on a re-derived rect.
+ */
+TEST(OracoolAuditV188, EveryArtisanButtonHoverIsAHintCard)
+{
+	MountTestArchives();
+	AuditV188Hero();
+	gnScreenWidth = 1280;
+	gnScreenHeight = 720;
+	invflag = false;
+	sbookflag = false;
+	stextflag = TalkID::None;
+	const Point savedMouse = MousePosition;
+	const auto sweep = [](const Rectangle &window, bool (*hover)(), const char *what, bool mustAnswer = true) {
+		int answered = 0;
+		for (int y = window.position.y; y < window.position.y + window.size.height; y += 2) {
+			for (int x = window.position.x; x < window.position.x + window.size.width; x += 2) {
+				ClearPanelStrings();
+				MousePosition = { x, y };
+				if (!hover())
+					continue;
+				answered++;
+				EXPECT_TRUE(oracool::HintCardRequested())
+				    << what << ": \"" << InfoString.str() << "\" at (" << x << "," << y << ") is a plain tooltip";
+				if (!oracool::HintCardRequested())
+					return; // one failure names the button; the rest of the sweep would repeat it
+			}
+		}
+		if (mustAnswer)
+			EXPECT_GT(answered, 0) << what << ": nothing in the window answered the hover";
+	};
+
+	oracool::ResetLevskiRoarForNewGame();
+	oracool::ResetWorkshopForNewGame();
+	for (const oracool::WorkshopHost host : { oracool::WorkshopHost::Mystic, oracool::WorkshopHost::Jeweller }) {
+		oracool::OpenWorkshop(host);
+		ASSERT_TRUE(oracool::IsWorkshopOpen());
+		sweep(oracool::GetWorkshopRect(), oracool::SetWorkshopHoverInfoString, host == oracool::WorkshopHost::Mystic ? "Ogden's workshop" : "Gillian's workshop");
+		oracool::ResetWorkshopForNewGame();
+	}
+	// The Cube's first page has no hover text on purpose (Transmute's plate says its word already), so it is swept for
+	// plain tooltips only; its Recipes page, turned to through the side tab as a click would, must answer with cards.
+	oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Cube);
+	ASSERT_TRUE(oracool::IsLevskiRoarOpen());
+	sweep(oracool::GetLevskiRoarRect(), oracool::SetLevskiHoverInfoString, "Levski's Cube", /*mustAnswer=*/false);
+	const Point recipesTab = oracool::GetSideTabRect(1).Center();
+	ASSERT_TRUE(oracool::CheckLevskiRoarClick(recipesTab, false)) << "test setup: the Cube's Recipes tab took no press";
+	MousePosition = recipesTab;
+	oracool::ReleaseLevskiButtons();
+	sweep(oracool::GetLevskiRoarRect(), oracool::SetLevskiHoverInfoString, "Levski's Cube, Recipes page");
+	// Back to the Cube page before leaving: the reset does not turn it, and the next test to open the Cube in this
+	// process would find the recipe list where it expects the grid.
+	const Point cubeTab = oracool::GetSideTabRect(0).Center();
+	oracool::CheckLevskiRoarClick(cubeTab, false);
+	MousePosition = cubeTab;
+	oracool::ReleaseLevskiButtons();
+	oracool::ResetLevskiRoarForNewGame();
+	oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Smith);
+	ASSERT_TRUE(oracool::IsLevskiRoarOpen());
+	sweep(oracool::GetLevskiRoarRect(), oracool::SetLevskiHoverInfoString, "Griswold's Salvage");
+	oracool::ResetLevskiRoarForNewGame();
+	ClearPanelStrings();
+	MousePosition = savedMouse;
+}
+
 // =================================================================================================
 // ITEM LOOK PREVIEW (2026-09-26). Not a test: a render of the rim-and-glow backings and the tooltip card
 // through the game's own code, fonts and sprites, into item_backings_preview.png and
@@ -15025,6 +15096,53 @@ TEST(OracoolPreview, DISABLED_AuraRingCycle)
 	oracool::AuraRingClockOverrideMs = -1;
 	HeadlessMode = savedHeadless;
 	PreviewSave(out, "aura_cycle.png");
+}
+
+/**
+ * Every aura ring's colour cycle as a strip of sixteen frames, 75ms apart - one full pass of the pattern, so the strip
+ * loops seamlessly - drawn through the real BlitAura at 6 half-tiles across on the review page's dark ground. For the
+ * ChatGPT-art review page (2026-09-27). Writes <ring id>.png under the folder named by ORCL_AURA_OUT.
+ */
+TEST(OracoolPreview, DISABLED_ExportAuraRingCycles)
+{
+	const char *outDir = std::getenv("ORCL_AURA_OUT");
+	ASSERT_NE(outDir, nullptr) << "set ORCL_AURA_OUT";
+	MountTestArchives(true);
+	InitPNG();
+	std::array<uint8_t, 768> pal {};
+	LoadFileInMem("levels\\l3data\\l3.pal", pal);
+	for (int i = 0; i < 256; i++) {
+		logical_palette[i] = SDL_Color { pal[i * 3], pal[i * 3 + 1], pal[i * 3 + 2], 255 };
+		PaletteRGB[i] = (static_cast<uint32_t>(pal[i * 3]) << 16) | (static_cast<uint32_t>(pal[i * 3 + 1]) << 8) | pal[i * 3 + 2];
+	}
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	constexpr int CellW = 208;
+	constexpr int CellH = 112;
+	constexpr int Moments = 16;
+	int written = 0;
+	for (size_t i = 0; i < oracool::ClassTreeSkillCount; i++) {
+		const auto skill = static_cast<oracool::ClassTreeSkill>(i);
+		const char *id = oracool::AuraRingFileId(skill);
+		if (id == nullptr)
+			continue;
+		OwnedSurface out = OwnedSurface::Rgb(Moments * CellW, CellH);
+		SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 0x16, 0x12, 0x0F));
+		bool drawn = true;
+		for (int moment = 0; moment < Moments && drawn; moment++) {
+			oracool::AuraRingClockOverrideMs = moment * 75;
+			drawn = oracool::DrawAuraRingPreview(out, skill, Point { moment * CellW + CellW / 2, CellH / 2 }, 6);
+		}
+		EXPECT_TRUE(drawn) << id << ": the ring did not draw";
+		if (!drawn)
+			continue;
+		PreviewSave(out, (std::filesystem::path(outDir) / (std::string(id) + ".png")).string().c_str());
+		written++;
+	}
+	oracool::AuraRingClockOverrideMs = -1;
+	HeadlessMode = savedHeadless;
+	std::cout << "exported " << written << " aura rings\n";
+	EXPECT_GT(written, 0);
 }
 
 /**

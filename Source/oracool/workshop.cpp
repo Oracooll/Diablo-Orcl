@@ -24,6 +24,7 @@
 #include "oracool/imbuement.h"
 #include "oracool/levski_roar.h"
 #include "oracool/crafting.h"
+#include "oracool/cursor_tooltip.h" // ShowPanelStringsAsHintCard - the buttons' card
 #include "oracool/ornate_border.h"
 #include "oracool/recipe_list.h"
 #include "oracool/runewords.h"
@@ -2192,21 +2193,25 @@ bool SetWorkshopHoverInfoString()
 		SetPanelString(_("Reroll the chosen affix"), UiFlags::ColorWhitegold);
 		AddPanelString(_("She offers the affix as it stands and three others; you choose one."), UiFlags::ColorWhite);
 		AddPanelString(_("The first reroll settles which affix this item may ever reroll."), UiFlags::ColorWhite);
+		ShowPanelStringsAsHintCard(); // every button's hover is the vendors' card (dev note, 2026-09-27)
 		return true;
 	}
 	if (ControlRect(Control::Imbue).contains(MousePosition)) {
 		SetPanelString(_("Imbue"), UiFlags::ColorWhitegold);
 		AddPanelString(_("Takes the first shard your pack can spare and works it in. Free."), UiFlags::ColorWhite);
+		ShowPanelStringsAsHintCard();
 		return true;
 	}
 	if (ControlRect(Control::Remove).contains(MousePosition)) {
 		SetPanelString(_("Remove one imbuement"), UiFlags::ColorWhitegold);
 		AddPanelString(_("The shard is destroyed; the rest stay. The price rises each time."), UiFlags::ColorWhite);
+		ShowPanelStringsAsHintCard();
 		return true;
 	}
 	if (ControlRect(Control::Cleanse).contains(MousePosition)) {
 		SetPanelString(_("Cleanse the item"), UiFlags::ColorWhitegold);
 		AddPanelString(_("Every shard off at once, and none comes back."), UiFlags::ColorWhite);
+		ShowPanelStringsAsHintCard();
 		return true;
 	}
 	// The board and its two arrows (audit, 2026-09-22). They had NO hover text at all: the wide
@@ -2227,6 +2232,7 @@ bool SetWorkshopHoverInfoString()
 				AddPanelString(_("The step down is a price, not a refund."), UiFlags::ColorWhite);
 			if (SelectedStockIdx <= 0)
 				AddPanelString(_("Choose a kind from the board first."), UiFlags::ColorRed);
+			ShowPanelStringsAsHintCard();
 			return true;
 		}
 		const int slot = BoardSlotAt(MousePosition);
@@ -2239,6 +2245,7 @@ bool SetWorkshopHoverInfoString()
 				        ? fmt::format(fmt::runtime(_("You carry {:d}.")), held)
 				        : std::string(_("You carry none of these.")),
 				    held > 0 ? UiFlags::ColorWhite : UiFlags::ColorRed);
+				ShowPanelStringsAsHintCard(); // the board's plates are buttons too
 				return true;
 			}
 		}

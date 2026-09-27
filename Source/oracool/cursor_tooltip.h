@@ -31,6 +31,9 @@ void DrawCursorTooltip(const Surface &out);
  */
 void ShowPanelStringsAsHintCard();
 
+/** @brief Whether the panel strings as they stand will be drawn as a hint card - for the tests. */
+bool HintCardRequested();
+
 /**
  * @brief The screen rect DrawCursorTooltip drew to last frame, or an empty rect if nothing was
  * drawn. Used by scrollrt.cpp's DrawMain (the <=640-wide dirty-rect render path) to erase the
