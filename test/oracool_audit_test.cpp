@@ -15583,3 +15583,46 @@ TEST(OracoolPreview, DISABLED_ExportVanillaSounds)
 	std::cout << "exported " << written << " sounds\n";
 	EXPECT_GT(written, 0);
 }
+
+/**
+ * Every class-tree skill's icon on its gold Ready plate, as the Abilities page draws it (DrawClassTreeIcon into a 56px
+ * cell), in one atlas of 24 columns - plus a TSV of each row's ordinal, class, kind, name and description. For the
+ * Vanilla Sound Stand-ins review page (user, 2026-09-27: "put icons+gold backing in a frame on the left of the choice
+ * menu and the description of the skill/aura"). Writes skill_icons.png and skill_text.tsv under ORCL_ICON_OUT.
+ */
+TEST(OracoolPreview, DISABLED_ExportSkillIconsAndText)
+{
+	const char *outDir = std::getenv("ORCL_ICON_OUT");
+	ASSERT_NE(outDir, nullptr) << "set ORCL_ICON_OUT";
+	MountTestArchives(true);
+	PreviewLoadPalette();
+	InitPNG();
+	LoadSmallSpellIcons(); // the vanilla plate the gold backing is cut from
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	constexpr int Cell = 56;
+	constexpr int Columns = 24;
+	constexpr int Rows = static_cast<int>((oracool::ClassTreeSkillCount + Columns - 1) / Columns);
+	OwnedSurface out = OwnedSurface::Rgb(Columns * Cell, Rows * Cell);
+	SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 0x16, 0x12, 0x0F));
+	std::ofstream tsv(std::filesystem::path(outDir) / "skill_text.tsv", std::ios::binary);
+	const auto clean = [](const char *text) {
+		std::string s = text != nullptr ? text : "";
+		for (char &c : s) {
+			if (c == '\t' || c == '\n' || c == '\r')
+				c = ' ';
+		}
+		return s;
+	};
+	for (size_t i = 0; i < oracool::ClassTreeSkillCount; i++) {
+		const auto skill = static_cast<oracool::ClassTreeSkill>(i);
+		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skill);
+		const Rectangle cell { { static_cast<int>(i % Columns) * Cell, static_cast<int>(i / Columns) * Cell }, { Cell, Cell } };
+		oracool::DrawClassTreeIcon(out, cell, data.heroClass, oracool::ClassTreeIconIndex(skill), true, oracool::SkillPlateTint::Ready);
+		tsv << i << '\t' << static_cast<int>(data.heroClass) << '\t' << static_cast<int>(data.kind) << '\t' << clean(data.name)
+		    << '\t' << clean(data.description) << '\n';
+	}
+	HeadlessMode = savedHeadless;
+	PreviewSave(out, (std::filesystem::path(outDir) / "skill_icons.png").string().c_str());
+	std::cout << "exported " << oracool::ClassTreeSkillCount << " skill icons\n";
+}
