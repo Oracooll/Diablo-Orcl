@@ -97,7 +97,7 @@ struct Rendered {
 
 } // namespace
 
-// The hand recolour (RfA-28, 2026-09-26) replaced the light-armour-only band dye: BOTH heroes, EVERY armour tier.
+// Since RfA-28 (2026-09-26), and still with the ramp dyes (2026-09-27): BOTH heroes, EVERY armour tier.
 TEST(OracoolHeroLook, BothBorrowedBodiesAreRecolouredInEveryTierAndTheirOwnersAreNot)
 {
 	for (uint8_t armour = 0; armour < 3; armour++) {
@@ -129,7 +129,9 @@ TEST(OracoolHeroLook, TheRecolourLeavesTheOutlineAloneAndFallsBackIntoTheSharedP
 				// An 8-bit target draws the nearest entry of the palette's shared half, the same on every level.
 				EXPECT_GE(colours->Fallback(static_cast<uint8_t>(i)), 128) << "index " << i;
 			}
-			EXPECT_GT(own, 50) << "a recolour that touches almost nothing";
+			// The ramp dyes touch whole ramps: the Barbarian four (40 entries - his skin and hair are left alone), the
+			// Necromancer five (72). The hand recolour touched more, index by index.
+			EXPECT_GE(own, 32) << "a recolour that touches almost nothing";
 		}
 	}
 }
@@ -244,16 +246,31 @@ TEST(OracoolHeroLook, AnOwnColourIsItselfInFullLightAndDarkensWithItsFallback)
 	EXPECT_EQ(colours.Table(0)[11], 0x123456U);
 }
 
-// The brief's colours, read back from what the hand painted: the Warrior's reds (his gloves and tabard, the ramp
-// 224-239) are the Barbarian's blue in every tier, and the Sorcerer's red robe is the Necromancer's grave green.
-TEST(OracoolHeroLook, TheBarbarianWearsBlueAndTheNecromancerGreen)
+// The ramp dyes the user chose (2026-09-27, tools/GenHeroRampDye.js), read back in every tier: the Barbarian's plate is
+// cool steel and his cloth moss green; the Necromancer's robe is violet, his plate violet-grey and his skin pale bone.
+TEST(OracoolHeroLook, TheBarbarianWearsSteelAndMossAndTheNecromancerBoneAndViolet)
 {
+	const auto r = [](uint32_t c) { return static_cast<int>((c >> 16) & 0xFF); };
+	const auto g = [](uint32_t c) { return static_cast<int>((c >> 8) & 0xFF); };
+	const auto b = [](uint32_t c) { return static_cast<int>(c & 0xFF); };
 	for (uint8_t armour = 0; armour < 3; armour++) {
-		const uint32_t barb = oracool::HeroColoursFor(HeroClass::Barbarian, static_cast<uint8_t>(armour << 4))->Own(232);
-		EXPECT_GT(barb & 0xFF, (barb >> 16) & 0xFF) << "Barbarian tier " << static_cast<int>(armour) << " red is not blue";
-		const uint32_t robe = oracool::HeroColoursFor(HeroClass::Necromancer, static_cast<uint8_t>(armour << 4))->Own(232);
-		EXPECT_GT(((robe >> 8) & 0xFF), (robe >> 16) & 0xFF) << "Necromancer tier " << static_cast<int>(armour) << " robe is not green";
-		EXPECT_GT(((robe >> 8) & 0xFF), robe & 0xFF);
+		const auto tier = static_cast<uint8_t>(armour << 4);
+		const std::shared_ptr<const oracool::SpriteColours> barbarian = oracool::HeroColoursFor(HeroClass::Barbarian, tier);
+		const uint32_t plate = barbarian->Own(248);
+		EXPECT_GT(b(plate), r(plate)) << "Barbarian tier " << static_cast<int>(armour) << ": the plate is not cool steel";
+		const uint32_t cloth = barbarian->Own(186);
+		EXPECT_GT(g(cloth), r(cloth)) << "Barbarian tier " << static_cast<int>(armour) << ": the cloth is not moss green";
+		EXPECT_GT(g(cloth), b(cloth));
+		EXPECT_FALSE(barbarian->HasOwn(202)) << "his skin keeps the Warrior's own colour";
+
+		const std::shared_ptr<const oracool::SpriteColours> necromancer = oracool::HeroColoursFor(HeroClass::Necromancer, tier);
+		const uint32_t robe = necromancer->Own(232);
+		EXPECT_GT(b(robe), g(robe)) << "Necromancer tier " << static_cast<int>(armour) << ": the robe is not violet";
+		EXPECT_GT(r(robe), g(robe));
+		const uint32_t steel = necromancer->Own(248);
+		EXPECT_GT(b(steel), g(steel)) << "Necromancer tier " << static_cast<int>(armour) << ": the plate is not violet-grey";
+		const uint32_t skin = necromancer->Own(164);
+		EXPECT_GT(r(skin) + g(skin) + b(skin), 3 * 150) << "Necromancer tier " << static_cast<int>(armour) << ": the skin is not pale bone";
 	}
 }
 

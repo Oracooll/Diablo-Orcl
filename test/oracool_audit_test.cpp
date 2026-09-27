@@ -149,6 +149,9 @@
 #include "panels/spell_book.hpp"
 #include "panels/spell_icons.hpp"
 #include "player.h"
+#include "oracool/hero_look.h"
+#include "oracool/sprite_colours.h"
+#include "utils/str_cat.hpp"
 #include "playerdat.hpp"
 #include "qol/stash.h"
 #include "diablo.h"   // PressEscKey - the workshop's Escape (audit of v1.12.188, UI-01)
@@ -15032,4 +15035,245 @@ TEST(OracoolPreview, DISABLED_AuraRingCycle)
 	oracool::AuraRingClockOverrideMs = -1;
 	HeadlessMode = savedHeadless;
 	PreviewSave(out, "aura_cycle.png");
+}
+
+/**
+ * Which palette entries the Warrior's and the Sorcerer's bodies use, per armour tier (2026-09-27, the ramp-dye
+ * comparison): every frame of the dungeon stand and attack sheets drawn onto an indexed surface, pixels counted per
+ * index, printed with the town palette's colour. The Barbarian wears the axe sheets, the Necromancer the staff ones.
+ */
+TEST(OracoolPreview, DISABLED_HeroPaletteScan)
+{
+	MountTestArchives(true);
+	std::array<uint8_t, 768> pal {};
+	LoadFileInMem("levels\\towndata\\town.pal", pal);
+	for (const char *body : { "warrior@wla@wla", "warrior@wma@wma", "warrior@wha@wha", "sorceror@slt@slt", "sorceror@smt@smt", "sorceror@sht@sht" }) {
+		std::array<int, 256> count {};
+		for (const auto &[anim, width] : { std::pair<const char *, uint16_t> { "as", 96 }, { "at", 128 } }) {
+			std::string path = std::string("plrgfx@") + body + anim;
+			std::replace(path.begin(), path.end(), '@', static_cast<char>(92));
+			const OwnedClxSpriteSheet sheet = LoadCl2Sheet(path.c_str(), width);
+			for (size_t dir = 0; dir < 8; dir++) { // a player sheet: eight facings
+				for (const ClxSprite frame : sheet[dir]) {
+					OwnedSurface canvas(frame.width(), frame.height());
+					std::memset(canvas.begin(), 0, static_cast<size_t>(canvas.pitch()) * canvas.h());
+					ClxDraw(canvas, { 0, frame.height() - 1 }, frame);
+					for (int y = 0; y < canvas.h(); y++)
+						for (int x = 0; x < canvas.w(); x++)
+							count[canvas[{ x, y }]]++;
+				}
+			}
+		}
+		std::cout << "BODY " << body << "\n";
+		for (int i = 1; i < 256; i++) {
+			if (count[i] > 0)
+				std::cout << "  " << i << " " << count[i] << " " << static_cast<int>(pal[i * 3]) << "," << static_cast<int>(pal[i * 3 + 1]) << "," << static_cast<int>(pal[i * 3 + 2]) << "\n";
+		}
+	}
+}
+
+namespace {
+
+/** @brief HSL (hue in degrees, saturation and lightness 0-1) to 0xRRGGBB. */
+uint32_t HslToRgb(double h, double s, double l)
+{
+	const auto hue = [](double p, double q, double t) {
+		if (t < 0)
+			t += 1;
+		if (t > 1)
+			t -= 1;
+		if (t < 1.0 / 6)
+			return p + (q - p) * 6 * t;
+		if (t < 0.5)
+			return q;
+		if (t < 2.0 / 3)
+			return p + (q - p) * (2.0 / 3 - t) * 6;
+		return p;
+	};
+	l = std::clamp(l, 0.0, 1.0);
+	const double q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+	const double p = 2 * l - q;
+	const double hh = h / 360.0;
+	const auto c = [](double v) { return static_cast<uint32_t>(std::clamp(v, 0.0, 1.0) * 255.0 + 0.5); };
+	return (c(hue(p, q, hh + 1.0 / 3)) << 16) | (c(hue(p, q, hh)) << 8) | c(hue(p, q, hh - 1.0 / 3));
+}
+
+/**
+ * @brief One ramp dye: palette entries @p first .. @p first + @p count - 1 take hue @p h and saturation @p s, each keeping
+ * its own lightness times @p gain - Infravision's trick (a sprite's colours to one hue by brightness), one material at a
+ * time.
+ */
+struct RampDye {
+	int first;
+	int count;
+	double h;
+	double s;
+	double gain;
+};
+
+std::shared_ptr<oracool::SpriteColours> BuildRampDye(std::initializer_list<RampDye> dyes)
+{
+	auto colours = std::make_shared<oracool::SpriteColours>();
+	for (const RampDye &dye : dyes) {
+		for (int i = dye.first; i < dye.first + dye.count; i++) {
+			const SDL_Color c = logical_palette[static_cast<size_t>(i)];
+			const double mx = std::max({ c.r, c.g, c.b }) / 255.0;
+			const double mn = std::min({ c.r, c.g, c.b }) / 255.0;
+			colours->Set(static_cast<uint8_t>(i), HslToRgb(dye.h, dye.s, (mx + mn) / 2 * dye.gain), static_cast<uint8_t>(i));
+		}
+	}
+	return colours;
+}
+
+// The pre-RfA-28 looks (v1.12.021-184, hero_look.cpp before 74a3795d), restored for the comparison.
+std::shared_ptr<oracool::SpriteColours> OldBarbarianLight()
+{
+	constexpr std::array<uint32_t, 8> Blues = { 0x4E587D, 0x434C6F, 0x39415F, 0x2F3650, 0x252B41, 0x191E2D, 0x0D111B, 0x05070C };
+	const auto blueAt = [&](int step, int steps) {
+		const int scaled = step * 7 * 256 / (steps - 1);
+		const int lower = std::min(scaled >> 8, 6);
+		const int t = scaled - (lower << 8);
+		const uint32_t a = Blues[static_cast<size_t>(lower)];
+		const uint32_t b = Blues[static_cast<size_t>(lower) + 1];
+		const auto ch = [&](int shift) {
+			const int from = static_cast<int>((a >> shift) & 0xFF);
+			const int to = static_cast<int>((b >> shift) & 0xFF);
+			return static_cast<uint32_t>(from + (to - from) * t / 256) << shift;
+		};
+		return ch(16) | ch(8) | ch(0);
+	};
+	auto colours = std::make_shared<oracool::SpriteColours>();
+	for (int i = 240; i < 256; i++)
+		colours->Set(static_cast<uint8_t>(i), blueAt(i - 240, 16), static_cast<uint8_t>(i));
+	for (int i = 0; i < 8; i++) {
+		colours->Set(static_cast<uint8_t>(216 + i), Blues[static_cast<size_t>(i)], static_cast<uint8_t>(216 + i));
+		colours->Set(static_cast<uint8_t>(168 + i), Blues[static_cast<size_t>(i)], static_cast<uint8_t>(168 + i));
+	}
+	colours->Set(206, 0x8E949C, 206);
+	colours->Set(207, 0x5C626B, 207);
+	return colours;
+}
+
+std::shared_ptr<oracool::SpriteColours> OldNecromancer()
+{
+	constexpr std::array<uint32_t, 16> Robe = { 0x68877A, 0x587368, 0x4E655C, 0x475C53, 0x40534B, 0x384942, 0x31403A, 0x2A3731,
+		0x25302B, 0x202A26, 0x1B2320, 0x161D1A, 0x121715, 0x0D110F, 0x080B0A, 0x040504 };
+	constexpr std::array<uint32_t, 8> PureRed = { 0x5D796D, 0x445950, 0x32413B, 0x242E2A, 0x1C2521, 0x161C19, 0x0D1110, 0x050706 };
+	constexpr std::array<uint32_t, 16> Ash = { 0xC9C4A8, 0xBDB89D, 0xB1AC92, 0xA5A087, 0x99947C, 0x8D8871, 0x817C67, 0x7A7666,
+		0x9D9C8C, 0x89887B, 0x767569, 0x626158, 0x4E4E46, 0x3B3B35, 0x20201D, 0x0F0F0E };
+	constexpr std::array<uint32_t, 4> DarkTan = { 0x65645B, 0x54534B, 0x2A2A26, 0x1A1917 };
+	constexpr std::array<uint32_t, 16> Blood = { 0xB5AE90, 0xA9A285, 0x9D967A, 0x918A70, 0x857E66, 0x79725C, 0xA3282C, 0x8D2326,
+		0x7E1F22, 0x6F1B1E, 0x5E171A, 0x4E1315, 0x401011, 0x2C0B0C, 0x1A0607, 0x0A0203 };
+	auto colours = std::make_shared<oracool::SpriteColours>();
+	const auto set = [&](int first, const uint32_t *values, int count) {
+		for (int i = 0; i < count; i++)
+			colours->Set(static_cast<uint8_t>(first + i), values[i], static_cast<uint8_t>(first + i));
+	};
+	set(224, Robe.data(), 16);
+	set(136, PureRed.data(), 8);
+	set(160, Ash.data(), 16);
+	set(204, DarkTan.data(), 4);
+	set(208, Blood.data(), 16);
+	return colours;
+}
+
+} // namespace
+
+/**
+ * The ramp-dye comparison (2026-09-27): the Barbarian and the Necromancer, each armour tier a row, as the plain borrowed
+ * body, the old ramp dye, today's RfA-28 hand recolour and three new ramp dyes. Each cell: the dungeon stand facing south
+ * and an attack frame facing south-west, drawn through DrawSpriteWithColours at full light on the town palette. Writes
+ * ramp_dye_barbarian.png and ramp_dye_necromancer.png.
+ */
+TEST(OracoolPreview, DISABLED_HeroRampDyes)
+{
+	MountTestArchives(true);
+	InitPNG();
+	std::array<uint8_t, 768> pal {};
+	LoadFileInMem("levels\\towndata\\town.pal", pal);
+	for (int i = 0; i < 256; i++) {
+		logical_palette[i] = SDL_Color { pal[i * 3], pal[i * 3 + 1], pal[i * 3 + 2], 255 };
+		PaletteRGB[i] = (static_cast<uint32_t>(pal[i * 3]) << 16) | (static_cast<uint32_t>(pal[i * 3 + 1]) << 8) | pal[i * 3 + 2];
+	}
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+
+	struct Look {
+		const char *label;
+		std::shared_ptr<const oracool::SpriteColours> tiers[3];
+	};
+	const auto same = [](std::shared_ptr<const oracool::SpriteColours> c) { return Look { nullptr, { c, c, c } }; };
+	const auto current = [](HeroClass cls) {
+		return Look { nullptr, { oracool::HeroColoursFor(cls, 0), oracool::HeroColoursFor(cls, 1 << 4), oracool::HeroColoursFor(cls, 2 << 4) } };
+	};
+	const auto named = [](Look look, const char *label) { look.label = label; return look; };
+	const auto plain = std::make_shared<const oracool::SpriteColours>();
+
+	// The Barbarian on the Warrior: mail 240-255, trousers 184-191, skin and hair 200-207, boots and belt 216-223,
+	// gloves 168-175 (the palette scan, OracoolPreview.DISABLED_HeroPaletteScan).
+	const std::vector<Look> barbarian {
+		named(same(plain), "Warrior (plain)"),
+		named(Look { nullptr, { OldBarbarianLight(), plain, plain } }, "Old ramp dye"),
+		named(current(HeroClass::Barbarian), "In game (ramp dye)"),
+		// Round 2 (user, 2026-09-27: "barb C, necro B, tint the plate greys"): C at three plate strengths.
+		named(same(BuildRampDye({ { 240, 16, 205, 0.06, 1.04 }, { 184, 8, 105, 0.32, 1.3 }, { 168, 8, 30, 0.08, 1.25 }, { 216, 8, 28, 0.30, 0.95 } })),
+		    "C, plate light"),
+		named(same(BuildRampDye({ { 240, 16, 205, 0.12, 1.06 }, { 184, 8, 105, 0.32, 1.3 }, { 168, 8, 30, 0.08, 1.25 }, { 216, 8, 28, 0.30, 0.95 } })),
+		    "C, plate medium"),
+		named(same(BuildRampDye({ { 240, 16, 205, 0.20, 1.08 }, { 184, 8, 105, 0.32, 1.3 }, { 168, 8, 30, 0.08, 1.25 }, { 216, 8, 28, 0.30, 0.95 } })),
+		    "C, plate strong"),
+	};
+	// The Necromancer on the Sorcerer: robe 224-239 (+ the heavy tier's pure reds 136-143), skin 160-175, tan 200-207,
+	// sash and boots 208-223, plates 240-255.
+	const std::vector<Look> necromancer {
+		named(same(plain), "Sorcerer (plain)"),
+		named(same(OldNecromancer()), "Old ramp dye"),
+		named(current(HeroClass::Necromancer), "In game (ramp dye)"),
+		// Round 2: B with the plate greys cool violet-grey, at three strengths.
+		named(same(BuildRampDye({ { 224, 16, 275, 0.38, 0.7 }, { 136, 8, 275, 0.38, 0.7 }, { 160, 16, 42, 0.10, 1.35 }, { 208, 16, 270, 0.12, 0.55 },
+		          { 240, 16, 268, 0.07, 0.96 } })),
+		    "B, plate light"),
+		named(same(BuildRampDye({ { 224, 16, 275, 0.38, 0.7 }, { 136, 8, 275, 0.38, 0.7 }, { 160, 16, 42, 0.10, 1.35 }, { 208, 16, 270, 0.12, 0.55 },
+		          { 240, 16, 268, 0.14, 0.94 } })),
+		    "B, plate medium"),
+		named(same(BuildRampDye({ { 224, 16, 275, 0.38, 0.7 }, { 136, 8, 275, 0.38, 0.7 }, { 160, 16, 42, 0.10, 1.35 }, { 208, 16, 270, 0.12, 0.55 },
+		          { 240, 16, 268, 0.22, 0.92 } })),
+		    "B, plate strong"),
+	};
+
+	const auto render = [&](const char *folder, char cls, const std::vector<Look> &looks, const char *file) {
+		constexpr int CellW = 200;
+		constexpr int CellH = 124;
+		constexpr int Header = 22;
+		constexpr int RowLabel = 70;
+		OwnedSurface out = OwnedSurface::Rgb(RowLabel + static_cast<int>(looks.size()) * CellW, Header + 3 * CellH);
+		SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 34, 30, 26));
+		const char armour[] = { 'l', 'm', 'h' };
+		const char *tierName[] = { "Light", "Medium", "Heavy" };
+		const char weapon = cls == 'w' ? 'a' : 't';
+		for (size_t c = 0; c < looks.size(); c++)
+			DrawString(out, looks[c].label, { { RowLabel + static_cast<int>(c) * CellW, 4 }, { CellW, 16 } },
+			    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter });
+		for (int tier = 0; tier < 3; tier++) {
+			DrawString(out, tierName[tier], { { 4, Header + tier * CellH + CellH / 2 - 8 }, { RowLabel - 8, 16 } },
+			    { UiFlags::ColorWhite | UiFlags::FontSize12 });
+			const std::string stem = StrCat("plrgfx\\", folder, "\\", std::string { cls, armour[tier], weapon }, "\\", std::string { cls, armour[tier], weapon });
+			const OwnedClxSpriteSheet stand = LoadCl2Sheet((stem + "as").c_str(), 96);
+			const OwnedClxSpriteSheet attack = LoadCl2Sheet((stem + "at").c_str(), 128);
+			const ClxSprite standing = stand[0][0];
+			const ClxSpriteList swing = attack[1];
+			const ClxSprite swinging = swing[swing.numSprites() / 2];
+			for (size_t c = 0; c < looks.size(); c++) {
+				const int x = RowLabel + static_cast<int>(c) * CellW;
+				const int bottom = Header + tier * CellH + CellH - 6;
+				const oracool::SpriteColours &colours = looks[c].tiers[tier] != nullptr ? *looks[c].tiers[tier] : *plain;
+				oracool::DrawSpriteWithColours(out, { x - 8, bottom }, standing, colours, 0);
+				oracool::DrawSpriteWithColours(out, { x + 72, bottom }, swinging, colours, 0);
+			}
+		}
+		PreviewSave(out, file);
+	};
+	render("warrior", 'w', barbarian, "ramp_dye_barbarian.png");
+	render("sorceror", 's', necromancer, "ramp_dye_necromancer.png");
+	HeadlessMode = savedHeadless;
 }

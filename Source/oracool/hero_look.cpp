@@ -12,13 +12,14 @@ namespace devilution::oracool {
 namespace {
 
 /**
- * @brief The hand recolour (RfA-28, batch 59; user, 2026-09-26: "better looking barb and necro"). ChatGPT recoloured 24
- * reference frames pixel for pixel by MATERIAL; tools/GenHeroRecolour.js turned that into one colour per palette index
- * for each hero and armour tier - the colour most pixels of that index were painted. On frames it had not seen, that
- * reproduces the hand recolour to a mean of 8 RGB units (a neighbour-aware pass was measured and did worse).
+ * @brief The ramp dyes (2026-09-27, tools/GenHeroRampDye.js): each material's palette ramp takes a new hue and saturation
+ * and keeps its own shading - Infravision's trick, one material at a time. The Barbarian is north steel and moss (cool
+ * steel plate, moss-green cloth, grey fur, worn leather), the Necromancer bone and violet (violet robe, bone skin,
+ * violet-grey plate). Chosen by the user from rendered comparisons (OracoolPreview.DISABLED_HeroRampDyes).
  *
- * It replaces the band swap (v1.12.030-043): the light-armour-only Barbarian dye, and one Necromancer table for all three
- * tiers. Both heroes are now recoloured in every tier.
+ * History: the band swap (v1.12.021-184: the light-armour-only Barbarian, one Necromancer table), then RfA-28's hand
+ * recolour (v1.12.185-206, tools/GenHeroRecolour.js: one colour per index per tier from ChatGPT's painted frames). The data
+ * file keeps the hand recolour's format - one table per hero and tier - so the tiers could differ again one day.
  */
 struct HeroRecolourEntry {
 	uint8_t own;

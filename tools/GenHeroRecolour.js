@@ -2,6 +2,9 @@
 /**
  * tools/GenHeroRecolour.js - builds Source/oracool/hero_recolour_data.inc from RfA-28's hand recolour (batch 59).
  *
+ * SUPERSEDED 2026-09-27 by tools/GenHeroRampDye.js (v1.12.207), which now writes that file. Kept to rebuild the
+ * hand-recolour look if it is ever wanted back.
+ *
  * Input: `hero_recolour_votes.json` (tools/), made by pairing every pixel of the 24 reference frames with the same
  * pixel of ChatGPT's recolour: for each hero, armour tier and town-palette index, how many pixels of that index were
  * painted which colour. It holds palette indices and colours only - no pixels of the original sprites.

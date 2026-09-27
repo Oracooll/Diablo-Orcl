@@ -102,3 +102,35 @@ v1.12.205 builds clean; 873 of 873 pass.
 - **Preview:** `OracoolPreview.DISABLED_AuraRingCycle` renders Might, Holy Freeze and Redemption at 16 moments 75 ms apart, through `DrawAuraRingPreview` and `AuraRingClockOverrideMs` (tests only).
 
 v1.12.206 builds clean; 873 of 873 pass; oracool.mpq repacked.
+
+## v1.12.207: Barbarian and Necromancer re-dyed by ramp
+
+**How it was decided.** The user asked what Infravision is and whether its technique could recolour the two borrowed-body heroes. Infravision is `plrgfx\infra.trn`: one table sending every palette colour to the red ramp by brightness.
+- **The answer:** the hero recolour was already a stronger table (any true colour, correctly lit). Taken literally, Infravision would have flattened every material to one hue.
+- **The idea worth trying:** its trick applied per material ramp. That is a "ramp dye": each ramp gets a new hue and saturation and keeps its own lightness.
+- **How it was chosen:** renders first, all through the game's own hero colour draw.
+  - `OracoolPreview.DISABLED_HeroPaletteScan` counted the palette entries each armour tier uses.
+  - `DISABLED_HeroRampDyes` drew the plain body, the old ramp dye, RfA-28 and three new dyes per hero, then three plate-tint strengths for the chosen ones.
+- **The user's picks:** "barb C, necro B, tint the plate greys", then "go with your picks. necro - plate strong".
+
+**The dyes.** Both live in `tools/GenHeroRampDye.js`, which now writes `Source/oracool/hero_recolour_data.inc` in RfA-28's format, so `hero_look.cpp` reads it unchanged. One dye serves all three tiers.
+- **Barbarian, steel and moss** (40 entries):
+  - mail and plate 240-255: cool steel (hue 205, saturation 0.12);
+  - cloth 184-191: moss green;
+  - gloves 168-175: grey fur;
+  - leather 216-223: worn brown;
+  - skin and hair: left alone.
+- **Necromancer, bone and violet** (72 entries):
+  - robe 224-239 and pure reds 136-143: violet;
+  - skin 160-175: bone;
+  - sash 208-223: near-black violet;
+  - plate 240-255: violet-grey (saturation 0.22).
+
+**Also changed:**
+- The RfA-28 hand recolour is retired. `tools/GenHeroRecolour.js` stays, marked superseded. The render had shown its medium Necromancer tier with a black face under bone-yellow blotches.
+- `sprite_mix` CacheVersion is 9, so cached sheets are rebuilt.
+- **Tests:**
+  - `OracoolHeroLook.TheBarbarianWearsBlueAndTheNecromancerGreen`, which pinned RfA-28's colours, is replaced by `TheBarbarianWearsSteelAndMossAndTheNecromancerBoneAndViolet`.
+  - The "touches almost nothing" guard is now at least 32 entries; the Barbarian's dye is 40.
+
+v1.12.207 builds clean; 873 of 873 pass.
