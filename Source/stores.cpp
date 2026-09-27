@@ -5384,6 +5384,16 @@ int ShopSellOfferFor(const Item &item)
 	return GetItemSellValue(item);
 }
 
+int ShopRepairPriceFor(const Item &item)
+{
+	return IsShopRepairCursorArmed() ? RepairPriceFor(item) : 0;
+}
+
+int ShopRechargePriceFor(const Item &item)
+{
+	return IsShopRechargeCursorArmed() ? RechargePriceFor(item) : 0;
+}
+
 int ShopRepairAllPrice()
 {
 	// What Repair All would cost, asked WITHOUT running it (user, 2026-08-27: "Repair All to show

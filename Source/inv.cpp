@@ -1567,9 +1567,7 @@ void StartGoldDrop()
 	if (talkflag)
 		control_reset_talk();
 
-	const Point start = GetPanelPosition(UiPanels::Inventory, { 67, 128 });
-	SDL_Rect rect = MakeSdlRect(start.x, start.y, 180, 20);
-	SDL_SetTextInputRect(&rect);
+	// The text-input rect follows the box, which opens beside the pointer (PlaceGoldDropBox, 2026-09-27).
 
 	OpenGoldDrop(invIndex, max);
 }
@@ -4075,6 +4073,17 @@ int8_t CheckInvHLight()
 			AddPanelString(fmt::format(fmt::runtime(_("Sells for {:s} gold")), FormatInteger(offer)),
 			    UiFlags::ColorWhitegold);
 		}
+		// And what the loaded service costs on it, under the sale price (dev note, 2026-09-27) - the hammer's repair, or
+		// Adria's recharge. An item with nothing to fix says so, since the hammer is asking the question.
+		if (IsShopRepairCursorArmed()) {
+			const int fee = ShopRepairPriceFor(*pi);
+			AddPanelString(fee > 0 ? fmt::format(fmt::runtime(_("Repair: {:s} gold")), FormatInteger(fee)) : std::string(_("Needs no repair")),
+			    UiFlags::ColorWhitegold);
+		} else if (IsShopRechargeCursorArmed()) {
+			const int fee = ShopRechargePriceFor(*pi);
+			AddPanelString(fee > 0 ? fmt::format(fmt::runtime(_("Recharge: {:s} gold")), FormatInteger(fee)) : std::string(_("Needs no recharge")),
+			    UiFlags::ColorWhitegold);
+		}
 	}
 
 	return rv;
@@ -4294,9 +4303,7 @@ bool TryStartStackSplit(int cii)
 	if (talkflag)
 		control_reset_talk();
 
-	const Point start = GetPanelPosition(UiPanels::Inventory, { 67, 128 });
-	SDL_Rect rect = MakeSdlRect(start.x, start.y, 180, 20);
-	SDL_SetTextInputRect(&rect);
+	// The text-input rect follows the box, which opens beside the pointer (PlaceGoldDropBox, 2026-09-27).
 
 	OpenGoldDrop(static_cast<int8_t>(cii), item.stackCount());
 	return true;
@@ -4318,12 +4325,7 @@ bool TryStartStashStackSplit(uint16_t stashIndex)
 	if (talkflag)
 		control_reset_talk();
 
-	// The prompt is drawn against the INVENTORY panel wherever it is opened from - see DrawGoldSplit,
-	// which is gated on DropGoldFlag alone - so the text-input rect is the inventory's here too,
-	// stash or no stash.
-	const Point start = GetPanelPosition(UiPanels::Inventory, { 67, 128 });
-	SDL_Rect rect = MakeSdlRect(start.x, start.y, 180, 20);
-	SDL_SetTextInputRect(&rect);
+	// The box and its text-input rect open beside the pointer (PlaceGoldDropBox, 2026-09-27), stash or no stash.
 
 	OpenStashStackSplit(stashIndex, item.stackCount());
 	return true;

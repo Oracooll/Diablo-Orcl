@@ -4552,6 +4552,13 @@ void M_StartHit(Monster &monster, int dam)
 
 void StunMonster(Monster &monster, int ticks)
 {
+	// A dead monster is not stunned (dev note, 2026-09-27: "some barb skills/warcries kill mobs but they remain active
+	// practically immortal because i cant target them anymore but they keep attacking me"). War Cry struck, the blow
+	// killed, and the stun that followed set MonsterMode::Delay over MonsterMode::Death: the death animation never ran,
+	// the monster kept 0 life - so no targeting found it - and its AI woke when the stun ran out. Guarded here, once,
+	// for every skill that stuns after it strikes.
+	if (monster.mode == MonsterMode::Death || (monster.hitPoints >> 6) <= 0)
+		return;
 	// AiDelay carries the guard this needs: Lazarus is exempt, because his scripted set-piece drives
 	// his own mode and a stun would strand it. Inherited rather than restated.
 	AiDelay(monster, ticks);

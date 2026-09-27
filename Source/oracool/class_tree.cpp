@@ -386,7 +386,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// ---- RfA-12 skills (2026-09-13): the empty cells of the three class pages, from the final list ----
 	{ N_("Cleave"), N_("A swing that also strikes the enemies beside you, each for 70% of a blow, +5% per level."),
 	    Bar, 0, 0, 1, Kind::Active, SpellID::Cleave, true },
-	{ N_("Backhand"), N_("Strike the enemy behind you without turning, for 100% of a blow, +8% per level."),
+	{ N_("Backhand"), N_("A regular blow at the enemy in front, and the back of it at the enemy behind you: 100% of a blow, +8% per level."),
 	    Bar, 0, 0, 2, Kind::Active, SpellID::Backhand, true },
 	{ N_("Ground Stomp"), N_("Stuns everything beside you for 1.5 seconds, +0.2 per level. Uniques shrug it off."),
 	    Bar, 0, 1, 2, Kind::Active, SpellID::GroundStomp, true },

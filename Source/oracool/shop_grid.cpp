@@ -19,6 +19,7 @@
 #include "engine/render/text_render.hpp"
 #include "inv.h"
 #include "items.h"
+#include "oracool/cursor_tooltip.h" // ShowPanelStringsAsHintCard - the service buttons' card
 #include "oracool/grid_bezel.h"
 #include "oracool/hud_art.h"
 #include "oracool/inventory_layout.h" // GridBottom - the line the stash's grid also ends on
@@ -2105,6 +2106,7 @@ bool SetShopHoverInfoString()
 			SetServiceHint(ShopServiceSlotDoes[slot]);
 			if (!ShopServiceSlotEnabled(slot, stextflag))
 				AddPanelString(_("Not on this shelf."), UiFlags::ColorRed);
+			ShowPanelStringsAsHintCard(); // the unique-item card, 250px at most (2026-09-27)
 			return true;
 		}
 	} else {
@@ -2117,6 +2119,7 @@ bool SetShopHoverInfoString()
 			// The button says WHICH service; the hint is where what it does - and what Repair All
 			// costs - is written down.
 			SetServiceHint(buttons[i].service);
+			ShowPanelStringsAsHintCard();
 			return true;
 		}
 	}

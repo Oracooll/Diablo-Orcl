@@ -901,12 +901,7 @@ void OpenAdvancedStats()
 {
 	if (Open)
 		return;
-	// Cover the slot's current holder and remember it (advanced_stats.h). The flags only - CloseInventory
-	// would return a held item and reset things the ordinary close puts back untouched.
-	CoveredInventory = invflag;
-	CoveredAbilities = !invflag && sbookflag;
-	invflag = false;
-	sbookflag = false;
+	// The inventory and the Abilities window stay open under it (dev note, 2026-09-27) - see advanced_stats.h.
 	Open = true;
 	ScrollOffset = 0;
 }
@@ -939,12 +934,10 @@ void ToggleAdvancedStats()
 
 bool IsAdvancedStatsOpen()
 {
-	// Something opened the inventory or the Abilities window over the top of this one: that window is
-	// the player's choice now, so this one closes - and forgets what it covered, since the slot's new
-	// holder is already up. See the file comment in advanced_stats.h.
-	// Since 2026-09-26 it also closes with the character sheet it is docked to (the C key, the sheet's X, or
-	// another left-panel window taking the slot) - it would otherwise float in the middle of the screen.
-	if (Open && (invflag || sbookflag || GetLeftPanelContent() != LeftPanelContent::Character)) {
+	// It closes with the character sheet it is docked to (the C key, the sheet's X, or another left-panel window
+	// taking the slot) - it would otherwise float in the middle of the screen. The inventory and the Abilities window
+	// no longer close it (2026-09-27): they share the screen.
+	if (Open && GetLeftPanelContent() != LeftPanelContent::Character) {
 		Open = false;
 		CoveredInventory = false;
 		CoveredAbilities = false;
@@ -956,8 +949,8 @@ Rectangle GetAdvancedStatsRect()
 {
 	// Flush against the character sheet's right edge (user, 2026-09-26 dev note: "advanced stats to open
 	// adjacent flush with right border of main char screen") - Diablo II Resurrected's pairing. It was in
-	// the inventory's bottom-right corner. It still puts the inventory or Abilities window away while it
-	// is up: at 960 wide the two would overlap by 60px.
+	// the inventory's bottom-right corner. At 960 wide it overlaps the inventory or Abilities window by 60px, and is
+	// drawn over it there (2026-09-27).
 	const Rectangle sheet = GetCharacterPanelRect();
 	return { { sheet.position.x + sheet.size.width, sheet.position.y }, AdvancedPanelSize };
 }

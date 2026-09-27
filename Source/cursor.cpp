@@ -1103,6 +1103,10 @@ void CheckCursMove()
 	// the one door left open.
 	if (oracool::IsShopTab(stextflag) && oracool::IsPointOverShop(MousePosition))
 		return;
+	// Advanced Stats lies over the inventory and the Abilities window where they overlap (2026-09-27): its rect first,
+	// so no item under it is hovered - no tooltip, no highlight, no right-click target.
+	if (oracool::IsAdvancedStatsOpen() && oracool::GetAdvancedStatsRect().contains(MousePosition))
+		return;
 	if (invflag && oracool::GetInventoryPanelRect().contains(MousePosition)) {
 		pcursinvitem = CheckInvHLight();
 		return;

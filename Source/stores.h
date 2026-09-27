@@ -465,6 +465,14 @@ int ShopRepairAllPrice();
  */
 int ShopSellOfferFor(const Item &item);
 
+/**
+ * @brief The paid repair's fee for @p item while the shop's repair hammer is loaded, else 0 - for the inventory hover
+ * (dev note, 2026-09-27: "when i hover with repair hammer over an item under its sale price write also its repair
+ * price"). ShopRechargePriceFor is the same for Adria's recharge cursor.
+ */
+int ShopRepairPriceFor(const Item &item);
+int ShopRechargePriceFor(const Item &item);
+
 /** @brief Buys back entry @p index of the Sold tab, at the price the player was paid for it. */
 void ShopBuyBack(int index);
 

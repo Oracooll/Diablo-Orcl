@@ -23,34 +23,6 @@ constexpr RunewordDefinition Runewords[] = {
 };
 constexpr size_t RunewordTableSize = sizeof(Runewords) / sizeof(Runewords[0]);
 
-const char *HostName(RunewordHost host)
-{
-	switch (host) {
-	case RunewordHost::Weapon:
-		return N_("weapons");
-	case RunewordHost::Shield:
-		return N_("shields");
-	case RunewordHost::Body:
-		return N_("body armor");
-	case RunewordHost::Helm:
-		return N_("helms");
-	case RunewordHost::Shoulders:
-		return N_("shoulders");
-	case RunewordHost::Bracers:
-		return N_("bracers");
-	case RunewordHost::Gloves:
-		return N_("gloves");
-	case RunewordHost::Belt:
-		return N_("belts");
-	case RunewordHost::Legs:
-		return N_("legs");
-	case RunewordHost::Boots:
-		return N_("boots");
-	default:
-		return "";
-	}
-}
-
 } // namespace
 
 RunewordHost RunewordHostForItemType(ItemType type)
@@ -154,52 +126,6 @@ void ApplyRunewordToTotals(const RunewordDefinition &word, ItemBonusTotals &tota
 	totals.lightningResist += word.lightningResist;
 	totals.magicResist += word.magicResist;
 	totals.fastCast += word.fastCast;
-}
-
-std::string RuneTeachingLines(uint16_t runeIdx)
-{
-	// The runes teach their own words - that is the one improvement this fork made on D2, where
-	// the recipes lived on a wiki. With 309 words a popular rune belongs to dozens of them, so the
-	// list is capped and the remainder counted: an item panel that runs off the screen teaches
-	// nothing at all.
-	//
-	// Cut from 6 to 3 on 2026-08-20, when the rune's own per-host effects moved above this list.
-	// Those three lines are what the panel is FOR - the recipes are the bonus - and at six words
-	// plus a remainder the panel already spanned most of the screen on a common rune like El.
-	constexpr int MaxTaughtWords = 3;
-	std::string lines;
-	int shown = 0;
-	int found = 0;
-	for (const RunewordDefinition &word : Runewords) {
-		bool contains = false;
-		for (int i = 0; i < word.runeCount; i++) {
-			if (word.runes[i] == runeIdx)
-				contains = true;
-		}
-		if (!contains)
-			continue;
-		found++;
-		if (shown >= MaxTaughtWords)
-			continue;
-		std::string sequence;
-		for (int i = 0; i < word.runeCount; i++) {
-			if (i > 0)
-				sequence += ' ';
-			// "El Rune" -> the bare rune name reads better in a formula.
-			sequence += _(AllItemsList[word.runes[i]].iName);
-		}
-		if (!lines.empty())
-			lines += '\n';
-		lines += fmt::format(fmt::runtime(_("Runeword '{:s}': {:s}, in {:s}")),
-		    _(word.name), sequence, _(HostName(static_cast<RunewordHost>(word.host))));
-		shown++;
-	}
-	if (found > shown) {
-		if (!lines.empty())
-			lines += '\n';
-		lines += fmt::format(fmt::runtime(_("...and {:d} more runewords")), found - shown);
-	}
-	return lines;
 }
 
 bool TryCompleteRuneword(Item &item)

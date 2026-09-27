@@ -3300,18 +3300,6 @@ TEST(OracoolRunewords, CompletionRenamesAndRunesTeach)
 	const oracool::RunewordDefinition *word = oracool::GetActiveRuneword(oldRecipe);
 	if (word != nullptr)
 		EXPECT_STRNE(word->name, "Ancient's Pledge");
-
-	// Every rune teaches the words it belongs to - the one thing this fork improved on D2. With
-	// 370 words a popular rune belongs to dozens, so the list is capped at six and the remainder
-	// counted; what must hold is that the teaching is non-empty and names real words.
-	const std::string teaching = oracool::RuneTeachingLines(IDI_ORACOOL_RUNE_EL);
-	EXPECT_FALSE(teaching.empty());
-	EXPECT_NE(teaching.find("Steel"), std::string::npos) << "El's first taught word should be Steel";
-	EXPECT_NE(teaching.find("more runewords"), std::string::npos)
-	    << "a rune in dozens of words must say how many were not listed";
-
-	const std::string solTeaching = oracool::RuneTeachingLines(IDI_ORACOOL_RUNE_SOL);
-	EXPECT_NE(solTeaching.find("Lore"), std::string::npos);
 }
 
 // Phase 1 ethereal: the bargain is stamped at roll time and the refusals hold.
@@ -15275,5 +15263,166 @@ TEST(OracoolPreview, DISABLED_HeroRampDyes)
 	};
 	render("warrior", 'w', barbarian, "ramp_dye_barbarian.png");
 	render("sorceror", 's', necromancer, "ramp_dye_necromancer.png");
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * What the Barbarian's axe swing looks like (dev note, 2026-09-27: "why is my barb playing sword attack sprites when i
+ * am holding an axe?"): the Warrior's axe and sword attack sheets for each armour tier, one facing, every other frame,
+ * and the weapon graphic CalcPlrItemVals picks for a Barbarian holding each axe base. Writes barbarian_axe_swing.png.
+ */
+TEST(OracoolPreview, DISABLED_BarbarianAxeSwing)
+{
+	MountTestArchives(true);
+	InitPNG();
+	std::array<uint8_t, 768> pal {};
+	LoadFileInMem("levels\\towndata\\town.pal", pal);
+	for (int i = 0; i < 256; i++) {
+		logical_palette[i] = SDL_Color { pal[i * 3], pal[i * 3 + 1], pal[i * 3 + 2], 255 };
+		PaletteRGB[i] = (static_cast<uint32_t>(pal[i * 3]) << 16) | (static_cast<uint32_t>(pal[i * 3 + 1]) << 8) | pal[i * 3 + 2];
+	}
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	constexpr int Cols = 10;
+	constexpr int CellW = 110;
+	constexpr int CellH = 110;
+	OwnedSurface out = OwnedSurface::Rgb(90 + Cols * CellW, 6 * CellH);
+	SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 34, 30, 26));
+	const oracool::SpriteColours plain;
+	const char armour[] = { 'l', 'm', 'h' };
+	int row = 0;
+	for (int tier = 0; tier < 3; tier++) {
+		for (const char weapon : { 'a', 's' }) {
+			const std::string stem = StrCat("plrgfx\\warrior\\w", std::string { armour[tier], weapon }, "\\w", std::string { armour[tier], weapon }, "at");
+			const OwnedClxSpriteSheet sheet = LoadCl2Sheet(stem.c_str(), 128);
+			const ClxSpriteList swing = sheet[1];
+			DrawString(out, StrCat(std::string { armour[tier] }, weapon == 'a' ? " axe" : " sword", " (", swing.numSprites(), ")"),
+			    { { 4, row * CellH + CellH / 2 - 8 }, { 86, 16 } }, { UiFlags::ColorWhite | UiFlags::FontSize12 });
+			for (int c = 0; c < Cols && c * 2 < static_cast<int>(swing.numSprites()); c++)
+				oracool::DrawSpriteWithColours(out, { 90 + c * CellW - 10, row * CellH + CellH - 4 }, swing[static_cast<size_t>(c * 2)], plain, 0);
+			row++;
+		}
+	}
+	PreviewSave(out, "barbarian_axe_swing.png");
+	HeadlessMode = savedHeadless;
+}
+
+// Dev notes of 2026-09-27 (v1.12.208).
+// ---------------------------------------------------------------------------------------------------------------------
+
+// "some barb skills/warcries kill mobs but they remain active practically immortal": War Cry's strike killed, and the
+// stun it applied next set MonsterMode::Delay over MonsterMode::Death - no death animation, 0 life so no targeting,
+// and the AI woke when the stun ran out. A stun never touches a dead or dying monster now.
+TEST(OracoolAudit, AStunNeverRaisesTheDead)
+{
+	Monster monster {};
+	monster.ai = MonsterAIID::Zombie;
+	monster.mode = MonsterMode::Death;
+	monster.hitPoints = 0;
+	StunMonster(monster, 40);
+	EXPECT_EQ(monster.mode, MonsterMode::Death) << "the stun cancelled the death";
+
+	monster.mode = MonsterMode::Stand; // struck to 0 the same tick, before the death starts
+	StunMonster(monster, 40);
+	EXPECT_EQ(monster.mode, MonsterMode::Stand);
+
+	monster.hitPoints = 10 << 6;
+	StunMonster(monster, 40);
+	EXPECT_EQ(monster.mode, MonsterMode::Delay) << "a living monster is still stunned";
+	EXPECT_EQ(monster.var2, 40);
+}
+
+// "opening advanced stats should not close inventory screen, but only overlap it if it needs to".
+TEST(OracoolAudit, AdvancedStatsLeavesTheInventoryOpen)
+{
+	const bool savedChr = chrflag;
+	const bool savedInv = invflag;
+	const bool savedBook = sbookflag;
+	chrflag = true; // the sheet it is docked to
+	invflag = true;
+	sbookflag = false;
+	oracool::OpenAdvancedStats();
+	EXPECT_TRUE(invflag) << "opening it put the inventory away";
+	EXPECT_TRUE(oracool::IsAdvancedStatsOpen());
+	invflag = false;
+	sbookflag = true;
+	EXPECT_TRUE(oracool::IsAdvancedStatsOpen()) << "the Abilities window no longer closes it either";
+	chrflag = false;
+	EXPECT_FALSE(oracool::IsAdvancedStatsOpen()) << "it still closes with the character sheet";
+	oracool::CloseAdvancedStats(false);
+	chrflag = savedChr;
+	invflag = savedInv;
+	sbookflag = savedBook;
+}
+
+// "backhand to be a regular strike, not a cast": a swing skill now, like Cleave - the blow in front, the back of it behind.
+TEST(OracoolAudit, BackhandIsASwing)
+{
+	EXPECT_TRUE(oracool::IsRfa12Melee(SpellID::Backhand));
+	EXPECT_TRUE(oracool::IsRfa12Melee(SpellID::Cleave));
+	EXPECT_FALSE(oracool::IsRfa12Melee(SpellID::RearwardReach)) << "Rearward Reach stays a cast";
+}
+
+// "when i hover with repair hammer over an item under its sale price write also its repair price": priced only while the
+// shop's hammer (or Adria's recharge cursor) is loaded.
+TEST(OracoolAudit, TheRepairPriceShowsOnlyUnderTheHammer)
+{
+	devilution::Item sword {};
+	sword._itype = ItemType::Sword;
+	sword._iClass = ICLASS_WEAPON;
+	sword._iMaxDur = 40;
+	sword._iDurability = 10;
+	sword._ivalue = 400;
+	sword._iIvalue = 400;
+	EXPECT_EQ(ShopRepairPriceFor(sword), 0) << "no hammer loaded, no price";
+	EXPECT_EQ(ShopRechargePriceFor(sword), 0);
+}
+
+/**
+ * The vendor buttons' hint card (dev note, 2026-09-27: "use unique items design and keep them no more than 250px wide
+ * and wrap text"), drawn through DrawCursorTooltip exactly as the shop hover asks for it. Writes vendor_hint_cards.png
+ * and checks the card's width.
+ */
+TEST(OracoolPreview, DISABLED_VendorHintCards)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const Point savedMouse = MousePosition;
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	gnScreenWidth = 640; // the card clamps itself to the screen
+	gnScreenHeight = 300;
+	OwnedSurface out = OwnedSurface::Rgb(640, 300);
+	PreviewFloor(out);
+
+	ClearPanelStrings();
+	SetPanelString(_("Sell All"), UiFlags::ColorWhitegold);
+	AddPanelString(_("Sells everything on the backpack's first page this vendor will take. Pages 2-10 are left alone."), UiFlags::ColorWhite);
+	oracool::ShowPanelStringsAsHintCard();
+	MousePosition = { 160, 260 };
+	oracool::DrawCursorTooltip(out);
+	const Rectangle first = oracool::GetPrevCursorTooltipRect();
+	EXPECT_LE(first.size.width, 250) << "the Sell All card is wider than 250px";
+	EXPECT_GT(first.size.width, 0);
+
+	ClearPanelStrings();
+	SetPanelString(_("Repair"), UiFlags::ColorWhitegold);
+	AddPanelString(_("Click for the hammer, then click any item to repair it."), UiFlags::ColorWhite);
+	AddPanelString(_("Or drop an item here."), UiFlags::ColorWhite);
+	AddPanelString(_("Restores full durability. Priced per item."), UiFlags::ColorWhite);
+	AddPanelString(_("Not on this shelf."), UiFlags::ColorRed);
+	oracool::ShowPanelStringsAsHintCard();
+	MousePosition = { 470, 260 };
+	oracool::DrawCursorTooltip(out);
+	EXPECT_LE(oracool::GetPrevCursorTooltipRect().size.width, 250) << "the Repair card is wider than 250px";
+
+	PreviewSave(out, "vendor_hint_cards.png");
+	ClearPanelStrings();
+	MousePosition = savedMouse;
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
 	HeadlessMode = savedHeadless;
 }

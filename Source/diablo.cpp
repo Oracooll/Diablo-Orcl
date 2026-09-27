@@ -668,6 +668,10 @@ void LeftMouseDown(uint16_t modState)
 			} else if (qtextflag) {
 				qtextflag = false;
 				stream_stop();
+			} else if (oracool::IsAdvancedStatsOpen() && oracool::GetAdvancedStatsRect().contains(MousePosition)
+			    && oracool::HandleAdvancedStatsClick(MousePosition)) {
+				// Ahead of the inventory and the Abilities window: it lies over them where they overlap (2026-09-27),
+				// and a click on it must not reach the item underneath.
 			} else if (invflag && oracool::GetInventoryPanelRect().contains(MousePosition)) {
 				if (!DropGoldFlag)
 					CheckInvItem(isShiftHeld, isCtrlHeld);
@@ -888,6 +892,21 @@ void RightMouseDown(bool isShiftHeld)
 
 	if (DoomFlag) {
 		doom_close();
+		return;
+	}
+	// A loaded service is put down by a right click, wherever the pointer is (dev note, 2026-09-27: "right click to cancel
+	// loaded repair/sell/recharge services"): the shop's repair, sell and recharge cursors, and the Cube's salvage hammer.
+	// Ahead of the shop's own right click, which would otherwise buy or sell under the loaded cursor.
+	if (IsAnyShopServiceCursorArmed()) {
+		DisarmShopServiceCursor();
+		oracool::PlayUiMoveSound();
+		return;
+	}
+	if (oracool::IsSalvageItemCursorArmed()) {
+		oracool::CancelSalvageItemCursor();
+		if (pcurs == CURSOR_REPAIR)
+			NewCursor(CURSOR_HAND);
+		oracool::PlayUiMoveSound();
 		return;
 	}
 	if (stextflag != TalkID::None) {

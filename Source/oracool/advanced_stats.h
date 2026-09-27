@@ -8,24 +8,16 @@
  * the signets...) moves here, together with bonuses no sheet ever showed: the Hellfire weapon
  * specials, Cold Mastery, the per-kill gems and runes, movement speed, magic and gold find.
  *
- * WHERE IT LIVES: the RIGHT side-panel slot, 340x720 on the same stone canvas as the inventory and
- * the Abilities window (user: "right panel slot, overlap inventory/abilities screen if open").
+ * WHERE IT LIVES: 340x720 on the same stone canvas as the inventory and the Abilities window, docked flush
+ * against the character sheet's right edge, and closing with it.
  *
- * THE ONE RULE for sharing that slot, chosen for being the simplest that is also consistent:
+ * SHARING THE SCREEN (dev note, 2026-09-27: "opening advanced stats should not close inventory screen, but only
+ * overlap it if it needs to"): it no longer puts the inventory or the Abilities window away. Both stay open; this
+ * window is drawn over them, so it overlaps only where the screen is too narrow for both (60px at 960 wide) - and
+ * inside its own rect it takes the clicks and the hover first, so nothing reaches the item under it. Before, it
+ * covered the slot's holder and put it back on closing, and opening either of them closed this one.
  *
- *   - Opening this window COVERS whatever held the slot. The inventory or the Abilities window is put
- *     away (its flag cleared, nothing else touched - no held item returned, no tab reset) and
- *     remembered.
- *   - Closing it - the red X, Escape, the ADVANCED STATS button again, or the character sheet closing
- *     - puts the covered window BACK, so to the eye this window simply lay over it.
- *   - Opening the inventory or the Abilities window while this one is up closes this one for good
- *     (nothing is restored: the player has just chosen the window they want in the slot). That is
- *     detected in IsAdvancedStatsOpen() itself, so every opener - the I and S keys, the HUD buttons,
- *     a shop opening the backpack - is covered without each one having to know this window exists.
- *   - The space bar and ClosePanels() close it WITHOUT restoring (they are closing everything).
- *
- * Only one window ever occupies the slot, so the click and hover routing needs no precedence
- * between this window and the one it covers: while it is open, invflag and sbookflag are false.
+ *   - The space bar and ClosePanels() close it with everything else.
  *
  * It reads InspectPlayer, like the sheet it extends.
  */
@@ -42,15 +34,13 @@
 
 namespace devilution::oracool {
 
-/** @brief Opens the window, covering (and remembering) the inventory or Abilities window if one is up. */
+/** @brief Opens the window. The inventory or Abilities window stays open under it (2026-09-27). */
 void OpenAdvancedStats();
 
 /**
  * @brief Closes the window.
  *
- * @param restoreCovered true puts back the inventory or Abilities window it covered - the ordinary
- * close. false forgets it: ClosePanels() and the space bar pass false, because they are closing
- * everything and a window springing back open behind them would undo their work.
+ * @param restoreCovered kept for its callers; nothing is covered since 2026-09-27, so there is nothing to put back.
  */
 void CloseAdvancedStats(bool restoreCovered = true);
 

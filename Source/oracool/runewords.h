@@ -112,9 +112,6 @@ const RunewordDefinition *GetActiveRuneword(const Item &item);
 /** @brief Applies @p word's bonuses onto @p totals. */
 void ApplyRunewordToTotals(const RunewordDefinition &word, ItemBonusTotals &totals);
 
-/** @brief Description lines: the runes' teaching text ("Runeword 'Steel': Tir El, in weapons")
- * for rune @p runeIdx - one string per word it appears in, joined with newlines. */
-std::string RuneTeachingLines(uint16_t runeIdx);
 
 /** @brief Called after a socket insertion: if @p item now completes a runeword, renames it and
  * returns true (caller plays feedback and recalculates). */

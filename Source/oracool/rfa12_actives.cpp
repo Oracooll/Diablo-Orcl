@@ -940,6 +940,7 @@ bool IsMeleeSpell(SpellID spell)
 	case SpellID::Crusade:
 	case SpellID::AegisSlam:
 	case SpellID::Cleave:
+	case SpellID::Backhand: // a swing since 2026-09-27 - see ApplyRfa12MeleeOnSwing
 	case SpellID::Rend:
 	case SpellID::HammerOfTheAncients:
 	case SpellID::ClaspOfRuin:
@@ -1140,14 +1141,13 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	// ---------------- Barbarian ----------------
-	case SpellID::Backhand:
 	case SpellID::RearwardReach: {
 		Monster *behind = FindMonsterAtPosition(here + Opposite(player._pdir));
 		if (behind == nullptr || !Hittable(*behind))
 			return false;
 		Strike(player, *behind, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		// RfA-27 batch 53: the arc behind him - row n is the arc behind a hero facing n, so his own facing picks it.
-		ArtFacing(player, spell == SpellID::Backhand ? MissileGraphicID::BackhandArc : MissileGraphicID::RearwardReach, here, player._pdir);
+		ArtFacing(player, MissileGraphicID::RearwardReach, here, player._pdir);
 		Impact(player, spell);
 		return true;
 	}
@@ -2460,6 +2460,7 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 	MissileGraphicID flash = MissileGraphicID::None;
 	switch (spell) {
 	case SpellID::Cleave: arc = MissileGraphicID::CleaveArc; break;
+	case SpellID::Backhand: arc = MissileGraphicID::BackhandArc; break; // row n: the arc behind a hero facing n
 	case SpellID::AegisSlam: arc = MissileGraphicID::AegisSlam; break;
 	case SpellID::Sweep: arc = MissileGraphicID::SweepArc; break;
 	case SpellID::LowBranch: arc = MissileGraphicID::LowBranch; break;
@@ -2640,6 +2641,19 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			struck = true;
 		}
 		break;
+	case SpellID::Backhand: {
+		// A regular blow at the enemy in front, and the back of it at the one behind him (dev note, 2026-09-27:
+		// "backhand to be a regular strike, not a cast. it hits main target infront and causes dmg to target behind
+		// hero as well"). It was a cast that struck only behind, with no swing.
+		const Point behindTile = player.position.tile + Opposite(player._pdir);
+		Monster *behind = InDungeonBounds(behindTile) ? FindMonsterAtPosition(behindTile) : nullptr;
+		if (behind != nullptr && behind != front && Hittable(*behind)) {
+			Strike(player, *behind, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			struck = true;
+			landedBlows++;
+		}
+		break;
+	}
 	case SpellID::Cleave:
 	case SpellID::Sweep:
 		for (const Point tile : { player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {

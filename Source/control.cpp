@@ -1873,11 +1873,47 @@ void RedBack(const Surface &out)
 	}
 }
 
+namespace {
+
+/**
+ * @brief Where the split / gold-drop box is drawn: the point its frame is drawn from (its bottom-left), which used to
+ * be fixed at the inventory's (30, 178). Set when the box opens, next to the pointer (dev note, 2026-09-27: "the
+ * split stack pop-up window - pop-it close to the cursor").
+ */
+Point GoldDropBoxAnchor;
+
+/** @brief Offsets inside the box, from GoldDropBoxAnchor - the text and the typed amount, where vanilla put them. */
+constexpr Displacement GoldDropTextOffset { 31, 75 - 178 };
+constexpr Displacement GoldDropAmountOffset { 37, 128 - 178 };
+
+/**
+ * @brief Puts the box just below and right of the pointer, flipped to the other side where it would leave the screen
+ * and clamped onto it, and moves the text-input rect (the on-screen keyboard's hint) with it.
+ */
+void PlaceGoldDropBox()
+{
+	const int w = pGBoxBuff ? (*pGBoxBuff)[0].width() : 261;
+	const int h = pGBoxBuff ? (*pGBoxBuff)[0].height() : 128;
+	constexpr int Gap = 12;
+	int left = MousePosition.x + Gap;
+	int top = MousePosition.y + Gap;
+	if (left + w > gnScreenWidth)
+		left = MousePosition.x - Gap - w;
+	if (top + h > gnScreenHeight)
+		top = MousePosition.y - Gap - h;
+	left = std::clamp(left, 0, std::max(0, gnScreenWidth - w));
+	top = std::clamp(top, 0, std::max(0, gnScreenHeight - h));
+	GoldDropBoxAnchor = { left, top + h - 1 };
+	const Point input = GoldDropBoxAnchor + GoldDropAmountOffset;
+	SDL_Rect rect = MakeSdlRect(input.x, input.y, 180, 20);
+	SDL_SetTextInputRect(&rect);
+}
+
+} // namespace
+
 void DrawGoldSplit(const Surface &out)
 {
-	const int dialogX = 30;
-
-	ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { dialogX, 178 }), (*pGBoxBuff)[0]);
+	ClxDraw(out, GoldDropBoxAnchor, (*pGBoxBuff)[0]);
 
 	const string_view amountText = GoldDropText;
 	const TextInputCursorState &cursor = GoldDropCursor;
@@ -1910,12 +1946,12 @@ void DrawGoldSplit(const Surface &out)
 	// The split gold dialog is roughly 4 lines high, but we need at least one line for the player to input an amount.
 	// Using a clipping region 50 units high (approx 3 lines with a lineheight of 17) to ensure there is enough room left
 	//  for the text entered by the player.
-	DrawString(out, wrapped, { GetPanelPosition(UiPanels::Inventory, { dialogX + 31, 75 }), { 200, 50 } },
+	DrawString(out, wrapped, { GoldDropBoxAnchor + GoldDropTextOffset, { 200, 50 } },
 	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter, 1, 17 });
 
 	// Even a ten digit amount of gold only takes up about half a line. There's no need to wrap or clip text here so we
 	// use the Point form of DrawString.
-	DrawString(out, amountText, GetPanelPosition(UiPanels::Inventory, { dialogX + 37, 128 }),
+	DrawString(out, amountText, GoldDropBoxAnchor + GoldDropAmountOffset,
 	    TextRenderOptions {
 	        /*flags=*/UiFlags::ColorWhite | UiFlags::PentaCursor,
 	        /*spacing=*/1,
@@ -2170,6 +2206,7 @@ void OpenGoldDrop(int8_t invIndex, int max)
 	    /*min=*/0,
 	    /*max=*/max,
 	});
+	PlaceGoldDropBox();
 	SDL_StartTextInput();
 }
 
@@ -2197,6 +2234,7 @@ void OpenStashStackSplit(uint16_t stashIndex, int max)
 	    /*min=*/0,
 	    /*max=*/max,
 	});
+	PlaceGoldDropBox();
 	SDL_StartTextInput();
 }
 

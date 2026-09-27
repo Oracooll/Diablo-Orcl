@@ -889,6 +889,61 @@ void DrawCard(const Surface &out, const Card &card, const CardLayout &l, Point o
 	}
 }
 
+/** @brief The text ShowPanelStringsAsHintCard asked to be drawn as a card, or empty - see DrawHintCard. */
+std::string HintCardText;
+constexpr int HintCardMaxWidth = 250;
+/** @brief The unique item's gold (RimGlowHue, inv.cpp) - the hint cards wear its design. */
+constexpr uint32_t HintCardHue = 0xD4A23C;
+
+/**
+ * @brief The panel strings as a card: the first line the title, the rest the body, each line word-wrapped to the card's
+ * inner width so the whole card stays within HintCardMaxWidth. No item, so no sprite and no stat head.
+ */
+void DrawHintCard(const Surface &out)
+{
+	const std::string text(InfoString.str());
+	Card card;
+	card.hue = HintCardHue;
+	const unsigned wrapWidth = HintCardMaxWidth - 2 * CardPadX;
+	size_t start = 0;
+	for (size_t i = 0;; i++) {
+		const size_t newline = text.find('\n', start);
+		const std::string line = text.substr(start, newline == std::string::npos ? std::string::npos : newline - start);
+		const UiFlags color = i < InfoStringLineColors.size() ? InfoStringLineColors[i] : UiFlags::ColorWhite;
+		if (i == 0) {
+			card.title.text = line;
+			card.title.color = color;
+		} else {
+			const std::string wrapped = WordWrapString(line, wrapWidth);
+			size_t from = 0;
+			for (;;) {
+				const size_t cut = wrapped.find('\n', from);
+				CardLine part;
+				part.text = wrapped.substr(from, cut == std::string::npos ? std::string::npos : cut - from);
+				part.color = color;
+				card.body.push_back(std::move(part));
+				card.bullet.push_back(false);
+				if (cut == std::string::npos)
+					break;
+				from = cut + 1;
+			}
+		}
+		if (newline == std::string::npos)
+			break;
+		start = newline + 1;
+	}
+	const CardLayout l = MeasureCard(card);
+	const int maxX = std::max(0, static_cast<int>(gnScreenWidth) - l.size.width);
+	const int maxY = std::max(0, static_cast<int>(gnScreenHeight) - l.size.height);
+	Point origin { MousePosition.x - l.size.width / 2, MousePosition.y - l.size.height - GapAboveCursor };
+	origin.x = std::clamp(origin.x, 0, maxX);
+	if (origin.y < 0)
+		origin.y = std::min(MousePosition.y + GapAboveCursor, maxY);
+	origin.y = std::clamp(origin.y, 0, maxY);
+	DrawCard(out, card, l, origin);
+	PrevTooltipRect = { origin, l.size }; // the only thing drawn this frame
+}
+
 /** @brief The item the panel is describing: a container's, a worn or belt one, or one on the ground. */
 const Item *HoveredCardItem()
 {
@@ -1008,12 +1063,23 @@ void DrawCardTooltip(const Surface &out)
 
 } // namespace
 
+void ShowPanelStringsAsHintCard()
+{
+	HintCardText = std::string(InfoString.str());
+}
+
 void DrawCursorTooltip(const Surface &out)
 {
 	PrevTooltipRect = {};
 
 	if (talkflag || InfoString.empty())
 		return;
+
+	// A hint card, when one was asked for this text and the text has not changed since (2026-09-27).
+	if (!HintCardText.empty() && !out.isIndexed() && HintCardText == InfoString.str()) {
+		DrawHintCard(out);
+		return;
+	}
 
 	const bool asPanel = IsHoveringItem();
 	// The card (2026-09-26), behind its option; the panel below is the look it replaced, untouched, for

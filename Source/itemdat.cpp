@@ -435,7 +435,7 @@ DVL_API_FOR_TEST const ItemData AllItemsList[] = {
 /*IDI_ORACOOL_CHARM_EMBERS */ { IDROP_REGULAR, ICLASS_MISC,  ILOC_UNEQUIPABLE, ICURS_ORACOOL_CHARM_EMBERS,                  ItemType::Misc,        UITYPE_NONE,        N_("Charm of Embers"),             N_("Charm"),          9,            0,        0,        0,       0,       0,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,        3200 },
 /*IDI_ORACOOL_CHARM_STORMS */ { IDROP_REGULAR, ICLASS_MISC,  ILOC_UNEQUIPABLE, ICURS_ORACOOL_CHARM_STORMS,                  ItemType::Misc,        UITYPE_NONE,        N_("Charm of Storms"),             N_("Charm"),          9,            0,        0,        0,       0,       0,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,        3200 },
 /*IDI_ORACOOL_CHARM_FORTUNE*/ { IDROP_REGULAR, ICLASS_MISC,  ILOC_UNEQUIPABLE, ICURS_ORACOOL_CHARM_FORTUNE,                  ItemType::Misc,        UITYPE_NONE,        N_("Charm of Fortune"),            N_("Charm"),         14,            0,        0,        0,       0,       0,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,        4500 },
-// Phase 1 runes: rarer with depth; every rune's description teaches the runewords it belongs to.
+// Phase 1 runes: rarer with depth. The runeword book teaches the words (rune descriptions stopped listing them 2026-09-27).
 // The five runes that shipped in v1.7.8. Their INDICES are fixed (positional save format) but their
 // rows are GENERATED with the other 28 so all 33 sit on one ladder - see tools/GenRunes.ps1.
 #include "oracool/runes_shipped_data.inc"

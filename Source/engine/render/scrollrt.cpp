@@ -1698,11 +1698,11 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawInv(out);
 	} else if (sbookflag) {
 		DrawSpellBook(out);
-	} else if (oracool::IsAdvancedStatsOpen()) {
-		// The right-hand slot's third holder (2026-09-26). Never up at the same time as the two above -
-		// it covers them by putting them away - so an else-if is the whole precedence.
-		oracool::DrawAdvancedStats(out);
 	}
+	// After them, so it lies over the inventory or the Abilities window where the two overlap (dev note,
+	// 2026-09-27: "opening advanced stats should not close inventory screen, but only overlap it if it needs to").
+	if (oracool::IsAdvancedStatsOpen())
+		oracool::DrawAdvancedStats(out);
 
 	switch (GetLeftPanelContent()) {
 	case LeftPanelContent::Character:

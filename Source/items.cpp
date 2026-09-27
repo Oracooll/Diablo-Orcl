@@ -7985,19 +7985,8 @@ void PrintItemDetails(const Item &item)
 				AddPanelString(std::move(line), ItemAffixColor);
 		}
 	}
-	// Phase 1 runes: every rune teaches the runewords it belongs to - the recipes drop WITH the
-	// runes, which is the whole "discoverable in-game" improvement over D2's wiki homework.
-	if (IsOracoolRuneIdx(item.IDidx)) {
-		const std::string teaching = oracool::RuneTeachingLines(static_cast<uint16_t>(item.IDidx));
-		size_t start = 0;
-		while (start < teaching.size()) {
-			size_t end = teaching.find('\n', start);
-			if (end == std::string::npos)
-				end = teaching.size();
-			AddPanelString(teaching.substr(start, end - start), ItemAffixColor);
-			start = end + 1;
-		}
-	}
+	// A rune's panel no longer lists the runewords it belongs to (dev note, 2026-09-27: "remove the possible recipes
+	// from the description of runes"). The runeword book holds the recipes.
 	// A completed runeword's OWN bonuses - the ones the word grants on top of its runes.
 	//
 	// User, 2026-08-20: "I don't see the extra affixes the runeword should bring." They were

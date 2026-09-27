@@ -24,6 +24,14 @@ namespace devilution::oracool {
 void DrawCursorTooltip(const Surface &out);
 
 /**
+ * @brief Draws the panel strings set this frame as a hint CARD - the unique item's plate and gold frame, the first line
+ * as its title, the rest word-wrapped so the card is never wider than 250px (dev note, 2026-09-27: "vendors buttons
+ * tooltips - redesign them. use unique items design and keep them no more than 250px wide and wrap text"). Call it after
+ * the last line is added; any later change to the strings drops back to the plain tooltip.
+ */
+void ShowPanelStringsAsHintCard();
+
+/**
  * @brief The screen rect DrawCursorTooltip drew to last frame, or an empty rect if nothing was
  * drawn. Used by scrollrt.cpp's DrawMain (the <=640-wide dirty-rect render path) to erase the
  * tooltip's previous position each frame, the same way PrevCursorRect tracks the cursor sprite -

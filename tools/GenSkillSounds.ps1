@@ -115,6 +115,10 @@ $retired = @("Pal|Holy Bolt")
 # DoubleThrow; Toughness replaced Increased Stamina), so the generator threw on these two until 2026-09-26.
 $renamed = @{ "Bar|Double Throw" = "Bar|Weapon Throw"; "Bar|Increased Stamina" = "Bar|Toughness" }
 foreach ($r in $rows | Sort-Object class, skill, event) {
+    # The Barbarian's delivered cues are out of the game (user, 2026-09-27: "remove all barb sounds introduces by chatgpt.
+    # they are not good enough to be in the game. we will look for other sources of sound assets"). Skipped here so a
+    # re-run cannot bring them back; the files are kept for review in Resources\Barbarian Sound Assets.
+    if ($r.class -eq 'barbarian') { continue }
     $alias = $classAlias[$r.class]
     if (-not $alias) { throw "manifest class '$($r.class)' is not one of the seven" }
     $key = "$alias|$($r.skill)"
