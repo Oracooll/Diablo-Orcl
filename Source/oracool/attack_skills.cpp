@@ -15,6 +15,7 @@
 #include "diablo.h"           // MousePosition - the HUD buttons' hover sense
 #include "oracool/hud_layout.h"
 #include "oracool/ui_sound.h"  // PlayUiMoveSound - the hover and click sound
+#include "oracool/xp_counter.h" // IsPointOverXpBar - the XP bar is one of the HUD's buttons
 #include "oracool/paladin_skills.h"
 #include "panels/spell_book.hpp" // GetAbilityFKeyNumber, GetAuraFKeyNumber
 #include "utils/language.h"
@@ -220,6 +221,8 @@ int HudButtonUnder(Point mouse)
 		if (GetBeltSlotRect(slot).contains(mouse))
 			return 2 + slot;
 	}
+	if (IsPointOverXpBar(mouse))
+		return 2 + BeltVisibleSlotCount; // the XP bar above the belt (2026-09-27)
 	return -1;
 }
 

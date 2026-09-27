@@ -283,6 +283,35 @@ const uint32_t *FrozenRgbTable(int lightTableIndex)
 	return table.data();
 }
 
+const uint32_t *ConvertedRgbTable(int lightTableIndex)
+{
+	static std::array<std::array<uint32_t, 256>, NumLightingLevels> tables;
+	static std::array<uint32_t, NumLightingLevels> builtFor {};
+	lightTableIndex = std::clamp(lightTableIndex, 0, static_cast<int>(NumLightingLevels) - 1);
+	std::array<uint32_t, 256> &table = tables[lightTableIndex];
+	if (builtFor[lightTableIndex] == PaletteRgbGeneration && builtFor[lightTableIndex] != 0)
+		return table.data();
+	const std::array<uint8_t, 256> &light = LightTables[lightTableIndex];
+	// Half-way to grey keeps the monster readable as itself; then red and blue held back and green lifted.
+	constexpr int GreyPercent = 55;
+	constexpr int RedScale = 62, GreenScale = 125, BlueScale = 62;
+	table[0] = PaletteRGB[light[0]];
+	for (int i = 1; i < 256; i++) {
+		const uint32_t lit = PaletteRGB[light[i]];
+		int r = (lit >> 16) & 0xFF, g = (lit >> 8) & 0xFF, b = lit & 0xFF;
+		const int grey = (299 * r + 587 * g + 114 * b) / 1000;
+		r += (grey - r) * GreyPercent / 100;
+		g += (grey - g) * GreyPercent / 100;
+		b += (grey - b) * GreyPercent / 100;
+		r = std::min(255, r * RedScale / 100);
+		g = std::min(255, g * GreenScale / 100 + 16);
+		b = std::min(255, b * BlueScale / 100);
+		table[i] = (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
+	}
+	builtFor[lightTableIndex] = PaletteRgbGeneration;
+	return table.data();
+}
+
 void TickColdArmour(Player &player)
 {
 	ArmourState &state = StateOf(player);

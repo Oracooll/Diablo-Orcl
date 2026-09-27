@@ -1973,5 +1973,45 @@ TEST_F(InvTest, EveryTabSItemCanBeHoveredNotOnlyTheFirstTabS)
 	pcursinvtabidx = savedTabIdx;
 	pcursinvtabitem = savedTabItem;
 }
+
+// Dev note, 2026-09-27: the Orcl shields went from 2x2 to 2x3. A size comes from the icon, never from the save, so a
+// saved shield with something in the row above it would be drawn over that item - ReseatOutgrownItems moves it.
+TEST_F(InvTest, ReseatOutgrownItems_MovesAnItemThatGrewIntoItsNeighbour)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	EXPECT_EQ(GetInventorySize(MakeBackpackItem(ICURS_ORACOOL_IRON_SHIELD)), (Size { 2, 3 })) << "the Orcl shields are 2x3";
+
+	// Laid by hand: a 2x2 anchored in the bottom row's left cell (rows 5-6), as a shield was saved.
+	clear_inventory();
+	const int columns = InventorySizeInSlots.width;
+	const int anchor = InventoryGridCells - columns;
+	MyPlayer->InvList[0] = MakeBackpackItem(ICURS_HELM);
+	MyPlayer->_pNumInv = 1;
+	MyPlayer->InvGrid[anchor] = 1;
+	MyPlayer->InvGrid[anchor + 1] = -1;
+	MyPlayer->InvGrid[anchor - columns] = -1;
+	MyPlayer->InvGrid[anchor - columns + 1] = -1;
+	// A ring in the row just above the 2x2: the row a third row of height would need.
+	const int above = anchor - 2 * InventorySizeInSlots.width;
+	MyPlayer->InvList[1] = MakeBackpackItem(ICURS_RING);
+	MyPlayer->_pNumInv = 2;
+	MyPlayer->InvGrid[above] = 2;
+	// The 2x2 grows to 2x3 in place, as a saved shield does on load.
+	MyPlayer->InvList[0]._iCurs = ICURS_QUILTED_ARMOR;
+	ASSERT_EQ(GetInventorySize(MyPlayer->InvList[0]), (Size { 2, 3 }));
+
+	ReseatOutgrownItems(*MyPlayer);
+
+	ASSERT_EQ(MyPlayer->_pNumInv, 2) << "an item was lost or duplicated";
+	const int ring = MyPlayer->InvList[0]._iCurs == ICURS_RING ? 0 : 1;
+	const int grown = 1 - ring;
+	EXPECT_EQ(MyPlayer->InvGrid[above], ring + 1) << "the ring was moved or overwritten";
+	int cells = 0;
+	for (const int8_t cell : MyPlayer->InvGrid)
+		cells += std::abs(cell) == grown + 1 ? 1 : 0;
+	EXPECT_EQ(cells, 6) << "the grown item does not own a whole 2x3 footprint";
+	EXPECT_NE(GridCellOf(*MyPlayer, grown), anchor) << "the grown item stayed over the ring";
+}
 } // namespace
 } // namespace devilution

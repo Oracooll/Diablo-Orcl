@@ -208,7 +208,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// ---- Passive Skills (page 3) ----
 	// Built 2026-09-11 (user: "build Heavenly Strength passive skill"): the Barbarian's own grip, widened to
 	// every two-handed weapon - see HeavenlyStrengthGrips - so the other hand is free for a shield.
-	{ N_("Heavenly Strength"), N_("Bear a two-handed axe, sword, mace or staff in one hand and a shield in the other."),
+	{ N_("Heavenly Strength"), N_("Bear a two-handed axe, sword, mace or staff in one hand and a shield in the other, at the cost of damage, accuracy and swing speed."),
 	    Pal, 3, 0, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Fervor"), N_("With a one-handed weapon in hand you swing faster."),
 	    Pal, 3, 0, 1, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -1329,6 +1329,13 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		break;
 	case Skill::HolyCause:
 		totals.bonusDamage += 10;
+		break;
+	case Skill::HeavenlyStrength:
+		// The grip's price (dev note, 2026-09-27); the swing's -20% is in StartAttack.
+		if (assumeCondition || HeavenlyStrengthInUse(player)) {
+			totals.bonusDamage -= HeavenlyStrengthPenaltyPercent;
+			totals.bonusToHit -= HeavenlyStrengthPenaltyPercent;
+		}
 		break;
 	case Skill::Animosity:
 		// Twenty more RAGE, not mana (2026-09-13) - MaxRage asks for this passive itself.
@@ -2552,6 +2559,25 @@ bool HeavenlyStrengthGrips(const Player &player, const Item &item)
 	return PassiveSlotOf(player, Skill::HeavenlyStrength) >= 0;
 }
 
+bool HeavenlyStrengthInUse(const Player &player)
+{
+	// The price is paid only while the grip is doing its job: a two-hander in one hand and a shield in the
+	// other. Slotted with a one-hander, or a two-hander held in both hands, it costs nothing.
+	const Item &left = player.InvBody[INVLOC_HAND_LEFT];
+	const Item &right = player.InvBody[INVLOC_HAND_RIGHT];
+	const bool gripped = (!left.isEmpty() && HeavenlyStrengthGrips(player, left))
+	    || (!right.isEmpty() && HeavenlyStrengthGrips(player, right));
+	return gripped && HasShieldEquipped(player);
+}
+
+int HeavenlyStrengthSwingDelayFrames(const Player &player)
+{
+	// Attack speed -20% is a swing that takes 100/80 as long: a quarter more of its frames, as extra ticks.
+	if (!HeavenlyStrengthInUse(player))
+		return 0;
+	return player._pAFrames * HeavenlyStrengthPenaltyPercent / (100 - HeavenlyStrengthPenaltyPercent);
+}
+
 void EnforceTwoHandedGrip(Player &player)
 {
 	// A weapon that needs both hands - GetItemLocation says so, so Heavenly Strength and the Barbarian's
@@ -3071,12 +3097,8 @@ std::string ClassTreeLockReason(const Player &player, Skill skill)
 	// the tier's, and the tier is what the page's own layout implies. See IsClassTreeSkillUnlocked.
 	if (const std::optional<PaladinSkill> borrowed = BorrowedPaladinSkill(skill); borrowed.has_value()) {
 		const PaladinSkillData &pal = GetPaladinSkillData(*borrowed);
+		// Level only: the shield is a use requirement since 2026-09-27, so it never locks the row.
 		const bool needsLevel = player._pLevel < pal.minLevel;
-		const bool needsShield = pal.requiresShield && !HasShieldEquipped(player);
-		if (needsLevel && needsShield)
-			return fmt::format(fmt::runtime(_("{:s} needs level {:d} and a shield.")), _(data.name), pal.minLevel);
-		if (needsShield)
-			return fmt::format(fmt::runtime(_("{:s} needs a shield.")), _(data.name));
 		if (needsLevel)
 			return fmt::format(fmt::runtime(_("{:s} needs level {:d}.")), _(data.name), pal.minLevel);
 		// Unlocked by both and still locked means the class check above - which cannot happen here.
@@ -3127,6 +3149,8 @@ const char *PassiveConditionLine(Skill skill)
 		return N_("With a two-handed staff");
 	case Skill::Fervor:
 		return N_("With a one-handed weapon");
+	case Skill::HeavenlyStrength:
+		return N_("With a two-handed weapon and a shield");
 	default:
 		return nullptr;
 	}
@@ -3151,7 +3175,8 @@ std::string ClassTreePassiveFactsAt(Skill skill, int points)
 	case Skill::Finery:
 		return fmt::format(fmt::runtime(_("+{:d} strength for every Orcl gem socketed in what you wear")), FineryStrengthPerGem);
 	case Skill::HeavenlyStrength:
-		return std::string(_("A two-handed axe, sword, mace or staff in one hand, a shield in the other"));
+		return std::string(_("A two-handed axe, sword, mace or staff in one hand, a shield in the other")) + "\n"
+		    + fmt::format(fmt::runtime(_("Attack speed: -{:d}%")), HeavenlyStrengthPenaltyPercent); // damage and to hit print from ApplyPassive
 	case Skill::Animosity:
 		return fmt::format(fmt::runtime(_("Maximum Rage: +{:d}")), AnimosityRage);
 	case Skill::Unforgiving:

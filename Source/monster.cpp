@@ -993,7 +993,8 @@ void UpdateEnemy(Monster &monster)
 	bool bestsameroom = false;
 	const WorldTilePosition position = monster.position.tile;
 	const bool isPlayerMinion = monster.isPlayerMinion();
-	if (!isPlayerMinion) {
+	// A converted monster fights for the Paladin while its clock runs: no player is a target (dev note, 2026-09-27).
+	if (!isPlayerMinion && !oracool::IsMonsterConverted(monster)) {
 		for (size_t pnum = 0; pnum < Players.size(); pnum++) {
 			const Player &player = Players[pnum];
 			if (!player.plractive || !player.isOnActiveLevel() || player._pLvlChanging
@@ -1586,6 +1587,8 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 {
 	if (player._pHitPoints >> 6 <= 0 || player._pInvincible || HasAnyOf(player._pSpellFlags, SpellFlag::Etherealize))
 		return;
+	if (oracool::IsMonsterConverted(monster))
+		return; // on the Paladin's side: a blow already under way lands on nobody
 	if (monster.position.tile.WalkingDistance(player.position.tile) >= 2)
 		return;
 
@@ -5416,7 +5419,7 @@ void MissToMonst(Missile &missile, Point position)
 		return;
 
 	if ((monster.flags & MFLAG_TARGETS_MONSTER) == 0) {
-		if (dPlayer[oldPosition.x][oldPosition.y] <= 0)
+		if (dPlayer[oldPosition.x][oldPosition.y] <= 0 || oracool::IsMonsterConverted(monster))
 			return;
 
 		int pnum = dPlayer[oldPosition.x][oldPosition.y] - 1;

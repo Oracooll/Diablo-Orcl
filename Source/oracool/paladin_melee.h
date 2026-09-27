@@ -54,6 +54,13 @@ std::optional<PaladinSkill> ArmedMeleeSkill();
 bool IsShieldBashSwing(const Player &player);
 
 /**
+ * @brief Whether the swing being started strikes with the shield on the unarmed-with-shield attack sheet
+ * (player_graphic::ShieldAttack): Shield Bash or Aegis Slam, a shield held, the sheet loaded (dev note, 2026-09-27).
+ * When this holds IsShieldBashSwing is false - the block sheet is only the stand-in for a missing attack sheet.
+ */
+bool SwingsShieldAttackSheet(const Player &player);
+
+/**
  * @brief The animation frame a swing lands its blow on.
  *
  * Normally the weapon's own _pAFNum. For a Shield Bash it is clamped inside the BLOCK animation's

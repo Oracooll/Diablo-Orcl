@@ -186,6 +186,11 @@ void RemoveActiveInvItem(Player &player, int iv);
 /** @brief Tab-index-parameterized equivalent of RemoveActiveInvItem; see that function for the rationale. */
 void RemoveExtraTabItem(Player &player, int tabIndex, int iv);
 /**
+ * @brief Moves every item that no longer fits the cells it was saved in - an item whose size grew - to a free spot:
+ * the backpack, the extra pages, the stash, or the hero's feet. Run once per game load, after the stash is loaded.
+ */
+DVL_API_FOR_TEST void ReseatOutgrownItems(Player &player);
+/**
  * @brief Removes the first item matching the given identity from InvList or any extra tab.
  * @return true if a match was found and removed.
  */

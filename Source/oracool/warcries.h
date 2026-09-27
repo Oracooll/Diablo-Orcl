@@ -77,6 +77,12 @@ int MonsterDebuffDamagePercent(const Monster &monster);
 /** @brief What @p monster's armour is right now, in percent of its own; negative is stripped. Battle Cry, Inner Sight, Discord. */
 int MonsterDebuffArmorPercent(const Monster &monster);
 
+/**
+ * @brief Whether @p monster is on the Paladin's side through Conversion right now (its clock running, both flags set).
+ * It never attacks a player while this holds, and it draws green (dev note, 2026-09-27).
+ */
+bool IsMonsterConverted(const Monster &monster);
+
 /** @brief Points off @p monster's chance to hit a player. Weaken. */
 int MonsterDebuffToHit(const Monster &monster);
 

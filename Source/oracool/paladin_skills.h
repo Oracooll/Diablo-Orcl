@@ -105,13 +105,9 @@ struct PaladinSkillData {
 	 * @brief Whether the skill is unusable without a shield equipped.
 	 *
 	 * Oracool: user rule (2026-08-15) - "Carrying shield is mandatory, else - skill is inactivated."
-	 * Part of IsPaladinSkillUnlocked rather than a separate check at each cast site, so an unmet
-	 * requirement greys the row on the Skills sheet and makes it unclickable, exactly as an unmet
-	 * level gate does.
-	 *
-	 * This supersedes an earlier decision (also 2026-08-15) that grey plates would stay level-only
-	 * because gear changes minute to minute. The user has since asked for gear to disable a skill
-	 * outright, and a skill that cannot be used should look the same whatever the reason.
+	 * Since 2026-09-27 (dev note: "must not require shield to level up, only to operate") it is part
+	 * of CanUsePaladinSkill, not IsPaladinSkillUnlocked: the row takes points and stays on its button
+	 * without a shield, and every use refuses until one is held (the well shows it as blocked).
 	 */
 	bool requiresShield;
 	/** Character level at which the skill becomes usable. */

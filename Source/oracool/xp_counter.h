@@ -34,6 +34,9 @@ uint64_t GetLevelExperienceSpan(const Player &player);
  * whether a click is UI or should fall through to the world - see IsPointOverHud. */
 bool IsPointOverXpCounter(Point mousePosition);
 
+/** @brief Whether @p mousePosition is on the XP bar above the belt while it is drawn - a HUD button for its sounds (2026-09-27). */
+bool IsPointOverXpBar(Point mousePosition);
+
 /** @brief Draws the counter if the option is on and the player isn't at max level. */
 void DrawXpCounter(const Surface &out);
 

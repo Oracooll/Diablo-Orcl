@@ -148,6 +148,9 @@ bool HandleGoldWithdrawTextInputEvent(const SDL_Event &event);
  */
 bool AutoPlaceItemInStash(Player &player, const Item &item, bool persistItem);
 
+/** @brief Takes out of the stash every item whose size no longer fits the cells it was saved in, into @p displaced. */
+void TakeOutgrownStashItems(std::vector<Item> &displaced);
+
 /**
  * @brief Oracool: user request - re-sorts the entire Stash by item category (Weapons, Armor,
  * Helms, Shields, Jewelry, then everything else), descending price within each category, packing

@@ -503,6 +503,12 @@ bool SlowMissilesTurnsAside(const Player &player)
 	return GenerateRnd(100) < std::min(50 + 5 * (buff->rank - 1), 80);
 }
 
+bool IsMonsterConverted(const Monster &monster)
+{
+	constexpr uint32_t Both = MFLAG_BERSERK | MFLAG_GOLEM;
+	return (monster.flags & Both) == Both && DebuffOf(monster).convertTicks > 0;
+}
+
 int MonsterDebuffDamagePercent(const Monster &monster)
 {
 	int percent = 0;

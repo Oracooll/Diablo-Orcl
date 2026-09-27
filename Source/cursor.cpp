@@ -321,7 +321,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // boots
 	2 * 28, // helm
 	2 * 28, // leather_armor
-	2 * 28, // leather_shield
+	3 * 28, // leather_shield
 	2 * 28, // iron_gloves
 	2 * 28, // iron_shoulders
 	2 * 28, // iron_bracers
@@ -329,7 +329,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // iron_legs
 	2 * 28, // iron_boots
 	2 * 28, // iron_armor
-	2 * 28, // iron_shield
+	3 * 28, // iron_shield
 	2 * 28, // steel_gloves
 	2 * 28, // steel_shoulders
 	2 * 28, // steel_bracers
@@ -337,7 +337,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // steel_legs
 	2 * 28, // steel_boots
 	2 * 28, // steel_armor
-	2 * 28, // steel_shield
+	3 * 28, // steel_shield
 	2 * 28, // steel_helm
 	2 * 28, // crusader_gloves
 	2 * 28, // crusader_shoulders
@@ -346,7 +346,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // crusader_legs
 	2 * 28, // crusader_boots
 	2 * 28, // crusader_armor
-	2 * 28, // crusader_shield
+	3 * 28, // crusader_shield
 	2 * 28, // crusader_helm
 	2 * 28, // bone_gloves
 	2 * 28, // bone_shoulders
@@ -355,7 +355,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // bone_legs
 	2 * 28, // bone_boots
 	2 * 28, // bone_armor
-	2 * 28, // bone_shield
+	3 * 28, // bone_shield
 	2 * 28, // bone_helm
 	2 * 28, // royal_gloves
 	2 * 28, // royal_shoulders
@@ -364,7 +364,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // royal_legs
 	2 * 28, // royal_boots
 	2 * 28, // royal_armor
-	2 * 28, // royal_shield
+	3 * 28, // royal_shield
 	2 * 28, // royal_helm
 	2 * 28, // obsidian_gloves
 	2 * 28, // obsidian_shoulders
@@ -373,7 +373,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // obsidian_legs
 	2 * 28, // obsidian_boots
 	2 * 28, // obsidian_armor
-	2 * 28, // obsidian_shield
+	3 * 28, // obsidian_shield
 	2 * 28, // obsidian_helm
 	2 * 28, // infernal_gloves
 	2 * 28, // infernal_shoulders
@@ -382,7 +382,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // infernal_legs
 	2 * 28, // infernal_boots
 	2 * 28, // infernal_armor
-	2 * 28, // infernal_shield
+	3 * 28, // infernal_shield
 	2 * 28, // infernal_helm
 	2 * 28, // diamond_gloves
 	2 * 28, // diamond_shoulders
@@ -391,7 +391,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // diamond_legs
 	2 * 28, // diamond_boots
 	2 * 28, // diamond_armor
-	2 * 28, // diamond_shield
+	3 * 28, // diamond_shield
 	2 * 28, // diamond_helm
 	2 * 28, // ruby_gloves
 	2 * 28, // ruby_shoulders
@@ -400,7 +400,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // ruby_legs
 	2 * 28, // ruby_boots
 	2 * 28, // ruby_armor
-	2 * 28, // ruby_shield
+	3 * 28, // ruby_shield
 	2 * 28, // ruby_helm
 	2 * 28, // onyx_gloves
 	2 * 28, // onyx_shoulders
@@ -409,7 +409,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // onyx_legs
 	2 * 28, // onyx_boots
 	2 * 28, // onyx_armor
-	2 * 28, // onyx_shield
+	3 * 28, // onyx_shield
 	2 * 28, // onyx_helm
 	2 * 28, // glacial_gloves
 	2 * 28, // glacial_shoulders
@@ -418,7 +418,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // glacial_legs
 	2 * 28, // glacial_boots
 	2 * 28, // glacial_armor
-	2 * 28, // glacial_shield
+	3 * 28, // glacial_shield
 	2 * 28, // glacial_helm
 	2 * 28, // cyborg_gloves
 	2 * 28, // cyborg_shoulders
@@ -427,7 +427,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // cyborg_legs
 	2 * 28, // cyborg_boots
 	2 * 28, // cyborg_armor
-	2 * 28, // cyborg_shield
+	3 * 28, // cyborg_shield
 	2 * 28, // cyborg_helm
 	2 * 28, // fallen_gloves
 	2 * 28, // fallen_shoulders
@@ -436,7 +436,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // fallen_legs
 	2 * 28, // fallen_boots
 	2 * 28, // fallen_armor
-	2 * 28, // fallen_shield
+	3 * 28, // fallen_shield
 	2 * 28, // fallen_helm
 	2 * 28, // seraphic_gloves
 	2 * 28, // seraphic_shoulders
@@ -445,7 +445,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // seraphic_legs
 	2 * 28, // seraphic_boots
 	2 * 28, // seraphic_armor
-	2 * 28, // seraphic_shield
+	3 * 28, // seraphic_shield
 	2 * 28, // seraphic_helm
 	2 * 28, // spectral_gloves
 	2 * 28, // spectral_shoulders
@@ -454,7 +454,7 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // spectral_legs
 	2 * 28, // spectral_boots
 	2 * 28, // spectral_armor
-	2 * 28, // spectral_shield
+	3 * 28, // spectral_shield
 	2 * 28, // spectral_helm
 	1 * 28, // gem_ruby
 	1 * 28, // gem_sapphire

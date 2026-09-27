@@ -49,6 +49,7 @@
 #include "oracool/sprite_colours.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
+#include "oracool/warcries.h" // IsMonsterConverted - Conversion's monsters draw green
 #include "oracool/item_tint.h"
 #include "oracool/aura_ground.h"
 #include "oracool/skill_picker.h"
@@ -452,6 +453,11 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 	// win, exactly as above.
 	if (trn == oracool::ColdTRN() && !out.isIndexed()) {
 		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::FrozenRgbTable(LightTableIndex));
+		return;
+	}
+	// Converted to the Paladin's side: green, lit as it stands (dev note, 2026-09-27). Ice, stone and infravision win.
+	if (oracool::IsMonsterConverted(monster) && trn != oracool::ColdTRN() && trn != GetStoneTRN() && trn != GetInfravisionTRN() && !out.isIndexed()) {
+		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::ConvertedRgbTable(LightTableIndex));
 		return;
 	}
 	// A recoloured VARIANT is an ordinary monster and is lit like one (2026-09-08). Drawn through its

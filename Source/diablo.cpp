@@ -4355,6 +4355,9 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	// so the shield has somewhere to go: the backpack, or the ground at the hero's feet.
 	if (MyPlayer != nullptr && MyPlayer->isOnActiveLevel())
 		oracool::EnforceTwoHandedGrip(*MyPlayer);
+	// Items whose size grew since they were saved move to a free spot, once per game load (2026-09-27: the shields).
+	if ((firstflag || lvldir == ENTRY_LOAD) && MyPlayer != nullptr && MyPlayer->isOnActiveLevel())
+		ReseatOutgrownItems(*MyPlayer);
 
 	IncProgress();
 	IncProgress();

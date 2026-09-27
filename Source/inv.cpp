@@ -571,7 +571,7 @@ bool AutoEquip(Player &player, const Item &item, inv_body_loc bodyLocation, bool
 			PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(item)]);
 		}
 
-		CalcPlrInv(player, true);
+		CalcPlrInv(player, false);
 	}
 
 	return true;
@@ -757,7 +757,7 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 				oracool::CheckPassiveMilestones(player);
 			}
 			ConsumeOneHeldUnit(player);
-			CalcPlrInv(player, true);
+			CalcPlrInv(player, false);
 			return;
 		}
 		if (oracool::TrySocketGem(socketTarget, player.HoldItem)) {
@@ -780,7 +780,7 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 			    && !oracool::PlayUiEventSound(runewordComplete ? oracool::UiEventSound::RunewordComplete : oracool::UiEventSound::Socket))
 				PlaySFX(IS_IGRAB);
 			ConsumeOneHeldUnit(player);
-			CalcPlrInv(player, true);
+			CalcPlrInv(player, false);
 			return;
 		}
 	}
@@ -1389,7 +1389,7 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 			player._pGold = CalculateGold(player);
 		}
 
-		CalcPlrInv(player, true);
+		CalcPlrInv(player, false);
 		holdItem._iStatFlag = player.CanUseItem(holdItem);
 
 		if (&player == MyPlayer) {
@@ -3221,7 +3221,7 @@ void TransferItemToStash(Player &player, int location)
 
 	if (location < INVITEM_INV_FIRST) {
 		RemoveEquipment(player, static_cast<inv_body_loc>(location), false);
-		CalcPlrInv(player, true);
+		CalcPlrInv(player, false);
 	} else if (location <= INVITEM_INV_LAST)
 		player.RemoveInvItem(location - INVITEM_INV_FIRST);
 	else
@@ -4655,6 +4655,67 @@ Size GetInventorySize(const Item &item)
 	auto size = GetInvItemSize(itemSizeIndex);
 
 	return { size.width / InventorySlotSizeInPixels.width, size.height / InventorySlotSizeInPixels.height };
+}
+
+namespace {
+
+/**
+ * @brief The first item on a backpack page whose footprint no longer fits where it is anchored - past the grid, or over
+ * another item's cells - or -1. The anchor is the bottom-left cell (the one positive entry), so a taller item reaches up.
+ */
+int FirstOutgrownBackpackItem(const int8_t *grid, const Item *list, int count)
+{
+	const int columns = InventorySizeInSlots.width;
+	for (int cell = 0; cell < InventoryGridCells; cell++) {
+		const int id = grid[cell];
+		if (id <= 0 || id > count)
+			continue;
+		const Size size = GetInventorySize(list[id - 1]);
+		const int column = cell % columns;
+		const int row = cell / columns;
+		if (column + size.width > columns || row - (size.height - 1) < 0)
+			return id - 1;
+		for (int y = 0; y < size.height; y++) {
+			for (int x = 0; x < size.width; x++) {
+				const int other = grid[(row - y) * columns + column + x];
+				if (other != 0 && std::abs(other) != id)
+					return id - 1;
+			}
+		}
+	}
+	return -1;
+}
+
+} // namespace
+
+void ReseatOutgrownItems(Player &player)
+{
+	// An item's size comes from its icon, never from the save, so a size change (the Orcl shields went 2x2 -> 2x3 on
+	// 2026-09-27) leaves saved grids holding items in cells that are now too small: drawn over a neighbour, or past the
+	// grid's edge. Each such item is taken out and placed again - backpack, extra pages, stash - or at the hero's feet.
+	if (&player != MyPlayer)
+		return;
+	std::vector<Item> displaced;
+	for (int iv; (iv = FirstOutgrownBackpackItem(player.InvGrid, player.InvList, player._pNumInv)) >= 0;) {
+		displaced.push_back(player.InvList[iv]);
+		player.RemoveInvItem(iv, false);
+	}
+	for (int tab = 0; tab < Player::NumExtraInventoryTabs; tab++) {
+		for (int iv; (iv = FirstOutgrownBackpackItem(player.InvTabGrid[tab].data(), player.InvTabList[tab].data(), player._pNumInvTab[tab])) >= 0;) {
+			displaced.push_back(player.InvTabList[tab][iv]);
+			RemoveExtraTabItem(player, tab, iv);
+		}
+	}
+	TakeOutgrownStashItems(displaced);
+	for (const Item &item : displaced) {
+		if (AutoPlaceItemInInventory(player, item, true) || AutoPlaceItemInExtraTabs(player, item, true) || AutoPlaceItemInStash(player, item, true))
+			continue;
+		DropItemBesidePlayer(player, item);
+	}
+	if (!displaced.empty()) {
+		CalcPlrInv(player, false);
+		oracool::LogEvent(fmt::format("{:d} item(s) that grew moved to a free spot", displaced.size()));
+	}
 }
 
 } // namespace devilution

@@ -2464,7 +2464,12 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 	case SpellID::Sweep: arc = MissileGraphicID::SweepArc; break;
 	case SpellID::LowBranch: arc = MissileGraphicID::LowBranch; break;
 	case SpellID::TurningPike: arc = MissileGraphicID::TurningPike; break;
-	case SpellID::HolyLance: arc = MissileGraphicID::HolyLance; break;
+	case SpellID::HolyLance:
+		// A bright arrow that flies through the opponent to the two tiles behind it, the ones the lance strikes
+		// (dev note, 2026-09-27: "another missile animation ... maybe a bright bow missile"). The thrust sheet
+		// stood still on the hero.
+		Fly(player, MissileGraphicID::GuidedArrowGold, from, LineEnd(from, from + facing, 3), SpellID::Invalid, 24);
+		break;
 	case SpellID::ReapingPoint: arc = MissileGraphicID::ReapingPoint; break;
 	case SpellID::Crusade:
 		Art(player, MissileGraphicID::CrusadeSweep, from); // the ring-slash all round him, not along his facing

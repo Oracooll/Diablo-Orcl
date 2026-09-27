@@ -53,7 +53,7 @@ SpellMask InnateSpellsBitmask(const Player &player)
 	// finding Shield Bash still listed after refunding its only point - "there is a gold background
 	// next to TP spell icon [...] It reads Shield Bash! Why? Makes no sense").
 	//
-	// IsPaladinSkillUnlocked answers level and shield, which is what the CHARACTER can reach. It has
+	// IsPaladinSkillUnlocked answers level (the shield is a use check since 2026-09-27). It has
 	// never known about the class tree, so a skill was in this mask from the moment its level gate
 	// opened whether or not the player had spent anything on it - and the mask is what the speedbook,
 	// the quick list and the wells all read as "you have this".

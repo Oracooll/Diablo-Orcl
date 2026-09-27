@@ -42,6 +42,12 @@ namespace oracool {
  * hand - the Paladin's passive slotted. Defined in oracool/class_tree.cpp; asked by GetItemLocation.
  */
 bool HeavenlyStrengthGrips(const Player &player, const Item &item);
+/** @brief Heavenly Strength's price (dev note, 2026-09-27): -20% damage, to hit and attack speed while the grip is used. */
+constexpr int HeavenlyStrengthPenaltyPercent = 20;
+/** @brief Whether @p player is using the grip right now: a two-hander held in one hand beside a shield. */
+bool HeavenlyStrengthInUse(const Player &player);
+/** @brief Extra ticks a swing takes under Heavenly Strength: 20% slower is a quarter more of the attack's frames. */
+int HeavenlyStrengthSwingDelayFrames(const Player &player);
 /**
  * @brief Parts a two-handed weapon from whatever shares its hands when the rules say it needs both - the
  * other item to the backpack, or the ground at the hero's feet (2026-09-11). Run on every level load: the
@@ -169,8 +175,13 @@ enum class player_graphic : uint8_t {
 	Magic,
 	Death,
 	Block,
+	/**
+	 * @brief The unarmed-with-shield attack sheet ("u" + "at"), whatever is in hand: Shield Bash and Aegis Slam strike
+	 * with the shield (dev note, 2026-09-27). Loaded for the Paladin only; the armour tier follows what is worn.
+	 */
+	ShieldAttack,
 
-	LAST = Block
+	LAST = ShieldAttack
 };
 
 enum class PlayerWeaponGraphic : uint8_t {

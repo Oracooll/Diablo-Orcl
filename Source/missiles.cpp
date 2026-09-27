@@ -623,7 +623,7 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			if (missile._micaster == TARGET_MONSTERS) {
 				if ((pid - 1) != missile._misource)
 					isPlayerHit = Plr2PlrMHit(Players[missile._misource], pid - 1, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, &blocked);
-			} else if (!Monsters[missile._misource].isPlayerMinion()) {
+			} else if (!Monsters[missile._misource].isPlayerMinion() && !oracool::IsMonsterConverted(Monsters[missile._misource])) {
 				// A hero's own minions never shoot the hero (2026-09-26): their shots are aimed at monsters and
 				// used to wound any player standing in the line - the Skeletal Mage's firebolts made it plain.
 				Monster &monster = Monsters[missile._misource];

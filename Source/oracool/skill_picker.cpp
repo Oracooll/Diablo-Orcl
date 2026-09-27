@@ -27,6 +27,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/ornate_border.h"
 #include "oracool/readied_spells.h"
+#include "oracool/spell_ranks.h" // SpellRequiredLevel - spells sort as the Spells tab sorts them
 #include "oracool/ui_sound.h"
 #include "oracool/window_close.h"
 
@@ -83,6 +84,17 @@ struct Entry {
 	int attackIcon = 0;
 	ClassTreeSkill tree = ClassTreeSkill::None;
 	SpellID spell = SpellID::Invalid;
+};
+
+/**
+ * @brief One heading and its run of entries (dev note, 2026-09-27: "subgroups 1/2/3/spells/staff/etc"): the attacks, the
+ * Abilities window's three tree pages under their tab numbers, then spells, scrolls and the staff. Built with the entries,
+ * and walked by the draw, the click, the hover and the scroll alike - one geometry.
+ */
+struct Section {
+	std::string label;
+	size_t first;
+	size_t count;
 };
 
 // Geometry. 38 is not a free choice: the RMB well alternates between a strip icon and the engine's
@@ -143,44 +155,74 @@ SpellType SpellTypeFor(const Player &player, SpellID spell, bool fromStaff = fal
 }
 
 /**
- * @brief Everything @p player can put on a mouse button right now, attacks first, then skills, then
- * spells.
+ * @brief Everything @p player can put on a mouse button right now, in sections: the attacks, the tree's three pages as the
+ * Abilities window lays them out, then spells, scrolls and the staff.
  *
  * The filter is the whole reason this window is small. A tree row qualifies only if it is BUILT,
  * UNLOCKED and has a rank in it - which is the same three-part answer the Abilities window already
  * uses to decide whether a cell is live - and passives never qualify at all, because a passive
  * cannot be readied and an entry that does nothing when clicked is worse than an absent one.
  */
-void BuildEntries(const Player &player, std::vector<Entry> &out, size_t &attackCount, size_t &treeCount,
-    size_t &spellCount, size_t &scrollCount)
+void BuildEntries(const Player &player, std::vector<Entry> &out, std::vector<Section> &sections)
 {
 	out.clear();
+	sections.clear();
+	size_t first = 0;
+	const auto closeSection = [&](string_view label) {
+		if (out.size() > first)
+			sections.push_back({ std::string(label), first, out.size() - first });
+		first = out.size();
+	};
 
 	for (size_t i = 0; i < AttackIconCount; i++)
 		out.push_back({ EntryKind::Attack, static_cast<int>(AttackIconDisplayOrder[i]) });
-	attackCount = out.size();
+	closeSection(_("ATTACKS"));
 
+	const auto qualifies = [&](ClassTreeSkill skill) {
+		const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+		return data.heroClass == player._pClass && data.implemented && !IsClassTreeRowRetiredAsSpell(skill)
+		    && data.kind != ClassTreeKind::Passive && IsClassTreeSkillUnlocked(player, skill)
+		    && ClassTreeInvestment(player, skill) > 0;
+	};
 	// Deduplicated against the spell list below: a Paladin's Zeal is both a tree row and an ability,
 	// and listing it twice would make the same click land in two places.
 	SpellMask listedSpells;
-	for (size_t i = 0; i < ClassTreeSkillCount; i++) {
-		const auto skill = static_cast<ClassTreeSkill>(i);
-		const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
-		if (data.heroClass != player._pClass)
-			continue;
-		if (!data.implemented || IsClassTreeRowRetiredAsSpell(skill))
-			continue;
-		if (data.kind == ClassTreeKind::Passive)
-			continue;
-		if (!IsClassTreeSkillUnlocked(player, skill) || ClassTreeInvestment(player, skill) <= 0)
-			continue;
+	std::vector<bool> listedRows(ClassTreeSkillCount, false);
+	const auto addRow = [&](ClassTreeSkill skill) {
 		const SpellID slot = ClassTreeSpellId(skill);
 		if (IsValidSpell(slot))
 			listedSpells |= GetSpellBitmask(slot);
+		listedRows[static_cast<size_t>(skill)] = true;
 		out.push_back({ EntryKind::Tree, 0, skill, slot });
+	};
+	// The Abilities window's tabs 1, 2 and 3, each in that window's reading order: top-left to bottom-right.
+	std::vector<ClassTreeSkill> page(MaxSkillsPerClass);
+	for (int p = 0; p < 3; p++) {
+		const size_t n = BuildClassTreePage(player._pClass, p, page.data());
+		for (size_t i = 0; i < n; i++) {
+			if (qualifies(page[i]))
+				addRow(page[i]);
+		}
+		closeSection(StrCat(p + 1, " - ", GetClassTreePageName(player._pClass, p)));
 	}
-	treeCount = out.size() - attackCount;
+	// A readiable row no page lays out still gets its cell.
+	for (size_t i = 0; i < ClassTreeSkillCount; i++) {
+		const auto skill = static_cast<ClassTreeSkill>(i);
+		if (!listedRows[i] && qualifies(skill))
+			addRow(skill);
+	}
+	closeSection(_("SKILLS"));
 
+	// Spells, scrolls and the staff in the Spells tab's order: level band, then name.
+	const auto sortSpells = [&]() {
+		std::sort(out.begin() + static_cast<std::ptrdiff_t>(first), out.end(), [](const Entry &a, const Entry &b) {
+			const int bandA = SpellRequiredLevel(a.spell);
+			const int bandB = SpellRequiredLevel(b.spell);
+			if (bandA != bandB)
+				return bandA < bandB;
+			return GetSpellDisplayName(a.spell) < GetSpellDisplayName(b.spell);
+		});
+	};
 	for (size_t i = 1; i < MAX_SPELLS; i++) {
 		const auto spell = static_cast<SpellID>(i);
 		if (!IsSpellKnownTo(player, spell))
@@ -189,7 +231,8 @@ void BuildEntries(const Player &player, std::vector<Entry> &out, size_t &attackC
 			continue;
 		out.push_back({ EntryKind::Spell, 0, ClassTreeSkill::None, spell });
 	}
-	spellCount = out.size() - attackCount - treeCount;
+	sortSpells();
+	closeSection(_("SPELLS"));
 
 	// THE SCROLLS, their own section (user, 2026-09-05). Undeduplicated like the staff: a spell held
 	// as a scroll is a different thing to ready from the same spell known, and the two coexist.
@@ -198,15 +241,19 @@ void BuildEntries(const Player &player, std::vector<Entry> &out, size_t &attackC
 		if ((player._pScrlSpells & GetSpellBitmask(spell)) != 0)
 			out.push_back({ EntryKind::Scroll, 0, ClassTreeSkill::None, spell });
 	}
-	scrollCount = out.size() - attackCount - treeCount - spellCount;
+	sortSpells();
+	closeSection(_("SCROLLS"));
 
 	// THE STAFF, last and undeduplicated. Not filtered against anything above: a spell held both
-	// ways is two cells on purpose, and the staff cell is the one that spends charges.
+	// ways is two cells on purpose, and the staff cell is the one that spends charges. Its heading
+	// shows only while a staff with a spell is equipped (user, 2026-09-03).
 	for (size_t i = 1; i < MAX_SPELLS; i++) {
 		const auto spell = static_cast<SpellID>(i);
 		if (IsStaffSpellOf(player, spell))
 			out.push_back({ EntryKind::Staff, 0, ClassTreeSkill::None, spell });
 	}
+	sortSpells();
+	closeSection(_("STAFF SPELLS"));
 }
 
 /**
@@ -318,17 +365,12 @@ bool IsCellVisible(const Rectangle &window, const Rectangle &cell)
 	return cell.position.y >= clipTop && cell.position.y + IconSize <= clipBottom;
 }
 
-int ContentHeight(size_t attacks, size_t trees, size_t spells, size_t scrolls, size_t staves)
+int ContentHeight(const std::vector<Section> &sections)
 {
 	int h = TitleHeight;
-	int sections = 0;
-	for (const size_t n : { attacks + trees, spells, scrolls, staves }) {
-		if (n == 0)
-			continue;
-		h += SectionHeight(n);
-		sections++;
-	}
-	return h + std::max(0, sections - 1) * SectionGap;
+	for (const Section &section : sections)
+		h += SectionHeight(section.count);
+	return h + std::max(0, static_cast<int>(sections.size()) - 1) * SectionGap;
 }
 
 } // namespace
@@ -373,14 +415,10 @@ Rectangle GetSkillPickerRect()
 		return Rectangle { { 0, 0 }, { 0, 0 } };
 
 	std::vector<Entry> entries;
-	size_t attacks = 0;
-	size_t trees = 0;
-	size_t spells = 0;
-	size_t scrolls = 0;
-	BuildEntries(*MyPlayer, entries, attacks, trees, spells, scrolls);
-	const size_t staves = entries.size() - attacks - trees - spells - scrolls;
+	std::vector<Section> sections;
+	BuildEntries(*MyPlayer, entries, sections);
 
-	const int needed = ContentHeight(attacks, trees, spells, scrolls, staves) + 2 * Padding;
+	const int needed = ContentHeight(sections) + 2 * Padding;
 	// Anchored to the plate, growing UPWARD, because that is the direction the button it belongs to
 	// is in. Clamped at the top so a long list is shortened rather than run off the screen; the
 	// wheel reaches whatever the clamp cut off.
@@ -405,12 +443,9 @@ void ScrollSkillPicker(int notches)
 	// Bounded at BOTH ends. Without the upper bound the wheel would keep pushing the list past its
 	// own end into an empty window - the failure that looks like the picker lost its contents.
 	std::vector<Entry> entries;
-	size_t attacks = 0;
-	size_t trees = 0;
-	size_t spells = 0;
-	size_t scrolls = 0;
-	BuildEntries(*MyPlayer, entries, attacks, trees, spells, scrolls);
-	const int content = ContentHeight(attacks, trees, spells, scrolls, entries.size() - attacks - trees - spells - scrolls);
+	std::vector<Section> sections;
+	BuildEntries(*MyPlayer, entries, sections);
+	const int content = ContentHeight(sections);
 	const Rectangle window = GetSkillPickerRect();
 	const int visible = window.size.height - 2 * Padding - TitleHeight;
 	const int maxScroll = std::max(0, content - TitleHeight - visible);
@@ -425,12 +460,8 @@ void DrawSkillPicker(const Surface &out)
 
 	const Player &player = *MyPlayer;
 	std::vector<Entry> entries;
-	size_t attacks = 0;
-	size_t trees = 0;
-	size_t spells = 0;
-	size_t scrolls = 0;
-	BuildEntries(player, entries, attacks, trees, spells, scrolls);
-	const size_t skills = attacks + trees;
+	std::vector<Section> sections;
+	BuildEntries(player, entries, sections);
 
 	// Cleared every frame, so moving off a cell un-hovers it. Without this an F-key would keep
 	// binding whatever the cursor last touched, long after it left the window's cells.
@@ -455,11 +486,11 @@ void DrawSkillPicker(const Surface &out)
 	const int clipTop = window.position.y + Padding + TitleHeight;
 	const int clipBottom = window.position.y + window.size.height - Padding;
 
-	const auto drawSection = [&](const char *label, size_t first, size_t count) {
+	const auto drawSection = [&](const std::string &label, size_t first, size_t count) {
 		if (count == 0)
 			return;
 		if (y + HeaderHeight > clipTop && y < clipBottom) {
-			DrawString(out, _(label),
+			DrawString(out, label,
 			    { { window.position.x + Padding, y }, { GridWidth, HeaderHeight } },
 			    { UiFlags::ColorUiSilver | UiFlags::FontSize12 });
 		}
@@ -595,12 +626,8 @@ void DrawSkillPicker(const Surface &out)
 	if (window.contains(MousePosition))
 		ClearPanelStrings();
 
-	drawSection(N_("Skills"), 0, skills);
-	drawSection(N_("Spells"), skills, spells);
-	drawSection(N_("Scrolls"), skills + spells, scrolls);
-	// Its own heading, shown only when a staff with a spell is actually equipped - the section is
-	// empty otherwise and SectionHeight collapses it to nothing (user, 2026-09-03).
-	drawSection(N_("Staff spells"), skills + spells + scrolls, entries.size() - skills - spells - scrolls);
+	for (const Section &section : sections)
+		drawSection(section.label, section.first, section.count);
 }
 
 namespace {
@@ -610,15 +637,12 @@ namespace {
  * until it returns true. One geometry for the click, the F-key hover and the test.
  */
 template <typename Visit>
-void ForEachPickerCell(const Rectangle &window, const std::vector<Entry> &entries, size_t skills, size_t spells,
-    size_t scrolls, Visit &&visit)
+void ForEachPickerCell(const Rectangle &window, const std::vector<Section> &sections, Visit &&visit)
 {
 	int y = window.position.y + Padding + TitleHeight - PickerScroll;
-	const size_t sectionFirst[4] = { 0, skills, skills + spells, skills + spells + scrolls };
-	const size_t sectionCount[4] = { skills, spells, scrolls, entries.size() - skills - spells - scrolls };
-	for (int section = 0; section < 4; section++) {
-		const size_t first = sectionFirst[section];
-		const size_t count = sectionCount[section];
+	for (const Section &section : sections) {
+		const size_t first = section.first;
+		const size_t count = section.count;
 		if (count == 0)
 			continue;
 		y += HeaderHeight;
@@ -642,11 +666,10 @@ void ForEachPickerCell(const Rectangle &window, const std::vector<Entry> &entrie
 }
 
 /** @brief The entry under @p point in the open picker, or nullopt. */
-std::optional<size_t> PickerEntryAt(Point point, const Rectangle &window, const std::vector<Entry> &entries,
-    size_t skills, size_t spells, size_t scrolls)
+std::optional<size_t> PickerEntryAt(Point point, const Rectangle &window, const std::vector<Section> &sections)
 {
 	std::optional<size_t> hit;
-	ForEachPickerCell(window, entries, skills, spells, scrolls, [&](size_t index, const Rectangle &cell) {
+	ForEachPickerCell(window, sections, [&](size_t index, const Rectangle &cell) {
 		if (!cell.contains(point))
 			return false;
 		hit = index;
@@ -667,15 +690,12 @@ void RefreshSkillPickerHover()
 	if (!PickerOpen || MyPlayer == nullptr)
 		return;
 	std::vector<Entry> entries;
-	size_t attacks = 0;
-	size_t trees = 0;
-	size_t spells = 0;
-	size_t scrolls = 0;
-	BuildEntries(*MyPlayer, entries, attacks, trees, spells, scrolls);
+	std::vector<Section> sections;
+	BuildEntries(*MyPlayer, entries, sections);
 	const Rectangle window = GetSkillPickerRect();
 	if (!window.contains(MousePosition))
 		return;
-	const std::optional<size_t> hit = PickerEntryAt(MousePosition, window, entries, attacks + trees, spells, scrolls);
+	const std::optional<size_t> hit = PickerEntryAt(MousePosition, window, sections);
 	if (!hit.has_value())
 		return;
 	const Entry &entry = entries[*hit];
@@ -690,12 +710,9 @@ Point GetSkillPickerCellCenter(size_t entryIndex)
 	if (!PickerOpen || MyPlayer == nullptr)
 		return center;
 	std::vector<Entry> entries;
-	size_t attacks = 0;
-	size_t trees = 0;
-	size_t spells = 0;
-	size_t scrolls = 0;
-	BuildEntries(*MyPlayer, entries, attacks, trees, spells, scrolls);
-	ForEachPickerCell(GetSkillPickerRect(), entries, attacks + trees, spells, scrolls, [&](size_t index, const Rectangle &cell) {
+	std::vector<Section> sections;
+	BuildEntries(*MyPlayer, entries, sections);
+	ForEachPickerCell(GetSkillPickerRect(), sections, [&](size_t index, const Rectangle &cell) {
 		if (index != entryIndex)
 			return false;
 		center = cell.position + Displacement { cell.size.width / 2, cell.size.height / 2 };
@@ -743,17 +760,13 @@ bool CheckSkillPickerClick(Point mousePosition)
 
 	Player &player = *MyPlayer;
 	std::vector<Entry> entries;
-	size_t attacks = 0;
-	size_t trees = 0;
-	size_t spells = 0;
-	size_t scrolls = 0;
-	BuildEntries(player, entries, attacks, trees, spells, scrolls);
-	const size_t skills = attacks + trees;
+	std::vector<Section> sections;
+	BuildEntries(player, entries, sections);
 
 	// The same walk the draw does, in the same order, through PickerEntryAt - one geometry, so a
 	// cell cannot be drawn in one place and clicked in another (or hovered in a third: the F-key
 	// hover asks the same function, see RefreshSkillPickerHover).
-	if (const std::optional<size_t> hit = PickerEntryAt(mousePosition, window, entries, skills, spells, scrolls); hit.has_value()) {
+	if (const std::optional<size_t> hit = PickerEntryAt(mousePosition, window, sections); hit.has_value()) {
 		{
 			const Entry &entry = entries[*hit];
 			switch (entry.kind) {

@@ -72,6 +72,12 @@ void StopFuriousChargeDash();
 bool IsFuriousChargeDashing();
 
 /**
+ * @brief The dash's walk-frame skip: the walk's 8 frames in 2 ticks, 0.1 s a tile at normal speed (dev note,
+ * 2026-09-27). A plain walk is -2 (10 ticks), the run 2 (6 ticks).
+ */
+constexpr int ChargeDashSkipFrames = 6;
+
+/**
  * @brief Starts the 3-second cooldown. Call once the charge resolves into an actual swing.
  */
 void StartFuriousChargeCooldown();

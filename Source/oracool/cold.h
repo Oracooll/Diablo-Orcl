@@ -108,6 +108,13 @@ uint8_t *ColdTRN();
 const uint32_t *FrozenRgbTable(int lightTableIndex);
 
 /**
+ * @brief Conversion's look (dev note, 2026-09-27: "recolour converted mobs green"): the same colour-value machinery
+ * as FrozenRgbTable, lit and shaded, half-way to grey and then pushed green. The palette has no green (indexed surfaces
+ * keep the normal draw). Cached per light level; rebuilt with the palette.
+ */
+const uint32_t *ConvertedRgbTable(int lightTableIndex);
+
+/**
  * @brief Cold Mastery's whole effect: how much of the resistance penalty a cold hit keeps.
  *
  * A resisted hit is normally quartered (`dam >>= 2`). Mastery hands back part of that: the return

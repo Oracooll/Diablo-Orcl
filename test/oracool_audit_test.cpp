@@ -579,7 +579,7 @@ TEST(OracoolAudit, ShieldCountsInEitherHand)
 // Bug (v1.6.3): _pAblSpells was rebuilt only at creation, level-up and load, so equipping a shield
 // mid-level left the mask stale - the Abilities window drew the shield skills unlocked but refused
 // to ready them. The mask itself must reflect equipment; CalcPlrInv rebuilds it on every change.
-TEST(OracoolAudit, InnateMaskFollowsTheShield)
+TEST(OracoolAudit, InnateMaskKeepsTheShieldSkillsWithoutAShield)
 {
 	Players.resize(1);
 	devilution::Player &player = Players[0];
@@ -610,9 +610,11 @@ TEST(OracoolAudit, InnateMaskFollowsTheShield)
 	player._pSkillInvestment[static_cast<size_t>(SpellID::BlessedShield)] = 1;
 	player._pSkillInvestment[static_cast<size_t>(SpellID::Zeal)] = 1;
 
+	// Since 2026-09-27 the shield gates USING the two skills, not having them (dev note: "must not require shield to
+	// level up, only to operate"): the mask keeps them with no shield in hand, and CanUsePaladinSkill refuses.
 	SpellMask mask = oracool::InnateSpellsBitmask(player);
-	EXPECT_EQ(mask & shieldBash, 0u) << "Shield Bash granted without a shield";
-	EXPECT_EQ(mask & blessedShield, 0u) << "Blessed Shield granted without a shield";
+	EXPECT_NE(mask & shieldBash, 0u) << "Shield Bash dropped from the buttons for want of a shield";
+	EXPECT_NE(mask & blessedShield, 0u) << "Blessed Shield dropped from the buttons for want of a shield";
 	EXPECT_NE(mask & zeal, 0u) << "Zeal should not be shield-gated";
 
 	player.InvBody[INVLOC_HAND_LEFT]._itype = ItemType::Shield;
@@ -8699,11 +8701,20 @@ TEST(OracoolClassTree, EveryBorrowedPaladinSkillMatchesItsTreeTier)
 	EXPECT_TRUE(IsClassTreeSkillUnlocked(player, ClassTreeSkill::Smite))
 	    << "Smite still refuses a level 1 Paladin holding a shield";
 
-	// And the shield requirement survives the fix: it is a real condition, not a level in disguise.
+	// The shield is a USE requirement (dev note, 2026-09-27): without one Smite still takes points,
+	// and only using it is refused.
+	player._pLevel = 40; // past every Paladin skill's level gate, so only the shield decides
+	player._pMana = 1000 << 6;
+	player._pMaxMana = 1000 << 6;
+	EXPECT_TRUE(CanUsePaladinSkill(player, PaladinSkill::ShieldBash)) << "test setup: Smite with a shield and mana should be usable";
 	shield.clear();
 	ASSERT_FALSE(HasShieldEquipped(player));
-	EXPECT_FALSE(IsClassTreeSkillUnlocked(player, ClassTreeSkill::Smite))
-	    << "Smite no longer requires a shield - the level fix took the shield gate with it";
+	EXPECT_TRUE(IsClassTreeSkillUnlocked(player, ClassTreeSkill::Smite))
+	    << "Smite refuses its points without a shield - the shield must gate using it, not leveling it";
+	EXPECT_FALSE(CanUsePaladinSkill(player, PaladinSkill::ShieldBash))
+	    << "Smite is usable without a shield";
+	EXPECT_FALSE(CanUsePaladinSkill(player, PaladinSkill::BlessedShield))
+	    << "Blessed Shield is usable without a shield";
 }
 
 // Reported from play, 2026-08-27, after refunding the single point in Smite:

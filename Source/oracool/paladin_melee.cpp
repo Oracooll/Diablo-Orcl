@@ -8,6 +8,8 @@
 #include "oracool/minions.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h" // Towering Shield
+#include "oracool/rfa12_actives.h" // ArmedRfa12Melee - Aegis Slam strikes with the shield too
+#include "playerdat.hpp"
 #include "oracool/skill_sounds.h"
 #include "oracool/oracool.h"
 #include "player.h"
@@ -262,8 +264,8 @@ void ApplyHammerOfFaith(Player &player, Monster &primaryTarget, int hitDamage)
  */
 void ApplyShieldBash(Player &player, Monster &primaryTarget)
 {
-	// No shield check here: requiresShield is part of IsPaladinSkillUnlocked, so a shieldless Paladin
-	// cannot arm this skill at all.
+	// No shield check here: requiresShield is part of CanUsePaladinSkill (since 2026-09-27), and
+	// CheckPlrSpell refuses a shieldless Smite before it is armed.
 	//
 	// Mana follows the effect, and the effect is the harder blow now as well as the stun (2026-09-12) -
 	// so it is charged whenever the bash lands, on a boss or a killing blow too.
@@ -452,11 +454,26 @@ bool IsShieldBashSwing(const Player &player)
 	// spritesForDirection dereferenced an empty optional. Answering false here routes that swing
 	// through the ordinary attack animation instead - same sheet-availability rule LoadPlrGFX
 	// itself applies, asked one step earlier.
-	return player._pBlockFlag && player._pBFrames > 0;
+	return player._pBlockFlag && player._pBFrames > 0 && !SwingsShieldAttackSheet(player);
+}
+
+bool SwingsShieldAttackSheet(const Player &player)
+{
+	if (&player != MyPlayer)
+		return false;
+	const bool bash = ArmedSkill.has_value() && *ArmedSkill == PaladinSkill::ShieldBash;
+	const std::optional<SpellID> rfa12 = ArmedRfa12Melee();
+	const bool slam = rfa12.has_value() && *rfa12 == SpellID::AegisSlam;
+	if (!bash && !slam)
+		return false;
+	// The sheet asked for, not assumed: headless, in town, or missing from the archive, the swing keeps the old sheet.
+	return HasShieldEquipped(player) && player.AnimationData[static_cast<size_t>(player_graphic::ShieldAttack)].sprites.has_value();
 }
 
 int MeleeHitFrame(const Player &player)
 {
+	if (SwingsShieldAttackSheet(player))
+		return PlayersAnimData[static_cast<size_t>(player._pClass)].unarmedShieldActionFrame;
 	if (!IsShieldBashSwing(player) || player._pBFrames <= 0)
 		return player._pAFNum;
 	// Never past the block animation's last frame. _pBFrames is only non-zero with a shield equipped,

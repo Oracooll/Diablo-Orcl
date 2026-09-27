@@ -656,6 +656,21 @@ const std::vector<uint32_t> *FieldPixels(int w, int h, SheetBoxTone tone)
 			else
 				sx = Strip.leftWidth + (x - Strip.leftWidth) % Strip.middleWidth;
 			uint32_t pixel = Strip.argb[static_cast<size_t>(sy * Strip.width + sx)];
+			// A strip taller than the box (dev note, 2026-09-27: a high-resolution backing, so no box is ever stretched) is
+			// squeezed by averaging the source rows each box row covers, not by skipping them.
+			if (stretchedRows < middleRows && y >= Strip.topRows && y < h - Strip.bottomRows) {
+				const int from = Strip.topRows + (y - Strip.topRows) * middleRows / stretchedRows;
+				const int to = std::max(from + 1, Strip.topRows + (y - Strip.topRows + 1) * middleRows / stretchedRows);
+				int sum[4] = {};
+				for (int r = from; r < to; r++) {
+					const uint32_t p = Strip.argb[static_cast<size_t>(r * Strip.width + sx)];
+					for (int c = 0; c < 4; c++)
+						sum[c] += static_cast<int>((p >> (8 * c)) & 0xFF);
+				}
+				pixel = 0;
+				for (int c = 0; c < 4; c++)
+					pixel |= static_cast<uint32_t>(sum[c] / (to - from)) << (8 * c);
+			}
 			const bool interior = x >= Strip.bevel && x < w - Strip.bevel && y >= Strip.bevel && y < h - Strip.bevel;
 			if (wash != 0 && interior && (pixel >> 24) != 0)
 				pixel = (pixel & 0xFF000000) | (CompositeArgbOver(wash, pixel, 100) & 0x00FFFFFF);

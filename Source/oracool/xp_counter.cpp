@@ -6,6 +6,7 @@
 
 #include "DiabloUI/ui_flags.hpp"
 #include "automap.h"
+#include "control.h" // talkflag - the bar hides while chat is open
 #include "diablo.h" // MousePosition - the counter shows only under the cursor
 #include "engine/rectangle.hpp"
 #include "engine/render/text_render.hpp"
@@ -14,6 +15,7 @@
 #include "options.h"
 #include "oracool/hud_layout.h"
 #include "oracool/oracool.h"
+#include "oracool/ui_sound.h" // PlayUiMoveSound - the bar clicks like the HUD's buttons
 #include "qol/xpbar.h" // GetXPBarRect - the bar is the counter's hit target and its anchor
 #include "player.h"
 #include "playerdat.hpp"
@@ -160,8 +162,22 @@ bool IsPointOverXpCounter(Point mousePosition)
 	return GetCounterRect().contains(mousePosition);
 }
 
+bool IsPointOverXpBar(Point mousePosition)
+{
+	if (!*sgOptions.Gameplay.experienceBar || talkflag || MyPlayer == nullptr)
+		return false;
+	return GetCounterRect().contains(mousePosition);
+}
+
 bool CheckXpCounterButtonClick(Point mousePosition)
 {
+	// A click on the bar sounds like the HUD's buttons (dev note, 2026-09-27: "titlemov sound on hover and click on exp
+	// bar"), and it is the bar's: it no longer walks the hero when the counter's button is switched off.
+	if (IsPointOverXpBar(mousePosition)) {
+		PlayUiMoveSound();
+		if (!*sgOptions.Oracool.xpCounter || !*sgOptions.Oracool.remainingMonsterXpButton || !IsSinglePlayer() || MyPlayer->_pLevel >= MaxCharacterLevel)
+			return true;
+	}
 	if (!*sgOptions.Oracool.xpCounter || !*sgOptions.Oracool.remainingMonsterXpButton || !IsSinglePlayer())
 		return false;
 

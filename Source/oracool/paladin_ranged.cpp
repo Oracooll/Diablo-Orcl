@@ -100,8 +100,8 @@ bool CastFistOfTheHeavens(Player &player, Point target, int spellLevel)
  */
 bool CastBlessedShield(Player &player, Point target, int spellLevel)
 {
-	// No shield check here any more: requiresShield is part of IsPaladinSkillUnlocked, which
-	// CanUsePaladinSkill already asked before this ran, so a shieldless Paladin never gets here.
+	// No shield check here any more: requiresShield is part of CanUsePaladinSkill (since
+	// 2026-09-27), which was asked before this ran, so a shieldless Paladin never gets here.
 	// Towering Shield (2026-09-14) on top.
 	const int damage = RollWeaponDamage(player) * (BlessedShieldPercentAt(spellLevel) * (100 + PassiveSkillDamagePercent(player, SpellID::BlessedShield)) / 100) / 100;
 	// Room for the missile is checked BEFORE the mana is taken - AddMissile returns nullptr on

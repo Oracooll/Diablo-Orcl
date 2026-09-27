@@ -9,7 +9,7 @@
 #include <fmt/core.h>
 
 #include "control.h"
-#include "oracool/weapon_throw.h"
+#include "oracool/weapon_throw.h"
 #include "oracool/combat_odds.h"
 #include "oracool/gems.h"
 #include "oracool/level_requirement.h"
@@ -215,7 +215,12 @@ void StartWalkAnimation(Player &player, Direction dir, bool pmWillBeCalled)
 	// walk, and the run ignored slows outright - a chill or a lead affix showed "Move speed 50%" on the sheet and changed
 	// nothing. The walk takes the skip as it is now; the run keeps its +4 frames over whatever the slowed walk is.
 	const int8_t walkSkip = oracool::WalkFrameSkipFor(player);
-	if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0) || oracool::IsFuriousChargeDashing()
+	if (oracool::IsFuriousChargeDashing() && &player == MyPlayer) {
+		// Charge is a sprint at the monster (dev note, 2026-09-27: "time per tile 0,1s"): 2 ticks a tile, the
+		// walk's 8 frames less 6. Slows do not reach it - the dash is the skill, and it lasts one approach.
+		// The +1 below for pmWillBeCalled still fits: 7 is the walk's last frame.
+		skippedFrames = static_cast<int8_t>(std::max(0, std::min(oracool::ChargeDashSkipFrames, player._pWFrames - 2)));
+	} else if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0)
 	    || oracool::IsRunEnabled() || oracool::IsClassTreeRunActive(player))
 		skippedFrames = oracool::PlayerSlowPercent(player) > 0 ? static_cast<int8_t>(walkSkip + 4) // the run, slowed
 		                                                     : std::max<int8_t>(2, walkSkip); // the run, or Movement Speed past it (2026-09-12)
@@ -336,10 +341,14 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 	// 150% budget divides across every strike of the burst, so a 2-strike Zeal shows two ~15-frame
 	// swings, not one full swing and one stub. Combined with the item speed skips above and clamped
 	// so the hit frame always survives.
+	// Heavenly Strength's -20% attack speed (2026-09-27) is a negative skip: extra ticks before the first frame.
 	skippedAnimationFrames = static_cast<int8_t>(std::min<int>(
-	    skippedAnimationFrames + oracool::ZealSwingSkipFrames(player),
+	    skippedAnimationFrames + oracool::ZealSwingSkipFrames(player) - oracool::HeavenlyStrengthSwingDelayFrames(player),
 	    std::max(0, oracool::MeleeHitFrame(player) - 2)));
-	NewPlrAnim(player, bashesWithShield ? player_graphic::Block : player_graphic::Attack, d,
+	const player_graphic swing = oracool::SwingsShieldAttackSheet(player) ? player_graphic::ShieldAttack
+	    : bashesWithShield                                             ? player_graphic::Block
+	                                                                   : player_graphic::Attack;
+	NewPlrAnim(player, swing, d,
 	    animationFlags, skippedAnimationFrames, oracool::MeleeHitFrame(player));
 	player._pmode = PM_ATTACK;
 	FixPlayerLocation(player, d);
@@ -1756,6 +1765,8 @@ HeroClass GetPlayerSpriteClass(HeroClass cls)
 
 PlayerWeaponGraphic GetPlayerWeaponGraphic(player_graphic graphic, PlayerWeaponGraphic weaponGraphic)
 {
+	if (graphic == player_graphic::ShieldAttack)
+		return PlayerWeaponGraphic::UnarmedShield; // the shield strike is the unarmed-with-shield sheet, whatever is held
 	if (leveltype == DTYPE_TOWN && IsAnyOf(graphic, player_graphic::Lightning, player_graphic::Fire, player_graphic::Magic)) {
 		// If the hero doesn't hold the weapon in town then we should use the unarmed animation for casting
 		switch (weaponGraphic) {
@@ -1789,6 +1800,8 @@ uint16_t GetPlayerSpriteWidth(HeroClass cls, player_graphic graphic, PlayerWeapo
 		return spriteData.swHit;
 	case player_graphic::Block:
 		return spriteData.block;
+	case player_graphic::ShieldAttack:
+		return spriteData.attack;
 	case player_graphic::Lightning:
 		return spriteData.lightning;
 	case player_graphic::Fire:
@@ -2122,6 +2135,7 @@ player_graphic Player::getGraphic() const
 	case PM_WALK_SIDEWAYS:
 		return player_graphic::Walk;
 	case PM_ATTACK:
+		return oracool::SwingsShieldAttackSheet(*this) ? player_graphic::ShieldAttack : player_graphic::Attack;
 	case PM_RATTACK:
 		return player_graphic::Attack;
 	case PM_BLOCK:
@@ -2160,6 +2174,9 @@ void Player::getAnimationFramesAndTicksPerFrame(player_graphic graphics, int8_t 
 		break;
 	case player_graphic::Attack:
 		numberOfFrames = _pAFrames;
+		break;
+	case player_graphic::ShieldAttack:
+		numberOfFrames = PlayersAnimData[static_cast<size_t>(_pClass)].unarmedShieldFrames;
 		break;
 	case player_graphic::Hit:
 		numberOfFrames = _pHFrames;
@@ -2453,6 +2470,12 @@ void LoadPlrGFX(Player &player, player_graphic graphic)
 			return;
 		szCel = "bl";
 		break;
+	case player_graphic::ShieldAttack:
+		// The Paladin alone strikes with the shield (Shield Bash, Aegis Slam); nothing to load in town, where no one swings.
+		if (leveltype == DTYPE_TOWN || player._pClass != HeroClass::Warrior)
+			return;
+		szCel = "at";
+		break;
 	default:
 		app_fatal("PLR:2");
 	}
@@ -2581,6 +2604,7 @@ void PrewarmPlayerLook(Player &player)
 		{ player_graphic::Stand, town ? "st" : "as" }, { player_graphic::Walk, town ? "wl" : "aw" },
 		{ player_graphic::Attack, town ? nullptr : "at" }, { player_graphic::Hit, town ? nullptr : "ht" },
 		{ player_graphic::Lightning, "lm" }, { player_graphic::Fire, "fm" }, { player_graphic::Magic, "qm" },
+		{ player_graphic::ShieldAttack, town || player._pClass != HeroClass::Warrior ? nullptr : "at" },
 	};
 	for (const Animation &animation : Animations) {
 		if (animation.cel == nullptr)
@@ -4067,6 +4091,12 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	}
 
 	if (const std::optional<oracool::PaladinSkill> skill = oracool::PaladinSkillForSpell(spellID); skill.has_value()) {
+		// Smite and Blessed Shield stay on the button without a shield (2026-09-27): they refuse here,
+		// out loud, rather than falling through to a plain swing that reads as the skill misfiring.
+		if (oracool::GetPaladinSkillData(*skill).requiresShield && !oracool::HasShieldEquipped(myPlayer)) {
+			myPlayer.Say(HeroSpeech::ICantDoThat);
+			return;
+		}
 		// Oracool: user correction (2026-08-15) - "LMB/RMB Clicks + Shift - as designed by Blizzard -
 		// to always cast spell/skill, no matter what as long as we are not breaking other hard
 		// disablers". Shift used to force a plain attack here and disarm the skill, on the reading
@@ -4105,6 +4135,30 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			LastMouseButtonAction = MouseActionType::Attack;
 			NetSendCmdLoc(MyPlayerId, true, CMD_SATTACKXY, cursPosition);
 			return;
+		}
+
+		// A CAST skill (spell animation: Blessed Shield, Blessed Hammer, Fist of the Heavens) casts like
+		// a spell (dev note, 2026-09-27: "they should not require a target mob under the cursor to cast"):
+		// on open ground it goes to the cursor's tile, and on a monster past the reach it goes to the
+		// monster, instead of walking there first. A refusal on open ground says why and stays put.
+		if (oracool::IsCastPaladinSkill(*skill) && (pcursmonst == -1 || !oracool::IsPaladinSkillTargetInRange(myPlayer, *skill))) {
+			oracool::ArmMeleeSkill(std::nullopt);
+			if (oracool::CanStartRangedPaladinSkill(myPlayer, *skill)) {
+				LastMouseButtonSpell = spellID;
+				LastMouseButtonSpellType = spellType;
+				if (pcursmonst != -1) {
+					LastMouseButtonAction = MouseActionType::SpellMonsterTarget;
+					NetSendCmdParam4(true, CMD_SPELLID, pcursmonst, static_cast<int16_t>(spellID), static_cast<uint8_t>(spellType), 0);
+				} else {
+					LastMouseButtonAction = MouseActionType::Spell;
+					NetSendCmdLocParam3(true, CMD_SPELLXY, cursPosition, static_cast<int16_t>(spellID), static_cast<uint8_t>(spellType), 0);
+				}
+				return;
+			}
+			if (pcursmonst == -1) {
+				myPlayer.Say(myPlayer._pMana < (oracool::GetPaladinSkillData(*skill).manaCost << 6) ? HeroSpeech::NotEnoughMana : HeroSpeech::ICantDoThat);
+				return;
+			}
 		}
 
 		if (!oracool::IsPaladinSkillTargetInRange(myPlayer, *skill)) {

@@ -1570,6 +1570,40 @@ bool HandleGoldWithdrawTextInputEvent(const SDL_Event &event)
 	return HandleNumberInputEvent(event, *GoldWithdrawInputState);
 }
 
+void TakeOutgrownStashItems(std::vector<Item> &displaced)
+{
+	// A stash item fills every one of its cells, from its top-left, so a taller item reaches down.
+	const auto takeOne = [&]() {
+		for (auto &[page, grid] : Stash.stashGrids) {
+			for (int x = 0; x < StashGridColumns; x++) {
+				for (int y = 0; y < StashGridRows; y++) {
+					const StashStruct::StashCell cell = grid[x][y];
+					if (cell == 0 || cell > Stash.stashList.size())
+						continue;
+					if ((x > 0 && grid[x - 1][y] == cell) || (y > 0 && grid[x][y - 1] == cell))
+						continue; // not the top-left cell
+					const Size size = GetInventorySize(Stash.stashList[cell - 1]);
+					bool fits = x + size.width <= StashGridColumns && y + size.height <= StashGridRows;
+					for (int dx = 0; fits && dx < size.width; dx++) {
+						for (int dy = 0; fits && dy < size.height; dy++) {
+							const StashStruct::StashCell other = grid[x + dx][y + dy];
+							fits = other == 0 || other == cell;
+						}
+					}
+					if (fits)
+						continue;
+					displaced.push_back(Stash.stashList[cell - 1]);
+					Stash.RemoveStashItem(static_cast<StashStruct::StashCell>(cell - 1));
+					Stash.dirty = true;
+					return true;
+				}
+			}
+		}
+		return false;
+	};
+	while (takeOne()) { }
+}
+
 bool AutoPlaceItemInStash(Player &player, const Item &item, bool persistItem)
 {
 	if (!IsItemAllowedInStash(item))

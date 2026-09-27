@@ -197,18 +197,17 @@ bool IsPaladinSkillUnlocked(const Player &player, PaladinSkill skill)
 {
 	if (!ClassHasPaladinSkills(player))
 		return false;
-	const PaladinSkillData &data = GetPaladinSkillData(skill);
-	// The shield sits alongside the level gate rather than being checked at the cast, so a skill that
-	// cannot be used is GREY and inert on the sheet whichever requirement is unmet - the player is
-	// told before they click, not after (user rule, 2026-08-15: "else - skill is inactivated").
-	if (data.requiresShield && !HasShieldEquipped(player))
-		return false;
-	return player._pLevel >= data.minLevel;
+	// Level only. The shield is a USE requirement, checked in CanUsePaladinSkill (dev note, 2026-09-27:
+	// "skill that require shield to operate must not require shield to level up, only to operate"), so
+	// Smite and Blessed Shield take points and sit on a button without one, and refuse until it is held.
+	return player._pLevel >= GetPaladinSkillData(skill).minLevel;
 }
 
 bool CanUsePaladinSkill(const Player &player, PaladinSkill skill)
 {
 	if (!IsSinglePlayer() || !IsPaladinSkillUnlocked(player, skill))
+		return false;
+	if (GetPaladinSkillData(skill).requiresShield && !HasShieldEquipped(player))
 		return false;
 	return player._pMana >= ManaCostFixedPoint(skill);
 }
