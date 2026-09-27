@@ -492,8 +492,6 @@ IconButton PressedIcon;
 IconButton FrameHoverIcon;
 IconButton LastHoverIcon;
 constexpr Displacement IconPressSink { -2, 2 };
-/** @brief Points a Shift-click on a tree cell moves at once; Ctrl moves them all (2026-09-27). */
-constexpr int ShiftClickPoints = 5;
 
 /** @brief Whether @p button is the one held down - its face sunk, its shadow a pixel smaller all round. */
 bool IsIconPressed(IconButton button)
@@ -2249,10 +2247,11 @@ void CheckSBook(bool assignToRightButton)
 			return;
 		}
 
-		// Shift moves five points at a time, Ctrl as many as will go - to the cap or the empty pool, or all the way
-		// back out (dev note, 2026-09-27: "add shift/ctrl+click (l/r) to assign/remove skill points").
+		// Shift and Ctrl move 10 and 5 at a time (dev note, 2026-09-27: "add shift/ctrl+click (l/r) to assign/remove
+		// skill points"), capped at the cap, the empty pool or zero - the same counts as the hero sheet's buttons
+		// (PointsPerClick, control.h).
 		const SDL_Keymod mods = SDL_GetModState();
-		const int count = (mods & KMOD_CTRL) != 0 ? oracool::MaxTreeInvestment : ((mods & KMOD_SHIFT) != 0 ? ShiftClickPoints : 1);
+		const int count = PointsPerClick((mods & KMOD_SHIFT) != 0, (mods & KMOD_CTRL) != 0);
 		const bool changed = assignToRightButton
 		    ? oracool::RefundClassTreePoints(*MyPlayer, *hit, count) > 0
 		    : oracool::InvestClassTreePoints(*MyPlayer, *hit, count) > 0;

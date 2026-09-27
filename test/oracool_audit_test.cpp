@@ -20,6 +20,7 @@
 #include <map>
 #include <iostream>
 #include <set>
+#include <cmath>
 #include <cstring>
 #include <string>
 #include <system_error>
@@ -94,6 +95,7 @@
 #include "oracool/player_resistance.h"
 #include "oracool/skill_sounds.h"
 #include "missiles.h"
+#include "engine/load_cl2.hpp" // the Redemption preview's corpse
 #include "oracool/rfa12_actives.h"
 #include "oracool/monster_scale.h"
 #include "oracool/monster_variants.h"
@@ -14920,4 +14922,67 @@ TEST(OracoolPreview, DISABLED_HeroSheet)
 	chrflag = false;
 	HeadlessMode = savedHeadless;
 	PreviewSave(out, "hero_sheet_preview.png");
+}
+
+/**
+ * Redemption's column (v1.12.204) as the game draws it: the sheet through MissileFileData::LoadGFX - the PNG
+ * importer and its palette quantisation, exactly as in play - and a Zombie's own corpse frame from the game data,
+ * both through ClxDraw on the caves palette (the dev note was logged on dlvl 9). Writes redemption_frames.png, all
+ * sixteen frames over a corpse each, and redemption_scene.png, three corpses mid-consumption at different moments.
+ */
+TEST(OracoolPreview, DISABLED_RedemptionRise)
+{
+	MountTestArchives(true);
+	InitPNG();
+	std::array<uint8_t, 768> pal {};
+	LoadFileInMem("levels\\l3data\\l3.pal", pal);
+	for (int i = 0; i < 256; i++) {
+		logical_palette[i] = SDL_Color { pal[i * 3], pal[i * 3 + 1], pal[i * 3 + 2], 255 };
+		PaletteRGB[i] = (static_cast<uint32_t>(pal[i * 3]) << 16) | (static_cast<uint32_t>(pal[i * 3 + 1]) << 8) | pal[i * 3 + 2];
+	}
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	MissileFileData &rise = GetMissileSpriteData(MissileGraphicID::RedemptionRise);
+	rise.LoadGFX();
+	ASSERT_TRUE(rise.sprites.has_value()) << "missiles\\redemption_rise.png is not in the archives";
+	const ClxSpriteList beam = *rise.spritesForDirection(0);
+	ASSERT_EQ(beam.numSprites(), 16U);
+	const OwnedClxSpriteSheet zombieDeath = LoadCl2Sheet("monsters\\zombie\\zombied", 128);
+	const ClxSpriteList corpseFrames = zombieDeath[2]; // facing south-west, as it lies
+	const ClxSprite corpse = corpseFrames[corpseFrames.numSprites() - 1];
+
+	// A dark cave floor in isometric diamonds, 64x32 tiles, so the column can be read against its tile.
+	const auto floor = [](const Surface &out) {
+		SDL_Surface *s = out.surface;
+		for (int y = 0; y < out.h(); y++) {
+			for (int x = 0; x < out.w(); x++) {
+				const int u = static_cast<int>(std::floor((x / 64.0) + (y / 32.0)));
+				const int v = static_cast<int>(std::floor((x / 64.0) - (y / 32.0)));
+				const int shade = ((u + v) & 1) != 0 ? 30 : 36;
+				const Uint32 c = SDL_MapRGB(s->format, static_cast<Uint8>(shade), static_cast<Uint8>(shade - 6), static_cast<Uint8>(shade - 10));
+				std::memcpy(static_cast<uint8_t *>(s->pixels) + y * s->pitch + x * s->format->BytesPerPixel, &c, s->format->BytesPerPixel);
+			}
+		}
+	};
+	// One tile's corpse and column: the tile's left corner at (x, y) on the floor's diagonal; each sprite drawn the way
+	// DrawMonster / DrawMissilePrivate place it - the monster's 128-wide frame 32 left of the tile, the missile animWidth2 left.
+	const auto drawAt = [&](const Surface &out, Point tile, int frame) {
+		ClxDraw(out, { tile.x - (128 - 64) / 2, tile.y }, corpse);
+		if (frame >= 0)
+			ClxDraw(out, { tile.x - rise.animWidth2, tile.y }, beam[frame]);
+	};
+
+	OwnedSurface frames = OwnedSurface::Rgb(8 * 110, 2 * 150);
+	floor(frames);
+	for (int f = 0; f < 16; f++)
+		drawAt(frames, { 23 + (f % 8) * 110, 130 + (f / 8) * 150 }, f);
+	PreviewSave(frames, "redemption_frames.png");
+
+	OwnedSurface scene = OwnedSurface::Rgb(480, 240);
+	floor(scene);
+	drawAt(scene, { 96, 192 }, 3);
+	drawAt(scene, { 224, 160 }, 8);
+	drawAt(scene, { 352, 208 }, 12);
+	PreviewSave(scene, "redemption_scene.png");
+	HeadlessMode = savedHeadless;
 }

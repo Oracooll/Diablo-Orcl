@@ -67,3 +67,16 @@ Each note's outcome is in `development-archive.md` under "Batch of 2026-09-27 (t
 ## Tests
 
 v1.12.204 builds clean; 873 of 873 pass. oracool.mpq repacked (943 files). `OracoolPreview.DISABLED_HeroSheet` rendered the sheet: every frame shows the slab through it, the veins running on from hole to hole, with the gold lip and the inner shadow along the top and right.
+
+## v1.12.205: one Shift/Ctrl rule, and the Redemption preview
+
+- **The request:** the user asked "align behaviour of shift/ctrl+clicks among all abilities/hero stats screen buttons ... double check".
+- **What disagreed, three ways:**
+  - The grouped hero sheet's - and + moved 10 with Shift and 5 with Ctrl, the user's rule from earlier the same day.
+  - v1.12.204's tree cells moved 5 with Shift and "all" with Ctrl.
+  - The list sheet's + still spent every point on Shift.
+- **The fix:** `PointsPerClick(shift, ctrl)` in `control.h`, which returns 1, Ctrl 5, Shift 10, with Shift winning when both are held. Every point button now goes through it: the hero sheet's - and + on both layouts, and the tree cells, left and right.
+- **Checked:** every path that spends or refunds a stat or skill point. Gamepad and touch release with plain 1-point clicks. A modified click reaches both the sheet and the tree before any Shift-attack handling.
+- **Preview:** `OracoolPreview.DISABLED_RedemptionRise` renders the column the way the game does. It loads the sheet through `MissileFileData::LoadGFX`, so the palette quantisation matches play, and draws it with a real Zombie corpse frame through `ClxDraw` on the caves palette. It writes `redemption_frames.png` and `redemption_scene.png`.
+
+v1.12.205 builds clean; 873 of 873 pass.

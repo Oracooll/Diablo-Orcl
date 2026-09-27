@@ -1758,12 +1758,8 @@ void ReleaseChrBtns(bool addAllStatPoints, bool addFive)
 			pressed = false;
 		return;
 	}
-	// The grouped sheet's triangles move 1 point a click, 5 with ctrl and 10 with shift, either way (user, 2026-09-27:
-	// "shift+click - assign/remove 10 points. ctrl+click - assign/remove 5 points"). The list sheet's + keeps shift
-	// spending every point.
-	const bool grouped = *sgOptions.Oracool.heroSheetGrouped;
-	constexpr int ShiftClickPoints = 10;
-	constexpr int CtrlClickPoints = 5;
+	// 1 point a click, 5 with ctrl and 10 with shift, either way - PointsPerClick, the rule every point button shares
+	// (user, 2026-09-27). The list sheet's + used to spend every point on shift; aligned with the rest the same day.
 	for (auto attribute : enum_values<CharacterAttribute>()) {
 		const auto buttonId = static_cast<size_t>(attribute);
 		if (!chrDecBtn[buttonId])
@@ -1771,8 +1767,7 @@ void ReleaseChrBtns(bool addAllStatPoints, bool addFive)
 		chrDecBtn[buttonId] = false;
 		const Rectangle button { GetPanelPosition(UiPanels::Character, ChrDecBtnsRect[buttonId].position), ChrDecBtnsRect[buttonId].size };
 		if (button.contains(MousePosition)) {
-			const int count = addAllStatPoints ? ShiftClickPoints : addFive ? CtrlClickPoints : 1;
-			RefundStatPoints(*MyPlayer, attribute, count);
+			RefundStatPoints(*MyPlayer, attribute, PointsPerClick(addAllStatPoints, addFive));
 		}
 		return;
 	}
@@ -1800,12 +1795,7 @@ void ReleaseChrBtns(bool addAllStatPoints, bool addFive)
 			// Every path through StatPointsToSpend, the plain click included: the grouped + presses with no points to
 			// spend, and its "1" used to go through unchecked (user, 2026-09-27 dev note: "stat points just increase
 			// negativly").
-			int requested = 1;
-			if (addAllStatPoints)
-				requested = grouped ? ShiftClickPoints : myPlayer._pStatPts;
-			else if (addFive) // ctrl+click (user, 2026-09-26 dev note: "add 5 level-up points at once")
-				requested = CtrlClickPoints;
-			const int statPointsToAdd = StatPointsToSpend(myPlayer, attribute, requested);
+			const int statPointsToAdd = StatPointsToSpend(myPlayer, attribute, PointsPerClick(addAllStatPoints, addFive));
 			if (statPointsToAdd <= 0)
 				continue;
 			switch (attribute) {

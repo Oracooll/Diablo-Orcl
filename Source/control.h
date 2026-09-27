@@ -378,7 +378,20 @@ Rectangle GetUnspentPointsFrameRect();
  */
 bool CheckUnspentPointsFrameClick(Point position);
 void CheckChrBtns();
-/** @param addFive ctrl held: five points at once (user, 2026-09-26 dev note), capped like the rest. */
+/**
+ * @brief The points one click moves, on EVERY point button - the hero sheet's attribute - and +, the Abilities tree's
+ * cells (left adds, right takes back): 1, Ctrl 5, Shift 10, Shift winning when both are held. The user's rule
+ * (2026-09-27: "shift+click - assign/remove 10 points. ctrl+click - assign/remove 5 points"), and one function so the
+ * screens cannot drift apart again ("align behaviour of shift/ctrl+clicks among all abilities/hero stats screen
+ * buttons"). Each caller still caps at what is there to give or take.
+ */
+constexpr int ShiftClickPoints = 10;
+constexpr int CtrlClickPoints = 5;
+constexpr int PointsPerClick(bool shiftHeld, bool ctrlHeld)
+{
+	return shiftHeld ? ShiftClickPoints : (ctrlHeld ? CtrlClickPoints : 1);
+}
+/** @param addAllStatPoints shift held, @param addFive ctrl held - see PointsPerClick. */
 void ReleaseChrBtns(bool addAllStatPoints, bool addFive = false);
 void DrawDurIcon(const Surface &out);
 void RedBack(const Surface &out);
