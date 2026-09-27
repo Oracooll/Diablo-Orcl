@@ -1172,6 +1172,14 @@ void SyncInitPlrPos(Player &player);
 void SyncInitPlr(Player &player);
 void CheckStats(Player &player);
 void ResetPlayerStats(Player &player);
+/**
+ * @brief Takes up to @p count points back out of @p attribute and returns them to the unspent pool - RESET for one
+ * stat, a point at a time (user, 2026-09-26: the grouped sheet's left-pointing triangle, "reduces its designated
+ * stat ... allowing fine tuning stats at all times"). Only points the player spent on that stat come back
+ * (_pStatPtsSpent*): quest, shrine and elixir gains are never refunded, which is ResetPlayerStats' rule too.
+ * Single player, the local hero only. @return how many points came back (0 when there were none to take).
+ */
+int RefundStatPoints(Player &player, CharacterAttribute attribute, int count);
 void ModifyPlrStr(Player &player, int l);
 void ModifyPlrMag(Player &player, int l);
 void ModifyPlrDex(Player &player, int l);

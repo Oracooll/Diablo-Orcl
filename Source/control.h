@@ -39,7 +39,9 @@ constexpr Displacement InfoBoxTopLeft { 177, 46 };
 constexpr Size InfoBoxSize { 288, 64 };
 
 extern bool DropGoldFlag;
-extern bool chrbtn[4];
+extern DVL_API_FOR_TEST bool chrbtn[4];
+/** @brief The grouped sheet's left-pointing triangles, held down (2026-09-26) - chrbtn's pair for taking a point back. */
+extern DVL_API_FOR_TEST bool chrDecBtn[4];
 extern bool lvlbtndown;
 extern bool chrbtnactive;
 extern bool resetStatsButtonDown;
@@ -52,7 +54,7 @@ constexpr Size ResetStatsButtonSize { 44, 24 };
 extern UiFlags InfoColor;
 extern bool talkflag;
 extern DVL_API_FOR_TEST bool sbookflag;
-extern bool chrflag;
+extern DVL_API_FOR_TEST bool chrflag;
 /**
  * @brief The hover panel's text, with a plain assignment made SAFE.
  *
@@ -397,6 +399,11 @@ void OpenGoldDrop(int8_t invIndex, int max);
 void OpenStashStackSplit(uint16_t stashIndex, int max);
 void CloseGoldDrop();
 bool HandleGoldDropTextInputEvent(const SDL_Event &event);
-extern Rectangle ChrBtnsRect[4];
+extern DVL_API_FOR_TEST Rectangle ChrBtnsRect[4];
+/**
+ * @brief The grouped sheet's left-pointing triangles, which take a point back (2026-09-26). Content-relative with the
+ * scroll, like ChrBtnsRect - which on that sheet is the right-pointing triangle beside each. Empty on the list sheet.
+ */
+extern Rectangle ChrDecBtnsRect[4];
 
 } // namespace devilution

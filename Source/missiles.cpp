@@ -28,6 +28,7 @@
 #include "lighting.h"
 #include "monster.h"
 #include "oracool/aura_field.h"
+#include "oracool/combat_odds.h"
 #include "oracool/curses.h"
 #include "oracool/minions.h" // MinionOwner, OnMinionBlow: a minion's bolt is its owner's blow
 #include "oracool/rift.h"    // TryEnterRiftFromTown: the town-side rift portal is a door
@@ -323,6 +324,7 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 		hper = player.GetRangedPiercingToHit();
 		hper -= player.CalculateArmorPierce(oracool::EffectiveMonsterArmor(monster), false);
 		hper -= (dist * dist) / 2;
+		oracool::NotePlayerAttackedMonster(player, monster, /*arrow=*/true, (dist * dist) / 2); // the sheet's To hit bar
 	} else {
 		hper = player.GetMagicToHit() - (monster.level(sgGameInitInfo.nDifficulty) * 2) - dist;
 	}

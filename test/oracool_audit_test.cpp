@@ -30,6 +30,7 @@
 #include "engine/random.hpp"
 #include "engine/render/text_render.hpp"
 #include "engine/assets.hpp" // FindAsset - which block sheets the archive carries
+#include "engine/load_cel.hpp" // the sheet's + buttons in the hero sheet preview
 #include "engine/load_file.hpp"
 #include "engine/load_pcx.hpp" // the shop's vanilla button, straight from the archive
 #include "engine/palette.h"
@@ -49,6 +50,7 @@
 #include "options.h" // a fresh Options, for the shipped-defaults test
 #include "pack.h"    // PlayerPack - the fixed struct the stat-point clamp test inspects
 #include "oracool/skill_facts.h"
+#include "oracool/combat_odds.h"
 #include "oracool/skill_picker.h"
 #include "oracool/class_tree.h"
 #include "oracool/aura_ground.h"
@@ -14656,13 +14658,29 @@ TEST(OracoolPreview, DISABLED_HeroSheet)
 	gnScreenHeight = 720;
 	devilution::Player &player = FreshPaladin(5);
 	player._pLevel = 34;
-	player._pExperience = 1284300;
+	player._pExperience = ExpLvlsTbl[33] + (ExpLvlsTbl[34] - ExpLvlsTbl[33]) * 6 / 10; // 60% into level 34
+	player._pNextExper = ExpLvlsTbl[player._pLevel];
 	InspectPlayer = MyPlayer = &player;
 	player._pUnspentSkillPoints = 2;
+	// A named hero with real attributes, so every box has its text (the bare hero drew an empty header).
+	std::snprintf(player._pName, sizeof(player._pName), "%s", "Oracooll");
+	player._pBaseStr = 110;
+	player._pBaseMag = 45;
+	player._pBaseDex = 75;
+	player._pBaseVit = 90;
+	player._pStatPts = 5;
+	player._pMaxManaBase = player._pManaBase = 60 << 6;
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::ResistCold));
 	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::ResistCold));
 	CalcPlrItemVals(player, false);
 	player._pHitPoints = player._pMaxHP * 9 / 10;
+	// A monster that hit the hero and one the hero attacked, so both odds bars show (2026-09-27).
+	oracool::NoteAttacker("Blood Knight", 40, 30, true, false, 15);
+	oracool::NoteTarget("Hell Spawn", 160, false, 0);
+	// Hell's penalty on two resistances, so the render shows a negative bar filling red from the right (2026-09-27).
+	player._pMagResist = -20;
+	player._pFireResist = -60;
+	player._pLghtResist = 45;
 	// A few bonuses so the Advanced list has rows to show.
 	player._pISplLvlAdd = 1;
 	player._pIEnAc = 12;
@@ -14671,16 +14689,66 @@ TEST(OracoolPreview, DISABLED_HeroSheet)
 	player._pMagicFind = 25;
 	player._pGoldFind = 40;
 	player._pIFastCast = 20;
+	const _difficulty savedDifficulty = sgGameInitInfo.nDifficulty;
+	sgGameInitInfo.nDifficulty = DIFF_HELL; // so Advanced Stats shows the resistance penalty row as well as the cap
 	const bool savedHeadless = HeadlessMode;
 	HeadlessMode = false;
 	OwnedSurface out = OwnedSurface::Rgb(960, 720);
 	PreviewFloor(out);
 	sgOptions.Oracool.heroSheetGrouped.SetValue(true);
 	LoadCharPanel();
+	chrflag = true; // Advanced Stats is docked to the sheet and closes without it (2026-09-26)
+	chrbtn[1] = true; // Magic's + held down, Dexterity's - held down, the pointer over Strength's + (hover)
+	chrDecBtn[2] = true;
+	const Point savedMouse = MousePosition;
+	MousePosition = GetPanelPosition(UiPanels::Character, ChrBtnsRect[0].Center());
+	static const uint16_t CharButtonWidths[9] { 95, 41, 41, 41, 41, 41, 41, 41, 41 }; // control.cpp InitControlPan
+	pChrButtons = LoadCel("data\\charbut", CharButtonWidths); // the + buttons, drawn while points are unspent
 	oracool::OpenAdvancedStats();
 	DrawChr(out);
 	oracool::DrawAdvancedStats(out);
 	oracool::CloseAdvancedStats(false);
+	{
+		// The sheet on its own, Advanced Stats shut - the header toggle shows its + (2026-09-27) - and no skill points
+		// left, so the skill points frame shows its grey 0.
+		const uint16_t savedSkillPoints = player._pUnspentSkillPoints;
+		player._pUnspentSkillPoints = 0;
+		OwnedSurface shut = OwnedSurface::Rgb(960, 720);
+		PreviewFloor(shut);
+		DrawChr(shut);
+		// The pointer over the Armor class box and then the To hit box: the hover text each sets, printed (the cursor
+		// tooltip itself needs the game's hover state, which a bare test process does not have).
+		const Point pointerBefore = MousePosition;
+		for (const Point pointer : { Point { 230, 320 }, Point { 230, 360 } }) {
+			MousePosition = pointer;
+			if (SetCharacterSheetHoverInfoString()) {
+				std::cout << "hover at " << pointer.y << ": " << std::string(InfoString.str()) << "\n";
+			}
+			ClearPanelStrings();
+		}
+		MousePosition = pointerBefore;
+		player._pUnspentSkillPoints = savedSkillPoints;
+		PreviewSave(shut, "hero_sheet_shut.png");
+	}
+	chrflag = false;
+	pChrButtons = std::nullopt;
+	chrbtn[1] = false;
+	chrDecBtn[2] = false;
+	MousePosition = savedMouse;
+	sgGameInitInfo.nDifficulty = savedDifficulty;
+	// The bars' colour cycle, 16 moments 100ms apart (one full 1.6s cycle), for an animated preview.
+	chrflag = true;
+	pChrButtons = LoadCel("data\\charbut", CharButtonWidths);
+	for (int frame = 0; frame < 16; frame++) {
+		oracool::SheetBarClockOverrideMs = frame * 100;
+		OwnedSurface still = OwnedSurface::Rgb(960, 720);
+		PreviewFloor(still);
+		DrawChr(still);
+		PreviewSave(still, fmt::format("hero_bars_{:02d}.png", frame).c_str());
+	}
+	oracool::SheetBarClockOverrideMs = -1;
+	pChrButtons = std::nullopt;
+	chrflag = false;
 	HeadlessMode = savedHeadless;
 	PreviewSave(out, "hero_sheet_preview.png");
 }

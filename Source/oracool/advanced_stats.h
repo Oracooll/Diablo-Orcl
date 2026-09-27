@@ -103,15 +103,33 @@ enum class SheetBoxTone : uint8_t {
 	Recess,
 };
 
-/** @brief Draws one box of @p tone at @p rect. Clip-safe: a box half scrolled out of a subregion is cut. */
-void DrawSheetBox(const Surface &out, Rectangle rect, SheetBoxTone tone = SheetBoxTone::Plain);
+/**
+ * @brief Draws one box of @p tone at @p rect, with its drop shadow unless @p castShadow is false - for a box that
+ * sinks when pressed, whose shadow the caller draws at its resting place. Clip-safe: a box half scrolled out of a
+ * subregion is cut.
+ */
+void DrawSheetBox(const Surface &out, Rectangle rect, SheetBoxTone tone = SheetBoxTone::Plain, bool castShadow = true);
 
 /**
- * @brief A thin meter: a recessed groove filling @p rect, with @p value / @p maximum of its inner width
- * in @p rgb (0xRRGGBB) from the left - clamped, and empty for a zero or negative maximum.
- * @p fallbackIndex is the palette colour used on an indexed surface (the tests' surfaces).
+ * @brief The fields' drop shadow on its own: @p rect's size, 3px down and 3px left, translucent black. For things that
+ * sit among the fields but are not one - the sheet's RESET and ADVANCED STATS buttons (user, 2026-09-26). Draw it
+ * before the thing it belongs to. False on an indexed surface, where nothing is drawn.
  */
-void DrawSheetBar(const Surface &out, Rectangle rect, uint64_t value, uint64_t maximum, uint32_t rgb, uint8_t fallbackIndex);
+bool DrawSheetShadow(const Surface &out, Rectangle rect);
+
+/**
+ * @brief A thin meter: a dark groove inside a 1px grey frame (corners cut) filling @p rect, with @p value /
+ * @p maximum of its inner width in @p rgb (0xRRGGBB) from the left - clamped, and empty for a zero maximum.
+ * The fill colour-cycles (bands of lighter and darker @p rgb flowing left to right) and grey marks sit at
+ * every 10% - the HUD XP bar's frame and marks (2026-09-26). @p fromRight fills from the right edge leftwards, the
+ * light flowing that way too - a negative resistance's bar (2026-09-27). @p fallbackIndex is the palette colour used
+ * on an indexed surface (the tests' surfaces).
+ */
+void DrawSheetBar(const Surface &out, Rectangle rect, uint64_t value, uint64_t maximum, uint32_t rgb, uint8_t fallbackIndex,
+    bool fromRight = false);
+
+/** @brief Test hook: at 0 or above, the bars' colour cycle reads this many milliseconds instead of the clock. */
+extern DVL_API_FOR_TEST int32_t SheetBarClockOverrideMs;
 
 /**
  * @brief Draws @p text into @p rect in the largest of the 12/11/10/9 fonts whose single line fits the

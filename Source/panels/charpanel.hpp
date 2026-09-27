@@ -58,6 +58,12 @@ bool PressCharacterSheetAdvancedButton(Point mousePosition);
 void ReleaseCharacterSheetAdvancedButton();
 
 /**
+ * @brief The grouped sheet's hover text: over the Armor class or To hit box, which monster its odds bar measures
+ * against and the chance (oracool/combat_odds.h). True when it set the text, so the caller stops looking.
+ */
+bool SetCharacterSheetHoverInfoString();
+
+/**
  * @brief The sheet's derived readings, for the Advanced Stats window (oracool/advanced_stats.h), which
  * shows them as rows of its own. Exported rather than copied so the two windows cannot disagree; all
  * five read InspectPlayer, like everything on the sheet. See charpanel.cpp for the source each mirrors.
@@ -129,7 +135,7 @@ UiFlags GetReadiedSlotColor(bool leftButton);
  */
 DVL_API_FOR_TEST UiFlags DamageTypeColor(DamageType type);
 
-extern OptionalOwnedClxSpriteList pChrButtons;
+extern DVL_API_FOR_TEST OptionalOwnedClxSpriteList pChrButtons;
 
 void DrawChr(const Surface &);
 void LoadCharPanel();

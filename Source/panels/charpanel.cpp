@@ -1,6 +1,7 @@
 #include "panels/charpanel.hpp"
 
 #include <cstdint>
+#include <cstring>
 
 #include <algorithm>
 #include <cassert>
@@ -8,6 +9,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -25,6 +27,7 @@
 #include "oracool/rage.h"
 #include "oracool/essence.h" // the Necromancer's second pool, a row of its own
 #include "oracool/class_tree.h"
+#include "oracool/combat_odds.h" // the Armor class and To hit boxes' odds bars
 #include "oracool/aura_field.h" // HolyPulseDamage / SanctuaryDamage - a damaging aura's number on the sheet
 #include "oracool/hero_title.h"
 #include "oracool/signets.h"
@@ -38,10 +41,12 @@
 #include "options.h"
 #include "oracool/oracool.h"
 #include "oracool/hud_art.h"
+#include "oracool/inventory_layout.h" // GridBottom - the stash grid's bottom row, where the grouped sheet's columns end
 #include "oracool/ornate_border.h"
 #include "stores.h" // TotalPlayerGold
 #include "utils/format_int.hpp"
 #include "utils/language.h"
+#include "utils/png.h" // LoadPNG - the Advanced Stats toggle's face
 #include "utils/str_cat.hpp"
 
 namespace devilution {
@@ -1012,11 +1017,14 @@ bool RowVisible(const CharRow &row)
 // default). The same 340x720 window, canvas, title and red X as the list above, laid out in boxes:
 //
 //   header      name large, title and "Level N Class" right, an XP bar, "exp of next" / "N to level"
-//   left        the four attributes - current value in the box, "base N" and the + button under it -
-//               then the unspent points and RESET
+//   left        the four attributes - current value in the box, "base N" and the take-back / spend
+//               triangles under it - then the unspent points (no RESET since 2026-09-27: the triangles
+//               took its job)
 //   right       one box per mouse button, armour class, to hit, life, mana (or rage) and essence with
-//               bars, the four resistances, and the difficulty penalty with the cap
-//   foot        the aura across the width, and ADVANCED STATS, which opens oracool/advanced_stats.h
+//               bars, and the four resistances (the cap and penalty live in Advanced Stats since 2026-09-26)
+//   toggle      a small +/- button in the header's top-right corner, which opens and closes
+//               oracool/advanced_stats.h (2026-09-27; it replaced the ADVANCED STATS button at the foot, and
+//               the aura row went the same day - the readied button's box already names an aura)
 //
 // No gold anywhere (user: "we dont need to show gold amount in our char screen"). Everything else the
 // list carried below Mana lives in the Advanced Stats window now.
@@ -1033,11 +1041,15 @@ constexpr int GroupedContentTop = oracool::PanelTitleTop + oracool::PanelTitleHe
 /** @brief ...and ends at the orb line like the list (see CharContentSize for why the orb, not the panel). */
 constexpr Size GroupedContentSize { CharPanelSize.width, oracool::SidePanelContentBottom - GroupedContentTop };
 static_assert(GroupedContentSize.height > 0, "Grouped character sheet has no content room left");
-/** @brief Clear of the canvas's painted side bezels; the Advanced Stats window uses the same inset. */
-constexpr int GroupedMarginX = 16;
+/**
+ * @brief 4px inside the canvas's painted frame, whose inner edge is x=22 (user, 2026-09-26 dev note: "we
+ * need to fit contents of stats screen within 4px away from frame of canvases"). Was 16, which put every
+ * box's outer 6px over the frame. The Advanced Stats window uses the same inset.
+ */
+constexpr int GroupedMarginX = 26;
 constexpr int GroupedColumnGap = 6;
-/** @brief The mock-up's two columns: attributes ~118 wide on the left, the rest on the right. */
-constexpr int GroupedLeftWidth = 118;
+/** @brief The mock-up's two columns: attributes on the left (118 before the inset took 20px), the rest on the right. */
+constexpr int GroupedLeftWidth = 108;
 constexpr int GroupedRightX = GroupedMarginX + GroupedLeftWidth + GroupedColumnGap;
 constexpr int GroupedRightWidth = CharPanelSize.width - GroupedMarginX - GroupedRightX;
 constexpr int GroupedFullWidth = CharPanelSize.width - 2 * GroupedMarginX;
@@ -1046,52 +1058,144 @@ constexpr int GroupedPad = 8;
 static_assert(GroupedRightX + GroupedRightWidth <= CharContentRightLimit + CharScrollbarGap,
     "the grouped sheet's right column must stay clear of the scrollbar");
 
-constexpr int GroupedHeaderHeight = 62;
+/**
+ * @brief Where text sits in a field (user, 2026-09-26: "Text + shadow inside to be 2px away from inner part of
+ * frame"). The user's frame (2026-09-27, advanced_stats.cpp) is 2px of gold at the top and on the right, and 4px
+ * at the bottom and on the left, where a 2px light lip runs inside the gold; the ink - glyphs and their 1px
+ * shadow - starts 2px below the top frame and ends 2px above the bottom one. (Vanilla's frame, the fallback, is
+ * a pixel thicker all round.) Measured from the render: a 12px line's ink is 14 rows, an 11px line's 12, the
+ * name's 24px ink 20 rows starting 5 rows into its 26-tall rect.
+ */
+constexpr int FieldInkTop = 4;
+constexpr int FieldInkBottom = 6;
+constexpr int InkHeight12 = 14;
+constexpr int InkHeight11 = 12;
+/** @brief A one-line field for a 12px (or fitted) line, and for an 11px line. */
+constexpr int FieldHeight12 = FieldInkTop + InkHeight12 + FieldInkBottom;
+constexpr int FieldHeight11 = FieldInkTop + InkHeight11 + FieldInkBottom;
+/** @brief A second line's ink starts this far below the first's end. */
+constexpr int FieldLineGap = 2;
+
+/**
+ * @brief The header's rows (user, 2026-09-27: "make main top frame taller. Adventurer and Level XX XXXXXX get each their
+ * own row. Exp and Remaining Exp get each their own row. Make gaps between these rows 6px. Make the exp bar twice
+ * taller"): the name (20 rows of ink), the title, "Level N Class", the 16px XP bar, the experience, and what is left
+ * to the next level - each GroupedHeaderRowGap below the last.
+ */
+constexpr int GroupedHeaderRowGap = 6;
+constexpr int GroupedHeaderBarHeight = 16;
+constexpr int GroupedHeaderNameInkTop = FieldInkTop;
+constexpr int GroupedHeaderTitleInkTop = GroupedHeaderNameInkTop + 20 + GroupedHeaderRowGap;
+constexpr int GroupedHeaderLevelInkTop = GroupedHeaderTitleInkTop + InkHeight12 + GroupedHeaderRowGap;
+constexpr int GroupedHeaderBarTop = GroupedHeaderLevelInkTop + InkHeight12 + GroupedHeaderRowGap;
+constexpr int GroupedHeaderXpInkTop = GroupedHeaderBarTop + GroupedHeaderBarHeight + GroupedHeaderRowGap;
+constexpr int GroupedHeaderRemainingInkTop = GroupedHeaderXpInkTop + InkHeight12 + GroupedHeaderRowGap;
+constexpr int GroupedHeaderHeight = GroupedHeaderRemainingInkTop + InkHeight12 + FieldInkBottom;
 /** @brief Where both columns begin, under the header. */
-constexpr int GroupedColumnsTop = GroupedHeaderHeight + 6;
-/** @brief An attribute: the label box, a 2px gap, the "base N" strip as tall as the + button, 4px of air. */
-constexpr int GroupedAttrLabelHeight = 26;
-constexpr int GroupedAttrStripGap = 2;
-constexpr int GroupedAttrStripHeight = 22; // IncrementAttributeButtonSize's height, so the + fills its cell
-constexpr int GroupedAttrPitch = GroupedAttrLabelHeight + GroupedAttrStripGap + GroupedAttrStripHeight + 4;
-constexpr int GroupedPointsHeight = 42;
-constexpr int GroupedResetHeight = 24; // ResetStatsButtonSize's height - the list's RESET, stretched across the column
-/** @brief The right column's box heights. */
-constexpr int GroupedButtonBoxHeight = 40;
-constexpr int GroupedLineBoxHeight = 24;
-constexpr int GroupedPoolBoxHeight = 32;
-constexpr int GroupedResistPitch = 27;
-constexpr int GroupedPenaltyHeight = 18;
-constexpr int GroupedAuraHeight = 26;
-constexpr Size GroupedAdvancedButtonSize { 200, 28 };
+/**
+ * @brief The one gap between frames (user, 2026-09-27: "make all gaps 6px") - under the header, between every box of
+ * both columns.
+ */
+constexpr int GroupedGap = 6;
+constexpr int GroupedColumnsTop = GroupedHeaderHeight + GroupedGap;
+/**
+ * @brief One frame per attribute (user, 2026-09-27: "Move title on top in middle. add Now and Base on the row below. add
+ * the numbers below that. add a subtle separator between the two columns. add wide but short buttons under now and base
+ * columns acting as increase/decrease stat points buttons"): the stat's name centred at the top; under it two columns,
+ * "Now" and "Base", with a hairline between them; the two numbers; and a wide, short button under each column - a - to
+ * take a point back under Now, a + to spend one under Base. The buttons sink 2px down-left when held and must then sit
+ * 2px inside the frame (same note), so at rest they are 4px inside its left and bottom edges (the frame's 4px there is
+ * gold and the light lip) and 4px inside its 2px right edge. The frame is as tall as all of that needs.
+ */
+constexpr int GroupedFieldBevel = 2; // the user's frame's top and right edge (2026-09-27)
+constexpr int GroupedFieldLip = 4;   // its bottom and left edge: gold and the light lip
+constexpr int AttrButtonSink = 2;
+constexpr int AttrButtonAir = 2;
+constexpr int AttrButtonHeight = 16;
+constexpr int AttrButtonGapX = 6;
+constexpr int AttrHeadingInkTop = FieldInkTop + InkHeight12 + 3;
+constexpr int AttrValueInkTop = AttrHeadingInkTop + InkHeight11 + 2;
+constexpr int AttrButtonsTop = AttrValueInkTop + InkHeight12 + 3;
+constexpr int GroupedAttrBoxHeight = AttrButtonsTop + AttrButtonHeight + AttrButtonSink + AttrButtonAir + GroupedFieldLip;
+/** @brief The - button's left edge and the + button's right edge (exclusive), from the frame's left. */
+constexpr int AttrButtonsLeft = GroupedFieldLip + AttrButtonAir + AttrButtonSink;
+constexpr int AttrButtonsRight = GroupedLeftWidth - GroupedFieldBevel - AttrButtonAir;
+constexpr int AttrButtonWidth = (AttrButtonsRight - AttrButtonsLeft - AttrButtonGapX) / 2;
+/** @brief The list sheet's + button rect - ChrBtnsRect's size there (control.cpp's IncrementAttributeButtonSize). */
+constexpr Size ListPlusButtonSize { 41, 22 };
+/**
+ * @brief The two points frames, side by side (user, 2026-09-27: "divide the skill/stats points frame into two identical
+ * size squareish adjacent frames with 6px gap between"): each a label wrapped over two 11px lines - "skill" / "points" -
+ * and a big 24px number under it. The least height that holds them: the two label lines 1px apart, 3px of air, the
+ * number's 20 rows of ink, between the frame's text margins. The left column is usually taller and they centre in it.
+ */
+constexpr int PointsLabelLineGap = 1;
+constexpr int PointsNumberGap = 3;
+constexpr int PointsNumberInk = 20;
+constexpr int PointsBlockHeight = 2 * InkHeight11 + PointsLabelLineGap + PointsNumberGap + PointsNumberInk;
+constexpr int GroupedPointsHeight = FieldInkTop + PointsBlockHeight + FieldInkBottom;
+/** @brief A mouse button's box: its 12px name line and the 11px grey kind line under it. */
+constexpr int GroupedButtonBoxHeight = FieldInkTop + InkHeight12 + FieldLineGap + InkHeight11 + FieldInkBottom;
+constexpr int GroupedLineBoxHeight = FieldHeight12;
+/** @brief A pool's box: the 12px line and a 6px bar, kept 2px off the field's edge like the text. */
+constexpr int GroupedPoolBarHeight = 6;
+constexpr int GroupedPoolBoxHeight = FieldInkTop + InkHeight12 + FieldLineGap + GroupedPoolBarHeight + FieldInkBottom;
+/** @brief Armor class and To hit, since 2026-09-27 a pool's shape too: the line over an odds bar (combat_odds.h). */
+constexpr int GroupedOddsBoxHeight = GroupedPoolBoxHeight;
+/** @brief A resistance's box, since 2026-09-27 a pool's shape: its line over a bar that fills to the cap. */
+constexpr int GroupedResistBoxHeight = GroupedPoolBoxHeight;
+/**
+ * @brief Where both columns end: on the stash grid's bottom row, which the user marked on a render with a green line
+ * (2026-09-27: "Make each right column frame taller so they fill the gap down to the green line. Spread the left column
+ * to reach the green line as well"). The stash and the inventory grids share that row (oracool::GridBottom), and the
+ * sheet's content starts at GroupedContentTop, so this is the row after it in content coordinates.
+ */
+constexpr int GroupedColumnsBottom = oracool::GridBottom - GroupedContentTop;
+/**
+ * @brief The Advanced Stats toggle (user, 2026-09-27: "remove the advanced stats button and replace it with +/- toggle
+ * button placed in the top right corner of the top big frame, 4px away from top and right frames"): the user's 25x25
+ * stone faces with the sign painted in (ui\sheet_toggle_plus.png while the window is shut, ui\sheet_toggle_minus.png
+ * while it is open), 4px inside the header frame's 2px top and right edges. It sinks 2px down-left while held ("and
+ * make the button sinkable") and acts on the release.
+ */
+constexpr Size GroupedToggleSize { 25, 25 };
+constexpr int GroupedToggleInset = 2 + 4; // the header frame's edge, then the 4px the user asked for
 
 /** @brief The layout drawn last - read by the draw, written by PlaceWidgets. Content-relative, unscrolled. */
 struct GroupedLayout {
 	int attrTop[4];
 	int pointsTop;
-	int resetTop;
-	int leftButtonTop;
-	int rightButtonTop;
-	int armorTop;
-	int toHitTop;
-	int lifeTop;
-	int manaTop;
-	int essenceTop; // -1 when the hero has no Essence
-	int resistTop;
-	int penaltyTop;
-	int auraTop;
-	int advancedTop;
+	/** The right column's frames, top to bottom (RightFrame); an absent one (Essence) has height 0. */
+	int rightTop[11];
+	int rightHeight[11];
 	int listHeight;
+	/** The left column's one frame height - every attribute and the points (2026-09-27). */
+	int leftBoxHeight;
 };
 GroupedLayout Grouped {};
 /** @brief The two buttons the grouped layout adds, content-relative WITH the scroll - like ChrBtnsRect. */
 Rectangle GroupedAdvancedButton {};
 bool AdvancedButtonPressed = false;
 /** @brief Whether the pointer was over each button last frame, so the click sounds once per ENTRY. */
-bool ResetButtonHovered = false;
 bool AdvancedButtonHovered = false;
 /** @brief Which layout the last EnsureLayout built, so flipping the option mid-game re-places the widgets. */
 bool LayoutGrouped = false;
+
+/** @brief The right column's frames, in order. */
+enum RightFrame : uint8_t {
+	LeftButtonFrame,
+	RightButtonFrame,
+	ArmorFrame,
+	ToHitFrame,
+	LifeFrame,
+	ManaFrame,
+	EssenceFrame,
+	ResistMagicFrame,
+	ResistFireFrame,
+	ResistLightningFrame,
+	ResistColdFrame,
+	RightFrameCount,
+};
 
 bool GroupedSheet()
 {
@@ -1107,43 +1211,82 @@ bool GroupedShowsEssence()
 GroupedLayout ComputeGroupedLayout()
 {
 	GroupedLayout g {};
-	for (int i = 0; i < 4; i++)
-		g.attrTop[i] = GroupedColumnsTop + i * GroupedAttrPitch;
-	g.pointsTop = GroupedColumnsTop + 4 * GroupedAttrPitch; // the last attribute's 4px of air is the gap
-	g.resetTop = g.pointsTop + GroupedPointsHeight + 4;
-	const int leftEnd = g.resetTop + GroupedResetHeight;
-
-	int y = GroupedColumnsTop;
-	g.leftButtonTop = y;
-	y += GroupedButtonBoxHeight + 4;
-	g.rightButtonTop = y;
-	y += GroupedButtonBoxHeight + 6;
-	g.armorTop = y;
-	y += GroupedLineBoxHeight + 4;
-	g.toHitTop = y;
-	y += GroupedLineBoxHeight + 6;
-	g.lifeTop = y;
-	y += GroupedPoolBoxHeight + 4;
-	g.manaTop = y;
-	y += GroupedPoolBoxHeight + 4;
-	g.essenceTop = -1;
-	if (GroupedShowsEssence()) {
-		g.essenceTop = y;
-		y += GroupedPoolBoxHeight + 4;
+	// The right column: GroupedGap between every frame, and the frames stretched so the last ends on
+	// GroupedColumnsBottom - the spare rows shared out evenly, a frame's contents centred in its extra height (see
+	// RightShift). The Necromancer's Essence frame takes its share of the room; with it the column may need all of it.
+	const int baseHeights[RightFrameCount] = { GroupedButtonBoxHeight, GroupedButtonBoxHeight, GroupedOddsBoxHeight, GroupedOddsBoxHeight,
+		GroupedPoolBoxHeight, GroupedPoolBoxHeight, GroupedShowsEssence() ? GroupedPoolBoxHeight : 0,
+		GroupedResistBoxHeight, GroupedResistBoxHeight, GroupedResistBoxHeight, GroupedResistBoxHeight };
+	int present = 0;
+	int baseTotal = 0;
+	for (const int h : baseHeights) {
+		if (h > 0) {
+			present++;
+			baseTotal += h;
+		}
 	}
-	y += 2;
-	g.resistTop = y;
-	y += 4 * GroupedResistPitch;
-	g.penaltyTop = y;
-	const int rightEnd = y + GroupedPenaltyHeight;
+	const int spare = std::max(GroupedColumnsBottom - GroupedColumnsTop - baseTotal - (present - 1) * GroupedGap, 0);
+	int y = GroupedColumnsTop;
+	int nth = 0;
+	for (int k = 0; k < RightFrameCount; k++) {
+		g.rightTop[k] = y;
+		g.rightHeight[k] = 0;
+		if (baseHeights[k] == 0)
+			continue;
+		g.rightHeight[k] = baseHeights[k] + (nth + 1) * spare / present - nth * spare / present;
+		nth++;
+		y += g.rightHeight[k] + GroupedGap;
+	}
+	const int rightEnd = y - GroupedGap;
 
-	g.auraTop = std::max(leftEnd, rightEnd) + 8;
-	// ADVANCED STATS sits at the foot of the window, centred, as in the mock-up - pushed down only if
-	// the boxes above ever grow into it, and then the sheet scrolls like the list does.
-	g.advancedTop = std::max(GroupedContentSize.height - 6 - GroupedAdvancedButtonSize.height,
-	    g.auraTop + GroupedAuraHeight + 12);
-	g.listHeight = g.advancedTop + GroupedAdvancedButtonSize.height + 6;
+	// The left column's five frames - the four attributes and the points - are one height, GroupedGap apart, as tall as
+	// fills the column down to Resist cold's bottom (user, 2026-09-27: "make STR, MAG, DEX, VIT, Points Frame and Reset
+	// Button all same vertical height as tall as necessary to shrink the gaps between them to 6px and keep their height
+	// identical"; RESET went the same day: "remove the reset button. the arrow buttons made it obsolete"). Whole
+	// pixels: the few left over when the column is not five frames and four 6px gaps exactly (0-4) are spread over the
+	// gaps, so the points frame ends level with Resist cold (same day: "spread the remaining left column to match the
+	// height of the right column") - the gaps then differ by at most 1px, the larger ones last. Never shorter than an
+	// attribute needs.
+	constexpr int FrameCount = 5;
+	constexpr int GapCount = FrameCount - 1;
+	const int span = rightEnd - GroupedColumnsTop;
+	g.leftBoxHeight = std::max({ GroupedAttrBoxHeight, GroupedPointsHeight, (span - GapCount * GroupedGap) / FrameCount });
+	const int leftover = std::max(span - FrameCount * g.leftBoxHeight - GapCount * GroupedGap, 0);
+	int tops[FrameCount];
+	int top = GroupedColumnsTop;
+	for (int k = 0; k < FrameCount; k++) {
+		tops[k] = top;
+		top += g.leftBoxHeight + GroupedGap + (k + 1) * leftover / GapCount - k * leftover / GapCount;
+	}
+	for (int i = 0; i < 4; i++)
+		g.attrTop[i] = tops[i];
+	g.pointsTop = tops[4];
+	const int leftEnd = g.pointsTop + g.leftBoxHeight;
+
+	// Nothing under the columns since the ADVANCED STATS button became the header's toggle (2026-09-27).
+	g.listHeight = std::max(leftEnd, rightEnd) + GroupedGap;
 	return g;
+}
+
+/**
+ * @brief How far an attribute frame's contents - the stat line, "base N" and the triangles - sit below where a frame of
+ * the minimum height would put them: half the extra height, so the block stays centred in the taller frame.
+ */
+int AttrContentShift()
+{
+	return (Grouped.leftBoxHeight - GroupedAttrBoxHeight) / 2;
+}
+
+/** @brief A right-column frame's box, scrolled. */
+Rectangle RightBox(RightFrame frame)
+{
+	return { { GroupedRightX, Grouped.rightTop[frame] - ScrollOffset }, { GroupedRightWidth, Grouped.rightHeight[frame] } };
+}
+
+/** @brief How far a stretched right-column frame's contents sit below where its base height would put them: centred. */
+int RightShift(RightFrame frame, int baseHeight)
+{
+	return std::max((Grouped.rightHeight[frame] - baseHeight) / 2, 0);
 }
 
 uint64_t VisibleRowsNow()
@@ -1168,18 +1311,20 @@ uint64_t VisibleRowsNow()
 void PlaceWidgets()
 {
 	if (LayoutGrouped) {
-		// The grouped sheet's own positions (2026-09-26): each + in the right-hand cell of its
-		// attribute's "base N" strip, RESET across the left column under the points, ADVANCED STATS
-		// centred at the foot. Same frame and same scroll rule as the list's, so control.cpp,
-		// plrctrls.cpp and the touch renderer need no idea which layout is up.
+		// The grouped sheet's own positions (2026-09-26): each attribute's two triangles in its frame's SE corner -
+		// ChrBtnsRect the right one, which spends a point, as the + did, and ChrDecBtnsRect the left, which takes one
+		// back - and ADVANCED STATS centred at the foot. No RESET (2026-09-27). Same frame and
+		// same scroll rule as the list's, so plrctrls.cpp and the touch renderer need no idea which layout is up.
 		for (size_t buttonId = 0; buttonId < 4; ++buttonId) {
-			Rectangle &rect = ChrBtnsRect[buttonId];
-			rect.position = { GroupedMarginX + GroupedLeftWidth - rect.size.width,
-				Grouped.attrTop[buttonId] + GroupedAttrLabelHeight + GroupedAttrStripGap - ScrollOffset };
+			// Anchored to the frame's bottom, whatever its height: the sunk face 2px above the frame's bottom lip.
+			const int top = Grouped.attrTop[buttonId] + Grouped.leftBoxHeight - GroupedFieldLip - AttrButtonAir - AttrButtonSink
+			    - AttrButtonHeight - ScrollOffset;
+			ChrDecBtnsRect[buttonId] = { { GroupedMarginX + AttrButtonsLeft, top }, { AttrButtonWidth, AttrButtonHeight } };
+			ChrBtnsRect[buttonId] = { { GroupedMarginX + AttrButtonsRight - AttrButtonWidth, top }, { AttrButtonWidth, AttrButtonHeight } };
 		}
-		ResetButtonPosition = { GroupedMarginX, Grouped.resetTop - ScrollOffset };
-		GroupedAdvancedButton = { { (CharPanelSize.width - GroupedAdvancedButtonSize.width) / 2, Grouped.advancedTop - ScrollOffset },
-			GroupedAdvancedButtonSize };
+		GroupedAdvancedButton = { { GroupedMarginX + GroupedFullWidth - GroupedToggleInset - GroupedToggleSize.width,
+			                          GroupedToggleInset - ScrollOffset },
+			GroupedToggleSize };
 		return;
 	}
 	for (size_t i = 0; i < CharRowCount; ++i) {
@@ -1191,7 +1336,9 @@ void PlaceWidgets()
 		case CharRowExtra::StatVitality: {
 			const size_t buttonId = static_cast<size_t>(CharRows[i].extra) - static_cast<size_t>(CharRowExtra::StatStrength);
 			Rectangle &rect = ChrBtnsRect[buttonId];
+			rect.size = ListPlusButtonSize; // the grouped sheet's triangles resize it; the list's + is vanilla's
 			rect.position = { StatButtonColumnX, top + (CharRowHeight - rect.size.height) / 2 };
+			ChrDecBtnsRect[buttonId] = {}; // no take-back button on the list sheet
 		} break;
 		case CharRowExtra::Points:
 			// Under the Base column, on the row whose value it resets - directly below the four
@@ -1354,13 +1501,153 @@ void DrawScrollbar(const Surface &out, const Rectangle &panel)
  * the very same show/hide rule (points to spend, not inspecting, base below 255), in the cells its own
  * PlaceWidgets gave them. Its RESET is drawn by the grouped sheet itself.
  */
+Rectangle ContentToScreen(const Rectangle &rect);
+void SoundOnHoverEntry(bool hovered, bool &wasHovered);
+void DrawOddsBar(const Surface &content, const Rectangle &bar, int percent, bool highIsGood);
+
+/** @brief Whether the pointer was over each stat button last frame (decrease, then increase), for the hover-entry click. */
+bool StatButtonHovered[2][4] {};
+
+/**
+ * @brief The user's stat point button (ui\stat_point_button.png, 106x24), cut to size: its dark border kept whole - 4
+ * columns each side, 3 rows on top and 4 below - and the stone between cropped from the middle of the art rather than
+ * squeezed, so the texture stays crisp at any size. Built once per size and kept.
+ */
+struct StatButtonArt {
+	bool attempted = false;
+	int width = 0;
+	int height = 0;
+	std::vector<uint32_t> argb;
+	int cutWidth = 0;
+	int cutHeight = 0;
+	std::vector<uint32_t> cut;
+};
+StatButtonArt StatButtonFace;
+constexpr int StatButtonBorderLeft = 4;
+constexpr int StatButtonBorderRight = 4;
+constexpr int StatButtonBorderTop = 3;
+constexpr int StatButtonBorderBottom = 4;
+
+const std::vector<uint32_t> *StatButtonPixels(int w, int h)
+{
+	StatButtonArt &art = StatButtonFace;
+	if (!art.attempted) {
+		art.attempted = true;
+		if (SDL_Surface *png = LoadPNG("ui\\stat_point_button.png"); png != nullptr) {
+			if (SDL_Surface *argb = SDL_ConvertSurfaceFormat(png, SDL_PIXELFORMAT_ARGB8888, 0); argb != nullptr) {
+				art.width = argb->w;
+				art.height = argb->h;
+				art.argb.resize(static_cast<size_t>(argb->w) * argb->h);
+				for (int y = 0; y < argb->h; y++)
+					std::memcpy(&art.argb[static_cast<size_t>(y) * argb->w],
+					    static_cast<const uint8_t *>(argb->pixels) + static_cast<size_t>(y) * argb->pitch, static_cast<size_t>(argb->w) * 4);
+				SDL_FreeSurface(argb);
+			}
+			SDL_FreeSurface(png);
+		}
+	}
+	const int innerW = art.width - StatButtonBorderLeft - StatButtonBorderRight;
+	const int innerH = art.height - StatButtonBorderTop - StatButtonBorderBottom;
+	if (art.argb.empty() || innerW <= 0 || innerH <= 0 || w <= StatButtonBorderLeft + StatButtonBorderRight
+	    || h <= StatButtonBorderTop + StatButtonBorderBottom)
+		return nullptr;
+	if (art.cutWidth != w || art.cutHeight != h) {
+		art.cutWidth = w;
+		art.cutHeight = h;
+		art.cut.assign(static_cast<size_t>(w) * h, 0);
+		// The middle of the art's stone, so a crop takes the same texture from both sides of the centre.
+		const int offsetX = std::max((innerW - (w - StatButtonBorderLeft - StatButtonBorderRight)) / 2, 0);
+		const int offsetY = std::max((innerH - (h - StatButtonBorderTop - StatButtonBorderBottom)) / 2, 0);
+		for (int y = 0; y < h; y++) {
+			int sy;
+			if (y < StatButtonBorderTop)
+				sy = y;
+			else if (y >= h - StatButtonBorderBottom)
+				sy = art.height - (h - y);
+			else
+				sy = StatButtonBorderTop + (y - StatButtonBorderTop + offsetY) % innerH;
+			for (int x = 0; x < w; x++) {
+				int sx;
+				if (x < StatButtonBorderLeft)
+					sx = x;
+				else if (x >= w - StatButtonBorderRight)
+					sx = art.width - (w - x);
+				else
+					sx = StatButtonBorderLeft + (x - StatButtonBorderLeft + offsetX) % innerW;
+				art.cut[static_cast<size_t>(y) * w + x] = art.argb[static_cast<size_t>(sy) * art.width + sx];
+			}
+		}
+	}
+	return &art.cut;
+}
+
+/**
+ * @brief One stat button (user, 2026-09-27): the stone face with a dark grey sign drawn on it - a - to take a point
+ * back, a + to spend one. Brighter under the pointer; held, it sinks 2px down and 2px left and shows its resting colour
+ * ("click state - sunk, idle color"). @p rect is the hit rect, which never moves; it is placed so the sunk face sits
+ * exactly 2px inside the frame (GroupedAttrBoxHeight).
+ */
+void DrawStatButton(const Surface &content, const Rectangle &rect, bool plus, bool pressed, bool hovered)
+{
+	const Rectangle face { rect.position + (pressed ? Displacement { -AttrButtonSink, AttrButtonSink } : Displacement { 0, 0 }), rect.size };
+	const std::vector<uint32_t> *pixels = StatButtonPixels(face.size.width, face.size.height);
+	const bool drawn = pixels != nullptr
+	    && BlitArgb(content, pixels->data(), face.size.width, SDL_Rect { 0, 0, face.size.width, face.size.height }, face.position, 100);
+	if (!drawn) {
+		FillRectRgb(content, face.position.x, face.position.y, face.size.width, face.size.height, 0x7A7A7A, PAL16_GRAY + 7);
+		FillRectRgb(content, face.position.x, face.position.y + face.size.height - 1, face.size.width, 1, 0x111111, PAL16_GRAY + 15);
+	}
+	if (hovered && !pressed)
+		BrightenRectRgb(content, face.position.x, face.position.y, face.size.width, face.size.height, 125);
+	// The sign, 8px across and 2px thick, centred on the stone between the border's rows and columns - and a pixel lower,
+	// where it reads as centred (user, 2026-09-27: "move +/- 1px down").
+	constexpr uint32_t Sign = 0x2A2A2A;
+	constexpr uint8_t SignIndex = PAL16_GRAY + 14;
+	const int cx = face.position.x + (StatButtonBorderLeft + face.size.width - StatButtonBorderRight) / 2;
+	const int cy = face.position.y + (StatButtonBorderTop + face.size.height - StatButtonBorderBottom) / 2 + 1;
+	FillRectRgb(content, cx - 4, cy - 1, 8, 2, Sign, SignIndex);
+	if (plus)
+		FillRectRgb(content, cx - 1, cy - 4, 2, 8, Sign, SignIndex);
+}
+
+/**
+ * @brief The grouped sheet's stat buttons, for every attribute, always (user, 2026-09-26: "They are always active
+ * alowing fine tuning stats at all times") - single player only, as the take-back is (RefundStatPoints), and never
+ * while inspecting another hero. Clicking one with nothing to do sinks and clicks and changes nothing.
+ */
+void DrawGroupedStatButtons(const Surface &content)
+{
+	if (gbIsMultiplayer || IsInspectingPlayer())
+		return;
+	const Rectangle contentRect = GetCharacterContentRect();
+	for (size_t buttonId = 0; buttonId < 4; ++buttonId) {
+		const Rectangle *rects[2] = { &ChrDecBtnsRect[buttonId], &ChrBtnsRect[buttonId] };
+		const bool pressed[2] = { chrDecBtn[buttonId], chrbtn[buttonId] };
+		for (int side = 0; side < 2; side++) {
+			const bool over = contentRect.contains(MousePosition) && ContentToScreen(*rects[side]).contains(MousePosition);
+			SoundOnHoverEntry(over, StatButtonHovered[side][buttonId]);
+			DrawStatButton(content, *rects[side], /*plus=*/side == 1, pressed[side], over);
+		}
+	}
+}
+
 void DrawPlusButtonSprites(const Surface &content)
 {
+	// The grouped sheet has its own stat buttons in the +'s place (2026-09-26/27).
+	if (LayoutGrouped) {
+		DrawGroupedStatButtons(content);
+		return;
+	}
 	if (InspectPlayer->_pStatPts > 0 && !IsInspectingPlayer()) {
 		const auto drawButton = [&content](CharacterAttribute attr, int upFrame) {
 			const size_t buttonId = static_cast<size_t>(attr);
-			const Point position = ChrBtnsRect[buttonId].position + Displacement { 0, StatButtonSpriteDrop };
-			ClxDraw(content, position, (*pChrButtons)[chrbtn[buttonId] ? upFrame + 1 : upFrame]);
+			// Held, it sinks 2px down and 2px left like every other button in the mod (user, 2026-09-26: "Make them
+			// sinkable") - on top of vanilla's own pressed frame, which it keeps. Only the drawing moves: the hit
+			// rect stays put, so a held + cannot slide out from under a pointer that has not moved.
+			const bool pressed = chrbtn[buttonId];
+			const Point position = ChrBtnsRect[buttonId].position + Displacement { 0, StatButtonSpriteDrop }
+			    + (pressed ? Displacement { -2, 2 } : Displacement { 0, 0 });
+			ClxDraw(content, position, (*pChrButtons)[pressed ? upFrame + 1 : upFrame]);
 		};
 		if (InspectPlayer->_pBaseStr < 255)
 			drawButton(CharacterAttribute::Strength, 1);
@@ -1404,6 +1691,20 @@ Rectangle BoxLine(const Rectangle &box, int yOffset, int height)
 	return { { box.position.x + GroupedPad, box.position.y + yOffset }, { box.size.width - 2 * GroupedPad, height } };
 }
 
+/**
+ * @brief The VerticalCenter rect that puts a line's ink at @p inkTop rows into @p box.
+ *
+ * 22 tall with the ink 6 rows down, for the 12px and the 11px font alike. Not a line-height-tall rect:
+ * DrawString clips glyphs 3px above a rect's bottom, and a 12-tall rect cut every line's last 3 rows - the
+ * feet and the shadow (the first render of this layout, 2026-09-26).
+ */
+constexpr int FieldLineRectHeight = 22;
+constexpr int FieldLineInkOffset = 6;
+Rectangle FieldLine(const Rectangle &box, int inkTop = FieldInkTop)
+{
+	return BoxLine(box, inkTop - FieldLineInkOffset, FieldLineRectHeight);
+}
+
 /** @brief A content-relative rect in screen space - where the pointer has to be to be over it. */
 Rectangle ContentToScreen(const Rectangle &rect)
 {
@@ -1425,33 +1726,73 @@ void SoundOnHoverEntry(bool hovered, bool &wasHovered)
  * The value is measured and drawn first; the label gets what is left and steps down a font size rather
  * than run into the number (a translated "Resist lightning" is the long one).
  */
-void DrawLabelValue(const Surface &content, const Rectangle &line, string_view label, const StyledText &value)
+void DrawLabelValue(const Surface &content, const Rectangle &line, string_view label, const StyledText &value,
+    UiFlags labelColor = UiFlags::ColorWhite)
 {
 	DrawString(content, value.text, line,
 	    { UiFlags::AlignRight | UiFlags::VerticalCenter | value.style | CharTextShadow, value.spacing });
 	const int valueWidth = GetLineWidth(value.text, GameFont12, value.spacing);
 	const Rectangle labelRect { line.position, { std::max(line.size.width - valueWidth - 6, 16), line.size.height } };
-	oracool::DrawSheetTextFitted(content, label, labelRect, UiFlags::ColorWhite | UiFlags::VerticalCenter);
+	oracool::DrawSheetTextFitted(content, label, labelRect, labelColor | UiFlags::VerticalCenter);
+}
+
+/** @brief One of the toggle's two faces, read once from oracool.mpq as straight-alpha ARGB. Empty when missing. */
+struct ToggleFace {
+	const char *path;
+	bool attempted = false;
+	int width = 0;
+	int height = 0;
+	std::vector<uint32_t> argb;
+};
+/** @brief The user's faces with the sign painted in (2026-09-27: "use the new plus/minus png button files"). */
+ToggleFace TogglePlusArt { "ui\\sheet_toggle_plus.png" };
+ToggleFace ToggleMinusArt { "ui\\sheet_toggle_minus.png" };
+
+const ToggleFace &LoadToggleFace(ToggleFace &face)
+{
+	if (!face.attempted) {
+		face.attempted = true;
+		if (SDL_Surface *png = LoadPNG(face.path); png != nullptr) {
+			if (SDL_Surface *argb = SDL_ConvertSurfaceFormat(png, SDL_PIXELFORMAT_ARGB8888, 0); argb != nullptr) {
+				face.width = argb->w;
+				face.height = argb->h;
+				face.argb.resize(static_cast<size_t>(argb->w) * argb->h);
+				for (int y = 0; y < argb->h; y++)
+					std::memcpy(&face.argb[static_cast<size_t>(y) * argb->w],
+					    static_cast<const uint8_t *>(argb->pixels) + static_cast<size_t>(y) * argb->pitch, static_cast<size_t>(argb->w) * 4);
+				SDL_FreeSurface(argb);
+			}
+			SDL_FreeSurface(png);
+		}
+	}
+	return face;
 }
 
 /**
- * @brief The grouped sheet's two buttons - RESET and ADVANCED STATS - in the game-wide button feel
- * (user, 2026-09-20/21): the vendors' vanilla face, gold when @p selected, a notch lighter under the
- * pointer, and while held the FACE sinks 2px down and 2px left. The hit rect is never moved - the
- * caller tests the unsunk rect - so a button cannot slide out from under a pointer that has not moved.
+ * @brief The Advanced Stats toggle at @p rect (see GroupedToggleSize): the user's + face while the window is shut and
+ * the - face while it is open, a notch lighter under the pointer, sunk 2px down and 2px left while held - the hit rect
+ * never moves. Without the art (an archive that lacks it, or an indexed surface) a grey square with the sign drawn on
+ * it in dark grey stands in.
  */
-void DrawGroupedButton(const Surface &content, const Rectangle &rect, string_view label, bool pressed, bool hovered, bool selected)
+void DrawAdvancedToggle(const Surface &content, const Rectangle &rect, bool open, bool pressed, bool hovered)
 {
 	const Rectangle face { rect.position + (pressed ? Displacement { -2, 2 } : Displacement { 0, 0 }), rect.size };
-	if (!oracool::DrawVendorButtonBacking(content, face, selected, hovered)) {
-		// No vanilla button in the player's archive (or an indexed surface): the heading plate stands in.
-		oracool::DrawSheetBox(content, face, selected ? oracool::SheetBoxTone::Heading : oracool::SheetBoxTone::Plain);
-		if (hovered)
-			BrightenRectRgb(content, face.position.x, face.position.y, face.size.width, face.size.height, 115);
+	const ToggleFace &art = LoadToggleFace(open ? ToggleMinusArt : TogglePlusArt);
+	const bool drawn = !art.argb.empty()
+	    && BlitArgb(content, art.argb.data(), art.width, SDL_Rect { 0, 0, std::min(art.width, face.size.width), std::min(art.height, face.size.height) }, face.position, 100);
+	if (!drawn) {
+		FillRectRgb(content, face.position.x, face.position.y, face.size.width, face.size.height, 0x7A7A7A, PAL16_GRAY + 7);
+		FillRectRgb(content, face.position.x, face.position.y + face.size.height - 1, face.size.width, 1, 0x111111, PAL16_GRAY + 15);
+		FillRectRgb(content, face.position.x + face.size.width - 1, face.position.y, 1, face.size.height, 0x111111, PAL16_GRAY + 15);
+		constexpr uint32_t Sign = 0x262626;
+		constexpr uint8_t SignIndex = PAL16_GRAY + 14;
+		const int mid = face.size.width / 2;
+		FillRectRgb(content, face.position.x + mid - 6, face.position.y + mid - 1, 12, 2, Sign, SignIndex);
+		if (!open)
+			FillRectRgb(content, face.position.x + mid - 1, face.position.y + mid - 6, 2, 12, Sign, SignIndex);
 	}
-	// Gold labels on the grey face, white on the gold one - the crafting book's rule.
-	DrawString(content, label, face,
-	    { UiFlags::AlignCenter | UiFlags::VerticalCenter | (selected || pressed ? UiFlags::ColorWhite : UiFlags::ColorWhitegold) | CharTextShadow });
+	if (hovered)
+		BrightenRectRgb(content, face.position.x, face.position.y, face.size.width, face.size.height, 115);
 }
 
 /** @brief The words for what a button's number is, by element - "fire damage", or plain "damage". */
@@ -1504,11 +1845,12 @@ std::string ReadiedSlotKindText(bool leftButton)
 }
 
 /** @brief One mouse button's box: the readied name and its number on the first line, the grey kind under it. */
-void DrawGroupedButtonBox(const Surface &content, int top, bool leftButton)
+void DrawGroupedButtonBox(const Surface &content, RightFrame frame, bool leftButton)
 {
-	const Rectangle box { { GroupedRightX, top }, { GroupedRightWidth, GroupedButtonBoxHeight } };
+	const Rectangle box = RightBox(frame);
 	oracool::DrawSheetBox(content, box);
-	const Rectangle line1 = BoxLine(box, 3, 18);
+	const int shift = RightShift(frame, GroupedButtonBoxHeight);
+	const Rectangle line1 = FieldLine(box, FieldInkTop + shift);
 	const StyledText amount = GetReadiedSlotDamage(leftButton);
 	DrawString(content, amount.text, line1,
 	    { UiFlags::AlignRight | UiFlags::VerticalCenter | amount.style | CharTextShadow, amount.spacing });
@@ -1516,20 +1858,27 @@ void DrawGroupedButtonBox(const Surface &content, int top, bool leftButton)
 	const Rectangle nameRect { line1.position, { std::max(line1.size.width - amountWidth - 8, 16), line1.size.height } };
 	// Fitted: "Master of the Long Staff" beside a three-digit range is wider than the box at 12px.
 	oracool::DrawSheetTextFitted(content, ReadiedSlotSkillName(leftButton), nameRect, ReadiedSlotColor(leftButton) | UiFlags::VerticalCenter);
-	DrawString(content, ReadiedSlotKindText(leftButton), BoxLine(box, 21, 16),
-	    { UiFlags::ColorGray5 | UiFlags::FontSize11 | UiFlags::VerticalCenter | CharTextShadow });
+	// 11px when it fits; the narrower column since the 4px inset (2026-09-26) cuts "left button  -  lightning
+	// damage", which then steps down like every other fitted line rather than lose its last word.
+	const std::string kind = ReadiedSlotKindText(leftButton);
+	const Rectangle kindLine = FieldLine(box, FieldInkTop + InkHeight12 + FieldLineGap + shift);
+	if (GetLineWidth(kind, GameFont11, 1) <= kindLine.size.width)
+		DrawString(content, kind, kindLine, { UiFlags::ColorGray5 | UiFlags::FontSize11 | UiFlags::VerticalCenter | CharTextShadow });
+	else
+		oracool::DrawSheetTextFitted(content, kind, kindLine, UiFlags::ColorGray5 | UiFlags::VerticalCenter);
 }
 
 /**
  * @brief A pool's box: "Life   412 / 450" over a bar. The current number keeps the list's colouring
  * (red below full), the maximum its own (blue when items raised it).
  */
-void DrawGroupedPoolBox(const Surface &content, int top, string_view label, const StyledText &current, const StyledText &maximum,
+void DrawGroupedPoolBox(const Surface &content, RightFrame frame, string_view label, const StyledText &current, const StyledText &maximum,
     int value, int maximumValue, uint32_t barRgb, uint8_t barFallback)
 {
-	const Rectangle box { { GroupedRightX, top }, { GroupedRightWidth, GroupedPoolBoxHeight } };
+	const Rectangle box = RightBox(frame);
 	oracool::DrawSheetBox(content, box);
-	const Rectangle line = BoxLine(box, 3, 16);
+	const int shift = RightShift(frame, GroupedPoolBoxHeight);
+	const Rectangle line = FieldLine(box, FieldInkTop + shift);
 	DrawString(content, maximum.text, line, { UiFlags::AlignRight | UiFlags::VerticalCenter | maximum.style | CharTextShadow });
 	const int maxWidth = GetLineWidth(maximum.text, GameFont12, 1);
 	const std::string lead = StrCat(current.text, " / ");
@@ -1538,16 +1887,8 @@ void DrawGroupedPoolBox(const Surface &content, int top, string_view label, cons
 	const int pairWidth = maxWidth + 1 + GetLineWidth(lead, GameFont12, 1);
 	const Rectangle labelRect { line.position, { std::max(line.size.width - pairWidth - 6, 16), line.size.height } };
 	oracool::DrawSheetTextFitted(content, label, labelRect, UiFlags::ColorWhite | UiFlags::VerticalCenter);
-	oracool::DrawSheetBar(content, BoxLine(box, 22, 6), static_cast<uint64_t>(std::max(value, 0)),
+	oracool::DrawSheetBar(content, BoxLine(box, FieldInkTop + InkHeight12 + FieldLineGap + shift, GroupedPoolBarHeight), static_cast<uint64_t>(std::max(value, 0)),
 	    static_cast<uint64_t>(std::max(maximumValue, 0)), barRgb, barFallback);
-}
-
-/** @brief The difficulty's name, for the penalty strip - the same four words the game's menus use. */
-string_view GroupedDifficultyName()
-{
-	static constexpr const char *Names[] = { N_("Normal"), N_("Nightmare"), N_("Hell"), N_("Torment") };
-	const int difficulty = std::clamp(static_cast<int>(sgGameInitInfo.nDifficulty), 0, 3);
-	return _(Names[difficulty]);
 }
 
 /** @brief The header: name, title and level, the XP bar, and the XP line. No gold (user, 2026-09-26). */
@@ -1558,29 +1899,29 @@ void DrawGroupedHeader(const Surface &content, int top)
 	oracool::DrawSheetBox(content, box);
 	const int innerX = box.position.x + GroupedPad;
 	const int innerWidth = box.size.width - 2 * GroupedPad;
+	// The name and the title row run under the Advanced Stats toggle's corner, so they stop 4px short of it.
+	const int besideToggle = std::max(GroupedAdvancedButton.position.x - 4 - innerX, 16);
 
-	// Right: "Slayer  Level 34 Paladin" - the title in its own colour (oracool/hero_title.h), then the
-	// level and class in white.
-	const std::string levelText = fmt::format(fmt::runtime(_(/* TRANSLATORS: {:d} is the level, {:s} the class */ "Level {:d} {:s}")),
-	    p._pLevel, _(PlayersData[static_cast<std::size_t>(p._pClass)].className));
-	const string_view title = _(oracool::HeroTitleFor(p.pDiabloKillLevel));
-	const int levelWidth = GetLineWidth(levelText, GameFont12, 1);
-	const int titleWidth = GetLineWidth(title, GameFont12, 1);
-	const Rectangle rightLine { { innerX, top + 8 }, { innerWidth, 20 } };
-	DrawString(content, levelText, rightLine, { UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::ColorWhite | CharTextShadow });
-	const Rectangle titleLine { rightLine.position, { std::max(innerWidth - levelWidth - 6, 16), rightLine.size.height } };
-	DrawString(content, title, titleLine,
-	    { UiFlags::AlignRight | UiFlags::VerticalCenter | oracool::HeroTitleColorFor(p.pDiabloKillLevel) | CharTextShadow });
-
-	// Left: the name, large. A long name beside a long title steps down to the small font rather than
-	// run under the title.
-	const int nameRoom = std::max(innerWidth - levelWidth - 6 - titleWidth - 10, 16);
-	const Rectangle nameRect { { innerX, top + 4 }, { nameRoom, 28 } };
+	// The name on its own row, large (user, 2026-09-26 dev note: "lets put player name on its own row").
+	// With the whole width to itself it only steps down for a name wider than the box.
+	const Rectangle nameRect { { innerX, top + GroupedHeaderNameInkTop - 5 }, { besideToggle, 26 } }; // 24px ink starts 5 rows in
 	const string_view name = p._pName;
-	if (GetLineWidth(name, GameFont24, 1) <= nameRoom)
+	if (GetLineWidth(name, GameFont24, 1) <= besideToggle)
 		DrawString(content, name, nameRect, { UiFlags::FontSize24 | UiFlags::ColorWhitegold | UiFlags::VerticalCenter | CharTextShadow });
 	else
 		oracool::DrawSheetTextFitted(content, name, nameRect, UiFlags::ColorWhitegold | UiFlags::VerticalCenter);
+
+	// Under it, left-aligned (same note: "adventurer level 1 XXXXXXX to be below it. left aligned"): the
+	// title in its own colour (oracool/hero_title.h), then the level and class in white.
+	const std::string levelText = fmt::format(fmt::runtime(_(/* TRANSLATORS: {:d} is the level, {:s} the class */ "Level {:d} {:s}")),
+	    p._pLevel, _(PlayersData[static_cast<std::size_t>(p._pClass)].className));
+	// The title and the level each on a row of their own since 2026-09-27. The title's row still reaches the toggle's
+	// bottom edge, so it keeps the name's limit; the level's row has the width to itself.
+	const string_view title = _(oracool::HeroTitleFor(p.pDiabloKillLevel));
+	const Rectangle titleLine { { innerX, top + GroupedHeaderTitleInkTop - FieldLineInkOffset }, { besideToggle, FieldLineRectHeight } };
+	oracool::DrawSheetTextFitted(content, title, titleLine, oracool::HeroTitleColorFor(p.pDiabloKillLevel) | UiFlags::VerticalCenter);
+	oracool::DrawSheetTextFitted(content, levelText, { { innerX, top + GroupedHeaderLevelInkTop - FieldLineInkOffset }, { innerWidth, FieldLineRectHeight } },
+	    UiFlags::ColorWhite | UiFlags::VerticalCenter);
 
 	// The XP bar: how far into the current level, qol/xpbar.cpp's FilledWidth arithmetic exactly -
 	// GetLevelExperienceSpan is the one authority for the span and its bounds. Full at the cap.
@@ -1591,28 +1932,27 @@ void DrawGroupedHeader(const Surface &content, int top)
 		const uint64_t levelStart = ExpLvlsTbl[p._pLevel - 1];
 		into = p._pExperience >= levelStart ? p._pExperience - levelStart : 0;
 	}
-	oracool::DrawSheetBar(content, { { innerX, top + 35 }, { innerWidth, 8 } }, into, span, 0xC8A04C, PAL16_YELLOW + 4);
+	oracool::DrawSheetBar(content, { { innerX, top + GroupedHeaderBarTop }, { innerWidth, GroupedHeaderBarHeight } }, into, span, 0xC8A04C, PAL16_YELLOW + 4);
 
-	// "1,284,300 of 1,520,000" left, "235,700 to level 35" right.
-	const Rectangle xpLine { { innerX, top + 45 }, { innerWidth, 14 } };
+	// "1,284,300 / 1,520,000" on one row, "235,700 to level 35" on the next (their own rows since 2026-09-27).
+	const Rectangle xpLine { { innerX, top + GroupedHeaderXpInkTop - FieldLineInkOffset }, { innerWidth, FieldLineRectHeight } };
+	const Rectangle remainingLine { { innerX, top + GroupedHeaderRemainingInkTop - FieldLineInkOffset }, { innerWidth, FieldLineRectHeight } };
 	std::string left;
 	std::string right;
 	if (p._pLevel >= static_cast<int>(MaxCharacterLevel)) {
 		left = FormatInteger(p._pExperience);
 		right = std::string(_("Max level"));
 	} else {
-		left = fmt::format(fmt::runtime(_(/* TRANSLATORS: experience, "1,284,300 of 1,520,000" */ "{:s} of {:s}")),
+		left = fmt::format(fmt::runtime(_(/* TRANSLATORS: experience, "1,284,300 / 1,520,000" - "of" did not fit beside "N to level L" once the inset narrowed the header (2026-09-26) */ "{:s} / {:s}")),
 		    FormatInteger(p._pExperience), FormatInteger(p._pNextExper));
 		const uint64_t remaining = p._pNextExper > p._pExperience ? p._pNextExper - p._pExperience : 0;
 		right = fmt::format(fmt::runtime(_("{:s} to level {:d}")), FormatInteger(remaining), p._pLevel + 1);
 	}
-	DrawString(content, right, xpLine, { UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::ColorWhite | CharTextShadow });
-	const int rightWidth = GetLineWidth(right, GameFont12, 1);
-	oracool::DrawSheetTextFitted(content, left, { xpLine.position, { std::max(innerWidth - rightWidth - 8, 16), xpLine.size.height } },
-	    UiFlags::ColorWhite | UiFlags::VerticalCenter);
+	oracool::DrawSheetTextFitted(content, left, xpLine, UiFlags::ColorWhite | UiFlags::VerticalCenter);
+	oracool::DrawSheetTextFitted(content, right, remainingLine, UiFlags::ColorWhite | UiFlags::VerticalCenter);
 }
 
-/** @brief The left column: four attributes, the unspent points, and RESET. */
+/** @brief The left column: four attributes and the unspent points. */
 void DrawGroupedLeftColumn(const Surface &content)
 {
 	struct AttributeRow {
@@ -1628,70 +1968,118 @@ void DrawGroupedLeftColumn(const Surface &content)
 	};
 	for (size_t i = 0; i < std::size(Attributes); ++i) {
 		const CharacterAttribute attribute = Attributes[i].attribute;
-		const Rectangle labelBox { { GroupedMarginX, Grouped.attrTop[i] - ScrollOffset }, { GroupedLeftWidth, GroupedAttrLabelHeight } };
-		oracool::DrawSheetBox(content, labelBox);
-		DrawLabelValue(content, BoxLine(labelBox, 0, GroupedAttrLabelHeight), LanguageTranslate(Attributes[i].label),
-		    StyledText { GetCurrentStatColor(attribute), StrCat(InspectPlayer->GetCurrentAttributeValue(attribute)) });
+		const Rectangle box { { GroupedMarginX, Grouped.attrTop[i] - ScrollOffset }, { GroupedLeftWidth, Grouped.leftBoxHeight } };
+		oracool::DrawSheetBox(content, box);
+		// A taller frame than the least puts its spare rows half above the text and half between it and the buttons,
+		// which stay on the frame's bottom.
+		const int shift = AttrContentShift();
+		const Rectangle title { { box.position.x + 6, box.position.y + FieldInkTop + shift - FieldLineInkOffset }, { box.size.width - 10, FieldLineRectHeight } };
+		oracool::DrawSheetTextFitted(content, LanguageTranslate(Attributes[i].label), title, UiFlags::ColorWhite | UiFlags::AlignCenter | UiFlags::VerticalCenter);
 
-		// "base N" in a recessed strip, and the + button's cell beside it - the cell is drawn whether or
-		// not the + is (no points to spend), so the strip keeps its shape either way.
-		const Rectangle &plus = ChrBtnsRect[static_cast<size_t>(attribute)];
-		const Rectangle strip { { GroupedMarginX, plus.position.y }, { GroupedLeftWidth - plus.size.width - 2, GroupedAttrStripHeight } };
-		oracool::DrawSheetBox(content, strip, oracool::SheetBoxTone::Recess);
-		DrawString(content, fmt::format(fmt::runtime(_("base {:d}")), InspectPlayer->GetBaseAttributeValue(attribute)),
-		    { { strip.position.x + 6, strip.position.y }, { strip.size.width - 8, strip.size.height } },
-		    { GetBaseStatColor(attribute) | UiFlags::FontSize11 | UiFlags::VerticalCenter | CharTextShadow });
-		oracool::DrawSheetBox(content, plus, oracool::SheetBoxTone::Recess);
+		// The two columns sit over the two buttons (drawn last, by DrawPlusButtonSprites).
+		const Rectangle nowColumn { { box.position.x + AttrButtonsLeft, 0 }, { AttrButtonWidth, 0 } };
+		const Rectangle baseColumn { { box.position.x + AttrButtonsRight - AttrButtonWidth, 0 }, { AttrButtonWidth, 0 } };
+		const auto columnLine = [&](const Rectangle &column, int inkTop) {
+			return Rectangle { { column.position.x, box.position.y + inkTop + shift - FieldLineInkOffset }, { column.size.width, FieldLineRectHeight } };
+		};
+		DrawString(content, _("Now"), columnLine(nowColumn, AttrHeadingInkTop),
+		    { UiFlags::ColorGray5 | UiFlags::FontSize11 | UiFlags::AlignCenter | UiFlags::VerticalCenter | CharTextShadow });
+		DrawString(content, _("Base"), columnLine(baseColumn, AttrHeadingInkTop),
+		    { UiFlags::ColorGray5 | UiFlags::FontSize11 | UiFlags::AlignCenter | UiFlags::VerticalCenter | CharTextShadow });
+		oracool::DrawSheetTextFitted(content, StrCat(InspectPlayer->GetCurrentAttributeValue(attribute)), columnLine(nowColumn, AttrValueInkTop),
+		    GetCurrentStatColor(attribute) | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+		oracool::DrawSheetTextFitted(content, StrCat(InspectPlayer->GetBaseAttributeValue(attribute)), columnLine(baseColumn, AttrValueInkTop),
+		    GetBaseStatColor(attribute) | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+		// The hairline between the columns, from a row above the headings to a row below the numbers, midway across the
+		// gap between the buttons: a notch lighter than the field, so it divides without drawing the eye.
+		const int separatorX = box.position.x + AttrButtonsLeft + AttrButtonWidth + AttrButtonGapX / 2;
+		const int separatorTop = box.position.y + AttrHeadingInkTop + shift - 1;
+		const int separatorBottom = box.position.y + AttrValueInkTop + InkHeight12 + shift;
+		FillRectRgb(content, separatorX, separatorTop, 1, separatorBottom - separatorTop + 1, 0x4A4640, PAL16_GRAY + 11);
 	}
 
-	// The unspent points - both kinds, since "what do I have left to spend" is one question (the list's
-	// 2026-08-31 audit note). Red while there is something to spend, a plain 0 otherwise.
-	const Rectangle pointsBox { { GroupedMarginX, Grouped.pointsTop - ScrollOffset }, { GroupedLeftWidth, GroupedPointsHeight } };
-	oracool::DrawSheetBox(content, pointsBox);
+	// The unspent points - both kinds, since "what do I have left to spend" is one question (the list's 2026-08-31
+	// audit note) - in two frames side by side (user, 2026-09-27; see GroupedPointsHeight): stat points on the left,
+	// skill points on the right, the side the Abilities window they are spent in opens on (same day). Red while there
+	// is something to spend, grey at 0.
 	// The list's Level-up Points row clamps the pool to what the stats can still take, every frame it
 	// is drawn; the grouped sheet does the same, or the two layouts would show different numbers.
 	InspectPlayer->_pStatPts = std::min(CalcStatDiff(*InspectPlayer), InspectPlayer->_pStatPts);
-	const auto drawPoints = [&](int yOffset, int count, string_view label) {
-		const UiFlags color = count > 0 ? UiFlags::ColorRed : UiFlags::ColorWhite;
-		const int y = pointsBox.position.y + yOffset;
-		DrawString(content, StrCat(count), { { pointsBox.position.x + 4, y }, { 26, 17 } },
-		    { UiFlags::AlignRight | UiFlags::VerticalCenter | color | CharTextShadow });
-		oracool::DrawSheetTextFitted(content, label, { { pointsBox.position.x + 36, y }, { pointsBox.size.width - 40, 17 } },
-		    color | UiFlags::VerticalCenter);
+	struct PointsFrame {
+		string_view label;
+		int count;
 	};
-	drawPoints(3, InspectPlayer->_pStatPts, _("stat points")); // "level-up points" did not fit the column (preview render, 2026-09-26)
-	drawPoints(22, InspectPlayer->_pUnspentSkillPoints, _("skill points"));
-
-	// RESET - the list's button (same option, same gates, same press/release in control.cpp), stretched
-	// across the column and wearing the button face.
-	if (*sgOptions.Oracool.resetStatsButton && !gbIsMultiplayer && !IsInspectingPlayer()) {
-		const Rectangle reset { ResetButtonPosition, GetResetStatsButtonSize() };
-		const bool hovered = ContentToScreen(reset).contains(MousePosition) && GetCharacterContentRect().contains(MousePosition);
-		SoundOnHoverEntry(hovered, ResetButtonHovered);
-		DrawGroupedButton(content, reset, _("RESET"), resetStatsButtonDown, hovered, /*selected=*/false);
-	} else {
-		ResetButtonHovered = false;
+	const PointsFrame frames[] = {
+		{ _("stat points"), InspectPlayer->_pStatPts },
+		{ _("skill points"), InspectPlayer->_pUnspentSkillPoints },
+	};
+	const int frameWidth = (GroupedLeftWidth - GroupedGap) / 2;
+	for (size_t k = 0; k < std::size(frames); k++) {
+		const Rectangle box { { GroupedMarginX + static_cast<int>(k) * (frameWidth + GroupedGap), Grouped.pointsTop - ScrollOffset },
+			{ frameWidth, Grouped.leftBoxHeight } };
+		oracool::DrawSheetBox(content, box);
+		const UiFlags color = frames[k].count > 0 ? UiFlags::ColorRed : UiFlags::ColorGray5;
+		// Inside the frame's text margins: 4px of frame and lip plus 2 on the left, 2 of frame plus 2 on the right.
+		const int textX = box.position.x + 6;
+		const int textWidth = box.size.width - 10;
+		const int blockTop = box.position.y + FieldInkTop + (box.size.height - FieldInkTop - FieldInkBottom - PointsBlockHeight) / 2;
+		// The label wrapped by hand at its first space, one centred line per word group, so a translation that is
+		// one word or three still lands on at most two lines; each line steps down a size if it is too wide.
+		const string_view label = frames[k].label;
+		const size_t space = label.find(' ');
+		const string_view lines[2] = { label.substr(0, space), space == string_view::npos ? string_view {} : label.substr(space + 1) };
+		for (int line = 0; line < 2; line++) {
+			const int inkTop = blockTop + line * (InkHeight11 + PointsLabelLineGap);
+			const Rectangle rect { { textX, inkTop - FieldLineInkOffset }, { textWidth, FieldLineRectHeight } };
+			if (GetLineWidth(lines[line], GameFont11, 1) <= textWidth)
+				DrawString(content, lines[line], rect, { color | UiFlags::FontSize11 | UiFlags::AlignCenter | UiFlags::VerticalCenter | CharTextShadow });
+			else
+				oracool::DrawSheetTextFitted(content, lines[line], rect, color | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+		}
+		// The number, big: 24px ink starts 5 rows into a 26-tall rect (the header name's measurement). A count too
+		// wide for the frame at 24px steps down to the fitted 12px sizes.
+		const std::string number = StrCat(frames[k].count);
+		const int numberInkTop = blockTop + 2 * InkHeight11 + PointsLabelLineGap + PointsNumberGap;
+		const Rectangle numberRect { { textX, numberInkTop - 5 }, { textWidth, 26 } };
+		if (GetLineWidth(number, GameFont24, 1) <= textWidth)
+			DrawString(content, number, numberRect, { color | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | CharTextShadow });
+		else
+			oracool::DrawSheetTextFitted(content, number, numberRect, color | UiFlags::AlignCenter | UiFlags::VerticalCenter);
 	}
+
 }
 
-/** @brief The right column: both mouse buttons, armour, to hit, the pools, the resistances and the penalty. */
+/** @brief The right column: both mouse buttons, armour, to hit, the pools and the resistances. */
 void DrawGroupedRightColumn(const Surface &content)
 {
 	const Player &p = *InspectPlayer;
-	DrawGroupedButtonBox(content, Grouped.leftButtonTop - ScrollOffset, /*leftButton=*/true);
-	DrawGroupedButtonBox(content, Grouped.rightButtonTop - ScrollOffset, /*leftButton=*/false);
+	DrawGroupedButtonBox(content, LeftButtonFrame, /*leftButton=*/true);
+	DrawGroupedButtonBox(content, RightButtonFrame, /*leftButton=*/false);
 
-	// Armour class and to hit: the list's two rows' numbers and colours exactly.
-	const Rectangle armorBox { { GroupedRightX, Grouped.armorTop - ScrollOffset }, { GroupedRightWidth, GroupedLineBoxHeight } };
+	// Armour class and to hit: the list's two rows' numbers and colours exactly, each over an odds bar (user,
+	// 2026-09-27): under Armor class the chance the last monster to hit the hero has of hitting them now, filling
+	// from green (seldom) to red (often); under To hit the hero's chance of hitting the last monster they attacked,
+	// from red to green. Empty until there is such a monster. Hovering either box names it (SetCharacterSheetHoverInfoString).
+	const Rectangle armorBox = RightBox(ArmorFrame);
 	oracool::DrawSheetBox(content, armorBox);
-	DrawLabelValue(content, BoxLine(armorBox, 0, GroupedLineBoxHeight), _("Armor class"),
+	const int armorShift = RightShift(ArmorFrame, GroupedOddsBoxHeight);
+	DrawLabelValue(content, FieldLine(armorBox, FieldInkTop + armorShift), _("Armor class"),
 	    StyledText { GetValueColor(p._pIBonusAC), StrCat(p.GetArmor() + p._pLevel * 2) });
-	const Rectangle toHitBox { { GroupedRightX, Grouped.toHitTop - ScrollOffset }, { GroupedRightWidth, GroupedLineBoxHeight } };
+	int chance = 0;
+	std::string foe;
+	const bool beHitKnown = oracool::ChanceToBeHit(p, chance, foe);
+	DrawOddsBar(content, BoxLine(armorBox, FieldInkTop + InkHeight12 + FieldLineGap + armorShift, GroupedPoolBarHeight),
+	    beHitKnown ? chance : 0, /*highIsGood=*/false);
+	const Rectangle toHitBox = RightBox(ToHitFrame);
 	oracool::DrawSheetBox(content, toHitBox);
-	DrawLabelValue(content, BoxLine(toHitBox, 0, GroupedLineBoxHeight), _("To hit"), ToHitReading());
+	const int toHitShift = RightShift(ToHitFrame, GroupedOddsBoxHeight);
+	DrawLabelValue(content, FieldLine(toHitBox, FieldInkTop + toHitShift), _("To hit"), ToHitReading());
+	const bool hitKnown = oracool::ChanceToHit(p, chance, foe);
+	DrawOddsBar(content, BoxLine(toHitBox, FieldInkTop + InkHeight12 + FieldLineGap + toHitShift, GroupedPoolBarHeight),
+	    hitKnown ? chance : 0, /*highIsGood=*/true);
 
 	// Life, red.
-	DrawGroupedPoolBox(content, Grouped.lifeTop - ScrollOffset, _("Life"),
+	DrawGroupedPoolBox(content, LifeFrame, _("Life"),
 	    StyledText { p._pHitPoints != p._pMaxHP ? UiFlags::ColorRed : GetMaxHealthColor(), StrCat(p._pHitPoints >> 6) },
 	    StyledText { GetMaxHealthColor(), StrCat(p._pMaxHP >> 6) },
 	    p._pHitPoints, p._pMaxHP, 0xB82828, PAL16_RED + 4);
@@ -1699,54 +2087,86 @@ void DrawGroupedRightColumn(const Surface &content)
 	// maximum is the normal state, not a wound, so it is never written red.
 	if (oracool::UsesRage(p)) {
 		const int maxRage = oracool::MaxRage(p);
-		DrawGroupedPoolBox(content, Grouped.manaTop - ScrollOffset, _("Rage"),
+		DrawGroupedPoolBox(content, ManaFrame, _("Rage"),
 		    StyledText { UiFlags::ColorOrange, StrCat(p._pRage) }, StyledText { UiFlags::ColorOrange, StrCat(maxRage) },
 		    p._pRage, maxRage, 0xD07820, PAL16_ORANGE + 4);
 	} else {
-		DrawGroupedPoolBox(content, Grouped.manaTop - ScrollOffset, _("Mana"),
+		DrawGroupedPoolBox(content, ManaFrame, _("Mana"),
 		    StyledText { p._pMana != p._pMaxMana ? UiFlags::ColorRed : GetMaxManaColor(), StrCat(p._pMana >> 6) },
 		    StyledText { GetMaxManaColor(), StrCat(p._pMaxMana >> 6) },
 		    p._pMana, p._pMaxMana, 0x3050C8, PAL16_BLUE + 4);
 	}
 	// Essence, green - the Necromancer's second pool, only on the sheet of a hero who has one.
-	if (Grouped.essenceTop >= 0 && oracool::UsesEssence(p)) {
+	if (Grouped.rightHeight[EssenceFrame] > 0 && oracool::UsesEssence(p)) {
 		const int current = oracool::CurrentEssence(p);
 		const int maximum = oracool::MaxEssence(p);
-		DrawGroupedPoolBox(content, Grouped.essenceTop - ScrollOffset, _("Essence"),
+		DrawGroupedPoolBox(content, EssenceFrame, _("Essence"),
 		    StyledText { UiFlags::ColorOracoolGreen, StrCat(current) }, StyledText { UiFlags::ColorOracoolGreen, StrCat(maximum) },
 		    current, maximum, 0x3C9C4C, PAL8_GREEN + 2);
 	}
 
 	// The four resistances - cold is its own stat since 2026-09-26 (player.h's _pColdResist), resisted
 	// and capped like the other three, so it reads through the same GetResistInfo colours.
+	// Each label in its element's colour (user, 2026-09-26: "Lets add color to the font of resistances") - the
+	// same DamageTypeColor the readied-slot lines and the damage numbers use, so red is fire everywhere. Except
+	// magic, gold here (same day: "Use gold font for magic"): its dark red sat too close to fire's.
+	// Each has a bar since 2026-09-27 (user: "Add color cycling bars with 10% vertical to the resistances. Cap at 90%.
+	// Color of bars matches color of font and cycles"): the Life and Mana bar's frame, marks and flowing light, full at
+	// the resistance cap, in the label's own colour - gold, red, yellow, blue. Below zero (a hard difficulty's penalty)
+	// it fills red from the right instead, to the floor of -100 (same day: "res bars should fill with red right to left
+	// when negative res has occured").
+	constexpr uint32_t NegativeResistRgb = 0xD01E1E;
 	struct ResistRow {
 		const char *label;
 		int8_t value;
+		UiFlags color;
+		uint32_t barRgb;
+		uint8_t barIndex;
+		RightFrame frame;
 	};
 	const ResistRow resists[] = {
-		{ N_("Resist magic"), p._pMagResist },
-		{ N_("Resist fire"), p._pFireResist },
-		{ N_("Resist lightning"), p._pLghtResist },
-		{ N_("Resist cold"), p._pColdResist },
+		{ N_("Resist magic"), p._pMagResist, UiFlags::ColorGold, 0xD8AE4E, PAL16_YELLOW + 3, ResistMagicFrame },
+		{ N_("Resist fire"), p._pFireResist, DamageTypeColor(DamageType::Fire), 0xD83A32, PAL16_RED + 3, ResistFireFrame },
+		{ N_("Resist lightning"), p._pLghtResist, DamageTypeColor(DamageType::Lightning), 0xE8D432, PAL16_YELLOW + 1, ResistLightningFrame },
+		{ N_("Resist cold"), p._pColdResist, DamageTypeColor(DamageType::Cold), 0x6C84E0, PAL16_BLUE + 3, ResistColdFrame },
 	};
-	for (size_t i = 0; i < std::size(resists); ++i) {
-		const Rectangle box { { GroupedRightX, Grouped.resistTop + static_cast<int>(i) * GroupedResistPitch - ScrollOffset },
-			{ GroupedRightWidth, GroupedLineBoxHeight } };
+	for (const ResistRow &row : resists) {
+		const Rectangle box = RightBox(row.frame);
 		oracool::DrawSheetBox(content, box);
-		DrawLabelValue(content, BoxLine(box, 0, GroupedLineBoxHeight), LanguageTranslate(resists[i].label), GetResistInfo(resists[i].value));
+		const int shift = RightShift(row.frame, GroupedResistBoxHeight);
+		DrawLabelValue(content, FieldLine(box, FieldInkTop + shift), LanguageTranslate(row.label), GetResistInfo(row.value), row.color);
+		const Rectangle bar = BoxLine(box, FieldInkTop + InkHeight12 + FieldLineGap + shift, GroupedPoolBarHeight);
+		if (row.value >= 0) {
+			oracool::DrawSheetBar(content, bar, static_cast<uint64_t>(row.value), static_cast<uint64_t>(oracool::ResistanceHardCap),
+			    row.barRgb, row.barIndex);
+		} else {
+			oracool::DrawSheetBar(content, bar, static_cast<uint64_t>(-row.value), static_cast<uint64_t>(-oracool::ResistanceFloor),
+			    NegativeResistRgb, PAL16_RED + 2, /*fromRight=*/true);
+		}
 	}
 
-	// The strip that makes the four readable (the list's 2026-08-31 audit rows, in one line): what the
-	// difficulty has already taken off, in red, and the ceiling. No penalty, no red words - just the cap.
-	const Rectangle strip { { GroupedRightX, Grouped.penaltyTop - ScrollOffset }, { GroupedRightWidth, GroupedPenaltyHeight } };
-	oracool::DrawSheetBox(content, strip, oracool::SheetBoxTone::Recess);
-	const Rectangle stripLine = BoxLine(strip, 0, GroupedPenaltyHeight);
-	DrawString(content, fmt::format(fmt::runtime(_("cap {:d}")), oracool::ResistanceHardCap), stripLine,
-	    { UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::ColorWhite | UiFlags::FontSize11 | CharTextShadow });
-	if (const int penalty = oracool::ResistancePenaltyFor(sgGameInitInfo.nDifficulty); penalty > 0) {
-		DrawString(content, StrCat(GroupedDifficultyName(), "  -", penalty), stripLine,
-		    { UiFlags::VerticalCenter | UiFlags::ColorRed | UiFlags::FontSize11 | CharTextShadow });
-	}
+}
+
+/**
+ * @brief An odds bar: @p percent of 100 filled, in a colour that runs from green to red as the chance rises when a high
+ * chance is bad (@p highIsGood false - being hit), or from red to green when it is good (hitting). The same frame,
+ * marks and flowing light as every other bar on the sheet.
+ */
+void DrawOddsBar(const Surface &content, const Rectangle &bar, int percent, bool highIsGood)
+{
+	// Red to yellow to green, not straight across: halfway between red and green is a muddy olive (render,
+	// 2026-09-27), halfway along red-yellow-green is the yellow a traffic light shows.
+	constexpr int Green[3] = { 0x34, 0xC0, 0x44 };
+	constexpr int Yellow[3] = { 0xE0, 0xC4, 0x30 };
+	constexpr int Red[3] = { 0xD8, 0x34, 0x2C };
+	const int t = std::clamp(highIsGood ? percent : 100 - percent, 0, 100); // 0 = red end, 100 = green end
+	const int *from = t < 50 ? Red : Yellow;
+	const int *to = t < 50 ? Yellow : Green;
+	const int u = t < 50 ? t * 2 : (t - 50) * 2;
+	uint32_t rgb = 0;
+	for (int c = 0; c < 3; c++)
+		rgb = (rgb << 8) | static_cast<uint32_t>(from[c] + (to[c] - from[c]) * u / 100);
+	oracool::DrawSheetBar(content, bar, static_cast<uint64_t>(std::max(percent, 0)), 100, rgb, t >= 50 ? PAL8_GREEN + 2 : PAL16_RED + 3);
 }
 
 /** @brief The grouped sheet's scrollbar - the list's groove and thumb against its own content rect. */
@@ -1779,20 +2199,10 @@ void DrawGroupedSheet(const Surface &out, const Rectangle &panel)
 	DrawGroupedLeftColumn(content);
 	DrawGroupedRightColumn(content);
 
-	// The aura across the width, by name (GetActiveClassAura, not the raw field - see the list's row).
-	const Rectangle auraBox { { GroupedMarginX, Grouped.auraTop - ScrollOffset }, { GroupedFullWidth, GroupedAuraHeight } };
-	oracool::DrawSheetBox(content, auraBox);
-	const oracool::ClassTreeSkill aura = oracool::GetActiveClassAura(*InspectPlayer);
-	DrawLabelValue(content, BoxLine(auraBox, 0, GroupedAuraHeight), _("Aura"),
-	    aura == oracool::ClassTreeSkill::None
-	        ? StyledText { UiFlags::ColorWhite, std::string(_("none")) }
-	        : StyledText { UiFlags::ColorBlue, std::string(_(oracool::GetClassTreeSkillData(aura).name)) });
-
-	// ADVANCED STATS, gold while its window is open - the vendors' "this is the page you are on".
+	// The Advanced Stats toggle, in the header's corner: + opens the window, - closes it.
 	const bool hovered = ContentToScreen(GroupedAdvancedButton).contains(MousePosition) && contentRect.contains(MousePosition);
 	SoundOnHoverEntry(hovered, AdvancedButtonHovered);
-	DrawGroupedButton(content, GroupedAdvancedButton, _("ADVANCED STATS  >"), AdvancedButtonPressed, hovered,
-	    oracool::IsAdvancedStatsOpen());
+	DrawAdvancedToggle(content, GroupedAdvancedButton, oracool::IsAdvancedStatsOpen(), AdvancedButtonPressed, hovered);
 
 	// Last, over their cells.
 	DrawPlusButtonSprites(content);
@@ -1913,14 +2323,45 @@ Point GetResetStatsButtonPosition()
 
 Size GetResetStatsButtonSize()
 {
-	// The list's RESET is the 44x24 word in the Base column; the grouped sheet's spans its column.
-	return GroupedSheet() ? Size { GroupedLeftWidth, GroupedResetHeight } : ResetStatsButtonSize;
+	// The list's RESET is the 44x24 word in the Base column. The grouped sheet has none since 2026-09-27 (control.cpp
+	// never tests it there), so the list's size is the only one.
+	return ResetStatsButtonSize;
 }
 
 Rectangle GetCharacterContentRect()
 {
 	const Point origin = GetCharacterContentOrigin();
 	return { origin, GroupedSheet() ? GroupedContentSize : CharContentSize };
+}
+
+bool SetCharacterSheetHoverInfoString()
+{
+	if (!chrflag || !GroupedSheet() || InspectPlayer == nullptr || !GetCharacterContentRect().contains(MousePosition))
+		return false;
+	EnsureLayout();
+	const bool overArmor = ContentToScreen(RightBox(ArmorFrame)).contains(MousePosition);
+	const bool overToHit = ContentToScreen(RightBox(ToHitFrame)).contains(MousePosition);
+	if (!overArmor && !overToHit)
+		return false;
+	int chance = 0;
+	std::string foe;
+	if (overArmor) {
+		if (oracool::ChanceToBeHit(*InspectPlayer, chance, foe)) {
+			SetPanelString(fmt::format(fmt::runtime(_("Last to hit you: {:s}")), foe), UiFlags::ColorWhite);
+			AddPanelString(fmt::format(fmt::runtime(_("It hits you {:d}% of the time")), chance));
+		} else {
+			SetPanelString(_("No monster has hit you yet"), UiFlags::ColorWhite);
+		}
+	} else {
+		if (oracool::ChanceToHit(*InspectPlayer, chance, foe)) {
+			SetPanelString(fmt::format(fmt::runtime(_("Last you attacked: {:s}")), foe), UiFlags::ColorWhite);
+			AddPanelString(fmt::format(fmt::runtime(_("You hit it {:d}% of the time")), chance));
+		} else {
+			SetPanelString(_("You have not attacked a monster yet"), UiFlags::ColorWhite);
+		}
+	}
+	InfoColor = UiFlags::ColorWhite;
+	return true;
 }
 
 bool PressCharacterSheetAdvancedButton(Point mousePosition)

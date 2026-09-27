@@ -9,7 +9,8 @@
 #include <fmt/core.h>
 
 #include "control.h"
-#include "oracool/weapon_throw.h"
+#include "oracool/weapon_throw.h"
+#include "oracool/combat_odds.h"
 #include "oracool/gems.h"
 #include "oracool/level_requirement.h"
 #include "oracool/hero_look.h"
@@ -713,6 +714,9 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	// applied to an already-decided number.
 	hper += oracool::ZealToHitBonus(player);
 	hper = clamp(hper, 5, 95);
+	// The monster the hero swung at - not a cleave's neighbour - is what the sheet's To hit bar measures against.
+	if (!adjacentDamage)
+		oracool::NotePlayerAttackedMonster(player, monster, /*arrow=*/false, 0);
 
 	if (monster.tryLiftGargoyle())
 		return true;
@@ -4292,6 +4296,53 @@ void ResetPlayerStats(Player &player)
 	player._pStatPts += pointsToReturn;
 	CalcPlrInv(player, true);
 	RedrawEverything();
+}
+
+int RefundStatPoints(Player &player, CharacterAttribute attribute, int count)
+{
+	if (gbIsMultiplayer || &player != MyPlayer || count <= 0)
+		return 0;
+	int *spent = nullptr;
+	switch (attribute) {
+	case CharacterAttribute::Strength:
+		spent = &player._pStatPtsSpentStr;
+		break;
+	case CharacterAttribute::Magic:
+		spent = &player._pStatPtsSpentMag;
+		break;
+	case CharacterAttribute::Dexterity:
+		spent = &player._pStatPtsSpentDex;
+		break;
+	case CharacterAttribute::Vitality:
+		spent = &player._pStatPtsSpentVit;
+		break;
+	}
+	if (spent == nullptr)
+		return 0;
+	// Never more than was spent, nor more than the base holds (a curse or a death's loss can have taken the base
+	// below what was put in).
+	const int refund = std::min({ count, *spent, player.GetBaseAttributeValue(attribute) });
+	if (refund <= 0)
+		return 0;
+	switch (attribute) {
+	case CharacterAttribute::Strength:
+		ModifyPlrStr(player, -refund);
+		break;
+	case CharacterAttribute::Magic:
+		ModifyPlrMag(player, -refund);
+		break;
+	case CharacterAttribute::Dexterity:
+		ModifyPlrDex(player, -refund);
+		break;
+	case CharacterAttribute::Vitality:
+		ModifyPlrVit(player, -refund);
+		break;
+	}
+	*spent -= refund;
+	player._pStatPts += refund;
+	CalcPlrInv(player, true);
+	RedrawEverything();
+	return refund;
 }
 
 void ModifyPlrStr(Player &player, int l)

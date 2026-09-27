@@ -37,7 +37,8 @@
 #include "minitext.h"
 #include "missiles.h"
 #include "options.h"
-#include "oracool/attack_skills.h"
+#include "oracool/attack_skills.h"
+#include "oracool/combat_odds.h"
 #include "oracool/auto_save.h"
 #include "oracool/dev_notes.h" // LogDevelopmentNote: the /dev chat command
 #include "oracool/skill_picker.h"
@@ -135,6 +136,7 @@ Item *GoldDropSourceItem()
 } // namespace
 
 bool chrbtn[4];
+bool chrDecBtn[4];
 bool lvlbtndown;
 bool chrbtnactive;
 bool resetStatsButtonDown;
@@ -354,6 +356,7 @@ Rectangle ChrBtnsRect[4] = {
 	{ { 137, 195 }, IncrementAttributeButtonSize },
 	{ { 137, 223 }, IncrementAttributeButtonSize }
 };
+Rectangle ChrDecBtnsRect[4] {};
 
 namespace {
 
@@ -1199,7 +1202,10 @@ void InitControlPan()
 		pDurIcons = LoadCel("items\\duricons", 32);
 	for (bool &buttonEnabled : chrbtn)
 		buttonEnabled = false;
+	for (bool &buttonEnabled : chrDecBtn)
+		buttonEnabled = false;
 	chrbtnactive = false;
+	oracool::ClearCombatOdds(); // the sheet's odds bars start blank for every character (combat_odds.h)
 	ClearPanelStrings();
 	RedrawComponent(PanelDrawComponent::Health);
 	RedrawComponent(PanelDrawComponent::Mana);
@@ -1457,6 +1463,9 @@ void UpdateInfoString()
 		return;
 	if (oracool::SetLevskiHoverInfoString())
 		return;
+	// The hero sheet's Armor class and To hit boxes name the monster their odds bars measure against (2026-09-27).
+	if (SetCharacterSheetHoverInfoString())
+		return;
 
 	if (!panelflag && !trigflag && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && !ActiveTabItemHovered && !spselflag) {
 		ClearPanelStrings();
@@ -1692,19 +1701,38 @@ void CheckChrBtns()
 	if (PressCharacterSheetAdvancedButton(MousePosition))
 		return;
 
-	if (*sgOptions.Oracool.resetStatsButton && !gbIsMultiplayer) {
-		// GetResetStatsButtonSize, not ResetStatsButtonSize: the grouped sheet's RESET is wider.
+	// The list sheet only: the grouped sheet has no RESET since 2026-09-27 ("remove the reset button. the arrow buttons
+	// made it obsolete") - its left-pointing triangles take points back one stat at a time.
+	if (*sgOptions.Oracool.resetStatsButton && !gbIsMultiplayer && !*sgOptions.Oracool.heroSheetGrouped) {
+		// GetResetStatsButtonSize, not ResetStatsButtonSize: one place answers the button's size.
 		Rectangle resetButton { GetPanelPosition(UiPanels::Character, GetResetStatsButtonPosition()), GetResetStatsButtonSize() };
 		if (resetButton.contains(MousePosition)) {
 			resetStatsButtonDown = true;
 			chrbtnactive = true;
-			// The grouped sheet's RESET is a button in the game-wide feel, which clicks at the press
-			// (user, 2026-09-20); the list's word-label RESET keeps its silence, and the armour-drop
-			// clunk on the release is the same for both.
-			if (*sgOptions.Oracool.heroSheetGrouped)
-				oracool::PlayUiMoveSound();
+			// The list's word-label RESET is silent at the press; the armour-drop clunk sounds on the release.
 			return;
 		}
+	}
+
+	// The grouped sheet's triangles (user, 2026-09-26: "They are always active alowing fine tuning stats at all
+	// times"): both press whenever they are clicked - with no point to spend or none to take back they sink,
+	// click and do nothing - so they never appear and vanish with the points. Single player, like RESET.
+	if (*sgOptions.Oracool.heroSheetGrouped) {
+		if (gbIsMultiplayer)
+			return;
+		for (auto attribute : enum_values<CharacterAttribute>()) {
+			const auto buttonId = static_cast<size_t>(attribute);
+			const Rectangle decrease { GetPanelPosition(UiPanels::Character, ChrDecBtnsRect[buttonId].position), ChrDecBtnsRect[buttonId].size };
+			const Rectangle increase { GetPanelPosition(UiPanels::Character, ChrBtnsRect[buttonId].position), ChrBtnsRect[buttonId].size };
+			bool *pressed = decrease.contains(MousePosition) ? &chrDecBtn[buttonId] : increase.contains(MousePosition) ? &chrbtn[buttonId] : nullptr;
+			if (pressed != nullptr) {
+				*pressed = true;
+				chrbtnactive = true;
+				oracool::PlayUiMoveSound();
+				return;
+			}
+		}
+		return;
 	}
 
 	if (myPlayer._pStatPts == 0)
@@ -1733,6 +1761,26 @@ void ReleaseChrBtns(bool addAllStatPoints, bool addFive)
 		resetStatsButtonDown = false;
 		for (bool &pressed : chrbtn)
 			pressed = false;
+		for (bool &pressed : chrDecBtn)
+			pressed = false;
+		return;
+	}
+	// The grouped sheet's triangles move 1 point a click, 5 with ctrl and 10 with shift, either way (user, 2026-09-27:
+	// "shift+click - assign/remove 10 points. ctrl+click - assign/remove 5 points"). The list sheet's + keeps shift
+	// spending every point.
+	const bool grouped = *sgOptions.Oracool.heroSheetGrouped;
+	constexpr int ShiftClickPoints = 10;
+	constexpr int CtrlClickPoints = 5;
+	for (auto attribute : enum_values<CharacterAttribute>()) {
+		const auto buttonId = static_cast<size_t>(attribute);
+		if (!chrDecBtn[buttonId])
+			continue;
+		chrDecBtn[buttonId] = false;
+		const Rectangle button { GetPanelPosition(UiPanels::Character, ChrDecBtnsRect[buttonId].position), ChrDecBtnsRect[buttonId].size };
+		if (button.contains(MousePosition)) {
+			const int count = addAllStatPoints ? ShiftClickPoints : addFive ? CtrlClickPoints : 1;
+			RefundStatPoints(*MyPlayer, attribute, count);
+		}
 		return;
 	}
 	if (resetStatsButtonDown) {
@@ -1757,10 +1805,12 @@ void ReleaseChrBtns(bool addAllStatPoints, bool addFive)
 		if (button.contains(MousePosition)) {
 			Player &myPlayer = *MyPlayer;
 			int statPointsToAdd = 1;
-			if (addAllStatPoints)
+			if (addAllStatPoints && grouped)
+				statPointsToAdd = CapStatPointsToAdd(std::min(myPlayer._pStatPts, ShiftClickPoints), myPlayer, attribute);
+			else if (addAllStatPoints)
 				statPointsToAdd = CapStatPointsToAdd(myPlayer._pStatPts, myPlayer, attribute);
 			else if (addFive) // ctrl+click (user, 2026-09-26 dev note: "add 5 level-up points at once")
-				statPointsToAdd = CapStatPointsToAdd(std::min(myPlayer._pStatPts, 5), myPlayer, attribute);
+				statPointsToAdd = CapStatPointsToAdd(std::min(myPlayer._pStatPts, CtrlClickPoints), myPlayer, attribute);
 			if (statPointsToAdd <= 0)
 				continue;
 			switch (attribute) {

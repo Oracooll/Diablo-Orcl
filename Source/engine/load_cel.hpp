@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "engine/clx_sprite.hpp"
+#include "utils/attributes.h" // DVL_API_FOR_TEST
 #include "utils/pointer_value_union.hpp"
 
 #ifdef UNPACKED_MPQS
@@ -13,7 +14,7 @@
 
 namespace devilution {
 
-OwnedClxSpriteListOrSheet LoadCelListOrSheet(const char *pszName, PointerOrValue<uint16_t> widthOrWidths);
+DVL_API_FOR_TEST OwnedClxSpriteListOrSheet LoadCelListOrSheet(const char *pszName, PointerOrValue<uint16_t> widthOrWidths);
 
 inline OwnedClxSpriteList LoadCel(const char *pszName, uint16_t width)
 {

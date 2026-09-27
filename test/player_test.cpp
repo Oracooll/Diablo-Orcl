@@ -236,6 +236,43 @@ TEST(Player, ResetPlayerStats_OnlyRemovesManuallySpentPoints)
 	EXPECT_EQ(player._pStatPtsSpentStr, 0);
 }
 
+// The grouped sheet's left-pointing triangle (2026-09-26): one stat, a point at a time, never below what the player
+// spent on it - a quest or shrine gain stays, as it does through RESET.
+TEST(Player, RefundStatPoints_TakesBackOnlySpentPointsOfOneStat)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Rogue);
+	devilution::Player &player = Players[0];
+	MyPlayer = &player;
+	gbIsMultiplayer = false;
+
+	const int baseStrAtCreation = player._pBaseStr;
+	const int baseDexAtCreation = player._pBaseDex;
+	ModifyPlrStr(player, 3); // a shrine's gain - untracked, never refunded
+	player._pStatPtsSpentStr = 4;
+	ModifyPlrStr(player, 4);
+	player._pStatPtsSpentDex = 2;
+	ModifyPlrDex(player, 2);
+	player._pStatPts = 0;
+
+	EXPECT_EQ(RefundStatPoints(player, CharacterAttribute::Strength, 1), 1);
+	EXPECT_EQ(player._pBaseStr, baseStrAtCreation + 6);
+	EXPECT_EQ(player._pStatPtsSpentStr, 3);
+	EXPECT_EQ(player._pStatPts, 1);
+
+	EXPECT_EQ(RefundStatPoints(player, CharacterAttribute::Strength, 255), 3) << "shift-click: all of that stat's spent points";
+	EXPECT_EQ(player._pBaseStr, baseStrAtCreation + 3) << "the shrine's 3 stay";
+	EXPECT_EQ(player._pStatPtsSpentStr, 0);
+	EXPECT_EQ(player._pStatPts, 4);
+	EXPECT_EQ(RefundStatPoints(player, CharacterAttribute::Strength, 1), 0) << "nothing spent, nothing back";
+	EXPECT_EQ(player._pBaseDex, baseDexAtCreation + 2) << "the other stats are untouched";
+
+	gbIsMultiplayer = true;
+	EXPECT_EQ(RefundStatPoints(player, CharacterAttribute::Dexterity, 1), 0) << "single player only";
+	gbIsMultiplayer = false;
+}
+
 TEST(Player, ResetPlayerStats_SurvivesPlayerPackRoundTrip)
 {
 	// Bug report: starting a New Game with an existing hero goes through PackPlayer/UnPackPlayer

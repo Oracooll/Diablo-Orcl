@@ -34,7 +34,8 @@
 #include "missiles.h"
 #include "movie.h"
 #include "options.h"
-#include "oracool/chill.h"
+#include "oracool/chill.h"
+#include "oracool/combat_odds.h"
 #include "oracool/cold.h"
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
@@ -1597,6 +1598,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		ac += 40;
 	if (HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::ACAgainstUndead) && monster.data().monsterClass == MonsterClass::Undead)
 		ac += 20;
+	const int monsterToHit = hit; // before the level and armour terms - the hero sheet's odds bar keeps it (combat_odds.h)
 	hit += 2 * (monster.level(sgGameInitInfo.nDifficulty) - player._pLevel)
 	    + 30
 	    - ac;
@@ -1623,6 +1625,8 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		}
 		return;
 	}
+	// The blow has landed: this monster is now the one the sheet's Armor class bar measures against (2026-09-27).
+	oracool::NoteMonsterHitPlayer(player, monster, monsterToHit, minhit);
 	if (monster.type().type == MT_YZOMBIE && &player == MyPlayer) {
 		if (player._pMaxHP > 64) {
 			if (player._pMaxHPBase > 64) {
