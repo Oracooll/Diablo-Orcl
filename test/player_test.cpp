@@ -273,6 +273,32 @@ TEST(Player, RefundStatPoints_TakesBackOnlySpentPointsOfOneStat)
 	gbIsMultiplayer = false;
 }
 
+// The grouped sheet's + presses with no points left, and a plain click spent 1 regardless: the pool went negative
+// (user, 2026-09-27 dev note: "stat points just increase negativly if i do it").
+TEST(Player, StatPointsToSpend_NeverMoreThanUnspentNorPastTheCap)
+{
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Warrior);
+	devilution::Player &player = Players[0];
+
+	player._pStatPts = 0;
+	EXPECT_EQ(StatPointsToSpend(player, CharacterAttribute::Strength, 1), 0) << "a plain click with nothing to spend";
+	EXPECT_EQ(StatPointsToSpend(player, CharacterAttribute::Strength, 10), 0);
+
+	player._pStatPts = 3;
+	EXPECT_EQ(StatPointsToSpend(player, CharacterAttribute::Strength, 1), 1);
+	EXPECT_EQ(StatPointsToSpend(player, CharacterAttribute::Strength, 5), 3) << "ctrl with only 3 left";
+
+	player._pStatPts = 20;
+	player._pBaseStr = 250;
+	EXPECT_EQ(StatPointsToSpend(player, CharacterAttribute::Strength, 10), 5) << "stops at the base cap of 255";
+	player._pBaseStr = 255;
+	EXPECT_EQ(StatPointsToSpend(player, CharacterAttribute::Strength, 1), 0);
+
+	player._pStatPts = -4; // a hero the bug already took below zero
+	EXPECT_EQ(StatPointsToSpend(player, CharacterAttribute::Magic, 1), 0);
+}
+
 TEST(Player, ResetPlayerStats_SurvivesPlayerPackRoundTrip)
 {
 	// Bug report: starting a New Game with an existing hero goes through PackPlayer/UnPackPlayer

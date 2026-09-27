@@ -361,6 +361,71 @@ TEST_F(InvTest, AutoPlaceItem_FreshPurchaseWithEmptyInventoryAndBelt_ItemIsActua
 	}
 }
 
+// The backpack is 10x7; AutoPlaceItemInInventory's ranges were vanilla's 10x4, so a 1x1 landed on the fourth row and
+// nothing reached rows 5-7 (user, 2026-09-27 dev note: "1 grid slot items ... land on row 4 in my inv grid ... make them
+// land on bottom row - 7th").
+Item MakeBackpackItem(item_cursor_graphic cursor)
+{
+	Item item;
+	item._itype = ItemType::Misc; // not stackable, so the merge pass leaves it alone
+	item._iCurs = cursor;
+	return item;
+}
+
+int GridCellOf(const Player &player, int invListIndex)
+{
+	for (int cell = 0; cell < InventoryGridCells; cell++) {
+		if (player.InvGrid[cell] == invListIndex + 1)
+			return cell;
+	}
+	return -1;
+}
+
+TEST_F(InvTest, AutoPlaceItemInInventory_OneByOneLandsOnTheBottomRow)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	clear_inventory();
+	const Item ring = MakeBackpackItem(ICURS_RING);
+	ASSERT_EQ(GetInventorySize(ring), (Size { 1, 1 }));
+
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, ring, true));
+	EXPECT_EQ(GridCellOf(*MyPlayer, 0), InventoryGridCells - InventorySizeInSlots.width) << "the bottom row's left cell";
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, ring, true));
+	EXPECT_EQ(GridCellOf(*MyPlayer, 1), InventoryGridCells - InventorySizeInSlots.width + 1) << "then along the bottom row";
+
+	// A full bottom row sends the next one up the rightmost column, the row just above.
+	clear_inventory();
+	for (int i = 0; i < InventorySizeInSlots.width; i++)
+		ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, ring, true));
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, ring, true));
+	EXPECT_EQ(GridCellOf(*MyPlayer, InventorySizeInSlots.width), InventoryGridCells - InventorySizeInSlots.width - 1);
+}
+
+TEST_F(InvTest, AutoPlaceItemInInventory_EveryShapeReachesAllSevenRows)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	// Each shape alone fills the whole backpack before it reports no room: 70 rings, 10 columns of 3 one-by-twos and 5 of
+	// 3 two-by-twos (rows 0-5), 10 columns of 2 one-by-threes, and 5 two-by-threes a row band for 2 bands.
+	struct Case {
+		item_cursor_graphic cursor;
+		Size size;
+		int fits;
+	};
+	for (const Case &c : { Case { ICURS_RING, { 1, 1 }, 70 }, Case { ICURS_HELM, { 2, 2 }, 15 },
+	         Case { ICURS_DAGGER, { 1, 2 }, 30 },
+	         Case { ICURS_SHORT_SWORD, { 1, 3 }, 20 }, Case { ICURS_QUILTED_ARMOR, { 2, 3 }, 10 } }) {
+		clear_inventory();
+		const Item item = MakeBackpackItem(c.cursor);
+		ASSERT_EQ(GetInventorySize(item), c.size) << "cursor " << c.cursor;
+		// Counted in the backpack itself (_pNumInv): past a full tab 1 the extra tabs take the overflow.
+		for (int i = 0; i <= c.fits; i++)
+			AutoPlaceItemInInventory(*MyPlayer, item, true);
+		EXPECT_EQ(MyPlayer->_pNumInv, c.fits) << c.size.width << "x" << c.size.height << " stopped short of a full backpack";
+	}
+}
+
 TEST_F(InvTest, MergeStackableItemIntoInventory_mergesIntoExistingStack)
 {
 	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);

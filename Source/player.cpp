@@ -4298,6 +4298,13 @@ void ResetPlayerStats(Player &player)
 	RedrawEverything();
 }
 
+int StatPointsToSpend(const Player &player, CharacterAttribute attribute, int requested)
+{
+	constexpr int BaseCap = 255;
+	const int roomBelowCap = BaseCap - player.GetBaseAttributeValue(attribute);
+	return std::max(0, std::min({ requested, player._pStatPts, roomBelowCap }));
+}
+
 int RefundStatPoints(Player &player, CharacterAttribute attribute, int count)
 {
 	if (gbIsMultiplayer || &player != MyPlayer || count <= 0)

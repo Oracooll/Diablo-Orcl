@@ -384,14 +384,6 @@ bool WhisperList[MAX_PLRS];
 TextInputCursorState ChatCursor;
 std::optional<TextInputState> ChatInputState;
 
-int CapStatPointsToAdd(int remainingStatPoints, const Player &player, CharacterAttribute attribute)
-{
-	const int maximum = 255;
-	int pointsToReachCap = maximum - player.GetBaseAttributeValue(attribute);
-
-	return std::min(remainingStatPoints, pointsToReachCap);
-}
-
 int DrawDurIcon4Item(const Surface &out, Item &pItem, int x, int c)
 {
 	const int durabilityThresholdGold = 5;
@@ -1804,13 +1796,15 @@ void ReleaseChrBtns(bool addAllStatPoints, bool addFive)
 		button.position = GetPanelPosition(UiPanels::Character, button.position);
 		if (button.contains(MousePosition)) {
 			Player &myPlayer = *MyPlayer;
-			int statPointsToAdd = 1;
-			if (addAllStatPoints && grouped)
-				statPointsToAdd = CapStatPointsToAdd(std::min(myPlayer._pStatPts, ShiftClickPoints), myPlayer, attribute);
-			else if (addAllStatPoints)
-				statPointsToAdd = CapStatPointsToAdd(myPlayer._pStatPts, myPlayer, attribute);
+			// Every path through StatPointsToSpend, the plain click included: the grouped + presses with no points to
+			// spend, and its "1" used to go through unchecked (user, 2026-09-27 dev note: "stat points just increase
+			// negativly").
+			int requested = 1;
+			if (addAllStatPoints)
+				requested = grouped ? ShiftClickPoints : myPlayer._pStatPts;
 			else if (addFive) // ctrl+click (user, 2026-09-26 dev note: "add 5 level-up points at once")
-				statPointsToAdd = CapStatPointsToAdd(std::min(myPlayer._pStatPts, CtrlClickPoints), myPlayer, attribute);
+				requested = CtrlClickPoints;
+			const int statPointsToAdd = StatPointsToSpend(myPlayer, attribute, requested);
 			if (statPointsToAdd <= 0)
 				continue;
 			switch (attribute) {

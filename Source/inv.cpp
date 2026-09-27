@@ -2822,33 +2822,41 @@ bool AutoPlaceItemInInventory(Player &player, const Item &item, bool persistItem
 	Size itemSize = GetInventorySize(remainder);
 	bool placed = false;
 
+	// Every range below was vanilla's 10x4 backpack written as literals - a 1x1 went to cells 30-39 (the fourth row)
+	// and nothing reached rows 5-7, so an item fell through to an extra tab with three rows of tab 1 still empty
+	// (user, 2026-09-27 dev note: "1 grid slot items ... land on row 4 in my inv grid. that is some remnant of vanilla
+	// inv grid. make them land on bottom row - 7th"). The same slip AddGoldToInventory had until 2026-08-19. Derived
+	// from InventorySizeInSlots now; vanilla's ORDER is kept: 1x1s fill the bottom row left to right, then columns
+	// from the right, bottom up; taller items fill from the top.
+	constexpr int Columns = InventorySizeInSlots.width;
+	constexpr int Rows = InventorySizeInSlots.height;
+	static_assert(Columns * Rows == InventoryGridCells);
+
 	if (itemSize.height == 1) {
-		for (int i = 30; i <= 39 && !placed; i++)
+		for (int i = (Rows - 1) * Columns; i < InventoryGridCells && !placed; i++)
 			placed = AutoPlaceItemInInventorySlot(player, i, remainder, persistItem);
-		for (int x = 9; x >= 0 && !placed; x--) {
-			for (int y = 2; y >= 0 && !placed; y--)
-				placed = AutoPlaceItemInInventorySlot(player, 10 * y + x, remainder, persistItem);
+		for (int x = Columns - 1; x >= 0 && !placed; x--) {
+			for (int y = Rows - 2; y >= 0 && !placed; y--)
+				placed = AutoPlaceItemInInventorySlot(player, Columns * y + x, remainder, persistItem);
 		}
 	} else if (itemSize.height == 2) {
-		for (int x = 10 - itemSize.width; x >= 0 && !placed; x -= itemSize.width) {
-			for (int y = 0; y < 3 && !placed; y++)
-				placed = AutoPlaceItemInInventorySlot(player, 10 * y + x, remainder, persistItem);
+		for (int x = Columns - itemSize.width; x >= 0 && !placed; x -= itemSize.width) {
+			for (int y = 0; y <= Rows - 2 && !placed; y++)
+				placed = AutoPlaceItemInInventorySlot(player, Columns * y + x, remainder, persistItem);
 		}
 		if (!placed && itemSize.width == 2) {
-			for (int x = 7; x >= 0 && !placed; x -= 2) {
-				for (int y = 0; y < 3 && !placed; y++)
-					placed = AutoPlaceItemInInventorySlot(player, 10 * y + x, remainder, persistItem);
+			for (int x = Columns - 3; x >= 0 && !placed; x -= 2) {
+				for (int y = 0; y <= Rows - 2 && !placed; y++)
+					placed = AutoPlaceItemInInventorySlot(player, Columns * y + x, remainder, persistItem);
 			}
 		}
 	} else if (itemSize == Size { 1, 3 }) {
-		for (int i = 0; i < 20 && !placed; i++)
+		for (int i = 0; i < (Rows - 2) * Columns && !placed; i++)
 			placed = AutoPlaceItemInInventorySlot(player, i, remainder, persistItem);
 	} else if (itemSize == Size { 2, 3 }) {
-		for (int i = 0; i < 9 && !placed; i++)
-			placed = AutoPlaceItemInInventorySlot(player, i, remainder, persistItem);
-		if (!placed) {
-			for (int i = 10; i < 19 && !placed; i++)
-				placed = AutoPlaceItemInInventorySlot(player, i, remainder, persistItem);
+		for (int y = 0; y <= Rows - 3 && !placed; y++) {
+			for (int x = 0; x <= Columns - 2 && !placed; x++)
+				placed = AutoPlaceItemInInventorySlot(player, Columns * y + x, remainder, persistItem);
 		}
 	} else {
 		app_fatal(StrCat("Unknown item size: ", itemSize.width, "x", itemSize.height));

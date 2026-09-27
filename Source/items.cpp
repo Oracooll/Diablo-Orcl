@@ -29,6 +29,7 @@
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "init.h"
+#include "inv.h"
 #include "inv_iterators.hpp"
 #include "items/validation.h"
 #include "levels/town.h"
@@ -5283,7 +5284,8 @@ void CreatePlrItems(Player &player)
 	MakeGoldStack(goldItem, 100);
 
 	player._pNumInv++;
-	player.InvGrid[30] = player._pNumInv;
+	// The bottom-left cell. Vanilla's 30 was the bottom-left of its 10x4 backpack - the fourth row of the 10x7 one.
+	player.InvGrid[InventoryGridCells - InventorySizeInSlots.width] = player._pNumInv;
 
 	player._pGold = goldItem._ivalue;
 

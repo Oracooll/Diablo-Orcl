@@ -1180,6 +1180,13 @@ void ResetPlayerStats(Player &player);
  * Single player, the local hero only. @return how many points came back (0 when there were none to take).
  */
 int RefundStatPoints(Player &player, CharacterAttribute attribute, int count);
+/**
+ * @brief How many of @p requested stat points a + click may put into @p attribute: never more than the hero has
+ * unspent (_pStatPts) and never past the base cap of 255. 0 when there is nothing to spend - the grouped sheet's +
+ * is always pressable, and a plain click used to spend 1 regardless, taking _pStatPts below zero (user, 2026-09-27
+ * dev note: "stat points just increase negativly").
+ */
+int StatPointsToSpend(const Player &player, CharacterAttribute attribute, int requested);
 void ModifyPlrStr(Player &player, int l);
 void ModifyPlrMag(Player &player, int l);
 void ModifyPlrDex(Player &player, int l);
