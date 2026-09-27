@@ -552,6 +552,13 @@ void ClearPlayerChills()
 	PlayerChillTicks.fill(0);
 }
 
+void ThawPlayer(const Player &player)
+{
+	const size_t id = player.getId();
+	if (id < PlayerChillTicks.size())
+		PlayerChillTicks[id] = 0;
+}
+
 int MonsterColdMeleePercent(const Monster &monster)
 {
 	if (IsRiftGuardian(monster) || IsEndgameBoss(monster))

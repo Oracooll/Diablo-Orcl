@@ -1586,6 +1586,9 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		minDam += minDam * weakened / 100;
 		maxDam = std::max(maxDam + maxDam * weakened / 100, minDam);
 	}
+	// The snakes' charge passes 500, a blow that cannot miss (MissToMonst): it is not the monster's aim, and noting it pinned
+	// the hero sheet's Armor class bar at 100% until another monster landed one (audit, 2026-09-27).
+	const bool unmissable = hit >= 500;
 	hit -= oracool::MonsterDebuffToHit(monster);
 
 	int hper = GenerateRnd(100);
@@ -1626,7 +1629,8 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		return;
 	}
 	// The blow has landed: this monster is now the one the sheet's Armor class bar measures against (2026-09-27).
-	oracool::NoteMonsterHitPlayer(player, monster, monsterToHit, minhit);
+	if (!unmissable)
+		oracool::NoteMonsterHitPlayer(player, monster, monsterToHit, minhit);
 	if (monster.type().type == MT_YZOMBIE && &player == MyPlayer) {
 		if (player._pMaxHP > 64) {
 			if (player._pMaxHPBase > 64) {
@@ -3809,6 +3813,15 @@ void InitLevelMonsters()
 	// length, and it looks plausible, so it survives into the balance CSV instead of being thrown
 	// away (audit, 2026-08-30). Clearing them here removes the class rather than its tail.
 	oracool::TelemetryResetLevelTimers();
+	// Every chill forgotten, and the heroes' chill, the passives' clocks, the RfA-12 fields and marks and the warcry
+	// wards with it: file-local statics that outlive the game. They were cleared in InitMonsters, which town never
+	// runs - and a New Game starts in town, so the next hero began with the last one's half-speed chill and a Bone
+	// Storm still circling slot 0 (audit, 2026-09-27). Here every level load passes, town and revisits included.
+	oracool::ClearChills();
+	oracool::ClearPlayerChills(); // a level change thaws the heroes too (2026-09-26)
+	oracool::ClearPassiveState();
+	oracool::ClearRfa12State();
+	oracool::ClearWarcries();
 
 	for (CMonster &levelMonsterType : LevelMonsterTypes) {
 		levelMonsterType.placeFlags = 0;
@@ -4152,14 +4165,8 @@ void InitGolems()
 
 void InitMonsters()
 {
-	// Every chill forgotten. That table is a file-local static and therefore outlives the game, so
-	// this is what stops one character's frost from landing on another's monsters - and it belongs
-	// here, on entering a level, because that is the one event no path can skip.
-	oracool::ClearChills();
-	oracool::ClearPlayerChills(); // the heroes' chill too (2026-09-26): a level change thaws them
-	oracool::ClearPassiveState();
-	oracool::ClearRfa12State();
-	oracool::ClearWarcries();
+	// The chill, passive, RfA-12 and warcry clears that stood here are in InitLevelMonsters since 2026-09-27: this does
+	// not run in town, and a New Game starts there.
 
 	if (!gbIsSpawn && !setlevel && currlevel == 16)
 		LoadDiabMonsts();

@@ -348,6 +348,22 @@ bool AcceptItemFormat(uint8_t version)
 	return true;
 }
 
+/**
+ * @brief Puts LoadingItemFormat back to today's when an item file's loader returns, by any path (audit, 2026-09-27).
+ * Only the three item files' loaders set it, and nothing set it back: after one version-13 hero, stash or tab file
+ * every later level, dropped-item and premium load - all written today, with _iPLCR - read each item four bytes
+ * short and walked the rest of the file as garbage.
+ */
+struct ItemFormatScope {
+	ItemFormatScope() = default;
+	ItemFormatScope(const ItemFormatScope &) = delete;
+	ItemFormatScope &operator=(const ItemFormatScope &) = delete;
+	~ItemFormatScope()
+	{
+		LoadingItemFormat = OracoolItemFormatVersion;
+	}
+};
+
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {
 	// The bound moves with every appended power, and forgetting it is how a new power would load
@@ -2809,6 +2825,7 @@ bool LoadHeroItems(Player &player, uint32_t saveNumber)
 
 	gbIsHellfireSaveGame = file.NextBool8();
 
+	const ItemFormatScope itemFormat;
 	if (!AcceptItemFormat(file.NextLE<uint8_t>())) {
 		// The fixed-size item record grew when Oracool tier/affix data was folded directly
 		// into it; reading an older, shorter record with today's field layout would silently
@@ -2892,6 +2909,7 @@ void LoadStash()
 	}
 	// Version 6 carries the item schema its records were written with; version 5 is the current
 	// build's own pre-audit output, parsed with today's format. See the StashVersion note.
+	const ItemFormatScope itemFormat;
 	if (version == StashVersion && !AcceptItemFormat(file.NextLE<uint8_t>())) {
 		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Orcl and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
 		return;
@@ -3002,6 +3020,7 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 	// unlike the stash it costs nothing - an unreadable tab file simply leaves the tabs empty.
 	if (version != OracoolInvTabsVersion)
 		return; // unrecognized or outgrown format; every extra tab stays empty
+	const ItemFormatScope itemFormat;
 	if (!AcceptItemFormat(file.NextLE<uint8_t>()))
 		return; // the embedded item schema disagrees with this build's; see the version-3 note above
 

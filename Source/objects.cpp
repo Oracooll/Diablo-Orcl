@@ -3288,9 +3288,16 @@ void OperateShrineMendicant(Player &player)
 	// Half of ALL the hero's gold, the stash's included (user, 2026-09-26 dev note: "gold to exp shrine to
 	// consume gold from stash"). TakePlrsMoney already empties the backpack first and the stash after it.
 	const int64_t allGold = static_cast<int64_t>(player._pGold) + std::max(Stash.gold, 0);
-	const int gold = static_cast<int>(std::min<int64_t>(allGold / 2, std::numeric_limits<int>::max()));
-	AddPlrExperience(player, player._pLevel, gold);
-	TakePlrsMoney(gold);
+	const int offered = static_cast<int>(std::min<int64_t>(allGold / 2, std::numeric_limits<int>::max()));
+	// Charged only for the gold that BECAME experience (audit, 2026-09-27): at level 99 AddPlrExperience gives nothing
+	// and past 70 KillExperienceFor gives a fraction, yet the whole half used to go - a capped hero lost half the stash
+	// for nothing.
+	const uint64_t experienceBefore = player._pExperience;
+	AddPlrExperience(player, player._pLevel, offered);
+	const uint64_t gained = player._pExperience - experienceBefore;
+	const int gold = static_cast<int>(std::min<uint64_t>(gained, static_cast<uint64_t>(offered)));
+	if (gold > 0)
+		TakePlrsMoney(gold);
 
 	RedrawEverything();
 
@@ -4066,6 +4073,11 @@ void UpdateState(Object &object, int frame)
 }
 
 } // namespace
+
+void OperateShrineMendicantForTest(Player &player)
+{
+	OperateShrineMendicant(player);
+}
 
 unsigned int Object::GetId() const
 {

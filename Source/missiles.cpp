@@ -324,7 +324,11 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 		hper = player.GetRangedPiercingToHit();
 		hper -= player.CalculateArmorPierce(oracool::EffectiveMonsterArmor(monster), false);
 		hper -= (dist * dist) / 2;
-		oracool::NotePlayerAttackedMonster(player, monster, /*arrow=*/true, (dist * dist) / 2); // the sheet's To hit bar
+		// The hero's own shots only: a companion's arrows fly with the hero as their source (CompanionHitPercent set), and
+		// noting them moved the hero's To hit bar onto the bow formula and a monster the hero never attacked (audit,
+		// 2026-09-27).
+		if (CompanionHitPercent == 0)
+			oracool::NotePlayerAttackedMonster(player, monster, /*arrow=*/true, (dist * dist) / 2); // the sheet's To hit bar
 	} else {
 		hper = player.GetMagicToHit() - (monster.level(sgGameInitInfo.nDifficulty) * 2) - dist;
 	}

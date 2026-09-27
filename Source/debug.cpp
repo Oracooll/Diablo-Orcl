@@ -661,9 +661,11 @@ std::string DebugCmdSetSpellsLevel(const string_view parameter)
 	// (oracool::AllClassSkillsBitmask), so between the two nothing castable is left out. Before that
 	// day fifteen spells had no book and could not be handed over by any means at all.
 	uint8_t level = static_cast<uint8_t>(std::max(0, atoi(parameter.data())));
-	for (uint8_t i = static_cast<uint8_t>(SpellID::Firebolt); i < MAX_SPELLS; i++) {
+	// An int, not the uint8_t this was (audit, 2026-09-27): MAX_SPELLS is 290, and a uint8_t wraps at 255 before it gets
+	// there - the command never returned and sent CMD_CHANGE_SPELL_LEVEL forever.
+	for (int i = static_cast<int>(SpellID::Firebolt); i < MAX_SPELLS; i++) {
 		if (GetSpellBookLevel(static_cast<SpellID>(i)) != -1) {
-			NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, i, level);
+			NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, static_cast<uint16_t>(i), level);
 		}
 	}
 	if (level == 0)

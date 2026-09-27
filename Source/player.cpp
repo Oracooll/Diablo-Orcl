@@ -4281,21 +4281,13 @@ void ResetPlayerStats(Player &player)
 	// Only undo points the player manually spent via the "+" buttons - permanent bonuses from
 	// quests, shrines, and items reached _pBaseStr/Mag/Dex/Vit through a different call path and
 	// are never tracked here, so they survive the reset untouched.
-	const int pointsToReturn = player._pStatPtsSpentStr + player._pStatPtsSpentMag + player._pStatPtsSpentDex + player._pStatPtsSpentVit;
-
-	ModifyPlrStr(player, -player._pStatPtsSpentStr);
-	ModifyPlrMag(player, -player._pStatPtsSpentMag);
-	ModifyPlrDex(player, -player._pStatPtsSpentDex);
-	ModifyPlrVit(player, -player._pStatPtsSpentVit);
-
-	player._pStatPtsSpentStr = 0;
-	player._pStatPtsSpentMag = 0;
-	player._pStatPtsSpentDex = 0;
-	player._pStatPtsSpentVit = 0;
-
-	player._pStatPts += pointsToReturn;
-	CalcPlrInv(player, true);
-	RedrawEverything();
+	//
+	// Stat by stat through RefundStatPoints (audit, 2026-09-27), which holds the two rules this used to break: it
+	// returned every spent point although ModifyPlr* stops at a base of 0 (a curse that took the base below what was
+	// spent made points), and it took Vitality's life away with no floor (a hurt hero died from the click).
+	const int maximumRefund = std::numeric_limits<int>::max();
+	for (auto attribute : enum_values<CharacterAttribute>())
+		RefundStatPoints(player, attribute, maximumRefund);
 }
 
 int StatPointsToSpend(const Player &player, CharacterAttribute attribute, int requested)
@@ -4328,7 +4320,14 @@ int RefundStatPoints(Player &player, CharacterAttribute attribute, int count)
 		return 0;
 	// Never more than was spent, nor more than the base holds (a curse or a death's loss can have taken the base
 	// below what was put in).
-	const int refund = std::min({ count, *spent, player.GetBaseAttributeValue(attribute) });
+	int refund = std::min({ count, *spent, player.GetBaseAttributeValue(attribute) });
+	// Vitality takes its life away with it, current life included: never so much that the hero is left with less than
+	// one point (audit, 2026-09-27 - a Warrior on 15 life shift-clicking the - lost 20 and died from a UI click).
+	if (attribute == CharacterAttribute::Vitality) {
+		const int lifePerPoint = PlayersData[static_cast<size_t>(player._pClass)].chrLife;
+		if (lifePerPoint > 0)
+			refund = std::min(refund, std::max(0, (player._pHitPoints - (1 << 6)) / lifePerPoint));
+	}
 	if (refund <= 0)
 		return 0;
 	switch (attribute) {

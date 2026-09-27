@@ -270,6 +270,7 @@ void ApplyImbuementsToTotals(const Item &item, ItemBonusTotals &totals)
 	totals.fireResist += Scaled(own.fireResist, percent);
 	totals.lightningResist += Scaled(own.lightningResist, percent);
 	totals.magicResist += Scaled(own.magicResist, percent);
+	totals.coldResist += Scaled(own.coldResist, percent); // missed when cold resistance arrived (audit, 2026-09-27)
 	totals.damageMod += Scaled(own.damageMod, percent);
 	totals.getHit += Scaled(own.getHit, percent);
 	totals.lightRadius += Scaled(own.lightRadius, percent);

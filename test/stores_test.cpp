@@ -294,6 +294,62 @@ TEST_F(StoresTest,StorytellerIdentify_ListsAndIdentifiesItemStoredInExtraTab)
 	EXPECT_TRUE(MyPlayer->InvTabList[2][0]._iIdentified) << "identifying the listed entry should mark the real extra-tab item identified, not silently do nothing";
 }
 
+// Cain's list walked vanilla's seven worn slots; an unidentified piece on the fork's other six never appeared (audit,
+// 2026-09-27).
+TEST_F(StoresTest,StorytellerIdentify_ListsAndIdentifiesAPieceWornInAnAddedSlot)
+{
+	InitializeItem(MyPlayer->InvBody[INVLOC_BOOTS], IDI_HEAL);
+	MyPlayer->InvBody[INVLOC_BOOTS]._iMagical = ITEM_QUALITY_MAGIC;
+	MyPlayer->InvBody[INVLOC_BOOTS]._iIdentified = false;
+
+	StartStore(TalkID::StorytellerIdentify);
+
+	int foundAt = -1;
+	for (int i = 0; i < storenumh; i++) {
+		if (!storehold[i]._iIdentified)
+			foundAt = i;
+	}
+	ASSERT_NE(foundAt, -1) << "the boots should be on Cain's list";
+	SimulateStorytellerIdentifyForTest(static_cast<size_t>(foundAt));
+	EXPECT_TRUE(MyPlayer->InvBody[INVLOC_BOOTS]._iIdentified);
+}
+
+// The lists held 48 - vanilla's backpack and belt - and the sell list stopped filling there before it sorted by price,
+// so the 49th sellable item on and everything on later pages never showed (audit, 2026-09-27).
+TEST_F(StoresTest,SmithSell_ListsEverySellableItemPastVanillasFortyEight)
+{
+	constexpr int Count = 60;
+	for (int n = 0; n < Count; n++) {
+		const int tab = n / InventoryGridCells;
+		const int index = n % InventoryGridCells;
+		devilution::Item &item = MyPlayer->InvTabList[tab][index];
+		InitializeItem(item, IDI_HEAL);
+		item._iIdentified = true;
+		MyPlayer->InvTabGrid[tab][index] = static_cast<int8_t>(index + 1);
+		MyPlayer->_pNumInvTab[tab] = index + 1;
+	}
+	ASSERT_GT(StoreHoldCapacity, Count);
+
+	StartStore(TalkID::SmithSell);
+
+	EXPECT_EQ(storenumh, Count);
+}
+
+// A new hero met the last hero's Wirt: InitStores left his two grids, and SpawnBoy restocks only on an empty first
+// slot or a higher tier (audit, 2026-09-27).
+TEST_F(StoresTest,InitStores_EmptiesWirtsShopAndGambleGrids)
+{
+	InitializeItem(boyitems[0], IDI_HEAL);
+	InitializeItem(gambleitems[0], IDI_HEAL);
+
+	InitStores();
+
+	for (const devilution::Item &item : boyitems)
+		EXPECT_TRUE(item.isEmpty());
+	for (const devilution::Item &item : gambleitems)
+		EXPECT_TRUE(item.isEmpty());
+}
+
 TEST_F(StoresTest,SmithSell_StackedConsumable_PricedByQuantity)
 {
 	Players.resize(1);

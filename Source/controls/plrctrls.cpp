@@ -636,6 +636,24 @@ Point InvGetEquipSlotCoord(const inv_body_loc invSlot)
 	return result;
 }
 
+/**
+ * @brief The worn slot for one of the six locations the fork added (shoulders to boots), or -1. The controller code
+ * below was written for vanilla's seven slots, and a gamepad could not reach, equip or take off the other six
+ * (audit, 2026-09-27).
+ */
+int AddedWornSlotFor(item_equip_type location)
+{
+	switch (location) {
+	case ILOC_SHOULDERS: return SLOTXY_SHOULDERS;
+	case ILOC_BRACERS: return SLOTXY_BRACERS;
+	case ILOC_GLOVES: return SLOTXY_GLOVES;
+	case ILOC_WAIST: return SLOTXY_WAIST;
+	case ILOC_LEGS: return SLOTXY_LEGS;
+	case ILOC_BOOTS: return SLOTXY_BOOTS;
+	default: return -1;
+	}
+}
+
 Point InvGetEquipSlotCoordFromInvSlot(const inv_xy_slot slot)
 {
 	if (slot == SLOTXY_HEAD) {
@@ -659,6 +677,9 @@ Point InvGetEquipSlotCoordFromInvSlot(const inv_xy_slot slot)
 	if (slot == SLOTXY_CHEST) {
 		return InvGetEquipSlotCoord(INVLOC_CHEST);
 	}
+	// The six added worn slots have no inv_body_loc case above; their rect is the answer, as it is for the seven.
+	if (slot >= SLOTXY_EQUIPPED_FIRST && slot <= SLOTXY_EQUIPPED_LAST)
+		return GetPanelPosition(UiPanels::Inventory, InvRect[slot].Center());
 
 	return {};
 }
@@ -681,7 +702,8 @@ Point GetSlotCoord(int slot)
 int GetItemIdOnSlot(int slot)
 {
 	if (slot >= SLOTXY_INV_FIRST && slot <= SLOTXY_INV_LAST) {
-		return abs(MyPlayer->InvGrid[slot - SLOTXY_INV_FIRST]);
+		// The page on screen, not always page 1 (audit, 2026-09-27): on pages 2-10 the cursor snapped to page 1's shapes.
+		return abs(GetActiveInvGridCell(*MyPlayer, slot - SLOTXY_INV_FIRST));
 	}
 
 	return 0;
@@ -695,7 +717,7 @@ Size GetItemSizeOnSlot(int slot)
 	if (slot >= SLOTXY_INV_FIRST && slot <= SLOTXY_INV_LAST) {
 		int8_t ii = GetItemIdOnSlot(slot);
 		if (ii != 0) {
-			Item &item = MyPlayer->InvList[ii - 1];
+			Item &item = GetActiveInvListItem(*MyPlayer, ii - 1);
 			if (!item.isEmpty()) {
 				return GetInventorySize(item);
 			}
@@ -710,7 +732,9 @@ Size GetItemSizeOnSlot(int slot)
  */
 Size GetItemSizeOnSlot(Point slot)
 {
-	if (Rectangle { { 0, 0 }, { 10, 10 } }.contains(slot)) {
+	// The stash page is 10x16, not vanilla's 10x10 - the literals here and below kept rows 10-15 out of the controller's
+	// reach (audit, 2026-09-27).
+	if (Rectangle { { 0, 0 }, { StashGridColumns, StashGridRows } }.contains(slot)) {
 		StashStruct::StashCell ii = Stash.GetItemIdAtPosition(slot);
 		if (ii != StashStruct::EmptyCell) {
 			Item &item = Stash.stashList[ii];
@@ -730,7 +754,9 @@ int FindFirstSlotOnItem(int8_t itemInvId)
 {
 	if (itemInvId == 0)
 		return -1;
-	for (int s = SLOTXY_INV_FIRST; s < SLOTXY_INV_LAST; s++) {
+	// <=: SLOTXY_INV_LAST is the last cell itself, and an item alone in it (a 1x1 in the bottom-right corner, where the
+	// bottom row's tenth pickup lands since v1.12.196) came back -1 and indexed InvRect[-1] (audit, 2026-09-27).
+	for (int s = SLOTXY_INV_FIRST; s <= SLOTXY_INV_LAST; s++) {
 		if (GetItemIdOnSlot(s) == itemInvId)
 			return s;
 	}
@@ -742,7 +768,7 @@ Point FindFirstStashSlotOnItem(StashStruct::StashCell itemInvId)
 	if (itemInvId == StashStruct::EmptyCell)
 		return InvalidStashPoint;
 
-	for (WorldTilePosition point : PointsInRectangle(WorldTileRectangle { { 0, 0 }, { 10, 10 } })) {
+	for (WorldTilePosition point : PointsInRectangle(WorldTileRectangle { { 0, 0 }, { StashGridColumns, StashGridRows } })) {
 		if (Stash.GetItemIdAtPosition(point) == itemInvId)
 			return point;
 	}
@@ -798,7 +824,7 @@ int FindClosestInventorySlot(
 	};
 
 	if (heldItem.isEmpty()) {
-		for (int i = SLOTXY_HEAD; i <= SLOTXY_CHEST; i++) {
+		for (int i = SLOTXY_EQUIPPED_FIRST; i <= SLOTXY_EQUIPPED_LAST; i++) {
 			checkCandidateSlot(i);
 		}
 	} else {
@@ -814,6 +840,8 @@ int FindClosestInventorySlot(
 			checkCandidateSlot(SLOTXY_HEAD);
 		} else if (heldItem.isArmor()) {
 			checkCandidateSlot(SLOTXY_CHEST);
+		} else if (const int worn = AddedWornSlotFor(heldItem._iLoc); worn >= 0) {
+			checkCandidateSlot(worn);
 		} else if (heldItem._itype == ItemType::Amulet) {
 			checkCandidateSlot(SLOTXY_AMULET);
 		}
@@ -830,7 +858,7 @@ Point FindClosestStashSlot(Point mousePos)
 	int shortestDistance = std::numeric_limits<int>::max();
 	Point bestSlot = {};
 
-	for (Point point : PointsInRectangle(Rectangle { { 0, 0 }, Size { 10, 10 } })) {
+	for (Point point : PointsInRectangle(Rectangle { { 0, 0 }, Size { StashGridColumns, StashGridRows } })) {
 		int distance = mousePos.ManhattanDistance(GetStashSlotCoord(point));
 		if (distance < shortestDistance) {
 			shortestDistance = distance;
@@ -855,6 +883,56 @@ inv_xy_slot InventoryMoveToBody(int slot)
 	}
 	// last 3 general slots
 	return SLOTXY_RING_RIGHT;
+}
+
+/** @brief The backpack's top-row cell nearest @p from in x, for an item @p width cells wide. */
+int NearestTopRowCell(int from, int width)
+{
+	const int x = InvRect[from].Center().x;
+	int best = SLOTXY_INV_ROW1_FIRST;
+	int nearest = std::numeric_limits<int>::max();
+	for (int cell = SLOTXY_INV_ROW1_FIRST; cell <= SLOTXY_INV_ROW1_LAST - (width - 1); cell++) {
+		const int distance = std::abs(InvRect[cell].Center().x - x);
+		if (distance < nearest) {
+			nearest = distance;
+			best = cell;
+		}
+	}
+	return best;
+}
+
+/**
+ * @brief The worn slot nearest @p from one step in @p dir (x or y, not both), by the slots' rects - or, going down with
+ * none below, the backpack's top row. -1 when there is nowhere to go. The fallback for the paper doll's thirteen
+ * slots: vanilla's hand-written moves know only its seven, so from shoulders, bracers, gloves, waist, legs or boots the
+ * D-pad went nowhere (audit, 2026-09-27).
+ */
+int NearestWornSlotInDirection(int from, AxisDirection dir)
+{
+	const Point origin = InvRect[from].Center();
+	int best = -1;
+	int bestScore = std::numeric_limits<int>::max();
+	for (int slot = SLOTXY_EQUIPPED_FIRST; slot <= SLOTXY_EQUIPPED_LAST; slot++) {
+		if (slot == from)
+			continue;
+		const Point centre = InvRect[slot].Center();
+		const int dx = centre.x - origin.x;
+		const int dy = centre.y - origin.y;
+		const bool horizontal = dir.x != AxisDirectionX_NONE;
+		const int along = horizontal ? (dir.x == AxisDirectionX_LEFT ? -dx : dx) : (dir.y == AxisDirectionY_UP ? -dy : dy);
+		const int across = std::abs(horizontal ? dy : dx);
+		// Ahead, and more ahead than aside: a slot beside the cursor is not "down" from it.
+		if (along <= 0 || across > along)
+			continue;
+		const int score = along + 2 * across;
+		if (score < bestScore) {
+			bestScore = score;
+			best = slot;
+		}
+	}
+	if (best < 0 && dir.x == AxisDirectionX_NONE && dir.y == AxisDirectionY_DOWN)
+		best = NearestTopRowCell(from, 1);
+	return best;
 }
 
 void InventoryMove(AxisDirection dir)
@@ -962,6 +1040,8 @@ void InventoryMove(AxisDirection dir)
 					Slot = SLOTXY_HEAD;
 				} else if (heldItem.isArmor()) {
 					Slot = SLOTXY_CHEST;
+				} else if (const int worn = AddedWornSlotFor(heldItem._iLoc); worn >= 0) {
+					Slot = worn;
 				} else if (heldItem._itype == ItemType::Amulet) {
 					Slot = SLOTXY_AMULET;
 				}
@@ -1047,6 +1127,23 @@ void InventoryMove(AxisDirection dir)
 				}
 			}
 		}
+	}
+
+	// On the paper doll where the hand-written moves go nowhere: the nearest worn slot that way, or the backpack below.
+	// Holding an item, only down into the backpack - the moves above already pick the slot an item is worn in.
+	if (Slot == initialSlot && Slot >= SLOTXY_EQUIPPED_FIRST && Slot <= SLOTXY_EQUIPPED_LAST) {
+		int next = -1;
+		if (isHoldingItem) {
+			if (dir.y == AxisDirectionY_DOWN)
+				next = NearestTopRowCell(Slot, itemSize.width);
+		} else {
+			if (dir.x != AxisDirectionX_NONE)
+				next = NearestWornSlotInDirection(Slot, AxisDirection { dir.x, AxisDirectionY_NONE });
+			if (next < 0 && dir.y != AxisDirectionY_NONE)
+				next = NearestWornSlotInDirection(Slot, AxisDirection { AxisDirectionX_NONE, dir.y });
+		}
+		if (next >= 0)
+			Slot = next;
 	}
 
 	// no movement was made
@@ -1158,7 +1255,7 @@ void StashMove(AxisDirection dir)
 		if (BeltReturnsToStash && Slot >= SLOTXY_BELT_FIRST && Slot <= SLOTXY_BELT_LAST) {
 			int beltSlot = Slot - SLOTXY_BELT_FIRST;
 			InvalidateInventorySlot();
-			ActiveStashSlot = { 2 + beltSlot, 10 - itemSize.height };
+			ActiveStashSlot = { 2 + beltSlot, StashGridRows - itemSize.height };
 			dir.y = AxisDirectionY_NONE;
 		}
 	}
@@ -1209,11 +1306,11 @@ void StashMove(AxisDirection dir)
 		//  have a free stash column to move to. If the item we're hovering over occupies the last
 		//  column then we want to jump to the inventory instead of just moving one column over.
 		Size itemUnderCursorSize = holdItem.isEmpty() ? GetItemSizeOnSlot(ActiveStashSlot) : itemSize;
-		if (ActiveStashSlot.x < 10 - itemUnderCursorSize.width) {
+		if (ActiveStashSlot.x < StashGridColumns - itemUnderCursorSize.width) {
 			const StashStruct::StashCell itemIdAtActiveStashSlot = Stash.GetItemIdAtPosition(ActiveStashSlot);
 			ActiveStashSlot.x++;
 			if (holdItem.isEmpty() && itemIdAtActiveStashSlot != StashStruct::EmptyCell) {
-				while (ActiveStashSlot.x < 10 - itemSize.width && itemIdAtActiveStashSlot == Stash.GetItemIdAtPosition(ActiveStashSlot)) {
+				while (ActiveStashSlot.x < StashGridColumns - itemSize.width && itemIdAtActiveStashSlot == Stash.GetItemIdAtPosition(ActiveStashSlot)) {
 					ActiveStashSlot.x++;
 				}
 			}
@@ -1245,11 +1342,11 @@ void StashMove(AxisDirection dir)
 			}
 		}
 	} else if (dir.y == AxisDirectionY_DOWN) {
-		if (ActiveStashSlot.y < 10 - itemSize.height) {
+		if (ActiveStashSlot.y < StashGridRows - itemSize.height) {
 			const StashStruct::StashCell itemIdAtActiveStashSlot = Stash.GetItemIdAtPosition(ActiveStashSlot);
 			ActiveStashSlot.y++;
 			if (holdItem.isEmpty() && itemIdAtActiveStashSlot != StashStruct::EmptyCell) {
-				while (ActiveStashSlot.y < 10 - itemSize.height && itemIdAtActiveStashSlot == Stash.GetItemIdAtPosition(ActiveStashSlot)) {
+				while (ActiveStashSlot.y < StashGridRows - itemSize.height && itemIdAtActiveStashSlot == Stash.GetItemIdAtPosition(ActiveStashSlot)) {
 					ActiveStashSlot.y++;
 				}
 			}
@@ -1974,7 +2071,7 @@ void PerformPrimaryAction()
 				if (stashSlot == InvalidStashPoint)
 					return StashStruct::EmptyCell;
 				for (Point slotUnderCursor : PointsInRectangle(Rectangle { stashSlot, cursorSizeInCells })) {
-					if (slotUnderCursor.x >= 10 || slotUnderCursor.y >= 10)
+					if (slotUnderCursor.x >= StashGridColumns || slotUnderCursor.y >= StashGridRows)
 						continue;
 					StashStruct::StashCell itemId = Stash.GetItemIdAtPosition(slotUnderCursor);
 					if (itemId != StashStruct::EmptyCell)

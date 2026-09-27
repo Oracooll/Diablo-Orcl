@@ -275,6 +275,59 @@ TEST(Player, RefundStatPoints_TakesBackOnlySpentPointsOfOneStat)
 
 // The grouped sheet's + presses with no points left, and a plain click spent 1 regardless: the pool went negative
 // (user, 2026-09-27 dev note: "stat points just increase negativly if i do it").
+// Taking Vitality back takes its life with it, current life included: a hurt hero shift-clicking the - died from the
+// click (audit, 2026-09-27). The refund stops one point of life short.
+TEST(Player, RefundStatPoints_VitalityNeverTakesTheLastPointOfLife)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Warrior);
+	devilution::Player &player = Players[0];
+	MyPlayer = &player;
+	gbIsMultiplayer = false;
+
+	player._pStatPtsSpentVit = 20;
+	ModifyPlrVit(player, 20);
+	player._pStatPts = 0;
+	const int lifePerPoint = PlayersData[static_cast<size_t>(player._pClass)].chrLife;
+	ASSERT_GT(lifePerPoint, 0);
+	// Hurt: three points' worth of life and a sliver more. CalcPlrInv rebuilds current life from _pHPBase.
+	const int hurt = 3 * lifePerPoint + (1 << 6) / 2;
+	player._pHPBase -= player._pHitPoints - hurt;
+	CalcPlrInv(player, true);
+	ASSERT_EQ(player._pHitPoints, hurt);
+
+	const int refunded = RefundStatPoints(player, CharacterAttribute::Vitality, 10);
+	EXPECT_LT(refunded, 10) << "the whole shift-click would have killed";
+	EXPECT_GE(player._pHitPoints, 1 << 6) << "at least one point of life is left";
+	EXPECT_EQ(player._pStatPts, refunded);
+	EXPECT_EQ(player._pStatPtsSpentVit, 20 - refunded) << "what could not come back stays spent, for later";
+}
+
+// RESET used to hand back every spent point although a curse can have taken the base below what was spent, which made
+// points (audit, 2026-09-27). It goes through RefundStatPoints now, stat by stat.
+TEST(Player, ResetPlayerStats_NeverReturnsMoreThanTheBaseHolds)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Rogue);
+	devilution::Player &player = Players[0];
+	MyPlayer = &player;
+	gbIsMultiplayer = false;
+	sgOptions.Oracool.resetStatsButton.SetValue(true);
+
+	player._pStatPtsSpentMag = 30;
+	ModifyPlrMag(player, 30);
+	player._pStatPts = 0;
+	ModifyPlrMag(player, -(player._pBaseMag - 10)); // a curse: the base falls to 10, below the 30 spent
+	ASSERT_EQ(player._pBaseMag, 10);
+
+	ResetPlayerStats(player);
+
+	EXPECT_EQ(player._pStatPts, 10) << "only what the base still held";
+	EXPECT_EQ(player._pBaseMag, 0);
+}
+
 TEST(Player, StatPointsToSpend_NeverMoreThanUnspentNorPastTheCap)
 {
 	Players.resize(1);

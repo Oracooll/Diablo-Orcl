@@ -447,6 +447,13 @@ bool CanUseScroll(Player &player, SpellID spell);
 void ConsumeStaffCharge(Player &player);
 bool CanUseStaff(Player &player, SpellID spellId);
 Item &GetInventoryItem(Player &player, int location);
+/**
+ * @brief Removes the backpack item UseInvItem just spent. @p c indexes whichever page is open, so an item used from
+ * pages 2-10 comes off that page; Player::RemoveInvItem alone always took it from page 1 - a keystone used from page 3
+ * deleted page 1's item at the same index and stayed to open rifts forever, and with page 1 empty the count went to -1
+ * (audit, 2026-09-27).
+ */
+DVL_API_FOR_TEST void ConsumeUsedBackpackItem(Player &player, int c, const Item *item);
 bool UseInvItem(int cii);
 
 /**

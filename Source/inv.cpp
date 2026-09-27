@@ -4284,6 +4284,15 @@ bool TryStartStashStackSplit(uint16_t stashIndex)
 	return true;
 }
 
+void ConsumeUsedBackpackItem(Player &player, int c, const Item *item)
+{
+	if (ActiveInventoryTab != 0 && c >= 0 && c < GetActiveNumInv(player) && &GetActiveInvListItem(player, c) == item) {
+		RemoveActiveInvItem(player, c);
+		return;
+	}
+	player.RemoveInvItem(c);
+}
+
 bool UseInvItem(int cii)
 {
 	if (IsInspectingPlayer())
@@ -4372,12 +4381,12 @@ bool UseInvItem(int cii)
 	if (player.isOnLevel(0)) {
 		if (UseItemOpensHive(*item, player.position.tile)) {
 			OpenHive();
-			player.RemoveInvItem(c);
+			ConsumeUsedBackpackItem(player, c, item);
 			return true;
 		}
 		if (UseItemOpensGrave(*item, player.position.tile)) {
 			OpenGrave();
-			player.RemoveInvItem(c);
+			ConsumeUsedBackpackItem(player, c, item);
 			return true;
 		}
 	}
@@ -4442,7 +4451,7 @@ bool UseInvItem(int cii)
 		// Consumed only once the encounter has actually opened.
 		if (&player == MyPlayer)
 			oracool::PlayUiEventSound(oracool::UiEventSound::MapUnseal);
-		player.RemoveInvItem(cii - INVITEM_INV_FIRST);
+		ConsumeUsedBackpackItem(player, c, item);
 		return true;
 	}
 
@@ -4455,7 +4464,7 @@ bool UseInvItem(int cii)
 				oracool::LogEvent("A keystone only turns in town, at the Rift Monument.");
 			return true;
 		}
-		player.RemoveInvItem(cii - INVITEM_INV_FIRST);
+		ConsumeUsedBackpackItem(player, c, item);
 		return true;
 	}
 

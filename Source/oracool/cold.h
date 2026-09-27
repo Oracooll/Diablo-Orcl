@@ -205,6 +205,12 @@ bool PlayerChillTakesThisTick(const Player &player);
 void ClearPlayerChills();
 
 /**
+ * @brief Ends @p player's chill now - the actions' half as well as the walk's. ClearPlayerSlow calls it, so every cure
+ * of a slow (Serenity) thaws the attacks and casts too; it used to leave them at half speed (audit, 2026-09-27).
+ */
+void ThawPlayer(const Player &player);
+
+/**
  * @brief The share of @p monster's melee blow that is cold, in percent: a third for the Glacial variant (through
  * VariantHitElement, like Searing's fire), a quarter for a rift guardian or an endgame boss. 0 for the rest.
  */

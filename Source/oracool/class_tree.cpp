@@ -2870,6 +2870,7 @@ void ClearMovementSlows()
 void ClearPlayerSlow(const Player &player)
 {
 	MovementSlows[player.getId()] = MovementSlow {};
+	ThawPlayer(player); // a chill slows the actions too, through its own table (oracool/cold.h)
 }
 
 int MovementSpeedPercent(const Player &player)

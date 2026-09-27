@@ -1192,6 +1192,15 @@ constexpr inv_body_loc RepairableBodySlots[] = {
 };
 constexpr int NumRepairableBodySlots = sizeof(RepairableBodySlots) / sizeof(RepairableBodySlots[0]);
 
+// Every worn slot Cain can identify, encoded in storehidx as -(index + 1) like the repair list: the first seven keep
+// vanilla's -1..-7, and the six the fork added follow (audit, 2026-09-27 - an unidentified piece on the shoulders, wrists,
+// hands, waist, legs or feet never appeared on his list).
+constexpr inv_body_loc IdentifiableBodySlots[] = {
+	INVLOC_HEAD, INVLOC_CHEST, INVLOC_HAND_LEFT, INVLOC_HAND_RIGHT, INVLOC_RING_LEFT, INVLOC_RING_RIGHT, INVLOC_AMULET,
+	INVLOC_SHOULDERS, INVLOC_BRACERS, INVLOC_GLOVES, INVLOC_WAIST, INVLOC_LEGS, INVLOC_BOOTS
+};
+constexpr int NumIdentifiableBodySlots = sizeof(IdentifiableBodySlots) / sizeof(IdentifiableBodySlots[0]);
+
 void StartSmithRepair()
 {
 	stextsize = true;
@@ -1990,46 +1999,12 @@ void StartStorytellerIdentify()
 
 	Player &myPlayer = *MyPlayer;
 
-	auto &helmet = myPlayer.InvBody[INVLOC_HEAD];
-	if (IdItemOk(&helmet)) {
-		idok = true;
-		AddStoreHoldId(helmet, -1);
-	}
-
-	auto &armor = myPlayer.InvBody[INVLOC_CHEST];
-	if (IdItemOk(&armor)) {
-		idok = true;
-		AddStoreHoldId(armor, -2);
-	}
-
-	auto &leftHand = myPlayer.InvBody[INVLOC_HAND_LEFT];
-	if (IdItemOk(&leftHand)) {
-		idok = true;
-		AddStoreHoldId(leftHand, -3);
-	}
-
-	auto &rightHand = myPlayer.InvBody[INVLOC_HAND_RIGHT];
-	if (IdItemOk(&rightHand)) {
-		idok = true;
-		AddStoreHoldId(rightHand, -4);
-	}
-
-	auto &leftRing = myPlayer.InvBody[INVLOC_RING_LEFT];
-	if (IdItemOk(&leftRing)) {
-		idok = true;
-		AddStoreHoldId(leftRing, -5);
-	}
-
-	auto &rightRing = myPlayer.InvBody[INVLOC_RING_RIGHT];
-	if (IdItemOk(&rightRing)) {
-		idok = true;
-		AddStoreHoldId(rightRing, -6);
-	}
-
-	auto &amulet = myPlayer.InvBody[INVLOC_AMULET];
-	if (IdItemOk(&amulet)) {
-		idok = true;
-		AddStoreHoldId(amulet, -7);
+	for (int k = 0; k < NumIdentifiableBodySlots; k++) {
+		Item &worn = myPlayer.InvBody[IdentifiableBodySlots[k]];
+		if (IdItemOk(&worn)) {
+			idok = true;
+			AddStoreHoldId(worn, static_cast<int8_t>(-(k + 1)));
+		}
 	}
 
 	for (int i = 0; i < myPlayer._pNumInv; i++) {
@@ -2045,8 +2020,8 @@ void StartStorytellerIdentify()
 	// Oracool Tabbed Inventory: an unidentified item stored in an extra tab is just as
 	// identifiable by Cain as anything in the original backpack.
 	if (TabbedInventoryEnabled()) {
-		for (int t = 0; t < Player::NumExtraInventoryTabs && storenumh < 48; t++) {
-			for (int i = 0; i < myPlayer._pNumInvTab[t] && storenumh < 48; i++) {
+		for (int t = 0; t < Player::NumExtraInventoryTabs && storenumh < StoreHoldCapacity; t++) {
+			for (int i = 0; i < myPlayer._pNumInvTab[t] && storenumh < StoreHoldCapacity; i++) {
 				auto &item = myPlayer.InvTabList[t][i];
 				if (IdItemOk(&item)) {
 					idok = true;
@@ -3342,20 +3317,8 @@ void StorytellerIdentifyItem(Item &item)
 		// Oracool Tabbed Inventory: this entry came from an extra tab, not InvBody/InvList.
 		myPlayer.InvTabList[tabIdx][idx]._iIdentified = true;
 	} else if (idx < 0) {
-		if (idx == -1)
-			myPlayer.InvBody[INVLOC_HEAD]._iIdentified = true;
-		if (idx == -2)
-			myPlayer.InvBody[INVLOC_CHEST]._iIdentified = true;
-		if (idx == -3)
-			myPlayer.InvBody[INVLOC_HAND_LEFT]._iIdentified = true;
-		if (idx == -4)
-			myPlayer.InvBody[INVLOC_HAND_RIGHT]._iIdentified = true;
-		if (idx == -5)
-			myPlayer.InvBody[INVLOC_RING_LEFT]._iIdentified = true;
-		if (idx == -6)
-			myPlayer.InvBody[INVLOC_RING_RIGHT]._iIdentified = true;
-		if (idx == -7)
-			myPlayer.InvBody[INVLOC_AMULET]._iIdentified = true;
+		if (-idx <= NumIdentifiableBodySlots)
+			myPlayer.InvBody[IdentifiableBodySlots[-idx - 1]]._iIdentified = true;
 	} else {
 		myPlayer.InvList[idx]._iIdentified = true;
 	}
@@ -4297,6 +4260,12 @@ void InitStores()
 
 	boyitem.clear();
 	boylevel = 0;
+	// Wirt's two grids as well (audit, 2026-09-27): SpawnBoy restocks only when its first slot is empty or the tier
+	// rises, and a bought slot restocks in place - so a new level-1 hero met the last hero's level-30 stock until level 2.
+	for (Item &item : boyitems)
+		item.clear();
+	for (Item &item : gambleitems)
+		item.clear();
 }
 
 /** @brief Fills @p shelf's array from empty. The one place a shelf's identity actually differs. */
@@ -5434,10 +5403,10 @@ void ShopRepairAll()
 	// Bounded, and the bound is not paranoia. The loop's exit depends on each pass actually
 	// repairing something, so anything that charges the player without clearing the damage - a
 	// storehidx encoding this function cannot decode, say - would spin here taking gold until the
-	// player could no longer afford the next one. 48 is storehold's capacity, so a run that repairs
-	// something every pass can never reach it.
+	// player could no longer afford the next one. StoreHoldCapacity is storehold's capacity, so a run that
+	// repairs something every pass can never reach it (a bare 48 until 2026-09-27, when the capacity grew).
 	int repaired = 0;
-	for (int guard = 0; guard < 48; guard++) {
+	for (int guard = 0; guard < StoreHoldCapacity; guard++) {
 		StartSmithRepair();
 		if (storenumh == 0)
 			break;

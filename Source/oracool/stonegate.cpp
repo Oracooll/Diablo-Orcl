@@ -207,13 +207,15 @@ void AddStonegateObject()
 
 bool IsStonegatePortalArch(const Object &object)
 {
-	return PortalArchObjectId >= 0 && &object == &Objects[PortalArchObjectId];
+	// Town only (audit, 2026-09-27): the two ids are set when town builds its objects and kept after, and a dungeon
+	// floor hands the same Objects slot to a door or a barrel - which then drew in the floor pass, under the heroes.
+	return leveltype == DTYPE_TOWN && PortalArchObjectId >= 0 && &object == &Objects[PortalArchObjectId];
 }
 
 bool IsStonegateObject(const Object &object)
 {
 	// The gate, or the inactive arch by the portal's tile - both wear the painting, neither is the Cube.
-	return (GateObjectId >= 0 && &object == &Objects[GateObjectId]) || IsStonegatePortalArch(object);
+	return (leveltype == DTYPE_TOWN && GateObjectId >= 0 && &object == &Objects[GateObjectId]) || IsStonegatePortalArch(object);
 }
 
 RiftKind OpenRift()

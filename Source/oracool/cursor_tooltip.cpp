@@ -495,8 +495,11 @@ Card BuildCard(const TooltipBlock &block, const Item *item)
 	for (size_t first = i; i < lines.size(); i++) {
 		const CardLine &line = lines[i];
 		const string_view text = line.text;
-		// The line under the name in the name's own colour is what the item IS ("rare armor").
-		if (i == first && line.color == card.title.color && line.runs.empty() && !CardStartsWith(text, "Required")) {
+		// The line under the name in the name's own colour is what the item IS ("rare armor"). Never a stat line: an
+		// unidentified white base prints no type line, and its white "damage: 3-9" was taken for one and lost the card
+		// its big number (audit, 2026-09-27).
+		if (i == first && line.color == card.title.color && line.runs.empty() && !CardStartsWith(text, "Required")
+		    && !CardStartsWith(text, "armor: ") && !CardStartsWith(text, "damage: ")) {
 			type = line.text;
 			continue;
 		}

@@ -15,6 +15,7 @@
 #include "control.h"
 #include "engine.h"
 #include "engine/clx_sprite.hpp"
+#include "player.h"
 #include "utils/attributes.h"
 #include "utils/stdcompat/optional.hpp"
 
@@ -82,8 +83,12 @@ extern DVL_API_FOR_TEST TalkID stextflag;
  * Named because it was the literal 48 in five places - the two array bounds and three separate
  * caller-side guards - and a bound that lives in the callers is a bound that a sixth caller does not
  * have. See AddStoreHoldRecharge, which now checks it itself.
+ *
+ * And then 48 was vanilla's 40-cell backpack plus its 8-slot belt, which the fork outgrew: 70 cells, nine more pages
+ * of 70 and thirteen worn slots. The sell list stopped filling at 48, BEFORE it sorts by price, so everything past the
+ * 48th sellable item - page 3's gems included - never showed (audit, 2026-09-27). Every place an item can be listed from.
  */
-constexpr int StoreHoldCapacity = 48;
+constexpr int StoreHoldCapacity = InventoryGridCells + MaxBeltItems + Player::NumExtraInventoryTabs * InventoryGridCells + NUM_INVLOC;
 
 /** Current index into storehidx/storehold */
 extern DVL_API_FOR_TEST int storenumh;

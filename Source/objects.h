@@ -346,5 +346,7 @@ void GetObjectStr(const Object &object);
  */
 const oracool::SpriteColours *StashChestColoursFor(const Object &object);
 void SyncNakrulRoom();
+/** @brief The Mendicant Shrine's effect on @p player, for its test (the shrine operators are file-local). */
+DVL_API_FOR_TEST void OperateShrineMendicantForTest(Player &player);
 
 } // namespace devilution

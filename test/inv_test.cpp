@@ -12,9 +12,11 @@
 #include "inv.h"
 #include "oracool/auto_save.h"
 #include "oracool/inventory_layout.h"
+#include "objects.h"
 #include "options.h"
 #include "panels/ui_panels.hpp"
 #include "player.h"
+#include "playerdat.hpp"
 #include "qol/stash.h"
 #include "storm/storm_net.hpp"
 
@@ -424,6 +426,74 @@ TEST_F(InvTest, AutoPlaceItemInInventory_EveryShapeReachesAllSevenRows)
 			AutoPlaceItemInInventory(*MyPlayer, item, true);
 		EXPECT_EQ(MyPlayer->_pNumInv, c.fits) << c.size.width << "x" << c.size.height << " stopped short of a full backpack";
 	}
+}
+
+// An item used from pages 2-10 comes off THAT page (audit, 2026-09-27): UseInvItem's keystone, sealed map, Hive and
+// Grave branches called Player::RemoveInvItem, which always takes from page 1 - the keystone stayed to open rifts
+// forever and page 1's item at the same index vanished; with page 1 empty the count went to -1.
+TEST_F(InvTest, ConsumeUsedBackpackItem_TakesTheItemFromTheOpenPage)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	clear_inventory();
+	MyPlayer->InvList[0] = MakeBackpackItem(ICURS_DAGGER);
+	MyPlayer->InvGrid[0] = 1;
+	MyPlayer->_pNumInv = 1;
+	MyPlayer->InvTabList[2][0] = MakeBackpackItem(ICURS_RING);
+	MyPlayer->InvTabGrid[2][0] = 1;
+	MyPlayer->_pNumInvTab[2] = 1;
+	ActiveInventoryTab = 3;
+
+	ConsumeUsedBackpackItem(*MyPlayer, 0, &MyPlayer->InvTabList[2][0]);
+
+	EXPECT_EQ(MyPlayer->_pNumInvTab[2], 0) << "the used item left its page";
+	EXPECT_EQ(MyPlayer->InvTabGrid[2][0], 0);
+	EXPECT_EQ(MyPlayer->_pNumInv, 1) << "page 1 kept its item";
+	EXPECT_FALSE(MyPlayer->InvList[0].isEmpty());
+
+	// Page 1 empty: the count must not go below zero.
+	clear_inventory();
+	MyPlayer->InvTabList[2][0] = MakeBackpackItem(ICURS_RING);
+	MyPlayer->InvTabGrid[2][0] = 1;
+	MyPlayer->_pNumInvTab[2] = 1;
+	ConsumeUsedBackpackItem(*MyPlayer, 0, &MyPlayer->InvTabList[2][0]);
+	EXPECT_EQ(MyPlayer->_pNumInv, 0);
+
+	// On page 1 it is page 1's item, as before.
+	ActiveInventoryTab = 0;
+	MyPlayer->InvList[0] = MakeBackpackItem(ICURS_DAGGER);
+	MyPlayer->InvGrid[0] = 1;
+	MyPlayer->_pNumInv = 1;
+	ConsumeUsedBackpackItem(*MyPlayer, 0, &MyPlayer->InvList[0]);
+	EXPECT_EQ(MyPlayer->_pNumInv, 0);
+	EXPECT_EQ(MyPlayer->InvGrid[0], 0);
+}
+
+// The Mendicant Shrine takes only the gold that became experience (audit, 2026-09-27): at level 99 it gives none, and it
+// used to take half the stash for it.
+TEST_F(InvTest, MendicantShrine_ChargesOnlyForExperienceGained)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	clear_inventory();
+	MyPlayer->_pHitPoints = MyPlayer->_pMaxHP = 100 << 6;
+	MyPlayer->_pGold = 0;
+	Stash = {};
+	Stash.gold = 1000;
+
+	MyPlayer->_pLevel = MaxCharacterLevel;
+	OperateShrineMendicantForTest(*MyPlayer);
+	EXPECT_EQ(Stash.gold, 1000) << "a capped hero gains nothing and pays nothing";
+
+	MyPlayer->_pLevel = 10;
+	MyPlayer->_pExperience = ExpLvlsTbl[9];
+	const uint64_t before = MyPlayer->_pExperience;
+	OperateShrineMendicantForTest(*MyPlayer);
+	const uint64_t gained = MyPlayer->_pExperience - before;
+	EXPECT_GT(gained, 0u);
+	EXPECT_LE(gained, 500u) << "never more than half the gold";
+	EXPECT_EQ(static_cast<uint64_t>(1000 - Stash.gold), gained) << "the stash paid exactly what became experience";
+	Stash = {};
 }
 
 TEST_F(InvTest, MergeStackableItemIntoInventory_mergesIntoExistingStack)
