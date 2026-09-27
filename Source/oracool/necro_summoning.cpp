@@ -22,6 +22,7 @@
 #include "oracool/corpses.h"
 #include "oracool/curses.h"
 #include "oracool/minions.h"
+#include "oracool/missile_tint.h"
 #include "oracool/passives.h"
 #include "oracool/skill_sounds.h"
 #include "player.h"
@@ -302,12 +303,51 @@ void HeroStrikes(Player &player, Monster &monster, DamageType type, int damage)
 	M_StartHit(monster, player, damage);
 }
 
+/** @brief A skeleton type loaded on this level, for the Army's charge - one of the hero's own first; null if none is. */
+const CMonster *ArmySkeletonType()
+{
+	static constexpr _monster_id Skeletons[] = { MT_WSKELAX, MT_TSKELAX, MT_RSKELAX, MT_XSKELAX, MT_WSKELSD, MT_TSKELSD, MT_RSKELSD, MT_XSKELSD };
+	for (const _monster_id wanted : Skeletons) {
+		for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+			const CMonster &type = LevelMonsterTypes[i];
+			if (type.type == wanted && type.getAnimData(MonsterGraphic::Walk).sprites)
+				return &type;
+		}
+	}
+	return nullptr;
+}
+
+/**
+ * @brief The Army's picture for one pulse (v1.12.211, user 2026-09-27: "green skeletons charging and bursting into green
+ * bone hits"): three skeletons, in the Necromancer's green, running in from beyond the field and bursting into bone where
+ * they land. Where no skeleton is loaded on the level the bone bursts alone. Drawn only; the pulse strikes by itself.
+ */
+void ArmyCharge(const Player &player, Point centre)
+{
+	constexpr uint32_t Green = oracool::Rgb(120, 214, 104);
+	const CMonster *skeleton = ArmySkeletonType();
+	for (int i = 0; i < 3; i++) {
+		const Point landing = centre + Displacement { GenerateRnd(2 * ArmyRadius + 1) - ArmyRadius, GenerateRnd(2 * ArmyRadius + 1) - ArmyRadius };
+		const Direction from = static_cast<Direction>(GenerateRnd(8));
+		const Point start = landing + Displacement(from) * 5;
+		Missile *charge = skeleton != nullptr && InDungeonBounds(start) && InDungeonBounds(landing)
+		    ? AddCreatureBolt(start, landing, *skeleton, static_cast<int>(player.getId()), 12, MissileGraphicID::BoneHitNecro)
+		    : nullptr;
+		if (charge != nullptr) {
+			charge->oracoolTint = oracool::Tint::Hue;
+			charge->oracoolTintRgb = Green;
+		} else if (Missile *burst = AddArtEffect(landing, MissileGraphicID::BoneHitNecro, static_cast<int>(player.getId())); burst != nullptr) {
+			burst->oracoolTint = oracool::Tint::Hue;
+			burst->oracoolTintRgb = Green;
+		}
+	}
+}
+
 void ArmyPulse(Player &player, OwnerState &state)
 {
 	const int rank = state.armyRank;
-	// RfA-27: the dead erupting and sinking back (batch 55), and the cue of their tearing (batch 51) - each of the six
-	// pulses, the local player's own. Neither is anything while it is missing.
-	AddArtEffect(state.armyTile, MissileGraphicID::ArmyOfTheDead, static_cast<int>(player.getId()));
+	// The cue of the dead tearing loose (RfA-27 batch 51), the local player's own, and the skeletons' charge.
+	ArmyCharge(player, state.armyTile);
 	if (&player == MyPlayer)
 		PlaySkillSound(ClassTreeSkill::ArmyOfTheDead, SkillSoundEvent::Impact);
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {

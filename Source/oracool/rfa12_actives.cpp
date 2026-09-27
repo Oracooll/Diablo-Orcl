@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -25,6 +26,7 @@
 #include "oracool/passives.h"
 #include "oracool/corpses.h"
 #include "oracool/curses.h"
+#include "oracool/missile_tint.h"
 #include "oracool/necro_summoning.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
@@ -32,6 +34,7 @@
 #include "oracool/skill_sounds.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/warcries.h"
+#include "nthread.h" // ProgressToNextGameTick: Serenity's ring glides between ticks
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
@@ -217,6 +220,49 @@ void RestoreMana(Player &player, int amount)
 void Ring(Player &player, Point tile)
 {
 	AddMissile(tile, tile, player._pdir, MissileID::WarcryRing, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
+}
+
+Point LineEnd(Point from, Point toward, int length); // below, with the travelling waves
+
+/**
+ * @brief Seismic Slam's wave (v1.12.211, user 2026-09-27: "use flamewave effect and asset. send 2-3 flames forward up to
+ * the range of Seismic Wave. Tinted gold"): three of vanilla's Flame Wave flames - its Fire Wall graphic, burning - rolling
+ * side by side from @p here toward @p target for @p reach tiles. Drawn only; the slam's blow is struck by its caller.
+ */
+void GoldenFlameWave(const Player &player, Point here, Point target, int reach)
+{
+	const Direction dir = GetDirection(here, target);
+	const Displacement ahead = target - here;
+	// Flame Wave's own spread: the centre, and a flame either side at right angles to the line.
+	for (const Point start : { here, here + Left(Left(dir)), here + Right(Right(dir)) }) {
+		Missile *flame = AddArtBolt(start, LineEnd(start, start + ahead, reach), MissileGraphicID::FireWall, static_cast<int>(player.getId()), 16);
+		if (flame == nullptr)
+			continue;
+		SetMissDir(*flame, 1); // the burning row: Fire Wall's sheet has two (the rise, the burn), not sixteen facings
+		flame->oracoolTint = Tint::Hue;
+		flame->oracoolTintRgb = Rgb(255, 204, 92);
+	}
+}
+
+/**
+ * @brief Flame Ring's fire (v1.12.211, user 2026-09-27: "use fire wall asset for this one. scale if you need to. as many
+ * flame assets as you need"): vanilla Fire Wall flames on every tile of a ring @p radius tiles round @p here, burning for a
+ * second. Drawn only; the ring's damage is struck by its caller.
+ */
+void RingOfFireWall(const Player &player, Point here, int radius)
+{
+	constexpr int BurnTicks = 20;
+	std::vector<Point> placed;
+	for (int step = 0; step < 24; step++) {
+		const double a = step * 2.0 * 3.14159265358979 / 24.0;
+		const Point tile = here + Displacement { static_cast<int>(std::lround(radius * std::cos(a))), static_cast<int>(std::lround(radius * std::sin(a))) };
+		if (std::find(placed.begin(), placed.end(), tile) != placed.end() || !InDungeonBounds(tile) || TileHasAny(dPiece[tile.x][tile.y], TileProperties::Solid))
+			continue;
+		placed.push_back(tile);
+		AddArtEffectFacing(tile, MissileGraphicID::FireWall, static_cast<int>(player.getId()), 1, BurnTicks);
+	}
+	if (placed.empty())
+		Ring(const_cast<Player &>(player), here);
 }
 
 /**
@@ -455,7 +501,12 @@ struct PlayerState {
 	Point landingTile;
 	SpellID landingSpell = SpellID::Invalid;
 	int landingRank = 0;
+	// Serenity: the ring of light still rising and falling round her (drawn only; the cure was at the cast).
+	int serenityTicks = 0;
 };
+
+/** @brief Serenity's ring (v1.12.211): two seconds, up from the feet over the head and back down. */
+constexpr int SerenityTicks = 2 * TicksPerSecond;
 
 std::array<PlayerState, MAX_PLRS> Players12;
 
@@ -1167,18 +1218,18 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		for (Monster *m : line)
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		EarthenMightRage(player, line.size());
-		// RfA-27 batch 54: the ridge of broken earth rolling down the line; the cry's ring while it is missing.
-		if (MissileArtLoaded(MissileGraphicID::SeismicWave))
-			Fly(player, MissileGraphicID::SeismicWave, here, LineEnd(here, target, ReachTiles(spell, r)), SpellID::Invalid, 16);
-		else
-			Ring(player, here);
+		GoldenFlameWave(player, here, target, ReachTiles(spell, r));
 		return true;
 	}
 	case SpellID::Earthquake: {
 		Field *f = NewField(player, spell, here, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
 		// RfA-27 batch 55: the shaking ground for the quake's four seconds; each pulse's ring while it is missing (TickField).
-		Art(player, MissileGraphicID::Earthquake, here, EffectTicks(spell, r));
+		// Molten since v1.12.211 (user, 2026-09-27: "use lava/river animation within the radius of effect. color cycling
+		// between brown and dark orange"): vanilla's lava is cave floor tiles cycled through the palette, not a sprite, so
+		// the quake's own cracked ground is recoloured instead - brown to dark orange and back, bands rolling through it.
+		if (Missile *quake = Art(player, MissileGraphicID::Earthquake, here, EffectTicks(spell, r)); quake != nullptr)
+			quake->oracoolTint = Tint::Earthquake;
 		return true;
 	}
 	case SpellID::ThreateningShout: {
@@ -1423,8 +1474,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const Range d = SkillDamage(spell, r);
 		for (Monster *m : MonstersWithin(here, ReachTiles(spell, r)))
 			Strike(player, *m, DamageType::Fire, Rolled(d));
-		if (Art(player, MissileGraphicID::FlameRing, here) == nullptr) // RfA-27 batch 55; the ring without it
-			Ring(player, here);
+		RingOfFireWall(player, here, ReachTiles(spell, r));
 		return true;
 	}
 	case SpellID::AshenBrand: {
@@ -1979,7 +2029,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	case SpellID::Serenity:
 		ClearPlayerSlow(player);
-		ArtOnHero(player, MissileGraphicID::Serenity); // RfA-27 batch 56: the ring of light washing down over him
+		// An aura ring rising round her and sinking back, colour-cycled, since v1.12.211 (user, 2026-09-27: "use a still
+		// image, like an aura ring, animate it up and down and use color cycling on it"). Drawn by scrollrt's DrawPlayer.
+		StateOf(player).serenityTicks = SerenityTicks;
 		return true;
 	case SpellID::WaveOfLight: {
 		const Range d = SkillDamage(spell, r);
@@ -2180,7 +2232,19 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			if ((m->hitPoints >> 6) > 0)
 				Poison(player, *m, PoisonTicks(spell), PerSecond(spell, r));
 		}
-		if (Art(player, MissileGraphicID::DeathNova, here) == nullptr) // RfA-27 batch 55; the ring without it
+		// Vanilla's Flash since v1.12.211 (user, 2026-09-27: "use appropriately recoloured flash spell"), in the blight's
+		// yellow-green: its top half behind the Necromancer, its bottom half in front, as Flash draws them.
+		Missile *top = Art(player, MissileGraphicID::FlashTop, here);
+		Missile *bottom = Art(player, MissileGraphicID::FlashBottom, here);
+		for (Missile *half : { top, bottom }) {
+			if (half == nullptr)
+				continue;
+			half->oracoolTint = Tint::Hue;
+			half->oracoolTintRgb = Rgb(176, 212, 88);
+		}
+		if (top != nullptr)
+			top->_miPreFlag = true;
+		if (top == nullptr && bottom == nullptr)
 			Ring(player, here);
 		return true;
 	}
@@ -2366,7 +2430,8 @@ void TickField(Player &player, Field &field)
 				Strike(player, *nearby, DamageType::Fire, Rolled(d));
 			// RfA-27 batch 55: the ember goes off - its waiting sheet goes, the burst plays; the ring without the burst.
 			EndArtEffects(field.tile, MissileGraphicID::EmberMine, static_cast<int>(player.getId()));
-			if (Art(player, MissileGraphicID::EmberBurst, field.tile) == nullptr)
+			// Apocalypse's explosion since v1.12.211 (user, 2026-09-27: "use appocalypse asset").
+			if (Art(player, MissileGraphicID::ApocalypseBoom, field.tile) == nullptr)
 				Ring(player, field.tile);
 			Impact(player, field.spell);
 			field.ticksLeft = 0;
@@ -2466,10 +2531,10 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 	case SpellID::LowBranch: arc = MissileGraphicID::LowBranch; break;
 	case SpellID::TurningPike: arc = MissileGraphicID::TurningPike; break;
 	case SpellID::HolyLance:
-		// A bright arrow that flies through the opponent to the two tiles behind it, the ones the lance strikes
-		// (dev note, 2026-09-27: "another missile animation ... maybe a bright bow missile"). The thrust sheet
-		// stood still on the hero.
-		Fly(player, MissileGraphicID::GuidedArrowGold, from, LineEnd(from, from + facing, 3), SpellID::Invalid, 24);
+		// Its own thrust sheet again (v1.12.211): the redrawn lance runs out along the facing through the two tiles behind
+		// the target, and the user approved it in the animation review. The first one stood still on the hero, which is
+		// why the Guided Arrow stood in for it from v1.12.201.
+		arc = MissileGraphicID::HolyLance;
 		break;
 	case SpellID::ReapingPoint: arc = MissileGraphicID::ReapingPoint; break;
 	case SpellID::Crusade:
@@ -2843,8 +2908,8 @@ size_t Rfa12BodyOverlays(const Player &player, Rfa12BodyOverlay *out, size_t cap
 		{ Buff::Immolate, MissileGraphicID::Immolate, 8 },
 		{ Buff::Clarity, MissileGraphicID::MantraOfClarity, 12 },
 		{ Buff::Evasion, MissileGraphicID::MantraOfEvasion, 12 },
-		{ Buff::Retribution, MissileGraphicID::MantraOfRetribution, 12 },
-		{ Buff::Astral, MissileGraphicID::AstralProjection, 12 },
+		// Mantra of Retribution is a colour-cycled still since v1.12.211 (Rfa12RetributionWorn), and Astral Projection a
+		// tint on the hero (Rfa12ActiveHidesPlayer): the user's animation review, 2026-09-27.
 		{ Buff::Venom, MissileGraphicID::PoisonDagger, 8 },
 	};
 	size_t count = 0;
@@ -2935,6 +3000,21 @@ bool Rfa12ActiveArrowIgnores(const Player &player, const Monster &monster)
 bool Rfa12ActiveHidesPlayer(const Player &player)
 {
 	return BuffRank(player, Buff::Astral) > 0;
+}
+
+bool Rfa12RetributionWorn(const Player &player)
+{
+	return BuffRank(player, Buff::Retribution) > 0;
+}
+
+std::optional<double> Rfa12SerenityProgress(const Player &player)
+{
+	const int ticks = StateOf(player).serenityTicks;
+	if (ticks <= 0)
+		return std::nullopt;
+	// Between game ticks by the frame's share of the next one, so the ring glides at any frame rate.
+	const double between = std::min<int>(ProgressToNextGameTick, AnimationInfo::baseValueFraction) / static_cast<double>(AnimationInfo::baseValueFraction);
+	return std::clamp((SerenityTicks - ticks + between) / SerenityTicks, 0.0, 1.0);
 }
 
 void OnRfa12ActiveHit(Player &player, Monster &monster, int damage, bool melee)
@@ -3111,6 +3191,8 @@ void ProcessRfa12ActivesTick(Player &player)
 	}
 
 	TickLanding(player, state);
+	if (state.serenityTicks > 0)
+		state.serenityTicks--;
 
 	for (Field &field : Fields) {
 		if (field.ticksLeft <= 0 || field.owner != player.getId())

@@ -107,6 +107,20 @@ std::optional<ColouredSpriteSheet> ColouredSpriteSheetFromSurface(SDL_Surface *s
  */
 std::optional<OwnedClxSpriteListOrSheet> LoadPngMissileSheet(const char *name, uint16_t frameWidth, int rows);
 
+/** @brief A missile sheet in its own colours: the sprites index `colours`, not the level palette. */
+struct ColouredMissileSheet {
+	OwnedClxSpriteListOrSheet sprites;
+	std::shared_ptr<const SpriteColours> colours;
+};
+
+/**
+ * @brief LoadPngMissileSheet in TRUE COLOUR (2026-09-27): the sheet keeps its own colours, up to 255 of them, as the hero
+ * sheets do (ColouredSpriteSheetFromSurface). The user approved the redesigned effect sheets as painted, and the
+ * shared-palette route above drew them in the level palette's nearest colours - duller, and with no green at all.
+ * Draw the result through its colours (DrawSpriteWithColours, or ClxDrawRgbMap with colours->Table), never plain.
+ */
+std::optional<ColouredMissileSheet> LoadPngMissileSheetColoured(const char *name, uint16_t frameWidth, int rows);
+
 /**
  * @brief The same import for an ITEM's ground-drop tumble: `items\<name>.png`, one row of frames.
  *

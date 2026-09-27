@@ -47,6 +47,8 @@
 #include "oracool/minions.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/sprite_colours.h"
+#include "oracool/missile_tint.h"
+#include "oracool/cycled_still.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
 #include "oracool/warcries.h" // IsMonsterConverted - Conversion's monsters draw green
@@ -388,6 +390,25 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 		ClxDrawRgbMap(out, missileRenderPosition, sprite, oracool::GuardianPortalRgbTable());
 		return;
 	}
+	// Oracool (v1.12.211): a true-colour sheet, or a tint by colour values. A true-colour sheet's sprites index its OWN
+	// colours, so it is never drawn through a palette translation; an indexed target gets its fallback indices.
+	if (missile.oracoolColours != nullptr || missile.oracoolTint != oracool::Tint::None) {
+		const int light = missile._miLightFlag ? lightTableIndex : 0;
+		if (out.isIndexed()) {
+			if (missile.oracoolColours != nullptr) {
+				oracool::DrawSpriteWithColours(out, missileRenderPosition, sprite, *missile.oracoolColours, light);
+				return;
+			}
+		} else {
+			const uint32_t *table = missile.oracoolColours != nullptr ? missile.oracoolColours->Table(light) : oracool::LitPaletteTable(light);
+			if (missile.oracoolTint != oracool::Tint::None) {
+				const double progress = missile._miAnimLen > 1 ? static_cast<double>(missile._miAnimFrame - 1) / (missile._miAnimLen - 1) : 0.0;
+				table = oracool::TintedTable(table, missile.oracoolTint, missile.oracoolTintRgb, progress);
+			}
+			ClxDrawRgbMap(out, missileRenderPosition, sprite, table);
+			return;
+		}
+	}
 	// Oracool: a caller-supplied recolour, checked before the unique-monster one because a player's
 	// missile can never have the latter. See Missile::oracoolTrn.
 	if (missile.oracoolTrn != nullptr)
@@ -455,6 +476,12 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::FrozenRgbTable(LightTableIndex));
 		return;
 	}
+	// Healed by Dark Mending: a lavender glow fading off it (v1.12.211). Ice, stone and infravision win; a variant's colours
+	// give way to it for the second it lasts.
+	if (const double mend = oracool::MinionMendGlow(monster); mend > 0 && !out.isIndexed() && (trn == nullptr || trn == monster.uniqueMonsterTRN.get())) {
+		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::TintedTable(oracool::LitPaletteTable(LightTableIndex), oracool::Tint::Mend, 0, mend));
+		return;
+	}
 	// Converted to the Paladin's side: green, lit as it stands (dev note, 2026-09-27). Ice, stone and infravision win.
 	if (oracool::IsMonsterConverted(monster) && trn != oracool::ColdTRN() && trn != GetStoneTRN() && trn != GetInfravisionTRN() && !out.isIndexed()) {
 		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::ConvertedRgbTable(LightTableIndex));
@@ -500,6 +527,12 @@ void DrawPlayerIconHelper(const Surface &out, MissileGraphicID missileGraphicId,
 		frame = 0;
 	const ClxSprite sprite = list[static_cast<size_t>(frame)];
 
+	// A true-colour sheet (v1.12.211) draws through its own colours, at the same light the plain one would.
+	if (data.colours != nullptr) {
+		oracool::DrawSpriteWithColours(out, position, sprite, *data.colours, !lighting ? 0 : infraVision ? oracool::InfravisionLight : LightTableIndex);
+		return;
+	}
+
 	if (!lighting) {
 		ClxDraw(out, position, sprite);
 		return;
@@ -511,6 +544,52 @@ void DrawPlayerIconHelper(const Surface &out, MissileGraphicID missileGraphicId,
 	}
 
 	ClxDrawLight(out, position, sprite, LightTableIndex);
+}
+
+/**
+ * @brief The colour-cycled stills round the hero (v1.12.211, the user's animation review): Mantra of Retribution's ring of
+ * thorns while it is worn, and Serenity's ring rising from the feet over the head and back. Each is drawn in two halves,
+ * the far one before the body (@p part Back) and the near one after it (Front). 32-bit only; nothing on an 8-bit screen.
+ */
+void DrawPlayerStills(const Surface &out, const Player &player, Point position, oracool::StillPart part)
+{
+	if (out.isIndexed())
+		return;
+	// The feet: the tile's centre, which is where the aura rings are laid (aura_ground.cpp).
+	const Point feet = position + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 };
+	if (oracool::Rfa12RetributionWorn(player)) {
+		// The approved still is a 96x128 cell drawn like the overlay it replaces: feet 12px above the cell's foot.
+		oracool::DrawCycledStill(out, "missiles\\mantra_of_retribution.png", { position + Displacement { -16, -4 - 127 }, Size { 96, 128 } },
+		    oracool::CycleShape::Ring, 100, part);
+	}
+	if (const std::optional<double> progress = oracool::Rfa12SerenityProgress(player)) {
+		constexpr int RingWidth = 112;
+		constexpr int RingHeight = 56;
+		constexpr double Rise = 96; // from the feet to just over the head
+		const int lift = static_cast<int>(Rise * std::sin(3.14159265358979 * *progress));
+		const Point centre = feet - Displacement { 0, lift };
+		oracool::DrawCycledStill(out, "ui\\aura_cleansing.png", { centre - Displacement { RingWidth / 2, RingHeight / 2 }, Size { RingWidth, RingHeight } },
+		    oracool::CycleShape::Ring, 90, part);
+	}
+}
+
+/**
+ * @brief Astral Projection and the cold armours tint the hero by colour values (v1.12.211, the user's animation review:
+ * "hero tint", and "ice tint on hero instead of the ice-armour shell"), in place of the sheets they wore over him. False
+ * when neither holds or the target is indexed - the caller then draws as ever.
+ */
+bool DrawPlayerTinted(const Surface &out, const Player &player, Point position, ClxSprite sprite, const oracool::SpriteColours *colours, int light)
+{
+	if (out.isIndexed())
+		return false;
+	const oracool::Tint tint = oracool::Rfa12ActiveHidesPlayer(player) ? oracool::Tint::Astral
+	    : oracool::ColdArmourShellFrame(player) >= 0                   ? oracool::Tint::Ice
+	                                                                   : oracool::Tint::None;
+	if (tint == oracool::Tint::None)
+		return false;
+	const uint32_t *table = colours != nullptr ? colours->Table(light) : oracool::LitPaletteTable(light);
+	ClxDrawRgbMap(out, position, sprite, oracool::TintedTable(table, tint, 0, 0.0));
+	return true;
 }
 
 /**
@@ -526,10 +605,7 @@ void DrawPlayerIcons(const Surface &out, const Player &player, Point position, b
 		DrawPlayerIconHelper(out, MissileGraphicID::ManaShield, position, &player != MyPlayer, infraVision);
 	if (player.wReflections > 0)
 		DrawPlayerIconHelper(out, MissileGraphicID::Reflect, position + Displacement { 0, 16 }, &player != MyPlayer, infraVision);
-	// The cold armours' shell (Oracool, Round 2): the brief's eight-frame shimmer at the body's
-	// outline, one sheet for all three, worn for as long as the armour lasts.
-	if (const int frame = oracool::ColdArmourShellFrame(player); frame >= 0)
-		DrawPlayerIconHelper(out, MissileGraphicID::IceArmorShell, position, &player != MyPlayer, infraVision, frame);
+	// The cold armours' shell is a tint on the hero since v1.12.211 (HeroTint), not a sheet over him.
 	// The Necromancer's Bone Armor (RfA-17 batch 38): three bones orbiting the body while the shell holds.
 	if (const int frame = oracool::Rfa12BoneShellFrame(player); frame >= 0)
 		DrawPlayerIconHelper(out, MissileGraphicID::BoneArmorShell, position, &player != MyPlayer, infraVision, frame);
@@ -539,6 +615,7 @@ void DrawPlayerIcons(const Surface &out, const Player &player, Point position, b
 	const size_t worn = oracool::Rfa12BodyOverlays(player, overlays.data(), overlays.size());
 	for (size_t i = 0; i < worn; i++)
 		DrawPlayerIconHelper(out, overlays[i].art, position + Displacement { 0, -4 }, &player != MyPlayer, infraVision, overlays[i].frame);
+	DrawPlayerStills(out, player, position, oracool::StillPart::Front);
 }
 
 /**
@@ -584,6 +661,8 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 
 	Point spriteBufferPosition = targetBufferPosition - Displacement { CalculateWidth2(sprite.width()), 0 };
 
+	DrawPlayerStills(out, player, targetBufferPosition, oracool::StillPart::Back);
+
 	if (static_cast<size_t>(pcursplr) < Players.size() && &player == &Players[pcursplr])
 		ClxDrawOutlineSkipColorZero(out, 165, spriteBufferPosition, sprite);
 
@@ -592,10 +671,12 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 	const oracool::SpriteColours *colours = PlayerSpriteColours(player, sprite);
 
 	if (&player == MyPlayer && IsNoneOf(leveltype, DTYPE_NEST, DTYPE_CRYPT)) {
-		if (colours != nullptr)
-			oracool::DrawSpriteWithColours(out, spriteBufferPosition, sprite, *colours, 0);
-		else
-			ClxDraw(out, spriteBufferPosition, sprite);
+		if (!DrawPlayerTinted(out, player, spriteBufferPosition, sprite, colours, 0)) {
+			if (colours != nullptr)
+				oracool::DrawSpriteWithColours(out, spriteBufferPosition, sprite, *colours, 0);
+			else
+				ClxDraw(out, spriteBufferPosition, sprite);
+		}
 		DrawPlayerIcons(out, player, targetBufferPosition, false);
 		return;
 	}
@@ -615,10 +696,12 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 	else
 		LightTableIndex -= 5;
 
-	if (colours != nullptr)
-		oracool::DrawSpriteWithColours(out, spriteBufferPosition, sprite, *colours, LightTableIndex);
-	else
-		ClxDrawLight(out, spriteBufferPosition, sprite, LightTableIndex);
+	if (!DrawPlayerTinted(out, player, spriteBufferPosition, sprite, colours, LightTableIndex)) {
+		if (colours != nullptr)
+			oracool::DrawSpriteWithColours(out, spriteBufferPosition, sprite, *colours, LightTableIndex);
+		else
+			ClxDrawLight(out, spriteBufferPosition, sprite, LightTableIndex);
+	}
 	DrawPlayerIcons(out, player, targetBufferPosition, false);
 
 	LightTableIndex = l;

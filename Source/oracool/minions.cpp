@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdlib>
 
+#include <SDL.h>
 #include <fmt/format.h>
 
 #include "DiabloUI/ui_flags.hpp"
@@ -46,7 +47,12 @@ struct Record {
 	int lifeNow = 0;
 	/** Its place within its group's ring, 0-based, renumbered whenever the group changes. */
 	int order = 0;
+	/** When Dark Mending last healed it (SDL ticks), for the glow it wears a second after; 0 for never. */
+	uint32_t mendedMs = 0;
 };
+
+/** @brief How long Dark Mending's glow takes to fade off a healed minion. */
+constexpr uint32_t MendGlowMs = 1000;
 
 std::array<Record, MaxMinionBodies> Records;
 
@@ -534,9 +540,19 @@ int HealMinions(Player &owner, int radius, int percent)
 			continue;
 		body.hitPoints = std::min(body.hitPoints + body.maxHitPoints * percent / 100, body.maxHitPoints);
 		healed++;
-		AddArtEffect(body.position.tile, MissileGraphicID::DarkMending, static_cast<int>(owner.getId())); // RfA-27 batch 56
+		// A lavender glow fading off it since v1.12.211 (user, 2026-09-27: "tint minions"), in place of the sheet.
+		record.mendedMs = std::max<uint32_t>(SDL_GetTicks(), 1);
 	}
 	return healed;
+}
+
+double MinionMendGlow(const Monster &monster)
+{
+	const Record *record = RecordOf(monster);
+	if (record == nullptr || record->mendedMs == 0)
+		return 0.0;
+	const uint32_t since = SDL_GetTicks() - record->mendedMs;
+	return since >= MendGlowMs ? 0.0 : 1.0 - static_cast<double>(since) / MendGlowMs;
 }
 
 void FrenzyMinions(Player &owner, int ticks, int percent)

@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <type_traits>
 #include <vector>
 
@@ -19,6 +20,10 @@
 #include "utils/stdcompat/string_view.hpp"
 
 namespace devilution {
+
+namespace oracool {
+struct SpriteColours;
+} // namespace oracool
 
 enum mienemy_type : uint8_t {
 	TARGET_MONSTERS,
@@ -404,6 +409,11 @@ struct MissileFileData {
 	MissileGraphicsFlags flags;
 	uint8_t animDelayIdx;
 	uint8_t animLenIdx;
+	/**
+	 * @brief The sheet's own colours, when it came from a PNG (2026-09-27): its sprites index THIS table, not the level
+	 * palette, so every draw of them goes through it (DrawMissilePrivate, DrawPlayerIconHelper). Null for a CL2.
+	 */
+	std::shared_ptr<const oracool::SpriteColours> colours = nullptr;
 
 	[[nodiscard]] uint8_t animDelay(uint8_t dir) const;
 	[[nodiscard]] uint8_t animLen(uint8_t dir) const;
@@ -413,6 +423,7 @@ struct MissileFileData {
 	void FreeGFX()
 	{
 		sprites = std::nullopt;
+		colours = nullptr;
 	}
 
 	/**

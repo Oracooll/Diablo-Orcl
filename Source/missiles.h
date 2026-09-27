@@ -12,6 +12,7 @@
 #include "engine/point.hpp"
 #include "misdat.h"
 #include "monster.h"
+#include "oracool/missile_tint.h" // Missile::oracoolTint
 #include "player.h"
 #include "spelldat.h"
 #include "utils/attributes.h"
@@ -156,6 +157,17 @@ struct Missile {
 	 * Points at a 256-byte table owned elsewhere and outliving the missile; null means draw as-is.
 	 */
 	const uint8_t *oracoolTrn = nullptr;
+
+	/**
+	 * @brief Oracool (v1.12.211): the colour table this missile's sprites index, when they come from a true-colour PNG sheet
+	 * (MissileFileData::colours). Set with the animation (SetMissAnim), cleared wherever a missile borrows someone else's
+	 * sprites (an item tumble, a charging monster). Not saved, like oracoolTrn; null means the level palette.
+	 */
+	const oracool::SpriteColours *oracoolColours = nullptr;
+	/** @brief Oracool (v1.12.211): a recolour by colour values (oracool/missile_tint.h). Not saved. */
+	oracool::Tint oracoolTint = oracool::Tint::None;
+	/** @brief The hue for Tint::Hue and Tint::HueCycle, 0xRRGGBB. */
+	uint32_t oracoolTintRgb = 0;
 
 	/**
 	 * @brief The class-tree skill that fired this missile, as a ClassTreeSkill. 0xFFFF is none.
@@ -508,6 +520,12 @@ void EndArtEffects(Point tile, MissileGraphicID art, int playerId);
  */
 Missile *AddArtBolt(Point from, Point to, MissileGraphicID art, int playerId, int speed = 32,
     MissileGraphicID arrivalArt = MissileGraphicID::None, oracool::ClassTreeSkill impactSkill = static_cast<oracool::ClassTreeSkill>(0xFFFF));
+/**
+ * @brief Oracool (v1.12.211): @p creature's walk RUNNING from @p from to @p to, drawn only, leaving @p arrivalArt where it
+ * lands - AddArtBolt with a monster's sprites in place of a sheet (the Army of the Dead's charging skeletons). The
+ * creature's type must be loaded on the level. Null, spawning nothing, when it is not, or @p arrivalArt is missing.
+ */
+Missile *AddCreatureBolt(Point from, Point to, const CMonster &creature, int playerId, int speed, MissileGraphicID arrivalArt);
 /**
  * @brief Oracool (2026-09-26): hit_cold.png's flash over @p tile, where a cold hit with no impact art of its own
  * landed. A picture only - WeaponExplosion's cold branch, which rolls no damage. Nothing while the sheet is missing.

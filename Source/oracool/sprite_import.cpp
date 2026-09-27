@@ -249,23 +249,36 @@ OptionalOwnedClxSpriteSheet SpriteSheetFromSurface(SDL_Surface *surface, uint16_
 	return CombineListsIntoSheet(lists);
 }
 
-std::optional<ColouredSpriteSheet> ColouredSpriteSheetFromSurface(SDL_Surface *surface, uint16_t frameWidth)
+namespace {
+
+/** @brief One row per facing, in the sheet's own colours: the lists and the colour table they index. */
+struct ColouredRows {
+	std::vector<OwnedClxSpriteList> lists;
+	std::shared_ptr<SpriteColours> colours;
+};
+
+/**
+ * @brief The true-colour import behind both the hero sheets (8 rows) and, since 2026-09-27, the missile sheets (1 or 16
+ * rows): the user approved the redesigned effect sheets in their own colours, and the shared-palette route drew them
+ * duller than approved.
+ */
+std::optional<ColouredRows> ColouredRowsFromSurface(SDL_Surface *surface, uint16_t frameWidth, int rows)
 {
-	if (surface == nullptr || frameWidth == 0 || !EnsurePalette(LevelPalettePath))
+	if (surface == nullptr || frameWidth == 0 || rows <= 0 || !EnsurePalette(LevelPalettePath))
 		return std::nullopt;
 	SDLSurfaceUniquePtr rgba { SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_ABGR8888, 0) };
 	if (rgba == nullptr)
 		return std::nullopt;
 	const int sheetWidth = rgba->w;
 	const int sheetHeight = rgba->h;
-	if (sheetWidth % frameWidth != 0 || sheetHeight % Facings != 0) {
+	if (sheetWidth % frameWidth != 0 || sheetHeight % rows != 0) {
 		LogWarn("Oracool sprite import: a {:d}x{:d} sheet is not a whole number of {:d}px columns by "
 		        "{:d} rows - ignoring it",
-		    sheetWidth, sheetHeight, frameWidth, Facings);
+		    sheetWidth, sheetHeight, frameWidth, rows);
 		return std::nullopt;
 	}
 	const int frames = sheetWidth / frameWidth;
-	const int cellHeight = sheetHeight / Facings;
+	const int cellHeight = sheetHeight / rows;
 	if (frames == 0 || cellHeight == 0)
 		return std::nullopt;
 	const auto *pixels = static_cast<const uint8_t *>(rgba->pixels);
@@ -316,8 +329,8 @@ std::optional<ColouredSpriteSheet> ColouredSpriteSheetFromSurface(SDL_Surface *s
 	}
 
 	std::vector<OwnedClxSpriteList> lists;
-	lists.reserve(Facings);
-	for (int row = 0; row < Facings; row++) {
+	lists.reserve(static_cast<size_t>(rows));
+	for (int row = 0; row < rows; row++) {
 		OwnedSurface column(frameWidth, cellHeight * frames);
 		for (int frame = 0; frame < frames; frame++) {
 			for (int y = 0; y < cellHeight; y++) {
@@ -334,7 +347,33 @@ std::optional<ColouredSpriteSheet> ColouredSpriteSheetFromSurface(SDL_Surface *s
 		}
 		lists.push_back(SurfaceToClx(column, static_cast<unsigned>(frames), TransparentIndex));
 	}
-	return ColouredSpriteSheet { CombineListsIntoSheet(lists), std::move(colours) };
+	return ColouredRows { std::move(lists), std::move(colours) };
+}
+
+} // namespace
+
+std::optional<ColouredSpriteSheet> ColouredSpriteSheetFromSurface(SDL_Surface *surface, uint16_t frameWidth)
+{
+	std::optional<ColouredRows> rows = ColouredRowsFromSurface(surface, frameWidth, Facings);
+	if (!rows)
+		return std::nullopt;
+	return ColouredSpriteSheet { CombineListsIntoSheet(rows->lists), std::move(rows->colours) };
+}
+
+std::optional<ColouredMissileSheet> LoadPngMissileSheetColoured(const char *name, uint16_t frameWidth, int rows)
+{
+	char path[MaxMpqPathSize];
+	*BufCopy(path, "missiles\\", name, ".png") = '\0';
+	SDLSurfaceUniquePtr png { LoadPNG(path) };
+	if (png == nullptr)
+		return std::nullopt; // no import for this missile; the caller falls back to the CL2
+	std::optional<ColouredRows> lists = ColouredRowsFromSurface(png.get(), frameWidth, rows);
+	if (!lists || lists->lists.empty())
+		return std::nullopt;
+	// A list for a missile drawn one way, a sheet for one drawn sixteen: see LoadPngMissileSheet.
+	if (rows == 1)
+		return ColouredMissileSheet { OwnedClxSpriteListOrSheet { std::move(lists->lists[0]) }, std::move(lists->colours) };
+	return ColouredMissileSheet { OwnedClxSpriteListOrSheet { CombineListsIntoSheet(lists->lists) }, std::move(lists->colours) };
 }
 
 OwnedClxSpriteSheet CombineSpriteLists(std::vector<OwnedClxSpriteList> &lists)

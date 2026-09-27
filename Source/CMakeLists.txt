@@ -140,6 +140,8 @@ set(libdevilutionx_SRCS
   oracool/sprite_import.cpp
   oracool/hero_look.cpp
   oracool/sprite_colours.cpp
+  oracool/missile_tint.cpp
+  oracool/cycled_still.cpp
   oracool/sprite_mix.cpp
   oracool/ui_backgrounds.cpp
   oracool/save_indicator.cpp

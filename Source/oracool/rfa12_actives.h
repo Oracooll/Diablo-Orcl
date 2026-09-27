@@ -88,8 +88,8 @@ struct Rfa12BodyOverlay {
 };
 
 /**
- * @brief The body overlays @p player wears for his running buffs - Static Charge, Conduit, Immolate, the three mantras,
- * Astral Projection, Poison Dagger - at most @p capacity of them into @p out. Only sheets in the archive are listed, so
+ * @brief The body overlays @p player wears for his running buffs - Static Charge, Conduit, Immolate, the mantras of
+ * Clarity and Evasion, Poison Dagger - at most @p capacity of them into @p out. Only sheets in the archive are listed, so
  * a missing one is simply not drawn. Returns how many were written. For scrollrt's DrawPlayerIcons.
  */
 size_t Rfa12BodyOverlays(const Player &player, Rfa12BodyOverlay *out, size_t capacity);
@@ -118,6 +118,10 @@ constexpr int SkillMarkerCount = static_cast<int>(SkillMarker::Commanded) + 1;
 uint16_t Rfa12SkillMarkers(const Monster &monster);
 /** @brief Astral Projection: whether the hero is out of body, and unnoticed. */
 bool Rfa12ActiveHidesPlayer(const Player &player);
+/** @brief Mantra of Retribution: whether the ring of thorns is worn now (drawn as a colour-cycled still, v1.12.211). */
+bool Rfa12RetributionWorn(const Player &player);
+/** @brief Serenity's ring (v1.12.211): how far through its rise and fall, 0..1, or nothing while no ring plays. */
+std::optional<double> Rfa12SerenityProgress(const Player &player);
 void OnRfa12ActiveHit(Player &player, Monster &monster, int damage, bool melee);
 void OnRfa12ActiveStruck(Player &player, Monster &monster);
 void OnRfa12ActiveMissileStruck(Player &player, Monster &monster, int damage);

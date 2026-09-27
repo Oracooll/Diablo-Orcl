@@ -503,7 +503,7 @@ MissileFileData MissileSpriteData[] = {
 /*Immolate*/                 { {},              96,          16, "immolate",               1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
 /*MantraOfClarity*/          { {},              96,          16, "mantra_of_clarity",      1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*MantraOfEvasion*/          { {},              96,          16, "mantra_of_evasion",      1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
-/*MantraOfRetribution*/      { {},              96,          16, "mantra_of_retribution",  1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
+/*MantraOfRetribution*/      { {},              96,          16, "mantra_of_retribution",  1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_1       },
 /*AstralProjection*/         { {},              96,          16, "astral_projection",      1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*PoisonDagger*/             { {},              96,          16, "poison_dagger",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
 /*FrenzyOfTheDead*/          { {},              64,           0, "frenzy_of_the_dead",     1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
@@ -552,10 +552,15 @@ void MissileFileData::LoadGFX()
 	// replaces, and anything not supplied loads exactly as before, so the set can grow one missile at
 	// a time. animFAmt IS the direction count, so it decides the sheet's shape here as well as below;
 	// asking it once for both is what keeps a sixteen-facing sheet from being read as one row.
-	if (std::optional<OwnedClxSpriteListOrSheet> png
-	    = oracool::LoadPngMissileSheet(name, animWidth, animFAmt); // one row per file/direction, as the exporter writes them (2 for the portals since 2026-09-20)
+	//
+	// In TRUE COLOUR since 2026-09-27 (v1.12.211): the sheet keeps its own colours, as the user approved them on the
+	// review page, and draws through `colours`. The shared-palette import had drawn them in the level palette's nearest
+	// colours - duller than approved, and with no green at all.
+	if (std::optional<oracool::ColouredMissileSheet> png
+	    = oracool::LoadPngMissileSheetColoured(name, animWidth, animFAmt); // one row per file/direction, as the exporter writes them (2 for the portals since 2026-09-20)
 	    png.has_value()) {
-		sprites.emplace(std::move(*png));
+		sprites.emplace(std::move(png->sprites));
+		colours = std::move(png->colours);
 		return;
 	}
 

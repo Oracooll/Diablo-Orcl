@@ -134,6 +134,8 @@ void ProcessMinions(Player &owner);
 int GatherMinions(Player &owner);
 /** @brief Every minion of @p owner within @p radius of him regains @p percent of its life. How many were healed. */
 int HealMinions(Player &owner, int radius, int percent);
+/** @brief Dark Mending's glow on @p monster (v1.12.211): 1 as it is healed, fading to 0 over a second; 0 for any other. */
+double MinionMendGlow(const Monster &monster);
 /** @brief For @p ticks every minion of @p owner strikes @p percent harder and hurries after its prey. */
 void FrenzyMinions(Player &owner, int ticks, int percent);
 /** @brief Unmakes the minion of @p owner nearest @p tile. Its full life in 1/64 points, or 0 if there was none. */

@@ -797,6 +797,7 @@ void SetMissAnim(Missile &missile, MissileGraphicID animtype)
 	if (!HeadlessMode) {
 		missile._miAnimData = missileData.spritesForDirection(static_cast<size_t>(dir));
 	}
+	missile.oracoolColours = missileData.colours.get(); // the sheet's own colours, when it has them
 	missile._miAnimDelay = missileData.animDelay(dir);
 	missile._miAnimLen = missileData.animLen(dir);
 	missile._miAnimWidth = missileData.animWidth;
@@ -2356,8 +2357,37 @@ void AddGlacialShatter(Missile &missile, AddMissileParameter &parameter)
  * One hit each rather than a ring of NovaBall projectiles: the art is a single expanding ellipse,
  * and sixteen bolts under it would have been sixteen impact sounds for one effect.
  */
+namespace {
+
+/** @brief Frost Nova's ring at this share of its sheet's size (user, 2026-09-27: "2-3x larger"), to reach its 3 tiles. */
+constexpr unsigned FrostNovaPercent = 250;
+
+/** @brief The scaled ring, built once from the loaded sheet (see BlessedShieldImpactSprites). */
+std::optional<OwnedClxSpriteList> FrostNovaSprites;
+
+/** @brief Swaps @p missile's ring for the scaled one, its centre where the sheet's own would be. */
+void ScaleFrostNova(Missile &missile)
+{
+	if (!missile._miAnimData)
+		return; // headless, or the sheet not loaded
+	if (!FrostNovaSprites)
+		FrostNovaSprites = oracool::ScaleClxList(*missile._miAnimData, FrostNovaPercent);
+	const int fullHeight = (*missile._miAnimData)[0].height();
+	const ClxSpriteList scaled { *FrostNovaSprites };
+	missile._miAnimData = scaled;
+	missile._miAnimLen = static_cast<int>(scaled.numSprites());
+	missile._miAnimWidth = scaled[0].width();
+	missile._miAnimWidth2 = CalculateWidth2(missile._miAnimWidth);
+	// A sprite hangs from its tile by its bottom edge: the taller ring comes down by half the height it gained, so its
+	// centre stays at the caster's chest, where the sheet was drawn to sit.
+	missile.position.offset = { 0, (static_cast<int>(scaled[0].height()) - fullHeight) / 2 };
+}
+
+} // namespace
+
 void AddFrostNova(Missile &missile, AddMissileParameter & /*parameter*/)
 {
+	ScaleFrostNova(missile); // keeps the sheet's colour table: scaling copies its indices
 	missile._mirange = std::max<int>(missile._miAnimLen, 1);
 	if (missile.sourceType() != MissileSource::Player)
 		return;
@@ -2553,11 +2583,8 @@ void ProcessColdArmor(Missile &missile)
 		// voice, not a second one. Not on death (the armour is cleared with the player), and not on a
 		// recast, which returned above and plays the new armour's start instead.
 		if (player._pHitPoints >> 6 > 0) {
+			// No shell breaks since v1.12.211: the armour is a tint on the hero now, and simply fades (user, 2026-09-27).
 			oracool::PlayColdArmourExpirySound(missile);
-			// And the shell breaks where it was worn: ice_armor_break.png, once, following the hero for its ten
-			// frames (2026-09-26 - the sheet was packed and never drawn). Same frame and anchor as the shell.
-			if (Missile *shatter = AddArtEffect(player.position.tile, MissileGraphicID::IceArmorBreak, static_cast<int>(player.getId())); shatter != nullptr)
-				shatter->var1 = ArtEffectFollowsCaster;
 		}
 		RedrawEverything();
 	}
@@ -3063,6 +3090,7 @@ void InitMissileAnimationFromMonster(Missile &mis, Direction midir, const Monste
 	ClxSpriteList sprites = *maybeSprites;
 	const uint16_t width = sprites[0].width();
 	mis._miAnimData.emplace(sprites);
+	mis.oracoolColours = nullptr; // a monster's own sprites, in the level palette
 	mis._miAnimDelay = anim.rate;
 	mis._miAnimLen = anim.frames;
 	mis._miAnimWidth = width;
@@ -3401,6 +3429,7 @@ void UseItemDropAnimation(Missile &missile, int8_t animIndex)
 	if (!sprites)
 		return; // before InitItems, or after the graphics were freed - keep the misdat sprite
 	missile._miAnimData = sprites;
+	missile.oracoolColours = nullptr; // an item's sprite, in the level palette
 	missile._miAnimLen = static_cast<int>(sprites->numSprites());
 	missile._miAnimWidth = (*sprites)[0].width();
 	missile._miAnimWidth2 = CalculateWidth2(missile._miAnimWidth);
@@ -3823,6 +3852,32 @@ Missile *AddArtBolt(Point from, Point to, MissileGraphicID art, int playerId, in
 	return bolt;
 }
 
+Missile *AddCreatureBolt(Point from, Point to, const CMonster &creature, int playerId, int speed, MissileGraphicID arrivalArt)
+{
+	if (from == to)
+		return nullptr;
+	const AnimStruct &walk = creature.getAnimData(MonsterGraphic::Walk);
+	const OptionalClxSpriteList sprites = walk.spritesForDirection(GetDirection(from, to));
+	if (!sprites || sprites->numSprites() == 0)
+		return nullptr;
+	// The arrival sheet carries the flight (AddArtBolt wants a loaded sheet), and the creature's walk is worn over it.
+	Missile *bolt = AddArtBolt(from, to, arrivalArt, playerId, speed, arrivalArt);
+	if (bolt == nullptr)
+		return nullptr;
+	const uint16_t width = (*sprites)[0].width();
+	bolt->_miAnimData.emplace(*sprites);
+	bolt->oracoolColours = nullptr; // the creature's own sprites, in the level palette
+	bolt->_miAnimFlags = MissileGraphicsFlags::None;
+	bolt->_miAnimDelay = std::max<int>(walk.rate, 1);
+	bolt->_miAnimLen = std::max<int>(walk.frames, 1);
+	bolt->_miAnimCnt = 0;
+	bolt->_miAnimFrame = 1;
+	bolt->_miAnimAdd = 1;
+	bolt->_miAnimWidth = width;
+	bolt->_miAnimWidth2 = CalculateWidth2(width);
+	return bolt;
+}
+
 void AddColdHitFlash(Point tile, int playerId)
 {
 	if (!MissileArtLoaded(MissileGraphicID::HitCold) || !InDungeonBounds(tile))
@@ -3896,8 +3951,13 @@ namespace {
 void ArtBoltLands(const Missile &missile)
 {
 	const Point dst { missile.var1, missile.var2 };
-	if (missile.var4 > 0 && missile.var4 <= static_cast<int>(MissileGraphicID::None))
-		AddArtEffect(dst, static_cast<MissileGraphicID>(missile.var4 - 1), missile._misource);
+	if (missile.var4 > 0 && missile.var4 <= static_cast<int>(MissileGraphicID::None)) {
+		// What it leaves wears its tint (v1.12.211: the Army's green skeletons burst into green bone).
+		if (Missile *left = AddArtEffect(dst, static_cast<MissileGraphicID>(missile.var4 - 1), missile._misource); left != nullptr) {
+			left->oracoolTint = missile.oracoolTint;
+			left->oracoolTintRgb = missile.oracoolTintRgb;
+		}
+	}
 	if (missile.var3 > 0)
 		oracool::PlaySkillSound(static_cast<oracool::ClassTreeSkill>(missile.var3 - 1), oracool::SkillSoundEvent::Impact);
 }
@@ -3933,6 +3993,11 @@ void AddWarcryRing(Missile &missile, AddMissileParameter & /*parameter*/)
 	// the bottom edge. A still missile renders at exactly this offset (UpdateMissileRendererData).
 	missile.position.offset = { 0, 64 };
 	missile._mirange = missile._miAnimLen;
+	// Tinted for the skill that raised it and colour-cycled as it grows (user, 2026-09-27: "tint appropriately according
+	// to the skill utilizing it. apply colorcycling to it as it grows in diameter"). oracoolSkill is stamped before this
+	// runs; a ring raised outside a cast (a field's pulse, a companion) takes the warm neutral hue.
+	missile.oracoolTint = oracool::Tint::HueCycle;
+	missile.oracoolTintRgb = oracool::RingHueForSkill(missile.oracoolSkill);
 }
 
 void ProcessWarcryRing(Missile &missile)
@@ -5914,8 +5979,10 @@ void missiles_process_charge()
 {
 	for (auto &missile : Missiles) {
 		missile._miAnimData = GetMissileSpriteData(missile._miAnimType).spritesForDirection(missile._mimfnum);
+		missile.oracoolColours = GetMissileSpriteData(missile._miAnimType).colours.get();
 		if (missile._mitype != MissileID::Rhino)
 			continue;
+		missile.oracoolColours = nullptr; // the charging monster's own sprites, in the level palette
 
 		const CMonster &mon = Monsters[missile._misource].type();
 
