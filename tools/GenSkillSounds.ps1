@@ -1,5 +1,9 @@
 # Generates Source/oracool/skill_sounds_data.inc from the delivered class-skill-sounds package.
 #
+# SUPERSEDED 2026-09-27 by tools/GenVanillaSkillSounds.js, which now writes that file with vanilla sounds (user: "remove all
+# chatgpt sounds from the game. they are no good"). The delivered WAVs are out of the game; this is kept to rebuild that
+# table if a package is ever wanted back. Do not run it over the vanilla table.
+#
 # 306 WAVs covering all six class trees (the package delivered 304; RfA-02 added two Paladin cues), delivered as data with an authoritative manifest
 # (Resources/02. Oracooll Assets/skill-sounds/class-skill-sounds.zip - it was under 02. Oracooll Assets\01. Used
 # before the Resources reorganisation). The package's own integration

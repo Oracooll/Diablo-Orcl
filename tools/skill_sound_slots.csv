@@ -1,0 +1,530 @@
+skill,event,class,page,name
+AncestralCall,Arrive,barbarian,warcries,Ancestral Call
+AncestralCall,Cast,barbarian,warcries,Ancestral Call
+AxeMastery,Learn,barbarian,combat-masteries,Axe Mastery
+Backhand,Impact,barbarian,combat-skills,Backhand
+Bash,Cast,barbarian,combat-skills,Bash
+Bash,Impact,barbarian,combat-skills,Bash
+BattleCommand,Cast,barbarian,warcries,Battle Command
+BattleCry,Cast,barbarian,warcries,Battle Cry
+BattleOrders,Cast,barbarian,warcries,Battle Orders
+Berserk,Cast,barbarian,combat-skills,Berserk
+Berserk,Impact,barbarian,combat-skills,Berserk
+Bloodcall,Cast,barbarian,warcries,Bloodcall
+ClaspOfRuin,Impact,barbarian,combat-skills,Clasp of Ruin
+Cleave,Impact,barbarian,combat-skills,Cleave
+Concentrate,Cast,barbarian,combat-skills,Concentrate
+Concentrate,Impact,barbarian,combat-skills,Concentrate
+DoubleSwing,Cast,barbarian,combat-skills,Double Swing
+DoubleSwing,Impact,barbarian,combat-skills,Double Swing
+DoubleThrow,Cast,barbarian,combat-skills,Weapon Throw
+DoubleThrow,Impact,barbarian,combat-skills,Weapon Throw
+Earthquake,Cast,barbarian,combat-skills,Earthquake
+Earthquake,Impact,barbarian,combat-skills,Earthquake
+EarthshakerCry,Cast,barbarian,warcries,Earthshaker Cry
+FindItem,Cast,barbarian,warcries,Find Item
+FindPotion,Cast,barbarian,warcries,Find Potion
+Frenzy,Cast,barbarian,combat-skills,Frenzy
+Frenzy,Impact,barbarian,combat-skills,Frenzy
+GrimWard,Cast,barbarian,warcries,Grim Ward
+GroundStomp,Cast,barbarian,combat-skills,Ground Stomp
+HammerOfTheAncients,Impact,barbarian,combat-skills,Hammer of the Ancients
+Howl,Cast,barbarian,warcries,Howl
+IncreasedSpeed,Learn,barbarian,combat-masteries,Increased Speed
+Toughness,Learn,barbarian,combat-masteries,Toughness
+Intimidate,Cast,barbarian,warcries,Intimidate
+IronSkin,Learn,barbarian,combat-masteries,Iron Skin
+IronWill,Cast,barbarian,warcries,Iron Will
+Leap,Cast,barbarian,combat-skills,Leap
+Leap,Impact,barbarian,combat-skills,Leap
+LeapAttack,Cast,barbarian,combat-skills,Leap Attack
+LeapAttack,Impact,barbarian,combat-skills,Leap Attack
+MaceMastery,Learn,barbarian,combat-masteries,Mace Mastery
+NaturalResistance,Learn,barbarian,combat-masteries,Natural Resistance
+PoleArmMastery,Learn,barbarian,combat-masteries,Pole Arm Mastery
+RallyingCry,Cast,barbarian,warcries,Rallying Cry
+Rend,Impact,barbarian,combat-skills,Rend
+SeismicSlam,Cast,barbarian,combat-skills,Seismic Slam
+Shout,Cast,barbarian,warcries,Shout
+SpearMastery,Learn,barbarian,combat-masteries,Spear Mastery
+SplitRanks,Cast,barbarian,warcries,Split Ranks
+Stun,Cast,barbarian,combat-skills,Stun
+Stun,Impact,barbarian,combat-skills,Stun
+SwordMastery,Learn,barbarian,combat-masteries,Sword Mastery
+Taunt,Cast,barbarian,warcries,Taunt
+ThreateningShout,Cast,barbarian,warcries,Threatening Shout
+ThrowingMastery,Learn,barbarian,combat-masteries,Throwing Mastery
+WarCry,Cast,barbarian,warcries,War Cry
+Whirlwind,Cast,barbarian,combat-skills,Whirlwind
+Whirlwind,Impact,barbarian,combat-skills,Whirlwind
+BattleHymn,Loop,bard,melody,Battle Hymn
+BattleHymn,Start,bard,melody,Battle Hymn
+BattleHymn,Stop,bard,melody,Battle Hymn
+Charm,Cast,bard,poetry,Charm
+Daze,Cast,bard,poetry,Daze
+DirgeOfDread,Loop,bard,melody,Dirge of Dread
+DirgeOfDread,Start,bard,melody,Dirge of Dread
+DirgeOfDread,Stop,bard,melody,Dirge of Dread
+Discord,Cast,bard,harmony,Discord
+EchoingSong,Learn,bard,harmony,Echoing Song
+EpicSolo,Learn,bard,melody,Epic Solo
+Inspiration,Loop,bard,poetry,Inspiration
+Inspiration,Start,bard,poetry,Inspiration
+Inspiration,Stop,bard,poetry,Inspiration
+LegendaryBallad,Learn,bard,poetry,Legendary Ballad
+Lullaby,Loop,bard,melody,Lullaby
+Lullaby,Start,bard,melody,Lullaby
+Lullaby,Stop,bard,melody,Lullaby
+MelodyOfLife,Loop,bard,melody,Melody of Life
+MelodyOfLife,Start,bard,melody,Melody of Life
+MelodyOfLife,Stop,bard,melody,Melody of Life
+OdeToGlory,Arrive,bard,poetry,Ode to Glory
+OdeToGlory,Cast,bard,poetry,Ode to Glory
+PerfectHarmony,Learn,bard,harmony,Perfect Harmony
+Resonance,Learn,bard,harmony,Resonance
+BardShout,Cast,bard,harmony,Shout
+SongOfFortitude,Loop,bard,melody,Song of Fortitude
+SongOfFortitude,Start,bard,melody,Song of Fortitude
+SongOfFortitude,Stop,bard,melody,Song of Fortitude
+SongOfSwiftness,Loop,bard,melody,Song of Swiftness
+SongOfSwiftness,Start,bard,melody,Song of Swiftness
+SongOfSwiftness,Stop,bard,melody,Song of Swiftness
+SonicBarrier,Loop,bard,harmony,Sonic Barrier
+SonicBarrier,Start,bard,harmony,Sonic Barrier
+SonicBarrier,Stop,bard,harmony,Sonic Barrier
+SoundShock,Cast,bard,harmony,Sound Shock
+TaleOfHeroes,Cast,bard,poetry,Tale of Heroes
+Weaken,Cast,bard,poetry,Weaken
+AncestralCourt,Cast,monk,way-of-the-spirit,Ancestral Court
+AncestralCourt,Impact,monk,way-of-the-spirit,Ancestral Court
+AstralProjection,Cast,monk,way-of-the-spirit,Astral Projection
+BambooRain,Cast,monk,way-of-the-staff,Bamboo Rain
+BambooRain,Impact,monk,way-of-the-staff,Bamboo Rain
+BlindingFlash,Cast,monk,way-of-the-spirit,Blinding Flash
+BreakingCurrent,Cast,monk,way-of-the-staff,Breaking Current
+BreakingCurrent,Impact,monk,way-of-the-staff,Breaking Current
+ChiWave,Cast,monk,way-of-the-spirit,Chi Wave
+ChiWave,Impact,monk,way-of-the-spirit,Chi Wave
+Counterstroke,Learn,monk,way-of-the-body,Counterstroke
+DragonTailSweep,Cast,monk,way-of-the-staff,Dragon Tail Sweep
+DragonsWrath,Cast,monk,way-of-the-body,Dragon's Wrath
+Enlightenment,Learn,monk,way-of-the-spirit,Enlightenment
+ExplodingPalm,Impact,monk,way-of-the-body,Exploding Palm
+FlowingStep,Learn,monk,way-of-the-body,Flowing Step
+HealingMantra,Loop,monk,way-of-the-spirit,Healing Mantra
+HealingMantra,Start,monk,way-of-the-spirit,Healing Mantra
+HealingMantra,Stop,monk,way-of-the-spirit,Healing Mantra
+HeavenSplitter,Cast,monk,way-of-the-staff,Heaven Splitter
+HundredFists,Cast,monk,way-of-the-body,Hundred Fists
+HundredFists,Impact,monk,way-of-the-body,Hundred Fists
+MonkInnerSight,Cast,monk,way-of-the-spirit,Inner Sight
+IronRobe,Learn,monk,way-of-the-body,Iron Robe
+LeapingCrane,Cast,monk,way-of-the-body,Leaping Crane
+LeapingCrane,Impact,monk,way-of-the-body,Leaping Crane
+LongThrust,Cast,monk,way-of-the-staff,Long Thrust
+LongThrust,Impact,monk,way-of-the-staff,Long Thrust
+LowBranch,Impact,monk,way-of-the-staff,Low Branch
+MantraOfClarity,Cast,monk,way-of-the-spirit,Mantra of Clarity
+MantraOfEvasion,Cast,monk,way-of-the-spirit,Mantra of Evasion
+MantraOfRetribution,Cast,monk,way-of-the-spirit,Mantra of Retribution
+MantraOfRetribution,Impact,monk,way-of-the-spirit,Mantra of Retribution
+MasterOfTheLongStaff,Learn,monk,way-of-the-staff,Master of the Long Staff
+MountainPole,Cast,monk,way-of-the-staff,Mountain Pole
+OpenPalm,Cast,monk,way-of-the-body,Open Palm
+OpenPalm,Impact,monk,way-of-the-body,Open Palm
+PerfectVessel,Learn,monk,way-of-the-body,Perfect Vessel
+PressurePoint,Impact,monk,way-of-the-body,Pressure Point
+PurifyingBreath,Cast,monk,way-of-the-body,Purifying Breath
+RadiantPalm,Cast,monk,way-of-the-spirit,Radiant Palm
+RearwardReach,Cast,monk,way-of-the-staff,Rearward Reach
+RearwardReach,Impact,monk,way-of-the-staff,Rearward Reach
+ReedInTheWind,Learn,monk,way-of-the-staff,Reed in the Wind
+Serenity,Cast,monk,way-of-the-spirit,Serenity
+SevenReeds,Cast,monk,way-of-the-staff,Seven Reeds
+SevenReeds,Impact,monk,way-of-the-staff,Seven Reeds
+SevenSidedStrike,Cast,monk,way-of-the-body,Seven-Sided Strike
+ShoulderGate,Cast,monk,way-of-the-body,Shoulder Gate
+SpiritGuardian,Arrive,monk,way-of-the-spirit,Spirit Guardian
+SpiritGuardian,Cast,monk,way-of-the-spirit,Spirit Guardian
+SpiritWard,Loop,monk,way-of-the-spirit,Spirit Ward
+SpiritWard,Start,monk,way-of-the-spirit,Spirit Ward
+SpiritWard,Stop,monk,way-of-the-spirit,Spirit Ward
+StaffOfEchoes,Impact,monk,way-of-the-staff,Staff of Echoes
+SweepingReed,Cast,monk,way-of-the-staff,Sweeping Reed
+SweepingReed,Impact,monk,way-of-the-staff,Sweeping Reed
+TempleBell,Cast,monk,way-of-the-spirit,Temple Bell
+ThousandReeds,Cast,monk,way-of-the-staff,Thousand Reeds
+TigerClaw,Impact,monk,way-of-the-body,Tiger Claw
+Tranquility,Loop,monk,way-of-the-spirit,Tranquility
+Tranquility,Start,monk,way-of-the-spirit,Tranquility
+Tranquility,Stop,monk,way-of-the-spirit,Tranquility
+VaultingStrike,Cast,monk,way-of-the-staff,Vaulting Strike
+VaultingStrike,Impact,monk,way-of-the-staff,Vaulting Strike
+WaveOfLight,Cast,monk,way-of-the-spirit,Wave of Light
+WaveOfLight,Impact,monk,way-of-the-spirit,Wave of Light
+WheelOfHeaven,Cast,monk,way-of-the-staff,Wheel of Heaven
+WheelOfHeaven,Impact,monk,way-of-the-staff,Wheel of Heaven
+WhirlingKick,Cast,monk,way-of-the-body,Whirling Kick
+AmplifyDamage,Cast,necromancer,curses,Amplify Damage
+ArmyOfTheDead,Cast,necromancer,summoning,Army of the Dead
+ArmyOfTheDead,Impact,necromancer,summoning,Army of the Dead
+Attract,Cast,necromancer,curses,Attract
+Bane,Cast,necromancer,curses,Bane
+Blight,Cast,necromancer,poison-and-bone,Blight
+Blight,Impact,necromancer,poison-and-bone,Blight
+BloodGolem,Cast,necromancer,summoning,Blood Golem
+BoneArmor,Cast,necromancer,poison-and-bone,Bone Armor
+BonePrison,Cast,necromancer,poison-and-bone,Bone Prison
+BoneSpear,Cast,necromancer,poison-and-bone,Bone Spear
+BoneSpear,Impact,necromancer,poison-and-bone,Bone Spear
+BoneSpikes,Cast,necromancer,poison-and-bone,Bone Spikes
+BoneSplinters,Cast,necromancer,poison-and-bone,Bone Splinters
+BoneStorm,Cast,necromancer,poison-and-bone,Bone Storm
+BoneWall,Cast,necromancer,poison-and-bone,Bone Wall
+ClayGolem,Cast,necromancer,summoning,Clay Golem
+CommandTheDead,Cast,necromancer,summoning,Command the Dead
+Confuse,Cast,necromancer,curses,Confuse
+CorpseExplosion,Cast,necromancer,poison-and-bone,Corpse Explosion
+CorpseExplosion,Impact,necromancer,poison-and-bone,Corpse Explosion
+DarkMending,Cast,necromancer,summoning,Dark Mending
+DeathMark,Cast,necromancer,curses,Death Mark
+DeathNova,Cast,necromancer,poison-and-bone,Death Nova
+Decompose,Cast,necromancer,poison-and-bone,Decompose
+Decrepify,Cast,necromancer,curses,Decrepify
+DimVision,Cast,necromancer,curses,Dim Vision
+Doom,Cast,necromancer,curses,Doom
+FireGolem,Cast,necromancer,summoning,Fire Golem
+Frailty,Cast,necromancer,curses,Frailty
+FrenzyOfTheDead,Cast,necromancer,summoning,Frenzy of the Dead
+GatherTheDead,Cast,necromancer,summoning,Gather the Dead
+IronGolem,Cast,necromancer,summoning,Iron Golem
+NecroIronMaiden,Cast,necromancer,curses,Iron Maiden
+LifeTap,Cast,necromancer,curses,Life Tap
+LowerResist,Cast,necromancer,curses,Lower Resist
+PoisonDagger,Cast,necromancer,poison-and-bone,Poison Dagger
+PoisonExplosion,Cast,necromancer,poison-and-bone,Poison Explosion
+PoisonExplosion,Impact,necromancer,poison-and-bone,Poison Explosion
+PoisonNova,Cast,necromancer,poison-and-bone,Poison Nova
+RaiseSkeletalMage,Cast,necromancer,summoning,Raise Skeletal Mage
+RaiseSkeleton,Cast,necromancer,summoning,Raise Skeleton
+NecroRevive,Cast,necromancer,summoning,Revive
+SoulHarvest,Cast,necromancer,curses,Soul Harvest
+SoulHarvest,Impact,necromancer,curses,Soul Harvest
+Teeth,Cast,necromancer,poison-and-bone,Teeth
+Terror,Cast,necromancer,curses,Terror
+UnholyOffering,Cast,necromancer,summoning,Unholy Offering
+NecroWeaken,Cast,necromancer,curses,Weaken
+AegisSlam,Impact,paladin,combat-skills,Aegis Slam
+AuraOfProtection,Loop,paladin,defensive-auras,Aura of Protection
+AuraOfProtection,Start,paladin,defensive-auras,Aura of Protection
+AuraOfProtection,Stop,paladin,defensive-auras,Aura of Protection
+BaneOfEvil,Loop,paladin,offensive-auras,Bane of Evil
+BaneOfEvil,Start,paladin,offensive-auras,Bane of Evil
+BaneOfEvil,Stop,paladin,offensive-auras,Bane of Evil
+BlessedAim,Loop,paladin,offensive-auras,Blessed Aim
+BlessedAim,Start,paladin,offensive-auras,Blessed Aim
+BlessedAim,Stop,paladin,offensive-auras,Blessed Aim
+BlessedHammer,Cast,paladin,combat-skills,Blessed Hammer
+BlessedHammer,Impact,paladin,combat-skills,Blessed Hammer
+BlessedShield,Cast,paladin,combat-skills,Blessed Shield
+BlessedShield,Impact,paladin,combat-skills,Blessed Shield
+Charge,Cast,paladin,combat-skills,Charge
+Charge,Impact,paladin,combat-skills,Charge
+Cleansing,Loop,paladin,defensive-auras,Cleansing
+Cleansing,Start,paladin,defensive-auras,Cleansing
+Cleansing,Stop,paladin,defensive-auras,Cleansing
+Concentration,Loop,paladin,offensive-auras,Concentration
+Concentration,Start,paladin,offensive-auras,Concentration
+Concentration,Stop,paladin,offensive-auras,Concentration
+Condemnation,Loop,paladin,offensive-auras,Condemnation
+Condemnation,Start,paladin,offensive-auras,Condemnation
+Condemnation,Stop,paladin,offensive-auras,Condemnation
+Conversion,Cast,paladin,combat-skills,Conversion
+Conversion,Impact,paladin,combat-skills,Conversion
+Conviction,Loop,paladin,offensive-auras,Conviction
+Conviction,Start,paladin,offensive-auras,Conviction
+Conviction,Stop,paladin,offensive-auras,Conviction
+Crusade,Impact,paladin,combat-skills,Crusade
+Defiance,Loop,paladin,defensive-auras,Defiance
+Defiance,Start,paladin,defensive-auras,Defiance
+Defiance,Stop,paladin,defensive-auras,Defiance
+Dominion,Loop,paladin,offensive-auras,Dominion
+Dominion,Start,paladin,offensive-auras,Dominion
+Dominion,Stop,paladin,offensive-auras,Dominion
+DoomProcession,Loop,paladin,offensive-auras,Doom Procession
+DoomProcession,Start,paladin,offensive-auras,Doom Procession
+DoomProcession,Stop,paladin,offensive-auras,Doom Procession
+Endurance,Loop,paladin,defensive-auras,Endurance
+Endurance,Start,paladin,defensive-auras,Endurance
+Endurance,Stop,paladin,defensive-auras,Endurance
+Fanaticism,Loop,paladin,offensive-auras,Fanaticism
+Fanaticism,Start,paladin,offensive-auras,Fanaticism
+Fanaticism,Stop,paladin,offensive-auras,Fanaticism
+FistOfTheHeavens,Cast,paladin,combat-skills,Fist of the Heavens
+FistOfTheHeavens,Impact,paladin,combat-skills,Fist of the Heavens
+HammerOfFaith,Cast,paladin,combat-skills,Hammer of Faith
+HammerOfFaith,Impact,paladin,combat-skills,Hammer of Faith
+HeavensDescent,Cast,paladin,combat-skills,Heaven's Descent
+HeavensDescent,Impact,paladin,combat-skills,Heaven's Descent
+HolyFire,Loop,paladin,offensive-auras,Holy Fire
+HolyFire,Start,paladin,offensive-auras,Holy Fire
+HolyFire,Stop,paladin,offensive-auras,Holy Fire
+HolyFreeze,Loop,paladin,offensive-auras,Holy Freeze
+HolyFreeze,Start,paladin,offensive-auras,Holy Freeze
+HolyFreeze,Stop,paladin,offensive-auras,Holy Freeze
+HolyLance,Impact,paladin,combat-skills,Holy Lance
+HolyShock,Loop,paladin,offensive-auras,Holy Shock
+HolyShock,Start,paladin,offensive-auras,Holy Shock
+HolyShock,Stop,paladin,offensive-auras,Holy Shock
+Immovable,Loop,paladin,defensive-auras,Immovable
+Immovable,Start,paladin,defensive-auras,Immovable
+Immovable,Stop,paladin,defensive-auras,Immovable
+Judgment,Impact,paladin,combat-skills,Judgment
+Meditation,Loop,paladin,defensive-auras,Meditation
+Meditation,Start,paladin,defensive-auras,Meditation
+Meditation,Stop,paladin,defensive-auras,Meditation
+Mercy,Loop,paladin,defensive-auras,Mercy
+Mercy,Start,paladin,defensive-auras,Mercy
+Mercy,Stop,paladin,defensive-auras,Mercy
+Might,Loop,paladin,offensive-auras,Might
+Might,Start,paladin,offensive-auras,Might
+Might,Stop,paladin,offensive-auras,Might
+Oathbrand,Impact,paladin,combat-skills,Oathbrand
+Prayer,Loop,paladin,defensive-auras,Prayer
+Prayer,Start,paladin,defensive-auras,Prayer
+Prayer,Stop,paladin,defensive-auras,Prayer
+Radiance,Loop,paladin,offensive-auras,Radiance
+Radiance,Start,paladin,offensive-auras,Radiance
+Radiance,Stop,paladin,offensive-auras,Radiance
+Redemption,Loop,paladin,defensive-auras,Redemption
+Redemption,Start,paladin,defensive-auras,Redemption
+Redemption,Stop,paladin,defensive-auras,Redemption
+ResistCold,Loop,paladin,defensive-auras,Resist Cold
+ResistCold,Start,paladin,defensive-auras,Resist Cold
+ResistCold,Stop,paladin,defensive-auras,Resist Cold
+ResistFire,Loop,paladin,defensive-auras,Resist Fire
+ResistFire,Start,paladin,defensive-auras,Resist Fire
+ResistFire,Stop,paladin,defensive-auras,Resist Fire
+ResistLightning,Loop,paladin,defensive-auras,Resist Lightning
+ResistLightning,Start,paladin,defensive-auras,Resist Lightning
+ResistLightning,Stop,paladin,defensive-auras,Resist Lightning
+ResistMagic,Loop,paladin,defensive-auras,Resist Magic
+ResistMagic,Start,paladin,defensive-auras,Resist Magic
+ResistMagic,Stop,paladin,defensive-auras,Resist Magic
+Retaliation,Loop,paladin,offensive-auras,Retaliation
+Retaliation,Start,paladin,offensive-auras,Retaliation
+Retaliation,Stop,paladin,offensive-auras,Retaliation
+Sacrifice,Cast,paladin,combat-skills,Sacrifice
+Sacrifice,Impact,paladin,combat-skills,Sacrifice
+Salvation,Loop,paladin,defensive-auras,Salvation
+Salvation,Start,paladin,defensive-auras,Salvation
+Salvation,Stop,paladin,defensive-auras,Salvation
+Sanctity,Loop,paladin,defensive-auras,Sanctity
+Sanctity,Start,paladin,defensive-auras,Sanctity
+Sanctity,Stop,paladin,defensive-auras,Sanctity
+Sanctuary,Loop,paladin,offensive-auras,Sanctuary
+Sanctuary,Start,paladin,offensive-auras,Sanctuary
+Sanctuary,Stop,paladin,offensive-auras,Sanctuary
+Smite,Cast,paladin,combat-skills,Smite
+Smite,Impact,paladin,combat-skills,Smite
+Steadfast,Loop,paladin,defensive-auras,Steadfast
+Steadfast,Start,paladin,defensive-auras,Steadfast
+Steadfast,Stop,paladin,defensive-auras,Steadfast
+Thorns,Loop,paladin,offensive-auras,Thorns
+Thorns,Start,paladin,offensive-auras,Thorns
+Thorns,Stop,paladin,offensive-auras,Thorns
+TitheOfAsh,Loop,paladin,offensive-auras,Tithe of Ash
+TitheOfAsh,Start,paladin,offensive-auras,Tithe of Ash
+TitheOfAsh,Stop,paladin,offensive-auras,Tithe of Ash
+Valor,Loop,paladin,offensive-auras,Valor
+Valor,Start,paladin,offensive-auras,Valor
+Valor,Stop,paladin,offensive-auras,Valor
+Vengeance,Cast,paladin,combat-skills,Vengeance
+Vengeance,Impact,paladin,combat-skills,Vengeance
+Vigor,Loop,paladin,defensive-auras,Vigor
+Vigor,Start,paladin,defensive-auras,Vigor
+Vigor,Stop,paladin,defensive-auras,Vigor
+VotiveStrike,Impact,paladin,combat-skills,Votive Strike
+WardingLight,Loop,paladin,defensive-auras,Warding Light
+WardingLight,Start,paladin,defensive-auras,Warding Light
+WardingLight,Stop,paladin,defensive-auras,Warding Light
+WrathOfTheHeavens,Cast,paladin,combat-skills,Wrath of the Heavens
+WrathOfTheHeavens,Impact,paladin,combat-skills,Wrath of the Heavens
+Zeal,Cast,paladin,combat-skills,Zeal
+Zeal,Impact,paladin,combat-skills,Zeal
+AnchorJavelin,Cast,rogue,javelin-and-spear,Anchor Javelin
+AnchorJavelin,Impact,rogue,javelin-and-spear,Anchor Javelin
+Avoid,Learn,rogue,passive-and-magic,Avoid
+BarbedShaft,Cast,rogue,bow-and-crossbow,Barbed Shaft
+BarbedShaft,Impact,rogue,bow-and-crossbow,Barbed Shaft
+Barrage,Cast,rogue,bow-and-crossbow,Barrage
+ChargedStrike,Cast,rogue,javelin-and-spear,Charged Strike
+ChargedStrike,Impact,rogue,javelin-and-spear,Charged Strike
+ColdArrow,Cast,rogue,bow-and-crossbow,Cold Arrow
+ColdArrow,Impact,rogue,bow-and-crossbow,Cold Arrow
+CripplingShot,Cast,rogue,bow-and-crossbow,Crippling Shot
+CripplingShot,Impact,rogue,bow-and-crossbow,Crippling Shot
+CriticalStrike,Learn,rogue,passive-and-magic,Critical Strike
+Decoy,Arrive,rogue,passive-and-magic,Decoy
+Decoy,Cast,rogue,passive-and-magic,Decoy
+Dodge,Learn,rogue,passive-and-magic,Dodge
+Evade,Learn,rogue,passive-and-magic,Evade
+ExplodingArrow,Cast,rogue,bow-and-crossbow,Exploding Arrow
+ExplodingArrow,Impact,rogue,bow-and-crossbow,Exploding Arrow
+Fend,Cast,rogue,javelin-and-spear,Fend
+Fend,Impact,rogue,javelin-and-spear,Fend
+FireArrow,Cast,rogue,bow-and-crossbow,Fire Arrow
+FireArrow,Impact,rogue,bow-and-crossbow,Fire Arrow
+FreezingArrow,Cast,rogue,bow-and-crossbow,Freezing Arrow
+FreezingArrow,Impact,rogue,bow-and-crossbow,Freezing Arrow
+GuidedArrow,Cast,rogue,bow-and-crossbow,Guided Arrow
+GuidedArrow,Impact,rogue,bow-and-crossbow,Guided Arrow
+Harpoon,Cast,rogue,javelin-and-spear,Harpoon
+Harpoon,Impact,rogue,javelin-and-spear,Harpoon
+HuntersClaim,Cast,rogue,passive-and-magic,Hunter's Claim
+HuntersMark,Cast,rogue,bow-and-crossbow,Hunter's Mark
+IceArrow,Cast,rogue,bow-and-crossbow,Ice Arrow
+IceArrow,Impact,rogue,bow-and-crossbow,Ice Arrow
+ImmolationArrow,Cast,rogue,bow-and-crossbow,Immolation Arrow
+ImmolationArrow,Impact,rogue,bow-and-crossbow,Immolation Arrow
+Impale,Cast,rogue,javelin-and-spear,Impale
+Impale,Impact,rogue,javelin-and-spear,Impale
+InnerSight,Cast,rogue,passive-and-magic,Inner Sight
+Jab,Cast,rogue,javelin-and-spear,Jab
+Jab,Impact,rogue,javelin-and-spear,Jab
+LightningBoltSkill,Cast,rogue,javelin-and-spear,Lightning Bolt
+LightningBoltSkill,Impact,rogue,javelin-and-spear,Lightning Bolt
+LightningFury,Cast,rogue,javelin-and-spear,Lightning Fury
+LightningFury,Impact,rogue,javelin-and-spear,Lightning Fury
+LightningStrike,Cast,rogue,javelin-and-spear,Lightning Strike
+LightningStrike,Impact,rogue,javelin-and-spear,Lightning Strike
+MagicArrow,Cast,rogue,bow-and-crossbow,Magic Arrow
+MagicArrow,Impact,rogue,bow-and-crossbow,Magic Arrow
+MultipleShot,Cast,rogue,bow-and-crossbow,Multiple Shot
+MultipleShot,Impact,rogue,bow-and-crossbow,Multiple Shot
+Penetrate,Learn,rogue,passive-and-magic,Penetrate
+PhantomVolley,Cast,rogue,bow-and-crossbow,Phantom Volley
+PhantomVolley,Impact,rogue,bow-and-crossbow,Phantom Volley
+Pierce,Learn,rogue,passive-and-magic,Pierce
+PiercingShot,Cast,rogue,bow-and-crossbow,Piercing Shot
+PiercingShot,Impact,rogue,bow-and-crossbow,Piercing Shot
+PlagueJavelin,Cast,rogue,javelin-and-spear,Plague Javelin
+PlagueJavelin,Impact,rogue,javelin-and-spear,Plague Javelin
+PoisonJavelin,Cast,rogue,javelin-and-spear,Poison Javelin
+PoisonJavelin,Impact,rogue,javelin-and-spear,Poison Javelin
+PowerStrike,Cast,rogue,javelin-and-spear,Power Strike
+PowerStrike,Impact,rogue,javelin-and-spear,Power Strike
+RainOfArrows,Cast,rogue,bow-and-crossbow,Rain of Arrows
+RainOfArrows,Impact,rogue,bow-and-crossbow,Rain of Arrows
+ReapingPoint,Impact,rogue,javelin-and-spear,Reaping Point
+ShadowStep,Cast,rogue,passive-and-magic,Shadow Step
+ShockArrow,Cast,rogue,bow-and-crossbow,Shock Arrow
+ShockArrow,Impact,rogue,bow-and-crossbow,Shock Arrow
+SlowMissiles,Cast,rogue,passive-and-magic,Slow Missiles
+Strafe,Cast,rogue,bow-and-crossbow,Strafe
+Strafe,Impact,rogue,bow-and-crossbow,Strafe
+Sweep,Impact,rogue,javelin-and-spear,Sweep
+TurningPike,Impact,rogue,javelin-and-spear,Turning Pike
+Valkyrie,Arrive,rogue,passive-and-magic,Valkyrie
+Valkyrie,Cast,rogue,passive-and-magic,Valkyrie
+ValkyriesSpear,Cast,rogue,javelin-and-spear,Valkyrie's Spear
+ValkyriesSpear,Impact,rogue,javelin-and-spear,Valkyrie's Spear
+Vault,Cast,rogue,javelin-and-spear,Vault
+Vault,Impact,rogue,javelin-and-spear,Vault
+AbsoluteZero,Cast,sorcerer,cold-spells,Absolute Zero
+Arc,Cast,sorcerer,lightning-spells,Arc
+Arc,Impact,sorcerer,lightning-spells,Arc
+AshenBrand,Cast,sorcerer,fire-spells,Ashen Brand
+AshenBrand,Impact,sorcerer,fire-spells,Ashen Brand
+Blaze,Cast,sorcerer,fire-spells,Blaze
+Blaze,Impact,sorcerer,fire-spells,Blaze
+Blizzard,Cast,sorcerer,cold-spells,Blizzard
+Blizzard,Impact,sorcerer,cold-spells,Blizzard
+BrittleGround,Cast,sorcerer,cold-spells,Brittle Ground
+BrittleGround,Impact,sorcerer,cold-spells,Brittle Ground
+ChainLightningSkill,Cast,sorcerer,lightning-spells,Chain Lightning
+ChainLightningSkill,Impact,sorcerer,lightning-spells,Chain Lightning
+ChargedBoltSkill,Cast,sorcerer,lightning-spells,Charged Bolt
+ChargedBoltSkill,Impact,sorcerer,lightning-spells,Charged Bolt
+ChillTouch,Cast,sorcerer,cold-spells,Chill Touch
+ChillingArmor,Loop,sorcerer,cold-spells,Chilling Armor
+ChillingArmor,Start,sorcerer,cold-spells,Chilling Armor
+ChillingArmor,Stop,sorcerer,cold-spells,Chilling Armor
+CinderTouch,Impact,sorcerer,fire-spells,Cinder Touch
+ColdMastery,Learn,sorcerer,cold-spells,Cold Mastery
+Conduit,Cast,sorcerer,lightning-spells,Conduit
+EmberMine,Cast,sorcerer,fire-spells,Ember Mine
+EmberMine,Impact,sorcerer,fire-spells,Ember Mine
+Enchant,Loop,sorcerer,fire-spells,Enchant
+Enchant,Start,sorcerer,fire-spells,Enchant
+Enchant,Stop,sorcerer,fire-spells,Enchant
+EnergyShield,Loop,sorcerer,lightning-spells,Energy Shield
+EnergyShield,Start,sorcerer,lightning-spells,Energy Shield
+EnergyShield,Stop,sorcerer,lightning-spells,Energy Shield
+FaradayRing,Cast,sorcerer,lightning-spells,Faraday Ring
+FaradayRing,Impact,sorcerer,lightning-spells,Faraday Ring
+FireBallSkill,Cast,sorcerer,fire-spells,Fire Ball
+FireBallSkill,Impact,sorcerer,fire-spells,Fire Ball
+FireBoltSkill,Cast,sorcerer,fire-spells,Fire Bolt
+FireBoltSkill,Impact,sorcerer,fire-spells,Fire Bolt
+FireMastery,Learn,sorcerer,fire-spells,Fire Mastery
+FireWallSkill,Cast,sorcerer,fire-spells,Fire Wall
+FireWallSkill,Impact,sorcerer,fire-spells,Fire Wall
+FlameRing,Cast,sorcerer,fire-spells,Flame Ring
+FrostNova,Cast,sorcerer,cold-spells,Frost Nova
+FrostNova,Impact,sorcerer,cold-spells,Frost Nova
+Frostbite,Cast,sorcerer,cold-spells,Frostbite
+FrozenArmor,Loop,sorcerer,cold-spells,Frozen Armor
+FrozenArmor,Start,sorcerer,cold-spells,Frozen Armor
+FrozenArmor,Stop,sorcerer,cold-spells,Frozen Armor
+FrozenOrb,Cast,sorcerer,cold-spells,Frozen Orb
+FrozenOrb,Impact,sorcerer,cold-spells,Frozen Orb
+FrozenSentinel,Cast,sorcerer,cold-spells,Frozen Sentinel
+FuneralStar,Cast,sorcerer,fire-spells,Funeral Star
+FuneralStar,Impact,sorcerer,fire-spells,Funeral Star
+FurnaceMouth,Cast,sorcerer,fire-spells,Furnace Mouth
+FurnaceMouth,Impact,sorcerer,fire-spells,Furnace Mouth
+GlacialSpike,Cast,sorcerer,cold-spells,Glacial Spike
+GlacialSpike,Impact,sorcerer,cold-spells,Glacial Spike
+Hydra,Cast,sorcerer,fire-spells,Hydra
+Hydra,Impact,sorcerer,fire-spells,Hydra
+IceBlast,Cast,sorcerer,cold-spells,Ice Blast
+IceBlast,Impact,sorcerer,cold-spells,Ice Blast
+IceBolt,Cast,sorcerer,cold-spells,Ice Bolt
+IceBolt,Impact,sorcerer,cold-spells,Ice Bolt
+IceLance,Cast,sorcerer,cold-spells,Ice Lance
+IceLance,Impact,sorcerer,cold-spells,Ice Lance
+IceNeedle,Cast,sorcerer,cold-spells,Ice Needle
+IceNeedle,Impact,sorcerer,cold-spells,Ice Needle
+Immolate,Cast,sorcerer,fire-spells,Immolate
+Immolate,Impact,sorcerer,fire-spells,Immolate
+InfernoSkill,Cast,sorcerer,fire-spells,Inferno
+InfernoSkill,Impact,sorcerer,fire-spells,Inferno
+LightningSkill,Cast,sorcerer,lightning-spells,Lightning
+LightningSkill,Impact,sorcerer,lightning-spells,Lightning
+LightningMastery,Learn,sorcerer,lightning-spells,Lightning Mastery
+LightningRod,Cast,sorcerer,lightning-spells,Lightning Rod
+LightningRod,Impact,sorcerer,lightning-spells,Lightning Rod
+Meteor,Cast,sorcerer,fire-spells,Meteor
+Meteor,Impact,sorcerer,fire-spells,Meteor
+NovaSkill,Cast,sorcerer,lightning-spells,Nova
+NovaSkill,Impact,sorcerer,lightning-spells,Nova
+RideTheLightning,Cast,sorcerer,lightning-spells,Ride the Lightning
+ShiverArmor,Loop,sorcerer,cold-spells,Shiver Armor
+ShiverArmor,Start,sorcerer,cold-spells,Shiver Armor
+ShiverArmor,Stop,sorcerer,cold-spells,Shiver Armor
+StaticCharge,Cast,sorcerer,lightning-spells,Static Charge
+StaticCharge,Impact,sorcerer,lightning-spells,Static Charge
+StaticField,Cast,sorcerer,lightning-spells,Static Field
+StormCrucible,Cast,sorcerer,lightning-spells,Storm Crucible
+StormCrucible,Impact,sorcerer,lightning-spells,Storm Crucible
+TelekinesisSkill,Cast,sorcerer,lightning-spells,Telekinesis
+TeleportSkill,Cast,sorcerer,lightning-spells,Teleport
+TeleportSkill,Impact,sorcerer,lightning-spells,Teleport
+ThunderStorm,Loop,sorcerer,lightning-spells,Thunder Storm
+ThunderStorm,Start,sorcerer,lightning-spells,Thunder Storm
+ThunderStorm,Stop,sorcerer,lightning-spells,Thunder Storm
+Warmth,Loop,sorcerer,fire-spells,Warmth
+Warmth,Start,sorcerer,fire-spells,Warmth
+Warmth,Stop,sorcerer,fire-spells,Warmth
+Whiteout,Cast,sorcerer,cold-spells,Whiteout

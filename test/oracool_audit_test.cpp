@@ -13609,21 +13609,23 @@ TEST(OracoolAudit, EveryUiEventSoundPathSurvivedTheCompiler)
 		ASSERT_NE(path, nullptr) << "sound " << i;
 		const std::string p = path;
 
-		// The exact failure: a stripped backslash leaves "sfxui..." with no separator at all.
-		EXPECT_EQ(p.rfind("sfx\\ui\\", 0), 0u)
-		    << "sound " << i << " is \"" << p << "\" - it must start with the sfx ui prefix; a "
+		// The exact failure: a stripped backslash leaves "sfxmisc..." with no separator at all. Vanilla paths since
+		// 2026-09-27 (sfx\misc\ or sfx\items\, from diabdat.mpq).
+		EXPECT_TRUE(p.rfind("sfx\\misc\\", 0) == 0 || p.rfind("sfx\\items\\", 0) == 0)
+		    << "sound " << i << " is \"" << p << "\" - it must start with a vanilla sfx folder; a "
 		    << "single backslash in the source silently becomes no backslash at all";
 		EXPECT_NE(p.find(".wav"), std::string::npos) << "sound " << i << " is \"" << p << "\"";
-		EXPECT_EQ(p.find("sfxui"), std::string::npos)
+		EXPECT_EQ(p.find("sfxmisc"), std::string::npos)
 		    << "sound " << i << " is \"" << p << "\" - the backslashes were eaten by the compiler";
+		EXPECT_EQ(p.find("sfxitems"), std::string::npos) << "sound " << i << " is \"" << p << "\"";
 	}
 
 	// Out of range answers nullptr rather than reading past the table.
 	EXPECT_EQ(oracool::UiEventSoundPath(static_cast<oracool::UiEventSound>(oracool::UiEventSoundCount)), nullptr);
 
 	// And the paths name files that are really there. This is the half that proves the fix rather
-	// than just the spelling.
-	MountTestArchives();
+	// than just the spelling. The game's archives too: the sounds are vanilla, in diabdat.mpq.
+	MountTestArchives(/*gameArchivesToo=*/true);
 	for (size_t i = 0; i < oracool::UiEventSoundCount; i++) {
 		const char *path = oracool::UiEventSoundPath(static_cast<oracool::UiEventSound>(i));
 		EXPECT_TRUE(FindAsset(path).ok()) << "the archive has no " << path;
@@ -15425,4 +15427,41 @@ TEST(OracoolPreview, DISABLED_VendorHintCards)
 	gnScreenWidth = savedWidth;
 	gnScreenHeight = savedHeight;
 	HeadlessMode = savedHeadless;
+}
+
+/**
+ * Writes the vanilla sounds the game now plays (2026-09-27) out of the player's own archives, through the engine's asset
+ * reader - which decrypts them; diabdat keys every sound by its name - for the review page. Reads the list from the
+ * file named by ORCL_SOUND_MANIFEST (one archive path a line) and writes each under ORCL_SOUND_OUT, keeping its path.
+ * Nothing is written into the repository or packed: the page plays them for the player who owns the game.
+ */
+TEST(OracoolPreview, DISABLED_ExportVanillaSounds)
+{
+	const char *manifest = std::getenv("ORCL_SOUND_MANIFEST");
+	const char *outDir = std::getenv("ORCL_SOUND_OUT");
+	ASSERT_NE(manifest, nullptr) << "set ORCL_SOUND_MANIFEST";
+	ASSERT_NE(outDir, nullptr) << "set ORCL_SOUND_OUT";
+	MountTestArchives(true);
+	std::ifstream list(manifest);
+	std::string path;
+	int written = 0;
+	while (std::getline(list, path)) {
+		if (!path.empty() && path.back() == '\r')
+			path.pop_back();
+		if (path.empty())
+			continue;
+		size_t size = 0;
+		AssetHandle handle = OpenAsset(path.c_str(), size);
+		ASSERT_TRUE(handle.ok()) << "not in the archives: " << path;
+		std::vector<char> bytes(size);
+		ASSERT_TRUE(handle.read(bytes.data(), size)) << path;
+		std::string rel = path;
+		std::replace(rel.begin(), rel.end(), '\\', '/');
+		const std::filesystem::path target = std::filesystem::path(outDir) / rel;
+		std::filesystem::create_directories(target.parent_path());
+		std::ofstream(target, std::ios::binary).write(bytes.data(), static_cast<std::streamsize>(size));
+		written++;
+	}
+	std::cout << "exported " << written << " sounds\n";
+	EXPECT_GT(written, 0);
 }

@@ -21,7 +21,9 @@ using Skill = ClassTreeSkill;
 constexpr size_t SkillSoundCount = sizeof(SkillSounds) / sizeof(SkillSounds[0]);
 
 /** @brief The set-completion stinger. Not in the generated table - it belongs to no skill. */
-constexpr char SetCompletePath[] = "sfx\\ui\\set-complete.wav";
+// Vanilla since 2026-09-27 (user: "remove all chatgpt sounds from the game ... replace with vanilla sounds"): the quest
+// done chime, from the player's diabdat.mpq.
+constexpr char SetCompletePath[] = "sfx\\misc\\questdon.wav";
 
 // The contract's mix defaults, in the engine's units: VOLUME_MIN is -1600 for -16 dB, so one
 // hundredth of a decibel each. These are starting points to be tuned in play against weapons,
@@ -207,20 +209,23 @@ namespace {
  * The test pins the shape of these strings for exactly that reason: a stripped backslash cannot be
  * seen by reading the line, only by asking what the compiler made of it.
  */
+// VANILLA sounds since 2026-09-27, from the player's diabdat.mpq (user: "remove all chatgpt sounds from the game. they are
+// no good. replace with vanilla sounds per your decision"). The delivered sfx\ui\*.wav (RfA-03/04/18/19/20) are gone;
+// each event keeps a sound, chosen for what it means.
 constexpr const char *UiEventPaths[] = {
-	"sfx\\ui\\salvage.wav",
-	"sfx\\ui\\transmute.wav",
-	"sfx\\ui\\imbue.wav", // RfA-18 batch 41 (2026-09-19); orb-absorb.wav until then
-	"sfx\\ui\\socket.wav",
-	"sfx\\ui\\runeword-complete.wav",
-	"sfx\\ui\\milestone.wav",
-	"sfx\\ui\\encounter-cleared.wav",
-	"sfx\\ui\\map-unseal.wav",
-	"sfx\\ui\\signet-use.wav",
-	"sfx\\ui\\rift_open.wav",  // RfA-19 batch 42 (2026-09-20)
-	"sfx\\ui\\rift_close.wav", // RfA-19 batch 42 (2026-09-20)
-	"sfx\\ui\\cube_open.wav",      // RfA-20 batch 43d (2026-09-20)
-	"sfx\\ui\\cube_transmute.wav", // RfA-20 batch 43d (2026-09-20)
+	"sfx\\items\\invanvl.wav",  // Salvage: the anvil
+	"sfx\\misc\\caldron.wav",   // Transmute: the cauldron shrine
+	"sfx\\items\\magic.wav",    // Shard imbue: an item turning magic
+	"sfx\\items\\invrock.wav",  // Socket: a stone set down
+	"sfx\\items\\magic1.wav",   // Runeword complete
+	"sfx\\misc\\gshrine.wav",   // Milestone: a shrine's chime
+	"sfx\\misc\\questdon.wav",  // Encounter cleared: the quest done chime
+	"sfx\\items\\invscrol.wav", // Map unseal: a scroll
+	"sfx\\items\\invring.wav",  // Signet use: a ring
+	"sfx\\misc\\sentinel.wav",  // Rift open: the Town Portal's own cast
+	"sfx\\misc\\invisibl.wav",  // Rift close
+	"sfx\\items\\cropen.wav",   // Cube open: a lid lifting
+	"sfx\\misc\\caldron.wav",   // Cube transmute
 };
 std::unique_ptr<TSnd> UiEventCache[std::size(UiEventPaths)];
 

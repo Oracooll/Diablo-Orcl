@@ -3,6 +3,11 @@
  *
  * The six-class skill sound library, and the set-completion stinger.
  *
+ * VANILLA SINCE 2026-09-27 (user: "remove all chatgpt sounds from the game. they are no good. replace with vanilla sounds per
+ * your decision"). Every cue below is a file in the player's diabdat.mpq, chosen per class page and event by
+ * tools/GenVanillaSkillSounds.js; the delivered package this header describes is out of the game, its cue slots kept
+ * (tools/skill_sound_slots.csv). Aura loops are silent. The history below is the package's.
+ *
  * 306 WAVs covering every node of all six class trees (304 delivered; RfA-02 added two), delivered as data with an authoritative
  * manifest (Resources/02. Oracooll Assets/skill-sounds/class-skill-sounds.zip). The manifest is read at
  * BUILD time by tools/GenSkillSounds.ps1, which joins it to the class tree on (class, skill name)
