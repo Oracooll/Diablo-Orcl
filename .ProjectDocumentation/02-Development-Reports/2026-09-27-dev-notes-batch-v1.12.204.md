@@ -80,3 +80,25 @@ v1.12.204 builds clean; 873 of 873 pass. oracool.mpq repacked (943 files). `Orac
 - **Preview:** `OracoolPreview.DISABLED_RedemptionRise` renders the column the way the game does. It loads the sheet through `MissileFileData::LoadGFX`, so the palette quantisation matches play, and draws it with a real Zombie corpse frame through `ClxDraw` on the caves palette. It writes `redemption_frames.png` and `redemption_scene.png`.
 
 v1.12.205 builds clean; 873 of 873 pass.
+
+## v1.12.206: Redemption's column redrawn, and the aura rings colour-cycle
+
+**Redemption's column.** Rendered first, then approved:
+- **The first cut:** a helix of saturated red and blue. It read as a solid barber pole.
+- **The user asked:** "make it sparser and brighter at the core. try following a chesboards pattern maybe 2x2px red, 2x2px blue. use softer coloring", then "reduce the height of the effect to half".
+- **`tools/BuildRedemptionRise.ps1` now:**
+  - measures each row's span of the column;
+  - keeps every pixel on the core and every other pixel off it, in a 1px checkerboard;
+  - colours by a 2x2 chessboard of soft rose (226,112,118) and soft periwinkle (112,132,232), lifted toward white at the centre line;
+  - resamples to 60% wide and 30% tall, giving 58x48 frames.
+- **No code change:** the loader takes the frame height from the sheet.
+
+**Aura ring colour cycle.** The user asked "can we add colorcylcing to all aura rings to animate them a bit?"
+- **How it works:** `BlitAura`'s 32-bit path multiplies each pixel's colour and coverage by a wave that travels round the ring.
+  - The angle comes from a byte per art pixel, filled at load and measured on the ellipse's own circle.
+  - The wave has 2 crests, each doing a full lap per 2400 ms, at ±35%.
+- **Scope:** it covers all 59 rings. The slow 4 s pulse is unchanged. The 8-bit dither path does not cycle.
+- **A bug the user caught:** the first formula, `cos(2pi(crests*a - phase))`, moved the crests only 1/crests of a lap per cycle. The pattern then repeated only every 2400 ms, while the 8-frame preview covered 1050 ms, so the loop visibly jumped. It is now `cos(2pi*crests*(a - phase))`: a full lap per cycle, with the pattern repeating every 1200 ms.
+- **Preview:** `OracoolPreview.DISABLED_AuraRingCycle` renders Might, Holy Freeze and Redemption at 16 moments 75 ms apart, through `DrawAuraRingPreview` and `AuraRingClockOverrideMs` (tests only).
+
+v1.12.206 builds clean; 873 of 873 pass; oracool.mpq repacked.

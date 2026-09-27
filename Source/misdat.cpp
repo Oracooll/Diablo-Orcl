@@ -517,9 +517,9 @@ MissileFileData MissileSpriteData[] = {
 /*ShoulderGate*/             { {},              96,          16, "shoulder_gate",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
 /*GatherTheDead*/            { {},              64,           0, "gather_the_dead",        1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
 /*RideTheLightning*/         { {},             128,          32, "ride_the_lightning",    16, MissileGraphicsFlags::PngOnly,                 1, AnimLen_4       },
-// 2026-09-27: vanilla's Resurrect beam (ressur1) at 60%, re-stippled and twisted red and blue by
-// tools/BuildRedemptionRise.ps1 - Redemption plays it over each corpse it consumes. 58x96 frames; animWidth2 -3 keeps the
-// column on its tile's centre (58 / 2 + 3 = 32); vanilla's own timing, one tick a frame.
+// 2026-09-27: vanilla's Resurrect beam (ressur1), 60% wide and 30% tall, a sparse mesh in a 2x2 rose-and-periwinkle
+// chessboard with a bright core, by tools/BuildRedemptionRise.ps1 - Redemption plays it over each corpse it consumes.
+// 58x48 frames; animWidth2 -3 keeps the column on its tile's centre (58 / 2 + 3 = 32); vanilla's timing, one tick a frame.
 /*RedemptionRise*/           { {},              58,          -3, "redemption_rise",   1, MissileGraphicsFlags::PngOnly,                 0, AnimLen_16      },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on

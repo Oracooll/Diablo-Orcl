@@ -5,28 +5,32 @@
 # Reads vanilla's Resurrect beam, the exported strip Resources/01. Blizzard Assets/Animated Items 2/ressur1.png
 # (16 frames of 96x160 side by side), and writes
 #   Packaging/resources/oracool_assets/missiles/redemption_rise.png
-# at $ScalePercent (60: 58x96 frames, so misdat's row reads animWidth 58 and animWidth2 -3, which keeps the column on
-# its tile's centre, 58 / 2 + 3 = 32).
+# at $ScalePercent wide and $HeightPercent tall (60 and 30: 58x48 frames). misdat's row reads animWidth 58 and
+# animWidth2 -3, which keeps the column on its tile's centre (58 / 2 + 3 = 32).
 #
-# The beam is a stipple - a checkerboard of grey pixels that reads as translucent light - and a resample smears a
-# checkerboard into a half-alpha grey, which the missile loader's binary alpha (>= 128 opaque) would turn into blotches.
-# So each frame is resampled first and then DITHERED BACK: a pixel's resampled coverage is tested against an ordered
-# 2x2 threshold, and the column comes out stippled at the new size the way it was at the old.
-#
-# The colour: every kept pixel keeps its lightness and takes red or blue by a diagonal band four pixels wide, so the
-# column reads as two strands twisted together - life and mana - through the palette's red and blue ramps (the sheet is
-# quantised to the palette on load; both ramps exist, there is no green one).
+# The look (user, 2026-09-27, after the first cut read as a solid barber pole: "make it sparser and brighter at the
+# core. try following a chesboards pattern maybe 2x2px red, 2x2px blue. use softer coloring"):
+#   - each frame is resampled, then each row's span of the column is measured, so every pixel knows how far it is from
+#     the centre line;
+#   - off the core only every other pixel stays (a 1px checkerboard), so the edges read as a see-through mesh; the core
+#     stays whole;
+#   - the colour is a chessboard of 2x2 squares, soft rose and soft periwinkle - life and mana - lifted toward white at
+#     the centre line. The sheet is quantised to the palette on load; the renders in OracoolPreview.DISABLED_RedemptionRise
+#     show what survives.
 #
 # Usage: powershell -NoProfile -File tools\BuildRedemptionRise.ps1   (from the repo root)
 param(
     [string]$Source = "..\Resources\01. Blizzard Assets\Animated Items 2\ressur1.png",
     [string]$Out = "Packaging\resources\oracool_assets\missiles\redemption_rise.png",
-    [int]$ScalePercent = 60
+    [int]$ScalePercent = 60,
+    # Half the column's height since 2026-09-27 (user: "lets reduce the height of the effect to half of what it is now"):
+    # 58x48 frames. The width, and so misdat's animWidth 58 / animWidth2 -3, is unchanged.
+    [int]$HeightPercent = 30
 )
 Add-Type -AssemblyName System.Drawing
 
 $frames = 16; $srcW = 96; $srcH = 160
-$fw = [int][Math]::Round($srcW * $ScalePercent / 100); $fh = [int][Math]::Round($srcH * $ScalePercent / 100)
+$fw = [int][Math]::Round($srcW * $ScalePercent / 100); $fh = [int][Math]::Round($srcH * $HeightPercent / 100)
 
 $src = [System.Drawing.Bitmap]::FromFile((Resolve-Path $Source))
 if ($src.Width -ne $frames * $srcW -or $src.Height -ne $srcH) { throw "unexpected strip size $($src.Width)x$($src.Height)" }
@@ -45,22 +49,48 @@ $data = $small.LockBits($rect, [System.Drawing.Imaging.ImageLockMode]::ReadWrite
 $n = $data.Stride * $small.Height
 $bytes = New-Object byte[] $n
 [System.Runtime.InteropServices.Marshal]::Copy($data.Scan0, $bytes, 0, $n)
-# 2x2 ordered thresholds on the 0-255 coverage: a checkerboard's ~50% keeps half its pixels, a solid core keeps all.
-$thresholds = @(64, 160, 208, 112)
+# The column's own span, row by row in each frame: its centre and half-width, so every pixel knows how far it is from
+# the core (0 at the centre line, 1 at the edge).
+$spanL = New-Object 'int[,]' $frames, $small.Height
+$spanR = New-Object 'int[,]' $frames, $small.Height
+for ($f = 0; $f -lt $frames; $f++) {
+    for ($y = 0; $y -lt $small.Height; $y++) {
+        $spanL[$f, $y] = -1; $spanR[$f, $y] = -1
+        for ($fx = 0; $fx -lt $fw; $fx++) {
+            if ([int]$bytes[$y * $data.Stride + ($f * $fw + $fx) * 4 + 3] -ge 64) {
+                if ($spanL[$f, $y] -lt 0) { $spanL[$f, $y] = $fx }
+                $spanR[$f, $y] = $fx
+            }
+        }
+    }
+}
+# Soft rose and soft periwinkle - the life and the mana - in 2x2 squares laid as a chessboard (user, 2026-09-27: "make
+# it sparser and brighter at the core. try following a chesboards pattern maybe 2x2px red, 2x2px blue. use softer
+# coloring"). Toward the core both lift to near white.
+$rose = @(226, 112, 118); $periwinkle = @(112, 132, 232); $white = @(255, 244, 240)
 $kept = 0
 for ($y = 0; $y -lt $small.Height; $y++) {
     for ($x = 0; $x -lt $small.Width; $x++) {
         $i = $y * $data.Stride + $x * 4
         $a = [int]$bytes[$i + 3]
-        $t = $thresholds[($y % 2) * 2 + ($x % 2)]
-        if ($a -lt $t) { $bytes[$i] = 0; $bytes[$i + 1] = 0; $bytes[$i + 2] = 0; $bytes[$i + 3] = 0; continue }
-        # Lightness from the un-premultiplied grey, lifted a little so the thinned stipple does not read dimmer.
-        $l = [Math]::Min(1.0, ([Math]::Max([int]$bytes[$i + 2], [Math]::Max([int]$bytes[$i + 1], [int]$bytes[$i])) / 255.0) * 1.15)
-        $l = [Math]::Max($l, 0.35)
-        $fx = $x % $fw
-        $red = ([Math]::Floor(($fx + [Math]::Floor($y / 2)) / 4) % 2) -eq 0
-        if ($red) { $r = 255 * $l; $gg = 48 * $l; $b = 40 * $l } else { $r = 56 * $l; $gg = 88 * $l; $b = 255 * $l }
-        $bytes[$i + 2] = [byte][Math]::Round($r); $bytes[$i + 1] = [byte][Math]::Round($gg); $bytes[$i] = [byte][Math]::Round($b)
+        $f = [Math]::Floor($x / $fw); $fx = $x % $fw
+        $left = $spanL[$f, $y]; $right = $spanR[$f, $y]
+        $keep = $false; $core = 0.0
+        if ($a -ge 96 -and $left -ge 0) {
+            $half = [Math]::Max(($right - $left) / 2.0, 0.5)
+            $core = 1.0 - [Math]::Min(1.0, [Math]::Abs($fx - ($left + $right) / 2.0) / $half)
+            # Sparse: off the core only every other pixel stays, on a 1px checkerboard; the centre line stays whole.
+            $keep = ($core -ge 0.6) -or ((($x + $y) % 2) -eq 0)
+        }
+        if (-not $keep) { $bytes[$i] = 0; $bytes[$i + 1] = 0; $bytes[$i + 2] = 0; $bytes[$i + 3] = 0; continue }
+        $l = [Math]::Max([int]$bytes[$i + 2], [Math]::Max([int]$bytes[$i + 1], [int]$bytes[$i])) / 255.0
+        $bright = [Math]::Min(1.0, 0.55 + 0.45 * $l + 0.25 * $core)
+        $tint = if (((([Math]::Floor($fx / 2)) + ([Math]::Floor($y / 2))) % 2) -eq 0) { $rose } else { $periwinkle }
+        $w = [Math]::Pow($core, 2) * 0.75 # how far toward white: most at the centre line
+        for ($c = 0; $c -lt 3; $c++) {
+            $v = ($tint[$c] * (1 - $w) + $white[$c] * $w) * $bright
+            $bytes[$i + 2 - $c] = [byte][Math]::Min(255, [Math]::Round($v))
+        }
         $bytes[$i + 3] = 255
         $kept++
     }

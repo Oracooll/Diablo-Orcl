@@ -42,6 +42,7 @@
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
 #include "oracool/class_tree.h"
+#include "utils/attributes.h"
 
 namespace devilution::oracool {
 
@@ -61,5 +62,11 @@ const char *AuraRingFileId(ClassTreeSkill aura);
  */
 void DrawAuraGround(const Surface &out, Point tilePosition, Point targetBufferPosition,
     int rows, int columns);
+
+/** @brief Tests only: the moment the rings' colour cycle is drawn at, in ms; -1 (the default) is the live clock. */
+extern DVL_API_FOR_TEST int AuraRingClockOverrideMs;
+
+/** @brief Tests only: @p aura's ring @p diameterHalfTiles half-tiles across, centred on @p centre, at full pulse. */
+bool DrawAuraRingPreview(const Surface &out, ClassTreeSkill aura, Point centre, int diameterHalfTiles);
 
 } // namespace devilution::oracool

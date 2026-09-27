@@ -14986,3 +14986,50 @@ TEST(OracoolPreview, DISABLED_RedemptionRise)
 	PreviewSave(scene, "redemption_scene.png");
 	HeadlessMode = savedHeadless;
 }
+
+/**
+ * The aura rings' colour cycle (2026-09-27) through the real BlitAura on the 32-bit path: Might, Holy Freeze and
+ * Redemption, sixteen moments 75ms apart - one full pass of the pattern, which repeats every AuraCycleMs / crests. Each
+ * row draws the ring large (8 half-tiles, 256x128) and, under it, at its in-game size (3 half-tiles, 96x48). Writes
+ * aura_cycle.png.
+ */
+TEST(OracoolPreview, DISABLED_AuraRingCycle)
+{
+	MountTestArchives(true);
+	InitPNG();
+	std::array<uint8_t, 768> pal {};
+	LoadFileInMem("levels\\l3data\\l3.pal", pal);
+	for (int i = 0; i < 256; i++) {
+		logical_palette[i] = SDL_Color { pal[i * 3], pal[i * 3 + 1], pal[i * 3 + 2], 255 };
+		PaletteRGB[i] = (static_cast<uint32_t>(pal[i * 3]) << 16) | (static_cast<uint32_t>(pal[i * 3 + 1]) << 8) | pal[i * 3 + 2];
+	}
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	constexpr int Cell = 272;
+	constexpr int RowHeight = 220;
+	const std::array<oracool::ClassTreeSkill, 3> auras { oracool::ClassTreeSkill::Might, oracool::ClassTreeSkill::HolyFreeze,
+		oracool::ClassTreeSkill::Redemption };
+	constexpr int Moments = 16;
+	OwnedSurface out = OwnedSurface::Rgb(Moments * Cell, static_cast<int>(auras.size()) * RowHeight);
+	SDL_Surface *s = out.surface;
+	for (int y = 0; y < out.h(); y++) {
+		for (int x = 0; x < out.w(); x++) {
+			const int u = static_cast<int>(std::floor((x / 64.0) + (y / 32.0)));
+			const int v = static_cast<int>(std::floor((x / 64.0) - (y / 32.0)));
+			const int shade = ((u + v) & 1) != 0 ? 30 : 36;
+			const Uint32 c = SDL_MapRGB(s->format, static_cast<Uint8>(shade), static_cast<Uint8>(shade - 6), static_cast<Uint8>(shade - 10));
+			std::memcpy(static_cast<uint8_t *>(s->pixels) + y * s->pitch + x * s->format->BytesPerPixel, &c, s->format->BytesPerPixel);
+		}
+	}
+	for (size_t row = 0; row < auras.size(); row++) {
+		for (int moment = 0; moment < Moments; moment++) {
+			oracool::AuraRingClockOverrideMs = moment * 75;
+			const Point cell { moment * Cell + Cell / 2, static_cast<int>(row) * RowHeight };
+			ASSERT_TRUE(oracool::DrawAuraRingPreview(out, auras[row], cell + Displacement { 0, 72 }, 8)) << static_cast<int>(auras[row]);
+			oracool::DrawAuraRingPreview(out, auras[row], cell + Displacement { 0, 178 }, 3);
+		}
+	}
+	oracool::AuraRingClockOverrideMs = -1;
+	HeadlessMode = savedHeadless;
+	PreviewSave(out, "aura_cycle.png");
+}

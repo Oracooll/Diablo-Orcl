@@ -52,6 +52,8 @@ struct AuraArt {
 	std::vector<uint8_t> alpha;
 	/** Renderer stage 2 (v1.11): the ring's own colours, XRGB, for the 32-bit screen; `alpha` is shared. */
 	std::vector<uint32_t> rgb;
+	/** The colour cycle (2026-09-27): each pixel's angle round the ring's centre, 0-255 for a full turn. */
+	std::vector<uint8_t> angle;
 	bool loadAttempted = false;
 	bool usable = false;
 };
@@ -213,6 +215,7 @@ void LoadAura(int slot)
 	art.index.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
 	art.alpha.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
 	art.rgb.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
+	art.angle.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
 	std::vector<uint8_t> cache(1 << 15, 0);
 	const auto *pixels = static_cast<const uint8_t *>(rgba->pixels);
 	for (int y = 0; y < ArtHeight; y++) {
@@ -225,6 +228,9 @@ void LoadAura(int slot)
 			art.index[at] = NearestSharedPaletteIndex(row[x * 4 + 0], row[x * 4 + 1], row[x * 4 + 2], cache);
 			art.alpha[at] = a;
 			art.rgb[at] = PackArgb(0, row[x * 4 + 0], row[x * 4 + 1], row[x * 4 + 2]);
+			// Measured on the ellipse's own circle: the art is twice as wide as it is tall, so y counts double.
+			const double turn = (std::atan2(2.0 * (y - ArtHeight / 2 + 0.5), x - ArtWidth / 2 + 0.5) + 3.14159265358979) / (2.0 * 3.14159265358979);
+			art.angle[at] = static_cast<uint8_t>(std::min(255, static_cast<int>(turn * 256.0)));
 		}
 	}
 	SDL_FreeSurface(rgba);
@@ -239,6 +245,7 @@ void DropQuantisationIfPaletteMoved()
 		art.index.clear();
 		art.alpha.clear();
 		art.rgb.clear();
+		art.angle.clear();
 		art.loadAttempted = false;
 		art.usable = false;
 	}
@@ -269,6 +276,30 @@ int PulsePercent()
 	const uint32_t phase = SDL_GetTicks() % 4000U;
 	const double t = static_cast<double>(phase) / 4000.0 * 2.0 * 3.14159265358979;
 	return 100 + static_cast<int>(12.0 * std::sin(t));
+}
+
+/**
+ * @brief The colour cycle (user, 2026-09-27: "can we add colorcylcing to all aura rings to animate them a bit?"): bands of
+ * light run round the ring - AuraCycleCrests of them, one lap every AuraCycleMs - brightening the art's own colours as
+ * they pass and dimming them between. The sheet's bars cycle the same way along their length.
+ */
+constexpr int AuraCycleMs = 2400;
+constexpr int AuraCycleCrests = 2;
+constexpr double AuraCycleSwing = 0.35;
+
+/** @brief The cycle's factor for each of the 256 angles at this moment, in 256ths (256 = the art's own colour). */
+std::array<int, 256> AuraCycleFactors()
+{
+	const int ms = AuraRingClockOverrideMs >= 0 ? AuraRingClockOverrideMs : static_cast<int>(SDL_GetTicks());
+	const double phase = static_cast<double>(ms % AuraCycleMs) / AuraCycleMs;
+	std::array<int, 256> factors {};
+	for (int a = 0; a < 256; a++) {
+		// crests * (angle - phase): every crest travels a whole lap per AuraCycleMs, so the pattern repeats every
+		// AuraCycleMs / crests. (crests * angle - phase, the first version, moved them only 1/crests of a lap per cycle.)
+		const double wave = std::cos(2.0 * 3.14159265358979 * AuraCycleCrests * (a / 256.0 - phase));
+		factors[a] = static_cast<int>(256.0 * (1.0 + AuraCycleSwing * wave));
+	}
+	return factors;
 }
 
 /**
@@ -342,6 +373,7 @@ void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameter
 	// its own colours - no palette match, no dither. The 75% ceiling is the one the two-blend path
 	// below has always had, so the ring sits on the floor at the same weight it did.
 	if (!out.isIndexed() && !art.rgb.empty()) {
+		const std::array<int, 256> cycle = AuraCycleFactors();
 		for (int dy = dyFrom; dy < dyTo; dy++) {
 			const int y = top + dy;
 			const int sy = dy * ArtHeight / dstH;
@@ -350,10 +382,15 @@ void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameter
 				const int x = left + dx;
 				const int sx = dx * ArtWidth / dstW;
 				const size_t at = static_cast<size_t>(sy) * ArtWidth + sx;
-				const int coverage = std::min(255, art.alpha[at] * pulsePercent / 100);
+				const int factor = art.angle.empty() ? 256 : cycle[art.angle[at]];
+				// The crest is brighter AND denser, so it reads on a dark floor as well as a lit one.
+				const int coverage = std::min(255, art.alpha[at] * pulsePercent / 100 * factor / 256);
 				if (coverage == 0)
 					continue;
-				dstRow[x] = CompositeArgbOver(art.rgb[at] | (static_cast<uint32_t>(coverage) << 24), dstRow[x], 75);
+				const uint32_t own = art.rgb[at];
+				const auto channel = [&](int shift) { return static_cast<uint32_t>(std::min(255, static_cast<int>((own >> shift) & 0xFF) * factor / 256)) << shift; };
+				const uint32_t lit = channel(16) | channel(8) | channel(0);
+				dstRow[x] = CompositeArgbOver(lit | (static_cast<uint32_t>(coverage) << 24), dstRow[x], 75);
 			}
 		}
 		return;
@@ -393,6 +430,22 @@ void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameter
 }
 
 } // namespace
+
+int AuraRingClockOverrideMs = -1;
+
+bool DrawAuraRingPreview(const Surface &out, ClassTreeSkill aura, Point centre, int diameterHalfTiles)
+{
+	const int slot = IndexOfSkill(aura);
+	if (slot < 0)
+		return false;
+	DropQuantisationIfPaletteMoved();
+	if (!Art[slot].loadAttempted)
+		LoadAura(slot);
+	if (!Art[slot].usable)
+		return false;
+	BlitAura(out, Art[slot], centre, diameterHalfTiles, 100);
+	return true;
+}
 
 const char *AuraRingFileId(ClassTreeSkill aura)
 {
