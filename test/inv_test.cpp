@@ -12,6 +12,7 @@
 #include "inv.h"
 #include "oracool/auto_save.h"
 #include "oracool/inventory_layout.h"
+#include "oracool/rift.h"
 #include "objects.h"
 #include "options.h"
 #include "panels/ui_panels.hpp"
@@ -493,6 +494,71 @@ TEST_F(InvTest, MendicantShrine_ChargesOnlyForExperienceGained)
 	EXPECT_GT(gained, 0u);
 	EXPECT_LE(gained, 500u) << "never more than half the gold";
 	EXPECT_EQ(static_cast<uint64_t>(1000 - Stash.gold), gained) << "the stash paid exactly what became experience";
+	Stash = {};
+}
+
+// A Guardian Keystone is spent at the first step through the portal, not when it turns (user, 2026-09-27: "fix all
+// four"): turning it and quitting before going in lost it. The rift finds it by seed on any page or in the stash.
+TEST_F(InvTest, GuardianKeystone_IsSpentAtTheFirstStepNotWhenItTurns)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	clear_inventory();
+	Stash = {};
+	oracool::ResetRiftForNewGame();
+	MyPlayer->setLevel(0);
+	setlevel = false;
+
+	Item keystone = MakeBackpackItem(ICURS_RING);
+	keystone._iMiscId = IMISC_ORACOOL_KEYSTONE;
+	keystone._iOracoolRiftTier = 4;
+	keystone._iSeed = 0x5EED0004;
+	MyPlayer->InvTabList[1][0] = keystone;
+	MyPlayer->InvTabGrid[1][0] = 1;
+	MyPlayer->_pNumInvTab[1] = 1;
+
+	ASSERT_TRUE(oracool::UseGuardianKeystone(*MyPlayer, MyPlayer->InvTabList[1][0]));
+	EXPECT_EQ(MyPlayer->_pNumInvTab[1], 1) << "turning it keeps it";
+
+	EXPECT_TRUE(oracool::SpendPendingKeystone(*MyPlayer));
+	EXPECT_EQ(MyPlayer->_pNumInvTab[1], 0) << "the first step through spends it, from the page it is on";
+	EXPECT_TRUE(oracool::SpendPendingKeystone(*MyPlayer)) << "nothing left pending";
+
+	// Turned, then sold or dropped: no step through until it is back.
+	MyPlayer->InvList[0] = keystone;
+	MyPlayer->InvGrid[0] = 1;
+	MyPlayer->_pNumInv = 1;
+	ASSERT_TRUE(oracool::UseGuardianKeystone(*MyPlayer, MyPlayer->InvList[0]));
+	MyPlayer->InvList[0].clear();
+	MyPlayer->InvGrid[0] = 0;
+	MyPlayer->_pNumInv = 0;
+	EXPECT_FALSE(oracool::SpendPendingKeystone(*MyPlayer));
+
+	// Back, in the stash this time.
+	Stash.stashList.push_back(keystone);
+	EXPECT_TRUE(oracool::SpendPendingKeystone(*MyPlayer));
+	EXPECT_TRUE(Stash.stashList.empty() || Stash.stashList[0].isEmpty());
+	oracool::ResetRiftForNewGame();
+	Stash = {};
+}
+
+// RemoveStashItem cleared the removed item's cells on the page on SCREEN only; Ogden's boards and the rift's keystone take
+// from any page, and the other page kept cells naming an index past the list or, after the swap, another item (audit,
+// 2026-09-27).
+TEST_F(InvTest, RemoveStashItem_ClearsTheItemOnEveryPage)
+{
+	Stash = {};
+	Stash.stashList.push_back(MakeBackpackItem(ICURS_RING));   // index 0, on page 2
+	Stash.stashList.push_back(MakeBackpackItem(ICURS_DAGGER)); // index 1, on page 0
+	Stash.stashGrids[2][0][0] = 1;
+	Stash.stashGrids[0][0][0] = 2;
+	Stash.SetPage(0);
+
+	Stash.RemoveStashItem(0);
+
+	ASSERT_EQ(Stash.stashList.size(), 1u);
+	EXPECT_EQ(Stash.stashGrids[2][0][0], 0) << "the removed item's cell on the page not on screen";
+	EXPECT_EQ(Stash.stashGrids[0][0][0], 1) << "the swapped item now answers to index 0";
 	Stash = {};
 }
 

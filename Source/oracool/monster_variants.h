@@ -136,6 +136,12 @@ const char *VariantNamePrefix(MonsterVariant variant);
  * have identities of their own and would only be muddied by a second one.
  */
 void ApplyMonsterVariant(Monster &monster);
+/**
+ * @brief A loaded ordinary monster's palette, rebuilt from its variant (audit, 2026-09-27). The tint is not saved, and a
+ * revisit builds - and throws away - a whole monster set before LoadLevel: the slot kept that discarded monster's
+ * TRN, so an "Ashen" monster came back in another kind's colour, or a unique's. Called by SyncMonsterAnim.
+ */
+void RestoreVariantTint(Monster &monster);
 
 // The hooks the 2026-09-19 kinds ask at seams that already exist. Each is one question, answered
 // from the derived variant, so nothing is stored and a monster that is not that kind costs one

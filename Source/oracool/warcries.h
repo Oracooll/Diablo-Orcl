@@ -91,6 +91,11 @@ bool AnyWarcryBuffActive(const Player &player);
 
 /** @brief Empties the monsters' side - debuffs, conversions, wards. Called where the chill table is cleared, once per level. */
 void ClearWarcries();
+/**
+ * @brief Conversion's monsters go back to their side before the level is stored (audit, 2026-09-27): the flags are
+ * saved with the monster and the clock is not, so a twenty-second conversion became a permanent ally.
+ */
+void RevertConversionsForLevelSave();
 
 /**
  * @brief Forgets everything the cries knew about @p monster's SLOT.

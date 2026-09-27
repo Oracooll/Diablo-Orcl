@@ -1494,7 +1494,7 @@ OracoolOptions::OracoolOptions()
     // Not CantChangeInGame, unlike its two siblings: they decide what a level is BUILT with and so
     // cannot move once it exists, while the variant is derived per monster from a seed the level
     // already carries. Changing this mid-game simply changes what the next monster rolls.
-    , monsterVariantChancePercent("Monster Variant Chance", OptionEntryFlags::None, N_("Monster Variant Chance"), N_("Multiplies how often a monster is a recoloured variant. 100 is the base 15-28% by difficulty; 0 turns them off."), 100, { 0, 100, 150, 200, 250, 300 })
+    , monsterVariantChancePercent("Monster Variant Chance", OptionEntryFlags::CantChangeInGame, N_("Monster Variant Chance"), N_("Multiplies how often a monster is a recoloured variant. 100 is the base 15-28% by difficulty; 0 turns them off."), 100, { 0, 100, 150, 200, 250, 300 })
     , unlockAllTownEntrances("Unlock All Town Entrances", OptionEntryFlags::CantChangeInGame, N_("Unlock All Town Entrances"), N_("Unlocks later dungeon entrances in town without level requirements."), true)
     , permanentInfravision("Permanent Infravision", OptionEntryFlags::None, N_("Permanent Infravision"), N_("Continuously reveals nearby monsters through walls."), false)
     , autoIdentifyDrops("Auto Identify Drops", OptionEntryFlags::None, N_("Auto Identify Drops"), N_("Automatically identifies newly generated item drops."), true)

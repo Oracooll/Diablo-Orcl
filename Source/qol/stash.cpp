@@ -1326,6 +1326,9 @@ bool UseStashItem(uint16_t c)
 			MyPlayer->Say(HeroSpeech::ICantUseThisYet);
 			return true;
 		}
+		// A keystone stays until the first step through the portal (oracool::SpendPendingKeystone); a map is used now.
+		if (item->_iMiscId == IMISC_ORACOOL_KEYSTONE)
+			return true;
 		Stash.RemoveStashItem(c);
 		oracool::ScheduleAutoSaveForStashChange();
 		return true;
@@ -1364,11 +1367,15 @@ bool UseStashItem(uint16_t c)
 
 void StashStruct::RemoveStashItem(StashStruct::StashCell iv)
 {
-	// Iterate through stashGrid and remove every reference to item
-	for (auto &row : Stash.GetCurrentGrid()) {
-		for (StashStruct::StashCell &itemId : row) {
-			if (itemId - 1 == iv) {
-				itemId = 0;
+	// Every page's references, not only the page on screen (audit, 2026-09-27): Ogden's boards and the rift's keystone
+	// take items from any page, and the page left behind kept cells naming an index past the list - an out-of-range
+	// read when drawn - or, after the swap below, an item on another page.
+	for (auto &page : Stash.stashGrids) {
+		for (auto &row : page.second) {
+			for (StashStruct::StashCell &itemId : row) {
+				if (itemId - 1 == iv) {
+					itemId = 0;
+				}
 			}
 		}
 	}

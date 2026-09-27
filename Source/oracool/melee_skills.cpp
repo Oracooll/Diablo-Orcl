@@ -7,6 +7,8 @@
 #include "engine/random.hpp"
 #include "missiles.h"
 #include "monster.h"
+#include "oracool/companion.h"
+#include "oracool/minions.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
@@ -129,6 +131,10 @@ int GatherAround(Point centre, const Monster *except, Monster **out, int maxTarg
 	for (size_t i = 0; i < ActiveMonsterCount && found < maxTargets; i++) {
 		Monster &other = Monsters[ActiveMonsters[i]];
 		if (&other == except || !other.isPossibleToHit() || other.hitPoints >> 6 <= 0)
+			continue;
+		// Never the hero's own (audit, 2026-09-27): companions stand at his side, and a spin cut them down - and credited
+		// the kill, firing Rampage and Bloodcall for killing an ally. Every other area path already skipped them.
+		if (other.isPlayerMinion() || IsMinion(other) || IsCompanion(other))
 			continue;
 		if (centre.WalkingDistance(other.position.tile) != 1)
 			continue;

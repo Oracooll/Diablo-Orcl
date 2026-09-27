@@ -1659,10 +1659,14 @@ int RepairPriceFor(const Item &item)
 	// already price at zero is not worth losing that.
 	if (item._iOracoolEthereal || item._iMaxDur <= 0 || item._iDurability >= item._iMaxDur)
 		return 0;
-	const int due = item._iMaxDur - item._iDurability;
-	if (item._iMagical != ITEM_QUALITY_NORMAL && item._iIdentified)
-		return 30 * item._iIvalue * due / (item._iMaxDur * 100 * 2);
-	return std::max(item._ivalue * due / (item._iMaxDur * 2), 1);
+	const int64_t due = item._iMaxDur - item._iDurability;
+	// In 64 bits and capped (audit, 2026-09-27): a Torment-tier magic item is valued in the millions, and 30 x value x
+	// wear passed INT_MAX within a few points of wear - a negative price the hero could never afford, which also
+	// stopped Repair All, or one wrapped to nearly free.
+	const int64_t price = item._iMagical != ITEM_QUALITY_NORMAL && item._iIdentified
+	    ? 30 * static_cast<int64_t>(item._iIvalue) * due / (static_cast<int64_t>(item._iMaxDur) * 100 * 2)
+	    : std::max<int64_t>(static_cast<int64_t>(item._ivalue) * due / (static_cast<int64_t>(item._iMaxDur) * 2), 1);
+	return static_cast<int>(std::min<int64_t>(price, std::numeric_limits<int>::max()));
 }
 
 /**
@@ -3195,8 +3199,13 @@ void GambleBuyItemAt(int idx)
 	Item result;
 	RollGambleResult(result, base, MyPlayer->_pLevel);
 	result._iStatFlag = MyPlayer->CanUseItem(result);
-	if (!StoreAutoPlace(result, true))
+	// The pack, else the stash, else really at his feet (audit, 2026-09-27): the room check was for the BASE, which an empty
+	// worn slot can pass - and a roll the hero cannot wear is refused there. The log said it fell at his feet, and it was
+	// simply gone, gold paid.
+	if (!StoreAutoPlace(result, true) && !AutoPlaceItemInStash(*MyPlayer, result, true)) {
+		DropItemBesidePlayer(*MyPlayer, result);
 		oracool::LogEvent("Wirt's gamble had nowhere to go - it fell at your feet.", UiFlags::ColorRed);
+	}
 	oracool::LogEvent(StrCat("Wirt's gamble: ", std::string(result.getName())), result.getTextColor());
 	// The slot restocks with a fresh unidentified base of the same slot at the same price.
 	const int lvl = MyPlayer->_pLevel;
@@ -5377,7 +5386,7 @@ int ShopRepairAllPrice()
 	// a drawing path must not rewrite the thing it is drawing. The duplication is the price of that,
 	// and it is why this sits directly beside ShopRepairAll - if one grows a rule the other needs it.
 	const Player &myPlayer = *MyPlayer;
-	int total = 0;
+	int64_t total = 0; // a sum of prices that can each be near INT_MAX
 
 	for (int k = 0; k < NumRepairableBodySlots; k++) {
 		const Item &worn = myPlayer.InvBody[RepairableBodySlots[k]];
@@ -5391,7 +5400,7 @@ int ShopRepairAllPrice()
 		if (SmithRepairOk(i))
 			total += RepairPriceFor(myPlayer.InvList[i]);
 	}
-	return total;
+	return static_cast<int>(std::min<int64_t>(total, std::numeric_limits<int>::max()));
 }
 
 void ShopRepairAll()

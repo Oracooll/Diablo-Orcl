@@ -1,5 +1,6 @@
 #include "oracool/workshop.h"
 
+#include <SDL.h>
 #include <algorithm>
 #include <array>
 #include <string>
@@ -503,28 +504,20 @@ int OfferSlot = -1;
 std::array<OracoolAffix, OptionCount> Offers {};
 
 /**
- * @brief The per-item counters, keyed by the item's seed and alive for the game (see the header).
- *
- * The seed is what makes an item that item - the crafting recipes reroll from it - so two items cannot
- * share a row, and an item taken away and brought back keeps its price.
+ * @brief The item's own counters (Item::_iOracoolRerolls and friends, item format 15). Until 2026-09-27 they were a
+ * per-game table keyed by seed, and going back to the menu - which keeps the hero and every item - reset the doubling
+ * price and freed the lock (audit; user: "fix all four").
  */
 struct ItemCounters {
-	uint32_t seed = 0;
 	uint8_t rerolls = 0;
 	uint8_t removals = 0;
 	/** The affix slot the first reroll locked, or -1: only that one may be rerolled afterwards (the user agreed). */
 	int8_t lockedAffix = -1;
 };
-std::vector<ItemCounters> Counters;
 
-ItemCounters &CountersFor(const Item &item)
+ItemCounters CountersOf(const Item &item)
 {
-	for (ItemCounters &row : Counters) {
-		if (row.seed == item._iSeed)
-			return row;
-	}
-	Counters.push_back(ItemCounters { item._iSeed, 0, 0, -1 });
-	return Counters.back();
+	return { item._iOracoolRerolls, item._iOracoolRemovals, item._iOracoolLockedAffix };
 }
 
 /** @brief Gold: a base that doubles with every attempt on THIS item, capped so it stays payable. */
@@ -541,7 +534,7 @@ int RerollPrice(const Item &item)
 	if (item.isEmpty())
 		return 0;
 	const int level = std::max<int>(1, item._iOracoolItemLevel);
-	return PriceFor(500 * level, CountersFor(item).rerolls);
+	return PriceFor(500 * level, CountersOf(item).rerolls);
 }
 
 int RemovePrice(const Item &item)
@@ -549,7 +542,7 @@ int RemovePrice(const Item &item)
 	if (item.isEmpty())
 		return 0;
 	const int level = std::max<int>(1, item._iOracoolItemLevel);
-	return PriceFor(250 * level, CountersFor(item).removals);
+	return PriceFor(250 * level, CountersOf(item).removals);
 }
 
 int CleansePrice(const Item &item)
@@ -855,9 +848,12 @@ Landing GiveOwned(Player &player, int idx)
 		return Landing::Backpack;
 	if (AutoPlaceItemInStash(player, made, true))
 		return Landing::Stash;
-	if (PlaceItemInWorld(std::move(made), player.position.tile) != 0)
-		return Landing::Ground;
-	return Landing::Nowhere;
+	// On a FREE tile beside him (audit, 2026-09-27): PlaceItemInWorld on his own tile overwrote whatever lay there, so each
+	// further step orphaned the last drop - and it answered 0, read here as "nowhere", for a real placement at Items[0].
+	if (ActiveItemCount >= MAXITEMS)
+		return Landing::Nowhere;
+	DropItemBesidePlayer(player, std::move(made));
+	return Landing::Ground;
 }
 
 /** @brief Puts @p count of @p idx into the pack. Returns how many actually fitted. */
@@ -1105,7 +1101,7 @@ void DrawBench(const Surface &out)
 
 void DrawRerollList(const Surface &out)
 {
-	const ItemCounters &counters = Bench.isEmpty() ? ItemCounters {} : CountersFor(Bench);
+	const ItemCounters counters = Bench.isEmpty() ? ItemCounters {} : CountersOf(Bench);
 	for (int row = 0; row < ListLines; row++) {
 		const Rectangle rect = ListRowRect(row);
 		if (Bench.isEmpty() || row >= Bench._iOracoolAffixCount) {
@@ -1450,6 +1446,10 @@ void OpenWorkshop(WorkshopHost host)
 	// (2026-09-22). Before the flags below, so a refused close - a bench with items it cannot hand
 	// back - leaves the old window up rather than being overwritten by this one's state.
 	CloseOtherShopSurfaces();
+	// And if one of them refused - a bench or a Cube still holding what it cannot hand back - this one does not open over
+	// it (audit, 2026-09-27): the comment above promised as much, but the flags were set anyway, two windows up at once.
+	if (WindowOpen || IsLevskiRoarOpen())
+		return;
 	Host = host;
 	WindowOpen = true;
 	OpenTab = TabsFor(host).front();
@@ -1465,12 +1465,26 @@ void OpenWorkshop(WorkshopHost host)
 // declaration inside one of them is a different function and the link fails on it.
 bool ReturnCraftGrid(Player &player);
 
+/**
+ * @brief The refused close's red line, at most once every few seconds (audit, 2026-09-27): walking away asks to close every
+ * tick, and a bench that cannot be emptied said so every tick - two lines a tick, the 200-line log gone in seconds.
+ */
+void LogRefusedClose(const std::string &text)
+{
+	static uint32_t lastLogged = 0;
+	const uint32_t now = SDL_GetTicks();
+	if (lastLogged != 0 && now - lastLogged < 5000)
+		return;
+	lastLogged = now;
+	LogEvent(text, UiFlags::ColorRed);
+}
+
 void CloseWorkshop()
 {
 	if (!WindowOpen)
 		return;
 	if (!ReturnBench()) {
-		LogEvent(std::string(_("Your pack and stash are full - the bench keeps what it holds.")), UiFlags::ColorRed);
+		LogRefusedClose(std::string(_("Your pack and stash are full - the bench keeps what it holds.")));
 		return;
 	}
 	// The craft grid too (2026-09-22). It is not a container: nothing may be left standing on it when
@@ -1478,7 +1492,7 @@ void CloseWorkshop()
 	// they went. The window stays OPEN when there is nowhere to put them, which is the same answer
 	// the bench above gives.
 	if (!ReturnCraftGrid(*MyPlayer)) {
-		LogEvent(std::string(_("Your pack and stash are full - the bench keeps what it holds.")), UiFlags::ColorRed);
+		LogRefusedClose(std::string(_("Your pack and stash are full - the bench keeps what it holds.")));
 		return;
 	}
 	WindowOpen = false;
@@ -1538,7 +1552,6 @@ void ResetWorkshopForNewGame()
 	for (Item &item : CraftGrid)
 		item.clear();
 	CraftCells = {};
-	Counters.clear();
 	Board.clear();
 }
 
@@ -2360,12 +2373,12 @@ void RunControl(Control control)
 			SetBoard(std::string(_("This item has no affix to reroll.")));
 			break;
 		}
-		ItemCounters &counters = CountersFor(Bench);
 		if (SelectedRow < 0 || SelectedRow >= Bench._iOracoolAffixCount) {
 			SetBoard(std::string(_("Choose an affix from the list first.")));
 			break;
 		}
-		if (counters.lockedAffix >= 0 && counters.lockedAffix != SelectedRow) {
+		// A lock past the item's affixes (a Cube recipe took some away since) locks nothing.
+		if (Bench._iOracoolLockedAffix >= 0 && Bench._iOracoolLockedAffix < Bench._iOracoolAffixCount && Bench._iOracoolLockedAffix != SelectedRow) {
 			SetBoard(std::string(_("This item is settled: only the affix she first worked can be rerolled.")));
 			break;
 		}
@@ -2375,8 +2388,8 @@ void RunControl(Control control)
 			break;
 		}
 		TakePlrsMoney(price);
-		counters.lockedAffix = static_cast<int8_t>(SelectedRow);
-		counters.rerolls = static_cast<uint8_t>(std::min(20, counters.rerolls + 1));
+		Bench._iOracoolLockedAffix = static_cast<int8_t>(SelectedRow);
+		Bench._iOracoolRerolls = static_cast<uint8_t>(std::min<int>(Item::MaxWorkshopAttempts, Bench._iOracoolRerolls + 1));
 		RollOffers(SelectedRow);
 		break;
 	}
@@ -2424,7 +2437,11 @@ void RunControl(Control control)
 			if (!TryImbue(player, Bench, player.InvList[i]))
 				continue;
 			const std::string name { std::string(_(def->name)) };
-			player.RemoveInvItem(i, false);
+			// ONE shard: they stack, and removing the item took the whole stack for the one worked in (audit, 2026-09-27).
+			if (player.InvList[i].stackCount() > 1)
+				player.InvList[i].setStackCount(player.InvList[i].stackCount() - 1);
+			else
+				player.RemoveInvItem(i, false);
 			CalcPlrInv(player, true);
 			SetBoard(StrCat(name, " ", _("worked in.")));
 			if (!PlayUiEventSound(UiEventSound::ShardImbue))
@@ -2451,16 +2468,19 @@ void RunControl(Control control)
 			break;
 		}
 		TakePlrsMoney(price);
-		ItemCounters &counters = CountersFor(Bench);
-		counters.removals = static_cast<uint8_t>(std::min(20, counters.removals + 1));
+		Bench._iOracoolRemovals = static_cast<uint8_t>(std::min<int>(Item::MaxWorkshopAttempts, Bench._iOracoolRemovals + 1));
 		const ShardDefinition &def = ShardDef(static_cast<ShardKind>(ledger.kinds[SelectedRow]));
 		ImbuementLedger kept;
 		for (int i = 0; i < ledger.count; i++) {
 			if (i != SelectedRow)
 				kept.kinds[kept.count++] = ledger.kinds[i];
 		}
+		// Current durability kept as it was (audit, 2026-09-27): the strip clamps it to the lowered maximum and the restore
+		// adds Tempering back to BOTH, so taking out any shard repaired a worn item - an ethereal one too.
+		const int durabilityBefore = Bench._iDurability;
 		StripImbuements(Bench);
 		RestoreImbuements(Bench, kept);
+		Bench._iDurability = std::min(durabilityBefore, Bench._iMaxDur);
 		SelectedRow = -1;
 		SetBoard(StrCat(_(def.name), " ", _("drawn out and destroyed.")));
 		if (!PlayUiEventSound(UiEventSound::ShardImbue))
@@ -2548,11 +2568,23 @@ void RunControl(Control control)
 				SetBoard(std::string(_("Nothing on the bench makes anything.")));
 				break;
 			}
+			// The loan as it went in, to see afterwards how much of it the recipe really used.
+			const Item loan = reagentSlot >= 0 ? scratch[reagentSlot] : Item {};
 			const std::string made = TransmuteLevskiGridWith(scratch.data(), mine);
 			if (IsTransmuteRefusal(made)) {
 				SetBoard(made);
 				break;
 			}
+			// What the loan's cell holds now (audit, 2026-09-27). The recipe may have spent the well's own units first
+			// and only part of the loan - the pack paid the whole loan anyway - or spent it all and put its RESULT in
+			// that cell, which the writeback below skipped, losing what was made. So: the loan still there means only
+			// the difference was spent and the rest never left the pack; anything else there is the recipe's, and goes
+			// onto the well.
+			const bool loanRemains = reagentSlot >= 0 && !scratch[reagentSlot].isEmpty()
+			    && scratch[reagentSlot].IDidx == loan.IDidx && scratch[reagentSlot]._iSeed == loan._iSeed;
+			const int loanSpent = reagentSlot < 0 ? 0
+			    : loanRemains                   ? std::max(0, loan.stackCount() - scratch[reagentSlot].stackCount())
+			                                    : reagentCount;
 			// The scratch grid was a COPY of her well, made to ask the predicate its question, and
 			// any reagent the PACK lent it was a copy too. Both are settled HERE, after the work
 			// succeeded and never before, so a refusal cannot cost the player anything:
@@ -2560,7 +2592,7 @@ void RunControl(Control control)
 			//  - the loan's cell is skipped, because that item was never on the well;
 			//  - and the pack pays for the loan exactly as the test was passed.
 			for (int i = 0; i < CraftSlots; i++) {
-				if (i != reagentSlot)
+				if (i != reagentSlot || !loanRemains)
 					CraftGrid[i] = scratch[i];
 			}
 			if (!RebuildCraftOccupancy()) {
@@ -2568,8 +2600,8 @@ void RunControl(Control control)
 				SetBoard(std::string(_("There is no room on the bench for what that would make.")));
 				break;
 			}
-			if (reagentCount > 0)
-				TakeOwned(player, reagentIdx, reagentCount);
+			if (loanSpent > 0)
+				TakeOwned(player, reagentIdx, loanSpent);
 			CalcPlrInv(player, true);
 			SetBoard(made);
 			if (!PlayUiEventSound(UiEventSound::Transmute))

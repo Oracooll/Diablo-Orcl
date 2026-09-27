@@ -306,8 +306,10 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 {
 	auto &monster = Monsters[monsterId];
 
-	// A companion is never struck by its own side's missiles - its owner's, or its own arrows (oracool/companion.h).
-	if (oracool::IsCompanion(monster))
+	// A companion is never struck by its own side's missiles - its owner's, or its own arrows (oracool/companion.h). Nor a
+	// minion (audit, 2026-09-27): a Necromancer's Nova or Inferno cut down his own army; Apocalypse, Frost Nova and the
+	// Chain Lightning search already spared it.
+	if (oracool::IsCompanion(monster) || oracool::IsMinion(monster))
 		return false;
 
 	if (!monster.isPossibleToHit() || monster.isImmune(t, damageType))

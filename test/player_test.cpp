@@ -1,12 +1,15 @@
 #include "player_test.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <string>
 
 #include <gtest/gtest.h>
 
 #include "options.h"
+#include "oracool/combat_odds.h"
 #include "oracool/furious_charge.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/paladin_melee.h"
@@ -326,6 +329,33 @@ TEST(Player, ResetPlayerStats_NeverReturnsMoreThanTheBaseHolds)
 
 	EXPECT_EQ(player._pStatPts, 10) << "only what the base still held";
 	EXPECT_EQ(player._pBaseMag, 0);
+}
+
+// The Armor class odds bar is the chance to be HIT, not to be reached: a blow that lands can still be blocked (user,
+// 2026-09-27: "fix all four" - it read the landing chance alone and overstated how often a shield user is hit).
+TEST(Player, ChanceToBeHit_CountsTheShieldsBlock)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Warrior);
+	devilution::Player &player = Players[0];
+	MyPlayer = &player;
+	gbIsMultiplayer = false;
+	oracool::ClearCombatOdds();
+	oracool::NoteAttacker("Fallen One", 200, 1, false, false, 0); // lands every time
+
+	int chance = 0;
+	std::string name;
+	player._pBlockFlag = false;
+	ASSERT_TRUE(oracool::ChanceToBeHit(player, chance, name));
+	EXPECT_EQ(chance, 100) << "no shield: every landed blow hits";
+
+	player._pBlockFlag = true;
+	ASSERT_GT(player.GetBlockChance(), 2) << "a Warrior blocks";
+	ASSERT_TRUE(oracool::ChanceToBeHit(player, chance, name));
+	const int blocks = std::clamp(player.GetBlockChance() - 2, 0, 100);
+	EXPECT_EQ(chance, 100 - blocks) << "the shield's block comes off";
+	oracool::ClearCombatOdds();
 }
 
 TEST(Player, StatPointsToSpend_NeverMoreThanUnspentNorPastTheCap)

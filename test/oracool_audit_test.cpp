@@ -352,6 +352,19 @@ TEST(OracoolAudit, AuraRadiusStartsAtNothingAndIsBounded)
 // The invariant, and the reason the fix is a union rather than a second authored column: a champion
 // is never less resistant than an ordinary monster of its own type, on any difficulty, and it never
 // loses a bit it was hand-authored with.
+// Two sets that each leave a school open must not close all three together (audit, 2026-09-27): Webwidow's own
+// IMMUNE_MAGIC|IMMUNE_FIRE over Hell Spawn's IMMUNE_LIGHTNING made her clones untouchable by every spell on Normal.
+TEST(OracoolAudit, AChampionIsNeverImmuneToAllThreeSchoolsByTheMerge)
+{
+	constexpr uint16_t AllImmune = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
+	MonsterData hellSpawn {};
+	hellSpawn.resistance = RESIST_MAGIC | IMMUNE_LIGHTNING;
+	const uint16_t webwidow = oracool::ChampionResistancesFor(IMMUNE_MAGIC | IMMUNE_FIRE, hellSpawn, DIFF_NORMAL);
+	EXPECT_NE(webwidow & AllImmune, AllImmune) << "one school stays open";
+	EXPECT_EQ(webwidow & (IMMUNE_MAGIC | IMMUNE_FIRE), IMMUNE_MAGIC | IMMUNE_FIRE) << "her own immunities are kept";
+	EXPECT_NE(webwidow & RESIST_LIGHTNING, 0) << "the type's immunity comes back as a resistance";
+}
+
 TEST(OracoolAudit, AChampionIsNeverSofterThanItsOwnRankAndFile)
 {
 	// Every combination of the seven meaningful bits in BOTH columns, rather than a walk over

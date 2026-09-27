@@ -433,6 +433,18 @@ bool CardStartsWith(string_view text, string_view prefix)
 	return text.size() >= prefix.size() && text.substr(0, prefix.size()) == prefix;
 }
 
+/**
+ * @brief The printed prefix of one of items.cpp's tooltip lines: @p msgid translated, up to its first "{" - "Tier: " from
+ * "Tier: {:s}". The card sorts lines by these, and they were English literals, so in any other language every line
+ * fell into the body (audit, 2026-09-27; user: "fix all four"). @p msgid must be the exact string items.cpp prints,
+ * or the translation is not found.
+ */
+string_view CardPrefix(const char *msgid)
+{
+	const string_view translated = _(msgid);
+	return translated.substr(0, translated.find('{'));
+}
+
 /** @brief "rare armor" -> "Rare Armor". */
 std::string CardTitleCase(string_view text)
 {
@@ -492,29 +504,41 @@ Card BuildCard(const TooltipBlock &block, const Item *item)
 	UiFlags tierColor = UiFlags::ColorGray5;
 	std::string level;
 	int socketLinesLeft = 0;
+	const string_view tierPrefix = CardPrefix("Tier: {:s}");
+	const string_view levelPrefix = CardPrefix("Item Level: {:d}");
+	const string_view armorPrefix = CardPrefix("armor: {:d}");
+	const string_view damagePrefix = CardPrefix("damage: {:d}");
+	const string_view socketsPrefix = CardPrefix("Sockets: {:d}/{:d}");
+	const string_view requiredPrefix = CardPrefix("Required:");
+	const string_view requiredLevelPrefix = CardPrefix("Required Level: {:d}");
+	const auto isRequirement = [&](string_view text) {
+		return CardStartsWith(text, requiredPrefix) || CardStartsWith(text, requiredLevelPrefix);
+	};
+	const auto isHeadStat = [&](string_view text) {
+		return CardStartsWith(text, armorPrefix) || CardStartsWith(text, damagePrefix);
+	};
 	for (size_t first = i; i < lines.size(); i++) {
 		const CardLine &line = lines[i];
 		const string_view text = line.text;
 		// The line under the name in the name's own colour is what the item IS ("rare armor"). Never a stat line: an
 		// unidentified white base prints no type line, and its white "damage: 3-9" was taken for one and lost the card
 		// its big number (audit, 2026-09-27).
-		if (i == first && line.color == card.title.color && line.runs.empty() && !CardStartsWith(text, "Required")
-		    && !CardStartsWith(text, "armor: ") && !CardStartsWith(text, "damage: ")) {
+		if (i == first && line.color == card.title.color && line.runs.empty() && !isRequirement(text) && !isHeadStat(text)) {
 			type = line.text;
 			continue;
 		}
-		if (tier.empty() && CardStartsWith(text, "Tier: ")) {
-			tier = std::string(text.substr(6));
+		if (tier.empty() && CardStartsWith(text, tierPrefix)) {
+			tier = std::string(text.substr(tierPrefix.size()));
 			tierColor = line.color;
 			continue;
 		}
-		if (level.empty() && CardStartsWith(text, "Item Level: ")) {
-			level = std::string(text.substr(12));
+		if (level.empty() && CardStartsWith(text, levelPrefix)) {
+			level = std::string(text.substr(levelPrefix.size()));
 			continue;
 		}
-		if (card.headValue.empty() && (CardStartsWith(text, "armor: ") || CardStartsWith(text, "damage: "))) {
-			const bool armor = CardStartsWith(text, "armor: ");
-			const string_view rest = text.substr(armor ? 7 : 8);
+		if (card.headValue.empty() && isHeadStat(text)) {
+			const bool armor = CardStartsWith(text, armorPrefix);
+			const string_view rest = text.substr(armor ? armorPrefix.size() : damagePrefix.size());
 			const size_t split = rest.find("  ");
 			card.headValue = std::string(rest.substr(0, split));
 			card.headLabel = armor ? CardUpper(_("armor")) : CardUpper(_("damage"));
@@ -522,14 +546,14 @@ Card BuildCard(const TooltipBlock &block, const Item *item)
 				card.headNote = std::string(rest.substr(split + 2));
 			continue;
 		}
-		if (CardStartsWith(text, "Required")) {
+		if (isRequirement(text)) {
 			card.footer.push_back(line);
 			continue;
 		}
 		// The stones in the sockets: as many lines as "Sockets: 2/4" says are filled.
 		bool isStone = false;
-		if (CardStartsWith(text, "Sockets: ")) {
-			socketLinesLeft = std::max(0, std::atoi(std::string(text.substr(9)).c_str()));
+		if (CardStartsWith(text, socketsPrefix)) {
+			socketLinesLeft = std::max(0, std::atoi(std::string(text.substr(socketsPrefix.size())).c_str()));
 		} else if (socketLinesLeft > 0 && !CardStartsWith(text, " ")) {
 			isStone = true;
 			socketLinesLeft--;

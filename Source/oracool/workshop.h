@@ -23,9 +23,9 @@
  * placeholder the user will paint over ("Use placeholder canvas and ui buttons. I will supply assets
  * later"), the way the artisan canvas stood in for the Cube's window.
  *
- * THE RISING COST is per item and lives for the game, in this file's own table keyed by the item's seed.
- * It is deliberately NOT an item field yet: that is an item-format bump, and the user's V1 always starts
- * a new game, so a per-game count is honest until the format is bumped for other reasons.
+ * THE RISING COST is per item and lives ON the item since 2026-09-27 (Item::_iOracoolRerolls, _iOracoolRemovals,
+ * _iOracoolLockedAffix; item format 15). It was a per-game table keyed by seed - but a New Game keeps the hero and
+ * every item, so going back to the menu reset the price and freed the lock.
  */
 #pragma once
 

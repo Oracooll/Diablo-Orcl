@@ -588,12 +588,18 @@ int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool 
 	return percent;
 }
 
-bool PassiveEvadesMelee(const Player &player)
+int PassiveMeleeSlipChance(const Player &player, bool walking)
 {
-	const bool walking = IsAnyOf(player._pmode, PM_WALK_NORTHWARDS, PM_WALK_SOUTHWARDS, PM_WALK_SIDEWAYS);
 	int chance = SlipChance(player, walking ? Skill::Evade : Skill::Dodge);
 	if (DualWielding(player) && PassiveActive(player, Skill::TheGuardiansPath))
 		chance += GuardiansPathSlipChance;
+	return chance;
+}
+
+bool PassiveEvadesMelee(const Player &player)
+{
+	const bool walking = IsAnyOf(player._pmode, PM_WALK_NORTHWARDS, PM_WALK_SOUTHWARDS, PM_WALK_SIDEWAYS);
+	const int chance = PassiveMeleeSlipChance(player, walking);
 	const bool slipped = chance > 0 && GenerateRnd(100) < chance;
 	if (slipped && PassiveActive(player, Skill::TacticalAdvantage))
 		Haste(ClocksFor(player), TacticalAdvantagePercent, TacticalAdvantageTicks);
@@ -1016,6 +1022,11 @@ void OnPassiveCorpseConsumed(Player &player)
 void ClearPassiveState()
 {
 	ClocksOf.fill(Clocks {});
+	MarksOf.fill(MonsterMarks {});
+}
+
+void ClearPassiveMarks()
+{
 	MarksOf.fill(MonsterMarks {});
 }
 

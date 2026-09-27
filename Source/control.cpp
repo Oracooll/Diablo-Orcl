@@ -1748,8 +1748,9 @@ void ReleaseChrBtns(bool addAllStatPoints, bool addFive)
 {
 	chrbtnactive = false;
 	// Same scroll gate as CheckChrBtns - a button that scrolled out from under the cursor between
-	// press and release must not still act on the release.
-	if (!GetCharacterContentRect().contains(MousePosition)) {
+	// press and release must not still act on the release. Nor on a sheet closed in between (audit, 2026-09-27): press
+	// -, close the sheet with C or Escape still holding it, release - and a stat came back from a sheet no longer there.
+	if (!chrflag || !GetCharacterContentRect().contains(MousePosition)) {
 		resetStatsButtonDown = false;
 		for (bool &pressed : chrbtn)
 			pressed = false;

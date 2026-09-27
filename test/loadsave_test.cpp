@@ -73,6 +73,10 @@ TEST_F(LoadSaveOracoolItemExtensionsTest, RoundTripsFullyPopulatedTieredItem)
 
 	ASSERT_GT(creator._pNumInv, 0) << "a freshly created Warrior should start with at least one inventory item to tag";
 	SetFullOracoolTierData(creator.InvList[0]);
+	// Item format 15: the Mystic's counters and lock ride the item, so the menu no longer resets them (2026-09-27).
+	creator.InvList[0]._iOracoolRerolls = 3;
+	creator.InvList[0]._iOracoolRemovals = 2;
+	creator.InvList[0]._iOracoolLockedAffix = 4;
 	const uint32_t seed = creator.InvList[0]._iSeed;
 	const uint16_t createInfo = creator.InvList[0]._iCreateInfo;
 	const _item_indexes idx = creator.InvList[0].IDidx;
@@ -99,6 +103,9 @@ TEST_F(LoadSaveOracoolItemExtensionsTest, RoundTripsFullyPopulatedTieredItem)
 		EXPECT_EQ(restored->_iOracoolAffixes[i].param1, 10 + i);
 		EXPECT_EQ(restored->_iOracoolAffixes[i].param2, 20 + i);
 	}
+	EXPECT_EQ(restored->_iOracoolRerolls, 3);
+	EXPECT_EQ(restored->_iOracoolRemovals, 2);
+	EXPECT_EQ(restored->_iOracoolLockedAffix, 4);
 }
 
 // CHARACTERISATION, not a regression test - and the distinction is the point of the comment.

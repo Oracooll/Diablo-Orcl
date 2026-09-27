@@ -67,6 +67,8 @@ int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool 
 
 /** @brief Dodge standing, Evade moving: a melee blow that would have landed slips instead. */
 bool PassiveEvadesMelee(const Player &player);
+/** @brief The chance, in percent, that PassiveEvadesMelee slips a blow - Dodge standing, Evade @p walking. No roll. */
+int PassiveMeleeSlipChance(const Player &player, bool walking);
 
 /** @brief Avoid: an arrow that would have landed slips instead. */
 bool PassiveEvadesMissile(const Player &player);
@@ -148,8 +150,15 @@ bool PassiveRunActive(const Player &player);
 /** @brief One game tick of the clocks. */
 void ProcessPassivesTick(Player &player);
 
-/** @brief Empties every clock and stack. Called where the chill table is cleared. */
+/** @brief Empties every clock, stack and mark - a full reset, for tests. */
 void ClearPassiveState();
+/**
+ * @brief Empties the per-monster marks only - the slots are about to be handed to other monsters. Called on every level
+ * load. The hero's own clocks walk down the stairs with him (audit, 2026-09-27): the level load used to empty them too,
+ * so the stairs reset Cheat Death's minute, Final Service, Rathma's Shield and the Rampage stacks. A new game empties
+ * them through ClearPassiveClocks.
+ */
+void ClearPassiveMarks();
 
 /** @brief Empties one player's clocks - the save's cooldown among them. Called where a new game clears the cold armour, so a cooldown cannot carry from the last character to this one. */
 void ClearPassiveClocks(Player &player);

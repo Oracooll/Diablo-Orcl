@@ -645,6 +645,16 @@ void ClearWarcryStateForMonster(const Monster &monster)
 		Debuffs[id] = Debuff {};
 }
 
+void RevertConversionsForLevelSave()
+{
+	for (size_t i = 0; i < Debuffs.size(); i++) {
+		if (Debuffs[i].convertTicks <= 0)
+			continue;
+		Monsters[i].flags &= ~(MFLAG_BERSERK | MFLAG_GOLEM);
+		Debuffs[i].convertTicks = 0;
+	}
+}
+
 void ClearWarcries()
 {
 	// The monsters' side only: debuffs, conversions and wards belong to the level that is ending. The

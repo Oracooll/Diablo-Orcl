@@ -1386,7 +1386,10 @@ void StartDeathFromMonster(Monster &attacker, Monster &target)
 	Direction md = GetDirection(target.position.tile, attacker.position.tile);
 	MonsterDeath(target, md, true);
 
-	if (gbIsHellfire)
+	// Not an attacker that is itself dead (audit, 2026-09-27): a minion's struck-back damage (Iron Golem, Aberrant
+	// Animator) or Iron Maiden can kill the attacker in the same blow, and standing it up again left a 0-life monster
+	// that could not be hit or removed, walking and blocking its tile.
+	if (gbIsHellfire && attacker.mode != MonsterMode::Death && (attacker.hitPoints >> 6) > 0)
 		M_StartStand(attacker, attacker.direction);
 }
 
@@ -2060,7 +2063,7 @@ void MonsterDeath(Monster &monster)
 	} else if (monster.animInfo.isLastFrame()) {
 		if (oracool::TitheTakesCorpse(monster)) {
 			// Tithe of Ash (RfA-12) took the corpse: nothing is left to raise or search.
-		} else if (monster.isUnique()) {
+		} else if (monster.isUnique() && monster.corpseId != 0) {
 			AddCorpse(monster.position.tile, monster.corpseId, monster.direction);
 			oracool::RecordCorpse(monster); // what it was, for the Necromancer (oracool/corpses.h)
 		} else {
@@ -3746,10 +3749,12 @@ void PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t 
 		else
 			monster.maxHitPoints += 200 << 6;
 		monster.hitPoints = monster.maxHitPoints;
-		monster.minDamage = 4 * monster.minDamage + 6;
-		monster.maxDamage = 4 * monster.maxDamage + 6;
-		monster.minDamageSpecial = 4 * monster.minDamageSpecial + 6;
-		monster.maxDamageSpecial = 4 * monster.maxDamageSpecial + 6;
+		// Clamped at 255 as Torment is (audit, 2026-09-27): Howlingire's 75 made 306, which wrapped to 50 - below his
+		// minimum, so every blow did the minimum.
+		monster.minDamage = static_cast<uint8_t>(std::min(4 * monster.minDamage + 6, 255));
+		monster.maxDamage = static_cast<uint8_t>(std::min(4 * monster.maxDamage + 6, 255));
+		monster.minDamageSpecial = static_cast<uint8_t>(std::min(4 * monster.minDamageSpecial + 6, 255));
+		monster.maxDamageSpecial = static_cast<uint8_t>(std::min(4 * monster.maxDamageSpecial + 6, 255));
 	} else if (sgGameInitInfo.nDifficulty == DIFF_TORMENT) {
 		const float multiplier = GetTormentDifficultyMultiplier();
 		monster.maxHitPoints = 4 * monster.maxHitPoints;
@@ -3813,13 +3818,13 @@ void InitLevelMonsters()
 	// length, and it looks plausible, so it survives into the balance CSV instead of being thrown
 	// away (audit, 2026-08-30). Clearing them here removes the class rather than its tail.
 	oracool::TelemetryResetLevelTimers();
-	// Every chill forgotten, and the heroes' chill, the passives' clocks, the RfA-12 fields and marks and the warcry
+	// Every chill forgotten, and the heroes' chill, the passives' marks, the RfA-12 fields and marks and the warcry
 	// wards with it: file-local statics that outlive the game. They were cleared in InitMonsters, which town never
 	// runs - and a New Game starts in town, so the next hero began with the last one's half-speed chill and a Bone
 	// Storm still circling slot 0 (audit, 2026-09-27). Here every level load passes, town and revisits included.
 	oracool::ClearChills();
 	oracool::ClearPlayerChills(); // a level change thaws the heroes too (2026-09-26)
-	oracool::ClearPassiveState();
+	oracool::ClearPassiveMarks(); // the monsters' marks; the hero's clocks go down the stairs with him
 	oracool::ClearRfa12State();
 	oracool::ClearWarcries();
 
@@ -4165,7 +4170,7 @@ void InitGolems()
 
 void InitMonsters()
 {
-	// The chill, passive, RfA-12 and warcry clears that stood here are in InitLevelMonsters since 2026-09-27: this does
+	// The chill, passive-mark, RfA-12 and warcry clears that stood here are in InitLevelMonsters since 2026-09-27: this does
 	// not run in town, and a New Game starts there.
 
 	if (!gbIsSpawn && !setlevel && currlevel == 16)
@@ -4307,7 +4312,9 @@ Monster *AddMinionBody(Point position, Direction dir, _monster_id type)
 	const size_t typeIndex = AddMonsterType(type, PLACE_SPECIAL);
 	Monster &monster = Monsters[ActiveMonsters[ActiveMonsterCount++]];
 	dMonster[position.x][position.y] = static_cast<int16_t>(monster.getId() + 1);
-	InitMonster(monster, dir, typeIndex, position);
+	// Not ordinary: a minion takes no variant (audit, 2026-09-27) - a "Hollow Skeleton" in the army, re-rolled every level,
+	// and a Luminous one lit a light nothing ever freed.
+	InitMonster(monster, dir, typeIndex, position, /*ordinary=*/false);
 	// What makes it a minion to the rest of the engine: every damage path, the cursor and UpdateEnemy ask this flag.
 	monster.flags |= MFLAG_GOLEM;
 	monster.flags &= ~(MFLAG_TARGETS_MONSTER | MFLAG_BERSERK);
@@ -5293,6 +5300,8 @@ void SyncMonsterAnim(Monster &monster)
 		// Safe to call every time precisely BECAUSE the reload just happened: the tint always shifts a
 		// freshly loaded palette, never an already-shifted one.
 		oracool::TintLesserUnique(monster);
+	} else {
+		oracool::RestoreVariantTint(monster);
 	}
 	MonsterGraphic graphic = MonsterGraphic::Stand;
 

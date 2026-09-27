@@ -71,6 +71,8 @@ bool Rfa12CastLeavesRing(SpellID spell);
 
 int Rfa12ActiveDamageDealtPercent(const Player &player, const Monster &target, bool melee);
 bool Rfa12ActiveEvadesMelee(const Player &player);
+/** @brief The chance, in percent, that Rfa12ActiveEvadesMelee slips a blow (Mantra of Evasion). No roll. */
+int Rfa12ActiveMeleeEvadeChance(const Player &player);
 /** @brief Chord of Warding: what is left of @p damage (1/64 units) after the ward drinks its share. */
 int Rfa12ActiveAbsorbDamage(Player &player, int damage);
 bool Rfa12ActiveStripsResistances(const Monster &monster);

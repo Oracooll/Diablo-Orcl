@@ -675,6 +675,9 @@ void LeftMouseDown(uint16_t modState)
 				CheckSBook(/*assignToRightButton=*/false);
 			} else if (oracool::HandleAdvancedStatsClick(MousePosition)) {
 				// A readout: every click inside its rect is taken, so none reaches the ground under it.
+			} else if (oracool::IsEventLogOpen() && oracool::GetEventLogWindowRect().contains(MousePosition)) {
+				// The log's body takes the click too (audit, 2026-09-27): only its X was tested, so a click on the text walked the
+				// hero to the last tile hovered outside it, swung or cast there, or dropped the held item on the floor.
 			} else if (!MyPlayer->HoldItem.isEmpty()) {
 				if (!TryOpenDungeonWithMouse()) {
 					Point currentPosition = MyPlayer->position.tile;
@@ -3597,6 +3600,25 @@ int DiabloMain(int argc, char **argv)
 	return 0;
 }
 
+/**
+ * @brief The item a shop service cursor (hammer, recharge) is over: a worn slot, the open backpack page or the belt, by
+ * what the index means (audit, 2026-09-27). All three used to be read as a backpack index, which on page 1 happened to
+ * land on the right item - the arrays sit side by side - and on pages 2-10 charged for and "repaired" a hidden slot,
+ * or on page 10 wrote past the pages. nullptr past every range.
+ */
+static Item *ServiceCursorItem(Player &player, int cii)
+{
+	if (cii < 0)
+		return nullptr;
+	if (cii < INVITEM_INV_FIRST)
+		return &player.InvBody[cii];
+	if (cii <= INVITEM_INV_LAST)
+		return &GetActiveInvListItem(player, cii - INVITEM_INV_FIRST);
+	if (cii < INVITEM_BELT_FIRST + MaxBeltItems)
+		return &player.SpdList[cii - INVITEM_BELT_FIRST];
+	return nullptr;
+}
+
 bool TryIconCurs()
 {
 	if (pcurs == CURSOR_RESURRECT) {
@@ -3673,7 +3695,8 @@ bool TryIconCurs()
 		// ArmShopRepairCursor.
 		if (IsShopRepairCursorArmed()) {
 			if (pcursinvitem != -1 && !IsInspectingPlayer()) {
-				ShopRepairItemAt(GetActiveInvListItem(myPlayer, pcursinvitem - INVITEM_INV_FIRST));
+				if (Item *item = ServiceCursorItem(myPlayer, pcursinvitem); item != nullptr)
+					ShopRepairItemAt(*item);
 			} else if (pcursinvtabitem != -1 && !IsInspectingPlayer()) {
 				ShopRepairItemAt(myPlayer.InvTabList[pcursinvtabidx][pcursinvtabitem]);
 			} else if (pcursstashitem != StashStruct::EmptyCell) {
@@ -3709,7 +3732,8 @@ bool TryIconCurs()
 		// ArmShopRechargeCursor.
 		if (IsShopRechargeCursorArmed()) {
 			if (pcursinvitem != -1 && !IsInspectingPlayer()) {
-				ShopRechargeItemAt(GetActiveInvListItem(myPlayer, pcursinvitem - INVITEM_INV_FIRST));
+				if (Item *item = ServiceCursorItem(myPlayer, pcursinvitem); item != nullptr)
+					ShopRechargeItemAt(*item);
 			} else if (pcursinvtabitem != -1 && !IsInspectingPlayer()) {
 				ShopRechargeItemAt(myPlayer.InvTabList[pcursinvtabidx][pcursinvtabitem]);
 			} else if (pcursstashitem != StashStruct::EmptyCell) {
@@ -3951,6 +3975,13 @@ bool PressEscKey()
 
 	if (IsLeftPanelOpen() || IsRightPanelOpen()) {
 		ClosePanels();
+		rv = true;
+	}
+
+	// The event log last, and only when nothing else closed (audit, 2026-09-27): with the log alone up, Escape opened the
+	// game menu over it. Last, because a log kept open beside other windows should not go with them.
+	if (!rv && oracool::IsEventLogOpen()) {
+		oracool::ToggleEventLog();
 		rv = true;
 	}
 
@@ -4277,7 +4308,6 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 		} else {
 			LoadLevel();
 		}
-		oracool::RiftLevelPopulated(); // sizes the kill bar from what stands on the floor (a no-op off a rift)
 		if (gbIsMultiplayer) {
 			DeltaLoadLevel();
 			if (!UseMultiplayerQuests())
@@ -4285,6 +4315,9 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 		}
 
 		InitMissiles(/*keepHeroTimedSpells=*/!firstflag && lvldir != ENTRY_LOAD);
+		// AFTER InitMissiles (audit, 2026-09-27): this lays the exits' portal missiles, and InitMissiles empties the list -
+		// the way out stood there as a bare trigger, drawn by nothing and unclickable, one step from the landing spot.
+		oracool::RiftLevelPopulated(); // and sizes the kill bar from what stands on the floor (a no-op off a rift)
 		IncProgress();
 	}
 

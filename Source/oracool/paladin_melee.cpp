@@ -3,7 +3,9 @@
 #include "items.h"
 #include "monster.h"
 #include "oracool/class_tree.h"
+#include "oracool/companion.h"
 #include "oracool/furious_charge.h"
+#include "oracool/minions.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h" // Towering Shield
 #include "oracool/skill_sounds.h"
@@ -147,6 +149,10 @@ int GatherAdjacent(const Monster &centre, Monster **out, int maxTargets)
 		Monster &other = Monsters[ActiveMonsters[i]];
 		if (&other == &centre || !other.isPossibleToHit())
 			continue;
+		// Never the hero's own (audit, 2026-09-27): companions stand at his side, and a spin cut them down - and credited
+		// the kill, firing Rampage and Bloodcall for killing an ally. Every other area path already skipped them.
+		if (other.isPlayerMinion() || IsMinion(other) || IsCompanion(other))
+			continue;
 		if (other.position.tile.WalkingDistance(centre.position.tile) != 1)
 			continue;
 		out[found++] = &other;
@@ -172,6 +178,8 @@ Monster *NextZealTarget(const Player &player, Monster **struck, int struckCount)
 		Monster &candidate = Monsters[ActiveMonsters[i]];
 		if (!candidate.isPossibleToHit() || (candidate.hitPoints >> 6) <= 0)
 			continue;
+		if (candidate.isPlayerMinion() || IsMinion(candidate) || IsCompanion(candidate))
+			continue; // Zeal swings at enemies only (audit, 2026-09-27)
 		if (candidate.position.tile.WalkingDistance(player.position.tile) > MeleeSkillRangeTiles)
 			continue;
 

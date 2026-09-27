@@ -42,7 +42,9 @@
 #include "oracool/socket_overlay.h"
 #include "oracool/ui_sound.h"
 #include "oracool/window_close.h"
+#include "oracool/workshop.h"
 #include "player.h"
+#include "qol/stash.h" // AutoPlaceItemInStash - the grid's way back when the pack is full
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 
@@ -1181,7 +1183,9 @@ bool ReturnGridToPlayer()
 	for (Item &item : GridItems) {
 		if (item.isEmpty())
 			continue;
-		if (AutoPlaceItemInInventory(player, item, true))
+		// The backpack, else the stash (audit, 2026-09-27) - the workshop's rule since v1.12.189. Leaving the game
+		// closes this window and then clears the grid: with only the backpack, a full one lost everything staged.
+		if (AutoPlaceItemInInventory(player, item, true) || AutoPlaceItemInStash(player, item, true))
 			item.clear();
 		else
 			allReturned = false;
@@ -1475,6 +1479,8 @@ void ToggleLevskiRoar()
 	// Only on the OPEN half: the close above has already run, and a toggle that shuts the Cube has no
 	// business closing a counter as well (2026-09-22).
 	CloseOtherShopSurfaces();
+	if (IsWorkshopOpen())
+		return; // a bench that refused to close keeps the slot (audit, 2026-09-27)
 	WindowHost = TransmuteHost::Cube;
 	WindowOpen = true;
 	RecipeBookOpen = false;
@@ -1551,7 +1557,13 @@ void CloseLevskiRoar()
 	if (!WindowOpen)
 		return;
 	if (!ReturnGridToPlayer()) {
-		LogEvent(std::string(_("Your pack is full - Levski's Roar keeps what it holds.")), UiFlags::ColorRed);
+		// Once every few seconds at most (audit, 2026-09-27): a walk-away asks every tick.
+		static uint32_t lastLogged = 0;
+		const uint32_t now = SDL_GetTicks();
+		if (lastLogged == 0 || now - lastLogged >= 5000) {
+			lastLogged = now;
+			LogEvent(std::string(_("Your pack and stash are full - Levski's Roar keeps what it holds.")), UiFlags::ColorRed);
+		}
 		return;
 	}
 	for (int8_t &cell : GridCells)

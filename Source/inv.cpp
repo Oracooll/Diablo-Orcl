@@ -4464,7 +4464,7 @@ bool UseInvItem(int cii)
 				oracool::LogEvent("A keystone only turns in town, at the Rift Monument.");
 			return true;
 		}
-		ConsumeUsedBackpackItem(player, c, item);
+		// Kept: it is spent at the first step through the portal (oracool::SpendPendingKeystone).
 		return true;
 	}
 

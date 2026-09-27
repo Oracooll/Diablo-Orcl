@@ -114,7 +114,26 @@ uint16_t ChampionResistancesFor(uint16_t uniqueResistances, const MonsterData &b
 	// The union is the whole point: the champion keeps every bit it was hand-authored with, and
 	// gains whatever an ordinary monster of its own type would have on this difficulty. It can
 	// therefore never be softer than the rank and file it leads.
-	return uniqueResistances | MonsterResistancesFor(baseData, difficulty);
+	const uint16_t ordinary = MonsterResistancesFor(baseData, difficulty);
+	uint16_t merged = uniqueResistances | ordinary;
+	// But never immune to all three schools where the champion alone was not (audit, 2026-09-27) - the rule
+	// PromoteResistancesToImmunities keeps for every monster. Two sets that each left one school open could close the
+	// last one together: Webwidow's clones came out untouchable by any spell on Normal. The immunity that came only from
+	// the base type is the one given back, as a resistance - the last such school, in school order.
+	constexpr uint16_t AllImmune = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
+	if ((merged & AllImmune) == AllImmune && (uniqueResistances & AllImmune) != AllImmune && (ordinary & AllImmune) != AllImmune) {
+		constexpr struct {
+			uint16_t resist;
+			uint16_t immune;
+		} Schools[] = { { RESIST_LIGHTNING, IMMUNE_LIGHTNING }, { RESIST_FIRE, IMMUNE_FIRE }, { RESIST_MAGIC, IMMUNE_MAGIC } };
+		for (const auto &school : Schools) {
+			if ((uniqueResistances & school.immune) == 0) {
+				merged = static_cast<uint16_t>((merged & ~school.immune) | school.resist);
+				break;
+			}
+		}
+	}
+	return merged;
 }
 
 } // namespace devilution::oracool

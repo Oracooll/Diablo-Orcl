@@ -37,7 +37,11 @@
 #include "oracool/skill_sounds.h"
 #include "oracool/stairless.h"
 #include "oracool/stonegate.h"
+#include "oracool/auto_save.h"
+#include "inv.h"
 #include "player.h"
+#include "portal.h"
+#include "qol/stash.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 
@@ -74,6 +78,13 @@ struct RiftState {
 	/** A cleared Nephalem Rift's closing clock (NephalemRiftCloseSeconds): ticks until the rift ends on
 	 * its own, 0 when not running. */
 	int closeTicks = 0;
+	/**
+	 * A Guardian Rift's keystone is spent when the hero first steps through, not when it turns (user, 2026-09-27:
+	 * "fix all four" - quitting before going in used to lose it). Until then it stays where it was, and this names
+	 * it: EnterRift finds it by its seed wherever it has gone - any backpack page, the stash - and takes it.
+	 */
+	bool keystonePending = false;
+	uint32_t keystoneSeed = 0;
 	/** Ticks until the next "the guardian found no ground" note, so a stuck spawn says so once in a while. */
 	int spawnNoteTicks = 0;
 };
@@ -121,6 +132,16 @@ MissileID PortalFor(RiftKind kind)
 
 void OpenCommon(Player &player, RiftKind kind, int tier)
 {
+	// Every town portal into the rift being replaced closes with it (audit, 2026-09-27). A portal records the set
+	// level, not which rift: one cast inside the last rift led, after a new one opened, into a level rebuilt from the
+	// NEW seed with the OLD monsters restored by type index - and no exit laid, the kind no longer matching.
+	for (int i = 0; i < MAXPORTAL; i++) {
+		const Portal &portal = Portals[i];
+		if (!portal.open || !portal.setlvl || !IsRiftLevel(static_cast<_setlevels>(portal.level)))
+			continue;
+		DeactivatePortal(i);
+		RemovePortalMissile(i);
+	}
 	State = RiftState {};
 	State.kind = kind;
 	State.tier = std::max(tier, 1);
@@ -238,10 +259,49 @@ bool UseGuardianKeystone(Player &player, const Item &keystone)
 	const int tier = std::max<int>(1, keystone._iOracoolRiftTier);
 	if (!OpenGuardianRift(player, tier))
 		return false;
+	State.keystonePending = true;
+	State.keystoneSeed = keystone._iSeed;
 	LightStonegate(RiftKind::Guardian);
 	LogEvent(StrCat("The keystone turns: a violet portal opens in the Rift Monument - a Guardian Rift, tier ", tier,
-	             ", fifteen minutes. ", RiftGuardianName(State.guardian), " waits at the end."),
+	             ", fifteen minutes. ", RiftGuardianName(State.guardian), " waits at the end. The keystone is spent when you step through."),
 	    UiFlags::ColorWhitegold);
+	return true;
+}
+
+bool SpendPendingKeystone(Player &player)
+{
+	if (!State.keystonePending)
+		return true;
+	const auto isIt = [](const Item &item) {
+		return !item.isEmpty() && item._iMiscId == IMISC_ORACOOL_KEYSTONE && item._iSeed == State.keystoneSeed;
+	};
+	bool spent = false;
+	for (int i = 0; i < player._pNumInv && !spent; i++) {
+		if (isIt(player.InvList[i])) {
+			player.RemoveInvItem(i);
+			spent = true;
+		}
+	}
+	for (int t = 0; t < Player::NumExtraInventoryTabs && !spent; t++) {
+		for (int i = 0; i < player._pNumInvTab[t] && !spent; i++) {
+			if (isIt(player.InvTabList[t][i])) {
+				RemoveExtraTabItem(player, t, i);
+				spent = true;
+			}
+		}
+	}
+	for (size_t i = 0; i < Stash.stashList.size() && !spent; i++) {
+		if (isIt(Stash.stashList[i])) {
+			Stash.RemoveStashItem(static_cast<StashStruct::StashCell>(i));
+			Stash.dirty = true;
+			ScheduleAutoSaveForStashChange();
+			spent = true;
+		}
+	}
+	if (!spent)
+		return false;
+	State.keystonePending = false;
+	ScheduleAutoSaveForItemDrop();
 	return true;
 }
 
@@ -263,10 +323,8 @@ bool UseBestKeystoneFromBackpack(Player &player)
 	const int index = FindBestKeystoneInBackpack(player);
 	if (index < 0)
 		return false;
-	if (!UseGuardianKeystone(player, player.InvList[index]))
-		return false;
-	player.RemoveInvItem(index);
-	return true;
+	// Turned, not spent: it goes when the hero steps through (SpendPendingKeystone).
+	return UseGuardianKeystone(player, player.InvList[index]);
 }
 
 int NextKeystoneTier(int tier, int ticksLeft, int ticksTotal, bool timedOut)
@@ -303,6 +361,11 @@ bool EnterRift(Player &player)
 {
 	if (State.kind == RiftKind::None || !player.isOnLevel(0))
 		return false;
+	// The keystone that turned the gate is spent now, at the first step through - and without it there is no step.
+	if (&player == MyPlayer && !SpendPendingKeystone(player)) {
+		LogEvent("The keystone that opened this rift is no longer with you. Bring it back to step through.", UiFlags::ColorRed);
+		return false;
+	}
 	// BEFORE StartNewLvl - the level loads its tileset from this (named_encounters.cpp has the tell).
 	setlvltype = State.tileset;
 	StartNewLvl(player, WM_DIABSETLVL, RiftLevelFor(State.kind));
@@ -489,7 +552,7 @@ void LayArrivalExit()
 		for (int d = 0; d < 8; d++) {
 			const Point neighbour = ViewPosition + static_cast<Direction>(d);
 			if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0
-			    && dMonster[neighbour.x][neighbour.y] == 0) {
+			    && dMonster[neighbour.x][neighbour.y] == 0 && dPlayer[neighbour.x][neighbour.y] == 0) {
 				State.arrivalTile = neighbour;
 				break;
 			}
@@ -612,9 +675,12 @@ void OnRiftMonsterKilled(const Monster &monster)
 		// The rift's own portal is drawn on it so the tile is not a secret. GetMapReturnLevel answers
 		// town for a rift level.
 		State.homeTile = monster.position.tile;
+		// Nobody standing on it (audit, 2026-09-27): searched from South, it could land under the hero who struck the
+		// blow, and his standing still on it fired the trigger - home, the rift over, the pile and the keystone left.
 		for (int d = 0; d < 8; d++) {
 			const Point neighbour = monster.position.tile + static_cast<Direction>(d);
-			if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0) {
+			if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0
+			    && dPlayer[neighbour.x][neighbour.y] == 0 && dMonster[neighbour.x][neighbour.y] == 0 && neighbour != State.arrivalTile) {
 				State.homeTile = neighbour;
 				break;
 			}

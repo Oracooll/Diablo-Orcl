@@ -235,6 +235,9 @@ MonsterVariant VariantOf(const Monster &monster)
 	// identity already, and a "Feral Gharbad the Weak" is two names fighting over one monster.
 	if (monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None)
 		return MonsterVariant::None;
+	// Nor the hero's own (audit, 2026-09-27): a raised skeleton read as "Hollow Skeleton" and could be Frenzied or Gilded.
+	if (monster.isPlayerMinion())
+		return MonsterVariant::None;
 
 	// And the SCRIPTED monsters, which is the same argument one step further out (user, 2026-09-12:
 	// "dont put prefix on the dark lord name", then "dont recolor the dark lord. keep it or return
@@ -377,6 +380,19 @@ void ApplyMonsterVariant(Monster &monster)
 
 	// Direction of the shift alternates with the variant, so the kinds do not all read as "the pale
 	// one" - half lighten and half darken.
+	const int shift = (static_cast<int>(variant) % 2 == 0) ? VariantTintShift : -VariantTintShift;
+	TintVariant(monster, shift);
+}
+
+void RestoreVariantTint(Monster &monster)
+{
+	// Not a unique (SyncMonsterAnim reloads its own .trn) and not the hero's own - a companion wears its ramp there.
+	if (monster.isUnique() || monster.isPlayerMinion())
+		return;
+	monster.uniqueMonsterTRN.reset();
+	const MonsterVariant variant = VariantOf(monster);
+	if (variant == MonsterVariant::None)
+		return;
 	const int shift = (static_cast<int>(variant) % 2 == 0) ? VariantTintShift : -VariantTintShift;
 	TintVariant(monster, shift);
 }

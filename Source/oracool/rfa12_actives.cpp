@@ -2790,10 +2790,16 @@ int Rfa12ActiveDamageDealtPercent(const Player &player, const Monster &target, b
 	return percent;
 }
 
-bool Rfa12ActiveEvadesMelee(const Player &player)
+int Rfa12ActiveMeleeEvadeChance(const Player &player)
 {
 	const int r = BuffRank(player, Buff::Evasion);
-	return r > 0 && GenerateRnd(100) < EffectPercent(SpellID::MantraOfEvasion, r);
+	return r > 0 ? EffectPercent(SpellID::MantraOfEvasion, r) : 0;
+}
+
+bool Rfa12ActiveEvadesMelee(const Player &player)
+{
+	const int chance = Rfa12ActiveMeleeEvadeChance(player);
+	return chance > 0 && GenerateRnd(100) < chance;
 }
 
 int Rfa12BoneShellFrame(const Player &player)
@@ -3160,6 +3166,26 @@ void ClearRfa12ActivesState()
 void ClearRfa12ActivesForMonster(const Monster &monster)
 {
 	MarksOf(monster) = Marks {};
+	// And every other record that names this monster by slot (audit, 2026-09-27): the slot goes to the next monster, and
+	// a Hunter's Claim, an echo or a thread still naming it would act on a stranger - a claim kept alive by a newcomer
+	// makes the arrows pass every non-unique by.
+	const int id = static_cast<int>(monster.getId());
+	for (PlayerState &state : Players12) {
+		if (state.claimMonster == id) {
+			state.claimMonster = -1;
+			state.claimTicks = 0;
+		}
+		if (state.echoMonster == id) {
+			state.echoMonster = -1;
+			state.echoTicks = 0;
+		}
+	}
+	for (Marks &marks : MonsterMarks) {
+		if (marks.threadPartner == id) {
+			marks.threadPartner = -1;
+			marks.threadTicks = 0;
+		}
+	}
 }
 
 void ClearRfa12ActiveBuffs(Player &player)

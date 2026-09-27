@@ -471,6 +471,29 @@ TEST_F(PrimalItemTest, GetPrimalItemAffixes_AlwaysProducesExactlySixAffixesInNar
 // roll window (30..60) sits far above the item's stamped level (13) - the shape a chest item has, rolling at
 // twice its displayed level - and every stored affix must still come from a row at or below 13: its rolled
 // value can be no higher than the largest parameter any such row of its type allows.
+// A stat and its curse never share an item (audit, 2026-09-27): the pick excluded only the same power type, so a Rare
+// off an ordinary monster (onlygood false) could roll +Strength beside -Strength, or swiftness beside lead.
+TEST_F(PrimalItemTest, NoItemCarriesAnAffixAndItsCurse)
+{
+	EXPECT_EQ(AffixTwinOf(IPL_STR), IPL_STR_CURSE);
+	EXPECT_EQ(AffixTwinOf(IPL_MOVESPEED_CURSE), IPL_MOVESPEED);
+	EXPECT_EQ(AffixTwinOf(IPL_FIRERES), IPL_FIRERES) << "no curse, no twin";
+	for (int trial = 0; trial < 300; trial++) {
+		Item rare = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+		rare._iOracoolItemLevel = 60;
+		GetRareItemAffixes(Players[0], rare, 1, 60, AffixItemType::Weapon, /*onlygood=*/false, /*ignoreLevelLimits=*/false);
+		for (int i = 0; i < rare._iOracoolAffixCount; i++) {
+			for (int j = 0; j < rare._iOracoolAffixCount; j++) {
+				if (i == j)
+					continue;
+				const item_effect_type a = rare._iOracoolAffixes[i].type;
+				EXPECT_FALSE(a != AffixTwinOf(a) && rare._iOracoolAffixes[j].type == AffixTwinOf(a))
+				    << "trial " << trial << ": affix type " << static_cast<int>(a) << " beside its twin";
+			}
+		}
+	}
+}
+
 TEST_F(PrimalItemTest, NoAffixOnATieredItemIsAboveTheItemsLevel)
 {
 	constexpr int ItemLevel = 13;

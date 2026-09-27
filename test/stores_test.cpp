@@ -455,6 +455,23 @@ TEST_F(StoresTest,Sold_BuyBackChargesTheSalePriceNotTheItemValue)
 	    << "the sale price is not affordable with exactly the gold the sale paid";
 }
 
+// A Torment-tier magic item is valued in the millions; 30 x value x wear overflowed an int within a few points of wear
+// (audit, 2026-09-27) - a negative price no hero could pay, which also stopped Repair All.
+TEST_F(StoresTest,RepairPriceFor_DoesNotOverflowOnAMillionGoldItem)
+{
+	devilution::Item *item = &storehold[0];
+	item->_iMagical = ITEM_QUALITY_MAGIC;
+	item->_iIdentified = true;
+	item->_ivalue = 2000000;
+	item->_iIvalue = 2000000;
+	item->_iMaxDur = 150;
+	item->_iDurability = 0;
+	storenumh = 0;
+	AddStoreHoldRepair(item, 0);
+	ASSERT_EQ(storenumh, 1);
+	EXPECT_EQ(storehold[0]._ivalue, 300000);
+}
+
 TEST_F(StoresTest,AddStoreHoldRepair_magic)
 {
 	devilution::Item *item;

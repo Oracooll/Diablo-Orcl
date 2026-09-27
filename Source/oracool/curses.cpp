@@ -512,6 +512,16 @@ void ClearAllCurses()
 		curse = {};
 }
 
+void ReleaseConfusedForLevelSave()
+{
+	for (size_t i = 0; i < Curses.size(); i++) {
+		if (!Curses[i].turned)
+			continue;
+		Monsters[i].flags &= ~(MFLAG_BERSERK | MFLAG_GOLEM);
+		Curses[i].turned = false;
+	}
+}
+
 namespace {
 
 /** @brief The curse's own sigil, centred on @p anchor.x with its foot 4px above @p anchor.y - or its lettered chip. */

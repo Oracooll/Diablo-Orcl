@@ -102,6 +102,12 @@ void ProcessCursesTick(Player &player);
 /** @brief The slot is handed back, the level is gone, or the game is new. */
 void ClearCurseForMonster(const Monster &monster);
 void ClearAllCurses();
+/**
+ * @brief Confuse's turned monsters go back to their side before the level is stored (audit, 2026-09-27). The flags are
+ * saved with the monster and the clock is not - the table is cleared on the next level load - so a confused monster
+ * stayed turned for good.
+ */
+void ReleaseConfusedForLevelSave();
 
 /** @brief The chip over a cursed monster's head, @p anchor being the top-centre of its sprite. */
 void DrawCurseMarker(const Surface &out, const Monster &monster, Point anchor);

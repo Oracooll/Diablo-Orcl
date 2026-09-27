@@ -767,6 +767,16 @@ struct Item {
 	 * every other item. Item format 13. Item-local, saved with the item.
 	 */
 	uint8_t _iOracoolRiftTier = 0;
+	/**
+	 * @brief The Mystic's workshop (oracool/workshop.h): how many rerolls and removals this item has had - each
+	 * doubles the next one's price - and the affix its first reroll locked, the only one she will rework after it
+	 * (-1: none yet). Item format 15. They were a per-game table until 2026-09-27, so the menu reset them.
+	 */
+	uint8_t _iOracoolRerolls = 0;
+	uint8_t _iOracoolRemovals = 0;
+	int8_t _iOracoolLockedAffix = -1;
+	/** The counters stop here; the price stops rising long before (PriceFor caps it). */
+	static constexpr uint8_t MaxWorkshopAttempts = 20;
 
 	/**
 	 * @brief Sockets v2 (user directive 2026-08-19): the cap is 6, because an item's socket
@@ -1193,6 +1203,8 @@ void GetPrimalItemAffixes(const Player &player, Item &item, int minlvl, int maxl
  * generating the affixes and pass them in directly.
  */
 void CalcOracoolTieredItemValue(Item &item, int addTotal, int multTotal);
+/** @brief The affix that undoes @p type - a stat and its curse - or @p type itself; one item never carries both. */
+item_effect_type AffixTwinOf(item_effect_type type);
 /**
  * @brief Detects and corrects the v0.3.42 "price value stored instead of the real roll" bug
  * (see GetTieredItemAffixes) on a single item that may have been generated before that fix. A

@@ -29,6 +29,7 @@
 #include "qol/stash.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
+#include "stores.h" // ForceCloseStore
 
 namespace devilution::oracool {
 
@@ -429,6 +430,9 @@ void OpenRunewordBook()
 	// It is called BEFORE BookOpen goes true, because it closes the book too - the mini-map and the
 	// corner widgets have no open state and are suppressed in scrollrt instead.
 	devilution::CloseAllWindows();
+	// And a shop outright (audit, 2026-09-27): CloseAllWindows only steps a shop tab back to its vendor's dialog, which is
+	// modal - it drew under this window and took every click meant for it.
+	devilution::ForceCloseStore();
 	// The burger row is NOT in CloseAllWindows - space deliberately leaves it up, and the row's own
 	// click handler keeps it open so several panels can be toggled in one go. Neither argument
 	// survives contact with this window: the row sits just above the HUD plate, the book reaches

@@ -19,6 +19,7 @@
 #include "oracool/runeword_book.h"
 #include "oracool/skill_picker.h"
 #include "oracool/workshop.h"
+#include "oracool/stonegate_menu.h"
 #include "oracool/xp_counter.h"
 #include "utils/ui_fwd.h"
 
@@ -504,6 +505,10 @@ bool IsPointOverFloatingWindow(Point mousePosition)
 	// (external audit of v1.12.188, UI-02). Left clicks had a handler of their own, so only a right
 	// click reached the world beneath it: a cast or a walk under an open window.
 	if (IsPointOverWorkshop(mousePosition))
+		return true;
+	// The Rift Monument's menu (audit, 2026-09-27): its left clicks have a handler, but a right click reached the world -
+	// a walk, a swing, a word with the townsperson behind it - and what stood under it lit up on hover.
+	if (IsStonegateMenuOpen() && GetStonegateMenuRect().contains(mousePosition))
 		return true;
 	return false;
 }

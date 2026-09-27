@@ -106,12 +106,19 @@ void EndRift();
 
 /**
  * @brief A Guardian Keystone used in town (plan r5): opens a Guardian Rift at the keystone's tier and
- * lights the gate. False anywhere else, and the keystone is then not consumed.
+ * lights the gate. The keystone is NOT consumed here - the rift remembers it and SpendPendingKeystone takes it at the
+ * first step through (2026-09-27). False anywhere else.
  */
 bool UseGuardianKeystone(Player &player, const Item &keystone);
+/**
+ * @brief Spends the keystone that turned the open Guardian Rift - found by its seed on any backpack page or in the
+ * stash - at the hero's first step through. True when it was spent now or nothing was pending; false when it is gone
+ * (sold, dropped), and then the hero cannot step through until it is back.
+ */
+bool SpendPendingKeystone(Player &player);
 /** @brief The highest-tier Guardian Keystone in @p player's backpack, or -1. */
 int FindBestKeystoneInBackpack(const Player &player);
-/** @brief The gate's menu choosing a Guardian Rift: the best keystone in the pack is turned and consumed. False with none, or off town. */
+/** @brief The gate's menu choosing a Guardian Rift: the best keystone in the pack is turned (spent at the first step through). False with none, or off town. */
 bool UseBestKeystoneFromBackpack(Player &player);
 /**
  * @brief The tier of the keystone a Guardian Rift's guardian drops (plan r5): one up, three up when

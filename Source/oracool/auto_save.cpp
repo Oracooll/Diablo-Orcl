@@ -279,6 +279,12 @@ void SaveOnExit()
 	// paused) guard against saving a *mid-interaction* state that play would continue from; here
 	// the game is ending and only the character is kept, so none of them apply.
 
+	// The Cube's grid and the workshop's bench and well hand their items back first (audit, 2026-09-27): they are not
+	// save state, and FreeGame clears them after. The game menu closed them before calling this, but closing the window
+	// (Alt+F4) comes straight here - and lost whatever was staged. Closing twice is harmless.
+	CloseLevskiRoar();
+	CloseWorkshop();
+
 	Player &player = *MyPlayer;
 
 	// Saving a dead character does not damage the file - UnPackPlayer floors _pHPBase at 64

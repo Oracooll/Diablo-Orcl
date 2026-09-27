@@ -37,7 +37,10 @@ void NotePlayerAttackedMonster(const Player &player, const Monster &monster, boo
 void NoteAttacker(std::string name, int monsterToHit, int monsterLevel, bool demon, bool undead, int minimumHit);
 void NoteTarget(std::string name, int monsterArmor, bool arrow, int distancePenalty);
 
-/** @brief The chance, 0-100, the last monster to hit @p player hits them now, and its name. False when none has yet. */
+/**
+ * @brief The chance, 0-100, the last monster to hit @p player hits them now - landing, then not slipped by Dodge or
+ * Mantra of Evasion and not blocked by a shield (since 2026-09-27), standing - and its name. False when none has yet.
+ */
 bool ChanceToBeHit(const Player &player, int &chance, std::string &name);
 
 /** @brief The chance, 5-95, @p player hits the last monster they attacked now, and its name. False when none yet. */

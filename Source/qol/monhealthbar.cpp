@@ -102,7 +102,9 @@ void DrawMonsterHealthBar(const Surface &out)
 
 	RenderClxSprite(out, (*healthBox)[0], position);
 	DrawHalfTransparentRectTo(out, position.x + border, position.y + border, width - (border * 2), height - (border * 2));
-	int barProgress = (barWidth * currLife) / monster.maxHitPoints;
+	// In 64 bits (audit, 2026-09-27): a high-tier rift guardian on Torment carries millions of life (x64), and the width
+	// times that passed INT_MAX - a negative bar.
+	int barProgress = static_cast<int>(static_cast<int64_t>(barWidth) * currLife / monster.maxHitPoints);
 	if (barProgress != 0) {
 		RenderClxSprite(
 		    out.subregion(position.x + border + 1, position.y + border + 1, barProgress, height - (border * 2) - 2),

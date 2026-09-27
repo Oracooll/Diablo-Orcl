@@ -1628,7 +1628,12 @@ std::string GenerateStaffNameMagical(const ItemData &baseItemData, SpellID spell
 
 void GetStaffPower(const Player &player, Item &item, int lvl, SpellID bs, bool onlygood)
 {
-	int preidx = GetStaffPrefixId(lvl, onlygood, gbIsHellfire);
+	// The item-level ceiling, as DrawUnifiedAffix keeps it (audit, 2026-09-27): a staff's spell prefix was picked by the
+	// ROLL level alone, which chests, vendors, Wirt and unique monsters set above the stamped ilvl - a floor-5 staff
+	// could carry a level-10 prefix. Fresh generation only, so a stored seed still rebuilds to what it was.
+	const bool lowerToItemLevel = !ReplayingStoredItemSeed && item._iOracoolItemLevel > 0;
+	const int ceiling = lowerToItemLevel ? std::min(lvl, static_cast<int>(item._iOracoolItemLevel)) : lvl;
+	int preidx = GetStaffPrefixId(ceiling, onlygood, gbIsHellfire);
 	if (preidx != -1) {
 		item._iMagical = ITEM_QUALITY_MAGIC;
 		// Onto the one affix list like every other affix (2026-09-25) - SaveItemAffix records it there.
@@ -1800,7 +1805,7 @@ std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int
 		if ((goe == GOE_GOOD && row.PLGOE == GOE_EVIL) || (goe == GOE_EVIL && row.PLGOE == GOE_GOOD))
 			return false;
 		for (int k = 0; k < pickedCount; k++) {
-			if (picked[k] == row.power.type)
+			if (picked[k] == row.power.type || picked[k] == AffixTwinOf(row.power.type))
 				return false;
 		}
 		return true;
@@ -3784,6 +3789,29 @@ const PLStruct *FindAffixRowForType(item_effect_type type)
 	return nullptr;
 }
 
+/**
+ * @brief The affix that undoes @p type - a stat and its curse (Strength and weakness, swiftness and lead) - or @p type
+ * itself when it has none. One item never carries both (audit, 2026-09-27): the pick excluded only the same type, and a
+ * Rare off an ordinary monster could roll +Strength beside -Strength.
+ */
+item_effect_type AffixTwinOf(item_effect_type type)
+{
+	constexpr std::pair<item_effect_type, item_effect_type> Twins[] = {
+		{ IPL_TOHIT, IPL_TOHIT_CURSE }, { IPL_DAMP, IPL_DAMP_CURSE }, { IPL_TOHIT_DAMP, IPL_TOHIT_DAMP_CURSE },
+		{ IPL_ACP, IPL_ACP_CURSE }, { IPL_STR, IPL_STR_CURSE }, { IPL_MAG, IPL_MAG_CURSE }, { IPL_DEX, IPL_DEX_CURSE },
+		{ IPL_VIT, IPL_VIT_CURSE }, { IPL_ATTRIBS, IPL_ATTRIBS_CURSE }, { IPL_GETHIT, IPL_GETHIT_CURSE },
+		{ IPL_LIFE, IPL_LIFE_CURSE }, { IPL_MANA, IPL_MANA_CURSE }, { IPL_DUR, IPL_DUR_CURSE },
+		{ IPL_LIGHT, IPL_LIGHT_CURSE }, { IPL_MOVESPEED, IPL_MOVESPEED_CURSE },
+	};
+	for (const auto &[good, bad] : Twins) {
+		if (type == good)
+			return bad;
+		if (type == bad)
+			return good;
+	}
+	return type;
+}
+
 bool RollOracoolAffixFor(const Player &player, const Item &item, OracoolAffix &out, const item_effect_type *exclude, int excludeCount)
 {
 	if (item.isEmpty())
@@ -3800,7 +3828,12 @@ bool RollOracoolAffixFor(const Player &player, const Item &item, OracoolAffix &o
 		return false;
 	const PLStruct &affix = RowOf(*drawn);
 	ItemPower power = affix.power;
+	// A Primal's affixes are all perfect rolls, the offered one too (audit, 2026-09-27): the rebuild keeps the Primal's
+	// perfect-roll flag, and an ordinary roll under it was a Primal that was not.
+	const bool previousForcePerfectAffixRoll = ForcePerfectAffixRoll;
+	ForcePerfectAffixRoll = item._iOracoolPerfectRoll;
 	const int raw = SaveItemPower(player, scratch, power);
+	ForcePerfectAffixRoll = previousForcePerfectAffixRoll;
 	out = OracoolAffix { affix.power.type, raw, affix.multVal };
 	return true;
 }
@@ -3886,10 +3919,13 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	const int wantedCount = std::clamp(count, 0, Item::MaxOracoolAffixes);
 	std::copy(affixes, affixes + wantedCount, wanted.begin());
 
+	const int priceBefore = item._iIvalue;
 	GetItemAttrs(item, idx, ilvl);
 	item._iSeed = seed;
 	item._iCreateInfo = createInfo;
 	item._iOracoolItemLevel = static_cast<uint8_t>(ilvl);
+	int priceAddTotal = 0;
+	int priceMultTotal = 0;
 	// The record is cleared FIRST and the tier restored AFTER (sweep, 2026-09-25). It was the other way round,
 	// and ClearOracoolAffixRecord resets the tier - so every Rare, Buffed Unique or Primal Gillian reworked
 	// came back a magic item.
@@ -3914,6 +3950,8 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 		}
 		SaveItemPower(player, item, power);
 		item._iOracoolAffixes[item._iOracoolAffixCount++] = OracoolAffix { wanted[i].type, wanted[i].param1, wanted[i].param2 };
+		priceAddTotal += PLVal(wanted[i].param1, row->power.param1, row->power.param2, row->minVal, row->maxVal);
+		priceMultTotal += row->multVal;
 	}
 	if (item._iOracoolAffixCount > 0 && item._iMagical == ITEM_QUALITY_NORMAL)
 		item._iMagical = ITEM_QUALITY_MAGIC;
@@ -3934,6 +3972,13 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 		item._iDurability = std::min(durability, item._iMaxDur);
 	item._iOracoolBroken = broken && item._iDurability == 0;
 	item._iIdentified = identified;
+	// The price from the affixes it has now, as the roller priced them (audit, 2026-09-27): GetItemAttrs put the BASE
+	// value back and nothing re-priced the item, so every item reworked at the bench sold for its base. A unique's
+	// price is its own row's, not its affixes' - it keeps what it had.
+	if (item._iMagical == ITEM_QUALITY_MAGIC)
+		CalcOracoolTieredItemValue(item, priceAddTotal, priceMultTotal);
+	else if (item._iMagical == ITEM_QUALITY_UNIQUE)
+		item._iIvalue = priceBefore;
 	return true;
 }
 
@@ -6281,6 +6326,14 @@ void SpawnQuestItem(_item_indexes itemid, Point position, int randarea, int self
 			if (!failed)
 				break;
 		}
+	} else if (InDungeonBounds(position) && dItem[position.x][position.y] != 0) {
+		// A tile that already holds an item: the nearest free one instead (audit, 2026-09-27). The fork's boss drops pass
+		// the monster's own tile - a rift guardian's keystone, a sealed map, an encounter's reward - and a boss can die
+		// standing on loot; the new item took the tile over and the old one stayed in the list, unreachable. Vanilla's
+		// brain drop asks GetSuperItemLoc first for the same reason.
+		const Point free = GetSuperItemLoc(position);
+		if (free != Point { 0, 0 })
+			position = free;
 	}
 
 	if (ActiveItemCount >= MAXITEMS)

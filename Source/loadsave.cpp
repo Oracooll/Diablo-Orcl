@@ -31,7 +31,9 @@
 #include "monster.h"
 #include "mpq/mpq_common.hpp"
 #include "oracool/save_status.h"
+#include "oracool/curses.h"
 #include "oracool/minions.h"
+#include "oracool/warcries.h"
 #include "oracool/auto_save.h"
 #include "oracool/item_tiers.h"
 #include "oracool/imbuement.h"
@@ -331,7 +333,11 @@ struct LevelConversionData {
 // it loads (MigrateLegacyAffixPair). No reader had to learn anything, so no stash could be refused.
 // Version 14 (2026-09-26, cold resistance): one int32, _iPLCR, after _iPLMR. Version 13 files are still read
 // (AcceptItemFormat), their items with no cold resistance - the first format bump that refuses nothing.
-constexpr uint8_t OracoolItemFormatVersion = 14;
+// Version 15 (2026-09-27, the Mystic's workshop): three bytes after the keystone tier - how many rerolls and removals
+// this item has had, and the affix its first reroll locked. They lived in a per-game table keyed by seed, so going back
+// to the menu reset the doubling price and freed the lock (audit, 2026-09-27; user: "fix all four. dont worry about
+// save breaks"). Versions 13 and 14 are still read, their items as if never worked.
+constexpr uint8_t OracoolItemFormatVersion = 15;
 /**
  * @brief The item format the file being read was written in. 14 added Item::_iPLCR, cold resistance (2026-09-26);
  * a 13 file is read the old way and its items load with none - nothing a hero owned is refused for it. Set by the
@@ -342,7 +348,7 @@ uint8_t LoadingItemFormat = OracoolItemFormatVersion;
 /** @brief Whether @p version is one this build reads, remembering it for LoadItemData. */
 bool AcceptItemFormat(uint8_t version)
 {
-	if (version != OracoolItemFormatVersion && version != 13)
+	if (version < 13 || version > OracoolItemFormatVersion)
 		return false;
 	LoadingItemFormat = version;
 	return true;
@@ -578,6 +584,17 @@ void LoadItemData(LoadHelper &file, Item &item)
 	item._iOracoolLevelFree = file.NextLE<uint8_t>() != 0;
 	// Version 13: a Guardian Keystone's tier (the rifts).
 	item._iOracoolRiftTier = file.NextLE<uint8_t>();
+	// Version 15: the Mystic's counters and the locked affix, which must name one of the item's affixes or none.
+	if (LoadingItemFormat >= 15) {
+		item._iOracoolRerolls = std::min<uint8_t>(file.NextLE<uint8_t>(), Item::MaxWorkshopAttempts);
+		item._iOracoolRemovals = std::min<uint8_t>(file.NextLE<uint8_t>(), Item::MaxWorkshopAttempts);
+		const int8_t locked = file.NextLE<int8_t>();
+		item._iOracoolLockedAffix = locked >= 0 && locked < item._iOracoolAffixCount ? locked : -1;
+	} else {
+		item._iOracoolRerolls = 0;
+		item._iOracoolRemovals = 0;
+		item._iOracoolLockedAffix = -1;
+	}
 
 	// Self-healing for negative durability (user, 2026-08-27: "i have magic oracool items with
 	// negative durability"). Until WearDurabilityPoint landed, gear that broke while equipped kept
@@ -1511,6 +1528,10 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<uint8_t>(item._iOracoolLevelFree ? 1 : 0);
 	// Version 13: a Guardian Keystone's tier (the rifts).
 	file.WriteLE<uint8_t>(item._iOracoolRiftTier);
+	// Version 15: the Mystic's counters and the locked affix.
+	file.WriteLE<uint8_t>(item._iOracoolRerolls);
+	file.WriteLE<uint8_t>(item._iOracoolRemovals);
+	file.WriteLE<int8_t>(item._iOracoolLockedAffix);
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)
@@ -2181,6 +2202,9 @@ void SaveLevel(SaveWriter &saveWriter, LevelConversionData *levelConversionData)
 	// The army leaves with its owner: a level is never stored with minion bodies on it. Stored, they would come back
 	// on the next visit as ownerless friendly monsters - of a type whose sprites that visit never loaded.
 	oracool::WithdrawMinionsForLevelSave();
+	// And the monsters Confuse and Conversion turned: their clocks are not stored, their flags are.
+	oracool::ReleaseConfusedForLevelSave();
+	oracool::RevertConversionsForLevelSave();
 
 	Player &myPlayer = *MyPlayer;
 
@@ -2398,13 +2422,30 @@ constexpr int OracoolItemExtensionSaveSize =
     // v13: the Guardian Keystone's tier byte (the rifts, 2026-09-20).
     + 1
     // v14: _iPLCR, cold resistance (2026-09-26) - an int32 in the vanilla block, after _iPLMR.
-    + 4;
+    + 4
+    // v15: the Mystic's reroll and removal counts and the locked affix (2026-09-27).
+    + 3;
 const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
 const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
 
+/**
+ * @brief The size of one item record in @p format - what a file written in an older format holds (13 lacks v14's
+ * four cold resistance bytes, 14 lacks v15's three). The load-side size checks ask this with the file's own
+ * format; the savers write today's.
+ */
+size_t ItemSaveSizeFor(uint8_t format)
+{
+	size_t size = gbIsHellfireSaveGame ? HellfireItemSaveSize : DiabloItemSaveSize;
+	if (format < 15)
+		size -= 3;
+	if (format < 14)
+		size -= 4;
+	return size;
+}
+
 bool IsStashSizeValid(size_t stashSize, uint8_t version, uint32_t pages, uint32_t itemCount)
 {
-	const size_t itemSize = (gbIsHellfire ? HellfireItemSaveSize : DiabloItemSaveSize);
+	const size_t itemSize = ItemSaveSizeFor(LoadingItemFormat); // the stash file's own item format
 
 	// Version 6 grew the header by the embedded item-format byte; version 5 has only its own byte.
 	const size_t headerSize = version >= 6 ? 2 * sizeof(uint8_t) : sizeof(uint8_t);
@@ -2813,15 +2854,27 @@ void SaveHotkeys(SaveWriter &saveWriter, const Player &player)
 	file.WriteLE<uint8_t>(static_cast<uint8_t>(player._pLRSplType));
 }
 
+/**
+ * @brief Set when a stash or extra-page file was THERE but could not be read - damaged, or of a format this build does not
+ * read - so the save does not write over it this game (audit, 2026-09-27). Read as "absent", the next save replaced it
+ * with the empty one the load had left: every stashed item gone for good, from a sync conflict or one flipped bit.
+ */
+bool StashFileRefused = false;
+bool InvTabsFileRefused = false;
+
 bool LoadHeroItems(Player &player, uint32_t saveNumber)
 {
 	// The slot is a PARAMETER, not the gSaveNumber global (external audit, 2026-08-17): the
 	// hero-select preview loop iterates every slot, and reading the global here meant every
 	// hero's preview wore the SELECTED slot's equipment. The real load path passes the same
 	// number the global holds, so it is unchanged in behavior - but now by contract, not luck.
-	LoadHelper file(OpenSaveArchive(saveNumber), "heroitems");
+	std::optional<SaveReader> archive = OpenSaveArchive(saveNumber);
+	const bool present = archive && archive->HasFile("heroitems");
+	LoadHelper file(std::move(archive), "heroitems");
+	// Present but unreadable is a refusal, not "no items" (audit, 2026-09-27): the hero would load with his gear rebuilt
+	// from seeds - sockets, shards and reworks gone - and the next save would make that permanent.
 	if (!file.IsValid())
-		return true;
+		return !present;
 
 	gbIsHellfireSaveGame = file.NextBool8();
 
@@ -2841,7 +2894,7 @@ bool LoadHeroItems(Player &player, uint32_t saveNumber)
 	// The record is fixed-size, so its length is known exactly; a truncated file would otherwise
 	// read as zero-filled phantom items (LoadHelper::Next returns 0 past the end).
 	const size_t itemCount = static_cast<size_t>(NUM_INVLOC) + InventoryGridCells + MaxBeltItems;
-	const size_t expected = sizeof(uint8_t) * 2 + itemCount * (gbIsHellfireSaveGame ? HellfireItemSaveSize : DiabloItemSaveSize);
+	const size_t expected = sizeof(uint8_t) * 2 + itemCount * ItemSaveSizeFor(LoadingItemFormat); // the file's own item format
 	if (file.Size() != expected) {
 		gbIsHellfireSaveGame = gbIsHellfire;
 		return false;
@@ -2895,10 +2948,18 @@ void LoadStash()
 		filename = "mpstashitems";
 
 	Stash = {};
+	StashFileRefused = false;
 
-	LoadHelper file(OpenStashArchive(), filename);
-	if (!file.IsValid())
+	std::optional<SaveReader> archive = OpenStashArchive();
+	const bool present = archive && archive->HasFile(filename);
+	LoadHelper file(std::move(archive), filename);
+	if (!file.IsValid()) {
+		if (present) {
+			StashFileRefused = true;
+			EventPlrMsg(_("The Stash file could not be read. It is left untouched and will not be saved over this game."), UiFlags::ColorRed);
+		}
 		return;
+	}
 
 	auto version = file.NextLE<uint8_t>();
 	// Exactly the current version (audit, 2026-09-19): a `version == 5` branch lingered here, parsing a
@@ -3005,10 +3066,17 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 	player.InvTabGrid = {};
 	player._pNumInvTab = {};
 
+	InvTabsFileRefused = false;
 	// Parameterized for the same reason as LoadHeroItems: the preview loop reads OTHER slots.
-	LoadHelper file(OpenSaveArchive(saveNumber), "heroinvtabs");
-	if (!file.IsValid())
-		return; // no extra-tab data: an old save, or one where nothing was ever stored there
+	std::optional<SaveReader> archive = OpenSaveArchive(saveNumber);
+	const bool present = archive && archive->HasFile("heroinvtabs");
+	LoadHelper file(std::move(archive), "heroinvtabs");
+	if (!file.IsValid()) {
+		// Absent: no extra-page data, an old save or one where nothing was ever stored there. Present but unreadable:
+		// kept as it is and not saved over (audit, 2026-09-27) - the save used to remove it as "empty".
+		InvTabsFileRefused = present;
+		return;
+	}
 
 	const uint8_t version = file.NextLE<uint8_t>();
 	// Version 2 is no longer accepted (third audit, 2026-08-19). It was allowed on the reasoning that
@@ -3018,11 +3086,15 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 	// v2 file would now drift two bytes per item through the stream and read later tabs as garbage,
 	// silently. The stash rejects its equivalent outright and says so; this now does the same, and
 	// unlike the stash it costs nothing - an unreadable tab file simply leaves the tabs empty.
-	if (version != OracoolInvTabsVersion)
+	if (version != OracoolInvTabsVersion) {
+		InvTabsFileRefused = true; // not deleted by the next save either (audit, 2026-09-27)
 		return; // unrecognized or outgrown format; every extra tab stays empty
+	}
 	const ItemFormatScope itemFormat;
-	if (!AcceptItemFormat(file.NextLE<uint8_t>()))
+	if (!AcceptItemFormat(file.NextLE<uint8_t>())) {
+		InvTabsFileRefused = true;
 		return; // the embedded item schema disagrees with this build's; see the version-3 note above
+	}
 
 	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
 		if (!file.IsValid())
@@ -3032,8 +3104,12 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 			cell = file.NextLE<int8_t>();
 
 		const uint8_t itemCount = file.NextLE<uint8_t>();
-		if (itemCount > InventoryGridCells)
+		if (itemCount > InventoryGridCells) {
+			// The grid just read goes too (audit, 2026-09-27): its cells name items this record never wrote, and a cell past
+			// the page's count indexed its list out of range on the first draw.
+			player.InvTabGrid[t] = {};
 			return; // implausible count; stop here, tabs already loaded stay loaded
+		}
 
 		// Self-audit (2026-08-15): the grid must agree with the count it was saved beside. A cell is
 		// an index+1 into InvTabList (negatives mark a multi-cell item's continuation), and a cell
@@ -3341,6 +3417,8 @@ void SaveHeroItems(SaveWriter &saveWriter, Player &player)
 
 void SaveStash(SaveWriter &stashWriter)
 {
+	if (StashFileRefused)
+		return; // a file this game could not read is left as it is (see StashFileRefused)
 	const char *filename;
 	if (!gbIsMultiplayer)
 		filename = "spstashitems";
@@ -3405,6 +3483,8 @@ void SaveStash(SaveWriter &stashWriter)
 /** @brief Saves the Oracool Tabbed Inventory's 9 extra backpack pages; see LoadInventoryTabs. */
 void SaveInventoryTabs(SaveWriter &saveWriter, const Player &player)
 {
+	if (InvTabsFileRefused)
+		return; // a file this game could not read is left as it is (see InvTabsFileRefused)
 	bool anyItems = false;
 	for (int numInTab : player._pNumInvTab) {
 		if (numInTab > 0) {

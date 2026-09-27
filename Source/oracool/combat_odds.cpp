@@ -13,6 +13,9 @@
 #include "monster.h"
 #include "multi.h" // sgGameInitInfo - a monster's level depends on the difficulty
 #include "oracool/paladin_melee.h" // Zeal, which the sheet's To hit already counts
+#include "oracool/passives.h"      // Dodge - a blow that lands can still slip
+#include "oracool/rfa12_actives.h" // Mantra of Evasion, the same
+#include "oracool/rfa12_effects.h" // Rfa12BlockBonus
 #include "oracool/warcries.h"      // EffectiveMonsterArmor - a cry's armour cut is part of what the swing met
 #include "player.h"
 #include "utils/language.h"
@@ -89,7 +92,16 @@ bool ChanceToBeHit(const Player &player, int &chance, std::string &name)
 	if (LastAttacker.undead && HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::ACAgainstUndead))
 		armor += 20;
 	const int hit = std::max(LastAttacker.toHit + 2 * (LastAttacker.level - player._pLevel) + 30 - armor, LastAttacker.minimumHit);
-	chance = std::clamp(hit, 0, 100);
+	const int lands = std::clamp(hit, 0, 100);
+	// And what MonsterAttackPlayer does with a blow that lands (user, 2026-09-27: "fix all four" - the bar was the
+	// landing chance alone, and overstated how often a shield user is hit): Dodge and Mantra of Evasion slip it, then
+	// a shield blocks it. The hero is taken as standing, as he is while reading the sheet - Dodge, not Evade, and
+	// the block roll that only a standing or attacking hero gets.
+	const int slips = 100 - (100 - PassiveMeleeSlipChance(player, /*walking=*/false)) * (100 - Rfa12ActiveMeleeEvadeChance(player)) / 100;
+	int blocks = 0;
+	if (player._pBlockFlag)
+		blocks = std::clamp(player.GetBlockChance() + Rfa12BlockBonus(player) + PassiveBlockBonus(player) - LastAttacker.level * 2, 0, 100);
+	chance = lands * std::clamp(100 - slips, 0, 100) / 100 * (100 - blocks) / 100;
 	name = LastAttacker.name;
 	return true;
 }

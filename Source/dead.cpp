@@ -111,10 +111,18 @@ void InitCorpses()
 			//
 			// A champion beyond the cap gets corpseId 0, which is the same "no corpse" state a
 			// monster starts in - it dies without leaving a body rather than corrupting memory.
+			//
+			// And SET to 0 (audit, 2026-09-27): nothing did, so the comment above was a hope - the slot kept its last
+			// occupant's id and a champion past the cap left another champion's body and colours. It leaves its own type's
+			// body now (StartMonsterDeath falls back to it).
 			if (static_cast<unsigned>(nd) >= MaxCorpses) {
-				LogWarn("InitCorpses: more uniques on this level than the {} corpse slots - later ones leave no body",
-				    MaxCorpses);
-				break;
+				if (nd == MaxCorpses) {
+					LogWarn("InitCorpses: more uniques on this level than the {} corpse slots - later ones leave their type's body",
+					    MaxCorpses);
+					nd++; // warned once
+				}
+				monster.corpseId = 0;
+				continue;
 			}
 			InitDeadAnimationFromMonster(Corpses[nd], monster.type());
 			Corpses[nd].translationPaletteIndex = ActiveMonsters[i] + 1;

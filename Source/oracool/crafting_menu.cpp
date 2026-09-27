@@ -22,6 +22,7 @@
 #include "oracool/ui_sound.h"
 #include "utils/language.h"
 #include "utils/ui_fwd.h"
+#include "stores.h" // ForceCloseStore
 
 namespace devilution::oracool {
 
@@ -84,6 +85,9 @@ void OpenCraftingMenu()
 	// cannot fall behind as windows are added. Called BEFORE MenuOpen goes true, because it closes
 	// this window too.
 	devilution::CloseAllWindows();
+	// And a shop outright (audit, 2026-09-27): CloseAllWindows only steps a shop tab back to its vendor's dialog, which is
+	// modal - it drew under this window and took every click meant for it.
+	devilution::ForceCloseStore();
 	// The burger row is deliberately not in CloseAllWindows - space leaves it up so several panels
 	// can be toggled in one go. That argument does not survive this rect either: the row sits just
 	// above the HUD plate, this window reaches into that strip, and diablo.cpp routes
