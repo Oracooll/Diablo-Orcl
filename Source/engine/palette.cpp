@@ -337,10 +337,12 @@ int UpdateGamma(int gamma)
 
 void SetFadeLevel(int fadeval, bool updateHardwareCursor)
 {
+	// Recorded first, headless or not (2026-09-27): it is a present-time transform, and recording it touches nothing a
+	// headless run lacks - the one thing the fade test can check without a window.
+	FadeLevel = std::clamp(fadeval, 0, 256); // applied at present time - see PaletteRGB's note
 	if (HeadlessMode)
 		return;
 
-	FadeLevel = std::clamp(fadeval, 0, 256); // applied at present time - see PaletteRGB's note
 	for (int i = 0; i < 256; i++) {
 		system_palette[i].r = (fadeval * logical_palette[i].r) / 256;
 		system_palette[i].g = (fadeval * logical_palette[i].g) / 256;

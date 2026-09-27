@@ -149,6 +149,25 @@ void ScheduleAfterSeconds(int seconds)
 	PendingSaveTime = std::max(Clock::now() + std::chrono::seconds(std::max(seconds, 0)), RetryNotBefore);
 }
 
+/**
+ * @brief The frequent triggers - every kill's experience, every pickup - save at most once in @p spacingSeconds (audit,
+ * 2026-09-27). Each asked for a save at once, and a hero save rewrites and flushes the whole hero archive (and the stash
+ * when gold went there) on the main thread: a hitch on nearly every kill at 300% density. Progress is still at most a
+ * few seconds old, and a level change, a purchase or leaving the game saves at once as before. A save already due
+ * sooner is kept.
+ */
+void ScheduleSpaced(int spacingSeconds)
+{
+	if (!IsEnabled())
+		return;
+	const auto when = std::max({ Clock::now(), LastSave + std::chrono::seconds(spacingSeconds), RetryNotBefore });
+	if (!SavePending || when < PendingSaveTime)
+		PendingSaveTime = when;
+	SavePending = true;
+}
+
+constexpr int FrequentTriggerSpacingSeconds = 10;
+
 } // namespace
 
 void ResetAutoSave()
@@ -171,7 +190,7 @@ void NotifyGameSaved()
 void ScheduleAutoSaveForItemPickup()
 {
 	if (*sgOptions.Oracool.autoSaveOnItemPickup)
-		ScheduleAfterSeconds(0);
+		ScheduleSpaced(FrequentTriggerSpacingSeconds);
 }
 
 void ScheduleAutoSaveForStorePurchase()
@@ -189,7 +208,7 @@ void ScheduleAutoSaveForLevelChange()
 void ScheduleAutoSaveForExperienceGain()
 {
 	if (*sgOptions.Oracool.autoSaveOnExperienceGain)
-		ScheduleAfterSeconds(0);
+		ScheduleSpaced(FrequentTriggerSpacingSeconds);
 }
 
 void ScheduleAutoSaveForStatPointSpent()

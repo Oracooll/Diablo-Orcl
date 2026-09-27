@@ -940,6 +940,12 @@ void DrawRiftHud(const Surface &out)
 		DrawRiftBarFill(out, Point { x, barY }, fill, BarHeight, State.kind == RiftKind::Guardian);
 }
 
+void SetRiftGuardianForTest(int monsterId)
+{
+	State.guardianSpawned = true;
+	State.guardianId = monsterId;
+}
+
 void ResetRiftForNewGame()
 {
 	State = RiftState {};

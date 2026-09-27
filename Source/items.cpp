@@ -2665,7 +2665,9 @@ void SetupAllUseful(Item &item, int iseed, int lvl)
 	}
 
 	GetItemAttrs(item, idx, lvl);
-	item._iCreateInfo = lvl | CF_USEFUL;
+	// Held to the 6-bit field (audit, 2026-09-27): area level 64 - Torment's floors 16 and 24 - stored as 0, and the scroll
+	// replayed from it on a reload came back a potion (the level-1 branch).
+	item._iCreateInfo = std::min(lvl, static_cast<int>(CF_LEVEL)) | CF_USEFUL;
 	SetupItem(item);
 }
 
@@ -7175,33 +7177,20 @@ bool DoOil(Player &player, int cii, int tabIdx)
 		return fmt::format(fmt::runtime(_("armor class: {:d}")), item._iAC);
 	case IPL_FIRERES:
 	case IPL_FIRERES_CURSE:
-		if (item._iPLFR < MaxResistance)
-			return fmt::format(fmt::runtime(_("Resist Fire: {:+d}%")), item._iPLFR);
-		else
-			return fmt::format(fmt::runtime(_("Resist Fire: {:+d}% MAX")), MaxResistance);
+		return fmt::format(fmt::runtime(_("Resist Fire: {:+d}%")), item._iPLFR);
 	case IPL_LIGHTRES:
 	case IPL_LIGHTRES_CURSE:
-		if (item._iPLLR < MaxResistance)
-			return fmt::format(fmt::runtime(_("Resist Lightning: {:+d}%")), item._iPLLR);
-		else
-			return fmt::format(fmt::runtime(_("Resist Lightning: {:+d}% MAX")), MaxResistance);
+		return fmt::format(fmt::runtime(_("Resist Lightning: {:+d}%")), item._iPLLR);
 	case IPL_MAGICRES:
 	case IPL_MAGICRES_CURSE:
-		if (item._iPLMR < MaxResistance)
-			return fmt::format(fmt::runtime(_("Resist Magic: {:+d}%")), item._iPLMR);
-		else
-			return fmt::format(fmt::runtime(_("Resist Magic: {:+d}% MAX")), MaxResistance);
+		return fmt::format(fmt::runtime(_("Resist Magic: {:+d}%")), item._iPLMR);
 	case IPL_COLDRES:
 	case IPL_COLDRES_CURSE:
-		if (item._iPLCR < MaxResistance)
-			return fmt::format(fmt::runtime(_("Resist Cold: {:+d}%")), item._iPLCR);
-		else
-			return fmt::format(fmt::runtime(_("Resist Cold: {:+d}% MAX")), MaxResistance);
+		return fmt::format(fmt::runtime(_("Resist Cold: {:+d}%")), item._iPLCR);
+	// The value the item carries (audit, 2026-09-27). Vanilla printed "+75% MAX" from 75 up, its old cap; the fork caps
+	// the hero's total at 90 after the difficulty penalty, and an item's own +80 is +80 of it.
 	case IPL_ALLRES:
-		if (item._iPLFR < MaxResistance)
-			return fmt::format(fmt::runtime(_("Resist All: {:+d}%")), item._iPLFR);
-		else
-			return fmt::format(fmt::runtime(_("Resist All: {:+d}% MAX")), MaxResistance);
+		return fmt::format(fmt::runtime(_("Resist All: {:+d}%")), item._iPLFR);
 	case IPL_SPLLVLADD:
 		if (item._iSplLvlAdd > 0)
 			return fmt::format(fmt::runtime(ngettext("spells are increased {:d} level", "spells are increased {:d} levels", item._iSplLvlAdd)), item._iSplLvlAdd);
@@ -7373,7 +7362,7 @@ bool DoOil(Player &player, int cii, int tabIdx)
 	case IPL_GOLDFIND:
 		return fmt::format(fmt::runtime(_("{:+d}% gold from monsters")), item._iPLGoldFind);
 	case IPL_MAGICFIND:
-		return fmt::format(fmt::runtime(_("{:+d}% better chance of magic items")), item._iPLMagicFind);
+		return fmt::format(fmt::runtime(_("{:+d}% chance a plain weapon or armor found is Rare")), item._iPLMagicFind);
 	case IPL_MOVESPEED:
 	case IPL_MOVESPEED_CURSE:
 		return fmt::format(fmt::runtime(_("{:+d}% movement speed")), item._iPLMoveSpeed);
@@ -7516,7 +7505,7 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 		// Worded to match the Charm of Luck's line, for the reason the gold one above records: the
 		// two stack, and a player comparing them should not have to work out whether they mean the
 		// same thing.
-		return fmt::format(fmt::runtime(_("{:+d}% better chance of magic items")), affix.param1);
+		return fmt::format(fmt::runtime(_("{:+d}% chance a plain weapon or armor found is Rare")), affix.param1);
 	case IPL_LIFE:
 		return fmt::format(fmt::runtime(_("Hit Points: {:+d}")), affix.param1);
 	case IPL_LIFE_CURSE:
@@ -7575,7 +7564,7 @@ std::string PrintSetBonusPower(const ItemPower &power)
 	case IPL_FASTCAST:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% faster cast rate")), power.param1);
 	case IPL_MAGICFIND:
-		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% better chance of magic items")), power.param1);
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% chance a plain weapon or armor found is Rare")), power.param1);
 	case IPL_FIRERES:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% fire resist")), power.param1);
 	case IPL_LIGHTRES:

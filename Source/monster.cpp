@@ -304,8 +304,14 @@ void PlaceGroup(size_t typeIndex, unsigned num, Monster *leader = nullptr, bool 
 		while (placed != 0) {
 			ActiveMonsterCount--;
 			placed--;
-			const auto &position = Monsters[ActiveMonsterCount].position.tile;
+			Monster &undone = Monsters[ActiveMonsterCount];
+			const auto &position = undone.position.tile;
 			dMonster[position.x][position.y] = 0;
+			// Its light too (audit, 2026-09-27): a Luminous monster taken back left its glow on the floor for good.
+			if (undone.lightId != NO_LIGHT) {
+				AddUnLight(undone.lightId);
+				undone.lightId = NO_LIGHT;
+			}
 		}
 
 		int xp;
@@ -1676,7 +1682,10 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 			const int8_t raw = element == DamageType::Fire ? player._pFireResist
 			    : element == DamageType::Lightning         ? player._pLghtResist
 			                                               : player._pColdResist;
-			const int resist = std::clamp<int>(raw, 0, 75);
+			// The hero's own resistance as it stands - already capped and floored by the curve - as the missiles apply it
+			// (audit, 2026-09-27): clamped to 0-75 here, a -60% fire resistance on Hell took a Searing third at 100% where
+			// the sheet (and a fireball) said 160%, and 85% cold resisted only 75.
+			const int resist = std::clamp<int>(raw, -100, 100);
 			const int resisted = elemental * (100 - resist) / 100;
 			ApplyPlrDamage(element, player, 0, 0, dam - elemental + resisted);
 			if (element == DamageType::Cold)

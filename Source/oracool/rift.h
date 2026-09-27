@@ -218,5 +218,7 @@ void DrawRiftHud(const Surface &out);
 
 /** @brief Game teardown: the state is file-local and outlives the game otherwise. */
 void ResetRiftForNewGame();
+/** @brief Names Monsters[@p monsterId] the open rift's guardian, as its spawn does - for the WORLD-02 test. */
+void SetRiftGuardianForTest(int monsterId);
 
 } // namespace devilution::oracool

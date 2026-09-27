@@ -50,6 +50,11 @@ void ClearReadiedSpell(Player &player);
  * @param player The player whose readied spell is to be checked.
  */
 void EnsureValidReadiedSpell(Player &player);
+/**
+ * @brief Whether @p player has @p spell as a binding of @p type: the skill invested, the spell learned, a scroll held, a
+ * staff's charges. What a hotkey or a readied slot may hold (audit, 2026-09-27).
+ */
+bool HeroHasBinding(const Player &player, SpellID spell, SpellType type);
 void CastSpell(int id, SpellID spl, int sx, int sy, int dx, int dy, int spllvl);
 
 /** @brief How many bolts one Charged Bolt cast looses at @p spellLevel: the spell table's one plus CastSpell's extra. Read by the tooltip too. */

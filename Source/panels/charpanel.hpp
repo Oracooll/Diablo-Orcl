@@ -72,6 +72,8 @@ int GetSheetAttackFramesSkipped();
 int GetSheetHitRecoveryFramesSkipped();
 /** @brief Block chance against an equal-level attacker, in percent; 0 without a shield. */
 int GetSheetBlockChancePercent();
+/** @brief How much of the target's armour an armour-pierce tier ignores, in percent (25, 50, 75, 87...). */
+int GetSheetArmorPiercePercent(int tier);
 /** @brief The fixed 3/5% life steal; the random drain (RandomStealLife) is a flag of its own. */
 int GetSheetLifeStealPercent();
 /** @brief The fixed 3/5% mana steal; 0 under NoMana, which disables it. */

@@ -6,6 +6,7 @@
 #include "monster.h"
 #include "oracool/area_level.h"
 #include "utils/language.h"
+#include "oracool/rift.h" // InRift - the generated set level
 
 namespace devilution::oracool {
 
@@ -99,7 +100,9 @@ int BossCountForLevel()
 	// Town has none, and neither do the set levels - the same two exclusions
 	// LesserUniqueCountForLevel makes, for the same reason: their contents are authored, and
 	// dropping a boss into Lachdanan's tomb is vandalism rather than variety.
-	if (currlevel == 0 || setlevel)
+	// A rift is the one set level that is GENERATED, and it asks for champions and a boss (PlaceRiftMonsters) -
+	// which this refused, so none ever came (audit, 2026-09-27).
+	if (currlevel == 0 || (setlevel && !InRift()))
 		return 0;
 
 	const int alvl = CurrentAreaLevel();

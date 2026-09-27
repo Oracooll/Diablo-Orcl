@@ -108,6 +108,12 @@ std::optional<ClassMeleeSkill> ArmedClassMeleeSkill();
 int ClassMeleeSkillDamagePercent(const Player &player);
 
 /**
+ * @brief The damage bonus @p spell's class melee skill adds at @p player's rank, in percent - what the sheet quotes without a
+ * swing armed. -1 when @p spell is not a class melee skill.
+ */
+int ClassMeleeSkillBonusPercentFor(const Player &player, SpellID spell);
+
+/**
  * @brief Everything the armed skill does beyond the swing's own blow. Called once per swing by
  * DoAttack at the hit frame, after the front target has been resolved.
  *

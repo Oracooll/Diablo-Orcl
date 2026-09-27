@@ -27,7 +27,10 @@
 #include "oracool/rage.h"
 #include "oracool/essence.h" // the Necromancer's second pool, a row of its own
 #include "oracool/class_tree.h"
-#include "oracool/combat_odds.h" // the Armor class and To hit boxes' odds bars
+#include "oracool/combat_odds.h"
+#include "oracool/melee_skills.h" // ClassMeleeSkillBonusPercentFor - a melee skill's swing on the sheet
+#include "oracool/passives.h"
+#include "oracool/rfa12_effects.h" // the Armor class and To hit boxes' odds bars
 #include "oracool/aura_field.h" // HolyPulseDamage / SanctuaryDamage - a damaging aura's number on the sheet
 #include "oracool/hero_title.h"
 #include "oracool/signets.h"
@@ -257,6 +260,14 @@ StyledText GetReadiedSlotDamage(bool leftButton)
 	}
 	if (AuraOnButton(leftButton) != oracool::ClassTreeSkill::None)
 		return StyledText { UiFlags::ColorBlue, std::string(_("On")) };
+	// A class melee skill swings the weapon for more (audit, 2026-09-27): Bash, Double Swing, Frenzy, Berserk and the
+	// thrusts read a dash - they have no missile formula - while the swing adds the skill's bonus at its rank.
+	if (const int bonus = oracool::ClassMeleeSkillBonusPercentFor(player, spell); bonus >= 0) {
+		const std::pair<int, int> dmg = GetDamage();
+		const int low = dmg.first * (100 + bonus) / 100;
+		const int high = dmg.second * (100 + bonus) / 100;
+		return StyledText { UiFlags::ColorWhite, StrCat(low, "-", high), (low >= 100) ? -1 : 1 };
+	}
 	if (ReadiedSlotSwingsTheWeapon(spell))
 		return WeaponDamageText();
 
@@ -393,7 +404,9 @@ int BlockChancePercent()
 {
 	if (!InspectPlayer->_pBlockFlag)
 		return 0;
-	return std::clamp(InspectPlayer->GetBlockChance(false), 0, 100);
+	// With the skills' block, as the blow adds it (audit, 2026-09-27): Hold Your Ground, Reed in the Wind, Staff Parry and
+	// Brace added up to twenty points the sheet never showed.
+	return std::clamp(InspectPlayer->GetBlockChance(false) + oracool::Rfa12BlockBonus(*InspectPlayer) + oracool::PassiveBlockBonus(*InspectPlayer), 0, 100);
 }
 
 /** @brief Fixed life-steal percentage. Both flags present means 5 - the later test overwrites. */
@@ -771,7 +784,7 @@ const CharRow CharRows[] = {
 	    } },
 
 	{ N_("Armor pierce"),
-	    []() { return PlainValue(InspectPlayer->_pIEnAc); },
+	    []() { return PlainValue(GetSheetArmorPiercePercent(InspectPlayer->_pIEnAc), "%"); },
 	    nullptr, CharRowGroupGap },
 	{ N_("Spell to hit"),
 	    // "Always" while the Diablo II rule is on trial (SpellsNeverMiss): the percentage would name a roll
@@ -2401,6 +2414,18 @@ int GetSheetHitRecoveryFramesSkipped()
 int GetSheetBlockChancePercent()
 {
 	return BlockChancePercent();
+}
+
+int GetSheetArmorPiercePercent(int tier)
+{
+	// Player::CalculateArmorPierce's Hellfire rule, the fork's always: tier 1 takes a quarter of the target's armour, and
+	// each tier past it halves what is left - 50%, 75%, 87%. Shown as that percentage (audit, 2026-09-27), not the raw
+	// tier, which read as "ignores 2 points" for what halves the armour.
+	if (tier <= 0)
+		return 0;
+	if (tier == 1)
+		return 25;
+	return 100 - 100 / (1 << std::min(tier - 1, 16));
 }
 
 int GetSheetLifeStealPercent()

@@ -119,6 +119,13 @@ public:
 			m_buffer_ = nullptr;
 	}
 
+	/** @brief Over bytes already in memory - the item-format tests (2026-09-27). */
+	LoadHelper(std::unique_ptr<byte[]> buffer, size_t size)
+	    : m_buffer_(std::move(buffer))
+	    , m_size_(size)
+	{
+	}
+
 	bool IsValid(size_t size = 1)
 	{
 		return m_buffer_ != nullptr
@@ -182,7 +189,9 @@ public:
 };
 
 class SaveHelper {
-	SaveWriter &m_mpqWriter;
+	/** @brief The archive written on destruction, or nullptr when the bytes go to m_capture_ instead (the tests). */
+	SaveWriter *m_mpqWriter;
+	std::vector<uint8_t> *m_capture_ = nullptr;
 	const char *m_szFileName_;
 	std::unique_ptr<byte[]> m_buffer_;
 	size_t m_cur_ = 0;
@@ -192,8 +201,18 @@ class SaveHelper {
 
 public:
 	SaveHelper(SaveWriter &mpqWriter, const char *szFileName, size_t bufferLen)
-	    : m_mpqWriter(mpqWriter)
+	    : m_mpqWriter(&mpqWriter)
 	    , m_szFileName_(szFileName)
+	    , m_buffer_(new byte[codec_get_encoded_len(bufferLen)])
+	    , m_capacity_(bufferLen)
+	{
+	}
+
+	/** @brief Into @p capture, raw and unencoded, rather than an archive - the item-format tests (2026-09-27). */
+	SaveHelper(std::vector<uint8_t> &capture, size_t bufferLen)
+	    : m_mpqWriter(nullptr)
+	    , m_capture_(&capture)
+	    , m_szFileName_("capture")
 	    , m_buffer_(new byte[codec_get_encoded_len(bufferLen)])
 	    , m_capacity_(bufferLen)
 	{
@@ -261,6 +280,10 @@ public:
 			    "\" was too small - the record grew without its size constant. This is a bug; "
 			    "please report it rather than continuing, as the save is incomplete."));
 		}
+		if (m_capture_ != nullptr) {
+			m_capture_->assign(reinterpret_cast<const uint8_t *>(m_buffer_.get()), reinterpret_cast<const uint8_t *>(m_buffer_.get()) + m_cur_);
+			return;
+		}
 		const auto encodedLen = codec_get_encoded_len(m_cur_);
 		const char *const password = pfile_get_password();
 		codec_encode(m_buffer_.get(), m_cur_, encodedLen, password);
@@ -269,7 +292,7 @@ public:
 		// oracool::NoteSaveWriteFailed. The archive itself now keeps the previous record when a
 		// write fails (MpqWriter::WriteFile), so this is about TELLING somebody rather than about
 		// the data; a save that quietly did not happen is how a player loses an evening.
-		if (!m_mpqWriter.WriteFile(m_szFileName_, m_buffer_.get(), encodedLen))
+		if (!m_mpqWriter->WriteFile(m_szFileName_, m_buffer_.get(), encodedLen))
 			oracool::NoteSaveWriteFailed(m_szFileName_);
 	}
 };
@@ -2785,8 +2808,10 @@ void LoadHotkeys()
 		}
 	}
 	for (size_t i = 0; i < NumHotkeys; i++) {
-		// An empty slot takes the offer; a bound one keeps what the hero file gave it.
-		if (IsValidSpell(myPlayer._pSplHotKey[i]) || !IsValidSpell(savedSpell[i]))
+		// An empty slot takes the offer; a bound one keeps what the hero file gave it. And only an offer the hero can
+		// still use (audit, 2026-09-27): the hero file's decode drops bindings to skills the hero no longer has, and this
+		// fallback put them back - slots 8-11, fed only from here, were never checked at all.
+		if (IsValidSpell(myPlayer._pSplHotKey[i]) || !HeroHasBinding(myPlayer, savedSpell[i], savedType[i]))
 			continue;
 		myPlayer._pSplHotKey[i] = savedSpell[i];
 		myPlayer._pSplTHotKey[i] = savedType[i];
@@ -2801,7 +2826,7 @@ void LoadHotkeys()
 	// replaced by the older one. A genuinely empty slot still takes whatever this chunk offers.
 	const SpellID savedRight = static_cast<SpellID>(file.NextLE<int32_t>());
 	const auto savedRightType = static_cast<SpellType>(file.NextLE<uint8_t>());
-	if (!IsValidSpell(myPlayer._pRSpell)) {
+	if (!IsValidSpell(myPlayer._pRSpell) && HeroHasBinding(myPlayer, savedRight, savedRightType)) {
 		myPlayer._pRSpell = savedRight;
 		myPlayer._pRSplType = savedRightType;
 	}
@@ -2821,7 +2846,7 @@ void LoadHotkeys()
 	if (file.IsValid(HotkeysSizeWithLeft(nHotkeys))) {
 		const SpellID savedLeft = static_cast<SpellID>(file.NextLE<int32_t>());
 		const auto savedLeftType = static_cast<SpellType>(file.NextLE<uint8_t>());
-		if (!IsValidSpell(myPlayer._pLRSpell)) {
+		if (!IsValidSpell(myPlayer._pLRSpell) && HeroHasBinding(myPlayer, savedLeft, savedLeftType)) {
 			myPlayer._pLRSpell = savedLeft;
 			myPlayer._pLRSplType = savedLeftType;
 		}
@@ -3703,6 +3728,33 @@ void SaveLevel(SaveWriter &saveWriter)
 void LoadLevel()
 {
 	LoadLevel(nullptr);
+}
+
+std::vector<uint8_t> SaveItemBytesForTest(const Item &item)
+{
+	std::vector<uint8_t> bytes;
+	{
+		SaveHelper file(bytes, HellfireItemSaveSize);
+		SaveItem(file, item);
+	}
+	return bytes;
+}
+
+bool LoadItemBytesForTest(const std::vector<uint8_t> &bytes, uint8_t format, Item &item)
+{
+	const ItemFormatScope itemFormat;
+	if (!AcceptItemFormat(format))
+		return false;
+	std::unique_ptr<byte[]> buffer(new byte[bytes.size()]);
+	std::copy(bytes.begin(), bytes.end(), reinterpret_cast<uint8_t *>(buffer.get()));
+	LoadHelper file(std::move(buffer), bytes.size());
+	LoadItemData(file, item);
+	return true;
+}
+
+uint8_t LoadingItemFormatForTest()
+{
+	return LoadingItemFormat;
 }
 
 } // namespace devilution

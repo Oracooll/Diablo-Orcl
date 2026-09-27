@@ -36,6 +36,7 @@
 #include "engine/surface.hpp"
 
 namespace devilution {
+struct Item;
 struct Player;
 } // namespace devilution
 
@@ -92,5 +93,10 @@ void UpdateWorkshopState();
 
 /** @brief Game teardown: the window, the item it holds and the per-item counters are all this file's statics. */
 void ResetWorkshopForNewGame();
+/** @brief Whether the Mystic will reroll affix @p row of @p item: the first reroll locks the item to that affix. */
+bool WorkshopLockAllowsReroll(const Item &item, int row);
+/** @brief The next reroll's and removal's gold on @p item - doubling with each done, from the item's own counters. */
+int WorkshopRerollPrice(const Item &item);
+int WorkshopRemovePrice(const Item &item);
 
 } // namespace devilution::oracool

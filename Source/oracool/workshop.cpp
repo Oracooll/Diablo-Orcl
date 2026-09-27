@@ -1436,6 +1436,24 @@ void DrawBoard(const Surface &out)
 
 } // namespace
 
+bool WorkshopLockAllowsReroll(const Item &item, int row)
+{
+	// The first reroll settles the item on that affix; a lock past the item's affixes (a Cube recipe took some away)
+	// locks nothing.
+	const int locked = item._iOracoolLockedAffix;
+	return locked < 0 || locked >= item._iOracoolAffixCount || locked == row;
+}
+
+int WorkshopRerollPrice(const Item &item)
+{
+	return RerollPrice(item);
+}
+
+int WorkshopRemovePrice(const Item &item)
+{
+	return RemovePrice(item);
+}
+
 // ---------------------------------------------------------------------------------------------
 // The window
 // ---------------------------------------------------------------------------------------------
@@ -2378,7 +2396,7 @@ void RunControl(Control control)
 			break;
 		}
 		// A lock past the item's affixes (a Cube recipe took some away since) locks nothing.
-		if (Bench._iOracoolLockedAffix >= 0 && Bench._iOracoolLockedAffix < Bench._iOracoolAffixCount && Bench._iOracoolLockedAffix != SelectedRow) {
+		if (!WorkshopLockAllowsReroll(Bench, SelectedRow)) {
 			SetBoard(std::string(_("This item is settled: only the affix she first worked can be rerolled.")));
 			break;
 		}

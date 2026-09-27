@@ -1837,10 +1837,13 @@ void DrawView(const Surface &out, Point startPosition)
 		// at 16:9 and wider they do not, and the clip only ever cost the sphere its crown.
 		const bool sidePanelOpen = invflag || sbookflag || chrflag || QuestLogIsOpen || IsStashOpen;
 		const bool fourByThree = gnScreenWidth * 3 <= gnScreenHeight * 4 + 8;
-		if (sidePanelOpen && fourByThree && oracool::SidePanelContentBottom < out.h()) {
-			const Surface below = out.subregionY(oracool::SidePanelContentBottom, out.h() - oracool::SidePanelContentBottom);
-			oracool::DrawHealthOrb(below, -oracool::SidePanelContentBottom);
-			oracool::DrawManaOrb(below, -oracool::SidePanelContentBottom);
+		// Where the panels' content really ends (audit, 2026-09-27): SidePanelContentBottom is a line on a 720-tall window,
+		// and the panels dock to the screen's bottom - at 1024x768 the fixed line sat 48px above it and clipped nothing.
+		const int clipLine = oracool::BottomDockedTop(720) + oracool::SidePanelContentBottom;
+		if (sidePanelOpen && fourByThree && clipLine > 0 && clipLine < out.h()) {
+			const Surface below = out.subregionY(clipLine, out.h() - clipLine);
+			oracool::DrawHealthOrb(below, -clipLine);
+			oracool::DrawManaOrb(below, -clipLine);
 		} else {
 			oracool::DrawHealthOrb(out);
 			oracool::DrawManaOrb(out);

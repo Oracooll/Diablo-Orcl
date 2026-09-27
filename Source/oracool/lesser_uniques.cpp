@@ -16,6 +16,7 @@
 #include "oracool/rng_streams.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
+#include "oracool/rift.h" // InRift - the generated set level
 
 namespace devilution::oracool {
 
@@ -196,7 +197,9 @@ int LesserUniqueCountForLevel()
 {
 	// Town has no champions, and neither do the set levels, whose contents are authored rather than
 	// generated - dropping a random pack into Lachdanan's tomb would be vandalism, not variety.
-	if (currlevel == 0 || setlevel)
+	// A rift is the one set level that is GENERATED, and it asks for champions and a boss (PlaceRiftMonsters) -
+	// which this refused, so none ever came (audit, 2026-09-27).
+	if (currlevel == 0 || (setlevel && !InRift()))
 		return 0;
 	// Oracool: user call after playing it (2026-08-15) - "one pack per level is not ok. increase
 	// packs 2-3 per normal. 3-4 nightmare. 4-5 hell. 5-6 torment."

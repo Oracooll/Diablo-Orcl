@@ -3322,7 +3322,9 @@ void OperateShrineSparkling(Player &player, Point spawnPosition)
 	if (&player != MyPlayer)
 		return;
 
+	const uint64_t experienceBefore = player._pExperience;
 	AddPlrExperience(player, player._pLevel, 1000 * currlevel);
+	const uint64_t gained = player._pExperience - experienceBefore;
 
 	AddMissile(
 	    spawnPosition,
@@ -3337,7 +3339,8 @@ void OperateShrineSparkling(Player &player, Point spawnPosition)
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_SPARKLING);
-	oracool::LogEvent(fmt::format("Sparkling Shrine: +{:d} experience", 1000 * currlevel), UiFlags::ColorRed);
+	// What was gained, as Mendicant logs it (audit, 2026-09-27): the brakes past level 70, and nothing at 99.
+	oracool::LogEvent(fmt::format("Sparkling Shrine: +{:d} experience", gained), UiFlags::ColorRed);
 }
 
 /**
@@ -4931,7 +4934,10 @@ void ImproveWaypointSpawnPosition()
 		return;
 	}
 
-	dObject[waypoint->position.x][waypoint->position.y] = 0;
+	// Only if the old tile still names the sigil (audit, 2026-09-27): a fixed object placed after it - a level-16 lever, a
+	// Na-Krul book - can have taken that tile, and clearing it blindly left the lever unclickable and undrawn.
+	if (dObject[waypoint->position.x][waypoint->position.y] == static_cast<int8_t>(waypointIndex + 1))
+		dObject[waypoint->position.x][waypoint->position.y] = 0;
 	waypoint->position = best;
 	dObject[best.x][best.y] = static_cast<int8_t>(waypointIndex + 1);
 }
@@ -4958,11 +4964,18 @@ void ApplyPendingWaypointSpawn()
 		// before moving them, since whatever placed them at their current position (InitPlayer,
 		// or LoadLevel()'s own restore) already registered it there.
 		Player &player = *MyPlayer;
-		if (player.position.tile != object.position) {
+		// Beside the sigil when a monster stands on it (audit, 2026-09-27): a revisit restores monsters where they were, and
+		// the hero was put on the same tile as one.
+		Point landing = object.position;
+		if (dMonster[landing.x][landing.y] != 0) {
+			if (const std::optional<Point> free = FindClosestValidPosition([&player](Point p) { return PosOkPlayer(player, p) && dMonster[p.x][p.y] == 0; }, landing, 1, 5))
+				landing = *free;
+		}
+		if (player.position.tile != landing) {
 			dPlayer[player.position.tile.x][player.position.tile.y] = 0;
-			player.position.tile = object.position;
-			player.position.old = object.position;
-			dPlayer[object.position.x][object.position.y] = player.getId() + 1;
+			player.position.tile = landing;
+			player.position.old = landing;
+			dPlayer[landing.x][landing.y] = player.getId() + 1;
 		}
 		FixPlayerLocation(player, player._pdir);
 

@@ -293,6 +293,15 @@ int ClassMeleeSkillDamagePercent(const Player &player)
 	return p.bonusPercent + p.bonusPerRank * (RankOf(player, *ArmedSkill) - 1);
 }
 
+int ClassMeleeSkillBonusPercentFor(const Player &player, SpellID spell)
+{
+	const std::optional<ClassMeleeSkill> skill = ClassMeleeSkillForSpell(spell);
+	if (!skill.has_value())
+		return -1;
+	const Profile p = ProfileOf(*skill);
+	return p.bonusPercent + p.bonusPerRank * (RankOf(player, *skill) - 1);
+}
+
 bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, int frontDamage)
 {
 	if (&player != MyPlayer || !ArmedSkill.has_value())

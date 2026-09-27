@@ -1998,6 +1998,10 @@ void plrctrls_after_game_logic()
 void UseBeltItem(int type)
 {
 	for (int i = 0; i < MaxBeltItems; i++) {
+		// The usable slots only (audit, 2026-09-27): a potion stranded in a hidden slot (0, 5-7) was found first, the use
+		// refused it, and the break left the pad's potion button dead.
+		if (!oracool::IsRealBeltItemSlot(i))
+			continue;
 		Item &item = MyPlayer->SpdList[i];
 		if (item.isEmpty()) {
 			continue;

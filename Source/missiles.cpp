@@ -5,6 +5,7 @@
  */
 #include "missiles.h"
 
+#include <vector>
 #include <algorithm>
 #include <climits>
 #include <cmath>
@@ -1734,6 +1735,9 @@ void AddStealPotions(Missile &missile, AddMissileParameter & /*parameter*/)
 		Player &player = Players[abs(pnum) - 1];
 
 		bool hasPlayedSFX = false;
+		// Placed after the loop, not in it (audit, 2026-09-27): a downgraded unit put back into the belt could land in a
+		// later slot, which this same loop then visited and could steal from or downgrade a second time.
+		std::vector<Item> downgradedUnits;
 		for (int si = 0; si < MaxBeltItems; si++) {
 			Item &beltItem = player.SpdList[si];
 			_item_indexes ii = IDI_NONE;
@@ -1788,7 +1792,7 @@ void AddStealPotions(Missile &missile, AddMissileParameter & /*parameter*/)
 					// Best-effort: merges into a matching belt stack or an empty slot;
 					// if there's no room the downgraded unit is simply lost, matching
 					// existing steal semantics elsewhere in this function.
-					AutoPlaceItemInBelt(player, downgraded, true);
+					downgradedUnits.push_back(downgraded);
 				} else {
 					auto seed = beltItem._iSeed;
 					InitializeItem(beltItem, ii);
@@ -1801,6 +1805,9 @@ void AddStealPotions(Missile &missile, AddMissileParameter & /*parameter*/)
 				hasPlayedSFX = true;
 			}
 		}
+		for (const Item &unit : downgradedUnits)
+			AutoPlaceItemInBelt(player, unit, true);
+		player.CalcScrolls();
 		RedrawEverything();
 
 		return false;

@@ -94,6 +94,7 @@
 #include "oracool/player_resistance.h"
 #include "oracool/skill_sounds.h"
 #include "missiles.h"
+#include "oracool/rfa12_actives.h"
 #include "oracool/monster_scale.h"
 #include "oracool/monster_variants.h"
 #include "oracool/treasure_class.h"
@@ -5623,6 +5624,40 @@ TEST(OracoolAudit, NoDroppableItemTumblesAsLeatherUnlessItIsLightArmour)
 }
 
 /**
+ * The drop table's shape, enabled (audit, 2026-09-27: the report below is the only drop-rate test and it is disabled -
+ * it prints and asserts nothing, so Rare drops could be zeroed with the suite green). Invariants rather than tuned
+ * numbers: every kill lands in exactly one outcome, gold and magic items fall, Rares fall and are scarcer than magic,
+ * and a unique monster's kill is better than an ordinary one's.
+ */
+TEST(OracoolAudit, TheDropTableKeepsItsShape)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	const bool wasHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	sgGameInitInfo.nDifficulty = DIFF_HELL;
+	const int alvl = oracool::AreaLevel(10, DIFF_HELL);
+	constexpr int Kills = 20000;
+	const DropOddsTally t = SimulateMonsterDropOdds(alvl, alvl, alvl, false, Kills, 0x5EED0101U);
+	EXPECT_EQ(t.kills, Kills);
+	EXPECT_EQ(t.nothing + t.gold + t.consumable + t.basic + t.magic + t.rare + t.buffedUnique + t.primal + t.unique, t.kills)
+	    << "every kill is exactly one outcome";
+	EXPECT_GT(t.gold, 0);
+	EXPECT_GT(t.magic, 0);
+	EXPECT_GT(t.rare, 0) << "Rares still fall";
+	EXPECT_LT(t.rare, t.magic) << "and are scarcer than magic items";
+
+	constexpr int UniqueKills = 3000;
+	const DropOddsTally u = SimulateMonsterDropOdds(alvl + 3, alvl + 3, alvl + 3, true, UniqueKills, 0x5EED0202U);
+	const auto goodShare = [](const DropOddsTally &x) {
+		return static_cast<double>(x.magic + x.rare + x.buffedUnique + x.primal + x.unique) / std::max(x.kills, 1);
+	};
+	EXPECT_GT(goodShare(u), goodShare(t)) << "a unique monster drops better than an ordinary one";
+	sgGameInitInfo.nDifficulty = DIFF_NORMAL;
+	gbIsHellfire = wasHellfire;
+}
+
+/**
  * Drop-odds report (2026-09-13: "rare items still seem very rare and i am now in hell/hell ... make an
  * artifact with drop chances of all item tiers"). DISABLED: it is a measurement, not an assertion. Run with
  *   oracool_audit_test.exe --gtest_also_run_disabled_tests --gtest_filter=*DropOddsReport*
@@ -11098,6 +11133,61 @@ TEST(OracoolMeleeSkills, EverySkillMapsBothWaysAndTheBonusAnswersOnlyWhenArmed)
  * @brief Round 5's passives: a sheet row moves the sheet, a rule row answers its hook, a
  * conditional row answers only under its condition, and the once-a-minute save saves once.
  */
+/**
+ * @brief Every RfA-12 active, cast once on an empty dungeon floor, ticked to its end and cleared (audit, 2026-09-27: the
+ * file had no behavioural test at all - only its tooltip text was read). A cast must not crash on a floor with nobody on
+ * it, the self-buffs must take hold and run out, and the Mantra of Evasion's chance - which the hero sheet's odds read -
+ * must follow its buff.
+ */
+TEST(OracoolRfa12Actives, EveryActiveCastsTicksAndClearsOnAnEmptyFloor)
+{
+	const dungeon_type savedType = leveltype;
+	const uint8_t savedLevel = currlevel;
+	const size_t savedCount = ActiveMonsterCount;
+	leveltype = DTYPE_CATHEDRAL;
+	currlevel = 1;
+	setlevel = false;
+	ActiveMonsterCount = 0;
+
+	int cast = 0;
+	int buffs = 0;
+	for (int id = 0; id < static_cast<int>(MAX_SPELLS); id++) {
+		const SpellID spell = static_cast<SpellID>(id);
+		if (!oracool::IsRfa12Active(spell) || oracool::IsRfa12Melee(spell))
+			continue;
+		devilution::Player &player = FreshHero(HeroClass::Warrior);
+		player.setLevel(1);
+		player.position.tile = { 40, 40 };
+		oracool::ClearRfa12ActivesState();
+		oracool::ClearRfa12ActiveBuffs(player);
+		if (!oracool::CastRfa12Active(player, spell, player.position.tile + Displacement { 2, 0 }))
+			continue;
+		cast++;
+		if (oracool::Rfa12BuffTicks(player, spell) > 0) {
+			buffs++;
+			for (int tick = 0; tick < 20 * 60 * 10 && oracool::Rfa12BuffTicks(player, spell) > 0; tick++)
+				oracool::ProcessRfa12ActivesTick(player);
+			EXPECT_EQ(oracool::Rfa12BuffTicks(player, spell), 0) << "spell " << id << "'s buff never ran out";
+		}
+		oracool::ClearRfa12ActiveBuffs(player);
+	}
+	EXPECT_GT(cast, 10) << "most actives cast on an empty floor";
+	EXPECT_GT(buffs, 0) << "the self-buffs took hold";
+
+	devilution::Player &monk = FreshHero(HeroClass::Monk);
+	monk.setLevel(1);
+	oracool::ClearRfa12ActiveBuffs(monk);
+	EXPECT_EQ(oracool::Rfa12ActiveMeleeEvadeChance(monk), 0);
+	if (oracool::CastRfa12Active(monk, SpellID::MantraOfEvasion, monk.position.tile))
+		EXPECT_GT(oracool::Rfa12ActiveMeleeEvadeChance(monk), 0) << "the sheet's odds read this";
+	oracool::ClearRfa12ActiveBuffs(monk);
+
+	oracool::ClearRfa12ActivesState();
+	leveltype = savedType;
+	currlevel = savedLevel;
+	ActiveMonsterCount = savedCount;
+}
+
 TEST(OracoolPassives, SheetRowsMoveTheSheetAndRuleRowsAnswerTheirHooks)
 {
 	oracool::ClearPassiveState();
@@ -12339,7 +12429,9 @@ TEST(OracoolAudit, MovementSpeedIsAPercentageFromItemsAndVigorInSteps)
 	EXPECT_EQ(oracool::WalkFrameSkipFor(player), -3) << "a 15-point slow is one step under the walk";
 	oracool::SlowPlayer(player, 2, 30);
 	EXPECT_EQ(oracool::MovementSpeedPercent(player), 70) << "the deeper slow wins";
-	EXPECT_EQ(oracool::WalkFrameSkipFor(player), -4);
+	// 15 ticks: 70% of a 10-tick walk is 14.3, plus the fraction the last stride carried. The 12-tick cap that made this
+	// -4 left every slow past 17% doing nothing more (audit, 2026-09-27: MaxStrideTicks 20).
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), -7);
 	oracool::TickMovementSlow(player);
 	oracool::TickMovementSlow(player);
 	EXPECT_EQ(oracool::PlayerSlowPercent(player), 30) << "the longer clock holds the slow";
@@ -12782,11 +12874,14 @@ TEST(OracoolRenderer, ThirtyTwoBitSurfacesResolveIndicesThroughThePalette)
 TEST(OracoolRenderer, AFadeIsRecordedNotPaintedIntoTheColourTable)
 {
 	const int before = FadeLevel;
+	const uint32_t colourBefore = PaletteRGB[37];
+	// The level is recorded even headless (since 2026-09-27 - the test could not fail before: the short-circuit came
+	// first, and it checked only the range), and the colour table the 32-bit renderer reads is not painted.
 	SetFadeLevel(128, /*updateHardwareCursor=*/false);
-	// HeadlessMode short-circuits SetFadeLevel in the test binaries, so the level may or may not
-	// have been recorded; either way it must never leave the 0..256 range.
-	EXPECT_GE(FadeLevel, 0);
-	EXPECT_LE(FadeLevel, 256);
+	EXPECT_EQ(FadeLevel, 128);
+	EXPECT_EQ(PaletteRGB[37], colourBefore) << "the fade is applied at present time, not baked into the table";
+	SetFadeLevel(900, /*updateHardwareCursor=*/false);
+	EXPECT_EQ(FadeLevel, 256) << "clamped";
 	FadeLevel = before;
 }
 
@@ -14327,9 +14422,48 @@ TEST(OracoolAuditV188, NoMonsterIsTheGuardianOutsideTheRift)
 	setlevel = false;
 	oracool::ResetRiftForNewGame();
 	ASSERT_TRUE(oracool::OpenNephalemRift(player));
+	// A guardian really named (2026-09-27): the test used to assert on a rift whose guardian had never spawned, which
+	// holds with or without the InRift() guard - it could not fail.
+	constexpr int Slot = 7;
+	oracool::SetRiftGuardianForTest(Slot);
+	setlevel = true;
+	setlvlnum = oracool::RiftLevelFor(oracool::RiftKind::Nephalem);
+	EXPECT_TRUE(oracool::IsRiftGuardian(Monsters[Slot])) << "inside the rift, the named slot is the guardian";
+	setlevel = false;
 	for (size_t i = 0; i < MaxMonsters; i++)
 		EXPECT_FALSE(oracool::IsRiftGuardian(Monsters[i])) << "slot " << i;
 	oracool::ResetRiftForNewGame();
+}
+
+// The Mystic's rules (audit, 2026-09-27: untested - only opening and closing the window was). Each reroll or removal
+// doubles the next one's price, from the item's own counters, capped so it stays payable; the first reroll settles
+// the item on that affix; a lock past the item's affixes locks nothing.
+TEST(OracoolWorkshop, PricesDoubleFromTheItemsOwnCountersAndTheLockHolds)
+{
+	devilution::Item item;
+	item._itype = ItemType::Sword;
+	item._iOracoolItemLevel = 10;
+	item._iOracoolAffixCount = 3;
+	const int first = oracool::WorkshopRerollPrice(item);
+	EXPECT_EQ(first, 500 * 10);
+	item._iOracoolRerolls = 1;
+	EXPECT_EQ(oracool::WorkshopRerollPrice(item), 2 * first);
+	item._iOracoolRerolls = 3;
+	EXPECT_EQ(oracool::WorkshopRerollPrice(item), 8 * first);
+	item._iOracoolRerolls = devilution::Item::MaxWorkshopAttempts;
+	EXPECT_LE(oracool::WorkshopRerollPrice(item), 2000000) << "capped so it stays payable";
+	EXPECT_EQ(oracool::WorkshopRemovePrice(item), 250 * 10) << "removals count separately";
+	item._iOracoolRemovals = 2;
+	EXPECT_EQ(oracool::WorkshopRemovePrice(item), 4 * 250 * 10);
+
+	item._iOracoolLockedAffix = -1;
+	EXPECT_TRUE(oracool::WorkshopLockAllowsReroll(item, 0));
+	EXPECT_TRUE(oracool::WorkshopLockAllowsReroll(item, 2));
+	item._iOracoolLockedAffix = 1;
+	EXPECT_TRUE(oracool::WorkshopLockAllowsReroll(item, 1)) << "the settled affix";
+	EXPECT_FALSE(oracool::WorkshopLockAllowsReroll(item, 0)) << "and no other";
+	item._iOracoolAffixCount = 1;
+	EXPECT_TRUE(oracool::WorkshopLockAllowsReroll(item, 0)) << "a lock past the affixes locks nothing";
 }
 
 // UI-01: Escape closed the workshop only from inside the Rift Monument menu's branch.

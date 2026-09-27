@@ -623,7 +623,7 @@ void DrawAutomapTile(const Surface &out, Point center, Point map)
 	}
 }
 
-void SearchAutomapItem(const Surface &out, const Displacement &myPlayerOffset, int searchRadius, tl::function_ref<bool(Point position)> highlightTile)
+void SearchAutomapItem(const Surface &out, Point screenCenter, const Displacement &myPlayerOffset, int searchRadius, tl::function_ref<bool(Point position)> highlightTile)
 {
 	const Player &player = *MyPlayer;
 	Point tile = player.position.tile;
@@ -649,16 +649,18 @@ void SearchAutomapItem(const Surface &out, const Displacement &myPlayerOffset, i
 			int px = i - 2 * AutomapOffset.deltaX - ViewPosition.x;
 			int py = j - 2 * AutomapOffset.deltaY - ViewPosition.y;
 
+			// From the caller's centre, as the player's arrow is placed (audit, 2026-09-27): the screen's own centre put the
+			// mini-map's markers far outside its small frame, clipped away - Search showed nothing there.
 			Point screen = {
-				(myPlayerOffset.deltaX * AutoMapScale / 100 / 2) + (px - py) * AmLine(16) + gnScreenWidth / 2,
-				(myPlayerOffset.deltaY * AutoMapScale / 100 / 2) + (px + py) * AmLine(8) + (gnScreenHeight - GetMainPanel().size.height) / 2
+				(myPlayerOffset.deltaX * AutoMapScale / 100 / 2) + (px - py) * AmLine(16) + screenCenter.x,
+				(myPlayerOffset.deltaY * AutoMapScale / 100 / 2) + (px + py) * AmLine(8) + screenCenter.y
 			};
 
-			if (CanPanelsCoverView()) {
+			if (!MiniMapActive && CanPanelsCoverView()) {
 				if (IsRightPanelOpen())
-					screen.x -= 160;
+					screen.x -= gnScreenWidth / 4;
 				if (IsLeftPanelOpen())
-					screen.x += 160;
+					screen.x += gnScreenWidth / 4;
 			}
 			screen.y -= AmLine(8);
 			DrawDiamond(out, screen, MapColorsItem);
@@ -901,6 +903,9 @@ void InitAutomapOnce()
 
 void InitAutomap()
 {
+	// The mini-map's pan comes back to the hero on every level (audit, 2026-09-27): it was zeroed once per process, so
+	// a pan carried down the stairs and into the next hero's game.
+	MiniMapOffset = { 0, 0 };
 	size_t tileCount = 0;
 	std::unique_ptr<AutomapTile[]> tileTypes = LoadAutomapData(tileCount);
 	for (unsigned i = 0; i < tileCount; i++) {
@@ -1174,10 +1179,10 @@ void DrawAutomapCore(const Surface &out, Point screenCenter, int cellsBasisWidth
 
 	myPlayerOffset.deltaY -= TILE_HEIGHT / 2;
 	if (AutoMapShowItems)
-		SearchAutomapItem(out, myPlayerOffset, 8, [](Point position) { return dItem[position.x][position.y] != 0; });
+		SearchAutomapItem(out, screenCenter, myPlayerOffset, 8, [](Point position) { return dItem[position.x][position.y] != 0; });
 #ifdef _DEBUG
 	if (IsDebugAutomapHighlightNeeded())
-		SearchAutomapItem(out, myPlayerOffset, std::max(MAXDUNX, MAXDUNY), ShouldHighlightDebugAutomapTile);
+		SearchAutomapItem(out, screenCenter, myPlayerOffset, std::max(MAXDUNX, MAXDUNY), ShouldHighlightDebugAutomapTile);
 #endif
 }
 

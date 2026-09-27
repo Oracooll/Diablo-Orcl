@@ -168,9 +168,9 @@ void AddOffense(const Player &p, std::vector<Row> &rows)
 		rows.push_back({ RowKind::Bonus, std::string(_("Fires multiple arrows")) });
 	if (HasAnyOf(p._pIFlags, ItemSpecialEffect::TripleDemonDamage))
 		rows.push_back({ RowKind::Bonus, std::string(_("300% damage to demons")) });
-	// The raw field, as the old sheet's "Armor pierce" row showed it.
+	// As a percentage (2026-09-27): the field is a tier, and tier 2 halves the armour - "Ignores 2" said otherwise.
 	if (p._pIEnAc > 0)
-		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("Ignores {:d} of the target's armor")), p._pIEnAc) });
+		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("Ignores {:d}% of the target's armor")), GetSheetArmorPiercePercent(p._pIEnAc)) });
 
 	// The fixed 3/5% and the random drain are independent and can both be active - the old sheet's Life
 	// steal row, word for word in its arithmetic (player.cpp's steal branch; the random one is

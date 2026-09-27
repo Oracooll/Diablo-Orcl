@@ -50,6 +50,9 @@ std::string PendingDeathSource;
 // "showing the newest entries", matching qol/chatlog.cpp's SkipLines convention. Reset to 0 every
 // time the window is opened, same as chatlog's own reset-on-open behavior.
 size_t ScrollOffset = 0;
+/** @brief The newest entry's message as logged, and how many times in a row it was (2026-09-27). */
+std::string FrontMessage;
+int FrontRepeats = 0;
 
 // Oracool: user request (2026-08-11) - the standalone "LOG" button is gone; the log is opened from
 // the belt's Menu popup instead (see oracool/hud_menu.cpp). This is now just the window's own top
@@ -119,6 +122,16 @@ std::string CurrentTimestamp()
 
 void LogEvent(std::string message, UiFlags color)
 {
+	// The same line again folds into the newest entry with a count and a fresh time (audit, 2026-09-27): an autosave on
+	// every kill logged "Game saved (auto)" each time, and two hundred of them pushed every boss, drop and death out.
+	if (!Entries.empty() && FrontRepeats > 0 && message == FrontMessage && Entries.front().color == color) {
+		FrontRepeats++;
+		Entries.front().timestamp = CurrentTimestamp();
+		Entries.front().message = FrontMessage + " (x" + std::to_string(FrontRepeats) + ")";
+		return;
+	}
+	FrontMessage = message;
+	FrontRepeats = 1;
 	Entries.push_front({ CurrentTimestamp(), std::move(message), color });
 	while (Entries.size() > MaxEntries)
 		Entries.pop_back();
@@ -145,6 +158,8 @@ void ClearEventLogForNewGame()
 	// PendingDeathSource goes too: it is a half-finished sentence about someone else's death, and
 	// left set it would be attached to the first death of the new character.
 	Entries.clear();
+	FrontMessage.clear();
+	FrontRepeats = 0;
 	PendingDeathSource.clear();
 	ScrollOffset = 0;
 	WindowOpen = false;
@@ -231,7 +246,9 @@ void DrawEventLogWindow(const Surface &out)
 		const size_t entryLines = static_cast<size_t>(std::count(wrapped.begin(), wrapped.end(), '\n')) + 1;
 		const size_t linesToDraw = std::min(entryLines, lineBudget - linesUsed);
 		const Rectangle entryRect { linePosition, { contentWidth, static_cast<int>(linesToDraw) * LineHeight } };
-		DrawString(out, wrapped, entryRect, { entry.color | UiFlags::FontSize12 });
+		// At the loop's own line height (audit, 2026-09-27): the font's 12 inside an entry against 14 between entries made
+		// uneven spacing, and a taller font clipped each entry's last line.
+		DrawString(out, wrapped, entryRect, { entry.color | UiFlags::FontSize12, /*spacing=*/1, /*lineHeight=*/LineHeight });
 		linePosition.y += static_cast<int>(linesToDraw) * LineHeight;
 		linesUsed += linesToDraw;
 	}

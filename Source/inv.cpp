@@ -4,6 +4,7 @@
  * Implementation of player inventory.
  */
 #include <algorithm>
+#include <unordered_map>
 #include <cstdint>
 #include <limits>
 #include <utility>
@@ -1770,12 +1771,40 @@ uint32_t RimGlowHue(const Item &item, bool &quiet)
  * with its corners cut, a dark fill in that colour with a faint grain, and a glow fading in from the rim.
  * The whole look is these numbers; the Rim and Glow Item Backings option switches back to the tint.
  */
-void DrawRimGlowBacking(const Surface &out, const Rectangle &footprint, uint32_t hueRgb, bool quiet)
+/**
+ * @brief The backing's colours for one footprint, BEFORE they are laid over the slot - cached (audit, 2026-09-27). Each
+ * was worked out per pixel, per frame: float maths, a hash and three divides for every pixel of every magic-or-better
+ * item on screen - a full stash page, the backpack and a shop grid together cost milliseconds a frame, many more in the
+ * Debug builds played. Keyed by the footprint's screen position too, because the grain is hashed from it; items in a
+ * grid hold still, so every frame after the first is a lookup. The output is the same, pixel for pixel.
+ */
+struct RimGlowKey {
+	int x, y, w, h;
+	uint32_t hue;
+	bool quiet;
+	bool operator==(const RimGlowKey &o) const
+	{
+		return x == o.x && y == o.y && w == o.w && h == o.h && hue == o.hue && quiet == o.quiet;
+	}
+};
+struct RimGlowKeyHash {
+	size_t operator()(const RimGlowKey &k) const
+	{
+		uint64_t v = static_cast<uint32_t>(k.x) * 73856093U ^ static_cast<uint32_t>(k.y) * 19349663U ^ static_cast<uint32_t>(k.w) * 83492791U
+		    ^ static_cast<uint32_t>(k.h) * 2654435761U ^ (static_cast<uint64_t>(k.hue) << 1) ^ (k.quiet ? 1U : 0U);
+		return static_cast<size_t>(v);
+	}
+};
+
+const std::vector<uint32_t> &RimGlowColors(const Rectangle &footprint, uint32_t hueRgb, bool quiet)
 {
-	// HALF TRANSPARENT (user, 2026-09-26 dev note: "let's try making the new backings 50% transparent"): every
-	// pixel below is laid over what the slot already shows at this opacity - the grid's slot art, or the doll's
-	// panel - so the stone reads through the colour. One number to tune.
-	const int OpacityPercent = std::clamp(RimGlowOpacityPercent, 0, 100);
+	static std::unordered_map<RimGlowKey, std::vector<uint32_t>, RimGlowKeyHash> Cache;
+	const RimGlowKey key { footprint.position.x, footprint.position.y, footprint.size.width, footprint.size.height, hueRgb, quiet };
+	if (const auto it = Cache.find(key); it != Cache.end())
+		return it->second;
+	if (Cache.size() > 1024)
+		Cache.clear(); // bounded: a scrolled or resized screen leaves stale positions behind
+
 	constexpr uint32_t Gutter = 0x0A0908;
 	const int hue[3] = { static_cast<int>((hueRgb >> 16) & 0xFF), static_cast<int>((hueRgb >> 8) & 0xFF), static_cast<int>(hueRgb & 0xFF) };
 	// The rim inside the gutter; the glow reaches in a third of the way on a small item, 12 px at most.
@@ -1788,33 +1817,21 @@ void DrawRimGlowBacking(const Surface &out, const Rectangle &footprint, uint32_t
 		const auto c = [](float v) { return static_cast<uint32_t>(std::clamp(static_cast<int>(v + 0.5F), 0, 255)); };
 		return (c(r) << 16) | (c(g) << 8) | c(b);
 	};
-	const int x0 = std::max(footprint.position.x, 0);
-	const int y0 = std::max(footprint.position.y, 0);
-	const int x1 = std::min(footprint.position.x + footprint.size.width, out.w());
-	const int y1 = std::min(footprint.position.y + footprint.size.height, out.h());
-	for (int y = y0; y < y1; y++) {
-		uint32_t *dst = out.at<uint32_t>(x0, y);
-		const int row = y - footprint.position.y;
-		for (int x = x0; x < x1; x++, dst++) {
-			const int col = x - footprint.position.x;
+	std::vector<uint32_t> colors(static_cast<size_t>(std::max(footprint.size.width, 0)) * static_cast<size_t>(std::max(footprint.size.height, 0)));
+	for (int row = 0; row < footprint.size.height; row++) {
+		const int y = footprint.position.y + row;
+		for (int col = 0; col < footprint.size.width; col++) {
+			const int x = footprint.position.x + col;
+			uint32_t &color = colors[static_cast<size_t>(row) * footprint.size.width + col];
 			const int edgeX = std::min(col, footprint.size.width - 1 - col);
 			const int edgeY = std::min(row, footprint.size.height - 1 - row);
 			const int d = std::min(edgeX, edgeY); // 0 = the gutter, 1 = the rim
-			const auto over = [&](uint32_t rgb) {
-				const uint32_t under = *dst;
-				const auto ch = [&](int shift) {
-					const int a = static_cast<int>((rgb >> shift) & 0xFF);
-					const int b = static_cast<int>((under >> shift) & 0xFF);
-					return static_cast<uint32_t>((a * OpacityPercent + b * (100 - OpacityPercent)) / 100) << shift;
-				};
-				return (under & 0xFF000000u) | ch(16) | ch(8) | ch(0);
-			};
 			if (d == 0 || (edgeX == 1 && edgeY == 1)) {
-				*dst = over(Gutter);
+				color = Gutter;
 				continue;
 			}
 			if (d == 1) {
-				*dst = over(pack(hue[0] * 0.95F + 12, hue[1] * 0.95F + 12, hue[2] * 0.95F + 12));
+				color = pack(hue[0] * 0.95F + 12, hue[1] * 0.95F + 12, hue[2] * 0.95F + 12);
 				continue;
 			}
 			// The fill: dark, in the tier's colour, with a grain hashed from the SCREEN position so it holds
@@ -1837,7 +1854,35 @@ void DrawRimGlowBacking(const Surface &out, const Rectangle &footprint, uint32_t
 				g = g * 0.55F + hue[1] * 0.30F;
 				b = b * 0.55F + hue[2] * 0.30F;
 			}
-			*dst = over(pack(r, g, b));
+			color = pack(r, g, b);
+		}
+	}
+	return Cache.emplace(key, std::move(colors)).first->second;
+}
+
+void DrawRimGlowBacking(const Surface &out, const Rectangle &footprint, uint32_t hueRgb, bool quiet)
+{
+	// HALF TRANSPARENT (user, 2026-09-26 dev note: "let's try making the new backings 50% transparent"): every
+	// pixel below is laid over what the slot already shows at this opacity - the grid's slot art, or the doll's
+	// panel - so the stone reads through the colour. One number to tune.
+	const int OpacityPercent = std::clamp(RimGlowOpacityPercent, 0, 100);
+	const std::vector<uint32_t> &colors = RimGlowColors(footprint, hueRgb, quiet);
+	const int x0 = std::max(footprint.position.x, 0);
+	const int y0 = std::max(footprint.position.y, 0);
+	const int x1 = std::min(footprint.position.x + footprint.size.width, out.w());
+	const int y1 = std::min(footprint.position.y + footprint.size.height, out.h());
+	for (int y = y0; y < y1; y++) {
+		uint32_t *dst = out.at<uint32_t>(x0, y);
+		const uint32_t *src = &colors[static_cast<size_t>(y - footprint.position.y) * footprint.size.width + (x0 - footprint.position.x)];
+		for (int x = x0; x < x1; x++, dst++, src++) {
+			const uint32_t rgb = *src;
+			const uint32_t under = *dst;
+			const auto ch = [&](int shift) {
+				const int a = static_cast<int>((rgb >> shift) & 0xFF);
+				const int b = static_cast<int>((under >> shift) & 0xFF);
+				return static_cast<uint32_t>((a * OpacityPercent + b * (100 - OpacityPercent)) / 100) << shift;
+			};
+			*dst = (under & 0xFF000000u) | ch(16) | ch(8) | ch(0);
 		}
 	}
 }

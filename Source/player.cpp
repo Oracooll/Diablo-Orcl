@@ -211,11 +211,16 @@ void StartWalkAnimation(Player &player, Direction dir, bool pmWillBeCalled)
 	// run toggle (R) is the third consumer, extending that skip to every level type.
 	// Vigor is the fourth consumer: Diablo II's movement-speed aura, in an engine with no
 	// walk-speed modifier, is exactly this frame skip held on for as long as the aura burns.
+	// A slow reaches the feet (audit, 2026-09-27): the walk took max(-2, skip), so it could never be slower than a plain
+	// walk, and the run ignored slows outright - a chill or a lead affix showed "Move speed 50%" on the sheet and changed
+	// nothing. The walk takes the skip as it is now; the run keeps its +4 frames over whatever the slowed walk is.
+	const int8_t walkSkip = oracool::WalkFrameSkipFor(player);
 	if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0) || oracool::IsFuriousChargeDashing()
 	    || oracool::IsRunEnabled() || oracool::IsClassTreeRunActive(player))
-		skippedFrames = std::max<int8_t>(2, oracool::WalkFrameSkipFor(player)); // the run, or Movement Speed past it (2026-09-12)
+		skippedFrames = oracool::PlayerSlowPercent(player) > 0 ? static_cast<int8_t>(walkSkip + 4) // the run, slowed
+		                                                     : std::max<int8_t>(2, walkSkip); // the run, or Movement Speed past it (2026-09-12)
 	else
-		skippedFrames = std::max(skippedFrames, oracool::WalkFrameSkipFor(player)); // Movement Speed %: items and Vigor, every percent
+		skippedFrames = walkSkip; // Movement Speed %: items and Vigor, every percent - and slows
 	if (pmWillBeCalled)
 		skippedFrames += 1;
 	NewPlrAnim(player, player_graphic::Walk, dir, AnimationDistributionFlags::ProcessAnimationPending, skippedFrames);
@@ -728,7 +733,9 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 			return false;
 	}
 
-	if (gbIsHellfire && HasAllOf(player._pIFlags, ItemSpecialEffect::FireDamage | ItemSpecialEffect::LightningDamage)) {
+	// Not in the fork's single player (audit, 2026-09-27): a Flame shard and a Spark shard set both flags, and Hellfire's
+	// rule turned the two blows the sheet lists into one spectral bolt, rolled from the fire range, on a landed hit only.
+	if (gbIsHellfire && !oracool::IsSinglePlayer() && HasAllOf(player._pIFlags, ItemSpecialEffect::FireDamage | ItemSpecialEffect::LightningDamage)) {
 		int midam = player._pIFMinDam + GenerateRnd(player._pIFMaxDam - player._pIFMinDam);
 		AddMissile(player.position.tile, player.position.temp, player._pdir, MissileID::SpectralArrow, TARGET_MONSTERS, player.getId(), midam, 0);
 	}
@@ -980,7 +987,7 @@ bool DoAttack(Player &player)
 			}
 		}
 
-		if (!gbIsHellfire || !HasAllOf(player._pIFlags, ItemSpecialEffect::FireDamage | ItemSpecialEffect::LightningDamage)) {
+		if (!gbIsHellfire || oracool::IsSinglePlayer() || !HasAllOf(player._pIFlags, ItemSpecialEffect::FireDamage | ItemSpecialEffect::LightningDamage)) {
 			const size_t playerId = player.getId();
 			// Oracool (2026-09-11): OR fire/lightning damage from anywhere, not only from a weapon
 			// carrying the flag. Enchant, Vengeance and the two Masteries add to the fire and

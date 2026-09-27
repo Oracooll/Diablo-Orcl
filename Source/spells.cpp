@@ -244,6 +244,26 @@ void ConsumeSpell(Player &player, SpellID sn)
 	}
 }
 
+bool HeroHasBinding(const Player &player, SpellID spell, SpellType type)
+{
+	if (!IsValidSpell(spell))
+		return false;
+	const SpellMask bit = GetSpellBitmask(spell);
+	switch (type) {
+	case SpellType::Skill:
+		return (player._pAblSpells & bit) != 0;
+	case SpellType::Spell:
+		return (player._pMemSpells & bit) != 0;
+	case SpellType::Scroll:
+		return (player._pScrlSpells & bit) != 0;
+	case SpellType::Charges:
+		return (player._pISpells & bit) != 0;
+	case SpellType::Invalid:
+		break;
+	}
+	return false;
+}
+
 void EnsureValidReadiedSpell(Player &player)
 {
 	if (!IsReadiedPairValid(player, player._pRSpell, player._pRSplType)) {

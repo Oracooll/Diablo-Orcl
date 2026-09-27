@@ -11,6 +11,7 @@
 #include "pfile.h"
 #include "player.h"
 #include "qol/stash.h"
+#include "spells.h"
 #include "utils/file_util.h"
 #include "utils/paths.h"
 
@@ -60,6 +61,63 @@ void SetFullOracoolTierData(Item &item)
 	item._iOracoolAffixCount = Item::MaxOracoolAffixes;
 	for (int i = 0; i < Item::MaxOracoolAffixes; i++)
 		item._iOracoolAffixes[i] = OracoolAffix { static_cast<item_effect_type>(IPL_STR + i), 10 + i, 20 + i };
+}
+
+// Older item formats still read (audit, 2026-09-27: nothing loaded a format-13 or format-14 record, so the size maths
+// and the version gates were untested). A record is written today, then cut back to what each older format held: 14
+// lacks v15's three workshop bytes at the end, and 13 also lacks v14's four cold-resistance bytes. Each loads with the
+// missing fields at their defaults and everything after them in place - and the format goes back to today's after.
+TEST(LoadSaveItemFormats, Formats13And14StillReadAndTheFormatComesBack)
+{
+	Item item;
+	item._itype = ItemType::Ring;
+	item.IDidx = IDI_ROCK;
+	item._iSeed = 0x12345678;
+	item._iPLCR = 17;
+	item._iPLMana = 5 << 6;
+	item._iOracoolRiftTier = 9;
+	item._iOracoolRerolls = 3;
+	item._iOracoolRemovals = 2;
+	item._iOracoolLockedAffix = -1;
+
+	const std::vector<uint8_t> v15 = SaveItemBytesForTest(item);
+	const uint8_t today = LoadingItemFormatForTest();
+	ASSERT_EQ(today, 15);
+
+	Item loaded;
+	ASSERT_TRUE(LoadItemBytesForTest(v15, 15, loaded));
+	EXPECT_EQ(loaded._iPLCR, 17);
+	EXPECT_EQ(loaded._iOracoolRerolls, 3);
+	EXPECT_EQ(LoadingItemFormatForTest(), today);
+
+	std::vector<uint8_t> v14(v15.begin(), v15.end() - 3);
+	loaded = {};
+	ASSERT_TRUE(LoadItemBytesForTest(v14, 14, loaded));
+	EXPECT_EQ(loaded._iPLCR, 17);
+	EXPECT_EQ(loaded._iOracoolRiftTier, 9) << "the field before the cut is in place";
+	EXPECT_EQ(loaded._iOracoolRerolls, 0);
+	EXPECT_EQ(loaded._iOracoolLockedAffix, -1);
+	EXPECT_EQ(LoadingItemFormatForTest(), today) << "the loader's scope put today's format back";
+
+	// Where _iPLCR sits: the one place two records differing only in it differ.
+	Item other = item;
+	other._iPLCR = 18;
+	const std::vector<uint8_t> otherBytes = SaveItemBytesForTest(other);
+	ASSERT_EQ(otherBytes.size(), v15.size());
+	size_t at = 0;
+	while (at < v15.size() && v15[at] == otherBytes[at])
+		at++;
+	ASSERT_LT(at, v15.size());
+	std::vector<uint8_t> v13 = v14;
+	v13.erase(v13.begin() + static_cast<std::ptrdiff_t>(at), v13.begin() + static_cast<std::ptrdiff_t>(at) + 4);
+	loaded = {};
+	ASSERT_TRUE(LoadItemBytesForTest(v13, 13, loaded));
+	EXPECT_EQ(loaded._iPLCR, 0);
+	EXPECT_EQ(loaded._iPLMana, 5 << 6) << "the field after the missing one is read in place";
+	EXPECT_EQ(loaded._iOracoolRiftTier, 9);
+	EXPECT_EQ(LoadingItemFormatForTest(), today);
+
+	EXPECT_FALSE(LoadItemBytesForTest(v15, 12, loaded)) << "12 is refused";
 }
 
 TEST_F(LoadSaveOracoolItemExtensionsTest, RoundTripsFullyPopulatedTieredItem)
@@ -418,6 +476,8 @@ TEST_F(LoadSaveOracoolItemExtensionsTest, LoadHotkeysFillsEmptySlotsWithoutOverw
 	player._pSplTHotKey[0] = SpellType::Spell;
 	player._pSplHotKey[1] = SpellID::Invalid;
 	player._pSplTHotKey[1] = SpellType::Invalid;
+	// The hero knows Healing: since 2026-09-27 the fallback restores only a binding the hero can use (HeroHasBinding).
+	player._pMemSpells |= GetSpellBitmask(SpellID::Healing);
 
 	LoadHotkeys();
 
@@ -425,6 +485,13 @@ TEST_F(LoadSaveOracoolItemExtensionsTest, LoadHotkeysFillsEmptySlotsWithoutOverw
 	    << "the game save overwrote a binding the hero file had already restored - the reported bug";
 	EXPECT_EQ(player._pSplHotKey[1], SpellID::Healing)
 	    << "an empty slot did not take the game save's binding, so the chunk is being ignored rather than used as a fallback";
+
+	// And a binding the hero cannot use is not put back (audit, 2026-09-27): the fallback restored refunded skills.
+	player._pMemSpells &= ~GetSpellBitmask(SpellID::Healing);
+	player._pSplHotKey[1] = SpellID::Invalid;
+	player._pSplTHotKey[1] = SpellType::Invalid;
+	LoadHotkeys();
+	EXPECT_EQ(player._pSplHotKey[1], SpellID::Invalid) << "a spell the hero does not know came back on a key";
 }
 
 } // namespace

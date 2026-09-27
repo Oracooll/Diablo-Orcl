@@ -3220,7 +3220,9 @@ std::string ClassTreeRankBlock(const Player &player, Skill skill, int points)
 	// An ACTIVE carries a SpellID, and its rank is its spell level (Player::GetSpellLevel folds the
 	// investment in), so its numbers are the spell side's - the same block the Spells sheet prints.
 	if (data.kind == Kind::Active) {
-		const int at = std::max(points, 1);
+		// With the items' +spell levels, which every effect reads through GetSpellLevel (audit, 2026-09-27): the block
+		// showed the invested rank alone, so a +2 item left the hover two ranks behind the swing.
+		const int at = std::max(points + player._pISplLvlAdd, 1);
 		if (const SpellID spell = ClassTreeSpellId(skill); IsValidSpell(spell))
 			line(SpellLevelLines(player, spell, at));
 		if (data.implemented)
@@ -3312,7 +3314,11 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 	// and this block shows the main effect and the level-up stat, both with numbers.
 	// test/oracool_skill_rules_test.cpp walks every row of every class to its cap against it.
 	if (p > 0) {
-		add(fmt::format(fmt::runtime(_("Current Skill Level: {:d}")), p));
+		const int itemLevels = GetClassTreeSkillData(skill).kind == Kind::Active ? player._pISplLvlAdd : 0;
+		if (itemLevels != 0)
+			add(fmt::format(fmt::runtime(_("Current Skill Level: {:d} ({:+d} from items)")), p, itemLevels));
+		else
+			add(fmt::format(fmt::runtime(_("Current Skill Level: {:d}")), p));
 		add(ClassTreeRankBlock(player, skill, p));
 	} else {
 		add(std::string(_("Not learned")));

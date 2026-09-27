@@ -64,6 +64,18 @@ bool EaseHasWork(const Item &item)
 }
 
 /** @p percent of @p value, rounded away from zero so a small affix still moves. */
+/**
+ * @brief Rounded to the nearest, with no floor of one - for the stats that step in whole tiers (audit, 2026-09-27): the
+ * floor turned +1 spell level into +2 on one shard (past Arcana's own limit), a piercing tier of 1 (a quarter of the
+ * armour) into 2 (half), and +1 light radius into +2.
+ */
+int ScaledTier(int value, int percent)
+{
+	const int scaled = value * percent;
+	const int magnitude = (std::abs(scaled) + 50) / 100;
+	return scaled < 0 ? -magnitude : magnitude;
+}
+
 int Scaled(int value, int percent)
 {
 	if (value == 0 || percent == 0)
@@ -273,11 +285,11 @@ void ApplyImbuementsToTotals(const Item &item, ItemBonusTotals &totals)
 	totals.coldResist += Scaled(own.coldResist, percent); // missed when cold resistance arrived (audit, 2026-09-27)
 	totals.damageMod += Scaled(own.damageMod, percent);
 	totals.getHit += Scaled(own.getHit, percent);
-	totals.lightRadius += Scaled(own.lightRadius, percent);
+	totals.lightRadius += ScaledTier(own.lightRadius, percent);
 	totals.hitPoints += Scaled(own.hitPoints, percent);
 	totals.mana += Scaled(own.mana, percent);
-	totals.spellLevelAdd += Scaled(own.spellLevelAdd, percent);
-	totals.enhancedAccuracy += Scaled(own.enhancedAccuracy, percent);
+	totals.spellLevelAdd += ScaledTier(own.spellLevelAdd, percent);
+	totals.enhancedAccuracy += ScaledTier(own.enhancedAccuracy, percent);
 	totals.fireMin += Scaled(own.fireMin, percent);
 	totals.fireMax += Scaled(own.fireMax, percent);
 	totals.lightningMin += Scaled(own.lightningMin, percent);

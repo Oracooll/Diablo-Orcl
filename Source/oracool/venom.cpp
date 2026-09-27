@@ -31,7 +31,8 @@ void PoisonPlayer(Player &player, int totalDamage, int ticks)
 	if (totalDamage <= 0 || ticks <= 0)
 		return;
 	// Resisted as magic - the fork's rule for poison, which has no resistance channel of its own.
-	const int resisted = totalDamage * (100 - std::clamp<int>(player._pMagResist, 0, 75)) / 100;
+	// Resistance as it stands, negatives included (audit, 2026-09-27) - it was clamped to 0-75, unlike every other hit.
+	const int resisted = totalDamage * (100 - std::clamp<int>(player._pMagResist, -100, 100)) / 100;
 	if (resisted <= 0)
 		return;
 	VenomState &state = StateOf(player);

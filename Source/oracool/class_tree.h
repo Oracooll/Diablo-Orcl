@@ -1063,9 +1063,9 @@ void ClearPlayerSlow(const Player &player);
  */
 int MovementSpeedPercent(const Player &player);
 
-/** @brief The fastest and slowest strides, in ticks: 250% and about 83% of a walk. */
+/** @brief The fastest and slowest strides, in ticks: 250% and 50% of a walk (20 since 2026-09-27: at 12 a slow stopped at 83%). */
 constexpr int MinStrideTicks = 4;
-constexpr int MaxStrideTicks = 12;
+constexpr int MaxStrideTicks = 20;
 
 /**
  * @brief Ticks for one stride at @p percent Movement Speed, carrying the fraction a whole tick cannot

@@ -403,6 +403,37 @@ TEST(Player, UnPackPlayer_KeepsBaseStatsPastTheClassRowsMaximum)
 	EXPECT_EQ(player._pBaseVit, 150);
 }
 
+// Cold resistance end to end (audit, 2026-09-27: tests set _pColdResist by hand or read item fields only). A ring
+// carrying the same fire and cold resistance must give the hero the same two totals - the same curve, the same cap,
+// read from the right field.
+TEST(Player, ColdResistanceFromAnItemReachesTheHeroLikeFire)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Warrior);
+	devilution::Player &player = Players[0];
+	MyPlayer = &player;
+	gbIsMultiplayer = false;
+	CalcPlrInv(player, true);
+	const int fireBefore = player._pFireResist;
+	const int coldBefore = player._pColdResist;
+	ASSERT_EQ(fireBefore, coldBefore) << "a new hero resists both alike";
+
+	devilution::Item &ring = player.InvBody[INVLOC_RING_LEFT];
+	InitializeItem(ring, IDI_TRING); // a ring base; InitializeItem gives it no powers of its own
+	ring._iIdentified = true;
+	ring._iStatFlag = true;
+	ring._iMagical = ITEM_QUALITY_MAGIC;
+	ring._iPLFR = 30;
+	ring._iPLCR = 30;
+	CalcPlrInv(player, true);
+
+	EXPECT_GT(player._pColdResist, coldBefore) << "the ring's cold resistance reached the hero";
+	EXPECT_EQ(player._pColdResist, player._pFireResist) << "through the same curve as fire";
+	ring.clear();
+	CalcPlrInv(player, true);
+}
+
 TEST(Player, ResetPlayerStats_SurvivesPlayerPackRoundTrip)
 {
 	// Bug report: starting a New Game with an existing hero goes through PackPlayer/UnPackPlayer

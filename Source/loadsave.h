@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 #include "pfile.h"
 #include "player.h"
@@ -63,5 +64,12 @@ void SaveStash(SaveWriter &stashWriter);
 void LoadInventoryTabs(Player &player, uint32_t saveNumber);
 /** @brief Saves the Oracool Tabbed Inventory's 9 extra backpack pages; call alongside SaveHeroItems. */
 void SaveInventoryTabs(SaveWriter &saveWriter, const Player &player);
+
+/** @brief One item's record as SaveItem writes it, raw - the item-format tests. */
+DVL_API_FOR_TEST std::vector<uint8_t> SaveItemBytesForTest(const Item &item);
+/** @brief Reads one record written in item format @p format, under the same scope the three loaders use. */
+DVL_API_FOR_TEST bool LoadItemBytesForTest(const std::vector<uint8_t> &bytes, uint8_t format, Item &item);
+/** @brief The format LoadItemData would read with now - back to today's after every loader. */
+DVL_API_FOR_TEST uint8_t LoadingItemFormatForTest();
 
 } // namespace devilution
