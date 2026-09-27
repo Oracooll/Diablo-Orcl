@@ -978,6 +978,15 @@ bool RefundClassTreePoint(Player &player, ClassTreeSkill skill);
 /** @brief Spends one of Phase 2.1's unspent points on @p skill. False changes nothing. */
 bool InvestClassTreePoint(Player &player, ClassTreeSkill skill);
 
+/**
+ * @brief Up to @p count points into @p skill at once, stopping at the cap or an empty pool; returns how many went in.
+ * One log line, one cue and one save for the lot - the Shift/Ctrl-click (dev note, 2026-09-27).
+ */
+int InvestClassTreePoints(Player &player, ClassTreeSkill skill, int count);
+
+/** @brief Up to @p count points back out of @p skill at once; returns how many came out. RefundClassTreePoint's rules. */
+int RefundClassTreePoints(Player &player, ClassTreeSkill skill, int count);
+
 /** @brief The burning aura, or None. Paladin only; decoded from Player::_pOracoolActiveAura. */
 ClassTreeSkill GetActiveClassAura(const Player &player);
 

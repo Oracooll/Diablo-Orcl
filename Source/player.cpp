@@ -1026,6 +1026,9 @@ bool DoAttack(Player &player)
 				oracool::OnPassiveHit(player, *monster, hitDamage, true);
 			if (didhit)
 				oracool::OnRfa12Hit(player, *monster, hitDamage, true);
+			if (didhit)
+				oracool::ApplyVengeanceCold(player, *monster); // Vengeance's third element (2026-09-27)
+			if (didhit)
 				oracool::OnCursedMonsterStruck(*monster, player, nullptr, hitDamage); // Life Tap (oracool/curses.h)
 			// And the Barbarian's and Monk's (Round 4), which want the swing whether or not it
 			// landed - Whirlwind spins through an empty front tile as readily as a full one.

@@ -32,6 +32,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include "DiabloUI/ui_flags.hpp"
 #include "engine/point.hpp"
@@ -109,6 +110,13 @@ enum class SheetBoxTone : uint8_t {
  * subregion is cut.
  */
 void DrawSheetBox(const Surface &out, Rectangle rect, SheetBoxTone tone = SheetBoxTone::Plain, bool castShadow = true);
+
+/**
+ * @brief Puts the obsidian slab (ui\hero_sheet_slab.png, the panel's own 340x720) behind the canvas whose top-left is
+ * @p panelOrigin on the base surface: every DrawSheetBox after this is a hole through the canvas down to it (user,
+ * 2026-09-27). std::nullopt takes it away again - the grouped sheet sets it for its own draw and clears it after.
+ */
+void SetSheetSlabOrigin(std::optional<Point> panelOrigin);
 
 /**
  * @brief The fields' drop shadow on its own: @p rect's size, 3px down and 3px left, translucent black. For things that

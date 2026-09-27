@@ -296,6 +296,8 @@ enum class MissileGraphicID : uint8_t {
 	ShoulderGate,
 	GatherTheDead,
 	RideTheLightning,
+	// 2026-09-27: Redemption's column over each corpse it consumes - vanilla's Resurrect beam at 60%, red and blue.
+	RedemptionRise,
 	None,
 };
 

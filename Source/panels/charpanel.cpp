@@ -2208,9 +2208,12 @@ void DrawGroupedSheet(const Surface &out, const Rectangle &panel)
 	const Surface content = out.subregion(contentRect.position.x, contentRect.position.y,
 	    contentRect.size.width, contentRect.size.height);
 
+	// The frames are holes through the canvas down to the obsidian slab behind it (user, 2026-09-27).
+	oracool::SetSheetSlabOrigin(Point { out.region.x + panel.position.x, out.region.y + panel.position.y });
 	DrawGroupedHeader(content, -ScrollOffset);
 	DrawGroupedLeftColumn(content);
 	DrawGroupedRightColumn(content);
+	oracool::SetSheetSlabOrigin(std::nullopt);
 
 	// The Advanced Stats toggle, in the header's corner: + opens the window, - closes it.
 	const bool hovered = ContentToScreen(GroupedAdvancedButton).contains(MousePosition) && contentRect.contains(MousePosition);

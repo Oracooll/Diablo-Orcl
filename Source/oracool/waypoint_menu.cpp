@@ -409,10 +409,11 @@ void DrawActButtons(const Surface &out)
 		// doubled 6px one under the cursor AND under the active act (user, 2026-09-20: "i want the
 		// active act button to keep the hover shadow under it"). The painted button carries its own
 		// frame, so the shadow hugs the button's rect (no bezel to clear).
+		// Held down, the shadow draws in a pixel on every side under the sunk face (2026-09-27).
 		if (isHovered || selected)
-			DrawHoverShadow(out, cell, 0);
+			DrawHoverShadow(out, cell, 0, PressedAct == act);
 		else
-			DrawDropShadow(out, cell, 0);
+			DrawDropShadow(out, cell, 0, PressedAct == act);
 		if (GetLoosePngSize(ActButtonAsset).width > 0) {
 			// The user's blank button, 1:1, the act's glyph centred on it, in their own colours when
 			// active or under the cursor; the other acts DESATURATED in place, glyph and all (user,

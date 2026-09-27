@@ -75,14 +75,17 @@ int RollDamage(AuraDamage range)
  * @brief One monster struck by an aura: nothing if it is immune to @p type, a quarter if it resists (the
  * spell rule), and a cold strike chills it until the next pulse. Kill credit and the hit reaction go to
  * @p player, the way a warcry's do.
+ *
+ * @p holy is Sanctuary's burn on the undead: no immunity or resistance stops it, Holy Bolt's rule - nearly every
+ * undead is immune to magic, so as plain magic it burned none of them (2026-09-27, found with Radiance's).
  */
-void AuraStrike(Player &player, Monster &monster, DamageType type, int damage)
+void AuraStrike(Player &player, Monster &monster, DamageType type, int damage, bool holy = false)
 {
 	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
 		return;
-	if (monster.isImmune(MissileID::Null, type))
+	if (!holy && monster.isImmune(MissileID::Null, type))
 		return;
-	if (monster.isResistant(MissileID::Null, type))
+	if (!holy && monster.isResistant(MissileID::Null, type))
 		damage >>= 2;
 	if (damage <= 0)
 		return;
@@ -317,7 +320,7 @@ std::string AuraFieldFactsAt(Skill aura, int points)
 	}
 	case Skill::Sanctuary: {
 		const AuraDamage d = SanctuaryDamage(p);
-		return fmt::format(fmt::runtime(_("Undead in reach flee and take {:d} - {:d} magic damage a second")), d.min, d.max);
+		return fmt::format(fmt::runtime(_("Undead in reach flee and take {:d} - {:d} holy damage a second, through magic immunity")), d.min, d.max);
 	}
 	case Skill::Conviction:
 		return fmt::format(fmt::runtime(_("Enemy armour: -{:d}%")), ConvictionArmorCutPercent(p));
@@ -421,7 +424,7 @@ void ProcessOutwardAura(Player &player)
 		if (monster.data().monsterClass != MonsterClass::Undead)
 			continue;
 		if (burn && monster.position.tile == tile) {
-			AuraStrike(player, monster, DamageType::Magic, RollDamage(SanctuaryDamage(sanctuary)));
+			AuraStrike(player, monster, DamageType::Magic, RollDamage(SanctuaryDamage(sanctuary)), /*holy=*/true);
 			if ((monster.hitPoints >> 6) <= 0)
 				continue;
 		}

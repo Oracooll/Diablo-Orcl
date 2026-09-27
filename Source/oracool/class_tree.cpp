@@ -140,7 +140,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 1, 0, Kind::Active, SpellID::Zeal, true },
 	{ N_("Charge"), N_("Rush an enemy and land a running blow, +20% damage per level."),
 	    Pal, 0, 1, 1, Kind::Active, SpellID::Charge, true },
-	{ N_("Vengeance"), N_("Your blows burn and crackle for 30 seconds, +5 per rank: fire and lightning on every hit. Cold has no place on the weapon sheet, so it is not added."),
+	{ N_("Vengeance"), N_("Your blows burn and crackle for 30 seconds, +5 per rank: fire, lightning and cold on every hit, and the cold chills."),
 	    Pal, 0, 2, 0, Kind::Active, SpellID::Vengeance, true },
 	{ N_("Blessed Hammer"), N_("Looses a spinning hammer that wheels outward through anything in its path."),
 	    Pal, 0, 3, 1, Kind::Active, SpellID::BlessedHammer, true },
@@ -165,7 +165,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 1, 3, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Holy Shock"), N_("Every 3 seconds holy lightning strikes everything around you. Damage and reach grow every level; the reach stops at 10 tiles."),
 	    Pal, 1, 4, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Sanctuary"), N_("Hallows the ground you stand on: nearby undead break and flee, and burn for magic damage every second. Champions are too proud to run, but they burn."),
+	{ N_("Sanctuary"), N_("Hallows the ground you stand on: nearby undead break and flee, and burn for holy damage every second, magic immunity or not. Champions are too proud to run, but they burn."),
 	    Pal, 1, 4, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Fanaticism"), N_("Drives you to strike faster, harder and truer."),
 	    Pal, 1, 5, 0, Kind::Aura, SpellID::Invalid, true },
@@ -185,7 +185,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Meditation"), N_("Restores your mana steadily as you walk."), Pal, 2, 4, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Redemption"), N_("Once a second the nearest corpse in the field is consumed for 3% of your life and mana, +1% per level."),
 	    Pal, 2, 5, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Salvation"), N_("Wards you against fire, lightning, cold and magic alike."),
+	{ N_("Salvation"), N_("+10% to every resistance - fire, lightning, cold and magic - +3% per level."),
 	    Pal, 2, 5, 1, Kind::Aura, SpellID::Invalid, true },
 	// --- Combat Skills, appended out of page order (2026-08-16) ---
 	//
@@ -266,7 +266,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 5, 2, Kind::Active, SpellID::WrathOfTheHeavens, true },
 	{ N_("Valor"), N_("Adds 3 damage to every blow, +2 per level."),
 	    Pal, 1, 0, 1, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Radiance"), N_("Every 2 seconds, undead in reach take 3-6 magic damage, +1-2 per level."),
+	{ N_("Radiance"), N_("Every 2 seconds, undead in reach take 3-6 holy damage, +1-2 per level. Magic immunity does not stop it."),
 	    Pal, 1, 0, 2, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Bane of Evil"), N_("+25% damage against demons and undead, +5% per level, to 150%."),
 	    Pal, 1, 1, 2, Kind::Aura, SpellID::Invalid, true },
@@ -2328,7 +2328,10 @@ bool CanInvestClassTreePoint(const Player &player, Skill skill)
 	return player._pLevel >= RankRequiredLevel(ClassTreeTierMinLevel(GetClassTreeSkillData(skill).tier), invested + 1);
 }
 
-bool InvestClassTreePoint(Player &player, Skill skill)
+namespace {
+
+/** @brief One point in, with no log line, cue or save - InvestClassTreePoints does those once for the whole click. */
+bool InvestOnePoint(Player &player, Skill skill)
 {
 	if (!CanInvestClassTreePoint(player, skill))
 		return false;
@@ -2342,6 +2345,23 @@ bool InvestClassTreePoint(Player &player, Skill skill)
 	// so without this a newly bought skill would not be selectable until the next load recomputed
 	// the mask.
 	RefreshInnateSpells(player);
+	return true;
+}
+
+} // namespace
+
+bool InvestClassTreePoint(Player &player, Skill skill)
+{
+	return InvestClassTreePoints(player, skill, 1) > 0;
+}
+
+int InvestClassTreePoints(Player &player, Skill skill, int count)
+{
+	int spent = 0;
+	while (spent < count && InvestOnePoint(player, skill))
+		spent++;
+	if (spent == 0)
+		return 0;
 
 	if (&player == MyPlayer) {
 		LogEvent(fmt::format("{:s} raised to {:d}", std::string(_(GetClassTreeSkillData(skill).name)),
@@ -2356,7 +2376,7 @@ bool InvestClassTreePoint(Player &player, Skill skill)
 			PlayUiSelectSound();
 	}
 	ScheduleAutoSaveForSkillChange();
-	return true;
+	return spent;
 }
 
 bool CanRefundClassTreePoint(const Player &player, Skill skill)
@@ -2366,14 +2386,22 @@ bool CanRefundClassTreePoint(const Player &player, Skill skill)
 
 bool RefundClassTreePoint(Player &player, Skill skill)
 {
-	if (!CanRefundClassTreePoint(player, skill))
-		return false;
-	player._pUnspentSkillPoints++;
+	return RefundClassTreePoints(player, skill, 1) > 0;
+}
+
+int RefundClassTreePoints(Player &player, Skill skill, int count)
+{
+	const int taken = std::min(count, ClassTreeInvestment(player, skill));
+	if (taken <= 0)
+		return 0;
+	player._pUnspentSkillPoints = static_cast<uint16_t>(player._pUnspentSkillPoints + taken);
 	const SpellID slot = ClassTreeSpellId(skill);
 	if (slot != SpellID::Invalid) {
-		player._pSkillInvestment[static_cast<size_t>(slot)]--;
+		uint8_t &rank = player._pSkillInvestment[static_cast<size_t>(slot)];
+		rank = static_cast<uint8_t>(rank - taken);
 	} else {
-		player._pClassTreeInvestment[ClassTreeIconIndex(skill)]--;
+		uint8_t &rank = player._pClassTreeInvestment[ClassTreeIconIndex(skill)];
+		rank = static_cast<uint8_t>(rank - taken);
 	}
 
 	// An aura at zero has no strength left to give, and ToggleClassAura already refuses to LIGHT one
@@ -2397,7 +2425,7 @@ bool RefundClassTreePoint(Player &player, Skill skill)
 		    UiFlags::ColorWhitegold);
 	}
 	ScheduleAutoSaveForSkillChange();
-	return true;
+	return taken;
 }
 
 // ---------------------------------------------------------------------------------------------

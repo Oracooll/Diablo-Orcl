@@ -184,27 +184,35 @@ void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect, int clearanceX, i
 	DrawSplitOutline(out, outer, MidHighlightColor, MidHighlightColor, Weight);
 }
 
-void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth)
+/**
+ * @brief The shadow's footprint: the rect grown by its bezel, and a pixel smaller on every side while the button is
+ * held down - the face closing in on the ground beneath it (dev note, 2026-09-27).
+ */
+Rectangle ShadowFootprint(Rectangle rect, int bezelWidth, bool sunk)
+{
+	const int grow = bezelWidth - (sunk ? SunkShadowInset : 0);
+	return { rect.position - Displacement { grow, grow }, { rect.size.width + 2 * grow, rect.size.height + 2 * grow } };
+}
+
+void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth, bool sunk)
 {
 	// The character sheet's text shadow ANGLE - left and down - at three pixels (user, 2026-09-05:
 	// 2 was under the bezel, 6 was "increase px count to 6", then "i really meant making it 3px").
 	constexpr Displacement ShadowOffset { -3, 3 };
-	const Rectangle footprint { rect.position - Displacement { bezelWidth, bezelWidth },
-		{ rect.size.width + 2 * bezelWidth, rect.size.height + 2 * bezelWidth } };
+	const Rectangle footprint = ShadowFootprint(rect, bezelWidth, sunk);
 	const Rectangle shadow { footprint.position + ShadowOffset, footprint.size };
 	// One pass, not two (user, 2026-09-05: "reduce the shadow by half") - half the darkening.
 	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);
 }
 
-void DrawHoverShadow(const Surface &out, Rectangle rect, int bezelWidth)
+void DrawHoverShadow(const Surface &out, Rectangle rect, int bezelWidth, bool sunk)
 {
 	// The slot's own shadow, doubled: six pixels down-left and two passes (user, 2026-09-05:
 	// "instead of gold boxes, when i hover over items in abilities windows draw 2 times bigger
 	// shadow under them. if it is 3 px, make it 6px and darker"). Drawn BEFORE the icon like the
 	// resting shadow, so it lies under the slot, never over its text.
 	constexpr Displacement ShadowOffset { -6, 6 };
-	const Rectangle footprint { rect.position - Displacement { bezelWidth, bezelWidth },
-		{ rect.size.width + 2 * bezelWidth, rect.size.height + 2 * bezelWidth } };
+	const Rectangle footprint = ShadowFootprint(rect, bezelWidth, sunk);
 	const Rectangle shadow { footprint.position + ShadowOffset, footprint.size };
 	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);
 	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);

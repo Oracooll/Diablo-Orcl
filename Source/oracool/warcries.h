@@ -65,6 +65,15 @@ int WarcryBuffTicks(const Player &player, SpellID spell);
 /** @brief The sheet buffs - Shout, Battle Orders, Battle Command, Purifying Breath, Vengeance - into the totals. */
 void ApplyWarcryBuffsToTotals(const Player &player, ItemBonusTotals &totals);
 
+/**
+ * @brief Vengeance's cold (dev note, 2026-09-27: "add cold to vengeance skill"): each landed melee blow also strikes
+ * @p monster for cold and chills it, while @p player carries the buff. A strike of its own rather than a sheet line,
+ * because the weapon sheet has fire and lightning channels and no cold one.
+ */
+void ApplyVengeanceCold(Player &player, Monster &monster);
+int VengeanceColdMin(int rank);
+int VengeanceColdMax(int rank);
+
 /** @brief Slow Missiles: an arrow that would have struck @p player turns aside instead. Rolled per arrow. */
 bool SlowMissilesTurnsAside(const Player &player);
 

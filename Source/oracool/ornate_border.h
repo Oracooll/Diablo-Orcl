@@ -260,9 +260,11 @@ void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect,
  * the strip down its left and along its bottom. One half-transparent pass ("reduce the shadow by
  * half", 2026-09-05); it was two.
  */
-void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth = 0);
+void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth = 0, bool sunk = false);
 /** @brief The HOVER shadow: DrawDropShadow twice as far (6px) and twice as dark. Under the slot, before the icon. */
-void DrawHoverShadow(const Surface &out, Rectangle rect, int bezelWidth = 0);
+void DrawHoverShadow(const Surface &out, Rectangle rect, int bezelWidth = 0, bool sunk = false);
+/** @brief What a held button's shadow loses on every side (@p sunk above): the face has closed in on the ground. */
+constexpr int SunkShadowInset = 1;
 
 /**
  * @brief The same one-pixel rectangle in a caller-chosen palette index.

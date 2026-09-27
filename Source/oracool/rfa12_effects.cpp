@@ -199,6 +199,22 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage)
 		M_StartHit(monster, player, damage);
 }
 
+/**
+ * @brief Holy light on an undead: no immunity or resistance stops it, the rule Holy Bolt has always had. Nearly
+ * every undead in the game - zombies, skeletons - is immune to magic, so Radiance struck as plain magic hurt none of
+ * them (dev note, 2026-09-27: "radiance aura doesnt seem to hurt undead").
+ */
+void StrikeHoly(Player &player, Monster &monster, int damage)
+{
+	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
+		return;
+	ApplyMonsterDamage(DamageType::Magic, monster, damage);
+	if ((monster.hitPoints >> 6) <= 0)
+		M_StartKill(monster, player);
+	else
+		M_StartHit(monster, player, damage);
+}
+
 // ---- the numbers, one place each, so the rule and its tooltip cannot disagree ------------------
 
 int BaneOfEvilPercent(int p) { return std::min(25 + 5 * (p - 1), 150); }
@@ -481,7 +497,7 @@ void ProcessRfa12Tick(Player &player)
 			if (radiance > 0 && pulse && distance <= AuraRadiusForPoints(radiance)
 			    && monster.data().monsterClass == MonsterClass::Undead) {
 				const AuraDamage d = RadianceDamage(radiance);
-				Strike(player, monster, DamageType::Magic, Roll(d.min, d.max));
+				StrikeHoly(player, monster, Roll(d.min, d.max));
 			}
 			if (sirens > 0 && siren && distance <= radius && (monster.hitPoints >> 6) > 0 && monster.mode != MonsterMode::Petrified) {
 				monster.activeForTicks = UINT8_MAX;
@@ -654,7 +670,7 @@ std::string Rfa12AuraFactsAt(Skill aura, int points)
 	switch (aura) {
 	case Skill::Radiance: {
 		const AuraDamage d = RadianceDamage(p);
-		return fmt::format(fmt::runtime(_("Undead in reach take {:d} - {:d} magic damage every {:d} seconds")), d.min, d.max,
+		return fmt::format(fmt::runtime(_("Undead in reach take {:d} - {:d} holy damage every {:d} seconds, through magic immunity")), d.min, d.max,
 		    RadiancePulseTicks / TicksPerSecond);
 	}
 	case Skill::BaneOfEvil:

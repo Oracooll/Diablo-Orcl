@@ -226,6 +226,33 @@ int NextFocusableButton(int from, int step)
 	return -1;
 }
 
+/**
+ * @brief The button under the mouse last frame, so moving onto one sounds once (dev note, 2026-09-27: "play titlemov
+ * sound when i hover or move to any of the 4 main menu buttons at the bottom of the front end" - the hero screen's
+ * OK / Delete / Cancel / New Hero, and every other front-end button row with them). Compared, never dereferenced.
+ */
+const UiArtTextButton *HoveredButton = nullptr;
+
+const UiArtTextButton *ButtonUnderMouse()
+{
+	for (const UiArtTextButton *button : gUiButtons) {
+		const SDL_Rect &r = button->m_rect;
+		if (IsFocusable(*button) && MousePosition.x >= r.x && MousePosition.x < r.x + r.w
+		    && MousePosition.y >= r.y && MousePosition.y < r.y + r.h)
+			return button;
+	}
+	return nullptr;
+}
+
+/** @brief Once a frame: titlemov as the mouse enters a button. */
+void TrackButtonHover()
+{
+	const UiArtTextButton *over = ButtonUnderMouse();
+	if (over != nullptr && over != HoveredButton)
+		effects_play_sound(IS_TITLEMOV); // UiPlayMoveSound, defined further down
+	HoveredButton = over;
+}
+
 /** @brief Moves the pentagrams to button @p index, or back to the list with -1. */
 void FocusButton(int index)
 {
@@ -263,6 +290,7 @@ void UiInitList(void (*fnFocus)(int value), void (*fnSelect)(int value), void (*
 	    [](const UiArtTextButton *a, const UiArtTextButton *b) { return a->m_rect.x < b->m_rect.x; });
 	FocusButton(-1);
 	DisarmClicks();
+	HoveredButton = ButtonUnderMouse(); // a screen that opens under the pointer does not sound for it
 
 	if (fnFocus != nullptr)
 		fnFocus(selectedItem);
@@ -532,6 +560,7 @@ bool HandleMenuAction(MenuAction menuAction)
 		}
 		if (const int first = NextFocusableButton(-1, 1); first >= 0) {
 			FocusButton(first);
+			UiPlayMoveSound(); // onto the button row, as a move within the list sounds
 			return true;
 		}
 		UiFocusDown(); // no buttons: a wrapping list wraps, exactly as before
@@ -547,8 +576,10 @@ bool HandleMenuAction(MenuAction menuAction)
 		if (!onButtons)
 			return false;
 		const int step = menuAction == MenuAction_LEFT ? -1 : 1;
-		if (const int next = NextFocusableButton(SelectedButton, step); next >= 0)
+		if (const int next = NextFocusableButton(SelectedButton, step); next >= 0 && next != SelectedButton) {
 			FocusButton(next);
+			UiPlayMoveSound();
+		}
 		return true;
 	}
 	case MenuAction_PAGE_UP:
@@ -1125,6 +1156,7 @@ void UiPollAndRender(std::optional<tl::function_ref<bool(SDL_Event &)>> eventHan
 		UiHandleEvents(&event);
 	}
 	HandleMenuAction(GetMenuHeldUpDownAction());
+	TrackButtonHover();
 	UiRenderListItems();
 	DrawMouse();
 	UiFadeIn();

@@ -492,6 +492,14 @@ IconButton PressedIcon;
 IconButton FrameHoverIcon;
 IconButton LastHoverIcon;
 constexpr Displacement IconPressSink { -2, 2 };
+/** @brief Points a Shift-click on a tree cell moves at once; Ctrl moves them all (2026-09-27). */
+constexpr int ShiftClickPoints = 5;
+
+/** @brief Whether @p button is the one held down - its face sunk, its shadow a pixel smaller all round. */
+bool IsIconPressed(IconButton button)
+{
+	return PressedIcon.kind != IconButtonKind::None && PressedIcon == button;
+}
 
 /** @brief The sink for @p button's face: the press offset while it is the one held down, else none. */
 Displacement PressSinkFor(IconButton button)
@@ -1034,7 +1042,7 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	// four pixels and read as a shared rail rather than as separate plates. That is the same look the
 	// backpack's own bezel has between its cells, so it is left alone rather than paid for in row
 	// height - a taller row costs the page its last entry.
-	oracool::DrawDropShadow(content, iconRect, oracool::GridBezelInset); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
+	oracool::DrawDropShadow(content, iconRect, oracool::GridBezelInset, IsIconPressed({ IconButtonKind::SpellRow, static_cast<int>(index) })); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
 	iconRect.position += PressSinkFor({ IconButtonKind::SpellRow, static_cast<int>(index) }); // the face sinks while pressed
 	oracool::DrawGridBezel(content, iconRect);
 	// Oracool: Charge draws its OWN art here, from the Paladin strip through TryDrawSkillSpellIcon -
@@ -1209,7 +1217,7 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 		tint = slotted ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Ready;
 	else if (usable)
 		tint = (bookRow || invested > 0) ? oracool::SkillPlateTint::Ready : oracool::SkillPlateTint::Unspent;
-	oracool::DrawDropShadow(content, icon, oracool::GridBezelInset); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
+	oracool::DrawDropShadow(content, icon, oracool::GridBezelInset, IsIconPressed({ IconButtonKind::TreeCell, static_cast<int>(skill) })); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
 	// The face sinks while pressed; the shadow above was cast from the resting rect (see IconButton).
 	icon.position += PressSinkFor({ IconButtonKind::TreeCell, static_cast<int>(skill) });
 	oracool::DrawGridBezel(content, icon);
@@ -1314,7 +1322,7 @@ void DrawPassiveSlotBand(const Surface &content, int scroll)
 		// in this window that most want to look like sockets. The band's pitch is 63 to the icon's
 		// 56, so neighbouring frames overlap by five pixels, the same shared-rail reading the sheet
 		// rows have.
-		oracool::DrawDropShadow(content, rect, oracool::GridBezelInset); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
+		oracool::DrawDropShadow(content, rect, oracool::GridBezelInset, IsIconPressed({ IconButtonKind::PassiveSlot, slot })); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
 		rect.position += PressSinkFor({ IconButtonKind::PassiveSlot, slot }); // the face sinks while pressed
 		oracool::DrawGridBezel(content, rect);
 		if (filled) {
@@ -1900,7 +1908,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 				FrameHoverIcon = { IconButtonKind::PassiveSlot, slot };
 				// The hover is a deeper shadow under the slot, not a ring (user, 2026-09-05).
 				oracool::DrawHoverShadow(content, { { rect.position.x, rect.position.y - scroll }, rect.size },
-				    oracool::GridBezelInset);
+				    oracool::GridBezelInset, IsIconPressed({ IconButtonKind::PassiveSlot, slot }));
 				return;
 			}
 		}
@@ -1929,7 +1937,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 			{ AbilitiesContentRightLimit, cell.size.height } };
 		HasPendingHover = true;
 		oracool::DrawHoverShadow(content, { { cell.position.x, cell.position.y - scroll }, cell.size },
-		    oracool::GridBezelInset); // a deeper shadow under the cell, not a ring (user, 2026-09-05)
+		    oracool::GridBezelInset, IsIconPressed({ IconButtonKind::TreeCell, static_cast<int>(*hovered) })); // a deeper shadow under the cell, not a ring (user, 2026-09-05)
 		return;
 	}
 
@@ -1968,7 +1976,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	// Under the ICON only (user, 2026-09-05: "draw it under the icons, not under the texts"): the
 	// deeper hover shadow on the row's icon rect, never across the name and detail lines.
 	const Rectangle iconOfRow = SpellRowIconRect(rowTop - scroll);
-	oracool::DrawHoverShadow(content, iconOfRow, oracool::GridBezelInset);
+	oracool::DrawHoverShadow(content, iconOfRow, oracool::GridBezelInset, IsIconPressed(FrameHoverIcon));
 
 	// DEFERRED, not drawn here. Oracool: user request (2026-08-15) - "pop-up windows to be rendered
 	// on top of all including bottom hud, to be readable." The Abilities window is drawn early in the
@@ -2241,9 +2249,13 @@ void CheckSBook(bool assignToRightButton)
 			return;
 		}
 
+		// Shift moves five points at a time, Ctrl as many as will go - to the cap or the empty pool, or all the way
+		// back out (dev note, 2026-09-27: "add shift/ctrl+click (l/r) to assign/remove skill points").
+		const SDL_Keymod mods = SDL_GetModState();
+		const int count = (mods & KMOD_CTRL) != 0 ? oracool::MaxTreeInvestment : ((mods & KMOD_SHIFT) != 0 ? ShiftClickPoints : 1);
 		const bool changed = assignToRightButton
-		    ? oracool::RefundClassTreePoint(*MyPlayer, *hit)
-		    : oracool::InvestClassTreePoint(*MyPlayer, *hit);
+		    ? oracool::RefundClassTreePoints(*MyPlayer, *hit, count) > 0
+		    : oracool::InvestClassTreePoints(*MyPlayer, *hit, count) > 0;
 		if (changed) {
 			// The whole of "make it take effect": the aura provider and every ladder read the
 			// investment on the next totals walk.

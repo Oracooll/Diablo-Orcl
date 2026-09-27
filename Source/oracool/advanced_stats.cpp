@@ -704,7 +704,75 @@ void DrawTranslucentBox(const Surface &out, Rectangle rect, SheetBoxTone tone)
 	FillRectRgb(out, x + w - 1, y, 1, h, look.edgeRgb, look.edgeFallback);
 }
 
+// ---- the slab behind the canvas (user, 2026-09-27) -------------------------------------------------------------
+//
+// "take this backing ... obsidian-stone-slab-background-340x720.png and place it one layer behind the hero stats canvas
+// and simulate each frame as a punctured hole through the canvas, revealing whatever part of this layer lays behind
+// it." The slab is the side panel's own size and stays put behind it; a frame is a hole cut through the canvas, so its
+// interior shows the part of the slab that lies under that spot - and a frame that scrolls slides across the slab like
+// a window moved over a wall. The frame's gold (its top and bottom rows and its end caps) stays as the hole's cut edge;
+// the canvas's lip casts its shadow INTO the hole, along the top and the right, the sheet's light (shadows fall down
+// and left); and a hole casts none outward, so there is no drop shadow under it.
+
+struct Slab {
+	bool attempted = false;
+	int width = 0;
+	int height = 0;
+	std::vector<uint32_t> argb;
+};
+Slab SheetSlab;
+/** @brief The panel's top-left on the base surface while the grouped sheet draws; unset, the frames are solid. */
+std::optional<Point> SlabOrigin;
+
+bool LoadSheetSlab()
+{
+	if (!SheetSlab.attempted) {
+		SheetSlab.attempted = true;
+		SheetSlab.argb = LoadFieldPiece("ui\\hero_sheet_slab.png", SheetSlab.width, SheetSlab.height);
+	}
+	return !SheetSlab.argb.empty();
+}
+
+/**
+ * @brief @p rect as a hole down to the slab: the field's frame, the slab inside it, the canvas's shadow across the
+ * inside of its top and right edges, the tone's wash over the lot. False when there is no slab to show.
+ */
+bool DrawSheetHole(const Surface &out, Rectangle rect, SheetBoxTone tone, const std::vector<uint32_t> &field)
+{
+	if (!SlabOrigin || !LoadSheetSlab())
+		return false;
+	const int w = rect.size.width;
+	const int h = rect.size.height;
+	// Where this box sits over the slab: its place on the base surface, less the panel's.
+	const int slabX = out.region.x + rect.position.x - SlabOrigin->x;
+	const int slabY = out.region.y + rect.position.y - SlabOrigin->y;
+	const uint32_t wash = FieldToneWash(tone);
+	const uint32_t shade = PackArgb(FieldShadowAlpha, 0, 0, 0);
+	const int rimLeft = std::min(Strip.leftWidth, w / 2);
+	const int rimRight = std::min(Strip.rightWidth, w / 2);
+	std::vector<uint32_t> hole(field);
+	for (int y = Strip.topRows; y < h - Strip.bottomRows; y++) {
+		const int sy = std::clamp(slabY + y, 0, SheetSlab.height - 1);
+		for (int x = rimLeft; x < w - rimRight; x++) {
+			const int sx = std::clamp(slabX + x, 0, SheetSlab.width - 1);
+			uint32_t pixel = SheetSlab.argb[static_cast<size_t>(sy * SheetSlab.width + sx)] | 0xFF000000;
+			const bool shadowed = y < Strip.topRows + FieldShadowOffset || x >= w - rimRight - FieldShadowOffset;
+			if (shadowed)
+				pixel = 0xFF000000 | (CompositeArgbOver(shade, pixel, 100) & 0x00FFFFFF);
+			if (wash != 0)
+				pixel = 0xFF000000 | (CompositeArgbOver(wash, pixel, 100) & 0x00FFFFFF);
+			hole[static_cast<size_t>(y * w + x)] = pixel;
+		}
+	}
+	return BlitArgb(out, hole.data(), w, SDL_Rect { 0, 0, w, h }, rect.position, 100);
+}
+
 } // namespace
+
+void SetSheetSlabOrigin(std::optional<Point> panelOrigin)
+{
+	SlabOrigin = panelOrigin;
+}
 
 void DrawSheetBox(const Surface &out, Rectangle rect, SheetBoxTone tone, bool castShadow)
 {
@@ -717,6 +785,8 @@ void DrawSheetBox(const Surface &out, Rectangle rect, SheetBoxTone tone, bool ca
 		DrawTranslucentBox(out, rect, tone);
 		return;
 	}
+	if (DrawSheetHole(out, rect, tone, *field))
+		return;
 	// The shadow first, the field over it: the field is opaque, so only the L to its lower left shows.
 	if (castShadow)
 		DrawSheetShadow(out, rect);

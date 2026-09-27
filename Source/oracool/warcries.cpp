@@ -10,6 +10,7 @@
 #include "engine/random.hpp"
 #include "levels/gendung.h"
 #include "dead.h"
+#include "effects.h"
 #include "items.h"
 #include "missiles.h"
 #include "monster.h"
@@ -495,6 +496,33 @@ void ApplyWarcryBuffsToTotals(const Player &player, ItemBonusTotals &totals)
 	}
 }
 
+/** @brief How long a Vengeance blow's cold holds its target chilled: a second, renewed by the next blow. */
+constexpr int VengeanceChillTicks = TicksPerSecond;
+
+int VengeanceColdMin(int rank) { return 1 + rank; }
+int VengeanceColdMax(int rank) { return 5 + 2 * rank; }
+
+void ApplyVengeanceCold(Player &player, Monster &monster)
+{
+	const Buff *buff = FindBuff(player, SpellID::Vengeance);
+	if (buff == nullptr || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion())
+		return;
+	const int rank = std::max(buff->rank, 1);
+	int damage = Roll(VengeanceColdMin(rank), VengeanceColdMax(rank));
+	damage += damage * Rfa12ColdDamagePercent(monster) / 100;
+	if (monster.isResistant(MissileID::Null, DamageType::Cold))
+		damage >>= 2;
+	if (damage <= 0)
+		return;
+	ApplyMonsterDamage(DamageType::Cold, monster, damage);
+	if ((monster.hitPoints >> 6) <= 0) {
+		M_StartKill(monster, player);
+		return;
+	}
+	ChillMonster(monster, VengeanceChillTicks);
+	AddColdHitFlash(monster.position.tile, static_cast<int>(player.getId()));
+}
+
 bool SlowMissilesTurnsAside(const Player &player)
 {
 	const Buff *buff = FindBuff(player, SpellID::SlowMissiles);
@@ -628,6 +656,10 @@ void ProcessWarcriesTick(Player &player)
 		if (++redemptionClock % TicksPerSecond == 0) {
 			if (const std::optional<Point> corpse = CorpseNear(player.position.tile, radius); corpse) {
 				ConsumeCorpse(*corpse);
+				// Seen and heard (dev note, 2026-09-27): the Resurrect beam, small and twisted red and blue for the life and
+				// mana it gives back, rises where the corpse lay, to the Resurrect spell's own cast sound.
+				AddArtEffect(*corpse, MissileGraphicID::RedemptionRise, static_cast<int>(player.getId()));
+				PlaySfxLoc(LS_RESUR, *corpse);
 				const int share = RedemptionSharePercent(points);
 				const int heal = player._pMaxHP * share / 100;
 				const int gain = player._pMaxMana * share / 100;
@@ -719,7 +751,7 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::SlowMissiles:
 		return N_("For 20 seconds, +4 per rank, 50% of the arrows aimed at you turn aside, +5% per rank.");
 	case SpellID::Vengeance:
-		return N_("Your blows burn and crackle for thirty seconds, five more a rank: fire and lightning on every hit, more with rank. Cold has no place on the weapon sheet, so it is not added.");
+		return N_("Your blows burn and crackle for thirty seconds, five more a rank: fire, lightning and cold on every hit, more with rank, and the cold chills.");
 	case SpellID::Conversion:
 		return N_("Turns one enemy near the cursor to your side for 20 seconds, +2 per rank. Uniques and the magic-immune refuse.");
 	case SpellID::FindPotion:
@@ -838,6 +870,7 @@ std::string WarcryFactsAt(SpellID spell, int rank)
 		duration(30 + 5 * (rank - 1));
 		line(fmt::format(fmt::runtime(_("Fire: +{:d} - {:d}")), 2 + rank, 6 + 2 * rank));
 		line(fmt::format(fmt::runtime(_("Lightning: +{:d} - {:d}")), 1 + rank, 8 + 2 * rank));
+		line(fmt::format(fmt::runtime(_("Cold: +{:d} - {:d}, and it chills")), VengeanceColdMin(rank), VengeanceColdMax(rank)));
 		break;
 	case SpellID::FindPotion:
 		line(fmt::format(fmt::runtime(_("Chance: {:d}%")), std::min(50 + 5 * (rank - 1), 90)));
