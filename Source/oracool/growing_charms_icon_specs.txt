@@ -1,3 +1,3 @@
-..\Resources\01-in-use-assets\items\charms\charm_trials.png,0,0,28,28,28,28,charm_trials,30,false,asis
-..\Resources\01-in-use-assets\items\charms\charm_deeds.png,0,0,28,28,28,28,charm_deeds,30,false,asis
-..\Resources\01-in-use-assets\items\charms\charm_legend.png,0,0,28,28,28,28,charm_legend,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\charms\charm_trials.png,0,0,28,28,28,28,charm_trials,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\charms\charm_deeds.png,0,0,28,28,28,28,charm_deeds,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\charms\charm_legend.png,0,0,28,28,28,28,charm_legend,30,false,asis

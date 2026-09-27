@@ -19,7 +19,7 @@ param(
     # having no visible ring hole; 27 passes that check with 113 enclosed transparent pixels.
     # Per-file, with a fallback to the placeholder. Relative to the repository root, where
     # build_item_icons.cmd runs.
-    [string]$SpecArtDir = "..\Resources\01-in-use-assets\items",
+    [string]$SpecArtDir = "..\Resources\02. Oracooll Assets\01. Used\items",
     # One past the last Mystic Orb. cursor.cpp static_asserts the adjacency.
     [int]$FirstCursorId = 485
 )

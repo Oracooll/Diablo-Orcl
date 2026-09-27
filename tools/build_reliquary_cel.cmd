@@ -16,7 +16,7 @@ REM Usage:  tools\build_reliquary_cel.cmd
 REM Run from the repository root.
 
 setlocal
-set ART=..\Resources\01-in-use-assets\world
+set ART=..\Resources\02. Oracooll Assets\02. Unused\world
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\objects\orclstash.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe

@@ -2,7 +2,7 @@
 #
 #     powershell -ExecutionPolicy Bypass -File tools\CutTownPortalIcon.ps1
 #
-# Source: Resources\01-in-use-assets\bottom-hud\town.portal.png - a 1536x1024 24bpp RGB sheet with three
+# Source: Resources\02. Oracooll Assets\02. Unused\bottom-hud\town.portal.png - a 1536x1024 24bpp RGB sheet with three
 # orbs on a green key, labelled ACTIVE / HOVER / CLICKED, and a block of descriptive text beneath
 # them that is NOT part of the art.
 #
@@ -36,7 +36,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$master = Join-Path (Split-Path -Parent $root) 'Resources\01-in-use-assets\bottom-hud\town.portal.png'
+$master = Join-Path (Split-Path -Parent $root) 'Resources\02. Oracooll Assets\02. Unused\bottom-hud\town.portal.png'
 if (-not (Test-Path $master)) { throw "missing master: $master" }
 
 $cellW = 27

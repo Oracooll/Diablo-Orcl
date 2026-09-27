@@ -195,8 +195,8 @@ namespace OracoolAssetStudio
             string[] candidates =
             {
                 "town.pal",
-                @"..\..\Resources\00-original-game-art\raw\levels\towndata\town.pal",
-                @"..\..\..\Resources\00-original-game-art\raw\levels\towndata\town.pal",
+                @"..\..\Resources\01. Blizzard Assets\palettes\levels\towndata\town.pal",
+                @"..\..\..\Resources\01. Blizzard Assets\palettes\levels\towndata\town.pal",
                 @"Packaging\resources\assets\ui_art\diablo.pal",
                 @"..\Packaging\resources\assets\ui_art\diablo.pal",
             };

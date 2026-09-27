@@ -1,8 +1,8 @@
 # Builds one animated GIF per original missile graphic - the spell animations - into
-# Resources\00-original-game-art\spellanimations, named after the spells that use them, so a new
+# Resources\01. Blizzard Assets\Spells Animations, named after the spells that use them, so a new
 # skill's visual can be picked by eye (user, 2026-09-11).
 #
-# Reads the sheets tools\oracool_art_export.exe already wrote to 00-original-game-art\missiles (a row
+# Reads the sheets tools\oracool_art_export.exe already wrote to 01. Blizzard Assets\Animated Items 2 (a row
 # per direction, frames left to right) and the game's own tables - Source\spelldat.cpp (spell ->
 # missiles), Source\misdat.cpp (missile -> graphic, graphic -> frame width, directions, frame count and
 # frame delay) - so the names and the timing are the game's. No art is read from or written into the
@@ -14,9 +14,9 @@ param(
 	[string]$Art = ''
 )
 $ErrorActionPreference = 'Stop'
-if (-not $Art) { $Art = Join-Path (Split-Path -Parent $Repo) 'Resources\00-original-game-art' }
-$Sheets = Join-Path $Art 'missiles'
-$Out = Join-Path $Art 'spellanimations'
+if (-not $Art) { $Art = Join-Path (Split-Path -Parent $Repo) 'Resources\01. Blizzard Assets' }
+$Sheets = Join-Path $Art 'Animated Items 2' # the exporter's missiles/, renamed by the user
+$Out = Join-Path $Art 'Spells Animations'
 New-Item -ItemType Directory -Force $Out | Out-Null
 
 Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'

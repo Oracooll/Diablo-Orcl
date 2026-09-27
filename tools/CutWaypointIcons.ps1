@@ -28,7 +28,7 @@ Add-Type -AssemblyName System.Drawing
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 # The vault sits beside the repo root, not inside it.
-$master = Join-Path (Split-Path -Parent $repoRoot) 'Resources\01-in-use-assets\hud-icons\waypoint-sigil-topdown-2-states.png'
+$master = Join-Path (Split-Path -Parent $repoRoot) 'Resources\02. Oracooll Assets\01. Used\waypoint-sigil-topdown-2-states.png'
 if (-not (Test-Path $master)) { throw "master art not found: $master" }
 
 # One row is 43px tall and the pad is tangent to its top and bottom borders, so the cell is 43x43.

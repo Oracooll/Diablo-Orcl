@@ -27,7 +27,7 @@ param(
     # Where the SPECS point. Real art since batch 18 (RfA-06, 2026-09-12), in the same folder as
     # the six plain charms. Per-file fallback to the placeholder. Relative to the repository root,
     # which is where build_item_icons.cmd runs.
-    [string]$SpecArtDir = "..\Resources\01-in-use-assets\items\charms",
+    [string]$SpecArtDir = "..\Resources\02. Oracooll Assets\01. Used\items\charms",
     # One past the Signet of Learning. cursor.cpp static_asserts the adjacency.
     [int]$FirstCursorId = 486
 )

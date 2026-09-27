@@ -24,7 +24,7 @@ namespace {
 
 /**
  * @brief objects\orclgate.cel (tools/build_stonegate_cel.cmd) is ONE frame since 2026-09-20: the
- * user's own Rift Monument painting (Resources\Rift Monument.png -> tools/ScalePainting.ps1, 128x149).
+ * user's own Rift Monument painting (Resources\02. Oracooll Assets\01. Used\Rift Monument.png -> tools/ScalePainting.ps1, 128x149).
  * The name changed with it ("Rename the stonegate to Rift Monument (also in the hover text)"): the
  * player sees "Rift Monument" everywhere; the code keeps its Stonegate identifiers.
  *
@@ -32,7 +32,7 @@ namespace {
  * asset and just overlap it with portal asset when user selects one of the portals"): an open rift is
  * shown by the portal missile alone, drawn over the arch (AddRiftPortal lifts it 20px into the
  * opening). Batch 45's seventeen-frame cut - closed plus eight gold and eight violet glow frames -
- * is superseded and filed under 02-concept-assets. Object frames are 1-based.
+ * is superseded and filed under 02. Oracooll Assets\02. Unused. Object frames are 1-based.
  */
 constexpr uint32_t ClosedFrame = 1;
 constexpr uint32_t FrameCount = 1;

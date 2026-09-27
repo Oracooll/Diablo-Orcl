@@ -27,7 +27,7 @@ namespace {
 bool MenuOpen = false;
 
 /**
- * THE USER'S OWN UI (Resources\Rift Monument UI, 2026-09-20: "Assemble Rift Monument UI with the assets
+ * THE USER'S OWN UI (Resources\02. Oracooll Assets\Rift Monument UI, 2026-09-20: "Assemble Rift Monument UI with the assets
  * in this folder"): a 320x352 background with the title, the question and the hall painted in
  * (ui\riftmenu_bg.png), and four buttons delivered at ~970x150 / 585x120 and scaled by
  * tools/ScalePainting.ps1 to the proportions of the user's own assembled sample (1195x1316, x0.268):

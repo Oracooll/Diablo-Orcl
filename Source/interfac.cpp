@@ -134,7 +134,7 @@ SDL_Rect CutsceneRgbRect { 0, 0, 0, 0 };
  * blizzard IP is considered tolerable by them and among the modding community."*
  *
  * They are also not Blizzard's pixels. They are original AI-generated paintings of the same scenes,
- * checksum-verified as differing from the extracted originals in `00-original-game-art/gendata/` -
+ * checksum-verified as differing from the extracted originals in `01. Blizzard Assets/Loading Wallpapers 640x480/` -
  * which is what made publishing them safe to begin with, independently of the tolerance above.
  *
  * The distinction that still holds is a different one, and it is about the commercial GAME rather

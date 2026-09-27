@@ -17,10 +17,10 @@ REM cart is unselectable scenery and never draws an outline.
 REM
 REM Usage:  tools\build_wirt_cart_cel.cmd
 REM Run from the repository root. If the frame is missing, run first:
-REM   powershell -File tools\ScalePainting.ps1 -Source "..\Resources\Wirt Cart.png" -OutDir "..\Resources\01-in-use-assets\objects\wirt-cart-user" -OutName wirt_cart.png -Width 160
+REM   powershell -File tools\ScalePainting.ps1 -Source "..\Resources\Wirt Cart.png" -OutDir "..\Resources\02. Oracooll Assets\01. Used\wirt-cart-user" -OutName wirt_cart.png -Width 160
 
 setlocal
-set FRAMES=..\Resources\01-in-use-assets\objects\wirt-cart-user
+set FRAMES=..\Resources\02. Oracooll Assets\01. Used\wirt-cart-user
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\objects\orclcart.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe

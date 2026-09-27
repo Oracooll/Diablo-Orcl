@@ -1,6 +1,6 @@
-..\Resources\01-in-use-assets\items\encounters\map_chapel.png,0,0,28,28,28,28,map_chapel,30,false,asis
-..\Resources\01-in-use-assets\items\encounters\map_mourning.png,0,0,28,28,28,28,map_mourning,30,false,asis
-..\Resources\01-in-use-assets\items\encounters\map_vault.png,0,0,28,28,28,28,map_vault,30,false,asis
-..\Resources\01-in-use-assets\items\encounters\rcharm_chapel.png,0,0,28,28,28,28,rcharm_chapel,30,false,asis
-..\Resources\01-in-use-assets\items\encounters\rcharm_mourning.png,0,0,28,28,28,28,rcharm_mourning,30,false,asis
-..\Resources\01-in-use-assets\items\encounters\rcharm_vault.png,0,0,28,28,28,28,rcharm_vault,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\encounters\map_chapel.png,0,0,28,28,28,28,map_chapel,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\encounters\map_mourning.png,0,0,28,28,28,28,map_mourning,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\encounters\map_vault.png,0,0,28,28,28,28,map_vault,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\encounters\rcharm_chapel.png,0,0,28,28,28,28,rcharm_chapel,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\encounters\rcharm_mourning.png,0,0,28,28,28,28,rcharm_mourning,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\encounters\rcharm_vault.png,0,0,28,28,28,28,rcharm_vault,30,false,asis

@@ -56,9 +56,9 @@ REM unqbase) that the GENERATED specs point at by their own full paths, so every
 REM sheet cuts below was reading a path that did not exist. The failure was ItemIconCel dying with
 REM "Parameter is not valid" out of Bitmap..ctor - a missing-file message that never names a file -
 REM so verify with the spec-input existence check, not by reading this line and believing it.
-set ART=..\Resources\01-in-use-assets\item-sets
+set ART=..\Resources\02. Oracooll Assets\01. Used\item-sets
 set PAL=tools\town.pal
-set PALSRC=..\Resources\00-original-game-art\palettes\levels\towndata\town.pal
+set PALSRC=..\Resources\01. Blizzard Assets\palettes\levels\towndata\town.pal
 
 REM RE-STAGE THE PALETTE EVERY RUN, from the original, never trusting what is already there.
 REM
@@ -401,7 +401,7 @@ type "Source\oracool\encounter_items_icon_specs.txt" >> "%SPECFILE%"
 
 REM The six Phase 1 charms' own icons, appended AFTER the encounter items (RfA-02 batch 5,
 REM 2026-09-11). Hand-written spec; the art is the delivered 28x28 icons, filed under
-REM ..\Resources\01-in-use-assets\items\charms. First added by appending to the sheet in place, because
+REM ..\Resources\02. Oracooll Assets\01. Used\items\charms. First added by appending to the sheet in place, because
 REM the Temp inputs of several generators above had been cleared - re-run those generators before
 REM trusting a full rebuild of this file.
 type "Source\oracool\charm_icons_icon_specs.txt" >> "%SPECFILE%"
@@ -415,7 +415,7 @@ if not exist "Source\oracool\unique_items2_icon_specs.txt" (
 type "Source\oracool\unique_items2_icon_specs.txt" >> "%SPECFILE%"
 
 REM The 18 unique-expansion bases' own icons (RfA-04 batch 12, 2026-09-11), after the late run.
-REM Hand-written spec; art in ..\Resources\01-in-use-assets\items\unqbase.
+REM Hand-written spec; art in ..\Resources\02. Oracooll Assets\01. Used\items\unqbase.
 type "Source\oracool\unqbase_icons_icon_specs.txt" >> "%SPECFILE%"
 
 REM The sixteen new Imbuement Shard kinds (2026-09-19), the sheet's LAST run - the order
@@ -428,8 +428,8 @@ type "Source\oracool\shards_icon_specs_late.txt" >> "%SPECFILE%"
 
 REM The Guardian Keystone (the rifts, 2026-09-20): ONE frame after the late shards, the sheet's very
 REM last. ICURS_ORACOOL_KEYSTONE in Source\itemdat.h and the 28 in cursor.cpp's size tables assume it.
-REM Art: batch 42's keystone_guardian.png (RfA-19), copied to 01-in-use-assets\items.
-echo ..\Resources\01-in-use-assets\items\keystone_guardian.png,0,0,28,28,28,28,keystone_guardian,30,false,asis>> "%SPECFILE%"
+REM Art: batch 42's keystone_guardian.png (RfA-19), copied to 02. Oracooll Assets\01. Used\items.
+echo ..\Resources\02. Oracooll Assets\01. Used\items\keystone_guardian.png,0,0,28,28,28,28,keystone_guardian,30,false,asis>> "%SPECFILE%"
 
 REM VERIFY EVERY SPEC'S ART EXISTS, before cutting anything.
 REM

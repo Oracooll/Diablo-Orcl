@@ -274,7 +274,7 @@ constexpr ListSkinGeometry CubeGeometry {
 	cube_skin::ScrollTrackRect, cube_skin::CloseRect, cube_skin::BackgroundAsset, false
 };
 /**
- * The canvas (Resources\Interface Canvas.png -> ui\artisan_canvas.png): 320x352, the ornate frame around
+ * The canvas (Resources\02. Oracooll Assets\Interface Canvas.png -> ui\artisan_canvas.png): 320x352, the ornate frame around
  * a black interior x 22..297, y 25..326. Inside it: the title band, the 3x4 grid at the left, the recipe
  * list at the right with its track, the button centred under them.
  */
@@ -304,7 +304,7 @@ constexpr ListSkinGeometry CubeCanvasGeometry {
 };
 
 /**
- * Griswold's SALVAGE window (user, 2026-09-21, Resources\Griswold Salvage UI): a 320x352 forge painting with a
+ * Griswold's SALVAGE window (user, 2026-09-21, Resources\Griswold The Blacksmith Shop UI\Griswold Salvage Tab UI): a 320x352 forge painting with a
  * "Salvage Results" plate and a dark results box painted in; seven tier icons cut from the user's sheet (2172x724,
  * seven 271x277 tiles) and resampled to 56x56, placed as the user's assembled sample has them - row one White,
  * Magic, Rare, Unique at y 78; row two Set, Primal, Ethereal at y 137 (measured by diffing the sample against the
@@ -322,7 +322,7 @@ constexpr const char *SalvageIconAssets[SalvageTierCount] = {
 /**
  * The Salvage window has TWO pages (user, 2026-09-21: "i want to assemble a new Salvage page for griswold shop, one
  * which is 340x720 size to fit nicely with the rest of his UI windows"). The TALL one is the shop panel's own size
- * and dock - the forge painting (Resources\Griswold's Salvage UI Full Size.png, 862x1824, resampled 1:1 into
+ * and dock - the forge painting (Resources\Griswold The Blacksmith Shop UI\Griswold Salvage Tab UI\Griswold's Salvage UI Full Size.png, 862x1824, resampled 1:1 into
  * 340x720) with the seven icons laid across the line where the lit forge gives way to the dark floor, a dark gold
  * frame under them for the results, and everything clear of OrbClearanceBottom so the life orb is never covered.
  * The 320x352 page of v1.12.096 stays as the fallback when the tall painting is missing.

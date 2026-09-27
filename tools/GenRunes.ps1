@@ -33,7 +33,7 @@ $out = Join-Path $root 'Source\oracool'
 # into all 28 lines of the committed runes_icon_specs.txt - so the icon sheet could only be rebuilt
 # on this one machine, in this one user profile. The spec files are tracked; a machine-specific path
 # in a tracked file is a path that is wrong for everybody else.
-$artRel = '..\Resources\01-in-use-assets\item-sets\item-runes-v1.png'
+$artRel = '..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png'
 $art = Join-Path $root $artRel
 
 # The sheet's grid, MEASURED (non-green runs) rather than guessed - 11 columns x 3 rows, D2's own

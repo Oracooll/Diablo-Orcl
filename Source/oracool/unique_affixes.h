@@ -3,7 +3,7 @@
  *
  * The affix vocabulary the 250-unique expansion is written in, and what each token means HERE.
  *
- * The package (Resources/01-in-use-assets/unique-items/unique-item-expansion-250.zip) is data only:
+ * The package (Resources/02. Oracooll Assets/unique-items/unique-item-expansion-250.zip) is data only:
  * 250 items with bases, requirements, drop bands, lore, visual briefs and exact affix tokens. It
  * declares an `enginePower` per affix and an implementation tier per item, and it is mostly right -
  * but "mostly" is why this table exists rather than the generator trusting the package's own column.

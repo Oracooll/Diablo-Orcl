@@ -6,7 +6,7 @@
     The four original silhouettes and the delivered Monk one share a look: the figure in near-black
     greys (RGB 8..105) with faint rim modelling, fully transparent around it, about 8 px of air
     above the head and below the feet. This makes the same thing from one of the painted class
-    figures in Resources\01-in-use-assets\class-art (1024x1536, pure green background):
+    figures in Resources\02. Oracooll Assets\02. Unused\class-art (1024x1536, pure green background):
       1. alpha = not-green (a pixel is background when green dominates red and blue by 60+);
       2. the figure's bounding box is scaled to fit 245x(356-16), centred, with high-quality
          resampling - the source is ~4x the target;
@@ -14,7 +14,7 @@
          way the Monk pack was normalised; the alpha edge is made binary.
     Written 2026-09-07 for the Bard, who had been borrowing the Rogue's figure.
 .EXAMPLE
-    .\tools\MakeClassSilhouette.ps1 -Source "..\Resources\01-in-use-assets\class-art\class-bard-greenscreen.png" -Output "Packaging\resources\oracool_assets\ui\silhouette_bard.png"
+    .\tools\MakeClassSilhouette.ps1 -Source "..\Resources\02. Oracooll Assets\02. Unused\class-art\class-bard-greenscreen.png" -Output "Packaging\resources\oracool_assets\ui\silhouette_bard.png"
 #>
 param(
     [Parameter(Mandatory = $true)] [string]$Source,

@@ -1,7 +1,7 @@
 # Generates Source/oracool/skill_sounds_data.inc from the delivered class-skill-sounds package.
 #
 # 306 WAVs covering all six class trees (the package delivered 304; RfA-02 added two Paladin cues), delivered as data with an authoritative manifest
-# (Resources/02. Oracooll Assets/skill-sounds/class-skill-sounds.zip - it was under 01-in-use-assets
+# (Resources/02. Oracooll Assets/skill-sounds/class-skill-sounds.zip - it was under 02. Oracooll Assets\01. Used
 # before the Resources reorganisation). The package's own integration
 # contract says to resolve through the manifest's stable id and never to build paths from display
 # text, which is exactly what this does: the manifest is read once here, at build time, and the

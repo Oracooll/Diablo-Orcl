@@ -10,7 +10,7 @@ REM Run from the repository root.
 
 setlocal
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
-set SRC=..\Resources\01-in-use-assets\inventory-panel
+set SRC=..\Resources\02. Oracooll Assets\02. Unused\inventory-panel
 set OUT=Packaging\resources\assets\ui
 
 if not exist "%CSC%" (

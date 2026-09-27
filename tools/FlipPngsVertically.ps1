@@ -3,12 +3,12 @@
     Flips every PNG in a folder top-to-bottom, in place, keeping each file's own pixel format.
 .DESCRIPTION
     For extracted art that came out upside down (user, 2026-09-07: the durability icons of
-    00-original-game-art\duricons). Palettized PNGs stay palettized - GDI+ flips an 8-bit indexed
+    01. Blizzard Assets\Item Durability Icons 32x32px). Palettized PNGs stay palettized - GDI+ flips an 8-bit indexed
     bitmap without converting it - so the file stays bit-exact apart from the row order.
 .PARAMETER Path
     The folder whose *.png files are flipped. Not recursive unless -Recurse is given.
 .EXAMPLE
-    .\tools\FlipPngsVertically.ps1 -Path "..\Resources\00-original-game-art\duricons"
+    .\tools\FlipPngsVertically.ps1 -Path "..\Resources\01. Blizzard Assets\Item Durability Icons 32x32px"
 #>
 param(
     [Parameter(Mandatory = $true)] [string]$Path,

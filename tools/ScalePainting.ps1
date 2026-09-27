@@ -1,7 +1,7 @@
 # ScalePainting.ps1 - a user painting with real alpha (Resources\<name>.png) scaled to a town object's frame
-# width, content box cropped first, into Resources\01-in-use-assets\objects\<folder>\<out>.png for a
+# width, content box cropped first, into Resources\02. Oracooll Assets\01. Used\<folder>\<out>.png for a
 # FramesCel.cs build. The general form of ScaleLevskiCube.ps1 (2026-09-20); first used for the Rift
-# Monument (Resources\Rift Monument.png, 1161x1355 -> 128 wide, tools\build_stonegate_cel.cmd).
+# Monument (Resources\02. Oracooll Assets\01. Used\Rift Monument.png, 1161x1355 -> 128 wide, tools\build_stonegate_cel.cmd).
 param(
     [Parameter(Mandatory = $true)][string]$Source,
     [Parameter(Mandatory = $true)][string]$OutDir,

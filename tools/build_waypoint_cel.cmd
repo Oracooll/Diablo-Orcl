@@ -15,7 +15,7 @@ REM The user's repaint WITH the platform's shadow (2026-09-21), already two 144x
 REM WaypointCel.cs takes it 1:1 rather than bbox-and-scaling it, which would have eaten the margin
 REM the shadow lives in. The original 1536x1024 painting (waypoint-2-states.png) still builds through
 REM the fitting path and stays in the folder.
-set ART=..\Resources\01-in-use-assets\world\waypoint-2-states-shadowed-288x106.png
+set ART=..\Resources\02. Oracooll Assets\02. Unused\world\waypoint-2-states-shadowed-288x106.png
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\objects\orclwayp.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe

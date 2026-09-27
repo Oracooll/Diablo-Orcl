@@ -41,7 +41,7 @@
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 
-$sheet = "..\Resources\01-in-use-assets\hud-icons\level-up-icon-v5-red-plaque-flared-cross-2-states.png"
+$sheet = "..\Resources\02. Oracooll Assets\02. Unused\hud-icons\level-up-icon-v5-red-plaque-flared-cross-2-states.png"
 $CELL_W = 60
 $CELL_H = 61
 $GreenCut = 25

@@ -1,10 +1,10 @@
-# ScaleLevskiCube.ps1 - the user's own Levski's Cube painting (Resources\Levski's Cube.png, 1254x1254 with
+# ScaleLevskiCube.ps1 - the user's own Levski's Cube painting (Resources\02. Oracooll Assets\01. Used\Levski's Cube.png, 1254x1254 with
 # real alpha, 2026-09-20) scaled to the town object's 96-pixel width, bottom-centre anchored, into
-# Resources\01-in-use-assets\objects\levski-cube-user\levski_cube.png for tools\build_levski_cube_cel.cmd.
+# Resources\02. Oracooll Assets\01. Used\levski-cube-user\levski_cube.png for tools\build_levski_cube_cel.cmd.
 # The content box (x 0..1244, y 35..1253) is cropped first so the frame is the painting and nothing else.
 param(
-    [string]$Source = "..\Resources\Levski's Cube.png",
-    [string]$OutDir = "..\Resources\01-in-use-assets\objects\levski-cube-user",
+    [string]$Source = "..\Resources\02. Oracooll Assets\01. Used\Levski's Cube.png",
+    [string]$OutDir = "..\Resources\02. Oracooll Assets\01. Used\levski-cube-user",
     [int]$Width = 96
 )
 Add-Type -AssemblyName System.Drawing

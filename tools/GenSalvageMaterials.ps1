@@ -43,7 +43,7 @@ if (-not (Test-Path $artDir)) { New-Item -ItemType Directory -Path $artDir -Forc
 # (`Remove-Item -Recurse -Force`), so pointing THEIR art dir at Resources would delete the delivery.
 # This script only creates the folder if absent (line above) and never wipes it - checked before
 # writing this, rather than assumed from the other two.
-$specArtDir = '..\Resources\01-in-use-assets\items\salvage'
+$specArtDir = '..\Resources\02. Oracooll Assets\01. Used\items\salvage'
 $realCount = 0
 
 # Real art if it is there, else that file's placeholder. Existence is checked against the resolved

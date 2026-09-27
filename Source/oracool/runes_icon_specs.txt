@@ -1,28 +1,28 @@
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,169,239,99,125,28,28,rune_eld,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,422,239,101,125,28,28,rune_nef,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,551,239,100,125,28,28,rune_eth,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,676,239,99,125,28,28,rune_ith,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,798,239,99,125,28,28,rune_tal,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,1180,239,98,125,28,28,rune_thul,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,1306,239,99,125,28,28,rune_amn,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,169,452,99,124,28,28,rune_shael,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,299,452,98,124,28,28,rune_dol,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,422,452,101,124,28,28,rune_hel,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,551,452,100,124,28,28,rune_io,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,676,452,99,124,28,28,rune_lum,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,798,452,99,124,28,28,rune_ko,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,926,452,100,124,28,28,rune_fal,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,1053,452,98,124,28,28,rune_lem,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,1180,452,98,124,28,28,rune_pul,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,1306,452,99,124,28,28,rune_um,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,39,670,101,124,28,28,rune_mal,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,169,670,99,124,28,28,rune_ist,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,299,670,98,124,28,28,rune_gul,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,422,670,101,124,28,28,rune_vex,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,551,670,100,124,28,28,rune_ohm,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,676,670,99,124,28,28,rune_lo,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,798,670,99,124,28,28,rune_sur,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,926,670,100,124,28,28,rune_ber,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,1053,670,98,124,28,28,rune_jah,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,1180,670,98,124,28,28,rune_cham,30,false,green
-..\Resources\01-in-use-assets\item-sets\item-runes-v1.png,1306,670,99,124,28,28,rune_zod,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,169,239,99,125,28,28,rune_eld,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,422,239,101,125,28,28,rune_nef,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,551,239,100,125,28,28,rune_eth,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,676,239,99,125,28,28,rune_ith,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,798,239,99,125,28,28,rune_tal,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,1180,239,98,125,28,28,rune_thul,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,1306,239,99,125,28,28,rune_amn,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,169,452,99,124,28,28,rune_shael,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,299,452,98,124,28,28,rune_dol,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,422,452,101,124,28,28,rune_hel,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,551,452,100,124,28,28,rune_io,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,676,452,99,124,28,28,rune_lum,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,798,452,99,124,28,28,rune_ko,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,926,452,100,124,28,28,rune_fal,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,1053,452,98,124,28,28,rune_lem,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,1180,452,98,124,28,28,rune_pul,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,1306,452,99,124,28,28,rune_um,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,39,670,101,124,28,28,rune_mal,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,169,670,99,124,28,28,rune_ist,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,299,670,98,124,28,28,rune_gul,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,422,670,101,124,28,28,rune_vex,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,551,670,100,124,28,28,rune_ohm,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,676,670,99,124,28,28,rune_lo,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,798,670,99,124,28,28,rune_sur,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,926,670,100,124,28,28,rune_ber,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,1053,670,98,124,28,28,rune_jah,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,1180,670,98,124,28,28,rune_cham,30,false,green
+..\Resources\02. Oracooll Assets\01. Used\item-sets\item-runes-v1.png,1306,670,99,124,28,28,rune_zod,30,false,green

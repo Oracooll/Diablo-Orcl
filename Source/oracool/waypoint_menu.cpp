@@ -261,7 +261,7 @@ constexpr int TextGap = 10;  // from the sigil to the name
 // per act. THE USER'S OWN ART since the third cut the same day ("i made three new Act buttons to use
 // in the WP Canvas ... implement them, replacing the existing Act buttons"): Resources\<Act> Button.png,
 // 91x71 each, frame, backing and label painted in one piece (filed under
-// 01-in-use-assets\ui\act-buttons-user, shipped as ui\act_<act>.png). So the button is the PNG
+// 02. Oracooll Assets\ui\act-buttons-user, shipped as ui\act_<act>.png). So the button is the PNG
 // drawn 1:1 - no bezel, no plate under it - with the abilities window's shadows around it: the
 // resting 3px cast under an inactive act, the doubled 6px one under the cursor and under the ACTIVE
 // act. The active act shows the painting as painted; the inactive ones are desaturated in place
@@ -284,7 +284,7 @@ constexpr int ActRowTop = PanelTitleTop + PanelTitleHeight + 8;
 constexpr int ActCount = 3;
 /**
  * @brief ONE blank button for all three acts (user, 2026-09-20: "maybe i can only send you one version
- * of the button without the texts on it and you can place them yourself?" - Resources\88x68px
+ * of the button without the texts on it and you can place them yourself?" - Resources\02. Oracooll Assets\01. Used\88x68px
  * Buttons.png, filed as act-buttons-user\act_button.png), with ChatGPT's label glyphs (act-glyphs,
  * 96x56, transparent surround; ink 56 / 66 / 38 wide, 37 tall) centred over it. The 96 glyph
  * overhangs the 88 face by 4px a side, all of it transparent air.

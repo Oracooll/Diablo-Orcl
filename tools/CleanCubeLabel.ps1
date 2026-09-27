@@ -1,14 +1,14 @@
 # CleanCubeLabel.ps1 - paints out the bright "LEVSKI" label ChatGPT baked under the cube in every frame
 # of batch 43a (user, 2026-09-20: "remove the levski text in the red box. leave the pure asset"). The
-# carving on the plinth's front face stays. Writes the cleaned frames to 01-in-use-assets, leaving the
+# carving on the plinth's front face stays. Writes the cleaned frames to 02. Oracooll Assets\01. Used, leaving the
 # delivered pack untouched; tools\build_levski_cube_cel.cmd packs them.
 #
 # The label sits on the cube's dark lower band, rows 105-112 of the 96x160 frame, x 38-64: light grey
 # pixels (luminance > 60, saturation < 60) there are the letters. Each is replaced by the mean of the
 # band's own dark pixels on the same row, so the band reads as it does beside the letters.
 param(
-    [string]$Source = "..\Resources\02-concept-assets\delivered-packs\batch-43-levskis-cube\object",
-    [string]$OutDir = "..\Resources\01-in-use-assets\objects\levski-cube"
+    [string]$Source = "..\Resources\02. Oracooll Assets\delivered-packs\batch-43-levskis-cube\object",
+    [string]$OutDir = "..\Resources\02. Oracooll Assets\01. Used\levski-cube"
 )
 Add-Type -AssemblyName System.Drawing
 $ErrorActionPreference = "Stop"

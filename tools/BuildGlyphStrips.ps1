@@ -7,7 +7,7 @@
 # all-transparent 72-frame strip would satisfy every frame-count check while drawing nothing but letters.
 #
 # Packs live in Resources\02. Oracooll Assets\delivered-packs since the Resources reorganisation into
-# "01. Blizzard Assets" / "02. Oracooll Assets"; the 01-in-use-assets path this used to read is gone.
+# "01. Blizzard Assets" / "02. Oracooll Assets"; the old 01-in-use-assets path this used to read is gone.
 #
 # Source: Resources\02. Oracooll Assets\delivered-packs\oracool-skill-glyphs-vanilla-v1 (2026-09-05):
 # 257 glyphs, 56x56 RGBA, nothing but white (243,243,243) and shadow (12,7,7) on transparency,

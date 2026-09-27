@@ -10,7 +10,7 @@
  *
  * Categories (default: all): ui pcx cutscenes items objects towners missiles monsters levels
  *
- * Output layout under <output-root> (the user's 00-original-game-art folder):
+ * Output layout under <output-root> (the user's 01. Blizzard Assets folder):
  *   <cel-name>/<cel-name>_frameNN.png    UI CELs, one PNG per frame (the layout already in use)
  *   ui_art/<name>/<name>_frameNN.png     the front-end PCX art, one PNG per frame
  *   gendata/<name>.png                   the loading screens, each with its own palette

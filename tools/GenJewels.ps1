@@ -31,7 +31,7 @@ param(
     # Where the SPECS point. Real art since batch 17 (RfA-06, 2026-09-12). Per-file fallback: a slug
     # missing here falls back to its placeholder, so a partial delivery still builds a whole sheet.
     # Relative to the repository root, which is where build_item_icons.cmd runs.
-    [string]$SpecArtDir = "..\Resources\01-in-use-assets\items\jewels",
+    [string]$SpecArtDir = "..\Resources\02. Oracooll Assets\01. Used\items\jewels",
     # One past the last Charm of Salvaging. cursor.cpp static_asserts the adjacency.
     [int]$FirstCursorId = 462
 )

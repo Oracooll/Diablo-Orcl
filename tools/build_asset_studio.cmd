@@ -26,7 +26,7 @@ REM 128-255) is what HUD and UI art is quantized against, and that half is ident
 REM and every dungeon type - so this one file is correct for all of them.
 REM palettes\, not raw\ - the extracted tree uses that name and this line had the wrong one (found
 REM 2026-09-12 while rebuilding the Resources folders; it predates that move).
-set PAL=..\Resources\00-original-game-art\palettes\levels\towndata\town.pal
+set PAL=..\Resources\01. Blizzard Assets\palettes\levels\towndata\town.pal
 if exist "%PAL%" (
   copy /y "%PAL%" tools\town.pal >nul
   echo Palette staged: tools\town.pal

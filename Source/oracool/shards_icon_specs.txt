@@ -1,8 +1,8 @@
-..\Resources\01-in-use-assets\items\shards\shard_strength.png,0,0,28,28,28,28,shard_strength,30,false,asis
-..\Resources\01-in-use-assets\items\shards\shard_dexterity.png,0,0,28,28,28,28,shard_dexterity,30,false,asis
-..\Resources\01-in-use-assets\items\shards\shard_magic.png,0,0,28,28,28,28,shard_magic,30,false,asis
-..\Resources\01-in-use-assets\items\shards\shard_vitality.png,0,0,28,28,28,28,shard_vitality,30,false,asis
-..\Resources\01-in-use-assets\items\shards\shard_warding.png,0,0,28,28,28,28,shard_warding,30,false,asis
-..\Resources\01-in-use-assets\items\shards\shard_fury.png,0,0,28,28,28,28,shard_fury,30,false,asis
-..\Resources\01-in-use-assets\items\shards\shard_fortune.png,0,0,28,28,28,28,shard_fortune,30,false,asis
-..\Resources\01-in-use-assets\items\shards\shard_avarice.png,0,0,28,28,28,28,shard_avarice,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\shards\shard_strength.png,0,0,28,28,28,28,shard_strength,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\shards\shard_dexterity.png,0,0,28,28,28,28,shard_dexterity,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\shards\shard_magic.png,0,0,28,28,28,28,shard_magic,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\shards\shard_vitality.png,0,0,28,28,28,28,shard_vitality,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\shards\shard_warding.png,0,0,28,28,28,28,shard_warding,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\shards\shard_fury.png,0,0,28,28,28,28,shard_fury,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\shards\shard_fortune.png,0,0,28,28,28,28,shard_fortune,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\shards\shard_avarice.png,0,0,28,28,28,28,shard_avarice,30,false,asis

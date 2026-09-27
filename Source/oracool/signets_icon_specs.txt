@@ -1,1 +1,1 @@
-..\Resources\01-in-use-assets\items\signet_learning.png,0,0,28,28,28,28,signet_learning,30,false,asis
+..\Resources\02. Oracooll Assets\01. Used\items\signet_learning.png,0,0,28,28,28,28,signet_learning,30,false,asis

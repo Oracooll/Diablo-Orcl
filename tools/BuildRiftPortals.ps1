@@ -2,7 +2,7 @@
 # 2026-09-20: "for nephalem and guardian rifts i want to use vanilla portal animation ... recoloured
 # according to the colors i specified earlier" - golden for Nephalem, purple for Guardian).
 #
-# Reads the exported strip Resources/00-original-game-art/missiles/portal.png (16 frames of 96x256,
+# Reads the exported strip Resources/01. Blizzard Assets/Animated Items 2/portal.png (16 frames of 96x256,
 # side by side - the layout oracool::LoadPngMissileSheet reads) and writes
 #   Packaging/resources/oracool_assets/missiles/portal_gold.png
 #   Packaging/resources/oracool_assets/missiles/portal_purple.png
@@ -13,7 +13,7 @@
 #
 # Usage: powershell -NoProfile -File tools\BuildRiftPortals.ps1   (from the repo root)
 param(
-    [string]$Source = "..\Resources\00-original-game-art\missiles\portal.png",
+    [string]$Source = "..\Resources\01. Blizzard Assets\Animated Items 2\portal.png",
     [string]$OutDir = "Packaging\resources\oracool_assets\missiles",
     # 90 since 2026-09-20 (user: "portal asset behind rift monument - scale down to 90%"): each 96x128 frame
     # is resampled to 86x115 after the recolour and fill, so misdat's rows read animWidth 86 and

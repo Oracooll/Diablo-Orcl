@@ -26,7 +26,7 @@ Add-Type -AssemblyName System.Drawing
 # The sheet lives in the art vault beside the icons cut from it. It used to be read straight out of
 # the user's Downloads folder, which is a staging area, not storage - by the time anyone next needed
 # to re-cut, the file had been cleared out and this script could not run at all.
-$sheet = "..\Resources\01-in-use-assets\barb-skills\barb-skills-sheet-6x3-greenscreen.png"
+$sheet = "..\Resources\02. Oracooll Assets\02. Unused\barb-skills\barb-skills-sheet-6x3-greenscreen.png"
 if (-not (Test-Path $sheet)) { throw "barb skill sheet not found: $sheet" }
 
 $COLS = 6; $ROWS = 3; $COUNT = $COLS * $ROWS
@@ -146,7 +146,7 @@ for ($i = 0; $i -lt $COUNT; $i++) {
     if ($edgeGreen -gt 0) { throw "skill $i kept $edgeGreen green pixels on its border - the key missed" }
 }
 
-$srcDir = "..\Resources\01-in-use-assets\barb-skills"
+$srcDir = "..\Resources\02. Oracooll Assets\02. Unused\barb-skills"
 New-Item -ItemType Directory -Force -Path $srcDir | Out-Null
 $strip.Save((Join-Path (Resolve-Path $srcDir) "barb_skill_icons.png"), [System.Drawing.Imaging.ImageFormat]::Png)
 foreach ($d in @("Packaging\resources\oracool_assets\ui", "Packaging\resources\assets\ui", "build\x64-Debug\assets\ui")) {

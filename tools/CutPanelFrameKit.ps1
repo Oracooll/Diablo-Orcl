@@ -21,7 +21,7 @@
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 
-$src = "..\Resources\01-in-use-assets\inventory\panel-frame-kit-modular-greenscreen.png"
+$src = "..\Resources\02. Oracooll Assets\02. Unused\inventory\panel-frame-kit-modular-greenscreen.png"
 $GreenCut = 25   # same green test as the item-icon pipeline
 
 if (-not (Test-Path $src)) { throw "source sheet not found: $src" }

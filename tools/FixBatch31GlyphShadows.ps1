@@ -22,7 +22,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$pack = Join-Path (Split-Path -Parent $root) 'Resources\01-in-use-assets\delivered-packs\batch-31-new-skill-glyphs'
+$pack = Join-Path (Split-Path -Parent $root) 'Resources\02. Oracooll Assets\delivered-packs\batch-31-new-skill-glyphs'
 $source = Join-Path $pack 'artist-verified-export-2026-09-13\glyphs'
 $dest = Join-Path $pack 'glyphs'
 $ICON = 56

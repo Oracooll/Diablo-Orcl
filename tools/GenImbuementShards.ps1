@@ -38,7 +38,7 @@ param(
     # Where the SPECS point once RfA-18 (batch 41) lands: real art per file, with a fallback to the
     # placeholder, so a partial delivery still builds a whole sheet. Relative to the repository root,
     # which is where build_item_icons.cmd runs.
-    [string]$SpecArtDir = "..\Resources\01-in-use-assets\items\shards"
+    [string]$SpecArtDir = "..\Resources\02. Oracooll Assets\01. Used\items\shards"
 )
 
 $ErrorActionPreference = "Stop"
