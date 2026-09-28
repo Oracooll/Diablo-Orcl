@@ -168,6 +168,18 @@ struct Missile {
 	oracool::Tint oracoolTint = oracool::Tint::None;
 	/** @brief The hue for Tint::Hue and Tint::HueCycle, 0xRRGGBB. */
 	uint32_t oracoolTintRgb = 0;
+	/**
+	 * @brief Oracool (v1.12.217, the Skill Cards pages): the sheet drawn at this share of its size, pixel for pixel
+	 * (ScaleMissile). 100 is as drawn. Kept through SetMissAnim, so a missile that turns keeps its size. Not saved.
+	 */
+	uint16_t oracoolScalePercent = 100;
+	/**
+	 * @brief What a scaled sheet keeps in place: -1 its centre (a burst, a flying sprite), else the point this many pixels
+	 * above the unscaled sprite's bottom edge (where a pillar or a rising beam meets the floor).
+	 */
+	int16_t oracoolScaleFloor = -1;
+	/** @brief Pixels a scaled sheet is drawn higher, so what oracoolScaleFloor keeps stays put. Set by ScaleMissile. */
+	int16_t oracoolScaleLift = 0;
 
 	/**
 	 * @brief The class-tree skill that fired this missile, as a ClassTreeSkill. 0xFFFF is none.
@@ -310,6 +322,13 @@ bool IsMissileBlockedByTile(Point position);
  * @param dir Sprite frame, typically representing a direction but there are some exceptions (arrows being 1 indexed, directionless spells)
  */
 void SetMissDir(Missile &missile, int dir);
+
+/**
+ * @brief Oracool (v1.12.217): draws @p missile's sheet at @p percent of its size from now on, even after it turns
+ * (Missile::oracoolScalePercent). @p floor: -1 keeps the sprite's centre where it was; otherwise the point that many
+ * pixels above its bottom edge stays put (a floor point). Does nothing headless, or to borrowed sprites.
+ */
+void ScaleMissile(Missile &missile, int percent, int floor = -1);
 
 /**
  * @brief Sets the sprite for this missile so it matches the given Direction
@@ -529,8 +548,9 @@ Missile *AddCreatureBolt(Point from, Point to, const CMonster &creature, int pla
 /**
  * @brief Oracool (2026-09-26): hit_cold.png's flash over @p tile, where a cold hit with no impact art of its own
  * landed. A picture only - WeaponExplosion's cold branch, which rolls no damage. Nothing while the sheet is missing.
+ * @p percent: its size (Vengeance's is half, the Paladin Skill Cards, 2026-09-28).
  */
-void AddColdHitFlash(Point tile, int playerId);
+void AddColdHitFlash(Point tile, int playerId, int percent = 100);
 void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter);
 void AddFallingMace(Missile &missile, AddMissileParameter &parameter);
 

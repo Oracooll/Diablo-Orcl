@@ -8,6 +8,7 @@
 #include "oracool/minions.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h" // Towering Shield
+#include "oracool/missile_tint.h" // hue:: - the bursts' colours
 #include "oracool/rfa12_actives.h" // ArmedRfa12Melee - Aegis Slam strikes with the shield too
 #include "playerdat.hpp"
 #include "oracool/skill_sounds.h"
@@ -256,7 +257,7 @@ void ApplyHammerOfFaith(Player &player, Monster &primaryTarget, int hitDamage)
 	// the target at full size, tinted blue (the sound page's remark, 2026-09-28: "Nova. Add Holy Bolt explosion on impact.
 	// Scaled 100%. Tinted blue.").
 	PlaySkillSound(ClassTreeSkill::HammerOfFaith, SkillSoundEvent::Impact);
-	DrawHolyBurst(player, primaryTarget.position.tile, /*half=*/false, HolyBurstColour::Blue);
+	DrawHolyBurst(player, primaryTarget.position.tile, 100, hue::HolyBlue);
 	for (int i = 0; i < found; i++)
 		StrikeMonster(player, *targets[i], splashDamage);
 }
@@ -506,12 +507,16 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 
 	switch (*ArmedSkill) {
 	case PaladinSkill::Zeal:
+		// A quarter-size Holy Bolt burst, pale warm, on every blow that lands (the Paladin Skill Cards page, 2026-09-28).
+		DrawHolyBurst(player, primaryTarget.position.tile, 25, hue::PaleWarm);
 		ApplyZeal(player, primaryTarget);
 		break;
 	case PaladinSkill::HammerOfFaith:
 		ApplyHammerOfFaith(player, primaryTarget, hitDamage);
 		break;
 	case PaladinSkill::ShieldBash:
+		// Smite: a quarter-size Holy Bolt burst, Paladin gold, on the bashed enemy (the Skill Cards page, 2026-09-28).
+		DrawHolyBurst(player, primaryTarget.position.tile, 25, hue::PaladinGold);
 		ApplyShieldBash(player, primaryTarget);
 		break;
 	// Charge is intercepted before the swing (oracool/furious_charge.cpp); the three that throw

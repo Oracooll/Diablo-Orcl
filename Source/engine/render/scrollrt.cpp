@@ -381,7 +381,8 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 	// animation. An undrawable missile is a missing sprite, not a reason to end the session.
 	if (!missile._miAnimData)
 		return;
-	const Point missileRenderPosition { targetBufferPosition + missile.position.offsetForRendering - Displacement { missile._miAnimWidth2, 0 } };
+	// Oracool (v1.12.217): a scaled sheet is lifted so its centre, or its floor point, stays where the full one's was.
+	const Point missileRenderPosition { targetBufferPosition + missile.position.offsetForRendering - Displacement { missile._miAnimWidth2, missile.oracoolScaleLift } };
 	const ClxSprite sprite = (*missile._miAnimData)[missile._miAnimFrame - 1];
 	// Oracool: the Guardian Rift's portal is VIOLET, a colour the palette has no ramp for - its sheet
 	// is vanilla's blue and this draw sends the blue ramp to violet values (GuardianPortalRgbTable).

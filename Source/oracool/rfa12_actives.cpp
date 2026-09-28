@@ -32,7 +32,6 @@
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/skill_sounds.h"
-#include "oracool/sprite_scale.h" // ScaleClxList: Votive Strike's half-size burst
 #include "oracool/stat_sheet.h"
 #include "oracool/warcries.h"
 #include "nthread.h" // ProgressToNextGameTick: Serenity's ring glides between ticks
@@ -2515,39 +2514,21 @@ void TickField(Player &player, Field &field)
 	}
 }
 
-/** @brief The holy bursts' colours (the Visual FX Schedule's comments, 2026-09-28). */
-constexpr uint32_t BurstInfrared = Rgb(255, 56, 32); // Votive Strike
-constexpr uint32_t BurstGold = Rgb(244, 204, 96);    // the Paladin's gold (RingHueForClass)
-constexpr uint32_t BurstBlue = Rgb(96, 150, 255);
-
-/** @brief The half-size holyexpl, built once from the loaded sheet; it owns its pixels, so a level reload leaves it whole. */
-std::optional<OwnedClxSpriteList> HalfBurstSprites;
-
 /**
- * @brief Vanilla's Holy Bolt explosion (holyexpl) on @p tile, as a Paladin skill's impact: at @p half its size or full,
- * tinted @p rgb, its centre where Holy Bolt's full-size burst puts it (the Blessed Shield flash's rule). Drawn only; the
- * blow has landed. From the dev note "votive strike to use Holy Bolt Explosion animation on impact" (v1.12.214), then
- * the Visual FX Schedule's comments of 2026-09-28, which gave five more Paladin skills the same burst in place of their
- * ChatGPT sheets. False when holyexpl is not loaded (headless).
+ * @brief Vanilla's Holy Bolt explosion (holyexpl) on @p tile, as a Paladin skill's impact: at @p percent of its size,
+ * tinted @p rgb, its centre where Holy Bolt's full-size burst puts it (ScaleMissile keeps the centre). Drawn only; the
+ * blow has landed. From the dev note "votive strike to use Holy Bolt Explosion animation on impact" (v1.12.214), the
+ * Visual FX Schedule's comments (v1.12.215), and the sizes and hues picked on the Paladin Skill Cards page (v1.12.217).
+ * False when holyexpl is not loaded (headless).
  */
-bool HolyBurst(const Player &player, Point tile, bool half, uint32_t rgb)
+bool HolyBurst(const Player &player, Point tile, int percent, uint32_t rgb)
 {
 	Missile *burst = Art(player, MissileGraphicID::HolyBoltExplosion, tile);
 	if (burst == nullptr || !burst->_miAnimData)
 		return false;
 	burst->oracoolTint = Tint::Hue;
 	burst->oracoolTintRgb = rgb;
-	if (!half)
-		return true;
-	if (!HalfBurstSprites)
-		HalfBurstSprites = ScaleClxList(*burst->_miAnimData, 50);
-	const int fullHeight = (*burst->_miAnimData)[0].height();
-	const ClxSpriteList scaled { *HalfBurstSprites };
-	burst->_miAnimData = scaled;
-	burst->_miAnimLen = static_cast<int>(scaled.numSprites());
-	burst->_miAnimWidth = scaled[0].width();
-	burst->_miAnimWidth2 = CalculateWidth2(burst->_miAnimWidth);
-	burst->position.offset = burst->position.offset - Displacement { 0, (fullHeight - static_cast<int>(scaled[0].height())) / 2 };
+	ScaleMissile(*burst, percent);
 	return true;
 }
 
@@ -2567,7 +2548,7 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 		// Holy Bolt's burst, half size, gold, on what the shield struck (Visual FX Schedule, 2026-09-28); was its
 		// ChatGPT arc sheet.
 		if (landedOn)
-			HolyBurst(player, *landedOn, /*half=*/true, BurstGold);
+			HolyBurst(player, *landedOn, 50, hue::PaladinGold);
 		break;
 	case SpellID::Sweep: arc = MissileGraphicID::SweepArc; break;
 	case SpellID::LowBranch: arc = MissileGraphicID::LowBranch; break;
@@ -2580,20 +2561,23 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 		break;
 	case SpellID::ReapingPoint: arc = MissileGraphicID::ReapingPoint; break;
 	case SpellID::Crusade:
-		// Holy Bolt's burst, half size, gold, where he stands - the sweep is all round him (Visual FX Schedule,
-		// 2026-09-28); was its ChatGPT ring-slash sheet.
-		HolyBurst(player, from, /*half=*/true, BurstGold);
+		// Holy Bolt's burst where he stands - the sweep is all round him (Visual FX Schedule, 2026-09-28; was its ChatGPT
+		// ring-slash sheet): 75%, holy blue since the Paladin Skill Cards page (2026-09-28).
+		HolyBurst(player, from, 75, hue::HolyBlue);
 		break;
 	case SpellID::VotiveStrike:
 		if (landedOn)
-			HolyBurst(player, *landedOn, /*half=*/true, BurstInfrared); // v1.12.214
+			HolyBurst(player, *landedOn, 25, hue::Infrared); // v1.12.214; a quarter size since the Skill Cards page
 		break;
+	// Holy Bolt's burst on the struck body (Visual FX Schedule, 2026-09-28; were their ChatGPT strike flashes), a quarter
+	// size since the Paladin Skill Cards page: gold for Judgment, lavender for Oathbrand.
 	case SpellID::Judgment:
-	case SpellID::Oathbrand:
-		// Holy Bolt's burst, half size, blue, on the struck body (Visual FX Schedule, 2026-09-28); were their ChatGPT
-		// strike flashes.
 		if (landedOn)
-			HolyBurst(player, *landedOn, /*half=*/true, BurstBlue);
+			HolyBurst(player, *landedOn, 25, hue::PaladinGold);
+		break;
+	case SpellID::Oathbrand:
+		if (landedOn)
+			HolyBurst(player, *landedOn, 25, hue::SpectralLavender);
 		break;
 	case SpellID::Rend: flash = MissileGraphicID::RendStrike; break;
 	case SpellID::ClaspOfRuin: flash = MissileGraphicID::ClaspOfRuin; break;
@@ -2622,7 +2606,8 @@ void TickLanding(Player &player, PlayerState &state)
 			Strike(player, *m, DamageType::Magic, Rolled(d));
 		// Holy Bolt's burst, full size, gold, where he lands (Visual FX Schedule, 2026-09-28; was RfA-27 batch 55's
 		// ChatGPT sheet), and its cue; the ring without the sheet.
-		if (!HolyBurst(player, player.position.tile, /*half=*/false, BurstGold))
+		// 125%, Vengeance amber since the Paladin Skill Cards page (2026-09-28).
+		if (!HolyBurst(player, player.position.tile, 125, hue::VengeanceAmber))
 			Ring(player, player.position.tile);
 		Impact(player, state.landingSpell);
 		break;
@@ -3204,8 +3189,12 @@ void ProcessRfa12ActivesTick(Player &player)
 			const Point at = m.position.tile;
 			Strike(player, m, DamageType::Magic, Rolled(SkillDamage(SpellID::WrathOfTheHeavens, state.wrathRank)));
 			// RfA-27: the pillar slamming down (batch 55) and its cue (batch 51), each of the five; the ring without the sheet.
-			if (Art(player, MissileGraphicID::WrathPillar, at) == nullptr)
+			// Three quarters size since the Paladin Skill Cards page (2026-09-28), its foot still on the floor: the floor
+			// point sits the delivery anchor's offset + 16 above the sheet's bottom edge (CensusEffectOffset's rule).
+			if (Missile *pillar = Art(player, MissileGraphicID::WrathPillar, at); pillar == nullptr)
 				Ring(player, at);
+			else
+				ScaleMissile(*pillar, 75, pillar->position.offset.deltaY + 16);
 			Impact(player, SpellID::WrathOfTheHeavens);
 		}
 	}
@@ -3412,10 +3401,9 @@ const char *Rfa12ActiveDescription(SpellID spell)
 	return "";
 }
 
-bool DrawHolyBurst(const Player &player, Point tile, bool half, HolyBurstColour colour)
+bool DrawHolyBurst(const Player &player, Point tile, int percent, uint32_t rgb)
 {
-	const uint32_t rgb = colour == HolyBurstColour::Gold ? BurstGold : colour == HolyBurstColour::Blue ? BurstBlue : BurstInfrared;
-	return HolyBurst(player, tile, half, rgb);
+	return HolyBurst(player, tile, percent, rgb);
 }
 
 

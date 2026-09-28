@@ -1022,6 +1022,10 @@ bool DoAttack(Player &player)
 			// oracool/paladin_melee.h.
 			if (didhit)
 				oracool::ApplyMeleeSkillOnHit(player, *monster, hitDamage);
+			// Charge's arriving blow: a half-size Holy Bolt burst, Paladin gold, on the enemy it lands on (the Paladin Skill
+			// Cards page, 2026-09-28).
+			if (didhit && oracool::IsChargeBlowArmed())
+				oracool::DrawHolyBurst(player, monster->position.tile, 50, oracool::hue::PaladinGold);
 			if (didhit)
 				oracool::OnPassiveHit(player, *monster, hitDamage, true);
 			if (didhit)

@@ -433,6 +433,8 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		if (front != nullptr && frontHit && frontDamage > 0) {
 			const int wound = frontDamage / 12;
 			ApplyPlrDamage(DamageType::Physical, player, wound >> 6, /*minHP=*/1, wound & 63);
+			// A quarter-size Holy Bolt burst, infrared, on the struck enemy (the Paladin Skill Cards page, 2026-09-28).
+			DrawHolyBurst(player, front->position.tile, 25, hue::Infrared);
 			struck = true;
 		}
 		break;

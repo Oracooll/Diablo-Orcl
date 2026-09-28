@@ -520,7 +520,7 @@ void ApplyVengeanceCold(Player &player, Monster &monster)
 		return;
 	}
 	ChillMonster(monster, VengeanceChillTicks);
-	AddColdHitFlash(monster.position.tile, static_cast<int>(player.getId()));
+	AddColdHitFlash(monster.position.tile, static_cast<int>(player.getId()), 50); // half size (the Paladin Skill Cards page, 2026-09-28)
 }
 
 bool SlowMissilesTurnsAside(const Player &player)
@@ -656,9 +656,14 @@ void ProcessWarcriesTick(Player &player)
 		if (++redemptionClock % TicksPerSecond == 0) {
 			if (const std::optional<Point> corpse = CorpseNear(player.position.tile, radius); corpse) {
 				ConsumeCorpse(*corpse);
-				// Seen and heard (dev note, 2026-09-27): the Resurrect beam, small and twisted red and blue for the life and
-				// mana it gives back, rises where the corpse lay, to the Resurrect spell's own cast sound.
-				AddArtEffect(*corpse, MissileGraphicID::RedemptionRise, static_cast<int>(player.getId()));
+				// Seen and heard (dev note, 2026-09-27): a beam rises where the corpse lay, to the Resurrect spell's own cast
+				// sound. Since the Paladin Skill Cards page (2026-09-28) it is vanilla's Resurrect at a quarter size, tinted
+				// infrared, its foot on the corpse - in place of the red-and-blue Redemption Rise sheet.
+				if (Missile *rise = AddArtEffect(*corpse, MissileGraphicID::Resurrect, static_cast<int>(player.getId())); rise != nullptr) {
+					rise->oracoolTint = Tint::Hue;
+					rise->oracoolTintRgb = hue::Infrared;
+					ScaleMissile(*rise, 25, 0);
+				}
 				PlaySfxLoc(LS_RESUR, *corpse);
 				// And the generic cast under it (user, the sound review, 2026-09-28: "on successful redemption from a corpse
 				// during the resurrection animation also play Generic cast (cast8)").
@@ -781,6 +786,9 @@ void AddWarcry(Missile &missile, AddMissileParameter &parameter)
 		return;
 	}
 	if (!IsWarcry(spell) && !Rfa12CastLeavesRing(spell))
+		return;
+	// No ring under Vengeance or Conversion (the Paladin Skill Cards page, 2026-09-28: "Remove warcry ring from this skill").
+	if (spell == SpellID::Vengeance || spell == SpellID::Conversion)
 		return;
 	// The shockwave on the floor (2026-09-11) - it removes itself while warcry_ring.png is absent.
 	AddMissile(player.position.tile, player.position.tile, player._pdir, MissileID::WarcryRing,

@@ -6,6 +6,7 @@
 #include "missiles.h"
 
 #include <vector>
+#include <unordered_map> // ScaledMissileSprites
 #include <algorithm>
 #include <climits>
 #include <cmath>
@@ -804,6 +805,8 @@ void SetMissAnim(Missile &missile, MissileGraphicID animtype)
 	missile._miAnimWidth2 = missileData.animWidth2;
 	missile._miAnimCnt = 0;
 	missile._miAnimFrame = 1;
+	if (missile.oracoolScalePercent != 100)
+		ScaleMissile(missile, missile.oracoolScalePercent, missile.oracoolScaleFloor); // a turn keeps the size
 }
 
 void AddRune(Missile &missile, Point dst, MissileID missileID)
@@ -1505,6 +1508,44 @@ void SetMissDir(Missile &missile, int dir)
 {
 	missile._mimfnum = dir;
 	SetMissAnim(missile, missile._miAnimType);
+}
+
+namespace {
+
+/**
+ * @brief The scaled sheets, one per graphic, facing and size, built from the loaded sheet the first time a missile asks.
+ * Each owns its pixels, so a level's FreeMissileGFX leaves it whole; a true-colour sheet's indices still read the same
+ * colours when it loads again.
+ */
+std::unordered_map<uint32_t, OwnedClxSpriteList> ScaledMissileSprites;
+
+} // namespace
+
+void ScaleMissile(Missile &missile, int percent, int floor)
+{
+	missile.oracoolScalePercent = static_cast<uint16_t>(std::clamp(percent, 1, 1000));
+	missile.oracoolScaleFloor = static_cast<int16_t>(floor);
+	missile.oracoolScaleLift = 0;
+	if (HeadlessMode || missile.oracoolScalePercent == 100 || missile._miAnimType == MissileGraphicID::None)
+		return;
+	const MissileFileData &data = GetMissileSpriteData(missile._miAnimType);
+	const OptionalClxSpriteList sheet = data.spritesForDirection(static_cast<size_t>(missile._mimfnum));
+	// Only the missile's own sheet: one wearing borrowed sprites (an item tumble) is left as it is.
+	if (!sheet || !missile._miAnimData || (*missile._miAnimData)[0].width() != (*sheet)[0].width())
+		return;
+	const uint32_t key = (static_cast<uint32_t>(missile._miAnimType) << 20) | (static_cast<uint32_t>(missile._mimfnum & 0xFF) << 12) | missile.oracoolScalePercent;
+	auto it = ScaledMissileSprites.find(key);
+	if (it == ScaledMissileSprites.end())
+		it = ScaledMissileSprites.emplace(key, oracool::ScaleClxList(*sheet, missile.oracoolScalePercent)).first;
+	const ClxSpriteList scaled { it->second };
+	const int fullHeight = (*sheet)[0].height();
+	missile._miAnimData = scaled;
+	missile._miAnimWidth = scaled[0].width();
+	missile._miAnimWidth2 = CalculateWidth2(missile._miAnimWidth);
+	// A sprite hangs from its tile by its bottom edge. Kept centre: lifted by half the height it lost (or lowered by half
+	// what it gained). Kept floor point: lifted by the part of that point's height above the bottom it lost.
+	missile.oracoolScaleLift = static_cast<int16_t>(floor < 0 ? (fullHeight - static_cast<int>(scaled[0].height())) / 2
+	                                                          : floor * (100 - missile.oracoolScalePercent) / 100);
 }
 
 void InitMissiles(bool keepHeroTimedSpells)
@@ -3454,10 +3495,15 @@ void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter)
 	SetMissDir(missile, GetDirection16(missile.position.start, dst));
 	// Its own spin sheet once delivered (2026-09-11); until then the shield item's drop tumble,
 	// painted divine - "in spinning motion animation, if available".
-	if (MissileArtLoaded(MissileGraphicID::BlessedShieldSpin))
+	if (MissileArtLoaded(MissileGraphicID::BlessedShieldSpin)) {
 		SetMissAnim(missile, MissileGraphicID::BlessedShieldSpin);
-	else
+		// Three quarters size, tinted Paladin gold (the Paladin Skill Cards page, 2026-09-28).
+		missile.oracoolTint = oracool::Tint::Hue;
+		missile.oracoolTintRgb = oracool::hue::PaladinGold;
+		ScaleMissile(missile, 75);
+	} else {
 		UseItemDropAnimation(missile, ShieldDropAnimIndex);
+	}
 }
 
 /**
@@ -3472,10 +3518,15 @@ void AddFallingMace(Missile &missile, AddMissileParameter &parameter)
 	missile.position.start = parameter.dst;
 	// The bolt from the sky once delivered (2026-09-11), ten frames ending on the ground; until then
 	// the mace item's drop tumble, painted divine.
-	if (MissileArtLoaded(MissileGraphicID::FistOfHeavensBolt))
+	if (MissileArtLoaded(MissileGraphicID::FistOfHeavensBolt)) {
 		SetMissAnim(missile, MissileGraphicID::FistOfHeavensBolt);
-	else
+		// Three quarters size, tinted ice blue, its strike still on the ground (the Paladin Skill Cards page, 2026-09-28).
+		missile.oracoolTint = oracool::Tint::Hue;
+		missile.oracoolTintRgb = oracool::hue::IceBlue;
+		ScaleMissile(missile, 75, 0);
+	} else {
 		UseItemDropAnimation(missile, MaceDropAnimIndex);
+	}
 	// The animation's own length, so the blast lands exactly when the mace does rather than on a
 	// number picked to look about right.
 	missile._mirange = missile._miAnimLen;
@@ -3617,6 +3668,12 @@ void AddBlessedHammer(Missile &missile, AddMissileParameter & /*parameter*/)
 	missile.var3 = missile.position.start.y;
 	missile.var4 = missile.position.start.x; // ...and the one before that - see ProcessBlessedHammer
 	missile.var5 = missile.position.start.y;
+	// Three quarters size, tinted Paladin gold (the Paladin Skill Cards page, 2026-09-28).
+	if (missile._miAnimType == MissileGraphicID::BlessedHammerSpin) {
+		missile.oracoolTint = oracool::Tint::Hue;
+		missile.oracoolTintRgb = oracool::hue::PaladinGold;
+		ScaleMissile(missile, 75);
+	}
 }
 
 void UseMissileGraphic(Missile &missile, MissileGraphicID graphic)
@@ -3878,11 +3935,13 @@ Missile *AddCreatureBolt(Point from, Point to, const CMonster &creature, int pla
 	return bolt;
 }
 
-void AddColdHitFlash(Point tile, int playerId)
+void AddColdHitFlash(Point tile, int playerId, int percent)
 {
 	if (!MissileArtLoaded(MissileGraphicID::HitCold) || !InDungeonBounds(tile))
 		return;
-	AddMissile(tile, { WeaponExplosionColdFlash, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
+	Missile *flash = AddMissile(tile, { WeaponExplosionColdFlash, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
+	if (flash != nullptr && percent != 100)
+		ScaleMissile(*flash, percent);
 }
 
 void ProcessCensusEffect(Missile &missile)
@@ -5980,8 +6039,11 @@ void missiles_process_charge()
 	for (auto &missile : Missiles) {
 		missile._miAnimData = GetMissileSpriteData(missile._miAnimType).spritesForDirection(missile._mimfnum);
 		missile.oracoolColours = GetMissileSpriteData(missile._miAnimType).colours.get();
-		if (missile._mitype != MissileID::Rhino)
+		if (missile._mitype != MissileID::Rhino) {
+			if (missile.oracoolScalePercent != 100)
+				ScaleMissile(missile, missile.oracoolScalePercent, missile.oracoolScaleFloor); // back to its scaled sheet
 			continue;
+		}
 		missile.oracoolColours = nullptr; // the charging monster's own sprites, in the level palette
 
 		const CMonster &mon = Monsters[missile._misource].type();

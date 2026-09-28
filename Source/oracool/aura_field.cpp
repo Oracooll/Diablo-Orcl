@@ -103,7 +103,7 @@ void AuraStrike(Player &player, Monster &monster, DamageType type, int damage, b
 
 /**
  * @brief The three holy auras' pulse: once every HolyPulseTicks, everything within reach is struck. The
- * first pulse lands the tick the aura is lit; the floor shockwave (WarcryRing) marks each one.
+ * first pulse lands the tick the aura is lit. The floor shockwave that marked each one was removed on 2026-09-28.
  */
 void ProcessHolyPulse(Player &player)
 {
@@ -138,8 +138,8 @@ void ProcessHolyPulse(Player &player)
 	}
 	for (Monster *monster : struck)
 		AuraStrike(player, *monster, type, RollDamage(range));
-	AddMissile(player.position.tile, player.position.tile, player._pdir, MissileID::WarcryRing, TARGET_MONSTERS,
-	    static_cast<int>(player.getId()), 0, 0);
+	// No floor shockwave on the pulse any more (the Paladin Skill Cards page, 2026-09-28: "Remove warcry ring from this
+	// aura", for all three): the aura's own ground ring and the hit flashes show it.
 }
 
 /** @brief The monsters an aura of the local player may strike within @p radius tiles. Gathered before striking. */

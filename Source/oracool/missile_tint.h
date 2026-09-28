@@ -36,6 +36,17 @@ constexpr uint32_t Rgb(uint8_t r, uint8_t g, uint8_t b)
 	return (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | b;
 }
 
+/** @brief The named hues the Skill Cards pages offer (2026-09-28), by the same names, for Tint::Hue. */
+namespace hue {
+constexpr uint32_t PaladinGold = Rgb(244, 204, 96);
+constexpr uint32_t VengeanceAmber = Rgb(255, 196, 96);
+constexpr uint32_t Infrared = Rgb(255, 56, 32);
+constexpr uint32_t HolyBlue = Rgb(96, 150, 255);
+constexpr uint32_t IceBlue = Rgb(150, 210, 255);
+constexpr uint32_t SpectralLavender = Rgb(206, 182, 255);
+constexpr uint32_t PaleWarm = Rgb(236, 220, 186);
+} // namespace hue
+
 /**
  * @brief @p base (256 colour values, already lit) recoloured by @p tint. @p rgb is the hue for Hue and HueCycle;
  * @p progress is how far the effect has played, 0..1 (HueCycle), or the strength (Mend). The result lives until the next
