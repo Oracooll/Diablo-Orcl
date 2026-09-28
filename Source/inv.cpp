@@ -571,7 +571,7 @@ bool AutoEquip(Player &player, const Item &item, inv_body_loc bodyLocation, bool
 			PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(item)]);
 		}
 
-		CalcPlrInv(player, false);
+		CalcPlrInv(player, true); // reloads the hero's sprites if the look changed (fixed 2026-09-29: v1.12.201 had flipped this to false)
 	}
 
 	return true;
@@ -757,7 +757,7 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 				oracool::CheckPassiveMilestones(player);
 			}
 			ConsumeOneHeldUnit(player);
-			CalcPlrInv(player, false);
+			CalcPlrInv(player, true); // reloads the hero's sprites if the look changed (fixed 2026-09-29: v1.12.201 had flipped this to false)
 			return;
 		}
 		if (oracool::TrySocketGem(socketTarget, player.HoldItem)) {
@@ -780,7 +780,7 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 			    && !oracool::PlayUiEventSound(runewordComplete ? oracool::UiEventSound::RunewordComplete : oracool::UiEventSound::Socket))
 				PlaySFX(IS_IGRAB);
 			ConsumeOneHeldUnit(player);
-			CalcPlrInv(player, false);
+			CalcPlrInv(player, true); // reloads the hero's sprites if the look changed (fixed 2026-09-29: v1.12.201 had flipped this to false)
 			return;
 		}
 	}
@@ -1389,7 +1389,7 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 			player._pGold = CalculateGold(player);
 		}
 
-		CalcPlrInv(player, false);
+		CalcPlrInv(player, true); // reloads the hero's sprites if the look changed (fixed 2026-09-29: v1.12.201 had flipped this to false)
 		holdItem._iStatFlag = player.CanUseItem(holdItem);
 
 		if (&player == MyPlayer) {
@@ -3219,7 +3219,7 @@ void TransferItemToStash(Player &player, int location)
 
 	if (location < INVITEM_INV_FIRST) {
 		RemoveEquipment(player, static_cast<inv_body_loc>(location), false);
-		CalcPlrInv(player, false);
+		CalcPlrInv(player, true); // reloads the hero's sprites if the look changed (fixed 2026-09-29: v1.12.201 had flipped this to false)
 	} else if (location <= INVITEM_INV_LAST)
 		player.RemoveInvItem(location - INVITEM_INV_FIRST);
 	else

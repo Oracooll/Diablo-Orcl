@@ -1569,7 +1569,8 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// The character's totals still carry the item as contributing nothing until something
 			// recalculates them. Doing it here rather than trusting the caller, for the same reason
 			// the aura functions were given that responsibility.
-			CalcPlrInv(*MyPlayer, false);
+			// With the look reloaded: a mended weapon in the hand counts again, and the hero holds it (2026-09-29).
+			CalcPlrInv(*MyPlayer, true);
 			what = std::string(target.getName());
 			break;
 		default:
