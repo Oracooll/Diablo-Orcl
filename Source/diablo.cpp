@@ -625,15 +625,16 @@ void LeftMouseDown(uint16_t modState)
 			// happens to sit under it - a scroll arrow, a tab, a grid cell.
 			if (IsLeftPanelOpen() && oracool::CheckWindowCloseButtonClick(GetLeftPanelContentRect(), MousePosition)) {
 				CloseLeftPanelContent();
+			} else if (oracool::IsAdvancedStatsOpen()
+			    && oracool::CheckWindowCloseButtonClick(oracool::GetAdvancedStatsRect(), MousePosition)) {
+				// The Advanced Stats window (2026-09-26). Tested before the inventory and the Abilities window: it is drawn
+				// over them where they overlap, and has its own X beside either (dev note, 2026-09-29). Its X puts back
+				// the inventory or Abilities window it covered - see advanced_stats.h.
+				oracool::CloseAdvancedStats();
 			} else if (invflag && oracool::CheckWindowCloseButtonClick(oracool::GetInventoryPanelRect(), MousePosition)) {
 				CloseInventory();
 			} else if (sbookflag && oracool::CheckWindowCloseButtonClick(GetSpellBookPanelRect(), MousePosition)) {
 				sbookflag = false;
-			} else if (oracool::IsAdvancedStatsOpen()
-			    && oracool::CheckWindowCloseButtonClick(oracool::GetAdvancedStatsRect(), MousePosition)) {
-				// The Advanced Stats window (2026-09-26), third holder of the right-hand slot. Its X
-				// puts back the inventory or Abilities window it covered - see advanced_stats.h.
-				oracool::CloseAdvancedStats();
 			} else if (oracool::IsEventLogOpen()
 			    && oracool::CheckWindowCloseButtonClick(oracool::GetEventLogWindowRect(), MousePosition)) {
 				// The log got its X in v1.9.147 (audit). It is a floating window the player opens, so

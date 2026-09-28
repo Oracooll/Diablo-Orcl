@@ -1818,7 +1818,10 @@ void DrawView(const Surface &out, Point startPosition)
 		oracool::DrawWindowCloseButton(out, oracool::GetInventoryPanelRect());
 	else if (sbookflag)
 		oracool::DrawWindowCloseButton(out, GetSpellBookPanelRect());
-	else if (oracool::IsAdvancedStatsOpen())
+	// Its own X whether or not the inventory or the Abilities window shares the screen with it (dev note, 2026-09-29:
+	// "put the common X close button on its designated spot on the advanced stats window"). It was an else-if after
+	// those two, a leftover from when opening it closed them, so beside either one it had no X at all.
+	if (oracool::IsAdvancedStatsOpen())
 		oracool::DrawWindowCloseButton(out, oracool::GetAdvancedStatsRect());
 
 	// Levski's Roar is a free-floating centred window, NOT a left-panel slot, so it is drawn

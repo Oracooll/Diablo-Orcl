@@ -17,6 +17,7 @@
 #include "utils/language.h"
 #include "oracool/monster_difficulty.h"
 #include "oracool/rfa12_effects.h"
+#include "oracool/skill_points.h" // SkillPointsPerLevel - the holy auras' carried ranks
 #include "oracool/warcries.h"
 #include "player.h"
 
@@ -229,18 +230,35 @@ int HolyPulseRadius(int points)
 	return points <= 0 ? 0 : std::min(3 + points, 10);
 }
 
+int HolyAuraCarriedRanks(Skill lower, Skill upper)
+{
+	const int levels = ClassTreeTierMinLevel(GetClassTreeSkillData(upper).tier) - ClassTreeTierMinLevel(GetClassTreeSkillData(lower).tier) + 1;
+	return std::clamp(levels * SkillPointsPerLevel, 1, ClassTreeMaxRank(lower));
+}
+
 AuraDamage HolyPulseDamage(Skill aura, int points)
 {
 	const int p = std::max(points, 1) - 1;
+	// Holy Fire's curve, at rank q + 1: 4-8, +3-6 a rank.
+	const auto fire = [](int q) { return AuraDamage { 4 + 3 * q, 8 + 6 * q }; };
+	// Each tier up starts where the one below would stand if every point from its unlock to this one's had gone into it,
+	// and grows on from there (dev note, 2026-09-29: "lvl 1 on upper tier aura makes as much dmg as lvl X lower tier
+	// aura where X is the maximum level that lower tier aura would have been if player invested every lvl a point in it
+	// until reaching upper tier aura"). So switching up is worth it the moment the new aura unlocks, and stays worth it.
+	const int freezeFrom = HolyAuraCarriedRanks(Skill::HolyFire, Skill::HolyFreeze) - 1;        // Fire's rank 13, at 18
+	const int shockFrom = freezeFrom + HolyAuraCarriedRanks(Skill::HolyFreeze, Skill::HolyShock) - 1; // Freeze's rank 7, at 24
 	switch (aura) {
 	case Skill::HolyFire:
-		return { 4 + 3 * p, 8 + 6 * p };
+		return fire(p);
 	case Skill::HolyFreeze:
-		// A little under the fire, because every hit also chills.
-		return { 3 + 2 * p, 6 + 5 * p };
-	case Skill::HolyShock:
-		// Lightning's wide spread, as every lightning in the game has it.
-		return { 1 + p, 14 + 8 * p };
+		// Holy Fire's damage carried on, cold; every hit also chills. It had been a little under the fire for the chill.
+		return fire(freezeFrom + p);
+	case Skill::HolyShock: {
+		// The same average, in lightning's wide spread (as every lightning in the game has it): 1 at the bottom, +1 a rank.
+		const AuraDamage same = fire(shockFrom + p);
+		const int low = 1 + p;
+		return { low, same.min + same.max - low };
+	}
 	default:
 		return { 0, 0 };
 	}

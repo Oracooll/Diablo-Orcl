@@ -2991,6 +2991,25 @@ TEST(OracoolClassTree, PaladinSkillsGrowWithEveryLevel)
 		EXPECT_EQ(oracool::AuraFieldRadius(aura, 30), 10);
 		EXPECT_FALSE(oracool::AuraFieldFactsAt(aura, 1).empty()) << "the tooltip says what the pulse does";
 	}
+	// Each holy aura's rank 1 matches the one below at the rank it could have reached by then (dev note, 2026-09-29).
+	{
+		using S = oracool::ClassTreeSkill;
+		const auto avg2 = [](oracool::AuraDamage d) { return d.min + d.max; };
+		const int freezeX = oracool::HolyAuraCarriedRanks(S::HolyFire, S::HolyFreeze);
+		const int shockX = oracool::HolyAuraCarriedRanks(S::HolyFreeze, S::HolyShock);
+		EXPECT_EQ(freezeX, 13) << "Holy Fire unlocks at 6, Holy Freeze at 18: a point every level, 6 to 18";
+		EXPECT_EQ(shockX, 7) << "Holy Freeze unlocks at 18, Holy Shock at 24";
+		const oracool::AuraDamage fireAtX = oracool::HolyPulseDamage(S::HolyFire, freezeX);
+		const oracool::AuraDamage freeze1 = oracool::HolyPulseDamage(S::HolyFreeze, 1);
+		EXPECT_EQ(freeze1.min, fireAtX.min);
+		EXPECT_EQ(freeze1.max, fireAtX.max);
+		EXPECT_EQ(avg2(oracool::HolyPulseDamage(S::HolyShock, 1)), avg2(oracool::HolyPulseDamage(S::HolyFreeze, shockX)))
+		    << "Holy Shock's rank 1 averages what Holy Freeze does at the rank it could have reached";
+		for (int r = 1; r <= 30; r++) {
+			EXPECT_GE(avg2(oracool::HolyPulseDamage(S::HolyFreeze, r)), avg2(oracool::HolyPulseDamage(S::HolyFire, r))) << r;
+			EXPECT_GE(avg2(oracool::HolyPulseDamage(S::HolyShock, r)), avg2(oracool::HolyPulseDamage(S::HolyFreeze, r))) << r;
+		}
+	}
 	EXPECT_FALSE(oracool::AuraReachesMonsters(oracool::ClassTreeSkill::Might)) << "Might reaches no one; no radius line";
 
 	EXPECT_EQ(oracool::ThornsReturnPercentAt(1), 25);
@@ -14947,6 +14966,10 @@ TEST(OracoolPreview, DISABLED_HeroSheet)
 	oracool::OpenAdvancedStats();
 	DrawChr(out);
 	oracool::DrawAdvancedStats(out);
+	// Both windows' red X, as scrollrt.cpp draws them in play (dev note, 2026-09-29): the sheet's, and Advanced Stats'
+	// in the same corner of its own frame.
+	oracool::DrawWindowCloseButton(out, GetLeftPanelContentRect());
+	oracool::DrawWindowCloseButton(out, oracool::GetAdvancedStatsRect());
 	oracool::CloseAdvancedStats(false);
 	{
 		// The sheet on its own, Advanced Stats shut - the header toggle shows its + (2026-09-27) - and no skill points

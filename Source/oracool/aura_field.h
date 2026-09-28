@@ -67,8 +67,18 @@ struct AuraDamage {
 constexpr int HolyPulseTicks = 60;
 /** @brief The pulse's reach at @p points: 4 tiles, one more a level, stopping at 10 (level 7). */
 int HolyPulseRadius(int points);
-/** @brief A pulse's damage at @p points of @p aura - fire, cold (it chills too) or lightning. */
+/**
+ * @brief A pulse's damage at @p points of @p aura - fire, cold (it chills too) or lightning. Holy Freeze's rank 1 is Holy
+ * Fire's rank HolyAuraCarriedRanks(Fire, Freeze), and Holy Shock's rank 1 has Holy Freeze's average at its carried rank
+ * (dev note, 2026-09-29); each grows on at Holy Fire's rate.
+ */
 AuraDamage HolyPulseDamage(ClassTreeSkill aura, int points);
+/**
+ * @brief The rank @p lower would have reached by the level @p upper unlocks, had every point from @p lower's unlock
+ * gone into it - the level-for-level count of the two tiers' unlock levels, inclusive, at SkillPointsPerLevel, capped at
+ * @p lower's rank cap. Holy Fire to Holy Freeze: levels 6-18, 13. Holy Freeze to Holy Shock: levels 18-24, 7.
+ */
+int HolyAuraCarriedRanks(ClassTreeSkill lower, ClassTreeSkill upper);
 /** @brief Sanctuary's burn on the undead in its field, a second: 4-8 magic, +2-4 a level (2026-09-12). */
 AuraDamage SanctuaryDamage(int points);
 /** @brief Conviction's armour cut at @p points, in percent: 3 a level, to 60 (2026-09-12). */
