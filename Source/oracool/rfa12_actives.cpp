@@ -2557,7 +2557,11 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 		// Its own thrust sheet again (v1.12.211): the redrawn lance runs out along the facing through the two tiles behind
 		// the target, and the user approved it in the animation review. The first one stood still on the hero, which is
 		// why the Guided Arrow stood in for it from v1.12.201.
-		arc = MissileGraphicID::HolyLance;
+		//
+		// It sets off from the struck monster's tile, not the hero's (user, 2026-09-29: "Holy Lance should initiate its
+		// projectile from the tile the hit monster is, not from the hero tile") - where the blow landed, and where its
+		// strike on the two tiles behind begins. A swing that hit nothing sends it from the tile in front.
+		ArtFacing(player, MissileGraphicID::HolyLance, landedOn.value_or(from + facing), facing);
 		break;
 	case SpellID::ReapingPoint: arc = MissileGraphicID::ReapingPoint; break;
 	case SpellID::Crusade:
