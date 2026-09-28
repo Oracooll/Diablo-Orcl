@@ -169,6 +169,9 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	}
 	if (leveltype == DTYPE_TOWN && !GetSpellData(spell).isAllowedInTown())
 		usable = false;
+	if (LacksShieldFor(*MyPlayer, spell))
+		usable = false; // Aegis Slam without a shield: red (2026-09-29); Smite and Blessed Shield answered above
+
 	// A STAFF cast keeps the engine's orange charge plate, and skips the tree-art path entirely
 	// (user, 2026-09-03: "staff spells to use legacy orange backing"). Without this a staff spell
 	// that also has a tree row - which, since the Sorceress's book rows came back, is most of her

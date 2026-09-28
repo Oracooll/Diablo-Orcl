@@ -583,6 +583,28 @@ TEST(OracoolAudit, ShieldCountsInEitherHand)
 	EXPECT_TRUE(oracool::HasShieldEquipped(player)) << "a shield in the left hand is not a shield - the v1.6.3 bug is back";
 }
 
+// The red plate (user, 2026-09-29): the three skills that need a shield say so while none is held, and nothing else does.
+TEST(OracoolAudit, ShieldSkillsGoRedWithoutAShield)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true; // IsValidSpell admits the fork's spells (past LastDiablo) only then, as in play
+	player.InvBody[INVLOC_HAND_LEFT] = {};
+	player.InvBody[INVLOC_HAND_RIGHT] = {};
+	for (const SpellID spell : { SpellID::ShieldBash, SpellID::BlessedShield, SpellID::AegisSlam })
+		EXPECT_TRUE(oracool::LacksShieldFor(player, spell)) << static_cast<int>(spell);
+	for (const SpellID spell : { SpellID::Zeal, SpellID::HolyBolt, SpellID::VotiveStrike, SpellID::Invalid })
+		EXPECT_FALSE(oracool::LacksShieldFor(player, spell)) << static_cast<int>(spell);
+
+	player.InvBody[INVLOC_HAND_RIGHT]._itype = ItemType::Shield;
+	player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag = true; // Aegis Slam's HoldsShield wants one the hero can use
+	for (const SpellID spell : { SpellID::ShieldBash, SpellID::BlessedShield, SpellID::AegisSlam })
+		EXPECT_FALSE(oracool::LacksShieldFor(player, spell)) << "with a shield in hand " << static_cast<int>(spell);
+	player.InvBody[INVLOC_HAND_RIGHT] = {};
+	gbIsHellfire = savedHellfire;
+}
+
 // Bug (v1.6.3): _pAblSpells was rebuilt only at creation, level-up and load, so equipping a shield
 // mid-level left the mask stale - the Abilities window drew the shield skills unlocked but refused
 // to ready them. The mask itself must reflect equipment; CalcPlrInv rebuilds it on every change.

@@ -27,6 +27,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
 #include "oracool/ornate_border.h"
+#include "oracool/paladin_skills.h" // LacksShieldFor - a shield skill's red plate
 #include "oracool/readied_spells.h"
 #include "oracool/spell_ranks.h" // SpellRequiredLevel - spells sort as the Spells tab sorts them
 #include "oracool/ui_sound.h"
@@ -514,7 +515,10 @@ void DrawSkillPicker(const Surface &out)
 			// needs no new vocabulary. Clicking one still works: it toggles the aura, which lands on
 			// the right button, and saving that trip is the whole reason they are listed here.
 			const bool dimmed = PickerForLeft && !IsAssignableToLeft(entry);
-			const SkillPlateTint tint = dimmed ? SkillPlateTint::Locked : SkillPlateTint::Ready;
+			// A shield skill with no shield in hand is red, as on the wells (user, 2026-09-29).
+			const SkillPlateTint tint = dimmed         ? SkillPlateTint::Locked
+			    : LacksShieldFor(player, entry.spell) ? SkillPlateTint::Blocked
+			                                          : SkillPlateTint::Ready;
 			switch (entry.kind) {
 			case EntryKind::Attack:
 				DrawAttackIconScaledTo(out, cell, entry.attackIcon,

@@ -15,6 +15,7 @@
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_ranged.h"
 #include "oracool/furious_charge.h"
+#include "oracool/rfa12_actives.h" // Rfa12MeleeUsable - Aegis Slam's shield, for LacksShieldFor
 
 namespace devilution {
 namespace oracool {
@@ -201,6 +202,15 @@ bool IsPaladinSkillUnlocked(const Player &player, PaladinSkill skill)
 	// "skill that require shield to operate must not require shield to level up, only to operate"), so
 	// Smite and Blessed Shield take points and sit on a button without one, and refuse until it is held.
 	return player._pLevel >= GetPaladinSkillData(skill).minLevel;
+}
+
+bool LacksShieldFor(const Player &player, SpellID spell)
+{
+	if (!IsValidSpell(spell))
+		return false;
+	if (const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell); skill.has_value())
+		return GetPaladinSkillData(*skill).requiresShield && !HasShieldEquipped(player);
+	return IsRfa12Melee(spell) && !Rfa12MeleeUsable(player, spell); // Aegis Slam: the only RfA-12 swing that needs one
 }
 
 bool CanUsePaladinSkill(const Player &player, PaladinSkill skill)

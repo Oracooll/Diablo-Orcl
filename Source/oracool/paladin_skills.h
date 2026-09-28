@@ -147,6 +147,13 @@ bool IsPaladinSkillTargetInRange(const Player &player, PaladinSkill skill);
 bool HasShieldEquipped(const Player &player);
 
 /**
+ * @brief Whether @p spell needs a shield that @p player is not holding: Smite and Blessed Shield (requiresShield) and
+ * Aegis Slam (Rfa12MeleeUsable). Their plates go red on the LMB/RMB wells and in the skill menus while it is so (user,
+ * 2026-09-29: "Shield requiring skills to have red backing in lmb/rmb slots and menus when a shield is not equipped").
+ */
+bool LacksShieldFor(const Player &player, SpellID spell);
+
+/**
  * @brief Whether @p skill has mechanics behind it yet, as opposed to being listed and described.
  *
  * Charge and Zeal do; the five added on 2026-08-15 do not - they arrived as art plus one line of

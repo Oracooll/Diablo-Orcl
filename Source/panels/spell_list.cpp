@@ -193,6 +193,8 @@ void DrawSpell(const Surface &out)
 	if (const std::optional<oracool::PaladinSkill> paladinSkill = oracool::PaladinSkillForSpell(spl);
 	    paladinSkill.has_value() && !oracool::CanUsePaladinSkill(myPlayer, *paladinSkill))
 		wellTint = oracool::SkillPlateTint::Blocked;
+	if (oracool::LacksShieldFor(myPlayer, spl))
+		wellTint = oracool::SkillPlateTint::Blocked; // a shield skill without a shield, Aegis Slam included (2026-09-29)
 
 	if (oracool::IsFuriousChargeSpell(spl)) {
 		const float progress = oracool::GetFuriousChargeCooldownProgress();
