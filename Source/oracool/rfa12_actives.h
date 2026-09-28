@@ -155,4 +155,17 @@ std::string Rfa12ActivesPassiveFactsAt(const Player &player, ClassTreeSkill skil
 /** @brief The Abilities window's sentence for @p spell - its tree row's. Empty for anything else. */
 const char *Rfa12ActiveDescription(SpellID spell);
 
+/** @brief The holy bursts' tints (the Visual FX Schedule's comments, 2026-09-28). */
+enum class HolyBurstColour : uint8_t {
+	Gold,
+	Blue,
+	Infrared,
+};
+
+/**
+ * @brief Vanilla's Holy Bolt explosion on @p tile as a Paladin skill's impact, at half size or full, in @p colour. Drawn
+ * only. False when holyexpl is not loaded (headless). For the skills outside rfa12_actives.cpp, e.g. Hammer of Faith.
+ */
+bool DrawHolyBurst(const Player &player, Point tile, bool half, HolyBurstColour colour);
+
 } // namespace devilution::oracool

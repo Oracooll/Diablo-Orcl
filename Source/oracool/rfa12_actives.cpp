@@ -3412,6 +3412,12 @@ const char *Rfa12ActiveDescription(SpellID spell)
 	return "";
 }
 
+bool DrawHolyBurst(const Player &player, Point tile, bool half, HolyBurstColour colour)
+{
+	const uint32_t rgb = colour == HolyBurstColour::Gold ? BurstGold : colour == HolyBurstColour::Blue ? BurstBlue : BurstInfrared;
+	return HolyBurst(player, tile, half, rgb);
+}
+
 
 // =================================================================================================
 // The tooltip (the two rules, user 2026-09-26): what a skill does at a rank, from the helpers above

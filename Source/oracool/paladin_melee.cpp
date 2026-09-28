@@ -252,8 +252,11 @@ void ApplyHammerOfFaith(Player &player, Monster &primaryTarget, int hitDamage)
 	if (!SpendPaladinSkillMana(player, PaladinSkill::HammerOfFaith))
 		return;
 
-	// The shockwave's own sound, once per splash - the blow itself already sounded as a hit.
+	// The shockwave's own sound, once per splash - the blow itself already sounded as a hit. With it, Holy Bolt's burst on
+	// the target at full size, tinted blue (the sound page's remark, 2026-09-28: "Nova. Add Holy Bolt explosion on impact.
+	// Scaled 100%. Tinted blue.").
 	PlaySkillSound(ClassTreeSkill::HammerOfFaith, SkillSoundEvent::Impact);
+	DrawHolyBurst(player, primaryTarget.position.tile, /*half=*/false, HolyBurstColour::Blue);
 	for (int i = 0; i < found; i++)
 		StrikeMonster(player, *targets[i], splashDamage);
 }

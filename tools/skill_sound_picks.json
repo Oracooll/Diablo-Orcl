@@ -162,8 +162,8 @@
    "why": "option 1: Heavy weapon swing"
   },
   "paladin.HammerOfFaith.Impact": {
-   "path": "sfx\\items\\invshiel.wav",
-   "why": "option 3: Shield clank"
+   "path": "sfx\\misc\\nova.wav",
+   "why": "remark \"Nova. Add Holy Bolt explosion on impact. Scaled 100%. Tinted blue.\" (the burst: HolyBurst in rfa12_actives)"
   },
   "paladin.HeavensDescent.Cast": {
    "path": "sfx\\misc\\cast8.wav",
@@ -210,8 +210,8 @@
    "why": "option 1: Fade out (invisibility)"
   },
   "paladin.Judgment.Impact": {
-   "path": "sfx\\items\\invshiel.wav",
-   "why": "remark \"Shield clank\""
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "option 1: Holy Bolt"
   },
   "paladin.Meditation.Start": {
    "path": "sfx\\misc\\fountain.wav",

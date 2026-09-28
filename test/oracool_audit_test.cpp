@@ -16040,3 +16040,106 @@ TEST(OracoolPreview, DISABLED_ExportVisualFx)
 	std::cout << "exported " << fx.written << " effects\n";
 	EXPECT_GT(fx.written, 0);
 }
+
+/**
+ * The per-class Skill Cards pages (2026-09-28: "one artefact per hero class where you list all of their skills/auras/
+ * abilities in 3 sheets as in the game itself ... a card for each of them"). Writes under ORCL_CARDS_OUT:
+ *   - skills.tsv: every row of each class's three tree pages, in BuildClassTreePage's order, with its tier, column,
+ *     level, kind, rank cap, icon index, spell, and the graphics that spell's missiles draw;
+ *   - vanilla/<name>.png + vanilla.txt: every vanilla missile sheet (drawn through the palette, not the fork's true-colour
+ *     PNGs), one facing, on a magenta key the page turns transparent, so the page can scale and tint it the way
+ *     ScaleClxList and Tint::Hue would.
+ */
+TEST(OracoolPreview, DISABLED_ExportClassSkillCards)
+{
+	const char *outDir = std::getenv("ORCL_CARDS_OUT");
+	ASSERT_NE(outDir, nullptr) << "set ORCL_CARDS_OUT";
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	InitMissileGFX(true);
+	const std::filesystem::path out(outDir);
+
+	const auto clean = [](const char *text) {
+		std::string s = text != nullptr ? text : "";
+		for (char &c : s) {
+			if (c == '\t' || c == '\n' || c == '\r')
+				c = ' ';
+		}
+		return s;
+	};
+	std::ofstream tsv(out / "skills.tsv", std::ios::binary);
+	int rows = 0;
+	for (int cls = 0; cls <= static_cast<int>(HeroClass::LAST); cls++) {
+		const auto heroClass = static_cast<HeroClass>(cls);
+		if (heroClass == HeroClass::Bard)
+			continue;
+		for (int page = 0; page < 3; page++) {
+			std::array<oracool::ClassTreeSkill, 64> skills {};
+			const size_t n = oracool::BuildClassTreePage(heroClass, page, skills.data());
+			for (size_t k = 0; k < n; k++) {
+				const oracool::ClassTreeSkill skill = skills[k];
+				const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skill);
+				const SpellID spell = oracool::ClassTreeSpellId(skill);
+				std::string graphics;
+				if (spell != SpellID::Invalid) {
+					for (const MissileID m : GetSpellData(spell).sMissiles) {
+						if (m == MissileID::Null)
+							continue;
+						const MissileGraphicID g = GetMissileData(m).mFileNum;
+						if (g == MissileGraphicID::None)
+							continue;
+						if (!graphics.empty())
+							graphics += ',';
+						graphics += GetMissileSpriteData(g).name;
+					}
+				}
+				tsv << static_cast<size_t>(skill) << '\t' << cls << '\t' << page << '\t' << clean(std::string(oracool::GetClassTreePageName(heroClass, page)).c_str())
+				    << '\t' << data.tier << '\t' << data.column << '\t' << oracool::ClassTreeTierMinLevel(data.tier) << '\t' << static_cast<int>(data.kind)
+				    << '\t' << (data.implemented ? 1 : 0) << '\t' << oracool::ClassTreeMaxRank(skill) << '\t' << oracool::ClassTreeIconIndex(skill)
+				    << '\t' << static_cast<int>(spell) << '\t' << (spell != SpellID::Invalid ? clean(GetSpellData(spell).sNameText) : std::string {})
+				    << '\t' << graphics << '\t' << clean(data.name) << '\t' << clean(data.description) << '\n';
+				rows++;
+			}
+		}
+	}
+
+	std::filesystem::create_directories(out / "vanilla");
+	std::ofstream manifest(out / "vanilla.txt", std::ios::binary);
+	int strips = 0;
+	for (size_t mi = 0; MissileSpriteData[mi].animFAmt != 0; mi++) {
+		MissileFileData &data = MissileSpriteData[mi];
+		// The monsters' own missiles load with their monsters; load them here too, so the picker offers every vanilla sheet.
+		if (!data.sprites && data.flags == MissileGraphicsFlags::MonsterOwned && data.name[0] != '\0')
+			data.LoadGFX();
+		if (!data.sprites || data.colours != nullptr)
+			continue; // not loaded, or one of the fork's true-colour sheets
+		uint8_t dir = 0;
+		if (data.animFAmt == 16)
+			dir = 12;
+		else if (data.animFAmt == 8)
+			dir = 6;
+		const OptionalClxSpriteList list = data.spritesForDirection(dir);
+		if (!list || list->numSprites() == 0)
+			continue;
+		const Size e = FxExtent(*list);
+		const int n = static_cast<int>(list->numSprites()), cellW = e.width + 16, cellH = e.height + 16;
+		OwnedSurface strip = OwnedSurface::Rgb(n * cellW, cellH);
+		SDL_FillRect(strip.surface, nullptr, SDL_MapRGB(strip.surface->format, 0xFF, 0x00, 0xFF));
+		for (int k = 0; k < n; k++)
+			ClxDrawRgbMap(strip, FxAt(k, cellW, cellH, (*list)[k].width()), (*list)[k], FxTable(nullptr));
+		PreviewSave(strip, (out / "vanilla" / (std::string(data.name) + ".png")).string().c_str());
+		manifest << mi << '|' << data.name << '|' << n << '|' << cellW << '|' << cellH << '|' << std::max<int>(data.animDelay(dir), 1) * 50 << '|' << static_cast<int>(data.animFAmt) << '\n';
+		strips++;
+	}
+
+	gbIsHellfire = savedHellfire;
+	HeadlessMode = savedHeadless;
+	std::cout << "exported " << rows << " skill rows and " << strips << " vanilla strips\n";
+	EXPECT_GT(rows, 0);
+	EXPECT_GT(strips, 0);
+}
