@@ -1,0 +1,429 @@
+{
+ "about": "The user's picks on the Vanilla Sound Stand-ins page (db collection choices), read 2026-09-28. GenVanillaSkillSounds.js plays these before any rule. path null = silent.",
+ "picks": {
+  "barbarian.AncestralCall.Arrive": {
+   "path": "sfx\\misc\\resur.wav",
+   "why": "option 2: Resurrect"
+  },
+  "barbarian.AncestralCall.Cast": {
+   "path": "sfx\\misc\\cast2.wav",
+   "why": "remark \"regular magic cast.\" - vanilla's spell cast (IS_CAST2)"
+  },
+  "barbarian.FindPotion.Cast": {
+   "path": "monsters\\mega\\megas1.wav",
+   "why": "option 5: Slayer bellow"
+  },
+  "paladin.AegisSlam.Impact": {
+   "path": "sfx\\items\\invshiel.wav",
+   "why": "option 1: Shield clank"
+  },
+  "paladin.AuraOfProtection.Start": {
+   "path": "sfx\\misc\\mshield.wav",
+   "why": "option 1: Mana Shield"
+  },
+  "paladin.AuraOfProtection.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.BaneOfEvil.Start": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "option 1: Holy Bolt"
+  },
+  "paladin.BaneOfEvil.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.BlessedAim.Start": {
+   "path": "sfx\\misc\\cast8.wav",
+   "why": "option 1: Generic cast (cast8)"
+  },
+  "paladin.BlessedAim.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.BlessedHammer.Cast": {
+   "path": "sfx\\misc\\cast2.wav",
+   "why": "option 2: Generic cast (cast2)"
+  },
+  "paladin.BlessedHammer.Impact": {
+   "path": "sfx\\misc\\blsimpt.wav",
+   "why": "option 2: Blood Star impact"
+  },
+  "paladin.BlessedShield.Cast": {
+   "path": "sfx\\misc\\cast2.wav",
+   "why": "remark \"Generic cast (cast2)\""
+  },
+  "paladin.BlessedShield.Impact": {
+   "path": "sfx\\items\\invshiel.wav",
+   "why": "option 1: Shield clank"
+  },
+  "paladin.Charge.Cast": {
+   "path": "sfx\\items\\invaxe.wav",
+   "why": "option 2: Axe (inventory)"
+  },
+  "paladin.Charge.Impact": {
+   "path": "sfx\\items\\invshiel.wav",
+   "why": "option 2: Shield clank"
+  },
+  "paladin.Cleansing.Start": {
+   "path": "sfx\\misc\\fountain.wav",
+   "why": "option 1: Fountain"
+  },
+  "paladin.Cleansing.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Concentration.Start": {
+   "path": "sfx\\misc\\cast8.wav",
+   "why": "option 1: Generic cast (cast8)"
+  },
+  "paladin.Concentration.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Condemnation.Start": {
+   "path": "sfx\\misc\\dserp.wav",
+   "why": "option 1: Doom Serpents"
+  },
+  "paladin.Condemnation.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Conversion.Cast": {
+   "path": "sfx\\misc\\cast8.wav",
+   "why": "option 1: Generic cast (cast8)"
+  },
+  "paladin.Conversion.Impact": {
+   "path": "sfx\\misc\\infravis.wav",
+   "why": "option 1: Infravision"
+  },
+  "paladin.Conviction.Start": {
+   "path": "sfx\\misc\\dserp.wav",
+   "why": "option 1: Doom Serpents"
+  },
+  "paladin.Conviction.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Crusade.Impact": {
+   "path": "sfx\\misc\\blsimpt.wav",
+   "why": "option 1: Blood Star impact"
+  },
+  "paladin.Defiance.Start": {
+   "path": "sfx\\misc\\mshield.wav",
+   "why": "option 1: Mana Shield"
+  },
+  "paladin.Defiance.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Dominion.Start": {
+   "path": "sfx\\misc\\dserp.wav",
+   "why": "option 1: Doom Serpents"
+  },
+  "paladin.Dominion.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.DoomProcession.Start": {
+   "path": "sfx\\misc\\flamwave.wav",
+   "why": "option 1: Flame Wave"
+  },
+  "paladin.DoomProcession.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Endurance.Start": {
+   "path": "sfx\\misc\\mshield.wav",
+   "why": "option 1: Mana Shield"
+  },
+  "paladin.Endurance.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Fanaticism.Start": {
+   "path": "sfx\\misc\\cast8.wav",
+   "why": "option 1: Generic cast (cast8)"
+  },
+  "paladin.Fanaticism.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.FistOfTheHeavens.Cast": {
+   "path": "sfx\\misc\\lning1.wav",
+   "why": "option 1: Lightning"
+  },
+  "paladin.FistOfTheHeavens.Impact": {
+   "path": "sfx\\misc\\nova.wav",
+   "why": "option 5: Nova"
+  },
+  "paladin.HammerOfFaith.Cast": {
+   "path": "sfx\\misc\\swing2.wav",
+   "why": "option 1: Heavy weapon swing"
+  },
+  "paladin.HammerOfFaith.Impact": {
+   "path": "sfx\\items\\invshiel.wav",
+   "why": "option 3: Shield clank"
+  },
+  "paladin.HeavensDescent.Cast": {
+   "path": "sfx\\misc\\cast8.wav",
+   "why": "option 4: Generic cast (cast8)"
+  },
+  "paladin.HeavensDescent.Impact": {
+   "path": "sfx\\misc\\nova.wav",
+   "why": "option 1: Nova"
+  },
+  "paladin.HolyFire.Start": {
+   "path": "sfx\\misc\\flamwave.wav",
+   "why": "option 1: Flame Wave"
+  },
+  "paladin.HolyFire.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.HolyFreeze.Start": {
+   "path": "sfx\\misc\\nova.wav",
+   "why": "option 4: Nova"
+  },
+  "paladin.HolyFreeze.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.HolyLance.Impact": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "option 1: Holy Bolt"
+  },
+  "paladin.HolyShock.Start": {
+   "path": "sfx\\misc\\lning1.wav",
+   "why": "option 5: Lightning"
+  },
+  "paladin.HolyShock.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Immovable.Start": {
+   "path": "sfx\\misc\\mshield.wav",
+   "why": "option 1: Mana Shield"
+  },
+  "paladin.Immovable.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Judgment.Impact": {
+   "path": "sfx\\items\\invshiel.wav",
+   "why": "remark \"Shield clank\""
+  },
+  "paladin.Meditation.Start": {
+   "path": "sfx\\misc\\fountain.wav",
+   "why": "option 1: Fountain"
+  },
+  "paladin.Meditation.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Mercy.Start": {
+   "path": "sfx\\misc\\fountain.wav",
+   "why": "option 1: Fountain"
+  },
+  "paladin.Mercy.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Might.Start": {
+   "path": "sfx\\misc\\cast8.wav",
+   "why": "option 1: Generic cast (cast8)"
+  },
+  "paladin.Might.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Oathbrand.Impact": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "option 1: Holy Bolt"
+  },
+  "paladin.Prayer.Start": {
+   "path": "sfx\\misc\\cast8.wav",
+   "why": "option 2: Generic cast (cast8)"
+  },
+  "paladin.Prayer.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Radiance.Start": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "option 1: Holy Bolt"
+  },
+  "paladin.Radiance.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Redemption.Start": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "option 2: Holy Bolt"
+  },
+  "paladin.Redemption.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.ResistCold.Start": {
+   "path": "sfx\\misc\\mshield.wav",
+   "why": "option 1: Mana Shield"
+  },
+  "paladin.ResistCold.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.ResistFire.Start": {
+   "path": "sfx\\misc\\cast2.wav",
+   "why": "remark \"Generic cast (cast2)\""
+  },
+  "paladin.ResistFire.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.ResistLightning.Loop": {
+   "path": null,
+   "why": "remark \"none\""
+  },
+  "paladin.ResistLightning.Start": {
+   "path": "sfx\\misc\\lmag.wav",
+   "why": "option 2: Magic hum, low (lmag)"
+  },
+  "paladin.ResistLightning.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.ResistMagic.Start": {
+   "path": "sfx\\misc\\mshield.wav",
+   "why": "option 1: Mana Shield"
+  },
+  "paladin.ResistMagic.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Retaliation.Start": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "option 4: Holy Bolt"
+  },
+  "paladin.Retaliation.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Sacrifice.Cast": {
+   "path": "sfx\\misc\\swing2.wav",
+   "why": "option 1: Heavy weapon swing"
+  },
+  "paladin.Sacrifice.Impact": {
+   "path": "sfx\\misc\\scurimp.wav",
+   "why": "option 4: Stone Curse"
+  },
+  "paladin.Salvation.Start": {
+   "path": "sfx\\misc\\cast8.wav",
+   "why": "option 3: Generic cast (cast8)"
+  },
+  "paladin.Salvation.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Sanctity.Start": {
+   "path": "sfx\\misc\\cast8.wav",
+   "why": "remark \"Generic cast (cast8)\""
+  },
+  "paladin.Sanctity.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Sanctuary.Start": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "option 1: Holy Bolt"
+  },
+  "paladin.Sanctuary.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Smite.Cast": {
+   "path": "sfx\\misc\\swing2.wav",
+   "why": "option 1: Heavy weapon swing"
+  },
+  "paladin.Smite.Impact": {
+   "path": "sfx\\items\\invshiel.wav",
+   "why": "remark \"Shield clank\""
+  },
+  "paladin.Steadfast.Start": {
+   "path": "sfx\\misc\\mshield.wav",
+   "why": "option 1: Mana Shield"
+  },
+  "paladin.Steadfast.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Thorns.Start": {
+   "path": "sfx\\misc\\mshield.wav",
+   "why": "option 4: Mana Shield"
+  },
+  "paladin.Thorns.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.TitheOfAsh.Start": {
+   "path": "sfx\\misc\\flamwave.wav",
+   "why": "option 1: Flame Wave"
+  },
+  "paladin.TitheOfAsh.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Valor.Start": {
+   "path": "sfx\\misc\\cast8.wav",
+   "why": "option 1: Generic cast (cast8)"
+  },
+  "paladin.Valor.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.Vengeance.Cast": {
+   "path": "sfx\\misc\\swing.wav",
+   "why": "option 5: Weapon swing"
+  },
+  "paladin.Vengeance.Impact": {
+   "path": "sfx\\misc\\firimp2.wav",
+   "why": "option 1: Fire impact"
+  },
+  "paladin.Vigor.Start": {
+   "path": "sfx\\misc\\ethereal.wav",
+   "why": "option 2: Etherealize"
+  },
+  "paladin.Vigor.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.VotiveStrike.Impact": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "option 1: Holy Bolt"
+  },
+  "paladin.WardingLight.Start": {
+   "path": "sfx\\misc\\cast8.wav",
+   "why": "option 2: Generic cast (cast8)"
+  },
+  "paladin.WardingLight.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "option 1: Fade out (invisibility)"
+  },
+  "paladin.WrathOfTheHeavens.Cast": {
+   "path": "sfx\\misc\\lning1.wav",
+   "why": "option 1: Lightning"
+  },
+  "paladin.WrathOfTheHeavens.Impact": {
+   "path": "sfx\\misc\\cbolt.wav",
+   "why": "option 3: Charged Bolt"
+  },
+  "paladin.Zeal.Cast": {
+   "path": "sfx\\misc\\swing2.wav",
+   "why": "option 1: Heavy weapon swing"
+  },
+  "paladin.Zeal.Impact": {
+   "path": "sfx\\misc\\blsimpt.wav",
+   "why": "option 1: Blood Star impact"
+  }
+ }
+}

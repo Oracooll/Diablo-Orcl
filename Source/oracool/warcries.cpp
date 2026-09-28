@@ -660,6 +660,9 @@ void ProcessWarcriesTick(Player &player)
 				// mana it gives back, rises where the corpse lay, to the Resurrect spell's own cast sound.
 				AddArtEffect(*corpse, MissileGraphicID::RedemptionRise, static_cast<int>(player.getId()));
 				PlaySfxLoc(LS_RESUR, *corpse);
+				// And the generic cast under it (user, the sound review, 2026-09-28: "on successful redemption from a corpse
+				// during the resurrection animation also play Generic cast (cast8)").
+				PlaySfxLoc(IS_CAST8, *corpse);
 				const int share = RedemptionSharePercent(points);
 				const int heal = player._pMaxHP * share / 100;
 				const int gain = player._pMaxMana * share / 100;
