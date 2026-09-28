@@ -1,0 +1,10 @@
+{
+  "choice": "redesign",
+  "comment": "use Monster - BlueFlareExplosion (ex_blu2) instead. Gold tinted.",
+  "file": "missiles/crusade_sweep.png",
+  "key": "missiles/crusade_sweep.png",
+  "substitute": null,
+  "substituteTitle": null,
+  "title": "Crusade Sweep",
+  "updated": "2026-09-27T17:42:29.455Z"
+}

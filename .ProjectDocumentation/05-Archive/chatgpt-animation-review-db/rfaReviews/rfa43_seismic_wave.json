@@ -1,0 +1,10 @@
+{
+  "choice": "other",
+  "comment": "use flamewave effect and asset. send 2-3 flames forward  up to the range of Seismic Wave. Tinted gold.",
+  "delivered": true,
+  "file": "missiles/seismic_wave.png",
+  "key": "rfa43:seismic_wave",
+  "rfa": 43,
+  "title": "Seismic Wave",
+  "updated": "2026-09-27T19:16:11.294Z"
+}

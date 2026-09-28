@@ -1,0 +1,10 @@
+{
+  "choice": "keep",
+  "comment": "tint appropriately according to the skill utilizing it. apply colorcycling to it as it grows in diameter to improve the visual impact.",
+  "file": "missiles/warcry_ring.png",
+  "key": "missiles/warcry_ring.png",
+  "substitute": null,
+  "substituteTitle": null,
+  "title": "Warcry Ring",
+  "updated": "2026-09-27T17:57:28.806Z"
+}

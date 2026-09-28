@@ -1,0 +1,10 @@
+{
+  "choice": "redesign",
+  "comment": "use lava/river animation within the radius of effect. color cycling between brown and dark orange.",
+  "file": "missiles/earthquake.png",
+  "key": "missiles/earthquake.png",
+  "substitute": null,
+  "substituteTitle": null,
+  "title": "Earthquake",
+  "updated": "2026-09-27T17:42:51.897Z"
+}

@@ -1,0 +1,10 @@
+{
+  "choice": "redesign",
+  "comment": "use Monster - BloodStarYellowExplosion (scbsexpc), tinted red, on strike.",
+  "file": "missiles/rend_strike.png",
+  "key": "missiles/rend_strike.png",
+  "substitute": null,
+  "substituteTitle": null,
+  "title": "Rend Strike",
+  "updated": "2026-09-27T17:42:55.639Z"
+}

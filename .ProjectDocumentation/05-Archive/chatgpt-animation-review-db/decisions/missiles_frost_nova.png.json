@@ -1,0 +1,10 @@
+{
+  "choice": "keep",
+  "comment": "we probably need to scale it 2-3x. it is kind of small now.",
+  "file": "missiles/frost_nova.png",
+  "key": "missiles/frost_nova.png",
+  "substitute": "lib:bluexbk",
+  "substituteTitle": "Flash (bluexbk, Diablo)",
+  "title": "Frost Nova",
+  "updated": "2026-09-27T17:48:10.100Z"
+}

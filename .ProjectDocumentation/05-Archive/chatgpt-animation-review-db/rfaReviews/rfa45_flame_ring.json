@@ -1,0 +1,10 @@
+{
+  "choice": "other",
+  "comment": "use fire wall asset for this one. scale if you need to. as many flame assets as you need",
+  "delivered": true,
+  "file": "missiles/flame_ring.png",
+  "key": "rfa45:flame_ring",
+  "rfa": 45,
+  "title": "Flame Ring",
+  "updated": "2026-09-27T19:23:15.707Z"
+}

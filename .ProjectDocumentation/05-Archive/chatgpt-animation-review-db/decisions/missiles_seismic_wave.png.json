@@ -1,0 +1,10 @@
+{
+  "choice": "redesign",
+  "comment": "use flamewave effect and asset. send 2-3 flames forward  up to the range of Seismic Wave. Tinted gold.",
+  "file": "missiles/seismic_wave.png",
+  "key": "missiles/seismic_wave.png",
+  "substitute": null,
+  "substituteTitle": null,
+  "title": "Seismic Wave",
+  "updated": "2026-09-27T17:42:56.505Z"
+}

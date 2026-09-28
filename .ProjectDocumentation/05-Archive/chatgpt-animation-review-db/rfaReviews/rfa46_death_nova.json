@@ -1,0 +1,10 @@
+{
+  "choice": "other",
+  "comment": "use appropriately recoloured flash spell.",
+  "delivered": true,
+  "file": "missiles/death_nova.png",
+  "key": "rfa46:death_nova",
+  "rfa": 46,
+  "title": "Death Nova",
+  "updated": "2026-09-27T19:34:54.273Z"
+}

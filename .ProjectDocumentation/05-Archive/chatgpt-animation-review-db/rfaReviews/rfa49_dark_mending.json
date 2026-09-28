@@ -1,0 +1,10 @@
+{
+  "choice": "other",
+  "comment": "use colour tinting on healed minions.",
+  "delivered": true,
+  "file": "missiles/dark_mending.png",
+  "key": "rfa49:dark_mending",
+  "rfa": 49,
+  "title": "Dark Mending",
+  "updated": "2026-09-27T19:44:29.816Z"
+}

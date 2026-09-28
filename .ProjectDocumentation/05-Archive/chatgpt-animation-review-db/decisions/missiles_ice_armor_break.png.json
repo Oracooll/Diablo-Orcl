@@ -1,0 +1,10 @@
+{
+  "choice": "other",
+  "comment": "remove ice tinting.",
+  "file": "missiles/ice_armor_break.png",
+  "key": "missiles/ice_armor_break.png",
+  "substitute": null,
+  "substituteTitle": null,
+  "title": "Ice Armor Break",
+  "updated": "2026-09-27T17:45:58.828Z"
+}
