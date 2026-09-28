@@ -2515,34 +2515,40 @@ void TickField(Player &player, Field &field)
 	}
 }
 
-/** @brief Votive Strike's burst: Holy Bolt's explosion at this share of its size (dev note, 2026-09-28). */
-constexpr unsigned VotiveBurstPercent = 50;
+/** @brief The holy bursts' colours (the Visual FX Schedule's comments, 2026-09-28). */
+constexpr uint32_t BurstInfrared = Rgb(255, 56, 32); // Votive Strike
+constexpr uint32_t BurstGold = Rgb(244, 204, 96);    // the Paladin's gold (RingHueForClass)
+constexpr uint32_t BurstBlue = Rgb(96, 150, 255);
 
-/** @brief The half-size burst, built once from the loaded holyexpl; it owns its pixels, so a level reload leaves it whole. */
-std::optional<OwnedClxSpriteList> VotiveBurstSprites;
+/** @brief The half-size holyexpl, built once from the loaded sheet; it owns its pixels, so a level reload leaves it whole. */
+std::optional<OwnedClxSpriteList> HalfBurstSprites;
 
 /**
- * @brief Votive Strike's impact (dev notes, 2026-09-28: "votive strike to use Holy Bolt Explosion animation on impact",
- * then "scale down the holy bolt explosion to 50% size and tint infrared"): vanilla's holyexpl on the struck body, at
- * half its size and in infravision's red, its centre where Holy Bolt's full-size burst puts it (the Blessed Shield
- * flash's rule). Drawn only; the blow has landed.
+ * @brief Vanilla's Holy Bolt explosion (holyexpl) on @p tile, as a Paladin skill's impact: at @p half its size or full,
+ * tinted @p rgb, its centre where Holy Bolt's full-size burst puts it (the Blessed Shield flash's rule). Drawn only; the
+ * blow has landed. From the dev note "votive strike to use Holy Bolt Explosion animation on impact" (v1.12.214), then
+ * the Visual FX Schedule's comments of 2026-09-28, which gave five more Paladin skills the same burst in place of their
+ * ChatGPT sheets. False when holyexpl is not loaded (headless).
  */
-void VotiveBurst(const Player &player, Point tile)
+bool HolyBurst(const Player &player, Point tile, bool half, uint32_t rgb)
 {
 	Missile *burst = Art(player, MissileGraphicID::HolyBoltExplosion, tile);
 	if (burst == nullptr || !burst->_miAnimData)
-		return;
-	if (!VotiveBurstSprites)
-		VotiveBurstSprites = ScaleClxList(*burst->_miAnimData, VotiveBurstPercent);
+		return false;
+	burst->oracoolTint = Tint::Hue;
+	burst->oracoolTintRgb = rgb;
+	if (!half)
+		return true;
+	if (!HalfBurstSprites)
+		HalfBurstSprites = ScaleClxList(*burst->_miAnimData, 50);
 	const int fullHeight = (*burst->_miAnimData)[0].height();
-	const ClxSpriteList scaled { *VotiveBurstSprites };
+	const ClxSpriteList scaled { *HalfBurstSprites };
 	burst->_miAnimData = scaled;
 	burst->_miAnimLen = static_cast<int>(scaled.numSprites());
 	burst->_miAnimWidth = scaled[0].width();
 	burst->_miAnimWidth2 = CalculateWidth2(burst->_miAnimWidth);
 	burst->position.offset = burst->position.offset - Displacement { 0, (fullHeight - static_cast<int>(scaled[0].height())) / 2 };
-	burst->oracoolTint = Tint::Hue;
-	burst->oracoolTintRgb = Rgb(255, 56, 32);
+	return true;
 }
 
 /**
@@ -2557,7 +2563,12 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 	switch (spell) {
 	case SpellID::Cleave: arc = MissileGraphicID::CleaveArc; break;
 	case SpellID::Backhand: arc = MissileGraphicID::BackhandArc; break; // row n: the arc behind a hero facing n
-	case SpellID::AegisSlam: arc = MissileGraphicID::AegisSlam; break;
+	case SpellID::AegisSlam:
+		// Holy Bolt's burst, half size, gold, on what the shield struck (Visual FX Schedule, 2026-09-28); was its
+		// ChatGPT arc sheet.
+		if (landedOn)
+			HolyBurst(player, *landedOn, /*half=*/true, BurstGold);
+		break;
 	case SpellID::Sweep: arc = MissileGraphicID::SweepArc; break;
 	case SpellID::LowBranch: arc = MissileGraphicID::LowBranch; break;
 	case SpellID::TurningPike: arc = MissileGraphicID::TurningPike; break;
@@ -2569,14 +2580,21 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 		break;
 	case SpellID::ReapingPoint: arc = MissileGraphicID::ReapingPoint; break;
 	case SpellID::Crusade:
-		Art(player, MissileGraphicID::CrusadeSweep, from); // the ring-slash all round him, not along his facing
+		// Holy Bolt's burst, half size, gold, where he stands - the sweep is all round him (Visual FX Schedule,
+		// 2026-09-28); was its ChatGPT ring-slash sheet.
+		HolyBurst(player, from, /*half=*/true, BurstGold);
 		break;
 	case SpellID::VotiveStrike:
 		if (landedOn)
-			VotiveBurst(player, *landedOn); // Holy Bolt's burst, half size, infrared (v1.12.214)
+			HolyBurst(player, *landedOn, /*half=*/true, BurstInfrared); // v1.12.214
 		break;
-	case SpellID::Judgment: flash = MissileGraphicID::JudgmentStrike; break;
-	case SpellID::Oathbrand: flash = MissileGraphicID::OathbrandStrike; break;
+	case SpellID::Judgment:
+	case SpellID::Oathbrand:
+		// Holy Bolt's burst, half size, blue, on the struck body (Visual FX Schedule, 2026-09-28); were their ChatGPT
+		// strike flashes.
+		if (landedOn)
+			HolyBurst(player, *landedOn, /*half=*/true, BurstBlue);
+		break;
 	case SpellID::Rend: flash = MissileGraphicID::RendStrike; break;
 	case SpellID::ClaspOfRuin: flash = MissileGraphicID::ClaspOfRuin; break;
 	case SpellID::HammerOfTheAncients: flash = MissileGraphicID::HammerOfTheAncients; break;
@@ -2602,8 +2620,9 @@ void TickLanding(Player &player, PlayerState &state)
 		const Range d = SkillDamage(state.landingSpell, r);
 		for (Monster *m : MonstersWithin(player.position.tile, 1))
 			Strike(player, *m, DamageType::Magic, Rolled(d));
-		// RfA-27 batch 55: the holy explosion where he lands, and its cue; the ring without the sheet.
-		if (Art(player, MissileGraphicID::HeavensDescent, player.position.tile) == nullptr)
+		// Holy Bolt's burst, full size, gold, where he lands (Visual FX Schedule, 2026-09-28; was RfA-27 batch 55's
+		// ChatGPT sheet), and its cue; the ring without the sheet.
+		if (!HolyBurst(player, player.position.tile, /*half=*/false, BurstGold))
 			Ring(player, player.position.tile);
 		Impact(player, state.landingSpell);
 		break;

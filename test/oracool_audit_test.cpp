@@ -15849,6 +15849,35 @@ TEST(OracoolPreview, DISABLED_ExportVisualFx)
 		fx.Save(out, "fx_frost_nova", n, cellW, cellH, std::max<int>(data.animDelay(0), 1) * TickMs, "Frost Nova 250%");
 	}
 
+	// ---- the Paladin's holy bursts: Holy Bolt's explosion, tinted, at half or full size (rfa12_actives' HolyBurst) ----
+	// One cell size for all four, the full burst's, so the half ones read as half; a half one keeps the full one's centre.
+	if (const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::HolyBoltExplosion); data.sprites) {
+		const ClxSpriteList full = *data.spritesForDirection(0);
+		const OwnedClxSpriteList halfOwned = oracool::ScaleClxList(full, 50);
+		const ClxSpriteList half { halfOwned };
+		const Size e = FxExtent(full);
+		const int n = static_cast<int>(full.numSprites()), cellW = e.width + 16, cellH = e.height + 16;
+		struct Burst {
+			const char *name;
+			bool half;
+			uint32_t rgb;
+			const char *what;
+		};
+		for (const Burst b : { Burst { "fx_holy_burst_gold_50", true, oracool::Rgb(244, 204, 96), "Holy Bolt explosion 50%, gold" },
+		         Burst { "fx_holy_burst_gold_100", false, oracool::Rgb(244, 204, 96), "Holy Bolt explosion 100%, gold" },
+		         Burst { "fx_holy_burst_blue_50", true, oracool::Rgb(96, 150, 255), "Holy Bolt explosion 50%, blue" },
+		         Burst { "fx_holy_burst_red_50", true, oracool::Rgb(255, 56, 32), "Holy Bolt explosion 50%, infrared" } }) {
+			OwnedSurface out = FxCanvas(n, cellW, cellH);
+			const uint32_t *table = FxTable(data.colours.get(), oracool::Tint::Hue, b.rgb);
+			for (int k = 0; k < n; k++) {
+				const ClxSprite s = b.half ? half[static_cast<size_t>(k)] : full[static_cast<size_t>(k)];
+				const int lift = 8 + (b.half ? (full[static_cast<size_t>(k)].height() - s.height()) / 2 : 0);
+				ClxDrawRgbMap(out, FxAt(k, cellW, cellH, s.width(), lift), s, table);
+			}
+			fx.Save(out, b.name, n, cellW, cellH, std::max<int>(data.animDelay(0), 1) * TickMs, b.what);
+		}
+	}
+
 	// ---- the war-cry ring in four skills' hues, colour-cycled as it grows ----
 	if (const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::WarcryRing); data.sprites) {
 		const ClxSpriteList ring = *data.spritesForDirection(0);
