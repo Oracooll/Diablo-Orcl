@@ -151,6 +151,8 @@
 #include "player.h"
 #include "oracool/hero_look.h"
 #include "oracool/sprite_colours.h"
+#include "oracool/missile_tint.h" // the Visual FX export
+#include "oracool/cycled_still.h"
 #include "utils/str_cat.hpp"
 #include "playerdat.hpp"
 #include "qol/stash.h"
@@ -15625,4 +15627,384 @@ TEST(OracoolPreview, DISABLED_ExportSkillIconsAndText)
 	HeadlessMode = savedHeadless;
 	PreviewSave(out, (std::filesystem::path(outDir) / "skill_icons.png").string().c_str());
 	std::cout << "exported " << oracool::ClassTreeSkillCount << " skill icons\n";
+}
+
+namespace {
+
+/** @brief A strip of @p frames cells, @p cellW x @p cellH each, on the review pages' dark ground. */
+OwnedSurface FxCanvas(int frames, int cellW, int cellH)
+{
+	OwnedSurface out = OwnedSurface::Rgb(frames * cellW, cellH);
+	SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 0x16, 0x12, 0x0F));
+	return out;
+}
+
+/** @brief The colour values a sprite draws through at full light: its sheet's own, or the palette's; tinted if asked. */
+const uint32_t *FxTable(const oracool::SpriteColours *colours, oracool::Tint tint = oracool::Tint::None, uint32_t rgb = 0, double progress = 0.0)
+{
+	const uint32_t *base = colours != nullptr ? colours->Table(0) : oracool::LitPaletteTable(0);
+	return tint == oracool::Tint::None ? base : oracool::TintedTable(base, tint, rgb, progress);
+}
+
+struct FxOut {
+	std::filesystem::path dir;
+	std::ofstream manifest;
+	int written = 0;
+	void Save(const Surface &strip, const std::string &name, int frames, int cellW, int cellH, int delayMs, const std::string &what)
+	{
+		PreviewSave(strip, (dir / (name + ".png")).string().c_str());
+		manifest << name << '|' << frames << '|' << cellW << '|' << cellH << '|' << delayMs << '|' << what << '\n';
+		written++;
+	}
+};
+
+/** @brief The tallest and widest frame of @p list. */
+Size FxExtent(ClxSpriteList list)
+{
+	Size s { 0, 0 };
+	for (const ClxSprite sprite : list) {
+		s.width = std::max<int>(s.width, sprite.width());
+		s.height = std::max<int>(s.height, sprite.height());
+	}
+	return s;
+}
+
+/** @brief Frame @p k of a strip: a sprite @p spriteW wide centred in its cell, standing @p lift above the cell's floor. */
+Point FxAt(int k, int cellW, int cellH, int spriteW, int lift = 8)
+{
+	return { k * cellW + (cellW - spriteW) / 2, cellH - 1 - lift };
+}
+
+/** @brief A player or monster CL2 sheet, or nothing when the archive lacks it. */
+std::optional<OwnedClxSpriteSheet> FxBody(const char *path, uint16_t width)
+{
+	if (!FindAsset((std::string(path) + ".cl2").c_str()).ok())
+		return std::nullopt;
+	return LoadCl2Sheet(path, width);
+}
+
+} // namespace
+
+/**
+ * The Diablo Orcl Visual FX Schedule (2026-09-28): every Orcl animated effect as the game draws it today, one strip of
+ * frames per effect, written to ORCL_FX_OUT with fx.txt (name|frames|cellW|cellH|delayMs|description).
+ *   - every true-colour PNG effect sheet, through its own colours at full light (fx_sheet_<name>);
+ *   - the effects code builds from other art: tinted vanilla flames, the recoloured Flash, the molten Earthquake, the
+ *     250% Frost Nova, the war-cry ring's hues, the hero and minion tints, Serenity's and Retribution's cycled stills,
+ *     the Army's green skeletons (fx_<name>) - through the same TintedTable, ScaleClxList and DrawCycledStill the game
+ *     calls. The effects that drift with the clock are captured in real time, one SDL_Delay a frame;
+ *   - every aura ring through the real BlitAura (aura_<id>), and every Orcl item tumble as InitItemGFX loads it
+ *     (item_<name>).
+ * Vanilla's own effects are not exported.
+ */
+TEST(OracoolPreview, DISABLED_ExportVisualFx)
+{
+	const char *outDir = std::getenv("ORCL_FX_OUT");
+	ASSERT_NE(outDir, nullptr) << "set ORCL_FX_OUT";
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	InitMissileGFX(true);
+	FxOut fx { outDir, std::ofstream(std::filesystem::path(outDir) / "fx.txt", std::ios::binary) };
+	constexpr int TickMs = 50;
+
+	// ---- every true-colour sheet, as DrawMissilePrivate draws it ----
+	for (size_t mi = 0; MissileSpriteData[mi].animFAmt != 0; mi++) {
+		const MissileFileData &data = MissileSpriteData[mi];
+		if (!data.sprites || data.colours == nullptr)
+			continue;
+		// The facing a card shows: east for a flying sheet (16 or 8 facings), both rows in turn for a two-row one.
+		std::vector<ClxSprite> frames;
+		uint8_t dir = 0;
+		if (data.animFAmt == 16)
+			dir = 12;
+		else if (data.animFAmt == 8)
+			dir = 6;
+		if (data.animFAmt == 2) {
+			for (const size_t row : { size_t { 0 }, size_t { 1 }, size_t { 1 } })
+				for (const ClxSprite s : *data.spritesForDirection(row))
+					frames.push_back(s);
+		} else {
+			for (const ClxSprite s : *data.spritesForDirection(dir))
+				frames.push_back(s);
+		}
+		if (frames.empty())
+			continue;
+		int w = 0, h = 0;
+		for (const ClxSprite s : frames) {
+			w = std::max<int>(w, s.width());
+			h = std::max<int>(h, s.height());
+		}
+		const int cellW = w + 16, cellH = h + 16;
+		OwnedSurface out = FxCanvas(static_cast<int>(frames.size()), cellW, cellH);
+		// The Guardian portal is drawn violet (scrollrt's RiftPortalPurple case); every other sheet as it is.
+		const bool guardian = &data == &GetMissileSpriteData(MissileGraphicID::RiftPortalPurple);
+		for (size_t k = 0; k < frames.size(); k++) {
+			const uint32_t *table = guardian ? oracool::GuardianPortalRgbTable(data.colours.get()) : FxTable(data.colours.get());
+			ClxDrawRgbMap(out, FxAt(static_cast<int>(k), cellW, cellH, frames[k].width()), frames[k], table);
+		}
+		fx.Save(out, std::string("fx_sheet_") + data.name, static_cast<int>(frames.size()), cellW, cellH, std::max<int>(data.animDelay(dir), 1) * TickMs,
+		    std::to_string(data.animFAmt) + " facings");
+	}
+
+	// ---- Seismic Slam: three of vanilla's Fire Wall flames, tinted gold ----
+	{
+		const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::FireWall);
+		const ClxSpriteList flame = *data.spritesForDirection(1);
+		const Size e = FxExtent(flame);
+		const int n = static_cast<int>(flame.numSprites()), cellW = e.width + 112, cellH = e.height + 40;
+		OwnedSurface out = FxCanvas(n, cellW, cellH);
+		for (int k = 0; k < n; k++) {
+			const uint32_t *table = FxTable(nullptr, oracool::Tint::Hue, oracool::Rgb(255, 204, 92));
+			for (const Displacement d : { Displacement { -48, -12 }, Displacement { 0, 0 }, Displacement { 48, 12 } })
+				ClxDrawRgbMap(out, FxAt(k, cellW, cellH, flame[k].width(), 20) + d, flame[k], table);
+		}
+		fx.Save(out, "fx_seismic_slam", n, cellW, cellH, std::max<int>(data.animDelay(1), 1) * TickMs, "Fire Wall x3, gold");
+	}
+
+	// ---- Flame Ring: Fire Wall flames on every tile of a ring two tiles round the caster ----
+	{
+		const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::FireWall);
+		const ClxSpriteList flame = *data.spritesForDirection(1);
+		const Size e = FxExtent(flame);
+		const int n = static_cast<int>(flame.numSprites()), cellW = 5 * 64 + e.width, cellH = 5 * 32 + e.height;
+		std::vector<Displacement> ring;
+		for (int step = 0; step < 24; step++) {
+			const double a = step * 2.0 * 3.14159265358979 / 24.0;
+			const int tx = static_cast<int>(std::lround(2 * std::cos(a)));
+			const int ty = static_cast<int>(std::lround(2 * std::sin(a)));
+			const Displacement screen { (tx - ty) * 32, (tx + ty) * 16 };
+			if (std::find(ring.begin(), ring.end(), screen) == ring.end())
+				ring.push_back(screen);
+		}
+		std::sort(ring.begin(), ring.end(), [](Displacement a, Displacement b) { return a.deltaY < b.deltaY; }); // far side first
+		OwnedSurface out = FxCanvas(n, cellW, cellH);
+		for (int k = 0; k < n; k++) {
+			const uint32_t *table = FxTable(nullptr);
+			for (const Displacement d : ring)
+				ClxDrawRgbMap(out, Point { k * cellW + cellW / 2 - flame[k].width() / 2, cellH / 2 + e.height / 2 } + d, flame[k], table);
+		}
+		fx.Save(out, "fx_flame_ring", n, cellW, cellH, std::max<int>(data.animDelay(1), 1) * TickMs, "Fire Wall ring");
+	}
+
+	// ---- Ember Mine's burst: Apocalypse's explosion, as it is ----
+	{
+		const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::ApocalypseBoom);
+		const ClxSpriteList boom = *data.spritesForDirection(0);
+		const Size e = FxExtent(boom);
+		const int n = static_cast<int>(boom.numSprites()), cellW = e.width + 16, cellH = e.height + 16;
+		OwnedSurface out = FxCanvas(n, cellW, cellH);
+		for (int k = 0; k < n; k++)
+			ClxDrawRgbMap(out, FxAt(k, cellW, cellH, boom[k].width()), boom[k], FxTable(nullptr));
+		fx.Save(out, "fx_ember_burst", n, cellW, cellH, std::max<int>(data.animDelay(0), 1) * TickMs, "Apocalypse");
+	}
+
+	// ---- Death Nova: Flash, both halves, in the blight's yellow-green ----
+	{
+		const MissileFileData &topData = GetMissileSpriteData(MissileGraphicID::FlashTop);
+		const ClxSpriteList top = *topData.spritesForDirection(0);
+		const ClxSpriteList bottom = *GetMissileSpriteData(MissileGraphicID::FlashBottom).spritesForDirection(0);
+		const Size e = FxExtent(top);
+		const int n = static_cast<int>(std::min(top.numSprites(), bottom.numSprites())), cellW = e.width + 16, cellH = e.height + 16;
+		OwnedSurface out = FxCanvas(n, cellW, cellH);
+		for (int k = 0; k < n; k++) {
+			const uint32_t *table = FxTable(nullptr, oracool::Tint::Hue, oracool::Rgb(176, 212, 88));
+			ClxDrawRgbMap(out, FxAt(k, cellW, cellH, top[k].width()), top[k], table);
+			ClxDrawRgbMap(out, FxAt(k, cellW, cellH, bottom[k].width()), bottom[k], table);
+		}
+		fx.Save(out, "fx_death_nova", n, cellW, cellH, std::max<int>(topData.animDelay(0), 1) * TickMs, "Flash, yellow-green");
+	}
+
+	// ---- Earthquake: its own sheet, molten; the colour drifts with the clock, so it is captured in real time ----
+	if (const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::Earthquake); data.sprites) {
+		const ClxSpriteList quake = *data.spritesForDirection(0);
+		const Size e = FxExtent(quake);
+		constexpr int N = 32, Ms = 100;
+		const int cellW = e.width + 16, cellH = e.height + 16;
+		OwnedSurface out = FxCanvas(N, cellW, cellH);
+		for (int k = 0; k < N; k++) {
+			const ClxSprite s = quake[static_cast<size_t>(k) % quake.numSprites()];
+			ClxDrawRgbMap(out, FxAt(k, cellW, cellH, s.width()), s, FxTable(data.colours.get(), oracool::Tint::Earthquake));
+			SDL_Delay(Ms);
+		}
+		fx.Save(out, "fx_earthquake", N, cellW, cellH, Ms, "Earthquake, molten");
+	}
+
+	// ---- Frost Nova at 250% ----
+	if (const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::FrostNova); data.sprites) {
+		const OwnedClxSpriteList scaled = oracool::ScaleClxList(*data.spritesForDirection(0), 250);
+		const ClxSpriteList nova { scaled };
+		const Size e = FxExtent(nova);
+		const int n = static_cast<int>(nova.numSprites()), cellW = e.width + 16, cellH = e.height + 16;
+		OwnedSurface out = FxCanvas(n, cellW, cellH);
+		for (int k = 0; k < n; k++)
+			ClxDrawRgbMap(out, FxAt(k, cellW, cellH, nova[k].width()), nova[k], FxTable(data.colours.get()));
+		fx.Save(out, "fx_frost_nova", n, cellW, cellH, std::max<int>(data.animDelay(0), 1) * TickMs, "Frost Nova 250%");
+	}
+
+	// ---- the war-cry ring in four skills' hues, colour-cycled as it grows ----
+	if (const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::WarcryRing); data.sprites) {
+		const ClxSpriteList ring = *data.spritesForDirection(0);
+		const Size e = FxExtent(ring);
+		const int n = static_cast<int>(ring.numSprites()), w = e.width + 8, h = e.height + 8, cellW = 2 * w, cellH = 2 * h;
+		const int delay = std::max<int>(data.animDelay(0), 1) * TickMs;
+		const std::array<uint16_t, 4> skills { static_cast<uint16_t>(oracool::ClassTreeSkill::WarCry), static_cast<uint16_t>(oracool::ClassTreeSkill::HolyFire),
+			static_cast<uint16_t>(oracool::ClassTreeSkill::StaticField), uint16_t { 0xFFFF } };
+		OwnedSurface out = FxCanvas(n, cellW, cellH);
+		for (int k = 0; k < n; k++) {
+			const double progress = n > 1 ? static_cast<double>(k) / (n - 1) : 0.0;
+			for (size_t q = 0; q < skills.size(); q++) {
+				const uint32_t *table = FxTable(data.colours.get(), oracool::Tint::HueCycle, oracool::RingHueForSkill(skills[q]), progress);
+				const Point cell { k * cellW + static_cast<int>(q % 2) * w + (w - ring[k].width()) / 2, static_cast<int>(q / 2) * h + h - 5 };
+				ClxDrawRgbMap(out, cell, ring[k], table);
+			}
+			SDL_Delay(delay);
+		}
+		fx.Save(out, "fx_warcry_ring", n, cellW, cellH, delay, "War Cry / Holy Fire / Static Field / neutral");
+	}
+
+	// ---- the tints on bodies, and the stills round them ----
+	const auto firstBody = [](std::initializer_list<const char *> paths, uint16_t width) -> std::optional<OwnedClxSpriteSheet> {
+		for (const char *p : paths) {
+			if (std::optional<OwnedClxSpriteSheet> s = FxBody(p, width))
+				return s;
+		}
+		return std::nullopt;
+	};
+	const std::optional<OwnedClxSpriteSheet> sorcerer = firstBody({ "plrgfx\\sorceror\\slt\\sltas" }, 96);
+	// The Monk stands 112 wide (PlayersSpriteData); the Warrior, the fallback, 96.
+	std::optional<OwnedClxSpriteSheet> monk = firstBody({ "plrgfx\\monk\\mlt\\mltas", "plrgfx\\monk\\mln\\mlnas" }, 112);
+	if (!monk)
+		monk = firstBody({ "plrgfx\\warrior\\wla\\wlaas" }, 96);
+	// A body on its tile in cell k: the tile's corner (DrawPlayer's targetBufferPosition), then the sprite, as DrawPlayer.
+	const auto tileAt = [](int k, int cellW, int cellH) { return Point { k * cellW + cellW / 2 - 32, cellH - 24 }; };
+	const auto drawBody = [](const Surface &out, Point tile, ClxSprite s, const uint32_t *table) {
+		ClxDrawRgbMap(out, tile - Displacement { (s.width() - 64) / 2, 0 }, s, table);
+	};
+	const auto heroStrip = [&](const OwnedClxSpriteSheet &sheet, const std::string &name, oracool::Tint tint, int frames, int ms, const std::string &what) {
+		const ClxSpriteList stand = sheet[0];
+		const int cellW = 160, cellH = 150;
+		OwnedSurface out = FxCanvas(frames, cellW, cellH);
+		for (int k = 0; k < frames; k++) {
+			const ClxSprite s = stand[static_cast<size_t>(k) % stand.numSprites()];
+			drawBody(out, tileAt(k, cellW, cellH), s, FxTable(nullptr, tint));
+			SDL_Delay(ms);
+		}
+		fx.Save(out, name, frames, cellW, cellH, ms, what);
+	};
+	if (sorcerer)
+		heroStrip(*sorcerer, "fx_ice_armour", oracool::Tint::Ice, 20, 100, "hero, Ice tint");
+	if (monk)
+		heroStrip(*monk, "fx_astral_projection", oracool::Tint::Astral, 24, 100, "hero, Astral tint");
+
+	// Serenity: the Cleansing ring rising from the feet over the head and back, the far half behind the body.
+	if (monk) {
+		const ClxSpriteList stand = (*monk)[0];
+		constexpr int N = 40, Ms = 50, CellW = 200, CellH = 190;
+		OwnedSurface out = FxCanvas(N, CellW, CellH);
+		for (int k = 0; k < N; k++) {
+			const Point tile = tileAt(k, CellW, CellH);
+			const Point feet = tile + Displacement { 32, -16 };
+			const int lift = static_cast<int>(96 * std::sin(3.14159265358979 * k / (N - 1)));
+			const Rectangle ring { feet - Displacement { 56, 28 + lift }, Size { 112, 56 } };
+			oracool::DrawCycledStill(out, "ui\\aura_cleansing.png", ring, oracool::CycleShape::Ring, 90, oracool::StillPart::Back);
+			drawBody(out, tile, stand[static_cast<size_t>(k) % stand.numSprites()], FxTable(nullptr));
+			oracool::DrawCycledStill(out, "ui\\aura_cleansing.png", ring, oracool::CycleShape::Ring, 90, oracool::StillPart::Front);
+			SDL_Delay(Ms);
+		}
+		fx.Save(out, "fx_serenity", N, CellW, CellH, Ms, "Cleansing ring over the hero");
+	}
+
+	// Mantra of Retribution: the approved still round the body, colour-cycled round its ring.
+	if (monk) {
+		const ClxSpriteList stand = (*monk)[0];
+		constexpr int N = 32, Ms = 75, CellW = 160, CellH = 170;
+		OwnedSurface out = FxCanvas(N, CellW, CellH);
+		for (int k = 0; k < N; k++) {
+			const Point tile = tileAt(k, CellW, CellH);
+			const Rectangle still { tile + Displacement { -16, -4 - 127 }, Size { 96, 128 } };
+			oracool::DrawCycledStill(out, "missiles\\mantra_of_retribution.png", still, oracool::CycleShape::Ring, 100, oracool::StillPart::Back);
+			drawBody(out, tile, stand[static_cast<size_t>(k) % stand.numSprites()], FxTable(nullptr));
+			oracool::DrawCycledStill(out, "missiles\\mantra_of_retribution.png", still, oracool::CycleShape::Ring, 100, oracool::StillPart::Front);
+			SDL_Delay(Ms);
+		}
+		fx.Save(out, "fx_retribution", N, CellW, CellH, Ms, "Retribution still over the hero");
+	}
+
+	// Dark Mending: a skeleton minion, the lavender glow fading off it over a second, then as it is.
+	if (const std::optional<OwnedClxSpriteSheet> skeleton = FxBody("monsters\\skelaxe\\sklaxn", 128)) {
+		const ClxSpriteList stand = (*skeleton)[0];
+		constexpr int N = 30, Ms = 50, CellW = 160, CellH = 150;
+		OwnedSurface out = FxCanvas(N, CellW, CellH);
+		for (int k = 0; k < N; k++) {
+			const double glow = k < 20 ? 1.0 - k / 20.0 : 0.0;
+			drawBody(out, tileAt(k, CellW, CellH), stand[static_cast<size_t>(k) % stand.numSprites()], FxTable(nullptr, oracool::Tint::Mend, 0, glow));
+		}
+		fx.Save(out, "fx_dark_mending", N, CellW, CellH, Ms, "minion, Mend glow");
+	}
+
+	// Army of the Dead: a skeleton tinted green running in, bursting into green bone where it lands.
+	if (const std::optional<OwnedClxSpriteSheet> walk = FxBody("monsters\\skelaxe\\sklaxw", 128); walk && GetMissileSpriteData(MissileGraphicID::BoneHitNecro).sprites) {
+		const ClxSpriteList run = (*walk)[6]; // east
+		const MissileFileData &bone = GetMissileSpriteData(MissileGraphicID::BoneHitNecro);
+		const ClxSpriteList burst = *bone.spritesForDirection(0);
+		constexpr int Steps = 19, Speed = 12, CellW = 128 + Steps * Speed + 32, CellH = 150;
+		const int n = Steps + static_cast<int>(burst.numSprites());
+		const uint32_t green = oracool::Rgb(120, 214, 104);
+		OwnedSurface out = FxCanvas(n, CellW, CellH);
+		for (int k = 0; k < n; k++) {
+			if (k < Steps) {
+				const ClxSprite s = run[static_cast<size_t>(k) % run.numSprites()];
+				ClxDrawRgbMap(out, Point { k * CellW + 8 + k * Speed, CellH - 24 }, s, FxTable(nullptr, oracool::Tint::Hue, green));
+			} else {
+				const ClxSprite s = burst[static_cast<size_t>(k - Steps)];
+				const Point landing { k * CellW + 8 + Steps * Speed + 64, CellH - 24 };
+				ClxDrawRgbMap(out, landing - Displacement { s.width() / 2, 0 }, s, FxTable(bone.colours.get(), oracool::Tint::Hue, green));
+			}
+		}
+		fx.Save(out, "fx_army_of_the_dead", n, CellW, CellH, TickMs, "green skeleton charge and bone burst");
+	}
+
+	// ---- the aura rings, through the real BlitAura (DISABLED_ExportAuraRingCycles' cells) ----
+	{
+		constexpr int CellW = 208, CellH = 112, Moments = 16;
+		for (size_t i = 0; i < oracool::ClassTreeSkillCount; i++) {
+			const auto skill = static_cast<oracool::ClassTreeSkill>(i);
+			const char *id = oracool::AuraRingFileId(skill);
+			if (id == nullptr)
+				continue;
+			OwnedSurface out = FxCanvas(Moments, CellW, CellH);
+			bool drawn = true;
+			for (int moment = 0; moment < Moments && drawn; moment++) {
+				oracool::AuraRingClockOverrideMs = moment * 75;
+				drawn = oracool::DrawAuraRingPreview(out, skill, Point { moment * CellW + CellW / 2, CellH / 2 }, 6);
+			}
+			if (drawn)
+				fx.Save(out, std::string("aura_") + id, Moments, CellW, CellH, 75, "aura ring");
+		}
+		oracool::AuraRingClockOverrideMs = -1;
+	}
+
+	// ---- the fork's item tumbles, as InitItemGFX loads and scales them, in the palette ----
+	InitItemGFX();
+	for (int i = 43; i < ITEMTYPES; i++) {
+		const OptionalClxSpriteList anim = GetItemDropAnim(static_cast<int8_t>(i));
+		if (!anim)
+			continue;
+		const Size e = FxExtent(*anim);
+		const int n = static_cast<int>(anim->numSprites()), cellW = e.width + 16, cellH = e.height + 16;
+		OwnedSurface out = FxCanvas(n, cellW, cellH);
+		for (int k = 0; k < n; k++)
+			ClxDrawRgbMap(out, FxAt(k, cellW, cellH, (*anim)[k].width()), (*anim)[k], FxTable(nullptr));
+		fx.Save(out, std::string("item_") + GetItemDropName(i), n, cellW, cellH, TickMs, "item tumble");
+	}
+
+	gbIsHellfire = savedHellfire;
+	HeadlessMode = savedHeadless;
+	std::cout << "exported " << fx.written << " effects\n";
+	EXPECT_GT(fx.written, 0);
 }

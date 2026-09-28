@@ -36,6 +36,8 @@ struct Item;
 
 namespace devilution::oracool {
 
+struct SpriteColours; // oracool/sprite_colours.h
+
 enum class RiftKind : uint8_t {
 	None,
 	Nephalem,
@@ -206,11 +208,12 @@ int RiftSecondsLeft();
 /** @brief Seconds until a cleared Nephalem Rift closes on its own (NephalemRiftCloseSeconds), 0 when no clock runs. */
 int RiftCloseSecondsLeft();
 /**
- * @brief The Guardian portal's draw table for the 32-bit screen: the palette as it is, except the
- * PAL8_BLUE ramp sent to violet values - the portal's sheet is vanilla's blue, since the palette has no
- * violet to quantise to. scrollrt.cpp draws MissileID::RiftPortalPurple through it.
+ * @brief The Guardian portal's draw table for the 32-bit screen. The portal's sheet is built in vanilla's blue; since
+ * v1.12.212 it is drawn through its own colours (@p sheetColours, MissileFileData::colours), shifted to violet at the
+ * same brightness. Null @p sheetColours (a CL2 in the palette): the palette as it is, except the PAL8_BLUE ramp sent to
+ * violet values. scrollrt.cpp draws MissileID::RiftPortalPurple through it, unlit - a portal glows.
  */
-const uint32_t *GuardianPortalRgbTable();
+const uint32_t *GuardianPortalRgbTable(const SpriteColours *sheetColours = nullptr);
 int RiftProgressPercent();
 
 /** @brief The bar and the clock under the mini-map while the hero is in a rift. */

@@ -32,6 +32,7 @@
 #include "oracool/endgame_boss.h"
 #include "oracool/event_log.h"
 #include "oracool/lesser_uniques.h"
+#include "oracool/sprite_colours.h"
 #include "oracool/oracool.h" // IsSinglePlayer
 #include "oracool/ornate_border.h" // DrawLegacyTextBox - the rift bar's gold frame
 #include "oracool/skill_sounds.h"
@@ -799,8 +800,30 @@ int RiftCloseSecondsLeft()
 	return (State.closeTicks + RiftTicksPerSecond - 1) / RiftTicksPerSecond;
 }
 
-const uint32_t *GuardianPortalRgbTable()
+const uint32_t *GuardianPortalRgbTable(const SpriteColours *sheetColours)
 {
+	static constexpr uint32_t Violet[8] = { 0xE6B4FF, 0xC080F5, 0x9B50D8, 0x7A34B4, 0x5C2290, 0x40146A, 0x280A46, 0x140424 };
+	// Since v1.12.211 a PNG missile keeps its own colours and its pixels index THEM, not the palette - read through the
+	// palette table below, the portal came out in scrambled colours. Each of the sheet's blues goes to the same violet
+	// ramp by its brightness (its strongest channel: a blue's luminance is too low to carry it), brightest to 0xE6B4FF.
+	if (sheetColours != nullptr) {
+		static std::array<uint32_t, 256> shifted;
+		const uint32_t *own = sheetColours->Table(0);
+		for (size_t i = 0; i < shifted.size(); i++) {
+			const uint32_t c = own[i];
+			const int v = static_cast<int>(std::max({ (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF }));
+			const int pos = (255 - v) * 7 * 256 / 255;
+			const int lower = std::min(pos >> 8, 6);
+			const int t = pos - (lower << 8);
+			const uint32_t a = Violet[lower], b = Violet[lower + 1];
+			const auto ch = [&](int shift) {
+				const int from = static_cast<int>((a >> shift) & 0xFF), to = static_cast<int>((b >> shift) & 0xFF);
+				return static_cast<uint32_t>(std::clamp(from + (to - from) * t / 256, 0, 255)) << shift;
+			};
+			shifted[i] = (c & 0xFF000000U) | ch(16) | ch(8) | ch(0);
+		}
+		return shifted.data();
+	}
 	// The violet the palette never had (2026-09-20, user: "Guardian rift portal is not purple and
 	// its core background is not purple either"): missiles\portal_purple.png is quantised to the
 	// palette on load like every PNG missile, and the shared half has blue, gold, red and grey ramps
@@ -809,7 +832,6 @@ const uint32_t *GuardianPortalRgbTable()
 	// Guardian portal is drawn through this table, which sends those eight blues to a violet ramp
 	// and everything else to the palette as it is - the green plate's mechanism (SetSpellTransGreen).
 	static std::array<uint32_t, 256> table;
-	static constexpr uint32_t Violet[8] = { 0xE6B4FF, 0xC080F5, 0x9B50D8, 0x7A34B4, 0x5C2290, 0x40146A, 0x280A46, 0x140424 };
 	for (int i = 0; i < 256; i++)
 		table[static_cast<size_t>(i)] = PaletteRGB[static_cast<size_t>(i)];
 	for (int i = 0; i < 8; i++)

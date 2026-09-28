@@ -387,7 +387,7 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 	// is vanilla's blue and this draw sends the blue ramp to violet values (GuardianPortalRgbTable).
 	// Unlit on purpose: a portal glows.
 	if (!out.isIndexed() && missile._mitype == MissileID::RiftPortalPurple) {
-		ClxDrawRgbMap(out, missileRenderPosition, sprite, oracool::GuardianPortalRgbTable());
+		ClxDrawRgbMap(out, missileRenderPosition, sprite, oracool::GuardianPortalRgbTable(missile.oracoolColours));
 		return;
 	}
 	// Oracool (v1.12.211): a true-colour sheet, or a tint by colour values. A true-colour sheet's sprites index its OWN
