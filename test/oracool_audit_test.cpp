@@ -1244,7 +1244,7 @@ TEST(OracoolHeroChunks, TheBurningAuraSurvivesTheEnumMovingUnderIt)
 	source._pUnspentSkillPoints = 10;
 
 	ASSERT_TRUE(oracool::InvestClassTreePoint(source, oracool::ClassTreeSkill::Might));
-	ASSERT_TRUE(oracool::ToggleClassAura(source, oracool::ClassTreeSkill::Might));
+	ASSERT_TRUE(oracool::SelectClassAura(source, oracool::ClassTreeSkill::Might));
 	ASSERT_EQ(oracool::GetActiveClassAura(source), oracool::ClassTreeSkill::Might);
 
 	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(source);
@@ -2261,7 +2261,7 @@ TEST(OracoolClassTree, EveryInertRowContributesNothing)
 			    << _(data.name) << " could not take a point at level 50 with points in hand";
 			// An aura contributes only while it burns, so an unlit one would pass trivially.
 			if (data.kind == oracool::ClassTreeKind::Aura)
-				ASSERT_TRUE(oracool::ToggleClassAura(player, skill)) << _(data.name) << " would not light";
+				ASSERT_TRUE(oracool::SelectClassAura(player, skill)) << _(data.name) << " would not light";
 		}
 
 		oracool::ItemBonusTotals totals;
@@ -2794,7 +2794,7 @@ TEST(OracoolClassTree, ACorpseHasNoAura)
 	player._pMaxHP = 1000;
 	player._pHitPoints = 1000;
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might));
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Might));
+	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Might));
 	ASSERT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::Might);
 
 	player._pmode = PM_DEATH;
@@ -2814,7 +2814,7 @@ TEST(OracoolClassTree, ACorpseHasNoAura)
 
 	// Zero health without death mode is the tick or two before StartPlayerKill runs, and counts.
 	//
-	// Set again here rather than relying on the values at the top: ToggleClassAura now recalculates
+	// Set again here rather than relying on the values at the top: SelectClassAura now recalculates
 	// the character (that is the fix for the bonuses-outlive-the-aura bug), and a recalculation
 	// derives _pMaxHP from _pMaxHPBase, which this fixture leaves at zero. Stating the state where
 	// it is being tested is more honest than a setup line three assertions away.
@@ -2837,7 +2837,7 @@ TEST(OracoolClassTree, PuttingAnAuraOutTakesItsBonusesWithIt)
 	player._pMaxHP = 1000;
 	player._pHitPoints = 1000;
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might));
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Might));
+	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Might));
 
 	// Asserted on the player's CACHED stat, not on a fresh ApplyClassTreeToTotals.
 	//
@@ -2858,19 +2858,22 @@ TEST(OracoolClassTree, AuraNeedsAPointBeforeItCanBurn)
 {
 	devilution::Player &player = FreshPaladin();
 
-	EXPECT_FALSE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Might))
+	EXPECT_FALSE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Might))
 	    << "an aura with nothing invested lit anyway";
-	EXPECT_FALSE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Zeal))
+	EXPECT_FALSE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Zeal))
 	    << "a combat skill was lit as an aura";
 
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might));
-	EXPECT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Might));
+	EXPECT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Might));
 	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::Might);
 
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Defiance));
-	EXPECT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Defiance)) << "activating replaces";
+	EXPECT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Defiance)) << "activating replaces";
 	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::Defiance);
-	EXPECT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Defiance)) << "the second click clears";
+	// Selecting the burning aura again keeps it lit (dev note, 2026-09-28); readying a skill on the right button puts it out.
+	EXPECT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Defiance)) << "re-selecting the burning aura was refused";
+	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::Defiance) << "re-selecting the burning aura put it out";
+	oracool::ClearClassAuraForRightButton(player);
 	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::None);
 }
 
@@ -2884,7 +2887,7 @@ TEST(OracoolClassTree, AuraEffectsScaleWithPointsAndInertOnesStaySilent)
 	EXPECT_EQ(off.bonusDamage, 0);
 
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might));
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Might));
+	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Might));
 	oracool::ItemBonusTotals onePoint;
 	oracool::ApplyClassTreeToTotals(player, onePoint);
 	EXPECT_GT(onePoint.bonusDamage, 0);
@@ -2897,7 +2900,7 @@ TEST(OracoolClassTree, AuraEffectsScaleWithPointsAndInertOnesStaySilent)
 	// Resist Cold wards cold itself since 2026-09-26 (heroes have a cold resistance of their own); it warded magic before.
 	devilution::Player &cold = FreshPaladin();
 	ASSERT_TRUE(oracool::InvestClassTreePoint(cold, oracool::ClassTreeSkill::ResistCold));
-	ASSERT_TRUE(oracool::ToggleClassAura(cold, oracool::ClassTreeSkill::ResistCold));
+	ASSERT_TRUE(oracool::SelectClassAura(cold, oracool::ClassTreeSkill::ResistCold));
 	oracool::ItemBonusTotals coldTotals;
 	oracool::ApplyClassTreeToTotals(cold, coldTotals);
 	EXPECT_GT(coldTotals.coldResist, 0);
@@ -2914,7 +2917,7 @@ TEST(OracoolClassTree, AuraEffectsScaleWithPointsAndInertOnesStaySilent)
 	         oracool::ClassTreeSkill::Cleansing, oracool::ClassTreeSkill::Redemption }) {
 		devilution::Player &p = FreshPaladin();
 		ASSERT_TRUE(oracool::InvestClassTreePoint(p, inert));
-		ASSERT_TRUE(oracool::ToggleClassAura(p, inert));
+		ASSERT_TRUE(oracool::SelectClassAura(p, inert));
 		oracool::ItemBonusTotals inertTotals;
 		oracool::ItemBonusTotals empty;
 		oracool::ApplyClassTreeLevelUpStat(inert, 1, empty);
@@ -2935,21 +2938,21 @@ TEST(OracoolClassTree, VigorRunsAndOnlyWhenPaidFor)
 	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100);
 
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor));
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
+	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Vigor));
 	CalcPlrItemVals(player, false);
 	EXPECT_FALSE(oracool::IsClassTreeRunActive(player)) << "Vigor is a percentage now, not a run row";
 	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100 + oracool::VigorMoveSpeedPerRank);
 	oracool::ClearMovementSlows(); // and the stride carry, so the first stride is predictable
 	EXPECT_EQ(oracool::WalkFrameSkipFor(player), -1) << "105%: a nine-tick first stride";
 
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
+	oracool::ClearClassAuraForRightButton(player); // re-selecting keeps it lit since v1.12.214; a readied skill puts it out
 	CalcPlrItemVals(player, false);
 	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100) << "Vigor kept its stride after it was put out";
 
 	// Rank 5: four more points (the test player has them), the aura lit again - 125%, an eight-tick stride.
 	for (int i = 0; i < 4; i++)
 		ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor)) << "point " << i + 2;
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
+	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Vigor));
 	CalcPlrItemVals(player, false);
 	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100 + 5 * oracool::VigorMoveSpeedPerRank);
 	oracool::ClearMovementSlows();
@@ -3012,7 +3015,7 @@ TEST(OracoolClassTree, PaladinSkillsGrowWithEveryLevel)
 	{
 		devilution::Player &p = FreshPaladin();
 		ASSERT_TRUE(oracool::InvestClassTreePoint(p, oracool::ClassTreeSkill::Cleansing));
-		ASSERT_TRUE(oracool::ToggleClassAura(p, oracool::ClassTreeSkill::Cleansing));
+		ASSERT_TRUE(oracool::SelectClassAura(p, oracool::ClassTreeSkill::Cleansing));
 		oracool::ClearMovementSlows();
 		oracool::SlowPlayer(p, 10, 30);
 		for (int i = 0; i < 7; i++)
@@ -3026,9 +3029,9 @@ TEST(OracoolClassTree, PaladinSkillsGrowWithEveryLevel)
 	{
 		devilution::Player &p = FreshPaladin();
 		ASSERT_TRUE(oracool::InvestClassTreePoint(p, oracool::ClassTreeSkill::Thorns));
-		ASSERT_TRUE(oracool::ToggleClassAura(p, oracool::ClassTreeSkill::Thorns));
+		ASSERT_TRUE(oracool::SelectClassAura(p, oracool::ClassTreeSkill::Thorns));
 		EXPECT_EQ(oracool::ThornsReturnPercent(p), 25);
-		ASSERT_TRUE(oracool::ToggleClassAura(p, oracool::ClassTreeSkill::Thorns));
+		oracool::ClearClassAuraForRightButton(p);
 		EXPECT_EQ(oracool::ThornsReturnPercent(p), 0);
 	}
 }
@@ -3038,7 +3041,7 @@ TEST(OracoolClassTree, AuraStateRoundTripsThroughTheChunkTail)
 	devilution::Player &writer = FreshPaladin();
 	ASSERT_TRUE(oracool::InvestClassTreePoint(writer, oracool::ClassTreeSkill::HolyFire));
 	ASSERT_TRUE(oracool::InvestClassTreePoint(writer, oracool::ClassTreeSkill::HolyFire));
-	ASSERT_TRUE(oracool::ToggleClassAura(writer, oracool::ClassTreeSkill::HolyFire));
+	ASSERT_TRUE(oracool::SelectClassAura(writer, oracool::ClassTreeSkill::HolyFire));
 	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(writer);
 
 	Players.resize(2);
@@ -8456,7 +8459,7 @@ TEST(OracoolHeroChunks, ALegacyAbsoluteAuraIsMigratedForClassesPastThePaladin)
 	bard._pMaxHP = 1000;
 	bard._pHitPoints = 1000;
 	bard._pUnspentSkillPoints = 10;
-	// The aura has to be paid for to burn at all - see ToggleClassAura.
+	// The aura has to be paid for to burn at all - see SelectClassAura.
 	ASSERT_TRUE(oracool::InvestClassTreePoint(bard, oracool::ClassTreeSkill::MelodyOfLife));
 
 	oracool::ApplyHeroChunks(bard, tail.data(), tail.size());
@@ -12407,14 +12410,14 @@ TEST(OracoolAudit, MovementSpeedIsAPercentageFromItemsAndVigorInSteps)
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor));
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor));
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor));
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
+	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Vigor));
 	CalcPlrItemVals(player, false);
 	EXPECT_EQ(oracool::MovementSpeedBonusPercent(player), 15 + 3 * oracool::VigorMoveSpeedPerRank);
 	oracool::ClearMovementSlows();
 	EXPECT_EQ(oracool::WalkFrameSkipFor(player), 1) << "130%: a seven-tick first stride";
 
 	// Off again: the ring alone.
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
+	oracool::ClearClassAuraForRightButton(player);
 	CalcPlrItemVals(player, false);
 	EXPECT_EQ(oracool::MovementSpeedBonusPercent(player), 15);
 
@@ -13911,7 +13914,7 @@ TEST(OracoolRfa12, ResistMagicGrantsItsResistanceAndItsLevelUpStatOnlyWhileLit)
 	EXPECT_EQ(unlit.magicResist, 0);
 	EXPECT_EQ(unlit.hitPoints, 0);
 
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::ResistMagic));
+	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::ResistMagic));
 	oracool::ItemBonusTotals lit;
 	oracool::ApplyClassTreeToTotals(player, lit);
 	EXPECT_EQ(lit.magicResist, 15 + 4 * 2);
@@ -13935,7 +13938,7 @@ TEST(OracoolRfa12, ImmovableHoldsItsGroundOnlyWhileItBurns)
 	devilution::Player &player = FreshHero(HeroClass::Warrior);
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Immovable));
 	EXPECT_FALSE(oracool::PlayerIgnoresKnockback(player));
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Immovable));
+	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Immovable));
 	EXPECT_TRUE(oracool::PlayerIgnoresKnockback(player));
 }
 
@@ -13944,7 +13947,7 @@ TEST(OracoolRfa12, MercyHealsOnceBelowThirtyPercentAndThenWaits)
 	oracool::ClearRfa12State();
 	devilution::Player &player = FreshHero(HeroClass::Warrior);
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Mercy));
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Mercy));
+	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Mercy));
 
 	player._pHitPoints = player._pHPBase = 50 << 6;
 	oracool::OnRfa12PlayerDamaged(player);
@@ -13966,7 +13969,7 @@ TEST(OracoolRfa12, EnduranceIsAShareOfTheBaseLife)
 	devilution::Player &player = FreshHero(HeroClass::Warrior);
 	for (int i = 0; i < 2; i++)
 		ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Endurance));
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Endurance));
+	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Endurance));
 	oracool::ItemBonusTotals totals;
 	oracool::ApplyClassTreeToTotals(player, totals);
 	EXPECT_EQ(totals.hitPoints, player._pMaxHPBase * 12 / 100) << "10%, +2% a rank";
@@ -13980,7 +13983,7 @@ TEST(OracoolRfa12, SymphonyOfWarLendsHalfOfEveryOtherMelodySong)
 	for (int i = 0; i < 4; i++)
 		ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::HuntersChant));
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::SymphonyOfWar));
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::SymphonyOfWar));
+	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::SymphonyOfWar));
 	oracool::ItemBonusTotals totals;
 	oracool::ApplyClassTreeToTotals(player, totals);
 	EXPECT_EQ(totals.bonusToHit, 15 + 5 * 1) << "Hunter's Chant at 2 of its 4 ranks";
@@ -14557,11 +14560,11 @@ TEST(OracoolAuditV188, EveryArtisanButtonHoverIsAHintCard)
 		sweep(oracool::GetWorkshopRect(), oracool::SetWorkshopHoverInfoString, host == oracool::WorkshopHost::Mystic ? "Ogden's workshop" : "Gillian's workshop");
 		oracool::ResetWorkshopForNewGame();
 	}
-	// The Cube's first page has no hover text on purpose (Transmute's plate says its word already), so it is swept for
-	// plain tooltips only; its Recipes page, turned to through the side tab as a click would, must answer with cards.
+	// The Cube's first page answers on its transmute diamond (a card since v1.12.214, dev note 2026-09-28); its Recipes
+	// page, turned to through the side tab as a click would, must answer with cards too.
 	oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Cube);
 	ASSERT_TRUE(oracool::IsLevskiRoarOpen());
-	sweep(oracool::GetLevskiRoarRect(), oracool::SetLevskiHoverInfoString, "Levski's Cube", /*mustAnswer=*/false);
+	sweep(oracool::GetLevskiRoarRect(), oracool::SetLevskiHoverInfoString, "Levski's Cube");
 	const Point recipesTab = oracool::GetSideTabRect(1).Center();
 	ASSERT_TRUE(oracool::CheckLevskiRoarClick(recipesTab, false)) << "test setup: the Cube's Recipes tab took no press";
 	MousePosition = recipesTab;
@@ -14908,7 +14911,7 @@ TEST(OracoolPreview, DISABLED_HeroSheet)
 	player._pStatPts = 5;
 	player._pMaxManaBase = player._pManaBase = 60 << 6;
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::ResistCold));
-	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::ResistCold));
+	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::ResistCold));
 	CalcPlrItemVals(player, false);
 	player._pHitPoints = player._pMaxHP * 9 / 10;
 	// A monster that hit the hero and one the hero attacked, so both odds bars show (2026-09-27).

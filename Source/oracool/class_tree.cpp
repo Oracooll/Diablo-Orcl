@@ -50,7 +50,7 @@ using Kind = ClassTreeKind;
  * One owner for the audio, at file scope, because two of them is what went wrong. Audit
  * finding, 2026-08-26 - and this one was mine, introduced with the death guard at v1.9.50.
  *
- * ToggleClassAura started the loop directly, and ProcessClassTreeTick kept its own separate
+ * SelectClassAura started the loop directly, and ProcessClassTreeTick kept its own separate
  * static of what it thought was playing. So the tick saw the same transition a second time
  * and started the loop AGAIN - and StartClassAuraLoop stops whatever is running first, so
  * lighting an aura produced start, then stop-and-start a tick later. An audible stutter on
@@ -1389,7 +1389,7 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		}
 		break;
 	case Skill::Rhythm:
-		// ToggleClassAura recalculates the sheet, so a song starting or stopping takes this with it.
+		// SelectClassAura recalculates the sheet, so a song starting or stopping takes this with it.
 		if (GetActiveClassAura(player) != Skill::None)
 			totals.flags |= ItemSpecialEffect::FastAttack;
 		break;
@@ -2404,7 +2404,7 @@ int RefundClassTreePoints(Player &player, Skill skill, int count)
 		rank = static_cast<uint8_t>(rank - taken);
 	}
 
-	// An aura at zero has no strength left to give, and ToggleClassAura already refuses to LIGHT one
+	// An aura at zero has no strength left to give, and SelectClassAura already refuses to LIGHT one
 	// in that state - so leaving it burning would be the one way to hold an aura the rules say you
 	// cannot have. Put out here rather than guarded at every reader.
 	if (GetClassTreeSkillData(skill).kind == Kind::Aura
@@ -2707,33 +2707,34 @@ Skill GetActiveClassAura(const Player &player)
 	return skill;
 }
 
-bool ToggleClassAura(Player &player, Skill skill)
+bool SelectClassAura(Player &player, Skill skill)
 {
 	if (skill > Skill::LAST || GetClassTreeSkillData(skill).kind != Kind::Aura)
 		return false;
 	if (!IsClassTreeSkillUnlocked(player, skill))
 		return false;
-	const bool switchingOff = GetActiveClassAura(player) == skill;
+	// Selecting the aura that is already burning keeps it burning (dev note, 2026-09-28: "selecting an aura while it
+	// is active should not turn it off"). Until then a second select put it out, so re-picking it from a menu or its
+	// hotkey doused it. It goes out when the right button is given another skill (ClearClassAuraForRightButton) or
+	// another aura is lit.
+	if (GetActiveClassAura(player) == skill)
+		return true;
 	// An aura with nothing invested has no strength to give, so lighting it would be a no-op that
-	// LOOKED like it worked. Switching one off is always allowed.
-	if (!switchingOff && ClassTreeInvestment(player, skill) <= 0)
+	// LOOKED like it worked.
+	if (ClassTreeInvestment(player, skill) <= 0)
 		return false;
-	player._pOracoolActiveAura = static_cast<uint16_t>(switchingOff ? Skill::None : skill);
+	player._pOracoolActiveAura = static_cast<uint16_t>(skill);
 	// The aura IS the right button's setting, so lighting one clears whatever skill was readied
 	// there. See ClearClassAuraForRightButton for the other half and the reasoning.
-	if (!switchingOff) {
-		player._pRSpell = SpellID::Invalid;
-		player._pRSplType = SpellType::Invalid;
-	}
+	player._pRSpell = SpellID::Invalid;
+	player._pRSplType = SpellType::Invalid;
 	if (&player == MyPlayer) {
 		const char *name = GetClassTreeSkillData(skill).name;
-		LogEvent(switchingOff ? fmt::format("{:s} fades", std::string(_(name)))
-		                      : fmt::format("{:s} burns", std::string(_(name))),
-		    UiFlags::ColorWhitegold);
+		LogEvent(fmt::format("{:s} burns", std::string(_(name))), UiFlags::ColorWhitegold);
 		// The persistent cue. StartClassAuraLoop stops whatever was running first, so switching
 		// straight from one aura to another is atomic in the order the sound package asks for: old
 		// loop down, old stop cue, new start cue, new loop up.
-		SetAuraLoop(switchingOff ? Skill::None : skill);
+		SetAuraLoop(skill);
 	}
 	// Same responsibility as ClearClassAuraForRightButton: lighting or dousing an aura changes what
 	// the character's totals should be, so this function makes that true rather than trusting the
@@ -2758,7 +2759,7 @@ void ClearClassAuraForRightButton(Player &player)
 	// Firebolt over a lit Might put the ring out, stopped the hum, and left the damage bonus
 	// running until something unrelated happened to recalculate.
 	//
-	// Done HERE rather than at the four call sites, which is the whole lesson: ToggleClassAura's
+	// Done HERE rather than at the four call sites, which is the whole lesson: SelectClassAura's
 	// one caller remembered and these four did not, and the next path added would have been a coin
 	// flip. A function that puts an aura out is responsible for the aura being out.
 	oracool::ScheduleAutoSaveForSkillChange();

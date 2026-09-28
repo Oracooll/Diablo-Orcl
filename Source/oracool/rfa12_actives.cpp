@@ -32,6 +32,7 @@
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/skill_sounds.h"
+#include "oracool/sprite_scale.h" // ScaleClxList: Votive Strike's half-size burst
 #include "oracool/stat_sheet.h"
 #include "oracool/warcries.h"
 #include "nthread.h" // ProgressToNextGameTick: Serenity's ring glides between ticks
@@ -2514,6 +2515,36 @@ void TickField(Player &player, Field &field)
 	}
 }
 
+/** @brief Votive Strike's burst: Holy Bolt's explosion at this share of its size (dev note, 2026-09-28). */
+constexpr unsigned VotiveBurstPercent = 50;
+
+/** @brief The half-size burst, built once from the loaded holyexpl; it owns its pixels, so a level reload leaves it whole. */
+std::optional<OwnedClxSpriteList> VotiveBurstSprites;
+
+/**
+ * @brief Votive Strike's impact (dev notes, 2026-09-28: "votive strike to use Holy Bolt Explosion animation on impact",
+ * then "scale down the holy bolt explosion to 50% size and tint infrared"): vanilla's holyexpl on the struck body, at
+ * half its size and in infravision's red, its centre where Holy Bolt's full-size burst puts it (the Blessed Shield
+ * flash's rule). Drawn only; the blow has landed.
+ */
+void VotiveBurst(const Player &player, Point tile)
+{
+	Missile *burst = Art(player, MissileGraphicID::HolyBoltExplosion, tile);
+	if (burst == nullptr || !burst->_miAnimData)
+		return;
+	if (!VotiveBurstSprites)
+		VotiveBurstSprites = ScaleClxList(*burst->_miAnimData, VotiveBurstPercent);
+	const int fullHeight = (*burst->_miAnimData)[0].height();
+	const ClxSpriteList scaled { *VotiveBurstSprites };
+	burst->_miAnimData = scaled;
+	burst->_miAnimLen = static_cast<int>(scaled.numSprites());
+	burst->_miAnimWidth = scaled[0].width();
+	burst->_miAnimWidth2 = CalculateWidth2(burst->_miAnimWidth);
+	burst->position.offset = burst->position.offset - Displacement { 0, (fullHeight - static_cast<int>(scaled[0].height())) / 2 };
+	burst->oracoolTint = Tint::Hue;
+	burst->oracoolTintRgb = Rgb(255, 56, 32);
+}
+
 /**
  * @brief RfA-27 batches 52-53: a swung skill's sheet - the arc or thrust from where he stood along his facing, drawn on
  * every swing the skill was paid for, and the strike flash on what the blow landed on (@p landedOn). Nothing while a
@@ -2540,7 +2571,10 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 	case SpellID::Crusade:
 		Art(player, MissileGraphicID::CrusadeSweep, from); // the ring-slash all round him, not along his facing
 		break;
-	case SpellID::VotiveStrike: flash = MissileGraphicID::VotiveStrike; break;
+	case SpellID::VotiveStrike:
+		if (landedOn)
+			VotiveBurst(player, *landedOn); // Holy Bolt's burst, half size, infrared (v1.12.214)
+		break;
 	case SpellID::Judgment: flash = MissileGraphicID::JudgmentStrike; break;
 	case SpellID::Oathbrand: flash = MissileGraphicID::OathbrandStrike; break;
 	case SpellID::Rend: flash = MissileGraphicID::RendStrike; break;

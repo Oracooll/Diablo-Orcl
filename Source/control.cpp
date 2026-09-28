@@ -37,6 +37,7 @@
 #include "minitext.h"
 #include "missiles.h"
 #include "options.h"
+#include "oracool/cursor_tooltip.h" // ShowPanelStringsAsHintCard - the HUD controls' card
 #include "oracool/attack_skills.h"
 #include "oracool/combat_odds.h"
 #include "oracool/auto_save.h"
@@ -1277,6 +1278,7 @@ void CheckPanelInfo()
 	if (hoveredMenuIcon >= 0) {
 		InfoString = oracool::GetHudMenuEntryLabel(hoveredMenuIcon);
 		InfoColor = UiFlags::ColorWhite;
+		oracool::ShowPanelStringsAsHintCard(); // the vendors' gold card on every HUD control (dev note, 2026-09-28)
 		panelflag = true;
 		return;
 	}
@@ -1288,6 +1290,7 @@ void CheckPanelInfo()
 		SetPanelString(_("Menu Bar"), UiFlags::ColorWhite);
 		AddPanelString(_("Click to open/close"));
 		InfoColor = UiFlags::ColorWhite;
+		oracool::ShowPanelStringsAsHintCard(); // the vendors' gold card on every HUD control (dev note, 2026-09-28)
 		panelflag = true;
 		return;
 	}
@@ -1295,6 +1298,7 @@ void CheckPanelInfo()
 		SetPanelString(_("Town Portal"), UiFlags::ColorWhite);
 		AddPanelString(_("Click to open."));
 		InfoColor = UiFlags::ColorWhite;
+		oracool::ShowPanelStringsAsHintCard(); // the vendors' gold card on every HUD control (dev note, 2026-09-28)
 		panelflag = true;
 		return;
 	}
@@ -1323,6 +1327,7 @@ void CheckPanelInfo()
 		    oracool::MovementSpeedPercent(*MyPlayer)));
 		AddPanelString(_("Click to switch. Also the R key."));
 		InfoColor = UiFlags::ColorWhite;
+		oracool::ShowPanelStringsAsHintCard(); // the vendors' gold card on every HUD control (dev note, 2026-09-28)
 		panelflag = true;
 		return;
 	}
@@ -1356,6 +1361,7 @@ void CheckPanelInfo()
 		}
 		AddPanelString(_("Click here for abilities"));
 		InfoColor = UiFlags::ColorWhite;
+		oracool::ShowPanelStringsAsHintCard(); // the vendors' gold card on every HUD control (dev note, 2026-09-28)
 		panelflag = true;
 		return;
 	}
@@ -1416,6 +1422,7 @@ void CheckPanelInfo()
 		// well returns and so keeps its tooltip; this one fell through and lost it every frame.
 		//
 		// Which is why the report reads as "there is no tooltip" rather than "the tooltip is wrong".
+		oracool::ShowPanelStringsAsHintCard(); // the vendors' gold card on every HUD control (dev note, 2026-09-28)
 		panelflag = true;
 		return;
 	}

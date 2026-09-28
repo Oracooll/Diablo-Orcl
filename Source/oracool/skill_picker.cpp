@@ -22,6 +22,7 @@
 #include "oracool/badge.h"
 #include "oracool/auto_save.h"
 #include "oracool/class_tree.h"
+#include "oracool/cursor_tooltip.h" // ShowPanelStringsAsHintCard - the menus' card
 #include "oracool/furious_charge.h" // GetSpellDisplayName
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
@@ -609,6 +610,9 @@ void DrawSkillPicker(const Surface &out)
 				        : (entry.spell != SpellID::Invalid
 				                  ? BuildSpellStatBlock(entry.spell, /*withNext=*/false)
 				                  : std::string {}));
+				// The vendors' gold card (dev note, 2026-09-28: "the tooltip design for griswold buttons - apply to
+				// tooltips for lmb/rmb menus and hud tooltips").
+				ShowPanelStringsAsHintCard();
 			}
 		}
 		y += RowsFor(count) * IconSize + (RowsFor(count) - 1) * CellGap + SectionGap;
@@ -788,12 +792,12 @@ bool CheckSkillPickerClick(Point mousePosition)
 				break;
 			case EntryKind::Tree:
 				if (GetClassTreeSkillData(entry.tree).kind == ClassTreeKind::Aura) {
-					// An aura is a toggle, not a binding: either button lights it, and clicking a
-					// burning one puts it out. It has no business on the left button and never
+					// An aura is lit, not bound: either button lights it, and picking the one already burning
+					// keeps it burning (dev note, 2026-09-28). It has no business on the left button and never
 					// displaces what is there.
 					//
-					// No interface click: lighting or dousing plays the aura's own start or stop cue.
-					ToggleClassAura(player, entry.tree);
+					// No interface click: lighting plays the aura's own start cue.
+					SelectClassAura(player, entry.tree);
 					CalcPlrInv(player, false);
 					break;
 				}

@@ -970,7 +970,7 @@ bool CanRefundClassTreePoint(const Player &player, ClassTreeSkill skill);
  * points at will"). There is no respec cost and no confirmation, which is what makes the trees a
  * place to experiment rather than a set of decisions to regret.
  *
- * Puts out an aura that this drops to zero: ToggleClassAura already refuses to LIGHT an aura with
+ * Puts out an aura that this drops to zero: SelectClassAura already refuses to LIGHT an aura with
  * nothing invested, so leaving one burning would be the only way to hold a state the rules forbid.
  */
 bool RefundClassTreePoint(Player &player, ClassTreeSkill skill);
@@ -991,10 +991,10 @@ int RefundClassTreePoints(Player &player, ClassTreeSkill skill, int count);
 ClassTreeSkill GetActiveClassAura(const Player &player);
 
 /**
- * @brief Click rule for an aura row: activates @p skill, or switches it off if already burning.
+ * @brief Click rule for an aura row: lights @p skill; one already burning stays lit (dev note, 2026-09-28).
  * Refuses a non-aura, a locked tier, the wrong class, or an aura with nothing invested in it.
  */
-bool ToggleClassAura(Player &player, ClassTreeSkill skill);
+bool SelectClassAura(Player &player, ClassTreeSkill skill);
 
 /**
  * @brief Puts out whatever aura is burning, because the right button has just been given a skill.
@@ -1005,7 +1005,7 @@ bool ToggleClassAura(Player &player, ClassTreeSkill skill);
  * alternative was the state that broke v1.7.91, where an aura sat on the well and hid every skill
  * readied afterwards.
  *
- * So: lighting an aura clears the readied right-button skill (ToggleClassAura does that end), and
+ * So: lighting an aura clears the readied right-button skill (SelectClassAura does that end), and
  * readying a right-button skill calls this. No third state, and nothing invisible.
  */
 void ClearClassAuraForRightButton(Player &player);

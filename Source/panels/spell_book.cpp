@@ -1652,7 +1652,7 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 	// Shift stays as a tiebreak for saves from before 2026-09-07, when F3-left and F3-right could
 	// still name two different skills. A bind now empties the key on both buttons first
 	// (ClearHotkeySlotOnBothButtons), so a fresh binding never has two sides to choose between.
-	// An aura on this key toggles it, and takes precedence: nothing else can be on the same key,
+	// An aura on this key lights it (and keeps a burning one lit), and takes precedence: nothing else can be on the same key,
 	// because binding one clears both spell arrays for that slot.
 	if (me._pAuraHotKey[slot] != 0xFFFF) {
 		const auto aura = static_cast<oracool::ClassTreeSkill>(me._pAuraHotKey[slot]);
@@ -1660,7 +1660,7 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 		// binding and the press, and RefreshInnateSpells cannot clear this array because an aura
 		// is not in _pAblSpells to begin with.
 		if (oracool::ClassTreeInvestment(me, aura) > 0) {
-			oracool::ToggleClassAura(me, aura);
+			oracool::SelectClassAura(me, aura);
 			CalcPlrInv(me, false);
 			oracool::ScheduleAutoSaveForSkillChange();
 			RedrawEverything();

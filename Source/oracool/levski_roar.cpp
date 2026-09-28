@@ -1311,12 +1311,25 @@ bool SetLevskiHoverInfoString()
 				continue; // not drawn there, so not hoverable (Griswold's plates)
 			if (!ButtonRect(window, i).contains(MousePosition))
 				continue;
-			// Transmute says nothing (user, 2026-09-12: "remove the pop up text when hovering over
-			// Transmute button in Levskis Roar"). Its plate is painted with the word already, so the
-			// info line was repeating it. Returning rather than continuing: the cursor is on a
-			// button, so there is nothing else under it for the grid check below to find.
-			if (i == levski_skin::Transmute)
-				return false;
+			// Transmute - the painted diamond on the Cube, the plate in the artisans' books - wears the gold card
+			// (dev note, 2026-09-28: "add golden tooltip to transmute buttons, including the diamond in levski's
+			// cube"). Silent since 2026-09-12, when a one-line tooltip only repeated the word on the plate; the card
+			// says what a press would do: the recipe it would run, the one picked that is not ready, or how to begin.
+			if (i == levski_skin::Transmute) {
+				SetPanelString(_("Transmute"), UiFlags::ColorWhitegold);
+				const int ready = SelectedRecipe >= 0 ? SelectedRecipe : FirstReadyLevskiRecipeFor(GridItems, WindowHost);
+				if (ready >= 0 && CanCraftFromLevskiGrid(GridItems, ready)) {
+					AddPanelString(StrCat(_("Makes: "), _(CraftingRecipeName(ready))), UiFlags::ColorGold);
+					AddPanelString(_("Click to transmute what is in the grid."), UiFlags::ColorWhite);
+				} else if (SelectedRecipe >= 0) {
+					AddPanelString(StrCat(_(CraftingRecipeName(SelectedRecipe)), _(" is not ready")), UiFlags::ColorRed);
+					AddPanelString(_(CraftingRecipeInputs(SelectedRecipe)), UiFlags::ColorWhite);
+				} else {
+					AddPanelString(_("Put a recipe's ingredients in the grid, then click here."), UiFlags::ColorWhite);
+				}
+				ShowPanelStringsAsHintCard();
+				return true;
+			}
 			// A card with a body, as the vendors' are: the title alone was the whole tooltip.
 			if (i == levski_skin::Recipes) {
 				SetPanelString(_("Recipes"), UiFlags::ColorWhitegold);

@@ -5,6 +5,7 @@
 #include <fmt/format.h>
 
 #include "control.h"
+#include "oracool/cursor_tooltip.h" // ShowPanelStringsAsHintCard - the spell list's card
 #include "oracool/class_tree.h" // the lit aura owns the RMB well
 #include "controls/plrctrls.h"
 #include "engine.h"
@@ -334,6 +335,7 @@ void DrawSpellList(const Surface &out)
 		if (fullHotkeyName) {
 			AddPanelString(fmt::format(fmt::runtime(_("Spell Hotkey {:s}")), *fullHotkeyName));
 		}
+		oracool::ShowPanelStringsAsHintCard(); // the vendors' gold card (dev note, 2026-09-28)
 	}
 }
 
