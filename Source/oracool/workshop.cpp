@@ -3,6 +3,8 @@
 #include <SDL.h>
 #include <algorithm>
 #include <array>
+#include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -808,6 +810,7 @@ void TakeFromStash(int idx, int count)
 		} else {
 			item.setStackCount(units - owed);
 			owed = 0;
+			Stash.dirty = true; // a partial take is a change too (audit, 2026-09-29: unsaved, the stack came back on reload - a duplicate)
 		}
 	}
 }
@@ -1334,7 +1337,7 @@ void DrawServiceIcon(const Surface &out, Control control, const char *glyph, boo
 	                                  (page.position.x + InnerRight) - (rect.position.x + rect.size.width - 1) }));
 	const Rectangle line { { rect.position.x - overhang, page.position.y + MysticPriceRowTop },
 		{ rect.size.width + 2 * overhang, ServicePriceHeight } };
-	const bool afford = price <= 0 || static_cast<int>(TotalPlayerGold()) >= price;
+	const bool afford = price <= 0 || static_cast<int64_t>(TotalPlayerGold()) >= price;
 	DrawString(out, price > 0 ? FormatInteger(price) : std::string { _("Free") }, line,
 	    { (afford ? UiFlags::ColorWhitegold : UiFlags::ColorRed) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 }
@@ -2090,7 +2093,7 @@ void DrawWorkshop(const Surface &out)
 	if (Host == WorkshopHost::Mystic) {
 		if (GetLoosePngSize(BoardGoldIconAsset).width > 0)
 			DrawLoosePng(out, BoardGoldIconAsset, page.position + Displacement { BoardGoldIconAt.x, BoardGoldIconAt.y });
-		DrawString(out, FormatInteger(static_cast<int>(TotalPlayerGold())), Panel(BoardGoldCountRect),
+		DrawString(out, FormatInteger(static_cast<int>(std::min<uint32_t>(TotalPlayerGold(), static_cast<uint32_t>(std::numeric_limits<int>::max())))), Panel(BoardGoldCountRect),
 		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 	// The big message panel belongs to the MYSTIC's two tabs, which is where its offers menu lives.
@@ -2408,7 +2411,7 @@ void RunControl(Control control)
 			break;
 		}
 		const int price = RerollPrice(Bench);
-		if (static_cast<int>(TotalPlayerGold()) < price) {
+		if (static_cast<int64_t>(TotalPlayerGold()) < price) {
 			SetBoard(std::string(_("You do not have enough gold.")));
 			break;
 		}
@@ -2488,7 +2491,7 @@ void RunControl(Control control)
 			break;
 		}
 		const int price = RemovePrice(Bench);
-		if (static_cast<int>(TotalPlayerGold()) < price) {
+		if (static_cast<int64_t>(TotalPlayerGold()) < price) {
 			SetBoard(std::string(_("You do not have enough gold.")));
 			break;
 		}
@@ -2505,7 +2508,8 @@ void RunControl(Control control)
 		const int durabilityBefore = Bench._iDurability;
 		StripImbuements(Bench);
 		RestoreImbuements(Bench, kept);
-		Bench._iDurability = std::min(durabilityBefore, Bench._iMaxDur);
+		// Zod's indestructible stamp stays (audit, 2026-09-29: clamped to the maximum, the item wore down again).
+		Bench._iDurability = durabilityBefore == DUR_INDESTRUCTIBLE ? DUR_INDESTRUCTIBLE : std::min(durabilityBefore, Bench._iMaxDur);
 		SelectedRow = -1;
 		SetBoard(StrCat(_(def.name), " ", _("drawn out and destroyed.")));
 		if (!PlayUiEventSound(UiEventSound::ShardImbue))
@@ -2524,7 +2528,7 @@ void RunControl(Control control)
 			break;
 		}
 		const int price = CleansePrice(Bench);
-		if (static_cast<int>(TotalPlayerGold()) < price) {
+		if (static_cast<int64_t>(TotalPlayerGold()) < price) {
 			SetBoard(std::string(_("You do not have enough gold.")));
 			break;
 		}

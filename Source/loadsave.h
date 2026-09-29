@@ -62,6 +62,8 @@ void SaveStash(SaveWriter &stashWriter);
  * LoadHeroItems does - the hero-select preview reads slots other than the selected one.
  */
 void LoadInventoryTabs(Player &player, uint32_t saveNumber);
+/** @brief Whether this game's extra-page file was there but could not be read: the pages are empty and locked. */
+extern bool InvTabsFileRefused;
 /** @brief Saves the Oracool Tabbed Inventory's 9 extra backpack pages; call alongside SaveHeroItems. */
 void SaveInventoryTabs(SaveWriter &saveWriter, const Player &player);
 

@@ -1658,6 +1658,8 @@ TEST(OracoolLevskiRoar, FreeingSocketsReturnsTheStonesAndTheItem)
 	sword._iMaxDur = 40;
 	sword._iDurability = DUR_INDESTRUCTIBLE; // as a Zod would have left it
 	std::strcpy(sword._iIName, "Steel");
+	// El and Tir in a helm complete no word, so "Steel" is the item's own name, not a runeword's.
+	ASSERT_EQ(oracool::GetActiveRuneword(sword), nullptr);
 
 	ASSERT_TRUE(oracool::CanCraftFromLevskiGrid(grid, 3));
 	EXPECT_FALSE(oracool::TransmuteLevskiGrid(grid).empty());
@@ -1668,7 +1670,9 @@ TEST(OracoolLevskiRoar, FreeingSocketsReturnsTheStonesAndTheItem)
 	EXPECT_EQ(sword._iSocketCount, 2) << "the sockets themselves were lost";
 	EXPECT_EQ(sword.socketedCount(), 0) << "the sockets were not emptied";
 	EXPECT_EQ(sword._iDurability, 40) << "the host stayed indestructible after Zod came out";
-	EXPECT_STREQ(sword._iIName, "") << "the runeword name outlived its runes";
+	// Only a completed word's name goes with its runes (audit, 2026-09-29: every host's name was blanked - a magic, rare
+	// or set host's for good).
+	EXPECT_STREQ(sword._iIName, "Steel") << "freeing stones that made no word took the item's own name";
 
 	int el = 0;
 	int tir = 0;
@@ -14534,6 +14538,38 @@ TEST(OracoolAuditV188, MysticRebuildKeepsElementalDamageRanges)
 	for (int i = 0; ItemSuffixes[i].power.type != IPL_INVALID; i++)
 		check(ItemSuffixes[i]);
 	EXPECT_EQ(rows, 8) << "Flaming, Lightning, three fire-arrow rows and three lightning-arrow rows";
+}
+
+// Audit, 2026-09-29: the Mystic's rework rerolled the base armour (GetItemAttrs, unseeded), and clamped a socketed
+// Zod's indestructible stamp away. The base's rolls come from the item's own seed now, and the stamp stays.
+TEST(OracoolAudit, MysticReworkKeepsTheBaseArmourAndZod)
+{
+	devilution::Player &player = AuditV188Hero();
+	int armour = -1;
+	for (int i = 0; i <= IDI_LAST && armour < 0; i++) {
+		if (AllItemsList[i].iClass == ICLASS_ARMOR && AllItemsList[i].iMaxAC > AllItemsList[i].iMinAC + 4)
+			armour = i;
+	}
+	ASSERT_GE(armour, 0) << "no armour base with an armour range";
+	for (const uint32_t seed : { 11U, 222U, 3333U, 44444U, 555555U }) {
+		devilution::Item item {};
+		SetRndSeed(seed);
+		GetItemAttrs(item, static_cast<_item_indexes>(armour), 30);
+		item._iSeed = seed;
+		item._iOracoolItemLevel = 30;
+		item._iIdentified = true;
+		const int baseArmour = item._iAC;
+		ASSERT_TRUE(RebuildOracoolItemWithAffixes(player, item, nullptr, 0));
+		EXPECT_EQ(item._iAC, baseArmour) << "seed " << seed << ": the rework rerolled the base armour";
+	}
+	devilution::Item zod {};
+	SetRndSeed(7);
+	GetItemAttrs(zod, static_cast<_item_indexes>(armour), 30);
+	zod._iSeed = 7;
+	zod._iOracoolItemLevel = 30;
+	zod._iDurability = DUR_INDESTRUCTIBLE; // Zod's stamp: the maximum is left as it was
+	ASSERT_TRUE(RebuildOracoolItemWithAffixes(player, zod, nullptr, 0));
+	EXPECT_EQ(zod._iDurability, DUR_INDESTRUCTIBLE) << "the rework undid Zod";
 }
 
 // WORLD-01: a town portal cast inside a rift outlived the rift. Closing it must close the portal, and

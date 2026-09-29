@@ -34,7 +34,7 @@
 #include "missiles.h"
 #include "movie.h"
 #include "options.h"
-#include "oracool/chill.h"
+#include "oracool/chill.h"
 #include "oracool/combat_odds.h"
 #include "oracool/cold.h"
 #include "oracool/event_log.h"
@@ -4917,9 +4917,17 @@ void CompanionAi(Monster &companion)
 	// Talic's spin runs itself (oracool/companion.h) until nothing is beside him - unless the stance forbids fighting or
 	// his owner is past the leash, which end it at once (audit, 2026-09-29: a spin ignored both).
 	if (oracool::IsCompanionSpinning(companion)) {
-		if (orders.attacks && distance <= orders.leash)
+		if (!orders.attacks) {
+			oracool::StopCompanionSpin(companion);
+		} else if (distance <= orders.leash) {
 			return;
-		oracool::StopCompanionSpin(companion);
+		} else {
+			// Past the leash: he breaks off only if he can step away (audit of the fix, 2026-09-29) - stopped and hemmed in,
+			// the target picker below restarted the spin every tick and he froze, drawn spinning, never striking.
+			if (CompanionStepToward(companion, orders.home))
+				oracool::StopCompanionSpin(companion);
+			return;
+		}
 	}
 
 	if (distance > orders.regroup && PlaceCompanionNear(companion, orders.owner, 3)) {

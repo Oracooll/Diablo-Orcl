@@ -14,6 +14,11 @@
 #include "oracool/advanced_stats.h"
 #include "oracool/hud_layout.h" // IsPointOverFloatingWindow
 #include "oracool/inventory_layout.h"
+#include "oracool/melee_skills.h" // the latches Interact disarms
+#include "oracool/paladin_melee.h"
+#include "oracool/rfa12_actives.h"
+#include "oracool/rogue_arrows.h"
+#include "oracool/weapon_throw.h"
 #include "controls/controller_motion.h"
 #ifndef USE_SDL1
 #include "controls/devices/game_controller.h"
@@ -505,6 +510,14 @@ bool IsStandingGround()
 
 void Interact()
 {
+	// The plain attack, so no earlier skill's latch may ride it - the rule the mouse's LeftMouseCmd and RightMouseBasicAttack
+	// follow (audit, 2026-09-29: on a gamepad the last bow or melee skill fired again, and was paid for, on every attack).
+	oracool::ArmMeleeSkill(std::nullopt);
+	oracool::ArmArrowSkill(std::nullopt);
+	oracool::ArmClassMeleeSkill(std::nullopt);
+	oracool::ArmWeaponThrow(std::nullopt);
+	oracool::ArmRfa12Melee(std::nullopt);
+
 	if (leveltype == DTYPE_TOWN && pcursmonst != -1) {
 		NetSendCmdLocParam1(true, CMD_TALKXY, Towners[pcursmonst].position, pcursmonst);
 		return;

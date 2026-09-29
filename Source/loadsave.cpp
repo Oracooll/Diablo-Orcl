@@ -8,6 +8,7 @@
 #include <climits>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <numeric>
 #include <unordered_map>
 
@@ -2889,6 +2890,25 @@ void SaveHotkeys(SaveWriter &saveWriter, const Player &player)
 bool StashFileRefused = false;
 bool InvTabsFileRefused = false;
 
+namespace {
+
+/**
+ * @brief Refuses the extra-page file mid-read (audit, 2026-09-29): nothing of it stays loaded and the pages lock
+ * (IsInventoryTabLocked) for the game. What a partial read had put on the pages could otherwise be moved to the backpack
+ * - saved there, while the untouched file still held it (a duplicate) - and what was put on them was never saved.
+ */
+void RefuseInvTabsFile(Player &player)
+{
+	InvTabsFileRefused = true;
+	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
+		player.InvTabList[t] = {};
+		player.InvTabGrid[t] = {};
+		player._pNumInvTab[t] = 0;
+	}
+}
+
+} // namespace
+
 bool LoadHeroItems(Player &player, uint32_t saveNumber)
 {
 	// The slot is a PARAMETER, not the gSaveNumber global (external audit, 2026-08-17): the
@@ -3003,7 +3023,8 @@ void LoadStash()
 		return;
 	}
 
-	Stash.gold = file.NextLE<uint32_t>();
+	// Clamped: the field is an int, and a corrupt value past INT_MAX turned negative (audit, 2026-09-29).
+	Stash.gold = static_cast<int>(std::min<uint32_t>(file.NextLE<uint32_t>(), static_cast<uint32_t>(std::numeric_limits<int>::max())));
 
 	auto pages = file.NextLE<uint32_t>();
 	// Self-audit (2026-08-15): bound `pages` BEFORE the loop below trusts it. IsStashSizeValid
@@ -3015,8 +3036,11 @@ void LoadStash()
 	// per session - this fork's autosave rewrites it constantly, so a torn write is a matter of time.
 	constexpr size_t PageSaveSize = sizeof(uint32_t) + StashGridColumns * StashGridRows * sizeof(uint16_t);
 	if (pages > file.Size() / PageSaveSize) {
+		// A torn file is refused, not emptied (audit, 2026-09-29): cleared with the flag unset, the first gold picked up
+		// (single-player gold goes to the stash) marked it dirty and the next save wrote an empty stash over every hero's.
 		Stash = {};
-		EventPlrMsg(_("Stash size invalid. If you attempt to access your stash, data will be overwritten!!"), UiFlags::ColorRed);
+		StashFileRefused = true;
+		EventPlrMsg(_("The Stash file could not be read. It is left untouched and will not be saved over this game."), UiFlags::ColorRed);
 		return;
 	}
 	for (unsigned i = 0; i < pages; i++) {
@@ -3030,8 +3054,11 @@ void LoadStash()
 
 	auto itemCount = file.NextLE<uint32_t>();
 	if (!IsStashSizeValid(file.Size(), version, pages, itemCount)) {
+		// A torn file is refused, not emptied (audit, 2026-09-29): cleared with the flag unset, the first gold picked up
+		// (single-player gold goes to the stash) marked it dirty and the next save wrote an empty stash over every hero's.
 		Stash = {};
-		EventPlrMsg(_("Stash size invalid. If you attempt to access your stash, data will be overwritten!!"), UiFlags::ColorRed);
+		StashFileRefused = true;
+		EventPlrMsg(_("The Stash file could not be read. It is left untouched and will not be saved over this game."), UiFlags::ColorRed);
 		return;
 	}
 	Stash.stashList.resize(itemCount);
@@ -3124,8 +3151,10 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 	}
 
 	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
-		if (!file.IsValid())
-			return; // corrupt/truncated stream; tabs already loaded stay loaded
+		if (!file.IsValid()) {
+			RefuseInvTabsFile(player); // corrupt/truncated stream (audit, 2026-09-29)
+			return;
+		}
 
 		for (int8_t &cell : player.InvTabGrid[t])
 			cell = file.NextLE<int8_t>();
@@ -3134,8 +3163,8 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 		if (itemCount > InventoryGridCells) {
 			// The grid just read goes too (audit, 2026-09-27): its cells name items this record never wrote, and a cell past
 			// the page's count indexed its list out of range on the first draw.
-			player.InvTabGrid[t] = {};
-			return; // implausible count; stop here, tabs already loaded stay loaded
+			RefuseInvTabsFile(player); // implausible count (audit, 2026-09-29)
+			return;
 		}
 
 		// Self-audit (2026-08-15): the grid must agree with the count it was saved beside. A cell is
@@ -3173,8 +3202,10 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 
 		player._pNumInvTab[t] = itemCount;
 		for (uint8_t i = 0; i < itemCount; i++) {
-			if (!file.IsValid())
+			if (!file.IsValid()) {
+				RefuseInvTabsFile(player); // truncated mid-page (audit, 2026-09-29)
 				return;
+			}
 			LoadAndValidateItemData(file, player.InvTabList[t][i]);
 		}
 

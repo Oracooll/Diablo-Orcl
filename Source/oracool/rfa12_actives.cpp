@@ -955,10 +955,13 @@ int ManaFlowPerTick(int r)
 	return 2 + (r - 1);
 }
 
-/** @brief Teeth: the teeth that fly on down the line, past the three of the fan. */
+/** @brief How far Teeth's line reaches, in tiles. */
+constexpr int TeethLineTiles = 6;
+
+/** @brief Teeth: the teeth that fly on down the line, past the three of the fan - no more than the line has tiles. */
 int TeethDownTheLine(int r)
 {
-	return 2 + r;
+	return std::min(2 + r, TeethLineTiles);
 }
 
 /** @brief Bone Armor's shell, in whole points. */
@@ -2093,14 +2096,19 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// A fan: the front arc's three tiles, and one more tooth a rank flies on to the next monster in the line.
 		bool any = false;
 		const Range d = SkillDamage(spell, r);
+		std::vector<const Monster *> struck;
 		for (const Point tile : FrontArc(player, target)) {
 			Monster *m = FindMonsterAtPosition(tile);
 			if (m == nullptr || !Hittable(*m))
 				continue;
 			BoneStrike(player, *m, Rolled(d));
+			struck.push_back(m);
 			any = true;
 		}
-		auto line = MonstersOnLine(here, target, 6);
+		// Down the line, past the fan: the line starts on the fan's middle tile, whose monster already took a tooth (audit,
+		// 2026-09-29 - it took two).
+		auto line = MonstersOnLine(here, target, TeethLineTiles);
+		line.erase(std::remove_if(line.begin(), line.end(), [&](const Monster *m) { return std::find(struck.begin(), struck.end(), m) != struck.end(); }), line.end());
 		if (line.size() > static_cast<size_t>(TeethDownTheLine(r)))
 			line.resize(static_cast<size_t>(TeethDownTheLine(r)));
 		for (Monster *m : line) {
@@ -2110,7 +2118,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// The fan itself (batch 38): a tooth to each arc tile and one down the line.
 		for (const Point tile : FrontArc(player, target))
 			Bolt(player, MissileID::BoneToothBolt, tile);
-		Bolt(player, MissileID::BoneToothBolt, Clamped(here, target, 6));
+		Bolt(player, MissileID::BoneToothBolt, Clamped(here, target, TeethLineTiles));
 		if (!MissileArtLoaded(MissileGraphicID::BoneTooth))
 			Ring(player, here);
 		return any;

@@ -125,7 +125,9 @@ bool IsWhirlwinding(const Player &player)
 
 bool StartWhirlwind(Player &player)
 {
-	if (&player != MyPlayer || leveltype == DTYPE_TOWN || player._pHitPoints >> 6 <= 0)
+	// Only the readied Whirlwind spins (audit, 2026-09-29): Quick Cast from an F-key while the right button held another
+	// skill started it, paid 5 Rage, and the next tick stopped it.
+	if (&player != MyPlayer || leveltype == DTYPE_TOWN || player._pHitPoints >> 6 <= 0 || player._pRSpell != SpellID::Whirlwind)
 		return false;
 	if (!CanPaySkill(player, SpellID::Whirlwind))
 		return false;
@@ -142,6 +144,9 @@ bool StartWhirlwind(Player &player)
 	const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, SpellID::Whirlwind);
 	if (row != ClassTreeSkill::None)
 		PlaySkillSound(row, SkillSoundEvent::Cast);
+	// The first blow with the start (audit of the fix, 2026-09-29): with just the start's 5 Rage, the drain emptied the
+	// pool before the fifth tick's strike, and the press was paid for with nothing landed.
+	Strike(player);
 	Glide(player);
 	return true;
 }

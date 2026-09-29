@@ -10,6 +10,7 @@
 #include <cmath>
 #include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "DiabloUI/ui_flags.hpp"
@@ -97,6 +98,9 @@ TransmuteHost WindowHost = TransmuteHost::Cube;
 int CubeListScroll = 0;
 /** @brief The painted Cube UI's button held down (levski_skin::Transmute / Recipes) or -1, and the one under the cursor last frame. */
 int PressedCubeButton = -1;
+/** @brief The X and the Transmute button pressed, acted on at the release (audit, 2026-09-29). */
+bool PressedCloseButton = false;
+bool PressedTransmute = false;
 int LastHoverCubeButton = -1;
 
 /**
@@ -1361,9 +1365,80 @@ bool SetLevskiHoverInfoString()
 	return true;
 }
 
+namespace {
+
+/**
+ * @brief The Transmute button's work, run on its release (audit, 2026-09-29: it ran on the press, against the game-wide
+ * rule that a button acts on a release inside it).
+ */
+bool RunLevskiTransmute()
+{
+	// TRANSACTIONAL. The recipes rewrite GridItems with no idea of footprints, and freeing
+	// sockets is the one that gives back more than it takes - so the repack afterwards can find
+	// it has nowhere to put something. Before this snapshot the repack simply dropped whatever
+	// would not fit, and a rune or a jewel stopped existing with no message. TransmuteLevskiGrid
+	// pre-checks the footprints now, so a rollback here should be unreachable; it stays because
+	// "should be unreachable" is not a guarantee to stake a player's stones on, and the next
+	// recipe added will not remember to ask.
+	Item snapshotItems[LevskiGridSlots];
+	int8_t snapshotCells[LevskiGridSlots];
+	std::copy(std::begin(GridItems), std::end(GridItems), snapshotItems);
+	std::copy(std::begin(GridCells), std::end(GridCells), snapshotCells);
+
+	// Asked BEFORE the transmute, because the transmute reports what it MADE and a refusal made
+	// nothing. A selected recipe that cannot run has to say so out loud - a Transmute button
+	// that silently does nothing is the exact ambiguity this fork has shipped twice already.
+	if (SelectedRecipe >= 0 && !CanCraftFromLevskiGrid(GridItems, SelectedRecipe)) {
+		LogEvent(StrCat("Levski's Cube: ", _(CraftingRecipeName(SelectedRecipe)), " is not ready"));
+		return true;
+	}
+	// With no recipe picked, the readiest recipe of THIS host's book - never another host's.
+	const int recipe = SelectedRecipe >= 0 ? SelectedRecipe : FirstReadyLevskiRecipeFor(GridItems, WindowHost);
+	const std::string result = recipe >= 0 ? TransmuteLevskiGridWith(GridItems, recipe) : std::string {};
+	if (!RebuildGridOccupancy()) {
+		std::copy(std::begin(snapshotItems), std::end(snapshotItems), GridItems);
+		std::copy(std::begin(snapshotCells), std::end(snapshotCells), GridCells);
+		LogEvent("Levski's Roar: not enough room - nothing was transmuted");
+		return true;
+	}
+	// STAMP USABILITY on everything the transmute left behind (user, 2026-08-28: "picking up a
+	// crafted item the first time colors it in RED").
+	//
+	// It was red because _iStatFlag was false. Nothing in the crafting path ever set it - the
+	// recipes build items and hand them back, and the flag is normally written by CalcPlrInv,
+	// which walks the worn slots and the backpack and has no idea this grid exists. So a fresh
+	// item sat here with the flag clear, DrawItem read that as "the character cannot use this"
+	// and tinted it through the infravision TRN, which is red. It corrected itself the moment
+	// the item reached the backpack and CalcPlrInv ran over it, which is exactly why it was only
+	// ever seen once per item.
+	for (Item &item : GridItems) {
+		if (!item.isEmpty())
+			item._iStatFlag = MyPlayer->CanUseItem(item);
+	}
+	if (!result.empty())
+		LogEvent(StrCat("Levski's Cube: ", result));
+	// Salvage's sound for a transmute that MADE something. The room refusals consumed nothing
+	// and stay as quiet as the other refusals above; crafting.cpp owns their wording.
+	// The Cube's own flash (RfA-20 batch 43d) on its book; the artisans keep the salvage-era sound.
+	if (!result.empty() && !IsTransmuteRefusal(result)
+	    && !(WindowHost == TransmuteHost::Cube && PlayUiEventSound(UiEventSound::CubeTransmute))
+	    && !PlayUiEventSound(UiEventSound::Transmute))
+		PlaySFX(IS_ISHIEL); // the old stand-in, if the transmute sound is not in the archive
+	return true;
+}
+
+} // namespace
+
 bool IsLevskiRoarOpen() { return WindowOpen; }
 void ReleaseLevskiButtons()
 {
+	// What was pressed, read before it is cleared below: the Cube's controls act only on a release inside the control
+	// pressed (audit, 2026-09-29 - the X, Recipes, Transmute, the salvage plates and the hammer acted on the press, and a
+	// bulk salvage plate destroyed every matching item with no way to slide off it).
+	const bool closePressed = std::exchange(PressedCloseButton, false);
+	const bool transmutePressed = std::exchange(PressedTransmute, false);
+	const int cubeButtonPressed = PressedCubeButton;
+	const int salvageIconPressed = PressedSalvageIcon;
 	// The Cube's tabs spring back with everything else, and the page turns only if the release landed
 	// back inside the tab that was pressed. Always cleared, so a press that outlived its window
 	// cannot turn a page later.
@@ -1394,6 +1469,56 @@ void ReleaseLevskiButtons()
 	}
 	PressedCubeButton = -1;
 	PressedSalvageIcon = -1; // Griswold's salvage icons spring back too (2026-09-21)
+	if (WindowOpen) {
+		const Rectangle window = GetLevskiRoarRect();
+		if (closePressed) {
+			if (CloseButtonRect(window).contains(MousePosition)) {
+				CloseLevskiRoar();
+				if (!WindowOpen)
+					PlayUiMoveSound();
+			}
+			return;
+		}
+		if (salvageIconPressed == SalvageTierCount) {
+			// The eighth plate arms the hammer; the next click on a backpack item breaks that item down.
+			const SalvageLayout *page = SalvagePage();
+			if (page != nullptr && page->itemIcon.size.width > 0) {
+				const Rectangle rect { window.position + Displacement { page->itemIcon.position.x, page->itemIcon.position.y }, page->itemIcon.size };
+				if (rect.contains(MousePosition)) {
+					SalvageItemCursorArmed = true;
+					NewCursor(CURSOR_REPAIR); // vanilla's hammer, as the user asked; the click is ours
+				}
+			}
+			return;
+		}
+		if (salvageIconPressed >= 0 && salvageIconPressed < SalvageTierCount) {
+			if (!SalvageButtonRect(window, salvageIconPressed).contains(MousePosition))
+				return;
+			if (SalvageItemCursorArmed) {
+				SalvageItemCursorArmed = false; // a bulk plate takes the hammer back
+				NewCursor(CURSOR_HAND);
+			}
+			const auto tier = static_cast<SalvageTier>(salvageIconPressed);
+			PressedConfirmButton = -1;
+			if (SalvageSkin() && SalvageTierNeedsConfirm(tier)) {
+				// The dear tiers ask first; the question replaces whatever the frame was showing.
+				PendingConfirmTier = salvageIconPressed;
+				return;
+			}
+			PendingConfirmTier = -1; // a cheap plate answers the standing question by simply doing its own work
+			RunSalvageTier(tier);
+			return;
+		}
+		if (cubeButtonPressed == levski_skin::Recipes && RecipeButtonRect(window).contains(MousePosition)) {
+			RecipeBookOpen = !RecipeBookOpen;
+			return;
+		}
+		if (transmutePressed) {
+			if (TransmuteButtonRect(window).contains(MousePosition))
+				RunLevskiTransmute();
+			return;
+		}
+	}
 	// The confirmation's two buttons act on the RELEASE, and only when it lands inside the button that was
 	// pressed (user, 2026-09-21: "Release of click outside the boundary of any of these buttons is considered
 	// as Let Me Think a Bit More by the user") - so a release anywhere else leaves the question standing.
@@ -2430,10 +2555,8 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	// Before every other control: the X is the one click that must always work, and this window
 	// absorbs everything else that lands on it.
 	if (CloseButtonRect(window).contains(mousePosition)) {
-		CloseLevskiRoar();
-		// Its own hit test (the skin places this X), so no click from CheckWindowCloseButtonClick.
-		if (!WindowOpen)
-			PlayUiMoveSound();
+		// Closes on the release inside it (ReleaseLevskiButtons). Its own hit test (the skin places this X).
+		PressedCloseButton = true;
 		return true;
 	}
 
@@ -2459,10 +2582,8 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	if (const SalvageLayout *page = SalvagePage(); page != nullptr && page->itemIcon.size.width > 0) {
 		const Rectangle rect { window.position + Displacement { page->itemIcon.position.x, page->itemIcon.position.y }, page->itemIcon.size };
 		if (rect.contains(mousePosition)) {
-			PressedSalvageIcon = SalvageTierCount;
+			PressedSalvageIcon = SalvageTierCount; // arms the hammer on the release inside it (ReleaseLevskiButtons)
 			PlayUiMoveSound();
-			SalvageItemCursorArmed = true;
-			NewCursor(CURSOR_REPAIR); // vanilla's hammer, as the user asked; the click is ours
 			return true;
 		}
 	}
@@ -2481,22 +2602,9 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	for (int i = 0; WindowHost == TransmuteHost::Smith && i < SalvageTierCount; i++) {
 		if (!SalvageButtonRect(window, i).contains(mousePosition))
 			continue;
-		PressedSalvageIcon = i; // the icon sinks until LeftMouseUp (ReleaseLevskiButtons); the click sounds at the press
-		if (SalvageItemCursorArmed) {
-			SalvageItemCursorArmed = false; // a bulk press takes the hammer back
-			NewCursor(CURSOR_HAND);
-		}
+		PressedSalvageIcon = i; // sinks until LeftMouseUp, and acts on the release inside it (ReleaseLevskiButtons)
 		if (SalvageSkin())
 			PlayUiMoveSound();
-		const auto tier = static_cast<SalvageTier>(i);
-		PressedConfirmButton = -1;
-		if (SalvageSkin() && SalvageTierNeedsConfirm(tier)) {
-			// The dear tiers ask first; the question replaces whatever the frame was showing.
-			PendingConfirmTier = i;
-			return true;
-		}
-		PendingConfirmTier = -1; // a cheap plate answers the standing question by simply doing its own work
-		RunSalvageTier(tier);
 		return true;
 	}
 
@@ -2504,70 +2612,19 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 		return true; // the Salvage window has no grid, no Transmute and no book: everything else on it is stone
 
 	if (RecipeButtonRect(window).contains(mousePosition)) {
-		PressedCubeButton = levski_skin::Recipes; // the painted button sinks until LeftMouseUp (ReleaseLevskiButtons)
+		PressedCubeButton = levski_skin::Recipes; // sinks until LeftMouseUp; the book turns on the release (ReleaseLevskiButtons)
 		FlashButton(ButtonFlashRecipes);
-		RecipeBookOpen = !RecipeBookOpen;
 		PlayUiMoveSound();
 		return true;
 	}
 
 	if (TransmuteButtonRect(window).contains(mousePosition)) {
 		FlashButton(ButtonFlashTransmute);
+		PressedTransmute = true; // runs on the release inside the button (ReleaseLevskiButtons)
 		if (PaintedButtons()) {
 			PressedCubeButton = levski_skin::Transmute; // sinks until LeftMouseUp; the click sounds at the press
 			PlayUiMoveSound();
 		}
-		// TRANSACTIONAL. The recipes rewrite GridItems with no idea of footprints, and freeing
-		// sockets is the one that gives back more than it takes - so the repack afterwards can find
-		// it has nowhere to put something. Before this snapshot the repack simply dropped whatever
-		// would not fit, and a rune or a jewel stopped existing with no message. TransmuteLevskiGrid
-		// pre-checks the footprints now, so a rollback here should be unreachable; it stays because
-		// "should be unreachable" is not a guarantee to stake a player's stones on, and the next
-		// recipe added will not remember to ask.
-		Item snapshotItems[LevskiGridSlots];
-		int8_t snapshotCells[LevskiGridSlots];
-		std::copy(std::begin(GridItems), std::end(GridItems), snapshotItems);
-		std::copy(std::begin(GridCells), std::end(GridCells), snapshotCells);
-
-		// Asked BEFORE the transmute, because the transmute reports what it MADE and a refusal made
-		// nothing. A selected recipe that cannot run has to say so out loud - a Transmute button
-		// that silently does nothing is the exact ambiguity this fork has shipped twice already.
-		if (SelectedRecipe >= 0 && !CanCraftFromLevskiGrid(GridItems, SelectedRecipe)) {
-			LogEvent(StrCat("Levski's Cube: ", _(CraftingRecipeName(SelectedRecipe)), " is not ready"));
-			return true;
-		}
-		// With no recipe picked, the readiest recipe of THIS host's book - never another host's.
-		const int recipe = SelectedRecipe >= 0 ? SelectedRecipe : FirstReadyLevskiRecipeFor(GridItems, WindowHost);
-		const std::string result = recipe >= 0 ? TransmuteLevskiGridWith(GridItems, recipe) : std::string {};
-		if (!RebuildGridOccupancy()) {
-			std::copy(std::begin(snapshotItems), std::end(snapshotItems), GridItems);
-			std::copy(std::begin(snapshotCells), std::end(snapshotCells), GridCells);
-			LogEvent("Levski's Roar: not enough room - nothing was transmuted");
-			return true;
-		}
-		// STAMP USABILITY on everything the transmute left behind (user, 2026-08-28: "picking up a
-		// crafted item the first time colors it in RED").
-		//
-		// It was red because _iStatFlag was false. Nothing in the crafting path ever set it - the
-		// recipes build items and hand them back, and the flag is normally written by CalcPlrInv,
-		// which walks the worn slots and the backpack and has no idea this grid exists. So a fresh
-		// item sat here with the flag clear, DrawItem read that as "the character cannot use this"
-		// and tinted it through the infravision TRN, which is red. It corrected itself the moment
-		// the item reached the backpack and CalcPlrInv ran over it, which is exactly why it was only
-		// ever seen once per item.
-		for (Item &item : GridItems) {
-			if (!item.isEmpty())
-				item._iStatFlag = MyPlayer->CanUseItem(item);
-		}
-		if (!result.empty())
-			LogEvent(StrCat("Levski's Cube: ", result));
-		// Salvage's sound for a transmute that MADE something. The room refusals consumed nothing
-		// and stay as quiet as the other refusals above; crafting.cpp owns their wording.
-		// The Cube's own flash (RfA-20 batch 43d) on its book; the artisans keep the salvage-era sound.
-		if (!result.empty() && !IsTransmuteRefusal(result)
-		    && !(WindowHost == TransmuteHost::Cube && PlayUiEventSound(UiEventSound::CubeTransmute))
-		    && !PlayUiEventSound(UiEventSound::Transmute))
-			PlaySFX(IS_ISHIEL); // the old stand-in, if the transmute sound is not in the archive
 		return true;
 	}
 

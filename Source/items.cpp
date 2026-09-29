@@ -3755,6 +3755,11 @@ bool RetierOracoolItem(Item &item, OracoolItemTier tier)
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), ilvl, 1, /*onlygood=*/forcing,
 	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, forced, ilvl);
 	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
+	// The wear it had, not a free repair (audit, 2026-09-29): SetupAllItems rolled fresh durability and cleared the broken
+	// flag, so a broken item put through a reroll came back whole - Mend bypassed. The Mystic's rework keeps it the same way.
+	if (original._iDurability != DUR_INDESTRUCTIBLE && item._iMaxDur != DUR_INDESTRUCTIBLE)
+		item._iDurability = std::min<int>(original._iDurability, item._iMaxDur);
+	item._iOracoolBroken = original._iOracoolBroken && item._iDurability == 0;
 	item._iIdentified = true;
 	// A forced tier that the roller could not actually apply - the item has no affix type, say -
 	// leaves the item rerolled but untiered, and the caller is told so rather than being allowed to
@@ -3936,7 +3941,12 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	std::copy(affixes, affixes + wantedCount, wanted.begin());
 
 	const int priceBefore = item._iIvalue;
+	// The base's own rolls - its armour among them - come from the item's seed, as SetupAllItems seeds them (audit,
+	// 2026-09-29: unseeded, every rework rerolled the base armour, down as often as up). The game's RNG is put back after.
+	const uint32_t rngState = GetLCGEngineState();
+	SetRndSeed(seed);
 	GetItemAttrs(item, idx, ilvl);
+	SetRndSeed(rngState);
 	item._iSeed = seed;
 	item._iCreateInfo = createInfo;
 	item._iOracoolItemLevel = static_cast<uint8_t>(ilvl);
@@ -3979,12 +3989,18 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	}
 	item._iSocketCount = sockets;
 	std::copy(std::begin(socketed), std::end(socketed), std::begin(item._iSocketed));
-	oracool::RestoreImbuements(item, ledger);
+	// The ethereal bargain before the shards, the order a drop has (audit, 2026-09-29): the other way round, the halving
+	// took Tempering's durability down with the base's.
 	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
+	oracool::RestoreImbuements(item, ledger);
 	// The wear the item had, not a free repair (sweep, 2026-09-25): GetItemAttrs set durability to the base's
 	// full value, so a reroll at the bench mended the item as a side effect. Capped by the maximum the rebuild
 	// arrived at (an ethereal item's is halved again above); an item that is now indestructible stays so.
-	if (item._iMaxDur != DUR_INDESTRUCTIBLE)
+	// Zod's stamp (durability indestructible, the maximum left intact) survives it (audit, 2026-09-29: clamped to the
+	// maximum, a socketed Zod stopped working while the tooltip still promised it).
+	if (durability == DUR_INDESTRUCTIBLE)
+		item._iDurability = DUR_INDESTRUCTIBLE;
+	else if (item._iMaxDur != DUR_INDESTRUCTIBLE)
 		item._iDurability = std::min(durability, item._iMaxDur);
 	item._iOracoolBroken = broken && item._iDurability == 0;
 	item._iIdentified = identified;
@@ -4372,77 +4388,14 @@ void CalcOracoolTieredItemValue(Item &item, int addTotal, int multTotal)
 	item._iIvalue = std::max(v, 1);
 }
 
-/**
- * @brief Oracool bug-repair helper (v0.3.42): given one OracoolAffix and the static table it was
- * rolled from (ItemPrefixes for a prefix, ItemSuffixes for a suffix), detects and corrects the
- * "price value stored instead of the real roll" bug - see GetTieredItemAffixes. Items generated
- * before that fix have the wrong value baked permanently into their save data; this lets them
- * self-heal the next time they're loaded or picked up, instead of staying wrong forever.
- * @return true if a correction was made.
- */
-static bool RepairOracoolAffixValue(OracoolAffix &affix, const PLStruct *table)
+bool RepairOracoolAffixesIfCorrupted(Item & /*item*/)
 {
-	// If the stored value already looks like a plausible roll for some row of this type, leave it
-	// alone. Deliberately conservative: on the rare boundary where a price range and a small roll
-	// range happen to overlap numerically for the same type, treating it as "already valid" is far
-	// safer than "fixing" a value that didn't need it.
-	for (int j = 0; table[j].power.type != IPL_INVALID; j++) {
-		if (table[j].power.type != affix.type)
-			continue;
-		int lo = std::min<int>(table[j].power.param1, table[j].power.param2);
-		int hi = std::max<int>(table[j].power.param1, table[j].power.param2);
-		if (affix.param1 >= lo && affix.param1 <= hi)
-			return false;
-	}
-
-	// Otherwise, see if it matches some row's price range instead - the bug's exact signature.
-	// Price ranges don't overlap between tiers of the same affix type, so a match (when one
-	// exists) unambiguously identifies which row was actually rolled.
-	for (int j = 0; table[j].power.type != IPL_INVALID; j++) {
-		if (table[j].power.type != affix.type)
-			continue;
-		int priceLo = std::min(table[j].minVal, table[j].maxVal);
-		int priceHi = std::max(table[j].minVal, table[j].maxVal);
-		if (affix.param1 < priceLo || affix.param1 > priceHi)
-			continue;
-
-		int p1 = table[j].power.param1;
-		int p2 = table[j].power.param2;
-		int raw = (priceHi == priceLo || p1 == p2)
-		    ? p2
-		    : p1 + (p2 - p1) * (affix.param1 - priceLo) / (priceHi - priceLo);
-		affix.param1 = raw;
-		return true;
-	}
-
+	// Retired (audit, 2026-09-29). It repaired the v0.3.42 display bug (2026-08-07), and every item a save can still hold
+	// - item format 13-15, from 2026-09-20 on - was written long after that fix. What it still caught were legitimate
+	// values: a Blood or Hit Power craft merged into the Rare's own life or to-hit affix sums past every row's range into
+	// some row's price range, and was "corrected" to 10 life or 1 to-hit - made permanent by the next rework. Kept, and
+	// answering "nothing repaired", so its callers need not change.
 	return false;
-}
-
-bool RepairOracoolAffixesIfCorrupted(Item &item)
-{
-	if (!item.hasOracoolTier())
-		return false;
-
-	// The table an affix came from is decided by its TYPE: affixes are one unsegregated list (2026-09-13), and no
-	// power type appears in both tables, so the lookup is unambiguous. A pool type (Movement Speed, Faster Cast) is
-	// in neither and is left alone, as it always was.
-	const auto tableFor = [](item_effect_type type) -> const PLStruct * {
-		for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
-			if (ItemPrefixes[j].power.type == type)
-				return ItemPrefixes;
-		}
-		return ItemSuffixes;
-	};
-	bool repaired = false;
-	for (int i = 0; i < item._iOracoolAffixCount; i++) {
-		if (RepairOracoolAffixValue(item._iOracoolAffixes[i], tableFor(item._iOracoolAffixes[i].type)))
-			repaired = true;
-	}
-
-	if (repaired)
-		oracool::LogEvent(fmt::format(fmt::runtime(_("Corrected stats on {:s}")), item._iIName));
-
-	return repaired;
 }
 
 bool IsItemAvailable(int i)
@@ -5663,6 +5616,9 @@ Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level /*
 		GetItemAttrs(item, static_cast<_item_indexes>(idx), curlv);
 		GetUniqueItem(*MyPlayer, item, uid);
 		SetupItem(item);
+		// Its item level, as every other drop has one (audit, 2026-09-29: a Normal boss's quest unique came out level 0 -
+		// Awaken refused it and Reroll Uniques could only roll it into itself). No lower than the unique's own level.
+		item._iOracoolItemLevel = static_cast<uint8_t>(std::clamp<int>(std::max<int>(curlv, UniqueItems[uid].UIMinLvl), 1, 255));
 	} else {
 		if (level)
 			curlv = *level;
@@ -8538,9 +8494,14 @@ int StockOracoolMagicItems(Item *stock, int capacity, int lvl, int want)
 		item = {};
 		// The ITEM level lifted by the difficulty, as the Rare shelf stamps its own (audit, 2026-09-24):
 		// without it these never passed ilvl 30 and never reached a Torment tier.
+		// A shelf item that comes out a unique does not spend that unique's one drop (audit, 2026-09-29: it was barred from
+		// dropping for the rest of the game, and Wirt restocks on every purchase) - as CreateUniqueVendorItem already keeps it.
+		std::array<bool, MaxUniqueItems> uniquesBefore;
+		std::copy(std::begin(UniqueItemFlags), std::end(UniqueItemFlags), uniquesBefore.begin());
 		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), itemLevel, 1, /*onlygood=*/true,
 		    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/false, std::nullopt,
 		    /*itemLevel=*/oracool::VendorItemLevel(lvl));
+		std::copy(uniquesBefore.begin(), uniquesBefore.end(), std::begin(UniqueItemFlags));
 		// A bare level, never CF_SMITHPREMIUM - see StockOracoolVendorItems' header for why a town
 		// stamp on an Oracool item comes back as something else after a reload.
 		item._iCreateInfo = std::min(itemLevel, 63);

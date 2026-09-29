@@ -113,7 +113,8 @@ void ReturnHeldItemBeforeSaving(Player &player)
 
 	const std::string name = player.HoldItem._iIName;
 	bool placed = AutoPlaceItemInInventory(player, player.HoldItem, /*persistItem=*/true);
-	if (!placed)
+	// The belt takes potions only, the rule for every automatic placement (user, 2026-09-14; audit, 2026-09-29).
+	if (!placed && player.HoldItem.isPotion())
 		placed = AutoPlaceItemInBelt(player, player.HoldItem, /*persistItem=*/true);
 	// The stash is tried whether or not it is OPEN. Audit finding, 2026-08-26, and the open case is
 	// the one that matters most: lift an item OUT of the stash with a full inventory and belt, then

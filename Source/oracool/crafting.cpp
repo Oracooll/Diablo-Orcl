@@ -1205,6 +1205,8 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 
 		std::string freed;
 		int placed = 0;
+		// Asked before the stones come out: only a completed word's name is the word's (audit, 2026-09-29).
+		const bool hadRuneword = GetActiveRuneword(host) != nullptr;
 		for (uint16_t &socketed : host._iSocketed) {
 			if (socketed == Item::EmptySocket)
 				continue;
@@ -1224,8 +1226,10 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		if (host._iMaxDur > 0 && host._iDurability == DUR_INDESTRUCTIBLE)
 			host._iDurability = host._iMaxDur;
 		// A completed runeword's name came from the word; with the runes gone it is a base item
-		// again, so the name has to go back too.
-		host._iIName[0] = '\0';
+		// again, so the name has to go back too. A magic, rare or set host keeps its own (audit, 2026-09-29: it was
+		// blanked for good).
+		if (hadRuneword)
+			host._iIName[0] = '\0';
 		freed = fmt::format(fmt::runtime(_("{:d} stones freed")), placed);
 		return freed;
 	}
@@ -1356,8 +1360,10 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// Joined to the Rare's own affix of the same kind when it rolled one (tooltip sweep, 2026-09-25: a Safety
 			// Craft printed "-1 damage from enemies" twice). The stat was applied twice either way; one row with the
 			// sum says what the item does, and keeps the one-row-per-kind rule the roller itself follows.
+			// Not life or mana steal: their percentages are flags (3 and 5), which do not add, so a merged 6 or 8 matched no
+			// flag and the next rework replayed it as none (audit, 2026-09-29). Those keep their own row.
 			OracoolAffix *same = nullptr;
-			for (int i = 0; i < target._iOracoolAffixCount; i++) {
+			for (int i = 0; i < target._iOracoolAffixCount && !IsAnyOf(power.type, IPL_STEALLIFE, IPL_STEALMANA); i++) {
 				if (target._iOracoolAffixes[i].type == power.type)
 					same = &target._iOracoolAffixes[i];
 			}
@@ -1463,6 +1469,9 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			const int keptLevel = target._iOracoolItemLevel;
 			const SetItemDefinition *chosen = others[GenerateRnd(static_cast<int32_t>(others.size()))];
 			const bool wasEthereal = target._iOracoolEthereal;
+			// Kanai's Work of Cathan too (audit, 2026-09-29): InitializeItem empties the item, and the keepsake notes name
+			// these recipes as ones that must keep it.
+			const bool wasLevelFree = target._iOracoolLevelFree;
 			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetPiece(*chosen)));
 			MakeSetItem(target, *chosen);
 			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false);
@@ -1470,6 +1479,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// 2026-09-13). May decline on an indestructible piece, which then simply stays whole.
 			if (wasEthereal)
 				MakeItemEthereal(target);
+			target._iOracoolLevelFree = wasLevelFree;
 			target._iIdentified = true;
 			what = std::string(target.getName());
 			break;
@@ -1505,6 +1515,9 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			const int keptLevel = target._iOracoolItemLevel;
 			const SetItemDefinition *chosen = pieces[GenerateRnd(static_cast<int32_t>(pieces.size()))];
 			const bool wasEthereal = target._iOracoolEthereal;
+			// Kanai's Work of Cathan too (audit, 2026-09-29): InitializeItem empties the item, and the keepsake notes name
+			// these recipes as ones that must keep it.
+			const bool wasLevelFree = target._iOracoolLevelFree;
 			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetPiece(*chosen)));
 			MakeSetItem(target, *chosen);
 			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false);
@@ -1512,6 +1525,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// 2026-09-13). May decline on an indestructible piece, which then simply stays whole.
 			if (wasEthereal)
 				MakeItemEthereal(target);
+			target._iOracoolLevelFree = wasLevelFree;
 			target._iIdentified = true;
 			what = std::string(target.getName());
 			break;

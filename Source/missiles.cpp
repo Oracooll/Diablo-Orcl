@@ -1586,7 +1586,9 @@ void InitMissiles(bool keepHeroTimedSpells)
 		for (Missile &missile : Missiles) {
 			if (missile._miDelFlag || missile._mirange <= 0 || missile.sourcePlayer() != &myPlayer)
 				continue;
-			if (IsAnyOf(missile._mitype, MissileID::Infravision, MissileID::Etherealize, MissileID::Search))
+			// ...and the cold armours (audit, 2026-09-29): their clock ticks on this missile too, so a stair left the armour
+			// on the hero for good - frozen attackers, Chilling Armor's bolts and the tint forever.
+			if (IsAnyOf(missile._mitype, MissileID::Infravision, MissileID::Etherealize, MissileID::Search, MissileID::ColdArmor))
 				carried.push_back(missile);
 		}
 	}
@@ -6060,7 +6062,10 @@ void ProcessMissiles()
 void missiles_process_charge()
 {
 	for (auto &missile : Missiles) {
-		missile._miAnimData = GetMissileSpriteData(missile._miAnimType).spritesForDirection(missile._mimfnum);
+		// A facing past the sheet's rows is its first, as SetMissAnim draws it (audit of the fix, 2026-09-29).
+		const MissileFileData &sheetData = GetMissileSpriteData(missile._miAnimType);
+		const int facing = sheetData.animFAmt > 0 && missile._mimfnum >= sheetData.animFAmt ? 0 : missile._mimfnum;
+		missile._miAnimData = sheetData.spritesForDirection(facing);
 		missile.oracoolColours = GetMissileSpriteData(missile._miAnimType).colours.get();
 		if (missile._mitype != MissileID::Rhino) {
 			if (missile.oracoolScalePercent != 100)

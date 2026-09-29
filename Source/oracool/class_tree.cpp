@@ -68,7 +68,11 @@ void SetAuraLoop(Skill skill)
 {
 	if (skill == LoopedAura)
 		return;
-	if (skill == Skill::None)
+	// An aura put out by the hero's death goes silently (audit of the fix, 2026-09-29): its Stop cue, now heard, played
+	// over the death.
+	if (skill == Skill::None && MyPlayer != nullptr && (MyPlayer->_pmode == PM_DEATH || (MyPlayer->_pHitPoints >> 6) <= 0))
+		SilenceClassAuraLoop();
+	else if (skill == Skill::None)
 		StopClassAuraLoop();
 	else
 		StartClassAuraLoop(skill);

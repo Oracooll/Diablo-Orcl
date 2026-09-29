@@ -446,16 +446,15 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		}
 	} break;
 	case ClassMeleeSkill::SweepingReed: {
-		// The two tiles beside the target - the arc of a staff. A normal blow each, not a share.
-		const Point ahead = player.position.tile + player._pdir;
-		Monster *targets[8] = {};
-		const int found = GatherAround(ahead, front, targets, 8);
-		for (int i = 0; i < found; i++) {
-			// Beside the target means also beside the player: the arc does not reach behind it.
-			if (player.position.tile.WalkingDistance(targets[i]->position.tile) != 1)
+		// The two tiles beside the target - the arc of a staff, the three tiles ahead its text names. A normal blow each,
+		// not a share. Those two only (audit, 2026-09-29): "beside the target and the player" reached four tiles facing
+		// straight along a row.
+		for (const Point tile : { player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {
+			Monster *m = InDungeonBounds(tile) ? FindMonsterAtPosition(tile) : nullptr;
+			if (m == nullptr || m == front || (m->hitPoints >> 6) <= 0 || m->isPlayerMinion() || !m->isPossibleToHit())
 				continue;
 			const int blow = (player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1)) << 6;
-			Strike(player, *targets[i], blow);
+			Strike(player, *m, blow);
 			struck = true;
 			landedBlows++;
 		}
@@ -473,8 +472,11 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		break;
 	case ClassMeleeSkill::PowerStrike:
 		// The charge: lightning on top of the blow, one to four a rank, in its own colour.
-		if (front != nullptr && frontHit && front->hitPoints >> 6 > 0) {
-			const int bolt = (1 + GenerateRnd(4 * rank)) << 6;
+		// Lightning obeys lightning's immunity and resistance, as every other strike of it (audit, 2026-09-29).
+		if (front != nullptr && frontHit && front->hitPoints >> 6 > 0 && !front->isImmune(MissileID::Null, DamageType::Lightning)) {
+			int bolt = (1 + GenerateRnd(4 * rank)) << 6;
+			if (front->isResistant(MissileID::Null, DamageType::Lightning))
+				bolt >>= 2;
 			ApplyMonsterDamage(DamageType::Lightning, *front, bolt);
 			if (front->hitPoints >> 6 <= 0)
 				M_StartKill(*front, player);

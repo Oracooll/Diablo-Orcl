@@ -232,9 +232,29 @@ const char *RiftKindName(RiftKind kind)
 	return kind == RiftKind::Guardian ? "Guardian Rift" : "Nephalem Rift";
 }
 
+/**
+ * @brief Whether a rift the hero has stepped into is still running (audit, 2026-09-29): opening another silently ended
+ * it - a Guardian Rift whose keystone was already spent, or a cleared Nephalem Rift in its sixty seconds to come back
+ * for the pile. Refused, and said, instead.
+ */
+bool EnteredRiftStillOpen()
+{
+	if (State.kind == RiftKind::None || !RiftEntered() || State.returnedHome)
+		return false;
+	// Only the two that would be lost: a Guardian Rift still on its clock (its keystone is spent), and a cleared Nephalem
+	// Rift in its sixty seconds. An abandoned Nephalem Rift has no clock and a timed-out Guardian Rift no keystone left to
+	// win - refusing those would keep the monument shut for good.
+	const bool liveGuardian = State.kind == RiftKind::Guardian && !State.done && !State.timedOut;
+	const bool clearedPile = State.kind == RiftKind::Nephalem && State.done && State.closeTicks > 0;
+	if (!liveGuardian && !clearedPile)
+		return false;
+	LogEvent(StrCat("The ", RiftKindName(State.kind), " you entered is still open - finish it, or let it close, before opening another."), UiFlags::ColorRed);
+	return true;
+}
+
 bool OpenNephalemRift(Player &player)
 {
-	if (!IsSinglePlayer() || !player.isOnLevel(0))
+	if (!IsSinglePlayer() || !player.isOnLevel(0) || EnteredRiftStillOpen())
 		return false;
 	OpenCommon(player, RiftKind::Nephalem, NephalemRiftTierFor(player));
 	return true;
@@ -242,7 +262,7 @@ bool OpenNephalemRift(Player &player)
 
 bool OpenGuardianRift(Player &player, int tier)
 {
-	if (!IsSinglePlayer() || !player.isOnLevel(0))
+	if (!IsSinglePlayer() || !player.isOnLevel(0) || EnteredRiftStillOpen())
 		return false;
 	OpenCommon(player, RiftKind::Guardian, tier);
 	return true;
@@ -660,7 +680,10 @@ bool IsRiftGuardian(const Monster &monster)
 {
 	// Inside the rift only (external audit of v1.12.188, WORLD-02): the id is a Monsters[] slot, and a rift left
 	// open while the hero walks a normal floor would otherwise crown whatever spawned into that slot there.
-	return InRift() && State.guardianSpawned && State.guardianId == monster.getId();
+	// And only while he stands (audit, 2026-09-29): once he has fallen, his freed slot is the next to be reused, and a
+	// Doppelganger clone or a minion taking it "was" the guardian - a clone killed there dropped the guardian's pile again,
+	// over and over. His own loot was spawned before the rift was marked done.
+	return InRift() && State.guardianSpawned && !State.done && State.guardianId == monster.getId();
 }
 
 void OnRiftMonsterKilled(const Monster &monster)
@@ -729,6 +752,12 @@ void ProcessRift()
 	// The cleared Nephalem Rift's closing clock, wherever the hero is. At zero: a hero still inside is
 	// sent to town's new-game spawn (WM_DIABRETOWN lands on ENTRY_MAIN, the (57, 67) a new hero starts
 	// on), the portal comes down and the rift is over.
+	// Held while the hero is between levels (audit, 2026-09-29): a town portal taken on the closing tick was already
+	// under way, and landed him in a rift that had just ended - no exits, a different map under the saved monsters.
+	// The close waits for him to arrive, then runs as below.
+	const bool arriving = MyPlayer != nullptr && (MyPlayer->_pmode == PM_NEWLVL || MyPlayer->_pLvlChanging);
+	if (State.closeTicks == 1 && arriving)
+		return;
 	if (State.closeTicks > 0 && --State.closeTicks == 0) {
 		const bool inside = InRift();
 		LogEvent(inside ? "The rift closes around you and spits you out in Tristram." : "The rift has closed; the Rift Monument falls dark.", UiFlags::ColorWhitegold);

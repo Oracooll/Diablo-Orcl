@@ -3695,6 +3695,7 @@ bool TryIconCurs()
 		else if (pcursstashitem != StashStruct::EmptyCell) {
 			Item &item = Stash.stashList[pcursstashitem];
 			item._iIdentified = true;
+			Stash.dirty = true; // an edit in place is a change to save (audit, 2026-09-29: it came back unidentified on reload)
 		}
 		NewCursor(CURSOR_HAND);
 		return true;
@@ -3740,6 +3741,7 @@ bool TryIconCurs()
 				ShopRepairItemAt(myPlayer.InvTabList[pcursinvtabidx][pcursinvtabitem]);
 			} else if (pcursstashitem != StashStruct::EmptyCell) {
 				ShopRepairItemAt(Stash.stashList[pcursstashitem]);
+				Stash.dirty = true;
 			}
 			DisarmShopServiceCursor();
 			CalcPlrInv(myPlayer, true);
@@ -3760,6 +3762,7 @@ bool TryIconCurs()
 		else if (pcursstashitem != StashStruct::EmptyCell) {
 			Item &item = Stash.stashList[pcursstashitem];
 			RepairItem(item, myPlayer._pLevel);
+			Stash.dirty = true;
 		}
 		NewCursor(CURSOR_HAND);
 		return true;
@@ -3777,6 +3780,7 @@ bool TryIconCurs()
 				ShopRechargeItemAt(myPlayer.InvTabList[pcursinvtabidx][pcursinvtabitem]);
 			} else if (pcursstashitem != StashStruct::EmptyCell) {
 				ShopRechargeItemAt(Stash.stashList[pcursstashitem]);
+				Stash.dirty = true;
 			}
 			DisarmShopServiceCursor();
 			CalcPlrInv(myPlayer, true);
@@ -3796,6 +3800,7 @@ bool TryIconCurs()
 		else if (pcursstashitem != StashStruct::EmptyCell) {
 			Item &item = Stash.stashList[pcursstashitem];
 			RechargeItem(item, myPlayer);
+			Stash.dirty = true;
 		}
 		NewCursor(CURSOR_HAND);
 		return true;
@@ -3810,6 +3815,7 @@ bool TryIconCurs()
 		else if (pcursstashitem != StashStruct::EmptyCell) {
 			Item &item = Stash.stashList[pcursstashitem];
 			changeCursor = ApplyOilToItem(item, myPlayer);
+			Stash.dirty = true; // the oil is spent from the hero's file; the item must be saved oiled (audit, 2026-09-29)
 		}
 		if (changeCursor)
 			NewCursor(CURSOR_HAND);
@@ -4066,6 +4072,11 @@ void DisableInputEventHandler(const SDL_Event &event, uint16_t modState)
 
 void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 {
+	// The artisans' benches do not follow the hero down the stairs (audit, 2026-09-29: the Cube, whose town owner has
+	// no walk-away, stayed open into the dungeon and held autosave off the whole way). Either may refuse - its items with
+	// nowhere to go - and then stays open, as it does everywhere else.
+	oracool::CloseLevskiRoar();
+	oracool::CloseWorkshop();
 	_music_id neededTrack = GetLevelMusic(leveltype);
 	ClearFloatingNumbers();
 

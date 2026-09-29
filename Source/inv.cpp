@@ -18,6 +18,7 @@
 #include "engine/backbuffer_state.hpp"
 #include <algorithm>
 #include <array>
+#include <memory>
 
 #include "engine/clx_sprite.hpp"
 #include "engine/load_cel.hpp"
@@ -39,6 +40,7 @@
 #include "engine/palette.h" // PaletteRGB, the grey socket border as a value
 #include "engine/render/primitive_render.hpp" // TintRectRgb, the item slot backings
 #include "oracool/event_log.h"
+#include "loadsave.h" // InvTabsFileRefused - a refused page file locks the pages
 #include "oracool/gems.h"
 #include "oracool/imbuement.h"
 #include "oracool/named_encounters.h"
@@ -194,6 +196,9 @@ bool IsInventoryTabLocked(const Player &player, int page)
 	// function every automatic placement into an extra tab goes through (AutoPlaceItemInExtraTabSlot), not
 	// done with placeholder items - an invisible item would still be saved, counted by the charm cap and
 	// the salvage totals, and could be dropped or sold; a refusal has no such second life.
+	// A refused extra-page file locks pages 2-10 for the game (audit, 2026-09-29): nothing put there could be saved.
+	if (page > 0 && InvTabsFileRefused && &player == MyPlayer)
+		return true;
 	const int level = InventoryTabRequiredLevel(page);
 	return level > 0 && player._pLevel < level;
 }
@@ -1340,8 +1345,16 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 								// that must never happen here, since the body slot is about to be
 								// cleared.
 								player.HoldItem = displaced;
-								if (!TryDropItem())
-									NewCursor(player.HoldItem);
+								if (!TryDropItem()) {
+									// Nowhere at all - not the bag, not the floor: the swap is undone (audit, 2026-09-29). The cursor
+									// was about to be overwritten with the item being equipped, and the displaced one was lost. It
+									// is still worn (the body slot is not cleared yet); the other goes back to the cell it left.
+									player.HoldItem.clear();
+									PlaceItemInTabSlot(player, vacatedTab, vacatedSlot, equipping);
+									if (&player == MyPlayer)
+										player.SaySpecific(HeroSpeech::IHaveNoRoom);
+									return;
+								}
 							}
 							player.InvBody[invloc].clear();
 							holdItem = equipping;
@@ -2819,6 +2832,8 @@ int MergeStackableItemIntoInventory(Player &player, const Item &item, bool persi
 	// creating a redundant new stack while an existing one in an extra tab goes untouched.
 	if (TabbedInventoryEnabled()) {
 		for (int t = 0; t < Player::NumExtraInventoryTabs && remaining > 0; t++) {
+			if (IsInventoryTabLocked(player, t + 1))
+				continue; // a locked page takes nothing, a top-up included (audit, 2026-09-29)
 			for (int i = 0; i < player._pNumInvTab[t] && remaining > 0; i++) {
 				Item &existing = player.InvTabList[t][i];
 				if (!existing.canStackWith(item) || existing.stackCount() >= Item::MaxStackCount)
@@ -3326,6 +3341,26 @@ void SortInventoryBySellValue(Player &player)
 	};
 	std::vector<SortEntry> entries;
 
+	// All or nothing, as SortStash (audit, 2026-09-29): first-fit in value order can pack worse than the player's own
+	// layout, and an entry that found no room was simply dropped - the items gone for good. The containers are kept as
+	// they were, and put back untouched if anything is left over.
+	struct Containers {
+		std::array<Item, InventoryGridCells> list;
+		std::array<int8_t, InventoryGridCells> grid;
+		int count;
+		std::array<std::array<Item, InventoryGridCells>, Player::NumExtraInventoryTabs> tabLists;
+		std::array<std::array<int8_t, InventoryGridCells>, Player::NumExtraInventoryTabs> tabGrids;
+		std::array<int, Player::NumExtraInventoryTabs> tabCounts;
+	};
+	auto before = std::make_unique<Containers>();
+	std::copy(std::begin(player.InvList), std::end(player.InvList), before->list.begin());
+	std::copy(std::begin(player.InvGrid), std::end(player.InvGrid), before->grid.begin());
+	before->count = player._pNumInv;
+	before->tabLists = player.InvTabList;
+	before->tabGrids = player.InvTabGrid;
+	before->tabCounts = player._pNumInvTab;
+	bool leftOver = false;
+
 	// Gold and quest items are pinned in place (see CanItemEnterExtraTab) - repeatedly remove the
 	// first *relocatable* item found rather than walking indices in order, since removal
 	// compacts the list by swapping the last item into the vacated slot, which would otherwise
@@ -3403,8 +3438,8 @@ void SortInventoryBySellValue(Player &player)
 				}
 			}
 		}
-		// Every entry came from this same 10-tab space and nothing pinned was removed, so it must
-		// fit somewhere - this should never actually trigger.
+		if (!placed)
+			leftOver = true;
 	}
 
 	// Oracool: second-priority packing heuristic (after sell-value order) - when placing a 2x2
@@ -3445,13 +3480,24 @@ void SortInventoryBySellValue(Player &player)
 				}
 			}
 		}
-		// Every entry came from this same 10-tab space and nothing pinned was removed, so it must
-		// fit somewhere - this should never actually trigger.
+		if (!placed)
+			leftOver = true;
 
 		if (isTwoByTwo && placedSlot >= 0) {
 			pendingTwoByTwoSlot = placedSlot;
 			pendingTwoByTwoTab = placedTab;
 		}
+	}
+
+	if (leftOver) {
+		std::copy(before->list.begin(), before->list.end(), std::begin(player.InvList));
+		std::copy(before->grid.begin(), before->grid.end(), std::begin(player.InvGrid));
+		player._pNumInv = before->count;
+		player.InvTabList = before->tabLists;
+		player.InvTabGrid = before->tabGrids;
+		player._pNumInvTab = before->tabCounts;
+		if (&player == MyPlayer)
+			oracool::LogEvent("Not enough room to sort - the inventory is left as it was.", UiFlags::ColorRed);
 	}
 
 	player.CalcScrolls();

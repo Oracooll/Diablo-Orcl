@@ -43,7 +43,9 @@ Every finding was checked against the code before a change. None of them corrupt
   when a Loop row existed, and there are none. `ResumeClassAuraLoop` now records it either way.
 - **The sound page's picks that never played:** Blessed Hammer's impact (on each monster struck), Vengeance's impact
   (on the blow its cold rides) and Conversion's impact (when one turns).
-- **Vengeance's cold hit cold-immune monsters.** It now checks immunity, as the auras do.
+- ~~**Vengeance's cold hit cold-immune monsters.**~~ *Corrected in v1.12.227:* the finding was spurious. The game has no
+  cold immunity at all (`monstdat.h`: cold has resistance only, the 8-bit field is full), so the check could never fire.
+  It was removed again.
 - **Grown items over empty cells.** `ReseatOutgrownItems` and the stash check only flagged a footprint that overlapped
   another item. A shield grown to 2x3 over an empty row drew over cells the grid still called free. Every cell of the
   footprint must now be the item's own.

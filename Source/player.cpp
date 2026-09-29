@@ -4296,10 +4296,19 @@ void SyncInitPlrPos(Player &player)
 
 	const WorldTileDisplacement offset[9] = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 }, { 2, 0 }, { 0, 2 }, { 1, 2 }, { 2, 1 }, { 2, 2 } };
 
+	const auto onTrigger = [](Point testPosition) {
+		for (int i = 0; i < numtrigs; i++) {
+			if (trigs[i].position == testPosition)
+				return true;
+		}
+		return false;
+	};
 	Point position = [&]() {
+		// Never onto an exit, as the fallback below already refuses (audit, 2026-09-29): with the first tiles taken, a
+		// rift revisit put the hero on the arrival exit beside the landing, and standing there sent him straight home.
 		for (int i = 0; i < 8; i++) {
 			Point position = player.position.tile + offset[i];
-			if (PosOkPlayer(player, position))
+			if (PosOkPlayer(player, position) && !onTrigger(position))
 				return position;
 		}
 

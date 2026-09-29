@@ -599,21 +599,6 @@ TEST_F(PrimalItemTest, TieredAffixesAreNotSegregatedIntoPrefixesAndSuffixes)
 	EXPECT_GT(primalFourFromOneTable, 0) << "no Primal carried more than three affixes from one table - still three and three";
 }
 
-// The load-time repair decides each affix's table by its TYPE, since affixes are one unsegregated list: a suffix-table
-// affix and a prefix-table affix side by side are each corrected against their own table.
-TEST(Item, RepairOracoolAffixesIfCorrupted_ReadsTheTableFromTheAffixType)
-{
-	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, true, ItemType::Sword);
-	item._iOracoolTier = OracoolItemTier::Rare;
-	// "of dexterity": +1-5, priced 200-1000. Steel: +11-15% to hit, priced 1100-1500. Both stored as price values,
-	// the old corruption, in the order a mixed roll would leave them.
-	item._iOracoolAffixes[0] = OracoolAffix { IPL_DEX, 1000, 2 };
-	item._iOracoolAffixes[1] = OracoolAffix { IPL_TOHIT, 1500, 0 };
-	item._iOracoolAffixCount = 2;
-	EXPECT_TRUE(RepairOracoolAffixesIfCorrupted(item));
-	EXPECT_EQ(item._iOracoolAffixes[0].param1, 5) << "the suffix-table affix was repaired against the wrong table";
-	EXPECT_EQ(item._iOracoolAffixes[1].param1, 15) << "the prefix-table affix was repaired against the wrong table";
-}
 
 TEST_F(PrimalItemTest, GetPrimalItemAffixes_NeverDuplicatesAnAffixType)
 {
@@ -757,53 +742,20 @@ TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_StoredAffixValuesStayInR
 	}
 }
 
-// Regression test for the self-heal repair feature: reproduces the user's follow-up "Crystal
-// Amulet" screenshot exactly - a Magic Resist affix stored as 1500 (the White prefix's price-range
-// maxVal) instead of 20 (White's own small-range maxVal, since it was a Primal perfect roll).
-TEST(Item, RepairOracoolAffixesIfCorrupted_FixesAPriceValueBackToItsRealRoll)
-{
-	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
-	item._iOracoolTier = OracoolItemTier::Primal;
-	item._iOracoolAffixCount = 1;
-	item._iOracoolAffixes[0] = OracoolAffix { IPL_MAGICRES, 1500, 5 };
 
-	EXPECT_TRUE(RepairOracoolAffixesIfCorrupted(item));
-	EXPECT_EQ(item._iOracoolAffixes[0].param1, 20);
-}
 
-TEST(Item, RepairOracoolAffixesIfCorrupted_LeavesAnAlreadyCorrectValueAlone)
+
+
+// Audit, 2026-09-29: the load-time repair of the v0.3.42 display bug is retired - no item a save can hold predates the fix,
+// and a Blood craft merged into a Rare's life affix (101-125) sat in a row's price range and was "corrected" to 10.
+TEST(Item, RepairOracoolAffixesIfCorrupted_LeavesACraftMergedValueAlone)
 {
-	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+	Item item = MakeItem(ICLASS_ARMOR, IMISC_NONE, IDI_WARRIOR, false, ItemType::LightArmor);
 	item._iOracoolTier = OracoolItemTier::Rare;
 	item._iOracoolAffixCount = 1;
-	item._iOracoolAffixes[0] = OracoolAffix { IPL_MAGICRES, 20, 5 };
-
+	item._iOracoolAffixes[0] = OracoolAffix { IPL_LIFE, 120, 0 };
 	EXPECT_FALSE(RepairOracoolAffixesIfCorrupted(item));
-	EXPECT_EQ(item._iOracoolAffixes[0].param1, 20);
-}
-
-TEST(Item, RepairOracoolAffixesIfCorrupted_IsANoOpForItemsWithoutAnOracoolTier)
-{
-	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
-	item._iOracoolAffixCount = 1;
-	item._iOracoolAffixes[0] = OracoolAffix { IPL_MAGICRES, 1500, 5 };
-
-	EXPECT_FALSE(RepairOracoolAffixesIfCorrupted(item));
-	EXPECT_EQ(item._iOracoolAffixes[0].param1, 1500);
-}
-
-// Same fix, exercised on a suffix this time (the "+1000 to Dexterity" line from the same
-// screenshot - the "dexterity" suffix's price maxVal of 1000 instead of its own small-range
-// maxVal of 5).
-TEST(Item, RepairOracoolAffixesIfCorrupted_AlsoFixesSuffixes)
-{
-	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
-	item._iOracoolTier = OracoolItemTier::Primal;
-	item._iOracoolAffixCount = 1;
-	item._iOracoolAffixes[0] = OracoolAffix { IPL_DEX, 1000, 2 };
-
-	EXPECT_TRUE(RepairOracoolAffixesIfCorrupted(item));
-	EXPECT_EQ(item._iOracoolAffixes[0].param1, 5);
+	EXPECT_EQ(item._iOracoolAffixes[0].param1, 120);
 }
 
 // Oracool regression test: reproduces the user's bug report of a Rare item appearing to have

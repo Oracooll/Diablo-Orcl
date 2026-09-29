@@ -158,6 +158,10 @@ void ApplyColdHit(MissileID type, int level, Monster &monster)
 	case MissileID::BlizzardShard:
 		ChillMonster(monster, ChillTicksFor(level) + 20);
 		break;
+	case MissileID::FrostArrow:
+		// Cold Arrow's chill grows with its rank, as its tooltip says (audit, 2026-09-29: it took the plain 2 s below).
+		ChillMonster(monster, ChillTicksFor(level));
+		break;
 	default:
 		// Ice Bolt, Frozen Orb's bolts, the arrows to come, and any cold missile nobody has named
 		// yet: the plain chill. Round 1's constant, so nothing that worked yesterday changes.

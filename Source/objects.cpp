@@ -5048,12 +5048,14 @@ void InitObjects()
 
 		if (currlevel == 4 || currlevel == 8 || currlevel == 12)
 			AddStoryBooks();
-		if (currlevel == 21) {
+		// Not in a rift built on a Crypt floor (a set level): reading one of these moves Na-Krul's quest on, even after
+		// he is dead (audit, 2026-09-29).
+		if (!setlevel && currlevel == 21) {
 			AddCryptStoryBook(1);
-		} else if (currlevel == 22) {
+		} else if (!setlevel && currlevel == 22) {
 			AddCryptStoryBook(2);
 			AddCryptStoryBook(3);
-		} else if (currlevel == 23) {
+		} else if (!setlevel && currlevel == 23) {
 			AddCryptStoryBook(4);
 			AddCryptStoryBook(5);
 		}

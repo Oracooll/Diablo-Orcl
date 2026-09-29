@@ -22,6 +22,7 @@
 #include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/warcries.h"
+#include "oracool/whirlwind.h" // IsWhirlwinding - Weapons Master pays no Rage for spin blows
 #include "player.h"
 #include "utils/language.h"
 
@@ -674,7 +675,9 @@ void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee)
 	if (melee && PassiveActive(player, Skill::Cadence))
 		clocks.cadenceCount = (clocks.cadenceCount + 1) % 3;
 	// Weapons Master's mace: a point of Rage for every blow that lands, with or without a skill.
-	if (melee && PassiveActive(player, Skill::WeaponsMaster) && WieldingMace(player))
+	// Not the blows of a Whirlwind spin (audit, 2026-09-29): four a second on each monster beside him, they paid for the
+	// spin and more, and it never ran dry.
+	if (melee && PassiveActive(player, Skill::WeaponsMaster) && WieldingMace(player) && !IsWhirlwinding(player))
 		GainRage(player, WeaponsMasterRage);
 	if (melee && PassiveActive(player, Skill::Righteousness))
 		RestoreMana(player, RighteousnessMana);

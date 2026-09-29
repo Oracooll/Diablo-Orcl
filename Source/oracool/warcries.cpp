@@ -511,9 +511,6 @@ void ApplyVengeanceCold(Player &player, Monster &monster)
 	const Buff *buff = FindBuff(player, SpellID::Vengeance);
 	if (buff == nullptr || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion())
 		return;
-	// A cold-immune monster takes none of it and is not chilled, as the auras' cold (audit, 2026-09-29).
-	if (monster.isImmune(MissileID::Null, DamageType::Cold))
-		return;
 	const int rank = std::max(buff->rank, 1);
 	int damage = Roll(VengeanceColdMin(rank), VengeanceColdMax(rank));
 	damage += damage * Rfa12ColdDamagePercent(monster) / 100;

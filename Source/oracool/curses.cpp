@@ -340,7 +340,10 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 		if (!Cursable(monster))
 			continue;
 		const int distance = monster.position.tile.WalkingDistance(target);
-		if (single ? monster.position.tile != target : distance > radius)
+		// A single curse finds its monster on either end of a step (audit, 2026-09-29): the cast aims at the tile a walking
+		// monster is stepping into, while its own tile stays the one it left until the step ends.
+		const bool onTarget = monster.position.tile == target || monster.position.future == target;
+		if (single ? !onTarget : distance > radius)
 			continue;
 		if (kind == CurseKind::Terror && monster.isUnique())
 			continue; // "Uniques do not" run - and are not marked either
