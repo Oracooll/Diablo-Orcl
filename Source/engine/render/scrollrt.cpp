@@ -77,6 +77,7 @@
 #include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h"
 #include "oracool/xp_gain_indicator.h"
+#include "oracool/whirlwind.h"
 #include "panels/charpanel.hpp"
 #include "panels/spell_book.hpp"
 #include "plrmsg.h"
@@ -658,7 +659,10 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 		Log("Draw Player \"{}\": no sprites for the current animation", player._pName);
 		return;
 	}
-	const ClxSprite sprite = player.previewCelSprite ? *player.previewCelSprite : player.AnimInfo.currentSprite();
+	// Oracool (2026-09-29): a spinning Whirlwind draws the hero's magic cast sheet, its facing turning - the walk that
+	// carries him is not what is seen. See oracool/whirlwind.h.
+	const std::optional<ClxSprite> spin = oracool::WhirlwindSprite(player);
+	const ClxSprite sprite = spin ? *spin : player.previewCelSprite ? *player.previewCelSprite : player.AnimInfo.currentSprite();
 
 	Point spriteBufferPosition = targetBufferPosition - Displacement { CalculateWidth2(sprite.width()), 0 };
 

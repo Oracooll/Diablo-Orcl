@@ -31,6 +31,7 @@
 #include "oracool/stat_sheet.h"
 #include "oracool/ui_sound.h"
 #include "oracool/warcries.h"
+#include "oracool/whirlwind.h"
 #include "missiles.h" // GetDamageAmtAtLevel - an active's rank is its spell level
 #include "spells.h"   // GetManaAmountAtLevel
 #include "player.h"
@@ -307,7 +308,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Leap Attack"), N_("Leap onto a distant enemy; the blow you land there is at +50% damage, +10% per rank."), Bar, 0, 3, 0, Kind::Active, SpellID::LeapAttack, true },
 	{ N_("Concentrate"), N_("A focused blow at +50% damage, +10% per rank. The steadiness half is not built yet."), Bar, 0, 3, 1, Kind::Active, SpellID::Concentrate, true },
 	{ N_("Frenzy"), N_("Two blows in one swing, both at 100% damage, +10% per rank."), Bar, 0, 4, 0, Kind::Active, SpellID::Frenzy, true },
-	{ N_("Whirlwind"), N_("Every swing strikes everything around you at 66% damage, +5% per rank. You stand your ground rather than travelling."), Bar, 0, 5, 0, Kind::Active, SpellID::Whirlwind, true },
+	{ N_("Whirlwind"), N_("Hold the right button to spin toward the cursor at a run, striking everything beside you four times a second at 66% damage, +5% per rank, for 5 Rage a second."), Bar, 0, 5, 0, Kind::Active, SpellID::Whirlwind, true },
 	{ N_("Berserk"), N_("A blow at +100% damage, +20% per rank. The defence you would trade for it is not taken yet."), Bar, 0, 5, 1, Kind::Active, SpellID::BerserkBlow, true },
 	// --- Combat Masteries ---
 	{ N_("Sword Mastery"), N_("Sharpens your aim and your blow with any sword held."), Bar, 1, 0, 0, Kind::Passive, SpellID::Invalid, true },
@@ -3043,6 +3044,7 @@ void ProcessClassTreeTick(Player &player)
 	ProcessOutwardAura(player);
 	ProcessPassivesTick(player);
 	ProcessRageTick(player);
+	ProcessWhirlwindTick(player); // the Barbarian's spin: its held button, Rage, glide and strikes
 	ProcessEssenceTick(player);
 	ProcessCursesTick(player);
 	ProcessRfa12Tick(player);

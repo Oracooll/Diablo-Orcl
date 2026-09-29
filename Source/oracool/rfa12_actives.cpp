@@ -241,6 +241,9 @@ void GoldenFlameWave(const Player &player, Point here, Point target, int reach)
 		SetMissDir(*flame, 1); // the burning row: Fire Wall's sheet has two (the rise, the burn), not sixteen facings
 		flame->oracoolTint = Tint::Hue;
 		flame->oracoolTintRgb = Rgb(255, 204, 92);
+		// Half size since the Barbarian Skill Cards page (2026-09-29), still burning on the floor: the tile's centre is
+		// 16px above the sprite's bottom edge.
+		ScaleMissile(*flame, 50, 16);
 	}
 }
 
@@ -1211,6 +1214,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			return false;
 		// RfA-27 batch 55: the cracked ring at his feet, in place of the cry's shockwave (Rfa12CastLeavesRing).
 		Art(player, MissileGraphicID::GroundStomp, here);
+		Impact(player, spell); // its Impact cue, when it stuns anything (the Barbarian Skill Cards page, 2026-09-29)
 		return true;
 	}
 	case SpellID::SeismicSlam: {
@@ -2526,10 +2530,20 @@ bool HolyBurst(const Player &player, Point tile, int percent, uint32_t rgb)
 	Missile *burst = Art(player, MissileGraphicID::HolyBoltExplosion, tile);
 	if (burst == nullptr || !burst->_miAnimData)
 		return false;
-	burst->oracoolTint = Tint::Hue;
-	burst->oracoolTintRgb = rgb;
+	if (rgb != 0) { // 0: vanilla's own colours (the Skill Cards pages' "None" tint)
+		burst->oracoolTint = Tint::Hue;
+		burst->oracoolTintRgb = rgb;
+	}
 	ScaleMissile(*burst, percent);
 	return true;
+}
+
+/** @brief Loads @p art if it is one of the monsters' own sheets, which load only with the monster that uses them. */
+void LoadMonsterOwnedArt(MissileGraphicID art)
+{
+	MissileFileData &data = GetMissileSpriteData(art);
+	if (!HeadlessMode && !data.sprites && data.flags == MissileGraphicsFlags::MonsterOwned)
+		data.LoadGFX();
 }
 
 /**
@@ -2541,9 +2555,14 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 {
 	MissileGraphicID arc = MissileGraphicID::None;
 	MissileGraphicID flash = MissileGraphicID::None;
+	// The size and tint the Skill Cards pages picked for a sheet (100 and 0: as delivered).
+	int artScale = 100;
+	uint32_t artHue = 0;
 	switch (spell) {
-	case SpellID::Cleave: arc = MissileGraphicID::CleaveArc; break;
-	case SpellID::Backhand: arc = MissileGraphicID::BackhandArc; break; // row n: the arc behind a hero facing n
+	// Half size, Paladin gold (the Barbarian Skill Cards page, 2026-09-29).
+	case SpellID::Cleave: arc = MissileGraphicID::CleaveArc, artScale = 50, artHue = hue::PaladinGold; break;
+	// Row n: the arc behind a hero facing n. Half size, fire orange (the same page).
+	case SpellID::Backhand: arc = MissileGraphicID::BackhandArc, artScale = 50, artHue = hue::FireOrange; break;
 	case SpellID::AegisSlam:
 		// Holy Bolt's burst, half size, gold, on what the shield struck (Visual FX Schedule, 2026-09-28); was its
 		// ChatGPT arc sheet.
@@ -2583,19 +2602,32 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 		if (landedOn)
 			HolyBurst(player, *landedOn, 25, hue::SpectralLavender);
 		break;
-	case SpellID::Rend: flash = MissileGraphicID::RendStrike; break;
-	case SpellID::ClaspOfRuin: flash = MissileGraphicID::ClaspOfRuin; break;
-	case SpellID::HammerOfTheAncients: flash = MissileGraphicID::HammerOfTheAncients; break;
+	// Vanilla's Blood Star sheets at half size in place of the delivered strikes (the Barbarian Skill Cards page,
+	// 2026-09-29): the red explosion for Rend, the blue star for Clasp of Ruin, the star for Hammer of the Ancients.
+	case SpellID::Rend: flash = MissileGraphicID::BloodStarRedExplosion, artScale = 50; break;
+	case SpellID::ClaspOfRuin: flash = MissileGraphicID::BloodStarBlue, artScale = 50; break;
+	case SpellID::HammerOfTheAncients: flash = MissileGraphicID::BloodStar, artScale = 50; break;
 	case SpellID::CinderTouch: flash = MissileGraphicID::CinderTouch; break;
 	case SpellID::TigerClaw: flash = MissileGraphicID::TigerClaw; break;
 	case SpellID::PressurePoint: flash = MissileGraphicID::PressurePoint; break;
 	case SpellID::ExplodingPalm: flash = MissileGraphicID::ExplodingPalm; break;
 	default: break;
 	}
+	Missile *drawn = nullptr;
 	if (arc != MissileGraphicID::None)
-		ArtFacing(player, arc, from, facing);
-	if (flash != MissileGraphicID::None && landedOn)
-		Art(player, flash, *landedOn);
+		drawn = ArtFacing(player, arc, from, facing);
+	if (flash != MissileGraphicID::None && landedOn) {
+		LoadMonsterOwnedArt(flash); // the Blood Stars are monsters' sheets, loaded only with them
+		drawn = Art(player, flash, *landedOn);
+	}
+	if (drawn != nullptr) {
+		if (artHue != 0) {
+			drawn->oracoolTint = Tint::Hue;
+			drawn->oracoolTintRgb = artHue;
+		}
+		if (artScale != 100)
+			ScaleMissile(*drawn, artScale); // the arcs and flashes keep their centre
+	}
 }
 
 void TickLanding(Player &player, PlayerState &state)

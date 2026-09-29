@@ -606,6 +606,13 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			// A cold hit with no impact art of its own - a Blizzard shard, a Cold or Ice Arrow - flashes where it landed.
 			if (isMonsterHit && damageType == DamageType::Cold && !HasOwnColdImpact(missile))
 				AddColdHitFlash({ mx, my }, missile._misource);
+			// A thrown weapon sounds Weapon Throw's Impact cue where it lands (2026-09-29, the Barbarian Skill Cards page).
+			if (isMonsterHit && missile._mitype == MissileID::Arrow && IsAnyOf(missile._miAnimType, MissileGraphicID::ThrownAxe, MissileGraphicID::ThrownSword)
+			    && &Players[missile._misource] == MyPlayer) {
+				const oracool::ClassTreeSkill row = oracool::ClassTreeSkillForSpell(MyPlayer->_pClass, SpellID::WeaponThrow);
+				if (row != oracool::ClassTreeSkill::None)
+					oracool::PlaySkillSound(row, oracool::SkillSoundEvent::Impact);
+			}
 		}
 	}
 

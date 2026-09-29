@@ -1,0 +1,105 @@
+{
+ "picks": {
+  "barbarian.Backhand.Cast": {
+   "path": "sfx\\misc\\swing.wav",
+   "why": "the Barbarian Skill Cards page: Weapon swing"
+  },
+  "barbarian.Backhand.Impact": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "the Barbarian Skill Cards page: Holy Bolt"
+  },
+  "barbarian.Bash.Impact": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "the Barbarian Skill Cards page: Holy Bolt"
+  },
+  "barbarian.ClaspOfRuin.Cast": {
+   "path": "sfx\\misc\\swing2.wav",
+   "why": "the Barbarian Skill Cards page: Heavy weapon swing"
+  },
+  "barbarian.ClaspOfRuin.Impact": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "the Barbarian Skill Cards page: Holy Bolt"
+  },
+  "barbarian.Cleave.Cast": {
+   "path": "sfx\\misc\\swing.wav",
+   "why": "the Barbarian Skill Cards page: Weapon swing"
+  },
+  "barbarian.Cleave.Impact": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "the Barbarian Skill Cards page: Holy Bolt"
+  },
+  "barbarian.DoubleSwing.Impact": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "the Barbarian Skill Cards page: Holy Bolt"
+  },
+  "barbarian.DoubleThrow.Cast": {
+   "path": "sfx\\misc\\sting1.wav",
+   "why": "the Barbarian Skill Cards page: Arrow hit (Hellfire)"
+  },
+  "barbarian.DoubleThrow.Impact": {
+   "path": "sfx\\misc\\blsimpt.wav",
+   "why": "the Barbarian Skill Cards page: Blood Star impact"
+  },
+  "barbarian.Frenzy.Cast": {
+   "path": "sfx\\misc\\sting1.wav",
+   "why": "the Barbarian Skill Cards page: Arrow hit (Hellfire)"
+  },
+  "barbarian.Frenzy.Impact": {
+   "path": null,
+   "why": "the Barbarian Skill Cards page: None"
+  },
+  "barbarian.GroundStomp.Cast": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "the Barbarian Skill Cards page: Holy Bolt"
+  },
+  "barbarian.GroundStomp.Impact": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "the Barbarian Skill Cards page: Holy Bolt"
+  },
+  "barbarian.HammerOfTheAncients.Cast": {
+   "path": "sfx\\misc\\swing.wav",
+   "why": "the Barbarian Skill Cards page: Weapon swing"
+  },
+  "barbarian.Leap.Cast": {
+   "path": "sfx\\misc\\cast2.wav",
+   "why": "the Barbarian Skill Cards page: Generic cast (cast2)"
+  },
+  "barbarian.Leap.Impact": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "the Barbarian Skill Cards page: Holy Bolt"
+  },
+  "barbarian.LeapAttack.Cast": {
+   "path": "sfx\\misc\\cast2.wav",
+   "why": "the Barbarian Skill Cards page: Generic cast (cast2)"
+  },
+  "barbarian.LeapAttack.Impact": {
+   "path": "sfx\\misc\\flamwave.wav",
+   "why": "the Barbarian Skill Cards page: Flame Wave"
+  },
+  "barbarian.Rend.Cast": {
+   "path": "sfx\\misc\\swing.wav",
+   "why": "the Barbarian Skill Cards page: Weapon swing"
+  },
+  "barbarian.Rend.Impact": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "the Barbarian Skill Cards page: Holy Bolt"
+  },
+  "barbarian.SeismicSlam.Cast": {
+   "path": "sfx\\misc\\fbolt1.wav",
+   "why": "the Barbarian Skill Cards page: Firebolt"
+  },
+  "barbarian.Stun.Impact": {
+   "path": "sfx\\misc\\holybolt.wav",
+   "why": "the Barbarian Skill Cards page: Holy Bolt"
+  },
+  "barbarian.Whirlwind.Cast": {
+   "path": "sfx\\misc\\flamwave.wav",
+   "why": "the Barbarian Skill Cards page: Flame Wave"
+  },
+  "barbarian.Whirlwind.Impact": {
+   "path": "sfx\\items\\invaxe.wav",
+   "why": "the Barbarian Skill Cards page: Axe (inventory)"
+  }
+ },
+ "about": "The per-class Skill Cards pages' sound picks (db collection picks). GenVanillaSkillSounds.js plays these before the sound page's picks and every rule. path null = silent."
+}

@@ -36,6 +36,7 @@ struct SpriteColours;
 } // namespace oracool
 
 struct Player;
+struct Monster; // PlayerStrikesMonster
 namespace oracool {
 /**
  * @brief Heavenly Strength's grip (2026-09-11): whether @p player holds @p item, a two-handed weapon, in ONE
@@ -1170,6 +1171,11 @@ void StartWarpLvl(Player &player, size_t pidx);
 void ProcessPlayers();
 void ClrPlrPath(Player &player);
 bool PosOkPlayer(const Player &player, Point position);
+/**
+ * @brief Oracool: one melee blow of @p player at @p monster through the swing's own hit path (to-hit roll, damage, the
+ * armed skill's bonus, knockback) without a swing - Whirlwind's spin (oracool/whirlwind.h). True when it landed.
+ */
+bool PlayerStrikesMonster(Player &player, Monster &monster);
 void MakePlrPath(Player &player, Point targetPosition, bool endspace);
 void CalcPlrStaff(Player &player);
 void CheckPlrSpell(bool isShiftHeld, SpellID spellID = MyPlayer->_pRSpell, SpellType spellType = MyPlayer->_pRSplType);

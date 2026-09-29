@@ -107,6 +107,21 @@ std::optional<ClassMeleeSkill> ArmedClassMeleeSkill();
  */
 int ClassMeleeSkillDamagePercent(const Player &player);
 
+/** @brief A fresh swing is starting (StartAttack): no Double Swing / Frenzy chain carries into it. */
+void BeginClassMeleeSwing();
+
+/**
+ * @brief Frames a Double Swing or Frenzy swing skips at its start, so its two swings take one attack's time (2026-09-29).
+ * Zero for every other swing.
+ */
+int ClassMeleeSwingSkipFrames(const Player &player);
+
+/**
+ * @brief Hands a Double Swing or Frenzy swing over to its next swing, at the blow or the last frame - Zeal's chain for
+ * these two (paladin_melee.h). True when a swing started.
+ */
+bool TryContinueClassMeleeChain(Player &player);
+
 /**
  * @brief The damage bonus @p spell's class melee skill adds at @p player's rank, in percent - what the sheet quotes without a
  * swing armed. -1 when @p spell is not a class melee skill.

@@ -77,6 +77,7 @@
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_ranged.h"
 #include "oracool/xp_gain_indicator.h"
+#include "oracool/whirlwind.h"
 #include "player.h"
 #include "playerdat.hpp"
 #include "qol/autopickup.h"
@@ -221,7 +222,8 @@ void StartWalkAnimation(Player &player, Direction dir, bool pmWillBeCalled)
 		// The +1 below for pmWillBeCalled still fits: 7 is the walk's last frame.
 		skippedFrames = static_cast<int8_t>(std::max(0, std::min(oracool::ChargeDashSkipFrames, player._pWFrames - 2)));
 	} else if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0)
-	    || oracool::IsRunEnabled() || oracool::IsClassTreeRunActive(player))
+	    || oracool::IsRunEnabled() || oracool::IsClassTreeRunActive(player)
+	    || oracool::IsWhirlwinding(player)) // the spin glides at run speed (2026-09-29)
 		skippedFrames = oracool::PlayerSlowPercent(player) > 0 ? static_cast<int8_t>(walkSkip + 4) // the run, slowed
 		                                                     : std::max<int8_t>(2, walkSkip); // the run, or Movement Speed past it (2026-09-12)
 	else
@@ -342,8 +344,12 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 	// swings, not one full swing and one stub. Combined with the item speed skips above and clamped
 	// so the hit frame always survives.
 	// Heavenly Strength's -20% attack speed (2026-09-27) is a negative skip: extra ticks before the first frame.
+	// Double Swing and Frenzy compress the same way, two swings to one attack's time (2026-09-29).
+	if (&player == MyPlayer)
+		oracool::BeginClassMeleeSwing();
 	skippedAnimationFrames = static_cast<int8_t>(std::min<int>(
-	    skippedAnimationFrames + oracool::ZealSwingSkipFrames(player) - oracool::HeavenlyStrengthSwingDelayFrames(player),
+	    skippedAnimationFrames + oracool::ZealSwingSkipFrames(player) + oracool::ClassMeleeSwingSkipFrames(player)
+	        - oracool::HeavenlyStrengthSwingDelayFrames(player),
 	    std::max(0, oracool::MeleeHitFrame(player) - 2)));
 	const player_graphic swing = oracool::SwingsShieldAttackSheet(player) ? player_graphic::ShieldAttack
 	    : bashesWithShield                                             ? player_graphic::Block
@@ -1092,13 +1098,13 @@ bool DoAttack(Player &player)
 	// frames - that is what fits N swings inside 150% of ONE attack (user spec, 2026-08-15). The
 	// burst's final swing finds no chain to continue and plays its recovery out through the
 	// isLastFrame path below, so the flurry ends on a complete motion.
-	if (player.AnimInfo.currentFrame >= oracool::MeleeHitFrame(player) && oracool::TryContinueZealChain(player))
+	if (player.AnimInfo.currentFrame >= oracool::MeleeHitFrame(player) && (oracool::TryContinueZealChain(player) || oracool::TryContinueClassMeleeChain(player)))
 		return false;
 
 	if (player.AnimInfo.isLastFrame()) {
 		// Also asked here for the natural end: a swing whose hit frame IS its last frame (a heavily
 		// compressed chain swing) must still hand over.
-		if (oracool::TryContinueZealChain(player))
+		if (oracool::TryContinueZealChain(player) || oracool::TryContinueClassMeleeChain(player))
 			return false;
 		StartStand(player, player._pdir);
 		ClearStateVariables(player);
@@ -4066,6 +4072,15 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			myPlayer.Say(HeroSpeech::NotEnoughMana);
 			return;
 		}
+		// Whirlwind is held on the right button, not swung (2026-09-29): the spin runs from here until the button is let
+		// go or the Rage runs out - oracool/whirlwind.h. Never from the left button.
+		if (*skill == oracool::ClassMeleeSkill::Whirlwind) {
+			oracool::ArmClassMeleeSkill(std::nullopt);
+			LastMouseButtonAction = MouseActionType::None;
+			if (sgbMouseDown != CLICK_RIGHT || !oracool::StartWhirlwind(myPlayer))
+				myPlayer.Say(HeroSpeech::ICantDoThat);
+			return;
+		}
 		const bool adjacent = pcursmonst != -1
 		    && myPlayer.position.tile.WalkingDistance(Monsters[pcursmonst].position.tile) <= 1;
 
@@ -4613,5 +4628,10 @@ bool TestShouldDropGoldOnDeath(Player &player)
 	return ShouldDropGoldOnDeath(player);
 }
 #endif
+
+bool PlayerStrikesMonster(Player &player, Monster &monster)
+{
+	return PlrHitMonst(player, monster);
+}
 
 } // namespace devilution

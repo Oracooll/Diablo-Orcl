@@ -38,6 +38,9 @@ MissileGraphicID ThrownWeaponGraphic(const Player &player);
 /** @brief Arms the next swing to throw at @p target, or disarms it. */
 void ArmWeaponThrow(std::optional<Point> target);
 
+/** @brief Whether the swing in flight is armed to throw - its Cast cue then replaces the whoosh (2026-09-29). */
+bool IsWeaponThrowArmed();
+
 /**
  * @brief At the hit frame of @p player's swing: throws the armed weapon and settles its price. True if it threw,
  * in which case the swing strikes nothing itself. The latch is spent either way.

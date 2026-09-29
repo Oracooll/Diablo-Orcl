@@ -2,6 +2,7 @@ skill,event,class,page,name
 AncestralCall,Arrive,barbarian,warcries,Ancestral Call
 AncestralCall,Cast,barbarian,warcries,Ancestral Call
 AxeMastery,Learn,barbarian,combat-masteries,Axe Mastery
+Backhand,Cast,barbarian,combat-skills,Backhand
 Backhand,Impact,barbarian,combat-skills,Backhand
 Bash,Cast,barbarian,combat-skills,Bash
 Bash,Impact,barbarian,combat-skills,Bash
@@ -11,7 +12,9 @@ BattleOrders,Cast,barbarian,warcries,Battle Orders
 Berserk,Cast,barbarian,combat-skills,Berserk
 Berserk,Impact,barbarian,combat-skills,Berserk
 Bloodcall,Cast,barbarian,warcries,Bloodcall
+ClaspOfRuin,Cast,barbarian,combat-skills,Clasp of Ruin
 ClaspOfRuin,Impact,barbarian,combat-skills,Clasp of Ruin
+Cleave,Cast,barbarian,combat-skills,Cleave
 Cleave,Impact,barbarian,combat-skills,Cleave
 Concentrate,Cast,barbarian,combat-skills,Concentrate
 Concentrate,Impact,barbarian,combat-skills,Concentrate
@@ -27,7 +30,9 @@ FindPotion,Cast,barbarian,warcries,Find Potion
 Frenzy,Cast,barbarian,combat-skills,Frenzy
 Frenzy,Impact,barbarian,combat-skills,Frenzy
 GrimWard,Cast,barbarian,warcries,Grim Ward
+GroundStomp,Impact,barbarian,combat-skills,Ground Stomp
 GroundStomp,Cast,barbarian,combat-skills,Ground Stomp
+HammerOfTheAncients,Cast,barbarian,combat-skills,Hammer of the Ancients
 HammerOfTheAncients,Impact,barbarian,combat-skills,Hammer of the Ancients
 Howl,Cast,barbarian,warcries,Howl
 IncreasedSpeed,Learn,barbarian,combat-masteries,Increased Speed
@@ -43,6 +48,7 @@ MaceMastery,Learn,barbarian,combat-masteries,Mace Mastery
 NaturalResistance,Learn,barbarian,combat-masteries,Natural Resistance
 PoleArmMastery,Learn,barbarian,combat-masteries,Pole Arm Mastery
 RallyingCry,Cast,barbarian,warcries,Rallying Cry
+Rend,Cast,barbarian,combat-skills,Rend
 Rend,Impact,barbarian,combat-skills,Rend
 SeismicSlam,Cast,barbarian,combat-skills,Seismic Slam
 Shout,Cast,barbarian,warcries,Shout

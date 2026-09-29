@@ -157,7 +157,7 @@ const char *Rfa12ActiveDescription(SpellID spell);
 
 /**
  * @brief Vanilla's Holy Bolt explosion on @p tile as a Paladin skill's impact, at @p percent of its size, tinted @p rgb
- * (oracool::hue, missile_tint.h). Drawn only. False when holyexpl is not loaded (headless). For the skills outside
+ * (oracool::hue, missile_tint.h; 0 for its own colours). Drawn only. False when holyexpl is not loaded (headless). For the skills outside
  * rfa12_actives.cpp: Hammer of Faith, Zeal, Smite, Sacrifice, Charge.
  */
 bool DrawHolyBurst(const Player &player, Point tile, int percent, uint32_t rgb);

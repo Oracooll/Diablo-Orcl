@@ -12,6 +12,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
+#include "oracool/whirlwind.h"
 #include "player.h"
 #include "spells.h"
 
@@ -49,7 +50,9 @@ TEST(OracoolRage, EveryBarbarianActiveIsTheUsersPick)
 		{ SpellID::GrimWard, 10 }, { SpellID::GroundStomp, 10 }, { SpellID::HammerOfTheAncients, 10 }, { SpellID::Howl, 10 },
 		{ SpellID::Intimidate, 10 }, { SpellID::IronWill, 10 }, { SpellID::Leap, 10 }, { SpellID::RallyingCry, 10 },
 		{ SpellID::SeismicSlam, 10 }, { SpellID::Shout, 10 }, { SpellID::Taunt, 10 }, { SpellID::ThreateningShout, 10 },
-		{ SpellID::WarCry, 10 }, { SpellID::Whirlwind, 10 },
+		{ SpellID::WarCry, 10 },
+		// Whirlwind: 5 to START the spin, which then drains 5 a second (oracool/whirlwind.h, 2026-09-29).
+		{ SpellID::Whirlwind, 5 },
 	};
 	for (const auto &[spell, gain] : generators) {
 		EXPECT_EQ(oracool::RageGain(spell), gain) << "spell " << static_cast<int>(spell);
@@ -84,7 +87,7 @@ TEST(OracoolRage, GeneratorsFillAndSpendersDrainWithinThePool)
 	EXPECT_TRUE(oracool::CanPaySkill(player, SpellID::Whirlwind));
 	EXPECT_FALSE(oracool::CanPaySkill(player, SpellID::LeapAttack)) << "13 Rage is one short of 14";
 
-	oracool::SettleSkill(player, SpellID::Whirlwind);
+	oracool::SettleSkill(player, SpellID::BattleCry);
 	EXPECT_EQ(player._pRage, 3);
 
 	for (int i = 0; i < 40; i++)
@@ -206,4 +209,18 @@ TEST(OracoolRage, ANewLevelStartsEmpty)
 	oracool::ResetRage(player);
 	EXPECT_EQ(player._pRage, 0);
 	EXPECT_EQ(player._pRageIdleTicks, 0);
+}
+
+// Whirlwind, held on the right button (the Barbarian Skill Cards page, 2026-09-29): its blow share, its button, its price.
+TEST(OracoolRage, WhirlwindIsHeldOnTheRightButton)
+{
+	EXPECT_EQ(oracool::WhirlwindDamagePercent(1), 66);
+	EXPECT_EQ(oracool::WhirlwindDamagePercent(5), 86) << "+5% a rank";
+	EXPECT_TRUE(oracool::WhirlwindRightButtonOnly(SpellID::Whirlwind));
+	EXPECT_FALSE(oracool::WhirlwindRightButtonOnly(SpellID::Bash));
+	EXPECT_EQ(oracool::WhirlwindStrikeTicks, 5) << "four strikes a second, at 20 ticks a second";
+	EXPECT_EQ(oracool::WhirlwindRagePerSecond, 5);
+	devilution::Player &player = FreshBarbarian();
+	EXPECT_FALSE(oracool::IsWhirlwinding(player)) << "nothing spins until the right button is held";
+	EXPECT_FALSE(oracool::CanPaySkill(player, SpellID::Whirlwind)) << "it takes Rage to start";
 }

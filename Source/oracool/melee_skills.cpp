@@ -11,7 +11,11 @@
 #include "oracool/minions.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
+#include "oracool/class_tree.h" // ClassTreeSkillForSpell - the Impact cue's row
+#include "oracool/paladin_melee.h" // MeleeHitFrame - the chained swings' hit frame
 #include "oracool/rfa12_actives.h"
+#include "oracool/skill_sounds.h"
+#include "oracool/whirlwind.h"
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
@@ -23,6 +27,23 @@ namespace {
 
 /** The latch - see the header, and paladin_melee.cpp's ArmedSkill, which this mirrors. */
 std::optional<ClassMeleeSkill> ArmedSkill;
+
+/**
+ * Double Swing and Frenzy swing twice: the second blow is a second SWING, each compressed so the two take the time of
+ * one attack (the Barbarian Skill Cards page, 2026-09-29: "This attack should make two swings in the span of one attack
+ * either reduce frames per attack or the ticks per frame"; Frenzy: "One left click is two swings with this skill").
+ * Zeal's chain, for these two - see paladin_melee.cpp's TryContinueZealChain. They were two blows in one swing.
+ */
+bool IsSwingChainSkill(ClassMeleeSkill skill)
+{
+	return skill == ClassMeleeSkill::DoubleSwing || skill == ClassMeleeSkill::Frenzy;
+}
+/** Swings still to come in this chain. */
+int ChainLeft = 0;
+/** The swing in flight is a chained one - it deals the extra blow's share, and a spender is not charged again. */
+bool ChainFollowUp = false;
+/** Who the chain swings at. */
+Monster *ChainTarget = nullptr;
 
 /**
  * @brief The four numbers that describe most of a skill. Percentages are of the swing's own damage.
@@ -275,6 +296,7 @@ int LeapRangeTiles(const Player &player, ClassMeleeSkill skill)
 void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill)
 {
 	ArmedSkill = skill;
+	BeginClassMeleeSwing(); // a new click: no chain carries over
 	// One latch at a time: arming or disarming this one drops the RfA-12 swing (rfa12_actives.h), which is
 	// armed after it where it is meant.
 	ArmRfa12Melee(std::nullopt);
@@ -287,10 +309,57 @@ std::optional<ClassMeleeSkill> ArmedClassMeleeSkill()
 
 int ClassMeleeSkillDamagePercent(const Player &player)
 {
+	// The spin's blows (oracool/whirlwind.h): a share of a normal blow, the latch or none.
+	if (IsWhirlwinding(player))
+		return WhirlwindDamagePercent(RankOf(player, ClassMeleeSkill::Whirlwind)) - 100;
 	if (&player != MyPlayer || !ArmedSkill.has_value() || !CanPay(player, *ArmedSkill))
 		return 0;
 	const Profile p = ProfileOf(*ArmedSkill);
-	return p.bonusPercent + p.bonusPerRank * (RankOf(player, *ArmedSkill) - 1);
+	const int rank = RankOf(player, *ArmedSkill);
+	const int bonus = p.bonusPercent + p.bonusPerRank * (rank - 1);
+	// A chained swing is the extra blow: its share of a first blow that carried the bonus.
+	if (ChainFollowUp && IsSwingChainSkill(*ArmedSkill))
+		return (100 + bonus) * (p.extraSharePercent + p.extraSharePerRank * (rank - 1)) / 100 - 100;
+	return bonus;
+}
+
+void BeginClassMeleeSwing()
+{
+	ChainLeft = 0;
+	ChainFollowUp = false;
+	ChainTarget = nullptr;
+}
+
+int ClassMeleeSwingSkipFrames(const Player &player)
+{
+	if (&player != MyPlayer || !ArmedSkill.has_value() || !IsSwingChainSkill(*ArmedSkill) || !CanPay(player, *ArmedSkill))
+		return 0;
+	if (StrikeCount(player, *ArmedSkill) < 2)
+		return 0;
+	// Two swings in one attack's time: each keeps the second half of its windup (at least 3 frames), and the first hands
+	// over at its blow, so windup + windup + one recovery is about one whole swing.
+	const int hitFrame = MeleeHitFrame(player);
+	return std::max(0, std::min(hitFrame / 2, hitFrame - 3));
+}
+
+bool TryContinueClassMeleeChain(Player &player)
+{
+	if (&player != MyPlayer || ChainLeft <= 0 || !ArmedSkill.has_value() || !IsSwingChainSkill(*ArmedSkill) || !CanPay(player, *ArmedSkill)
+	    || ChainTarget == nullptr || (ChainTarget->hitPoints >> 6) <= 0 || !ChainTarget->isPossibleToHit()
+	    || player.position.tile.WalkingDistance(ChainTarget->position.tile) > 1) {
+		ChainLeft = 0;
+		ChainFollowUp = false;
+		return false;
+	}
+	ChainLeft--;
+	ChainFollowUp = true;
+	const Direction d = GetDirection(player.position.tile, ChainTarget->position.tile);
+	player._pdir = d;
+	// A REAL swing, as Zeal's: the blow lands through DoAttack's hit frame - to-hit roll, damage and all.
+	NewPlrAnim(player, player_graphic::Attack, d,
+	    static_cast<AnimationDistributionFlags>(AnimationDistributionFlags::ProcessAnimationPending | AnimationDistributionFlags::RepeatedAction),
+	    ClassMeleeSwingSkipFrames(player), MeleeHitFrame(player));
+	return true;
 }
 
 int ClassMeleeSkillBonusPercentFor(const Player &player, SpellID spell)
@@ -321,7 +390,14 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 	// The extra blows on the front target, each a share of what the first one dealt - which already
 	// carries the skill's bonus, so a Double Swing's second blow is three quarters of a Bash-sized
 	// first, not of a plain one.
-	if (front != nullptr && frontHit && frontDamage > 0) {
+	// Double Swing and Frenzy: the extra blows are swings of their own (2026-09-29) - the first swing arms the chain,
+	// landed or not, and TryContinueClassMeleeChain delivers the rest.
+	if (IsSwingChainSkill(skill)) {
+		if (front != nullptr && !ChainFollowUp) {
+			ChainLeft = StrikeCount(player, skill) - 1;
+			ChainTarget = front;
+		}
+	} else if (front != nullptr && frontHit && frontDamage > 0) {
 		const int share = p.extraSharePercent + p.extraSharePerRank * (rank - 1);
 		for (int i = 1; i < StrikeCount(player, skill); i++) {
 			if (front->hitPoints >> 6 <= 0)
@@ -442,6 +518,30 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		break;
 	}
 
+	// A landed blow: the skill's burst, where it has one, and its Impact cue (the Barbarian Skill Cards page,
+	// 2026-09-29 - the table's Impact cues for these skills were never played until now).
+	if (front != nullptr && frontHit) {
+		int burst = 0;
+		uint32_t burstHue = 0;
+		switch (skill) {
+		case ClassMeleeSkill::Bash: burst = 25, burstHue = hue::Infrared; break;
+		case ClassMeleeSkill::Stun: burst = 25; break; // vanilla's own colours
+		case ClassMeleeSkill::Concentrate: burst = 25, burstHue = hue::Infrared; break;
+		case ClassMeleeSkill::DoubleSwing: burst = 25; break;
+		case ClassMeleeSkill::Frenzy: burst = 50, burstHue = hue::Infrared; break;
+		default: break;
+		}
+		if (burst > 0)
+			DrawHolyBurst(player, front->position.tile, burst, burstHue);
+		const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, ClassMeleeSkillSpell(skill));
+		if (row != ClassTreeSkill::None)
+			PlaySkillSound(row, SkillSoundEvent::Impact);
+	}
+
+	// A chained swing of a spender was paid for with the first; a generator earns on every landed blow.
+	if (ChainFollowUp && IsSwingChainSkill(skill) && RageGain(ClassMeleeSkillSpell(skill)) == 0)
+		return struck;
+
 	// Paid when the skill did something, or when its bonus rode a blow that landed - a Bash that
 	// connected is a Bash even if the target was too heavy to shove.
 	//
@@ -479,6 +579,15 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 	if (missile == nullptr)
 		return false;
 	Pay(player, skill, /*landedBlows=*/0); // the leap itself strikes nothing
+	// Heard and seen (the Barbarian Skill Cards page, 2026-09-29): the Cast cue as he goes, the Impact cue and a
+	// half-again-size Holy Bolt burst, pale warm, where he lands - the teleport has already found the tile.
+	const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, ClassMeleeSkillSpell(skill));
+	if (row != ClassTreeSkill::None) {
+		PlaySkillSound(row, SkillSoundEvent::Cast);
+		PlaySkillSound(row, SkillSoundEvent::Impact);
+	}
+	if (skill == ClassMeleeSkill::Leap || skill == ClassMeleeSkill::LeapAttack)
+		DrawHolyBurst(player, missile->position.tile, 150, hue::PaleWarm);
 	return true;
 }
 
@@ -500,7 +609,7 @@ const char *ClassMeleeSkillDescription(SpellID spell)
 	case SpellID::Frenzy:
 		return N_("Two blows in one swing, both at 100% damage, +10% per rank.");
 	case SpellID::Whirlwind:
-		return N_("Every swing strikes everything around you at 66% damage, +5% per rank.");
+		return N_("Hold the right button to spin toward the cursor at a run, striking everything beside you four times a second at 66% damage, +5% per rank. Drains 5 Rage a second.");
 	case SpellID::BerserkBlow:
 		return N_("A blow at +100% damage, +20% per rank.");
 	case SpellID::SweepingReed:
@@ -576,6 +685,11 @@ std::string MeleeSkillFactsAt(ClassMeleeSkill skill, int rank)
 		line(std::string(_("Stun: 1.0 s")));
 		break;
 	case ClassMeleeSkill::Whirlwind:
+		line(fmt::format(fmt::runtime(_("Strikes everything beside you {:d} times a second at {:d}% damage")), 20 / WhirlwindStrikeTicks,
+		    WhirlwindDamagePercent(rank)));
+		line(fmt::format(fmt::runtime(_("Rage: {:d} a second while spinning")), WhirlwindRagePerSecond));
+		line(std::string(_("Held on the right button; moves at run speed")));
+		break;
 	case ClassMeleeSkill::WheelOfHeaven:
 		line(fmt::format(fmt::runtime(_("Hits everything around you at {:d}% damage")), 66 + 5 * (rank - 1)));
 		break;

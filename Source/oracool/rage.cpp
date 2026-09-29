@@ -76,9 +76,10 @@ int RageCost(SpellID spell)
 	case SpellID::Taunt:
 	case SpellID::ThreateningShout:
 	case SpellID::WarCry:
-	case SpellID::Whirlwind:
 	case SpellID::WeaponThrow: // a new skill (2026-09-14), priced like the Barbarian's other attacks
 		return 10;
+	case SpellID::Whirlwind:
+		return 5; // to START the spin, one second of it; the spin itself drains 5 a second (oracool/whirlwind.h, 2026-09-29)
 	default:
 		return 0;
 	}
@@ -180,6 +181,8 @@ void SettleSkill(Player &player, SpellID spell, int landedBlows)
 std::string SkillResourceLine(const Player &player, SpellID spell, int level)
 {
 	if (UsesRage(player)) {
+		if (spell == SpellID::Whirlwind)
+			return fmt::format(fmt::runtime(_("Rage: {:d} a second")), RageCost(spell)); // drained while it spins
 		if (const int cost = RageCost(spell); cost > 0)
 			return fmt::format(fmt::runtime(_("Rage Cost: {:d}")), cost);
 		if (const int gain = RageGain(spell); gain > 0)

@@ -45,6 +45,11 @@ void ArmWeaponThrow(std::optional<Point> target)
 	ArmedTarget = target;
 }
 
+bool IsWeaponThrowArmed()
+{
+	return ArmedTarget.has_value();
+}
+
 bool ThrowArmedWeapon(Player &player)
 {
 	if (&player != MyPlayer || !ArmedTarget.has_value())

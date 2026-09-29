@@ -31,6 +31,7 @@
 #include "oracool/readied_spells.h"
 #include "oracool/spell_ranks.h" // SpellRequiredLevel - spells sort as the Spells tab sorts them
 #include "oracool/ui_sound.h"
+#include "oracool/whirlwind.h" // WhirlwindRightButtonOnly
 #include "oracool/window_close.h"
 
 namespace devilution::oracool {
@@ -271,6 +272,8 @@ void BuildEntries(const Player &player, std::vector<Entry> &out, std::vector<Sec
  */
 bool IsAssignableToLeft(const Entry &entry)
 {
+	if (WhirlwindRightButtonOnly(entry.spell))
+		return false; // held on the right button (2026-09-29)
 	return entry.kind != EntryKind::Tree
 	    || GetClassTreeSkillData(entry.tree).kind != ClassTreeKind::Aura;
 }
@@ -814,7 +817,8 @@ bool CheckSkillPickerClick(Point mousePosition)
 				// A Staff cell binds as Charges; the Spell cell beside it binds as mana. That is the
 				// whole of "they need to coexist".
 				const SpellType type = SpellTypeFor(player, entry.spell, entry.kind == EntryKind::Staff, entry.kind == EntryKind::Scroll);
-				if (PickerForLeft) {
+				// Whirlwind lands on the right button from either menu - it is held there (2026-09-29), as an aura is lit.
+				if (PickerForLeft && !WhirlwindRightButtonOnly(entry.spell)) {
 					player._pLRSpell = entry.spell;
 					player._pLRSplType = type;
 					oracool::ScheduleAutoSaveForSkillChange();

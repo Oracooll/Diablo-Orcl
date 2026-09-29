@@ -5,8 +5,11 @@
 #include "oracool/class_tree.h"
 #include "oracool/companion.h"
 #include "oracool/furious_charge.h"
+#include "oracool/melee_skills.h" // ArmedClassMeleeSkill - the swing cue answers for every armed melee skill
 #include "oracool/minions.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/rage.h" // CanPaySkill
+#include "oracool/weapon_throw.h" // IsWeaponThrowArmed - the throw's swing cue
 #include "oracool/passives.h" // Towering Shield
 #include "oracool/missile_tint.h" // hue:: - the bursts' colours
 #include "oracool/rfa12_actives.h" // ArmedRfa12Melee - Aegis Slam strikes with the shield too
@@ -486,14 +489,34 @@ int MeleeHitFrame(const Player &player)
 	return std::min<int>(player._pAFNum, player._pBFrames);
 }
 
+SpellID ArmedMeleeSpell(const Player &player)
+{
+	if (&player != MyPlayer)
+		return SpellID::Invalid;
+	// An unaffordable skill is a plain swing everywhere else, so it sounds like one too.
+	if (ArmedSkill.has_value())
+		return CanUsePaladinSkill(player, *ArmedSkill) ? GetPaladinSkillData(*ArmedSkill).spellId : SpellID::Invalid;
+	if (const std::optional<ClassMeleeSkill> skill = ArmedClassMeleeSkill(); skill.has_value()) {
+		const SpellID spell = ClassMeleeSkillSpell(*skill);
+		return CanPaySkill(player, spell) ? spell : SpellID::Invalid;
+	}
+	if (const std::optional<SpellID> spell = ArmedRfa12Melee(); spell.has_value())
+		return Rfa12MeleeUsable(player, *spell) && CanPaySkill(player, *spell) ? *spell : SpellID::Invalid;
+	if (IsWeaponThrowArmed())
+		return CanThrowWeapon(player) && CanPaySkill(player, SpellID::WeaponThrow) ? SpellID::WeaponThrow : SpellID::Invalid;
+	return SpellID::Invalid;
+}
+
 bool PlayArmedSwingCue(const Player &player)
 {
-	if (&player != MyPlayer || !ArmedSkill.has_value() || *ArmedSkill != PaladinSkill::HammerOfFaith)
+	// Every armed melee skill's own Cast cue, in place of the weapon's whoosh - one sound for the moment, the rule the
+	// spells follow with IS_CAST2 (2026-09-29, the Barbarian Skill Cards page picked swing cues for its skills). It was
+	// Hammer of Faith's alone, so the table's Cast cues for Bash, Frenzy, Zeal and the rest were never heard.
+	const SpellID spell = ArmedMeleeSpell(player);
+	if (spell == SpellID::Invalid)
 		return false;
-	// An unaffordable Hammer of Faith is a plain swing (ApplyMeleeSkillOnHit), so it sounds like one.
-	if (!CanUsePaladinSkill(player, *ArmedSkill))
-		return false;
-	return PlaySkillSound(ClassTreeSkill::HammerOfFaith, SkillSoundEvent::Cast);
+	const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, spell);
+	return row != ClassTreeSkill::None && PlaySkillSound(row, SkillSoundEvent::Cast);
 }
 
 void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
@@ -504,6 +527,12 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 	// which is the same "still does something" rule the rest of these skills follow.
 	if (!CanUsePaladinSkill(player, *ArmedSkill))
 		return;
+	// The landed blow's own Impact cue (2026-09-29); Hammer of Faith sounds its impact with the splash instead.
+	if (&player == MyPlayer && *ArmedSkill != PaladinSkill::HammerOfFaith) {
+		const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, GetPaladinSkillData(*ArmedSkill).spellId);
+		if (row != ClassTreeSkill::None)
+			PlaySkillSound(row, SkillSoundEvent::Impact);
+	}
 
 	switch (*ArmedSkill) {
 	case PaladinSkill::Zeal:

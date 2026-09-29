@@ -249,7 +249,12 @@ const Pages = {
 };
 
 // ---- the user's picks: "<class>.<Skill>.<Event>" -> vanilla path, or null for silence ------------------------------------
-const Picks = JSON.parse(fs.readFileSync(path.join(__dirname, 'skill_sound_picks.json'), 'utf8')).picks;
+// The per-class Skill Cards pages' picks (tools/skill_sound_card_picks.json, 2026-09-29) are the newer word, so they win.
+const CardPicksPath = path.join(__dirname, 'skill_sound_card_picks.json');
+const Picks = {
+	...JSON.parse(fs.readFileSync(path.join(__dirname, 'skill_sound_picks.json'), 'utf8')).picks,
+	...(fs.existsSync(CardPicksPath) ? JSON.parse(fs.readFileSync(CardPicksPath, 'utf8')).picks : {}),
+};
 const pickKey = slot => `${slot.class}.${slot.skill}.${slot.event}`;
 
 /** @brief The vanilla sound for one slot, or null for none (an aura's loop). */

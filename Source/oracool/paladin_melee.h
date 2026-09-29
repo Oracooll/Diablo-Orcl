@@ -87,9 +87,13 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 /**
  * @brief The swing's own sound, for a swing that carries a skill with one - played INSTEAD of the
  * plain swing whoosh (DoAttack), never on top of it. False, so the whoosh plays, for every other
- * swing. Only Hammer of Faith has a cue (RfA-02 batch 7, 2026-09-11).
+ * swing. Every armed melee skill - the Paladin's, the Barbarian's and Monk's class melee skills, the RfA-12 swings -
+ * since 2026-09-29; it was Hammer of Faith's alone.
  */
 bool PlayArmedSwingCue(const Player &player);
+
+/** @brief The SpellID of the melee skill armed on @p player's swing and payable now, or Invalid. The local player only. */
+SpellID ArmedMeleeSpell(const Player &player);
 
 /**
  * @brief How many times a Zeal burst strikes at @p player's current level.

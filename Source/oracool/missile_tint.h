@@ -41,6 +41,7 @@ namespace hue {
 constexpr uint32_t PaladinGold = Rgb(244, 204, 96);
 constexpr uint32_t VengeanceAmber = Rgb(255, 196, 96);
 constexpr uint32_t Infrared = Rgb(255, 56, 32);
+constexpr uint32_t FireOrange = Rgb(255, 128, 40);
 constexpr uint32_t HolyBlue = Rgb(96, 150, 255);
 constexpr uint32_t IceBlue = Rgb(150, 210, 255);
 constexpr uint32_t SpectralLavender = Rgb(206, 182, 255);

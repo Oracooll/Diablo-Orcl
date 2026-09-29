@@ -17,6 +17,7 @@
 #include "oracool/chill.h"
 #include "oracool/curses.h"
 #include "oracool/rfa12_actives.h"
+#include "oracool/whirlwind.h"
 #include "player.h"
 #include "utils/language.h"
 
@@ -576,6 +577,7 @@ void ProcessRfa12Tick(Player &player)
 void ClearRfa12State()
 {
 	ClearRfa12ActivesState();
+	ResetWhirlwind(); // a spin never crosses a level change
 	PlayerState.fill(PlayerClocks {});
 	MonsterState.fill(MonsterMarks {});
 }
