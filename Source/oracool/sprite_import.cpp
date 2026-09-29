@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -381,11 +382,33 @@ OwnedClxSpriteSheet CombineSpriteLists(std::vector<OwnedClxSpriteList> &lists)
 	return CombineListsIntoSheet(lists);
 }
 
+namespace {
+/**
+ * @brief Town's palette for the sprite mixer's worker thread: its own copy, filled once on the main thread and never
+ * written again. The worker read LevelPalette through EnsurePalette, which the main thread reloads (and whose path
+ * string it rewrites) when the front end switches palettes - a data race, and possibly a wrong-palette .osm cache
+ * (round 4 audit, v1.12.229).
+ */
+std::array<uint8_t, 768> SharedPalette {};
+std::atomic<bool> SharedPaletteReady { false };
+} // namespace
+
+void WarmSharedPalette()
+{
+	if (SharedPaletteReady.load(std::memory_order_acquire))
+		return;
+	EnsurePalette(LevelPalettePath);
+	SharedPalette = LevelPalette;
+	SharedPaletteReady.store(true, std::memory_order_release);
+}
+
 uint32_t SharedPaletteRgb(uint8_t index)
 {
-	EnsurePalette(LevelPalettePath);
+	// The worker only ever reaches this after RequestPlayerSheet warmed it on the main thread.
+	if (!SharedPaletteReady.load(std::memory_order_acquire))
+		WarmSharedPalette();
 	const size_t at = static_cast<size_t>(index) * 3;
-	return (static_cast<uint32_t>(LevelPalette[at]) << 16) | (static_cast<uint32_t>(LevelPalette[at + 1]) << 8) | static_cast<uint32_t>(LevelPalette[at + 2]);
+	return (static_cast<uint32_t>(SharedPalette[at]) << 16) | (static_cast<uint32_t>(SharedPalette[at + 1]) << 8) | static_cast<uint32_t>(SharedPalette[at + 2]);
 }
 
 std::optional<ColouredSpriteSheet> LoadPngSpriteSheetColoured(const char *path, uint16_t frameWidth)

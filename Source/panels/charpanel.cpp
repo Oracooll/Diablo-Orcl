@@ -20,6 +20,7 @@
 #include "panels/ui_panels.hpp"
 #include "player.h"
 #include "missiles.h" // GetDamageAmtAtLevel - the readied spell's own damage formula
+#include "oracool/rfa12_actives.h" // Rfa12MeleeBonusPercentFor - an RfA-12 swing on the sheet
 #include "oracool/paladin_melee.h" // ZealToHitBonus - the sheet must quote what PlayerCanHitMonster uses
 #include "oracool/paladin_ranged.h" // the three cast skills' damage and type - their spell rows carry no missile
 #include "oracool/paladin_skills.h" // a melee class skill swings the weapon, so it reads as weapon damage
@@ -102,14 +103,17 @@ UiFlags GetMaxHealthColor()
 	return InspectPlayer->_pMaxHP > InspectPlayer->_pMaxHPBase ? UiFlags::ColorBlue : UiFlags::ColorWhite;
 }
 
+/** @brief The Strength (and class) part of GetDamage: _pDamageMod, halved on a bow outside the Rogue. */
+int GetStrengthDamageMod()
+{
+	if (InspectPlayer->InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow && InspectPlayer->_pClass != HeroClass::Rogue)
+		return InspectPlayer->_pDamageMod / 2;
+	return InspectPlayer->_pDamageMod;
+}
+
 std::pair<int, int> GetDamage()
 {
-	int damageMod = InspectPlayer->_pIBonusDamMod;
-	if (InspectPlayer->InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow && InspectPlayer->_pClass != HeroClass::Rogue) {
-		damageMod += InspectPlayer->_pDamageMod / 2;
-	} else {
-		damageMod += InspectPlayer->_pDamageMod;
-	}
+	const int damageMod = InspectPlayer->_pIBonusDamMod + GetStrengthDamageMod();
 	int mindam = InspectPlayer->_pIMinDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMinDam / 100 + damageMod;
 	int maxdam = InspectPlayer->_pIMaxDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMaxDam / 100 + damageMod;
 	return { mindam, maxdam };
@@ -260,12 +264,22 @@ StyledText GetReadiedSlotDamage(bool leftButton)
 	}
 	if (AuraOnButton(leftButton) != oracool::ClassTreeSkill::None)
 		return StyledText { UiFlags::ColorBlue, std::string(_("On")) };
-	// A class melee skill swings the weapon for more (audit, 2026-09-27): Bash, Double Swing, Frenzy, Berserk and the
+	// A melee skill swings the weapon for more (audit, 2026-09-27): Bash, Double Swing, Frenzy, Berserk and the
 	// thrusts read a dash - they have no missile formula - while the swing adds the skill's bonus at its rank.
-	if (const int bonus = oracool::ClassMeleeSkillBonusPercentFor(player, spell); bonus >= 0) {
+	// Smite and the RfA-12 swings (Cleave, Hammer of the Ancients, Tiger Claw...) the same way since v1.12.229: they
+	// read plain weapon damage or a dash.
+	int bonus = oracool::ClassMeleeSkillBonusPercentFor(player, spell);
+	if (bonus < 0 && spell == SpellID::ShieldBash)
+		bonus = oracool::SmiteDamagePercentAt(std::max(player.GetSpellLevel(spell), 1));
+	if (bonus < 0)
+		bonus = oracool::Rfa12MeleeBonusPercentFor(player, spell);
+	if (bonus >= 0) {
+		// The bonus multiplies the weapon's part only; the Strength bonus joins after it, as PlrHitMonst adds
+		// _pDamageMod after the skill (round 4 audit, v1.12.229 - the sheet multiplied it too).
 		const std::pair<int, int> dmg = GetDamage();
-		const int low = dmg.first * (100 + bonus) / 100;
-		const int high = dmg.second * (100 + bonus) / 100;
+		const int strength = GetStrengthDamageMod();
+		const int low = (dmg.first - strength) * (100 + bonus) / 100 + strength;
+		const int high = (dmg.second - strength) * (100 + bonus) / 100 + strength;
 		return StyledText { UiFlags::ColorWhite, StrCat(low, "-", high), (low >= 100) ? -1 : 1 };
 	}
 	if (ReadiedSlotSwingsTheWeapon(spell))
@@ -696,6 +710,9 @@ const CharRow CharRows[] = {
 	    []() { return GetResistInfo(InspectPlayer->_pFireResist); } },
 	{ N_("Resist lightning"),
 	    []() { return GetResistInfo(InspectPlayer->_pLghtResist); } },
+	// Cold is its own resistance since 2026-09-26; the grouped sheet showed it and this list did not (round 4 audit).
+	{ N_("Resist cold"),
+	    []() { return GetResistInfo(InspectPlayer->_pColdResist); } },
 	// The two rows that make the three above readable (audit, 2026-08-31). Until now the sheet
 	// printed the FINAL resistance and nothing else, so a player on Torment saw "Resist fire: 45"
 	// with no way to learn that the difficulty had already taken 60 points off the raw total, that

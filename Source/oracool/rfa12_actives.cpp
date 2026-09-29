@@ -2743,6 +2743,13 @@ std::optional<SpellID> ArmedRfa12Melee()
 	return ArmedSpell;
 }
 
+int Rfa12MeleeBonusPercentFor(const Player &player, SpellID spell)
+{
+	if (!IsMeleeSpell(spell))
+		return -1;
+	return MeleeBonusPercent(spell, RankOf(player, spell));
+}
+
 int Rfa12MeleeDamagePercent(const Player &player)
 {
 	if (&player != MyPlayer || !ArmedSpell.has_value() || !CanPay(player, *ArmedSpell))

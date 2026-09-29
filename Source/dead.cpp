@@ -156,6 +156,9 @@ void RestoreUniqueCorpsesAfterLoad()
 		}
 		InitDeadAnimationFromMonster(Corpses[id - 1], monster.type());
 		Corpses[id - 1].translationPaletteIndex = static_cast<int>(monster.getId()) + 1;
+		Corpses[id - 1].laid = false; // this monster is alive: its look is copied when it dies
+		Corpses[id - 1].laidSprites = std::nullopt;
+		Corpses[id - 1].hasLaidTrn = false;
 		claimed[id - 1] = true;
 	}
 	for (size_t k = static_cast<size_t>(stonendx); k < MaxCorpses; k++) {

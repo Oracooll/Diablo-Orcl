@@ -385,6 +385,24 @@ bool ReplaceFileAtomically(const char *from, const char *to)
 		LogError("UTF-8 -> UTF-16 conversion error code {}", ::GetLastError());
 		return false;
 	}
+	// The new file's DATA first. MOVEFILE_WRITE_THROUGH makes the rename durable, not the bytes it points at: fclose only
+	// hands them to the OS cache, so a power cut just after the swap could leave the old save gone and the new one
+	// zero-filled (round 4 audit, v1.12.229 - the hero archive, the stash and the INI all come through here). A file we
+	// cannot open for the flush (a scanner holding it) is still swapped, as before; a flush that fails is refused.
+	{
+		const HANDLE handle = ::CreateFileW(&fromUtf16[0], GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+		if (handle == INVALID_HANDLE_VALUE) {
+			LogWarn("Could not open {} to flush it before the swap (error {})", from, ::GetLastError());
+		} else {
+			const BOOL flushed = ::FlushFileBuffers(handle);
+			const DWORD flushError = flushed ? 0 : ::GetLastError();
+			::CloseHandle(handle);
+			if (!flushed) {
+				LogError("FlushFileBuffers({}) failed with error code {}", from, flushError);
+				return false;
+			}
+		}
+	}
 	// MOVEFILE_REPLACE_EXISTING is the whole reason this exists rather than RenameFile.
 	// MOVEFILE_WRITE_THROUGH makes the call return only once the change is on the disk, so a
 	// power cut just after it cannot undo a swap we have already told the player succeeded.

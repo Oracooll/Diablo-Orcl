@@ -264,6 +264,9 @@ on_error:
 	// and the player is told the save did not happen.
 	LogError("Failed to open archive for writing: {} ({})", path, error);
 	stream_.Close();
+	// No half-read table to answer lookups from: an inert writer finds nothing (GetHashIndex).
+	hashTable_.reset();
+	blockTable_.reset();
 	if (usingShadow_ && FileExists(path))
 		RemoveFile(path);
 	usingShadow_ = false;
@@ -569,6 +572,11 @@ uint32_t MpqWriter::FindFreeBlock(uint32_t size)
 
 uint32_t MpqWriter::GetHashIndex(uint32_t index, uint32_t hashA, uint32_t hashB) const // NOLINT(bugprone-easily-swappable-parameters)
 {
+	// An inert writer (its staging failed) has no table: every lookup is a miss. HasFile, RemoveHashEntry, RenameFile and
+	// RemoveHashEntries all come through here, and the autosave calls RemoveHashEntry on every hero with empty extra
+	// tabs - a null read (round 4 audit, v1.12.229).
+	if (hashTable_ == nullptr)
+		return HashEntryNotFound;
 	uint32_t i = HashEntriesCount;
 	for (unsigned idx = index & 0x7FF; hashTable_[idx].block != MpqHashEntry::NullBlock; idx = (idx + 1) & 0x7FF) {
 		if (i-- == 0)

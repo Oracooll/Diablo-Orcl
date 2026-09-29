@@ -217,9 +217,8 @@ void StartWalkAnimation(Player &player, Direction dir, bool pmWillBeCalled)
 	// nothing. The walk takes the skip as it is now; the run keeps its +4 frames over whatever the slowed walk is.
 	const int8_t walkSkip = oracool::WalkFrameSkipFor(player);
 	if (oracool::IsFuriousChargeDashing() && &player == MyPlayer) {
-		// Charge is a sprint at the monster (dev note, 2026-09-27: "time per tile 0,1s"): 2 ticks a tile, the
-		// walk's 8 frames less 6. Slows do not reach it - the dash is the skill, and it lasts one approach.
-		// The +1 below for pmWillBeCalled still fits: 7 is the walk's last frame.
+		// Charge is a sprint at the monster (dev note, 2026-09-27: "time per tile 0,1s"): 2 ticks a tile (see
+		// ChargeDashSkipFrames for the arithmetic). Slows do not reach it - the dash is the skill, and it lasts one approach.
 		skippedFrames = static_cast<int8_t>(std::max(0, std::min(oracool::ChargeDashSkipFrames, player._pWFrames - 2)));
 	} else if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0)
 	    || oracool::IsRunEnabled() || oracool::IsClassTreeRunActive(player)
@@ -3488,11 +3487,23 @@ void StripTopGold(Player &player)
 
 void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*= 0*/, int frac /*= 0*/, DeathReason deathReason /*= DeathReason::MonsterOrTrap*/)
 {
+	// A dead hero takes nothing more. The Drain Life tick kept landing through the death animation: another
+	// "Slain by" in the log and another telemetry death every tick, and a cheat-death save coming off cooldown could
+	// set life on a corpse (round 4 audit, v1.12.229).
+	if (player._pmode == PM_DEATH)
+		return;
 	int totalDamage = (dam << 6) + frac;
 	// Oracool, Round 5: the passives that soften a blow - Blur, Sixth Sense, Sword and Board and the
 	// rest - answer here, before the number is shown, so what floats up is what was taken.
-	if (totalDamage > 0)
-		totalDamage += totalDamage * (oracool::PassiveDamageTakenPercent(player, damageType) + oracool::Rfa12DamageTakenPercent(player, damageType)) / 100;
+	if (totalDamage > 0) {
+		const int passive = oracool::PassiveDamageTakenPercent(player, damageType);
+		// The quarter-of-every-blow floor holds for the sum: Battle Hardened stacked on a capped -75 took it to -95
+		// (round 4 audit). Rathma's Shield's -100 is the one deliberate exception.
+		int percent = passive + oracool::Rfa12DamageTakenPercent(player, damageType);
+		if (passive > -100)
+			percent = std::max(percent, -75);
+		totalDamage += totalDamage * percent / 100;
+	}
 	// Chord of Warding (RfA-12) drinks its share before anything is shown or taken.
 	if (totalDamage > 0)
 		totalDamage = oracool::Rfa12AbsorbDamage(player, totalDamage);
@@ -4440,6 +4451,12 @@ int RefundStatPoints(Player &player, CharacterAttribute attribute, int count)
 		break;
 	case CharacterAttribute::Magic:
 		ModifyPlrMag(player, -refund);
+		// Never below an empty orb: the refund takes its mana off the current pool too, and on an empty one it went
+		// negative (round 4 audit, v1.12.229). The base moves with it, so the gap items make stays the same.
+		if (player._pMana < 0) {
+			player._pManaBase -= player._pMana;
+			player._pMana = 0;
+		}
 		break;
 	case CharacterAttribute::Dexterity:
 		ModifyPlrDex(player, -refund);

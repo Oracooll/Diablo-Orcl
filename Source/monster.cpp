@@ -2081,6 +2081,13 @@ void MonsterDeath(Monster &monster)
 		if (oracool::TitheTakesCorpse(monster)) {
 			// Tithe of Ash (RfA-12) took the corpse: nothing is left to raise or search.
 		} else if (monster.isUnique() && monster.corpseId != 0) {
+			// The body keeps the look it died with: this slot is freed next and the next summon takes it (dead.h).
+			Corpse &corpse = Corpses[monster.corpseId - 1];
+			corpse.laidSprites = oracool::GetScaledCorpse(monster);
+			corpse.hasLaidTrn = monster.uniqueMonsterTRN != nullptr;
+			if (corpse.hasLaidTrn)
+				std::copy_n(monster.uniqueMonsterTRN.get(), corpse.laidTrn.size(), corpse.laidTrn.begin());
+			corpse.laid = true;
 			AddCorpse(monster.position.tile, monster.corpseId, monster.direction);
 			oracool::RecordCorpse(monster); // what it was, for the Necromancer (oracool/corpses.h)
 		} else {
@@ -4691,6 +4698,10 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 
 void StartMonsterDeath(Monster &monster, const Player &player, bool sendmsg)
 {
+	// Once only, as M_SyncStartKill already asks: a strike inside a hit's hooks can kill the monster the hit then kills
+	// again, and MonsterDeath paid the experience, the loot and the rift credit twice (round 3 audit, v1.12.229).
+	if (monster.mode == MonsterMode::Death)
+		return;
 	monster.tag(player);
 	// Oracool, Round 5: Rampage and Requiem hear the kill.
 	if (&player == MyPlayer && monster.hitPoints >> 6 <= 0) {

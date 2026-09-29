@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <optional>
 #include <vector>
 
@@ -1111,6 +1112,11 @@ TEST(Writehero, EveryFailureInThePublishLeavesThePreviousSaveWhole)
 			    << "a writer whose staging failed accepted a record anyway";
 			EXPECT_FALSE(writer.CommitTransaction())
 			    << "a writer whose staging failed reported a successful commit";
+			// And its lookups find nothing rather than reading a table it never loaded: the autosave calls
+			// RemoveHashEntry("heroinvtabs") on every hero with empty extra tabs (round 4 audit, v1.12.229).
+			EXPECT_FALSE(writer.HasFile("record"));
+			writer.RemoveHashEntry("record");
+			writer.RemoveHashEntries([](uint8_t i, char *name) { if (i > 0) return false; std::strcpy(name, "record"); return true; });
 		}
 		StopFailingFileCopies();
 		EXPECT_EQ(readRecord(), "OLD")

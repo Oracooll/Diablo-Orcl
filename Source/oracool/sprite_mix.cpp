@@ -1212,7 +1212,7 @@ void RequestPlayerSheet(const PlayerSheetRequest &request)
 	job->request = request;
 	job->key = request.Key();
 	job->wanted = SourcesFor(request);
-	SharedPaletteRgb(0); // read town's palette HERE, on the main thread; the worker only ever reads the table
+	WarmSharedPalette(); // town's palette copied HERE, on the main thread; the worker only ever reads that copy
 	const std::lock_guard<std::mutex> lock(StateMutex);
 	if (InFlight[job->key])
 		return;

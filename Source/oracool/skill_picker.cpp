@@ -474,6 +474,13 @@ void DrawSkillPicker(const Surface &out)
 	HoveredPickerAura = ClassTreeSkill::None;
 
 	const Rectangle window = GetSkillPickerRect();
+	// Re-clamped every frame, as the runeword book's is: the list shrinks under an open picker (the last scroll read, a
+	// staff taken off), and the old offset hid the top rows behind the title (round 4 audit, v1.12.229). The click and
+	// the F-key walk the same offset, so they follow.
+	{
+		const int visible = window.size.height - 2 * Padding - TitleHeight;
+		PickerScroll = std::clamp(PickerScroll, 0, std::max(0, ContentHeight(sections) - TitleHeight - visible));
+	}
 	// The dark translucent backing the item tooltip and the books use (user, 2026-09-05: "background
 	// of skill picker to be the transparent dark one, not the solid gold it is now"): two half
 	// passes, so the icons read while the world still shows through. Was an opaque stone fill.

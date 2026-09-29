@@ -210,8 +210,14 @@ void Game2UiPlayer(const Player &player, _uiheroinfo *heroinfo, bool bHasSaveFil
 	// The Barbarian's column reads Rage, so it carries his Rage pool (oracool/rage.h).
 	heroinfo->mana = static_cast<uint16_t>(oracool::UsesRage(player) ? oracool::MaxRage(player) : std::max(0, player._pMaxMana >> 6));
 	heroinfo->armourClass = static_cast<uint16_t>(std::max(0, player.GetArmor() + player._pLevel * 2));
-	heroinfo->minDamage = static_cast<uint16_t>(std::max(0, player._pIMinDam));
-	heroinfo->maxDamage = static_cast<uint16_t>(std::max(0, player._pIMaxDam));
+	// The character sheet's Damage, not the bare weapon: the sheet's GetDamage adds the % bonus, the flat bonus and the
+	// Strength part (halved on a bow outside the Rogue) - hero-select read 10-20 where the sheet read 55-65 (round 4 audit).
+	const bool nonRogueBow = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow && player._pClass != HeroClass::Rogue;
+	const int damageMod = player._pIBonusDamMod + (nonRogueBow ? player._pDamageMod / 2 : player._pDamageMod);
+	const int minDamage = player._pIMinDam + player._pIBonusDam * player._pIMinDam / 100 + damageMod;
+	const int maxDamage = player._pIMaxDam + player._pIBonusDam * player._pIMaxDam / 100 + damageMod;
+	heroinfo->minDamage = static_cast<uint16_t>(std::clamp(minDamage, 0, 65535));
+	heroinfo->maxDamage = static_cast<uint16_t>(std::clamp(maxDamage, 0, 65535));
 	heroinfo->hassaved = bHasSaveFile;
 	heroinfo->herorank = player.pDiabloKillLevel;
 	heroinfo->spawned = gbIsSpawn;

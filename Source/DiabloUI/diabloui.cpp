@@ -265,6 +265,9 @@ void FocusButton(int index)
 
 void UiInitList(void (*fnFocus)(int value), void (*fnSelect)(int value), void (*fnEsc)(), const std::vector<std::unique_ptr<UiItemBase>> &items, bool itemsWraps, void (*fnFullscreen)(), bool (*fnYesNo)(), size_t selectedItem /*= 0*/)
 {
+	// Only a list in THESE items is the list: a screen without one kept the freed UiList of the last, and ListHasRows
+	// read through it (round 4 audit, v1.12.229).
+	gUiList = nullptr;
 	SelectedItem = selectedItem;
 	SelectedItemMax = 0;
 	ListViewportSize = 0;

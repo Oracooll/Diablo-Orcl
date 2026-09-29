@@ -646,7 +646,8 @@ bool PassiveCheatsDeath(Player &player)
 
 	SetPlayerHitPoints(player, player._pMaxHP / CheatDeathLifeDivisor);
 	if (nearDeath) {
-		player._pMana = player._pMaxMana / CheatDeathLifeDivisor;
+		// Restores: never lowers a fuller pool (round 4 audit - a Monk at 90% mana came back at 33%).
+		player._pMana = std::max(player._pMana, player._pMaxMana / CheatDeathLifeDivisor);
 		player._pManaBase = player._pMaxManaBase - (player._pMaxMana - player._pMana);
 		RedrawComponent(PanelDrawComponent::Mana);
 	}

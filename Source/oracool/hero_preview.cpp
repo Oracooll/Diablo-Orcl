@@ -5,11 +5,13 @@
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <string>
 
 #include <SDL.h>
 #include <fmt/format.h>
 
 #include "engine.h" // GetAnimationFrame
+#include "engine/assets.hpp" // FindAsset - a missing sheet leaves the preview empty
 #include "engine/clx_sprite.hpp"
 #include "engine/direction.hpp"
 #include "engine/load_cl2.hpp"
@@ -280,6 +282,12 @@ void SetHeroPreview(HeroClass heroClass, uint8_t gfxnum, uint8_t gearLook)
 		}
 	}
 
+	// Only a sheet that exists: LoadCl2Sheet ends the game on a missing file, and the hero screen reached here on focus
+	// (a shareware Sorcerer, a Monk save without hfmonk.mpq) - round 4 audit, v1.12.229.
+	if (!FindAsset((std::string(path) + DEVILUTIONX_CL2_EXT).c_str()).ok()) {
+		PreviewSheet = std::nullopt;
+		return;
+	}
 	PreviewSheet = LoadCl2Sheet(path, LoadedWidth);
 	PreviewColours = HeroColoursFor(heroClass, gfxnum); // the dye of the class, on the plain sheet too
 	MeasurePreviewInk();

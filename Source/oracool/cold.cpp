@@ -272,7 +272,9 @@ const uint32_t *FrozenRgbTable(int lightTableIndex)
 	constexpr int RedScale = 82, GreenScale = 94, BlueScale = 118;
 	table[0] = PaletteRGB[light[0]];
 	for (int i = 1; i < 256; i++) {
-		const uint32_t lit = PaletteRGB[light[i]];
+		// Level 0 is full light, drawn from the palette itself: LightTables[0] is not the identity (white maps to 0, and Hell's
+		// blood walls remap 1..31), so frozen and converted monsters beside the hero went dark (round 4 audit, v1.12.229).
+		const uint32_t lit = PaletteRGB[lightTableIndex == 0 ? i : light[i]];
 		int r = (lit >> 16) & 0xFF, g = (lit >> 8) & 0xFF, b = lit & 0xFF;
 		const int grey = (299 * r + 587 * g + 114 * b) / 1000;
 		r += (grey - r) * GreyPercent / 100;
@@ -301,7 +303,9 @@ const uint32_t *ConvertedRgbTable(int lightTableIndex)
 	constexpr int RedScale = 62, GreenScale = 125, BlueScale = 62;
 	table[0] = PaletteRGB[light[0]];
 	for (int i = 1; i < 256; i++) {
-		const uint32_t lit = PaletteRGB[light[i]];
+		// Level 0 is full light, drawn from the palette itself: LightTables[0] is not the identity (white maps to 0, and Hell's
+		// blood walls remap 1..31), so frozen and converted monsters beside the hero went dark (round 4 audit, v1.12.229).
+		const uint32_t lit = PaletteRGB[lightTableIndex == 0 ? i : light[i]];
 		int r = (lit >> 16) & 0xFF, g = (lit >> 8) & 0xFF, b = lit & 0xFF;
 		const int grey = (299 * r + 587 * g + 114 * b) / 1000;
 		r += (grey - r) * GreyPercent / 100;

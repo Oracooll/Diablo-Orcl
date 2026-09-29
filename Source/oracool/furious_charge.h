@@ -72,10 +72,14 @@ void StopFuriousChargeDash();
 bool IsFuriousChargeDashing();
 
 /**
- * @brief The dash's walk-frame skip: the walk's 8 frames in 2 ticks, 0.1 s a tile at normal speed (dev note,
- * 2026-09-27). A plain walk is -2 (10 ticks), the run 2 (6 ticks).
+ * @brief The dash's walk-frame skip: 2 ticks a tile, 0.1 s at normal speed (dev note, 2026-09-27).
+ *
+ * A chained stride costs 6 - skip ticks, not 8 - skip: the next StartWalk comes with pmWillBeCalled (+1 frame) and
+ * DoWalk runs again in the same tick. So a plain walk (-2) is 8 ticks, the run (2) is 4, and this is 4. It was 6,
+ * which started every chained step on the walk's last frame: the hero crossed the whole approach in one tick and
+ * snapped onto the monster (round 4 audit, v1.12.229).
  */
-constexpr int ChargeDashSkipFrames = 6;
+constexpr int ChargeDashSkipFrames = 4;
 
 /**
  * @brief Starts the 3-second cooldown. Call once the charge resolves into an actual swing.

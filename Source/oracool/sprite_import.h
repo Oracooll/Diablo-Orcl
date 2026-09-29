@@ -86,6 +86,8 @@ OwnedClxSpriteSheet CombineSpriteLists(std::vector<OwnedClxSpriteList> &lists);
  * means the same thing on every level, and that is where player sprites live.
  */
 uint32_t SharedPaletteRgb(uint8_t index);
+/** @brief Fills SharedPaletteRgb's own copy of town's palette. Main thread only; the mixer's worker then only reads it. */
+void WarmSharedPalette();
 
 /** @brief The conversion on its own, for a surface already in hand - the testable half. */
 std::optional<ColouredSpriteSheet> ColouredSpriteSheetFromSurface(SDL_Surface *surface, uint16_t frameWidth);

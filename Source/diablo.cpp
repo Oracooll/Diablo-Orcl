@@ -264,6 +264,7 @@ void FreeGame()
 	oracool::CloseCraftingMenu();
 	oracool::CloseHudMenu();
 	oracool::CloseSkillPicker();
+	oracool::CloseRunewordBook(); // its open flag, filters and scroll are statics too (round 4 audit, v1.12.229)
 	// And Zeal's burst holds raw Monster POINTERS into the monster array this teardown is about to
 	// invalidate. StartStand already resets the chain on every interruption a game can produce, and
 	// a new game reaches it long before the player can swing - so this is hardening rather than a
@@ -960,6 +961,12 @@ void RightMouseDown(bool isShiftHeld)
 	// already test it first.
 	if (oracool::IsAdvancedStatsOpen() && oracool::GetAdvancedStatsRect().contains(MousePosition))
 		return;
+	// So are the skill picker, the runeword book and the crafting book, drawn over the inventory and the Abilities window:
+	// a right click on them drank the potion, equipped the item or refunded the tree point hidden underneath (round 4
+	// audit, v1.12.229).
+	if (oracool::IsPointOverFloatingWindow(MousePosition)
+	    || (oracool::IsCraftingMenuOpen() && oracool::GetCraftingMenuRect().contains(MousePosition)))
+		return;
 	if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
 		// Oracool: user request (2026-08-15) - a row is readied on the button that clicked it, so the
 		// right button has to reach the window too. This used to be a bare return, which is why the
@@ -1144,8 +1151,9 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 		return;
 	}
 
-	// The Rift Monument's menu takes its own keys first (2026-09-27): Up/Down, Enter, 1-3.
-	if (oracool::HandleStonegateMenuKey(vkey))
+	// The Rift Monument's menu takes its own keys first (2026-09-27): Up/Down, Enter, 1-3. Not while paused: 1 or Enter
+	// opened a rift through the pause (round 4 audit, v1.12.229).
+	if (PauseMode != 2 && oracool::HandleStonegateMenuKey(vkey))
 		return;
 
 	// Oracool: F1-F8 are the ability hotkeys, reserved outright (user, 2026-08-17: "F1-F6 to be

@@ -57,6 +57,8 @@ std::optional<SpellID> ArmedRfa12Melee();
 
 /** @brief The armed skill's damage bonus on the swing being resolved, in percent. */
 int Rfa12MeleeDamagePercent(const Player &player);
+/** @brief The swing bonus @p spell adds at @p player's rank, or -1 when it is not an RfA-12 melee skill - the hero sheet's number. */
+int Rfa12MeleeBonusPercentFor(const Player &player, SpellID spell);
 
 /** @brief Everything the armed skill does beyond the swing's own blow. True if it struck anything. */
 bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int frontDamage);

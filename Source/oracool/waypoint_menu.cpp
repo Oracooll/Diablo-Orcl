@@ -14,7 +14,9 @@
 #include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo
 #include "engine/render/text_render.hpp"
 #include "oracool/area_level.h" // AreaLevel - the number in a waypoint's name
+#include "oracool/levski_roar.h" // the Cube shares this rect
 #include "oracool/ornate_border.h"
+#include "oracool/workshop.h" // and so does the workshop
 #include "init.h" // gbIsHellfire, for whether the Nest and Crypt rows exist at all
 #include "interfac.h"
 #include "inv.h"              // CloseInventory - see OpenWaypointMenu
@@ -516,6 +518,16 @@ void OpenWaypointMenu(Point sigilPosition)
 	//
 	// It deliberately does not take the whole screen the way ClosePanels would: the inventory and
 	// spellbook are the RIGHT panel, not this slot, and closing them is this window's own choice.
+	//
+	// Levski's Cube and the workshop dock in this same rect, drawn over the list and taking its clicks first, and the
+	// Cube stays up while the hero walks to the sigil: the list opened invisibly under it (round 4 audit, v1.12.229). They
+	// close first; either can refuse (a full pack), and then the list does not open.
+	if (IsLevskiRoarOpen())
+		CloseLevskiRoar();
+	if (IsWorkshopOpen())
+		CloseWorkshop();
+	if (IsLevskiRoarOpen() || IsWorkshopOpen())
+		return;
 	TakeLeftPanelSlot(LeftPanelContent::WaypointMenu);
 	CloseInventory();
 	sbookflag = false;

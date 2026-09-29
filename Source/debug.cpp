@@ -964,7 +964,7 @@ std::string DebugCmdGiveEtherealSet(const string_view parameter)
 std::string DebugCmdDumpDungeon(const string_view parameter)
 {
 	const std::string path = paths::PrefPath() + fmt::format("dungeon_dump_l{:02d}.csv", currlevel);
-	FILE *file = std::fopen(path.c_str(), "wb");
+	FILE *file = OpenFile(path.c_str(), "wb"); // UTF-8 pref path (round 4 audit)
 	if (file == nullptr)
 		return "Could not open the dump file.";
 	const std::string header = fmt::format("# level {:d} type {:d} size {:d}x{:d}\n",

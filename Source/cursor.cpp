@@ -12,6 +12,7 @@
 #include "DiabloUI/diabloui.h"
 #include "control.h"
 #include "oracool/advanced_stats.h" // hovering the Advanced Stats window probes nothing behind it
+#include "oracool/crafting_menu.h" // the crafting book is drawn over the inventory
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/rift.h"      // RiftTier: the portal's hover line
@@ -1106,6 +1107,12 @@ void CheckCursMove()
 	// Advanced Stats lies over the inventory and the Abilities window where they overlap (2026-09-27): its rect first,
 	// so no item under it is hovered - no tooltip, no highlight, no right-click target.
 	if (oracool::IsAdvancedStatsOpen() && oracool::GetAdvancedStatsRect().contains(MousePosition))
+		return;
+	// The windows drawn over the inventory and the Abilities window, before them: an item hidden under the skill picker or
+	// a book was hovered, and the hover fed the right click (round 4 audit, v1.12.229). The event log's rect is empty
+	// while a right panel is open, so moving this test ahead changes nothing for it.
+	if (oracool::IsPointOverFloatingWindow(MousePosition)
+	    || (oracool::IsCraftingMenuOpen() && oracool::GetCraftingMenuRect().contains(MousePosition)))
 		return;
 	if (invflag && oracool::GetInventoryPanelRect().contains(MousePosition)) {
 		pcursinvitem = CheckInvHLight();

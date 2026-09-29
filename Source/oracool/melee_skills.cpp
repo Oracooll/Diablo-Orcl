@@ -367,6 +367,10 @@ int ClassMeleeSkillBonusPercentFor(const Player &player, SpellID spell)
 	const std::optional<ClassMeleeSkill> skill = ClassMeleeSkillForSpell(spell);
 	if (!skill.has_value())
 		return -1;
+	// Whirlwind's profile is all zeros: its blows are a share of a normal one, as ClassMeleeSkillDamagePercent says -
+	// the sheet showed the full swing, half again the real blow (round 4 audit, v1.12.229).
+	if (*skill == ClassMeleeSkill::Whirlwind)
+		return WhirlwindDamagePercent(RankOf(player, ClassMeleeSkill::Whirlwind)) - 100;
 	const Profile p = ProfileOf(*skill);
 	return p.bonusPercent + p.bonusPerRank * (RankOf(player, *skill) - 1);
 }

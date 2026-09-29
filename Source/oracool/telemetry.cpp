@@ -14,6 +14,7 @@
 #include "options.h"
 #include "oracool/lesser_uniques.h"
 #include "player.h"
+#include "utils/file_util.h" // OpenFile - UTF-8 paths
 #include "utils/paths.h"
 
 namespace devilution::oracool {
@@ -68,7 +69,9 @@ void AppendRow(const std::string &event, const std::string &subject, int value1,
 	EnsureSessionId();
 	const std::string path = paths::PrefPath() + "balance_telemetry.csv";
 
-	FILE *file = std::fopen(path.c_str(), "ab");
+	// OpenFile, not fopen: the pref path is UTF-8, and fopen reads it in the ANSI code page - a profile named José had no
+	// telemetry at all (round 4 audit, v1.12.229).
+	FILE *file = OpenFile(path.c_str(), "ab");
 	if (file == nullptr)
 		return; // telemetry must never be able to break the game
 	// SEEK_END before asking, because in APPEND mode the stream position is not the file size.

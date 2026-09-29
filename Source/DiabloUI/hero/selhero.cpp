@@ -389,6 +389,10 @@ void SelheroClassSelectorFocus(int value)
 		break;
 	}
 	selhero_heroInfo.gfxnum = static_cast<uint8_t>(startingWeapon);
+	// A new hero has no gear look yet: the focused saved hero's tower shield and great sword showed on the class list
+	// (round 4 audit, v1.12.229).
+	selhero_heroInfo.gearLook = 0;
+	selhero_heroInfo.herorank = 0;
 
 	SelheroSetStats();
 }
@@ -442,7 +446,7 @@ void AddSelHeroBackground()
 void SelheroClassSelectorSelect(int value)
 {
 	auto hClass = static_cast<HeroClass>(vecSelHeroDlgItems[value]->m_value);
-	if (gbIsSpawn && (hClass == HeroClass::Rogue || hClass == HeroClass::Sorcerer || (hClass == HeroClass::Bard && !gbBard))) {
+	if (gbIsSpawn && (hClass == HeroClass::Rogue || hClass == HeroClass::Sorcerer || hClass == HeroClass::Necromancer || (hClass == HeroClass::Bard && !gbBard))) {
 		RemoveSelHeroBackground();
 		UiSelOkDialog(nullptr, _("The Rogue and Sorcerer are only available in the full retail version of Diablo. Visit https://www.gog.com/game/diablo to purchase.").data(), false);
 		AddSelHeroBackground();
@@ -570,7 +574,7 @@ void SelheroLoadSelect(int choice)
 
 const char *SelheroGenerateName(HeroClass heroClass)
 {
-	static const char *const Names[6][10] = {
+	static const char *const Names[7][10] = {
 		{
 		    // Warrior
 		    "Aidan",
@@ -649,11 +653,25 @@ const char *SelheroGenerateName(HeroClass heroClass)
 		    "Ragnar",
 		    "Ulf",
 		},
+		{
+		    // Necromancer - he read the Paladin's list through a % 6 (round 4 audit, v1.12.229)
+		    "Asrael",
+		    "Corvin",
+		    "Drogan",
+		    "Kalen",
+		    "Malthus",
+		    "Morwen",
+		    "Rathma",
+		    "Sorin",
+		    "Vashti",
+		    "Zayl",
+		},
 	};
 
 	int iRand = rand() % 10;
 
-	return Names[static_cast<std::size_t>(heroClass) % 6][iRand];
+	const std::size_t row = static_cast<std::size_t>(heroClass);
+	return Names[row < std::size(Names) ? row : 0][iRand];
 }
 
 } // namespace

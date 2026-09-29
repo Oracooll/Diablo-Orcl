@@ -22,6 +22,17 @@ struct Corpse {
 	int frame;
 	uint16_t width;
 	uint8_t translationPaletteIndex;
+	/**
+	 * @brief A unique's look, copied when its body is laid (round 4 audit, v1.12.229). The draw read it from
+	 * Monsters[translationPaletteIndex - 1] every frame, but that slot is freed at the end of the death animation and
+	 * the next summon takes it: a Raise Skeleton after a champion's death drew the body through a null TRN (a crash),
+	 * or with the newcomer's scaled sheet indexed by the champion's frame.
+	 */
+	OptionalClxSpriteListOrSheet laidSprites;
+	std::array<uint8_t, 256> laidTrn {};
+	bool hasLaidTrn = false;
+	/** @brief Set when the body is laid; until then (and after a load, which keeps no look) the entry draws plain. */
+	bool laid = false;
 
 	/**
 	 * @brief Returns the sprite list for a given direction.

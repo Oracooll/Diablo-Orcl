@@ -415,7 +415,7 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 	// missile can never have the latter. See Missile::oracoolTrn.
 	if (missile.oracoolTrn != nullptr)
 		ClxDrawTRN(out, missileRenderPosition, sprite, missile.oracoolTrn);
-	else if (missile._miUniqTrans != 0)
+	else if (missile._miUniqTrans != 0 && Monsters[missile._misource].uniqueMonsterTRN != nullptr) // its caster's slot can be reused mid-flight
 		ClxDrawTRN(out, missileRenderPosition, sprite, Monsters[missile._misource].uniqueMonsterTRN.get());
 	else if (missile._miLightFlag)
 		ClxDrawLight(out, missileRenderPosition, sprite, lightTableIndex);
@@ -1222,25 +1222,25 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 		Corpse &corpse = Corpses[(bDead & 0x1F) - 1];
 		const auto direction = static_cast<Direction>((bDead >> 5) & 7);
 		OptionalClxSpriteListOrSheet sprites = corpse.sprites;
-		// Oracool Phase 3.2: a Colossal champion must not shrink the instant it dies. The corpse
-		// table is keyed by corpseId and shared, so the SIZED sprites come from the monster the
-		// corpse remembers - which translationPaletteIndex already points at for its palette.
-		if (corpse.translationPaletteIndex != 0) {
-			if (OptionalClxSpriteListOrSheet scaled = oracool::GetScaledCorpse(Monsters[corpse.translationPaletteIndex - 1]))
-				sprites = scaled;
-		}
-		if (!sprites)
-			return;
-		const ClxSpriteList list = sprites->isSheet() ? (*sprites).sheet()[static_cast<size_t>(direction)] : (*sprites).list();
-		const ClxSprite sprite = list[corpse.frame];
-		// Centred on the sprite's own width rather than the table's, so a scaled corpse sits on the
-		// tile its monster died on. Identical for everything else - they are the same number.
-		const Point position { targetBufferPosition.x - CalculateWidth2(sprite.width()), targetBufferPosition.y };
-		if (corpse.translationPaletteIndex != 0) {
-			const uint8_t *trn = Monsters[corpse.translationPaletteIndex - 1].uniqueMonsterTRN.get();
-			ClxDrawTRN(out, position, sprite, trn);
-		} else {
-			ClxDrawLight(out, position, sprite, LightTableIndex);
+		// Oracool Phase 3.2: a Colossal champion must not shrink the instant it dies. The SIZED sprites and the
+		// colours are the ones copied when the body was laid (dead.h), not read from the monster slot, which the
+		// next summon reuses (round 4 audit, v1.12.229).
+		if (corpse.translationPaletteIndex != 0 && corpse.laid && corpse.laidSprites)
+			sprites = corpse.laidSprites;
+		// Only the corpse is skipped when it cannot be drawn. This was a return out of the whole tile: the items,
+		// objects, hero and monsters standing on an undrawable body vanished with it (round 4 audit).
+		if (sprites) {
+			const ClxSpriteList list = sprites->isSheet() ? (*sprites).sheet()[static_cast<size_t>(direction)] : (*sprites).list();
+			if (list.numSprites() > 0) {
+				const ClxSprite sprite = list[std::min<uint32_t>(static_cast<uint32_t>(std::max(corpse.frame, 0)), list.numSprites() - 1)];
+				// Centred on the sprite's own width rather than the table's, so a scaled corpse sits on the
+				// tile its monster died on. Identical for everything else - they are the same number.
+				const Point position { targetBufferPosition.x - CalculateWidth2(sprite.width()), targetBufferPosition.y };
+				if (corpse.translationPaletteIndex != 0 && corpse.laid && corpse.hasLaidTrn)
+					ClxDrawTRN(out, position, sprite, corpse.laidTrn.data());
+				else
+					ClxDrawLight(out, position, sprite, LightTableIndex);
+			}
 		}
 	}
 	DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::BeforeCharacters);
@@ -1935,7 +1935,8 @@ void DrawView(const Surface &out, Point startPosition)
 		// the cropping of the hud when windows are opened. use this method only in 4:3 resolutions.
 		// others are wide enough to skip this action"). At 960x720 the 340px panels reach the orbs;
 		// at 16:9 and wider they do not, and the clip only ever cost the sphere its crown.
-		const bool sidePanelOpen = invflag || sbookflag || chrflag || QuestLogIsOpen || IsStashOpen;
+		// IsLeftPanelOpen follows GetLeftPanelContent, so the waypoint list and the crafting page get the clip too (round 4 audit).
+		const bool sidePanelOpen = invflag || sbookflag || IsLeftPanelOpen() || chrflag || QuestLogIsOpen || IsStashOpen;
 		const bool fourByThree = gnScreenWidth * 3 <= gnScreenHeight * 4 + 8;
 		// Where the panels' content really ends (audit, 2026-09-27): SidePanelContentBottom is a line on a 720-tall window,
 		// and the panels dock to the screen's bottom - at 1024x768 the fixed line sat 48px above it and clipped nothing.

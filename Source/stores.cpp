@@ -880,6 +880,12 @@ bool StartSmithPremiumBuy()
 		storenumh++;
 	}
 	if (storenumh == 0) {
+		// Emptied by a purchase on the grid: stay in the shop on the Basic tab. The text menu shut the grid and the
+		// inventory around the last buy (round 3 audit, v1.12.229).
+		if (oracool::IsShopGridScreen(TalkID::SmithPremiumBuy)) {
+			StartStore(TalkID::SmithBuy);
+			return false;
+		}
 		StartStore(TalkID::Smith);
 		stextsel = SmithMenuLine(TalkID::SmithPremiumBuy);
 		return false;
@@ -948,6 +954,11 @@ bool StartCuratedShelfBuy(CuratedShelf shelf)
 		++storenumh;
 	}
 	if (storenumh == 0) {
+		// As the premium shelf: the last purchase on a grid tab stays in the shop, on the Basic tab.
+		if (oracool::IsShopGridScreen(TalkIdForCuratedShelf(shelf))) {
+			StartStore(TalkID::SmithBuy);
+			return false;
+		}
 		StartStore(TalkID::Smith);
 		stextsel = SmithMenuLine(TalkIdForCuratedShelf(shelf));
 		return false;
@@ -5191,7 +5202,11 @@ bool ShopSellItemAt(Player &player, int tab, int index)
 	// used - Adria does not buy armour and Griswold does not buy potions, and that judgement is not
 	// re-decided here.
 	const bool witch = IsWitchShopScreen(stextflag);
-	if (!witch && !oracool::IsShopGridScreen(stextflag))
+	// Griswold's own screens only, as the held-item and right-click sales ask: the grid test let Pepin's and Wirt's
+	// screens through at Griswold's prices (round 3 audit, v1.12.229).
+	if (!witch && !IsAnyOf(stextflag, TalkID::SmithBuy, TalkID::SmithPremiumBuy, TalkID::SmithUniqueBuy,
+	        TalkID::SmithRareBuy, TalkID::SmithSetBuy,
+	        TalkID::SmithConsumables, TalkID::SmithSell))
 		return false;
 	if (!(witch ? WitchSellOk(*item) : SmithSellOk(*item)))
 		return false;
