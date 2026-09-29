@@ -1029,6 +1029,14 @@ void ClearPassiveState()
 	MarksOf.fill(MonsterMarks {});
 }
 
+void ClearPassiveMarksForMonster(const Monster &monster)
+{
+	// Freed slots are reused at once (a raised skeleton, Leoric's next skeleton): a burning corpse's 3-5 s of Conflagration
+	// and Exposure marks went to its successor (round 5 audit, v1.12.230).
+	if (MonsterMarks *marks = MarksFor(monster); marks != nullptr)
+		*marks = {};
+}
+
 void ClearPassiveMarks()
 {
 	MarksOf.fill(MonsterMarks {});

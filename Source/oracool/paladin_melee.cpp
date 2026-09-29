@@ -439,6 +439,7 @@ int ZealSwingSkipFrames(const Player &player)
 void ArmMeleeSkill(std::optional<PaladinSkill> skill)
 {
 	ArmedSkill = skill;
+	ArmWeaponThrow(std::nullopt); // one latch at a time: a left-over throw took the Zeal or Smite swing (round 5 audit)
 }
 
 std::optional<PaladinSkill> ArmedMeleeSkill()

@@ -504,7 +504,12 @@ void FinishRiftLevel(bool fresh)
 		return;
 	const uint8_t savedLevel = currlevel;
 	currlevel = static_cast<uint8_t>(GenerationFloorFor(leveltype));
+	// The theme rooms' packs come after PlaceRiftMonsters scaled the floor's, and AddMonster has no rift hook: they kept
+	// their floor stats at any tier (round 5 audit, v1.12.230). Scaled here, only the new ones - scaling is not idempotent.
+	const size_t monstersBefore = ActiveMonsterCount;
 	CreateThemeRooms();
+	for (size_t i = monstersBefore; i < ActiveMonsterCount; i++)
+		ScaleRiftMonster(Monsters[ActiveMonsters[i]]);
 	currlevel = savedLevel;
 }
 

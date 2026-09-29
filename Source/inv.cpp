@@ -3231,6 +3231,7 @@ void TransferItemToStash(Player &player, int location)
 	}
 
 	PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(item)]);
+	const bool wasGold = item._itype == ItemType::Gold;
 
 	if (location < INVITEM_INV_FIRST) {
 		RemoveEquipment(player, static_cast<inv_body_loc>(location), false);
@@ -3239,6 +3240,10 @@ void TransferItemToStash(Player &player, int location)
 		player.RemoveInvItem(location - INVITEM_INV_FIRST);
 	else
 		player.RemoveSpdBarItem(location - INVITEM_BELT_FIRST);
+	// A banked pile left _pGold as it was, so the total counted it twice - in the stash and in the pack - and a purchase
+	// could take the stash below zero (round 5 audit, v1.12.230).
+	if (wasGold)
+		player._pGold = CalculateGold(player);
 
 	if (&player == MyPlayer)
 		oracool::ScheduleAutoSaveForStashChange();
@@ -3273,6 +3278,9 @@ bool TryMoveHoveredItemToLevskiGrid(Player &player)
 	const int iv = itemId - 1;
 	Item &item = GetActiveInvListItem(player, iv);
 	if (item.isEmpty())
+		return false;
+	// Gold is no reagent, and moving a pile left _pGold counting it (round 5 audit, v1.12.230).
+	if (item._itype == ItemType::Gold)
 		return false;
 
 	// Placed first, removed only if it landed - a refusal must leave the item in the backpack.
@@ -4325,7 +4333,8 @@ Item &GetInventoryItem(Player &player, int location)
 
 bool TryStartStackSplit(int cii)
 {
-	if (cii < INVITEM_INV_FIRST)
+	// Never with something in the hand: the split writes its part to the cursor, over what was held (round 5 audit).
+	if (cii < INVITEM_INV_FIRST || !MyPlayer->HoldItem.isEmpty() || pcurs != CURSOR_HAND)
 		return false;
 	if (!oracool::IsSinglePlayer())
 		return false;
@@ -4359,6 +4368,8 @@ bool TryStartStashStackSplit(uint16_t stashIndex)
 {
 	if (stashIndex == StashStruct::EmptyCell || stashIndex >= Stash.stashList.size())
 		return false;
+	if (!MyPlayer->HoldItem.isEmpty() || pcurs != CURSOR_HAND)
+		return false; // as TryStartStackSplit: the split's part would overwrite the held item
 	if (!oracool::IsSinglePlayer())
 		return false;
 

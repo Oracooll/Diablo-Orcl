@@ -15,6 +15,7 @@
 #include "oracool/paladin_melee.h" // MeleeHitFrame - the chained swings' hit frame
 #include "oracool/rfa12_actives.h"
 #include "oracool/skill_sounds.h"
+#include "oracool/weapon_throw.h" // one latch at a time
 #include "oracool/whirlwind.h"
 #include "player.h"
 #include "spells.h"
@@ -300,6 +301,9 @@ void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill)
 	// One latch at a time: arming or disarming this one drops the RfA-12 swing (rfa12_actives.h), which is
 	// armed after it where it is meant.
 	ArmRfa12Melee(std::nullopt);
+	// And the throw, armed after it where it is meant: left armed, it took over the next skill's swing at its hit frame
+	// and threw the weapon at an old tile (round 5 audit, v1.12.230).
+	ArmWeaponThrow(std::nullopt);
 }
 
 std::optional<ClassMeleeSkill> ArmedClassMeleeSkill()

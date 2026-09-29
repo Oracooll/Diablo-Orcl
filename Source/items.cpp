@@ -6621,8 +6621,11 @@ void TrySpawnNecroBase(const Monster &monster, bool sendmsg)
 	const _item_indexes idx = candidates[GenerateRnd(candidateCount)];
 	const int lvl = std::max(mlvl, 1);
 	Item item;
+	// A FRESH drop, so allowTieredRoll is true, as on every other dropped base: false is the replay setting, and it
+	// barred Rares, Buffed Uniques, Primals and the base tier on wands, scythes and heads, and dropped their uniques
+	// ten times too often (round 5 audit, v1.12.230).
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), lvl, monster.isUnique() ? 15 : 1, /*onlygood=*/false,
-	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/false, std::nullopt, /*itemLevel=*/lvl);
+	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/lvl);
 	const int ii = AllocateItem();
 	Items[ii] = item.pop();
 	FinishOracoolDrop(ii, monster.position.tile);
@@ -7018,8 +7021,10 @@ bool MakeItemEthereal(Item &item)
 
 	item._iOracoolEthereal = true;
 	if (item._iClass == ICLASS_WEAPON) {
-		item._iMinDam = item._iMinDam * 135 / 100;
-		item._iMaxDam = std::max<int>(item._iMaxDam * 135 / 100, item._iMinDam);
+		// Held to the byte the fields are: a Torment Deathbringer (105-227) came out 141-50, and every blow landed at the
+		// minimum (round 5 audit, v1.12.230).
+		item._iMinDam = static_cast<uint8_t>(std::min(item._iMinDam * 135 / 100, 255));
+		item._iMaxDam = static_cast<uint8_t>(std::clamp(item._iMaxDam * 135 / 100, static_cast<int>(item._iMinDam), 255));
 	} else {
 		item._iAC = std::max<int>(item._iAC * 135 / 100, item._iAC + 1);
 	}
@@ -10412,6 +10417,10 @@ bool ApplyOilToItem(Item &item, Player &player)
 	if (item._iClass == ICLASS_MISC) {
 		return false;
 	}
+	// Ethereal cannot be repaired, and the two durability oils were a repair: refused, and the oil stays on the cursor
+	// (round 5 audit, v1.12.230). Mend at the Cube is the one way back.
+	if (item._iOracoolEthereal && IsAnyOf(player._pOilType, IMISC_OILBSMTH, IMISC_OILFORT))
+		return false;
 	if (item._iClass == ICLASS_GOLD) {
 		return false;
 	}

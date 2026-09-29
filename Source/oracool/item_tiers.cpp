@@ -273,8 +273,9 @@ void ApplyBaseTier(Item &item, BaseItemTier tier)
 
 	const TierScale &scale = Scales[static_cast<size_t>(tier)];
 
-	item._iMinDam = ScaleByPercent(item._iMinDam, scale.power);
-	item._iMaxDam = ScaleByPercent(item._iMaxDam, scale.power);
+	// ScaleByte: the damage fields are bytes, and a big base at Torment's 420% must not wrap (round 5 audit).
+	item._iMinDam = ScaleByte(item._iMinDam, scale.power);
+	item._iMaxDam = ScaleByte(item._iMaxDam, scale.power);
 	item._iAC = ScaleByPercent(item._iAC, scale.power);
 
 	item._iMinStr = ScaleByte(item._iMinStr, scale.require);

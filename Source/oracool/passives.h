@@ -159,6 +159,8 @@ void ClearPassiveState();
  * them through ClearPassiveClocks.
  */
 void ClearPassiveMarks();
+/** @brief @p monster's element marks gone, when its slot is freed or reused - the next occupant must not inherit them. */
+void ClearPassiveMarksForMonster(const Monster &monster);
 
 /** @brief Empties one player's clocks - the save's cooldown among them. Called where a new game clears the cold armour, so a cooldown cannot carry from the last character to this one. */
 void ClearPassiveClocks(Player &player);

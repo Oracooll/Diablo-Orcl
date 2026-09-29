@@ -1056,6 +1056,11 @@ void CheckCursMove()
 		RedrawComponent(PanelDrawComponent::Belt);
 	}
 	pcursinvitem = -1;
+	// The extra pages' pair too, every frame like the others: only CheckInvHLight reset it, which runs only over the open
+	// inventory with an empty hand, so a stale index outlived a pick-up or a closed inventory and a right click split,
+	// drank or salvaged whatever sat at that index - page one's item once the inventory closed (round 5 audit, v1.12.230).
+	pcursinvtabidx = -1;
+	pcursinvtabitem = -1;
 	pcursstashitem = StashStruct::EmptyCell;
 	pcursplr = -1;
 	ActiveTabItemHovered = false;

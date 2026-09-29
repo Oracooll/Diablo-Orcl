@@ -3321,8 +3321,16 @@ void StartPlrHit(Player &player, int dam, bool forcehit)
 	// resuming inside whatever the player does next. Placed after the two early returns above: a
 	// blow too small to stagger this character does not interrupt anything, so it must not disarm
 	// the chain either. See oracool::ResetZealChain.
-	if (&player == MyPlayer)
+	if (&player == MyPlayer) {
 		oracool::ResetZealChain();
+		// Every swing latch with it: the swing they were armed for is over. A throw armed and then interrupted threw at the
+		// next skill's hit frame, on another floor or in the next game (round 5 audit, v1.12.230).
+		oracool::ArmMeleeSkill(std::nullopt);
+		oracool::ArmArrowSkill(std::nullopt);
+		oracool::ArmClassMeleeSkill(std::nullopt);
+		oracool::ArmRfa12Melee(std::nullopt);
+		oracool::ArmWeaponThrow(std::nullopt);
+	}
 
 	NewPlrAnim(player, player_graphic::Hit, pd, AnimationDistributionFlags::None, skippedAnimationFrames);
 
@@ -3943,6 +3951,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			oracool::ArmArrowSkill(std::nullopt);
 			oracool::ArmClassMeleeSkill(std::nullopt);
 			oracool::ArmRfa12Melee(std::nullopt);
+			oracool::ArmWeaponThrow(std::nullopt);
 			LastMouseButtonAction = MouseActionType::None;
 			if (townsperson)
 				NetSendCmdLocParam1(true, CMD_TALKXY, cursPosition, pcursmonst);

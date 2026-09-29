@@ -392,8 +392,9 @@ bool CastNecromancerSummoning(Player &player, SpellID spell, Point target, int r
 	case SpellID::NecroRevive:
 		return Revive(player, target, r);
 	case SpellID::CommandTheDead: {
-		Monster *monster = FindMonsterAtPosition(target);
-		if (monster == nullptr || monster->isPlayerMinion() || (monster->hitPoints >> 6) <= 0) {
+		// Not in town, where dMonster holds towner ids and FindMonsterAtPosition answers a stale slot (round 5 audit).
+		Monster *monster = leveltype == DTYPE_TOWN ? nullptr : FindMonsterAtPosition(target);
+		if (monster == nullptr || monster->isPlayerMinion() || IsCompanion(*monster) || (monster->hitPoints >> 6) <= 0) {
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}

@@ -34,6 +34,7 @@
 #include "missiles.h"
 #include "movie.h"
 #include "options.h"
+#include "oracool/auto_save.h" // SaveOnExit - the ending saves the kill
 #include "oracool/chill.h"
 #include "oracool/combat_odds.h"
 #include "oracool/cold.h"
@@ -153,6 +154,7 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 	oracool::ClearWarcryStateForMonster(monster);
 	oracool::ClearRfa12StateForMonster(monster);
 	oracool::ClearColdStateForMonster(monster);
+	oracool::ClearPassiveMarksForMonster(monster);
 	monster.direction = rd;
 	monster.position.tile = position;
 	monster.position.future = position;
@@ -931,6 +933,8 @@ void DeleteMonster(size_t activeIndex)
 	oracool::OnMonsterSlotFreed(monster.getId());
 	oracool::ClearCurseForMonster(monster);
 	oracool::ClearColdStateForMonster(monster);
+	oracool::ClearPassiveMarksForMonster(monster);
+	oracool::OnCompanionFocusSlotFreed(monster.getId());
 
 	ActiveMonsterCount--;
 	std::swap(ActiveMonsters[activeIndex], ActiveMonsters[ActiveMonsterCount]); // This ensures alive monsters are before ActiveMonsterCount in the array and any deleted monster after
@@ -4798,13 +4802,18 @@ void DoEnding()
 void PrepDoEnding()
 {
 	gbSoundOn = sgbSaveSoundOn;
-	gbRunGame = false;
 	MyPlayerIsDead = false;
 	cineflag = true;
 
 	Player &myPlayer = *MyPlayer;
 
 	myPlayer.pDiabloKillLevel = std::max(myPlayer.pDiabloKillLevel, static_cast<uint8_t>(sgGameInitInfo.nDifficulty + 1));
+	// Saved HERE, while the game still runs: SaveOnExit (and the autosave) refuse once gbRunGame is false, and the save
+	// after the game loop always found it false - so the kill, its experience and the next difficulty's unlock were
+	// never written (round 5 audit, v1.12.230).
+	if (!gbIsMultiplayer)
+		oracool::SaveOnExit();
+	gbRunGame = false;
 
 	for (Player &player : Players) {
 		player._pmode = PM_QUIT;

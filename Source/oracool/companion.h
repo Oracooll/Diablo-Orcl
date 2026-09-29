@@ -163,6 +163,8 @@ enum class CompanionAct : uint8_t {
 
 /** @brief Every companion and minion turns on @p monster for @p ticks - the Necromancer's Command the Dead. */
 void FocusCompanionsOn(const Monster &monster, int ticks);
+/** @brief DeleteMonster: a Command the Dead focus on slot @p id ends with its monster, before the slot is reused. */
+void OnCompanionFocusSlotFreed(size_t id);
 /** @brief Whether @p monster is the one Command the Dead turned every companion and minion on, still - the Commanded marker. */
 bool IsCommandedTarget(const Monster &monster);
 /**

@@ -261,11 +261,12 @@ std::optional<std::pair<int, int>> PaladinCastDamageRange(const Player &player, 
 	case PaladinSkill::FistOfTheHeavens:
 		percent = FistCentrePercentAt(rank);
 		break;
+	// Towering Shield and Blunt on top, as the casts apply them - the sheet read 25% low with either (round 5 audit).
 	case PaladinSkill::BlessedShield:
-		percent = BlessedShieldPercentAt(rank);
+		percent = BlessedShieldPercentAt(rank) * (100 + PassiveSkillDamagePercent(player, SpellID::BlessedShield)) / 100;
 		break;
 	case PaladinSkill::BlessedHammer:
-		percent = BlessedHammerPercentAt(rank);
+		percent = BlessedHammerPercentAt(rank) * (100 + PassiveSkillDamagePercent(player, SpellID::BlessedHammer)) / 100;
 		break;
 	case PaladinSkill::Charge:
 	case PaladinSkill::Zeal:

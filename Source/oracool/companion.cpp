@@ -1347,6 +1347,16 @@ void FocusCompanionsOn(const Monster &monster, int ticks)
 	FocusCommanded = true;
 }
 
+void OnCompanionFocusSlotFreed(size_t id)
+{
+	// The id outlived its monster: a skeleton raised into the slot wore the Commanded sigil, and a hostile there drew the
+	// whole army (round 5 audit, v1.12.230).
+	if (FocusMonster == static_cast<int>(id)) {
+		FocusMonster = -1;
+		FocusTicks = 0;
+	}
+}
+
 bool IsCommandedTarget(const Monster &monster)
 {
 	return FocusCommanded && FocusTicks > 0 && FocusMonster == static_cast<int>(monster.getId()) && (monster.hitPoints >> 6) > 0;

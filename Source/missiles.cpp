@@ -2766,7 +2766,8 @@ void ProcessRogueArrow(Missile &missile)
 			// The freeze on whatever the arrow stopped in. A chill already landed through the hit.
 			if (const int mid = dMonster[at.x][at.y]; mid != 0) {
 				Monster &monster = Monsters[abs(mid) - 1];
-				if (monster.hitPoints >> 6 > 0)
+				// Not the hero's own side, as Freezing Arrow and Glacial Shatter ask (round 5 audit).
+				if (monster.hitPoints >> 6 > 0 && !monster.isPlayerMinion() && !oracool::IsCompanion(monster))
 					oracool::ApplyColdHit(MissileID::IceBlast, level, monster);
 			}
 			break;

@@ -83,7 +83,11 @@ void EarthenMightRage(Player &player, size_t struck)
 
 bool Hittable(const Monster &monster)
 {
-	return (monster.hitPoints >> 6) > 0 && !monster.isPlayerMinion() && monster.isPossibleToHit();
+	// Never in town: town's dMonster holds towner ids, and the Monsters slots they index are the golem bodies and the last
+	// floor's first monsters - Chill Touch at Griswold killed a 1-HP golem slot, Ice Needle through Cain struck a stale
+	// unique (round 5 audit, v1.12.230). Nor the hero's own companions.
+	return leveltype != DTYPE_TOWN && (monster.hitPoints >> 6) > 0 && !monster.isPlayerMinion() && !IsCompanion(monster)
+	    && monster.isPossibleToHit();
 }
 
 /** @brief "Uniques shrug it off" - the exemption every stagger in this fork carries. */
@@ -141,7 +145,9 @@ std::vector<Monster *> MonstersWithin(Point centre, int radius)
 	std::vector<Monster *> out;
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		Monster &monster = Monsters[ActiveMonsters[i]];
-		if (Hittable(monster) && centre.WalkingDistance(monster.position.tile) <= radius)
+		// And in sight of the centre, as Frost Nova since round 3: Absolute Zero froze the next room (round 5 audit).
+		if (Hittable(monster) && centre.WalkingDistance(monster.position.tile) <= radius
+		    && LineClearMissile(centre, monster.position.tile))
 			out.push_back(&monster);
 	}
 	return out;
@@ -1326,10 +1332,13 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::ChillTouch: {
 		bool any = false;
 		const Range d = SkillDamage(spell, r);
+		// Once each: a walking monster stands on two tiles of the fan and was struck twice (round 5 audit).
+		std::vector<const Monster *> chilled;
 		for (const Point tile : FrontArc(player, target)) {
 			Monster *m = FindMonsterAtPosition(tile);
-			if (m == nullptr || !Hittable(*m))
+			if (m == nullptr || !Hittable(*m) || std::find(chilled.begin(), chilled.end(), m) != chilled.end())
 				continue;
+			chilled.push_back(m);
 			Strike(player, *m, DamageType::Cold, Rolled(d));
 			if ((m->hitPoints >> 6) > 0)
 				ChillMonster(*m, SlowTicks(spell, r));
@@ -2099,8 +2108,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		std::vector<const Monster *> struck;
 		for (const Point tile : FrontArc(player, target)) {
 			Monster *m = FindMonsterAtPosition(tile);
-			if (m == nullptr || !Hittable(*m))
-				continue;
+			if (m == nullptr || !Hittable(*m) || std::find(struck.begin(), struck.end(), m) != struck.end())
+				continue; // a walking monster holds two fan tiles: one tooth (round 5 audit)
 			BoneStrike(player, *m, Rolled(d));
 			struck.push_back(m);
 			any = true;
@@ -2319,13 +2328,15 @@ void TickField(Player &player, Field &field)
 	case SpellID::BoneWall:
 		// Five tiles across the cast: whatever stands in one is cut and thrown back the way it came, twice a second.
 		if (field.clock % (field.spell == SpellID::BoneWall ? BoneWallPeriod : BoneStormPeriod) == 0) {
+			std::vector<const Monster *> cut; // once a pulse: a walker holds two of the wall's tiles (round 5 audit)
 			for (int k = -2; k <= 2; k++) {
 				Point tile = field.tile;
 				for (int step = 0; step < std::abs(k); step++)
 					tile = tile + (k < 0 ? Opposite(field.dir) : field.dir);
 				Monster *m = InDungeonBounds(tile) ? FindMonsterAtPosition(tile) : nullptr;
-				if (m == nullptr || !Hittable(*m))
+				if (m == nullptr || !Hittable(*m) || std::find(cut.begin(), cut.end(), m) != cut.end())
 					continue;
+				cut.push_back(m);
 				BoneStrike(player, *m, Rolled(SkillDamage(field.spell, r)));
 				if ((m->hitPoints >> 6) > 0)
 					Shove(*m, GetDirection(Players[field.owner].position.tile, m->position.tile));
@@ -2820,11 +2831,13 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		}
 		break;
 	}
-	case SpellID::AegisSlam:
+	case SpellID::AegisSlam: {
+		std::vector<const Monster *> slammed; // once each: a walker holds two of the three tiles (round 5 audit)
 		for (const Point tile : std::array<Point, 3> { ahead, player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {
 			Monster *m = FindMonsterAtPosition(tile);
-			if (m == nullptr || !Hittable(*m))
+			if (m == nullptr || !Hittable(*m) || std::find(slammed.begin(), slammed.end(), m) != slammed.end())
 				continue;
+			slammed.push_back(m);
 			if (m != front)
 				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 			Stagger(*m, StunTicks(spell, r));
@@ -2832,6 +2845,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			struck = true;
 		}
 		break;
+	}
 	case SpellID::Backhand: {
 		// A regular blow at the enemy in front, and the back of it at the one behind him (dev note, 2026-09-27:
 		// "backhand to be a regular strike, not a cast. it hits main target infront and causes dmg to target behind

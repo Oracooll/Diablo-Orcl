@@ -94,6 +94,7 @@
 #include "oracool/ui_sound.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/melee_skills.h"
+#include "oracool/rfa12_actives.h" // ArmRfa12Melee - the swing latches cleared with the game
 #include "oracool/rogue_arrows.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/oracool.h"
@@ -265,6 +266,13 @@ void FreeGame()
 	oracool::CloseHudMenu();
 	oracool::CloseSkillPicker();
 	oracool::CloseRunewordBook(); // its open flag, filters and scroll are statics too (round 4 audit, v1.12.229)
+	oracool::CloseStonegateMenu(); // the same sweep (round 5 audit)
+	// The swing latches are statics: one left armed rode into the next game's first swing (round 5 audit, v1.12.230).
+	oracool::ArmMeleeSkill(std::nullopt);
+	oracool::ArmArrowSkill(std::nullopt);
+	oracool::ArmClassMeleeSkill(std::nullopt);
+	oracool::ArmRfa12Melee(std::nullopt);
+	oracool::ArmWeaponThrow(std::nullopt);
 	// And Zeal's burst holds raw Monster POINTERS into the monster array this teardown is about to
 	// invalidate. StartStand already resets the chain on every interruption a game can produce, and
 	// a new game reaches it long before the player can swing - so this is hardening rather than a
@@ -1754,6 +1762,10 @@ void RunGameLoop(interface_mode uMsg)
 		//
 		// SaveOnExit is idempotent enough for this to be safe when the menu route already ran: it
 		// simply saves the same character again.
+		//
+		// In practice this call never saves: SaveOnExit refuses once gbRunGame is false, and it is false by the time the loop
+		// ends. Every exit saves before clearing it - the menu, SDL_QUIT, and Diablo's ending (PrepDoEnding, since
+		// v1.12.230). Kept as the harmless last word.
 		oracool::SaveOnExit();
 	}
 
