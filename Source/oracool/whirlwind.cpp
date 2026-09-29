@@ -131,6 +131,9 @@ bool StartWhirlwind(Player &player)
 		return false;
 	if (Active)
 		return true;
+	// The start's price, paid once (audit, 2026-09-29: it was checked and never taken, so tapping the button struck for
+	// nothing).
+	SettleSkill(player, SpellID::Whirlwind, /*landedBlows=*/0);
 	LoadPlrGFX(player, player_graphic::Magic); // the sheet the spin is drawn with
 	Active = true;
 	Clock = 0;
@@ -163,8 +166,9 @@ void ProcessWhirlwindTick(Player &player)
 	if (!Active || &player != MyPlayer)
 		return;
 	const bool outOfRage = UsesRage(player) && player._pRage <= 0;
+	// ...or another skill readied on the right mid-spin, by an F-key (audit, 2026-09-29: it spun on, draining Rage).
 	if (sgbMouseDown != CLICK_RIGHT || outOfRage || leveltype == DTYPE_TOWN || player._pHitPoints >> 6 <= 0
-	    || player._pmode == PM_DEATH) {
+	    || player._pmode == PM_DEATH || player._pRSpell != SpellID::Whirlwind) {
 		StopWhirlwind(player);
 		return;
 	}

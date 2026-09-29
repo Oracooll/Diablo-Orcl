@@ -26,6 +26,7 @@
 #include "inv.h"
 #include "missiles.h"
 #include "options.h"
+#include "oracool/whirlwind.h" // RightButtonOnly
 
 namespace devilution {
 
@@ -274,6 +275,19 @@ void EnsureValidReadiedSpell(Player &player)
 	if (!IsReadiedPairValid(player, player._pLRSpell, player._pLRSplType)) {
 		player._pLRSpell = SpellID::Invalid;
 		player._pLRSplType = SpellType::Invalid;
+	}
+	// A right-button-only skill never sits on the left (audit, 2026-09-29): a hero saved before v1.12.224 could carry
+	// Leap, Rend or a cry there - drawn red on the well, and still cast by a left click - or on a left F-key that the
+	// key then refuses.
+	if (oracool::RightButtonOnly(player._pLRSpell)) {
+		player._pLRSpell = SpellID::Invalid;
+		player._pLRSplType = SpellType::Invalid;
+	}
+	for (size_t slot = 0; slot < NumHotkeys; slot++) {
+		if (oracool::RightButtonOnly(player._pSplLHotKey[slot])) {
+			player._pSplLHotKey[slot] = SpellID::Invalid;
+			player._pSplLTHotKey[slot] = SpellType::Invalid;
+		}
 	}
 }
 

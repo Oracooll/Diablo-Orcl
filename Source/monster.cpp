@@ -4914,9 +4914,13 @@ void CompanionAi(Monster &companion)
 	}
 	if (IsAnyOf(companion.mode, MonsterMode::Death, MonsterMode::SpecialStand, MonsterMode::MeleeAttack, MonsterMode::RangedAttack))
 		return;
-	// Talic's spin runs itself (oracool/companion.h) until nothing is beside him.
-	if (oracool::IsCompanionSpinning(companion))
-		return;
+	// Talic's spin runs itself (oracool/companion.h) until nothing is beside him - unless the stance forbids fighting or
+	// his owner is past the leash, which end it at once (audit, 2026-09-29: a spin ignored both).
+	if (oracool::IsCompanionSpinning(companion)) {
+		if (orders.attacks && distance <= orders.leash)
+			return;
+		oracool::StopCompanionSpin(companion);
+	}
 
 	if (distance > orders.regroup && PlaceCompanionNear(companion, orders.owner, 3)) {
 		oracool::OnCompanionRegrouped(companion);

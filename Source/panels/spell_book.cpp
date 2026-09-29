@@ -31,6 +31,7 @@
 #include "oracool/ornate_border.h"
 #include "oracool/skill_picker.h" // the quick lists bind F-keys too
 #include "oracool/ui_sound.h"
+#include "oracool/advanced_stats.h" // IsAdvancedStatsOpen - nothing hovers under it
 #include "oracool/whirlwind.h" // RightButtonOnly
 #include "panels/spell_icons.hpp"
 #include "panels/ui_panels.hpp"
@@ -1558,6 +1559,10 @@ void BindAbilityHotkey(Player &player, size_t slot, SpellID spell, bool leftButt
 {
 	if (slot >= AbilityFKeyCount || !IsValidSpell(spell))
 		return;
+	// A right-button-only skill binds to the right button whichever menu asked, as a click readies it there (audit,
+	// 2026-09-29: a left binding of one was a dead key - the left key refuses to ready it).
+	if (leftButton && oracool::RightButtonOnly(spell))
+		leftButton = false;
 	SpellID *keys = leftButton ? player._pSplLHotKey : player._pSplHotKey;
 	SpellType *types = leftButton ? player._pSplLTHotKey : player._pSplTHotKey;
 	if (keys[slot] == spell) {
@@ -1851,6 +1856,9 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	// Same span a click uses: short of the scrollbar, so hovering the bar does not light a row.
 	const Rectangle hoverArea { contentRect.position, { AbilitiesContentRightLimit, contentRect.size.height } };
 	if (!hoverArea.contains(MousePosition))
+		return;
+	// Nothing under Advanced Stats, which covers this window's left edge: no hover, no F-key target (audit, 2026-09-29).
+	if (oracool::IsAdvancedStatsOpen() && oracool::GetAdvancedStatsRect().contains(MousePosition))
 		return;
 
 	const int y = MousePosition.y - contentRect.position.y + scroll;

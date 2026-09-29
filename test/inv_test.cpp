@@ -2013,5 +2013,32 @@ TEST_F(InvTest, ReseatOutgrownItems_MovesAnItemThatGrewIntoItsNeighbour)
 	EXPECT_EQ(cells, 6) << "the grown item does not own a whole 2x3 footprint";
 	EXPECT_NE(GridCellOf(*MyPlayer, grown), anchor) << "the grown item stayed over the ring";
 }
+
+// Audit, 2026-09-29: the same growth over an EMPTY row was never reseated - the grid still called the new row free, so
+// a click there found nothing and another item could be put under the grown one.
+TEST_F(InvTest, ReseatOutgrownItems_ClaimsTheEmptyCellsAnItemGrewInto)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	clear_inventory();
+	const int columns = InventorySizeInSlots.width;
+	const int anchor = InventoryGridCells - columns;
+	MyPlayer->InvList[0] = MakeBackpackItem(ICURS_HELM);
+	MyPlayer->_pNumInv = 1;
+	MyPlayer->InvGrid[anchor] = 1;
+	MyPlayer->InvGrid[anchor + 1] = -1;
+	MyPlayer->InvGrid[anchor - columns] = -1;
+	MyPlayer->InvGrid[anchor - columns + 1] = -1;
+	MyPlayer->InvList[0]._iCurs = ICURS_QUILTED_ARMOR; // grows to 2x3; the row above is empty
+	ASSERT_EQ(GetInventorySize(MyPlayer->InvList[0]), (Size { 2, 3 }));
+
+	ReseatOutgrownItems(*MyPlayer);
+
+	ASSERT_EQ(MyPlayer->_pNumInv, 1) << "the item was lost or duplicated";
+	int cells = 0;
+	for (const int8_t cell : MyPlayer->InvGrid)
+		cells += std::abs(cell) == 1 ? 1 : 0;
+	EXPECT_EQ(cells, 6) << "the grown item does not own its whole 2x3 footprint in the grid";
+}
 } // namespace
 } // namespace devilution

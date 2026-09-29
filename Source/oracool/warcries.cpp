@@ -20,6 +20,7 @@
 #include "oracool/stat_sheet.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/rfa12_effects.h"
+#include "oracool/skill_sounds.h" // the Impact cues of Conversion and Vengeance
 #include "player.h"
 #include "utils/language.h"
 #include <fmt/format.h>
@@ -447,6 +448,9 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 			return false;
 		turned->flags |= MFLAG_BERSERK | MFLAG_GOLEM;
 		DebuffOf(*turned).convertTicks = (20 + 2 * (rank - 1)) * seconds;
+		// Its Impact cue, when one turns (audit, 2026-09-29: the sound page's pick was never played).
+		if (&player == MyPlayer)
+			PlaySkillSound(WarcrySkill(spell), SkillSoundEvent::Impact);
 		return true;
 	}
 	default:
@@ -507,6 +511,9 @@ void ApplyVengeanceCold(Player &player, Monster &monster)
 	const Buff *buff = FindBuff(player, SpellID::Vengeance);
 	if (buff == nullptr || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion())
 		return;
+	// A cold-immune monster takes none of it and is not chilled, as the auras' cold (audit, 2026-09-29).
+	if (monster.isImmune(MissileID::Null, DamageType::Cold))
+		return;
 	const int rank = std::max(buff->rank, 1);
 	int damage = Roll(VengeanceColdMin(rank), VengeanceColdMax(rank));
 	damage += damage * Rfa12ColdDamagePercent(monster) / 100;
@@ -515,6 +522,9 @@ void ApplyVengeanceCold(Player &player, Monster &monster)
 	if (damage <= 0)
 		return;
 	ApplyMonsterDamage(DamageType::Cold, monster, damage);
+	// Vengeance's Impact cue on the blow its cold rides (audit, 2026-09-29: the sound page's pick was never played).
+	if (&player == MyPlayer)
+		PlaySkillSound(WarcrySkill(SpellID::Vengeance), SkillSoundEvent::Impact);
 	if ((monster.hitPoints >> 6) <= 0) {
 		M_StartKill(monster, player);
 		return;

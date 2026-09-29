@@ -1586,8 +1586,9 @@ void TakeOutgrownStashItems(std::vector<Item> &displaced)
 					bool fits = x + size.width <= StashGridColumns && y + size.height <= StashGridRows;
 					for (int dx = 0; fits && dx < size.width; dx++) {
 						for (int dy = 0; fits && dy < size.height; dy++) {
+							// Every cell the item's own - an empty one inside the footprint means it grew (audit, 2026-09-29).
 							const StashStruct::StashCell other = grid[x + dx][y + dy];
-							fits = other == 0 || other == cell;
+							fits = other == cell;
 						}
 					}
 					if (fits)

@@ -10,7 +10,7 @@
  *
  * 306 WAVs covering every node of all six class trees (304 delivered; RfA-02 added two), delivered as data with an authoritative
  * manifest (Resources/02. Oracooll Assets/skill-sounds/class-skill-sounds.zip). The manifest is read at
- * BUILD time by tools/GenSkillSounds.ps1, which joins it to the class tree on (class, skill name)
+ * BUILD time by tools/GenVanillaSkillSounds.js, which joins it to the class tree on (class, skill name)
  * and emits skill_sounds_data.inc. Nothing here is hand-typed, and a sound whose skill name matches
  * no tree row is a generator error rather than a cue that silently never plays.
  *
@@ -116,6 +116,13 @@ void StopClassAuraLoop();
  * a stop cue on a level transition would be a sound with no cause the player can see.
  */
 void SilenceClassAuraLoop();
+
+/**
+ * @brief Drops every loaded cue - the skills', the UI events', the set chime and a running loop - before the sound
+ * device goes (audit, 2026-09-29). Called from effects_cleanup_sfx, beside vanilla's own: a sample-rate change restarts
+ * the device, and cues decoded for the old one would play at the wrong pitch. The lit aura is still remembered.
+ */
+void FreeSkillSounds();
 
 /**
  * @brief The tree row whose cast is currently creating missiles, or None.

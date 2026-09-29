@@ -4631,7 +4631,24 @@ bool TestShouldDropGoldOnDeath(Player &player)
 
 bool PlayerStrikesMonster(Player &player, Monster &monster)
 {
-	return PlrHitMonst(player, monster);
+	// A swing's whole on-hit layer, as DoAttack gives a blow (audit, 2026-09-29: a spin struck plain physical only - no
+	// fire or lightning from the weapon, no passives, no curses). Not the skill latches, which belong to the swing that
+	// armed them, and not the weapon wear: four blows a second would eat a weapon.
+	oracool::NoteRageCombat(player);
+	const Point position = monster.position.tile;
+	const size_t playerId = player.getId();
+	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FireDamage) || player._pIFMaxDam > 0)
+		AddMissile(position, { 1, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
+	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::LightningDamage) || player._pILMaxDam > 0)
+		AddMissile(position, { 2, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
+	int hitDamage = 0;
+	if (!PlrHitMonst(player, monster, false, &hitDamage))
+		return false;
+	oracool::OnPassiveHit(player, monster, hitDamage, true);
+	oracool::OnRfa12Hit(player, monster, hitDamage, true);
+	oracool::ApplyVengeanceCold(player, monster);
+	oracool::OnCursedMonsterStruck(monster, player, nullptr, hitDamage);
+	return true;
 }
 
 } // namespace devilution

@@ -944,6 +944,11 @@ void RightMouseDown(bool isShiftHeld)
 		SetSpell();
 		return;
 	}
+	// Advanced Stats is drawn over the left edge of the inventory and the Abilities window: a right-click on it must not
+	// reach what is hidden under it (audit, 2026-09-29 - it refunded tree points and equipped items there). Left-clicks
+	// already test it first.
+	if (oracool::IsAdvancedStatsOpen() && oracool::GetAdvancedStatsRect().contains(MousePosition))
+		return;
 	if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
 		// Oracool: user request (2026-08-15) - a row is readied on the button that clicked it, so the
 		// right button has to reach the window too. This used to be a bare return, which is why the

@@ -600,7 +600,7 @@ const char *ClassMeleeSkillDescription(SpellID spell)
 	case SpellID::Leap:
 		return N_("Vault to the spot under the cursor, over anything in the way - four tiles, a tile further every three ranks.");
 	case SpellID::DoubleSwing:
-		return N_("Two blows in one swing, the second at 75% damage, +5% per rank.");
+		return N_("Two swings in one attack's time, the second at 75% damage, +5% per rank.");
 	case SpellID::Stun:
 		return N_("A blow that leaves the target reeling for 1.5 seconds, +20% longer per rank. Uniques shrug it off.");
 	case SpellID::LeapAttack:
@@ -608,7 +608,7 @@ const char *ClassMeleeSkillDescription(SpellID spell)
 	case SpellID::Concentrate:
 		return N_("A focused blow at +50% damage, +10% per rank.");
 	case SpellID::Frenzy:
-		return N_("Two blows in one swing, both at 100% damage, +10% per rank.");
+		return N_("Two swings in one attack's time, both at 100% damage, +10% per rank.");
 	case SpellID::Whirlwind:
 		return N_("Hold the right button to spin toward the cursor at a run, striking everything beside you four times a second at 66% damage, +5% per rank. Drains 5 Rage a second.");
 	case SpellID::BerserkBlow:
@@ -671,7 +671,11 @@ std::string MeleeSkillFactsAt(ClassMeleeSkill skill, int rank)
 		strikes += (rank - 1) / p.extraStrikesPerRank;
 	strikes = std::min(strikes, p.extraStrikesCap);
 	if (strikes > 1) {
-		line(fmt::format(fmt::runtime(_("Strikes: {:d} in one swing")), strikes));
+		// Double Swing and Frenzy swing twice since v1.12.222; the Monk's many blows still land in one (audit, 2026-09-29).
+		if (IsSwingChainSkill(skill))
+			line(fmt::format(fmt::runtime(_("Swings: {:d}, in one attack's time")), strikes));
+		else
+			line(fmt::format(fmt::runtime(_("Strikes: {:d} in one swing")), strikes));
 		line(fmt::format(fmt::runtime(_("Extra strikes at {:d}% damage")), p.extraSharePercent + p.extraSharePerRank * (rank - 1)));
 	}
 	switch (skill) {

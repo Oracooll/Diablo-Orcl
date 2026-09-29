@@ -249,18 +249,19 @@ void ApplyHammerOfFaith(Player &player, Monster &primaryTarget, int hitDamage)
 		return;
 
 	// Eight is every square touching the target - the whole ring, since this one does not cap.
+	// The hammer's impact: its own sound and Holy Bolt's burst on the target at full size, tinted blue (the sound page's
+	// remark, 2026-09-28: "Nova. Add Holy Bolt explosion on impact. Scaled 100%. Tinted blue.") - on every blow it lands,
+	// a lone target's too (audit, 2026-09-29: both waited for a splash). The mana is still the splash's alone.
+	if (&player == MyPlayer)
+		PlaySkillSound(ClassTreeSkill::HammerOfFaith, SkillSoundEvent::Impact);
+	DrawHolyBurst(player, primaryTarget.position.tile, 100, hue::HolyBlue);
+
 	Monster *targets[8] = {};
 	const int found = GatherAdjacent(primaryTarget, targets, 8);
 	if (found == 0)
 		return;
 	if (!SpendPaladinSkillMana(player, PaladinSkill::HammerOfFaith))
 		return;
-
-	// The shockwave's own sound, once per splash - the blow itself already sounded as a hit. With it, Holy Bolt's burst on
-	// the target at full size, tinted blue (the sound page's remark, 2026-09-28: "Nova. Add Holy Bolt explosion on impact.
-	// Scaled 100%. Tinted blue.").
-	PlaySkillSound(ClassTreeSkill::HammerOfFaith, SkillSoundEvent::Impact);
-	DrawHolyBurst(player, primaryTarget.position.tile, 100, hue::HolyBlue);
 	for (int i = 0; i < found; i++)
 		StrikeMonster(player, *targets[i], splashDamage);
 }
@@ -493,9 +494,14 @@ SpellID ArmedMeleeSpell(const Player &player)
 {
 	if (&player != MyPlayer)
 		return SpellID::Invalid;
-	// An unaffordable skill is a plain swing everywhere else, so it sounds like one too.
-	if (ArmedSkill.has_value())
+	// An unaffordable skill is a plain swing everywhere else, so it sounds like one too. Charge paid at the dash: its blow
+	// is Charge's while IsChargeBlowArmed says so, mana or none (audit, 2026-09-29 - the mana gate silenced a real Charge
+	// that spent the last of it, and voiced a cooled-down plain swing).
+	if (ArmedSkill.has_value()) {
+		if (*ArmedSkill == PaladinSkill::Charge)
+			return IsChargeBlowArmed() ? GetPaladinSkillData(*ArmedSkill).spellId : SpellID::Invalid;
 		return CanUsePaladinSkill(player, *ArmedSkill) ? GetPaladinSkillData(*ArmedSkill).spellId : SpellID::Invalid;
+	}
 	if (const std::optional<ClassMeleeSkill> skill = ArmedClassMeleeSkill(); skill.has_value()) {
 		const SpellID spell = ClassMeleeSkillSpell(*skill);
 		return CanPaySkill(player, spell) ? spell : SpellID::Invalid;
@@ -523,6 +529,15 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 {
 	if (!ArmedSkill.has_value() || hitDamage <= 0)
 		return;
+	// Charge's blow sounds its Impact when it is Charge's (IsChargeBlowArmed), whatever the mana left (audit, 2026-09-29).
+	if (*ArmedSkill == PaladinSkill::Charge) {
+		if (&player == MyPlayer && IsChargeBlowArmed()) {
+			const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, GetPaladinSkillData(PaladinSkill::Charge).spellId);
+			if (row != ClassTreeSkill::None)
+				PlaySkillSound(row, SkillSoundEvent::Impact);
+		}
+		return;
+	}
 	// The mana and level gates in one call, so a Paladin who cannot pay simply swings normally -
 	// which is the same "still does something" rule the rest of these skills follow.
 	if (!CanUsePaladinSkill(player, *ArmedSkill))

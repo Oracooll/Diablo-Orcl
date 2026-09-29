@@ -15,7 +15,7 @@ namespace {
 
 using Skill = ClassTreeSkill;
 
-// The table itself. GENERATED - see tools/GenSkillSounds.ps1 and the note in skill_sounds.h.
+// The table itself. GENERATED - see tools/GenVanillaSkillSounds.js and the note in skill_sounds.h.
 #include "oracool/skill_sounds_data.inc"
 
 constexpr size_t SkillSoundCount = sizeof(SkillSounds) / sizeof(SkillSounds[0]);
@@ -63,7 +63,7 @@ bool BaselineArmed = false;
 /** @brief Index into SkillSounds, or SkillSoundCount for "no such cue". */
 size_t FindSound(Skill skill, SkillSoundEvent event)
 {
-	// Linear over 306 rows, on events that happen at human speed - a cast, a hit, a point spent.
+	// Linear over the table's rows (480 in v1.12.225), on events that happen at human speed - a cast, a hit, a point spent.
 	// Sorted by class then skill then event, so a binary search would be possible; it would also be
 	// a second thing to keep true, for a lookup that never runs in a hot loop.
 	for (size_t i = 0; i < SkillSoundCount; i++) {
@@ -131,6 +131,9 @@ void ResumeClassAuraLoop(Skill skill)
 	SilenceClassAuraLoop();
 	if (!gbSndInited)
 		return; // see PlaySkillSound
+	// The lit aura is remembered whether or not it has a loop, so putting it out sounds its Stop cue (audit, 2026-09-29:
+	// no aura has a Loop row, so this was never set, and none of the 51 Stop cues - the Paladin's 36 among them - played).
+	AuraLoopSkill = skill;
 
 	const size_t index = FindSound(skill, SkillSoundEvent::Loop);
 	if (index == SkillSoundCount)
@@ -318,6 +321,19 @@ void ResetSetCompletionBaseline()
 	// first check must record rather than ring against it.
 	CompletedSetsMask = 0;
 	BaselineArmed = false;
+}
+
+void FreeSkillSounds()
+{
+	if (AuraLoop != nullptr) {
+		AuraLoop->DSB.Stop();
+		AuraLoop = nullptr; // AuraLoopSkill stays: the aura is still lit, and its Stop cue still due
+	}
+	for (std::unique_ptr<TSnd> &cue : SoundCache)
+		cue = nullptr;
+	for (std::unique_ptr<TSnd> &cue : UiEventCache)
+		cue = nullptr;
+	SetCompleteSound = nullptr;
 }
 
 } // namespace devilution::oracool

@@ -302,13 +302,13 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// --- Combat Skills ---
 	{ N_("Bash"), N_("A heavy blow at +30% damage, +10% per rank, that knocks the target back."), Bar, 0, 0, 0, Kind::Active, SpellID::Bash, true },
 	{ N_("Leap"), N_("Vault to the spot under the cursor, over anything in the way - four tiles, a tile further every three ranks."), Bar, 0, 1, 0, Kind::Active, SpellID::Leap, true },
-	{ N_("Double Swing"), N_("Two blows in one swing, the second at 75% damage, +5% per rank."), Bar, 0, 1, 1, Kind::Active, SpellID::DoubleSwing, true },
+	{ N_("Double Swing"), N_("Two swings in one attack's time, the second at 75% damage, +5% per rank."), Bar, 0, 1, 1, Kind::Active, SpellID::DoubleSwing, true },
 	{ N_("Stun"), N_("A blow that leaves the target reeling for 1.5 seconds, +20% longer per rank. Uniques shrug it off."), Bar, 0, 2, 0, Kind::Active, SpellID::Stun, true },
 	// User note, 2026-09-14: "We remove Double Throw ... but we need to keep single weapon throw ... using normal attack animation."
 	{ N_("Weapon Throw"), N_("Hurl the sword or axe in your hand at the enemy under the cursor for its full damage, with your ordinary attack; it is back in your grip for the next blow."), Bar, 0, 2, 1, Kind::Active, SpellID::WeaponThrow, true },
 	{ N_("Leap Attack"), N_("Leap onto a distant enemy; the blow you land there is at +50% damage, +10% per rank."), Bar, 0, 3, 0, Kind::Active, SpellID::LeapAttack, true },
 	{ N_("Concentrate"), N_("A focused blow at +50% damage, +10% per rank. The steadiness half is not built yet."), Bar, 0, 3, 1, Kind::Active, SpellID::Concentrate, true },
-	{ N_("Frenzy"), N_("Two blows in one swing, both at 100% damage, +10% per rank."), Bar, 0, 4, 0, Kind::Active, SpellID::Frenzy, true },
+	{ N_("Frenzy"), N_("Two swings in one attack's time, both at 100% damage, +10% per rank."), Bar, 0, 4, 0, Kind::Active, SpellID::Frenzy, true },
 	{ N_("Whirlwind"), N_("Hold the right button to spin toward the cursor at a run, striking everything beside you four times a second at 66% damage, +5% per rank, for 5 Rage a second."), Bar, 0, 5, 0, Kind::Active, SpellID::Whirlwind, true },
 	{ N_("Berserk"), N_("A blow at +100% damage, +20% per rank. The defence you would trade for it is not taken yet."), Bar, 0, 5, 1, Kind::Active, SpellID::BerserkBlow, true },
 	// --- Combat Masteries ---
@@ -3308,30 +3308,35 @@ std::string ClassTreeRankBlock(const Player &player, Skill skill, int points)
 		const int at = std::max(points + player._pISplLvlAdd, 1);
 		if (const SpellID spell = ClassTreeSpellId(skill); IsValidSpell(spell))
 			line(SpellLevelLines(player, spell, at));
+		// The level-up stat is the points' alone: ApplyClassTreeToTotals applies it at the investment, not at the spell
+		// level (audit, 2026-09-29 - the line showed the items' levels in it too).
 		if (data.implemented)
-			line(LevelUpStatLine(skill, at));
+			line(LevelUpStatLine(skill, points));
 		return text;
 	}
 	if (!data.implemented)
 		return text;
+	// The effect at the rank it works at - Battle Command's included (ClassTreeRank) - and the level-up stat at the
+	// points, as ApplyClassTreeToTotals applies them (audit, 2026-09-29).
+	const int working = points > 0 ? points + ClassTreeBonusRanks(player) : points;
 	ItemBonusTotals totals {};
 	if (data.kind == Kind::Aura)
-		ApplyAura(skill, points, totals);
+		ApplyAura(skill, working, totals);
 	else
-		ApplyPassive(player, skill, points, totals, /*assumeCondition=*/true);
+		ApplyPassive(player, skill, working, totals, /*assumeCondition=*/true);
 	line(DescribeBonusTotals(totals, "\n"));
 	line(LevelUpStatLine(skill, points));
 	if (data.kind == Kind::Aura) {
-		line(ClassTreeAuraFactsAt(skill, points));
+		line(ClassTreeAuraFactsAt(skill, working));
 		// What an aura does OFF the sheet - a pulse, a return, a shortening - which the totals cannot
 		// carry (2026-09-12).
-		line(AuraFieldFactsAt(skill, points));
+		line(AuraFieldFactsAt(skill, working));
 		// The reach only where it reaches something: it used to sit on Might and the resists too, where
 		// it meant nothing (audit, 2026-09-12).
 		if (AuraReachesMonsters(skill))
-			line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), AuraFieldRadius(skill, points)));
+			line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), AuraFieldRadius(skill, working)));
 	} else {
-		line(PassiveRuleFactsAt(player, skill, points));
+		line(PassiveRuleFactsAt(player, skill, working));
 	}
 	return text;
 }
@@ -3397,10 +3402,10 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 	// and this block shows the main effect and the level-up stat, both with numbers.
 	// test/oracool_skill_rules_test.cpp walks every row of every class to its cap against it.
 	// Battle Command's rank (2026-09-29): an active has it in its spell level with the items', a passive or aura as
-	// ClassTreeBonusRanks. A passive's numbers are drawn at the rank it works at; an active's block adds the levels itself.
+	// ClassTreeBonusRanks. The headline is the total, the badges' number (ClassTreeShownRank), with where it comes from
+	// (audit, 2026-09-29 - it showed the points alone); ClassTreeRankBlock adds the bonus ranks to the effect itself.
 	const bool isActive = GetClassTreeSkillData(skill).kind == Kind::Active;
 	const int commanded = ClassTreeBonusRanks(player);
-	const int passiveBonus = isActive ? 0 : commanded;
 	if (p > 0) {
 		const int itemLevels = isActive ? player._pISplLvlAdd - commanded : 0;
 		std::string from;
@@ -3409,10 +3414,10 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 		if (commanded != 0)
 			from += (from.empty() ? "" : ", ") + fmt::format(fmt::runtime(_("{:+d} from Battle Command")), commanded);
 		if (!from.empty())
-			add(fmt::format(fmt::runtime(_("Current Skill Level: {:d} ({:s})")), p, from));
+			add(fmt::format(fmt::runtime(_("Current Skill Level: {:d} ({:d} invested, {:s})")), std::max(p + itemLevels + commanded, 1), p, from));
 		else
 			add(fmt::format(fmt::runtime(_("Current Skill Level: {:d}")), p));
-		add(ClassTreeRankBlock(player, skill, p + passiveBonus));
+		add(ClassTreeRankBlock(player, skill, p));
 	} else {
 		add(std::string(_("Not learned")));
 	}
@@ -3428,7 +3433,7 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 			out += "\n"; // the gap D2 leaves between the two blocks
 			add(std::string(p == 0 ? _("First Level") : _("Next Level")));
 			add(fmt::format(fmt::runtime(_("Requires level {:d}")), RankRequiredLevel(ClassTreeTierMinLevel(data.tier), p + 1)));
-			add(ClassTreeRankBlock(player, skill, p + 1 + (p > 0 ? passiveBonus : 0)));
+			add(ClassTreeRankBlock(player, skill, p + 1));
 		}
 	}
 	if (!data.implemented)

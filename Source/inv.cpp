@@ -4679,8 +4679,10 @@ int FirstOutgrownBackpackItem(const int8_t *grid, const Item *list, int count)
 			return id - 1;
 		for (int y = 0; y < size.height; y++) {
 			for (int x = 0; x < size.width; x++) {
+				// Every cell of the footprint must be the item's own: an empty one inside it is outgrown too (audit,
+				// 2026-09-29 - a 2x2 shield grown to 2x3 over an empty row drew over cells the grid still called free).
 				const int other = grid[(row - y) * columns + column + x];
-				if (other != 0 && std::abs(other) != id)
+				if (std::abs(other) != id)
 					return id - 1;
 			}
 		}

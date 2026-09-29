@@ -143,7 +143,7 @@ int ActionFrame(const PlayerAnimData &data, PlayerWeaponGraphic weapon)
 }
 
 /** @brief @p cls's sheets - the town pair (stand, walk) or the dungeon five. False, leaving @p set empty, without a stand. */
-bool LoadHeroSheets(HeroSheets &set, HeroClass cls, size_t armour, PlayerWeaponGraphic weapon, bool town)
+bool LoadHeroSheets(HeroSheets &set, HeroClass cls, size_t armour, PlayerWeaponGraphic weapon, bool town, bool withSpin = false)
 {
 	set = HeroSheets {};
 	const PlayerAnimData &frames = PlayersAnimData[static_cast<size_t>(cls)];
@@ -157,9 +157,10 @@ bool LoadHeroSheets(HeroSheets &set, HeroClass cls, size_t armour, PlayerWeaponG
 		LoadSheet(set, cls, armour, MonsterGraphic::GotHit, "ht", weapon, widths.swHit, frames.recoveryFrames);
 		// The death sheet is only ever authored unarmed - see LoadPlrGFX.
 		LoadSheet(set, cls, armour, MonsterGraphic::Death, "dt", PlayerWeaponGraphic::Unarmed, widths.death, frames.deathFrames);
-		// The spin's cast sheet, loaded through Special's slot and moved to its own.
+		// The spin's cast sheet, loaded through Special's slot and moved to its own - a whirler's only (audit, 2026-09-29:
+		// every companion decoded it, three of them on each level change for the Ancients).
 		const auto special = static_cast<size_t>(MonsterGraphic::Special);
-		if (LoadSheet(set, cls, armour, MonsterGraphic::Special, "qm", weapon, widths.magic, frames.castingFrames)) {
+		if (withSpin && LoadSheet(set, cls, armour, MonsterGraphic::Special, "qm", weapon, widths.magic, frames.castingFrames)) {
 			set.spinOwned = std::move(set.owned[special]);
 			set.spin = set.anims[special];
 			set.anims[special] = AnimStruct {};
@@ -262,11 +263,6 @@ int AbilityPower(const CompanionStats &stats, int rank)
 	return stats.damagePercent * (rank >= AbilityPowerLevel ? 125 : 100) / 100;
 }
 
-/** @brief The share of the owner's blow @p ability strikes for at @p power - each arrow or hammer at the full power. */
-int AbilityPercent(Ability /*ability*/, int power)
-{
-	return power;
-}
 
 /** @brief The Valkyrie's volley: three arrows, five from the power level. */
 int VolleyArrows(int rank)
@@ -488,7 +484,7 @@ bool LoadDress(HeroSheets &sheets, const CompanionDef &def, const Player *owner,
 		return LoadHeroSheets(sheets, owner->_pClass, static_cast<size_t>(owner->_pgfxnum >> 4), weapon, town);
 	}
 	for (size_t armour = static_cast<size_t>(def.armour) + 1; armour-- > 0;) {
-		if (LoadHeroSheets(sheets, def.sheetClass, armour, def.weapon, town))
+		if (LoadHeroSheets(sheets, def.sheetClass, armour, def.weapon, town, def.attack == CompanionAttack::Whirl))
 			return true;
 	}
 	return false;
@@ -708,7 +704,7 @@ std::string CompanionFactsAt(SpellID spell, int rank)
 	for (uint8_t i = 0; i < list.count; i++) {
 		const CompanionKind kind = list.kinds[i];
 		const CompanionDef &def = DefOf(kind);
-		const int percent = AbilityPercent(def.ability, AbilityPower(CompanionStatsAt(kind, r), r));
+		const int percent = AbilityPower(CompanionStatsAt(kind, r), r); // Double Throw's hammers (ThrowHammers)
 		const std::string every = secs(AbilityCooldownTicks(def, r));
 		switch (def.ability) {
 		case Ability::Volley:
@@ -808,6 +804,8 @@ bool SummonCompanions(Player &owner, SpellID spell, Point target, int rank)
 			ReleaseCompanionBody(Monsters[inst->slot]);
 			ClearSlotDress(static_cast<size_t>(inst->slot));
 			inst->slot = -1;
+			inst->spinTicks = 0;
+			inst->volley = false;
 			SpawnInDungeon(*inst, target, /*full=*/true);
 		} else if (inst->slot >= 0) {
 			Monster &body = Monsters[inst->slot];
@@ -860,17 +858,23 @@ void StartCompanionSpin(Monster &companion)
 	inst->spinTicks = std::max(inst->spinTicks, SpinMinTicks);
 }
 
+void StopCompanionSpin(Monster &companion)
+{
+	if (Instance *inst = InstanceInSlot(companion); inst != nullptr)
+		inst->spinTicks = 0;
+}
+
 bool IsCompanionSpinning(const Monster &companion)
 {
 	const Instance *inst = InstanceInSlot(companion);
-	return inst != nullptr && inst->spinTicks > 0;
+	return inst != nullptr && inst->spinTicks > 0 && companion.mode != MonsterMode::Death;
 }
 
 std::optional<ClxSprite> CompanionSpinSprite(const Monster &companion)
 {
-	const Instance *inst = InstanceInSlot(companion);
-	if (inst == nullptr || inst->spinTicks <= 0)
+	if (!IsCompanionSpinning(companion))
 		return std::nullopt;
+	const Instance *inst = InstanceInSlot(companion);
 	const HeroSheets &sheets = SlotSheets[companion.getId()];
 	if (!sheets.active || !sheets.spin.sprites)
 		return std::nullopt;
@@ -915,6 +919,8 @@ void ForgetCompanionInSlot(Monster &slot)
 		return;
 	ClearSlotDress(slot.getId());
 	inst->slot = -1; // it waits for room elsewhere
+	inst->spinTicks = 0;
+	inst->volley = false;
 }
 
 void OnCompanionLevelLoad()
@@ -924,6 +930,9 @@ void OnCompanionLevelLoad()
 		inst.returnWait = TicksPerSecond - 5; // back a quarter-second after the level is up
 		inst.town = TownState {};
 		inst.target = -1;
+		// Not carried down the stairs (audit, 2026-09-29): a spin or a Double Throw from the level left.
+		inst.spinTicks = 0;
+		inst.volley = false;
 	}
 	for (HeroSheets &sheets : SlotSheets)
 		sheets = HeroSheets {};
@@ -1003,8 +1012,10 @@ void ProcessCompanions(Player &owner)
 
 		if (inst.slot >= 0) {
 			Monster &body = Monsters[inst.slot];
-			if (body.mode == MonsterMode::Death)
+			if (body.mode == MonsterMode::Death) {
+				inst.spinTicks = 0; // it falls on its death sheet, not spinning (audit, 2026-09-29)
 				continue; // falling; the slot empties when the body is gone
+			}
 			if (body.position.tile == GolemHoldingCell || (body.hitPoints >> 6) <= 0) {
 				// Fallen, for good: a companion does not come back from death, only from a level change.
 				ClearSlotDress(static_cast<size_t>(inst.slot));
@@ -1124,7 +1135,7 @@ CompanionOrders GetCompanionOrders(const Monster &companion)
 		orders.settle = 3;
 		orders.regroup = 12;
 		orders.attacks = armed;
-		orders.reach = 8;
+		orders.reach = def.attack == CompanionAttack::Throw ? ThrowReach : 8; // a throw's reach (audit, 2026-09-29)
 		break;
 	case CompanionStance::Passive:
 		orders.leash = 2;
@@ -1188,7 +1199,6 @@ CompanionAct TryCompanionAbility(Monster &companion, Monster &target)
 	const CompanionDef &def = DefOf(inst->kind);
 	const CompanionStats stats = CompanionStatsAt(inst->kind, inst->rank);
 	// Level 10 makes every ability hit a quarter harder; level 20 brings them round a quarter sooner.
-	const int power = AbilityPower(stats, inst->rank);
 	const Point here = companion.position.tile;
 	const Point there = target.position.tile;
 	const int distance = here.WalkingDistance(there);
@@ -1254,10 +1264,19 @@ void ThrowHammers(Instance &inst, Point from, Point to)
 	const Direction dir = GetDirection(from, to);
 	const Displacement side { Left(Left(dir)) };
 	const int hammers = inst.volley ? 2 : 1;
-	const int percent = CompanionStatsAt(inst.kind, inst.rank).damagePercent;
+	// Double Throw is his ability, at its power: a quarter harder from level 10, as the tooltip says (audit, 2026-09-29).
+	const CompanionStats stats = CompanionStatsAt(inst.kind, inst.rank);
+	const int percent = inst.volley ? AbilityPower(stats, inst.rank) : stats.damagePercent;
 	for (int i = 0; i < hammers; i++) {
-		const Point dst = to + Displacement { side.deltaX * i, side.deltaY * i };
-		Missile *hammer = AddMissile(from, dst, dir, MissileID::Arrow, TARGET_MONSTERS, inst.owner, 4, 0);
+		// Both at the target; the second leaves from beside him, where the tile is open (audit, 2026-09-29: aimed a tile
+		// aside, it flew past a lone target).
+		Point start = from;
+		if (i > 0) {
+			const Point beside = from + side;
+			if (InDungeonBounds(beside) && IsTileWalkable(beside))
+				start = beside;
+		}
+		Missile *hammer = AddMissile(start, to, GetDirection(start, to), MissileID::Arrow, TARGET_MONSTERS, inst.owner, 4, 0);
 		if (hammer == nullptr)
 			continue;
 		hammer->companionPercent = static_cast<int16_t>(percent);

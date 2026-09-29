@@ -599,7 +599,10 @@ void DrawSkillPicker(const Surface &out)
 				// CheckCursMove leaves InfoString alone while the cursor is over a floating window,
 				// which is exactly what makes this safe to set from a draw.
 				SetPanelString(EntryName(entry), UiFlags::ColorWhite);
-				if (dimmed)
+				// An aura is lit; a right-button-only skill is readied there (audit, 2026-09-29: both said "light it").
+				if (rightOnly)
+					AddPanelString(_("Right button only - click to ready it there"));
+				else if (dimmed)
 					AddPanelString(_("Right button only - click to light it"));
 				// The NUMBERS, not just the name (user, 2026-08-28: "i want more information in the
 				// hover opoups of skills/spells/auras - include the benefits/bonuses current level

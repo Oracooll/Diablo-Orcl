@@ -12,6 +12,7 @@
 #include "engine/sound_defs.hpp"
 #include "engine/sound_position.hpp"
 #include "init.h"
+#include "oracool/skill_sounds.h" // FreeSkillSounds
 #include "player.h"
 #include "utils/stdcompat/algorithm.hpp"
 #include "utils/str_cat.hpp"
@@ -1162,6 +1163,7 @@ void effects_cleanup_sfx()
 
 	for (auto &sfx : sgSFX)
 		sfx.pSnd = nullptr;
+	oracool::FreeSkillSounds(); // the fork's cues too, before the device goes (audit, 2026-09-29)
 }
 
 void sound_init()

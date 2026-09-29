@@ -115,6 +115,8 @@ const AnimStruct *GetCompanionAnim(const Monster &monster, MonsterGraphic graphi
  * spinning companion alone; ProcessCompanions runs the spin.
  */
 void StartCompanionSpin(Monster &companion);
+/** @brief Ends the spin at once - the stance holds it back, or its owner is out of its leash (audit, 2026-09-29). */
+void StopCompanionSpin(Monster &companion);
 bool IsCompanionSpinning(const Monster &companion);
 /** @brief The sprite a spinning companion is drawn with instead of its own, or none. */
 std::optional<ClxSprite> CompanionSpinSprite(const Monster &companion);

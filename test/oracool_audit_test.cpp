@@ -11429,9 +11429,42 @@ TEST(OracoolWarcries, BattleCommandDeepensEveryLearnedSkill)
 	EXPECT_EQ(oracool::ClassTreeShownRank(barbarian, oracool::ClassTreeSkill::Bash), 2) << "an active through its spell level";
 	EXPECT_EQ(oracool::ClassTreeRank(barbarian, oracool::ClassTreeSkill::AxeMastery), 0) << "nothing for a skill not learned";
 
+	// The hover's headline is the total the badges show, with where it comes from (audit, 2026-09-29).
+	const std::string hover = oracool::ClassTreeEffectLine(barbarian, oracool::ClassTreeSkill::SwordMastery);
+	EXPECT_NE(hover.find("Current Skill Level: 2 (1 invested, +1 from Battle Command)"), std::string::npos) << hover;
+
 	oracool::ClearWarcryBuffs(barbarian);
 	CalcPlrInv(barbarian, false);
 	EXPECT_EQ(oracool::ClassTreeRank(barbarian, oracool::ClassTreeSkill::SwordMastery), 1) << "gone with the command";
+}
+
+// Audit, 2026-09-29: Seismic Slam's flames ride the 16-way art-bolt carrier on Fire Wall's two-row sheet. A facing past
+// a sheet's rows falls back to its first - the frame length read from row 9 of a two-row table was 0.
+TEST(OracoolAudit, SetMissAnimKeepsTheFacingInsideTheSheet)
+{
+	Missile missile {};
+	missile._mimfnum = 9;
+	UseMissileGraphic(missile, MissileGraphicID::FireWall); // SetMissAnim, from outside missiles.cpp
+	EXPECT_EQ(missile._miAnimLen, GetMissileSpriteData(MissileGraphicID::FireWall).animLen(0));
+	EXPECT_GT(missile._miAnimLen, 0) << "an animation with no frames";
+	EXPECT_EQ(missile._mimfnum, 9) << "the missile's own facing is left alone - some missiles steer by it";
+}
+
+// Audit, 2026-09-29: a hero saved before v1.12.224 could carry a right-button-only skill on the left - drawn red on the
+// well yet cast by a left click - or on a left F-key the key then refuses. Validation clears both.
+TEST(OracoolAudit, RightButtonOnlySkillsAreClearedFromTheLeft)
+{
+	devilution::Player &barbarian = FreshHero(HeroClass::Barbarian);
+	barbarian._pSplLHotKey[2] = SpellID::Leap;
+	barbarian._pSplLTHotKey[2] = SpellType::Skill;
+	barbarian._pSplLHotKey[3] = SpellID::Bash;
+	barbarian._pSplLTHotKey[3] = SpellType::Skill;
+	barbarian._pLRSpell = SpellID::WarCry;
+	barbarian._pLRSplType = SpellType::Skill;
+	EnsureValidReadiedSpell(barbarian);
+	EXPECT_EQ(barbarian._pLRSpell, SpellID::Invalid) << "a cry on the left button";
+	EXPECT_EQ(barbarian._pSplLHotKey[2], SpellID::Invalid) << "Leap on a left F-key";
+	EXPECT_EQ(barbarian._pSplLHotKey[3], SpellID::Bash) << "a left-button skill's key was taken";
 }
 
 /**

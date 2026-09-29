@@ -606,6 +606,12 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			// A cold hit with no impact art of its own - a Blizzard shard, a Cold or Ice Arrow - flashes where it landed.
 			if (isMonsterHit && damageType == DamageType::Cold && !HasOwnColdImpact(missile))
 				AddColdHitFlash({ mx, my }, missile._misource);
+			// Blessed Hammer's Impact cue on each monster it strikes (audit, 2026-09-29: the sound page's pick was never played).
+			if (isMonsterHit && missile._mitype == MissileID::BlessedHammer && missile.sourcePlayer() == MyPlayer) {
+				const oracool::ClassTreeSkill row = oracool::ClassTreeSkillForSpell(MyPlayer->_pClass, SpellID::BlessedHammer);
+				if (row != oracool::ClassTreeSkill::None)
+					oracool::PlaySkillSound(row, oracool::SkillSoundEvent::Impact);
+			}
 			// A thrown weapon sounds Weapon Throw's Impact cue where it lands (2026-09-29, the Barbarian Skill Cards page).
 			if (isMonsterHit && missile._mitype == MissileID::Arrow && IsAnyOf(missile._miAnimType, MissileGraphicID::ThrownAxe, MissileGraphicID::ThrownSword)
 			    && &Players[missile._misource] == MyPlayer) {
@@ -799,6 +805,11 @@ void SetMissAnim(Missile &missile, MissileGraphicID animtype)
 	}
 
 	const MissileFileData &missileData = GetMissileSpriteData(animtype);
+	// A facing past the sheet's own rows falls back to its first (audit, 2026-09-29): Seismic Slam's flames ride the
+	// 16-way art-bolt carrier on Fire Wall's two-row sheet, so most aims indexed past it - an assert in Debug, and a read
+	// past the sheet's frame-length table. The missile's own facing (_mimfnum) is left as it is: some missiles steer by it.
+	if (missileData.animFAmt > 0 && dir >= missileData.animFAmt)
+		dir = 0;
 
 	missile._miAnimType = animtype;
 	missile._miAnimFlags = missileData.flags;
@@ -1530,17 +1541,22 @@ std::unordered_map<uint32_t, OwnedClxSpriteList> ScaledMissileSprites;
 
 void ScaleMissile(Missile &missile, int percent, int floor)
 {
-	missile.oracoolScalePercent = static_cast<uint16_t>(std::clamp(percent, 1, 1000));
+	// The scaler's own range (ScaleClxList clamps to 25-400%), so the lift below is worked from the size actually drawn
+	// (audit, 2026-09-29).
+	missile.oracoolScalePercent = static_cast<uint16_t>(std::clamp(percent, 25, 400));
 	missile.oracoolScaleFloor = static_cast<int16_t>(floor);
 	missile.oracoolScaleLift = 0;
 	if (HeadlessMode || missile.oracoolScalePercent == 100 || missile._miAnimType == MissileGraphicID::None)
 		return;
 	const MissileFileData &data = GetMissileSpriteData(missile._miAnimType);
-	const OptionalClxSpriteList sheet = data.spritesForDirection(static_cast<size_t>(missile._mimfnum));
+	// The row SetMissAnim drew: a facing past the sheet's rows is its first, and a one-row sheet has only the one - so its
+	// scaled copy is cached once, not once per facing (audit, 2026-09-29).
+	const size_t facing = data.animFAmt > 1 && missile._mimfnum >= 0 && missile._mimfnum < data.animFAmt ? static_cast<size_t>(missile._mimfnum) : 0;
+	const OptionalClxSpriteList sheet = data.spritesForDirection(facing);
 	// Only the missile's own sheet: one wearing borrowed sprites (an item tumble) is left as it is.
 	if (!sheet || !missile._miAnimData || (*missile._miAnimData)[0].width() != (*sheet)[0].width())
 		return;
-	const uint32_t key = (static_cast<uint32_t>(missile._miAnimType) << 20) | (static_cast<uint32_t>(missile._mimfnum & 0xFF) << 12) | missile.oracoolScalePercent;
+	const uint32_t key = (static_cast<uint32_t>(missile._miAnimType) << 20) | (static_cast<uint32_t>(facing & 0xFF) << 12) | missile.oracoolScalePercent;
 	auto it = ScaledMissileSprites.find(key);
 	if (it == ScaledMissileSprites.end())
 		it = ScaledMissileSprites.emplace(key, oracool::ScaleClxList(*sheet, missile.oracoolScalePercent)).first;
