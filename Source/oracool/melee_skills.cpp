@@ -529,6 +529,7 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		case ClassMeleeSkill::Concentrate: burst = 25, burstHue = hue::Infrared; break;
 		case ClassMeleeSkill::DoubleSwing: burst = 25; break;
 		case ClassMeleeSkill::Frenzy: burst = 50, burstHue = hue::Infrared; break;
+		case ClassMeleeSkill::Berserk: burst = 75, burstHue = hue::Infrared; break;
 		default: break;
 		}
 		if (burst > 0)

@@ -17,6 +17,7 @@
 #include "oracool/ui_sound.h"  // PlayUiMoveSound - the hover and click sound
 #include "oracool/xp_counter.h" // IsPointOverXpBar - the XP bar is one of the HUD's buttons
 #include "oracool/paladin_skills.h"
+#include "oracool/whirlwind.h" // RightButtonOnly
 #include "panels/spell_book.hpp" // GetAbilityFKeyNumber, GetAuraFKeyNumber
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -171,6 +172,8 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 		usable = false;
 	if (LacksShieldFor(*MyPlayer, spell))
 		usable = false; // Aegis Slam without a shield: red (2026-09-29); Smite and Blessed Shield answered above
+	if (RightButtonOnly(spell))
+		usable = false; // Whirlwind and Earthquake belong on the right button: red here (the Barbarian Skill Cards page, 2026-09-29)
 
 	// A STAFF cast keeps the engine's orange charge plate, and skips the tree-art path entirely
 	// (user, 2026-09-03: "staff spells to use legacy orange backing"). Without this a staff spell

@@ -303,6 +303,8 @@ void Impact(const Player &player, SpellID spell)
 		PlaySkillSound(row, SkillSoundEvent::Impact);
 }
 
+void LoadMonsterOwnedArt(MissileGraphicID art);
+
 /** @brief A sheet standing on @p tile (AddArtEffect, with its delivery anchor). Null while it is not in the archive. */
 Missile *Art(const Player &player, MissileGraphicID art, Point tile, int ticks = 0)
 {
@@ -1228,12 +1230,19 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::Earthquake: {
 		Field *f = NewField(player, spell, here, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
-		// RfA-27 batch 55: the shaking ground for the quake's four seconds; each pulse's ring while it is missing (TickField).
-		// Molten since v1.12.211 (user, 2026-09-27: "use lava/river animation within the radius of effect. color cycling
-		// between brown and dark orange"): vanilla's lava is cave floor tiles cycled through the palette, not a sprite, so
-		// the quake's own cracked ground is recoloured instead - brown to dark orange and back, bands rolling through it.
-		if (Missile *quake = Art(player, MissileGraphicID::Earthquake, here, EffectTicks(spell, r)); quake != nullptr)
+		// The Barbarian Skill Cards page (2026-09-29): vanilla's Blue Flare Explosion at 150%, looping forward and back for
+		// the quake's four seconds while it turns, colour-cycled in brown ("this animation should loop back and forth for
+		// 4 seconds, while rotating and colorcycling with brown color") - the molten brown to dark orange of v1.12.211.
+		// 36 sprites of 2 ticks: two plays forward and back and one whole turn every 3.6 seconds. The quake's own cracked
+		// ground (RfA-27 batch 55) stands in while the flare's sheet cannot load; each pulse's ring while neither can.
+		LoadMonsterOwnedArt(MissileGraphicID::BlueFlareExplosion);
+		if (Missile *flare = Art(player, MissileGraphicID::BlueFlareExplosion, here, EffectTicks(spell, r)); flare != nullptr) {
+			SpinMissile(*flare, 150, 36, 1, 2);
+			flare->_miPreFlag = true; // on the floor, under whatever stands in it
+			flare->oracoolTint = Tint::Earthquake;
+		} else if (Missile *quake = Art(player, MissileGraphicID::Earthquake, here, EffectTicks(spell, r)); quake != nullptr) {
 			quake->oracoolTint = Tint::Earthquake;
+		}
 		return true;
 	}
 	case SpellID::ThreateningShout: {
@@ -2316,7 +2325,8 @@ void TickField(Player &player, Field &field)
 			for (Monster *m : shaken)
 				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(field.spell, r)));
 			EarthenMightRage(player, shaken.size());
-			if (!MissileArtLoaded(MissileGraphicID::Earthquake)) // RfA-27: the quake's own ground stands for all four seconds
+			// The flare (or the quake's own ground) stands for all four seconds; the ring only when neither loads.
+			if (!MissileArtLoaded(MissileGraphicID::BlueFlareExplosion) && !MissileArtLoaded(MissileGraphicID::Earthquake))
 				Ring(player, field.tile);
 			Impact(player, field.spell); // one tremor pulse a second
 		}

@@ -1555,6 +1555,44 @@ void ScaleMissile(Missile &missile, int percent, int floor)
 	                                                          : floor * (100 - missile.oracoolScalePercent) / 100);
 }
 
+namespace {
+
+/** @brief The spun sheets (SpinMissile), one per graphic, size and spin, built once like ScaledMissileSprites. */
+std::unordered_map<uint64_t, OwnedClxSpriteList> SpunMissileSprites;
+
+} // namespace
+
+void SpinMissile(Missile &missile, int percent, int frames, int turns, int delay)
+{
+	if (HeadlessMode || missile._miAnimType == MissileGraphicID::None)
+		return;
+	const MissileFileData &data = GetMissileSpriteData(missile._miAnimType);
+	const OptionalClxSpriteList sheet = data.spritesForDirection(static_cast<size_t>(missile._mimfnum));
+	if (!sheet || !missile._miAnimData || (*missile._miAnimData)[0].width() != (*sheet)[0].width())
+		return;
+	percent = std::clamp(percent, 25, 400);
+	frames = std::clamp(frames, 1, 255);
+	turns = std::clamp(turns, 0, 15);
+	const uint64_t key = (static_cast<uint64_t>(missile._miAnimType) << 32) | (static_cast<uint64_t>(missile._mimfnum & 0xFF) << 24)
+	    | (static_cast<uint64_t>(percent) << 12) | (static_cast<uint64_t>(frames) << 4) | static_cast<uint64_t>(turns);
+	auto it = SpunMissileSprites.find(key);
+	if (it == SpunMissileSprites.end()) {
+		it = SpunMissileSprites.emplace(key, oracool::SpinPingPongClxList(*sheet, static_cast<unsigned>(percent), static_cast<unsigned>(frames), static_cast<unsigned>(turns))).first;
+	}
+	const ClxSpriteList spun { it->second };
+	missile._miAnimData = spun;
+	missile._miAnimLen = static_cast<int>(spun.numSprites());
+	missile._miAnimDelay = std::max(delay, 1);
+	missile._miAnimCnt = 0;
+	missile._miAnimFrame = 1;
+	missile._miAnimAdd = 1;
+	missile._miAnimWidth = spun[0].width();
+	missile._miAnimWidth2 = CalculateWidth2(missile._miAnimWidth);
+	// A sprite hangs from its tile by its bottom edge: lowered by half the square, less the 16px a floor effect's centre
+	// sits above the tile's bottom (AddWarcryRing's rule).
+	missile.oracoolScaleLift = static_cast<int16_t>(16 - static_cast<int>(spun[0].height()) / 2);
+}
+
 void InitMissiles(bool keepHeroTimedSpells)
 {
 	Player &myPlayer = *MyPlayer;

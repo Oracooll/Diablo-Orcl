@@ -39,8 +39,11 @@ constexpr int WhirlwindRagePerSecond = 5;
 /** Ticks per step of the spin's turn through the eight facings. */
 constexpr int WhirlwindTurnTicks = 1;
 
-/** @brief Whether @p spell may only sit on the right button - Whirlwind, which is held there. */
-bool WhirlwindRightButtonOnly(SpellID spell);
+/**
+ * @brief Whether @p spell may only sit on the right button: Whirlwind, which is held there, and Earthquake (the Barbarian
+ * Skill Cards page, 2026-09-29: "to be assignable to right key only"). The left button's menu shows them on a red plate.
+ */
+bool RightButtonOnly(SpellID spell);
 
 /** @brief Whether @p player is spinning. The local player only. */
 bool IsWhirlwinding(const Player &player);

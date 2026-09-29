@@ -99,9 +99,9 @@ void Strike(Player &player)
 
 } // namespace
 
-bool WhirlwindRightButtonOnly(SpellID spell)
+bool RightButtonOnly(SpellID spell)
 {
-	return spell == SpellID::Whirlwind;
+	return spell == SpellID::Whirlwind || spell == SpellID::Earthquake;
 }
 
 bool IsWhirlwinding(const Player &player)

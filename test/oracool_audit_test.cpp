@@ -1489,6 +1489,44 @@ TEST(OracoolSpriteScale, HalvingRoundsDownButNeverBelowOnePixel)
 	EXPECT_GE(ClxSpriteList(quarterFloor)[0].width(), 1) << "scaling floored below one pixel";
 }
 
+// Earthquake's flare (the Barbarian Skill Cards page, 2026-09-29): forward and back, turning as it plays.
+TEST(OracoolSpriteScale, SpinPingPongPlaysForwardAndBackWhileTurning)
+{
+	// Three 4x2 frames, each a solid bar of its own colour: 10, 20, 30.
+	OwnedSurface source(4, 6);
+	for (int y = 0; y < 6; y++) {
+		uint8_t *row = &source[Point { 0, y }];
+		for (int x = 0; x < 4; x++)
+			row[x] = static_cast<uint8_t>(10 * (y / 2 + 1));
+	}
+	OwnedClxSpriteList original = SurfaceToClx(source, 3, std::nullopt);
+	// Eight sprites, one whole turn: the ping-pong is 0 1 2 1 0 1 2 1, at 0, 45, 90 .. 315 degrees.
+	OwnedClxSpriteList spun = oracool::SpinPingPongClxList(ClxSpriteList(original), 100, 8, 1);
+	const ClxSpriteList list { spun };
+	ASSERT_EQ(list.numSprites(), 8u);
+	EXPECT_EQ(list[0].width(), list[0].height()) << "every sprite is one square canvas";
+	EXPECT_GE(list[0].width(), 5) << "wide enough for the bar at any angle: its diagonal";
+	const int side = list[0].width();
+	const auto pixelAt = [&](int k, Point p) {
+		OwnedSurface canvas(side, side);
+		for (int y = 0; y < side; y++) {
+			uint8_t *row = &canvas[Point { 0, y }];
+			for (int x = 0; x < side; x++)
+				row[x] = 77;
+		}
+		RenderClxSprite(canvas, list[k], { 0, 0 });
+		return canvas[p];
+	};
+	const Point centre { side / 2, side / 2 };
+	const uint8_t expected[8] = { 10, 20, 30, 20, 10, 20, 30, 20 };
+	for (int k = 0; k < 8; k++)
+		EXPECT_EQ(pixelAt(k, centre), expected[k]) << "sprite " << k << " plays the wrong source frame";
+	// Level at 0 degrees, upright at 90: the bar's end sits beside the centre, then above it.
+	EXPECT_EQ(pixelAt(0, { centre.x + 1, centre.y }), 10);
+	EXPECT_EQ(pixelAt(0, { centre.x, centre.y - 2 }), 77) << "the level bar is only two rows tall";
+	EXPECT_NE(pixelAt(2, { centre.x, centre.y - 2 }), 77) << "a quarter turn stands the bar up";
+}
+
 // Megaplan Phase 0.9: the telemetry CSV's one pure function - field escaping. Everything else in
 // that module is file IO gated behind an option; the escaping is where a malformed row could
 // corrupt the whole file for analysis.

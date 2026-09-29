@@ -791,8 +791,13 @@ void AddWarcry(Missile &missile, AddMissileParameter &parameter)
 	if (spell == SpellID::Vengeance || spell == SpellID::Conversion)
 		return;
 	// The shockwave on the floor (2026-09-11) - it removes itself while warcry_ring.png is absent.
-	AddMissile(player.position.tile, player.position.tile, player._pdir, MissileID::WarcryRing,
+	Missile *ring = AddMissile(player.position.tile, player.position.tile, player._pdir, MissileID::WarcryRing,
 	    TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
+	// Two cries ring wider (the Barbarian Skill Cards page, 2026-09-29): War Cry at 200%, Earthshaker Cry at 150%. The
+	// ring's centre stays on the floor: it is 80px above the bottom of its 160px cell.
+	const int ringPercent = spell == SpellID::WarCry ? 200 : spell == SpellID::EarthshakerCry ? 150 : 100;
+	if (ring != nullptr && !ring->_miDelFlag && ringPercent != 100)
+		ScaleMissile(*ring, ringPercent, 80);
 }
 
 std::string WarcryFactsAt(SpellID spell, int rank)

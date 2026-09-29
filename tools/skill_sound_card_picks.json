@@ -12,6 +12,18 @@
    "path": "sfx\\misc\\holybolt.wav",
    "why": "the Barbarian Skill Cards page: Holy Bolt"
   },
+  "barbarian.Berserk.Cast": {
+   "path": "sfx\\misc\\swing2.wav",
+   "why": "the Barbarian Skill Cards page: Heavy weapon swing"
+  },
+  "barbarian.Berserk.Impact": {
+   "path": "sfx\\items\\invaxe.wav",
+   "why": "the Barbarian Skill Cards page: Axe (inventory)"
+  },
+  "barbarian.Bloodcall.Cast": {
+   "path": "monsters\\zombie\\zombiea1.wav",
+   "why": "the Barbarian Skill Cards page: Zombie moan"
+  },
   "barbarian.ClaspOfRuin.Cast": {
    "path": "sfx\\misc\\swing2.wav",
    "why": "the Barbarian Skill Cards page: Heavy weapon swing"
@@ -40,6 +52,14 @@
    "path": "sfx\\misc\\blsimpt.wav",
    "why": "the Barbarian Skill Cards page: Blood Star impact"
   },
+  "barbarian.Earthquake.Cast": {
+   "path": "sfx\\misc\\cast2.wav",
+   "why": "the Barbarian Skill Cards page: Generic cast (cast2)"
+  },
+  "barbarian.FindItem.Cast": {
+   "path": "sfx\\items\\magic1.wav",
+   "why": "the Barbarian Skill Cards page: Magic item 2"
+  },
   "barbarian.Frenzy.Cast": {
    "path": "sfx\\misc\\sting1.wav",
    "why": "the Barbarian Skill Cards page: Arrow hit (Hellfire)"
@@ -59,6 +79,14 @@
   "barbarian.HammerOfTheAncients.Cast": {
    "path": "sfx\\misc\\swing.wav",
    "why": "the Barbarian Skill Cards page: Weapon swing"
+  },
+  "barbarian.Howl.Cast": {
+   "path": "monsters\\mega\\megas1.wav",
+   "why": "the Barbarian Skill Cards page: Slayer bellow"
+  },
+  "barbarian.Intimidate.Cast": {
+   "path": "monsters\\mega\\megaa1.wav",
+   "why": "the Barbarian Skill Cards page: Slayer roar"
   },
   "barbarian.Leap.Cast": {
    "path": "sfx\\misc\\cast2.wav",
@@ -88,9 +116,21 @@
    "path": "sfx\\misc\\fbolt1.wav",
    "why": "the Barbarian Skill Cards page: Firebolt"
   },
+  "barbarian.SplitRanks.Cast": {
+   "path": "monsters\\black\\blacka1.wav",
+   "why": "the Barbarian Skill Cards page: Black Knight shout"
+  },
   "barbarian.Stun.Impact": {
    "path": "sfx\\misc\\holybolt.wav",
    "why": "the Barbarian Skill Cards page: Holy Bolt"
+  },
+  "barbarian.Taunt.Cast": {
+   "path": "monsters\\fat\\fata2.wav",
+   "why": "the Barbarian Skill Cards page: Overlord roar 2"
+  },
+  "barbarian.ThreateningShout.Cast": {
+   "path": "monsters\\mega\\megas1.wav",
+   "why": "the Barbarian Skill Cards page: Slayer bellow"
   },
   "barbarian.Whirlwind.Cast": {
    "path": "sfx\\misc\\flamwave.wav",

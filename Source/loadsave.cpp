@@ -39,7 +39,7 @@
 #include "oracool/imbuement.h"
 #include "spells.h" // IsValidSpell, for the item bounds on load
 #include "oracool/readied_spells.h"
-#include "oracool/whirlwind.h" // WhirlwindRightButtonOnly
+#include "oracool/whirlwind.h" // RightButtonOnly
 #include "pfile.h"
 #include "playerdat.hpp"
 #include "plrmsg.h"
@@ -2848,7 +2848,7 @@ void LoadHotkeys()
 		const SpellID savedLeft = static_cast<SpellID>(file.NextLE<int32_t>());
 		const auto savedLeftType = static_cast<SpellType>(file.NextLE<uint8_t>());
 		if (!IsValidSpell(myPlayer._pLRSpell) && HeroHasBinding(myPlayer, savedLeft, savedLeftType)
-		    && !oracool::WhirlwindRightButtonOnly(savedLeft)) { // Whirlwind is held on the right button (2026-09-29)
+		    && !oracool::RightButtonOnly(savedLeft)) { // Whirlwind is held on the right button (2026-09-29)
 			myPlayer._pLRSpell = savedLeft;
 			myPlayer._pLRSplType = savedLeftType;
 		}

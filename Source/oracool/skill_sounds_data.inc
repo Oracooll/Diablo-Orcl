@@ -3,7 +3,7 @@
 // sounds per your decision"). The slots are tools/skill_sound_slots.csv; aura loops are left out on purpose.
 // The user's picks on the review page (tools/skill_sound_picks.json) come before the rules.
 //
-// 480 cues across 7 classes, from 61 vanilla sounds.
+// 480 cues across 7 classes, from 56 vanilla sounds.
 
 // clang-format off
 const SkillSound SkillSounds[] = {
@@ -17,9 +17,9 @@ const SkillSound SkillSounds[] = {
 	{ Skill::BattleCommand, SkillSoundEvent::Cast, "monsters\\mega\\megaa1.wav" },
 	{ Skill::BattleCry, SkillSoundEvent::Cast, "monsters\\fat\\fata1.wav" },
 	{ Skill::BattleOrders, SkillSoundEvent::Cast, "monsters\\sking\\skinga1.wav" },
-	{ Skill::Berserk, SkillSoundEvent::Cast, "sfx\\misc\\swing.wav" },
-	{ Skill::Berserk, SkillSoundEvent::Impact, "sfx\\misc\\blsimpt.wav" },
-	{ Skill::Bloodcall, SkillSoundEvent::Cast, "monsters\\fatc\\fatca1.wav" },
+	{ Skill::Berserk, SkillSoundEvent::Cast, "sfx\\misc\\swing2.wav" },
+	{ Skill::Berserk, SkillSoundEvent::Impact, "sfx\\items\\invaxe.wav" },
+	{ Skill::Bloodcall, SkillSoundEvent::Cast, "monsters\\zombie\\zombiea1.wav" },
 	{ Skill::ClaspOfRuin, SkillSoundEvent::Cast, "sfx\\misc\\swing2.wav" },
 	{ Skill::ClaspOfRuin, SkillSoundEvent::Impact, "sfx\\misc\\holybolt.wav" },
 	{ Skill::Cleave, SkillSoundEvent::Cast, "sfx\\misc\\swing.wav" },
@@ -30,10 +30,10 @@ const SkillSound SkillSounds[] = {
 	{ Skill::DoubleSwing, SkillSoundEvent::Impact, "sfx\\misc\\holybolt.wav" },
 	{ Skill::DoubleThrow, SkillSoundEvent::Cast, "sfx\\misc\\sting1.wav" },
 	{ Skill::DoubleThrow, SkillSoundEvent::Impact, "sfx\\misc\\blsimpt.wav" },
-	{ Skill::Earthquake, SkillSoundEvent::Cast, "sfx\\misc\\swing2.wav" },
+	{ Skill::Earthquake, SkillSoundEvent::Cast, "sfx\\misc\\cast2.wav" },
 	{ Skill::Earthquake, SkillSoundEvent::Impact, "sfx\\misc\\nestxpld.wav" },
 	{ Skill::EarthshakerCry, SkillSoundEvent::Cast, "monsters\\diablo\\diabloa2.wav" },
-	{ Skill::FindItem, SkillSoundEvent::Cast, "sfx\\items\\invgrab.wav" },
+	{ Skill::FindItem, SkillSoundEvent::Cast, "sfx\\items\\magic1.wav" },
 	{ Skill::FindPotion, SkillSoundEvent::Cast, "monsters\\mega\\megas1.wav" },
 	{ Skill::Frenzy, SkillSoundEvent::Cast, "sfx\\misc\\sting1.wav" },
 	{ Skill::GrimWard, SkillSoundEvent::Cast, "sfx\\misc\\golum.wav" },
@@ -41,10 +41,10 @@ const SkillSound SkillSounds[] = {
 	{ Skill::GroundStomp, SkillSoundEvent::Cast, "sfx\\misc\\holybolt.wav" },
 	{ Skill::HammerOfTheAncients, SkillSoundEvent::Cast, "sfx\\misc\\swing.wav" },
 	{ Skill::HammerOfTheAncients, SkillSoundEvent::Impact, "sfx\\misc\\nestxpld.wav" },
-	{ Skill::Howl, SkillSoundEvent::Cast, "monsters\\rhino\\rhinoa1.wav" },
+	{ Skill::Howl, SkillSoundEvent::Cast, "monsters\\mega\\megas1.wav" },
 	{ Skill::IncreasedSpeed, SkillSoundEvent::Learn, "sfx\\items\\readbook.wav" },
 	{ Skill::Toughness, SkillSoundEvent::Learn, "sfx\\items\\readbook.wav" },
-	{ Skill::Intimidate, SkillSoundEvent::Cast, "monsters\\rhino\\rhinoa2.wav" },
+	{ Skill::Intimidate, SkillSoundEvent::Cast, "monsters\\mega\\megaa1.wav" },
 	{ Skill::IronSkin, SkillSoundEvent::Learn, "sfx\\items\\readbook.wav" },
 	{ Skill::IronWill, SkillSoundEvent::Cast, "monsters\\sking\\skinga2.wav" },
 	{ Skill::Leap, SkillSoundEvent::Cast, "sfx\\misc\\cast2.wav" },
@@ -60,12 +60,12 @@ const SkillSound SkillSounds[] = {
 	{ Skill::SeismicSlam, SkillSoundEvent::Cast, "sfx\\misc\\fbolt1.wav" },
 	{ Skill::Shout, SkillSoundEvent::Cast, "monsters\\black\\blacka1.wav" },
 	{ Skill::SpearMastery, SkillSoundEvent::Learn, "sfx\\items\\readbook.wav" },
-	{ Skill::SplitRanks, SkillSoundEvent::Cast, "monsters\\black\\blacka2.wav" },
+	{ Skill::SplitRanks, SkillSoundEvent::Cast, "monsters\\black\\blacka1.wav" },
 	{ Skill::Stun, SkillSoundEvent::Cast, "sfx\\misc\\swing.wav" },
 	{ Skill::Stun, SkillSoundEvent::Impact, "sfx\\misc\\holybolt.wav" },
 	{ Skill::SwordMastery, SkillSoundEvent::Learn, "sfx\\items\\readbook.wav" },
-	{ Skill::Taunt, SkillSoundEvent::Cast, "monsters\\falspear\\phalla1.wav" },
-	{ Skill::ThreateningShout, SkillSoundEvent::Cast, "monsters\\gargoyle\\gargoa1.wav" },
+	{ Skill::Taunt, SkillSoundEvent::Cast, "monsters\\fat\\fata2.wav" },
+	{ Skill::ThreateningShout, SkillSoundEvent::Cast, "monsters\\mega\\megas1.wav" },
 	{ Skill::ThrowingMastery, SkillSoundEvent::Learn, "sfx\\items\\readbook.wav" },
 	{ Skill::WarCry, SkillSoundEvent::Cast, "monsters\\diablo\\diabloa1.wav" },
 	{ Skill::Whirlwind, SkillSoundEvent::Cast, "sfx\\misc\\flamwave.wav" },

@@ -216,8 +216,9 @@ TEST(OracoolRage, WhirlwindIsHeldOnTheRightButton)
 {
 	EXPECT_EQ(oracool::WhirlwindDamagePercent(1), 66);
 	EXPECT_EQ(oracool::WhirlwindDamagePercent(5), 86) << "+5% a rank";
-	EXPECT_TRUE(oracool::WhirlwindRightButtonOnly(SpellID::Whirlwind));
-	EXPECT_FALSE(oracool::WhirlwindRightButtonOnly(SpellID::Bash));
+	EXPECT_TRUE(oracool::RightButtonOnly(SpellID::Whirlwind));
+	EXPECT_TRUE(oracool::RightButtonOnly(SpellID::Earthquake)) << "the Barbarian Skill Cards page, 2026-09-29";
+	EXPECT_FALSE(oracool::RightButtonOnly(SpellID::Bash));
 	EXPECT_EQ(oracool::WhirlwindStrikeTicks, 5) << "four strikes a second, at 20 ticks a second";
 	EXPECT_EQ(oracool::WhirlwindRagePerSecond, 5);
 	devilution::Player &player = FreshBarbarian();

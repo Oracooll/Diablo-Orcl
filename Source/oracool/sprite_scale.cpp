@@ -1,6 +1,7 @@
 #include "oracool/sprite_scale.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -135,6 +136,60 @@ OwnedClxSpriteList ScaleClxList(ClxSpriteList src, unsigned percent)
 	}
 
 	return SurfaceToClx(stacked, numFrames, transparent);
+}
+
+OwnedClxSpriteList SpinPingPongClxList(ClxSpriteList src, unsigned percent, unsigned frames, unsigned turns)
+{
+	percent = std::clamp(percent, 25U, 400U);
+	frames = std::max(frames, 1U);
+	const uint32_t sourceFrames = src.numSprites();
+	std::vector<DecodedSprite> decoded;
+	decoded.reserve(sourceFrames);
+	int width = 1;
+	int height = 1;
+	for (uint32_t i = 0; i < sourceFrames; i++) {
+		decoded.push_back(DecodeSprite(src[i]));
+		width = std::max(width, decoded.back().width);
+		height = std::max(height, decoded.back().height);
+	}
+	const double scaledWidth = width * static_cast<double>(percent) / 100.0;
+	const double scaledHeight = height * static_cast<double>(percent) / 100.0;
+	// Square and wide enough for the frame at any angle: its diagonal, rounded up to even so the centre is a whole pixel.
+	int side = static_cast<int>(std::ceil(std::hypot(scaledWidth, scaledHeight)));
+	side += side % 2;
+	const uint8_t transparent = PickUnusedIndex(decoded);
+	const uint32_t period = sourceFrames > 1 ? 2 * (sourceFrames - 1) : 1;
+
+	OwnedSurface stacked(side, side * static_cast<int>(frames));
+	for (unsigned k = 0; k < frames; k++) {
+		uint32_t index = k % period;
+		if (index >= sourceFrames)
+			index = period - index;
+		const DecodedSprite &source = decoded[index];
+		const double angle = 2.0 * 3.14159265358979323846 * turns * k / frames;
+		const double c = std::cos(angle);
+		const double s = std::sin(angle);
+		const int frameTop = static_cast<int>(k) * side;
+		for (int y = 0; y < side; y++) {
+			uint8_t *dst = &stacked[Point { 0, frameTop + y }];
+			const double dy = y + 0.5 - side / 2.0;
+			for (int x = 0; x < side; x++) {
+				const double dx = x + 0.5 - side / 2.0;
+				// Back through the turn into the scaled frame, then down to the source pixel.
+				const double sx = c * dx + s * dy + scaledWidth / 2.0;
+				const double sy = -s * dx + c * dy + scaledHeight / 2.0;
+				dst[x] = transparent;
+				if (sx < 0 || sy < 0 || sx >= scaledWidth || sy >= scaledHeight)
+					continue;
+				const int srcX = std::min(source.width - 1, static_cast<int>(sx * source.width / scaledWidth));
+				const int srcY = std::min(source.height - 1, static_cast<int>(sy * source.height / scaledHeight));
+				const size_t at = static_cast<size_t>(srcY) * source.width + srcX;
+				if (source.opaque[at] != 0)
+					dst[x] = source.pixels[at];
+			}
+		}
+	}
+	return SurfaceToClx(stacked, frames, transparent);
 }
 
 OwnedClxSpriteSheet ScaleClxSheet(ClxSpriteSheet src, unsigned percent)

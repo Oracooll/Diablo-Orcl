@@ -34,4 +34,12 @@ OwnedClxSpriteList ScaleClxList(ClxSpriteList src, unsigned percent);
 /** @brief ScaleClxList over every direction list of a sheet. */
 OwnedClxSpriteSheet ScaleClxSheet(ClxSpriteSheet src, unsigned percent);
 
+/**
+ * @brief @p src at @p percent of its size, played forward and back and turning as it plays: @p frames sprites, where
+ * sprite k is source frame k along the ping-pong (0, 1 .. last .. 1, 0 ..) turned by @p turns whole turns times k /
+ * @p frames. Every sprite is one square canvas, the turned frame centred in it. Nearest-neighbour, like ScaleClxList.
+ * Built for Earthquake's spinning flare (the Barbarian Skill Cards page, 2026-09-29).
+ */
+OwnedClxSpriteList SpinPingPongClxList(ClxSpriteList src, unsigned percent, unsigned frames, unsigned turns);
+
 } // namespace devilution::oracool

@@ -31,7 +31,7 @@
 #include "oracool/readied_spells.h"
 #include "oracool/spell_ranks.h" // SpellRequiredLevel - spells sort as the Spells tab sorts them
 #include "oracool/ui_sound.h"
-#include "oracool/whirlwind.h" // WhirlwindRightButtonOnly
+#include "oracool/whirlwind.h" // RightButtonOnly
 #include "oracool/window_close.h"
 
 namespace devilution::oracool {
@@ -272,7 +272,7 @@ void BuildEntries(const Player &player, std::vector<Entry> &out, std::vector<Sec
  */
 bool IsAssignableToLeft(const Entry &entry)
 {
-	if (WhirlwindRightButtonOnly(entry.spell))
+	if (RightButtonOnly(entry.spell))
 		return false; // held on the right button (2026-09-29)
 	return entry.kind != EntryKind::Tree
 	    || GetClassTreeSkillData(entry.tree).kind != ClassTreeKind::Aura;
@@ -518,10 +518,12 @@ void DrawSkillPicker(const Surface &out)
 			// needs no new vocabulary. Clicking one still works: it toggles the aura, which lands on
 			// the right button, and saving that trip is the whole reason they are listed here.
 			const bool dimmed = PickerForLeft && !IsAssignableToLeft(entry);
-			// A shield skill with no shield in hand is red, as on the wells (user, 2026-09-29).
-			const SkillPlateTint tint = dimmed         ? SkillPlateTint::Locked
-			    : LacksShieldFor(player, entry.spell) ? SkillPlateTint::Blocked
-			                                          : SkillPlateTint::Ready;
+			// A shield skill with no shield in hand is red, as on the wells (user, 2026-09-29), and so is a right-button-only
+			// skill in the left button's menu (Whirlwind, Earthquake - the Barbarian Skill Cards page, 2026-09-29).
+			const bool rightOnly = PickerForLeft && RightButtonOnly(entry.spell);
+			const SkillPlateTint tint = rightOnly || LacksShieldFor(player, entry.spell) ? SkillPlateTint::Blocked
+			    : dimmed                                                               ? SkillPlateTint::Locked
+			                                                                           : SkillPlateTint::Ready;
 			switch (entry.kind) {
 			case EntryKind::Attack:
 				DrawAttackIconScaledTo(out, cell, entry.attackIcon,
@@ -818,7 +820,7 @@ bool CheckSkillPickerClick(Point mousePosition)
 				// whole of "they need to coexist".
 				const SpellType type = SpellTypeFor(player, entry.spell, entry.kind == EntryKind::Staff, entry.kind == EntryKind::Scroll);
 				// Whirlwind lands on the right button from either menu - it is held there (2026-09-29), as an aura is lit.
-				if (PickerForLeft && !WhirlwindRightButtonOnly(entry.spell)) {
+				if (PickerForLeft && !RightButtonOnly(entry.spell)) {
 					player._pLRSpell = entry.spell;
 					player._pLRSplType = type;
 					oracool::ScheduleAutoSaveForSkillChange();

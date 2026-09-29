@@ -31,7 +31,7 @@
 #include "oracool/ornate_border.h"
 #include "oracool/skill_picker.h" // the quick lists bind F-keys too
 #include "oracool/ui_sound.h"
-#include "oracool/whirlwind.h" // WhirlwindRightButtonOnly
+#include "oracool/whirlwind.h" // RightButtonOnly
 #include "panels/spell_icons.hpp"
 #include "panels/ui_panels.hpp"
 #include "player.h"
@@ -1671,7 +1671,7 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 
 	const bool rightBound = IsValidSpell(me._pSplHotKey[slot]);
 	// A left binding of Whirlwind, from before it became held on the right button (2026-09-29), readies nothing.
-	const bool leftBound = IsValidSpell(me._pSplLHotKey[slot]) && !oracool::WhirlwindRightButtonOnly(me._pSplLHotKey[slot]);
+	const bool leftBound = IsValidSpell(me._pSplLHotKey[slot]) && !oracool::RightButtonOnly(me._pSplLHotKey[slot]);
 	const bool useLeft = shift ? leftBound : (leftBound && !rightBound);
 
 	if (useLeft) {
@@ -2316,7 +2316,7 @@ void CheckSBook(bool assignToRightButton)
 	// how this game closes one. It turns out not to be here - RightMouseDown's only response to a
 	// click inside the Abilities window was to return - so the obvious gesture was free all along.
 	// Whirlwind goes to the right button whichever button clicked it: it is held there (2026-09-29).
-	if (assignToRightButton || oracool::WhirlwindRightButtonOnly(sn)) {
+	if (assignToRightButton || oracool::RightButtonOnly(sn)) {
 		oracool::ClearClassAuraForRightButton(player);
 		player._pRSpell = sn;
 		player._pRSplType = st;
