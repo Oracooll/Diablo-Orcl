@@ -4,6 +4,7 @@
  * Implementation of functions for keeping multiplaye games in sync.
  */
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <ctime>
@@ -22,6 +23,7 @@
 #include "nthread.h"
 #include "options.h"
 #include "oracool/hud_layout.h"
+#include "oracool/game_speed.h" // MinGameSpeed, MaxGameSpeed - the tick rate's band
 #include "oracool/oracool.h" // MultiplayerEnabled - the policy InitMulti enforces
 #include "oracool/skill_points.h"
 #include "pfile.h"
@@ -539,7 +541,9 @@ void InitGameInfo()
 	sgGameInitInfo.versionMajor = static_cast<uint8_t>(ORACOOL_VERSION_MAJOR);
 	sgGameInitInfo.versionMinor = static_cast<uint8_t>(ORACOOL_VERSION_MINOR);
 	sgGameInitInfo.versionPatch = static_cast<uint8_t>(ORACOOL_VERSION_PATCH);
-	sgGameInitInfo.nTickRate = *sgOptions.Gameplay.tickRate;
+	// Clamped: tickRate is a one-value list, so the INI loader keeps whatever it reads, and 0 (or 256, as a byte) divided
+	// by zero in gnTickDelay (round 6 audit, v1.12.231).
+	sgGameInitInfo.nTickRate = static_cast<uint8_t>(std::clamp<int>(*sgOptions.Gameplay.tickRate, oracool::MinGameSpeed, oracool::MaxGameSpeed));
 	sgGameInitInfo.bRunInTown = *sgOptions.Gameplay.runInTown ? 1 : 0;
 	sgGameInitInfo.bTheoQuest = *sgOptions.Gameplay.theoQuest ? 1 : 0;
 	// Random resolves to the farmer here. The wire carries one byte and every client has to agree

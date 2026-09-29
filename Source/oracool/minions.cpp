@@ -380,7 +380,9 @@ bool GetMinionOrders(const Monster &monster, CompanionOrders &orders)
 		orders.settle = 1000;
 		orders.regroup = 16;
 		orders.attacks = true;
-		orders.reach = 1;
+		// A mage holds its ground and still shoots: reach 1 kept it idle until something stood beside it (round 6 audit,
+		// v1.12.231). The companions' Hold keeps bow reach 8 the same way.
+		orders.reach = orders.attack == CompanionAttack::Bow ? 8 : 1;
 		break;
 	case CompanionStance::Aggressive:
 		orders.leash = 9;

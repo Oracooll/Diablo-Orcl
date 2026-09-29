@@ -482,6 +482,9 @@ PackAuraBonus PackAuraFrom(LesserUniqueAffix affix, int distance)
 PackAuraBonus PackAuraOn(const Monster &monster)
 {
 	PackAuraBonus bonus {};
+	// The pack's own: an enemy champion's Might lent the Necromancer's skeletons 40% (round 6 audit, v1.12.231).
+	if (monster.isPlayerMinion())
+		return bonus;
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		const Monster &champion = Monsters[ActiveMonsters[i]];
 		// A monster only takes from ANOTHER monster's presence, and a corpse leads nobody.

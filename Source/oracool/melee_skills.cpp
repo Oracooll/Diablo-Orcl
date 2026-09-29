@@ -573,6 +573,16 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 {
 	if (&player != MyPlayer || !CanPay(player, skill))
 		return false;
+	// From a stand or a walk only. A walk is stopped first: its last frame puts the hero on the step's target tile, so a
+	// leap taken mid-step snapped back there when the step ended - paid for (round 6 audit, v1.12.231). Hit recovery and a
+	// block are not left early.
+	if (IsAnyOf(player._pmode, PM_WALK_NORTHWARDS, PM_WALK_SOUTHWARDS, PM_WALK_SIDEWAYS)) {
+		ClrPlrPath(player);
+		player.destAction = ACTION_NONE;
+		StartStand(player, player._pdir);
+	} else if (player._pmode != PM_STAND) {
+		return false;
+	}
 	const int range = LeapRangeTiles(player, skill);
 	const Point here = player.position.tile;
 	Point dst = target;

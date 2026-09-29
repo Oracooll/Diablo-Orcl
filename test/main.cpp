@@ -1,3 +1,8 @@
+#include <filesystem>
+#include <random>
+#include <string>
+#include <system_error>
+
 #include <gtest/gtest.h>
 
 #include "diablo.h"
@@ -23,6 +28,24 @@ int main(int argc, char **argv)
 	    devilution::paths::BasePath() + "devilutionx.app/Contents/Resources/");
 #endif
 
+	// Every test process gets its own config and pref folder (round 6 audit, v1.12.231). On Windows the config path is the
+	// exe's folder, which the test exes SHARE with the game's Debug build: any test that reached SaveOptions (a tree
+	// point's autosave hook, gamemenu_off, the run toggle) wrote the test process's defaults over the player's own
+	// diablo.ini - no key bindings, Width=0, deadzone 0. The pref path (saves, telemetry) is sandboxed with it. Tests that
+	// need a path of their own still set it themselves.
+	std::error_code ec;
+	const std::filesystem::path sandbox = std::filesystem::temp_directory_path(ec)
+	    / (std::string("orcl-test-") + std::to_string(std::random_device {}()) + "-" + std::to_string(std::random_device {}()));
+	std::filesystem::create_directories(sandbox, ec);
+	if (!ec) {
+		const std::string dir = sandbox.string() + "/";
+		devilution::paths::SetConfigPath(dir);
+		devilution::paths::SetPrefPath(dir);
+	}
+
 	testing::InitGoogleTest(&argc, argv);
-	return RUN_ALL_TESTS();
+	const int result = RUN_ALL_TESTS();
+	if (!ec)
+		std::filesystem::remove_all(sandbox, ec);
+	return result;
 }

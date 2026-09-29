@@ -366,6 +366,17 @@ void StartRangeAttack(Player &player, Direction d, WorldTileCoord cx, WorldTileC
 		SyncPlrKill(player, DeathReason::Unknown);
 		return;
 	}
+	// As StartAttack's town guard: the attack sheet is not loaded in town, so a bow skill made the hero blink - and the
+	// skill's mana went for an arrow that could hit nothing (round 6 audit, v1.12.231). The bow latch goes with it.
+	if (leveltype == DTYPE_TOWN) {
+		player.destAction = ACTION_NONE;
+		if (&player == MyPlayer) {
+			oracool::ArmArrowSkill(std::nullopt);
+			LastMouseButtonAction = MouseActionType::None;
+			player.SaySpecific(HeroSpeech::ICantDoThat);
+		}
+		return;
+	}
 
 	int8_t skippedAnimationFrames = 0;
 	if (!gbIsHellfire) {
@@ -416,6 +427,12 @@ void StartSpell(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord c
 	case SpellType::Skill:
 	case SpellType::Spell:
 		isValid = CheckSpell(player, player.queuedSpell.spellId, player.queuedSpell.spellType, true) == SpellCheckResult::Success;
+		// The Paladin's three cast skills pay outside CheckSpell, which therefore always passed them: a second click on
+		// the last mana played a whole cast that ended in nothing (round 6 audit, v1.12.231). Their own check, again.
+		if (isValid && player.queuedSpell.spellType == SpellType::Skill) {
+			if (const auto skill = oracool::PaladinSkillForSpell(player.queuedSpell.spellId); skill && oracool::IsCastPaladinSkill(*skill))
+				isValid = oracool::CanStartRangedPaladinSkill(player, *skill);
+		}
 		break;
 	case SpellType::Scroll:
 		isValid = CanUseScroll(player, player.queuedSpell.spellId);
@@ -3984,7 +4001,8 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	}
 
 	if (!addflag) {
-		if (spellType == SpellType::Spell) {
+		// Skills too: a tree skill short of mana, Rage or Essence failed without a word (round 6 audit, v1.12.231).
+		if (spellType == SpellType::Spell || spellType == SpellType::Skill) {
 			switch (spellcheck) {
 			case SpellCheckResult::Fail_NoMana:
 				myPlayer.Say(HeroSpeech::NotEnoughMana);

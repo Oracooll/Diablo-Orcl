@@ -9,6 +9,7 @@
 #include "engine/random.hpp"
 #include "missiles.h"
 #include "monster.h"
+#include "oracool/paladin_skills.h" // MissilePoolHasRoom
 #include "oracool/passives.h"
 #include "player.h"
 #include "spells.h"
@@ -169,6 +170,10 @@ void FireArrowSkill(Player &player, RogueArrow arrow, Point target)
 			player.Say(HeroSpeech::NotEnoughMana);
 		return;
 	}
+	// Room for the arrows before the mana, as the Paladin's casts ask: a full missile pool took the cost for nothing
+	// (round 6 audit, v1.12.231).
+	if (!MissilePoolHasRoom())
+		return;
 	player._pMana -= cost;
 	player._pManaBase -= cost;
 	oracool::OnPassiveManaSpent(player, cost);

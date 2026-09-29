@@ -1281,6 +1281,12 @@ size_t OnRequestAutoGetItem(const TCmd *pCmd, Player &player)
 			} else if (!NetSendCmdReq2(CMD_REQUESTAGITEM, MyPlayerId, message.bPnum, message)) {
 				NetSendCmdExtra(message);
 			}
+		} else if (message.bPnum == MyPlayerId && message.bCursitem < MAXITEMS
+		    && Items[message.bCursitem].keyAttributesMatch(dwSeed, wIndx, wCI)) {
+			// Refused because an item with the same key was just taken (a split stack's two halves share one): the request
+			// is dropped, so its flag must drop too - left set, auto-pickup skipped the item for good and a click with the
+			// inventory open refused it (round 6 audit, v1.12.231).
+			Items[message.bCursitem]._iRequest = false;
 		}
 	}
 

@@ -63,7 +63,9 @@ struct EncounterPlace {
 
 constexpr EncounterPlace Places[] = {
 	{ SL_ARENA_CHURCH, DTYPE_CATHEDRAL, MT_WSKELAX, 4, "The Sunken Chapel" },
-	{ SL_ARENA_CIRCLE_OF_LIFE, DTYPE_CATACOMBS, MT_NGOATMC, 8, "The Ring of Mourning" },
+	// DTYPE_HELL: circle_of_death.dun is built of Hell's tiles (upstream's own arena table says so), and loaded as the
+	// Catacombs its walls and floor fell in the wrong places (round 6 audit, v1.12.231). Floor 8 stays its area level.
+	{ SL_ARENA_CIRCLE_OF_LIFE, DTYPE_HELL, MT_NGOATMC, 8, "The Ring of Mourning" },
 	{ SL_ARENA_HELL, DTYPE_HELL, MT_HORNED, 16, "The Ember Vault" },
 };
 

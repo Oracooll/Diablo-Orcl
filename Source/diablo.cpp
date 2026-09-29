@@ -766,6 +766,12 @@ void LeftMouseDown(uint16_t modState)
 			}
 		}
 	} else {
+		// Under the open game menu only the Menu slot answers: the Portal and Run cells and the wells acted through the pause,
+		// a portal cast the moment the menu closed (round 6 audit, v1.12.231).
+		if (gmenu_is_active()) {
+			oracool::CheckHudMenuSlotClick(MousePosition);
+			return;
+		}
 		if (oracool::CheckHudMenuSlotClick(MousePosition) || oracool::CheckTownPortalBeltSlotClick(MousePosition)
 		    || oracool::CheckRunToggleBeltSlotClick(MousePosition))
 			return;
@@ -1486,6 +1492,15 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 		// blanket filter on event.key.repeat.
 		if (event.key.repeat != 0 && event.key.keysym.sym >= SDLK_F9 && event.key.keysym.sym <= SDLK_F12)
 			return;
+		// Nor the three toggles: a held R flipped the gait about thirty times a second and rewrote the INI on each flip, and
+		// W and J cycled the same way (round 6 audit, v1.12.231). Looked up by action, so a rebinding follows.
+		if (event.key.repeat != 0) {
+			const auto key = static_cast<uint32_t>(event.key.keysym.sym);
+			for (const string_view action : { "ToggleRun", "RunewordBook", "CompanionStance" }) {
+				if (key == sgOptions.Keymapper.KeyForAction(action))
+					return;
+			}
+		}
 		PressKey(event.key.keysym.sym, modState);
 		return;
 	}
@@ -4359,6 +4374,10 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 			ResyncQuests();
 	} else {
 		LoadSetMap();
+		// The set level's tile properties BEFORE its monsters: a named encounter places its boss and pack by a random
+		// search that asks IsTileSolid, and read town's table - the boss could stand in a wall or out in the dirt past
+		// the arena (round 6 audit, v1.12.231). Loaded again below as before; the second load is the same file.
+		LoadLevelSOLData();
 		IncProgress();
 		GetLevelMTypes();
 		IncProgress();

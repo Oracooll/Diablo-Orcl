@@ -586,9 +586,10 @@ void UiSettingsMenu()
 		constexpr int ListTop = 266;
 		constexpr int DescriptionHeight = 80;
 		rectList = { uiRectangle.position + Displacement { 50, ListTop },
-			Size { uiRectangle.size.width - 100, std::min<int>(vecDialogItems.size() * listItemHeight, uiRectangle.size.height - 272) } };
-		// A list long enough to hit that cap fills the screen, blockTop clamps to 0 and this is
-		// exactly the old layout - so only screens with slack to spare actually move.
+			Size { uiRectangle.size.width - 100, std::min<int>(vecDialogItems.size() * listItemHeight, uiRectangle.size.height - ListTop - DescriptionHeight) } };
+		// A list long enough to hit that cap fills the screen down to the description's box, and blockTop clamps to 0. The
+		// cap was vanilla's H - 272, sized for a list top of 204: from 266 it pushed the description below the screen in
+		// the long categories - Diablo Orcl, Keymapping, Game (round 6 audit, v1.12.231).
 		const int blockHeight = ListTop + rectList.size.height + DescriptionHeight;
 		const int blockTop = std::max(0, (uiRectangle.size.height - blockHeight) / 2);
 		rectList.position.y += blockTop;

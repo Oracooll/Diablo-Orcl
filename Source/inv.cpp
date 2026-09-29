@@ -4680,7 +4680,8 @@ void DoTelekinesis()
 		NetSendCmdLoc(MyPlayerId, true, CMD_OPOBJT, cursPosition);
 	if (pcursitem != -1)
 		NetSendCmdGItem(true, CMD_REQUESTAGITEM, MyPlayerId, pcursitem);
-	if (pcursmonst != -1) {
+	// Not a townsperson: pcursmonst is a towner id there, and the knockback struck the stale Monsters slot (round 6 audit).
+	if (pcursmonst != -1 && leveltype != DTYPE_TOWN) {
 		auto &monter = Monsters[pcursmonst];
 		if (!M_Talker(monter) && monter.talkMsg == TEXT_NONE)
 			NetSendCmdParam1(true, CMD_KNOCKBACK, pcursmonst);

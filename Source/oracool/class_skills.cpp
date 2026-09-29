@@ -128,7 +128,8 @@ void RefreshInnateSpells(Player &player)
 	clearIfLost(player._pLRSpell, player._pLRSplType);
 	// The F-key bindings too. A hotkey pointing at a refunded skill is the same fault one keystroke
 	// further away, and it survives into the save.
-	for (size_t i = 0; i < AbilityFKeyCount; i++) {
+	// All twelve slots, not the eight the Abilities window shows: Quick Cast reads 0-11 (round 6 audit, v1.12.231).
+	for (size_t i = 0; i < NumHotkeys; i++) {
 		clearIfLost(player._pSplHotKey[i], player._pSplTHotKey[i]);
 		clearIfLost(player._pSplLHotKey[i], player._pSplLTHotKey[i]);
 	}

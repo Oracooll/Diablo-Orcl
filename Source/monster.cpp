@@ -2049,7 +2049,9 @@ void ReleaseMinions(const Monster &leader)
 {
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		auto &minion = Monsters[ActiveMonsters[i]];
-		if (minion.leaderRelation == LeaderRelation::Leashed && minion.getLeader() == &leader) {
+		// Every follower, not only the leashed: a Separated one was re-leashed later by GroupUnity to the dead leader's
+		// slot - and to whatever took it (round 6 audit).
+		if (minion.leaderRelation != LeaderRelation::None && minion.getLeader() == &leader) {
 			minion.setLeader(nullptr);
 		}
 	}
@@ -2140,6 +2142,10 @@ bool MonsterDelay(Monster &monster)
 void MonsterPetrified(Monster &monster)
 {
 	if (monster.hitPoints <= 0) {
+		// Its pack learns it is gone, as the death animation's end tells it: a follower shattered in stone left its
+		// leader's packSize one too high, and DirOK never let that unique walk again; a leader shattered left its pack
+		// tied to the slot the next summon takes (round 6 audit, v1.12.231).
+		M_UpdateRelations(monster);
 		dMonster[monster.position.tile.x][monster.position.tile.y] = 0;
 		monster.isInvalid = true;
 	}

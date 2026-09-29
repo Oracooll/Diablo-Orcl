@@ -4,6 +4,7 @@
 #include "oracool/monster_difficulty.h"
 #include "oracool/monster_variants.h"
 
+#include <array>
 #include <algorithm>
 #include <cstring>
 #include <vector>
@@ -456,8 +457,19 @@ void OnLesserUniqueKilled(Monster &monster)
 	oracool::MainSeedGuard cosmeticBurst;
 	// The discharge is the reward for killing it AND the sting for standing next to it - the corpse
 	// is not a safe place to be. Reuses the mini-Nova ring built for Fist of the Heavens at 1.5.78.
-	AddMissile(monster.position.tile, monster.position.tile, Direction::South,
-	    MissileID::MiniNovaBall, TARGET_PLAYERS, -1, monster.maxDamage, 0);
+	//
+	// A RING, as the header promises: this fired one spark at its own tile, which never moved and sat on the loot for
+	// thirteen seconds (round 6 audit, v1.12.231). Laid out as Fist of the Heavens lays its ring.
+	constexpr std::array<WorldTileDisplacement, 9> QuarterRadius = {
+		{ { 4, 0 }, { 4, 1 }, { 4, 2 }, { 4, 3 }, { 4, 4 }, { 3, 4 }, { 2, 4 }, { 1, 4 }, { 0, 4 } }
+	};
+	const Point centre = monster.position.tile;
+	for (const WorldTileDisplacement quarter : QuarterRadius) {
+		for (const WorldTileDisplacement offset : { quarter, quarter.flipXY(), quarter.flipX(), quarter.flipY() }) {
+			AddMissile(centre, centre + offset, Direction::South, MissileID::MiniNovaBall, TARGET_PLAYERS, -1,
+			    monster.maxDamage, 0);
+		}
+	}
 }
 
 } // namespace devilution::oracool

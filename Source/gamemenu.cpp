@@ -195,7 +195,9 @@ void GamemenuRestartTown(bool /*bActivate*/)
 
 void GamemenuRespawnInTown(bool /*bActivate*/)
 {
-	if (!MyPlayerIsDead)
+	// The death menu shows while the hero is still falling (PM_DEATH), and the open menu freezes the tick that would set
+	// MyPlayerIsDead - so Respawn chosen there did nothing (round 6 audit, v1.12.231).
+	if (!MyPlayerIsDead && MyPlayer->_pmode != PM_DEATH)
 		return;
 
 	MyPlayerIsDead = false;

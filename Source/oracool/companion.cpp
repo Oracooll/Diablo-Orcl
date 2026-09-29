@@ -1013,12 +1013,16 @@ void ProcessCompanions(Player &owner)
 
 		if (inst.slot >= 0) {
 			Monster &body = Monsters[inst.slot];
-			if (body.mode == MonsterMode::Death) {
+			// Falling, while the body is still on the map. At the end of the death animation DeleteMonsterList moves it to the
+			// holding cell but leaves it in Death mode, so this test alone kept a dead companion forever: on the HUD, holding
+			// its slot, and standing again at the next level (round 6 audit, v1.12.231).
+			if (body.mode == MonsterMode::Death && body.position.tile != GolemHoldingCell) {
 				inst.spinTicks = 0; // it falls on its death sheet, not spinning (audit, 2026-09-29)
 				continue; // falling; the slot empties when the body is gone
 			}
 			if (body.position.tile == GolemHoldingCell || (body.hitPoints >> 6) <= 0) {
 				// Fallen, for good: a companion does not come back from death, only from a level change.
+				ReleaseCompanionBody(body); // out of Death mode, into the holding cell
 				ClearSlotDress(static_cast<size_t>(inst.slot));
 				inst = Instance {};
 				ReassignOrders();

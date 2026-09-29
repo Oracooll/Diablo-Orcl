@@ -4,6 +4,7 @@
  * QoL feature for automatically picking up gold
  */
 
+#include "missiles.h" // LineClearMissile - no pick-up through walls
 #include "options.h"
 #include "oracool/oracool.h"
 #include "player.h"
@@ -137,6 +138,10 @@ void AutoPickup(const Player &player)
 					continue;
 				const Point tile = player.position.tile + Displacement { deltaX, deltaY };
 				if (!InDungeonBounds(tile) || dItem[tile.x][tile.y] == 0)
+					continue;
+				// In sight only: past the adjacent ring the fork's longer reach (up to 10) collected gold and potions from the
+				// far side of a wall, in rooms never entered (round 6 audit, v1.12.231).
+				if (distance > 1 && !LineClearMissile(player.position.tile, tile))
 					continue;
 				const int itemIndex = dItem[tile.x][tile.y] - 1;
 				auto &item = Items[itemIndex];

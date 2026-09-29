@@ -589,7 +589,7 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 		mid = abs(mid) - 1;
 		if (missile.IsTrap()
 		    || (missile._micaster == TARGET_PLAYERS && (                                           // or was fired by a monster and
-		            Monsters[mid].isPlayerMinion() != Monsters[missile._misource].isPlayerMinion() //  the monsters are on opposing factions
+		            Monsters[mid].isPlayerMinion() != missile.sourceMinion                         //  the monsters are on opposing factions
 		            || (Monsters[missile._misource].flags & MFLAG_BERSERK) != 0                    //  or the attacker is berserked
 		            || (Monsters[mid].flags & MFLAG_BERSERK) != 0                                  //  or the target is berserked
 		            ))) {
@@ -597,7 +597,11 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			// A minion's bolt is its owner's blow (audit, 2026-09-19): tag the target BEFORE the hit,
 			// since MonsterTrapHit runs MonsterDeath itself and the kill's experience goes to whoever
 			// is tagged, and credit Life Tap and the army's on-blow effects after, as the melee seam does.
-			const Player *armyOwner = !missile.IsTrap() && missile._micaster == TARGET_PLAYERS ? oracool::MinionOwner(Monsters[missile._misource]) : nullptr;
+			// Only while the slot still holds the minion that fired it (Missile::sourceMinion).
+			const Player *armyOwner = !missile.IsTrap() && missile._micaster == TARGET_PLAYERS && missile.sourceMinion
+			        && Monsters[missile._misource].isPlayerMinion()
+			    ? oracool::MinionOwner(Monsters[missile._misource])
+			    : nullptr;
 			if (armyOwner != nullptr)
 				Monsters[mid].tag(*armyOwner);
 			int dealt = 0;
@@ -644,7 +648,7 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			if (missile._micaster == TARGET_MONSTERS) {
 				if ((pid - 1) != missile._misource)
 					isPlayerHit = Plr2PlrMHit(Players[missile._misource], pid - 1, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, &blocked);
-			} else if (!Monsters[missile._misource].isPlayerMinion() && !oracool::IsMonsterConverted(Monsters[missile._misource])) {
+			} else if (!missile.sourceMinion && !oracool::IsMonsterConverted(Monsters[missile._misource])) {
 				// A hero's own minions never shoot the hero (2026-09-26): their shots are aimed at monsters and
 				// used to wound any player standing in the line - the Skeletal Mage's firebolts made it plain.
 				Monster &monster = Monsters[missile._misource];
@@ -882,6 +886,9 @@ bool GuardianTryFireAt(Missile &missile, Point target)
 {
 	Point position = missile.position.tile;
 
+	// Town's dMonster holds towner ids, not monsters (round 6 audit, v1.12.231). The Guardian fired on Griswold and Ogden.
+	if (leveltype == DTYPE_TOWN)
+		return false;
 	if (!LineClearMissile(position, target))
 		return false;
 	int mid = dMonster[target.x][target.y] - 1;
@@ -4478,6 +4485,7 @@ Missile *AddMissile(Point src, Point dst, Direction midir, MissileID mitype,
 		if (monster.isUnique()) {
 			missile._miUniqTrans = monster.uniqTrans + 1;
 		}
+		missile.sourceMinion = monster.isPlayerMinion(); // its side, fixed now (Missile::sourceMinion)
 	}
 
 	if (missile._miAnimType == MissileGraphicID::None || GetMissileSpriteData(missile._miAnimType).animFAmt < 8)
@@ -5294,7 +5302,8 @@ void ProcessChainLightning(Missile &missile)
 	int rad = ChainLightningLeapRadius(missile._mispllvl);
 	Crawl(1, rad, [&](Displacement displacement) {
 		Point target = position + displacement;
-		if (InDungeonBounds(target) && dMonster[target.x][target.y] > 0) {
+		// Not to townspeople: town's dMonster holds towner ids (round 6 audit, v1.12.231).
+		if (leveltype != DTYPE_TOWN && InDungeonBounds(target) && dMonster[target.x][target.y] > 0) {
 			dir = GetDirection(position, target);
 			AddMissile(position, target, dir, MissileID::LightningControl, TARGET_MONSTERS, id, 1, missile._mispllvl);
 		}
@@ -5655,6 +5664,11 @@ void ProcessInfravision(Missile &missile)
 
 void ProcessApocalypse(Missile &missile)
 {
+	// Town's dMonster holds towner ids, not monsters (round 6 audit, v1.12.231). It set a boom on every townsperson in reach.
+	if (leveltype == DTYPE_TOWN) {
+		missile._miDelFlag = true;
+		return;
+	}
 	for (int j = missile.var2; j < missile.var3; j++) {
 		for (int k = missile.var4; k < missile.var5; k++) {
 			int mid = dMonster[k][j] - 1;

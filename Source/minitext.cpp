@@ -3,6 +3,7 @@
  *
  * Implementation of scrolling dialog text.
  */
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -71,13 +72,17 @@ uint32_t CalculateTextSpeed(int nSFX)
 	// Sound is disabled -- estimate length from the number of lines.
 	Uint32 sfxFrames = numLines * 3000;
 #endif
-	assert(sfxFrames != 0);
+	// A missing voice file loads as an empty sound since the fork stopped raising an error for it, and a zero length
+	// divided by zero in CalculateTextPosition: the book or quest text crashed (round 6 audit, v1.12.231). The no-sound
+	// estimate stands in.
+	if (sfxFrames == 0)
+		sfxFrames = numLines * 3000;
 
 	uint32_t textHeight = LineHeight * numLines;
 	textHeight += LineHeight * 5; // adjust so when speaker is done two line are left
 	assert(textHeight != 0);
 
-	return sfxFrames / textHeight;
+	return std::max<uint32_t>(sfxFrames / textHeight, 1);
 }
 
 int CalculateTextPosition()
