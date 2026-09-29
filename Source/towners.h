@@ -78,6 +78,8 @@ Towner *GetTowner(_talker_id type);
 void InitTowners();
 /** @brief Ogden's queued quest speech, cleared on the take (TEXT_NONE when none): the tavern menu's "Talk to Ogden" line plays it. */
 _speech_id TakeOgdenQuestText();
+/** @brief Drops every queued speech: a new game must not open with the last one's (InitStores). */
+void ClearOgdenQuestText();
 void FreeTownerGFX();
 void ProcessTowners();
 void TalkToTowner(Player &player, int t);

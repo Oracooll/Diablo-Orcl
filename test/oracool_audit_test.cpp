@@ -39,6 +39,7 @@
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/surface.hpp"
+#include "automap.h" // AutomapActive - the corner HUD hides under the full map
 #include "control.h"
 #include "cursor.h"
 #include "init.h"
@@ -9045,6 +9046,8 @@ TEST(OracoolDurability, TieringAnItemWithHighDurabilityDoesNotZeroIt)
 			EXPECT_LT(scaledMaxDur, static_cast<int>(DUR_INDESTRUCTIBLE)) << "tiering minted an indestructible";
 			EXPECT_GE(durability, 0) << "maxDur " << maxDur;
 			EXPECT_LE(durability, scaledMaxDur);
+			// A whole item stays whole (round 3 audit, v1.12.228): the clamp alone sold new tiered stock at 57-80%.
+			EXPECT_EQ(durability, scaledMaxDur) << "maxDur " << maxDur;
 		}
 	}
 }
@@ -9152,6 +9155,14 @@ TEST(OracoolAudit, TheEventLogDoesNotCoverTheBeltRow)
 	if (!oracool::IsEventLogOpen())
 		oracool::ToggleEventLog();
 	ASSERT_TRUE(oracool::IsEventLogOpen()) << "test setup: the log would not open";
+	// The log draws, and answers a rect, only while the corner HUD is shown (v1.12.228): clear what an earlier test may
+	// have left covering it.
+	invflag = false;
+	sbookflag = false;
+	AutomapActive = false;
+	oracool::CloseAdvancedStats(/*restoreCovered=*/false);
+	oracool::CloseRunewordBook();
+	ASSERT_TRUE(oracool::IsCornerHudShown()) << "test setup: something still covers the corner HUD";
 
 	const Rectangle log = oracool::GetEventLogWindowRect();
 	const Rectangle hud = oracool::GetHudRowRect();
@@ -9956,6 +9967,14 @@ TEST(OracoolAudit, EveryWindowsCloseButtonSitsWhereTheSharedHelperPutsIt)
 	if (!IsEventLogOpen())
 		ToggleEventLog();
 	ASSERT_TRUE(IsEventLogOpen()) << "test setup: the log would not open";
+	// The log draws, and answers a rect, only while the corner HUD is shown (v1.12.228): clear what an earlier test may
+	// have left covering it.
+	invflag = false;
+	sbookflag = false;
+	AutomapActive = false;
+	oracool::CloseAdvancedStats(/*restoreCovered=*/false);
+	oracool::CloseRunewordBook();
+	ASSERT_TRUE(oracool::IsCornerHudShown()) << "test setup: something still covers the corner HUD";
 	const Rectangle logWindow = GetEventLogWindowRect();
 	ASSERT_GT(logWindow.size.width, 0) << "test setup: the log reports an empty rect while open";
 	expectSharedCorner("the event log", logWindow, GetWindowCloseButtonRect(logWindow));

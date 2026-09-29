@@ -26,6 +26,7 @@
 #include "oracool/chill.h"
 #include "oracool/class_tree.h"
 #include "oracool/companion.h"
+#include "oracool/event_log.h" // IsCornerHudShown
 #include "oracool/passives.h"
 #include "player.h"
 #include "utils/language.h"
@@ -744,7 +745,7 @@ void DrawMinionHud(const Surface &out)
 
 bool HandleMinionHudClick(Point mouse)
 {
-	if (MyPlayer == nullptr || MinionCount(*MyPlayer) == 0 || !HeaderRect().contains(mouse))
+	if (MyPlayer == nullptr || MinionCount(*MyPlayer) == 0 || !IsCornerHudShown() || !HeaderRect().contains(mouse))
 		return false;
 	CycleCompanionStance();
 	AnnounceCompanionStance();

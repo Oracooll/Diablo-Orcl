@@ -4580,6 +4580,9 @@ bool CreateRareVendorItem(const Player &player, Item &item, int lvl)
 	// instead of shelving a plain item on the Rare tab.
 	if (item._iOracoolTier != OracoolItemTier::Rare)
 		return false;
+	// New stock is sold whole: SetupAllItems wears a drop to 25-75% (ItemRndDur), and a shop sold it that way at full
+	// price, with a repair fee waiting (round 3 audit, v1.12.228).
+	item._iDurability = item._iMaxDur;
 	item._iIdentified = true;
 	item._iStatFlag = player.CanUseItem(item);
 	return true;
@@ -8502,6 +8505,7 @@ int StockOracoolMagicItems(Item *stock, int capacity, int lvl, int want)
 		    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/false, std::nullopt,
 		    /*itemLevel=*/oracool::VendorItemLevel(lvl));
 		std::copy(uniquesBefore.begin(), uniquesBefore.end(), std::begin(UniqueItemFlags));
+		item._iDurability = item._iMaxDur; // sold whole, not worn like a drop (round 3 audit)
 		// A bare level, never CF_SMITHPREMIUM - see StockOracoolVendorItems' header for why a town
 		// stamp on an Oracool item comes back as something else after a reload.
 		item._iCreateInfo = std::min(itemLevel, 63);
@@ -8552,8 +8556,14 @@ int StockVendorTypedItems(Item *stock, int capacity, int lvl, int want, ItemType
 			// silently wrong item on the shelf.
 			if (AllItemsList[idx].itype != itemType)
 				break;
+			// A staff that comes out a unique does not spend that unique's one drop, as on the magic shelf: Adria
+			// restocks on every town visit and Refresh (round 3 audit, v1.12.228).
+			std::array<bool, MaxUniqueItems> uniquesBefore;
+			std::copy(std::begin(UniqueItemFlags), std::end(UniqueItemFlags), uniquesBefore.begin());
 			SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), lvl, 1, onlygood,
 			    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/forcedTier.has_value(), forcedTier);
+			std::copy(uniquesBefore.begin(), uniquesBefore.end(), std::begin(UniqueItemFlags));
+			item._iDurability = item._iMaxDur; // sold whole, not worn like a drop
 			if (forcedTier.has_value() && item._iOracoolTier != *forcedTier)
 				continue;
 			made = true;

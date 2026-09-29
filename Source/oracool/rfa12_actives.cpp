@@ -3957,7 +3957,7 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		duration();
 		break;
 	case SpellID::NecroBoneSpirit:
-		say(_("Damage: half the target's remaining life"));
+		say(_("Damage: a third of the target's remaining life"));
 		break;
 	case SpellID::PoisonNova:
 		poison();

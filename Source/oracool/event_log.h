@@ -33,6 +33,13 @@ void ToggleEventLog();
 bool IsEventLogOpen();
 
 /**
+ * @brief True while the corner HUD beside the mini-map is drawn: no full map, no right panel, no chat, no
+ * runeword book. The log, the clock and the companion and minion headers draw only then, so their click
+ * rects must answer only then - a hidden log swallowed clicks and the wheel (round 3 audit, v1.12.228).
+ */
+bool IsCornerHudShown();
+
+/**
  * @brief Empties the log and closes it, for game teardown.
  *
  * The entries live in a file-local deque, so they outlive a GAME rather than the process. Without

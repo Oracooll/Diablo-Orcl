@@ -151,7 +151,7 @@ void GmenuLeftRight(bool isRight)
 
 	uint16_t step = sgpCurrItem->sliderStep();
 	if (isRight) {
-		if (step == sgpCurrItem->sliderSteps())
+		if (step >= sgpCurrItem->sliderSteps()) // never past the last step, whatever set it (audit, 2026-09-29)
 			return;
 		step++;
 	} else {

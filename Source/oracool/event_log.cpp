@@ -18,8 +18,12 @@
 #include "options.h"
 #include "oracool/ornate_border.h"
 #include "oracool/telemetry.h"
+#include "oracool/runeword_book.h"
 #include "oracool/window_close.h"
 #include "utils/language.h"
+#ifdef _DEBUG
+#include "debug.h"
+#endif
 
 namespace devilution::oracool {
 
@@ -170,9 +174,18 @@ size_t EventLogEntryCount()
 	return Entries.size();
 }
 
+bool IsCornerHudShown()
+{
+	return !AutomapActive && !IsRightPanelOpen() && !talkflag && !IsRunewordBookOpen()
+#ifdef _DEBUG
+	    && !DebugClearUi
+#endif
+	    ;
+}
+
 Rectangle GetEventLogWindowRect()
 {
-	if (!IsEventLogOpen())
+	if (!IsEventLogOpen() || !IsCornerHudShown())
 		return Rectangle { { 0, 0 }, { 0, 0 } };
 	// The same three helpers the draw uses, so the rect that rejects a click and the rect that gets
 	// painted cannot drift apart - the failure GetLeftPanelContentRect was written to end.

@@ -818,8 +818,13 @@ void SaveHeroAndStash(bool writeGameData)
 	// The residual window is between the two renames. It is not zero, and this comment is the
 	// honest place to say so - but it is as small as this can be made without a journal.
 	SaveWriter heroWriter = GetSaveWriter(gSaveNumber);
+	// A hero record the archive refused makes the hero NOT ready (audit, 2026-09-29): the writer still finishes cleanly
+	// on the aborted transaction's old record, so the old hero was published beside the NEW stash, and a move between
+	// the two became a loss or a duplicate. Asked of this write alone - a failure noted before it is not this save's.
+	const bool failedBefore = oracool::SaveAttemptFailed();
 	pfile_write_hero(heroWriter, writeGameData);
-	const bool heroReady = heroWriter.Finish();
+	const bool heroRefused = oracool::SaveAttemptFailed() && !failedBefore;
+	const bool heroReady = !heroRefused && heroWriter.Finish();
 
 	const bool stashNeedsWriting = Stash.dirty;
 	std::optional<SaveWriter> stashWriter;

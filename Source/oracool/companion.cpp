@@ -29,6 +29,7 @@
 #include "items.h"
 #include "levels/gendung.h"
 #include "missiles.h"
+#include "oracool/event_log.h" // IsCornerHudShown
 #include "oracool/skill_sounds.h"
 #include "oracool/whirlwind.h" // WhirlFrame, DrawWhirlingBlades - Talic's spin looks like the hero's
 #include "multi.h"
@@ -1522,7 +1523,7 @@ void DrawCompanionHud(const Surface &out)
 
 bool HandleCompanionHudClick(Point mouse)
 {
-	if (MyCompanionCount() == 0 || !HeaderRect().contains(mouse))
+	if (MyCompanionCount() == 0 || !IsCornerHudShown() || !HeaderRect().contains(mouse))
 		return false;
 	CycleCompanionStance();
 	AnnounceCompanionStance();

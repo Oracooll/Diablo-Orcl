@@ -47,6 +47,7 @@
 #include "oracool/stonegate.h"
 #include "oracool/wirt_cart.h"
 #include "oracool/oracool.h"
+#include "oracool/rift.h" // IsRiftLevel, RiftMonsterBandFloor - rift chests and shrines
 #include "oracool/waypoint_menu.h"
 #include "qol/stash.h"
 #include "stores.h"
@@ -196,7 +197,7 @@ const char *const ShrineDescriptions[] = {
 	N_("Casts a Mana Shield spell around you"),
 	N_("Fully recharges every staff you carry"),
 	N_("Fully repairs every item you carry"),
-	N_("+1 level to every known spell but one (multiplayer only)"),
+	N_("+1 level to every known spell but one"),
 	N_("Reopens every unopened chest on this level"),
 	N_("Raises Firebolt level, permanently lowers max mana"),
 	N_("Casts a Nova and fully restores your mana"),
@@ -1093,6 +1094,24 @@ void DeleteObject(int oi, int i)
 		ActiveObjects[i] = ActiveObjects[ActiveObjectCount];
 }
 
+/**
+ * @brief A quest's own set level - Leoric's tomb, the Bone Chamber - whose chests are a quest reward: always full,
+ * always magic. A rift is a set level too, but a generated, repeatable floor, and gets a floor's chests (round 3
+ * audit, v1.12.228: every rift chest poured 1-3 magic items, 14-37 a rift).
+ */
+bool IsQuestSetLevel()
+{
+	return setlevel && !oracool::IsRiftLevel(setlvlnum);
+}
+
+/** @brief The floor a shrine's reward scales with: in a rift, the rung its tier stands on, not the set-level id (9 or 10). */
+int ShrineFloor()
+{
+	if (setlevel && oracool::IsRiftLevel(setlvlnum))
+		return oracool::RiftMonsterBandFloor();
+	return currlevel;
+}
+
 void AddChest(Object &chest)
 {
 	if (FlipCoin())
@@ -1101,7 +1120,7 @@ void AddChest(Object &chest)
 	switch (chest._otype) {
 	case OBJ_CHEST1:
 	case OBJ_TCHEST1:
-		if (setlevel) {
+		if (IsQuestSetLevel()) {
 			chest._oVar1 = 1;
 			break;
 		}
@@ -1109,7 +1128,7 @@ void AddChest(Object &chest)
 		break;
 	case OBJ_TCHEST2:
 	case OBJ_CHEST2:
-		if (setlevel) {
+		if (IsQuestSetLevel()) {
 			chest._oVar1 = 2;
 			break;
 		}
@@ -1117,7 +1136,7 @@ void AddChest(Object &chest)
 		break;
 	case OBJ_TCHEST3:
 	case OBJ_CHEST3:
-		if (setlevel) {
+		if (IsQuestSetLevel()) {
 			chest._oVar1 = 3;
 			break;
 		}
@@ -2400,7 +2419,7 @@ void OperateChest(const Player &player, Object &chest, bool sendLootMsg)
 	chest._oSelFlag = 0;
 	chest._oAnimFrame += 2;
 	SetRndSeed(chest._oRndSeed);
-	if (setlevel) {
+	if (IsQuestSetLevel()) {
 		for (int j = 0; j < chest._oVar1; j++) {
 			CreateRndItem(chest.position, true, sendLootMsg, false);
 		}
@@ -2840,7 +2859,8 @@ void OperateShrineEnchanted(Player &player)
 			spellToReduce = GenerateRnd(maxSpells) + 1;
 		} while ((player._pMemSpells & GetSpellBitmask(static_cast<SpellID>(spellToReduce))) == 0);
 
-		for (uint8_t j = static_cast<uint8_t>(SpellID::Firebolt); j < maxSpells; j++) {
+		// j <= maxSpells: ids run 1..maxSpells, as the count and the pick above; < left the last one (Charge, 52) unraised.
+		for (uint8_t j = static_cast<uint8_t>(SpellID::Firebolt); j <= maxSpells; j++) {
 			if ((player._pMemSpells & GetSpellBitmask(static_cast<SpellID>(j))) != 0 && player._pSplLvl[j] < MaxSpellLevel && j != spellToReduce) {
 				uint8_t newSpellLevel = static_cast<uint8_t>(player._pSplLvl[j] + 1);
 				player._pSplLvl[j] = newSpellLevel;
@@ -3257,7 +3277,7 @@ void OperateShrineOily(Player &player, Point spawnPosition)
 	    MissileID::FireWall,
 	    TARGET_PLAYERS,
 	    -1,
-	    2 * currlevel + 2,
+	    2 * ShrineFloor() + 2,
 	    0);
 
 	InitDiabloMsg(EMSG_SHRINE_OILY);
@@ -3323,7 +3343,7 @@ void OperateShrineSparkling(Player &player, Point spawnPosition)
 		return;
 
 	const uint64_t experienceBefore = player._pExperience;
-	AddPlrExperience(player, player._pLevel, 1000 * currlevel);
+	AddPlrExperience(player, player._pLevel, 1000 * ShrineFloor());
 	const uint64_t gained = player._pExperience - experienceBefore;
 
 	AddMissile(
@@ -3333,7 +3353,7 @@ void OperateShrineSparkling(Player &player, Point spawnPosition)
 	    MissileID::FlashBottom,
 	    TARGET_PLAYERS,
 	    -1,
-	    3 * currlevel + 2,
+	    3 * ShrineFloor() + 2,
 	    0);
 
 	RedrawEverything();
@@ -3850,7 +3870,8 @@ void OperateStoryBook(Object &storyBook)
 			NetSendCmd(false, CMD_NAKRUL);
 			return;
 		}
-	} else if (leveltype == DTYPE_CRYPT) {
+	} else if (leveltype == DTYPE_CRYPT && Quests[Q_NAKRUL]._qactive != QUEST_DONE) {
+		// Not once Na-Krul is dead: a book left unread on 21-23 set the finished quest active again (round 3 audit).
 		Quests[Q_NAKRUL]._qactive = QUEST_ACTIVE;
 		Quests[Q_NAKRUL]._qlog = true;
 		Quests[Q_NAKRUL]._qmsg = msg;

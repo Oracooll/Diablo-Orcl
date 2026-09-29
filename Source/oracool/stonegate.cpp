@@ -46,7 +46,8 @@ int PortalArchObjectId = -1;
 
 Object *Gate()
 {
-	if (GateObjectId < 0 || GateObjectId >= MAXOBJECTS)
+	// Town only: the id is a town slot, and in a dungeon the same slot can hold the Magic Rock's stand (round 3 audit).
+	if (leveltype != DTYPE_TOWN || GateObjectId < 0 || GateObjectId >= MAXOBJECTS)
 		return nullptr;
 	Object &object = Objects[GateObjectId];
 	if (object._otype != OBJ_STAND)

@@ -289,7 +289,9 @@ void ApplyBaseTier(Item &item, BaseItemTier tier)
 		// truncated to its low eight bits on the way in, and 256 arrived as a zero. Clamped below
 		// the sentinel, and never below 1, so scaling can shrink an item's lifespan but not end it.
 		item._iMaxDur = std::clamp(ScaleByPercent(item._iMaxDur, scale.durability), 1, DUR_INDESTRUCTIBLE - 1);
-		item._iDurability = std::clamp(item._iDurability, 0, item._iMaxDur);
+		// The wear scales with the maximum, so a whole item stays whole: only clamping it sold a new tiered item at
+		// 80/67/57% of its maximum (round 3 audit, v1.12.228). A broken one stays at 0.
+		item._iDurability = std::clamp(ScaleByPercent(item._iDurability, scale.durability), 0, item._iMaxDur);
 	}
 
 	item._ivalue = ScaleByPercent(item._ivalue, scale.value);

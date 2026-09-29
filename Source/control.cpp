@@ -841,6 +841,11 @@ bool IsLevelUpButtonVisible()
 
 } // namespace
 
+bool IsLevelUpIconShown()
+{
+	return MyPlayer != nullptr && IsLevelUpButtonVisible();
+}
+
 void CalculatePanelAreas()
 {
 	constexpr Size MainPanelSize { 640, 128 };

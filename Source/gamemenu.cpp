@@ -5,6 +5,8 @@
  */
 #include "gamemenu.h"
 
+#include <algorithm>
+
 #include "cursor.h"
 #include "engine/backbuffer_state.hpp"
 #include "engine/events.hpp"
@@ -14,6 +16,7 @@
 #include "init.h"
 #include "options.h"
 #include "oracool/auto_save.h"
+#include "oracool/game_speed.h" // MinGameSpeed, MaxGameSpeed - the Speed slider's range
 #include "oracool/levski_roar.h" // the monument's grid is handed back before the exit save
 #include "oracool/workshop.h" // and the workshop's bench and craft grid
 #include "player.h"
@@ -253,8 +256,10 @@ void GamemenuGetSpeed()
 	sgOptionsMenu[3].addFlags(GMENU_ENABLED | GMENU_SLIDER);
 
 	sgOptionsMenu[3].pszStr = _("Speed").data();
-	gmenu_slider_steps(&sgOptionsMenu[3], 46);
-	gmenu_slider_set(&sgOptionsMenu[3], 20, 50, sgGameInitInfo.nTickRate);
+	// The whole range F9/F10 can set (audit, 2026-09-29): built for 20-50, a speed of 60 put the slider past its last
+	// step, and Right then climbed on until the tick rate wrapped to 0 - a division by zero.
+	gmenu_slider_steps(&sgOptionsMenu[3], oracool::MaxGameSpeed - oracool::MinGameSpeed + 1);
+	gmenu_slider_set(&sgOptionsMenu[3], oracool::MinGameSpeed, oracool::MaxGameSpeed, sgGameInitInfo.nTickRate);
 }
 
 int GamemenuSliderGamma()
@@ -351,9 +356,10 @@ void GamemenuSpeed(bool bActivate)
 			sgGameInitInfo.nTickRate = 20;
 		else
 			sgGameInitInfo.nTickRate = 50;
-		gmenu_slider_set(&sgOptionsMenu[3], 20, 50, sgGameInitInfo.nTickRate);
+		gmenu_slider_set(&sgOptionsMenu[3], oracool::MinGameSpeed, oracool::MaxGameSpeed, sgGameInitInfo.nTickRate);
 	} else {
-		sgGameInitInfo.nTickRate = gmenu_slider_get(&sgOptionsMenu[3], 20, 50);
+		sgGameInitInfo.nTickRate = static_cast<uint8_t>(std::clamp(gmenu_slider_get(&sgOptionsMenu[3], oracool::MinGameSpeed, oracool::MaxGameSpeed),
+		    oracool::MinGameSpeed, oracool::MaxGameSpeed));
 	}
 
 	sgOptions.Gameplay.tickRate.SetValue(sgGameInitInfo.nTickRate);

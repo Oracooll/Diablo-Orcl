@@ -579,6 +579,12 @@ void LeftMouseDown(uint16_t modState)
 	// abilities screen").
 	if (CheckUnspentPointsFrameClick(MousePosition))
 		return;
+	// Its twin above the left well, for the same reason: it counts as HUD now, so the world branch that used to
+	// reach CheckLvlBtn never sees it - and that branch dropped a held item before asking (round 3 audit).
+	if (IsLevelUpIconShown() && oracool::GetLevelUpIconRect().contains(MousePosition)) {
+		CheckLvlBtn();
+		return;
+	}
 
 	const bool isShiftHeld = (modState & KMOD_SHIFT) != 0;
 	const bool isCtrlHeld = (modState & KMOD_CTRL) != 0;
@@ -607,6 +613,11 @@ void LeftMouseDown(uint16_t modState)
 	if (oracool::CheckLevskiRoarClick(MousePosition, isCtrlHeld))
 		return;
 
+
+	// A targeting cursor (a Teleport or Fire Wall scroll, a targeted skill) over a window is put away, not fired: it
+	// cast at the last world tile hovered, through the window's X or an empty cell (round 3 audit, v1.12.228).
+	if (pcurs == CURSOR_TELEPORT && IsOverAnyInterface(MousePosition))
+		NewCursor(CURSOR_HAND);
 
 	if (!isOverHud) {
 		if (!gmenu_is_active() && !TryIconCurs()) {
@@ -956,6 +967,11 @@ void RightMouseDown(bool isShiftHeld)
 		CheckSBook(/*assignToRightButton=*/true);
 		return;
 	}
+	// A right click puts a targeting cursor away over a window rather than firing it through (round 3 audit).
+	if (pcurs == CURSOR_TELEPORT && IsOverAnyInterface(MousePosition)) {
+		NewCursor(CURSOR_HAND);
+		return;
+	}
 	if (TryIconCurs())
 		return;
 	if (isShiftHeld && pcursinvitem != -1 && TryStartStackSplit(pcursinvitem))
@@ -1242,8 +1258,9 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 			sgOptions.Graphics.fullscreen.SetValue(!IsFullScreen());
 			SaveOptions();
 #endif
-		} else if (stextflag != TalkID::None && !oracool::IsShopTab(stextflag)) {
-			// A towner's dialog, a Yes/No, a "not enough gold": Enter picks the line, as it always has.
+		} else if (stextflag != TalkID::None && (!oracool::IsShopTab(stextflag) || ControlMode == ControlTypes::Gamepad)) {
+			// A towner's dialog, a Yes/No, a "not enough gold": Enter picks the line, as it always has. On a pad
+			// A arrives as Return and is the only way to buy, so a shop tab still takes it there (round 3 audit).
 			StoreEnter();
 		} else if (QuestLogIsOpen) {
 			QuestlogEnter();
@@ -1674,6 +1691,10 @@ void RunGameLoop(interface_mode uMsg)
 		uint16_t modState;
 		while (FetchMessage(&event, &modState)) {
 			if (event.type == SDL_QUIT) {
+				// Saved while the game still runs (audit, 2026-09-29): SaveOnExit refuses once gbRunGame is false, so the save
+				// after the loop never ran for a bare SDL_QUIT - a console Ctrl+C, an OS shutdown that sends only that.
+				if (!gbIsMultiplayer)
+					oracool::SaveOnExit();
 				gbRunGameResult = false;
 				gbRunGame = false;
 				break;

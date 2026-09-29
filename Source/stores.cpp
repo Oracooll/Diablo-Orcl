@@ -4274,6 +4274,8 @@ void InitStores()
 	premiumlevel = 1;
 
 	BuybackStock.clear();
+	// Ogden's queued quest speech is per game too: it lives in a file static (round 3 audit, v1.12.228).
+	ClearOgdenQuestText();
 	// A hammer (or a recharge cursor) left armed by a shop the player has since left would act on
 	// the next thing they clicked and charge them for it.
 	DisarmShopServiceCursor();

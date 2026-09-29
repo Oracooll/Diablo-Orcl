@@ -155,10 +155,17 @@ bool CheckBlock(Point from, Point to)
 
 Monster *FindClosest(Point source, int rad)
 {
+	// Oracool: town's dMonster holds towner ids, not monsters; and the hero's own minions and companions are
+	// no quarry (Bone Spirit and the Elemental homed on them - the round 3 audit, v1.12.228).
+	if (leveltype == DTYPE_TOWN)
+		return nullptr;
 	std::optional<Point> monsterPosition = FindClosestValidPosition(
 	    [&source](Point target) {
 		    // search for a monster with clear line of sight
-		    return InDungeonBounds(target) && dMonster[target.x][target.y] > 0 && !CheckBlock(source, target);
+		    if (!InDungeonBounds(target) || dMonster[target.x][target.y] <= 0 || CheckBlock(source, target))
+			    return false;
+		    const Monster &monster = Monsters[dMonster[target.x][target.y] - 1];
+		    return !monster.isPlayerMinion() && !oracool::IsCompanion(monster);
 	    },
 	    source, 1, rad);
 
@@ -1698,7 +1705,8 @@ void AddBerserk(Missile &missile, AddMissileParameter &parameter)
 	missile._miDelFlag = true;
 	parameter.spellFizzled = true;
 
-	if (missile.sourceType() == MissileSource::Trap)
+	// Oracool: town's dMonster holds towner ids, so a town cast would berserk whatever sits in that Monsters slot.
+	if (missile.sourceType() == MissileSource::Trap || leveltype == DTYPE_TOWN)
 		return;
 
 	std::optional<Point> targetMonsterPosition = FindClosestValidPosition(
@@ -1933,6 +1941,13 @@ void AddSpectralArrow(Missile &missile, AddMissileParameter &parameter)
 
 void AddWarp(Missile &missile, AddMissileParameter &parameter)
 {
+	// Oracool: every spell is castable in town, and the trigger offsets below end in app_fatal there.
+	if (leveltype == DTYPE_TOWN) {
+		missile._miDelFlag = true;
+		parameter.spellFizzled = true;
+		return;
+	}
+
 	int minDistanceSq = std::numeric_limits<int>::max();
 
 	int id = missile._misource;
@@ -2468,6 +2483,8 @@ void AddFrostNova(Missile &missile, AddMissileParameter & /*parameter*/)
 			continue;
 		if (monster.position.tile.WalkingDistance(missile.position.tile) > 3)
 			continue;
+		if (!LineClearMissile(missile.position.tile, monster.position.tile))
+			continue; // the ring stops at walls, as the missiles do
 		// The ring has no impact sheet: each monster it catches flashes (hit_cold, 2026-09-26).
 		if (MonsterMHit(missile._misource, id, minDamage, maxDamage, 0, MissileID::FrostNova, DamageType::Cold, false, missile._mispllvl))
 			AddColdHitFlash(monster.position.tile, missile._misource);
@@ -2580,8 +2597,10 @@ void AddFrozenOrb(Missile &missile, AddMissileParameter &parameter)
 void ProcessFrozenOrb(Missile &missile)
 {
 	missile._mirange--;
-	// The orb stops at a wall rather than passing through it; MoveMissile says so by returning false.
-	if (!MoveMissile(missile, [](Point tile) { return IsTileNotSolid(tile); }, true))
+	// The orb stops at a wall rather than passing through it: MoveMissile stops it there. Its return
+	// only says whether the orb changed tile, which a half-speed orb often does not - so it is no wall test.
+	MoveMissile(missile, [](Point tile) { return IsTileNotSolid(tile); }, true);
+	if (missile.position.velocity == Displacement {})
 		missile._mirange = 0;
 	ChangeLight(missile._mlid, missile.position.tile, 8);
 
@@ -3270,6 +3289,12 @@ void AddAcidPuddle(Missile &missile, AddMissileParameter & /*parameter*/)
 
 void AddStoneCurse(Missile &missile, AddMissileParameter &parameter)
 {
+	// Oracool: town's dMonster holds towner ids, not monsters.
+	if (leveltype == DTYPE_TOWN) {
+		missile._miDelFlag = true;
+		parameter.spellFizzled = true;
+		return;
+	}
 	std::optional<Point> targetMonsterPosition = FindClosestValidPosition(
 	    [](Point target) {
 		    if (!InDungeonBounds(target)) {
@@ -3285,6 +3310,9 @@ void AddStoneCurse(Missile &missile, AddMissileParameter &parameter)
 
 		    if (IsAnyOf(monster.type().type, MT_GOLEM, MT_DIABLO, MT_NAKRUL)) {
 			    return false;
+		    }
+		    if (monster.isPlayerMinion() || oracool::IsCompanion(monster)) {
+			    return false; // the hero's own side
 		    }
 		    if (IsAnyOf(monster.mode, MonsterMode::FadeIn, MonsterMode::FadeOut, MonsterMode::Charge)) {
 			    return false;
@@ -3327,8 +3355,10 @@ void AddGolem(Missile &missile, AddMissileParameter &parameter)
 	// Oracool: every spell is castable in town, but town (and a quest's set level) never runs InitGolems' slot
 	// setup, so Monsters[playerId] is no golem there. Spawning into it drew a monster with no type data -
 	// the user's crash casting Valkyrie in town (2026-09-14, access violation in Monster::exp).
-	if (!LevelHasGolemSlots())
+	if (!LevelHasGolemSlots()) {
+		parameter.spellFizzled = true;
 		return;
+	}
 
 	int playerId = missile._misource;
 	Player &player = Players[playerId];

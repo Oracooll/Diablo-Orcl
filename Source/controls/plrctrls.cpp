@@ -2033,6 +2033,12 @@ void UseBeltItem(int type)
 
 void PerformPrimaryAction()
 {
+	// Advanced Stats lies over the inventory's left cells: the mouse asks it first, and so must the pad, or A picked
+	// up the item hidden under it (round 3 audit, v1.12.228).
+	if (oracool::IsAdvancedStatsOpen() && oracool::GetAdvancedStatsRect().contains(MousePosition)) {
+		oracool::HandleAdvancedStatsClick(MousePosition);
+		return;
+	}
 	if (invflag) { // inventory is open
 		if (pcurs > CURSOR_HAND && pcurs < CURSOR_FIRSTITEM) {
 			if (pcurs == CURSOR_HOURGLASS)

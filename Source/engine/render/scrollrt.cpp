@@ -1692,11 +1692,8 @@ void DrawView(const Surface &out, Point startPosition)
 	// The mini-map and these corner widgets are not WINDOWS with open state, so they are suppressed
 	// here for as long as the book is up rather than closed - which also means they come straight
 	// back when it closes, with nothing to restore.
-	if (!AutomapActive && !cornerHudHidden && !oracool::IsRunewordBookOpen()
-#ifdef _DEBUG
-	    && !DebugClearUi
-#endif
-	) {
+	// One predicate with the click rects (oracool::IsCornerHudShown), so a hidden log takes no clicks.
+	if (oracool::IsCornerHudShown()) {
 		oracool::DrawEventLogWindow(out);
 		oracool::DrawGameClock(out);
 		oracool::DrawGameSpeedReadout(out);

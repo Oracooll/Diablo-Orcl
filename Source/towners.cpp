@@ -1,6 +1,8 @@
 #include "towners.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <vector>
 
 #include "cursor.h"
 #include "diablo.h" // CloseOtherShopSurfaces - one shop surface at a time
@@ -302,15 +304,21 @@ namespace {
  * the click (user, 2026-09-20: "make ogden the taverner always show his menu first, not his quest
  * dialog, because quest dialog prevents access to his menu"). The quest STATE still moves on the
  * click as it always did; only the speech waits.
+ *
+ * A queue, oldest first, without repeats: one slot let a second click overwrite a speech whose quest step had already
+ * been taken - Esc out of the menu, click him again, and the King's news was never heard (round 3 audit, v1.12.228).
  */
-_speech_id PendingOgdenQuestText = TEXT_NONE;
+std::vector<_speech_id> PendingOgdenQuestTexts;
 } // namespace
 
 void TalkToBarOwner(Player &player, Towner &barOwner)
 {
 	// Every branch below that used to play its text and return now QUEUES the text and falls through
 	// to the menu, which plays it under "Talk to Ogden" (TavernEnter). The first-visit intro too.
-	const auto queue = [](_speech_id text) { PendingOgdenQuestText = text; };
+	const auto queue = [](_speech_id text) {
+		if (std::find(PendingOgdenQuestTexts.begin(), PendingOgdenQuestTexts.end(), text) == PendingOgdenQuestTexts.end())
+			PendingOgdenQuestTexts.push_back(text);
+	};
 
 	// HIS WELCOME, on every click (user, 2026-09-22: "Ogden is silent when clocked on - bring his
 	// welcoming audio file back").
@@ -890,9 +898,16 @@ Towner *GetTowner(_talker_id type)
 // sat inside and did not link).
 _speech_id TakeOgdenQuestText()
 {
-	const _speech_id text = PendingOgdenQuestText;
-	PendingOgdenQuestText = TEXT_NONE;
+	if (PendingOgdenQuestTexts.empty())
+		return TEXT_NONE;
+	const _speech_id text = PendingOgdenQuestTexts.front();
+	PendingOgdenQuestTexts.erase(PendingOgdenQuestTexts.begin());
 	return text;
+}
+
+void ClearOgdenQuestText()
+{
+	PendingOgdenQuestTexts.clear();
 }
 
 void InitTowners()

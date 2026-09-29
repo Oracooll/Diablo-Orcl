@@ -492,6 +492,9 @@ size_t AddMonsterType(_monster_id type, placeflag placeflag)
 	if (typeIndex == LevelMonsterTypeCount) {
 		LevelMonsterTypeCount++;
 		monsterType.type = type;
+		// No body until InitCorpses gives it one. A type added mid-level (a raised minion's body) kept the corpse id
+		// this slot held on the previous floor, and left another monster's corpse (round 3 audit, v1.12.228).
+		monsterType.corpseId = 0;
 		monstimgtot += MonstersData[type].image;
 		InitMonsterGFX(monsterType);
 		InitMonsterSND(monsterType);
@@ -1744,7 +1747,9 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 	if ((monster.flags & MFLAG_NOLIFESTEAL) == 0 && monster.type().type == MT_SKING && gbIsMultiplayer)
 		monster.hitPoints += dam;
 	if (player._pHitPoints >> 6 <= 0) {
-		if (gbIsHellfire)
+		// Not if the blow's reflect, thorns, Iron Maiden or Shiver Armor killed it too: stood back up at 0 life it could
+		// neither be targeted nor die again (round 3 audit, v1.12.228).
+		if (gbIsHellfire && monster.mode != MonsterMode::Death)
 			M_StartStand(monster, monster.direction);
 		return;
 	}

@@ -359,6 +359,8 @@ void FreeControlPan();
 void UpdateInfoString();
 void CheckLvlBtn();
 void ReleaseLvlBtn();
+/** @brief Whether the stat level-up icon above the left well is drawn - the click and interface tests share it with the draw. */
+bool IsLevelUpIconShown();
 void DrawLevelUpIcon(const Surface &out);
 /** @brief Oracool: the unspent skill pool in its LevelUpIconSize frame (ui\skill_points.png) above the RMB well. Hidden at zero. */
 void DrawUnspentPointsFrame(const Surface &out);

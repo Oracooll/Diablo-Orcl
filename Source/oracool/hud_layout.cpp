@@ -21,6 +21,7 @@
 #include "oracool/workshop.h"
 #include "oracool/stonegate_menu.h"
 #include "oracool/xp_counter.h"
+#include "player.h" // MyPlayer, for the points icons
 #include "utils/ui_fwd.h"
 
 namespace devilution::oracool {
@@ -475,9 +476,15 @@ bool IsPointOverHudChrome(Point mousePosition)
 	// asking for the plate would leave the outer 21px of each skill well - drawn, visible, and
 	// clickable-looking - routed to the world, so clicking the edge of a well walked the character
 	// instead of opening its quick list.
+	// The orbs and the two points icons over the wells joined the list in the round 3 audit (v1.12.228): drawn
+	// beside or above the plate, they walked, cast or dropped the held item through themselves.
 	return GetHudRowRect().contains(mousePosition)
 	    || IsPointOverXpCounter(mousePosition)
 	    || IsPointOverHudMenu(mousePosition)
+	    || GetHealthOrbRect().contains(mousePosition)
+	    || GetManaOrbRect().contains(mousePosition)
+	    || (IsLevelUpIconShown() && GetLevelUpIconRect().contains(mousePosition))
+	    || (MyPlayer != nullptr && IsUnspentPointsFrameVisible() && GetUnspentPointsFrameRect().contains(mousePosition))
 	    || (talkflag && GetMainPanel().contains(mousePosition));
 }
 

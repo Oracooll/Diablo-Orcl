@@ -3407,7 +3407,19 @@ StartPlayerKill(Player &player, DeathReason deathReason)
 			RedrawComponent(PanelDrawComponent::Health);
 
 			if (!player.HoldItem.isEmpty()) {
-				DeadItem(player, std::move(player.HoldItem), { 0, 0 });
+				// Single-player death keeps everything carried, the cursor's item too (audit, 2026-09-29): dropped where he
+				// fell, it was lost to a Main Menu exit, which writes no world. Put away as the exit save puts it away -
+				// pack, belt for a potion, then stash - and dropped only when all three are full.
+				bool kept = false;
+				if (!gbIsMultiplayer) {
+					kept = AutoPlaceItemInInventory(player, player.HoldItem, /*persistItem=*/true)
+					    || (player.HoldItem.isPotion() && AutoPlaceItemInBelt(player, player.HoldItem, /*persistItem=*/true))
+					    || AutoPlaceItemInStash(player, player.HoldItem, /*persistItem=*/true);
+					if (kept)
+						player.HoldItem.clear();
+				}
+				if (!kept)
+					DeadItem(player, std::move(player.HoldItem), { 0, 0 });
 				NewCursor(CURSOR_HAND);
 			}
 			if (dropGold) {

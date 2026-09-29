@@ -237,12 +237,19 @@ void SaveIni()
 		return;
 	RecursivelyCreateDir(paths::ConfigPath().c_str());
 	const std::string iniPath = GetIniPath();
-	FILE *file = OpenFile(iniPath.c_str(), "wb");
-	if (file != nullptr) {
-		GetIni().SaveFile(file, true);
-		std::fclose(file);
-	} else {
-		LogError("Failed to write ini file to {}: {}", iniPath, std::strerror(errno));
+	// Written beside it and swapped in whole (audit, 2026-09-29): it was truncated in place, now on every menu close, run
+	// toggle and readied-skill change, so a crash or power cut mid-write left an empty file and every setting reverted.
+	const std::string tempPath = iniPath + ".tmp";
+	FILE *file = OpenFile(tempPath.c_str(), "wb");
+	if (file == nullptr) {
+		LogError("Failed to write ini file to {}: {}", tempPath, std::strerror(errno));
+		return; // still changed: the next save tries again
+	}
+	const bool written = GetIni().SaveFile(file, true) >= 0;
+	const bool closed = std::fclose(file) == 0;
+	if (!written || !closed || !ReplaceFileAtomically(tempPath.c_str(), iniPath.c_str())) {
+		LogError("Failed to write ini file to {}", iniPath);
+		return;
 	}
 	IniChanged = false;
 }
@@ -717,7 +724,9 @@ void OptionEntryIntBase::LoadFromIni(string_view category)
 	// Inside the offered range (audit, 2026-09-27). A hand-edited value between two entries is still kept, as vanilla
 	// does; one outside every entry is clamped to the nearest end - a zoom of 0 divided by zero on every frame, and a
 	// Torment multiplier of 0 or less gave monsters no life.
-	if (!entryValues.empty()) {
+	// Only an option that offers a range (audit, 2026-09-29): one built from its default alone has that one value as its
+	// "list" - volume, gamma, game speed, the last hero - and was pinned to its default on every launch since v1.12.199.
+	if (entryValues.size() > 1) {
 		const auto [low, high] = std::minmax_element(entryValues.begin(), entryValues.end());
 		value = std::clamp(value, *low, *high);
 	}
