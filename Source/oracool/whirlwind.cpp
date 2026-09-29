@@ -194,16 +194,21 @@ std::optional<ClxSprite> WhirlwindSprite(const Player &player)
 	const OptionalClxSpriteList frames = cast.spritesForDirection(facing);
 	if (!frames || frames->numSprites() == 0)
 		return std::nullopt;
+	return WhirlFrame(*frames, Clock);
+}
+
+ClxSprite WhirlFrame(ClxSpriteList frames, int clock)
+{
 	// The warrior's cast has 20 frames: the cloud gathers over the first dozen, is whole from 13 to 18 and thins on the
 	// last. Those six, forward and back, taken as shares so a sheet of another length picks the same stretch.
-	const int count = static_cast<int>(frames->numSprites());
+	const int count = static_cast<int>(frames.numSprites());
 	const int first = std::min(count - 1, count * 13 / 20);
 	const int last = std::max(first, std::min(count - 1, count * 18 / 20));
 	const int span = last - first;
-	int step = span > 0 ? Clock % (2 * span) : 0;
+	int step = span > 0 ? clock % (2 * span) : 0;
 	if (step > span)
 		step = 2 * span - step;
-	return (*frames)[static_cast<size_t>(first + step)];
+	return frames[static_cast<size_t>(first + step)];
 }
 
 namespace {
@@ -236,8 +241,12 @@ const std::optional<OwnedClxSpriteList> &Blade(int kind)
 
 void DrawWhirlwindBlades(const Surface &out, const Player &player, Point foot, bool front)
 {
-	if (!IsWhirlwinding(player))
-		return;
+	if (IsWhirlwinding(player))
+		DrawWhirlingBlades(out, foot, front);
+}
+
+void DrawWhirlingBlades(const Surface &out, Point foot, bool front)
+{
 	constexpr double Pi = 3.14159265358979323846;
 	// The wall clock, so the circling runs smooth at any frame rate.
 	const double t = SDL_GetTicks() / 1000.0;

@@ -87,5 +87,11 @@ std::optional<ClxSprite> WhirlwindSprite(const Player &player);
  */
 void DrawWhirlwindBlades(const Surface &out, const Player &player, Point foot, bool front);
 
+/** @brief The spin's frame of a magic cast sheet's @p frames at @p clock ticks: the full-cloud stretch, forward and back. */
+ClxSprite WhirlFrame(ClxSpriteList frames, int clock);
+
+/** @brief The circling blades around whatever spins at @p foot - the hero's and Talic's (companion.h) alike. */
+void DrawWhirlingBlades(const Surface &out, Point foot, bool front);
+
 } // namespace oracool
 } // namespace devilution

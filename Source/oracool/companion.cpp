@@ -30,6 +30,7 @@
 #include "levels/gendung.h"
 #include "missiles.h"
 #include "oracool/skill_sounds.h"
+#include "oracool/whirlwind.h" // WhirlFrame, DrawWhirlingBlades - Talic's spin looks like the hero's
 #include "multi.h"
 #include "player.h"
 #include "playerdat.hpp"
@@ -56,6 +57,10 @@ struct HeroSheets {
 	bool active = false;
 	std::array<std::unique_ptr<OwnedClxSpriteListOrSheet>, AnimCount> owned;
 	std::array<AnimStruct, AnimCount> anims {};
+	// The magic cast sheet, for a whirling companion's spin (2026-09-29). Its own slot, not Special: Special plays when a
+	// body spawns (SpawnCompanionBody), and every companion would arrive casting.
+	std::unique_ptr<OwnedClxSpriteListOrSheet> spinOwned;
+	AnimStruct spin {};
 };
 
 /**
@@ -152,6 +157,13 @@ bool LoadHeroSheets(HeroSheets &set, HeroClass cls, size_t armour, PlayerWeaponG
 		LoadSheet(set, cls, armour, MonsterGraphic::GotHit, "ht", weapon, widths.swHit, frames.recoveryFrames);
 		// The death sheet is only ever authored unarmed - see LoadPlrGFX.
 		LoadSheet(set, cls, armour, MonsterGraphic::Death, "dt", PlayerWeaponGraphic::Unarmed, widths.death, frames.deathFrames);
+		// The spin's cast sheet, loaded through Special's slot and moved to its own.
+		const auto special = static_cast<size_t>(MonsterGraphic::Special);
+		if (LoadSheet(set, cls, armour, MonsterGraphic::Special, "qm", weapon, widths.magic, frames.castingFrames)) {
+			set.spinOwned = std::move(set.owned[special]);
+			set.spin = set.anims[special];
+			set.anims[special] = AnimStruct {};
+		}
 	}
 	for (MonsterGraphic graphic : { MonsterGraphic::Walk, MonsterGraphic::Attack, MonsterGraphic::GotHit, MonsterGraphic::Death, MonsterGraphic::Special }) {
 		const auto i = static_cast<size_t>(graphic);
@@ -174,12 +186,19 @@ enum class Role : uint8_t {
 
 enum class Ability : uint8_t {
 	None,
-	Volley,     // a spread of arrows
-	Leap,       // lands beside the target and strikes all around
-	Whirlwind,  // strikes everything adjacent
-	HammerToss, // a heavy blow at range
-	Taunt,      // widens the guard's hold for four seconds
+	Volley,      // a spread of arrows
+	DoubleThrow, // two hammers at once (Madawc, D2's Double Throw)
+	Taunt,       // widens the guard's hold for four seconds
 };
+
+/** How far a thrower throws: a bow's reach, less two. */
+constexpr int ThrowReach = 6;
+/** Ticks between a spin's strikes: four a second, the hero's Whirlwind's rate. */
+constexpr int SpinStrikeTicks = 5;
+/** The shortest spin: a second, even if what started it falls at once. */
+constexpr int SpinMinTicks = TicksPerSecond;
+/** Madawc's hammer: the Blessed Hammer's sheet at the size of the Barbarian's thrown axe (26px against 35 on average). */
+constexpr int ThrownHammerPercent = 75;
 
 struct CompanionDef {
 	const char *name;
@@ -208,9 +227,12 @@ const std::array<CompanionDef, CompanionKindCount> Defs { {
 	// onwards", "reach res 90% rather soon" - level 11.
 	{ N_("Valkyrie"),        HeroClass::Rogue,   2, PlayerWeaponGraphic::Bow,        false, PAL16_YELLOW, -3, true,  CompanionAttack::Bow,   Role::Fighter, Ability::Volley,      8, 150, 1000, 40, 5, 90, 20, 2, 50, 50, 5, 30, 5 },
 	// The Ancients, together: shorter-lived and weaker each, three of them.
-	{ N_("Korlic"),          HeroClass::Warrior, 2, PlayerWeaponGraphic::Sword,      false, PAL16_GRAY,    0, true,  CompanionAttack::Melee, Role::Fighter, Ability::Leap,       10, 120,  800, 30, 5, 80, 25, 2, 55, 35, 3, 20, 2 },
-	{ N_("Talic"),           HeroClass::Warrior, 2, PlayerWeaponGraphic::Axe,        false, PAL16_GRAY,    0, true,  CompanionAttack::Melee, Role::Fighter, Ability::Whirlwind,   8, 120,  800, 30, 5, 80, 25, 2, 55, 35, 3, 20, 2 },
-	{ N_("Madawc"),          HeroClass::Warrior, 2, PlayerWeaponGraphic::MaceShield, false, PAL16_GRAY,    0, true,  CompanionAttack::Melee, Role::Fighter, Ability::HammerToss,  6, 120,  800, 30, 5, 80, 25, 2, 55, 35, 3, 20, 2 },
+	// As D2's three at Arreat Summit, and each in his own colour (2026-09-29): Korlic, steel blue, a plain melee fighter
+	// ("korlic to move from leap to regular melee attack"); Talic, red, fights by Whirlwind; Madawc, gold, throws the
+	// Blessed Hammer's hammer, two at once on his ability - D2's Double Throw.
+	{ N_("Korlic"),          HeroClass::Warrior, 2, PlayerWeaponGraphic::Sword,      false, PAL16_BLUE,    0, true,  CompanionAttack::Melee, Role::Fighter, Ability::None,        0, 120,  800, 30, 5, 80, 25, 2, 55, 35, 3, 20, 2 },
+	{ N_("Talic"),           HeroClass::Warrior, 2, PlayerWeaponGraphic::Axe,        false, PAL16_RED,     0, true,  CompanionAttack::Whirl, Role::Fighter, Ability::None,        0, 120,  800, 30, 5, 80, 25, 2, 55, 35, 3, 20, 2 },
+	{ N_("Madawc"),          HeroClass::Warrior, 2, PlayerWeaponGraphic::MaceShield, false, PAL16_YELLOW,  0, true,  CompanionAttack::Throw, Role::Fighter, Ability::DoubleThrow, 6, 120,  800, 30, 5, 80, 25, 2, 55, 35, 3, 20, 2 },
 	{ N_("Spirit Guardian"), HeroClass::Monk,    2, PlayerWeaponGraphic::Staff,      false, PAL16_BLUE,    1, true,  CompanionAttack::Melee, Role::Guard,   Ability::Taunt,       8, 200, 1200, 40, 5, 85, 30, 2, 60, 30, 3, 30, 5 },
 	{ N_("Decoy"),           HeroClass::Rogue,   0, PlayerWeaponGraphic::Unarmed,    true,  PAL16_BLUE,    2, false, CompanionAttack::None,  Role::Bait,    Ability::None,        0, 100,  900, 30, 4, 75, 20, 2, 50,  0, 0, 15, 1 },
 } };
@@ -240,10 +262,10 @@ int AbilityPower(const CompanionStats &stats, int rank)
 	return stats.damagePercent * (rank >= AbilityPowerLevel ? 125 : 100) / 100;
 }
 
-/** @brief The share of the owner's blow @p ability strikes for at @p power: the leap and the hammer land half again as hard. */
-int AbilityPercent(Ability ability, int power)
+/** @brief The share of the owner's blow @p ability strikes for at @p power - each arrow or hammer at the full power. */
+int AbilityPercent(Ability /*ability*/, int power)
 {
-	return (ability == Ability::Leap || ability == Ability::HammerToss) ? power * 3 / 2 : power;
+	return power;
 }
 
 /** @brief The Valkyrie's volley: three arrows, five from the power level. */
@@ -319,6 +341,8 @@ struct Instance {
 	int tauntTicks = 0;
 	int target = -1; // the monster it is attacking
 	bool volley = false;
+	int spinTicks = 0; // a whirling companion's spin: ticks left, topped up while anything is beside it
+	int spinClock = 0; // ticks into the spin - its strikes and its turning
 	TownState town;
 };
 
@@ -690,14 +714,8 @@ std::string CompanionFactsAt(SpellID spell, int rank)
 		case Ability::Volley:
 			say(_("Volley: {:d} arrows every {} s"), VolleyArrows(r), every);
 			break;
-		case Ability::Leap:
-			say(_("{} leaps in: {:d}% of yours to everything around, every {} s"), _(def.name), percent, every);
-			break;
-		case Ability::Whirlwind:
-			say(_("{} whirls: {:d}% of yours to everything around, every {} s"), _(def.name), percent, every);
-			break;
-		case Ability::HammerToss:
-			say(_("{} hurls his hammer: {:d}% of yours, every {} s"), _(def.name), percent, every);
+		case Ability::DoubleThrow:
+			say(_("{} throws two hammers at once every {} s, {:d}% of yours each"), _(def.name), every, percent);
 			break;
 		case Ability::Taunt:
 			say(_("Holds the enemies within {:d} tiles; every {} s a taunt holds all within {:d} for {} s"), GuardHoldRadius, every,
@@ -708,6 +726,11 @@ std::string CompanionFactsAt(SpellID spell, int rank)
 				say(_("Draws every enemy within {:d} tiles"), BaitHoldRadius);
 			break;
 		}
+		// How each fights, when it is not a plain swing (2026-09-29).
+		if (def.attack == CompanionAttack::Whirl)
+			say(_("{} fights by Whirlwind: everything beside him, four times a second"), _(def.name));
+		else if (def.attack == CompanionAttack::Throw)
+			say(_("{} throws his hammer from up to {:d} tiles"), _(def.name), ThrowReach);
 	}
 	say(_("Duration: {:d} s"), stats.seconds);
 	return out;
@@ -827,6 +850,43 @@ bool IsCompanion(const Monster &monster)
 	return InstanceInSlot(monster) != nullptr;
 }
 
+void StartCompanionSpin(Monster &companion)
+{
+	Instance *inst = InstanceInSlot(companion);
+	if (inst == nullptr)
+		return;
+	if (inst->spinTicks <= 0)
+		inst->spinClock = 0;
+	inst->spinTicks = std::max(inst->spinTicks, SpinMinTicks);
+}
+
+bool IsCompanionSpinning(const Monster &companion)
+{
+	const Instance *inst = InstanceInSlot(companion);
+	return inst != nullptr && inst->spinTicks > 0;
+}
+
+std::optional<ClxSprite> CompanionSpinSprite(const Monster &companion)
+{
+	const Instance *inst = InstanceInSlot(companion);
+	if (inst == nullptr || inst->spinTicks <= 0)
+		return std::nullopt;
+	const HeroSheets &sheets = SlotSheets[companion.getId()];
+	if (!sheets.active || !sheets.spin.sprites)
+		return std::nullopt;
+	// Turning a facing a tick, as the hero's spin does, through the cast sheet's full-cloud frames.
+	const OptionalClxSpriteList frames = sheets.spin.spritesForDirection(static_cast<Direction>(inst->spinClock % 8));
+	if (!frames || frames->numSprites() == 0)
+		return std::nullopt;
+	return WhirlFrame(*frames, inst->spinClock);
+}
+
+void DrawCompanionBlades(const Surface &out, const Monster &companion, Point foot, bool front)
+{
+	if (CompanionSpinSprite(companion))
+		DrawWhirlingBlades(out, foot, front);
+}
+
 const AnimStruct *GetCompanionAnim(const Monster &monster, MonsterGraphic graphic)
 {
 	if (InstanceInSlot(monster) == nullptr)
@@ -872,6 +932,35 @@ void OnCompanionLevelLoad()
 	FocusTicks = 0;
 	FocusCommanded = false;
 }
+
+namespace {
+
+/**
+ * @brief One tick of a whirling companion's spin: everything beside it struck every SpinStrikeTicks, at its share of
+ * the owner's blow, and the spin kept going while anything is there. It ends a little after the last enemy beside it.
+ */
+void ProcessSpin(Instance &inst, const Monster &body, const Player &owner)
+{
+	if (inst.spinTicks <= 0)
+		return;
+	if (body.mode == MonsterMode::Death) {
+		inst.spinTicks = 0;
+		return;
+	}
+	inst.spinClock++;
+	const std::vector<Monster *> around = TargetsWithin(body.position.tile, 1);
+	if (inst.spinClock % SpinStrikeTicks == 0 && !around.empty()) {
+		const int percent = CompanionStatsAt(inst.kind, inst.rank).damagePercent;
+		for (Monster *monster : around)
+			StrikeFor(owner, *monster, OwnerBlow(owner, percent));
+		PlaySkillSound(ClassTreeSkill::Whirlwind, SkillSoundEvent::Impact); // the hero's Whirlwind's strike, once a strike
+	}
+	if (!around.empty())
+		inst.spinTicks = std::max(inst.spinTicks, SpinStrikeTicks + 1);
+	inst.spinTicks--;
+}
+
+} // namespace
 
 void ProcessCompanions(Player &owner)
 {
@@ -924,6 +1013,7 @@ void ProcessCompanions(Player &owner)
 				continue;
 			}
 			inst.hitPoints = body.hitPoints;
+			ProcessSpin(inst, body, owner);
 		} else if (LevelHasGolemSlots() && ++inst.returnWait >= TicksPerSecond) {
 			inst.returnWait = 0;
 			SpawnInDungeon(inst, owner.position.tile, /*full=*/false);
@@ -1020,14 +1110,14 @@ CompanionOrders GetCompanionOrders(const Monster &companion)
 		orders.settle = 2;
 		orders.regroup = 10;
 		orders.attacks = armed;
-		orders.reach = def.attack == CompanionAttack::Bow ? 8 : 4;
+		orders.reach = def.attack == CompanionAttack::Bow ? 8 : def.attack == CompanionAttack::Throw ? ThrowReach : 4;
 		break;
 	case CompanionStance::Hold:
 		orders.leash = 1000;
 		orders.settle = 1000;
 		orders.regroup = 14;
 		orders.attacks = armed;
-		orders.reach = def.attack == CompanionAttack::Bow ? 8 : 1;
+		orders.reach = def.attack == CompanionAttack::Bow ? 8 : def.attack == CompanionAttack::Throw ? ThrowReach : 1;
 		break;
 	case CompanionStance::Aggressive:
 		orders.leash = 6;
@@ -1051,7 +1141,7 @@ Monster *PickCompanionTarget(const Monster &companion, const CompanionOrders &or
 	if (!orders.attacks)
 		return nullptr;
 	const auto inReach = [&](const Monster &monster) {
-		if (orders.attack == CompanionAttack::Bow)
+		if (orders.attack == CompanionAttack::Bow || orders.attack == CompanionAttack::Throw)
 			return companion.position.tile.WalkingDistance(monster.position.tile) <= orders.reach
 			    && LineClearMissile(companion.position.tile, monster.position.tile);
 		const int fromHer = companion.position.tile.WalkingDistance(monster.position.tile);
@@ -1111,29 +1201,11 @@ CompanionAct TryCompanionAbility(Monster &companion, Monster &target)
 			act = CompanionAct::Volley;
 		}
 		break;
-	case Ability::Leap:
-		if (distance >= 2 && distance <= 6 && PlaceCompanionNear(companion, there, 1)) {
-			for (Monster *monster : TargetsWithin(companion.position.tile, 1))
-				StrikeFor(*owner, *monster, OwnerBlow(*owner, AbilityPercent(def.ability, power)));
-			Ring(*inst, companion.position.tile);
-			act = CompanionAct::Acted;
-		}
-		break;
-	case Ability::Whirlwind: {
-		const std::vector<Monster *> around = TargetsWithin(here, 1);
-		for (Monster *monster : around)
-			StrikeFor(*owner, *monster, OwnerBlow(*owner, AbilityPercent(def.ability, power)));
-		if (!around.empty()) {
-			Ring(*inst, here);
-			act = CompanionAct::Acted;
-		}
-		break;
-	}
-	case Ability::HammerToss:
-		if (distance <= 6 && LineClearMissile(here, there)) {
-			StrikeFor(*owner, target, OwnerBlow(*owner, AbilityPercent(def.ability, power)));
-			Ring(*inst, there);
-			act = CompanionAct::Acted;
+	case Ability::DoubleThrow:
+		// Thrown as his ordinary throw is, twice (CompanionShot).
+		if (distance <= ThrowReach && LineClearMissile(here, there)) {
+			inst->volley = true;
+			act = CompanionAct::Volley;
 		}
 		break;
 	case Ability::Taunt:
@@ -1170,6 +1242,36 @@ void CompanionMeleeHit(Monster &companion)
 	StrikeFor(*owner, target, OwnerBlow(*owner, CompanionStatsAt(inst->kind, inst->rank).damagePercent));
 }
 
+namespace {
+
+/**
+ * @brief Madawc's throw (2026-09-29: "madawc to toss the hammer asset we introduced for blessed hammer skill. scaled to be
+ * no bigger that regular barb axe toss"): the engine's arrow with his owner's blow at his share, as the Barbarian's Weapon
+ * Throw flies, wearing the Blessed Hammer's spinning sheet at ThrownHammerPercent. Two, side by side, for Double Throw.
+ */
+void ThrowHammers(Instance &inst, Point from, Point to)
+{
+	const Direction dir = GetDirection(from, to);
+	const Displacement side { Left(Left(dir)) };
+	const int hammers = inst.volley ? 2 : 1;
+	const int percent = CompanionStatsAt(inst.kind, inst.rank).damagePercent;
+	for (int i = 0; i < hammers; i++) {
+		const Point dst = to + Displacement { side.deltaX * i, side.deltaY * i };
+		Missile *hammer = AddMissile(from, dst, dir, MissileID::Arrow, TARGET_MONSTERS, inst.owner, 4, 0);
+		if (hammer == nullptr)
+			continue;
+		hammer->companionPercent = static_cast<int16_t>(percent);
+		if (MissileArtLoaded(MissileGraphicID::BlessedHammerSpin)) {
+			UseMissileGraphic(*hammer, MissileGraphicID::BlessedHammerSpin);
+			ScaleMissile(*hammer, ThrownHammerPercent);
+		}
+	}
+	inst.volley = false;
+	PlaySfxLoc(PS_SWING, from);
+}
+
+} // namespace
+
 void CompanionShot(Monster &companion)
 {
 	Instance *inst = InstanceInSlot(companion);
@@ -1184,6 +1286,10 @@ void CompanionShot(Monster &companion)
 	const Point from = companion.position.tile;
 	if (to == from)
 		return;
+	if (DefOf(inst->kind).attack == CompanionAttack::Throw) {
+		ThrowHammers(*inst, from, to);
+		return;
+	}
 	// The hero's own arrows: fire or lightning if her gear makes them so.
 	MissileID type = MissileID::Arrow;
 	if (HasAnyOf(owner->_pIFlags, ItemSpecialEffect::FireArrows))

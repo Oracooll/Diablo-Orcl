@@ -452,7 +452,8 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 		return;
 	}
 
-	const ClxSprite sprite = monster.animInfo.currentSprite();
+	// Oracool (2026-09-29): Talic spinning is drawn from his cast sheet, as the hero's Whirlwind is (oracool/companion.h).
+	const ClxSprite sprite = oracool::CompanionSpinSprite(monster).value_or(monster.animInfo.currentSprite());
 
 	if (!IsTileLit(tilePosition)) {
 		ClxDrawTRN(out, targetBufferPosition, sprite, GetInfravisionTRN());
@@ -1102,7 +1103,7 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 		Log("Draw Monster \"{}\": no sprites for the current animation", monster.name());
 		return;
 	}
-	const ClxSprite sprite = monster.animInfo.currentSprite();
+	const ClxSprite sprite = oracool::CompanionSpinSprite(monster).value_or(monster.animInfo.currentSprite());
 
 	Displacement offset = {};
 	if (monster.isWalking()) {
@@ -1155,7 +1156,10 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	if (!tileLit)
 		return;
 
+	// A spinning companion's blades: the far half behind it, the near half in front (oracool/companion.h).
+	oracool::DrawCompanionBlades(out, monster, targetBufferPosition + offset, /*front=*/false);
 	DrawMonster(out, tilePosition, monsterRenderPosition, monster);
+	oracool::DrawCompanionBlades(out, monster, targetBufferPosition + offset, /*front=*/true);
 	// RfA-27 batch 56: Frenzy of the Dead's motes over every frenzied minion, drawn like a hero's overlay from the monster's
 	// own foot point (feet at y 84 of 96: 4px above the shell rule). Nothing while the sheet is not in the archive.
 	if (oracool::IsMinion(monster) && oracool::MinionDamagePercent(monster) > 100)

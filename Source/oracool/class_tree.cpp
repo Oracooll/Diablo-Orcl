@@ -430,7 +430,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 2, 3, 1, Kind::Active, SpellID::IronWill, true },
 	{ N_("Bloodcall"), N_("For 10 seconds, every kill restores 3 life and 2 Rage, +1 each per level."),
 	    Bar, 2, 3, 2, Kind::Active, SpellID::Bloodcall, true },
-	{ N_("Ancestral Call"), N_("Calls the three Ancients for 20 seconds, +2 per level: Korlic leaps into the fray, Talic whirls, and Madawc hurls his hammer. Each strikes for 35% of your damage, +3% per level."),
+	{ N_("Ancestral Call"), N_("Calls the three Ancients for 20 seconds, +2 per level: Korlic fights with his sword, Talic whirls through everything beside him, and Madawc throws hammers. Each strikes for 35% of your damage, +3% per level."),
 	    Bar, 2, 4, 2, Kind::Active, SpellID::AncestralCall, true },
 	{ N_("Earthshaker Cry"), N_("A roar that strikes everything within 8 tiles for 5-10 magic damage, +3-5 per level, and stuns it for 2 seconds. Uniques shrug off the stun."),
 	    Bar, 2, 5, 2, Kind::Active, SpellID::EarthshakerCry, true },

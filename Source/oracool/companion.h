@@ -12,7 +12,7 @@
  * | Skill                     | Companions                               | Fights with                          |
  * |---------------------------|------------------------------------------|--------------------------------------|
  * | Valkyrie (Rogue)          | the Valkyrie                             | bow; Volley                          |
- * | Ancestral Call (Barbarian)| Korlic, Talic and Madawc, together       | melee; Leap, Whirlwind, Hammer Toss  |
+ * | Ancestral Call (Barbarian)| Korlic, Talic and Madawc, together       | melee; Whirlwind; thrown hammers     |
  * | Spirit Guardian (Monk)    | the Spirit Guardian                      | melee; holds and taunts enemies      |
  * | Decoy (Rogue)             | a blue ghost of the caster               | nothing; draws every blow near it    |
  *
@@ -39,6 +39,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "engine/point.hpp"
@@ -66,6 +67,8 @@ enum class CompanionAttack : uint8_t {
 	None,
 	Bow,
 	Melee,
+	Throw, // hurls its weapon from range, as a bow shoots - Madawc's hammer (2026-09-29)
+	Whirl, // spins where it stands while anything is beside it, striking all of it - Talic's Whirlwind (2026-09-29)
 };
 
 enum class CompanionStance : uint8_t {
@@ -104,6 +107,19 @@ void ForgetCompanions();
 
 bool IsCompanion(const Monster &monster);
 const AnimStruct *GetCompanionAnim(const Monster &monster, MonsterGraphic graphic);
+
+/**
+ * @brief Talic's Whirlwind (2026-09-29, "one to attack with whirlwind"): a whirling companion starts to spin when an enemy
+ * is beside it, and spins on while one is - drawn as the hero's Whirlwind is, the magic cast sheet on its full-cloud
+ * frames turning, with the circling blades; striking everything beside it four times a second. CompanionAi leaves a
+ * spinning companion alone; ProcessCompanions runs the spin.
+ */
+void StartCompanionSpin(Monster &companion);
+bool IsCompanionSpinning(const Monster &companion);
+/** @brief The sprite a spinning companion is drawn with instead of its own, or none. */
+std::optional<ClxSprite> CompanionSpinSprite(const Monster &companion);
+/** @brief The spin's circling blades: the far half (@p front false, before the body) or the near half (after). */
+void DrawCompanionBlades(const Surface &out, const Monster &companion, Point foot, bool front);
 /** @brief @p damage after the companion's resistances. */
 int CompanionDamageTaken(const Monster &monster, DamageType type, int damage);
 /** @brief The Golem spell is taking this slot: whatever companion stood in it waits for another. */

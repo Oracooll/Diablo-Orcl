@@ -4914,6 +4914,9 @@ void CompanionAi(Monster &companion)
 	}
 	if (IsAnyOf(companion.mode, MonsterMode::Death, MonsterMode::SpecialStand, MonsterMode::MeleeAttack, MonsterMode::RangedAttack))
 		return;
+	// Talic's spin runs itself (oracool/companion.h) until nothing is beside him.
+	if (oracool::IsCompanionSpinning(companion))
+		return;
 
 	if (distance > orders.regroup && PlaceCompanionNear(companion, orders.owner, 3)) {
 		oracool::OnCompanionRegrouped(companion);
@@ -4937,15 +4940,20 @@ void CompanionAi(Monster &companion)
 		case oracool::CompanionAct::None:
 			break;
 		}
-		if (orders.attack == oracool::CompanionAttack::Bow) {
+		// A thrower throws as a bow shoots: the swing on its own sheet, the hammer let go at the release (CompanionShot).
+		if (orders.attack == oracool::CompanionAttack::Bow || orders.attack == oracool::CompanionAttack::Throw) {
 			// The orders' own missile: a Skeletal Mage's element (necro_summoning's table), an arrow for everyone else.
 			// This was MissileID::Arrow for all until 2026-09-26, so every mage shot the same plain arrow.
 			StartRangedAttack(companion, orders.missile, 0);
 			return;
 		}
-		if (orders.attack == oracool::CompanionAttack::Melee) {
+		if (orders.attack == oracool::CompanionAttack::Melee || orders.attack == oracool::CompanionAttack::Whirl) {
 			if (companion.position.tile.WalkingDistance(target->position.tile) <= 1) {
-				StartAttack(companion);
+				// A whirler spins instead of swinging (2026-09-29).
+				if (orders.attack == oracool::CompanionAttack::Whirl)
+					oracool::StartCompanionSpin(companion);
+				else
+					StartAttack(companion);
 				return;
 			}
 			if (CompanionStepToward(companion, target->position.tile))

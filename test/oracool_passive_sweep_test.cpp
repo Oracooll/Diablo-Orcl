@@ -121,7 +121,10 @@ TEST(OracoolCompanion, TheValkyrieGrowsTheWayTheUserAsked)
 	EXPECT_EQ(first.damagePercent, 50);
 	EXPECT_EQ(oracool::CompanionStatsAt(CompanionKind::Decoy, 10).damagePercent, 0) << "a decoy strikes no one";
 	EXPECT_EQ(oracool::CompanionAttackOf(CompanionKind::Valkyrie), oracool::CompanionAttack::Bow);
-	EXPECT_EQ(oracool::CompanionAttackOf(CompanionKind::Talic), oracool::CompanionAttack::Melee);
+	// The Ancients as D2 had them (2026-09-29): Korlic a plain blade, Talic Whirlwind, Madawc thrown hammers.
+	EXPECT_EQ(oracool::CompanionAttackOf(CompanionKind::Korlic), oracool::CompanionAttack::Melee);
+	EXPECT_EQ(oracool::CompanionAttackOf(CompanionKind::Talic), oracool::CompanionAttack::Whirl);
+	EXPECT_EQ(oracool::CompanionAttackOf(CompanionKind::Madawc), oracool::CompanionAttack::Throw);
 }
 
 // User, 2026-09-14: "an error occured when timer ran out on the valkyrie" - assertion monster.enemy < MAX_PLRS. A
