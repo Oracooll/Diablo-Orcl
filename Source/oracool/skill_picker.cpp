@@ -331,7 +331,7 @@ int EntryLevel(const Player &player, const Entry &entry)
 	case EntryKind::Attack:
 		return 0; // a swing has no rank
 	case EntryKind::Tree:
-		return ClassTreeInvestment(player, entry.tree);
+		return ClassTreeShownRank(player, entry.tree); // with items and Battle Command (2026-09-29)
 	case EntryKind::Spell:
 	case EntryKind::Staff:
 	case EntryKind::Scroll:

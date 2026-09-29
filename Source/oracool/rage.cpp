@@ -76,8 +76,8 @@ int RageCost(SpellID spell)
 	case SpellID::Taunt:
 	case SpellID::ThreateningShout:
 	case SpellID::WarCry:
-	case SpellID::WeaponThrow: // a new skill (2026-09-14), priced like the Barbarian's other attacks
 		return 10;
+	case SpellID::WeaponThrow: // a new skill (2026-09-14); 5 since the dev note of 2026-09-29
 	case SpellID::Whirlwind:
 		return 5; // to START the spin, one second of it; the spin itself drains 5 a second (oracool/whirlwind.h, 2026-09-29)
 	default:

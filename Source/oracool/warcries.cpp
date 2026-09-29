@@ -781,10 +781,11 @@ void AddWarcry(Missile &missile, AddMissileParameter &parameter)
 	// animation. One missile for all seventeen rather than seventeen missiles.
 	// ...and every cast RfA-12 active (2026-09-13), which rides the same missile - see rfa12_actives.h.
 	const SpellID spell = player.executedSpell.spellId;
-	if (!CastWarcry(player, spell, parameter.dst) && !CastRfa12Active(player, spell, parameter.dst)) {
+	const bool cast = CastWarcry(player, spell, parameter.dst) || CastRfa12Active(player, spell, parameter.dst);
+	if (!cast)
 		parameter.spellFizzled = true;
-		return;
-	}
+	// A cry's ring goes out on every cast, heard by anything or not (dev note, 2026-09-29: "warcray animation to play
+	// every time warcray is cast, not only when mobs are around"); a cry that found no one still fizzles.
 	if (!IsWarcry(spell) && !Rfa12CastLeavesRing(spell))
 		return;
 	// No ring under Vengeance or Conversion (the Paladin Skill Cards page, 2026-09-28: "Remove warcry ring from this skill").

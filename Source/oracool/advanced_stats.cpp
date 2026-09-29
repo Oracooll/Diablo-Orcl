@@ -832,19 +832,24 @@ uint32_t ScaleRgb(uint32_t rgb, float factor)
 int32_t SheetBarClockOverrideMs = -1;
 
 void DrawSheetBar(const Surface &out, Rectangle rect, uint64_t value, uint64_t maximum, uint32_t rgb, uint8_t fallbackIndex,
-    bool fromRight)
+    bool fromRight, int segments, int lineWidth, uint32_t lineRgb, uint8_t lineIndex)
 {
 	// User, 2026-09-26: "Make exp, mana and life bar color cycling. Add a thin frame around them and 10% verticals."
+	const int lw = std::max(lineWidth, 1);
+	const uint32_t frameRgb = lineRgb != 0 ? lineRgb : BarFrameRgb;
+	const uint8_t frameIndex = lineRgb != 0 ? lineIndex : BarFrameIndex;
+	const uint32_t tickRgb = lineRgb != 0 ? lineRgb : BarTickRgb;
+	const uint8_t tickIndex = lineRgb != 0 ? lineIndex : BarTickIndex;
 	const int x0 = rect.position.x;
 	const int y0 = rect.position.y;
-	const int innerWidth = rect.size.width - 2;
-	const int innerHeight = rect.size.height - 2;
+	const int innerWidth = rect.size.width - 2 * lw;
+	const int innerHeight = rect.size.height - 2 * lw;
 	if (innerWidth <= 0 || innerHeight <= 0)
 		return;
 
 	// The groove: the old recess's dark translucent fill, inside the frame.
 	const uint32_t groove = PackArgb(220, 8, 7, 6);
-	BlitArgbScaled(out, &groove, 1, SDL_Rect { 0, 0, 1, 1 }, { { x0 + 1, y0 + 1 }, { innerWidth, innerHeight } }, 100);
+	BlitArgbScaled(out, &groove, 1, SDL_Rect { 0, 0, 1, 1 }, { { x0 + lw, y0 + lw }, { innerWidth, innerHeight } }, 100);
 
 	// The fill, colour-cycling: bands of lighter and darker of the bar's own colour flow left to right, one
 	// column at a time. Keyed to the wall clock, so it runs at the same speed whatever the frame rate.
@@ -858,19 +863,20 @@ void DrawSheetBar(const Surface &out, Rectangle rect, uint64_t value, uint64_t m
 		for (int x = 0; x < filled; x++) {
 			const float wave = std::cos(TwoPi * (static_cast<float>(x) / BarCycleWidth - phase));
 			const int column = fromRight ? innerWidth - 1 - x : x;
-			FillRectRgb(out, x0 + 1 + column, y0 + 1, 1, innerHeight, ScaleRgb(rgb, 1.F + BarCycleSwing * wave), fallbackIndex);
+			FillRectRgb(out, x0 + lw + column, y0 + lw, 1, innerHeight, ScaleRgb(rgb, 1.F + BarCycleSwing * wave), fallbackIndex);
 		}
 	}
 
-	// The ten-percent marks, over the fill and the groove alike - the HUD bar's.
-	for (int tenth = 1; tenth < 10; tenth++)
-		FillRectRgb(out, x0 + 1 + innerWidth * tenth / 10, y0 + 1, 1, innerHeight, BarTickRgb, BarTickIndex);
+	// The marks, over the fill and the groove alike - the HUD bar's ten-percent ones unless told otherwise.
+	const int parts = std::max(segments, 1);
+	for (int mark = 1; mark < parts; mark++)
+		FillRectRgb(out, x0 + lw + innerWidth * mark / parts - (lw - 1) / 2, y0 + lw, lw, innerHeight, tickRgb, tickIndex);
 
-	// The thin frame, 1px on the rect's edge with its corners cut - the HUD bar's frame.
-	FillRectRgb(out, x0 + 1, y0, innerWidth, 1, BarFrameRgb, BarFrameIndex);
-	FillRectRgb(out, x0 + 1, y0 + rect.size.height - 1, innerWidth, 1, BarFrameRgb, BarFrameIndex);
-	FillRectRgb(out, x0, y0 + 1, 1, innerHeight, BarFrameRgb, BarFrameIndex);
-	FillRectRgb(out, x0 + rect.size.width - 1, y0 + 1, 1, innerHeight, BarFrameRgb, BarFrameIndex);
+	// The frame on the rect's edge with its corners cut - the HUD bar's, 1px unless told otherwise.
+	FillRectRgb(out, x0 + lw, y0, innerWidth, lw, frameRgb, frameIndex);
+	FillRectRgb(out, x0 + lw, y0 + rect.size.height - lw, innerWidth, lw, frameRgb, frameIndex);
+	FillRectRgb(out, x0, y0 + lw, lw, innerHeight, frameRgb, frameIndex);
+	FillRectRgb(out, x0 + rect.size.width - lw, y0 + lw, lw, innerHeight, frameRgb, frameIndex);
 }
 
 void DrawSheetTextFitted(const Surface &out, string_view text, Rectangle rect, UiFlags flags)

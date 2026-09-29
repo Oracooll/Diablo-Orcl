@@ -957,6 +957,22 @@ bool IsClassTreeSkillUnlocked(const Player &player, ClassTreeSkill skill);
 /** @brief Points sunk into @p skill, from whichever store it uses. See the file comment. */
 int ClassTreeInvestment(const Player &player, ClassTreeSkill skill);
 
+/**
+ * @brief Ranks every learned skill of @p player's runs deeper than its points: 1 while Battle Command is on him (dev note,
+ * 2026-09-29: "battle command doesnt seem to increase lvl of skills"). An active already gets it as a spell level
+ * (_pISplLvlAdd); this carries it to the passives and auras, whose rank is their points.
+ */
+int ClassTreeBonusRanks(const Player &player);
+
+/** @brief The rank @p skill works at: its points plus ClassTreeBonusRanks, or 0 while it has no points. */
+int ClassTreeRank(const Player &player, ClassTreeSkill skill);
+
+/**
+ * @brief The rank the badges show for @p skill (the Abilities window, the skill menu, the wells): 0 without points; an
+ * active's spell level (points, items and Battle Command); anything else ClassTreeRank. What it works at right now.
+ */
+int ClassTreeShownRank(const Player &player, ClassTreeSkill skill);
+
 /** @brief Whether an invest click would take: unlocked, a point unspent, cap not reached. */
 bool CanInvestClassTreePoint(const Player &player, ClassTreeSkill skill);
 

@@ -617,6 +617,7 @@ void DrawPlayerIcons(const Surface &out, const Player &player, Point position, b
 	const size_t worn = oracool::Rfa12BodyOverlays(player, overlays.data(), overlays.size());
 	for (size_t i = 0; i < worn; i++)
 		DrawPlayerIconHelper(out, overlays[i].art, position + Displacement { 0, -4 }, &player != MyPlayer, infraVision, overlays[i].frame);
+	oracool::DrawWhirlwindBlades(out, player, position, /*front=*/true); // the near half of the circle (2026-09-29)
 	DrawPlayerStills(out, player, position, oracool::StillPart::Front);
 }
 
@@ -667,6 +668,7 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 	Point spriteBufferPosition = targetBufferPosition - Displacement { CalculateWidth2(sprite.width()), 0 };
 
 	DrawPlayerStills(out, player, targetBufferPosition, oracool::StillPart::Back);
+	oracool::DrawWhirlwindBlades(out, player, targetBufferPosition, /*front=*/false); // the far half, behind him (2026-09-29)
 
 	if (static_cast<size_t>(pcursplr) < Players.size() && &player == &Players[pcursplr])
 		ClxDrawOutlineSkipColorZero(out, 165, spriteBufferPosition, sprite);

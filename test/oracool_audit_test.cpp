@@ -1489,24 +1489,23 @@ TEST(OracoolSpriteScale, HalvingRoundsDownButNeverBelowOnePixel)
 	EXPECT_GE(ClxSpriteList(quarterFloor)[0].width(), 1) << "scaling floored below one pixel";
 }
 
-// Earthquake's flare (the Barbarian Skill Cards page, 2026-09-29): forward and back, turning as it plays.
-TEST(OracoolSpriteScale, SpinPingPongPlaysForwardAndBackWhileTurning)
+// Whirlwind's circling blades (dev note, 2026-09-29): one sprite turned through a whole turn.
+TEST(OracoolSpriteScale, TurnedListTurnsOneSpriteThroughAWholeTurn)
 {
-	// Three 4x2 frames, each a solid bar of its own colour: 10, 20, 30.
-	OwnedSurface source(4, 6);
-	for (int y = 0; y < 6; y++) {
+	// A 4x2 bar of colour 10.
+	OwnedSurface source(4, 2);
+	for (int y = 0; y < 2; y++) {
 		uint8_t *row = &source[Point { 0, y }];
 		for (int x = 0; x < 4; x++)
-			row[x] = static_cast<uint8_t>(10 * (y / 2 + 1));
+			row[x] = 10;
 	}
-	OwnedClxSpriteList original = SurfaceToClx(source, 3, std::nullopt);
-	// Eight sprites, one whole turn: the ping-pong is 0 1 2 1 0 1 2 1, at 0, 45, 90 .. 315 degrees.
-	OwnedClxSpriteList spun = oracool::SpinPingPongClxList(ClxSpriteList(original), 100, 8, 1);
-	const ClxSpriteList list { spun };
-	ASSERT_EQ(list.numSprites(), 8u);
-	EXPECT_EQ(list[0].width(), list[0].height()) << "every sprite is one square canvas";
-	EXPECT_GE(list[0].width(), 5) << "wide enough for the bar at any angle: its diagonal";
+	OwnedClxSpriteList original = SurfaceToClx(source, 1, std::nullopt);
+	OwnedClxSpriteList turned = oracool::TurnedClxList(ClxSpriteList(original)[0], 100, 4);
+	const ClxSpriteList list { turned };
+	ASSERT_EQ(list.numSprites(), 4u);
 	const int side = list[0].width();
+	EXPECT_EQ(side, list[0].height()) << "every sprite is one square canvas";
+	EXPECT_GE(side, 5) << "wide enough for the bar at any angle: its diagonal";
 	const auto pixelAt = [&](int k, Point p) {
 		OwnedSurface canvas(side, side);
 		for (int y = 0; y < side; y++) {
@@ -1518,13 +1517,11 @@ TEST(OracoolSpriteScale, SpinPingPongPlaysForwardAndBackWhileTurning)
 		return canvas[p];
 	};
 	const Point centre { side / 2, side / 2 };
-	const uint8_t expected[8] = { 10, 20, 30, 20, 10, 20, 30, 20 };
-	for (int k = 0; k < 8; k++)
-		EXPECT_EQ(pixelAt(k, centre), expected[k]) << "sprite " << k << " plays the wrong source frame";
-	// Level at 0 degrees, upright at 90: the bar's end sits beside the centre, then above it.
-	EXPECT_EQ(pixelAt(0, { centre.x + 1, centre.y }), 10);
+	EXPECT_EQ(pixelAt(0, centre), 10);
+	EXPECT_EQ(pixelAt(0, { centre.x + 1, centre.y }), 10) << "level at no turn";
 	EXPECT_EQ(pixelAt(0, { centre.x, centre.y - 2 }), 77) << "the level bar is only two rows tall";
-	EXPECT_NE(pixelAt(2, { centre.x, centre.y - 2 }), 77) << "a quarter turn stands the bar up";
+	EXPECT_EQ(pixelAt(1, { centre.x, centre.y - 2 }), 10) << "a quarter turn stands the bar up";
+	EXPECT_EQ(pixelAt(2, { centre.x + 1, centre.y }), 10) << "a half turn lays it level again";
 }
 
 // Megaplan Phase 0.9: the telemetry CSV's one pure function - field escaping. Everything else in
@@ -11411,6 +11408,30 @@ TEST(OracoolWarcries, BuffsFeedTheSheetAndDebuffsNeedAnEar)
 	EXPECT_GT(oracool::WarcryBuffTicks(barbarian, SpellID::Shout), 0) << "a level change wiped the caster's buffs";
 	oracool::ClearWarcryBuffs(barbarian);
 	EXPECT_EQ(oracool::WarcryBuffTicks(barbarian, SpellID::Shout), 0);
+}
+
+// Dev note, 2026-09-29: "battle command doesnt seem to increase lvl of skills". The actives had the rank as a spell
+// level all along; the passives and auras, whose rank is their points, now have it too.
+TEST(OracoolWarcries, BattleCommandDeepensEveryLearnedSkill)
+{
+	devilution::Player &barbarian = FreshHero(HeroClass::Barbarian);
+	barbarian.position.tile = { 30, 30 };
+	ASSERT_TRUE(oracool::InvestClassTreePoint(barbarian, oracool::ClassTreeSkill::SwordMastery));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(barbarian, oracool::ClassTreeSkill::Bash));
+	EXPECT_EQ(oracool::ClassTreeBonusRanks(barbarian), 0);
+	EXPECT_EQ(oracool::ClassTreeRank(barbarian, oracool::ClassTreeSkill::SwordMastery), 1);
+	EXPECT_EQ(oracool::ClassTreeShownRank(barbarian, oracool::ClassTreeSkill::SwordMastery), 1);
+
+	ASSERT_TRUE(oracool::CastWarcry(barbarian, SpellID::BattleCommand));
+	EXPECT_EQ(oracool::ClassTreeBonusRanks(barbarian), 1);
+	EXPECT_EQ(oracool::ClassTreeRank(barbarian, oracool::ClassTreeSkill::SwordMastery), 2) << "a passive a rank deeper";
+	EXPECT_EQ(oracool::ClassTreeShownRank(barbarian, oracool::ClassTreeSkill::SwordMastery), 2) << "and its badge says so";
+	EXPECT_EQ(oracool::ClassTreeShownRank(barbarian, oracool::ClassTreeSkill::Bash), 2) << "an active through its spell level";
+	EXPECT_EQ(oracool::ClassTreeRank(barbarian, oracool::ClassTreeSkill::AxeMastery), 0) << "nothing for a skill not learned";
+
+	oracool::ClearWarcryBuffs(barbarian);
+	CalcPlrInv(barbarian, false);
+	EXPECT_EQ(oracool::ClassTreeRank(barbarian, oracool::ClassTreeSkill::SwordMastery), 1) << "gone with the command";
 }
 
 /**

@@ -92,7 +92,7 @@ TEST(OracoolCensusNotes, TheTenNotedSkillsAreBuiltTheWayTheNotesAsked)
 	EXPECT_EQ(oracool::ClassTreeSpellId(ClassTreeSkill::PlagueJavelin), SpellID::PlagueJavelin);
 	EXPECT_EQ(oracool::GetClassTreeSkillData(ClassTreeSkill::StaticField).kind, oracool::ClassTreeKind::Aura) << "like Holy Fire";
 	EXPECT_EQ(oracool::GetClassTreeSkillData(ClassTreeSkill::ThunderStorm).kind, oracool::ClassTreeKind::Aura);
-	EXPECT_EQ(oracool::RageCost(SpellID::WeaponThrow), 10) << "a Barbarian skill needs a Rage role";
+	EXPECT_EQ(oracool::RageCost(SpellID::WeaponThrow), 5) << "a Barbarian skill needs a Rage role (5 since 2026-09-29)";
 }
 
 TEST(OracoolCensusNotes, CustomEngineeringStrengthensRunesOnlyWhenSlotted)

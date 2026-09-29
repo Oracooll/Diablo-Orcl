@@ -1945,7 +1945,12 @@ void DrawGroupedHeader(const Surface &content, int top)
 		const uint64_t levelStart = ExpLvlsTbl[p._pLevel - 1];
 		into = p._pExperience >= levelStart ? p._pExperience - levelStart : 0;
 	}
-	oracool::DrawSheetBar(content, { { innerX, top + GroupedHeaderBarTop }, { innerWidth, GroupedHeaderBarHeight } }, into, span, 0xC8A04C, PAL16_YELLOW + 4);
+	// Two thirds of its row's height, centred in it, its frame and marks twice as thick and pale gold (dev note, 2026-09-29:
+	// "reduce height of exp bar in char window to 2/3rds of current size. make border and vertical separators twice
+	// thicker, golden color") - pale, so the marks still show over the gold fill.
+	constexpr int XpBarHeight = (GroupedHeaderBarHeight * 2 + 2) / 3;
+	oracool::DrawSheetBar(content, { { innerX, top + GroupedHeaderBarTop + (GroupedHeaderBarHeight - XpBarHeight) / 2 }, { innerWidth, XpBarHeight } },
+	    into, span, 0xC8A04C, PAL16_YELLOW + 4, /*fromRight=*/false, /*segments=*/10, /*lineWidth=*/2, 0xF2D68A, PAL16_YELLOW + 1);
 
 	// "1,284,300 / 1,520,000" on one row, "235,700 to level 35" on the next (their own rows since 2026-09-27).
 	const Rectangle xpLine { { innerX, top + GroupedHeaderXpInkTop - FieldLineInkOffset }, { innerWidth, FieldLineRectHeight } };
@@ -2150,8 +2155,10 @@ void DrawGroupedRightColumn(const Surface &content)
 		DrawLabelValue(content, FieldLine(box, FieldInkTop + shift), LanguageTranslate(row.label), GetResistInfo(row.value), row.color);
 		const Rectangle bar = BoxLine(box, FieldInkTop + InkHeight12 + FieldLineGap + shift, GroupedPoolBarHeight);
 		if (row.value >= 0) {
+			// Nine parts, a mark every 10 up to the cap (dev note, 2026-09-29: "resistance bars to be devided into 9, not 10,
+			// bars, each representing 10 resistance up to the 90 res cap").
 			oracool::DrawSheetBar(content, bar, static_cast<uint64_t>(row.value), static_cast<uint64_t>(oracool::ResistanceHardCap),
-			    row.barRgb, row.barIndex);
+			    row.barRgb, row.barIndex, /*fromRight=*/false, /*segments=*/oracool::ResistanceHardCap / 10);
 		} else {
 			oracool::DrawSheetBar(content, bar, static_cast<uint64_t>(-row.value), static_cast<uint64_t>(-oracool::ResistanceFloor),
 			    NegativeResistRgb, PAL16_RED + 2, /*fromRight=*/true);

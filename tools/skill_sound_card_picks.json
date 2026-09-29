@@ -60,6 +60,10 @@
    "path": "sfx\\items\\magic1.wav",
    "why": "the Barbarian Skill Cards page: Magic item 2"
   },
+  "barbarian.FindPotion.Cast": {
+   "path": "sfx\\items\\magic1.wav",
+   "why": "the Barbarian Skill Cards page: Magic item 2"
+  },
   "barbarian.Frenzy.Cast": {
    "path": "sfx\\misc\\sting1.wav",
    "why": "the Barbarian Skill Cards page: Arrow hit (Hellfire)"

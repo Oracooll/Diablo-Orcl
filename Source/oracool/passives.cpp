@@ -584,7 +584,7 @@ int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool 
 		percent += ManaAttunementPercent;
 	// Throwing Mastery (Barbarian, 2026-09-14): a missile from a Barbarian with no bow is a thrown weapon.
 	if (!melee && player._pClass == HeroClass::Barbarian && !player.UsesRangedWeapon() && PassiveActive(player, Skill::ThrowingMastery))
-		percent += ThrowingMasteryPercentAt(ClassTreeInvestment(player, Skill::ThrowingMastery));
+		percent += ThrowingMasteryPercentAt(ClassTreeRank(player, Skill::ThrowingMastery));
 	return percent;
 }
 

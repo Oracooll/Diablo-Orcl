@@ -12,6 +12,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
+#include "oracool/rfa12_actives.h"
 #include "oracool/whirlwind.h"
 #include "player.h"
 #include "spells.h"
@@ -53,6 +54,7 @@ TEST(OracoolRage, EveryBarbarianActiveIsTheUsersPick)
 		{ SpellID::WarCry, 10 },
 		// Whirlwind: 5 to START the spin, which then drains 5 a second (oracool/whirlwind.h, 2026-09-29).
 		{ SpellID::Whirlwind, 5 },
+		{ SpellID::WeaponThrow, 5 }, // dev note, 2026-09-29
 	};
 	for (const auto &[spell, gain] : generators) {
 		EXPECT_EQ(oracool::RageGain(spell), gain) << "spell " << static_cast<int>(spell);
@@ -219,6 +221,13 @@ TEST(OracoolRage, WhirlwindIsHeldOnTheRightButton)
 	EXPECT_TRUE(oracool::RightButtonOnly(SpellID::Whirlwind));
 	EXPECT_TRUE(oracool::RightButtonOnly(SpellID::Earthquake)) << "the Barbarian Skill Cards page, 2026-09-29";
 	EXPECT_FALSE(oracool::RightButtonOnly(SpellID::Bash));
+	// The dev notes of the same day: Leap, Ground Stomp, Rend and every active on the Warcries page are spells.
+	for (const SpellID spell : { SpellID::Leap, SpellID::GroundStomp, SpellID::Rend, SpellID::Howl, SpellID::FindPotion,
+	         SpellID::BattleCry, SpellID::BattleCommand, SpellID::WarCry, SpellID::ThreateningShout, SpellID::EarthshakerCry })
+		EXPECT_TRUE(oracool::RightButtonOnly(spell)) << "spell " << static_cast<int>(spell);
+	for (const SpellID spell : { SpellID::LeapAttack, SpellID::Frenzy, SpellID::WeaponThrow, SpellID::Cleave })
+		EXPECT_FALSE(oracool::RightButtonOnly(spell)) << "spell " << static_cast<int>(spell);
+	EXPECT_FALSE(oracool::IsRfa12Melee(SpellID::Rend)) << "Rend is cast round him now, not swung";
 	EXPECT_EQ(oracool::WhirlwindStrikeTicks, 5) << "four strikes a second, at 20 ticks a second";
 	EXPECT_EQ(oracool::WhirlwindRagePerSecond, 5);
 	devilution::Player &player = FreshBarbarian();

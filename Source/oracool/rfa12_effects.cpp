@@ -90,7 +90,7 @@ int PointsIfOn(const Player &player, Skill skill)
 	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
 	if (!data.implemented || data.heroClass != player._pClass || !IsClassTreeSkillUnlocked(player, skill))
 		return 0;
-	const int points = ClassTreeInvestment(player, skill);
+	const int points = ClassTreeRank(player, skill); // with Battle Command's rank (2026-09-29)
 	if (points <= 0)
 		return 0;
 	if (data.kind == ClassTreeKind::Aura && GetActiveClassAura(player) != skill)

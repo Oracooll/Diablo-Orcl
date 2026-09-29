@@ -138,35 +138,22 @@ OwnedClxSpriteList ScaleClxList(ClxSpriteList src, unsigned percent)
 	return SurfaceToClx(stacked, numFrames, transparent);
 }
 
-OwnedClxSpriteList SpinPingPongClxList(ClxSpriteList src, unsigned percent, unsigned frames, unsigned turns)
+OwnedClxSpriteList TurnedClxList(ClxSprite src, unsigned percent, unsigned steps)
 {
-	percent = std::clamp(percent, 25U, 400U);
-	frames = std::max(frames, 1U);
-	const uint32_t sourceFrames = src.numSprites();
-	std::vector<DecodedSprite> decoded;
-	decoded.reserve(sourceFrames);
-	int width = 1;
-	int height = 1;
-	for (uint32_t i = 0; i < sourceFrames; i++) {
-		decoded.push_back(DecodeSprite(src[i]));
-		width = std::max(width, decoded.back().width);
-		height = std::max(height, decoded.back().height);
-	}
-	const double scaledWidth = width * static_cast<double>(percent) / 100.0;
-	const double scaledHeight = height * static_cast<double>(percent) / 100.0;
-	// Square and wide enough for the frame at any angle: its diagonal, rounded up to even so the centre is a whole pixel.
+	percent = std::clamp(percent, 10U, 400U);
+	steps = std::max(steps, 1U);
+	const std::vector<DecodedSprite> decoded { DecodeSprite(src) };
+	const DecodedSprite &source = decoded[0];
+	const double scaledWidth = std::max(1.0, source.width * static_cast<double>(percent) / 100.0);
+	const double scaledHeight = std::max(1.0, source.height * static_cast<double>(percent) / 100.0);
+	// Square and wide enough for the sprite at any angle: its diagonal, rounded up to even so the centre is a whole pixel.
 	int side = static_cast<int>(std::ceil(std::hypot(scaledWidth, scaledHeight)));
 	side += side % 2;
 	const uint8_t transparent = PickUnusedIndex(decoded);
-	const uint32_t period = sourceFrames > 1 ? 2 * (sourceFrames - 1) : 1;
 
-	OwnedSurface stacked(side, side * static_cast<int>(frames));
-	for (unsigned k = 0; k < frames; k++) {
-		uint32_t index = k % period;
-		if (index >= sourceFrames)
-			index = period - index;
-		const DecodedSprite &source = decoded[index];
-		const double angle = 2.0 * 3.14159265358979323846 * turns * k / frames;
+	OwnedSurface stacked(side, side * static_cast<int>(steps));
+	for (unsigned k = 0; k < steps; k++) {
+		const double angle = 2.0 * 3.14159265358979323846 * k / steps;
 		const double c = std::cos(angle);
 		const double s = std::sin(angle);
 		const int frameTop = static_cast<int>(k) * side;
@@ -175,7 +162,7 @@ OwnedClxSpriteList SpinPingPongClxList(ClxSpriteList src, unsigned percent, unsi
 			const double dy = y + 0.5 - side / 2.0;
 			for (int x = 0; x < side; x++) {
 				const double dx = x + 0.5 - side / 2.0;
-				// Back through the turn into the scaled frame, then down to the source pixel.
+				// Back through the turn into the scaled sprite, then down to the source pixel.
 				const double sx = c * dx + s * dy + scaledWidth / 2.0;
 				const double sy = -s * dx + c * dy + scaledHeight / 2.0;
 				dst[x] = transparent;
@@ -189,7 +176,7 @@ OwnedClxSpriteList SpinPingPongClxList(ClxSpriteList src, unsigned percent, unsi
 			}
 		}
 	}
-	return SurfaceToClx(stacked, frames, transparent);
+	return SurfaceToClx(stacked, steps, transparent);
 }
 
 OwnedClxSpriteSheet ScaleClxSheet(ClxSpriteSheet src, unsigned percent)

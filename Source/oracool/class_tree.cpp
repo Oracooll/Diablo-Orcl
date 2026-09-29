@@ -23,6 +23,7 @@
 #include "oracool/necro_summoning.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
+#include "effects.h" // PlaySFX, IS_RBOOK - the passives' book
 #include "oracool/rfa12_effects.h"
 #include "oracool/skill_facts.h"
 #include "oracool/skill_points.h"
@@ -391,7 +392,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 0, 0, 2, Kind::Active, SpellID::Backhand, true },
 	{ N_("Ground Stomp"), N_("Stuns everything beside you for 1.5 seconds, +0.2 per level. Uniques shrug it off."),
 	    Bar, 0, 1, 2, Kind::Active, SpellID::GroundStomp, true },
-	{ N_("Rend"), N_("A tearing blow at +20% damage, +5% per level, that makes the target bleed for 4 seconds: 3 damage a second, +2 per level."),
+	{ N_("Rend"), N_("A curse that tears at everything within 3 tiles: each one bleeds for 4 seconds, 3 damage a second, +2 per level."),
 	    Bar, 0, 2, 2, Kind::Active, SpellID::Rend, true },
 	{ N_("Hammer of the Ancients"), N_("One huge blow at +150% damage, +15% per level."),
 	    Bar, 0, 3, 2, Kind::Active, SpellID::HammerOfTheAncients, true },
@@ -2298,6 +2299,26 @@ int ClassTreeInvestment(const Player &player, Skill skill)
 	return player._pClassTreeInvestment[index];
 }
 
+int ClassTreeBonusRanks(const Player &player)
+{
+	return WarcryBuffTicks(player, SpellID::BattleCommand) > 0 ? 1 : 0;
+}
+
+int ClassTreeRank(const Player &player, Skill skill)
+{
+	const int points = ClassTreeInvestment(player, skill);
+	return points > 0 ? points + ClassTreeBonusRanks(player) : 0;
+}
+
+int ClassTreeShownRank(const Player &player, Skill skill)
+{
+	if (ClassTreeInvestment(player, skill) <= 0)
+		return 0;
+	if (const SpellID spell = ClassTreeSpellId(skill); GetClassTreeSkillData(skill).kind == Kind::Active && IsValidSpell(spell))
+		return std::max(player.GetSpellLevel(spell), 1);
+	return ClassTreeRank(player, skill);
+}
+
 bool IsClassTreeRowRetiredAsSpell(Skill skill)
 {
 	return SpellHasBook(ClassTreeSpellId(skill));
@@ -2372,9 +2393,15 @@ int InvestClassTreePoints(Player &player, Skill skill, int count)
 		// first cast. The rest get the interface click instead, so a point spent is never silent.
 		// A passive delivered with a Start cue and no Learn cue (Warmth, Enchant) rings its start rather than the
 		// generic click (asset audit, 2026-09-26: those cues were packed and never heard).
-		if (!PlaySkillSound(skill, SkillSoundEvent::Learn)
-		    && !(GetClassTreeSkillData(skill).kind == Kind::Passive && PlaySkillSound(skill, SkillSoundEvent::Start)))
-			PlayUiSelectSound();
+		// Every other passive takes the masteries' book (dev note, 2026-09-29: "make sure all passives in sheet 2 make the
+		// same sound when point is added to them") - Grip of Iron and the RfA-12 rows beside the masteries clicked.
+		const bool passive = GetClassTreeSkillData(skill).kind == Kind::Passive;
+		if (!PlaySkillSound(skill, SkillSoundEvent::Learn) && !(passive && PlaySkillSound(skill, SkillSoundEvent::Start))) {
+			if (passive)
+				PlaySFX(IS_RBOOK);
+			else
+				PlayUiSelectSound();
+		}
 	}
 	ScheduleAutoSaveForSkillChange();
 	return spent;
@@ -2776,14 +2803,14 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 
 	if (const Skill aura = GetActiveClassAura(player);
 	    aura != Skill::None && IsClassTreeSkillUnlocked(player, aura)) {
-		ApplyAura(aura, ClassTreeInvestment(player, aura), totals);
+		ApplyAura(aura, ClassTreeRank(player, aura), totals);
 		// An aura's level-up stat burns with it, and goes out with it.
 		if (GetClassTreeSkillData(aura).implemented)
 			ApplyLevelUpStat(aura, ClassTreeInvestment(player, aura), totals);
 		// The two RfA-12 auras whose number is the character's own: Endurance is a share of the base life,
 		// and Symphony of War lends half of every other Melody song the Bard has learned.
 		if (aura == Skill::Endurance && GetClassTreeSkillData(aura).implemented) {
-			const int p = ClassTreeInvestment(player, aura);
+			const int p = ClassTreeRank(player, aura);
 			totals.hitPoints += player._pMaxHPBase * EnduranceLifePercent(p) / 100;
 		}
 		if (aura == Skill::SymphonyOfWar && GetClassTreeSkillData(aura).implemented) {
@@ -2836,7 +2863,7 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 		}
 		const int points = ClassTreeInvestment(player, skill);
 		if (points > 0) {
-			ApplyPassive(player, skill, points, totals);
+			ApplyPassive(player, skill, ClassTreeRank(player, skill), totals); // Battle Command's rank too (2026-09-29)
 			ApplyLevelUpStat(skill, points, totals);
 		}
 	}
@@ -3369,13 +3396,23 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 	// own formula (oracool/skill_facts.h). THE TWO RULES (user, 2026-09-26): every rank grows something,
 	// and this block shows the main effect and the level-up stat, both with numbers.
 	// test/oracool_skill_rules_test.cpp walks every row of every class to its cap against it.
+	// Battle Command's rank (2026-09-29): an active has it in its spell level with the items', a passive or aura as
+	// ClassTreeBonusRanks. A passive's numbers are drawn at the rank it works at; an active's block adds the levels itself.
+	const bool isActive = GetClassTreeSkillData(skill).kind == Kind::Active;
+	const int commanded = ClassTreeBonusRanks(player);
+	const int passiveBonus = isActive ? 0 : commanded;
 	if (p > 0) {
-		const int itemLevels = GetClassTreeSkillData(skill).kind == Kind::Active ? player._pISplLvlAdd : 0;
+		const int itemLevels = isActive ? player._pISplLvlAdd - commanded : 0;
+		std::string from;
 		if (itemLevels != 0)
-			add(fmt::format(fmt::runtime(_("Current Skill Level: {:d} ({:+d} from items)")), p, itemLevels));
+			from = fmt::format(fmt::runtime(_("{:+d} from items")), itemLevels);
+		if (commanded != 0)
+			from += (from.empty() ? "" : ", ") + fmt::format(fmt::runtime(_("{:+d} from Battle Command")), commanded);
+		if (!from.empty())
+			add(fmt::format(fmt::runtime(_("Current Skill Level: {:d} ({:s})")), p, from));
 		else
 			add(fmt::format(fmt::runtime(_("Current Skill Level: {:d}")), p));
-		add(ClassTreeRankBlock(player, skill, p));
+		add(ClassTreeRankBlock(player, skill, p + passiveBonus));
 	} else {
 		add(std::string(_("Not learned")));
 	}
@@ -3391,7 +3428,7 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 			out += "\n"; // the gap D2 leaves between the two blocks
 			add(std::string(p == 0 ? _("First Level") : _("Next Level")));
 			add(fmt::format(fmt::runtime(_("Requires level {:d}")), RankRequiredLevel(ClassTreeTierMinLevel(data.tier), p + 1)));
-			add(ClassTreeRankBlock(player, skill, p + 1));
+			add(ClassTreeRankBlock(player, skill, p + 1 + (p > 0 ? passiveBonus : 0)));
 		}
 	}
 	if (!data.implemented)

@@ -331,13 +331,6 @@ void SetMissDir(Missile &missile, int dir);
 void ScaleMissile(Missile &missile, int percent, int floor = -1);
 
 /**
- * @brief Oracool (the Barbarian Skill Cards page, 2026-09-29): @p missile plays its sheet at @p percent of its size,
- * forward and back, turning @p turns whole turns over @p frames sprites of @p delay ticks each, then again - see
- * oracool::SpinPingPongClxList. Its centre sits on its tile, a floor effect. Does nothing headless, or to borrowed sprites.
- */
-void SpinMissile(Missile &missile, int percent, int frames, int turns, int delay);
-
-/**
  * @brief Sets the sprite for this missile so it matches the given Direction
  * @param missile this object
  * @param dir Desired facing

@@ -24,6 +24,8 @@
 #include <optional>
 
 #include "engine/clx_sprite.hpp"
+#include "engine/point.hpp"
+#include "engine/surface.hpp"
 #include "spelldat.h"
 
 namespace devilution {
@@ -39,9 +41,13 @@ constexpr int WhirlwindRagePerSecond = 5;
 /** Ticks per step of the spin's turn through the eight facings. */
 constexpr int WhirlwindTurnTicks = 1;
 
+/** The Barbarian's Warcries tab, as ClassTreeSkillData::page numbers it. */
+constexpr int BarbarianWarcriesPage = 2;
+
 /**
- * @brief Whether @p spell may only sit on the right button: Whirlwind, which is held there, and Earthquake (the Barbarian
- * Skill Cards page, 2026-09-29: "to be assignable to right key only"). The left button's menu shows them on a red plate.
+ * @brief Whether @p spell may only sit on the right button - the Barbarian's spells (2026-09-29): Whirlwind, which is held
+ * there, Earthquake, Leap, Ground Stomp, Rend and every active on his Warcries page. The left button's menu shows them on
+ * a red plate.
  */
 bool RightButtonOnly(SpellID spell);
 
@@ -66,8 +72,20 @@ void ProcessWhirlwindTick(Player &player);
 /** @brief What a blow of the spin deals, in percent of a normal one, at @p rank: 66%, +5% a rank. */
 int WhirlwindDamagePercent(int rank);
 
-/** @brief The sprite to draw @p player with while the spin lasts - the magic cast sheet, turning - or none. */
+/**
+ * @brief The sprite to draw @p player with while the spin lasts - the magic cast sheet, turning - or none. Only the frames
+ * with the cloud fully round him, forward and back, so it never builds up again (dev note, 2026-09-29: "i want to have the
+ * cloud on all the time during whirlwinding").
+ */
 std::optional<ClxSprite> WhirlwindSprite(const Player &player);
+
+/**
+ * @brief The weapons circling @p player in the cloud while he spins (same note: "maybe 2 axes and 2 swords"): the
+ * inventory's small axe and short sword at about the size of the one in his hand, each turning end over end as it goes
+ * round. @p front draws the half of the circle on the camera's side of him (after the hero), false the far half (before).
+ * @p foot is where his sprite's bottom edge meets the tile - DrawPlayer's target position.
+ */
+void DrawWhirlwindBlades(const Surface &out, const Player &player, Point foot, bool front);
 
 } // namespace oracool
 } // namespace devilution

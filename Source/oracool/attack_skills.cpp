@@ -100,7 +100,7 @@ int WellRank(const Player &player, SpellID spell)
 		return 0; // the basic attack, which has no rank - see the header on why it is Invalid
 	if (const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, spell);
 	    row != ClassTreeSkill::None) {
-		return ClassTreeInvestment(player, row);
+		return ClassTreeShownRank(player, row); // with items and Battle Command (2026-09-29)
 	}
 	return player.GetSpellLevel(spell);
 }

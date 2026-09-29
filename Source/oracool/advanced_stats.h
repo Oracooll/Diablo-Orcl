@@ -122,9 +122,13 @@ bool DrawSheetShadow(const Surface &out, Rectangle rect);
  * every 10% - the HUD XP bar's frame and marks (2026-09-26). @p fromRight fills from the right edge leftwards, the
  * light flowing that way too - a negative resistance's bar (2026-09-27). @p fallbackIndex is the palette colour used
  * on an indexed surface (the tests' surfaces).
+ *
+ * @p segments: how many parts the marks cut it into - 9 for a resistance, a mark every 10 up to the 90 cap (dev note,
+ * 2026-09-29). @p lineWidth, @p lineRgb and @p lineIndex: the frame's and the marks' thickness and colour, lineRgb 0
+ * for the grey ones - the character window's XP bar has them twice as thick, in gold (same day).
  */
 void DrawSheetBar(const Surface &out, Rectangle rect, uint64_t value, uint64_t maximum, uint32_t rgb, uint8_t fallbackIndex,
-    bool fromRight = false);
+    bool fromRight = false, int segments = 10, int lineWidth = 1, uint32_t lineRgb = 0, uint8_t lineIndex = 0);
 
 /** @brief Test hook: at 0 or above, the bars' colour cycle reads this many milliseconds instead of the clock. */
 extern DVL_API_FOR_TEST int32_t SheetBarClockOverrideMs;

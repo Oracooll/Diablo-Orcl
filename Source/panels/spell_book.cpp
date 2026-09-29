@@ -1280,8 +1280,9 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 			    StrCat(player.GetSpellLevel(rowSpell)));
 		return;
 	}
+	// The rank it works at now - items and Battle Command included (dev note, 2026-09-29) - not the points alone.
 	if (invested > 0)
-		oracool::DrawBadge(content, icon, oracool::BadgeCorner::BottomRight, StrCat(invested));
+		oracool::DrawBadge(content, icon, oracool::BadgeCorner::BottomRight, StrCat(oracool::ClassTreeShownRank(player, skill)));
 	// The green plus and red minus are GONE (user, 2026-08-20: "We remover the + and - symbols.
 	// Skills eligible for bump just lit brighter than the rest").
 	//

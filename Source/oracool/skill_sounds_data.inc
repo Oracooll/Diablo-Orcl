@@ -34,7 +34,7 @@ const SkillSound SkillSounds[] = {
 	{ Skill::Earthquake, SkillSoundEvent::Impact, "sfx\\misc\\nestxpld.wav" },
 	{ Skill::EarthshakerCry, SkillSoundEvent::Cast, "monsters\\diablo\\diabloa2.wav" },
 	{ Skill::FindItem, SkillSoundEvent::Cast, "sfx\\items\\magic1.wav" },
-	{ Skill::FindPotion, SkillSoundEvent::Cast, "monsters\\mega\\megas1.wav" },
+	{ Skill::FindPotion, SkillSoundEvent::Cast, "sfx\\items\\magic1.wav" },
 	{ Skill::Frenzy, SkillSoundEvent::Cast, "sfx\\misc\\sting1.wav" },
 	{ Skill::GrimWard, SkillSoundEvent::Cast, "sfx\\misc\\golum.wav" },
 	{ Skill::GroundStomp, SkillSoundEvent::Impact, "sfx\\misc\\holybolt.wav" },

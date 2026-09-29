@@ -222,6 +222,23 @@ void Ring(Player &player, Point tile)
 	AddMissile(tile, tile, player._pdir, MissileID::WarcryRing, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
 }
 
+/** @brief Ticks between Earthquake's rings: five a second, three or four growing at once. */
+constexpr int EarthquakeRingTicks = 4;
+
+/**
+ * @brief A cry's ring on @p tile grown to reach @p reach tiles (dev notes, 2026-09-29: Earthquake's and Rend's rings
+ * "scale them to a size matching the range"). The sheet's ring ends 150px wide; a reach of R tiles is about 90R across,
+ * so 60% of the sheet a tile. Its centre stays on the floor, 80px up its 160px cell. Null while the sheet is missing.
+ */
+Missile *ReachRing(Player &player, Point tile, int reach)
+{
+	Missile *ring = AddMissile(tile, tile, player._pdir, MissileID::WarcryRing, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
+	if (ring == nullptr || ring->_miDelFlag)
+		return nullptr;
+	ScaleMissile(*ring, 60 * std::max(reach, 1), 80);
+	return ring;
+}
+
 Point LineEnd(Point from, Point toward, int length); // below, with the travelling waves
 
 /**
@@ -302,8 +319,6 @@ void Impact(const Player &player, SpellID spell)
 	if (row != ClassTreeSkill::None)
 		PlaySkillSound(row, SkillSoundEvent::Impact);
 }
-
-void LoadMonsterOwnedArt(MissileGraphicID art);
 
 /** @brief A sheet standing on @p tile (AddArtEffect, with its delivery anchor). Null while it is not in the archive. */
 Missile *Art(const Player &player, MissileGraphicID art, Point tile, int ticks = 0)
@@ -835,6 +850,7 @@ int ReachTiles(SpellID spell, int r)
 {
 	const int p = r - 1;
 	switch (spell) {
+	case SpellID::Rend: return 3; // a cast round him since 2026-09-29
 	case SpellID::HeavensDescent: return 6;
 	case SpellID::WrathOfTheHeavens: return 5;
 	case SpellID::SeismicSlam: return 5;
@@ -997,7 +1013,6 @@ bool IsMeleeSpell(SpellID spell)
 	case SpellID::AegisSlam:
 	case SpellID::Cleave:
 	case SpellID::Backhand: // a swing since 2026-09-27 - see ApplyRfa12MeleeOnSwing
-	case SpellID::Rend:
 	case SpellID::HammerOfTheAncients:
 	case SpellID::ClaspOfRuin:
 	case SpellID::CinderTouch:
@@ -1026,7 +1041,6 @@ int MeleeBonusPercent(SpellID spell, int rank)
 	case SpellID::TigerClaw:
 	case SpellID::ExplodingPalm:
 		return 10 + 3 * p;
-	case SpellID::Rend:
 	case SpellID::ClaspOfRuin:
 	case SpellID::TurningPike:
 		return 20 + 5 * p;
@@ -1212,11 +1226,30 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		for (Monster *m : around)
 			Stagger(*m, StunTicks(spell, r));
 		EarthenMightRage(player, around.size());
+		// RfA-27 batch 55: the cracked ring at his feet, in place of the cry's shockwave (Rfa12CastLeavesRing). On every
+		// stomp, anything in reach or not, and at twice its size (dev notes, 2026-09-29); its floor point is 29px up.
+		if (Missile *ring = Art(player, MissileGraphicID::GroundStomp, here); ring != nullptr)
+			ScaleMissile(*ring, 200, 29);
 		if (around.empty())
 			return false;
-		// RfA-27 batch 55: the cracked ring at his feet, in place of the cry's shockwave (Rfa12CastLeavesRing).
-		Art(player, MissileGraphicID::GroundStomp, here);
 		Impact(player, spell); // its Impact cue, when it stuns anything (the Barbarian Skill Cards page, 2026-09-29)
+		return true;
+	}
+	case SpellID::Rend: {
+		// A spell since the dev notes of 2026-09-29, D3's shape: "rend to play magic cast sprite animation and to apply to
+		// all mobs within range as a curse. use the war cry anymation as visual effect when rend cast and increase its scale
+		// to the range rend affects mobs". Everything within reach bleeds for the skill's four seconds; the ring, blood
+		// red and grown to that reach, goes out whether anything is there or not.
+		if (Missile *ring = ReachRing(player, here, ReachTiles(spell, r)); ring != nullptr) {
+			ring->oracoolTint = Tint::HueCycle;
+			ring->oracoolTintRgb = hue::Infrared;
+		}
+		const auto torn = MonstersWithin(here, ReachTiles(spell, r));
+		for (Monster *m : torn)
+			Bleed(*m, EffectTicks(spell, r), PerSecond(spell, r));
+		if (torn.empty())
+			return false;
+		Impact(player, spell);
 		return true;
 	}
 	case SpellID::SeismicSlam: {
@@ -1230,19 +1263,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::Earthquake: {
 		Field *f = NewField(player, spell, here, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
-		// The Barbarian Skill Cards page (2026-09-29): vanilla's Blue Flare Explosion at 150%, looping forward and back for
-		// the quake's four seconds while it turns, colour-cycled in brown ("this animation should loop back and forth for
-		// 4 seconds, while rotating and colorcycling with brown color") - the molten brown to dark orange of v1.12.211.
-		// 36 sprites of 2 ticks: two plays forward and back and one whole turn every 3.6 seconds. The quake's own cracked
-		// ground (RfA-27 batch 55) stands in while the flare's sheet cannot load; each pulse's ring while neither can.
-		LoadMonsterOwnedArt(MissileGraphicID::BlueFlareExplosion);
-		if (Missile *flare = Art(player, MissileGraphicID::BlueFlareExplosion, here, EffectTicks(spell, r)); flare != nullptr) {
-			SpinMissile(*flare, 150, 36, 1, 2);
-			flare->_miPreFlag = true; // on the floor, under whatever stands in it
-			flare->oracoolTint = Tint::Earthquake;
-		} else if (Missile *quake = Art(player, MissileGraphicID::Earthquake, here, EffectTicks(spell, r)); quake != nullptr) {
-			quake->oracoolTint = Tint::Earthquake;
-		}
+		// Drawn as cry rings, one after another for the four seconds (TickField), sized to its reach (dev note,
+		// 2026-09-29: "replace current animation with war cray animation, but release wave one after the other rapidly for
+		// four seconds"). The v1.12.223 spinning flare is gone with it.
 		return true;
 	}
 	case SpellID::ThreateningShout: {
@@ -2325,10 +2348,12 @@ void TickField(Player &player, Field &field)
 			for (Monster *m : shaken)
 				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(field.spell, r)));
 			EarthenMightRage(player, shaken.size());
-			// The flare (or the quake's own ground) stands for all four seconds; the ring only when neither loads.
-			if (!MissileArtLoaded(MissileGraphicID::BlueFlareExplosion) && !MissileArtLoaded(MissileGraphicID::Earthquake))
-				Ring(player, field.tile);
 			Impact(player, field.spell); // one tremor pulse a second
+		}
+		// A ring every fifth of a second, in the quake's molten brown to dark orange (v1.12.211's cycle) - its look.
+		if (field.clock % EarthquakeRingTicks == 0) {
+			if (Missile *ring = ReachRing(player, field.tile, ReachTiles(field.spell, r)); ring != nullptr)
+				ring->oracoolTint = Tint::Earthquake;
 		}
 		break;
 	case SpellID::BrittleGround:
@@ -2612,11 +2637,13 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 		if (landedOn)
 			HolyBurst(player, *landedOn, 25, hue::SpectralLavender);
 		break;
-	// Vanilla's Blood Star sheets at half size in place of the delivered strikes (the Barbarian Skill Cards page,
-	// 2026-09-29): the red explosion for Rend, the blue star for Clasp of Ruin, the star for Hammer of the Ancients.
-	case SpellID::Rend: flash = MissileGraphicID::BloodStarRedExplosion, artScale = 50; break;
+	// Vanilla's Blood Star Blue at half size in place of its delivered strike (the Barbarian Skill Cards page, 2026-09-29).
 	case SpellID::ClaspOfRuin: flash = MissileGraphicID::BloodStarBlue, artScale = 50; break;
-	case SpellID::HammerOfTheAncients: flash = MissileGraphicID::BloodStar, artScale = 50; break;
+	case SpellID::HammerOfTheAncients:
+		// Holy Bolt's burst, full size, infrared (dev note, 2026-09-29); was the Blood Star at half size.
+		if (landedOn)
+			HolyBurst(player, *landedOn, 100, hue::Infrared);
+		break;
 	case SpellID::CinderTouch: flash = MissileGraphicID::CinderTouch; break;
 	case SpellID::TigerClaw: flash = MissileGraphicID::TigerClaw; break;
 	case SpellID::PressurePoint: flash = MissileGraphicID::PressurePoint; break;
@@ -2812,12 +2839,6 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 			struck = true;
 			landedBlows++;
-		}
-		break;
-	case SpellID::Rend:
-		if (alive) {
-			Bleed(*front, EffectTicks(spell, r), PerSecond(spell, r));
-			struck = true;
 		}
 		break;
 	case SpellID::ClaspOfRuin:
@@ -3555,8 +3576,8 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		say(_("Stun: {} s, everything beside you (uniques shrug it off)"), Secs(StunTicks(spell, r)));
 		break;
 	case SpellID::Rend:
-		blowBonus();
 		bleed();
+		say(_("Radius: {:d} tiles"), reach);
 		break;
 	case SpellID::HammerOfTheAncients:
 		blowBonus();
