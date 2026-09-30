@@ -225,6 +225,8 @@ void DrawHalfTransparentVerticalLine(const Surface &out, Point from, int height,
 
 void DrawHalfTransparentRectTo(const Surface &out, int sx, int sy, int width, int height)
 {
+	if (width <= 0 || height <= 0)
+		return; // a negative size ran the unsigned loop four billion times (round 37 audit)
 	if (sx + width < 0)
 		return;
 	if (sy + height < 0)
@@ -256,6 +258,8 @@ void DrawHalfTransparentRectTo(const Surface &out, int sx, int sy, int width, in
 
 void DrawHalfTransparentRectTo(const Surface &out, int sx, int sy, int width, int height, uint8_t color)
 {
+	if (width <= 0 || height <= 0)
+		return; // as above (round 37 audit)
 	if (sx + width < 0)
 		return;
 	if (sy + height < 0)

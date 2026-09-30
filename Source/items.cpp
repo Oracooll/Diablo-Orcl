@@ -2413,14 +2413,15 @@ _unique_items CheckUnique(Item &item, int lvl, int uper, bool recreate, bool all
 		return UITEM_INVALID;
 
 	DiscardRandomValues(1);
+	int pick = numu; // the LAST eligible, as vanilla: a seed rebuilds into the unique it was (pack_test goldens)
 	// uint16_t and MaxUniqueItems, both of which were a uint8_t and a literal 128. With 230 uniques
 	// in the table the old pair could neither represent an id past 255 nor walk past index 127, so
 	// every unique the expansion added was unreachable even before the bitset overran.
 	uint16_t itemData = 0;
-	while (numu > 0) {
+	while (pick > 0) {
 		if (uok[itemData])
-			numu--;
-		if (numu > 0)
+			pick--;
+		if (pick > 0)
 			itemData = static_cast<uint16_t>((itemData + 1) % MaxUniqueItems);
 	}
 
@@ -2706,6 +2707,10 @@ void SetupAllUseful(Item &item, int iseed, int lvl)
 		if (lvl > 1 && FlipCoin(3))
 			idx = IDI_PORTAL;
 	}
+	// Not a Town Portal scroll where the portal is a built-in ability (round 37 audit: barrels and chests still gave them).
+	// A fresh roll only: a stored seed rebuilds into what it was (the pack_test goldens replay a Town Portal scroll).
+	if (idx == IDI_PORTAL && !ReplayingStoredItemSeed && oracool::IsBuiltInPortalAbility(SpellID::TownPortal))
+		idx = IDI_HEAL;
 
 	GetItemAttrs(item, idx, lvl);
 	// Held to the 6-bit field (audit, 2026-09-27): area level 64 - Torment's floors 16 and 24 - stored as 0, and the scroll
@@ -7207,7 +7212,8 @@ void ApplyMagicAndGoldFindToDrop(Item &item, int mLevel)
 		return;
 	}
 
-	const int magicFind = MyPlayer->_pMagicFind;
+	// Capped at 75 (round 37 audit): uncapped, 100 turned every white weapon and armour into a Rare.
+	const int magicFind = std::min<int>(MyPlayer->_pMagicFind, 75);
 	if (magicFind <= 0 || item._iMagical != ITEM_QUALITY_NORMAL || item.hasOracoolTier())
 		return;
 	if (item._iClass != ICLASS_WEAPON && item._iClass != ICLASS_ARMOR)
@@ -9109,7 +9115,11 @@ void SpawnWitch(int lvl)
 
 		if (i < PinnedItemCount) {
 			item._iSeed = AdvanceRndSeed();
-			GetItemAttrs(item, PinnedItemTypes[i], 1);
+			// Not a Town Portal scroll where the portal is built in (round 37 audit): a healing potion stands in.
+			const _item_indexes pinned = PinnedItemTypes[i] == IDI_PORTAL && oracool::IsBuiltInPortalAbility(SpellID::TownPortal)
+			    ? IDI_HEAL
+			    : PinnedItemTypes[i];
+			GetItemAttrs(item, pinned, 1);
 			item._iCreateInfo = lvl;
 			item._iStatFlag = true;
 			continue;
@@ -9469,7 +9479,11 @@ void SpawnHealer(int lvl)
 
 		if (i < PinnedItemCount || (gbIsMultiplayer && i == PinnedItemCount)) {
 			item._iSeed = AdvanceRndSeed();
-			GetItemAttrs(item, PinnedItemTypes[i], 1);
+			// Not a Town Portal scroll where the portal is built in (round 37 audit): a healing potion stands in.
+			const _item_indexes pinned = PinnedItemTypes[i] == IDI_PORTAL && oracool::IsBuiltInPortalAbility(SpellID::TownPortal)
+			    ? IDI_HEAL
+			    : PinnedItemTypes[i];
+			GetItemAttrs(item, pinned, 1);
 			item._iCreateInfo = lvl;
 			item._iStatFlag = true;
 			continue;

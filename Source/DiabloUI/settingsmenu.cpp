@@ -490,6 +490,10 @@ void UiSettingsMenu()
 				// Ignore unknown keys
 				if (key == SDLK_UNKNOWN)
 					return false;
+				// Nor the reserved ones: F1-F12 are answered before the keymapper, so a binding there never fired and silently
+				// unbound whatever held the key (round 37 audit).
+				if (key >= SDLK_F1 && key <= SDLK_F12)
+					return false;
 				auto *pOptionKey = static_cast<KeymapperOptions::Action *>(selectedOption);
 				if (!pOptionKey->SetValue(key))
 					return false;

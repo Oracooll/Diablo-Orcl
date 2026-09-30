@@ -2788,7 +2788,8 @@ void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 		for (int i = storenumh - 1; i >= 0 && next < 0; i--) {
 			// Never a socketed item with stones in it: the price is the base's alone, and an Enigma went for a white body's
 			// quarter with its runes (round 24 audit, v1.12.249). One at a time from the list still sells it.
-			// Nor a quest's jewellery reward, the Auric Amulet (round 36 audit): one at a time only.
+			// Nor a quest's jewellery reward - the Auric and Optic Amulets, the Empyrean Band, the Ring of Truth (round 36
+			// audit): one at a time only.
 			const bool questJewel = (storehold[i]._iLoc == ILOC_RING || storehold[i]._iLoc == ILOC_AMULET)
 			    && AllItemsList[storehold[i].IDidx].iRnd == IDROP_NEVER;
 			if (storehTabIdx[i] < 0 && storehold[i].socketedCount() == 0 && !questJewel)
@@ -4089,6 +4090,9 @@ void CloseRefreshUntilPrompt()
 	SDL_StopTextInput();
 	IsRefreshUntilPromptOpen = false;
 	RefreshUntilPromptInputState = std::nullopt;
+	// Every close but Enter's cancels (round 37 audit: the window's X, a walk-away or Space left the half-typed names in
+	// place, and the next save wrote them to the ini). Enter commits by making the edit the "before".
+	CopyUtf8(sgOptions.Oracool.refreshUntilItemNames, RefreshUntilNamesBeforeEdit, sizeof(sgOptions.Oracool.refreshUntilItemNames));
 }
 
 void RefreshUntilPromptKeyPress(SDL_Keycode vkey)
@@ -4097,6 +4101,7 @@ void RefreshUntilPromptKeyPress(SDL_Keycode vkey)
 	case SDLK_RETURN:
 	case SDLK_KP_ENTER: {
 		const std::string result = RefreshPremiumUntilTarget();
+		RefreshUntilNamesBeforeEdit = sgOptions.Oracool.refreshUntilItemNames; // committed: the close keeps it
 		CloseRefreshUntilPrompt();
 		StartStore(TalkID::SmithPremiumBuy);
 		stextsel = PremiumRefreshUntilLine();

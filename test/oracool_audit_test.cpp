@@ -16551,6 +16551,7 @@ TEST(OracoolAudit, ServiceTabEntriesMapToTheirWornSlot)
 {
 	const TalkID savedFlag = stextflag;
 	const int savedCount = storenumh;
+	const std::array<int8_t, 3> savedIdx { storehidx[0], storehidx[1], storehidx[2] };
 	storenumh = 3;
 	storehidx[0] = -2; // the repair table's second slot: the chest
 	storehidx[1] = -3; // its third: the weapon hand
@@ -16570,4 +16571,6 @@ TEST(OracoolAudit, ServiceTabEntriesMapToTheirWornSlot)
 	EXPECT_EQ(ListedBodySlotFor(3), -1); // past the list
 	stextflag = savedFlag;
 	storenumh = savedCount;
+	for (size_t i = 0; i < savedIdx.size(); i++)
+		storehidx[i] = savedIdx[i];
 }

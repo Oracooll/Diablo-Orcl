@@ -990,7 +990,7 @@ void RenderBlackTileClipLeftAndVertical(Pixel *DVL_RESTRICT dst, uint16_t dstPit
 		const auto curX = sx + TILE_WIDTH / 2 - XStep * i;
 		if (curX >= 0) {
 			BlitFillDirect(dst, w, 0);
-		} else if (-curX <= w) {
+		} else if (-curX < w) { // not a zero length: BlitFillDirect assumes one (round 37 audit)
 			BlitFillDirect(dst - curX, w + curX, 0);
 		}
 	}
@@ -1002,7 +1002,7 @@ void RenderBlackTileClipLeftAndVertical(Pixel *DVL_RESTRICT dst, uint16_t dstPit
 		const auto curX = sx + TILE_WIDTH / 2 - XStep * (TriangleUpperHeight - i);
 		if (curX >= 0) {
 			BlitFillDirect(dst, w, 0);
-		} else if (-curX <= w) {
+		} else if (-curX < w) { // not a zero length: BlitFillDirect assumes one (round 37 audit)
 			BlitFillDirect(dst - curX, w + curX, 0);
 		} else {
 			break;

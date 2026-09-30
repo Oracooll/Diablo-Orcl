@@ -85,7 +85,7 @@ bool IsSalvageable(const Item &item)
 	// same test the socket system already uses to let a ring take a gem, so this fork was already
 	// treating them as first-class equipment everywhere except here.
 	if (item._iLoc == ILOC_RING || item._iLoc == ILOC_AMULET)
-		return AllItemsList[item.IDidx].iRnd != IDROP_NEVER; // not a quest's reward, the Auric Amulet (round 36 audit)
+		return AllItemsList[item.IDidx].iRnd != IDROP_NEVER; // not a quest's reward: the Auric and Optic Amulets, the Empyrean Band, the Ring of Truth (round 36)
 	if (item._iClass == ICLASS_MISC)
 		return false;
 	// Weapons and armour, which is what is left.

@@ -12,6 +12,7 @@
 
 #include "controls/plrctrls.h"
 #include "engine.h"
+#include "engine/backbuffer_state.hpp"
 #include "options.h"
 #include "utils/display.h"
 #include "utils/log.hpp"
@@ -124,6 +125,9 @@ void dx_cleanup()
 
 void CreateBackBuffer()
 {
+	// The cursor's saved states are keyed by the buffer's address: a new buffer at an old one's took its saved rect, and
+	// the restore wrote past the new, smaller buffer (round 37 audit).
+	InitBackbufferState();
 	if (CanRenderDirectlyToOutputSurface()) {
 		Log("{}", "Will render directly to the SDL output surface");
 		PalSurface = GetOutputSurface();

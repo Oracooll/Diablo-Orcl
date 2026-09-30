@@ -496,7 +496,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 3, 0, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Glass Cannon"), N_("+15% damage and -10% armour."),
 	    Sor, 3, 1, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Prodigy"), N_("Spells costing 6 mana or less give 3 of it back."),
+	{ N_("Prodigy"), N_("Spells costing 6 mana or less give up to 3 of it back, never more than half."),
 	    Sor, 3, 1, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Astral Presence"), N_("You hold twenty more mana."),
 	    Sor, 3, 1, 2, Kind::Passive, SpellID::Invalid, true, 1 },

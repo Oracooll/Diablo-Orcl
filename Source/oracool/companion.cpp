@@ -389,7 +389,10 @@ int FreeSlot(const Instance &inst)
 
 bool Targetable(const Monster &monster)
 {
-	return !monster.isPlayerMinion() && !IsMonsterConverted(monster) && (monster.hitPoints >> 6) > 0 // a convert fights beside it (round 36) && monster.isPossibleToHit() && (monster.flags & MFLAG_HIDDEN) == 0
+	// A convert fights beside it (round 36). This comment sat mid-line in v1.12.262 and swallowed the hit and hidden tests
+	// (round 37 audit: a Valkyrie could strike Lachdanan).
+	return !monster.isPlayerMinion() && !IsMonsterConverted(monster) && (monster.hitPoints >> 6) > 0
+	    && monster.isPossibleToHit() && (monster.flags & MFLAG_HIDDEN) == 0
 	    && monster.position.tile != GolemHoldingCell && monster.mode != MonsterMode::Death;
 }
 
@@ -1076,7 +1079,8 @@ void NoteOwnerStruck(const Player &player, const Monster &monster)
 
 int CompanionTauntTarget(const Monster &monster)
 {
-	if (monster.isPlayerMinion() || (monster.hitPoints >> 6) <= 0)
+	// Nor a convert: it is on the companion's side (round 37 audit).
+	if (monster.isPlayerMinion() || IsMonsterConverted(monster) || (monster.hitPoints >> 6) <= 0)
 		return -1;
 	int best = -1;
 	int bestDistance = 0;

@@ -246,6 +246,10 @@ using OutlineRowSolidRuns = StaticVector<std::pair<uint8_t, uint8_t>, MaxOutline
 struct OutlinePixelsCacheEntry {
 	OutlinePixels outlinePixels;
 	const void *spriteData = nullptr;
+	// The size too (round 37 audit): a new sprite at a freed one's address took its outline, sized for the old one, and the
+	// unchecked writes went past the edge.
+	uint16_t width = 0;
+	uint16_t height = 0;
 	bool skipColorIndexZero;
 };
 OutlinePixelsCacheEntry OutlinePixelsCache;
@@ -401,11 +405,14 @@ template <bool SkipColorIndexZero>
 void UpdateOutlinePixelsCache(ClxSprite sprite)
 {
 	if (OutlinePixelsCache.spriteData == sprite.pixelData()
+	    && OutlinePixelsCache.width == sprite.width() && OutlinePixelsCache.height == sprite.height()
 	    && OutlinePixelsCache.skipColorIndexZero == SkipColorIndexZero) {
 		return;
 	}
 	OutlinePixelsCache.skipColorIndexZero = SkipColorIndexZero;
 	OutlinePixelsCache.spriteData = sprite.pixelData();
+	OutlinePixelsCache.width = static_cast<uint16_t>(sprite.width());
+	OutlinePixelsCache.height = static_cast<uint16_t>(sprite.height());
 	OutlinePixelsCache.outlinePixels.clear();
 	GetOutline<SkipColorIndexZero>(sprite, OutlinePixelsCache.outlinePixels);
 }

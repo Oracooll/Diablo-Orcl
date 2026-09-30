@@ -1276,6 +1276,11 @@ void ImpactOnLanding(const Player &player, Missile *bolt, SpellID spell)
 /** @brief A corpse skill's burst: the corpse within reach of the cursor, taken, or nothing. */
 std::optional<Corpse> BurstCorpse(Player &player, Point target)
 {
+	// Not a corpse the hero cannot see: it was spent and the burst struck no one (round 37 audit).
+	if (CastSightFrom && !LineClearMissile(*CastSightFrom, target)) {
+		player.Say(HeroSpeech::ICantDoThat);
+		return std::nullopt;
+	}
 	std::optional<Corpse> corpse = TakeCorpseNear(target, 3, /*forRevive=*/false);
 	if (!corpse)
 		player.Say(HeroSpeech::ICantDoThat);
@@ -2219,7 +2224,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// The fan itself (batch 38): a tooth to each arc tile and one down the line.
 		for (const Point tile : FrontArc(player, target))
 			Bolt(player, MissileID::BoneToothBolt, tile);
-		Bolt(player, MissileID::BoneToothBolt, Clamped(here, target, TeethLineTiles));
+		Bolt(player, MissileID::BoneToothBolt, LineEnd(here, target, TeethLineTiles)); // the strike's line (round 37)
 		if (!MissileArtLoaded(MissileGraphicID::BoneTooth))
 			Ring(player, here);
 		return any;
@@ -2269,6 +2274,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::BoneWall: {
 		// A line of five across the cursor, at right angles to the cast.
 		const Point centre = Clamped(here, target, 8);
+		if (!LineClearMissile(here, centre)) { // not raised in the next room (round 37 audit)
+			player.Say(HeroSpeech::ICantDoThat);
+			return false;
+		}
 		Field *f = NewField(player, spell, centre, EffectTicks(spell, r), r);
 		f->dir = Right(Right(target == here ? player._pdir : GetDirection(here, target)));
 		// The five segments (batch 38), each rising once and standing for the wall's life.
@@ -2311,7 +2320,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const Range d = SkillDamage(spell, r);
 		for (Monster *m : line)
 			BoneStrike(player, *m, Rolled(d));
-		ImpactOnLanding(player, Bolt(player, MissileID::BoneSpearBolt, Clamped(here, target, ReachTiles(spell, r))), spell); // RfA-27
+		// Drawn down the line the strike runs, to its wall, not at the exact cursor (round 37 audit).
+		ImpactOnLanding(player, Bolt(player, MissileID::BoneSpearBolt, LineEnd(here, target, ReachTiles(spell, r))), spell); // RfA-27
 		if (!MissileArtLoaded(MissileGraphicID::BoneSpear))
 			Ring(player, here);
 		return true;
@@ -2319,7 +2329,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::Decompose: {
 		Monster *m = FindMonsterAtPosition(target);
 		// Not on a poison-immune one: the poison slid off and the cast was paid for nothing (round 33 audit).
-		if (m == nullptr || !Hittable(*m) || m->isImmune(MissileID::Null, DamageType::Acid)) {
+		// And in the hero's sight, as NearestTo's picks since round 15 (round 37 audit: through a wall).
+		if (m == nullptr || !Hittable(*m) || m->isImmune(MissileID::Null, DamageType::Acid)
+		    || (CastSightFrom && !LineClearMissile(*CastSightFrom, m->position.tile))) {
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
@@ -2329,7 +2341,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::BonePrison: {
 		Monster *m = FindMonsterAtPosition(target);
-		if (m == nullptr || !Hittable(*m)) {
+		if (m == nullptr || !Hittable(*m) || (CastSightFrom && !LineClearMissile(*CastSightFrom, m->position.tile))) { // round 37
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}

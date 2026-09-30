@@ -15,7 +15,8 @@
 #include "oracool/levski_roar.h"
 #include "oracool/stonegate.h" // IsStonegateObject - the Monument opens a menu, not a one-shot
 #include "player.h"
-#include "control.h" // IsOverAnyInterface
+#include "control.h" // IsOverLeftPanel, IsOverRightPanel
+#include "oracool/hud_layout.h" // IsPointOverFloatingWindow
 #include "stores.h"
 
 namespace devilution {
@@ -74,8 +75,10 @@ void RepeatMouseAction()
 		return;
 
 	// Nor under a window (round 36 audit: a held walk or cast went on behind the inventory, the sheet or a book a hotkey
-	// opened while the button was down).
-	if (IsOverAnyInterface(MousePosition))
+	// opened while the button was down). The windows only, and only with the mouse (round 37 audit: the HUD's chrome
+	// stopped a held swing or walk the moment the cursor touched the plate, and a pad's cursor sits wherever it was left).
+	if (ControlMode == ControlTypes::KeyboardAndMouse
+	    && (IsOverLeftPanel(MousePosition) || IsOverRightPanel(MousePosition) || oracool::IsPointOverFloatingWindow(MousePosition)))
 		return;
 
 	if (LastMouseButtonAction == MouseActionType::None)

@@ -396,7 +396,8 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 		hit = 0;
 	// Diablo II's rule, on trial: a spell that reaches a monster lands (see SpellsNeverMiss). Only the
 	// miss is gone - immunities above, and the resistances in the damage, still apply.
-	if (SpellsNeverMiss && !missileData.isArrow())
+	// Not the weapon's own fire or lightning, which rides a swing that may miss (round 37 audit: it landed on every swing).
+	if (SpellsNeverMiss && !missileData.isArrow() && t != MissileID::WeaponExplosion)
 		hit = 0;
 
 	if (monster.tryLiftGargoyle())
@@ -453,7 +454,8 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	}
 	// The all-heroes sweep (2026-09-14): Paralysis, Temporal Flux, Thrill of the Hunt, the element marks.
 	if (&player == MyPlayer && dam > 0)
-		oracool::OnPassiveMissileHit(*MyPlayer, monster, dam, damageType, missileData.isArrow());
+		oracool::OnPassiveMissileHit(*MyPlayer, monster, dam, damageType, missileData.isArrow(),
+		    /*sharedRulesDone=*/t == MissileID::WeaponExplosion); // the swing's part, not a blow of its own: Momentum (round 37)
 
 	// COLD CHILLS (Oracool, Round 1) - and from Round 2, freezes, depending on the missile. Every
 	// cold missile does it, rather than Ice Bolt doing it: the slow is what the damage type MEANS,

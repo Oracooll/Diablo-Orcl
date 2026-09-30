@@ -99,7 +99,13 @@ bool PlaySkillSound(Skill skill, SkillSoundEvent event)
 	const int volume = event == SkillSoundEvent::Learn || event == SkillSoundEvent::Stop
 	    ? VolumeLearnStop
 	    : VolumeOneShot;
-	snd_play_snd(LoadCached(SoundCache[index], SkillSounds[index].path), volume, 0);
+	TSnd *snd = LoadCached(SoundCache[index], SkillSounds[index].path);
+#ifndef NOSOUND
+	// A missing WAV is not a cue: the caller's vanilla sound stands in, as PlayUiEventSound's (round 37 audit).
+	if (snd == nullptr || !snd->DSB.IsLoaded())
+		return false;
+#endif
+	snd_play_snd(snd, volume, 0);
 	return true;
 }
 

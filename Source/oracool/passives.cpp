@@ -774,7 +774,7 @@ void OnPassiveManaSpent(Player &player, int cost)
 		Heal(player, cost * WrathfulPercent / 100);
 	const bool cheap = cost <= CheapSpellMana;
 	if (cheap && PassiveActive(player, Skill::Prodigy))
-		RestoreMana(player, ProdigyMana);
+		RestoreMana(player, std::min(ProdigyMana, cost / 2)); // never the whole price (round 37 audit: a 3-mana Firebolt was free)
 	if (PassiveActive(player, Skill::ArcaneDynamo)) {
 		Clocks &clocks = ClocksFor(player);
 		if (cheap) {
@@ -1349,7 +1349,7 @@ std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int point
 		line(fmt::format(fmt::runtime(_("Life returned: {:d}% of mana spent")), WrathfulPercent));
 		break;
 	case Skill::Prodigy:
-		line(fmt::format(fmt::runtime(_("Spells costing {:d} mana or less: +{:d} mana back")), mana(CheapSpellMana), mana(ProdigyMana)));
+		line(fmt::format(fmt::runtime(_("Spells costing {:d} mana or less: up to {:d} mana back, at most half the cost")), mana(CheapSpellMana), mana(ProdigyMana)));
 		break;
 	case Skill::ChantOfResonance:
 		line(fmt::format(fmt::runtime(_("Mantra mana cost: -{:d}%")), ChantOfResonancePercent));

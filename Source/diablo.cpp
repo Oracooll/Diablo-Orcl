@@ -3742,8 +3742,10 @@ void diablo_quit(int exitStatus)
 	// The options too (round 27 audit): the X button and Alt+F4 arrive here as SDL_WINDOWEVENT_CLOSE, before any SDL_QUIT,
 	// and hotkeys (game speed, zoom, gamma, item labels) change the options without saving them - since v1.12.250 the ini
 	// is written when a menu closes. Not before LoadOptions: an early exit would write the defaults over the player's ini.
-	if (exitStatus == 0 && OptionsWereLoaded())
+	if (exitStatus == 0 && OptionsWereLoaded()) {
+		CloseRefreshUntilPrompt(); // a half-typed Refresh Until edit is not saved (round 37 audit)
 		SaveOptions();
+	}
 
 	FreeGameMem();
 	music_stop();

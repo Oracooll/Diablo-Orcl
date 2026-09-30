@@ -108,6 +108,8 @@ struct Curse {
 	uint8_t owner = 0;
 	/** Confuse set the berserk flags; they come off with the curse, and only if they were not there before. */
 	bool turned = false;
+	/** Bane's own second, kept when Bane is laid again (round 37 audit: a recast within a second pushed its strike back). */
+	int pulse = 0;
 };
 
 std::array<Curse, MaxMonsters> Curses;
@@ -190,7 +192,12 @@ bool Lay(Monster &monster, CurseKind kind, int ticks, int rank, const Player &ow
 	Curse &curse = Of(monster);
 	if (curse.kind == CurseKind::Doom && curse.ticks > 0 && kind != CurseKind::Doom)
 		return false;
+	const int banePulse = curse.kind == CurseKind::Bane && curse.ticks > 0 ? curse.pulse : 0;
 	Release(monster, curse);
+	if (kind == CurseKind::Bane)
+		curse.pulse = banePulse;
+	// The curse's owner is the one who hit it: a Confused or Attracted pack's kills are his (round 37 audit).
+	monster.tag(owner);
 	curse.kind = kind;
 	curse.ticks = ticks;
 	curse.rank = rank;
@@ -369,6 +376,9 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 		// In sight of the cast, as every area skill since round 5 (round 8 audit).
 		if (!single && !LineClearMissile(target, monster.position.tile))
 			continue;
+		// And of the Necromancer, single curses too (round 37 audit: a cursor on the room behind a wall cursed its pack).
+		if (!LineClearMissile(player.position.tile, monster.position.tile))
+			continue;
 		if (Lay(monster, kind, ticks, r, player))
 			laid++;
 	}
@@ -521,8 +531,10 @@ void ProcessCursesTick(Player &player)
 			continue;
 		}
 		curse.ticks--;
-		if (curse.kind == CurseKind::Bane && curse.ticks % TicksPerSecond == 0)
+		if (curse.kind == CurseKind::Bane && (++curse.pulse >= TicksPerSecond || curse.ticks == 0)) {
+			curse.pulse = 0; // its own second (round 37 audit)
 			OwnerStrikes(player, monster, DamageType::Acid, BanePerSecond(curse.rank) << 6);
+		}
 		if (curse.ticks == 0)
 			Release(monster, curse);
 	}
