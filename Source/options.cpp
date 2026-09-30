@@ -364,6 +364,15 @@ bool HardwareCursorSupported()
 }
 #endif
 
+namespace {
+bool OptionsLoaded = false;
+} // namespace
+
+bool OptionsWereLoaded()
+{
+	return OptionsLoaded;
+}
+
 void LoadOptions()
 {
 	for (OptionCategoryBase *pCategory : sgOptions.GetCategories()) {
@@ -390,6 +399,8 @@ void LoadOptions()
 
 	if (demo::IsRunning())
 		demo::OverrideOptions();
+
+	OptionsLoaded = true;
 }
 
 void SaveOptions()

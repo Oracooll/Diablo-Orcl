@@ -13,6 +13,8 @@
 #include "oracool/passives.h"
 #include "oracool/rage.h"
 #include "oracool/class_tree.h" // ClassTreeSkillForSpell - the Impact cue's row
+#include "oracool/curses.h"        // OnCursedMonsterStruck - Life Tap
+#include "oracool/rfa12_effects.h" // Rfa12DamageDealtPercent, OnRfa12Hit
 #include "oracool/paladin_melee.h" // MeleeHitFrame - the chained swings' hit frame
 #include "oracool/rfa12_actives.h"
 #include "oracool/skill_sounds.h"
@@ -148,12 +150,26 @@ int FullBlow(const Player &player)
 	return std::max(dam, 1) << 6;
 }
 
-/** @brief A blow of @p damage on @p monster - killing it, or staggering it. Mirrors paladin_melee.cpp's StrikeMonster. */
-void Strike(Player &player, Monster &monster, int damage)
+/**
+ * @brief A blow of @p damage on @p monster - killing it, or staggering it. Mirrors paladin_melee.cpp's StrikeMonster.
+ * @p applyPassives: a fresh blow (the spins, the sweep) takes the damage passives and feeds Leech, Life Tap and the rest,
+ * as the front swing and the RfA-12 sweeps do; a share of the front blow already took them (round 26 audit, v1.12.251).
+ */
+void Strike(Player &player, Monster &monster, int damage, bool applyPassives = true)
 {
 	if (damage <= 0 || monster.hitPoints >> 6 <= 0)
 		return;
+	if (applyPassives)
+		damage += damage * (PassiveDamageDealtPercent(player, monster, /*melee=*/true) + Rfa12DamageDealtPercent(player, monster, /*melee=*/true)) / 100;
+	if (damage <= 0)
+		return;
+	if (applyPassives)
+		OnCursedMonsterStruck(monster, player, nullptr, damage); // Life Tap, while the curse is live
 	ApplyMonsterDamage(DamageType::Physical, monster, damage);
+	if (&player == MyPlayer && applyPassives) {
+		OnPassiveHit(player, monster, damage, /*melee=*/true);
+		OnRfa12Hit(player, monster, damage, /*melee=*/true);
+	}
 	if ((monster.hitPoints >> 6) <= 0)
 		M_StartKill(monster, player);
 	else
@@ -424,7 +440,7 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		for (int i = 1; i < StrikeCount(player, skill); i++) {
 			if (front->hitPoints >> 6 <= 0)
 				break;
-			Strike(player, *front, frontDamage * share / 100);
+			Strike(player, *front, frontDamage * share / 100, /*applyPassives=*/false); // a share of a blow that took them
 			struck = true;
 			landedBlows++;
 		}
@@ -491,7 +507,7 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 			Monster *targets[8] = {};
 			const int found = GatherAround(front->position.tile, front, targets, 8);
 			for (int i = 0; i < found; i++) {
-				Strike(player, *targets[i], frontDamage);
+				Strike(player, *targets[i], frontDamage, /*applyPassives=*/false);
 				struck = true;
 			}
 		}

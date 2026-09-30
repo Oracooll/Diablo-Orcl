@@ -837,17 +837,20 @@ void ResyncQuests()
 			NetSendCmdQuest(true, Quests[Q_MUSHROOM]);
 		} else {
 			if (Quests[Q_MUSHROOM]._qactive == QUEST_ACTIVE) {
-				if (Quests[Q_MUSHROOM]._qvar1 >= QS_MUSHGIVEN) {
+				// The Brain first: the later stage was never reached behind QS_MUSHGIVEN (a lower value), and Pepin asked for
+				// the Brain again after taking it (round 26 audit; upstream's order).
+				if (Quests[Q_MUSHROOM]._qvar1 >= QS_BRAINGIVEN) {
+					QuestDialogTable[TOWN_HEALER][Q_MUSHROOM] = TEXT_NONE;
+				} else if (Quests[Q_MUSHROOM]._qvar1 >= QS_MUSHGIVEN) {
 					QuestDialogTable[TOWN_WITCH][Q_MUSHROOM] = TEXT_NONE;
 					QuestDialogTable[TOWN_HEALER][Q_MUSHROOM] = TEXT_MUSH3;
-				} else if (Quests[Q_MUSHROOM]._qvar1 >= QS_BRAINGIVEN) {
-					QuestDialogTable[TOWN_HEALER][Q_MUSHROOM] = TEXT_NONE;
 				}
 			}
 		}
 	}
 	if (currlevel == Quests[Q_VEIL]._qlevel + 1 && Quests[Q_VEIL]._qactive == QUEST_ACTIVE && Quests[Q_VEIL]._qvar1 == 0 && !gbIsMultiplayer) {
 		Quests[Q_VEIL]._qvar1 = 1;
+		MakeRoomForGuaranteedReward(); // Lachdanan's elixir, not lost on a full floor (round 26 audit)
 		SpawnQuestItem(IDI_GLDNELIX, { 0, 0 }, 5, 1, true);
 		NetSendCmdQuest(true, Quests[Q_VEIL]);
 	}

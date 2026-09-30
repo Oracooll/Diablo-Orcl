@@ -2651,6 +2651,9 @@ void OperateShrineMysterious(Player &player)
 	if (&player != MyPlayer)
 		return;
 
+	// Never the killing blow, as a stat refund never is since round 18: Vitality -1 took its life, and Strength -1 could
+	// switch off a +life item whose requirement was exactly met (round 26 audit, v1.12.251).
+	const bool wasAlive = player._pHitPoints >> 6 > 0;
 	ModifyPlrStr(player, -1);
 	ModifyPlrMag(player, -1);
 	ModifyPlrDex(player, -1);
@@ -2674,6 +2677,8 @@ void OperateShrineMysterious(Player &player)
 
 	CheckStats(player);
 	CalcPlrInv(player, true);
+	if (wasAlive && player._pHitPoints < 64)
+		SetPlayerHitPoints(player, 64);
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_MYSTERIOUS);
@@ -2720,10 +2725,12 @@ void OperateShrineHidden(Player &player)
 			    || player.InvBody[r]._iDurability == DUR_INDESTRUCTIBLE || player.InvBody[r]._iMaxDur == 0)
 				continue;
 
+			// A broken ethereal item stays broken: the floor at 1 was a repair, and no hand repairs an ethereal (round 26).
+			const bool brokenEthereal = player.InvBody[r]._iOracoolEthereal && player.InvBody[r]._iDurability <= 0;
 			player.InvBody[r]._iDurability -= 20;
 			player.InvBody[r]._iMaxDur -= 20;
 			if (player.InvBody[r]._iDurability <= 0)
-				player.InvBody[r]._iDurability = 1;
+				player.InvBody[r]._iDurability = brokenEthereal ? 0 : 1;
 			if (player.InvBody[r]._iMaxDur <= 0)
 				player.InvBody[r]._iMaxDur = 1;
 			damagedAnItem = true;
@@ -2732,6 +2739,7 @@ void OperateShrineHidden(Player &player)
 		}
 	}
 
+	CalcPlrInv(player, true); // a piece mended by the +10 counts again now, not at the next recalculation (round 26)
 	InitDiabloMsg(EMSG_SHRINE_HIDDEN);
 	if (damagedAnItem)
 		oracool::LogEvent(fmt::format("Hidden Shrine: +10 max durability to all equipped items, -20 durability to {:s}", damagedItemName), UiFlags::ColorRed);
@@ -2750,9 +2758,9 @@ void OperateShrineGloomy(Player &player)
 		case ItemType::Bow:
 		case ItemType::Mace:
 		case ItemType::Staff:
-			item._iMaxDam--;
-			if (item._iMaxDam < item._iMinDam)
-				item._iMaxDam = item._iMinDam;
+			// Guarded before the decrement: _iMaxDam is a byte, and 0 wrapped to 255 (round 26 audit, v1.12.251).
+			if (item._iMaxDam > item._iMinDam)
+				item._iMaxDam--;
 			break;
 		case ItemType::Shield:
 		case ItemType::Helm:
@@ -2782,9 +2790,11 @@ void OperateShrineWeird(Player &player)
 	if (&player != MyPlayer)
 		return;
 
-	if (!player.InvBody[INVLOC_HAND_LEFT].isEmpty() && player.InvBody[INVLOC_HAND_LEFT]._itype != ItemType::Shield)
+	// Never past the byte: a 255 max-damage weapon (a Torment tier, an ethereal unique) wrapped to 0 and struck at its
+	// minimum for good (round 26 audit, v1.12.251). The oils guard the same field.
+	if (!player.InvBody[INVLOC_HAND_LEFT].isEmpty() && player.InvBody[INVLOC_HAND_LEFT]._itype != ItemType::Shield && player.InvBody[INVLOC_HAND_LEFT]._iMaxDam < 255)
 		player.InvBody[INVLOC_HAND_LEFT]._iMaxDam++;
-	if (!player.InvBody[INVLOC_HAND_RIGHT].isEmpty() && player.InvBody[INVLOC_HAND_RIGHT]._itype != ItemType::Shield)
+	if (!player.InvBody[INVLOC_HAND_RIGHT].isEmpty() && player.InvBody[INVLOC_HAND_RIGHT]._itype != ItemType::Shield && player.InvBody[INVLOC_HAND_RIGHT]._iMaxDam < 255)
 		player.InvBody[INVLOC_HAND_RIGHT]._iMaxDam++;
 
 	for (Item &item : InventoryPlayerItemsRange { player }) {
@@ -2794,7 +2804,8 @@ void OperateShrineWeird(Player &player)
 		case ItemType::Bow:
 		case ItemType::Mace:
 		case ItemType::Staff:
-			item._iMaxDam++;
+			if (item._iMaxDam < 255)
+				item._iMaxDam++;
 			break;
 		default:
 			break;
@@ -3472,7 +3483,7 @@ void OperateShrineMurphys(Player &player)
 		if (!item.isEmpty() && FlipCoin(3)) {
 			if (item._iDurability != DUR_INDESTRUCTIBLE) {
 				if (item._iDurability > 0) {
-					item._iDurability /= 2;
+					item._iDurability = std::max(item._iDurability / 2, 1); // 1 halved to 0 counted fully, unbroken (round 26)
 					broke = true;
 					brokenItemName = std::string(item.getName());
 					break;
@@ -3804,6 +3815,7 @@ bool OperateFountains(Player &player, Object &fountain)
 		if (toStat >= fromStat)
 			toStat++;
 
+		const bool wasAlive = player._pHitPoints >> 6 > 0; // the -1 never kills (round 26 audit), as the Mysterious Shrine
 		std::pair<unsigned, int> alterations[] = { { fromStat, -1 }, { toStat, 1 } };
 		for (auto alteration : alterations) {
 			switch (alteration.first) {
@@ -3823,6 +3835,8 @@ bool OperateFountains(Player &player, Object &fountain)
 		}
 
 		CheckStats(player);
+		if (wasAlive && player._pHitPoints < 64)
+			SetPlayerHitPoints(player, 64);
 		applied = true;
 		if (&player == MyPlayer) {
 			NetSendCmdLoc(MyPlayerId, false, CMD_OPERATEOBJ, fountain.position);

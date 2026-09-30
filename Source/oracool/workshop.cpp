@@ -1715,6 +1715,14 @@ Item TakeFromCraftGrid(int anchor)
  */
 bool RebuildCraftOccupancy()
 {
+	// Usable-or-red against the hero, as the Cube stamps its results: new and rebuilt items kept _iStatFlag false and
+	// showed red on the bench (round 26 audit).
+	if (MyPlayer != nullptr) {
+		for (Item &slot : CraftGrid) {
+			if (!slot.isEmpty())
+				slot._iStatFlag = MyPlayer->CanUseItem(slot);
+		}
+	}
 	std::array<Item, CraftSlots> items {};
 	int count = 0;
 	for (const Item &slot : CraftGrid) {

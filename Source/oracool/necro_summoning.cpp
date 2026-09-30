@@ -296,6 +296,7 @@ void HeroStrikes(Player &player, Monster &monster, DamageType type, int damage)
 	damage += damage * PassiveDamageDealtPercent(player, monster, /*melee=*/false) / 100; // Army of the Dead (round 15)
 	if (damage <= 0)
 		return;
+	OnCursedMonsterStruck(monster, player, nullptr, damage); // Life Tap, as every tree skill's strike since round 20 (round 26)
 	ApplyMonsterDamage(type, monster, damage);
 	if ((monster.hitPoints >> 6) <= 0) {
 		M_StartKill(monster, player);

@@ -230,6 +230,8 @@ bool OwnerStrikes(Player &owner, Monster &monster, DamageType type, int damage, 
 		damage += damage * PassiveDamageDealtPercent(owner, monster, /*melee=*/false) / 100;
 	if (damage <= 0)
 		return false;
+	if (applyPassives)
+		OnCursedMonsterStruck(monster, owner, nullptr, damage); // Life Tap on Soul Harvest and Death Mark (round 26 audit)
 	ApplyMonsterDamage(type, monster, damage);
 	if ((monster.hitPoints >> 6) <= 0) {
 		M_StartKill(monster, owner);

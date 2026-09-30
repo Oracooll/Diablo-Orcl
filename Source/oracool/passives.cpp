@@ -1201,6 +1201,10 @@ std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int point
 	case Skill::SteadyAim:
 		line(fmt::format(fmt::runtime(_("No enemy within {:d} tiles: damage +{:d}%")), SteadyAimRange, SteadyAimPercent));
 		break;
+	case Skill::GlassCannon:
+		// Its +15% lives here since round 20, not on the sheet: the hover showed only the armour cut (round 26 audit).
+		line(fmt::format(fmt::runtime(_("Damage: +{:d}%, every hit")), GlassCannonPercent));
+		break;
 	case Skill::Audacity:
 		damageVs(fmt::format(fmt::runtime(_("enemies within {:d} tiles")), AudacityRange), AudacityPercent);
 		break;

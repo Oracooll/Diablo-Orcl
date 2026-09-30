@@ -529,7 +529,7 @@ int FindGridSetPieceTarget(const Item *grid)
  * "main_hand" to a one-handed Short Sword: no two-handed rare (a bow, a scythe) found a piece, and a crafted
  * main-hand piece lost its bow or mace family (tooltip sweep, 2026-09-25).
  */
-std::vector<const SetItemDefinition *> SetPiecesForLoc(item_equip_type loc, int itemLevel)
+std::vector<const SetItemDefinition *> SetPiecesForLoc(item_equip_type loc, int itemLevel, item_class cls)
 {
 	std::vector<const SetItemDefinition *> found;
 	if (loc == ILOC_NONE || loc == ILOC_UNEQUIPABLE)
@@ -544,7 +544,9 @@ std::vector<const SetItemDefinition *> SetPiecesForLoc(item_equip_type loc, int 
 			// ring (round 8 audit, v1.12.233).
 			if (BandedQlvl(piece.requiredLevel) > itemLevel)
 				continue;
-			if (AllItemsList[base].iLoc == loc)
+			// The same class too: ILOC_ONEHAND is a shield's slot as well as a sword's, and a rare shield became a set mace
+			// "for that slot" (round 26 audit, v1.12.251).
+			if (AllItemsList[base].iLoc == loc && AllItemsList[base].iClass == cls)
 				found.push_back(&piece);
 		}
 	}
@@ -672,7 +674,7 @@ int FindGridConsecrateTarget(const Item *grid)
 	for (int i = 0; i < GridSlots; i++) {
 		if (!IsTierRecipeGear(grid[i]) || grid[i]._iOracoolTier != OracoolItemTier::Rare)
 			continue;
-		if (!SetPiecesForLoc(grid[i]._iLoc, grid[i]._iOracoolItemLevel).empty())
+		if (!SetPiecesForLoc(grid[i]._iLoc, grid[i]._iOracoolItemLevel, grid[i]._iClass).empty())
 			return i;
 	}
 	return -1;
@@ -1136,13 +1138,18 @@ const char *TransmuteHostTitle(TransmuteHost host)
 
 int FirstReadyLevskiRecipeFor(const Item *grid, TransmuteHost host)
 {
+	// Reforge (5) never wins a TIE: a unique beside one stack of Unique Encrustments made Reforge, Awaken and Reroll
+	// Uniques all two-slot matches, and the lowest index - Reforge, a drop-odds reroll that often yields a white base - ran
+	// unasked (round 26 audit, v1.12.251). Chosen from the book, it still runs.
+	constexpr int ReforgeGearRecipe = 5;
 	int best = -1;
 	size_t bestSlots = 0;
 	for (int i = 0; i < CraftingRecipeCount; i++) {
 		if (!RecipeBelongsTo(i, host))
 			continue;
 		const std::vector<int> materials = GridMaterialsFor(grid, i);
-		if (materials.empty() || materials.size() <= bestSlots)
+		const bool displacesReforgeTie = best == ReforgeGearRecipe && materials.size() == bestSlots;
+		if (materials.empty() || (materials.size() <= bestSlots && !displacesReforgeTie))
 			continue;
 		best = i;
 		bestSlots = materials.size();
@@ -1466,7 +1473,12 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 				const SetItemDefinition &candidate = ItemSetItems[set->firstItem + i];
 				if (candidate.cursor == target._iCurs)
 					continue;
-				if (BaseItemForSetPiece(candidate) < 0)
+				const int candidateBase = BaseItemForSetPiece(candidate);
+				if (candidateBase < 0)
+					continue;
+				// Of the same class: an imbued armour piece recast into the set's ring lost every shard (the ledger lives on
+				// gear only) and its punched sockets (round 26 audit, v1.12.251).
+				if (AllItemsList[candidateBase].iClass != target._iClass)
 					continue;
 				others.push_back(&candidate);
 			}
@@ -1528,7 +1540,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			what = std::string(target.getName());
 			break;
 		case 10: { // CONSECRATE - a rare becomes a set piece for the same SLOT
-			const std::vector<const SetItemDefinition *> pieces = SetPiecesForLoc(target._iLoc, target._iOracoolItemLevel);
+			const std::vector<const SetItemDefinition *> pieces = SetPiecesForLoc(target._iLoc, target._iOracoolItemLevel, target._iClass);
 			if (pieces.empty())
 				return {};
 			// The depth the item was FOUND at, captured before InitializeItem wipes it. Audit

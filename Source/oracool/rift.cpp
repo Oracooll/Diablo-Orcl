@@ -737,8 +737,14 @@ void ClearRiftEntryRequest()
 
 bool IsBesideRiftWayHome(Point tile)
 {
+	if (!InRift())
+		return false;
+	// The arrival exit too: a pile beside it walked the hero out the same way, and a cleared Guardian Rift ended with its
+	// pile (round 26 audit).
+	if (State.arrivalTile != Point { 0, 0 } && std::max(std::abs(tile.x - State.arrivalTile.x), std::abs(tile.y - State.arrivalTile.y)) <= 1)
+		return true;
 	// Only once it is laid: the keystone drops on the corpse first, while homeTile still names the corpse.
-	if (!InRift() || !State.homeLaid)
+	if (!State.homeLaid)
 		return false;
 	return std::max(std::abs(tile.x - State.homeTile.x), std::abs(tile.y - State.homeTile.y)) <= 1;
 }
@@ -838,7 +844,9 @@ void ProcessRift()
 
 	// The Guardian clock runs wherever the hero is (r10: a rift left by dying stays open until the
 	// clock runs out), and out of time means no keystone - not no fight.
-	if (State.kind == RiftKind::Guardian && !State.done && !State.timedOut && State.ticksLeft > 0) {
+	// From the first step inside, not from the keystone's turn: the keystone is kept until that step (2026-09-27), and
+	// fifteen minutes of shopping first spent it on a rift already out of time (round 26 audit, v1.12.251).
+	if (State.kind == RiftKind::Guardian && RiftEntered() && !State.done && !State.timedOut && State.ticksLeft > 0) {
 		if (--State.ticksLeft == 0) {
 			State.timedOut = true;
 			LogEvent("The Guardian Rift's time is up. The guardian will still fall, but no keystone comes of it.", UiFlags::ColorRed);

@@ -687,9 +687,10 @@ void LeftMouseDown(uint16_t modState)
 				// again. Routed here with the other three rather than in a handler of its own,
 				// because this block is where the X is deliberately tested ahead of everything else.
 				oracool::ToggleEventLog();
-			} else if (qtextflag) {
-				// The quest text is drawn OVER the left panels, so it takes the click first, as vanilla's did and as the right
-				// button does: a click on a stash cell or waypoint row under it acted and left the text up (round 25 audit).
+			} else if (qtextflag && !(IsOverLeftPanel(MousePosition) && GetLeftPanelContent() == LeftPanelContent::QuestLog)) {
+				// The quest text is drawn OVER the left panels, so it takes the click first, as the right button does: a click on
+				// a stash cell or waypoint row under it acted and left the text up (round 25 audit). Except the quest log, as
+				// vanilla: a click on another quest there starts that one's text (round 26).
 				qtextflag = false;
 				stream_stop();
 			} else if (IsOverLeftPanel(MousePosition)) {
@@ -1777,6 +1778,9 @@ void RunGameLoop(interface_mode uMsg)
 				// after the loop never ran for a bare SDL_QUIT - a console Ctrl+C, an OS shutdown that sends only that.
 				if (!gbIsMultiplayer)
 					oracool::SaveOnExit();
+				// The options too: hotkeys (game speed, zoom, gamma, item labels) change them without saving, and since v1.12.250
+				// the ini is written when a menu closes - a window close lost them (round 26 audit).
+				SaveOptions();
 				gbRunGameResult = false;
 				gbRunGame = false;
 				break;
@@ -3717,6 +3721,11 @@ void diablo_quit(int exitStatus)
 	// trade; SaveOnExit's own guards (gbRunGame, MyPlayer, demo mode) handle the rest.
 	if (exitStatus == 0)
 		oracool::SaveOnExit();
+	// The options too (round 27 audit): the X button and Alt+F4 arrive here as SDL_WINDOWEVENT_CLOSE, before any SDL_QUIT,
+	// and hotkeys (game speed, zoom, gamma, item labels) change the options without saving them - since v1.12.250 the ini
+	// is written when a menu closes. Not before LoadOptions: an early exit would write the defaults over the player's ini.
+	if (exitStatus == 0 && OptionsWereLoaded())
+		SaveOptions();
 
 	FreeGameMem();
 	music_stop();
@@ -3769,6 +3778,8 @@ int DiabloMain(int argc, char **argv)
 
 	DiabloSplash();
 	mainmenu_loop();
+	// Exit Diablo from the front end, and the game Diablo's death ended, close no in-game menu (round 27 audit).
+	SaveOptions();
 	DiabloDeinit();
 
 	return 0;

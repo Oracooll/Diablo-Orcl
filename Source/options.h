@@ -1257,6 +1257,12 @@ bool HardwareCursorSupported();
 void SaveOptions();
 
 /**
+ * @brief True once LoadOptions has run: an exit before that (--version, --skill-facts) must not write the constructor
+ * defaults over the player's ini (round 27 audit).
+ */
+bool OptionsWereLoaded();
+
+/**
  * @brief Load game configurations from ini file
  */
 void LoadOptions();

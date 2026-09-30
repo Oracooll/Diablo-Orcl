@@ -346,7 +346,8 @@ void TalkToBarOwner(Player &player, Towner &barOwner)
 
 	auto &kingQuest = Quests[Q_SKELKING];
 	if (kingQuest._qactive != QUEST_NOTAVAIL) {
-		if (player._pLvlVisited[2] || player._pLvlVisited[4]) {
+		// Level 3 too: a waypoint kept from an earlier game goes straight there, and Ogden never spoke of Leoric (round 26).
+		if (player._pLvlVisited[2] || player._pLvlVisited[3] || player._pLvlVisited[4]) {
 			if (kingQuest._qvar2 == 0) {
 				kingQuest._qvar2 = 1;
 				kingQuest._qlog = true;
@@ -568,6 +569,7 @@ void TalkToHealer(Player &player, Towner &healer)
 	Quest &blackMushroom = Quests[Q_MUSHROOM];
 	if (blackMushroom._qactive == QUEST_ACTIVE) {
 		if (blackMushroom._qvar1 >= QS_MUSHGIVEN && blackMushroom._qvar1 < QS_BRAINGIVEN && RemoveInventoryItemById(player, IDI_BRAIN)) {
+			MakeRoomForGuaranteedReward(); // the Brain is taken: the elixir must appear (round 26 audit)
 			SpawnQuestItem(IDI_SPECELIX, healer.position + Displacement { 0, 1 }, 0, 0, true);
 			InitQTextMsg(TEXT_MUSH4);
 			blackMushroom._qvar1 = QS_BRAINGIVEN;

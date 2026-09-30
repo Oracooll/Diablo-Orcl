@@ -29,7 +29,7 @@ bool BarOwnerHasNews(Player &player)
 	if (HasOgdenQuestText())
 		return true;
 	const Quest &king = Quests[Q_SKELKING];
-	if (king._qactive != QUEST_NOTAVAIL && (player._pLvlVisited[2] || player._pLvlVisited[4])) {
+	if (king._qactive != QUEST_NOTAVAIL && (player._pLvlVisited[2] || player._pLvlVisited[3] || player._pLvlVisited[4])) {
 		if (king._qvar2 == 0)
 			return true;
 		if (king._qactive == QUEST_DONE && king._qvar2 == 1)
@@ -81,8 +81,9 @@ bool WitchHasNews(Player &player)
 		// She takes the mushroom, or says the one line she has not said yet.
 		return HasItem(player, IDI_MUSHROOM) || mushroom._qmsg != TEXT_MUSH9;
 	}
+	// The Brain only until she has said its line: she repeats MUSH11 on every click (round 26 audit).
 	if (mushroom._qvar1 >= QS_MUSHGIVEN)
-		return HasItem(player, IDI_BRAIN) || HasInventoryOrBeltItemWithId(player, IDI_SPECELIX);
+		return (HasItem(player, IDI_BRAIN) && mushroom._qmsg != TEXT_MUSH11) || HasInventoryOrBeltItemWithId(player, IDI_SPECELIX);
 	return false;
 }
 

@@ -1113,7 +1113,11 @@ bool DoAttack(Player &player)
 			if (oracool::ApplyRfa12MeleeOnSwing(player, nullptr, false, 0))
 				didhit = true;
 		}
-		if ((player._pClass == HeroClass::Monk
+		// Not under Sweeping Reed or Wheel of Heaven: they strike these same side tiles themselves, and each side enemy took
+		// two blows (round 26 audit, v1.12.251).
+		const std::optional<oracool::ClassMeleeSkill> armedSwing = &player == MyPlayer ? oracool::ArmedClassMeleeSkill() : std::nullopt;
+		const bool skillSweeps = armedSwing == oracool::ClassMeleeSkill::SweepingReed || armedSwing == oracool::ClassMeleeSkill::WheelOfHeaven;
+		if (!skillSweeps && (player._pClass == HeroClass::Monk
 		        && (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Staff || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Staff))
 		    || (player._pClass == HeroClass::Bard
 		        && player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Sword && player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Sword)

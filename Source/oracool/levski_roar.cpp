@@ -1559,7 +1559,13 @@ bool UseSalvageItemCursor(Player &player, int tab, int index)
 	SalvageTier tier = SalvageTier::White;
 	int materials = 0;
 	if (!SalvageSingleItem(player, tab, index, &tier, &materials)) {
-		LogEvent("That cannot be salvaged.", UiFlags::ColorWhite);
+		// Say why when it is the stones: Free the Sockets takes them out first (round 26 audit).
+		const Item *target = tab < 0 ? (index >= 0 && index < player._pNumInv ? &player.InvList[index] : nullptr)
+		                              : (tab < Player::NumExtraInventoryTabs && index >= 0 && index < player._pNumInvTab[tab] ? &player.InvTabList[tab][index] : nullptr);
+		if (target != nullptr && target->socketedCount() > 0)
+			LogEvent("Its stones would be lost - use Free the Sockets first.", UiFlags::ColorWhite);
+		else
+			LogEvent("That cannot be salvaged.", UiFlags::ColorWhite);
 		return false;
 	}
 	// One item, so the window's message says one - the same two lines every bulk press writes.
