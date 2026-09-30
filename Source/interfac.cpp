@@ -117,15 +117,18 @@ OptionalOwnedClxSpriteList ArtCutsceneWidescreen;
  * are intelectual property of blizzard"). The same pixels reach the screen either way.
  */
 SDLSurfaceUniquePtr CutsceneRgb;
-/** @brief Where the scaled painting sits on the screen. */
+/** @brief Where the scaled painting sits on the screen, and the part of it shown. */
 SDL_Rect CutsceneRgbRect { 0, 0, 0, 0 };
+SDL_Rect CutsceneRgbSource { 0, 0, 0, 0 };
 // CutsceneRgbSourceWidth/Height were here, and only the progress bar ever read them - to find the
 // painting's centred 4:3 core and place itself inside it. The bar spans the screen now, so they went
 // with BarPos (2026-09-12).
 
 /**
- * @brief The user's own 16:9 redo of a painting. `gendata\<name>.png`, 1280x720; when one is absent
- * the CEL path below takes over, which is what the Hive and the Crypt still do.
+ * @brief The user's own redo of a painting. `gendata\<name>.png` (`nlevels\` for the Hive and the Crypt), 3440x1440 -
+ * 21:9 since 2026-09-30, without the baked-in bar (user: "always zoom into them to fill the screen up to 21:9 aspect
+ * ratio. beyond that ratio - leave black bars on the sides"); 1280x720 16:9 before. When one is absent the CEL path
+ * below takes over.
  *
  * These SHIP, in the public `oracool.mpq` (2026-09-12). The comment here used to say they were kept
  * in a private archive "with other blizzard IP" per the 2026-09-07 conversation; two things have
@@ -187,12 +190,22 @@ void BuildCutsceneRgb(const char *celPath, const char *pngBase)
 	CutsceneRgb = std::move(rgb);
 }
 
-/** @brief Fit to height, aspect kept, centred: the rect the painting scales into. */
-SDL_Rect FitToHeight(int srcWidth, int srcHeight, int screenWidth, int screenHeight)
+/**
+ * @brief Fills the height, aspect kept, centred (user, 2026-09-30). A screen up to the painting's own width (21:9 for
+ * the 3440x1440 paintings) is filled edge to edge by zooming in and cropping the painting's sides; a wider screen shows
+ * the whole painting between black bars. @p src is the part of the painting shown, @p dst where it lands.
+ */
+void FitCutscene(int srcWidth, int srcHeight, int screenWidth, int screenHeight, SDL_Rect &src, SDL_Rect &dst)
 {
-	const int height = screenHeight;
-	const int width = srcWidth * screenHeight / srcHeight;
-	return MakeSdlRect((screenWidth - width) / 2, 0, width, height);
+	const int64_t scaledWidth = static_cast<int64_t>(srcWidth) * screenHeight / srcHeight;
+	if (scaledWidth >= screenWidth) {
+		const int cropWidth = static_cast<int>(static_cast<int64_t>(srcHeight) * screenWidth / screenHeight);
+		src = MakeSdlRect((srcWidth - cropWidth) / 2, 0, cropWidth, srcHeight);
+		dst = MakeSdlRect(0, 0, screenWidth, screenHeight);
+		return;
+	}
+	src = MakeSdlRect(0, 0, srcWidth, srcHeight);
+	dst = MakeSdlRect((screenWidth - static_cast<int>(scaledWidth)) / 2, 0, static_cast<int>(scaledWidth), screenHeight);
 }
 
 uint32_t CustomEventsBegin = SDL_USEREVENT;
@@ -368,11 +381,11 @@ void DrawCutsceneBackground()
 	const Surface &out = GlobalBackBuffer();
 	SDL_FillRect(out.surface, nullptr, 0x000000);
 	if (CutsceneRgb != nullptr && !out.isIndexed()) {
-		CutsceneRgbRect = FitToHeight(CutsceneRgb->w, CutsceneRgb->h, out.w(), out.h());
+		FitCutscene(CutsceneRgb->w, CutsceneRgb->h, out.w(), out.h(), CutsceneRgbSource, CutsceneRgbRect);
 		SDL_Rect dst = CutsceneRgbRect;
 		dst.x += out.region.x;
 		dst.y += out.region.y;
-		if (SDL_BlitScaled(CutsceneRgb.get(), nullptr, out.surface, &dst) < 0)
+		if (SDL_BlitScaled(CutsceneRgb.get(), &CutsceneRgbSource, out.surface, &dst) < 0)
 			LogWarn("Cutscene: could not scale the painting: {:s}", SDL_GetError());
 		return;
 	}
