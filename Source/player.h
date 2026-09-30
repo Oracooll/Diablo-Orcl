@@ -1211,8 +1211,9 @@ void ModifyPlrVit(Player &player, int l);
 void SetPlayerHitPoints(Player &player, int val);
 /**
  * @brief CalcPlrInv for a bonus that ends on its own - a war cry's buff running out, an aura put out by readying another
- * skill. Current life is capped by the new maximum (D2's rule), not cut by the bonus: at low life the cut took it to 0
- * and SyncPlrKill killed the hero (round 7 audit, v1.12.232). Taking an ITEM off keeps vanilla's plain CalcPlrInv.
+ * skill. The bonus comes off with its life, as it went on with it, but never below 1 life: at low life the cut took it
+ * to 0 and SyncPlrKill killed the hero (round 7 audit, v1.12.232). Keeping the whole life, as it did until v1.12.241,
+ * made every off/on a free heal (round 16). Taking an ITEM off keeps vanilla's plain CalcPlrInv.
  */
 void CalcPlrInvKeepingLife(Player &player);
 void SetPlrStr(Player &player, int v);

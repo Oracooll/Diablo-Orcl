@@ -108,6 +108,7 @@
 #include "panels/spell_book.hpp"
 #include "oracool/window_close.h"
 #include "oracool/telemetry.h" // TelemetryTick
+#include "oracool/named_encounters.h" // SeedArenaPopulation
 #include "panels/spell_list.hpp"
 #include "pfile.h"
 #include "plrmsg.h"
@@ -2404,7 +2405,12 @@ void UpdateMonsterLights()
 
 		if ((monster.flags & MFLAG_BERSERK) != 0) {
 			int lightRadius = leveltype == DTYPE_NEST ? 9 : 3;
-			monster.lightId = AddLight(monster.position.tile, lightRadius);
+			// Resized when it already has one (a Luminous monster relit on the revisit): a second light orphaned the first,
+			// lit at the spawn tile for the whole visit (round 17 audit, v1.12.242).
+			if (monster.lightId != NO_LIGHT)
+				ChangeLightRadius(monster.lightId, lightRadius);
+			else
+				monster.lightId = AddLight(monster.position.tile, lightRadius);
 		}
 
 		if (monster.lightId != NO_LIGHT) {
@@ -4411,6 +4417,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 		IncProgress();
 		GetLevelMTypes();
 		IncProgress();
+		oracool::SeedArenaPopulation(); // a Sealed Map's pack and boss are this entry's own (round 17 audit)
 		InitGolems();
 		// A revisit's population is thrown away for the saved one: no lights for it (monster.h).
 		SuppressMonsterLights = !(firstflag || lvldir == ENTRY_LOAD || !myPlayer._pSLvlVisited[setlvlnum] || gbIsMultiplayer);

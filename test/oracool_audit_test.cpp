@@ -13854,8 +13854,10 @@ TEST(OracoolAudit, WirtHasAShopAndAGambleTabAndTheGambleScalesWithLevel)
 	EXPECT_EQ(tabs[0], TalkID::BoyBuy);
 	EXPECT_EQ(tabs[1], TalkID::BoyGamble);
 	EXPECT_STREQ(oracool::ShopTabName(TalkID::BoyGamble), "Gamble");
-	EXPECT_EQ(GamblePriceFor(ItemType::Ring, 10), 6000);
-	EXPECT_EQ(GamblePriceFor(ItemType::Amulet, 50), 40000);
+	// Rings and amulets take the tier factor too since v1.12.242: they carry a base tier, and without it the jewellery
+	// gamble sold for up to 2.4 times its price (round 17 audit).
+	EXPECT_EQ(GamblePriceFor(ItemType::Ring, 10), 600 * 10 * oracool::ExpectedTierValuePercent(14) / 100);
+	EXPECT_EQ(GamblePriceFor(ItemType::Amulet, 50), 800 * 50 * oracool::ExpectedTierValuePercent(54) / 100);
 	EXPECT_EQ(GamblePriceFor(ItemType::Helm, 1), 200);
 	EXPECT_GT(GamblePriceFor(ItemType::Ring, 5), GamblePriceFor(ItemType::Sword, 5)) << "rings are the dear gamble while only Normal bases roll";
 	// Worn gear follows the base tier its roll can land on (2026-09-27): at level 50 a Torment base is in play, worth up

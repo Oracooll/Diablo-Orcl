@@ -352,7 +352,8 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	const Player &player = Players[pnum];
 	const MissileData &missileData = GetMissileData(t);
 	// Hunter's Claim (RfA-12): her arrows pass by what is not the claimed one.
-	if (missileData.isArrow() && oracool::Rfa12ArrowIgnores(player, monster))
+	// The hero's own arrows only: the Valkyrie's shot through her own target (round 17 audit).
+	if (missileData.isArrow() && CompanionHitPercent == 0 && oracool::Rfa12ArrowIgnores(player, monster))
 		return false;
 	if (missileData.isArrow()) {
 		hper = player.GetRangedPiercingToHit();
@@ -642,7 +643,9 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			}
 		} else if (IsAnyOf(missile._micaster, TARGET_BOTH, TARGET_MONSTERS)) {
 			CompanionHitPercent = missile.companionPercent;
+			oracool::SetCompanionBlowInFlight(missile.companionPercent > 0);
 			isMonsterHit = MonsterMHit(missile._misource, mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, missile._mispllvl);
+			oracool::SetCompanionBlowInFlight(false);
 			CompanionHitPercent = 0;
 			// A cold hit with no impact art of its own - a Blizzard shard, a Cold or Ice Arrow - flashes where it landed.
 			if (isMonsterHit && damageType == DamageType::Cold && !HasOwnColdImpact(missile))

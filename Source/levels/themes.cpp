@@ -17,6 +17,7 @@
 #include "monster.h"
 #include "objects.h"
 #include "quests.h"
+#include "oracool/rift.h" // IsRiftLevel - no theme pack on a rift's arrival
 #include "utils/str_cat.hpp"
 
 namespace devilution {
@@ -368,6 +369,10 @@ void PlaceThemeMonsts(int t, int f)
 	int mtype = scattertypes[GenerateRnd(numscattypes)];
 	for (int yp = 0; yp < MAXDUNY; yp++) {
 		for (int xp = 0; xp < MAXDUNX; xp++) {
+			// Not on a rift's arrival: its stairs are handed back as floor, a theme room can cover the landing, and its
+			// pack spawned on top of the hero (round 17 audit, v1.12.242).
+			if (setlevel && oracool::IsRiftLevel(setlvlnum) && Point { xp, yp }.WalkingDistance(ViewPosition) <= 7)
+				continue;
 			if (dTransVal[xp][yp] == themes[t].ttval && IsTileNotSolid({ xp, yp }) && dItem[xp][yp] == 0 && !IsObjectAtPosition({ xp, yp })) {
 				if (FlipCoin(f)) {
 					AddMonster({ xp, yp }, static_cast<Direction>(GenerateRnd(8)), mtype, true);

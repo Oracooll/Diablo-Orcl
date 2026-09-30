@@ -4689,6 +4689,11 @@ bool CreateSetVendorItem(const Player &player, Item &item, int lvl,
 	// handing over an ethereal piece the player did not ask for is the case FinalizeSetPiece's own
 	// comment declines.
 	FinalizeSetPiece(item, std::max(oracool::VendorItemLevel(lvl), def.requiredLevel), /*allowEtherealRoll=*/false); // lifted (round 12)
+	// Never cheaper than what it salvages into: a set piece keeps its plain base's value (a helm, 40 gold), and Griswold's
+	// free salvage paid three Set Engravings, 675 gold at sale - a gold faucet every game load (round 17 audit). The
+	// floor is the three Engravings' full worth; the piece's own sale value is left alone.
+	constexpr int SetShelfPriceFloor = 3 * 900;
+	item._iIvalue = std::max(item._iIvalue, SetShelfPriceFloor);
 	item._iIdentified = true;
 	item._iStatFlag = player.CanUseItem(item);
 	// The caller needs to know WHICH definition was built, so its next call can exclude it. Handing
@@ -6448,7 +6453,9 @@ void MakeRoomForGuaranteedReward()
 			continue;
 		if (candidate._iCreateInfo == 0 && candidate._iIdentified)
 			continue; // quest-placed items carry no create info; leave them alone
-		if (candidate.IDidx >= 0 && AllItemsList[candidate.IDidx].iRnd == IDROP_NEVER && candidate._iClass == ICLASS_QUEST)
+		// Nothing that never drops at random: the Staff of Lazarus, the elixirs and the Guardian Keystone are misc-class,
+		// worth 0, and were the first victims of "cheapest first" (round 17 audit, a regression of round 16).
+		if (candidate.IDidx >= 0 && AllItemsList[candidate.IDidx].iRnd == IDROP_NEVER)
 			continue;
 		if (victim < 0 || candidate._ivalue < Items[ActiveItems[victim]]._ivalue)
 			victim = i;
@@ -9274,9 +9281,10 @@ int GamblePriceFor(ItemType type, int lvl)
 	// And for worn gear, times the value its base tier is expected to carry (user, 2026-09-27: "fix the decisions for
 	// me too"). The roll can land on a Hell or Torment base, worth four to thirty times a Normal one, while the price
 	// stayed a Normal item's: from about level 42 a gambled piece sold for more than it cost - a gold faucet, not a
-	// sink. Rings and amulets carry no base tier and keep their price. The roll's item level runs to the hero's + 4.
-	if (type != ItemType::Ring && type != ItemType::Amulet)
-		price = price * oracool::ExpectedTierValuePercent(level + 4) / 100;
+	// sink. The roll's item level runs to the hero's + 4. Rings and amulets too: they DO carry a base tier
+	// (CanCarryBaseTier refuses only belt and unequipable items), and their gamble sold for up to 2.4 times its price
+	// from about level 30 - repeatable through Wirt's free Refresh (round 17 audit, v1.12.242).
+	price = price * oracool::ExpectedTierValuePercent(level + 4) / 100;
 	return static_cast<int>(std::min<int64_t>(price, std::numeric_limits<int>::max()));
 }
 

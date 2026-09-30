@@ -263,7 +263,7 @@ void CloseLeftPanelContent()
 		break;
 	}
 }
-void TakeLeftPanelSlot(LeftPanelContent content)
+bool TakeLeftPanelSlot(LeftPanelContent content)
 {
 	// User report, 2026-08-31: "if hero stats screen is on and i open the stash the stash window is
 	// not display or it is but under the hero stats."
@@ -300,6 +300,8 @@ void TakeLeftPanelSlot(LeftPanelContent content)
 	// log opened invisible under them (round 16 audit, v1.12.241). Either may refuse with items it cannot give back.
 	oracool::CloseWorkshop();
 	oracool::CloseLevskiRoar();
+	// A refused close keeps the slot: the caller backs out rather than opening invisible under it (round 17 audit).
+	return !oracool::IsWorkshopOpen() && !oracool::IsLevskiRoarOpen();
 }
 
 bool IsModalPromptOpen()
@@ -933,7 +935,8 @@ void OpenCharPanel()
 	// Was three hand-listed closes, which missed the waypoint menu and the crafting book. They are
 	// below the sheet in precedence so the sheet still won, but they stayed open behind it and
 	// reappeared when it closed.
-	TakeLeftPanelSlot(LeftPanelContent::Character);
+	if (!TakeLeftPanelSlot(LeftPanelContent::Character))
+		return;
 	chrflag = true;
 }
 

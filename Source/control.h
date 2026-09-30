@@ -198,7 +198,8 @@ void CloseLeftPanelContent();
  * Passing the content being opened rather than "close everything" keeps a re-open from tearing down
  * the window that is already there - CloseStash in particular returns a held item.
  */
-void TakeLeftPanelSlot(LeftPanelContent content);
+/** @brief Closes every other holder of the left slot; false when the workshop or the Cube refused to close. */
+bool TakeLeftPanelSlot(LeftPanelContent content);
 extern std::optional<OwnedSurface> pBtmBuff;
 extern OptionalOwnedClxSpriteList pGBoxBuff;
 

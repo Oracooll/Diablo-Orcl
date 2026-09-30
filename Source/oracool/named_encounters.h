@@ -123,6 +123,8 @@ void TrySpawnSealedMap(const Monster &monster, bool sendmsg);
 
 /** @brief Whether @p monster is the boss of the encounter currently running. */
 bool IsNamedEncounterBoss(const Monster &monster);
+/** @brief Seeds an arena's population from this entry's own seed (called by LoadGameLevel after its map loads). */
+void SeedArenaPopulation();
 
 /** @brief Pays @p encounter's reward at @p monster's feet. Called once, on the boss's death. */
 void AwardNamedEncounter(const Monster &monster);

@@ -806,8 +806,14 @@ void PlaceRiftMonsters()
 	// the floor doubles the kills it takes while the bar stays reachable - a share above 100% of one
 	// floor never could be. The cap below still holds.
 	int numplacemonsters = 2 * (na / 30 * *sgOptions.Oracool.monsterDensityPercent / 100);
-	if (ActiveMonsterCount + numplacemonsters > MaxEnemyMonsters - 10)
-		numplacemonsters = static_cast<int>(MaxEnemyMonsters - 10 - ActiveMonsterCount);
+	// Room held back for the rift's theme rooms, as InitMonsters holds it for a floor's (round 13): at the default density
+	// the doubled scatter filled to the cap and the theme rooms stood empty (round 17 audit, v1.12.242).
+	const size_t themeReserve = std::min<size_t>(static_cast<size_t>(std::max(numthemes, 0)) * 8, 40);
+	const size_t scatterCap = MaxEnemyMonsters - 10 - themeReserve;
+	if (ActiveMonsterCount >= scatterCap)
+		numplacemonsters = 0;
+	else if (ActiveMonsterCount + numplacemonsters > scatterCap)
+		numplacemonsters = static_cast<int>(scatterCap - ActiveMonsterCount);
 	totalmonsters = ActiveMonsterCount + numplacemonsters;
 
 	size_t scattertypes[NUM_MTYPES];
@@ -4663,6 +4669,11 @@ void StunMonster(Monster &monster, int ticks)
 		monster.position.future = monster.position.old;
 		M_ClearSquares(monster);
 		dMonster[monster.position.tile.x][monster.position.tile.y] = monster.getId() + 1;
+		// Its light comes back with it: the step had already moved the glow to the tile it was headed for (round 17 audit).
+		if (monster.lightId != NO_LIGHT) {
+			ChangeLightXY(monster.lightId, monster.position.tile);
+			ChangeLightOffset(monster.lightId, {});
+		}
 	}
 	// AiDelay carries the guard this needs: Lazarus is exempt, because his scripted set-piece drives
 	// his own mode and a stun would strand it. Inherited rather than restated.

@@ -200,6 +200,9 @@ bool CurrentNamedEncounter(NamedEncounter &out)
 	return false;
 }
 
+/** @brief This entry's arena population seed, drawn at the map's use (SeedArenaPopulation; round 17 audit). */
+uint32_t ArenaEntrySeed = 0;
+
 bool EnterNamedEncounter(Player &player, NamedEncounter encounter)
 {
 	if (!IsSinglePlayer())
@@ -239,8 +242,18 @@ bool EnterNamedEncounter(Player &player, NamedEncounter encounter)
 	// BEFORE StartNewLvl, not after. The /arena command does the same and that is the tell: the
 	// level loads its tileset from this, so setting it afterwards draws the room in the wrong art.
 	setlvltype = NamedEncounterDungeon(encounter);
+	ArenaEntrySeed = AdvanceRndSeed() | 1U; // this entry's population (SeedArenaPopulation)
 	StartNewLvl(player, WM_DIABSETLVL, level);
 	return true;
+}
+
+void SeedArenaPopulation()
+{
+	// A fresh population for every Sealed Map: the arena was seeded from glSeedTbl[its set level], fixed for the game,
+	// so every map of a kind gave the same boss, trait, pack and pile (round 17 audit, v1.12.242). glSeedTbl itself is
+	// left alone - those slots are also floors 6-8's layout seeds.
+	if (setlevel && IsArenaLevel(setlvlnum) && ArenaEntrySeed != 0)
+		SetRndSeed(ArenaEntrySeed);
 }
 
 bool IsNamedEncounterBoss(const Monster &monster)

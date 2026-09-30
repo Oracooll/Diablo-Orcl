@@ -251,7 +251,11 @@ bool EnteredRiftStillOpen()
 	    || (State.kind == RiftKind::Guardian && State.done && !State.returnedHome);
 	if (!liveGuardian && !clearedPile)
 		return false;
-	LogEvent(StrCat("The ", RiftKindName(State.kind), " you entered is still open - finish it, or let it close, before opening another."), UiFlags::ColorRed);
+	// A cleared Guardian Rift never closes on its own: it ends through its own way home (round 17 audit).
+	if (State.kind == RiftKind::Guardian && State.done)
+		LogEvent("The Guardian Rift you cleared is still open - walk out through its portal to close it before opening another.", UiFlags::ColorRed);
+	else
+		LogEvent(StrCat("The ", RiftKindName(State.kind), " you entered is still open - finish it, or let it close, before opening another."), UiFlags::ColorRed);
 	return true;
 }
 
@@ -371,7 +375,12 @@ namespace {
 /** @brief Drops a Guardian Keystone of @p tier at @p tile: the item through the quest-item door, the tier stamped after. */
 void DropKeystone(Point tile, int tier)
 {
-	if (tier <= 0 || ActiveItemCount >= MAXITEMS)
+	if (tier <= 0)
+		return;
+	// Room is made for it, as for every guaranteed reward since round 15: on a full floor the keystone silently did not
+	// drop, and the Guardian ladder fell back to a Nephalem key (round 17 audit, v1.12.242).
+	MakeRoomForGuaranteedReward();
+	if (ActiveItemCount >= MAXITEMS)
 		return;
 	const int before = ActiveItemCount;
 	SpawnQuestItem(IDI_ORACOOL_KEYSTONE, tile, /*randarea=*/0, /*selflag=*/0, /*sendmsg=*/true);
@@ -725,11 +734,20 @@ void OnRiftMonsterKilled(const Monster &monster)
 		// of the pile and the next keystone lost.
 		if (const std::optional<Point> home = FindClosestValidPosition(
 		        [&monster](Point tile) {
-			        return InDungeonBounds(tile) && !IsTileSolid(tile) && dObject[tile.x][tile.y] == 0 && dItem[tile.x][tile.y] == 0
-			            && dPlayer[tile.x][tile.y] == 0 && dMonster[tile.x][tile.y] == 0 && tile != State.arrivalTile
-			            && std::max(std::abs(tile.x - monster.position.tile.x), std::abs(tile.y - monster.position.tile.y)) >= 2;
+			        // Three out, with no item beside it: a pickup walk stops one tile SHORT of its item, so a way home at two -
+			        // next to the ring - was where a walk to a ring item ended, and it sent the hero home (round 17 audit).
+			        if (!InDungeonBounds(tile) || IsTileSolid(tile) || dObject[tile.x][tile.y] != 0 || dItem[tile.x][tile.y] != 0
+			            || dPlayer[tile.x][tile.y] != 0 || dMonster[tile.x][tile.y] != 0 || tile == State.arrivalTile
+			            || std::max(std::abs(tile.x - monster.position.tile.x), std::abs(tile.y - monster.position.tile.y)) < 3)
+				        return false;
+			        for (int d = 0; d < 8; d++) {
+				        const Point beside = tile + static_cast<Direction>(d);
+				        if (InDungeonBounds(beside) && dItem[beside.x][beside.y] != 0)
+					        return false;
+			        }
+			        return true;
 		        },
-		        monster.position.tile, 2, 8);
+		        monster.position.tile, 3, 10);
 		    home.has_value()) {
 			State.homeTile = *home;
 		} else {

@@ -1085,7 +1085,8 @@ void StartQuestlog()
 	SelectedQuest = FirstFinishedQuest == 0 ? -1 : 0;
 	// This closed nothing, so opening the log with the character sheet up left it invisible behind
 	// the sheet - the same fault as the stash's (user report, 2026-08-31).
-	TakeLeftPanelSlot(LeftPanelContent::QuestLog);
+	if (!TakeLeftPanelSlot(LeftPanelContent::QuestLog))
+		return;
 	QuestLogIsOpen = true;
 }
 

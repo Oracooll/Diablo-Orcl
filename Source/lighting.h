@@ -20,7 +20,10 @@
 
 namespace devilution {
 
-#define MAXLIGHTS 32
+// 64, not vanilla's 32 (round 17 audit, v1.12.242): every champion, unique and Luminous monster keeps its light to the
+// level's end, dead or alive, and the fork's default densities left a Torment floor six free slots for every bolt, wall
+// segment and portal. Monster::lightId is int8_t and ActiveLights uint8_t, both good to 127.
+#define MAXLIGHTS 64
 #define MAXVISION 4
 /** @brief Number of supported light levels */
 constexpr size_t NumLightingLevels = 16;

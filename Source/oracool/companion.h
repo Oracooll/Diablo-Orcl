@@ -132,6 +132,8 @@ void OnCompanionLevelLoad();
 void ProcessCompanions(Player &owner);
 /** @brief @p player struck @p monster - the companions' focus. */
 void NoteOwnerStruck(const Player &player, const Monster &monster);
+/** @brief Marks a companion's blow or arrow in progress, so NoteOwnerStruck does not take it for the owner's. */
+void SetCompanionBlowInFlight(bool inFlight);
 /** @brief The slot of a guard or decoy that holds @p monster's attention, or -1. */
 int CompanionTauntTarget(const Monster &monster);
 /** @brief Whether @p player may walk onto @p monster's tile: her own companion, standing. */

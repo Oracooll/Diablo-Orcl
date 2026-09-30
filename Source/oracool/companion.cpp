@@ -418,10 +418,12 @@ void StrikeFor(const Player &owner, Monster &monster, int damage)
 	if (!Targetable(monster))
 		return;
 	ApplyMonsterDamage(DamageType::Physical, monster, damage);
+	SetCompanionBlowInFlight(true); // the owner's credit, not the owner's focus (NoteOwnerStruck)
 	if ((monster.hitPoints >> 6) <= 0)
 		M_StartKill(monster, owner);
 	else
 		M_StartHit(monster, owner, damage);
+	SetCompanionBlowInFlight(false);
 }
 
 void Ring(const Instance &inst, Point tile)
@@ -927,6 +929,16 @@ void ForgetCompanionInSlot(Monster &slot)
 void OnCompanionLevelLoad()
 {
 	for (Instance &inst : Instances) {
+		// A companion that fell just before the level changed stays fallen: its death sheet never finished, and the slot
+		// cleared below let the next level stand it up again (round 17 audit, v1.12.242). Monsters[] still holds the old
+		// level here.
+		if (inst.slot >= 0 && static_cast<size_t>(inst.slot) < MaxMonsters) {
+			const Monster &body = Monsters[inst.slot];
+			if (body.mode == MonsterMode::Death || (body.hitPoints >> 6) <= 0) {
+				inst = Instance {};
+				continue;
+			}
+		}
 		inst.slot = -1;
 		inst.returnWait = TicksPerSecond - 5; // back a quarter-second after the level is up
 		inst.town = TownState {};
@@ -1037,9 +1049,20 @@ void ProcessCompanions(Player &owner)
 	}
 }
 
+bool CompanionBlowInFlight = false;
+
+void SetCompanionBlowInFlight(bool inFlight)
+{
+	CompanionBlowInFlight = inFlight;
+}
+
 void NoteOwnerStruck(const Player &player, const Monster &monster)
 {
 	if (&player != MyPlayer || monster.isPlayerMinion())
+		return;
+	// A companion's own blow or arrow is routed as the owner's for the credit; it is not what the owner is striking, and
+	// one Talic spin tick pulled the rest off the hero's target (round 17 audit, v1.12.242).
+	if (CompanionBlowInFlight)
 		return;
 	// Not over a standing command: any blow of the hero's - a Teeth, a poison tick - moved the army off the commanded
 	// monster and took its sigil (round 15 audit, v1.12.240).
@@ -1167,7 +1190,11 @@ Monster *PickCompanionTarget(const Monster &companion, const CompanionOrders &or
 		const int fromHer = companion.position.tile.WalkingDistance(monster.position.tile);
 		if (Stance == CompanionStance::Hold)
 			return fromHer <= 1;
-		return std::min(fromHer, orders.owner.WalkingDistance(monster.position.tile)) <= orders.reach;
+		// Within the leash (one past it) and not behind a wall: a melee companion took a monster in the next room over a
+		// reachable one, or one past its leash, and stood idle or rocked a tile back and forth (round 17 audit).
+		return std::min(fromHer, orders.owner.WalkingDistance(monster.position.tile)) <= orders.reach
+		    && orders.owner.WalkingDistance(monster.position.tile) <= orders.leash + 1
+		    && LineClearMissile(companion.position.tile, monster.position.tile);
 	};
 	// Focus fire: what the owner is striking comes first.
 	if (FocusMonster >= 0 && static_cast<size_t>(FocusMonster) < MaxMonsters) {

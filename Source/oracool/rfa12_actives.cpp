@@ -120,13 +120,13 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	// a share of a blow that already took them (the echo, Tragedy's share), which paid them twice.
 	// With the RfA-12 half of that sum (Hunter's Mark, Judgment, Dead Ground, Deadeye), which the missile path adds beside
 	// the passives' - round 13 brought over only the first half (round 15 audit, v1.12.240).
-	if (applyPassives) {
+	if (applyPassives)
 		damage += damage * (PassiveDamageDealtPercent(player, monster, melee) + Rfa12DamageDealtPercent(player, monster, melee)) / 100;
-		if (!melee)
-			SpendDeadGroundIfApplies(player, monster); // once every six seconds per enemy, as its text says (round 16)
-	}
 	if (damage <= 0)
 		return;
+	// Once every six seconds per enemy, as its text says (round 16) - and only for a strike that lands something (round 17).
+	if (applyPassives && !melee)
+		SpendDeadGroundIfApplies(player, monster);
 	ApplyMonsterDamage(type, monster, damage);
 	if (&player == MyPlayer && applyPassives)
 		OnPassiveMissileHit(player, monster, damage, type, /*arrow=*/false); // Paralysis, Temporal Flux, the marks
