@@ -98,6 +98,11 @@ void SilenceAuraLoopForTransition()
 	LoopedAura = Skill::None;
 }
 
+void PutOutAuraLoop()
+{
+	SetAuraLoop(Skill::None);
+}
+
 void ResumeAuraLoopAfterTransition(Skill skill)
 {
 	if (skill == Skill::None) {

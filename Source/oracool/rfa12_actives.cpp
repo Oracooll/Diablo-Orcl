@@ -200,6 +200,15 @@ void Shove(Monster &monster, Direction dir)
 /** @brief Every hittable monster within @p radius tiles of @p centre, gathered before anything is struck. */
 std::optional<Point> CastSightFrom; // see below, at NearestTo
 
+/** @brief Lifts the cast's sight gate for a chain's hop or a death's burst, which see from where they are (round 35). */
+struct NoCastSight {
+	std::optional<Point> saved = CastSightFrom;
+	NoCastSight() { CastSightFrom = std::nullopt; }
+	~NoCastSight() { CastSightFrom = saved; }
+	NoCastSight(const NoCastSight &) = delete;
+	NoCastSight &operator=(const NoCastSight &) = delete;
+};
+
 std::vector<Monster *> MonstersWithin(Point centre, int radius)
 {
 	std::vector<Monster *> out;
@@ -514,6 +523,11 @@ struct Marks {
 	int poisonDamage = 0;
 	int elegyTicks = 0;
 	int elegyDamage = 0;
+	// Each one's own second, which a refresh leaves alone (round 35 audit): the pulse came when the remaining count hit a
+	// whole second, so a poison, burn or elegy renewed faster than once a second never struck at all.
+	int burnPulse = 0;
+	int poisonPulse = 0;
+	int elegyPulse = 0;
 	int palmTicks = 0;
 	int palmRank = 0;
 	int threadPartner = -1;
@@ -1526,6 +1540,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Strike(player, *m, DamageType::Lightning, damage);
 			damage = Percent(damage, ArcFalloffPercent);
 			Monster *next = nullptr;
+			const NoCastSight hopSees; // a hop needs the struck one's sight, not the hero's (round 35 audit)
 			for (Monster *candidate : MonstersWithin(at, ReachTiles(spell, r))) {
 				if (std::find(struck.begin(), struck.end(), candidate) == struck.end()) {
 					next = candidate;
@@ -2123,6 +2138,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			from = at;
 			Strike(player, *m, DamageType::Magic, Rolled(d));
 			Monster *next = nullptr;
+			const NoCastSight hopSees; // as Arc's (round 35 audit)
 			for (Monster *candidate : MonstersWithin(at, ReachTiles(spell, r))) {
 				if (std::find(struck.begin(), struck.end(), candidate) == struck.end()) {
 					next = candidate;
@@ -2978,8 +2994,9 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		break;
 	case SpellID::CinderTouch:
 		if (alive) {
-			MarksOf(*front).burnTicks = EffectTicks(spell, r);
-			MarksOf(*front).burnDamage = PerSecond(spell, r) << 6;
+			// The longer and the stronger, as the poison takes them (round 35 audit).
+			MarksOf(*front).burnTicks = std::max(MarksOf(*front).burnTicks, EffectTicks(spell, r));
+			MarksOf(*front).burnDamage = std::max(MarksOf(*front).burnDamage, PerSecond(spell, r) << 6);
 			struck = true;
 		}
 		break;
@@ -3304,6 +3321,8 @@ void OnRfa12ActiveMonsterKilled(Player &player, const Monster &monster)
 	// A burst on a death is not an arrow, though an arrow's Strike made the kill: Ashen Brand's and Exploding Palm's blows
 	// fed the arrow-only passives (round 34 audit).
 	BowStrikeScope notAnArrow { false };
+	// Nor behind the cast's sight gate: a burst sees from the body, as it does after a swing or a field tick (round 35).
+	const NoCastSight burstSees;
 	Marks &marks = MarksOf(monster);
 	const Point at = monster.position.tile;
 	if (marks.ashenTicks > 0) {
@@ -3460,21 +3479,26 @@ void ProcessRfa12ActivesTick(Player &player)
 		}
 		if (marks.oathTicks == 0)
 			marks.oathCharges = 0;
+		// One pulse per second of its own (round 35 audit); one pulse a second of the duration, as before.
+		const auto pulse = [](int &ticks, int &clock) {
+			ticks--;
+			const bool due = ++clock >= TicksPerSecond;
+			if (due || ticks == 0)
+				clock = 0;
+			return due;
+		};
 		if (marks.burnTicks > 0) {
-			marks.burnTicks--;
-			if (marks.burnTicks % TicksPerSecond == 0)
+			if (pulse(marks.burnTicks, marks.burnPulse))
 				Strike(player, m, DamageType::Fire, marks.burnDamage);
 		}
 		if (marks.poisonTicks > 0) {
-			marks.poisonTicks--;
-			if (marks.poisonTicks % TicksPerSecond == 0)
+			if (pulse(marks.poisonTicks, marks.poisonPulse))
 				Strike(player, m, DamageType::Acid, marks.poisonDamage);
 			if (marks.poisonTicks == 0)
 				marks.poisonDamage = 0;
 		}
 		if (marks.elegyTicks > 0) {
-			marks.elegyTicks--;
-			if (marks.elegyTicks % TicksPerSecond == 0)
+			if (pulse(marks.elegyTicks, marks.elegyPulse))
 				Strike(player, m, DamageType::Magic, marks.elegyDamage);
 		}
 		if (marks.threadTicks > 0 && marks.threadPartner >= 0) {

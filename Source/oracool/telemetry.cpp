@@ -65,15 +65,17 @@ void EnsureSessionId()
 }
 
 /**
- * @brief Appends one row, opening/creating the file per write and closing it again.
- *
- * Per-row open+close rather than a held handle, deliberately: rows are rare (a kill, a death, a
- * pickup), the cost is nothing at that rate, and it guarantees the file is intact after ANY exit -
- * including the crashes this project is hunting. A header row is written when the file is born.
+ * @brief Rows waiting for the file. Written once a second (TelemetryTick), on a death, and in diablo_quit (TelemetryFlush): an area skill killing
+ * thirty monsters opened and closed the file thirty times in one tick (round 35 audit). A crash loses a second at most.
  */
-void AppendRow(const std::string &event, const std::string &subject, int value1, int value2)
+std::string PendingRows;
+constexpr uint32_t FlushEveryTicks = 20;
+
+/** @brief Writes the pending rows, creating the file with its header row when it is born. */
+void FlushRows()
 {
-	EnsureSessionId();
+	if (PendingRows.empty())
+		return;
 	const std::string path = paths::PrefPath() + "balance_telemetry.csv";
 
 	// OpenFile, not fopen: the pref path is UTF-8, and fopen reads it in the ANSI code page - a profile named José had no
@@ -96,12 +98,20 @@ void AppendRow(const std::string &event, const std::string &subject, int value1,
 		std::fwrite(header, sizeof(header) - 1, 1, file);
 	}
 
+	std::fwrite(PendingRows.data(), PendingRows.size(), 1, file);
+	std::fclose(file);
+	PendingRows.clear();
+}
+
+void AppendRow(const std::string &event, const std::string &subject, int value1, int value2)
+{
+	EnsureSessionId();
 	const int playerLevel = MyPlayer != nullptr ? MyPlayer->_pLevel : 0;
-	const std::string row = fmt::format("{:s},{:s},{:s},{:d},{:d},{:s},{:d},{:d}\n",
+	PendingRows += fmt::format("{:s},{:s},{:s},{:d},{:d},{:s},{:d},{:d}\n",
 	    CurrentClock(), SessionId, event, currlevel, playerLevel,
 	    TelemetryEscapeCsvField(subject), value1, value2);
-	std::fwrite(row.data(), row.size(), 1, file);
-	std::fclose(file);
+	if (PendingRows.size() > 16384)
+		FlushRows();
 }
 
 } // namespace
@@ -159,9 +169,16 @@ void TelemetryForgetMonster(size_t monsterId)
 		FirstHitAtMs[monsterId] = 0;
 }
 
+void TelemetryFlush()
+{
+	FlushRows();
+}
+
 void TelemetryTick()
 {
 	GameTicks++;
+	if (GameTicks % FlushEveryTicks == 0)
+		FlushRows();
 }
 
 void TelemetryRecordKill(const Monster &monster)
@@ -189,6 +206,7 @@ void TelemetryRecordPlayerDeath(const std::string &source)
 	if (!TelemetryEnabled())
 		return;
 	AppendRow("death", source, 0, 0);
+	FlushRows(); // at once: a death is where a crash would follow
 }
 
 void TelemetryRecordPickup(const Item &item)

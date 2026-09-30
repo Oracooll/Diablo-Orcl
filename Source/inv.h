@@ -470,6 +470,9 @@ DVL_API_FOR_TEST void ConsumeUsedBackpackItem(Player &player, int c, const Item 
 bool RefuseUnreadableBook(Player &player, const Item &item);
 bool UseInvItem(int cii);
 
+/** @brief Under a hover while a shop is open: the armed repair hammer's or recharge cursor's fee on @p item. */
+void AddShopServiceFeeLine(const Item &item);
+
 /**
  * @brief Opens the stack-split dialog for the stackable consumable at inventory-or-belt
  * index cii, if it has more than one unit. Otherwise does nothing.

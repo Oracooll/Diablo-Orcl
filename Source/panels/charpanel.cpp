@@ -122,9 +122,17 @@ std::pair<int, int> GetDamage()
 	int maxdam = InspectPlayer->_pIMaxDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMaxDam / 100 + InspectPlayer->_pIBonusDamMod;
 	// Glass Cannon on the weapon part, before the Strength part, as the blow takes it (round 33 audit: moved out of the
 	// weapon totals in round 20, it left the sheet with them).
+	// An arrow adds the Strength part before the percent passives, so a bow takes it first (round 35 audit).
 	const int always = oracool::PassiveUnconditionalDamagePercent(*InspectPlayer);
+	const bool bow = InspectPlayer->UsesRangedWeapon();
+	if (bow) {
+		mindam += damageMod;
+		maxdam += damageMod;
+	}
 	mindam += mindam * always / 100;
 	maxdam += maxdam * always / 100;
+	if (bow)
+		return { mindam, maxdam };
 	return { mindam + damageMod, maxdam + damageMod };
 }
 

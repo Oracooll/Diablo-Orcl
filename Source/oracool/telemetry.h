@@ -82,6 +82,8 @@ bool TelemetryHasRunningKillClock(const Monster &monster);
 void TelemetryRecordFirstHit(const Monster &monster);
 /** @brief One game tick for the kill clocks. Called once per GameLogic, so a pause stops them. */
 void TelemetryTick();
+/** @brief Writes the rows still waiting (they go once a second): diablo_quit calls it. */
+void TelemetryFlush();
 /** @brief Stops the kill clock of the monster in slot @p monsterId: the slot was freed without a kill row. */
 void TelemetryForgetMonster(size_t monsterId);
 

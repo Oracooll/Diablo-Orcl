@@ -4206,20 +4206,28 @@ int8_t CheckInvHLight()
 			AddPanelString(fmt::format(fmt::runtime(_("Sells for {:s} gold")), FormatInteger(offer)),
 			    UiFlags::ColorWhitegold);
 		}
-		// And what the loaded service costs on it, under the sale price (dev note, 2026-09-27) - the hammer's repair, or
-		// Adria's recharge. An item with nothing to fix says so, since the hammer is asking the question.
-		if (IsShopRepairCursorArmed()) {
-			const int fee = ShopRepairPriceFor(*pi);
-			AddPanelString(fee > 0 ? fmt::format(fmt::runtime(_("Repair: {:s} gold")), FormatInteger(fee)) : std::string(_("Needs no repair")),
-			    UiFlags::ColorWhitegold);
-		} else if (IsShopRechargeCursorArmed()) {
-			const int fee = ShopRechargePriceFor(*pi);
-			AddPanelString(fee > 0 ? fmt::format(fmt::runtime(_("Recharge: {:s} gold")), FormatInteger(fee)) : std::string(_("Needs no recharge")),
-			    UiFlags::ColorWhitegold);
-		}
+		AddShopServiceFeeLine(*pi);
 	}
 
 	return rv;
+}
+
+void AddShopServiceFeeLine(const Item &item)
+{
+	// What the loaded service costs on it, under the sale price (dev note, 2026-09-27) - the hammer's repair, or
+	// Adria's recharge. An item with nothing to fix says so, since the hammer is asking the question.
+	if (IsShopRepairCursorArmed()) {
+		const int fee = ShopRepairPriceFor(item);
+		// An ethereal piece is refused, not whole (round 35 audit: "Needs no repair" on a damaged one).
+		const std::string none = item._iOracoolEthereal && item._iDurability < item._iMaxDur ? std::string(_("No smith repairs ethereal items"))
+		                                                                                     : std::string(_("Needs no repair"));
+		AddPanelString(fee > 0 ? fmt::format(fmt::runtime(_("Repair: {:s} gold")), FormatInteger(fee)) : none,
+		    UiFlags::ColorWhitegold);
+	} else if (IsShopRechargeCursorArmed()) {
+		const int fee = ShopRechargePriceFor(item);
+		AddPanelString(fee > 0 ? fmt::format(fmt::runtime(_("Recharge: {:s} gold")), FormatInteger(fee)) : std::string(_("Needs no recharge")),
+		    UiFlags::ColorWhitegold);
+	}
 }
 
 void DecrementOrRemoveInvItem(Player &player, int invIndex, int tabIdx)

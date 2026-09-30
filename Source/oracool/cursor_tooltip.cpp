@@ -14,6 +14,7 @@
 #include "oracool/levski_roar.h" // HoveredLevskiGridItem
 #include "oracool/shop_grid.h"
 #include "qol/stash.h"
+#include "stores.h" // storehold - a worn piece listed on a service tab
 #include "items.h"
 #include "player.h"
 #include "utils/language.h"
@@ -264,6 +265,24 @@ void DrawBlock(const Surface &out, const Rectangle &box, const BlockMetrics &m, 
  * nullptr. Equipped slots and the belt are deliberately not containers here: comparing a worn
  * helm to itself says nothing, and a potion has no slot to compare against.
  */
+/**
+ * @brief A worn piece listed on a service tab is a copy in storehold, never the worn item's address: the body slot it
+ * came from, or -1 (round 35 audit: a helm on the Repair tab was compared with itself).
+ */
+int ListedBodySlot(const Item *item)
+{
+	const auto at = reinterpret_cast<uintptr_t>(item);
+	const auto first = reinterpret_cast<uintptr_t>(&storehold[0]);
+	if (at < first || at >= first + sizeof(storehold))
+		return -1;
+	const size_t i = (at - first) / sizeof(Item);
+	if (static_cast<int>(i) >= storenumh || storehidx[i] >= 0)
+		return -1;
+	if (stextflag == TalkID::WitchRecharge || stextflag == TalkID::SmithRecharge)
+		return INVLOC_HAND_LEFT; // the recharge list's -1 is the staff in hand
+	return -(storehidx[i] + 1);
+}
+
 const Item *HoveredContainerItem()
 {
 	// A SHOP's wares too (user, 2026-09-05: "add comparison tooltip for shop items too"). On the
@@ -524,7 +543,12 @@ Card BuildCard(const TooltipBlock &block, const Item *item)
 		// The line under the name in the name's own colour is what the item IS ("rare armor"). Never a stat line: an
 		// unidentified white base prints no type line, and its white "damage: 3-9" was taken for one and lost the card
 		// its big number (audit, 2026-09-27).
-		if (i == first && line.color == card.title.color && line.runs.empty() && !isRequirement(text) && !isHeadStat(text)) {
+		// Nor the item level or tier, and only for equipment, which alone prints a type line: a potion's level and an oil's
+		// first description line were taken for one (round 35 audit).
+		const bool printsTypeLine = item == nullptr
+		    || (item->_iLoc != ILOC_NONE && item->_iLoc != ILOC_UNEQUIPABLE && item->_iLoc != ILOC_BELT);
+		if (i == first && printsTypeLine && line.color == card.title.color && line.runs.empty() && !isRequirement(text) && !isHeadStat(text)
+		    && !CardStartsWith(text, levelPrefix) && !CardStartsWith(text, tierPrefix)) {
 			type = line.text;
 			continue;
 		}
@@ -1046,7 +1070,7 @@ void DrawCardTooltip(const Surface &out)
 	const Player &player = *InspectPlayer;
 	std::vector<Rectangle> placed;
 	for (const inv_body_loc loc : EquippedCounterparts(player, *container)) {
-		if (&player.InvBody[loc] == container)
+		if (&player.InvBody[loc] == container || static_cast<int>(loc) == ListedBodySlot(container))
 			continue;
 		TooltipBlock block = CaptureItemBlock(player.InvBody[loc]);
 		block.text = std::string(_("EQUIPPED ITEM")) + "\n" + block.text;
@@ -1135,7 +1159,7 @@ void DrawCursorTooltip(const Surface &out)
 	const Player &player = *InspectPlayer;
 	std::vector<Rectangle> placed;
 	for (const inv_body_loc loc : EquippedCounterparts(player, *hovered)) {
-		if (&player.InvBody[loc] == hovered)
+		if (&player.InvBody[loc] == hovered || static_cast<int>(loc) == ListedBodySlot(hovered))
 			continue; // a worn piece on the Repair or Recharge tab: nothing to compare it with but itself
 		TooltipBlock block = CaptureItemBlock(player.InvBody[loc]);
 		block.text = std::string(_("EQUIPPED ITEM")) + "\n" + block.text;

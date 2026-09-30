@@ -679,6 +679,7 @@ bool PassiveCheatsDeath(Player &player)
 			Monster &other = Monsters[ActiveMonsters[i]];
 			// Not a petrified one, as every other knockback caller spares it: the throw broke Stone Curse early (round 32 audit).
 			if (!other.isPlayerMinion() && other.hitPoints >> 6 > 0 && other.mode != MonsterMode::Petrified
+			    && other.isPossibleToHit() // not a charge in flight or a quest speaker mid-talk (round 35 audit)
 			    && player.position.tile.WalkingDistance(other.position.tile) <= AnomalyThrowTiles)
 				M_GetKnockback(other);
 		}

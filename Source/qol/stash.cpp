@@ -42,6 +42,7 @@
 #include "oracool/skill_sounds.h" // PlayUiEventSound - the map's unsealing
 #include "oracool/ui_sound.h"
 #include "oracool/window_close.h" // the withdraw box's red X (2026-09-24)
+#include "inv.h" // AddShopServiceFeeLine
 #include "stores.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
@@ -1274,6 +1275,7 @@ uint16_t CheckStashHLight(Point mousePosition)
 	} else {
 		PrintItemDur(item);
 	}
+	AddShopServiceFeeLine(item); // the hammer and Adria's recharge work here too (round 35 audit)
 
 	return itemId;
 }

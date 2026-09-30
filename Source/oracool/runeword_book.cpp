@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <fmt/format.h>
@@ -207,7 +208,13 @@ std::vector<std::string> RuneLines(const RunewordDefinition &word)
 
 int EntryHeight(const RunewordDefinition &word)
 {
-	return EntryHeaderHeight + static_cast<int>(StatLines(word).size() + RuneLines(word).size()) * LineHeight;
+	// Cached per word (round 35 audit): the layout ran every frame and formatted every word's lines to count them.
+	static std::unordered_map<const RunewordDefinition *, int> Heights;
+	if (const auto it = Heights.find(&word); it != Heights.end())
+		return it->second;
+	const int height = EntryHeaderHeight + static_cast<int>(StatLines(word).size() + RuneLines(word).size()) * LineHeight;
+	Heights.emplace(&word, height);
+	return height;
 }
 
 std::vector<const RunewordDefinition *> VisibleWords()

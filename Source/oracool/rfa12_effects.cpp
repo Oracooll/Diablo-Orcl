@@ -64,6 +64,7 @@ PlayerClocks &ClocksOf(const Player &player)
 struct MonsterMarks {
 	int bleedTicks = 0;   // Deep Wounds: ticks of bleeding left
 	int bleedDamage = 0;  // ...and what each second of it takes, in 1/64 units
+	int bleedPulse = 0;   // ...and its own second, which a refresh leaves alone (round 35 audit)
 	int noRegenTicks = 0; // Lasting Wounds
 	bool wounded = false; // Scent of Blood: the Rogue has drawn blood from it
 	int scentTicks = 0;   // ...and ticks it stays drawn out of the light
@@ -413,7 +414,7 @@ void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee)
 	if (melee) {
 		clocks.retaliationStacks = 0;
 		if (const int p = PointsIfOn(player, Skill::DeepWounds); p > 0 && GenerateRnd(100) < DeepWoundsChance(p)) {
-			marks.bleedTicks = DeepWoundsTicks;
+			marks.bleedTicks = std::max(marks.bleedTicks, DeepWoundsTicks); // not cutting a longer bleed short (round 35)
 			marks.bleedDamage = std::max(marks.bleedDamage, DeepWoundsPerSecond(p) << 6);
 		}
 		if (PointsIfOn(player, Skill::LastingWounds) > 0)
@@ -575,7 +576,11 @@ void ProcessRfa12Tick(Player &player)
 			marks.scentTicks--;
 		if (marks.bleedTicks > 0) {
 			marks.bleedTicks--;
-			if (marks.bleedTicks % TicksPerSecond == 0 && (monster.hitPoints >> 6) > 0) {
+			// Its own second (round 35 audit): renewed faster than once a second, the bleed never struck.
+			const bool due = ++marks.bleedPulse >= TicksPerSecond;
+			if (due || marks.bleedTicks == 0)
+				marks.bleedPulse = 0;
+			if (due && (monster.hitPoints >> 6) > 0) {
 				ApplyMonsterDamage(DamageType::Physical, monster, marks.bleedDamage);
 				if ((monster.hitPoints >> 6) <= 0)
 					M_StartKill(monster, player);

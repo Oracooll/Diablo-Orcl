@@ -614,7 +614,11 @@ void AddItemListBackButton(bool selectable = false)
 	}
 }
 
-void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = false)
+/**
+ * @param affixRows Rows the affix line may wrap over: the Confirm and Cain's result screens have room below it, and a
+ * six-affix item ran over the requirements line (round 35 audit). A list entry keeps one.
+ */
+void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = false, int affixRows = 1)
 {
 	std::string productLine;
 
@@ -652,14 +656,32 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 			}
 		}
 	}
+	// A vanilla unique's powers are not in the list: say what it is, as vanilla's store did (round 35 audit).
+	if (item._iIdentified && productLine.empty() && item._iMagical == ITEM_QUALITY_UNIQUE && item._iOracoolTier != OracoolItemTier::Set)
+		AppendStrView(productLine, _("Unique Item"));
 	if (item._iMiscId == IMISC_STAFF && item._iMaxCharges != 0) {
 		if (!productLine.empty())
 			AppendStrView(productLine, _(",  "));
 		productLine.append(fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges));
 	}
 	if (!productLine.empty()) {
-		AddSText(40, l, productLine, flags, false, -1, cursIndent);
-		l++;
+		if (affixRows > 1) {
+			const std::string wrapped = WordWrapString(productLine, 490);
+			size_t start = 0;
+			for (int row = 0; row < affixRows && start <= wrapped.size(); row++) {
+				const size_t end = wrapped.find('\n', start);
+				std::string piece = wrapped.substr(start, end == std::string::npos ? std::string::npos : end - start);
+				if (row == affixRows - 1 && end != std::string::npos)
+					piece += "...";
+				AddSText(40, l++, piece, flags, false, -1, cursIndent);
+				if (end == std::string::npos)
+					break;
+				start = end + 1;
+			}
+		} else {
+			AddSText(40, l, productLine, flags, false, -1, cursIndent);
+			l++;
+		}
 		productLine.clear();
 	}
 
@@ -1817,7 +1839,7 @@ void StoreConfirm(Item &item)
 	UiFlags itemColor = item.getTextColorWithStatCheck();
 	AddSText(20, 8, item.getName(), itemColor, false);
 	AddSTextVal(8, item._iIvalue);
-	PrintStoreItem(item, 9, itemColor);
+	PrintStoreItem(item, 9, itemColor, false, /*affixRows=*/4);
 
 	string_view prompt;
 
@@ -2107,7 +2129,7 @@ void StartStorytellerIdentifyShow(Item &item)
 
 	AddSText(0, 7, _("This item is:"), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
 	AddSText(20, 11, item.getName(), itemColor, false);
-	PrintStoreItem(item, 12, itemColor);
+	PrintStoreItem(item, 12, itemColor, false, /*affixRows=*/4);
 	AddSText(0, 18, _("Done"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
@@ -2967,6 +2989,7 @@ void WitchEnter()
 		// bonuses, a doused aura) - rebuild before the store screen returns, not on the next
 		// incidental recalc.
 		CalcPlrInv(*MyPlayer, true);
+		oracool::ScheduleAutoSaveForSkillPointChange(); // as the Abilities window's refunds (round 35 audit)
 		oracool::LogEvent(fmt::format("Adria reclaimed {:d} skill point(s) for {:d} gold", refunded, cost),
 		    UiFlags::ColorWhitegold);
 		// Rebuilt rather than left as-is so the line greys out immediately.
@@ -4680,7 +4703,10 @@ void StartStore(TalkID s)
 
 	// Only on the way IN to a shop. StartStore is also how a shop screen rebuilds itself after every
 	// purchase, and resetting there would throw the cursor back to the first item each time.
-	if (oracool::IsShopGridScreen(s) && !oracool::IsShopGridScreen(stextflag))
+	// Back from a Confirm, No Room or No Money over the grid is not the way in either (round 35 audit).
+	const bool backToGrid = (stextflag == TalkID::Confirm || stextflag == TalkID::NoRoom || stextflag == TalkID::NoMoney)
+	    && oracool::IsShopGridScreen(stextshold);
+	if (oracool::IsShopGridScreen(s) && !oracool::IsShopGridScreen(stextflag) && !backToGrid)
 		oracool::ResetShopGridSelection();
 
 	if (*sgOptions.Gameplay.showItemGraphicsInStores) {
@@ -4748,8 +4774,9 @@ void StartStore(TalkID s)
 		StartWitch();
 		break;
 	case TalkID::WitchBuy:
-		if (storenumh > 0)
-			StartWitchBuy(false);
+		// Always rebuilt: the guard read the last screen's count, and from an empty Sold tab it skipped the book levels and
+		// usability tint (round 35 audit). StartWitchBuy handles an empty shelf.
+		StartWitchBuy(false);
 		break;
 	case TalkID::WitchSell:
 		StartWitchSell();

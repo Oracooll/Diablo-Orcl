@@ -222,8 +222,14 @@ void Game2UiPlayer(const Player &player, _uiheroinfo *heroinfo, bool bHasSaveFil
 	const int always = oracool::PassiveUnconditionalDamagePercent(player);
 	int minDamage = player._pIMinDam + player._pIBonusDam * player._pIMinDam / 100 + player._pIBonusDamMod;
 	int maxDamage = player._pIMaxDam + player._pIBonusDam * player._pIMaxDam / 100 + player._pIBonusDamMod;
-	minDamage += minDamage * always / 100 + strengthPart;
-	maxDamage += maxDamage * always / 100 + strengthPart;
+	// A bow's Strength part before the percent, as the arrow adds it (round 35 audit).
+	const bool bow = player.UsesRangedWeapon();
+	if (bow) {
+		minDamage += strengthPart;
+		maxDamage += strengthPart;
+	}
+	minDamage += minDamage * always / 100 + (bow ? 0 : strengthPart);
+	maxDamage += maxDamage * always / 100 + (bow ? 0 : strengthPart);
 	heroinfo->minDamage = static_cast<uint16_t>(std::clamp(minDamage, 0, 65535));
 	heroinfo->maxDamage = static_cast<uint16_t>(std::clamp(maxDamage, 0, 65535));
 	heroinfo->hassaved = bHasSaveFile;

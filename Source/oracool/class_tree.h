@@ -1039,6 +1039,9 @@ void SilenceAuraLoopForTransition();
 /** @brief Re-attaches the loop for @p skill after a transition, tracker included. */
 void ResumeAuraLoopAfterTransition(ClassTreeSkill skill);
 
+/** @brief Puts out the aura's loop with its Stop cue, tracker included (a refund). */
+void PutOutAuraLoop();
+
 /**
  * @brief Contributes the burning aura AND every paid-for passive onto @p totals. Auras scale with
  * the points in them; passives are always on once bought. Effects this engine has no channel for

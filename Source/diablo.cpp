@@ -1446,7 +1446,11 @@ void HandleMouseButtonDown(Uint8 button, uint16_t modState)
 	        || button == 8
 #endif
 	        )) {
-		StoreESC();
+		// The Refresh Until prompt first, as Escape closes it: X1 left it on screen over no shop (round 35 audit).
+		if (IsModalPromptOpen())
+			PressEscKey();
+		else
+			StoreESC();
 		return;
 	}
 
@@ -2302,6 +2306,7 @@ void DiabloDeinit()
 	// diablo_quit; the ordinary way out (menu, then exit) came straight here, left the thread joinable, and the
 	// static std::thread's destructor called std::terminate: "abort() has been called" on exit (user, 2026-09-17).
 	oracool::ShutdownSpriteMixer();
+	oracool::TelemetryFlush(); // the last second of rows (round 35 audit)
 
 	FreeItemGFX();
 
@@ -3720,6 +3725,7 @@ void diablo_quit(int exitStatus)
 	// Oracool: the sprite mixer has a thread of its own. Joined here - AFTER the watchdog is armed, so a join that
 	// ever stalled would still be bounded - and before anything it uses is torn down.
 	oracool::ShutdownSpriteMixer();
+	oracool::TelemetryFlush(); // the last second of rows (round 35 audit)
 
 	// Oracool (audit, 2026-08-26): closing the window is a way of leaving the game, and it used to
 	// be the one way that saved nothing. SDL_WINDOWEVENT_CLOSE lands here and this function went
@@ -4236,6 +4242,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	// The stash chest and the Rift Monument menu are town furniture: a Sealed Map read with either open carried it into
 	// the arena, and the stash moved items both ways mid-fight (round 12 audit, v1.12.237).
 	CloseStash();
+	ForceCloseStore(); // a store carried below by a debug level change stayed open there (round 35 audit)
 	oracool::CloseStonegateMenu();
 	oracool::CloseWaypointMenu(); // a Town Portal cast beside a sigil landed within its reach in town (round 18 audit)
 	// The books, the skill picker and the HUD menu do not follow the hero to the next floor either (round 30 audit: a click

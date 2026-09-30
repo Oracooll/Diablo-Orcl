@@ -632,12 +632,15 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 		mid = abs(mid) - 1;
 		// A trap's missile spares the hero's own side (round 34 audit: a Nova chest, an Oily shrine's fire wall, a wall trap
 		// killed his skeletons and companions), as his own missiles do since 2026-09-27.
-		if ((missile.IsTrap() && !Monsters[mid].isPlayerMinion() && !oracool::IsCompanion(Monsters[mid]))
-		    || (missile._micaster == TARGET_PLAYERS && (                                           // or was fired by a monster and
-		            Monsters[mid].isPlayerMinion() != missile.sourceMinion                         //  the monsters are on opposing factions
-		            || (Monsters[missile._misource].flags & MFLAG_BERSERK) != 0                    //  or the attacker is berserked
-		            || (Monsters[mid].flags & MFLAG_BERSERK) != 0                                  //  or the target is berserked
-		            ))) {
+		// Exclusive (round 35 audit): as a disjunct, a trap that met a minion fell through to the faction test below, which
+		// a source-less trap passes against the army, and on to Monsters[-1] for a berserked golem slot.
+		if (missile.IsTrap()
+		        ? (!Monsters[mid].isPlayerMinion() && !oracool::IsCompanion(Monsters[mid]))
+		        : (missile._micaster == TARGET_PLAYERS && (                                        // or was fired by a monster and
+		              Monsters[mid].isPlayerMinion() != missile.sourceMinion                       //  the monsters are on opposing factions
+		              || (Monsters[missile._misource].flags & MFLAG_BERSERK) != 0                  //  or the attacker is berserked
+		              || (Monsters[mid].flags & MFLAG_BERSERK) != 0                                //  or the target is berserked
+		              ))) {
 			// then the missile can potentially hit this target.
 			// A minion's bolt is its owner's blow (audit, 2026-09-19): tag the target BEFORE the hit,
 			// since MonsterTrapHit runs MonsterDeath itself and the kill's experience goes to whoever

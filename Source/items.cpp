@@ -2900,7 +2900,7 @@ void PrintItemOil(const Item &item)
 	} break;
 	case IMISC_ORACOOL_KEYSTONE:
 		// The tier is the whole item (oracool/rift.h): it says what the rift will be before the key is spent.
-		AddPanelString(fmt::format(fmt::runtime(_("opens a Guardian Rift of tier {:d}")), item._iOracoolRiftTier));
+		AddPanelString(fmt::format(fmt::runtime(_("opens a Guardian Rift of tier {:d}")), std::max<int>(1, item._iOracoolRiftTier))); // as rift.cpp reads it
 		AddPanelString(_("fifteen minutes; Diablo or Na-Krul at the end"));
 		AddPanelString(_("use in town - spent when you step through the portal")); // as rift.cpp spends it (round 31 audit)
 		break;
@@ -7995,6 +7995,9 @@ void AddItemPowerPanelStrings(const Item &item)
  */
 bool AffixStatesIndestructible(const Item &item)
 {
+	// A Zod's socket line says it too (round 35 audit: "Indestructible" twice).
+	if (oracool::SocketsMakeIndestructible(item))
+		return true;
 	// The one affix list is printed for every item that is neither a set piece nor a vanilla unique (2026-09-25:
 	// it used to be tiered items' list plus a magic item's vanilla prefix/suffix pair).
 	const bool listPrinted = item._iOracoolTier != OracoolItemTier::Set
@@ -8181,6 +8184,8 @@ void PrintItemDetails(const Item &item)
 			AddPanelString(_("Active"), ItemAffixColor);
 		else if (state == 0)
 			AddPanelString(fmt::format(fmt::runtime(_("Inactive - over the {:d}-charm cap")), oracool::CharmActiveCap), UiFlags::ColorRed);
+		else
+			AddPanelString(_("Inactive - only backpack charms work"), UiFlags::ColorRed); // the stash, the Cube (round 35 audit)
 	}
 	// A LOOSE gem or rune says what it does, per host, before it says anything else.
 	//

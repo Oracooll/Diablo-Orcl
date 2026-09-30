@@ -202,7 +202,7 @@ void RefundAllSkillPoints(Player &player)
 	if (GetActiveClassAura(player) != ClassTreeSkill::None) {
 		player._pOracoolActiveAura = static_cast<uint16_t>(ClassTreeSkill::None);
 		if (&player == MyPlayer)
-			StopClassAuraLoop();
+			PutOutAuraLoop(); // through the tracker, as the one-rank refund (round 35 audit)
 	}
 	// And every binding to a skill the refund took away - both buttons, the F-keys, left and right (audit, 2026-09-27).
 	// Only the ability mask was rebuilt, so a refunded Ice Bolt stayed on the left button and cast at spell level 0.
