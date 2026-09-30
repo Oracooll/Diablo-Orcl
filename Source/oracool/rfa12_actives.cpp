@@ -1276,12 +1276,9 @@ void ImpactOnLanding(const Player &player, Missile *bolt, SpellID spell)
 /** @brief A corpse skill's burst: the corpse within reach of the cursor, taken, or nothing. */
 std::optional<Corpse> BurstCorpse(Player &player, Point target)
 {
-	// Not a corpse the hero cannot see: it was spent and the burst struck no one (round 37 audit).
-	if (CastSightFrom && !LineClearMissile(*CastSightFrom, target)) {
-		player.Say(HeroSpeech::ICantDoThat);
-		return std::nullopt;
-	}
-	std::optional<Corpse> corpse = TakeCorpseNear(target, 3, /*forRevive=*/false);
+	// Not a corpse the hero cannot see: it was spent and the burst struck no one (round 37 audit) - the corpse's own sight,
+	// not the cursor's (round 38 audit).
+	std::optional<Corpse> corpse = CastSightFrom ? TakeCorpseNearSeen(target, 3, *CastSightFrom) : TakeCorpseNear(target, 3, /*forRevive=*/false);
 	if (!corpse)
 		player.Say(HeroSpeech::ICantDoThat);
 	else

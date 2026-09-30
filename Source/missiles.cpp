@@ -396,8 +396,8 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 		hit = 0;
 	// Diablo II's rule, on trial: a spell that reaches a monster lands (see SpellsNeverMiss). Only the
 	// miss is gone - immunities above, and the resistances in the damage, still apply.
-	// Not the weapon's own fire or lightning, which rides a swing that may miss (round 37 audit: it landed on every swing).
-	if (SpellsNeverMiss && !missileData.isArrow() && t != MissileID::WeaponExplosion)
+	// The weapon's fire and lightning too: it is spawned only on a landed blow since round 38.
+	if (SpellsNeverMiss && !missileData.isArrow())
 		hit = 0;
 
 	if (monster.tryLiftGargoyle())
@@ -1610,6 +1610,7 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 		if (&player == MyPlayer) {
 			ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
 			if (monster != nullptr) {
+				if ((player._pHitPoints >> 6) > 0) // not from the corpse (round 38 audit)
 				oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
 				OnMonsterMissileLanded(player, *monster, dam, poisonBase);
 			}
@@ -1624,7 +1625,8 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	if (&player == MyPlayer) {
 		ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
 		if (monster != nullptr) {
-			oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
+			if ((player._pHitPoints >> 6) > 0) // not from the corpse (round 38 audit)
+				oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
 			OnMonsterMissileLanded(player, *monster, dam, poisonBase);
 		}
 	}

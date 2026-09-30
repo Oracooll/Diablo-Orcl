@@ -811,6 +811,14 @@ void TravelToWaypointEntry(int entry)
 	if (MyPlayer == nullptr || MyPlayer->_pmode == PM_DEATH || MyPlayerIsDead || (MyPlayer->_pHitPoints >> 6) <= 0
 	    || MyPlayer->_pmode == PM_NEWLVL || PauseMode == 2)
 		return;
+	// From a stand, as the stairs and the portals (round 38 audit: a release mid-cast or mid-hit cut the action off), and
+	// still beside the sigil, which the draw's walk-away check misses on a skipped frame.
+	if (MyPlayer->_pmode != PM_STAND)
+		return;
+	if (MyPlayer->position.tile.WalkingDistance(OpenedFromPosition) > 1) {
+		CloseWaypointMenu();
+		return;
+	}
 	// The row index STOPPED being the destination level when the list was reordered by depth
 	// (2026-09-12): row 13 is the Nest's first floor, dungeon level 17. Everything past this line
 	// speaks in dungeon levels, which is what _pWaypointUnlocked and StartNewLvl both want.

@@ -67,7 +67,7 @@ void RecordCorpse(const Monster &monster)
 
 namespace {
 
-int NearestIndex(Point tile, int radius, bool forRevive)
+int NearestIndex(Point tile, int radius, bool forRevive, std::optional<Point> seenFrom = std::nullopt)
 {
 	int best = -1;
 	int bestDistance = 0;
@@ -81,6 +81,8 @@ int NearestIndex(Point tile, int radius, bool forRevive)
 		const int distance = tile.WalkingDistance(corpse.position);
 		if (distance > radius)
 			continue;
+		if (seenFrom && !LineClearMissile(*seenFrom, corpse.position))
+			continue; // behind a wall from the caster (round 38 audit)
 		if (best < 0 || distance < bestDistance) {
 			best = i;
 			bestDistance = distance;
@@ -90,6 +92,15 @@ int NearestIndex(Point tile, int radius, bool forRevive)
 }
 
 } // namespace
+
+std::optional<Corpse> TakeCorpseNearSeen(Point tile, int radius, Point seenFrom)
+{
+	const int index = NearestIndex(tile, radius, /*forRevive=*/false, seenFrom);
+	if (index < 0)
+		return std::nullopt;
+	const Corpse taken = Table[static_cast<size_t>(index)];
+	return TakeCorpseNear(taken.position, 0, /*forRevive=*/false);
+}
 
 std::optional<Corpse> TakeCorpseNear(Point tile, int radius, bool forRevive)
 {

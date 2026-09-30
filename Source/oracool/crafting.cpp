@@ -1237,6 +1237,10 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 	if (recipe == 3) {
 		Item &host = grid[materials[0]];
 		const int stones = host.socketedCount();
+		// Zod stays in an ethereal item (round 38 audit): freed, the host came back whole at its maximum - a free repair of
+		// what no smith repairs, and the same Zod did it again for the next one. The wear before Zod is not kept.
+		if (host._iOracoolEthereal && SocketsMakeIndestructible(host))
+			return std::string(_("Zod is bound for good in an ethereal item"));
 
 		std::vector<Item> after;
 		after.reserve(GridSlots + Item::MaxItemSockets);

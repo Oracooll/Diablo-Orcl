@@ -17,6 +17,8 @@
 #include "player.h"
 #include "control.h" // IsOverLeftPanel, IsOverRightPanel
 #include "oracool/hud_layout.h" // IsPointOverFloatingWindow
+#include "help.h" // HelpFlag
+#include "qol/chatlog.h" // ChatLogFlag
 #include "stores.h"
 
 namespace devilution {
@@ -80,6 +82,8 @@ void RepeatMouseAction()
 	if (ControlMode == ControlTypes::KeyboardAndMouse
 	    && (IsOverLeftPanel(MousePosition) || IsOverRightPanel(MousePosition) || oracool::IsPointOverFloatingWindow(MousePosition)))
 		return;
+	if (ChatLogFlag || HelpFlag)
+		return; // the modal screens, wherever the cursor is (round 38 audit)
 
 	if (LastMouseButtonAction == MouseActionType::None)
 		return;

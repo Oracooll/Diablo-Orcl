@@ -3350,10 +3350,10 @@ bool TryTransferHoveredActiveTabItemToStash(Player &player)
  */
 constexpr int PlaceableExtraTabs = Player::NumExtraInventoryTabs;
 
-void SortInventoryBySellValue(Player &player)
+bool SortInventoryBySellValue(Player &player)
 {
 	if (!oracool::IsSinglePlayer())
-		return;
+		return false;
 
 	struct SortEntry {
 		Item item;
@@ -3522,6 +3522,7 @@ void SortInventoryBySellValue(Player &player)
 
 	player.CalcScrolls();
 	CalcPlrInv(player, true);
+	return !leftOver;
 }
 
 bool CheckInventorySortButtonClick(Point cursorPosition)
@@ -3543,9 +3544,10 @@ bool CheckInventorySortButtonClick(Point cursorPosition)
 	// in diablo.cpp's LeftMouseUp regardless of where the mouse is by then.
 	inventorySortButtonDown = true;
 	InventorySortFlashUntil = SDL_GetTicks() + InventorySortFlashMs;
-	SortInventoryBySellValue(*MyPlayer);
-	// Oracool: user request - same sound as the Stash's Sort button (shield-into-slot sound).
-	PlaySFX(IS_ISHIEL);
+	// Oracool: user request - same sound as the Stash's Sort button (shield-into-slot sound) - when it sorted (round 38 audit:
+	// it played over the refusal too).
+	if (SortInventoryBySellValue(*MyPlayer))
+		PlaySFX(IS_ISHIEL);
 	return true;
 }
 
@@ -4335,8 +4337,9 @@ void RefillBeltSlotFromInventory(Player &player, int spdIndex, const Item &like)
 	if (!filledSlot)
 		return;
 
-	// The backpack lost an item: which three charms are live can change with it, and so can the stats (round 10 audit).
-	CalcPlrInv(player, false);
+	// The backpack lost an item: which three charms are live can change with it, and so can the stats (round 10 audit),
+	// and with them the look (round 38).
+	CalcPlrInv(player, true);
 	player.CalcScrolls();
 	RedrawComponent(PanelDrawComponent::Belt);
 	if (&player == MyPlayer) {
@@ -4887,15 +4890,22 @@ void ReseatOutgrownItems(Player &player)
 			RemoveExtraTabItem(player, tab, iv);
 		}
 	}
-	TakeOutgrownStashItems(displaced);
+	// A stash item goes back to the stash first: the stash is shared, and the backpack is whichever hero loaded (round 38 audit).
+	std::vector<Item> outgrownStash;
+	TakeOutgrownStashItems(outgrownStash);
+	for (const Item &item : outgrownStash) {
+		if (AutoPlaceItemInStash(player, item, true) || AutoPlaceItemInInventory(player, item, true) || AutoPlaceItemInExtraTabs(player, item, true))
+			continue;
+		DropItemBesidePlayer(player, item);
+	}
 	for (const Item &item : displaced) {
 		if (AutoPlaceItemInInventory(player, item, true) || AutoPlaceItemInExtraTabs(player, item, true) || AutoPlaceItemInStash(player, item, true))
 			continue;
 		DropItemBesidePlayer(player, item);
 	}
-	if (!displaced.empty()) {
+	if (!displaced.empty() || !outgrownStash.empty()) {
 		CalcPlrInv(player, false);
-		oracool::LogEvent(fmt::format("{:d} item(s) that grew moved to a free spot", displaced.size()));
+		oracool::LogEvent(fmt::format("{:d} item(s) that grew moved to a free spot", displaced.size() + outgrownStash.size()));
 	}
 }
 

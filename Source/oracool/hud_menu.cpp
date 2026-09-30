@@ -350,7 +350,8 @@ void CheckHudMenuClick(Point mousePosition)
 	// a corpse open its inventory or flip through the Abilities window. The windows would open
 	// half-functional anyway: LeftMouseDown returns before any in-window click handling while dead,
 	// so an entry like Inventory produced a panel that draws but cannot be clicked.
-	if (MyPlayerIsDead && index != GameMenuEntryIndex)
+	// Nor during the fall, before MyPlayerIsDead is set (round 38 audit: the windows opened on the corpse).
+	if ((MyPlayerIsDead || (MyPlayer != nullptr && MyPlayer->_pmode == PM_DEATH)) && index != GameMenuEntryIndex)
 		return;
 	MenuEntries[index].action();
 	// The entry's click, here rather than in the entries: the W key reaches the same runeword toggle

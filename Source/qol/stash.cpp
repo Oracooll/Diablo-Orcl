@@ -1444,6 +1444,7 @@ void StashStruct::SetPage(unsigned newPage)
 {
 	page = std::min(newPage, LastStashPage);
 	dirty = true;
+	pcursstashitem = StashStruct::EmptyCell; // the last page's hover (round 38 audit: a Ctrl+click moved it)
 }
 
 void StashStruct::NextPage(unsigned offset)
@@ -1454,6 +1455,7 @@ void StashStruct::NextPage(unsigned offset)
 		page = LastStashPage;
 	}
 	dirty = true;
+	pcursstashitem = StashStruct::EmptyCell; // round 38 audit
 }
 
 void StashStruct::PreviousPage(unsigned offset)
@@ -1464,6 +1466,7 @@ void StashStruct::PreviousPage(unsigned offset)
 		page = LastStashPage;
 	}
 	dirty = true;
+	pcursstashitem = StashStruct::EmptyCell; // round 38 audit
 }
 
 void StashStruct::RefreshItemStatFlags()

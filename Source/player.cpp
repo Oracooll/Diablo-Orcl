@@ -1055,6 +1055,9 @@ bool DoAttack(Player &player)
 			}
 		}
 
+		// The weapon's fire and lightning burst where the blow LANDS (round 38 audit): spawned before the swing's roll, a
+		// missed swing still burned, and round 37's spell to-hit roll on the burst missed nearly always past Normal.
+		const auto elementBursts = [&]() {
 		if (!gbIsHellfire || oracool::IsSinglePlayer() || !HasAllOf(player._pIFlags, ItemSpecialEffect::FireDamage | ItemSpecialEffect::LightningDamage)) {
 			const size_t playerId = player.getId();
 			// Oracool (2026-09-11): OR fire/lightning damage from anywhere, not only from a weapon
@@ -1068,6 +1071,9 @@ bool DoAttack(Player &player)
 				AddMissile(blowTile, { 2, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
 			}
 		}
+		};
+		if (monster == nullptr)
+			elementBursts(); // no enemy there: as before, harmless on an empty tile
 
 		// Sweeping Reed or Wheel of Heaven strikes the side tiles itself when it fires, so the staff cleave below stands aside -
 		// but only when it fires, which the swing itself reports (ClassMeleeSkillSwept, round 28 audit).
@@ -1078,6 +1084,8 @@ bool DoAttack(Player &player)
 			oracool::NoteRageCombat(player);
 			int hitDamage = 0;
 			didhit = PlrHitMonst(player, *monster, false, &hitDamage);
+			if (didhit)
+				elementBursts();
 			// Oracool: one hook for every skill that rides a swing - Zeal, Hammer of Faith, Shield
 			// Bash. Which of them applies, if any, is decided by the button that threw this swing,
 			// latched at the click because it is gone by the time the animation lands. See
@@ -3536,6 +3544,8 @@ StartPlayerKill(Player &player, DeathReason deathReason)
 				}
 				if (!kept)
 					DeadItem(player, std::move(player.HoldItem), { 0, 0 });
+				// Gold put away counts again: lifted, it had left the total (round 38 audit - the shops under-counted it).
+				player._pGold = CalculateGold(player);
 				NewCursor(CURSOR_HAND);
 			}
 			if (dropGold) {
@@ -3805,6 +3815,12 @@ void RestartTownLvl(Player &player)
 	// Nor a cold armour: it rode the respawn into town with its tint and its freeze-on-hit, where vanilla ended it
 	// (round 24 audit, v1.12.249).
 	oracool::ClearColdArmour(player);
+	// Nor Etherealize, Infravision or Search: InitMissiles carries them across a level change, and the respawn is one - an
+	// Etherealize cast before dying left the hero immune to melee in town and beyond (round 38 audit).
+	for (Missile &missile : Missiles) {
+		if (missile.sourcePlayer() == &player && IsAnyOf(missile._mitype, MissileID::Etherealize, MissileID::Infravision, MissileID::Search))
+			missile._miDelFlag = true;
+	}
 
 	// Out of PM_DEATH before the totals: a dead hero's aura counts for nothing (GetActiveClassAura), so the lit aura's
 	// life and resistances were left out - a life aura took the 1 life below zero and the hero arrived dead in town,
@@ -4795,7 +4811,9 @@ void ModifyPlrVit(Player &player, int l)
 void CalcPlrInvKeepingLife(Player &player)
 {
 	const int before = player._pHitPoints;
-	CalcPlrInv(player, false);
+	// The look too: only a real change reloads (round 38 audit - a charm taken to the stash turned the sword red and the
+	// hero swung its sprites and frames until the next level).
+	CalcPlrInv(player, true);
 	// Only kept alive, not kept whole: gaining the bonus adds it to current life (CalcPlrItemVals), so keeping the life on
 	// the way out made every off/on - Endurance swapped away and back, Battle Orders run out and recast - a free heal of
 	// the whole bonus (round 16 audit, v1.12.241). A bonus ending at low life still never kills (round 7).
@@ -4939,13 +4957,14 @@ bool PlayerStrikesMonster(Player &player, Monster &monster)
 	oracool::NoteRageCombat(player);
 	const Point position = monster.position.tile;
 	const size_t playerId = player.getId();
+	int hitDamage = 0;
+	if (!PlrHitMonst(player, monster, false, &hitDamage))
+		return false;
+	// The weapon's fire and lightning on the landed blow only (round 38 audit), as DoAttack's.
 	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FireDamage) || player._pIFMaxDam > 0)
 		AddMissile(position, { 1, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
 	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::LightningDamage) || player._pILMaxDam > 0)
 		AddMissile(position, { 2, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
-	int hitDamage = 0;
-	if (!PlrHitMonst(player, monster, false, &hitDamage))
-		return false;
 	oracool::OnPassiveHit(player, monster, hitDamage, true);
 	oracool::OnRfa12Hit(player, monster, hitDamage, true);
 	oracool::ApplyVengeanceCold(player, monster);

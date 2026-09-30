@@ -81,6 +81,9 @@ bool IsSafeToSave()
 	    && MyPlayer != nullptr
 	    && !MyPlayerIsDead
 	    && MyPlayer->_pmode != PM_DEATH
+	    // Not between a level change's request and its load (round 38 audit: the hero was written already on the next floor).
+	    && MyPlayer->_pmode != PM_NEWLVL
+	    && !MyPlayer->_pLvlChanging
 	    && PauseMode == 0
 	    && !gmenu_is_active()
 	    && stextflag == TalkID::None
@@ -113,6 +116,12 @@ void ReturnHeldItemBeforeSaving(Player &player)
 		return;
 
 	const std::string name = player.HoldItem._iIName;
+	// Gold goes the way gold goes, stash first, and counts again (round 38 audit: filed as a pile, the total stayed short).
+	if (player.HoldItem._itype == ItemType::Gold && GoldAutoPlace(player, player.HoldItem)) {
+		player.HoldItem.clear();
+		player._pGold = CalculateGold(player);
+		return;
+	}
 	bool placed = AutoPlaceItemInInventory(player, player.HoldItem, /*persistItem=*/true);
 	// The belt takes potions only, the rule for every automatic placement (user, 2026-09-14; audit, 2026-09-29).
 	if (!placed && player.HoldItem.isPotion())

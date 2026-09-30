@@ -2670,11 +2670,11 @@ void SetupBaseItem(Point position, _item_indexes idx, bool onlygood, bool sendms
 		NetSendCmdPItem(false, CMD_SPAWNITEM, item.position, item);
 }
 
-void SetupAllUseful(Item &item, int iseed, int lvl)
-{
-	item._iSeed = iseed;
-	SetRndSeed(iseed);
+namespace {
 
+/** @brief The useful drop the current RNG rolls at @p lvl (vanilla's draw, unchanged). */
+_item_indexes RollUsefulIndex(int lvl)
+{
 	_item_indexes idx;
 
 	if (gbIsHellfire) {
@@ -2707,10 +2707,27 @@ void SetupAllUseful(Item &item, int iseed, int lvl)
 		if (lvl > 1 && FlipCoin(3))
 			idx = IDI_PORTAL;
 	}
+	return idx;
+}
+
+} // namespace
+
+void SetupAllUseful(Item &item, int iseed, int lvl)
+{
+	item._iSeed = iseed;
+	SetRndSeed(iseed);
+	_item_indexes idx = RollUsefulIndex(lvl);
 	// Not a Town Portal scroll where the portal is a built-in ability (round 37 audit: barrels and chests still gave them).
-	// A fresh roll only: a stored seed rebuilds into what it was (the pack_test goldens replay a Town Portal scroll).
-	if (idx == IDI_PORTAL && !ReplayingStoredItemSeed && oracool::IsBuiltInPortalAbility(SpellID::TownPortal))
-		idx = IDI_HEAL;
+	// A fresh drop moves its seed on until it rolls something else, so the seed it keeps rebuilds into what dropped (round 38
+	// audit: swapping the index came back a scroll on a reload). A stored seed replays unchanged.
+	if (idx == IDI_PORTAL && !ReplayingStoredItemSeed && oracool::IsBuiltInPortalAbility(SpellID::TownPortal)) {
+		for (int tries = 0; tries < 32 && idx == IDI_PORTAL; tries++) {
+			iseed = static_cast<int>(static_cast<uint32_t>(iseed) * 1103515245U + 12345U);
+			item._iSeed = iseed;
+			SetRndSeed(iseed);
+			idx = RollUsefulIndex(lvl);
+		}
+	}
 
 	GetItemAttrs(item, idx, lvl);
 	// Held to the 6-bit field (audit, 2026-09-27): area level 64 - Torment's floors 16 and 24 - stored as 0, and the scroll

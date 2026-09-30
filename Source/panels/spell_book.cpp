@@ -1679,7 +1679,7 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 		// is not in _pAblSpells to begin with.
 		if (oracool::ClassTreeInvestment(me, aura) > 0) {
 			oracool::SelectClassAura(me, aura);
-			CalcPlrInv(me, false);
+			CalcPlrInv(me, true); // the look follows a stat change (round 38)
 			oracool::ScheduleAutoSaveForSkillChange();
 			RedrawEverything();
 		}
@@ -2180,7 +2180,7 @@ void CheckSBook(bool assignToRightButton)
 					if (oracool::ClearPassiveSlot(me, slot)) {
 						if (ArmedPassiveSlot == slot)
 							ArmedPassiveSlot = -1;
-						CalcPlrInv(me, false);
+						CalcPlrInv(me, true); // the look follows a stat change (round 38)
 						RedrawEverything();
 					}
 					return;
@@ -2200,7 +2200,7 @@ void CheckSBook(bool assignToRightButton)
 				// so a player who wants it gone does not have to find which slot holds it.
 				const int slot = oracool::PassiveSlotOf(me, *cell);
 				if (slot >= 0 && oracool::ClearPassiveSlot(me, slot)) {
-					CalcPlrInv(me, false);
+					CalcPlrInv(me, true); // the look follows a stat change (round 38)
 					RedrawEverything();
 				}
 				return;
@@ -2228,14 +2228,14 @@ void CheckSBook(bool assignToRightButton)
 			// and right-click still empties a slot for anyone who reaches for it.
 			if (const int already = oracool::PassiveSlotOf(me, *cell); already >= 0) {
 				if (oracool::ClearPassiveSlot(me, already)) {
-					CalcPlrInv(me, false);
+					CalcPlrInv(me, true); // the look follows a stat change (round 38)
 					RedrawEverything();
 				}
 				return;
 			}
 			if (oracool::SetPassiveSlot(me, ArmedPassiveSlot, *cell)) {
 				ArmedPassiveSlot = -1;
-				CalcPlrInv(me, false);
+				CalcPlrInv(me, true); // the look follows a stat change (round 38)
 				RedrawEverything();
 			}
 			return;

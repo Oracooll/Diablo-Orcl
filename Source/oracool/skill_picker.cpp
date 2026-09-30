@@ -824,7 +824,7 @@ bool CheckSkillPickerClick(Point mousePosition)
 					//
 					// No interface click: lighting plays the aura's own start cue.
 					SelectClassAura(player, entry.tree);
-					CalcPlrInv(player, false);
+					CalcPlrInv(player, true); // the look follows a stat change (round 38)
 					break;
 				}
 				[[fallthrough]];

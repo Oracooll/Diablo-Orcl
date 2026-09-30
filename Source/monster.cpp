@@ -1781,7 +1781,8 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		// The Venomous variant: a bleed after the bite - as much again as the blow, over five seconds.
 		if (oracool::VariantPoisonsOnHit(monster))
 			oracool::PoisonPlayer(player, dam, 100);
-		oracool::OnRfa12Struck(player, monster); // Retaliation's stack, Unfinished Business's memory
+		if ((player._pHitPoints >> 6) > 0) // not from the corpse (round 38 audit: a guardian died to a dead hero's Retribution)
+			oracool::OnRfa12Struck(player, monster); // Retaliation's stack, Unfinished Business's memory
 		// Oracool: the one seam where "this monster wounded the player, for this much" is known, which
 		// is what a Vampiric champion needs. After the reflect subtraction, so it drains what it
 		// actually landed rather than what it swung for.
@@ -1807,7 +1808,8 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 	// Oracool (2026-09-12): the Paladin's Thorns returns a share of the blow - 25%, +10% a level - on top
 	// of the items' flat 1-3.
 	const int thornsPercent = oracool::ThornsReturnPercent(player);
-	if ((HasAnyOf(player._pIFlags, ItemSpecialEffect::Thorns) || thornsPercent > 0) && monster.mode != MonsterMode::Death) {
+	if ((HasAnyOf(player._pIFlags, ItemSpecialEffect::Thorns) || thornsPercent > 0) && monster.mode != MonsterMode::Death
+	    && (player._pHitPoints >> 6) > 0) { // a dead hero returns nothing (round 38 audit)
 		int mdam = HasAnyOf(player._pIFlags, ItemSpecialEffect::Thorns) ? (GenerateRnd(3) + 1) << 6 : 0;
 		mdam += dam * thornsPercent / 100;
 		ApplyMonsterDamage(DamageType::Physical, monster, mdam);
@@ -1820,7 +1822,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 	// The cold armours' answer to a blow that landed (Oracool, Round 2): Frozen freezes, Shiver
 	// chills and cuts, Chilling chills and shoots back. After Thorns and under the same guard,
 	// because Thorns can have killed the attacker a line ago.
-	if (monster.mode != MonsterMode::Death)
+	if (monster.mode != MonsterMode::Death && (player._pHitPoints >> 6) > 0)
 		oracool::OnColdArmourStruckInMelee(player, monster);
 
 	if ((monster.flags & MFLAG_NOLIFESTEAL) == 0 && monster.type().type == MT_SKING && gbIsMultiplayer)
@@ -4877,7 +4879,7 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	// tying it to the drop would make the milestone depend on a roll.
 	if (oracool::IsEndgameBoss(monster) && MyPlayer != nullptr) {
 		oracool::ClaimMilestone(*MyPlayer, oracool::Milestone::SlayDreadBoss);
-		CalcPlrInv(*MyPlayer, false); // the milestone charms grow with it - at once, not at the next gear change (round 10 audit)
+		CalcPlrInv(*MyPlayer, true); // the milestone charms grow with it - at once, not at the next gear change (round 10 audit)
 	}
 
 	// Phase 4: a named encounter's guardian pays its reward here. GUARANTEED - the map said what it

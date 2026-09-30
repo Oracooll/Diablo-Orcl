@@ -389,7 +389,8 @@ extern bool inventorySortButtonDown;
  * CanItemEnterExtraTab) are left exactly where they are - only genuinely relocatable items are
  * cleared and re-placed. Equipped items and the belt are untouched. Single-player only.
  */
-void SortInventoryBySellValue(Player &player);
+/** @return Whether it sorted: false when the pack was left as it was (no room, or multiplayer). */
+bool SortInventoryBySellValue(Player &player);
 /**
  * @brief Hit-tests the inventory sort button and runs SortInventoryBySellValue if clicked.
  * @return true if the button was clicked (whether or not anything actually moved).

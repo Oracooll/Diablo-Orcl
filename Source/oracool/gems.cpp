@@ -480,8 +480,9 @@ int SocketRequirementReductionPercent(const Item &item)
 
 bool SocketsMakeIndestructible(const Item &item)
 {
-	// Zod. One is enough, which is why this answers yes/no rather than summing anything.
-	if (item.isEmpty() || item._iSocketCount == 0)
+	// Zod. One is enough, which is why this answers yes/no rather than summing anything. Not on a host with no durability
+	// (jewellery), where it does nothing (round 38 audit: the ring said "indestructible").
+	if (item.isEmpty() || item._iSocketCount == 0 || item._iMaxDur == 0)
 		return false;
 	for (const uint16_t socketed : item._iSocketed) {
 		if (socketed == Item::EmptySocket)

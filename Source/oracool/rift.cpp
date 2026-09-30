@@ -40,6 +40,7 @@
 #include "oracool/stairless.h"
 #include "oracool/stonegate.h"
 #include "oracool/auto_save.h"
+#include "control.h" // IsLeftPanelOpen
 #include "inv.h"
 #include "player.h"
 #include "plrmsg.h" // EventPlrMsg - a refused rift says why on screen
@@ -443,6 +444,10 @@ bool TryEnterRiftFromTown()
 	// it is only where the click walks the hero, and he goes in the moment he is within reach of the
 	// portal - at once if he clicked from beside it.
 	if (!State.entryRequested)
+		return false;
+	// Not with an item on the cursor or a window up (round 38 audit: a keystone lifted on the way was "no longer with you",
+	// and any other held item walked into the rift on the cursor). The click stays requested until then.
+	if (!MyPlayer->HoldItem.isEmpty() || invflag || IsLeftPanelOpen())
 		return false;
 	Point entry;
 	if (!StonegateEntryTile(entry))
