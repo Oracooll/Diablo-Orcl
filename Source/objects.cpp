@@ -1505,7 +1505,7 @@ void AddShrine(Object &shrine)
 	int shrines = gbIsHellfire ? NumberOfShrineTypes : 26;
 
 	for (int j = 0; j < shrines; j++) {
-		slist[j] = currlevel >= shrinemin[j] && currlevel <= shrinemax[j];
+		slist[j] = ShrineFloor() >= shrinemin[j] && ShrineFloor() <= shrinemax[j]; // a rift's own floor (round 15 audit)
 		if (gbIsMultiplayer && shrineavail[j] == ShrineTypeSingle) {
 			slist[j] = false;
 		} else if (!gbIsMultiplayer && shrineavail[j] == ShrineTypeMulti) {

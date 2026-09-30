@@ -475,7 +475,7 @@ void FindTrigger()
 			pcurstrig = i;
 		}
 
-		if (pcurstrig == -1) {
+		if (pcurstrig == -1 && !setlevel) { // as the mouse's ForceQuests: a set level's number is not a floor (round 15)
 			for (auto &quest : Quests) {
 				if (quest._qidx == Q_BETRAYER || currlevel != quest._qlevel || quest._qslvl == 0)
 					continue;

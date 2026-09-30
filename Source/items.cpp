@@ -1841,7 +1841,10 @@ std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int
 	// Capped at 25, as GetItemBonus caps it: the jewellery tables stop at level 30, so from item level 62 a floor of 31
 	// left a ring's bonus affixes only Movement Speed and Faster Cast - and a Reroll on a ring holding both offered
 	// nothing, after the gold (round 14 audit, v1.12.239).
-	const int floorLevel = lowerToItemLevel ? std::min({ minlvl, ceiling / 2, 25 }) : minlvl;
+	// The cap for jewellery only, whose tables it was for; other gear keeps its window (round 15 audit: the cap had let
+	// level-25 rows onto ilvl-90 weapons).
+	const bool jewellery = item._itype == ItemType::Ring || item._itype == ItemType::Amulet;
+	const int floorLevel = lowerToItemLevel ? (jewellery ? std::min({ minlvl, ceiling / 2, 25 }) : std::min(minlvl, ceiling / 2)) : minlvl;
 	const auto eligible = [&](const PLStruct &row) {
 		if (row.PLMinLvl > ceiling)
 			return false;
@@ -5643,6 +5646,7 @@ void LogNoteworthyItemDrop(const Item &item)
 
 Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level /*= std::nullopt*/, bool sendmsg /*= true*/, bool exactPosition /*= false*/)
 {
+	MakeRoomForGuaranteedReward(); // a quest unique is a promise, as a quest reward is (round 15 audit)
 	if (ActiveItemCount >= MAXITEMS)
 		return nullptr;
 
@@ -5740,7 +5744,10 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 	// A rift's guardian is the Skeleton King or the Butcher without his quest (2026-09-26 dev note): no Undead Crown, no
 	// Cleaver - the unique monster's random item instead, the better base and the better quality roll.
 	bool dropsSpecialTreasure = (monster.data().treasure & T_UNIQ) != 0 && !oracool::IsRiftGuardian(monster);
-	bool dropBrain = Quests[Q_MUSHROOM]._qactive == QUEST_ACTIVE && Quests[Q_MUSHROOM]._qvar1 == QS_MUSHGIVEN;
+	// Not on a floor that is thrown away - a rift or a Sealed Map arena: the Brain left there was gone for good and the quest
+	// could never finish (round 15 audit, v1.12.240).
+	const bool disposableFloor = setlevel && (oracool::IsRiftLevel(setlvlnum) || IsArenaLevel(setlvlnum));
+	bool dropBrain = Quests[Q_MUSHROOM]._qactive == QUEST_ACTIVE && Quests[Q_MUSHROOM]._qvar1 == QS_MUSHGIVEN && !disposableFloor;
 
 	if (dropsSpecialTreasure && !UseMultiplayerQuests()) {
 		Item *uniqueItem = SpawnUnique(static_cast<_unique_items>(monster.data().treasure & T_MASK), position, std::nullopt, false);
@@ -5784,6 +5791,10 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 	if (idx == IDI_NONE)
 		return;
 
+	// The Brain is spawned whatever the floor holds: its quest state has already moved on, and on a full floor it never
+	// existed (round 15 audit).
+	if (idx == IDI_BRAIN)
+		MakeRoomForGuaranteedReward();
 	if (ActiveItemCount >= MAXITEMS)
 		return;
 
@@ -6417,8 +6428,34 @@ void SpawnQuestItem(_item_indexes itemid, Point position, int randarea, int self
 	}
 }
 
+void MakeRoomForGuaranteedReward()
+{
+	// Frees one ground-item slot by discarding the least valuable thing lying about. Only ever called when the floor is at
+	// MAXITEMS and a guaranteed reward has nowhere to land. Ordinary quality only: a unique, a set piece or another quest
+	// item on the ground is somebody else's promise and must not be dropped to keep this one.
+	if (ActiveItemCount < MAXITEMS)
+		return;
+	for (int i = ActiveItemCount - 1; i >= 0; i--) {
+		const int ii = ActiveItems[i];
+		const Item &candidate = Items[ii];
+		if (candidate._iMagical != ITEM_QUALITY_NORMAL)
+			continue;
+		if (candidate._iCreateInfo == 0 && candidate._iIdentified)
+			continue; // quest-placed items carry no create info; leave them alone
+		// DeleteItem leaves the tile's dItem, and the reward about to be allocated reuses this slot: the junk's tile would
+		// point at the charm (round 7 audit).
+		if (InDungeonBounds(candidate.position))
+			dItem[candidate.position.x][candidate.position.y] = 0;
+		DeleteItem(i);
+		return;
+	}
+}
+
 void SpawnRewardItem(_item_indexes itemid, Point position, bool sendmsg)
 {
+	// A quest's one-shot reward (Theodore, the Cathedral Map) makes room on a full floor rather than vanishing while the
+	// quest moves on - Little Girl and Grave Matters could never complete (round 15 audit, v1.12.240).
+	MakeRoomForGuaranteedReward();
 	if (ActiveItemCount >= MAXITEMS)
 		return;
 	// Off an occupied tile, as SpawnQuestItem is (audit, 2026-09-27): Lester's reward and a boss's map land on a fixed

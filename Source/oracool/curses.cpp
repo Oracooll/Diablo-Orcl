@@ -214,7 +214,7 @@ bool Lay(Monster &monster, CurseKind kind, int ticks, int rank, const Player &ow
 
 /** @brief A blow credited to the curse's owner, immunity and resistance honoured. */
 /** @brief Strikes @p monster for @p owner; whether any damage landed (Soul Harvest pays only for those). */
-bool OwnerStrikes(Player &owner, Monster &monster, DamageType type, int damage)
+bool OwnerStrikes(Player &owner, Monster &monster, DamageType type, int damage, bool applyPassives = true)
 {
 	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
 		return false;
@@ -222,6 +222,10 @@ bool OwnerStrikes(Player &owner, Monster &monster, DamageType type, int damage)
 		return false;
 	if (monster.isResistant(MissileID::Null, type))
 		damage >>= 2;
+	// The damage-dealt passives for a fresh blow of the hero's (Soul Harvest, Death Mark, Bane) - Spreading Malediction
+	// never reached them. Not for Iron Maiden, which returns the monster's own blow (round 15 audit, v1.12.240).
+	if (applyPassives)
+		damage += damage * PassiveDamageDealtPercent(owner, monster, /*melee=*/false) / 100;
 	if (damage <= 0)
 		return false;
 	ApplyMonsterDamage(type, monster, damage);
@@ -415,7 +419,7 @@ void OnCursedMonsterDealtBlow(Monster &monster, int damage)
 	Player *owner = OwnerOf(Of(monster));
 	if (owner == nullptr)
 		return;
-	OwnerStrikes(*owner, monster, DamageType::Physical, damage * IronMaidenPercent(Of(monster).rank) / 100);
+	OwnerStrikes(*owner, monster, DamageType::Physical, damage * IronMaidenPercent(Of(monster).rank) / 100, /*applyPassives=*/false);
 }
 
 void OnCursedMonsterStruck(const Monster &monster, Player &player, Monster *minion, int damage)

@@ -14,6 +14,9 @@
 
 namespace devilution {
 
+/** @brief The stash file this game could not read: nothing may go into the stash, which will not be written. */
+extern bool StashFileRefused;
+
 extern DVL_API_FOR_TEST bool gbIsHellfireSaveGame;
 extern DVL_API_FOR_TEST uint8_t giNumberOfLevels;
 

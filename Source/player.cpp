@@ -3807,7 +3807,10 @@ void ProcessPlayers()
 		if (player.plractive && player.isOnActiveLevel() && (&player == MyPlayer || !player._pLvlChanging)) {
 			CheckCheatStats(player);
 
-			if (!PlrDeathModeOK(player) && (player._pHitPoints >> 6) <= 0) {
+			// The once-a-minute saves and Final Service are offered here too, as ApplyPlrDamage offers them: life reaching
+			// zero by a recalculation (gear taken off at low life) killed with no save, and now takes the army with it
+			// (round 15 audit, v1.12.240).
+			if (!PlrDeathModeOK(player) && (player._pHitPoints >> 6) <= 0 && !oracool::PassiveCheatsDeath(player)) {
 				SyncPlrKill(player, DeathReason::Unknown);
 			}
 

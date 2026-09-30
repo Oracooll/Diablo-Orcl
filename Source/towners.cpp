@@ -881,7 +881,10 @@ bool IsTownerPresent(_talker_id npc)
 	case TOWN_COWFARM:
 		return gbIsHellfire && sgGameInitInfo.bCowQuest != 0;
 	case TOWN_GIRL:
-		return gbIsHellfire && sgGameInitInfo.bTheoQuest != 0 && MyPlayer->_pLvlVisited[17] && Quests[Q_GIRL]._qactive != QUEST_DONE;
+		// Any Nest floor, not only 17: a waypoint straight to 18-20 left Celia out of town (round 15 audit).
+		return gbIsHellfire && sgGameInitInfo.bTheoQuest != 0
+		    && (MyPlayer->_pLvlVisited[17] || MyPlayer->_pLvlVisited[18] || MyPlayer->_pLvlVisited[19] || MyPlayer->_pLvlVisited[20])
+		    && Quests[Q_GIRL]._qactive != QUEST_DONE;
 	default:
 		return true;
 	}

@@ -3135,7 +3135,8 @@ bool GoldAutoPlace(Player &player, Item &goldStack)
 	// which otherwise remains as it was for anything this doesn't cover (e.g. legacy gold already
 	// sitting in inventory from before this change, or the extremely unlikely case of Stash.gold
 	// itself sitting within goldStack._ivalue of the int32 ceiling).
-	if (oracool::IsSinglePlayer()) {
+	// Not into a stash this game could not read: it is never written back, and the gold was lost at exit (round 15 audit).
+	if (oracool::IsSinglePlayer() && !StashFileRefused) {
 		const int depositable = std::min(goldStack._ivalue, std::numeric_limits<int>::max() - Stash.gold);
 		if (depositable > 0) {
 			Stash.gold += depositable;

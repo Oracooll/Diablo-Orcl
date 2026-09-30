@@ -933,6 +933,7 @@ bool gbSkipSync = false;
 
 void LoadMonster(LoadHelper *file, Monster &monster, MonsterConversionData *monsterConversionData = nullptr)
 {
+	monster.spawnSerial = 0; // as a loaded missile's sourceSpawnSerial is (Monster::spawnSerial; round 15 audit)
 	monster.levelType = file->NextLE<int32_t>();
 	monster.mode = static_cast<MonsterMode>(file->NextLE<int32_t>());
 	monster.goal = static_cast<MonsterGoal>(file->NextLE<uint8_t>());

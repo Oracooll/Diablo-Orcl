@@ -105,17 +105,21 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 		return;
 	if (monster.isImmune(MissileID::Null, type))
 		return;
+	// Cold: Cold Mastery decides how much of the resistance the monster keeps, and adds its share, as the missile path and
+	// ColdSpellDamage do - the six RfA-12 cold skills had neither (round 15 audit, v1.12.240).
 	if (monster.isResistant(MissileID::Null, type))
-		damage >>= 2;
+		damage /= type == DamageType::Cold ? ColdResistanceDivisor(player) : 4;
 	if (type == DamageType::Cold)
-		damage += damage * FrostbitePercentOn(monster) / 100;
+		damage += damage * (FrostbitePercentOn(monster) + ColdMasteryDamagePercent(player)) / 100;
 	// The damage-dealt passives, as MonsterMHit and PlrHitMonst apply them: Power Hungry, Conflagration, Spreading
 	// Malediction and the rest never reached a skill that strikes through here - 87 callers, the whole RfA-12 book
 	// (round 13 audit, v1.12.238). Melee only when the caller says so - a swing's extra blows - as MonsterMHit counts
 	// every spell as not melee (round 14 audit: "adjacent is melee" gave spells the melee passives). And not at all for
 	// a share of a blow that already took them (the echo, Tragedy's share), which paid them twice.
+	// With the RfA-12 half of that sum (Hunter's Mark, Judgment, Dead Ground, Deadeye), which the missile path adds beside
+	// the passives' - round 13 brought over only the first half (round 15 audit, v1.12.240).
 	if (applyPassives)
-		damage += damage * PassiveDamageDealtPercent(player, monster, melee) / 100;
+		damage += damage * (PassiveDamageDealtPercent(player, monster, melee) + Rfa12DamageDealtPercent(player, monster, melee)) / 100;
 	if (damage <= 0)
 		return;
 	ApplyMonsterDamage(type, monster, damage);
@@ -163,6 +167,13 @@ std::vector<Monster *> MonstersWithin(Point centre, int radius)
 }
 
 /** @brief The hittable monster nearest @p centre within @p radius, or null. */
+/**
+ * @brief While a cast is being made, the hero's tile: NearestTo takes only a monster he can see from it. The target was
+ * found around the cursor alone, so a shot or a curse clicked beside a wall struck the monster behind it (round 15
+ * audit, v1.12.240 - the check Absolute Zero got in round 5). Unset for the fields and marks that tick after the cast.
+ */
+std::optional<Point> CastSightFrom;
+
 Monster *NearestTo(Point centre, int radius, const Monster *except = nullptr)
 {
 	Monster *best = nullptr;
@@ -170,6 +181,8 @@ Monster *NearestTo(Point centre, int radius, const Monster *except = nullptr)
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		Monster &monster = Monsters[ActiveMonsters[i]];
 		if (&monster == except || !Hittable(monster))
+			continue;
+		if (CastSightFrom && !LineClearMissile(*CastSightFrom, monster.position.tile))
 			continue;
 		const int distance = centre.WalkingDistance(monster.position.tile);
 		if (distance < bestDistance) {
@@ -2725,7 +2738,7 @@ void TickLanding(Player &player, PlayerState &state)
 	}
 	case SpellID::LeapingCrane:
 		if (Monster *m = NearestTo(player.position.tile, 1); m != nullptr)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(state.landingSpell, r)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(state.landingSpell, r)), /*melee=*/true); // a weapon blow (round 15)
 		Art(player, MissileGraphicID::LeapingCrane, player.position.tile); // RfA-27 batch 57: the landing's wind burst
 		Impact(player, state.landingSpell);
 		break;
@@ -2995,6 +3008,10 @@ bool CastRfa12Active(Player &player, SpellID spell, Point target)
 	}
 	const int r = RankOf(player, spell);
 	PlayerState &state = StateOf(player);
+	struct SightScope {
+		explicit SightScope(Point from) { CastSightFrom = from; }
+		~SightScope() { CastSightFrom = std::nullopt; }
+	} sight { player.position.tile };
 	if (!CastOnce(player, spell, target, r))
 		return false;
 	// Heroic Couplet: the next Poetry verse takes effect twice.
@@ -3233,7 +3250,7 @@ void OnRfa12ActiveMonsterKilled(Player &player, const Monster &monster)
 		const int r = marks.palmRank;
 		marks.palmTicks = 0;
 		for (Monster *m : MonstersWithin(at, 1))
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(SpellID::ExplodingPalm, r)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(SpellID::ExplodingPalm, r)), /*melee=*/true); // round 15
 		if (Art(player, MissileGraphicID::ExplodingPalmBurst, at) == nullptr) // RfA-27 batch 55; the ring without it
 			Ring(player, at);
 	}

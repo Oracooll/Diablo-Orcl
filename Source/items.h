@@ -1249,6 +1249,8 @@ void RecreateEar(Item &item, uint16_t ic, uint32_t iseed, uint8_t bCursval, stri
 void CornerstoneSave();
 void CornerstoneLoad(Point position);
 void SpawnQuestItem(_item_indexes itemid, Point position, int randarea, int selflag, bool sendmsg);
+/** @brief Frees one ground-item slot (the least valuable ordinary item) when the floor is full and a guaranteed reward is due. */
+void MakeRoomForGuaranteedReward();
 void SpawnRewardItem(_item_indexes itemid, Point position, bool sendmsg);
 void SpawnMapOfDoom(Point position, bool sendmsg);
 void SpawnRuneBomb(Point position, bool sendmsg);

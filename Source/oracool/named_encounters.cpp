@@ -86,30 +86,7 @@ size_t IndexOf(NamedEncounter encounter)
 	return static_cast<size_t>(encounter);
 }
 
-/**
- * @brief Frees one ground-item slot by discarding the least valuable thing lying about.
- *
- * Only ever called when the floor is at MAXITEMS and a guaranteed reward has nowhere to land.
- * Ordinary quality only: a unique, a set piece or another quest item on the ground is somebody
- * else's promise and must not be dropped to keep this one.
- */
-void MakeRoomForGuaranteedReward()
-{
-	for (int i = ActiveItemCount - 1; i >= 0; i--) {
-		const int ii = ActiveItems[i];
-		const Item &candidate = Items[ii];
-		if (candidate._iMagical != ITEM_QUALITY_NORMAL)
-			continue;
-		if (candidate._iCreateInfo == 0 && candidate._iIdentified)
-			continue; // quest-placed items carry no create info; leave them alone
-		// DeleteItem leaves the tile's dItem, and the reward about to be allocated reuses this slot: the junk's tile would
-		// point at the charm (round 7 audit).
-		if (InDungeonBounds(candidate.position))
-			dItem[candidate.position.x][candidate.position.y] = 0;
-		DeleteItem(i);
-		return;
-	}
-}
+// MakeRoomForGuaranteedReward lives in items.cpp since round 15: the quest drops need it too.
 
 } // namespace
 

@@ -1041,6 +1041,10 @@ void NoteOwnerStruck(const Player &player, const Monster &monster)
 {
 	if (&player != MyPlayer || monster.isPlayerMinion())
 		return;
+	// Not over a standing command: any blow of the hero's - a Teeth, a poison tick - moved the army off the commanded
+	// monster and took its sigil (round 15 audit, v1.12.240).
+	if (FocusCommanded && FocusTicks > 0)
+		return;
 	FocusMonster = static_cast<int>(monster.getId());
 	FocusTicks = 3 * TicksPerSecond;
 	FocusCommanded = false;

@@ -35,6 +35,7 @@
 #include "oracool/socket_overlay.h"
 #include "oracool/runewords.h"
 #include "oracool/event_log.h"
+#include "loadsave.h" // StashFileRefused - an unreadable stash stays shut
 #include "oracool/named_encounters.h"
 #include "oracool/rift.h"
 #include "oracool/signets.h"
@@ -821,6 +822,11 @@ void OpenStash()
 	// dead (round 10 audit, v1.12.235) - the workshop and the Cube back out the same way.
 	if (oracool::IsWorkshopOpen() || oracool::IsLevskiRoarOpen())
 		return;
+	// Locked while its file could not be read: anything put in would never be saved (round 15 audit, v1.12.240).
+	if (StashFileRefused) {
+		oracool::LogEvent("The stash could not be read this game, so it stays shut - nothing put in it would be saved.", UiFlags::ColorRed);
+		return;
+	}
 	TakeLeftPanelSlot(LeftPanelContent::Stash);
 	IsStashOpen = true;
 	Stash.RefreshItemStatFlags();
@@ -1634,6 +1640,9 @@ void TakeOutgrownStashItems(std::vector<Item> &displaced)
 bool AutoPlaceItemInStash(Player &player, const Item &item, bool persistItem)
 {
 	if (!IsItemAllowedInStash(item))
+		return false;
+	// A stash file this game could not read is left as it is and never written: what went in was lost (round 15 audit).
+	if (StashFileRefused)
 		return false;
 
 	if (item._itype == ItemType::Gold) {

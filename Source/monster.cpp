@@ -1798,9 +1798,12 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 
 void MonsterAttackEnemy(Monster &monster, int hit, int minDam, int maxDam)
 {
-	if ((monster.flags & MFLAG_TARGETS_MONSTER) != 0)
-		MonsterAttackMonster(monster, Monsters[monster.enemy], hit, minDam, maxDam);
-	else
+	// Within reach, as a blow at the hero is: a companion regrouped or a minion that traded places took the blow from
+	// across the map (round 15 audit, v1.12.240).
+	if ((monster.flags & MFLAG_TARGETS_MONSTER) != 0) {
+		if (monster.position.tile.WalkingDistance(Monsters[monster.enemy].position.tile) < 2)
+			MonsterAttackMonster(monster, Monsters[monster.enemy], hit, minDam, maxDam);
+	} else
 		MonsterAttackPlayer(monster, Players[monster.enemy], hit, minDam, maxDam);
 }
 
@@ -3209,6 +3212,9 @@ void SnakeAi(Monster &monster)
 	int8_t pattern[6] = { 1, 1, 0, -1, -1, 0 };
 	if (monster.mode != MonsterMode::Stand || monster.activeForTicks == 0)
 		return;
+	// goalVar1 indexes the pattern; a retreat wrote a step count there (Howl: 4 + rank), read past the array (round 15).
+	if (monster.goalVar1 < 0 || monster.goalVar1 > 5)
+		monster.goalVar1 = 0;
 	Direction md = GetDirection(monster.position.tile, monster.position.last);
 	monster.direction = md;
 	unsigned distanceToEnemy = monster.distanceToEnemy();
@@ -3642,7 +3648,7 @@ void (*AiProc[])(Monster &monster) = {
 	/*MonsterAIID::Succubus     */ &AiRanged,
 	/*MonsterAIID::Sneak    */ &SneakAi,
 	/*MonsterAIID::Storm    */ &AiRangedAvoidance,
-	/*MonsterAIID::FireMan  */ nullptr,
+	/*MonsterAIID::FireMan  */ &AiRanged, // never spawned in play; the debug spawn command called a null slot (round 15)
 	/*MonsterAIID::Gharbad   */ &GharbadAi,
 	/*MonsterAIID::Acid     */ &AiRangedAvoidance,
 	/*MonsterAIID::AcidUnique */ &AiRanged,
@@ -4609,6 +4615,34 @@ void M_StartHit(Monster &monster, int dam)
 	}
 }
 
+/**
+ * @brief The retreat the fork's repels ask for (MonsterGoal::Retreat: Howl, Grim Ward, Sanctuary, Blinding Flash), for
+ * the AIs that never read it. Only Fallen, bats, gargoyles, the Sneak and the Counselors (Zhar and Lazarus with them)
+ * ever acted on Retreat - it was vanilla's Fallen fear. Every other AI stood frozen at some ranges or walked the wrong
+ * way, never cleared the goal, and lost its pathfinding for good (round 15 audit, v1.12.240). goalVar2 is the direction
+ * to flee in, goalVar1 the steps left.
+ */
+bool MonsterTakesRetreatStep(Monster &monster)
+{
+	if (monster.goal != MonsterGoal::Retreat)
+		return false;
+	if (IsAnyOf(monster.ai, MonsterAIID::Fallen, MonsterAIID::Bat, MonsterAIID::Gargoyle, MonsterAIID::Sneak,
+	        MonsterAIID::Counselor, MonsterAIID::Zhar, MonsterAIID::Lazarus))
+		return false; // they run their own retreat
+	if (monster.mode != MonsterMode::Stand)
+		return false;
+	const auto away = static_cast<Direction>(monster.goalVar2 & 7);
+	const Point from = monster.position.tile - Displacement(away);
+	if (monster.goalVar1 <= 0 || !MonsterStepAwayFrom(monster, from)) {
+		monster.goal = MonsterGoal::Normal;
+		monster.goalVar1 = 0;
+		monster.goalVar2 = 0;
+		return false;
+	}
+	monster.goalVar1--;
+	return true;
+}
+
 void StunMonster(Monster &monster, int ticks)
 {
 	// A dead monster is not stunned (dev note, 2026-09-27: "some barb skills/warcries kill mobs but they remain active
@@ -4618,6 +4652,18 @@ void StunMonster(Monster &monster, int ticks)
 	// for every skill that stuns after it strikes.
 	if (monster.mode == MonsterMode::Death || (monster.hitPoints >> 6) <= 0)
 		return;
+	// Not stone (its curse would end early and lose the mode saved under it) and not a charge in flight (round 15 audit).
+	if (monster.mode == MonsterMode::Petrified || monster.mode == MonsterMode::Charge)
+		return;
+	// A walk in progress is undone first, as a flinch undoes it: the walk had marked its tiles in dMonster and only its own
+	// end clears them, so a stun mid-step left a phantom tile nobody could enter and, sideways, a body missiles passed
+	// through (round 15 audit, v1.12.240).
+	if (monster.isWalking()) {
+		monster.position.tile = monster.position.old;
+		monster.position.future = monster.position.old;
+		M_ClearSquares(monster);
+		dMonster[monster.position.tile.x][monster.position.tile.y] = monster.getId() + 1;
+	}
 	// AiDelay carries the guard this needs: Lazarus is exempt, because his scripted set-piece drives
 	// his own mode and a stun would strand it. Inherited rather than restated.
 	AiDelay(monster, ticks);
@@ -5264,6 +5310,8 @@ void ProcessMonsters()
 				MinionAi(monster, minionTick);
 			} else if (oracool::CursedMonsterFlees(monster)) {
 				// Terror (oracool/curses.h): its step away was its whole turn.
+			} else if (MonsterTakesRetreatStep(monster)) {
+				// Howl, Grim Ward, Sanctuary, Blinding Flash: a step away, for the AIs that never read the goal.
 			} else if ((monster.flags & MFLAG_SEARCH) == 0 || !AiPlanPath(monster)) {
 				AiProc[static_cast<int8_t>(monster.ai)](monster);
 			}

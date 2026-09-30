@@ -293,6 +293,7 @@ void HeroStrikes(Player &player, Monster &monster, DamageType type, int damage)
 		return;
 	if (monster.isResistant(MissileID::Null, type))
 		damage >>= 2;
+	damage += damage * PassiveDamageDealtPercent(player, monster, /*melee=*/false) / 100; // Army of the Dead (round 15)
 	if (damage <= 0)
 		return;
 	ApplyMonsterDamage(type, monster, damage);
