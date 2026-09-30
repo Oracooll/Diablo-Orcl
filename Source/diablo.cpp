@@ -735,7 +735,9 @@ void LeftMouseDown(uint16_t modState)
 				// the companion panel's stance line took the click (oracool/companion.h) - ahead of the held item, which a
 				// click on the header dropped on the floor (round 13 audit, v1.12.238)
 			} else if (!MyPlayer->HoldItem.isEmpty()) {
-				if (!TryOpenDungeonWithMouse()) {
+				if (RefuseQuestItemDropHere(*MyPlayer, MyPlayer->HoldItem)) {
+					// kept on the cursor: a rift or an arena is not kept (user, 2026-09-30)
+				} else if (!TryOpenDungeonWithMouse()) {
 					Point currentPosition = MyPlayer->position.tile;
 					std::optional<Point> itemTile = FindAdjacentPositionForItem(currentPosition, GetDirection(currentPosition, cursPosition));
 					if (itemTile) {
@@ -4059,126 +4061,119 @@ void diablo_focus_unpause()
 
 bool PressEscKey()
 {
-	bool rv = false;
+	// ONE WINDOW A PRESS, the top one first (user, 2026-09-30: "Top window only"). Escape used to collect every open window
+	// and close them all at once; now each branch closes its window and returns, in the order they are drawn from the top
+	// down, and the next press takes the next one. The game menu, which wants a clear screen, peels them all
+	// (CloseWindowsForGameMenu).
 
-	// Oracool: checked first, with an immediate return - the Refresh Until prompt stays open
-	// while its underlying store screen is still technically open (stextflag != TalkID::None),
-	// unlike every other dialog checked below, so this needs to close *only* the prompt itself
-	// rather than also falling through into the stextflag check and closing the whole store.
+	// The prompts first: modal, drawn over everything, and each closes alone.
 	if (IsRefreshUntilPromptOpen) {
 		RefreshUntilPromptKeyPress(SDLK_ESCAPE);
 		return true;
 	}
-
+	if (DropGoldFlag) {
+		control_drop_gold(SDLK_ESCAPE);
+		return true;
+	}
+	if (IsWithdrawGoldOpen) {
+		WithdrawGoldKeyPress(SDLK_ESCAPE);
+		return true;
+	}
+	if (talkflag) {
+		control_reset_talk();
+		return true;
+	}
 	if (DoomFlag) {
 		doom_close();
-		rv = true;
+		return true;
 	}
-
-	if (oracool::IsHudMenuOpen()) {
-		oracool::CloseHudMenu();
-		rv = true;
-	}
-	if (oracool::IsStonegateMenuOpen()) {
-		oracool::CloseStonegateMenu();
-		rv = true;
-	}
-	// The workshop on its own (external audit of v1.12.188, UI-01): its close sat inside the monument
-	// menu's branch, so Escape reached it only when that menu was open too - and otherwise went on to
-	// the game menu, and from there to an exit that did not return the bench. The key is spent even
-	// when the close refuses (a full pack keeps the window up, and says so).
-	if (oracool::IsWorkshopOpen()) {
-		oracool::CloseWorkshop();
-		rv = true;
-	}
-
-	// Oracool: the monument's window is centred over the world rather than docked to a panel, so
-	// none of the panel closers below reach it. Escape is the keyboard half of the close rule the
-	// red X covers for the mouse.
-	if (oracool::IsLevskiRoarOpen()) {
-		oracool::CloseLevskiRoar();
-		rv = true;
-	}
-
-	// Same reasoning as the monument above: a free-floating window that no panel closer reaches.
-	if (oracool::IsRunewordBookOpen()) {
-		oracool::CloseRunewordBook();
-		rv = true;
-	}
-
-	// The skill picker, for the same reason: it floats over the world and no panel closer reaches it.
-	if (oracool::IsSkillPickerOpen()) {
-		oracool::CloseSkillPicker();
-		rv = true;
-	}
-
+	// The full-screen texts over the world.
 	if (HelpFlag) {
 		HelpFlag = false;
-		rv = true;
+		return true;
 	}
-
 	if (ChatLogFlag) {
 		ChatLogFlag = false;
-		rv = true;
+		return true;
 	}
-
 	if (qtextflag) {
 		qtextflag = false;
 		stream_stop();
-		rv = true;
+		return true;
 	}
-
-	if (stextflag != TalkID::None) {
-		StoreESC();
-		rv = true;
-	}
-
 	if (IsDiabloMsgAvailable()) {
 		CancelCurrentDiabloMsg();
-		rv = true;
+		return true;
 	}
-
-	if (talkflag) {
-		control_reset_talk();
-		rv = true;
-	}
-
-	if (DropGoldFlag) {
-		control_drop_gold(SDLK_ESCAPE);
-		return true; // the prompt alone, as the withdraw box below: it fell through and closed the stash and backpack (round 20)
-	}
-
-	if (IsWithdrawGoldOpen) {
-		WithdrawGoldKeyPress(SDLK_ESCAPE);
-		return true; // the box alone: falling through closed the stash and the backpack with it (round 13 audit)
-	}
-
+	// The floating windows over the panels.
 	if (spselflag) {
 		spselflag = false;
-		rv = true;
+		return true;
 	}
-
-	// The Advanced Stats window on its own (2026-09-26): Escape peels it off and stops there, leaving the
-	// character sheet it was opened from - and whatever it covered - on screen, the way its red X does.
-	// Without this branch the ClosePanels() below would take the sheet and everything else with it.
+	if (oracool::IsSkillPickerOpen()) {
+		oracool::CloseSkillPicker();
+		return true;
+	}
+	if (oracool::IsHudMenuOpen()) {
+		oracool::CloseHudMenu();
+		return true;
+	}
+	if (oracool::IsStonegateMenuOpen()) {
+		oracool::CloseStonegateMenu();
+		return true;
+	}
+	// The Advanced Stats window over the sheet and the backpack: peeled off alone, leaving what it was opened from.
 	if (oracool::IsAdvancedStatsOpen()) {
 		oracool::CloseAdvancedStats();
 		return true;
 	}
-
-	if (IsLeftPanelOpen() || IsRightPanelOpen()) {
-		ClosePanels();
-		rv = true;
+	// The benches and the books. The key is spent even when a close refuses (a full pack keeps the window up, and says so).
+	if (oracool::IsWorkshopOpen()) {
+		oracool::CloseWorkshop();
+		return true;
 	}
-
-	// The event log last, and only when nothing else closed (audit, 2026-09-27): with the log alone up, Escape opened the
-	// game menu over it. Last, because a log kept open beside other windows should not go with them.
-	if (!rv && oracool::IsEventLogOpen()) {
+	if (oracool::IsLevskiRoarOpen()) {
+		oracool::CloseLevskiRoar();
+		return true;
+	}
+	if (oracool::IsRunewordBookOpen()) {
+		oracool::CloseRunewordBook();
+		return true;
+	}
+	// A store, one level at a time out of its nested menus, as it always has.
+	if (stextflag != TalkID::None) {
+		StoreESC();
+		return true;
+	}
+	// The side panels: the left one (sheet, quest log, stash, waypoints, Crafting), then the Abilities window, then the
+	// backpack.
+	if (IsLeftPanelOpen()) {
+		CloseLeftPanelContent();
+		return true;
+	}
+	if (sbookflag) {
+		sbookflag = false;
+		return true;
+	}
+	if (invflag) {
+		CloseInventory();
+		return true;
+	}
+	// The event log last, and only when nothing else is up (audit, 2026-09-27): with the log alone up, Escape opened the
+	// game menu over it.
+	if (oracool::IsEventLogOpen()) {
 		oracool::ToggleEventLog();
-		rv = true;
+		return true;
 	}
+	return false;
+}
 
-	return rv;
+void CloseWindowsForGameMenu()
+{
+	// Every window, one Escape at a time, for the menus that want a clear screen (the game menu, death). Bounded: a window
+	// that refuses to close (the Cube with a full pack) keeps answering true.
+	for (int i = 0; i < 32 && PressEscKey(); i++) {
+	}
 }
 
 void DisableInputEventHandler(const SDL_Event &event, uint16_t modState)

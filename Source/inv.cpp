@@ -3776,6 +3776,33 @@ void InvGetItem(Player &player, int ii)
 		oracool::ScheduleAutoSaveForItemPickup();
 }
 
+namespace {
+
+/** @brief A quest item: its class, the quest range (uniques there are ordinary loot), or a quest piece outside the range. */
+bool IsQuestProgressItem(const Item &item)
+{
+	if (item.isEmpty())
+		return false;
+	if (item._iClass == ICLASS_QUEST)
+		return true;
+	if (item._iMagical != ITEM_QUALITY_UNIQUE && item.IDidx >= IDI_FIRSTQUEST && item.IDidx <= IDI_LASTQUEST)
+		return true;
+	return IsAnyOf(item.IDidx, IDI_LAZSTAFF, IDI_RUNEBOMB, IDI_THEODORE, IDI_NOTE1, IDI_NOTE2, IDI_NOTE3, IDI_FULLNOTE,
+	    IDI_BROWNSUIT, IDI_GREYSUIT);
+}
+
+} // namespace
+
+bool RefuseQuestItemDropHere(Player &player, const Item &item)
+{
+	const bool throwawayFloor = setlevel && (oracool::IsRiftLevel(setlvlnum) || IsArenaLevel(setlvlnum));
+	if (!throwawayFloor || !IsQuestProgressItem(item))
+		return false;
+	oracool::LogEvent("A quest item cannot be left here: this floor is not kept, and it would be gone for the game.", UiFlags::ColorRed);
+	player.SaySpecific(HeroSpeech::ICantDoThat);
+	return true;
+}
+
 std::optional<Point> FindAdjacentPositionForItem(Point origin, Direction facing)
 {
 	if (ActiveItemCount >= MAXITEMS)
@@ -4224,16 +4251,15 @@ void DecrementOrRemoveSpdBarItem(Player &player, int spdIndex)
 	}
 
 	const bool tryRefill = oracool::IsSinglePlayer() && item.isStackableConsumable();
-	const _item_indexes idx = item.IDidx;
-	const bool identified = item._iIdentified;
+	const Item drunk = item; // what the slot held, for the refill's stacking test
 
 	player.RemoveSpdBarItem(spdIndex);
 
 	if (tryRefill)
-		RefillBeltSlotFromInventory(player, spdIndex, idx, identified);
+		RefillBeltSlotFromInventory(player, spdIndex, drunk);
 }
 
-void RefillBeltSlotFromInventory(Player &player, int spdIndex, _item_indexes idx, bool identified)
+void RefillBeltSlotFromInventory(Player &player, int spdIndex, const Item &like)
 {
 	Item &beltItem = player.SpdList[spdIndex];
 	bool filledSlot = false;
@@ -4246,7 +4272,7 @@ void RefillBeltSlotFromInventory(Player &player, int spdIndex, _item_indexes idx
 	auto scanSource = [&](Item *list, int &numInv, auto removeAt, auto syncPartial) {
 		for (int i = 0; i < numInv;) {
 			Item &sourceItem = list[i];
-			if (!sourceItem.isStackableConsumable() || sourceItem.IDidx != idx || sourceItem._iIdentified != identified) {
+			if (!sourceItem.isStackableConsumable() || !sourceItem.canStackWith(like)) {
 				i++;
 				continue;
 			}
@@ -4699,8 +4725,15 @@ bool UseInvItem(int cii)
 		CloseInventory();
 		return true;
 	}
-	if (!item->isScroll() && !item->isRune())
-		DecrementOrRemoveInvItem(player, c, ActiveInventoryTab == 0 ? -1 : ActiveInventoryTab - 1);
+	if (!item->isScroll() && !item->isRune()) {
+		const int tab = ActiveInventoryTab == 0 ? -1 : ActiveInventoryTab - 1;
+		const int countBefore = tab < 0 ? player._pNumInv : player._pNumInvTab[tab];
+		DecrementOrRemoveInvItem(player, c, tab);
+		// A whole slot gone moves the last item of the list into its place, and the charm cap counts in list order: a charm
+		// that jumped forward became active on its tooltip but not in the totals (round 31 audit).
+		if ((tab < 0 ? player._pNumInv : player._pNumInvTab[tab]) != countBefore)
+			CalcPlrInvKeepingLife(player);
+	}
 
 	return true;
 }

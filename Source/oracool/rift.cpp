@@ -820,15 +820,23 @@ void OnRiftMonsterKilled(const Monster &monster)
 		    home.has_value()) {
 			State.homeTile = *home;
 		} else {
-			for (int d = 0; d < 8; d++) {
-				const Point neighbour = monster.position.tile + static_cast<Direction>(d);
-				// Not on the pile either (round 30 audit): the fallback ignored the items the search above keeps clear of.
-				if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0
-				    && dPlayer[neighbour.x][neighbour.y] == 0 && dMonster[neighbour.x][neighbour.y] == 0 && neighbour != State.arrivalTile
-				    && !TownPortalOn(neighbour) && dItem[neighbour.x][neighbour.y] == 0) {
-					State.homeTile = neighbour;
-					break;
+			// Two passes: a neighbour off the pile first (round 30 audit), then any valid one - the loot scatters over the 3x3,
+			// and with every neighbour carrying an item the first pass alone left the portal on the corpse tile, under the
+			// keystone (round 31 audit).
+			for (const bool avoidItems : { true, false }) {
+				bool found = false;
+				for (int d = 0; d < 8; d++) {
+					const Point neighbour = monster.position.tile + static_cast<Direction>(d);
+					if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0
+					    && dPlayer[neighbour.x][neighbour.y] == 0 && dMonster[neighbour.x][neighbour.y] == 0 && neighbour != State.arrivalTile
+					    && !TownPortalOn(neighbour) && (!avoidItems || dItem[neighbour.x][neighbour.y] == 0)) {
+						State.homeTile = neighbour;
+						found = true;
+						break;
+					}
 				}
+				if (found)
+					break;
 			}
 		}
 		// The keystone (plan r5) went down above: a Nephalem guardian always drops one at the rift's tier; a Guardian

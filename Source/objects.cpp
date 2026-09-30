@@ -2284,7 +2284,9 @@ void OperateBook(Player &player, Object &book, bool sendmsg)
 		if (sendmsg) {
 			uint8_t newSpellLevel = player._pSplLvl[static_cast<int16_t>(SpellID::Guardian)] + 1;
 			// Under the book rule, as a Guardian book is (round 30 audit): every new game added one more, to 30.
-			if (newSpellLevel <= MaxSpellLevel && oracool::CanReadSpellBookTo(player, SpellID::Guardian, newSpellLevel)) {
+			// The first rank always: the Chamber is off level 6 and Guardian's book asks level 18, and a refused read spent the
+			// quest's only reward (round 31 audit).
+			if (newSpellLevel <= MaxSpellLevel && (newSpellLevel == 1 || oracool::CanReadSpellBookTo(player, SpellID::Guardian, newSpellLevel))) {
 				player._pSplLvl[static_cast<int16_t>(SpellID::Guardian)] = newSpellLevel;
 				NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, static_cast<uint16_t>(SpellID::Guardian), newSpellLevel);
 			}
@@ -4750,8 +4752,9 @@ void ProcessTownStashChest()
 	// The chest and the Cube close when the hero walks off, three tiles as at every counter (round 30 audit: they stayed open
 	// across town, and items moved in and out from anywhere). Either may refuse with an item it cannot give back.
 	constexpr int WalkAwayTiles = 3;
-	if (IsStashOpen && MyPlayer != nullptr && MyPlayer->position.tile.WalkingDistance(StashChestPosition) > WalkAwayTiles)
-		CloseStash();
+	if (IsStashOpen && MyPlayer != nullptr && MyPlayer->HoldItem.isEmpty()
+	    && MyPlayer->position.tile.WalkingDistance(StashChestPosition) > WalkAwayTiles)
+		CloseStash(); // not with an item in hand: CloseStash would put it on the floor (round 31 audit)
 	if (!oracool::IsLevskiRoarOpen() || oracool::CurrentTransmuteHost() != oracool::TransmuteHost::Cube)
 		CubeOpenedAt = std::nullopt;
 	else if (CubeOpenedAt && MyPlayer != nullptr && MyPlayer->position.tile.WalkingDistance(*CubeOpenedAt) > WalkAwayTiles)

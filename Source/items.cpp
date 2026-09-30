@@ -2902,7 +2902,7 @@ void PrintItemOil(const Item &item)
 		// The tier is the whole item (oracool/rift.h): it says what the rift will be before the key is spent.
 		AddPanelString(fmt::format(fmt::runtime(_("opens a Guardian Rift of tier {:d}")), item._iOracoolRiftTier));
 		AddPanelString(_("fifteen minutes; Diablo or Na-Krul at the end"));
-		AddPanelString(_("use in town - the keystone is consumed"));
+		AddPanelString(_("use in town - spent when you step through the portal")); // as rift.cpp spends it (round 31 audit)
 		break;
 	case IMISC_ORACOOL_SIGNET:
 		// The cap is stated on the item itself, because it is the whole mechanism and a player who

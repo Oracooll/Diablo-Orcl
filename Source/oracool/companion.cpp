@@ -1339,8 +1339,10 @@ void CompanionShot(Monster &companion)
 	if (inst->target >= 0 && static_cast<size_t>(inst->target) < MaxMonsters && Targetable(Monsters[inst->target]))
 		to = Monsters[inst->target].position.tile;
 	const Point from = companion.position.tile;
-	if (to == from)
+	if (to == from) {
+		inst->volley = false; // spent with the shot that did not fly, not carried to the next ordinary one (round 31 audit)
 		return;
+	}
 	if (DefOf(inst->kind).attack == CompanionAttack::Throw) {
 		ThrowHammers(*inst, from, to);
 		return;
@@ -1566,17 +1568,31 @@ void DrawCompanionHud(const Surface &out)
 	}
 }
 
+namespace {
+
+/** @brief The whole panel as drawn - header and rows - which takes every click on it (round 31 audit: a click on a row
+ * walked or cast at the tile beneath). */
+Rectangle CompanionPanelRect()
+{
+	return { Point { HudX, HudY }, Size { HudWidth, HeaderHeight + MyCompanionCount() * RowHeight + 4 } };
+}
+
+} // namespace
+
 bool IsPointOverCompanionHeader(Point mouse)
 {
-	return MyPlayer != nullptr && MyCompanionCount() > 0 && IsCornerHudShown() && HeaderRect().contains(mouse);
+	return MyPlayer != nullptr && MyCompanionCount() > 0 && IsCornerHudShown() && CompanionPanelRect().contains(mouse);
 }
 
 bool HandleCompanionHudClick(Point mouse)
 {
-	if (MyCompanionCount() == 0 || !IsCornerHudShown() || !HeaderRect().contains(mouse))
+	if (MyPlayer == nullptr || MyCompanionCount() == 0 || !IsCornerHudShown() || !CompanionPanelRect().contains(mouse))
 		return false;
-	CycleCompanionStance();
-	AnnounceCompanionStance();
+	// The stance cycles on the header only; the rows take the click and do nothing.
+	if (HeaderRect().contains(mouse)) {
+		CycleCompanionStance();
+		AnnounceCompanionStance();
+	}
 	return true;
 }
 

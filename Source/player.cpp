@@ -3787,6 +3787,10 @@ void RestartTownLvl(Player &player)
 
 	player.setLevel(0);
 	player._pInvincible = false;
+	// Alive before the totals, as round 12 had it: GetActiveClassAura leaves the lit aura out for a hero at 0 life, whatever
+	// his mode (round 31 audit: v1.12.255 set the life only after the totals, and the aura's bonuses went missing). Set again
+	// after them, against the maximum they work out.
+	SetPlayerHitPoints(player, 64);
 
 	// The rest of a potion drunk just before death does not heal the hero standing in town (round 21 audit).
 	if (&player == MyPlayer)
@@ -3808,6 +3812,9 @@ void RestartTownLvl(Player &player)
 	// out of PM_DEATH, and the totals keep the 1 life: recalculated while dead, the lit aura's life was left out, the life
 	// pinned, and then added back on top - a free heal (round 29 audit).
 	oracool::ClearWarcryBuffs(player);
+	// And the RfA-12 buffs (Bone Armor's shell, the Mantras, Iron Will, Saga, Rally...), which rode the respawn into town as
+	// Battle Orders did (round 31 audit).
+	oracool::ClearRfa12PlayerBuffs(player);
 	CalcPlrInv(player, false);
 	// The 1 life and the empty mana AFTER the totals (round 30 audit): set first, against a maximum a recalculation on the
 	// death screen had worked out without the lit aura (a sheet buff expiring while dead), and the respawn's totals then
@@ -4156,6 +4163,11 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 				myPlayer.Say(HeroSpeech::ICantDoThat);
 				break;
 			}
+			LastMouseButtonAction = MouseActionType::None;
+		} else if (spellType == SpellType::Scroll || spellType == SpellType::Charges) {
+			// A scroll used up or a staff run dry says so too, once (round 31 audit: it was silent, and on the left button it
+			// also ate the swing).
+			myPlayer.Say(HeroSpeech::ICantDoThat);
 			LastMouseButtonAction = MouseActionType::None;
 		}
 		return;

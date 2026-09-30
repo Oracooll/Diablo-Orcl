@@ -423,6 +423,13 @@ void InvGetItem(Player &player, int ii);
  * @return the first valid point or an empty optional
  */
 std::optional<Point> FindAdjacentPositionForItem(Point origin, Direction facing);
+
+/**
+ * @brief Whether @p item is a quest item the hero may not put down here, saying so when it is (user, 2026-09-30: "refuse
+ * drops"). A rift and a Sealed Map arena are never reloaded, so a quest item left on one was gone for the game - the Staff
+ * of Lazarus that way sealed level 16 until the next game.
+ */
+bool RefuseQuestItemDropHere(Player &player, const Item &item);
 void AutoGetItem(Player &player, Item *itemPointer, int ii);
 
 /**
@@ -650,10 +657,11 @@ void DecrementOrRemoveSpdBarItem(Player &player, int spdIndex);
  * removing any inventory stack it fully drains. No-op if nothing in inventory matches.
  *
  * @param spdIndex Index of the belt slot to refill; must already be empty.
- * @param idx Base item of the consumable that previously occupied the slot.
- * @param identified Identified state of the consumable that previously occupied the slot.
+ * @param like The consumable that previously occupied the slot: a stack that would stack with it refills it (canStackWith -
+ *        potions have two base items each, and the identified flag differs by source; matching both left the slot empty
+ *        beside backpack potions of the same kind, round 31 audit).
  */
-void RefillBeltSlotFromInventory(Player &player, int spdIndex, _item_indexes idx, bool identified);
+void RefillBeltSlotFromInventory(Player &player, int spdIndex, const Item &like);
 
 /**
  * @brief Finds the first inventory item matching the predicate and decrements its

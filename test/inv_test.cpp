@@ -865,7 +865,7 @@ TEST_F(InvTest, RefillBeltSlotFromInventory_combinesMultipleMatchingStacksUpToCa
 	MyPlayer->InvGrid[1] = 2;
 	MyPlayer->_pNumInv = 2;
 
-	RefillBeltSlotFromInventory(*MyPlayer, 0, IDI_HEAL, true);
+	RefillBeltSlotFromInventory(*MyPlayer, 0, MakeStackablePotion(IDI_HEAL, true, 1));
 
 	ASSERT_FALSE(MyPlayer->SpdList[0].isEmpty());
 	EXPECT_EQ(MyPlayer->SpdList[0].stackCount(), Item::MaxStackCount);
@@ -873,8 +873,10 @@ TEST_F(InvTest, RefillBeltSlotFromInventory_combinesMultipleMatchingStacksUpToCa
 	EXPECT_EQ(MyPlayer->InvList[0].stackCount(), 60 + 60 - Item::MaxStackCount);
 }
 
-// Only an inventory stack matching both IDidx and identified state should be used.
-TEST_F(InvTest, RefillBeltSlotFromInventory_identifiedStateMismatchIsSkipped)
+// The identified flag differs by source (vendor potions true, drops false) and does not stop a refill: what stacks refills
+// (round 31 audit, 2026-09-30 - this test pinned the old IDidx + identified match, which left the belt empty beside backpack
+// potions of the same kind).
+TEST_F(InvTest, RefillBeltSlotFromInventory_identifiedStateMismatchStillRefills)
 {
 	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
 	gbIsMultiplayer = false;
@@ -886,10 +888,11 @@ TEST_F(InvTest, RefillBeltSlotFromInventory_identifiedStateMismatchIsSkipped)
 	MyPlayer->InvGrid[0] = 1;
 	MyPlayer->_pNumInv = 1;
 
-	RefillBeltSlotFromInventory(*MyPlayer, 0, IDI_HEAL, true);
+	RefillBeltSlotFromInventory(*MyPlayer, 0, MakeStackablePotion(IDI_HEAL, true, 1));
 
-	EXPECT_TRUE(MyPlayer->SpdList[0].isEmpty());
-	EXPECT_EQ(MyPlayer->_pNumInv, 1); // untouched
+	ASSERT_FALSE(MyPlayer->SpdList[0].isEmpty());
+	EXPECT_EQ(MyPlayer->SpdList[0].stackCount(), 10);
+	EXPECT_EQ(MyPlayer->_pNumInv, 0); // the whole stack moved to the belt
 }
 
 // With no matching inventory stock anywhere, the belt slot simply stays empty.
@@ -901,7 +904,7 @@ TEST_F(InvTest, RefillBeltSlotFromInventory_noMatchingStock_leavesSlotEmpty)
 	for (auto &beltItem : MyPlayer->SpdList)
 		beltItem.clear();
 
-	RefillBeltSlotFromInventory(*MyPlayer, 0, IDI_HEAL, true);
+	RefillBeltSlotFromInventory(*MyPlayer, 0, MakeStackablePotion(IDI_HEAL, true, 1));
 
 	EXPECT_TRUE(MyPlayer->SpdList[0].isEmpty());
 }
@@ -921,7 +924,7 @@ TEST_F(InvTest, RefillBeltSlotFromInventory_fallsBackToExtraTabWhenTab1HasNoMatc
 	MyPlayer->InvTabGrid[2][0] = 1;
 	MyPlayer->_pNumInvTab[2] = 1;
 
-	RefillBeltSlotFromInventory(*MyPlayer, 0, IDI_HEAL, true);
+	RefillBeltSlotFromInventory(*MyPlayer, 0, MakeStackablePotion(IDI_HEAL, true, 1));
 
 	ASSERT_FALSE(MyPlayer->SpdList[0].isEmpty());
 	EXPECT_EQ(MyPlayer->SpdList[0].stackCount(), 10);
@@ -945,7 +948,7 @@ TEST_F(InvTest, RefillBeltSlotFromInventory_combinesTab1AndExtraTabUpToCap)
 	MyPlayer->InvTabGrid[2][0] = 1;
 	MyPlayer->_pNumInvTab[2] = 1;
 
-	RefillBeltSlotFromInventory(*MyPlayer, 0, IDI_HEAL, true);
+	RefillBeltSlotFromInventory(*MyPlayer, 0, MakeStackablePotion(IDI_HEAL, true, 1));
 
 	ASSERT_FALSE(MyPlayer->SpdList[0].isEmpty());
 	EXPECT_EQ(MyPlayer->SpdList[0].stackCount(), Item::MaxStackCount);

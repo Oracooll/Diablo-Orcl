@@ -1367,7 +1367,8 @@ bool UseStashItem(uint16_t c)
 
 	if (item->_iMiscId == IMISC_BOOK)
 		PlaySFX(IS_RBOOK);
-	else
+	// A Signet of Learning speaks with its own sound from the stash too, as from the backpack (round 31 audit).
+	else if (!(item->_iMiscId == IMISC_ORACOOL_SIGNET && oracool::PlayUiEventSound(oracool::UiEventSound::SignetUse)))
 		PlaySFX(ItemInvSnds[GetItemDropAnimIndex(item->_iCurs)]);
 
 	UseItem(MyPlayerId, item->_iMiscId, item->_iSpell, -1);

@@ -136,6 +136,8 @@ void ProcessRfa12ActivesTick(Player &player);
 void ClearRfa12ActivesState();
 void ClearRfa12ActivesForMonster(const Monster &monster);
 void ClearRfa12ActiveBuffs(Player &player);
+/** @brief The hero's own RfA-12 buffs only (a respawn): companions, curses and clocks stay. The caller recalculates. */
+void ClearRfa12PlayerBuffs(Player &player);
 
 /** @brief Ticks left on @p player's timed buff from @p spell; 0 when not carried, or @p spell leaves no buff. For the countdown column. */
 int Rfa12BuffTicks(const Player &player, SpellID spell);

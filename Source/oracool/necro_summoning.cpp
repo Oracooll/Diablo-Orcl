@@ -444,6 +444,11 @@ void ProcessNecromancerSummoningTick(Player &player)
 	OwnerState &state = StateOf(player);
 	if (state.armyPulses <= 0)
 		return;
+	// Not from a corpse (round 31 audit): the last pulses fought on after the Necromancer fell.
+	if (player._pmode == PM_DEATH || (player._pHitPoints >> 6) <= 0) {
+		state.armyPulses = 0;
+		return;
+	}
 	if (--state.armyClock > 0)
 		return;
 	state.armyClock = ArmyPulseTicks;

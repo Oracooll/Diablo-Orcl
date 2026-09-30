@@ -756,17 +756,34 @@ void DrawMinionHud(const Surface &out)
 	}
 }
 
+namespace {
+
+/** @brief The whole army panel as drawn, header and group rows, which takes every click on it (round 31 audit). */
+Rectangle MinionPanelRect()
+{
+	int rows = 0;
+	for (size_t group = 0; group < MinionGroupCount; group++) {
+		if (MinionCount(*MyPlayer, static_cast<MinionGroup>(group)) > 0)
+			rows++;
+	}
+	return Rectangle { Point { HudX, HudY }, Size { HudWidth, HeaderHeight + rows * RowHeight + 4 } };
+}
+
+} // namespace
+
 bool IsPointOverMinionHeader(Point mouse)
 {
-	return MyPlayer != nullptr && MinionCount(*MyPlayer) > 0 && IsCornerHudShown() && HeaderRect().contains(mouse);
+	return MyPlayer != nullptr && MinionCount(*MyPlayer) > 0 && IsCornerHudShown() && MinionPanelRect().contains(mouse);
 }
 
 bool HandleMinionHudClick(Point mouse)
 {
-	if (MyPlayer == nullptr || MinionCount(*MyPlayer) == 0 || !IsCornerHudShown() || !HeaderRect().contains(mouse))
+	if (MyPlayer == nullptr || MinionCount(*MyPlayer) == 0 || !IsCornerHudShown() || !MinionPanelRect().contains(mouse))
 		return false;
-	CycleCompanionStance();
-	AnnounceCompanionStance();
+	if (HeaderRect().contains(mouse)) { // the stance on the header; the rows take the click and do nothing
+		CycleCompanionStance();
+		AnnounceCompanionStance();
+	}
 	return true;
 }
 

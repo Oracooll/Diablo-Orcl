@@ -3534,6 +3534,11 @@ void ClearRfa12ActiveBuffs(Player &player)
 		CalcPlrInv(player, false);
 }
 
+void ClearRfa12PlayerBuffs(Player &player)
+{
+	StateOf(player) = PlayerState {};
+}
+
 int Rfa12BuffTicks(const Player &player, SpellID spell)
 {
 	// The casts that StartBuff, and the buff each starts - CastOnce's cases, read the other way round.

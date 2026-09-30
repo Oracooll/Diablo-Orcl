@@ -2207,6 +2207,9 @@ bool TryDropItem()
 		}
 	}
 
+	if (RefuseQuestItemDropHere(myPlayer, myPlayer.HoldItem))
+		return false; // a rift or an arena is not kept (user, 2026-09-30)
+
 	std::optional<Point> itemTile = FindAdjacentPositionForItem(myPlayer.position.future, myPlayer._pdir);
 	if (!itemTile) {
 		myPlayer.Say(HeroSpeech::WhereWouldIPutThis);
@@ -2261,13 +2264,12 @@ void PerformSpellAction()
 	}
 
 	UpdateSpellTarget(myPlayer._pRSpell);
+	// A fresh press forgets the last held spell, as a mouse press does (round 31 audit).
+	LastMouseButtonSpell = SpellID::Invalid;
+	LastMouseButtonSpellType = SpellType::Invalid;
+	// CheckPlrSpell sets the hold's action on every branch - a swing for the melee, bow and throw skills, None for a
+	// refusal. Overwriting it with a cast made a held X repeat whatever spell was cast last (round 31 audit).
 	CheckPlrSpell(false);
-	if (pcursplr != -1)
-		LastMouseButtonAction = MouseActionType::SpellPlayerTarget;
-	else if (pcursmonst != -1)
-		LastMouseButtonAction = MouseActionType::SpellMonsterTarget;
-	else
-		LastMouseButtonAction = MouseActionType::Spell;
 }
 
 void CtrlUseInvItem()
@@ -2374,6 +2376,10 @@ void PerformSecondaryAction()
 void QuickCast(size_t slot)
 {
 	MouseActionType prevMouseButtonAction = LastMouseButtonAction;
+	// The held spell too, not only the held action: a right-button hold on Fireball repeated the quick-cast Teleport after
+	// (round 31 audit).
+	const SpellID prevMouseButtonSpell = LastMouseButtonSpell;
+	const SpellType prevMouseButtonSpellType = LastMouseButtonSpellType;
 	Player &myPlayer = *MyPlayer;
 	SpellID spell = myPlayer._pSplHotKey[slot];
 	SpellType spellType = myPlayer._pSplTHotKey[slot];
@@ -2384,6 +2390,8 @@ void QuickCast(size_t slot)
 
 	CheckPlrSpell(false, spell, spellType);
 	LastMouseButtonAction = prevMouseButtonAction;
+	LastMouseButtonSpell = prevMouseButtonSpell;
+	LastMouseButtonSpellType = prevMouseButtonSpellType;
 }
 
 } // namespace devilution

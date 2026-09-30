@@ -2163,6 +2163,8 @@ void MonsterDeath(Monster &monster)
 	} else if (monster.animInfo.isLastFrame()) {
 		if (oracool::TitheTakesCorpse(monster)) {
 			// Tithe of Ash (RfA-12) took the corpse: nothing is left to raise or search.
+		} else if (oracool::IsCompanion(monster)) {
+			// A fallen companion leaves no body: it wore the Golem's type, and the Golem's rubble lay where it fell (round 31).
 		} else if (monster.isUnique() && monster.corpseId != 0) {
 			// The body keeps the look it died with: this slot is freed next and the next summon takes it (dead.h).
 			Corpse &corpse = Corpses[monster.corpseId - 1];
@@ -5144,6 +5146,39 @@ void CompanionAi(Monster &companion)
 	}
 	if (IsAnyOf(companion.mode, MonsterMode::Death, MonsterMode::SpecialStand, MonsterMode::MeleeAttack, MonsterMode::RangedAttack))
 		return;
+	// The regroup first, spin or no spin: hemmed in mid-spin, Talic returned below before ever reaching it and stayed behind
+	// while the other two Ancients rejoined the hero (round 31 audit).
+	if (distance > orders.regroup && PlaceCompanionNear(companion, orders.owner, 3)) {
+		if (oracool::IsCompanionSpinning(companion))
+			oracool::StopCompanionSpin(companion);
+		oracool::OnCompanionRegrouped(companion);
+		return;
+	}
+	// And a companion that is past the leash and no longer getting closer - a wall between it and a hero inside the regroup
+	// distance - is set down beside him after a dozen tries, as a regroup (round 31 audit: it pushed against the wall
+	// until the hero walked off).
+	{
+		static std::array<uint8_t, MaxMonsters> BestDistance {};
+		static std::array<uint8_t, MaxMonsters> TriesWithoutGain {};
+		const size_t id = companion.getId();
+		// 0 is "not measuring" (the arrays start zeroed).
+		if (distance <= orders.leash) {
+			TriesWithoutGain[id] = 0;
+			BestDistance[id] = 0;
+		} else if (BestDistance[id] == 0 || distance < BestDistance[id]) {
+			BestDistance[id] = static_cast<uint8_t>(std::min(distance, 254));
+			TriesWithoutGain[id] = 0;
+		} else if (++TriesWithoutGain[id] >= 12) {
+			TriesWithoutGain[id] = 0;
+			BestDistance[id] = 0;
+			if (PlaceCompanionNear(companion, orders.owner, 3)) {
+				if (oracool::IsCompanionSpinning(companion))
+					oracool::StopCompanionSpin(companion);
+				oracool::OnCompanionRegrouped(companion);
+				return;
+			}
+		}
+	}
 	// Talic's spin runs itself (oracool/companion.h) until nothing is beside him - unless the stance forbids fighting or
 	// his owner is past the leash, which end it at once (audit, 2026-09-29: a spin ignored both).
 	if (oracool::IsCompanionSpinning(companion)) {

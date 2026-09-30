@@ -392,7 +392,8 @@ void gamemenu_on()
 	} else {
 		gmenu_set_items(sgMultiMenu, GamemenuUpdateMulti);
 	}
-	PressEscKey();
+	// Every window, not the top one only: Escape closes one a press since 2026-09-30, and the menu (and death) wants them all.
+	CloseWindowsForGameMenu();
 }
 
 void gamemenu_off()
