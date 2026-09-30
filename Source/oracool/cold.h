@@ -172,6 +172,9 @@ int ColdArmourShellFrame(const Player &player);
 /** @brief The glint hue of the armour @p player wears (0xRRGGBB): Frozen white, Shiver yellow, Chilling deep blue. */
 uint32_t ColdArmourHue(const Player &player);
 
+/** @brief Ticks left on the cold armour @p spell for @p player; 0 when it is not the one worn. For the countdown column. */
+int ColdArmourTicks(const Player &player, SpellID spell);
+
 /** @brief One sentence per cold spell for the Abilities window, untranslated. "" for a spell that is not cold. */
 const char *ColdSpellDescription(SpellID spell);
 

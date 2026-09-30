@@ -157,6 +157,40 @@ struct BlitWithRgbMap {
 	}
 };
 
+/** @brief @p src over @p dst at @p alpha of 256, per channel. */
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT uint32_t MixRgb(uint32_t dst, uint32_t src, uint32_t alpha)
+{
+	const uint32_t rb = (((src & 0xFF00FFu) * alpha + (dst & 0xFF00FFu) * (256 - alpha)) >> 8) & 0xFF00FFu;
+	const uint32_t g = (((src & 0x00FF00u) * alpha + (dst & 0x00FF00u) * (256 - alpha)) >> 8) & 0x00FF00u;
+	return rb | g;
+}
+
+/**
+ * @brief BlitWithRgbMap at a share of full strength: the sprite over what is behind it at @p alpha of 256 (Oracool,
+ * dev note 2026-10-01: Frost Nova fading as it spreads). 32-bit targets only, like the map itself.
+ */
+struct BlitWithRgbMapAlpha {
+	const uint32_t *DVL_RESTRICT rgbMap;
+	uint32_t alpha;
+
+	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint32_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src) const
+	{
+		for (unsigned i = 0; i < length; i++)
+			dst[i] = MixRgb(dst[i], rgbMap[src[i]], alpha);
+	}
+	DVL_ALWAYS_INLINE void operator()(unsigned /*length*/, uint8_t * /*dst*/, const uint8_t * /*src*/) const
+	{
+	}
+	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t color, uint32_t *DVL_RESTRICT dst) const
+	{
+		for (unsigned i = 0; i < length; i++)
+			dst[i] = MixRgb(dst[i], rgbMap[color], alpha);
+	}
+	DVL_ALWAYS_INLINE void operator()(unsigned /*length*/, uint8_t /*color*/, uint8_t * /*dst*/) const
+	{
+	}
+};
+
 // ---------------------------------------------------------------- half-transparent
 
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillBlended(uint8_t *dst, unsigned length, uint8_t color)

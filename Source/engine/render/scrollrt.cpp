@@ -394,7 +394,7 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 	}
 	// Oracool (v1.12.211): a true-colour sheet, or a tint by colour values. A true-colour sheet's sprites index its OWN
 	// colours, so it is never drawn through a palette translation; an indexed target gets its fallback indices.
-	if (missile.oracoolColours != nullptr || missile.oracoolTint != oracool::Tint::None) {
+	if (missile.oracoolColours != nullptr || missile.oracoolTint != oracool::Tint::None || (missile.oracoolAlpha < 256 && !out.isIndexed())) {
 		const int light = missile._miLightFlag ? lightTableIndex : 0;
 		if (out.isIndexed()) {
 			if (missile.oracoolColours != nullptr) {
@@ -407,7 +407,10 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 				const double progress = missile._miAnimLen > 1 ? static_cast<double>(missile._miAnimFrame - 1) / (missile._miAnimLen - 1) : 0.0;
 				table = oracool::TintedTable(table, missile.oracoolTint, missile.oracoolTintRgb, progress);
 			}
-			ClxDrawRgbMap(out, missileRenderPosition, sprite, table);
+			if (missile.oracoolAlpha < 256)
+				ClxDrawRgbMapAlpha(out, missileRenderPosition, sprite, table, missile.oracoolAlpha);
+			else
+				ClxDrawRgbMap(out, missileRenderPosition, sprite, table);
 			return;
 		}
 	}

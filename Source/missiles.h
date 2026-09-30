@@ -180,6 +180,10 @@ struct Missile {
 	int16_t oracoolScaleFloor = -1;
 	/** @brief Pixels a scaled sheet is drawn higher, so what oracoolScaleFloor keeps stays put. Set by ScaleMissile. */
 	int16_t oracoolScaleLift = 0;
+	/** @brief Oracool (dev note, 2026-10-01): drawn at this share of 256 over what is behind it; 256 is solid. Not saved. */
+	uint16_t oracoolAlpha = 256;
+	/** @brief Oracool (dev notes, 2026-10-01): the share its impact sheet is drawn at - the small bolts' splash. Not saved. */
+	uint8_t oracoolImpactPercent = 100;
 
 	/**
 	 * @brief The class-tree skill that fired this missile, as a ClassTreeSkill. 0xFFFF is none.

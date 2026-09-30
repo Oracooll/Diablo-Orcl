@@ -2607,6 +2607,9 @@ void AddFrostNova(Missile &missile, AddMissileParameter & /*parameter*/)
 {
 	ScaleFrostNova(missile); // keeps the sheet's colour table: scaling copies its indices
 	missile._mirange = std::max<int>(missile._miAnimLen, 1);
+	// White and light blue running through the ring as it spreads (dev note, 2026-10-01); ProcessFrostNova fades it.
+	missile.oracoolTint = oracool::Tint::HueCycle;
+	missile.oracoolTintRgb = oracool::hue::IceBlue;
 	if (missile.sourceType() != MissileSource::Player)
 		return;
 	const Player &player = *missile.sourcePlayer();
@@ -2631,6 +2634,12 @@ void AddFrostNova(Missile &missile, AddMissileParameter & /*parameter*/)
 void ProcessFrostNova(Missile &missile)
 {
 	missile._mirange--;
+	// Fading as it spreads rather than gone in one frame (dev note, 2026-10-01): solid for its first quarter, then
+	// down to nothing on its last frame.
+	const int length = std::max(missile._miAnimLen, 1);
+	const int played = length - std::max(missile._mirange, 0);
+	const int fadeFrom = length / 4;
+	missile.oracoolAlpha = static_cast<uint16_t>(played <= fadeFrom ? 256 : std::max(0, 256 * (length - played) / std::max(length - fadeFrom, 1)));
 	if (missile._mirange <= 0)
 		missile._miDelFlag = true;
 	PutMissile(missile);
@@ -2756,7 +2765,8 @@ void ProcessFrozenOrb(Missile &missile)
 
 	const auto shed = [&missile](Direction direction) {
 		const Point dst = missile.position.tile + direction;
-		AddMissile(missile.position.tile, dst, direction, MissileID::IceBolt, missile._micaster, missile._misource, 0, missile._mispllvl, &missile);
+		if (Missile *bolt = AddMissile(missile.position.tile, dst, direction, MissileID::IceBolt, missile._micaster, missile._misource, 0, missile._mispllvl, &missile); bolt != nullptr)
+			bolt->oracoolImpactPercent = 50; // its splash at half (dev note, 2026-10-01)
 	};
 
 	if (missile._mirange > 0) {
@@ -4860,7 +4870,9 @@ void ProcessGenericProjectile(Missile &missile)
 		// burst at all; the brief's ice_impact sheet is what it was always meant to land with.
 		case MissileID::IceBolt:
 		case MissileID::IceBlast:
-			AddMissile(missile.position.tile, dst, dir, MissileID::IceImpact, missile._micaster, missile._misource, 0, 0, &missile);
+			if (Missile *impact = AddMissile(missile.position.tile, dst, dir, MissileID::IceImpact, missile._micaster, missile._misource, 0, 0, &missile);
+			    impact != nullptr && missile.oracoolImpactPercent != 100)
+				ScaleMissile(*impact, missile.oracoolImpactPercent); // the sentinel's and the orb's small splash (dev notes, 2026-10-01)
 			break;
 		case MissileID::GlacialSpike:
 			AddMissile(missile.position.tile, dst, dir, MissileID::GlacialShatter, missile._micaster, missile._misource, 0, missile._mispllvl, &missile);

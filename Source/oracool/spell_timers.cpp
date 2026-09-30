@@ -12,6 +12,7 @@
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "missiles.h"
+#include "oracool/cold.h"
 #include "oracool/hud_art.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/warcries.h"
@@ -67,7 +68,7 @@ constexpr std::array<SpellID, 17> Rfa12Buffs {
 std::vector<Timer> ActiveTimers(const Player &player)
 {
 	std::vector<Timer> timers;
-	std::array<int, 4> missileTicks {}; // Infravision, Etherealize, Search, Rage
+	std::array<int, 8> missileTicks {}; // Infravision, Etherealize, Search, Rage, Blizzard, Guardian, Fire Wall, Lightning Wall
 	for (Missile &missile : Missiles) {
 		if (missile._miDelFlag || missile.sourceType() != MissileSource::Player || missile._misource != static_cast<int>(player.getId()))
 			continue;
@@ -85,11 +86,26 @@ std::vector<Timer> ActiveTimers(const Player &player)
 			if (HasAnyOf(player._pSpellFlags, SpellFlag::RageActive))
 				missileTicks[3] = std::max(missileTicks[3], missile._mirange);
 			break;
+		// The spells whose missile stands on the ground for their duration (dev note, 2026-10-01: "skill with runtime to
+		// have countdown timer"); a wall's segments each count, the longest shows.
+		case MissileID::Blizzard:
+			missileTicks[4] = std::max(missileTicks[4], missile._mirange);
+			break;
+		case MissileID::Guardian:
+			missileTicks[5] = std::max(missileTicks[5], missile._mirange);
+			break;
+		case MissileID::FireWall:
+			missileTicks[6] = std::max(missileTicks[6], missile._mirange);
+			break;
+		case MissileID::LightningWall:
+			missileTicks[7] = std::max(missileTicks[7], missile._mirange);
+			break;
 		default:
 			break;
 		}
 	}
-	const std::array<SpellID, 4> missileSpells { SpellID::Infravision, SpellID::Etherealize, SpellID::Search, SpellID::Rage };
+	const std::array<SpellID, 8> missileSpells { SpellID::Infravision, SpellID::Etherealize, SpellID::Search, SpellID::Rage,
+		SpellID::Blizzard, SpellID::Guardian, SpellID::FireWall, SpellID::LightningWall };
 	for (size_t i = 0; i < missileSpells.size(); i++) {
 		if (missileTicks[i] > 0)
 			timers.push_back({ missileSpells[i], missileTicks[i] });
@@ -102,6 +118,13 @@ std::vector<Timer> ActiveTimers(const Player &player)
 		if (const int ticks = Rfa12BuffTicks(player, spell); ticks > 0)
 			timers.push_back({ spell, ticks });
 	}
+	// The ice armours (dev note, 2026-10-01), then the ground effects that last 5 s or more.
+	for (SpellID spell : { SpellID::FrozenArmor, SpellID::ShiverArmor, SpellID::ChillingArmor }) {
+		if (const int ticks = ColdArmourTicks(player, spell); ticks > 0)
+			timers.push_back({ spell, ticks });
+	}
+	for (const auto &[spell, ticks] : Rfa12FieldTimers(player))
+		timers.push_back({ spell, ticks });
 	return timers;
 }
 

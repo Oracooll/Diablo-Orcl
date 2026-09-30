@@ -1036,6 +1036,8 @@ constexpr int WhiteoutTicks = 8 * WhiteoutStepTicks; // eight tiles
 constexpr int BallLightningStepTicks = 10;
 constexpr int BallLightningTicks = 8 * BallLightningStepTicks; // eight tiles, a charged bolt at each
 constexpr int FrozenSentinelPeriod = 30;
+/** @brief A field shows a countdown beside the mini-map only when it lasts at least this long (dev note, 2026-10-01). */
+constexpr int FieldTimerMinTicks = 5 * 20;
 /** @brief The Guardian sheet's three rows (misdat: 15, 14 and 3 frames at one a tick) - Frozen Sentinel's look. */
 constexpr int SentinelRise = 0;
 constexpr int SentinelStand = 1;
@@ -1478,10 +1480,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 				ChillMonster(*m, SlowTicks(spell, r));
 			any = true;
 		}
-		// RfA-27 batch 53: the cone of frost mist through the three tiles ahead, at 125% (the Sorcerer Skill Cards page,
-		// 2026-09-30) - every cast, foes or none (dev note, 2026-09-30); its Impact cue only on what it chilled.
-		if (Missile *cone = ArtFacing(player, MissileGraphicID::ChillTouch, here, target == here ? player._pdir : GetDirection(here, target)); cone != nullptr)
-			ScaleMissile(*cone, 125);
+		// RfA-27 batch 53: the cone of frost mist through the three tiles ahead, as drawn (125% from the Sorcerer Skill Cards
+		// page, 2026-09-30, a step back down by the dev note of 2026-10-01) - every cast, foes or none (dev note, 2026-09-30);
+		// its Impact cue only on what it chilled.
+		ArtFacing(player, MissileGraphicID::ChillTouch, here, target == here ? player._pdir : GetDirection(here, target));
 		if (any)
 			Impact(player, spell);
 		return true;
@@ -1528,6 +1530,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			arrow->_miAnimFrame = static_cast<int>(GetDirection16(here, end == here ? here + player._pdir : end)) + 1; // a frame a facing, as AddArrow
 			arrow->oracoolTint = Tint::Hue;
 			arrow->oracoolTintRgb = hue::IceBlue;
+			ScaleMissile(*arrow, 200); // twice the arrow (dev note, 2026-10-01)
 		}
 		return true;
 	}
@@ -2573,6 +2576,7 @@ void TickField(Player &player, Field &field)
 				if (bolt != nullptr) {
 					bolt->sentinelBolt = true; // it sounds the sentinel's Impact cue where it lands (2026-09-30)
 					ScaleMissile(*bolt, 50); // the small shards it spits (dev note, 2026-09-30): the Ice Bolt's own, at half
+					bolt->oracoolImpactPercent = 50; // and their splash (dev note, 2026-10-01)
 				}
 			}
 		}
@@ -2606,6 +2610,7 @@ void TickField(Player &player, Field &field)
 				if (Missile *flame = AddArtEffectFacing(tile, MissileGraphicID::FireWall, static_cast<int>(player.getId()), 0); flame != nullptr) {
 					flame->oracoolTint = Tint::Hue;
 					flame->oracoolTintRgb = hue::IceBlue;
+					ScaleMissile(*flame, 50, 16); // half the wave, its foot on the tile (dev note, 2026-10-01)
 					raised = true;
 				}
 			}
@@ -3680,6 +3685,25 @@ void ClearRfa12ActiveBuffs(Player &player)
 void ClearRfa12PlayerBuffs(Player &player)
 {
 	StateOf(player) = PlayerState {};
+}
+
+std::vector<std::pair<SpellID, int>> Rfa12FieldTimers(const Player &player)
+{
+	std::vector<std::pair<SpellID, int>> timers;
+	for (const Field &field : Fields) {
+		// Bone Storm is a buff row already; a wave over in a few seconds (Whiteout) would only flicker a count.
+		if (field.ticksLeft <= 0 || field.owner != player.getId() || field.spell == SpellID::BoneStorm)
+			continue;
+		if (field.clock + field.ticksLeft < FieldTimerMinTicks)
+			continue;
+		auto it = std::find_if(timers.begin(), timers.end(), [&field](const auto &t) { return t.first == field.spell; });
+		if (it == timers.end())
+			timers.emplace_back(field.spell, field.ticksLeft);
+		else
+			it->second = std::max(it->second, field.ticksLeft);
+	}
+	std::sort(timers.begin(), timers.end(), [](const auto &a, const auto &b) { return static_cast<int>(a.first) < static_cast<int>(b.first); });
+	return timers;
 }
 
 int Rfa12BuffTicks(const Player &player, SpellID spell)

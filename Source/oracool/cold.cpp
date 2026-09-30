@@ -410,6 +410,12 @@ int ColdArmourShellFrame(const Player &player)
 	return GetAnimationFrame(8, 100); // the argument is MILLISECONDS a frame, despite its name: 100 = ten a second (was 10, a 100 fps blur)
 }
 
+int ColdArmourTicks(const Player &player, SpellID spell)
+{
+	const ArmourState &state = StateOf(player);
+	return state.spell == spell ? std::max(state.ticks, 0) : 0;
+}
+
 uint32_t ColdArmourHue(const Player &player)
 {
 	// One glint each, so the three read apart on the hero (dev note, 2026-09-30).

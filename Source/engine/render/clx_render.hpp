@@ -92,6 +92,9 @@ inline void RenderClxSpriteWithRgbMap(const Surface &out, ClxSprite clx, Point p
 
 void ClxDrawBlendedTRN(const Surface &out, Point position, ClxSprite clx, const uint8_t *trn);
 
+/** @brief ClxDrawRgbMap at @p alpha of 256 over what is already drawn (32-bit targets only). */
+void ClxDrawRgbMapAlpha(const Surface &out, Point position, ClxSprite clx, const uint32_t *rgbMap, int alpha);
+
 /**
  * @brief Blit CLX sprite with 50% transparency to the given buffer at the given coordinates.
  * @param out Output buffer

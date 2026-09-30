@@ -25,6 +25,8 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "engine/point.hpp"
 #include "spelldat.h"
@@ -141,6 +143,12 @@ void ClearRfa12PlayerBuffs(Player &player);
 
 /** @brief Ticks left on @p player's timed buff from @p spell; 0 when not carried, or @p spell leaves no buff. For the countdown column. */
 int Rfa12BuffTicks(const Player &player, SpellID spell);
+
+/**
+ * @brief Every ground effect @p player has running that lasts 5 s or more (Brittle Ground, Frozen Sentinel, the placed
+ * fields), one entry a skill with its longest ticks left, in SpellID order. For the countdown column (2026-10-01).
+ */
+std::vector<std::pair<SpellID, int>> Rfa12FieldTimers(const Player &player);
 
 /** @brief Frostbite: the extra cold damage @p monster takes, in percent. */
 int Rfa12FrostbitePercent(const Monster &monster);
