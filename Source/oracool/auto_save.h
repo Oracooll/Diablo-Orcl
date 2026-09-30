@@ -12,6 +12,8 @@ void ScheduleAutoSaveForExperienceGain();
 void ScheduleAutoSaveForStatPointSpent();
 /** @brief Skill points, passive slots, the burning aura, the readied skills. */
 void ScheduleAutoSaveForSkillChange();
+/** @brief A skill point spent or refunded, or a passive slotted: saved at once, where readied skills are spaced. */
+void ScheduleAutoSaveForSkillPointChange();
 void ScheduleAutoSaveForEquipmentChange();
 void ScheduleAutoSaveForItemDrop();
 void ScheduleAutoSaveForStashChange();

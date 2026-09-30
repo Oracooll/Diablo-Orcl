@@ -93,7 +93,7 @@ const SpellData SpellsData[] = {
 // Blessed Shield and Blessed Hammer sound ONCE, at the release (2026-09-11): their missiles carry the
 // cue - the hammer's IS_CAST2, the shield's own - so their rows are silent rather than sounding the
 // start of the cast as well. Fist of the Heavens keeps IS_CAST2 at the start: its descent is silent.
-/*SpellID::Zeal*/             { P_("spell", "Zeal"),               IS_CAST2,           0,            0,          2, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         2,          0,          0 },
+/*SpellID::Zeal*/             { P_("spell", "Zeal"),               IS_CAST2,           0,            0,          1, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         1,          0,          0 }, // 1 a strike, as the table (round 19 audit)
 /*SpellID::HammerOfFaith*/    { P_("spell", "Hammer of Faith"),    IS_CAST2,           0,            0,          5, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         5,          0,          0 },
 /*SpellID::BlessedShield*/    { P_("spell", "Blessed Shield"),     SFX_NONE,           0,            0,         10, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,        10,          0,          0 },
 /*SpellID::FistOfTheHeavens*/ { P_("spell", "Fist of the Heavens"), IS_CAST2,          0,            0,         15, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,        15,          0,          0 },

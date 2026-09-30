@@ -5,6 +5,7 @@
  */
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 
 #include <fmt/core.h>
 
@@ -746,7 +747,9 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 		return false;
 	// Not the hero's own army or golem: a swing lands on whatever stands on the tile at the hit frame, and a skeleton
 	// stepping into a dying enemy's place took the blow (round 14 audit, v1.12.239).
-	if (monster.isPlayerMinion())
+	// Nor a monster Conversion turned: it is the hero's ally for its span, and the swing, the cleave and Zeal's chain took
+	// it (round 19 audit, v1.12.244).
+	if (monster.isPlayerMinion() || oracool::IsMonsterConverted(monster))
 		return false;
 
 	if (adjacentDamage) {
@@ -760,6 +763,9 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	if (monster.mode == MonsterMode::Petrified) {
 		hit = 0;
 	}
+	// Smite always connects, as its text says (round 19 audit, v1.12.244): it rolled like any swing, and a miss did nothing.
+	if (!adjacentDamage && oracool::IsShieldBashSwing(player) && oracool::CanUsePaladinSkill(player, oracool::PaladinSkill::ShieldBash))
+		hit = 0;
 
 	hper += player.GetMeleePiercingToHit() - player.CalculateArmorPierce(oracool::EffectiveMonsterArmor(monster), true);
 	// Zeal's own accuracy, one point per level invested (user, 2026-08-30). Added before the clamp
@@ -850,7 +856,9 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 		int r = GenerateRnd(201);
 		if (r >= 100)
 			r = 100 + (r - 100) * 5;
-		dam = dam * r / 100;
+		// In 64 bits: dam is already x64 here and r reaches 600, and a crit, a triple-demon and Devastation on a strong
+		// weapon passed the int limit (round 19 audit, v1.12.244).
+		dam = static_cast<int>(std::min<int64_t>(static_cast<int64_t>(dam) * r / 100, std::numeric_limits<int>::max()));
 	}
 
 	if (adjacentDamage)
@@ -1024,9 +1032,15 @@ bool DoAttack(Player &player)
 	} else if (player.AnimInfo.currentFrame == hitFrame - 1) {
 		Point position = player.position.tile + player._pdir;
 		Monster *monster = FindMonsterAtPosition(position);
+		// Where the blow's fire and lightning burst: the tile in front, or the enemy Long Reach took - the burst hits only
+		// its own tile, and on the empty front tile a reached enemy never took them (round 19 audit, v1.12.244).
+		Point blowTile = position;
 		// Long Reach (RfA-12): with a staff, spear or pike, a swing at an empty tile reaches the enemy beyond it.
-		if (monster == nullptr)
+		if (monster == nullptr) {
 			monster = oracool::Rfa12ReachTarget(player, position);
+			if (monster != nullptr)
+				blowTile = monster->position.tile;
+		}
 
 		if (monster != nullptr) {
 			if (CanTalkToMonst(*monster)) {
@@ -1042,10 +1056,10 @@ bool DoAttack(Player &player)
 			// lightning ranges (the sheet shows them) but set no item flag, so until now their damage
 			// reached a blow only when the weapon was already a fire or lightning weapon.
 			if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FireDamage) || player._pIFMaxDam > 0) {
-				AddMissile(position, { 1, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
+				AddMissile(blowTile, { 1, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
 			}
 			if (HasAnyOf(player._pIFlags, ItemSpecialEffect::LightningDamage) || player._pILMaxDam > 0) {
-				AddMissile(position, { 2, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
+				AddMissile(blowTile, { 2, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
 			}
 		}
 
@@ -1088,6 +1102,10 @@ bool DoAttack(Player &player)
 				didhit = PlrHitObj(player, *object);
 			}
 			if (oracool::ApplyClassMeleeSkillOnSwing(player, nullptr, false, 0))
+				didhit = true;
+			// The RfA-12 swings too: Cleave, Sweep, Crusade and the rest strike their sides and rear whether or not the
+			// front tile holds anything, and a shift swing or a front target gone mid-swing skipped them (round 19 audit).
+			if (oracool::ApplyRfa12MeleeOnSwing(player, nullptr, false, 0))
 				didhit = true;
 		}
 		if ((player._pClass == HeroClass::Monk
@@ -1159,6 +1177,11 @@ bool DoRangeAttack(Player &player)
 	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::MultipleArrows) && player.AnimInfo.currentFrame == player._pAFNum + 1) {
 		arrows = 2;
 	}
+
+	// A bow skill looses its volley on the first release frame only: the multiple-arrows flag's second frame shoots
+	// nothing then, and wore the bow twice and counted a Grenadier shot for it (round 19 audit, v1.12.244).
+	if (arrows == 2 && &player == MyPlayer && oracool::ArmedArrowSkill().has_value())
+		arrows = 0;
 
 	// Grenadier (Rogue, 2026-09-14) counts the shots this frame looses.
 	if (arrows > 0 && &player == MyPlayer)
@@ -4112,6 +4135,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	if (const std::optional<oracool::RogueArrow> arrow = oracool::RogueArrowForSpell(spellID); arrow.has_value()) {
 		if (!myPlayer.UsesRangedWeapon()) {
 			myPlayer.Say(HeroSpeech::ICantDoThat);
+			LastMouseButtonAction = MouseActionType::None; // said once, not at tick rate under a held button (round 19)
 			return;
 		}
 		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
@@ -4134,6 +4158,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// audit, v1.12.243).
 	if (oracool::Rfa12LacksBowFor(myPlayer, spellID)) {
 		myPlayer.Say(HeroSpeech::ICantDoThat);
+		LastMouseButtonAction = MouseActionType::None; // said once, not at tick rate under a held button (round 19)
 		return;
 	}
 
@@ -4150,8 +4175,14 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		}
 		oracool::ArmClassMeleeSkill(std::nullopt);
 		oracool::ArmRfa12Melee(std::nullopt);
+		oracool::ArmMeleeSkill(std::nullopt);
+		oracool::ArmArrowSkill(std::nullopt);
 		oracool::ArmWeaponThrow(cursPosition);
-		LastMouseButtonAction = MouseActionType::Attack;
+		// The hold is a cast, so each repeat comes back here and re-arms: as an Attack the throw spent its latch and the
+		// held button swung at the air in place (round 19 audit, v1.12.244).
+		LastMouseButtonSpell = spellID;
+		LastMouseButtonSpellType = spellType;
+		LastMouseButtonAction = MouseActionType::Spell;
 		NetSendCmdLoc(MyPlayerId, true, CMD_SATTACKXY, cursPosition);
 		return;
 	}
@@ -4167,6 +4198,10 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			return;
 		}
 		oracool::ArmClassMeleeSkill(std::nullopt);
+		// One latch at a time: the Paladin's rode an RfA-12 swing (Zeal's speed, to-hit and chain on a Judgment) and the
+		// bow skill's rode the held repeat (round 19 audit, v1.12.244).
+		oracool::ArmMeleeSkill(std::nullopt);
+		oracool::ArmArrowSkill(std::nullopt);
 		if (isShiftHeld) {
 			oracool::ArmRfa12Melee(spellID);
 			LastMouseButtonAction = MouseActionType::Attack;
@@ -4193,6 +4228,14 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			myPlayer.Say(HeroSpeech::NotEnoughMana);
 			return;
 		}
+		// A bow is not swung (round 19 audit, v1.12.244): the hero drew it and struck in melee with the skill's bonus.
+		if (oracool::LacksMeleeWeaponFor(myPlayer, spellID)) {
+			myPlayer.Say(HeroSpeech::ICantDoThat);
+			LastMouseButtonAction = MouseActionType::None;
+			return;
+		}
+		oracool::ArmMeleeSkill(std::nullopt);
+		oracool::ArmArrowSkill(std::nullopt);
 		// Whirlwind is held on the right button, not swung (2026-09-29): the spin runs from here until the button is let
 		// go or the Rage runs out - oracool/whirlwind.h. Never from the left button.
 		if (*skill == oracool::ClassMeleeSkill::Whirlwind) {
@@ -4243,6 +4286,15 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			myPlayer.Say(HeroSpeech::ICantDoThat);
 			return;
 		}
+		if (oracool::LacksMeleeWeaponFor(myPlayer, spellID)) { // a bow is not swung (round 19 audit)
+			myPlayer.Say(HeroSpeech::ICantDoThat);
+			LastMouseButtonAction = MouseActionType::None;
+			return;
+		}
+		// One latch at a time: an RfA-12 or class swing latch rode the Paladin's swing, and the other way round - both
+		// skills fired and both were paid (round 19 audit, v1.12.244). ArmClassMeleeSkill drops the RfA-12 and throw.
+		oracool::ArmClassMeleeSkill(std::nullopt);
+		oracool::ArmArrowSkill(std::nullopt);
 		// Oracool: user correction (2026-08-15) - "LMB/RMB Clicks + Shift - as designed by Blizzard -
 		// to always cast spell/skill, no matter what as long as we are not breaking other hard
 		// disablers". Shift used to force a plain attack here and disarm the skill, on the reading
@@ -4546,6 +4598,9 @@ int RefundStatPoints(Player &player, CharacterAttribute attribute, int count)
 	}
 	if (refund <= 0)
 		return 0;
+	// Read before any ModifyPlr*: each recalculates the gear inside it, and by the end life was already gone and the
+	// floor below never fired (round 19 audit of v1.12.243).
+	const bool wasAlive = player._pHitPoints >> 6 > 0;
 	switch (attribute) {
 	case CharacterAttribute::Strength:
 		ModifyPlrStr(player, -refund);
@@ -4568,7 +4623,6 @@ int RefundStatPoints(Player &player, CharacterAttribute attribute, int count)
 	}
 	*spent -= refund;
 	player._pStatPts += refund;
-	const bool wasAlive = player._pHitPoints >> 6 > 0;
 	CalcPlrInv(player, true);
 	// Never below 1 life, whatever else the recalculation takes: Endurance's and Perfect Vessel's share of base life
 	// shrank with a Vitality refund, and a Strength refund could switch off +life gear - the hero died in the dungeon

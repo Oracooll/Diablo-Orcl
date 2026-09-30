@@ -88,6 +88,16 @@ bool sgbSaveSoundOn;
 
 namespace {
 
+/** Which slots stand in a skill's stun (StunMonster) rather than an AI's own pause, the same MonsterMode::Delay. */
+std::array<bool, MaxMonsters> StunnedBySkill {};
+
+/** @brief @p monster's stun flag, or nullptr for a monster outside the pool (a test's local), as the chill table guards. */
+bool *StunFlagOf(const Monster &monster)
+{
+	const size_t id = monster.getId();
+	return id < StunnedBySkill.size() ? &StunnedBySkill[id] : nullptr;
+}
+
 constexpr int NightmareToHitBonus = 85;
 constexpr int HellToHitBonus = 120;
 
@@ -1007,6 +1017,12 @@ void StartMonsterGotHit(Monster &monster)
 	monster.position.future = monster.position.old;
 	M_ClearSquares(monster);
 	dMonster[monster.position.tile.x][monster.position.tile.y] = monster.getId() + 1;
+	// Its light with it, as StunMonster moves it since round 17: a flinch mid-step and a knockback left the glow a tile off
+	// until the next walk (round 19 audit, v1.12.244).
+	if (monster.lightId != NO_LIGHT) {
+		ChangeLightXY(monster.lightId, monster.position.tile);
+		ChangeLightOffset(monster.lightId, {});
+	}
 }
 
 bool IsRanged(Monster &monster)
@@ -1114,6 +1130,8 @@ void AiDelay(Monster &monster, int len)
 		return;
 	}
 
+	if (bool *stunned = StunFlagOf(monster); stunned != nullptr)
+		*stunned = false; // an AI's own pause, not a stun - StunMonster sets it after
 	monster.var2 = len;
 	monster.mode = MonsterMode::Delay;
 }
@@ -1331,6 +1349,10 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		if (monster.lesserAffix != LesserUniqueAffix::None
 		    && GenerateRnd(100) < std::clamp(*sgOptions.Oracool.championExtraDropChance, 0, 100))
 			SpawnItem(monster, monster.position.tile, sendmsg);
+	}
+	// The fork's drop families for EVERY kill of an enemy, the special-branch bosses above included: Gharbad, the Defiler,
+	// the Hork Demon and Na-Krul never reached them, and Na-Krul's signet roll was lost (round 19 audit, v1.12.244).
+	if (!monster.isPlayerMinion()) {
 		// Oracool: the set items' own drop roll, AFTER the vanilla spawns so the rndItemSeed-driven
 		// stream above stays byte-identical - see TrySpawnOracoolSetItem for why they cannot ride
 		// the ordinary pool.
@@ -4607,7 +4629,9 @@ void M_StartHit(Monster &monster, int dam)
 {
 	PlayEffect(monster, MonsterSound::Hit);
 
-	if (IsHardHit(monster, dam)) {
+	// A stunned monster does not flinch out of its stun: a hard hit set HitRecovery over it, so Paralysis - stunning inside
+	// the very hit that then flinched - was a flinch, and every stun ended at the next blow (round 19 audit, v1.12.244).
+	if (IsHardHit(monster, dam) && !IsMonsterStunned(monster)) {
 		if (monster.type().type == MT_BLINK) {
 			Teleport(monster);
 		} else if (IsAnyOf(monster.type().type, MT_NSCAV, MT_BSCAV, MT_WSCAV, MT_YSCAV, MT_GRAVEDIG)) {
@@ -4677,7 +4701,17 @@ void StunMonster(Monster &monster, int ticks)
 	}
 	// AiDelay carries the guard this needs: Lazarus is exempt, because his scripted set-piece drives
 	// his own mode and a stun would strand it. Inherited rather than restated.
-	AiDelay(monster, ticks);
+	// The longer stun wins: a Sound Shock or a Paralysis proc cut a War Cry's two seconds to half of one (round 19).
+	const int running = IsMonsterStunned(monster) ? monster.var2 : 0;
+	AiDelay(monster, std::max(ticks, running));
+	if (bool *stunned = StunFlagOf(monster); stunned != nullptr && monster.mode == MonsterMode::Delay)
+		*stunned = true;
+}
+
+bool IsMonsterStunned(const Monster &monster)
+{
+	const bool *stunned = StunFlagOf(monster);
+	return monster.mode == MonsterMode::Delay && stunned != nullptr && *stunned;
 }
 
 void M_StartHit(Monster &monster, const Player &player, int dam)

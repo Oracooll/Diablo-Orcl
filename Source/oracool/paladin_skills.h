@@ -155,6 +155,12 @@ bool HasShieldEquipped(const Player &player);
 bool LacksShieldFor(const Player &player, SpellID spell);
 
 /**
+ * @brief Whether @p spell is swung with a melee weapon - a class swing other than plain Leap, a Paladin melee skill or
+ * Charge, an RfA-12 swing - and @p player holds a bow. Refused at the click, as D2 refuses it (round 19 audit, v1.12.244).
+ */
+bool LacksMeleeWeaponFor(const Player &player, SpellID spell);
+
+/**
  * @brief Whether @p skill has mechanics behind it yet, as opposed to being listed and described.
  *
  * Charge and Zeal do; the five added on 2026-08-15 do not - they arrived as art plus one line of

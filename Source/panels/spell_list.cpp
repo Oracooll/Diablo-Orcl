@@ -195,6 +195,10 @@ void DrawSpell(const Surface &out)
 		wellTint = oracool::SkillPlateTint::Blocked;
 	if (oracool::LacksShieldFor(myPlayer, spl))
 		wellTint = oracool::SkillPlateTint::Blocked; // a shield skill without a shield, Aegis Slam included (2026-09-29)
+	// A tree skill the hero cannot pay for - mana, Rage or Essence - is red too, as the click refuses it: only spells
+	// were asked, and every tree row is a Skill (round 19 audit, v1.12.244).
+	if (st == SpellType::Skill && CheckSpell(myPlayer, spl, st, /*manaonly=*/true) != SpellCheckResult::Success)
+		wellTint = oracool::SkillPlateTint::Blocked;
 
 	if (oracool::IsFuriousChargeSpell(spl)) {
 		const float progress = oracool::GetFuriousChargeCooldownProgress();

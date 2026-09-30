@@ -41,6 +41,7 @@
 #include "oracool/auto_save.h"
 #include "inv.h"
 #include "player.h"
+#include "plrmsg.h" // EventPlrMsg - a refused rift says why on screen
 #include "portal.h"
 #include "qol/stash.h"
 #include "utils/language.h"
@@ -64,6 +65,8 @@ struct RiftState {
 	/** Where the guardian fell: the way home is laid there, and laid AGAIN on a revisit (triggers and
 	 * missiles are not in the level save). */
 	Point homeTile = { 0, 0 };
+	/** The way home is laid on homeTile (LayWayHome): from then on no item lands on it or beside it. */
+	bool homeLaid = false;
 	/** The way OUT beside the arrival spot (user, 2026-09-24: "make sure exiting rift is possible through
 	 * the entry/exit point you spawn next to when first entering it"). Chosen once per rift, on the first
 	 * build, and laid again on every visit like the way home. (0,0) until then. */
@@ -252,10 +255,14 @@ bool EnteredRiftStillOpen()
 	if (!liveGuardian && !clearedPile)
 		return false;
 	// A cleared Guardian Rift never closes on its own: it ends through its own way home (round 17 audit).
-	if (State.kind == RiftKind::Guardian && State.done)
-		LogEvent("The Guardian Rift you cleared is still open - walk out through its portal to close it before opening another.", UiFlags::ColorRed);
-	else
-		LogEvent(StrCat("The ", RiftKindName(State.kind), " you entered is still open - finish it, or let it close, before opening another."), UiFlags::ColorRed);
+	const std::string why = State.kind == RiftKind::Guardian && State.done
+	    ? std::string("The Guardian Rift you cleared is still open - walk out through its portal to close it before opening another.")
+	    : StrCat("The ", RiftKindName(State.kind), " you entered is still open - finish it, or let it close, before opening another.");
+	LogEvent(why, UiFlags::ColorRed);
+	// On screen and aloud too, as the waypoints' refusals since round 18: the event log is closed by default (round 19).
+	EventPlrMsg(why, UiFlags::ColorRed);
+	if (MyPlayer != nullptr)
+		MyPlayer->Say(HeroSpeech::ICantDoThat);
 	return true;
 }
 
@@ -621,6 +628,7 @@ void LayArrivalExit()
 /** @brief The return trigger where the guardian fell, and the rift's portal drawn on it. */
 void LayWayHome()
 {
+	State.homeLaid = true;
 	LayRiftExit(State.homeTile);
 	PlaySfxLoc(LS_SENTINEL, State.homeTile); // vanilla's portal opening sound (user, 2026-09-20)
 }
@@ -709,6 +717,14 @@ void ScaleRiftMonster(Monster &monster)
 int RiftGuardianItemCount()
 {
 	return State.kind == RiftKind::Guardian ? 6 : 4;
+}
+
+bool IsBesideRiftWayHome(Point tile)
+{
+	// Only once it is laid: the keystone drops on the corpse first, while homeTile still names the corpse.
+	if (!InRift() || !State.homeLaid)
+		return false;
+	return std::max(std::abs(tile.x - State.homeTile.x), std::abs(tile.y - State.homeTile.y)) <= 1;
 }
 
 bool IsRiftGuardian(const Monster &monster)

@@ -189,6 +189,11 @@ void OnRiftMonsterKilled(const Monster &monster);
 /** @brief Whether @p monster is the active rift's guardian. */
 bool IsRiftGuardian(const Monster &monster);
 /**
+ * @brief Whether @p tile is the cleared rift's way home or beside it. No item lands there: a pickup walk stops one tile
+ * short of its item, and a later kill's loot beside the way home walked the hero through it (round 19 audit, v1.12.244).
+ */
+bool IsBesideRiftWayHome(Point tile);
+/**
  * @brief How many random items a rift's guardian drops (user, 2026-09-26 dev note: "rift guardians/bosses to drop random
  * items, not the uniques they drop when killed in quest"): four in a Nephalem Rift, six in a Guardian Rift.
  */

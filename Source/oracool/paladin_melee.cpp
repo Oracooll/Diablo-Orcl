@@ -16,6 +16,7 @@
 #include "playerdat.hpp"
 #include "oracool/skill_sounds.h"
 #include "oracool/oracool.h"
+#include "oracool/warcries.h" // IsMonsterConverted - a turned monster is no target
 #include "player.h"
 #include "spells.h" // IsValidSpell - a readied slot may hold Invalid
 #include <fmt/format.h>
@@ -157,7 +158,7 @@ int GatherAdjacent(const Monster &centre, Monster **out, int maxTargets)
 			continue;
 		// Never the hero's own (audit, 2026-09-27): companions stand at his side, and a spin cut them down - and credited
 		// the kill, firing Rampage and Bloodcall for killing an ally. Every other area path already skipped them.
-		if (other.isPlayerMinion() || IsMinion(other) || IsCompanion(other))
+		if (other.isPlayerMinion() || IsMinion(other) || IsCompanion(other) || IsMonsterConverted(other)) // round 19
 			continue;
 		if (other.position.tile.WalkingDistance(centre.position.tile) != 1)
 			continue;
@@ -184,7 +185,7 @@ Monster *NextZealTarget(const Player &player, Monster **struck, int struckCount)
 		Monster &candidate = Monsters[ActiveMonsters[i]];
 		if (!candidate.isPossibleToHit() || (candidate.hitPoints >> 6) <= 0)
 			continue;
-		if (candidate.isPlayerMinion() || IsMinion(candidate) || IsCompanion(candidate))
+		if (candidate.isPlayerMinion() || IsMinion(candidate) || IsCompanion(candidate) || IsMonsterConverted(candidate)) // round 19
 			continue; // Zeal swings at enemies only (audit, 2026-09-27)
 		if (candidate.position.tile.WalkingDistance(player.position.tile) > MeleeSkillRangeTiles)
 			continue;

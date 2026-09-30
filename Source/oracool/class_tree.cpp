@@ -2410,7 +2410,7 @@ int InvestClassTreePoints(Player &player, Skill skill, int count)
 				PlayUiSelectSound();
 		}
 	}
-	ScheduleAutoSaveForSkillChange();
+	ScheduleAutoSaveForSkillPointChange();
 	return spent;
 }
 
@@ -2459,7 +2459,7 @@ int RefundClassTreePoints(Player &player, Skill skill, int count)
 		             ClassTreeInvestment(player, skill)),
 		    UiFlags::ColorWhitegold);
 	}
-	ScheduleAutoSaveForSkillChange();
+	ScheduleAutoSaveForSkillPointChange();
 	return taken;
 }
 
@@ -2602,6 +2602,12 @@ void ReleaseHeavenlyGrip(Player &player)
 			EventPlrMsg(_("Your backpack is full - the shield went to your stash."), UiFlags::ColorWhitegold);
 		} else {
 			MakeRoomForGuaranteedReward();
+			// A floor of 127 items none of which may be cleared (magic, uniques, gold, quest items): the drop would fail and
+			// the clear below destroy the shield. It stays in hand until there is room (round 19 audit of v1.12.243).
+			if (ActiveItemCount >= MAXITEMS) {
+				EventPlrMsg(_("No room anywhere for the shield - it stays in your hand until you make some."), UiFlags::ColorRed);
+				return;
+			}
 			DropItemBesidePlayer(player, offHand);
 			EventPlrMsg(_("Your backpack is full - the shield is on the ground at your feet."), UiFlags::ColorWhitegold);
 		}
@@ -2689,7 +2695,7 @@ bool SetPassiveSlot(Player &player, int slot, Skill skill)
 	if (PassiveInSlot(player, slot) == Skill::HeavenlyStrength && skill != Skill::HeavenlyStrength)
 		ReleaseHeavenlyGrip(player);
 	player._pPassiveSlots[slot] = static_cast<uint8_t>(ClassTreeIconIndex(skill));
-	ScheduleAutoSaveForSkillChange();
+	ScheduleAutoSaveForSkillPointChange();
 	return true;
 }
 
@@ -2703,7 +2709,7 @@ bool ClearPassiveSlot(Player &player, int slot)
 	if (PassiveInSlot(player, slot) == Skill::HeavenlyStrength)
 		ReleaseHeavenlyGrip(player);
 	player._pPassiveSlots[slot] = 0xFF;
-	ScheduleAutoSaveForSkillChange();
+	ScheduleAutoSaveForSkillPointChange();
 	return true;
 }
 

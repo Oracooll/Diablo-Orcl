@@ -65,6 +65,13 @@ enum class BossTrait : uint8_t {
 bool IsEndgameBoss(const Monster &monster);
 
 /**
+ * @brief Whether @p monster stands as a unique against control and execution: a unique, Diablo (placed from his map, no
+ * unique row) or a Dread boss. Frailty executed them, Terror and Confuse turned them, a freeze held Diablo solid - every
+ * such rule asked isUnique() alone (round 19 audit, v1.12.244).
+ */
+bool FightsAsUnique(const Monster &monster);
+
+/**
  * @brief The second trait @p seed produces. Pure, so it can be tested without a monster.
  *
  * Takes the name seed rather than the monster because that is the whole input - and because a test

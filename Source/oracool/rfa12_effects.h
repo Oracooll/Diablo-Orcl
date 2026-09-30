@@ -144,8 +144,11 @@ void ScentMonster(const Monster &monster, int ticks);
 /** @brief @p monster leaves no corpse when it dies. Tithe of Ash, Votive Strike. */
 void TakeCorpseOf(const Monster &monster);
 
-/** @brief Forgets every clock and mark. Called where the chill table is cleared. */
+/** @brief Forgets every mark and the level-bound clocks. Called where the chill table is cleared. */
 void ClearRfa12State();
+
+/** @brief Forgets the hero's clocks too (Mercy's cooldown, Soft Tread's quiet): a new game. */
+void ForgetRfa12Clocks();
 
 /** @brief Forgets what was known about @p monster's slot. Called where the warcries' is. */
 void ClearRfa12StateForMonster(const Monster &monster);

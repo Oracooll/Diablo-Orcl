@@ -14,6 +14,7 @@
 #include "oracool/advanced_stats.h" // hovering the Advanced Stats window probes nothing behind it
 #include "oracool/crafting_menu.h" // the crafting book is drawn over the inventory
 #include "oracool/hud_layout.h"
+#include "oracool/warcries.h" // IsMonsterConverted - a turned monster is no target
 #include "oracool/inventory_layout.h"
 #include "oracool/rift.h"      // RiftTier: the portal's hover line
 #include "oracool/stonegate.h" // StonegateEntryTile: where a click on the portal walks to
@@ -1223,7 +1224,8 @@ void CheckCursMove()
 				pcursmonst = -1;
 				cursPosition = { mx, my };
 			}
-			if (pcursmonst != -1 && Monsters[pcursmonst].isPlayerMinion()) {
+			// A monster Conversion turned is an ally too: not a target (round 19 audit, v1.12.244).
+			if (pcursmonst != -1 && (Monsters[pcursmonst].isPlayerMinion() || oracool::IsMonsterConverted(Monsters[pcursmonst]))) {
 				pcursmonst = -1;
 			}
 			if (pcursmonst != -1) {
@@ -1433,7 +1435,7 @@ void CheckCursMove()
 		pcursitem = -1;
 		cursPosition = { mx, my };
 	}
-	if (pcursmonst != -1 && leveltype != DTYPE_TOWN && Monsters[pcursmonst].isPlayerMinion()) {
+	if (pcursmonst != -1 && leveltype != DTYPE_TOWN && (Monsters[pcursmonst].isPlayerMinion() || oracool::IsMonsterConverted(Monsters[pcursmonst]))) {
 		pcursmonst = -1;
 	}
 }

@@ -536,6 +536,8 @@ void M_StartHit(Monster &monster, const Player &player, int dam);
  * render as the stone statue. Shield Bash is a shove, not a spell.
  */
 void StunMonster(Monster &monster, int ticks);
+/** @brief Whether @p monster stands in a skill's stun - not merely an AI's own pause, which is the same Delay mode. */
+bool IsMonsterStunned(const Monster &monster);
 void StartMonsterDeath(Monster &monster, const Player &player, bool sendmsg);
 void MonsterDeath(Monster &monster, Direction md, bool sendmsg);
 void KillMyGolem();

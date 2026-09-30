@@ -65,6 +65,11 @@ bool IsEndgameBoss(const Monster &monster)
 	return monster.lesserAffix == LesserUniqueAffix::Dread;
 }
 
+bool FightsAsUnique(const Monster &monster)
+{
+	return monster.isUnique() || monster.type().type == MT_DIABLO || IsEndgameBoss(monster);
+}
+
 BossTrait SecondaryTraitOf(uint16_t seed)
 {
 	constexpr int TraitCount = static_cast<int>(BossTrait::LAST) + 1;

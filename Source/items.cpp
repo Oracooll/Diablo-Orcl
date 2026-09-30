@@ -3072,6 +3072,10 @@ void PrintItemInfo(const Item &item)
 		const bool unmet = who != nullptr && who->_pLevel < level;
 		AddPanelStringRuns(fmt::format(fmt::runtime(_("Required Level: {:d}")), level), unmet ? UiFlags::ColorRed : ItemBaseStatColor, {});
 	}
+	// The class rule, which CanUseItem also asks: a head in a Paladin's hands was red with every printed requirement
+	// white, and no reason given (round 19 audit, v1.12.244).
+	if (const Player *who = InspectPlayer != nullptr ? InspectPlayer : MyPlayer; who != nullptr && !oracool::ClassMayUseItem(*who, item))
+		AddPanelStringRuns(std::string(_("Your class cannot use this")), UiFlags::ColorRed, {});
 }
 
 /**
@@ -5427,6 +5431,9 @@ bool ItemSpaceOk(Point position)
 		return false;
 	}
 
+	if (oracool::IsBesideRiftWayHome(position)) // no loot where a pickup walk would end on the way home (round 19)
+		return false;
+
 	return true;
 }
 
@@ -6762,6 +6769,9 @@ void TrySpawnNecroBase(const Monster &monster, bool sendmsg)
 	// ten times too often (round 5 audit, v1.12.230).
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), lvl, monster.isUnique() ? 15 : 1, /*onlygood=*/false,
 	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/lvl);
+	// The drop tail, as the tier-set and Gilded hooks got it in round 11: wands, scythes and heads never rolled sockets or
+	// ethereal, nor met Magic Find (round 19 audit, v1.12.244).
+	FinalizeFreshDrop(item, lvl);
 	const int ii = AllocateItem();
 	Items[ii] = item.pop();
 	FinishOracoolDrop(ii, monster.position.tile);

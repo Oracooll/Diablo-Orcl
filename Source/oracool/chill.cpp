@@ -29,7 +29,9 @@ void ChillMonster(const Monster &monster, int ticks)
 	if (id >= ChillTicks.size())
 		return;
 	// EXTENDS, never adds - the header says why.
-	ChillTicks[id] = static_cast<uint16_t>(std::max<int>(ChillTicks[id], ticks));
+	// Clamped to the table's width: Decrepify under Eternal Torment asks 1,728,000 ticks, and the cast wrapped it to twenty
+	// minutes (round 19 audit, v1.12.244). 65,535 ticks is most of an hour.
+	ChillTicks[id] = static_cast<uint16_t>(std::min<int>(std::max<int>(ChillTicks[id], ticks), 65535));
 }
 
 void ClearChill(const Monster &monster)

@@ -17,6 +17,7 @@
 #include "oracool/skill_sounds.h"
 #include "oracool/weapon_throw.h" // one latch at a time
 #include "oracool/whirlwind.h"
+#include "oracool/warcries.h" // IsMonsterConverted - a turned monster is no target
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
@@ -156,7 +157,7 @@ int GatherAround(Point centre, const Monster *except, Monster **out, int maxTarg
 			continue;
 		// Never the hero's own (audit, 2026-09-27): companions stand at his side, and a spin cut them down - and credited
 		// the kill, firing Rampage and Bloodcall for killing an ally. Every other area path already skipped them.
-		if (other.isPlayerMinion() || IsMinion(other) || IsCompanion(other))
+		if (other.isPlayerMinion() || IsMinion(other) || IsCompanion(other) || IsMonsterConverted(other)) // round 19
 			continue;
 		if (centre.WalkingDistance(other.position.tile) != 1)
 			continue;
@@ -419,7 +420,9 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 	switch (skill) {
 	case ClassMeleeSkill::Bash:
 	case ClassMeleeSkill::OpenPalm:
-		if (front != nullptr && frontHit && front->hitPoints >> 6 > 0 && front->mode != MonsterMode::Petrified) {
+		// One push a blow: a Knockback item already pushed it in PlrHitMonst, and the two sent it two tiles (round 19).
+		if (front != nullptr && frontHit && front->hitPoints >> 6 > 0 && front->mode != MonsterMode::Petrified
+		    && !HasAnyOf(player._pIFlags, ItemSpecialEffect::Knockback)) {
 			M_GetKnockback(*front);
 			struck = true;
 		}

@@ -19,6 +19,7 @@
 #include "oracool/ui_sound.h"
 #include "oracool/window_close.h"
 #include "player.h"
+#include "plrmsg.h" // EventPlrMsg
 #include "utils/language.h"
 
 namespace devilution::oracool {
@@ -183,6 +184,7 @@ void ActivateStonegateRow(int row)
 	RowLabel(row, enabled);
 	if (!enabled) {
 		LogEvent("A Guardian Rift needs a Guardian Keystone - a Nephalem Rift's guardian drops one.", UiFlags::ColorRed);
+		EventPlrMsg("A Guardian Rift needs a Guardian Keystone - a Nephalem Rift's guardian drops one.", UiFlags::ColorRed); // on screen (round 19)
 		return;
 	}
 	Player &player = *MyPlayer;

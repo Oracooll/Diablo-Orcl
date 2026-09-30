@@ -12,6 +12,7 @@
 #include "misdat.h"
 #include "missiles.h"
 #include "monster.h"
+#include "oracool/endgame_boss.h" // FightsAsUnique
 #include "oracool/chill.h"
 #include "oracool/class_tree.h"
 #include "utils/language.h"
@@ -120,7 +121,9 @@ void ProcessHolyPulse(Player &player)
 	static int clock = HolyPulseTicks - 1;
 	const Skill aura = GetActiveClassAura(player);
 	if (aura != Skill::HolyFire && aura != Skill::HolyFreeze && aura != Skill::HolyShock) {
-		clock = HolyPulseTicks - 1;
+		// The clock keeps running while the aura is out, so re-lighting pulses at once only when a pulse is due: reset to
+		// "due", swapping the aura off and on with two F-keys pulsed on every swap - twelve times the damage (round 19).
+		clock = std::min(clock + 1, HolyPulseTicks - 1);
 		return;
 	}
 	const int points = LitAuraPoints(aura);
@@ -179,7 +182,7 @@ void ProcessStaticField(Player &player)
 	static int clock = HolyPulseTicks - 1;
 	const int points = LitAuraPoints(Skill::StaticField);
 	if (points <= 0) {
-		clock = HolyPulseTicks - 1;
+		clock = std::min(clock + 1, HolyPulseTicks - 1); // runs while out, as the holy pulse's (round 19 audit)
 		return;
 	}
 	if (++clock < HolyPulseTicks)
@@ -188,7 +191,7 @@ void ProcessStaticField(Player &player)
 	const int percent = StaticFieldPercent(points);
 	for (Monster *monster : AuraTargetsWithin(player, AuraFieldRadius(Skill::StaticField, points))) {
 		int damage = monster->hitPoints * percent / 100;
-		if (monster->isUnique())
+		if (FightsAsUnique(*monster)) // Diablo and the Dread bosses too (round 19 audit)
 			damage /= 2;
 		AuraStrike(player, *monster, DamageType::Lightning, std::max(damage, 1 << 6));
 	}
@@ -463,7 +466,7 @@ void ProcessOutwardAura(Player &player)
 		}
 		// A champion is frightened by nothing. Letting an aura walk a unique out of the room would
 		// make the fight the player came for un-fightable.
-		if (monster.isUnique())
+		if (FightsAsUnique(monster))
 			continue;
 		monster.goal = MonsterGoal::Retreat;
 		monster.goalVar1 = RepelDistance;

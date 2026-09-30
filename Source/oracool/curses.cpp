@@ -5,6 +5,8 @@
  */
 #include "oracool/curses.h"
 
+#include "oracool/endgame_boss.h" // FightsAsUnique - Diablo and the Dread bosses stand as uniques
+
 #include <algorithm>
 #include <array>
 #include <string>
@@ -201,7 +203,7 @@ bool Lay(Monster &monster, CurseKind kind, int ticks, int rank, const Player &ow
 		ChillMonster(monster, ticks);
 		break;
 	case CurseKind::Confuse:
-		if ((monster.flags & MFLAG_BERSERK) == 0 && !monster.isUnique()) {
+		if ((monster.flags & MFLAG_BERSERK) == 0 && !FightsAsUnique(monster)) {
 			monster.flags |= MFLAG_BERSERK | MFLAG_GOLEM;
 			curse.turned = true;
 		}
@@ -354,11 +356,11 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 		const bool onTarget = monster.position.tile == target || monster.position.future == target;
 		if (single ? !onTarget : distance > radius)
 			continue;
-		if (kind == CurseKind::Terror && monster.isUnique())
+		if (kind == CurseKind::Terror && FightsAsUnique(monster))
 			continue; // "Uniques do not" run - and are not marked either
 		// Nor Confuse or Frailty, which do nothing to a unique: laid anyway, they cost Essence and replaced the curse it had
 		// (round 8 audit, v1.12.233).
-		if (IsAnyOf(kind, CurseKind::Confuse, CurseKind::Frailty) && monster.isUnique())
+		if (IsAnyOf(kind, CurseKind::Confuse, CurseKind::Frailty) && FightsAsUnique(monster))
 			continue;
 		// In sight of the cast, as every area skill since round 5 (round 8 audit).
 		if (!single && !LineClearMissile(target, monster.position.tile))
@@ -407,7 +409,7 @@ bool CurseFinishes(const Monster &monster, int hitPoints, int maxHitPoints)
 {
 	if (!Live(monster) || Of(monster).kind != CurseKind::Frailty || hitPoints <= 0)
 		return false;
-	if (monster.isUnique())
+	if (FightsAsUnique(monster)) // Diablo and the Dread bosses too (round 19 audit)
 		return false;
 	return hitPoints <= maxHitPoints * FrailtyPercent(Of(monster).rank) / 100;
 }
@@ -444,7 +446,7 @@ bool CursedMonsterBlinded(const Monster &monster)
 
 bool CursedMonsterFlees(Monster &monster)
 {
-	if (!Live(monster) || Of(monster).kind != CurseKind::Terror || monster.isUnique())
+	if (!Live(monster) || Of(monster).kind != CurseKind::Terror || FightsAsUnique(monster))
 		return false;
 	if (monster.mode != MonsterMode::Stand)
 		return false;

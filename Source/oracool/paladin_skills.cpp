@@ -17,6 +17,8 @@
 #include "oracool/furious_charge.h"
 #include "oracool/rfa12_actives.h" // Rfa12MeleeUsable - Aegis Slam's shield, for LacksShieldFor
 #include "oracool/rogue_arrows.h"  // RogueArrowForSpell - a bow skill's red plate without a bow
+#include "oracool/melee_skills.h"  // ClassMeleeSkillForSpell - a melee skill's red plate with a bow
+#include "oracool/weapon_throw.h"  // CanThrowWeapon - Weapon Throw's red plate
 
 namespace devilution {
 namespace oracool {
@@ -207,10 +209,27 @@ bool IsPaladinSkillUnlocked(const Player &player, PaladinSkill skill)
 	return player._pLevel >= GetPaladinSkillData(skill).minLevel;
 }
 
+bool LacksMeleeWeaponFor(const Player &player, SpellID spell)
+{
+	if (!IsValidSpell(spell) || !player.UsesRangedWeapon())
+		return false;
+	// Plain Leap is movement, not a blow; every other class swing needs a weapon to swing (D2's rule).
+	if (const std::optional<ClassMeleeSkill> skill = ClassMeleeSkillForSpell(spell); skill.has_value())
+		return *skill != ClassMeleeSkill::Leap;
+	if (const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell); skill.has_value())
+		return !IsCastPaladinSkill(*skill)
+		    && (GetPaladinSkillData(*skill).rangeTiles == MeleeSkillRangeTiles || *skill == PaladinSkill::Charge);
+	return IsRfa12Melee(spell);
+}
+
 bool LacksShieldFor(const Player &player, SpellID spell)
 {
 	if (!IsValidSpell(spell))
 		return false;
+	// A melee skill with a bow in hand, and Weapon Throw with nothing to throw: the same red plate, refused at the click
+	// (round 19 audit, v1.12.244).
+	if (LacksMeleeWeaponFor(player, spell) || (IsWeaponThrow(spell) && !CanThrowWeapon(player)))
+		return true;
 	if (const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell); skill.has_value())
 		return GetPaladinSkillData(*skill).requiresShield && !HasShieldEquipped(player);
 	// A bow skill with no bow in hand is the same red plate: refused at the click, and it said so only then (round 18).

@@ -172,6 +172,9 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 		usable = false;
 	if (LacksShieldFor(*MyPlayer, spell))
 		usable = false; // Aegis Slam without a shield: red (2026-09-29); Smite and Blessed Shield answered above
+	// A tree skill the hero cannot pay for (mana, Rage, Essence), as the click refuses it (round 19 audit, v1.12.244).
+	if (type == SpellType::Skill && CheckSpell(*MyPlayer, spell, type, /*manaonly=*/true) != SpellCheckResult::Success)
+		usable = false;
 	if (RightButtonOnly(spell))
 		usable = false; // Whirlwind and Earthquake belong on the right button: red here (the Barbarian Skill Cards page, 2026-09-29)
 

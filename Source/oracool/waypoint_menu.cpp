@@ -711,8 +711,9 @@ void DrawWaypointMenu(const Surface &out)
 		// the list was reordered by depth. See LevelOfRow.
 		const int level = LevelOfRow(i);
 		const bool reached = IsWaypointUnlocked(level);
-		// A reached row this game's quests still seal draws as closed - dormant pad, gold name, "(sealed)" - instead of
-		// open (round 18 audit, v1.12.243).
+		// A reached row this game's quests still seal draws as closed - dormant pad, gold name - instead of open (round 18
+		// audit, v1.12.243). No "(sealed)" suffix: the text column fits "Catacombs Level 5" with 14px to spare, and the
+		// longer names wrapped to a clipped second line (round 19).
 		const bool sealed = reached && WaypointSealedReason(level) != nullptr;
 		const bool unlocked = reached && !sealed;
 		const bool isHovered = (hovered == static_cast<int>(i));
@@ -779,8 +780,7 @@ void DrawWaypointMenu(const Surface &out)
 		// and a black offset copy under it is what gives the glyph a boundary again. The outline this
 		// row used to wear was dropped for thickening the letters; a shadow sits under them instead
 		// of around them, so it buys the contrast without the weight.
-		const std::string name = sealed ? StrCat(WaypointName(level), " ", _("(sealed)")) : std::string(WaypointName(level));
-		DrawString(content, name, textArea,
+		DrawString(content, WaypointName(level), textArea,
 		    { color | UiFlags::FontSize24 | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 }

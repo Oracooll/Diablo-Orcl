@@ -2776,6 +2776,10 @@ bool IsRfa12Melee(SpellID spell)
 
 bool Rfa12MeleeUsable(const Player &player, SpellID spell)
 {
+	// A swing needs something to swing: with a bow the hero drew the bow and struck in melee with the skill's bonus
+	// (round 19 audit, v1.12.244).
+	if (player.UsesRangedWeapon())
+		return false;
 	if (spell == SpellID::AegisSlam)
 		return HoldsShield(player);
 	return true;
@@ -3479,6 +3483,7 @@ void ClearRfa12ActiveBuffs(Player &player)
 	ForgetCompanions();
 	ClearNecromancerSummoningState();
 	ClearAllCurses();
+	ForgetRfa12Clocks(); // Mercy's cooldown and Soft Tread's quiet survive the stairs, not a new game
 	bool sheetMoved = false;
 	PlayerState &state = StateOf(player);
 	for (size_t i = 0; i < state.ticks.size(); i++) {

@@ -1492,6 +1492,10 @@ bool WitchSellOk(const Item &item)
 		rv = false;
 	if (item.IDidx == IDI_LAZSTAFF)
 		rv = false;
+	// Nor a Guardian Keystone, worth nothing, as Griswold refuses it: Adria bought it for 1 gold, and one already turned
+	// at the gate left the rift barred until it was bought back (round 19 audit, v1.12.244).
+	if (item._iMiscId == IMISC_ORACOOL_KEYSTONE)
+		rv = false;
 	return rv;
 }
 

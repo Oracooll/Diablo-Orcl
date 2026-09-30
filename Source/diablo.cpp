@@ -258,7 +258,7 @@ void FreeGame()
 	// three of them; the waypoint menu also carries an unconsumed spawn request, which would move
 	// the next character onto a waypoint on their first level load.
 	oracool::ResetWaypointMenuForNewGame();
-	// Furious Charge's dash and cooldown are the same shape, keyed to SDL_GetTicks: quit inside the
+	// Furious Charge's dash and cooldown are the same shape, counted in game ticks since v1.12.236: quit inside the
 	// three seconds after a charge and the next character's icon starts half-filled and refuses the
 	// skill. Bounded by its own timer rather than permanent, so this is hardening (audit, 2026-08-31).
 	oracool::ResetFuriousChargeForNewGame();

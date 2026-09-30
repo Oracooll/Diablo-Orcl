@@ -210,8 +210,11 @@ void FireGolemsBurn(const Player &owner)
 {
 	for (size_t i = 0; i < Records.size(); i++) {
 		Record &record = Records[i];
-		if (!BodyAlive(record) || record.owner != owner.getId() || record.spec.golem != GolemKind::Fire)
+		if (!BodyAlive(record) || record.owner != owner.getId() || record.spec.golem != GolemKind::Fire) {
+			// A record that is no burning Fire Golem holds no clock: the next Fire Golem in it burned early (round 19).
+			FireClocks[i] = 0;
 			continue;
+		}
 		if (++FireClocks[i] < FireGolemPulseTicks)
 			continue;
 		FireClocks[i] = 0;

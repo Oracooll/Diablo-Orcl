@@ -18,6 +18,8 @@
 #include "oracool/curses.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/whirlwind.h"
+#include "oracool/companion.h" // IsCompanion - Radiance spares them
+#include "oracool/warcries.h"  // IsMonsterConverted - and turned monsters
 #include "player.h"
 #include "utils/language.h"
 
@@ -185,7 +187,9 @@ void RestoreMana(Player &player, int amount)
 /** @brief A skill's own strike: immunity and resistance honoured, kill credit to @p player. */
 void Strike(Player &player, Monster &monster, DamageType type, int damage)
 {
-	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
+	// Converted allies and companions spared, as AuraStrike spares them (round 19 audit, v1.12.244).
+	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || IsMonsterConverted(monster) || IsCompanion(monster)
+	    || !monster.isPossibleToHit())
 		return;
 	if (monster.isImmune(MissileID::Null, type))
 		return;
@@ -207,7 +211,9 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage)
  */
 void StrikeHoly(Player &player, Monster &monster, int damage)
 {
-	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
+	// Converted allies and companions spared, as AuraStrike spares them (round 19 audit, v1.12.244).
+	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || IsMonsterConverted(monster) || IsCompanion(monster)
+	    || !monster.isPossibleToHit())
 		return;
 	ApplyMonsterDamage(DamageType::Magic, monster, damage);
 	if ((monster.hitPoints >> 6) <= 0)
@@ -379,7 +385,7 @@ Monster *Rfa12ReachTarget(const Player &player, Point swingTile)
 	if (!InDungeonBounds(beyond))
 		return nullptr;
 	Monster *monster = FindMonsterAtPosition(beyond);
-	if (monster == nullptr || monster->isPlayerMinion() || !monster->isPossibleToHit())
+	if (monster == nullptr || monster->isPlayerMinion() || IsMonsterConverted(*monster) || !monster->isPossibleToHit())
 		return nullptr;
 	return monster;
 }
@@ -492,7 +498,7 @@ void ProcessRfa12Tick(Player &player)
 		const int radius = AuraRadiusForPoints(std::max(radiance, sirens));
 		for (size_t i = 0; i < ActiveMonsterCount; i++) {
 			Monster &monster = Monsters[ActiveMonsters[i]];
-			if ((monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion())
+			if ((monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || IsMonsterConverted(monster))
 				continue;
 			const int distance = monster.position.tile.WalkingDistance(player.position.tile);
 			if (radiance > 0 && pulse && distance <= AuraRadiusForPoints(radiance)
@@ -578,8 +584,21 @@ void ClearRfa12State()
 {
 	ClearRfa12ActivesState();
 	ResetWhirlwind(); // a spin never crosses a level change
-	PlayerState.fill(PlayerClocks {});
+	// The hero's clocks go down the stairs with him, as the passives' do: the per-level fields reset, Mercy's cooldown and
+	// Soft Tread's quiet do not. A level change re-armed Mercy's 20-50% heal at once (round 19 audit, v1.12.244). A new
+	// game clears them all (ForgetRfa12Clocks).
+	for (PlayerClocks &clocks : PlayerState) {
+		PlayerClocks kept {};
+		kept.mercyCooldown = clocks.mercyCooldown;
+		kept.quietTicks = clocks.quietTicks;
+		clocks = kept;
+	}
 	MonsterState.fill(MonsterMarks {});
+}
+
+void ForgetRfa12Clocks()
+{
+	PlayerState.fill(PlayerClocks {});
 }
 
 void ClearRfa12StateForMonster(const Monster &monster)

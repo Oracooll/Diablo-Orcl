@@ -219,13 +219,25 @@ void ScheduleAutoSaveForStatPointSpent()
 		ScheduleAfterSeconds(0);
 }
 
+void ScheduleAutoSaveForSkillPointChange()
+{
+	// Points spent or refunded and passives slotted save at once: minutes of arranging, and rare. The rest of the build
+	// (readied skills, auras) goes through the spaced trigger below.
+	if (*sgOptions.Oracool.autoSaveOnSkillChange)
+		ScheduleAfterSeconds(0);
+	if (MyPlayer != nullptr)
+		RememberReadiedSpells(*MyPlayer);
+}
+
 void ScheduleAutoSaveForSkillChange()
 {
 	// Audit finding, 2026-08-26: spending a skill point, slotting a passive, lighting an aura
 	// and readying a skill were the only character changes with no trigger at all, so a crash
 	// threw away a build the player had just spent minutes arranging.
+	// Spaced, as kills and pickups are (round 19 audit, v1.12.244): a Sorcerer swapping spells with the F-keys mid-fight
+	// wrote the whole hero and stash on the next loop after every swap - a main-thread hitch each time.
 	if (*sgOptions.Oracool.autoSaveOnSkillChange)
-		ScheduleAfterSeconds(0);
+		ScheduleSpaced(FrequentTriggerSpacingSeconds);
 	// The two mouse buttons are remembered for the NEXT character here rather than at each of the
 	// half-dozen places that can change them (user, 2026-08-30: "remember what skills/spells have
 	// been assigned to lmb/rmb and load them automatically on next new game"). Every one of those

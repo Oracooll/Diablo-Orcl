@@ -337,7 +337,9 @@ bool BelowAThird(const Player &player)
 
 bool Stunned(const Monster &monster)
 {
-	return monster.mode == MonsterMode::Delay;
+	// A skill's stun, not the Delay every AI pauses in between decisions: a plain skeleton gave Relentless Assault its
+	// +30% on most blows (round 19 audit, v1.12.244).
+	return IsMonsterStunned(monster);
 }
 
 /** @brief Whether @p player is playing a song or holding any aura. */
