@@ -1235,10 +1235,19 @@ bool DoRangeAttack(Player &player)
 			// sockets, shards or Enchant ride one fire arrow instead - its hit carries the lightning too (see
 			// ProcessElementalArrow). Made Spectral, the arrow dropped both elements and the bow's own damage (round 12
 			// audit, v1.12.237 - a regression of v1.12.236).
-			if (fireArrows && lightningArrows && !HasAllOf(player._pIFlags, ItemSpecialEffect::FireArrows | ItemSpecialEffect::LightningArrows))
+			// Spectral only for the BOW's own pair (Flambeau, Blitzen): the two flags from two sources - a Stormcrow rung
+			// and a fire bow - made spectral arrows too, and the missile kind was read off the hero's summed lightning
+			// minimum, which any lightning source moved (round 21 audit, v1.12.246).
+			const Item *spectralBow = nullptr;
+			for (const Item *hand : { &player.InvBody[INVLOC_HAND_LEFT], &player.InvBody[INVLOC_HAND_RIGHT] }) {
+				if (hand->_itype == ItemType::Bow && hand->_iStatFlag
+				    && HasAllOf(hand->_iFlags, ItemSpecialEffect::FireArrows | ItemSpecialEffect::LightningArrows))
+					spectralBow = hand;
+			}
+			if (fireArrows && lightningArrows && spectralBow == nullptr)
 				mistype = MissileID::FireArrow;
 			else if (fireArrows && lightningArrows) {
-				dmg = player._pIFMinDam + GenerateRnd(player._pIFMaxDam - player._pIFMinDam);
+				dmg = spectralBow->_iFMinDam + GenerateRnd(spectralBow->_iFMaxDam - spectralBow->_iFMinDam);
 				mistype = MissileID::SpectralArrow;
 			}
 
@@ -3769,6 +3778,9 @@ void RestartTownLvl(Player &player)
 
 	player._pMana = 0;
 	player._pManaBase = player._pMana - (player._pMaxMana - player._pMaxManaBase);
+	// The rest of a potion drunk just before death does not heal the hero standing in town (round 21 audit).
+	if (&player == MyPlayer)
+		oracool::ResetGradualHealing();
 
 	// Out of PM_DEATH before the totals: a dead hero's aura counts for nothing (GetActiveClassAura), so the lit aura's
 	// life and resistances were left out - a life aura took the 1 life below zero and the hero arrived dead in town,
@@ -4431,7 +4443,9 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			// Charge refused by the cooldown costs nothing. That follows the same rule: out of
 			// cooldown or out of mana, the ability still swings rather than doing nothing - it just
 			// arrives at walking pace.
-			if (!oracool::IsFuriousChargeOnCooldown()
+			// Not while already dashing: every click of a sprint paid 10 mana again and restarted the dash, the cooldown
+			// starting only at the arriving swing (round 21 audit, v1.12.246).
+			if (!oracool::IsFuriousChargeOnCooldown() && !oracool::IsFuriousChargeDashing()
 			    && oracool::SpendPaladinSkillMana(myPlayer, oracool::PaladinSkill::Charge))
 				oracool::StartFuriousChargeDash();
 		}

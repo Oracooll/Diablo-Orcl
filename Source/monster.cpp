@@ -2236,6 +2236,8 @@ Monster *AddSkeleton(Point position, Direction dir, bool inMap)
 void SpawnSkeleton(Point position, Direction dir)
 {
 	Monster *skeleton = AddSkeleton(position, dir, true);
+	if (skeleton != nullptr && oracool::InRift())
+		oracool::ScaleRiftMonster(*skeleton); // a rift Leoric's raised dead fight at the rift's scale (round 21 audit)
 	if (skeleton != nullptr)
 		StartSpecialStand(*skeleton, dir);
 }

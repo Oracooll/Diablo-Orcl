@@ -114,6 +114,9 @@ void ProcessRageTick(Player &player)
 {
 	if (!UsesRage(player))
 		return;
+	// Not on a corpse: Unforgiving's calm clock ran there, and the Rage carried through the respawn (round 21 audit).
+	if (player._pHitPoints <= 0 || player._pmode == PM_DEATH)
+		return;
 	const int maxRage = MaxRage(player);
 	// A passive that shrinks the pool (Animosity unassigned) must not leave it overfull.
 	player._pRage = std::min(player._pRage, maxRage);

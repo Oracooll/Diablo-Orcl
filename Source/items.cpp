@@ -3972,6 +3972,11 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	const auto baseTier = static_cast<oracool::BaseItemTier>(item._iOracoolBaseTier);
 	const int durability = item._iDurability;
 	const bool broken = item._iOracoolBroken;
+	// Whether the 255 came from an "of the ages" row this rebuild may drop (round 21 audit): only Zod's stamp or an Oil of
+	// Permanence outlive the rebuild, and a rerolled-away affix left the item indestructible with no reason.
+	bool agesBefore = false;
+	for (int i = 0; i < item._iOracoolAffixCount; i++)
+		agesBefore = agesBefore || item._iOracoolAffixes[i].type == IPL_INDESTRUCTIBLE;
 	const uint32_t seed = item._iSeed;
 	const uint16_t createInfo = item._iCreateInfo;
 	const bool identified = item._iIdentified;
@@ -4056,7 +4061,9 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	// arrived at (an ethereal item's is halved again above); an item that is now indestructible stays so.
 	// Zod's stamp (durability indestructible, the maximum left intact) survives it (audit, 2026-09-29: clamped to the
 	// maximum, a socketed Zod stopped working while the tooltip still promised it).
-	if (durability == DUR_INDESTRUCTIBLE)
+	if (durability == DUR_INDESTRUCTIBLE && agesBefore && item._iMaxDur != DUR_INDESTRUCTIBLE && !oracool::SocketsMakeIndestructible(item))
+		item._iDurability = item._iMaxDur; // the affix went: whole, but wearing again
+	else if (durability == DUR_INDESTRUCTIBLE)
 		item._iDurability = DUR_INDESTRUCTIBLE;
 	else if (item._iMaxDur != DUR_INDESTRUCTIBLE)
 		item._iDurability = std::min(durability, item._iMaxDur);
@@ -6348,8 +6355,6 @@ void CornerstoneSave()
 
 void CornerstoneLoad(Point position)
 {
-	ItemPack pkSItem;
-
 	if (CornerStone.activated || position.x == 0 || position.y == 0) {
 		return;
 	}
@@ -6367,20 +6372,10 @@ void CornerstoneLoad(Point position)
 		dItem[position.x][position.y] = 0;
 	}
 
-	if (strlen(sgOptions.Hellfire.szItem) < sizeof(ItemPack) * 2)
-		return;
-
-	Hex2bin(sgOptions.Hellfire.szItem, sizeof(ItemPack), reinterpret_cast<uint8_t *>(&pkSItem));
-
-	int ii = AllocateItem();
-	auto &item = Items[ii];
-
-	dItem[position.x][position.y] = ii + 1;
-
-	UnPackItem(pkSItem, *MyPlayer, item, (pkSItem.dwBuff & CF_HELLFIRE) != 0);
-	item.position = position;
-	RespawnItem(item, false);
-	CornerStone.item = item;
+	// No item restored from diablo.ini (round 21 audit, v1.12.246). Its save lost its only caller with the manual Save
+	// Game, so an item placed here vanished at the game's end while an old build's stored item came back in EVERY new
+	// game - a duplicate. The compact pack it used would also strip sets, sockets, shards and crafts. In V1 (always a
+	// new game) the Cornerstone is a pedestal like any floor tile.
 }
 
 void SpawnQuestItem(_item_indexes itemid, Point position, int randarea, int selflag, bool sendmsg)
@@ -10623,7 +10618,8 @@ bool ApplyOilToItem(Item &item, Player &player)
 	}
 	// Ethereal cannot be repaired, and the two durability oils were a repair: refused, and the oil stays on the cursor
 	// (round 5 audit, v1.12.230). Mend at the Cube is the one way back.
-	if (item._iOracoolEthereal && IsAnyOf(player._pOilType, IMISC_OILBSMTH, IMISC_OILFORT))
+	// Oil of Permanence too: on a worn-down ethereal it was a free repair to whole and indestructible (round 21 audit).
+	if (item._iOracoolEthereal && IsAnyOf(player._pOilType, IMISC_OILBSMTH, IMISC_OILFORT, IMISC_OILPERM))
 		return false;
 	if (item._iClass == ICLASS_GOLD) {
 		return false;

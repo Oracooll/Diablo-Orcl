@@ -2558,8 +2558,9 @@ void RemoveInvalidItem(Item &item)
 	// either mode; applied to the list, that test would delete every item that rolled one.
 
 	// A book of a spell no book teaches, in EITHER mode: this fork always runs Hellfire, so the test below never ran, and a
-	// damaged record with a spell id past _pSplLvl's 64 read and wrote past the array (round 20 audit, v1.12.245).
-	isInvalid = isInvalid || (item._iMiscId == IMISC_BOOK && (GetSpellBookLevel(item._iSpell) == -1 || static_cast<size_t>(item._iSpell) >= 64));
+	// damaged record with a spell id past _pSplLvl's 64 read and wrote past the array (round 20 audit, v1.12.245). The
+	// range first: GetSpellBookLevel reads SpellsData unchecked (round 21 audit).
+	isInvalid = isInvalid || (item._iMiscId == IMISC_BOOK && (static_cast<uint16_t>(item._iSpell) >= 64 || GetSpellBookLevel(item._iSpell) == -1));
 	// A cursor id past the sprite tables, which it indexes unchecked (round 20 audit). Item cursors start at 0 (the full mana
 	// potion) and sit CURSOR_FIRSTITEM into the sheets.
 	isInvalid = isInvalid || (!item.isEmpty() && static_cast<int>(item._iCurs) + CURSOR_FIRSTITEM > static_cast<int>(GetNumInvItems()));

@@ -5141,7 +5141,14 @@ void ProcessSpectralArrow(Missile &missile)
 		dir = player._pdir;
 		micaster = TARGET_MONSTERS;
 
-		switch (player._pILMinDam) {
+		// The kind is the bow's own (its _iLMinDam, set by IPL_FIREBALL / IPL_ADDACLIFE), not the hero's summed lightning
+		// minimum: any other lightning source turned Flambeau's fireball into bolts or plain arrows (round 21 audit).
+		int kind = 4;
+		for (const Item *hand : { &player.InvBody[INVLOC_HAND_LEFT], &player.InvBody[INVLOC_HAND_RIGHT] }) {
+			if (hand->_itype == ItemType::Bow && HasAllOf(hand->_iFlags, ItemSpecialEffect::FireArrows | ItemSpecialEffect::LightningArrows))
+				kind = hand->_iLMinDam;
+		}
+		switch (kind) {
 		case 0:
 			mitype = MissileID::FireballBow;
 			break;

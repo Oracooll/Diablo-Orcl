@@ -665,6 +665,10 @@ void PlayGuardianRisesSound(const Monster &guardian)
  */
 void PlayGuardianFallsSound()
 {
+	// A rift Na-Krul's floor-24 speech, started on his notice, stops with him: his SpawnLoot branch that stops it is the
+	// quest's, skipped for a guardian (round 21 audit).
+	if (State.guardian == RiftGuardianType::NaKrul)
+		stream_stop();
 	PlaySFX(LS_APOC);
 	if (State.guardian == RiftGuardianType::Diablo)
 		PlaySFX(USFX_DIABLOD);

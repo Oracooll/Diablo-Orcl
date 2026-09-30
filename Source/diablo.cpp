@@ -1240,10 +1240,14 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	// The speed keys click only when the speed moved: AdjustGameSpeed says false at either end of the
 	// band, and a click there would claim a change that did not happen.
 	case SDLK_F9:
+		if (talkflag)
+			return; // not while typing on the chat line (round 21 audit)
 		if (oracool::AdjustGameSpeed(-1))
 			oracool::PlayUiMoveSound();
 		return;
 	case SDLK_F10:
+		if (talkflag)
+			return;
 		if (oracool::AdjustGameSpeed(1))
 			oracool::PlayUiMoveSound();
 		return;
@@ -3118,7 +3122,7 @@ void InitKeymapActions()
 		    ToggleChatLog();
 	    },
 	    nullptr,
-	    CanPlayerTakeAction); // not while dead, paused or in a store dialog, as every window key (round 20 audit)
+	    CanPlayerTakeAction); // not while dead or under a prompt, as every window key; a store it closes itself (round 20)
 #ifdef _DEBUG
 	sgOptions.Keymapper.AddAction(
 	    "DebugToggle",

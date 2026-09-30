@@ -12,6 +12,7 @@
 
 #include "DiabloUI/ui_flags.hpp"
 #include "automap.h"
+#include "oracool/event_log.h" // IsEventLogOpen - kept open under the chat log
 #include "chatlog.h"
 #include "control.h"
 #include "diablo.h" // CloseAllWindows
@@ -102,7 +103,13 @@ void ToggleChatLog()
 		// panels left the Cube, the workshop, the books and the menus drawn under the log (round 20 audit, v1.12.245).
 		if (stextflag != TalkID::None)
 			ForceCloseStore();
+		// The automap and the event log are not windows it covers: kept as they were (round 21 audit).
+		const bool automap = AutomapActive;
+		const bool eventLog = oracool::IsEventLogOpen();
 		CloseAllWindows();
+		AutomapActive = automap;
+		if (eventLog && !oracool::IsEventLogOpen())
+			oracool::ToggleEventLog();
 		spselflag = false;
 		if (qtextflag && leveltype == DTYPE_TOWN) {
 			qtextflag = false;
