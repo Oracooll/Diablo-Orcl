@@ -3108,7 +3108,8 @@ void OperateShrineSpiritual(Player &player)
 
 	int goldFound = 0;
 	for (int8_t &itemIndex : player.InvGrid) {
-		if (itemIndex == 0) {
+		// Never past the list: a damaged record's count that disagreed with its grid wrote past InvList (round 20 audit).
+		if (itemIndex == 0 && player._pNumInv < InventoryGridCells) {
 			Item &goldItem = player.InvList[player._pNumInv];
 			MakeGoldStack(goldItem, 5 * leveltype + GenerateRnd(10 * leveltype));
 			player._pNumInv++;

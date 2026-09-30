@@ -468,17 +468,17 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// User note, 2026-09-14: an aura like Holy Fire - the storm strikes on its own while it burns.
 	{ N_("Thunder Storm"), N_("An aura. Every three seconds a bolt falls on one enemy within 6 tiles of you for 1-20 lightning damage, +10 per level."), Sor, 1, 4, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Energy Shield"), N_("Mana takes the damage your life would. This engine's Mana Shield, raised by its books rather than by skill points."), Sor, 1, 4, 1, Kind::Active, SpellID::ManaShield, true },
-	{ N_("Lightning Mastery"), N_("Your blows carry lightning, and lightning troubles you less. Not D2's spell scaling: this engine deepens a spell by its LEVEL, and has no per-element channel to raise."), Sor, 1, 5, 0, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Lightning Mastery"), N_("Your weapon blows carry lightning, and lightning troubles you less. Your lightning spells are not raised: they deepen by their own level."), Sor, 1, 5, 0, Kind::Passive, SpellID::Invalid, true },
 	// --- Fire Spells ---
 	{ N_("Fire Bolt"), N_("A bolt of flame. This engine's Fire Bolt, raised by its books rather than by skill points."), Sor, 2, 0, 0, Kind::Active, SpellID::Firebolt, true },
 	{ N_("Warmth"), N_("Your mana returns of its own accord."), Sor, 2, 0, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Inferno"), N_("A gout of flame from your hands. This engine's Inferno, raised by its books rather than by skill points."), Sor, 2, 1, 0, Kind::Active, SpellID::Inferno, true },
-	{ N_("Blaze"), N_("Leaves fire in your wake. Mapped onto this engine's Flame Wave, the nearest rolling fire it has."), Sor, 2, 2, 0, Kind::Active, SpellID::FlameWave, true },
+	{ N_("Blaze"), N_("Sends a wall of fire rolling forward from you. Mapped onto this engine's Flame Wave."), Sor, 2, 2, 0, Kind::Active, SpellID::FlameWave, true },
 	{ N_("Fire Ball"), N_("A bursting ball of flame. This engine's Fireball, raised by its books rather than by skill points."), Sor, 2, 2, 1, Kind::Active, SpellID::Fireball, true },
 	{ N_("Fire Wall"), N_("A wall of flame across the ground. This engine's Fire Wall, raised by its books rather than by skill points."), Sor, 2, 3, 0, Kind::Active, SpellID::FireWall, true },
 	{ N_("Enchant"), N_("Your weapon burns: every blow carries fire. A passive rather than a cast buff, since a tree skill with no spell slot has no way to be cast."), Sor, 2, 3, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Meteor"), N_("A burning rock falls on the cursor a second after the cast: 20-40 fire damage, +8-12 per level, to everything within 2 tiles, and the ground burns for 3 seconds."), Sor, 2, 4, 0, Kind::Active, SpellID::Meteor, true },
-	{ N_("Fire Mastery"), N_("Fire burns for you and less against you. Not D2's spell scaling: this engine deepens a spell by its LEVEL, and has no per-element channel to raise."), Sor, 2, 5, 1, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Fire Mastery"), N_("Your weapon blows carry fire, and fire burns you less. Your fire spells are not raised: they deepen by their own level."), Sor, 2, 5, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Hydra"), N_("Sets a fire-breathing head to guard a spot. Mapped onto this engine's Guardian, which is the same idea."), Sor, 2, 5, 0, Kind::Active, SpellID::Guardian, true },
 
 	// ---- Passive Skills (page 3) ----
@@ -562,7 +562,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 2, 2, 2, Kind::Active, SpellID::AshenBrand, true },
 	{ N_("Furnace Mouth"), N_("Opens a vent that spits flame three tiles ahead four times, once a second: 4-9 fire damage, +2-4 per level."),
 	    Sor, 2, 3, 2, Kind::Active, SpellID::FurnaceMouth, true },
-	{ N_("Firestorm"), N_("Fireballs rain around the cursor for 4 seconds."),
+	{ N_("Firestorm"), N_("For 4 seconds you hurl fireballs at points scattered around the cursor; each bursts on the first thing in its path."),
 	    Sor, 2, 4, 1, Kind::Active, SpellID::Firestorm, true },
 	{ N_("Immolate"), N_("For 10 seconds you burn everything beside you, nine times, once a second: 3-6 fire damage, +1-2 per level."),
 	    Sor, 2, 4, 2, Kind::Active, SpellID::Immolate, true },
@@ -606,7 +606,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Lightning Bolt"), N_("Hurl a bolt of lightning that races along the ground toward the target, at the rank. No javelin exists here; the bolt carries itself."), Rog, 2, 3, 0, Kind::Active, SpellID::LightningBoltSkill, true },
 	{ N_("Plague Javelin"), N_("A javelin that bursts into a cloud of acid where it strikes: 4-8 acid damage, +2-3 per level, every second for 5 seconds to everything within 2 tiles."), Rog, 2, 3, 1, Kind::Active, SpellID::PlagueJavelin, true },
 	{ N_("Fend"), N_("Every swing also strikes everything around you at 80% damage, +5% per rank."), Rog, 2, 4, 0, Kind::Active, SpellID::Fend, true },
-	{ N_("Lightning Strike"), N_("A thrust at +20% damage, +5% per rank, whose lightning leaps on from the target to the next enemy, and the next."), Rog, 2, 5, 0, Kind::Active, SpellID::LightningStrike, true },
+	{ N_("Lightning Strike"), N_("A thrust at +20% damage, +5% per rank, that looses chain lightning from you at every enemy near you."), Rog, 2, 5, 0, Kind::Active, SpellID::LightningStrike, true },
 	{ N_("Lightning Fury"), N_("Hurl lightning that bursts outward in every direction at once, at the rank."), Rog, 2, 5, 1, Kind::Active, SpellID::LightningFury, true },
 
 	// ---- Passive Skills (page 3) ----
@@ -867,14 +867,14 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 0, 3, 0, Kind::Active, SpellID::VaultingStrike, true, 5 },
 	{ N_("Wheel of Heaven"), N_("Every swing strikes everything around you at 66% damage, +5% per rank."),
 	    Monk, 0, 4, 0, Kind::Active, SpellID::WheelOfHeaven, true, 5 },
-	{ N_("Seven Reeds"), N_("Three blows in one swing, one more every three ranks up to seven, each at 60% damage."),
+	{ N_("Seven Reeds"), N_("Three blows in one swing, one more every three ranks; the extra blows at 60% damage."),
 	    Monk, 0, 5, 0, Kind::Active, SpellID::SevenReeds, true, 5 },
 	{ N_("Master of the Long Staff"), N_("Your mastery of the staff empowers every Way of the Staff skill. With a staff in hand: +10% damage and +15% to hit, +2% and +3% per rank."),
 	    Monk, 0, 5, 1, Kind::Passive, SpellID::Invalid, true, 5 },
 	// --- Way of the Body ---
 	{ N_("Open Palm"), N_("An open-hand strike at +20% damage, +10% per rank, that drives the enemy back a tile."),
 	    Monk, 1, 0, 0, Kind::Active, SpellID::OpenPalm, true, 5 },
-	{ N_("Flowing Step"), N_("Move through battle with greater speed. One point makes you run rather than walk; the evade half needs an avoidance roll this engine has not got."),
+	{ N_("Flowing Step"), N_("Move through battle with greater speed. One point makes you run rather than walk."),
 	    Monk, 1, 1, 0, Kind::Passive, SpellID::Invalid, true, 5 },
 	{ N_("Iron Robe"), N_("Discipline hardens your body while you wear light armour or none at all. Unarmoured: armour class by level, and blows land lighter. Light armour keeps 50% of it. Mail and plate switch it off."),
 	    Monk, 1, 2, 0, Kind::Passive, SpellID::Invalid, true, 5 },
@@ -882,22 +882,22 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 1, 3, 0, Kind::Passive, SpellID::Invalid, true, 5 },
 	{ N_("Purifying Breath"), N_("Centre yourself: +20 to every resistance, +5 per rank, for 30 seconds, +5 per rank."),
 	    Monk, 1, 4, 0, Kind::Active, SpellID::PurifyingBreath, true, 5 },
-	{ N_("Hundred Fists"), N_("Four blows in one swing, one more every two ranks up to seven, each at 50% damage."),
+	{ N_("Hundred Fists"), N_("Four blows in one swing, one more every two ranks; the extra blows at 50% damage."),
 	    Monk, 1, 5, 0, Kind::Active, SpellID::HundredFists, true, 5 },
 	{ N_("Perfect Vessel"), N_("Your mastery of the body empowers every Way of the Body skill: +10% life, +2% per rank, and you shake off hits faster."),
 	    Monk, 1, 5, 1, Kind::Passive, SpellID::Invalid, true, 5 },
 	// --- Way of the Spirit ---
-	{ N_("Inner Sight"), N_("Reveal nearby objects, traps and treasure. Deepens the Monk's own Search: every point holds the sight longer."),
+	{ N_("Inner Sight"), N_("Reveal nearby objects, traps and treasure. The Monk's own Search, raised by books rather than skill points."),
 	    Monk, 2, 0, 0, Kind::Active, SpellID::Search, true, 5 },
 	{ N_("Healing Mantra"), N_("Restore life to yourself over time. Held like an aura rather than cast, so it mends you for as long as it plays."),
 	    Monk, 2, 1, 0, Kind::Aura, SpellID::Invalid, true, 5 },
 	{ N_("Temple Bell"), N_("A tone that strikes every undead in earshot for three to six a rank, staggers it and drives it back."),
 	    Monk, 2, 2, 0, Kind::Active, SpellID::TempleBell, true, 5 },
-	{ N_("Spirit Ward"), N_("Surround yourself with a barrier against magic. Rides this engine's Mana Shield, which drinks the blow into your mana; every point makes it drink deeper."),
+	{ N_("Spirit Ward"), N_("Surround yourself with a barrier against magic. Rides this engine's Mana Shield, which drinks the blow into your mana; raised by books rather than skill points."),
 	    Monk, 2, 3, 0, Kind::Active, SpellID::ManaShield, true, 5 },
 	{ N_("Radiant Palm"), N_("A strike at +20% damage, +10% per rank; an enemy it kills erupts, dealing the blow again to everything beside it."),
 	    Monk, 2, 4, 0, Kind::Active, SpellID::RadiantPalm, true, 5 },
-	{ N_("Tranquility"), N_("A sanctuary about you for 13 seconds, +1 per rank: what stands beside you is slowed, and 2% of your life returns each second."),
+	{ N_("Tranquility"), N_("A sanctuary about you for 13 seconds, +1 per rank: what stands within 2 tiles is slowed, and 2% of your life returns each second."),
 	    Monk, 2, 5, 0, Kind::Active, SpellID::Tranquility, true, 5 },
 	{ N_("Enlightenment"), N_("Your mastery of spirit empowers every Way of the Spirit skill: +10% mana and +10% to every resistance, +2% each per rank."),
 	    Monk, 2, 5, 1, Kind::Passive, SpellID::Invalid, true, 5 },
@@ -1046,7 +1046,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Army of the Dead"), N_("The dead erupt at the cursor and tear at everything within two tiles, six times: at once, then every half second."),
 	    Nec, 0, 5, 2, Kind::Active, SpellID::ArmyOfTheDead, true },
 	// --- Poison & Bone --- (built at N6, 2026-09-18: rfa12_actives, the bone and poison cases) ---
-	{ N_("Teeth"), N_("A fan of barbed teeth, magic damage, one more tooth with every rank."),
+	{ N_("Teeth"), N_("A fan of barbed teeth, magic damage: one more tooth a rank up to six, and harder teeth with every rank."),
 	    Nec, 1, 0, 0, Kind::Active, SpellID::Teeth, true },
 	{ N_("Bone Armor"), N_("A shell of bone that absorbs damage until it is spent, or for a minute."),
 	    Nec, 1, 0, 1, Kind::Active, SpellID::BoneArmor, true },
@@ -1089,13 +1089,13 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Nec, 2, 0, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Essence Tap"), N_("A cursed monster that dies returns Essence to you, more with every rank."),
 	    Nec, 2, 0, 2, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Dim Vision"), N_("Cursed monsters cannot see you until you are beside them. Paid in Essence."),
+	{ N_("Dim Vision"), N_("Cursed monsters cannot see you until you are beside them, even mid-fight. Uniques are not affected. Paid in Essence."),
 	    Nec, 2, 1, 0, Kind::Active, SpellID::DimVision, true },
 	{ N_("Weaken"), N_("Cursed monsters deal a third less damage. Paid in Essence."),
 	    Nec, 2, 1, 1, Kind::Active, SpellID::NecroWeaken, true },
 	{ N_("Frailty"), N_("A cursed monster that falls below a tenth of its life, a little more each rank, simply dies. Uniques do not."),
 	    Nec, 2, 1, 2, Kind::Active, SpellID::Frailty, true },
-	{ N_("Iron Maiden"), N_("A cursed monster takes back every blow it lands on you or your minions, and more with every rank."),
+	{ N_("Iron Maiden"), N_("A cursed monster takes back every melee blow it lands on you or your minions, and more with every rank."),
 	    Nec, 2, 2, 0, Kind::Active, SpellID::NecroIronMaiden, true },
 	{ N_("Terror"), N_("Cursed monsters run from you while the curse holds. Uniques do not."),
 	    Nec, 2, 2, 1, Kind::Active, SpellID::Terror, true },
@@ -1136,7 +1136,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Nec, 3, 2, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Overwhelming Essence"), N_("Your Essence pool is larger by a fifth."),
 	    Nec, 3, 2, 1, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Dark Reaping"), N_("Each blow that lands returns 1 Essence and 1 mana."),
+	{ N_("Dark Reaping"), N_("Each weapon blow or arrow that lands returns 1 Essence and 1 mana."),
 	    Nec, 3, 2, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Spreading Malediction"), N_("You deal 5% more damage for each cursed monster within six tiles, up to 30%."),
 	    Nec, 3, 3, 0, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -1333,7 +1333,8 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		totals.coldResist += 10;
 		break;
 	case Skill::GlassCannon:
-		totals.bonusDamage += 15;
+		// The +15% is in PassiveDamageDealtPercent, which spells, skills and blows all read: here, as weapon +% damage, it
+		// never reached a Sorceress's spells - she paid the armour for nothing (round 20 audit, v1.12.245).
 		totals.armorPercent -= 10; // "-10% armour" (round 13 audit)
 		break;
 	case Skill::HolyCause:
@@ -2999,7 +3000,7 @@ int EffectiveMovementSpeedPercent(const Player &player)
 	    || IsClassTreeRunActive(player) || IsWhirlwinding(player);
 	int ticks = walkTicks;
 	if (running)
-		ticks = PlayerSlowPercent(player) > 0 ? std::max(walkTicks - 4, 1) : std::min(walkTicks, 6);
+		ticks = PlayerSlowPercent(player) > 0 ? std::max(walkTicks - 4, std::min(walkTicks, 6)) : std::min(walkTicks, 6); // as the feet (round 20)
 	return 1000 / ticks;
 }
 

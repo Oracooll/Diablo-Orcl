@@ -18,6 +18,9 @@
 #include "automap.h"
 #include "controls/modifier_hints.h"
 #include "controls/plrctrls.h"
+#include "help.h"         // HelpFlag - a modal over the world
+#include "oracool/runeword_book.h" // CloseRunewordBook - the full-screen book
+#include "qol/chatlog.h" // ChatLogFlag - the same
 #include "cursor.h"
 #include "engine/backbuffer_state.hpp"
 #include "engine/clx_sprite.hpp"
@@ -296,6 +299,8 @@ bool TakeLeftPanelSlot(LeftPanelContent content)
 		oracool::CloseWaypointMenu();
 	if (content != LeftPanelContent::Crafting)
 		oracool::CloseCraftingMenu();
+	// The runeword book is the whole screen: C and Q opened their window hidden under it (round 20 audit, v1.12.245).
+	oracool::CloseRunewordBook();
 	// And the workshop and the Cube, which share the rect though they are not left-panel contents: the sheet and the quest
 	// log opened invisible under them (round 16 audit, v1.12.241). Either may refuse with items it cannot give back.
 	oracool::CloseWorkshop();
@@ -318,6 +323,8 @@ bool IsOverAnyInterface(Point position)
 	if (IsOverLeftPanel(position))
 		return true;
 	if (IsOverRightPanel(position))
+		return true;
+	if (ChatLogFlag || HelpFlag) // modal: nothing behind them takes a click (round 20 audit)
 		return true;
 	if (oracool::IsPointOverHudChrome(position))
 		return true;
@@ -1337,7 +1344,12 @@ void CheckPanelInfo()
 		// looking at the button alter the next step.
 		int hoverCarry = 0;
 		const int strideTicks = oracool::StrideTicksFor(oracool::MovementSpeedPercent(*MyPlayer), hoverCarry);
-		const int skippedFrames = running ? std::max(2, 8 - strideTicks) : std::max(-2, 8 - strideTicks);
+		// The feet's own branches (StartWalkAnimation): no -2 floor on the walk since 2026-09-27, and the slowed run
+		// (round 20 audit, v1.12.245).
+		const int walkSkip = 8 - strideTicks;
+		const int skippedFrames = !running                              ? walkSkip
+		    : oracool::PlayerSlowPercent(*MyPlayer) > 0 ? std::min(walkSkip + 4, std::max(2, walkSkip))
+		                                                : std::max(2, walkSkip);
 		const int stepTicks = 8 - skippedFrames;
 		AddPanelString(fmt::format(fmt::runtime(_("One step: {:d} ticks, 8 frames")), stepTicks));
 		AddPanelString(fmt::format(fmt::runtime(_("Movement speed {:d}%")),

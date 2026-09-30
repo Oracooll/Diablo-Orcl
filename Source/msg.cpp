@@ -2376,6 +2376,8 @@ size_t OnChangeSpellLevel(const TCmd *pCmd, size_t pnum) // NOLINT(misc-unused-p
 		SendPacket(pnum, pCmd, sizeof(*pCmd));
 	} else {
 		Player &player = Players[pnum];
+		if (static_cast<size_t>(spellID) >= std::size(player._pSplLvl))
+			return sizeof(message); // no book raises a spell past the table (round 20 audit)
 		player._pMemSpells |= GetSpellBitmask(spellID);
 		player._pSplLvl[static_cast<size_t>(spellID)] = spellLevel;
 	}

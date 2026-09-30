@@ -129,6 +129,7 @@ constexpr int DeterminationMaxEnemies = 4;
 constexpr int SteadyAimPercent = 20;
 constexpr int SteadyAimRange = 3;
 constexpr int AudacityPercent = 15;
+constexpr int GlassCannonPercent = 15; // Glass Cannon: +15% damage, every source (its -10% armour is on the sheet)
 constexpr int AudacityRange = 2;
 constexpr int PowerHungryPercent = 20;
 constexpr int ColdBloodedPercent = 10;
@@ -533,6 +534,8 @@ int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool 
 		percent += clocks.rampageStacks * RampagePerStack;
 	if (PassiveActive(player, Skill::UnwaveringWill) && Still(player))
 		percent += UnwaveringWillDealtPercent;
+	if (PassiveActive(player, Skill::GlassCannon))
+		percent += GlassCannonPercent; // every hit, spells included (round 20 audit)
 	// The beat: the third blow since the last one. Counted in OnPassiveHit, read here, so the
 	// blow that IS the beat carries the bonus and the count restarts after it lands.
 	if (melee && PassiveActive(player, Skill::Cadence) && clocks.cadenceCount == 2)

@@ -360,7 +360,8 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 			continue; // "Uniques do not" run - and are not marked either
 		// Nor Confuse or Frailty, which do nothing to a unique: laid anyway, they cost Essence and replaced the curse it had
 		// (round 8 audit, v1.12.233).
-		if (IsAnyOf(kind, CurseKind::Confuse, CurseKind::Frailty) && FightsAsUnique(monster))
+		// Nor Dim Vision: a blinded boss loses the hero at two tiles, and never fights back (round 21 audit).
+		if (IsAnyOf(kind, CurseKind::Confuse, CurseKind::Frailty, CurseKind::DimVision) && FightsAsUnique(monster))
 			continue;
 		// In sight of the cast, as every area skill since round 5 (round 8 audit).
 		if (!single && !LineClearMissile(target, monster.position.tile))

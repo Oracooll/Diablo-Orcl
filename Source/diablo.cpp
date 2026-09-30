@@ -511,6 +511,14 @@ void LeftMouseDown(uint16_t modState)
 	if (control_check_talk_btn())
 		return;
 
+	// The chat log and the help text are modal: a click closes them and reaches nothing behind - it walked the hero, and
+	// landed on a window hidden under the parchment (round 20 audit, v1.12.245).
+	if (ChatLogFlag || HelpFlag) {
+		ChatLogFlag = false;
+		HelpFlag = false;
+		return;
+	}
+
 	if (sgnTimeoutCurs != CURSOR_NONE)
 		return;
 
@@ -1146,7 +1154,10 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 		if (sgnTimeoutCurs != CURSOR_NONE) {
 			return;
 		}
-		sgOptions.Keymapper.KeyPressed(vkey);
+		// Not Space or the F-keys, which are reserved below the living path: an old ini's Hide Info Screens on Space
+		// took the death menu away (round 20 audit, v1.12.245).
+		if (vkey != SDLK_SPACE && !(vkey >= SDLK_F1 && vkey <= SDLK_F12))
+			sgOptions.Keymapper.KeyPressed(vkey);
 		if (vkey == SDLK_RETURN || vkey == SDLK_KP_ENTER) {
 #if HAS_KBCTRL == 0
 			if ((modState & KMOD_ALT) != 0) {
@@ -2546,6 +2557,7 @@ void InventoryKeyPressed()
 	if (stextflag != TalkID::None)
 		return;
 	oracool::CloseCraftingMenu(); // the full-screen book does not stay over a side window opened under it (round 13)
+	oracool::CloseRunewordBook(); // nor the runeword book, which is the screen too (round 20 audit)
 	invflag = !invflag;
 	if (!IsLeftPanelOpen() && CanPanelsCoverView()) {
 		if (!invflag) { // We closed the invetory
@@ -2611,6 +2623,7 @@ void DisplaySpellsKeyPressed()
 	if (stextflag != TalkID::None)
 		return;
 	oracool::CloseCraftingMenu(); // round 13 audit
+	oracool::CloseRunewordBook(); // round 20 audit
 	CloseCharPanel();
 	QuestLogIsOpen = false;
 	// Oracool: user request - S opens the Abilities window; the speedbook ring it used to raise is
@@ -2629,6 +2642,7 @@ void SpellBookKeyPressed()
 	if (stextflag != TalkID::None)
 		return;
 	oracool::CloseCraftingMenu(); // round 13 audit
+	oracool::CloseRunewordBook(); // round 20 audit
 	sbookflag = !sbookflag;
 	// Oracool V1: the book is a scrolling list twice its window's height, so opening it should
 	// always show the top. Unconditional because resetting a closed book costs nothing.
@@ -2668,7 +2682,9 @@ bool CanPlayerTakeAction()
 	// a keymapper or padmapper gameplay action and the answer is the same for all of them. The
 	// prompt's own confirm and cancel do not come through this predicate - they are handled in the
 	// text-input path, which checks IsModalPromptOpen first - so the prompt stays usable.
-	return !IsPlayerDead() && IsGameRunning() && !IsModalPromptOpen();
+	// Nor while typing on the chat line (the debug console): F1-F8, game speed and the rest acted on the keys typed into
+	// it (round 20 audit, v1.12.245).
+	return !IsPlayerDead() && IsGameRunning() && !IsModalPromptOpen() && !talkflag;
 }
 } // namespace
 
@@ -2869,6 +2885,8 @@ void InitKeymapActions()
 	    N_("Open the quick list for the left mouse button."),
 	    'A',
 	    [] {
+		    if (stextflag != TalkID::None)
+			    return; // not over a store dialog, as I/C/Q/D/B (round 20 audit)
 		    if (oracool::IsSkillPickerOpen() && oracool::IsSkillPickerForLeftButton())
 			    oracool::CloseSkillPicker();
 		    else
@@ -2883,6 +2901,8 @@ void InitKeymapActions()
 	    N_("Open the quick list for the right mouse button."),
 	    'S',
 	    [] {
+		    if (stextflag != TalkID::None)
+			    return;
 		    if (oracool::IsSkillPickerOpen() && !oracool::IsSkillPickerForLeftButton())
 			    oracool::CloseSkillPicker();
 		    else
@@ -3096,7 +3116,9 @@ void InitKeymapActions()
 	    'L',
 	    [] {
 		    ToggleChatLog();
-	    });
+	    },
+	    nullptr,
+	    CanPlayerTakeAction); // not while dead, paused or in a store dialog, as every window key (round 20 audit)
 #ifdef _DEBUG
 	sgOptions.Keymapper.AddAction(
 	    "DebugToggle",
@@ -4084,7 +4106,7 @@ bool PressEscKey()
 
 	if (DropGoldFlag) {
 		control_drop_gold(SDLK_ESCAPE);
-		rv = true;
+		return true; // the prompt alone, as the withdraw box below: it fell through and closed the stash and backpack (round 20)
 	}
 
 	if (IsWithdrawGoldOpen) {

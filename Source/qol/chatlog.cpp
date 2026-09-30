@@ -14,6 +14,7 @@
 #include "automap.h"
 #include "chatlog.h"
 #include "control.h"
+#include "diablo.h" // CloseAllWindows
 #include "doom.h"
 #include "engine/render/text_render.hpp"
 #include "error.h"
@@ -97,10 +98,11 @@ void ToggleChatLog()
 	if (ChatLogFlag) {
 		ChatLogFlag = false;
 	} else {
-		stextflag = TalkID::None;
-		CloseInventory();
-		CloseCharPanel();
-		sbookflag = false;
+		// Every window, the fork's included, and a store through its own close: a bare stextflag reset and the vanilla
+		// panels left the Cube, the workshop, the books and the menus drawn under the log (round 20 audit, v1.12.245).
+		if (stextflag != TalkID::None)
+			ForceCloseStore();
+		CloseAllWindows();
 		spselflag = false;
 		if (qtextflag && leveltype == DTYPE_TOWN) {
 			qtextflag = false;

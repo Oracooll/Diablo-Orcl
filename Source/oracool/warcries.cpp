@@ -194,14 +194,16 @@ void Stagger(Monster &monster, int ticks)
 	StunMonster(monster, ticks);
 }
 
-void Strike(Player &player, Monster &monster, int damage)
+void Strike(Player &player, Monster &monster, int damage, bool holy = false)
 {
 	if (damage <= 0 || monster.hitPoints >> 6 <= 0)
 		return;
-	// Magic, so magic immunity and resistance answer, as the RfA-12 Strike asks (round 7 audit, v1.12.232).
-	if (monster.isImmune(MissileID::Null, DamageType::Magic))
+	// Magic, so magic immunity and resistance answer, as the RfA-12 Strike asks (round 7 audit, v1.12.232). HOLY light on
+	// an undead answers to neither, Holy Bolt's rule (StrikeHoly): 21 of the 27 undead are immune to magic, and Temple
+	// Bell's strike reached almost none of the undead it names (round 20 audit, v1.12.245).
+	if (!holy && monster.isImmune(MissileID::Null, DamageType::Magic))
 		return;
-	if (monster.isResistant(MissileID::Null, DamageType::Magic))
+	if (!holy && monster.isResistant(MissileID::Null, DamageType::Magic))
 		damage >>= 2;
 	if (damage <= 0)
 		return;
@@ -387,7 +389,7 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 		return ForEachInEarshot(here, earshot, [&](Monster &m) {
 			if (m.data().monsterClass != MonsterClass::Undead)
 				return;
-			Strike(player, m, Roll(3 * rank, 6 * rank));
+			Strike(player, m, Roll(3 * rank, 6 * rank), /*holy=*/true);
 			Stagger(m, seconds + seconds / 2);
 			Repel(m, here, 3);
 		}) > 0;

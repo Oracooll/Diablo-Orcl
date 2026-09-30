@@ -1590,7 +1590,7 @@ void StartGoldDrop()
 
 int CreateGoldItemInInventorySlot(Player &player, int slotIndex, int value)
 {
-	if (player.InvGrid[slotIndex] != 0) {
+	if (player.InvGrid[slotIndex] != 0 || player._pNumInv >= InventoryGridCells) { // never past the list (round 20 audit)
 		return value;
 	}
 
@@ -2960,6 +2960,8 @@ bool AutoPlaceItemInInventorySlot(Player &player, int slotIndex, const Item &ite
 	}
 
 	if (persistItem) {
+		if (player._pNumInv >= InventoryGridCells)
+			return false; // never past the list (round 20 audit)
 		player.InvList[player._pNumInv] = item;
 		player._pNumInv++;
 

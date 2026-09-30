@@ -5,6 +5,7 @@
 
 #include "engine/backbuffer_state.hpp"
 #include "engine/random.hpp"
+#include "lighting.h" // ChangeLightOffset - a leap taken mid-step
 #include "missiles.h"
 #include "monster.h"
 #include "oracool/companion.h"
@@ -133,6 +134,18 @@ bool CanPay(const Player &player, ClassMeleeSkill skill)
 void Pay(Player &player, ClassMeleeSkill skill, int landedBlows)
 {
 	SettleSkill(player, ClassMeleeSkillSpell(skill), landedBlows);
+}
+
+/**
+ * @brief One blow of the weapon in hand as the sheet rolls it - +% damage, flat damage and Strength included - in 1/64s.
+ * The spins and the sweep rolled the bare dice: "at full force" and "80% of a blow" landed far under (round 20 audit).
+ */
+int FullBlow(const Player &player)
+{
+	int dam = player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1);
+	dam += dam * player._pIBonusDam / 100;
+	dam += player._pIBonusDamMod + player._pDamageMod;
+	return std::max(dam, 1) << 6;
 }
 
 /** @brief A blow of @p damage on @p monster - killing it, or staggering it. Mirrors paladin_melee.cpp's StrikeMonster. */
@@ -450,7 +463,7 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		// Fend is the Rogue's spin, and a wider one: four fifths rather than two thirds.
 		const int share = (skill == ClassMeleeSkill::Fend ? 80 : 66) + 5 * (rank - 1);
 		for (int i = 0; i < found; i++) {
-			const int blow = (player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1)) << 6;
+			const int blow = FullBlow(player);
 			Strike(player, *targets[i], blow * share / 100);
 			struck = true;
 			landedBlows++;
@@ -466,7 +479,7 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 			if (m == nullptr || m == front || m == first || (m->hitPoints >> 6) <= 0 || m->isPlayerMinion() || !m->isPossibleToHit())
 				continue;
 			first = m;
-			const int blow = (player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1)) << 6;
+			const int blow = FullBlow(player);
 			Strike(player, *m, blow);
 			struck = true;
 			landedBlows++;
@@ -582,9 +595,11 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 	// leap taken mid-step snapped back there when the step ended - paid for (round 6 audit, v1.12.231). Hit recovery and a
 	// block are not left early.
 	if (IsAnyOf(player._pmode, PM_WALK_NORTHWARDS, PM_WALK_SOUTHWARDS, PM_WALK_SIDEWAYS)) {
+		FixPlrWalkTags(player); // the step's tile marks, and the light's sub-tile offset (round 20 audit)
 		ClrPlrPath(player);
 		player.destAction = ACTION_NONE;
 		StartStand(player, player._pdir);
+		ChangeLightOffset(player.lightId, {});
 	} else if (player._pmode != PM_STAND) {
 		return false;
 	}

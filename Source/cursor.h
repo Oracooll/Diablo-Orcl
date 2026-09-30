@@ -92,6 +92,8 @@ ClxSprite GetInvItemSprite(int cursId);
 
 /** @brief Oracool: how many sprites the original item-cursor sheets hold - 1 = objcurs.cel, 2 = objcurs2.cel. For the art export. */
 size_t GetNumInvItemsInSheet(int sheet);
+/** @brief Every cursor frame across the three sheets, the hand's included: an item's _iCurs + CURSOR_FIRSTITEM is at most this. */
+size_t GetNumInvItems();
 
 ClxSprite GetHalfSizeItemSprite(int cursId);
 ClxSprite GetHalfSizeItemSpriteRed(int cursId);

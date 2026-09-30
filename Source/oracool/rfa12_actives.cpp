@@ -100,6 +100,17 @@ bool ShrugsOff(const Monster &monster)
 
 int FrostbitePercentOn(const Monster &monster);
 
+/**
+ * @brief Set while one of the eight bow skills casts or ticks: its strikes are arrows to the Rogue's passives - Night
+ * Stalker, Thrill of the Hunt, Archery, Leech, the marks. They counted as spells and fed none of them (round 20 audit).
+ */
+bool BowStrikeInFlight = false;
+
+struct BowStrikeScope {
+	explicit BowStrikeScope(bool bow) { BowStrikeInFlight = bow; }
+	~BowStrikeScope() { BowStrikeInFlight = false; }
+};
+
 /** @brief A skill's strike: immunity and resistance honoured, kill credit and the flinch to @p player. */
 void Strike(Player &player, Monster &monster, DamageType type, int damage, bool melee = false, bool applyPassives = true)
 {
@@ -127,9 +138,15 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	// Once every six seconds per enemy, as its text says (round 16) - and only for a strike that lands something (round 17).
 	if (applyPassives && !melee)
 		SpendDeadGroundIfApplies(player, monster);
+	// Life Tap, as a swing and a spell missile feed it: every tree skill strikes through here, and Teeth or Bone Spear on a
+	// tapped monster healed nothing (round 20 audit, v1.12.245). Before the damage, while the curse is still live.
+	if (applyPassives)
+		OnCursedMonsterStruck(monster, player, nullptr, damage);
 	ApplyMonsterDamage(type, monster, damage);
+	if (&player == MyPlayer && applyPassives && BowStrikeInFlight)
+		OnPassiveHit(player, monster, damage, /*melee=*/false); // an arrow's, as MonsterMHit feeds a plain arrow's
 	if (&player == MyPlayer && applyPassives)
-		OnPassiveMissileHit(player, monster, damage, type, /*arrow=*/false); // Paralysis, Temporal Flux, the marks
+		OnPassiveMissileHit(player, monster, damage, type, /*arrow=*/BowStrikeInFlight); // Paralysis, Temporal Flux, the marks
 	// None of these cold skills has impact art of its own (Chill Touch, Ice Needle, Ice Lance, Brittle Ground,
 	// Whiteout, Absolute Zero): the cold hit flash marks the blow (hit_cold.png, 2026-09-26).
 	if (type == DamageType::Cold)
@@ -2343,6 +2360,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 void TickField(Player &player, Field &field)
 {
 	const int r = field.rank;
+	const BowStrikeScope bow { IsBowSkill(field.spell) }; // Rain of Arrows' later volleys are arrows too
 	field.clock++;
 	switch (field.spell) {
 	// ---------------- Necromancer: Poison & Bone ----------------
@@ -2940,7 +2958,8 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	case SpellID::TurningPike:
 		if (landed) {
 			for (const Point side : { player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {
-				if (InDungeonBounds(side) && !IsTileSolid(side) && dMonster[side.x][side.y] == 0 && dPlayer[side.x][side.y] == 0) {
+				// PosOkPlayer, objects included: a barrel beside him passed, and the landing search put him elsewhere (round 20).
+				if (InDungeonBounds(side) && PosOkPlayer(player, side) && dMonster[side.x][side.y] == 0) {
 					TeleportTo(player, side, spell); // its impact cue is the moment's sound (RfA-27)
 					break;
 				}
@@ -3023,6 +3042,7 @@ bool CastRfa12Active(Player &player, SpellID spell, Point target)
 		explicit SightScope(Point from) { CastSightFrom = from; }
 		~SightScope() { CastSightFrom = std::nullopt; }
 	} sight { player.position.tile };
+	const BowStrikeScope bow { IsBowSkill(spell) };
 	if (!CastOnce(player, spell, target, r))
 		return false;
 	// Heroic Couplet: the next Poetry verse takes effect twice.
@@ -3801,7 +3821,8 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		    PulseCount(TicksPerSecond - 1, FurnaceMouthTicks, TicksPerSecond));
 		break;
 	case SpellID::Firestorm: {
-		say(_("Fireballs at level {:d}: {:d} over {} s, within {:d} tiles of the cursor"), r,
+		// Aimed, not dropped: each ball flies from the hero toward its point and bursts on the first thing it meets (round 20).
+		say(_("Fireballs at level {:d}: {:d} over {} s, aimed within {:d} tiles of the cursor"), r,
 		    PulseCount(0, EffectTicks(spell, r), FirestormPeriod), Secs(EffectTicks(spell, r)), FirestormScatter);
 		if (MyPlayer != nullptr) {
 			int min = -1;

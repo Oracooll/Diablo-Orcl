@@ -162,6 +162,8 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 {
 	static uint32_t NextSpawnSerial = 0;
 	monster.spawnSerial = ++NextSpawnSerial; // Monster::spawnSerial - a new spawn in this slot
+	if (bool *stunned = StunFlagOf(monster); stunned != nullptr)
+		*stunned = false; // a new spawn is in no stun (round 20 audit)
 	// Oracool: a slot being (re)used starts with no cry on it - see ClearWarcryStateForMonster.
 	oracool::ClearWarcryStateForMonster(monster);
 	oracool::ClearRfa12StateForMonster(monster);
@@ -954,6 +956,8 @@ void LoadDiabMonsts()
 void DeleteMonster(size_t activeIndex)
 {
 	const auto &monster = Monsters[ActiveMonsters[activeIndex]];
+	if (bool *stunned = StunFlagOf(monster); stunned != nullptr)
+		*stunned = false;
 	if ((monster.flags & MFLAG_BERSERK) != 0) {
 		AddUnLight(monster.lightId);
 	}
@@ -1574,6 +1578,9 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 		return;
 
 	int dam = (mind + GenerateRnd(maxd - mind + 1)) << 6;
+	// Weaken and Decrepify blunt a cursed monster's blow on the army too, not only on the hero (round 20 audit, v1.12.245).
+	if (const int weakened = oracool::MonsterDebuffDamagePercent(attacker); weakened != 0)
+		dam = std::max(dam + dam * weakened / 100, 1 << 6);
 	ApplyMonsterDamage(DamageType::Physical, target, dam);
 
 	if (const Player *armyOwner = oracool::MinionOwner(attacker); armyOwner != nullptr) {
@@ -3894,6 +3901,8 @@ void PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t 
 void InitLevelMonsters()
 {
 	LevelMonsterTypeCount = 0;
+	// A reloaded monster in an AI's own pause read as stunned from an old stun in the same slot on another level (round 20).
+	StunnedBySkill.fill(false);
 	monstimgtot = 0;
 	// The scaled sheets are views onto sprite data that is about to be replaced, so they go first.
 	oracool::ClearMonsterScaleCache();
@@ -4513,6 +4522,9 @@ Monster *SpawnRiftGuardian()
 		}
 		PrepareUniqueMonst(monster, *unique, minionType, 0, UniqueMonstersData[static_cast<size_t>(*unique)]);
 	}
+	// No corpse entry of his own - he rises after InitCorpses - so none inherited either: the slot's last unique's id drew
+	// his body over a dead champion's, or drew none (round 20 audit, v1.12.245). His type's plain body is his.
+	monster.corpseId = 0;
 	oracool::ScaleRiftMonster(monster);
 	return &monster;
 }
@@ -5328,7 +5340,14 @@ void ProcessMonsters()
 			assert(monster.enemy >= 0 && monster.enemy < MAX_PLRS);
 			Player &player = Players[monster.enemy];
 			monster.enemyPosition = player.position.future;
-			if (IsTileVisible(monster.position.tile) && (monster.activeForTicks != 0 || oracool::MonsterMayNotice(monster))) {
+			// Dim Vision (oracool/curses.h): a blinded monster keeps no hold on a hero it cannot see. The curse only
+			// gated waking, and one cast mid-fight - already active, refreshed every tick - changed nothing (round 20).
+			// Not a unique, Diablo or a Dread boss: blinded, they stood idle for the whole fight, and Diablo's death skipped its
+			// sweep of the level (round 21 audit of the uncommitted change).
+			const bool lostInTheDark = oracool::CursedMonsterBlinded(monster) && !oracool::FightsAsUnique(monster) && !oracool::MonsterMayNotice(monster);
+			if (lostInTheDark) {
+				monster.activeForTicks = 0;
+			} else if (IsTileVisible(monster.position.tile) && (monster.activeForTicks != 0 || oracool::MonsterMayNotice(monster))) {
 				monster.activeForTicks = UINT8_MAX;
 				monster.position.last = player.position.future;
 			} else if (monster.activeForTicks != 0 && monster.type().type != MT_DIABLO) {

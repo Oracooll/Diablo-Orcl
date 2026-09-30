@@ -389,6 +389,9 @@ void OnColdArmourStruckAtRange(Player &player, Monster &monster)
 	// keyboard.
 	if (&player != MyPlayer)
 		return;
+	// The armour's own chill on whoever struck it, near or far as the facts say: at range only the bolt chilled, for its
+	// flat two seconds, and only if it arrived (round 20 audit, v1.12.245).
+	ChillMonster(monster, ChillTicksFor(state.level));
 	AddMissile(player.position.tile, monster.position.tile, player._pdir, MissileID::IceBolt,
 	    TARGET_MONSTERS, static_cast<int>(player.getId()), 0, state.level);
 }

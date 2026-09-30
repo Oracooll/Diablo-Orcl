@@ -17,6 +17,7 @@
 #include "inv.h" // CloseInventory
 #include "missiles.h"
 #include "oracool/skill_facts.h"
+#include "oracool/runeword_book.h" // CloseRunewordBook
 #include "oracool/badge.h"
 #include "oracool/auto_save.h"
 #include "oracool/class_tree.h"
@@ -1757,6 +1758,7 @@ void ToggleAbilitiesWindow()
 	// The speedbook overlay and this window both answer "which spell is readied"; showing them at
 	// once would be two competing answers on screen.
 	spselflag = false;
+	oracool::CloseRunewordBook(); // the full-screen book would hide the window opened under it (round 20 audit)
 	sbookflag = !sbookflag;
 	ResetSpellBookScroll();
 }

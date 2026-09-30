@@ -511,8 +511,9 @@ Card BuildCard(const TooltipBlock &block, const Item *item)
 	const string_view socketsPrefix = CardPrefix("Sockets: {:d}/{:d}");
 	const string_view requiredPrefix = CardPrefix("Required:");
 	const string_view requiredLevelPrefix = CardPrefix("Required Level: {:d}");
+	const string_view classRulePrefix = CardPrefix("Your class cannot use this"); // with the requirements (round 20)
 	const auto isRequirement = [&](string_view text) {
-		return CardStartsWith(text, requiredPrefix) || CardStartsWith(text, requiredLevelPrefix);
+		return CardStartsWith(text, requiredPrefix) || CardStartsWith(text, requiredLevelPrefix) || CardStartsWith(text, classRulePrefix);
 	};
 	const auto isHeadStat = [&](string_view text) {
 		return CardStartsWith(text, armorPrefix) || CardStartsWith(text, damagePrefix);

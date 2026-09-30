@@ -230,7 +230,9 @@ void StartWalkAnimation(Player &player, Direction dir, bool pmWillBeCalled)
 	} else if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0)
 	    || oracool::IsRunEnabled() || oracool::IsClassTreeRunActive(player)
 	    || oracool::IsWhirlwinding(player)) // the spin glides at run speed (2026-09-29)
-		skippedFrames = oracool::PlayerSlowPercent(player) > 0 ? static_cast<int8_t>(walkSkip + 4) // the run, slowed
+		// The run, slowed: four frames over the slowed walk, but never past the run the same walk gives unslowed - a chilled
+		// hero at +60% ran faster than an unchilled one, and past +90% crossed the whole path in one tick (round 20 audit).
+		skippedFrames = oracool::PlayerSlowPercent(player) > 0 ? std::min<int8_t>(static_cast<int8_t>(walkSkip + 4), std::max<int8_t>(2, walkSkip))
 		                                                     : std::max<int8_t>(2, walkSkip); // the run, or Movement Speed past it (2026-09-12)
 	else
 		skippedFrames = walkSkip; // Movement Speed %: items and Vigor, every percent - and slows
@@ -764,7 +766,10 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 		hit = 0;
 	}
 	// Smite always connects, as its text says (round 19 audit, v1.12.244): it rolled like any swing, and a miss did nothing.
-	if (!adjacentDamage && oracool::IsShieldBashSwing(player) && oracool::CanUsePaladinSkill(player, oracool::PaladinSkill::ShieldBash))
+	// Asked of the latch: IsShieldBashSwing answers which ANIMATION the swing wears, false in play wherever the shield
+	// sheet is loaded, so v1.12.244's test never fired (round 20 audit).
+	if (!adjacentDamage && &player == MyPlayer && oracool::ArmedMeleeSkill() == oracool::PaladinSkill::ShieldBash
+	    && oracool::CanUsePaladinSkill(player, oracool::PaladinSkill::ShieldBash))
 		hit = 0;
 
 	hper += player.GetMeleePiercingToHit() - player.CalculateArmorPierce(oracool::EffectiveMonsterArmor(monster), true);
@@ -1568,6 +1573,10 @@ void CheckNewPath(Player &player, bool pmWillBeCalled)
 				} else {
 					StartAttack(player, d, pmWillBeCalled);
 				}
+			} else if (&player == MyPlayer) {
+				// Stood short of a monster it could not reach: a Charge's dash ends here, paid, rather than staying armed
+				// for 2 s for the next melee click to sprint and land the arriving blow free (round 20 audit, v1.12.245).
+				oracool::StopFuriousChargeDash();
 			}
 			break;
 		case ACTION_ATTACKPLR:
@@ -4167,6 +4176,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	if (oracool::IsWeaponThrow(spellID)) {
 		if (!oracool::CanThrowWeapon(myPlayer)) {
 			myPlayer.Say(HeroSpeech::ICantDoThat);
+			LastMouseButtonAction = MouseActionType::None; // said once, not at the hold's repeat rate (round 20 audit)
 			return;
 		}
 		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {

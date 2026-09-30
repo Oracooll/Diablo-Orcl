@@ -153,7 +153,8 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	// mana, missing shield - user request, 2026-08-16), green otherwise. The same question every
 	// engine spell answers below by going pink.
 	if (const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell); skill.has_value()) {
-		const SkillPlateTint tint = CanUsePaladinSkill(*MyPlayer, *skill)
+		// With the weapon rules the right well and the picker already apply: a Paladin melee skill under a bow (round 20).
+		const SkillPlateTint tint = CanUsePaladinSkill(*MyPlayer, *skill) && !LacksShieldFor(*MyPlayer, spell)
 		    ? SkillPlateTint::Ready
 		    : SkillPlateTint::Blocked;
 		if (TryDrawSkillSpellIcon(out, net, spell, tint))

@@ -2787,6 +2787,7 @@ void ProcessRogueArrow(Missile &missile)
 
 	int mind = 1;
 	int maxd = 1;
+	const DamageType damageType = GetMissileData(missile._mitype).damageType();
 	if (missile.sourceType() == MissileSource::Player) {
 		// The bow's own range, plus the rank bonus for an elemental arrow - the same sum
 		// RogueArrowDamage shows on the sheet, asked of the spell the skill is.
@@ -2796,9 +2797,14 @@ void ProcessRogueArrow(Missile &missile)
 		oracool::RogueArrowDamage(player, oracool::RogueArrowSpell(arrow), level, sheetMin, sheetMax);
 		mind = std::max(sheetMin, 1);
 		maxd = std::max(sheetMax, mind);
+		// A PHYSICAL arrow (Multiple Shot, Guided Arrow, Strafe) takes the +%, the flat bonus and the Strength part in
+		// MonsterMHit, so it flies with the bare dice: the sheet's sum here added them twice (round 20 audit, v1.12.245).
+		if (damageType == DamageType::Physical) {
+			mind = std::max(player._pIMinDam, 1);
+			maxd = std::max(player._pIMaxDam, mind);
+		}
 	}
 
-	const DamageType damageType = GetMissileData(missile._mitype).damageType();
 	MoveMissileAndCheckMissileCol(missile, damageType, mind, maxd, true, false);
 
 	// The glow AddElementalArrow lit at the bow travels with the arrow, as vanilla's fire arrow's does
@@ -2854,7 +2860,9 @@ void ProcessRogueArrow(Missile &missile)
 					if (mid == 0)
 						continue;
 					Monster &monster = Monsters[abs(mid) - 1];
-					if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion())
+					// Nor her own Valkyrie, Decoy or a converted ally, as Ice Arrow spares them (round 20 audit).
+					if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion() || oracool::IsCompanion(monster) || oracool::IsMinion(monster)
+					    || oracool::IsMonsterConverted(monster))
 						continue;
 					oracool::ApplyColdHit(MissileID::IceBlast, level, monster);
 				}
@@ -5530,6 +5538,19 @@ void ProcessTeleport(Missile &missile)
 
 	if (!teleportDestination)
 		return;
+
+	// A hero caught mid-step - a Leap taken under a held walk button, whose stale walk order started a step before this
+	// missile ran - stops walking first: the step's end set the tile back beside the take-off point, the light and the
+	// camera with it, and a sideways step left a phantom dPlayer mark (round 20 audit, v1.12.245).
+	if (player.isWalking()) {
+		FixPlrWalkTags(player);
+		ClrPlrPath(player);
+		player.destAction = ACTION_NONE;
+		StartStand(player, player._pdir);
+		ChangeLightOffset(player.lightId, {});
+	}
+	// His own companion or minion on the landing tile gives way, as it does to a walk: they shared a tile (round 20).
+	oracool::CompanionsMakeWay(player, *teleportDestination);
 
 	dPlayer[player.position.tile.x][player.position.tile.y] = 0;
 	PlrClrTrans(player.position.tile);

@@ -404,6 +404,7 @@ bool IsOracoolAffixTypeValid(item_effect_type type)
 
 void LoadItemData(LoadHelper &file, Item &item)
 {
+	item._iOracoolLandedNear = { -1, -1 }; // not saved: a loaded floor item is no fresh landing (round 20 audit)
 	item._iSeed = file.NextLE<uint32_t>();
 	item._iCreateInfo = file.NextLE<uint16_t>();
 	file.Skip(2); // Alignment
@@ -2555,6 +2556,13 @@ void RemoveInvalidItem(Item &item)
 	// Nor the Diablo-mode "no Hellfire power" test the prefix/suffix pair had. The list also carries this fork's
 	// own powers (Movement Speed, Faster Cast, Gold and Magic Find), which sit past IPL_LASTDIABLO by design in
 	// either mode; applied to the list, that test would delete every item that rolled one.
+
+	// A book of a spell no book teaches, in EITHER mode: this fork always runs Hellfire, so the test below never ran, and a
+	// damaged record with a spell id past _pSplLvl's 64 read and wrote past the array (round 20 audit, v1.12.245).
+	isInvalid = isInvalid || (item._iMiscId == IMISC_BOOK && (GetSpellBookLevel(item._iSpell) == -1 || static_cast<size_t>(item._iSpell) >= 64));
+	// A cursor id past the sprite tables, which it indexes unchecked (round 20 audit). Item cursors start at 0 (the full mana
+	// potion) and sit CURSOR_FIRSTITEM into the sheets.
+	isInvalid = isInvalid || (!item.isEmpty() && static_cast<int>(item._iCurs) + CURSOR_FIRSTITEM > static_cast<int>(GetNumInvItems()));
 
 	if (!gbIsHellfire) {
 		isInvalid = isInvalid || (item._itype == ItemType::Staff && GetSpellStaffLevel(item._iSpell) == -1);
