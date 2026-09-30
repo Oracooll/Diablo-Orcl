@@ -1,4 +1,6 @@
 #include "oracool/runeword_book.h"
+#include "oracool/levski_roar.h" // IsLevskiRoarOpen - not over a refused close
+#include "oracool/workshop.h"
 
 #include "oracool/book_frame.h" // the painted wide frame
 
@@ -438,6 +440,9 @@ void OpenRunewordBook()
 	// And a shop outright (audit, 2026-09-27): CloseAllWindows only steps a shop tab back to its vendor's dialog, which is
 	// modal - it drew under this window and took every click meant for it.
 	devilution::ForceCloseStore();
+	// Not over a bench or the Cube that refused to close (round 16 audit, v1.12.241).
+	if (IsWorkshopOpen() || IsLevskiRoarOpen())
+		return;
 	// The burger row is NOT in CloseAllWindows - space deliberately leaves it up, and the row's own
 	// click handler keeps it open so several panels can be toggled in one go. Neither argument
 	// survives contact with this window: the row sits just above the HUD plate, the book reaches

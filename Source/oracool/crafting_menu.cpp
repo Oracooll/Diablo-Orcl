@@ -1,4 +1,6 @@
 #include "oracool/crafting_menu.h"
+#include "oracool/levski_roar.h" // IsLevskiRoarOpen - not over a refused close
+#include "oracool/workshop.h"
 
 #include "oracool/book_frame.h" // the painted wide frame
 
@@ -88,6 +90,9 @@ void OpenCraftingMenu()
 	// And a shop outright (audit, 2026-09-27): CloseAllWindows only steps a shop tab back to its vendor's dialog, which is
 	// modal - it drew under this window and took every click meant for it.
 	devilution::ForceCloseStore();
+	// Not over a bench or the Cube that refused to close (round 16 audit, v1.12.241).
+	if (IsWorkshopOpen() || IsLevskiRoarOpen())
+		return;
 	// The burger row is deliberately not in CloseAllWindows - space leaves it up so several panels
 	// can be toggled in one go. That argument does not survive this rect either: the row sits just
 	// above the HUD plate, this window reaches into that strip, and diablo.cpp routes

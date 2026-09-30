@@ -765,4 +765,12 @@ std::string Rfa12PassiveFactsAt(const Player &player, ClassTreeSkill skill, int 
 	}
 }
 
+void SpendDeadGroundIfApplies(const Player &player, const Monster &target)
+{
+	// A skill strike that took Dead Ground's bonus starts its cooldown, as OnRfa12Hit does for an arrow: Strike adds the
+	// bonus since v1.12.240 but never started it, so every hit on a still monster paid (round 16 audit).
+	if (DeadGroundApplies(player, target))
+		MarksOf(target).deadGroundCooldown = DeadGroundCooldownTicks;
+}
+
 } // namespace devilution::oracool

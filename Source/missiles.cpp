@@ -1307,8 +1307,9 @@ void GetDamageAmtAtLevel(SpellID i, int sl, int *mind, int *maxd)
 		*maxd = ScaleSpellEffect(2 * myPlayer._pLevel + 40, sl) / 2;
 		break;
 	case SpellID::ChargedBolt:
+		// AddChargedBolt rolls GenerateRnd(magic / 4) + 1: its top is magic / 4, not one more (round 16 audit).
 		*mind = 1;
-		*maxd = *mind + (myPlayer._pMagic / 4);
+		*maxd = std::max(1, myPlayer._pMagic / 4);
 		break;
 	case SpellID::HolyBolt:
 		*mind = myPlayer._pLevel + 9;
@@ -2359,6 +2360,7 @@ void AddPhasing(Missile &missile, AddMissileParameter &parameter)
 
 	if (count == 0) {
 		missile._miDelFlag = true;
+		parameter.spellFizzled = true; // nothing happened, so nothing is paid (round 16 audit)
 		return;
 	}
 
@@ -3388,7 +3390,8 @@ void AddStoneCurse(Missile &missile, AddMissileParameter &parameter)
 		    if (monster.isPlayerMinion() || oracool::IsCompanion(monster)) {
 			    return false; // the hero's own side
 		    }
-		    if (IsAnyOf(monster.mode, MonsterMode::FadeIn, MonsterMode::FadeOut, MonsterMode::Charge)) {
+		    // Not one already stone: the curse picked it over a valid monster beside it and did nothing (round 16 audit).
+		    if (IsAnyOf(monster.mode, MonsterMode::FadeIn, MonsterMode::FadeOut, MonsterMode::Charge, MonsterMode::Petrified)) {
 			    return false;
 		    }
 
@@ -3409,6 +3412,7 @@ void AddStoneCurse(Missile &missile, AddMissileParameter &parameter)
 	if (monster.mode == MonsterMode::Petrified) {
 		// Monster is already petrified and StoneCurse doesn't stack
 		missile._miDelFlag = true;
+		parameter.spellFizzled = true; // not paid for (round 16 audit)
 		return;
 	}
 
@@ -5393,7 +5397,9 @@ void ProcessChainLightning(Missile &missile)
 	Crawl(1, rad, [&](Displacement displacement) {
 		Point target = position + displacement;
 		// Not to townspeople: town's dMonster holds towner ids (round 6 audit, v1.12.231).
-		if (leveltype != DTYPE_TOWN && InDungeonBounds(target) && dMonster[target.x][target.y] > 0) {
+		// Nor at the hero's own army and companions, which drew a harmless bolt each (round 16 audit).
+		if (leveltype != DTYPE_TOWN && InDungeonBounds(target) && dMonster[target.x][target.y] > 0
+		    && !Monsters[dMonster[target.x][target.y] - 1].isPlayerMinion()) {
 			dir = GetDirection(position, target);
 			AddMissile(position, target, dir, MissileID::LightningControl, TARGET_MONSTERS, id, 1, missile._mispllvl);
 		}

@@ -296,6 +296,10 @@ void TakeLeftPanelSlot(LeftPanelContent content)
 		oracool::CloseWaypointMenu();
 	if (content != LeftPanelContent::Crafting)
 		oracool::CloseCraftingMenu();
+	// And the workshop and the Cube, which share the rect though they are not left-panel contents: the sheet and the quest
+	// log opened invisible under them (round 16 audit, v1.12.241). Either may refuse with items it cannot give back.
+	oracool::CloseWorkshop();
+	oracool::CloseLevskiRoar();
 }
 
 bool IsModalPromptOpen()

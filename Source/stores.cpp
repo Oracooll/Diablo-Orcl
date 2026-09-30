@@ -54,6 +54,7 @@
 #include "oracool/skill_points.h"
 #include "panels/info_box.hpp"
 #include "qol/stash.h"
+#include "loadsave.h" // StashFileRefused - sale gold stays out of an unreadable stash
 #include "oracool/window_close.h" // the Refresh Until prompt's red X
 #include "towners.h"
 #include "utils/format_int.hpp"
@@ -1615,7 +1616,8 @@ int CreditSaleProceeds(int cost)
 	// Oracool: sale proceeds go to the shared Stash pool, matching where a purchase's change and a
 	// ground pickup's gold already land (see GoldAutoPlace, inv.cpp).
 	Player &myPlayer = *MyPlayer;
-	if (oracool::IsSinglePlayer()) {
+	// Not into a stash this game could not read: it is never written back, and the sale's gold was lost (round 16 audit).
+	if (oracool::IsSinglePlayer() && !StashFileRefused) {
 		// As much as the pool will take, then the rest to the backpack (external audit of v1.9.88,
 		// finding 7). It used to be all-or-nothing: the whole sale went to the Stash only if the
 		// whole sale fitted, and otherwise the whole sale went to the backpack - so a stash with
@@ -2655,7 +2657,7 @@ bool StoreGoldFit(int price, const Item *itemFreeingCells)
 	// for it, and at the pool's INT_MAX cap the gate had nothing to say about the one case where the
 	// money really can be lost.
 	int64_t room = itemRoomForGold + RoomForGold();
-	if (oracool::IsSinglePlayer())
+	if (oracool::IsSinglePlayer() && !StashFileRefused)
 		room += static_cast<int64_t>(std::numeric_limits<int>::max()) - Stash.gold;
 	return cost <= room;
 }

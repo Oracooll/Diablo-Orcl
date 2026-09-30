@@ -93,7 +93,8 @@ void AuraStrike(Player &player, Monster &monster, DamageType type, int damage, b
 		damage >>= 2;
 	// The damage-dealt and on-hit passives reach the pulses too (round 13 audit, v1.12.238): Static Field and Thunder
 	// Storm skipped every one of the Sorcerer's.
-	damage += damage * PassiveDamageDealtPercent(player, monster, /*melee=*/false) / 100;
+	// With the RfA-12 half as Strike takes it (a Judgment mark's "+15% from everything"; round 16 audit, v1.12.241).
+	damage += damage * (PassiveDamageDealtPercent(player, monster, /*melee=*/false) + Rfa12DamageDealtPercent(player, monster, /*melee=*/false)) / 100;
 	if (damage <= 0)
 		return;
 	ApplyMonsterDamage(type, monster, damage);
@@ -450,6 +451,10 @@ void ProcessOutwardAura(Player &player)
 		// Undead only - that is what a sanctuary is for, and it is the same test HolyBolt already
 		// uses to decide what it may burn.
 		if (monster.data().monsterClass != MonsterClass::Undead)
+			continue;
+		// Not a monster Conversion turned: it fights for the Paladin, and since every AI obeys a retreat (v1.12.240) the
+		// field sent his own allies running (round 16 audit).
+		if (IsMonsterConverted(monster))
 			continue;
 		if (burn && monster.position.tile == tile) {
 			AuraStrike(player, monster, DamageType::Magic, RollDamage(SanctuaryDamage(sanctuary)), /*holy=*/true);

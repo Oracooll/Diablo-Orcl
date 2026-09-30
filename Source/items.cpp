@@ -4101,7 +4101,11 @@ bool EnnobleOracoolRare(Item &item)
 	const bool wasBroken = item._iOracoolBroken;
 	GetItemAttrs(item, idx, ilvl);
 	oracool::ApplyBaseTier(item, baseTier);
+	// A crafted unique does not spend that unique's one drop, as the Unique shelf's does not: every Reroll Uniques press
+	// struck one more from the drop pool for the rest of the game (round 16 audit, v1.12.241).
+	const bool wasFound = UniqueItemFlags[uid];
 	GetUniqueItem(*MyPlayer, item, static_cast<_unique_items>(uid));
+	UniqueItemFlags[uid] = wasFound;
 	SetupItem(item);
 	if (oldDurability != DUR_INDESTRUCTIBLE && item._iMaxDur != DUR_INDESTRUCTIBLE)
 		item._iDurability = std::min<int>(oldDurability, item._iMaxDur);
@@ -6435,20 +6439,28 @@ void MakeRoomForGuaranteedReward()
 	// item on the ground is somebody else's promise and must not be dropped to keep this one.
 	if (ActiveItemCount < MAXITEMS)
 		return;
+	// The cheapest ordinary item, never gold or a quest item: the old walk took the last ordinary entry, which DeleteItem's
+	// swaps had scrambled, and the create-info test let the Anvil, the Magic Rock and the Blood Stones through (round 16).
+	int victim = -1;
 	for (int i = ActiveItemCount - 1; i >= 0; i--) {
-		const int ii = ActiveItems[i];
-		const Item &candidate = Items[ii];
-		if (candidate._iMagical != ITEM_QUALITY_NORMAL)
+		const Item &candidate = Items[ActiveItems[i]];
+		if (candidate._iMagical != ITEM_QUALITY_NORMAL || candidate._itype == ItemType::Gold)
 			continue;
 		if (candidate._iCreateInfo == 0 && candidate._iIdentified)
 			continue; // quest-placed items carry no create info; leave them alone
-		// DeleteItem leaves the tile's dItem, and the reward about to be allocated reuses this slot: the junk's tile would
-		// point at the charm (round 7 audit).
-		if (InDungeonBounds(candidate.position))
-			dItem[candidate.position.x][candidate.position.y] = 0;
-		DeleteItem(i);
-		return;
+		if (candidate.IDidx >= 0 && AllItemsList[candidate.IDidx].iRnd == IDROP_NEVER && candidate._iClass == ICLASS_QUEST)
+			continue;
+		if (victim < 0 || candidate._ivalue < Items[ActiveItems[victim]]._ivalue)
+			victim = i;
 	}
+	if (victim < 0)
+		return;
+	const Item &junk = Items[ActiveItems[victim]];
+	// DeleteItem leaves the tile's dItem, and the reward about to be allocated reuses this slot: the junk's tile would
+	// point at the charm (round 7 audit).
+	if (InDungeonBounds(junk.position))
+		dItem[junk.position.x][junk.position.y] = 0;
+	DeleteItem(victim);
 }
 
 void SpawnRewardItem(_item_indexes itemid, Point position, bool sendmsg)
@@ -7373,6 +7385,17 @@ bool DoOil(Player &player, int cii, int tabIdx)
 	case IPL_TARGAC:
 		return _("penetrates target's armor");
 	case IPL_FASTATTACK:
+		// On a bow the flags quicken the arrow, not the draw - Hellfire's rule, always on here - so the line says so; it
+		// read as a faster attack and gave no frames (round 16 audit, v1.12.241).
+		if (item._itype == ItemType::Bow) {
+			if (HasAnyOf(item._iFlags, ItemSpecialEffect::FastestAttack))
+				return _("fastest arrows");
+			if (HasAnyOf(item._iFlags, ItemSpecialEffect::FasterAttack))
+				return _("faster arrows");
+			if (HasAnyOf(item._iFlags, ItemSpecialEffect::FastAttack))
+				return _("fast arrows");
+			return _("quick arrows");
+		}
 		if (HasAnyOf(item._iFlags, ItemSpecialEffect::QuickAttack))
 			return _("quick attack");
 		if (HasAnyOf(item._iFlags, ItemSpecialEffect::FastAttack))
@@ -7416,6 +7439,9 @@ bool DoOil(Player &player, int cii, int tabIdx)
 		else
 			return fmt::format(fmt::runtime(_("lightning damage: {:d}-{:d}")), item._iFMinDam, item._iFMaxDam);
 	case IPL_ADDMANAAC:
+		// Single-player casts no bolts (the Hellfire pair is off there); what lands is the fire hit (round 16 audit).
+		if (!gbIsMultiplayer)
+			return fmt::format(fmt::runtime(_("fire hit damage: {:d}-{:d}")), item._iFMinDam, item._iFMaxDam);
 		return _("charged bolts on hits");
 	case IPL_DEVASTATION:
 		return _("occasional triple damage");

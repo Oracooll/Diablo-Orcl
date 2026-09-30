@@ -86,8 +86,10 @@ bool Hittable(const Monster &monster)
 	// Never in town: town's dMonster holds towner ids, and the Monsters slots they index are the golem bodies and the last
 	// floor's first monsters - Chill Touch at Griswold killed a 1-HP golem slot, Ice Needle through Cain struck a stale
 	// unique (round 5 audit, v1.12.230). Nor the hero's own companions.
+	// Nor a monster Conversion turned to the Paladin's side: Crusade, Aegis Slam, Holy Lance, Wrath and the rest struck
+	// his own allies (round 16 audit, v1.12.241).
 	return leveltype != DTYPE_TOWN && (monster.hitPoints >> 6) > 0 && !monster.isPlayerMinion() && !IsCompanion(monster)
-	    && monster.isPossibleToHit();
+	    && !IsMonsterConverted(monster) && monster.isPossibleToHit();
 }
 
 /** @brief "Uniques shrug it off" - the exemption every stagger in this fork carries. */
@@ -118,8 +120,11 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	// a share of a blow that already took them (the echo, Tragedy's share), which paid them twice.
 	// With the RfA-12 half of that sum (Hunter's Mark, Judgment, Dead Ground, Deadeye), which the missile path adds beside
 	// the passives' - round 13 brought over only the first half (round 15 audit, v1.12.240).
-	if (applyPassives)
+	if (applyPassives) {
 		damage += damage * (PassiveDamageDealtPercent(player, monster, melee) + Rfa12DamageDealtPercent(player, monster, melee)) / 100;
+		if (!melee)
+			SpendDeadGroundIfApplies(player, monster); // once every six seconds per enemy, as its text says (round 16)
+	}
 	if (damage <= 0)
 		return;
 	ApplyMonsterDamage(type, monster, damage);
@@ -2844,9 +2849,10 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		}
 		break;
 	case SpellID::HolyLance:
-		for (const Point tile : LineOfTiles(ahead, ahead + player._pdir, 2)) {
-			Monster *m = FindMonsterAtPosition(tile);
-			if (m != nullptr && Hittable(*m)) {
+		// Each monster once, and not the one the swing itself struck: a walker stands on two lance tiles and took two
+		// blows, and the front target a third (round 16 audit, v1.12.241).
+		for (Monster *m : MonstersOnLine(ahead, ahead + player._pdir, 2)) {
+			if (m != nullptr && m != front && Hittable(*m)) {
 				Strike(player, *m, DamageType::Magic, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
 				struck = true;
 			}
@@ -2872,8 +2878,9 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			slammed.push_back(m);
 			if (m != front)
 				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
-			Stagger(*m, StunTicks(spell, r));
+			// Shoved first, then stunned: the shove's knockback put it into hit recovery over the stun (round 16 audit).
 			Shove(*m, player._pdir);
+			Stagger(*m, StunTicks(spell, r));
 			struck = true;
 		}
 		break;

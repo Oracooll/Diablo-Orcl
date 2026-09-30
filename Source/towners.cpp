@@ -12,6 +12,8 @@
 #include "engine/random.hpp"
 #include "inv.h"
 #include "minitext.h"
+#include "oracool/levski_roar.h" // IsLevskiRoarOpen - a refused close keeps the slot
+#include "oracool/workshop.h"
 #include "multi.h"               // sgGameInitInfo - Celia's amulet by difficulty
 #include "oracool/area_level.h" // AreaLevel
 #include "stores.h"
@@ -1002,6 +1004,10 @@ void TalkToTowner(Player &player, int t)
 		// a shopkeeper whose own page was up. It says nothing about the others: with Gillian's bench
 		// open, clicking Griswold left hers on screen under his shop, both docked in the same slot.
 		CloseOtherShopSurfaces();
+		// A bench or the Cube that refused to close (a full pack and stash) keeps the slot: the counter opened under it,
+		// and the hidden shop took the clicks meant for the bench (round 16 audit, v1.12.241).
+		if (oracool::IsWorkshopOpen() || oracool::IsLevskiRoarOpen())
+			return;
 		towner.talk(player, towner);
 	}
 }

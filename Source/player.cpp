@@ -3371,7 +3371,10 @@ void StartPlrHit(Player &player, int dam, bool forcehit)
 		oracool::ResetZealChain();
 		// Every swing latch with it: the swing they were armed for is over. A throw armed and then interrupted threw at the
 		// next skill's hit frame, on another floor or in the next game (round 5 audit, v1.12.230).
-		oracool::ArmMeleeSkill(std::nullopt);
+		// Except a Charge still dashing: its approach resumes after the stagger and its paid-for blow lands then - the
+		// latch cleared here made it a plain swing with the mana spent and the cooldown run (round 16 audit, v1.12.241).
+		if (!oracool::IsFuriousChargeDashing())
+			oracool::ArmMeleeSkill(std::nullopt);
 		oracool::ArmArrowSkill(std::nullopt);
 		oracool::ArmClassMeleeSkill(std::nullopt);
 		oracool::ArmRfa12Melee(std::nullopt);
@@ -3810,7 +3813,10 @@ void ProcessPlayers()
 			// The once-a-minute saves and Final Service are offered here too, as ApplyPlrDamage offers them: life reaching
 			// zero by a recalculation (gear taken off at low life) killed with no save, and now takes the army with it
 			// (round 15 audit, v1.12.240).
-			if (!PlrDeathModeOK(player) && (player._pHitPoints >> 6) <= 0 && !oracool::PassiveCheatsDeath(player)) {
+			// Not in town, where SyncPlrKill only sets life back to 1: there Final Service dismissed the army and the saves
+			// spent their cooldown on a death that could not happen (round 16 audit, a regression of round 15).
+			if (!PlrDeathModeOK(player) && (player._pHitPoints >> 6) <= 0
+			    && (leveltype == DTYPE_TOWN || !oracool::PassiveCheatsDeath(player))) {
 				SyncPlrKill(player, DeathReason::Unknown);
 			}
 
@@ -4635,8 +4641,11 @@ void CalcPlrInvKeepingLife(Player &player)
 {
 	const int before = player._pHitPoints;
 	CalcPlrInv(player, false);
-	if (before > 0 && player._pHitPoints < std::min(before, player._pMaxHP))
-		SetPlayerHitPoints(player, std::clamp(before, 64, std::max(player._pMaxHP, 64)));
+	// Only kept alive, not kept whole: gaining the bonus adds it to current life (CalcPlrItemVals), so keeping the life on
+	// the way out made every off/on - Endurance swapped away and back, Battle Orders run out and recast - a free heal of
+	// the whole bonus (round 16 audit, v1.12.241). A bonus ending at low life still never kills (round 7).
+	if (before > 0 && player._pHitPoints < 64)
+		SetPlayerHitPoints(player, 64);
 }
 
 void SetPlayerHitPoints(Player &player, int val)
