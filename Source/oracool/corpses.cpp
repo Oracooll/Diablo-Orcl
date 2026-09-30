@@ -36,9 +36,24 @@ bool Revivable(const Monster &monster)
 
 void RecordCorpse(const Monster &monster)
 {
-	if (Count >= CorpseTableSize || IsMinion(monster) || monster.isPlayerMinion())
+	if (IsMinion(monster) || monster.isPlayerMinion())
 		return;
-	Corpse &corpse = Table[static_cast<size_t>(Count++)];
+	// A full table gives up its body FARTHEST from this one, not the new kill: only raising frees an entry, so after 100
+	// unused corpses every fresh kill was left out - drawn, and unraisable (round 8 audit, v1.12.233).
+	size_t slot = static_cast<size_t>(Count);
+	if (Count >= CorpseTableSize) {
+		int farthest = -1;
+		for (size_t i = 0; i < CorpseTableSize; i++) {
+			const int distance = Table[i].position.WalkingDistance(monster.position.tile);
+			if (distance > farthest) {
+				farthest = distance;
+				slot = i;
+			}
+		}
+	} else {
+		Count++;
+	}
+	Corpse &corpse = Table[slot];
 	corpse.position = monster.position.tile;
 	corpse.type = monster.type().type;
 	corpse.level = static_cast<int>(monster.level(sgGameInitInfo.nDifficulty));

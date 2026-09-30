@@ -24,6 +24,10 @@ bool HasItem(Player &player, _item_indexes id)
 /** @brief Ogden - TalkToBarOwner, towners.cpp:298. The Skeleton King, then Ogden's Sign. */
 bool BarOwnerHasNews(Player &player)
 {
+	// A speech the click queued and nobody has heard yet: the click moved the quest on, so the tests below go quiet at once
+	// while the news still waits under "Talk to Ogden" (round 8 audit, v1.12.233).
+	if (HasOgdenQuestText())
+		return true;
 	const Quest &king = Quests[Q_SKELKING];
 	if (king._qactive != QUEST_NOTAVAIL && (player._pLvlVisited[2] || player._pLvlVisited[4])) {
 		if (king._qvar2 == 0)
@@ -131,7 +135,10 @@ bool FarmerHasNews(Player &player)
 /** @brief The complete nut - TalkToCowFarmer, towners.cpp:664. The suits, the bomb, and his three teases. */
 bool CowFarmerHasNews(Player &player)
 {
-	if (HasItem(player, IDI_GREYSUIT) || HasItem(player, IDI_BROWNSUIT) || HasItem(player, IDI_RUNEBOMB))
+	// The bomb is news only before his quest is under way: once ACTIVE he only repeats himself, and the mark stayed lit for
+	// as long as the bomb was carried (round 8 audit).
+	if (HasItem(player, IDI_GREYSUIT) || HasItem(player, IDI_BROWNSUIT)
+	    || (HasItem(player, IDI_RUNEBOMB) && Quests[Q_JERSEY]._qactive != QUEST_ACTIVE))
 		return true;
 	const Quest &quest = Quests[Q_JERSEY];
 	switch (quest._qactive) {

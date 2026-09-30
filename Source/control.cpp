@@ -841,6 +841,11 @@ bool IsLevelUpButtonVisible()
 
 } // namespace
 
+bool IsQuestEnabledInThisGame(const Quest &quest)
+{
+	return IsQuestEnabled(quest);
+}
+
 bool IsLevelUpIconShown()
 {
 	return MyPlayer != nullptr && IsLevelUpButtonVisible();

@@ -523,8 +523,18 @@ std::string FlagText(ItemSpecialEffect flags)
 			parts.append(", ");
 		parts.append(std::move(piece));
 	};
+	// The four attack speeds and the hit recovery: seven weapon runewords carry FastAttack and printed no speed line
+	// (round 8 audit, v1.12.233).
+	if (HasAnyOf(flags, ItemSpecialEffect::QuickAttack))
+		add(std::string(_("quick attack")));
+	if (HasAnyOf(flags, ItemSpecialEffect::FastAttack))
+		add(std::string(_("fast attack")));
 	if (HasAnyOf(flags, ItemSpecialEffect::FasterAttack))
 		add(std::string(_("faster attack")));
+	if (HasAnyOf(flags, ItemSpecialEffect::FastestAttack))
+		add(std::string(_("fastest attack")));
+	if (HasAnyOf(flags, ItemSpecialEffect::FastHitRecovery))
+		add(std::string(_("fast hit recovery")));
 	if (HasAnyOf(flags, ItemSpecialEffect::FasterHitRecovery))
 		add(std::string(_("faster hit recovery")));
 	if (HasAnyOf(flags, ItemSpecialEffect::FastBlock))

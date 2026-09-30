@@ -194,8 +194,10 @@ void FindItemOrObject()
 		cursPosition = targetPosition;
 	}
 
-	if (leveltype == DTYPE_TOWN || pcursitem != -1) {
-		return; // Don't look for objects in town
+	// Town has objects to operate now - the stash chest, the waypoint, Levski's Cube, the Rift Monument - and the pad could
+	// reach none of them (round 8 audit, v1.12.233). The _oSelFlag and IsDisabled filters below still apply.
+	if (pcursitem != -1) {
+		return;
 	}
 
 	for (WorldTilePosition targetPosition : searchArea) {
@@ -2074,6 +2076,9 @@ void PerformPrimaryAction()
 					jumpSlot = FindFirstSlotOnItem(itemUnderCursor);
 			}
 			CheckInvItem();
+			// A page tab sinks on the press and turns on the release, which the pad never sent: pages 2-10 could not be
+			// turned from a pad (round 8 audit, v1.12.233).
+			ReleaseInventoryTabButton();
 
 			if (inventorySlot >= SLOTXY_INV_FIRST && inventorySlot <= SLOTXY_INV_LAST) {
 				Point mousePos = GetSlotCoord(jumpSlot);

@@ -1166,7 +1166,9 @@ bool DoRangeAttack(Player &player)
 		// on top of it - one skill, one volley.
 		if (const std::optional<oracool::RogueArrow> skill = oracool::ArmedArrowSkill();
 		    skill.has_value() && &player == MyPlayer) {
-			if (arrow == 0) {
+			// On the FIRST release frame only: Gnat Sting's multiple-arrows flag brings a second release frame, and the
+			// skill fired and was paid again on it (round 8 audit, v1.12.233).
+			if (arrow == 0 && player.AnimInfo.currentFrame == player._pAFNum - 1) {
 				oracool::FireArrowSkill(player, *skill, player.position.temp);
 				PlaySfxLoc(PS_BFIRE, player.position.tile);
 			}
@@ -3971,7 +3973,8 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			oracool::ArmWeaponThrow(std::nullopt);
 			LastMouseButtonAction = MouseActionType::None;
 			if (townsperson)
-				NetSendCmdLocParam1(true, CMD_TALKXY, cursPosition, pcursmonst);
+				// The townsperson's own tile: a pad leaves cursPosition at (-1,-1), and the talk was dropped (round 8 audit).
+				NetSendCmdLocParam1(true, CMD_TALKXY, Towners[pcursmonst].position, pcursmonst);
 			else
 				NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);
 			return;

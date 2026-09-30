@@ -1807,6 +1807,11 @@ std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int
 		for (int k = 0; k < pickedCount; k++) {
 			if (picked[k] == row.power.type || picked[k] == AffixTwinOf(row.power.type))
 				return false;
+			// Fire and lightning weapon damage share one slot of fields - each power zeroes the other's - so a Flaming
+			// Lightning sword paid for two and dealt one, printing "Fire hit damage: 0" (round 8 audit, v1.12.233).
+			if ((IsAnyOf(picked[k], IPL_FIREDAM, IPL_LIGHTDAM) && IsAnyOf(row.power.type, IPL_FIREDAM, IPL_LIGHTDAM))
+			    || (IsAnyOf(picked[k], IPL_FIRE_ARROWS, IPL_LIGHT_ARROWS) && IsAnyOf(row.power.type, IPL_FIRE_ARROWS, IPL_LIGHT_ARROWS)))
+				return false;
 		}
 		return true;
 	};
@@ -3719,9 +3724,16 @@ bool ReforgeOracoolItem(Item &item)
 	// exactly like one that had just fallen where this one did, and rerolling in town cannot
 	// launder an item upward.
 	const RebuildKeepsake keepsake = CaptureRebuildKeepsake(item);
+	const int oldDurability = item._iDurability;
+	const bool wasBroken = item._iOracoolBroken;
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), ilvl, 1, /*onlygood=*/false,
 	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, std::nullopt, ilvl);
 	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
+	// The wear it had, as RetierOracoolItem keeps it: SetupAllItems cleared the broken flag and rolled fresh durability, a
+	// free repair that bypassed Mend (round 8 audit, v1.12.233).
+	if (oldDurability != DUR_INDESTRUCTIBLE && item._iMaxDur != DUR_INDESTRUCTIBLE)
+		item._iDurability = std::min<int>(oldDurability, item._iMaxDur);
+	item._iOracoolBroken = wasBroken && item._iDurability == 0;
 	item._iIdentified = true;
 	return true;
 }
@@ -4041,9 +4053,18 @@ bool EnnobleOracoolRare(Item &item)
 	const int ilvl = item._iOracoolItemLevel;
 	const auto idx = static_cast<_item_indexes>(item.IDidx);
 	const RebuildKeepsake keepsake = CaptureRebuildKeepsake(item);
+	// The base tier and the wear survive the rebuild (round 8 audit, v1.12.233): GetItemAttrs writes Normal numbers and
+	// the tier stayed printed on them, and the fresh durability was a free repair.
+	const auto baseTier = static_cast<oracool::BaseItemTier>(item._iOracoolBaseTier);
+	const int oldDurability = item._iDurability;
+	const bool wasBroken = item._iOracoolBroken;
 	GetItemAttrs(item, idx, ilvl);
+	oracool::ApplyBaseTier(item, baseTier);
 	GetUniqueItem(*MyPlayer, item, static_cast<_unique_items>(uid));
 	SetupItem(item);
+	if (oldDurability != DUR_INDESTRUCTIBLE && item._iMaxDur != DUR_INDESTRUCTIBLE)
+		item._iDurability = std::min<int>(oldDurability, item._iMaxDur);
+	item._iOracoolBroken = wasBroken && item._iDurability == 0;
 	// Restored AFTER GetItemAttrs, which sets the item level from its own lvl argument - otherwise
 	// an ennobled item forgets the depth it was found at, and a later reforge would roll it at
 	// whatever GetItemAttrs happened to leave behind.
@@ -7723,6 +7744,23 @@ void AddItemPowerPanelStrings(const Item &item)
 		// tooltips once every one of them carried its icon this way (audit, 2026-08-17).
 		if (power.type == IPL_INVCURS)
 			continue;
+		// A fixed-value stat whose field another of the row's powers also writes prints its OWN value, as set pieces do:
+		// PrintItemPower reads the accumulated field, so The Quiet Sun (all attributes 5, strength 11) read "+16 to all
+		// attributes" and its all-resist line carried the fire resist too - about 55 expansion uniques (round 8 audit,
+		// v1.12.233). Ranged rows (Hammer of Jholm's damage) keep PrintItemPower.
+		if (power.param1 == power.param2
+		    && IsAnyOf(power.type, IPL_ATTRIBS, IPL_ATTRIBS_CURSE, IPL_STR, IPL_STR_CURSE, IPL_MAG, IPL_MAG_CURSE, IPL_DEX,
+		        IPL_DEX_CURSE, IPL_VIT, IPL_VIT_CURSE, IPL_ALLRES, IPL_FIRERES, IPL_LIGHTRES, IPL_MAGICRES, IPL_COLDRES)) {
+			AddPanelString(PrintOracoolAffixPower(OracoolAffix { power.type, power.param1, 0 }, item), ItemAffixColor);
+			continue;
+		}
+		// A negative durability percent SHORTENS the item's life, and a base with no durability (an amulet) has none to
+		// change: "high durability" was wrong on both (round 8 audit).
+		if (power.type == IPL_DUR && power.param1 < 0) {
+			if (item._iMaxDur != 0)
+				AddPanelString(_("decreased durability"), ItemAffixColor);
+			continue;
+		}
 		AddPanelString(PrintItemPower(power.type, item), ItemAffixColor);
 	}
 }

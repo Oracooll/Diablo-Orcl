@@ -628,7 +628,8 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 						break;
 					if (!productLine.empty())
 						AppendStrView(productLine, _(",  "));
-					AppendStrView(productLine, PrintItemPower(power.type, item));
+					// Its own value, as the set piece's tooltip prints it - not the accumulated field (round 8 audit).
+					AppendStrView(productLine, PrintOracoolAffixPower(OracoolAffix { power.type, power.param1, 0 }, item));
 				}
 			}
 		} else {

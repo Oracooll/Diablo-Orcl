@@ -905,6 +905,11 @@ _speech_id TakeOgdenQuestText()
 	return text;
 }
 
+bool HasOgdenQuestText()
+{
+	return !PendingOgdenQuestTexts.empty();
+}
+
 void ClearOgdenQuestText()
 {
 	PendingOgdenQuestTexts.clear();

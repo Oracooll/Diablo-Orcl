@@ -387,6 +387,10 @@ void CheckTooltip(const devilution::Item &item, const std::vector<TipRow> &rows,
 				for (const ItemPower &power : UniqueItems[item._iUid].powers) {
 					if (power.type == IPL_INVALID)
 						break;
+					// Not a durability change on a base with no durability: it does nothing, and since v1.12.233 prints nothing
+					// (Vesper Bell and Salt Heart, amulets carrying a -25% durability row).
+					if (power.type == IPL_DUR && power.param1 < 0 && item._iMaxDur == 0)
+						continue;
 					if (power.type != IPL_INVCURS)
 						expected++;
 				}

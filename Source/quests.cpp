@@ -1033,8 +1033,13 @@ void StartQuestlog()
 
 	EncounteredQuestCount = 0;
 	for (auto &quest : Quests) {
-		if ((quest._qactive == QUEST_ACTIVE && quest._qlog)
-		    || (revealUndiscovered && quest._qactive == QUEST_INIT)) {
+		// Revealed: every quest this game can hold that is not finished - INIT, ACTIVE with or without its log flag, and the
+		// Jersey's tease states. Testing INIT alone dropped a quest the moment vanilla set it ACTIVE without logging it (the
+		// lair entered before Ogden, Lazarus killed before Cain) and hid the Jersey while he teased; and it listed quests
+		// that cannot exist here - the Wandering Trader, the absent one of cow and farmer (round 8 audit, v1.12.233).
+		const bool revealed = revealUndiscovered && IsQuestEnabledInThisGame(quest)
+		    && IsNoneOf(quest._qactive, QUEST_NOTAVAIL, QUEST_DONE, QUEST_HIVE_DONE);
+		if ((quest._qactive == QUEST_ACTIVE && quest._qlog) || revealed) {
 			EncounteredQuests[EncounteredQuestCount] = quest._qidx;
 			EncounteredQuestCount++;
 		}

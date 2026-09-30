@@ -658,12 +658,18 @@ int StepUpCost(Tab tab)
 int StepUp(Tab tab, int idx)
 {
 	switch (tab) {
-	case Tab::Gems:
-		return NextGemQuality(static_cast<uint16_t>(idx));
+	// NextGemQuality and NextJewelGrade answer the SAME kind at the top of their ladders, not 0: Upgrade on a Perfect gem
+	// took three and gave one back (round 8 audit, v1.12.233).
+	case Tab::Gems: {
+		const int next = NextGemQuality(static_cast<uint16_t>(idx));
+		return next == idx ? 0 : next;
+	}
 	case Tab::Runes:
 		return IsTopRune(static_cast<uint16_t>(idx)) ? 0 : NextRune(static_cast<uint16_t>(idx));
-	case Tab::Jewels:
-		return NextJewelGrade(static_cast<uint16_t>(idx));
+	case Tab::Jewels: {
+		const int next = NextJewelGrade(static_cast<uint16_t>(idx));
+		return next == idx ? 0 : next;
+	}
 	default:
 		return 0;
 	}
@@ -1811,6 +1817,13 @@ int FindMysticRecipe(const Player &player, std::array<Item, CraftSlots> &scratch
 	reagentIdx = 0;
 	reagentCount = 0;
 	reagentSlot = -1;
+	// Every recipe the grid answers ALONE, before any loan: taking recipes one at a time let an earlier recipe that needs
+	// the pack's powder beat a later one the grid satisfies - a Cleanse became an Enrich (round 8 audit, v1.12.233).
+	for (const int recipe : HostRecipes()) {
+		scratch = CraftGrid;
+		if (CanCraftFromLevskiGrid(scratch.data(), recipe))
+			return recipe;
+	}
 	for (const int recipe : HostRecipes()) {
 		// The grid as it stands. A copy, because the predicate takes a mutable grid and nothing may
 		// be spent while the question is still being asked.

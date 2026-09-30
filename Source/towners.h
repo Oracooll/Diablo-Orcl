@@ -80,6 +80,8 @@ void InitTowners();
 _speech_id TakeOgdenQuestText();
 /** @brief Drops every queued speech: a new game must not open with the last one's (InitStores). */
 void ClearOgdenQuestText();
+/** @brief Whether a quest speech waits for "Talk to Ogden" - his "!" stays lit until it is heard. */
+bool HasOgdenQuestText();
 void FreeTownerGFX();
 void ProcessTowners();
 void TalkToTowner(Player &player, int t);

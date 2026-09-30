@@ -306,7 +306,8 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 		int torn = 0;
 		for (size_t i = 0; i < ActiveMonsterCount; i++) {
 			Monster &monster = Monsters[ActiveMonsters[i]];
-			if (!Live(monster) || monster.position.tile.WalkingDistance(player.position.tile) > SoulHarvestRadius)
+			if (!Live(monster) || monster.position.tile.WalkingDistance(player.position.tile) > SoulHarvestRadius
+			    || !LineClearMissile(player.position.tile, monster.position.tile)) // in sight (round 8 audit)
 				continue;
 			const Point from = monster.position.tile;
 			OwnerStrikes(player, monster, DamageType::Magic, (SoulHarvestMin(r) + GenerateRnd(SoulHarvestSpread(r))) << 6);
@@ -347,6 +348,13 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 			continue;
 		if (kind == CurseKind::Terror && monster.isUnique())
 			continue; // "Uniques do not" run - and are not marked either
+		// Nor Confuse or Frailty, which do nothing to a unique: laid anyway, they cost Essence and replaced the curse it had
+		// (round 8 audit, v1.12.233).
+		if (IsAnyOf(kind, CurseKind::Confuse, CurseKind::Frailty) && monster.isUnique())
+			continue;
+		// In sight of the cast, as every area skill since round 5 (round 8 audit).
+		if (!single && !LineClearMissile(target, monster.position.tile))
+			continue;
 		if (Lay(monster, kind, ticks, r, player))
 			laid++;
 	}
@@ -476,7 +484,8 @@ void OnCursedMonsterDeath(const Monster &monster)
 			const int share = std::clamp((monster.maxHitPoints >> 6) * CorpseBurstPercent(curse.rank) / 100, DeathMarkMinBurst, DeathMarkMaxBurst) << 6;
 			for (size_t i = 0; i < ActiveMonsterCount; i++) {
 				Monster &other = Monsters[ActiveMonsters[i]];
-				if (&other == &monster || other.position.tile.WalkingDistance(monster.position.tile) > DeathMarkBurstRadius)
+				if (&other == &monster || other.position.tile.WalkingDistance(monster.position.tile) > DeathMarkBurstRadius
+				    || !LineClearMissile(monster.position.tile, other.position.tile)) // the burst stops at walls (round 8 audit)
 					continue;
 				OwnerStrikes(*owner, other, DamageType::Physical, share);
 			}

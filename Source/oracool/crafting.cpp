@@ -1,6 +1,7 @@
 #include "oracool/crafting.h"
 
 #include "oracool/gems.h"
+#include "oracool/item_tiers.h" // BandedQlvl - the set pieces' depth gate
 #include "oracool/imbuement.h"
 #include "oracool/level_requirement.h"
 #include "utils/utf8.hpp"
@@ -465,6 +466,10 @@ int FindGridReforgeTarget(const Item *grid)
 			continue;
 		if (IsQuestUniqueBase(item))
 			continue;
+		// Not a set piece: the reroll rebuilds the bare base and can hand back a white item - Awaken and Reroll Uniques
+		// refuse set pieces for the same reason (round 8 audit, v1.12.233).
+		if (IsSetItem(item))
+			continue;
 		if (IsOracoolGemIdx(item.IDidx) || IsOracoolRuneIdx(item.IDidx) || IsOracoolJewelIdx(item.IDidx)
 		    || IsOracoolSalvageIdx(item.IDidx) || IsOracoolCharmIdx(item.IDidx))
 			continue;
@@ -524,7 +529,7 @@ int FindGridSetPieceTarget(const Item *grid)
  * "main_hand" to a one-handed Short Sword: no two-handed rare (a bow, a scythe) found a piece, and a crafted
  * main-hand piece lost its bow or mace family (tooltip sweep, 2026-09-25).
  */
-std::vector<const SetItemDefinition *> SetPiecesForLoc(item_equip_type loc)
+std::vector<const SetItemDefinition *> SetPiecesForLoc(item_equip_type loc, int itemLevel)
 {
 	std::vector<const SetItemDefinition *> found;
 	if (loc == ILOC_NONE || loc == ILOC_UNEQUIPABLE)
@@ -534,6 +539,10 @@ std::vector<const SetItemDefinition *> SetPiecesForLoc(item_equip_type loc)
 			const SetItemDefinition &piece = ItemSetItems[set.firstItem + i];
 			const int base = BaseItemForSetPiece(piece);
 			if (base < 0)
+				continue;
+			// Only pieces the item's depth could drop, as the drop path gates them: a level-3 ring became the deepest set's
+			// ring (round 8 audit, v1.12.233).
+			if (BandedQlvl(piece.requiredLevel) > itemLevel)
 				continue;
 			if (AllItemsList[base].iLoc == loc)
 				found.push_back(&piece);
@@ -663,7 +672,7 @@ int FindGridConsecrateTarget(const Item *grid)
 	for (int i = 0; i < GridSlots; i++) {
 		if (!IsTierRecipeGear(grid[i]) || grid[i]._iOracoolTier != OracoolItemTier::Rare)
 			continue;
-		if (!SetPiecesForLoc(grid[i]._iLoc).empty())
+		if (!SetPiecesForLoc(grid[i]._iLoc, grid[i]._iOracoolItemLevel).empty())
 			return i;
 	}
 	return -1;
@@ -1472,6 +1481,11 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// Kanai's Work of Cathan too (audit, 2026-09-29): InitializeItem empties the item, and the keepsake notes name
 			// these recipes as ones that must keep it.
 			const bool wasLevelFree = target._iOracoolLevelFree;
+			// The wear, the broken flag and the empty sockets too (round 8 audit, v1.12.233): the rebuild was a free repair -
+			// Mend bypassed - and it deleted sockets bought with Punch Sockets.
+			const int oldDurability = target._iDurability;
+			const bool wasBroken = target._iOracoolBroken;
+			const int oldSockets = target._iSocketCount;
 			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetPiece(*chosen)));
 			MakeSetItem(target, *chosen);
 			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false);
@@ -1480,6 +1494,10 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			if (wasEthereal)
 				MakeItemEthereal(target);
 			target._iOracoolLevelFree = wasLevelFree;
+			if (oldDurability != DUR_INDESTRUCTIBLE && target._iMaxDur != DUR_INDESTRUCTIBLE)
+				target._iDurability = std::min<int>(oldDurability, target._iMaxDur);
+			target._iOracoolBroken = wasBroken && target._iDurability == 0;
+			target._iSocketCount = static_cast<uint8_t>(std::min(oldSockets, MaxSocketsForItem(target)));
 			target._iIdentified = true;
 			what = std::string(target.getName());
 			break;
@@ -1494,7 +1512,11 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// Rolled among the OTHER types, so the recipe always changes something.
 			const int step = 1 + GenerateRnd(static_cast<int32_t>(GemTypeCount) - 1);
 			const auto newType = static_cast<GemType>((static_cast<int>(type) + step) % static_cast<int>(GemTypeCount));
+			// The whole stack changes colour: InitializeItem empties the item, count included, and twenty Chipped Rubies came
+			// back as one gem (round 8 audit, v1.12.233).
+			const int units = target.stackCount();
 			InitializeItem(target, static_cast<_item_indexes>(GemIndexFor(newType, quality)));
+			target.setStackCount(units);
 			GenerateNewSeed(target);
 			target._iIdentified = true;
 			what = std::string(target.getName());
@@ -1506,7 +1528,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			what = std::string(target.getName());
 			break;
 		case 10: { // CONSECRATE - a rare becomes a set piece for the same SLOT
-			const std::vector<const SetItemDefinition *> pieces = SetPiecesForLoc(target._iLoc);
+			const std::vector<const SetItemDefinition *> pieces = SetPiecesForLoc(target._iLoc, target._iOracoolItemLevel);
 			if (pieces.empty())
 				return {};
 			// The depth the item was FOUND at, captured before InitializeItem wipes it. Audit
@@ -1518,6 +1540,11 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// Kanai's Work of Cathan too (audit, 2026-09-29): InitializeItem empties the item, and the keepsake notes name
 			// these recipes as ones that must keep it.
 			const bool wasLevelFree = target._iOracoolLevelFree;
+			// The wear, the broken flag and the empty sockets too (round 8 audit, v1.12.233): the rebuild was a free repair -
+			// Mend bypassed - and it deleted sockets bought with Punch Sockets.
+			const int oldDurability = target._iDurability;
+			const bool wasBroken = target._iOracoolBroken;
+			const int oldSockets = target._iSocketCount;
 			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetPiece(*chosen)));
 			MakeSetItem(target, *chosen);
 			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false);
@@ -1526,6 +1553,10 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			if (wasEthereal)
 				MakeItemEthereal(target);
 			target._iOracoolLevelFree = wasLevelFree;
+			if (oldDurability != DUR_INDESTRUCTIBLE && target._iMaxDur != DUR_INDESTRUCTIBLE)
+				target._iDurability = std::min<int>(oldDurability, target._iMaxDur);
+			target._iOracoolBroken = wasBroken && target._iDurability == 0;
+			target._iSocketCount = static_cast<uint8_t>(std::min(oldSockets, MaxSocketsForItem(target)));
 			target._iIdentified = true;
 			what = std::string(target.getName());
 			break;

@@ -360,7 +360,10 @@ void OnColdArmourStruckInMelee(Player &player, Monster &monster)
 		int minDamage;
 		int maxDamage;
 		ColdSpellDamage(player, SpellID::IceBolt, state.level, minDamage, maxDamage);
-		const int dam = (minDamage + GenerateRnd(maxDamage - minDamage + 1)) << 6;
+		int dam = (minDamage + GenerateRnd(maxDamage - minDamage + 1)) << 6;
+		// Cold resistance answers, as on every cold missile (round 8 audit, v1.12.233).
+		if (monster.isResistant(MissileID::Null, DamageType::Cold))
+			dam /= ColdResistanceDivisor(player);
 		ApplyMonsterDamage(DamageType::Cold, monster, dam);
 		if (monster.hitPoints >> 6 <= 0)
 			M_StartKill(monster, player);

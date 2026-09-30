@@ -32,6 +32,8 @@
 
 namespace devilution {
 
+struct Quest;
+
 constexpr Size SidePanelSize { 320, 352 };
 
 // Info box displacement of the top-left corner relative to GetMainPanel().position.
@@ -361,6 +363,8 @@ void CheckLvlBtn();
 void ReleaseLvlBtn();
 /** @brief Whether the stat level-up icon above the left well is drawn - the click and interface tests share it with the draw. */
 bool IsLevelUpIconShown();
+/** @brief Whether @p quest can exist in this game (the cow or the farmer, Theo, no Trader) - the quest log's reveal mode lists only these. */
+bool IsQuestEnabledInThisGame(const Quest &quest);
 void DrawLevelUpIcon(const Surface &out);
 /** @brief Oracool: the unspent skill pool in its LevelUpIconSize frame (ui\skill_points.png) above the RMB well. Hidden at zero. */
 void DrawUnspentPointsFrame(const Surface &out);

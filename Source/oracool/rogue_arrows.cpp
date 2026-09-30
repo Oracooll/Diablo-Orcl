@@ -237,10 +237,16 @@ void RogueArrowDamage(const Player &player, SpellID spell, int spellLevel, int &
 	case RogueArrow::ExplodingArrow:
 	case RogueArrow::IceArrow:
 	case RogueArrow::ImmolationArrow:
-	case RogueArrow::FreezingArrow:
+	case RogueArrow::FreezingArrow: {
+		// The bow's WHOLE damage, as the sheet shows it: the missile path adds the +% and the Strength part to a PHYSICAL
+		// hit only, so these arrows landed at the bare weapon dice - well under a plain arrow (round 8 audit, v1.12.233).
+		const int strength = player._pClass == HeroClass::Rogue ? player._pDamageMod : player._pDamageMod / 2;
+		minDamage += minDamage * player._pIBonusDam / 100 + player._pIBonusDamMod + strength;
+		maxDamage += maxDamage * player._pIBonusDam / 100 + player._pIBonusDamMod + strength;
 		minDamage += ElementalBonus(spellLevel);
 		maxDamage += ElementalBonus(spellLevel);
 		break;
+	}
 	case RogueArrow::MultipleShot:
 	case RogueArrow::GuidedArrow:
 	case RogueArrow::Strafe:

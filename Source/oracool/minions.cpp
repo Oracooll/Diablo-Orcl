@@ -501,6 +501,10 @@ void ProcessMinions(Player &owner)
 	for (Record &record : Records) {
 		if (!record.active || record.body >= 0 || record.owner != owner.getId())
 			continue;
+		// A body whose type this floor cannot take is skipped, not waited on: no tile would change that, and the break
+		// below held every record after it back for the whole floor (round 8 audit, v1.12.233).
+		if (!CanAddMinionBody(record.spec.type))
+			continue;
 		if (!SpawnBody(record, owner, owner.position.tile))
 			break; // no room this tick; the rest wait with it
 		if (++formed >= ReformPerTick)

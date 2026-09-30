@@ -153,7 +153,9 @@ std::vector<Monster *> AuraTargetsWithin(const Player &player, int radius)
 		Monster &monster = Monsters[ActiveMonsters[i]];
 		if ((monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
 			continue;
-		if (player.position.tile.WalkingDistance(monster.position.tile) <= radius)
+		// In sight only, as MonstersWithin since round 5: Static Field and Thunder Storm reached the next room (round 8 audit).
+		if (player.position.tile.WalkingDistance(monster.position.tile) <= radius
+		    && LineClearMissile(player.position.tile, monster.position.tile))
 			found.push_back(&monster);
 	}
 	return found;

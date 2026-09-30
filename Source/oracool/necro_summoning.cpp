@@ -352,7 +352,8 @@ void ArmyPulse(Player &player, OwnerState &state)
 		PlaySkillSound(ClassTreeSkill::ArmyOfTheDead, SkillSoundEvent::Impact);
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		Monster &monster = Monsters[ActiveMonsters[i]];
-		if (monster.position.tile.WalkingDistance(state.armyTile) > ArmyRadius)
+		if (monster.position.tile.WalkingDistance(state.armyTile) > ArmyRadius
+		    || !LineClearMissile(state.armyTile, monster.position.tile)) // in sight of the charge (round 8 audit)
 			continue;
 		const int damage = (ArmyDamageMin(rank) + GenerateRnd(ArmyDamageSpread(rank))) << 6;
 		HeroStrikes(player, monster, DamageType::Magic, damage);
