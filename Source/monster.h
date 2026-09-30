@@ -291,6 +291,13 @@ struct Monster { // note: missing field _mAFNum
 	 */
 	LesserUniqueAffix lesserAffix = LesserUniqueAffix::None;
 	/**
+	 * @brief Oracool: which spawn in this slot this is, bumped by every InitMonster. A missile stamps it at launch and
+	 * answers to its caster only while the slot still holds the same spawn - slots are reused at once, and a dead acid
+	 * beast's puddle took its to-hit, its Vampiric heal and its name from whatever rose in its place, the hero's own
+	 * skeleton included (round 12 audit, v1.12.237). Not saved: a loaded level starts every slot and missile at 0.
+	 */
+	uint32_t spawnSerial = 0;
+	/**
 	 * @brief Oracool: the roll a lesser unique's name and tint are both derived from.
 	 *
 	 * A field rather than a derivation, and it is here because the first version tried to avoid being

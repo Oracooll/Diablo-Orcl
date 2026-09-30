@@ -23,6 +23,7 @@
 #include "oracool/furious_charge.h" // TickFuriousCharge
 #include "oracool/necro_summoning.h"
 #include "oracool/rage.h"
+#include "oracool/run_toggle.h" // IsRunEnabled - the sheet's effective move speed
 #include "oracool/rfa12_actives.h"
 #include "effects.h" // PlaySFX, IS_RBOOK - the passives' book
 #include "oracool/rfa12_effects.h"
@@ -2971,6 +2972,21 @@ int MovementSpeedPercent(const Player &player)
 	// 100 is a plain walk. Abilities and items add to it; a slow (cold, a curse) takes from it.
 	// Floored at 10 so a stack of slows never reads as standing still - the feet floor separately.
 	return std::max(100 + MovementSpeedBonusPercent(player) - PlayerSlowPercent(player), 10);
+}
+
+int EffectiveMovementSpeedPercent(const Player &player)
+{
+	// StartWalkAnimation's branches, read back as a percentage (a stride of T ticks is 1000/T %): the walk under its
+	// clamp, and the run - at least 6 ticks a stride, or 4 ticks under the walk while slowed. The sheet quoted the sum
+	// of the sources, which is not what the feet do once the run is on (round 12 audit, v1.12.237). The Charge dash is
+	// the skill's own and is left out.
+	const int walkTicks = std::clamp(1000 / MovementSpeedPercent(player), MinStrideTicks, MaxStrideTicks);
+	const bool running = (leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0) || IsRunEnabled()
+	    || IsClassTreeRunActive(player) || IsWhirlwinding(player);
+	int ticks = walkTicks;
+	if (running)
+		ticks = PlayerSlowPercent(player) > 0 ? std::max(walkTicks - 4, 1) : std::min(walkTicks, 6);
+	return 1000 / ticks;
 }
 
 int StrideTicksFor(int percent, int &carryMilliTicks)

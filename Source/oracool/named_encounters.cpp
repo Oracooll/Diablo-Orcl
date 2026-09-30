@@ -7,6 +7,7 @@
 #include "monstdat.h" // UniqueMonstersData - an encounter needs a boss of its type
 #include "monster.h"
 #include "multi.h"
+#include "portal.h" // a stale portal into the arena closes with it
 #include "engine/random.hpp"
 #include "oracool/endgame_boss.h"
 #include "oracool/event_log.h"
@@ -231,6 +232,10 @@ bool EnterNamedEncounter(Player &player, NamedEncounter encounter)
 	// make it possible to be in one with no way back if anything ever went wrong with the exit.
 	if (!player.isOnLevel(0))
 		return false;
+	// Not while a transition is already under way: a map read on the tick a town portal was taken opened the arena,
+	// and the portal's pending warp sent the hero straight back - the map spent for nothing (round 12 audit).
+	if (player._pmode == PM_NEWLVL || player._pLvlChanging)
+		return false;
 
 	// A named encounter is always a FRESH instance. Audit finding, 2026-08-26: leaving an arena
 	// runs SaveLevel, which sets _pSLvlVisited[setlvlnum], and LoadGameLevel then takes its
@@ -245,6 +250,14 @@ bool EnterNamedEncounter(Player &player, NamedEncounter encounter)
 	// reaching into the save writer from here for no benefit.
 	const _setlevels level = NamedEncounterLevel(encounter);
 	player._pSLvlVisited[level] = false;
+	// A town portal still standing into the old room closes with it, as a new rift closes the old rift's (round 12
+	// audit): the fresh arena restored the old portal into a room it no longer led to.
+	for (int i = 0; i < MAXPORTAL; i++) {
+		if (Portals[i].open && Portals[i].setlvl && Portals[i].level == level) {
+			DeactivatePortal(i);
+			RemovePortalMissile(i);
+		}
+	}
 
 	// BEFORE StartNewLvl, not after. The /arena command does the same and that is the tell: the
 	// level loads its tileset from this, so setting it afterwards draws the room in the wrong art.

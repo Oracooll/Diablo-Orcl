@@ -21,6 +21,7 @@
 #include "player.h"
 #include "missiles.h" // GetDamageAmtAtLevel - the readied spell's own damage formula
 #include "oracool/rfa12_actives.h" // Rfa12MeleeBonusPercentFor - an RfA-12 swing on the sheet
+#include "oracool/furious_charge.h" // ChargeBlowPercentAt - Charge's arriving blow on its slot
 #include "oracool/paladin_melee.h" // ZealToHitBonus - the sheet must quote what PlayerCanHitMonster uses
 #include "oracool/paladin_ranged.h" // the three cast skills' damage and type - their spell rows carry no missile
 #include "oracool/paladin_skills.h" // a melee class skill swings the weapon, so it reads as weapon damage
@@ -269,8 +270,12 @@ StyledText GetReadiedSlotDamage(bool leftButton)
 	// Smite and the RfA-12 swings (Cleave, Hammer of the Ancients, Tiger Claw...) the same way since v1.12.229: they
 	// read plain weapon damage or a dash.
 	int bonus = oracool::ClassMeleeSkillBonusPercentFor(player, spell);
+	// Smite with Towering Shield's share, as the swing adds it (round 12 audit).
 	if (bonus < 0 && spell == SpellID::ShieldBash)
-		bonus = oracool::SmiteDamagePercentAt(std::max(player.GetSpellLevel(spell), 1));
+		bonus = oracool::SmiteDamagePercentAt(std::max(player.GetSpellLevel(spell), 1)) + oracool::PassiveSkillDamagePercent(player, SpellID::ShieldBash);
+	// Charge's arriving blow: the weapon plus its rank's share. Its range of 8 made it read a dash (round 12 audit).
+	if (bonus < 0 && spell == SpellID::Charge)
+		bonus = oracool::ChargeBlowPercentAt(std::max(player.GetSpellLevel(spell), 1));
 	if (bonus < 0)
 		bonus = oracool::Rfa12MeleeBonusPercentFor(player, spell);
 	if (bonus >= 0) {
@@ -374,7 +379,18 @@ std::string GetReadiedSlotName(bool leftButton)
  * case. The repeated-swing branch below it skips fewer frames - Fastest is even suppressed
  * entirely when Fast or Faster is also present - so quoting that one would understate the items.
  */
+int ItemAttackFramesSkipped();
+
 int AttackFramesSkipped()
+{
+	// A bow's draw skips no frames in Hellfire, whose speed flags only quicken the arrow (StartRangeAttack); and Heavenly
+	// Strength's grip adds frames (round 12 audit, v1.12.237 - the sheet showed neither).
+	if (InspectPlayer->UsesRangedWeapon())
+		return 0;
+	return ItemAttackFramesSkipped() - oracool::HeavenlyStrengthSwingDelayFrames(*InspectPlayer);
+}
+
+int ItemAttackFramesSkipped()
 {
 	const ItemSpecialEffect flags = InspectPlayer->_pIFlags;
 	if (HasAnyOf(flags, ItemSpecialEffect::FastestAttack) && HasAnyOf(flags, ItemSpecialEffect::QuickAttack | ItemSpecialEffect::FastAttack))
@@ -740,7 +756,8 @@ const CharRow CharRows[] = {
 	// (oracool::WalkFrameSkipFor); the number here is what the sources add up to.
 	{ N_("Move speed"),
 	    []() {
-	        const int percent = oracool::MovementSpeedPercent(*InspectPlayer);
+	        // What the feet do, the run and the stride clamp included (round 12 audit, v1.12.237).
+	        const int percent = oracool::EffectiveMovementSpeedPercent(*InspectPlayer);
 	        const UiFlags color = percent > 100 ? UiFlags::ColorBlue : percent < 100 ? UiFlags::ColorRed : UiFlags::ColorWhite;
 	        return StyledText { color, StrCat(percent, "%") };
 	    } },
@@ -794,14 +811,19 @@ const CharRow CharRows[] = {
 	        return StyledText { halved ? UiFlags::ColorBlue : UiFlags::ColorWhite, halved ? "50%" : "100%" };
 	    } },
 	{ N_("Thorns"),
-	    // A flat 1-3 per melee hit taken, not scaled by anything (monster.cpp:1231).
+	    // The items' flat 1-3 per melee hit taken, and the share of the blow the Thorns aura and Iron Maiden return
+	    // (round 12 audit, v1.12.237 - the row read a dash under the aura).
 	    []() {
 	        const bool thorns = HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::Thorns);
-	        return StyledText { thorns ? UiFlags::ColorBlue : UiFlags::ColorWhite, thorns ? "1-3" : "-" };
+	        const int percent = oracool::ThornsReturnPercent(*InspectPlayer);
+	        std::string text = thorns ? "1-3" : "";
+	        if (percent > 0)
+		        text = thorns ? StrCat("1-3 +", percent, "%") : StrCat(percent, "%");
+	        return StyledText { !text.empty() ? UiFlags::ColorBlue : UiFlags::ColorWhite, text.empty() ? std::string("-") : text };
 	    } },
 
 	{ N_("Armor pierce"),
-	    []() { return PlainValue(GetSheetArmorPiercePercent(InspectPlayer->_pIEnAc), "%"); },
+	    []() { return PlainValue(GetSheetArmorPiercePercentFor(*InspectPlayer), "%"); },
 	    nullptr, CharRowGroupGap },
 	{ N_("Spell to hit"),
 	    // "Always" while the Diablo II rule is on trial (SpellsNeverMiss): the percentage would name a roll
@@ -2453,6 +2475,16 @@ int GetSheetArmorPiercePercent(int tier)
 	if (tier == 1)
 		return 25;
 	return 100 - 100 / (1 << std::min(tier - 1, 16));
+}
+
+int GetSheetArmorPiercePercentFor(const Player &player)
+{
+	// A Barbarian's melee takes another eighth of the target's armour once any pierce is worn (CalculateArmorPierce) -
+	// the sheet left it out (round 12 audit, v1.12.237).
+	const int percent = GetSheetArmorPiercePercent(player._pIEnAc);
+	if (percent > 0 && player._pClass == HeroClass::Barbarian)
+		return std::min(percent + 12, 100);
+	return percent;
 }
 
 int GetSheetLifeStealPercent()

@@ -487,8 +487,12 @@ void LeftMouseDown(uint16_t modState)
 	// owns and so are asked first.
 	if (CheckGoldWithdrawPromptPress(MousePosition))
 		return;
-	if (IsModalPromptOpen())
+	if (IsModalPromptOpen()) {
+		// The death menu opens over a gold prompt left open: its buttons still answer the mouse (round 12 audit).
+		if (gmenu_is_active())
+			gmenu_left_mouse(true);
 		return;
+	}
 
 	if (gmenu_left_mouse(true))
 		return;
@@ -505,7 +509,9 @@ void LeftMouseDown(uint16_t modState)
 	if (sgnTimeoutCurs != CURSOR_NONE)
 		return;
 
-	if (MyPlayerIsDead) {
+	// During the fall too, not only once the death menu is up: a Charge spent mana on the corpse, and equipping a +life
+	// item gave the corpse life (round 12 audit, v1.12.237).
+	if (MyPlayerIsDead || MyPlayer->_pmode == PM_DEATH) {
 		// Oracool: HUD overhaul - the old dead-mode panel buttons (Game Menu, Chat) are gone; the
 		// belt's Menu popup covers both, so it stays clickable while dead.
 		if (oracool::IsHudMenuOpen())
@@ -4138,6 +4144,10 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	// nowhere to go - and then stays open, as it does everywhere else.
 	oracool::CloseLevskiRoar();
 	oracool::CloseWorkshop();
+	// The stash chest and the Rift Monument menu are town furniture: a Sealed Map read with either open carried it into
+	// the arena, and the stash moved items both ways mid-fight (round 12 audit, v1.12.237).
+	CloseStash();
+	oracool::CloseStonegateMenu();
 	_music_id neededTrack = GetLevelMusic(leveltype);
 	ClearFloatingNumbers();
 

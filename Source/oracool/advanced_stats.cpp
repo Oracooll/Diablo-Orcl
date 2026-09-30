@@ -170,7 +170,7 @@ void AddOffense(const Player &p, std::vector<Row> &rows)
 		rows.push_back({ RowKind::Bonus, std::string(_("300% damage to demons")) });
 	// As a percentage (2026-09-27): the field is a tier, and tier 2 halves the armour - "Ignores 2" said otherwise.
 	if (p._pIEnAc > 0)
-		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("Ignores {:d}% of the target's armor")), GetSheetArmorPiercePercent(p._pIEnAc)) });
+		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("Ignores {:d}% of the target's armor")), GetSheetArmorPiercePercentFor(p)) });
 
 	// The fixed 3/5% and the random drain are independent and can both be active - the old sheet's Life
 	// steal row, word for word in its arithmetic (player.cpp's steal branch; the random one is
@@ -178,12 +178,13 @@ void AddOffense(const Player &p, std::vector<Row> &rows)
 	{
 		const int fixedPct = GetSheetLifeStealPercent();
 		const bool random = HasAnyOf(p._pIFlags, ItemSpecialEffect::RandomStealLife);
+		// Melee only: the steal lives in PlrHitMonst, so a bow never steals (round 12 audit).
 		if (fixedPct > 0 && random)
-			rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:d}% +0-12% life stolen per hit")), fixedPct) });
+			rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:d}% +0-12% life stolen per melee hit")), fixedPct) });
 		else if (fixedPct > 0)
-			rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:d}% life stolen per hit")), fixedPct) });
+			rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:d}% life stolen per melee hit")), fixedPct) });
 		else if (random)
-			rows.push_back({ RowKind::Bonus, std::string(_("0-12% life stolen per hit")) });
+			rows.push_back({ RowKind::Bonus, std::string(_("0-12% life stolen per melee hit")) });
 	}
 	// NoMana zeroes this whatever the jewellery says (GetSheetManaStealPercent answers 0 then).
 	if (const int manaPct = GetSheetManaStealPercent(); manaPct > 0)
@@ -276,7 +277,8 @@ void AddRecovery(const Player &p, std::vector<Row> &rows)
 {
 	if (const int life = GemLifePerKill(p); life > 0)
 		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("+{:d} life per kill")), life) });
-	if (const int mana = RuneManaPerKill(p); mana > 0)
+	// Not under NoMana, which the kill's grant skips (round 12 audit).
+	if (const int mana = RuneManaPerKill(p); mana > 0 && !HasAnyOf(p._pIFlags, ItemSpecialEffect::NoMana))
 		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("+{:d} mana per kill")), mana) });
 }
 
@@ -284,7 +286,7 @@ void AddRecovery(const Player &p, std::vector<Row> &rows)
 void AddOther(const Player &p, std::vector<Row> &rows)
 {
 	// 100 is a plain walk (class_tree.h); a slow reads as a penalty, in red.
-	if (const int move = MovementSpeedPercent(p) - 100; move != 0) {
+	if (const int move = EffectiveMovementSpeedPercent(p) - 100; move != 0) { // the run and the clamp included (round 12)
 		rows.push_back({ move > 0 ? RowKind::Bonus : RowKind::Curse,
 		    fmt::format(fmt::runtime(_("{:s}% movement speed")), Signed(move)) });
 	}
@@ -303,7 +305,7 @@ void AddOther(const Player &p, std::vector<Row> &rows)
 	if (HasAnyOf(p._pIFlags, ItemSpecialEffect::DrainLife))
 		rows.push_back({ RowKind::Curse, std::string(_("Life drained over time")) });
 	if (HasAnyOf(p._pIFlags, ItemSpecialEffect::ZeroResistance))
-		rows.push_back({ RowKind::Curse, std::string(_("All resistances zero")) });
+		rows.push_back({ RowKind::Curse, std::string(_("All resistances zeroed before the difficulty penalty")) });
 
 	rows.push_back({ RowKind::Fact, fmt::format(fmt::runtime(_("Light radius {:d}")), static_cast<int>(p._pLightRad)) });
 	// The one permanent, irreversible choice a character makes - twenty for a lifetime. Red at the cap.

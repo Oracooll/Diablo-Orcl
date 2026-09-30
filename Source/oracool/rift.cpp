@@ -314,6 +314,13 @@ bool SpendPendingKeystone(Player &player)
 			}
 		}
 	}
+	// The belt too, for a key placed there before keys were kept off it (round 12 audit, v1.12.237).
+	for (int i = 0; i < MaxBeltItems && !spent; i++) {
+		if (isIt(player.SpdList[i])) {
+			player.RemoveSpdBarItem(i);
+			spent = true;
+		}
+	}
 	for (size_t i = 0; i < Stash.stashList.size() && !spent; i++) {
 		if (isIt(Stash.stashList[i])) {
 			Stash.RemoveStashItem(static_cast<StashStruct::StashCell>(i));
@@ -788,7 +795,9 @@ void ProcessRift()
 		const bool inside = InRift();
 		LogEvent(inside ? "The rift closes around you and spits you out in Tristram." : "The rift has closed; the Rift Monument falls dark.", UiFlags::ColorWhitegold);
 		CloseStonegate(); // removes the portal missiles, ends the rift, the closing sound
-		if (inside && MyPlayer != nullptr)
+		// Not a dead hero: the close carried the corpse to town and opened the death menu there again. The Respawn that
+		// follows takes him home (round 12 audit, v1.12.237).
+		if (inside && MyPlayer != nullptr && MyPlayer->_pmode != PM_DEATH && !MyPlayerIsDead)
 			// WM_DIABRTNLVL, the way home's own message, not WM_DIABRETOWN (user, 2026-09-24: "when nephalem
 			// rif closed and i got teleported away i spawned in [dlvl 9] ... unable to move out"). RETOWN loads
 			// the hero's plrlevel, and inside a set level that holds the SET LEVEL's number - 9 is
@@ -837,6 +846,11 @@ void RiftNoteReturnHome()
 	// timer closes the portal"). Its sixty-second clock is the only thing that ends it (ProcessRift), so
 	// the hero can step out to sell and come back for the rest of the pile. A Guardian Rift has no such
 	// clock and still ends on the way out once cleared.
+	// Only when the exit taken is the rift's own: every set level's way home (an arena, the Skeleton King's lair)
+	// sent this, and ended a cleared Guardian Rift the hero had left for town - its pile and keystone waiting inside
+	// were lost to the next rift (round 12 audit, v1.12.237).
+	if (!InRift())
+		return;
 	if (State.done && State.kind != RiftKind::Nephalem)
 		State.returnedHome = true;
 }

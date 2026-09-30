@@ -2282,7 +2282,9 @@ void SmithBuyItemAt(Item &item, int idx)
 	if (idx < 0 || idx >= SMITH_ITEMS)
 		return;
 	TakePlrsMoney(item._iIvalue);
-	if (item._iMagical == ITEM_QUALITY_NORMAL)
+	// Potions only, vanilla's reason (they stack with found ones): a bought charm or tiered base lost its effect line
+	// and its Tier and Item Level for good - Cain refuses a plain item (round 12 audit, v1.12.237).
+	if (item._iMagical == ITEM_QUALITY_NORMAL && item.isPotion())
 		item._iIdentified = false;
 	StoreAutoPlace(item, true);
 	RemoveFromVendorStock(smithitem, SMITH_ITEMS, idx);
@@ -2357,7 +2359,9 @@ void SmithBuyPItemAt(Item &item, int idx)
 		return; // stale row: nothing charged, nothing placed, nothing cleared
 
 	TakePlrsMoney(item._iIvalue);
-	if (item._iMagical == ITEM_QUALITY_NORMAL)
+	// Potions only, vanilla's reason (they stack with found ones): a bought charm or tiered base lost its effect line
+	// and its Tier and Item Level for good - Cain refuses a plain item (round 12 audit, v1.12.237).
+	if (item._iMagical == ITEM_QUALITY_NORMAL && item.isPotion())
 		item._iIdentified = false;
 	StoreAutoPlace(item, true);
 
@@ -3184,6 +3188,12 @@ void BoyBuyItemAt(int idx)
 	StoreAutoPlace(item, true);
 	// The slot restocks in place, so the shop never empties and the grid's indices hold still.
 	RollBoyShopSlot(item, idx, MyPlayer->_pLevel); // an Oracool slot restocks as one (2026-09-24)
+	// And the new item must fit beside the rest, as the Magic tab's restock checks: a bigger one repacked the grid and
+	// pushed items the player had seen into a hidden reserve the next visit trimmed (round 12 audit, v1.12.237).
+	for (int attempt = 0; attempt < 8 && !oracool::ShopStockFitsOnePage(TalkID::BoyBuy); attempt++)
+		RollBoyShopSlot(item, idx, MyPlayer->_pLevel);
+	if (!oracool::ShopStockFitsOnePage(TalkID::BoyBuy))
+		item.clear();
 	item._iStatFlag = MyPlayer->CanUseItem(item);
 	CalcPlrInv(*MyPlayer, true);
 	oracool::ScheduleAutoSaveForStoreTransaction();
@@ -3264,7 +3274,9 @@ void HealerBuyItemAt(Item &item, int idx)
 	}
 
 	TakePlrsMoney(item._iIvalue);
-	if (item._iMagical == ITEM_QUALITY_NORMAL)
+	// Potions only, vanilla's reason (they stack with found ones): a bought charm or tiered base lost its effect line
+	// and its Tier and Item Level for good - Cain refuses a plain item (round 12 audit, v1.12.237).
+	if (item._iMagical == ITEM_QUALITY_NORMAL && item.isPotion())
 		item._iIdentified = false;
 	StoreAutoPlace(item, true);
 
@@ -3306,7 +3318,7 @@ void SmithConsumablesBuyItem(Item &item)
 	if (entry.vendor == ConsumablesVendor::Pepin)
 		item._iCreateInfo = 0;
 	TakePlrsMoney(item._iIvalue);
-	if (entry.vendor == ConsumablesVendor::Pepin && item._iMagical == ITEM_QUALITY_NORMAL)
+	if (entry.vendor == ConsumablesVendor::Pepin && item._iMagical == ITEM_QUALITY_NORMAL && item.isPotion()) // potions only (round 12)
 		item._iIdentified = false;
 	StoreAutoPlace(item, true);
 	UpdateSmithConsumablesStockAfterPurchase(entry);
@@ -4923,7 +4935,7 @@ int ShopBuyPotionStack(TalkID id, int index)
 	    || (id == TalkID::SmithConsumables && SmithConsumablesStock()[static_cast<size_t>(index)].vendor == ConsumablesVendor::Pepin);
 	if (id == TalkID::SmithConsumables && pepin)
 		stack._iCreateInfo = 0;
-	if (pepin && stack._iMagical == ITEM_QUALITY_NORMAL)
+	if (pepin && stack._iMagical == ITEM_QUALITY_NORMAL && stack.isPotion()) // potions only (round 12)
 		stack._iIdentified = false;
 
 	// The largest stack that fits. Placement is all-or-nothing and a stack goes whole to the belt or

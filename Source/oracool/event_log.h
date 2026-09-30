@@ -85,6 +85,8 @@ void DrawEventLogWindow(const Surface &out);
  * kill just gets silently overwritten by whatever damages the player next.
  */
 void NotePendingDeathSource(std::string source);
+/** @brief Forgets the pending source: the blow it named did not kill (ApplyPlrDamage). */
+void ClearPendingDeathSource();
 
 /**
  * @brief Logs a player death, attributing it to whatever NotePendingDeathSource last recorded, or

@@ -10,6 +10,8 @@
 
 namespace devilution {
 
+struct Player;
+
 /**
  * @brief Screen rect of the character sheet: 340x720, flush to the top-left corner.
  *
@@ -74,6 +76,8 @@ int GetSheetHitRecoveryFramesSkipped();
 int GetSheetBlockChancePercent();
 /** @brief How much of the target's armour an armour-pierce tier ignores, in percent (25, 50, 75, 87...). */
 int GetSheetArmorPiercePercent(int tier);
+/** @brief The pierce @p player's melee applies: the tier's share, plus the Barbarian's eighth. */
+int GetSheetArmorPiercePercentFor(const Player &player);
 /** @brief The fixed 3/5% life steal; the random drain (RandomStealLife) is a flag of its own. */
 int GetSheetLifeStealPercent();
 /** @brief The fixed 3/5% mana steal; 0 under NoMana, which disables it. */

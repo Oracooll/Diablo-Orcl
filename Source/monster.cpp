@@ -150,6 +150,8 @@ void InitMonsterTRN(CMonster &monst)
 // top - an orphaned Luminous light at the spawn tile, a champion scaled from Ironhide armour.
 void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point position, bool ordinary = true)
 {
+	static uint32_t NextSpawnSerial = 0;
+	monster.spawnSerial = ++NextSpawnSerial; // Monster::spawnSerial - a new spawn in this slot
 	// Oracool: a slot being (re)used starts with no cry on it - see ClearWarcryStateForMonster.
 	oracool::ClearWarcryStateForMonster(monster);
 	oracool::ClearRfa12StateForMonster(monster);
@@ -935,6 +937,7 @@ void DeleteMonster(size_t activeIndex)
 	oracool::ClearColdStateForMonster(monster);
 	oracool::ClearPassiveMarksForMonster(monster);
 	oracool::OnCompanionFocusSlotFreed(monster.getId());
+	oracool::TelemetryForgetMonster(monster.getId()); // a minion's kill clock did not pass to the slot's next hostile (round 12)
 
 	ActiveMonsterCount--;
 	std::swap(ActiveMonsters[activeIndex], ActiveMonsters[ActiveMonsterCount]); // This ensures alive monsters are before ActiveMonsterCount in the array and any deleted monster after

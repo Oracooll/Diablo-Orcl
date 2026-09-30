@@ -4655,7 +4655,7 @@ bool CreateSetVendorItem(const Player &player, Item &item, int lvl,
 	// and a found one are the same kind of object. No ethereal roll: that is drop-only, and a vendor
 	// handing over an ethereal piece the player did not ask for is the case FinalizeSetPiece's own
 	// comment declines.
-	FinalizeSetPiece(item, std::max(lvl, def.requiredLevel), /*allowEtherealRoll=*/false);
+	FinalizeSetPiece(item, std::max(oracool::VendorItemLevel(lvl), def.requiredLevel), /*allowEtherealRoll=*/false); // lifted (round 12)
 	item._iIdentified = true;
 	item._iStatFlag = player.CanUseItem(item);
 	// The caller needs to know WHICH definition was built, so its next call can exclude it. Handing
@@ -8638,8 +8638,11 @@ int StockVendorTypedItems(Item *stock, int capacity, int lvl, int want, ItemType
 			// restocks on every town visit and Refresh (round 3 audit, v1.12.228).
 			std::array<bool, MaxUniqueItems> uniquesBefore;
 			std::copy(std::begin(UniqueItemFlags), std::end(UniqueItemFlags), uniquesBefore.begin());
+			// At the difficulty-lifted item level every other shelf stamps: Adria's rare staves never reached a Hell or
+			// Torment tier and her guaranteed books stayed at the Normal band (round 12 audit, v1.12.237).
 			SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), lvl, 1, onlygood,
-			    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/forcedTier.has_value(), forcedTier);
+			    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/forcedTier.has_value(), forcedTier,
+			    /*itemLevel=*/oracool::VendorItemLevel(lvl));
 			std::copy(uniquesBefore.begin(), uniquesBefore.end(), std::begin(UniqueItemFlags));
 			item._iDurability = item._iMaxDur; // sold whole, not worn like a drop
 			if (forcedTier.has_value() && item._iOracoolTier != *forcedTier)
@@ -9227,6 +9230,7 @@ void RollGambleResult(Item &out, _item_indexes base, int lvl)
 	const uint32_t seed = AdvanceRndSeed();
 	SetupAllItems(*MyPlayer, out, base, seed, ilvl, /*uper=*/1, /*onlygood=*/true, /*recreate=*/false, /*pregen=*/false);
 	out._iIdentified = true;
+	out._iDurability = out._iMaxDur; // bought whole, as every shelf's stock is - it came out worn like a drop (round 12)
 	out._iCreateInfo = std::min(ilvl, static_cast<int>(CF_LEVEL)) | (IsOracoolGearBase(base) ? 0 : CF_BOY);
 }
 

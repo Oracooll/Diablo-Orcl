@@ -671,10 +671,14 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			if (missile._micaster == TARGET_MONSTERS) {
 				if ((pid - 1) != missile._misource)
 					isPlayerHit = Plr2PlrMHit(Players[missile._misource], pid - 1, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, &blocked);
-			} else if (!missile.sourceMinion && !oracool::IsMonsterConverted(Monsters[missile._misource])) {
+			} else if (Monster *const live = missile.liveSourceMonster(); live == nullptr && !missile.sourceMinion) {
+				// Its caster is gone and the slot holds another spawn: the shot lands as a trap's would, answering to
+				// no one (round 12 audit, v1.12.237 - the new occupant's to-hit, heal and name were read).
+				isPlayerHit = PlayerMHit(pid - 1, nullptr, missile._midist, minDamage, maxDamage, missile._mitype, damageType, isDamageShifted, DeathReason::MonsterOrTrap, &blocked);
+			} else if (!missile.sourceMinion && !oracool::IsMonsterConverted(*live)) {
 				// A hero's own minions never shoot the hero (2026-09-26): their shots are aimed at monsters and
 				// used to wound any player standing in the line - the Skeletal Mage's firebolts made it plain.
-				Monster &monster = Monsters[missile._misource];
+				Monster &monster = *live;
 				// The Snow Witch's blue star and a Glacial monster's missiles strike a hero as cold (2026-09-26).
 				const DamageType element = oracool::MonsterMissileElement(monster, damageType);
 				isPlayerHit = PlayerMHit(pid - 1, &monster, missile._midist, minDamage, maxDamage, missile._mitype, element, isDamageShifted, DeathReason::MonsterOrTrap, &blocked);
@@ -1198,9 +1202,10 @@ void GetDamageAmtAtLevel(SpellID i, int sl, int *mind, int *maxd)
 		break;
 	case SpellID::Healing:
 	case SpellID::HealOther:
-		/// BUGFIX: healing calculation is unused
-		*mind = AddClassHealingBonus(myPlayer._pLevel + sl + 1, myPlayer._pClass) - 1;
-		*maxd = AddClassHealingBonus((4 * myPlayer._pLevel) + (6 * sl) + 10, myPlayer._pClass) - 1;
+		// AddHealing's own range: 1 + L + sl up to 10 + 4L + 6sl, then the class bonus. The table took one off both ends
+		// (round 12 audit, v1.12.237).
+		*mind = AddClassHealingBonus(myPlayer._pLevel + sl + 1, myPlayer._pClass);
+		*maxd = AddClassHealingBonus((4 * myPlayer._pLevel) + (6 * sl) + 10, myPlayer._pClass);
 		break;
 	case SpellID::RuneOfLight:
 	case SpellID::Lightning:
@@ -1251,14 +1256,16 @@ void GetDamageAmtAtLevel(SpellID i, int sl, int *mind, int *maxd)
 		*mind = ScaleSpellEffect(base, sl);
 		*maxd = ScaleSpellEffect(base + 36, sl);
 	} break;
-	case SpellID::Guardian: {
-		int base = (myPlayer._pLevel / 2) + 1;
-		*mind = ScaleSpellEffect(base, sl);
-		*maxd = ScaleSpellEffect(base + 9, sl);
-	} break;
+	case SpellID::Guardian:
+		// The Guardian shoots Firebolts, and AddFirebolt rolls a hero's bolt as magic/8 + level + 1 plus 0-9 at the
+		// Guardian's spell level - the level-based roll the table showed is computed and never used (round 12 audit).
+		*mind = (myPlayer._pMagic / 8) + sl + 1;
+		*maxd = *mind + 9;
+		break;
 	case SpellID::ChainLightning:
-		*mind = 4;
-		*maxd = 4 + (2 * myPlayer._pLevel);
+		// Each bolt is a LightningControl rolling 2 to 2 + L, as Lightning's are; the table showed twice that (round 12).
+		*mind = 2;
+		*maxd = 2 + myPlayer._pLevel;
 		break;
 	case SpellID::FlameWave:
 		*mind = 6 * (myPlayer._pLevel + 1);
@@ -1288,10 +1295,9 @@ void GetDamageAmtAtLevel(SpellID i, int sl, int *mind, int *maxd)
 		*maxd = *mind * 6;
 		break;
 	case SpellID::Elemental:
-		*mind = ScaleSpellEffect(2 * myPlayer._pLevel + 4, sl);
-		/// BUGFIX: add here '*mind /= 2;'
-		*maxd = ScaleSpellEffect(2 * myPlayer._pLevel + 40, sl);
-		/// BUGFIX: add here '*maxd /= 2;'
+		// Halved, as AddElemental halves the missile's damage (round 12 audit: the table showed twice the hit).
+		*mind = ScaleSpellEffect(2 * myPlayer._pLevel + 4, sl) / 2;
+		*maxd = ScaleSpellEffect(2 * myPlayer._pLevel + 40, sl) / 2;
 		break;
 	case SpellID::ChargedBolt:
 		*mind = 1;
@@ -4536,6 +4542,7 @@ Missile *AddMissile(Point src, Point dst, Direction midir, MissileID mitype,
 			missile._miUniqTrans = monster.uniqTrans + 1;
 		}
 		missile.sourceMinion = monster.isPlayerMinion(); // its side, fixed now (Missile::sourceMinion)
+		missile.sourceSpawnSerial = monster.spawnSerial; // and which spawn fired it (Missile::liveSourceMonster)
 	}
 
 	if (missile._miAnimType == MissileGraphicID::None || GetMissileSpriteData(missile._miAnimType).animFAmt < 8)
@@ -4641,6 +4648,13 @@ void ProcessElementalArrow(Missile &missile)
 			}
 			SetMissAnim(missile, eAnim);
 			CheckMissileCol(missile, damageType, eMind, eMaxd, false, missile.position.tile, true);
+			// A hero's fire arrow carries the lightning as well, when the bow has both from sockets, shards or Enchant
+			// (DoRangeAttack sends one fire arrow for the pair; round 12 audit, v1.12.237).
+			if (missile._mitype == MissileID::FireArrow && !missile.IsTrap() && missile._micaster == TARGET_MONSTERS && !gbIsMultiplayer) {
+				const Player &player = Players[p];
+				if (player._pILMaxDam > 0)
+					CheckMissileCol(missile, DamageType::Lightning, player._pILMinDam, player._pILMaxDam, false, missile.position.tile, true);
+			}
 		} else {
 			if (missile.position.tile != Point { missile.var1, missile.var2 }) {
 				missile.var1 = missile.position.tile.x;
@@ -4672,9 +4686,14 @@ void ProcessArrow(Missile &missile)
 	} break;
 	case MissileSource::Monster: {
 		// BUGFIX: damage of missile should be encoded in missile struct; monster can be dead before missile arrives.
-		const Monster &monster = *missile.sourceMonster();
-		mind = monster.minDamage;
-		maxd = monster.maxDamage;
+		// Oracool: while the slot still holds the archer (round 12 audit); after, the arrow lands as a trap's.
+		if (const Monster *monster = missile.liveSourceMonster(); monster != nullptr) {
+			mind = monster->minDamage;
+			maxd = monster->maxDamage;
+		} else {
+			mind = currlevel;
+			maxd = 2 * currlevel;
+		}
 	} break;
 	case MissileSource::Trap:
 		mind = currlevel;

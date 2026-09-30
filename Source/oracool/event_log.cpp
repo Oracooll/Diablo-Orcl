@@ -272,6 +272,11 @@ void NotePendingDeathSource(std::string source)
 	PendingDeathSource = std::move(source);
 }
 
+void ClearPendingDeathSource()
+{
+	PendingDeathSource.clear();
+}
+
 void LogPlayerDeath(const std::string &fallbackReason)
 {
 	const std::string &source = PendingDeathSource.empty() ? fallbackReason : PendingDeathSource;

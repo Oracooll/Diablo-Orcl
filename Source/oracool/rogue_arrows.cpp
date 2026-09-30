@@ -249,8 +249,14 @@ void RogueArrowDamage(const Player &player, SpellID spell, int spellLevel, int &
 	}
 	case RogueArrow::MultipleShot:
 	case RogueArrow::GuidedArrow:
-	case RogueArrow::Strafe:
+	case RogueArrow::Strafe: {
+		// Physical arrows: MonsterMHit adds the +%, the flat bonus and the Strength part to them, so the slot quotes the
+		// same sum - it read the bare weapon dice (round 12 audit, v1.12.237).
+		const int strength = player._pClass == HeroClass::Rogue ? player._pDamageMod : player._pDamageMod / 2;
+		minDamage += minDamage * player._pIBonusDam / 100 + player._pIBonusDamMod + strength;
+		maxDamage += maxDamage * player._pIBonusDam / 100 + player._pIBonusDamMod + strength;
 		break;
+	}
 	}
 }
 

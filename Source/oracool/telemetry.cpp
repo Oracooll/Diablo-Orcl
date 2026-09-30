@@ -153,6 +153,12 @@ void TelemetryRecordFirstHit(const Monster &monster)
 		FirstHitAtMs[id] = GameTicks + 1U;
 }
 
+void TelemetryForgetMonster(size_t monsterId)
+{
+	if (monsterId < MaxMonsters)
+		FirstHitAtMs[monsterId] = 0;
+}
+
 void TelemetryTick()
 {
 	GameTicks++;

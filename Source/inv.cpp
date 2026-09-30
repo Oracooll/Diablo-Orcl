@@ -319,6 +319,9 @@ void RemoveExtraTabItem(Player &player, int tabIndex, int iv)
 				itemIndex = -(iv + 1);
 		}
 	}
+	// The readied scroll list, as Player::RemoveInvItem keeps it: the last Town Portal read from page 3 stayed readied
+	// and every later click failed without a word (round 12 audit, v1.12.237).
+	player.CalcScrolls();
 }
 
 /**
@@ -2113,8 +2116,11 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 
 bool CanBePlacedOnBelt(const Item &item)
 {
+	// Not a Sealed Map or a Guardian Keystone: both are spent from where they lie long after the key is pressed, and
+	// the belt was a place neither spend looked (round 12 audit, v1.12.237).
 	return FitsInBeltSlot(item)
 	    && item._itype != ItemType::Gold
+	    && item._iMiscId != IMISC_ORACOOL_MAP && item._iMiscId != IMISC_ORACOOL_KEYSTONE
 	    && MyPlayer->CanUseItem(item)
 	    && item.isUsable();
 }
@@ -4579,7 +4585,12 @@ bool UseInvItem(int cii)
 		// Consumed only once the encounter has actually opened.
 		if (&player == MyPlayer)
 			oracool::PlayUiEventSound(oracool::UiEventSound::MapUnseal);
-		ConsumeUsedBackpackItem(player, c, item);
+		// From its own list: a map read from the belt removed backpack item c and stayed on the belt, ready to open
+		// the encounter again - and with an empty backpack drove _pNumInv to -1 (round 12 audit, v1.12.237).
+		if (speedlist)
+			DecrementOrRemoveSpdBarItem(player, c);
+		else
+			ConsumeUsedBackpackItem(player, c, item);
 		return true;
 	}
 

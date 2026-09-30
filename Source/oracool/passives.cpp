@@ -633,7 +633,7 @@ bool PassiveCheatsDeath(Player &player)
 	if (PassiveActive(player, Skill::FinalService) && clocks.finalServiceLevel != FloorStamp() && MinionCount(player) > 0) {
 		clocks.finalServiceLevel = FloorStamp();
 		DismissMinions(player);
-		SetPlayerHitPoints(player, player._pMaxHP / FinalServiceLifeDivisor);
+		SetPlayerHitPoints(player, std::max(64, player._pMaxHP / FinalServiceLifeDivisor)); // at least 1 life (round 12 audit)
 		return true;
 	}
 	if (clocks.cheatDeathCooldown > 0)
@@ -644,7 +644,8 @@ bool PassiveCheatsDeath(Player &player)
 	    && !PassiveActive(player, Skill::Awareness))
 		return false;
 
-	SetPlayerHitPoints(player, player._pMaxHP / CheatDeathLifeDivisor);
+	// At least 1 life: under 3 maximum life (Black Death) the save left under one and the next tick killed (round 12).
+	SetPlayerHitPoints(player, std::max(64, player._pMaxHP / CheatDeathLifeDivisor));
 	if (nearDeath) {
 		// Restores: never lowers a fuller pool (round 4 audit - a Monk at 90% mana came back at 33%).
 		player._pMana = std::max(player._pMana, player._pMaxMana / CheatDeathLifeDivisor);

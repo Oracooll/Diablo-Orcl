@@ -16447,3 +16447,27 @@ TEST(OracoolAudit11, PrimalDefaultIsNotRoundedToZero)
 	EXPECT_EQ(oracool::QualityChancePerMille(OracoolItemTier::Primal, bandOneLevel, 1), 1);
 	EXPECT_EQ(oracool::QualityChancePerMille(OracoolItemTier::Primal, 1, 1), 0) << "band 0 is still no Primal at all";
 }
+
+// Round 12 audit (v1.12.237). The spell table the sheet quotes disagreed with the missiles: Chain Lightning showed twice a
+// bolt (each is a LightningControl, as Lightning's are), Elemental twice its halved hit, and Guardian a level roll its
+// Firebolts never use.
+TEST(OracoolAudit12, SpellTableQuotesWhatTheMissileRolls)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	Players[0]._pLevel = 30;
+	Players[0]._pMagic = 120;
+	int chainMin = 0, chainMax = 0, boltMin = 0, boltMax = 0;
+	GetDamageAmtAtLevel(SpellID::ChainLightning, 5, &chainMin, &chainMax);
+	GetDamageAmtAtLevel(SpellID::Lightning, 5, &boltMin, &boltMax);
+	EXPECT_EQ(chainMin, boltMin);
+	EXPECT_EQ(chainMax, boltMax);
+	int guardMin = 0, guardMax = 0, fireMin = 0, fireMax = 0;
+	GetDamageAmtAtLevel(SpellID::Guardian, 5, &guardMin, &guardMax);
+	GetDamageAmtAtLevel(SpellID::Firebolt, 5, &fireMin, &fireMax);
+	EXPECT_EQ(guardMin, fireMin) << "the Guardian's bolts are Firebolts at its level";
+	EXPECT_EQ(guardMax, fireMax);
+	int elemMin = 0, elemMax = 0;
+	GetDamageAmtAtLevel(SpellID::Elemental, 1, &elemMin, &elemMax);
+	EXPECT_LE(elemMax, (2 * 30 + 40) * 3 / 4) << "AddElemental halves the hit; the table quoted it whole";
+}

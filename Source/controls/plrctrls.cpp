@@ -2045,8 +2045,12 @@ void PerformPrimaryAction()
 		if (pcurs > CURSOR_HAND && pcurs < CURSOR_FIRSTITEM) {
 			if (pcurs == CURSOR_HOURGLASS)
 				return;
+			// An oil refused by its target stays on the cursor, as the mouse keeps it: the oil was spent when it was
+			// picked, so dropping the cursor threw it away (round 12 audit, v1.12.237).
+			const bool wasOil = pcurs == CURSOR_OIL;
 			TryIconCurs();
-			NewCursor(CURSOR_HAND);
+			if (!(wasOil && pcurs == CURSOR_OIL))
+				NewCursor(CURSOR_HAND);
 		} else if (oracool::GetInventoryPanelRect().contains(MousePosition) || GetMainPanel().contains(MousePosition)) {
 			int inventorySlot = (Slot >= 0) ? Slot : FindClosestInventorySlot(MousePosition, MyPlayer->HoldItem);
 
@@ -2269,6 +2273,10 @@ void PerformSpellAction()
 void CtrlUseInvItem()
 {
 	if (pcursinvitem == -1) {
+		// Backpack pages 2-10 hover through pcursinvtabitem, as the mouse's use does (diablo.cpp): the pad could not
+		// use anything there (round 12 audit, v1.12.237).
+		if (pcursinvtabitem != -1)
+			UseInvItem(pcursinvtabitem + INVITEM_INV_FIRST);
 		return;
 	}
 
@@ -2323,8 +2331,10 @@ void PerformSecondaryAction()
 	Player &myPlayer = *MyPlayer;
 	if (invflag) {
 		if (pcurs > CURSOR_HAND && pcurs < CURSOR_FIRSTITEM) {
+			const bool wasOil = pcurs == CURSOR_OIL; // a refused oil stays (round 12 audit)
 			TryIconCurs();
-			NewCursor(CURSOR_HAND);
+			if (!(wasOil && pcurs == CURSOR_OIL))
+				NewCursor(CURSOR_HAND);
 		} else if (IsStashOpen) {
 			if (pcursstashitem != StashStruct::EmptyCell) {
 				TransferItemToInventory(myPlayer, pcursstashitem);

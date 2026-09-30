@@ -1191,7 +1191,13 @@ bool DoRangeAttack(Player &player)
 			if (lightningArrows) {
 				mistype = MissileID::LightningArrow;
 			}
-			if (fireArrows && lightningArrows) {
+			// Spectral only for the two Hellfire flags together, the item's own behaviour. Fire and lightning from
+			// sockets, shards or Enchant ride one fire arrow instead - its hit carries the lightning too (see
+			// ProcessElementalArrow). Made Spectral, the arrow dropped both elements and the bow's own damage (round 12
+			// audit, v1.12.237 - a regression of v1.12.236).
+			if (fireArrows && lightningArrows && !HasAllOf(player._pIFlags, ItemSpecialEffect::FireArrows | ItemSpecialEffect::LightningArrows))
+				mistype = MissileID::FireArrow;
+			else if (fireArrows && lightningArrows) {
 				dmg = player._pIFMinDam + GenerateRnd(player._pIFMaxDam - player._pIFMinDam);
 				mistype = MissileID::SpectralArrow;
 			}
@@ -3571,8 +3577,11 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 		}
 	}
 
-	if (totalDamage == 0)
+	if (totalDamage == 0) {
+		if (&player == MyPlayer)
+			oracool::ClearPendingDeathSource(); // nothing reached the hero (round 12 audit)
 		return;
+	}
 
 	RedrawComponent(PanelDrawComponent::Health);
 	player._pHitPoints -= totalDamage;
@@ -3592,11 +3601,14 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 	// Mercy (RfA-12) answers a blow that leaves you low but standing.
 	if (player._pHitPoints >> 6 > 0)
 		oracool::OnRfa12PlayerDamaged(player);
-	if (player._pHitPoints >> 6 <= 0 && oracool::PassiveCheatsDeath(player))
-		return;
-	if (player._pHitPoints >> 6 <= 0) {
+	if (player._pHitPoints >> 6 <= 0 && !oracool::PassiveCheatsDeath(player)) {
 		SyncPlrKill(player, deathReason);
+		return;
 	}
+	// A blow the hero survived names no one: its source stayed pending, and a later death to a burning cross, a Drain
+	// Life tick or a Blood Star's cost was logged as the last monster's, minutes and floors away (round 12 audit).
+	if (&player == MyPlayer)
+		oracool::ClearPendingDeathSource();
 }
 
 void SyncPlrKill(Player &player, DeathReason deathReason)
@@ -3700,8 +3712,11 @@ void RestartTownLvl(Player &player)
 	player._pMana = 0;
 	player._pManaBase = player._pMana - (player._pMaxMana - player._pMaxManaBase);
 
-	CalcPlrInv(player, false);
+	// Out of PM_DEATH before the totals: a dead hero's aura counts for nothing (GetActiveClassAura), so the lit aura's
+	// life and resistances were left out - a life aura took the 1 life below zero and the hero arrived dead in town,
+	// and its bonuses stayed missing until the next re-equip (round 12 audit, v1.12.237).
 	player._pmode = PM_NEWLVL;
+	CalcPlrInv(player, false);
 
 	if (&player == MyPlayer) {
 		player._pInvincible = true;
