@@ -622,10 +622,19 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			// since MonsterTrapHit runs MonsterDeath itself and the kill's experience goes to whoever
 			// is tagged, and credit Life Tap and the army's on-blow effects after, as the melee seam does.
 			// Only while the slot still holds the minion that fired it (Missile::sourceMinion).
-			const Player *armyOwner = !missile.IsTrap() && missile._micaster == TARGET_PLAYERS && missile.sourceMinion
-			        && Monsters[missile._misource].isPlayerMinion()
-			    ? oracool::MinionOwner(Monsters[missile._misource])
+			// The mage that FIRED it, not whoever holds its slot now (liveSourceMonster checks the spawn): a reused slot gave
+			// another minion's habits or no credit at all (round 25 audit).
+			Monster *const shooter = !missile.IsTrap() && missile._micaster == TARGET_PLAYERS ? missile.liveSourceMonster() : nullptr;
+			const Player *armyOwner = shooter != nullptr && missile.sourceMinion && shooter->isPlayerMinion()
+			    ? oracool::MinionOwner(*shooter)
 			    : nullptr;
+			// An enemy's shot at the army is blunted by Weaken and Decrepify, as its blow is since round 20 (round 25 audit).
+			if (shooter != nullptr && !missile.sourceMinion && Monsters[mid].isPlayerMinion()) {
+				if (const int weakened = oracool::MonsterDebuffDamagePercent(*shooter); weakened != 0) {
+					minDamage = std::max(minDamage + minDamage * weakened / 100, 1);
+					maxDamage = std::max(maxDamage + maxDamage * weakened / 100, minDamage);
+				}
+			}
 			if (armyOwner != nullptr) {
 				Monsters[mid].tag(*armyOwner);
 				// Frenzy of the Dead's "minion damage" reaches a Skeletal Mage's bolt too, not only a blow (round 14 audit).

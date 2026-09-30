@@ -1592,8 +1592,6 @@ size_t OnSpellTile(const TCmd *pCmd, Player &player)
 	player.destParam1 = position.x;
 	player.destParam2 = position.y;
 	player.destParam3 = player.GetSpellLevel(player.queuedSpell.spellId);
-	if (oracool::IsBuiltInPortalAbility(player.queuedSpell.spellId))
-		player.destParam3 = std::max(player.destParam3, 1); // the Portal casts at 1 under -spell-level gear (round 24)
 
 	return sizeof(message);
 }

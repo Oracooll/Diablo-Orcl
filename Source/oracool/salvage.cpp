@@ -245,7 +245,9 @@ bool SalvageSingleItem(Player &player, int tab, int index, SalvageTier *tierOut,
 			return false;
 		item = &player.InvTabList[tab][index];
 	}
-	if (!IsSalvageable(*item))
+	// Nor one with stones in it, one at a time either: the plates refuse it since round 24, and the hand-picked salvage
+	// ate a Rare's runes with it (round 25 audit). Free the Sockets first.
+	if (!IsSalvageable(*item) || item->socketedCount() > 0)
 		return false;
 	const SalvageTier tier = SalvageTierOf(*item);
 	const int materials = SalvageYield(*item);

@@ -435,7 +435,7 @@ void ProcessAutoSave()
 	// What SaveGame() used to do for us on the way out: reset the interval and clear any pending
 	// request, so the next save is timed from this one. Through NotifyGameSaved rather than by
 	// touching LastSave and SavePending here, because that is the one function that owns them.
-	gbValidSaveFile = true;
+	// (Not gbValidSaveFile: it means "the archive holds a game", and this saved the character only - round 25 audit.)
 	NotifyGameSaved();
 	LogEvent("Game saved (auto)", UiFlags::ColorWhite);
 	if (*sgOptions.Oracool.autoSaveNotification)

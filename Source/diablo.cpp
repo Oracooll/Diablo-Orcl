@@ -647,8 +647,11 @@ void LeftMouseDown(uint16_t modState)
 
 	// A targeting cursor (a Teleport or Fire Wall scroll, a targeted skill) over a window is put away, not fired: it
 	// cast at the last world tile hovered, through the window's X or an empty cell (round 3 audit, v1.12.228).
-	if (pcurs == CURSOR_TELEPORT && IsOverAnyInterface(MousePosition))
+	// ...and that is the whole click: it went on to pick up the item or potion under the window (round 25 audit).
+	if (pcurs == CURSOR_TELEPORT && IsOverAnyInterface(MousePosition)) {
 		NewCursor(CURSOR_HAND);
+		return;
+	}
 
 	if (!isOverHud) {
 		if (!gmenu_is_active() && !TryIconCurs()) {
@@ -684,6 +687,11 @@ void LeftMouseDown(uint16_t modState)
 				// again. Routed here with the other three rather than in a handler of its own,
 				// because this block is where the X is deliberately tested ahead of everything else.
 				oracool::ToggleEventLog();
+			} else if (qtextflag) {
+				// The quest text is drawn OVER the left panels, so it takes the click first, as vanilla's did and as the right
+				// button does: a click on a stash cell or waypoint row under it acted and left the text up (round 25 audit).
+				qtextflag = false;
+				stream_stop();
 			} else if (IsOverLeftPanel(MousePosition)) {
 				switch (GetLeftPanelContent()) {
 				case LeftPanelContent::Character:
@@ -708,9 +716,6 @@ void LeftMouseDown(uint16_t modState)
 				}
 			} else if (oracool::IsHudMenuOpen()) {
 				oracool::CheckHudMenuClick(MousePosition);
-			} else if (qtextflag) {
-				qtextflag = false;
-				stream_stop();
 			} else if (oracool::IsAdvancedStatsOpen() && oracool::GetAdvancedStatsRect().contains(MousePosition)
 			    && oracool::HandleAdvancedStatsClick(MousePosition)) {
 				// Ahead of the inventory and the Abilities window: it lies over them where they overlap (2026-09-27),
@@ -933,6 +938,13 @@ void RightMouseDown(bool isShiftHeld)
 	// The same modal owners the left button now respects. See LeftMouseDown.
 	if (IsModalPromptOpen())
 		return;
+	// The chat log and the help text are modal for the right button too: it drank, equipped or readied what lay hidden
+	// under the parchment (round 25 audit, v1.12.250).
+	if (ChatLogFlag || HelpFlag) {
+		ChatLogFlag = false;
+		HelpFlag = false;
+		return;
+	}
 
 	if (gmenu_is_active() || sgnTimeoutCurs != CURSOR_NONE || PauseMode == 2 || MyPlayer->_pInvincible) {
 		return;
@@ -2542,6 +2554,14 @@ void HelpKeyPressed()
 		AddPanelString(_("while in stores"));
 		LastMouseButtonAction = MouseActionType::None;
 	} else {
+		// Every window, the fork's too, as the chat log closes them: the wheel scrolled a hidden Cube or book under the help
+		// text (round 25 audit). The automap and the event log are not covered by it and stay.
+		const bool automap = AutomapActive;
+		const bool eventLog = oracool::IsEventLogOpen();
+		CloseAllWindows();
+		AutomapActive = automap;
+		if (eventLog && !oracool::IsEventLogOpen())
+			oracool::ToggleEventLog();
 		CloseInventory();
 		CloseCharPanel();
 		sbookflag = false;

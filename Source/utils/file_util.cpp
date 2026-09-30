@@ -406,11 +406,20 @@ bool ReplaceFileAtomically(const char *from, const char *to)
 	// MOVEFILE_REPLACE_EXISTING is the whole reason this exists rather than RenameFile.
 	// MOVEFILE_WRITE_THROUGH makes the call return only once the change is on the disk, so a
 	// power cut just after it cannot undo a swap we have already told the player succeeded.
-	if (::MoveFileExW(&fromUtf16[0], &toUtf16[0], MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == 0) {
-		LogError("MoveFileExW(\"{}\", \"{}\") failed with error code {}", from, to, ::GetLastError());
-		return false;
+	// Retried briefly on a sharing or lock refusal: an antivirus or a sync client opening the freshly closed file for a
+	// moment refused the swap once and for all - after the hero file had already been published, leaving a new hero
+	// beside an old stash (Oracool, round 25 audit).
+	for (int attempt = 0;; attempt++) {
+		if (::MoveFileExW(&fromUtf16[0], &toUtf16[0], MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0)
+			return true;
+		const DWORD error = ::GetLastError();
+		const bool transient = error == ERROR_SHARING_VIOLATION || error == ERROR_ACCESS_DENIED || error == ERROR_LOCK_VIOLATION;
+		if (!transient || attempt >= 5) {
+			LogError("MoveFileExW(\"{}\", \"{}\") failed with error code {}", from, to, error);
+			return false;
+		}
+		::Sleep(50);
 	}
-	return true;
 #elif defined(DVL_HAS_FILESYSTEM)
 	std::error_code ec;
 	// std::filesystem::rename replaces an existing destination, unlike ::rename on Windows.

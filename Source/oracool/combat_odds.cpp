@@ -118,7 +118,7 @@ bool ChanceToHit(const Player &player, int &chance, std::string &name)
 	} else {
 		// PlrHitMonst's. Zeal the way the sheet's To hit row reads it - on a button, at its rank - because standing
 		// in the sheet there is no swing for the in-combat latch to describe.
-		const bool bow = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow;
+		const bool bow = player.UsesRangedWeapon(); // as the swing decides it (round 25 audit)
 		const int zeal = (!bow && IsZealReadied(player)) ? ZealToHitBonusAtRank(player) : 0;
 		hit = player.GetMeleePiercingToHit() - player.CalculateArmorPierce(LastTarget.armor, true) + zeal;
 	}

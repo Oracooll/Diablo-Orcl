@@ -294,6 +294,9 @@ void gmenu_set_items(TMenuItem *pItem, void (*gmFunc)())
 {
 	PauseMode = 0;
 	isDraggingSlider = false;
+	// A menu CLOSING saves the options, not a close with none open: Space, every HUD-menu entry and every well click call
+	// gamemenu_off, and each wrote and flushed diablo.ini on the main thread (round 25 audit, v1.12.250).
+	const bool menuWasOpen = sgpCurrentMenu != nullptr;
 	sgpCurrentMenu = pItem;
 	gmenu_current_option = gmFunc;
 	if (gmenu_current_option != nullptr) {
@@ -308,7 +311,7 @@ void gmenu_set_items(TMenuItem *pItem, void (*gmFunc)())
 	// BUGFIX: OOB access when sgCurrentMenuIdx is 0; should be set to NULL instead. (fixed)
 	sgpCurrItem = sgCurrentMenuIdx > 0 ? &sgpCurrentMenu[sgCurrentMenuIdx - 1] : nullptr;
 	GmenuUpDown(true);
-	if (sgpCurrentMenu == nullptr)
+	if (sgpCurrentMenu == nullptr && menuWasOpen)
 		SaveOptions();
 }
 

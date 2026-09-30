@@ -1258,6 +1258,10 @@ bool HandleLevskiRecipeBookScroll(int notches)
 	if (!WindowOpen || !RecipeBookOpen)
 		return false;
 	const Rectangle book = GetLevskiRecipeBookRect();
+	// Only with the cursor on the book, as the bezel list above: it took the wheel from the Abilities list, the event log
+	// and the dungeon zoom (round 25 audit).
+	if (!book.contains(MousePosition))
+		return false;
 	const Rectangle bookInner = RecipeBookInner(book);
 	if (bookInner.size.height <= 0)
 		return false;

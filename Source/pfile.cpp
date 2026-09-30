@@ -212,7 +212,8 @@ void Game2UiPlayer(const Player &player, _uiheroinfo *heroinfo, bool bHasSaveFil
 	heroinfo->armourClass = static_cast<uint16_t>(std::max(0, player.GetArmor() + player._pLevel * 2));
 	// The character sheet's Damage, not the bare weapon: the sheet's GetDamage adds the % bonus, the flat bonus and the
 	// Strength part (halved on a bow outside the Rogue) - hero-select read 10-20 where the sheet read 55-65 (round 4 audit).
-	const bool nonRogueBow = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow && player._pClass != HeroClass::Rogue;
+	const bool nonRogueBow = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow && player.InvBody[INVLOC_HAND_LEFT]._iStatFlag
+	    && player._pClass != HeroClass::Rogue; // a usable bow only (round 25 audit)
 	const int damageMod = player._pIBonusDamMod + (nonRogueBow ? player._pDamageMod / 2 : player._pDamageMod);
 	const int minDamage = player._pIMinDam + player._pIBonusDam * player._pIMinDam / 100 + damageMod;
 	const int maxDamage = player._pIMaxDam + player._pIBonusDam * player._pIMaxDam / 100 + damageMod;

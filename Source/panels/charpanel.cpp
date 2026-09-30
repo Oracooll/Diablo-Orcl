@@ -107,7 +107,8 @@ UiFlags GetMaxHealthColor()
 /** @brief The Strength (and class) part of GetDamage: _pDamageMod, halved on a bow outside the Rogue. */
 int GetStrengthDamageMod()
 {
-	if (InspectPlayer->InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow && InspectPlayer->_pClass != HeroClass::Rogue)
+	// A bow the hero can USE (UsesRangedWeapon): one under its requirements swings in melee at the full part (round 25).
+	if (InspectPlayer->UsesRangedWeapon() && InspectPlayer->_pClass != HeroClass::Rogue)
 		return InspectPlayer->_pDamageMod / 2;
 	return InspectPlayer->_pDamageMod;
 }
@@ -497,7 +498,7 @@ StyledText GetResistInfo(int8_t resist)
 /** @brief The "To hit" reading, for both sheets - the list's row and the grouped sheet's box. */
 StyledText ToHitReading()
 {
-	const bool bow = InspectPlayer->InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow;
+	const bool bow = InspectPlayer->UsesRangedWeapon(); // a usable bow: an unusable one swings in melee (round 25 audit)
 	// Zeal's accuracy is added in PlayerCanHitMonster, not folded into GetMeleeToHit, so this
 	// row was reporting a number the game does not use (user, 2026-09-02: "zeal doesnt seem
 	// to increased my cth according to the hero stats screen"). It was being applied - just

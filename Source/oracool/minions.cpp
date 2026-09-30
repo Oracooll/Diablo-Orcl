@@ -202,7 +202,11 @@ void MinionHurts(const Player &owner, Monster &monster, DamageType type, int dam
 		M_StartKill(monster, owner);
 		return;
 	}
-	M_StartHit(monster, owner, damage);
+	// Credited to the owner, flinched as a MONSTER's blow flinches it: the hero's hit path set its enemy to the hero,
+	// so the Fire Golem's burn and the Iron Golem's thorns turned their attackers onto the Necromancer - the opposite
+	// of a tank - and pulled the army's focus (round 25 audit, v1.12.250).
+	monster.tag(owner);
+	M_StartHit(monster, damage);
 }
 
 /** @brief Once a second, every Fire Golem of @p owner burns everything standing beside it for half a blow. */

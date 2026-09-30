@@ -2997,13 +2997,15 @@ int EffectiveMovementSpeedPercent(const Player &player)
 	// clamp, and the run - at least 6 ticks a stride, or 4 ticks under the walk while slowed. The sheet quoted the sum
 	// of the sources, which is not what the feet do once the run is on (round 12 audit, v1.12.237). The Charge dash is
 	// the skill's own and is left out.
-	const int walkTicks = std::clamp(1000 / MovementSpeedPercent(player), MinStrideTicks, MaxStrideTicks);
+	// In thousandths of a tick, as StrideTicksFor carries the fraction into the next stride: whole ticks made the sheet
+	// read 125% for 115% and 166% for 150% (round 25 audit, v1.12.250).
+	const int walkMilli = std::clamp(1000000 / std::max(MovementSpeedPercent(player), 10), MinStrideTicks * 1000, MaxStrideTicks * 1000);
 	const bool running = (leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0) || IsRunEnabled()
 	    || IsClassTreeRunActive(player) || IsWhirlwinding(player);
-	int ticks = walkTicks;
+	int milli = walkMilli;
 	if (running)
-		ticks = PlayerSlowPercent(player) > 0 ? std::max(walkTicks - 4, std::min(walkTicks, 6)) : std::min(walkTicks, 6); // as the feet (round 20)
-	return 1000 / ticks;
+		milli = PlayerSlowPercent(player) > 0 ? std::max(walkMilli - 4000, std::min(walkMilli, 6000)) : std::min(walkMilli, 6000); // as the feet (round 20)
+	return 1000000 / milli;
 }
 
 int StrideTicksFor(int percent, int &carryMilliTicks)

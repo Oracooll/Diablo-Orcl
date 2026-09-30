@@ -5365,7 +5365,7 @@ void ProcessMonsters()
 			// Nor one retreating or faded out (a Counselor's fade): its AI returns at activeForTicks 0 before the fade-in, and
 			// it stayed invisible and unhittable for the curse's length (round 24 audit).
 			const bool lostInTheDark = oracool::CursedMonsterBlinded(monster) && !oracool::FightsAsUnique(monster) && !oracool::MonsterMayNotice(monster)
-			    && monster.goal == MonsterGoal::Normal && (monster.flags & MFLAG_HIDDEN) == 0;
+			    && monster.goal != MonsterGoal::Retreat && (monster.flags & MFLAG_HIDDEN) == 0; // Retreat only (round 25): not a rallied Fallen
 			if (lostInTheDark) {
 				monster.activeForTicks = 0;
 			} else if (IsTileVisible(monster.position.tile) && (monster.activeForTicks != 0 || oracool::MonsterMayNotice(monster))) {

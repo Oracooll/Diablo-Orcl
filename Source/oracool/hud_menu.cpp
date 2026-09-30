@@ -21,6 +21,7 @@
 #include "minitext.h"
 #include "msg.h"
 #include "oracool/crafting_menu.h"
+#include "stores.h" // stextflag - no sheet over a store dialog
 #include "oracool/event_log.h"
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
@@ -56,9 +57,18 @@ struct HudMenuEntry {
 // history in git blame for the original 8), plus 2 new mini-map entries per the approved HUD
 // design. gamemenu_off() is called after every entry except "Game Menu" itself, matching the old
 // gamemenuOff bookkeeping CheckBtnUp used to do.
-void DoCharacter() { ToggleCharPanel(); }
+// Not over a store dialog, as the C and Q keys refuse there: the sheet drew over the shop panel while the hidden shop
+// took its clicks - a right click bought the item under it (round 25 audit, v1.12.250).
+void DoCharacter()
+{
+	if (stextflag != TalkID::None)
+		return;
+	ToggleCharPanel();
+}
 void DoQuests()
 {
+	if (stextflag != TalkID::None)
+		return;
 	CloseCharPanel();
 	CloseGoldWithdraw();
 	CloseStash();
@@ -80,6 +90,9 @@ void DoGameMenu()
 }
 void DoInventory()
 {
+	// The full-screen books close first, as the I key closes them (round 25 audit).
+	CloseCraftingMenu();
+	CloseRunewordBook();
 	sbookflag = false;
 	CloseGoldWithdraw();
 	CloseStash();
