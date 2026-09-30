@@ -4,6 +4,7 @@
  * See curses.h.
  */
 #include "oracool/curses.h"
+#include "oracool/sat_math.h" // AddPercentSat - the damage passives past int (round 27 audit)
 
 #include "oracool/endgame_boss.h" // FightsAsUnique - Diablo and the Dread bosses stand as uniques
 
@@ -390,17 +391,17 @@ int CurseDamageTaken(const Monster &monster, DamageType type, int damage)
 	switch (curse.kind) {
 	case CurseKind::AmplifyDamage:
 		if (type == DamageType::Physical)
-			damage += damage * AmplifyPercent(curse.rank) / 100;
+			damage = AddPercentSat(damage, AmplifyPercent(curse.rank)); // saturating, as every curse here (round 27 audit)
 		break;
 	case CurseKind::LowerResist:
 		if (IsAnyOf(type, DamageType::Fire, DamageType::Lightning, DamageType::Magic, DamageType::Acid))
-			damage += damage * LowerResistPercent(curse.rank) / 100;
+			damage = AddPercentSat(damage, LowerResistPercent(curse.rank));
 		break;
 	case CurseKind::Decrepify:
-		damage += damage * DecrepifyTakenPercent / 100;
+		damage = AddPercentSat(damage, DecrepifyTakenPercent);
 		break;
 	case CurseKind::Doom:
-		damage += damage * DoomPercent(curse.rank) / 100;
+		damage = AddPercentSat(damage, DoomPercent(curse.rank));
 		break;
 	default:
 		break;
@@ -431,15 +432,16 @@ void OnCursedMonsterStruck(const Monster &monster, Player &player, Monster *mini
 {
 	if (!Live(monster) || Of(monster).kind != CurseKind::LifeTap || damage <= 0)
 		return;
-	const int share = damage * LifeTapPercent(Of(monster).rank) / 100;
+	// In 64 bits: a huge hit's share wrapped negative and drained the Necromancer it was meant to heal (round 27 audit).
+	const int64_t share = PercentOfSat(damage, LifeTapPercent(Of(monster).rank));
 	if (minion != nullptr) {
-		minion->hitPoints = std::min(minion->hitPoints + share, minion->maxHitPoints);
+		minion->hitPoints = static_cast<int>(std::min<int64_t>(minion->hitPoints + share, minion->maxHitPoints));
 		return;
 	}
 	if (player._pHitPoints <= 0)
 		return;
-	player._pHitPoints = std::min(player._pHitPoints + share, player._pMaxHP);
-	player._pHPBase = std::min(player._pHPBase + share, player._pMaxHPBase);
+	player._pHitPoints = static_cast<int>(std::min<int64_t>(player._pHitPoints + share, player._pMaxHP));
+	player._pHPBase = static_cast<int>(std::min<int64_t>(player._pHPBase + share, player._pMaxHPBase));
 }
 
 bool CursedMonsterBlinded(const Monster &monster)

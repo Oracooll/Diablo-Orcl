@@ -162,6 +162,16 @@ int GemRequiredLevel(uint16_t itemIndex)
 	return GemLevelByQuality(quality);
 }
 
+int SocketedStoneLevel(uint16_t itemIndex)
+{
+	if (itemIndex == Item::EmptySocket || itemIndex > IDI_LAST)
+		return 0;
+	int socketed = std::max(RuneRequiredLevel(itemIndex), GemRequiredLevel(itemIndex));
+	if (socketed == 0 && IsOracoolJewelIdx(itemIndex))
+		socketed = std::max<int>(1, AllItemsList[itemIndex].iMinMLvl);
+	return socketed;
+}
+
 int BaseRequiredLevel(const Item &item)
 {
 	if (!AsksALevel(item))
@@ -213,13 +223,7 @@ int RequiredLevel(const Item &item)
 	// Sockets: a rune or gem raises the host to its own level; a runeword therefore asks its
 	// highest rune. Anything else socketed (a jewel) asks the level it drops from.
 	for (uint8_t s = 0; s < item._iSocketCount && s < Item::MaxItemSockets; s++) {
-		const uint16_t idx = item._iSocketed[s];
-		if (idx == Item::EmptySocket || idx > IDI_LAST)
-			continue;
-		int socketed = std::max(RuneRequiredLevel(idx), GemRequiredLevel(idx));
-		if (socketed == 0 && IsOracoolJewelIdx(idx))
-			socketed = std::max<int>(1, AllItemsList[idx].iMinMLvl);
-		level = std::max(level, socketed);
+		level = std::max(level, SocketedStoneLevel(item._iSocketed[s]));
 	}
 
 	level -= LevelRequirementReduction(item);

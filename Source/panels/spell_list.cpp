@@ -141,101 +141,15 @@ void DrawSpell(const Surface &out)
 	// skill readied afterwards ("combat skills don't assign to RMB"); for the next it wore a corner
 	// badge over the skill, which the user read as the aura failing to land at all. One slot, one
 	// occupant, is the version that answers both.
-	SpellID spl = myPlayer._pRSpell;
-	SpellType st = myPlayer._pRSplType;
-
-	if (!IsValidSpell(spl)) {
-		// Oracool: no spell readied IS the basic attack - that is exactly the state in which a
-		// right click swings rather than casts - so the well shows the attack's own icon instead of
-		// the engine's blank SpellID::Null tile. See oracool/attack_skills.h. Nothing follows: an
-		// unreadied slot has no hotkey to label and no cooldown to fill.
-		oracool::DrawRmbSkillWell(out);
-		return;
-	}
-
-	if (st == SpellType::Spell) {
-		int tlvl = myPlayer.GetSpellLevel(spl);
-		if (CheckSpell(*MyPlayer, spl, st, true) != SpellCheckResult::Success)
-			st = SpellType::Invalid;
-		if (tlvl <= 0)
-			st = SpellType::Invalid;
-	}
-
-	if (leveltype == DTYPE_TOWN && st != SpellType::Invalid && !GetSpellData(spl).isAllowedInTown())
-		st = SpellType::Invalid;
-
-	// The NET rect, exactly like every other well draw (user, 2026-08-19: "spells icons and
-	// background also need to respect the 46x46px size and also align where other abilities will
-	// align"). This path used to compute its own geometry from the button rect plus a hand nudge, so
-	// a readied SPELL sat a few pixels off from a readied SKILL in the same hole. The nudge moved to
-	// GetRmbSkillWellNetRect itself, where one correction serves all of them.
-	const Rectangle net = oracool::GetRmbSkillWellNetRect();
-
-	// Oracool: while Furious Charge is active, this slot renders Charge's own art (the Paladin strip,
-	// through TryDrawSkillSpellIcon below; FuriousChargeIcon's bare plate is only the fallback). User request - the cooldown fill grows in red (rather than
-	// the ready color) bottom-up as it cools, then flips to the normal ready tint the instant it's fully
-	// cooled, instead of gradually blending from gray to color.
-	// Oracool: user report (2026-08-15) - "the skill icons dont show on rmb". The fix that gave the
-	// LMB well the Paladin skills' own art went into oracool::DrawWellIcon, and THIS well only
-	// delegates there when nothing is readied - the moment a spell is on the button, the drawing
-	// happens right here instead, still asking the engine's icon sheet, where these skills have no
-	// frame and SpellITbl points at the empty plate. So the ask has to be repeated on this path.
+	// ONE draw for both wells (round 27 audit): this path drew a readied spell itself and drifted from DrawWellIcon -
+	// a book spell with a tree row kept full colour at 0 mana, a staff spell got no orange plate or charge count, and
+	// the well did not sink while held. DrawRmbSkillWell draws the lit aura, the basic attack and every readied spell.
 	//
-	// The strip icons anchor TOP-left where DrawSmallSpellIcon anchors bottom-left; the net rect is
-	// top-left, so the cooldown overlay below works from it directly.
-
-	// Oracool: user request (2026-08-16) - "skills unable to perform due to whatever reason to have
-	// their background turned into pink until able to perform again." For a Paladin skill the answer
-	// comes from its own gate (mana, shield, level); for an engine spell it is the st that the checks
-	// above already downgraded to Invalid. Pink rather than Invalid's grey, because grey already means
-	// "not learned" on the Abilities window.
-	oracool::SkillPlateTint wellTint = oracool::SkillPlateTint::Ready;
-	if (const std::optional<oracool::PaladinSkill> paladinSkill = oracool::PaladinSkillForSpell(spl);
-	    paladinSkill.has_value() && !oracool::CanUsePaladinSkill(myPlayer, *paladinSkill))
-		wellTint = oracool::SkillPlateTint::Blocked;
-	if (oracool::LacksShieldFor(myPlayer, spl))
-		wellTint = oracool::SkillPlateTint::Blocked; // a shield skill without a shield, Aegis Slam included (2026-09-29)
-	// A tree skill the hero cannot pay for - mana, Rage or Essence - is red too, as the click refuses it: only spells
-	// were asked, and every tree row is a Skill (round 19 audit, v1.12.244).
-	if (st == SpellType::Skill && CheckSpell(myPlayer, spl, st, /*manaonly=*/true) != SpellCheckResult::Success)
-		wellTint = oracool::SkillPlateTint::Blocked;
-
-	if (oracool::IsFuriousChargeSpell(spl)) {
-		const float progress = oracool::GetFuriousChargeCooldownProgress();
-		SetSpellTrans(st);
-		if (!oracool::TryDrawSkillSpellIcon(out, net, spl, wellTint))
-			DrawSpellIconFittedTo(out, oracool::SkillWellPlateRect(net), oracool::FuriousChargeIcon); // the 56px frame at the 56px opening (2026-09-05)
-		if (progress < 1.0f) {
-			// The cooldown still reads as a fill rising from the bottom, but as a DARKENED band over
-			// the part not yet cooled rather than as two differently-tinted copies of the sprite. The
-			// two-copy trick needed a single-ramp CLX to recolour; Charge's icon is a blitted image
-			// now, with no ramp to remap, and an overlay works on any art the user ships next.
-			const int cooled = static_cast<int>(net.size.height * progress);
-			if (cooled < net.size.height)
-				DrawHalfTransparentRectTo(out, net.position.x, net.position.y, net.size.width,
-				    net.size.height - cooled);
-		}
-	} else if (!oracool::TryDrawSkillSpellIcon(out, net, spl, wellTint)) {
-		// The engine-spell equivalent of the red plate (2026-09-05 coding): st has already been
-		// downgraded to Invalid by the checks above when the spell cannot be cast.
-		if (st == SpellType::Invalid)
-			SetSpellTransRed();
-		else
-			SetSpellTrans(st);
-		DrawSpellIconFittedTo(out, oracool::SkillWellPlateRect(net), spl); // the 56px frame at the 56px opening (2026-09-05)
-	}
-
-	// The HUD well's badges: the rank bottom-centre and the F-key top-right, the same pair the quick
-	// lists and the Abilities window put on the same icon (user, 2026-09-02). This path draws the
-	// right button's well ITSELF whenever a spell is readied - DrawRmbSkillWell only gets the empty
-	// and aura cases - so the shared helper has to be called here too, or the badges would appear on
-	// a lit aura and vanish the moment a skill was readied over it.
-	//
-	// GetHotkeyName goes in as the fallback: it also reads the vanilla QuickSpell9-12 slots, which
-	// have keymapper names rather than fixed F-numbers and which DrawWellBadges cannot name.
-	const std::optional<string_view> hotkeyName = GetHotkeyName(spl, myPlayer._pRSplType, true);
-	oracool::DrawWellBadges(out, net, spl, /*leftButton=*/false,
-	    hotkeyName ? *hotkeyName : string_view {});
+	// GetHotkeyName goes in as the badge fallback: it also reads the vanilla QuickSpell9-12 slots, which have keymapper
+	// names rather than fixed F-numbers and which DrawWellBadges cannot name.
+	const SpellID spl = myPlayer._pRSpell;
+	const std::optional<string_view> hotkeyName = IsValidSpell(spl) ? GetHotkeyName(spl, myPlayer._pRSplType, true) : std::nullopt;
+	oracool::DrawRmbSkillWell(out, hotkeyName ? *hotkeyName : string_view {});
 }
 
 // DrawRmbAuraBadge is gone (user, 2026-08-19: "whenever an aura lands on RMB a letter appears on top

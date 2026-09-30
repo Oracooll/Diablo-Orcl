@@ -18,7 +18,7 @@ namespace devilution::oracool {
 constexpr int MinGameSpeed = 20;
 /** @brief Three times the default. Past this the game stops being playable rather than fast. */
 constexpr int MaxGameSpeed = 60;
-/** @brief One press. Ten steps across the band - coarse enough to matter, fine enough to tune. */
+/** @brief One press. Twenty steps across the band - coarse enough to matter, fine enough to tune. */
 constexpr int GameSpeedStep = 2;
 
 /**

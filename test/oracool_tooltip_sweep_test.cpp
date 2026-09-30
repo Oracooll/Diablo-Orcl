@@ -403,8 +403,8 @@ void CheckTooltip(const devilution::Item &item, const std::vector<TipRow> &rows,
 		}
 
 		// ---- R4: ethereal ----
-		if (item._iOracoolEthereal && findRow("Ethereal (cannot be repaired)") < 0)
-			fail("R4-ETHEREAL", "no 'Ethereal (cannot be repaired)' row");
+		if (item._iOracoolEthereal && findRow("Ethereal (no smith repairs it; the Cube's Mend does)") < 0)
+			fail("R4-ETHEREAL", "no Ethereal row");
 
 		// ---- R5: sockets ----
 		if (item._iSocketCount > 0) {

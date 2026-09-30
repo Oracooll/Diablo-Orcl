@@ -41,6 +41,9 @@ int RuneRequiredLevel(uint16_t itemIndex);
 /** @brief Diablo II's gems: Chipped 1, Flawed 5, Normal 12, Flawless 15, Perfect 18; 0 for a non-gem index. */
 int GemRequiredLevel(uint16_t itemIndex);
 
+/** @brief The level a socketed stone raises its host to (rune, gem, or a jewel's drop level); 0 for none. */
+int SocketedStoneLevel(uint16_t itemIndex);
+
 /** @brief The level the base alone asks: the material tier's floor plus the base tier's step. */
 int BaseRequiredLevel(const Item &item);
 

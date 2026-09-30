@@ -54,6 +54,13 @@ std::string CharmEffectLine(const Player &player, uint16_t charmIdx);
  */
 bool IsCharmActive(const Player &player, int tabIndex, int invListIndex);
 
+/**
+ * @brief @p item's charm state for its tooltip, found by address in @p player's backpack pages: 1 live, 0 over the cap,
+ * -1 not in the backpack (the stash, the cursor, a shop). The cap counts in list order, not grid order, so the player
+ * cannot work it out by looking (round 27 audit).
+ */
+int CharmActiveState(const Player &player, const Item &item);
+
 /** @brief The charm provider's whole walk, shared with the description code: calls @p visit for
  * every ACTIVE charm in reading order, stopping at the cap. */
 void ForEachActiveCharm(const Player &player, void (*visit)(uint16_t charmIdx, void *context), void *context);

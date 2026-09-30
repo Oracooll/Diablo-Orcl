@@ -497,7 +497,39 @@ int FindGridEnnobleTarget(const Item *grid)
 	return -1;
 }
 
-/** @brief A set piece whose set holds at least one OTHER piece, or -1. */
+/**
+ * @brief The pieces Recast may turn @p target into: every OTHER piece of its set that this fork can build, of the same
+ * item class. One list for the readiness check and the recipe (round 27 audit): the class rule went into the recipe
+ * only, so 18 set pieces (every set weapon, the lone rings and amulets) showed Recast ready and made nothing.
+ */
+std::vector<const SetItemDefinition *> RecastCandidates(const Item &target)
+{
+	std::vector<const SetItemDefinition *> others;
+	const SetItemDefinition *piece = FindSetItemByCursor(target._iCurs);
+	if (piece == nullptr)
+		return others;
+	const ItemSetDefinition *set = FindItemSetOwning(piece->id);
+	if (set == nullptr || set->itemCount < 2)
+		return others;
+	for (int i = 0; i < set->itemCount; i++) {
+		const SetItemDefinition &candidate = ItemSetItems[set->firstItem + i];
+		// Excluding the one in hand is the whole recipe - "convert" that returned the same piece would be a way to spend
+		// three engravings on nothing.
+		if (candidate.cursor == target._iCurs)
+			continue;
+		const int candidateBase = BaseItemForSetPiece(candidate);
+		if (candidateBase < 0)
+			continue;
+		// Of the same class: an imbued armour piece recast into the set's ring lost every shard (the ledger lives on gear
+		// only) and its punched sockets (round 26 audit, v1.12.251).
+		if (AllItemsList[candidateBase].iClass != target._iClass)
+			continue;
+		others.push_back(&candidate);
+	}
+	return others;
+}
+
+/** @brief A set piece that Recast can turn into another piece of its set (RecastCandidates), or -1. */
 int FindGridSetPieceTarget(const Item *grid)
 {
 	for (int i = 0; i < GridSlots; i++) {
@@ -510,11 +542,7 @@ int FindGridSetPieceTarget(const Item *grid)
 		// IsTierRecipeGear records why.
 		if (grid[i].socketedCount() > 0)
 			continue;
-		const SetItemDefinition *piece = FindSetItemByCursor(grid[i]._iCurs);
-		if (piece == nullptr)
-			continue;
-		const ItemSetDefinition *set = FindItemSetOwning(piece->id);
-		if (set != nullptr && set->itemCount > 1)
+		if (!RecastCandidates(grid[i]).empty())
 			return i;
 	}
 	return -1;
@@ -1058,7 +1086,9 @@ int FirstReadyLevskiRecipe(const Item *grid)
 	size_t bestSlots = 0;
 	for (int i = 0; i < CraftingRecipeCount; i++) {
 		const std::vector<int> materials = GridMaterialsFor(grid, i);
-		if (materials.empty() || materials.size() <= bestSlots)
+		// Reforge never wins a tie, as FirstReadyLevskiRecipeFor rules (round 27 audit: the rule was in the host version only).
+		const bool displacesReforgeTie = best == 5 && materials.size() == bestSlots;
+		if (materials.empty() || (materials.size() <= bestSlots && !displacesReforgeTie))
 			continue;
 		best = i;
 		bestSlots = materials.size();
@@ -1459,29 +1489,8 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			what = std::string(target.getName());
 			break;
 		case 7: { // RECAST - a set piece becomes a DIFFERENT piece of the same set
-			const SetItemDefinition *piece = FindSetItemByCursor(target._iCurs);
-			if (piece == nullptr)
-				return {};
-			const ItemSetDefinition *set = FindItemSetOwning(piece->id);
-			if (set == nullptr || set->itemCount < 2)
-				return {};
-			// Every OTHER piece of the set that this fork can actually build. Excluding the one in
-			// hand is the whole recipe - "convert" that returned the same piece would be a way to
-			// spend three engravings on nothing.
-			std::vector<const SetItemDefinition *> others;
-			for (int i = 0; i < set->itemCount; i++) {
-				const SetItemDefinition &candidate = ItemSetItems[set->firstItem + i];
-				if (candidate.cursor == target._iCurs)
-					continue;
-				const int candidateBase = BaseItemForSetPiece(candidate);
-				if (candidateBase < 0)
-					continue;
-				// Of the same class: an imbued armour piece recast into the set's ring lost every shard (the ledger lives on
-				// gear only) and its punched sockets (round 26 audit, v1.12.251).
-				if (AllItemsList[candidateBase].iClass != target._iClass)
-					continue;
-				others.push_back(&candidate);
-			}
+			// Every OTHER piece of the set, of the same class, that this fork can build - the list the readiness check reads.
+			const std::vector<const SetItemDefinition *> others = RecastCandidates(target);
 			if (others.empty())
 				return {};
 			// The depth the item was FOUND at, captured before InitializeItem wipes it. Audit

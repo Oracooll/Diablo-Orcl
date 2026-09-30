@@ -3245,9 +3245,10 @@ void TransferItemToStash(Player &player, int location)
 	if (location < INVITEM_INV_FIRST) {
 		RemoveEquipment(player, static_cast<inv_body_loc>(location), false);
 		CalcPlrInv(player, true); // reloads the hero's sprites if the look changed (fixed 2026-09-29: v1.12.201 had flipped this to false)
-	} else if (location <= INVITEM_INV_LAST)
+	} else if (location <= INVITEM_INV_LAST) {
 		player.RemoveInvItem(location - INVITEM_INV_FIRST);
-	else
+		CalcPlrInv(player, false); // a banked charm stops counting (round 27 audit)
+	} else
 		player.RemoveSpdBarItem(location - INVITEM_BELT_FIRST);
 	// A banked pile left _pGold as it was, so the total counted it twice - in the stash and in the pack - and a purchase
 	// could take the stash below zero (round 5 audit, v1.12.230).
@@ -3299,6 +3300,7 @@ bool TryMoveHoveredItemToLevskiGrid(Player &player)
 	}
 	PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(item)]);
 	RemoveActiveInvItem(player, iv);
+	CalcPlrInv(player, false); // a charm stops counting, a last scroll stops being readied (round 27 audit)
 	return true;
 }
 
@@ -3332,6 +3334,7 @@ bool TryTransferHoveredActiveTabItemToStash(Player &player)
 
 	PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(item)]);
 	RemoveActiveInvItem(player, iv);
+	CalcPlrInv(player, false); // a charm stops counting, a last scroll stops being readied (round 27 audit)
 	if (&player == MyPlayer)
 		oracool::ScheduleAutoSaveForStashChange();
 	return true;
@@ -3869,6 +3872,9 @@ void AutoGetItem(Player &player, Item *itemPointer, int ii)
 		// always-saved progress; previously excluded to avoid spamming saves while raking in gold,
 		// but the delay setting (now defaulting to 0) already debounces rapid pickups if desired.
 		const bool scheduleAutoSave = &player == MyPlayer;
+		// A charm counts from the moment it is picked up, not from the next recalculation (round 27 audit).
+		if (!autoEquipped && IsOracoolCharmIdx(item.IDidx))
+			CalcPlrInv(player, false);
 		CleanupItems(ii);
 		if (scheduleAutoSave)
 			oracool::ScheduleAutoSaveForItemPickup();
@@ -4713,9 +4719,10 @@ void CloseStash()
 			    && !AutoPlaceItemInInventory(myPlayer, myPlayer.HoldItem, true)
 			    && !AutoPlaceItemInStash(myPlayer, myPlayer.HoldItem, true)
 			    && !AutoPlaceItemInBelt(myPlayer, myPlayer.HoldItem, true)) {
-				// This can fail for max gold, arena potions and a stash that has been arranged
-				// to not have room for the item all 3 cases are extremely unlikely
-				app_fatal(_("No room for item"));
+				// No room anywhere: made on the floor, beside the hero, as every other return path does - this ended the
+				// game and the item with it (round 27 audit).
+				MakeRoomForGuaranteedReward();
+				DropItemBesidePlayer(myPlayer, myPlayer.HoldItem);
 			}
 			PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(myPlayer.HoldItem)]);
 		}

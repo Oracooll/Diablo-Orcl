@@ -456,6 +456,8 @@ void DrawBeltButtonFeedback(const Surface &out)
 	else if (portalCell.contains(MousePosition))
 		portalState = 1;
 	DrawTownPortalIcon(out, portalState);
+	if (leveltype == DTYPE_TOWN) // refused here, so it looks it (round 27 audit)
+		DrawHalfTransparentRectTo(out, portalCell.position.x, portalCell.position.y, portalCell.size.width, portalCell.size.height);
 
 	// The Walk/Run toggle, in the seventh cell hud-v7 added. Momentary like the Portal beside it -
 	// the STATE the toggle is in is carried by which glyph strip is drawn, not by this, so a click

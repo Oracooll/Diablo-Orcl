@@ -28,6 +28,7 @@
 #include "monster.h"
 #include "multi.h"
 #include "objects.h"
+#include "options.h" // the mini-map option: where the rift bar hangs
 #include "oracool/area_level.h"
 #include "oracool/endgame_boss.h"
 #include "oracool/event_log.h"
@@ -1061,7 +1062,8 @@ void DrawRiftHud(const Surface &out)
 	constexpr int Gap = 4;
 	const int BarWidth = miniMap.size.width;
 	const int x = miniMap.position.x;
-	const int y = miniMap.position.y + miniMap.size.height + Gap;
+	// At the map's own top when the mini-map is off, not hanging under an empty space (round 27 audit).
+	const int y = *sgOptions.Oracool.miniMapEnabled ? miniMap.position.y + miniMap.size.height + Gap : miniMap.position.y;
 
 	std::string label = RiftKindName(State.kind);
 	if (State.done && State.closeTicks > 0)

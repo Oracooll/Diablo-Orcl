@@ -17,6 +17,8 @@
 #include "oracool/ui_sound.h"  // PlayUiMoveSound - the hover and click sound
 #include "oracool/xp_counter.h" // IsPointOverXpBar - the XP bar is one of the HUD's buttons
 #include "oracool/paladin_skills.h"
+#include "oracool/furious_charge.h" // the Charge cooldown band, on either well (round 27 audit)
+#include "engine/render/primitive_render.hpp"
 #include "oracool/whirlwind.h" // RightButtonOnly
 #include "panels/spell_book.hpp" // GetAbilityFKeyNumber, GetAuraFKeyNumber
 #include "utils/language.h"
@@ -132,7 +134,9 @@ void DrawWellBadges(const Surface &out, Rectangle net, SpellID spell, bool leftB
  * would cast it. The spell icons anchor BOTTOM-left where the attack strip anchors top-left, which is
  * the whole reason this is one function rather than two lines at each call site.
  */
-void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType type)
+namespace {
+
+void DrawWellIconBody(const Surface &out, Rectangle net, SpellID spell, SpellType type, bool leftButton)
 {
 	// Takes ITS OWN well's net rect, and this is not a detail.
 	//
@@ -176,7 +180,7 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	// A tree skill the hero cannot pay for (mana, Rage, Essence), as the click refuses it (round 19 audit, v1.12.244).
 	if (type == SpellType::Skill && CheckSpell(*MyPlayer, spell, type, /*manaonly=*/true) != SpellCheckResult::Success)
 		usable = false;
-	if (RightButtonOnly(spell))
+	if (leftButton && RightButtonOnly(spell))
 		usable = false; // Whirlwind and Earthquake belong on the right button: red here (the Barbarian Skill Cards page, 2026-09-29)
 
 	// A STAFF cast keeps the engine's orange charge plate, and skips the tree-art path entirely
@@ -206,6 +210,21 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	// Scaled into the net rect like everything else, so a readied SPELL sits exactly where a readied
 	// skill would (user, 2026-08-19).
 	DrawSpellIconFittedTo(out, SkillWellPlateRect(net), spell); // the 56px frame at the 56px opening (2026-09-05)
+}
+
+} // namespace
+
+void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType type, bool leftButton)
+{
+	DrawWellIconBody(out, net, spell, type, leftButton);
+	// Furious Charge's cooldown as a darkened band over the part not yet cooled, on whichever well holds it: only the right
+	// well showed it, and Charge goes on the left too (round 27 audit).
+	if (IsValidSpell(spell) && IsFuriousChargeSpell(spell)) {
+		const float progress = GetFuriousChargeCooldownProgress();
+		const int cooled = static_cast<int>(net.size.height * progress);
+		if (progress < 1.0f && cooled < net.size.height)
+			DrawHalfTransparentRectTo(out, net.position.x, net.position.y, net.size.width, net.size.height - cooled);
+	}
 }
 
 namespace {
@@ -272,7 +291,7 @@ void DrawLmbSkillWell(const Surface &out)
 	// which of the two attacks is the one in your hands.
 	// The icon (and its badges) sink while the well is held down - the click effect (2026-09-20).
 	const Rectangle net { GetLmbSkillWellNetRect().position + WellSink(/*leftWell=*/true), GetLmbSkillWellNetRect().size };
-	DrawWellIcon(out, net, MyPlayer->_pLRSpell, MyPlayer->_pLRSplType);
+	DrawWellIcon(out, net, MyPlayer->_pLRSpell, MyPlayer->_pLRSplType, /*leftButton=*/true);
 	// The LEFT button's bindings, which live in their own array (user, 2026-09-02). No fallback name:
 	// only the RMB well inherited the vanilla QuickSpell9-12 rows, and those write the right button's
 	// hotkey array, so there is nothing here for a fallback to find.
@@ -282,7 +301,7 @@ void DrawLmbSkillWell(const Surface &out)
 // The quick-list strip and its state were removed here on 2026-08-30 - see the note in the header.
 // The skill picker owns this gesture now.
 
-void DrawRmbSkillWell(const Surface &out)
+void DrawRmbSkillWell(const Surface &out, string_view hotkeyFallback)
 {
 	if (WellIconSize().width == 0)
 		return;
@@ -306,8 +325,8 @@ void DrawRmbSkillWell(const Surface &out)
 	}
 	// Nothing readied is the basic attack, and the badges know it: DrawWellBadges finds no rank and
 	// no binding for SpellID::Invalid, so this draws the icon alone, exactly as it did before.
-	DrawWellIcon(out, net, MyPlayer->_pRSpell, MyPlayer->_pRSplType);
-	DrawWellBadges(out, net, MyPlayer->_pRSpell, /*leftButton=*/false);
+	DrawWellIcon(out, net, MyPlayer->_pRSpell, MyPlayer->_pRSplType, /*leftButton=*/false);
+	DrawWellBadges(out, net, MyPlayer->_pRSpell, /*leftButton=*/false, hotkeyFallback);
 }
 
 } // namespace devilution::oracool

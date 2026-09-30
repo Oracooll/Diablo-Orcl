@@ -1,4 +1,5 @@
 #include "oracool/melee_skills.h"
+#include "oracool/sat_math.h" // AddPercentSat - the damage passives past int (round 27 audit)
 
 #include <algorithm>
 #include <cstdlib>
@@ -160,7 +161,7 @@ void Strike(Player &player, Monster &monster, int damage, bool applyPassives = t
 	if (damage <= 0 || monster.hitPoints >> 6 <= 0)
 		return;
 	if (applyPassives)
-		damage += damage * (PassiveDamageDealtPercent(player, monster, /*melee=*/true) + Rfa12DamageDealtPercent(player, monster, /*melee=*/true)) / 100;
+		damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, /*melee=*/true) + Rfa12DamageDealtPercent(player, monster, /*melee=*/true)); // saturating (round 27 audit)
 	if (damage <= 0)
 		return;
 	if (applyPassives)

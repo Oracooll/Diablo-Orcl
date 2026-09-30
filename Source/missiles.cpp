@@ -4,6 +4,7 @@
  * Implementation of missile functionality.
  */
 #include "missiles.h"
+#include "oracool/sat_math.h" // AddPercentSat - the damage passives past int (round 27 audit)
 
 #include <vector>
 #include <unordered_map> // ScaledMissileSprites
@@ -418,8 +419,9 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	}
 	// Oracool, Round 5: the passives that read the situation - Steady Aim, Power Hungry, Cull the
 	// Weak and the rest - on every missile a player lands.
-	dam += dam * (oracool::PassiveDamageDealtPercent(player, monster, false) + oracool::Rfa12DamageDealtPercent(player, monster, false)
-	           + (damageType == DamageType::Cold ? oracool::Rfa12ColdDamagePercent(monster) : 0)) / 100;
+	// Saturating: a high-level Fireball in 1/64 units wrapped int from about +40% (round 27 audit).
+	dam = oracool::AddPercentSat(dam, oracool::PassiveDamageDealtPercent(player, monster, false) + oracool::Rfa12DamageDealtPercent(player, monster, false)
+	        + (damageType == DamageType::Cold ? oracool::Rfa12ColdDamagePercent(monster) : 0));
 
 	// A companion's arrow: its share of the whole blow, bonuses and passives included.
 	if (CompanionHitPercent > 0)

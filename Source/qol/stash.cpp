@@ -857,6 +857,7 @@ void TransferItemToInventory(Player &player, uint16_t itemId)
 	PlaySFX(ItemInvSnds[GetItemDropAnimIndex(item._iCurs)]);
 
 	Stash.RemoveStashItem(itemId);
+	CalcPlrInv(player, false); // a charm taken out counts at once (round 27 audit)
 	if (&player == MyPlayer)
 		oracool::ScheduleAutoSaveForStashChange();
 }

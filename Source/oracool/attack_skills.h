@@ -148,6 +148,6 @@ void DrawWellBadges(const Surface &out, Rectangle net, SpellID spell, bool leftB
  * Called from DrawSpell rather than from the plate's draw block, because unlike the LMB well this
  * one is only the attack some of the time.
  */
-void DrawRmbSkillWell(const Surface &out);
+void DrawRmbSkillWell(const Surface &out, string_view hotkeyFallback = {});
 
 } // namespace devilution::oracool

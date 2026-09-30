@@ -6,6 +6,9 @@
 #include "stores.h"
 
 #include "oracool/item_tiers.h" // ScaleValueForBaseTier - a bought unique's own value
+#include "oracool/gems.h"              // EffectiveRequirement - Cain's line asks what CanUseItem asks
+#include "oracool/level_requirement.h" // RequiredLevel
+#include "oracool/necro_items.h"       // ClassMayUseItem
 #include "oracool/workshop.h"
 
 #include "oracool/crafting.h"    // TransmuteHost (Levski's Cube, 2026-09-20)
@@ -665,15 +668,18 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 			productLine = fmt::format(fmt::runtime(_("Damage: {:d}-{:d}  ")), item._iMinDam, item._iMaxDam);
 		else if (item._iClass == ICLASS_ARMOR)
 			productLine = fmt::format(fmt::runtime(_("Armor: {:d}  ")), item._iAC);
-		if (item._iMaxDur != DUR_INDESTRUCTIBLE && item._iMaxDur != 0)
+		// Zod's stamp is on the durability, not the maximum: "Dur: 255/60" (round 27 audit).
+		const bool indestructible = item._iMaxDur == DUR_INDESTRUCTIBLE || item._iDurability == DUR_INDESTRUCTIBLE;
+		if (!indestructible && item._iMaxDur != 0)
 			productLine += fmt::format(fmt::runtime(_("Dur: {:d}/{:d},  ")), item._iDurability, item._iMaxDur);
 		else
 			AppendStrView(productLine, _("Indestructible,  "));
 	}
 
-	uint8_t str = item._iMinStr;
-	uint8_t mag = item._iMinMag;
-	uint8_t dex = item._iMinDex;
+	// What CanUseItem asks: Hel and Ease lower the stats, and the level and class rules follow (round 27 audit).
+	const uint8_t str = static_cast<uint8_t>(oracool::EffectiveRequirement(item, item._iMinStr));
+	const uint8_t mag = static_cast<uint8_t>(oracool::EffectiveRequirement(item, item._iMinMag));
+	const uint8_t dex = static_cast<uint8_t>(oracool::EffectiveRequirement(item, item._iMinDex));
 
 	if (str == 0 && mag == 0 && dex == 0) {
 		AppendStrView(productLine, _("No required attributes"));
@@ -686,6 +692,10 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 		if (dex != 0)
 			productLine.append(fmt::format(fmt::runtime(_(" {:d} Dex")), dex));
 	}
+	if (const int level = oracool::RequiredLevel(item); level > 1)
+		productLine.append(fmt::format(fmt::runtime(_(",  Level {:d}")), level));
+	if (!oracool::ClassMayUseItem(*MyPlayer, item))
+		AppendStrView(productLine, _(",  not your class"));
 	AddSText(40, l++, productLine, flags, false, -1, cursIndent);
 }
 

@@ -536,7 +536,7 @@ void SaveOptions()
 	setBoolean("Quest Log Reveal All", *sgOptions.Oracool.questLogRevealAll,
 	    "; ----- QUEST LOG -----------------------------------------------------------------\n; Every quest available this session shows up in the quest log immediately, instead of\n; only after you discover it through normal exploration/dialogue. Quest mechanics\n; (finding the trigger, talking to the right NPC, item spawns) are unaffected - this\n; only changes what the log shows you upfront. Single-player only.");
 	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
-	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a reset control on the character panel. Removes only the points you have\n; manually spent via the +/- buttons and returns them to distribute; permanent\n; bonuses from quests/shrines/items are untouched. Repeated use is safe.");
+	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a reset control on the list hero sheet. Removes only the points you have\n; manually spent via the +/- buttons and returns them to distribute; permanent\n; bonuses from quests/shrines/items are untouched. Repeated use is safe.");
 	setBoolean("Griswold Premium Ignore Affix Level Limits", *sgOptions.Oracool.griswoldPremiumIgnoreAffixLevelLimits,
 	    "; ----- GRISWOLD: PREMIUM SHOP -------------------------------------------------\n; Allows compatible Premium prefixes and suffixes BELOW the shelf's usual level\n; window. Never above the item's own level: no affix on any item may exceed it.\n; Item compatibility and good-affix rules remain.");
 	setBoolean("Griswold Premium Ignore Price Limits", *sgOptions.Oracool.griswoldPremiumIgnorePriceLimits,
@@ -582,7 +582,7 @@ void SaveOptions()
 	setBoolean("Auto Pickup Runes", *sgOptions.Oracool.autoRunePickup,
 	    "; Automatically collects runes when in close proximity to the player. On by default:\n; a rune is never clutter, and walking back over one is the commonest way to lose it.");
 	setBoolean("Auto Pickup Gems", *sgOptions.Oracool.autoGemPickup,
-	    "; Automatically collects gems when in close proximity to the player. On by default,\n; on the same reasoning as runes.");
+	    "; Automatically collects gems and jewels when in close proximity to the player. On by\n; default, on the same reasoning as runes.");
 	setInteger("Rare Item Drop Chance", *sgOptions.Oracool.rareItemDropChance,
 	    "; Percent chance that an item eligible for Magic quality becomes a Rare item\n; instead, checked after it has already failed its Unique roll. Zero disables Rares.");
 	setInteger("Buffed Unique Item Drop Chance", *sgOptions.Oracool.buffedUniqueItemDropChance,
@@ -1534,7 +1534,7 @@ OracoolOptions::OracoolOptions()
     , autoPickupRange("Auto Pickup Range", OptionEntryFlags::None, N_("Auto Pickup Range"), N_("Search radius for enabled automatic-pickup categories."), 3, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
     , autoScrollPickup("Auto Pickup Scrolls", OptionEntryFlags::None, N_("Auto Pickup Scrolls"), N_("Scrolls of every kind are automatically collected when in close proximity to the player."), true)
     , autoRunePickup("Auto Pickup Runes", OptionEntryFlags::None, N_("Auto Pickup Runes"), N_("Runes are automatically collected when in close proximity to the player."), true)
-    , autoGemPickup("Auto Pickup Gems", OptionEntryFlags::None, N_("Auto Pickup Gems"), N_("Gems are automatically collected when in close proximity to the player."), true)
+    , autoGemPickup("Auto Pickup Gems", OptionEntryFlags::None, N_("Auto Pickup Gems"), N_("Gems and jewels are automatically collected when in close proximity to the player."), true)
     // The quality ladder's defaults were retuned on 2026-09-12 (user: "drop chances of all item
     // tiers is set to whatever feels natural to you"). They are rolled in the order Unique ->
     // Primal -> Buffed Unique -> Rare, each only if the one before failed, so what matters is the

@@ -1,4 +1,5 @@
 #include "oracool/aura_field.h"
+#include "oracool/sat_math.h" // AddPercentSat - the damage passives past int (round 27 audit)
 
 #include <algorithm>
 
@@ -95,7 +96,7 @@ void AuraStrike(Player &player, Monster &monster, DamageType type, int damage, b
 	// The damage-dealt and on-hit passives reach the pulses too (round 13 audit, v1.12.238): Static Field and Thunder
 	// Storm skipped every one of the Sorcerer's.
 	// With the RfA-12 half as Strike takes it (a Judgment mark's "+15% from everything"; round 16 audit, v1.12.241).
-	damage += damage * (PassiveDamageDealtPercent(player, monster, /*melee=*/false) + Rfa12DamageDealtPercent(player, monster, /*melee=*/false)) / 100;
+	damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, /*melee=*/false) + Rfa12DamageDealtPercent(player, monster, /*melee=*/false)); // saturating (round 27 audit)
 	if (damage <= 0)
 		return;
 	ApplyMonsterDamage(type, monster, damage);

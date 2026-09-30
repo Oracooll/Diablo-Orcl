@@ -3482,8 +3482,10 @@ void OperateShrineMurphys(Player &player)
 	for (auto &item : player.InvBody) {
 		if (!item.isEmpty() && FlipCoin(3)) {
 			if (item._iDurability != DUR_INDESTRUCTIBLE) {
-				if (item._iDurability > 0) {
-					item._iDurability = std::max(item._iDurability / 2, 1); // 1 halved to 0 counted fully, unbroken (round 26)
+				// Above 1 only: 1 halved to 0 counted fully, unbroken (round 26), and kept at 1 it was a no-op that still said
+				// "halved" and spared the gold (round 27 audit).
+				if (item._iDurability > 1) {
+					item._iDurability /= 2;
 					broke = true;
 					brokenItemName = std::string(item.getName());
 					break;

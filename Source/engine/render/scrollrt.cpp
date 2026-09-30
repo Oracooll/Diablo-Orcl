@@ -1701,6 +1701,7 @@ void DrawView(const Surface &out, Point startPosition)
 		oracool::DrawEventLogWindow(out);
 		oracool::DrawGameClock(out);
 		oracool::DrawGameSpeedReadout(out);
+		oracool::DrawSaveIndicator(out); // with the clock: under chat and the windows as it is (round 27 audit)
 		oracool::DrawCompanionHud(out); // under the clock's speed band
 		oracool::DrawMinionHud(out);
 		// Anchored to the mini-map's frame, so hidden wherever the mini-map's corner is covered -
@@ -1902,7 +1903,6 @@ void DrawView(const Surface &out, Point startPosition)
 	if (IsDiabloMsgAvailable()) {
 		DrawDiabloMsg(out);
 	}
-	oracool::DrawSaveIndicator(out);
 	// Oracool: user request - the fixed "item stats" box that used to draw here is gone. Its
 	// content now goes into the one cursor-following panel (oracool::DrawCursorTooltip, drawn near
 	// DrawCursor further down), so there is no second place for item information to appear.

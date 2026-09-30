@@ -842,11 +842,10 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean autoGemPickup;
 	OptionEntryInt<int> rareItemDropChance;
 	/**
-	 * @brief Scales the unique-item roll window, as a percentage. 100 is vanilla.
+	 * @brief The share of fresh unique rolls that stand, as a percentage. 100 is the fork's rate (a tenth of vanilla's).
 	 *
-	 * Separate from uniqueItemDropMultiplier, which only ever widens it - this is the knob that
-	 * narrows. Applied at the same place and pinned to 100 on the reconstruction path for the same
-	 * reason the multiplier is pinned to 1 there.
+	 * Separate from uniqueItemDropMultiplier, which widens the roll window - this is the knob that narrows, by a seed
+	 * hash on fresh drops only (round 27 audit), so a rebuilt item keeps its verdict.
 	 */
 	OptionEntryInt<int> uniqueDropChancePercent;
 	/** @brief Percent chance a champion (lesser-unique) monster rolls its SECOND drop. */

@@ -2370,11 +2370,19 @@ _unique_items CheckUnique(Item &item, int lvl, int uper, bool recreate, bool all
 		// Pinned to 100 on the reconstruction path for exactly the reason the multiplier is pinned
 		// to 1 there: a narrower window than the one in force at generation time would turn an item
 		// that dropped as Unique into a Magic one on the next load.
-		const int percent = allowTieredRoll ? std::clamp(*sgOptions.Oracool.uniqueDropChancePercent, 1, 100) : 100;
-		uniqueRollUpperBound = (uniqueRollUpperBound + 1) * percent / 100 - 1;
+		//
+		// NOT by narrowing the window (round 27 audit): an ordinary drop's window is 2 tickets, so 25% and 10% came out at
+		// -1 - never a unique - and 75% at the same 1 ticket as 50%. A hash of the seed passes percent in a hundred fresh
+		// drops instead, like the ten-fold filter below (another constant, so the two gates do not correlate). No extra
+		// draw: the seeds rebuild the same items.
 	}
 	if (GenerateRnd(100) > uniqueRollUpperBound)
 		return UITEM_INVALID;
+	if (allowTieredRoll && oracool::IsSinglePlayer()) {
+		const int percent = std::clamp(*sgOptions.Oracool.uniqueDropChancePercent, 1, 100);
+		if (static_cast<int>(((item._iSeed * 2246822519U) >> 16) % 100) >= percent)
+			return UITEM_INVALID;
+	}
 	// TEN TIMES rarer on a fresh drop (user, 2026-09-13: "decrease drop chance of uniques and set item
 	// 10 fold"). One ticket in ten survives, decided by a HASH of the seed rather than a draw: the draw
 	// above is replayed from the seed by RecreateItem and pinned by pack_test's reference items, so a
@@ -7420,14 +7428,15 @@ bool DoOil(Player &player, int cii, int tabIdx)
 				return _("fast arrows");
 			return _("quick arrows");
 		}
+		// Off the bow, while the hero shoots one, they quicken his arrows too (round 27 audit).
 		if (HasAnyOf(item._iFlags, ItemSpecialEffect::QuickAttack))
-			return _("quick attack");
+			return oracool::AttackSpeedWords(_("quick attack"));
 		if (HasAnyOf(item._iFlags, ItemSpecialEffect::FastAttack))
-			return _("fast attack");
+			return oracool::AttackSpeedWords(_("fast attack"));
 		if (HasAnyOf(item._iFlags, ItemSpecialEffect::FasterAttack))
-			return _("faster attack");
+			return oracool::AttackSpeedWords(_("faster attack"));
 		if (HasAnyOf(item._iFlags, ItemSpecialEffect::FastestAttack))
-			return _("fastest attack");
+			return oracool::AttackSpeedWords(_("fastest attack"));
 		return _("Another ability (NW)");
 	case IPL_FASTRECOVER:
 		if (HasAnyOf(item._iFlags, ItemSpecialEffect::FastHitRecovery))
@@ -7739,10 +7748,10 @@ std::string PrintSetBonusPower(const ItemPower &power)
 		// A discrete tier in param1, 1..4 - never a percentage. Named rather than numbered, because
 		// "attack speed 2" means nothing to a player.
 		switch (power.param1) {
-		case 1: return std::string(_("quick attack"));
-		case 2: return std::string(_("fast attack"));
-		case 3: return std::string(_("faster attack"));
-		default: return std::string(_("fastest attack"));
+		case 1: return oracool::AttackSpeedWords(_("quick attack"));
+		case 2: return oracool::AttackSpeedWords(_("fast attack"));
+		case 3: return oracool::AttackSpeedWords(_("faster attack"));
+		default: return oracool::AttackSpeedWords(_("fastest attack"));
 		}
 	case IPL_FASTRECOVER:
 		switch (power.param1) {
@@ -8062,7 +8071,10 @@ void PrintItemDetails(const Item &item)
 	// Phase 1 ethereal: the whole bargain in one line, directly under the tier - the buffed stats
 	// already show in the numbers above, so what the line carries is the PRICE.
 	if (item._iOracoolEthereal)
-		AddPanelString(_("Ethereal (cannot be repaired)"), UiFlags::ColorGray7); // GR-7, the ethereal colour (2026-09-07)
+		AddPanelString(_("Ethereal (no smith repairs it; the Cube's Mend does)"), UiFlags::ColorGray7); // GR-7, the ethereal colour (2026-09-07); the Cube mends it (round 27 audit)
+	// A broken item gives nothing, and only the X on its icon said so (round 27 audit).
+	if (item._iOracoolBroken)
+		AddPanelString(item._iOracoolEthereal ? _("Broken - gives nothing until mended") : _("Broken - gives nothing until repaired"), UiFlags::ColorRed);
 	// Movement Speed +X% from the item's own record (2026-09-07; an ordinary pool affix since 2026-09-13). A tiered item prints its records
 	// with the other affixes above, so this line is the plain and magic items'.
 	//
@@ -8110,6 +8122,11 @@ void PrintItemDetails(const Item &item)
 	if (IsOracoolCharmIdx(item.IDidx)) {
 		AddPanelString(oracool::CharmEffectLine(*MyPlayer, static_cast<uint16_t>(item.IDidx)), ItemAffixColor);
 		AddPanelString(fmt::format(fmt::runtime(_("only your first {:d} charms are active")), oracool::CharmActiveCap), ItemBaseStatColor);
+		// And whether THIS one is: the cap counts in pickup order, which the grid does not show (round 27 audit).
+		if (const int state = oracool::CharmActiveState(*MyPlayer, item); state == 1)
+			AddPanelString(_("Active"), ItemAffixColor);
+		else if (state == 0)
+			AddPanelString(fmt::format(fmt::runtime(_("Inactive - over the {:d}-charm cap")), oracool::CharmActiveCap), UiFlags::ColorRed);
 	}
 	// A LOOSE gem or rune says what it does, per host, before it says anything else.
 	//
@@ -8134,6 +8151,12 @@ void PrintItemDetails(const Item &item)
 	// for a jewel. It was simply never asked. The canonical socketable set in items.h:595 already
 	// listed all four families; this gate was the one place that had drifted from it.
 	if (IsOracoolGemIdx(item.IDidx) || IsOracoolRuneIdx(item.IDidx) || IsOracoolJewelIdx(item.IDidx)) {
+		// The level it imposes, before it is socketed (round 27 audit): a Zod made a level-20 hero's sword need 69 and
+		// nothing said so beforehand.
+		if (const int level = oracool::SocketedStoneLevel(static_cast<uint16_t>(item.IDidx)); level > 1) {
+			const bool above = MyPlayer != nullptr && MyPlayer->_pLevel < level;
+			AddPanelString(fmt::format(fmt::runtime(_("Its item will require level {:d}")), level), above ? UiFlags::ColorRed : ItemBaseStatColor);
+		}
 		for (const oracool::SocketHost host : { oracool::SocketHost::Weapon, oracool::SocketHost::Shield, oracool::SocketHost::Armor }) {
 			std::string line = oracool::GemHostEffectLine(static_cast<uint16_t>(item.IDidx), host);
 			if (!line.empty())

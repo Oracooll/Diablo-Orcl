@@ -1,4 +1,5 @@
 #include "oracool/rfa12_actives.h"
+#include "oracool/sat_math.h" // AddPercentSat - the damage passives past int (round 27 audit)
 
 #include <algorithm>
 #include <array>
@@ -123,7 +124,7 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	if (monster.isResistant(MissileID::Null, type))
 		damage /= type == DamageType::Cold ? ColdResistanceDivisor(player) : 4;
 	if (type == DamageType::Cold)
-		damage += damage * (FrostbitePercentOn(monster) + ColdMasteryDamagePercent(player)) / 100;
+		damage = AddPercentSat(damage, FrostbitePercentOn(monster) + ColdMasteryDamagePercent(player)); // saturating (round 27 audit)
 	// The damage-dealt passives, as MonsterMHit and PlrHitMonst apply them: Power Hungry, Conflagration, Spreading
 	// Malediction and the rest never reached a skill that strikes through here - 87 callers, the whole RfA-12 book
 	// (round 13 audit, v1.12.238). Melee only when the caller says so - a swing's extra blows - as MonsterMHit counts
@@ -132,7 +133,7 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	// With the RfA-12 half of that sum (Hunter's Mark, Judgment, Dead Ground, Deadeye), which the missile path adds beside
 	// the passives' - round 13 brought over only the first half (round 15 audit, v1.12.240).
 	if (applyPassives)
-		damage += damage * (PassiveDamageDealtPercent(player, monster, melee) + Rfa12DamageDealtPercent(player, monster, melee)) / 100;
+		damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, melee) + Rfa12DamageDealtPercent(player, monster, melee));
 	if (damage <= 0)
 		return;
 	// Once every six seconds per enemy, as its text says (round 16) - and only for a strike that lands something (round 17).

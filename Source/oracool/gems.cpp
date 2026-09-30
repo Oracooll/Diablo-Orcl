@@ -515,6 +515,14 @@ int EffectiveRequirement(const Item &item, int baseRequirement)
  * Only the effects the rune sheet actually uses are named. A flag with no text here would print
  * nothing at all, which is the failure this function exists to end - see GemEffectParts.
  */
+std::string AttackSpeedWords(std::string_view words)
+{
+	std::string text { words };
+	if (MyPlayer != nullptr && MyPlayer->UsesRangedWeapon())
+		text.append(_(" (with your bow: arrow speed)"));
+	return text;
+}
+
 std::string FlagText(ItemSpecialEffect flags)
 {
 	std::string parts;
@@ -526,13 +534,13 @@ std::string FlagText(ItemSpecialEffect flags)
 	// The four attack speeds and the hit recovery: seven weapon runewords carry FastAttack and printed no speed line
 	// (round 8 audit, v1.12.233).
 	if (HasAnyOf(flags, ItemSpecialEffect::QuickAttack))
-		add(std::string(_("quick attack")));
+		add(AttackSpeedWords(_("quick attack")));
 	if (HasAnyOf(flags, ItemSpecialEffect::FastAttack))
-		add(std::string(_("fast attack")));
+		add(AttackSpeedWords(_("fast attack")));
 	if (HasAnyOf(flags, ItemSpecialEffect::FasterAttack))
-		add(std::string(_("faster attack")));
+		add(AttackSpeedWords(_("faster attack")));
 	if (HasAnyOf(flags, ItemSpecialEffect::FastestAttack))
-		add(std::string(_("fastest attack")));
+		add(AttackSpeedWords(_("fastest attack")));
 	if (HasAnyOf(flags, ItemSpecialEffect::FastHitRecovery))
 		add(std::string(_("fast hit recovery")));
 	if (HasAnyOf(flags, ItemSpecialEffect::FasterHitRecovery))

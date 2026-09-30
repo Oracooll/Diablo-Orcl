@@ -192,6 +192,21 @@ void ForEachActiveCharm(const Player &player, void (*visit)(uint16_t charmIdx, v
 	}
 }
 
+int CharmActiveState(const Player &player, const Item &item)
+{
+	for (int i = 0; i < player._pNumInv; i++) {
+		if (&player.InvList[i] == &item)
+			return IsCharmActive(player, -1, i) ? 1 : 0;
+	}
+	for (int tab = 0; tab < Player::NumExtraInventoryTabs; tab++) {
+		for (int i = 0; i < player._pNumInvTab[tab]; i++) {
+			if (&player.InvTabList[tab][i] == &item)
+				return IsCharmActive(player, tab, i) ? 1 : 0;
+		}
+	}
+	return -1;
+}
+
 bool IsCharmActive(const Player &player, int tabIndex, int invListIndex)
 {
 	int live = 0;

@@ -3106,6 +3106,13 @@ void LoadStash()
 			}
 		}
 	}
+	// A record LoadAndValidateItemData emptied (failed validation) goes, cells and all, as the backpack pages' do since
+	// round 23: kept, its cells looked free and were not, it was saved back every time, and SORT counted it and refused
+	// the stash for good (round 27 audit).
+	for (int i = static_cast<int>(Stash.stashList.size()) - 1; i >= 0; i--) {
+		if (Stash.stashList[i].isEmpty())
+			Stash.RemoveStashItem(static_cast<StashStruct::StashCell>(i));
+	}
 
 	Stash.SetPage(file.NextLE<uint32_t>());
 }
@@ -3236,11 +3243,11 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 			LoadAndValidateItemData(file, player.InvTabList[t][i]);
 		}
 
+		// Refused, not emptied (round 27 audit): emptied with the file accepted, the next autosave wrote the page's loss over
+		// heroinvtabs for good. Every other inconsistency on this path refuses.
 		if (!anchorsConsistent) {
-			player.InvTabList[t] = {};
-			player.InvTabGrid[t] = {};
-			player._pNumInvTab[t] = 0;
-			continue;
+			RefuseInvTabsFile(player);
+			return;
 		}
 
 		// An item LoadAndValidateItemData cleared (failed validation) keeps its list slot but must

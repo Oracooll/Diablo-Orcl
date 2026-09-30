@@ -18,6 +18,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 
 #include "itemdat.h"
 
@@ -95,6 +96,12 @@ SocketHost SocketHostForItemType(ItemType hostType);
 
 /** @brief The item-panel words for a set of special-effect flags ("faster attack, life steal"); empty for none. */
 std::string FlagText(ItemSpecialEffect flags);
+
+/**
+ * @brief An attack-speed flag's words, with what it does for a hero shooting a bow: the flags quicken the arrow there and
+ * give no draw speed (round 27 audit). The bow's own line says "arrows" already.
+ */
+std::string AttackSpeedWords(std::string_view words);
 
 /**
  * @brief Whether @p item may receive sockets at drop time.

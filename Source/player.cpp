@@ -82,6 +82,7 @@
 #include "oracool/xp_gain_indicator.h"
 #include "oracool/whirlwind.h"
 #include "player.h"
+#include "oracool/sat_math.h"
 #include "playerdat.hpp"
 #include "qol/autopickup.h"
 #include "qol/floatingnumbers.h"
@@ -875,7 +876,7 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 			if (dam2 >= 0) {
 				ApplyPlrDamage(DamageType::Physical, player, 0, 1, dam2);
 			}
-			dam *= 2;
+			dam = oracool::PercentOfSat(dam, 200); // not past Jester's clamp (round 27 audit)
 		}
 #ifdef _DEBUG
 		if (DebugGodMode) {
@@ -1068,6 +1069,12 @@ bool DoAttack(Player &player)
 			}
 		}
 
+		// Sweeping Reed or Wheel of Heaven strikes the side tiles itself when it fires, so the staff cleave below stands aside -
+		// but only when it fires: asked BEFORE the swing pays, since a skill it cannot pay for leaves the latch set and swings
+		// plain (round 27 audit: that swing hit neither the skill's sides nor the cleave's).
+		const std::optional<oracool::ClassMeleeSkill> armedSwing = &player == MyPlayer ? oracool::ArmedClassMeleeSkill() : std::nullopt;
+		const bool skillSweeps = (armedSwing == oracool::ClassMeleeSkill::SweepingReed || armedSwing == oracool::ClassMeleeSkill::WheelOfHeaven)
+		    && oracool::CanPaySkill(player, oracool::ClassMeleeSkillSpell(*armedSwing));
 		if (monster != nullptr) {
 			// A swing at a monster, landed or not, is combat: the Barbarian's Rage holds (2026-09-14).
 			// A swing at an empty tile is not, and lets the calm clock run.
@@ -1113,10 +1120,8 @@ bool DoAttack(Player &player)
 			if (oracool::ApplyRfa12MeleeOnSwing(player, nullptr, false, 0))
 				didhit = true;
 		}
-		// Not under Sweeping Reed or Wheel of Heaven: they strike these same side tiles themselves, and each side enemy took
-		// two blows (round 26 audit, v1.12.251).
-		const std::optional<oracool::ClassMeleeSkill> armedSwing = &player == MyPlayer ? oracool::ArmedClassMeleeSkill() : std::nullopt;
-		const bool skillSweeps = armedSwing == oracool::ClassMeleeSkill::SweepingReed || armedSwing == oracool::ClassMeleeSkill::WheelOfHeaven;
+		// Not under Sweeping Reed or Wheel of Heaven (skillSweeps, above): they strike these same side tiles themselves, and
+		// each side enemy took two blows (round 26 audit, v1.12.251).
 		if (!skillSweeps && (player._pClass == HeroClass::Monk
 		        && (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Staff || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Staff))
 		    || (player._pClass == HeroClass::Bard
