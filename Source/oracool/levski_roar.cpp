@@ -42,6 +42,8 @@
 #include "oracool/shop_grid.h" // the shop's tab column, kept beside Griswold's Salvage page (2026-09-21)
 #include "oracool/skill_sounds.h"
 #include "oracool/socket_overlay.h"
+#include "oracool/sprite_colours.h"
+#include "oracool/sprite_import.h" // LoadPngObjectSheetColoured - the Cube's animated sheet
 #include "oracool/ui_sound.h"
 #include "oracool/window_close.h"
 #include "oracool/workshop.h"
@@ -1599,32 +1601,190 @@ bool IsLevskiRoarObject(const Object &object)
 	    && !IsStonegateObject(object) && !IsWirtCartObject(object);
 }
 
+namespace {
+
+#include "oracool/levski_cube_frames.inc"
+
+/**
+ * @brief The Cube's animated sheet (tools/LevskiCubeSheet.cs, 2026-10-01), 1-based frames: the closed idle loop, then the
+ * opening - played forwards to open and backwards to close (user: "we can reuse opening sequence for closing by
+ * reversing it") - then the opened idle loop.
+ */
+constexpr uint32_t CubeClosedFirst = 1;
+constexpr uint32_t CubeClosedLast = LevskiCubeClosedIdleFrames;
+constexpr uint32_t CubeOpeningFirst = CubeClosedLast + 1;
+constexpr uint32_t CubeOpeningLast = CubeClosedLast + LevskiCubeOpeningFrames;
+constexpr uint32_t CubeOpenFirst = CubeOpeningLast + 1;
+constexpr uint32_t CubeOpenLast = CubeOpeningLast + LevskiCubeOpenedIdleFrames;
+/** @brief Game ticks a frame: a slow shimmer shut, a quick lid, a steadier hum open. */
+constexpr int CubeClosedDelay = 4;
+constexpr int CubeOpeningDelay = 2;
+constexpr int CubeOpenDelay = 3;
+
+/**
+ * @brief The sheet, loaded once. A file-local static that outlives the game is safe here: it is an asset, nothing per game
+ * (the statics note). Tried once, so a missing file costs one lookup.
+ */
+std::optional<ColouredSpriteList> CubeSheet;
+bool CubeSheetTried = false;
+
+/**
+ * @brief The window's grid on the Cube's pink panel, in the frame's pixels: where the painted panel stands in the opened
+ * frames (measured on the built sheet, 2026-10-01), 3 x 4 cells of 11 like the window's. The stills cut the panel's top
+ * off, so this panel is drawn whole, a few pixels above that cut.
+ */
+constexpr int CubePanelLeft = 48;
+constexpr int CubePanelBottom = 71;
+constexpr int CubePanelCell = 11;
+constexpr int CubePanelWidth = LevskiGridColumns * CubePanelCell;
+constexpr int CubePanelHeight = LevskiGridRows * CubePanelCell;
+
+bool WearsCubeSheet(const Object &object)
+{
+	return CubeSheet && object._oAnimData && object._oAnimLen == CubeOpenLast
+	    && (*object._oAnimData)[0].pixelData() == ClxSpriteList { CubeSheet->list }[0].pixelData();
+}
+
+/** @brief @p rgb over the screen pixel at @p alpha of 256; nothing on an indexed surface or outside it. */
+void BlendPixel(const Surface &out, int x, int y, uint32_t rgb, uint32_t alpha)
+{
+	if (x < 0 || y < 0 || x >= out.w() || y >= out.h())
+		return;
+	uint32_t &dst = *out.at<uint32_t>(x, y);
+	dst = MixRgb(dst, rgb, alpha);
+}
+
+/** @brief @p sprite shrunk into @p box, nearest pixel, its aspect kept and centred - "very low res but who cares". */
+void DrawSpriteShrunk(const Surface &out, const Rectangle &box, ClxSprite sprite)
+{
+	const int w = static_cast<int>(sprite.width());
+	const int h = static_cast<int>(sprite.height());
+	if (w <= 0 || h <= 0 || box.size.width <= 0 || box.size.height <= 0)
+		return;
+	OwnedSurface scratch(w, h);
+	SDL_FillRect(scratch.surface, nullptr, 0);
+	ClxDraw(scratch, { 0, h - 1 }, sprite);
+	// One scale for both axes, the smaller: a sword stays long and thin.
+	const int num = std::min(box.size.width * 1000 / w, box.size.height * 1000 / h);
+	const int dw = std::max(w * num / 1000, 1);
+	const int dh = std::max(h * num / 1000, 1);
+	const int x0 = box.position.x + (box.size.width - dw) / 2;
+	const int y0 = box.position.y + (box.size.height - dh) / 2;
+	for (int y = 0; y < dh; y++) {
+		for (int x = 0; x < dw; x++) {
+			const uint8_t index = *scratch.at(x * w / dw, y * h / dh);
+			if (index == 0)
+				continue;
+			BlendPixel(out, x0 + x, y0 + y, PaletteRGB[index], 256);
+		}
+	}
+}
+
+} // namespace
+
+void ApplyLevskiCubeSheet(Object &cube)
+{
+	if (HeadlessMode)
+		return;
+	if (!CubeSheetTried) {
+		CubeSheetTried = true;
+		CubeSheet = LoadPngObjectSheetColoured("levski_cube", LevskiCubeFrameWidth);
+		if (CubeSheet && CubeSheet->list.numSprites() != CubeOpenLast)
+			CubeSheet = std::nullopt; // a sheet of another cut: the painting rather than the wrong frames
+	}
+	if (!CubeSheet)
+		return;
+	cube._oAnimData.emplace(ClxSpriteList { CubeSheet->list });
+	cube._oAnimWidth = LevskiCubeFrameWidth;
+	cube._oAnimLen = CubeOpenLast;
+	cube._oAnimFrame = CubeClosedFirst;
+	cube._oAnimCnt = 0;
+	cube._oAnimFlag = 0;
+}
+
+const SpriteColours *LevskiCubeColoursFor(const Object &object)
+{
+	if (!IsLevskiRoarObject(object) || !WearsCubeSheet(object))
+		return nullptr;
+	return CubeSheet->colours.get();
+}
+
+void DrawLevskiCubeLiveGrid(const Surface &out, const Object &cube, Point bottomLeft)
+{
+	if (out.isIndexed() || cube._oAnimFrame < CubeOpenFirst || cube._oAnimFrame > CubeOpenLast)
+		return;
+	const int frameTop = bottomLeft.y - static_cast<int>((*cube._oAnimData)[cube._oAnimFrame - 1].height()) + 1;
+	const Point origin { bottomLeft.x + CubePanelLeft, frameTop + CubePanelBottom - CubePanelHeight };
+	// The panel: a lavender glaze over the painted one (and over the sky where the stills cut it off), its rules pale.
+	constexpr uint32_t Glaze = 0xB450EC;
+	constexpr uint32_t Rule = 0xEEC0FF;
+	for (int y = 0; y <= CubePanelHeight; y++)
+		for (int x = 0; x <= CubePanelWidth; x++)
+			BlendPixel(out, origin.x + x, origin.y + y, Glaze, 150);
+	for (int c = 0; c <= LevskiGridColumns; c++)
+		for (int y = 0; y <= CubePanelHeight; y++)
+			BlendPixel(out, origin.x + c * CubePanelCell, origin.y + y, Rule, 200);
+	for (int r = 0; r <= LevskiGridRows; r++)
+		for (int x = 0; x <= CubePanelWidth; x++)
+			BlendPixel(out, origin.x + x, origin.y + r * CubePanelCell, Rule, 200);
+	// What the window holds, cell for cell. Only the Cube's own window: Griswold's and Ogden's books leave it shut anyway.
+	if (!WindowOpen || WindowHost != TransmuteHost::Cube)
+		return;
+	for (int anchor = 0; anchor < LevskiGridSlots; anchor++) {
+		const Item &item = GridItems[anchor];
+		if (item.isEmpty())
+			continue;
+		const Size size = GetInventorySize(item);
+		const Rectangle box {
+			{ origin.x + (anchor % LevskiGridColumns) * CubePanelCell + 1, origin.y + (anchor / LevskiGridColumns) * CubePanelCell + 1 },
+			{ size.width * CubePanelCell - 1, size.height * CubePanelCell - 1 }
+		};
+		DrawSpriteShrunk(out, box, GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM));
+	}
+}
+
 void ProcessLevskiCubeAnimation()
 {
-	// Levski's Cube (batch 43, 2026-09-20): the object's sheet has thirteen frames - twelve idle, one
-	// open - where the Roar's had one. Loop the idle while the window is shut, hold the open pose
-	// while it is up. The Roar's one-frame sheet (any sheet short of thirteen) is left alone.
-	constexpr uint32_t IdleFrames = 12;
-	constexpr uint32_t OpenFrame = 13;
-	constexpr int IdleDelay = 4;
+	// Levski's Cube (2026-10-01): closed, it shimmers; the Cube's window opening plays the lid open and holds the opened
+	// loop; the window closing - the X, Esc, or walking away - plays the same opening backwards to the closed loop.
+	// Only the Cube's OWN window opens it, not Griswold's or Ogden's book (audit, 2026-09-20). Without the sheet (the
+	// one-frame painting) nothing moves.
 	if (currlevel != 0 || setlevel)
 		return;
 	for (int i = 0; i < ActiveObjectCount; i++) {
 		Object &object = Objects[ActiveObjects[i]];
-		if (!IsLevskiRoarObject(object) || object._oAnimLen < OpenFrame)
+		if (!IsLevskiRoarObject(object) || !WearsCubeSheet(object))
 			continue;
 		object._oAnimFlag = 0;
-		// The lid parts for the CUBE's own book only, not for Griswold's or Ogden's (audit, 2026-09-20).
-		if (WindowOpen && WindowHost == TransmuteHost::Cube) {
-			object._oAnimFrame = OpenFrame;
-			object._oAnimCnt = 0;
-			return;
+		const bool wantOpen = WindowOpen && WindowHost == TransmuteHost::Cube;
+		uint32_t &frame = object._oAnimFrame;
+		int &count = object._oAnimCnt;
+		if (frame < CubeClosedFirst || frame > CubeOpenLast)
+			frame = CubeClosedFirst;
+		if (frame <= CubeClosedLast) {
+			if (wantOpen) {
+				frame = CubeOpeningFirst;
+				count = 0;
+			} else if (++count >= CubeClosedDelay) {
+				count = 0;
+				frame = frame >= CubeClosedLast ? CubeClosedFirst : frame + 1;
+			}
+		} else if (frame <= CubeOpeningLast) {
+			// Either way through the lid, and it can turn round midway.
+			if (++count >= CubeOpeningDelay) {
+				count = 0;
+				if (wantOpen)
+					frame = frame >= CubeOpeningLast ? CubeOpenFirst : frame + 1;
+				else
+					frame = frame <= CubeOpeningFirst ? CubeClosedFirst : frame - 1;
+			}
+		} else if (!wantOpen) {
+			frame = CubeOpeningLast;
+			count = 0;
+		} else if (++count >= CubeOpenDelay) {
+			count = 0;
+			frame = frame >= CubeOpenLast ? CubeOpenFirst : frame + 1;
 		}
-		if (++object._oAnimCnt < IdleDelay)
-			return;
-		object._oAnimCnt = 0;
-		const uint32_t next = object._oAnimFrame + 1;
-		object._oAnimFrame = (next < 1 || next > IdleFrames) ? 1 : next;
 		return;
 	}
 }

@@ -377,6 +377,19 @@ std::optional<ColouredMissileSheet> LoadPngMissileSheetColoured(const char *name
 	return ColouredMissileSheet { OwnedClxSpriteListOrSheet { CombineListsIntoSheet(lists->lists) }, std::move(lists->colours) };
 }
 
+std::optional<ColouredSpriteList> LoadPngObjectSheetColoured(const char *name, uint16_t frameWidth)
+{
+	char path[MaxMpqPathSize];
+	*BufCopy(path, "objects\\", name, ".png") = '\0';
+	SDLSurfaceUniquePtr png { LoadPNG(path) };
+	if (png == nullptr)
+		return std::nullopt;
+	std::optional<ColouredRows> rows = ColouredRowsFromSurface(png.get(), frameWidth, 1);
+	if (!rows || rows->lists.empty())
+		return std::nullopt;
+	return ColouredSpriteList { std::move(rows->lists[0]), std::move(rows->colours) };
+}
+
 OwnedClxSpriteSheet CombineSpriteLists(std::vector<OwnedClxSpriteList> &lists)
 {
 	return CombineListsIntoSheet(lists);

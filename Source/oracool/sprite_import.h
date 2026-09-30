@@ -123,6 +123,18 @@ struct ColouredMissileSheet {
  */
 std::optional<ColouredMissileSheet> LoadPngMissileSheetColoured(const char *name, uint16_t frameWidth, int rows);
 
+/** @brief One row of frames in its own colours. */
+struct ColouredSpriteList {
+	OwnedClxSpriteList list;
+	std::shared_ptr<const SpriteColours> colours;
+};
+
+/**
+ * @brief An OBJECT's animation in true colour (2026-10-01, Levski's Cube): `objects\<name>.png`, one row of frames
+ * @p frameWidth wide, up to 255 colours of its own. Nullopt when the file is missing or malformed.
+ */
+std::optional<ColouredSpriteList> LoadPngObjectSheetColoured(const char *name, uint16_t frameWidth);
+
 /**
  * @brief The same import for an ITEM's ground-drop tumble: `items\<name>.png`, one row of frames.
  *

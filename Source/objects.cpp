@@ -4590,8 +4590,10 @@ void ApplyLevskiRoarGraphics(Object &monument)
 			if (monument._oAnimFrame < 1 || monument._oAnimFrame > monument._oAnimLen)
 				monument._oAnimFrame = 1;
 		}
-		return;
+		break;
 	}
+	// The animated Cube over the painting when its sheet is in the archive (2026-10-01).
+	oracool::ApplyLevskiCubeSheet(monument);
 }
 
 void ApplyStonegateGraphics(Object &gate)

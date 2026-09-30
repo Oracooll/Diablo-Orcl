@@ -826,6 +826,10 @@ void DrawObject(const Surface &out, Point tilePosition, Point targetBufferPositi
 	if (const oracool::SpriteColours *colours = StashChestColoursFor(objectToDraw); colours != nullptr) {
 		oracool::DrawSpriteWithColours(out, screenPosition, sprite, *colours,
 		    objectToDraw.applyLighting ? LightTableIndex : 0);
+	} else if (const oracool::SpriteColours *cube = oracool::LevskiCubeColoursFor(objectToDraw); cube != nullptr) {
+		// Levski's Cube in its own colours (2026-10-01), and the window's grid on its panel while it stands open.
+		oracool::DrawSpriteWithColours(out, screenPosition, sprite, *cube, objectToDraw.applyLighting ? LightTableIndex : 0);
+		oracool::DrawLevskiCubeLiveGrid(out, objectToDraw, screenPosition);
 	} else if (objectToDraw.applyLighting) {
 		ClxDrawLight(out, screenPosition, sprite, LightTableIndex);
 	} else {

@@ -40,6 +40,8 @@ struct Object;
 
 namespace devilution::oracool {
 
+struct SpriteColours; // oracool/sprite_colours.h - the Cube's own colours
+
 /** @brief The transmute grid, in cells. 3x4 - the Horadric Cube's twelve - until the second painted
  * skin (2026-09-04), which is an 8x10 well; the grid IS the painting's grid, so the size comes from
  * the generated skin header. Not saved: the grid empties with the game, like the cube did. */
@@ -105,6 +107,22 @@ void OpenLevskiWindowFor(TransmuteHost host);
 TransmuteHost CurrentTransmuteHost();
 /** @brief Per game tick: the Cube's twelve-frame idle loop and its open pose (a sheet of thirteen; the Roar's one frame is left alone). */
 void ProcessLevskiCubeAnimation();
+
+/**
+ * @brief Gives the Cube in town its animated sheet (objects\levski_cube.png, 2026-10-01): the closed idle loop, the
+ * opening (played backwards to close) and the opened idle loop, in true colour. Leaves the one-frame painting when the
+ * sheet is missing.
+ */
+void ApplyLevskiCubeSheet(Object &cube);
+
+/** @brief The Cube's own colours when @p object is the Cube wearing its animated sheet; null for everything else. */
+const SpriteColours *LevskiCubeColoursFor(const Object &object);
+
+/**
+ * @brief While the Cube stands open, the window's grid in miniature on the Cube's own pink panel (user, 2026-10-01): what
+ * is placed in the window shows there too, tiny. @p bottomLeft is where the object's sprite was drawn.
+ */
+void DrawLevskiCubeLiveGrid(const Surface &out, const Object &cube, Point bottomLeft);
 
 /**
  * @brief Clears the window and its grid outright, for game teardown. Returns nothing to anyone.
