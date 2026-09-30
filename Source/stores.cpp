@@ -2723,6 +2723,9 @@ void StoreSellItemAt(int idx)
 
 	RecordSale(pristine, cost);
 	CreditSaleProceeds(cost);
+	// The hero without the item, as the gesture sales recalculate him: a sold charm kept its life (round 30 audit - the text
+	// list's Confirm and Sell All both come through here).
+	CalcPlrInvKeepingLife(*MyPlayer);
 	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
@@ -2781,11 +2784,8 @@ void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 		soldAnything = true;
 	}
 
-	if (soldAnything) {
-		PlaySFX(IS_GOLD);
-		// Once, as every other sale path does after its removal: a sold charm kept its life on the hero (round 29 audit).
-		CalcPlrInvKeepingLife(*MyPlayer);
-	}
+	if (soldAnything)
+		PlaySFX(IS_GOLD); // each sale recalculated the hero (StoreSellItemAt)
 	StartStore(returnTo);
 }
 

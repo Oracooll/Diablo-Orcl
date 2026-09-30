@@ -519,6 +519,9 @@ std::array<OracoolAffix, OptionCount> Offers {};
 /** Each offer's line, printed against the item it would make (round 29 audit: printed against the bench, a damage-mod or
  * speed offer read the bench's fields - "adds 0 points to damage", "Another ability (NW)", a blank line). */
 std::array<std::string, OptionCount> OfferLines {};
+/** Each offer's item, as its line was printed from it: the pick takes it as it stands, so a new King's row keeps the to-hit
+ * its line promised rather than drawing again (round 30 audit). Empty where the scratch rebuild failed. */
+std::array<Item, OptionCount> OfferItems {};
 
 /**
  * @brief The item's own counters (Item::_iOracoolRerolls and friends, item format 15). Until 2026-09-27 they were a
@@ -2348,8 +2351,11 @@ void RollOffers(int slot)
 		int count = 0;
 		for (int k = 0; k < Bench._iOracoolAffixCount; k++)
 			affixes[count++] = k == slot ? Offers[i] : Bench._iOracoolAffixes[k];
+		OfferItems[i] = {};
 		if (i == 0 || !RebuildOracoolItemWithAffixes(*MyPlayer, scratch, affixes.data(), count))
 			scratch = Bench;
+		else
+			OfferItems[i] = scratch;
 		OfferLines[i] = std::string(PrintOracoolAffixPower(Offers[i], scratch).str());
 	}
 	SetRndSeed(rngState);
@@ -2504,7 +2510,9 @@ void RunControl(Control control)
 		int count = 0;
 		for (int i = 0; i < Bench._iOracoolAffixCount; i++)
 			affixes[count++] = i == OfferSlot ? Offers[pick] : Bench._iOracoolAffixes[i];
-		if (!RebuildOracoolItemWithAffixes(*MyPlayer, Bench, affixes.data(), count)) {
+		if (!OfferItems[pick].isEmpty()) {
+			Bench = OfferItems[pick];
+		} else if (!RebuildOracoolItemWithAffixes(*MyPlayer, Bench, affixes.data(), count)) {
 			SetBoard(std::string(_("The work would not take.")));
 			break;
 		}

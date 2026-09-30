@@ -1637,6 +1637,10 @@ void ToggleLevskiRoar()
 	CloseOtherShopSurfaces();
 	if (IsWorkshopOpen())
 		return; // a bench that refused to close keeps the slot (audit, 2026-09-27)
+	// And the left panels its docked pages cover: the hero sheet stayed open under the Cube, took the wheel, and reappeared
+	// when the Cube closed (round 30 audit).
+	if (!TakeLeftPanelSlot(LeftPanelContent::None))
+		return;
 	WindowHost = TransmuteHost::Cube;
 	WindowOpen = true;
 	RecipeBookOpen = false;

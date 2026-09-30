@@ -675,7 +675,7 @@ const char *ClassMeleeSkillDescription(SpellID spell)
 	case SpellID::DoubleSwing:
 		return N_("Two swings in one attack's time, the second at 75% damage, +5% per rank.");
 	case SpellID::Stun:
-		return N_("A blow that leaves the target reeling for 1.5 seconds, +20% longer per rank. Uniques shrug it off.");
+		return N_("A blow that leaves the target reeling for 1.5 seconds, +0.2 seconds per rank. Uniques shrug it off.");
 	case SpellID::LeapAttack:
 		return N_("Leap onto a distant enemy; the blow you land there is at +50% damage, +10% per rank.");
 	case SpellID::Concentrate:

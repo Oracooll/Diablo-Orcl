@@ -727,7 +727,7 @@ void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee)
 	OnAnyHit(player, target, damage, melee);
 }
 
-void OnPassiveMissileHit(Player &player, const Monster &target, int damage, DamageType damageType, bool arrow)
+void OnPassiveMissileHit(Player &player, const Monster &target, int damage, DamageType damageType, bool arrow, bool sharedRulesDone)
 {
 	if (damage <= 0)
 		return;
@@ -749,8 +749,9 @@ void OnPassiveMissileHit(Player &player, const Monster &target, int damage, Dama
 			if (bow && (*bow == UITYPE_COMPBOW || *bow == UITYPE_BATTLEBOW))
 				RestoreMana(player, ArcheryMana);
 		}
-	} else {
-		// Arrows already reached OnPassiveHit; the spells reach the shared rules here.
+	} else if (!sharedRulesDone) {
+		// Arrows already reached OnPassiveHit; the spells reach the shared rules here - and a melee skill blow that went
+		// through OnPassiveHit does not reach them twice (round 30 audit: Momentum's three blows went two at a time).
 		OnAnyHit(player, target, damage, false);
 	}
 }
@@ -1120,7 +1121,7 @@ std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int point
 		line(fmt::format(fmt::runtime(_("Chance an arrow flies on: {:d}%")), PierceChanceAt(points)));
 		break;
 	case Skill::ThrowingMastery:
-		line(fmt::format(fmt::runtime(_("Thrown weapon damage: +{:d}%")), ThrowingMasteryPercentAt(points)));
+		line(fmt::format(fmt::runtime(_("Non-melee damage: +{:d}%")), ThrowingMasteryPercentAt(points))); // as applied (round 30 audit)
 		break;
 	case Skill::ReedInTheWind:
 		line(fmt::format(fmt::runtime(_("With a staff: chance to block +{:d}%")), ReedInTheWindBlockAt(points)));

@@ -1311,7 +1311,7 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 	case IPL_DUR: {
 		// An indestructible item stays so: "the ages" rolled before a durability row came back 254/254 and wore down (round 29
 		// audit). Not by keeping them apart in the roll: that changes what existing seeds rebuild into (pack_test's goldens).
-		if (item._iMaxDur == DUR_INDESTRUCTIBLE)
+		if (item._iMaxDur == DUR_INDESTRUCTIBLE || item._iDurability == DUR_INDESTRUCTIBLE) // Zod's stamp too
 			break;
 		int bonus = r * item._iMaxDur / 100;
 		// Capped just below DUR_INDESTRUCTIBLE. _iMaxDur is an int here but a BYTE in the packed
@@ -1325,7 +1325,7 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 		item._iPLDam += 140 + r * 2;
 		[[fallthrough]];
 	case IPL_DUR_CURSE:
-		if (item._iMaxDur == DUR_INDESTRUCTIBLE)
+		if (item._iMaxDur == DUR_INDESTRUCTIBLE || item._iDurability == DUR_INDESTRUCTIBLE)
 			break; // as IPL_DUR: "the ages" holds (round 29 audit); Crystalline's damage above still applies
 		item._iMaxDur -= r * item._iMaxDur / 100;
 		// std::max<uint8_t> until 2026-08-27, which truncated the int field to its low eight bits

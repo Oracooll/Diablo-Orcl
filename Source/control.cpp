@@ -2108,6 +2108,7 @@ void control_type_message()
 	if (!IsChatAvailable())
 		return;
 
+	oracool::CloseSkillPicker(); // hidden under chat, it still took clicks (round 30 audit)
 	talkflag = true;
 	ChatInputState.emplace(TextInputState::Options {
 	    /*value=*/TalkMessage,

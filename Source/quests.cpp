@@ -1053,7 +1053,9 @@ void StartQuestlog()
 	}
 	FirstFinishedQuest = EncounteredQuestCount;
 	for (auto &quest : Quests) {
-		if (quest._qactive == QUEST_DONE || quest._qactive == QUEST_HIVE_DONE) {
+		// A quest of this game only: in a cow game the Farmer is set DONE to open the Hive, and the log listed Farmer's
+		// Orchard as finished (round 30 audit).
+		if ((quest._qactive == QUEST_DONE || quest._qactive == QUEST_HIVE_DONE) && IsQuestEnabledInThisGame(quest)) {
 			EncounteredQuests[EncounteredQuestCount] = quest._qidx;
 			EncounteredQuestCount++;
 		}

@@ -3788,10 +3788,6 @@ void RestartTownLvl(Player &player)
 	player.setLevel(0);
 	player._pInvincible = false;
 
-	SetPlayerHitPoints(player, 64);
-
-	player._pMana = 0;
-	player._pManaBase = player._pMana - (player._pMaxMana - player._pMaxManaBase);
 	// The rest of a potion drunk just before death does not heal the hero standing in town (round 21 audit).
 	if (&player == MyPlayer)
 		oracool::ResetGradualHealing();
@@ -3812,7 +3808,13 @@ void RestartTownLvl(Player &player)
 	// out of PM_DEATH, and the totals keep the 1 life: recalculated while dead, the lit aura's life was left out, the life
 	// pinned, and then added back on top - a free heal (round 29 audit).
 	oracool::ClearWarcryBuffs(player);
-	CalcPlrInvKeepingLife(player);
+	CalcPlrInv(player, false);
+	// The 1 life and the empty mana AFTER the totals (round 30 audit): set first, against a maximum a recalculation on the
+	// death screen had worked out without the lit aura (a sheet buff expiring while dead), and the respawn's totals then
+	// added the aura's life on top of it.
+	SetPlayerHitPoints(player, 64);
+	player._pMana = 0;
+	player._pManaBase = player._pMana - (player._pMaxMana - player._pMaxManaBase);
 
 	if (&player == MyPlayer) {
 		player._pInvincible = true;
@@ -4862,7 +4864,8 @@ void PlayDungMsgs()
 		sfxdelay = 40;
 		sfxdnum = PS_DIABLVLINT;
 		myPlayer.pDungMsgs |= DungMsgDiablo;
-	} else if (!setlevel && currlevel == 17 && !myPlayer._pLvlVisited[17] && (myPlayer.pDungMsgs2 & 1) == 0) {
+	} else if (!setlevel && currlevel == 17 && !myPlayer._pLvlVisited[17] && (myPlayer.pDungMsgs2 & 1) == 0
+	    && Quests[Q_DEFILER]._qactive != QUEST_DONE) { // killed first by waypoint: he taunts from nowhere, the quest reopened (round 30 audit)
 		sfxdelay = 10;
 		sfxdnum = USFX_DEFILER1;
 		Quests[Q_DEFILER]._qactive = QUEST_ACTIVE;
@@ -4870,7 +4873,8 @@ void PlayDungMsgs()
 		Quests[Q_DEFILER]._qmsg = TEXT_DEFILER1;
 		NetSendCmdQuest(true, Quests[Q_DEFILER]);
 		myPlayer.pDungMsgs2 |= 1;
-	} else if (!setlevel && currlevel == 19 && !myPlayer._pLvlVisited[19] && (myPlayer.pDungMsgs2 & 4) == 0) {
+	} else if (!setlevel && currlevel == 19 && !myPlayer._pLvlVisited[19] && (myPlayer.pDungMsgs2 & 4) == 0
+	    && Quests[Q_DEFILER]._qactive != QUEST_DONE) {
 		sfxdelay = 10;
 		sfxdnum = USFX_DEFILER3;
 		myPlayer.pDungMsgs2 |= 4;

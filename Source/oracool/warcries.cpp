@@ -748,11 +748,11 @@ const char *WarcryDescription(SpellID spell)
 {
 	switch (spell) {
 	case SpellID::Howl:
-		return N_("A howl that sends everything in earshot running - four tiles and a tile more a rank. Uniques hold their ground.");
+		return N_("A howl that sends everything in earshot running, farther with every rank. Uniques hold their ground.");
 	case SpellID::Taunt:
 		return N_("A goad that wakes everything in earshot and turns it on you.");
 	case SpellID::Shout:
-		return N_("A bellow that hardens you: +50% armour, +10% per rank, for 40 seconds, +5 per rank.");
+		return N_("A bellow that hardens you: +50 armour, +10 per rank, for 40 seconds, +5 per rank.");
 	case SpellID::BattleCry:
 		return N_("A cry that leaves what hears it at -25% damage and -25% armour, for 24 seconds.");
 	case SpellID::BattleOrders:
@@ -849,7 +849,7 @@ std::string WarcryFactsAt(SpellID spell, int rank)
 		break;
 	case SpellID::Shout:
 		duration(40 + 5 * (rank - 1));
-		line(fmt::format(fmt::runtime(_("Armour: +{:d}%")), 50 + 10 * (rank - 1)));
+		line(fmt::format(fmt::runtime(_("Armour: +{:d}")), 50 + 10 * (rank - 1))); // flat, as applied (round 30 audit)
 		break;
 	case SpellID::BattleCry:
 		radius(earshot);

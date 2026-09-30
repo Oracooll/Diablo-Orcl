@@ -45,6 +45,7 @@
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
 #include "oracool/levski_roar.h"
+#include "oracool/spell_ranks.h" // CanReadSpellBookTo - the Chamber of Bone's Guardian rank
 #include "oracool/stonegate.h"
 #include "oracool/wirt_cart.h"
 #include "oracool/oracool.h"
@@ -2282,7 +2283,8 @@ void OperateBook(Player &player, Object &book, bool sendmsg)
 	if (setlvlnum == SL_BONECHAMB) {
 		if (sendmsg) {
 			uint8_t newSpellLevel = player._pSplLvl[static_cast<int16_t>(SpellID::Guardian)] + 1;
-			if (newSpellLevel <= MaxSpellLevel) {
+			// Under the book rule, as a Guardian book is (round 30 audit): every new game added one more, to 30.
+			if (newSpellLevel <= MaxSpellLevel && oracool::CanReadSpellBookTo(player, SpellID::Guardian, newSpellLevel)) {
 				player._pSplLvl[static_cast<int16_t>(SpellID::Guardian)] = newSpellLevel;
 				NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, static_cast<uint16_t>(SpellID::Guardian), newSpellLevel);
 			}
@@ -2535,6 +2537,7 @@ void OperateSlainHero(const Player &player, Object &corpse, bool sendmsg)
 		return;
 	}
 	corpse._oSelFlag = 0;
+	MakeRoomForGuaranteedReward(); // the hero's reward lands on a full floor too (round 30 audit)
 
 	SetRndSeed(corpse._oRndSeed);
 
@@ -4737,9 +4740,23 @@ void AddLevskiRoarObject()
  * is why the first build of the sarcophagus never moved (user, 2026-09-08: "it doesn't play
  * animation now when i click on it").
  */
+/** @brief Where Levski's Cube was opened from, while its window is the Cube's own (the walk-away below). */
+std::optional<Point> CubeOpenedAt;
+
 void ProcessTownStashChest()
 {
-	if (currlevel != 0 || setlevel || StashChestAnimDirection == 0)
+	if (currlevel != 0 || setlevel)
+		return;
+	// The chest and the Cube close when the hero walks off, three tiles as at every counter (round 30 audit: they stayed open
+	// across town, and items moved in and out from anywhere). Either may refuse with an item it cannot give back.
+	constexpr int WalkAwayTiles = 3;
+	if (IsStashOpen && MyPlayer != nullptr && MyPlayer->position.tile.WalkingDistance(StashChestPosition) > WalkAwayTiles)
+		CloseStash();
+	if (!oracool::IsLevskiRoarOpen() || oracool::CurrentTransmuteHost() != oracool::TransmuteHost::Cube)
+		CubeOpenedAt = std::nullopt;
+	else if (CubeOpenedAt && MyPlayer != nullptr && MyPlayer->position.tile.WalkingDistance(*CubeOpenedAt) > WalkAwayTiles)
+		oracool::CloseLevskiRoar();
+	if (StashChestAnimDirection == 0)
 		return;
 	Object *chest = FindObjectAtPosition(StashChestPosition);
 	if (chest != nullptr)
@@ -5736,10 +5753,13 @@ void OperateObject(Player &player, Object &object)
 		// this is gated on currlevel rather than on the type alone.
 		// Two stands in town since 2026-09-20: the Roar and the Stonegate, told apart by identity.
 		if (currlevel == 0 && sendmsg) {
-			if (oracool::IsStonegateObject(object))
+			if (oracool::IsStonegateObject(object)) {
 				oracool::ToggleStonegate();
-			else
+			} else {
 				oracool::ToggleLevskiRoar();
+				if (oracool::IsLevskiRoarOpen())
+					oracool::CubeOpenedAt = object.position; // for the walk-away (round 30 audit)
+			}
 		}
 		break;
 	case OBJ_LEVER:

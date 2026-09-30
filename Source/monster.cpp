@@ -1310,6 +1310,7 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 	}
 
 	if (Quests[Q_GARBUD].IsAvailable() && monster.uniqueType == UniqueMonsterType::Garbud) {
+		MakeRoomForGuaranteedReward(); // round 30 audit
 		CreateTypeItem(monster.position.tile + Displacement { 1, 1 }, true, ItemType::Mace, IMISC_NONE, sendmsg, false);
 	} else if (monster.uniqueType == UniqueMonsterType::Defiler) {
 		if (effect_is_playing(USFX_DEFILER8))
@@ -1331,9 +1332,14 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		if (effect_is_playing(nSFX))
 			stream_stop();
 		UberDiabloMonsterIndex = -2;
+		// Room for each of the four (round 30 audit).
+		MakeRoomForGuaranteedReward();
 		CreateMagicWeapon(monster.position.tile, ItemType::Sword, ICURS_GREAT_SWORD, sendmsg, false);
+		MakeRoomForGuaranteedReward();
 		CreateMagicWeapon(monster.position.tile, ItemType::Staff, ICURS_WAR_STAFF, sendmsg, false);
+		MakeRoomForGuaranteedReward();
 		CreateMagicWeapon(monster.position.tile, ItemType::Bow, ICURS_LONG_WAR_BOW, sendmsg, false);
+		MakeRoomForGuaranteedReward();
 		CreateSpellBook(monster.position.tile, SpellID::Apocalypse, sendmsg, false);
 	} else if (!monster.isPlayerMinion()) {
 		SpawnItem(monster, monster.position.tile, sendmsg);
@@ -3678,6 +3684,11 @@ void ActivateSpawn(Monster &monster, Point position, Direction dir)
 	monster.position.tile = position;
 	monster.position.future = position;
 	monster.position.old = position;
+	// A Luminous one's light was placed where it was made, the map's corner (round 30 audit): it rose dark.
+	if (monster.lightId != NO_LIGHT) {
+		ChangeLightXY(monster.lightId, position);
+		ChangeLightOffset(monster.lightId, {});
+	}
 	StartSpecialStand(monster, dir);
 }
 
@@ -5858,6 +5869,7 @@ void TalktoMonster(Player &player, Monster &monster)
 			Quests[Q_ZHAR]._qactive = QUEST_ACTIVE;
 			Quests[Q_ZHAR]._qlog = true;
 			Quests[Q_ZHAR]._qvar1 = QS_ZHAR_ITEM_SPAWNED;
+			MakeRoomForGuaranteedReward(); // guaranteed drops land on a full floor (round 30 audit)
 			CreateTypeItem(monster.position.tile + Displacement { 1, 1 }, false, ItemType::Misc, IMISC_BOOK, false, false, true);
 			monster.flags |= MFLAG_QUEST_COMPLETE;
 			NetSendCmdQuest(true, Quests[Q_ZHAR]);

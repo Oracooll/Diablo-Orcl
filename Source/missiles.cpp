@@ -1842,10 +1842,17 @@ void AddBerserk(Missile &missile, AddMissileParameter &parameter)
 		Player &player = *missile.sourcePlayer();
 		const int slvl = BerserkDamageBonus(player.GetSpellLevel(SpellID::Berserk));
 		monster.flags |= MFLAG_BERSERK | MFLAG_GOLEM;
-		monster.minDamage = (GenerateRnd(10) + 120) * monster.minDamage / 100 + slvl;
-		monster.maxDamage = (GenerateRnd(10) + 120) * monster.maxDamage / 100 + slvl;
-		monster.minDamageSpecial = (GenerateRnd(10) + 120) * monster.minDamageSpecial / 100 + slvl;
-		monster.maxDamageSpecial = (GenerateRnd(10) + 120) * monster.maxDamageSpecial / 100 + slvl;
+		// Clamped to the byte (round 30 audit): Hell and Torment damage over 212 wrapped to near nothing, and the minimum
+		// could land above the maximum. Same draws, same order.
+		const auto berserked = [](int percent, int value, int bonus) {
+			return static_cast<uint8_t>(std::min(percent * value / 100 + bonus, 255));
+		};
+		monster.minDamage = berserked(GenerateRnd(10) + 120, monster.minDamage, slvl);
+		monster.maxDamage = berserked(GenerateRnd(10) + 120, monster.maxDamage, slvl);
+		monster.minDamageSpecial = berserked(GenerateRnd(10) + 120, monster.minDamageSpecial, slvl);
+		monster.maxDamageSpecial = berserked(GenerateRnd(10) + 120, monster.maxDamageSpecial, slvl);
+		monster.maxDamage = std::max(monster.maxDamage, monster.minDamage);
+		monster.maxDamageSpecial = std::max(monster.maxDamageSpecial, monster.minDamageSpecial);
 		int lightRadius = leveltype == DTYPE_NEST ? 9 : 3;
 		// A Luminous monster already carries a light: resized, not orphaned (round 9 audit).
 		if (monster.lightId != NO_LIGHT)

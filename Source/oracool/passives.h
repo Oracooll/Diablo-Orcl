@@ -95,7 +95,7 @@ bool PassiveShrugsOffStagger(Player &player);
 // ---- the all-heroes sweep (2026-09-14) ----
 
 /** @brief A missile @p player's spell or arrow landed on @p target - Paralysis, Temporal Flux, Thrill of the Hunt, the element marks. */
-void OnPassiveMissileHit(Player &player, const Monster &target, int damage, DamageType damageType, bool arrow);
+void OnPassiveMissileHit(Player &player, const Monster &target, int damage, DamageType damageType, bool arrow, bool sharedRulesDone = false);
 /** @brief Any monster's death, whoever killed it (MonsterDeath): Life from Death. */
 void OnPassiveMonsterDied(Player &player, const Monster &monster);
 /** @brief A blow reached @p player, before any shield absorbs it: Galvanizing Ward's clock restarts. */

@@ -30,8 +30,12 @@ constexpr int FortifiedArmorBonus = 20;
 bool LevelHasMonsterType(_monster_id type)
 {
 	for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
-		if (LevelMonsterTypes[i].type == type)
-			return true;
+		if (LevelMonsterTypes[i].type != type)
+			continue;
+		// In a rift, only a type the level scatters: the Skeleton King's rift loads a floor 1-6 skeleton for him to raise
+		// (PLACE_SPECIAL), and eight of those carry a champion row - a floor-3 champion and escort in a rung-16 rift (round
+		// 30 audit; round 13 closed the same door for the scatter).
+		return !InRift() || (LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0;
 	}
 	return false;
 }

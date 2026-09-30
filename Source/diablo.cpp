@@ -1576,10 +1576,9 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 	case SDL_MOUSEWHEEL:
 		if (event.wheel.y > 0) { // Up
-			if (oracool::IsSkillPickerOpen()) {
-				// The picker only ever overflows when a character knows more than fits above the
-				// plate; ungated by cursor position because the window is the only thing on screen
-				// worth scrolling while it is open.
+			if (oracool::IsSkillPickerOpen() && oracool::GetSkillPickerRect().contains(MousePosition)) {
+				// Over the picker only (round 30 audit): the rule for every window, and the wheel zooms or scrolls what is
+				// under the cursor everywhere else.
 				oracool::ScrollSkillPicker(1);
 			} else if (oracool::HandleLevskiRecipeBookScroll(1)) {
 				// consumed - the recipe book is capped to the screen and scrolls inside the cap
@@ -1611,8 +1610,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				// the character sheet and spell book below, so the wheel still zooms the dungeon
 				// everywhere else while it is open.
 				oracool::ScrollWaypointMenuUp();
-			} else if (IsStashOpen) {
-				Stash.PreviousPage();
+			} else if (IsStashOpen && IsOverLeftPanel(MousePosition)) {
+				Stash.PreviousPage(); // over the stash only (round 30 audit): it flipped pages under the Abilities list
 			} else if (chrflag && IsOverLeftPanel(MousePosition)) {
 				// Oracool V1: the character sheet scrolls - the hidden stats below Mana make it
 				// about twice its window's height. Gated on the cursor actually being over the
@@ -1636,11 +1635,13 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				// room for dungeon-view zoom.
 				sgOptions.Keymapper.KeyPressed(MouseScrollUpButton);
 			} else {
-				// Oracool: plain wheel now zooms the dungeon view in/out, one 0.1x step per notch.
-				AdjustDungeonZoom(1);
+				// Oracool: plain wheel now zooms the dungeon view in/out, one 0.1x step per notch - not through a window the
+				// wheel had nothing to scroll in (round 30 audit: the Cube, the workshop, the inventory zoomed the world).
+				if (!IsOverAnyInterface(MousePosition))
+					AdjustDungeonZoom(1);
 			}
 		} else if (event.wheel.y < 0) { // down
-			if (oracool::IsSkillPickerOpen()) {
+			if (oracool::IsSkillPickerOpen() && oracool::GetSkillPickerRect().contains(MousePosition)) {
 				oracool::ScrollSkillPicker(-1); // see the wheel-up branch above
 			} else if (oracool::HandleLevskiRecipeBookScroll(-1)) {
 				// consumed - see the wheel-up branch above
@@ -1664,7 +1665,7 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 			} else if (oracool::IsWaypointMenuOpen() && oracool::GetWaypointMenuRect().contains(MousePosition)) {
 				// Oracool V1: travel list scrolling - see the wheel-up branch above.
 				oracool::ScrollWaypointMenuDown();
-			} else if (IsStashOpen) {
+			} else if (IsStashOpen && IsOverLeftPanel(MousePosition)) {
 				Stash.NextPage();
 			} else if (chrflag && IsOverLeftPanel(MousePosition)) {
 				// Oracool V1: character sheet scrolling - see the wheel-up branch above.
@@ -1686,7 +1687,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				sgOptions.Keymapper.KeyPressed(MouseScrollDownButton);
 			} else {
 				// Oracool: plain wheel now zooms the dungeon view in/out, one 0.1x step per notch.
-				AdjustDungeonZoom(-1);
+				if (!IsOverAnyInterface(MousePosition)) // as the wheel-up branch
+					AdjustDungeonZoom(-1);
 			}
 		} else if (event.wheel.x > 0) { // left
 			sgOptions.Keymapper.KeyPressed(MouseScrollLeftButton);
@@ -4229,6 +4231,12 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	CloseStash();
 	oracool::CloseStonegateMenu();
 	oracool::CloseWaypointMenu(); // a Town Portal cast beside a sigil landed within its reach in town (round 18 audit)
+	// The books, the skill picker and the HUD menu do not follow the hero to the next floor either (round 30 audit: a click
+	// beside the 944-wide book reached the stairs, and the book was still open below).
+	oracool::CloseRunewordBook();
+	oracool::CloseCraftingMenu();
+	oracool::CloseSkillPicker();
+	oracool::CloseHudMenu();
 	// A rift click from far off, then a Sealed Map read before arriving: the request outlived the arena, and the next walk
 	// near the portal pulled the hero in and spent the keystone (round 24 audit).
 	oracool::ClearRiftEntryRequest();

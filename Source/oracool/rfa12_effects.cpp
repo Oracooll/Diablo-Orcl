@@ -755,7 +755,7 @@ std::string Rfa12PassiveFactsAt(const Player &player, ClassTreeSkill skill, int 
 		return fmt::format(fmt::runtime(_("Melee blows: {:d}% chance to bleed {:d} damage a second for {:d} seconds, with no regeneration")),
 		    DeepWoundsChance(p), DeepWoundsPerSecond(p), DeepWoundsTicks / TicksPerSecond);
 	case Skill::BattleHardened:
-		return fmt::format(fmt::runtime(_("Below half life: -{:d}% fire, lightning and magic damage taken")), BattleHardenedPercent(p));
+		return fmt::format(fmt::runtime(_("Below half life: -{:d}% damage taken from all but steel")), BattleHardenedPercent(p));
 	case Skill::Bloodlust:
 		return fmt::format(fmt::runtime(_("Melee blows return {:d}% of their damage as life")), BloodlustPercent(p));
 	case Skill::UnfinishedBusiness:

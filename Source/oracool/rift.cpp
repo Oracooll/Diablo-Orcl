@@ -822,9 +822,10 @@ void OnRiftMonsterKilled(const Monster &monster)
 		} else {
 			for (int d = 0; d < 8; d++) {
 				const Point neighbour = monster.position.tile + static_cast<Direction>(d);
+				// Not on the pile either (round 30 audit): the fallback ignored the items the search above keeps clear of.
 				if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0
 				    && dPlayer[neighbour.x][neighbour.y] == 0 && dMonster[neighbour.x][neighbour.y] == 0 && neighbour != State.arrivalTile
-				    && !TownPortalOn(neighbour)) {
+				    && !TownPortalOn(neighbour) && dItem[neighbour.x][neighbour.y] == 0) {
 					State.homeTile = neighbour;
 					break;
 				}

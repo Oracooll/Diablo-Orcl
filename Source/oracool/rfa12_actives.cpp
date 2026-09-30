@@ -32,6 +32,7 @@
 #include "oracool/passives.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
+#include "oracool/endgame_boss.h" // IsKnockbackImmune - Shove's refusal
 #include "oracool/skill_sounds.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/warcries.h"
@@ -153,7 +154,7 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	if (&player == MyPlayer && applyPassives)
 		MarkWoundedByScent(player, monster, damage);
 	if (&player == MyPlayer && applyPassives)
-		OnPassiveMissileHit(player, monster, damage, type, /*arrow=*/BowStrikeInFlight); // Paralysis, Temporal Flux, the marks
+		OnPassiveMissileHit(player, monster, damage, type, /*arrow=*/BowStrikeInFlight, /*sharedRulesDone=*/melee); // Paralysis, Temporal Flux, the marks
 	// None of these cold skills has impact art of its own (Chill Touch, Ice Needle, Ice Lance, Brittle Ground,
 	// Whiteout, Absolute Zero): the cold hit flash marks the blow (hit_cold.png, 2026-09-26).
 	if (type == DamageType::Cold)
@@ -176,9 +177,17 @@ void Shove(Monster &monster, Direction dir)
 {
 	if (ShrugsOff(monster) || monster.mode == MonsterMode::Petrified || (monster.hitPoints >> 6) <= 0)
 		return;
-	// M_GetKnockback moves a monster OPPOSITE to where it faces; face it the other way first.
+	// Not an Unyielding one: the knockback refuses it, and the turn below was never undone (round 30 audit).
+	if (IsKnockbackImmune(monster))
+		return;
+	// M_GetKnockback moves a monster OPPOSITE to where it faces; face it the other way first - and back, when a wall
+	// refuses the move (round 30 audit: it slid and faced the wrong way).
+	const Direction facing = monster.direction;
+	const Point oldBefore = monster.position.old;
 	monster.direction = Opposite(dir);
 	M_GetKnockback(monster);
+	if (monster.position.old == oldBefore) // refused: M_GetKnockback moves position.old when it takes the shove
+		monster.direction = facing;
 }
 
 /** @brief Every hittable monster within @p radius tiles of @p centre, gathered before anything is struck. */
@@ -3734,7 +3743,7 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		say(_("Stun: {} s (uniques shrug it off)"), Secs(StunTicks(spell, r)));
 		break;
 	case SpellID::WeaponThrow:
-		say(_("Damage: the full blow of the sword or axe in your hand, thrown"));
+		say(_("Damage: the sword or axe in your hand, thrown, with half your Strength bonus"));
 		break;
 	// ---------------- Sorceress ----------------
 	case SpellID::ChillTouch:
