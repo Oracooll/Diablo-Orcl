@@ -26,6 +26,8 @@
 #include "oracool/auto_save.h"
 #include "oracool/hud_art.h"
 #include "oracool/gems.h"
+#include "oracool/levski_roar.h" // the Cube keeps the slot when it refuses to close
+#include "oracool/workshop.h" // and so does a bench
 #include "oracool/inventory_layout.h" // CellPx / GridOrigin - the grid this one must match
 #include "oracool/item_sets.h"        // which set a piece belongs to, for the set page's grouping
 #include "oracool/ornate_border.h"
@@ -815,6 +817,10 @@ void OpenStash()
 	// it (2026-09-22). Before the flag, so a refused close leaves the other window up rather than
 	// being drawn over.
 	CloseOtherShopSurfaces();
+	// A bench or the Cube that refused to close (a full pack) keeps the slot: the stash opened under it, invisible and
+	// dead (round 10 audit, v1.12.235) - the workshop and the Cube back out the same way.
+	if (oracool::IsWorkshopOpen() || oracool::IsLevskiRoarOpen())
+		return;
 	TakeLeftPanelSlot(LeftPanelContent::Stash);
 	IsStashOpen = true;
 	Stash.RefreshItemStatFlags();
@@ -828,8 +834,8 @@ void OpenStash()
 
 void TransferItemToInventory(Player &player, uint16_t itemId)
 {
-	if (itemId == StashStruct::EmptyCell) {
-		return;
+	if (itemId == StashStruct::EmptyCell || itemId >= Stash.stashList.size()) {
+		return; // a stale hover index (round 10 audit)
 	}
 
 	Item &item = Stash.stashList[itemId];
@@ -855,6 +861,14 @@ bool StashSortPressed = false;
 
 void CheckStashButtonRelease(Point mousePosition)
 {
+	// Only for an open stash: a press, Esc, then a release on the same spot opened the withdraw box with no stash behind
+	// it (round 10 audit).
+	if (!IsStashOpen) {
+		GoldDisplayPressed = false;
+		StashSortPressed = false;
+		StashButtonPressed = -1;
+		return;
+	}
 	if (GoldDisplayPressed) {
 		if (GoldButtonContains(mousePosition)) {
 			oracool::PlayUiMoveSound(); // Oracool: the gold total is a button since Sort took its place
@@ -913,6 +927,8 @@ void CheckStashButtonRelease(Point mousePosition)
 
 void CheckStashButtonPress(Point mousePosition)
 {
+	if (!IsStashOpen)
+		return; // the HUD branch asks on every click; a closed stash has no buttons (round 10 audit)
 	if (GoldButtonContains(mousePosition)) {
 		GoldDisplayPressed = true;
 		StashButtonPressed = -1;
@@ -1264,6 +1280,9 @@ bool UseStashItem(uint16_t c)
 	if (stextflag != TalkID::None)
 		return true;
 
+	// A hover index can be a click stale: RemoveStashItem moves the last item into a freed index (round 10 audit).
+	if (c >= Stash.stashList.size())
+		return true;
 	Item *item = &Stash.stashList[c];
 
 	constexpr int SpeechDelay = 10;
@@ -1334,6 +1353,11 @@ bool UseStashItem(uint16_t c)
 		return true;
 	}
 
+	// The backpack's book gate: read from the stash, a book above the hero's level (or at the ceiling) was used up and
+	// taught nothing (round 10 audit, v1.12.235).
+	if (RefuseUnreadableBook(*MyPlayer, *item))
+		return true;
+
 	if (item->_iMiscId == IMISC_BOOK)
 		PlaySFX(IS_RBOOK);
 	else
@@ -1367,6 +1391,8 @@ bool UseStashItem(uint16_t c)
 
 void StashStruct::RemoveStashItem(StashStruct::StashCell iv)
 {
+	// The hover index names a list slot the swap below may give to another item: forgotten until the next hover (round 10).
+	pcursstashitem = StashStruct::EmptyCell;
 	// Every page's references, not only the page on screen (audit, 2026-09-27): Ogden's boards and the rift's keystone
 	// take items from any page, and the page left behind kept cells naming an index past the list - an out-of-range
 	// read when drawn - or, after the swap below, an item on another page.

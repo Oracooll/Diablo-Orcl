@@ -4553,6 +4553,7 @@ TEST(OracoolItemSets, BonusesRequireTheirPiecesToBeWorn)
 
 	// Worn, it counts - but one piece is still below the first rung.
 	player.InvBody[INVLOC_HEAD] = player.InvList[0];
+	player.InvBody[INVLOC_HEAD]._iStatFlag = true; // worn and usable - CalcPlrInv's verdict, set by hand here
 	EXPECT_EQ(oracool::WornSetPieces(player, *ashen), 1);
 	EXPECT_FALSE(oracool::AnySetBonusActive(player)) << "one piece should not earn a rung";
 
@@ -4563,6 +4564,10 @@ TEST(OracoolItemSets, BonusesRequireTheirPiecesToBeWorn)
 	InitializeItem(beltItem, static_cast<_item_indexes>(oracool::BaseItemForSetSlot(belt->slot)));
 	oracool::MakeSetItem(beltItem, *belt);
 	player.InvBody[INVLOC_WAIST] = beltItem;
+	player.InvBody[INVLOC_WAIST]._iStatFlag = false;
+	EXPECT_EQ(oracool::WornSetPieces(player, *ashen), 1) << "a red piece (requirements unmet) counted toward the set";
+	EXPECT_FALSE(oracool::AnySetBonusActive(player));
+	player.InvBody[INVLOC_WAIST]._iStatFlag = true;
 	EXPECT_EQ(oracool::WornSetPieces(player, *ashen), 2);
 	EXPECT_TRUE(oracool::AnySetBonusActive(player));
 
@@ -4605,8 +4610,13 @@ TEST(OracoolItemSets, SetPieceListReadsGreenWornYellowOwnedRedMissing)
 	Stash.stashList.push_back(piece);
 	EXPECT_EQ(oracool::SetPieceListColor(player, *helm), UiFlags::ColorYellow) << "a piece in the stash";
 
-	// Worn: green, even though the stash copy is also owned.
+	// Worn but red (requirements unmet): owned, not working - yellow.
 	player.InvBody[INVLOC_HEAD] = piece;
+	player.InvBody[INVLOC_HEAD]._iStatFlag = false;
+	EXPECT_EQ(oracool::SetPieceListColor(player, *helm), UiFlags::ColorYellow) << "a worn piece the hero cannot use";
+
+	// Worn and usable: green, even though the stash copy is also owned.
+	player.InvBody[INVLOC_HEAD]._iStatFlag = true;
 	EXPECT_EQ(oracool::SetPieceListColor(player, *helm), UiFlags::ColorOracoolGreen) << "a worn piece";
 
 	Stash = {};
@@ -4788,6 +4798,7 @@ TEST(OracoolAudit2, SetBonusesAccumulateAndNeverRegress)
 			devilution::Item piece {};
 			InitializeItem(piece, static_cast<_item_indexes>(base));
 			oracool::MakeSetItem(piece, def);
+			piece._iStatFlag = true; // usable, as CalcPlrInv would find it
 			// Straight into the matching body slot - this test is about the bonus ladder, not about
 			// the equip rules, so it places by the item's own location.
 			player.InvBody[piece._iLoc == ILOC_ONEHAND ? INVLOC_HAND_LEFT
@@ -6465,8 +6476,9 @@ TEST(OracoolAudit, NamedSetDropsLeanTowardTheSetYouAreCollecting)
 	InitializeItem(made, static_cast<_item_indexes>(base));
 	MakeSetItem(made, piece);
 
-	// (1) worn
+	// (1) worn - even red (requirements unmet): it is owned
 	player.InvBody[INVLOC_HEAD] = made;
+	player.InvBody[INVLOC_HEAD]._iStatFlag = false;
 	EXPECT_TRUE(IsSetPieceHeld(player, piece)) << "a worn piece is not seen as held";
 	EXPECT_EQ(HeldSetPieces(player, set), 1);
 	player.InvBody[INVLOC_HEAD].clear();

@@ -459,6 +459,8 @@ Item &GetInventoryItem(Player &player, int location);
  * (audit, 2026-09-27).
  */
 DVL_API_FOR_TEST void ConsumeUsedBackpackItem(Player &player, int c, const Item *item);
+/** @brief Whether @p player may not read book @p item now, saying why. The backpack and the stash both ask it first. */
+bool RefuseUnreadableBook(Player &player, const Item &item);
 bool UseInvItem(int cii);
 
 /**

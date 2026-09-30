@@ -1,4 +1,5 @@
 #include "oracool/item_sets.h"
+#include "oracool/rng_streams.h" // MainSeedGuard - the rungs draw nothing net
 
 #include <cstring>
 
@@ -259,6 +260,9 @@ void ApplySetBonusesToTotals(const Player &player, ItemBonusTotals &totals)
 			// data means.
 			int flatArmor = 0;
 			bool anyOnScratch = false;
+			// No net draw from the game's random stream: every rung power is a fixed value, and SaveItemPower's RndPL still
+			// advanced the seed on each of them, on every stat recalculation (round 10 audit). The guard puts the seed back.
+			const MainSeedGuard seedGuard;
 			for (const ItemPower &power : rung->powers) {
 				if (power.type == IPL_INVALID)
 					continue;
@@ -310,7 +314,12 @@ bool IsSetPieceWorn(const Player &player, const SetItemDefinition &piece)
 		// the direction of silently losing bonuses - worse than the bug being fixed. The broken
 		// flag is set once, at the moment of breaking, and is the same signal _iStatFlag derives
 		// from.
-		if (equipped._iOracoolBroken)
+		//
+		// And _iStatFlag since the round 10 audit (v1.12.235): the ordering hazard above does not exist -
+		// CalcSelfItems sets every worn item's flag to !_iOracoolBroken before its first totals walk, and re-sums after
+		// any flag drops. A piece whose requirements lapsed (a Strength ring taken off) turned red and lost its own
+		// stats while its set's rungs, the completion stinger and the milestone stayed lit.
+		if (equipped._iOracoolBroken || !equipped._iStatFlag)
 			continue;
 		return true;
 	}
@@ -319,8 +328,12 @@ bool IsSetPieceWorn(const Player &player, const SetItemDefinition &piece)
 
 bool IsSetPieceHeld(const Player &player, const SetItemDefinition &piece)
 {
-	if (IsSetPieceWorn(player, piece))
-		return true;
+	// Any body slot, working or not: a broken or red piece is still owned, and a drop weighted as if it were missing
+	// would hand the hero a second copy (round 10 audit, v1.12.235 - IsSetPieceWorn now also asks _iStatFlag).
+	for (const Item &equipped : player.InvBody) {
+		if (!equipped.isEmpty() && equipped._iCurs == piece.cursor)
+			return true;
+	}
 	// Every backpack page, not only the first. Audit finding, 2026-08-26: this walked InvList
 	// directly, so a set piece stored in any of the nine extra tabs read as NOT OWNED - and this
 	// predicate is what weights named-set drops toward the suit a player is actually collecting.

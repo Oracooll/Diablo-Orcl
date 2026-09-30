@@ -658,7 +658,8 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 				isPlayerHit = PlayerMHit(pid - 1, &monster, missile._midist, minDamage, maxDamage, missile._mitype, element, isDamageShifted, DeathReason::MonsterOrTrap, &blocked);
 				// Chilling Armor answers a RANGED hit; the other two armours do not, which is the
 				// difference between them (Oracool, Round 2). A blocked shot is not a hit.
-				if (isPlayerHit && !blocked)
+				// Not every tick of an acid puddle: each landed tick fired a free Ice Bolt, eight a second (round 10 audit).
+				if (isPlayerHit && !blocked && missile._mitype != MissileID::AcidPuddle)
 					oracool::OnColdArmourStruckAtRange(Players[pid - 1], monster);
 			}
 		} else {
@@ -1416,9 +1417,6 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 		minhit = 30;
 	hper = std::max(hper, minhit);
 
-	// Oracool, Round 5: Avoid - an arrow that would have landed slips instead.
-	if (missileData.isArrow() && (oracool::PassiveEvadesMissile(player) || oracool::SlowMissilesTurnsAside(player)))
-		return false;
 	int blk = 100;
 	if ((player._pmode == PM_STAND || player._pmode == PM_ATTACK) && player._pBlockFlag) {
 		blk = GenerateRnd(100);
@@ -1458,6 +1456,10 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	if (hit >= hper) {
 		return false;
 	}
+	// Oracool, Round 5: Avoid - an arrow that would have landed slips instead. After the to-hit roll since v1.12.235:
+	// before it, arrows that missed anyway still set off Tactical Advantage (round 10 audit).
+	if (missileData.isArrow() && (oracool::PassiveEvadesMissile(player) || oracool::SlowMissilesTurnsAside(player)))
+		return false;
 
 	int dam;
 	if (mtype == MissileID::BoneSpirit) {

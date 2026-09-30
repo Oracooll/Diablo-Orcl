@@ -3622,9 +3622,19 @@ void CheckInvItem(bool isShiftHeld, bool isCtrlHeld)
 void CheckInvScrn(bool isShiftHeld, bool isCtrlHeld)
 {
 	// Oracool: HUD art pass - the belt's item region is the plate art's middle HUD rect now.
-	if (oracool::GetMiddleHudRect().contains(MousePosition)) {
-		CheckInvItem(isShiftHeld, isCtrlHeld);
+	if (!oracool::GetMiddleHudRect().contains(MousePosition))
+		return;
+	// With the backpack closed only a real belt slot answers: CheckInvItem also tests the backpack's own cells, and its
+	// bottom-left cell sits under the plate's top-right strip - a closed backpack's item jumped onto the cursor (round 10
+	// audit, v1.12.235).
+	if (!invflag) {
+		bool onBelt = false;
+		for (int slot = 0; slot < MaxBeltItems; slot++)
+			onBelt = onBelt || (oracool::IsRealBeltItemSlot(slot) && oracool::GetBeltSlotRect(slot).contains(MousePosition));
+		if (!onBelt)
+			return;
 	}
+	CheckInvItem(isShiftHeld, isCtrlHeld);
 }
 
 void InvGetItem(Player &player, int ii)
@@ -4249,6 +4259,8 @@ void RefillBeltSlotFromInventory(Player &player, int spdIndex, _item_indexes idx
 	if (!filledSlot)
 		return;
 
+	// The backpack lost an item: which three charms are live can change with it, and so can the stats (round 10 audit).
+	CalcPlrInv(player, false);
 	player.CalcScrolls();
 	RedrawComponent(PanelDrawComponent::Belt);
 	if (&player == MyPlayer) {
@@ -4397,6 +4409,44 @@ void ConsumeUsedBackpackItem(Player &player, int c, const Item *item)
 	player.RemoveInvItem(c);
 }
 
+/**
+ * @brief Whether @p player may not read book @p item now, saying why - its spell at the ceiling, or its next rank above
+ * his level. Asked BEFORE the book is used, by the backpack and the stash alike: refusing any later eats the book and
+ * teaches nothing (the stash had no check at all until the round 10 audit, v1.12.235).
+ */
+bool RefuseUnreadableBook(Player &player, const Item &item)
+{
+	if (item._iMiscId != IMISC_BOOK)
+		return false;
+	const SpellID bookSpell = item._iSpell;
+	const int nextLevel = player._pSplLvl[static_cast<size_t>(bookSpell)] + 1;
+	// AND the ceiling, which used to be checked only inside UseItem - and only to skip the
+	// level change, not to refuse the read. So a book of a spell already at MaxSpellLevel was
+	// eaten for nothing (user, 2026-09-03: "make sure these lvl req ban me from reading and
+	// thus destroying a book"). Refused here, where refusing still saves the book.
+	if (nextLevel > MaxSpellLevel) {
+		player.Say(HeroSpeech::ICantUseThisYet);
+		if (&player == MyPlayer)
+			EventPlrMsg(fmt::format(fmt::runtime(_("{:s} is already at its highest level.")),
+			                pgettext("spell", GetSpellData(bookSpell).sNameText)),
+			    UiFlags::ColorRed);
+		return true;
+	}
+	if (!oracool::CanReadSpellBookTo(player, bookSpell, nextLevel)) {
+		player.Say(HeroSpeech::ICantUseThisYet);
+		// SAYS THE NUMBER. The voice line alone left the player unable to tell a refusal from a
+		// read that did nothing - "i am not sure i learned the spells" (user, 2026-09-03). The
+		// book is intact either way; this is what makes that visible.
+		if (&player == MyPlayer)
+			EventPlrMsg(fmt::format(fmt::runtime(_("{:s} needs level {:d} to reach level {:d}. The book is unread.")),
+			                pgettext("spell", GetSpellData(bookSpell).sNameText),
+			                oracool::SpellRankRequiredLevel(bookSpell, nextLevel), nextLevel),
+			    UiFlags::ColorRed);
+		return true;
+	}
+	return false;
+}
+
 bool UseInvItem(int cii)
 {
 	if (IsInspectingPlayer())
@@ -4506,34 +4556,8 @@ bool UseInvItem(int cii)
 	// The spell bands and the Rule of Rangs (user, 2026-08-19: "apply lvl req rule to books as
 	// well"). Checked HERE rather than inside UseItem, because the book is consumed by this function
 	// AFTER UseItem returns - refusing any later would eat the book and teach nothing.
-	if (item->_iMiscId == IMISC_BOOK) {
-		const SpellID bookSpell = item->_iSpell;
-		const int nextLevel = player._pSplLvl[static_cast<size_t>(bookSpell)] + 1;
-		// AND the ceiling, which used to be checked only inside UseItem - and only to skip the
-		// level change, not to refuse the read. So a book of a spell already at MaxSpellLevel was
-		// eaten for nothing (user, 2026-09-03: "make sure these lvl req ban me from reading and
-		// thus destroying a book"). Refused here, where refusing still saves the book.
-		if (nextLevel > MaxSpellLevel) {
-			player.Say(HeroSpeech::ICantUseThisYet);
-			if (&player == MyPlayer)
-				EventPlrMsg(fmt::format(fmt::runtime(_("{:s} is already at its highest level.")),
-				                pgettext("spell", GetSpellData(bookSpell).sNameText)),
-				    UiFlags::ColorRed);
-			return true;
-		}
-		if (!oracool::CanReadSpellBookTo(player, bookSpell, nextLevel)) {
-			player.Say(HeroSpeech::ICantUseThisYet);
-			// SAYS THE NUMBER. The voice line alone left the player unable to tell a refusal from a
-			// read that did nothing - "i am not sure i learned the spells" (user, 2026-09-03). The
-			// book is intact either way; this is what makes that visible.
-			if (&player == MyPlayer)
-				EventPlrMsg(fmt::format(fmt::runtime(_("{:s} needs level {:d} to reach level {:d}. The book is unread.")),
-				                pgettext("spell", GetSpellData(bookSpell).sNameText),
-				                oracool::SpellRankRequiredLevel(bookSpell, nextLevel), nextLevel),
-				    UiFlags::ColorRed);
-			return true;
-		}
-	}
+	if (RefuseUnreadableBook(player, *item))
+		return true;
 
 	// The signet's lifetime cap, checked HERE for exactly the reason the book gate above is here:
 	// this function consumes the item AFTER UseItem returns, so refusing any later would eat a

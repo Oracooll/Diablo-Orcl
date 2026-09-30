@@ -212,6 +212,8 @@ void CheckSetCompletionTransition(const Player &player);
  * any code that knows to arm this. See BaselineArmed in the .cpp.
  */
 void ArmSetCompletionBaseline(const Player &player);
+/** @brief Whether LoadGameLevel has armed the baseline - the character is settled in a running game, not loading. */
+bool IsSetCompletionBaselineArmed();
 
 /** @brief Forgets the baseline entirely - leaving the game. The next check records, never rings. */
 void ResetSetCompletionBaseline();

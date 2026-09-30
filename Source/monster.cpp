@@ -1696,8 +1696,14 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 			// (audit, 2026-09-27): clamped to 0-75 here, a -60% fire resistance on Hell took a Searing third at 100% where
 			// the sheet (and a fireball) said 160%, and 85% cold resisted only 75.
 			const int resist = std::clamp<int>(raw, -100, 100);
-			const int resisted = elemental * (100 - resist) / 100;
-			ApplyPlrDamage(element, player, 0, 0, dam - elemental + resisted);
+			int resisted = elemental * (100 - resist) / 100;
+			// The ELEMENT's extra reductions (Sixth Sense, Vigilant, Battle Hardened) on the elemental part only: tagging the
+			// whole blow with the element let them cut the physical two-thirds (or three-quarters) too (round 10 audit,
+			// v1.12.235). The blow itself goes in as Physical, whose reductions are the ones every part shares.
+			const int extraPercent = oracool::PassiveDamageTakenPercent(player, element) + oracool::Rfa12DamageTakenPercent(player, element)
+			    - (oracool::PassiveDamageTakenPercent(player, DamageType::Physical) + oracool::Rfa12DamageTakenPercent(player, DamageType::Physical));
+			resisted = std::max(resisted + resisted * extraPercent / 100, 0);
+			ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam - elemental + resisted);
 			if (element == DamageType::Cold)
 				oracool::ChillPlayer(player);
 		} else {
@@ -1763,6 +1769,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 			StartPlrHit(player, 0, true);
 
 		Point newPosition = player.position.tile + monster.direction;
+		oracool::CompanionsMakeWay(player, newPosition); // never onto his own skeleton's tile (round 10 audit)
 		if (PosOkPlayer(player, newPosition)) {
 			player.position.tile = newPosition;
 			FixPlayerLocation(player, player._pdir);
@@ -4670,8 +4677,10 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	// D2MXL-to-ORCL Phase 2: killing a Dread boss is a milestone. Claimed here rather than from the
 	// loot path, because the reward is for the KILL - a boss that dropped nothing still counts, and
 	// tying it to the drop would make the milestone depend on a roll.
-	if (oracool::IsEndgameBoss(monster) && MyPlayer != nullptr)
+	if (oracool::IsEndgameBoss(monster) && MyPlayer != nullptr) {
 		oracool::ClaimMilestone(*MyPlayer, oracool::Milestone::SlayDreadBoss);
+		CalcPlrInv(*MyPlayer, false); // the milestone charms grow with it - at once, not at the next gear change (round 10 audit)
+	}
 
 	// Phase 4: a named encounter's guardian pays its reward here. GUARANTEED - the map said what it
 	// carries, and a roll would make that a lie. Does nothing off an encounter level.
@@ -5510,7 +5519,11 @@ void MissToMonst(Missile &missile, Point position)
 
 		if (player._pmode != PM_GOTHIT && player._pmode != PM_DEATH)
 			StartPlrHit(player, 0, true);
+		// Immovable and Heavy Foot hold against a charge too, as against a knockback blow (round 10 audit).
+		if (oracool::PlayerIgnoresKnockback(player))
+			return;
 		Point newPosition = oldPosition + monster.direction;
+		oracool::CompanionsMakeWay(player, newPosition);
 		if (PosOkPlayer(player, newPosition)) {
 			player.position.tile = newPosition;
 			FixPlayerLocation(player, player._pdir);
@@ -5531,14 +5544,16 @@ void MissToMonst(Missile &missile, Point position)
 	if (IsAnyOf(monster.type().type, MT_NSNAKE, MT_RSNAKE, MT_BSNAKE, MT_GSNAKE))
 		return;
 
+	// The TARGET is thrown back, not the charger (a vanilla slip the fork now reaches: a Decoy or a taunting guard draws
+	// charges from 5+ tiles). It moved the target's grid mark and put the charger on it, leaving the target unclickable
+	// and a phantom blocking tile behind (round 10 audit, v1.12.235).
 	Point newPosition = oldPosition + monster.direction;
-	if (IsTileAvailable(*target, newPosition)) {
-		monsterId = dMonster[oldPosition.x][oldPosition.y];
-		dMonster[newPosition.x][newPosition.y] = monsterId;
+	if (target->mode != MonsterMode::Death && IsTileAvailable(*target, newPosition)) {
 		dMonster[oldPosition.x][oldPosition.y] = 0;
-		monsterId--;
-		monster.position.tile = newPosition;
-		monster.position.future = newPosition;
+		dMonster[newPosition.x][newPosition.y] = static_cast<int16_t>(target->getId() + 1);
+		target->position.tile = newPosition;
+		target->position.future = newPosition;
+		target->position.old = newPosition;
 	}
 }
 

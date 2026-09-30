@@ -3275,14 +3275,18 @@ bool HealerItemOk(const Player &player, const ItemData &item)
 		return item.iSpell == SpellID::HealOther && gbIsMultiplayer;
 
 	if (!gbIsMultiplayer) {
+		// Against 255, the cap every base stat has in this fork (ModifyPlr*, StatPointsToSpend, UnPackPlayer): the class
+		// row's vanilla maximum stopped the elixirs early - a Paladin at 60 Dexterity, a Barbarian's Magic never
+		// (round 10 audit, v1.12.235).
+		constexpr int BaseCap = 255;
 		if (item.iMiscId == IMISC_ELIXSTR)
-			return !gbIsHellfire || player._pBaseStr < player.GetMaximumAttributeValue(CharacterAttribute::Strength);
+			return player._pBaseStr < BaseCap;
 		if (item.iMiscId == IMISC_ELIXMAG)
-			return !gbIsHellfire || player._pBaseMag < player.GetMaximumAttributeValue(CharacterAttribute::Magic);
+			return player._pBaseMag < BaseCap;
 		if (item.iMiscId == IMISC_ELIXDEX)
-			return !gbIsHellfire || player._pBaseDex < player.GetMaximumAttributeValue(CharacterAttribute::Dexterity);
+			return player._pBaseDex < BaseCap;
 		if (item.iMiscId == IMISC_ELIXVIT)
-			return !gbIsHellfire || player._pBaseVit < player.GetMaximumAttributeValue(CharacterAttribute::Vitality);
+			return player._pBaseVit < BaseCap;
 	}
 
 	if (item.iMiscId == IMISC_REJUV)
@@ -5130,6 +5134,11 @@ void CalcPlrInv(Player &player, bool loadgfx)
 		// any earlier would have rung for it. The rising-edge test lives in the callee - see
 		// CheckSetCompletionTransition for what must NOT ring it.
 		oracool::CheckSetCompletionTransition(player);
+		// The set-bonus milestone is asked here too, once the character is settled in a running game (not while a hero
+		// loads, when a claim would pay a Signet in the menu): it was checked only at a level-up or an imbuement, so a hero
+		// at the level cap never earned it (round 10 audit, v1.12.235). Claiming is idempotent.
+		if (oracool::IsSetCompletionBaselineArmed() && oracool::AnySetBonusActive(player))
+			oracool::ClaimMilestone(player, oracool::Milestone::WearSetBonus);
 	}
 }
 
@@ -5519,15 +5528,15 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)
 	case DIFF_NORMAL:
 		rndv = 5 * itemlevel + GenerateRnd(10 * itemlevel);
 		break;
+	// The area level already carries the difficulty (16 rungs a block since v1.8.0): vanilla's +16/+32 on top counted it
+	// twice - a Nightmare floor-1 pile rolled like Normal floor 17 (round 10 audit, v1.12.235).
 	case DIFF_NIGHTMARE:
-		rndv = 5 * (itemlevel + 16) + GenerateRnd(10 * (itemlevel + 16));
-		break;
 	case DIFF_HELL:
-		rndv = 5 * (itemlevel + 32) + GenerateRnd(10 * (itemlevel + 32));
+		rndv = 5 * itemlevel + GenerateRnd(10 * itemlevel);
 		break;
 	case DIFF_TORMENT:
-		// Oracool: Hell's own formula, scaled further by the adjustable Torment multiplier.
-		rndv = static_cast<int>((5 * (itemlevel + 32) + GenerateRnd(10 * (itemlevel + 32))) * GetTormentDifficultyMultiplier());
+		// Oracool: the same formula, scaled further by the adjustable Torment multiplier.
+		rndv = static_cast<int>((5 * itemlevel + GenerateRnd(10 * itemlevel)) * GetTormentDifficultyMultiplier());
 		break;
 	}
 	if (leveltype == DTYPE_HELL)
@@ -5645,8 +5654,10 @@ Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level /*
 		// Awaken refused it and Reroll Uniques could only roll it into itself). No lower than the unique's own level.
 		item._iOracoolItemLevel = static_cast<uint8_t>(std::clamp<int>(std::max<int>(curlv, UniqueItems[uid].UIMinLvl), 1, 255));
 	} else {
+		// A quest's FLOOR run through the ladder, as CurrentAreaLevel does for quest set-levels: the raw floor stamped a
+		// Torment Anvil reward ilvl 10, Normal-grade beside Griswold's ilvl 54 shelf (round 10 audit, v1.12.235).
 		if (level)
-			curlv = *level;
+			curlv = oracool::AreaLevel(*level, sgGameInitInfo.nDifficulty);
 		const ItemData &uniqueItemData = AllItemsList[idx];
 		_item_indexes idx = GetItemIndexForDroppableItem(false, [&uniqueItemData](const ItemData &item) {
 			return item.itype == uniqueItemData.itype;

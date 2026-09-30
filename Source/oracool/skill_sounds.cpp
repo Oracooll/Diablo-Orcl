@@ -305,6 +305,11 @@ void CheckSetCompletionTransition(const Player &player)
 		PlaySetCompleteSound();
 }
 
+bool IsSetCompletionBaselineArmed()
+{
+	return BaselineArmed;
+}
+
 void ArmSetCompletionBaseline(const Player &player)
 {
 	if (&player != MyPlayer)

@@ -76,8 +76,10 @@ int CurrentAreaLevel()
 		// A rift's tier IS its area level (oracool/rift.h): a Nephalem Rift's is the deepest rung the
 		// hero has reached, a Guardian Rift's climbs with its keystone. Clamped to the ladder's top for
 		// the loot tables; the monsters keep scaling past it (ScaleRiftMonster).
+		// No lower than this difficulty's first rung: a Normal key turned in a Torment game fought Torment monsters for
+		// ilvl-16 loot (round 10 audit, v1.12.235).
 		if (IsRiftLevel(setlvlnum))
-			return std::clamp(RiftTier(), 1, MaxAreaLevel);
+			return std::clamp(RiftTier(), AreaLevel(1, sgGameInitInfo.nDifficulty), MaxAreaLevel);
 		switch (setlvlnum) {
 		case SL_SKELKING:
 			floor = Quests[Q_SKELKING]._qlevel;

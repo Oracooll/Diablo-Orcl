@@ -1019,7 +1019,10 @@ void RightMouseDown(bool isShiftHeld)
 		return;
 	if (isShiftHeld && pcursstashitem != StashStruct::EmptyCell && TryStartStashStackSplit(pcursstashitem))
 		return;
-	if (pcursstashitem != StashStruct::EmptyCell && UseStashItem(pcursstashitem))
+	// Over the open stash only: the hover survives a flick onto a ground-item label, and the right click used the stash
+	// item from the world - even after the stash closed (round 10 audit, v1.12.235).
+	if (pcursstashitem != StashStruct::EmptyCell && IsStashOpen && GetStashPanelRect().contains(MousePosition)
+	    && UseStashItem(pcursstashitem))
 		return;
 	// Oracool: user request - inside the inventory window a right-click equips or un-equips
 	// instead of falling through to the readied spell ("right click on the inv window casts the

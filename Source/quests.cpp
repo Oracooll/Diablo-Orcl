@@ -690,6 +690,10 @@ Point GetMapReturnPosition()
 	// town (RiftReturnTile).
 	if (oracool::IsRiftLevel(setlvlnum))
 		return oracool::RiftReturnTile();
+	// A Sealed Map's arena returns to the middle of town, the new game's spawn, not beside Farnham in the far corner -
+	// the complaint the rifts were fixed for (round 10 audit, v1.12.235).
+	if (IsArenaLevel(setlvlnum))
+		return { 57, 67 };
 
 	switch (setlvlnum) {
 	case SL_SKELKING:

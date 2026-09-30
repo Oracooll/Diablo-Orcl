@@ -388,6 +388,10 @@ void SelheroClassSelectorFocus(int value)
 		startingWeapon = PlayerWeaponGraphic::Staff;
 		break;
 	}
+	// Naked Heroes (on by default) start with nothing in hand, and the dais showed a sword they would not have (round 10
+	// audit, v1.12.235).
+	if (*sgOptions.Oracool.nakedHeroes)
+		startingWeapon = PlayerWeaponGraphic::Unarmed;
 	selhero_heroInfo.gfxnum = static_cast<uint8_t>(startingWeapon);
 	// A new hero has no gear look yet: the focused saved hero's tower shield and great sword showed on the class list
 	// (round 4 audit, v1.12.229).

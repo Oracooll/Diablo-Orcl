@@ -14,6 +14,9 @@
 #include "oracool/event_log.h"
 #include "options.h" // the HUD Plate Art switch picks which row layout applies
 #include "oracool/hud_menu.h"
+#include "oracool/inventory_layout.h" // GetInventoryPanelRect - an open panel wins over the orb beside it
+#include "panels/spell_book.hpp"
+#include "qol/stash.h"
 #include "oracool/levski_roar.h"
 #include "oracool/oracool.h"
 #include "oracool/runeword_book.h"
@@ -466,6 +469,19 @@ void MigrateHiddenBeltSlots(Player &player)
 	}
 }
 
+/**
+ * @brief Whether an open docked window (the backpack, the Abilities window, the stash, a left-panel window) is under
+ * @p mousePosition. At 4:3 their bottom rows run beside the orbs, and the orbs' rects took those rows' clicks and hover
+ * although the orbs are clipped under them there (round 10 audit, v1.12.235).
+ */
+bool IsOverOpenSidePanel(Point mousePosition)
+{
+	return (invflag && GetInventoryPanelRect().contains(mousePosition))
+	    || (sbookflag && GetSpellBookPanelRect().contains(mousePosition))
+	    || (IsStashOpen && GetStashPanelRect().contains(mousePosition))
+	    || (IsLeftPanelOpen() && GetLeftPanelContentRect().contains(mousePosition));
+}
+
 bool IsPointOverHudChrome(Point mousePosition)
 {
 	// The four things that actually absorb a click, and nothing else. GetMainPanel() appears only
@@ -481,8 +497,8 @@ bool IsPointOverHudChrome(Point mousePosition)
 	return GetHudRowRect().contains(mousePosition)
 	    || IsPointOverXpCounter(mousePosition)
 	    || IsPointOverHudMenu(mousePosition)
-	    || GetHealthOrbRect().contains(mousePosition)
-	    || GetManaOrbRect().contains(mousePosition)
+	    || ((GetHealthOrbRect().contains(mousePosition) || GetManaOrbRect().contains(mousePosition))
+	        && !IsOverOpenSidePanel(mousePosition))
 	    || (IsLevelUpIconShown() && GetLevelUpIconRect().contains(mousePosition))
 	    || (MyPlayer != nullptr && IsUnspentPointsFrameVisible() && GetUnspentPointsFrameRect().contains(mousePosition))
 	    || (talkflag && GetMainPanel().contains(mousePosition));
