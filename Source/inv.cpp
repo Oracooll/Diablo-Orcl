@@ -3766,7 +3766,9 @@ void InvGetItem(Player &player, int ii)
 	if (!displaced.isEmpty()) {
 		// Gold through the gold path, so the pack's total counts it; anything else into the pack (and its stats with it,
 		// a charm's included), or at his feet (round 23 audit of v1.12.247).
-		if (displaced._itype == ItemType::Gold ? GoldAutoPlace(player, displaced) : AutoPlaceItemInInventory(player, displaced, /*persistItem=*/true))
+		// The stash before the floor, as every other return path (round 33 audit: a quest item went to a rift's floor).
+		if (displaced._itype == ItemType::Gold ? GoldAutoPlace(player, displaced)
+		                                       : (AutoPlaceItemInInventory(player, displaced, /*persistItem=*/true) || AutoPlaceItemInStash(player, displaced, /*persistItem=*/true)))
 			CalcPlrInv(player, true);
 		else
 			DropItemBesidePlayer(player, displaced);
@@ -4757,10 +4759,17 @@ void CloseStash()
 		// room anywhere (round 32 audit): a stash closed by a level change dropped the held item on the new floor, a rift's
 		// or an arena's among them, which is where a quest item may not go.
 		{
-			if (!(myPlayer.HoldItem.isPotion() && AutoPlaceItemInBelt(myPlayer, myPlayer.HoldItem, true))
-			    && !AutoPlaceItemInInventory(myPlayer, myPlayer.HoldItem, true)
-			    && !AutoPlaceItemInStash(myPlayer, myPlayer.HoldItem, true)
-			    && !AutoPlaceItemInBelt(myPlayer, myPlayer.HoldItem, true)) {
+			// Gold through the gold path (it merges and counts), and the hero recalculated after: a pile or a charm put away
+			// here left _pGold and the totals behind (round 33 audit).
+			const bool placed = myPlayer.HoldItem._itype == ItemType::Gold
+			    ? GoldAutoPlace(myPlayer, myPlayer.HoldItem)
+			    : ((myPlayer.HoldItem.isPotion() && AutoPlaceItemInBelt(myPlayer, myPlayer.HoldItem, true))
+			          || AutoPlaceItemInInventory(myPlayer, myPlayer.HoldItem, true)
+			          || AutoPlaceItemInStash(myPlayer, myPlayer.HoldItem, true));
+			if (placed) {
+				myPlayer._pGold = CalculateGold(myPlayer);
+				CalcPlrInvKeepingLife(myPlayer);
+			} else {
 				// No room anywhere: made on the floor, beside the hero, as every other return path does - this ended the
 				// game and the item with it (round 27 audit).
 				MakeRoomForGuaranteedReward();

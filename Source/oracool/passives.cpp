@@ -496,6 +496,11 @@ int PassiveDamageTakenPercent(const Player &player, DamageType damageType)
 	return std::max(percent, -75);
 }
 
+int PassiveUnconditionalDamagePercent(const Player &player)
+{
+	return PassiveActive(player, Skill::GlassCannon) ? GlassCannonPercent : 0;
+}
+
 int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool melee)
 {
 	int percent = 0;

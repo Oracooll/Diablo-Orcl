@@ -203,7 +203,9 @@ bool RaiseGolem(Player &player, GolemKind kind, int rank, Point target)
 	// the decisions for me too"). A cast at solid rock dismissed the old golem and raised nothing. The type and a record
 	// are known up front, and the body falls back to the hero's own side, as Raise's does.
 	const MinionSpec spec = GolemSpec(player, kind, rank);
-	if (!CanAddMinionBody(spec.type)) {
+	// A free record too, before the old golem is dismissed: its dying body keeps its own record, so with every record held
+	// the old golem went and nothing replaced it (round 33 audit).
+	if (!CanAddMinionBody(spec.type) || !MinionRecordFree()) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
@@ -227,7 +229,8 @@ bool RaiseFromCorpse(Player &player, Point target, int rank, bool mage)
 	// free tile - leaving a spent corpse and a fizzled cast. The type check is answerable up front;
 	// the haste and the effect wait for the body.
 	const MinionSpec spec = SkeletonSpec(player, rank, mage);
-	if (!CorpseNear(target, CorpseReach, /*forRevive=*/false) || !CanAddMinionBody(spec.type)) {
+	// A free record too, as Revive asks: dying bodies hold theirs, and the corpse was eaten for a cast that fizzled (round 33).
+	if (!CorpseNear(target, CorpseReach, /*forRevive=*/false) || !CanAddMinionBody(spec.type) || !MinionRecordFree()) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}

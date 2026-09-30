@@ -21,6 +21,8 @@
 #include "mpq/mpq_common.hpp"
 #include "oracool/class_skills.h"   // RefreshInnateSpells - the chunks decide what the character HAS
 #include "oracool/hero_chunks.h"
+#include "oracool/rfa12_actives.h" // ClearRfa12PlayerBuffs - the preview shows no last-game buffs
+#include "oracool/warcries.h"      // ClearWarcryBuffs
 #include "oracool/sprite_mix.h"
 #include "oracool/rage.h"
 #include "oracool/readied_spells.h" // UnpackReadiedSpell - re-decoded once the chunks have landed
@@ -905,6 +907,10 @@ bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *))
 				// held - wrong equipment, wrong tabs, wrong sockets - and skipped the extension
 				// chunks entirely, so tree passives and skill points were missing from the stats.
 				UnPackPlayer(pkplr, player);
+				// Not the last game's buffs, keyed by the player slot every preview shares: a Shout cast before Save & Exit gave
+				// every hero in the list its armour (round 33 audit).
+				oracool::ClearWarcryBuffs(player);
+				oracool::ClearRfa12PlayerBuffs(player);
 				oracool::ApplyHeroChunks(player, chunkTail.data(), chunkTail.size());
 				LoadHeroItems(player, i);
 				if (!gbIsMultiplayer) {

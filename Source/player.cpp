@@ -4129,6 +4129,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 
 	if (leveltype == DTYPE_TOWN && !GetSpellData(spellID).isAllowedInTown()) {
 		myPlayer.Say(HeroSpeech::ICantCastThatHere);
+		LastMouseButtonAction = MouseActionType::None; // once, not at the held button's rate (round 33 audit)
 		return;
 	}
 

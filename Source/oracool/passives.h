@@ -64,6 +64,8 @@ int PassiveDamageTakenPercent(const Player &player, DamageType damageType);
 
 /** @brief Net change to a blow @p player is about to deal @p target, in percent. @p melee: a swing rather than a missile. */
 int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool melee);
+/** @brief The part of that sum that holds against every target (Glass Cannon), for the sheet's ranges. */
+int PassiveUnconditionalDamagePercent(const Player &player);
 
 /** @brief Dodge standing, Evade moving: a melee blow that would have landed slips instead. */
 bool PassiveEvadesMelee(const Player &player);

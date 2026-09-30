@@ -2,6 +2,9 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
+#include <vector>
+
 #include "items.h"
 #include "oracool/salvage.h"
 #include "oracool/signets.h"
@@ -170,26 +173,56 @@ std::string CharmEffectLine(const Player &player, uint16_t charmIdx)
 	return fmt::format(fmt::runtime(_("+{:d}% to hit while in your backpack")), charm->toHit);
 }
 
+namespace {
+
+struct CharmSlot {
+	int tab; // -1 the main backpack, else the extra page
+	int index;
+	int key; // the anchor cell, in reading order
+	uint16_t idx;
+};
+
+/**
+ * @brief The hero's charms in READING order: page 1 first, then pages 2-10, and on each page by where the charm sits (its
+ * anchor cell, row by row). It was list order, which every removal reshuffles - the last item swaps into the hole - so
+ * using up a scroll could change which three charms were live without the grid moving (round 33 audit). A record with no
+ * anchor (not placed on a grid) follows the placed ones in list order.
+ */
+std::vector<CharmSlot> CharmsInReadingOrder(const Player &player)
+{
+	std::vector<CharmSlot> slots;
+	const auto anchorOf = [](const int8_t *grid, int index) {
+		for (int cell = 0; cell < InventoryGridCells; cell++) {
+			if (grid[cell] == index + 1)
+				return cell;
+		}
+		return InventoryGridCells + index;
+	};
+	for (int i = 0; i < player._pNumInv; i++) {
+		const Item &item = player.InvList[i];
+		if (!item.isEmpty() && IsOracoolCharmIdx(item.IDidx))
+			slots.push_back({ -1, i, anchorOf(player.InvGrid, i), static_cast<uint16_t>(item.IDidx) });
+	}
+	for (int tab = 0; tab < Player::NumExtraInventoryTabs; tab++) {
+		for (int i = 0; i < player._pNumInvTab[tab]; i++) {
+			const Item &item = player.InvTabList[tab][i];
+			if (!item.isEmpty() && IsOracoolCharmIdx(item.IDidx))
+				slots.push_back({ tab, i, anchorOf(player.InvTabGrid[tab].data(), i), static_cast<uint16_t>(item.IDidx) });
+		}
+	}
+	std::stable_sort(slots.begin(), slots.end(), [](const CharmSlot &a, const CharmSlot &b) {
+		return a.tab != b.tab ? a.tab < b.tab : a.key < b.key;
+	});
+	return slots;
+}
+
+} // namespace
+
 void ForEachActiveCharm(const Player &player, void (*visit)(uint16_t charmIdx, void *context), void *context)
 {
-	int live = 0;
-	// Reading order: the main backpack first, then the extra tabs in order - the same order the
-	// player sees pages, so "which three are live" is answerable by looking.
-	for (int i = 0; i < player._pNumInv && live < CharmActiveCap; i++) {
-		if (IsOracoolCharmIdx(player.InvList[i].IDidx) && !player.InvList[i].isEmpty()) {
-			visit(static_cast<uint16_t>(player.InvList[i].IDidx), context);
-			live++;
-		}
-	}
-	for (int tab = 0; tab < Player::NumExtraInventoryTabs && live < CharmActiveCap; tab++) {
-		for (int i = 0; i < player._pNumInvTab[tab] && live < CharmActiveCap; i++) {
-			const Item &item = player.InvTabList[tab][i];
-			if (IsOracoolCharmIdx(item.IDidx) && !item.isEmpty()) {
-				visit(static_cast<uint16_t>(item.IDidx), context);
-				live++;
-			}
-		}
-	}
+	const std::vector<CharmSlot> slots = CharmsInReadingOrder(player);
+	for (size_t i = 0; i < slots.size() && i < static_cast<size_t>(CharmActiveCap); i++)
+		visit(slots[i].idx, context);
 }
 
 int CharmActiveState(const Player &player, const Item &item)
@@ -209,23 +242,11 @@ int CharmActiveState(const Player &player, const Item &item)
 
 bool IsCharmActive(const Player &player, int tabIndex, int invListIndex)
 {
-	int live = 0;
-	for (int i = 0; i < player._pNumInv; i++) {
-		if (!IsOracoolCharmIdx(player.InvList[i].IDidx) || player.InvList[i].isEmpty())
-			continue;
-		if (tabIndex < 0 && i == invListIndex)
-			return live < CharmActiveCap;
-		live++;
-	}
-	for (int tab = 0; tab < Player::NumExtraInventoryTabs; tab++) {
-		for (int i = 0; i < player._pNumInvTab[tab]; i++) {
-			const Item &item = player.InvTabList[tab][i];
-			if (!IsOracoolCharmIdx(item.IDidx) || item.isEmpty())
-				continue;
-			if (tab == tabIndex && i == invListIndex)
-				return live < CharmActiveCap;
-			live++;
-		}
+	const std::vector<CharmSlot> slots = CharmsInReadingOrder(player);
+	const int tab = tabIndex < 0 ? -1 : tabIndex;
+	for (size_t i = 0; i < slots.size() && i < static_cast<size_t>(CharmActiveCap); i++) {
+		if (slots[i].tab == tab && slots[i].index == invListIndex)
+			return true;
 	}
 	return false;
 }

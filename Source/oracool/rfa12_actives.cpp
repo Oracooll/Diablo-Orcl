@@ -2289,7 +2289,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::Decompose: {
 		Monster *m = FindMonsterAtPosition(target);
-		if (m == nullptr || !Hittable(*m)) {
+		// Not on a poison-immune one: the poison slid off and the cast was paid for nothing (round 33 audit).
+		if (m == nullptr || !Hittable(*m) || m->isImmune(MissileID::Null, DamageType::Acid)) {
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}

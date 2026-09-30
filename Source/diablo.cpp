@@ -512,8 +512,8 @@ void LeftMouseDown(uint16_t modState)
 		return;
 	// With chat open the HUD row is hidden under it, and its cells cast a Town Portal, opened an unseen skill picker and the
 	// hero sheet (round 32 audit). The chat box's own buttons answered above.
-	if (talkflag && oracool::IsPointOverHudChrome(MousePosition))
-		return;
+	if (talkflag && oracool::IsPointOverHudChrome(MousePosition) && !oracool::IsPointOverHudMenu(MousePosition))
+		return; // the HUD menu, drawn over chat, still answers (round 33 audit)
 
 	// The chat log and the help text are modal: a click closes them and reaches nothing behind - it walked the hero, and
 	// landed on a window hidden under the parchment (round 20 audit, v1.12.245).
@@ -1245,7 +1245,7 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 		return;
 	}
 
-	if (vkey >= SDLK_F1 && vkey <= SDLK_F8 && CanPlayerTakeAction()) {
+	if (vkey >= SDLK_F1 && vkey <= SDLK_F8 && CanPlayerTakeAction() && stextflag == TalkID::None) { // not behind a store (round 33)
 		HandleAbilityFKey(static_cast<size_t>(vkey - SDLK_F1), (modState & KMOD_SHIFT) != 0);
 		return;
 	}

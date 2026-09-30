@@ -423,22 +423,22 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 	// builds; a reader that knows these tags takes them instead.
 	{
 		const size_t at = BeginChunk(out, HeroChunkReadiedSpells16);
-		PutU16(out, PackReadiedSpell16(player._pRSpell));
-		PutU16(out, PackReadiedSpell16(player._pLRSpell));
+		PutU16(out, PackReadiedSpell16(player._pRSpell, player._pRSplType));
+		PutU16(out, PackReadiedSpell16(player._pLRSpell, player._pLRSplType));
 		EndChunk(out, at);
 	}
 	{
 		const size_t at = BeginChunk(out, HeroChunkSpellHotkeys16);
 		out.push_back(static_cast<uint8_t>(AbilityFKeyCount));
 		for (size_t i = 0; i < AbilityFKeyCount; i++)
-			PutU16(out, PackReadiedSpell16(player._pSplHotKey[i]));
+			PutU16(out, PackReadiedSpell16(player._pSplHotKey[i], player._pSplTHotKey[i]));
 		EndChunk(out, at);
 	}
 	{
 		const size_t at = BeginChunk(out, HeroChunkSpellHotkeysLeft16);
 		out.push_back(static_cast<uint8_t>(AbilityFKeyCount));
 		for (size_t i = 0; i < AbilityFKeyCount; i++)
-			PutU16(out, PackReadiedSpell16(player._pSplLHotKey[i]));
+			PutU16(out, PackReadiedSpell16(player._pSplLHotKey[i], player._pSplLTHotKey[i]));
 		EndChunk(out, at);
 	}
 

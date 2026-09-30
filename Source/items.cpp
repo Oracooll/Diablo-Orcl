@@ -6457,7 +6457,9 @@ void SpawnQuestItem(_item_indexes itemid, Point position, int randarea, int self
 			if (!failed)
 				break;
 		}
-	} else if (InDungeonBounds(position) && dItem[position.x][position.y] != 0) {
+	} else if (InDungeonBounds(position) && (dItem[position.x][position.y] != 0 || oracool::IsBesideRiftWayHome(position))) {
+		// Nor beside a rift's exit (round 33 audit): a guardian dying at the arrival left his keystone where a pickup walk
+		// ended on the exit, and the rest of the pile was lost with the rift.
 		// A tile that already holds an item: the nearest free one instead (audit, 2026-09-27). The fork's boss drops pass
 		// the monster's own tile - a rift guardian's keystone, a sealed map, an encounter's reward - and a boss can die
 		// standing on loot; the new item took the tile over and the old one stayed in the list, unreachable. Vanilla's

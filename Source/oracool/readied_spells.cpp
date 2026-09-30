@@ -58,20 +58,41 @@ uint8_t PackReadiedSpell(SpellID spell)
 	return static_cast<uint8_t>(static_cast<int>(spell) + 1);
 }
 
-uint16_t PackReadiedSpell16(SpellID spell)
+namespace {
+constexpr uint16_t PackedIdMask = 0x3FFF;
+constexpr uint16_t PackedScroll = 1;
+constexpr uint16_t PackedCharges = 2;
+} // namespace
+
+uint16_t PackReadiedSpell16(SpellID spell, SpellType type)
 {
 	if (!IsValidSpell(spell))
 		return 0;
-	return static_cast<uint16_t>(static_cast<int>(spell) + 1);
+	const uint16_t kind = type == SpellType::Scroll ? PackedScroll : type == SpellType::Charges ? PackedCharges : 0;
+	return static_cast<uint16_t>(((static_cast<int>(spell) + 1) & PackedIdMask) | (kind << 14));
 }
 
 void UnpackReadiedSpell16(const Player &player, uint16_t packed, SpellID &spell, SpellType &type)
 {
 	if (packed == 0)
 		return;
-	const auto stored = static_cast<SpellID>(static_cast<int>(packed) - 1);
+	const auto stored = static_cast<SpellID>(static_cast<int>(packed & PackedIdMask) - 1);
 	if (!IsValidSpell(stored))
 		return;
+	// A Scroll or Staff choice comes back as itself while the hero still carries it: derived, a learned spell won and the
+	// well turned into the mana cast on every reload (round 33 audit). Older saves carry no kind and derive as before.
+	const uint16_t kind = packed >> 14;
+	const SpellMask bit = GetSpellBitmask(stored);
+	if (kind == PackedScroll && (player._pScrlSpells & bit) != 0) {
+		spell = stored;
+		type = SpellType::Scroll;
+		return;
+	}
+	if (kind == PackedCharges && (player._pISpells & bit) != 0) {
+		spell = stored;
+		type = SpellType::Charges;
+		return;
+	}
 	const SpellType derived = ReadiedSpellType(player, stored);
 	if (derived == SpellType::Invalid)
 		return;

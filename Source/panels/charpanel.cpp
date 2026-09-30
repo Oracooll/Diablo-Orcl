@@ -116,9 +116,14 @@ int GetStrengthDamageMod()
 std::pair<int, int> GetDamage()
 {
 	const int damageMod = InspectPlayer->_pIBonusDamMod + GetStrengthDamageMod();
-	int mindam = InspectPlayer->_pIMinDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMinDam / 100 + damageMod;
-	int maxdam = InspectPlayer->_pIMaxDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMaxDam / 100 + damageMod;
-	return { mindam, maxdam };
+	int mindam = InspectPlayer->_pIMinDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMinDam / 100;
+	int maxdam = InspectPlayer->_pIMaxDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMaxDam / 100;
+	// Glass Cannon on the weapon part, before the Strength part, as the blow takes it (round 33 audit: moved out of the
+	// weapon totals in round 20, it left the sheet with them).
+	const int always = oracool::PassiveUnconditionalDamagePercent(*InspectPlayer);
+	mindam += mindam * always / 100;
+	maxdam += maxdam * always / 100;
+	return { mindam + damageMod, maxdam + damageMod };
 }
 
 /**
@@ -309,6 +314,11 @@ StyledText GetReadiedSlotDamage(bool leftButton)
 	GetDamageAmtAtLevel(spell, std::max(player.GetSpellLevel(spell), 1), &minDam, &maxDam);
 	if (minDam == -1)
 		return StyledText { UiFlags::ColorWhite, "-" };
+	// Glass Cannon reaches every spell too (round 33 audit). Not a heal: it is damage dealt.
+	if (const int always = oracool::PassiveUnconditionalDamagePercent(player); always != 0 && spell != SpellID::Healing && spell != SpellID::HealOther) {
+		minDam += minDam * always / 100;
+		maxDam += maxDam * always / 100;
+	}
 
 	// A heal now reports its NUMBERS, in green. Yesterday this row could only be labelled "damage",
 	// so a heal had to answer with a dash; the colour is what makes the number legible as something

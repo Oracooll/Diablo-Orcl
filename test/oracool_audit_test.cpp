@@ -3337,6 +3337,31 @@ TEST(OracoolCharms, OnlyFirstCapCharmsAreActive)
 	EXPECT_FALSE(oracool::IsCharmActive(player, -1, 4));
 }
 
+// Reading order is the GRID's, not the list's (round 33 audit): the list reshuffles on every removal, so the three live
+// charms are the first three the player sees on the page, whatever order they were picked up in.
+TEST(OracoolCharms, ActiveCharmsFollowTheGridNotTheList)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	for (int i = 0; i < 4; i++) {
+		player.InvList[i] = {};
+		player.InvList[i]._itype = ItemType::Misc;
+		player.InvList[i].IDidx = IDI_ORACOOL_CHARM_VIGOR;
+	}
+	player._pNumInv = 4;
+	// List entry 3 sits in the first cell, entries 0-2 after it.
+	player.InvGrid[0] = 4;
+	player.InvGrid[1] = 1;
+	player.InvGrid[2] = 2;
+	player.InvGrid[3] = 3;
+
+	EXPECT_TRUE(oracool::IsCharmActive(player, -1, 3)) << "the charm in the first cell is live, whatever its list slot";
+	EXPECT_TRUE(oracool::IsCharmActive(player, -1, 0));
+	EXPECT_TRUE(oracool::IsCharmActive(player, -1, 1));
+	EXPECT_FALSE(oracool::IsCharmActive(player, -1, 2)) << "the fourth cell's charm is over the cap";
+}
+
 TEST(OracoolCharms, CharmEffectsReachTheStatSheet)
 {
 	Players.resize(1);

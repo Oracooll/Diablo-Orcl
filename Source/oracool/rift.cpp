@@ -419,6 +419,10 @@ bool EnterRift(Player &player)
 	// The keystone that turned the gate is spent now, at the first step through - and without it there is no step.
 	if (&player == MyPlayer && !SpendPendingKeystone(player)) {
 		LogEvent("The keystone that opened this rift is no longer with you. Bring it back to step through.", UiFlags::ColorRed);
+		// On screen too, as the other refusals at the gate: the log is closed by default, and the click did nothing visible
+		// (round 33 audit).
+		EventPlrMsg(_("The keystone that opened this rift is no longer with you."), UiFlags::ColorRed);
+		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
 	// BEFORE StartNewLvl - the level loads its tileset from this (named_encounters.cpp has the tell).

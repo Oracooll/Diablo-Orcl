@@ -26,7 +26,9 @@ namespace oracool {
  */
 uint8_t PackReadiedSpell(SpellID spell);
 /** @brief The same in two bytes: id + 1, 0 for none. Every id fits (spelldat.h). */
-uint16_t PackReadiedSpell16(SpellID spell);
+/** @param type Kept in the top two bits when it is a Scroll or a staff's Charges, which derivation would lose to a learned
+ *        spell (round 33 audit); a Spell or Skill is derived again on load, as before. Ids stay under 0x3FFF. */
+uint16_t PackReadiedSpell16(SpellID spell, SpellType type = SpellType::Invalid);
 
 /**
  * @brief Decodes one save byte back into a readied spell.

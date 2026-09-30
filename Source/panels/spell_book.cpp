@@ -1516,7 +1516,7 @@ void ClearAuraFromHotkeys(Player &player, oracool::ClassTreeSkill aura)
 
 void ClearSpellFromHotkeys(Player &player, SpellID spell)
 {
-	for (size_t i = 0; i < AbilityFKeyCount; i++) {
+	for (size_t i = 0; i < NumHotkeys; i++) { // all twelve: slots 9-12 from an old save lingered beside an F-key (round 33)
 		if (player._pSplHotKey[i] == spell) {
 			player._pSplHotKey[i] = SpellID::Invalid;
 			player._pSplTHotKey[i] = SpellType::Invalid;

@@ -4551,10 +4551,10 @@ Monster *SpawnRiftGuardian()
 			}
 		}
 		PrepareUniqueMonst(monster, *unique, minionType, 0, UniqueMonstersData[static_cast<size_t>(*unique)]);
-		// Na-Krul is immune to fire, lightning and magic until floor 24's books weaken him, and a rift has no books: half of
-		// all Guardian Rifts fielded a boss a caster could not touch (round 32 audit). Resistant, as the books would leave him.
-		if (*unique == UniqueMonsterType::NaKrul)
-			monster.resistance = oracool::DemoteImmunitiesToResistances(monster.resistance);
+		// No guardian is immune to fire, lightning and magic at once: Na-Krul until floor 24's books weaken him, and a rift
+		// has none (round 32 audit); the Skeleton King on Hell and Torment, whose Hell row is all three (round 33 audit).
+		// Resistant instead, for every guardian: a caster could not touch him, and the rift could only be abandoned.
+		monster.resistance = oracool::DemoteImmunitiesToResistances(monster.resistance);
 	}
 	// No corpse entry of his own - he rises after InitCorpses - so none inherited either: the slot's last unique's id drew
 	// his body over a dead champion's, or drew none (round 20 audit, v1.12.245). His type's plain body is his.
