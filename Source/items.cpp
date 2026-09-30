@@ -2410,7 +2410,8 @@ void GetUniqueItem(const Player &player, Item &item, _unique_items uid)
 	}
 
 	CopyUtf8(item._iIName, UniqueItems[uid].UIName, sizeof(item._iIName));
-	item._iIvalue = UniqueItems[uid].UIValue;
+	// At the base's tier, as the unidentified value already is (oracool::ScaleValueForBaseTier).
+	item._iIvalue = oracool::ScaleValueForBaseTier(UniqueItems[uid].UIValue, item._iOracoolBaseTier);
 
 	if (item._iMiscId == IMISC_UNIQUE)
 		item._iSeed = uid;

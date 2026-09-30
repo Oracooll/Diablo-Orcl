@@ -669,6 +669,13 @@ static_assert(PassiveSlotX0 - oracool::GridBezelInset >= AbilitiesMargin
                 + PassiveSlotSize + oracool::GridBezelInset
             <= AbilitiesPanelSize.width - AbilitiesMargin,
     "the four passive slots and their frames no longer fit inside the panel margin");
+/**
+ * @brief How far right the hover and click gates reach: the content limit, or the passive band's right edge where that runs
+ * past it. Slot 4 ends at 309 and the gates stopped at 292, so its right third took no hover or click (round 9 audit,
+ * v1.12.234). Still short of the scrollbar.
+ */
+constexpr int AbilitiesInputRightLimit = std::max(AbilitiesContentRightLimit,
+    PassiveSlotX0 + (static_cast<int>(oracool::PassiveSlotCount) - 1) * PassiveSlotPitch + PassiveSlotSize);
 
 /** The hint line ("Click a slot, then a passive") is drawn on the PANEL above the list since
  * 2026-09-05 (user: "move Click to select slot text above passive skill slot 1-4. at least 6 px
@@ -1854,7 +1861,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	HoveredAbilitySpell = SpellID::Invalid;
 
 	// Same span a click uses: short of the scrollbar, so hovering the bar does not light a row.
-	const Rectangle hoverArea { contentRect.position, { AbilitiesContentRightLimit, contentRect.size.height } };
+	const Rectangle hoverArea { contentRect.position, { AbilitiesInputRightLimit, contentRect.size.height } };
 	if (!hoverArea.contains(MousePosition))
 		return;
 	// Nothing under Advanced Stats, which covers this window's left edge: no hover, no F-key target (audit, 2026-09-29).
@@ -2136,7 +2143,7 @@ void CheckSBook(bool assignToRightButton)
 	// Oracool: user request - a row's clickable span stops at AbilitiesContentRightLimit, short of
 	// the scrollbar, rather than running the full panel width. Dragging or clicking the scrollbar
 	// would otherwise also select whatever row happened to be under it.
-	const Rectangle rowClickArea { content.position, { AbilitiesContentRightLimit, content.size.height } };
+	const Rectangle rowClickArea { content.position, { AbilitiesInputRightLimit, content.size.height } };
 	if (!rowClickArea.contains(MousePosition))
 		return;
 
@@ -2268,8 +2275,9 @@ void CheckSBook(bool assignToRightButton)
 		    : oracool::InvestClassTreePoints(*MyPlayer, *hit, count) > 0;
 		if (changed) {
 			// The whole of "make it take effect": the aura provider and every ladder read the
-			// investment on the next totals walk.
-			CalcPlrInv(*MyPlayer, false);
+			// investment on the next totals walk. Keeping life: a refund that takes Endurance or a Vitality stat away at low
+			// life killed the hero, the round-7 class of bug (round 9 audit, v1.12.234).
+			CalcPlrInvKeepingLife(*MyPlayer);
 			// The click already sounded at the press (PressIconButton); an invest may add the skill's
 			// own learn cue inside InvestClassTreePoint, which alone knows whether it rang.
 			RedrawEverything();
@@ -2282,6 +2290,17 @@ void CheckSBook(bool assignToRightButton)
 			const std::string reason = oracool::ClassTreeLockReason(*MyPlayer, *hit);
 			if (!reason.empty())
 				EventPlrMsg(reason, UiFlags::ColorRed);
+		} else if (!assignToRightButton && MyPlayer->_pUnspentSkillPoints > 0) {
+			// The rank's own level, which refused the click without a word (round 9 audit).
+			const int invested = oracool::ClassTreeInvestment(*MyPlayer, *hit);
+			if (invested < oracool::ClassTreeMaxRank(*hit)) {
+				const int needed = oracool::RankRequiredLevel(
+				    oracool::ClassTreeTierMinLevel(oracool::GetClassTreeSkillData(*hit).tier), invested + 1);
+				if (MyPlayer->_pLevel < needed)
+					EventPlrMsg(fmt::format(fmt::runtime(_("{:s} rank {:d} needs level {:d}.")),
+					                _(oracool::GetClassTreeSkillData(*hit).name), invested + 1, needed),
+					    UiFlags::ColorRed);
+			}
 		}
 		return;
 	}

@@ -5,6 +5,7 @@
  */
 #include "stores.h"
 
+#include "oracool/item_tiers.h" // ScaleValueForBaseTier - a bought unique's own value
 #include "oracool/workshop.h"
 
 #include "oracool/crafting.h"    // TransmuteHost (Levski's Cube, 2026-09-20)
@@ -2390,6 +2391,11 @@ void BuyCuratedShelfItemAt(CuratedShelf shelf, Item &item, int idx)
 		return;
 	Item *items = ShelfItems(shelf);
 	TakePlrsMoney(item._iIvalue);
+	// The Unique shelf's multiplier is its PRICE, written onto the shelf copy: the bought item takes its own value back,
+	// or it sold for five times a found copy's and repaired at twenty times (round 9 audit, v1.12.234).
+	if (shelf == CuratedShelf::Unique && item._iMagical == ITEM_QUALITY_UNIQUE && item._iUid >= 0
+	    && static_cast<size_t>(item._iUid) < UniqueItemCount)
+		item._iIvalue = oracool::ScaleValueForBaseTier(UniqueItems[item._iUid].UIValue, item._iOracoolBaseTier);
 	StoreAutoPlace(item, true);
 	// The bought item is REMOVED and not replaced - that is what makes a shelf curated. The stock
 	// closes up behind it so the list stays dense, which is what the scroll arithmetic assumes.

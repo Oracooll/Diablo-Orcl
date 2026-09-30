@@ -1310,7 +1310,7 @@ bool UseStashItem(uint16_t c)
 		bool opened = false;
 		if (item->_iMiscId == IMISC_ORACOOL_KEYSTONE) {
 			opened = oracool::UseGuardianKeystone(*MyPlayer, *item);
-			if (!opened)
+			if (!opened && (!MyPlayer->isOnLevel(0) || setlevel)) // in town the refusal logged its own reason
 				oracool::LogEvent("A keystone only turns in town, at the Rift Monument.");
 		} else {
 			oracool::NamedEncounter encounter;

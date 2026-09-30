@@ -4564,7 +4564,8 @@ bool UseInvItem(int cii)
 	if (item->_iMiscId == IMISC_ORACOOL_KEYSTONE) {
 		if (!oracool::UseGuardianKeystone(player, *item)) {
 			player.Say(HeroSpeech::ICantUseThisYet);
-			if (&player == MyPlayer)
+			// Only off town: in town the refusal already logged its own reason (round 9 audit).
+			if (&player == MyPlayer && (!player.isOnLevel(0) || setlevel))
 				oracool::LogEvent("A keystone only turns in town, at the Rift Monument.");
 			return true;
 		}

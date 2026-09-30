@@ -1,6 +1,8 @@
 #include "oracool/item_tiers.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <string>
 
 #include "items.h"
@@ -261,6 +263,14 @@ bool CanCarryBaseTier(const Item &item)
 	if (item.isEmpty())
 		return false;
 	return item._iLoc != ILOC_NONE && item._iLoc != ILOC_UNEQUIPABLE && item._iLoc != ILOC_BELT;
+}
+
+int ScaleValueForBaseTier(int value, uint8_t tier)
+{
+	if (tier >= BaseItemTierCount)
+		return value;
+	const int64_t scaled = (static_cast<int64_t>(value) * Scales[tier].value + 50) / 100;
+	return static_cast<int>(std::clamp<int64_t>(scaled, 0, std::numeric_limits<int>::max()));
 }
 
 void ApplyBaseTier(Item &item, BaseItemTier tier)

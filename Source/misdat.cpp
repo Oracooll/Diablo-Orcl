@@ -356,22 +356,24 @@ MissileFileData MissileSpriteData[] = {
 // facing, 1 for the impact because a burst of frost looks the same from every side. animWidth2 is
 // the horizontal draw offset, half the frame width less the 32px tile half-width, exactly as
 // Fireball's 96/16 pair is.
-/*IceBolt*/                  { {},               96,          16, "ice_bolt",        16, MissileGraphicsFlags::None,                     0, AnimLen_16      },
-/*IceImpact*/                { {},               96,          16, "ice_impact",       1, MissileGraphicsFlags::None,                     1, AnimLen_10      },
+// PngOnly since v1.12.234 (round 9 audit): no .cl2 stands behind these thirteen, and the CL2 fallback ended the game at
+// every level load when a PNG was missing or rejected. Their callers already ask MissileArtLoaded.
+/*IceBolt*/                  { {},               96,          16, "ice_bolt",        16, MissileGraphicsFlags::PngOnly,                  0, AnimLen_16      },
+/*IceImpact*/                { {},               96,          16, "ice_impact",       1, MissileGraphicsFlags::PngOnly,                  1, AnimLen_10      },
 // Round 2. Widths are the brief's; animWidth2 is (frame - 64) / 2, the same rule as Fireball's
 // 96/16 and Fire Wall's 128/32, so a sprite sits on its tile whatever its frame size.
-/*IceBlast*/                 { {},               96,          16, "ice_blast",       16, MissileGraphicsFlags::None,                     0, AnimLen_16      },
-/*GlacialSpike*/             { {},              128,          32, "glacial_spike",   16, MissileGraphicsFlags::None,                     0, AnimLen_16      },
-/*GlacialShatter*/           { {},              128,          32, "glacial_shatter",  1, MissileGraphicsFlags::None,                     1, AnimLen_12      },
-/*FrostNova*/                { {},              160,          48, "frost_nova",       1, MissileGraphicsFlags::None,                     0, AnimLen_19      },
-/*BlizzardShard*/            { {},              128,          32, "blizzard_shard",   1, MissileGraphicsFlags::None,                     1, AnimLen_13      },
-/*FrozenOrb*/                { {},              128,          32, "frozen_orb",      16, MissileGraphicsFlags::None,                     1, AnimLen_16      },
-/*IceArmorShell*/            { {},               96,          16, "ice_armor_shell",  1, MissileGraphicsFlags::None,                     1, AnimLen_8       },
-/*IceArmorBreak*/            { {},               96,          16, "ice_armor_break",  1, MissileGraphicsFlags::None,                     1, AnimLen_10      },
+/*IceBlast*/                 { {},               96,          16, "ice_blast",       16, MissileGraphicsFlags::PngOnly,                  0, AnimLen_16      },
+/*GlacialSpike*/             { {},              128,          32, "glacial_spike",   16, MissileGraphicsFlags::PngOnly,                  0, AnimLen_16      },
+/*GlacialShatter*/           { {},              128,          32, "glacial_shatter",  1, MissileGraphicsFlags::PngOnly,                  1, AnimLen_12      },
+/*FrostNova*/                { {},              160,          48, "frost_nova",       1, MissileGraphicsFlags::PngOnly,                  0, AnimLen_19      },
+/*BlizzardShard*/            { {},              128,          32, "blizzard_shard",   1, MissileGraphicsFlags::PngOnly,                  1, AnimLen_13      },
+/*FrozenOrb*/                { {},              128,          32, "frozen_orb",      16, MissileGraphicsFlags::PngOnly,                  1, AnimLen_16      },
+/*IceArmorShell*/            { {},               96,          16, "ice_armor_shell",  1, MissileGraphicsFlags::PngOnly,                  1, AnimLen_8       },
+/*IceArmorBreak*/            { {},               96,          16, "ice_armor_break",  1, MissileGraphicsFlags::PngOnly,                  1, AnimLen_10      },
 // Round 3. The frost arrow is cut like Fire Arrow's "farrow" - sixteen facings, four frames each.
-/*FrostArrow*/               { {},               96,          16, "frost_arrow",     16, MissileGraphicsFlags::None,                     0, AnimLen_4       },
-/*FreezingBurst*/            { {},              128,          32, "freezing_burst",   1, MissileGraphicsFlags::None,                     1, AnimLen_12      },
-/*BlessedHammerSpin*/        { {},               48,          -8, "blessed_hammer_spin", 1, MissileGraphicsFlags::None,                 1, AnimLen_16      },
+/*FrostArrow*/               { {},               96,          16, "frost_arrow",     16, MissileGraphicsFlags::PngOnly,                  0, AnimLen_4       },
+/*FreezingBurst*/            { {},              128,          32, "freezing_burst",   1, MissileGraphicsFlags::PngOnly,                  1, AnimLen_12      },
+/*BlessedHammerSpin*/        { {},               48,          -8, "blessed_hammer_spin", 1, MissileGraphicsFlags::PngOnly,              1, AnimLen_16      },
 // The briefs' sheets (2026-09-11), all nine delivered. They stay PngOnly - no .cl2 stands behind
 // them - so a build without one gets no sprite and its caller falls back. Sizes are the briefs'; animWidth2 is
 // (frame - 64) / 2 as above. The bolt's cells are 64 wide and 128 tall - the height is the sheet's.

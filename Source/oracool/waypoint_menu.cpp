@@ -779,6 +779,10 @@ void CheckWaypointMenuClick(Point mousePosition)
 
 void TravelToWaypointEntry(int entry)
 {
+	// Not while dying: MyPlayerIsDead is set only after the fall, and a click in the meantime carried the corpse to the
+	// chosen floor (round 9 audit, v1.12.234).
+	if (MyPlayer == nullptr || MyPlayer->_pmode == PM_DEATH || MyPlayerIsDead || (MyPlayer->_pHitPoints >> 6) <= 0)
+		return;
 	// The row index STOPPED being the destination level when the list was reordered by depth
 	// (2026-09-12): row 13 is the Nest's first floor, dungeon level 17. Everything past this line
 	// speaks in dungeon levels, which is what _pWaypointUnlocked and StartNewLvl both want.

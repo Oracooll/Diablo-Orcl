@@ -38,6 +38,7 @@
 #include "oracool/class_tree.h" // SlowPlayer - a cold hit's chill on the stride
 #include "oracool/cold.h"
 #include "oracool/companion.h"
+#include "oracool/monster_scale.h" // GetScaledAnim - a sized charger keeps its size
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/rogue_arrows.h"
@@ -1754,7 +1755,11 @@ void AddBerserk(Missile &missile, AddMissileParameter &parameter)
 		monster.minDamageSpecial = (GenerateRnd(10) + 120) * monster.minDamageSpecial / 100 + slvl;
 		monster.maxDamageSpecial = (GenerateRnd(10) + 120) * monster.maxDamageSpecial / 100 + slvl;
 		int lightRadius = leveltype == DTYPE_NEST ? 9 : 3;
-		monster.lightId = AddLight(monster.position.tile, lightRadius);
+		// A Luminous monster already carries a light: resized, not orphaned (round 9 audit).
+		if (monster.lightId != NO_LIGHT)
+			ChangeLightRadius(monster.lightId, lightRadius);
+		else
+			monster.lightId = AddLight(monster.position.tile, lightRadius);
 		parameter.spellFizzled = false;
 	}
 }
@@ -1800,6 +1805,10 @@ void AddJester(Missile &missile, AddMissileParameter &parameter)
 		spell = MissileID::StoneCurse;
 		break;
 	}
+	// Not a portal or a teleport in town: the town branch of AddTownPortal opened one to the LAST portal's destination
+	// (Portals[] keeps it after closing) - floor 15, a rift (round 9 audit, v1.12.234).
+	if (leveltype == DTYPE_TOWN && IsAnyOf(spell, MissileID::TownPortal, MissileID::Teleport))
+		spell = MissileID::Firebolt;
 	Missile *randomMissile = AddMissile(missile.position.start, parameter.dst, parameter.midir, spell, missile._micaster, missile._misource, 0, missile._mispllvl);
 	parameter.spellFizzled = randomMissile == nullptr;
 	missile._miDelFlag = true;
@@ -3171,7 +3180,10 @@ void AddChainLightning(Missile &missile, AddMissileParameter &parameter)
 namespace {
 void InitMissileAnimationFromMonster(Missile &mis, Direction midir, const Monster &mon, MonsterGraphic graphic)
 {
-	const AnimStruct &anim = mon.type().getAnimData(graphic);
+	// The monster's SIZED animation, as its own binders use: a Giant or Colossal charger shrank to 100% for the charge
+	// (round 9 audit, v1.12.234).
+	const AnimStruct *scaled = oracool::GetScaledAnim(mon, graphic);
+	const AnimStruct &anim = scaled != nullptr ? *scaled : mon.type().getAnimData(graphic);
 	mis._mimfnum = static_cast<int32_t>(midir);
 	mis._miAnimFlags = MissileGraphicsFlags::None;
 	// Oracool audit (2026-08-16): the monster helper correctly returns nullopt, and this was the one
@@ -4470,6 +4482,12 @@ Missile *AddMissile(Point src, Point dst, Direction midir, MissileID mitype,
 	missile.position.start = src;
 	missile._miAnimAdd = 1;
 	missile._miAnimType = missileData.mFileNum;
+	// A monster's own sheet (Acid, its splash and puddle) loads only with that monster type: the Necromancer's poison
+	// mage shot invisible bolts on every floor without acid beasts (round 9 audit, v1.12.234). Loaded here on first use;
+	// FreeMissileGFX frees it with the level as it does the monsters'.
+	if (MissileFileData &art = GetMissileSpriteData(missileData.mFileNum);
+	    !HeadlessMode && !art.sprites && art.flags == MissileGraphicsFlags::MonsterOwned)
+		art.LoadGFX();
 	missile._miDrawFlag = missileData.isDrawn();
 	missile._mlid = NO_LIGHT;
 	missile.lastCollisionTargetHash = 0;
@@ -4865,6 +4883,11 @@ void ProcessRune(Missile &missile)
 	Point position = missile.position.tile;
 	int mid = dMonster[position.x][position.y];
 	int pid = dPlayer[position.x][position.y];
+	// Not the hero's own army or companions (the blast spares them - the rune was wasted and could hit the hero beside
+	// them), nor a townsperson's id in town (round 9 audit, v1.12.234).
+	if (mid != 0
+	    && (leveltype == DTYPE_TOWN || Monsters[abs(mid) - 1].isPlayerMinion() || oracool::IsCompanion(Monsters[abs(mid) - 1])))
+		mid = 0;
 	if (mid != 0 || pid != 0) {
 		Point targetPosition = mid != 0 ? Monsters[abs(mid) - 1].position.tile : Players[abs(pid) - 1].position.tile;
 		Direction dir = GetDirection(position, targetPosition);

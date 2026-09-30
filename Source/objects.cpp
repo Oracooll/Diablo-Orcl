@@ -2060,6 +2060,10 @@ void OperateWaypoint(Object &waypoint)
 	// waypoint feel. waypoint._oVar1 holds this sigil's list index (0 = Tristram, 1-24 = that
 	// dungeon level - 17-24 are Hellfire's Nest and Crypt since v1.5.0), set in
 	// AddWaypointSigilObject, which bounds it against Player::MaxWaypointSlots.
+	// Beside it, as the walk to it makes sure: Telekinesis lit a sigil from across a gap, or inside a sealed room, and shut
+	// the inventory for a list that closed itself the next frame (round 9 audit).
+	if (MyPlayer == nullptr || MyPlayer->position.tile.WalkingDistance(waypoint.position) > 2)
+		return;
 	if (!oracool::IsWaypointUnlocked(waypoint._oVar1)) {
 		oracool::UnlockWaypoint(waypoint._oVar1);
 		waypoint._oAnimFrame = 2; // orclwayp.cel's lit variant
@@ -4870,6 +4874,22 @@ int ScoreWaypointTile(Point position)
 {
 	if (!IsWaypointAreaClear(position, WaypointMinClearRadius))
 		return -1;
+	// Not inside Diablo's three lever-sealed quadrants: level 16 marks no set piece on them, so the sigil could stand in a
+	// room the levers have not opened - unreachable on foot, and a waypoint arrival skipped the whole lever sequence
+	// (round 9 audit, v1.12.234). The rects are LoadMapObjects' own, in megatiles.
+	if (currlevel == 16 && !setlevel) {
+		struct Quad {
+			WorldTilePosition mega;
+			int width;
+			int height;
+		};
+		for (const Quad &quad : { Quad { DiabloQuad2, 11, 12 }, Quad { DiabloQuad3, 11, 11 }, Quad { DiabloQuad4, 9, 9 } }) {
+			const int left = 16 + 2 * quad.mega.x;
+			const int top = 16 + 2 * quad.mega.y;
+			if (position.x >= left && position.x < left + 2 * quad.width && position.y >= top && position.y < top + 2 * quad.height)
+				return -1;
+		}
+	}
 	if (DistanceToNearestTrigger(position) < WaypointMinTriggerDistance)
 		return -1;
 

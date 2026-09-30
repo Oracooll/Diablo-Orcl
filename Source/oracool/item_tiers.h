@@ -101,6 +101,12 @@ UiFlags TierColor(BaseItemTier tier);
  * rolls, so affixes stack on top of the tiered base exactly as they do on a Normal one.
  */
 void ApplyBaseTier(Item &item, BaseItemTier tier);
+/**
+ * @brief @p value at base tier @p tier's value percent, as ApplyBaseTier prices a base. For a vanilla unique, whose
+ * GetUniqueItem writes its row's untiered UIValue AFTER the tier was applied: a Torment unique sold for less once
+ * identified, and repaired at the Normal price (round 9 audit, v1.12.234). Clamped to int.
+ */
+int ScaleValueForBaseTier(int value, uint8_t tier);
 
 /**
  * @brief The banded qlvl of a base item - the ilvl a drop needs before this base can appear.

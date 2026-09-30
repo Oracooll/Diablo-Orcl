@@ -245,7 +245,10 @@ bool EnteredRiftStillOpen()
 	// Rift in its sixty seconds. An abandoned Nephalem Rift has no clock and a timed-out Guardian Rift no keystone left to
 	// win - refusing those would keep the monument shut for good.
 	const bool liveGuardian = State.kind == RiftKind::Guardian && !State.done && !State.timedOut;
-	const bool clearedPile = State.kind == RiftKind::Nephalem && State.done && State.closeTicks > 0;
+	// A cleared Guardian Rift too, until the hero walks out through an exit (returnedHome): its pile and the next keystone
+	// wait inside for a hero who died or ran out of room, and a new rift wiped them (round 9 audit, v1.12.234).
+	const bool clearedPile = (State.kind == RiftKind::Nephalem && State.done && State.closeTicks > 0)
+	    || (State.kind == RiftKind::Guardian && State.done && !State.returnedHome);
 	if (!liveGuardian && !clearedPile)
 		return false;
 	LogEvent(StrCat("The ", RiftKindName(State.kind), " you entered is still open - finish it, or let it close, before opening another."), UiFlags::ColorRed);
@@ -525,7 +528,11 @@ dungeon_type RiftTileset()
 
 int RiftMonsterBandFloor()
 {
-	return RungOf(State.tier);
+	// The rung inside THIS difficulty's block, held at its ends: RungOf wrapped past the block, so a tier-17 key in Normal
+	// drew floor-1 zombies at 148% and the Guardian ladder got easier every sixteenth tier (round 9 audit, v1.12.234). A
+	// tier above the block stays at rung 16 and scales 3% a tier, as rift.h promises; one below it takes rung 1.
+	const int blockStart = AreaLevel(1, sgGameInitInfo.nDifficulty) - 1;
+	return std::clamp(State.tier - blockStart, 1, RungsPerDifficulty);
 }
 
 bool RiftAcceptsMonster(const MonsterData &data)
@@ -706,12 +713,26 @@ void OnRiftMonsterKilled(const Monster &monster)
 		State.homeTile = monster.position.tile;
 		// Nobody standing on it (audit, 2026-09-27): searched from South, it could land under the hero who struck the
 		// blow, and his standing still on it fired the trigger - home, the rift over, the pile and the keystone left.
-		for (int d = 0; d < 8; d++) {
-			const Point neighbour = monster.position.tile + static_cast<Direction>(d);
-			if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0
-			    && dPlayer[neighbour.x][neighbour.y] == 0 && dMonster[neighbour.x][neighbour.y] == 0 && neighbour != State.arrivalTile) {
-				State.homeTile = neighbour;
-				break;
+		// OUTSIDE the drop ring, on a tile with no item (round 9 audit, v1.12.234): the loot scatters over the 3x3 around the
+		// corpse, and a pickup walk that stopped on a trigger among it sent the hero home - in a Guardian Rift, with the rest
+		// of the pile and the next keystone lost.
+		if (const std::optional<Point> home = FindClosestValidPosition(
+		        [&monster](Point tile) {
+			        return InDungeonBounds(tile) && !IsTileSolid(tile) && dObject[tile.x][tile.y] == 0 && dItem[tile.x][tile.y] == 0
+			            && dPlayer[tile.x][tile.y] == 0 && dMonster[tile.x][tile.y] == 0 && tile != State.arrivalTile
+			            && std::max(std::abs(tile.x - monster.position.tile.x), std::abs(tile.y - monster.position.tile.y)) >= 2;
+		        },
+		        monster.position.tile, 2, 8);
+		    home.has_value()) {
+			State.homeTile = *home;
+		} else {
+			for (int d = 0; d < 8; d++) {
+				const Point neighbour = monster.position.tile + static_cast<Direction>(d);
+				if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0
+				    && dPlayer[neighbour.x][neighbour.y] == 0 && dMonster[neighbour.x][neighbour.y] == 0 && neighbour != State.arrivalTile) {
+					State.homeTile = neighbour;
+					break;
+				}
 			}
 		}
 		LayWayHome();
