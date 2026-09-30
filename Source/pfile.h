@@ -147,6 +147,8 @@ struct HeroCompareResult {
 
 std::optional<SaveReader> OpenSaveArchive(uint32_t saveNum);
 std::optional<SaveReader> OpenStashArchive();
+/** @brief Whether the stash file is on disk, readable or not: an archive that will not OPEN is not a missing one. */
+bool StashSaveFileExists();
 const char *pfile_get_password();
 std::unique_ptr<byte[]> ReadArchive(SaveReader &archive, const char *pszName, size_t *pdwLen = nullptr);
 void pfile_write_hero(bool writeGameData = false);

@@ -3009,7 +3009,9 @@ void LoadStash()
 	StashFileRefused = false;
 
 	std::optional<SaveReader> archive = OpenStashArchive();
-	const bool present = archive && archive->HasFile(filename);
+	// A file on disk whose archive will not open (a damaged header, a lock held elsewhere) is PRESENT and unreadable, not
+	// absent: read as absent, the empty stash was saved over every hero's (round 23 audit, v1.12.248).
+	const bool present = archive ? archive->HasFile(filename) : StashSaveFileExists();
 	LoadHelper file(std::move(archive), filename);
 	if (!file.IsValid()) {
 		if (present) {
@@ -3023,13 +3025,19 @@ void LoadStash()
 	// Exactly the current version (audit, 2026-09-19): a `version == 5` branch lingered here, parsing a
 	// record with no embedded item byte as today's format; IsStashSizeValid rejected every real one.
 	if (version != StashVersion) {
+		// A NEWER stash (written by a later build) is refused, not emptied and saved over (round 23 audit).
+		if (version > StashVersion)
+			StashFileRefused = true;
 		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Orcl and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
 		return;
 	}
 	// Version 6 carries the item schema its records were written with; version 5 is the current
 	// build's own pre-audit output, parsed with today's format. See the StashVersion note.
 	const ItemFormatScope itemFormat;
-	if (version == StashVersion && !AcceptItemFormat(file.NextLE<uint8_t>())) {
+	const uint8_t stashItemFormat = version == StashVersion ? file.NextLE<uint8_t>() : OracoolItemFormatVersion;
+	if (version == StashVersion && !AcceptItemFormat(stashItemFormat)) {
+		if (stashItemFormat > OracoolItemFormatVersion)
+			StashFileRefused = true; // a later build's items: refused, not overwritten (round 23 audit)
 		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Orcl and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
 		return;
 	}
@@ -3233,6 +3241,12 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 		for (int8_t &cell : player.InvTabGrid[t]) {
 			if (cell != 0 && player.InvTabList[t][abs(cell) - 1].isEmpty())
 				cell = 0;
+		}
+		// And the list closes up behind it, as RemoveExtraTabItem closes it in play: the empty record was saved with no
+		// grid anchor, and the load after next found the page inconsistent and emptied ALL of it (round 23 audit, v1.12.248).
+		for (int i = player._pNumInvTab[t] - 1; i >= 0; i--) {
+			if (player.InvTabList[t][i].isEmpty())
+				RemoveExtraTabItem(player, t, i);
 		}
 	}
 }

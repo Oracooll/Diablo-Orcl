@@ -969,7 +969,9 @@ void RightMouseDown(bool isShiftHeld)
 		//
 		// On the shop panel: a right click on an item is the purchase, complete, with no
 		// confirmation after it - see CheckShopGridClick.
-		if (oracool::CheckShopGridClick(MousePosition, /*rightClick=*/true))
+		// Not through the HUD row over the panel, as the left click since round 13: a right click on the HUD sold the held
+		// item (round 23 audit, v1.12.248).
+		if (!oracool::IsPointOverHudChrome(MousePosition) && oracool::CheckShopGridClick(MousePosition, /*rightClick=*/true))
 			return;
 
 		// In the backpack: a right click on an item sells it to whichever vendor is open. Only the

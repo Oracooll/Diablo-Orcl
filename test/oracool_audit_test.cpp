@@ -6763,7 +6763,9 @@ TEST(OracoolAudit, TreasureBonusRewardsChampionsAndUniques)
 
 	ordinary.uniqueType = UniqueMonsterType::None;
 	ordinary.lesserAffix = LesserUniqueAffix::None;
-	champion.uniqueType = UniqueMonsterType::None;
+	// As the game builds one: PrepareUniqueMonst gives every champion a real uniqueType, then the affix (round 23 audit -
+	// with uniqueType None this fixture hid that every champion paid a unique's 4).
+	champion.uniqueType = UniqueMonsterType::Garbud;
 	champion.lesserAffix = LesserUniqueAffix::Relentless;
 	unique.uniqueType = UniqueMonsterType::Garbud;
 	unique.lesserAffix = LesserUniqueAffix::None;
@@ -6772,12 +6774,11 @@ TEST(OracoolAudit, TreasureBonusRewardsChampionsAndUniques)
 	EXPECT_EQ(TreasureBonusFor(champion), 2) << "a champion is worth no more than an ordinary kill";
 	EXPECT_EQ(TreasureBonusFor(unique), 4) << "a unique is worth no more than a champion";
 
-	// A unique that ALSO carries an affix is still worth the unique's four, not the champion's two.
-	// Order of the two tests inside TreasureBonusFor is the whole of this, and reversing them is a
-	// one-character change that nothing else would notice.
+	// A unique type WITH an affix is a champion - that is how the game makes one - and pays the champion's two. This
+	// test asserted the unique's four until round 23, pinning the bug that paid every champion as a scripted unique.
 	unique.lesserAffix = LesserUniqueAffix::Relentless;
-	EXPECT_EQ(TreasureBonusFor(unique), 4)
-	    << "an affixed unique fell through to the champion multiplier";
+	EXPECT_EQ(TreasureBonusFor(unique), 2) << "a champion (unique type + affix) paid a scripted unique's four";
+	unique.lesserAffix = LesserUniqueAffix::None;
 
 	// The rates a unique in Hell actually sees, checked against the cap the drop hook applies.
 	const TreasureClass &hell = TreasureClassFor(DTYPE_HELL);
@@ -13994,9 +13995,11 @@ TEST(OracoolAudit, RiftKillCreditWeightsChampionsAndUniques)
 	monster.uniqueType = UniqueMonsterType::None;
 	monster.lesserAffix = LesserUniqueAffix::None;
 	EXPECT_EQ(oracool::RiftKillCredit(monster), oracool::RiftCreditOrdinary);
+	// A champion as the game makes one: a real uniqueType, then the affix (round 23 audit).
+	monster.uniqueType = UniqueMonsterType::Butcher;
 	monster.lesserAffix = LesserUniqueAffix::Warded;
 	EXPECT_EQ(oracool::RiftKillCredit(monster), oracool::RiftCreditChampion);
-	monster.uniqueType = UniqueMonsterType::Butcher;
+	monster.lesserAffix = LesserUniqueAffix::None; // the scripted unique itself
 	EXPECT_EQ(oracool::RiftKillCredit(monster), oracool::RiftCreditUnique);
 	LevelMonsterTypes[0].type = MT_GOLEM;
 	monster.uniqueType = UniqueMonsterType::None;

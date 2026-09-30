@@ -1947,6 +1947,10 @@ bool CheckShopGridClick(Point position, bool rightClick)
 			// must not fall through it to the painting behind.
 			if (!ShopServiceSlotEnabled(slot, stextflag))
 				return true;
+			// A right press has no release in this engine: it sank the frame, and the next LEFT release inside it fired
+			// Sell All or Refresh (round 23 audit). Absorbed, as the tab column absorbs it.
+			if (rightClick)
+				return true;
 			PressedShopServiceSlot = slot; // sinks until LeftMouseUp; the action waits for the release
 			PlayUiMoveSound();            // titlemov at the PRESS, as every other button in the mod
 			return true;

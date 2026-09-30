@@ -615,14 +615,15 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 	}
 	if (dst == here)
 		return false;
+	// Its own cues, not Teleport's launch sound too: three sounds for one leap (round 23 audit, as TeleportTo since round 13).
+	const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, ClassMeleeSkillSpell(skill));
 	Missile *missile = AddMissile(here, dst, player._pdir, MissileID::Teleport, TARGET_MONSTERS,
-	    static_cast<int>(player.getId()), 0, 0);
+	    static_cast<int>(player.getId()), 0, 0, nullptr, row != ClassTreeSkill::None ? std::optional<_sfx_id>(SFX_NONE) : std::nullopt);
 	if (missile == nullptr)
 		return false;
 	Pay(player, skill, /*landedBlows=*/0); // the leap itself strikes nothing
 	// Heard and seen (the Barbarian Skill Cards page, 2026-09-29): the Cast cue as he goes, the Impact cue and a
 	// half-again-size Holy Bolt burst, pale warm, where he lands - the teleport has already found the tile.
-	const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, ClassMeleeSkillSpell(skill));
 	if (row != ClassTreeSkill::None) {
 		PlaySkillSound(row, SkillSoundEvent::Cast);
 		PlaySkillSound(row, SkillSoundEvent::Impact);

@@ -2740,8 +2740,10 @@ void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 		// The backpack and the belt, never pages 2-10 (user, 2026-09-27: "fix the decisions for me too"). The button says
 		// "sells everything in your backpack", and it took the extra pages too - where crafting stock is kept, gems,
 		// runes and shards Griswold buys - in one click. One item from a page still sells from the list.
+		// The CHEAPEST first (the list is sorted dearest first): the buyback holds the last 40 sales, and selling dearest
+		// first pushed the valuable ones off it for good on a full backpack (round 23 audit, v1.12.248).
 		int next = -1;
-		for (int i = 0; i < storenumh && next < 0; i++) {
+		for (int i = storenumh - 1; i >= 0 && next < 0; i--) {
 			if (storehTabIdx[i] < 0)
 				next = i;
 		}
@@ -5399,11 +5401,14 @@ bool ShopRepairItemAt(Item &item)
 		StartStore(TalkID::NoMoney);
 		return false;
 	}
-	TakePlrsMoney(price);
+	// The work first, the fee after, as SmithRepairItemAt does: a gold pile the fee used up leaves InvList by moving the
+	// last entry into its slot, and when the item was that last entry the repair landed on the emptied slot - gold taken,
+	// item still worn (round 23 audit, v1.12.248).
 	item._iDurability = item._iMaxDur;
 	// A broken item left equipped is flagged as well as emptied - see SmithRepairItemAt, which
 	// clears the same flag for the same reason.
 	item._iOracoolBroken = false;
+	TakePlrsMoney(price);
 	PlaySFX(IS_GOLD);
 	oracool::ScheduleAutoSaveForStoreTransaction();
 	return true;
@@ -5423,8 +5428,8 @@ bool ShopRechargeItemAt(Item &item)
 		StartStore(TalkID::NoMoney);
 		return false;
 	}
+	item._iCharges = item._iMaxCharges; // before the fee, as the repair above (round 23 audit)
 	TakePlrsMoney(price);
-	item._iCharges = item._iMaxCharges;
 	PlaySFX(IS_GOLD);
 	oracool::ScheduleAutoSaveForStoreTransaction();
 	return true;
@@ -5520,12 +5525,15 @@ void ShopRepairAll()
 	// player could no longer afford the next one. StoreHoldCapacity is storehold's capacity, so a run that
 	// repairs something every pass can never reach it (a bare 48 until 2026-09-27, when the capacity grew).
 	int repaired = 0;
+	bool shortOfGold = false;
 	for (int guard = 0; guard < StoreHoldCapacity; guard++) {
 		StartSmithRepair();
 		if (storenumh == 0)
 			break;
-		if (!PlayerCanAfford(storehold[0]._iIvalue))
+		if (!PlayerCanAfford(storehold[0]._iIvalue)) {
+			shortOfGold = true;
 			break;
+		}
 		SmithRepairItemAt(storehold[0]._iIvalue, 0);
 		repaired++;
 	}
@@ -5534,6 +5542,9 @@ void ShopRepairAll()
 	if (repaired > 0)
 		PlaySFX(IS_REPAIR);
 	StartStore(resume);
+	// Said when it stops short, as every other refused purchase is: it had stopped in silence (round 23 audit).
+	if (shortOfGold)
+		oracool::ShowShopToast(std::string(_("You do not have enough gold")));
 }
 
 void ShopBuyBack(int index)
@@ -5565,6 +5576,7 @@ void ShopBuyBack(int index)
 	TakePlrsMoney(price);
 	StoreAutoPlace(item, true);
 	BuybackStock.erase(BuybackStock.begin() + static_cast<ptrdiff_t>(slot));
+	CalcPlrInv(*MyPlayer, true); // its usable flag against this hero, as every other purchase (round 23 audit)
 	// Coins changing hands, same as every other vendor transaction (user, 2026-08-27: "when i buy
 	// back an item - play gold sound"). This path completes itself instead of going through
 	// ConfirmEnter, so it does not inherit the sound played there.

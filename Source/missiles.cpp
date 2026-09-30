@@ -1524,9 +1524,10 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 			if (monster == nullptr)
 				if (HasAnyOf(player._pIFlags, ItemSpecialEffect::HalfTrapDamage))
 					dam /= 2;
-			// In 1/64ths, as dam is on this path: the flat "-X damage taken" (Iron Robe, items) took a 64th of a point off
-			// acid puddles, fire walls and Inferno (round 22 audit, v1.12.247; vanilla's slip).
-			dam += player._pIGetHit * 64; // negative for a reduction: * 64, as the branch above, not a shift
+			// Vanilla's 64th of a point, kept on purpose: this path is the per-TICK damage of fire walls, acid puddles and
+			// Inferno, and a whole point a tick floored every tick at 1 life under -3, or added 6 life a tick under Fool's
+			// Crest (round 23 audit of v1.12.247, which had made it whole points).
+			dam += player._pIGetHit;
 		}
 
 		dam = std::max(dam, 64);
@@ -2821,9 +2822,11 @@ void ProcessRogueArrow(Missile &missile)
 		// An arrow a wall stopped is parked ON the wall tile: its burst, freeze and fire patch are laid from the tile before
 		// it, or they reached the far side of a one-tile wall (round 22 audit, v1.12.247).
 		Point at = missile.position.tile;
-		if (at != missile.position.start && InDungeonBounds(at)
-		    && TileHasAny(dPiece[at.x][at.y], TileProperties::Solid | TileProperties::BlockMissile))
+		// Stepped back toward the bow until off the wall (an 8-way step along a wall row can land in the same row), and a
+		// door or other blocking object counts as the wall (round 23 audit of v1.12.247).
+		for (int step = 0; step < 3 && at != missile.position.start && InDungeonBounds(at) && IsMissileBlockedByTile(at); step++)
 			at += GetDirection(at, missile.position.start);
+		const bool steppedBack = at != missile.position.tile;
 		const Direction dir = static_cast<Direction>(missile._mimfnum);
 		// Fire Arrow lands in the burst vanilla's fire arrow lands in (magblos), drawn and lit only: the skill's fire
 		// damage is the arrow's own hit, already dealt. Exploding and Immolation Arrow keep their own endings below.
@@ -2835,7 +2838,9 @@ void ProcessRogueArrow(Missile &missile)
 			// explosion drawn over it. The stop tile itself was already hit by the arrow.
 			for (int dy = -1; dy <= 1; dy++) {
 				for (int dx = -1; dx <= 1; dx++) {
-					if (dx == 0 && dy == 0)
+					// The centre was the arrow's own hit - unless the burst stepped back off a wall, when the tile in front of it
+					// took no hit yet (round 23 audit).
+					if (dx == 0 && dy == 0 && !steppedBack)
 						continue;
 					CheckMissileCol(missile, DamageType::Fire, mind, maxd, false, at + Displacement { dx, dy }, true);
 				}

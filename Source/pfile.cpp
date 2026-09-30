@@ -719,6 +719,11 @@ std::optional<SaveReader> OpenStashArchive()
 	return CreateSaveReader(GetStashSavePath());
 }
 
+bool StashSaveFileExists()
+{
+	return FileExists(GetStashSavePath());
+}
+
 std::unique_ptr<byte[]> ReadArchive(SaveReader &archive, const char *pszName, size_t *pdwLen)
 {
 	int32_t error;

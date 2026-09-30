@@ -501,7 +501,9 @@ PackAuraBonus PackAuraOn(const Monster &monster)
 {
 	PackAuraBonus bonus {};
 	// The pack's own: an enemy champion's Might lent the Necromancer's skeletons 40% (round 6 audit, v1.12.231).
-	if (monster.isPlayerMinion())
+	// Nor one turned to the hero's side (Conversion, Confuse, Berserk): it took Might or Defiance while fighting that
+	// champion's own pack (round 23 audit).
+	if (monster.isPlayerMinion() || (monster.flags & MFLAG_BERSERK) != 0)
 		return bonus;
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		const Monster &champion = Monsters[ActiveMonsters[i]];

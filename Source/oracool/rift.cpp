@@ -584,10 +584,14 @@ int RiftKillCredit(const Monster &monster)
 {
 	if (monster.isPlayerMinion() || monster.type().type == MT_GOLEM)
 		return 0;
-	if (monster.isUnique() || IsEndgameBoss(monster))
+	// The Dread boss first, then the champion, then the unique: every champion has a uniqueType (PrepareUniqueMonst), so
+	// they all earned a unique's credit and RiftCreditChampion never ran (round 23 audit, v1.12.248).
+	if (IsEndgameBoss(monster))
 		return RiftCreditUnique;
 	if (monster.lesserAffix != LesserUniqueAffix::None)
 		return RiftCreditChampion;
+	if (monster.isUnique())
+		return RiftCreditUnique;
 	return RiftCreditOrdinary;
 }
 
@@ -626,11 +630,14 @@ void LayArrivalExit()
 }
 
 /** @brief The return trigger where the guardian fell, and the rift's portal drawn on it. */
-void LayWayHome()
+void LayWayHome(bool sound)
 {
 	State.homeLaid = true;
 	LayRiftExit(State.homeTile);
-	PlaySfxLoc(LS_SENTINEL, State.homeTile); // vanilla's portal opening sound (user, 2026-09-20)
+	// Vanilla's portal opening sound (user, 2026-09-20) - when it opens, at the guardian's fall, not each time a
+	// re-entered level rebuilds it (round 23 audit).
+	if (sound)
+		PlaySfxLoc(LS_SENTINEL, State.homeTile);
 }
 
 /**
@@ -669,9 +676,9 @@ void PlayGuardianFallsSound()
 	// quest's, skipped for a guardian (round 21 audit).
 	if (State.guardian == RiftGuardianType::NaKrul)
 		stream_stop();
+	// Not Diablo's own scream on top: his death plays it (PlayEffect, MonsterSound::Death), and he screamed twice
+	// (round 23 audit).
 	PlaySFX(LS_APOC);
-	if (State.guardian == RiftGuardianType::Diablo)
-		PlaySFX(USFX_DIABLOD);
 	PlayUiEventSound(UiEventSound::EncounterCleared);
 }
 
@@ -686,7 +693,7 @@ void RiftLevelPopulated()
 	numtrigs = 0;
 	LayArrivalExit();
 	if (State.done)
-		LayWayHome();
+		LayWayHome(/*sound=*/false); // rebuilt, not opened
 	if (State.creditNeeded > 0)
 		return; // a revisit keeps the bar it had
 	int total = 0;
@@ -799,7 +806,7 @@ void OnRiftMonsterKilled(const Monster &monster)
 		}
 		// The keystone (plan r5) went down above: a Nephalem guardian always drops one at the rift's tier; a Guardian
 		// guardian drops the next tier's, unless the clock ran out.
-		LayWayHome();
+		LayWayHome(/*sound=*/true);
 		if (State.kind == RiftKind::Guardian && State.timedOut)
 			LogEvent(StrCat(RiftGuardianName(State.guardian), " falls, but the clock had run out: no keystone. The portal leads home."), UiFlags::ColorWhitegold);
 		else

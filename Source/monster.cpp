@@ -5323,7 +5323,8 @@ void ProcessMonsters()
 			if (monster.type().type == MT_CLEAVER) {
 				PlaySFX(USFX_CLEAVER);
 			}
-			if (monster.type().type == MT_NAKRUL) {
+			// Not a rift's Na-Krul: his floor-24 sealed-door speech cut the guardian's arrival sting in a rift (round 23).
+			if (monster.type().type == MT_NAKRUL && !oracool::IsRiftGuardian(monster)) {
 				if (sgGameInitInfo.bCowQuest != 0) {
 					PlaySFX(USFX_NAKRUL6);
 				} else {

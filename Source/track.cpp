@@ -13,6 +13,7 @@
 #include "engine/point.hpp"
 #include "objects.h"
 #include "oracool/levski_roar.h"
+#include "oracool/stonegate.h" // IsStonegateObject - the Monument opens a menu, not a one-shot
 #include "player.h"
 #include "stores.h"
 
@@ -141,8 +142,11 @@ void RepeatMouseAction()
 		// ended up open came down to the parity of how long the click lasted. It only bit when the
 		// player was already ADJACENT: from further away the walk eats the hold, and the button is
 		// released before the operate ever fires.
+		// Nor the Rift Monument or a waypoint sigil, which OPEN a menu: held, each frame re-opened it, replaying its select
+		// click and, for a sigil, scheduling a save (round 23 audit, v1.12.248).
 		if (ObjectUnderCursor != nullptr && !ObjectUnderCursor->isDoor()
-		    && !oracool::IsLevskiRoarObject(*ObjectUnderCursor)) {
+		    && !oracool::IsLevskiRoarObject(*ObjectUnderCursor) && !oracool::IsStonegateObject(*ObjectUnderCursor)
+		    && ObjectUnderCursor->_otype != OBJ_WAYPOINT) {
 			NetSendCmdLoc(MyPlayerId, true, CMD_OPOBJXY, cursPosition);
 		}
 		break;

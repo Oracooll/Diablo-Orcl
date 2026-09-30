@@ -3653,6 +3653,7 @@ void InvGetItem(Player &player, int ii)
 	// always-saved progress; previously excluded to avoid spamming saves while raking in gold,
 	// but the delay setting (now defaulting to 0) already debounces rapid pickups if desired.
 	const bool scheduleAutoSave = &player == MyPlayer;
+	Item displaced; // the held item a pickup pushes out of the hand, in single player (placed after CleanupItems)
 	if (DropGoldFlag) {
 		CloseGoldDrop();
 	}
@@ -3740,12 +3741,11 @@ void InvGetItem(Player &player, int ii)
 		if (MyPlayer == &player && !player.HoldItem.isEmpty()) {
 			// drop whatever the player is currently holding - in single player whole, into the pack or at his feet: the
 			// network drop rebuilds it from its seed, and a socketed, imbued or reworked item landed plain (round 22 audit).
-			if (!gbIsMultiplayer) {
-				if (!AutoPlaceItemInInventory(player, player.HoldItem, /*persistItem=*/true))
-					DropItemBesidePlayer(player, player.HoldItem);
-			} else {
+			// Placed after CleanupItems below frees the picked item's floor slot (on a full floor the drop found none).
+			if (!gbIsMultiplayer)
+				displaced = player.HoldItem;
+			else
 				NetSendCmdPItem(true, CMD_SYNCPUTITEM, player.position.tile, player.HoldItem);
-			}
 		}
 
 		// need to copy here instead of move so CleanupItems still has access to the position
@@ -3755,6 +3755,14 @@ void InvGetItem(Player &player, int ii)
 
 	// This potentially moves items in memory so must be done after we've made a copy
 	CleanupItems(ii);
+	if (!displaced.isEmpty()) {
+		// Gold through the gold path, so the pack's total counts it; anything else into the pack (and its stats with it,
+		// a charm's included), or at his feet (round 23 audit of v1.12.247).
+		if (displaced._itype == ItemType::Gold ? GoldAutoPlace(player, displaced) : AutoPlaceItemInInventory(player, displaced, /*persistItem=*/true))
+			CalcPlrInv(player, true);
+		else
+			DropItemBesidePlayer(player, displaced);
+	}
 	pcursitem = -1;
 	if (scheduleAutoSave)
 		oracool::ScheduleAutoSaveForItemPickup();

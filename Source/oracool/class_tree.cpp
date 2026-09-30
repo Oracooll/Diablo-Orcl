@@ -1958,7 +1958,9 @@ void ApplyLevelUpStat(Skill skill, int points, ItemBonusTotals &totals)
 		totals.mana += v << 6;
 		break;
 	case StatChannel::ArmorFlat:
-		totals.armor += v;
+		// Magic armour, as every other skill's flat armour: booked as armour from gear, the sheet showed ~25 rows' armour
+		// as coming from equipment (round 23 audit). The total is the same.
+		totals.bonusArmor += v;
 		break;
 	case StatChannel::ArmorPercent:
 		totals.armorPercent += v; // a real share since 2026-09-26; bonusArmor is flat
@@ -3334,7 +3336,13 @@ void ApplyClassTreeLevelUpStat(Skill skill, int points, ItemBonusTotals &totals)
 
 std::string ClassTreeLevelUpLine(Skill skill, int points)
 {
-	return LevelUpStatLine(skill, points);
+	std::string line = LevelUpStatLine(skill, points);
+	// An aura's applies only while it burns (ApplyClassTreeToTotals); the line read as a permanent stat (round 23 audit).
+	if (!line.empty() && GetClassTreeSkillData(skill).kind == Kind::Aura) {
+		line += ' ';
+		line.append(_("(while lit)"));
+	}
+	return line;
 }
 
 std::string ClassTreeRankBlock(const Player &player, Skill skill, int points)
@@ -3353,7 +3361,7 @@ std::string ClassTreeRankBlock(const Player &player, Skill skill, int points)
 		// The level-up stat is the points' alone: ApplyClassTreeToTotals applies it at the investment, not at the spell
 		// level (audit, 2026-09-29 - the line showed the items' levels in it too).
 		if (data.implemented)
-			line(LevelUpStatLine(skill, points));
+			line(ClassTreeLevelUpLine(skill, points));
 		return text;
 	}
 	if (!data.implemented)
@@ -3367,7 +3375,7 @@ std::string ClassTreeRankBlock(const Player &player, Skill skill, int points)
 	else
 		ApplyPassive(player, skill, working, totals, /*assumeCondition=*/true);
 	line(DescribeBonusTotals(totals, "\n"));
-	line(LevelUpStatLine(skill, points));
+	line(ClassTreeLevelUpLine(skill, points));
 	if (data.kind == Kind::Aura) {
 		line(ClassTreeAuraFactsAt(skill, working));
 		// What an aura does OFF the sheet - a pulse, a return, a shortening - which the totals cannot

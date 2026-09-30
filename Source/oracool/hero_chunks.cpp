@@ -105,7 +105,9 @@ void ApplyPaladinAuras(Player &player, const uint8_t *payload, size_t len)
 {
 	if (len < 1)
 		return;
-	constexpr size_t PaladinFirstAuraSlot = 9;
+	// Might's class index today: 8 since Holy Bolt's row came out (v1.9.301), which shifted every later row down one and
+	// left this 9 naming Holy Fire (round 23 audit, v1.12.248).
+	constexpr size_t PaladinFirstAuraSlot = 8;
 	const size_t count = std::min<size_t>({ payload[0], len - 1, 20 });
 	for (size_t i = 0; i < count; i++) {
 		const size_t slot = PaladinFirstAuraSlot + i;

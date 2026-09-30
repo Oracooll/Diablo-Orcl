@@ -98,10 +98,12 @@ int TreasureBonusFor(const Monster &monster)
 		return 6;
 	if (IsRiftGuardian(monster))
 		return 6; // the rift's pile (plan r5/r8): a Dread boss's share, at the rift's tier
-	if (monster.isUnique())
-		return 4;
+	// The champion before the unique: PrepareUniqueMonst gives every champion a uniqueType, so isUnique() answered yes
+	// for them all and the champion's 2 never ran - they paid a scripted unique's 4 (round 23 audit, v1.12.248).
 	if (monster.lesserAffix != LesserUniqueAffix::None)
 		return 2;
+	if (monster.isUnique())
+		return 4;
 	return 1;
 }
 

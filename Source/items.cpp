@@ -52,6 +52,7 @@
 #include "oracool/gradual_healing.h"
 #include "oracool/charms.h"
 #include "oracool/gems.h"
+#include "oracool/endgame_boss.h" // IsEndgameBoss - a Dread boss pays as a unique
 #include "oracool/item_names.h"
 #include "oracool/item_sets.h"
 #include "oracool/oracool.h"
@@ -5754,10 +5755,14 @@ int ItemLevelOfMonster(const Monster &monster)
 {
 	int level = oracool::CurrentAreaLevel();
 	// A rift guardian pays as a unique: Diablo, who has no unique row, paid an ordinary monster's level (round 11 audit).
-	if (monster.isUnique() || oracool::IsRiftGuardian(monster))
+	// A champion carries a uniqueType too (PrepareUniqueMonst), so it is asked for first: every champion paid +3, and
+	// the health bar showed it (round 23 audit, v1.12.248). A Dread boss is a unique's +3.
+	if (oracool::IsEndgameBoss(monster) || oracool::IsRiftGuardian(monster))
 		level += 3;
 	else if (monster.lesserAffix != LesserUniqueAffix::None)
 		level += 2;
+	else if (monster.isUnique())
+		level += 3;
 	return std::min(level, oracool::MaxAreaLevel);
 }
 
@@ -6454,6 +6459,9 @@ void MakeRoomForGuaranteedReward()
 	for (int i = ActiveItemCount - 1; i >= 0; i--) {
 		const Item &candidate = Items[ActiveItems[i]];
 		if (candidate._iMagical != ITEM_QUALITY_NORMAL || candidate._itype == ItemType::Gold)
+			continue;
+		// Nor a white item with sockets (a runeword, its gems) or affixes of its own: ordinary quality, not junk (round 23).
+		if (candidate._iSocketCount > 0 || candidate._iOracoolAffixCount > 0)
 			continue;
 		if (candidate._iCreateInfo == 0 && candidate._iIdentified)
 			continue; // quest-placed items carry no create info; leave them alone
