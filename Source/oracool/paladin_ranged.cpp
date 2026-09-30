@@ -82,6 +82,9 @@ bool CastFistOfTheHeavens(Player &player, Point target, int spellLevel)
 	// a full pool, and this used to spend first and discard that result (audit, 2026-08-26).
 	if (!MissilePoolHasRoom())
 		return false;
+	// Not on a tile past a wall, before the mana (round 39 audit: a shift-click brought the mace down in the next room).
+	if (!LineClearMissile(player.position.tile, target))
+		return false;
 	if (!SpendPaladinSkillMana(player, PaladinSkill::FistOfTheHeavens))
 		return false;
 

@@ -2609,6 +2609,8 @@ void RunControl(Control control)
 		}
 		TakePlrsMoney(price);
 		StripImbuements(Bench);
+		// It doubles as Remove does (round 39 audit: repeated imbue-and-Cleanse stayed at the base price).
+		Bench._iOracoolRemovals = static_cast<uint8_t>(std::min<int>(Item::MaxWorkshopAttempts, Bench._iOracoolRemovals + 1));
 		SelectedRow = -1;
 		SetBoard(StrCat(_("Cleansed"), ": ", static_cast<int>(ledger.count), " ", _("shards gone.")));
 		if (!PlayUiEventSound(UiEventSound::ShardImbue))
@@ -2762,6 +2764,10 @@ bool CheckWorkshopClick(Point position)
 		return true;
 	}
 
+	// Not with a special cursor (an oil, identify, repair): the click took the bench's item and the oil was spent for
+	// nothing (round 39 audit). The click stays with the window.
+	if (pcurs != CURSOR_HAND && MyPlayer->HoldItem.isEmpty())
+		return true;
 	// The bench takes an item from the cursor and gives it back to an empty hand.
 	Player &player = *MyPlayer;
 	// The bench is not DRAWN on a stock tab (see DrawWorkshop), so it must not be clickable there

@@ -920,7 +920,7 @@ bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *))
 				UnPackPlayer(pkplr, player);
 				// Not the last game's buffs, keyed by the player slot every preview shares: a Shout cast before Save & Exit gave
 				// every hero in the list its armour (round 33 audit).
-				oracool::ClearWarcryBuffs(player);
+				oracool::ClearWarcryBuffs(player, /*recalc=*/false); // the preview's own CalcPlrInv follows (round 39 audit)
 				oracool::ClearRfa12PlayerBuffs(player);
 				oracool::ApplyHeroChunks(player, chunkTail.data(), chunkTail.size());
 				LoadHeroItems(player, i);

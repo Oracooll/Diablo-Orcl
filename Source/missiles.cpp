@@ -730,7 +730,7 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 				// Chilling Armor answers a RANGED hit; the other two armours do not, which is the
 				// difference between them (Oracool, Round 2). A blocked shot is not a hit.
 				// Not every tick of an acid puddle: each landed tick fired a free Ice Bolt, eight a second (round 10 audit).
-				if (isPlayerHit && !blocked && missile._mitype != MissileID::AcidPuddle)
+				if (isPlayerHit && !blocked && missile._mitype != MissileID::AcidPuddle && (Players[pid - 1]._pHitPoints >> 6) > 0) // not from a corpse (round 39)
 					oracool::OnColdArmourStruckAtRange(Players[pid - 1], monster);
 			}
 		} else {
@@ -1611,7 +1611,7 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 			ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
 			if (monster != nullptr) {
 				if ((player._pHitPoints >> 6) > 0) // not from the corpse (round 38 audit)
-				oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
+					oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
 				OnMonsterMissileLanded(player, *monster, dam, poisonBase);
 			}
 		}
@@ -2546,7 +2546,7 @@ void AddGlacialShatter(Missile &missile, AddMissileParameter &parameter)
 			if (!InDungeonBounds(tile))
 				continue;
 			const int mid = dMonster[tile.x][tile.y];
-			if (mid == 0)
+			if (mid == 0 || leveltype == DTYPE_TOWN) // a townsperson's id is no monster slot (round 39 audit)
 				continue;
 			Monster &monster = Monsters[abs(mid) - 1];
 			if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion())
@@ -2905,7 +2905,7 @@ void ProcessRogueArrow(Missile &missile)
 		case oracool::RogueArrow::IceArrow:
 			// The freeze on whatever the arrow stopped in. A chill already landed through the hit. Not after a step back off a
 			// wall: that tile's monster was one the arrow MISSED (round 26 audit).
-			if (const int mid = steppedBack ? 0 : dMonster[at.x][at.y]; mid != 0) {
+			if (const int mid = steppedBack || leveltype == DTYPE_TOWN ? 0 : dMonster[at.x][at.y]; mid != 0) { // not a townsperson (round 39)
 				Monster &monster = Monsters[abs(mid) - 1];
 				// Not the hero's own side, as Freezing Arrow and Glacial Shatter ask (round 5 audit).
 				if (monster.hitPoints >> 6 > 0 && !monster.isPlayerMinion() && !oracool::IsCompanion(monster))
@@ -2920,7 +2920,7 @@ void ProcessRogueArrow(Missile &missile)
 					if (!InDungeonBounds(tile))
 						continue;
 					const int mid = dMonster[tile.x][tile.y];
-					if (mid == 0)
+					if (mid == 0 || leveltype == DTYPE_TOWN) // a townsperson's id is no monster slot (round 39 audit)
 						continue;
 					Monster &monster = Monsters[abs(mid) - 1];
 					// Nor her own Valkyrie, Decoy or a converted ally, as Ice Arrow spares them (round 20 audit).

@@ -69,7 +69,9 @@ foreach(test_target ${tests})
   # order, three times; gtest prints the seed, so a failure is reproducible with
   # --gtest_random_seed. Select it alone with: ctest -L shuffle
   add_test(NAME ${test_target}_shuffled COMMAND ${test_target} --gtest_shuffle --gtest_repeat=3 --gtest_brief=1)
-  set_tests_properties(${test_target}_shuffled PROPERTIES LABELS "shuffle" TIMEOUT 600)
+  # 1200 s (round 39 audit): the audit binary's three shuffled repeats reached 600 s under a loaded machine. The seed of
+  # every repeat is printed by test/main.cpp's GlobalStateGuard (--gtest_brief hides gtest's own line).
+  set_tests_properties(${test_target}_shuffled PROPERTIES LABELS "shuffle" TIMEOUT 1200)
   target_link_libraries(${test_target} PRIVATE test_main)
   set_target_properties(${test_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
   if(GPERF)

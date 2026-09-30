@@ -71,7 +71,13 @@ bool StartBuff(Player &player, SpellID spell, int rank, int ticks)
 		if (slot->ticksLeft > ticks * 9 / 10)
 			return false;
 		slot->ticksLeft = ticks;
-		slot->rank = rank;
+		// A recast at another rank reaches the sheet at once (round 39 audit: Battle Orders recast under Battle Command kept
+		// the old life until some later recalculation, then healed the difference).
+		if (slot->rank != rank) {
+			slot->rank = rank;
+			if (IsSheetBuff(spell))
+				CalcPlrInvKeepingLife(player);
+		}
 		return true;
 	}
 	for (Buff &buff : Buffs[player.getId()]) {
@@ -222,7 +228,7 @@ int Roll(int min, int max)
 // ---- corpses (Round 9) ------------------------------------------------------------------------
 
 /** @brief The nearest corpse within @p radius of @p centre, if any. */
-std::optional<Point> CorpseNear(Point centre, int radius)
+std::optional<Point> CorpseNear(Point centre, int radius, Point seenFrom)
 {
 	std::optional<Point> best;
 	int bestDistance = radius + 1;
@@ -231,6 +237,8 @@ std::optional<Point> CorpseNear(Point centre, int radius)
 			const Point tile { x, y };
 			if (!InDungeonBounds(tile) || dCorpse[x][y] == 0)
 				continue;
+			if (!LineClearMissile(seenFrom, tile))
+				continue; // not one behind a wall from the hero (round 39 audit)
 			const int distance = centre.WalkingDistance(tile);
 			if (distance < bestDistance) {
 				bestDistance = distance;
@@ -413,7 +421,7 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 	case SpellID::FindPotion: {
 		// A corpse near the cursor is searched and used up. A potion, more often with rank; a full
 		// one rarely. Nothing found is still a search - the corpse is gone either way.
-		const std::optional<Point> corpse = CorpseNear(target, 2);
+		const std::optional<Point> corpse = CorpseNear(target, 2, player.position.tile);
 		if (!corpse)
 			return false;
 		ConsumeCorpse(*corpse);
@@ -426,7 +434,7 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 		return true;
 	}
 	case SpellID::FindItem: {
-		const std::optional<Point> corpse = CorpseNear(target, 2);
+		const std::optional<Point> corpse = CorpseNear(target, 2, player.position.tile);
 		if (!corpse)
 			return false;
 		ConsumeCorpse(*corpse);
@@ -437,7 +445,7 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 	case SpellID::GrimWard: {
 		// The corpse becomes a totem of terror: for a while, everything but the uniques that comes
 		// within its reach turns and runs. One ward at a time; a second replaces the first.
-		const std::optional<Point> corpse = CorpseNear(target, 2);
+		const std::optional<Point> corpse = CorpseNear(target, 2, player.position.tile);
 		if (!corpse)
 			return false;
 		ConsumeCorpse(*corpse);
@@ -452,6 +460,8 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 		ForEachInEarshot(target, 2, [&](Monster &m) {
 			if (turned != nullptr || ShrugsOff(m) || m.ai == MonsterAIID::Diablo)
 				return;
+			if (!LineClearMissile(player.position.tile, m.position.tile))
+				return; // not the next room's, through a wall (round 39 audit)
 			if ((m.flags & MFLAG_BERSERK) != 0 || (m.resistance & IMMUNE_MAGIC) != 0)
 				return;
 			if (IsAnyOf(m.mode, MonsterMode::FadeIn, MonsterMode::FadeOut, MonsterMode::Charge, MonsterMode::Petrified))
@@ -675,7 +685,7 @@ void ProcessWarcriesTick(Player &player)
 		// of each, and a hundredth more a point.
 		static int redemptionClock = 0;
 		if (++redemptionClock % TicksPerSecond == 0) {
-			if (const std::optional<Point> corpse = CorpseNear(player.position.tile, radius); corpse) {
+			if (const std::optional<Point> corpse = CorpseNear(player.position.tile, radius, player.position.tile); corpse) {
 				ConsumeCorpse(*corpse);
 				// Seen and heard (dev note, 2026-09-27): a beam rises where the corpse lay, to the Resurrect spell's own cast
 				// sound. Since the Paladin Skill Cards page (2026-09-28) it is vanilla's Resurrect at a quarter size, tinted
@@ -730,7 +740,7 @@ void ClearWarcries()
 	Wards.fill(Ward {});
 }
 
-void ClearWarcryBuffs(Player &player)
+void ClearWarcryBuffs(Player &player, bool recalc)
 {
 	bool sheetMoved = false;
 	for (Buff &buff : Buffs[player.getId()]) {
@@ -740,7 +750,7 @@ void ClearWarcryBuffs(Player &player)
 	}
 	// A wiped sheet buff has to take its numbers with it, or the last character's Shout would
 	// stay baked into this one's armour until something else recomputed the sheet.
-	if (sheetMoved)
+	if (sheetMoved && recalc)
 		CalcPlrInvKeepingLife(player);
 }
 

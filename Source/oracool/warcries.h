@@ -124,7 +124,8 @@ void RevertConversionsForLevelSave();
 void ClearWarcryStateForMonster(const Monster &monster);
 
 /** @brief Empties @p player's own buffs, recomputing the sheet if one was on it. Called where a new game clears the cold armour. */
-void ClearWarcryBuffs(Player &player);
+/** @param recalc False where the caller recalculates itself (the hero-select preview, which must load no sprites). */
+void ClearWarcryBuffs(Player &player, bool recalc = true);
 
 /** @brief One sentence for the Abilities window, untranslated. "" for a spell that is not a cry. */
 const char *WarcryDescription(SpellID spell);

@@ -1072,8 +1072,6 @@ bool DoAttack(Player &player)
 			}
 		}
 		};
-		if (monster == nullptr)
-			elementBursts(); // no enemy there: as before, harmless on an empty tile
 
 		// Sweeping Reed or Wheel of Heaven strikes the side tiles itself when it fires, so the staff cleave below stands aside -
 		// but only when it fires, which the swing itself reports (ClassMeleeSkillSwept, round 28 audit).
@@ -1084,8 +1082,7 @@ bool DoAttack(Player &player)
 			oracool::NoteRageCombat(player);
 			int hitDamage = 0;
 			didhit = PlrHitMonst(player, *monster, false, &hitDamage);
-			if (didhit)
-				elementBursts();
+			const bool frontLanded = didhit;
 			// Oracool: one hook for every skill that rides a swing - Zeal, Hammer of Faith, Shield
 			// Bash. Which of them applies, if any, is decided by the button that threw this swing,
 			// latched at the click because it is gone by the time the animation lands. See
@@ -1111,6 +1108,13 @@ bool DoAttack(Player &player)
 			// And the RfA-12 swings, on their own latch.
 			if (oracool::ApplyRfa12MeleeOnSwing(player, monster, didhit, hitDamage))
 				didhit = true;
+			// The weapon's fire and lightning on the front blow that landed, after the skills (a Bash's knockback moves the
+			// monster), where it stands now (round 39 audit). Never on an empty tile: under "spells never miss" the burst lay
+			// in wait there for the next monster to step in.
+			if (frontLanded) {
+				blowTile = monster->position.tile;
+				elementBursts();
+			}
 		} else if (PlayerAtPosition(position) != nullptr && !player.friendlyMode) {
 			didhit = PlrHitPlr(player, *PlayerAtPosition(position));
 		} else {
@@ -4955,16 +4959,16 @@ bool PlayerStrikesMonster(Player &player, Monster &monster)
 	// fire or lightning from the weapon, no passives, no curses). Not the skill latches, which belong to the swing that
 	// armed them, and not the weapon wear: four blows a second would eat a weapon.
 	oracool::NoteRageCombat(player);
-	const Point position = monster.position.tile;
 	const size_t playerId = player.getId();
 	int hitDamage = 0;
 	if (!PlrHitMonst(player, monster, false, &hitDamage))
 		return false;
-	// The weapon's fire and lightning on the landed blow only (round 38 audit), as DoAttack's.
+	// The weapon's fire and lightning on the landed blow only (round 38 audit), as DoAttack's, where it stands now (round 39).
+	const Point struckAt = monster.position.tile;
 	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FireDamage) || player._pIFMaxDam > 0)
-		AddMissile(position, { 1, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
+		AddMissile(struckAt, { 1, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
 	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::LightningDamage) || player._pILMaxDam > 0)
-		AddMissile(position, { 2, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
+		AddMissile(struckAt, { 2, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
 	oracool::OnPassiveHit(player, monster, hitDamage, true);
 	oracool::OnRfa12Hit(player, monster, hitDamage, true);
 	oracool::ApplyVengeanceCold(player, monster);

@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <filesystem>
 #include <random>
 #include <string>
@@ -8,6 +9,25 @@
 #include "diablo.h"
 #include "options.h"
 #include "utils/paths.h"
+
+namespace {
+
+/**
+ * @brief Prints the shuffle seed of every repeat (round 39 audit): --gtest_brief hides gtest's own line, and a shuffled failure
+ * needs it to be reproduced. A reset of the shared globals before each test was tried and taken back: the shuffle lanes
+ * depend on suite-level setup it undid (open in the round 39 report).
+ */
+class ShuffleSeedPrinter : public testing::EmptyTestEventListener {
+public:
+	void OnTestIterationStart(const testing::UnitTest &unitTest, int iteration) override
+	{
+		if (unitTest.random_seed() != 0) // shuffled
+			std::printf("Repeat %d: shuffle seed %d (reproduce with --gtest_random_seed=%d)\n", iteration + 1,
+			    unitTest.random_seed(), unitTest.random_seed());
+	}
+};
+
+} // namespace
 
 int main(int argc, char **argv)
 {
@@ -44,6 +64,7 @@ int main(int argc, char **argv)
 	}
 
 	testing::InitGoogleTest(&argc, argv);
+	testing::UnitTest::GetInstance()->listeners().Append(new ShuffleSeedPrinter());
 	const int result = RUN_ALL_TESTS();
 	if (!ec)
 		std::filesystem::remove_all(sandbox, ec);

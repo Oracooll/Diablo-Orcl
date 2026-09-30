@@ -1065,7 +1065,13 @@ int CraftingRecipeReagentItem(int index)
 
 bool CanCraftFromLevskiGrid(const Item *grid, int index)
 {
-	return !GridMaterialsFor(grid, index).empty();
+	const std::vector<int> materials = GridMaterialsFor(grid, index);
+	if (materials.empty())
+		return false;
+	// Not Free the Sockets on an ethereal Zod host, which refuses (round 39 audit: auto-pick kept choosing it).
+	if (index == 3 && grid[materials[0]]._iOracoolEthereal && SocketsMakeIndestructible(grid[materials[0]]))
+		return false;
+	return true;
 }
 
 int FirstReadyLevskiRecipe(const Item *grid)
@@ -1102,6 +1108,11 @@ int FirstReadyLevskiRecipe(const Item *grid)
 std::string NoRoomToFreeStones()
 {
 	return std::string(_("not enough room to free the stones"));
+}
+
+std::string ZodBoundInEthereal()
+{
+	return std::string(_("Zod is bound for good in an ethereal item"));
 }
 
 std::string NoRoomForResult()
@@ -1194,7 +1205,7 @@ int FirstReadyLevskiRecipeFor(const Item *grid, TransmuteHost host)
 
 bool IsTransmuteRefusal(const std::string &result)
 {
-	return result == NoRoomToFreeStones() || result == NoRoomForResult();
+	return result == NoRoomToFreeStones() || result == NoRoomForResult() || result == ZodBoundInEthereal(); // a refusal (round 39)
 }
 
 std::string TransmuteLevskiGrid(Item *grid)
@@ -1240,7 +1251,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		// Zod stays in an ethereal item (round 38 audit): freed, the host came back whole at its maximum - a free repair of
 		// what no smith repairs, and the same Zod did it again for the next one. The wear before Zod is not kept.
 		if (host._iOracoolEthereal && SocketsMakeIndestructible(host))
-			return std::string(_("Zod is bound for good in an ethereal item"));
+			return ZodBoundInEthereal();
 
 		std::vector<Item> after;
 		after.reserve(GridSlots + Item::MaxItemSockets);

@@ -4001,10 +4001,36 @@ static const PLStruct *FindAffixRowForRecord(const OracoolAffix &affix)
 	return holding != nullptr ? holding : FindAffixRowForType(affix.type);
 }
 
+namespace {
+/** @brief Set while RebuildOracoolItemWithAffixes measures an item's oil work on a copy of itself. */
+bool MeasuringOilWork = false;
+} // namespace
+
 bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const OracoolAffix *affixes, int count)
 {
 	if (item.isEmpty())
 		return false;
+	// The oils' work (round 39 audit): Accuracy, Sharpness, Death, Skill, Hardening, Imperviousness, Fortitude and the rest
+	// write the base fields, which GetItemAttrs puts back - a reroll at the bench wiped every oil. Measured as the item
+	// less the same item rebuilt with its own affixes, and added back to the rebuild.
+	struct OilWork {
+		int toHit, minDam, maxDam, minStr, minMag, minDex, ac, maxDur;
+	};
+	std::optional<OilWork> oil;
+	if (!MeasuringOilWork) {
+		Item probe = item;
+		std::array<OracoolAffix, Item::MaxOracoolAffixes> own {};
+		const int ownCount = std::clamp<int>(item._iOracoolAffixCount, 0, Item::MaxOracoolAffixes);
+		std::copy(item._iOracoolAffixes.begin(), item._iOracoolAffixes.begin() + ownCount, own.begin());
+		MeasuringOilWork = true;
+		const bool measured = RebuildOracoolItemWithAffixes(player, probe, own.data(), ownCount);
+		MeasuringOilWork = false;
+		if (measured) {
+			oil = OilWork { item._iPLToHit - probe._iPLToHit, item._iMinDam - probe._iMinDam, item._iMaxDam - probe._iMaxDam,
+				item._iMinStr - probe._iMinStr, item._iMinMag - probe._iMinMag, item._iMinDex - probe._iMinDex,
+				item._iAC - probe._iAC, item._iMaxDur - probe._iMaxDur };
+		}
+	}
 	// Rebuilt from the base and replayed, because an affix's stats are written INTO the item's fields as it
 	// is rolled and there is no way to take one back out. Everything that is not an affix is carried across:
 	// the seed and the level it was found at, its tier, its sockets and their stones, its shards, its name,
@@ -4139,6 +4165,17 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	// took Tempering's durability down with the base's.
 	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
 	oracool::RestoreImbuements(item, ledger);
+	if (oil) {
+		item._iPLToHit += oil->toHit;
+		item._iMinDam = std::max<int>(0, item._iMinDam + oil->minDam);
+		item._iMaxDam = std::max<int>(item._iMinDam, item._iMaxDam + oil->maxDam);
+		item._iMinStr = static_cast<uint8_t>(std::clamp(item._iMinStr + oil->minStr, 0, 255));
+		item._iMinMag = static_cast<uint8_t>(std::clamp(item._iMinMag + oil->minMag, 0, 255));
+		item._iMinDex = static_cast<uint8_t>(std::clamp(item._iMinDex + oil->minDex, 0, 255));
+		item._iAC = std::max<int>(0, item._iAC + oil->ac);
+		if (item._iMaxDur > 0 && item._iMaxDur != DUR_INDESTRUCTIBLE)
+			item._iMaxDur = std::clamp(item._iMaxDur + oil->maxDur, 1, DUR_INDESTRUCTIBLE - 1);
+	}
 	// The wear the item had, not a free repair (sweep, 2026-09-25): GetItemAttrs set durability to the base's
 	// full value, so a reroll at the bench mended the item as a side effect. Capped by the maximum the rebuild
 	// arrived at (an ethereal item's is halved again above); an item that is now indestructible stays so.
