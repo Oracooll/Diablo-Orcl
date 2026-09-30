@@ -692,10 +692,11 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 		if (dex != 0)
 			productLine.append(fmt::format(fmt::runtime(_(" {:d} Dex")), dex));
 	}
+	// Short, so a long weapon line still fits the store's width (round 28 audit).
 	if (const int level = oracool::RequiredLevel(item); level > 1)
-		productLine.append(fmt::format(fmt::runtime(_(",  Level {:d}")), level));
+		productLine.append(fmt::format(fmt::runtime(_(" Lvl {:d}")), level));
 	if (!oracool::ClassMayUseItem(*MyPlayer, item))
-		AppendStrView(productLine, _(",  not your class"));
+		AppendStrView(productLine, _(", wrong class"));
 	AddSText(40, l++, productLine, flags, false, -1, cursIndent);
 }
 

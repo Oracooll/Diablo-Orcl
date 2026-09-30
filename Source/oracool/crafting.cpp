@@ -1146,6 +1146,11 @@ TransmuteHost HostOfRecipe(int recipe)
 	}
 }
 
+bool IsReworkableCharmIdx(int idx)
+{
+	return IsCharm(idx);
+}
+
 bool RecipeBelongsTo(int recipe, TransmuteHost host)
 {
 	return recipe >= 0 && recipe < CraftingRecipeCount && HostOfRecipe(recipe) == host;

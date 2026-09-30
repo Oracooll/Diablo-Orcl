@@ -509,12 +509,6 @@ int EffectiveRequirement(const Item &item, int baseRequirement)
 	return std::max(1, eased * (100 - reduction) / 100);
 }
 
-/**
- * @brief The flags a rune can carry, as words. Empty for anything not on the list.
- *
- * Only the effects the rune sheet actually uses are named. A flag with no text here would print
- * nothing at all, which is the failure this function exists to end - see GemEffectParts.
- */
 std::string AttackSpeedWords(std::string_view words)
 {
 	std::string text { words };
@@ -522,6 +516,13 @@ std::string AttackSpeedWords(std::string_view words)
 		text.append(_(" (with your bow: arrow speed)"));
 	return text;
 }
+
+/**
+ * @brief The flags a rune can carry, as words. Empty for anything not on the list.
+ *
+ * Only the effects the rune sheet actually uses are named. A flag with no text here would print
+ * nothing at all, which is the failure this function exists to end - see GemEffectParts.
+ */
 
 std::string FlagText(ItemSpecialEffect flags)
 {

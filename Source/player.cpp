@@ -1072,9 +1072,7 @@ bool DoAttack(Player &player)
 		// Sweeping Reed or Wheel of Heaven strikes the side tiles itself when it fires, so the staff cleave below stands aside -
 		// but only when it fires: asked BEFORE the swing pays, since a skill it cannot pay for leaves the latch set and swings
 		// plain (round 27 audit: that swing hit neither the skill's sides nor the cleave's).
-		const std::optional<oracool::ClassMeleeSkill> armedSwing = &player == MyPlayer ? oracool::ArmedClassMeleeSkill() : std::nullopt;
-		const bool skillSweeps = (armedSwing == oracool::ClassMeleeSkill::SweepingReed || armedSwing == oracool::ClassMeleeSkill::WheelOfHeaven)
-		    && oracool::CanPaySkill(player, oracool::ClassMeleeSkillSpell(*armedSwing));
+		oracool::ForgetClassMeleeSweep();
 		if (monster != nullptr) {
 			// A swing at a monster, landed or not, is combat: the Barbarian's Rage holds (2026-09-14).
 			// A swing at an empty tile is not, and lets the calm clock run.
@@ -1120,8 +1118,9 @@ bool DoAttack(Player &player)
 			if (oracool::ApplyRfa12MeleeOnSwing(player, nullptr, false, 0))
 				didhit = true;
 		}
-		// Not under Sweeping Reed or Wheel of Heaven (skillSweeps, above): they strike these same side tiles themselves, and
-		// each side enemy took two blows (round 26 audit, v1.12.251).
+		// Not under Sweeping Reed or Wheel of Heaven: they strike these same side tiles themselves, and each side enemy took
+		// two blows (round 26 audit, v1.12.251) - when the swing's skill actually fired (round 28 audit).
+		const bool skillSweeps = &player == MyPlayer && oracool::ClassMeleeSkillSwept();
 		if (!skillSweeps && (player._pClass == HeroClass::Monk
 		        && (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Staff || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Staff))
 		    || (player._pClass == HeroClass::Bard
@@ -3619,6 +3618,7 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 		int percent = passive + oracool::Rfa12DamageTakenPercent(player, damageType);
 		if (passive > -100)
 			percent = std::max(percent, -75);
+		percent = std::max(percent, -100); // never below nothing: a reduction past -100 would heal (round 28 audit)
 		totalDamage += totalDamage * percent / 100;
 	}
 	// Galvanizing Ward's clock restarts on the blow itself, before any ward or shield takes it (round 14 audit).
@@ -3691,6 +3691,10 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 
 void SyncPlrKill(Player &player, DeathReason deathReason)
 {
+	// Once: every Start* sends a corpse here, and the log line and the telemetry death ran before StartPlayerKill's own
+	// once-only guard (round 28 audit; no caller reaches it today).
+	if (player._pmode == PM_DEATH)
+		return;
 	if (player._pHitPoints <= 0 && leveltype == DTYPE_TOWN) {
 		SetPlayerHitPoints(player, 64);
 		return;
@@ -3795,6 +3799,10 @@ void RestartTownLvl(Player &player)
 	// Nor his Rage: it froze at its value on the corpse (v1.12.246's death guard), and the respawn carried the whole pool
 	// into town, where it only drains (round 22 audit of v1.12.246).
 	oracool::ResetRage(player);
+	// Nor his Essence, for the same reason: the refill froze on the corpse (round 28 audit).
+	oracool::ResetEssence(player);
+	// Nor the warcries' buffs: Battle Orders' life rode the respawn into town on a running clock (round 28 audit).
+	oracool::ClearWarcryBuffs(player);
 	// Nor a cold armour: it rode the respawn into town with its tint and its freeze-on-hit, where vanilla ended it
 	// (round 24 audit, v1.12.249).
 	oracool::ClearColdArmour(player);
@@ -4030,6 +4038,13 @@ void CalcPlrStaff(Player &player)
 	}
 }
 
+/** @brief What the hero says when he cannot pay for @p spell: "not enough mana" only when mana is the price (round 28 audit:
+ * a Barbarian short of Rage and a Necromancer short of Essence said it too). */
+HeroSpeech ShortOfPriceSpeech(const Player &player, SpellID spell)
+{
+	return oracool::UsesRage(player) || oracool::EssenceCost(spell) > 0 ? HeroSpeech::ICantDoThat : HeroSpeech::NotEnoughMana;
+}
+
 void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 {
 	bool addflag = false;
@@ -4129,7 +4144,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		if (spellType == SpellType::Spell || spellType == SpellType::Skill) {
 			switch (spellcheck) {
 			case SpellCheckResult::Fail_NoMana:
-				myPlayer.Say(HeroSpeech::NotEnoughMana);
+				myPlayer.Say(ShortOfPriceSpeech(myPlayer, spellID));
 				break;
 			case SpellCheckResult::Fail_Level0:
 				myPlayer.Say(HeroSpeech::ICantCastThatYet);
@@ -4177,7 +4192,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			return;
 		}
 		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
-			myPlayer.Say(HeroSpeech::NotEnoughMana);
+			myPlayer.Say(ShortOfPriceSpeech(myPlayer, spellID));
 			return;
 		}
 		oracool::ArmArrowSkill(*arrow);
@@ -4209,7 +4224,8 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			return;
 		}
 		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
-			myPlayer.Say(HeroSpeech::NotEnoughMana);
+			myPlayer.Say(ShortOfPriceSpeech(myPlayer, spellID));
+			LastMouseButtonAction = MouseActionType::None; // said once, as the throw refusal above (round 28 audit)
 			return;
 		}
 		oracool::ArmClassMeleeSkill(std::nullopt);
@@ -4229,7 +4245,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// Oracool, RfA-12 (2026-09-13): the new melee skills are swung on their own latch, the Round 4 way below.
 	if (oracool::IsRfa12Melee(spellID)) {
 		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
-			myPlayer.Say(HeroSpeech::NotEnoughMana);
+			myPlayer.Say(ShortOfPriceSpeech(myPlayer, spellID));
 			return;
 		}
 		if (!oracool::Rfa12MeleeUsable(myPlayer, spellID)) {
@@ -4264,7 +4280,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// the Paladin's skills do. Shift: swing in place, armed.
 	if (const std::optional<oracool::ClassMeleeSkill> skill = oracool::ClassMeleeSkillForSpell(spellID); skill.has_value()) {
 		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
-			myPlayer.Say(HeroSpeech::NotEnoughMana);
+			myPlayer.Say(ShortOfPriceSpeech(myPlayer, spellID));
 			return;
 		}
 		// A bow is not swung (round 19 audit, v1.12.244): the hero drew it and struck in melee with the skill's bonus.

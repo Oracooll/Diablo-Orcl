@@ -745,7 +745,7 @@ void CheckStashCut(Point cursorPosition, bool automaticMove)
 
 	if (!holdItem.isEmpty()) {
 		CalcPlrInv(player, true);
-		holdItem._iStatFlag = player.CanUseItem(holdItem);
+		holdItem.updateRequiredStatsCacheForPlayer(player); // with the book rule, as the pack's items (round 28 audit)
 		if (automaticallyEquipped) {
 			PlaySFX(ItemInvSnds[GetItemDropAnimIndex(holdItem._iCurs)]);
 		} else if (!automaticMove || automaticallyMoved) {
@@ -857,7 +857,7 @@ void TransferItemToInventory(Player &player, uint16_t itemId)
 	PlaySFX(ItemInvSnds[GetItemDropAnimIndex(item._iCurs)]);
 
 	Stash.RemoveStashItem(itemId);
-	CalcPlrInv(player, false); // a charm taken out counts at once (round 27 audit)
+	CalcPlrInvKeepingLife(player); // a charm taken out counts at once (round 27 audit), life kept (round 28)
 	if (&player == MyPlayer)
 		oracool::ScheduleAutoSaveForStashChange();
 }

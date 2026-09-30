@@ -68,6 +68,8 @@ constexpr int CraftingRecipeCount = 28;
 /** @brief Which host's book @p recipe is in. */
 TransmuteHost HostOfRecipe(int recipe);
 bool RecipeBelongsTo(int recipe, TransmuteHost host);
+/** @brief The charms Rework Charms takes (the six basic stat charms) - the recipe's own list, for Gillian's pack lend. */
+bool IsReworkableCharmIdx(int idx);
 /** @brief The window title for a host ("Levski's Cube", "Griswold's Forge", ...). */
 const char *TransmuteHostTitle(TransmuteHost host);
 /** @brief FirstReadyLevskiRecipe restricted to one host's book. */

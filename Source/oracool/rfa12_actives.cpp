@@ -1312,7 +1312,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 		EarthenMightRage(player, line.size());
 		GoldenFlameWave(player, here, target, ReachTiles(spell, r));
-		return true;
+		return !line.empty(); // a slam on nothing costs nothing, as Rend and Ground Stomp (round 28 audit)
 	}
 	case SpellID::Earthquake: {
 		Field *f = NewField(player, spell, here, EffectTicks(spell, r), r);

@@ -1701,7 +1701,6 @@ void DrawView(const Surface &out, Point startPosition)
 		oracool::DrawEventLogWindow(out);
 		oracool::DrawGameClock(out);
 		oracool::DrawGameSpeedReadout(out);
-		oracool::DrawSaveIndicator(out); // with the clock: under chat and the windows as it is (round 27 audit)
 		oracool::DrawCompanionHud(out); // under the clock's speed band
 		oracool::DrawMinionHud(out);
 		// Anchored to the mini-map's frame, so hidden wherever the mini-map's corner is covered -
@@ -1894,6 +1893,10 @@ void DrawView(const Surface &out, Point startPosition)
 	}
 	DrawGoldWithdraw(out);
 	DrawRefreshUntilPrompt(out);
+	// Not only with the corner HUD: autosaves happen with the backpack open, and the notice went unseen (round 28 audit).
+	// Never over a left panel or chat, which sit where it prints (round 27 audit).
+	if (!talkflag && !IsLeftPanelOpen())
+		oracool::DrawSaveIndicator(out);
 	if (HelpFlag) {
 		DrawHelp(out);
 	}

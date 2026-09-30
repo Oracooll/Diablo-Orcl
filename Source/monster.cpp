@@ -1863,12 +1863,18 @@ bool MonsterAttack(Monster &monster)
 			PlayEffect(monster, MonsterSound::Attack);
 	}
 	if (IsAnyOf(monster.type().type, MT_NMAGMA, MT_YMAGMA, MT_BMAGMA, MT_WMAGMA) && monster.animInfo.currentFrame == 8) {
-		MonsterAttackEnemy(monster, monster.toHit(sgGameInitInfo.nDifficulty) + 10, monster.minDamage - 2, monster.maxDamage - 2);
+		const int minionPercent = oracool::MinionDamagePercent(monster); // as the first blow (round 28 audit)
+		MonsterAttackEnemy(monster, monster.toHit(sgGameInitInfo.nDifficulty) + 10,
+		    oracool::PackAdjustedDamage(monster, monster.minDamage) * minionPercent / 100 - 2,
+		    oracool::PackAdjustedDamage(monster, monster.maxDamage) * minionPercent / 100 - 2);
 
 		PlayEffect(monster, MonsterSound::Attack);
 	}
 	if (IsAnyOf(monster.type().type, MT_STORM, MT_RSTORM, MT_STORML, MT_MAEL) && monster.animInfo.currentFrame == 12) {
-		MonsterAttackEnemy(monster, monster.toHit(sgGameInitInfo.nDifficulty) - 20, monster.minDamage + 4, monster.maxDamage + 4);
+		const int minionPercent = oracool::MinionDamagePercent(monster); // as the first blow (round 28 audit)
+		MonsterAttackEnemy(monster, monster.toHit(sgGameInitInfo.nDifficulty) - 20,
+		    oracool::PackAdjustedDamage(monster, monster.minDamage) * minionPercent / 100 + 4,
+		    oracool::PackAdjustedDamage(monster, monster.maxDamage) * minionPercent / 100 + 4);
 
 		PlayEffect(monster, MonsterSound::Attack);
 	}
@@ -3343,9 +3349,10 @@ void CounselorAi(Monster &monster)
 		if (distanceToEnemy >= 2) {
 			if (v < 5 * (monster.intelligence + 10) && LineClearMissile(monster.position.tile, monster.enemyPosition)) {
 				constexpr MissileID MissileTypes[4] = { MissileID::Firebolt, MissileID::ChargedBolt, MissileID::LightningControl, MissileID::Fireball };
-				StartRangedAttack(monster, MissileTypes[monster.intelligence],
-				    oracool::PackAdjustedDamage(monster, monster.minDamage)
-				        + GenerateRnd(monster.maxDamage - monster.minDamage + 1));
+				// Both ends raised by the pack's Might, not the minimum only (round 28 audit).
+				const int minDamage = oracool::PackAdjustedDamage(monster, monster.minDamage);
+				const int maxDamage = std::max<int>(oracool::PackAdjustedDamage(monster, monster.maxDamage), minDamage);
+				StartRangedAttack(monster, MissileTypes[monster.intelligence], minDamage + GenerateRnd(maxDamage - minDamage + 1));
 			} else if (GenerateRnd(100) < 30) {
 				monster.goal = MonsterGoal::Move;
 				monster.goalVar1 = 0;
@@ -5686,8 +5693,9 @@ void MissToMonst(Missile &missile, Point position)
 
 		if (player._pmode != PM_GOTHIT && player._pmode != PM_DEATH)
 			StartPlrHit(player, 0, true);
-		// Immovable and Heavy Foot hold against a charge too, as against a knockback blow (round 10 audit).
-		if (oracool::PlayerIgnoresKnockback(player))
+		// Immovable and Heavy Foot hold against a charge too, as against a knockback blow (round 10 audit). And a hero the
+		// charge killed stays where he fell: the corpse was shoved a tile, off its DeadPlayer mark (round 28 audit).
+		if (player._pmode == PM_DEATH || oracool::PlayerIgnoresKnockback(player))
 			return;
 		Point newPosition = oldPosition + monster.direction;
 		oracool::CompanionsMakeWay(player, newPosition);

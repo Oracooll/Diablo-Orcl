@@ -1406,7 +1406,7 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 		}
 
 		CalcPlrInv(player, true); // reloads the hero's sprites if the look changed (fixed 2026-09-29: v1.12.201 had flipped this to false)
-		holdItem._iStatFlag = player.CanUseItem(holdItem);
+		holdItem.updateRequiredStatsCacheForPlayer(player); // with the book rule, as the pack's items (round 28 audit)
 
 		if (&player == MyPlayer) {
 			if (automaticallyEquipped) {
@@ -3247,7 +3247,7 @@ void TransferItemToStash(Player &player, int location)
 		CalcPlrInv(player, true); // reloads the hero's sprites if the look changed (fixed 2026-09-29: v1.12.201 had flipped this to false)
 	} else if (location <= INVITEM_INV_LAST) {
 		player.RemoveInvItem(location - INVITEM_INV_FIRST);
-		CalcPlrInv(player, false); // a banked charm stops counting (round 27 audit)
+		CalcPlrInvKeepingLife(player); // a banked charm stops counting (round 27 audit), without taking life (round 28)
 	} else
 		player.RemoveSpdBarItem(location - INVITEM_BELT_FIRST);
 	// A banked pile left _pGold as it was, so the total counted it twice - in the stash and in the pack - and a purchase
@@ -3300,7 +3300,7 @@ bool TryMoveHoveredItemToLevskiGrid(Player &player)
 	}
 	PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(item)]);
 	RemoveActiveInvItem(player, iv);
-	CalcPlrInv(player, false); // a charm stops counting, a last scroll stops being readied (round 27 audit)
+	CalcPlrInvKeepingLife(player); // a charm stops counting, a last scroll stops being readied (round 27), life kept (round 28)
 	return true;
 }
 
@@ -3334,7 +3334,7 @@ bool TryTransferHoveredActiveTabItemToStash(Player &player)
 
 	PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(item)]);
 	RemoveActiveInvItem(player, iv);
-	CalcPlrInv(player, false); // a charm stops counting, a last scroll stops being readied (round 27 audit)
+	CalcPlrInvKeepingLife(player); // a charm stops counting, a last scroll stops being readied (round 27), life kept (round 28)
 	if (&player == MyPlayer)
 		oracool::ScheduleAutoSaveForStashChange();
 	return true;
@@ -3874,7 +3874,7 @@ void AutoGetItem(Player &player, Item *itemPointer, int ii)
 		const bool scheduleAutoSave = &player == MyPlayer;
 		// A charm counts from the moment it is picked up, not from the next recalculation (round 27 audit).
 		if (!autoEquipped && IsOracoolCharmIdx(item.IDidx))
-			CalcPlrInv(player, false);
+			CalcPlrInvKeepingLife(player); // a displaced charm must not take life to 0 (round 28 audit)
 		CleanupItems(ii);
 		if (scheduleAutoSave)
 			oracool::ScheduleAutoSaveForItemPickup();
@@ -3955,6 +3955,12 @@ bool CanPut(Point position)
 	}
 
 	if (IsItemBlockingObjectAtPosition(position)) {
+		return false;
+	}
+
+	// Not beside a rift's way home or arrival exit, as loot already is (ItemSpaceOk): walking back for a dropped item ended
+	// on the exit and sent the hero home (round 28 audit).
+	if (oracool::IsBesideRiftWayHome(position)) {
 		return false;
 	}
 

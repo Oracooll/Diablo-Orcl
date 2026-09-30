@@ -16,6 +16,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/companion.h"
 #include "oracool/minions.h"
+#include "oracool/passives.h" // OnPassiveManaSpent - Bloodthirst on the spin's drain
 #include "oracool/missile_tint.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
@@ -178,9 +179,13 @@ void ProcessWhirlwindTick(Player &player)
 		return;
 	}
 	Clock++;
-	// The Rage: WhirlwindRagePerSecond a second, a point at a time.
-	if (UsesRage(player) && Clock % (TicksPerSecond / WhirlwindRagePerSecond) == 0)
-		player._pRage = std::max(player._pRage - 1, 0);
+	// The Rage: WhirlwindRagePerSecond a second, a point at a time - from the second second, since the start paid the first
+	// (its RageCost is "one second of it"; the drain began at once and the first second cost 10, round 28 audit). Each point
+	// is a point spent, so Bloodthirst returns it as life, as it does every other spend through SettleSkill.
+	if (UsesRage(player) && Clock > TicksPerSecond && Clock % (TicksPerSecond / WhirlwindRagePerSecond) == 0 && player._pRage > 0) {
+		player._pRage -= 1;
+		OnPassiveManaSpent(player, 1 << 6);
+	}
 	// Being hit breaks a walk into the hit animation; the glide simply picks up again when it is over.
 	if (player._pmode == PM_STAND || player._pmode == PM_WALK_NORTHWARDS || player._pmode == PM_WALK_SOUTHWARDS
 	    || player._pmode == PM_WALK_SIDEWAYS)

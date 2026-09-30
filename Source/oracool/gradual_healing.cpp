@@ -46,13 +46,13 @@ void ResetGradualHealing()
 void QueueGradualHeal(int amount)
 {
 	HealAmountRemaining += amount;
-	HealTicksRemaining += GradualEffectDurationTicks;
+	HealTicksRemaining = std::max(HealTicksRemaining, GradualEffectDurationTicks); // a second potion heals faster, not longer (round 28 audit)
 }
 
 void QueueGradualMana(int amount)
 {
 	ManaAmountRemaining += amount;
-	ManaTicksRemaining += GradualEffectDurationTicks;
+	ManaTicksRemaining = std::max(ManaTicksRemaining, GradualEffectDurationTicks); // as the life drip
 }
 
 void ProcessGradualHealing(Player &player)

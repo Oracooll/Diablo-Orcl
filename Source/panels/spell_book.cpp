@@ -808,7 +808,9 @@ SpellType GetSBookTrans(SpellID ii, bool townok)
 	if ((player._pClass == HeroClass::Monk) && (ii == SpellID::Search))
 		return SpellType::Skill;
 	SpellType st = SpellType::Spell;
-	if ((player._pISpells & GetSpellBitmask(ii)) != 0) {
+	// A staff's charges only for a spell the hero has not learned: BindingTypeFor, the saved wells and the picker all put
+	// the learned spell first, and this row readied the staff (round 28 audit).
+	if ((player._pISpells & GetSpellBitmask(ii)) != 0 && (player._pMemSpells & GetSpellBitmask(ii)) == 0) {
 		st = SpellType::Charges;
 	}
 	if ((player._pAblSpells & GetSpellBitmask(ii)) != 0) {
@@ -2332,7 +2334,8 @@ void CheckSBook(bool assignToRightButton)
 
 	Player &player = *InspectPlayer;
 	SpellType st = SpellType::Spell;
-	if ((player._pISpells & GetSpellBitmask(sn)) != 0) {
+	// The learned spell before the staff, as GetSBookTrans and BindingTypeFor (round 28 audit).
+	if ((player._pISpells & GetSpellBitmask(sn)) != 0 && (player._pMemSpells & GetSpellBitmask(sn)) == 0) {
 		st = SpellType::Charges;
 	}
 	if ((player._pAblSpells & GetSpellBitmask(sn)) != 0) {

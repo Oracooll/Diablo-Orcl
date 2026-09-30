@@ -4223,6 +4223,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	// nowhere to go - and then stays open, as it does everywhere else.
 	oracool::CloseLevskiRoar();
 	oracool::CloseWorkshop();
+	oracool::CancelSalvageItemCursor(); // even when the Cube could not close: an armed hammer salvaged a later repair click (round 28 audit)
 	// The stash chest and the Rift Monument menu are town furniture: a Sealed Map read with either open carried it into
 	// the arena, and the stash moved items both ways mid-fight (round 12 audit, v1.12.237).
 	CloseStash();

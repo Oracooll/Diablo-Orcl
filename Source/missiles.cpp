@@ -277,6 +277,23 @@ void MoveMissilePos(Missile &missile)
 	}
 }
 
+/**
+ * @brief The damage range of the monster that fired @p missile, with its pack's Might, while its
+ * slot still holds that spawn; false once it is gone. Round 28 audit: arrows, elemental arrows, Fireball, Lightning
+ * Control and Inferno read the raw bytes of whatever held the slot, so a Relentless pack's archers and Storm Riders hit at
+ * base damage while the health bar showed the raised range.
+ */
+bool LiveMonsterDamageRange(Missile &missile, int &minDamage, int &maxDamage)
+{
+	const Monster *monster = missile.liveSourceMonster();
+	if (monster == nullptr)
+		return false;
+	// Not Frenzy of the Dead: a minion's missile takes it where it strikes a monster (MoveMissileAndCheckMissileCol).
+	minDamage = oracool::PackAdjustedDamage(*monster, monster->minDamage);
+	maxDamage = std::max<int>(oracool::PackAdjustedDamage(*monster, monster->maxDamage), minDamage);
+	return true;
+}
+
 int ProjectileMonsterDamage(Missile &missile)
 {
 	const Monster &monster = *missile.sourceMonster();
@@ -291,10 +308,10 @@ int ProjectileMonsterDamage(Missile &missile)
  * @brief A monster's missile landed on @p player for @p dam: the on-hit traits the melee path fires in
  * MonsterAttackPlayer. Vampiric, Devouring and Venomous did nothing on an archer or a caster (round 11 audit, v1.12.236).
  */
-void OnMonsterMissileLanded(Player &player, Monster &monster, int dam)
+void OnMonsterMissileLanded(Player &player, Monster &monster, int dam, int poisonBase)
 {
 	if (oracool::VariantPoisonsOnHit(monster))
-		oracool::PoisonPlayer(player, dam, 100);
+		oracool::PoisonPlayer(player, poisonBase, 100);
 	if (monster.mode == MonsterMode::Death || monster.hitPoints <= 0)
 		return;
 	oracool::OnLesserUniqueDealtDamage(monster, dam);
@@ -1450,7 +1467,8 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 			hper = monster->toHit(sgGameInitInfo.nDifficulty)
 			    + ((monster->level(sgGameInitInfo.nDifficulty) - player._pLevel) * 2)
 			    + 30
-			    - (dist * 2) - tac;
+			    - (dist * 2) - tac
+			    - oracool::MonsterDebuffToHit(*monster); // Weaken's aim reaches the archers too (round 28 audit)
 		} else {
 			hper = 100 - (tac / 2) - (dist * 2);
 		}
@@ -1572,6 +1590,9 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	// Torment stands at -90 and takes 190%. Applied HERE and then left to the ordinary hit below, not
 	// folded into the resisted branch: that branch is a soft landing (ArghClang, no hit recovery), and a
 	// hero with negative resistance must still be staggered by the harder blow.
+	// Venom takes the blow before resistance, as melee does: PoisonPlayer resists it itself, and a resisted shot was
+	// resisted twice (round 28 audit).
+	const int poisonBase = dam;
 	if (resper < 0)
 		dam -= dam * resper / 100;
 
@@ -1581,7 +1602,7 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 			ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
 			if (monster != nullptr) {
 				oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
-				OnMonsterMissileLanded(player, *monster, dam);
+				OnMonsterMissileLanded(player, *monster, dam, poisonBase);
 			}
 		}
 
@@ -1595,7 +1616,7 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 		ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
 		if (monster != nullptr) {
 			oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
-			OnMonsterMissileLanded(player, *monster, dam);
+			OnMonsterMissileLanded(player, *monster, dam, poisonBase);
 		}
 	}
 
@@ -4426,8 +4447,10 @@ void AddInferno(Missile &missile, AddMissileParameter &parameter)
 		int i = GenerateRnd(Players[missile._misource]._pLevel) + GenerateRnd(2);
 		missile._midam = 8 * i + 16 + ((8 * i + 16) / 2);
 	} else {
-		auto &monster = Monsters[missile._misource];
-		missile._midam = monster.minDamage + GenerateRnd(monster.maxDamage - monster.minDamage + 1);
+		int minDamage = 0;
+		int maxDamage = 0;
+		if (LiveMonsterDamageRange(missile, minDamage, maxDamage))
+			missile._midam = minDamage + GenerateRnd(maxDamage - minDamage + 1);
 	}
 }
 
@@ -4662,10 +4685,11 @@ void ProcessElementalArrow(Missile &missile)
 				mind = player._pIMinDam;
 				maxd = player._pIMaxDam;
 			} else {
-				// BUGFIX: damage of missile should be encoded in missile struct; monster can be dead before missile arrives.
-				Monster &monster = Monsters[p];
-				mind = monster.minDamage;
-				maxd = monster.maxDamage;
+				// While the slot still holds the archer, with its pack's Might (round 28 audit); after, as a trap's.
+				if (!LiveMonsterDamageRange(missile, mind, maxd)) {
+					mind = currlevel;
+					maxd = 2 * currlevel;
+				}
 			}
 		} else {
 			mind = GenerateRnd(10) + 1 + currlevel;
@@ -4753,10 +4777,8 @@ void ProcessArrow(Missile &missile)
 	case MissileSource::Monster: {
 		// BUGFIX: damage of missile should be encoded in missile struct; monster can be dead before missile arrives.
 		// Oracool: while the slot still holds the archer (round 12 audit); after, the arrow lands as a trap's.
-		if (const Monster *monster = missile.liveSourceMonster(); monster != nullptr) {
-			mind = monster->minDamage;
-			maxd = monster->maxDamage;
-		} else {
+		// With the pack's Might (round 28 audit: round 11 reached only the missiles that read _midam).
+		if (!LiveMonsterDamageRange(missile, mind, maxd)) {
 			mind = currlevel;
 			maxd = 2 * currlevel;
 		}
@@ -4911,11 +4933,9 @@ void ProcessFireball(Missile &missile)
 		int minDam = missile._midam;
 		int maxDam = missile._midam;
 
-		if (missile._micaster != TARGET_MONSTERS) {
-			auto &monster = Monsters[missile._misource];
-			minDam = monster.minDamage;
-			maxDam = monster.maxDamage;
-		}
+		// The live caster with its pack's Might (round 28 audit); a caster gone keeps the damage it was launched with.
+		if (missile._micaster != TARGET_MONSTERS)
+			LiveMonsterDamageRange(missile, minDam, maxDam);
 		const DamageType damageType = GetMissileData(missile._mitype).damageType();
 		MoveMissileAndCheckMissileCol(missile, damageType, minDam, maxDam, true, false);
 		if (missile._mirange == 0) {
@@ -5220,8 +5240,12 @@ void ProcessLightningControl(Missile &missile)
 		// BUGFIX: damage of missile should be encoded in missile struct; player can be dead/have left the game before missile arrives.
 		dam = (GenerateRnd(2) + GenerateRnd(Players[missile._misource]._pLevel) + 2) << 6;
 	} else {
-		auto &monster = Monsters[missile._misource];
-		dam = 2 * (monster.minDamage + GenerateRnd(monster.maxDamage - monster.minDamage + 1));
+		int minDamage = 0;
+		int maxDamage = 0;
+		if (LiveMonsterDamageRange(missile, minDamage, maxDamage)) // the live caster, with its pack's Might (round 28 audit)
+			dam = 2 * (minDamage + GenerateRnd(maxDamage - minDamage + 1));
+		else
+			dam = GenerateRnd(currlevel) + 2 * currlevel; // a caster gone: as the trap's bolt above
 	}
 
 	SpawnLightning(missile, dam);
@@ -5571,6 +5595,12 @@ void ProcessTeleport(Missile &missile)
 
 	int id = missile._misource;
 	Player &player = Players[id];
+	// A hero killed on the tick he leapt stays where he fell: the corpse, its mark, its light and the camera went with the
+	// jump (round 28 audit).
+	if (player._pmode == PM_DEATH || (player._pHitPoints >> 6) <= 0) {
+		missile._miDelFlag = true;
+		return;
+	}
 
 	std::optional<Point> teleportDestination = FindClosestValidPosition(
 	    [&player](Point target) {

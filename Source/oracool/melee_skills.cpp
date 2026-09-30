@@ -342,6 +342,20 @@ std::optional<ClassMeleeSkill> ArmedClassMeleeSkill()
 	return ArmedSkill;
 }
 
+namespace {
+bool SweptThisSwing = false;
+} // namespace
+
+bool ClassMeleeSkillSwept()
+{
+	return SweptThisSwing;
+}
+
+void ForgetClassMeleeSweep()
+{
+	SweptThisSwing = false;
+}
+
 int ClassMeleeSkillDamagePercent(const Player &player)
 {
 	// The spin's blows (oracool/whirlwind.h): a share of a normal blow, the latch or none.
@@ -419,6 +433,7 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 	// costs nothing. The latch stays, so the next swing asks again - mana comes back.
 	if (!CanPay(player, skill))
 		return false;
+	SweptThisSwing = skill == ClassMeleeSkill::SweepingReed || skill == ClassMeleeSkill::WheelOfHeaven;
 
 	const Profile p = ProfileOf(skill);
 	const int rank = RankOf(player, skill);

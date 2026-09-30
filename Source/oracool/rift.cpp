@@ -788,8 +788,11 @@ void OnRiftMonsterKilled(const Monster &monster)
 		        [&monster](Point tile) {
 			        // Three out, with no item beside it: a pickup walk stops one tile SHORT of its item, so a way home at two -
 			        // next to the ring - was where a walk to a ring item ended, and it sent the hero home (round 17 audit).
+			        // Nor on a standing Town Portal: the portal ran first and took the hero to town, and the way home was never
+			        // walked (round 28 audit).
 			        if (!InDungeonBounds(tile) || IsTileSolid(tile) || dObject[tile.x][tile.y] != 0 || dItem[tile.x][tile.y] != 0
 			            || dPlayer[tile.x][tile.y] != 0 || dMonster[tile.x][tile.y] != 0 || tile == State.arrivalTile
+			            || TileContainsMissile(tile)
 			            || std::max(std::abs(tile.x - monster.position.tile.x), std::abs(tile.y - monster.position.tile.y)) < 3)
 				        return false;
 			        for (int d = 0; d < 8; d++) {
@@ -810,7 +813,8 @@ void OnRiftMonsterKilled(const Monster &monster)
 			for (int d = 0; d < 8; d++) {
 				const Point neighbour = monster.position.tile + static_cast<Direction>(d);
 				if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0
-				    && dPlayer[neighbour.x][neighbour.y] == 0 && dMonster[neighbour.x][neighbour.y] == 0 && neighbour != State.arrivalTile) {
+				    && dPlayer[neighbour.x][neighbour.y] == 0 && dMonster[neighbour.x][neighbour.y] == 0 && neighbour != State.arrivalTile
+				    && !TileContainsMissile(neighbour)) {
 					State.homeTile = neighbour;
 					break;
 				}

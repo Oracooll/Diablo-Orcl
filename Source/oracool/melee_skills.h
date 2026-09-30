@@ -142,6 +142,14 @@ int ClassMeleeSkillBonusPercentFor(const Player &player, SpellID spell);
 bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, int frontDamage);
 
 /**
+ * @brief Whether the last ApplyClassMeleeSkillOnSwing swept the side tiles itself (Sweeping Reed, Wheel of Heaven), so the
+ * Monk's staff cleave stands aside. Asked of the swing that fired, not predicted before it: mana stolen or lost during
+ * the front hit changed the answer (round 28 audit). ForgetClassMeleeSweep clears it before a swing.
+ */
+bool ClassMeleeSkillSwept();
+void ForgetClassMeleeSweep();
+
+/**
  * @brief The leap: moves @p player toward @p target, up to the skill's range, through the engine's
  * own teleport. Charges the mana. False if there was nowhere to land.
  */

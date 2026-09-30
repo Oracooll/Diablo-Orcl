@@ -1130,6 +1130,12 @@ void DrawRerollList(const Surface &out)
 				DrawString(out, _("no item on the bench"), rect, { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
 			continue;
 		}
+		// An unidentified item keeps its affixes to itself here too, as its panel does (round 28 audit).
+		if (!Bench._iIdentified) {
+			if (row == 0)
+				DrawString(out, _("identify it first"), rect, { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+			continue;
+		}
 		const bool selected = SelectedRow == row;
 		if (selected)
 			FillRect(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height, PlateFill);
@@ -1797,7 +1803,9 @@ bool FindPackCharm(const Player &player, Item &out, int &idx)
 {
 	const auto scan = [&](const Item *list, int count) {
 		for (int i = 0; i < count; i++) {
-			if (list[i].isEmpty() || !IsOracoolCharmIdx(list[i].IDidx))
+			// The first charm the recipe takes, not the first charm of any family: a Charm of Salvaging first in the pack hid
+			// the Vigor behind it and the recipe never lit (round 28 audit).
+			if (list[i].isEmpty() || !IsReworkableCharmIdx(list[i].IDidx))
 				continue;
 			out = list[i];
 			idx = list[i].IDidx;

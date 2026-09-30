@@ -3219,21 +3219,6 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 		// so accepting it would park the tab one paste away from writing past the list. The item
 		// records are still consumed below either way (they are variable-length; skipping them
 		// blind would misalign every tab after this one) - the tab is emptied after the read.
-		bool anchorsConsistent = true;
-		for (int idx = 1; idx <= itemCount; idx++) {
-			bool anchored = false;
-			for (const int8_t cell : player.InvTabGrid[t]) {
-				if (cell == idx) {
-					anchored = true;
-					break;
-				}
-			}
-			if (!anchored) {
-				anchorsConsistent = false;
-				break;
-			}
-		}
-
 		player._pNumInvTab[t] = itemCount;
 		for (uint8_t i = 0; i < itemCount; i++) {
 			if (!file.IsValid()) {
@@ -3245,6 +3230,23 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 
 		// Refused, not emptied (round 27 audit): emptied with the file accepted, the next autosave wrote the page's loss over
 		// heroinvtabs for good. Every other inconsistency on this path refuses.
+		//
+		// Judged AFTER the read, and only for a record that holds an item (round 28 audit): builds before v1.12.248 saved a
+		// validation-emptied record with no anchor - the shape the close-up below repairs - and refusing it locked pages 2-10
+		// for good, since a refused file is never rewritten.
+		bool anchorsConsistent = true;
+		for (int idx = 1; idx <= itemCount && anchorsConsistent; idx++) {
+			if (player.InvTabList[t][idx - 1].isEmpty())
+				continue;
+			bool anchored = false;
+			for (const int8_t cell : player.InvTabGrid[t]) {
+				if (cell == idx) {
+					anchored = true;
+					break;
+				}
+			}
+			anchorsConsistent = anchored;
+		}
 		if (!anchorsConsistent) {
 			RefuseInvTabsFile(player);
 			return;
