@@ -58,6 +58,7 @@ static class LevskiCubeSheet
 			for (int i = 0; i < frames.Count; i++)
 				g.DrawImageUnscaled(frames[i], i * FrameW, 0);
 		}
+		Quantize(sheet, 255);
 		sheet.Save(outPng, ImageFormat.Png);
 		Console.WriteLine("{0}: {1} frames of {2}x{3} ({4})", outPng, frames.Count, FrameW, FrameH, string.Join("+", counts));
 
@@ -179,6 +180,63 @@ static class LevskiCubeSheet
 		Write(outBmp, o);
 		return outBmp;
 	}
+
+	/**
+	 * Median cut to 255 colours over the whole sheet (2026-10-01). The game gives a sheet its own palette of at most 255
+	 * and, past that, folds low bits away - at 3 bits a channel this sheet lost the runes' shimmer and banded the glow.
+	 * Cut here, the game takes every colour exactly.
+	 */
+	static void Quantize(Bitmap sheet, int colours)
+	{
+		int[] px = Read(sheet);
+		var counts = new Dictionary<int, int>();
+		foreach (int c in px) {
+			if (((c >> 24) & 255) < 128) continue;
+			int k = c & 0xFFFFFF;
+			int n;
+			counts.TryGetValue(k, out n);
+			counts[k] = n + 1;
+		}
+		var boxes = new List<List<KeyValuePair<int, int>>> { new List<KeyValuePair<int, int>>(counts) };
+		while (boxes.Count < colours) {
+			// Split the box with the widest channel range, weighted by its pixel count.
+			int best = -1, bestAxis = 0; long bestScore = -1;
+			for (int i = 0; i < boxes.Count; i++) {
+				var b = boxes[i];
+				if (b.Count < 2) continue;
+				long pixels = 0;
+				for (int axis = 0; axis < 3; axis++) {
+					int lo = 255, hi = 0;
+					foreach (var e in b) { int v = (e.Key >> (16 - 8 * axis)) & 255; lo = Math.Min(lo, v); hi = Math.Max(hi, v); }
+					if (axis == 0) foreach (var e in b) pixels += e.Value;
+					long score = (long)(hi - lo) * (long)Math.Sqrt(pixels);
+					if (score > bestScore) { bestScore = score; best = i; bestAxis = axis; }
+				}
+			}
+			if (best < 0 || bestScore <= 0) break;
+			var box = boxes[best];
+			int shift = 16 - 8 * bestAxis;
+			box.Sort((x, y) => ((x.Key >> shift) & 255).CompareTo((y.Key >> shift) & 255));
+			long total = 0; foreach (var e in box) total += e.Value;
+			long run = 0; int cut = 1;
+			for (int i = 0; i < box.Count - 1; i++) { run += box[i].Value; if (run * 2 >= total) { cut = i + 1; break; } cut = i + 1; }
+			boxes[best] = box.GetRange(0, cut);
+			boxes.Add(box.GetRange(cut, box.Count - cut));
+		}
+		var map = new Dictionary<int, int>();
+		foreach (var b in boxes) {
+			long r = 0, g = 0, bl = 0, n = 0;
+			foreach (var e in b) { r += ((e.Key >> 16) & 255) * (long)e.Value; g += ((e.Key >> 8) & 255) * (long)e.Value; bl += (e.Key & 255) * (long)e.Value; n += e.Value; }
+			int avg = (int)((r / n) << 16 | (g / n) << 8 | (bl / n));
+			foreach (var e in b) map[e.Key] = avg;
+		}
+		for (int i = 0; i < px.Length; i++) {
+			if (((px[i] >> 24) & 255) < 128) { px[i] = 0; continue; }
+			px[i] = unchecked((int)0xFF000000) | map[px[i] & 0xFFFFFF];
+		}
+		Write(sheet, px);
+	}
+
 
 	static int[] Read(Bitmap b)
 	{

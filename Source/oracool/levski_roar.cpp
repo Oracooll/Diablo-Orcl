@@ -7,6 +7,7 @@
 
 #include <fmt/format.h>
 
+#include <array>
 #include <cmath>
 #include <algorithm>
 #include <string>
@@ -1709,6 +1710,37 @@ const SpriteColours *LevskiCubeColoursFor(const Object &object)
 	return CubeSheet->colours.get();
 }
 
+void DrawLevskiCube(const Surface &out, const Object &cube, Point bottomLeft, ClxSprite sprite, int light)
+{
+	const SpriteColours &colours = *CubeSheet->colours;
+	if (out.isIndexed()) {
+		DrawSpriteWithColours(out, bottomLeft, sprite, colours, light);
+		return;
+	}
+	// The runes' blue breathes brighter and back every 1.6 s; the open Cube's violet glow flickers faster. Asked of each
+	// colour of the sheet, not of the pixels: a clearly blue or clearly violet colour pulses, the stone and gold hold still.
+	std::array<uint32_t, 256> table;
+	std::copy_n(colours.Table(light), 256, table.begin());
+	const double t = static_cast<double>(SDL_GetTicks()) / 1000.0;
+	const double runes = 1.0 + 0.45 * std::sin(2.0 * 3.14159265358979 * t / 1.6);
+	const double glow = 1.0 + 0.12 * std::sin(2.0 * 3.14159265358979 * t / 0.7);
+	for (uint32_t &c : table) {
+		const int r = static_cast<int>((c >> 16) & 0xFF);
+		const int g = static_cast<int>((c >> 8) & 0xFF);
+		const int b = static_cast<int>(c & 0xFF);
+		double k = 1.0;
+		if (b > r + 30 && b > g + 30)
+			k = runes;
+		else if (r > 120 && b > 150 && g + 40 < std::min(r, b))
+			k = glow;
+		if (k == 1.0)
+			continue;
+		const auto ch = [k](int v) { return static_cast<uint32_t>(std::clamp(v * k, 0.0, 255.0)); };
+		c = (ch(r) << 16) | (ch(g) << 8) | ch(b);
+	}
+	ClxDrawRgbMap(out, bottomLeft, sprite, table.data());
+}
+
 void DrawLevskiCubeLiveGrid(const Surface &out, const Object &cube, Point bottomLeft)
 {
 	if (out.isIndexed() || cube._oAnimFrame < CubeOpenFirst || cube._oAnimFrame > CubeOpenLast)
@@ -1753,7 +1785,12 @@ void ProcessLevskiCubeAnimation()
 		return;
 	for (int i = 0; i < ActiveObjectCount; i++) {
 		Object &object = Objects[ActiveObjects[i]];
-		if (!IsLevskiRoarObject(object) || !WearsCubeSheet(object))
+		if (!IsLevskiRoarObject(object))
+			continue;
+		// Put back if anything since the town was built handed the Cube its painting again.
+		if (!WearsCubeSheet(object))
+			ApplyLevskiCubeSheet(object);
+		if (!WearsCubeSheet(object))
 			continue;
 		object._oAnimFlag = 0;
 		const bool wantOpen = WindowOpen && WindowHost == TransmuteHost::Cube;

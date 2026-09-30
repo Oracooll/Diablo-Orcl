@@ -2507,6 +2507,7 @@ void GameLogic()
 		gGameLogicStep = GameLogicStep::ProcessTowners;
 		ProcessTowners();
 		oracool::ProcessTownStashChest(); // the stash chest's lid - ProcessObjects does not run in town
+		oracool::ProcessLevskiCubeAnimation(); // the Cube's idle, opening and closing - the same reason (2026-10-01)
 		oracool::ProcessTownCompanions(); // companions in town - ProcessMonsters does not run here either
 		gGameLogicStep = GameLogicStep::ProcessItemsTown;
 		ProcessItems();

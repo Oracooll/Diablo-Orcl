@@ -50,3 +50,20 @@ The closing stills are not used. `levski_cube_frames.inc` carries the counts.
 - Debug build and ctest: 892/892 passed. The Debug `diablo.ini` md5 is unchanged.
 - An offline composite of the six opened frames with the panel and a sample item checked the placement.
 - Nothing seen in play yet.
+
+## v1.12.274 - the Cube never moved in play
+
+The user: "cube asset seems the same. no animations what so ever", then "the town was a bit special level", and "no opening, closing animations are played either".
+
+- **Cause:** `game_logic` (diablo.cpp) runs `ProcessObjects` only outside town. The town branch has its own list (the stash chest's lid, the companions), and v1.12.273 had put `ProcessLevskiCubeAnimation` inside `ProcessObjects`. So in town the Cube never ticked. It stood on closed frame 1, which looks all but identical to the old painting.
+  - The test built town and called the tick directly, so it passed.
+  - The sheet itself was fine. A new test loads it from the archives (26 frames).
+  - A second test builds town with graphics on, and the Cube wears the sheet and its closed loop advances.
+- **Fix:** the tick is called from the town branch beside `ProcessTownStashChest`, and removed from `ProcessObjects`.
+- **Also fixed:**
+  - **Idle frames:** ChatGPT's 12 closed-idle frames differ by 0-77 pixels out of about 5,000.
+  - **Colour folding:** the importer's colour fold took the sheet to 3 bits a channel, which erased even that. The tool now median-cuts the sheet to exactly 255 colours, so the game takes them as they are.
+  - **Glow pulse:** the game pulses the Cube's colours on the clock. Clearly blue colours (the runes) breathe ±45% over 1.6 s. The open Cube's violet glow flickers ±12% over 0.7 s. Stone and gold hold still.
+- **Robustness:** the tick puts the sheet back if anything hands the Cube its painting again.
+
+Debug build and ctest: 894/894 passed (two new tests). The Debug `diablo.ini` md5 is unchanged across ctest.

@@ -48,7 +48,13 @@
 #include "oracool/class_tree.h"
 #include "oracool/hidden_classes.h"
 #include "oracool/hud_art.h"
+#include "levels/gendung.h"
+#include "objects.h"
+#include "oracool/levski_roar.h"
+#include "oracool/oracool.h"
 #include "oracool/skill_sounds.h"
+#include "oracool/stonegate.h"
+#include "oracool/sprite_import.h"
 #include "player.h"
 #include "spelldat.h"
 
@@ -499,4 +505,52 @@ TEST(OracoolSkillAssets, EveryRegisteredMissileSheetIsInTheArchives)
 	for (const std::string &m : missing)
 		list += "\n  " + m;
 	EXPECT_TRUE(missing.empty()) << missing.size() << " missile sheets are not in the archives:" << list;
+}
+
+/**
+ * @brief Levski's Cube's animated sheet (2026-10-01) loads from the archive the way the game asks for it, whole. A sheet
+ * that fails to load leaves the old painting behind without a word.
+ */
+TEST(OracoolSkillAssets, LevskiCubeSheetLoadsWithEveryFrame)
+{
+	MountArchivesOnce();
+	const std::optional<oracool::ColouredSpriteList> sheet = oracool::LoadPngObjectSheetColoured("levski_cube", 128);
+	ASSERT_TRUE(sheet.has_value()) << "objects\levski_cube.png did not load";
+	EXPECT_EQ(sheet->list.numSprites(), 26u);
+	EXPECT_NE(sheet->colours, nullptr);
+}
+
+/**
+ * @brief The Cube in a town built as the game builds it, with graphics on: it wears the sheet, draws in its own colours, and
+ * its closed loop moves. The user saw the old painting standing still in play (v1.12.273).
+ */
+TEST(OracoolSkillAssets, LevskiCubeWearsItsSheetInTown)
+{
+	MountArchivesOnce();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	leveltype = DTYPE_TOWN;
+	currlevel = 0;
+	setlevel = false;
+	memset(dObject, 0, sizeof(dObject));
+	oracool::InitTownObjectPool();
+	oracool::AddStashChestObject();
+	oracool::AddLevskiRoarObject();
+	oracool::AddStonegateObject();
+	oracool::AddWaypointSigilObject();
+	Object *cube = nullptr;
+	for (int i = 0; i < ActiveObjectCount; i++) {
+		if (oracool::IsLevskiRoarObject(Objects[ActiveObjects[i]]))
+			cube = &Objects[ActiveObjects[i]];
+	}
+	ASSERT_NE(cube, nullptr);
+	EXPECT_EQ(cube->_oAnimLen, 26u);
+	EXPECT_NE(oracool::LevskiCubeColoursFor(*cube), nullptr);
+	const uint32_t before = cube->_oAnimFrame;
+	for (int tick = 0; tick < 8; tick++)
+		oracool::ProcessLevskiCubeAnimation();
+	EXPECT_NE(cube->_oAnimFrame, before);
+	HeadlessMode = savedHeadless;
+	oracool::InitTownObjectPool();
+	FreeObjectGFX();
 }

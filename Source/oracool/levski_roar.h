@@ -26,6 +26,7 @@
  */
 #pragma once
 
+#include "engine/clx_sprite.hpp"
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
@@ -117,6 +118,13 @@ void ApplyLevskiCubeSheet(Object &cube);
 
 /** @brief The Cube's own colours when @p object is the Cube wearing its animated sheet; null for everything else. */
 const SpriteColours *LevskiCubeColoursFor(const Object &object);
+
+/**
+ * @brief Draws the Cube's frame @p sprite at @p bottomLeft in its own colours, its runes and glow pulsing on the clock
+ * (dev report, 2026-10-01: ChatGPT's closed frames barely differ, so the runes' life is the game's). @p light as for
+ * DrawSpriteWithColours.
+ */
+void DrawLevskiCube(const Surface &out, const Object &cube, Point bottomLeft, ClxSprite sprite, int light);
 
 /**
  * @brief While the Cube stands open, the window's grid in miniature on the Cube's own pink panel (user, 2026-10-01): what

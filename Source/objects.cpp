@@ -5578,7 +5578,6 @@ void ProcessObjects()
 	// The Stonegate's lit loop (oracool/stonegate.h): its frames are driven here, not by the
 	// generic advance below, because the loop is a sub-range of one sheet.
 	oracool::ProcessStonegate();
-	oracool::ProcessLevskiCubeAnimation(); // the Cube's idle loop and open pose (batch 43)
 	for (int i = 0; i < ActiveObjectCount; ++i) {
 		Object &object = Objects[ActiveObjects[i]];
 		switch (object._otype) {
