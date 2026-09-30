@@ -21,9 +21,16 @@ namespace devilution::oracool {
 
 namespace {
 
-/** @brief Per-monster-slot first-hit timestamps (SDL ms), 0 = clock not running. Slot ids recycle
+/** @brief Per-monster-slot first-hit times (GameTicks + 1), 0 = clock not running. Slot ids recycle
  * across levels; the clock is overwritten on the next first hit, which is exactly right. */
 uint32_t FirstHitAtMs[MaxMonsters];
+/**
+ * @brief Game ticks since the process started, bumped once per GameLogic. The kill clocks count these, not SDL
+ * milliseconds: on the wall clock a fight's time included the pause, the Esc menu and alt-tab, and its scale moved
+ * with the game speed (round 11 audit, v1.12.236). A tick is written out as 50 ms, the normal speed's tick.
+ */
+uint32_t GameTicks = 0;
+constexpr uint32_t MsPerTick = 50;
 
 /** @brief One id per process run, so rows from different sessions separate cleanly in analysis. */
 std::string SessionId;
@@ -143,7 +150,12 @@ void TelemetryRecordFirstHit(const Monster &monster)
 	// same-millisecond one-shot recorded no time at all - which is exactly the kill the 2026-08-21
 	// fix moved this call to ApplyMonsterDamage in order to capture (external audit, 2026-08-25).
 	if (FirstHitAtMs[id] == 0)
-		FirstHitAtMs[id] = SDL_GetTicks() + 1U;
+		FirstHitAtMs[id] = GameTicks + 1U;
+}
+
+void TelemetryTick()
+{
+	GameTicks++;
 }
 
 void TelemetryRecordKill(const Monster &monster)
@@ -154,7 +166,7 @@ void TelemetryRecordKill(const Monster &monster)
 	uint32_t timeToKillMs = 0;
 	if (id < MaxMonsters && FirstHitAtMs[id] != 0) {
 		// Un-bias by the one TelemetryRecordFirstHit added.
-		timeToKillMs = SDL_GetTicks() - (FirstHitAtMs[id] - 1U);
+		timeToKillMs = (GameTicks - (FirstHitAtMs[id] - 1U)) * MsPerTick;
 		FirstHitAtMs[id] = 0;
 		// Audit fix (2026-08-16): monster slots recycle across levels, and a monster that was HIT
 		// but never killed leaves its clock running - the next kill in that slot would then log a

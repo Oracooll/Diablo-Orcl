@@ -36,6 +36,7 @@
 #include "gamemenu.h"
 #include "help.h"
 #include "init.h"
+#include "inv.h" // CalculateGold
 #include "inv_iterators.hpp"
 #include "levels/trigs.h"
 #include "lighting.h"
@@ -216,6 +217,10 @@ void StartWalkAnimation(Player &player, Direction dir, bool pmWillBeCalled)
 	// walk, and the run ignored slows outright - a chill or a lead affix showed "Move speed 50%" on the sheet and changed
 	// nothing. The walk takes the skip as it is now; the run keeps its +4 frames over whatever the slowed walk is.
 	const int8_t walkSkip = oracool::WalkFrameSkipFor(player);
+	// The dash belongs to the charge's approach: a walk order that replaced it (a click on the floor) kept the sprint for
+	// up to 2 s, and with no swing no cooldown started (round 11 audit, v1.12.236).
+	if (&player == MyPlayer && player.destAction != ACTION_ATTACKMON)
+		oracool::StopFuriousChargeDash();
 	if (oracool::IsFuriousChargeDashing() && &player == MyPlayer) {
 		// Charge is a sprint at the monster (dev note, 2026-09-27: "time per tile 0,1s"): 2 ticks a tile (see
 		// ChargeDashSkipFrames for the arithmetic). Slows do not reach it - the dash is the skill, and it lasts one approach.
@@ -1175,13 +1180,18 @@ bool DoRangeAttack(Player &player)
 		} else {
 			int dmg = 4;
 			MissileID mistype = MissileID::Arrow;
-			if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FireArrows)) {
+			// Fire and lightning damage from anywhere, as the melee blow takes it (see the WeaponExplosion above): a
+			// Ruby or a Ral in a bow, a Flame shard, Enchant - the sheet printed "on every hit" and a plain arrow carried
+			// none of it (round 11 audit, v1.12.236).
+			const bool fireArrows = HasAnyOf(player._pIFlags, ItemSpecialEffect::FireArrows) || player._pIFMaxDam > 0;
+			const bool lightningArrows = HasAnyOf(player._pIFlags, ItemSpecialEffect::LightningArrows) || player._pILMaxDam > 0;
+			if (fireArrows) {
 				mistype = MissileID::FireArrow;
 			}
-			if (HasAnyOf(player._pIFlags, ItemSpecialEffect::LightningArrows)) {
+			if (lightningArrows) {
 				mistype = MissileID::LightningArrow;
 			}
-			if (HasAllOf(player._pIFlags, ItemSpecialEffect::FireArrows | ItemSpecialEffect::LightningArrows)) {
+			if (fireArrows && lightningArrows) {
 				dmg = player._pIFMinDam + GenerateRnd(player._pIFMaxDam - player._pIFMinDam);
 				mistype = MissileID::SpectralArrow;
 			}
@@ -1716,17 +1726,13 @@ void ValidatePlayer()
 		}
 	}
 
-	int gt = 0;
 	for (int i = 0; i < myPlayer._pNumInv; i++) {
-		if (myPlayer.InvList[i]._itype == ItemType::Gold) {
-			if (myPlayer.InvList[i]._ivalue > MaxGold) {
-				myPlayer.InvList[i]._ivalue = MaxGold;
-			}
-			gt += myPlayer.InvList[i]._ivalue;
-		}
+		if (myPlayer.InvList[i]._itype == ItemType::Gold && myPlayer.InvList[i]._ivalue > MaxGold)
+			myPlayer.InvList[i]._ivalue = MaxGold;
 	}
-	if (gt != myPlayer._pGold)
-		myPlayer._pGold = gt;
+	// Summed the saturating way: an int accumulator wrapped negative past 2.1 billion in the backpack and overwrote the
+	// value CalculateGold had just stored, every tick (round 11 audit, v1.12.236).
+	myPlayer._pGold = CalculateGold(myPlayer);
 
 	// 255 is the hard save-format-safe ceiling for base attributes.
 	myPlayer._pBaseStr = std::min(myPlayer._pBaseStr, 255);
@@ -1772,12 +1778,15 @@ void CheckCheatStats(Player &player)
 		player._pVitality = 750;
 	}
 
-	if (player._pHitPoints > 128000) {
-		player._pHitPoints = 128000;
+	// Life and mana are held at the hero's own maximum, not at vanilla's 2000 (128000 in 64ths): that ceiling was set
+	// for level-50 heroes, and a fork hero past 2000 maximum could never fill the orb - potions and regeneration stopped
+	// at 2000 every tick (round 11 audit, v1.12.236).
+	if (player._pHitPoints > player._pMaxHP) {
+		player._pHitPoints = player._pMaxHP;
 	}
 
-	if (player._pMana > 128000) {
-		player._pMana = 128000;
+	if (player._pMana > player._pMaxMana) {
+		player._pMana = player._pMaxMana;
 	}
 }
 
@@ -3781,8 +3790,12 @@ void ProcessPlayers()
 				oracool::ProcessGradualHealing(player);
 				// ...and the Venomous variant's bleed (2026-09-19), the same per-tick seam - not in
 				// town, as the life drain two lines up is not (audit, 2026-09-19).
+				// In town the bleed is washed out rather than paused: it froze mid-count and drained again on the next
+				// trip down, minutes later, with nothing on screen to say why (round 11 audit, v1.12.236).
 				if (leveltype != DTYPE_TOWN)
 					oracool::TickPlayerVenom(player);
+				else
+					oracool::ClearPlayerVenom(player);
 				// The Paladin's Prayer and Meditation auras regenerate here, beside the engine's
 				// own per-tick life and mana effects.
 				oracool::ProcessClassTreeTick(player);

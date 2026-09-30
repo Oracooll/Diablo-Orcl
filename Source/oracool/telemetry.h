@@ -80,6 +80,8 @@ void TelemetryResetLevelTimers();
 bool TelemetryHasRunningKillClock(const Monster &monster);
 
 void TelemetryRecordFirstHit(const Monster &monster);
+/** @brief One game tick for the kill clocks. Called once per GameLogic, so a pause stops them. */
+void TelemetryTick();
 
 /** @brief Appends a kill row (and closes the monster's time-to-kill clock). */
 void TelemetryRecordKill(const Monster &monster);

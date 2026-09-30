@@ -556,8 +556,12 @@ void ChillPlayer(const Player &player, int ticks)
 	ticks = ticks * (100 - std::clamp<int>(player._pColdResist, -100, 95)) / 100;
 	if (ticks <= 0)
 		return;
-	PlayerChillTicks[id] = static_cast<uint16_t>(std::max<int>(PlayerChillTicks[id], ticks));
-	// The walk: half speed, through the one movement slow the sheet reads.
+	// The action half is shortened like the walk half: under Cleansing the walk thawed early while swings and casts
+	// stayed at half speed for the full chill (round 11 audit, v1.12.236).
+	const int actionTicks = ticks * (100 - PlayerSlowShortenPercent(player)) / 100;
+	if (actionTicks > 0)
+		PlayerChillTicks[id] = static_cast<uint16_t>(std::max<int>(PlayerChillTicks[id], actionTicks));
+	// The walk: half speed, through the one movement slow the sheet reads (SlowPlayer shortens it itself).
 	SlowPlayer(player, ticks, 50);
 }
 
@@ -610,6 +614,13 @@ DamageType MonsterMissileElement(const Monster &monster, DamageType type)
 {
 	if (monster.type().type == MT_SNOWWICH || VariantHitElement(monster) == DamageType::Cold)
 		return DamageType::Cold;
+	// Searing and Voltaic shoot their element as Glacial does: on an archer or a caster the variant was only a recolour
+	// (round 11 audit, v1.12.236). A physical shot turns; a missile already of an element keeps it.
+	if (type == DamageType::Physical) {
+		const DamageType element = VariantHitElement(monster);
+		if (element == DamageType::Fire || element == DamageType::Lightning)
+			return element;
+	}
 	return type;
 }
 

@@ -18,29 +18,30 @@ struct CharmData {
 	int hitPoints; // whole HP
 	int fireRes;
 	int lightningRes;
+	int allRes; // all four schools (the Mourning Token)
 	int toHit;
 	int magicFind;
 	int goldFind;
 };
 
 constexpr CharmData Charms[] = {
-	{ IDI_ORACOOL_CHARM_VIGOR, 20, 0, 0, 0, 0, 0 },
-	{ IDI_ORACOOL_CHARM_EMBERS, 0, 15, 0, 0, 0, 0 },
-	{ IDI_ORACOOL_CHARM_STORMS, 0, 0, 15, 0, 0, 0 },
-	{ IDI_ORACOOL_CHARM_FORTUNE, 0, 0, 0, 12, 0, 0 },
-	{ IDI_ORACOOL_CHARM_LUCK, 0, 0, 0, 0, 15, 0 },
-	{ IDI_ORACOOL_CHARM_GREED, 0, 0, 0, 0, 0, 30 },
+	{ IDI_ORACOOL_CHARM_VIGOR, 20, 0, 0, 0, 0, 0, 0 },
+	{ IDI_ORACOOL_CHARM_EMBERS, 0, 15, 0, 0, 0, 0, 0 },
+	{ IDI_ORACOOL_CHARM_STORMS, 0, 0, 15, 0, 0, 0, 0 },
+	{ IDI_ORACOOL_CHARM_FORTUNE, 0, 0, 0, 0, 12, 0, 0 },
+	{ IDI_ORACOOL_CHARM_LUCK, 0, 0, 0, 0, 0, 15, 0 },
+	{ IDI_ORACOOL_CHARM_GREED, 0, 0, 0, 0, 0, 0, 30 },
 	// Phase 4's encounter rewards. Deliberately BIG and NARROW: each is worth clearly more than any
 	// ordinary charm in its one stat and offers nothing else, so choosing to carry one costs a
 	// slot of the three-charm cap rather than merely filling it. That is what makes three signature
 	// charms a decision instead of an inventory rule.
 	//
-	// The Mourning Token's resistance is spelled across all three schools below rather than as one
-	// number, because CharmData has no all-resist column and inventing one would be a second way to
-	// say what fireRes/lightningRes already say.
-	{ IDI_ORACOOL_CHARM_CHAPEL, 60, 0, 0, 0, 0, 0 },
-	{ IDI_ORACOOL_CHARM_MOURNING, 0, 18, 18, 0, 0, 0 },
-	{ IDI_ORACOOL_CHARM_VAULT, 0, 0, 0, 0, 40, 0 },
+	// The Mourning Token is "+18% to all resistances" (its generated row). It was spelled as fire and lightning only,
+	// with no magic or cold, and its line printed the fire half alone (round 11 audit, v1.12.236) - so it has its own
+	// all-resist column now.
+	{ IDI_ORACOOL_CHARM_CHAPEL, 60, 0, 0, 0, 0, 0, 0 },
+	{ IDI_ORACOOL_CHARM_MOURNING, 0, 0, 0, 18, 0, 0, 0 },
+	{ IDI_ORACOOL_CHARM_VAULT, 0, 0, 0, 0, 0, 40, 0 },
 };
 
 const CharmData *FindCharm(uint16_t charmIdx)
@@ -130,8 +131,10 @@ void ApplyCharmToTotals(const Player &player, uint16_t charmIdx, ItemBonusTotals
 	if (charm == nullptr)
 		return;
 	totals.hitPoints += charm->hitPoints << 6;
-	totals.fireResist += charm->fireRes;
-	totals.lightningResist += charm->lightningRes;
+	totals.fireResist += charm->fireRes + charm->allRes;
+	totals.lightningResist += charm->lightningRes + charm->allRes;
+	totals.magicResist += charm->allRes;
+	totals.coldResist += charm->allRes;
 	totals.bonusToHit += charm->toHit;
 	totals.magicFind += charm->magicFind;
 	totals.goldFind += charm->goldFind;
@@ -154,6 +157,8 @@ std::string CharmEffectLine(const Player &player, uint16_t charmIdx)
 		return {};
 	if (charm->hitPoints > 0)
 		return fmt::format(fmt::runtime(_("+{:d} life while in your backpack")), charm->hitPoints);
+	if (charm->allRes > 0)
+		return fmt::format(fmt::runtime(_("+{:d}% to all resistances while in your backpack")), charm->allRes);
 	if (charm->fireRes > 0)
 		return fmt::format(fmt::runtime(_("+{:d}% fire resist while in your backpack")), charm->fireRes);
 	if (charm->lightningRes > 0)

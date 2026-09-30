@@ -3406,8 +3406,13 @@ void CreateMagicItem(Point position, int lvl, ItemType itemType, int imid, int i
 	// same vanilla bases it always did - but the shape is the hazard: roll until it matches, with
 	// nothing to say what happens when it cannot. The Slain Hero proved what that costs.
 	bool matched = false;
+	// A unique rolled on an attempt that is thrown away does not spend that unique's one drop (round 11 audit,
+	// v1.12.236): each discarded roll marked its unique found, as the vendor shelves' loops already guard against.
+	std::array<bool, MaxUniqueItems> uniquesBefore;
+	std::copy(std::begin(UniqueItemFlags), std::end(UniqueItemFlags), uniquesBefore.begin());
 	for (int attempt = 0; attempt < 10000; attempt++) {
 		item = {};
+		std::copy(uniquesBefore.begin(), uniquesBefore.end(), std::begin(UniqueItemFlags));
 		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), 2 * lvl, 1, true, false, delta,
 		    /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/lvl);
 		if (item._iCurs == icurs) {
@@ -3422,8 +3427,11 @@ void CreateMagicItem(Point position, int lvl, ItemType itemType, int imid, int i
 		    icurs, static_cast<int>(itemType), lvl);
 		Items[ii] = {};
 		ActiveItemCount--;
+		std::copy(uniquesBefore.begin(), uniquesBefore.end(), std::begin(UniqueItemFlags));
 		return;
 	}
+	if (!delta)
+		FinalizeFreshDrop(item, lvl); // the drop tail - Na-Krul, the Slain Hero, the amulets (round 11 audit)
 	GetSuperItemSpace(position, ii);
 
 	if (sendmsg)
@@ -5664,6 +5672,10 @@ Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level /*
 		});
 		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), curlv * 2, 15, true, false, false,
 		    /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/curlv);
+		FinalizeFreshDrop(item, curlv); // a fresh drop's tail, which logs it too (round 11 audit)
+		if (sendmsg)
+			NetSendCmdPItem(false, CMD_SPAWNITEM, item.position, item);
+		return &item;
 	}
 
 	LogNoteworthyItemDrop(item);
@@ -5686,7 +5698,8 @@ Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level /*
 int ItemLevelOfMonster(const Monster &monster)
 {
 	int level = oracool::CurrentAreaLevel();
-	if (monster.isUnique())
+	// A rift guardian pays as a unique: Diablo, who has no unique row, paid an ordinary monster's level (round 11 audit).
+	if (monster.isUnique() || oracool::IsRiftGuardian(monster))
 		level += 3;
 	else if (monster.lesserAffix != LesserUniqueAffix::None)
 		level += 2;
@@ -5708,8 +5721,10 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		if (uniqueItem != nullptr && sendmsg)
 			NetSendCmdPItem(false, CMD_DROPITEM, uniqueItem->position, *uniqueItem);
 		return;
-	} else if (monster.isUnique() || dropsSpecialTreasure) {
+	} else if (monster.isUnique() || dropsSpecialTreasure || oracool::IsRiftGuardian(monster)) {
 		// Unqiue monster is killed => use better item base (for example no gold)
+		// A rift guardian too: Diablo's six pile rolls were an ordinary monster's - mostly nothing and gold - beside
+		// the other three guardians' unique-grade piles (round 11 audit, v1.12.236).
 		idx = RndUItem(&monster);
 	} else if (dropBrain && !gbIsMultiplayer) {
 		// Normal monster is killed => need to drop brain to progress the quest
@@ -5749,7 +5764,7 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 	int ii = AllocateItem();
 	auto &item = Items[ii];
 	GetSuperItemSpace(position, ii);
-	int uper = monster.isUnique() ? 15 : 1;
+	int uper = (monster.isUnique() || oracool::IsRiftGuardian(monster)) ? 15 : 1;
 
 	// THE MONSTER'S LOOT LEVEL, not its authored level (audit, 2026-09-13: "rare items still seem very rare
 	// and i am now in hell/hell", then "make sure drops reflect our vision ... progressive difficulty with
@@ -6594,6 +6609,9 @@ void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg)
 	Item item;
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), lvl, 1, /*onlygood=*/false,
 	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/lvl);
+	// The drop tail every fresh drop gets (DROP-01): the fork's own gear bases drop only here, and none was ever
+	// socketed or ethereal, nor touched by Magic Find (round 11 audit, v1.12.236).
+	FinalizeFreshDrop(item, lvl);
 
 	const int ii = AllocateItem();
 	Items[ii] = item.pop();
@@ -6625,6 +6643,7 @@ void TrySpawnGildedDrop(const Monster &monster, bool sendmsg)
 	Item item;
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), lvl, 15, /*onlygood=*/true,
 	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/lvl);
+	FinalizeFreshDrop(item, lvl); // the drop tail (round 11 audit)
 	const int ii = AllocateItem();
 	Items[ii] = item.pop();
 	FinishOracoolDrop(ii, monster.position.tile);
@@ -6913,7 +6932,9 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 			for (int i = IDI_ORACOOL_CHARM_VIGOR; i <= IDI_LAST; i++) {
 				// The Charms of Salvaging are SHOP ONLY (user, 2026-09-13: "make charms of salvaging
 				// non-dropable, only purchcasable") - Griswold and Adria stock them.
-				if (!IsOracoolCharmIdx(i) || IsOracoolSalvageCharmIdx(i))
+				// Nor the named encounters' own charms (Chapel, Mourning, Vault): the encounter pays them, and Pepin's shelf
+				// already leaves them out - they fell off Catacombs monsters from Nightmare on (round 11 audit, v1.12.236).
+				if (!IsOracoolCharmIdx(i) || IsOracoolSalvageCharmIdx(i) || IsOracoolEncounterCharmIdx(i))
 					continue;
 				if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
 					candidates[candidateCount++] = static_cast<_item_indexes>(i);
@@ -7830,7 +7851,8 @@ void PrintItemDetails(const Item &item)
 	if (const oracool::RunewordDefinition *word = oracool::GetActiveRuneword(item); word != nullptr)
 		SetPanelString(fmt::format(fmt::runtime(_("Runeword: {:s}")), _(word->name)), UiFlags::ColorWhitegold);
 
-	const bool indestructible = item._iMaxDur == DUR_INDESTRUCTIBLE;
+	// Zod's stamp too: the host read "Dur: 255/60" (round 11 audit, v1.12.236).
+	const bool indestructible = item._iMaxDur == DUR_INDESTRUCTIBLE || item._iDurability == DUR_INDESTRUCTIBLE;
 	// Only suppressed when something below will actually print the word - see the helper.
 	const bool affixSaysIndestructible = indestructible && AffixStatesIndestructible(item);
 
@@ -8035,17 +8057,18 @@ void PrintItemDur(const Item &item)
 	if (HeadlessMode)
 		return;
 
+	const bool indestructible = item._iMaxDur == DUR_INDESTRUCTIBLE || item._iDurability == DUR_INDESTRUCTIBLE; // Zod's stamp too
 	// Oracool: the unidentified view shows only base stats, so it is white throughout. "Not
 	// Identified" takes the affix colour because it stands in for the affix lines that are being
 	// withheld - it is a statement about the rolls, not about the base item.
 	if (item._iClass == ICLASS_WEAPON) {
 		if (item._iMinDam == item._iMaxDam) {
-			if (item._iMaxDur == DUR_INDESTRUCTIBLE)
+			if (indestructible)
 				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}  Indestructible")), item._iMinDam), ItemBaseStatColor);
 			else
 				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}  Dur: {:d}/{:d}")), item._iMinDam, item._iDurability, item._iMaxDur), ItemBaseStatColor);
 		} else {
-			if (item._iMaxDur == DUR_INDESTRUCTIBLE)
+			if (indestructible)
 				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}-{:d}  Indestructible")), item._iMinDam, item._iMaxDam), ItemBaseStatColor);
 			else
 				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}-{:d}  Dur: {:d}/{:d}")), item._iMinDam, item._iMaxDam, item._iDurability, item._iMaxDur), ItemBaseStatColor);
@@ -8057,7 +8080,7 @@ void PrintItemDur(const Item &item)
 			AddPanelString(_("Not Identified"), ItemAffixColor);
 	}
 	if (item._iClass == ICLASS_ARMOR) {
-		if (item._iMaxDur == DUR_INDESTRUCTIBLE)
+		if (indestructible)
 			AddPanelString(fmt::format(fmt::runtime(_("armor: {:d}  Indestructible")), item._iAC), ItemBaseStatColor);
 		else
 			AddPanelString(fmt::format(fmt::runtime(_("armor: {:d}  Dur: {:d}/{:d}")), item._iAC, item._iDurability, item._iMaxDur), ItemBaseStatColor);
@@ -10398,7 +10421,9 @@ void RepairItem(Item &item, int lvl)
 	// Phase 1 ethereal: the Repair skill/spell is still a smith's hand - it declines too.
 	if (item._iOracoolEthereal)
 		return;
-	if (item._iDurability == item._iMaxDur) {
+	// Zod's stamp (durability indestructible, the maximum kept) is not wear: the loop below cut the maximum and wrote
+	// the durability back over the stamp, so the rune stayed socketed on a sword that wore down again (round 11 audit).
+	if (item._iDurability == item._iMaxDur || item._iDurability == DUR_INDESTRUCTIBLE) {
 		return;
 	}
 
@@ -10533,8 +10558,8 @@ bool ApplyOilToItem(Item &item, Player &player)
 		item._iMinDex = std::max(0, item._iMinDex - r);
 		break;
 	case IMISC_OILBSMTH:
-		if (item._iMaxDur == DUR_INDESTRUCTIBLE)
-			return true;
+		if (item._iMaxDur == DUR_INDESTRUCTIBLE || item._iDurability == DUR_INDESTRUCTIBLE)
+			return true; // nothing to mend; Zod's stamp is not overwritten (round 11 audit)
 		if (item._iDurability < item._iMaxDur) {
 			item._iDurability = (item._iMaxDur + 4) / 5 + item._iDurability;
 			item._iDurability = std::min<int>(item._iDurability, item._iMaxDur);
@@ -10547,7 +10572,8 @@ bool ApplyOilToItem(Item &item, Player &player)
 		}
 		break;
 	case IMISC_OILFORT:
-		if (item._iMaxDur != DUR_INDESTRUCTIBLE && item._iMaxDur < 200) {
+		// Not on a Zod host: 255 + r left the stamp and made the item destructible again (round 11 audit).
+		if (item._iMaxDur != DUR_INDESTRUCTIBLE && item._iDurability != DUR_INDESTRUCTIBLE && item._iMaxDur < 200) {
 			r = GenerateRnd(41) + 10;
 			item._iMaxDur += r;
 			item._iDurability += r;

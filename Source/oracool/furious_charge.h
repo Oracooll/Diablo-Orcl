@@ -111,6 +111,9 @@ float GetFuriousChargeCooldownProgress();
  */
 void ResetFuriousChargeForNewGame();
 
+/** @brief One game tick off the dash and the cooldown. Called for the local player from ProcessClassTreeTick. */
+void TickFuriousCharge();
+
 /** @brief Charge's arriving blow at @p rank, in percent more damage: 20 a level (2026-09-12). */
 constexpr int ChargeBlowPercentAt(int rank)
 {

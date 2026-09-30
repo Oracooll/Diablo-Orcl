@@ -20,6 +20,7 @@
 #include "oracool/passives.h"
 #include "oracool/curses.h"
 #include "oracool/essence.h"
+#include "oracool/furious_charge.h" // TickFuriousCharge
 #include "oracool/necro_summoning.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
@@ -2929,11 +2930,16 @@ int PlayerSlowPercent(const Player &player)
 	return slow.ticksLeft > 0 ? slow.percent : 0;
 }
 
-void SlowPlayer(const Player &player, int ticks, int percent)
+int PlayerSlowShortenPercent(const Player &player)
 {
 	// Cleansing (2026-09-12): under it, a slow or a chill wears off sooner.
 	// Juggernaut (2026-09-14): the Barbarian's own half.
-	ticks = ticks * (100 - std::max({ CleansingShortenPercent(player), Rfa12SlowShortenPercent(player), PassiveSlowShortenPercent(player) })) / 100;
+	return std::max({ CleansingShortenPercent(player), Rfa12SlowShortenPercent(player), PassiveSlowShortenPercent(player) });
+}
+
+void SlowPlayer(const Player &player, int ticks, int percent)
+{
+	ticks = ticks * (100 - PlayerSlowShortenPercent(player)) / 100;
 	if (ticks <= 0)
 		return;
 	MovementSlow &slow = MovementSlows[player.getId()];
@@ -3040,6 +3046,7 @@ void ProcessClassTreeTick(Player &player)
 	// Edge-triggered against the last state rather than called every tick, or restarting the loop
 	// would retrigger the cue sixty times a second.
 	if (&player == MyPlayer) {
+		TickFuriousCharge(); // the Charge dash and cooldown run on game ticks (round 11 audit, v1.12.236)
 		// Re-asserted every tick; SetAuraLoop is idempotent, so only a real change is heard.
 		SetAuraLoop(GetActiveClassAura(player));
 	}

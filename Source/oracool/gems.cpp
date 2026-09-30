@@ -775,8 +775,10 @@ void ApplyZodToHost(Item &item)
 	// _iDurability = _iMaxDur returns it to a full, destructible item.
 	if (item.isEmpty() || item._iMaxDur == 0)
 		return;
-	if (SocketsMakeIndestructible(item))
+	if (SocketsMakeIndestructible(item)) {
 		item._iDurability = DUR_INDESTRUCTIBLE;
+		item._iOracoolBroken = false; // a broken host is whole again, and counts again (round 11 audit)
+	}
 }
 
 } // namespace devilution::oracool

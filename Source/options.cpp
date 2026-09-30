@@ -4,6 +4,7 @@
  * Load and save options from the diablo.ini file.
  */
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -491,7 +492,7 @@ void SaveOptions()
 	    "; ----- SIDE PANELS ---------------------------------------------------------------\n; Brightness of the 340x720 stone canvas every side panel (inventory, stash, character,\n; abilities...) is drawn on, as GAMMA in hundredths. 100 is the stone exactly as painted;\n; lower is lighter (65 = gamma 0.65 lifts the midtones about a third, blacks and\n; highlights stay put); 110-120 is darker. Values: 40-100 in steps of 5, 110, 120.\n; Read once, when the panel is first drawn - restart after changing it.");
 
 	setBoolean("Event Log", *sgOptions.Oracool.eventLog,
-	    "; ----- EVENT LOG -----------------------------------------------------------------\n; Shows a small \"LOG\" button above the durability-warning icons that expands into a\n; timestamped log of noteworthy session events (game saves, boss kills, special item\n; drops, deaths). Session-only - not saved to disk.");
+	    "; ----- EVENT LOG -----------------------------------------------------------------\n; A timestamped log of noteworthy session events (game saves, boss kills, special item\n; drops, deaths), opened from the belt's Menu popup or with F11. Session-only - not saved\n; to disk. Off hides it; a failed save is still announced on screen.");
 
 	setBoolean("Naked Heroes", *sgOptions.Oracool.nakedHeroes,
 	    "; ----- NAKED HEROES -------------------------------------------------------------\n; New heroes start with nothing: no weapon, no shield, no armour, no potions and no\n; gold, with both mouse buttons on the bare fist. Read ONCE, when a character is\n; created - turning it off later re-equips nobody, and turning it on strips nobody.");
@@ -512,9 +513,9 @@ void SaveOptions()
 	    "; ----- GRADUAL HEALING -----------------------------------------------------------------\n; Potion of Healing and Potion of Mana restore their usual random amount gradually over a few\n; seconds instead of instantly, matching Diablo 2's Healing/Mana Potions. Full Healing/Full Mana\n; Potions stay instant either way, matching Diablo 2's Rejuvenation Potions. Single-player only.");
 
 	setBoolean("XP Counter", *sgOptions.Oracool.xpCounter,
-	    "; ----- XP COUNTER -----------------------------------------------------------------\n; Shows the experience remaining until your next level just below the mini-map,\n; centered between the Game Clock and the LOG button. Hidden at max level.");
+	    "; ----- XP COUNTER -----------------------------------------------------------------\n; Shows the experience remaining until your next level above the XP bar, while the cursor\n; is over the bar. Hidden at max level.");
 	setBoolean("XP Gain Indicator", *sgOptions.Oracool.xpGainIndicator,
-	    "; Briefly flashes \"+N\" just below the XP Counter for half a second whenever you gain\n; experience.");
+	    "; Briefly flashes \"+N\" just above the XP Counter for half a second whenever you gain\n; experience.");
 	setBoolean("Remaining Monster XP Button", *sgOptions.Oracool.remainingMonsterXpButton,
 	    "; Press and hold the XP Counter to see, in white, the total experience worth of every\n; monster still alive on this level (adjusted for your current character level, exactly like\n; a real kill would be). Releases back to the normal readout.");
 	setInteger("Monster Range Highlight", *sgOptions.Oracool.monsterRangeHighlight,
@@ -578,7 +579,7 @@ void SaveOptions()
 	setInteger("Primal Item Drop Chance", *sgOptions.Oracool.primalItemDropChance,
 	    "; Percent chance that an item eligible for Magic quality becomes a Primal item\n; instead, checked before Buffed Unique and Rare (right after failing its Unique\n; roll). Every affix on a Primal item is forced to its maximum roll. Zero disables Primals.");
 	setInteger("Unique Drop Chance Percent", *sgOptions.Oracool.uniqueDropChancePercent,
-	    "; Scales the chance an eligible drop becomes a unique item. 100 is vanilla's own window;\n; lower narrows it. This is the knob that NERFS - the multiplier below only ever widens.\n; Ignored while reconstructing a saved item, so lowering it cannot downgrade gear you\n; already own.");
+	    "; Scales the chance an eligible drop becomes a unique item. 100 is the fork's rate, a tenth\n; of vanilla's window; lower narrows it. This is the knob that NERFS - the multiplier below only ever widens.\n; Ignored while reconstructing a saved item, so lowering it cannot downgrade gear you\n; already own.");
 	setInteger("Champion Extra Drop Chance", *sgOptions.Oracool.championExtraDropChance,
 	    "; Percent chance a champion monster rolls a SECOND item when it dies. It used to be a\n; guaranteed second roll, which is why champions dropped two good items at a time.");
 
@@ -589,10 +590,10 @@ void SaveOptions()
 	    "; How many monsters a dungeon level scatters, as a percentage of the vanilla count.\n; 100 is vanilla; 150, 200, 250 and 300 are one and a half to three times as many.\n; Quest monsters and the named uniques are placed by their own rules and ignore this.\n; The engine's own ceiling on live monsters still applies, so the densest levels\n; approach it rather than exceeding it.");
 
 	setInteger("Monster Variant Chance", *sgOptions.Oracool.monsterVariantChancePercent,
-	    "; How often an ordinary monster is a recoloured variant - a different palette, a different\n; name and one trait that changes the fight - as a percentage of the base rate. The base is\n; a ladder by difficulty: 15% on Normal rising to 28% on Torment, so 100 keeps that shape and\n; 200 doubles the whole curve. 0 turns variants off entirely. The result is capped, because a\n; floor where a third of the monsters are recoloured has made the recolour the default.");
+	    "; How often an ordinary monster is a recoloured variant - a different palette, a different\n; name and one trait that changes the fight - as a percentage of the base rate. The base is\n; a ladder by difficulty: 15% on Normal rising to 28% on Torment, so 100 keeps that shape and\n; 200 doubles the whole curve. 0 turns variants off entirely. The result is capped at half the\n; monsters, because past that the recolour has become the default.");
 
 	setInteger("Lesser Unique Density", *sgOptions.Oracool.lesserUniqueDensityPercent,
-	    "; How many champion packs - underpowered versions of the game's named uniques, each with\n; minions - a dungeon level hosts. 100 is one pack; 300 is three. Each is drawn from the\n; champions written for monsters that ALREADY appear on that level, and its stats are\n; scaled to the floor rather than to the level the champion was originally written for.");
+	    "; How many champion packs - underpowered versions of the game's named uniques, each with\n; minions - a dungeon level hosts, as a percentage of the base 2-6 packs by difficulty. Each is drawn from the\n; champions written for monsters that ALREADY appear on that level, and its stats are\n; scaled to the floor rather than to the level the champion was originally written for.");
 
 	setBoolean("Permanent Infravision", *sgOptions.Oracool.permanentInfravision,
 	    "; ----- WORLD AND EXPLORATION --------------------------------------------------\n; Permanently reveals nearby monsters through walls as if infravision were active.");
@@ -682,6 +683,10 @@ string_view OptionEntryListBase::GetValueDescription() const
 void OptionEntryEnumBase::LoadFromIni(string_view category)
 {
 	value = GetIniInt(category.data(), key.data(), defaultValue);
+	// A value the list does not offer falls back to the default: the menu showed its first entry while the game acted
+	// on the garbage (Game Speed Readout=7 drew the readout for good; round 11 audit, v1.12.236).
+	if (std::find(entryValues.begin(), entryValues.end(), value) == entryValues.end())
+		value = defaultValue;
 }
 void OptionEntryEnumBase::SaveToIni(string_view category) const
 {
@@ -1510,11 +1515,11 @@ OracoolOptions::OracoolOptions()
     // CantChangeInGame like its two siblings since 2026-09-27 (audit). The variant is derived per monster from a seed the
     // level carries, but its stat changes are applied once, at spawn, while its name and hook effects are asked live -
     // so a mid-game change left Hollow monsters with Hollow life and no name, or made ordinary ones Gilded mid-fight.
-    , monsterVariantChancePercent("Monster Variant Chance", OptionEntryFlags::CantChangeInGame, N_("Monster Variant Chance"), N_("Multiplies how often a monster is a recoloured variant. 100 is the base 15-28% by difficulty; 0 turns them off."), 100, { 0, 100, 150, 200, 250, 300 })
+    , monsterVariantChancePercent("Monster Variant Chance", OptionEntryFlags::CantChangeInGame, N_("Monster Variant Chance"), N_("Multiplies how often a monster is a recoloured variant. 100 is the base 15-28% by difficulty, capped at half the monsters; 0 turns them off."), 100, { 0, 100, 150, 200, 250, 300 })
     , unlockAllTownEntrances("Unlock All Town Entrances", OptionEntryFlags::CantChangeInGame, N_("Unlock All Town Entrances"), N_("Unlocks later dungeon entrances in town without level requirements."), true)
     , permanentInfravision("Permanent Infravision", OptionEntryFlags::None, N_("Permanent Infravision"), N_("Continuously reveals nearby monsters through walls."), false)
     , autoIdentifyDrops("Auto Identify Drops", OptionEntryFlags::None, N_("Auto Identify Drops"), N_("Automatically identifies newly generated item drops."), true)
-    , resetStatsButton("Reset Stats Button", OptionEntryFlags::None, N_("Reset Stats Button"), N_("Adds a reset control to the character panel."), true)
+    , resetStatsButton("Reset Stats Button", OptionEntryFlags::None, N_("Reset Stats Button"), N_("Adds a reset control to the list hero sheet. The grouped sheet takes points back with its own arrows."), true)
     , autoPickupRange("Auto Pickup Range", OptionEntryFlags::None, N_("Auto Pickup Range"), N_("Search radius for enabled automatic-pickup categories."), 3, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
     , autoScrollPickup("Auto Pickup Scrolls", OptionEntryFlags::None, N_("Auto Pickup Scrolls"), N_("Scrolls of every kind are automatically collected when in close proximity to the player."), true)
     , autoRunePickup("Auto Pickup Runes", OptionEntryFlags::None, N_("Auto Pickup Runes"), N_("Runes are automatically collected when in close proximity to the player."), true)
@@ -1537,16 +1542,16 @@ OracoolOptions::OracoolOptions()
     // Tripling rather than the 10 first tried here: the pairing the old test comment insisted on is
     // still real, and at 300% density a rate of 10 would put rares near a third of a vanilla level's
     // loot. 6 is about one in seventeen eligible drops - regularly seen, still worth stopping for.
-    , rareItemDropChance("Rare Item Drop Chance", OptionEntryFlags::None, N_("Rare Item Drop Chance"), N_("Percent chance an eligible drop becomes a Rare item after failing its Unique roll."), 6, { 0, 2, 4, 6, 8, 10, 15, 20, 30, 50, 75, 100 })
+    , rareItemDropChance("Rare Item Drop Chance", OptionEntryFlags::None, N_("Rare Item Drop Chance"), N_("Chance an eligible drop becomes a Rare item after failing its Unique roll; scaled by the item's level band, and five times over."), 6, { 0, 2, 4, 6, 8, 10, 15, 20, 30, 50, 75, 100 })
     // 100, not 50. This is the knob that NERFS - its own INI comment says so - and a fresh install
     // was shipping with uniques at half of vanilla's own window for no stated reason. Vanilla is the
     // natural baseline for a default; narrowing it is a choice the player can still make.
-    , uniqueDropChancePercent("Unique Drop Chance Percent", OptionEntryFlags::None, N_("Unique Drop Chance Percent"), N_("Scales the chance an eligible drop becomes a unique item. 100 is vanilla; lower narrows it."), 100, { 10, 25, 50, 75, 100 })
+    , uniqueDropChancePercent("Unique Drop Chance Percent", OptionEntryFlags::None, N_("Unique Drop Chance Percent"), N_("Scales the chance an eligible drop becomes a unique item. 100 is the fork's rate (a tenth of vanilla's); lower narrows it."), 100, { 10, 25, 50, 75, 100 })
     , lastReadiedSpellLeft("Last Readied Spell Left", OptionEntryFlags::Invisible, "Last Readied Spell Left", "The left-button skill a new character starts with, remembered from the last one.", 0, { })
     , lastReadiedSpellRight("Last Readied Spell Right", OptionEntryFlags::Invisible, "Last Readied Spell Right", "The right-button skill a new character starts with, remembered from the last one.", 0, { })
     , championExtraDropChance("Champion Extra Drop Chance", OptionEntryFlags::None, N_("Champion Extra Drop Chance"), N_("Percent chance a champion monster rolls a SECOND item on death. 100 is always, which is what it used to be."), 25, { 0, 10, 25, 50, 75, 100 })
-    , buffedUniqueItemDropChance("Buffed Unique Item Drop Chance", OptionEntryFlags::None, N_("Buffed Unique Item Drop Chance"), N_("Percent chance an eligible drop becomes a Buffed Unique, checked before Rare."), 3, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 50 })
-    , primalItemDropChance("Primal Item Drop Chance", OptionEntryFlags::None, N_("Primal Item Drop Chance"), N_("Percent chance an eligible drop becomes a Primal item, checked before Buffed Unique."), 1, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30 })
+    , buffedUniqueItemDropChance("Buffed Unique Item Drop Chance", OptionEntryFlags::None, N_("Buffed Unique Item Drop Chance"), N_("Chance an eligible drop becomes a Buffed Unique, checked before Rare; scaled by the item's level band (10-80%)."), 3, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 50 })
+    , primalItemDropChance("Primal Item Drop Chance", OptionEntryFlags::None, N_("Primal Item Drop Chance"), N_("Chance an eligible drop becomes a Primal item, checked before Buffed Unique; scaled by the item's level band (0-40%)."), 1, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30 })
     , runEnabled("Run Enabled", OptionEntryFlags::None, N_("Run Enabled"), N_("Whether the run toggle is on. Remembered between games."), false)
     , inventoryTabLevelGates("Inventory Tab Level Gates", OptionEntryFlags::None, N_("Inventory Tab Level Gates"), N_("Backpack pages 2-10 open at levels 10, 20 ... 90."), true)
     , griswoldPremiumRefresh("Griswold Premium Refresh", OptionEntryFlags::None, N_("Griswold Premium Refresh"), N_("Adds a free Refresh action to Griswold's Premium Items."), true)
@@ -1591,14 +1596,14 @@ OracoolOptions::OracoolOptions()
     , itemBackingRimGlow("Rim and Glow Item Backings", OptionEntryFlags::None, N_("Rim and Glow Item Backings"), N_("Each item sits on one backing with a rim in its quality colour and a glow fading in from it. Off: the earlier tint with a gold outline and cell lines."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
-    , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("Shows a toggleable button above the durability-warning icons that opens a timestamped log of noteworthy session events."), true)
+    , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("A timestamped log of noteworthy session events, opened from the Menu popup or with F11."), true)
     , balanceTelemetry("Balance Telemetry", OptionEntryFlags::None, N_("Balance Telemetry"), N_("Appends kills, deaths and item pickups to balance_telemetry.csv beside your saves, as tuning data for balancing the mod. Local file only; nothing leaves your machine."), true)
     , vendorTieredStockChance("Vendor Tiered Stock Chance", OptionEntryFlags::None, N_("Vendor Tiered Stock Chance"), N_("Percent chance a vendor item is offered at a base tier above Normal. The tier follows the game difficulty."), 35, { 0, 5, 10, 15, 20, 25, 35, 50, 65, 80, 100 })
     , panelGamma("Panel Gamma", OptionEntryFlags::None, N_("Panel Gamma"), N_("Brightness of the shared side-panel canvas, as gamma in hundredths: 100 is the stone as painted, lower is lighter. Takes effect after a restart."), 100, { 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 110, 120 })
     , nakedHeroes("Naked Heroes", OptionEntryFlags::None, N_("Naked Heroes"), N_("New heroes start with no equipment, no potions and no gold. Read once, when the character is created."), true)
     , shieldSpritesSwap("Shields Sprites Swap", OptionEntryFlags::None, N_("Shields Sprites Swap"), N_("The shield on your hero follows the shield you hold - buckler, steel heater or tower shield - whatever armour you wear. Takes effect on the next change of gear or level."), true)
     , swordSpritesSwap("Swords Sprites Swap", OptionEntryFlags::None, N_("Swords Sprites Swap"), N_("Long, Broad, Bastard, Two-Handed and Great Swords are drawn as the heavy longsword on light and medium armour. Takes effect on the next change of gear or level."), true)
-    , gameClock("Game Clock", OptionEntryFlags::None, N_("Game Clock"), N_("Shows the current real-world time just below the mini-map's left edge."), true)
+    , gameClock("Game Clock", OptionEntryFlags::None, N_("Game Clock"), N_("Shows the current real-world time in the screen's top-left corner."), true)
     , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
     , gameSpeedReadout("Game Speed Readout", OptionEntryFlags::None, N_("Game Speed Readout"), N_("Whether the game speed is shown under the clock. Blink shows it for one second whenever F9 or F10 changes it."), GameSpeedReadout::Blink,
           {
@@ -1607,9 +1612,9 @@ OracoolOptions::OracoolOptions()
               { GameSpeedReadout::Blink, N_("Blink") },
           })
     , gradualHealing("Gradual Healing", OptionEntryFlags::None, N_("Gradual Healing"), N_("Potion of Healing and Potion of Mana restore their amount gradually over a few seconds instead of instantly. Full Healing/Full Mana Potions are unaffected."), true)
-    , xpCounter("XP Counter", OptionEntryFlags::None, N_("XP Counter"), N_("Shows the experience remaining until your next level just below the mini-map."), true)
-    , xpGainIndicator("XP Gain Indicator", OptionEntryFlags::None, N_("XP Gain Indicator"), N_("Briefly flashes the experience gained just below the XP Counter."), true)
-    , remainingMonsterXpButton("Remaining Monster XP Button", OptionEntryFlags::None, N_("Remaining Monster XP Button"), N_("Press and hold the XP Counter to see the total experience worth of every monster still alive on this level."), true)
+    , xpCounter("XP Counter", OptionEntryFlags::None, N_("XP Counter"), N_("Shows the experience remaining until your next level above the XP bar, while you hover the bar."), true)
+    , xpGainIndicator("XP Gain Indicator", OptionEntryFlags::None, N_("XP Gain Indicator"), N_("Briefly flashes the experience gained just above the XP Counter."), true)
+    , remainingMonsterXpButton("Remaining Monster XP Button", OptionEntryFlags::None, N_("Remaining Monster XP Button"), N_("Press and hold the XP bar to see the total experience worth of every monster still alive on this level."), true)
     , monsterRangeHighlight("Monster Range Highlight", OptionEntryFlags::None, N_("Monster Range Highlight"), N_("Monsters within this many tiles get the same red outline shown when hovering them."), 0, { 0, 1, 2, 3, 4, 5 })
     , monsterWallOutline("Monster Wall Outline", OptionEntryFlags::None, N_("Monster Wall Outline"), N_("Draws a red outline on monsters hidden behind walls or other architecture, so you can tell they're there."), false)
     , questLogRevealAll("Quest Log Reveal All", OptionEntryFlags::None, N_("Quest Log Reveal All"), N_("Every quest available this session appears in the quest log from the start, instead of only after you discover it. Quests still work exactly as before - this just previews what's out there."), true)

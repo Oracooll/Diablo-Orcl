@@ -1627,8 +1627,16 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		// the ledger goes back on and Tempering's durability with it, for every recipe except the
 		// three that change the item in place (Recolour, the ethereal pair) and Cleanse itself.
 		const bool rebuilt = recipe != 8 && recipe != 15 && recipe != 16 && recipe != CleanseShardsRecipe;
-		if (rebuilt && ledger.count > 0)
+		if (rebuilt && ledger.count > 0) {
 			RestoreImbuements(target, ledger);
+			// The restore adds Tempering to the current durability as well, on top of the wear the rebuild kept: a 30/70
+			// item came back 40/70, and a broken one at 10/70 still flagged broken (round 11 audit, v1.12.236). The wear
+			// is the item's as it went in, under the new maximum; broken follows it.
+			if (target._iMaxDur > 0 && target._iMaxDur != DUR_INDESTRUCTIBLE && target._iDurability != DUR_INDESTRUCTIBLE) {
+				target._iDurability = std::min<int>(restore.before._iDurability, target._iMaxDur);
+				target._iOracoolBroken = target._iDurability == 0;
+			}
+		}
 
 		ConsumeGridReagents(grid, reagents, ReagentFor(recipe).count);
 		restore.done = true;

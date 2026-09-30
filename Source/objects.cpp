@@ -2692,8 +2692,10 @@ void OperateShrineHidden(Player &player)
 	std::string damagedItemName;
 	if (cnt > 0) {
 		for (auto &item : player.InvBody) {
+			// A Zod host (durability stamped indestructible) is left alone, as a true indestructible is: the shrine wrote
+			// over the stamp with the rune still socketed (round 11 audit, v1.12.236).
 			if (!item.isEmpty()
-			    && item._iMaxDur != DUR_INDESTRUCTIBLE
+			    && item._iMaxDur != DUR_INDESTRUCTIBLE && item._iDurability != DUR_INDESTRUCTIBLE
 			    && item._iMaxDur != 0) {
 				item._iDurability += 10;
 				item._iMaxDur += 10;
@@ -2704,14 +2706,15 @@ void OperateShrineHidden(Player &player)
 		while (true) {
 			cnt = 0;
 			for (auto &item : player.InvBody) {
-				if (!item.isEmpty() && item._iMaxDur != DUR_INDESTRUCTIBLE && item._iMaxDur != 0) {
+				if (!item.isEmpty() && item._iMaxDur != DUR_INDESTRUCTIBLE && item._iDurability != DUR_INDESTRUCTIBLE && item._iMaxDur != 0) {
 					cnt++;
 				}
 			}
 			if (cnt == 0)
 				break;
 			int r = GenerateRnd(NUM_INVLOC);
-			if (player.InvBody[r].isEmpty() || player.InvBody[r]._iMaxDur == DUR_INDESTRUCTIBLE || player.InvBody[r]._iMaxDur == 0)
+			if (player.InvBody[r].isEmpty() || player.InvBody[r]._iMaxDur == DUR_INDESTRUCTIBLE
+			    || player.InvBody[r]._iDurability == DUR_INDESTRUCTIBLE || player.InvBody[r]._iMaxDur == 0)
 				continue;
 
 			player.InvBody[r]._iDurability -= 20;

@@ -1182,7 +1182,7 @@ void StartRangedAttack(Monster &monster, MissileID missileType, int dam)
 	Direction md = GetMonsterDirection(monster);
 	NewMonsterAnim(monster, MonsterGraphic::Attack, md, AnimationDistributionFlags::ProcessAnimationPending);
 	monster.mode = MonsterMode::RangedAttack;
-	monster.var1 = static_cast<int8_t>(missileType);
+	monster.var1 = static_cast<int16_t>(missileType); // not int8_t: the fork's ids run past 127 (round 11 audit)
 	monster.var2 = dam;
 	monster.position.future = monster.position.tile;
 	monster.position.old = monster.position.tile;
@@ -1196,7 +1196,7 @@ void StartRangedSpecialAttack(Monster &monster, MissileID missileType, int dam)
 		distributeFramesBeforeFrame = monster.data().animFrameNumSpecial;
 	NewMonsterAnim(monster, MonsterGraphic::Special, md, AnimationDistributionFlags::ProcessAnimationPending, 0, distributeFramesBeforeFrame);
 	monster.mode = MonsterMode::SpecialRangedAttack;
-	monster.var1 = static_cast<int8_t>(missileType);
+	monster.var1 = static_cast<int16_t>(missileType); // not int8_t (round 11 audit)
 	monster.var2 = 0;
 	monster.var3 = dam;
 	monster.position.future = monster.position.tile;
@@ -1275,7 +1275,7 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		if (sgGameInitInfo.bTheoQuest != 0) {
 			SpawnTheodore(monster.position.tile, sendmsg);
 		} else {
-			CreateAmulet(monster.position.tile, 13, sendmsg, false);
+			CreateAmulet(monster.position.tile, ItemLevelOfMonster(monster), sendmsg, false); // was 13 on every difficulty (round 11)
 		}
 	} else if (monster.type().type == MT_NAKRUL && !oracool::IsRiftGuardian(monster)) { // a rift's Na-Krul drops like any rift guardian
 		int nSFX = IsUberRoomOpened ? USFX_NAKRUL4 : USFX_NAKRUL5;
@@ -1936,7 +1936,8 @@ bool MonsterRangedSpecialAttack(Monster &monster)
 bool MonsterSpecialAttack(Monster &monster)
 {
 	if (monster.animInfo.currentFrame == monster.data().animFrameNumSpecial - 1) {
-		MonsterAttackEnemy(monster, monster.toHitSpecial(sgGameInitInfo.nDifficulty), monster.minDamageSpecial, monster.maxDamageSpecial);
+		// Might reaches the special too (round 11 audit, v1.12.236), as it does the plain blow.
+		MonsterAttackEnemy(monster, monster.toHitSpecial(sgGameInitInfo.nDifficulty), oracool::PackAdjustedDamage(monster, monster.minDamageSpecial), oracool::PackAdjustedDamage(monster, monster.maxDamageSpecial));
 	}
 
 	if (monster.animInfo.isLastFrame()) {
@@ -3865,6 +3866,7 @@ void InitLevelMonsters()
 	// Storm still circling slot 0 (audit, 2026-09-27). Here every level load passes, town and revisits included.
 	oracool::ClearChills();
 	oracool::ClearPlayerChills(); // a level change thaws the heroes too (2026-09-26)
+	oracool::ClearMovementSlows(); // ...and their walk: the chill's other half ran out its ticks after the stairs (round 11)
 	oracool::ClearPassiveMarks(); // the monsters' marks; the hero's clocks go down the stairs with him
 	oracool::ClearRfa12State();
 	oracool::ClearWarcries();

@@ -1072,6 +1072,8 @@ int PlayerSlowPercent(const Player &player);
  * and cold spells decrease it"); nothing in the engine slows a player yet, so it waits for its first caller.
  */
 void SlowPlayer(const Player &player, int ticks, int percent);
+/** @brief The percent @p player's abilities take off a slow or a chill (Cleansing, Juggernaut, the RfA-12 shortener). */
+int PlayerSlowShortenPercent(const Player &player);
 
 /** @brief One tick of the slow's clock; called from the class tree's per-player tick. */
 void TickMovementSlow(const Player &player);

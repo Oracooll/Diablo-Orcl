@@ -1126,7 +1126,10 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	// (pcursmonst) also applies to any monster within the configured range, so nearby threats
 	// stand out even before the cursor finds them. 0 (OFF) never triggers this extra check.
 	const int monsterRangeHighlight = *sgOptions.Oracool.monsterRangeHighlight;
-	const bool inHighlightRange = monsterRangeHighlight > 0
+	// The hero's own golems, companions and army are not threats: they stood in range all the time and wore the red
+	// outline for good (round 11 audit, v1.12.236). Hovering one still outlines it, as vanilla does.
+	const bool heroAlly = monster.isPlayerMinion();
+	const bool inHighlightRange = monsterRangeHighlight > 0 && !heroAlly
 	    && monster.position.tile.WalkingDistance(MyPlayer->position.tile) <= monsterRangeHighlight;
 	// Oracool bug fix: user report - both outlines below used to be skipped entirely whenever the
 	// monster's own tile wasn't currently lit, because the tile-lit check used to run before any of
@@ -1149,7 +1152,7 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	// already drawn above is therefore also unconditionally queued for the guaranteed-on-top second
 	// pass (see DrawMonsterWallOutlines) - redrawing pixels that are already visible is a harmless
 	// no-op, so there's no downside to always doing it regardless of tileset.
-	if (shouldOutlineMonster || (*sgOptions.Oracool.monsterWallOutline && (!tileLit || !LineClearMissile(MyPlayer->position.tile, monster.position.tile)))) {
+	if (shouldOutlineMonster || (*sgOptions.Oracool.monsterWallOutline && !heroAlly && (!tileLit || !LineClearMissile(MyPlayer->position.tile, monster.position.tile)))) {
 		HiddenMonsterOutlineQueue.push_back({ monsterRenderPosition, sprite });
 	}
 

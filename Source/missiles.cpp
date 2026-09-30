@@ -30,6 +30,10 @@
 #include "lighting.h"
 #include "monster.h"
 #include "oracool/aura_field.h"
+#include "oracool/endgame_boss.h"    // OnBossDealtDamage - Devouring drains from a missile too
+#include "oracool/lesser_uniques.h"  // OnLesserUniqueDealtDamage, GetMonsterDisplayName
+#include "oracool/monster_variants.h" // VariantPoisonsOnHit
+#include "oracool/venom.h"
 #include "oracool/combat_odds.h"
 #include "oracool/curses.h"
 #include "oracool/minions.h" // MinionOwner, OnMinionBlow: a minion's bolt is its owner's blow
@@ -275,7 +279,25 @@ void MoveMissilePos(Missile &missile)
 int ProjectileMonsterDamage(Missile &missile)
 {
 	const Monster &monster = *missile.sourceMonster();
-	return monster.minDamage + GenerateRnd(monster.maxDamage - monster.minDamage + 1);
+	// The Might pack aura reaches the arrows too: the health bar showed it on a Relentless pack's archers while their
+	// shots hit at base damage (round 11 audit, v1.12.236).
+	const int minDamage = oracool::PackAdjustedDamage(monster, monster.minDamage);
+	const int maxDamage = std::max<int>(oracool::PackAdjustedDamage(monster, monster.maxDamage), minDamage);
+	return minDamage + GenerateRnd(maxDamage - minDamage + 1);
+}
+
+/**
+ * @brief A monster's missile landed on @p player for @p dam: the on-hit traits the melee path fires in
+ * MonsterAttackPlayer. Vampiric, Devouring and Venomous did nothing on an archer or a caster (round 11 audit, v1.12.236).
+ */
+void OnMonsterMissileLanded(Player &player, Monster &monster, int dam)
+{
+	if (oracool::VariantPoisonsOnHit(monster))
+		oracool::PoisonPlayer(player, dam, 100);
+	if (monster.mode == MonsterMode::Death || monster.hitPoints <= 0)
+		return;
+	oracool::OnLesserUniqueDealtDamage(monster, dam);
+	oracool::OnBossDealtDamage(monster, dam);
 }
 
 int ProjectileTrapDamage(Missile &missile)
@@ -863,7 +885,7 @@ void AddRune(Missile &missile, Point dst, MissileID missileID)
 
 		if (runePosition) {
 			missile.position.tile = *runePosition;
-			missile.var1 = static_cast<int8_t>(missileID);
+			missile.var1 = static_cast<int>(missileID); // not int8_t: the fork's ids run past 127 (round 11 audit)
 			// Custom Engineering (Rogue, 2026-09-14): the rune strikes as if three levels stronger.
 			if (missile.sourceType() == MissileSource::Player)
 				missile._mispllvl += oracool::PassiveRuneLevelBonus(*missile.sourcePlayer());
@@ -1493,7 +1515,8 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	}
 
 	if (&player == MyPlayer) {
-		oracool::NotePendingDeathSource(monster != nullptr ? std::string(monster->name()) : std::string("a trap"));
+		// The name the player saw - a champion's own, with its variant - as the melee path says it (round 11 audit).
+		oracool::NotePendingDeathSource(monster != nullptr ? oracool::GetMonsterDisplayName(*monster) : std::string("a trap"));
 	}
 
 	// Cold slows (user, 2026-09-07: "curses and cold spells decrease it"): a cold hit that LANDS - past
@@ -1516,8 +1539,10 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 		dam -= dam * resper / 100;
 		if (&player == MyPlayer) {
 			ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
-			if (monster != nullptr)
+			if (monster != nullptr) {
 				oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
+				OnMonsterMissileLanded(player, *monster, dam);
+			}
 		}
 
 		if (player._pHitPoints >> 6 > 0) {
@@ -1528,8 +1553,10 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 
 	if (&player == MyPlayer) {
 		ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
-		if (monster != nullptr)
+		if (monster != nullptr) {
 			oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
+			OnMonsterMissileLanded(player, *monster, dam);
+		}
 	}
 
 	if (player._pHitPoints >> 6 > 0) {
@@ -3224,9 +3251,12 @@ void AddRhino(Missile &missile, AddMissileParameter &parameter)
 	InitMissileAnimationFromMonster(missile, parameter.midir, monster, graphic);
 	if (IsAnyOf(monster.type().type, MT_NSNAKE, MT_RSNAKE, MT_BSNAKE, MT_GSNAKE))
 		missile._miAnimFrame = 7;
-	if (monster.isUnique()) {
+	// Any charger's light and tint, not only a unique's: a Luminous charger left its light at the start tile and a
+	// variant charged in vanilla colours (round 11 audit, v1.12.236). The draw path reads the caster's TRN itself.
+	if (monster.lightId != NO_LIGHT)
 		missile._mlid = monster.lightId;
-	}
+	if (!monster.isUnique() && monster.uniqueMonsterTRN != nullptr)
+		missile._miUniqTrans = 1;
 	PutMissile(missile);
 }
 
@@ -5545,7 +5575,7 @@ void ProcessRhino(Missile &missile)
 	monster.position.old = newPos;
 	monster.position.tile = newPos;
 	dMonster[newPos.x][newPos.y] = -(monst + 1);
-	if (monster.isUnique())
+	if (missile._mlid != NO_LIGHT)
 		ChangeLightXY(missile._mlid, newPos);
 	MoveMissilePos(missile);
 	PutMissile(missile);

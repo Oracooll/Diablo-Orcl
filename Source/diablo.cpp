@@ -107,6 +107,7 @@
 #include "panels/info_box.hpp"
 #include "panels/spell_book.hpp"
 #include "oracool/window_close.h"
+#include "oracool/telemetry.h" // TelemetryTick
 #include "panels/spell_list.hpp"
 #include "pfile.h"
 #include "plrmsg.h"
@@ -2417,6 +2418,7 @@ void GameLogic()
 		ProcessPlayers();
 	}
 	oracool::ProcessRift(); // the Guardian clock (everywhere), the guardian's arrival (in the rift), the gate's entry tile (in town)
+	oracool::TelemetryTick(); // the kill clocks count game ticks (round 11 audit)
 	if (leveltype != DTYPE_TOWN) {
 		gGameLogicStep = GameLogicStep::ProcessMonsters;
 		ProcessMonsters();

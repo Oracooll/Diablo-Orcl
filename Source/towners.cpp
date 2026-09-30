@@ -12,6 +12,8 @@
 #include "engine/random.hpp"
 #include "inv.h"
 #include "minitext.h"
+#include "multi.h"               // sgGameInitInfo - Celia's amulet by difficulty
+#include "oracool/area_level.h" // AreaLevel
 #include "stores.h"
 #include "utils/language.h"
 #include "utils/str_case.hpp"
@@ -795,7 +797,7 @@ void TalkToGirl(Player &player, Towner &girl)
 
 	if (quest._qactive != QUEST_DONE && RemoveInventoryItemById(player, IDI_THEODORE)) {
 		InitQTextMsg(TEXT_GIRL4);
-		CreateAmulet(girl.position, 13, false, false, true);
+		CreateAmulet(girl.position, oracool::AreaLevel(13, sgGameInitInfo.nDifficulty), false, false, true); // was 13 on every difficulty (round 11)
 		quest._qactive = QUEST_DONE;
 		UpdateGirlAnimAfterQuestComplete();
 		if (gbIsMultiplayer)

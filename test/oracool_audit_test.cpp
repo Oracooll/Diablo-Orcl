@@ -7879,6 +7879,12 @@ TEST(OracoolAudit, ImbuementShardsAreCappedPerItemAndRecorded)
 	unrequired._iMinStr = 0;
 	unrequired._iMinMag = 0;
 	unrequired._iMinDex = 0;
+	// A level is a requirement too (round 11 audit, v1.12.236): Ease takes 3 levels a shard, so an item asking only a
+	// level accepts it...
+	if (oracool::RequiredLevel(unrequired) > 1)
+		EXPECT_TRUE(CanReceiveShardKind(unrequired, ShardKind::Ease)) << "Ease was refused on an item that asks a level";
+	// ...and one asking nothing at all does not.
+	unrequired._iOracoolLevelFree = true;
 	EXPECT_FALSE(CanReceiveShardKind(unrequired, ShardKind::Ease)) << "Ease was offered to an item with no requirements";
 
 	// ---- what declines ----
@@ -16375,4 +16381,69 @@ TEST(OracoolPreview, DISABLED_ExportClassSkillCards)
 	std::cout << "exported " << rows << " skill rows and " << strips << " vanilla strips\n";
 	EXPECT_GT(rows, 0);
 	EXPECT_GT(strips, 0);
+}
+
+// Round 11 audit (v1.12.236). Charge's dash and cooldown ran on SDL_GetTicks: a pause or the Esc menu used them up and a
+// faster game speed shrank the cooldown. They count game ticks now - exactly 60 for the cooldown, 40 for the dash.
+TEST(OracoolAudit11, ChargeCooldownCountsGameTicks)
+{
+	oracool::ResetFuriousChargeForNewGame();
+	oracool::StartFuriousChargeCooldown();
+	oracool::StartFuriousChargeDash();
+	for (int tick = 0; tick < 39; tick++)
+		oracool::TickFuriousCharge();
+	EXPECT_TRUE(oracool::IsFuriousChargeDashing()) << "the dash ended before its 40 ticks";
+	oracool::TickFuriousCharge();
+	EXPECT_FALSE(oracool::IsFuriousChargeDashing()) << "the dash outlived its 40 ticks";
+	for (int tick = 40; tick < 59; tick++)
+		oracool::TickFuriousCharge();
+	EXPECT_TRUE(oracool::IsFuriousChargeOnCooldown());
+	EXPECT_GT(oracool::GetFuriousChargeCooldownProgress(), 0.9F);
+	oracool::TickFuriousCharge();
+	EXPECT_FALSE(oracool::IsFuriousChargeOnCooldown()) << "the cooldown outlived its 60 ticks";
+	oracool::ResetFuriousChargeForNewGame();
+}
+
+// Round 11 audit. The Mourning Token is "+18% to all resistances": it granted fire and lightning only, and its line
+// named the fire half alone.
+TEST(OracoolAudit11, MourningTokenGrantsAllFourResistances)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	oracool::ItemBonusTotals totals {};
+	oracool::ApplyCharmToTotals(Players[0], IDI_ORACOOL_CHARM_MOURNING, totals);
+	EXPECT_EQ(totals.fireResist, 18);
+	EXPECT_EQ(totals.lightningResist, 18);
+	EXPECT_EQ(totals.magicResist, 18);
+	EXPECT_EQ(totals.coldResist, 18);
+	EXPECT_NE(oracool::CharmEffectLine(Players[0], IDI_ORACOOL_CHARM_MOURNING).find("all resistances"), std::string::npos);
+}
+
+// Round 11 audit. Monster Variant Chance was clamped at 28, Torment's own rung: 100-300 were one value on Torment and
+// 150-300 one value on Nightmare and Hell. 200 now doubles the curve up to half the monsters.
+TEST(OracoolAudit11, VariantDialAbove100StillMoves)
+{
+	const int saved = *sgOptions.Oracool.monsterVariantChancePercent;
+	sgOptions.Oracool.monsterVariantChancePercent.SetValue(100);
+	const int normal100 = oracool::VariantPercentFor(DIFF_NORMAL);
+	const int torment100 = oracool::VariantPercentFor(DIFF_TORMENT);
+	sgOptions.Oracool.monsterVariantChancePercent.SetValue(200);
+	EXPECT_EQ(oracool::VariantPercentFor(DIFF_NORMAL), 2 * normal100);
+	EXPECT_GT(oracool::VariantPercentFor(DIFF_TORMENT), torment100) << "the dial does nothing on Torment";
+	sgOptions.Oracool.monsterVariantChancePercent.SetValue(300);
+	EXPECT_LE(oracool::VariantPercentFor(DIFF_TORMENT), 50) << "past half the floor the recolour is the default";
+	sgOptions.Oracool.monsterVariantChancePercent.SetValue(saved);
+}
+
+// Round 11 audit. The per-mille chance truncated: the Primal default of 1 gave its band-1 share (5%) as nothing.
+TEST(OracoolAudit11, PrimalDefaultIsNotRoundedToZero)
+{
+	int bandOneLevel = 0;
+	for (int level = 1; level <= 64 && bandOneLevel == 0; level++) {
+		if (oracool::QualityChancePerMille(OracoolItemTier::Primal, level, 100) == 50)
+			bandOneLevel = level;
+	}
+	ASSERT_NE(bandOneLevel, 0) << "no item level reads Primal's 5% band";
+	EXPECT_EQ(oracool::QualityChancePerMille(OracoolItemTier::Primal, bandOneLevel, 1), 1);
+	EXPECT_EQ(oracool::QualityChancePerMille(OracoolItemTier::Primal, 1, 1), 0) << "band 0 is still no Primal at all";
 }

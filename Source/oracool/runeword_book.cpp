@@ -327,6 +327,11 @@ std::vector<uint16_t> HeldRunes()
 	if (MyPlayer != nullptr) {
 		for (int i = 0; i < MyPlayer->_pNumInv; i++)
 			note(MyPlayer->InvList[i]);
+		// The extra backpack pages too, where crafting stock is kept (round 11 audit, v1.12.236).
+		for (int tab = 0; tab < Player::NumExtraInventoryTabs; tab++) {
+			for (int i = 0; i < MyPlayer->_pNumInvTab[tab]; i++)
+				note(MyPlayer->InvTabList[tab][i]);
+		}
 		for (const Item &item : MyPlayer->SpdList)
 			note(item);
 	}

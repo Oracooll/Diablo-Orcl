@@ -8,6 +8,7 @@
 
 #include "cursor.h"
 #include "diablo.h"
+#include "error.h" // InitDiabloMsg
 #include "engine/demomode.h"
 #include "gmenu.h"
 #include "inv.h"
@@ -343,10 +344,11 @@ void SaveOnExit()
 		// Said out loud rather than logged as success. MpqWriter::WriteFile keeps the previous
 		// record when a write fails, so what is on disk is the last good save - which is worth
 		// knowing before quitting on top of it.
-		LogEvent(fmt::format(fmt::runtime(_("SAVE FAILED - \"{:s}\" could not be written. "
-		                                    "Your last successful save is intact.")),
-		             FailedSaveFileName()),
-		    UiFlags::ColorRed);
+		const std::string failed = fmt::format(fmt::runtime(_("SAVE FAILED - \"{:s}\" could not be written. "
+		                                                      "Your last successful save is intact.")),
+		    FailedSaveFileName());
+		LogEvent(failed, UiFlags::ColorRed);
+		InitDiabloMsg(failed); // on screen too: with the Event Log off the log was its only channel (round 11 audit)
 		return;
 	}
 	NotifyGameSaved();
@@ -408,10 +410,11 @@ void ProcessAutoSave()
 		// game cannot save; they do not need to be told sixty times a second, and a log that
 		// scrolls itself is a log nobody reads.
 		if (FailedSaveAttempts == 1) {
-			LogEvent(fmt::format(fmt::runtime(_("AUTO SAVE FAILED - \"{:s}\" could not be written. "
-			                                    "Your last successful save is intact.")),
-			             FailedSaveFileName()),
-			    UiFlags::ColorRed);
+			const std::string failed = fmt::format(fmt::runtime(_("AUTO SAVE FAILED - \"{:s}\" could not be written. "
+			                                                      "Your last successful save is intact.")),
+			    FailedSaveFileName());
+			LogEvent(failed, UiFlags::ColorRed);
+			InitDiabloMsg(failed); // on screen too (round 11 audit)
 		}
 		return;
 	}

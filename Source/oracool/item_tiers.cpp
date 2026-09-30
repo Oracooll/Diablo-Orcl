@@ -208,8 +208,9 @@ int QualityChancePerMille(OracoolItemTier quality, int itemLevel, int configured
 	if (quality == OracoolItemTier::Rare)
 		scale *= RareDropFactor;
 
-	// configured% x scale% -> per mille: (c/100) * (s/100) * 1000 = c * s / 10.
-	return std::min(configuredPercent * scale / 10, 1000);
+	// configured% x scale% -> per mille: (c/100) * (s/100) * 1000 = c * s / 10, rounded to nearest - truncated, the
+	// Primal default of 1 gave band 1 its designed half a per mille as nothing (round 11 audit, v1.12.236).
+	return std::min((configuredPercent * scale + 5) / 10, 1000);
 }
 
 int VendorItemLevel(int vendorLevel)

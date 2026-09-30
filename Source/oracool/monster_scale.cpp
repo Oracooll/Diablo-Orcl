@@ -146,6 +146,10 @@ MonsterSize GetMonsterSize(const Monster &monster)
 	// champion beside a giant of its own kind that reads almost the same.
 	if (monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None)
 		return MonsterSize::Normal;
+	// Diablo (and the other Never types) and the hero's own golems and army keep their size, as VariantOf keeps them
+	// plain: Diablo stood at 75% or 120% about one game in eight (round 11 audit, v1.12.236).
+	if (monster.isPlayerMinion() || monster.data().availability == MonsterAvailability::Never)
+		return MonsterSize::Normal;
 	return OrdinaryMonsterSize(glSeedTbl[currlevel], monster.levelType, monster.getId());
 }
 

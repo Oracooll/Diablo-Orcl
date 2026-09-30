@@ -824,9 +824,9 @@ struct OracoolOptions : OptionCategoryBase {
 	 * the whole curve.
 	 *
 	 * Same 100..300 steps as its two siblings, and 0 as well - a variant is a cosmetic-plus-one-trait
-	 * layer, and unlike density it is coherent to want none at all. The result is clamped so 300 on
-	 * Torment cannot put the roster past the point its own header warns about, where the recolour
-	 * becomes the default and the ordinary monster the surprise.
+	 * layer, and unlike density it is coherent to want none at all. The result is clamped at half
+	 * the floor so 300 on Torment cannot put the roster past the point its own header warns about,
+	 * where the recolour becomes the default and the ordinary monster the surprise.
 	 */
 	OptionEntryInt<int> monsterVariantChancePercent;
 	OptionEntryBoolean unlockAllTownEntrances;

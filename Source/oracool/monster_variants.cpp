@@ -30,12 +30,13 @@ constexpr int VariantPercent = 15;
 /**
  * @brief The ceiling the INI dial cannot push past.
  *
- * The Torment rung, which is where the ladder deliberately stops. A dial that could take a floor to
- * 84% recoloured would not be a stronger version of this feature - it would be a different one, in
- * which the ordinary monster is the surprise. Stated as its own constant so the ladder and its
- * ceiling cannot drift apart.
+ * Half the floor. A dial that could take a floor to 84% recoloured would not be a stronger version
+ * of this feature - it would be a different one, in which the ordinary monster is the surprise.
+ *
+ * It was 28, the Torment rung itself, which left the dial dead above 100 on Torment and made 150-300 one value on
+ * Nightmare and Hell (round 11 audit, v1.12.236): the settings text promises that 200 doubles the curve.
  */
-constexpr int MaxVariantPercent = 28;
+constexpr int MaxVariantPercent = 50;
 
 /** @brief Life and damage adjustments, as percentages, for the two that trade one for the other. */
 constexpr int HollowLifePercent = 135;
@@ -190,9 +191,8 @@ int VariantPercentFor(_difficulty difficulty)
 	// Monster Variant Chance (INI, 2026-08-31) scales the LADDER rather than replacing it, so the
 	// per-difficulty shape above survives the dial - see the option's own comment in options.h.
 	const int scaled = BaseVariantPercentFor(difficulty) * *sgOptions.Oracool.monsterVariantChancePercent / 100;
-	// Clamped at the Torment ladder's own ceiling. Without this, 300 puts Torment at 84% and the
-	// recolour stops meaning anything - which is the exact failure the header warns about, and the
-	// reason the ladder stops at 28 rather than climbing further on its own.
+	// Clamped at half the floor. Without this, 300 puts Torment at 84% and the recolour stops meaning
+	// anything - which is the exact failure the header warns about.
 	return std::clamp(scaled, 0, MaxVariantPercent);
 }
 

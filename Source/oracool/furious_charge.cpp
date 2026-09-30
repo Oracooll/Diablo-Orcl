@@ -17,14 +17,14 @@ namespace {
 // clicking elsewhere mid-charge) fails to call StopFuriousChargeDash - more than enough time to
 // cross the screen at double speed, but short enough that a missed cleanup call is barely
 // noticeable rather than a lasting speed leak.
-constexpr uint32_t MaxDashDurationMs = 2000;
-constexpr uint32_t CooldownDurationMs = 3000;
+//
+// Game ticks (20 a second), not SDL_GetTicks (round 11 audit, v1.12.236): on the wall clock a pause, the Esc menu or
+// a level load used up the dash and the cooldown, and at a faster game speed the cooldown shrank and the dash grew.
+constexpr int MaxDashDurationTicks = 40;  // 2 s
+constexpr int CooldownDurationTicks = 60; // 3 s
 
-bool DashActive = false;
-uint32_t DashStartTime = 0;
-
-bool CooldownActive = false;
-uint32_t CooldownStartTime = 0;
+int DashTicksLeft = 0;
+int CooldownTicksLeft = 0;
 
 } // namespace
 
@@ -77,59 +77,49 @@ bool IsChargeBlowArmed()
 
 void StartFuriousChargeDash()
 {
-	DashActive = true;
-	DashStartTime = SDL_GetTicks();
+	DashTicksLeft = MaxDashDurationTicks;
 }
 
 void StopFuriousChargeDash()
 {
-	DashActive = false;
+	DashTicksLeft = 0;
 }
 
 bool IsFuriousChargeDashing()
 {
-	if (!DashActive)
-		return false;
-	if (SDL_GetTicks() - DashStartTime >= MaxDashDurationMs) {
-		DashActive = false;
-		return false;
-	}
-	return true;
+	return DashTicksLeft > 0;
 }
 
 void StartFuriousChargeCooldown()
 {
-	CooldownActive = true;
-	CooldownStartTime = SDL_GetTicks();
+	CooldownTicksLeft = CooldownDurationTicks;
 }
 
 bool IsFuriousChargeOnCooldown()
 {
-	if (!CooldownActive)
-		return false;
-	if (SDL_GetTicks() - CooldownStartTime >= CooldownDurationMs) {
-		CooldownActive = false;
-		return false;
-	}
-	return true;
+	return CooldownTicksLeft > 0;
 }
 
 float GetFuriousChargeCooldownProgress()
 {
 	if (!IsFuriousChargeOnCooldown())
 		return 1.0F;
-	const uint32_t elapsed = SDL_GetTicks() - CooldownStartTime;
-	return static_cast<float>(elapsed) / static_cast<float>(CooldownDurationMs);
+	return 1.0F - static_cast<float>(CooldownTicksLeft) / static_cast<float>(CooldownDurationTicks);
+}
+
+void TickFuriousCharge()
+{
+	if (DashTicksLeft > 0)
+		DashTicksLeft--;
+	if (CooldownTicksLeft > 0)
+		CooldownTicksLeft--;
 }
 
 void ResetFuriousChargeForNewGame()
 {
-	DashActive = false;
-	CooldownActive = false;
+	DashTicksLeft = 0;
+	CooldownTicksLeft = 0;
 	ChargeBlowArmed = false;
-	// The start times are left alone deliberately: both readers gate on their Active flag first, so
-	// a stale timestamp behind a cleared flag is unreachable, and zeroing them would make the next
-	// SDL_GetTicks() subtraction look like an enormous elapsed time to anyone reading in a debugger.
 }
 
 std::string FuriousChargeFacts(int rank)
@@ -141,8 +131,8 @@ std::string FuriousChargeFacts(int rank)
 		out += s;
 	};
 	line(fmt::format(fmt::runtime(_("Arriving blow: +{:d}% damage")), ChargeBlowPercentAt(rank)));
-	line(fmt::format(fmt::runtime(_("Dash: up to {:.1f} s")), MaxDashDurationMs / 1000.0));
-	line(fmt::format(fmt::runtime(_("Cooldown: {:.1f} s")), CooldownDurationMs / 1000.0));
+	line(fmt::format(fmt::runtime(_("Dash: up to {:.1f} s")), MaxDashDurationTicks / 20.0)); // 20 game ticks a second
+	line(fmt::format(fmt::runtime(_("Cooldown: {:.1f} s")), CooldownDurationTicks / 20.0));
 	return out;
 }
 

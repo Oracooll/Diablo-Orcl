@@ -12,6 +12,7 @@
 #include "items.h" // ItemSpecialEffectHf - the armour-against-demons and -undead bonuses
 #include "monster.h"
 #include "multi.h" // sgGameInitInfo - a monster's level depends on the difficulty
+#include "oracool/lesser_uniques.h" // GetMonsterDisplayName
 #include "oracool/paladin_melee.h" // Zeal, which the sheet's To hit already counts
 #include "oracool/passives.h"      // Dodge - a blow that lands can still slip
 #include "oracool/rfa12_actives.h" // Mantra of Evasion, the same
@@ -48,7 +49,7 @@ Target LastTarget;
 /** @brief "Fallen One", or for a unique "Bishibosh (Fallen One)" - the name the player saw and the kind it is. */
 std::string MonsterLabel(const Monster &monster)
 {
-	std::string label { monster.name() };
+	std::string label = GetMonsterDisplayName(monster); // a champion's own name, not the one it borrowed (round 11)
 	if (monster.isUnique())
 		label += " (" + std::string(pgettext("monster", monster.data().name)) + ")";
 	return label;

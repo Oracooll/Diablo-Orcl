@@ -193,6 +193,8 @@ Item gambleitems[GAMBLE_ITEMS];
  */
 bool IsRefreshUntilPromptOpen;
 TextInputCursorState RefreshUntilPromptCursor;
+/** @brief The names as they were when the prompt opened, restored by Escape (round 11 audit, v1.12.236). */
+std::string RefreshUntilNamesBeforeEdit;
 std::optional<TextInputState> RefreshUntilPromptInputState;
 
 namespace {
@@ -2519,6 +2521,7 @@ void StartRefreshUntilPrompt()
 	SDL_SetTextInputRect(&rect);
 
 	IsRefreshUntilPromptOpen = true;
+	RefreshUntilNamesBeforeEdit = sgOptions.Oracool.refreshUntilItemNames;
 	RefreshUntilPromptInputState.emplace(TextInputState::Options {
 	    /*value=*/sgOptions.Oracool.refreshUntilItemNames,
 	    /*cursor=*/&RefreshUntilPromptCursor,
@@ -4011,6 +4014,8 @@ void RefreshUntilPromptKeyPress(SDL_Keycode vkey)
 	}
 	case SDLK_ESCAPE:
 		CloseRefreshUntilPrompt();
+		// Escape cancels: the edit was made in place, so what was typed stayed and reached the ini at the next save.
+		CopyUtf8(sgOptions.Oracool.refreshUntilItemNames, RefreshUntilNamesBeforeEdit, sizeof(sgOptions.Oracool.refreshUntilItemNames));
 		break;
 	default:
 		break;

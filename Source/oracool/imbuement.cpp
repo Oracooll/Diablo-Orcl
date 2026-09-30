@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 
 #include "items.h"
+#include "oracool/level_requirement.h" // RequiredLevel - Ease cuts the level too
 #include "oracool/stat_sheet.h"
 #include "player.h"
 #include "utils/language.h"
@@ -58,9 +59,11 @@ bool IsGear(const Item &item)
 bool EaseHasWork(const Item &item)
 {
 	const int cut = ShardRequirementReduction(item);
+	// The level counts: Ease takes 3 levels a shard too, so an item asking only a level was refused (round 11 audit).
 	return (item._iMinStr > 0 && item._iMinStr - cut > 0)
 	    || (item._iMinMag > 0 && item._iMinMag - cut > 0)
-	    || (item._iMinDex > 0 && item._iMinDex - cut > 0);
+	    || (item._iMinDex > 0 && item._iMinDex - cut > 0)
+	    || RequiredLevel(item) > 1;
 }
 
 /** @p percent of @p value, rounded away from zero so a small affix still moves. */
@@ -167,7 +170,12 @@ bool TryImbue(const Player & /*player*/, Item &target, const Item &held)
 		// Durability is an item field, not a sheet total, so it moves now - and the current
 		// durability moves with it, so the shard is felt at once rather than at the next repair.
 		target._iMaxDur += TemperingStep;
-		target._iDurability += TemperingStep;
+		// Not on an ethereal item, which no hand repairs - the same rule that refused the two durability oils (round 11
+		// audit, v1.12.236). And a broken item the shard mends counts again.
+		if (!target._iOracoolEthereal)
+			target._iDurability += TemperingStep;
+		if (target._iDurability > 0)
+			target._iOracoolBroken = false;
 	}
 	return true;
 }
