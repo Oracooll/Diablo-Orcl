@@ -2547,7 +2547,9 @@ void RunControl(Control control)
 			else
 				player.RemoveInvItem(i, false);
 			CalcPlrInv(player, true);
-			CheckPassiveMilestones(player); // an item imbued to its cap here counts, as in the pack (round 40 audit)
+			// The bench's own item, which the pack scan cannot see (round 41 audit: round 40's call credited nothing).
+			if (Bench._iOracoolImbueCount >= Item::MaxOracoolImbuements)
+				ClaimMilestone(player, Milestone::FillOrbCap);
 			SetBoard(StrCat(name, " ", _("worked in.")));
 			if (!PlayUiEventSound(UiEventSound::ShardImbue))
 				PlayUiSelectSound();

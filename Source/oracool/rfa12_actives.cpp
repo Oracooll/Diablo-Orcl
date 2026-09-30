@@ -1223,11 +1223,13 @@ Range BoneRange(const Player &player, Range d)
 }
 
 /** @brief A bone skill's blow: magic, through Marrow - and Serration (+5% a tile flown, 50% at most) and Rigor Mortis (a second's chill). */
-void BoneStrike(Player &player, Monster &monster, int damage)
+void BoneStrike(Player &player, Monster &monster, int damage, std::optional<Point> flewFrom = std::nullopt)
 {
 	int percent = MarrowPercent(player);
-	if (PassiveActive(player, ClassTreeSkill::Serration))
-		percent += std::min(SerrationPerTile * player.position.tile.WalkingDistance(monster.position.tile), SerrationCap);
+	// The tiles the bone FLEW (round 41 audit): the hero's distance gave Bone Spikes, set at the cursor, up to +50%, and the
+	// walls and the prison grew as he walked away from them.
+	if (flewFrom && PassiveActive(player, ClassTreeSkill::Serration))
+		percent += std::min(SerrationPerTile * flewFrom->WalkingDistance(monster.position.tile), SerrationCap);
 	Strike(player, monster, DamageType::Magic, damage * percent / 100);
 	if ((monster.hitPoints >> 6) > 0 && PassiveActive(player, ClassTreeSkill::RigorMortis))
 		ChillMonster(monster, RigorMortisTicks);
@@ -1294,7 +1296,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	// Funeral Star and the rest landed on the next room's pack, and their ticks, which see from the field, burned it).
 	if (CastSightFrom && target != here && !LineClearMissile(here, target)
 	    && IsAnyOf(spell, SpellID::Meteor, SpellID::FuneralStar, SpellID::AncestralCourt, SpellID::FrozenSentinel, SpellID::LightningRod,
-	        SpellID::EmberMine, SpellID::StormCrucible, SpellID::BrittleGround)) {
+	        SpellID::EmberMine, SpellID::StormCrucible, SpellID::BrittleGround, SpellID::ArmyOfTheDead, // the Army too (round 41)
+	        SpellID::FaradayRing, SpellID::FurnaceMouth, SpellID::Firestorm, SpellID::TuningFork)) { // and these (round 41)
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
@@ -1445,8 +1448,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			any = true;
 		}
 		// RfA-27 batch 53: the cone of frost mist through the three tiles ahead.
-		if (any)
-			ArtFacing(player, MissileGraphicID::ChillTouch, here, target == here ? player._pdir : GetDirection(here, target));
+		if (any) {
+			// At 125% (the Sorcerer Skill Cards page, 2026-09-30), with its Impact cue on what it chilled.
+			if (Missile *cone = ArtFacing(player, MissileGraphicID::ChillTouch, here, target == here ? player._pdir : GetDirection(here, target)); cone != nullptr)
+				ScaleMissile(*cone, 125);
+			Impact(player, spell);
+		}
 		return any;
 	}
 	case SpellID::IceNeedle: {
@@ -1473,6 +1480,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		marks.frostbitePercent = EffectPercent(spell, r);
 		ChillMonster(*m, SlowTicks(spell, r));
 		AddColdHitFlash(m->position.tile, static_cast<int>(player.getId())); // a chill with no art of its own
+		Impact(player, spell); // the Sorcerer Skill Cards page (2026-09-30)
 		return true;
 	}
 	case SpellID::IceLance: {
@@ -1522,7 +1530,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::AbsoluteZero: {
 		const Range d = SkillDamage(spell, r);
+		bool caught = false;
 		for (Monster *m : MonstersWithin(here, ReachTiles(spell, r))) {
+			caught = true;
 			Strike(player, *m, DamageType::Cold, Rolled(d));
 			if ((m->hitPoints >> 6) <= 0)
 				continue;
@@ -1531,8 +1541,13 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			else
 				FreezeMonster(*m, SlowTicks(spell, r));
 		}
-		if (Art(player, MissileGraphicID::AbsoluteZero, here) == nullptr) // RfA-27 batch 55; the ring without it
-			Ring(player, here);
+		// At 200% (the Sorcerer Skill Cards page, 2026-09-30), with its Impact cue when it caught anything.
+		if (Missile *burst = Art(player, MissileGraphicID::AbsoluteZero, here); burst != nullptr) // RfA-27 batch 55
+			ScaleMissile(*burst, 200);
+		else
+			Ring(player, here); // the ring without it
+		if (caught)
+			Impact(player, spell);
 		return true;
 	}
 	// ---------------- Sorceress: lightning ----------------
@@ -1603,6 +1618,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::RideTheLightning: {
+		if (target == here)
+			return false; // no line to fly (round 41 audit: she flew south)
 		// Down the one line she strikes, to its wall (round 40 audit: she flew straight to the cursor, through walls, while the
 		// strike walked an 8-way ray - monsters on her path went unhit and others off it were struck).
 		const Point dst = LineEnd(here, target, ReachTiles(spell, r));
@@ -2214,7 +2231,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Monster *m = FindMonsterAtPosition(tile);
 			if (m == nullptr || !Hittable(*m) || std::find(struck.begin(), struck.end(), m) != struck.end())
 				continue; // a walking monster holds two fan tiles: one tooth (round 5 audit)
-			BoneStrike(player, *m, Rolled(d));
+			BoneStrike(player, *m, Rolled(d), here); // flown from the hero (round 41)
 			struck.push_back(m);
 			any = true;
 		}
@@ -2225,7 +2242,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (line.size() > static_cast<size_t>(TeethDownTheLine(r)))
 			line.resize(static_cast<size_t>(TeethDownTheLine(r)));
 		for (Monster *m : line) {
-			BoneStrike(player, *m, Rolled(d));
+			BoneStrike(player, *m, Rolled(d), here); // flown from the hero (round 41)
 			any = true;
 		}
 		// The fan itself (batch 38): a tooth to each arc tile and one down the line.
@@ -2265,13 +2282,14 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			line.resize(static_cast<size_t>(BoneSplinterTargets));
 		const Range d = SkillDamage(spell, r);
 		for (Monster *m : line)
-			BoneStrike(player, *m, Rolled(d));
+			BoneStrike(player, *m, Rolled(d), here); // flown from the hero (round 41)
 		for (int k = 0; k < 3; k++)
 			Bolt(player, MissileID::BoneToothBolt, Clamped(here, target, 2 + k));
 		return !line.empty();
 	}
 	case SpellID::Blight: {
-		const Point pool = Clamped(here, target, 8);
+		// The pool where the bolt lands, short of a wall (round 41 audit: it was laid past the wall the bolt stopped at).
+		const Point pool = LineEnd(here, target, 8);
 		Field *f = NewField(player, spell, pool, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
 		ImpactOnLanding(player, Bolt(player, MissileID::PoisonBoltFlight, pool), spell); // RfA-27: the splash as the bolt lands
@@ -2326,7 +2344,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		const Range d = SkillDamage(spell, r);
 		for (Monster *m : line)
-			BoneStrike(player, *m, Rolled(d));
+			BoneStrike(player, *m, Rolled(d), here); // flown from the hero (round 41)
 		// Drawn down the line the strike runs, to its wall, not at the exact cursor (round 37 audit).
 		ImpactOnLanding(player, Bolt(player, MissileID::BoneSpearBolt, LineEnd(here, target, ReachTiles(spell, r))), spell); // RfA-27
 		if (!MissileArtLoaded(MissileGraphicID::BoneSpear))
@@ -2511,8 +2529,10 @@ void TickField(Player &player, Field &field)
 	case SpellID::FrozenSentinel:
 		if (field.clock % FrozenSentinelPeriod == 0) {
 			if (Monster *m = NearestTo(field.tile, ReachTiles(field.spell, r)); m != nullptr) {
-				AddMissile(field.tile, m->position.tile, GetDirection(field.tile, m->position.tile), MissileID::IceBolt,
+				Missile *bolt = AddMissile(field.tile, m->position.tile, GetDirection(field.tile, m->position.tile), MissileID::IceBolt,
 				    TARGET_MONSTERS, static_cast<int>(player.getId()), 0, r);
+				if (bolt != nullptr)
+					bolt->sentinelBolt = true; // it sounds the sentinel's Impact cue where it lands (2026-09-30)
 			}
 		}
 		break;
@@ -2523,6 +2543,7 @@ void TickField(Player &player, Field &field)
 				field.ticksLeft = 0;
 				break;
 			}
+			bool struckThisStep = false;
 			for (const Point tile : { field.tile, field.tile + Left(Left(field.dir)), field.tile + Right(Right(field.dir)) }) {
 				Monster *m = InDungeonBounds(tile) ? FindMonsterAtPosition(tile) : nullptr;
 				if (m == nullptr || !Hittable(*m) || MarksOf(*m).whiteoutStamp == field.stamp)
@@ -2531,7 +2552,10 @@ void TickField(Player &player, Field &field)
 				Strike(player, *m, DamageType::Cold, Rolled(SkillDamage(field.spell, r)));
 				if ((m->hitPoints >> 6) > 0)
 					ChillMonster(*m, SlowTicks(field.spell, r));
+				struckThisStep = true;
 			}
+			if (struckThisStep)
+				Impact(player, field.spell); // once a step that struck anything (the Sorcerer Skill Cards page, 2026-09-30)
 			if (!MissileArtLoaded(MissileGraphicID::WhiteoutWall)) // RfA-27: the wall rolls on its own (CastOnce)
 				Ring(player, field.tile);
 		}

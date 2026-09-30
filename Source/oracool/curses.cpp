@@ -373,6 +373,8 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 		// Nor Dim Vision: a blinded boss loses the hero at two tiles, and never fights back (round 21 audit).
 		if (IsAnyOf(kind, CurseKind::Confuse, CurseKind::Frailty, CurseKind::DimVision) && FightsAsUnique(monster))
 			continue;
+		if (kind == CurseKind::Bane && monster.isImmune(MissileID::Null, DamageType::Acid))
+			continue; // it rots nothing there (round 41 audit)
 		// In sight of the cast, as every area skill since round 5 (round 8 audit).
 		if (!single && !LineClearMissile(target, monster.position.tile))
 			continue;
@@ -440,7 +442,9 @@ void OnCursedMonsterDealtBlow(Monster &monster, int damage)
 
 void OnCursedMonsterStruck(const Monster &monster, Player &player, Monster *minion, int damage)
 {
-	if (!Live(monster) || Of(monster).kind != CurseKind::LifeTap || damage <= 0)
+	// The curse, not the life (round 41 audit): the killing blow landed after the hit points reached 0 on most paths, and
+	// Life Tap healed nothing for it. ProcessCursesTick releases it the next tick.
+	if (Of(monster).kind != CurseKind::LifeTap || Of(monster).ticks <= 0 || damage <= 0)
 		return;
 	// In 64 bits: a huge hit's share wrapped negative and drained the Necromancer it was meant to heal (round 27 audit).
 	const int64_t share = PercentOfSat(damage, LifeTapPercent(Of(monster).rank));
@@ -520,7 +524,9 @@ void OnCursedMonsterDeath(const Monster &monster)
 			}
 		}
 	}
-	Release(monster, curse);
+	// Not Life Tap yet: the killing blow's heal reads it after this, and it has nothing to undo (round 41 audit).
+	if (curse.kind != CurseKind::LifeTap)
+		Release(monster, curse);
 }
 
 void ProcessCursesTick(Player &player)

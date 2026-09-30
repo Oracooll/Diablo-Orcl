@@ -47,7 +47,9 @@ void RecordCorpse(const Monster &monster);
 /** @brief The nearest usable corpse within @p radius of @p tile, TAKEN: gone from the table and from the floor. */
 std::optional<Corpse> TakeCorpseNear(Point tile, int radius, bool forRevive);
 /** @brief As TakeCorpseNear, only a corpse in a clear line from @p seenFrom (round 38: the explosions). */
-std::optional<Corpse> TakeCorpseNearSeen(Point tile, int radius, Point seenFrom);
+std::optional<Corpse> TakeCorpseNearSeen(Point tile, int radius, Point seenFrom, bool forRevive = false);
+/** @brief Whether a corpse in a clear line from @p seenFrom lies within @p radius of @p tile (round 41: Raise and Revive). */
+bool CorpseNearSeen(Point tile, int radius, Point seenFrom, bool forRevive);
 /** @brief Whether one is there, without taking it - for the cursor and the cast's fizzle. */
 bool CorpseNear(Point tile, int radius, bool forRevive);
 int CorpseCount();

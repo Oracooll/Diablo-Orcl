@@ -208,6 +208,8 @@ struct Missile {
 	 * saved, like the fields above; minions are withdrawn before a level is saved.
 	 */
 	bool sourceMinion = false;
+	/** @brief A Frozen Sentinel's bolt: it sounds the sentinel's Impact cue where it lands (2026-09-30). */
+	bool sentinelBolt = false;
 
 	/** @brief Oracool: the caster's Monster::spawnSerial at launch - see liveSourceMonster. Not saved. */
 	uint32_t sourceSpawnSerial = 0;

@@ -65,6 +65,9 @@ int FrontRepeats = 0;
 Point WindowTopLeftBelowMiniMap()
 {
 	const Rectangle miniMap = GetMiniMapScreenRect();
+	// At the map's own top when the mini-map is off, as the rift bar since round 27 (round 41 audit: it hung under a gap).
+	if (!*sgOptions.Oracool.miniMapEnabled)
+		return miniMap.position;
 	return { miniMap.position.x, miniMap.position.y + miniMap.size.height + 1 };
 }
 

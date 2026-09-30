@@ -4018,6 +4018,7 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	};
 	std::optional<OilWork> oil;
 	const int maxDurBefore = item._iMaxDur;
+	int probeMaxDur = 0; // the rebuilt maximum with the item's own affixes: 255 there means an affix made it indestructible
 	if (!MeasuringOilWork) {
 		Item probe = item;
 		std::array<OracoolAffix, Item::MaxOracoolAffixes> own {};
@@ -4027,6 +4028,7 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 		const bool measured = RebuildOracoolItemWithAffixes(player, probe, own.data(), ownCount);
 		MeasuringOilWork = false;
 		if (measured) {
+			probeMaxDur = probe._iMaxDur;
 			oil = OilWork { item._iPLToHit - probe._iPLToHit, item._iMinDam - probe._iMinDam, item._iMaxDam - probe._iMaxDam,
 				item._iMinStr - probe._iMinStr, item._iMinMag - probe._iMinMag, item._iMinDex - probe._iMinDex,
 				item._iAC - probe._iAC, item._iMaxDur - probe._iMaxDur };
@@ -4179,7 +4181,8 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	}
 	// Oil of Permanence: the maximum was the indestructible value itself, which the sum above cannot reach (round 40 audit:
 	// it came back 254, Zod's stamp shape with no Zod, and Make Ethereal then halved it).
-	if (maxDurBefore == DUR_INDESTRUCTIBLE && item._iMaxDur > 0) {
+	// Only when the 255 was not an affix's (round 41 audit: an "of the ages" row reworked away stayed indestructible).
+	if (oil && maxDurBefore == DUR_INDESTRUCTIBLE && probeMaxDur != DUR_INDESTRUCTIBLE && item._iMaxDur > 0) {
 		item._iMaxDur = DUR_INDESTRUCTIBLE; // the durability below then stays 255 too
 	}
 	// The wear the item had, not a free repair (sweep, 2026-09-25): GetItemAttrs set durability to the base's

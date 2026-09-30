@@ -86,7 +86,7 @@ bool IsSalvageable(const Item &item)
 	// treating them as first-class equipment everywhere except here.
 	// A quest's own reward is never salvage (round 40 audit: a Uniques charm turned Arkaine's Valor and the Butcher's Cleaver
 	// into Encrustments on pickup). Named, not by IDROP_NEVER: the fork's set carriers are never-drop bases too.
-	for (const _item_indexes quest : { IDI_CLEAVER, IDI_HARCREST, IDI_STEELVEIL, IDI_ARMOFVAL, IDI_GRISWOLD, IDI_LGTFORGE })
+	for (const _item_indexes quest : { IDI_CLEAVER, IDI_SKCROWN, IDI_HARCREST, IDI_STEELVEIL, IDI_ARMOFVAL, IDI_GRISWOLD, IDI_LGTFORGE })
 		if (item.IDidx == quest)
 			return false;
 	if (item._iLoc == ILOC_RING || item._iLoc == ILOC_AMULET)

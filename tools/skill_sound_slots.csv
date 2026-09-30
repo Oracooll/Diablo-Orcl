@@ -534,3 +534,9 @@ Warmth,Loop,sorcerer,fire-spells,Warmth
 Warmth,Start,sorcerer,fire-spells,Warmth
 Warmth,Stop,sorcerer,fire-spells,Warmth
 Whiteout,Cast,sorcerer,cold-spells,Whiteout
+AbsoluteZero,Impact,sorcerer,cold-spells,Absolute Zero
+ChillTouch,Impact,sorcerer,cold-spells,Chill Touch
+Frostbite,Impact,sorcerer,cold-spells,Frostbite
+FrozenSentinel,Impact,sorcerer,cold-spells,Frozen Sentinel
+ShiverArmor,Impact,sorcerer,cold-spells,Shiver Armor
+Whiteout,Impact,sorcerer,cold-spells,Whiteout

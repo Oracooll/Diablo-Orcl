@@ -230,11 +230,12 @@ bool RaiseFromCorpse(Player &player, Point target, int rank, bool mage)
 	// the haste and the effect wait for the body.
 	const MinionSpec spec = SkeletonSpec(player, rank, mage);
 	// A free record too, as Revive asks: dying bodies hold theirs, and the corpse was eaten for a cast that fizzled (round 33).
-	if (!CorpseNear(target, CorpseReach, /*forRevive=*/false) || !CanAddMinionBody(spec.type) || !MinionRecordFree()) {
+	// A corpse he can see (round 41 audit: one behind a wall was eaten and the skeleton stood in the other room).
+	if (!CorpseNearSeen(target, CorpseReach, player.position.tile, /*forRevive=*/false) || !CanAddMinionBody(spec.type) || !MinionRecordFree()) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
-	const std::optional<Corpse> corpse = TakeCorpseNear(target, CorpseReach, /*forRevive=*/false);
+	const std::optional<Corpse> corpse = TakeCorpseNearSeen(target, CorpseReach, player.position.tile, /*forRevive=*/false);
 	if (!corpse) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
@@ -260,7 +261,7 @@ bool Revive(Player &player, Point target, int rank)
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
-	const std::optional<Corpse> corpse = TakeCorpseNear(target, CorpseReach, /*forRevive=*/true);
+	const std::optional<Corpse> corpse = TakeCorpseNearSeen(target, CorpseReach, player.position.tile, /*forRevive=*/true); // seen (round 41)
 	if (!corpse) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;

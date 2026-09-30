@@ -369,6 +369,11 @@ void OnColdArmourStruckInMelee(Player &player, Monster &monster)
 			M_StartKill(monster, player);
 		else
 			M_StartHit(monster, player, dam);
+		// Its Impact cue on the striker it answers (the Sorcerer Skill Cards page, 2026-09-30).
+		if (&player == MyPlayer) {
+			if (const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, SpellID::ShiverArmor); row != ClassTreeSkill::None)
+				PlaySkillSound(row, SkillSoundEvent::Impact);
+		}
 	} break;
 	case SpellID::ChillingArmor:
 		ChillMonster(monster, ChillTicksFor(state.level));

@@ -695,6 +695,12 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 				if (row != oracool::ClassTreeSkill::None)
 					oracool::PlaySkillSound(row, oracool::SkillSoundEvent::Impact);
 			}
+			// A Frozen Sentinel's bolt sounds the sentinel's Impact cue (2026-09-30, the Sorcerer Skill Cards page).
+			if (isMonsterHit && missile.sentinelBolt && missile.sourcePlayer() == MyPlayer) {
+				const oracool::ClassTreeSkill row = oracool::ClassTreeSkillForSpell(MyPlayer->_pClass, SpellID::FrozenSentinel);
+				if (row != oracool::ClassTreeSkill::None)
+					oracool::PlaySkillSound(row, oracool::SkillSoundEvent::Impact);
+			}
 			// A thrown weapon sounds Weapon Throw's Impact cue where it lands (2026-09-29, the Barbarian Skill Cards page).
 			if (isMonsterHit && missile._mitype == MissileID::Arrow && IsAnyOf(missile._miAnimType, MissileGraphicID::ThrownAxe, MissileGraphicID::ThrownSword)
 			    && &Players[missile._misource] == MyPlayer) {

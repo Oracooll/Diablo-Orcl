@@ -935,8 +935,16 @@ void CheckRportal()
 
 void CheckCursMove()
 {
-	if (IsItemLabelHighlighted())
+	if (IsItemLabelHighlighted()) {
+		// The label is all the cursor is on (round 41 audit): last frame's portal, towner, object and trigger hover stayed,
+		// and a pickup click beside the Rift Monument walked the hero into the rift - or talked to the towner under it.
+		pcursmonst = -1;
+		pcursplr = -1;
+		ObjectUnderCursor = nullptr;
+		trigflag = false;
+		oracool::SetRiftPortalHovered(false);
 		return;
+	}
 
 	int sx = MousePosition.x;
 	int sy = MousePosition.y;

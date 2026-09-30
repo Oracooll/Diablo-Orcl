@@ -143,6 +143,134 @@
   "barbarian.Whirlwind.Impact": {
    "path": "sfx\\items\\invaxe.wav",
    "why": "the Barbarian Skill Cards page: Axe (inventory)"
+  },
+  "sorcerer.AbsoluteZero.Cast": {
+   "path": "sfx\\misc\\nestxpld.wav",
+   "why": "the Sorcerer Skill Cards page: Explosion (Hellfire)"
+  },
+  "sorcerer.AbsoluteZero.Impact": {
+   "path": "sfx\\items\\barlfire.wav",
+   "why": "the Sorcerer Skill Cards page: Fire barrel blast"
+  },
+  "sorcerer.Blizzard.Cast": {
+   "path": "sfx\\misc\\cast6.wav",
+   "why": "the Sorcerer Skill Cards page: Generic cast (cast6)"
+  },
+  "sorcerer.Blizzard.Impact": {
+   "path": "sfx\\items\\barlfire.wav",
+   "why": "the Sorcerer Skill Cards page: Fire barrel blast"
+  },
+  "sorcerer.BrittleGround.Cast": {
+   "path": "sfx\\misc\\cast6.wav",
+   "why": "the Sorcerer Skill Cards page: Generic cast (cast6)"
+  },
+  "sorcerer.BrittleGround.Impact": {
+   "path": "monsters\\skelaxe\\sklaxd1.wav",
+   "why": "the Sorcerer Skill Cards page: Skeleton crumbles"
+  },
+  "sorcerer.ChillingArmor.Stop": {
+   "path": "sfx\\misc\\mshield.wav",
+   "why": "the Sorcerer Skill Cards page: Mana Shield"
+  },
+  "sorcerer.ChillTouch.Cast": {
+   "path": "sfx\\misc\\fballbow.wav",
+   "why": "the Sorcerer Skill Cards page: Fire arrow (Hellfire)"
+  },
+  "sorcerer.ChillTouch.Impact": {
+   "path": "sfx\\misc\\bsimpct.wav",
+   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
+  "sorcerer.Frostbite.Cast": {
+   "path": "sfx\\misc\\fballbow.wav",
+   "why": "the Sorcerer Skill Cards page: Fire arrow (Hellfire)"
+  },
+  "sorcerer.Frostbite.Impact": {
+   "path": "sfx\\misc\\bsimpct.wav",
+   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
+  "sorcerer.FrostNova.Impact": {
+   "path": "sfx\\misc\\bsimpct.wav",
+   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
+  "sorcerer.FrozenArmor.Start": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "the Sorcerer Skill Cards page: Fade out (invisibility)"
+  },
+  "sorcerer.FrozenArmor.Stop": {
+   "path": "sfx\\misc\\invisibl.wav",
+   "why": "the Sorcerer Skill Cards page: Fade out (invisibility)"
+  },
+  "sorcerer.FrozenOrb.Impact": {
+   "path": "sfx\\misc\\fballbow.wav",
+   "why": "the Sorcerer Skill Cards page: Fire arrow (Hellfire)"
+  },
+  "sorcerer.FrozenSentinel.Cast": {
+   "path": "sfx\\misc\\fballbow.wav",
+   "why": "the Sorcerer Skill Cards page: Fire arrow (Hellfire)"
+  },
+  "sorcerer.FrozenSentinel.Impact": {
+   "path": "sfx\\misc\\bsimpct.wav",
+   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
+  "sorcerer.GlacialSpike.Cast": {
+   "path": "sfx\\misc\\fbolt1.wav",
+   "why": "the Sorcerer Skill Cards page: Firebolt"
+  },
+  "sorcerer.GlacialSpike.Impact": {
+   "path": "sfx\\misc\\bsimpct.wav",
+   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
+  "sorcerer.IceBlast.Cast": {
+   "path": "sfx\\misc\\fbolt1.wav",
+   "why": "the Sorcerer Skill Cards page: Firebolt"
+  },
+  "sorcerer.IceBlast.Impact": {
+   "path": "sfx\\misc\\bsimpct.wav",
+   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
+  "sorcerer.IceBolt.Cast": {
+   "path": "sfx\\misc\\fballbow.wav",
+   "why": "the Sorcerer Skill Cards page: Fire arrow (Hellfire)"
+  },
+  "sorcerer.IceBolt.Impact": {
+   "path": "sfx\\misc\\bsimpct.wav",
+   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
+  "sorcerer.IceLance.Cast": {
+   "path": "sfx\\misc\\fballbow.wav",
+   "why": "the Sorcerer Skill Cards page: Fire arrow (Hellfire)"
+  },
+  "sorcerer.IceLance.Impact": {
+   "path": "sfx\\misc\\bsimpct.wav",
+   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
+  "sorcerer.IceNeedle.Cast": {
+   "path": "sfx\\misc\\fballbow.wav",
+   "why": "the Sorcerer Skill Cards page: Fire arrow (Hellfire)"
+  },
+  "sorcerer.IceNeedle.Impact": {
+   "path": "sfx\\misc\\bsimpct.wav",
+   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
+  "sorcerer.ShiverArmor.Impact": {
+   "path": "sfx\\misc\\bsimpct.wav",
+   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
+  "sorcerer.ShiverArmor.Start": {
+   "path": "sfx\\misc\\elementl.wav",
+   "why": "the Sorcerer Skill Cards page: Elemental"
+  },
+  "sorcerer.ShiverArmor.Stop": {
+   "path": "sfx\\misc\\elementl.wav",
+   "why": "the Sorcerer Skill Cards page: Elemental"
+  },
+  "sorcerer.Whiteout.Cast": {
+   "path": "sfx\\misc\\cast6.wav",
+   "why": "the Sorcerer Skill Cards page: Generic cast (cast6)"
+  },
+  "sorcerer.Whiteout.Impact": {
+   "path": "sfx\\items\\barlfire.wav",
+   "why": "the Sorcerer Skill Cards page: Fire barrel blast"
   }
  },
  "about": "The per-class Skill Cards pages' sound picks (db collection picks). GenVanillaSkillSounds.js plays these before the sound page's picks and every rule. path null = silent."
