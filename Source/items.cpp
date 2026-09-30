@@ -9758,6 +9758,7 @@ std::string DebugSpawnSetPiece(string_view parameter)
 	Item item {};
 	InitializeItem(item, static_cast<_item_indexes>(oracool::BaseItemForSetPiece(def)));
 	oracool::MakeSetItem(item, def);
+	FinalizeSetPiece(item, std::max<int>(def.requiredLevel, MyPlayer->_pLevel), /*allowEtherealRoll=*/false); // round 13 audit
 	item._iIdentified = true;
 
 	const int ii = AllocateItem();
@@ -10290,12 +10291,16 @@ std::string DebugSpawnUniqueItem(std::string itemName)
 		testItem._iMiscId = baseItemData.iMiscId;
 		std::uniform_int_distribution<int32_t> dist(0, INT_MAX);
 		SetRndSeed(dist(BetterRng));
+		// The game's record of found uniques is kept (round 13 audit): it was cleared to all-false after every try.
+		std::array<bool, MaxUniqueItems> uniquesBefore;
+		std::copy(std::begin(UniqueItemFlags), std::end(UniqueItemFlags), uniquesBefore.begin());
 		for (auto &flag : UniqueItemFlags)
 			flag = true;
 		UniqueItemFlags[uniqueIndex] = false;
 		SetupAllItems(*MyPlayer, testItem, uniqueBaseIndex, testItem._iMiscId == IMISC_UNIQUE ? uniqueIndex : AdvanceRndSeed(), uniqueItem.UIMinLvl, 1, false, false, false);
-		for (auto &flag : UniqueItemFlags)
-			flag = false;
+		std::copy(uniquesBefore.begin(), uniquesBefore.end(), std::begin(UniqueItemFlags));
+		if (testItem._iMagical == ITEM_QUALITY_UNIQUE)
+			UniqueItemFlags[uniqueIndex] = true;
 
 		if (testItem._iMagical != ITEM_QUALITY_UNIQUE)
 			continue;
@@ -10358,6 +10363,11 @@ void Item::updateRequiredStatsCacheForPlayer(const Player &player)
 				spellLevel = 0;
 			}
 		}
+		// Red when the Rule of Rangs refuses the next rank, as the read refuses it: a book asks no level through
+		// CanUseItem, so an unreadable one looked usable until clicked (round 13 audit, v1.12.238).
+		const int nextLevel = player._pSplLvl[static_cast<int16_t>(_iSpell)] + 1;
+		_iStatFlag = player.CanUseItem(*this) && oracool::CanReadSpellBookTo(player, _iSpell, nextLevel);
+		return;
 	}
 	_iStatFlag = player.CanUseItem(*this);
 }

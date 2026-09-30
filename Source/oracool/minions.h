@@ -177,6 +177,8 @@ void OnMinionStruck(Monster &minion, Monster &attacker, int damage);
 void DrawMinionHud(const Surface &out);
 /** @brief A click on the panel's header cycles the shared stance. */
 bool HandleMinionHudClick(Point mouse);
+/** @brief Whether @p mouse is over the army header - HUD, not the world behind it. */
+bool IsPointOverMinionHeader(Point mouse);
 
 } // namespace oracool
 } // namespace devilution

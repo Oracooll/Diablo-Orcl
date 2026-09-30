@@ -566,7 +566,7 @@ std::optional<Point> FindTargetSlotUnderItemCursor(Point cursorPosition, Size it
 	for (auto point : StashGridRange) {
 		Rectangle cell {
 			GetStashSlotCoord(point),
-			InventorySlotSizeInPixels + 1
+			StashCellPx // the grid's own 28px pitch; 29 gave each cell's first column and row to its neighbour (round 13)
 		};
 
 		if (cell.contains(cursorPosition)) {
@@ -705,7 +705,7 @@ void CheckStashCut(Point cursorPosition, bool automaticMove)
 	for (auto point : StashGridRange) {
 		Rectangle cell {
 			GetStashSlotCoord(point),
-			InventorySlotSizeInPixels + 1
+			StashCellPx // the grid's own 28px pitch; 29 gave each cell's first column and row to its neighbour (round 13)
 		};
 
 		// check which inventory rectangle the mouse is in, if any
@@ -1236,7 +1236,7 @@ uint16_t CheckStashHLight(Point mousePosition)
 	for (auto point : StashGridRange) {
 		Rectangle cell {
 			GetStashSlotCoord(point),
-			InventorySlotSizeInPixels + 1
+			StashCellPx // the grid's own 28px pitch; 29 gave each cell's first column and row to its neighbour (round 13)
 		};
 
 		if (cell.contains(mousePosition)) {

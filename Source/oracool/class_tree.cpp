@@ -635,7 +635,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Custom Engineering"), N_("The rune traps you set strike as if three levels stronger, and half the time the rune is not used up."),
 	    Rog, 3, 3, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	// User note, 2026-09-14: "Use Magic Star mechanics for granades." A lobbed fire burst after every fourth arrow.
-	{ N_("Grenadier"), N_("Every fourth arrow you loose is followed by a grenade that bursts in flame where it lands."),
+	{ N_("Grenadier"), N_("Every fourth shot you loose is followed by a grenade that bursts in flame where it lands."),
 	    Rog, 3, 4, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Sharpshooter"), N_("Every second without a critical blow adds 4% to the chance of one; a critical blow deals double and starts the count again."),
 	    Rog, 3, 4, 1, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -1313,7 +1313,7 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		totals.bonusArmor += 25;
 		break;
 	case Skill::Perfectionist:
-		totals.bonusArmor += 10;
+		totals.armorPercent += 10; // "+10% armour": bonusArmor is flat points (round 13 audit)
 		totals.fireResist += 10;
 		totals.lightningResist += 10;
 		totals.magicResist += 10;
@@ -1333,7 +1333,7 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		break;
 	case Skill::GlassCannon:
 		totals.bonusDamage += 15;
-		totals.bonusArmor -= 10;
+		totals.armorPercent -= 10; // "-10% armour" (round 13 audit)
 		break;
 	case Skill::HolyCause:
 		totals.bonusDamage += 10;
@@ -1523,12 +1523,12 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		break;
 	case Skill::Brace:
 		if (assumeCondition || WieldingSpearOrPike(player))
-			totals.bonusArmor += Scaled(points, 10, 3);
+			totals.armorPercent += Scaled(points, 10, 3); // a percentage, as its text says (round 13 audit)
 		break;
 	case Skill::RiverStance:
 		if (assumeCondition || WieldingType(player, ItemType::Staff)) {
 			totals.moveSpeed += Scaled(points, 5, 1);
-			totals.bonusArmor += Scaled(points, 5, 2);
+			totals.armorPercent += Scaled(points, 5, 2); // a percentage (round 13 audit)
 		}
 		break;
 	case Skill::IronFist:

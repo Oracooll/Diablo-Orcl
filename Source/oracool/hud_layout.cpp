@@ -14,6 +14,9 @@
 #include "oracool/event_log.h"
 #include "options.h" // the HUD Plate Art switch picks which row layout applies
 #include "oracool/hud_menu.h"
+#include "qol/xpbar.h" // GetXPBarRect - painted inside the plate's clear band
+#include "oracool/companion.h" // the companion and army headers are HUD too
+#include "oracool/minions.h"
 #include "oracool/inventory_layout.h" // GetInventoryPanelRect - an open panel wins over the orb beside it
 #include "panels/spell_book.hpp"
 #include "qol/stash.h"
@@ -482,6 +485,31 @@ bool IsOverOpenSidePanel(Point mousePosition)
 	    || (IsLeftPanelOpen() && GetLeftPanelContentRect().contains(mousePosition));
 }
 
+/**
+ * @brief Whether @p mousePosition is on the PAINTED part of the HUD row. The plate's art is 388x108, but its top 40 rows
+ * are transparent across the width and the belt run (plate x 68-319) stays transparent down to the belt bar: the whole
+ * box answered as HUD, so a monster in that band above the belt could not be hovered, clicked or cast at (round 13
+ * audit, v1.12.238). The plateless row keeps its box.
+ */
+bool IsPointOverHudRowArt(Point mousePosition)
+{
+	const Rectangle row = GetHudRowRect();
+	if (!row.contains(mousePosition))
+		return false;
+	if (UsePlatelessRow())
+		return true;
+	constexpr int PlateArtTop = 40;
+	constexpr int BeltRunLeft = 68;
+	constexpr int BeltRunRight = 320;
+	const int localX = mousePosition.x - row.position.x;
+	const int localY = mousePosition.y - row.position.y;
+	if (GetXPBarRect().contains(mousePosition))
+		return true; // the XP bar is painted in the belt run's clear band, and is HUD whatever the counter option says
+	if (localY < PlateArtTop)
+		return false;
+	return !(localX >= BeltRunLeft && localX < BeltRunRight && localY < hud_skin::BeltBarTop);
+}
+
 bool IsPointOverHudChrome(Point mousePosition)
 {
 	// The four things that actually absorb a click, and nothing else. GetMainPanel() appears only
@@ -494,8 +522,9 @@ bool IsPointOverHudChrome(Point mousePosition)
 	// instead of opening its quick list.
 	// The orbs and the two points icons over the wells joined the list in the round 3 audit (v1.12.228): drawn
 	// beside or above the plate, they walked, cast or dropped the held item through themselves.
-	return GetHudRowRect().contains(mousePosition)
+	return IsPointOverHudRowArt(mousePosition)
 	    || IsPointOverXpCounter(mousePosition)
+	    || (!IsLeftPanelOpen() && (IsPointOverCompanionHeader(mousePosition) || IsPointOverMinionHeader(mousePosition))) // round 13 audit
 	    || IsPointOverHudMenu(mousePosition)
 	    || ((GetHealthOrbRect().contains(mousePosition) || GetManaOrbRect().contains(mousePosition))
 	        && !IsOverOpenSidePanel(mousePosition))

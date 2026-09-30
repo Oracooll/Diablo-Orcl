@@ -3552,6 +3552,10 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 	if (&player == MyPlayer && player._pHitPoints > 0) {
 		AddFloatingNumber(damageType, player, totalDamage);
 	}
+	// Galvanizing Ward halves "the next blow": its clock restarts on the blow, before the shield. A blow the shield
+	// drank whole returned below without restarting it, so every blow after was halved (round 13 audit, v1.12.238).
+	if (totalDamage > 0)
+		oracool::OnPassiveStruck(player);
 	if (totalDamage > 0 && player.pManaShield) {
 		// Effective level, for the same reason GetManaShieldDamageReduction uses it: a Monk who
 		// bought Spirit Ward from the tree has nothing in _pSplLvl and would get no reduction.

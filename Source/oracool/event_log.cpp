@@ -19,6 +19,7 @@
 #include "oracool/ornate_border.h"
 #include "oracool/telemetry.h"
 #include "oracool/runeword_book.h"
+#include "oracool/crafting_menu.h"
 #include "oracool/window_close.h"
 #include "utils/language.h"
 #ifdef _DEBUG
@@ -176,7 +177,8 @@ size_t EventLogEntryCount()
 
 bool IsCornerHudShown()
 {
-	return !AutomapActive && !IsRightPanelOpen() && !talkflag && !IsRunewordBookOpen()
+	// Not under the Crafting book either: the hidden log's X closed it through the book (round 13 audit).
+	return !AutomapActive && !IsRightPanelOpen() && !talkflag && !IsRunewordBookOpen() && !IsCraftingMenuOpen()
 #ifdef _DEBUG
 	    && !DebugClearUi
 #endif

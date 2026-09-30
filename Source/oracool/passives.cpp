@@ -15,6 +15,7 @@
 #include "missiles.h"
 #include "monster.h"
 #include "oracool/chill.h"
+#include "oracool/companion.h" // IsCompanion - an ally is not a monster near
 #include "oracool/melee_skills.h"
 #include "oracool/curses.h"
 #include "oracool/essence.h"
@@ -345,6 +346,12 @@ bool SongPlaying(const Player &player)
 	return GetActiveClassAura(player) != ClassTreeSkill::None;
 }
 
+/** @brief The fork's stagger exemption: uniques, champions and Diablo (rfa12's ShrugsOff) - Paralysis stunned Diablo. */
+bool ShrugsOffStun(const Monster &monster)
+{
+	return monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None || monster.type().type == MT_DIABLO;
+}
+
 /** @brief Monsters that can be hit within @p range tiles of @p centre, not counting @p except. */
 int MonstersNear(Point centre, int range, const Monster *except)
 {
@@ -352,6 +359,10 @@ int MonstersNear(Point centre, int range, const Monster *except)
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		const Monster &other = Monsters[ActiveMonsters[i]];
 		if (&other == except || !other.isPossibleToHit() || other.hitPoints >> 6 <= 0)
+			continue;
+		// Enemies only: the hero's own minions, companions and converts counted - Draw Life healed off the army, and an
+		// adjacent Spirit Guardian lit Determination (round 13 audit, v1.12.238).
+		if (other.isPlayerMinion() || IsCompanion(other) || IsMonsterConverted(other))
 			continue;
 		if (centre.WalkingDistance(other.position.tile) <= range)
 			count++;
@@ -720,7 +731,7 @@ void OnPassiveMissileHit(Player &player, const Monster &target, int damage, Dama
 		return; // not a monster of the level - nothing to stun or slow
 	Monster &monster = Monsters[target.getId()];
 	const bool alive = monster.hitPoints >> 6 > 0;
-	if (alive && damageType == DamageType::Lightning && PassiveActive(player, Skill::Paralysis) && !monster.isUnique()
+	if (alive && damageType == DamageType::Lightning && PassiveActive(player, Skill::Paralysis) && !ShrugsOffStun(monster)
 	    && GenerateRnd(100) < ParalysisChance)
 		StunMonster(monster, ParalysisTicks);
 	if (alive && damageType == DamageType::Magic && PassiveActive(player, Skill::TemporalFlux))
@@ -761,6 +772,21 @@ void OnPassiveManaSpent(Player &player, int cost)
 	}
 }
 
+void OnPassiveMonsterDied(Player &player, const Monster &monster)
+{
+	// Life from Death (the Necromancer): a twenty-fifth of your life for a death within six - "a monster that dies", so
+	// the army's kills count, which never passed the hero's own kill hook (round 13 audit, v1.12.238).
+	if (monster.isPlayerMinion() || player._pHitPoints >> 6 <= 0)
+		return;
+	if (PassiveActive(player, Skill::LifeFromDeath) && player.position.tile.WalkingDistance(monster.position.tile) <= LifeFromDeathRange)
+		Heal(player, player._pMaxHP / LifeFromDeathDivisor);
+}
+
+void OnPassiveStruck(Player &player)
+{
+	ClocksFor(player).unharmedTicks = 0; // Galvanizing Ward's clock: a blow arrived, whatever absorbs it
+}
+
 void OnPassiveMonsterKilled(Player &player, const Monster &monster)
 {
 	Clocks &clocks = ClocksFor(player);
@@ -770,9 +796,7 @@ void OnPassiveMonsterKilled(Player &player, const Monster &monster)
 	}
 	if (PassiveActive(player, Skill::Requiem) && player.position.tile.WalkingDistance(monster.position.tile) <= 4)
 		Heal(player, player._pMaxHP / 50);
-	// Life from Death (the Necromancer): a twenty-fifth of your life for a death within six.
-	if (PassiveActive(player, Skill::LifeFromDeath) && player.position.tile.WalkingDistance(monster.position.tile) <= LifeFromDeathRange)
-		Heal(player, player._pMaxHP / LifeFromDeathDivisor);
+	// Life from Death moved to OnPassiveMonsterDied: any death, the army's kills included (round 13 audit).
 	if (PassiveActive(player, Skill::PoundOfFlesh))
 		Heal(player, player._pMaxHP * PoundOfFleshPercent / 100);
 	if (PassiveActive(player, Skill::Dominance)) {

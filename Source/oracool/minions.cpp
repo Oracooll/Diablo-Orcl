@@ -749,6 +749,11 @@ void DrawMinionHud(const Surface &out)
 	}
 }
 
+bool IsPointOverMinionHeader(Point mouse)
+{
+	return MyPlayer != nullptr && MinionCount(*MyPlayer) > 0 && IsCornerHudShown() && HeaderRect().contains(mouse);
+}
+
 bool HandleMinionHudClick(Point mouse)
 {
 	if (MyPlayer == nullptr || MinionCount(*MyPlayer) == 0 || !IsCornerHudShown() || !HeaderRect().contains(mouse))

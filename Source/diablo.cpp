@@ -487,6 +487,8 @@ void LeftMouseDown(uint16_t modState)
 	// owns and so are asked first.
 	if (CheckGoldWithdrawPromptPress(MousePosition))
 		return;
+	if (CheckRefreshUntilPromptPress(MousePosition))
+		return;
 	if (IsModalPromptOpen()) {
 		// The death menu opens over a gold prompt left open: its buttons still answer the mouse (round 12 audit).
 		if (gmenu_is_active())
@@ -545,7 +547,9 @@ void LeftMouseDown(uint16_t modState)
 		// grid question here would have made that page modal, freezing the player where they stood.
 		// They could then never walk away from the counter, which is precisely the behaviour making it
 		// a store was meant to give it. Every shop TAB is a panel; only the dialogs are modal.
-		if (!oracool::IsShopTab(stextflag) || oracool::IsPointOverShop(MousePosition)) {
+		// The HUD is drawn over the docked page where they meet (the LMB well, the orb): the HUD takes that click. A shop
+		// with an item on the cursor sold it through the well (round 13 audit, v1.12.238).
+		if (!oracool::IsShopTab(stextflag) || (oracool::IsPointOverShop(MousePosition) && !oracool::IsPointOverHudChrome(MousePosition))) {
 			// A shop tab that is NOT a grid draws its own page - the Salvage tab - and owns every
 			// click that lands on it. CheckStoreBtn speaks for the vanilla text box, which that page
 			// does not use, so routing there swallowed the click and nothing on the page answered:
@@ -581,7 +585,7 @@ void LeftMouseDown(uint16_t modState)
 		return;
 	}
 	// The Stonegate's choice menu sits over the world: it takes every click while it is up.
-	if (oracool::IsWorkshopOpen() && oracool::CheckWorkshopClick(MousePosition))
+	if (oracool::IsWorkshopOpen() && !oracool::IsPointOverHudChrome(MousePosition) && oracool::CheckWorkshopClick(MousePosition))
 		return;
 
 	if (oracool::IsStonegateMenuOpen()) {
@@ -626,8 +630,8 @@ void LeftMouseDown(uint16_t modState)
 	if (oracool::HandleRunewordBookClick(MousePosition))
 		return;
 
-	if (oracool::CheckLevskiRoarClick(MousePosition, isCtrlHeld))
-		return;
+	if (!oracool::IsPointOverHudChrome(MousePosition) && oracool::CheckLevskiRoarClick(MousePosition, isCtrlHeld))
+		return; // the HUD drawn over its page takes its own clicks (round 13 audit)
 
 
 	// A targeting cursor (a Teleport or Fire Wall scroll, a targeted skill) over a window is put away, not fired: it
@@ -710,6 +714,9 @@ void LeftMouseDown(uint16_t modState)
 			} else if (oracool::IsEventLogOpen() && oracool::GetEventLogWindowRect().contains(MousePosition)) {
 				// The log's body takes the click too (audit, 2026-09-27): only its X was tested, so a click on the text walked the
 				// hero to the last tile hovered outside it, swung or cast there, or dropped the held item on the floor.
+			} else if (oracool::HandleCompanionHudClick(MousePosition) || oracool::HandleMinionHudClick(MousePosition)) {
+				// the companion panel's stance line took the click (oracool/companion.h) - ahead of the held item, which a
+				// click on the header dropped on the floor (round 13 audit, v1.12.238)
 			} else if (!MyPlayer->HoldItem.isEmpty()) {
 				if (!TryOpenDungeonWithMouse()) {
 					Point currentPosition = MyPlayer->position.tile;
@@ -719,8 +726,6 @@ void LeftMouseDown(uint16_t modState)
 						NewCursor(CURSOR_HAND);
 					}
 				}
-			} else if (oracool::HandleCompanionHudClick(MousePosition) || oracool::HandleMinionHudClick(MousePosition)) {
-				// the companion panel's stance line took the click (oracool/companion.h)
 			} else {
 				CheckLvlBtn();
 				if (!lvlbtndown) {
@@ -2528,6 +2533,7 @@ void InventoryKeyPressed()
 {
 	if (stextflag != TalkID::None)
 		return;
+	oracool::CloseCraftingMenu(); // the full-screen book does not stay over a side window opened under it (round 13)
 	invflag = !invflag;
 	if (!IsLeftPanelOpen() && CanPanelsCoverView()) {
 		if (!invflag) { // We closed the invetory
@@ -2592,6 +2598,7 @@ void DisplaySpellsKeyPressed()
 {
 	if (stextflag != TalkID::None)
 		return;
+	oracool::CloseCraftingMenu(); // round 13 audit
 	CloseCharPanel();
 	QuestLogIsOpen = false;
 	// Oracool: user request - S opens the Abilities window; the speedbook ring it used to raise is
@@ -2609,6 +2616,7 @@ void SpellBookKeyPressed()
 {
 	if (stextflag != TalkID::None)
 		return;
+	oracool::CloseCraftingMenu(); // round 13 audit
 	sbookflag = !sbookflag;
 	// Oracool V1: the book is a scrolling list twice its window's height, so opening it should
 	// always show the top. Unconditional because resetting a closed book costs nothing.
@@ -4069,7 +4077,7 @@ bool PressEscKey()
 
 	if (IsWithdrawGoldOpen) {
 		WithdrawGoldKeyPress(SDLK_ESCAPE);
-		rv = true;
+		return true; // the box alone: falling through closed the stash and the backpack with it (round 13 audit)
 	}
 
 	if (spselflag) {

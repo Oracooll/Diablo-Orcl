@@ -109,9 +109,16 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage)
 		damage >>= 2;
 	if (type == DamageType::Cold)
 		damage += damage * FrostbitePercentOn(monster) / 100;
+	// The damage-dealt passives, as MonsterMHit and PlrHitMonst apply them: Power Hungry, Conflagration, Spreading
+	// Malediction and the rest never reached a skill that strikes through here - 87 callers, the whole RfA-12 book
+	// (round 13 audit, v1.12.238). A blow at arm's length is melee.
+	const bool melee = player.position.tile.WalkingDistance(monster.position.tile) <= 1;
+	damage += damage * PassiveDamageDealtPercent(player, monster, melee) / 100;
 	if (damage <= 0)
 		return;
 	ApplyMonsterDamage(type, monster, damage);
+	if (&player == MyPlayer)
+		OnPassiveMissileHit(player, monster, damage, type, /*arrow=*/false); // Paralysis, Temporal Flux, the marks
 	// None of these cold skills has impact art of its own (Chill Touch, Ice Needle, Ice Lance, Brittle Ground,
 	// Whiteout, Absolute Zero): the cold hit flash marks the blow (hit_cold.png, 2026-09-26).
 	if (type == DamageType::Cold)

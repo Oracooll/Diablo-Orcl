@@ -198,5 +198,7 @@ void DrawTownCompanions(const Surface &out, Point tilePosition, Point targetBuff
 void DrawCompanionHud(const Surface &out);
 /** @brief A click on the panel's stance line cycles the stance. True if the click was the panel's. */
 bool HandleCompanionHudClick(Point mouse);
+/** @brief Whether @p mouse is over the companion header - HUD, not the world behind it. */
+bool IsPointOverCompanionHeader(Point mouse);
 
 } // namespace devilution::oracool

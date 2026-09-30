@@ -783,6 +783,14 @@ void PlaceRiftMonsters()
 	if (!oracool::InRift())
 		return;
 
+	// The arrival is kept out of sight, as a floor's stairs are through their triggers: a rift has none, so packs landed
+	// three tiles from the hero (round 13 audit, v1.12.238). Vision is raised for the placement and dropped after.
+	const Point arrival = ViewPosition;
+	for (int s = -2; s < 2; s++) {
+		for (int t = -2; t < 2; t++)
+			DoVision(arrival + Displacement { s, t }, 15, MAP_EXP_NONE, false);
+	}
+
 	PlaceLesserUniques();
 	PlaceEndgameBoss();
 
@@ -815,6 +823,11 @@ void PlaceRiftMonsters()
 		PlaceGroup(typeIndex, na2);
 		if (ActiveMonsterCount == before)
 			break;
+	}
+
+	for (int s = -2; s < 2; s++) {
+		for (int t = -2; t < 2; t++)
+			DoUnVision(arrival + Displacement { s, t }, 15);
 	}
 
 	for (size_t i = 0; i < ActiveMonsterCount; i++)
@@ -3989,8 +4002,10 @@ void GetLevelMTypes()
 					continue;
 				skeltypes[skeletonTypeCount++] = skeletonType;
 			}
+			// Raised by the King only, not scattered: the twelve skeleton types span floors 1-6, and a Hell-band rift
+			// scattered floor-one skeletons as cheap kill-bar credit (round 13 audit). AddSkeleton finds them by kind.
 			if (skeletonTypeCount > 0)
-				AddMonsterType(skeltypes[GenerateRnd(skeletonTypeCount)], PLACE_SCATTER);
+				AddMonsterType(skeltypes[GenerateRnd(skeletonTypeCount)], PLACE_SPECIAL);
 		} break;
 		case oracool::RiftGuardianType::Butcher:
 			AddMonsterType(MT_CLEAVER, PLACE_SPECIAL);
@@ -4267,8 +4282,14 @@ void InitMonsters()
 		// monsters stays the last word. At 3x a large level reaches that ceiling rather than
 		// overrunning it, which is why this needs no separate cap of its own.
 		numplacemonsters = numplacemonsters * *sgOptions.Oracool.monsterDensityPercent / 100;
-		if (ActiveMonsterCount + numplacemonsters > MaxEnemyMonsters - 10)
-			numplacemonsters = MaxEnemyMonsters - 10 - ActiveMonsterCount;
+		// Room held back for the theme rooms, populated after this: at the default densities the scatter filled to the
+		// cap and every theme room shared the last ten slots - most stood empty (round 13 audit, v1.12.238).
+		const size_t themeReserve = std::min<size_t>(static_cast<size_t>(std::max(numthemes, 0)) * 8, 40);
+		const size_t scatterCap = MaxEnemyMonsters - 10 - themeReserve;
+		if (ActiveMonsterCount >= scatterCap)
+			numplacemonsters = 0;
+		else if (ActiveMonsterCount + numplacemonsters > scatterCap)
+			numplacemonsters = static_cast<int>(scatterCap - ActiveMonsterCount);
 		totalmonsters = ActiveMonsterCount + numplacemonsters;
 		int numscattypes = 0;
 		size_t scattertypes[NUM_MTYPES];
@@ -4651,6 +4672,8 @@ void GrantRuneKillMana(char pmask)
 void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 {
 	oracool::OnCursedMonsterDeath(monster); // Death Mark bursts it, Essence Tap pays (oracool/curses.h)
+	if (MyPlayer != nullptr)
+		oracool::OnPassiveMonsterDied(*MyPlayer, monster); // Life from Death, whoever made the kill (round 13 audit)
 	if (!monster.isPlayerMinion())
 		AddPlrMonstExper(monster.level(sgGameInitInfo.nDifficulty), monster.exp(sgGameInitInfo.nDifficulty), monster.whoHit);
 

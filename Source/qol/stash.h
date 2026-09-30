@@ -95,6 +95,8 @@ extern DVL_API_FOR_TEST bool IsStashOpen;
 extern DVL_API_FOR_TEST StashStruct Stash;
 
 extern bool IsWithdrawGoldOpen;
+/** @brief The withdraw box's rect on screen (valid while the box's art is loaded). */
+Rectangle GoldWithdrawBoxRect();
 
 Point GetStashSlotCoord(Point slot);
 void InitStash();

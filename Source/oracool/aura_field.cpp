@@ -16,6 +16,7 @@
 #include "oracool/class_tree.h"
 #include "utils/language.h"
 #include "oracool/monster_difficulty.h"
+#include "oracool/passives.h" // the damage-dealt and on-hit passives reach the pulses
 #include "oracool/rfa12_effects.h"
 #include "oracool/skill_points.h" // SkillPointsPerLevel - the holy auras' carried ranks
 #include "oracool/warcries.h"
@@ -90,9 +91,14 @@ void AuraStrike(Player &player, Monster &monster, DamageType type, int damage, b
 		return;
 	if (!holy && monster.isResistant(MissileID::Null, type))
 		damage >>= 2;
+	// The damage-dealt and on-hit passives reach the pulses too (round 13 audit, v1.12.238): Static Field and Thunder
+	// Storm skipped every one of the Sorcerer's.
+	damage += damage * PassiveDamageDealtPercent(player, monster, /*melee=*/false) / 100;
 	if (damage <= 0)
 		return;
 	ApplyMonsterDamage(type, monster, damage);
+	if (&player == MyPlayer)
+		OnPassiveMissileHit(player, monster, damage, type, /*arrow=*/false);
 	if ((monster.hitPoints >> 6) <= 0) {
 		M_StartKill(monster, player);
 		return;

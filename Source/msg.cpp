@@ -927,8 +927,15 @@ size_t OnAddStrength(const TCmd *pCmd, size_t pnum)
 		SendPacket(pnum, &message, sizeof(message));
 	else if (message.wParam1 <= 256) {
 		const uint16_t delta = SDL_SwapLE16(message.wParam1);
-		Players[pnum]._pStatPtsSpentStr += delta;
-		ModifyPlrStr(Players[pnum], delta);
+		// What was applied, not what was asked: two clicks in one tick asked past 255, the cap cut the second, and
+		// its points were spent for nothing and refunded later out of the base (round 13 audit, v1.12.238).
+		Player &player = Players[pnum];
+		const int before = player._pBaseStr;
+		ModifyPlrStr(player, delta);
+		const int applied = std::max(player._pBaseStr - before, 0);
+		player._pStatPtsSpentStr += applied;
+		if (applied < delta)
+			player._pStatPts += delta - applied;
 		oracool::ScheduleAutoSaveForStatPointSpent();
 	}
 
@@ -943,8 +950,15 @@ size_t OnAddMagic(const TCmd *pCmd, size_t pnum)
 		SendPacket(pnum, &message, sizeof(message));
 	else if (message.wParam1 <= 256) {
 		const uint16_t delta = SDL_SwapLE16(message.wParam1);
-		Players[pnum]._pStatPtsSpentMag += delta;
-		ModifyPlrMag(Players[pnum], delta);
+		// What was applied, not what was asked: two clicks in one tick asked past 255, the cap cut the second, and
+		// its points were spent for nothing and refunded later out of the base (round 13 audit, v1.12.238).
+		Player &player = Players[pnum];
+		const int before = player._pBaseMag;
+		ModifyPlrMag(player, delta);
+		const int applied = std::max(player._pBaseMag - before, 0);
+		player._pStatPtsSpentMag += applied;
+		if (applied < delta)
+			player._pStatPts += delta - applied;
 		oracool::ScheduleAutoSaveForStatPointSpent();
 	}
 
@@ -959,8 +973,15 @@ size_t OnAddDexterity(const TCmd *pCmd, int pnum)
 		SendPacket(pnum, &message, sizeof(message));
 	else if (message.wParam1 <= 256) {
 		const uint16_t delta = SDL_SwapLE16(message.wParam1);
-		Players[pnum]._pStatPtsSpentDex += delta;
-		ModifyPlrDex(Players[pnum], delta);
+		// What was applied, not what was asked: two clicks in one tick asked past 255, the cap cut the second, and
+		// its points were spent for nothing and refunded later out of the base (round 13 audit, v1.12.238).
+		Player &player = Players[pnum];
+		const int before = player._pBaseDex;
+		ModifyPlrDex(player, delta);
+		const int applied = std::max(player._pBaseDex - before, 0);
+		player._pStatPtsSpentDex += applied;
+		if (applied < delta)
+			player._pStatPts += delta - applied;
 		oracool::ScheduleAutoSaveForStatPointSpent();
 	}
 
@@ -975,8 +996,15 @@ size_t OnAddVitality(const TCmd *pCmd, size_t pnum)
 		SendPacket(pnum, &message, sizeof(message));
 	else if (message.wParam1 <= 256) {
 		const uint16_t delta = SDL_SwapLE16(message.wParam1);
-		Players[pnum]._pStatPtsSpentVit += delta;
-		ModifyPlrVit(Players[pnum], delta);
+		// What was applied, not what was asked: two clicks in one tick asked past 255, the cap cut the second, and
+		// its points were spent for nothing and refunded later out of the base (round 13 audit, v1.12.238).
+		Player &player = Players[pnum];
+		const int before = player._pBaseVit;
+		ModifyPlrVit(player, delta);
+		const int applied = std::max(player._pBaseVit - before, 0);
+		player._pStatPtsSpentVit += applied;
+		if (applied < delta)
+			player._pStatPts += delta - applied;
 		oracool::ScheduleAutoSaveForStatPointSpent();
 	}
 

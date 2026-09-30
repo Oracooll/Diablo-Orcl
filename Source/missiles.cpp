@@ -1489,6 +1489,15 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	if (missileData.isArrow() && (oracool::PassiveEvadesMissile(player) || oracool::SlowMissilesTurnsAside(player)))
 		return false;
 
+	// What a cry, a song, Resolve or Numbing Traps has done to the shooter weakens its shots too, as its blows: the
+	// melee path alone read them (round 13 audit, v1.12.238).
+	if (monster != nullptr) {
+		if (const int weakened = oracool::MonsterDebuffDamagePercent(*monster) + oracool::Rfa12MonsterDamagePercent(*monster) + oracool::PassiveMonsterDamagePercent(*monster); weakened != 0) {
+			mind += mind * weakened / 100;
+			maxd = std::max(maxd + maxd * weakened / 100, mind);
+		}
+	}
+
 	int dam;
 	if (mtype == MissileID::BoneSpirit) {
 		dam = player._pHitPoints / 3;

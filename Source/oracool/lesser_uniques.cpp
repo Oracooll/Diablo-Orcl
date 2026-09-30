@@ -176,7 +176,9 @@ std::optional<UniqueMonsterType> ChooseLesserUnique(bool excludeLevelOwned)
 		const UniqueMonsterData &data = UniqueMonstersData[i];
 		if (IsQuestUnique(data))
 			continue;
-		if (excludeLevelOwned && data.mlevel == currlevel)
+		// Not on a set level, where currlevel is the set level's number and no unique is placed natively: a rift
+		// (9 or 10) lost the champions native to floors 9 and 10 (round 13 audit, v1.12.238).
+		if (excludeLevelOwned && !setlevel && data.mlevel == currlevel)
 			continue;
 		if (!LevelHasMonsterType(data.mtype))
 			continue;

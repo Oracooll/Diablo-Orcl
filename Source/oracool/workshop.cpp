@@ -497,6 +497,17 @@ int PendingStep = 0;
 /** @brief The recipe page's scroll, in PIXELS - the lines are not a fixed height once wrapped. */
 int RecipeScroll = 0;
 int SelectedRow = -1;
+/**
+ * @brief The Imbue list's first shown row. The ledger holds up to twenty shards and the list shows six: rows seven to
+ * twenty could be neither seen nor picked for Remove (round 13 audit, v1.12.238). The wheel over the list moves it.
+ */
+int ImbueListScroll = 0;
+
+int ClampedImbueListScroll(int count)
+{
+	ImbueListScroll = std::clamp(ImbueListScroll, 0, std::max(count - ListLines, 0));
+	return ImbueListScroll;
+}
 Control Pressed = Control::None;
 Control LastHovered = Control::None;
 std::string Board; // what the page is saying right now
@@ -1151,12 +1162,14 @@ void DrawImbueList(const Surface &out)
 		return;
 	}
 	const ImbuementLedger ledger = CaptureImbuements(Bench);
-	for (int row = 0; row < ListLines && row < ledger.count; row++) {
+	const int scroll = ClampedImbueListScroll(ledger.count);
+	for (int row = 0; row < ListLines && row + scroll < ledger.count; row++) {
+		const int index = row + scroll;
 		const Rectangle rect = ListRowRect(row);
-		const bool selected = SelectedRow == row;
+		const bool selected = SelectedRow == index;
 		if (selected)
 			FillRect(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height, PlateFill);
-		const ShardDefinition &def = ShardDef(static_cast<ShardKind>(ledger.kinds[row]));
+		const ShardDefinition &def = ShardDef(static_cast<ShardKind>(ledger.kinds[index]));
 		DrawString(out, StrCat(_(def.name), " - ", _(def.line)),
 		    Rectangle { { rect.position.x + 4, rect.position.y }, { rect.size.width - 8, rect.size.height } },
 		    { (selected ? UiFlags::ColorGold : UiFlags::ColorWhite) | UiFlags::FontSize12 | UiFlags::VerticalCenter });
@@ -2173,8 +2186,16 @@ bool HandleWorkshopScroll(int notches)
 {
 	// Only the recipe page scrolls, and only while it is the page on screen - so the wheel keeps
 	// zooming the dungeon everywhere else in this window, which is what it did before.
-	if (!WindowOpen || OpenTab != Tab::Recipes)
-		return false;
+	if (WindowOpen && OpenTab == Tab::Imbue && !Bench.isEmpty() && Panel(ListRect).contains(MousePosition)) {
+		const int count = CaptureImbuements(Bench).count;
+		if (count <= ListLines)
+			return false;
+		ImbueListScroll -= notches;
+		ClampedImbueListScroll(count);
+		return true;
+	}
+	if (!WindowOpen || OpenTab != Tab::Recipes || !PageRect().contains(MousePosition))
+		return false; // over the page only, as the comment above says (round 13 audit)
 	const int maxScroll = RecipeListMaxScroll(RecipeOpeningRect(), HostRecipes());
 	if (maxScroll <= 0)
 		return false; // nothing to scroll: let the wheel fall through rather than swallow it
@@ -2785,10 +2806,12 @@ bool CheckWorkshopClick(Point position)
 	// A list row selects; the lists are the tab's own.
 	if (!OfferOpen && !Bench.isEmpty()) {
 		const int rows = OpenTab == Tab::Reroll ? Bench._iOracoolAffixCount : CaptureImbuements(Bench).count;
-		for (int row = 0; row < ListLines && row < rows; row++) {
+		const int scroll = OpenTab == Tab::Imbue ? ClampedImbueListScroll(rows) : 0; // the Imbue list scrolls
+		for (int row = 0; row < ListLines && row + scroll < rows; row++) {
 			if (!ListRowRect(row).contains(position))
 				continue;
-			SelectedRow = SelectedRow == row ? -1 : row;
+			const int index = row + scroll;
+			SelectedRow = SelectedRow == index ? -1 : index;
 			PlayUiSelectSound();
 			return true;
 		}

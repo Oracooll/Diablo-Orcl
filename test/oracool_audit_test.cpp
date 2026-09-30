@@ -16471,3 +16471,32 @@ TEST(OracoolAudit12, SpellTableQuotesWhatTheMissileRolls)
 	GetDamageAmtAtLevel(SpellID::Elemental, 1, &elemMin, &elemMax);
 	EXPECT_LE(elemMax, (2 * 30 + 40) * 3 / 4) << "AddElemental halves the hit; the table quoted it whole";
 }
+
+// Round 13 audit (v1.12.238). The plate's art is 388x108 but its top 40 rows are clear, and the whole box answered as
+// HUD: a monster in that band above the belt could not be hovered, clicked or cast at. The painted part stays HUD.
+TEST(OracoolAudit13, ThePlatesClearTopIsTheWorld)
+{
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	const bool savedPlate = *sgOptions.Oracool.hudPlateArt;
+	gnScreenWidth = 960;
+	gnScreenHeight = 720;
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	Players[0]._pStatPts = 0;
+	Players[0]._pUnspentSkillPoints = 0;
+	Players[0]._pLevel = 10;
+	sgOptions.Oracool.hudPlateArt.SetValue(true);
+
+	const Rectangle plate = oracool::GetMiddleHudRect();
+	const Point clearTop { plate.position.x + plate.size.width / 2, plate.position.y + 10 };
+	EXPECT_FALSE(oracool::IsPointOverHudChrome(clearTop)) << "the plate's transparent top still eats world clicks";
+	const Point well { plate.position.x + 30, plate.position.y + 70 }; // the LMB well's opening
+	EXPECT_TRUE(oracool::IsPointOverHudChrome(well)) << "the painted well is not HUD";
+	const Rectangle bar = GetXPBarRect();
+	EXPECT_TRUE(oracool::IsPointOverHudChrome(bar.position)) << "the XP bar in the clear band is not HUD";
+
+	sgOptions.Oracool.hudPlateArt.SetValue(savedPlate);
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
+}

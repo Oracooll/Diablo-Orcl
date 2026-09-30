@@ -1535,6 +1535,11 @@ void DrawCompanionHud(const Surface &out)
 	}
 }
 
+bool IsPointOverCompanionHeader(Point mouse)
+{
+	return MyPlayer != nullptr && MyCompanionCount() > 0 && IsCornerHudShown() && HeaderRect().contains(mouse);
+}
+
 bool HandleCompanionHudClick(Point mouse)
 {
 	if (MyCompanionCount() == 0 || !IsCornerHudShown() || !HeaderRect().contains(mouse))

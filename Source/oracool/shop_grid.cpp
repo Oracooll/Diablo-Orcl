@@ -143,7 +143,9 @@ constexpr int ShopControlsWidth = ShopPanelSize.width - 2 * ShopControlsLeft;
 constexpr int ShopControlGap = 3;
 constexpr int ShopTabColumnWidth = 27;
 constexpr int ShopTabHeight = 80;
-constexpr int ShopTabGap = ShopControlGap;
+// 2, not ShopControlGap: eight tabs must fit - Basic, Magic, Rare, Set, Unique, Supplies, Sold and Transmute with every
+// shelf on - and at 3 the eighth ran off the column, tripping the Debug build's assert (round 13 audit, v1.12.238).
+constexpr int ShopTabGap = 2;
 /** @brief Below the title band, where the first control row also starts. */
 constexpr int ShopTabColumnTop = 60;
 
@@ -1030,8 +1032,8 @@ Rectangle ShopControlRect(const std::vector<ControlButton> &buttons, size_t inde
  */
 constexpr int ShopTabColumnSlots = (ShopPanelSize.height - ShopTabColumnTop) / (ShopTabHeight + ShopTabGap);
 
-/** @brief Basic, Magic, Rare, Set, Unique, Supplies, Sold - Griswold with every shelf switched on. */
-constexpr int ShopMaxTabsPerVendor = 7;
+/** @brief Basic, Magic, Rare, Set, Unique, Supplies, Sold, Transmute - Griswold with every shelf switched on. */
+constexpr int ShopMaxTabsPerVendor = 8;
 static_assert(ShopTabColumnSlots >= ShopMaxTabsPerVendor,
     "the tab column no longer fits a fully-stocked Griswold - shorten ShopTabHeight");
 

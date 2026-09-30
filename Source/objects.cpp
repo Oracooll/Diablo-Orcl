@@ -40,6 +40,7 @@
 #include "missiles.h"
 #include "monster.h"
 #include "options.h"
+#include "playerdat.hpp" // ExpLvlsTbl - the Glowing Shrine stops at the level's floor
 #include "engine/palette.h" // PaletteRGB and PaletteRgbGeneration - the stash chest's gold cast
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
@@ -3301,10 +3302,15 @@ void OperateShrineGlowing(Player &player)
 	ModifyPlrMag(player, magicGained);
 
 	// Take 5% of the players experience to offset the bonus, unless they're very low level in which case take all their experience.
-	if (player._pExperience > 5000)
-		player._pExperience = static_cast<uint64_t>(player._pExperience * 0.95);
-	else
+	// Never below the start of the hero's own level (round 13 audit, v1.12.238): on the Diablo II table 5% of the total
+	// is over half a level from 80 on, and it left the bar at 0 with the hero 148 million under his level's floor at 97.
+	if (player._pExperience > 5000) {
+		const uint64_t levelFloor = player._pLevel > 1 ? ExpLvlsTbl[player._pLevel - 1] : 0;
+		const uint64_t taken = player._pExperience - static_cast<uint64_t>(player._pExperience * 0.95);
+		player._pExperience -= std::min(taken, player._pExperience > levelFloor ? player._pExperience - levelFloor : 0);
+	} else {
 		player._pExperience = 0;
+	}
 
 	CheckStats(player);
 	RedrawEverything();
@@ -4821,7 +4827,7 @@ constexpr int WaypointPreferredClearRadius = 2;
 constexpr int WaypointMinClearRadius = 1;
 /** How far it tries to stay from the nearest living monster. Capped rather than maximised - a
  * waypoint in the emptiest corner of the map is safe and useless. */
-constexpr int WaypointPreferredMonsterDistance = 8;
+constexpr int WaypointPreferredMonsterDistance = 15; // a stair's sight radius; 8 left the nearest monster in view (round 13)
 /** How far it must stay from a level entrance or exit, so it never lands on the stairs. */
 constexpr int WaypointMinTriggerDistance = 3;
 

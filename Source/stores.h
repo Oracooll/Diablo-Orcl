@@ -541,6 +541,8 @@ void CloseRefreshUntilPrompt();
 void RefreshUntilPromptKeyPress(SDL_Keycode vkey);
 bool HandleRefreshUntilPromptTextInputEvent(const SDL_Event &event);
 void DrawRefreshUntilPrompt(const Surface &out);
+/** @brief The prompt's red X: cancels as Escape does. True when the click was the prompt's. */
+bool CheckRefreshUntilPromptPress(Point mousePosition);
 /** @brief Oracool: shows a 4-line explainer in the main HUD's info box while hovering (not
  * clicking) Griswold Premium's Refresh Until button. */
 void DrawRefreshUntilHoverTooltip(const Surface &out);

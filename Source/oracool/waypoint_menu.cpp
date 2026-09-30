@@ -466,6 +466,10 @@ int MouseToEntry(Point mousePosition)
 	if (y < 0 || y >= ViewportHeight)
 		return -1;
 
+	// Inside the rows' own width: a click in the side margin or on the scrollbar travelled (round 13 audit).
+	const int x = mousePosition.x - panel.position.x;
+	if (x < PanelMargin || x >= panel.size.width - PanelMargin)
+		return -1;
 	const int listY = y + ScrollOffset;
 	// The gap between two rows belongs to neither, so a click landing in it misses rather than
 	// being rounded into whichever row happens to be above.

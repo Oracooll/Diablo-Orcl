@@ -1139,7 +1139,8 @@ void CheckCursMove()
 	// inventory reads its own rect, the spellbook its own, and IsOverLeftPanel guards the rest);
 	// this one was missed. Note that the IsOverLeftPanel check further down would have covered the
 	// stash correctly - but it only returns, it does not set pcursstashitem.
-	if (IsStashOpen && GetStashPanelRect().contains(MousePosition)) {
+	// Not through the withdraw box: the cells it covers answered hover and showed their items (round 13 audit).
+	if (IsStashOpen && GetStashPanelRect().contains(MousePosition) && !(IsWithdrawGoldOpen && GoldWithdrawBoxRect().contains(MousePosition))) {
 		pcursstashitem = CheckStashHLight(MousePosition);
 	}
 	// Oracool V1: the book owns a 340x720 rect now, not GetRightPanel's 320x352 - hovering the part

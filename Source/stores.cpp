@@ -54,6 +54,7 @@
 #include "oracool/skill_points.h"
 #include "panels/info_box.hpp"
 #include "qol/stash.h"
+#include "oracool/window_close.h" // the Refresh Until prompt's red X
 #include "towners.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
@@ -4039,6 +4040,27 @@ bool HandleRefreshUntilPromptTextInputEvent(const SDL_Event &event)
 	return HandleTextInputEvent(event, *RefreshUntilPromptInputState);
 }
 
+/** @brief The Refresh Until prompt's plate on screen: drawn by its bottom-left at (190, 178) of the UI rect. */
+Rectangle RefreshUntilPromptRect()
+{
+	const ClxSprite plate = (*pGBoxBuff)[0];
+	const Point uiPosition = GetUIRectangle().position;
+	return { { uiPosition.x + 190, uiPosition.y + 178 - plate.height() + 1 }, { plate.width(), plate.height() } };
+}
+
+bool CheckRefreshUntilPromptPress(Point mousePosition)
+{
+	// A red X, as the withdraw box has: the prompt swallowed every click, so a mouse user could not leave it (round 13
+	// audit, v1.12.238). It cancels the way Escape does; Enter still confirms.
+	if (!IsRefreshUntilPromptOpen || !pGBoxBuff)
+		return false;
+	if (oracool::CheckWindowCloseButtonClick(RefreshUntilPromptRect(), mousePosition)) {
+		RefreshUntilPromptKeyPress(SDLK_ESCAPE);
+		return true;
+	}
+	return false;
+}
+
 void DrawRefreshUntilPrompt(const Surface &out)
 {
 	if (!IsRefreshUntilPromptOpen)
@@ -4056,6 +4078,8 @@ void DrawRefreshUntilPrompt(const Surface &out)
 
 	DrawString(out, wrapped, { { dialogX + 31, uiPosition.y + 75 }, { 200, 50 } },
 	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter, 1, 17 });
+
+	oracool::DrawWindowCloseButton(out, RefreshUntilPromptRect());
 
 	DrawString(out, targetText, { dialogX + 37, uiPosition.y + 128 },
 	    TextRenderOptions {

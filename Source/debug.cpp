@@ -286,6 +286,7 @@ std::string DebugCmdRift(const string_view parameter)
 	if (kind == "guardian") {
 		if (tier <= 0)
 			tier = oracool::NephalemRiftTierFor(myPlayer);
+		tier = std::clamp(tier, 1, 255); // a keystone's own range: past it the scaling overflowed (round 13 audit)
 		if (!oracool::OpenGuardianRift(myPlayer, tier))
 			return "Could not open a Guardian Rift here.";
 	} else if (kind == "nephalem" || kind.empty()) {
@@ -468,16 +469,25 @@ std::string DebugCmdResetLevel(const string_view parameter)
 	auto level = atoi(std::string(*it).c_str());
 	if (level < 0 || level > (gbIsHellfire ? 24 : 16))
 		return StrCat("Level ", level, " is not known. Do you want to write an extension mod?");
-	myPlayer._pLvlVisited[level] = false;
-	DeltaClearLevel(level);
-
-	if (++it != args.end()) {
-		const auto seed = static_cast<uint32_t>(std::stoul(std::string(*it)));
-		glSeedTbl[level] = seed;
-	}
-
+	// Refused BEFORE anything is cleared: the level was wiped and then refused, and its floor items were lost on the way
+	// back (round 13 audit, v1.12.238).
 	if (myPlayer.isOnLevel(level))
 		return StrCat("Level ", level, " can't be cleaned, cause you still occupy it!");
+	uint32_t seed = 0;
+	const bool hasSeed = ++it != args.end();
+	if (hasSeed) {
+		// strtoul with an end check: std::stoul threw on "x" or an overlong number and ended the game (round 13 audit).
+		const std::string seedText(*it);
+		char *end = nullptr;
+		const unsigned long parsed = std::strtoul(seedText.c_str(), &end, 10);
+		if (seedText.empty() || end == nullptr || *end != '\0' || parsed > UINT32_MAX)
+			return "The seed must be a number from 0 to 4294967295.";
+		seed = static_cast<uint32_t>(parsed);
+	}
+	myPlayer._pLvlVisited[level] = false;
+	DeltaClearLevel(level);
+	if (hasSeed)
+		glSeedTbl[level] = seed;
 	return StrCat("Level ", level, " was restored and looks fabulous.");
 }
 
@@ -599,7 +609,8 @@ std::string DebugCmdQuest(const string_view parameter)
 
 	int questId = atoi(parameter.data());
 
-	if (questId >= MAXQUESTS)
+	// Negative too: -1 wrote before the quest array (round 13 audit, v1.12.238).
+	if (questId < 0 || questId >= MAXQUESTS)
 		return StrCat("Quest ", questId, " is not known. Do you want to write a mod?");
 	auto &quest = Quests[questId];
 
@@ -660,7 +671,20 @@ std::string DebugCmdSetSpellsLevel(const string_view parameter)
 	// the six class skills - and those are granted to every class at birth now anyway
 	// (oracool::AllClassSkillsBitmask), so between the two nothing castable is left out. Before that
 	// day fifteen spells had no book and could not be handed over by any means at all.
-	uint8_t level = static_cast<uint8_t>(std::max(0, atoi(parameter.data())));
+	if (parameter.empty())
+		return "Which spell level? setspells 0 forgets every book spell.";
+	const uint8_t level = static_cast<uint8_t>(std::clamp(atoi(parameter.data()), 0, static_cast<int>(MaxSpellLevel)));
+	// Forgetting is done here, at once: the queued CMD_CHANGE_SPELL_LEVEL learns as it sets the level, so every book
+	// spell ended known at level 0 - and the clear below it ran first (round 13 audit, v1.12.238).
+	if (level == 0) {
+		for (int i = static_cast<int>(SpellID::Firebolt); i < MAX_SPELLS; i++) {
+			if (GetSpellBookLevel(static_cast<SpellID>(i)) == -1)
+				continue;
+			MyPlayer->_pSplLvl[static_cast<size_t>(i)] = 0;
+			MyPlayer->_pMemSpells &= ~GetSpellBitmask(static_cast<SpellID>(i));
+		}
+		return "Knowledge is power - and forgotten.";
+	}
 	// An int, not the uint8_t this was (audit, 2026-09-27): MAX_SPELLS is 290, and a uint8_t wraps at 255 before it gets
 	// there - the command never returned and sent CMD_CHANGE_SPELL_LEVEL forever.
 	for (int i = static_cast<int>(SpellID::Firebolt); i < MAX_SPELLS; i++) {
@@ -668,9 +692,6 @@ std::string DebugCmdSetSpellsLevel(const string_view parameter)
 			NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, static_cast<uint16_t>(i), level);
 		}
 	}
-	if (level == 0)
-		MyPlayer->_pMemSpells = 0;
-
 	return "Knowledge is power.";
 }
 
@@ -871,6 +892,10 @@ std::string DebugCmdGiveItemSet(const string_view parameter)
 		Item item {};
 		InitializeItem(item, static_cast<_item_indexes>(base));
 		oracool::MakeSetItem(item, def);
+		// The finish every real set piece gets - a seed, an item level, a base tier (round 13 audit: seed 0 made two
+		// pieces on one base the same item to the pickup filter).
+		FinalizeSetPiece(item, std::max<int>(def.requiredLevel, myPlayer._pLevel), /*allowEtherealRoll=*/false);
+		item._iStatFlag = myPlayer.CanUseItem(item);
 		if (!AutoPlaceItemInInventory(myPlayer, item, true)) {
 			noRoom++;
 			continue;
@@ -925,6 +950,8 @@ std::string DebugCmdGiveSetSet(const string_view parameter)
 			Item item {};
 			InitializeItem(item, static_cast<_item_indexes>(base));
 			oracool::MakeSetItem(item, def);
+			FinalizeSetPiece(item, std::max<int>(def.requiredLevel, myPlayer._pLevel), /*allowEtherealRoll=*/false); // round 13
+			item._iStatFlag = myPlayer.CanUseItem(item);
 			if (!AutoPlaceItemInInventory(myPlayer, item, true)) {
 				noRoom++;
 				continue;
@@ -1351,7 +1378,7 @@ std::string DebugCmdQuestInfo(const string_view parameter)
 
 	int questId = atoi(parameter.data());
 
-	if (questId >= MAXQUESTS)
+	if (questId < 0 || questId >= MAXQUESTS) // negative too (round 13 audit)
 		return StrCat("Quest ", questId, " is not known. Do you want to write a mod?");
 	auto &quest = Quests[questId];
 	return StrCat("\nQuest: ", QuestsData[quest._qidx]._qlstr, "\nActive: ", quest._qactive, " Var1: ", quest._qvar1, " Var2: ", quest._qvar2);
@@ -1468,7 +1495,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "help", "Prints help overview or help for a specific command.", "({command})", &DebugCmdHelp },
 	{ "givegold", "Fills the inventory with gold.", "", &DebugCmdGiveGoldCheat },
 	{ "givexp", "Levels the player up (min 1 level or {levels}).", "({levels})", &DebugCmdLevelUp },
-	{ "givewp", "Unlocks every waypoint (1-16) on the current difficulty.", "", &DebugCmdGiveWaypoints },
+	{ "givewp", "Unlocks every waypoint (1-24) on the current difficulty.", "", &DebugCmdGiveWaypoints },
 	{ "maxstats", "Sets all stat values to maximum.", "", &DebugCmdMaxStats },
 	{ "minstats", "Sets all stat values to minimum.", "", &DebugCmdMinStats },
 	// Oracool: reworded 2026-08-15. It said "Set spell level to {level} for all spells", which
