@@ -25,6 +25,7 @@
 #include "oracool/runeword_book.h"
 #include "oracool/skill_picker.h"
 #include "oracool/workshop.h"
+#include "stores.h" // stextflag - the corner panels do not answer under a store page
 #include "oracool/stonegate_menu.h"
 #include "oracool/xp_counter.h"
 #include "player.h" // MyPlayer, for the points icons
@@ -524,7 +525,8 @@ bool IsPointOverHudChrome(Point mousePosition)
 	// beside or above the plate, they walked, cast or dropped the held item through themselves.
 	return IsPointOverHudRowArt(mousePosition)
 	    || IsPointOverXpCounter(mousePosition)
-	    || (!IsLeftPanelOpen() && (IsPointOverCompanionHeader(mousePosition) || IsPointOverMinionHeader(mousePosition))) // round 13 audit
+	    || (!IsLeftPanelOpen() && !IsLevskiRoarOpen() && !IsWorkshopOpen() && stextflag == TalkID::None // under a docked page (round 32)
+	        && (IsPointOverCompanionHeader(mousePosition) || IsPointOverMinionHeader(mousePosition))) // round 13 audit
 	    || IsPointOverHudMenu(mousePosition)
 	    || ((GetHealthOrbRect().contains(mousePosition) || GetManaOrbRect().contains(mousePosition))
 	        && !IsOverOpenSidePanel(mousePosition))

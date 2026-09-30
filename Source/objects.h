@@ -308,6 +308,8 @@ void AddL2Objs(int x1, int y1, int x2, int y2);
 void AddL3Objs(int x1, int y1, int x2, int y2);
 void AddCryptObjects(int x1, int y1, int x2, int y2);
 void InitObjects();
+/** @brief A revisited level's burning flame traps get lights of their own again (the pool was emptied). */
+void RelightLoadedFlameTraps();
 void SetMapObjects(const uint16_t *dunData, int startx, int starty);
 /**
  * @brief Spawns an object of the given type at the map coordinates provided

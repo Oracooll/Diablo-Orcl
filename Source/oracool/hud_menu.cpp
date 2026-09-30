@@ -19,6 +19,7 @@
 #include "inv.h"
 #include "levels/gendung.h"
 #include "minitext.h"
+#include "effects.h" // stream_stop - the quest narration goes with its text
 #include "msg.h"
 #include "oracool/crafting_menu.h"
 #include "stores.h" // stextflag - no sheet over a store dialog
@@ -85,7 +86,11 @@ void DoQuests()
 void DoRunewordBookEntry() { ToggleRunewordBook(); }
 void DoGameMenu()
 {
-	qtextflag = false;
+	// The narration with the text: hidden here without stream_stop, the voice read on under the paused menu (round 32 audit).
+	if (qtextflag) {
+		qtextflag = false;
+		stream_stop();
+	}
 	gamemenu_handle_previous();
 }
 void DoInventory()

@@ -1646,7 +1646,7 @@ void SavePlayer(SaveHelper &file, const Player &player)
 
 	// Extra hotkeys: to keep single player save compatibility, write only 4 hotkeys here, rely on SaveHotkeys for the rest
 	for (size_t i = 0; i < 4; i++) {
-		file.WriteLE<int32_t>(static_cast<int8_t>(player._pSplHotKey[i]));
+		file.WriteLE<int32_t>(static_cast<int16_t>(player._pSplHotKey[i])); // not a byte: spell ids pass 127 (round 31 audit)
 	}
 	for (size_t i = 0; i < 4; i++) {
 		file.WriteLE<uint8_t>(static_cast<uint8_t>(player._pSplTHotKey[i]));

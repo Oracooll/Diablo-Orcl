@@ -4165,8 +4165,8 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			}
 			LastMouseButtonAction = MouseActionType::None;
 		} else if (spellType == SpellType::Scroll || spellType == SpellType::Charges) {
-			// A scroll used up or a staff run dry says so too, once (round 31 audit: it was silent, and on the left button it
-			// also ate the swing).
+			// A scroll used up or a staff run dry says so too, once (round 31 audit: it was silent). On the left button the
+			// click still gives no swing.
 			myPlayer.Say(HeroSpeech::ICantDoThat);
 			LastMouseButtonAction = MouseActionType::None;
 		}
@@ -4208,6 +4208,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		}
 		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
 			myPlayer.Say(ShortOfPriceSpeech(myPlayer, spellID));
+			LastMouseButtonAction = MouseActionType::None; // said once, not at the held button's repeat rate (round 32 audit)
 			return;
 		}
 		oracool::ArmArrowSkill(*arrow);
@@ -4261,10 +4262,12 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	if (oracool::IsRfa12Melee(spellID)) {
 		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
 			myPlayer.Say(ShortOfPriceSpeech(myPlayer, spellID));
+			LastMouseButtonAction = MouseActionType::None; // said once, not at the held button's repeat rate (round 32 audit)
 			return;
 		}
 		if (!oracool::Rfa12MeleeUsable(myPlayer, spellID)) {
 			myPlayer.Say(HeroSpeech::ICantDoThat);
+			LastMouseButtonAction = MouseActionType::None; // said once, not at the held button's repeat rate (round 32 audit)
 			return;
 		}
 		oracool::ArmClassMeleeSkill(std::nullopt);
@@ -4296,6 +4299,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	if (const std::optional<oracool::ClassMeleeSkill> skill = oracool::ClassMeleeSkillForSpell(spellID); skill.has_value()) {
 		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
 			myPlayer.Say(ShortOfPriceSpeech(myPlayer, spellID));
+			LastMouseButtonAction = MouseActionType::None; // said once, not at the held button's repeat rate (round 32 audit)
 			return;
 		}
 		// A bow is not swung (round 19 audit, v1.12.244): the hero drew it and struck in melee with the skill's bonus.
@@ -4335,6 +4339,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 				return;
 			}
 			myPlayer.Say(HeroSpeech::ICantDoThat);
+			LastMouseButtonAction = MouseActionType::None; // said once, not at the held button's repeat rate (round 32 audit)
 			return;
 		}
 		if (pcursmonst == -1) {
@@ -4354,6 +4359,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		// out loud, rather than falling through to a plain swing that reads as the skill misfiring.
 		if (oracool::GetPaladinSkillData(*skill).requiresShield && !oracool::HasShieldEquipped(myPlayer)) {
 			myPlayer.Say(HeroSpeech::ICantDoThat);
+			LastMouseButtonAction = MouseActionType::None; // said once, not at the held button's repeat rate (round 32 audit)
 			return;
 		}
 		if (oracool::LacksMeleeWeaponFor(myPlayer, spellID)) { // a bow is not swung (round 19 audit)
@@ -4425,6 +4431,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			}
 			if (pcursmonst == -1) {
 				myPlayer.Say(myPlayer._pMana < (oracool::GetPaladinSkillData(*skill).manaCost << 6) ? HeroSpeech::NotEnoughMana : HeroSpeech::ICantDoThat);
+				LastMouseButtonAction = MouseActionType::None; // said once, not at the held button's repeat rate (round 32 audit)
 				return;
 			}
 		}

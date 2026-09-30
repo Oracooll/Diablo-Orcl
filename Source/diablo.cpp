@@ -510,6 +510,10 @@ void LeftMouseDown(uint16_t modState)
 
 	if (control_check_talk_btn())
 		return;
+	// With chat open the HUD row is hidden under it, and its cells cast a Town Portal, opened an unseen skill picker and the
+	// hero sheet (round 32 audit). The chat box's own buttons answered above.
+	if (talkflag && oracool::IsPointOverHudChrome(MousePosition))
+		return;
 
 	// The chat log and the help text are modal: a click closes them and reaches nothing behind - it walked the hero, and
 	// landed on a window hidden under the parchment (round 20 audit, v1.12.245).
@@ -4172,8 +4176,13 @@ void CloseWindowsForGameMenu()
 {
 	// Every window, one Escape at a time, for the menus that want a clear screen (the game menu, death). Bounded: a window
 	// that refuses to close (the Cube with a full pack) keeps answering true.
-	for (int i = 0; i < 32 && PressEscKey(); i++) {
-	}
+	int presses = 0;
+	while (presses < 32 && PressEscKey())
+		presses++;
+	// A bench that refuses to close (a full pack and stash) answers every press: the rest are swept past it, as before the
+	// one-window Escape (round 32 audit), and the bench stays up saying why.
+	if (presses == 32)
+		CloseAllWindows();
 }
 
 void DisableInputEventHandler(const SDL_Event &event, uint16_t modState)
@@ -4426,6 +4435,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 				IncProgress();
 				LoadLevel();
 				RelightLoadedMonsters();
+				RelightLoadedFlameTraps(); // round 32 audit
 				RestoreUniqueCorpsesAfterLoad(); // the champions' bodies from the monsters loaded, not the ones thrown away
 				IncProgress();
 			}
@@ -4528,6 +4538,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 		} else {
 			LoadLevel();
 			RelightLoadedMonsters();
+			RelightLoadedFlameTraps(); // round 32 audit
 			RestoreUniqueCorpsesAfterLoad();
 		}
 		if (gbIsMultiplayer) {

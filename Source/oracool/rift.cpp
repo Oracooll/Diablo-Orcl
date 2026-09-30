@@ -570,6 +570,9 @@ bool RiftAcceptsMonster(const MonsterData &data)
 {
 	if (data.availability == MonsterAvailability::Never)
 		return false;
+	// Not the Hork Demon's spawn: a summon that drops nothing, and a roster of it filled the bar for no loot (round 32 audit).
+	if (&data == &MonstersData[MT_HORKSPWN])
+		return false;
 	if (gbIsSpawn && data.availability == MonsterAvailability::Retail)
 		return false;
 	const int floor = RiftMonsterBandFloor();

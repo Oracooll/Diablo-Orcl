@@ -157,7 +157,7 @@ static_assert(InnerPanel.size.height > 0, "Quest log list has no room left");
  */
 Point QuestPanelOrigin()
 {
-	return { 0, std::max(0, (static_cast<int>(gnScreenHeight) - QuestPanelSize.height) / 2) };
+	return { 0, oracool::BottomDockedTop(QuestPanelSize.height) }; // the docking option, as every 340x720 panel (round 32 audit)
 }
 
 /** @brief InnerPanel moved to where the panel actually is. The rows and the hit-test share it. */

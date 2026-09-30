@@ -206,7 +206,7 @@ void DoUnLight(Point position, uint8_t radius)
 
 void DoLighting(Point position, uint8_t radius, DisplacementOf<int8_t> offset)
 {
-	assert(radius >= 0 && radius <= NumLightRadiuses);
+	assert(radius >= 0 && radius < NumLightRadiuses); // a row of LightFalloffs (round 32 audit: <= let 16 read past it)
 	assert(InDungeonBounds(position));
 
 	DisplacementOf<int8_t> light = {};

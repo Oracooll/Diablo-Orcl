@@ -425,7 +425,7 @@ void UnPackPlayer(const PlayerPack &packed, Player &player)
 	player._pHitPoints = player._pHPBase;
 	player.position.tile = position;
 	player.position.future = position;
-	player.setLevel(clamp<int8_t>(packed.plrlevel, 0, NUMLEVELS));
+	player.setLevel(clamp<int8_t>(packed.plrlevel, 0, NUMLEVELS - 1)); // an index into _pLvlVisited[NUMLEVELS] (round 31 audit)
 
 	player._pClass = static_cast<HeroClass>(clamp<uint8_t>(packed.pClass, 0, enum_size<HeroClass>::value - 1));
 

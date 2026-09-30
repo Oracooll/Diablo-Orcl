@@ -329,11 +329,18 @@ void music_start(_music_id nTrack)
 
 void sound_disable_music(bool disable)
 {
+	// The track playing before a movie, to start again after it (round 32 audit): music_stop forgets the track, so the
+	// level was silent after the Lazarus cutscene until the next level change (the same in vanilla).
+	static _music_id trackBeforeMovie = NUM_MUSIC;
 	if (disable) {
+		trackBeforeMovie = sgnMusicTrack;
 		music_stop();
-	} else if (sgnMusicTrack != NUM_MUSIC) {
-		music_start(sgnMusicTrack);
+		return;
 	}
+	const _music_id track = sgnMusicTrack != NUM_MUSIC ? sgnMusicTrack : trackBeforeMovie;
+	trackBeforeMovie = NUM_MUSIC;
+	if (track != NUM_MUSIC)
+		music_start(track);
 }
 
 int sound_get_or_set_music_volume(int volume)

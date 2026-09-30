@@ -4551,6 +4551,10 @@ Monster *SpawnRiftGuardian()
 			}
 		}
 		PrepareUniqueMonst(monster, *unique, minionType, 0, UniqueMonstersData[static_cast<size_t>(*unique)]);
+		// Na-Krul is immune to fire, lightning and magic until floor 24's books weaken him, and a rift has no books: half of
+		// all Guardian Rifts fielded a boss a caster could not touch (round 32 audit). Resistant, as the books would leave him.
+		if (*unique == UniqueMonsterType::NaKrul)
+			monster.resistance = oracool::DemoteImmunitiesToResistances(monster.resistance);
 	}
 	// No corpse entry of his own - he rises after InitCorpses - so none inherited either: the slot's last unique's id drew
 	// his body over a dead champion's, or drew none (round 20 audit, v1.12.245). His type's plain body is his.
@@ -4702,9 +4706,15 @@ bool MonsterTakesRetreatStep(Monster &monster)
 {
 	if (monster.goal != MonsterGoal::Retreat)
 		return false;
-	if (IsAnyOf(monster.ai, MonsterAIID::Fallen, MonsterAIID::Bat, MonsterAIID::Gargoyle, MonsterAIID::Sneak,
-	        MonsterAIID::Counselor, MonsterAIID::Zhar, MonsterAIID::Lazarus))
+	if (IsAnyOf(monster.ai, MonsterAIID::Fallen, MonsterAIID::Bat, MonsterAIID::Sneak, MonsterAIID::Zhar, MonsterAIID::Lazarus))
 		return false; // they run their own retreat
+	// A gargoyle's own retreat is its low-life one, and ends in a heal: a repel (Howl, Grim Ward, Blinding Flash) sent a
+	// healthy one there, and it healed to full (round 32 audit). A Counselor's own retreat fades out first, so it is its own
+	// only while hidden: a visible one went straight to a fade-in and, inside a Grim Ward, looped it unhittable.
+	if (monster.ai == MonsterAIID::Gargoyle && monster.hitPoints < monster.maxHitPoints / 2)
+		return false;
+	if (monster.ai == MonsterAIID::Counselor && (monster.flags & MFLAG_HIDDEN) != 0)
+		return false;
 	if (monster.mode != MonsterMode::Stand)
 		return false;
 	const auto away = static_cast<Direction>(monster.goalVar2 & 7);
@@ -4880,6 +4890,12 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	monster.var1 = 0;
 	monster.position.tile = monster.position.old;
 	monster.position.future = monster.position.old;
+	// Its light too, killed mid-step: a Luminous or champion glow stayed a tile off the corpse (round 32 audit). Not a
+	// petrified unique's, freed just above.
+	if (monster.lightId != NO_LIGHT && monster.mode != MonsterMode::Petrified) {
+		ChangeLightXY(monster.lightId, monster.position.tile);
+		ChangeLightOffset(monster.lightId, {});
+	}
 	M_ClearSquares(monster);
 	dMonster[monster.position.tile.x][monster.position.tile.y] = monster.getId() + 1;
 	CheckQuestKill(monster, sendmsg);
@@ -5383,7 +5399,9 @@ void ProcessMonsters()
 
 		// Nocturne and Soft Tread (RfA-12): in sight is not yet noticed.
 		if (IsTileVisible(monster.position.tile) && monster.activeForTicks == 0 && oracool::MonsterMayNotice(monster)) {
-			if (monster.type().type == MT_CLEAVER) {
+			// Not a rift's Butcher: his arrival already streamed the line, and this cut it off and started it again (round 32
+			// audit - round 23 spared Na-Krul the same way).
+			if (monster.type().type == MT_CLEAVER && !oracool::IsRiftGuardian(monster)) {
 				PlaySFX(USFX_CLEAVER);
 			}
 			// Not a rift's Na-Krul: his floor-24 sealed-door speech cut the guardian's arrival sting in a rift (round 23).
@@ -5769,7 +5787,9 @@ void MissToMonst(Missile &missile, Point position)
 	// charges from 5+ tiles). It moved the target's grid mark and put the charger on it, leaving the target unclickable
 	// and a phantom blocking tile behind (round 10 audit, v1.12.235).
 	Point newPosition = oldPosition + monster.direction;
-	if (target->mode != MonsterMode::Death && IsTileAvailable(*target, newPosition)) {
+	// Not a walker (round 32 audit): its walk would end relative to the pushed tile, into a wall, leaving the old
+	// destination's marker as an invisible block.
+	if (target->mode != MonsterMode::Death && !target->isWalking() && IsTileAvailable(*target, newPosition)) {
 		dMonster[oldPosition.x][oldPosition.y] = 0;
 		dMonster[newPosition.x][newPosition.y] = static_cast<int16_t>(target->getId() + 1);
 		target->position.tile = newPosition;

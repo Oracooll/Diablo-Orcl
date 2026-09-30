@@ -1787,6 +1787,22 @@ void ActivateTrapLine(int ttype, int tid)
 	}
 }
 
+} // namespace
+
+void RelightLoadedFlameTraps()
+{
+	// A revisit restores the objects but not their lights (InitLighting emptied the pool): a burning trap line kept a stale
+	// id and resized - then freed - whatever held that slot now, a champion's glow among them (round 32 audit).
+	for (int i = 0; i < ActiveObjectCount; i++) {
+		Object &trap = Objects[ActiveObjects[i]];
+		if (!IsAnyOf(trap._otype, OBJ_FLAMEHOLE))
+			continue;
+		trap._olid = trap._oVar4 != 0 ? AddLight(trap.position, static_cast<uint8_t>(std::clamp<int>(trap._oAnimFrame, 1, 5))) : NO_LIGHT;
+	}
+}
+
+namespace {
+
 void UpdateFlameTrap(Object &trap)
 {
 	if (trap._oVar2 != 0) {
@@ -1795,6 +1811,7 @@ void UpdateFlameTrap(Object &trap)
 			if (trap._oAnimFrame == 1) {
 				trap._oVar4 = 0;
 				AddUnLight(trap._olid);
+				trap._olid = NO_LIGHT; // forgotten with the fire: the slot goes to another light (round 32 audit)
 			} else if (trap._oAnimFrame <= 4) {
 				ChangeLightRadius(trap._olid, trap._oAnimFrame);
 			}

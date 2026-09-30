@@ -967,6 +967,46 @@ void SaveToDisk(const std::string &key, const CachedSheet &cached)
 	std::fclose(file);
 }
 
+/**
+ * @brief Whether @p data is shaped like a CLX sheet of @p numLists lists: every list offset, sprite offset and sprite header
+ * inside the buffer, in order. The cache file is the player's disk, not ours: a same-length file with a flipped byte passed
+ * the header checks and read past the buffer on the first draw (round 31 audit). A refused file is recomputed.
+ */
+bool SheetStructureValid(const std::vector<uint8_t> &data, uint32_t numLists)
+{
+	const uint64_t size = data.size();
+	if (numLists == 0 || size < 4ULL * numLists)
+		return false;
+	const auto le32 = [&data](uint64_t at) {
+		return static_cast<uint32_t>(data[at]) | static_cast<uint32_t>(data[at + 1]) << 8 | static_cast<uint32_t>(data[at + 2]) << 16
+		    | static_cast<uint32_t>(data[at + 3]) << 24;
+	};
+	for (uint32_t l = 0; l < numLists; l++) {
+		const uint64_t list = le32(4ULL * l);
+		if (list + 4 > size)
+			return false;
+		const uint64_t sprites = le32(list);
+		const uint64_t tableEnd = 4 + (sprites + 1) * 4;
+		if (list + tableEnd > size)
+			return false;
+		uint64_t previous = tableEnd;
+		for (uint64_t s = 0; s <= sprites; s++) {
+			const uint64_t offset = le32(list + 4 + s * 4);
+			if (offset < previous || list + offset > size)
+				return false;
+			if (s > 0 && offset > previous) {
+				// The sprite before this offset: a header that says how big it is, inside the sprite.
+				const uint64_t begin = list + previous;
+				const uint64_t header = static_cast<uint64_t>(data[begin]) | static_cast<uint64_t>(data[begin + 1]) << 8;
+				if (offset - previous < 6 || header < 6 || header > offset - previous)
+					return false;
+			}
+			previous = offset;
+		}
+	}
+	return true;
+}
+
 std::shared_ptr<const CachedSheet> LoadFromDisk(const std::string &key)
 {
 	std::FILE *file = OpenFile(CachePath(key).c_str(), "rb");
@@ -997,6 +1037,8 @@ std::shared_ptr<const CachedSheet> LoadFromDisk(const std::string &key)
 	std::fclose(file);
 	if (!ok || (!cached->nothing && (cached->data.empty() || cached->numLists == 0)))
 		return nullptr; // truncated or from another version: recompute, and the rewrite replaces it
+	if (!cached->nothing && !SheetStructureValid(cached->data, cached->numLists))
+		return nullptr; // damaged: recompute, as above
 	return cached;
 }
 

@@ -654,8 +654,8 @@ void SearchAutomapItem(const Surface &out, Point screenCenter, const Displacemen
 			// From the caller's centre, as the player's arrow is placed (audit, 2026-09-27): the screen's own centre put the
 			// mini-map's markers far outside its small frame, clipped away - Search showed nothing there.
 			Point screen = {
-				(myPlayerOffset.deltaX * AutoMapScale / 100 / 2) + (px - py) * AmLine(16) + screenCenter.x,
-				(myPlayerOffset.deltaY * AutoMapScale / 100 / 2) + (px + py) * AmLine(8) + screenCenter.y
+				(myPlayerOffset.deltaX * AutoMapScale / 100 / 2) + (px - py) * AmLine(64) / 4 + screenCenter.x,
+				(myPlayerOffset.deltaY * AutoMapScale / 100 / 2) + (px + py) * AmLine(32) / 4 + screenCenter.y
 			};
 
 			if (!MiniMapActive && CanPanelsCoverView()) {
@@ -697,8 +697,8 @@ void DrawAutomapPlr(const Surface &out, Point screenCenter, const Displacement &
 	// was) since the mini-map's tile grid is centered on the subregion's own small midpoint, not
 	// the real screen's.
 	Point base = {
-		((playerOffset.deltaX + myPlayerOffset.deltaX) * AutoMapScale / 100 / 2) + (px - py) * AmLine(16) + screenCenter.x,
-		((playerOffset.deltaY + myPlayerOffset.deltaY) * AutoMapScale / 100 / 2) + (px + py) * AmLine(8) + screenCenter.y
+		((playerOffset.deltaX + myPlayerOffset.deltaX) * AutoMapScale / 100 / 2) + (px - py) * AmLine(64) / 4 + screenCenter.x,
+		((playerOffset.deltaY + myPlayerOffset.deltaY) * AutoMapScale / 100 / 2) + (px + py) * AmLine(32) / 4 + screenCenter.y
 	};
 
 	if (!MiniMapActive && CanPanelsCoverView()) {
@@ -1038,12 +1038,15 @@ void ToggleMiniMapZoom()
  */
 Point AutomapMarkerScreenPosition(Point screenCenter, const Displacement &myPlayerOffset, Point tile)
 {
+	// The grid's own pitch per tile - AmLine(64) and AmLine(32) per four tiles, as DrawAutomapCore steps - not AmLine(16) and
+	// AmLine(8), which floor separately: at the mini-map's scales the markers sat short of their tiles, and at the lowest
+	// zoom every one of them on the hero (round 32 audit). The player's square and Search's diamonds use the same pitch.
 	int px = tile.x - 2 * AutomapOffset.deltaX - ViewPosition.x;
 	int py = tile.y - 2 * AutomapOffset.deltaY - ViewPosition.y;
 
 	Point screen = {
-		(myPlayerOffset.deltaX * AutoMapScale / 100 / 2) + (px - py) * AmLine(16) + screenCenter.x,
-		(myPlayerOffset.deltaY * AutoMapScale / 100 / 2) + (px + py) * AmLine(8) + screenCenter.y
+		(myPlayerOffset.deltaX * AutoMapScale / 100 / 2) + (px - py) * AmLine(64) / 4 + screenCenter.x,
+		(myPlayerOffset.deltaY * AutoMapScale / 100 / 2) + (px + py) * AmLine(32) / 4 + screenCenter.y
 	};
 	screen.y -= AmLine(8);
 	return screen;

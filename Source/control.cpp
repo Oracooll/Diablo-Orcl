@@ -936,6 +936,10 @@ void FocusOnCharInfo()
 
 void OpenCharPanel()
 {
+	// Never over a store dialog (round 32 audit): the level-up icon opened the sheet over the shop, and the hidden shop took
+	// the clicks under it - a right click bought an item. The C key and the HUD menu already refused (round 25).
+	if (stextflag != TalkID::None)
+		return;
 	// The sheet is roughly twice its window's height now, so opening it should always show the top
 	// rather than wherever it was left last time.
 	ResetCharacterSheetScroll();

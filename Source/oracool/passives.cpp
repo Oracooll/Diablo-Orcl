@@ -672,7 +672,9 @@ bool PassiveCheatsDeath(Player &player)
 	if (anomaly) {
 		for (size_t i = 0; i < ActiveMonsterCount; i++) {
 			Monster &other = Monsters[ActiveMonsters[i]];
-			if (!other.isPlayerMinion() && other.hitPoints >> 6 > 0 && player.position.tile.WalkingDistance(other.position.tile) <= AnomalyThrowTiles)
+			// Not a petrified one, as every other knockback caller spares it: the throw broke Stone Curse early (round 32 audit).
+			if (!other.isPlayerMinion() && other.hitPoints >> 6 > 0 && other.mode != MonsterMode::Petrified
+			    && player.position.tile.WalkingDistance(other.position.tile) <= AnomalyThrowTiles)
 				M_GetKnockback(other);
 		}
 	}

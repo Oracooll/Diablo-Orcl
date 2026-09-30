@@ -4753,12 +4753,10 @@ void CloseStash()
 
 	Player &myPlayer = *MyPlayer;
 	if (!myPlayer.HoldItem.isEmpty()) {
-		std::optional<Point> itemTile = FindAdjacentPositionForItem(myPlayer.position.future, myPlayer._pdir);
-		if (itemTile) {
-			NetSendCmdPItem(true, CMD_PUTITEM, *itemTile, myPlayer.HoldItem);
-		} else {
-			// Potions to the belt first; anything else to the inventory, the belt only as the last room
-			// before the fatal below.
+		// Put away first - potions to the belt, the rest to the pack, then the stash - and the floor only when there is no
+		// room anywhere (round 32 audit): a stash closed by a level change dropped the held item on the new floor, a rift's
+		// or an arena's among them, which is where a quest item may not go.
+		{
 			if (!(myPlayer.HoldItem.isPotion() && AutoPlaceItemInBelt(myPlayer, myPlayer.HoldItem, true))
 			    && !AutoPlaceItemInInventory(myPlayer, myPlayer.HoldItem, true)
 			    && !AutoPlaceItemInStash(myPlayer, myPlayer.HoldItem, true)
