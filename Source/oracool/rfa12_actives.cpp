@@ -4070,4 +4070,9 @@ std::string Rfa12ActivesPassiveFactsAt(const Player &player, ClassTreeSkill skil
 	return out.text;
 }
 
+bool Rfa12LacksBowFor(const Player &player, SpellID spell)
+{
+	return IsRfa12Active(spell) && IsBowSkill(spell) && !player.UsesRangedWeapon();
+}
+
 } // namespace devilution::oracool

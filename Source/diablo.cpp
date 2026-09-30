@@ -264,6 +264,8 @@ void FreeGame()
 	oracool::ResetFuriousChargeForNewGame();
 	oracool::ResetShopToastForNewGame();
 	oracool::ClearMovementSlows(); // a slow is a game's state, not a session's
+	// The kill counts that reveal a type's resistances: the next hero began with the last one's (round 18 audit).
+	std::fill(std::begin(MonsterKillCounts), std::end(MonsterKillCounts), 0);
 	oracool::CloseCraftingMenu();
 	oracool::CloseHudMenu();
 	oracool::CloseSkillPicker();
@@ -4166,6 +4168,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	// the arena, and the stash moved items both ways mid-fight (round 12 audit, v1.12.237).
 	CloseStash();
 	oracool::CloseStonegateMenu();
+	oracool::CloseWaypointMenu(); // a Town Portal cast beside a sigil landed within its reach in town (round 18 audit)
 	_music_id neededTrack = GetLevelMusic(leveltype);
 	ClearFloatingNumbers();
 

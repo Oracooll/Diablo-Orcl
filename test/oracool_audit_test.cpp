@@ -577,11 +577,18 @@ TEST(OracoolAudit, ShieldCountsInEitherHand)
 	EXPECT_FALSE(oracool::HasShieldEquipped(player));
 
 	player.InvBody[INVLOC_HAND_RIGHT]._itype = ItemType::Shield;
+	player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag = true; // usable - since v1.12.243 a shield under its requirements is none
 	EXPECT_TRUE(oracool::HasShieldEquipped(player));
 
 	player.InvBody[INVLOC_HAND_RIGHT] = {};
 	player.InvBody[INVLOC_HAND_LEFT]._itype = ItemType::Shield;
+	player.InvBody[INVLOC_HAND_LEFT]._iStatFlag = true;
 	EXPECT_TRUE(oracool::HasShieldEquipped(player)) << "a shield in the left hand is not a shield - the v1.6.3 bug is back";
+
+	// Round 18 audit (v1.12.243): a shield whose requirements lapsed gives no armour and no block, and must not power
+	// Smite or Blessed Shield either.
+	player.InvBody[INVLOC_HAND_LEFT]._iStatFlag = false;
+	EXPECT_FALSE(oracool::HasShieldEquipped(player)) << "a shield the hero cannot use counted as a shield";
 }
 
 // The red plate (user, 2026-09-29): the three skills that need a shield say so while none is held, and nothing else does.
@@ -1120,6 +1127,7 @@ TEST(OracoolPaladinSkills, BrokenShieldDoesNotCountAsAShield)
 	devilution::Item &shield = player.InvBody[INVLOC_HAND_RIGHT];
 	shield = {};
 	shield._itype = ItemType::Shield;
+	shield._iStatFlag = true;
 	shield._iOracoolBroken = false;
 	EXPECT_TRUE(oracool::HasShieldEquipped(player)) << "a working shield should count";
 
@@ -8789,6 +8797,7 @@ TEST(OracoolClassTree, EveryBorrowedPaladinSkillMatchesItsTreeTier)
 	devilution::Item &shield = player.InvBody[INVLOC_HAND_RIGHT];
 	shield = {};
 	shield._itype = ItemType::Shield;
+	shield._iStatFlag = true;
 	shield._iOracoolBroken = false;
 	ASSERT_TRUE(HasShieldEquipped(player)) << "test setup: the shield is not registering";
 
@@ -8880,6 +8889,7 @@ TEST(OracoolClassTree, RefundingTheLastPointTakesTheSkillOffTheButtons)
 	devilution::Item &shield = player.InvBody[INVLOC_HAND_RIGHT];
 	shield = {};
 	shield._itype = ItemType::Shield;
+	shield._iStatFlag = true;
 	ASSERT_TRUE(HasShieldEquipped(player)) << "test setup: the shield is not registering";
 	ASSERT_TRUE(IsValidSpell(SpellID::ShieldBash)) << "test setup: Shield Bash is not a valid spell here";
 

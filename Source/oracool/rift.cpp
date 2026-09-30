@@ -340,26 +340,33 @@ bool SpendPendingKeystone(Player &player)
 	return true;
 }
 
-int FindBestKeystoneInBackpack(const Player &player)
+const Item *FindBestKeystoneInBackpack(const Player &player)
 {
-	int best = -1;
-	for (int i = 0; i < player._pNumInv; i++) {
-		const Item &item = player.InvList[i];
+	// Every backpack page, as SpendPendingKeystone searches: a keystone auto-placed onto page 2 left the row red, "no
+	// keystone in the pack" (round 18 audit, v1.12.243).
+	const Item *best = nullptr;
+	const auto consider = [&best](const Item &item) {
 		if (item.isEmpty() || item._iMiscId != IMISC_ORACOOL_KEYSTONE)
-			continue;
-		if (best < 0 || item._iOracoolRiftTier > player.InvList[best]._iOracoolRiftTier)
-			best = i;
+			return;
+		if (best == nullptr || item._iOracoolRiftTier > best->_iOracoolRiftTier)
+			best = &item;
+	};
+	for (int i = 0; i < player._pNumInv; i++)
+		consider(player.InvList[i]);
+	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
+		for (int i = 0; i < player._pNumInvTab[t]; i++)
+			consider(player.InvTabList[t][i]);
 	}
 	return best;
 }
 
 bool UseBestKeystoneFromBackpack(Player &player)
 {
-	const int index = FindBestKeystoneInBackpack(player);
-	if (index < 0)
+	const Item *keystone = FindBestKeystoneInBackpack(player);
+	if (keystone == nullptr)
 		return false;
 	// Turned, not spent: it goes when the hero steps through (SpendPendingKeystone).
-	return UseGuardianKeystone(player, player.InvList[index]);
+	return UseGuardianKeystone(player, *keystone);
 }
 
 int NextKeystoneTier(int tier, int ticksLeft, int ticksTotal, bool timedOut)
@@ -727,6 +734,12 @@ void OnRiftMonsterKilled(const Monster &monster)
 		// The rift's own portal is drawn on it so the tile is not a secret. GetMapReturnLevel answers
 		// town for a rift level.
 		State.homeTile = monster.position.tile;
+		// The keystone FIRST, so the search below sees it: laid after the way home, it could land in ring 2 beside a way
+		// home at 3 - the pickup-walk trap round 17 set out to close (round 18 audit, v1.12.243).
+		if (State.kind == RiftKind::Nephalem)
+			DropKeystone(monster.position.tile, State.tier);
+		else
+			DropKeystone(monster.position.tile, NextKeystoneTier(State.tier, State.ticksLeft, GuardianRiftSeconds * RiftTicksPerSecond, State.timedOut));
 		// Nobody standing on it (audit, 2026-09-27): searched from South, it could land under the hero who struck the
 		// blow, and his standing still on it fired the trigger - home, the rift over, the pile and the keystone left.
 		// OUTSIDE the drop ring, on a tile with no item (round 9 audit, v1.12.234): the loot scatters over the 3x3 around the
@@ -745,7 +758,11 @@ void OnRiftMonsterKilled(const Monster &monster)
 				        if (InDungeonBounds(beside) && dItem[beside.x][beside.y] != 0)
 					        return false;
 			        }
-			        return true;
+			        // A short walk from the corpse, not merely near it: ring 3 across a wall won over ring 5 down the corridor,
+			        // and a cleared Guardian Rift ends only through this tile (round 18 audit).
+			        int8_t path[MaxPathLength];
+			        const int steps = FindPath([](Point p) { return InDungeonBounds(p) && !IsTileSolid(p); }, monster.position.tile, tile, path);
+			        return steps > 0 && steps <= 14;
 		        },
 		        monster.position.tile, 3, 10);
 		    home.has_value()) {
@@ -760,13 +777,9 @@ void OnRiftMonsterKilled(const Monster &monster)
 				}
 			}
 		}
-		LayWayHome();
-		// The keystone (plan r5): a Nephalem guardian always drops one at the rift's tier; a Guardian
+		// The keystone (plan r5) went down above: a Nephalem guardian always drops one at the rift's tier; a Guardian
 		// guardian drops the next tier's, unless the clock ran out.
-		if (State.kind == RiftKind::Nephalem)
-			DropKeystone(monster.position.tile, State.tier);
-		else
-			DropKeystone(monster.position.tile, NextKeystoneTier(State.tier, State.ticksLeft, GuardianRiftSeconds * RiftTicksPerSecond, State.timedOut));
+		LayWayHome();
 		if (State.kind == RiftKind::Guardian && State.timedOut)
 			LogEvent(StrCat(RiftGuardianName(State.guardian), " falls, but the clock had run out: no keystone. The portal leads home."), UiFlags::ColorWhitegold);
 		else

@@ -2173,6 +2173,11 @@ void Player::ReadySpellFromEquipment(inv_body_loc bodyLocation, bool forceSpell)
 {
 	auto &item = InvBody[bodyLocation];
 	if (item._itype == ItemType::Staff && IsValidSpell(item._iSpell) && item._iCharges > 0) {
+		// Never while an aura burns: the aura IS the right button (ClearClassAuraForRightButton), and a staff equipped or
+		// recharged under one readied its spell beside it - aura bonuses plus a staff spell, the hover and the well
+		// disagreeing (round 18 audit, v1.12.243). The staff's cell stays in the picker.
+		if (oracool::GetActiveClassAura(*this) != oracool::ClassTreeSkill::None)
+			return;
 		if (forceSpell || _pRSpell == SpellID::Invalid || _pRSplType == SpellType::Invalid) {
 			_pRSpell = item._iSpell;
 			_pRSplType = SpellType::Charges;
@@ -4124,6 +4129,14 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		return;
 	}
 
+	// The eight RfA-12 bow skills are cast, not shot, and refused only at the cast frame: the whole animation played with
+	// no bow, then "I can't do that", every cycle of a held button. Refused at the click, as the arrows above (round 18
+	// audit, v1.12.243).
+	if (oracool::Rfa12LacksBowFor(myPlayer, spellID)) {
+		myPlayer.Say(HeroSpeech::ICantDoThat);
+		return;
+	}
+
 	// Weapon Throw (Barbarian, user note 2026-09-14): the ordinary attack, in place, toward the cursor - and at the hit
 	// frame DoAttack throws the weapon instead of swinging it (oracool/weapon_throw.h).
 	if (oracool::IsWeaponThrow(spellID)) {
@@ -4555,7 +4568,13 @@ int RefundStatPoints(Player &player, CharacterAttribute attribute, int count)
 	}
 	*spent -= refund;
 	player._pStatPts += refund;
+	const bool wasAlive = player._pHitPoints >> 6 > 0;
 	CalcPlrInv(player, true);
+	// Never below 1 life, whatever else the recalculation takes: Endurance's and Perfect Vessel's share of base life
+	// shrank with a Vitality refund, and a Strength refund could switch off +life gear - the hero died in the dungeon
+	// on the next tick (round 18 audit, v1.12.243). The kill check reads life only after this returns.
+	if (wasAlive && player._pHitPoints < 64)
+		SetPlayerHitPoints(player, 64);
 	RedrawEverything();
 	return refund;
 }

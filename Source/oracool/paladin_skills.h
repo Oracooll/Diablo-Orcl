@@ -150,6 +150,7 @@ bool HasShieldEquipped(const Player &player);
  * @brief Whether @p spell needs a shield that @p player is not holding: Smite and Blessed Shield (requiresShield) and
  * Aegis Slam (Rfa12MeleeUsable). Their plates go red on the LMB/RMB wells and in the skill menus while it is so (user,
  * 2026-09-29: "Shield requiring skills to have red backing in lmb/rmb slots and menus when a shield is not equipped").
+ * Since v1.12.243 also a bow skill (the Rogue's arrows and the eight RfA-12 bow skills) with no bow in hand.
  */
 bool LacksShieldFor(const Player &player, SpellID spell);
 

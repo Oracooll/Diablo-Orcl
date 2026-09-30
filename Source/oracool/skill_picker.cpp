@@ -27,6 +27,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
 #include "oracool/ornate_border.h"
+#include "oracool/oracool.h"         // IsBuiltInPortalAbility - no Town Portal among the spells
 #include "oracool/paladin_skills.h" // LacksShieldFor - a shield skill's red plate
 #include "oracool/readied_spells.h"
 #include "oracool/spell_ranks.h" // SpellRequiredLevel - spells sort as the Spells tab sorts them
@@ -231,6 +232,10 @@ void BuildEntries(const Player &player, std::vector<Entry> &out, std::vector<Sec
 		if (!IsSpellKnownTo(player, spell))
 			continue;
 		if ((listedSpells & GetSpellBitmask(spell)) != 0)
+			continue;
+		// The built-in Town Portal is the Portal button, hidden wherever a real spell shows, as the speedbook and the
+		// Abilities book hide it; its scrolls stay under SCROLLS (round 18 audit, v1.12.243).
+		if (IsBuiltInPortalAbility(spell))
 			continue;
 		out.push_back({ EntryKind::Spell, 0, ClassTreeSkill::None, spell });
 	}
@@ -583,7 +588,9 @@ void DrawSkillPicker(const Surface &out)
 			        && GetClassTreeSkillData(entry.tree).kind == ClassTreeKind::Aura
 			    ? GetAuraFKeyNumber(entry.tree)
 			    : 0;
-			if (const int fkey = auraKey != 0 ? auraKey : GetAbilityFKeyNumber(entry.spell, PickerForLeft);
+			// A right-button-only skill bound from here lands on the RIGHT array (BindAbilityHotkey), so its key is read
+			// there: the left array's showed no badge, and a second press silently unbound it (round 18 audit).
+			if (const int fkey = auraKey != 0 ? auraKey : GetAbilityFKeyNumber(entry.spell, PickerForLeft && !rightOnly);
 			    fkey != 0) {
 				DrawBadge(out, cell, BadgeCorner::TopRight, StrCat("F", fkey));
 			}

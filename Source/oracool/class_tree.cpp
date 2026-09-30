@@ -39,6 +39,7 @@
 #include "spells.h"   // GetManaAmountAtLevel
 #include "player.h"
 #include "plrmsg.h" // EventPlrMsg - a slot change refused for want of backpack room says so
+#include "qol/stash.h" // AutoPlaceItemInStash - Heavenly Grip's shield when the backpack is full
 #include "utils/language.h"
 
 namespace devilution::oracool {
@@ -2594,9 +2595,16 @@ void ReleaseHeavenlyGrip(Player &player)
 	if (!leftTwoHanded && !rightTwoHanded)
 		return;
 	Item &offHand = leftTwoHanded ? right : left;
+	// The backpack, then the stash, then the floor - with room made on a full floor: at 127 ground items the drop did
+	// nothing and the shield was cleared anyway (round 18 audit, v1.12.243).
 	if (!AutoPlaceItemInInventory(player, offHand, /*persistItem=*/true)) {
-		DropItemBesidePlayer(player, offHand);
-		EventPlrMsg(_("Your backpack is full - the shield is on the ground at your feet."), UiFlags::ColorWhitegold);
+		if (AutoPlaceItemInStash(player, offHand, /*persistItem=*/true)) {
+			EventPlrMsg(_("Your backpack is full - the shield went to your stash."), UiFlags::ColorWhitegold);
+		} else {
+			MakeRoomForGuaranteedReward();
+			DropItemBesidePlayer(player, offHand);
+			EventPlrMsg(_("Your backpack is full - the shield is on the ground at your feet."), UiFlags::ColorWhitegold);
+		}
 	}
 	offHand.clear();
 	// With the sprites: the body is now a two-hander without a shield. The Abilities window's own recalc

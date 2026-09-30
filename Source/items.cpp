@@ -944,7 +944,8 @@ void CalcSelfItems(Player &player)
 			    && currstr >= oracool::EffectiveRequirement(equipment, equipment._iMinStr)
 			    && currmag >= oracool::EffectiveRequirement(equipment, equipment._iMinMag)
 			    && currdex >= oracool::EffectiveRequirement(equipment, equipment._iMinDex)
-			    && player._pLevel >= oracool::RequiredLevel(equipment))
+			    && player._pLevel >= oracool::RequiredLevel(equipment)
+			    && oracool::ClassMayUseItem(player, equipment)) // the class rule too, as CanUseItem has it (round 18)
 				continue;
 			changeflag = true;
 			equipment._iStatFlag = false;
@@ -4691,7 +4692,8 @@ bool CreateSetVendorItem(const Player &player, Item &item, int lvl,
 	FinalizeSetPiece(item, std::max(oracool::VendorItemLevel(lvl), def.requiredLevel), /*allowEtherealRoll=*/false); // lifted (round 12)
 	// Never cheaper than what it salvages into: a set piece keeps its plain base's value (a helm, 40 gold), and Griswold's
 	// free salvage paid three Set Engravings, 675 gold at sale - a gold faucet every game load (round 17 audit). The
-	// floor is the three Engravings' full worth; the piece's own sale value is left alone.
+	// floor is the three Engravings' full worth, and the shelf price only: BuyCuratedShelfItemAt hands the bought piece
+	// its own value back (_ivalue, the base's tiered value).
 	constexpr int SetShelfPriceFloor = 3 * 900;
 	item._iIvalue = std::max(item._iIvalue, SetShelfPriceFloor);
 	item._iIdentified = true;

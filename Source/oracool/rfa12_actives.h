@@ -43,6 +43,9 @@ enum class ClassTreeSkill : uint16_t;
 /** @brief Whether @p spell is one of the 114 RfA-12 actives. */
 bool IsRfa12Active(SpellID spell);
 
+/** @brief Whether @p spell is one of the eight RfA-12 bow skills and @p player holds no bow to loose it from. */
+bool Rfa12LacksBowFor(const Player &player, SpellID spell);
+
 /** @brief Whether @p spell is swung on the RfA-12 melee latch rather than cast. */
 bool IsRfa12Melee(SpellID spell);
 

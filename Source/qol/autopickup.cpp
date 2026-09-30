@@ -5,6 +5,7 @@
  */
 
 #include "missiles.h" // LineClearMissile - no pick-up through walls
+#include "loadsave.h" // StashFileRefused
 #include "options.h"
 #include "oracool/oracool.h"
 #include "player.h"
@@ -20,7 +21,9 @@ bool HasRoomForGold()
 	// Oracool: picked-up gold goes to the shared Stash pool, which practically always has room
 	// (it caps at INT_MAX) - checking inventory space here would incorrectly stop gold auto-pickup
 	// once the backpack fills up with unrelated items.
-	if (oracool::IsSinglePlayer())
+	// Not while the stash file could not be read, which refuses every deposit: the pickup failed and re-dropped on every
+	// step (round 18 audit). The backpack scan below answers then.
+	if (oracool::IsSinglePlayer() && !StashFileRefused)
 		return Stash.gold < std::numeric_limits<int>::max();
 
 	for (int idx : MyPlayer->InvGrid) {

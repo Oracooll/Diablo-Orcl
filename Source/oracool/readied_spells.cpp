@@ -35,6 +35,10 @@ SpellType ReadiedSpellType(const Player &player, SpellID spell)
 		return SpellType::Spell;
 	if ((player._pISpells & bit) != 0)
 		return SpellType::Charges;
+	// A scroll the hero still carries, as live a fact as the staff: a left F-key bound to a scroll was dropped on every
+	// reload for want of this case (round 18 audit, v1.12.243).
+	if ((player._pScrlSpells & bit) != 0)
+		return SpellType::Scroll;
 	return SpellType::Invalid;
 }
 

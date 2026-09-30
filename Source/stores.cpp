@@ -2405,6 +2405,10 @@ void BuyCuratedShelfItemAt(CuratedShelf shelf, Item &item, int idx)
 	if (shelf == CuratedShelf::Unique && item._iMagical == ITEM_QUALITY_UNIQUE && item._iUid >= 0
 	    && static_cast<size_t>(item._iUid) < UniqueItemCount)
 		item._iIvalue = oracool::ScaleValueForBaseTier(UniqueItems[item._iUid].UIValue, item._iOracoolBaseTier);
+	// The Set shelf's salvage floor is its PRICE too: the bought piece takes back its base's tiered value (_ivalue, which
+	// ApplyBaseTier scales alongside), or it sold for 675 and repaired at 60 times a found copy's (round 18 audit).
+	if (shelf == CuratedShelf::Set)
+		item._iIvalue = std::min(item._iIvalue, std::max(item._ivalue, 0));
 	StoreAutoPlace(item, true);
 	// The bought item is REMOVED and not replaced - that is what makes a shelf curated. The stock
 	// closes up behind it so the list stays dense, which is what the scroll arithmetic assumes.

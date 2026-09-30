@@ -41,6 +41,16 @@ int themex;
 int themey;
 int themeVar1;
 
+/**
+ * @brief Within seven tiles of a rift's landing. No theme monster stands there: a rift's stairs are handed back as floor,
+ * so a theme room can cover the arrival (round 17 audit); the goat shrine and the skeleton room place their own packs
+ * and missed that test (round 18 audit, v1.12.243).
+ */
+bool NearRiftArrival(Point tile)
+{
+	return setlevel && oracool::IsRiftLevel(setlvlnum) && tile.WalkingDistance(ViewPosition) <= 7;
+}
+
 bool TFit_Shrine(int i)
 {
 	int xp = 0;
@@ -371,7 +381,7 @@ void PlaceThemeMonsts(int t, int f)
 		for (int xp = 0; xp < MAXDUNX; xp++) {
 			// Not on a rift's arrival: its stairs are handed back as floor, a theme room can cover the landing, and its
 			// pack spawned on top of the hero (round 17 audit, v1.12.242).
-			if (setlevel && oracool::IsRiftLevel(setlvlnum) && Point { xp, yp }.WalkingDistance(ViewPosition) <= 7)
+			if (NearRiftArrival({ xp, yp }))
 				continue;
 			if (dTransVal[xp][yp] == themes[t].ttval && IsTileNotSolid({ xp, yp }) && dItem[xp][yp] == 0 && !IsObjectAtPosition({ xp, yp })) {
 				if (FlipCoin(f)) {
@@ -459,14 +469,22 @@ void Theme_MonstPit(int t)
 	PlaceThemeMonsts(t, monstrnd[leveltype - 1]);
 }
 
+/** @brief A theme skeleton, never on a rift's arrival (NearRiftArrival). */
+void ActivateThemeSkeleton(Point tile)
+{
+	if (NearRiftArrival(tile))
+		return;
+	Monster *skeleton = PreSpawnSkeleton();
+	if (skeleton != nullptr)
+		ActivateSkeleton(*skeleton, tile);
+}
+
 void SpawnObjectOrSkeleton(unsigned frequency, _object_id objectType, Point tile)
 {
 	if (FlipCoin(frequency)) {
 		AddObject(objectType, tile);
 	} else {
-		Monster *skeleton = PreSpawnSkeleton();
-		if (skeleton != nullptr)
-			ActivateSkeleton(*skeleton, tile);
+		ActivateThemeSkeleton(tile);
 	}
 }
 
@@ -488,11 +506,7 @@ void Theme_SkelRoom(int t)
 
 	SpawnObjectOrSkeleton(monstrnd[leveltype - 1], OBJ_BANNERL, { xp - 1, yp - 1 });
 
-	{
-		Monster *skeleton = PreSpawnSkeleton();
-		if (skeleton != nullptr)
-			ActivateSkeleton(*skeleton, { xp, yp - 1 });
-	}
+	ActivateThemeSkeleton({ xp, yp - 1 });
 
 	SpawnObjectOrSkeleton(monstrnd[leveltype - 1], OBJ_BANNERR, { xp + 1, yp - 1 });
 
@@ -502,11 +516,7 @@ void Theme_SkelRoom(int t)
 
 	SpawnObjectOrSkeleton(monstrnd[leveltype - 1], OBJ_BANNERR, { xp - 1, yp + 1 });
 
-	{
-		Monster *skeleton = PreSpawnSkeleton();
-		if (skeleton != nullptr)
-			ActivateSkeleton(*skeleton, { xp, yp + 1 });
-	}
+	ActivateThemeSkeleton({ xp, yp + 1 });
 
 	SpawnObjectOrSkeleton(monstrnd[leveltype - 1], OBJ_BANNERL, { xp + 1, yp + 1 });
 
@@ -716,7 +726,7 @@ void Theme_GoatShrine(int t)
 	AddObject(OBJ_GOATSHRINE, { themex, themey });
 	for (int yy = themey - 1; yy <= themey + 1; yy++) {
 		for (int xx = themex - 1; xx <= themex + 1; xx++) {
-			if (dTransVal[xx][yy] == themes[t].ttval && IsTileNotSolid({ xx, yy }) && (xx != themex || yy != themey)) {
+			if (dTransVal[xx][yy] == themes[t].ttval && IsTileNotSolid({ xx, yy }) && (xx != themex || yy != themey) && !NearRiftArrival({ xx, yy })) {
 				AddMonster({ xx, yy }, Direction::SouthWest, themeVar1, true);
 			}
 		}

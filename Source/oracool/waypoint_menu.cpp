@@ -29,6 +29,7 @@
 #include "oracool/hud_art.h"    // DrawPlateIn, DrawLoosePng - the Act buttons' backing and glyphs
 #include "oracool/ui_sound.h"
 #include "player.h"
+#include "plrmsg.h" // EventPlrMsg - a sealed row's refusal on screen
 #include "quests.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp" // StrCat - the derived waypoint names
@@ -604,6 +605,22 @@ void CloseWaypointMenu()
 
 void TravelToWaypointEntry(int entry);
 
+/**
+ * @brief The quest gate a reached waypoint still stands behind in THIS game, or nullptr when it is open. A waypoint is
+ * remembered across games and the quests are not. One test for the row's look and for the journey, so the list can never
+ * draw a sealed row as open again (round 18 audit, v1.12.243).
+ */
+const char *WaypointSealedReason(int level)
+{
+	if (level == 16 && Quests[Q_BETRAYER]._qactive != QUEST_DONE)
+		return N_("The way to level 16 opens when Lazarus has fallen.");
+	if (level >= 17 && level <= 20 && !IsWarpOpen(DTYPE_NEST))
+		return N_("The Hive is still sealed.");
+	if (level >= 21 && level <= 24 && !IsWarpOpen(DTYPE_CRYPT))
+		return N_("The Crypt is still sealed.");
+	return nullptr;
+}
+
 void ReleaseWaypointActButton()
 {
 	// The press/release rule every button follows (user, 2026-09-27: "fix the decisions for me too"): an Act switches
@@ -612,7 +629,8 @@ void ReleaseWaypointActButton()
 	const int entry = PressedEntry;
 	PressedAct = -1;
 	PressedEntry = -1;
-	if (!WaypointMenuOpen)
+	// Not while paused: only the press was gated, and a release after Pause travelled (round 18 audit).
+	if (!WaypointMenuOpen || PauseMode == 2)
 		return;
 	if (act >= 0 && MouseToActButton(MousePosition) == act) {
 		if (static_cast<int>(ActiveAct) != act)
@@ -692,7 +710,11 @@ void DrawWaypointMenu(const Surface &out)
 		// The row's DUNGEON level - not the row index, which is only where it sits on screen since
 		// the list was reordered by depth. See LevelOfRow.
 		const int level = LevelOfRow(i);
-		const bool unlocked = IsWaypointUnlocked(level);
+		const bool reached = IsWaypointUnlocked(level);
+		// A reached row this game's quests still seal draws as closed - dormant pad, gold name, "(sealed)" - instead of
+		// open (round 18 audit, v1.12.243).
+		const bool sealed = reached && WaypointSealedReason(level) != nullptr;
+		const bool unlocked = reached && !sealed;
 		const bool isHovered = (hovered == static_cast<int>(i));
 
 		// Oracool: user request (2026-08-15) - the same gold outline the Abilities window marks its
@@ -734,7 +756,7 @@ void DrawWaypointMenu(const Surface &out)
 		// the plain one, and dark blue made it the loud one; the shadow added the next version is
 		// what white was missing all along, since a pale glyph on grey loses its edges rather than
 		// its brightness.
-		const UiFlags color = unlocked ? UiFlags::ColorWhite : UiFlags::ColorRed;
+		const UiFlags color = unlocked ? UiFlags::ColorWhite : (sealed ? UiFlags::ColorWhitegold : UiFlags::ColorRed);
 
 		// No outline on the rows - it was there to hold contrast against the stone panel, and that
 		// panel is gone; over the half-transparent fill it only thickened the glyphs. The title
@@ -757,7 +779,8 @@ void DrawWaypointMenu(const Surface &out)
 		// and a black offset copy under it is what gives the glyph a boundary again. The outline this
 		// row used to wear was dropped for thickening the letters; a shadow sits under them instead
 		// of around them, so it buys the contrast without the weight.
-		DrawString(content, WaypointName(level), textArea,
+		const std::string name = sealed ? StrCat(WaypointName(level), " ", _("(sealed)")) : std::string(WaypointName(level));
+		DrawString(content, name, textArea,
 		    { color | UiFlags::FontSize24 | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 }
@@ -785,7 +808,8 @@ void TravelToWaypointEntry(int entry)
 {
 	// Not while dying: MyPlayerIsDead is set only after the fall, and a click in the meantime carried the corpse to the
 	// chosen floor (round 9 audit, v1.12.234).
-	if (MyPlayer == nullptr || MyPlayer->_pmode == PM_DEATH || MyPlayerIsDead || (MyPlayer->_pHitPoints >> 6) <= 0)
+	if (MyPlayer == nullptr || MyPlayer->_pmode == PM_DEATH || MyPlayerIsDead || (MyPlayer->_pHitPoints >> 6) <= 0
+	    || MyPlayer->_pmode == PM_NEWLVL || PauseMode == 2)
 		return;
 	// The row index STOPPED being the destination level when the list was reordered by depth
 	// (2026-09-12): row 13 is the Nest's first floor, dungeon level 17. Everything past this line
@@ -798,18 +822,12 @@ void TravelToWaypointEntry(int entry)
 	// The quest gates the stairs and entrances keep, kept here too (audit, 2026-09-27): a waypoint is remembered across
 	// games and the quests are not, so a hero who reached level 16 once walked from town to Diablo with Lazarus alive,
 	// and into the Nest and the Crypt past entrances this game had not opened.
-	{
-		const char *closed = nullptr;
-		if (level == 16 && Quests[Q_BETRAYER]._qactive != QUEST_DONE)
-			closed = N_("The way to level 16 opens when Lazarus has fallen.");
-		else if (level >= 17 && level <= 20 && !IsWarpOpen(DTYPE_NEST))
-			closed = N_("The Hive is still sealed.");
-		else if (level >= 21 && level <= 24 && !IsWarpOpen(DTYPE_CRYPT))
-			closed = N_("The Crypt is still sealed.");
-		if (closed != nullptr) {
-			LogEvent(std::string(_(closed)), UiFlags::ColorRed);
-			return;
-		}
+	// The refusal is seen and heard: its one line went to the event log, closed by default (round 18 audit).
+	if (const char *closed = WaypointSealedReason(level); closed != nullptr) {
+		LogEvent(std::string(_(closed)), UiFlags::ColorRed);
+		EventPlrMsg(_(closed), UiFlags::ColorRed);
+		MyPlayer->Say(HeroSpeech::ICantUseThisYet);
+		return;
 	}
 
 	// Travelling and "already there" are both a row chosen, and both close the list.

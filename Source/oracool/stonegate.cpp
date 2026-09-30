@@ -270,10 +270,10 @@ bool OpenNephalemAtGate()
 		return false;
 	Player &player = *MyPlayer;
 	// Free (plan r6). Its tier is the deepest floor the hero has reached. A rift already standing ends.
-	if (!OpenNephalemRift(player)) {
-		LogEvent("The Rift Monument does not answer.", UiFlags::ColorRed);
+	// Refused only by a rift still open in town single-player, and EnteredRiftStillOpen has said which; "does not answer"
+	// followed it as a second, vaguer line (round 18 audit).
+	if (!OpenNephalemRift(player))
 		return false;
-	}
 	LightGate(*gate, RiftKind::Nephalem, /*sound=*/true);
 	LogEvent(StrCat("A golden portal opens in the Rift Monument: a Nephalem Rift, tier ", RiftTier(), ". Walk in; ",
 	             RiftGuardianName(RiftGuardian()), " waits at the end and drops a keystone."),

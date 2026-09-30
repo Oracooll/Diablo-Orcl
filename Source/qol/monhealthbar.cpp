@@ -227,7 +227,8 @@ void DrawMonsterHealthBar(const Surface &out)
 			fmt::format(fmt::runtime(_("Class: {:s}")), className(monster.data().monsterClass)),
 			fmt::format(fmt::runtime(_("Hit Points: {:d} / {:d}")), monster.hitPoints >> 6, monster.maxHitPoints >> 6),
 			fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), oracool::PackAdjustedDamage(monster, monster.minDamage), oracool::PackAdjustedDamage(monster, monster.maxDamage)),
-			fmt::format(fmt::runtime(_("XP: {:d}")), KillExperienceFor(*MyPlayer, static_cast<int>(monster.level(sgGameInitInfo.nDifficulty)), static_cast<int>(monster.exp(sgGameInitInfo.nDifficulty)))),
+			// Nothing at the level cap, where AddPlrExperience pays nothing (round 18 audit).
+			fmt::format(fmt::runtime(_("XP: {:d}")), MyPlayer->_pLevel >= MaxCharacterLevel ? 0 : KillExperienceFor(*MyPlayer, static_cast<int>(monster.level(sgGameInitInfo.nDifficulty)), static_cast<int>(monster.exp(sgGameInitInfo.nDifficulty)))),
 		};
 		const UiFlags colors[] = { UiFlags::ColorWhite, UiFlags::ColorRed, UiFlags::ColorWhite, UiFlags::ColorGold };
 		constexpr int ReadoutLineHeight = 12;

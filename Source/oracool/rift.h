@@ -118,8 +118,8 @@ bool UseGuardianKeystone(Player &player, const Item &keystone);
  * (sold, dropped), and then the hero cannot step through until it is back.
  */
 bool SpendPendingKeystone(Player &player);
-/** @brief The highest-tier Guardian Keystone in @p player's backpack, or -1. */
-int FindBestKeystoneInBackpack(const Player &player);
+/** @brief The highest-tier Guardian Keystone on any of @p player's backpack pages, or nullptr. */
+const Item *FindBestKeystoneInBackpack(const Player &player);
 /** @brief The gate's menu choosing a Guardian Rift: the best keystone in the pack is turned (spent at the first step through). False with none, or off town. */
 bool UseBestKeystoneFromBackpack(Player &player);
 /**

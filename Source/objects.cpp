@@ -2063,7 +2063,8 @@ void OperateWaypoint(Object &waypoint)
 	// AddWaypointSigilObject, which bounds it against Player::MaxWaypointSlots.
 	// Beside it, as the walk to it makes sure: Telekinesis lit a sigil from across a gap, or inside a sealed room, and shut
 	// the inventory for a list that closed itself the next frame (round 9 audit).
-	if (MyPlayer == nullptr || MyPlayer->position.tile.WalkingDistance(waypoint.position) > 2)
+	// One tile, the list's own reach: at two the sigil lit and the list opened, then closed itself (round 18 audit).
+	if (MyPlayer == nullptr || MyPlayer->position.tile.WalkingDistance(waypoint.position) > 1)
 		return;
 	if (!oracool::IsWaypointUnlocked(waypoint._oVar1)) {
 		oracool::UnlockWaypoint(waypoint._oVar1);

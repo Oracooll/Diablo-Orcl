@@ -7,6 +7,7 @@
 
 #include "DiabloUI/ui_flags.hpp"
 #include "control.h"
+#include "diablo.h" // PauseMode
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "levels/gendung.h"
@@ -116,12 +117,12 @@ std::string RowLabel(int row, bool &enabled)
 	case Nephalem:
 		return fmt::format(fmt::runtime(_("Open a Nephalem Rift  (free, tier {:d})")), NephalemRiftTierFor(player));
 	case Guardian: {
-		const int keystone = FindBestKeystoneInBackpack(player);
-		if (keystone < 0) {
+		const Item *keystone = FindBestKeystoneInBackpack(player);
+		if (keystone == nullptr) {
 			enabled = false;
 			return std::string(_("Open a Guardian Rift  (no keystone in the pack)"));
 		}
-		return fmt::format(fmt::runtime(_("Open a Guardian Rift  (keystone, tier {:d})")), player.InvList[keystone]._iOracoolRiftTier);
+		return fmt::format(fmt::runtime(_("Open a Guardian Rift  (keystone, tier {:d})")), keystone->_iOracoolRiftTier);
 	}
 	default:
 		// LEAVE closes this menu and nothing else (user, 2026-09-20: "Leave is meant to close the Rift
@@ -166,7 +167,7 @@ void ReleaseStonegateMenuButton()
 {
 	const int row = PressedRow;
 	PressedRow = -1;
-	if (row < 0 || !MenuOpen || MyPlayer == nullptr)
+	if (row < 0 || !MenuOpen || MyPlayer == nullptr || PauseMode == 2) // a release after Pause (round 18 audit)
 		return;
 	const Rectangle panel = PanelRect();
 	if (!RowRect(panel, row).contains(MousePosition))
@@ -191,8 +192,9 @@ void ActivateStonegateRow(int row)
 		OpenNephalemAtGate();
 		break;
 	case Guardian:
-		if (!UseBestKeystoneFromBackpack(player))
-			LogEvent("The keystone would not turn here.", UiFlags::ColorRed);
+		// Refused only by a rift still open, and EnteredRiftStillOpen has said which: a second, vaguer line followed it
+		// (round 18 audit).
+		UseBestKeystoneFromBackpack(player);
 		break;
 	default:
 		break; // Leave: the menu is already closed above, the rift - if any - stands

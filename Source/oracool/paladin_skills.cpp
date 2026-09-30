@@ -16,6 +16,7 @@
 #include "oracool/paladin_ranged.h"
 #include "oracool/furious_charge.h"
 #include "oracool/rfa12_actives.h" // Rfa12MeleeUsable - Aegis Slam's shield, for LacksShieldFor
+#include "oracool/rogue_arrows.h"  // RogueArrowForSpell - a bow skill's red plate without a bow
 
 namespace devilution {
 namespace oracool {
@@ -188,7 +189,9 @@ bool HasShieldEquipped(const Player &player)
 	// a shield that had stopped being one in every way that matters (external audit, 2026-08-25).
 	// The two skills are ABOUT the shield; a shield giving nothing should not power them.
 	const auto usableShield = [](const Item &item) {
-		return item._itype == ItemType::Shield && !item._iOracoolBroken;
+		// Usable, not merely unbroken: a shield whose requirements lapsed gives no armour and no block, and powered Smite
+		// and Blessed Shield anyway (round 18 audit). _iStatFlag folds in broken.
+		return item._itype == ItemType::Shield && !item._iOracoolBroken && item._iStatFlag;
 	};
 	return usableShield(player.InvBody[INVLOC_HAND_LEFT])
 	    || usableShield(player.InvBody[INVLOC_HAND_RIGHT]);
@@ -210,6 +213,9 @@ bool LacksShieldFor(const Player &player, SpellID spell)
 		return false;
 	if (const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell); skill.has_value())
 		return GetPaladinSkillData(*skill).requiresShield && !HasShieldEquipped(player);
+	// A bow skill with no bow in hand is the same red plate: refused at the click, and it said so only then (round 18).
+	if (Rfa12LacksBowFor(player, spell) || (RogueArrowForSpell(spell).has_value() && !player.UsesRangedWeapon()))
+		return true;
 	return IsRfa12Melee(spell) && !Rfa12MeleeUsable(player, spell); // Aegis Slam: the only RfA-12 swing that needs one
 }
 
