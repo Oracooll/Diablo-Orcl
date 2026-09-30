@@ -4316,11 +4316,14 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 			} else {
 				HoldThemeRooms();
 				InitGolems();
+				SuppressMonsterLights = true; // a throwaway population: LoadLevel replaces it (monster.h)
 				InitMonsters();
+				SuppressMonsterLights = false;
 				InitMissiles(/*keepHeroTimedSpells=*/!firstflag && lvldir != ENTRY_LOAD);
 				InitCorpses();
 				IncProgress();
 				LoadLevel();
+				RelightLoadedMonsters();
 				RestoreUniqueCorpsesAfterLoad(); // the champions' bodies from the monsters loaded, not the ones thrown away
 				IncProgress();
 			}
@@ -4382,7 +4385,10 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 		GetLevelMTypes();
 		IncProgress();
 		InitGolems();
+		// A revisit's population is thrown away for the saved one: no lights for it (monster.h).
+		SuppressMonsterLights = !(firstflag || lvldir == ENTRY_LOAD || !myPlayer._pSLvlVisited[setlvlnum] || gbIsMultiplayer);
 		InitMonsters();
+		SuppressMonsterLights = false;
 		IncProgress();
 		if (!HeadlessMode) {
 #if !defined(USE_SDL1) && !defined(__vita__)
@@ -4418,6 +4424,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 			SavePreLighting();
 		} else {
 			LoadLevel();
+			RelightLoadedMonsters();
 			RestoreUniqueCorpsesAfterLoad();
 		}
 		if (gbIsMultiplayer) {

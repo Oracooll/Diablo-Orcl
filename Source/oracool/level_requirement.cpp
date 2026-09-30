@@ -50,7 +50,7 @@ struct MaterialFloor {
 	int floor;
 };
 constexpr std::array<MaterialFloor, 9> MaterialFloors = { {
-    { "Leather", 1 }, { "Iron", 4 }, { "Steel", 7 }, { "Crusader", 10 }, { "Bone", 1 },
+    { "Leather", 1 }, { "Iron", 4 }, { "Steel", 7 }, { "Crusader", 10 }, { "Bone", 13 },
     { "Royal", 16 }, { "Obsidian", 19 }, { "Infernal", 22 }, { "Diamond", 25 },
 } };
 
@@ -68,6 +68,10 @@ int MaterialFloorFor(const Item &item)
 	// "Iron Helm" would miss its floor and ask its drop level instead (audit, 2026-09-20).
 	const std::string_view name = data.iName != nullptr ? data.iName : "";
 	for (const MaterialFloor &m : MaterialFloors) {
+		// Bone is an ARMOUR tier (qlvl 13-18); its floor read 1, from the Necromancer's Bone Wand, whose name starts the same
+		// way. The wand and the Bone Scythe ask their own drop level (round 7 audit, v1.12.232).
+		if (m.word == "Bone" && data.iClass != ICLASS_ARMOR)
+			continue;
 		if (name.size() > m.word.size() && name.substr(0, m.word.size()) == m.word && name[m.word.size()] == ' ')
 			return m.floor;
 	}

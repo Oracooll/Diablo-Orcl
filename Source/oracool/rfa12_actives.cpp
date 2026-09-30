@@ -2446,6 +2446,16 @@ void TickField(Player &player, Field &field)
 				continue;
 			if (field.spell == SpellID::LightningRod && GetMissileData(missile._mitype).damageType() != DamageType::Lightning)
 				continue;
+			// Not a charging monster's carrier: deleting it left the beast in Charge mode with no missile, frozen and
+			// unhittable until the level was left (round 7 audit, v1.12.232).
+			if (missile._mitype == MissileID::Rhino)
+				continue;
+			// Its light goes with it: the next ProcessMissiles deletes a flagged missile before its own process frees the
+			// light, so every caught fireball left a glow and a spent slot in the light pool (round 7 audit).
+			if (missile._mlid != NO_LIGHT) {
+				AddUnLight(missile._mlid);
+				missile._mlid = NO_LIGHT;
+			}
 			missile._miDelFlag = true;
 			if (field.spell == SpellID::LightningRod) {
 				for (Monster *m : MonstersWithin(field.tile, LightningRodBurstRadius))
@@ -2860,16 +2870,19 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		break;
 	}
 	case SpellID::Cleave:
-	case SpellID::Sweep:
+	case SpellID::Sweep: {
+		const Monster *first = nullptr; // a walker holds both side tiles on a diagonal facing: once, and one Rage (round 7 audit)
 		for (const Point tile : { player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {
 			Monster *m = FindMonsterAtPosition(tile);
-			if (m == nullptr || m == front || !Hittable(*m))
+			if (m == nullptr || m == front || m == first || !Hittable(*m))
 				continue;
+			first = m;
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
 			struck = true;
 			landedBlows++;
 		}
 		break;
+	}
 	case SpellID::ClaspOfRuin:
 		if (alive) {
 			Stagger(*front, StunTicks(spell, r));

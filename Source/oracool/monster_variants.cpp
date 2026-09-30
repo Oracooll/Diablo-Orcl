@@ -45,7 +45,6 @@ constexpr int FeralDamagePercent = 130;
 // The 2026-09-19 kinds' numbers - first guesses, to be corrected from play like Hollow's and Feral's.
 constexpr int IronhideArmorPercent = 150;
 constexpr int BrutalSpecialPercent = 150;
-constexpr int LuminousRadius = 5;
 
 /** @brief How far along its ramp a variant's colour moves. Kept to the same modest range the
  * champion tint uses, and for the same reason: any stronger and the creature stops reading as
@@ -362,7 +361,7 @@ void ApplyMonsterVariant(Monster &monster)
 		// monster's light only on a petrified unique's death; lights are per level anyway).
 		// Never reached for a unique or champion in the making: InitMonster skips the variant for
 		// them (audit, 2026-09-19), so PrepareUniqueMonst's own light cannot orphan this one.
-		if (monster.lightId == NO_LIGHT)
+		if (monster.lightId == NO_LIGHT && !devilution::SuppressMonsterLights) // a revisit's throwaway set takes none (monster.h)
 			monster.lightId = AddLight(monster.position.tile, LuminousRadius);
 		break;
 	case MonsterVariant::Frenzied:

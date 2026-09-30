@@ -2340,8 +2340,8 @@ void LoadLevel(LevelConversionData *levelConversionData)
 			if (levelConversionData != nullptr)
 				monsterConversionData = &levelConversionData->monsterConversionData[ActiveMonsters[i]];
 			LoadMonster(&file, monster, monsterConversionData);
-			if (monster.isUnique() && monster.lightId != NO_LIGHT)
-				Lights[monster.lightId].isInvalid = false;
+			// No light revived here: the saved id is a slot of the first visit's pool. RelightLoadedMonsters gives each
+			// its own after the load (round 7 audit, v1.12.232).
 		}
 		if (!gbSkipSync) {
 			for (size_t i = 0; i < ActiveMonsterCount; i++)
@@ -2405,7 +2405,7 @@ void LoadLevel(LevelConversionData *levelConversionData)
 	}
 
 	for (Player &player : Players) {
-		if (player.plractive && player.isOnActiveLevel())
+		if (player.plractive && player.isOnActiveLevel() && player.lightId != NO_LIGHT) // a full pool leaves town NO_LIGHT (round 7 audit)
 			Lights[player.lightId].hasChanged = true;
 	}
 }

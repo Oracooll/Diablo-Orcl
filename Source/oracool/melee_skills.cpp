@@ -457,10 +457,12 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		// The two tiles beside the target - the arc of a staff, the three tiles ahead its text names. A normal blow each,
 		// not a share. Those two only (audit, 2026-09-29): "beside the target and the player" reached four tiles facing
 		// straight along a row.
+		const Monster *first = nullptr; // once each: a walker holds both tiles on a diagonal facing (round 7 audit)
 		for (const Point tile : { player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {
 			Monster *m = InDungeonBounds(tile) ? FindMonsterAtPosition(tile) : nullptr;
-			if (m == nullptr || m == front || (m->hitPoints >> 6) <= 0 || m->isPlayerMinion() || !m->isPossibleToHit())
+			if (m == nullptr || m == front || m == first || (m->hitPoints >> 6) <= 0 || m->isPlayerMinion() || !m->isPossibleToHit())
 				continue;
+			first = m;
 			const int blow = (player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1)) << 6;
 			Strike(player, *m, blow);
 			struck = true;

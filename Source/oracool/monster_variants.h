@@ -92,6 +92,9 @@ enum class MonsterVariant : uint8_t {
 	LAST = Glacial,
 };
 
+/** @brief A Luminous monster's light radius - public since RelightLoadedMonsters re-lights one after a revisit's load. */
+constexpr int LuminousRadius = 5;
+
 /** @brief Which variant @p monster is, derived from its seed and the floor it stands on. */
 MonsterVariant VariantOf(const Monster &monster);
 

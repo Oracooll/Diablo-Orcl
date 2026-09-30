@@ -266,6 +266,17 @@ void ApplySetBonusesToTotals(const Player &player, ItemBonusTotals &totals)
 					flatArmor += power.param1;
 					continue;
 				}
+				// Fire and lightning weapon damage each on a scratch of its own: IPL_LIGHTDAM zeroes the fire fields, so the
+				// Wyrmhide Arsenal rungs granted only their lightning (round 7 audit, v1.12.232).
+				if (IsAnyOf(power.type, IPL_FIREDAM, IPL_LIGHTDAM)) {
+					Item own {};
+					own._itype = ItemType::Misc;
+					own._iIdentified = true;
+					own._iStatFlag = true;
+					ApplyItemPower(player, own, power);
+					totals.AddItem(own);
+					continue;
+				}
 				ApplyItemPower(player, scratch, power);
 				anyOnScratch = true;
 			}

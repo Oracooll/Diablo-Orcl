@@ -476,6 +476,15 @@ extern DVL_API_FOR_TEST size_t LevelMonsterTypeCount;
 extern DVL_API_FOR_TEST Monster Monsters[MaxMonsters];
 extern DVL_API_FOR_TEST int ActiveMonsters[MaxMonsters]; // exported for the warcry slot-reuse test
 extern DVL_API_FOR_TEST size_t ActiveMonsterCount;
+/**
+ * @brief True while a revisit generates the monsters LoadLevel is about to replace: they take no lights. Light ids are
+ * slots in a 32-entry pool, freed lazily, and the throwaway population (a different set - the first visit ran
+ * InitObjects before it) handed out its own: stray glows on empty floor, loaded champions and Luminous monsters dark or
+ * sharing a spell's light (round 7 audit, v1.12.232). RelightLoadedMonsters lights the loaded set after.
+ */
+extern bool SuppressMonsterLights;
+/** @brief After LoadLevel: a light for each loaded unique (not the Hork Demon) and Luminous monster, none for the rest. */
+void RelightLoadedMonsters();
 extern int MonsterKillCounts[NUM_MTYPES];
 extern bool sgbSaveSoundOn;
 

@@ -111,7 +111,7 @@ enum class SpellID : int16_t {
 	 *
 	 * Costs no save-format change, which is worth recording because it looks like it should: the
 	 * hero file (PlayerPack) persists spell LEVELS only for ids 0..46, so the five runes at 47..51
-	 * already do not survive a reload and Charge simply joins them. What does persist is
+	 * already did not survive a reload before v1.12.232 (HeroChunkSpellLevels now carries them) and Charge simply joins them. What does persist is
 	 * _pMemSpells/_pAblSpells, both uint64, where bit 52 fits with room to spare.
 	 */
 	Charge,

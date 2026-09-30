@@ -74,6 +74,11 @@ dungeon_type NamedEncounterDungeon(NamedEncounter encounter);
 
 /** @brief The monster type whose sprites the encounter's boss borrows. */
 _monster_id NamedEncounterMonster(NamedEncounter encounter);
+/**
+ * @brief Whether PlaceNamedEncounter can find this encounter a boss: a UniqueMonstersData row of its monster type that is
+ * not a quest speaker. Two of three had none until v1.12.232 - an empty arena and a spent map.
+ */
+bool NamedEncounterHasPlaceableBoss(NamedEncounter encounter);
 
 /**
  * @brief The dungeon floor @p level counts as for the area-level ladder, if it is an arena.

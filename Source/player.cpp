@@ -4134,13 +4134,16 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		const bool adjacent = pcursmonst != -1
 		    && myPlayer.position.tile.WalkingDistance(Monsters[pcursmonst].position.tile) <= 1;
 
-		if (isShiftHeld) {
+		// Plain Leap is a leap, always - before the shift and adjacency tests: armed as a swing it struck in place and took
+		// 10 Rage, with the leap's cues (round 7 audit, v1.12.232).
+		const bool plainLeap = *skill == oracool::ClassMeleeSkill::Leap;
+		if (isShiftHeld && !plainLeap) {
 			oracool::ArmClassMeleeSkill(*skill);
 			LastMouseButtonAction = MouseActionType::Attack;
 			NetSendCmdLoc(MyPlayerId, true, CMD_SATTACKXY, cursPosition);
 			return;
 		}
-		if (oracool::IsLeapSkill(*skill) && !adjacent) {
+		if (plainLeap || (oracool::IsLeapSkill(*skill) && !adjacent)) {
 			// Plain Leap always leaps; the two striking leaps leap when the target is out of reach.
 			oracool::ArmClassMeleeSkill(std::nullopt);
 			if (oracool::LeapToward(myPlayer, *skill, cursPosition)) {
@@ -4574,6 +4577,14 @@ void ModifyPlrVit(Player &player, int l)
 	if (&player == MyPlayer) {
 		NetSendCmdParam1(false, CMD_SETVIT, player._pBaseVit);
 	}
+}
+
+void CalcPlrInvKeepingLife(Player &player)
+{
+	const int before = player._pHitPoints;
+	CalcPlrInv(player, false);
+	if (before > 0 && player._pHitPoints < std::min(before, player._pMaxHP))
+		SetPlayerHitPoints(player, std::clamp(before, 64, std::max(player._pMaxHP, 64)));
 }
 
 void SetPlayerHitPoints(Player &player, int val)

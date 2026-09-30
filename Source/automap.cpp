@@ -15,9 +15,11 @@
 #include "engine/render/automap_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "levels/gendung.h"
+#include "missiles.h" // the Town Portal marker reads the live portal
 #include "levels/setmaps.h"
 #include "objects.h"
 #include "oracool/area_level.h"
+#include "oracool/named_encounters.h" // an arena's own name on the map
 #include "oracool/ornate_border.h"
 #include "oracool/stonegate.h" // StonegateEntryTile - the Rift Monument's mini-map marker
 #include "player.h"
@@ -812,7 +814,12 @@ void DrawAutomapText(const Surface &out)
 	};
 
 	if (setlevel) {
-		DrawString(out, _(QuestLevelNames[setlvlnum]), linePosition);
+		// An arena reads as its encounter's name, not the stock "Church Arena" (round 7 audit, v1.12.232).
+		oracool::NamedEncounter encounter;
+		if (oracool::CurrentNamedEncounter(encounter))
+			DrawString(out, _(oracool::NamedEncounterName(encounter)), linePosition);
+		else
+			DrawString(out, _(QuestLevelNames[setlvlnum]), linePosition);
 		linePosition.y += 15;
 		areaLevelLine();
 		return;
@@ -1062,9 +1069,15 @@ void DrawAutomapWaypointsAndPortals(const Surface &out, Point screenCenter, cons
 		FillRect(out, screen.x - MarkerSize / 2, screen.y - MarkerSize / 2, MarkerSize, MarkerSize, static_cast<uint8_t>(MiniMapColorsWaypoint));
 	}
 
-	if (Portals[MyPlayerId].open && PortalOnLevel(MyPlayerId)) {
-		Point screen = AutomapMarkerScreenPosition(screenCenter, myPlayerOffset, Portals[MyPlayerId].position);
+	// The portal where it stands on THIS level: the live Town Portal missile. Portals[] with PortalOnLevel (an upstream
+	// precedence slip, true on every dungeon level and in town) drew the dungeon tile of a portal on another floor
+	// (round 7 audit, v1.12.232).
+	for (const Missile &missile : Missiles) {
+		if (missile._mitype != MissileID::TownPortal || missile._misource != MyPlayerId || missile._miDelFlag)
+			continue;
+		Point screen = AutomapMarkerScreenPosition(screenCenter, myPlayerOffset, missile.position.tile);
 		FillRect(out, screen.x - MarkerSize / 2, screen.y - MarkerSize / 2, MarkerSize, MarkerSize, static_cast<uint8_t>(MiniMapColorsWaypoint));
+		break;
 	}
 
 	// The Rift Monument, a yellow square the size of the waypoints' (user, 2026-09-24 dev note: "the rift

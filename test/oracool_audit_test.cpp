@@ -1180,6 +1180,22 @@ TEST(OracoolSaveValidation, GridReferencesPastTheItemCountAreCleared)
 // back at once, so the feature that makes the number large is one this fork added.
 //
 // The audit named the three values to test; these are them.
+// A rune read from its book survives the hero file (round 7 audit, v1.12.232): PlayerPack carries spell levels 0-46 only.
+TEST(OracoolHeroChunks, BookSpellLevelsPastPlayerPackRoundTrip)
+{
+	Players.resize(1);
+	devilution::Player &source = Players[0];
+	source = {};
+	source._pSplLvl[static_cast<int>(SpellID::RuneOfFire)] = 3;
+	source._pSplLvl[static_cast<int>(SpellID::RuneOfStone)] = 7;
+	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(source);
+
+	devilution::Player target {};
+	oracool::ApplyHeroChunks(target, tail.data(), tail.size());
+	EXPECT_EQ(target._pSplLvl[static_cast<int>(SpellID::RuneOfFire)], 3);
+	EXPECT_EQ(target._pSplLvl[static_cast<int>(SpellID::RuneOfStone)], 7);
+}
+
 TEST(OracoolHeroChunks, StatPointsRoundTripPastAByte)
 {
 	Players.resize(1);
@@ -8391,6 +8407,19 @@ TEST(OracoolAudit, EveryArenaCarriesItsOwnDepthRatherThanFallingThroughToFloorOn
 	ASSERT_TRUE(NamedEncounterFloorForSetLevel(NamedEncounterLevel(NamedEncounter::SunkenChapel), shallow));
 	ASSERT_TRUE(NamedEncounterFloorForSetLevel(NamedEncounterLevel(NamedEncounter::EmberVault), deep));
 	EXPECT_LT(shallow, deep) << "the Ember Vault is not deeper than the Sunken Chapel";
+}
+
+/**
+ * @brief Every encounter's monster type has a unique PlaceNamedEncounter can choose: a UniqueMonstersData row of that type
+ * that is not a quest speaker. Two of three had none (round 7 audit, v1.12.232) - an empty arena and a spent map.
+ */
+TEST(OracoolAudit, EveryNamedEncounterHasABossToPlace)
+{
+	using namespace devilution::oracool;
+	for (int i = 0; i < NamedEncounterCount; i++) {
+		EXPECT_TRUE(NamedEncounterHasPlaceableBoss(static_cast<NamedEncounter>(i))) << "encounter " << i << " (" << NamedEncounterName(static_cast<NamedEncounter>(i))
+		                   << ") has no non-quest unique of its monster type - it would spawn no boss";
+	}
 }
 
 TEST(OracoolAudit, EveryNamedEncounterIsCompletelyDescribed)

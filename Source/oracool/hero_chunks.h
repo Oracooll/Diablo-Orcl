@@ -184,6 +184,13 @@ enum HeroChunkTag : uint16_t {
 	 * 255 for older builds; a reader that knows this tag takes it instead - it is written after tag 1 and wins.
 	 */
 	HeroChunkSkillPoints16 = 18,
+	/**
+	 * @brief Every book-learned spell level (2026-09-30): u8 count, then count bytes of _pSplLvl. PlayerPack carries
+	 * ids 0-46 only, and the five runes (47-51) have books since v1.5.49 - a rune read from its book came back at level
+	 * 0 in the next game, known and uncastable (round 7 audit, v1.12.232). Applied over the pack's values, each clamped
+	 * to MaxSpellLevel.
+	 */
+	HeroChunkSpellLevels = 19,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

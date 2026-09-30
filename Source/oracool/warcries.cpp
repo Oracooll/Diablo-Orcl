@@ -78,7 +78,7 @@ bool StartBuff(Player &player, SpellID spell, int rank, int ticks)
 		if (buff.ticksLeft <= 0) {
 			buff = { spell, ticks, rank };
 			if (IsSheetBuff(spell))
-				CalcPlrInv(player, false);
+				CalcPlrInvKeepingLife(player);
 			return true;
 		}
 	}
@@ -167,6 +167,9 @@ int ForEachInEarshot(Point centre, int radius, Fn fn)
 				continue;
 			if (centre.WalkingDistance(tile) > radius)
 				continue;
+			// Heard in sight only, as the RfA-12 cries and Frost Nova: War Cry stunned the next room (round 7 audit).
+			if (!LineClearMissile(centre, tile))
+				continue;
 			fn(monster);
 			heard++;
 		}
@@ -194,6 +197,13 @@ void Stagger(Monster &monster, int ticks)
 void Strike(Player &player, Monster &monster, int damage)
 {
 	if (damage <= 0 || monster.hitPoints >> 6 <= 0)
+		return;
+	// Magic, so magic immunity and resistance answer, as the RfA-12 Strike asks (round 7 audit, v1.12.232).
+	if (monster.isImmune(MissileID::Null, DamageType::Magic))
+		return;
+	if (monster.isResistant(MissileID::Null, DamageType::Magic))
+		damage >>= 2;
+	if (damage <= 0)
 		return;
 	ApplyMonsterDamage(DamageType::Magic, monster, damage);
 	if (monster.hitPoints >> 6 <= 0)
@@ -606,7 +616,7 @@ void ProcessWarcriesTick(Player &player)
 		if (buff.ticksLeft <= 0)
 			continue;
 		if (--buff.ticksLeft == 0 && IsSheetBuff(buff.spell))
-			CalcPlrInv(player, false);
+			CalcPlrInvKeepingLife(player); // Battle Orders running out at low life killed the hero (round 7 audit)
 	}
 
 	if (&player != MyPlayer || player._pHitPoints <= 0)
@@ -729,7 +739,7 @@ void ClearWarcryBuffs(Player &player)
 	// A wiped sheet buff has to take its numbers with it, or the last character's Shout would
 	// stay baked into this one's armour until something else recomputed the sheet.
 	if (sheetMoved)
-		CalcPlrInv(player, false);
+		CalcPlrInvKeepingLife(player);
 }
 
 const char *WarcryDescription(SpellID spell)

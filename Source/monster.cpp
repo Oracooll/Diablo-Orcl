@@ -3748,7 +3748,7 @@ void PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t 
 	monster.resistance = oracool::ChampionResistancesFor(uniqueMonsterData.mMagicRes, monster.data(),
 	    sgGameInitInfo.nDifficulty);
 	monster.talkMsg = uniqueMonsterData.mtalkmsg;
-	if (monsterType == UniqueMonsterType::HorkDemon)
+	if (monsterType == UniqueMonsterType::HorkDemon || SuppressMonsterLights)
 		monster.lightId = NO_LIGHT;
 	else
 		monster.lightId = AddLight(monster.position.tile, 3);
@@ -4803,6 +4803,25 @@ void DoEnding()
 
 	sound_get_or_set_music_volume(musicVolume);
 	gbMusicOn = bMusicOn;
+}
+
+bool SuppressMonsterLights = false;
+
+void RelightLoadedMonsters()
+{
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		Monster &monster = Monsters[ActiveMonsters[i]];
+		// The saved id named a slot of the first visit's pool; whatever holds it now is someone else's.
+		monster.lightId = NO_LIGHT;
+		if ((monster.hitPoints >> 6) <= 0)
+			continue;
+		if (monster.isUnique()) {
+			if (monster.uniqueType != UniqueMonsterType::HorkDemon)
+				monster.lightId = AddLight(monster.position.tile, 3);
+		} else if (oracool::VariantOf(monster) == oracool::MonsterVariant::Luminous) {
+			monster.lightId = AddLight(monster.position.tile, oracool::LuminousRadius);
+		}
+	}
 }
 
 void PrepDoEnding()

@@ -4,6 +4,7 @@
 #include "diablo.h"
 #include "items.h"
 #include "levels/gendung.h"
+#include "monstdat.h" // UniqueMonstersData - an encounter needs a boss of its type
 #include "monster.h"
 #include "multi.h"
 #include "engine/random.hpp"
@@ -65,8 +66,13 @@ constexpr EncounterPlace Places[] = {
 	{ SL_ARENA_CHURCH, DTYPE_CATHEDRAL, MT_WSKELAX, 4, "The Sunken Chapel" },
 	// DTYPE_HELL: circle_of_death.dun is built of Hell's tiles (upstream's own arena table says so), and loaded as the
 	// Catacombs its walls and floor fell in the wrong places (round 6 audit, v1.12.231). Floor 8 stays its area level.
-	{ SL_ARENA_CIRCLE_OF_LIFE, DTYPE_HELL, MT_NGOATMC, 8, "The Ring of Mourning" },
-	{ SL_ARENA_HELL, DTYPE_HELL, MT_HORNED, 16, "The Ember Vault" },
+	//
+	// The boss is a lesser unique OF THIS TYPE (PlaceNamedEncounter), so the type needs a non-quest unique row. The Flesh
+	// Clan's only unique is Gharbad (a quest speaker, filtered out) and the Horned Demon has none: both arenas spawned no
+	// boss and ate the map (round 7 audit, v1.12.232). Now the Fire Clan (Bloodgutter) and the Obsidian Lord (Blackstorm,
+	// Grimspike) - same sprites, and a unique each. OracoolAudit.EveryNamedEncounterHasABossToPlace holds it.
+	{ SL_ARENA_CIRCLE_OF_LIFE, DTYPE_HELL, MT_RGOATMC, 8, "The Ring of Mourning" },
+	{ SL_ARENA_HELL, DTYPE_HELL, MT_OBLORD, 16, "The Ember Vault" },
 };
 
 static_assert(sizeof(Places) / sizeof(Places[0]) == static_cast<size_t>(NamedEncounterCount),
@@ -95,6 +101,10 @@ void MakeRoomForGuaranteedReward()
 			continue;
 		if (candidate._iCreateInfo == 0 && candidate._iIdentified)
 			continue; // quest-placed items carry no create info; leave them alone
+		// DeleteItem leaves the tile's dItem, and the reward about to be allocated reuses this slot: the junk's tile would
+		// point at the charm (round 7 audit).
+		if (InDungeonBounds(candidate.position))
+			dItem[candidate.position.x][candidate.position.y] = 0;
 		DeleteItem(i);
 		return;
 	}
@@ -115,6 +125,16 @@ _setlevels NamedEncounterLevel(NamedEncounter encounter)
 dungeon_type NamedEncounterDungeon(NamedEncounter encounter)
 {
 	return Places[IndexOf(encounter)].dungeon;
+}
+
+bool NamedEncounterHasPlaceableBoss(NamedEncounter encounter)
+{
+	const _monster_id type = NamedEncounterMonster(encounter);
+	for (size_t u = 0; UniqueMonstersData[u].mtype != -1; u++) {
+		if (UniqueMonstersData[u].mtype == type && UniqueMonstersData[u].mtalkmsg == TEXT_NONE)
+			return true;
+	}
+	return false;
 }
 
 _monster_id NamedEncounterMonster(NamedEncounter encounter)

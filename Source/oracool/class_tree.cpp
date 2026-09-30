@@ -2774,7 +2774,7 @@ bool SelectClassAura(Player &player, Skill skill)
 	// because removing a correct recalculation to save a few microseconds is how the asymmetry that
 	// caused this bug gets recreated.
 	oracool::ScheduleAutoSaveForSkillChange();
-	CalcPlrInv(player, false);
+	CalcPlrInvKeepingLife(player); // switching off Endurance at low life must not kill (round 7 audit)
 	return true;
 }
 
@@ -2795,7 +2795,7 @@ void ClearClassAuraForRightButton(Player &player)
 	// one caller remembered and these four did not, and the next path added would have been a coin
 	// flip. A function that puts an aura out is responsible for the aura being out.
 	oracool::ScheduleAutoSaveForSkillChange();
-	CalcPlrInv(player, false);
+	CalcPlrInvKeepingLife(player); // an F-key over a lit Endurance at low life killed the hero (round 7 audit)
 	// No "fades" line here. The player is looking at the skill they just readied, and the aura going
 	// out is the visible half of that one action rather than a second event.
 }

@@ -328,6 +328,13 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 		out.insert(out.end(), player._pSkillInvestment, player._pSkillInvestment + MAX_SPELLS);
 		EndChunk(out, at);
 	}
+	{
+		const size_t at = BeginChunk(out, HeroChunkSpellLevels);
+		static_assert(std::size(Player {}._pSplLvl) <= 255, "the count is one byte");
+		out.push_back(static_cast<uint8_t>(std::size(player._pSplLvl)));
+		out.insert(out.end(), std::begin(player._pSplLvl), std::end(player._pSplLvl));
+		EndChunk(out, at);
+	}
 
 	{
 		const size_t at = BeginChunk(out, HeroChunkWaypoints64);
@@ -596,6 +603,13 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 		case HeroChunkSignets:
 			if (chunkLen >= 1)
 				ApplySignetsUsed(player, payload[0]);
+			break;
+		case HeroChunkSpellLevels:
+			if (chunkLen >= 1) {
+				const size_t count = std::min<size_t>({ payload[0], chunkLen - 1, std::size(player._pSplLvl) });
+				for (size_t i = 0; i < count; i++)
+					player._pSplLvl[i] = std::min<uint8_t>(payload[1 + i], MaxSpellLevel);
+			}
 			break;
 		case HeroChunkStatPoints:
 			if (chunkLen >= 4) {

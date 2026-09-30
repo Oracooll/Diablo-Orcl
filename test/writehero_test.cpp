@@ -809,10 +809,12 @@ TEST(Writehero, pfile_write_hero)
 	// 1.12.036: SIXTEEN BYTES in the two skill-point chunks - MAX_SPELLS 259 -> 275 for the Necromancer's Poison & Bone
 	//      actives. Count-prefixed (tag 18 in two bytes now), so a 259-entry hero loads into the first 259.
 	// 1.12.037: FIFTEEN BYTES, tag 18 - MAX_SPELLS 275 -> 290 for the Necromancer's Curses actives.
+	// 1.12.232: THE TAIL GREW, on purpose - HeroChunkSpellLevels (tag 19): every _pSplLvl byte, because PlayerPack carries
+	//      ids 0-46 only and the five runes (47-51) have books; a rune read from its book came back at level 0.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "930bb46f9a2ae2d84bd2c298fd585b6ec6917eddcb7ae71ff0b802d4da09d73c");
+	    "2b377307342262741fd513aac19756dfe87c7141fbf5a08aae6a50aa232781e7");
 }
 
 } // namespace

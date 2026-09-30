@@ -82,7 +82,9 @@ int RollDamage(AuraDamage range)
  */
 void AuraStrike(Player &player, Monster &monster, DamageType type, int damage, bool holy = false)
 {
-	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
+	// Nor a monster Conversion turned: it fights for the hero, and the aura burned it every pulse (round 7 audit).
+	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || IsMonsterConverted(monster)
+	    || !monster.isPossibleToHit())
 		return;
 	if (!holy && monster.isImmune(MissileID::Null, type))
 		return;
