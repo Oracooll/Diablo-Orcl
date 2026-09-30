@@ -108,6 +108,12 @@ void CloseCraftingMenu()
 	MenuOpen = false;
 }
 
+void ResetCraftingMenuForNewGame()
+{
+	CloseCraftingMenu();
+	HostFilter = TransmuteHost::Cube; // the next hero's book opened on the last one's artisan tab (round 22 audit)
+}
+
 namespace {
 
 /**

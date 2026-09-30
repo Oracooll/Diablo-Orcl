@@ -197,7 +197,9 @@ void FireArrowSkill(Player &player, RogueArrow arrow, Point target)
 		std::vector<std::pair<int, Point>> targets;
 		for (size_t i = 0; i < ActiveMonsterCount; i++) {
 			const Monster &monster = Monsters[ActiveMonsters[i]];
-			if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion() || (monster.flags & MFLAG_HIDDEN) != 0)
+			// Nor one no arrow can hit - a talker, a charging or retreating counselor: the arrow passed through and counted
+			// against the volley (round 22 audit).
+			if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion() || (monster.flags & MFLAG_HIDDEN) != 0 || !monster.isPossibleToHit())
 				continue;
 			const int distance = player.position.tile.WalkingDistance(monster.position.tile);
 			if (distance > 8 || !LineClearMissile(player.position.tile, monster.position.tile))

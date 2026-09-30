@@ -1524,7 +1524,9 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 			if (monster == nullptr)
 				if (HasAnyOf(player._pIFlags, ItemSpecialEffect::HalfTrapDamage))
 					dam /= 2;
-			dam += player._pIGetHit;
+			// In 1/64ths, as dam is on this path: the flat "-X damage taken" (Iron Robe, items) took a 64th of a point off
+			// acid puddles, fire walls and Inferno (round 22 audit, v1.12.247; vanilla's slip).
+			dam += player._pIGetHit * 64; // negative for a reduction: * 64, as the branch above, not a shift
 		}
 
 		dam = std::max(dam, 64);
@@ -2816,7 +2818,12 @@ void ProcessRogueArrow(Missile &missile)
 	}
 
 	if (missile._mirange == 0) {
-		const Point at = missile.position.tile;
+		// An arrow a wall stopped is parked ON the wall tile: its burst, freeze and fire patch are laid from the tile before
+		// it, or they reached the far side of a one-tile wall (round 22 audit, v1.12.247).
+		Point at = missile.position.tile;
+		if (at != missile.position.start && InDungeonBounds(at)
+		    && TileHasAny(dPiece[at.x][at.y], TileProperties::Solid | TileProperties::BlockMissile))
+			at += GetDirection(at, missile.position.start);
 		const Direction dir = static_cast<Direction>(missile._mimfnum);
 		// Fire Arrow lands in the burst vanilla's fire arrow lands in (magblos), drawn and lit only: the skill's fire
 		// damage is the arrow's own hit, already dealt. Exploding and Immolation Arrow keep their own endings below.
@@ -2931,6 +2938,15 @@ void AddNovaBall(Missile &missile, AddMissileParameter &parameter)
 	UpdateMissileVelocity(missile, parameter.dst, 16);
 	missile._miAnimFrame = GenerateRnd(8) + 1;
 	missile._mirange = 255;
+	// The small ring (Fist of the Heavens, the Thunderous burst) reaches the 4 tiles its aim points mark, not 255 ticks
+	// across the room; and none of its bolts takes the monster on the tile it starts from - the ring spreads from a
+	// blast that already struck it, and all 36 landed there on their first tick (round 22 audit, v1.12.247).
+	if (missile._mitype == MissileID::MiniNovaBall) {
+		missile._mirange = 12;
+		const Point start = missile.position.start;
+		if (InDungeonBounds(start))
+			missile.lastCollisionTargetHash = dMonster[start.x][start.y] ^ dPlayer[start.x][start.y];
+	}
 	const Point position { missile._misource < 0 ? missile.position.start : Point(Players[missile._misource].position.tile) };
 	missile.var1 = position.x;
 	missile.var2 = position.y;
@@ -3712,7 +3728,9 @@ Monster *NextBlessedShieldTarget(const Missile &missile, Point from)
 			    return false;
 		    const int id = dMonster[tile.x][tile.y] - 1;
 		    Monster &monster = Monsters[id];
-		    return !BlessedShieldHasStruck(missile, id) && !monster.isPlayerMinion() && monster.isPossibleToHit();
+		    // Not a converted ally either: the shield turned toward it, passed through and lost the bounce (round 22 audit).
+		    return !BlessedShieldHasStruck(missile, id) && !monster.isPlayerMinion() && !oracool::IsMonsterConverted(monster)
+		        && monster.isPossibleToHit();
 	    },
 	    from, 1, BlessedShieldBounceTiles);
 	if (!found)

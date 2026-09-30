@@ -638,6 +638,7 @@ void LoadItemData(LoadHelper &file, Item &item)
 void LoadAndValidateItemData(LoadHelper &file, Item &item)
 {
 	LoadItemData(file, item);
+	item._iRequest = false; // a pickup request never outlives the level it was made on (round 22 audit)
 	RemoveInvalidItem(item);
 	// Oracool: called for every item in every container (inventory, belt, stash, extra tabs,
 	// ground on every level) - the single choke point to self-heal any Rare/Buffed Unique/Primal

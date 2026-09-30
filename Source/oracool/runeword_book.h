@@ -41,6 +41,9 @@ void OpenRunewordBook();
 /** @brief Closes the book. Safe when it is already closed. */
 void CloseRunewordBook();
 
+/** @brief Closes the book and clears its filters, for a new game (FreeGame). */
+void ResetRunewordBookForNewGame();
+
 /** @brief Opens the book if closed, closes it if open. The burger-menu entry's action. */
 void ToggleRunewordBook();
 

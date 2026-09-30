@@ -3738,8 +3738,14 @@ void InvGetItem(Player &player, int ii)
 	} else {
 		// The item needs to go into the players hand
 		if (MyPlayer == &player && !player.HoldItem.isEmpty()) {
-			// drop whatever the player is currently holding
-			NetSendCmdPItem(true, CMD_SYNCPUTITEM, player.position.tile, player.HoldItem);
+			// drop whatever the player is currently holding - in single player whole, into the pack or at his feet: the
+			// network drop rebuilds it from its seed, and a socketed, imbued or reworked item landed plain (round 22 audit).
+			if (!gbIsMultiplayer) {
+				if (!AutoPlaceItemInInventory(player, player.HoldItem, /*persistItem=*/true))
+					DropItemBesidePlayer(player, player.HoldItem);
+			} else {
+				NetSendCmdPItem(true, CMD_SYNCPUTITEM, player.position.tile, player.HoldItem);
+			}
 		}
 
 		// need to copy here instead of move so CleanupItems still has access to the position

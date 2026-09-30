@@ -799,6 +799,7 @@ void TalkToGirl(Player &player, Towner &girl)
 
 	if (quest._qactive != QUEST_DONE && RemoveInventoryItemById(player, IDI_THEODORE)) {
 		InitQTextMsg(TEXT_GIRL4);
+		MakeRoomForGuaranteedReward(); // Theodore is gone: on a full floor the amulet silently did not appear (round 22 audit)
 		CreateAmulet(girl.position, oracool::AreaLevel(13, sgGameInitInfo.nDifficulty), false, false, true); // was 13 on every difficulty (round 11)
 		quest._qactive = QUEST_DONE;
 		UpdateGirlAnimAfterQuestComplete();

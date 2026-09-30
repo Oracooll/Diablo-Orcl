@@ -1247,7 +1247,9 @@ bool DoRangeAttack(Player &player)
 			if (fireArrows && lightningArrows && spectralBow == nullptr)
 				mistype = MissileID::FireArrow;
 			else if (fireArrows && lightningArrows) {
-				dmg = spectralBow->_iFMinDam + GenerateRnd(spectralBow->_iFMaxDam - spectralBow->_iFMinDam);
+				// The hero's fire range, the bow's with a Ruby, a Flame shard or Enchant on top: the kind is the bow's, the
+				// damage all of it (round 22 audit of v1.12.246).
+				dmg = player._pIFMinDam + GenerateRnd(player._pIFMaxDam - player._pIFMinDam);
 				mistype = MissileID::SpectralArrow;
 			}
 
@@ -3781,6 +3783,9 @@ void RestartTownLvl(Player &player)
 	// The rest of a potion drunk just before death does not heal the hero standing in town (round 21 audit).
 	if (&player == MyPlayer)
 		oracool::ResetGradualHealing();
+	// Nor his Rage: it froze at its value on the corpse (v1.12.246's death guard), and the respawn carried the whole pool
+	// into town, where it only drains (round 22 audit of v1.12.246).
+	oracool::ResetRage(player);
 
 	// Out of PM_DEATH before the totals: a dead hero's aura counts for nothing (GetActiveClassAura), so the lit aura's
 	// life and resistances were left out - a life aura took the 1 life below zero and the hero arrived dead in town,
@@ -4848,6 +4853,14 @@ void PlayDungMsgs()
 		sfxdnum = USFX_SKING1;
 	} else {
 		sfxdelay = 0;
+	}
+	// The Defiler is logged on the first Hive floor the hero sets foot on, not only on 17: a waypoint kept from an earlier
+	// game goes straight to 18-20, and the quest stayed out of the log until it was done (round 22 audit, v1.12.247).
+	if (!setlevel && currlevel >= 18 && currlevel <= 20 && IsAnyOf(Quests[Q_DEFILER]._qactive, QUEST_INIT, QUEST_ACTIVE) && !Quests[Q_DEFILER]._qlog) {
+		Quests[Q_DEFILER]._qactive = QUEST_ACTIVE;
+		Quests[Q_DEFILER]._qlog = true;
+		Quests[Q_DEFILER]._qmsg = TEXT_DEFILER1;
+		NetSendCmdQuest(true, Quests[Q_DEFILER]);
 	}
 }
 

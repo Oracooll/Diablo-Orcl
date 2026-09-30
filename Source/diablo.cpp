@@ -266,10 +266,10 @@ void FreeGame()
 	oracool::ClearMovementSlows(); // a slow is a game's state, not a session's
 	// The kill counts that reveal a type's resistances: the next hero began with the last one's (round 18 audit).
 	std::fill(std::begin(MonsterKillCounts), std::end(MonsterKillCounts), 0);
-	oracool::CloseCraftingMenu();
+	oracool::ResetCraftingMenuForNewGame(); // its artisan tab too (round 22)
 	oracool::CloseHudMenu();
 	oracool::CloseSkillPicker();
-	oracool::CloseRunewordBook(); // its open flag, filters and scroll are statics too (round 4 audit, v1.12.229)
+	oracool::ResetRunewordBookForNewGame(); // its open flag, filters and scroll are statics too (round 4; filters round 22)
 	oracool::CloseStonegateMenu(); // the same sweep (round 5 audit)
 	// The swing latches are statics: one left armed rode into the next game's first swing (round 5 audit, v1.12.230).
 	oracool::ArmMeleeSkill(std::nullopt);

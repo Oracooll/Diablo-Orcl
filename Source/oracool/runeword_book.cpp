@@ -461,6 +461,17 @@ void CloseRunewordBook()
 	BookOpen = false;
 }
 
+void ResetRunewordBookForNewGame()
+{
+	// The filters are kept between opens in a game, not between heroes: the next one's first open showed the last one's
+	// rune, slot and count filters, and "Possible" judged against the new hero's runes (round 22 audit, v1.12.247).
+	CloseRunewordBook();
+	RuneCountSelected.fill(false);
+	SlotSelected.fill(false);
+	std::fill(RuneSelected.begin(), RuneSelected.end(), false);
+	PossibleMode = false;
+}
+
 void ToggleRunewordBook()
 {
 	if (BookOpen)

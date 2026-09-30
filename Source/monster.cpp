@@ -1319,6 +1319,7 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		if (sgGameInitInfo.bTheoQuest != 0) {
 			SpawnTheodore(monster.position.tile, sendmsg);
 		} else {
+			MakeRoomForGuaranteedReward(); // his one reward, as every quest reward (round 22 audit)
 			CreateAmulet(monster.position.tile, ItemLevelOfMonster(monster), sendmsg, false); // was 13 on every difficulty (round 11)
 		}
 	} else if (monster.type().type == MT_NAKRUL && !oracool::IsRiftGuardian(monster)) { // a rift's Na-Krul drops like any rift guardian
@@ -4542,7 +4543,11 @@ void AddDoppelganger(Monster &monster)
 	}
 	if (target != Point { 0, 0 }) {
 		const size_t typeIndex = GetMonsterTypeIndex(monster.type().type);
-		AddMonster(target, monster.direction, typeIndex, true);
+		Monster *clone = AddMonster(target, monster.direction, typeIndex, true);
+		// A rift's clone fights at the rift's scale: at base stats it died in a hit and filled the kill bar as a full
+		// monster (round 22 audit, v1.12.247).
+		if (clone != nullptr && oracool::InRift())
+			oracool::ScaleRiftMonster(*clone);
 	}
 }
 

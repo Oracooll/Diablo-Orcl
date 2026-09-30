@@ -17,6 +17,8 @@ namespace devilution::oracool {
 bool IsCraftingMenuOpen();
 void OpenCraftingMenu();
 void CloseCraftingMenu();
+/** @brief Closes the book and puts it back on the Cube's tab, for a new game (FreeGame). */
+void ResetCraftingMenuForNewGame();
 
 /** @brief Screen rect, exported for control.cpp's GetLeftPanelContentRect click routing. */
 Rectangle GetCraftingMenuRect();

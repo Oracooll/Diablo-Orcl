@@ -1197,10 +1197,26 @@ int SyncDropItem(const TCmdPItem &message)
 	    message.item);
 }
 
+/**
+ * @brief A pickup request of the local player's that is dropped unanswered - refused as a repeat, or arriving mid level
+ * change - drops its item's _iRequest flag too. Left set, auto-pickup skipped the item for good, and the flag went into
+ * the level save (round 22 audit, v1.12.247; round 6 fixed the auto path's repeat only).
+ */
+void DropUnansweredItemRequest(const TCmdGItem &message)
+{
+	if (message.bPnum != MyPlayerId || message.bCursitem >= MAXITEMS)
+		return;
+	Item &item = Items[message.bCursitem];
+	if (item.keyAttributesMatch(SDL_SwapLE32(message.def.dwSeed), static_cast<_item_indexes>(SDL_SwapLE16(message.def.wIndx)), SDL_SwapLE16(message.def.wCI)))
+		item._iRequest = false;
+}
+
 size_t OnRequestGetItem(const TCmd *pCmd, Player &player)
 {
 	const auto &message = *reinterpret_cast<const TCmdGItem *>(pCmd);
 
+	if (gbBufferMsgs != 1 && IsGItemValid(message) && !IOwnLevel(player))
+		DropUnansweredItemRequest(message);
 	if (gbBufferMsgs != 1 && IOwnLevel(player) && IsGItemValid(message)) {
 		const Point position { message.x, message.y };
 		const uint32_t dwSeed = SDL_SwapLE32(message.def.dwSeed);
@@ -1233,6 +1249,8 @@ size_t OnRequestGetItem(const TCmd *pCmd, Player &player)
 			} else if (!NetSendCmdReq2(CMD_REQUESTGITEM, MyPlayerId, message.bPnum, message)) {
 				NetSendCmdExtra(message);
 			}
+		} else {
+			DropUnansweredItemRequest(message); // refused as a repeat (a split stack's halves share one key)
 		}
 	}
 
@@ -1292,6 +1310,9 @@ size_t OnGotoAutoGetItem(const TCmd *pCmd, Player &player)
 size_t OnRequestAutoGetItem(const TCmd *pCmd, Player &player)
 {
 	const auto &message = *reinterpret_cast<const TCmdGItem *>(pCmd);
+
+	if (gbBufferMsgs != 1 && IsGItemValid(message) && !IOwnLevel(player))
+		DropUnansweredItemRequest(message); // arriving mid level change (round 22 audit)
 
 	if (gbBufferMsgs != 1 && IOwnLevel(player) && IsGItemValid(message)) {
 		const Point position { message.x, message.y };

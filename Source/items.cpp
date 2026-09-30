@@ -10619,8 +10619,10 @@ bool ApplyOilToItem(Item &item, Player &player)
 	// Ethereal cannot be repaired, and the two durability oils were a repair: refused, and the oil stays on the cursor
 	// (round 5 audit, v1.12.230). Mend at the Cube is the one way back.
 	// Oil of Permanence too: on a worn-down ethereal it was a free repair to whole and indestructible (round 21 audit).
-	if (item._iOracoolEthereal && IsAnyOf(player._pOilType, IMISC_OILBSMTH, IMISC_OILFORT, IMISC_OILPERM))
+	if (item._iOracoolEthereal && IsAnyOf(player._pOilType, IMISC_OILBSMTH, IMISC_OILFORT, IMISC_OILPERM)) {
+		player.SaySpecific(HeroSpeech::ICantDoThat); // the refusal said, not silent (round 22 audit)
 		return false;
+	}
 	if (item._iClass == ICLASS_GOLD) {
 		return false;
 	}

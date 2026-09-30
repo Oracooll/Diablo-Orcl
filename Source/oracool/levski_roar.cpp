@@ -1686,6 +1686,12 @@ void ResetLevskiRoarForNewGame()
 	RecipeBookOpen = false;
 	RecipeBookScroll = 0;
 	CubeListScroll = 0;
+	// The tab and the pressed buttons too: the next hero's first Cube opened on the last one's Recipes tab (round 22).
+	OpenCubeTab = CubeTab::Cube;
+	PressedCubeTab = -1;
+	LastHoverCubeTab = -1;
+	PressedCubeButton = -1;
+	LastHoverCubeButton = -1;
 	SalvageMessage = {};
 	PressedSalvageIcon = -1;
 	LastHoverSalvageIcon = -1;

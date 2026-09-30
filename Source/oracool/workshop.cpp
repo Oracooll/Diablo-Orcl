@@ -1580,6 +1580,7 @@ bool IsPointOverWorkshop(Point position)
 
 void ResetWorkshopForNewGame()
 {
+	ImbueListScroll = 0; // the next hero's list opened scrolled down (round 22 audit)
 	WindowOpen = false;
 	OfferOpen = false;
 	Pressed = Control::None;
