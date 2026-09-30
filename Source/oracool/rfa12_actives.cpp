@@ -3480,16 +3480,19 @@ void ProcessRfa12ActivesTick(Player &player)
 		if (marks.oathTicks == 0)
 			marks.oathCharges = 0;
 		// One pulse per second of its own (round 35 audit); one pulse a second of the duration, as before.
+		// A dose's last part-second strikes too, as the remaining-count pulse did (round 36 audit: Virulence's 6.25 s dealt 6).
 		const auto pulse = [](int &ticks, int &clock) {
 			ticks--;
-			const bool due = ++clock >= TicksPerSecond;
-			if (due || ticks == 0)
+			const bool due = ++clock >= TicksPerSecond || ticks == 0;
+			if (due)
 				clock = 0;
 			return due;
 		};
 		if (marks.burnTicks > 0) {
 			if (pulse(marks.burnTicks, marks.burnPulse))
 				Strike(player, m, DamageType::Fire, marks.burnDamage);
+			if (marks.burnTicks == 0)
+				marks.burnDamage = 0; // a lower-rank burn later is its own strength (round 36 audit)
 		}
 		if (marks.poisonTicks > 0) {
 			if (pulse(marks.poisonTicks, marks.poisonPulse))

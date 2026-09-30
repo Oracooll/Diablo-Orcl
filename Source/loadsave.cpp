@@ -528,7 +528,7 @@ void LoadItemData(LoadHelper &file, Item &item)
 	item._iOracoolPerfectRoll = file.NextLE<uint8_t>() != 0;
 	// Broken means emptied: a repaired item saved still flagged (the backpack repair forgot the flag
 	// until 2026-09-11) comes back whole.
-	item._iOracoolBroken = file.NextLE<uint8_t>() != 0 && item._iDurability == 0;
+	item._iOracoolBroken = file.NextLE<uint8_t>() != 0 && item._iDurability <= 0; // an old save's -37 is broken too (round 36 audit)
 	// Version 10: one count, then all six affix places (a fixed-size positional record, like every field here).
 	item._iOracoolAffixCount = std::min<uint8_t>(file.NextLE<uint8_t>(), Item::MaxOracoolAffixes);
 	for (OracoolAffix &affix : item._iOracoolAffixes) {

@@ -577,8 +577,8 @@ void ProcessRfa12Tick(Player &player)
 		if (marks.bleedTicks > 0) {
 			marks.bleedTicks--;
 			// Its own second (round 35 audit): renewed faster than once a second, the bleed never struck.
-			const bool due = ++marks.bleedPulse >= TicksPerSecond;
-			if (due || marks.bleedTicks == 0)
+			const bool due = ++marks.bleedPulse >= TicksPerSecond || marks.bleedTicks == 0; // the last part-second too (round 36)
+			if (due)
 				marks.bleedPulse = 0;
 			if (due && (monster.hitPoints >> 6) > 0) {
 				ApplyMonsterDamage(DamageType::Physical, monster, marks.bleedDamage);

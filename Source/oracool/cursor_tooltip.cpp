@@ -275,12 +275,8 @@ int ListedBodySlot(const Item *item)
 	const auto first = reinterpret_cast<uintptr_t>(&storehold[0]);
 	if (at < first || at >= first + sizeof(storehold))
 		return -1;
-	const size_t i = (at - first) / sizeof(Item);
-	if (static_cast<int>(i) >= storenumh || storehidx[i] >= 0)
-		return -1;
-	if (stextflag == TalkID::WitchRecharge || stextflag == TalkID::SmithRecharge)
-		return INVLOC_HAND_LEFT; // the recharge list's -1 is the staff in hand
-	return -(storehidx[i] + 1);
+	// Through the tab's slot table (round 36 audit: the index was taken for the enum, so only the helm matched).
+	return ListedBodySlotFor(static_cast<int>((at - first) / sizeof(Item)));
 }
 
 const Item *HoveredContainerItem()

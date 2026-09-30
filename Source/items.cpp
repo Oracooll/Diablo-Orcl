@@ -3771,6 +3771,7 @@ bool ReforgeOracoolItem(Item &item)
 	if (item.isEmpty())
 		return false;
 	ClearOracoolAffixRecord(item);
+	item._iOracoolLockedAffix = -1; // a new roll: the Mystic's lock named the old one's slot (round 36 audit)
 	const int ilvl = item._iOracoolItemLevel;
 	const auto idx = static_cast<_item_indexes>(item.IDidx);
 	// lvl AND itemLevel both the item's own ilvl, which is what SpawnItem passes for a fresh drop:
@@ -3807,6 +3808,7 @@ bool RetierOracoolItem(Item &item, OracoolItemTier tier)
 	// it has just made, would then have kept the broken result.
 	const Item original = item;
 	ClearOracoolAffixRecord(item);
+	item._iOracoolLockedAffix = -1; // a new roll: the Mystic's lock named the old one's slot (round 36 audit)
 	const int ilvl = item._iOracoolItemLevel;
 	const auto idx = static_cast<_item_indexes>(item.IDidx);
 	const bool forcing = tier != OracoolItemTier::None;
@@ -4161,6 +4163,7 @@ bool EnnobleOracoolRare(Item &item)
 	}
 
 	ClearOracoolAffixRecord(item);
+	item._iOracoolLockedAffix = -1; // a new roll: the Mystic's lock named the old one's slot (round 36 audit)
 	const int uid = candidates[GenerateRnd(static_cast<int32_t>(candidates.size()))];
 	const int ilvl = item._iOracoolItemLevel;
 	const auto idx = static_cast<_item_indexes>(item.IDidx);
@@ -5708,7 +5711,10 @@ void LogNoteworthyItemDrop(const Item &item)
 		return;
 
 	std::string location;
-	switch (leveltype) {
+	// currlevel is the set level's id there: a Nest rift read "Nest -7" (round 36 audit).
+	if (setlevel)
+		location = oracool::IsRiftLevel(setlvlnum) ? "Rift" : "Quest level";
+	else switch (leveltype) {
 	case DTYPE_TOWN:
 		location = "Town";
 		break;

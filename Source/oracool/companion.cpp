@@ -1,4 +1,5 @@
 #include "oracool/companion.h"
+#include "oracool/warcries.h" // IsMonsterConverted
 
 #include "oracool/minions.h"
 
@@ -388,7 +389,7 @@ int FreeSlot(const Instance &inst)
 
 bool Targetable(const Monster &monster)
 {
-	return !monster.isPlayerMinion() && (monster.hitPoints >> 6) > 0 && monster.isPossibleToHit() && (monster.flags & MFLAG_HIDDEN) == 0
+	return !monster.isPlayerMinion() && !IsMonsterConverted(monster) && (monster.hitPoints >> 6) > 0 // a convert fights beside it (round 36) && monster.isPossibleToHit() && (monster.flags & MFLAG_HIDDEN) == 0
 	    && monster.position.tile != GolemHoldingCell && monster.mode != MonsterMode::Death;
 }
 

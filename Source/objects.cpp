@@ -2360,8 +2360,10 @@ void OperateBookLever(Object &questBook, bool sendmsg)
 			Quests[Q_BLOOD]._qlog = true;
 			Quests[Q_BLOOD]._qvar1 = 1;
 			NetSendCmdQuest(true, Quests[Q_BLOOD]);
-			if (sendmsg)
+			if (sendmsg) {
+				MakeRoomForGuaranteedReward(); // on a full floor it was never made, and the book gives it once (round 36 audit)
 				SpawnQuestItem(IDI_BLDSTONE, SetPiece.position.megaToWorld() + Displacement { 9, 17 }, 0, 1, true);
+			}
 		}
 		if (questBook._otype == OBJ_STEELTOME && Quests[Q_WARLORD]._qvar1 == QS_WARLORD_INIT) {
 			Quests[Q_WARLORD]._qactive = QUEST_ACTIVE;
@@ -5749,6 +5751,11 @@ _item_indexes ItemMiscIdIdx(item_misc_id imiscid)
 			return static_cast<_item_indexes>(i);
 	}
 	return IDI_NONE;
+}
+
+bool IsStashChestObject(const Object &object)
+{
+	return object.position == StashChestPosition;
 }
 
 void OperateObject(Player &player, Object &object)

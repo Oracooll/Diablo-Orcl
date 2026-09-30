@@ -118,6 +118,8 @@ void ResetLevskiRoarForNewGame();
 
 /** @brief Whether the recipe book popup is showing. Toggled from the window's own button. */
 bool IsLevskiRecipeBookOpen();
+/** @brief Closes the recipe book popup alone (Escape takes it before the Cube). */
+void CloseLevskiRecipeBook();
 
 /** @brief The window's screen rect - used for click-through rejection like every other panel. */
 Rectangle GetLevskiRoarRect();

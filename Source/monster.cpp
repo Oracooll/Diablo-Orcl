@@ -90,6 +90,9 @@ namespace {
 
 /** Which slots stand in a skill's stun (StunMonster) rather than an AI's own pause, the same MonsterMode::Delay. */
 std::array<bool, MaxMonsters> StunnedBySkill {};
+/** @brief The companion regroup watchdog, per slot; cleared with the level (round 36 audit: statics in CompanionAi outlived it). */
+std::array<uint8_t, MaxMonsters> RegroupBestDistance {};
+std::array<uint8_t, MaxMonsters> RegroupTriesWithoutGain {};
 
 /** @brief @p monster's stun flag, or nullptr for a monster outside the pool (a test's local), as the chill table guards. */
 bool *StunFlagOf(const Monster &monster)
@@ -597,7 +600,9 @@ void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int 
 	constexpr int LesserUniqueHealthPercent = 300;
 	constexpr int LesserUniqueDamagePercent = 150;
 	constexpr int LesserUniqueArmorBonus = 4;
-	constexpr int MinionHealthPercent = 150;
+	// 75, not 150: PlaceGroup has already doubled a leader's escort (vanilla), so this nets the 150% meant; the two stacked to 300%,
+	// the champion's own life (round 36 audit).
+	constexpr int MinionHealthPercent = 75;
 	constexpr int MinionDamagePercent = 120;
 
 	const auto &uniqueMonsterData = UniqueMonstersData[static_cast<size_t>(uniqindex)];
@@ -1076,6 +1081,10 @@ void UpdateEnemy(Monster &monster)
 		if (otherMonster.talkMsg != TEXT_NONE && M_Talker(otherMonster))
 			continue;
 		if (isPlayerMinion && otherMonster.isPlayerMinion()) // prevent golems from fighting each other
+			continue;
+		// Nor the hero's army and a monster Conversion turned: the same side (round 36 audit: they fought, and a golem's kill of
+		// the convert paid its experience and loot).
+		if ((isPlayerMinion || oracool::IsMonsterConverted(monster)) && (otherMonster.isPlayerMinion() || oracool::IsMonsterConverted(otherMonster)))
 			continue;
 
 		const int dist = otherMonster.position.tile.WalkingDistance(position);
@@ -3933,6 +3942,8 @@ void InitLevelMonsters()
 	LevelMonsterTypeCount = 0;
 	// A reloaded monster in an AI's own pause read as stunned from an old stun in the same slot on another level (round 20).
 	StunnedBySkill.fill(false);
+	RegroupBestDistance.fill(0);
+	RegroupTriesWithoutGain.fill(0);
 	monstimgtot = 0;
 	// The scaled sheets are views onto sprite data that is about to be replaced, so they go first.
 	oracool::ClearMonsterScaleCache();
@@ -5178,8 +5189,8 @@ void CompanionAi(Monster &companion)
 	// distance - is set down beside him after a dozen tries, as a regroup (round 31 audit: it pushed against the wall
 	// until the hero walked off).
 	{
-		static std::array<uint8_t, MaxMonsters> BestDistance {};
-		static std::array<uint8_t, MaxMonsters> TriesWithoutGain {};
+		std::array<uint8_t, MaxMonsters> &BestDistance = RegroupBestDistance;
+		std::array<uint8_t, MaxMonsters> &TriesWithoutGain = RegroupTriesWithoutGain;
 		const size_t id = companion.getId();
 		// 0 is "not measuring" (the arrays start zeroed).
 		if (distance <= orders.leash) {

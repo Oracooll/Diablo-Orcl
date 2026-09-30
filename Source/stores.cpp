@@ -666,7 +666,7 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 	}
 	if (!productLine.empty()) {
 		if (affixRows > 1) {
-			const std::string wrapped = WordWrapString(productLine, 490);
+			const std::string wrapped = WordWrapString(productLine, 470); // room for "..." in the 495 px row (round 36 audit)
 			size_t start = 0;
 			for (int row = 0; row < affixRows && start <= wrapped.size(); row++) {
 				const size_t end = wrapped.find('\n', start);
@@ -2567,6 +2567,8 @@ std::string RefreshPremiumUntilTarget()
  */
 void StartRefreshUntilPrompt()
 {
+	if (talkflag)
+		control_reset_talk(); // chat kept the typing (round 36 audit), as the withdraw box already guards
 	const Point uiPosition = GetUIRectangle().position;
 	const Point start { uiPosition.x + 190, uiPosition.y + 210 };
 	SDL_Rect rect = MakeSdlRect(start.x, start.y, 260, 20);
@@ -2786,7 +2788,10 @@ void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 		for (int i = storenumh - 1; i >= 0 && next < 0; i--) {
 			// Never a socketed item with stones in it: the price is the base's alone, and an Enigma went for a white body's
 			// quarter with its runes (round 24 audit, v1.12.249). One at a time from the list still sells it.
-			if (storehTabIdx[i] < 0 && storehold[i].socketedCount() == 0)
+			// Nor a quest's jewellery reward, the Auric Amulet (round 36 audit): one at a time only.
+			const bool questJewel = (storehold[i]._iLoc == ILOC_RING || storehold[i]._iLoc == ILOC_AMULET)
+			    && AllItemsList[storehold[i].IDidx].iRnd == IDROP_NEVER;
+			if (storehTabIdx[i] < 0 && storehold[i].socketedCount() == 0 && !questJewel)
 				next = i;
 		}
 		if (next < 0)
@@ -3924,6 +3929,24 @@ bool CloseVendorPageForTowner(_talker_id owner)
 	// red. That refusal is deliberate and stands here too: a page that will not close because the
 	// player's pack is full must not be closed out from under the items it is holding.
 	return !oracool::IsLevskiRoarOpen();
+}
+
+int ListedBodySlotFor(int listIndex)
+{
+	if (listIndex < 0 || listIndex >= storenumh || storehidx[listIndex] >= 0)
+		return -1;
+	const int k = -(storehidx[listIndex] + 1);
+	switch (stextflag) {
+	case TalkID::SmithRepair:
+		return k < NumRepairableBodySlots ? RepairableBodySlots[k] : -1;
+	case TalkID::StorytellerIdentify:
+		return k < NumIdentifiableBodySlots ? IdentifiableBodySlots[k] : -1;
+	case TalkID::WitchRecharge:
+	case TalkID::SmithRecharge:
+		return INVLOC_HAND_LEFT; // the recharge list's -1 is the staff in hand
+	default:
+		return -1;
+	}
 }
 
 void ForceCloseStore()

@@ -94,7 +94,7 @@ constexpr int StoreHoldCapacity = InventoryGridCells + MaxBeltItems + Player::Nu
 /** Current index into storehidx/storehold */
 extern DVL_API_FOR_TEST int storenumh;
 /** Map of inventory items being presented in the store */
-extern int8_t storehidx[StoreHoldCapacity];
+extern DVL_API_FOR_TEST int8_t storehidx[StoreHoldCapacity];
 /** Copies of the players items as presented in the store */
 extern DVL_API_FOR_TEST Item storehold[StoreHoldCapacity];
 
@@ -491,6 +491,11 @@ void StoreESC();
  * rather than each caller copying three lines and one of them forgetting the prompt teardown.
  */
 void ForceCloseStore();
+/**
+ * @brief The worn slot a service tab's entry @p listIndex was copied from, through that tab's own slot table, or -1 for a
+ * backpack entry or another tab. The storehidx encoding is -(the table index + 1), not the body-slot enum.
+ */
+int ListedBodySlotFor(int listIndex);
 void StoreUp();
 void StoreDown();
 void StorePrior();

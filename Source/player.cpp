@@ -4087,7 +4087,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			return;
 
 		if (
-		    (IsLeftPanelOpen() && GetLeftPanel().contains(MousePosition)) // inside left panel
+		    IsOverLeftPanel(MousePosition) || oracool::IsPointOverFloatingWindow(MousePosition) // the whole panel, a window (round 36)
 		    || IsOverRightPanel(MousePosition)                           // inside right panel
 		) {
 			if (spellID != SpellID::Healing

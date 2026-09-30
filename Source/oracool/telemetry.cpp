@@ -81,8 +81,10 @@ void FlushRows()
 	// OpenFile, not fopen: the pref path is UTF-8, and fopen reads it in the ANSI code page - a profile named José had no
 	// telemetry at all (round 4 audit, v1.12.229).
 	FILE *file = OpenFile(path.c_str(), "ab");
-	if (file == nullptr)
+	if (file == nullptr) {
+		PendingRows.clear(); // not kept growing while the file cannot be opened (round 36 audit)
 		return; // telemetry must never be able to break the game
+	}
 	// SEEK_END before asking, because in APPEND mode the stream position is not the file size.
 	// MSVC leaves it at 0 until the first write (the write is then forced to the end regardless),
 	// so the old `ftell(file) == 0` test was true on every single call and wrote the header before

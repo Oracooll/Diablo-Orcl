@@ -1580,6 +1580,11 @@ bool UseSalvageItemCursor(Player &player, int tab, int index)
 
 bool IsLevskiRecipeBookOpen() { return WindowOpen && RecipeBookOpen; }
 
+void CloseLevskiRecipeBook()
+{
+	RecipeBookOpen = false;
+}
+
 bool IsLevskiRoarObject(const Object &object)
 {
 	// Two stands in town since 2026-09-20: the Stonegate is the other one (oracool/stonegate.h).

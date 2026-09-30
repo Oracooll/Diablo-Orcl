@@ -1221,7 +1221,8 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 
 	// The Rift Monument's menu takes its own keys first (2026-09-27): Up/Down, Enter, 1-3. Not while paused: 1 or Enter
 	// opened a rift through the pause (round 4 audit, v1.12.229).
-	if (PauseMode != 2 && oracool::HandleStonegateMenuKey(vkey))
+	if (PauseMode != 2 && !((modState & KMOD_ALT) != 0 && (vkey == SDLK_RETURN || vkey == SDLK_KP_ENTER)) // Alt+Enter is fullscreen (round 36)
+	    && oracool::HandleStonegateMenuKey(vkey))
 		return;
 
 	// Oracool: F1-F8 are the ability hotkeys, reserved outright (user, 2026-08-17: "F1-F6 to be
@@ -2797,8 +2798,8 @@ void CloseAllWindows()
 		oracool::ToggleEventLog();
 	// Stores go through StoreESC(), the same path Escape uses - so a store closes the way it always
 	// has, one level at a time out of a nested menu, rather than being torn down from outside.
-	if (stextflag != TalkID::None)
-		StoreESC();
+	// Outright since round 36: StoreESC stepped a shop tab back to the vendor's modal dialog, which stayed up.
+	ForceCloseStore();
 	HelpFlag = false;
 	ChatLogFlag = false;
 	spselflag = false;
@@ -4146,7 +4147,11 @@ bool PressEscKey()
 		return true;
 	}
 	if (oracool::IsLevskiRoarOpen()) {
-		oracool::CloseLevskiRoar();
+		// Its recipe book first: a window of its own, with its own X (round 36 audit).
+		if (oracool::IsLevskiRecipeBookOpen())
+			oracool::CloseLevskiRecipeBook();
+		else
+			oracool::CloseLevskiRoar();
 		return true;
 	}
 	if (oracool::IsRunewordBookOpen()) {

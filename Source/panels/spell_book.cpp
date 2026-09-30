@@ -1,4 +1,5 @@
 #include "panels/spell_book.hpp"
+#include "oracool/crafting_menu.h" // CloseCraftingMenu
 
 #include <cstdint>
 
@@ -1761,6 +1762,7 @@ void ToggleAbilitiesWindow()
 	// once would be two competing answers on screen.
 	spselflag = false;
 	oracool::CloseRunewordBook(); // the full-screen book would hide the window opened under it (round 20 audit)
+	oracool::CloseCraftingMenu(); // and the crafting book, as D and B close it (round 36 audit)
 	sbookflag = !sbookflag;
 	ResetSpellBookScroll();
 }

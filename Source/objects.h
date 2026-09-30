@@ -325,6 +325,8 @@ void MonstCheckDoors(const Monster &monster);
 void ObjChangeMap(int x1, int y1, int x2, int y2);
 void ObjChangeMapResync(int x1, int y1, int x2, int y2);
 _item_indexes ItemMiscIdIdx(item_misc_id imiscid);
+/** @brief The town's stash chest: operating it opens the stash, so a held button must not repeat it. */
+bool IsStashChestObject(const Object &object);
 void OperateObject(Player &player, Object &object);
 void SyncOpObject(Player &player, int cmd, Object &object);
 void BreakObjectMissile(const Player *player, Object &object);

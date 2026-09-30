@@ -16543,3 +16543,31 @@ TEST(OracoolAudit13, ThePlatesClearTopIsTheWorld)
 	gnScreenWidth = savedWidth;
 	gnScreenHeight = savedHeight;
 }
+
+
+// Round 36 audit: a worn piece on a service tab is found through the tab's own slot table. Round 35 read the list index as
+// the body-slot enum, so only the helm (index 0 in both) was spared its comparison with itself.
+TEST(OracoolAudit, ServiceTabEntriesMapToTheirWornSlot)
+{
+	const TalkID savedFlag = stextflag;
+	const int savedCount = storenumh;
+	storenumh = 3;
+	storehidx[0] = -2; // the repair table's second slot: the chest
+	storehidx[1] = -3; // its third: the weapon hand
+	storehidx[2] = 5;  // a backpack item
+	stextflag = TalkID::SmithRepair;
+	EXPECT_EQ(ListedBodySlotFor(0), INVLOC_CHEST);
+	EXPECT_EQ(ListedBodySlotFor(1), INVLOC_HAND_LEFT);
+	EXPECT_EQ(ListedBodySlotFor(2), -1);
+	storehidx[0] = -5; // Cain's fifth: the left ring
+	stextflag = TalkID::StorytellerIdentify;
+	EXPECT_EQ(ListedBodySlotFor(0), INVLOC_RING_LEFT);
+	storehidx[0] = -1;
+	stextflag = TalkID::WitchRecharge;
+	EXPECT_EQ(ListedBodySlotFor(0), INVLOC_HAND_LEFT);
+	stextflag = TalkID::SmithSell;
+	EXPECT_EQ(ListedBodySlotFor(0), -1);
+	EXPECT_EQ(ListedBodySlotFor(3), -1); // past the list
+	stextflag = savedFlag;
+	storenumh = savedCount;
+}

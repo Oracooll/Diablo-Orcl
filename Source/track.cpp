@@ -15,6 +15,7 @@
 #include "oracool/levski_roar.h"
 #include "oracool/stonegate.h" // IsStonegateObject - the Monument opens a menu, not a one-shot
 #include "player.h"
+#include "control.h" // IsOverAnyInterface
 #include "stores.h"
 
 namespace devilution {
@@ -70,6 +71,11 @@ void RepeatMouseAction()
 		return;
 
 	if (stextflag != TalkID::None)
+		return;
+
+	// Nor under a window (round 36 audit: a held walk or cast went on behind the inventory, the sheet or a book a hotkey
+	// opened while the button was down).
+	if (IsOverAnyInterface(MousePosition))
 		return;
 
 	if (LastMouseButtonAction == MouseActionType::None)
@@ -146,7 +152,8 @@ void RepeatMouseAction()
 		// click and, for a sigil, scheduling a save (round 23 audit, v1.12.248).
 		if (ObjectUnderCursor != nullptr && !ObjectUnderCursor->isDoor()
 		    && !oracool::IsLevskiRoarObject(*ObjectUnderCursor) && !oracool::IsStonegateObject(*ObjectUnderCursor)
-		    && ObjectUnderCursor->_otype != OBJ_WAYPOINT) {
+		    && ObjectUnderCursor->_otype != OBJ_WAYPOINT
+		    && !(leveltype == DTYPE_TOWN && IsStashChestObject(*ObjectUnderCursor))) { // it opens the stash (round 36 audit)
 			NetSendCmdLoc(MyPlayerId, true, CMD_OPOBJXY, cursPosition);
 		}
 		break;
