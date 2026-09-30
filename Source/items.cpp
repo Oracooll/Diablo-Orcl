@@ -512,6 +512,12 @@ enum class PlayerArmorGraphic : uint8_t {
  * left set across a frame boundary, since RndPL is also used outside item generation.
  */
 bool ForcePerfectAffixRoll = false;
+/**
+ * @brief A base tier SetupAllItems keeps instead of rolling one - set by RetierOracoolItem. The Cube's rerolls and crafts
+ * rolled a fresh tier, so a Torment base came out of "Reroll Rares" as Hell or lower four times in ten, while Ennoble,
+ * Recast and the Mystic kept it (round 14 audit, v1.12.239).
+ */
+std::optional<oracool::BaseItemTier> PinnedBaseTier;
 
 /** Holds item get records, tracking items being recently looted. This is in an effort to prevent items being picked up more than once. */
 ItemGetRecordStruct itemrecord[MAXITEMS];
@@ -1832,7 +1838,10 @@ std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int
 	// record and never rebuild, so every item a player actually holds keeps what it rolled.
 	const bool lowerToItemLevel = !ReplayingStoredItemSeed && item._iOracoolItemLevel > 0;
 	const int ceiling = lowerToItemLevel ? std::min(maxlvl, static_cast<int>(item._iOracoolItemLevel)) : maxlvl;
-	const int floorLevel = lowerToItemLevel ? std::min(minlvl, ceiling / 2) : minlvl;
+	// Capped at 25, as GetItemBonus caps it: the jewellery tables stop at level 30, so from item level 62 a floor of 31
+	// left a ring's bonus affixes only Movement Speed and Faster Cast - and a Reroll on a ring holding both offered
+	// nothing, after the gold (round 14 audit, v1.12.239).
+	const int floorLevel = lowerToItemLevel ? std::min({ minlvl, ceiling / 2, 25 }) : minlvl;
 	const auto eligible = [&](const PLStruct &row) {
 		if (row.PLMinLvl > ceiling)
 			return false;
@@ -2407,6 +2416,15 @@ void GetUniqueItem(const Player &player, Item &item, _unique_items uid)
 		if (power.type == IPL_INVALID)
 			break;
 		SaveItemPower(player, item, power);
+		// A unique that SETS its armour or damage wrote over the tier's scaled numbers with the authored Normal ones,
+		// while its price and its Tier line kept the tier: a Torment Demonspike Coat had Normal's 100 armour at thirty
+		// times the price (round 14 audit, v1.12.239). The set value takes the tier too.
+		if (power.type == IPL_SETAC)
+			item._iAC = oracool::ScalePowerForBaseTier(item._iAC, item._iOracoolBaseTier);
+		if (power.type == IPL_SETDAM) {
+			item._iMinDam = std::min(oracool::ScalePowerForBaseTier(item._iMinDam, item._iOracoolBaseTier), 255);
+			item._iMaxDam = std::min(oracool::ScalePowerForBaseTier(item._iMaxDam, item._iOracoolBaseTier), 255);
+		}
 	}
 
 	CopyUtf8(item._iIName, UniqueItems[uid].UIName, sizeof(item._iIName));
@@ -2486,7 +2504,7 @@ void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t
 	// - never takes that path: SaveItem writes every stat and LoadItemData reads them back, tier
 	// scaling included.
 	if (allowTieredRoll)
-		oracool::ApplyBaseTier(item, oracool::TierForItem(item._iOracoolItemLevel, iseed));
+		oracool::ApplyBaseTier(item, PinnedBaseTier.value_or(oracool::TierForItem(item._iOracoolItemLevel, iseed)));
 
 	// CLAMPED to the six bits CF_LEVEL actually has. The area ladder reaches 96 and floor items pass
 	// twice their depth, so an unclamped write would spill into the CF_ONLYGOOD/CF_UPER flag bits
@@ -3777,8 +3795,10 @@ bool RetierOracoolItem(Item &item, OracoolItemTier tier)
 	//
 	// Left false for tier None, where the point IS to roll like an ordinary drop.
 	const RebuildKeepsake keepsake = CaptureRebuildKeepsake(item);
+	PinnedBaseTier = static_cast<oracool::BaseItemTier>(original._iOracoolBaseTier);
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), ilvl, 1, /*onlygood=*/forcing,
 	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, forced, ilvl);
+	PinnedBaseTier = std::nullopt;
 	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
 	// The wear it had, not a free repair (audit, 2026-09-29): SetupAllItems rolled fresh durability and cleared the broken
 	// flag, so a broken item put through a reroll came back whole - Mend bypassed. The Mystic's rework keeps it the same way.
@@ -3987,6 +4007,10 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	// wrote the Normal numbers, so a Jagged or Cruel base came back from the bench with Normal damage and
 	// armour while its tooltip still named the tier.
 	oracool::ApplyBaseTier(item, baseTier);
+	// The rolls a record does not store (the to-hit half of King's and Doppelganger) come back perfect on a Primal, as
+	// they were rolled: a rework of any row left its +100 anywhere in 76-100 (round 14 audit, v1.12.239).
+	const bool previousForcePerfectAffixRoll = ForcePerfectAffixRoll;
+	ForcePerfectAffixRoll = perfectRoll;
 	for (int i = 0; i < wantedCount && item._iOracoolAffixCount < Item::MaxOracoolAffixes; i++) {
 		const PLStruct *row = FindAffixRowForRecord(wanted[i]);
 		if (row == nullptr)
@@ -4004,6 +4028,7 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 		priceAddTotal += PLVal(wanted[i].param1, row->power.param1, row->power.param2, row->minVal, row->maxVal);
 		priceMultTotal += row->multVal;
 	}
+	ForcePerfectAffixRoll = previousForcePerfectAffixRoll;
 	if (item._iOracoolAffixCount > 0 && item._iMagical == ITEM_QUALITY_NORMAL)
 		item._iMagical = ITEM_QUALITY_MAGIC;
 	if (keepsStaffSpell) {
@@ -4376,7 +4401,8 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 	// across a run. The tier is still on the tooltip's own Tier line and in the name's colour, so
 	// nothing is lost by taking the label out of the name itself.
 	std::string tieredName = oracool::GenerateOracoolItemName(item._iSeed);
-	if (!StringInPanel(tieredName.c_str())) {
+	// Not on a base with no short name: fmt throws on a null C string (round 14 audit, v1.12.239).
+	if (!StringInPanel(tieredName.c_str()) && AllItemsList[item.IDidx].iSName != nullptr) {
 		const string_view tierLabel = GetOracoolTierLabel(tier);
 		tieredName = fmt::format(fmt::runtime(_("{0} {1}")), tierLabel, AllItemsList[item.IDidx].iSName);
 	}
@@ -7532,6 +7558,12 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 		return fmt::format(fmt::runtime(_("Mana: {:+d}")), affix.param1);
 	case IPL_MANA_CURSE:
 		return fmt::format(fmt::runtime(_("Mana: {:+d}")), -affix.param1);
+	// Their own share, not the item's whole +damage: with Jagged or King's beside them the tooltip counted that twice
+	// (round 14 audit, v1.12.239).
+	case IPL_DECAY:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "decaying {:+d}% damage")), affix.param1);
+	case IPL_CRYSTALLINE:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "low dur, {:+d}% damage")), 140 + 2 * affix.param1);
 	default:
 		return PrintItemPower(affix.type, item);
 	}

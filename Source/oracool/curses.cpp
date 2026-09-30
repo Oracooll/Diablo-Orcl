@@ -213,22 +213,24 @@ bool Lay(Monster &monster, CurseKind kind, int ticks, int rank, const Player &ow
 }
 
 /** @brief A blow credited to the curse's owner, immunity and resistance honoured. */
-void OwnerStrikes(Player &owner, Monster &monster, DamageType type, int damage)
+/** @brief Strikes @p monster for @p owner; whether any damage landed (Soul Harvest pays only for those). */
+bool OwnerStrikes(Player &owner, Monster &monster, DamageType type, int damage)
 {
 	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
-		return;
+		return false;
 	if (monster.isImmune(MissileID::Null, type))
-		return;
+		return false;
 	if (monster.isResistant(MissileID::Null, type))
 		damage >>= 2;
 	if (damage <= 0)
-		return;
+		return false;
 	ApplyMonsterDamage(type, monster, damage);
 	if ((monster.hitPoints >> 6) <= 0) {
 		M_StartKill(monster, owner);
-		return;
+		return true;
 	}
 	M_StartHit(monster, owner, damage);
+	return true;
 }
 
 Player *OwnerOf(const Curse &curse)
@@ -310,7 +312,9 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 			    || !LineClearMissile(player.position.tile, monster.position.tile)) // in sight (round 8 audit)
 				continue;
 			const Point from = monster.position.tile;
-			OwnerStrikes(player, monster, DamageType::Magic, (SoulHarvestMin(r) + GenerateRnd(SoulHarvestSpread(r))) << 6);
+			// Paid only for a soul actually torn: a magic-immune monster took nothing and paid 5 Essence (round 14 audit).
+			if (!OwnerStrikes(player, monster, DamageType::Magic, (SoulHarvestMin(r) + GenerateRnd(SoulHarvestSpread(r))) << 6))
+				continue;
 			torn++;
 			// RfA-27: the soul torn loose - a wisp flying from it to him (batch 54), landing with the harvest's impact cue
 			// (batch 51), which the brief has play once for each cursed monster. At once while the wisp's sheet is missing.

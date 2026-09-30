@@ -752,7 +752,10 @@ bool DrawSheetHole(const Surface &out, Rectangle rect, SheetBoxTone tone, const 
 	const uint32_t shade = PackArgb(FieldShadowAlpha, 0, 0, 0);
 	const int rimLeft = std::min(Strip.leftWidth, w / 2);
 	const int rimRight = std::min(Strip.rightWidth, w / 2);
-	std::vector<uint32_t> hole(field);
+	// One scratch buffer reused across boxes and frames, not a fresh copy per box per frame (round 14 audit). Drawing is
+	// single-threaded, and the buffer does not outlive this call's blit.
+	static std::vector<uint32_t> hole;
+	hole.assign(field.begin(), field.end());
 	for (int y = Strip.topRows; y < h - Strip.bottomRows; y++) {
 		const int sy = std::clamp(slabY + y, 0, SheetSlab.height - 1);
 		for (int x = rimLeft; x < w - rimRight; x++) {

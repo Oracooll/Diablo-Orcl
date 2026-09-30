@@ -787,6 +787,10 @@ void LeftMouseDown(uint16_t modState)
 		if (oracool::CheckHudMenuSlotClick(MousePosition) || oracool::CheckTownPortalBeltSlotClick(MousePosition)
 		    || oracool::CheckRunToggleBeltSlotClick(MousePosition))
 			return;
+		// The companion and army headers count as HUD since v1.12.238, so their stance click is answered here - the world
+		// branch that handled it no longer sees them (round 14 audit, a regression of round 13).
+		if (oracool::HandleCompanionHudClick(MousePosition) || oracool::HandleMinionHudClick(MousePosition))
+			return;
 		// Oracool: user request - either skill button opens the Abilities window, which is where
 		// spells, skills and auras are now chosen. The LMB well was purely decorative before this.
 		//

@@ -75,6 +75,9 @@ int NearestIndex(Point tile, int radius, bool forRevive)
 		const Corpse &corpse = Table[static_cast<size_t>(i)];
 		if (forRevive && !corpse.revivable)
 			continue;
+		// A body a scavenger ate is gone from the floor: the table still offered it to Raise and the explosions (round 14).
+		if (!InDungeonBounds(corpse.position) || dCorpse[corpse.position.x][corpse.position.y] == 0)
+			continue;
 		const int distance = tile.WalkingDistance(corpse.position);
 		if (distance > radius)
 			continue;

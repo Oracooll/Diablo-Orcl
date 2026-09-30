@@ -2698,10 +2698,11 @@ void OperateShrineHidden(Player &player)
 			if (!item.isEmpty()
 			    && item._iMaxDur != DUR_INDESTRUCTIBLE && item._iDurability != DUR_INDESTRUCTIBLE
 			    && item._iMaxDur != 0) {
-				item._iDurability += 10;
-				item._iMaxDur += 10;
-				if (item._iDurability > item._iMaxDur)
-					item._iDurability = item._iMaxDur;
+				// Below the sentinel: 245 + 10 reached 255, the indestructible value, and the item never wore again. An
+				// ethereal item gains the maximum only - no hand repairs it (round 14 audit, v1.12.239).
+				item._iMaxDur = std::min(item._iMaxDur + 10, DUR_INDESTRUCTIBLE - 1);
+				if (!item._iOracoolEthereal)
+					item._iDurability = std::min(item._iDurability + 10, item._iMaxDur);
 			}
 		}
 		while (true) {
@@ -2760,6 +2761,11 @@ void OperateShrineGloomy(Player &player)
 			item._iAC += 2;
 			break;
 		default:
+			// The fork's six worn slots carry armour too: shoulders, bracers, gloves, belt, legs, boots (round 14 audit).
+			if (IsOracoolItemType(item._itype) && item._iAC > 0) {
+				item._iAC += 2;
+				break;
+			}
 			break;
 		}
 	}
@@ -2841,8 +2847,13 @@ void OperateShrineReligious(Player &player)
 		return;
 
 	for (Item &item : PlayerItemsRange { player }) {
+		// Not a Zod host, whose durability IS the indestructible stamp - the shrine wrote over it with the rune still
+		// socketed - and not an ethereal item, which no hand repairs (round 14 audit, v1.12.239).
+		if (item._iDurability == DUR_INDESTRUCTIBLE || item._iMaxDur == DUR_INDESTRUCTIBLE || item._iOracoolEthereal)
+			continue;
 		item._iDurability = item._iMaxDur;
 	}
+	CalcPlrInv(player, true); // a mended broken piece counts again at once, not at the next re-equip (round 14)
 
 	InitDiabloMsg(EMSG_SHRINE_RELIGIOUS);
 }
@@ -2858,18 +2869,21 @@ void OperateShrineEnchanted(Player &player)
 	for (uint16_t j = 0; j < maxSpells; j++) {
 		// Bit j is spell id j+1 - the doubling accumulator this used to walk was the same thing,
 		// spelled as arithmetic on a word that is now two words. See SpellMask.
-		if ((spells & GetSpellBitmask(static_cast<SpellID>(j + 1))) != 0)
+		// Not Town Portal, which every single-player hero has for good: it met the "more than one spell" test for a
+		// hero with one, and a -1 on it was put back the next tick while the log said otherwise (round 14 audit).
+		if (static_cast<SpellID>(j + 1) != SpellID::TownPortal && (spells & GetSpellBitmask(static_cast<SpellID>(j + 1))) != 0)
 			cnt++;
 	}
 	if (cnt > 1) {
 		int spellToReduce;
 		do {
 			spellToReduce = GenerateRnd(maxSpells) + 1;
-		} while ((player._pMemSpells & GetSpellBitmask(static_cast<SpellID>(spellToReduce))) == 0);
+		} while (static_cast<SpellID>(spellToReduce) == SpellID::TownPortal || (player._pMemSpells & GetSpellBitmask(static_cast<SpellID>(spellToReduce))) == 0);
 
 		// j <= maxSpells: ids run 1..maxSpells, as the count and the pick above; < left the last one (Charge, 52) unraised.
 		for (uint8_t j = static_cast<uint8_t>(SpellID::Firebolt); j <= maxSpells; j++) {
-			if ((player._pMemSpells & GetSpellBitmask(static_cast<SpellID>(j))) != 0 && player._pSplLvl[j] < MaxSpellLevel && j != spellToReduce) {
+			if ((player._pMemSpells & GetSpellBitmask(static_cast<SpellID>(j))) != 0 && player._pSplLvl[j] < MaxSpellLevel && j != spellToReduce
+			    && static_cast<SpellID>(j) != SpellID::TownPortal) {
 				uint8_t newSpellLevel = static_cast<uint8_t>(player._pSplLvl[j] + 1);
 				player._pSplLvl[j] = newSpellLevel;
 				NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, j, newSpellLevel);
@@ -3304,12 +3318,12 @@ void OperateShrineGlowing(Player &player)
 	// Take 5% of the players experience to offset the bonus, unless they're very low level in which case take all their experience.
 	// Never below the start of the hero's own level (round 13 audit, v1.12.238): on the Diablo II table 5% of the total
 	// is over half a level from 80 on, and it left the bar at 0 with the hero 148 million under his level's floor at 97.
+	const uint64_t levelFloor = player._pLevel > 1 ? ExpLvlsTbl[player._pLevel - 1] : 0;
 	if (player._pExperience > 5000) {
-		const uint64_t levelFloor = player._pLevel > 1 ? ExpLvlsTbl[player._pLevel - 1] : 0;
 		const uint64_t taken = player._pExperience - static_cast<uint64_t>(player._pExperience * 0.95);
 		player._pExperience -= std::min(taken, player._pExperience > levelFloor ? player._pExperience - levelFloor : 0);
 	} else {
-		player._pExperience = 0;
+		player._pExperience = std::min(player._pExperience, levelFloor); // the low-level branch too (round 14 audit)
 	}
 
 	CheckStats(player);
@@ -3670,13 +3684,15 @@ void OperateArmorStand(Object &armorStand, bool sendmsg, bool sendLootMsg)
 	armorStand._oAnimFrame++;
 	SetRndSeed(armorStand._oRndSeed);
 	bool uniqueRnd = !FlipCoin();
-	if (currlevel <= 5) {
+	// The floor the level was built as: in a rift currlevel is the set level's number, 9 or 10 (round 14 audit).
+	const int floor = ShrineFloor();
+	if (floor <= 5) {
 		CreateTypeItem(armorStand.position, true, ItemType::LightArmor, IMISC_NONE, sendLootMsg, false);
-	} else if (currlevel >= 6 && currlevel <= 9) {
+	} else if (floor >= 6 && floor <= 9) {
 		CreateTypeItem(armorStand.position, uniqueRnd, ItemType::MediumArmor, IMISC_NONE, sendLootMsg, false);
-	} else if (currlevel >= 10 && currlevel <= 12) {
+	} else if (floor >= 10 && floor <= 12) {
 		CreateTypeItem(armorStand.position, false, ItemType::HeavyArmor, IMISC_NONE, sendLootMsg, false);
-	} else if (currlevel >= 13) {
+	} else if (floor >= 13) {
 		CreateTypeItem(armorStand.position, true, ItemType::HeavyArmor, IMISC_NONE, sendLootMsg, false);
 	}
 	if (sendmsg)
@@ -3687,7 +3703,7 @@ int FindValidShrine()
 {
 	for (;;) {
 		int rv = GenerateRnd(gbIsHellfire ? NumberOfShrineTypes : 26);
-		if (currlevel < shrinemin[rv] || currlevel > shrinemax[rv] || rv == ShrineThaumaturgic)
+		if (ShrineFloor() < shrinemin[rv] || ShrineFloor() > shrinemax[rv] || rv == ShrineThaumaturgic) // rifts: round 14
 			continue;
 		if (gbIsMultiplayer && shrineavail[rv] == ShrineTypeSingle)
 			continue;

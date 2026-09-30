@@ -1221,7 +1221,8 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 		DrawMissile(out, tilePosition, targetBufferPosition, true, LightTableIndex);
 	}
 
-	if (LightTableIndex < LightsMax && bDead != 0) {
+	// An id of 0 with direction bits is no body (saved that way before round 14): not Corpses[-1].
+	if (LightTableIndex < LightsMax && bDead != 0 && (bDead & 0x1F) != 0) {
 		Corpse &corpse = Corpses[(bDead & 0x1F) - 1];
 		const auto direction = static_cast<Direction>((bDead >> 5) & 7);
 		OptionalClxSpriteListOrSheet sprites = corpse.sprites;

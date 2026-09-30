@@ -107,6 +107,8 @@ void ApplyBaseTier(Item &item, BaseItemTier tier);
  * identified, and repaired at the Normal price (round 9 audit, v1.12.234). Clamped to int.
  */
 int ScaleValueForBaseTier(int value, uint8_t tier);
+/** @brief @p value (damage or armour) at base tier @p tier - the scaling ApplyBaseTier gives the base numbers. */
+int ScalePowerForBaseTier(int value, uint8_t tier);
 
 /**
  * @brief The banded qlvl of a base item - the ilvl a drop needs before this base can appear.

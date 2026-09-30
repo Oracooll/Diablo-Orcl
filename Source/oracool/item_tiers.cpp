@@ -274,6 +274,13 @@ int ScaleValueForBaseTier(int value, uint8_t tier)
 	return static_cast<int>(std::clamp<int64_t>(scaled, 0, std::numeric_limits<int>::max()));
 }
 
+int ScalePowerForBaseTier(int value, uint8_t tier)
+{
+	if (tier == 0 || tier >= BaseItemTierCount)
+		return value;
+	return ScaleByPercent(value, Scales[tier].power);
+}
+
 void ApplyBaseTier(Item &item, BaseItemTier tier)
 {
 	if (!CanCarryBaseTier(item))

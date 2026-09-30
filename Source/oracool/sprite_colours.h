@@ -33,6 +33,25 @@ namespace devilution::oracool {
 struct SpriteColours {
 	/** @brief Every index left alone: the level palette, the level's light. */
 	SpriteColours();
+	/**
+	 * @brief The colours, not the lit tables: the sprite mixer's worker copies a dye while the main thread may be building
+	 * one of its tables lazily, and a torn table could be copied marked as built (round 14 audit, v1.12.239). The copy
+	 * builds its own tables on first use.
+	 */
+	SpriteColours(const SpriteColours &other)
+	    : rgb_(other.rgb_)
+	    , own_(other.own_)
+	    , fallback_(other.fallback_)
+	{
+	}
+	SpriteColours &operator=(const SpriteColours &other)
+	{
+		rgb_ = other.rgb_;
+		own_ = other.own_;
+		fallback_ = other.fallback_;
+		builtFor_.fill(0);
+		return *this;
+	}
 
 	/** @brief Gives @p index the colour @p rgb (0xRRGGBB), shaded like - and standing in as - @p fallbackIndex. */
 	void Set(uint8_t index, uint32_t rgb, uint8_t fallbackIndex);

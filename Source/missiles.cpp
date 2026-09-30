@@ -625,8 +625,15 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			        && Monsters[missile._misource].isPlayerMinion()
 			    ? oracool::MinionOwner(Monsters[missile._misource])
 			    : nullptr;
-			if (armyOwner != nullptr)
+			if (armyOwner != nullptr) {
 				Monsters[mid].tag(*armyOwner);
+				// Frenzy of the Dead's "minion damage" reaches a Skeletal Mage's bolt too, not only a blow (round 14 audit).
+				const int frenzy = oracool::MinionDamagePercent(Monsters[missile._misource]);
+				if (frenzy != 100 && frenzy > 0) {
+					minDamage = minDamage * frenzy / 100;
+					maxDamage = std::max(maxDamage * frenzy / 100, minDamage);
+				}
+			}
 			int dealt = 0;
 			isMonsterHit = MonsterTrapHit(mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, &dealt);
 			if (armyOwner != nullptr && dealt > 0) {

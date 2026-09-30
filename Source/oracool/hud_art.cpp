@@ -1541,7 +1541,9 @@ struct LoosePng {
 	uint32_t generation = 0;
 };
 
-std::map<std::string, LoosePng> LoosePngs;
+// std::less<> so a lookup takes the const char* as it is: with the plain comparator every find built a std::string -
+// a heap allocation per call, twice per grid cell per frame for the slot background (round 14 audit, v1.12.239).
+std::map<std::string, LoosePng, std::less<>> LoosePngs;
 
 LoosePng &LoosePngFor(const char *assetPath)
 {

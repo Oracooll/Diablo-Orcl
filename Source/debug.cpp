@@ -341,7 +341,11 @@ std::string ExportDun(const string_view parameter)
 {
 	std::string levelName = StrCat(currlevel, "-", glSeedTbl[currlevel], ".dun");
 
-	FILE *dunFile = OpenFile(levelName.c_str(), "ab");
+	// "wb", not "ab" - a second export of a level appended a second map into one file - and refused when it cannot
+	// be opened, where writing through the null handle crashed (round 14 audit, v1.12.239).
+	FILE *dunFile = OpenFile(levelName.c_str(), "wb");
+	if (dunFile == nullptr)
+		return StrCat("Could not open ", levelName, " for writing.");
 
 	WriteLE16(dunFile, DMAXX);
 	WriteLE16(dunFile, DMAXY);

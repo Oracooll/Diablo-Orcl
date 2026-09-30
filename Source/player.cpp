@@ -53,6 +53,7 @@
 #include "oracool/class_skills.h"
 #include "oracool/cold.h"
 #include "oracool/venom.h"
+#include "oracool/minions.h" // DismissMinions - the army dies with its master
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
@@ -666,6 +667,13 @@ bool WeaponDecay(Player &player, int ii)
 {
 	if (!player.InvBody[ii].isEmpty() && player.InvBody[ii]._iClass == ICLASS_WEAPON && HasAnyOf(player.InvBody[ii]._iDamAcFlags, ItemSpecialEffectHf::Decay)) {
 		player.InvBody[ii]._iPLDam -= 5;
+		// The record decays with it, so a rework of another row replays the decayed value, not the first roll (round 14
+		// audit, v1.12.239).
+		Item &weapon = player.InvBody[ii];
+		for (uint8_t a = 0; a < weapon._iOracoolAffixCount && a < weapon._iOracoolAffixes.size(); a++) {
+			if (weapon._iOracoolAffixes[a].type == IPL_DECAY)
+				weapon._iOracoolAffixes[a].param1 -= 5;
+		}
 		if (player.InvBody[ii]._iPLDam <= -100) {
 			RemoveEquipment(player, static_cast<inv_body_loc>(ii), true);
 			CalcPlrInv(player, true);
@@ -735,6 +743,10 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	int hper = 0;
 
 	if (!monster.isPossibleToHit())
+		return false;
+	// Not the hero's own army or golem: a swing lands on whatever stands on the tile at the hit frame, and a skeleton
+	// stepping into a dying enemy's place took the blow (round 14 audit, v1.12.239).
+	if (monster.isPlayerMinion())
 		return false;
 
 	if (adjacentDamage) {
@@ -3426,6 +3438,9 @@ StartPlayerKill(Player &player, DeathReason deathReason)
 	player._pmode = PM_DEATH;
 	player._pInvincible = true;
 	SetPlayerHitPoints(player, 0);
+	// The army dies with its master, Diablo II's rule: it re-formed whole on the next floor after a Respawn (round 14
+	// audit, v1.12.239). Final Service, which spends the army to save him, has already run by now.
+	oracool::DismissMinions(player);
 
 	if (&player != MyPlayer && dropItems) {
 		// Ensure that items are removed for remote players
@@ -3546,16 +3561,15 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 			percent = std::max(percent, -75);
 		totalDamage += totalDamage * percent / 100;
 	}
+	// Galvanizing Ward's clock restarts on the blow itself, before any ward or shield takes it (round 14 audit).
+	if (totalDamage > 0)
+		oracool::OnPassiveStruck(player);
 	// Chord of Warding (RfA-12) drinks its share before anything is shown or taken.
 	if (totalDamage > 0)
 		totalDamage = oracool::Rfa12AbsorbDamage(player, totalDamage);
 	if (&player == MyPlayer && player._pHitPoints > 0) {
 		AddFloatingNumber(damageType, player, totalDamage);
 	}
-	// Galvanizing Ward halves "the next blow": its clock restarts on the blow, before the shield. A blow the shield
-	// drank whole returned below without restarting it, so every blow after was halved (round 13 audit, v1.12.238).
-	if (totalDamage > 0)
-		oracool::OnPassiveStruck(player);
 	if (totalDamage > 0 && player.pManaShield) {
 		// Effective level, for the same reason GetManaShieldDamageReduction uses it: a Monk who
 		// bought Spirit Ward from the tree has nothing in _pSplLvl and would get no reduction.

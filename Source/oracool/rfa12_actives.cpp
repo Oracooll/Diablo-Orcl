@@ -99,7 +99,7 @@ bool ShrugsOff(const Monster &monster)
 int FrostbitePercentOn(const Monster &monster);
 
 /** @brief A skill's strike: immunity and resistance honoured, kill credit and the flinch to @p player. */
-void Strike(Player &player, Monster &monster, DamageType type, int damage)
+void Strike(Player &player, Monster &monster, DamageType type, int damage, bool melee = false, bool applyPassives = true)
 {
 	if (damage <= 0 || !Hittable(monster))
 		return;
@@ -111,13 +111,15 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage)
 		damage += damage * FrostbitePercentOn(monster) / 100;
 	// The damage-dealt passives, as MonsterMHit and PlrHitMonst apply them: Power Hungry, Conflagration, Spreading
 	// Malediction and the rest never reached a skill that strikes through here - 87 callers, the whole RfA-12 book
-	// (round 13 audit, v1.12.238). A blow at arm's length is melee.
-	const bool melee = player.position.tile.WalkingDistance(monster.position.tile) <= 1;
-	damage += damage * PassiveDamageDealtPercent(player, monster, melee) / 100;
+	// (round 13 audit, v1.12.238). Melee only when the caller says so - a swing's extra blows - as MonsterMHit counts
+	// every spell as not melee (round 14 audit: "adjacent is melee" gave spells the melee passives). And not at all for
+	// a share of a blow that already took them (the echo, Tragedy's share), which paid them twice.
+	if (applyPassives)
+		damage += damage * PassiveDamageDealtPercent(player, monster, melee) / 100;
 	if (damage <= 0)
 		return;
 	ApplyMonsterDamage(type, monster, damage);
-	if (&player == MyPlayer)
+	if (&player == MyPlayer && applyPassives)
 		OnPassiveMissileHit(player, monster, damage, type, /*arrow=*/false); // Paralysis, Temporal Flux, the marks
 	// None of these cold skills has impact art of its own (Chill Touch, Ice Needle, Ice Lance, Brittle Ground,
 	// Whiteout, Absolute Zero): the cold hit flash marks the blow (hit_cold.png, 2026-09-26).
@@ -2832,7 +2834,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		for (const Point tile : LineOfTiles(ahead, ahead + player._pdir, 2)) {
 			Monster *m = FindMonsterAtPosition(tile);
 			if (m != nullptr && Hittable(*m)) {
-				Strike(player, *m, DamageType::Magic, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+				Strike(player, *m, DamageType::Magic, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
 				struck = true;
 			}
 		}
@@ -2842,7 +2844,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		for (Monster *m : MonstersWithin(player.position.tile, 1)) {
 			if (m == front || blows >= CrusadeOthers)
 				continue;
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
 			blows++;
 			struck = true;
 		}
@@ -2856,7 +2858,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 				continue;
 			slammed.push_back(m);
 			if (m != front)
-				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
 			Stagger(*m, StunTicks(spell, r));
 			Shove(*m, player._pdir);
 			struck = true;
@@ -2870,7 +2872,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		const Point behindTile = player.position.tile + Opposite(player._pdir);
 		Monster *behind = InDungeonBounds(behindTile) ? FindMonsterAtPosition(behindTile) : nullptr;
 		if (behind != nullptr && behind != front && Hittable(*behind)) {
-			Strike(player, *behind, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			Strike(player, *behind, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
 			struck = true;
 			landedBlows++;
 		}
@@ -2884,7 +2886,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			if (m == nullptr || m == front || m == first || !Hittable(*m))
 				continue;
 			first = m;
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
 			struck = true;
 			landedBlows++;
 		}
@@ -2906,7 +2908,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	case SpellID::ReapingPoint: {
 		Monster *beyond = InDungeonBounds(ahead + player._pdir) ? FindMonsterAtPosition(ahead + player._pdir) : nullptr;
 		if (beyond != nullptr && Hittable(*beyond)) {
-			Strike(player, *beyond, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			Strike(player, *beyond, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
 			struck = true;
 		}
 		break;
@@ -3188,7 +3190,7 @@ void OnRfa12ActiveHit(Player &player, Monster &monster, int damage, bool melee)
 		marks.tragedyTicks = 0; // what it shares cannot come back to it
 		for (Monster *m : MonstersWithin(at, 1)) {
 			if (m != &monster)
-				Strike(player, *m, DamageType::Magic, share);
+				Strike(player, *m, DamageType::Magic, share, /*melee=*/false, /*applyPassives=*/false); // a share (round 14)
 		}
 		marks.tragedyTicks = saved;
 	}
@@ -3342,7 +3344,7 @@ void ProcessRfa12ActivesTick(Player &player)
 		if (Hittable(m) && player.position.tile.WalkingDistance(m.position.tile) <= 1) {
 			// RfA-27: the ghost of the blow landing again (batch 52), and the echo's cue (batch 51).
 			Art(player, MissileGraphicID::StaffEcho, m.position.tile);
-			Strike(player, m, DamageType::Physical, state.echoDamage);
+			Strike(player, m, DamageType::Physical, state.echoDamage, /*melee=*/true, /*applyPassives=*/false); // round 14
 			Impact(player, SpellID::StaffOfEchoes);
 		}
 		state.echoMonster = -1;

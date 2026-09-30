@@ -2120,7 +2120,9 @@ void MonsterDeath(Monster &monster)
 			corpse.laid = true;
 			AddCorpse(monster.position.tile, monster.corpseId, monster.direction);
 			oracool::RecordCorpse(monster); // what it was, for the Necromancer (oracool/corpses.h)
-		} else {
+		} else if (monster.type().corpseId != 0) {
+			// A type loaded mid-floor (a raised skeleton, a mage) has no body sheet: id 0 with the direction bits wrote a
+			// non-zero tile the draw read as Corpses[-1] (round 14 audit, v1.12.239).
 			AddCorpse(monster.position.tile, monster.type().corpseId, monster.direction);
 			oracool::RecordCorpse(monster);
 		}
@@ -4384,7 +4386,9 @@ Monster *AddMinionBody(Point position, Direction dir, _monster_id type)
 	InitMonster(monster, dir, typeIndex, position, /*ordinary=*/false);
 	// What makes it a minion to the rest of the engine: every damage path, the cursor and UpdateEnemy ask this flag.
 	monster.flags |= MFLAG_GOLEM;
-	monster.flags &= ~(MFLAG_TARGETS_MONSTER | MFLAG_BERSERK);
+	// And not hidden: a Revived Stalker or Unseen kept its type's MFLAG_HIDDEN, which only the Sneak AI clears, and
+	// fought its whole life unseen (round 14 audit, v1.12.239).
+	monster.flags &= ~(MFLAG_TARGETS_MONSTER | MFLAG_BERSERK | MFLAG_HIDDEN);
 	monster.enemy = 0;
 	monster.activeForTicks = UINT8_MAX;
 	monster.leaderRelation = LeaderRelation::None;
@@ -4677,7 +4681,8 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	if (!monster.isPlayerMinion())
 		AddPlrMonstExper(monster.level(sgGameInitInfo.nDifficulty), monster.exp(sgGameInitInfo.nDifficulty), monster.whoHit);
 
-	MonsterKillCounts[monster.type().type]++;
+	if (!monster.isPlayerMinion()) // the army's own deaths are not kills of that kind (round 14 audit)
+		MonsterKillCounts[monster.type().type]++;
 	monster.hitPoints = 0;
 	monster.flags &= ~MFLAG_HIDDEN;
 	SetRndSeed(monster.rndItemSeed);
