@@ -26,7 +26,7 @@ Add-Type -AssemblyName System.Drawing
 # ground shadow under the oval's foot - the desaturated blue-grey pixels (25,30,45 / 88,99,141 /
 # 67,76,111 / 78,88,125 / 13,17,27) in the frame's bottom band, y >= 90 of 128; the ring's own blues
 # and its near-black rim shading are not touched (user: "remove its shadow").
-function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satBoost, [double]$lightGain, [int[]]$fillRgb, [bool]$stripShadow = $false) {
+function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satBoost, [double]$lightGain, [int[]]$fillRgb, [bool]$stripShadow = $false, [bool]$keepShadow = $false) {
     $src = [System.Drawing.Bitmap]::FromFile((Resolve-Path $inPath))
     $bmp = New-Object System.Drawing.Bitmap $src.Width, $src.Height, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
     $g = [System.Drawing.Graphics]::FromImage($bmp); $g.DrawImage($src, 0, 0, $src.Width, $src.Height); $g.Dispose(); $src.Dispose()
@@ -39,11 +39,14 @@ function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satB
     for ($i = 0; $i -lt $n; $i += 4) {
         $a = $bytes[$i + 3]
         if ($a -eq 0) { continue }
-        if ($stripShadow) {
+        if ($stripShadow -or $keepShadow) {
             $py = [int](($i / $data.Stride) % 128)
             $r8 = [int]$bytes[$i + 2]; $g8 = [int]$bytes[$i + 1]; $b8 = [int]$bytes[$i]
             if ($py -ge 90 -and [Math]::Abs($r8 - $g8) -lt 14 -and $b8 -ge $r8 + 8 -and $b8 -lt $r8 + 60 -and $g8 -ge 10) {
-                $bytes[$i + 3] = 0; $bytes[$i] = 0; $bytes[$i + 1] = 0; $bytes[$i + 2] = 0
+                # $keepShadow (the gold portal, dev note 2026-09-30: "to have the shadow normal portals have"): a dark
+                # neutral shadow at half its brightness, not hue-shifted into the gold - left blue-grey it read as specks.
+                if ($stripShadow) { $bytes[$i + 3] = 0; $bytes[$i] = 0; $bytes[$i + 1] = 0; $bytes[$i + 2] = 0 }
+                else { $grey = [byte][Math]::Round((0.299 * $r8 + 0.587 * $g8 + 0.114 * $b8) * 0.5); $bytes[$i] = $grey; $bytes[$i + 1] = $grey; $bytes[$i + 2] = $grey }
                 continue
             }
         }
@@ -123,7 +126,9 @@ function HueShift([string]$inPath, [string]$outPath, [double]$hue, [double]$satB
 
 $out = (Resolve-Path $OutDir).Path
 # Gold: the yellow-orange of the game's gold text; a touch more saturation so the flame reads as metal, not straw.
-HueShift $Source (Join-Path $out "portal_gold.png") 42 1.25 1.05 @(96, 66, 8)
+# The core a very dark gold (dev note, 2026-09-30: "very dark gold core to match the darker tones in its animation";
+# was 96,66,8), and the rim's shadow kept as painted.
+HueShift $Source (Join-Path $out "portal_gold.png") 42 1.25 1.05 @(40, 27, 3) $false $true
 # Purple: NOT hue-shifted here any more (2026-09-20). The sheet is quantised to the palette on load and
 # the palette has no violet ramp, so the shifted sheet came out blue in the game. It stays vanilla's
 # BLUE (the PAL8_BLUE ramp) with a dark blue centre fill, and the game draws the Guardian portal through

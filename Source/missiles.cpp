@@ -2540,6 +2540,7 @@ void AddGlacialSpike(Missile &missile, AddMissileParameter &parameter)
 {
 	LaunchColdProjectile(missile, parameter, 12 + std::min(missile._mispllvl, 10));
 	RollColdDamage(missile, SpellID::GlacialSpike);
+	ScaleMissile(missile, 75); // a step down (dev note, 2026-09-30)
 }
 
 /**
@@ -2549,6 +2550,7 @@ void AddGlacialSpike(Missile &missile, AddMissileParameter &parameter)
 void AddGlacialShatter(Missile &missile, AddMissileParameter &parameter)
 {
 	AddMissileExplosion(missile, parameter);
+	ScaleMissile(missile, 50); // two steps down (dev note, 2026-09-30)
 	const Point centre = missile.position.tile;
 	for (int dy = -1; dy <= 1; dy++) {
 		for (int dx = -1; dx <= 1; dx++) {
@@ -2575,8 +2577,8 @@ void AddGlacialShatter(Missile &missile, AddMissileParameter &parameter)
  */
 namespace {
 
-/** @brief Frost Nova's ring at this share of its sheet's size (user, 2026-09-27: "2-3x larger"), to reach its 3 tiles. */
-constexpr unsigned FrostNovaPercent = 250;
+/** @brief Frost Nova's ring at this share of its sheet's size (user, 2026-09-27: "2-3x larger"; 250 until the dev note of 2026-09-30, "one step" down). */
+constexpr unsigned FrostNovaPercent = 200;
 
 /** @brief The scaled ring, built once from the loaded sheet (see BlessedShieldImpactSprites). */
 std::optional<OwnedClxSpriteList> FrostNovaSprites;
@@ -2665,8 +2667,11 @@ void ProcessBlizzard(Missile &missile)
 		missile._miDelFlag = true;
 		return;
 	}
-	if (missile._mirange % 4 != 0)
+	// Three shards every four ticks (dev note, 2026-09-30: "increase number 3x"): the one on the fourth strikes as ever,
+	// the two between are picture only, so the storm's damage is what it was.
+	if (missile._mirange % 4 == 3)
 		return;
+	const bool strikes = missile._mirange % 4 == 0;
 	const Point centre { missile.var1, missile.var2 };
 	// Somewhere in the five-by-five, on a tile a shard can land on. A few tries rather than a
 	// search: a storm that misses a tick because every roll hit a wall is still a storm.
@@ -2674,7 +2679,9 @@ void ProcessBlizzard(Missile &missile)
 		const Point tile = centre + Displacement { GenerateRnd(5) - 2, GenerateRnd(5) - 2 };
 		if (!InDungeonBounds(tile) || !IsTileNotSolid(tile))
 			continue;
-		AddMissile(tile, tile, Direction::South, MissileID::BlizzardShard, missile._micaster, missile._misource, 0, missile._mispllvl, &missile);
+		Missile *shard = AddMissile(tile, tile, Direction::South, MissileID::BlizzardShard, missile._micaster, missile._misource, 0, missile._mispllvl, &missile);
+		if (shard != nullptr && !strikes)
+			shard->var5 = 1;
 		break;
 	}
 }
@@ -2685,7 +2692,10 @@ void ProcessBlizzard(Missile &missile)
  */
 void AddBlizzardShard(Missile &missile, AddMissileParameter &parameter)
 {
+	// Half size (dev note, 2026-09-30), its tile's centre - 16px above the sheet's foot, where it breaks - kept in place.
+	ScaleMissile(missile, 50, 16);
 	missile._mirange = std::max<int>(missile._miAnimLen, 1);
+	missile.var5 = 0; // 1: a shard for the picture only (ProcessBlizzard)
 	if (parameter.pParent != nullptr) {
 		missile.var3 = parameter.pParent->var3;
 		missile.var4 = parameter.pParent->var4;
@@ -2698,7 +2708,7 @@ void ProcessBlizzardShard(Missile &missile)
 {
 	missile._mirange--;
 	// Frame nine of thirteen is the strike - four ticks before the end at one frame a tick.
-	if (missile._mirange == 4) {
+	if (missile._mirange == 4 && missile.var5 == 0) {
 		CheckMissileCol(missile, DamageType::Cold, missile.var3, missile.var4, false, missile.position.tile, true);
 		// The landing's own cue (audit 2026-09-26): CheckMissileCol sounds a missile's impact only when its
 		// range hits 0, and a shard strikes with four ticks left, so no shard was ever heard. Non-spatial, the
@@ -2724,6 +2734,11 @@ void AddFrozenOrb(Missile &missile, AddMissileParameter &parameter)
 	UpdateMissileVelocity(missile, dst, 8);
 	SetMissDir(missile, GetDirection16(missile.position.start, dst));
 	missile._mirange = 40;
+	// Half size, glinting, spinning twice as fast (dev note, 2026-09-30): every other frame of its sixteen.
+	ScaleMissile(missile, 50);
+	missile.oracoolTint = oracool::Tint::Glint;
+	missile.oracoolTintRgb = 0;
+	missile._miAnimAdd = 2;
 	missile.var1 = 0; // which way the next bolt goes
 	missile._mlid = AddLight(missile.position.start, 8);
 	missile._midam = 0;
@@ -4600,7 +4615,9 @@ void AddRiftPortal(Missile &missile, AddMissileParameter & /*parameter*/)
 	// on the gate's tile like the object, and the painting's opening floor sits well above its footprint
 	// (the plinth is in front), so unlifted the portal stood in the plinth. Measured with
 	// tools/ScalePainting.ps1's opening readout and a composite preview.
-	missile.position.offset = { 0, -27 }; // 27 = the 20 of the first fit plus the user's "move up 7px" on the 90% sheet
+	// Only in the monument (dev note, 2026-09-30): a rift's own exit stands on its floor like any portal, not 27px over it.
+	if (leveltype == DTYPE_TOWN)
+		missile.position.offset = { 0, -27 }; // 27 = the 20 of the first fit plus the user's "move up 7px" on the 90% sheet
 	missile._mlid = AddLight(missile.position.tile, 6);
 	PutMissile(missile);
 }

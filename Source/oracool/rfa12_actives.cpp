@@ -431,16 +431,17 @@ void ArtOnHero(const Player &player, MissileGraphicID art)
  * @brief A flying sheet from @p from to @p to (AddArtBolt). It lands with @p impactSpell's Impact cue and leaves
  * @p arrivalArt standing where it lands; while the sheet is missing both happen at once, here.
  */
-void Fly(const Player &player, MissileGraphicID art, Point from, Point to, SpellID impactSpell = SpellID::Invalid, int speed = 32,
+Missile *Fly(const Player &player, MissileGraphicID art, Point from, Point to, SpellID impactSpell = SpellID::Invalid, int speed = 32,
     MissileGraphicID arrivalArt = MissileGraphicID::None)
 {
 	const ClassTreeSkill row = impactSpell != SpellID::Invalid ? CueRow(player, impactSpell) : ClassTreeSkill::None;
-	if (AddArtBolt(from, to, art, static_cast<int>(player.getId()), speed, arrivalArt, row) != nullptr)
-		return;
+	if (Missile *bolt = AddArtBolt(from, to, art, static_cast<int>(player.getId()), speed, arrivalArt, row); bolt != nullptr)
+		return bolt;
 	if (impactSpell != SpellID::Invalid)
 		Impact(player, impactSpell);
 	if (arrivalArt != MissileGraphicID::None)
 		Art(player, arrivalArt, to);
+	return nullptr;
 }
 
 /** @brief The last open tile of the @p length-tile line from @p from toward @p toward - where a travelling wave stops. */
@@ -448,6 +449,30 @@ Point LineEnd(Point from, Point toward, int length)
 {
 	const std::vector<Point> tiles = LineOfTiles(from, toward, length);
 	return tiles.empty() ? from : tiles.back();
+}
+
+/**
+ * @brief Where a line skill's flight ends: the farthest monster it struck, else the end of its reach toward the cursor
+ * (dev notes, 2026-09-30: Ice Needle and Ice Lance fly every cast, foes or none).
+ */
+Point FlightEnd(const Player &player, Point here, Point target, const std::vector<Monster *> &struck, int reach)
+{
+	if (!struck.empty())
+		return struck.back()->position.tile;
+	return LineEnd(here, target == here ? here + player._pdir : target, reach);
+}
+
+/**
+ * @brief Frozen Sentinel's body: vanilla's Guardian sheet, tinted cold (dev note, 2026-09-30: "use guardian tinted cold"),
+ * row @p row (rise, stand, sink) on @p tile - one play, or @p ticks of the loop. The row before it is ended first.
+ */
+void SentinelArt(const Player &player, Point tile, int row, int ticks = 0)
+{
+	EndArtEffects(tile, MissileGraphicID::Guardian, static_cast<int>(player.getId()));
+	if (Missile *sentinel = AddArtEffectFacing(tile, MissileGraphicID::Guardian, static_cast<int>(player.getId()), row, ticks); sentinel != nullptr) {
+		sentinel->oracoolTint = Tint::Hue;
+		sentinel->oracoolTintRgb = hue::IceBlue;
+	}
 }
 
 /** @brief Whether @p spell's row has a cast or impact cue of its own - the teleport's borrowed chime then stays quiet. */
@@ -1011,6 +1036,12 @@ constexpr int WhiteoutTicks = 8 * WhiteoutStepTicks; // eight tiles
 constexpr int BallLightningStepTicks = 10;
 constexpr int BallLightningTicks = 8 * BallLightningStepTicks; // eight tiles, a charged bolt at each
 constexpr int FrozenSentinelPeriod = 30;
+/** @brief The Guardian sheet's three rows (misdat: 15, 14 and 3 frames at one a tick) - Frozen Sentinel's look. */
+constexpr int SentinelRise = 0;
+constexpr int SentinelStand = 1;
+constexpr int SentinelSink = 2;
+constexpr int SentinelRiseTicks = 15;
+constexpr int SentinelSinkTicks = 3;
 constexpr int FirestormPeriod = 8;
 constexpr int FirestormScatter = 3; // tiles either way of the cursor
 constexpr int FurnaceMouthTicks = 3 * TicksPerSecond + 1;
@@ -1447,14 +1478,13 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 				ChillMonster(*m, SlowTicks(spell, r));
 			any = true;
 		}
-		// RfA-27 batch 53: the cone of frost mist through the three tiles ahead.
-		if (any) {
-			// At 125% (the Sorcerer Skill Cards page, 2026-09-30), with its Impact cue on what it chilled.
-			if (Missile *cone = ArtFacing(player, MissileGraphicID::ChillTouch, here, target == here ? player._pdir : GetDirection(here, target)); cone != nullptr)
-				ScaleMissile(*cone, 125);
+		// RfA-27 batch 53: the cone of frost mist through the three tiles ahead, at 125% (the Sorcerer Skill Cards page,
+		// 2026-09-30) - every cast, foes or none (dev note, 2026-09-30); its Impact cue only on what it chilled.
+		if (Missile *cone = ArtFacing(player, MissileGraphicID::ChillTouch, here, target == here ? player._pdir : GetDirection(here, target)); cone != nullptr)
+			ScaleMissile(*cone, 125);
+		if (any)
 			Impact(player, spell);
-		}
-		return any;
+		return true;
 	}
 	case SpellID::IceNeedle: {
 		auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
@@ -1467,9 +1497,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 				ChillMonster(*m, SlowTicks(spell, r));
 		}
 		// RfA-27 batch 54: the needle, to the farthest it struck, landing with its impact cue (at once while the sheet is missing).
-		if (!line.empty())
-			Fly(player, MissileGraphicID::IceNeedle, here, line.back()->position.tile, spell);
-		return !line.empty();
+		// Every cast (dev note, 2026-09-30): with nothing struck it flies its full reach and lands silent.
+		Fly(player, MissileGraphicID::IceNeedle, here, FlightEnd(player, here, target, line, ReachTiles(spell, r)), line.empty() ? SpellID::Invalid : spell);
+		return true;
 	}
 	case SpellID::Frostbite: {
 		Monster *m = NearestTo(target, 2);
@@ -1491,10 +1521,15 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			if ((m->hitPoints >> 6) > 0)
 				ChillMonster(*m, SlowTicks(spell, r));
 		}
-		// RfA-27 batch 54: the lance, through to the farthest it struck, landing with its impact cue (at once without the sheet).
-		if (!line.empty())
-			Fly(player, MissileGraphicID::IceLance, here, line.back()->position.tile, spell);
-		return !line.empty();
+		// The vanilla arrow tinted ice blue (dev note, 2026-09-30, in place of the RfA-27 lance), through to the farthest it
+		// struck with its impact cue - or, every cast, its full reach and silent.
+		const Point end = FlightEnd(player, here, target, line, ReachTiles(spell, r));
+		if (Missile *arrow = Fly(player, MissileGraphicID::Arrow, here, end, line.empty() ? SpellID::Invalid : spell); arrow != nullptr) {
+			arrow->_miAnimFrame = static_cast<int>(GetDirection16(here, end == here ? here + player._pdir : end)) + 1; // a frame a facing, as AddArrow
+			arrow->oracoolTint = Tint::Hue;
+			arrow->oracoolTintRgb = hue::IceBlue;
+		}
+		return true;
 	}
 	case SpellID::BrittleGround: {
 		Field *f = NewField(player, spell, target, EffectTicks(spell, r), r);
@@ -1510,6 +1545,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 				ice->position.offset = { 0, 32 }; // the patch's centre, y 80 of 128, on the tile's centre: (128 - 80) - 16
 				ice->_miAnimFrame = std::min(variant, ice->_miAnimLen);
 				ice->_miAnimAdd = 0;
+				ice->oracoolTint = Tint::Glint; // light running over the ice, slick underfoot (dev note, 2026-09-30)
 			}
 			variant++;
 		}
@@ -1517,15 +1553,13 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::FrozenSentinel:
 		NewField(player, spell, target, EffectTicks(spell, r), r);
+		SentinelArt(player, target, SentinelRise); // it rises; TickField stands it and sinks it (dev note, 2026-09-30)
 		return true;
 	case SpellID::Whiteout: {
 		Field *f = NewField(player, spell, here, WhiteoutTicks, r);
 		f->dir = target == here ? player._pdir : GetDirection(here, target);
-		// RfA-27 batch 54: the wall of driven snow, rolling at the field's own pace - a tile every WhiteoutStepTicks, which is
-		// 32 screen pixels north and south, 64 east and west and about 36 on the diagonals. TickField rings each step without it.
-		const int pixelsPerTile = IsAnyOf(f->dir, Direction::East, Direction::West) ? 64 : IsAnyOf(f->dir, Direction::North, Direction::South) ? 32 : 36;
-		Fly(player, MissileGraphicID::WhiteoutWall, here, LineEnd(here, here + f->dir, WhiteoutTicks / WhiteoutStepTicks), SpellID::Invalid,
-		    std::max(pixelsPerTile / WhiteoutStepTicks, 1));
+		// The wall is Flame Wave's fire tinted cold (dev note, 2026-09-30, in place of RfA-27's WhiteoutWall): TickField
+		// raises it on each step's three tiles.
 		return true;
 	}
 	case SpellID::AbsoluteZero: {
@@ -2527,12 +2561,19 @@ void TickField(Player &player, Field &field)
 		}
 		break;
 	case SpellID::FrozenSentinel:
+		// The Guardian's sheet, tinted cold (dev note, 2026-09-30): risen by CastOnce, standing, then sinking at the end.
+		if (field.clock == SentinelRiseTicks)
+			SentinelArt(player, field.tile, SentinelStand, std::max(field.ticksLeft - SentinelSinkTicks, 1));
+		else if (field.ticksLeft == SentinelSinkTicks)
+			SentinelArt(player, field.tile, SentinelSink);
 		if (field.clock % FrozenSentinelPeriod == 0) {
 			if (Monster *m = NearestTo(field.tile, ReachTiles(field.spell, r)); m != nullptr) {
 				Missile *bolt = AddMissile(field.tile, m->position.tile, GetDirection(field.tile, m->position.tile), MissileID::IceBolt,
 				    TARGET_MONSTERS, static_cast<int>(player.getId()), 0, r);
-				if (bolt != nullptr)
+				if (bolt != nullptr) {
 					bolt->sentinelBolt = true; // it sounds the sentinel's Impact cue where it lands (2026-09-30)
+					ScaleMissile(*bolt, 50); // the small shards it spits (dev note, 2026-09-30): the Ice Bolt's own, at half
+				}
 			}
 		}
 		break;
@@ -2556,7 +2597,19 @@ void TickField(Player &player, Field &field)
 			}
 			if (struckThisStep)
 				Impact(player, field.spell); // once a step that struck anything (the Sorcerer Skill Cards page, 2026-09-30)
-			if (!MissileArtLoaded(MissileGraphicID::WhiteoutWall)) // RfA-27: the wall rolls on its own (CastOnce)
+			// Flame Wave's fire rising on the three tiles, tinted cold (dev note, 2026-09-30): each plays its rise once, about
+			// two steps long, so the wall rolls on as the next step raises the next.
+			bool raised = false;
+			for (const Point tile : { field.tile, field.tile + Left(Left(field.dir)), field.tile + Right(Right(field.dir)) }) {
+				if (!InDungeonBounds(tile) || IsTileSolid(tile))
+					continue;
+				if (Missile *flame = AddArtEffectFacing(tile, MissileGraphicID::FireWall, static_cast<int>(player.getId()), 0); flame != nullptr) {
+					flame->oracoolTint = Tint::Hue;
+					flame->oracoolTintRgb = hue::IceBlue;
+					raised = true;
+				}
+			}
+			if (!raised)
 				Ring(player, field.tile);
 		}
 		break;

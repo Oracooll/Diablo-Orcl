@@ -101,6 +101,13 @@ const uint32_t *TintedTable(const uint32_t *base, Tint tint, uint32_t rgb, doubl
 		case Tint::Mend:
 			out = Lerp(c, AtBrightness({ 185, 160, 255 }, 0.4 + 0.8 * l), 0.65 * std::clamp(progress, 0.0, 1.0));
 			break;
+		case Tint::Glint: {
+			// The clock alone moves the bands: a looping sheet's frame would jump them back at every wrap.
+			const double wave = std::cos(2.0 * Pi * (2.0 * l - t / 0.9));
+			const Colour base = rgb == 0 ? c : Lerp(c, AtBrightness(hue, 0.35 + 0.75 * l), 0.6);
+			out = { base.r * (1.0 + 0.4 * wave), base.g * (1.0 + 0.4 * wave), base.b * (1.0 + 0.4 * wave) };
+			break;
+		}
 		}
 		Result[i] = Pack(out);
 	}

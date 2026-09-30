@@ -28,6 +28,12 @@ enum class Tint : uint8_t {
 	Astral,
 	/** A lavender glow fading off a healed minion (Dark Mending, in place of its sheet). `strength` is 0..1. */
 	Mend,
+	/**
+	 * Bands of light running through the brightness levels on the game clock alone, so a looping or held sheet cycles
+	 * without a seam (dev notes, 2026-09-30: Frozen Orb, Brittle Ground, the ice armours). `rgb` 0 keeps the sheet's
+	 * own colours; any other glazes them toward that hue, as Ice does.
+	 */
+	Glint,
 };
 
 /** @brief 0xRRGGBB. */
@@ -46,6 +52,10 @@ constexpr uint32_t HolyBlue = Rgb(96, 150, 255);
 constexpr uint32_t IceBlue = Rgb(150, 210, 255);
 constexpr uint32_t SpectralLavender = Rgb(206, 182, 255);
 constexpr uint32_t PaleWarm = Rgb(236, 220, 186);
+/** The three ice armours' glints (dev note, 2026-09-30: "white, yellow, darker blue"). */
+constexpr uint32_t FrostWhite = Rgb(236, 244, 255);
+constexpr uint32_t ShiverYellow = Rgb(255, 220, 110);
+constexpr uint32_t DeepIceBlue = Rgb(64, 104, 224);
 } // namespace hue
 
 /**

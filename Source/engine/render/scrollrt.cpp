@@ -591,6 +591,11 @@ bool DrawPlayerTinted(const Surface &out, const Player &player, Point position, 
 	if (tint == oracool::Tint::None)
 		return false;
 	const uint32_t *table = colours != nullptr ? colours->Table(light) : oracool::LitPaletteTable(light);
+	// The armours glint, each in its own hue (dev note, 2026-09-30).
+	if (tint == oracool::Tint::Ice) {
+		ClxDrawRgbMap(out, position, sprite, oracool::TintedTable(table, oracool::Tint::Glint, oracool::ColdArmourHue(player), 0.0));
+		return true;
+	}
 	ClxDrawRgbMap(out, position, sprite, oracool::TintedTable(table, tint, 0, 0.0));
 	return true;
 }

@@ -631,8 +631,12 @@ void LayRiftExit(Point tile)
 void LayArrivalExit()
 {
 	if (State.arrivalTile == Point { 0, 0 }) {
-		for (int d = 0; d < 8; d++) {
-			const Point neighbour = ViewPosition + static_cast<Direction>(d);
+		// Behind the hero first - up the screen, so he is drawn in front of it (dev note, 2026-09-30: "cast behind my
+		// hero"); South, the tile in front of him, only when nothing else is open.
+		constexpr Direction Behind[] = { Direction::North, Direction::NorthWest, Direction::NorthEast, Direction::West,
+			Direction::East, Direction::SouthWest, Direction::SouthEast, Direction::South };
+		for (const Direction d : Behind) {
+			const Point neighbour = ViewPosition + d;
 			if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0
 			    && dMonster[neighbour.x][neighbour.y] == 0 && dPlayer[neighbour.x][neighbour.y] == 0) {
 				State.arrivalTile = neighbour;

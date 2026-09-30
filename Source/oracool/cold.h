@@ -169,6 +169,9 @@ void OnColdArmourStruckAtRange(Player &player, Monster &monster);
 /** @brief The frame of the shell to draw over @p player this instant, or -1 for no armour. */
 int ColdArmourShellFrame(const Player &player);
 
+/** @brief The glint hue of the armour @p player wears (0xRRGGBB): Frozen white, Shiver yellow, Chilling deep blue. */
+uint32_t ColdArmourHue(const Player &player);
+
 /** @brief One sentence per cold spell for the Abilities window, untranslated. "" for a spell that is not cold. */
 const char *ColdSpellDescription(SpellID spell);
 
