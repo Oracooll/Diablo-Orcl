@@ -3333,8 +3333,10 @@ void StartStand(Player &player, Direction dir)
 	// get to finish later. Every interruption reaches here or StartPlrHit - a hit reaction, a
 	// broken weapon, a death, a level change - which is why the reset lives at these two rather
 	// than being chased around each cause. See oracool::ResetZealChain.
-	if (&player == MyPlayer)
+	if (&player == MyPlayer) {
 		oracool::ResetZealChain();
+		oracool::BeginClassMeleeSwing(); // and a Frenzy or Double Swing chain (round 34 audit)
+	}
 
 	NewPlrAnim(player, player_graphic::Stand, dir);
 	player._pmode = PM_STAND;

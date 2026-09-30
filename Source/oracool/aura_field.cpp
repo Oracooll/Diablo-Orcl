@@ -148,6 +148,8 @@ void ProcessHolyPulse(Player &player)
 		Monster &monster = Monsters[std::abs(id) - 1];
 		if (monster.position.tile != tile || player.position.tile.WalkingDistance(tile) > radius)
 			continue; // the second tile of a monster mid-step, or a corner past the reach
+		if (!LineClearMissile(player.position.tile, tile))
+			continue; // not through a wall, as Static Field since round 8 (round 34 audit)
 		struck.push_back(&monster);
 	}
 	for (Monster *monster : struck)
@@ -456,6 +458,8 @@ void ProcessOutwardAura(Player &player)
 		// uses to decide what it may burn.
 		if (monster.data().monsterClass != MonsterClass::Undead)
 			continue;
+		if (!LineClearMissile(player.position.tile, monster.position.tile))
+			continue; // not the next room's undead (round 34 audit)
 		// Not a monster Conversion turned: it fights for the Paladin, and since every AI obeys a retreat (v1.12.240) the
 		// field sent his own allies running (round 16 audit).
 		if (IsMonsterConverted(monster))

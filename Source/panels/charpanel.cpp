@@ -115,9 +115,11 @@ int GetStrengthDamageMod()
 
 std::pair<int, int> GetDamage()
 {
-	const int damageMod = InspectPlayer->_pIBonusDamMod + GetStrengthDamageMod();
-	int mindam = InspectPlayer->_pIMinDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMinDam / 100;
-	int maxdam = InspectPlayer->_pIMaxDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMaxDam / 100;
+	// The flat +damage with the weapon part, before Glass Cannon, as the blow adds them (round 34 audit); the Strength part
+	// after it.
+	const int damageMod = GetStrengthDamageMod();
+	int mindam = InspectPlayer->_pIMinDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMinDam / 100 + InspectPlayer->_pIBonusDamMod;
+	int maxdam = InspectPlayer->_pIMaxDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMaxDam / 100 + InspectPlayer->_pIBonusDamMod;
 	// Glass Cannon on the weapon part, before the Strength part, as the blow takes it (round 33 audit: moved out of the
 	// weapon totals in round 20, it left the sheet with them).
 	const int always = oracool::PassiveUnconditionalDamagePercent(*InspectPlayer);

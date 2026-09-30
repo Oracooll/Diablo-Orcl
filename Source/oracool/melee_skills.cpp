@@ -356,6 +356,11 @@ void ForgetClassMeleeSweep()
 	SweptThisSwing = false;
 }
 
+void NoteSideSweep()
+{
+	SweptThisSwing = true; // Cleave and the Monk's Sweep strike the side tiles too (round 34 audit)
+}
+
 int ClassMeleeSkillDamagePercent(const Player &player)
 {
 	// The spin's blows (oracool/whirlwind.h): a share of a normal blow, the latch or none.

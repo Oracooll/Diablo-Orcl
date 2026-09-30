@@ -33,6 +33,7 @@
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/endgame_boss.h" // IsKnockbackImmune - Shove's refusal
+#include "oracool/melee_skills.h" // NoteSideSweep - Cleave and Sweep stand the vanilla cleave aside
 #include "oracool/skill_sounds.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/warcries.h"
@@ -109,8 +110,14 @@ int FrostbitePercentOn(const Monster &monster);
 bool BowStrikeInFlight = false;
 
 struct BowStrikeScope {
-	explicit BowStrikeScope(bool bow) { BowStrikeInFlight = bow; }
-	~BowStrikeScope() { BowStrikeInFlight = false; }
+	// The value it replaced comes back, not false: a scope opened inside another would end the outer one (round 34 audit).
+	explicit BowStrikeScope(bool bow)
+	    : previous(BowStrikeInFlight)
+	{
+		BowStrikeInFlight = bow;
+	}
+	~BowStrikeScope() { BowStrikeInFlight = previous; }
+	bool previous;
 };
 
 /** @brief A skill's strike: immunity and resistance honoured, kill credit and the flinch to @p player. */
@@ -191,14 +198,20 @@ void Shove(Monster &monster, Direction dir)
 }
 
 /** @brief Every hittable monster within @p radius tiles of @p centre, gathered before anything is struck. */
+std::optional<Point> CastSightFrom; // see below, at NearestTo
+
 std::vector<Monster *> MonstersWithin(Point centre, int radius)
 {
 	std::vector<Monster *> out;
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		Monster &monster = Monsters[ActiveMonsters[i]];
 		// And in sight of the centre, as Frost Nova since round 3: Absolute Zero froze the next room (round 5 audit).
+		// And, while a cast is being made, in the hero's sight too, as NearestTo since round 15: Rain of Arrows, Seven-Sided
+		// Strike and Wave of Light struck a pack behind a wall with the cursor on its far side (round 34 audit). The fields
+		// that tick after the cast are unset and keep their own centre's sight.
 		if (Hittable(monster) && centre.WalkingDistance(monster.position.tile) <= radius
-		    && LineClearMissile(centre, monster.position.tile))
+		    && LineClearMissile(centre, monster.position.tile)
+		    && (!CastSightFrom || LineClearMissile(*CastSightFrom, monster.position.tile)))
 			out.push_back(&monster);
 	}
 	return out;
@@ -209,8 +222,8 @@ std::vector<Monster *> MonstersWithin(Point centre, int radius)
  * @brief While a cast is being made, the hero's tile: NearestTo takes only a monster he can see from it. The target was
  * found around the cursor alone, so a shot or a curse clicked beside a wall struck the monster behind it (round 15
  * audit, v1.12.240 - the check Absolute Zero got in round 5). Unset for the fields and marks that tick after the cast.
+ * Declared above MonstersWithin, which asks it too (round 34).
  */
-std::optional<Point> CastSightFrom;
 
 Monster *NearestTo(Point centre, int radius, const Monster *except = nullptr)
 {
@@ -2942,6 +2955,9 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	}
 	case SpellID::Cleave:
 	case SpellID::Sweep: {
+		// They strike the side tiles, so the vanilla axe or staff cleave stands aside, as for Sweeping Reed since round 26:
+		// each side enemy took both blows (round 34 audit).
+		NoteSideSweep();
 		const Monster *first = nullptr; // a walker holds both side tiles on a diagonal facing: once, and one Rage (round 7 audit)
 		for (const Point tile : { player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {
 			Monster *m = FindMonsterAtPosition(tile);
@@ -3285,6 +3301,9 @@ void OnRfa12ActiveMissileStruck(Player &player, Monster &monster, int damage)
 
 void OnRfa12ActiveMonsterKilled(Player &player, const Monster &monster)
 {
+	// A burst on a death is not an arrow, though an arrow's Strike made the kill: Ashen Brand's and Exploding Palm's blows
+	// fed the arrow-only passives (round 34 audit).
+	BowStrikeScope notAnArrow { false };
 	Marks &marks = MarksOf(monster);
 	const Point at = monster.position.tile;
 	if (marks.ashenTicks > 0) {

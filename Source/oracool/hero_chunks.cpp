@@ -297,6 +297,9 @@ struct PendingHotkeys {
 	std::vector<uint8_t> left;
 	std::vector<uint8_t> right16;
 	std::vector<uint8_t> left16;
+	bool readied16 = false;
+	uint16_t readiedRight16 = 0;
+	uint16_t readiedLeft16 = 0;
 } LastHotkeys;
 
 void ApplyPackedHotkeys(Player &player, const std::vector<uint8_t> &packed, SpellID *keys, SpellType *types)
@@ -484,6 +487,13 @@ void ReapplyHeroHotkeys(Player &player)
 	ApplyPackedHotkeys(player, LastHotkeys.left, player._pSplLHotKey, player._pSplLTHotKey);
 	ApplyPackedHotkeys16(player, LastHotkeys.right16, player._pSplHotKey, player._pSplTHotKey);
 	ApplyPackedHotkeys16(player, LastHotkeys.left16, player._pSplLHotKey, player._pSplLTHotKey);
+	// The readied pair too (round 34 audit): decoded before the items loaded, a Scroll or Staff choice found no scroll or
+	// staff and fell back to the learned spell, and the one-byte decode after it re-derived it again. Decoded last, it
+	// keeps its kind while the hero still carries the item.
+	if (LastHotkeys.readied16) {
+		UnpackReadiedSpell16(player, LastHotkeys.readiedRight16, player._pRSpell, player._pRSplType);
+		UnpackReadiedSpell16(player, LastHotkeys.readiedLeft16, player._pLRSpell, player._pLRSplType);
+	}
 	LastHotkeys = {};
 }
 
@@ -725,7 +735,7 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 	//
 	// This is the same fault the readied pair had at pfile.cpp, fixed there the same way on
 	// 2026-08-31. Two stores, one mask, one ordering mistake, found twice.
-	LastHotkeys = { packedRightHotkeys, packedLeftHotkeys, packedRightHotkeys16, packedLeftHotkeys16 };
+	LastHotkeys = { packedRightHotkeys, packedLeftHotkeys, packedRightHotkeys16, packedLeftHotkeys16, sawReadied16, readiedRight16, readiedLeft16 };
 	if (!packedRightHotkeys.empty() || !packedLeftHotkeys.empty() || !packedRightHotkeys16.empty() || !packedLeftHotkeys16.empty() || sawReadied16) {
 		RefreshInnateSpells(player);
 		ApplyPackedHotkeys(player, packedRightHotkeys, player._pSplHotKey, player._pSplTHotKey);

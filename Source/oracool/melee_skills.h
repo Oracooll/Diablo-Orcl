@@ -148,6 +148,8 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
  */
 bool ClassMeleeSkillSwept();
 void ForgetClassMeleeSweep();
+/** @brief An RfA-12 swing (Cleave, Sweep) struck the side tiles itself this swing; set by ApplyRfa12MeleeOnSwing. */
+void NoteSideSweep();
 
 /**
  * @brief The leap: moves @p player toward @p target, up to the skill's range, through the engine's

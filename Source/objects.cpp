@@ -2886,6 +2886,7 @@ void OperateShrineReligious(Player &player)
 		if (item._iDurability == DUR_INDESTRUCTIBLE || item._iMaxDur == DUR_INDESTRUCTIBLE || item._iOracoolEthereal)
 			continue;
 		item._iDurability = item._iMaxDur;
+		item._iOracoolBroken = false; // mended in the pack too, not only when worn (round 34 audit)
 	}
 	CalcPlrInv(player, true); // a mended broken piece counts again at once, not at the next re-equip (round 14)
 
@@ -5772,7 +5773,8 @@ void OperateObject(Player &player, Object &object)
 		// fallback); in the Caves it is still the vanilla stand the Anvil quest uses, which is why
 		// this is gated on currlevel rather than on the type alone.
 		// Two stands in town since 2026-09-20: the Roar and the Stonegate, told apart by identity.
-		if (currlevel == 0 && sendmsg) {
+		// A hand on it, not Telekinesis from across town (round 34 audit: the Monument's menu opened from anywhere).
+		if (currlevel == 0 && sendmsg && player.position.tile.WalkingDistance(object.position) <= 2) {
 			if (oracool::IsStonegateObject(object)) {
 				oracool::ToggleStonegate();
 			} else {
@@ -5810,10 +5812,12 @@ void OperateObject(Player &player, Object &object)
 		// custom OBJ_STASHCHEST type) rather than being its own _object_id, so it's identified by
 		// its fixed town position instead - every other OBJ_CHEST3 in the game is a normal,
 		// one-time loot chest.
-		if (currlevel == 0 && object.position == StashChestPosition)
-			OperateStashChest(object);
-		else
+		if (currlevel == 0 && object.position == StashChestPosition) {
+			if (player.position.tile.WalkingDistance(object.position) <= 2) // not by Telekinesis (round 34 audit)
+				OperateStashChest(object);
+		} else {
 			OperateChest(player, object, sendmsg);
+		}
 		break;
 	case OBJ_SARC:
 	case OBJ_L5SARC:

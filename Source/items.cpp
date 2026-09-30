@@ -3780,8 +3780,13 @@ bool ReforgeOracoolItem(Item &item)
 	const RebuildKeepsake keepsake = CaptureRebuildKeepsake(item);
 	const int oldDurability = item._iDurability;
 	const bool wasBroken = item._iOracoolBroken;
+	// The unique flags put back after the roll, as Ennoble and the shelves do: a Reforge that came out as a vanilla unique
+	// spent its one drop of the game (round 34 audit).
+	std::array<bool, MaxUniqueItems> uniqueFlags;
+	std::copy(std::begin(UniqueItemFlags), std::end(UniqueItemFlags), uniqueFlags.begin());
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), ilvl, 1, /*onlygood=*/false,
 	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, std::nullopt, ilvl);
+	std::copy(uniqueFlags.begin(), uniqueFlags.end(), std::begin(UniqueItemFlags));
 	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
 	// The wear it had, as RetierOracoolItem keeps it: SetupAllItems cleared the broken flag and rolled fresh durability, a
 	// free repair that bypassed Mend (round 8 audit, v1.12.233).
@@ -6911,12 +6916,14 @@ void TrySpawnSignet(const Monster &monster, bool sendmsg)
  * drift apart again, which is exactly how they came to differ in the first place.
  */
 
-void FinalizeSetPiece(Item &item, int itemLevel, bool allowEtherealRoll)
+void FinalizeSetPiece(Item &item, int itemLevel, bool allowEtherealRoll, std::optional<oracool::BaseItemTier> keepTier)
 {
 	GenerateNewSeed(item);
 	item._iOracoolItemLevel = static_cast<uint8_t>(std::clamp(itemLevel, 0, 255));
 	item._iCreateInfo = std::min(itemLevel, 63);
-	oracool::ApplyBaseTier(item, oracool::TierForItem(item._iOracoolItemLevel, item._iSeed));
+	// A recipe keeps the tier the item had (round 34 audit: a Torment piece recast or consecrated came back re-rolled, often
+	// lower), as Retier pins it; a fresh piece rolls it from its seed.
+	oracool::ApplyBaseTier(item, keepTier.value_or(oracool::TierForItem(item._iOracoolItemLevel, item._iSeed)));
 	// Drop-only, like every other durable item - see TryMakeDroppedItemEthereal for why the roll
 	// lives there and not in MakeItemEthereal. Recast and Consecrate pass false: a recipe must not
 	// hand a player an ethereal item they did not ask for, and Make Ethereal is its own recipe.
@@ -9416,7 +9423,7 @@ void RollGambleResult(Item &out, _item_indexes base, int lvl)
 	// of the hero's own minus five to plus four, magic or better (onlygood), a unique one time in a
 	// hundred (uper 1 is CheckUnique's percent), the fork's Rare, Set and Primal tiers by their own
 	// odds inside SetupAllItems. Identified on the purchase, as a drop is.
-	const int ilvl = std::clamp(lvl - 5 + GenerateRnd(10), 1, MaxCharacterLevel);
+	const int ilvl = std::clamp(lvl - 5 + GenerateRnd(10), 1, oracool::MaxAreaLevel); // the ladder's top, as every other source (round 34 audit)
 	const uint32_t seed = AdvanceRndSeed();
 	SetupAllItems(*MyPlayer, out, base, seed, ilvl, /*uper=*/1, /*onlygood=*/true, /*recreate=*/false, /*pregen=*/false);
 	out._iIdentified = true;

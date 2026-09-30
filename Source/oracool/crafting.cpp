@@ -1502,6 +1502,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// finding, 2026-08-26: both recipes rebuilt the item and never put the level or the
 			// base tier back, so recasting a deep set piece quietly reset it to a floor-zero item.
 			const int keptLevel = target._iOracoolItemLevel;
+			const auto keptTier = static_cast<oracool::BaseItemTier>(target._iOracoolBaseTier); // kept too (round 34 audit)
 			const SetItemDefinition *chosen = others[GenerateRnd(static_cast<int32_t>(others.size()))];
 			const bool wasEthereal = target._iOracoolEthereal;
 			// Kanai's Work of Cathan too (audit, 2026-09-29): InitializeItem empties the item, and the keepsake notes name
@@ -1514,7 +1515,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			const int oldSockets = target._iSocketCount;
 			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetPiece(*chosen)));
 			MakeSetItem(target, *chosen);
-			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false);
+			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false, keptTier);
 			// InitializeItem starts from an empty Item, so the ethereal bargain went with it (audit,
 			// 2026-09-13). May decline on an indestructible piece, which then simply stays whole.
 			if (wasEthereal)
@@ -1561,6 +1562,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// finding, 2026-08-26: both recipes rebuilt the item and never put the level or the
 			// base tier back, so recasting a deep set piece quietly reset it to a floor-zero item.
 			const int keptLevel = target._iOracoolItemLevel;
+			const auto keptTier = static_cast<oracool::BaseItemTier>(target._iOracoolBaseTier); // kept too (round 34 audit)
 			const SetItemDefinition *chosen = pieces[GenerateRnd(static_cast<int32_t>(pieces.size()))];
 			const bool wasEthereal = target._iOracoolEthereal;
 			// Kanai's Work of Cathan too (audit, 2026-09-29): InitializeItem empties the item, and the keepsake notes name
@@ -1573,7 +1575,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			const int oldSockets = target._iSocketCount;
 			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetPiece(*chosen)));
 			MakeSetItem(target, *chosen);
-			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false);
+			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false, keptTier);
 			// InitializeItem starts from an empty Item, so the ethereal bargain went with it (audit,
 			// 2026-09-13). May decline on an indestructible piece, which then simply stays whole.
 			if (wasEthereal)

@@ -23,6 +23,7 @@
 #include "oracool/hero_chunks.h"
 #include "oracool/rfa12_actives.h" // ClearRfa12PlayerBuffs - the preview shows no last-game buffs
 #include "oracool/warcries.h"      // ClearWarcryBuffs
+#include "oracool/passives.h"      // PassiveUnconditionalDamagePercent - the hero-select damage
 #include "oracool/sprite_mix.h"
 #include "oracool/rage.h"
 #include "oracool/readied_spells.h" // UnpackReadiedSpell - re-decoded once the chunks have landed
@@ -216,9 +217,13 @@ void Game2UiPlayer(const Player &player, _uiheroinfo *heroinfo, bool bHasSaveFil
 	// Strength part (halved on a bow outside the Rogue) - hero-select read 10-20 where the sheet read 55-65 (round 4 audit).
 	const bool nonRogueBow = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow && player.InvBody[INVLOC_HAND_LEFT]._iStatFlag
 	    && player._pClass != HeroClass::Rogue; // a usable bow only (round 25 audit)
-	const int damageMod = player._pIBonusDamMod + (nonRogueBow ? player._pDamageMod / 2 : player._pDamageMod);
-	const int minDamage = player._pIMinDam + player._pIBonusDam * player._pIMinDam / 100 + damageMod;
-	const int maxDamage = player._pIMaxDam + player._pIBonusDam * player._pIMaxDam / 100 + damageMod;
+	const int strengthPart = nonRogueBow ? player._pDamageMod / 2 : player._pDamageMod;
+	// Glass Cannon on the weapon and flat part, as the sheet and the blow (round 34 audit).
+	const int always = oracool::PassiveUnconditionalDamagePercent(player);
+	int minDamage = player._pIMinDam + player._pIBonusDam * player._pIMinDam / 100 + player._pIBonusDamMod;
+	int maxDamage = player._pIMaxDam + player._pIBonusDam * player._pIMaxDam / 100 + player._pIBonusDamMod;
+	minDamage += minDamage * always / 100 + strengthPart;
+	maxDamage += maxDamage * always / 100 + strengthPart;
 	heroinfo->minDamage = static_cast<uint16_t>(std::clamp(minDamage, 0, 65535));
 	heroinfo->maxDamage = static_cast<uint16_t>(std::clamp(maxDamage, 0, 65535));
 	heroinfo->hassaved = bHasSaveFile;

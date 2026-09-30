@@ -23,6 +23,7 @@
 
 namespace devilution::oracool {
 struct SetItemDefinition;
+enum class BaseItemTier : uint8_t;
 } // namespace devilution::oracool
 
 namespace devilution {
@@ -1130,7 +1131,8 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl);
  * One function for all three construction sites - the monster drop, Recast and Consecrate - which
  * had each finished the job differently, and two of them barely at all (audit, 2026-08-26).
  */
-void FinalizeSetPiece(Item &item, int itemLevel, bool allowEtherealRoll);
+/** @param keepTier The base tier to keep (Recast, Consecrate); rolled from the new seed when empty. */
+void FinalizeSetPiece(Item &item, int itemLevel, bool allowEtherealRoll, std::optional<oracool::BaseItemTier> keepTier = std::nullopt);
 
 bool ReforgeOracoolItem(Item &item);
 

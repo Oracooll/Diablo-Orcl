@@ -4554,7 +4554,11 @@ Monster *SpawnRiftGuardian()
 		// No guardian is immune to fire, lightning and magic at once: Na-Krul until floor 24's books weaken him, and a rift
 		// has none (round 32 audit); the Skeleton King on Hell and Torment, whose Hell row is all three (round 33 audit).
 		// Resistant instead, for every guardian: a caster could not touch him, and the rift could only be abandoned.
-		monster.resistance = oracool::DemoteImmunitiesToResistances(monster.resistance);
+		// Only the all-three case, and a poison immunity kept (round 34 audit: every single immunity went, and acid with no
+		// resistance put back).
+		constexpr uint16_t AllThree = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
+		if ((monster.resistance & AllThree) == AllThree)
+			monster.resistance = oracool::DemoteImmunitiesToResistances(monster.resistance) | (monster.resistance & IMMUNE_ACID);
 	}
 	// No corpse entry of his own - he rises after InitCorpses - so none inherited either: the slot's last unique's id drew
 	// his body over a dead champion's, or drew none (round 20 audit, v1.12.245). His type's plain body is his.

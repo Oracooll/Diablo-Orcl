@@ -1245,8 +1245,11 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 		return;
 	}
 
-	if (vkey >= SDLK_F1 && vkey <= SDLK_F8 && CanPlayerTakeAction() && stextflag == TalkID::None) { // not behind a store (round 33)
-		HandleAbilityFKey(static_cast<size_t>(vkey - SDLK_F1), (modState & KMOD_SHIFT) != 0);
+	if (vkey >= SDLK_F1 && vkey <= SDLK_F8) {
+		// Not behind a store (round 33), and never on to the keymapper either (round 34 audit: an old ini's F-key rows fired
+		// behind the store instead).
+		if (CanPlayerTakeAction() && stextflag == TalkID::None)
+			HandleAbilityFKey(static_cast<size_t>(vkey - SDLK_F1), (modState & KMOD_SHIFT) != 0);
 		return;
 	}
 

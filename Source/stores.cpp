@@ -703,6 +703,10 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 bool StoreAutoPlace(Item &item, bool persistItem)
 {
 	Player &player = *MyPlayer;
+	// A unique that is BOUGHT is the one of the game, as a found one is (round 34 audit): the shelves restore the flags they
+	// rolled under, and nothing set it on the purchase, so the same unique could be bought again and still drop.
+	if (persistItem && item._iMagical == ITEM_QUALITY_UNIQUE && item._iUid >= 0 && static_cast<size_t>(item._iUid) < UniqueItemCount)
+		UniqueItemFlags[item._iUid] = true;
 	// AutoPlaceItemInInventory already falls back to the extra Tabbed Inventory tabs once tab 1
 	// has no room, so no separate call is needed here.
 	const bool placed = (AutoEquipEnabled(player, item) && AutoEquip(player, item, persistItem))
