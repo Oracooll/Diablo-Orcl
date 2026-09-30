@@ -193,6 +193,8 @@ bool IsRiftGuardian(const Monster &monster);
  * short of its item, and a later kill's loot beside the way home walked the hero through it (round 19 audit, v1.12.244).
  */
 bool IsBesideRiftWayHome(Point tile);
+/** @brief Drops a pending "step into the rift" click: a level change ends it (LoadGameLevel). */
+void ClearRiftEntryRequest();
 /**
  * @brief How many random items a rift's guardian drops (user, 2026-09-26 dev note: "rift guardians/bosses to drop random
  * items, not the uniques they drop when killed in quest"): four in a Nephalem Rift, six in a Guardian Rift.

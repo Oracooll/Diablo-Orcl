@@ -143,6 +143,10 @@ bool SalvageMatches(const Item &item, SalvageTier tier)
 	// unasked-for protection on them would quietly change what those buttons do.
 	if (tier == SalvageTier::White && item._iSocketCount > 0)
 		return false;
+	// FILLED sockets at every tier: the empty-socket rule above is the user's, White only; stones are another matter - a
+	// punched Rare full of runes was salvaged with every stone in it, and a salvage charm ate one on pickup (round 24).
+	if (item.socketedCount() > 0)
+		return false;
 	return true;
 }
 

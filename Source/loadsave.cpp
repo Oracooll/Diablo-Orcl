@@ -3028,7 +3028,11 @@ void LoadStash()
 		// A NEWER stash (written by a later build) is refused, not emptied and saved over (round 23 audit).
 		if (version > StashVersion)
 			StashFileRefused = true;
-		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Orcl and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
+		// A refused stash is left untouched, and says so - not "saved correctly from now on" (round 24 audit).
+		if (StashFileRefused)
+			EventPlrMsg(_("The Stash file could not be read. It is left untouched and will not be saved over this game."), UiFlags::ColorRed);
+		else
+			EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Orcl and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
 		return;
 	}
 	// Version 6 carries the item schema its records were written with; version 5 is the current
@@ -3038,7 +3042,11 @@ void LoadStash()
 	if (version == StashVersion && !AcceptItemFormat(stashItemFormat)) {
 		if (stashItemFormat > OracoolItemFormatVersion)
 			StashFileRefused = true; // a later build's items: refused, not overwritten (round 23 audit)
-		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Orcl and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
+		// A refused stash is left untouched, and says so - not "saved correctly from now on" (round 24 audit).
+		if (StashFileRefused)
+			EventPlrMsg(_("The Stash file could not be read. It is left untouched and will not be saved over this game."), UiFlags::ColorRed);
+		else
+			EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Orcl and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
 		return;
 	}
 
@@ -3244,9 +3252,21 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 		}
 		// And the list closes up behind it, as RemoveExtraTabItem closes it in play: the empty record was saved with no
 		// grid anchor, and the load after next found the page inconsistent and emptied ALL of it (round 23 audit, v1.12.248).
+		// By hand, not through RemoveExtraTabItem: its CalcScrolls mid-load checked the readied scroll against pages not
+		// yet loaded (round 24 audit).
 		for (int i = player._pNumInvTab[t] - 1; i >= 0; i--) {
-			if (player.InvTabList[t][i].isEmpty())
-				RemoveExtraTabItem(player, t, i);
+			if (!player.InvTabList[t][i].isEmpty())
+				continue;
+			const int last = --player._pNumInvTab[t];
+			if (i != last) {
+				player.InvTabList[t][i] = player.InvTabList[t][last].pop();
+				for (int8_t &cell : player.InvTabGrid[t]) {
+					if (cell == last + 1)
+						cell = static_cast<int8_t>(i + 1);
+					else if (cell == -(last + 1))
+						cell = static_cast<int8_t>(-(i + 1));
+				}
+			}
 		}
 	}
 }

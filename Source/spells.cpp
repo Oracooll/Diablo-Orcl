@@ -5,6 +5,7 @@
  */
 #include "spells.h"
 #include "oracool/class_tree.h"
+#include "oracool/oracool.h" // IsBuiltInPortalAbility
 #include "oracool/essence.h"
 #include "oracool/paladin_ranged.h"
 #include "oracool/paladin_skills.h"
@@ -325,7 +326,9 @@ SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool
 		return SpellCheckResult::Success;
 	}
 
-	if (player.GetSpellLevel(sn) <= 0) {
+	// The built-in Portal is always there (oracool.h): -spell-level gear (Crackrust, Bovine Plate) took it to level 0, and
+	// the Portal button and T did nothing, silently (round 24 audit, v1.12.249).
+	if (player.GetSpellLevel(sn) <= 0 && !oracool::IsBuiltInPortalAbility(sn)) {
 		return SpellCheckResult::Fail_Level0;
 	}
 

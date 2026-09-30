@@ -6461,7 +6461,7 @@ void MakeRoomForGuaranteedReward()
 		if (candidate._iMagical != ITEM_QUALITY_NORMAL || candidate._itype == ItemType::Gold)
 			continue;
 		// Nor a white item with sockets (a runeword, its gems) or affixes of its own: ordinary quality, not junk (round 23).
-		if (candidate._iSocketCount > 0 || candidate._iOracoolAffixCount > 0)
+		if (candidate.socketedCount() > 0 || candidate._iOracoolAffixCount > 0) // FILLED sockets; an empty-socket white is junk
 			continue;
 		if (candidate._iCreateInfo == 0 && candidate._iIdentified)
 			continue; // quest-placed items carry no create info; leave them alone

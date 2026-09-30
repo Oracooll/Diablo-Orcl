@@ -384,6 +384,12 @@ bool TryContinueZealChain(Player &player)
 		ZealChainActive = false;
 		return false;
 	}
+	// Ended when another skill took the latch mid-burst: the rest swung uncompressed and free, carrying the NEW skill
+	// (a Smite that always hits and stuns, a paid RfA-12 swing) on every one (round 24 audit, v1.12.249).
+	if (ArmedSkill != PaladinSkill::Zeal) {
+		ZealChainActive = false;
+		return false;
+	}
 	// The mana and gate re-check, so a chain the player can no longer pay for ends mid-burst rather
 	// than swinging free - the same rule every skill follows.
 	if (!CanUsePaladinSkill(player, PaladinSkill::Zeal)) {

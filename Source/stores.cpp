@@ -2744,7 +2744,9 @@ void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 		// first pushed the valuable ones off it for good on a full backpack (round 23 audit, v1.12.248).
 		int next = -1;
 		for (int i = storenumh - 1; i >= 0 && next < 0; i--) {
-			if (storehTabIdx[i] < 0)
+			// Never a socketed item with stones in it: the price is the base's alone, and an Enigma went for a white body's
+			// quarter with its runes (round 24 audit, v1.12.249). One at a time from the list still sells it.
+			if (storehTabIdx[i] < 0 && storehold[i].socketedCount() == 0)
 				next = i;
 		}
 		if (next < 0)

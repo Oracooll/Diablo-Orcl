@@ -1011,7 +1011,9 @@ void StartMonsterGotHit(Monster &monster)
 	// A companion does not flinch - and this would also snap a walking one back to the tile it left.
 	if (oracool::IsCompanion(monster))
 		return;
-	if (monster.type().type != MT_GOLEM) {
+	// A skill-stunned monster is moved (a knockback still pushes it) but stays stunned: M_GetKnockback reaches here
+	// without M_StartHit's stun test, and Bash or a knockback weapon ended every stun (round 24 audit, v1.12.249).
+	if (monster.type().type != MT_GOLEM && !IsMonsterStunned(monster)) {
 		auto animationFlags = gGameLogicStep < GameLogicStep::ProcessMonsters ? AnimationDistributionFlags::ProcessAnimationPending : AnimationDistributionFlags::None;
 		int8_t numSkippedFrames = (gbIsHellfire && monster.type().type == MT_DIABLO) ? 4 : 0;
 		NewMonsterAnim(monster, MonsterGraphic::GotHit, monster.direction, animationFlags, numSkippedFrames);
@@ -2652,6 +2654,9 @@ void ZombieAi(Monster &monster)
 	if (!IsTileVisible(monster.position.tile)) {
 		return;
 	}
+	// Dim Vision reaches the zombies too: this AI never read activeForTicks, so a blinded one hunted as ever (round 24).
+	if (oracool::CursedMonsterBlinded(monster) && monster.activeForTicks == 0)
+		return;
 
 	if (GenerateRnd(100) < 2 * monster.intelligence + 10) {
 		int dist = monster.enemyPosition.WalkingDistance(monster.position.tile);
@@ -3107,6 +3112,8 @@ void SneakAi(Monster &monster)
 	if (dLight[monster.position.tile.x][monster.position.tile.y] == LightsMax) {
 		return;
 	}
+	if (oracool::CursedMonsterBlinded(monster) && monster.activeForTicks == 0)
+		return; // and the Sneaks, which read only light and distance (round 24 audit)
 
 	unsigned dist = 5 - monster.intelligence;
 	unsigned distanceToEnemy = monster.distanceToEnemy();
@@ -4722,6 +4729,9 @@ void StunMonster(Monster &monster, int ticks)
 	// his own mode and a stun would strand it. Inherited rather than restated.
 	// The longer stun wins: a Sound Shock or a Paralysis proc cut a War Cry's two seconds to half of one (round 19).
 	const int running = IsMonsterStunned(monster) ? monster.var2 : 0;
+	// No special move waits under the stun: a perched or healing gargoyle kept MFLAG_ALLOW_SPECIAL, and the next swing
+	// lifted it into its special attack mid-stun (round 24 audit).
+	monster.flags &= ~(MFLAG_ALLOW_SPECIAL | MFLAG_LOCK_ANIMATION);
 	AiDelay(monster, std::max(ticks, running));
 	if (bool *stunned = StunFlagOf(monster); stunned != nullptr && monster.mode == MonsterMode::Delay)
 		*stunned = true;
@@ -5352,7 +5362,10 @@ void ProcessMonsters()
 			// gated waking, and one cast mid-fight - already active, refreshed every tick - changed nothing (round 20).
 			// Not a unique, Diablo or a Dread boss: blinded, they stood idle for the whole fight, and Diablo's death skipped its
 			// sweep of the level (round 21 audit of the uncommitted change).
-			const bool lostInTheDark = oracool::CursedMonsterBlinded(monster) && !oracool::FightsAsUnique(monster) && !oracool::MonsterMayNotice(monster);
+			// Nor one retreating or faded out (a Counselor's fade): its AI returns at activeForTicks 0 before the fade-in, and
+			// it stayed invisible and unhittable for the curse's length (round 24 audit).
+			const bool lostInTheDark = oracool::CursedMonsterBlinded(monster) && !oracool::FightsAsUnique(monster) && !oracool::MonsterMayNotice(monster)
+			    && monster.goal == MonsterGoal::Normal && (monster.flags & MFLAG_HIDDEN) == 0;
 			if (lostInTheDark) {
 				monster.activeForTicks = 0;
 			} else if (IsTileVisible(monster.position.tile) && (monster.activeForTicks != 0 || oracool::MonsterMayNotice(monster))) {

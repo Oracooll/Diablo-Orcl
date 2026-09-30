@@ -4197,6 +4197,9 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	CloseStash();
 	oracool::CloseStonegateMenu();
 	oracool::CloseWaypointMenu(); // a Town Portal cast beside a sigil landed within its reach in town (round 18 audit)
+	// A rift click from far off, then a Sealed Map read before arriving: the request outlived the arena, and the next walk
+	// near the portal pulled the hero in and spent the keystone (round 24 audit).
+	oracool::ClearRiftEntryRequest();
 	_music_id neededTrack = GetLevelMusic(leveltype);
 	ClearFloatingNumbers();
 

@@ -3786,6 +3786,9 @@ void RestartTownLvl(Player &player)
 	// Nor his Rage: it froze at its value on the corpse (v1.12.246's death guard), and the respawn carried the whole pool
 	// into town, where it only drains (round 22 audit of v1.12.246).
 	oracool::ResetRage(player);
+	// Nor a cold armour: it rode the respawn into town with its tint and its freeze-on-hit, where vanilla ended it
+	// (round 24 audit, v1.12.249).
+	oracool::ClearColdArmour(player);
 
 	// Out of PM_DEATH before the totals: a dead hero's aura counts for nothing (GetActiveClassAura), so the lit aura's
 	// life and resistances were left out - a life aura took the 1 life below zero and the hero arrived dead in town,

@@ -655,6 +655,7 @@ TEST(OracoolAudit, InnateMaskKeepsTheShieldSkillsWithoutAShield)
 	EXPECT_NE(mask & zeal, 0u) << "Zeal should not be shield-gated";
 
 	player.InvBody[INVLOC_HAND_LEFT]._itype = ItemType::Shield;
+	player.InvBody[INVLOC_HAND_LEFT]._iStatFlag = true; // a usable shield, as the game's is (round 24 audit)
 	mask = oracool::InnateSpellsBitmask(player);
 	EXPECT_NE(mask & shieldBash, 0u);
 	EXPECT_NE(mask & blessedShield, 0u);
@@ -3835,8 +3836,10 @@ TEST(OracoolAudit2, TreeAndSkillsSheetAgreeOnBorrowedPaladinSkills)
 			// nothing about that requirement at all.
 			for (const bool shield : { false, true }) {
 				player.InvBody[INVLOC_HAND_RIGHT] = {};
-				if (shield)
+				if (shield) {
 					player.InvBody[INVLOC_HAND_RIGHT]._itype = ItemType::Shield;
+					player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag = true; // usable: v1.12.243's shield rule (round 24 audit)
+				}
 				for (int level = 1; level <= 40; level++) {
 					player._pLevel = static_cast<int8_t>(level);
 					EXPECT_EQ(oracool::IsClassTreeSkillUnlocked(player, page[i]),

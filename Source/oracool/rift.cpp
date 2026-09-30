@@ -730,6 +730,11 @@ int RiftGuardianItemCount()
 	return State.kind == RiftKind::Guardian ? 6 : 4;
 }
 
+void ClearRiftEntryRequest()
+{
+	State.entryRequested = false;
+}
+
 bool IsBesideRiftWayHome(Point tile)
 {
 	// Only once it is laid: the keystone drops on the corpse first, while homeTile still names the corpse.
