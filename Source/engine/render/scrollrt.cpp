@@ -1895,7 +1895,7 @@ void DrawView(const Surface &out, Point startPosition)
 	DrawRefreshUntilPrompt(out);
 	// Not only with the corner HUD: autosaves happen with the backpack open, and the notice went unseen (round 28 audit).
 	// Never over a left panel or chat, which sit where it prints (round 27 audit).
-	if (!talkflag && !IsLeftPanelOpen())
+	if (!talkflag && !IsLeftPanelOpen() && !AutomapActive && !oracool::IsRunewordBookOpen() && !oracool::IsCraftingMenuOpen())
 		oracool::DrawSaveIndicator(out);
 	if (HelpFlag) {
 		DrawHelp(out);

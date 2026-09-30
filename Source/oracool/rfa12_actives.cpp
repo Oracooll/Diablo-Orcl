@@ -144,8 +144,14 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	if (applyPassives)
 		OnCursedMonsterStruck(monster, player, nullptr, damage);
 	ApplyMonsterDamage(type, monster, damage);
-	if (&player == MyPlayer && applyPassives && BowStrikeInFlight)
-		OnPassiveHit(player, monster, damage, /*melee=*/false); // an arrow's, as MonsterMHit feeds a plain arrow's
+	// An arrow's, as MonsterMHit feeds a plain arrow's; and a swing's extra blow (Sweep, Reaping Point), as the class melee
+	// strike feeds it - Leech healed nothing from them (round 29 audit).
+	if (&player == MyPlayer && applyPassives && (BowStrikeInFlight || melee))
+		OnPassiveHit(player, monster, damage, melee);
+	// Scent of Blood marks what every skill wounds, not only a plain swing (round 29 audit: no bow, javelin or spear skill
+	// ever marked one).
+	if (&player == MyPlayer && applyPassives)
+		MarkWoundedByScent(player, monster, damage);
 	if (&player == MyPlayer && applyPassives)
 		OnPassiveMissileHit(player, monster, damage, type, /*arrow=*/BowStrikeInFlight); // Paralysis, Temporal Flux, the marks
 	// None of these cold skills has impact art of its own (Chill Touch, Ice Needle, Ice Lance, Brittle Ground,
@@ -1158,16 +1164,19 @@ int VirulencePoints(const Player &player)
 	return IsClassTreeSkillUnlocked(player, ClassTreeSkill::Virulence) ? ClassTreeInvestment(player, ClassTreeSkill::Virulence) : 0;
 }
 
-/** @brief A poison's length (ticks) and depth (whole points a second) once @p player's Virulence has had its say. */
+/** @brief A poison's length (ticks) and depth (1/64 points a second) once @p player's Virulence has had its say. */
 struct PoisonDose {
 	int ticks;
-	int perSecond;
+	int perSecond64;
 };
 
 PoisonDose VirulentDose(const Player &player, int ticks, int perSecond)
 {
 	const int v = VirulencePoints(player);
-	return { ticks + ticks * VirulenceLongerPercent(v) / 100, perSecond + perSecond * VirulenceDeeperPercent(v) / 100 };
+	// In 1/64 points, the unit the poison ticks in: in whole points "+10%" of a 3-a-second poison was 0.3, dropped, so
+	// Virulence 1-3 added nothing to every rank-1 poison (round 29 audit).
+	const int perSecond64 = perSecond << 6;
+	return { ticks + ticks * VirulenceLongerPercent(v) / 100, perSecond64 + perSecond64 * VirulenceDeeperPercent(v) / 100 };
 }
 
 /** @brief A bone skill's roll through Marrow, as BoneStrike deals it (Serration's per-tile share aside). */
@@ -1201,7 +1210,7 @@ void Poison(Player &player, Monster &monster, int ticks, int perSecond)
 	const PoisonDose dose = VirulentDose(player, ticks, perSecond);
 	Marks &marks = MarksOf(monster);
 	marks.poisonTicks = std::max(marks.poisonTicks, dose.ticks);
-	marks.poisonDamage = std::max(marks.poisonDamage, dose.perSecond << 6);
+	marks.poisonDamage = std::max(marks.poisonDamage, dose.perSecond64);
 }
 
 /** @brief A drawn bolt (batch 38) from the hero to @p to; it removes itself while its sheet is not in the archive. */
@@ -3626,9 +3635,14 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 	const auto duration = [&]() { say(_("Duration: {} s"), Secs(EffectTicks(spell, r))); };
 	const auto poison = [&]() {
 		const PoisonDose dose = VirulentDose(player, PoisonTicks(spell), PerSecond(spell, r));
-		say(_("Poison: {:d} a second for {} s"), dose.perSecond, Secs(dose.ticks));
+		say(_("Poison: {:.1f} a second for {} s"), dose.perSecond64 / 64.0, Secs(dose.ticks));
 	};
-	const Range d = SkillDamage(spell, r);
+	Range d = SkillDamage(spell, r);
+	// The cold skills with Cold Mastery's share, as Strike deals them and as Ice Bolt's hover already shows (round 29 audit).
+	if (IsAnyOf(spell, SpellID::ChillTouch, SpellID::IceNeedle, SpellID::IceLance, SpellID::BrittleGround, SpellID::Whiteout, SpellID::AbsoluteZero)) {
+		const int mastery = ColdMasteryDamagePercent(player);
+		d = { d.min + d.min * mastery / 100, d.max + d.max * mastery / 100 };
+	}
 	const Range bone = BoneRange(player, d);
 	const int blow = BlowPercent(spell, r);
 	const int reach = ReachTiles(spell, r);

@@ -736,6 +736,16 @@ void ClearRiftEntryRequest()
 	State.entryRequested = false;
 }
 
+/** @brief Whether a Town Portal stands on @p tile - read from the missiles, not the per-pass missile flag (round 29 audit). */
+bool TownPortalOn(Point tile)
+{
+	for (const Missile &missile : Missiles) {
+		if (missile._mitype == MissileID::TownPortal && missile.position.tile == tile)
+			return true;
+	}
+	return false;
+}
+
 bool IsBesideRiftWayHome(Point tile)
 {
 	if (!InRift())
@@ -792,7 +802,7 @@ void OnRiftMonsterKilled(const Monster &monster)
 			        // walked (round 28 audit).
 			        if (!InDungeonBounds(tile) || IsTileSolid(tile) || dObject[tile.x][tile.y] != 0 || dItem[tile.x][tile.y] != 0
 			            || dPlayer[tile.x][tile.y] != 0 || dMonster[tile.x][tile.y] != 0 || tile == State.arrivalTile
-			            || TileContainsMissile(tile)
+			            || TownPortalOn(tile)
 			            || std::max(std::abs(tile.x - monster.position.tile.x), std::abs(tile.y - monster.position.tile.y)) < 3)
 				        return false;
 			        for (int d = 0; d < 8; d++) {
@@ -814,7 +824,7 @@ void OnRiftMonsterKilled(const Monster &monster)
 				const Point neighbour = monster.position.tile + static_cast<Direction>(d);
 				if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0
 				    && dPlayer[neighbour.x][neighbour.y] == 0 && dMonster[neighbour.x][neighbour.y] == 0 && neighbour != State.arrivalTile
-				    && !TileContainsMissile(neighbour)) {
+				    && !TownPortalOn(neighbour)) {
 					State.homeTile = neighbour;
 					break;
 				}

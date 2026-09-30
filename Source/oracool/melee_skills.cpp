@@ -691,15 +691,15 @@ const char *ClassMeleeSkillDescription(SpellID spell)
 	case SpellID::BreakingCurrent:
 		return N_("A focused strike at +33% damage that leaves the target reeling for 1 second.");
 	case SpellID::VaultingStrike:
-		return N_("Vault onto a distant foe; the blow you land there is at +50% damage, +10% per rank.");
+		return N_("Vault beside a distant foe; your next blow on it is at +50% damage, +10% per rank.");
 	case SpellID::WheelOfHeaven:
 		return N_("Every swing strikes everything around you at 66% damage, +5% per rank.");
 	case SpellID::SevenReeds:
-		return N_("Three blows in one swing, one more every three ranks up to seven, each at 60% damage.");
+		return N_("Three blows in one swing, one more every three ranks up to seven: the first at full damage, the others at 60%.");
 	case SpellID::OpenPalm:
 		return N_("An open-hand strike at +20% damage, +10% per rank, that drives the enemy back a tile.");
 	case SpellID::HundredFists:
-		return N_("Four blows in one swing, one more every two ranks up to seven, each at 50% damage.");
+		return N_("Four blows in one swing, one more every two ranks up to seven: the first at full damage, the others at 50%.");
 	case SpellID::RadiantPalm:
 		return N_("A strike at +20% damage, +10% per rank; an enemy it kills erupts, dealing the blow again to everything beside it.");
 	case SpellID::Jab:

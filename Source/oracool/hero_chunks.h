@@ -203,4 +203,10 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player);
  */
 void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len);
 
+/**
+ * @brief Decodes the last ApplyHeroChunks' F-key bindings again, against the hero as he stands now (every page loaded).
+ * Only adds bindings the first decode could not resolve; a no-op when no chunk tail carried hotkeys.
+ */
+void ReapplyHeroHotkeys(Player &player);
+
 } // namespace devilution::oracool

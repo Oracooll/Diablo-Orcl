@@ -1309,6 +1309,10 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 		RedrawComponent(PanelDrawComponent::Mana);
 		break;
 	case IPL_DUR: {
+		// An indestructible item stays so: "the ages" rolled before a durability row came back 254/254 and wore down (round 29
+		// audit). Not by keeping them apart in the roll: that changes what existing seeds rebuild into (pack_test's goldens).
+		if (item._iMaxDur == DUR_INDESTRUCTIBLE)
+			break;
 		int bonus = r * item._iMaxDur / 100;
 		// Capped just below DUR_INDESTRUCTIBLE. _iMaxDur is an int here but a BYTE in the packed
 		// item record (pack.cpp's bMDur), so a +200% affix on a hardy base could push it past 255
@@ -1321,6 +1325,8 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 		item._iPLDam += 140 + r * 2;
 		[[fallthrough]];
 	case IPL_DUR_CURSE:
+		if (item._iMaxDur == DUR_INDESTRUCTIBLE)
+			break; // as IPL_DUR: "the ages" holds (round 29 audit); Crystalline's damage above still applies
 		item._iMaxDur -= r * item._iMaxDur / 100;
 		// std::max<uint8_t> until 2026-08-27, which truncated the int field to its low eight bits
 		// before comparing: a curse harsher than 100% left _iMaxDur negative, and -60 came back as
@@ -4007,6 +4013,43 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	const int wantedCount = std::clamp(count, 0, Item::MaxOracoolAffixes);
 	std::copy(affixes, affixes + wantedCount, wanted.begin());
 
+	// The to-hit half of King's, Dull and Doppelganger is not in the record, and replaying the row drew it again from the
+	// game's RNG: reworking any OTHER row moved King's +80% anywhere in 76-100 (round 29 audit). When the rework keeps those
+	// rows as they were, their to-hit is put back as it was - the share the tooltip reads (the item's to-hit less the plain
+	// to-hit rows).
+	const auto dampToHitShare = [](const Item &it) {
+		int toHit = it._iPLToHit;
+		for (int i = 0; i < it._iOracoolAffixCount; i++) {
+			if (it._iOracoolAffixes[i].type == IPL_TOHIT)
+				toHit -= it._iOracoolAffixes[i].param1;
+			else if (it._iOracoolAffixes[i].type == IPL_TOHIT_CURSE)
+				toHit += it._iOracoolAffixes[i].param1;
+		}
+		return toHit;
+	};
+	const auto isDampRow = [](const OracoolAffix &affix) {
+		return IsAnyOf(affix.type, IPL_TOHIT_DAMP, IPL_TOHIT_DAMP_CURSE, IPL_DOPPELGANGER);
+	};
+	bool keepsDampRows = true;
+	int dampRows = 0;
+	{
+		std::vector<std::pair<int, int>> before;
+		std::vector<std::pair<int, int>> after;
+		for (int i = 0; i < item._iOracoolAffixCount; i++) {
+			if (isDampRow(item._iOracoolAffixes[i]))
+				before.emplace_back(item._iOracoolAffixes[i].type, item._iOracoolAffixes[i].param1);
+		}
+		for (int i = 0; i < wantedCount; i++) {
+			if (isDampRow(wanted[i]))
+				after.emplace_back(wanted[i].type, wanted[i].param1);
+		}
+		std::sort(before.begin(), before.end());
+		std::sort(after.begin(), after.end());
+		keepsDampRows = before == after;
+		dampRows = static_cast<int>(before.size());
+	}
+	const int dampToHitBefore = dampToHitShare(item);
+
 	const int priceBefore = item._iIvalue;
 	// The base's own rolls - its armour among them - come from the item's seed, as SetupAllItems seeds them (audit,
 	// 2026-09-29: unseeded, every rework rerolled the base armour, down as often as up). The game's RNG is put back after.
@@ -4051,6 +4094,8 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 		priceMultTotal += row->multVal;
 	}
 	ForcePerfectAffixRoll = previousForcePerfectAffixRoll;
+	if (keepsDampRows && dampRows > 0)
+		item._iPLToHit += dampToHitBefore - dampToHitShare(item);
 	if (item._iOracoolAffixCount > 0 && item._iMagical == ITEM_QUALITY_NORMAL)
 		item._iMagical = ITEM_QUALITY_MAGIC;
 	if (keepsStaffSpell) {

@@ -786,7 +786,7 @@ HeroCompareResult pfile_compare_hero_demo(int demo, bool logDetails)
 
 void sfile_write_stash()
 {
-	if (!Stash.dirty)
+	if (!Stash.dirty || StashFileRefused) // a refused stash is left untouched (round 29 audit)
 		return;
 
 	{
@@ -838,7 +838,10 @@ void SaveHeroAndStash(bool writeGameData)
 	const bool heroRefused = oracool::SaveAttemptFailed() && !failedBefore;
 	const bool heroReady = !heroRefused && heroWriter.Finish();
 
-	const bool stashNeedsWriting = Stash.dirty;
+	// Never over a refused stash (round 29 audit): its writer found the damaged header, started from empty tables and
+	// published an empty archive over the file the game had promised to leave untouched - every hero's stash gone on the
+	// first purchase (TakePlrsMoney marks the stash dirty).
+	const bool stashNeedsWriting = Stash.dirty && !StashFileRefused;
 	std::optional<SaveWriter> stashWriter;
 	bool stashReady = true;
 	if (stashNeedsWriting) {
@@ -909,6 +912,9 @@ bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *))
 				}
 				RemoveAllInvalidItems(player);
 				CalcPlrInv(player, false);
+				// A preview's refusal is that slot's alone: left set, it made the next new hero skip clearing his page file,
+				// and he inherited the old one (round 29 audit).
+				InvTabsFileRefused = false;
 
 				Game2UiPlayer(player, &uihero, hasSaveGame);
 				uiAddHeroInfo(&uihero);
@@ -945,6 +951,7 @@ bool pfile_ui_save_create(_uiheroinfo *heroinfo)
 	if (saveNum >= MAX_CHARACTERS)
 		return false;
 	heroinfo->saveNumber = saveNum;
+	InvTabsFileRefused = false; // a new hero starts with pages of his own (round 29 audit)
 
 	giNumberOfLevels = gbIsHellfire ? 25 : 17;
 
@@ -1057,6 +1064,10 @@ void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 	}
 	RemoveAllInvalidItems(player);
 	CalcPlrInv(player, false);
+	// The F-keys once more, now that every page and every item bonus is in: a left-button key bound to a scroll on page 2,
+	// or to a staff whose requirement the pages' bonuses meet, decoded as nothing against page 1 alone - and the left
+	// keys have no other source (round 29 audit). Additive: a binding already decoded stays.
+	oracool::ReapplyHeroHotkeys(player);
 }
 
 void pfile_save_level()

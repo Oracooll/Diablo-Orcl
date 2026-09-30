@@ -3585,7 +3585,12 @@ bool CheckInventoryTabClick(Point cursorPosition)
 			// A locked page cannot be pressed (2026-09-25): the click is taken, so it does not fall through to the
 			// grid, and the log says what opens it - a button that does nothing and says nothing reads as broken.
 			if (IsInventoryTabLocked(*MyPlayer, tab)) {
-				oracool::LogEvent(StrCat("Backpack page ", tab + 1, " opens at level ", InventoryTabRequiredLevel(tab), "."), UiFlags::ColorRed);
+				// The right reason: a refused page file locks pages 2-10 whatever the level, and "opens at level 0" read as a
+				// bug (round 29 audit).
+				if (InvTabsFileRefused)
+					oracool::LogEvent("The backpack pages could not be read, so they stay shut - their file is left untouched.", UiFlags::ColorRed);
+				else
+					oracool::LogEvent(StrCat("Backpack page ", tab + 1, " opens at level ", InventoryTabRequiredLevel(tab), "."), UiFlags::ColorRed);
 				return true;
 			}
 			// The press only SINKS the tab and sounds; the page turns on the mouse-up, and only if the

@@ -291,6 +291,14 @@ void ApplyPackedHotkeys16(Player &player, const std::vector<uint8_t> &packed, Sp
 	}
 }
 
+/** @brief The last tail's F-key chunks, kept for ReapplyHeroHotkeys (round 29 audit). */
+struct PendingHotkeys {
+	std::vector<uint8_t> right;
+	std::vector<uint8_t> left;
+	std::vector<uint8_t> right16;
+	std::vector<uint8_t> left16;
+} LastHotkeys;
+
 void ApplyPackedHotkeys(Player &player, const std::vector<uint8_t> &packed, SpellID *keys, SpellType *types)
 {
 	if (packed.empty())
@@ -470,8 +478,18 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 	return out;
 }
 
+void ReapplyHeroHotkeys(Player &player)
+{
+	ApplyPackedHotkeys(player, LastHotkeys.right, player._pSplHotKey, player._pSplTHotKey);
+	ApplyPackedHotkeys(player, LastHotkeys.left, player._pSplLHotKey, player._pSplLTHotKey);
+	ApplyPackedHotkeys16(player, LastHotkeys.right16, player._pSplHotKey, player._pSplTHotKey);
+	ApplyPackedHotkeys16(player, LastHotkeys.left16, player._pSplLHotKey, player._pSplLTHotKey);
+	LastHotkeys = {};
+}
+
 void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 {
+	LastHotkeys = {}; // a malformed tail applies nothing, and leaves nothing for ReapplyHeroHotkeys
 	// FIRST, and before every early return below. Audit finding, 2026-08-26.
 	//
 	// The milestone mask and the signet count live in file-static arrays keyed by player SLOT, not
@@ -707,6 +725,7 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 	//
 	// This is the same fault the readied pair had at pfile.cpp, fixed there the same way on
 	// 2026-08-31. Two stores, one mask, one ordering mistake, found twice.
+	LastHotkeys = { packedRightHotkeys, packedLeftHotkeys, packedRightHotkeys16, packedLeftHotkeys16 };
 	if (!packedRightHotkeys.empty() || !packedLeftHotkeys.empty() || !packedRightHotkeys16.empty() || !packedLeftHotkeys16.empty() || sawReadied16) {
 		RefreshInnateSpells(player);
 		ApplyPackedHotkeys(player, packedRightHotkeys, player._pSplHotKey, player._pSplTHotKey);

@@ -398,6 +398,12 @@ bool TitheTakesCorpse(const Monster &monster)
 	return taken;
 }
 
+void MarkWoundedByScent(Player &player, Monster &monster, int damage)
+{
+	if (damage > 0 && PointsIfOn(player, Skill::ScentOfBlood) > 0)
+		MarksOf(monster).wounded = true;
+}
+
 void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee)
 {
 	MonsterMarks &marks = MarksOf(monster);

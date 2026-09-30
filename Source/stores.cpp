@@ -694,7 +694,7 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 	}
 	// Short, so a long weapon line still fits the store's width (round 28 audit).
 	if (const int level = oracool::RequiredLevel(item); level > 1)
-		productLine.append(fmt::format(fmt::runtime(_(" Lvl {:d}")), level));
+		productLine.append(fmt::format(fmt::runtime(_(", Lvl {:d}")), level));
 	if (!oracool::ClassMayUseItem(*MyPlayer, item))
 		AppendStrView(productLine, _(", wrong class"));
 	AddSText(40, l++, productLine, flags, false, -1, cursIndent);
@@ -2781,8 +2781,11 @@ void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 		soldAnything = true;
 	}
 
-	if (soldAnything)
+	if (soldAnything) {
 		PlaySFX(IS_GOLD);
+		// Once, as every other sale path does after its removal: a sold charm kept its life on the hero (round 29 audit).
+		CalcPlrInvKeepingLife(*MyPlayer);
+	}
 	StartStore(returnTo);
 }
 

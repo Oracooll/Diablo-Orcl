@@ -516,6 +516,9 @@ std::string Board; // what the page is saying right now
 bool OfferOpen = false;
 int OfferSlot = -1;
 std::array<OracoolAffix, OptionCount> Offers {};
+/** Each offer's line, printed against the item it would make (round 29 audit: printed against the bench, a damage-mod or
+ * speed offer read the bench's fields - "adds 0 points to damage", "Another ability (NW)", a blank line). */
+std::array<std::string, OptionCount> OfferLines {};
 
 /**
  * @brief The item's own counters (Item::_iOracoolRerolls and friends, item format 15). Until 2026-09-27 they were a
@@ -1445,8 +1448,8 @@ void DrawBoard(const Surface &out)
 			const Rectangle face { rect.position + (Pressed == static_cast<Control>(static_cast<int>(Control::Option0) + i) ? PressSink : Displacement { 0, 0 }), rect.size };
 			FillRect(out, face.position.x + 1, face.position.y + 1, face.size.width - 2, face.size.height - 2, PlateFill);
 			OutlineRectRgb(out, face, i == 0 ? RedRgb : GreenRgb, i == 0 ? PAL16_RED + 4 : PAL16_GRAY + 6);
-			const StringOrView line = PrintOracoolAffixPower(Offers[i], Bench);
-			DrawString(out, i == 0 ? StrCat(_("Keep"), ": ", line.str()) : std::string(line.str()),
+			const std::string &line = OfferLines[i];
+			DrawString(out, i == 0 ? StrCat(_("Keep"), ": ", line) : line,
 			    Rectangle { { face.position.x + 6, face.position.y }, { face.size.width - 12, face.size.height } },
 			    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::VerticalCenter });
 			if (hovered)
@@ -2337,6 +2340,19 @@ void RollOffers(int slot)
 	// which reads as "nothing better was on the wheel" rather than as an empty row.
 	for (int i = rolled; i < OptionCount; i++)
 		Offers[i] = Offers[0];
+	// Each line from a scratch rebuild, with the game's RNG put back after (the rebuild draws the to-hit halves from it).
+	const uint32_t rngState = GetLCGEngineState();
+	for (int i = 0; i < OptionCount; i++) {
+		Item scratch = Bench;
+		std::array<OracoolAffix, Item::MaxOracoolAffixes> affixes {};
+		int count = 0;
+		for (int k = 0; k < Bench._iOracoolAffixCount; k++)
+			affixes[count++] = k == slot ? Offers[i] : Bench._iOracoolAffixes[k];
+		if (i == 0 || !RebuildOracoolItemWithAffixes(*MyPlayer, scratch, affixes.data(), count))
+			scratch = Bench;
+		OfferLines[i] = std::string(PrintOracoolAffixPower(Offers[i], scratch).str());
+	}
+	SetRndSeed(rngState);
 	OfferSlot = slot;
 	OfferOpen = true;
 }

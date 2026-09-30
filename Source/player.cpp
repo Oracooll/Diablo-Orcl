@@ -1070,8 +1070,7 @@ bool DoAttack(Player &player)
 		}
 
 		// Sweeping Reed or Wheel of Heaven strikes the side tiles itself when it fires, so the staff cleave below stands aside -
-		// but only when it fires: asked BEFORE the swing pays, since a skill it cannot pay for leaves the latch set and swings
-		// plain (round 27 audit: that swing hit neither the skill's sides nor the cleave's).
+		// but only when it fires, which the swing itself reports (ClassMeleeSkillSwept, round 28 audit).
 		oracool::ForgetClassMeleeSweep();
 		if (monster != nullptr) {
 			// A swing at a monster, landed or not, is combat: the Barbarian's Rage holds (2026-09-14).
@@ -3801,8 +3800,6 @@ void RestartTownLvl(Player &player)
 	oracool::ResetRage(player);
 	// Nor his Essence, for the same reason: the refill froze on the corpse (round 28 audit).
 	oracool::ResetEssence(player);
-	// Nor the warcries' buffs: Battle Orders' life rode the respawn into town on a running clock (round 28 audit).
-	oracool::ClearWarcryBuffs(player);
 	// Nor a cold armour: it rode the respawn into town with its tint and its freeze-on-hit, where vanilla ended it
 	// (round 24 audit, v1.12.249).
 	oracool::ClearColdArmour(player);
@@ -3811,7 +3808,11 @@ void RestartTownLvl(Player &player)
 	// life and resistances were left out - a life aura took the 1 life below zero and the hero arrived dead in town,
 	// and its bonuses stayed missing until the next re-equip (round 12 audit, v1.12.237).
 	player._pmode = PM_NEWLVL;
-	CalcPlrInv(player, false);
+	// Nor the warcries' buffs: Battle Orders' life rode the respawn into town on a running clock (round 28 audit). Cleared
+	// out of PM_DEATH, and the totals keep the 1 life: recalculated while dead, the lit aura's life was left out, the life
+	// pinned, and then added back on top - a free heal (round 29 audit).
+	oracool::ClearWarcryBuffs(player);
+	CalcPlrInvKeepingLife(player);
 
 	if (&player == MyPlayer) {
 		player._pInvincible = true;
@@ -4042,7 +4043,7 @@ void CalcPlrStaff(Player &player)
  * a Barbarian short of Rage and a Necromancer short of Essence said it too). */
 HeroSpeech ShortOfPriceSpeech(const Player &player, SpellID spell)
 {
-	return oracool::UsesRage(player) || oracool::EssenceCost(spell) > 0 ? HeroSpeech::ICantDoThat : HeroSpeech::NotEnoughMana;
+	return oracool::UsesRage(player) || (oracool::UsesEssence(player) && oracool::EssenceCost(spell) > 0) ? HeroSpeech::ICantDoThat : HeroSpeech::NotEnoughMana;
 }
 
 void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)

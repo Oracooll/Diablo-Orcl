@@ -1314,8 +1314,10 @@ void GetDamageAmtAtLevel(SpellID i, int sl, int *mind, int *maxd)
 	case SpellID::RuneOfImmolation:
 	case SpellID::RuneOfNova:
 	case SpellID::LightningFury: // the Rogue's Lightning Fury is fired as Nova (spelldat), so it IS Nova's number
-		*mind = ScaleSpellEffect((myPlayer._pLevel + 5) / 2, sl) * 5;
-		*maxd = ScaleSpellEffect((myPlayer._pLevel + 30) / 2, sl) * 5;
+		// One ball's roll, as the other rows show one bolt's: the table's x5 read as one hit (round 29 audit) - only an enemy
+		// against the caster takes more than one ball.
+		*mind = ScaleSpellEffect((myPlayer._pLevel + 5) / 2, sl);
+		*maxd = ScaleSpellEffect((myPlayer._pLevel + 30) / 2, sl);
 		break;
 	case SpellID::Inferno:
 		*mind = 3;
@@ -4449,8 +4451,11 @@ void AddInferno(Missile &missile, AddMissileParameter &parameter)
 	} else {
 		int minDamage = 0;
 		int maxDamage = 0;
-		if (LiveMonsterDamageRange(missile, minDamage, maxDamage))
-			missile._midam = minDamage + GenerateRnd(maxDamage - minDamage + 1);
+		if (!LiveMonsterDamageRange(missile, minDamage, maxDamage)) {
+			minDamage = currlevel; // a caster gone: a trap's, as the arrows fall back (round 29 audit)
+			maxDamage = 2 * currlevel;
+		}
+		missile._midam = minDamage + GenerateRnd(maxDamage - minDamage + 1);
 	}
 }
 

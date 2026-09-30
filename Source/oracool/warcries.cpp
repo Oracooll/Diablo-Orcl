@@ -774,7 +774,7 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::PurifyingBreath:
 		return N_("Centre yourself: +20 to every resistance, +5 per rank, for 30 seconds, +5 per rank.");
 	case SpellID::Tranquility:
-		return N_("A sanctuary about you for 13 seconds, +1 per rank: what stands beside you is slowed, and 2% of your life returns each second.");
+		return N_("A sanctuary about you for 13 seconds, +1 per rank: what stands within 2 tiles is slowed, and 2% of your life returns each second.");
 	case SpellID::InnerSight:
 		return N_("Reveals the weak points of everything in earshot: -30% armour, -2% more per rank, for 20 seconds.");
 	case SpellID::SlowMissiles:
