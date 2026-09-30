@@ -1000,7 +1000,8 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 	case ILOC_INVALID:
 		break;
 	}
-	CalcPlrInv(player, true);
+	// Life kept: a charm pushed out of the live three took a low hero to 0 (round 40 audit).
+	CalcPlrInvKeepingLife(player);
 	if (&player == MyPlayer) {
 		NewCursor(player.HoldItem);
 	}
@@ -3521,7 +3522,7 @@ bool SortInventoryBySellValue(Player &player)
 	}
 
 	player.CalcScrolls();
-	CalcPlrInv(player, true);
+	CalcPlrInvKeepingLife(player); // a sort can change which charms are live (round 40 audit)
 	return !leftOver;
 }
 

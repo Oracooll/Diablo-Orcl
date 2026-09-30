@@ -68,16 +68,16 @@ bool StartBuff(Player &player, SpellID spell, int rank, int ticks)
 	if (slot != nullptr) {
 		// Recasting a buff you carry refreshes it - but not while it is still nearly full, which
 		// would be paying for nothing.
-		if (slot->ticksLeft > ticks * 9 / 10)
-			return false;
-		slot->ticksLeft = ticks;
 		// A recast at another rank reaches the sheet at once (round 39 audit: Battle Orders recast under Battle Command kept
-		// the old life until some later recalculation, then healed the difference).
+		// the old life until some later recalculation, then healed the difference) - a nearly full one too (round 40 audit).
 		if (slot->rank != rank) {
 			slot->rank = rank;
 			if (IsSheetBuff(spell))
 				CalcPlrInvKeepingLife(player);
 		}
+		if (slot->ticksLeft > ticks * 9 / 10)
+			return false;
+		slot->ticksLeft = ticks;
 		return true;
 	}
 	for (Buff &buff : Buffs[player.getId()]) {

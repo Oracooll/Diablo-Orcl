@@ -1092,6 +1092,8 @@ int FirstReadyLevskiRecipe(const Item *grid)
 	size_t bestSlots = 0;
 	for (int i = 0; i < CraftingRecipeCount; i++) {
 		const std::vector<int> materials = GridMaterialsFor(grid, i);
+		if (!materials.empty() && !CanCraftFromLevskiGrid(grid, i))
+			continue; // matched but refused: Free the Sockets on an ethereal Zod host (round 40 audit)
 		// Reforge never wins a tie, as FirstReadyLevskiRecipeFor rules (round 27 audit: the rule was in the host version only).
 		const bool displacesReforgeTie = best == 5 && materials.size() == bestSlots;
 		if (materials.empty() || (materials.size() <= bestSlots && !displacesReforgeTie))
@@ -1194,6 +1196,8 @@ int FirstReadyLevskiRecipeFor(const Item *grid, TransmuteHost host)
 		if (!RecipeBelongsTo(i, host))
 			continue;
 		const std::vector<int> materials = GridMaterialsFor(grid, i);
+		if (!materials.empty() && !CanCraftFromLevskiGrid(grid, i))
+			continue; // matched but refused: Free the Sockets on an ethereal Zod host (round 40 audit)
 		const bool displacesReforgeTie = best == ReforgeGearRecipe && materials.size() == bestSlots;
 		if (materials.empty() || (materials.size() <= bestSlots && !displacesReforgeTie))
 			continue;

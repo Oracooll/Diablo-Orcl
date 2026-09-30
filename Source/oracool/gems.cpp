@@ -764,6 +764,10 @@ bool TrySocketGem(Item &target, const Item &held)
 		return false;
 	if (!target.hasOpenSocket())
 		return false;
+	// Not Zod into jewellery (round 40 audit): with no durability it does nothing there, while the ring said
+	// "indestructible" and took Zod's level 69 requirement.
+	if (const GemData *gem = FindGemRow(static_cast<uint16_t>(held.IDidx)); gem != nullptr && gem->indestructible && target._iMaxDur == 0)
+		return false;
 	for (uint16_t &socket : target._iSocketed) {
 		if (socket == Item::EmptySocket) {
 			socket = static_cast<uint16_t>(held.IDidx);

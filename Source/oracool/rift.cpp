@@ -446,7 +446,7 @@ bool TryEnterRiftFromTown()
 	if (!State.entryRequested)
 		return false;
 	// Not with an item on the cursor or a window up (round 38 audit: a keystone lifted on the way was "no longer with you",
-	// and any other held item walked into the rift on the cursor). The click stays requested until then.
+	// and any other held item walked into the rift on the cursor). The click is forgotten, not kept for later (round 39).
 	if (!MyPlayer->HoldItem.isEmpty() || invflag || IsLeftPanelOpen()) {
 		State.entryRequested = false; // forgotten, not kept for later (round 39 audit: it fired minutes after)
 		return false;

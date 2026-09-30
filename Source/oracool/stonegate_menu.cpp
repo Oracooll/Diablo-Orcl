@@ -123,7 +123,7 @@ std::string RowLabel(int row, bool &enabled)
 			enabled = false;
 			return std::string(_("Open a Guardian Rift  (no keystone in the pack)"));
 		}
-		return fmt::format(fmt::runtime(_("Open a Guardian Rift  (keystone, tier {:d})")), keystone->_iOracoolRiftTier);
+		return fmt::format(fmt::runtime(_("Open a Guardian Rift  (keystone, tier {:d})")), std::max<int>(1, keystone->_iOracoolRiftTier)); // as it opens
 	}
 	default:
 		// LEAVE closes this menu and nothing else (user, 2026-09-20: "Leave is meant to close the Rift

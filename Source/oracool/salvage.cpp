@@ -84,6 +84,11 @@ bool IsSalvageable(const Item &item)
 	// amulet in the game. Their equip LOCATION is what actually says they are worn, and it is the
 	// same test the socket system already uses to let a ring take a gem, so this fork was already
 	// treating them as first-class equipment everywhere except here.
+	// A quest's own reward is never salvage (round 40 audit: a Uniques charm turned Arkaine's Valor and the Butcher's Cleaver
+	// into Encrustments on pickup). Named, not by IDROP_NEVER: the fork's set carriers are never-drop bases too.
+	for (const _item_indexes quest : { IDI_CLEAVER, IDI_HARCREST, IDI_STEELVEIL, IDI_ARMOFVAL, IDI_GRISWOLD, IDI_LGTFORGE })
+		if (item.IDidx == quest)
+			return false;
 	if (item._iLoc == ILOC_RING || item._iLoc == ILOC_AMULET)
 		return AllItemsList[item.IDidx].iRnd != IDROP_NEVER; // not a quest's reward: the Auric and Optic Amulets, the Empyrean Band, the Ring of Truth (round 36)
 	if (item._iClass == ICLASS_MISC)

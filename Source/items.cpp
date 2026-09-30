@@ -2034,7 +2034,7 @@ void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, Affi
 	if (pickedCount == 0) {
 		// No affix rolled at all, so this never becomes a magic item and the base name is right.
 		CopyUtf8(item._iIName, GenerateMagicItemName(item._iName, nullptr, nullptr, false), sizeof(item._iIName));
-		if (!StringInPanel(item._iIName))
+		if (!StringInPanel(item._iIName) && AllItemsList[item.IDidx].iSName != nullptr) // some bases have none (round 40 audit)
 			CopyUtf8(item._iIName, GenerateMagicItemName(AllItemsList[item.IDidx].iSName, nullptr, nullptr, false), sizeof(item._iIName));
 		return;
 	}
@@ -4017,6 +4017,7 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 		int toHit, minDam, maxDam, minStr, minMag, minDex, ac, maxDur;
 	};
 	std::optional<OilWork> oil;
+	const int maxDurBefore = item._iMaxDur;
 	if (!MeasuringOilWork) {
 		Item probe = item;
 		std::array<OracoolAffix, Item::MaxOracoolAffixes> own {};
@@ -4167,14 +4168,19 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	oracool::RestoreImbuements(item, ledger);
 	if (oil) {
 		item._iPLToHit += oil->toHit;
-		item._iMinDam = std::max<int>(0, item._iMinDam + oil->minDam);
-		item._iMaxDam = std::max<int>(item._iMinDam, item._iMaxDam + oil->maxDam);
+		item._iMinDam = std::clamp<int>(item._iMinDam + oil->minDam, 0, 255);
+		item._iMaxDam = std::clamp<int>(item._iMaxDam + oil->maxDam, item._iMinDam, 255);
 		item._iMinStr = static_cast<uint8_t>(std::clamp(item._iMinStr + oil->minStr, 0, 255));
 		item._iMinMag = static_cast<uint8_t>(std::clamp(item._iMinMag + oil->minMag, 0, 255));
 		item._iMinDex = static_cast<uint8_t>(std::clamp(item._iMinDex + oil->minDex, 0, 255));
-		item._iAC = std::max<int>(0, item._iAC + oil->ac);
+		item._iAC = std::clamp<int>(item._iAC + oil->ac, 0, INT16_MAX);
 		if (item._iMaxDur > 0 && item._iMaxDur != DUR_INDESTRUCTIBLE)
 			item._iMaxDur = std::clamp(item._iMaxDur + oil->maxDur, 1, DUR_INDESTRUCTIBLE - 1);
+	}
+	// Oil of Permanence: the maximum was the indestructible value itself, which the sum above cannot reach (round 40 audit:
+	// it came back 254, Zod's stamp shape with no Zod, and Make Ethereal then halved it).
+	if (maxDurBefore == DUR_INDESTRUCTIBLE && item._iMaxDur > 0) {
+		item._iMaxDur = DUR_INDESTRUCTIBLE; // the durability below then stays 255 too
 	}
 	// The wear the item had, not a free repair (sweep, 2026-09-25): GetItemAttrs set durability to the base's
 	// full value, so a reroll at the bench mended the item as a side effect. Capped by the maximum the rebuild

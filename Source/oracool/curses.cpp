@@ -465,6 +465,10 @@ bool CursedMonsterFlees(Monster &monster)
 		return false;
 	if (monster.mode != MonsterMode::Stand)
 		return false;
+	// Not a hidden or fading one: its own AI must fade it back in (round 40 audit: a faded Counselor or Unseen stayed
+	// hidden and unhittable for the whole curse - a day under Eternal Torment).
+	if ((monster.flags & MFLAG_HIDDEN) != 0)
+		return false;
 	Player *owner = OwnerOf(Of(monster));
 	if (owner == nullptr)
 		return false;

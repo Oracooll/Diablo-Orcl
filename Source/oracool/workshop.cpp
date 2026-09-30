@@ -24,6 +24,7 @@
 #include "oracool/gems.h"
 #include "oracool/hud_art.h"
 #include "oracool/imbuement.h"
+#include "oracool/signets.h" // CheckPassiveMilestones
 #include "oracool/levski_roar.h"
 #include "oracool/crafting.h"
 #include "oracool/cursor_tooltip.h" // ShowPanelStringsAsHintCard - the buttons' card
@@ -2546,6 +2547,7 @@ void RunControl(Control control)
 			else
 				player.RemoveInvItem(i, false);
 			CalcPlrInv(player, true);
+			CheckPassiveMilestones(player); // an item imbued to its cap here counts, as in the pack (round 40 audit)
 			SetBoard(StrCat(name, " ", _("worked in.")));
 			if (!PlayUiEventSound(UiEventSound::ShardImbue))
 				PlayUiSelectSound();

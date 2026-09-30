@@ -4224,9 +4224,12 @@ bool IsItemBlockingObjectAtPosition(Point position)
 		return true;
 	}
 
-	// Nor on a walkable object that takes clicks (the waypoint sigil, round 39 audit): the cursor finds the object first,
-	// and the item under it could only be picked up by its label.
-	if (object != nullptr && object->_oSelFlag >= 2)
+	// Nor on the Orcl objects that take clicks (the waypoint sigil, round 39 audit): the cursor finds the object first, and
+	// the item under it could only be picked up by its label. Named (round 40 audit): by selFlag it barred every door tile.
+	const auto orclClickObject = [](const Object *o) {
+		return o != nullptr && (o->_otype == OBJ_WAYPOINT || oracool::IsLevskiRoarObject(*o) || oracool::IsStonegateObject(*o));
+	};
+	if (orclClickObject(object))
 		return true;
 
 	object = FindObjectAtPosition(position + Direction::South);
@@ -4235,11 +4238,9 @@ bool IsItemBlockingObjectAtPosition(Point position)
 		return true;
 	}
 
-	// An object selectable from its neighbours (selFlag 3: the sigil, the Cube, the Rift Monument) takes the diagonal tiles'
-	// clicks too, depending on where in the tile the mouse is (round 39 audit).
+	// The same objects take the diagonal tiles' clicks too, depending on where in the tile the mouse is (round 39 audit).
 	for (const Direction d : { Direction::SouthEast, Direction::SouthWest }) {
-		const Object *beside = FindObjectAtPosition(position + d, false);
-		if (beside != nullptr && beside->_oSelFlag == 3)
+		if (orclClickObject(FindObjectAtPosition(position + d, false)))
 			return true;
 	}
 

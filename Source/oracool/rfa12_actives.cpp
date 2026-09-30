@@ -1290,6 +1290,14 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 {
 	const Point here = player.position.tile;
 	const int earshot = AuraRadiusForPoints(r);
+	// The skills that set a field or a charge down at the cursor: not past a wall from the hero (round 40 audit - Meteor,
+	// Funeral Star and the rest landed on the next room's pack, and their ticks, which see from the field, burned it).
+	if (CastSightFrom && target != here && !LineClearMissile(here, target)
+	    && IsAnyOf(spell, SpellID::Meteor, SpellID::FuneralStar, SpellID::AncestralCourt, SpellID::FrozenSentinel, SpellID::LightningRod,
+	        SpellID::EmberMine, SpellID::StormCrucible, SpellID::BrittleGround)) {
+		player.Say(HeroSpeech::ICantDoThat);
+		return false;
+	}
 
 	switch (spell) {
 	// ---------------- Paladin ----------------
@@ -1595,7 +1603,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::RideTheLightning: {
-		const Point dst = Clamped(here, target, ReachTiles(spell, r));
+		// Down the one line she strikes, to its wall (round 40 audit: she flew straight to the cursor, through walls, while the
+		// strike walked an 8-way ray - monsters on her path went unhit and others off it were struck).
+		const Point dst = LineEnd(here, target, ReachTiles(spell, r));
 		const auto line = MonstersOnLine(here, dst, here.WalkingDistance(dst));
 		if (!TeleportTo(player, dst, spell))
 			return false;

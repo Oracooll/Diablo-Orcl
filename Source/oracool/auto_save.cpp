@@ -115,7 +115,7 @@ void ReturnHeldItemBeforeSaving(Player &player)
 	if (player.HoldItem.isEmpty())
 		return;
 
-	const std::string name = player.HoldItem._iIName;
+	const std::string name { player.HoldItem.getName() }; // the shown name, not the stored one (round 40 audit)
 	// Gold goes the way gold goes, stash first, and counts again (round 38 audit: filed as a pile, the total stayed short).
 	if (player.HoldItem._itype == ItemType::Gold && GoldAutoPlace(player, player.HoldItem)) {
 		player.HoldItem.clear();

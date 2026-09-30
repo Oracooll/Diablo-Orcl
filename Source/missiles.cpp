@@ -642,7 +642,11 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 		              Monsters[mid].isPlayerMinion() != missile.sourceMinion                       //  the monsters are on opposing factions
 		              || (Monsters[missile._misource].flags & MFLAG_BERSERK) != 0                  //  or the attacker is berserked
 		              || (Monsters[mid].flags & MFLAG_BERSERK) != 0                                //  or the target is berserked
-		              ))) {
+		              )
+		              // but a converted monster's shot spares the hero's side (round 40 audit: a converted Succubus's
+		              // Bloodstar struck the skeletons in its line)
+		              && !(missile._misource >= 0 && oracool::IsMonsterConverted(Monsters[missile._misource])
+		                  && (Monsters[mid].isPlayerMinion() || oracool::IsCompanion(Monsters[mid]) || oracool::IsMonsterConverted(Monsters[mid]))))) {
 			// then the missile can potentially hit this target.
 			// A minion's bolt is its owner's blow (audit, 2026-09-19): tag the target BEFORE the hit,
 			// since MonsterTrapHit runs MonsterDeath itself and the kill's experience goes to whoever

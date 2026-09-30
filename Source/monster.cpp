@@ -6200,7 +6200,10 @@ bool Monster::isPossibleToHit() const
 	    || talkMsg != TEXT_NONE
 	    || (type().type == MT_ILLWEAV && goal == MonsterGoal::Retreat)
 	    || (IsAnyOf(mode, MonsterMode::Charge, MonsterMode::Death))
-	    || (IsAnyOf(type().type, MT_COUNSLR, MT_MAGISTR, MT_CABALIST, MT_ADVOCATE) && goal != MonsterGoal::Normal));
+	    || (IsAnyOf(type().type, MT_COUNSLR, MT_MAGISTR, MT_CABALIST, MT_ADVOCATE) && goal != MonsterGoal::Normal
+	        // A visible Counselor walked back by a repel (Howl, Grim Ward, Daze, Blinding Flash) can be hit: vanilla's own
+	        // retreat is always hidden (round 40 audit - every blow passed through it for the repel's steps).
+	        && !(goal == MonsterGoal::Retreat && (flags & MFLAG_HIDDEN) == 0 && !IsAnyOf(mode, MonsterMode::FadeIn, MonsterMode::FadeOut))));
 }
 
 void Monster::tag(const Player &tagger)
