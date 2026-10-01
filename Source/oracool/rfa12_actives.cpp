@@ -1715,10 +1715,11 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// strike walked an 8-way ray - monsters on her path went unhit and others off it were struck).
 		const Point dst = LineEnd(here, target, ReachTiles(spell, r));
 		const auto line = MonstersOnLine(here, dst, here.WalkingDistance(dst));
-		if (!TeleportTo(player, dst, spell))
+		Point landed = dst;
+		if (!TeleportTo(player, dst, spell, &landed))
 			return false;
-		// RfA-27 batch 57: her body become the bolt, flying the way she went.
-		Fly(player, MissileGraphicID::RideTheLightning, here, dst);
+		// RfA-27 batch 57: her body become the bolt, flying the way she went - to where she landed (round 48 audit).
+		Fly(player, MissileGraphicID::RideTheLightning, here, landed);
 		const Range d = SkillDamage(spell, r);
 		for (Monster *m : line)
 			Strike(player, *m, DamageType::Lightning, Rolled(d));
@@ -1855,11 +1856,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (m == nullptr)
 			return false;
 		const Point behind = m->position.tile + GetDirection(here, m->position.tile);
-		if (!TeleportTo(player, behind, spell))
+		Point landed = behind;
+		if (!TeleportTo(player, behind, spell, &landed))
 			return false;
-		// RfA-27 batch 57: the smoke where she left and where she stands.
+		// RfA-27 batch 57: the smoke where she left and where she stands (round 48 audit: not where she aimed).
 		Art(player, MissileGraphicID::ShadowStep, here);
-		Art(player, MissileGraphicID::ShadowStep, behind);
+		Art(player, MissileGraphicID::ShadowStep, landed);
 		return true;
 	}
 	case SpellID::HuntersClaim: {
@@ -2598,6 +2600,10 @@ void TickField(Player &player, Field &field)
 		break;
 	case SpellID::BoneStorm:
 		field.tile = player.position.tile; // it follows
+		if (field.step != 0) { // carried over a level change (round 48)
+			field.step = 0;
+			Show(player, MissileID::BoneStormEffect, MissileGraphicID::BoneStorm, field.tile, field.tile, field.ticksLeft);
+		}
 		if (field.clock % (field.spell == SpellID::BoneWall ? BoneWallPeriod : BoneStormPeriod) == 0) {
 			for (Monster *m : MonstersWithin(field.tile, ReachTiles(field.spell, r)))
 				BoneStrike(player, *m, Rolled(SkillDamage(field.spell, r)));
@@ -3723,7 +3729,15 @@ void ProcessRfa12ActivesTick(Player &player)
 void ClearRfa12ActivesState()
 {
 	MonsterMarks.fill(Marks {});
-	Fields.fill(Field {});
+	// Bone Storm follows its hero down the stairs - it is his buff row - and every other field belongs to the floor (round 48
+	// audit: the storm ended at a level change).
+	for (Field &field : Fields) {
+		if (field.spell == SpellID::BoneStorm && field.ticksLeft > 0) {
+			field.step = 1; // its art went with the old floor's missiles: TickField shows it again
+			continue;
+		}
+		field = Field {};
+	}
 	for (PlayerState &state : Players12) {
 		// The hero's own buffs walk down the stairs with him, like the cries'; what he left on the
 		// level does not.
@@ -3769,6 +3783,11 @@ void ClearRfa12ActiveBuffs(Player &player)
 	ForgetCompanions();
 	ClearNecromancerSummoningState();
 	ClearAllCurses();
+	// A new game: the last hero's carried Bone Storm stays with him (round 48 - fields now cross the stairs).
+	for (Field &field : Fields) {
+		if (field.owner == player.getId())
+			field = Field {};
+	}
 	ForgetRfa12Clocks(); // Mercy's cooldown and Soft Tread's quiet survive the stairs, not a new game
 	bool sheetMoved = false;
 	PlayerState &state = StateOf(player);

@@ -654,7 +654,9 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 	// lava and chasms still, which block no sight (round 47 audit: the round 46 stop at the first solid tile ended the leap at
 	// the lava's edge, against "over anything in the way").
 	const std::optional<Point> landing = SightedLandingNear(player, dst);
-	if (!landing || *landing == here)
+	// And no farther than a tile past its reach (round 48 audit: the search around the aim could land him nine tiles off, or
+	// through a doorway beside the wall he aimed at).
+	if (!landing || *landing == here || landing->WalkingDistance(here) > range + 1)
 		return false;
 	dst = *landing;
 	// Its own cues, not Teleport's launch sound too: three sounds for one leap (round 23 audit, as TeleportTo since round 13).

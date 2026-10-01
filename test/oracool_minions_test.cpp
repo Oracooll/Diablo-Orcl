@@ -165,6 +165,12 @@ TEST(OracoolNecroSummoning, TheCorpseTableComesBackWithItsLevel)
 	EXPECT_EQ(zombie->type, MT_NZOMBIE);
 	EXPECT_EQ(zombie->maxLife, 45) << "the dead one's own numbers came back";
 
+	// A peek leaves the body where it lies (round 48 audit: Raise and Revive took it before the summon could fail).
+	const std::optional<oracool::Corpse> peeked = oracool::PeekCorpseNearSeen({ 40, 40 }, 0, { 40, 40 }, true);
+	ASSERT_TRUE(peeked.has_value());
+	EXPECT_EQ(peeked->type, MT_RFALLSP);
+	EXPECT_EQ(oracool::CorpseCount(), 1) << "peeking took nothing";
+
 	// Whatever a short or missing tail says, the last floor's table never survives a load.
 	oracool::RestoreCorpseTable(nullptr, 0);
 	EXPECT_EQ(oracool::CorpseCount(), 0);

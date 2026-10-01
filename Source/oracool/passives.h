@@ -62,8 +62,11 @@ bool PassiveActive(const Player &player, ClassTreeSkill skill);
 /** @brief Net change to a blow @p player is about to take, in percent; negative is less. */
 int PassiveDamageTakenPercent(const Player &player, DamageType damageType);
 
-/** @brief Net change to a blow @p player is about to deal @p target, in percent. @p melee: a swing rather than a missile. */
-int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool melee);
+/**
+ * @brief Net change to a blow @p player is about to deal @p target, in percent. @p melee: a swing rather than a missile.
+ * @p burst: a weapon's fire or lightning burst - melee, but not the blow the per-blow counters (Cadence, Counterstroke) belong to.
+ */
+int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool melee, bool burst = false);
 /** @brief The part of that sum that holds against every target (Glass Cannon), for the sheet's ranges. */
 int PassiveUnconditionalDamagePercent(const Player &player);
 

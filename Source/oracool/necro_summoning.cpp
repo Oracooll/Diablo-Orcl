@@ -236,19 +236,17 @@ bool RaiseFromCorpse(Player &player, Point target, int rank, bool mage)
 	const MinionSpec spec = SkeletonSpec(player, rank, mage);
 	// A free record too, as Revive asks: dying bodies hold theirs, and the corpse was eaten for a cast that fizzled (round 33).
 	// A corpse he can see (round 41 audit: one behind a wall was eaten and the skeleton stood in the other room).
-	if (!CorpseNearSeen(target, CorpseReach, player.position.tile, /*forRevive=*/false) || !CanAddMinionBody(spec.type) || !MinionRecordFree()) {
+	const std::optional<Corpse> corpse = PeekCorpseNearSeen(target, CorpseReach, player.position.tile, /*forRevive=*/false);
+	if (!corpse || !CanAddMinionBody(spec.type) || !MinionRecordFree()) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
-	const std::optional<Corpse> corpse = TakeCorpseNearSeen(target, CorpseReach, player.position.tile, /*forRevive=*/false);
-	if (!corpse) {
-		player.Say(HeroSpeech::ICantDoThat);
-		return false;
-	}
+	// The body first, the corpse after (round 48 audit: with no tile free the corpse was eaten and nothing stood).
 	if (!SummonMinion(player, spec, corpse->position) && !SummonMinion(player, spec, player.position.tile)) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
+	TakeCorpseNear(corpse->position, 0, /*forRevive=*/false);
 	OnPassiveCorpseConsumed(player);
 	AddMissile(corpse->position, corpse->position, player._pdir, MissileID::RaiseDeadEffect, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
 	return true;
@@ -266,8 +264,8 @@ bool Revive(Player &player, Point target, int rank)
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
-	const std::optional<Corpse> corpse = TakeCorpseNearSeen(target, CorpseReach, player.position.tile, /*forRevive=*/true); // seen (round 41)
-	if (!corpse) {
+	const std::optional<Corpse> corpse = PeekCorpseNearSeen(target, CorpseReach, player.position.tile, /*forRevive=*/true); // seen (round 41), not yet taken
+	if (!corpse || !CanAddMinionBody(corpse->type)) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
@@ -282,12 +280,13 @@ bool Revive(Player &player, Point target, int rank)
 	spec.armorClass = corpse->armorClass;
 	// Three minutes, and half a minute more for every point of Lasting Bond.
 	spec.ticksLeft = ReviveTicks(Points(player, ClassTreeSkill::LastingBond), PassiveActive(player, ClassTreeSkill::ExtendedServitude));
-	// The body first, the haste and the effect after (audit, 2026-09-19) - as Raise does; the corpse's
-	// own type is on this floor by definition, so the type check Raise makes is not needed here.
+	// The body first, the corpse, the haste and the effect after (audit, 2026-09-19; round 48: the corpse is taken only once
+	// the body stands).
 	if (!SummonMinion(player, spec, corpse->position) && !SummonMinion(player, spec, player.position.tile)) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
+	TakeCorpseNear(corpse->position, 0, /*forRevive=*/true);
 	OnPassiveCorpseConsumed(player);
 	AddMissile(corpse->position, corpse->position, player._pdir, MissileID::RaiseDeadEffect, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
 	return true;

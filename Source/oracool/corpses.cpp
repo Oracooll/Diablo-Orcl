@@ -133,6 +133,14 @@ bool CorpseNearSeen(Point tile, int radius, Point seenFrom, bool forRevive)
 	return NearestIndex(tile, radius, forRevive, seenFrom) >= 0;
 }
 
+std::optional<Corpse> PeekCorpseNearSeen(Point tile, int radius, Point seenFrom, bool forRevive)
+{
+	const int index = NearestIndex(tile, radius, forRevive, seenFrom);
+	if (index < 0)
+		return std::nullopt;
+	return Table[static_cast<size_t>(index)];
+}
+
 std::optional<Corpse> TakeCorpseNear(Point tile, int radius, bool forRevive)
 {
 	const int index = NearestIndex(tile, radius, forRevive);

@@ -2252,6 +2252,10 @@ Monster *AddSkeleton(Point position, Direction dir, bool inMap)
 	size_t skeletonIndexes[SkeletonTypes.size()];
 	for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
 		if (IsSkel(LevelMonsterTypes[i].type)) {
+			// A rift's sarcophagi and barrels hold the floor's own skeletons, not the low-floor type a Skeleton King rift loads
+			// for the King alone to raise (round 48 audit: floor-1 skeletons at any rung, cheap credit for the bar).
+			if (!inMap && oracool::InRift() && (LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) == 0)
+				continue;
 			skeletonIndexes[typeCount++] = i;
 		}
 	}
@@ -4510,20 +4514,26 @@ Monster *SpawnRiftGuardian()
 	// 2026-09-20 - in a lit room nothing within twelve tiles passed it and he never rose).
 	// Out to forty tiles, not twelve (2026-09-20): a hero in a tight Hell corridor had nothing within
 	// twelve that passed, and the guardian never rose - "Diablo didn't spawn when i hit 100%".
+	// First a tile the hero can see, so he rises in this room and not the next one over a wall (round 48 audit); only when
+	// none qualifies, any open tile, as before.
 	std::optional<Point> spot;
-	for (int radius = 3; radius <= 40 && !spot; radius++) {
-		for (int dx = -radius; dx <= radius && !spot; dx++) {
-			for (int dy = -radius; dy <= radius; dy++) {
-				if (std::max(std::abs(dx), std::abs(dy)) != radius)
-					continue;
-				const Point candidate = hero + Displacement { dx, dy };
-				if (InDungeonBounds(candidate) && dMonster[candidate.x][candidate.y] == 0 && dPlayer[candidate.x][candidate.y] == 0
-				    && !TileContainsSetPiece(candidate) && !IsTileOccupied(candidate)) {
-					spot = candidate;
-					break;
+	for (const bool sighted : { true, false }) {
+		for (int radius = 3; radius <= 40 && !spot; radius++) {
+			for (int dx = -radius; dx <= radius && !spot; dx++) {
+				for (int dy = -radius; dy <= radius; dy++) {
+					if (std::max(std::abs(dx), std::abs(dy)) != radius)
+						continue;
+					const Point candidate = hero + Displacement { dx, dy };
+					if (InDungeonBounds(candidate) && dMonster[candidate.x][candidate.y] == 0 && dPlayer[candidate.x][candidate.y] == 0
+					    && !TileContainsSetPiece(candidate) && !IsTileOccupied(candidate) && (!sighted || LineClearMissile(hero, candidate))) {
+						spot = candidate;
+						break;
+					}
 				}
 			}
 		}
+		if (spot)
+			break;
 	}
 	if (!spot)
 		return nullptr;

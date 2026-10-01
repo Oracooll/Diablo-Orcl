@@ -45,13 +45,14 @@ struct Clocks {
 	int cadenceCount = 0;       // Cadence: melee blows since the last beat
 	int inspireTicks = 0;       // Inspiring Presence: ticks under a warcry blessing, for the per-second mend
 	int juggernautCooldown = 0; // Juggernaut: ticks until the next heal may fire
-	// Illusionist, Tactical Advantage, Hot Pursuit: bursts of speed, each on its own clock, the fastest running counts (round
-	// 47 audit: one shared clock let Hot Pursuit's +20% keep Tactical Advantage's +40% alive for the whole fight).
+	// Illusionist, Tactical Advantage, Hot Pursuit, Fueled by Death: bursts of speed, each on its own clock, the fastest running
+	// counts (round 47 audit: one shared clock let Hot Pursuit's +20% keep Tactical Advantage's +40% alive for the whole fight;
+	// round 48: a clock for each of the four, so none evicts a faster one).
 	struct HasteSlot {
 		int ticks = 0;
 		int percent = 0;
 	};
-	std::array<HasteSlot, 2> haste {};
+	std::array<HasteSlot, 4> haste {};
 	int unharmedTicks = 0;      // Galvanizing Ward: ticks since the last blow taken
 	int dominanceStacks = 0;    // Dominance: kills stacked
 	int dominanceTicks = 0;     // ...and ticks left before they fall off
@@ -518,7 +519,7 @@ int PassiveUnconditionalDamagePercent(const Player &player)
 	return PassiveActive(player, Skill::GlassCannon) ? GlassCannonPercent : 0;
 }
 
-int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool melee)
+int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool melee, bool burst)
 {
 	int percent = 0;
 	// Spreading Malediction (the Necromancer): 5% a cursed monster within six, 30% at most.
@@ -560,7 +561,8 @@ int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool 
 		percent += GlassCannonPercent; // every hit, spells included (round 20 audit)
 	// The beat: the third blow since the last one. Counted in OnPassiveHit, read here, so the
 	// blow that IS the beat carries the bonus and the count restarts after it lands.
-	if (melee && PassiveActive(player, Skill::Cadence) && clocks.cadenceCount == 2)
+	// Not a burst (round 48 audit): it lands after OnPassiveHit has counted its swing, so the beat fell on the wrong blow's burst.
+	if (melee && !burst && PassiveActive(player, Skill::Cadence) && clocks.cadenceCount == 2)
 		percent += 50;
 	// The Barbarian's (2026-09-14). Berserker Rage reads the pool at the moment of the blow.
 	if (PassiveActive(player, Skill::BerserkerRage) && UsesRage(player) && player._pRage * 2 >= MaxRage(player))
@@ -602,7 +604,7 @@ int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool 
 	}
 	if (PassiveActive(player, Skill::Chorus) || PassiveActive(player, Skill::Unity))
 		percent += std::min(MinionsNear(player.position.tile, AllyRange), AllyMaxCount) * AllyPercent;
-	if (melee && clocks.counterTicks > 0 && PassiveActive(player, Skill::Counterstroke))
+	if (melee && !burst && clocks.counterTicks > 0 && PassiveActive(player, Skill::Counterstroke))
 		percent += clocks.counterPercent;
 	if (PassiveActive(player, Skill::SeizeTheInitiative) && targetLife >= targetMax)
 		percent += SeizeTheInitiativePercent;
@@ -1171,7 +1173,7 @@ std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int point
 		line(fmt::format(fmt::runtime(_("Fire, lightning, cold and magic damage taken: -{:d}%")), VigilantPercent));
 		break;
 	case Skill::SixthSense:
-		line(fmt::format(fmt::runtime(_("Fire, lightning and magic damage taken: -{:d}%")), SixthSensePercent));
+		line(fmt::format(fmt::runtime(_("Fire, cold, lightning and magic damage taken: -{:d}%")), SixthSensePercent));
 		break;
 	case Skill::Blur:
 		line(fmt::format(fmt::runtime(_("Damage taken: -{:d}%")), BlurPercent));

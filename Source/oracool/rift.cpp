@@ -388,22 +388,32 @@ int NextKeystoneTier(int tier, int ticksLeft, int ticksTotal, bool timedOut)
 
 namespace {
 
-/** @brief Drops a Guardian Keystone of @p tier at @p tile: the item through the quest-item door, the tier stamped after. */
+/**
+ * @brief Drops a Guardian Keystone of @p tier at @p tile: the item through the quest-item door, the tier stamped after. False
+ * if it could not be laid (round 48 audit: the failure was silent and the log still said the rift was cleared).
+ */
+bool DropKeystoneAt(Point tile, int tier);
+
 void DropKeystone(Point tile, int tier)
 {
-	if (tier <= 0)
-		return;
+	if (tier > 0 && !DropKeystoneAt(tile, tier))
+		LogEvent("The floor is too full: the keystone could not be laid. The Guardian ladder ends here.", UiFlags::ColorRed);
+}
+
+bool DropKeystoneAt(Point tile, int tier)
+{
 	// Room is made for it, as for every guaranteed reward since round 15: on a full floor the keystone silently did not
 	// drop, and the Guardian ladder fell back to a Nephalem key (round 17 audit, v1.12.242).
 	MakeRoomForGuaranteedReward();
 	if (ActiveItemCount >= MAXITEMS)
-		return;
+		return false;
 	const int before = ActiveItemCount;
 	SpawnQuestItem(IDI_ORACOOL_KEYSTONE, tile, /*randarea=*/0, /*selflag=*/0, /*sendmsg=*/true);
 	if (ActiveItemCount <= before)
-		return;
+		return false;
 	Item &keystone = Items[ActiveItems[ActiveItemCount - 1]];
 	keystone._iOracoolRiftTier = static_cast<uint8_t>(std::min(tier, 255));
+	return true;
 }
 
 } // namespace
@@ -956,7 +966,10 @@ void ProcessRift()
 		// at 100% with no guardian in sight looked like nothing happening (user, 2026-09-20: "Diablo
 		// didn't spawn when i hit 100%").
 		if (State.spawnNoteTicks <= 0) {
-			LogEvent("The guardian finds no ground to rise on near you - move to open floor.", UiFlags::ColorRed);
+			// The reason that holds (round 48 audit: a full monster table read as "no ground", and moving never helped).
+			LogEvent(EnemyMonsterRoomLeft() ? "The guardian finds no ground to rise on near you - move to open floor."
+			                                : "Too many monsters walk this rift for the guardian to rise - thin them out.",
+			    UiFlags::ColorRed);
 			State.spawnNoteTicks = 5 * RiftTicksPerSecond;
 		}
 		State.spawnNoteTicks--;

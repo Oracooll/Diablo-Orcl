@@ -4,6 +4,8 @@
  * See minions.h.
  */
 #include "oracool/minions.h"
+#include "oracool/curses.h"
+#include "oracool/necro_summoning.h"
 
 #include <algorithm>
 #include <array>
@@ -187,7 +189,7 @@ bool SpawnBody(Record &record, const Player &owner, Point near)
 std::array<int, MaxMinionBodies> FireClocks {};
 
 /** @brief A blow of a minion's on @p monster, credited to @p owner: nothing to the immune, a quarter to the resistant. */
-void MinionHurts(const Player &owner, Monster &monster, DamageType type, int damage)
+void MinionHurts(Player &owner, Monster &minion, Monster &monster, DamageType type, int damage)
 {
 	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
 		return;
@@ -197,6 +199,10 @@ void MinionHurts(const Player &owner, Monster &monster, DamageType type, int dam
 		damage >>= 2;
 	if (damage <= 0)
 		return;
+	// Life Tap: the burn and the thorns heal the minion that dealt them, as its blows and bolts do (round 48 audit). Not a
+	// minion on its own killing blow: thorns fire as it is struck, and life would stand a dying body back up.
+	if ((minion.hitPoints >> 6) > 0 && minion.mode != MonsterMode::Death)
+		OnCursedMonsterStruck(monster, owner, &minion, damage);
 	ApplyMonsterDamage(type, monster, damage);
 	if ((monster.hitPoints >> 6) <= 0) {
 		M_StartKill(monster, owner);
@@ -210,7 +216,19 @@ void MinionHurts(const Player &owner, Monster &monster, DamageType type, int dam
 }
 
 /** @brief Once a second, every Fire Golem of @p owner burns everything standing beside it for half a blow. */
-void FireGolemsBurn(const Player &owner)
+/** @brief The cap the owner's rank allows, as RaiseFromCorpse and Revive enforce it and the tooltip's "up to N" says (round 48 audit). */
+int PanelCap(const Player &owner, MinionGroup group)
+{
+	const auto at = [&owner, group](SpellID spell) { return RaisedCountAtRank(std::max(owner.GetSpellLevel(spell), 1), MinionGroupCap(group)); };
+	switch (group) {
+	case MinionGroup::Skeleton: return at(SpellID::RaiseSkeleton);
+	case MinionGroup::Mage: return at(SpellID::RaiseSkeletalMage);
+	case MinionGroup::Revived: return at(SpellID::NecroRevive);
+	default: return MinionGroupCap(group); // the one golem
+	}
+}
+
+void FireGolemsBurn(Player &owner)
 {
 	for (size_t i = 0; i < Records.size(); i++) {
 		Record &record = Records[i];
@@ -222,13 +240,13 @@ void FireGolemsBurn(const Player &owner)
 		if (++FireClocks[i] < FireGolemPulseTicks)
 			continue;
 		FireClocks[i] = 0;
-		const Monster &golem = Monsters[record.body];
+		Monster &golem = Monsters[record.body];
 		for (size_t m = 0; m < ActiveMonsterCount; m++) {
 			Monster &monster = Monsters[ActiveMonsters[m]];
 			if (monster.position.tile.WalkingDistance(golem.position.tile) > 1)
 				continue;
 			const int blow = record.spec.minDamage + GenerateRnd(std::max(record.spec.maxDamage - record.spec.minDamage, 0) + 1);
-			MinionHurts(owner, monster, DamageType::Fire, (blow << 6) / FireGolemBurnDivisor);
+			MinionHurts(owner, golem, monster, DamageType::Fire, (blow << 6) / FireGolemBurnDivisor);
 		}
 	}
 }
@@ -583,7 +601,11 @@ int SacrificeMinion(Player &owner, Point tile)
 	for (Record &record : Records) {
 		if (!BodyAlive(record) || record.owner != owner.getId())
 			continue;
-		const int distance = Monsters[record.body].position.tile.WalkingDistance(tile);
+		const Point at = Monsters[record.body].position.tile;
+		const int distance = at.WalkingDistance(tile);
+		// Within reach of the cursor and in the hero's sight (round 48 audit: one across the level or behind a wall was unmade).
+		if (distance > UnholyOfferingReach || !LineClearMissile(owner.position.tile, at))
+			continue;
 		if (nearest == nullptr || distance < bestDistance) {
 			nearest = &record;
 			bestDistance = distance;
@@ -591,7 +613,7 @@ int SacrificeMinion(Player &owner, Point tile)
 	}
 	if (nearest == nullptr)
 		return 0;
-	const int life = Monsters[nearest->body].maxHitPoints;
+	const int life = std::max(Monsters[nearest->body].hitPoints, 0); // the life it has, as the tooltip says (round 48 audit)
 	// RfA-27 batch 56: the minion crumbling and its wisp rising. Nothing without the sheet.
 	AddArtEffect(Monsters[nearest->body].position.tile, MissileGraphicID::UnholyOffering, static_cast<int>(owner.getId()));
 	M_StartKill(Monsters[nearest->body], owner);
@@ -682,7 +704,7 @@ void OnMinionStruck(Monster &minion, Monster &attacker, int damage)
 	if (PassiveActive(owner, ClassTreeSkill::AberrantAnimator))
 		share += damage / AberrantAnimatorDivisor;
 	if (share > 0)
-		MinionHurts(owner, attacker, DamageType::Physical, share);
+		MinionHurts(owner, minion, attacker, DamageType::Physical, share);
 }
 
 // =================================================================================================================
@@ -742,10 +764,10 @@ void DrawMinionHud(const Surface &out)
 		DrawString(out, _(MinionGroupName(group)), Rectangle { Point { HudX + 4, y }, Size { barWidth, 12 } },
 		    { UiFlags::FontSize12 | UiFlags::ColorWhite });
 		// "3/10" - and for timed bodies "3/10 2:47", the time the first of them has left (N11).
-		std::string tally = fmt::format("{:d}/{:d}", count, MinionGroupCap(group));
+		std::string tally = fmt::format("{:d}/{:d}", count, PanelCap(*MyPlayer, group));
 		if (soonest > 0) {
 			const int seconds = (soonest + PanelTicksPerSecond - 1) / PanelTicksPerSecond;
-			tally = fmt::format("{:d}/{:d}  {:d}:{:02d}", count, MinionGroupCap(group), seconds / 60, seconds % 60);
+			tally = fmt::format("{:d}/{:d}  {:d}:{:02d}", count, PanelCap(*MyPlayer, group), seconds / 60, seconds % 60);
 		}
 		DrawString(out, tally,
 		    Rectangle { Point { HudX + 4, y }, Size { barWidth, 12 } }, { UiFlags::FontSize12 | UiFlags::ColorGold | UiFlags::AlignRight });

@@ -443,7 +443,7 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	// A weapon's fire or lightning burst is the swing's own: melee to the passives, not a spell (round 47 audit: it took Arcane
 	// Dynamo, Mana Attunement and Mythic Rhythm, and rolled Deadeye again per burst).
 	const bool swingBurst = t == MissileID::WeaponExplosion;
-	dam = oracool::AddPercentSat(dam, oracool::PassiveDamageDealtPercent(player, monster, swingBurst) + oracool::Rfa12DamageDealtPercent(player, monster, swingBurst)
+	dam = oracool::AddPercentSat(dam, oracool::PassiveDamageDealtPercent(player, monster, swingBurst, /*burst=*/swingBurst) + oracool::Rfa12DamageDealtPercent(player, monster, swingBurst)
 	        + (damageType == DamageType::Cold ? oracool::Rfa12ColdDamagePercent(monster) : 0));
 
 	// A companion's arrow: its share of the whole blow, bonuses and passives included.
@@ -2005,7 +2005,7 @@ void AddStealPotions(Missile &missile, AddMissileParameter & /*parameter*/)
 					downgraded._iSeed = seed;
 					downgraded._iStatFlag = true;
 					// Best-effort: merges into a matching belt stack or an empty slot;
-					// if there's no room the downgraded unit is was simply lost until round 46, when it learned to fall back, matching
+					// if there's no room the downgraded unit was simply lost until round 46, when it learned to fall back, matching
 					// existing steal semantics elsewhere in this function.
 					downgradedUnits.push_back(downgraded);
 				} else {

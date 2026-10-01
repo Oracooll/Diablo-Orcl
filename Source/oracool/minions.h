@@ -138,7 +138,13 @@ int HealMinions(Player &owner, int radius, int percent);
 double MinionMendGlow(const Monster &monster);
 /** @brief For @p ticks every minion of @p owner strikes @p percent harder and hurries after its prey. */
 void FrenzyMinions(Player &owner, int ticks, int percent);
-/** @brief Unmakes the minion of @p owner nearest @p tile. Its full life in 1/64 points, or 0 if there was none. */
+/** @brief How far from the cursor Unholy Offering reaches for a minion (round 48 audit). */
+constexpr int UnholyOfferingReach = 3;
+
+/**
+ * @brief Unmakes the minion of @p owner nearest @p tile, within UnholyOfferingReach and in the owner's sight. Its current life in
+ * 1/64 points, or 0 if there was none.
+ */
 int SacrificeMinion(Player &owner, Point tile);
 
 // ---- the army's numbers, one place each: the rules below and the tooltips (necro_summoning.cpp) both read them ----

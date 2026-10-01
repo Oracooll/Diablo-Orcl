@@ -50,6 +50,8 @@ std::optional<Corpse> TakeCorpseNear(Point tile, int radius, bool forRevive);
 std::optional<Corpse> TakeCorpseNearSeen(Point tile, int radius, Point seenFrom, bool forRevive = false);
 /** @brief Whether a corpse in a clear line from @p seenFrom lies within @p radius of @p tile (round 41: Raise and Revive). */
 bool CorpseNearSeen(Point tile, int radius, Point seenFrom, bool forRevive);
+/** @brief As TakeCorpseNearSeen, but the corpse is NOT taken: for checks before the take (round 48 audit). */
+std::optional<Corpse> PeekCorpseNearSeen(Point tile, int radius, Point seenFrom, bool forRevive);
 /** @brief Whether one is there, without taking it - for the cursor and the cast's fizzle. */
 bool CorpseNear(Point tile, int radius, bool forRevive);
 int CorpseCount();
