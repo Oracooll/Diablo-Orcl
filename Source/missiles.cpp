@@ -693,9 +693,10 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 				oracool::OnMinionBlow(Monsters[missile._misource], Monsters[mid], dealt);
 				// Not into a shooter that died while its bolt flew (round 61 audit, as MinionHurts guards it): Life Tap put life
 				// back into a body in its death animation.
-				Monster &shooter = Monsters[missile._misource];
-				const bool shooterAlive = (shooter.hitPoints >> 6) > 0 && shooter.mode != MonsterMode::Death;
-				oracool::OnCursedMonsterStruck(Monsters[mid], Players[armyOwner->getId()], shooterAlive ? &shooter : nullptr, dealt);
+				// Skipped, not passed null, which means "the hero struck" and healed him instead (round 62 audit).
+				Monster &bolter = Monsters[missile._misource];
+				if ((bolter.hitPoints >> 6) > 0 && bolter.mode != MonsterMode::Death)
+					oracool::OnCursedMonsterStruck(Monsters[mid], Players[armyOwner->getId()], &bolter, dealt);
 			}
 		} else if (IsAnyOf(missile._micaster, TARGET_BOTH, TARGET_MONSTERS)) {
 			CompanionHitPercent = missile.companionPercent;

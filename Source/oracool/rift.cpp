@@ -557,6 +557,12 @@ void FinishRiftLevel(bool fresh)
 	// stale theme did fit, it put stray shrines and books into a quest map. Since v1.12.062.
 	if (!fresh || !InRift())
 		return;
+	// A floor built anew after the guardian rose (round 62 audit: its level save failed, so the floor was rebuilt): the slot
+	// he held is an ordinary monster now, which IsRiftGuardian took for him. He rises again - the bar is already full.
+	if (State.guardianSpawned && !State.done) {
+		State.guardianSpawned = false;
+		State.guardianId = -1;
+	}
 	const uint8_t savedLevel = currlevel;
 	currlevel = static_cast<uint8_t>(GenerationFloorFor(leveltype));
 	// The theme rooms' packs come after PlaceRiftMonsters scaled the floor's, and AddMonster has no rift hook: they kept

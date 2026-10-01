@@ -333,9 +333,10 @@ int LeapRangeTiles(const Player &player, ClassMeleeSkill skill)
 
 void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill)
 {
-	// Anything but the Leap Attack swing itself - a plain swing, a stagger, a level change, a new game - and the leap's blow is
-	// not coming (round 61 audit: left set by a disarm, the next leap read it as paid and every leap after was free).
-	if (skill != ClassMeleeSkill::LeapAttack)
+	// Another skill armed and the leap's blow is not coming. A disarm (a stagger between the leap and the blow) keeps it (round
+	// 62 audit: clearing it there charged the blow twice); the leap itself no longer reads it (round 61), and a new game
+	// forgets it (ForgetLeapAttackPrepaid).
+	if (skill.has_value() && *skill != ClassMeleeSkill::LeapAttack)
 		LeapAttackPrepaid = false;
 	ArmedSkill = skill;
 	BeginClassMeleeSwing(); // a new click: no chain carries over
@@ -345,6 +346,11 @@ void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill)
 	// And the throw, armed after it where it is meant: left armed, it took over the next skill's swing at its hit frame
 	// and threw the weapon at an old tile (round 5 audit, v1.12.230).
 	ArmWeaponThrow(std::nullopt);
+}
+
+void ForgetLeapAttackPrepaid()
+{
+	LeapAttackPrepaid = false;
 }
 
 std::optional<ClassMeleeSkill> ArmedClassMeleeSkill()

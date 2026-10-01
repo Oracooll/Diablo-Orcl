@@ -275,6 +275,8 @@ void FreeGame()
 	oracool::ArmMeleeSkill(std::nullopt);
 	oracool::ArmArrowSkill(std::nullopt);
 	oracool::ArmClassMeleeSkill(std::nullopt);
+	oracool::ForgetLeapAttackPrepaid(); // a disarm keeps it (round 62); a new game does not
+	ForgetStaggeredSwingLatches();
 	oracool::ArmRfa12Melee(std::nullopt);
 	oracool::ArmWeaponThrow(std::nullopt);
 	// And Zeal's burst holds raw Monster POINTERS into the monster array this teardown is about to

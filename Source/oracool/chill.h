@@ -71,6 +71,11 @@ void ClearChills();
 /** @brief Ends one monster's chill at once - for a curse that laid it and is now released (audit, 2026-09-19). */
 void ClearChill(const Monster &monster);
 /**
+ * @brief Ends @p monster's chill if it runs no longer than @p ticks - a curse taking back the chill it laid, and not a longer one
+ * another source laid over it (round 62 audit: Decrepify's end wiped a Clay Golem's or Rigor Mortis's chill).
+ */
+void ClearChillUpTo(const Monster &monster, int ticks);
+/**
  * @brief Ends one slot's chill AND freeze. The slot is being freed or reused: a monster that died cold
  * must not hand its timers to the next monster spawned into its slot (external audit of v1.12.188, SKL-02).
  */

@@ -1012,6 +1012,9 @@ bool pfile_ui_save_create(_uiheroinfo *heroinfo)
 		// No save file, so there must be no character. The slot is left exactly as it was found,
 		// free for another attempt once the player has made room on the disk.
 		hero_names[saveNum][0] = '\0';
+		// ...and the file the writer may still have published removed (round 62 audit): there was none before (the check
+		// above), and one left behind with no hero in it blocked the slot for good.
+		RemoveFile(GetSavePath(saveNum).c_str());
 		return false;
 	}
 

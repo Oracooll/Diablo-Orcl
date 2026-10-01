@@ -1038,6 +1038,11 @@ void StartMonsterGotHit(Monster &monster)
 	// A companion does not flinch - and this would also snap a walking one back to the tile it left.
 	if (oracool::IsCompanion(monster))
 		return;
+	// Nor a golem mid-step: it does not flinch, so its walk ran on from a tile snapped back to the one it left, and the walk's
+	// end cleared its own grid mark - an unclickable, unhittable golem until its next step (round 62 audit; the Necromancer's
+	// army walks in formation all the time).
+	if (monster.type().type == MT_GOLEM && monster.isWalking())
+		return;
 	// A skill-stunned monster is moved (a knockback still pushes it) but stays stunned: M_GetKnockback reaches here
 	// without M_StartHit's stun test, and Bash or a knockback weapon ended every stun (round 24 audit, v1.12.249).
 	if (monster.type().type != MT_GOLEM && !IsMonsterStunned(monster)) {
@@ -5872,12 +5877,15 @@ void MissToMonst(Missile &missile, Point position)
 	Point newPosition = oldPosition + monster.direction;
 	// Not a walker (round 32 audit): its walk would end relative to the pushed tile, into a wall, leaving the old
 	// destination's marker as an invisible block.
-	if (target->mode != MonsterMode::Death && !target->isWalking() && IsTileAvailable(*target, newPosition)) {
+	// Nor an Unyielding, Relentless or Implacable one, which no knockback moves; and its light goes with it (round 62 audit).
+	if (target->mode != MonsterMode::Death && !target->isWalking() && !oracool::IsKnockbackImmune(*target) && IsTileAvailable(*target, newPosition)) {
 		dMonster[oldPosition.x][oldPosition.y] = 0;
 		dMonster[newPosition.x][newPosition.y] = static_cast<int16_t>(target->getId() + 1);
 		target->position.tile = newPosition;
 		target->position.future = newPosition;
 		target->position.old = newPosition;
+		if (target->lightId != NO_LIGHT)
+			ChangeLightXY(target->lightId, newPosition);
 	}
 }
 

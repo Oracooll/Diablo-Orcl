@@ -97,6 +97,8 @@ void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill);
 
 /** @brief The melee skill the swing being resolved was thrown with, if any. */
 std::optional<ClassMeleeSkill> ArmedClassMeleeSkill();
+/** @brief A new game: no Leap Attack blow paid by the last character's leap. */
+void ForgetLeapAttackPrepaid();
 
 /**
  * @brief The armed skill's damage bonus on the swing being resolved, in percent. Zero when nothing

@@ -41,6 +41,13 @@ void ClearChill(const Monster &monster)
 		ChillTicks[id] = 0;
 }
 
+void ClearChillUpTo(const Monster &monster, int ticks)
+{
+	const size_t id = monster.getId();
+	if (id < ChillTicks.size() && ChillTicks[id] <= std::max(ticks, 0))
+		ChillTicks[id] = 0;
+}
+
 void ClearColdStateForMonster(const Monster &monster)
 {
 	const size_t id = monster.getId();

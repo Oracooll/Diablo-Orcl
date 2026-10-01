@@ -183,7 +183,7 @@ void Release(const Monster &monster, Curse &curse)
 	if (curse.kind == CurseKind::Weaken || curse.kind == CurseKind::Decrepify)
 		ClearWarcryStateForMonster(monster);
 	if (curse.kind == CurseKind::Decrepify)
-		ClearChill(monster);
+		ClearChillUpTo(monster, curse.ticks); // its own chill, not a longer one laid over it (round 62 audit)
 	curse = {};
 }
 

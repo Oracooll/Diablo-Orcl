@@ -3723,7 +3723,7 @@ void SaveInventoryTabs(SaveWriter &saveWriter, const Player &player)
 
 void SaveGameData(SaveWriter &saveWriter)
 {
-	SaveHelper file(saveWriter, "game", 320 * 1024);
+	SaveHelper file(saveWriter, "game", 512 * 1024); // a full floor and more (round 62 audit: 320 KiB was short of it)
 
 	if (gbIsSpawn && !gbIsHellfire)
 		file.WriteLE<uint32_t>(LoadLE32("SHAR"));

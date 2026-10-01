@@ -3497,14 +3497,11 @@ void StartPlrHit(Player &player, int dam, bool forcehit)
 		// Only while a button is held (round 61 audit: a pad's plain attack later took the stash), and a second stagger in
 		// hit recovery adds to it rather than wiping it with the latches the first one cleared.
 		if (sgbMouseDown != CLICK_NONE || ControllerActionHeld != GameActionType_NONE) {
+			// The latches armed now, whole - never mixed with an older stash, which made two families armed at once (round 62
+			// audit: a quick-cast between two staggers). Nothing armed (a second hit in recovery) keeps the stash as it is.
 			const std::optional<oracool::PaladinSkill> paladin = oracool::ArmedMeleeSkill() != oracool::PaladinSkill::Charge ? oracool::ArmedMeleeSkill() : std::nullopt;
-			if (paladin)
-				StaggeredSwingLatches.paladin = paladin;
-			if (oracool::ArmedClassMeleeSkill())
-				StaggeredSwingLatches.classMelee = oracool::ArmedClassMeleeSkill();
-			if (oracool::ArmedRfa12Melee())
-				StaggeredSwingLatches.rfa12 = oracool::ArmedRfa12Melee();
-			StaggeredSwingLatches.held = StaggeredSwingLatches.paladin || StaggeredSwingLatches.classMelee || StaggeredSwingLatches.rfa12;
+			if (paladin || oracool::ArmedClassMeleeSkill() || oracool::ArmedRfa12Melee())
+				StaggeredSwingLatches = { paladin, oracool::ArmedClassMeleeSkill(), oracool::ArmedRfa12Melee(), true };
 		}
 		if (!oracool::IsFuriousChargeDashing())
 			oracool::ArmMeleeSkill(std::nullopt);
