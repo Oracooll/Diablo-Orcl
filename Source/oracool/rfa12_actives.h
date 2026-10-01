@@ -71,6 +71,11 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 /** @brief Performs a cast RfA-12 active at its cast frame. False if it had nothing to do. */
 bool CastRfa12Active(Player &player, SpellID spell, Point target);
 
+/** @brief Ticks before @p spell can be cast again (Absolute Zero's 30 seconds, 2026-10-01). Zero when it is ready. */
+int Rfa12CooldownTicksLeft(const Player &player, SpellID spell);
+/** @brief How far @p spell's cooldown has run, 0 just cast to 1 ready - the skill well's band. 1 for a skill with none. */
+float Rfa12CooldownProgress(const Player &player, SpellID spell);
+
 /** @brief The last open tile of the straight line from @p here to @p aim, short of a wall or blocked sight (round 46). */
 Point LastOpenTileToward(Point here, Point aim);
 

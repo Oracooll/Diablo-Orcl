@@ -4,6 +4,8 @@
  * Implementation of functionality for casting player spells.
  */
 #include "spells.h"
+
+#include <fmt/format.h>
 #include "oracool/class_tree.h"
 #include "oracool/oracool.h" // IsBuiltInPortalAbility
 #include "oracool/essence.h"
@@ -12,6 +14,7 @@
 #include "oracool/passives.h"
 #include "oracool/rage.h"
 #include "oracool/event_log.h"
+#include "oracool/rfa12_actives.h" // Rfa12CooldownTicksLeft - a skill still cooling is refused
 #include "oracool/rift.h" // RiftForbidsTownPortal (plan r9)
 #include "oracool/skill_sounds.h"
 
@@ -314,6 +317,12 @@ SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool
 	}
 
 	if (st == SpellType::Skill) {
+		// A skill still cooling down (Absolute Zero's 30 seconds, user 2026-10-01): refused before any price is paid.
+		if (const int ticks = oracool::Rfa12CooldownTicksLeft(player, sn); ticks > 0) {
+			if (&player == MyPlayer && !manaonly)
+				oracool::LogEvent(fmt::format(fmt::runtime(_("{:s} is ready again in {:d} s.")), pgettext("spell", GetSpellData(sn).sNameText), (ticks + 19) / 20), UiFlags::ColorRed);
+			return SpellCheckResult::Fail_Busy;
+		}
 		// Oracool, Round 2 (2026-09-03): a TREE skill with a mana price pays it. Vanilla's skills
 		// (Repair, Identify...) cost nothing and this branch was written for them; the fork's tree
 		// rows are SpellType::Skill because they are earned rather than read from a book, and until

@@ -478,9 +478,9 @@ MissileFileData MissileSpriteData[] = {
 /*GroundStomp*/              { {},             160,          48, "ground_stomp",           1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*MountainPole*/             { {},             160,          48, "mountain_pole",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*FlameRing*/                { {},             160,          48, "flame_ring",             1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
-// 2026-10-01: the user's painted vortex frames, by tools/BuildAbsoluteZero.py - 44 frames of 1024x512, the 8-tile hit diamond
+// 2026-10-01: the user's painted vortex frames, by tools/BuildAbsoluteZero.py - 44 frames of 512x256, the 4-tile reach
 // at 1x: 10 growing, a 24-frame loop held for 6 seconds (ProcessCensusEffect), 10 shrinking. The eye is the frame's centre.
-/*AbsoluteZero*/             { {},            1024,         480, "absolute_zero",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_44      },
+/*AbsoluteZero*/             { {},             512,         224, "absolute_zero",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_44      },
 /*BlindingFlash*/            { {},             160,          48, "blinding_flash",         1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*DeathNova*/                { {},             160,          48, "death_nova",             1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*EmberBurst*/               { {},             128,          32, "ember_burst",            1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },

@@ -243,3 +243,14 @@ TEST(OracoolRage, WhirlwindIsHeldOnTheRightButton)
 	EXPECT_FALSE(oracool::IsWhirlwinding(player)) << "nothing spins until the right button is held";
 	EXPECT_FALSE(oracool::CanPaySkill(player, SpellID::Whirlwind)) << "it takes Rage to start";
 }
+
+// Absolute Zero cools for 30 seconds after a cast (user, 2026-10-01); a hero who never cast it can cast it.
+TEST(OracoolCooldowns, AFreshHeroHasNoCooldown)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	oracool::ClearRfa12PlayerBuffs(player);
+	EXPECT_EQ(oracool::Rfa12CooldownTicksLeft(player, SpellID::AbsoluteZero), 0);
+	EXPECT_FLOAT_EQ(oracool::Rfa12CooldownProgress(player, SpellID::AbsoluteZero), 1.0F);
+	EXPECT_FLOAT_EQ(oracool::Rfa12CooldownProgress(player, SpellID::Bash), 1.0F) << "a skill with no cooldown is always ready";
+}

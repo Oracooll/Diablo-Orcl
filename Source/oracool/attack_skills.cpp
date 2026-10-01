@@ -18,6 +18,7 @@
 #include "oracool/xp_counter.h" // IsPointOverXpBar - the XP bar is one of the HUD's buttons
 #include "oracool/paladin_skills.h"
 #include "oracool/furious_charge.h" // the Charge cooldown band, on either well (round 27 audit)
+#include "oracool/rfa12_actives.h" // Rfa12CooldownProgress - any tree skill cooling
 #include "engine/render/primitive_render.hpp"
 #include "oracool/whirlwind.h" // RightButtonOnly
 #include "panels/spell_book.hpp" // GetAbilityFKeyNumber, GetAuraFKeyNumber
@@ -219,8 +220,9 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	DrawWellIconBody(out, net, spell, type, leftButton);
 	// Furious Charge's cooldown as a darkened band over the part not yet cooled, on whichever well holds it: only the right
 	// well showed it, and Charge goes on the left too (round 27 audit).
-	if (IsValidSpell(spell) && IsFuriousChargeSpell(spell)) {
-		const float progress = GetFuriousChargeCooldownProgress();
+	// And any tree skill's cooldown the same way (Absolute Zero's 30 seconds, 2026-10-01).
+	if (IsValidSpell(spell)) {
+		const float progress = IsFuriousChargeSpell(spell) ? GetFuriousChargeCooldownProgress() : Rfa12CooldownProgress(*MyPlayer, spell);
 		const int cooled = static_cast<int>(net.size.height * progress);
 		if (progress < 1.0f && cooled < net.size.height)
 			DrawHalfTransparentRectTo(out, net.position.x, net.position.y, net.size.width, net.size.height - cooled);

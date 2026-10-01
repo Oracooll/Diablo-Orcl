@@ -705,6 +705,8 @@ struct PlayerState {
 	int landingRank = 0;
 	// Serenity: the ring of light still rising and falling round her (drawn only; the cure was at the cast).
 	int serenityTicks = 0;
+	// The skills on a cooldown (Absolute Zero, user 2026-10-01): ticks left on each, counted down every tick.
+	std::vector<std::pair<SpellID, int>> cooldowns;
 };
 
 /** @brief Serenity's ring (v1.12.211): two seconds, up from the feet over the head and back down. */
@@ -715,6 +717,25 @@ std::array<PlayerState, MAX_PLRS> Players12;
 PlayerState &StateOf(const Player &player)
 {
 	return Players12[player.getId()];
+}
+
+int CooldownTicks(SpellID spell); // below, with the other rules
+
+/** @brief @p spell's cooldown starts (CooldownTicks), replacing any left. */
+void StartCooldown(const Player &player, SpellID spell)
+{
+	PlayerState &state = StateOf(player);
+	std::erase_if(state.cooldowns, [spell](const auto &cooldown) { return cooldown.first == spell; });
+	state.cooldowns.emplace_back(spell, CooldownTicks(spell));
+}
+
+/** @brief Takes @p player's Absolute Zero vortex away: its field ended early (town, death). */
+void EndAbsoluteZeroArt(const Player &player)
+{
+	for (Missile &missile : Missiles) {
+		if (missile._miAnimType == MissileGraphicID::AbsoluteZero && missile._misource == static_cast<int>(player.getId()))
+			missile._miDelFlag = true;
+	}
 }
 
 void StartBuff(Player &player, Buff buff, int ticks, int rank)
@@ -802,7 +823,6 @@ Range SkillDamage(SpellID spell, int r)
 	case SpellID::IceLance: return Scale(r, 6, 11, 3, 5);
 	case SpellID::BrittleGround: return Scale(r, 4, 8, 2, 3);
 	case SpellID::Whiteout: return Scale(r, 5, 10, 3, 4);
-	case SpellID::AbsoluteZero: return Scale(r, 8, 16, 4, 6);
 	case SpellID::Arc: return Scale(r, 2, 12, 2, 5); // the first strike
 	case SpellID::StaticCharge: return Scale(r, 2, 10, 1, 3);
 	case SpellID::LightningRod: return Scale(r, 4, 14, 2, 5);
@@ -953,6 +973,29 @@ int StunTicks(SpellID spell, int r)
 	}
 }
 
+/**
+ * @brief Absolute Zero (user, 2026-10-01): a vortex round the Sorcerer for 7 seconds - half a second growing, six at full
+ * size, half a second shrinking, as its sheet plays (missiles.cpp) - striking everything within it every 5 ticks for 0.35 -
+ * 0.70 cold a tick, +0.35 to both per level, then 30 seconds before it can be cast again.
+ */
+constexpr int AbsoluteZeroVortexTicks = 10 + 6 * TicksPerSecond + 10;
+constexpr int AbsoluteZeroPulseTicks = 5;
+/** @brief One pulse's cold damage at rank @p r, in 1/64 points: five ticks of 0.35r - 0.35(r+1), so 112r - 112(r+1). */
+Range AbsoluteZeroPulse64(int r)
+{
+	const int rank = std::max(r, 1);
+	return { rank * 112, (rank + 1) * 112 };
+}
+
+/** @brief How long @p spell waits after a cast before it can be cast again, in ticks. Zero: no cooldown. */
+int CooldownTicks(SpellID spell)
+{
+	switch (spell) {
+	case SpellID::AbsoluteZero: return 30 * TicksPerSecond;
+	default: return 0;
+	}
+}
+
 /** @brief How long a skill's chill (half speed) - or Absolute Zero's freeze - lasts, in ticks. */
 int SlowTicks(SpellID spell, int r)
 {
@@ -1043,7 +1086,7 @@ int ReachTiles(SpellID spell, int r)
 	case SpellID::EarthshakerCry: return 8;
 	case SpellID::IceNeedle:
 	case SpellID::IceLance: return 8;
-	case SpellID::AbsoluteZero: return 8;
+	case SpellID::AbsoluteZero: return 4; // user, 2026-10-01: 4 tiles, 8 across
 	case SpellID::FrozenSentinel: return 8;
 	case SpellID::RideTheLightning: return 6;
 	case SpellID::FlameRing: return 2;
@@ -1648,24 +1691,20 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::AbsoluteZero: {
-		const Range d = SkillDamage(spell, r);
+		// The redesign (user, 2026-10-01): the cast freezes what it catches, as before; the damage is the vortex's, a pulse
+		// every 5 ticks for 7 seconds round the Sorcerer wherever he walks (TickField), and the skill then cools for 30.
 		bool caught = false;
 		for (Monster *m : MonstersWithin(here, ReachTiles(spell, r))) {
 			caught = true;
-			Strike(player, *m, DamageType::Cold, Rolled(d));
-			if ((m->hitPoints >> 6) <= 0)
-				continue;
 			if (ShrugsOff(*m))
 				ChillMonster(*m, SlowTicks(spell, r));
 			else
 				FreezeMonster(*m, SlowTicks(spell, r));
 		}
-		// The user's vortex (2026-10-01), drawn at its own size: 1024x512 is the 8-tile reach. Half a second growing, six
-		// seconds at full size, half a second shrinking - 140 ticks (missiles.cpp plays the parts). Its Impact cue when it
-		// caught anything.
-		constexpr int AbsoluteZeroVortexTicks = 10 + 6 * 20 + 10;
-		if (Art(player, MissileGraphicID::AbsoluteZero, here, AbsoluteZeroVortexTicks) == nullptr)
-			Ring(player, here); // the ring without it
+		Field *f = NewField(player, spell, here, AbsoluteZeroVortexTicks, r);
+		f->clock = 0;
+		f->step = 1; // TickField puts the vortex on him
+		StartCooldown(player, spell);
 		if (caught)
 			Impact(player, spell);
 		return true;
@@ -2668,6 +2707,28 @@ void TickField(Player &player, Field &field)
 				BoneStrike(player, *m, Rolled(SkillDamage(field.spell, r)));
 		}
 		break;
+	case SpellID::AbsoluteZero: {
+		// Not into town, like Bone Storm (round 49 audit).
+		if (leveltype == DTYPE_TOWN) {
+			field.ticksLeft = 0;
+			EndAbsoluteZeroArt(player);
+			break;
+		}
+		field.tile = player.position.tile; // it follows him, like an aura
+		if (field.step != 0) { // the cast, or carried over a level change: the vortex for the time left
+			field.step = 0;
+			if (Missile *vortex = Art(player, MissileGraphicID::AbsoluteZero, field.tile, field.ticksLeft); vortex != nullptr)
+				ArtEffectFollowsItsCaster(*vortex);
+			else
+				Ring(player, field.tile); // the ring without the sheet
+		}
+		if (field.clock % AbsoluteZeroPulseTicks == 0) {
+			const Range pulse = AbsoluteZeroPulse64(r);
+			for (Monster *m : MonstersWithin(field.tile, ReachTiles(field.spell, r)))
+				Strike(player, *m, DamageType::Cold, pulse.min + GenerateRnd(pulse.max - pulse.min + 1));
+		}
+		break;
+	}
 	case SpellID::Earthquake:
 		if (field.clock % TicksPerSecond == 0) {
 			const auto shaken = MonstersWithin(field.tile, ReachTiles(field.spell, r));
@@ -3383,6 +3444,23 @@ bool CastRfa12Active(Player &player, SpellID spell, Point target)
 	return true;
 }
 
+int Rfa12CooldownTicksLeft(const Player &player, SpellID spell)
+{
+	for (const auto &[cooling, ticks] : StateOf(player).cooldowns) {
+		if (cooling == spell)
+			return ticks;
+	}
+	return 0;
+}
+
+float Rfa12CooldownProgress(const Player &player, SpellID spell)
+{
+	const int total = CooldownTicks(spell);
+	if (total <= 0)
+		return 1.0F;
+	return 1.0F - static_cast<float>(std::min(Rfa12CooldownTicksLeft(player, spell), total)) / static_cast<float>(total);
+}
+
 bool Rfa12CastLeavesRing(SpellID spell)
 {
 	// RfA-27 batch 55: three of these draw a floor burst of their own now (CastOnce), and the ring is only their stand-in.
@@ -3658,6 +3736,10 @@ void ProcessRfa12ActivesTick(Player &player)
 		if (state.ticks[i] > 0 && --state.ticks[i] == 0 && IsSheetBuff(static_cast<Buff>(i)))
 			CalcPlrInv(player, false);
 	}
+	// And the cooldowns.
+	for (auto &[spell, ticks] : state.cooldowns)
+		ticks = std::max(ticks - 1, 0);
+	std::erase_if(state.cooldowns, [](const auto &cooldown) { return cooldown.second <= 0; });
 	if (player._pHitPoints <= 0 || player._pmode == PM_DEATH)
 		return;
 
@@ -3804,7 +3886,7 @@ void ClearRfa12ActivesState()
 	// audit: the storm ended at a level change).
 	for (Field &field : Fields) {
 		// Only the local hero's (round 49 audit: fields tick for MyPlayer alone, so another's would never run out).
-		if (field.spell == SpellID::BoneStorm && field.ticksLeft > 0 && MyPlayer != nullptr && field.owner == MyPlayer->getId()) {
+		if (IsAnyOf(field.spell, SpellID::BoneStorm, SpellID::AbsoluteZero) && field.ticksLeft > 0 && MyPlayer != nullptr && field.owner == MyPlayer->getId()) {
 			field.step = 1; // its art went with the old floor's missiles: TickField shows it again
 			continue;
 		}
@@ -3875,11 +3957,13 @@ void ClearRfa12ActiveBuffs(Player &player)
 void ClearRfa12PlayerBuffs(Player &player)
 {
 	StateOf(player) = PlayerState {};
-	// His carried Bone Storm too (round 49 audit: frozen while he lay dead, it came back with him after the respawn).
+	// His carried Bone Storm too (round 49 audit: frozen while he lay dead, it came back with him after the respawn), and
+	// his Absolute Zero (2026-10-01), whose vortex goes with it.
 	for (Field &field : Fields) {
-		if (field.spell == SpellID::BoneStorm && field.owner == player.getId())
+		if (IsAnyOf(field.spell, SpellID::BoneStorm, SpellID::AbsoluteZero) && field.owner == player.getId())
 			field = Field {};
 	}
+	EndAbsoluteZeroArt(player);
 }
 
 std::vector<std::pair<SpellID, int>> Rfa12FieldTimers(const Player &player)
@@ -4148,10 +4232,18 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		say(_("Cold damage: {:d} - {:d}, once to each enemy in a three-tile wall rolling {:d} tiles"), d.min, d.max, WhiteoutTicks / WhiteoutStepTicks);
 		say(_("Chill: {} s"), Secs(SlowTicks(spell, r)));
 		break;
-	case SpellID::AbsoluteZero:
-		say(_("Cold damage: {:d} - {:d} within {:d} tiles"), d.min, d.max, reach);
-		say(_("Freeze: {} s (uniques are chilled instead)"), Secs(SlowTicks(spell, r)));
+	case SpellID::AbsoluteZero: {
+		// A tick's share of a pulse, with Cold Mastery's, as Strike deals it.
+		const Range pulse = AbsoluteZeroPulse64(r);
+		const int mastery = ColdMasteryDamagePercent(player);
+		const double perTickMin = (pulse.min + pulse.min * mastery / 100) / 64.0 / AbsoluteZeroPulseTicks;
+		const double perTickMax = (pulse.max + pulse.max * mastery / 100) / 64.0 / AbsoluteZeroPulseTicks;
+		say(_("Cold damage: {:.2f} - {:.2f} a tick to everything within {:d} tiles, dealt every {:d} ticks"), perTickMin, perTickMax, reach, AbsoluteZeroPulseTicks);
+		say(_("The vortex follows you for {} s"), Secs(AbsoluteZeroVortexTicks));
+		say(_("Freeze on cast: {} s (uniques are chilled instead)"), Secs(SlowTicks(spell, r)));
+		say(_("Cooldown: {} s"), Secs(CooldownTicks(spell)));
 		break;
+	}
 	case SpellID::Arc:
 		say(_("Lightning damage: {:d} - {:d}"), d.min, d.max);
 		say(_("Leaps to {:d} more within {:d} tiles, each at {:d}% of the strike before"), ArcHops - 1, reach, ArcFalloffPercent);

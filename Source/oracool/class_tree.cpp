@@ -539,7 +539,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 0, 3, 2, Kind::Active, SpellID::FrozenSentinel, true },
 	{ N_("Whiteout"), N_("A three-tile wall of snow rolls 8 tiles ahead, striking each enemy once for 5-10 cold damage, +3-4 per level, and chilling it."),
 	    Sor, 0, 4, 2, Kind::Active, SpellID::Whiteout, true },
-	{ N_("Absolute Zero"), N_("Everything within 8 tiles takes 8-16 cold damage, +4-6 per level, and freezes solid for 2 seconds. Uniques are chilled instead."),
+	{ N_("Absolute Zero"), N_("Freezes everything within 4 tiles for 2 seconds, then a frost vortex follows you for 7 seconds, dealing 0.35-0.70 cold damage a tick to all within it, +0.35 per level, every 5 ticks. Uniques are chilled instead. 30 second cooldown."),
 	    Sor, 0, 5, 2, Kind::Active, SpellID::AbsoluteZero, true },
 	{ N_("Arc"), N_("A bolt that strikes an enemy near the cursor for 2-12 lightning damage, +2-5 per level, then leaps to two more within 3 tiles for less each time."),
 	    Sor, 1, 0, 1, Kind::Active, SpellID::Arc, true },
