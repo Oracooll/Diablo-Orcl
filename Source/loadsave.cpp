@@ -2309,7 +2309,9 @@ void SaveLevel(SaveWriter &saveWriter, LevelConversionData *levelConversionData)
 
 	char szName[MaxMpqPathSize];
 	GetTempLevelNames(szName);
-	SaveHelper file(saveWriter, szName, 256 * 1024);
+	// 512 KiB (round 61 audit): a full Hellfire floor was 258,467 bytes of the old 256 KiB, 3.7 KiB short of an app_fatal at
+	// the next item-format growth. The record written is only what was used.
+	SaveHelper file(saveWriter, szName, 512 * 1024);
 
 	if (leveltype != DTYPE_TOWN) {
 		for (int j = 0; j < MAXDUNY; j++) {

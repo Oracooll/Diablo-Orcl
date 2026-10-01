@@ -132,7 +132,7 @@ void DrawXpCounter(const Surface &out)
 	// Hidden unless asked for (user, 2026-09-05: "hide the xp counter. show it when hovering over xp
 	// bar and when clicking on xp bar show dungeon exp pool"). Hover shows the ordinary readout;
 	// holding the bar down swaps it for the monsters' pool, as the counter itself used to.
-	if (!IsHeld && !GetCounterRect().contains(MousePosition))
+	if (!IsHeld && !IsPointOverXpBar(MousePosition)) // the bar's hover, chat included (round 61 audit)
 		return;
 
 	// Oracool: user request (2026-08-11) - both readouts carry a percentage, expressed against the

@@ -1,4 +1,5 @@
 #include "oracool/passives.h"
+#include "oracool/rift.h" // IsRiftLevel, RiftRosterSeed - every rift its own floor
 
 #include <algorithm>
 #include <array>
@@ -421,9 +422,12 @@ void RestoreMana(Player &player, int amount)
 	RedrawComponent(PanelDrawComponent::Mana);
 }
 
-/** @brief The floor as "once a floor" counts it: a set level is its own floor. */
+/** @brief The floor as "once a floor" counts it: a set level is its own floor, and every rift its own (round 61 audit: they all
+ * load as the same two set levels, so Final Service and Rathma's Shield stayed spent from one rift into the next). */
 int FloorStamp()
 {
+	if (setlevel && IsRiftLevel(setlvlnum))
+		return 2000 + static_cast<int>(RiftRosterSeed() & 0x3FFFFFFF) % 0x3FFFF000; // this rift's own seed
 	return setlevel ? 1000 + static_cast<int>(setlvlnum) : static_cast<int>(currlevel);
 }
 

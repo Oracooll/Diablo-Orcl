@@ -948,7 +948,9 @@ uint32_t pfile_ui_get_first_unused_save_num()
 {
 	uint32_t saveNum;
 	for (saveNum = 0; saveNum < MAX_CHARACTERS; saveNum++) {
-		if (hero_names[saveNum][0] == '\0')
+		// Not a slot whose file is there and only failed to open or read (round 61 audit: a hero file locked for a moment by
+		// a sync or a scanner went unlisted, its slot looked free, and a new character was published over it).
+		if (hero_names[saveNum][0] == '\0' && !FileExists(GetSavePath(saveNum)))
 			break;
 	}
 	return saveNum;
@@ -960,6 +962,10 @@ bool pfile_ui_save_create(_uiheroinfo *heroinfo)
 
 	uint32_t saveNum = heroinfo->saveNumber;
 	if (saveNum >= MAX_CHARACTERS)
+		return false;
+	// Never over a file that is there (round 61 audit): a new hero takes an empty slot, and a hero file that would not open
+	// for the list is still somebody's character.
+	if (FileExists(GetSavePath(saveNum)))
 		return false;
 	heroinfo->saveNumber = saveNum;
 	InvTabsFileRefused = false; // a new hero starts with pages of his own (round 29 audit)

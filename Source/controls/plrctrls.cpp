@@ -512,6 +512,7 @@ bool IsStandingGround()
 
 void Interact()
 {
+	ForgetStaggeredSwingLatches(); // a fresh press (round 61 audit)
 	// The plain attack, so no earlier skill's latch may ride it - the rule the mouse's LeftMouseCmd and RightMouseBasicAttack
 	// follow (audit, 2026-09-29: on a gamepad the last bow or melee skill fired again, and was paid for, on every attack).
 	oracool::ArmMeleeSkill(std::nullopt);
@@ -2225,6 +2226,7 @@ bool TryDropItem()
 
 void PerformSpellAction()
 {
+	ForgetStaggeredSwingLatches(); // a fresh press (round 61 audit)
 	if (InGameMenu() || QuestLogIsOpen || sbookflag)
 		return;
 

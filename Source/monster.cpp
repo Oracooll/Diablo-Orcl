@@ -4982,7 +4982,8 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	dMonster[monster.position.tile.x][monster.position.tile.y] = monster.getId() + 1;
 	CheckQuestKill(monster, sendmsg);
 	M_FallenFear(monster.position.tile);
-	if (IsAnyOf(monster.type().type, MT_NACID, MT_RACID, MT_BACID, MT_XACID, MT_SPIDLORD))
+	// Not a Revived one (round 61 audit: the puddle hurts only players - the hero, standing among his own army).
+	if (IsAnyOf(monster.type().type, MT_NACID, MT_RACID, MT_BACID, MT_XACID, MT_SPIDLORD) && !monster.isPlayerMinion())
 		AddMissile(monster.position.tile, { 0, 0 }, Direction::South, MissileID::AcidPuddle, TARGET_PLAYERS, monster.getId(), monster.intelligence + 1, 0);
 }
 

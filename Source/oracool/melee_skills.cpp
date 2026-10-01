@@ -333,8 +333,10 @@ int LeapRangeTiles(const Player &player, ClassMeleeSkill skill)
 
 void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill)
 {
-	if (skill.has_value() && *skill != ClassMeleeSkill::LeapAttack)
-		LeapAttackPrepaid = false; // another skill: the leap's blow is not coming
+	// Anything but the Leap Attack swing itself - a plain swing, a stagger, a level change, a new game - and the leap's blow is
+	// not coming (round 61 audit: left set by a disarm, the next leap read it as paid and every leap after was free).
+	if (skill != ClassMeleeSkill::LeapAttack)
+		LeapAttackPrepaid = false;
 	ArmedSkill = skill;
 	BeginClassMeleeSwing(); // a new click: no chain carries over
 	// One latch at a time: arming or disarming this one drops the RfA-12 swing (rfa12_actives.h), which is
@@ -652,7 +654,8 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 
 bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 {
-	if (&player != MyPlayer || !CanPay(player, skill))
+	// The leap's own price, never the prepaid blow's (round 61 audit).
+	if (&player != MyPlayer || !CanPaySkill(player, ClassMeleeSkillSpell(skill)))
 		return false;
 	// From a stand or a walk only. A walk is stopped first: its last frame puts the hero on the step's target tile, so a
 	// leap taken mid-step snapped back there when the step ended - paid for (round 6 audit, v1.12.231). Hit recovery and a
@@ -691,7 +694,8 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 	    static_cast<int>(player.getId()), 0, 0, nullptr, row != ClassTreeSkill::None ? std::optional<_sfx_id>(SFX_NONE) : std::nullopt);
 	if (missile == nullptr)
 		return false;
-	Pay(player, skill, /*landedBlows=*/0); // the leap itself strikes nothing
+	LeapAttackPrepaid = false;
+	SettleSkill(player, ClassMeleeSkillSpell(skill), /*landedBlows=*/0); // the leap itself strikes nothing
 	// ...and for Leap Attack its price is the blow's too: the swing he lands on arrival is paid (round 60 audit).
 	LeapAttackPrepaid = skill == ClassMeleeSkill::LeapAttack;
 	// Heard and seen (the Barbarian Skill Cards page, 2026-09-29): the Cast cue as he goes, the Impact cue and a

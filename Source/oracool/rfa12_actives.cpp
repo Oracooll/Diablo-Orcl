@@ -1502,15 +1502,17 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::GroundStomp: {
 		const auto around = MonstersWithin(here, 1);
-		bool stunned = false; // only what it stuns counts (round 60 audit, as Howl and Taunt in round 55)
-		for (Monster *m : around)
-			stunned = Stagger(*m, StunTicks(spell, r)) || stunned;
-		EarthenMightRage(player, around.size());
+		size_t stunned = 0; // only what it stuns counts (round 60 audit, as Howl and Taunt in round 55)
+		for (Monster *m : around) {
+			if (Stagger(*m, StunTicks(spell, r)))
+				stunned++;
+		}
+		EarthenMightRage(player, stunned); // and Earthen Might's Rage too (round 61: a free stomp beside a boss filled the pool)
 		// RfA-27 batch 55: the cracked ring at his feet, in place of the cry's shockwave (Rfa12CastLeavesRing). On every
 		// stomp, anything in reach or not, and at twice its size (dev notes, 2026-09-29); its floor point is 29px up.
 		if (Missile *ring = Art(player, MissileGraphicID::GroundStomp, here); ring != nullptr)
 			ScaleMissile(*ring, 200, 29);
-		if (!stunned)
+		if (stunned == 0)
 			return false;
 		Impact(player, spell); // its Impact cue, when it stuns anything (the Barbarian Skill Cards page, 2026-09-29)
 		return true;
@@ -1718,7 +1720,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			// One at a time (round 60 audit: a held button laid a new vortex every cast, each following him).
 			for (const Missile &missile : Missiles) {
 				if (missile._miAnimType == MissileGraphicID::AbsoluteZero && missile._misource == static_cast<int>(player.getId()) && !missile._miDelFlag)
-					return true;
+					return false; // fizzles, unpaid (round 61 audit)
 			}
 			if (Missile *vortex = Art(player, MissileGraphicID::AbsoluteZero, here, AbsoluteZeroVortexTicks); vortex != nullptr)
 				ArtEffectFollowsItsCaster(*vortex);
@@ -2718,7 +2720,9 @@ void TickField(Player &player, Field &field)
 			// (a fresh spawn, a re-forming minion) is somewhere else and is not cut (audit, 2026-09-19).
 			if (Hittable(held) && held.position.tile == field.tile) {
 				BoneStrike(player, held, Rolled(SkillDamage(field.spell, r)));
-				Stagger(held, TicksPerSecond + 5);
+				// No longer than the prison stands (round 61 audit: the last pulse held it to 4.25 s against "Hold: 3 s").
+				if (const int hold = std::min(TicksPerSecond + 5, field.ticksLeft); hold > 0)
+					Stagger(held, hold);
 			}
 		}
 		break;

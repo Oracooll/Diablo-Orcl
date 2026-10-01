@@ -3494,8 +3494,18 @@ void StartPlrHit(Player &player, int dam, bool forcehit)
 		// Remembered for the held button, which re-arms them at its next repeat (round 60 audit: a held Bash, Frenzy, Zeal or
 		// Cleave went on as plain swings after the first stagger - no bonus, no knockback, no Rage). Not a Charge, whose arming
 		// is its dash; not the throw (round 5).
-		StaggeredSwingLatches = { oracool::ArmedMeleeSkill() != oracool::PaladinSkill::Charge ? oracool::ArmedMeleeSkill() : std::nullopt,
-			oracool::ArmedClassMeleeSkill(), oracool::ArmedRfa12Melee(), true };
+		// Only while a button is held (round 61 audit: a pad's plain attack later took the stash), and a second stagger in
+		// hit recovery adds to it rather than wiping it with the latches the first one cleared.
+		if (sgbMouseDown != CLICK_NONE || ControllerActionHeld != GameActionType_NONE) {
+			const std::optional<oracool::PaladinSkill> paladin = oracool::ArmedMeleeSkill() != oracool::PaladinSkill::Charge ? oracool::ArmedMeleeSkill() : std::nullopt;
+			if (paladin)
+				StaggeredSwingLatches.paladin = paladin;
+			if (oracool::ArmedClassMeleeSkill())
+				StaggeredSwingLatches.classMelee = oracool::ArmedClassMeleeSkill();
+			if (oracool::ArmedRfa12Melee())
+				StaggeredSwingLatches.rfa12 = oracool::ArmedRfa12Melee();
+			StaggeredSwingLatches.held = StaggeredSwingLatches.paladin || StaggeredSwingLatches.classMelee || StaggeredSwingLatches.rfa12;
+		}
 		if (!oracool::IsFuriousChargeDashing())
 			oracool::ArmMeleeSkill(std::nullopt);
 		oracool::ArmArrowSkill(std::nullopt);

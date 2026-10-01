@@ -26,7 +26,7 @@ void NoteSaveWriteFailed(string_view fileName)
 		Failed = true;
 		FailedFile.assign(fileName.data(), fileName.size());
 	}
-	LogError("Oracool save: writing \"{:s}\" failed", FailedFile);
+	LogError("Oracool save: writing \"{:s}\" failed", fileName); // this failure's file; the message keeps the first (round 61)
 }
 
 bool SaveAttemptFailed()
