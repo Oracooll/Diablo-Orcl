@@ -478,13 +478,13 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Fire Bolt"), N_("A bolt of flame. This engine's Fire Bolt, raised by its books rather than by skill points."), Sor, 2, 0, 0, Kind::Active, SpellID::Firebolt, true },
 	{ N_("Warmth"), N_("Your mana returns of its own accord."), Sor, 2, 0, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Inferno"), N_("A gout of flame from your hands. This engine's Inferno, raised by its books rather than by skill points."), Sor, 2, 1, 0, Kind::Active, SpellID::Inferno, true },
-	{ N_("Blaze"), N_("Sends a wall of fire rolling forward from you. Mapped onto this engine's Flame Wave."), Sor, 2, 2, 0, Kind::Active, SpellID::FlameWave, true },
+	{ N_("Flame Wave"), N_("Sends a wall of fire rolling forward from you. This engine's Flame Wave, raised by its books rather than by skill points."), Sor, 2, 2, 0, Kind::Active, SpellID::FlameWave, true },
 	{ N_("Fire Ball"), N_("A bursting ball of flame. This engine's Fireball, raised by its books rather than by skill points."), Sor, 2, 2, 1, Kind::Active, SpellID::Fireball, true },
 	{ N_("Fire Wall"), N_("A wall of flame across the ground. This engine's Fire Wall, raised by its books rather than by skill points."), Sor, 2, 3, 0, Kind::Active, SpellID::FireWall, true },
 	{ N_("Enchant"), N_("Your weapon burns: every blow carries fire. A passive rather than a cast buff, since a tree skill with no spell slot has no way to be cast."), Sor, 2, 3, 1, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Meteor"), N_("A burning rock falls on the cursor a second after the cast: 20-40 fire damage, +8-12 per level, to everything within 2 tiles, and the ground burns for 3 seconds."), Sor, 2, 4, 0, Kind::Active, SpellID::Meteor, true },
+	{ N_("Meteor"), N_("12 to 16 burning rocks fall at random within 5 tiles of the cursor a second after the cast: each deals 20-40 fire damage, +8-12 per level, within 1 tile of where it lands, and the ground burns for 3 seconds."), Sor, 2, 4, 0, Kind::Active, SpellID::Meteor, true },
 	{ N_("Fire Mastery"), N_("Your weapon blows carry fire, and fire burns you less. Your fire spells are not raised: they deepen by their own level."), Sor, 2, 5, 1, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Hydra"), N_("Sets a fire-breathing head to guard a spot. Mapped onto this engine's Guardian, which is the same idea."), Sor, 2, 5, 0, Kind::Active, SpellID::Guardian, true },
+	{ N_("Fire Hydra"), N_("Sets a fire-breathing hydra to guard a spot. This engine's Fire Hydra (Guardian until v1.12.312), raised by its books rather than by skill points."), Sor, 2, 5, 0, Kind::Active, SpellID::Guardian, true },
 
 	// ---- Passive Skills (page 3) ----
 	{ N_("Power Hungry"), N_("+20% damage to anything five tiles away or further."),
@@ -563,7 +563,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 2, 1, 1, Kind::Active, SpellID::EmberMine, true },
 	{ N_("Flame Ring"), N_("A ring of fire bursts around you: 4-8 fire damage within 2 tiles, +2-3 per level."),
 	    Sor, 2, 1, 2, Kind::Active, SpellID::FlameRing, true },
-	{ N_("Ashen Brand"), N_("Brands an enemy for 4 seconds; if it dies, it bursts for 6-12 fire damage beside it, +3-5 per level."),
+	{ N_("Ashen Brand"), N_("A curse on every enemy within 3 tiles of the cursor for 4 seconds, +0.5 per level: any that dies while cursed bursts for 6-12 fire damage beside it, +3-5 per level."),
 	    Sor, 2, 2, 2, Kind::Active, SpellID::AshenBrand, true },
 	{ N_("Furnace Mouth"), N_("Opens a vent that spits flame three tiles ahead four times, once a second: 4-9 fire damage, +2-4 per level."),
 	    Sor, 2, 3, 2, Kind::Active, SpellID::FurnaceMouth, true },
@@ -571,7 +571,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 2, 4, 1, Kind::Active, SpellID::Firestorm, true },
 	{ N_("Immolate"), N_("For 10 seconds you burn everything beside you, nine times, once a second: 3-6 fire damage, +1-2 per level."),
 	    Sor, 2, 4, 2, Kind::Active, SpellID::Immolate, true },
-	{ N_("Funeral Star"), N_("Stand still for 2 seconds and a star bursts at the cursor: 15-30 fire damage within 3 tiles, +6-10 per level. Moving cancels it."),
+	{ N_("Funeral Spiral"), N_("Twelve fireballs burst from you and spiral outward; each strikes the first enemy it meets for 15-30 fire damage, +6-10 per level."),
 	    Sor, 2, 5, 2, Kind::Active, SpellID::FuneralStar, true },
 	// ======================= ROGUE =======================
 	// --- Bow & Crossbow: the bow skills all want missile work this engine has not been given yet.

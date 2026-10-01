@@ -458,7 +458,9 @@ MissileFileData MissileSpriteData[] = {
 /*LongThrust*/               { {},             192,          64, "long_thrust",           16, MissileGraphicsFlags::PngOnly,                 1, AnimLen_6       },
 /*ReapingPoint*/             { {},             192,          64, "reaping_point",         16, MissileGraphicsFlags::PngOnly,                 1, AnimLen_6       },
 /*ChillTouch*/               { {},             192,          64, "chill_touch",           16, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
-/*FurnaceMouth*/             { {},             192,          64, "furnace_mouth",         16, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
+// 2026-10-01 (user): the user's furnace, by tools/BuildFireSheets.py - 8 rows in the engine's facing order (S first, clockwise),
+// one 448x320 frame each, the floor at (224, 160); its flame below on the same cell and anchor.
+/*FurnaceMouth*/             { {},             448,         192, "furnace_mouth",          8, MissileGraphicsFlags::PngOnly,                 1, AnimLen_1       },
 // RfA-27 batch 54, projectiles and travelling waves
 /*BarbedArrow*/              { {},              96,          16, "barbed_arrow",          16, MissileGraphicsFlags::PngOnly,                 0, AnimLen_4       },
 /*ShockArrow*/               { {},              96,          16, "shock_arrow",           16, MissileGraphicsFlags::PngOnly,                 0, AnimLen_4       },
@@ -507,7 +509,8 @@ MissileFileData MissileSpriteData[] = {
 /*LightningRod*/             { {},              64,           0, "lightning_rod",          1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_16      },
 /*StormConductor*/           { {},              48,          -8, "storm_conductor",        1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_8       },
 /*StormArc*/                 { {},              64,           0, "storm_arc",              1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_4       },
-/*EmberMine*/                { {},              32,         -16, "ember_mine",             1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_8       },
+// 2026-10-01 (user): the user's mine A, at the half size they picked - 8 frames of 64x32 (tools/BuildFireSheets.py).
+/*EmberMine*/                { {},              64,           0, "ember_mine",             1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_8       },
 /*FuneralStarCharge*/        { {},              64,           0, "funeral_star_charge",    1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_8       },
 // RfA-27 batch 56, body overlays
 /*StaticCharge*/             { {},              96,          16, "static_charge",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
@@ -541,6 +544,9 @@ MissileFileData MissileSpriteData[] = {
 /*LightningStrikeChain*/     { {},              96,          16, "lightning_strike_chain", 8, MissileGraphicsFlags::PngOnly,                 1, AnimLen_32      },
 /*LightningStrikeLong*/      { {},             144,          40, "lightning_strike_long",  4, MissileGraphicsFlags::PngOnly,                 1, AnimLen_32      },
 /*LightningStrikeImpact*/    { {},             144,          40, "lightning_strike_impact", 4, MissileGraphicsFlags::PngOnly,                1, AnimLen_32      },
+/*FurnaceFlame*/             { {},             448,         192, "furnace_flame",          8, MissileGraphicsFlags::PngOnly,                 1, AnimLen_1       },
+// Ashen Brand's ring: aura_holy_fire at 448x224, the 3 tiles round the cursor, its glow dithered (tools/BuildFireSheets.py).
+/*AshenRing*/                { {},             448,         192, "ashen_ring",             1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_1       },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };

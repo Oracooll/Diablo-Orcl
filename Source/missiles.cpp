@@ -4001,6 +4001,9 @@ constexpr int BoneWallStandFrame = 7;
  */
 MissileGraphicID CensusArtOverride = MissileGraphicID::None;
 
+/** @brief Ashen Brand's ring, in ticks (rfa12_actives spawns it for this long; ProcessCensusEffect fades it by them). */
+constexpr int AshenRingTicks = 20;
+
 /** @brief AddArtEffect's carrier: a census row that loops its sheet for the ticks it is given and does nothing else. */
 constexpr MissileID ArtEffectCarrier = MissileID::AcidCloud;
 // Absolute Zero's sheet (tools/BuildAbsoluteZero.py's INTRO, LOOP, OUTRO): the parts ProcessCensusEffect plays, a frame a tick.
@@ -4025,7 +4028,7 @@ Displacement ArtEffectAnchor(MissileGraphicID art)
 	case MissileGraphicID::ArcSpark:
 		return { 0, -16 };
 	case MissileGraphicID::EmberMine:
-		return { 0, -8 };
+		return { 0, 0 }; // the user's mine: its centre on the floor point, y 16 of 32 (2026-10-01)
 	case MissileGraphicID::StaticCharge:
 	case MissileGraphicID::Conduit:
 	case MissileGraphicID::Immolate:
@@ -4094,7 +4097,10 @@ Displacement ArtEffectAnchor(MissileGraphicID art)
 	case MissileGraphicID::ReapingPoint:
 	case MissileGraphicID::ChillTouch:
 	case MissileGraphicID::FurnaceMouth:
-		return { 0, 80 }; // the feet at the cell's centre, y 96 of 192
+	case MissileGraphicID::FurnaceFlame:
+		return { 0, 144 }; // the floor at the cell's centre, y 160 of 320 (the user's sheets, 2026-10-01)
+	case MissileGraphicID::AshenRing:
+		return { 0, 96 }; // the ring's centre on the floor point, y 112 of 224
 	default:
 		return { 0, 0 };
 	}
@@ -4113,6 +4119,11 @@ uint8_t ArtEffectLightRadius(MissileGraphicID art)
 	case MissileGraphicID::LightningRod:
 	case MissileGraphicID::StormConductor:
 		return 4;
+	case MissileGraphicID::FurnaceFlame:
+		return 5; // fire lights the floor too
+	case MissileGraphicID::EmberMine:
+	case MissileGraphicID::AshenRing:
+		return 2;
 	case MissileGraphicID::FaradayRing:
 	case MissileGraphicID::ArcSpark:
 	case MissileGraphicID::StormArc:
@@ -4129,7 +4140,7 @@ bool ArtEffectOnFloor(MissileGraphicID art)
 {
 	return IsAnyOf(art, MissileGraphicID::GroundStomp, MissileGraphicID::MountainPole, MissileGraphicID::FlameRing,
 	    MissileGraphicID::AbsoluteZero, MissileGraphicID::DeathNova, MissileGraphicID::Earthquake, MissileGraphicID::FaradayRing,
-	    MissileGraphicID::StormArc, MissileGraphicID::EmberMine);
+	    MissileGraphicID::StormArc, MissileGraphicID::EmberMine, MissileGraphicID::AshenRing);
 }
 
 } // namespace
@@ -4400,6 +4411,11 @@ void ProcessCensusEffect(Missile &missile)
 			missile._miAnimFrame = missile._miAnimLen - missile._mirange; // steps onto this tick's shrink frame
 		else if (missile._miAnimFrame >= AbsoluteZeroIntroFrames + AbsoluteZeroLoopFrames && missile._miAnimCnt + 1 >= missile._miAnimDelay)
 			missile._miAnimFrame = AbsoluteZeroIntroFrames; // steps back onto the loop's first frame
+	}
+	// Ashen Brand's ring fades in over 6 ticks, holds, and fades out over its last 8 (user, 2026-10-01: "fade in and out").
+	if (missile._mitype == ArtEffectCarrier && missile._miAnimType == MissileGraphicID::AshenRing) {
+		const int age = AshenRingTicks - missile._mirange;
+		missile.oracoolAlpha = static_cast<uint16_t>(std::clamp(std::min(age * 256 / 6, missile._mirange * 256 / 8), 16, 256));
 	}
 	// A lightning strike flashes and fades: its last tick at half strength (2026-10-01).
 	if (missile._mitype == ArtEffectCarrier && IsAnyOf(missile._miAnimType, MissileGraphicID::LightningStrikeShort, MissileGraphicID::LightningStrikeChain,

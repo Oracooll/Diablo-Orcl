@@ -802,7 +802,19 @@ struct Field {
 	int ticksTotal = 0; // as cast: the countdown row's 5-second rule (a seeded clock is not its age)
 };
 
-constexpr size_t MaxFields = 32;
+// 64 since 2026-10-01: Meteor's shower takes a field a rock, up to 16 at once.
+constexpr size_t MaxFields = 64;
+/**
+ * @brief Funeral Spiral (user, 2026-10-01, in place of Funeral Star): 12 of Immolation's fireballs burst from the Sorcerer
+ * and spiral outward as Blessed Hammer does, each exploding on the first enemy it meets. Radians and screen pixels a tick.
+ */
+constexpr int FuneralSpiralBalls = 12;
+constexpr int FuneralSpiralTicks = 46;
+constexpr double FuneralSpiralTurn = 0.14;
+constexpr double FuneralSpiralGrow = 4.0;
+constexpr int FuneralSpiralMark = 0x4653;
+constexpr int FurnaceFlameTicks = 12; // each spit's flame on screen
+constexpr int AshenRingTicks = 20;    // the curse ring's fade in, hold and fade out (missiles.cpp fades it by the same count)
 std::array<Field, MaxFields> Fields;
 int FieldStamp = 0;
 
@@ -959,10 +971,10 @@ int EffectTicks(SpellID spell, int r)
 	case SpellID::StormCrucible: return 8 * TicksPerSecond; // to place the pair
 	case SpellID::CinderTouch: return 3 * TicksPerSecond;
 	case SpellID::EmberMine: return 20 * TicksPerSecond;
-	case SpellID::AshenBrand: return 4 * TicksPerSecond;
+	case SpellID::AshenBrand: return 4 * TicksPerSecond + (std::max(r, 1) - 1) * TicksPerSecond / 2; // a curse: 4 s, +0.5 a level (2026-10-01)
 	case SpellID::Firestorm: return 4 * TicksPerSecond;
 	case SpellID::Immolate: return 10 * TicksPerSecond;
-	case SpellID::FuneralStar: return 2 * TicksPerSecond; // standing still
+	case SpellID::FuneralStar: return FuneralSpiralTicks; // the fireballs' flight
 	case SpellID::BarbedShaft: return 3 * TicksPerSecond;
 	case SpellID::HuntersMark: return (10 + p) * TicksPerSecond;
 	case SpellID::HuntersClaim: return 8 * TicksPerSecond;
@@ -1124,6 +1136,7 @@ int ReachTiles(SpellID spell, int r)
 	case SpellID::RideTheLightning: return 6;
 	case SpellID::FlameRing: return 2;
 	case SpellID::FuneralStar: return 3;
+	case SpellID::AshenBrand: return 3; // the curse's area round the cursor (user, 2026-10-01)
 	case SpellID::PiercingShot: return 10;
 	case SpellID::RainOfArrows: return 2;
 	case SpellID::PhantomVolley: return 6;
@@ -1214,8 +1227,14 @@ int LightningCloneStrikeEvery(int r)
 }
 constexpr int AncestralCourtTicks = TicksPerSecond + 15;
 constexpr int AncestralCourtStrikes = 3; // at one second, and five and ten ticks after
-constexpr int MeteorRadius = 2;
+// Meteor (user, 2026-10-01): a shower - 12 to 16 rocks at random within 5 tiles of the cursor, landing over a second, each a
+// 1-tile blast at the old single rock's damage, its ground burning round it.
+constexpr int MeteorRadius = 1;
 constexpr int MeteorBurnRadius = 1;
+constexpr int MeteorShowerRadius = 5;
+constexpr int MeteorShowerMin = 12;
+constexpr int MeteorShowerMax = 16;
+constexpr int MeteorShowerSpreadTicks = TicksPerSecond;
 constexpr int LightningRodBurstRadius = 2;
 constexpr int FaradayRingReach = 2;
 /**
@@ -2022,17 +2041,28 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::AshenBrand: {
-		Monster *m = NearestTo(target, 2);
-		if (m == nullptr)
-			return false;
-		MarksOf(*m).ashenTicks = EffectTicks(spell, r);
-		MarksOf(*m).ashenRank = r;
+		// A curse (user, 2026-10-01): every enemy within 3 tiles of the cursor is branded for the curse's length; any that
+		// dies branded bursts (OnRfa12ActiveMonsterKilled). The holy-fire ring fades in and out over the area.
+		for (Monster *m : MonstersWithin(target, ReachTiles(spell, r))) {
+			MarksOf(*m).ashenTicks = EffectTicks(spell, r);
+			MarksOf(*m).ashenRank = r;
+		}
+		if (Missile *ring = Art(player, MissileGraphicID::AshenRing, target, AshenRingTicks); ring != nullptr) {
+			ring->_mirange = AshenRingTicks;
+			ring->oracoolAlpha = 16;
+			ring->oracoolTint = Tint::Glint; // light running through its flames
+			ring->oracoolTintRgb = 0;
+		} else {
+			Ring(player, target);
+		}
 		return true;
 	}
 	case SpellID::FurnaceMouth: {
 		Field *f = NewField(player, spell, target, FurnaceMouthTicks, r);
 		f->dir = target == here ? player._pdir : GetDirection(here, target);
 		f->clock = TicksPerSecond - 1;
+		// The user's furnace (2026-10-01), turned to the cast's way for the vent's whole life; TickField spits its flame.
+		AddArtEffectFacing(target, MissileGraphicID::FurnaceMouth, static_cast<int>(player.getId()), static_cast<int>(f->dir), FurnaceMouthTicks);
 		return true;
 	}
 	case SpellID::Firestorm: {
@@ -2044,15 +2074,18 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		StartBuff(player, Buff::Immolate, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::FuneralStar: {
-		PlayerState &state = StateOf(player);
-		// A star still gathering gives way to the new one, art and all (round 52 audit: its art played on, unburst).
-		if (state.funeralTicks > 0)
-			EndArtEffects(state.funeralTile, MissileGraphicID::FuneralStarCharge, static_cast<int>(player.getId()));
-		state.funeralTicks = EffectTicks(spell, r);
-		state.funeralTile = target;
-		state.funeralFrom = here;
-		state.funeralRank = r;
-		Art(player, MissileGraphicID::FuneralStarCharge, target, EffectTicks(spell, r)); // RfA-27 batch 55: the star gathering
+		// Funeral Spiral (user, 2026-10-01): twelve fireballs burst from her at once and spiral out (TickField moves them).
+		Field *f = NewField(player, spell, here, FuneralSpiralTicks, r);
+		for (int ball = 0; ball < FuneralSpiralBalls; ball++) {
+			Missile *fireball = AddArtEffectFacing(here, MissileGraphicID::Fireball, static_cast<int>(player.getId()), 0, FuneralSpiralTicks + 2);
+			if (fireball == nullptr)
+				break;
+			fireball->_mirange = FuneralSpiralTicks + 2;
+			fireball->var2 = ball;
+			fireball->var5 = f->stamp;
+			fireball->var6 = FuneralSpiralMark;
+			fireball->_mlid = AddLight(here, 3);
+		}
 		return true;
 	}
 	// ---------------- Rogue: bow ----------------
@@ -2209,11 +2242,26 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	// ---- the census notes (2026-09-14) ----
-	case SpellID::Meteor:
-		// A second to fall, three to burn: TickField does both. The rock's ten frames take that second.
-		NewField(player, spell, target, EffectTicks(spell, r), r);
-		Show(player, MissileID::MeteorFall, MissileGraphicID::Meteor, target, target);
+	case SpellID::Meteor: {
+		// A shower (user, 2026-10-01): a field a rock, each at a random open tile within 5 tiles of the cursor, landing at a
+		// random tick over a second. A rock's field counts from before its fall: it shows the fall at 0 and lands a second on.
+		const int rocks = MeteorShowerMin + GenerateRnd(MeteorShowerMax - MeteorShowerMin + 1);
+		for (int rock = 0; rock < rocks; rock++) {
+			Point at = target;
+			for (int attempt = 0; attempt < 12; attempt++) {
+				const Displacement d { GenerateRnd(2 * MeteorShowerRadius + 1) - MeteorShowerRadius, GenerateRnd(2 * MeteorShowerRadius + 1) - MeteorShowerRadius };
+				const Point p = target + d;
+				if (d.deltaX * d.deltaX + d.deltaY * d.deltaY <= MeteorShowerRadius * MeteorShowerRadius && InDungeonBounds(p) && !IsTileSolid(p)) {
+					at = p;
+					break;
+				}
+			}
+			const int delay = GenerateRnd(MeteorShowerSpreadTicks + 1);
+			Field *f = NewField(player, spell, at, EffectTicks(spell, r) + delay + 1, r);
+			f->clock = -delay - 1;
+		}
 		return true;
+	}
 	case SpellID::Valkyrie:
 	case SpellID::Decoy:
 		// Companions (user, 2026-09-14): the Valkyrie archer, and the Decoy that draws every blow. oracool/companion.h.
@@ -3159,6 +3207,44 @@ void TickField(Player &player, Field &field)
 			Impact(player, field.spell); // RfA-27: Faraday Ring's fizzle, once a tick however many it caught
 		break;
 	}
+	case SpellID::FuneralStar: {
+		// Funeral Spiral: each fireball on its arm of the spiral, from where she cast; the first enemy it meets takes the blow
+		// and the ball bursts in Fireball's explosion. A wall ends a ball too.
+		const Range d = SkillDamage(field.spell, r);
+		const double t = field.clock;
+		for (Missile &ball : Missiles) {
+			if (ball._miDelFlag || ball.var6 != FuneralSpiralMark || ball.var5 != field.stamp || ball._misource != field.owner || ball._mirange <= 1)
+				continue;
+			const double angle = ball.var2 * 2 * 3.14159265358979 / FuneralSpiralBalls + t * FuneralSpiralTurn;
+			const double radius = 12 + t * FuneralSpiralGrow;
+			const Displacement pixels { static_cast<int>(std::cos(angle) * radius), static_cast<int>(std::sin(angle) * radius / 2) };
+			const Displacement tiles = pixels.screenToMissile();
+			const Point tile = field.tile + tiles;
+			if (!InDungeonBounds(tile) || IsTileSolid(tile)) {
+				ball._mirange = 1;
+				continue;
+			}
+			ball.position.tile = tile;
+			ball.position.start = tile;
+			ball.position.offset = pixels + tiles.worldToScreen(); // a flying sheet hangs at chest height as it is
+			// Facing the spiral's tangent, by sixteenths (South first, clockwise on screen); turned only when it changes.
+			const double dx = -std::sin(angle) * radius * FuneralSpiralTurn + std::cos(angle) * FuneralSpiralGrow;
+			const double dy = (std::cos(angle) * radius * FuneralSpiralTurn + std::sin(angle) * FuneralSpiralGrow) / 2;
+			const int dir16 = (static_cast<int>(std::lround((std::atan2(dy, dx) * 180 / 3.14159265358979 - 90) / 22.5)) % 16 + 16) % 16;
+			if (dir16 != ball._mimfnum)
+				SetMissDir(ball, dir16);
+			if (ball._mlid != NO_LIGHT)
+				ChangeLightXY(ball._mlid, tile);
+			Monster *hit = FindMonsterAtPosition(tile);
+			if (hit != nullptr && Hittable(*hit)) {
+				Strike(player, *hit, DamageType::Fire, Rolled(d));
+				Art(player, MissileGraphicID::BigExplosion, tile);
+				Impact(player, field.spell);
+				ball._mirange = 1; // gone next tick, its light with it
+			}
+		}
+		break;
+	}
 	case SpellID::RideTheLightning: {
 		// Lightning Clone (user, 2026-10-01): it runs to him at his walk, any of the eight ways, striking as it goes.
 		Missile *clone = FieldClone(field);
@@ -3272,6 +3358,8 @@ void TickField(Player &player, Field &field)
 	}
 	// ---- the census notes (2026-09-14) ----
 	case SpellID::Meteor:
+		if (field.clock == 0)
+			Show(player, MissileID::MeteorFall, MissileGraphicID::Meteor, field.tile, field.tile); // its second's fall
 		if (field.step == 0 && field.clock >= TicksPerSecond) {
 			field.step = 1;
 			const Range d = SkillDamage(field.spell, r);
@@ -3307,9 +3395,15 @@ void TickField(Player &player, Field &field)
 			const Range d = SkillDamage(field.spell, r);
 			for (Monster *m : MonstersOnLine(field.tile, field.tile + field.dir, FurnaceMouthTiles))
 				Strike(player, *m, DamageType::Fire, Rolled(d));
-			// RfA-27 batch 53: the jet spat along the vent's facing, each of the four pulses; the ring without it.
-			if (ArtFacing(player, MissileGraphicID::FurnaceMouth, field.tile, field.dir) == nullptr)
+			// The user's flame (2026-10-01) spat three tiles along the furnace's facing, each pulse, light running out along
+			// it; the ring without it.
+			if (Missile *flame = AddArtEffectFacing(field.tile, MissileGraphicID::FurnaceFlame, static_cast<int>(player.getId()), static_cast<int>(field.dir), FurnaceFlameTicks); flame != nullptr) {
+				flame->_mirange = FurnaceFlameTicks;
+				flame->oracoolTint = Tint::Glint;
+				flame->oracoolTintRgb = 0;
+			} else {
 				Ring(player, field.tile);
+			}
 			Impact(player, field.spell);
 		}
 		break;
@@ -4041,8 +4135,8 @@ void OnRfa12ActiveMonsterKilled(Player &player, const Monster &monster)
 		marks.ashenTicks = 0;
 		for (Monster *m : MonstersWithin(at, 1))
 			Strike(player, *m, DamageType::Fire, Rolled(SkillDamage(SpellID::AshenBrand, r)));
-		// RfA-27: the branded body bursting (batch 55) with its cue (batch 51); the ring without the sheet.
-		if (Art(player, MissileGraphicID::AshenBurst, at) == nullptr)
+		// The cursed body bursting in vanilla fire (user, 2026-10-01: the Ashen Burst sheet removed), with its cue.
+		if (Art(player, MissileGraphicID::ApocalypseBoom, at) == nullptr)
 			Ring(player, at);
 		Impact(player, SpellID::AshenBrand);
 	}
@@ -4146,22 +4240,6 @@ void ProcessRfa12ActivesTick(Player &player)
 			else
 				ScaleMissile(*pillar, 75, pillar->position.offset.deltaY + 16);
 			Impact(player, SpellID::WrathOfTheHeavens);
-		}
-	}
-
-	// Funeral Star: stand still until it bursts.
-	if (state.funeralTicks > 0) {
-		if (player.position.tile != state.funeralFrom) {
-			state.funeralTicks = 0;
-			EndArtEffects(state.funeralTile, MissileGraphicID::FuneralStarCharge, static_cast<int>(player.getId())); // she moved
-		} else if (--state.funeralTicks == 0) {
-			const Range d = SkillDamage(SpellID::FuneralStar, state.funeralRank);
-			for (Monster *m : MonstersWithin(state.funeralTile, ReachTiles(SpellID::FuneralStar, state.funeralRank)))
-				Strike(player, *m, DamageType::Fire, Rolled(d));
-			// RfA-27: the star bursting (batch 55) and its cue (batch 51); the ring without the sheet.
-			if (Art(player, MissileGraphicID::FuneralStarBurst, state.funeralTile) == nullptr)
-				Ring(player, state.funeralTile);
-			Impact(player, SpellID::FuneralStar);
 		}
 	}
 
@@ -4675,7 +4753,8 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		say(_("Fire damage: {:d} - {:d} within {:d} tiles"), d.min, d.max, reach);
 		break;
 	case SpellID::AshenBrand:
-		say(_("If it dies: {:d} - {:d} fire damage to everything beside it"), d.min, d.max);
+		say(_("Curses every enemy within {:d} tiles of the cursor"), reach);
+		say(_("If one dies cursed: {:d} - {:d} fire damage to everything beside it"), d.min, d.max);
 		duration();
 		break;
 	case SpellID::FurnaceMouth:
@@ -4700,12 +4779,13 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		duration();
 		break;
 	case SpellID::FuneralStar:
-		say(_("Fire damage: {:d} - {:d} within {:d} tiles"), d.min, d.max, reach);
-		say(_("Stand still for {} s; moving cancels it"), Secs(EffectTicks(spell, r)));
+		say(_("{:d} fireballs spiral out from you"), FuneralSpiralBalls);
+		say(_("Fire damage: {:d} - {:d} to the first enemy each one meets"), d.min, d.max);
 		break;
 	case SpellID::Meteor: {
 		const Range burn = MeteorBurn(r);
-		say(_("Fire damage: {:d} - {:d} within {:d} tiles, a second after the cast"), d.min, d.max, MeteorRadius);
+		say(_("{:d} - {:d} meteors within {:d} tiles of the cursor, landing over a second"), MeteorShowerMin, MeteorShowerMax, MeteorShowerRadius);
+		say(_("Fire damage: {:d} - {:d} within {:d} tile of each"), d.min, d.max, MeteorRadius);
 		say(_("Burning ground: {:d} - {:d} a second for {:d} s"), burn.min, burn.max, PulseCount(0, EffectTicks(spell, r), TicksPerSecond) - 1);
 		break;
 	}

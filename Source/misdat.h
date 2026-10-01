@@ -310,6 +310,9 @@ enum class MissileGraphicID : uint8_t {
 	LightningStrikeChain,
 	LightningStrikeLong,
 	LightningStrikeImpact,
+	// 2026-10-01 (user): Furnace Mouth's flame (its furnace keeps the FurnaceMouth row) and Ashen Brand's curse ring.
+	FurnaceFlame,
+	AshenRing,
 	None,
 };
 

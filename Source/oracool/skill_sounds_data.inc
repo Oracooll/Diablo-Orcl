@@ -400,7 +400,7 @@ const SkillSound SkillSounds[] = {
 	{ Skill::AbsoluteZero, SkillSoundEvent::Cast, "sfx\\misc\\nestxpld.wav" },
 	{ Skill::Arc, SkillSoundEvent::Cast, "sfx\\misc\\lning1.wav" },
 	{ Skill::Arc, SkillSoundEvent::Impact, "sfx\\misc\\elecimp1.wav" },
-	{ Skill::AshenBrand, SkillSoundEvent::Cast, "sfx\\misc\\fbolt1.wav" },
+	{ Skill::AshenBrand, SkillSoundEvent::Cast, "sfx\\misc\\flamwave.wav" }, // the user's pick, 2026-10-01
 	{ Skill::AshenBrand, SkillSoundEvent::Impact, "sfx\\misc\\firimp2.wav" },
 	{ Skill::Blaze, SkillSoundEvent::Cast, "sfx\\misc\\flamwave.wav" },
 	{ Skill::Blaze, SkillSoundEvent::Impact, "sfx\\misc\\firimp2.wav" },
