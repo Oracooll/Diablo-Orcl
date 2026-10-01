@@ -32,6 +32,7 @@
 #include "oracool/combat_odds.h"
 #include "oracool/melee_skills.h" // ClassMeleeSkillBonusPercentFor - a melee skill's swing on the sheet
 #include "oracool/passives.h"
+#include "oracool/sat_math.h" // PercentOfSat - Whirlwind's share of the readied blow
 #include "oracool/rfa12_effects.h" // the Armor class and To hit boxes' odds bars
 #include "oracool/aura_field.h" // HolyPulseDamage / SanctuaryDamage - a damaging aura's number on the sheet
 #include "oracool/hero_title.h"
@@ -283,8 +284,10 @@ StyledText GetReadiedSlotDamage(bool leftButton)
 	if (bonus >= 0) {
 		// The skill's bonus joins the pool, as PlrHitMonst adds it (user, 2026-10-01: Diablo II's rule).
 		const int always = oracool::PassiveUnconditionalDamagePercent(player);
-		const int low = PooledWeaponDamage(player, player._pIMinDam, always + bonus, StatSharePercent());
-		const int high = PooledWeaponDamage(player, player._pIMaxDam, always + bonus, StatSharePercent());
+		// Whirlwind's spin strikes a share of the blow, as PlrHitMonst multiplies it (round 58 audit).
+		const int share = oracool::ClassMeleeSkillSharePercentFor(player, spell);
+		const int low = oracool::PercentOfSat(PooledWeaponDamage(player, player._pIMinDam, always + bonus, StatSharePercent()), share);
+		const int high = oracool::PercentOfSat(PooledWeaponDamage(player, player._pIMaxDam, always + bonus, StatSharePercent()), share);
 		return StyledText { UiFlags::ColorWhite, StrCat(low, "-", high), (low >= 100) ? -1 : 1 };
 	}
 	if (ReadiedSlotSwingsTheWeapon(spell))

@@ -10,6 +10,7 @@
 #include <string>
 
 #include "oracool/class_tree.h"
+#include "oracool/melee_skills.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
@@ -218,6 +219,14 @@ TEST(OracoolRage, WhirlwindIsHeldOnTheRightButton)
 {
 	EXPECT_EQ(oracool::WhirlwindDamagePercent(1), 66);
 	EXPECT_EQ(oracool::WhirlwindDamagePercent(5), 86) << "+5% a rank";
+	// A share of the whole blow, not a term of the pool (round 58 audit): the sheet's readied line reads it as a swing.
+	{
+		devilution::Player player {};
+		EXPECT_EQ(oracool::ClassMeleeSkillBonusPercentFor(player, SpellID::Whirlwind), 0) << "below zero read as not a swing";
+		EXPECT_EQ(oracool::ClassMeleeSkillSharePercentFor(player, SpellID::Whirlwind), oracool::WhirlwindDamagePercent(1));
+		EXPECT_EQ(oracool::ClassMeleeSkillSharePercentFor(player, SpellID::Bash), 100);
+		EXPECT_EQ(oracool::ClassMeleeSkillSharePercent(player), 100) << "nothing armed, nothing spinning: the whole blow";
+	}
 	EXPECT_TRUE(oracool::RightButtonOnly(SpellID::Whirlwind));
 	EXPECT_TRUE(oracool::RightButtonOnly(SpellID::Earthquake)) << "the Barbarian Skill Cards page, 2026-09-29";
 	EXPECT_FALSE(oracool::RightButtonOnly(SpellID::Bash));

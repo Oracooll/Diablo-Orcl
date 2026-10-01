@@ -16,6 +16,7 @@
 #include "engine.h"
 #include "engine/load_file.hpp"
 #include "init.h"
+#include "levels/gendung.h" // setlevel - a level save that failed un-marks its floor
 #include "loadsave.h"
 #include "menu.h"
 #include "mpq/mpq_common.hpp"
@@ -1082,12 +1083,23 @@ void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 
 void pfile_save_level()
 {
-	SaveWriter saveWriter = GetSaveWriter(gSaveNumber);
 	// Checked and said (user, 2026-10-01): a floor whose save failed came back as its previous visit's snapshot.
 	oracool::BeginSaveAttempt();
-	SaveLevel(saveWriter);
+	{
+		// Scoped (round 58 audit): the archive is published by the writer's destructor - the header, the tables and the
+		// rename, the likeliest writes to fail - so only after the closing brace does "did this save happen" have an answer.
+		SaveWriter saveWriter = GetSaveWriter(gSaveNumber);
+		SaveLevel(saveWriter);
+		if (oracool::SaveAttemptFailed())
+			ForgetUnsavedLevel(saveWriter);
+	}
 	if (oracool::SaveAttemptFailed()) {
-		ForgetUnsavedLevel(saveWriter);
+		// The archive kept whatever it held before; a floor not marked visited is built anew, so that is never read.
+		Player &myPlayer = *MyPlayer;
+		if (!setlevel)
+			myPlayer._pLvlVisited[currlevel] = false;
+		else
+			myPlayer._pSLvlVisited[setlvlnum] = false;
 		const std::string failed = fmt::format(fmt::runtime(_("SAVE FAILED - this floor could not be saved (\"{:s}\"). It will be built anew when you return.")),
 		    oracool::FailedSaveFileName());
 		oracool::LogEvent(failed, UiFlags::ColorRed);

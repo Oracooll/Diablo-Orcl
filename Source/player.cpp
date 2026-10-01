@@ -808,8 +808,10 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	// the rest) all ADD to the items' +% and the Strength share, one percentage of the bare roll.
 	const int pool = oracool::ClassMeleeSkillDamagePercent(player) + oracool::PaladinMeleeDamagePercent(player) + oracool::Rfa12MeleeDamagePercent(player)
 	    + oracool::PassiveDamageDealtPercent(player, monster, true) + oracool::Rfa12DamageDealtPercent(player, monster, true);
-	int dam = PooledWeaponDamage(player, weaponRoll, pool);
-	int dam2 = PooledWeaponDamage(player, weaponRoll, pool, /*statSharePercent=*/0) << 6; // Peril's own cut, the weapon's as before
+	// A share of the blow (a spin's, a chain's extra blow) multiplies the whole pool (round 58 audit).
+	const int share = oracool::ClassMeleeSkillSharePercent(player);
+	int dam = oracool::PercentOfSat(PooledWeaponDamage(player, weaponRoll, pool), share);
+	int dam2 = oracool::PercentOfSat(PooledWeaponDamage(player, weaponRoll, pool, /*statSharePercent=*/0), share) << 6; // Peril's own cut, the weapon's as before
 	if (player._pClass == HeroClass::Warrior || player._pClass == HeroClass::Barbarian) {
 		if (GenerateRnd(100) < player._pLevel) {
 			dam *= 2;
@@ -4765,7 +4767,7 @@ int PooledWeaponDamage(const Player &player, int weaponRoll, int poolPercent, in
 	    + int64_t { poolPercent } * 100;
 	basisPoints = std::max<int64_t>(basisPoints, 0); // a cursed pool takes the weapon to nothing, never below
 	const int64_t damage = int64_t { std::max(weaponRoll, 0) } * basisPoints / 10000 + player._pIBonusDamMod;
-	return static_cast<int>(std::clamp<int64_t>(damage, 0, INT_MAX / 128));
+	return static_cast<int>(std::clamp<int64_t>(damage, 0, INT_MAX / 2048)); // room for the crit, class, Triple Demon, Devastation and <<6 after it (round 58)
 }
 
 void ModifyPlrStr(Player &player, int l)

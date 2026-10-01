@@ -361,18 +361,29 @@ void NoteSideSweep()
 
 int ClassMeleeSkillDamagePercent(const Player &player)
 {
-	// The spin's blows (oracool/whirlwind.h): a share of a normal blow, the latch or none.
+	// The spin's blows (oracool/whirlwind.h) carry no bonus: they are a share of a normal blow (ClassMeleeSkillSharePercent).
 	if (IsWhirlwinding(player))
-		return WhirlwindDamagePercent(RankOf(player, ClassMeleeSkill::Whirlwind)) - 100;
+		return 0;
 	if (&player != MyPlayer || !ArmedSkill.has_value() || !CanPay(player, *ArmedSkill))
 		return 0;
 	const Profile p = ProfileOf(*ArmedSkill);
-	const int rank = RankOf(player, *ArmedSkill);
-	const int bonus = p.bonusPercent + p.bonusPerRank * (rank - 1);
-	// A chained swing is the extra blow: its share of a first blow that carried the bonus.
-	if (ChainFollowUp && IsSwingChainSkill(*ArmedSkill))
-		return (100 + bonus) * (p.extraSharePercent + p.extraSharePerRank * (rank - 1)) / 100 - 100;
-	return bonus;
+	// A chained swing's extra blow carries the bonus too: it is a share of a first blow that had it.
+	return p.bonusPercent + p.bonusPerRank * (RankOf(player, *ArmedSkill) - 1);
+}
+
+int ClassMeleeSkillSharePercent(const Player &player)
+{
+	// Round 58 audit: added into the pool, a share lost force as gear grew - a rank 1 spin at +400% gear struck 93% of a
+	// full blow, a chain's half-blow 86%. Multiplied after the pool, it is the share the rows quote.
+	if (IsWhirlwinding(player))
+		return WhirlwindDamagePercent(RankOf(player, ClassMeleeSkill::Whirlwind));
+	if (&player != MyPlayer || !ArmedSkill.has_value() || !CanPay(player, *ArmedSkill))
+		return 100;
+	if (ChainFollowUp && IsSwingChainSkill(*ArmedSkill)) {
+		const Profile p = ProfileOf(*ArmedSkill);
+		return p.extraSharePercent + p.extraSharePerRank * (RankOf(player, *ArmedSkill) - 1);
+	}
+	return 100;
 }
 
 void BeginClassMeleeSwing()
@@ -419,12 +430,19 @@ int ClassMeleeSkillBonusPercentFor(const Player &player, SpellID spell)
 	const std::optional<ClassMeleeSkill> skill = ClassMeleeSkillForSpell(spell);
 	if (!skill.has_value())
 		return -1;
-	// Whirlwind's profile is all zeros: its blows are a share of a normal one, as ClassMeleeSkillDamagePercent says -
-	// the sheet showed the full swing, half again the real blow (round 4 audit, v1.12.229).
+	// Whirlwind's profile is all zeros: no bonus, its blows a share of a normal one (ClassMeleeSkillSharePercentFor).
+	// It answered its share minus 100, below zero, so the sheet read it as "not a melee skill" (round 58 audit).
 	if (*skill == ClassMeleeSkill::Whirlwind)
-		return WhirlwindDamagePercent(RankOf(player, ClassMeleeSkill::Whirlwind)) - 100;
+		return 0;
 	const Profile p = ProfileOf(*skill);
 	return p.bonusPercent + p.bonusPerRank * (RankOf(player, *skill) - 1);
+}
+
+int ClassMeleeSkillSharePercentFor(const Player &player, SpellID spell)
+{
+	if (ClassMeleeSkillForSpell(spell) == ClassMeleeSkill::Whirlwind)
+		return WhirlwindDamagePercent(RankOf(player, ClassMeleeSkill::Whirlwind));
+	return 100;
 }
 
 bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, int frontDamage)

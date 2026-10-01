@@ -107,6 +107,12 @@ std::optional<ClassMeleeSkill> ArmedClassMeleeSkill();
  */
 int ClassMeleeSkillDamagePercent(const Player &player);
 
+/**
+ * @brief The share of a whole blow the swing being resolved strikes, in percent: Whirlwind's spin, a chained swing's extra
+ * blow, else 100. Multiplies the pooled blow (round 58 audit) - a share, not a "+X%" of the pool.
+ */
+int ClassMeleeSkillSharePercent(const Player &player);
+
 /** @brief A fresh swing is starting (StartAttack): no Double Swing / Frenzy chain carries into it. */
 void BeginClassMeleeSwing();
 
@@ -127,6 +133,9 @@ bool TryContinueClassMeleeChain(Player &player);
  * swing armed. -1 when @p spell is not a class melee skill.
  */
 int ClassMeleeSkillBonusPercentFor(const Player &player, SpellID spell);
+
+/** @brief The share of a whole blow @p spell's swing strikes at @p player's rank, as the sheet quotes it: Whirlwind's, else 100. */
+int ClassMeleeSkillSharePercentFor(const Player &player, SpellID spell);
 
 /**
  * @brief Everything the armed skill does beyond the swing's own blow. Called once per swing by

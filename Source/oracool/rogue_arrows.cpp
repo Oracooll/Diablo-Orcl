@@ -254,9 +254,11 @@ void RogueArrowDamage(const Player &player, SpellID spell, int spellLevel, int &
 	case RogueArrow::Strafe: {
 		// Physical arrows: MonsterMHit adds the +%, the flat bonus and the Strength part to them, so the slot quotes the
 		// same sum - it read the bare weapon dice (round 12 audit, v1.12.237).
+		// Glass Cannon in the pool, as the arrow's hit and the sheet's Damage line add it (round 58 audit).
 		const int statShare = player._pClass == HeroClass::Rogue ? 100 : 50; // the pool's stat share, as the arrow takes it
-		minDamage = PooledWeaponDamage(player, minDamage, 0, statShare);
-		maxDamage = PooledWeaponDamage(player, maxDamage, 0, statShare);
+		const int always = PassiveUnconditionalDamagePercent(player);
+		minDamage = PooledWeaponDamage(player, minDamage, always, statShare);
+		maxDamage = PooledWeaponDamage(player, maxDamage, always, statShare);
 		break;
 	}
 	}

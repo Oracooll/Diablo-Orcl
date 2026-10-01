@@ -1229,9 +1229,8 @@ int StatDamage(const Player &player, int weaponRoll);
 /**
  * @brief Diablo II's damage pool (user, 2026-10-01): the bare weapon roll times (100% + the items' +% damage + the stat
  * share + @p poolPercent), then the items' flat bonus. @p poolPercent is every "+X% damage" the blow carries - the armed
- * skill's, the passives', a follow-up's "-25%" - added, not multiplied, so they all scale the Strength part alike and a
- * follow-up "at 75%" is a share of the whole pool. Shares of a blow ("150% weapon damage", a companion's half) still
- * multiply the result. @p statSharePercent: 50 for a bow outside the Rogue, 0 to leave the stat out.
+ * skill's, the passives' - added, not multiplied, so they all scale the Strength part alike. Shares of a blow ("150% weapon
+ * damage", a companion's half, Whirlwind's spin, a chain's extra blow at 75%) multiply the result. @p statSharePercent: 50 for a bow outside the Rogue, 0 to leave the stat out.
  */
 int PooledWeaponDamage(const Player &player, int weaponRoll, int poolPercent, int statSharePercent = 100);
 int StatPointsToSpend(const Player &player, CharacterAttribute attribute, int requested);
