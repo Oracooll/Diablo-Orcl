@@ -1139,6 +1139,12 @@ void AddPlrExperience(Player &player, int lvl, int exp);
 uint64_t KillExperienceFor(const Player &player, int monsterLevel, int monsterExp);
 void AddPlrMonstExper(int lvl, int exp, char pmask);
 void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP = 0, int frac = 0, DeathReason deathReason = DeathReason::MonsterOrTrap);
+
+/**
+ * @brief The life the last ApplyPlrDamage call took, in 64ths, before any heal it set off (Mercy, a cheat-death passive) -
+ * what a monster's drain reads (round 45 audit).
+ */
+extern int LastPlayerLifeLost;
 void InitPlayer(Player &player, bool FirstTime);
 void InitMultiView();
 void PlrClrTrans(Point position);

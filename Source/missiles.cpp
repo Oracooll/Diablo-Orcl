@@ -1619,13 +1619,12 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	if (resper > 0) {
 		dam -= dam * resper / 100;
 		if (&player == MyPlayer) {
-			const int lifeBefore = player._pHitPoints;
 			ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
 			if (monster != nullptr) {
 				if ((player._pHitPoints >> 6) > 0) // not from the corpse (round 38 audit)
 					oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
 				// The drain takes what life actually lost (round 44 audit: Mana Shield and the passives were drained through).
-				OnMonsterMissileLanded(player, *monster, std::max(lifeBefore - player._pHitPoints, 0), poisonBase);
+				OnMonsterMissileLanded(player, *monster, LastPlayerLifeLost, poisonBase);
 			}
 		}
 
@@ -1636,12 +1635,11 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	}
 
 	if (&player == MyPlayer) {
-		const int lifeBefore = player._pHitPoints;
 		ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
 		if (monster != nullptr) {
 			if ((player._pHitPoints >> 6) > 0) // not from the corpse (round 38 audit)
 				oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
-			OnMonsterMissileLanded(player, *monster, std::max(lifeBefore - player._pHitPoints, 0), poisonBase);
+			OnMonsterMissileLanded(player, *monster, LastPlayerLifeLost, poisonBase);
 		}
 	}
 

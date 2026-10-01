@@ -1428,8 +1428,18 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			const int ceiling = LargestAffixRollAtOrBelow(power.type, std::max<int>(1, target._iOracoolItemLevel));
 			if (ceiling < 0)
 				continue;
-			power.param1 = std::min(power.param1, ceiling);
-			power.param2 = std::min(power.param2, ceiling);
+			// The row it joins (below) counts against the same ceiling (round 45 audit: a +15-25 life craft on a Rare's +60 life
+			// row made one row of 85, a level-60 roll on a level-30 item). The craft adds only what fits.
+			int alreadyRolled = 0;
+			for (int i = 0; i < target._iOracoolAffixCount && !IsAnyOf(power.type, IPL_STEALLIFE, IPL_STEALMANA); i++) {
+				if (target._iOracoolAffixes[i].type == power.type)
+					alreadyRolled = target._iOracoolAffixes[i].param1;
+			}
+			const int room = ceiling - alreadyRolled;
+			if (room <= 0 && alreadyRolled > 0)
+				continue;
+			power.param1 = std::min(power.param1, alreadyRolled > 0 ? room : ceiling);
+			power.param2 = std::min(power.param2, alreadyRolled > 0 ? room : ceiling);
 			const int raw = ApplyOracoolItemPower(*MyPlayer, target, power);
 			// Joined to the Rare's own affix of the same kind when it rolled one (tooltip sweep, 2026-09-25: a Safety
 			// Craft printed "-1 damage from enemies" twice). The stat was applied twice either way; one row with the

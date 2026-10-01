@@ -199,6 +199,8 @@ void Shove(Monster &monster, Direction dir)
 
 /** @brief Every hittable monster within @p radius tiles of @p centre, gathered before anything is struck. */
 std::optional<Point> CastSightFrom; // see below, at NearestTo
+/** @brief The caster's facing while a cast runs: the way a line skill cast on his own tile goes (round 45 audit). */
+std::optional<Direction> CastFacing;
 
 /** @brief Lifts the cast's sight gate for a chain's hop or a death's burst, which see from where they are (round 35). */
 struct NoCastSight {
@@ -257,7 +259,9 @@ Monster *NearestTo(Point centre, int radius, const Monster *except = nullptr)
 std::vector<Point> LineOfTiles(Point from, Point toward, int length)
 {
 	std::vector<Point> tiles;
-	const Direction dir = toward == from ? Direction::South : GetDirection(from, toward);
+	// On the caster's own tile, the way he faces - StartSpell turned him there - not South (round 45 audit: Long Thrust drew
+	// to the south-west and struck south).
+	const Direction dir = toward == from ? CastFacing.value_or(Direction::South) : GetDirection(from, toward);
 	Point tile = from;
 	for (int i = 0; i < length; i++) {
 		tile = tile + dir;
@@ -449,6 +453,24 @@ Point LineEnd(Point from, Point toward, int length)
 {
 	const std::vector<Point> tiles = LineOfTiles(from, toward, length);
 	return tiles.empty() ? from : tiles.back();
+}
+
+/**
+ * @brief The last open tile of the STRAIGHT line from @p here to @p aim, short of the first wall or blocked sight (rounds 43-45
+ * audit): Blight's pool, Plague Javelin's cloud, and where Vault, Leaping Crane, Shoulder Gate and Heaven's Descent land.
+ */
+Point LastClearTileToward(Point here, Point aim)
+{
+	Point last = here;
+	const Displacement delta = aim - here;
+	const int steps = std::max(std::abs(delta.deltaX), std::abs(delta.deltaY));
+	for (int k = 1; k <= steps; k++) {
+		const Point tile = here + Displacement { (delta.deltaX * k * 2 + (delta.deltaX >= 0 ? steps : -steps)) / (2 * steps), (delta.deltaY * k * 2 + (delta.deltaY >= 0 ? steps : -steps)) / (2 * steps) };
+		if (!InDungeonBounds(tile) || IsTileSolid(tile) || !LineClearMissile(here, tile))
+			break;
+		last = tile;
+	}
+	return last;
 }
 
 /**
@@ -1327,10 +1349,14 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	const int earshot = AuraRadiusForPoints(r);
 	// The skills that set a field or a charge down at the cursor: not past a wall from the hero (round 40 audit - Meteor,
 	// Funeral Star and the rest landed on the next room's pack, and their ticks, which see from the field, burned it).
-	if (CastSightFrom && target != here && !LineClearMissile(here, target)
+	// A wall tile is no target either (round 45 audit: LineClear never tests the end tile, and a sentinel or a mine set there
+	// was a dud). Rain of Arrows, Wave of Light, Valkyrie's Spear and Seven-Sided Strike joined too (round 45): their volley,
+	// bell or spear landed in the next room with its cue, and the cast was paid.
+	if (CastSightFrom && target != here && (!InDungeonBounds(target) || IsTileSolid(target) || !LineClearMissile(here, target))
 	    && IsAnyOf(spell, SpellID::Meteor, SpellID::FuneralStar, SpellID::AncestralCourt, SpellID::FrozenSentinel, SpellID::LightningRod,
 	        SpellID::EmberMine, SpellID::StormCrucible, SpellID::BrittleGround, SpellID::ArmyOfTheDead, // the Army too (round 41)
-	        SpellID::FaradayRing, SpellID::FurnaceMouth, SpellID::Firestorm, SpellID::TuningFork)) { // and these (round 41)
+	        SpellID::FaradayRing, SpellID::FurnaceMouth, SpellID::Firestorm, SpellID::TuningFork, // and these (round 41)
+	        SpellID::RainOfArrows, SpellID::WaveOfLight, SpellID::ValkyriesSpear, SpellID::SevenSidedStrike)) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
@@ -1338,7 +1364,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	switch (spell) {
 	// ---------------- Paladin ----------------
 	case SpellID::HeavensDescent: {
-		const Point dst = Clamped(here, target, ReachTiles(spell, r));
+		// Short of a wall, as Ride the Lightning since round 40 (round 45 audit: these four moved through walls).
+		const Point dst = LastClearTileToward(here, Clamped(here, target, ReachTiles(spell, r)));
 		if (!TeleportTo(player, dst, spell))
 			return false;
 		PlayerState &state = StateOf(player);
@@ -1838,7 +1865,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::Vault: {
-		const Point dst = Clamped(here, target, ReachTiles(spell, r));
+		const Point dst = LastClearTileToward(here, Clamped(here, target, ReachTiles(spell, r)));
 		if (!TeleportTo(player, dst, spell))
 			return false;
 		// RfA-27 batch 57: the dust at take-off and landing, and the landing's cue.
@@ -1885,7 +1912,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::PlagueJavelin: {
 		const auto line = MonstersOnLine(here, target, 8);
-		const Point burst = line.empty() ? Clamped(here, target, 8) : Point(line.front()->position.tile);
+		// Short of a wall when nothing is struck (round 45 audit: the cloud landed in the next room and pulsed there).
+		const Point burst = line.empty() ? LastClearTileToward(here, Clamped(here, target, 8)) : Point(line.front()->position.tile);
 		NewField(player, spell, burst, EffectTicks(spell, r), r);
 		Show(player, MissileID::AcidJavelin, MissileGraphicID::AcidJavelin, here, burst);
 		if (!Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, burst, burst, EffectTicks(spell, r)))
@@ -2141,7 +2169,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	// ---------------- Monk: body ----------------
 	case SpellID::LeapingCrane: {
-		const Point dst = Clamped(here, target, ReachTiles(spell, r));
+		const Point dst = LastClearTileToward(here, Clamped(here, target, ReachTiles(spell, r)));
 		if (!TeleportTo(player, dst, spell))
 			return false;
 		Art(player, MissileGraphicID::LeapingCrane, here); // RfA-27 batch 57: the take-off; the landing's is TickLanding's
@@ -2153,7 +2181,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::ShoulderGate: {
-		const Point dst = Clamped(here, target, ReachTiles(spell, r));
+		const Point dst = LastClearTileToward(here, Clamped(here, target, ReachTiles(spell, r)));
 		if (!TeleportTo(player, dst, spell))
 			return false;
 		Art(player, MissileGraphicID::ShoulderGate, here); // RfA-27 batch 57: the rush's start; the impact ring is TickLanding's
@@ -2333,17 +2361,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const Point aim = Clamped(here, target, 8);
 		// The last open tile of the straight line to it (round 43 audit: LineEnd walks one 8-way step and strayed off the
 		// bolt's line, and a cursor on a wall tile put the pool in the wall).
-		Point pool = here;
-		{
-			const Displacement delta = aim - here;
-			const int steps = std::max(std::abs(delta.deltaX), std::abs(delta.deltaY));
-			for (int k = 1; k <= steps; k++) {
-				const Point tile = here + Displacement { (delta.deltaX * k * 2 + (delta.deltaX >= 0 ? steps : -steps)) / (2 * steps), (delta.deltaY * k * 2 + (delta.deltaY >= 0 ? steps : -steps)) / (2 * steps) };
-				if (!InDungeonBounds(tile) || IsTileSolid(tile) || !LineClearMissile(here, tile))
-					break;
-				pool = tile;
-			}
-		}
+		const Point pool = LastClearTileToward(here, aim);
 		Field *f = NewField(player, spell, pool, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
 		ImpactOnLanding(player, Bolt(player, MissileID::PoisonBoltFlight, pool), spell); // RfA-27: the splash as the bolt lands
@@ -2587,7 +2605,12 @@ void TickField(Player &player, Field &field)
 		else if (field.ticksLeft == SentinelSinkTicks)
 			SentinelArt(player, field.tile, SentinelSink);
 		if (field.clock % FrozenSentinelPeriod == 0) {
-			if (Monster *m = NearestTo(field.tile, ReachTiles(field.spell, r)); m != nullptr) {
+			// What the sentinel itself can see (round 45 audit: it fired every bolt into the wall at a monster behind it).
+			const std::optional<Point> savedSight = CastSightFrom;
+			CastSightFrom = field.tile;
+			Monster *const seen = NearestTo(field.tile, ReachTiles(field.spell, r));
+			CastSightFrom = savedSight;
+			if (Monster *m = seen; m != nullptr) {
 				Missile *bolt = AddMissile(field.tile, m->position.tile, GetDirection(field.tile, m->position.tile), MissileID::IceBolt,
 				    TARGET_MONSTERS, static_cast<int>(player.getId()), 0, r);
 				if (bolt != nullptr) {
@@ -3210,9 +3233,17 @@ bool CastRfa12Active(Player &player, SpellID spell, Point target)
 	const int r = RankOf(player, spell);
 	PlayerState &state = StateOf(player);
 	struct SightScope {
-		explicit SightScope(Point from) { CastSightFrom = from; }
-		~SightScope() { CastSightFrom = std::nullopt; }
-	} sight { player.position.tile };
+		explicit SightScope(const Player &caster)
+		{
+			CastSightFrom = caster.position.tile;
+			CastFacing = caster._pdir;
+		}
+		~SightScope()
+		{
+			CastSightFrom = std::nullopt;
+			CastFacing = std::nullopt;
+		}
+	} sight { player };
 	const BowStrikeScope bow { IsBowSkill(spell) };
 	if (!CastOnce(player, spell, target, r))
 		return false;

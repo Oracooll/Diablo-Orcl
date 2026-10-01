@@ -1662,7 +1662,12 @@ void DrawSpriteShrunk(const Surface &out, const Rectangle &box, ClxSprite sprite
 	const int h = static_cast<int>(sprite.height());
 	if (w <= 0 || h <= 0 || box.size.width <= 0 || box.size.height <= 0)
 		return;
-	OwnedSurface scratch(w, h);
+	// One scratch for every item, every frame, grown to the largest sprite asked (round 45 audit: a surface was created and
+	// freed per item per frame while the Cube stood open).
+	static std::optional<OwnedSurface> shrinkScratch;
+	if (!shrinkScratch || shrinkScratch->w() < w || shrinkScratch->h() < h)
+		shrinkScratch.emplace(std::max(w, shrinkScratch ? shrinkScratch->w() : 0), std::max(h, shrinkScratch ? shrinkScratch->h() : 0));
+	OwnedSurface &scratch = *shrinkScratch;
 	SDL_FillRect(scratch.surface, nullptr, 0);
 	ClxDraw(scratch, { 0, h - 1 }, sprite);
 	// One scale for both axes, the smaller: a sword stays long and thin.

@@ -1755,7 +1755,6 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		// endgame boss's blow (oracool::MonsterColdMeleePercent). A cold part that lands chills, as in Diablo II.
 		const DamageType variantElement = oracool::VariantHitElement(monster);
 		const int bossCold = oracool::MonsterColdMeleePercent(monster);
-		const int lifeBeforeBlow = player._pHitPoints; // the drain below takes what life actually lost
 		if (variantElement != DamageType::Physical || bossCold > 0) {
 			const DamageType element = variantElement != DamageType::Physical ? variantElement : DamageType::Cold;
 			const int elemental = variantElement != DamageType::Physical ? dam / 3 : dam * bossCold / 100;
@@ -1800,7 +1799,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		if (monster.mode != MonsterMode::Death) {
 			// What the hero's life actually lost (round 44 audit): the blow before resistance, Mana Shield and the damage-taken
 			// passives healed a Vampiric champion through a shield that took it all.
-			const int landed = std::max(lifeBeforeBlow - player._pHitPoints, 0);
+			const int landed = LastPlayerLifeLost;
 			oracool::OnLesserUniqueDealtDamage(monster, landed);
 			// And the boss's own drain, which is a different trait on a different field - a boss's
 			// lesserAffix is Dread, so OnLesserUniqueDealtDamage's Vampiric test never fires for one.

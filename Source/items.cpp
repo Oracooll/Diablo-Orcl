@@ -4094,8 +4094,20 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	// the magic requirement the spell set are carried across like the sockets are.
 	const bool keepsStaffSpell = item._iMiscId == IMISC_STAFF;
 	const SpellID staffSpell = item._iSpell;
-	const int staffCharges = item._iCharges;
-	const int staffMaxCharges = item._iMaxCharges;
+	// The charges WITHOUT the old record's Plentiful/Bountiful multiplier, and the new record's put on (round 45 audit: a
+	// rework that replaced the row kept the doubled or tripled charges).
+	const auto chargeMultiplier = [](const OracoolAffix *rows, int rowCount) {
+		int multiplier = 1;
+		for (int i = 0; i < rowCount; i++) {
+			if (rows[i].type == IPL_CHARGES && rows[i].param1 > 1)
+				multiplier *= rows[i].param1;
+		}
+		return multiplier;
+	};
+	const int oldChargeMultiplier = chargeMultiplier(item._iOracoolAffixes.data(), std::clamp<int>(item._iOracoolAffixCount, 0, Item::MaxOracoolAffixes));
+	const int newChargeMultiplier = chargeMultiplier(affixes, std::max(count, 0));
+	const int staffCharges = item._iCharges / oldChargeMultiplier * newChargeMultiplier;
+	const int staffMaxCharges = item._iMaxCharges / oldChargeMultiplier * newChargeMultiplier;
 	const uint8_t staffMinMag = item._iMinMag;
 	// Copied first: GetItemAttrs empties the item's affix list, and a caller may hand in that very list.
 	std::array<OracoolAffix, Item::MaxOracoolAffixes> wanted {};

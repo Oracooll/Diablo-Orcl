@@ -3634,8 +3634,11 @@ void StripTopGold(Player &player)
 	player._pGold = CalculateGold(player);
 }
 
+int LastPlayerLifeLost = 0;
+
 void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*= 0*/, int frac /*= 0*/, DeathReason deathReason /*= DeathReason::MonsterOrTrap*/)
 {
+	LastPlayerLifeLost = 0;
 	// A dead hero takes nothing more. The Drain Life tick kept landing through the death animation: another
 	// "Slain by" in the log and another telemetry death every tick, and a cheat-death save coming off cooldown could
 	// set life on a corpse (round 4 audit, v1.12.229).
@@ -3695,6 +3698,8 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 	}
 
 	RedrawComponent(PanelDrawComponent::Health);
+	// What the blow took, before the heals below can answer it (round 45 audit: a drain read 0 after Mercy).
+	LastPlayerLifeLost = std::max(0, std::min(totalDamage, player._pHitPoints));
 	player._pHitPoints -= totalDamage;
 	player._pHPBase -= totalDamage;
 	// Galvanizing Ward's clock and Illusionist's burst (2026-09-14) answer a blow actually taken.

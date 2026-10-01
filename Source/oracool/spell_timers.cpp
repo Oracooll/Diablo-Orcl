@@ -14,6 +14,7 @@
 #include "missiles.h"
 #include "oracool/cold.h"
 #include "oracool/hud_art.h"
+#include "oracool/hud_layout.h" // GetManaOrbRect - where the column stops
 #include "oracool/rfa12_actives.h"
 #include "oracool/warcries.h"
 #include "player.h"
@@ -136,9 +137,16 @@ void DrawSpellTimers(const Surface &out)
 		return;
 
 	const Rectangle miniMap = GetMiniMapScreenRect();
-	const int iconX = miniMap.position.x - Gap - IconSize;
+	int iconX = miniMap.position.x - Gap - IconSize;
 	int y = miniMap.position.y;
+	// The column stops above the mana orb and goes on in a second one to its left (round 45 audit: with cries, buffs, armours
+	// and fields together the rows ran down over the orb's glass at 960x720).
+	const int bottom = GetManaOrbRect().position.y - Gap;
 	for (const Timer &timer : timers) {
+		if (y + IconSize > bottom && y != miniMap.position.y) {
+			iconX -= IconSize + TextGap + TextWidth + Gap;
+			y = miniMap.position.y;
+		}
 		const Rectangle icon { { iconX, y }, { IconSize, IconSize } };
 		FillRectRgb(out, icon.position.x, icon.position.y, IconSize, IconSize, BlueBacking, BlueBackingIndex);
 		DrawTimedSpellIcon(out, icon, player._pClass, timer.spell);
