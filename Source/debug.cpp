@@ -648,12 +648,12 @@ std::string DebugCmdGiveWaypoints(const string_view parameter)
 std::string DebugCmdMaxStats(const string_view parameter)
 {
 	Player &myPlayer = *MyPlayer;
-	// To the fork's ceiling, 255, not the class row's vanilla maximum (round 44 audit: it LOWERED a base past the row - a
-	// Paladin's 200 Magic fell to 50). ModifyPlr* clamps at the ceiling.
-	ModifyPlrStr(myPlayer, 255 - myPlayer._pBaseStr);
-	ModifyPlrMag(myPlayer, 255 - myPlayer._pBaseMag);
-	ModifyPlrDex(myPlayer, 255 - myPlayer._pBaseDex);
-	ModifyPlrVit(myPlayer, 255 - myPlayer._pBaseVit);
+	// To the fork's ceiling, MaxBaseAttribute, not the class row's vanilla maximum (round 44 audit: it LOWERED a base past
+	// the row - a Paladin's 200 Magic fell to 50). ModifyPlr* clamps at the ceiling.
+	ModifyPlrStr(myPlayer, MaxBaseAttribute - myPlayer._pBaseStr);
+	ModifyPlrMag(myPlayer, MaxBaseAttribute - myPlayer._pBaseMag);
+	ModifyPlrDex(myPlayer, MaxBaseAttribute - myPlayer._pBaseDex);
+	ModifyPlrVit(myPlayer, MaxBaseAttribute - myPlayer._pBaseVit);
 	return "Who needs elixirs anyway?";
 }
 

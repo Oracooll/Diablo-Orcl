@@ -188,7 +188,7 @@ void AddOffense(const Player &p, std::vector<Row> &rows)
 	}
 	// NoMana zeroes this whatever the jewellery says (GetSheetManaStealPercent answers 0 then).
 	if (const int manaPct = GetSheetManaStealPercent(); manaPct > 0)
-		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:d}% mana stolen per hit")), manaPct) });
+		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:d}% mana stolen per melee hit")), manaPct) });
 
 	// Animation frames, so LOWER is faster: the old sheet's Now/Base pair in one line.
 	if (const int skipped = GetSheetAttackFramesSkipped(); skipped > 0) {
@@ -290,12 +290,14 @@ void AddOther(const Player &p, std::vector<Row> &rows)
 		rows.push_back({ move > 0 ? RowKind::Bonus : RowKind::Curse,
 		    fmt::format(fmt::runtime(_("{:s}% movement speed")), Signed(move)) });
 	}
+	// The drop reads at most 75 (items.cpp): past it, the row says what counts (round 49 audit).
+	const std::string magicFind = p._pMagicFind > 75 ? fmt::format(fmt::runtime(_("{:s}% magic find (75% counts)")), Signed(p._pMagicFind))
+	                                                 : fmt::format(fmt::runtime(_("{:s}% magic find")), Signed(p._pMagicFind));
 	if (p._pMagicFind != 0 && p._pGoldFind != 0) {
 		// One line when both are there, as the mock-up drew it - they are read together.
-		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:s}% magic find  -  {:s}% gold find")),
-		                                     Signed(p._pMagicFind), Signed(p._pGoldFind)) });
+		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:s}  -  {:s}% gold find")), magicFind, Signed(p._pGoldFind)) });
 	} else if (p._pMagicFind != 0) {
-		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:s}% magic find")), Signed(p._pMagicFind)) });
+		rows.push_back({ RowKind::Bonus, magicFind });
 	} else if (p._pGoldFind != 0) {
 		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:s}% gold find")), Signed(p._pGoldFind)) });
 	}

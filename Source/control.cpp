@@ -923,7 +923,7 @@ void FocusOnCharInfo()
 	// Find the first incrementable stat.
 	int stat = -1;
 	for (auto attribute : enum_values<CharacterAttribute>()) {
-		const int maximum = 255;
+		const int maximum = MaxBaseAttribute;
 		if (myPlayer.GetBaseAttributeValue(attribute) >= maximum)
 			continue;
 		stat = static_cast<int>(attribute);
@@ -1771,7 +1771,7 @@ void CheckChrBtns()
 		return;
 
 	for (auto attribute : enum_values<CharacterAttribute>()) {
-		const int maximum = 255;
+		const int maximum = MaxBaseAttribute;
 		if (myPlayer.GetBaseAttributeValue(attribute) >= maximum)
 			continue;
 		auto buttonId = static_cast<size_t>(attribute);

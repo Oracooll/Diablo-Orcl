@@ -272,7 +272,7 @@ const char *RogueArrowDescription(SpellID spell)
 	case SpellID::ColdArrow:
 		return N_("An arrow sheathed in frost: your bow's damage as cold, and it chills what it hits.");
 	case SpellID::MultipleShot:
-		return N_("Looses a fan of arrows at once - two, and one more every two ranks.");
+		return N_("Looses a fan of arrows at once - two, and one more every two ranks, six at most.");
 	case SpellID::ExplodingArrow:
 		return N_("A fire arrow that bursts where it stops, burning the tiles around it.");
 	case SpellID::IceArrow:
@@ -280,7 +280,7 @@ const char *RogueArrowDescription(SpellID spell)
 	case SpellID::GuidedArrow:
 		return N_("An arrow that cannot miss.");
 	case SpellID::Strafe:
-		return N_("One arrow at each enemy in view, nearest first - three, and one more every two ranks.");
+		return N_("One arrow at each enemy in view, nearest first - three, and one more every two ranks, eight at most.");
 	case SpellID::ImmolationArrow:
 		return N_("A fire arrow that leaves a wall of flame burning where it stops.");
 	case SpellID::FreezingArrow:

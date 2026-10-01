@@ -199,10 +199,12 @@ void PackPlayer(PlayerPack &packed, const Player &player)
 	}
 	CopyUtf8(packed.pName, player._pName, sizeof(packed.pName));
 	packed.pClass = static_cast<uint8_t>(player._pClass);
-	packed.pBaseStr = player._pBaseStr;
-	packed.pBaseMag = player._pBaseMag;
-	packed.pBaseDex = player._pBaseDex;
-	packed.pBaseVit = player._pBaseVit;
+	// Clamped, never wrapped: a base past 255 rides in full in the BaseAttributes chunk (v1.12.282), and a chunkless reader
+	// sees 255 rather than 300 mod 256.
+	packed.pBaseStr = static_cast<uint8_t>(std::clamp(player._pBaseStr, 0, 255));
+	packed.pBaseMag = static_cast<uint8_t>(std::clamp(player._pBaseMag, 0, 255));
+	packed.pBaseDex = static_cast<uint8_t>(std::clamp(player._pBaseDex, 0, 255));
+	packed.pBaseVit = static_cast<uint8_t>(std::clamp(player._pBaseVit, 0, 255));
 	packed.pLevel = player._pLevel;
 	// CLAMPED, not narrowed. _pStatPts is an int and this field is a uint8_t, so the old implicit
 	// conversion wrapped: 260 points wrote 4 (external audit, 2026-08-25). The real value rides
@@ -274,10 +276,12 @@ void PackNetPlayer(PlayerNetPack &packed, const Player &player)
 	packed.py = player.position.tile.y;
 	CopyUtf8(packed.pName, player._pName, sizeof(packed.pName));
 	packed.pClass = static_cast<uint8_t>(player._pClass);
-	packed.pBaseStr = player._pBaseStr;
-	packed.pBaseMag = player._pBaseMag;
-	packed.pBaseDex = player._pBaseDex;
-	packed.pBaseVit = player._pBaseVit;
+	// Clamped, never wrapped: a base past 255 rides in full in the BaseAttributes chunk (v1.12.282), and a chunkless reader
+	// sees 255 rather than 300 mod 256.
+	packed.pBaseStr = static_cast<uint8_t>(std::clamp(player._pBaseStr, 0, 255));
+	packed.pBaseMag = static_cast<uint8_t>(std::clamp(player._pBaseMag, 0, 255));
+	packed.pBaseDex = static_cast<uint8_t>(std::clamp(player._pBaseDex, 0, 255));
+	packed.pBaseVit = static_cast<uint8_t>(std::clamp(player._pBaseVit, 0, 255));
 	packed.pLevel = player._pLevel;
 	// Clamped for the same reason as the hero pack above - see that comment. This is the NETWORK
 	// pack, which multiplayer no longer reaches (oracool::MultiplayerEnabled), but a field that
@@ -436,10 +440,10 @@ void UnPackPlayer(const PlayerPack &packed, Player &player)
 
 	InitPlayer(player, true);
 
-	// The fork's cap, 255, not the class row's vanilla maximum (audit, 2026-09-27): every other path - the + buttons,
-	// ModifyPlr*, CheckStats - lets a base stat reach 255, and this cut it back to the class row on every New Game. A
-	// Paladin who spent Vitality to 130 came back with 100 and the 30 points gone; a Barbarian lost every Magic shrine.
-	// The byte itself is the cap.
+	// Not the class row's vanilla maximum (audit, 2026-09-27): every other path - the + buttons, ModifyPlr*, CheckStats -
+	// lets a base stat reach the fork's ceiling, and this cut it back to the class row on every New Game. A Paladin who spent
+	// Vitality to 130 came back with 100 and the 30 points gone; a Barbarian lost every Magic shrine. The byte holds up to
+	// 255; past that the BaseAttributes chunk, applied after this, carries the full value (v1.12.282).
 	player._pBaseStr = packed.pBaseStr;
 	player._pStrength = player._pBaseStr;
 	player._pBaseMag = packed.pBaseMag;

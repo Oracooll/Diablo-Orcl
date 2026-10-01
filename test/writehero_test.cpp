@@ -811,10 +811,12 @@ TEST(Writehero, pfile_write_hero)
 	// 1.12.037: FIFTEEN BYTES, tag 18 - MAX_SPELLS 275 -> 290 for the Necromancer's Curses actives.
 	// 1.12.232: THE TAIL GREW, on purpose - HeroChunkSpellLevels (tag 19): every _pSplLvl byte, because PlayerPack carries
 	//      ids 0-46 only and the five runes (47-51) have books; a rune read from its book came back at level 0.
+// 1.12.282 (2026-10-01): THE TAIL GREW, on purpose - HeroChunkBaseAttributes (tag 20): the four base attributes as u16,
+//      because the user lifted the 255 cap to MaxBaseAttribute (999). PlayerPack is untouched; its bytes clamp at 255.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "2b377307342262741fd513aac19756dfe87c7141fbf5a08aae6a50aa232781e7");
+	    "4837b74058960fbb8ca4296d65644705ddfecfd34f4c9e77023bc23a7cf1b936");
 }
 
 } // namespace

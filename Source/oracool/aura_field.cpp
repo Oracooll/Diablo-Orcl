@@ -478,9 +478,7 @@ void ProcessOutwardAura(Player &player)
 		// make the fight the player came for un-fightable.
 		if (FightsAsUnique(monster))
 			continue;
-		monster.goal = MonsterGoal::Retreat;
-		monster.goalVar1 = RepelDistance;
-		monster.goalVar2 = static_cast<int>(GetDirection(player.position.tile, monster.position.tile));
+		StartRepelRetreat(monster, GetDirection(player.position.tile, monster.position.tile), RepelDistance);
 	}
 }
 

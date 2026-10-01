@@ -717,7 +717,7 @@ const char *ClassMeleeSkillDescription(SpellID spell)
 	case SpellID::Jab:
 		return N_("Three quick thrusts in one motion, the second and third at 50% damage, +5% per rank.");
 	case SpellID::PowerStrike:
-		return N_("A thrust at +30% damage, +5% per rank, with 1-4 lightning damage per rank on top of it.");
+		return N_("A thrust at +30% damage, +5% per rank, with 1 to 4 lightning damage a rank on top of it.");
 	case SpellID::Impale:
 		return N_("A savage thrust at +100% damage, +20% per rank.");
 	case SpellID::ChargedStrike:

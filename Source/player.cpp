@@ -1814,11 +1814,11 @@ void ValidatePlayer()
 	// value CalculateGold had just stored, every tick (round 11 audit, v1.12.236).
 	myPlayer._pGold = CalculateGold(myPlayer);
 
-	// 255 is the hard save-format-safe ceiling for base attributes.
-	myPlayer._pBaseStr = std::min(myPlayer._pBaseStr, 255);
-	myPlayer._pBaseMag = std::min(myPlayer._pBaseMag, 255);
-	myPlayer._pBaseDex = std::min(myPlayer._pBaseDex, 255);
-	myPlayer._pBaseVit = std::min(myPlayer._pBaseVit, 255);
+	// The ceiling for base attributes (MaxBaseAttribute; the hero file carries them at two bytes since v1.12.282).
+	myPlayer._pBaseStr = std::min(myPlayer._pBaseStr, MaxBaseAttribute);
+	myPlayer._pBaseMag = std::min(myPlayer._pBaseMag, MaxBaseAttribute);
+	myPlayer._pBaseDex = std::min(myPlayer._pBaseDex, MaxBaseAttribute);
+	myPlayer._pBaseVit = std::min(myPlayer._pBaseVit, MaxBaseAttribute);
 
 	if (!gbIsMultiplayer) {
 		const auto portal = static_cast<size_t>(SpellID::TownPortal);
@@ -3019,7 +3019,7 @@ int CalcStatDiff(Player &player)
 {
 	int diff = 0;
 	for (auto attribute : enum_values<CharacterAttribute>()) {
-		diff += 255;
+		diff += MaxBaseAttribute;
 		diff -= player.GetBaseAttributeValue(attribute);
 	}
 	return diff;
@@ -4648,7 +4648,7 @@ void SyncInitPlr(Player &player)
 void CheckStats(Player &player)
 {
 	for (auto attribute : enum_values<CharacterAttribute>()) {
-		int maxStatPoint = 255;
+		const int maxStatPoint = MaxBaseAttribute;
 		switch (attribute) {
 		case CharacterAttribute::Strength:
 			player._pBaseStr = clamp(player._pBaseStr, 0, maxStatPoint);
@@ -4685,8 +4685,7 @@ void ResetPlayerStats(Player &player)
 
 int StatPointsToSpend(const Player &player, CharacterAttribute attribute, int requested)
 {
-	constexpr int BaseCap = 255;
-	const int roomBelowCap = BaseCap - player.GetBaseAttributeValue(attribute);
+	const int roomBelowCap = MaxBaseAttribute - player.GetBaseAttributeValue(attribute);
 	return std::max(0, std::min({ requested, player._pStatPts, roomBelowCap }));
 }
 
@@ -4760,7 +4759,7 @@ int RefundStatPoints(Player &player, CharacterAttribute attribute, int count)
 
 void ModifyPlrStr(Player &player, int l)
 {
-	const int maximum = 255;
+	const int maximum = MaxBaseAttribute;
 	l = clamp(l, 0 - player._pBaseStr, maximum - player._pBaseStr);
 
 	player._pStrength += l;
@@ -4775,7 +4774,7 @@ void ModifyPlrStr(Player &player, int l)
 
 void ModifyPlrMag(Player &player, int l)
 {
-	const int maximum = 255;
+	const int maximum = MaxBaseAttribute;
 	l = clamp(l, 0 - player._pBaseMag, maximum - player._pBaseMag);
 
 	player._pMagic += l;
@@ -4800,7 +4799,7 @@ void ModifyPlrMag(Player &player, int l)
 
 void ModifyPlrDex(Player &player, int l)
 {
-	const int maximum = 255;
+	const int maximum = MaxBaseAttribute;
 	l = clamp(l, 0 - player._pBaseDex, maximum - player._pBaseDex);
 
 	player._pDexterity += l;
@@ -4814,7 +4813,7 @@ void ModifyPlrDex(Player &player, int l)
 
 void ModifyPlrVit(Player &player, int l)
 {
-	const int maximum = 255;
+	const int maximum = MaxBaseAttribute;
 	l = clamp(l, 0 - player._pBaseVit, maximum - player._pBaseVit);
 
 	player._pVitality += l;

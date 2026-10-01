@@ -191,6 +191,12 @@ enum HeroChunkTag : uint16_t {
 	 * to MaxSpellLevel.
 	 */
 	HeroChunkSpellLevels = 19,
+	/**
+	 * @brief The four base attributes at full width (user, 2026-10-01: the 255 cap lifted to MaxBaseAttribute): u16
+	 * Strength, Magic, Dexterity, Vitality. Overrides the fixed struct's bytes, which the writer clamps to 255 so a chunkless
+	 * reader still sees a sane hero. Each value is clamped to MaxBaseAttribute on the way in.
+	 */
+	HeroChunkBaseAttributes = 20,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

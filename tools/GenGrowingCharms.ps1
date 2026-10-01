@@ -56,7 +56,7 @@ $charms = @(
     @{ Id = 'DEEDS';  Name = 'Charm of Deeds';  Field = 'allRes';     Base =  4; Per = 2; Colour = @(120, 152, 196)
        Line = 'to all resistances' }
     @{ Id = 'LEGEND'; Name = 'Charm of Legend'; Field = 'magicFind';  Base =  5; Per = 2; Colour = @(198, 178,  92)
-       Line = '% better chance of magic items' }
+       Line = '% chance a plain weapon or armor found is Rare' }
 )
 
 <#

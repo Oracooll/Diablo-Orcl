@@ -3338,10 +3338,10 @@ bool HealerItemOk(const Player &player, const ItemData &item)
 		return item.iSpell == SpellID::HealOther && gbIsMultiplayer;
 
 	if (!gbIsMultiplayer) {
-		// Against 255, the cap every base stat has in this fork (ModifyPlr*, StatPointsToSpend, UnPackPlayer): the class
-		// row's vanilla maximum stopped the elixirs early - a Paladin at 60 Dexterity, a Barbarian's Magic never
+		// Against MaxBaseAttribute, the cap every base stat has in this fork (ModifyPlr*, StatPointsToSpend, the hero file):
+		// the class row's vanilla maximum stopped the elixirs early - a Paladin at 60 Dexterity, a Barbarian's Magic never
 		// (round 10 audit, v1.12.235).
-		constexpr int BaseCap = 255;
+		constexpr int BaseCap = MaxBaseAttribute;
 		if (item.iMiscId == IMISC_ELIXSTR)
 			return player._pBaseStr < BaseCap;
 		if (item.iMiscId == IMISC_ELIXMAG)
@@ -7630,7 +7630,7 @@ bool DoOil(Player &player, int cii, int tabIdx)
 	case IPL_SETDUR:
 		return _("altered durability");
 	case IPL_ONEHAND:
-		return _("one handed sword");
+		return _("one-handed"); // not only swords: Morrowbell is a mace (round 49 audit)
 	case IPL_DRAINLIFE:
 		return _("constantly lose hit points");
 	case IPL_RNDSTEALLIFE:
@@ -7937,9 +7937,9 @@ std::string PrintSetBonusPower(const ItemPower &power)
 	case IPL_THORNS:
 		return std::string(_("attacker takes damage"));
 	case IPL_STEALLIFE:
-		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:d}% life stolen per hit")), power.param1);
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:d}% life stolen per melee hit")), power.param1);
 	case IPL_STEALMANA:
-		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:d}% mana stolen per hit")), power.param1);
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:d}% mana stolen per melee hit")), power.param1);
 	case IPL_MULT_ARROWS:
 		return std::string(_("fires multiple arrows"));
 	case IPL_ABSHALFTRAP:

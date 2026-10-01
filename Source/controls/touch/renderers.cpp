@@ -168,7 +168,7 @@ bool InteractsWithCharButton(Point point)
 	if (!GetCharacterContentRect().contains(point))
 		return false;
 	for (auto attribute : enum_values<CharacterAttribute>()) {
-		if (myPlayer.GetBaseAttributeValue(attribute) >= myPlayer.GetMaximumAttributeValue(attribute))
+		if (myPlayer.GetBaseAttributeValue(attribute) >= MaxBaseAttribute) // the fork's ceiling, as the mouse path
 			continue;
 		auto buttonId = static_cast<size_t>(attribute);
 		Rectangle button = ChrBtnsRect[buttonId];

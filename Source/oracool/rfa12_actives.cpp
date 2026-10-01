@@ -1714,10 +1714,11 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// Down the one line she strikes, to its wall (round 40 audit: she flew straight to the cursor, through walls, while the
 		// strike walked an 8-way ray - monsters on her path went unhit and others off it were struck).
 		const Point dst = LineEnd(here, target, ReachTiles(spell, r));
-		const auto line = MonstersOnLine(here, dst, here.WalkingDistance(dst));
 		Point landed = dst;
 		if (!TeleportTo(player, dst, spell, &landed))
 			return false;
+		// The line she flew, to where she landed (round 49 audit: it followed the aim, up to five tiles off).
+		const auto line = MonstersOnLine(here, landed, here.WalkingDistance(landed));
 		// RfA-27 batch 57: her body become the bolt, flying the way she went - to where she landed (round 48 audit).
 		Fly(player, MissileGraphicID::RideTheLightning, here, landed);
 		const Range d = SkillDamage(spell, r);
@@ -2292,9 +2293,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		for (Monster *m : nearby) {
 			if (ShrugsOff(*m) || m->mode == MonsterMode::Petrified)
 				continue;
-			m->goal = MonsterGoal::Retreat;
-			m->goalVar1 = 3;
-			m->goalVar2 = static_cast<int8_t>(GenerateRnd(8));
+			StartRepelRetreat(*m, static_cast<Direction>(GenerateRnd(8)), 3);
 		}
 		if (nearby.empty())
 			return false;
@@ -2599,6 +2598,11 @@ void TickField(Player &player, Field &field)
 		}
 		break;
 	case SpellID::BoneStorm:
+		// Not into town (round 49 audit): a Town Portal or a respawn carried it there to pulse at nothing.
+		if (leveltype == DTYPE_TOWN) {
+			field.ticksLeft = 0;
+			break;
+		}
 		field.tile = player.position.tile; // it follows
 		if (field.step != 0) { // carried over a level change (round 48)
 			field.step = 0;
@@ -3732,7 +3736,8 @@ void ClearRfa12ActivesState()
 	// Bone Storm follows its hero down the stairs - it is his buff row - and every other field belongs to the floor (round 48
 	// audit: the storm ended at a level change).
 	for (Field &field : Fields) {
-		if (field.spell == SpellID::BoneStorm && field.ticksLeft > 0) {
+		// Only the local hero's (round 49 audit: fields tick for MyPlayer alone, so another's would never run out).
+		if (field.spell == SpellID::BoneStorm && field.ticksLeft > 0 && MyPlayer != nullptr && field.owner == MyPlayer->getId()) {
 			field.step = 1; // its art went with the old floor's missiles: TickField shows it again
 			continue;
 		}
@@ -3803,6 +3808,11 @@ void ClearRfa12ActiveBuffs(Player &player)
 void ClearRfa12PlayerBuffs(Player &player)
 {
 	StateOf(player) = PlayerState {};
+	// His carried Bone Storm too (round 49 audit: frozen while he lay dead, it came back with him after the respawn).
+	for (Field &field : Fields) {
+		if (field.spell == SpellID::BoneStorm && field.owner == player.getId())
+			field = Field {};
+	}
 }
 
 std::vector<std::pair<SpellID, int>> Rfa12FieldTimers(const Player &player)

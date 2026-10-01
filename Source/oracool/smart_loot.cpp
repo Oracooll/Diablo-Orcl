@@ -26,7 +26,7 @@ constexpr int AimedDropPercent = 80;
  *     Bard      120 / 120 / 120   -> 333 / 333 / 333   a generalist, so aiming changes nothing
  *     Barbarian 255 /   0 /  55   -> 822 /   0 / 177
  *
- * These are not caps in this fork - ModifyPlrStr clamps every class to 255 - only a statement of
+ * These are not caps in this fork - ModifyPlrStr clamps every class to MaxBaseAttribute - only a statement of
  * identity, which stays true if the Barbarian's mana becomes Rage. Vitality is left out: every class
  * wants it, and so do Faster Cast and the rest (user, 2026-09-13: "Main stats mainly").
  */

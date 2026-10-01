@@ -312,8 +312,10 @@ struct Item {
 	int16_t _iPLMR = 0;
 	/** Cold resistance (2026-09-26, user: "make it as real as it is in Diablo 2"). Saved since item format 14. */
 	int16_t _iPLCR = 0;
-	int16_t _iPLMana = 0;
-	int16_t _iPLHP = 0;
+	// Four bytes (v1.12.282): the amulet and ring conversions move a share of base life or mana in 1/64 points, and two
+	// bytes wrapped past about 1023 base mana or 1279 base life - reachable once base attributes passed 255.
+	int32_t _iPLMana = 0;
+	int32_t _iPLHP = 0;
 	int16_t _iPLDamMod = 0;
 	int16_t _iPLGetHit = 0;
 	int16_t _iPLLight = 0;

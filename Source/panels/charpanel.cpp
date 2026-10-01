@@ -69,7 +69,7 @@ struct StyledText {
 UiFlags GetBaseStatColor(CharacterAttribute attr)
 {
 	const int base = InspectPlayer->GetBaseAttributeValue(attr);
-	return base >= 255 ? UiFlags::ColorWhitegold : UiFlags::ColorWhite;
+	return base >= MaxBaseAttribute ? UiFlags::ColorWhitegold : UiFlags::ColorWhite;
 }
 
 UiFlags GetCurrentStatColor(CharacterAttribute attr)
@@ -1571,7 +1571,7 @@ void DrawScrollbar(const Surface &out, const Rectangle &panel)
  * @brief The four vanilla + sprites, at ChrBtnsRect's scrolled positions - for both layouts.
  *
  * Split out of DrawStatButtons on 2026-09-26 so the grouped sheet draws the very same sprites with
- * the very same show/hide rule (points to spend, not inspecting, base below 255), in the cells its own
+ * the very same show/hide rule (points to spend, not inspecting, base below MaxBaseAttribute), in the cells its own
  * PlaceWidgets gave them. Its RESET is drawn by the grouped sheet itself.
  */
 Rectangle ContentToScreen(const Rectangle &rect);
@@ -1722,13 +1722,13 @@ void DrawPlusButtonSprites(const Surface &content)
 			    + (pressed ? Displacement { -2, 2 } : Displacement { 0, 0 });
 			ClxDraw(content, position, (*pChrButtons)[pressed ? upFrame + 1 : upFrame]);
 		};
-		if (InspectPlayer->_pBaseStr < 255)
+		if (InspectPlayer->_pBaseStr < MaxBaseAttribute)
 			drawButton(CharacterAttribute::Strength, 1);
-		if (InspectPlayer->_pBaseMag < 255)
+		if (InspectPlayer->_pBaseMag < MaxBaseAttribute)
 			drawButton(CharacterAttribute::Magic, 3);
-		if (InspectPlayer->_pBaseDex < 255)
+		if (InspectPlayer->_pBaseDex < MaxBaseAttribute)
 			drawButton(CharacterAttribute::Dexterity, 5);
-		if (InspectPlayer->_pBaseVit < 255)
+		if (InspectPlayer->_pBaseVit < MaxBaseAttribute)
 			drawButton(CharacterAttribute::Vitality, 7);
 	}
 }

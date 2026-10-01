@@ -535,6 +535,10 @@ void M_StartHit(Monster &monster, const Player &player, int dam);
  * MissileID::StoneCurse missile that owns the monster, so a petrify inflicted by anything else would
  * render as the stone statue. Shield Bash is a shove, not a spell.
  */
+/** @brief goalVar3's mark on a bat or a sneak whose Retreat is a repel's, not its own (round 49 audit). */
+constexpr int8_t RepelRetreatMark = 0x52;
+/** @brief The fork's repels (Howl, Daze, Sanctuary, Blinding Flash): @p steps away along @p away. */
+void StartRepelRetreat(Monster &monster, Direction away, int steps);
 void StunMonster(Monster &monster, int ticks);
 /** @brief Whether @p monster stands in a skill's stun - not merely an AI's own pause, which is the same Delay mode. */
 bool IsMonsterStunned(const Monster &monster);

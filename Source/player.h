@@ -1209,6 +1209,11 @@ int RefundStatPoints(Player &player, CharacterAttribute attribute, int count);
  * is always pressable, and a plain click used to spend 1 regardless, taking _pStatPts below zero (user, 2026-09-27
  * dev note: "stat points just increase negativly").
  */
+/**
+ * @brief The one ceiling every base attribute has (user, 2026-10-01: lifted from 255, D2-style, kept to three digits). The
+ * + buttons, elixirs, shrines, the per-tick check and the hero file all read this; item requirements stay one byte.
+ */
+constexpr int MaxBaseAttribute = 999;
 int StatPointsToSpend(const Player &player, CharacterAttribute attribute, int requested);
 void ModifyPlrStr(Player &player, int l);
 void ModifyPlrMag(Player &player, int l);

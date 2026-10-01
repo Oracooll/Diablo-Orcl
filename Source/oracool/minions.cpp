@@ -215,7 +215,6 @@ void MinionHurts(Player &owner, Monster &minion, Monster &monster, DamageType ty
 	M_StartHit(monster, damage);
 }
 
-/** @brief Once a second, every Fire Golem of @p owner burns everything standing beside it for half a blow. */
 /** @brief The cap the owner's rank allows, as RaiseFromCorpse and Revive enforce it and the tooltip's "up to N" says (round 48 audit). */
 int PanelCap(const Player &owner, MinionGroup group)
 {
@@ -228,6 +227,7 @@ int PanelCap(const Player &owner, MinionGroup group)
 	}
 }
 
+/** @brief Once a second, every Fire Golem of @p owner burns everything standing beside it for half a blow. */
 void FireGolemsBurn(Player &owner)
 {
 	for (size_t i = 0; i < Records.size(); i++) {

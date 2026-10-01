@@ -1378,6 +1378,37 @@ TEST(OracoolHeroChunks, StatPointsFixedFieldClampsInsteadOfWrapping)
 	EXPECT_EQ(packed.pStatPts, 255) << "the fixed byte wrapped 490 instead of clamping it";
 }
 
+// The 255 cap is lifted to MaxBaseAttribute (user, 2026-10-01): the fixed bytes clamp at 255 so a chunkless reader sees a
+// sane hero, and the BaseAttributes chunk brings the full values back - out-of-range ones clamped to the ceiling.
+TEST(OracoolHeroChunks, BaseAttributesPast255RoundTrip)
+{
+	Players.resize(1);
+	devilution::Player &source = Players[0];
+	source = {};
+	source._pClass = HeroClass::Warrior;
+	source._pBaseStr = 600;
+	source._pBaseMag = 12;
+	source._pBaseDex = 256;
+	source._pBaseVit = MaxBaseAttribute;
+
+	PlayerPack packed {};
+	PackPlayer(packed, source);
+	EXPECT_EQ(packed.pBaseStr, 255) << "clamped, not 600 mod 256";
+	EXPECT_EQ(packed.pBaseMag, 12);
+	EXPECT_EQ(packed.pBaseDex, 255);
+
+	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(source);
+	devilution::Player loaded {};
+	loaded._pClass = HeroClass::Warrior;
+	loaded._pBaseStr = packed.pBaseStr;
+	oracool::ApplyHeroChunks(loaded, tail.data(), tail.size());
+	EXPECT_EQ(loaded._pBaseStr, 600);
+	EXPECT_EQ(loaded._pStrength, 600);
+	EXPECT_EQ(loaded._pBaseMag, 12);
+	EXPECT_EQ(loaded._pBaseDex, 256);
+	EXPECT_EQ(loaded._pBaseVit, MaxBaseAttribute);
+}
+
 // is rejected WHOLE rather than half-applied.
 TEST(OracoolHeroChunks, SkillPointsAndWaypointsRoundTrip)
 {
@@ -15254,6 +15285,30 @@ TEST(OracoolPreview, DISABLED_HeroSheet)
 		MousePosition = pointerBefore;
 		player._pUnspentSkillPoints = savedSkillPoints;
 		PreviewSave(shut, "hero_sheet_shut.png");
+	}
+	{
+		// The lifted ceiling (user, 2026-10-01): every base at MaxBaseAttribute and the totals past it with items, four digits,
+		// so the boxes are seen to hold them.
+		const std::array<int, 9> saved { player._pBaseStr, player._pBaseMag, player._pBaseDex, player._pBaseVit, player._pStrength, player._pMagic, player._pDexterity, player._pVitality, player._pStatPts };
+		player._pBaseStr = player._pBaseMag = player._pBaseDex = player._pBaseVit = MaxBaseAttribute;
+		player._pStrength = 1149;
+		player._pMagic = MaxBaseAttribute;
+		player._pDexterity = 1024;
+		player._pVitality = 1200;
+		player._pStatPts = 0;
+		OwnedSurface capped = OwnedSurface::Rgb(960, 720);
+		PreviewFloor(capped);
+		DrawChr(capped);
+		PreviewSave(capped, "hero_sheet_999.png");
+		player._pBaseStr = saved[0];
+		player._pBaseMag = saved[1];
+		player._pBaseDex = saved[2];
+		player._pBaseVit = saved[3];
+		player._pStrength = saved[4];
+		player._pMagic = saved[5];
+		player._pDexterity = saved[6];
+		player._pVitality = saved[7];
+		player._pStatPts = saved[8];
 	}
 	chrflag = false;
 	pChrButtons = std::nullopt;

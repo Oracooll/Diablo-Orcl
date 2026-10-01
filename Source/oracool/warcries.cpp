@@ -195,9 +195,7 @@ void Repel(Monster &monster, Point from, int distance)
 	if (ShrugsOff(monster) || monster.mode == MonsterMode::Petrified)
 		return;
 	// Sanctuary's channel: MonsterGoal::Retreat, which the AI clears itself when the retreat ends.
-	monster.goal = MonsterGoal::Retreat;
-	monster.goalVar1 = static_cast<int16_t>(distance);
-	monster.goalVar2 = static_cast<int8_t>(GetDirection(from, monster.position.tile));
+	StartRepelRetreat(monster, GetDirection(from, monster.position.tile), distance);
 }
 
 void Stagger(Monster &monster, int ticks)
@@ -394,9 +392,7 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 		return ForEachInEarshot(here, earshot, [&](Monster &m) {
 			if (ShrugsOff(m) || m.mode == MonsterMode::Petrified)
 				return;
-			m.goal = MonsterGoal::Retreat;
-			m.goalVar1 = 3;
-			m.goalVar2 = static_cast<int8_t>(GenerateRnd(8));
+			StartRepelRetreat(m, static_cast<Direction>(GenerateRnd(8)), 3);
 		}) > 0;
 
 	// --- the Monk's ---

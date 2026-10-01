@@ -3,4 +3,4 @@
 
 	{ IDI_ORACOOL_CHARM_TRIALS, GrowingStat::TRIALS, 8, 3, N_("life") }, // Charm of Trials
 	{ IDI_ORACOOL_CHARM_DEEDS, GrowingStat::DEEDS, 4, 2, N_("to all resistances") }, // Charm of Deeds
-	{ IDI_ORACOOL_CHARM_LEGEND, GrowingStat::LEGEND, 5, 2, N_("% better chance of magic items") }, // Charm of Legend
+	{ IDI_ORACOOL_CHARM_LEGEND, GrowingStat::LEGEND, 5, 2, N_("% chance a plain weapon or armor found is Rare") }, // Charm of Legend

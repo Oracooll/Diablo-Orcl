@@ -477,6 +477,13 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 		PutU32(out, static_cast<uint32_t>(std::max(0, player._pStatPts)));
 		EndChunk(out, at);
 	}
+	{
+		// Always written, for the same reason as the stat points above.
+		const size_t at = BeginChunk(out, HeroChunkBaseAttributes);
+		for (const int base : { player._pBaseStr, player._pBaseMag, player._pBaseDex, player._pBaseVit })
+			PutU16(out, static_cast<uint16_t>(std::clamp(base, 0, MaxBaseAttribute)));
+		EndChunk(out, at);
+	}
 
 	return out;
 }
@@ -639,6 +646,20 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 				const size_t count = std::min<size_t>({ payload[0], chunkLen - 1, std::size(player._pSplLvl) });
 				for (size_t i = 0; i < count; i++)
 					player._pSplLvl[i] = std::min<uint8_t>(payload[1 + i], MaxSpellLevel);
+			}
+			break;
+		case HeroChunkBaseAttributes:
+			if (chunkLen >= 8) {
+				// The current values follow the bases here; CalcPlrInv, which every load runs after the tail, adds the items.
+				const auto base = [payload](size_t i) { return std::min<int>(GetU16(payload + i * 2), MaxBaseAttribute); };
+				player._pBaseStr = base(0);
+				player._pStrength = player._pBaseStr;
+				player._pBaseMag = base(1);
+				player._pMagic = player._pBaseMag;
+				player._pBaseDex = base(2);
+				player._pDexterity = player._pBaseDex;
+				player._pBaseVit = base(3);
+				player._pVitality = player._pBaseVit;
 			}
 			break;
 		case HeroChunkStatPoints:

@@ -323,7 +323,7 @@ void PlaceGroup(size_t typeIndex, unsigned num, Monster *leader = nullptr, bool 
 		while (placed != 0) {
 			ActiveMonsterCount--;
 			placed--;
-			Monster &undone = Monsters[ActiveMonsterCount];
+			Monster &undone = Monsters[ActiveMonsters[ActiveMonsterCount]]; // the slot, not the count (round 49 audit)
 			const auto &position = undone.position.tile;
 			dMonster[position.x][position.y] = 0;
 			// Its light too (audit, 2026-09-27): a Luminous monster taken back left its glow on the floor for good.
@@ -364,9 +364,12 @@ void PlaceGroup(size_t typeIndex, unsigned num, Monster *leader = nullptr, bool 
 		int x1 = xp;
 		int y1 = yp;
 
-		if (num + ActiveMonsterCount > totalmonsters) {
-			num = totalmonsters - ActiveMonsterCount;
-		}
+		// Never past the floor's total, and never a wrapped count (round 49 audit): a rift guardian's pack is placed mid-game,
+		// when the army, theme rooms and raised skeletons can already stand past totalmonsters - the unsigned difference
+		// wrapped to four billion and the placement overwrote live monsters.
+		if (ActiveMonsterCount >= totalmonsters)
+			break;
+		num = std::min<unsigned>(num, static_cast<unsigned>(totalmonsters - ActiveMonsterCount));
 
 		unsigned j = 0;
 		for (unsigned try2 = 0; j < num && try2 < 100; xp += Displacement(static_cast<Direction>(GenerateRnd(8))).deltaX, yp += Displacement(static_cast<Direction>(GenerateRnd(8))).deltaX) { /// BUGFIX: `yp += Point.y`
@@ -377,9 +380,12 @@ void PlaceGroup(size_t typeIndex, unsigned num, Monster *leader = nullptr, bool 
 				continue;
 			}
 
-			PlaceMonster(ActiveMonsterCount, typeIndex, { xp, yp });
+			// Through ActiveMonsters (round 49 audit): at level build the slot IS the count, mid-game DeleteMonster has
+			// shuffled them and the count's own index can be a live monster.
+			const int slot = ActiveMonsters[ActiveMonsterCount];
+			PlaceMonster(slot, typeIndex, { xp, yp });
 			if (leader != nullptr) {
-				auto &minion = Monsters[ActiveMonsterCount];
+				auto &minion = Monsters[slot];
 				minion.maxHitPoints *= 2;
 				minion.hitPoints = minion.maxHitPoints;
 				minion.intelligence = leader->intelligence;
@@ -419,18 +425,18 @@ size_t GetMonsterTypeIndex(_monster_id type)
 	return LevelMonsterTypeCount;
 }
 
-Point GetUniqueMonstPosition(UniqueMonsterType uniqindex)
+std::optional<Point> GetUniqueMonstPosition(UniqueMonsterType uniqindex)
 {
 	if (setlevel) {
 		switch (uniqindex) {
 		case UniqueMonsterType::Lazarus:
-			return { 32, 46 };
+			return Point { 32, 46 };
 		case UniqueMonsterType::RedVex:
-			return { 40, 45 };
+			return Point { 40, 45 };
 		case UniqueMonsterType::BlackJade:
-			return { 38, 49 };
+			return Point { 38, 49 };
 		case UniqueMonsterType::SkeletonKing:
-			return { 35, 47 };
+			return Point { 35, 47 };
 		default:
 			break;
 		}
@@ -462,14 +468,19 @@ Point GetUniqueMonstPosition(UniqueMonsterType uniqindex)
 			break;
 		}
 		UberDiabloMonsterIndex = static_cast<int>(ActiveMonsterCount);
-		return { UberRow - 2, UberCol };
+		return Point { UberRow - 2, UberCol };
 	default:
 		break;
 	}
 
 	Point position;
 	int count = 0;
+	int tries = 0;
 	do {
+		// BOUNDED (round 49 audit), as PlaceGroup's hunt since 2026-09-02: every champion and boss asks here, and a floor
+		// with no free tile spun forever. The caller drops the placement.
+		if (++tries > 5000)
+			return std::nullopt;
 		position = Point { GenerateRnd(80), GenerateRnd(80) } + Displacement { 16, 16 };
 		int count2 = 0;
 		for (int x = position.x - 3; x < position.x + 3; x++) {
@@ -495,7 +506,10 @@ void PlaceUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int bosspa
 {
 	const auto &uniqueMonsterData = UniqueMonstersData[static_cast<size_t>(uniqindex)];
 	const size_t typeIndex = GetMonsterTypeIndex(uniqueMonsterData.mtype);
-	const Point position = GetUniqueMonstPosition(uniqindex);
+	const std::optional<Point> spot = GetUniqueMonstPosition(uniqindex);
+	if (!spot)
+		return; // a full floor drops him rather than hang (round 49 audit)
+	const Point position = *spot;
 	PlaceMonster(ActiveMonsterCount, typeIndex, position, /*ordinary=*/false);
 
 	Monster &monster = Monsters[ActiveMonsterCount];
@@ -607,7 +621,10 @@ void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int 
 
 	const auto &uniqueMonsterData = UniqueMonstersData[static_cast<size_t>(uniqindex)];
 	const size_t typeIndex = GetMonsterTypeIndex(uniqueMonsterData.mtype);
-	const Point position = GetUniqueMonstPosition(uniqindex);
+	const std::optional<Point> spot = GetUniqueMonstPosition(uniqindex);
+	if (!spot)
+		return; // a full floor drops the champion rather than hang (round 49 audit)
+	const Point position = *spot;
 
 	const size_t championIndex = ActiveMonsterCount;
 	PlaceMonster(championIndex, typeIndex, position, /*ordinary=*/false);
@@ -1595,7 +1612,13 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 	if (hit >= hper)
 		return;
 
+	// Never a negative blow (round 49 audit): a Hollow magma demon's second blow is its minimum less two, -1, and it healed
+	// the monster it struck and still made it flinch.
+	mind = std::max(mind, 0);
+	maxd = std::max(maxd, mind);
 	int dam = (mind + GenerateRnd(maxd - mind + 1)) << 6;
+	if (dam <= 0)
+		return;
 	// Weaken and Decrepify blunt a cursed monster's blow on the army too, not only on the hero (round 20 audit, v1.12.245).
 	if (const int weakened = oracool::MonsterDebuffDamagePercent(attacker); weakened != 0)
 		dam = std::max(dam + dam * weakened / 100, 1 << 6);
@@ -1885,8 +1908,8 @@ bool MonsterAttack(Monster &monster)
 	if (IsAnyOf(monster.type().type, MT_NMAGMA, MT_YMAGMA, MT_BMAGMA, MT_WMAGMA) && monster.animInfo.currentFrame == 8) {
 		const int minionPercent = oracool::MinionDamagePercent(monster); // as the first blow (round 28 audit)
 		MonsterAttackEnemy(monster, monster.toHit(sgGameInitInfo.nDifficulty) + 10,
-		    oracool::PackAdjustedDamage(monster, monster.minDamage) * minionPercent / 100 - 2,
-		    oracool::PackAdjustedDamage(monster, monster.maxDamage) * minionPercent / 100 - 2);
+		    std::max(oracool::PackAdjustedDamage(monster, monster.minDamage) * minionPercent / 100 - 2, 0),
+		    std::max(oracool::PackAdjustedDamage(monster, monster.maxDamage) * minionPercent / 100 - 2, 0));
 
 		PlayEffect(monster, MonsterSound::Attack);
 	}
@@ -4732,11 +4755,25 @@ void M_StartHit(Monster &monster, int dam)
  * way, never cleared the goal, and lost its pathfinding for good (round 15 audit, v1.12.240). goalVar2 is the direction
  * to flee in, goalVar1 the steps left.
  */
+void StartRepelRetreat(Monster &monster, Direction away, int steps)
+{
+	monster.goal = MonsterGoal::Retreat;
+	monster.goalVar1 = static_cast<int16_t>(steps);
+	monster.goalVar2 = static_cast<int8_t>(away);
+	// Bats and sneaks have a retreat of their own on the same goal; the mark tells MonsterTakesRetreatStep this one is a
+	// repel. goalVar3 is unused by both AIs.
+	if (IsAnyOf(monster.ai, MonsterAIID::Bat, MonsterAIID::Sneak))
+		monster.goalVar3 = RepelRetreatMark;
+}
+
 bool MonsterTakesRetreatStep(Monster &monster)
 {
 	if (monster.goal != MonsterGoal::Retreat)
 		return false;
-	if (IsAnyOf(monster.ai, MonsterAIID::Fallen, MonsterAIID::Bat, MonsterAIID::Sneak, MonsterAIID::Zhar, MonsterAIID::Lazarus))
+	// A bat or a sneak driven off by a repel takes the repel's steps (round 49 audit: their own retreat counts goalVar1 UP,
+	// so Howl at rank 5 and more was cancelled on the spot and lower ranks fled less; bats only sidestepped once).
+	const bool repelled = IsAnyOf(monster.ai, MonsterAIID::Bat, MonsterAIID::Sneak) && monster.goalVar3 == RepelRetreatMark;
+	if (!repelled && IsAnyOf(monster.ai, MonsterAIID::Fallen, MonsterAIID::Bat, MonsterAIID::Sneak, MonsterAIID::Zhar, MonsterAIID::Lazarus))
 		return false; // they run their own retreat
 	// A gargoyle's own retreat is its low-life one, and ends in a heal: a repel (Howl, Grim Ward, Blinding Flash) sent a
 	// healthy one there, and it healed to full (round 32 audit). A Counselor's own retreat fades out first, so it is its own
@@ -4746,13 +4783,15 @@ bool MonsterTakesRetreatStep(Monster &monster)
 	if (monster.ai == MonsterAIID::Counselor && (monster.flags & MFLAG_HIDDEN) != 0)
 		return false;
 	if (monster.mode != MonsterMode::Stand)
-		return false;
+		return repelled; // mid-step: its own AI, which reads goalVar1 the other way, waits for the repel to end
 	const auto away = static_cast<Direction>(monster.goalVar2 & 7);
 	const Point from = monster.position.tile - Displacement(away);
 	if (monster.goalVar1 <= 0 || !MonsterStepAwayFrom(monster, from)) {
 		monster.goal = MonsterGoal::Normal;
 		monster.goalVar1 = 0;
 		monster.goalVar2 = 0;
+		if (repelled)
+			monster.goalVar3 = 0;
 		return false;
 	}
 	monster.goalVar1--;
