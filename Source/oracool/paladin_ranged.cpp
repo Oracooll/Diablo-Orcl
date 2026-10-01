@@ -35,11 +35,7 @@ int RollWeaponDamage(const Player &player)
 {
 	const int minDamage = player._pIMinDam;
 	const int maxDamage = std::max(player._pIMaxDam, minDamage);
-	int damage = GenerateRnd(maxDamage - minDamage + 1) + minDamage;
-	const int weaponRoll = damage;
-	damage += damage * player._pIBonusDam / 100;
-	damage += player._pIBonusDamMod;
-	damage += StatDamage(player, weaponRoll);
+	int damage = PooledWeaponDamage(player, GenerateRnd(maxDamage - minDamage + 1) + minDamage, 0);
 	return std::max(damage, 1);
 }
 
@@ -291,10 +287,7 @@ std::optional<std::pair<int, int>> PaladinCastDamageRange(const Player &player, 
 	// RollWeaponDamage at each end of the weapon's range, then the skill's share - the same arithmetic
 	// the cast does, so the sheet quotes what a hit will actually take.
 	const auto at = [&player, percent](int weapon) {
-		int damage = weapon;
-		damage += damage * player._pIBonusDam / 100;
-		damage += player._pIBonusDamMod;
-		damage += StatDamage(player, weapon);
+		int damage = PooledWeaponDamage(player, weapon, 0);
 		return std::max(std::max(damage, 1) * percent / 100, 1);
 	};
 	const int minDamage = player._pIMinDam;

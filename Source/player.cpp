@@ -801,19 +801,15 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	}
 	int mind = player._pIMinDam;
 	int maxd = player._pIMaxDam;
-	int dam = GenerateRnd(maxd - mind + 1) + mind;
-	const int weaponRoll = dam; // the stat part is a share of the bare roll, D2's way (user, 2026-10-01)
-	dam += dam * player._pIBonusDam / 100;
-	dam += player._pIBonusDamMod;
-	// Oracool, Round 4: the armed melee skill's bonus, on every blow of the swing - the extra blows
-	// a skill adds come back through this function, so they carry it too. Zero when nothing is
-	// armed or the skill cannot be paid for, which is what makes an unaffordable skill a plain swing.
-	// The Paladin's two with a per-level blow, Smite and Charge's arrival (2026-09-12), the same way.
-	dam += dam * (oracool::ClassMeleeSkillDamagePercent(player) + oracool::PaladinMeleeDamagePercent(player) + oracool::Rfa12MeleeDamagePercent(player)) / 100;
-	// And the passives that read the situation - Ruthless, Brawler, Steady Aim and the rest (Round 5).
-	dam += dam * (oracool::PassiveDamageDealtPercent(player, monster, true) + oracool::Rfa12DamageDealtPercent(player, monster, true)) / 100;
-	int dam2 = dam << 6;
-	dam += StatDamage(player, weaponRoll);
+	const int weaponRoll = GenerateRnd(maxd - mind + 1) + mind;
+	// Diablo II's pool (user, 2026-10-01): the armed melee skill's bonus (Round 4 - on every blow of the swing, the extra
+	// blows a skill adds coming back through here; zero when nothing is armed or it cannot be paid), the Paladin's per-level
+	// blows (Smite, Charge's arrival), and the passives that read the situation (Round 5: Ruthless, Brawler, Steady Aim and
+	// the rest) all ADD to the items' +% and the Strength share, one percentage of the bare roll.
+	const int pool = oracool::ClassMeleeSkillDamagePercent(player) + oracool::PaladinMeleeDamagePercent(player) + oracool::Rfa12MeleeDamagePercent(player)
+	    + oracool::PassiveDamageDealtPercent(player, monster, true) + oracool::Rfa12DamageDealtPercent(player, monster, true);
+	int dam = PooledWeaponDamage(player, weaponRoll, pool);
+	int dam2 = PooledWeaponDamage(player, weaponRoll, pool, /*statSharePercent=*/0) << 6; // Peril's own cut, the weapon's as before
 	if (player._pClass == HeroClass::Warrior || player._pClass == HeroClass::Barbarian) {
 		if (GenerateRnd(100) < player._pLevel) {
 			dam *= 2;
@@ -981,10 +977,7 @@ bool PlrHitPlr(Player &attacker, Player &target)
 
 	int mind = attacker._pIMinDam;
 	int maxd = attacker._pIMaxDam;
-	int dam = GenerateRnd(maxd - mind + 1) + mind;
-	const int weaponRoll = dam;
-	dam += (dam * attacker._pIBonusDam) / 100;
-	dam += attacker._pIBonusDamMod + StatDamage(attacker, weaponRoll);
+	int dam = PooledWeaponDamage(attacker, GenerateRnd(maxd - mind + 1) + mind, 0);
 
 	if (attacker._pClass == HeroClass::Warrior || attacker._pClass == HeroClass::Barbarian) {
 		if (GenerateRnd(100) < attacker._pLevel) {
@@ -4764,6 +4757,15 @@ int StatDamage(const Player &player, int weaponRoll)
 	if (weaponRoll <= 0 || player._pStatDamageBasisPoints <= 0)
 		return 0;
 	return static_cast<int>(std::min<int64_t>(int64_t { weaponRoll } * player._pStatDamageBasisPoints / 10000, INT_MAX / 4));
+}
+
+int PooledWeaponDamage(const Player &player, int weaponRoll, int poolPercent, int statSharePercent)
+{
+	int64_t basisPoints = 10000 + int64_t { player._pIBonusDam } * 100 + int64_t { player._pStatDamageBasisPoints } * statSharePercent / 100
+	    + int64_t { poolPercent } * 100;
+	basisPoints = std::max<int64_t>(basisPoints, 0); // a cursed pool takes the weapon to nothing, never below
+	const int64_t damage = int64_t { std::max(weaponRoll, 0) } * basisPoints / 10000 + player._pIBonusDamMod;
+	return static_cast<int>(std::clamp<int64_t>(damage, 0, INT_MAX / 128));
 }
 
 void ModifyPlrStr(Player &player, int l)

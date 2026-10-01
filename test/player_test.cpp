@@ -374,6 +374,21 @@ TEST(Player, StatDamage_IsAShareOfTheWeaponRoll)
 	EXPECT_EQ(StatDamage(player, 40), 100) << "the level does not multiply it";
 }
 
+// Diablo II's pool (user, 2026-10-01): item +%, the stat share and every skill and passive +% ADD into one percentage.
+TEST(Player, PooledWeaponDamage_AddsEveryPercentIntoOnePool)
+{
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Warrior);
+	devilution::Player &player = Players[0];
+	player._pIBonusDam = 100;           // +100% on the item
+	player._pStatDamageBasisPoints = 30000; // +300% from Strength
+	player._pIBonusDamMod = 5;          // flat, after the pool
+	EXPECT_EQ(PooledWeaponDamage(player, 30, 50), 30 * 550 / 100 + 5) << "30 x (100 + 100 + 300 + 50)% + 5";
+	EXPECT_EQ(PooledWeaponDamage(player, 30, -25), 30 * 475 / 100 + 5) << "a follow-up's -25% is one term of the pool";
+	EXPECT_EQ(PooledWeaponDamage(player, 30, 0, 50), 30 * 350 / 100 + 5) << "half the stat on a bow outside the Rogue";
+	EXPECT_EQ(PooledWeaponDamage(player, 30, -1000), 5) << "a cursed pool floors the weapon at nothing";
+}
+
 TEST(Player, StatPointsToSpend_NeverMoreThanUnspentNorPastTheCap)
 {
 	Players.resize(1);

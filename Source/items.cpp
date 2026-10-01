@@ -2401,8 +2401,13 @@ _unique_items CheckUnique(Item &item, int lvl, int uper, bool recreate, bool all
 	for (int j = 0; UniqueItems[j].UIItemId != UITYPE_INVALID; j++) {
 		if (!IsUniqueAvailable(j))
 			break;
+		// Never on an item below the unique's own level (user, 2026-10-01): a chest rolls at twice its level and a unique
+		// monster at +4, so a unique could drop asking a higher level than where it was found. Fresh drops only - a stored
+		// seed replays its original verdict (pack_test goldens) - and only when the item level is stamped.
+		const bool belowItemLevel = allowTieredRoll && !ReplayingStoredItemSeed && oracool::IsSinglePlayer()
+		    && item._iOracoolItemLevel > 0 && item._iOracoolItemLevel < UniqueItems[j].UIMinLvl;
 		if (UniqueItems[j].UIItemId == AllItemsList[item.IDidx].iItemId
-		    && lvl >= UniqueItems[j].UIMinLvl
+		    && lvl >= UniqueItems[j].UIMinLvl && !belowItemLevel
 		    && (recreate || !UniqueItemFlags[j] || gbIsMultiplayer)) {
 			uok[j] = true;
 			numu++;

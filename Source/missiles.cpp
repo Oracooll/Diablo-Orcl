@@ -419,13 +419,12 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 		dam = mindam + GenerateRnd(maxdam - mindam + 1);
 	}
 
-	if (missileData.isArrow() && damageType == DamageType::Physical) {
-		const int weaponRoll = dam;
-		dam = player._pIBonusDamMod + dam * player._pIBonusDam / 100 + dam;
-		if (player._pClass == HeroClass::Rogue)
-			dam += StatDamage(player, weaponRoll);
-		else
-			dam += StatDamage(player, weaponRoll) / 2;
+	// A physical arrow's pool, Diablo II's way (user, 2026-10-01): the passives add to the items' +% and the stat share (half
+	// on a bow outside the Rogue), and are not applied again below.
+	const bool pooledArrow = missileData.isArrow() && damageType == DamageType::Physical;
+	if (pooledArrow) {
+		const int pool = oracool::PassiveDamageDealtPercent(player, monster, false) + oracool::Rfa12DamageDealtPercent(player, monster, false);
+		dam = PooledWeaponDamage(player, dam, pool, player._pClass == HeroClass::Rogue ? 100 : 50);
 		if (monster.data().monsterClass == MonsterClass::Demon && HasAnyOf(player._pIFlags, ItemSpecialEffect::TripleDemonDamage))
 			dam *= 3;
 	}
@@ -444,8 +443,10 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	// A weapon's fire or lightning burst is the swing's own: melee to the passives, not a spell (round 47 audit: it took Arcane
 	// Dynamo, Mana Attunement and Mythic Rhythm, and rolled Deadeye again per burst).
 	const bool swingBurst = t == MissileID::WeaponExplosion;
-	dam = oracool::AddPercentSat(dam, oracool::PassiveDamageDealtPercent(player, monster, swingBurst, /*burst=*/swingBurst) + oracool::Rfa12DamageDealtPercent(player, monster, swingBurst)
-	        + (damageType == DamageType::Cold ? oracool::Rfa12ColdDamagePercent(monster) : 0));
+	if (!pooledArrow) {
+		dam = oracool::AddPercentSat(dam, oracool::PassiveDamageDealtPercent(player, monster, swingBurst, /*burst=*/swingBurst) + oracool::Rfa12DamageDealtPercent(player, monster, swingBurst)
+		        + (damageType == DamageType::Cold ? oracool::Rfa12ColdDamagePercent(monster) : 0));
+	}
 
 	// A companion's arrow: its share of the whole blow, bonuses and passives included.
 	if (CompanionHitPercent > 0)
@@ -569,7 +570,7 @@ bool Plr2PlrMHit(const Player &player, int p, int mindam, int maxdam, int dist, 
 	} else {
 		dam = mindam + GenerateRnd(maxdam - mindam + 1);
 		if (missileData.isArrow() && damageType == DamageType::Physical)
-			dam += player._pIBonusDamMod + StatDamage(player, dam) + dam * player._pIBonusDam / 100;
+			dam = PooledWeaponDamage(player, dam, 0);
 		if (!shift)
 			dam <<= 6;
 	}

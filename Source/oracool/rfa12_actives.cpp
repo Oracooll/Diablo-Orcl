@@ -66,10 +66,7 @@ int Roll(int min, int max)
 /** @brief One blow of the weapon in hand, as the character sheet rolls it - bonuses included, no to-hit. */
 int WeaponBlow(const Player &player)
 {
-	int dam = player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1);
-	const int weaponRoll = dam;
-	dam += dam * player._pIBonusDam / 100;
-	dam += player._pIBonusDamMod + StatDamage(player, weaponRoll);
+	int dam = PooledWeaponDamage(player, player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1), 0);
 	return std::max(dam, 1) << 6;
 }
 

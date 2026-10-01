@@ -104,38 +104,22 @@ UiFlags GetMaxHealthColor()
 	return InspectPlayer->_pMaxHP > InspectPlayer->_pMaxHPBase ? UiFlags::ColorBlue : UiFlags::ColorWhite;
 }
 
-/** @brief The Strength (and class) part of a blow whose weapon roll is @p roll: StatDamage, halved on a bow outside the Rogue. */
-int GetStrengthDamageMod(int roll)
+/** @brief The stat's share of the pool: half on a bow outside the Rogue. */
+int StatSharePercent()
 {
 	// A bow the hero can USE (UsesRangedWeapon): one under its requirements swings in melee at the full part (round 25).
-	if (InspectPlayer->UsesRangedWeapon() && InspectPlayer->_pClass != HeroClass::Rogue)
-		return StatDamage(*InspectPlayer, roll) / 2;
-	return StatDamage(*InspectPlayer, roll);
+	return InspectPlayer->UsesRangedWeapon() && InspectPlayer->_pClass != HeroClass::Rogue ? 50 : 100;
 }
 
 std::pair<int, int> GetDamage()
 {
 	// The flat +damage with the weapon part, before Glass Cannon, as the blow adds them (round 34 audit); the Strength part
 	// after it.
-	// A share of each end's weapon roll since the stat became Diablo II's percentage (user, 2026-10-01).
-	const int minMod = GetStrengthDamageMod(InspectPlayer->_pIMinDam);
-	const int maxMod = GetStrengthDamageMod(InspectPlayer->_pIMaxDam);
-	int mindam = InspectPlayer->_pIMinDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMinDam / 100 + InspectPlayer->_pIBonusDamMod;
-	int maxdam = InspectPlayer->_pIMaxDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMaxDam / 100 + InspectPlayer->_pIBonusDamMod;
-	// Glass Cannon on the weapon part, before the Strength part, as the blow takes it (round 33 audit: moved out of the
-	// weapon totals in round 20, it left the sheet with them).
-	// An arrow adds the Strength part before the percent passives, so a bow takes it first (round 35 audit).
+	// Diablo II's pool, as the blow (user, 2026-10-01): the items' +%, the stat share and Glass Cannon (the passive that holds
+	// against every target) add into one percentage of each end's weapon roll.
 	const int always = oracool::PassiveUnconditionalDamagePercent(*InspectPlayer);
-	const bool bow = InspectPlayer->UsesRangedWeapon();
-	if (bow) {
-		mindam += minMod;
-		maxdam += maxMod;
-	}
-	mindam += mindam * always / 100;
-	maxdam += maxdam * always / 100;
-	if (bow)
-		return { mindam, maxdam };
-	return { mindam + minMod, maxdam + maxMod };
+	return { PooledWeaponDamage(*InspectPlayer, InspectPlayer->_pIMinDam, always, StatSharePercent()),
+		PooledWeaponDamage(*InspectPlayer, InspectPlayer->_pIMaxDam, always, StatSharePercent()) };
 }
 
 /**
@@ -297,13 +281,10 @@ StyledText GetReadiedSlotDamage(bool leftButton)
 	if (bonus < 0)
 		bonus = oracool::Rfa12MeleeBonusPercentFor(player, spell);
 	if (bonus >= 0) {
-		// The bonus multiplies the weapon's part only; the Strength bonus joins after it, as PlrHitMonst adds
-		// the stat part after the skill (round 4 audit, v1.12.229 - the sheet multiplied it too).
-		const std::pair<int, int> dmg = GetDamage();
-		const int lowStrength = GetStrengthDamageMod(player._pIMinDam);
-		const int highStrength = GetStrengthDamageMod(player._pIMaxDam);
-		const int low = (dmg.first - lowStrength) * (100 + bonus) / 100 + lowStrength;
-		const int high = (dmg.second - highStrength) * (100 + bonus) / 100 + highStrength;
+		// The skill's bonus joins the pool, as PlrHitMonst adds it (user, 2026-10-01: Diablo II's rule).
+		const int always = oracool::PassiveUnconditionalDamagePercent(player);
+		const int low = PooledWeaponDamage(player, player._pIMinDam, always + bonus, StatSharePercent());
+		const int high = PooledWeaponDamage(player, player._pIMaxDam, always + bonus, StatSharePercent());
 		return StyledText { UiFlags::ColorWhite, StrCat(low, "-", high), (low >= 100) ? -1 : 1 };
 	}
 	if (ReadiedSlotSwingsTheWeapon(spell))

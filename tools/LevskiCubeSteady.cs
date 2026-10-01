@@ -1,7 +1,7 @@
 // Levski's Cube: steadies the foundation (user, 2026-10-01: "now it wobbles around a bit").
 //
 // The closed-idle loop (frames 0-11) holds its pedestal still; the opening and opened frames (12-25) came from other
-// stills and drift by a few pixels. For each frame this finds the shift that lays its pedestal over idle frame 1's
+// stills and drift by a few pixels. For each frame this finds the shift that lays its pedestal over the first idle frame's (frame 0)
 // (rows 150-185, opaque pixels compared), moves the whole frame by it, and - in the stamped variant - replaces everything
 // below FoundationCutAt (a level line with a V under the open cube) with idle frame 1's foundation, so the base is the same pixels in every frame.
 //

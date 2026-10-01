@@ -411,7 +411,7 @@ std::vector<Monster *> TargetsWithin(Point centre, int radius)
 int OwnerBlow(const Player &owner, int percent)
 {
 	int damage = RandomIntBetween(owner._pIMinDam, std::max(owner._pIMinDam, owner._pIMaxDam));
-	damage += damage * owner._pIBonusDam / 100 + owner._pIBonusDamMod + StatDamage(owner, damage);
+	damage = PooledWeaponDamage(owner, damage, 0); // its share of the hero's pooled blow
 	damage = damage * percent / 100;
 	return std::max(damage, 1) << 6;
 }

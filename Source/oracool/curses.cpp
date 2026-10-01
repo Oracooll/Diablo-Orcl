@@ -4,6 +4,7 @@
  * See curses.h.
  */
 #include "oracool/curses.h"
+#include "oracool/rfa12_effects.h" // TakeCorpseOf: Death Mark uses the body up
 #include "oracool/sat_math.h" // AddPercentSat - the damage passives past int (round 27 audit)
 
 #include "oracool/endgame_boss.h" // FightsAsUnique - Diablo and the Dread bosses stand as uniques
@@ -513,6 +514,8 @@ void OnCursedMonsterDeath(const Monster &monster)
 			GainEssence(*owner, EssenceTapEssence(tap));
 		// Death Mark: the corpse bursts as a Corpse Explosion of the curse's rank.
 		if (curse.kind == CurseKind::DeathMark) {
+			// The body is what bursts: none is left to raise or burst again (user, 2026-10-01).
+			TakeCorpseOf(monster);
 			AddMissile(monster.position.tile, monster.position.tile, Direction::South, MissileID::CorpseBurst, TARGET_MONSTERS, static_cast<int>(owner->getId()), 0, 0);
 			const int share = std::clamp((monster.maxHitPoints >> 6) * CorpseBurstPercent(curse.rank) / 100, DeathMarkMinBurst, DeathMarkMaxBurst) << 6;
 			for (size_t i = 0; i < ActiveMonsterCount; i++) {

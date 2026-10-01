@@ -28,6 +28,8 @@
 #include "oracool/rage.h"
 #include "oracool/readied_spells.h" // UnpackReadiedSpell - re-decoded once the chunks have landed
 #include "oracool/save_status.h"
+#include "oracool/event_log.h"
+#include "error.h"
 #include "pack.h"
 #include "playerdat.hpp"
 #include "qol/stash.h"
@@ -217,21 +219,10 @@ void Game2UiPlayer(const Player &player, _uiheroinfo *heroinfo, bool bHasSaveFil
 	// Strength part (halved on a bow outside the Rogue) - hero-select read 10-20 where the sheet read 55-65 (round 4 audit).
 	const bool nonRogueBow = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow && player.InvBody[INVLOC_HAND_LEFT]._iStatFlag
 	    && player._pClass != HeroClass::Rogue; // a usable bow only (round 25 audit)
-	const auto strengthPart = [&player, nonRogueBow](int roll) { return nonRogueBow ? StatDamage(player, roll) / 2 : StatDamage(player, roll); };
-	const int minPart = strengthPart(player._pIMinDam);
-	const int maxPart = strengthPart(player._pIMaxDam);
-	// Glass Cannon on the weapon and flat part, as the sheet and the blow (round 34 audit).
+	// The sheet's pool (user, 2026-10-01: Diablo II's rule): the items' +%, the stat share and Glass Cannon in one percentage.
 	const int always = oracool::PassiveUnconditionalDamagePercent(player);
-	int minDamage = player._pIMinDam + player._pIBonusDam * player._pIMinDam / 100 + player._pIBonusDamMod;
-	int maxDamage = player._pIMaxDam + player._pIBonusDam * player._pIMaxDam / 100 + player._pIBonusDamMod;
-	// A bow's Strength part before the percent, as the arrow adds it (round 35 audit).
-	const bool bow = player.UsesRangedWeapon();
-	if (bow) {
-		minDamage += minPart;
-		maxDamage += maxPart;
-	}
-	minDamage += minDamage * always / 100 + (bow ? 0 : minPart);
-	maxDamage += maxDamage * always / 100 + (bow ? 0 : maxPart);
+	const int minDamage = PooledWeaponDamage(player, player._pIMinDam, always, nonRogueBow ? 50 : 100);
+	const int maxDamage = PooledWeaponDamage(player, player._pIMaxDam, always, nonRogueBow ? 50 : 100);
 	heroinfo->minDamage = static_cast<uint16_t>(std::clamp(minDamage, 0, 65535));
 	heroinfo->maxDamage = static_cast<uint16_t>(std::clamp(maxDamage, 0, 65535));
 	heroinfo->hassaved = bHasSaveFile;
@@ -1092,7 +1083,16 @@ void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 void pfile_save_level()
 {
 	SaveWriter saveWriter = GetSaveWriter(gSaveNumber);
+	// Checked and said (user, 2026-10-01): a floor whose save failed came back as its previous visit's snapshot.
+	oracool::BeginSaveAttempt();
 	SaveLevel(saveWriter);
+	if (oracool::SaveAttemptFailed()) {
+		ForgetUnsavedLevel(saveWriter);
+		const std::string failed = fmt::format(fmt::runtime(_("SAVE FAILED - this floor could not be saved (\"{:s}\"). It will be built anew when you return.")),
+		    oracool::FailedSaveFileName());
+		oracool::LogEvent(failed, UiFlags::ColorRed);
+		InitDiabloMsg(failed);
+	}
 }
 
 void pfile_convert_levels()

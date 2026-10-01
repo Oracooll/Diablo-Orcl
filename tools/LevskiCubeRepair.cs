@@ -140,7 +140,7 @@ public static class LevskiCubeRepair
 					log.AppendFormat("frame {0}: rows {1}-{2} - no pair found, left as it was\n", f, p.Top, p.Bottom);
 					continue;
 				}
-				// Already whole (a second run, or a frame the stills did not cut): leave it.
+				// Already whole (a frame the stills did not cut): leave it.
 				if (left.Left > CutX && left.Width >= right.Width - 1) {
 					log.AppendFormat("frame {0}: rows {1}-{2} - left cube whole ({3} wide), kept\n", f, p.Top, p.Bottom, left.Width);
 					continue;

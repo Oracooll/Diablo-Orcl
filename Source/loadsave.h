@@ -52,6 +52,12 @@ void SaveHeroItems(SaveWriter &saveWriter, Player &player);
 void SaveGameData(SaveWriter &saveWriter);
 void SaveGame();
 void SaveLevel(SaveWriter &saveWriter);
+/**
+ * @brief After a level save that did not reach the disk (user, 2026-10-01): the floor is no longer "visited" and its last
+ * snapshot is dropped, so the next visit builds it afresh instead of loading an older state - which brought back items
+ * already picked up (duplicates) and lost what was dropped since.
+ */
+void ForgetUnsavedLevel(SaveWriter &saveWriter);
 void LoadLevel();
 
 /** @brief Whether the current level (currlevel, or setlvlnum on a set level) has a temp or perm save to load. */

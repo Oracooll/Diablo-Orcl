@@ -3895,6 +3895,18 @@ void SaveLevel(SaveWriter &saveWriter)
 	SaveLevel(saveWriter, nullptr);
 }
 
+void ForgetUnsavedLevel(SaveWriter &saveWriter)
+{
+	Player &myPlayer = *MyPlayer;
+	if (!setlevel)
+		myPlayer._pLvlVisited[currlevel] = false;
+	else
+		myPlayer._pSLvlVisited[setlvlnum] = false;
+	char szName[MaxMpqPathSize];
+	GetTempLevelNames(szName);
+	saveWriter.RemoveHashEntry(szName);
+}
+
 void LoadLevel()
 {
 	LoadLevel(nullptr);

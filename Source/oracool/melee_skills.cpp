@@ -145,10 +145,7 @@ void Pay(Player &player, ClassMeleeSkill skill, int landedBlows)
  */
 int FullBlow(const Player &player)
 {
-	int dam = player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1);
-	const int weaponRoll = dam;
-	dam += dam * player._pIBonusDam / 100;
-	dam += player._pIBonusDamMod + StatDamage(player, weaponRoll);
+	int dam = PooledWeaponDamage(player, player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1), 0);
 	return std::max(dam, 1) << 6;
 }
 
