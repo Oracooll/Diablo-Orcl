@@ -1660,10 +1660,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			else
 				FreezeMonster(*m, SlowTicks(spell, r));
 		}
-		// At 200% (the Sorcerer Skill Cards page, 2026-09-30), with its Impact cue when it caught anything.
-		if (Missile *burst = Art(player, MissileGraphicID::AbsoluteZero, here); burst != nullptr) // RfA-27 batch 55
-			ScaleMissile(*burst, 200);
-		else
+		// The user's vortex (2026-10-01), drawn at its own size: 1024x512 is the 8-tile reach. Its Impact cue when it caught anything.
+		if (Art(player, MissileGraphicID::AbsoluteZero, here) == nullptr)
 			Ring(player, here); // the ring without it
 		if (caught)
 			Impact(player, spell);

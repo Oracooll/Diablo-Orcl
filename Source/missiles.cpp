@@ -4040,7 +4040,6 @@ Displacement ArtEffectAnchor(MissileGraphicID art)
 	case MissileGraphicID::GroundStomp:
 	case MissileGraphicID::MountainPole:
 	case MissileGraphicID::FlameRing:
-	case MissileGraphicID::AbsoluteZero:
 	case MissileGraphicID::BlindingFlash:
 	case MissileGraphicID::DeathNova:
 	case MissileGraphicID::EmberBurst:
@@ -4057,6 +4056,8 @@ Displacement ArtEffectAnchor(MissileGraphicID art)
 		return { 0, 13 }; // floor point y 99 of 128
 	case MissileGraphicID::WaveOfLight:
 		return { 0, 20 }; // y 124 of 160
+	case MissileGraphicID::AbsoluteZero:
+		return { 0, 240 }; // the vortex's eye on the floor point, y 256 of 512 (2026-10-01)
 	case MissileGraphicID::WrathPillar:
 		return { 0, 27 }; // y 149 of 192
 	case MissileGraphicID::HammerOfTheAncients:
