@@ -1849,6 +1849,9 @@ bool FindPackCharm(const Player &player, Item &out, int &idx)
  * itself - and @p reagentSlot as the scratch cell the loan was put in, which is the one cell the
  * caller must not copy back.
  */
+/** @brief Cleanse Shards' recipe index (crafting.cpp CleanseShardsRecipe): her Cleanse button, never a Transmute. */
+constexpr int CleanseShardsRecipeId = 18;
+
 int FindMysticRecipe(const Player &player, std::array<Item, CraftSlots> &scratch, int &reagentIdx, int &reagentCount, int &reagentSlot)
 {
 	reagentIdx = 0;
@@ -1856,12 +1859,18 @@ int FindMysticRecipe(const Player &player, std::array<Item, CraftSlots> &scratch
 	reagentSlot = -1;
 	// Every recipe the grid answers ALONE, before any loan: taking recipes one at a time let an earlier recipe that needs
 	// the pack's powder beat a later one the grid satisfies - a Cleanse became an Enrich (round 8 audit, v1.12.233).
+	// Never Cleanse Shards (round 43 audit): her Cleanse button prices it - gold, doubling - and a Transmute stripped every
+	// shard free, and won the grid-alone pass over an Enrich the player meant.
 	for (const int recipe : HostRecipes()) {
+		if (recipe == CleanseShardsRecipeId)
+			continue;
 		scratch = CraftGrid;
 		if (CanCraftFromLevskiGrid(scratch.data(), recipe))
 			return recipe;
 	}
 	for (const int recipe : HostRecipes()) {
+		if (recipe == CleanseShardsRecipeId)
+			continue;
 		// The grid as it stands. A copy, because the predicate takes a mutable grid and nothing may
 		// be spent while the question is still being asked.
 		scratch = CraftGrid;
@@ -2786,6 +2795,8 @@ bool CheckWorkshopClick(Point position)
 		// The ANCHOR, not the cell: a 2x3 answers to any of its six cells, so a click on the blade
 		// of a sword picks up the sword rather than finding an empty slot beside it.
 		const int anchor = CraftAnchorAt(position);
+		if (player.HoldItem._itype == ItemType::Gold && !player.HoldItem.isEmpty())
+			return true; // gold is no craft input (round 43 audit)
 		if (!player.HoldItem.isEmpty()) {
 			if (anchor >= 0) {
 				SetBoard(std::string(_("That cell is taken.")));
@@ -2816,6 +2827,8 @@ bool CheckWorkshopClick(Point position)
 	// collection tabs taught this file already.
 	if ((OpenTab == Tab::Reroll || OpenTab == Tab::Imbue)
 	    && BenchSlotRect().contains(position)) {
+		if (!player.HoldItem.isEmpty() && player.HoldItem._itype == ItemType::Gold)
+			return true; // nor a bench item (round 43 audit)
 		if (!player.HoldItem.isEmpty()) {
 			if (!Bench.isEmpty()) {
 				SetBoard(std::string(_("The bench holds one item at a time.")));

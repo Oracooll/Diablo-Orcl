@@ -505,7 +505,8 @@ void LeftMouseDown(uint16_t modState)
 	// The basic-attack quick list eats the click while it is showing - on an entry it readies the
 	// attack, anywhere else it just dismisses. Ahead of everything else for the same reason every
 	// popup is: a strip floating over the world must not let clicks through to the world.
-	if (oracool::CheckSkillPickerClick(MousePosition))
+	// Not during the death fall (round 43 audit): a skill was readied on the corpse. The death gate below takes the click.
+	if (!(MyPlayer != nullptr && MyPlayer->_pmode == PM_DEATH) && oracool::CheckSkillPickerClick(MousePosition))
 		return;
 
 	if (control_check_talk_btn())
@@ -990,13 +991,16 @@ void RightMouseDown(bool isShiftHeld)
 		// confirmation after it - see CheckShopGridClick.
 		// Not through the HUD row over the panel, as the left click since round 13: a right click on the HUD sold the held
 		// item (round 23 audit, v1.12.248).
-		if (!oracool::IsPointOverHudChrome(MousePosition) && oracool::CheckShopGridClick(MousePosition, /*rightClick=*/true))
+		// Nor through a window floating over the shop - the skill picker sits over its lower rows, and a right click on a
+		// picker cell bought the item under it (round 43 audit).
+		if (!oracool::IsPointOverHudChrome(MousePosition) && !oracool::IsPointOverFloatingWindow(MousePosition)
+		    && oracool::CheckShopGridClick(MousePosition, /*rightClick=*/true))
 			return;
 
 		// In the backpack: a right click on an item sells it to whichever vendor is open. Only the
 		// backpack grid - ShopSellInventoryItem refuses a worn item, because selling the armour off
 		// your back to a mis-click is not a trade, it is an accident.
-		if (invflag && pcursinvitem != -1 && ShopSellInventoryItem(pcursinvitem))
+		if (invflag && pcursinvitem != -1 && !oracool::IsPointOverFloatingWindow(MousePosition) && ShopSellInventoryItem(pcursinvitem))
 			return;
 		// TABS 2-10 reach the same sale by a different hover variable (user, 2026-08-28: "rightclick
 		// doesnt sell items in inv tabs 2-9").
@@ -1604,7 +1608,7 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				// consumed
 			} else if (stextflag != TalkID::None) {
 				StoreUp();
-			} else if (QuestLogIsOpen) {
+			} else if (QuestLogIsOpen && IsOverLeftPanel(MousePosition)) { // the window under the cursor (round 43 audit)
 				QuestlogUp();
 			} else if (HelpFlag) {
 				HelpScrollUp();
@@ -1667,7 +1671,7 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				// consumed
 			} else if (stextflag != TalkID::None) {
 				StoreDown();
-			} else if (QuestLogIsOpen) {
+			} else if (QuestLogIsOpen && IsOverLeftPanel(MousePosition)) {
 				QuestlogDown();
 			} else if (HelpFlag) {
 				HelpScrollDown();
@@ -4327,6 +4331,16 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 		SetupTownStores();
 	} else {
 		FreeStoreMem();
+	}
+
+	// A level marked visited whose save cannot be found is built fresh, not a fatal error (round 43 audit: a level save that
+	// failed - a full disk, a locked file - still marked the level visited, and coming back to it closed the game).
+	if (!firstflag && lvldir != ENTRY_LOAD && !gbIsMultiplayer) {
+		bool &visited = setlevel ? MyPlayer->_pSLvlVisited[setlvlnum] : MyPlayer->_pLvlVisited[currlevel];
+		if (visited && !LevelSaveExists()) {
+			LogError("Level {} {} has no save - building it fresh", setlevel ? "set" : "dungeon", setlevel ? static_cast<int>(setlvlnum) : static_cast<int>(currlevel));
+			visited = false;
+		}
 	}
 
 	if (firstflag || lvldir == ENTRY_LOAD) {

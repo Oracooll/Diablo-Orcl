@@ -1840,7 +1840,20 @@ void ValidatePlayer()
 	myPlayer._pMemSpells &= msk;
 }
 
+void ClampAttributesForMultiplayer(Player &player);
+void CheckLifeAndManaCeiling(Player &player);
+
 void CheckCheatStats(Player &player)
+{
+	// The 750 attribute ceiling is vanilla's multiplayer anti-cheat, and now multiplayer only (user, 2026-10-01: "Remove
+	// the per tick 750 check in single player"). It ran every tick after life, mana and damage were worked out from the
+	// full totals, so past 750 the sheet, to-hit and the requirements read 750 while the rest used the real value.
+	if (gbIsMultiplayer)
+		ClampAttributesForMultiplayer(player);
+	CheckLifeAndManaCeiling(player);
+}
+
+void ClampAttributesForMultiplayer(Player &player)
 {
 	if (player._pStrength > 750) {
 		player._pStrength = 750;
@@ -1857,7 +1870,10 @@ void CheckCheatStats(Player &player)
 	if (player._pVitality > 750) {
 		player._pVitality = 750;
 	}
+}
 
+void CheckLifeAndManaCeiling(Player &player)
+{
 	// Life and mana are held at the hero's own maximum, not at vanilla's 2000 (128000 in 64ths): that ceiling was set
 	// for level-50 heroes, and a fork hero past 2000 maximum could never fill the orb - potions and regeneration stopped
 	// at 2000 every tick (round 11 audit, v1.12.236).
@@ -3540,7 +3556,9 @@ StartPlayerKill(Player &player, DeathReason deathReason)
 				// pack, belt for a potion, then stash - and dropped only when all three are full.
 				bool kept = false;
 				if (!gbIsMultiplayer) {
-					kept = AutoPlaceItemInInventory(player, player.HoldItem, /*persistItem=*/true)
+					// Gold to the stash first, as the exit save puts it (round 43 audit: it became a pile in the pack).
+					kept = (player.HoldItem._itype == ItemType::Gold && GoldAutoPlace(player, player.HoldItem))
+					    || AutoPlaceItemInInventory(player, player.HoldItem, /*persistItem=*/true)
 					    || (player.HoldItem.isPotion() && AutoPlaceItemInBelt(player, player.HoldItem, /*persistItem=*/true))
 					    || AutoPlaceItemInStash(player, player.HoldItem, /*persistItem=*/true);
 					if (kept)

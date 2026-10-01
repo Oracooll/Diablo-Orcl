@@ -7321,6 +7321,8 @@ TEST(OracoolAudit, CubeRecipesChargeTheirReagentAndTransformInPlace)
 		devilution::Item grid[LevskiGridSlots];
 		InitializeItem(grid[0], static_cast<_item_indexes>(base));
 		MakeSetItem(grid[0], piece);
+		// Found deep, as a real drop is: Recast offers only the pieces its depth could drop (round 43 audit).
+		grid[0]._iOracoolItemLevel = 60;
 		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS, 3);
 		ASSERT_EQ(FirstReadyLevskiRecipe(grid), 7);
 
@@ -7671,6 +7673,7 @@ TEST(OracoolAudit, ARebuildKeepsEtherealAndNameAndStillRefusesSocketsAndOrbs)
 		ASSERT_NE(helm, nullptr);
 		InitializeItem(grid[0], static_cast<_item_indexes>(BaseItemForSetPiece(*helm)));
 		MakeSetItem(grid[0], *helm);
+		grid[0]._iOracoolItemLevel = 60; // found deep, as a real drop is (round 43 audit: Recast's depth gate)
 		devilution::Item warding;
 		InitializeItem(warding, IDI_ORACOOL_SHARD_WARDING);
 		ASSERT_TRUE(TryImbue(player, grid[0], warding));
@@ -16580,6 +16583,10 @@ TEST(OracoolAudit, ServiceTabEntriesMapToTheirWornSlot)
 TEST(OracoolAudit, AnOilIsSpentOnlyWhenItLands)
 {
 	Players.resize(1);
+	// Not the local hero: the stash half of the search is the local hero's alone, and a belt change for him is sent as a
+	// command, which a shuffled process has no state for (a crash on seed 42781). The pack, tabs and belt are what is tested.
+	devilution::Player *const savedMyPlayer = MyPlayer;
+	MyPlayer = nullptr;
 	devilution::Player &player = Players[0];
 	player = {};
 	std::fill(std::begin(player.InvGrid), std::end(player.InvGrid), static_cast<int8_t>(0));
@@ -16607,6 +16614,17 @@ TEST(OracoolAudit, AnOilIsSpentOnlyWhenItLands)
 	EXPECT_EQ(player._pNumInvTab[1], 0) << "the oil that landed was taken from its tab";
 	EXPECT_EQ(player._pNumInv, 1) << "an oil of another kind was taken";
 	EXPECT_FALSE(HasOilToSpend(player));
+
+	// And one on the belt (round 43 audit): used from there it was spent at once, and again where it landed.
+	for (devilution::Item &belt : player.SpdList)
+		belt.clear();
+	player.SpdList[2]._itype = ItemType::Misc;
+	player.SpdList[2]._iMiscId = IMISC_OILSHARP;
+	EXPECT_TRUE(HasOilToSpend(player)) << "the cursor's oil sits on the belt";
+	SpendOneOil(player);
+	EXPECT_TRUE(player.SpdList[2].isEmpty()) << "the belt's oil was not the one taken";
+	EXPECT_FALSE(HasOilToSpend(player));
+	MyPlayer = savedMyPlayer;
 }
 
 // A charge past all the hero's gold leaves the stash at nothing, never below (round 42 audit): a negative pool was saved as

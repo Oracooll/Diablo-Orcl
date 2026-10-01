@@ -53,6 +53,9 @@ void SaveGameData(SaveWriter &saveWriter);
 void SaveGame();
 void SaveLevel(SaveWriter &saveWriter);
 void LoadLevel();
+
+/** @brief Whether the current level (currlevel, or setlvlnum on a set level) has a temp or perm save to load. */
+bool LevelSaveExists();
 void ConvertLevels(SaveWriter &saveWriter);
 void LoadStash();
 void SaveStash(SaveWriter &stashWriter);

@@ -107,7 +107,13 @@ void DoInventory()
 }
 // Was a duplicate of ToggleAbilitiesWindow's body; folded into it so the menu entry and the HUD's
 // skill buttons cannot disagree about what gets closed on the way.
-void DoSpellbook() { ToggleAbilitiesWindow(); }
+void DoSpellbook()
+{
+	// Not over a store dialog, as the B and D keys (round 43 audit: it closed the selling backpack and opened beside the shop).
+	if (stextflag != TalkID::None)
+		return;
+	ToggleAbilitiesWindow();
+}
 void DoEventLog() { ToggleEventLog(); }
 
 bool IsCharacterOpen() { return chrflag; }

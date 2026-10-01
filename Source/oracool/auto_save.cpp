@@ -89,6 +89,7 @@ bool IsSafeToSave()
 	    && stextflag == TalkID::None
 	    && !qtextflag
 	    && pcurs == CURSOR_HAND
+	    && MyPlayer->HoldItem.isEmpty() // the hero file does not carry the held item (round 43 audit)
 	    // Levski's grid is an unsaved container (audit, 2026-09-19): a hero written while items sit
 	    // in it would lose them to a crash before the window closes and returns them.
 	    && !IsLevskiRoarOpen()

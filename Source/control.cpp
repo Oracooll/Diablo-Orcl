@@ -2203,7 +2203,9 @@ bool control_presskeys(SDL_Keycode vkey)
 		ControlUpDown(-1);
 		return true;
 	default:
-		return vkey >= SDLK_SPACE && vkey <= SDLK_z;
+		// Every key belongs to the chat line while it is open (round 43 audit: Tab toggled the automap, F11 the event log,
+		// the keypad zoomed) - except the screenshot keys.
+		return vkey != SDLK_F12 && vkey != SDLK_PRINTSCREEN;
 	}
 }
 

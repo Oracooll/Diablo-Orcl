@@ -524,6 +524,10 @@ std::vector<const SetItemDefinition *> RecastCandidates(const Item &target)
 		// only) and its punched sockets (round 26 audit, v1.12.251).
 		if (AllItemsList[candidateBase].iClass != target._iClass)
 			continue;
+		// Only a piece the item's depth could drop, as Consecrate's SetPiecesForLoc gates it (round 43 audit: a helm found
+		// at the shallowest depth came back as the set's deeper armour).
+		if (BandedQlvl(candidate.requiredLevel) > target._iOracoolItemLevel)
+			continue;
 		others.push_back(&candidate);
 	}
 	return others;

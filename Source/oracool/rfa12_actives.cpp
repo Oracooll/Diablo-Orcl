@@ -2331,7 +2331,19 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// The pool where the bolt lands: at the cursor within 8 tiles, short of a wall (round 41 audit: it was laid past the wall
 		// the bolt stopped at). LineEnd alone walked the full 8 every cast, past a monster 3 tiles away (round 42 audit).
 		const Point aim = Clamped(here, target, 8);
-		const Point pool = aim == here || LineClearMissile(here, aim) ? aim : LineEnd(here, aim, here.WalkingDistance(aim));
+		// The last open tile of the straight line to it (round 43 audit: LineEnd walks one 8-way step and strayed off the
+		// bolt's line, and a cursor on a wall tile put the pool in the wall).
+		Point pool = here;
+		{
+			const Displacement delta = aim - here;
+			const int steps = std::max(std::abs(delta.deltaX), std::abs(delta.deltaY));
+			for (int k = 1; k <= steps; k++) {
+				const Point tile = here + Displacement { (delta.deltaX * k * 2 + (delta.deltaX >= 0 ? steps : -steps)) / (2 * steps), (delta.deltaY * k * 2 + (delta.deltaY >= 0 ? steps : -steps)) / (2 * steps) };
+				if (!InDungeonBounds(tile) || IsTileSolid(tile) || !LineClearMissile(here, tile))
+					break;
+				pool = tile;
+			}
+		}
 		Field *f = NewField(player, spell, pool, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
 		ImpactOnLanding(player, Bolt(player, MissileID::PoisonBoltFlight, pool), spell); // RfA-27: the splash as the bolt lands

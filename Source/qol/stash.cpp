@@ -1388,6 +1388,9 @@ bool UseStashItem(uint16_t c)
 	// consumed the entire stack, not just 1 unit, because this always removed the whole stash
 	// slot unconditionally. Matches DecrementOrRemoveInvItem's inventory/belt behavior.
 	Item &stashItem = Stash.stashList[c];
+	// An oil is spent where it lands (SpendOneOil), not here (round 43 audit: used from the stash it was spent twice, or lost).
+	if (stashItem._iMiscId > IMISC_OILFIRST && stashItem._iMiscId < IMISC_OILLAST)
+		return true;
 	if (stashItem.isStackableConsumable() && stashItem.stackCount() > 1) {
 		stashItem.setStackCount(stashItem.stackCount() - 1);
 		Stash.dirty = true;

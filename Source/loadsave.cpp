@@ -3826,6 +3826,19 @@ void LoadLevel()
 	LoadLevel(nullptr);
 }
 
+bool LevelSaveExists()
+{
+	std::optional<SaveReader> archive = OpenSaveArchive(gSaveNumber);
+	if (!archive)
+		return false;
+	char szName[MaxMpqPathSize];
+	GetTempLevelNames(szName);
+	if (archive->HasFile(szName))
+		return true;
+	GetPermLevelNames(szName);
+	return archive->HasFile(szName);
+}
+
 std::vector<uint8_t> SaveItemBytesForTest(const Item &item)
 {
 	std::vector<uint8_t> bytes;

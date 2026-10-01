@@ -1021,7 +1021,8 @@ void OptionEntryResolution::LoadFromIni(string_view category)
 	// 4:3 and the 21:9 cap is one the list itself hands out.
 	const bool curatedHeight = std::any_of(std::begin(CuratedResolutions), std::end(CuratedResolutions),
 	    [&loaded](const CuratedResolution &entry) { return entry.size.height == loaded.height; });
-	if (curatedHeight && loaded.width >= loaded.height * 4 / 3 && loaded.width <= FitToScreenMaxWidth(loaded.height)) {
+	// Only with Fit to Screen on (round 43 audit): off, the list is the curated one and an off-list size still snaps.
+	if (*sgOptions.Graphics.fitToScreen && curatedHeight && loaded.width >= loaded.height * 4 / 3 && loaded.width <= FitToScreenMaxWidth(loaded.height)) {
 		size = loaded;
 		return;
 	}

@@ -552,6 +552,19 @@ void FinishRiftLevel(bool fresh)
 	// The theme rooms' packs come after PlaceRiftMonsters scaled the floor's, and AddMonster has no rift hook: they kept
 	// their floor stats at any tier (round 5 audit, v1.12.230). Scaled here, only the new ones - scaling is not idempotent.
 	const size_t monstersBefore = ActiveMonsterCount;
+	// The skeletons a sarcophagus or a barrel holds (round 43 audit): BuildRiftLevel placed the objects before the floor
+	// had monster types, so PreSpawnSkeleton found none and every such object stayed empty. Raised here, now the types are
+	// loaded, and scaled with the theme packs below.
+	for (int i = 0; i < ActiveObjectCount; i++) {
+		Object &object = Objects[ActiveObjects[i]];
+		const bool sarcophagus = IsAnyOf(object._otype, OBJ_SARC, OBJ_L5SARC) && object._oVar1 >= 8 && object._oVar2 == -1;
+		const bool barrel = IsAnyOf(object._otype, OBJ_BARREL, OBJ_BARRELEX, OBJ_POD, OBJ_PODEX, OBJ_URN, OBJ_URNEX)
+		    && object._oVar2 >= 8 && object._oVar4 == -1;
+		if (!sarcophagus && !barrel)
+			continue;
+		if (Monster *skeleton = PreSpawnSkeleton(); skeleton != nullptr)
+			(sarcophagus ? object._oVar2 : object._oVar4) = static_cast<int>(skeleton->getId());
+	}
 	CreateThemeRooms();
 	for (size_t i = monstersBefore; i < ActiveMonsterCount; i++)
 		ScaleRiftMonster(Monsters[ActiveMonsters[i]]);

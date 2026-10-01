@@ -1471,12 +1471,28 @@ void RepairItem(Item &item, int lvl);
 void RechargeItem(Item &item, Player &player);
 bool ApplyOilToItem(Item &item, Player &player);
 
-/** @brief Whether @p player still carries an oil of the kind on the cursor (_pOilType), in the pack or its tabs. */
+/** @brief What the oils did to an item's base fields, measured against the item rebuilt from its own affixes. */
+struct OracoolOilWork {
+	int toHit, minDam, maxDam, minStr, minMag, minDex, ac, maxDur;
+	/** Oil of Permanence: indestructible, and not by an affix's doing. */
+	bool permanence;
+};
+
+/**
+ * @brief The oils' work on @p item, to carry across a rebuild that puts the base fields back (rounds 39-43 audit). Nullopt for
+ * an item with no affix record to measure against, or while a measure is already running.
+ */
+std::optional<OracoolOilWork> MeasureOracoolOilWork(const Player &player, const Item &item);
+
+/** @brief Adds @p oil back onto a rebuilt @p item, Permanence's 255 included. */
+void ReapplyOracoolOilWork(Item &item, const OracoolOilWork &oil);
+
+/** @brief Whether @p player still has an oil of the kind on the cursor (_pOilType): the pack, its tabs, the belt or the stash. */
 bool HasOilToSpend(const Player &player);
 
 /**
- * @brief Takes one oil of the cursor's kind from the pack or its tabs, once it has landed (round 42 audit): UseInvItem no
- * longer spends it when the cursor is picked, so a cancelled cursor costs nothing.
+ * @brief Takes one oil of the cursor's kind - from the pack, its tabs, the belt or the stash, in that order - once it has
+ * landed (rounds 42-43 audit): no use path spends it when the cursor is picked, so a cancelled cursor costs nothing.
  */
 void SpendOneOil(Player &player);
 /**

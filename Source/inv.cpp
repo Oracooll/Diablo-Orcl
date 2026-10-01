@@ -4728,7 +4728,8 @@ bool UseInvItem(int cii)
 			CloseInventory();
 			return true;
 		}
-		if (!item->isScroll() && !item->isRune())
+		// Nor an oil from the belt: it is spent where it lands, as from the pack (round 43 audit: spent twice, or lost).
+		if (!item->isScroll() && !item->isRune() && !(item->_iMiscId > IMISC_OILFIRST && item->_iMiscId < IMISC_OILLAST))
 			DecrementOrRemoveSpdBarItem(player, c);
 		return true;
 	}

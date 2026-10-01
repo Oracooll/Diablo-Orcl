@@ -1961,7 +1961,10 @@ bool PlaceItemInLevskiGrid(const Item &item)
 {
 	// The grid is packed by FOOTPRINT, so "is a slot free" and "does this fit" are different
 	// questions and only PlaceInGrid answers the second. Callers must place before they remove.
-	return WindowOpen && PlaceInGrid(item, -1);
+	// Only a grid on screen (round 43 audit: a Ctrl+click on the Recipes tab or Griswold's Salvage page hid items in the
+	// unseen grid until the window closed), and never gold, which the grid cannot give back as gold.
+	return WindowOpen && PageHasGrid() && !SalvageSkin() && WindowHost != TransmuteHost::Smith && item._itype != ItemType::Gold
+	    && PlaceInGrid(item, -1);
 }
 
 Rectangle GetLevskiRoarRect()
@@ -2854,6 +2857,10 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	// deliberately absent - a click that both takes and gives is how a stone goes missing.
 	Player &player = *MyPlayer;
 	const int cell = CellAt(window, mousePosition);
+	// A targeting or service cursor (an oil, Identify, a Teleport scroll) does not lift a grid item onto itself: the item
+	// replaced the cursor (round 43 audit). The click is the grid's and does nothing; the workshop's rule (round 39).
+	if (cell >= 0 && pcurs != CURSOR_HAND && player.HoldItem.isEmpty())
+		return true;
 	if (cell >= 0) {
 		// CTRL sends it straight back to the backpack instead of onto the cursor (user, 2026-08-28:
 		// "ctrl+click to send items to levskis grid and back to my inv grid, not drop them on the
@@ -2870,6 +2877,8 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			GridItems[anchor].clear();
 			return true;
 		}
+		if (!player.HoldItem.isEmpty() && player.HoldItem._itype == ItemType::Gold)
+			return true; // gold stays on the cursor (round 43 audit: closing returned it as a pile the purse did not count)
 		if (!player.HoldItem.isEmpty()) {
 			// The item lands where it is DRAWN under the cursor - its centre on the clicked cell,
 			// as in the backpack (TargetAnchorUnderItemCursor). If that footprint is over something,

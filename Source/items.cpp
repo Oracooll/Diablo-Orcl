@@ -3790,6 +3790,9 @@ void RestoreRebuildKeepsake(Item &item, const RebuildKeepsake &keepsake, bool ke
 
 bool ReforgeOracoolItem(Item &item)
 {
+	// The oils survive the rebuild, as at Gillian's reroll (round 43 audit: every Cube rebuild put the base fields back -
+	// Sharpness, Hardening, Permanence's indestructible - and the oil was gone).
+	const std::optional<OracoolOilWork> oilWork = item._iOracoolAffixCount > 0 && MyPlayer != nullptr ? MeasureOracoolOilWork(*MyPlayer, item) : std::nullopt;
 	if (item.isEmpty())
 		return false;
 	ClearOracoolAffixRecord(item);
@@ -3813,6 +3816,8 @@ bool ReforgeOracoolItem(Item &item)
 	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
 	// The wear it had, as RetierOracoolItem keeps it: SetupAllItems cleared the broken flag and rolled fresh durability, a
 	// free repair that bypassed Mend (round 8 audit, v1.12.233).
+	if (oilWork)
+		ReapplyOracoolOilWork(item, *oilWork);
 	if (oldDurability != DUR_INDESTRUCTIBLE && item._iMaxDur != DUR_INDESTRUCTIBLE)
 		item._iDurability = std::min<int>(oldDurability, item._iMaxDur);
 	item._iOracoolBroken = wasBroken && item._iDurability == 0;
@@ -3822,6 +3827,9 @@ bool ReforgeOracoolItem(Item &item)
 
 bool RetierOracoolItem(Item &item, OracoolItemTier tier)
 {
+	// The oils survive the rebuild, as at Gillian's reroll (round 43 audit: every Cube rebuild put the base fields back -
+	// Sharpness, Hardening, Permanence's indestructible - and the oil was gone).
+	const std::optional<OracoolOilWork> oilWork = item._iOracoolAffixCount > 0 && MyPlayer != nullptr ? MeasureOracoolOilWork(*MyPlayer, item) : std::nullopt;
 	if (item.isEmpty())
 		return false;
 	// Kept whole so a refusal below hands the item back as it came in (2026-09-25). A false return used to
@@ -3854,6 +3862,8 @@ bool RetierOracoolItem(Item &item, OracoolItemTier tier)
 	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
 	// The wear it had, not a free repair (audit, 2026-09-29): SetupAllItems rolled fresh durability and cleared the broken
 	// flag, so a broken item put through a reroll came back whole - Mend bypassed. The Mystic's rework keeps it the same way.
+	if (oilWork)
+		ReapplyOracoolOilWork(item, *oilWork);
 	if (original._iDurability != DUR_INDESTRUCTIBLE && item._iMaxDur != DUR_INDESTRUCTIBLE)
 		item._iDurability = std::min<int>(original._iDurability, item._iMaxDur);
 	item._iOracoolBroken = original._iOracoolBroken && item._iDurability == 0;
@@ -4006,6 +4016,45 @@ namespace {
 bool MeasuringOilWork = false;
 } // namespace
 
+std::optional<OracoolOilWork> MeasureOracoolOilWork(const Player &player, const Item &item)
+{
+	if (MeasuringOilWork || item.isEmpty())
+		return std::nullopt;
+	Item probe = item;
+	std::array<OracoolAffix, Item::MaxOracoolAffixes> own {};
+	const int ownCount = std::clamp<int>(item._iOracoolAffixCount, 0, Item::MaxOracoolAffixes);
+	std::copy(item._iOracoolAffixes.begin(), item._iOracoolAffixes.begin() + ownCount, own.begin());
+	MeasuringOilWork = true;
+	const bool measured = RebuildOracoolItemWithAffixes(player, probe, own.data(), ownCount);
+	MeasuringOilWork = false;
+	if (!measured)
+		return std::nullopt;
+	return OracoolOilWork { item._iPLToHit - probe._iPLToHit, item._iMinDam - probe._iMinDam, item._iMaxDam - probe._iMaxDam,
+		item._iMinStr - probe._iMinStr, item._iMinMag - probe._iMinMag, item._iMinDex - probe._iMinDex,
+		item._iAC - probe._iAC, item._iMaxDur - probe._iMaxDur,
+		// Only when the 255 was not an affix's (round 41 audit: an "of the ages" row reworked away stayed indestructible).
+		item._iMaxDur == DUR_INDESTRUCTIBLE && probe._iMaxDur != DUR_INDESTRUCTIBLE };
+}
+
+void ReapplyOracoolOilWork(Item &item, const OracoolOilWork &oil)
+{
+	item._iPLToHit += oil.toHit;
+	item._iMinDam = std::clamp<int>(item._iMinDam + oil.minDam, 0, 255);
+	item._iMaxDam = std::clamp<int>(item._iMaxDam + oil.maxDam, item._iMinDam, 255);
+	item._iMinStr = static_cast<uint8_t>(std::clamp(item._iMinStr + oil.minStr, 0, 255));
+	item._iMinMag = static_cast<uint8_t>(std::clamp(item._iMinMag + oil.minMag, 0, 255));
+	item._iMinDex = static_cast<uint8_t>(std::clamp(item._iMinDex + oil.minDex, 0, 255));
+	item._iAC = std::clamp<int>(item._iAC + oil.ac, 0, INT16_MAX);
+	if (item._iMaxDur > 0 && item._iMaxDur != DUR_INDESTRUCTIBLE)
+		item._iMaxDur = std::clamp(item._iMaxDur + oil.maxDur, 1, DUR_INDESTRUCTIBLE - 1);
+	// Oil of Permanence: the maximum was the indestructible value itself, which the sum above cannot reach (round 40 audit:
+	// it came back 254, Zod's stamp shape with no Zod, and Make Ethereal then halved it).
+	if (oil.permanence && item._iMaxDur > 0) {
+		item._iMaxDur = DUR_INDESTRUCTIBLE;
+		item._iDurability = DUR_INDESTRUCTIBLE;
+	}
+}
+
 bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const OracoolAffix *affixes, int count)
 {
 	if (item.isEmpty())
@@ -4013,27 +4062,7 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	// The oils' work (round 39 audit): Accuracy, Sharpness, Death, Skill, Hardening, Imperviousness, Fortitude and the rest
 	// write the base fields, which GetItemAttrs puts back - a reroll at the bench wiped every oil. Measured as the item
 	// less the same item rebuilt with its own affixes, and added back to the rebuild.
-	struct OilWork {
-		int toHit, minDam, maxDam, minStr, minMag, minDex, ac, maxDur;
-	};
-	std::optional<OilWork> oil;
-	const int maxDurBefore = item._iMaxDur;
-	int probeMaxDur = 0; // the rebuilt maximum with the item's own affixes: 255 there means an affix made it indestructible
-	if (!MeasuringOilWork) {
-		Item probe = item;
-		std::array<OracoolAffix, Item::MaxOracoolAffixes> own {};
-		const int ownCount = std::clamp<int>(item._iOracoolAffixCount, 0, Item::MaxOracoolAffixes);
-		std::copy(item._iOracoolAffixes.begin(), item._iOracoolAffixes.begin() + ownCount, own.begin());
-		MeasuringOilWork = true;
-		const bool measured = RebuildOracoolItemWithAffixes(player, probe, own.data(), ownCount);
-		MeasuringOilWork = false;
-		if (measured) {
-			probeMaxDur = probe._iMaxDur;
-			oil = OilWork { item._iPLToHit - probe._iPLToHit, item._iMinDam - probe._iMinDam, item._iMaxDam - probe._iMaxDam,
-				item._iMinStr - probe._iMinStr, item._iMinMag - probe._iMinMag, item._iMinDex - probe._iMinDex,
-				item._iAC - probe._iAC, item._iMaxDur - probe._iMaxDur };
-		}
-	}
+	const std::optional<OracoolOilWork> oil = MeasureOracoolOilWork(player, item);
 	// Rebuilt from the base and replayed, because an affix's stats are written INTO the item's fields as it
 	// is rolled and there is no way to take one back out. Everything that is not an affix is carried across:
 	// the seed and the level it was found at, its tier, its sockets and their stones, its shards, its name,
@@ -4168,23 +4197,8 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	// took Tempering's durability down with the base's.
 	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
 	oracool::RestoreImbuements(item, ledger);
-	if (oil) {
-		item._iPLToHit += oil->toHit;
-		item._iMinDam = std::clamp<int>(item._iMinDam + oil->minDam, 0, 255);
-		item._iMaxDam = std::clamp<int>(item._iMaxDam + oil->maxDam, item._iMinDam, 255);
-		item._iMinStr = static_cast<uint8_t>(std::clamp(item._iMinStr + oil->minStr, 0, 255));
-		item._iMinMag = static_cast<uint8_t>(std::clamp(item._iMinMag + oil->minMag, 0, 255));
-		item._iMinDex = static_cast<uint8_t>(std::clamp(item._iMinDex + oil->minDex, 0, 255));
-		item._iAC = std::clamp<int>(item._iAC + oil->ac, 0, INT16_MAX);
-		if (item._iMaxDur > 0 && item._iMaxDur != DUR_INDESTRUCTIBLE)
-			item._iMaxDur = std::clamp(item._iMaxDur + oil->maxDur, 1, DUR_INDESTRUCTIBLE - 1);
-	}
-	// Oil of Permanence: the maximum was the indestructible value itself, which the sum above cannot reach (round 40 audit:
-	// it came back 254, Zod's stamp shape with no Zod, and Make Ethereal then halved it).
-	// Only when the 255 was not an affix's (round 41 audit: an "of the ages" row reworked away stayed indestructible).
-	if (oil && maxDurBefore == DUR_INDESTRUCTIBLE && probeMaxDur != DUR_INDESTRUCTIBLE && item._iMaxDur > 0) {
-		item._iMaxDur = DUR_INDESTRUCTIBLE; // the durability below then stays 255 too
-	}
+	if (oil)
+		ReapplyOracoolOilWork(item, *oil); // the durability below then stays 255 under Permanence too
 	// The wear the item had, not a free repair (sweep, 2026-09-25): GetItemAttrs set durability to the base's
 	// full value, so a reroll at the bench mended the item as a side effect. Capped by the maximum the rebuild
 	// arrived at (an ethereal item's is halved again above); an item that is now indestructible stays so.
@@ -4210,6 +4224,9 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 
 bool EnnobleOracoolRare(Item &item)
 {
+	// The oils survive the rebuild, as at Gillian's reroll (round 43 audit: every Cube rebuild put the base fields back -
+	// Sharpness, Hardening, Permanence's indestructible - and the oil was gone).
+	const std::optional<OracoolOilWork> oilWork = item._iOracoolAffixCount > 0 && MyPlayer != nullptr ? MeasureOracoolOilWork(*MyPlayer, item) : std::nullopt;
 	std::vector<int> candidates = UniquesForBaseOf(item);
 	if (candidates.empty())
 		return false;
@@ -4249,6 +4266,8 @@ bool EnnobleOracoolRare(Item &item)
 	GetUniqueItem(*MyPlayer, item, static_cast<_unique_items>(uid));
 	UniqueItemFlags[uid] = wasFound;
 	SetupItem(item);
+	if (oilWork)
+		ReapplyOracoolOilWork(item, *oilWork);
 	if (oldDurability != DUR_INDESTRUCTIBLE && item._iMaxDur != DUR_INDESTRUCTIBLE)
 		item._iDurability = std::min<int>(oldDurability, item._iMaxDur);
 	item._iOracoolBroken = wasBroken && item._iDurability == 0;
@@ -5083,7 +5102,9 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 
 	EnsureValidReadiedSpell(player);
 
-	player._pISplLvlAdd = spllvladd;
+	// Held at the field's range (2026-10-01, the user's 255-points question): the total is summed in an int and stored in an
+	// int8_t, and past +127 it wrapped to -128 - every active skill would have dropped to level 0.
+	player._pISplLvlAdd = static_cast<int8_t>(std::clamp(spllvladd, -128, 127));
 	player._pIEnAc = enac;
 
 	if (player._pClass == HeroClass::Barbarian) {
@@ -10796,6 +10817,16 @@ bool HasOilToSpend(const Player &player)
 				return true;
 		}
 	}
+	for (const Item &belt : player.SpdList) {
+		if (!belt.isEmpty() && belt._iMiscId == player._pOilType)
+			return true;
+	}
+	if (&player == MyPlayer) {
+		for (const Item &stashed : Stash.stashList) {
+			if (!stashed.isEmpty() && stashed._iMiscId == player._pOilType)
+				return true;
+		}
+	}
 	return false;
 }
 
@@ -10814,6 +10845,25 @@ void SpendOneOil(Player &player)
 				return;
 			}
 		}
+	}
+	for (int i = 0; i < MaxBeltItems; i++) {
+		if (!player.SpdList[i].isEmpty() && player.SpdList[i]._iMiscId == player._pOilType) {
+			DecrementOrRemoveSpdBarItem(player, i);
+			return;
+		}
+	}
+	if (&player != MyPlayer)
+		return;
+	for (size_t i = 0; i < Stash.stashList.size(); i++) {
+		Item &stashed = Stash.stashList[i];
+		if (stashed.isEmpty() || stashed._iMiscId != player._pOilType)
+			continue;
+		if (stashed.isStackableConsumable() && stashed.stackCount() > 1)
+			stashed.setStackCount(stashed.stackCount() - 1);
+		else
+			Stash.RemoveStashItem(static_cast<StashStruct::StashCell>(i));
+		Stash.dirty = true;
+		return;
 	}
 }
 
