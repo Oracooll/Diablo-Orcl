@@ -618,6 +618,8 @@ bool CanAddMinionBody(_monster_id type);
  * CanAddMinionBody is false.
  */
 Monster *AddMinionBody(Point position, Direction dir, _monster_id type);
+/** @brief Oracool: whether AddMinionBody would find @p position free (round 73 audit: RaiseGolem asks before it dismisses). */
+bool MinionBodyFitsAt(Point position);
 /** @brief Oracool: one step away from @p from, straight or up to two turns aside - Terror (oracool/curses.h). */
 bool MonsterStepAwayFrom(Monster &monster, Point from);
 /** @brief Oracool: whether another ENEMY may be added - the enemies' 200, not counting minion bodies. */

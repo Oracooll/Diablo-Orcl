@@ -111,6 +111,15 @@ void Renumber(uint8_t owner, MinionGroup group)
 	}
 }
 
+/** @brief Every owner's every ring, after records were let go wholesale (round 73 audit: two minions shared a home tile). */
+void RenumberEveryRing()
+{
+	for (size_t owner = 0; owner < MAX_PLRS; owner++) {
+		for (size_t group = 0; group < MinionGroupCount; group++)
+			Renumber(static_cast<uint8_t>(owner), static_cast<MinionGroup>(group));
+	}
+}
+
 /**
  * @brief The ring a group stands on: the golem at the hero's shoulder, skeletons around him at two tiles, mages
  * outside them at three, the Revived outside those at four. Warriors in, casters out - D2's crowd, in rings
@@ -289,6 +298,18 @@ const char *MinionGroupName(MinionGroup group)
 		return N_("Revived");
 	}
 	return "";
+}
+
+bool MinionTileNear(Point near)
+{
+	for (int radius = 1; radius <= 5; radius++) { // SpawnBody's search
+		for (int step = 0; step < 8 * radius; step++) {
+			const Point tile = near + RingTile(radius, step);
+			if (InDungeonBounds(tile) && LineClearMissile(near, tile) && MinionBodyFitsAt(tile))
+				return true;
+		}
+	}
+	return false;
 }
 
 bool SummonMinion(Player &owner, const MinionSpec &spec, Point near)
@@ -481,6 +502,7 @@ void OnMinionLevelLoad()
 		}
 	}
 	RecordOfSlot.fill(-1);
+	RenumberEveryRing(); // as at the level save (round 73 audit)
 }
 
 void WithdrawMinionsForLevelSave()
@@ -506,6 +528,7 @@ void WithdrawMinionsForLevelSave()
 	}
 	if (removed)
 		DeleteMonsterList();
+	RenumberEveryRing(); // a body that died on the stairs left a gap (round 73 audit)
 }
 
 void OnMonsterSlotFreed(size_t monsterId)

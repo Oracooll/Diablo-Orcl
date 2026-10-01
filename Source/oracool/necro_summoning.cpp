@@ -211,7 +211,9 @@ bool RaiseGolem(Player &player, GolemKind kind, int rank, Point target)
 	const MinionSpec spec = GolemSpec(player, kind, rank);
 	// A free record too, before the old golem is dismissed: its dying body keeps its own record, so with every record held
 	// the old golem went and nothing replaced it (round 33 audit).
-	if (!CanAddMinionBody(spec.type) || !MinionRecordFree()) {
+	// And a tile (round 73 audit: the dying golem keeps its square to its last frame, so with the room around full the old
+	// one went and the new one had nowhere to stand).
+	if (!CanAddMinionBody(spec.type) || !MinionRecordFree() || (!MinionTileNear(target) && !MinionTileNear(player.position.tile))) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}

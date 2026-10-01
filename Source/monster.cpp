@@ -4515,6 +4515,11 @@ bool CanAddMinionBody(_monster_id type)
 	return GetMonsterTypeIndex(type) < LevelMonsterTypeCount || LevelMonsterTypeCount < MaxLvlMTypes;
 }
 
+bool MinionBodyFitsAt(Point position)
+{
+	return InDungeonBounds(position) && IsTileAvailable(position);
+}
+
 Monster *AddMinionBody(Point position, Direction dir, _monster_id type)
 {
 	if (!CanAddMinionBody(type) || !InDungeonBounds(position) || !IsTileAvailable(position))
@@ -6134,6 +6139,8 @@ bool PlaceCompanionNear(Monster &companion, Point centre, int maxRadius)
 				const Point tile = centre + Displacement { dx, dy };
 				if (!InDungeonBounds(tile) || !IsTileAvailable(companion, tile))
 					continue;
+				if (!LineClearMissile(centre, tile))
+					continue; // not in the next room (round 73 audit: Gather the Dead set skeletons behind the wall)
 				MoveCompanionTo(companion, tile);
 				companion.direction = GetDirection(tile, centre);
 				return true;

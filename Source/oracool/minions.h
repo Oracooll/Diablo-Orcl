@@ -87,6 +87,8 @@ struct MinionSpec {
  * level has no monsters (town), the sprites cannot be loaded, or there is no room to stand.
  */
 bool SummonMinion(Player &owner, const MinionSpec &spec, Point near);
+/** @brief Whether SummonMinion's search round @p near (SpawnBody's rings and sight rule) has a free tile (round 73 audit). */
+bool MinionTileNear(Point near);
 /** @brief Whether a record is free for one more minion - asked before a summon spends something it cannot give back. */
 bool MinionRecordFree();
 /** @brief Dismisses every minion of @p owner, or only those of one group. Bodies on this level die where they stand. */

@@ -1440,6 +1440,7 @@ size_t OnPutItem(const TCmd *pCmd, size_t pnum)
 							NewCursor(player.HoldItem);
 						}
 						player._pGold = CalculateGold(player);
+						CalcPlrInvKeepingLife(player); // a charm counts from the pack (round 73 audit)
 						player.Say(HeroSpeech::WhereWouldIPutThis);
 					}
 				}
@@ -1453,6 +1454,13 @@ size_t OnPutItem(const TCmd *pCmd, size_t pnum)
 			}
 			return sizeof(message);
 		} else {
+			if (isSelf) { // its kept copy is not needed (round 73 audit: left queued, a later drop of the same item matched it)
+				const auto held = std::find_if(ItemLimbo.begin(), ItemLimbo.end(), [&](const Item &item) {
+					return item.keyAttributesMatch(static_cast<uint32_t>(dwSeed), wIndx, wCI);
+				});
+				if (held != ItemLimbo.end())
+					ItemLimbo.erase(held);
+			}
 			PutItemRecord(dwSeed, wCI, wIndx);
 			DeltaPutItem(message, position, player);
 			if (isSelf)

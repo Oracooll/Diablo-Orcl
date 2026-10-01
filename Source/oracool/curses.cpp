@@ -196,8 +196,6 @@ bool Lay(Monster &monster, CurseKind kind, int ticks, int rank, const Player &ow
 	const int banePulse = curse.kind == CurseKind::Bane && curse.ticks > 0 ? curse.pulse : 0;
 	const bool sideChange = curse.turned || curse.kind == CurseKind::Attract;
 	Release(monster, curse);
-	if (sideChange)
-		ReaimMonsterAfterSideChange(monster); // a curse laid over Confuse or Attract (round 72 audit)
 	if (kind == CurseKind::Bane)
 		curse.pulse = banePulse;
 	// The curse's owner is the one who hit it: a Confused or Attracted pack's kills are his (round 37 audit).
@@ -223,6 +221,11 @@ bool Lay(Monster &monster, CurseKind kind, int ticks, int rank, const Player &ow
 	default:
 		break;
 	}
+	// Re-aimed once the new curse stands (round 73 audit: between the release and the new curse, a Confuse laid again aimed
+	// the monster at the hero, and an Attract laid again sent its neighbours off): a curse laid over Confuse or Attract, and
+	// a fresh Confuse or Attract too.
+	if (sideChange || curse.turned || kind == CurseKind::Attract)
+		ReaimMonsterAfterSideChange(monster);
 	return true;
 }
 
