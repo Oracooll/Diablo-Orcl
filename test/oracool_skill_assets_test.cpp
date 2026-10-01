@@ -515,7 +515,7 @@ TEST(OracoolSkillAssets, LevskiCubeSheetLoadsWithEveryFrame)
 {
 	MountArchivesOnce();
 	const std::optional<oracool::ColouredSpriteList> sheet = oracool::LoadPngObjectSheetColoured("levski_cube", 128);
-	ASSERT_TRUE(sheet.has_value()) << "objects\levski_cube.png did not load";
+	ASSERT_TRUE(sheet.has_value()) << "objects\\levski_cube.png did not load";
 	EXPECT_EQ(sheet->list.numSprites(), 26u);
 	EXPECT_NE(sheet->colours, nullptr);
 }
@@ -527,7 +527,27 @@ TEST(OracoolSkillAssets, LevskiCubeSheetLoadsWithEveryFrame)
 TEST(OracoolSkillAssets, LevskiCubeWearsItsSheetInTown)
 {
 	MountArchivesOnce();
-	const bool savedHeadless = HeadlessMode;
+	// Everything this test sets is put back however it ends (round 42 audit: a failed ASSERT left graphics on for the
+	// rest of the binary), and the town it built is cleared.
+	struct Restore {
+		bool headless = HeadlessMode;
+		dungeon_type level = leveltype;
+		uint8_t current = currlevel;
+		bool set = setlevel;
+		~Restore()
+		{
+			leveltype = DTYPE_TOWN;
+			currlevel = 0;
+			setlevel = false;
+			oracool::InitTownObjectPool();
+			FreeObjectGFX();
+			memset(dObject, 0, sizeof(dObject));
+			HeadlessMode = headless;
+			leveltype = level;
+			currlevel = current;
+			setlevel = set;
+		}
+	} restore;
 	HeadlessMode = false;
 	leveltype = DTYPE_TOWN;
 	currlevel = 0;
@@ -550,7 +570,4 @@ TEST(OracoolSkillAssets, LevskiCubeWearsItsSheetInTown)
 	for (int tick = 0; tick < 8; tick++)
 		oracool::ProcessLevskiCubeAnimation();
 	EXPECT_NE(cube->_oAnimFrame, before);
-	HeadlessMode = savedHeadless;
-	oracool::InitTownObjectPool();
-	FreeObjectGFX();
 }

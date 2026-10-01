@@ -810,13 +810,15 @@ GameModeOptions::GameModeOptions()
     // is Ask, which is what triggered the startup dialog; that dialog is gone and any .ini still
     // holding Ask is migrated on boot (see DiabloInit). Ask stays in the enum so an old .ini still
     // parses, and stays out of the list below so it cannot be chosen again.
-    , gameMode("Game", OptionEntryFlags::NeedHellfireMpq | OptionEntryFlags::RecreateUI, N_("Game Mode"), N_("Play Diablo or Hellfire."), StartUpGameMode::Hellfire,
+    // Both hidden (round 42 audit): Orcl is Hellfire only, and switching to Diablo or the shareware from Settings ran the rest
+    // of the session as the half-broken game DiabloParseFlags refuses at launch.
+    , gameMode("Game", OptionEntryFlags::Invisible | OptionEntryFlags::NeedHellfireMpq | OptionEntryFlags::RecreateUI, N_("Game Mode"), N_("Play Diablo or Hellfire."), StartUpGameMode::Hellfire,
           {
               { StartUpGameMode::Diablo, N_("Diablo") },
               // Ask is missing, cause we want to hide it from UI-Settings.
               { StartUpGameMode::Hellfire, N_("Hellfire") },
           })
-    , shareware("Shareware", OptionEntryFlags::NeedDiabloMpq | OptionEntryFlags::RecreateUI, N_("Restrict to Shareware"), N_("Makes the game compatible with the demo. Enables multiplayer with friends who don't own a full copy of Diablo."), false)
+    , shareware("Shareware", OptionEntryFlags::Invisible | OptionEntryFlags::NeedDiabloMpq | OptionEntryFlags::RecreateUI, N_("Restrict to Shareware"), N_("Makes the game compatible with the demo. Enables multiplayer with friends who don't own a full copy of Diablo."), false)
 
 {
 	gameMode.SetValueChangedCallback(OptionGameModeChanged);
@@ -1014,6 +1016,15 @@ OptionEntryResolution::OptionEntryResolution()
 void OptionEntryResolution::LoadFromIni(string_view category)
 {
 	const Size loaded { GetIniInt(category.data(), "Width", DEFAULT_WIDTH), GetIniInt(category.data(), "Height", DEFAULT_HEIGHT) };
+	// A Fit to Screen size stays as saved (round 42 audit): its width follows the desktop, so it is off the list, and the
+	// width-plus-height snap below moved 960p to 1050p, 768p to 800p, on every launch. A curated HEIGHT with a width between
+	// 4:3 and the 21:9 cap is one the list itself hands out.
+	const bool curatedHeight = std::any_of(std::begin(CuratedResolutions), std::end(CuratedResolutions),
+	    [&loaded](const CuratedResolution &entry) { return entry.size.height == loaded.height; });
+	if (curatedHeight && loaded.width >= loaded.height * 4 / 3 && loaded.width <= FitToScreenMaxWidth(loaded.height)) {
+		size = loaded;
+		return;
+	}
 	// Oracool: user request - 960x720 is the supported floor; snap anything saved below it (or
 	// anything not matching one of the curated entries, e.g. from before this list existed) up
 	// to the closest valid resolution instead of allowing an unsupported value to load.

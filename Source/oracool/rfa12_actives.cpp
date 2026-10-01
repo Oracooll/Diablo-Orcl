@@ -1489,7 +1489,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::IceNeedle: {
-		auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
+		// On the hero's own tile it strikes the way he faces, where the needle flies (round 42 audit).
+		const Point toward = target == here ? here + player._pdir : target;
+		auto line = MonstersOnLine(here, toward, ReachTiles(spell, r));
 		if (line.size() > static_cast<size_t>(IceNeedleTargets))
 			line.resize(static_cast<size_t>(IceNeedleTargets));
 		const Range d = SkillDamage(spell, r);
@@ -1500,7 +1502,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		}
 		// RfA-27 batch 54: the needle, to the farthest it struck, landing with its impact cue (at once while the sheet is missing).
 		// Every cast (dev note, 2026-09-30): with nothing struck it flies its full reach and lands silent.
-		Fly(player, MissileGraphicID::IceNeedle, here, FlightEnd(player, here, target, line, ReachTiles(spell, r)), line.empty() ? SpellID::Invalid : spell);
+		Fly(player, MissileGraphicID::IceNeedle, here, FlightEnd(player, here, toward, line, ReachTiles(spell, r)), line.empty() ? SpellID::Invalid : spell);
 		return true;
 	}
 	case SpellID::Frostbite: {
@@ -1516,7 +1518,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::IceLance: {
-		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
+		const Point toward = target == here ? here + player._pdir : target; // as Ice Needle (round 42 audit)
+		const auto line = MonstersOnLine(here, toward, ReachTiles(spell, r));
 		const Range d = SkillDamage(spell, r);
 		for (Monster *m : line) {
 			Strike(player, *m, DamageType::Cold, Rolled(d));
@@ -1525,7 +1528,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		}
 		// The vanilla arrow tinted ice blue (dev note, 2026-09-30, in place of the RfA-27 lance), through to the farthest it
 		// struck with its impact cue - or, every cast, its full reach and silent.
-		const Point end = FlightEnd(player, here, target, line, ReachTiles(spell, r));
+		const Point end = FlightEnd(player, here, toward, line, ReachTiles(spell, r));
 		if (Missile *arrow = Fly(player, MissileGraphicID::Arrow, here, end, line.empty() ? SpellID::Invalid : spell); arrow != nullptr) {
 			arrow->_miAnimFrame = static_cast<int>(GetDirection16(here, end == here ? here + player._pdir : end)) + 1; // a frame a facing, as AddArrow
 			arrow->oracoolTint = Tint::Hue;
@@ -2325,8 +2328,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return !line.empty();
 	}
 	case SpellID::Blight: {
-		// The pool where the bolt lands, short of a wall (round 41 audit: it was laid past the wall the bolt stopped at).
-		const Point pool = LineEnd(here, target, 8);
+		// The pool where the bolt lands: at the cursor within 8 tiles, short of a wall (round 41 audit: it was laid past the wall
+		// the bolt stopped at). LineEnd alone walked the full 8 every cast, past a monster 3 tiles away (round 42 audit).
+		const Point aim = Clamped(here, target, 8);
+		const Point pool = aim == here || LineClearMissile(here, aim) ? aim : LineEnd(here, aim, here.WalkingDistance(aim));
 		Field *f = NewField(player, spell, pool, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
 		ImpactOnLanding(player, Bolt(player, MissileID::PoisonBoltFlight, pool), spell); // RfA-27: the splash as the bolt lands

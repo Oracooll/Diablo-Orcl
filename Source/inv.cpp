@@ -4739,7 +4739,9 @@ bool UseInvItem(int cii)
 		CloseInventory();
 		return true;
 	}
-	if (!item->isScroll() && !item->isRune()) {
+	// An oil is spent when it lands on an item (SpendOneOil), not here: a cancelled or misplaced oil cursor threw it away
+	// (round 42 audit).
+	if (!item->isScroll() && !item->isRune() && !(item->_iMiscId > IMISC_OILFIRST && item->_iMiscId < IMISC_OILLAST)) {
 		const int tab = ActiveInventoryTab == 0 ? -1 : ActiveInventoryTab - 1;
 		const int countBefore = tab < 0 ? player._pNumInv : player._pNumInvTab[tab];
 		DecrementOrRemoveInvItem(player, c, tab);

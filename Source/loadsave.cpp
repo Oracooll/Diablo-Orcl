@@ -2332,7 +2332,11 @@ void LoadLevel(LevelConversionData *levelConversionData)
 
 	ActiveMonsterCount = file.NextBE<int32_t>();
 	auto savedItemCount = file.NextBE<uint32_t>();
-	ActiveObjectCount = file.NextBE<int32_t>();
+	// Town's objects are placed afresh on every entry and never saved, so its count is the one just placed, not the last
+	// visit's (round 42 audit: a town object placed only sometimes would have been cut off ActiveObjects).
+	const int32_t savedObjectCount = file.NextBE<int32_t>();
+	if (leveltype != DTYPE_TOWN)
+		ActiveObjectCount = savedObjectCount;
 
 	if (leveltype != DTYPE_TOWN) {
 		for (int &monsterId : ActiveMonsters)
@@ -3051,7 +3055,12 @@ void LoadStash()
 	}
 
 	// Clamped: the field is an int, and a corrupt value past INT_MAX turned negative (audit, 2026-09-29).
-	Stash.gold = static_cast<int>(std::min<uint32_t>(file.NextLE<uint32_t>(), static_cast<uint32_t>(std::numeric_limits<int>::max())));
+	// Past INT_MAX is a corrupt pool - most likely a negative one saved unsigned - and reads as nothing, not as 2.1 billion
+	// (round 42 audit).
+	{
+		const uint32_t savedGold = file.NextLE<uint32_t>();
+		Stash.gold = savedGold > static_cast<uint32_t>(std::numeric_limits<int>::max()) ? 0 : static_cast<int>(savedGold);
+	}
 
 	auto pages = file.NextLE<uint32_t>();
 	// Self-audit (2026-08-15): bound `pages` BEFORE the loop below trusts it. IsStashSizeValid

@@ -10784,6 +10784,39 @@ void RechargeItem(Item &item, Player &player)
 	}
 }
 
+bool HasOilToSpend(const Player &player)
+{
+	for (int i = 0; i < player._pNumInv; i++) {
+		if (!player.InvList[i].isEmpty() && player.InvList[i]._iMiscId == player._pOilType)
+			return true;
+	}
+	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
+		for (int i = 0; i < player._pNumInvTab[t]; i++) {
+			if (!player.InvTabList[t][i].isEmpty() && player.InvTabList[t][i]._iMiscId == player._pOilType)
+				return true;
+		}
+	}
+	return false;
+}
+
+void SpendOneOil(Player &player)
+{
+	for (int i = 0; i < player._pNumInv; i++) {
+		if (!player.InvList[i].isEmpty() && player.InvList[i]._iMiscId == player._pOilType) {
+			DecrementOrRemoveInvItem(player, i);
+			return;
+		}
+	}
+	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
+		for (int i = 0; i < player._pNumInvTab[t]; i++) {
+			if (!player.InvTabList[t][i].isEmpty() && player.InvTabList[t][i]._iMiscId == player._pOilType) {
+				DecrementOrRemoveInvItem(player, i, t);
+				return;
+			}
+		}
+	}
+}
+
 bool ApplyOilToItem(Item &item, Player &player)
 {
 	int r;

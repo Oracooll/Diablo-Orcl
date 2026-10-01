@@ -313,6 +313,11 @@ void ProcessStonegate()
 		return;
 	if (gate->_oAnimFrame != ClosedFrame)
 		ShowFrame(*gate, ClosedFrame);
+	// The menu needs a hand on the stone to open; walking away shuts it, three tiles as at every counter (round 42 audit:
+	// with the keyboard or a pad the hero could walk across town and open or spend a rift from anywhere).
+	constexpr int WalkAwayTiles = 3;
+	if (IsStonegateMenuOpen() && MyPlayer != nullptr && MyPlayer->position.tile.WalkingDistance(gate->position) > WalkAwayTiles)
+		CloseStonegateMenu();
 }
 
 } // namespace devilution::oracool

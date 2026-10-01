@@ -16574,3 +16574,57 @@ TEST(OracoolAudit, ServiceTabEntriesMapToTheirWornSlot)
 	for (size_t i = 0; i < savedIdx.size(); i++)
 		storehidx[i] = savedIdx[i];
 }
+
+// An oil is spent when it lands, not when its cursor is picked (round 42 audit): a right-click or a click on nothing put
+// the cursor down and the oil was gone. The cursor's kind is found in the pack, the tabs too, and one is taken.
+TEST(OracoolAudit, AnOilIsSpentOnlyWhenItLands)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	std::fill(std::begin(player.InvGrid), std::end(player.InvGrid), static_cast<int8_t>(0));
+	for (auto &grid : player.InvTabGrid)
+		grid.fill(0);
+	player._pNumInvTab.fill(0);
+	player._pNumInv = 0;
+	player._pOilType = IMISC_OILSHARP;
+	EXPECT_FALSE(HasOilToSpend(player)) << "an empty pack has no oil to pour";
+
+	// One oil of another kind in the pack, the cursor's kind on the second tab.
+	player.InvList[0] = {};
+	player.InvList[0]._itype = ItemType::Misc;
+	player.InvList[0]._iMiscId = IMISC_OILDEATH;
+	player.InvGrid[0] = 1;
+	player._pNumInv = 1;
+	player.InvTabList[1][0] = {};
+	player.InvTabList[1][0]._itype = ItemType::Misc;
+	player.InvTabList[1][0]._iMiscId = IMISC_OILSHARP;
+	player.InvTabGrid[1][0] = 1;
+	player._pNumInvTab[1] = 1;
+	EXPECT_TRUE(HasOilToSpend(player)) << "the cursor's oil sits on a tab";
+
+	SpendOneOil(player);
+	EXPECT_EQ(player._pNumInvTab[1], 0) << "the oil that landed was taken from its tab";
+	EXPECT_EQ(player._pNumInv, 1) << "an oil of another kind was taken";
+	EXPECT_FALSE(HasOilToSpend(player));
+}
+
+// A charge past all the hero's gold leaves the stash at nothing, never below (round 42 audit): a negative pool was saved as
+// a uint32 and came back as INT_MAX gold.
+TEST(OracoolAudit, ChargingPastAllGoldLeavesTheStashAtNothing)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	std::fill(std::begin(player.InvGrid), std::end(player.InvGrid), static_cast<int8_t>(0));
+	player._pNumInv = 0;
+	player._pGold = 0;
+	for (devilution::Item &belt : player.SpdList)
+		belt.clear();
+	const int savedGold = Stash.gold;
+	Stash.gold = 10;
+	TakePlrsMoney(50);
+	EXPECT_EQ(Stash.gold, 0) << "the pool went below nothing";
+	Stash.gold = savedGold;
+}

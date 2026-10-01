@@ -494,6 +494,9 @@ void UiSettingsMenu()
 				// unbound whatever held the key (round 37 audit).
 				if (key >= SDLK_F1 && key <= SDLK_F12)
 					return false;
+				// Space and Esc too: both are answered before the keymapper as well (round 42 audit).
+				if (key == SDLK_SPACE || key == SDLK_ESCAPE)
+					return false;
 				auto *pOptionKey = static_cast<KeymapperOptions::Action *>(selectedOption);
 				if (!pOptionKey->SetValue(key))
 					return false;

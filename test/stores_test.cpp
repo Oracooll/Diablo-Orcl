@@ -498,11 +498,13 @@ TEST_F(StoresTest,AddStoreHoldRepair_magic)
 	item->_iDurability = 59;
 	storenumh = 0;
 	item->_ivalue = 500;
-	item->_iIvalue = 30; // To cheap to repair
+	item->_iIvalue = 30; // vanilla priced this 0 and left it off the list as "too cheap to repair"
+	// Oracool (round 42 audit): a worn item always costs at least 1 to mend - at 0 the hover said "needs no repair" on a
+	// damaged set piece, whose value is its plain base's.
 	AddStoreHoldRepair(item, 0);
-	EXPECT_EQ(0, storenumh);
-	EXPECT_EQ(30, item->_iIvalue);
-	EXPECT_EQ(500, item->_ivalue);
+	EXPECT_EQ(1, storenumh);
+	EXPECT_EQ(1, item->_iIvalue); // the listed copy carries its price in both
+	EXPECT_EQ(1, item->_ivalue);
 }
 
 TEST_F(StoresTest,AddStoreHoldRepair_normal)

@@ -57,7 +57,10 @@ void RelightStonegateIfNeeded();
 /** @brief Closes the gate: the portal goes, the rift ends, the stone goes cold. */
 void CloseStonegate();
 
-/** @brief Per game tick: drives the lit loop while a portal is open. Called from ProcessObjects. */
+/**
+ * @brief Per game tick in town: pins the gate's painted frame, and closes the Monument's menu once the hero walks more
+ * than three tiles from the stone. Called from game_logic's town branch (town never runs ProcessObjects).
+ */
 void ProcessStonegate();
 
 /** @brief Which rift's portal stands in the gate right now (the rift module's answer). */

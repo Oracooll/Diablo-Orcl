@@ -1470,6 +1470,15 @@ void initItemGetRecords();
 void RepairItem(Item &item, int lvl);
 void RechargeItem(Item &item, Player &player);
 bool ApplyOilToItem(Item &item, Player &player);
+
+/** @brief Whether @p player still carries an oil of the kind on the cursor (_pOilType), in the pack or its tabs. */
+bool HasOilToSpend(const Player &player);
+
+/**
+ * @brief Takes one oil of the cursor's kind from the pack or its tabs, once it has landed (round 42 audit): UseInvItem no
+ * longer spends it when the cursor is picked, so a cancelled cursor costs nothing.
+ */
+void SpendOneOil(Player &player);
 /**
  * @brief Checks if the item is generated in vanilla hellfire. If yes it updates dwBuff to include CF_HELLFIRE.
  */

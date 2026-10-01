@@ -1722,8 +1722,10 @@ int RepairPriceFor(const Item &item)
 	// In 64 bits and capped (audit, 2026-09-27): a Torment-tier magic item is valued in the millions, and 30 x value x
 	// wear passed INT_MAX within a few points of wear - a negative price the hero could never afford, which also
 	// stopped Repair All, or one wrapped to nearly free.
+	// At least 1 on both branches (round 42 audit): a cheap magic or set piece a little worn priced 0, which reads as "needs
+	// no repair" and kept it off the list.
 	const int64_t price = item._iMagical != ITEM_QUALITY_NORMAL && item._iIdentified
-	    ? 30 * static_cast<int64_t>(item._iIvalue) * due / (static_cast<int64_t>(item._iMaxDur) * 100 * 2)
+	    ? std::max<int64_t>(30 * static_cast<int64_t>(item._iIvalue) * due / (static_cast<int64_t>(item._iMaxDur) * 100 * 2), 1)
 	    : std::max<int64_t>(static_cast<int64_t>(item._ivalue) * due / (static_cast<int64_t>(item._iMaxDur) * 2), 1);
 	return static_cast<int>(std::min<int64_t>(price, std::numeric_limits<int>::max()));
 }
@@ -2770,6 +2772,18 @@ void StoreSellItem()
  * since 2026-09-13 (user: "i want to be able to sell all items from any tab of griswold shop") - the
  * player asked to empty their pack, not to be moved to another shelf.
  */
+
+/**
+ * @brief What Sell All leaves in the backpack (round 42 audit): a quest's own reward, a charm (they work from the pack, and the
+ * growing ones carry their progress), a Sealed Map and a Signet. One at a time from the list still sells each.
+ */
+static bool KeptFromSellAll(const Item &item)
+{
+	for (const _item_indexes quest : { IDI_CLEAVER, IDI_SKCROWN, IDI_HARCREST, IDI_STEELVEIL, IDI_ARMOFVAL, IDI_GRISWOLD, IDI_LGTFORGE })
+		if (item.IDidx == quest)
+			return true;
+	return IsOracoolCharmIdx(item.IDidx) || item._iMiscId == IMISC_ORACOOL_MAP || item._iMiscId == IMISC_ORACOOL_SIGNET;
+}
 void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 {
 	// The gold drop, once at the end rather than once per item (user, 2026-09-21: "When i click Sell
@@ -2792,12 +2806,12 @@ void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 			// audit): one at a time only.
 			const bool questJewel = (storehold[i]._iLoc == ILOC_RING || storehold[i]._iLoc == ILOC_AMULET)
 			    && AllItemsList[storehold[i].IDidx].iRnd == IDROP_NEVER;
-			if (storehTabIdx[i] < 0 && storehold[i].socketedCount() == 0 && !questJewel)
+			if (storehTabIdx[i] < 0 && storehold[i].socketedCount() == 0 && !questJewel && !KeptFromSellAll(storehold[i]))
 				next = i;
 		}
 		if (next < 0)
 			break;
-		if (!StoreGoldFit(StoreHoldSalePrice(storehold[next]), &storehold[next])) {
+		if (!StoreGoldFit(StoreHoldSalePrice(storehold[next]), storehidx[next] < 0 && storehTabIdx[next] < 0 ? nullptr : &storehold[next])) {
 			// The No Room screen returns to stextshold; a buy tab has no text line to restore.
 			stextshold = returnTo;
 			stextlhold = returnTo == TalkID::SmithSell ? SmithSellAllLine() : 0;
@@ -2848,7 +2862,8 @@ void SmithSellEnter()
 	if (idx < 0 || idx >= storenumh)
 		return;
 
-	if (!StoreGoldFit(StoreHoldSalePrice(storehold[idx]), &storehold[idx])) {
+	// A belt item frees no backpack cell for the gold (round 42 audit).
+	if (!StoreGoldFit(StoreHoldSalePrice(storehold[idx]), storehidx[idx] < 0 && storehTabIdx[idx] < 0 ? nullptr : &storehold[idx])) {
 		StartStore(TalkID::NoRoom);
 		return;
 	}
@@ -3104,7 +3119,8 @@ void WitchSellEnter()
 	if (idx < 0 || idx >= storenumh)
 		return;
 
-	if (!StoreGoldFit(StoreHoldSalePrice(storehold[idx]), &storehold[idx])) {
+	// A belt item frees no backpack cell for the gold (round 42 audit).
+	if (!StoreGoldFit(StoreHoldSalePrice(storehold[idx]), storehidx[idx] < 0 && storehTabIdx[idx] < 0 ? nullptr : &storehold[idx])) {
 		StartStore(TalkID::NoRoom);
 		return;
 	}
@@ -3475,6 +3491,7 @@ void ConfirmEnter(Item &item)
 			break;
 		case TalkID::StorytellerIdentify:
 			StorytellerIdentifyItem(item);
+			PlaySFX(IS_GOLD); // it charges, so it chinks (round 42 audit)
 			StartStore(TalkID::StorytellerIdentifyShow);
 			return;
 		case TalkID::SmithPremiumBuy:
@@ -3494,8 +3511,7 @@ void ConfirmEnter(Item &item)
 		// played once HERE rather than in each of the eleven - a new vendor action gets the sound by
 		// existing, which is the only way this stays true.
 		//
-		// The Storyteller's identify returns before this, and rightly: it is the one branch that
-		// charges nothing.
+		// The Storyteller's identify returns before this, to show the item; it plays its own.
 		PlaySFX(IS_GOLD);
 	}
 
@@ -6173,7 +6189,9 @@ void TakePlrsMoney(int cost)
 		cost = TakeGold(myPlayer, cost, false);
 	}
 
-	Stash.gold -= cost;
+	// Never below nothing (round 42 audit): a negative pool saved as a uint32 and came back as INT_MAX gold. Every caller
+	// checks the price first; this is the backstop for the one that does not.
+	Stash.gold -= std::min(cost, std::max(Stash.gold, 0));
 	Stash.dirty = true;
 }
 

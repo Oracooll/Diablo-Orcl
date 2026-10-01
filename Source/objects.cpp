@@ -4227,7 +4227,8 @@ bool IsItemBlockingObjectAtPosition(Point position)
 	// Nor on the Orcl objects that take clicks (the waypoint sigil, round 39 audit): the cursor finds the object first, and
 	// the item under it could only be picked up by its label. Named (round 40 audit): by selFlag it barred every door tile.
 	const auto orclClickObject = [](const Object *o) {
-		return o != nullptr && (o->_otype == OBJ_WAYPOINT || oracool::IsLevskiRoarObject(*o) || oracool::IsStonegateObject(*o));
+		// Not the Monument's portal arch: it takes no clicks, so it steals none (round 42 audit).
+		return o != nullptr && (o->_otype == OBJ_WAYPOINT || oracool::IsLevskiRoarObject(*o) || (oracool::IsStonegateObject(*o) && !oracool::IsStonegatePortalArch(*o)));
 	};
 	if (orclClickObject(object))
 		return true;
@@ -4622,7 +4623,8 @@ int WirtCartObjectId = -1;
 
 bool IsWirtCartObject(const Object &object)
 {
-	return WirtCartObjectId >= 0 && &object == &Objects[WirtCartObjectId];
+	// Town only, as the arch's test (round 42 audit): the id outlives the town, and a dungeon gives its slot to a door.
+	return leveltype == DTYPE_TOWN && WirtCartObjectId >= 0 && &object == &Objects[WirtCartObjectId];
 }
 
 /** @brief Swaps the cart onto objects\orclcart.cel - the same instance override the Roar uses. */
@@ -5575,9 +5577,6 @@ void OperateTrap(Object &trap)
 
 void ProcessObjects()
 {
-	// The Stonegate's lit loop (oracool/stonegate.h): its frames are driven here, not by the
-	// generic advance below, because the loop is a sub-range of one sheet.
-	oracool::ProcessStonegate();
 	for (int i = 0; i < ActiveObjectCount; ++i) {
 		Object &object = Objects[ActiveObjects[i]];
 		switch (object._otype) {
@@ -6202,7 +6201,9 @@ void SyncObjectAnim(Object &object)
 		// NOT the cart (2026-09-22). It is an OBJ_STAND in town too, and repainting it with the
 		// Roar's sprite here would turn a merchant's cart into a second monument on the first town
 		// reload - the same trap the Stonegate is in, which this branch has never named either.
-		if (currlevel == 0 && !setlevel && object._otype == OBJ_STAND && !oracool::IsWirtCartObject(object))
+		// By the Cube's own identity (round 42 audit): the town's other stands - the Monument, its portal arch, the cart - are
+		// OBJ_STANDs too, and would have been dressed as the Cube.
+		if (oracool::IsLevskiRoarObject(object))
 			oracool::ApplyLevskiRoarGraphics(object);
 	}
 

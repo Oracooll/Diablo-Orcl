@@ -68,7 +68,9 @@ constexpr std::array<SpellID, 17> Rfa12Buffs {
 std::vector<Timer> ActiveTimers(const Player &player)
 {
 	std::vector<Timer> timers;
-	std::array<int, 8> missileTicks {}; // Infravision, Etherealize, Search, Rage, Blizzard, Guardian, Fire Wall, Lightning Wall
+	// Not the fire and lightning walls (round 42 audit): Immolation Arrow, the Hellfire rings and Rune of Light raise the same
+	// missiles, and each read as a "Fire Wall" row.
+	std::array<int, 6> missileTicks {}; // Infravision, Etherealize, Search, Rage, Blizzard, Guardian
 	for (Missile &missile : Missiles) {
 		if (missile._miDelFlag || missile.sourceType() != MissileSource::Player || missile._misource != static_cast<int>(player.getId()))
 			continue;
@@ -94,18 +96,12 @@ std::vector<Timer> ActiveTimers(const Player &player)
 		case MissileID::Guardian:
 			missileTicks[5] = std::max(missileTicks[5], missile._mirange);
 			break;
-		case MissileID::FireWall:
-			missileTicks[6] = std::max(missileTicks[6], missile._mirange);
-			break;
-		case MissileID::LightningWall:
-			missileTicks[7] = std::max(missileTicks[7], missile._mirange);
-			break;
 		default:
 			break;
 		}
 	}
-	const std::array<SpellID, 8> missileSpells { SpellID::Infravision, SpellID::Etherealize, SpellID::Search, SpellID::Rage,
-		SpellID::Blizzard, SpellID::Guardian, SpellID::FireWall, SpellID::LightningWall };
+	const std::array<SpellID, 6> missileSpells { SpellID::Infravision, SpellID::Etherealize, SpellID::Search, SpellID::Rage,
+		SpellID::Blizzard, SpellID::Guardian };
 	for (size_t i = 0; i < missileSpells.size(); i++) {
 		if (missileTicks[i] > 0)
 			timers.push_back({ missileSpells[i], missileTicks[i] });

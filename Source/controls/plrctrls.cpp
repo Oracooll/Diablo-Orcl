@@ -2045,8 +2045,8 @@ void PerformPrimaryAction()
 		if (pcurs > CURSOR_HAND && pcurs < CURSOR_FIRSTITEM) {
 			if (pcurs == CURSOR_HOURGLASS)
 				return;
-			// An oil refused by its target stays on the cursor, as the mouse keeps it: the oil was spent when it was
-			// picked, so dropping the cursor threw it away (round 12 audit, v1.12.237).
+			// An oil refused by its target stays on the cursor, as the mouse keeps it (round 12 audit, v1.12.237). Since round
+			// 42 the oil is spent only when it lands, so dropping the cursor no longer costs one either way.
 			const bool wasOil = pcurs == CURSOR_OIL;
 			TryIconCurs();
 			if (!(wasOil && pcurs == CURSOR_OIL))

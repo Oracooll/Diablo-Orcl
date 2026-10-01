@@ -2508,6 +2508,7 @@ void GameLogic()
 		ProcessTowners();
 		oracool::ProcessTownStashChest(); // the stash chest's lid - ProcessObjects does not run in town
 		oracool::ProcessLevskiCubeAnimation(); // the Cube's idle, opening and closing - the same reason (2026-10-01)
+		oracool::ProcessStonegate();           // the Monument's frame and its menu's walk-away (round 42 audit: it sat in ProcessObjects)
 		oracool::ProcessTownCompanions(); // companions in town - ProcessMonsters does not run here either
 		gGameLogicStep = GameLogicStep::ProcessItemsTown;
 		ProcessItems();
@@ -3056,7 +3057,7 @@ void InitKeymapActions()
 	    "Hide Info Screens",
 	    N_("Hide Info Screens"),
 	    N_("Hide all info screens."),
-	    SDLK_SPACE,
+	    SDLK_UNKNOWN, // Space hides them before the keymapper is asked; listing it here was a binding that never fired (round 42 audit)
 	    [] {
 		    ClosePanels();
 		    HelpFlag = false;
@@ -3101,7 +3102,7 @@ void InitKeymapActions()
 	sgOptions.Keymapper.AddAction(
 	    "DecreaseGamma",
 	    N_("Decrease Gamma"),
-	    N_("Reduce screen brightness."),
+	    N_("Increase screen brightness."), // a lower gamma value is brighter (round 42 audit: the two read the wrong way round)
 	    'G',
 	    DecreaseGamma,
 	    nullptr,
@@ -3109,7 +3110,7 @@ void InitKeymapActions()
 	sgOptions.Keymapper.AddAction(
 	    "IncreaseGamma",
 	    N_("Increase Gamma"),
-	    N_("Increase screen brightness."),
+	    N_("Reduce screen brightness."),
 	    'F',
 	    IncreaseGamma,
 	    nullptr,
@@ -3572,7 +3573,7 @@ void InitPadmapActions()
 	sgOptions.Padmapper.AddAction(
 	    "DecreaseGamma",
 	    N_("Decrease Gamma"),
-	    N_("Reduce screen brightness."),
+	    N_("Increase screen brightness."), // a lower gamma value is brighter (round 42 audit: the two read the wrong way round)
 	    ControllerButton_NONE,
 	    DecreaseGamma,
 	    nullptr,
@@ -3580,7 +3581,7 @@ void InitPadmapActions()
 	sgOptions.Padmapper.AddAction(
 	    "IncreaseGamma",
 	    N_("Increase Gamma"),
-	    N_("Increase screen brightness."),
+	    N_("Reduce screen brightness."),
 	    ControllerButton_NONE,
 	    IncreaseGamma,
 	    nullptr,
@@ -3974,15 +3975,27 @@ bool TryIconCurs()
 	}
 
 	if (pcurs == CURSOR_OIL) {
+		// The oil is spent only when it lands (round 42 audit): a click on nothing just puts the cursor down, and the oil
+		// stays in the pack. Gone from the pack meanwhile (sold, dropped), the cursor has nothing to pour.
+		if (!HasOilToSpend(myPlayer)) {
+			NewCursor(CURSOR_HAND);
+			return true;
+		}
 		bool changeCursor = true;
+		bool applied = false;
 		if (pcursinvitem != -1 && !IsInspectingPlayer())
-			changeCursor = DoOil(myPlayer, pcursinvitem);
+			changeCursor = applied = DoOil(myPlayer, pcursinvitem);
 		else if (pcursinvtabitem != -1 && !IsInspectingPlayer())
-			changeCursor = DoOil(myPlayer, pcursinvtabitem, pcursinvtabidx);
+			changeCursor = applied = DoOil(myPlayer, pcursinvtabitem, pcursinvtabidx);
 		else if (pcursstashitem != StashStruct::EmptyCell) {
 			Item &item = Stash.stashList[pcursstashitem];
-			changeCursor = ApplyOilToItem(item, myPlayer);
-			Stash.dirty = true; // the oil is spent from the hero's file; the item must be saved oiled (audit, 2026-09-29)
+			changeCursor = applied = ApplyOilToItem(item, myPlayer);
+			if (applied)
+				Stash.dirty = true; // the item must be saved oiled (audit, 2026-09-29)
+		}
+		if (applied) {
+			SpendOneOil(myPlayer);
+			CalcPlrInvKeepingLife(myPlayer);
 		}
 		if (changeCursor)
 			NewCursor(CURSOR_HAND);

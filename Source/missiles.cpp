@@ -4126,8 +4126,12 @@ Missile *AddArtEffect(Point tile, MissileGraphicID art, int playerId, int ticks)
 Missile *AddArtEffectFacing(Point tile, MissileGraphicID art, int playerId, int dir16, int ticks)
 {
 	Missile *effect = AddArtEffect(tile, art, playerId, ticks);
-	if (effect != nullptr)
-		SetMissDir(*effect, std::clamp(dir16, 0, 15)); // the row; the length and the delay are every row's
+	if (effect != nullptr) {
+		SetMissDir(*effect, std::clamp(dir16, 0, 15)); // the row
+		// One play of THIS row: the carrier measured row 0, and a sheet whose rows differ in length (the Guardian's rise of
+		// 15, sink of 3) looped a short row five times past its field (round 42 audit).
+		effect->_mirange = std::max(ticks, effect->_miAnimLen * std::max<int>(effect->_miAnimDelay, 1));
+	}
 	return effect;
 }
 
