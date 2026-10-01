@@ -90,6 +90,9 @@ inline SDL_Rect HeroTitleRect()
  */
 constexpr int HeroButtonRowHeight = 42;
 constexpr int HeroButtonRowBottomMargin = 50;
+/** @brief The difficulty screen's OK / Cancel sit lower, under its painting's four bands - and so do the Torment picker's,
+ * which opens over it, so its buttons stay where they were (round 51 audit). */
+constexpr int DifficultyButtonRowBottomMargin = 16;
 /** @brief Buttons and hero names, both a size up on the user's call. */
 constexpr UiFlags HeroButtonFontSize = UiFlags::FontSize42;
 constexpr UiFlags HeroListFontSize = UiFlags::FontSize30;

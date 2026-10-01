@@ -15225,7 +15225,7 @@ TEST(OracoolPreview, DISABLED_TormentPicker)
 	}
 	SDL_FreeSurface(rgba);
 	OwnedSurface out = OwnedSurface::Rgb(960, 720);
-	const Point origin { 80, 720 - HeroButtonRowBottomMargin - HeroButtonRowHeight - 12 - 600 }; // as PopupOrigin at 960x720
+	const Point origin { 80, 720 - DifficultyButtonRowBottomMargin - HeroButtonRowHeight - 12 - 600 }; // as PopupOrigin at 960x720
 	BlitArgb(out, art.data(), 800, MakeSdlRect(0, 0, 800, 600), origin);
 	std::array<SDL_Color, 256> palette {};
 	const OptionalOwnedClxSpriteList focus = LoadPcxSpriteList("ui_art\\focus42", 8, 250, palette.data(), /*logError=*/false);

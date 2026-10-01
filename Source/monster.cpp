@@ -1623,7 +1623,8 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 	maxd = std::max(maxd, mind);
 	int dam = (mind + GenerateRnd(maxd - mind + 1)) << 6; // a 0 blow still wakes and flinches, as before (round 50 audit)
 	// Weaken and Decrepify blunt a cursed monster's blow on the army too, not only on the hero (round 20 audit, v1.12.245).
-	if (const int weakened = oracool::MonsterDebuffDamagePercent(attacker); weakened != 0)
+	// Not on a 0 blow: the floor of 1 made a cursed attacker hit harder than an uncursed one (round 51 audit).
+	if (const int weakened = oracool::MonsterDebuffDamagePercent(attacker); weakened != 0 && dam > 0)
 		dam = std::max(dam + dam * weakened / 100, 1 << 6);
 	ApplyMonsterDamage(DamageType::Physical, target, dam);
 

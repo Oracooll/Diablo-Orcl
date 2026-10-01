@@ -78,10 +78,22 @@ void LoadArt()
 	SDL_FreeSurface(rgba);
 }
 
+/** @brief The OK / Cancel row's top: where the difficulty screen this opens over has it (round 51 audit). */
+int ButtonRowTop()
+{
+	return static_cast<int>(gnScreenHeight) - DifficultyButtonRowBottomMargin - HeroButtonRowHeight;
+}
+
+SDL_Rect ButtonRect(int zone)
+{
+	const SDL_Rect cell = HeroButtonRect(zone);
+	return MakeSdlRect(cell.x, static_cast<Sint16>(ButtonRowTop()), cell.w, HeroButtonRowHeight);
+}
+
 Point PopupOrigin()
 {
-	// Centred across, and lifted clear of the action row so OK and Cancel stay where they are on every screen.
-	return { (static_cast<int>(gnScreenWidth) - PopupWidth) / 2, std::max(0, HeroButtonRowTop() - PopupToButtonsGap - PopupHeight) };
+	// Centred across, and lifted clear of the action row so OK and Cancel stay where the difficulty screen had them.
+	return { (static_cast<int>(gnScreenWidth) - PopupWidth) / 2, std::max(0, ButtonRowTop() - PopupToButtonsGap - PopupHeight) };
 }
 
 std::vector<std::unique_ptr<UiItemBase>> vecTormentBackdrop;
@@ -166,15 +178,18 @@ std::optional<int> UiTormentSelectDialog(int currentTenths)
 
 	// The columns: wordless buttons, so the shared focus ring walks them with the arrow keys and the click rule (first
 	// click marks, second acts) holds for them as for every front-end button. Their own pentagram is drawn below.
+	// Never down into the button row: on a window under ~720 tall the popup cannot clear it, and a column reaching over
+	// OK would take its clicks and fall into its row of the focus ring (round 51 audit).
+	const int columnBottom = std::min(origin.y + ColumnBottom, ButtonRowTop() - 1);
 	for (int i = 0; i < ColumnCount; i++) {
 		auto button = std::make_unique<UiArtTextButton>(string_view {}, ColumnActions[i],
-		    MakeSdlRect(origin.x + CircleX[i] - ColumnHalfWidth, origin.y + ColumnTop, ColumnHalfWidth * 2, ColumnBottom - ColumnTop));
+		    MakeSdlRect(origin.x + CircleX[i] - ColumnHalfWidth, origin.y + ColumnTop, ColumnHalfWidth * 2, std::max(1, columnBottom - origin.y - ColumnTop)));
 		ColumnButtons[i] = button.get();
 		vecTormentItems.push_back(std::move(button));
 	}
 	// OK and Cancel in zones 2 and 3, where they are on every front-end screen.
-	vecTormentItems.push_back(std::make_unique<UiArtTextButton>(_("OK"), &Confirm, HeroButtonRect(OkButtonIndex), HeroButtonFlags));
-	vecTormentItems.push_back(std::make_unique<UiArtTextButton>(_("Cancel"), &Cancel, HeroButtonRect(CancelButtonIndex), HeroButtonFlags));
+	vecTormentItems.push_back(std::make_unique<UiArtTextButton>(_("OK"), &Confirm, ButtonRect(OkButtonIndex), HeroButtonFlags));
+	vecTormentItems.push_back(std::make_unique<UiArtTextButton>(_("Cancel"), &Cancel, ButtonRect(CancelButtonIndex), HeroButtonFlags));
 
 	UiInitList(nullptr, SelectList, Cancel, vecTormentItems, false);
 	Chosen = ColumnForTenths(currentTenths);

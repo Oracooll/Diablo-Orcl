@@ -1,5 +1,7 @@
 #include "DiabloUI/multi/selgame.h"
 
+#include <utility>
+
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -66,6 +68,8 @@ std::vector<std::unique_ptr<UiItemBase>> vecSelGameDialog;
 std::vector<GameInfo> Gamelist;
 uint32_t firstPublicGameInfoRequestSend = 0;
 unsigned HighlightedItem;
+/** @brief The difficulty row the next selgame_Difficulty_Init starts on; 0 except straight after the Torment picker's Cancel. */
+size_t DifficultyReturnRow = 0;
 
 /**
  * @brief The difficulty screen's four wrapped blurbs and its locked rows' requirement lines.
@@ -467,7 +471,6 @@ void selgame_Difficulty_Init()
 	 * Lower than the other screens' 50. This one has no logo (user's call), so the bottom of the screen
 	 * is free - and Torment's band is both the shortest and the lowest, so its name needs the room.
 	 */
-	constexpr int ButtonRowBottomMargin = 16;
 
 	const int blockLeft = (gnScreenWidth - BlockWidth) / 2;
 	const int descriptionX = blockLeft;
@@ -476,7 +479,7 @@ void selgame_Difficulty_Init()
 	const int lastCentre = gnScreenHeight * BandCentrePerMille[3] / 1000;
 	const int pitch = (lastCentre - firstCentre) / 3;
 	const int rowsTop = firstCentre - pitch / 2;
-	const int buttonRowTop = gnScreenHeight - ButtonRowBottomMargin - HeroButtonRowHeight;
+	const int buttonRowTop = gnScreenHeight - DifficultyButtonRowBottomMargin - HeroButtonRowHeight;
 
 	title = _("Create Game").data();
 
@@ -553,7 +556,9 @@ void selgame_Difficulty_Init()
 
 	// No focus callback: the blurbs are all on screen at once, so there is nothing left to rewrite as
 	// the selection moves.
-	UiInitList(nullptr, selgame_Diff_Select, selgame_Diff_Esc, vecSelGameDialog, true);
+	// Back from the Torment picker's Cancel, the pentagram returns to Torment rather than Normal (round 51 audit).
+	const size_t selectedRow = std::exchange(DifficultyReturnRow, 0);
+	UiInitList(nullptr, selgame_Diff_Select, selgame_Diff_Esc, vecSelGameDialog, true, nullptr, nullptr, selectedRow);
 }
 
 void selgame_GameSelection_Esc()
@@ -703,6 +708,7 @@ void selgame_Diff_Select(int value)
 			selgame_Free();
 			const std::optional<int> tenths = UiTormentSelectDialog(sgOptions.Oracool.tormentDifficultyMultiplier.ValueTenths());
 			if (!tenths) {
+				DifficultyReturnRow = static_cast<size_t>(DIFF_TORMENT);
 				selgame_Init();
 				selgame_GameSelection_Select(0);
 				return;

@@ -174,7 +174,7 @@ static void AssertPlayer(devilution::Player &player)
 	ASSERT_EQ(player._pSpellFlags, SpellFlag::None);
 	ASSERT_EQ(player._pBlockFlag, 0);
 	ASSERT_EQ(player._pLightRad, 10);
-	ASSERT_EQ(player._pStatDamageBasisPoints, 2500); // 25 Strength x 1% (D2-style since 1.12.284; was level x Strength / 100 = 0)
+	ASSERT_EQ(player._pStatDamageBasisPoints, 2500); // 25 Strength x 1% (D2-style since v1.12.285; was level x Strength / 100 = 0)
 	ASSERT_EQ(player._pHitPoints, 2880);
 	ASSERT_EQ(player._pMaxHP, 2880);
 	ASSERT_EQ(player._pMana, 1440);

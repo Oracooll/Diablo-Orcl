@@ -338,7 +338,7 @@ void AssertPlayer(Player &player)
 	ASSERT_TRUE(player.UsesRangedWeapon());
 	EXPECT_EQ(player._pBlockFlag, 0);
 	EXPECT_EQ(player._pLightRad, 11);
-	EXPECT_EQ(player._pStatDamageBasisPoints, 18750); // D2-style since 1.12.284: (Str + Dex) x 0.5% for the Rogue, 187.5%
+	EXPECT_EQ(player._pStatDamageBasisPoints, 18750); // D2-style since v1.12.285: (Str + Dex) x 0.5% for the Rogue, 187.5%
 	EXPECT_EQ(player._pHitPoints, 15552);
 	EXPECT_EQ(player._pMaxHP, 15552);
 	EXPECT_EQ(player._pMana, 19424);
