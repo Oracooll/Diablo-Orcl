@@ -16,6 +16,8 @@
 #include "oracool/endgame_boss.h"
 #include "oracool/monster_variants.h"
 #include "oracool/rift.h"
+#include "oracool/rfa12_effects.h" // Rfa12ColdDamagePercent: Frostbite on the Shiver Armor bolt
+#include "oracool/sat_math.h"
 #include "oracool/skill_sounds.h"
 #include "player.h"
 #include "utils/language.h"
@@ -364,6 +366,8 @@ void OnColdArmourStruckInMelee(Player &player, Monster &monster)
 		// Cold resistance answers, as on every cold missile (round 8 audit, v1.12.233).
 		if (monster.isResistant(MissileID::Null, DamageType::Cold))
 			dam /= ColdResistanceDivisor(player);
+		// Frostbite's cold bonus, as every other cold hit takes it (round 52 audit).
+		dam = AddPercentSat(dam, Rfa12ColdDamagePercent(monster));
 		ApplyMonsterDamage(DamageType::Cold, monster, dam);
 		if (monster.hitPoints >> 6 <= 0)
 			M_StartKill(monster, player);

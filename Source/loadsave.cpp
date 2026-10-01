@@ -235,6 +235,11 @@ public:
 
 	void Skip(size_t len)
 	{
+		// Bounded as WriteBytes is (round 52 audit): it zeroed past the buffer, the overrun found only by the destructor.
+		if (!IsValid(len)) {
+			m_overran_ = true;
+			return;
+		}
 		std::memset(&m_buffer_[m_cur_], 0, len);
 		m_cur_ += len;
 	}
@@ -2259,6 +2264,10 @@ void LoadCorpseTable(LoadHelper &file)
 		return;
 	}
 	const int count = std::min<int>(file.NextLE<uint8_t>(), oracool::CorpseTableSize);
+	// Every record there? Asked BEFORE reading them (round 52 audit): the tail ends the level file, so the old check after
+	// the loop - IsValid(), one MORE byte - failed on every complete table and threw it away; the round 47 fix never took.
+	constexpr size_t CorpseRecordSize = 1 + 1 + 2 + 6 * 4 + 1; // x, y, type, six int32 stats, revivable
+	const bool whole = file.IsValid(static_cast<size_t>(count) * CorpseRecordSize);
 	std::array<oracool::Corpse, oracool::CorpseTableSize> corpses {};
 	for (int i = 0; i < count; i++) {
 		oracool::Corpse &corpse = corpses[static_cast<size_t>(i)];
@@ -2273,7 +2282,7 @@ void LoadCorpseTable(LoadHelper &file)
 		corpse.armorClass = file.NextLE<int32_t>();
 		corpse.revivable = file.NextLE<uint8_t>() != 0;
 	}
-	oracool::RestoreCorpseTable(corpses.data(), file.IsValid() ? count : 0);
+	oracool::RestoreCorpseTable(corpses.data(), whole ? count : 0);
 }
 
 } // namespace
@@ -2915,7 +2924,9 @@ void LoadHotkeys()
 	//
 	// Guarded on the chunk actually being long enough, so a hero saved before this reads cleanly and
 	// simply keeps whatever the pack path established.
-	if (file.IsValid(HotkeysSizeWithLeft(nHotkeys))) {
+	// The pair's own five bytes from where the cursor stands (round 52 audit: IsValid counts from the cursor, and asking for
+	// the whole file's size again was never true - the left pair was written and never read).
+	if (file.IsValid(sizeof(int32_t) + sizeof(uint8_t))) {
 		const SpellID savedLeft = static_cast<SpellID>(file.NextLE<int32_t>());
 		const auto savedLeftType = static_cast<SpellType>(file.NextLE<uint8_t>());
 		if (!IsValidSpell(myPlayer._pLRSpell) && HeroHasBinding(myPlayer, savedLeft, savedLeftType)
@@ -3285,7 +3296,7 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 		// blind would misalign every tab after this one) - the tab is emptied after the read.
 		player._pNumInvTab[t] = itemCount;
 		for (uint8_t i = 0; i < itemCount; i++) {
-			if (!file.IsValid()) {
+			if (!file.IsValid(ItemSaveSizeFor(LoadingItemFormat))) { // a whole record, not one byte of it (round 52 audit)
 				RefuseInvTabsFile(player); // truncated mid-page (audit, 2026-09-29)
 				return;
 			}

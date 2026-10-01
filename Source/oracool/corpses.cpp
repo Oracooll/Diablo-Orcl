@@ -50,6 +50,8 @@ void RestoreCorpseTable(const Corpse *in, int count)
 		const Corpse &corpse = in[i];
 		if (!InDungeonBounds(corpse.position) || dCorpse[corpse.position.x][corpse.position.y] == 0)
 			continue;
+		if (corpse.type < 0 || corpse.type >= NUM_MTYPES)
+			continue; // a corrupt record would index the monster tables when raised (round 52 audit)
 		Table[static_cast<size_t>(Count++)] = corpse;
 	}
 }

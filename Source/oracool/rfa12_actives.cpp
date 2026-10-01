@@ -274,6 +274,24 @@ std::vector<Point> LineOfTiles(Point from, Point toward, int length)
 }
 
 /** @brief Every hittable monster standing on a tile of the line, nearest first. */
+/**
+ * @brief The tiles of the straight line from @p from to @p to, @p to included and @p from not, at any angle - stopped by the
+ * first wall. LineOfTiles walks one of eight directions; this is for a line whose two ends are both given.
+ */
+std::vector<Point> TilesBetween(Point from, Point to)
+{
+	std::vector<Point> tiles;
+	const Displacement delta = to - from;
+	const int steps = std::max(std::abs(delta.deltaX), std::abs(delta.deltaY));
+	for (int k = 1; k <= steps; k++) {
+		const Point tile = from + Displacement { (delta.deltaX * k * 2 + (delta.deltaX >= 0 ? steps : -steps)) / (2 * steps), (delta.deltaY * k * 2 + (delta.deltaY >= 0 ? steps : -steps)) / (2 * steps) };
+		if (!InDungeonBounds(tile) || IsTileSolid(tile))
+			break;
+		tiles.push_back(tile);
+	}
+	return tiles;
+}
+
 std::vector<Monster *> MonstersOnLine(Point from, Point toward, int length)
 {
 	std::vector<Monster *> out;
@@ -513,17 +531,29 @@ bool HasOwnCue(const Player &player, SpellID spell)
 std::optional<Point> SightedLandingNear(const Player &player, Point dst);
 namespace {
 
-bool TeleportTo(Player &player, Point dst, SpellID spell = SpellID::Invalid, Point *landedAt = nullptr)
+bool TeleportTo(Player &player, Point dst, SpellID spell = SpellID::Invalid, Point *landedAt = nullptr, bool sayRefusal = true)
 {
-	if (dst == player.position.tile || !InDungeonBounds(dst))
+	// The refusal is heard (round 52 audit: Vault, Leaping Crane, Shoulder Gate, Ride the Lightning, Shadow Step and Heaven's
+	// Descent fizzled in silence). Unpaid either way - every caller pays after this returns.
+	const auto refuse = [&player, sayRefusal]() {
+		if (sayRefusal && &player == MyPlayer)
+			player.Say(HeroSpeech::ICantDoThat);
 		return false;
+	};
+	if (dst == player.position.tile || !InDungeonBounds(dst))
+		return refuse();
+	const int intended = player.position.tile.WalkingDistance(dst);
 	// Where he will really land, chosen here with sight from where he stands (round 46 audit: the engine's teleport took the
 	// nearest open tile within five of a crowded target, and that could be the room behind the wall). Handed to the teleport
 	// as its target, which its own search then answers at once.
 	const std::optional<Point> landing = SightedLandingNear(player, dst);
 	// Not his own tile either (round 47 audit: in a crowded corridor the search found nowhere but where he stood - paid for).
 	if (!landing || *landing == player.position.tile)
-		return false;
+		return refuse();
+	// And no more than a tile past the aim's own distance (round 52 audit: the search around the aim could set her down
+	// eight tiles off on a range-3 Vault, or through a doorway beside it - Leap has had this cap since round 48).
+	if (landing->WalkingDistance(player.position.tile) > intended + 1)
+		return refuse();
 	dst = *landing;
 	if (landedAt != nullptr)
 		*landedAt = dst; // where the art and the landing belong, up to five tiles from the aim (round 47 audit)
@@ -1699,6 +1729,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 				Ring(player, target);
 			return true;
 		}
+		if (target == state.crucibleTile) {
+			player.Say(HeroSpeech::ICantDoThat); // a pair on one tile has no line between (round 52 audit: paid, did nothing)
+			return false;
+		}
 		Field *f = NewField(player, spell, state.crucibleTile, CrucibleTicks, r);
 		f->tile2 = target;
 		f->clock = CruciblePeriod - 1;
@@ -1710,8 +1744,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::RideTheLightning: {
-		if (target == here)
+		if (target == here) {
+			player.Say(HeroSpeech::ICantDoThat); // heard (round 52 audit)
 			return false; // no line to fly (round 41 audit: she flew south)
+		}
 		// Down the one line she strikes, to its wall (round 40 audit: she flew straight to the cursor, through walls, while the
 		// strike walked an 8-way ray - monsters on her path went unhit and others off it were struck).
 		const Point dst = LineEnd(here, target, ReachTiles(spell, r));
@@ -1753,14 +1789,19 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		f->clock = TicksPerSecond - 1;
 		return true;
 	}
-	case SpellID::Firestorm:
-		NewField(player, spell, target, EffectTicks(spell, r), r);
+	case SpellID::Firestorm: {
+		Field *f = NewField(player, spell, target, EffectTicks(spell, r), r);
+		f->tile2 = here; // where she stood: the fireballs are thrown from here, not from wherever she walks (round 52 audit)
 		return true;
+	}
 	case SpellID::Immolate:
 		StartBuff(player, Buff::Immolate, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::FuneralStar: {
 		PlayerState &state = StateOf(player);
+		// A star still gathering gives way to the new one, art and all (round 52 audit: its art played on, unburst).
+		if (state.funeralTicks > 0)
+			EndArtEffects(state.funeralTile, MissileGraphicID::FuneralStarCharge, static_cast<int>(player.getId()));
 		state.funeralTicks = EffectTicks(spell, r);
 		state.funeralTile = target;
 		state.funeralFrom = here;
@@ -2762,11 +2803,20 @@ void TickField(Player &player, Field &field)
 	case SpellID::StormCrucible:
 		if (field.clock % CruciblePeriod == 0) {
 			const Range d = SkillDamage(field.spell, r);
-			for (Monster *m : MonstersOnLine(field.tile, field.tile2, field.tile.WalkingDistance(field.tile2)))
+			// The straight line between the two conductors, whatever its angle (round 52 audit: an 8-way ray from the first
+			// missed the second unless it stood on one of the eight directions, striking off the line and skipping the pair's).
+			const std::vector<Point> between = TilesBetween(field.tile, field.tile2);
+			std::vector<Monster *> struck;
+			for (const Point tile : between) {
+				Monster *m = FindMonsterAtPosition(tile);
+				if (m != nullptr && Hittable(*m) && std::find(struck.begin(), struck.end(), m) == struck.end())
+					struck.push_back(m);
+			}
+			for (Monster *m : struck)
 				Strike(player, *m, DamageType::Lightning, Rolled(d));
 			// RfA-27 batch 55: a segment of lightning on every tile between the pair; the two rings without the sheet.
 			if (MissileArtLoaded(MissileGraphicID::StormArc)) {
-				for (const Point tile : LineOfTiles(field.tile, field.tile2, field.tile.WalkingDistance(field.tile2)))
+				for (const Point tile : between)
 					Art(player, MissileGraphicID::StormArc, tile);
 			} else {
 				Ring(player, field.tile);
@@ -2838,7 +2888,7 @@ void TickField(Player &player, Field &field)
 		if (field.clock % FirestormPeriod == 0) {
 			const Point landing = field.tile + Displacement { GenerateRnd(2 * FirestormScatter + 1) - FirestormScatter, GenerateRnd(2 * FirestormScatter + 1) - FirestormScatter };
 			if (InDungeonBounds(landing))
-				AddMissile(player.position.tile, landing, GetDirection(player.position.tile, landing), MissileID::Fireball,
+				AddMissile(field.tile2, landing, GetDirection(field.tile2, landing), MissileID::Fireball,
 				    TARGET_MONSTERS, static_cast<int>(player.getId()), 0, r);
 		}
 		break;
@@ -3216,7 +3266,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			for (const Point side : { player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {
 				// PosOkPlayer, objects included: a barrel beside him passed, and the landing search put him elsewhere (round 20).
 				if (InDungeonBounds(side) && PosOkPlayer(player, side) && dMonster[side.x][side.y] == 0) {
-					TeleportTo(player, side, spell); // its impact cue is the moment's sound (RfA-27)
+					TeleportTo(player, side, spell, nullptr, /*sayRefusal=*/false); // its impact cue is the moment's sound (RfA-27)
 					break;
 				}
 			}
