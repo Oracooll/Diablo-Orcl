@@ -1622,9 +1622,16 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			if ((m->hitPoints >> 6) > 0)
 				ChillMonster(*m, SlowTicks(spell, r));
 		}
-		// RfA-27 batch 54: the needle, to the farthest it struck, landing with its impact cue (at once while the sheet is missing).
+		// The vanilla arrow at half size, tinted ice blue (the Sorcerer Skill Cards page, 2026-10-01: "use 50% size arrow instead
+		// of this asset. tinted cold."), as Ice Lance flies it at twice: to the farthest it struck, landing with its impact cue.
 		// Every cast (dev note, 2026-09-30): with nothing struck it flies its full reach and lands silent.
-		Fly(player, MissileGraphicID::IceNeedle, here, FlightEnd(player, here, toward, line, ReachTiles(spell, r)), line.empty() ? SpellID::Invalid : spell);
+		const Point end = FlightEnd(player, here, toward, line, ReachTiles(spell, r));
+		if (Missile *arrow = Fly(player, MissileGraphicID::Arrow, here, end, line.empty() ? SpellID::Invalid : spell); arrow != nullptr) {
+			arrow->_miAnimFrame = static_cast<int>(GetDirection16(here, end == here ? here + player._pdir : end)) + 1; // a frame a facing, as AddArrow
+			arrow->oracoolTint = Tint::Hue;
+			arrow->oracoolTintRgb = hue::IceBlue;
+			ScaleMissile(*arrow, 50);
+		}
 		return true;
 	}
 	case SpellID::Frostbite: {
