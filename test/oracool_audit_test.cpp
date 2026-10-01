@@ -141,6 +141,7 @@
 #include "oracool/warcries.h"
 #include "oracool/telemetry.h"
 #include "oracool/xp_counter.h"
+#include "DiabloUI/torment_select.h"
 #include "DiabloUI/hero/hero_layout.h" // the character-select column geometry
 #include "DiabloUI/hero/selhero.h"
 #include "DiabloUI/multi/selgame.h"
@@ -15200,6 +15201,49 @@ TEST(OracoolColdResistance, ChillIsShortenedByResistanceAndHalvesAttacks)
 
 // The grouped hero sheet and its Advanced Stats window (2026-09-26), drawn through the game's own code into
 // hero_sheet_preview.png. Not a test - run by name, like the item look preview.
+// The Torment picker (user, 2026-10-01): the 800x600 art where the game puts it on a 960x720 screen, with the big
+// pentagram (ui_art\focus42) in every column's circle - one frame each - so the spot and the size can be seen to fit.
+TEST(OracoolPreview, DISABLED_TormentPicker)
+{
+	MountTestArchives(/*gameArchivesToo=*/true);
+	if (!HaveDiabdat())
+		GTEST_SKIP() << "needs diabdat.mpq";
+	std::string artPath = __FILE__;
+	artPath = artPath.substr(0, artPath.find_last_of("/\\") + 1) + "../Packaging/resources/oracool_assets/ui/torment_select_bg.png";
+	SDL_Surface *png = IMG_LoadPNG(artPath.c_str());
+	ASSERT_NE(png, nullptr) << artPath;
+	SDL_Surface *rgba = SDL_ConvertSurfaceFormat(png, SDL_PIXELFORMAT_ABGR8888, 0);
+	SDL_FreeSurface(png);
+	ASSERT_NE(rgba, nullptr);
+	ASSERT_EQ(rgba->w, 800);
+	ASSERT_EQ(rgba->h, 600);
+	std::vector<uint32_t> art(800 * 600);
+	for (int y = 0; y < 600; y++) {
+		const auto *row = static_cast<const uint8_t *>(rgba->pixels) + static_cast<size_t>(y) * rgba->pitch;
+		for (int x = 0; x < 800; x++)
+			art[static_cast<size_t>(y) * 800 + x] = PackArgb(255, row[x * 4], row[x * 4 + 1], row[x * 4 + 2]);
+	}
+	SDL_FreeSurface(rgba);
+	OwnedSurface out = OwnedSurface::Rgb(960, 720);
+	const Point origin { 80, 720 - HeroButtonRowBottomMargin - HeroButtonRowHeight - 12 - 600 }; // as PopupOrigin at 960x720
+	BlitArgb(out, art.data(), 800, MakeSdlRect(0, 0, 800, 600), origin);
+	std::array<SDL_Color, 256> palette {};
+	const OptionalOwnedClxSpriteList focus = LoadPcxSpriteList("ui_art\\focus42", 8, 250, palette.data(), /*logError=*/false);
+	ASSERT_TRUE(focus.has_value());
+	const std::array<uint32_t, 256> savedPalette = PaletteRGB;
+	for (size_t i = 0; i < 256; i++)
+		PaletteRGB[i] = (static_cast<uint32_t>(palette[i].r) << 16) | (static_cast<uint32_t>(palette[i].g) << 8) | palette[i].b;
+	for (int column = 0; column < 8; column++) {
+		const ClxSprite sprite = (*focus)[static_cast<size_t>(column)];
+		const Point inArt = TormentPickerCircleInArt(column);
+		const Point centre = origin + Displacement { inArt.x, inArt.y };
+		RenderClxSprite(out, sprite, centre - Displacement { static_cast<int>(sprite.width()) / 2, static_cast<int>(sprite.height()) / 2 });
+	}
+	PaletteRGB = savedPalette;
+	std::cout << "focus42: " << (*focus)[0].width() << "x" << (*focus)[0].height() << std::endl;
+	PreviewSave(out, "torment_picker.png");
+}
+
 TEST(OracoolPreview, DISABLED_HeroSheet)
 {
 	MountTestArchives(true);

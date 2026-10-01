@@ -159,9 +159,10 @@ void NetReceivePlayerData(TPkt *pkt)
 	pkt->hdr.pmhp = SDL_SwapLE32(myPlayer._pMaxHP);
 	pkt->hdr.mana = SDL_SwapLE32(myPlayer._pMana);
 	pkt->hdr.maxmana = SDL_SwapLE32(myPlayer._pMaxMana);
-	pkt->hdr.bstr = myPlayer._pBaseStr;
-	pkt->hdr.bmag = myPlayer._pBaseMag;
-	pkt->hdr.bdex = myPlayer._pBaseDex;
+	// Clamped, never wrapped: the header's bytes predate bases past 255 (round 50 audit).
+	pkt->hdr.bstr = static_cast<uint8_t>(std::clamp(myPlayer._pBaseStr, 0, 255));
+	pkt->hdr.bmag = static_cast<uint8_t>(std::clamp(myPlayer._pBaseMag, 0, 255));
+	pkt->hdr.bdex = static_cast<uint8_t>(std::clamp(myPlayer._pBaseDex, 0, 255));
 }
 
 bool IsNetPlayerValid(const Player &player)

@@ -289,8 +289,18 @@ void UiInitList(void (*fnFocus)(int value), void (*fnSelect)(int value), void (*
 		if (item->IsType(UiType::ArtTextButton))
 			gUiButtons.push_back(static_cast<UiArtTextButton *>(item.get()));
 	}
+	// Row by row, then left to right: a screen with buttons above its action row (the Torment picker's eight columns,
+	// 2026-10-01) walks the upper row first and the OK / Cancel row after it. A one-row screen sorts exactly as before.
 	std::sort(gUiButtons.begin(), gUiButtons.end(),
-	    [](const UiArtTextButton *a, const UiArtTextButton *b) { return a->m_rect.x < b->m_rect.x; });
+	    [](const UiArtTextButton *a, const UiArtTextButton *b) {
+		    const int aBottom = a->m_rect.y + a->m_rect.h;
+		    const int bBottom = b->m_rect.y + b->m_rect.h;
+		    if (aBottom <= b->m_rect.y)
+			    return true; // a's row is wholly above b's
+		    if (bBottom <= a->m_rect.y)
+			    return false;
+		    return a->m_rect.x < b->m_rect.x;
+	    });
 	FocusButton(-1);
 	DisarmClicks();
 	HoveredButton = ButtonUnderMouse(); // a screen that opens under the pointer does not sound for it
@@ -399,6 +409,40 @@ void UiPlayMoveSound()
 void UiPlaySelectSound()
 {
 	effects_play_sound(IS_TITLSLCT);
+}
+
+const UiArtTextButton *UiFocusedButton()
+{
+	if (SelectedButton < 0 || SelectedButton >= static_cast<int>(gUiButtons.size()))
+		return nullptr;
+	return gUiButtons[SelectedButton];
+}
+
+void UiFocusButton(const UiArtTextButton *button)
+{
+	for (int i = 0; i < static_cast<int>(gUiButtons.size()); i++) {
+		if (gUiButtons[i] == button) {
+			FocusButton(i);
+			return;
+		}
+	}
+}
+
+void UiDrawFocusPentagram(Point centre, bool dimmed)
+{
+	// The big spinning pentagram (ui_art\focus42), unused since the list rows shrank, centred on a spot rather than at
+	// the ends of a rect. Dimmed as DrawSelector dims its clone: the choice the action will take while focus is elsewhere.
+	if (!ArtFocus[FOCUS_BIG])
+		return;
+	const ClxSpriteList sprites = *ArtFocus[FOCUS_BIG];
+	const ClxSprite sprite = sprites[GetAnimationFrame(sprites.numSprites())];
+	const Surface &out = Surface(DiabloUiSurface());
+	const Point topLeft = centre - Displacement { static_cast<int>(sprite.width()) / 2, static_cast<int>(sprite.height()) / 2 };
+	if (dimmed) {
+		ClxDrawBlended(out, { topLeft.x, topLeft.y + static_cast<int>(sprite.height()) - 1 }, sprite);
+		return;
+	}
+	RenderClxSprite(out, sprite, topLeft);
 }
 
 namespace {
@@ -1340,8 +1384,10 @@ void Render(const UiArtTextButton &uiButton)
 	// put it: gUiItems is rendered LAST in a frame (UiPollAndRender), so a screen that drew the
 	// pentagrams itself before that had them painted over by its own background. Drawn from inside the
 	// last pass, the problem those files each worked around does not arise.
+	// A button with no words is a hit area over art that marks its own focus (the Torment picker's columns, whose
+	// pentagram turns in the column's circle): no pentagrams at its two ends.
 	if (SelectedButton >= 0 && SelectedButton < static_cast<int>(gUiButtons.size())
-	    && gUiButtons[SelectedButton] == &uiButton)
+	    && gUiButtons[SelectedButton] == &uiButton && !uiButton.GetText().empty())
 		DrawSelector(uiButton.m_rect);
 
 	// The WHOLE button, not LabelRect. This briefly used the inset rect and the user reported "New

@@ -12,6 +12,7 @@
 #include "DiabloUI/hero/selhero.h"
 #include "DiabloUI/scrollbar.h"
 #include "DiabloUI/selok.h"
+#include "DiabloUI/torment_select.h"
 #include "config.h"
 #include "control.h"
 #include "menu.h"
@@ -696,6 +697,19 @@ void selgame_Diff_Select(int value)
 	nDifficulty = (_difficulty)vecSelGameDlgItems[value]->m_value;
 
 	if (!selhero_isMultiPlayer) {
+		// Torment asks which of Hell's eight multipliers to try (user, 2026-10-01). Cancel comes back here; the choice is the
+		// Torment multiplier option, which every Torment formula reads.
+		if (nDifficulty == DIFF_TORMENT) {
+			selgame_Free();
+			const std::optional<int> tenths = UiTormentSelectDialog(sgOptions.Oracool.tormentDifficultyMultiplier.ValueTenths());
+			if (!tenths) {
+				selgame_Init();
+				selgame_GameSelection_Select(0);
+				return;
+			}
+			sgOptions.Oracool.tormentDifficultyMultiplier.SetValue(*tenths);
+		}
+
 		// This is part of a dangerous hack to enable difficulty selection in single-player.
 		// FIXME: Dialogs should not refer to each other's variables.
 

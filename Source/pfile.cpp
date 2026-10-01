@@ -217,7 +217,9 @@ void Game2UiPlayer(const Player &player, _uiheroinfo *heroinfo, bool bHasSaveFil
 	// Strength part (halved on a bow outside the Rogue) - hero-select read 10-20 where the sheet read 55-65 (round 4 audit).
 	const bool nonRogueBow = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow && player.InvBody[INVLOC_HAND_LEFT]._iStatFlag
 	    && player._pClass != HeroClass::Rogue; // a usable bow only (round 25 audit)
-	const int strengthPart = nonRogueBow ? player._pDamageMod / 2 : player._pDamageMod;
+	const auto strengthPart = [&player, nonRogueBow](int roll) { return nonRogueBow ? StatDamage(player, roll) / 2 : StatDamage(player, roll); };
+	const int minPart = strengthPart(player._pIMinDam);
+	const int maxPart = strengthPart(player._pIMaxDam);
 	// Glass Cannon on the weapon and flat part, as the sheet and the blow (round 34 audit).
 	const int always = oracool::PassiveUnconditionalDamagePercent(player);
 	int minDamage = player._pIMinDam + player._pIBonusDam * player._pIMinDam / 100 + player._pIBonusDamMod;
@@ -225,11 +227,11 @@ void Game2UiPlayer(const Player &player, _uiheroinfo *heroinfo, bool bHasSaveFil
 	// A bow's Strength part before the percent, as the arrow adds it (round 35 audit).
 	const bool bow = player.UsesRangedWeapon();
 	if (bow) {
-		minDamage += strengthPart;
-		maxDamage += strengthPart;
+		minDamage += minPart;
+		maxDamage += maxPart;
 	}
-	minDamage += minDamage * always / 100 + (bow ? 0 : strengthPart);
-	maxDamage += maxDamage * always / 100 + (bow ? 0 : strengthPart);
+	minDamage += minDamage * always / 100 + (bow ? 0 : minPart);
+	maxDamage += maxDamage * always / 100 + (bow ? 0 : maxPart);
 	heroinfo->minDamage = static_cast<uint16_t>(std::clamp(minDamage, 0, 65535));
 	heroinfo->maxDamage = static_cast<uint16_t>(std::clamp(maxDamage, 0, 65535));
 	heroinfo->hassaved = bHasSaveFile;

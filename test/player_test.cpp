@@ -174,7 +174,7 @@ static void AssertPlayer(devilution::Player &player)
 	ASSERT_EQ(player._pSpellFlags, SpellFlag::None);
 	ASSERT_EQ(player._pBlockFlag, 0);
 	ASSERT_EQ(player._pLightRad, 10);
-	ASSERT_EQ(player._pDamageMod, 0);
+	ASSERT_EQ(player._pStatDamageBasisPoints, 2500); // 25 Strength x 1% (D2-style since 1.12.284; was level x Strength / 100 = 0)
 	ASSERT_EQ(player._pHitPoints, 2880);
 	ASSERT_EQ(player._pMaxHP, 2880);
 	ASSERT_EQ(player._pMana, 1440);
@@ -356,6 +356,22 @@ TEST(Player, ChanceToBeHit_CountsTheShieldsBlock)
 	const int blocks = std::clamp(player.GetBlockChance() - 2, 0, 100);
 	EXPECT_EQ(chance, 100 - blocks) << "the shield's block comes off";
 	oracool::ClearCombatOdds();
+}
+
+// Strength multiplies the weapon, Diablo II's way (user, 2026-10-01): a share of the bare roll, level not in it.
+TEST(Player, StatDamage_IsAShareOfTheWeaponRoll)
+{
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Warrior);
+	devilution::Player &player = Players[0];
+	player._pBaseStr = 200;
+	CalcPlrInv(player, false);
+	EXPECT_EQ(player._pStatDamageBasisPoints, player._pStrength * 10 * StatDamageTenthsPercentPerPoint) << "1% a point at the default";
+	player._pStatDamageBasisPoints = 25000; // +250%
+	EXPECT_EQ(StatDamage(player, 40), 100);
+	EXPECT_EQ(StatDamage(player, 0), 0);
+	player._pLevel = 99;
+	EXPECT_EQ(StatDamage(player, 40), 100) << "the level does not multiply it";
 }
 
 TEST(Player, StatPointsToSpend_NeverMoreThanUnspentNorPastTheCap)

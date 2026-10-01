@@ -394,7 +394,12 @@ struct Player {
 	int _pStatPtsSpentMag = 0;
 	int _pStatPtsSpentDex = 0;
 	int _pStatPtsSpentVit = 0;
-	int _pDamageMod;
+	/**
+	 * @brief The attribute part of a weapon blow, in hundredths of a percent of the weapon's roll (user, 2026-10-01: Diablo
+	 * II's rule - Strength, or the class's weapon stat, multiplies the weapon instead of adding level x Strength flat). Set
+	 * by CalcPlrItemVals; read through StatDamage. Was _pDamageMod, a flat amount.
+	 */
+	int _pStatDamageBasisPoints;
 	int _pBaseToBlk;
 	int _pHPBase;
 	int _pMaxHPBase;
@@ -1214,6 +1219,13 @@ int RefundStatPoints(Player &player, CharacterAttribute attribute, int count);
  * + buttons, elixirs, shrines, the per-tick check and the hero file all read this; item requirements stay one byte.
  */
 constexpr int MaxBaseAttribute = 999;
+/**
+ * @brief THE adjustable number (user, 2026-10-01): weapon damage per point of Strength (or the class's weapon stat), in
+ * tenths of a percent. 10 = Diablo II's +1% a point. The per-class weights in CalcPlrItemVals scale from it.
+ */
+constexpr int StatDamageTenthsPercentPerPoint = 10;
+/** @brief The attribute part of a blow whose weapon roll was @p weaponRoll (before any +% damage), whole points. */
+int StatDamage(const Player &player, int weaponRoll);
 int StatPointsToSpend(const Player &player, CharacterAttribute attribute, int requested);
 void ModifyPlrStr(Player &player, int l);
 void ModifyPlrMag(Player &player, int l);

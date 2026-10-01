@@ -802,6 +802,7 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	int mind = player._pIMinDam;
 	int maxd = player._pIMaxDam;
 	int dam = GenerateRnd(maxd - mind + 1) + mind;
+	const int weaponRoll = dam; // the stat part is a share of the bare roll, D2's way (user, 2026-10-01)
 	dam += dam * player._pIBonusDam / 100;
 	dam += player._pIBonusDamMod;
 	// Oracool, Round 4: the armed melee skill's bonus, on every blow of the swing - the extra blows
@@ -812,7 +813,7 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	// And the passives that read the situation - Ruthless, Brawler, Steady Aim and the rest (Round 5).
 	dam += dam * (oracool::PassiveDamageDealtPercent(player, monster, true) + oracool::Rfa12DamageDealtPercent(player, monster, true)) / 100;
 	int dam2 = dam << 6;
-	dam += player._pDamageMod;
+	dam += StatDamage(player, weaponRoll);
 	if (player._pClass == HeroClass::Warrior || player._pClass == HeroClass::Barbarian) {
 		if (GenerateRnd(100) < player._pLevel) {
 			dam *= 2;
@@ -981,8 +982,9 @@ bool PlrHitPlr(Player &attacker, Player &target)
 	int mind = attacker._pIMinDam;
 	int maxd = attacker._pIMaxDam;
 	int dam = GenerateRnd(maxd - mind + 1) + mind;
+	const int weaponRoll = dam;
 	dam += (dam * attacker._pIBonusDam) / 100;
-	dam += attacker._pIBonusDamMod + attacker._pDamageMod;
+	dam += attacker._pIBonusDamMod + StatDamage(attacker, weaponRoll);
 
 	if (attacker._pClass == HeroClass::Warrior || attacker._pClass == HeroClass::Barbarian) {
 		if (GenerateRnd(100) < attacker._pLevel) {
@@ -4755,6 +4757,13 @@ int RefundStatPoints(Player &player, CharacterAttribute attribute, int count)
 		SetPlayerHitPoints(player, 64);
 	RedrawEverything();
 	return refund;
+}
+
+int StatDamage(const Player &player, int weaponRoll)
+{
+	if (weaponRoll <= 0 || player._pStatDamageBasisPoints <= 0)
+		return 0;
+	return static_cast<int>(std::min<int64_t>(int64_t { weaponRoll } * player._pStatDamageBasisPoints / 10000, INT_MAX / 4));
 }
 
 void ModifyPlrStr(Player &player, int l)

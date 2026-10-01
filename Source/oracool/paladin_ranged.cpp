@@ -36,9 +36,10 @@ int RollWeaponDamage(const Player &player)
 	const int minDamage = player._pIMinDam;
 	const int maxDamage = std::max(player._pIMaxDam, minDamage);
 	int damage = GenerateRnd(maxDamage - minDamage + 1) + minDamage;
+	const int weaponRoll = damage;
 	damage += damage * player._pIBonusDam / 100;
 	damage += player._pIBonusDamMod;
-	damage += player._pDamageMod;
+	damage += StatDamage(player, weaponRoll);
 	return std::max(damage, 1);
 }
 
@@ -291,7 +292,7 @@ std::optional<std::pair<int, int>> PaladinCastDamageRange(const Player &player, 
 		int damage = weapon;
 		damage += damage * player._pIBonusDam / 100;
 		damage += player._pIBonusDamMod;
-		damage += player._pDamageMod;
+		damage += StatDamage(player, weapon);
 		return std::max(std::max(damage, 1) * percent / 100, 1);
 	};
 	const int minDamage = player._pIMinDam;

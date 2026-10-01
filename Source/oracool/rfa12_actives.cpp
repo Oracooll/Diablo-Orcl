@@ -67,8 +67,9 @@ int Roll(int min, int max)
 int WeaponBlow(const Player &player)
 {
 	int dam = player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1);
+	const int weaponRoll = dam;
 	dam += dam * player._pIBonusDam / 100;
-	dam += player._pIBonusDamMod + player._pDamageMod;
+	dam += player._pIBonusDamMod + StatDamage(player, weaponRoll);
 	return std::max(dam, 1) << 6;
 }
 

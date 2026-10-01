@@ -5061,28 +5061,35 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	player._pDexterity = std::max(0, dadd + player._pBaseDex);
 	player._pVitality = std::max(0, vadd + player._pBaseVit);
 
+	// Diablo II's rule (user, 2026-10-01): the stat multiplies the weapon. Each class keeps its own weights - the divisor of
+	// its old flat level x stat / k becomes stat x (100 / k)% a point, scaled by StatDamageTenthsPercentPerPoint - so a
+	// Barbarian's axe still favours Strength by a third and a Rogue still splits Strength and Dexterity. Level no longer
+	// multiplies it: growth comes from the weapon.
+	const auto statBasisPoints = [](int stat, int divisor) {
+		return static_cast<int>(std::min<int64_t>(int64_t { std::max(stat, 0) } * 1000 * StatDamageTenthsPercentPerPoint / divisor, INT_MAX / 2));
+	};
 	if (player._pClass == HeroClass::Rogue) {
-		player._pDamageMod = player._pLevel * (player._pStrength + player._pDexterity) / 200;
+		player._pStatDamageBasisPoints = statBasisPoints(player._pStrength + player._pDexterity, 200);
 	} else if (player._pClass == HeroClass::Monk) {
 		// A broken (0-durability, left equipped rather than destroyed) weapon no longer
 		// counts as "holding" anything for these class-specific checks, matching how
 		// CalcSelfItems already excludes it from stat bonuses via _iStatFlag.
 		const bool leftIsFunctionalNonStaff = !player.InvBody[INVLOC_HAND_LEFT].isEmpty() && player.InvBody[INVLOC_HAND_LEFT]._iStatFlag && player.InvBody[INVLOC_HAND_LEFT]._itype != ItemType::Staff;
 		const bool rightIsFunctionalNonStaff = !player.InvBody[INVLOC_HAND_RIGHT].isEmpty() && player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag && player.InvBody[INVLOC_HAND_RIGHT]._itype != ItemType::Staff;
-		player._pDamageMod = player._pLevel * (player._pStrength + player._pDexterity) / 150;
+		player._pStatDamageBasisPoints = statBasisPoints(player._pStrength + player._pDexterity, 150);
 		if (leftIsFunctionalNonStaff || rightIsFunctionalNonStaff)
-			player._pDamageMod /= 2; // Monks get half the normal damage bonus if they're holding a non-staff weapon
+			player._pStatDamageBasisPoints /= 2; // Monks get half the normal damage bonus if they're holding a non-staff weapon
 	} else if (player._pClass == HeroClass::Bard) {
 		const bool leftSword = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Sword && player.InvBody[INVLOC_HAND_LEFT]._iStatFlag;
 		const bool rightSword = player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Sword && player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag;
 		const bool leftBow = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow && player.InvBody[INVLOC_HAND_LEFT]._iStatFlag;
 		const bool rightBow = player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Bow && player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag;
 		if (leftSword || rightSword)
-			player._pDamageMod = player._pLevel * (player._pStrength + player._pDexterity) / 150;
+			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength + player._pDexterity, 150);
 		else if (leftBow || rightBow) {
-			player._pDamageMod = player._pLevel * (player._pStrength + player._pDexterity) / 250;
+			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength + player._pDexterity, 250);
 		} else {
-			player._pDamageMod = player._pLevel * player._pStrength / 100;
+			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength, 100);
 		}
 	} else if (player._pClass == HeroClass::Barbarian) {
 		const bool leftFunctional = player.InvBody[INVLOC_HAND_LEFT]._iStatFlag;
@@ -5099,13 +5106,13 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		const bool rightStaffOrBow = rightFunctional && IsAnyOf(player.InvBody[INVLOC_HAND_RIGHT]._itype, ItemType::Staff, ItemType::Bow);
 
 		if (leftAxe || rightAxe) {
-			player._pDamageMod = player._pLevel * player._pStrength / 75;
+			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength, 75);
 		} else if (leftMace || rightMace) {
-			player._pDamageMod = player._pLevel * player._pStrength / 75;
+			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength, 75);
 		} else if (leftBow || rightBow) {
-			player._pDamageMod = player._pLevel * player._pStrength / 300;
+			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength, 300);
 		} else {
-			player._pDamageMod = player._pLevel * player._pStrength / 100;
+			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength, 100);
 		}
 
 		if (leftShield || rightShield) {
@@ -5114,11 +5121,11 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 			else if (rightShield)
 				player._pIAC -= player.InvBody[INVLOC_HAND_RIGHT]._iAC / 2;
 		} else if (!leftStaffOrBow && !rightStaffOrBow) {
-			player._pDamageMod += player._pLevel * player._pVitality / 100;
+			player._pStatDamageBasisPoints += statBasisPoints(player._pVitality, 100);
 		}
 		player._pIAC += player._pLevel / 4;
 	} else {
-		player._pDamageMod = player._pLevel * player._pStrength / 100;
+		player._pStatDamageBasisPoints = statBasisPoints(player._pStrength, 100);
 	}
 
 	player._pISpells = spl;

@@ -156,6 +156,12 @@ void UiFocusNavigationYesNo();
 void UiInitList(void (*fnFocus)(int value), void (*fnSelect)(int value), void (*fnEsc)(), const std::vector<std::unique_ptr<UiItemBase>> &items, bool wraps = false, void (*fnFullscreen)() = nullptr, bool (*fnYesNo)() = nullptr, size_t selectedItem = 0);
 void UiRenderListItems();
 void UiInitList_clear();
+/** @brief The button the pentagrams are on, or nullptr when focus is on the list or nowhere. */
+const UiArtTextButton *UiFocusedButton();
+/** @brief Moves focus to @p button, if it is one of the screen's buttons. */
+void UiFocusButton(const UiArtTextButton *button);
+/** @brief The big spinning pentagram, centred on @p centre; @p dimmed half-transparent. */
+void UiDrawFocusPentagram(Point centre, bool dimmed = false);
 
 void UiClearScreen();
 void UiPollAndRender(std::optional<tl::function_ref<bool(SDL_Event &)>> eventHandler = std::nullopt);

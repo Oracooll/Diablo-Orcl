@@ -4,6 +4,7 @@
  * Implementation of monster functionality, AI, actions, spawning, loading, etc.
  */
 #include "monster.h"
+#include "utils/log.hpp"
 
 #include <climits>
 #include <cstdint>
@@ -507,8 +508,10 @@ void PlaceUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int bosspa
 	const auto &uniqueMonsterData = UniqueMonstersData[static_cast<size_t>(uniqindex)];
 	const size_t typeIndex = GetMonsterTypeIndex(uniqueMonsterData.mtype);
 	const std::optional<Point> spot = GetUniqueMonstPosition(uniqindex);
-	if (!spot)
+	if (!spot) {
+		LogWarn("PlaceUniqueMonst: no free tile for unique {:d} - not placed", static_cast<int>(uniqindex));
 		return; // a full floor drops him rather than hang (round 49 audit)
+	}
 	const Point position = *spot;
 	PlaceMonster(ActiveMonsterCount, typeIndex, position, /*ordinary=*/false);
 
@@ -622,8 +625,10 @@ void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int 
 	const auto &uniqueMonsterData = UniqueMonstersData[static_cast<size_t>(uniqindex)];
 	const size_t typeIndex = GetMonsterTypeIndex(uniqueMonsterData.mtype);
 	const std::optional<Point> spot = GetUniqueMonstPosition(uniqindex);
-	if (!spot)
+	if (!spot) {
+		LogWarn("PlaceLesserUniqueMonst: no free tile for unique {:d} - not placed", static_cast<int>(uniqindex));
 		return; // a full floor drops the champion rather than hang (round 49 audit)
+	}
 	const Point position = *spot;
 
 	const size_t championIndex = ActiveMonsterCount;
@@ -1616,9 +1621,7 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 	// the monster it struck and still made it flinch.
 	mind = std::max(mind, 0);
 	maxd = std::max(maxd, mind);
-	int dam = (mind + GenerateRnd(maxd - mind + 1)) << 6;
-	if (dam <= 0)
-		return;
+	int dam = (mind + GenerateRnd(maxd - mind + 1)) << 6; // a 0 blow still wakes and flinches, as before (round 50 audit)
 	// Weaken and Decrepify blunt a cursed monster's blow on the army too, not only on the hero (round 20 audit, v1.12.245).
 	if (const int weakened = oracool::MonsterDebuffDamagePercent(attacker); weakened != 0)
 		dam = std::max(dam + dam * weakened / 100, 1 << 6);
@@ -4768,8 +4771,13 @@ void StartRepelRetreat(Monster &monster, Direction away, int steps)
 
 bool MonsterTakesRetreatStep(Monster &monster)
 {
-	if (monster.goal != MonsterGoal::Retreat)
+	if (monster.goal != MonsterGoal::Retreat) {
+		// A repel ended by something else - Taunt, the Siren - leaves no mark behind to cancel the monster's own next retreat
+		// (round 50 audit).
+		if (IsAnyOf(monster.ai, MonsterAIID::Bat, MonsterAIID::Sneak) && monster.goalVar3 == RepelRetreatMark)
+			monster.goalVar3 = 0;
 		return false;
+	}
 	// A bat or a sneak driven off by a repel takes the repel's steps (round 49 audit: their own retreat counts goalVar1 UP,
 	// so Howl at rank 5 and more was cancelled on the spot and lower ranks fled less; bats only sidestepped once).
 	const bool repelled = IsAnyOf(monster.ai, MonsterAIID::Bat, MonsterAIID::Sneak) && monster.goalVar3 == RepelRetreatMark;
