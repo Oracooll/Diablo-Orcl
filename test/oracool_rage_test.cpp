@@ -261,6 +261,6 @@ TEST(OracoolCooldowns, AFreshHeroHasNoCooldown)
 TEST(OracoolCooldowns, AbsoluteZeroSheetIsCentredOnHim)
 {
 	const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::AbsoluteZero);
-	EXPECT_EQ(data.animWidth, 512);
-	EXPECT_EQ(data.animWidth2, (512 - 64) / 2);
+	EXPECT_EQ(data.animWidth, 256);
+	EXPECT_EQ(data.animWidth2, (256 - 64) / 2);
 }

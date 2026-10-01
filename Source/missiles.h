@@ -572,6 +572,22 @@ Missile *AddArtBolt(Point from, Point to, MissileGraphicID art, int playerId, in
  */
 Missile *AddCreatureBolt(Point from, Point to, const CMonster &creature, int playerId, int speed, MissileGraphicID arrivalArt);
 /**
+ * @brief Oracool (2026-10-01, user): a lightning strike from @p from to @p to - each a tile and a screen-pixel displacement
+ * from that tile's centre (a lift up off the floor is negative y) - shown for @p ticks. Drawn only: the caller deals the
+ * blow. Short reaches take one short discharge; longer ones lay body pieces (chain and long) end to end along the line and
+ * finish with an impact fork whose tip lands on the target. Pieces and variants are picked at random, so no two strikes
+ * look alike. Nothing, while the strike sheets are not in the archive. Without @p fork it is an arc: bodies all the way, the
+ * ends on the two points (Storm Crucible's, between its conductors).
+ */
+void AddLightningStrike(Point fromTile, Displacement from, Point toTile, Displacement to, int playerId, int ticks = 3, bool fork = true);
+/**
+ * @brief Oracool (user, 2026-10-01): a missile whose var6 is this is a Lightning Clone - drawn as its hero's own walk (his
+ * live sprites, var7 the facing, var4 the frame) in Tint::Clone, never as its carrier's sheet. rfa12_actives moves it.
+ */
+constexpr int LightningCloneMark = 0x4C43;
+/** @brief Whether AddLightningStrike has its sheets (the callers fall back to what they drew before). */
+bool LightningStrikeLoaded();
+/**
  * @brief Oracool (2026-09-26): hit_cold.png's flash over @p tile, where a cold hit with no impact art of its own
  * landed. A picture only - WeaponExplosion's cold branch, which rolls no damage. Nothing while the sheet is missing.
  * @p percent: its size (Vengeance's is half, the Paladin Skill Cards, 2026-09-28).

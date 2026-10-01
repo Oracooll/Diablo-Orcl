@@ -34,6 +34,16 @@ enum class Tint : uint8_t {
 	 * own colours; any other glazes them toward that hue, as Ice does.
 	 */
 	Glint,
+	/**
+	 * Electric bluish-white glazed over a body, bands of light racing through it on the clock (user, 2026-10-01: Conduit
+	 * on the Sorcerer for as long as it lasts).
+	 */
+	Electric,
+	/**
+	 * Every colour pure white, lightning-blue bands running through it by brightness on the clock; black (a shadow) kept
+	 * (user, 2026-10-01: Lightning Clone).
+	 */
+	Clone,
 };
 
 /** @brief 0xRRGGBB. */

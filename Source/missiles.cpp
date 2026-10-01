@@ -4037,14 +4037,16 @@ Displacement ArtEffectAnchor(MissileGraphicID art)
 	case MissileGraphicID::FrenzyOfTheDead:
 	case MissileGraphicID::Serenity:
 	case MissileGraphicID::DarkMending:
+	case MissileGraphicID::LightningRod:
+		return { 0, -7 }; // the redesigned totem's foot at y 119 of 128 (2026-10-01)
 	case MissileGraphicID::UnholyOffering:
 		return { 0, -4 }; // feet at y 116 of 128 (84 of 96)
 	case MissileGraphicID::StormArc:
 	case MissileGraphicID::FuneralStarCharge:
 		return { 0, -1 }; // y 49 of 64
-	case MissileGraphicID::LightningRodBurst:
 	case MissileGraphicID::FaradayRing:
-	case MissileGraphicID::LightningRod:
+		return { 0, 16 }; // the redesigned halo's centre at y 32 of 64 (2026-10-01)
+	case MissileGraphicID::LightningRodBurst:
 	case MissileGraphicID::StormConductor:
 	case MissileGraphicID::ShadowStep:
 	case MissileGraphicID::VaultDust:
@@ -4072,7 +4074,7 @@ Displacement ArtEffectAnchor(MissileGraphicID art)
 	case MissileGraphicID::WaveOfLight:
 		return { 0, 20 }; // y 124 of 160
 	case MissileGraphicID::AbsoluteZero:
-		return { 0, 112 }; // the vortex's eye on the floor point, y 128 of 256 (2026-10-01)
+		return { 0, 48 }; // the vortex's eye on the floor point, y 64 of 128 (2026-10-01, half size)
 	case MissileGraphicID::WrathPillar:
 		return { 0, 27 }; // y 149 of 192
 	case MissileGraphicID::HammerOfTheAncients:
@@ -4095,6 +4097,30 @@ Displacement ArtEffectAnchor(MissileGraphicID art)
 		return { 0, 80 }; // the feet at the cell's centre, y 96 of 192
 	default:
 		return { 0, 0 };
+	}
+}
+
+/**
+ * @brief The lightning family's sheets light the floor round them, in tiles (user, 2026-10-01: "they are lightnings after
+ * all"); 0 for every other sheet. The light goes with the sheet (ProcessCensusEffect, EndArtEffects) and keeps to a
+ * caster it follows.
+ */
+uint8_t ArtEffectLightRadius(MissileGraphicID art)
+{
+	switch (art) {
+	case MissileGraphicID::LightningRodBurst:
+		return 7;
+	case MissileGraphicID::LightningRod:
+	case MissileGraphicID::StormConductor:
+		return 4;
+	case MissileGraphicID::FaradayRing:
+	case MissileGraphicID::ArcSpark:
+	case MissileGraphicID::StormArc:
+	case MissileGraphicID::StaticCharge:
+	case MissileGraphicID::Conduit:
+		return 3;
+	default:
+		return 0;
 	}
 }
 
@@ -4148,6 +4174,8 @@ Missile *AddArtEffect(Point tile, MissileGraphicID art, int playerId, int ticks)
 	// floor); every other sheet is {0, 0} and its caller sets what it needs.
 	effect->position.offset = ArtEffectAnchor(art);
 	effect->_miPreFlag = ArtEffectOnFloor(art);
+	if (const uint8_t radius = ArtEffectLightRadius(art); radius > 0 && effect->_mlid == NO_LIGHT)
+		effect->_mlid = AddLight(tile, radius);
 	return effect;
 }
 
@@ -4172,8 +4200,13 @@ void EndArtEffects(Point tile, MissileGraphicID art, int playerId)
 {
 	for (Missile &missile : Missiles) {
 		if (missile._mitype == ArtEffectCarrier && missile._miAnimType == art && missile._misource == playerId
-		    && missile.position.tile == tile)
+		    && missile.position.tile == tile) {
 			missile._miDelFlag = true;
+			if (missile._mlid != NO_LIGHT) { // a flagged missile's process never runs again to free it
+				AddUnLight(missile._mlid);
+				missile._mlid = NO_LIGHT;
+			}
+		}
 	}
 }
 
@@ -4220,6 +4253,110 @@ Missile *AddCreatureBolt(Point from, Point to, const CMonster &creature, int pla
 	return bolt;
 }
 
+namespace {
+
+/** @brief A tile's centre on screen, from another's: the 2:1 grid, 32px across and 16px down a step east. */
+Displacement ScreenStep(Displacement tiles)
+{
+	return { 32 * (tiles.deltaX - tiles.deltaY), 16 * (tiles.deltaX + tiles.deltaY) };
+}
+
+/** @brief The strike sheets' frames: 32 angles, clockwise from east (tools/BuildBallLightning.py). */
+constexpr int LightningStrikeAngles = 32;
+/** @brief The pieces' lengths along their axis: the short and chain pieces 64px, the long and impact 128. */
+constexpr int LightningPieceShort = 64;
+constexpr int LightningPieceLong = 128;
+/** @brief Up to this reach a strike is one short discharge (its spark reaches 40-56px of its 64). */
+constexpr int LightningShortReach = 72;
+/** @brief How far along its 128px the impact piece's fork strikes: the four forks centre at 104-112. */
+constexpr int LightningImpactTip = 108;
+
+/**
+ * @brief One turned piece, its axis centre at @p centre (screen pixels from @p origin's centre). It stands on the tile under
+ * that point, so it sorts with what stands there, and the rest is its offset: a cell's centre lands on its tile's centre
+ * at an offset of (0, cell / 2 - 16), the delivery anchor rule.
+ */
+Missile *LayLightningPiece(Point origin, Displacement centre, MissileGraphicID art, int variant, int angle, int cell, int playerId, int ticks)
+{
+	const float east = (centre.deltaX / 32.F + centre.deltaY / 16.F) / 2.F;
+	const float south = (centre.deltaY / 16.F - centre.deltaX / 32.F) / 2.F;
+	const Displacement steps { static_cast<int>(std::lround(east)), static_cast<int>(std::lround(south)) };
+	const Point tile = origin + steps;
+	if (!InDungeonBounds(tile))
+		return nullptr;
+	Missile *piece = AddArtEffectFacing(tile, art, playerId, variant, ticks);
+	if (piece == nullptr)
+		return nullptr;
+	piece->position.offset = centre - ScreenStep(steps) + Displacement { 0, cell / 2 - 16 };
+	piece->_miAnimFrame = angle + 1; // held: the frame is the angle, not a step of an animation
+	piece->_miAnimAdd = 0;
+	piece->_mirange = ticks;
+	piece->_miPreFlag = false;
+	return piece;
+}
+
+} // namespace
+
+bool LightningStrikeLoaded()
+{
+	return MissileArtLoaded(MissileGraphicID::LightningStrikeShort) && MissileArtLoaded(MissileGraphicID::LightningStrikeChain)
+	    && MissileArtLoaded(MissileGraphicID::LightningStrikeLong) && MissileArtLoaded(MissileGraphicID::LightningStrikeImpact);
+}
+
+void AddLightningStrike(Point fromTile, Displacement from, Point toTile, Displacement to, int playerId, int ticks, bool fork)
+{
+	if (!LightningStrikeLoaded())
+		return;
+	ticks = std::max(ticks, 1);
+	const Displacement span = ScreenStep(toTile - fromTile) + to - from;
+	const double length = std::hypot(span.deltaX, span.deltaY);
+	if (length < 4)
+		return;
+	const double ux = span.deltaX / length;
+	const double uy = span.deltaY / length;
+	// Every piece takes the frame nearest the line's own angle (11.25 degrees apart) and sits on the exact line.
+	constexpr double Tau = 6.283185307179586;
+	const int angle = (static_cast<int>(std::lround(std::atan2(uy, ux) / Tau * LightningStrikeAngles)) % LightningStrikeAngles + LightningStrikeAngles) % LightningStrikeAngles;
+	const auto lay = [&](double along, int pieceLength, MissileGraphicID art, int variants, int cell) {
+		const double middle = along + pieceLength / 2.0;
+		const Displacement centre = from + Displacement { static_cast<int>(std::lround(ux * middle)), static_cast<int>(std::lround(uy * middle)) };
+		return LayLightningPiece(fromTile, centre, art, GenerateRnd(variants), angle, cell, playerId, ticks);
+	};
+	if (fork && length <= LightningShortReach) {
+		if (Missile *spark = lay(0, LightningPieceShort, MissileGraphicID::LightningStrikeShort, 8, 96); spark != nullptr)
+			spark->_mlid = AddLight(toTile, 3);
+		return;
+	}
+	// The fork's tip on the target; a reach shorter than the fork overshoots a little rather than start behind the source.
+	// An arc has no fork: its bodies run the whole way.
+	const double body = fork ? std::max(length - LightningImpactTip, 0.0) : length;
+	if (fork) {
+		if (Missile *impact = lay(body, LightningPieceLong, MissileGraphicID::LightningStrikeImpact, 4, 144); impact != nullptr)
+			impact->_mlid = AddLight(toTile, 5); // the hit lights up, and the light goes with the fork (ProcessCensusEffect)
+	}
+	if (body <= 0)
+		return;
+	// The bodies, chain and long at random, enough to cover the source to the fork; laid evenly from the source, so where
+	// they run over they overlap a little - their joins are on the axis (enter at y 32, leave at y 32), so it does not show.
+	std::vector<bool> isLong;
+	int total = 0;
+	while (total < body) {
+		const bool longOne = body - total > LightningPieceShort * 1.5 && GenerateRnd(2) == 0;
+		isLong.push_back(longOne);
+		total += longOne ? LightningPieceLong : LightningPieceShort;
+	}
+	const double squeeze = body / total;
+	int laid = 0;
+	for (size_t i = 0; i < isLong.size(); i++) {
+		Missile *piece = isLong[i] ? lay(laid * squeeze, LightningPieceLong, MissileGraphicID::LightningStrikeLong, 4, 144)
+		                           : lay(laid * squeeze, LightningPieceShort, MissileGraphicID::LightningStrikeChain, 8, 96);
+		// A strike lights its way: the body's middle piece carries a light (an arc's only one; a strike's besides its fork's).
+		if (piece != nullptr && i == isLong.size() / 2)
+			piece->_mlid = AddLight(piece->position.tile, 4);
+		laid += isLong[i] ? LightningPieceLong : LightningPieceShort;
+	}
+}
+
 void AddColdHitFlash(Point tile, int playerId, int percent)
 {
 	if (!MissileArtLoaded(MissileGraphicID::HitCold) || !InDungeonBounds(tile))
@@ -4251,6 +4388,8 @@ void ProcessCensusEffect(Missile &missile)
 		const Point here = Players[missile._misource].position.tile;
 		missile.position.tile = here;
 		missile.position.start = here;
+		if (missile._mlid != NO_LIGHT)
+			ChangeLightXY(missile._mlid, here); // a lit overlay's light walks with him
 	}
 	// Absolute Zero's vortex (user, 2026-10-01: half a second growing, six at full size, half a second shrinking): the grow
 	// plays once, the loop repeats while more than the shrink's ticks are left, and the shrink's frames are the range's last
@@ -4262,6 +4401,10 @@ void ProcessCensusEffect(Missile &missile)
 		else if (missile._miAnimFrame >= AbsoluteZeroIntroFrames + AbsoluteZeroLoopFrames && missile._miAnimCnt + 1 >= missile._miAnimDelay)
 			missile._miAnimFrame = AbsoluteZeroIntroFrames; // steps back onto the loop's first frame
 	}
+	// A lightning strike flashes and fades: its last tick at half strength (2026-10-01).
+	if (missile._mitype == ArtEffectCarrier && IsAnyOf(missile._miAnimType, MissileGraphicID::LightningStrikeShort, MissileGraphicID::LightningStrikeChain,
+	        MissileGraphicID::LightningStrikeLong, MissileGraphicID::LightningStrikeImpact))
+		missile.oracoolAlpha = missile._mirange <= 1 ? 128 : 256;
 	if (missile._mitype == MissileID::MeteorImpact && missile._miAnimFrame >= MeteorImpactBurnFrame) {
 		missile._miAnimDelay = 3; // the embers flicker slower than the burst
 		// On the last frame, about to step: step back to the burn's first frame instead of the burst's.
@@ -4324,6 +4467,10 @@ void ProcessAcidJavelin(Missile &missile)
 	MoveMissile(missile, [](Point) { return true; }); // nothing stops it: the blow has already landed
 	if (missile._mirange <= 0 || missile.position.tile == Point { missile.var1, missile.var2 }) {
 		missile._miDelFlag = true;
+		if (missile._mlid != NO_LIGHT) { // Ball Lightning's ball carries one (2026-10-01)
+			AddUnLight(missile._mlid);
+			missile._mlid = NO_LIGHT;
+		}
 		ArtBoltLands(missile);
 		return;
 	}

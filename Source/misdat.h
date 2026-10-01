@@ -303,6 +303,13 @@ enum class MissileGraphicID : uint8_t {
 	RideTheLightning,
 	// 2026-09-27: Redemption's column over each corpse it consumes - vanilla's Resurrect beam, small, rose and periwinkle.
 	RedemptionRise,
+	// 2026-10-01 (user): Ball Lightning's rolling ball, and the lightning strikes it, Faraday Ring and Lightning Rod shoot -
+	// the user's pieces turned to 32 angles by tools/BuildBallLightning.py, laid end to end by AddLightningStrike.
+	BallLightning,
+	LightningStrikeShort,
+	LightningStrikeChain,
+	LightningStrikeLong,
+	LightningStrikeImpact,
 	None,
 };
 

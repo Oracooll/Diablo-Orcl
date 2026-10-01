@@ -34,7 +34,7 @@ namespace {
 /** The latch - see the header, and paladin_melee.cpp's ArmedSkill, which this mirrors. */
 std::optional<ClassMeleeSkill> ArmedSkill;
 /** Leap Attack's leap paid for the blow it lands on arrival (round 60 audit: the arriving swing paid its 14 Rage again). */
-bool LeapAttackPrepaid = false;
+std::optional<ClassMeleeSkill> LeapAttackPrepaid; // Vaulting Strike too since round 65 (it paid twice the same way)
 
 /**
  * Double Swing and Frenzy swing twice: the second blow is a second SWING, each compressed so the two take the time of
@@ -132,7 +132,7 @@ int StrikeCount(const Player &player, ClassMeleeSkill skill)
 /** @brief Whether @p player can pay for @p skill right now - mana, or the Barbarian's Rage (oracool/rage.h). */
 bool CanPay(const Player &player, ClassMeleeSkill skill)
 {
-	if (skill == ClassMeleeSkill::LeapAttack && LeapAttackPrepaid && &player == MyPlayer)
+	if (LeapAttackPrepaid == skill && &player == MyPlayer)
 		return true;
 	return CanPaySkill(player, ClassMeleeSkillSpell(skill));
 }
@@ -140,8 +140,8 @@ bool CanPay(const Player &player, ClassMeleeSkill skill)
 /** @brief Settles a use that landed: the price paid, or - for a Rage generator - the Rage of each landed blow. */
 void Pay(Player &player, ClassMeleeSkill skill, int landedBlows)
 {
-	if (skill == ClassMeleeSkill::LeapAttack && LeapAttackPrepaid && &player == MyPlayer) {
-		LeapAttackPrepaid = false; // the leap paid it
+	if (LeapAttackPrepaid == skill && &player == MyPlayer) {
+		LeapAttackPrepaid.reset(); // the leap paid it
 		return;
 	}
 	SettleSkill(player, ClassMeleeSkillSpell(skill), landedBlows);
@@ -338,8 +338,8 @@ void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill)
 	// Another skill armed and the leap's blow is not coming. A disarm (a stagger between the leap and the blow) keeps it (round
 	// 62 audit: clearing it there charged the blow twice); the leap itself no longer reads it (round 61), and a new game
 	// forgets it (ForgetLeapAttackPrepaid).
-	if (skill.has_value() && *skill != ClassMeleeSkill::LeapAttack)
-		LeapAttackPrepaid = false;
+	if (skill.has_value() && skill != LeapAttackPrepaid)
+		LeapAttackPrepaid.reset();
 	ArmedSkill = skill;
 	BeginClassMeleeSwing(); // a new click: no chain carries over
 	// One latch at a time: arming or disarming this one drops the RfA-12 swing (rfa12_actives.h), which is
@@ -352,12 +352,12 @@ void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill)
 
 void ForgetLeapAttackPrepaid()
 {
-	LeapAttackPrepaid = false;
+	LeapAttackPrepaid.reset();
 }
 
-bool LeapAttackBlowPrepaid()
+bool LeapAttackBlowPrepaid(ClassMeleeSkill skill)
 {
-	return LeapAttackPrepaid;
+	return LeapAttackPrepaid == skill;
 }
 
 std::optional<ClassMeleeSkill> ArmedClassMeleeSkill()
@@ -708,10 +708,11 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 	    static_cast<int>(player.getId()), 0, 0, nullptr, row != ClassTreeSkill::None ? std::optional<_sfx_id>(SFX_NONE) : std::nullopt);
 	if (missile == nullptr)
 		return false;
-	LeapAttackPrepaid = false;
+	LeapAttackPrepaid.reset();
 	SettleSkill(player, ClassMeleeSkillSpell(skill), /*landedBlows=*/0); // the leap itself strikes nothing
 	// ...and for Leap Attack its price is the blow's too: the swing he lands on arrival is paid (round 60 audit).
-	LeapAttackPrepaid = skill == ClassMeleeSkill::LeapAttack;
+	if (skill == ClassMeleeSkill::LeapAttack || skill == ClassMeleeSkill::VaultingStrike)
+		LeapAttackPrepaid = skill;
 	// Heard and seen (the Barbarian Skill Cards page, 2026-09-29): the Cast cue as he goes, the Impact cue and a
 	// half-again-size Holy Bolt burst, pale warm, where he lands - the teleport has already found the tile.
 	if (row != ClassTreeSkill::None) {

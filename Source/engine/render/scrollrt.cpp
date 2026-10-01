@@ -371,6 +371,8 @@ void DrawCursor(const Surface &out)
  * @param targetBufferPosition Output buffer coordinate
  * @param pre Is the sprite in the background
  */
+const oracool::SpriteColours *PlayerSpriteColours(const Player &player, ClxSprite sprite);
+
 void DrawMissilePrivate(const Surface &out, const Missile &missile, Point targetBufferPosition, bool pre, int lightTableIndex)
 {
 	if (missile._miPreFlag != pre || !missile._miDrawFlag)
@@ -384,6 +386,22 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 		return;
 	// Oracool (v1.12.217): a scaled sheet is lifted so its centre, or its floor point, stays where the full one's was.
 	const Point missileRenderPosition { targetBufferPosition + missile.position.offsetForRendering - Displacement { missile._miAnimWidth2, missile.oracoolScaleLift } };
+	// Oracool (user, 2026-10-01): Lightning Clone - its hero's walk read live from him (a list kept on the missile would
+	// dangle the moment his sheet reloads mid-run), pure white with lightning blue running through it. 32-bit only.
+	if (missile.var6 == LightningCloneMark && missile._mitype == MissileID::AcidCloud && missile._misource >= 0 && static_cast<size_t>(missile._misource) < Players.size()) {
+		if (out.isIndexed())
+			return;
+		const Player &hero = Players[missile._misource];
+		const OptionalClxSpriteList walk = hero.AnimationData[static_cast<size_t>(player_graphic::Walk)].spritesForDirection(static_cast<Direction>(missile.var7 & 7));
+		if (!walk || walk->numSprites() == 0)
+			return;
+		const ClxSprite body = (*walk)[static_cast<size_t>(std::max(missile.var4, 0)) % walk->numSprites()];
+		const oracool::SpriteColours *bodyColours = PlayerSpriteColours(hero, body);
+		const uint32_t *table = bodyColours != nullptr ? bodyColours->Table(0) : oracool::LitPaletteTable(0);
+		const Point at = targetBufferPosition + missile.position.offsetForRendering - Displacement { CalculateWidth2(body.width()), 0 };
+		ClxDrawRgbMap(out, at, body, oracool::TintedTable(table, oracool::Tint::Clone, 0, 0.0));
+		return;
+	}
 	const ClxSprite sprite = (*missile._miAnimData)[missile._miAnimFrame - 1];
 	// Oracool: the Guardian Rift's portal is VIOLET, a colour the palette has no ramp for - its sheet
 	// is vanilla's blue and this draw sends the blue ramp to violet values (GuardianPortalRgbTable).
@@ -519,6 +537,9 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 /**
  * @brief Helper for rendering a specific player icon (Mana Shield or Reflect)
  */
+/** @brief The Mana Shield orb's blue (Glint's glaze): Ball Lightning's ice-blue family, a shade deeper. */
+constexpr uint32_t ManaShieldGlintRgb = 0x5A96FF;
+
 void DrawPlayerIconHelper(const Surface &out, MissileGraphicID missileGraphicId, Point position, bool lighting, bool infraVision, int frame = 0)
 {
 	position.x -= GetMissileSpriteData(missileGraphicId).animWidth2;
@@ -536,6 +557,13 @@ void DrawPlayerIconHelper(const Surface &out, MissileGraphicID missileGraphicId,
 	// A true-colour sheet (v1.12.211) draws through its own colours, at the same light the plain one would.
 	if (data.colours != nullptr) {
 		oracool::DrawSpriteWithColours(out, position, sprite, *data.colours, !lighting ? 0 : infraVision ? oracool::InfravisionLight : LightTableIndex);
+		return;
+	}
+
+	// Oracool (user, 2026-10-01): the Mana Shield's orb, glazed blue with light running through it on the game clock.
+	if (missileGraphicId == MissileGraphicID::ManaShield && !out.isIndexed()) {
+		const uint32_t *table = oracool::LitPaletteTable(!lighting ? 0 : LightTableIndex);
+		ClxDrawRgbMap(out, position, sprite, oracool::TintedTable(table, oracool::Tint::Glint, ManaShieldGlintRgb, 0.0));
 		return;
 	}
 
@@ -588,8 +616,10 @@ bool DrawPlayerTinted(const Surface &out, const Player &player, Point position, 
 {
 	if (out.isIndexed())
 		return false;
+	// Conduit (user, 2026-10-01): electric bluish-white over him for as long as it lasts, in place of its loop sheet.
 	const oracool::Tint tint = oracool::Rfa12ActiveHidesPlayer(player) ? oracool::Tint::Astral
 	    : oracool::ColdArmourShellFrame(player) >= 0                   ? oracool::Tint::Ice
+	    : oracool::Rfa12ConduitWorn(player)                            ? oracool::Tint::Electric
 	                                                                   : oracool::Tint::None;
 	if (tint == oracool::Tint::None)
 		return false;

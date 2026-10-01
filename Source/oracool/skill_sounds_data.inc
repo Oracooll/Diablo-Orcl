@@ -472,6 +472,7 @@ const SkillSound SkillSounds[] = {
 	{ Skill::NovaSkill, SkillSoundEvent::Cast, "sfx\\misc\\nova.wav" },
 	{ Skill::NovaSkill, SkillSoundEvent::Impact, "sfx\\misc\\elecimp1.wav" },
 	{ Skill::RideTheLightning, SkillSoundEvent::Cast, "sfx\\misc\\teleport.wav" },
+	{ Skill::RideTheLightning, SkillSoundEvent::Impact, "sfx\\misc\\elecimp1.wav" }, // Lightning Clone's strikes (user's pick, 2026-10-01)
 	{ Skill::ShiverArmor, SkillSoundEvent::Start, "sfx\\misc\\elementl.wav" },
 	{ Skill::ShiverArmor, SkillSoundEvent::Stop, "sfx\\misc\\elementl.wav" },
 	{ Skill::StaticCharge, SkillSoundEvent::Cast, "sfx\\misc\\cbolt.wav" },
@@ -487,7 +488,7 @@ const SkillSound SkillSounds[] = {
 	{ Skill::Warmth, SkillSoundEvent::Start, "sfx\\misc\\fbolt1.wav" },
 	{ Skill::Warmth, SkillSoundEvent::Stop, "sfx\\misc\\invisibl.wav" },
 	{ Skill::Whiteout, SkillSoundEvent::Cast, "sfx\\misc\\cast6.wav" },
-	{ Skill::AbsoluteZero, SkillSoundEvent::Impact, "sfx\\items\\barlfire.wav" },
+	{ Skill::AbsoluteZero, SkillSoundEvent::Impact, "sfx\\misc\\blsimpt.wav" },
 	{ Skill::ChillTouch, SkillSoundEvent::Impact, "sfx\\misc\\bsimpct.wav" },
 	{ Skill::Frostbite, SkillSoundEvent::Impact, "sfx\\misc\\bsimpct.wav" },
 	{ Skill::FrozenSentinel, SkillSoundEvent::Impact, "sfx\\misc\\bsimpct.wav" },

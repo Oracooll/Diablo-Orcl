@@ -140,6 +140,8 @@ constexpr int SkillMarkerCount = static_cast<int>(SkillMarker::Commanded) + 1;
 uint16_t Rfa12SkillMarkers(const Monster &monster);
 /** @brief Astral Projection: whether the hero is out of body, and unnoticed. */
 bool Rfa12ActiveHidesPlayer(const Player &player);
+/** @brief Conduit is on him: drawn in Tint::Electric (user, 2026-10-01). */
+bool Rfa12ConduitWorn(const Player &player);
 /** @brief Mantra of Retribution: whether the ring of thorns is worn now (drawn as a colour-cycled still, v1.12.211). */
 bool Rfa12RetributionWorn(const Player &player);
 /** @brief Serenity's ring (v1.12.211): how far through its rise and fall, 0..1, or nothing while no ring plays. */

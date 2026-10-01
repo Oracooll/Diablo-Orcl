@@ -464,9 +464,9 @@ EmberMine,Impact,sorcerer,fire-spells,Ember Mine
 Enchant,Loop,sorcerer,fire-spells,Enchant
 Enchant,Start,sorcerer,fire-spells,Enchant
 Enchant,Stop,sorcerer,fire-spells,Enchant
-EnergyShield,Loop,sorcerer,lightning-spells,Energy Shield
-EnergyShield,Start,sorcerer,lightning-spells,Energy Shield
-EnergyShield,Stop,sorcerer,lightning-spells,Energy Shield
+EnergyShield,Loop,sorcerer,lightning-spells,Mana Shield
+EnergyShield,Start,sorcerer,lightning-spells,Mana Shield
+EnergyShield,Stop,sorcerer,lightning-spells,Mana Shield
 FaradayRing,Cast,sorcerer,lightning-spells,Faraday Ring
 FaradayRing,Impact,sorcerer,lightning-spells,Faraday Ring
 FireBallSkill,Cast,sorcerer,fire-spells,Fire Ball
@@ -515,7 +515,8 @@ Meteor,Cast,sorcerer,fire-spells,Meteor
 Meteor,Impact,sorcerer,fire-spells,Meteor
 NovaSkill,Cast,sorcerer,lightning-spells,Nova
 NovaSkill,Impact,sorcerer,lightning-spells,Nova
-RideTheLightning,Cast,sorcerer,lightning-spells,Ride the Lightning
+RideTheLightning,Cast,sorcerer,lightning-spells,Lightning Clone
+RideTheLightning,Impact,sorcerer,lightning-spells,Lightning Clone
 ShiverArmor,Loop,sorcerer,cold-spells,Shiver Armor
 ShiverArmor,Start,sorcerer,cold-spells,Shiver Armor
 ShiverArmor,Stop,sorcerer,cold-spells,Shiver Armor

@@ -3362,7 +3362,37 @@ bool TryTransferHoveredActiveTabItemToStash(Player &player)
  */
 constexpr int PlaceableExtraTabs = Player::NumExtraInventoryTabs;
 
+namespace {
+
+bool SortInventoryBySellValueUnkept(Player &player);
+
+} // namespace
+
 bool SortInventoryBySellValue(Player &player)
+{
+	// The readied spells kept through the sort (round 65 audit): every scroll is taken out before any goes back, and taking the
+	// last of one out cleared its binding on either button for good. A binding whose scroll is still owned comes back.
+	const SpellID right = player._pRSpell;
+	const SpellType rightType = player._pRSplType;
+	const SpellID left = player._pLRSpell;
+	const SpellType leftType = player._pLRSplType;
+	const bool sorted = SortInventoryBySellValueUnkept(player);
+	player.CalcScrolls();
+	const auto owned = [&player](SpellID spell, SpellType type) { return type != SpellType::Scroll || (player._pScrlSpells & GetSpellBitmask(spell)) != 0; };
+	if (owned(right, rightType)) {
+		player._pRSpell = right;
+		player._pRSplType = rightType;
+	}
+	if (owned(left, leftType)) {
+		player._pLRSpell = left;
+		player._pLRSplType = leftType;
+	}
+	return sorted;
+}
+
+namespace {
+
+bool SortInventoryBySellValueUnkept(Player &player)
 {
 	if (!oracool::IsSinglePlayer())
 		return false;
@@ -3536,6 +3566,8 @@ bool SortInventoryBySellValue(Player &player)
 	CalcPlrInvKeepingLife(player); // a sort can change which charms are live (round 40 audit)
 	return !leftOver;
 }
+
+} // namespace
 
 bool CheckInventorySortButtonClick(Point cursorPosition)
 {

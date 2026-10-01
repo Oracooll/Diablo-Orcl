@@ -148,6 +148,10 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	// strike feeds it - Leech healed nothing from them (round 29 audit).
 	if (&player == MyPlayer && applyPassives && (BowStrikeInFlight || melee))
 		OnPassiveHit(player, monster, damage, melee);
+	// And the RfA-12 half for a melee blow (round 65 audit): Cleave's, Backhand's and Crusade's side blows never bled, never
+	// fed Bloodlust, never reset Retaliation - the class melee Strike and Whirlwind's blows always did.
+	if (&player == MyPlayer && applyPassives && melee)
+		OnRfa12Hit(player, monster, damage, /*melee=*/true);
 	// Scent of Blood marks what every skill wounds, not only a plain swing (round 29 audit: no bow, javelin or spear skill
 	// ever marked one).
 	if (&player == MyPlayer && applyPassives)
@@ -713,6 +717,9 @@ struct PlayerState {
 	// Storm Crucible: the first conductor, waiting for its pair.
 	int crucibleTicks = 0;
 	Point crucibleTile;
+	// The light Static Charge and Conduit throw round him while either lasts (user, 2026-10-01); NO_LIGHT otherwise. A
+	// level's lights start afresh, so ClearRfa12ActivesState forgets it there.
+	int buffLight = NO_LIGHT;
 	// Ancestral Call / Spirit Guardian: the summon's clock.
 	// Heaven's Descent and Leaping Crane land a tick after the teleport.
 	int landingTicks = 0;
@@ -1112,7 +1119,7 @@ int ReachTiles(SpellID spell, int r)
 	case SpellID::EarthshakerCry: return 8;
 	case SpellID::IceNeedle:
 	case SpellID::IceLance: return 8;
-	case SpellID::AbsoluteZero: return 4; // user, 2026-10-01: 4 tiles, 8 across
+	case SpellID::AbsoluteZero: return 2; // user, 2026-10-01: 4 tiles, then halved with its vortex the same day
 	case SpellID::FrozenSentinel: return 8;
 	case SpellID::RideTheLightning: return 6;
 	case SpellID::FlameRing: return 2;
@@ -1166,8 +1173,12 @@ constexpr int IceNeedleTargets = 2;
 constexpr int BoneSplinterTargets = 3;
 constexpr int WhiteoutStepTicks = 6;
 constexpr int WhiteoutTicks = 8 * WhiteoutStepTicks; // eight tiles
-constexpr int BallLightningStepTicks = 10;
-constexpr int BallLightningTicks = 8 * BallLightningStepTicks; // eight tiles, a charged bolt at each
+// 2026-10-01 (user): the ball rolls for three seconds toward the aim, throwing lightning strikes at what is near it.
+constexpr int BallLightningTicks = 3 * TicksPerSecond;
+constexpr int BallLightningRollTiles = 8;   // as far as it rolls in that time
+constexpr int BallLightningReach = 3;       // tiles from the ball a strike reaches
+constexpr int BallLightningStrikeEvery = 5; // ticks between strikes, and up to four more: about eight in its time
+constexpr int BallLightningStepTicks = 10;  // without its sheets: a charged bolt at every tile, as before (six tiles)
 constexpr int FrozenSentinelPeriod = 30;
 /** @brief A field shows a countdown beside the mini-map only when it lasts at least this long (dev note, 2026-10-01). */
 constexpr int FieldTimerMinTicks = 5 * 20;
@@ -1183,14 +1194,138 @@ constexpr int FurnaceMouthTicks = 3 * TicksPerSecond + 1;
 constexpr int FurnaceMouthTiles = 3;
 constexpr int CruciblePeriod = 15;
 constexpr int CrucibleTicks = 3 * CruciblePeriod; // three runs
+/** @brief Ticks between Storm Crucible's arcs, each drawn fresh (user, 2026-10-01): it crackles the whole time it holds. */
+constexpr int CrucibleArcEvery = 3;
+/**
+ * @brief Lightning Clone (user, 2026-10-01, in place of Ride the Lightning): the clone runs at his own walk, a tile every
+ * eight ticks (in 1/256 tiles a tick), strikes an enemy within its reach every 30 ticks less a tick a level (every tick
+ * from level 30), and is gone after eight seconds if it never catches him. The strike cue at most every few ticks.
+ */
+constexpr int LightningCloneStep = 256 / 8;
+constexpr int LightningCloneReach = 3;
+constexpr int LightningCloneMaxTicks = 8 * TicksPerSecond;
+constexpr int LightningCloneLight = 4;
+constexpr int LightningCloneCueTicks = 4;
+constexpr Displacement LightningCloneCore { 0, -40 }; // its chest, as the Sorcerer's
+
+int LightningCloneStrikeEvery(int r)
+{
+	return std::max(1, 31 - std::min(r, 30));
+}
 constexpr int AncestralCourtTicks = TicksPerSecond + 15;
 constexpr int AncestralCourtStrikes = 3; // at one second, and five and ten ticks after
 constexpr int MeteorRadius = 2;
 constexpr int MeteorBurnRadius = 1;
 constexpr int LightningRodBurstRadius = 2;
 constexpr int FaradayRingReach = 2;
+/**
+ * @brief Where the lightning strikes leave and land, in screen pixels from a tile's centre (2026-10-01): the rolling ball's
+ * middle (its foot on the floor, the middle 25px up), the crystal over the rod's horns (y 30 of its 128, its foot at 119),
+ * a struck body's middle (ArcSpark's anchor) and a flying missile's (the middle of a 96px cell hanging from its tile).
+ */
+constexpr Displacement BallLightningCore { 0, -25 };
+constexpr Displacement LightningRodCrown { 0, -89 };
+constexpr Displacement StrikeBody { 0, -32 };
+constexpr Displacement StrikeMissile { 0, -32 };
+/** @brief Faraday Ring's halo on the floor: 116x54 (the user's sheet, 2026-10-01), its stones 4px up. */
+constexpr int FaradayRingHalfWidth = 58;
+constexpr int FaradayRingHalfHeight = 27;
+/**
+ * @brief Ticks between the ring's and the rod's own strikes at a monster within their reach (user, 2026-10-01: "make the
+ * ring and rod strike nearby monsters too"): the ring twice a second (about eight in its four seconds), the rod once a
+ * second (twelve in its twelve). Each at Ball Lightning's strike damage - the lightning family's one number.
+ */
+constexpr int FaradayRingStrikeEvery = TicksPerSecond / 2;
+constexpr int LightningRodStrikeEvery = TicksPerSecond;
+/** @brief The rod's burst (user, 2026-10-01, in place of RfA-27's burst sheet): strikes from its crown every way, and the rod
+ * standing this many ticks more in their light before it goes. */
+constexpr int LightningRodBurstRays = 7;
+constexpr int LightningRodFadeTicks = TicksPerSecond / 2;
 constexpr int BoneWallPeriod = TicksPerSecond / 2;
 constexpr int BoneStormPeriod = TicksPerSecond / 2;
+
+/** @brief A tile step on screen: 32px across and 16px down a step east, the 2:1 grid (2026-10-01). */
+Displacement ScreenOffset(Displacement tiles)
+{
+	return { 32 * (tiles.deltaX - tiles.deltaY), 16 * (tiles.deltaX + tiles.deltaY) };
+}
+
+/** @brief Faraday Ring's rim toward @p to (a tile and a screen offset), as screen pixels from the ring's centre. */
+Displacement FaradayRingRim(Point centre, Point toTile, Displacement to)
+{
+	const Displacement v = ScreenOffset(toTile - centre) + to;
+	const double k = std::hypot(v.deltaX / static_cast<double>(FaradayRingHalfWidth), v.deltaY / static_cast<double>(FaradayRingHalfHeight));
+	if (k < 0.001)
+		return { 0, -4 };
+	return { static_cast<int>(std::lround(v.deltaX / k)), static_cast<int>(std::lround(v.deltaY / k)) - 4 };
+}
+
+/** @brief Ball Lightning's rolling ball (AddArtBolt, tagged with its field's stamp), or null once it has gone. */
+Missile *FieldBall(const Field &field)
+{
+	for (Missile &missile : Missiles) {
+		if (!missile._miDelFlag && missile._miAnimType == MissileGraphicID::BallLightning && missile.var5 == field.stamp
+		    && missile._misource == field.owner)
+			return &missile;
+	}
+	return nullptr;
+}
+
+/** @brief A Ball Lightning strike's damage at rank @p r: Charged Bolt's at that level, as its bolts were. */
+Range BallLightningDamage(int r)
+{
+	int min = 0;
+	int max = 0;
+	GetDamageAmtAtLevel(SpellID::ChargedBolt, r, &min, &max);
+	return { std::max(min, 0), std::max(max, 0) };
+}
+
+/**
+ * @brief A Storm Crucible conductor on @p tile (user, 2026-10-01: the Lightning Rod's sheet; RfA-27 batch 55's conductor
+ * while the rod's is missing). Null when neither is in the archive.
+ */
+Missile *Conductor(const Player &player, Point tile, int ticks)
+{
+	const MissileGraphicID art = MissileArtLoaded(MissileGraphicID::LightningRod) ? MissileGraphicID::LightningRod : MissileGraphicID::StormConductor;
+	return AddArtEffect(tile, art, static_cast<int>(player.getId()), ticks);
+}
+
+/** @brief Ends the conductor standing on @p tile, whichever sheet it wears. */
+void EndConductor(const Player &player, Point tile)
+{
+	EndArtEffects(tile, MissileGraphicID::LightningRod, static_cast<int>(player.getId()));
+	EndArtEffects(tile, MissileGraphicID::StormConductor, static_cast<int>(player.getId()));
+}
+
+/** @brief A Lightning Clone at @p origin for @p player's field @p stamp, running to him; null without its carrier sheet. */
+Missile *SpawnLightningClone(const Player &player, Point origin, int stamp)
+{
+	// It rides the ball's carrier (any sheet the family loads would do); the renderer draws the hero instead (var6).
+	if (!MissileArtLoaded(MissileGraphicID::BallLightning))
+		return nullptr;
+	Missile *clone = AddArtEffect(origin, MissileGraphicID::BallLightning, static_cast<int>(player.getId()), LightningCloneMaxTicks + 2);
+	if (clone == nullptr)
+		return nullptr;
+	clone->var2 = origin.x * 256;
+	clone->var3 = origin.y * 256;
+	clone->var4 = 0;
+	clone->var5 = stamp;
+	clone->var6 = LightningCloneMark;
+	clone->var7 = static_cast<int>(origin == player.position.tile ? player._pdir : GetDirection(origin, player.position.tile));
+	clone->position.offset = {};
+	clone->_mlid = AddLight(origin, LightningCloneLight);
+	return clone;
+}
+
+/** @brief The clone of @p field (by its stamp), or null once it has gone. */
+Missile *FieldClone(const Field &field)
+{
+	for (Missile &missile : Missiles) {
+		if (!missile._miDelFlag && missile.var6 == LightningCloneMark && missile.var5 == field.stamp && missile._misource == field.owner)
+			return &missile;
+	}
+	return nullptr;
+}
 
 /** @brief Seven-Sided Strike's enemies. */
 int SevenSidedTargets(int r)
@@ -1790,6 +1925,21 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Field *f = NewField(player, spell, here, BallLightningTicks, r);
 		f->tile2 = here;
 		f->dir = target == here ? player._pdir : GetDirection(here, target);
+		f->step = BallLightningStrikeEvery; // the first strike as it leaves the hand
+		// 2026-10-01 (user): the ball, rolling toward the aim for its three seconds; TickField finds it by the field's stamp.
+		// Its speed covers the roll in that time (a screen pixel speed: a tile across the screen is twice one down it).
+		const Displacement aim = target == here ? Displacement(f->dir) : target - here;
+		const int far = std::max(std::abs(aim.deltaX), std::abs(aim.deltaY));
+		const Point end { std::clamp(here.x + aim.deltaX * BallLightningRollTiles / far, 0, MAXDUNX - 1),
+			std::clamp(here.y + aim.deltaY * BallLightningRollTiles / far, 0, MAXDUNY - 1) };
+		const Displacement path = ScreenOffset(end - here);
+		const int speed = std::max(static_cast<int>(std::hypot(path.deltaX, path.deltaY)) / BallLightningTicks, 1);
+		if (Missile *ball = end != here ? AddArtBolt(here, end, MissileGraphicID::BallLightning, static_cast<int>(player.getId()), speed) : nullptr; ball != nullptr) {
+			ball->_mirange = BallLightningTicks;
+			ball->oracoolScaleLift = 8; // rolling on the floor: its foot (y 56 of 64) on the tile
+			ball->var5 = f->stamp;
+			ball->_mlid = AddLight(here, 5); // it lights its way (user, 2026-10-01); TickField moves it, the ball's end frees it
+		}
 		return true;
 	}
 	case SpellID::Conduit:
@@ -1808,8 +1958,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (state.crucibleTicks <= 0) {
 			state.crucibleTicks = EffectTicks(spell, r);
 			state.crucibleTile = target;
-			// RfA-27 batch 55: the first conductor, waiting for its pair; the cry's ring without it.
-			if (Art(player, MissileGraphicID::StormConductor, target, EffectTicks(spell, r)) == nullptr)
+			// The first conductor, waiting for its pair; the cry's ring without it.
+			if (Conductor(player, target, EffectTicks(spell, r)) == nullptr)
 				Ring(player, target);
 			return true;
 		}
@@ -1822,9 +1972,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		f->clock = CruciblePeriod - 1;
 		state.crucibleTicks = 0;
 		// The pair stands for the storm's three runs: the waiting one gives way to one that lasts as long as the field.
-		EndArtEffects(f->tile, MissileGraphicID::StormConductor, static_cast<int>(player.getId()));
-		Art(player, MissileGraphicID::StormConductor, f->tile, CrucibleTicks);
-		Art(player, MissileGraphicID::StormConductor, f->tile2, CrucibleTicks);
+		EndConductor(player, f->tile);
+		Conductor(player, f->tile, CrucibleTicks);
+		Conductor(player, f->tile2, CrucibleTicks);
 		return true;
 	}
 	case SpellID::RideTheLightning: {
@@ -1838,6 +1988,18 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Point landed = dst;
 		if (!TeleportTo(player, dst, spell, &landed))
 			return false;
+		// 2026-10-01 (user): Lightning Clone - he goes in a flash of lightning, and a clone of him stays where he stood and
+		// runs to him, striking as it goes (TickField). Without the family's sheets, the ride as before.
+		if (LightningStrikeLoaded()) {
+			Field *f = NewField(player, spell, here, LightningCloneMaxTicks, r);
+			if (SpawnLightningClone(player, here, f->stamp) != nullptr) {
+				f->step = 1;             // the first strike as it starts to run
+				f->tile2 = { -99, 0 };   // x: the clock of its last strike cue
+				AddLightningStrike(here, LightningCloneCore, landed, LightningCloneCore, static_cast<int>(player.getId()), 3, /*fork=*/false);
+				return true;
+			}
+			f->ticksLeft = 0;
+		}
 		// The line she flew, to where she landed (round 49 audit: it followed the aim, up to five tiles off).
 		const auto line = MonstersOnLine(here, landed, here.WalkingDistance(landed));
 		// RfA-27 batch 57: her body become the bolt, flying the way she went - to where she landed (round 48 audit).
@@ -2879,6 +3041,38 @@ void TickField(Player &player, Field &field)
 		}
 		break;
 	case SpellID::BallLightning:
+		if (Missile *ball = FieldBall(field); ball != nullptr) {
+			// It stops against a wall, and sparks where it stands for the rest of its time.
+			const Displacement next = (ball->position.traveled + ball->position.velocity) >> 16;
+			const Point ahead = ball->position.start + next.screenToMissile();
+			if (ahead != ball->position.tile && (!InDungeonBounds(ahead) || IsTileSolid(ahead)))
+				ball->position.StopMissile();
+			field.tile2 = ball->position.tile;
+			if (ball->_mlid != NO_LIGHT)
+				ChangeLightXY(ball->_mlid, ball->position.tile);
+			if (field.clock < field.step)
+				break;
+			field.step = field.clock + BallLightningStrikeEvery + GenerateRnd(5);
+			const Point at = ball->position.tile;
+			const Displacement core = ball->position.offset + BallLightningCore;
+			const std::vector<Monster *> near = MonstersWithin(at, BallLightningReach);
+			if (!near.empty()) {
+				Monster &monster = *near[GenerateRnd(static_cast<int>(near.size()))];
+				AddLightningStrike(at, core, monster.position.tile, StrikeBody, static_cast<int>(player.getId()), 2 + GenerateRnd(3));
+				Strike(player, monster, DamageType::Lightning, Rolled(BallLightningDamage(r)));
+				Impact(player, field.spell);
+			} else {
+				// Nothing in reach: a short spark into the air now and then, so it never rolls dark.
+				const double a = GenerateRnd(360) * 3.14159265358979 / 180;
+				AddLightningStrike(at, core, at, core + Displacement { static_cast<int>(std::cos(a) * 48), static_cast<int>(std::sin(a) * 30) },
+				    static_cast<int>(player.getId()), 2);
+			}
+			break;
+		}
+		if (MissileArtLoaded(MissileGraphicID::BallLightning)) {
+			field.ticksLeft = 0; // the ball has gone: rolled its way, or left behind on another floor
+			break;
+		}
 		if (field.clock % BallLightningStepTicks == 0) {
 			const Point next = field.tile2 + field.dir;
 			if (!InDungeonBounds(next) || IsTileSolid(next)) {
@@ -2893,6 +3087,16 @@ void TickField(Player &player, Field &field)
 	case SpellID::LightningRod:
 	case SpellID::FaradayRing: {
 		const int reach = field.spell == SpellID::FaradayRing ? FaradayRingReach : 1;
+		// Both strike a monster near them on their own clock, from the ring's rim or the rod's crown.
+		if (field.clock % (field.spell == SpellID::FaradayRing ? FaradayRingStrikeEvery : LightningRodStrikeEvery) == 0) {
+			const int strikeReach = field.spell == SpellID::FaradayRing ? FaradayRingReach : LightningRodBurstRadius;
+			if (const std::vector<Monster *> near = MonstersWithin(field.tile, strikeReach); !near.empty()) {
+				Monster &monster = *near[GenerateRnd(static_cast<int>(near.size()))];
+				const Displacement from = field.spell == SpellID::FaradayRing ? FaradayRingRim(field.tile, monster.position.tile, StrikeBody) : LightningRodCrown;
+				AddLightningStrike(field.tile, from, monster.position.tile, StrikeBody, static_cast<int>(player.getId()), 2 + GenerateRnd(3));
+				Strike(player, monster, DamageType::Lightning, Rolled(BallLightningDamage(r)));
+			}
+		}
 		bool fizzled = false;
 		for (Missile &missile : Missiles) {
 			if (missile._miDelFlag || missile.sourceType() != MissileSource::Monster)
@@ -2911,14 +3115,40 @@ void TickField(Player &player, Field &field)
 				AddUnLight(missile._mlid);
 				missile._mlid = NO_LIGHT;
 			}
+			// 2026-10-01 (user): the ring strikes it down - a lightning strike from the halo's rim toward it.
+			if (field.spell == SpellID::FaradayRing) {
+				const Displacement at = missile.position.offset + StrikeMissile;
+				AddLightningStrike(field.tile, FaradayRingRim(field.tile, missile.position.tile, at), missile.position.tile, at,
+				    static_cast<int>(player.getId()), 2 + GenerateRnd(2));
+			}
 			missile._miDelFlag = true;
 			if (field.spell == SpellID::LightningRod) {
-				for (Monster *m : MonstersWithin(field.tile, LightningRodBurstRadius))
+				for (Monster *m : MonstersWithin(field.tile, LightningRodBurstRadius)) {
+					// 2026-10-01 (user): a lightning strike from the crown to each one it hits.
+					AddLightningStrike(field.tile, LightningRodCrown, m->position.tile, StrikeBody, static_cast<int>(player.getId()), 3 + GenerateRnd(2));
 					Strike(player, *m, DamageType::Lightning, Rolled(SkillDamage(field.spell, r)));
-				// RfA-27 batch 55: the rod bursts - its standing sheet goes, its burst plays; the ring without the burst.
-				EndArtEffects(field.tile, MissileGraphicID::LightningRod, static_cast<int>(player.getId()));
-				if (Art(player, MissileGraphicID::LightningRodBurst, field.tile) == nullptr)
-					Ring(player, field.tile);
+				}
+				// 2026-10-01 (user): the rod bursts in lightning - strikes from its crown every way, longer than its single
+				// ones, and it stands a moment more in their light before it goes. Without the strike sheets, RfA-27 batch 55's
+				// burst sheet as before (and the ring without that).
+				if (LightningStrikeLoaded()) {
+					const int pid = static_cast<int>(player.getId());
+					const double turn = GenerateRnd(360) * 3.14159265358979 / 180;
+					for (int ray = 0; ray < LightningRodBurstRays; ray++) {
+						const double a = turn + ray * 2 * 3.14159265358979 / LightningRodBurstRays;
+						const int reach = 70 + GenerateRnd(60);
+						const Displacement tip = LightningRodCrown + Displacement { static_cast<int>(std::cos(a) * reach), static_cast<int>(std::sin(a) * reach * 0.7) };
+						AddLightningStrike(field.tile, LightningRodCrown, field.tile, tip, pid, 4 + GenerateRnd(3));
+					}
+					for (Missile &rod : Missiles) {
+						if (rod._miAnimType == MissileGraphicID::LightningRod && rod._misource == pid && rod.position.tile == field.tile)
+							rod._mirange = std::min(rod._mirange, LightningRodFadeTicks);
+					}
+				} else {
+					EndArtEffects(field.tile, MissileGraphicID::LightningRod, static_cast<int>(player.getId()));
+					if (Art(player, MissileGraphicID::LightningRodBurst, field.tile) == nullptr)
+						Ring(player, field.tile);
+				}
 				Impact(player, field.spell);
 				field.ticksLeft = 0;
 				break;
@@ -2929,7 +3159,72 @@ void TickField(Player &player, Field &field)
 			Impact(player, field.spell); // RfA-27: Faraday Ring's fizzle, once a tick however many it caught
 		break;
 	}
+	case SpellID::RideTheLightning: {
+		// Lightning Clone (user, 2026-10-01): it runs to him at his walk, any of the eight ways, striking as it goes.
+		Missile *clone = FieldClone(field);
+		if (clone == nullptr || player._pHitPoints <= 0) {
+			if (clone != nullptr)
+				clone->_mirange = 1; // goes next tick, its light with it
+			field.ticksLeft = 0;
+			break;
+		}
+		const int pid = static_cast<int>(player.getId());
+		const int dx = player.position.tile.x * 256 - clone->var2;
+		const int dy = player.position.tile.y * 256 - clone->var3;
+		const int far = std::max(std::abs(dx), std::abs(dy));
+		if (far <= LightningCloneStep) {
+			// One with him again: sparks every way round him, and the clone is gone.
+			const Point at = player.position.tile;
+			const double turn = GenerateRnd(360) * 3.14159265358979 / 180;
+			for (int i = 0; i < 5; i++) {
+				const double a = turn + i * 2 * 3.14159265358979 / 5;
+				AddLightningStrike(at, LightningCloneCore, at, LightningCloneCore + Displacement { static_cast<int>(std::cos(a) * 60), static_cast<int>(std::sin(a) * 40) }, pid, 4);
+			}
+			clone->_mirange = 1;
+			field.ticksLeft = 0;
+			break;
+		}
+		clone->var2 += dx * LightningCloneStep / far;
+		clone->var3 += dy * LightningCloneStep / far;
+		const Point tile { (clone->var2 + 128) / 256, (clone->var3 + 128) / 256 };
+		const int rx = clone->var2 - tile.x * 256;
+		const int ry = clone->var3 - tile.y * 256;
+		clone->position.tile = tile;
+		clone->position.start = tile;
+		clone->position.offset = { 32 * (rx - ry) / 256, 16 * (rx + ry) / 256 };
+		clone->var4++; // its walk's next frame
+		if (tile != player.position.tile)
+			clone->var7 = static_cast<int>(GetDirection(tile, player.position.tile));
+		if (clone->_mlid != NO_LIGHT)
+			ChangeLightXY(clone->_mlid, tile);
+		if (field.clock < field.step)
+			break;
+		field.step = field.clock + LightningCloneStrikeEvery(r);
+		const Displacement core = clone->position.offset + LightningCloneCore;
+		const std::vector<Monster *> near = MonstersWithin(tile, LightningCloneReach);
+		if (!near.empty()) {
+			Monster &monster = *near[GenerateRnd(static_cast<int>(near.size()))];
+			AddLightningStrike(tile, core, monster.position.tile, StrikeBody, pid, 2 + GenerateRnd(3));
+			Strike(player, monster, DamageType::Lightning, Rolled(SkillDamage(field.spell, r)));
+			if (field.clock - field.tile2.x >= LightningCloneCueTicks) {
+				Impact(player, field.spell);
+				field.tile2.x = field.clock;
+			}
+		} else if (GenerateRnd(3) == 0) {
+			const double a = GenerateRnd(360) * 3.14159265358979 / 180;
+			AddLightningStrike(tile, core, tile, core + Displacement { static_cast<int>(std::cos(a) * 48), static_cast<int>(std::sin(a) * 30) }, pid, 2);
+		}
+		break;
+	}
 	case SpellID::StormCrucible:
+		// 2026-10-01 (user): the arc between the two crowns, a chain of the lightning family's pieces drawn fresh every few
+		// ticks so it crackles; twice over on a run that strikes.
+		if (LightningStrikeLoaded() && field.clock % CrucibleArcEvery == 0) {
+			const int pid = static_cast<int>(player.getId());
+			const int arcs = field.clock % CruciblePeriod == 0 ? 2 : 1;
+			for (int arc = 0; arc < arcs; arc++)
+				AddLightningStrike(field.tile, LightningRodCrown, field.tile2, LightningRodCrown, pid, CrucibleArcEvery, /*fork=*/false);
+		}
 		if (field.clock % CruciblePeriod == 0) {
 			const Range d = SkillDamage(field.spell, r);
 			// The straight line between the two conductors, whatever its angle (round 52 audit: an 8-way ray from the first
@@ -2946,8 +3241,10 @@ void TickField(Player &player, Field &field)
 			}
 			for (Monster *m : struck)
 				Strike(player, *m, DamageType::Lightning, Rolled(d));
-			// RfA-27 batch 55: a segment of lightning on every tile between the pair; the two rings without the sheet.
-			if (MissileArtLoaded(MissileGraphicID::StormArc)) {
+			// Without the lightning family: RfA-27 batch 55's segment on every tile between the pair; the two rings without that.
+			if (LightningStrikeLoaded()) {
+				// the arc, above
+			} else if (MissileArtLoaded(MissileGraphicID::StormArc)) {
 				for (const Point tile : between)
 					Art(player, MissileGraphicID::StormArc, tile);
 			} else {
@@ -3571,7 +3868,6 @@ size_t Rfa12BodyOverlays(const Player &player, Rfa12BodyOverlay *out, size_t cap
 	};
 	static constexpr Worn Overlays[] = {
 		{ Buff::StaticCharge, MissileGraphicID::StaticCharge, 8 },
-		{ Buff::Conduit, MissileGraphicID::Conduit, 8 },
 		{ Buff::Immolate, MissileGraphicID::Immolate, 8 },
 		{ Buff::Clarity, MissileGraphicID::MantraOfClarity, 12 },
 		{ Buff::Evasion, MissileGraphicID::MantraOfEvasion, 12 },
@@ -3667,6 +3963,11 @@ bool Rfa12ActiveArrowIgnores(const Player &player, const Monster &monster)
 bool Rfa12ActiveHidesPlayer(const Player &player)
 {
 	return BuffRank(player, Buff::Astral) > 0;
+}
+
+bool Rfa12ConduitWorn(const Player &player)
+{
+	return BuffRank(player, Buff::Conduit) > 0;
 }
 
 bool Rfa12RetributionWorn(const Player &player)
@@ -3781,6 +4082,16 @@ void ProcessRfa12ActivesTick(Player &player)
 	if (&player != MyPlayer)
 		return;
 	PlayerState &state = StateOf(player);
+	// The lightning buffs light the floor round him (user, 2026-10-01), the light walking with him.
+	if (BuffRank(player, Buff::StaticCharge) > 0 || BuffRank(player, Buff::Conduit) > 0) {
+		if (state.buffLight == NO_LIGHT)
+			state.buffLight = AddLight(player.position.tile, 4);
+		else
+			ChangeLightXY(state.buffLight, player.position.tile);
+	} else if (state.buffLight != NO_LIGHT) {
+		AddUnLight(state.buffLight);
+		state.buffLight = NO_LIGHT;
+	}
 
 	// Companions keep their own time, on every level and whether or not the owner stands (oracool/companion.h).
 	ProcessCompanions(player);
@@ -3959,6 +4270,7 @@ void ClearRfa12ActivesState()
 		state.funeralTicks = 0;
 		state.crucibleTicks = 0;
 		state.landingTicks = 0;
+		state.buffLight = NO_LIGHT; // the new level's lights start afresh; the next tick lights him again
 	}
 }
 
@@ -4312,13 +4624,12 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		duration();
 		break;
 	case SpellID::BallLightning: {
-		say(_("A charged bolt at every tile, for {:d} tiles"), BallLightningTicks / BallLightningStepTicks);
+		say(_("Rolls for {:d} seconds, striking an enemy within {:d} tiles with lightning about every {:d} ticks"), BallLightningTicks / TicksPerSecond,
+		    BallLightningReach, BallLightningStrikeEvery + 2);
 		if (MyPlayer != nullptr) {
-			int min = -1;
-			int max = -1;
-			GetDamageAmtAtLevel(SpellID::ChargedBolt, r, &min, &max);
-			if (min >= 0)
-				say(_("Lightning damage: {:d} - {:d} a bolt"), min, max);
+			const Range bolt = BallLightningDamage(r);
+			if (bolt.max > 0)
+				say(_("Lightning damage: {:d} - {:d} a strike"), bolt.min, bolt.max);
 		}
 		break;
 	}
@@ -4329,10 +4640,18 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		break;
 	case SpellID::LightningRod:
 		say(_("Swallows the first enemy lightning missile to come near and bursts: {:d} - {:d} lightning damage within {:d} tiles"), d.min, d.max, LightningRodBurstRadius);
+		{
+			const Range strike = BallLightningDamage(r);
+			say(_("Strikes an enemy within {:d} tiles once a second: {:d} - {:d} lightning damage"), LightningRodBurstRadius, strike.min, strike.max); // LightningRodStrikeEvery
+		}
 		duration();
 		break;
 	case SpellID::FaradayRing:
 		say(_("Destroys every enemy missile within {:d} tiles of it"), FaradayRingReach);
+		{
+			const Range strike = BallLightningDamage(r);
+			say(_("Strikes an enemy within {:d} tiles twice a second: {:d} - {:d} lightning damage"), FaradayRingReach, strike.min, strike.max); // FaradayRingStrikeEvery
+		}
 		duration();
 		break;
 	case SpellID::StormCrucible:
@@ -4341,8 +4660,9 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		say(_("Place the pair within {} s"), Secs(EffectTicks(spell, r)));
 		break;
 	case SpellID::RideTheLightning:
-		say(_("Lightning damage: {:d} - {:d} to everything on the way"), d.min, d.max);
-		say(_("Range: {:d} tiles"), reach);
+		say(_("Teleports up to {:d} tiles; a lightning clone runs back to you from where you stood"), reach);
+		say(_("The clone strikes an enemy within {:d} tiles every {:d} ticks: {:d} - {:d} lightning damage"), LightningCloneReach,
+		    LightningCloneStrikeEvery(r), d.min, d.max);
 		break;
 	case SpellID::CinderTouch:
 		say(_("Fire damage: {:d} a second for {} s"), PerSecond(spell, r), Secs(EffectTicks(spell, r)));

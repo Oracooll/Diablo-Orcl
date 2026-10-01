@@ -260,6 +260,8 @@ const std::array<uint8_t, 16> MissileAnimLengths[] {
 	{ 16, 16, 16, 16, 16, 16, 16, 16, 8 },
 	Repeat(2), // Oracool 2026-09-26: ice_ground's two variants
 	Repeat(44), // Oracool 2026-10-01: Absolute Zero's grow, loop and shrink
+	Repeat(72), // Oracool 2026-10-01: Ball Lightning's three-second ball
+	Repeat(32), // Oracool 2026-10-01: a lightning strike piece's 32 angles (its rows are variants)
 };
 
 constexpr uint8_t AnimLen_0 = 0;        // NOLINT(readability-identifier-naming)
@@ -285,6 +287,8 @@ constexpr uint8_t AnimLen_13_11 = 19;   // NOLINT(readability-identifier-naming)
 constexpr uint8_t AnimLen_16x8_8 = 20;  // NOLINT(readability-identifier-naming)
 constexpr uint8_t AnimLen_2 = 21;       // NOLINT(readability-identifier-naming)
 constexpr uint8_t AnimLen_44 = 22;      // NOLINT(readability-identifier-naming)
+constexpr uint8_t AnimLen_72 = 23;      // NOLINT(readability-identifier-naming)
+constexpr uint8_t AnimLen_32 = 24;      // NOLINT(readability-identifier-naming)
 
 } // namespace
 
@@ -478,9 +482,9 @@ MissileFileData MissileSpriteData[] = {
 /*GroundStomp*/              { {},             160,          48, "ground_stomp",           1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*MountainPole*/             { {},             160,          48, "mountain_pole",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*FlameRing*/                { {},             160,          48, "flame_ring",             1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
-// 2026-10-01: the user's painted vortex frames, by tools/BuildAbsoluteZero.py - 44 frames of 512x256, the 4-tile reach
+// 2026-10-01: the user's painted vortex frames, by tools/BuildAbsoluteZero.py - 44 frames of 256x128 (half the first 512x256), the 2-tile reach
 // at 1x: 10 growing, a 24-frame loop held for 6 seconds (ProcessCensusEffect), 10 shrinking. The eye is the frame's centre.
-/*AbsoluteZero*/             { {},             512,         224, "absolute_zero",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_44      },
+/*AbsoluteZero*/             { {},             256,          96, "absolute_zero",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_44      },
 /*BlindingFlash*/            { {},             160,          48, "blinding_flash",         1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*DeathNova*/                { {},             160,          48, "death_nova",             1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*EmberBurst*/               { {},             128,          32, "ember_burst",            1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
@@ -497,8 +501,10 @@ MissileFileData MissileSpriteData[] = {
 /*WaveOfLight*/              { {},              96,          16, "wave_of_light",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*AncestralCourt*/           { {},             192,          64, "ancestral_court",        1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_12      },
 /*Earthquake*/               { {},             192,          64, "earthquake",             1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
-/*FaradayRing*/              { {},             128,          32, "faraday_ring",           1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
-/*LightningRod*/             { {},              48,          -8, "lightning_rod",          1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_8       },
+/*FaradayRing*/              { {},             128,          32, "faraday_ring",           1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_16      }, // the user's halo, 16 frames of 128x64 at 100 ms (2026-10-01)
+// 2026-10-01: the user's redesigned totem, 16 frames of 64x128 keyed from its green screen - the base holds still, the crown's
+// lightning plays, a frame every second tick (its 90 ms preview). animWidth2 0 centres it; the foot is y 119 of 128.
+/*LightningRod*/             { {},              64,           0, "lightning_rod",          1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_16      },
 /*StormConductor*/           { {},              48,          -8, "storm_conductor",        1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_8       },
 /*StormArc*/                 { {},              64,           0, "storm_arc",              1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_4       },
 /*EmberMine*/                { {},              32,         -16, "ember_mine",             1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_8       },
@@ -527,6 +533,14 @@ MissileFileData MissileSpriteData[] = {
 // chessboard with a bright core, by tools/BuildRedemptionRise.ps1 - Redemption plays it over each corpse it consumes.
 // 58x48 frames; animWidth2 -3 keeps the column on its tile's centre (58 / 2 + 3 = 32); vanilla's timing, one tick a frame.
 /*RedemptionRise*/           { {},              58,          -3, "redemption_rise",   1, MissileGraphicsFlags::PngOnly,                 0, AnimLen_16      },
+// 2026-10-01 (user): tools/BuildBallLightning.py. The ball: the user's 72-frame loop, a frame a tick (its 3 seconds play in
+// 3.6), drawn rolling on the floor (its foot y 56 of 64; rfa12_actives lifts the moving ball 8px). The strikes: a row per
+// variant, a frame per angle (clockwise from east, 11.25 degrees apart), held - AddLightningStrike picks the frame.
+/*BallLightning*/            { {},              64,           0, "ball_lightning",         1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_72      },
+/*LightningStrikeShort*/     { {},              96,          16, "lightning_strike_short", 8, MissileGraphicsFlags::PngOnly,                 1, AnimLen_32      },
+/*LightningStrikeChain*/     { {},              96,          16, "lightning_strike_chain", 8, MissileGraphicsFlags::PngOnly,                 1, AnimLen_32      },
+/*LightningStrikeLong*/      { {},             144,          40, "lightning_strike_long",  4, MissileGraphicsFlags::PngOnly,                 1, AnimLen_32      },
+/*LightningStrikeImpact*/    { {},             144,          40, "lightning_strike_impact", 4, MissileGraphicsFlags::PngOnly,                1, AnimLen_32      },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };

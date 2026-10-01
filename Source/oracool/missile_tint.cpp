@@ -101,6 +101,19 @@ const uint32_t *TintedTable(const uint32_t *base, Tint tint, uint32_t rgb, doubl
 		case Tint::Mend:
 			out = Lerp(c, AtBrightness({ 185, 160, 255 }, 0.4 + 0.8 * l), 0.65 * std::clamp(progress, 0.0, 1.0));
 			break;
+		case Tint::Electric: {
+			const double wave = std::cos(2.0 * Pi * (2.0 * l - t / 0.5));
+			const Colour glazed = Lerp(c, AtBrightness({ 200, 225, 255 }, 0.45 + 0.8 * l), 0.75);
+			out = { glazed.r * (1.0 + 0.45 * wave), glazed.g * (1.0 + 0.45 * wave), glazed.b * (1.0 + 0.45 * wave) };
+			break;
+		}
+		case Tint::Clone: {
+			if (c.r + c.g + c.b <= 0.0)
+				break; // the shadow stays a shadow
+			const double band = std::pow(std::max(0.0, std::cos(2.0 * Pi * (2.5 * l - t / 0.5))), 1.5);
+			out = Lerp({ 255, 255, 255 }, { 40, 110, 255 }, 0.8 * band);
+			break;
+		}
 		case Tint::Glint: {
 			// The clock alone moves the bands: a looping sheet's frame would jump them back at every wrap.
 			const double wave = std::cos(2.0 * Pi * (2.0 * l - t / 0.9));

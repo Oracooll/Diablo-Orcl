@@ -775,6 +775,13 @@ void RestoreStaggeredSwingLatches()
 
 namespace {
 
+/**
+ * The armed skills' share of the pool as the swing's front blow carried it (round 65 audit). The side blows of a cleave run
+ * after the skill has settled its price, and asking again read the state after it: a front miss (unpaid) still gave the
+ * sides +150% while Rage lasted, and a paid front gave them the bonus only if what was left covered a second cast.
+ */
+std::optional<int> SwingSkillPercent;
+
 bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, int *dealtDamage = nullptr)
 {
 	int hper = 0;
@@ -839,8 +846,11 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	// blows a skill adds coming back through here; zero when nothing is armed or it cannot be paid), the Paladin's per-level
 	// blows (Smite, Charge's arrival), and the passives that read the situation (Round 5: Ruthless, Brawler, Steady Aim and
 	// the rest) all ADD to the items' +% and the Strength share, one percentage of the bare roll.
-	const int pool = oracool::ClassMeleeSkillDamagePercent(player) + oracool::PaladinMeleeDamagePercent(player) + oracool::Rfa12MeleeDamagePercent(player)
-	    + oracool::PassiveDamageDealtPercent(player, monster, true, /*burst=*/adjacentDamage) + oracool::Rfa12DamageDealtPercent(player, monster, true);
+	const int skillPercent = adjacentDamage && SwingSkillPercent.has_value() ? *SwingSkillPercent
+	                                                                         : oracool::ClassMeleeSkillDamagePercent(player) + oracool::PaladinMeleeDamagePercent(player) + oracool::Rfa12MeleeDamagePercent(player);
+	if (!adjacentDamage)
+		SwingSkillPercent = skillPercent; // the front blow landed: its sides carry what it carried
+	const int pool = skillPercent + oracool::PassiveDamageDealtPercent(player, monster, true, /*burst=*/adjacentDamage) + oracool::Rfa12DamageDealtPercent(player, monster, true);
 	// (A staff's side blow is a burst of the swing, round 59 audit: it took Counterstroke's charge twice over when the front
 	// blow missed, and rolled Sharpshooter again.)
 	// A share of the blow (a spin's, a chain's extra blow) multiplies the whole pool (round 58 audit).
@@ -1109,6 +1119,7 @@ bool DoAttack(Player &player)
 		// Sweeping Reed or Wheel of Heaven strikes the side tiles itself when it fires, so the staff cleave below stands aside -
 		// but only when it fires, which the swing itself reports (ClassMeleeSkillSwept, round 28 audit).
 		oracool::ForgetClassMeleeSweep();
+		SwingSkillPercent = 0; // until the front blow lands: a missed or empty front gives the sides no skill bonus (round 65)
 		if (monster != nullptr) {
 			// A swing at a monster, landed or not, is combat: the Barbarian's Rage holds (2026-09-14).
 			// A swing at an empty tile is not, and lets the calm clock run.
@@ -4390,7 +4401,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	if (const std::optional<oracool::ClassMeleeSkill> skill = oracool::ClassMeleeSkillForSpell(spellID); skill.has_value()) {
 		// The blow a Leap Attack's leap already paid for is not priced again (round 63 audit: the leap left under 14 Rage and the
 		// follow-up was refused "short of Rage").
-		const bool prepaidBlow = *skill == oracool::ClassMeleeSkill::LeapAttack && oracool::LeapAttackBlowPrepaid();
+		const bool prepaidBlow = oracool::LeapAttackBlowPrepaid(*skill);
 		if (!prepaidBlow && CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
 			myPlayer.Say(ShortOfPriceSpeech(myPlayer, spellID));
 			LastMouseButtonAction = MouseActionType::None; // said once, not at the held button's repeat rate (round 32 audit)

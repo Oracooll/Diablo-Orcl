@@ -5,7 +5,7 @@ four down, on a green screen. They are variations rather than a clean turn (fram
 so each is keyed, centred on its eye and fitted to one ellipse, and the sheet adds an even spin on top: the painted
 differences read as the vortex churning, the spin as its motion.
 
-Output: 44 frames of 512x256 in one row - the 4-tile reach at 1x, the eye at the frame's centre: 10 frames (half a
+Output: 44 frames of 256x128 in one row - the 2-tile reach at 1x (half the first 512x256, user 2026-10-01), the eye at the frame's centre: 10 frames (half a
 second) growing out of the feet, a 24-frame loop the game repeats for 6 seconds (missiles.cpp, ProcessCensusEffect), and
 10 shrinking to nothing (user, 2026-10-01). It spins with the arms trailing; toward the loop's end each frame blends toward the same picture turned back
 one loop's spin, so the last frame leads into the first without a jump. Pure colours (user, 2026-10-01): no wave, no
@@ -25,7 +25,7 @@ from PIL import Image, ImageFilter
 
 SRC, OUT = sys.argv[1], sys.argv[2]
 PREVIEW = sys.argv[3] if len(sys.argv) > 3 else None
-W, H = 512, 256  # the 4-tile reach (user, 2026-10-01: "4 tiles radius")
+W, H = 256, 128  # the 2-tile reach (user, 2026-10-01: half the 4-tile vortex, art and reach)
 INTRO, LOOP, OUTRO = 10, 24, 10  # missiles.cpp's AbsoluteZero{Intro,Loop,Outro}Frames
 N = INTRO + LOOP + OUTRO
 COLS, ROWS = 2, 4
