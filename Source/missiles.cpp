@@ -423,7 +423,9 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	// on a bow outside the Rogue), and are not applied again below.
 	const bool pooledArrow = missileData.isArrow() && damageType == DamageType::Physical;
 	if (pooledArrow) {
-		const int pool = oracool::PassiveDamageDealtPercent(player, monster, false) + oracool::Rfa12DamageDealtPercent(player, monster, false);
+		// A companion's arrow is a burst to the passives (round 59 audit): its damage takes them, its shot does not roll or
+		// spend the hero's Sharpshooter count.
+		const int pool = oracool::PassiveDamageDealtPercent(player, monster, false, /*burst=*/CompanionHitPercent > 0) + oracool::Rfa12DamageDealtPercent(player, monster, false);
 		dam = PooledWeaponDamage(player, dam, pool, player._pClass == HeroClass::Rogue ? 100 : 50);
 		if (monster.data().monsterClass == MonsterClass::Demon && HasAnyOf(player._pIFlags, ItemSpecialEffect::TripleDemonDamage))
 			dam *= 3;
@@ -444,7 +446,7 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	// Dynamo, Mana Attunement and Mythic Rhythm, and rolled Deadeye again per burst).
 	const bool swingBurst = t == MissileID::WeaponExplosion;
 	if (!pooledArrow) {
-		dam = oracool::AddPercentSat(dam, oracool::PassiveDamageDealtPercent(player, monster, swingBurst, /*burst=*/swingBurst) + oracool::Rfa12DamageDealtPercent(player, monster, swingBurst)
+		dam = oracool::AddPercentSat(dam, oracool::PassiveDamageDealtPercent(player, monster, swingBurst, /*burst=*/swingBurst || CompanionHitPercent > 0) + oracool::Rfa12DamageDealtPercent(player, monster, swingBurst)
 		        + (damageType == DamageType::Cold ? oracool::Rfa12ColdDamagePercent(monster) : 0));
 	}
 
@@ -453,14 +455,18 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 		dam = std::max(dam * CompanionHitPercent / 100, 1);
 	if (&player == MyPlayer)
 		ApplyMonsterDamage(damageType, monster, dam);
-	if (&player == MyPlayer && missileData.isArrow())
+	// The hero's own on-hit passives are for the hero's own shots (round 59 audit: the Valkyrie's volleys fed Night Stalker,
+	// Archery, Leech and Hot Pursuit, and spent Dead Ground). Life Tap answers any blow on a tapped monster.
+	const bool herosOwn = CompanionHitPercent == 0;
+	if (&player == MyPlayer && herosOwn && missileData.isArrow())
 		oracool::OnPassiveHit(*MyPlayer, monster, dam, false);
 	if (&player == MyPlayer && dam > 0) {
-		oracool::OnRfa12Hit(*MyPlayer, monster, dam, false);
+		if (herosOwn)
+			oracool::OnRfa12Hit(*MyPlayer, monster, dam, false);
 		oracool::OnCursedMonsterStruck(monster, *MyPlayer, nullptr, dam); // Life Tap (oracool/curses.h)
 	}
 	// The all-heroes sweep (2026-09-14): Paralysis, Temporal Flux, Thrill of the Hunt, the element marks.
-	if (&player == MyPlayer && dam > 0)
+	if (&player == MyPlayer && herosOwn && dam > 0)
 		oracool::OnPassiveMissileHit(*MyPlayer, monster, dam, damageType, missileData.isArrow(),
 		    /*sharedRulesDone=*/t == MissileID::WeaponExplosion); // the swing's part, not a blow of its own: Momentum (round 37)
 

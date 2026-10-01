@@ -16,6 +16,7 @@
 #include "oracool/stonegate.h" // IsStonegateObject - the Monument opens a menu, not a one-shot
 #include "player.h"
 #include "control.h" // IsOverLeftPanel, IsOverRightPanel
+#include "oracool/rfa12_actives.h" // Rfa12CooldownTicksLeft - a held button does not re-ask a cooling skill
 #include "oracool/hud_layout.h" // IsPointOverFloatingWindow
 #include "help.h" // HelpFlag
 #include "qol/chatlog.h" // ChatLogFlag
@@ -129,6 +130,12 @@ void RepeatMouseAction()
 	case MouseActionType::Spell:
 		if (!IsValidSpell(LastMouseButtonSpell))
 			break;
+		// The cast that just landed started its cooldown: holding on asked again and drew a red line and "I can't do that"
+		// after every Absolute Zero (round 59 audit). The hold ends; a fresh press is told.
+		if (oracool::Rfa12CooldownTicksLeft(*MyPlayer, LastMouseButtonSpell) > 0) {
+			LastMouseButtonAction = MouseActionType::None;
+			break;
+		}
 		if (ControlMode != ControlTypes::KeyboardAndMouse) {
 			UpdateSpellTarget(LastMouseButtonSpell);
 		}

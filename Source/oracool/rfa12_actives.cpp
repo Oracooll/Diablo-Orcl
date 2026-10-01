@@ -724,6 +724,10 @@ int CooldownTicks(SpellID spell); // below, with the other rules
 /** @brief @p spell's cooldown starts (CooldownTicks), replacing any left. */
 void StartCooldown(const Player &player, SpellID spell)
 {
+	// ProcessRfa12ActivesTick counts down MyPlayer's alone: another's would never run out, and CheckSpell would refuse his
+	// later casts on this client for ever (round 59 audit).
+	if (&player != MyPlayer)
+		return;
 	PlayerState &state = StateOf(player);
 	std::erase_if(state.cooldowns, [spell](const auto &cooldown) { return cooldown.first == spell; });
 	state.cooldowns.emplace_back(spell, CooldownTicks(spell));
@@ -768,6 +772,7 @@ struct Field {
 	int rank = 0;
 	int step = 0;
 	int stamp = 0;
+	int ticksTotal = 0; // as cast: the countdown row's 5-second rule (a seeded clock is not its age)
 };
 
 constexpr size_t MaxFields = 32;
@@ -782,6 +787,7 @@ Field *NewField(const Player &player, SpellID spell, Point tile, int ticks, int 
 	slot->owner = static_cast<uint8_t>(player.getId());
 	slot->tile = tile;
 	slot->ticksLeft = ticks;
+	slot->ticksTotal = ticks;
 	slot->rank = rank;
 	slot->stamp = ++FieldStamp;
 	return &*slot;
@@ -1700,6 +1706,13 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::AbsoluteZero: {
 		// The redesign (user, 2026-10-01): the cast freezes what it catches, as before; the damage is the vortex's, a pulse
 		// every 5 ticks for 7 seconds round the Sorcerer wherever he walks (TickField), and the skill then cools for 30.
+		// In town (round 59 audit): every spell casts there, but the field ends in town - so the vortex is only shown, and the
+		// skill does not cool for a cast that did nothing.
+		if (leveltype == DTYPE_TOWN) {
+			if (Missile *vortex = Art(player, MissileGraphicID::AbsoluteZero, here, AbsoluteZeroVortexTicks); vortex != nullptr)
+				ArtEffectFollowsItsCaster(*vortex);
+			return true;
+		}
 		bool caught = false;
 		for (Monster *m : MonstersWithin(here, ReachTiles(spell, r))) {
 			caught = true;
@@ -2724,8 +2737,12 @@ void TickField(Player &player, Field &field)
 		field.tile = player.position.tile; // it follows him, like an aura
 		if (field.step != 0) { // the cast, or carried over a level change: the vortex for the time left
 			field.step = 0;
-			if (Missile *vortex = Art(player, MissileGraphicID::AbsoluteZero, field.tile, field.ticksLeft); vortex != nullptr)
+			if (Missile *vortex = Art(player, MissileGraphicID::AbsoluteZero, field.tile, field.ticksLeft); vortex != nullptr) {
 				ArtEffectFollowsItsCaster(*vortex);
+				// A sheet plays at least once whole (AddCensusEffect); carried down with under 44 ticks left it outlived its
+				// field by up to two seconds (round 59 audit). Its last ticks are the shrink, whatever is left.
+				vortex->_mirange = std::max(field.ticksLeft, 1);
+			}
 			else
 				Ring(player, field.tile); // the ring without the sheet
 		}
@@ -3963,7 +3980,10 @@ void ClearRfa12ActiveBuffs(Player &player)
 
 void ClearRfa12PlayerBuffs(Player &player)
 {
+	// The cooldowns outlive a death (round 59 audit: dying gave a fresh Absolute Zero); a new game clears them.
+	std::vector<std::pair<SpellID, int>> cooldowns = std::move(StateOf(player).cooldowns);
 	StateOf(player) = PlayerState {};
+	StateOf(player).cooldowns = std::move(cooldowns);
 	// His carried Bone Storm too (round 49 audit: frozen while he lay dead, it came back with him after the respawn), and
 	// his Absolute Zero (2026-10-01), whose vortex goes with it.
 	for (Field &field : Fields) {
@@ -3980,7 +4000,7 @@ std::vector<std::pair<SpellID, int>> Rfa12FieldTimers(const Player &player)
 		// Bone Storm is a buff row already; a wave over in a few seconds (Whiteout) would only flicker a count.
 		if (field.ticksLeft <= 0 || field.owner != player.getId() || field.spell == SpellID::BoneStorm)
 			continue;
-		if (field.clock + field.ticksLeft < FieldTimerMinTicks)
+		if (field.ticksTotal < FieldTimerMinTicks)
 			continue;
 		auto it = std::find_if(timers.begin(), timers.end(), [&field](const auto &t) { return t.first == field.spell; });
 		if (it == timers.end())

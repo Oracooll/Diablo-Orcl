@@ -585,6 +585,14 @@ void LeftMouseDown(uint16_t modState)
 		}
 	}
 
+	// Under the open game menu only the Menu slot answers (round 6), and that has to be said before the XP bar and the two
+	// points frames below: they sit under the menu's line and opened the hero sheet or the Abilities window behind the pause
+	// (round 59 audit).
+	if (gmenu_is_active()) {
+		oracool::CheckHudMenuSlotClick(MousePosition);
+		return;
+	}
+
 	// Oracool: the XP Counter is always-visible during normal gameplay (like the mini-map),
 	// independent of which panel is open, so it's checked here rather than inside the
 	// panel-state-gated branches below.
@@ -4199,7 +4207,9 @@ bool PressEscKey()
 	}
 	// The event log last, and only when nothing else is up (audit, 2026-09-27): with the log alone up, Escape opened the
 	// game menu over it.
-	if (oracool::IsEventLogOpen()) {
+	// Not while the log is hidden (the full automap hides the corner HUD): Escape closed a log nobody could see and the
+	// game menu did not open (round 59 audit).
+	if (oracool::IsEventLogOpen() && oracool::IsCornerHudShown()) {
 		oracool::ToggleEventLog();
 		return true;
 	}

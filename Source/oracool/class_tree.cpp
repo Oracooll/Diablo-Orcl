@@ -643,7 +643,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// User note, 2026-09-14: "Use Magic Star mechanics for granades." A lobbed fire burst after every fourth arrow.
 	{ N_("Grenadier"), N_("Every fourth shot you loose is followed by a grenade that bursts in flame where it lands."),
 	    Rog, 3, 4, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Sharpshooter"), N_("Every second without a critical blow adds 4% to the chance of one; a critical blow deals double and starts the count again."),
+	{ N_("Sharpshooter"), N_("Every second without a critical blow adds 4% to the chance of one; a critical blow deals +100% damage and starts the count again."),
 	    Rog, 3, 4, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	// Off the page (user, 2026-09-12: "i dont want 19th (lvl 36) skill"), as the Barbarian's Boon of
 	// Bul-Kathos: this unbuilt passive left, and the four after it moved up a cell - Leech to level 30,
@@ -677,7 +677,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Rog, 0, 5, 2, Kind::Active, SpellID::PhantomVolley, true },
 	{ N_("Soft Tread"), N_("After 3 seconds walking without attacking, monsters notice you only within two thirds of your sight."),
 	    Rog, 1, 0, 2, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Swiftness"), N_("+5% movement speed, +1% per level, to 35%."),
+	{ N_("Swiftness"), N_("+5% movement speed, +1% per level, to 34% at level 30."),
 	    Rog, 1, 1, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Scent of Blood"), N_("An enemy you have wounded stays visible for 2 seconds after it leaves the light."),
 	    Rog, 1, 1, 2, Kind::Passive, SpellID::Invalid, true },

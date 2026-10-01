@@ -807,11 +807,14 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	// blows (Smite, Charge's arrival), and the passives that read the situation (Round 5: Ruthless, Brawler, Steady Aim and
 	// the rest) all ADD to the items' +% and the Strength share, one percentage of the bare roll.
 	const int pool = oracool::ClassMeleeSkillDamagePercent(player) + oracool::PaladinMeleeDamagePercent(player) + oracool::Rfa12MeleeDamagePercent(player)
-	    + oracool::PassiveDamageDealtPercent(player, monster, true) + oracool::Rfa12DamageDealtPercent(player, monster, true);
+	    + oracool::PassiveDamageDealtPercent(player, monster, true, /*burst=*/adjacentDamage) + oracool::Rfa12DamageDealtPercent(player, monster, true);
+	// (A staff's side blow is a burst of the swing, round 59 audit: it took Counterstroke's charge twice over when the front
+	// blow missed, and rolled Sharpshooter again.)
 	// A share of the blow (a spin's, a chain's extra blow) multiplies the whole pool (round 58 audit).
 	const int share = oracool::ClassMeleeSkillSharePercent(player);
-	int dam = oracool::PercentOfSat(PooledWeaponDamage(player, weaponRoll, pool), share);
-	int dam2 = oracool::PercentOfSat(PooledWeaponDamage(player, weaponRoll, pool, /*statSharePercent=*/0), share) << 6; // Peril's own cut, the weapon's as before
+	// Clamped again after it: a share past 100% (Double Swing from rank 6) took the pool past the cap's headroom (round 59).
+	int dam = std::min(oracool::PercentOfSat(PooledWeaponDamage(player, weaponRoll, pool), share), INT_MAX / 2048);
+	int dam2 = std::min(oracool::PercentOfSat(PooledWeaponDamage(player, weaponRoll, pool, /*statSharePercent=*/0), share), INT_MAX / 2048) << 6; // Peril's own cut, the weapon's as before
 	if (player._pClass == HeroClass::Warrior || player._pClass == HeroClass::Barbarian) {
 		if (GenerateRnd(100) < player._pLevel) {
 			dam *= 2;

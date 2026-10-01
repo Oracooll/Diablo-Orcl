@@ -586,7 +586,9 @@ int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool 
 		percent += ArcaneDynamoPercent;
 	if (!melee && clocks.mythicTicks > 0 && PassiveActive(player, Skill::MythicRhythm))
 		percent += MythicRhythmPercent;
-	if (PassiveActive(player, Skill::Sharpshooter)) {
+	// Not on a burst (round 59 audit, as Deadeye in round 47): a weapon's fire and lightning bursts rolled it two more times a
+	// swing, and a burst that took the crit spent the built-up chance on a few points.
+	if (!burst && PassiveActive(player, Skill::Sharpshooter)) {
 		// Four points of chance a second without one; a critical blow doubles and starts the count again.
 		const int chance = std::min(SharpshooterPerSecond * clocks.sharpshooterTicks / TicksPerSecond, 100);
 		if (chance > 0 && GenerateRnd(100) < chance) {
@@ -660,6 +662,8 @@ bool ArrowPierces(Missile &missile)
 {
 	if (missile.sourceType() != MissileSource::Player || !GetMissileData(missile._mitype).isArrow())
 		return false;
+	if (missile.companionPercent > 0)
+		return false; // a companion's arrow flies with the hero as its source, but it is not hers to pierce with (round 59)
 	const Player &player = *missile.sourcePlayer();
 	if (!PassiveActive(player, Skill::Pierce))
 		return false;

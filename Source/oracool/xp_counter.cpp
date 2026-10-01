@@ -157,9 +157,10 @@ bool IsPointOverXpCounter(Point mousePosition)
 {
 	if (!*sgOptions.Oracool.xpCounter)
 		return false;
-	if (MyPlayer->_pLevel >= MaxCharacterLevel)
-		return false; // nothing is drawn at max level, so the strip isn't there to click
-	return GetCounterRect().contains(mousePosition);
+	// The bar's gates first (round 59 audit): with the bar switched off the counter's strip ate clicks over the world.
+	if (!IsPointOverXpBar(mousePosition))
+		return false;
+	return MyPlayer->_pLevel < MaxCharacterLevel; // nothing is drawn at max level, so the strip isn't there to click
 }
 
 bool IsPointOverXpBar(Point mousePosition)
@@ -185,7 +186,7 @@ bool CheckXpCounterButtonClick(Point mousePosition)
 	if (player._pLevel >= MaxCharacterLevel)
 		return false;
 
-	if (!GetCounterRect().contains(mousePosition))
+	if (!IsPointOverXpBar(mousePosition)) // the bar's gates: no bar, nothing to hold (round 59 audit)
 		return false;
 
 	IsHeld = true;

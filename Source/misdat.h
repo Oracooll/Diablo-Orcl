@@ -393,7 +393,8 @@ enum class MissileGraphicsFlags : uint8_t {
 struct MissileFileData {
 	OptionalOwnedClxSpriteListOrSheet sprites;
 	uint16_t animWidth;
-	int8_t animWidth2;
+	// int16 since round 59: Absolute Zero's 224 (a 512-wide sheet) wrapped to -32 in an int8, as Missile::_miAnimWidth2 already is.
+	int16_t animWidth2;
 	/**
 	 * The art's file name, without extension.
 	 *

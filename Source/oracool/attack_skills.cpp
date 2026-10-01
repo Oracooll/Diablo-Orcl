@@ -3,6 +3,9 @@
 #include "panels/spell_icons.hpp"
 #include "spells.h"
 
+#include "control.h" // spselflag
+#include "gmenu.h"   // gmenu_is_active
+
 #include <cassert>
 
 #include "engine/size.hpp"
@@ -261,7 +264,8 @@ int HudButtonUnder(Point mouse)
 
 void TrackHudButtonHover()
 {
-	const int hovered = HudButtonUnder(MousePosition);
+	// Under the game menu and the spell list nothing on the plate answers, so nothing sounds (round 59 audit).
+	const int hovered = gmenu_is_active() || spselflag ? -1 : HudButtonUnder(MousePosition);
 	if (hovered >= 0 && hovered != LastHudHover)
 		PlayUiMoveSound();
 	LastHudHover = hovered;

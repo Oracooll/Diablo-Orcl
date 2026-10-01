@@ -9,6 +9,7 @@
 
 #include <string>
 
+#include "misdat.h"
 #include "oracool/class_tree.h"
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
@@ -253,4 +254,13 @@ TEST(OracoolCooldowns, AFreshHeroHasNoCooldown)
 	EXPECT_EQ(oracool::Rfa12CooldownTicksLeft(player, SpellID::AbsoluteZero), 0);
 	EXPECT_FLOAT_EQ(oracool::Rfa12CooldownProgress(player, SpellID::AbsoluteZero), 1.0F);
 	EXPECT_FLOAT_EQ(oracool::Rfa12CooldownProgress(player, SpellID::Bash), 1.0F) << "a skill with no cooldown is always ready";
+}
+
+// Every missile sheet's draw shift is held whole (round 59 audit: Absolute Zero's 224 wrapped to -32 in an int8 and the vortex
+// stood four tiles to the Sorcerer's right).
+TEST(OracoolCooldowns, AbsoluteZeroSheetIsCentredOnHim)
+{
+	const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::AbsoluteZero);
+	EXPECT_EQ(data.animWidth, 512);
+	EXPECT_EQ(data.animWidth2, (512 - 64) / 2);
 }
