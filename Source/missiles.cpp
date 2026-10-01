@@ -3992,6 +3992,10 @@ MissileGraphicID CensusArtOverride = MissileGraphicID::None;
 
 /** @brief AddArtEffect's carrier: a census row that loops its sheet for the ticks it is given and does nothing else. */
 constexpr MissileID ArtEffectCarrier = MissileID::AcidCloud;
+// Absolute Zero's sheet (tools/BuildAbsoluteZero.py's INTRO, LOOP, OUTRO): the parts ProcessCensusEffect plays, a frame a tick.
+constexpr int AbsoluteZeroIntroFrames = 10;
+constexpr int AbsoluteZeroLoopFrames = 24;
+constexpr int AbsoluteZeroOutroFrames = 10;
 
 /** @brief AddArtBolt's carrier: the javelin's row, which flies to its tile and ends there (AddAcidJavelin). */
 constexpr MissileID ArtBoltCarrier = MissileID::AcidJavelin;
@@ -4236,6 +4240,16 @@ void ProcessCensusEffect(Missile &missile)
 		const Point here = Players[missile._misource].position.tile;
 		missile.position.tile = here;
 		missile.position.start = here;
+	}
+	// Absolute Zero's vortex (user, 2026-10-01: half a second growing, six at full size, half a second shrinking): the grow
+	// plays once, the loop repeats while more than the shrink's ticks are left, and the shrink's frames are the range's last
+	// ticks. Frames are 1-based and step after this.
+	if (missile._mitype == ArtEffectCarrier && missile._miAnimType == MissileGraphicID::AbsoluteZero
+	    && missile._miAnimLen == AbsoluteZeroIntroFrames + AbsoluteZeroLoopFrames + AbsoluteZeroOutroFrames) {
+		if (missile._mirange <= AbsoluteZeroOutroFrames)
+			missile._miAnimFrame = missile._miAnimLen - missile._mirange; // steps onto this tick's shrink frame
+		else if (missile._miAnimFrame >= AbsoluteZeroIntroFrames + AbsoluteZeroLoopFrames && missile._miAnimCnt + 1 >= missile._miAnimDelay)
+			missile._miAnimFrame = AbsoluteZeroIntroFrames; // steps back onto the loop's first frame
 	}
 	if (missile._mitype == MissileID::MeteorImpact && missile._miAnimFrame >= MeteorImpactBurnFrame) {
 		missile._miAnimDelay = 3; // the embers flicker slower than the burst

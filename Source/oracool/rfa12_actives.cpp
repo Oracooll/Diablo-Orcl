@@ -1660,8 +1660,11 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			else
 				FreezeMonster(*m, SlowTicks(spell, r));
 		}
-		// The user's vortex (2026-10-01), drawn at its own size: 1024x512 is the 8-tile reach. Its Impact cue when it caught anything.
-		if (Art(player, MissileGraphicID::AbsoluteZero, here) == nullptr)
+		// The user's vortex (2026-10-01), drawn at its own size: 1024x512 is the 8-tile reach. Half a second growing, six
+		// seconds at full size, half a second shrinking - 140 ticks (missiles.cpp plays the parts). Its Impact cue when it
+		// caught anything.
+		constexpr int AbsoluteZeroVortexTicks = 10 + 6 * 20 + 10;
+		if (Art(player, MissileGraphicID::AbsoluteZero, here, AbsoluteZeroVortexTicks) == nullptr)
 			Ring(player, here); // the ring without it
 		if (caught)
 			Impact(player, spell);

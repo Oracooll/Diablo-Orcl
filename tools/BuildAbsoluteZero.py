@@ -5,8 +5,12 @@ four down, on a green screen. They are variations rather than a clean turn (fram
 so each is keyed, centred on its eye and fitted to one ellipse, and the sheet adds an even spin on top: the painted
 differences read as the vortex churning, the spin as its motion.
 
-Output: 20 frames of 1024x512 in one row - the 8-tile hit diamond at 1x, the eye at the frame's centre. Grows out of the
-feet over the first frames, spins with the arms trailing, a mild frost wave rolls outward, and it dissolves at the end.
+Output: 44 frames of 1024x512 in one row - the 8-tile hit diamond at 1x, the eye at the frame's centre: 10 frames (half a
+second) growing out of the feet, a 24-frame loop the game repeats for 6 seconds (missiles.cpp, ProcessCensusEffect), and
+10 shrinking to nothing (user, 2026-10-01). It spins with the arms trailing; toward the loop's end each frame blends toward the same picture turned back
+one loop's spin, so the last frame leads into the first without a jump. Pure colours (user, 2026-10-01): no wave, no
+flare - the painting's own.
+
 The engine draws CLX: no partial alpha and at most 255 colours a sheet, so alpha is an ordered dither and the colours
 are one shared palette quantised here (the true-colour loader then keeps them exactly).
 
@@ -21,13 +25,14 @@ from PIL import Image, ImageFilter
 
 SRC, OUT = sys.argv[1], sys.argv[2]
 PREVIEW = sys.argv[3] if len(sys.argv) > 3 else None
-W, H, N = 1024, 512, 20
+W, H = 1024, 512
+INTRO, LOOP, OUTRO = 10, 24, 10  # missiles.cpp's AbsoluteZero{Intro,Loop,Outro}Frames
+N = INTRO + LOOP + OUTRO
 COLS, ROWS = 2, 4
-SPIN_DEGREES = 120  # over the whole cast
+SPIN_PER_FRAME = math.radians(5)  # 100 degrees a second at one frame a tick
 FIT = 0.97  # the painted ellipse's share of the frame
 
-sheet_in = Image.open(SRC).convert("RGB")
-src = np.asarray(sheet_in).astype(np.float32)
+src = np.asarray(Image.open(SRC).convert("RGB")).astype(np.float32)
 SH, SW, _ = src.shape
 
 # The green screen out: a pixel's greenness above its other channels keys it, edges are despilled, and keyed pixels go
@@ -72,19 +77,17 @@ def bilinear(x, y):
 
 # Which way the arms wind: the angle shift that carries an inner ring onto an outer one. Arms trail the spin, so the
 # vortex turns against the outward winding.
-def ring(i, rad):
+def ring(i, radius):
     ex, ey, ax, ay = frames_src[i]
     t = np.radians(np.arange(360))
-    xs = ex + rad * np.cos(t) * ax
-    ys = ey + rad * np.sin(t) * ay
-    p = bilinear(xs, ys).max(axis=1)
+    p = bilinear(ex + radius * np.cos(t) * ax, ey + radius * np.sin(t) * ay).max(axis=1)
     return (p - p.mean()) / (p.std() + 1e-6)
 
 
 winding = []
 for i in range(len(frames_src)):
-    a, b2 = ring(i, 0.35), ring(i, 0.55)
-    winding.append(max(range(-90, 91), key=lambda s: float((np.roll(a, s) * b2).mean())))
+    inner_ring, outer_ring = ring(i, 0.35), ring(i, 0.55)
+    winding.append(max(range(-90, 91), key=lambda s: float((np.roll(inner_ring, s) * outer_ring).mean())))
 outward = float(np.median(winding))
 spin_sign = -1.0 if outward > 0 else 1.0
 print(f"arms wind {outward:+.0f} deg outward (screen angle, y down); the spin turns {'counter-' if spin_sign < 0 else ''}clockwise")
@@ -102,27 +105,37 @@ def ease_out(t):
     return 1 - (1 - t) ** 3
 
 
-rgbs, masks = [], []
-for f in range(N):
-    t = f / N
-    ex, ey, ax, ay = frames_src[f % len(frames_src)]
-    grow = 0.30 + 0.70 * ease_out(min(f / 5.0, 1.0))
-    theta = spin_sign * math.radians(SPIN_DEGREES) * t
+def painted(p, theta, grow):
+    """Painted frame p, turned by theta, at grow of full size."""
+    ex, ey, ax, ay = frames_src[p % len(frames_src)]
     rr = rad / grow
     a = ang - theta
     rgb = bilinear(ex + rr * np.cos(a) * ax, ey + rr * np.sin(a) * ay)
     rgb[rr > 1.0] = 0
-    # The frost wave: a mild brightness band rolling outward, the painting's own colours kept.
-    wave = 0.5 + 0.5 * np.sin(2 * math.pi * (rr * 2.0 - t * 3.0))
-    rgb = np.clip(rgb * (0.88 + 0.30 * wave)[..., None], 0, 1)
-    # The eye flares at the cast and settles.
-    eye = np.exp(-(rr / 0.09) ** 2) * (0.8 - 0.6 * t)
-    rgb = np.clip(rgb + eye[..., None] * np.array([0.55, 0.75, 1.0], dtype=np.float32), 0, 1)
-    # Alpha from brightness - the dark navy between the arms lets the floor through - a soft rim, the closing dissolve.
+    return rgb, rr
+
+
+LOOP_SPIN = LOOP * SPIN_PER_FRAME
+rgbs, masks = [], []
+for f in range(N):
+    # k: the frame's place on the loop's clock - the intro runs up to 0, the outro picks the loop up again from 0.
+    k = f - INTRO if f < INTRO + LOOP else f - INTRO - LOOP
+    if f < INTRO:
+        grow = 0.04 + 0.96 * ease_out((f + 1) / INTRO)  # out of the feet
+    elif f >= INTRO + LOOP:
+        grow = 0.04 + 0.96 * (1 - ((f - INTRO - LOOP + 1) / (OUTRO + 1)) ** 2)  # down to nothing
+    else:
+        grow = 1.0
+    theta = spin_sign * SPIN_PER_FRAME * k
+    rgb, rr = painted(k, theta, grow)
+    # Toward the loop's end, the same picture turned back by one loop's spin blends in: at k = LOOP it IS frame 0.
+    if k > 0:
+        w = k / LOOP
+        back, _ = painted(k, theta - spin_sign * LOOP_SPIN, grow)
+        rgb = rgb * (1 - w) + back * w
+    # Alpha from brightness - the dark navy between the arms lets the floor through - and a soft rim.
     alpha = np.clip((rgb.max(axis=2) - 0.18) / 0.32, 0, 1)
     alpha *= np.clip((1.0 - rr) / 0.10, 0, 1)
-    if f >= N - 5:
-        alpha *= 1.0 - (f - (N - 5) + 1) / 6.0
     rgbs.append(rgb)
     masks.append(alpha > bayer)
 
@@ -151,9 +164,12 @@ if PREVIEW:
     for f in range(N):
         block = out[:, f * W:(f + 1) * W]
         shots.append(Image.fromarray(np.where(block[..., 3:4] == 255, block[..., :3], floor).astype(np.uint8)).resize((W // 2, H // 2), Image.NEAREST))
-    grid = Image.new("RGB", (W // 2 * 4, H // 2 * 5))
+    rows = (N + 5) // 6
+    grid = Image.new("RGB", (W // 2 * 6, H // 2 * rows))
     for f, im in enumerate(shots):
-        grid.paste(im, ((f % 4) * (W // 2), (f // 4) * (H // 2)))
+        grid.paste(im, ((f % 6) * (W // 2), (f // 6) * (H // 2)))
     grid.save(PREVIEW + ".png")
-    shots[0].save(PREVIEW + ".gif", save_all=True, append_images=shots[1:], duration=50, loop=0)
+    # The cast as the game plays it: the grow, the loop for 6 seconds (5 rounds), the shrink.
+    play = shots[:INTRO] + shots[INTRO:INTRO + LOOP] * 5 + shots[INTRO + LOOP:]
+    play[0].save(PREVIEW + ".gif", save_all=True, append_images=play[1:], duration=50, loop=0)
 print("ok")

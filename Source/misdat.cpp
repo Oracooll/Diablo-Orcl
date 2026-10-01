@@ -259,6 +259,7 @@ const std::array<uint8_t, 16> MissileAnimLengths[] {
 	{ 13, 11 },
 	{ 16, 16, 16, 16, 16, 16, 16, 16, 8 },
 	Repeat(2), // Oracool 2026-09-26: ice_ground's two variants
+	Repeat(44), // Oracool 2026-10-01: Absolute Zero's grow, loop and shrink
 };
 
 constexpr uint8_t AnimLen_0 = 0;        // NOLINT(readability-identifier-naming)
@@ -283,6 +284,7 @@ constexpr uint8_t AnimLen_15_14_3 = 18; // NOLINT(readability-identifier-naming)
 constexpr uint8_t AnimLen_13_11 = 19;   // NOLINT(readability-identifier-naming)
 constexpr uint8_t AnimLen_16x8_8 = 20;  // NOLINT(readability-identifier-naming)
 constexpr uint8_t AnimLen_2 = 21;       // NOLINT(readability-identifier-naming)
+constexpr uint8_t AnimLen_44 = 22;      // NOLINT(readability-identifier-naming)
 
 } // namespace
 
@@ -476,9 +478,9 @@ MissileFileData MissileSpriteData[] = {
 /*GroundStomp*/              { {},             160,          48, "ground_stomp",           1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*MountainPole*/             { {},             160,          48, "mountain_pole",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*FlameRing*/                { {},             160,          48, "flame_ring",             1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
-// 2026-10-01: the user's vortex painting, by scratchpad absolute_zero_build.py - 20 frames of 1024x512, the 8-tile hit diamond
-// at 1x: it grows from the feet, spins, cycles cyan and violet, and dissolves. The eye is the frame's centre.
-/*AbsoluteZero*/             { {},            1024,         480, "absolute_zero",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_20      },
+// 2026-10-01: the user's painted vortex frames, by tools/BuildAbsoluteZero.py - 44 frames of 1024x512, the 8-tile hit diamond
+// at 1x: 10 growing, a 24-frame loop held for 6 seconds (ProcessCensusEffect), 10 shrinking. The eye is the frame's centre.
+/*AbsoluteZero*/             { {},            1024,         480, "absolute_zero",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_44      },
 /*BlindingFlash*/            { {},             160,          48, "blinding_flash",         1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*DeathNova*/                { {},             160,          48, "death_nova",             1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
 /*EmberBurst*/               { {},             128,          32, "ember_burst",            1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
