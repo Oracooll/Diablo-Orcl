@@ -4036,11 +4036,15 @@ std::optional<OracoolOilWork> MeasureOracoolOilWork(const Player &player, const 
 		// The armour the oils added, as recorded since format 16; the difference only for an older item (round 54 audit).
 		item._iOracoolOilAC >= 0 ? item._iOracoolOilAC : item._iAC - probe._iAC, item._iMaxDur - probe._iMaxDur,
 		// Only when the 255 was not an affix's (round 41 audit: an "of the ages" row reworked away stayed indestructible).
-		item._iMaxDur == DUR_INDESTRUCTIBLE && probe._iMaxDur != DUR_INDESTRUCTIBLE };
+		item._iMaxDur == DUR_INDESTRUCTIBLE && probe._iMaxDur != DUR_INDESTRUCTIBLE,
+		// The rest of the difference is the base's own drift from its seed's first draw (round 55 audit).
+		item._iOracoolOilAC >= 0 ? (item._iAC - probe._iAC) - item._iOracoolOilAC : 0 };
 }
 
-void ReapplyOracoolOilWork(Item &item, const OracoolOilWork &oil)
+void ReapplyOracoolOilWork(Item &item, const OracoolOilWork &oil, bool sameSeed)
 {
+	if (sameSeed)
+		item._iAC = std::clamp<int>(item._iAC + oil.acDrift, 0, INT16_MAX); // the shop roll the seed cannot redraw
 	item._iPLToHit += oil.toHit;
 	item._iMinDam = std::clamp<int>(item._iMinDam + oil.minDam, 0, 255);
 	item._iMaxDam = std::clamp<int>(item._iMaxDam + oil.maxDam, item._iMinDam, 255);
@@ -4220,7 +4224,7 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
 	oracool::RestoreImbuements(item, ledger);
 	if (oil)
-		ReapplyOracoolOilWork(item, *oil); // the durability below then stays 255 under Permanence too
+		ReapplyOracoolOilWork(item, *oil, /*sameSeed=*/true); // the durability below then stays 255 under Permanence too
 	// The wear the item had, not a free repair (sweep, 2026-09-25): GetItemAttrs set durability to the base's
 	// full value, so a reroll at the bench mended the item as a side effect. Capped by the maximum the rebuild
 	// arrived at (an ethereal item's is halved again above); an item that is now indestructible stays so.
@@ -5699,6 +5703,10 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)
 	item._iPLMana = 0;
 	item._iPLHP = 0;
 	item._iOracoolOilAC = 0; // a fresh base carries no oil (round 54 audit)
+	// Nor shards: the ledger is put back by every rebuild that keeps it, and Make Ethereal read a stale one on a bare base
+	// and halved Tempering that was not there yet (round 55 audit).
+	item._iOracoolImbueCount = 0;
+	item._iOracoolImbuements.fill(0);
 	item._iPLDamMod = 0;
 	item._iPLGetHit = 0;
 	item._iPLLight = 0;
@@ -7371,6 +7379,9 @@ bool MakeItemEthereal(Item &item)
 		item._iMaxDam = static_cast<uint8_t>(std::clamp(item._iMaxDam * 135 / 100, static_cast<int>(item._iMinDam), 255));
 	} else {
 		item._iAC = std::max<int>(item._iAC * 135 / 100, item._iAC + 1);
+		// The oils' share grows with the rest, or every rebuild after this would lose a third of it (round 55 audit).
+		if (item._iOracoolOilAC > 0)
+			item._iOracoolOilAC = static_cast<int16_t>(std::min(item._iOracoolOilAC * 135 / 100, static_cast<int>(INT16_MAX)));
 	}
 	// The base halves, Tempering's shards do not (round 54 audit: halved here and taken back whole by Cleanse, they cost
 	// ten maximum durability a shard for good).

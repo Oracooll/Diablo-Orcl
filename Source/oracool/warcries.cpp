@@ -345,9 +345,21 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 	switch (spell) {
 	// --- the Barbarian's cries ---
 	case SpellID::Howl:
-		return ForEachInEarshot(here, earshot, [&](Monster &m) { Repel(m, here, 4 + rank); }) > 0;
+	{
+		// Only what it moves counts (round 55 audit: a lone unique or a champion pack took the Rage and nothing ran).
+		int moved = 0;
+		ForEachInEarshot(here, earshot, [&](Monster &m) {
+			if (ShrugsOff(m) || m.mode == MonsterMode::Petrified)
+				return;
+			Repel(m, here, 4 + rank);
+			moved++;
+		});
+		return moved > 0;
+	}
 	case SpellID::Taunt:
-		return ForEachInEarshot(here, FarEarshotFor(rank), [&](Monster &m) {
+	{
+		int drawn = 0; // only what it turns counts, as Howl (round 55 audit)
+		ForEachInEarshot(here, FarEarshotFor(rank), [&](Monster &m) {
 			if (m.mode == MonsterMode::Petrified)
 				return;
 			m.activeForTicks = UINT8_MAX;
@@ -355,7 +367,10 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 			m.enemyPosition = player.position.tile;
 			m.flags &= ~MFLAG_TARGETS_MONSTER;
 			m.goal = MonsterGoal::Normal;
-		}) > 0;
+			drawn++;
+		});
+		return drawn > 0;
+	}
 	case SpellID::Shout:
 		return StartBuff(player, spell, rank, (40 + 5 * (rank - 1)) * seconds);
 	case SpellID::BattleCry:
@@ -673,6 +688,9 @@ void ProcessWarcriesTick(Player &player)
 	// The held auras that have to PUSH or CHILL rather than be asked: Holy Freeze and Weaken chill
 	// what stands in them, Dirge of Dread repels the undaunted. Re-set every tick while the monster
 	// is in the field, so stepping out ends it without anything to undo - Sanctuary's rule.
+	// Not in town, as the outward auras (round 55 audit: town's dMonster holds the towners).
+	if (leveltype == DTYPE_TOWN)
+		return;
 	const Skill aura = GetActiveClassAura(player);
 	if (aura == Skill::None)
 		return;
@@ -770,11 +788,11 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::Shout:
 		return N_("A bellow that hardens you: +50 armour, +10 per rank, for 40 seconds, +5 per rank.");
 	case SpellID::BattleCry:
-		return N_("A cry that leaves what hears it at -25% damage and -25% armour, for 24 seconds.");
+		return N_("A cry that leaves what hears it at -25% damage and -25% armour for 24 seconds, -2% and +2 seconds per rank.");
 	case SpellID::BattleOrders:
 		return N_("A shout that swells your life by +20, +10 per rank, for 40 seconds, +5 per rank.");
 	case SpellID::WarCry:
-		return N_("A shout that strikes everything in earshot for four to eight a rank and leaves it reeling for two seconds. Uniques shrug off the reeling.");
+		return N_("A shout that strikes everything in earshot for four to eight a rank and leaves it reeling for two seconds, +0.2 a rank. Uniques shrug off the reeling.");
 	case SpellID::BattleCommand:
 		return N_("A command that deepens every skill you have by a rank, for thirty seconds and five more a rank.");
 	case SpellID::Lullaby:
@@ -792,17 +810,17 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::Tranquility:
 		return N_("A sanctuary about you for 13 seconds, +1 per rank: what stands within 2 tiles is slowed, and 2% of your life returns each second.");
 	case SpellID::InnerSight:
-		return N_("Reveals the weak points of everything in earshot: -30% armour, -2% more per rank, for 20 seconds.");
+		return N_("Reveals the weak points of everything in earshot: -30% armour, -2% more per rank, for 20 seconds, +2 per rank.");
 	case SpellID::SlowMissiles:
-		return N_("For 20 seconds, +4 per rank, 50% of the arrows aimed at you turn aside, +5% per rank.");
+		return N_("For 20 seconds, +4 per rank, 50% of the arrows aimed at you turn aside, +5% per rank to 80%.");
 	case SpellID::Vengeance:
 		return N_("Your blows burn and crackle for thirty seconds, five more a rank: fire, lightning and cold on every hit, more with rank, and the cold chills.");
 	case SpellID::Conversion:
 		return N_("Turns one enemy near the cursor to your side for 20 seconds, +2 per rank. Uniques and the magic-immune refuse.");
 	case SpellID::FindPotion:
-		return N_("Search a corpse near the cursor. 50% of the time, +5% per rank, it yields a potion - rarely a full one. The corpse is used up.");
+		return N_("Search a corpse near the cursor. 50% of the time, +5% per rank to 90%, it yields a potion - rarely a full one. The corpse is used up.");
 	case SpellID::FindItem:
-		return N_("Search a corpse near the cursor. 25% of the time, +5% per rank, it yields an item. The corpse is used up.");
+		return N_("Search a corpse near the cursor. 25% of the time, +5% per rank to 60%, it yields an item. The corpse is used up.");
 	case SpellID::GrimWard:
 		return N_("Raise a corpse near the cursor as a totem of terror: for 20 seconds, +2 per rank, everything but the uniques that comes near it runs.");
 	default:

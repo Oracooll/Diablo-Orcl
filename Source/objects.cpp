@@ -2792,11 +2792,15 @@ void OperateShrineGloomy(Player &player)
 		case ItemType::MediumArmor:
 		case ItemType::HeavyArmor:
 			item._iAC += 2;
+			if (item._iOracoolOilAC >= 0) // kept by rebuilds, as the oils' armour is (round 55 audit)
+				item._iOracoolOilAC = static_cast<int16_t>(std::min(item._iOracoolOilAC + 2, static_cast<int>(INT16_MAX)));
 			break;
 		default:
 			// The fork's six worn slots carry armour too: shoulders, bracers, gloves, belt, legs, boots (round 14 audit).
 			if (IsOracoolItemType(item._itype) && item._iAC > 0) {
 				item._iAC += 2;
+				if (item._iOracoolOilAC >= 0) // kept by rebuilds, as the oils' armour is (round 55 audit)
+					item._iOracoolOilAC = static_cast<int16_t>(std::min(item._iOracoolOilAC + 2, static_cast<int>(INT16_MAX)));
 				break;
 			}
 			break;

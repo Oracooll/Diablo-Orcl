@@ -628,7 +628,8 @@ void LoadItemData(LoadHelper &file, Item &item)
 		item._iOracoolLockedAffix = -1;
 	}
 	// Version 16: the oils' armour (round 54 audit). Older items do not know it (-1), and the oil measure falls back.
-	item._iOracoolOilAC = LoadingItemFormat >= 16 ? std::max<int16_t>(file.NextLE<int16_t>(), 0) : -1;
+	// -1 survives a save and a load (round 55 audit: clamped to 0, an older item's unknown became "known, none" after one save).
+	item._iOracoolOilAC = LoadingItemFormat >= 16 ? std::max<int16_t>(file.NextLE<int16_t>(), -1) : -1;
 
 	// Self-healing for negative durability (user, 2026-08-27: "i have magic oracool items with
 	// negative durability"). Until WearDurabilityPoint landed, gear that broke while equipped kept

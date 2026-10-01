@@ -88,6 +88,14 @@ TEST(LoadSaveItemFormats, Formats13And14StillReadAndTheFormatComesBack)
 	Item loaded;
 	ASSERT_TRUE(LoadItemBytesForTest(v16, 16, loaded));
 	EXPECT_EQ(loaded._iOracoolOilAC, 7) << "v16: the oils' armour comes back";
+	{
+		// Unknown (-1, an item older than 16) stays unknown through a save and a load (round 55 audit).
+		Item unknown = item;
+		unknown._iOracoolOilAC = -1;
+		Item back;
+		ASSERT_TRUE(LoadItemBytesForTest(SaveItemBytesForTest(unknown), 16, back));
+		EXPECT_EQ(back._iOracoolOilAC, -1);
+	}
 	EXPECT_EQ(LoadingItemFormatForTest(), today);
 
 	// 15 lacks v16's two oil-armour bytes at the end: it loads as unknown (-1), and the oil measure falls back.

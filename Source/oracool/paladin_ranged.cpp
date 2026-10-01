@@ -271,7 +271,9 @@ std::optional<std::pair<int, int>> PaladinCastDamageRange(const Player &player, 
 	const int rank = std::max(player.GetSpellLevel(GetPaladinSkillData(skill).spellId), 1);
 	switch (skill) {
 	case PaladinSkill::FistOfTheHeavens:
-		percent = FistCentrePercentAt(rank);
+		// The ring's number, in the ring's lightning colour (round 55 audit: the sheet quoted the physical centre blast's
+		// 150% in the colour of the 60% bolts). The colour is the user's (PaladinCastDamageType).
+		percent = FistNovaPercentAt(rank);
 		break;
 	// Towering Shield and Blunt on top, as the casts apply them - the sheet read 25% low with either (round 5 audit).
 	case PaladinSkill::BlessedShield:

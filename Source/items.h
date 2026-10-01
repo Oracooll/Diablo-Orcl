@@ -1485,6 +1485,12 @@ struct OracoolOilWork {
 	int toHit, minDam, maxDam, minStr, minMag, minDex, ac, maxDur;
 	/** Oil of Permanence: indestructible, and not by an affix's doing. */
 	bool permanence;
+	/**
+	 * How far the item's base armour sits from its seed's first draw - a shop item's (round 55 audit). A rebuild on the SAME
+	 * seed (a Mystic or Gillian rework) puts it back so the base does not move; one on a new seed or base (Reforge, Retier,
+	 * Ennoble) does not, since its base is rolled afresh.
+	 */
+	int acDrift = 0;
 };
 
 /**
@@ -1497,7 +1503,7 @@ std::optional<OracoolOilWork> MeasureOracoolOilWork(const Player &player, const 
 bool IsOracoolGearBase(_item_indexes idx);
 
 /** @brief Adds @p oil back onto a rebuilt @p item, Permanence's 255 included. */
-void ReapplyOracoolOilWork(Item &item, const OracoolOilWork &oil);
+void ReapplyOracoolOilWork(Item &item, const OracoolOilWork &oil, bool sameSeed = false);
 
 /** @brief Whether @p player still has an oil of the kind on the cursor (_pOilType): the pack, its tabs, the belt or the stash. */
 bool HasOilToSpend(const Player &player);
