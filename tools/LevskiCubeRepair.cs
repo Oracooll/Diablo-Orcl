@@ -6,7 +6,7 @@
 //    their inner edge on the cut cube's inner edge and their bottom on its bottom. The closing plays these frames backwards, so
 //    it is mended with them.
 // 2. The opened loop's tear. Its six frames are six different stills, so the panel, the glow and all four sub-cubes jump
-//    from frame to frame. The loop now holds the one whole frame, OpenHoldFrame; the game's own rune pulse, glow pulse and
+//    from frame to frame. The loop now holds the last opening frame, OpenHoldFrame (whole panel, painted grid); the rune pulse, glow pulse and
 //    live grid (levski_roar.cpp) keep it alive.
 //
 // Runs ONCE, after LevskiCubeSteady, on a sheet freshly built from the stills (build_levski_cube_sheet.cmd does exactly
@@ -22,7 +22,10 @@ using System.Text;
 public static class LevskiCubeRepair
 {
 	const int W = 128, H = 192;
-	const int OpenFirst = 20, OpenLast = 25, OpenHoldFrame = 20;
+	const int OpenFirst = 20, OpenLast = 25;
+	// The last OPENING frame (user, 2026-10-01): its panel is whole with a painted 3x4 grid, where every opened still was
+	// cropped at the top - and the opening then runs straight into the held frame.
+	const int OpenHoldFrame = 19;
 	const int CutX = 21; // the straight edge the stills cut the left cubes at
 
 	// Per repaired frame: the rows each sub-cube pair lives in, and the column the left cube's window stops at (where the
@@ -172,8 +175,6 @@ public static class LevskiCubeRepair
 			}
 		}
 		for (int f = OpenFirst; f <= OpenLast; f++) {
-			if (f == OpenHoldFrame)
-				continue;
 			for (int y = 0; y < H; y++)
 				for (int x = 0; x < W; x++)
 					s[y * sw + f * W + x] = s[y * sw + OpenHoldFrame * W + x];

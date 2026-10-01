@@ -1632,13 +1632,13 @@ std::optional<ColouredSpriteList> CubeSheet;
 bool CubeSheetTried = false;
 
 /**
- * @brief The window's grid on the Cube's pink panel, in the frame's pixels: where the painted panel stands in the opened
- * frames (measured on the built sheet, 2026-10-01), 3 x 4 cells of 11 like the window's. The stills cut the panel's top
- * off, so this panel is drawn whole, a few pixels above that cut.
+ * @brief Where the window's items are drawn on the Cube, in the frame's pixels: the cells of the painted 3x4 grid of the held
+ * opened frame - the last opening frame since v1.12.295, whose panel is whole (every opened still was cropped at the top).
+ * 12 px cells from (46, 19), on the painted lines to within a pixel. No grid of its own is drawn (user, 2026-10-01).
  */
-constexpr int CubePanelLeft = 48;
-constexpr int CubePanelBottom = 71;
-constexpr int CubePanelCell = 11;
+constexpr int CubePanelLeft = 46;
+constexpr int CubePanelBottom = 67;
+constexpr int CubePanelCell = 12;
 constexpr int CubePanelWidth = LevskiGridColumns * CubePanelCell;
 constexpr int CubePanelHeight = LevskiGridRows * CubePanelCell;
 
@@ -1754,18 +1754,7 @@ void DrawLevskiCubeLiveGrid(const Surface &out, const Object &cube, Point bottom
 		return;
 	const int frameTop = bottomLeft.y - static_cast<int>((*cube._oAnimData)[cube._oAnimFrame - 1].height()) + 1;
 	const Point origin { bottomLeft.x + CubePanelLeft, frameTop + CubePanelBottom - CubePanelHeight };
-	// The panel: a lavender glaze over the painted one (and over the sky where the stills cut it off), its rules pale.
-	constexpr uint32_t Glaze = 0xB450EC;
-	constexpr uint32_t Rule = 0xEEC0FF;
-	for (int y = 0; y <= CubePanelHeight; y++)
-		for (int x = 0; x <= CubePanelWidth; x++)
-			BlendPixel(out, origin.x + x, origin.y + y, Glaze, 150);
-	for (int c = 0; c <= LevskiGridColumns; c++)
-		for (int y = 0; y <= CubePanelHeight; y++)
-			BlendPixel(out, origin.x + c * CubePanelCell, origin.y + y, Rule, 200);
-	for (int r = 0; r <= LevskiGridRows; r++)
-		for (int x = 0; x <= CubePanelWidth; x++)
-			BlendPixel(out, origin.x + x, origin.y + r * CubePanelCell, Rule, 200);
+	// No grid of its own (user, 2026-10-01): the held frame's painted grid is the grid; only the items are drawn, in its cells.
 	// What the window holds, cell for cell. Only the Cube's own window: Griswold's and Ogden's books leave it shut anyway.
 	if (!WindowOpen || WindowHost != TransmuteHost::Cube)
 		return;

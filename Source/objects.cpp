@@ -4997,6 +4997,15 @@ int ScoreWaypointTile(Point position)
 	}
 	if (DistanceToNearestTrigger(position) < WaypointMinTriggerDistance)
 		return -1;
+	// Nor on a quest's way in that is no stair trigger (round 57 audit: the Poisoned Water entrance on level 2 is a quest
+	// position, not in trigs[] and not a set piece - a waypoint arrival on it walked the hero straight into the quest level).
+	if (!setlevel) {
+		for (const Quest &quest : Quests) {
+			if (quest._qslvl != 0 && quest._qlevel == currlevel && quest._qactive != QUEST_NOTAVAIL
+			    && position.WalkingDistance(quest.position) < WaypointMinTriggerDistance)
+				return -1;
+		}
+	}
 
 	int openness = WaypointMinClearRadius;
 	while (openness < WaypointPreferredClearRadius && IsWaypointAreaClear(position, openness + 1))
