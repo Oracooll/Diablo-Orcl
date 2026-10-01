@@ -34,6 +34,7 @@
 #include "oracool/cursor_tooltip.h" // ShowPanelStringsAsHintCard - the buttons' card
 #include "oracool/recipe_list.h"
 #include "oracool/event_log.h"
+#include "oracool/grid_bezel.h" // DrawButtonSlotGround - every button in its slot frame (2026-10-02)
 #include "oracool/hud_art.h" // DrawLoosePng, DrawRedCross - the painted skin and its states
 #include "oracool/levski_roar_skin.h"
 #include "oracool/levski_cube_skin.h" // the Cube host's own painting (RfA-20 batch 43b)
@@ -2291,6 +2292,14 @@ void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 		DrawString(out, _("Salvage"), Rectangle { window.position + Displacement { page->title.position.x, page->title.position.y }, page->title.size },
 		    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
+	// Every plate in its slot frame (user, 2026-10-02: all vendor and artisan buttons), all frames before any face so
+	// a neighbour's frame never lands on a plate.
+	for (int i = 0; i < SalvageTierCount; i++)
+		DrawButtonSlotGround(out, SalvageButtonRect(window, i), PressedSalvageIcon == i);
+	if (page->itemIcon.size.width > 0) {
+		DrawButtonSlotGround(out, { window.position + Displacement { page->itemIcon.position.x, page->itemIcon.position.y }, page->itemIcon.size },
+		    PressedSalvageIcon == SalvageTierCount);
+	}
 	int hoveredNow = -1;
 	for (int i = 0; i < SalvageTierCount; i++) {
 		const Rectangle rect = SalvageButtonRect(window, i);
@@ -2349,6 +2358,8 @@ void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 		DrawString(out, wrapped, Rectangle { { results.position.x + 8, results.position.y + (buttonsTop - results.position.y - lines * lineHeight) / 2 },
 		                             { results.size.width - 16, lines * lineHeight } },
 		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter });
+		for (int which = ConfirmButton; which <= CancelButton; which++)
+			DrawButtonSlotGround(out, SalvageConfirmButtonRect(results, which), PressedConfirmButton == which); // framed (user, 2026-10-02)
 		for (int which = ConfirmButton; which <= CancelButton; which++) {
 			const Rectangle rect = SalvageConfirmButtonRect(results, which);
 			const bool hovered = rect.contains(MousePosition);
@@ -2532,6 +2543,9 @@ void DrawLevskiRoar(const Surface &out)
 	// the eye catches when flipping between a vendor and the Cube.
 	if (CubeTabbedPages()) {
 		int hoveredTab = -1;
+		// Both tabs' slot frames before either face (user, 2026-10-02) - see DrawSideTabGround.
+		for (int i = 0; i < CubeTabCount; i++)
+			DrawSideTabGround(out, i, PressedCubeTab == i);
 		for (int i = 0; i < CubeTabCount; i++) {
 			const auto tab = static_cast<CubeTab>(i);
 			if (GetSideTabRect(i).contains(MousePosition))
@@ -2549,6 +2563,9 @@ void DrawLevskiRoar(const Surface &out)
 		DrawString(out, _("Levski's Cube"), Rectangle { window.position + Displacement { listSkin->title.position.x, listSkin->title.position.y }, listSkin->title.size },
 		    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 		int hoveredNow = -1;
+		// Both in their slot frames before either face (user, 2026-10-02: all vendor and artisan buttons framed).
+		for (const int b : { static_cast<int>(levski_skin::Transmute), static_cast<int>(levski_skin::Recipes) })
+			DrawButtonSlotGround(out, ButtonRect(window, b), PressedCubeButton == b);
 		for (const int b : { static_cast<int>(levski_skin::Transmute), static_cast<int>(levski_skin::Recipes) }) {
 			const Rectangle rect = ButtonRect(window, b);
 			const bool hovered = rect.contains(MousePosition);
@@ -2604,6 +2621,7 @@ void DrawLevskiRoar(const Surface &out)
 			// button here"), frame and glyph, the same two files his shop draws. It sinks on the
 			// press like every button in the mod and centres the glyph on the glyph's own size, so
 			// a redrawn icon of another size stays centred.
+			DrawButtonSlotGround(out, button, pressed); // in its slot frame (user, 2026-10-02)
 			const Rectangle face { button.position + (pressed ? CubeButtonSink : Displacement { 0, 0 }), button.size };
 			if (GetLoosePngSize(CubeTransmuteFrameAsset).width > 0)
 				DrawLoosePng(out, CubeTransmuteFrameAsset, face.position);

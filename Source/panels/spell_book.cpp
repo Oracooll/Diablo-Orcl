@@ -1226,8 +1226,13 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	oracool::SkillPlateTint tint = oracool::SkillPlateTint::Locked;
 	if (usable && isPassiveRow)
 		tint = slotted ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Ready;
+	else if (usable && bookRow)
+		// A book row learned from its book wears the spells sheet's blue, not the skill-point gold (user,
+		// 2026-10-02: "same as in the spells sheet ... until then - they remain red"). Unlearned it is not
+		// usable, so it keeps the Locked default - the red.
+		tint = oracool::SkillPlateTint::Book;
 	else if (usable)
-		tint = (bookRow || invested > 0) ? oracool::SkillPlateTint::Ready : oracool::SkillPlateTint::Unspent;
+		tint = invested > 0 ? oracool::SkillPlateTint::Ready : oracool::SkillPlateTint::Unspent;
 	oracool::DrawDropShadow(content, icon, oracool::GridBezelInset, IsIconPressed({ IconButtonKind::TreeCell, static_cast<int>(skill) })); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
 	// The face sinks while pressed; the shadow above was cast from the resting rect (see IconButton).
 	icon.position += PressSinkFor({ IconButtonKind::TreeCell, static_cast<int>(skill) });

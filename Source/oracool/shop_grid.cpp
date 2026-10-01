@@ -1222,6 +1222,23 @@ void DrawShopServiceFrames(const Surface &out);
 void DrawShopGoldPile(const Surface &out);
 
 /**
+ * @brief The two page arrows, each in its slot frame and sinking while held (user, 2026-10-02: "all buttons in
+ * vendors/artisans ... make sinkable"). The page turns on the click as before; the sink only shows the hold.
+ */
+void DrawShopPageArrows(const Surface &out)
+{
+	for (int i = 0; i < 2; i++) {
+		const Rectangle rest = ShopPageButtonRect(i);
+		const bool pressed = rest.contains(MousePosition) && sgbMouseDown == CLICK_LEFT;
+		DrawButtonSlotGround(out, rest, pressed);
+		const Rectangle rect { rest.position + (pressed ? ButtonSlotSink : Displacement { 0, 0 }), rest.size };
+		DrawOrnateBorder(out, rect);
+		DrawString(out, i == 0 ? "<" : ">", rect,
+		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	}
+}
+
+/**
  * @brief The control strip and the gold readout, both above the grid.
  *
  * The hovered item's name and price used to live down here too. They are a cursor-following popup
@@ -1234,12 +1251,21 @@ void DrawShopControls(const Surface &out, int pageCount)
 
 	const std::vector<ControlButton> buttons = ShopControlButtons(stextflag);
 	const bool buttonArt = HasShopArt(ShopButtonArt);
+	// Every button in its slot frame (user, 2026-10-02), the whole row's frames and shadows FIRST: the buttons
+	// stand three pixels apart, inside the six a frame reaches, so a neighbour's frame drawn later would cut
+	// into a face. Drawn first they merge into one carved wall between the faces.
 	for (size_t i = 0; i < buttons.size(); i++) {
-		const Rectangle rect = ShopControlRect(buttons, i);
-		const bool hovered = rect.contains(MousePosition);
+		const Rectangle rest = ShopControlRect(buttons, i);
+		DrawButtonSlotGround(out, rest, rest.contains(MousePosition) && sgbMouseDown == CLICK_LEFT);
+	}
+	for (size_t i = 0; i < buttons.size(); i++) {
+		const Rectangle rest = ShopControlRect(buttons, i);
+		const bool hovered = rest.contains(MousePosition);
 		// Oracool: pressed for as long as the left button is held on it. The shop acts on mouse-DOWN,
 		// so this is the span between the click and the release, and sgbMouseDown is that span exactly.
 		const bool pressed = hovered && sgbMouseDown == CLICK_LEFT;
+		// The face sinks with its frame while held (user, 2026-10-02: "make sinkable"); hit tests stay on the rest rect.
+		const Rectangle rect { rest.position + (pressed ? ButtonSlotSink : Displacement { 0, 0 }), rest.size };
 		const VanillaFace face = pressed ? VanillaFace::Pressed : hovered ? VanillaFace::Lit : VanillaFace::Rest;
 		const bool vanilla = DrawVanillaButton(out, rect, face, /*onItsSide=*/false);
 		if (!vanilla && buttonArt) {
@@ -1293,12 +1319,7 @@ void DrawShopControls(const Surface &out, int pageCount)
 
 	if (pageCount <= 1)
 		return;
-	for (int i = 0; i < 2; i++) {
-		const Rectangle rect = ShopPageButtonRect(i);
-		DrawOrnateBorder(out, rect);
-		DrawString(out, i == 0 ? "<" : ">", rect,
-		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	}
+	DrawShopPageArrows(out);
 	const Rectangle pageLabel { { goldLine.position.x + PageButtonWidth + 2, goldLine.position.y },
 		{ 60, ShopGoldHeight } };
 	DrawString(out, StrCat(ShopGridPage + 1, "/", pageCount), pageLabel,
@@ -1328,6 +1349,12 @@ constexpr int ShopServiceHoverBrighten = 115;
 void DrawShopServiceFrames(const Surface &out)
 {
 	const bool frameArt = HasShopArt(ShopButtonFrameAsset);
+	// The slot frames and their shadows first, all of them (user, 2026-10-02): the plates stand two pixels
+	// apart, so each frame must be under every face, not just its own.
+	for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
+		if (ShopServiceSlotOnPage(slot, stextflag))
+			DrawButtonSlotGround(out, ShopServiceSlotRect(slot), PressedShopServiceSlot == slot);
+	}
 	int hoveredNow = -1;
 	for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
 		if (!ShopServiceSlotOnPage(slot, stextflag))
@@ -1396,12 +1423,7 @@ void DrawRedesignedControls(const Surface &out, int pageCount)
 
 	if (pageCount <= 1)
 		return;
-	for (int i = 0; i < 2; i++) {
-		const Rectangle rect = ShopPageButtonRect(i);
-		DrawOrnateBorder(out, rect);
-		DrawString(out, i == 0 ? "<" : ">", rect,
-		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	}
+	DrawShopPageArrows(out);
 }
 
 /**
@@ -1426,6 +1448,9 @@ void DrawShopTabColumn(const Surface &out, TalkID open)
 {
 	const std::vector<TalkID> tabs = ShopTabsFor(open);
 	const bool tabArt = HasShopArt(ShopTabArt);
+	// Every tab in its slot frame (user, 2026-10-02), the column's frames first - the tabs are two pixels apart.
+	for (size_t i = 0; i < tabs.size(); i++)
+		DrawButtonSlotGround(out, ShopTabRect(i), PressedShopTab == tabs[i]);
 	for (size_t i = 0; i < tabs.size(); i++) {
 		const Rectangle rect = ShopTabRect(i);
 		const bool active = tabs[i] == open;
@@ -1519,6 +1544,11 @@ void DrawSideTab(const Surface &out, int index, string_view label, bool active, 
 	}
 	if (!vanilla || !DrawSidewaysLabel(out, label, face, active ? UiFlags::ColorWhite : UiFlags::ColorWhitegold))
 		DrawVerticalLabel(out, label, face, active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold);
+}
+
+void DrawSideTabGround(const Surface &out, int index, bool pressed)
+{
+	DrawButtonSlotGround(out, GetSideTabRect(index), pressed);
 }
 
 bool DrawVendorButtonBacking(const Surface &out, Rectangle rect, bool selected, bool hovered)

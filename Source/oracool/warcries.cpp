@@ -757,14 +757,6 @@ void ClearWarcryStateForMonster(const Monster &monster)
 		Debuffs[id] = Debuff {};
 }
 
-void RevertConversionOnDeath(Monster &monster)
-{
-	if (!IsMonsterConverted(monster))
-		return;
-	monster.flags &= ~(MFLAG_BERSERK | MFLAG_GOLEM);
-	DebuffOf(monster).convertTicks = 0;
-}
-
 void RevertConversionsForLevelSave()
 {
 	for (size_t i = 0; i < Debuffs.size(); i++) {

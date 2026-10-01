@@ -91,8 +91,6 @@ int MonsterDebuffArmorPercent(const Monster &monster);
  * It never attacks a player while this holds, and it draws green (dev note, 2026-09-27).
  */
 bool IsMonsterConverted(const Monster &monster);
-/** @brief Ends @p monster's Conversion as it dies: its BERSERK|GOLEM flags and clock go (round 67 audit). */
-void RevertConversionOnDeath(Monster &monster);
 
 /** @brief Points off @p monster's chance to hit a player. Weaken. */
 int MonsterDebuffToHit(const Monster &monster);

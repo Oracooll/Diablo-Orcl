@@ -2633,6 +2633,7 @@ void AddFrostNova(Missile &missile, AddMissileParameter & /*parameter*/)
 	// White and light blue running through the ring as it spreads (dev note, 2026-10-01); ProcessFrostNova fades it.
 	missile.oracoolTint = oracool::Tint::HueCycle;
 	missile.oracoolTintRgb = oracool::hue::IceBlue;
+	missile._mlid = AddLight(missile.position.tile, 5); // the ring lights the floor as it spreads (dev note, 2026-10-01)
 	if (missile.sourceType() != MissileSource::Player)
 		return;
 	const Player &player = *missile.sourcePlayer();
@@ -2663,8 +2664,13 @@ void ProcessFrostNova(Missile &missile)
 	const int played = length - std::max(missile._mirange, 0);
 	const int fadeFrom = length / 4;
 	missile.oracoolAlpha = static_cast<uint16_t>(played <= fadeFrom ? 256 : std::max(0, 256 * (length - played) / std::max(length - fadeFrom, 1)));
-	if (missile._mirange <= 0)
+	if (missile._mirange <= 0) {
 		missile._miDelFlag = true;
+		if (missile._mlid != NO_LIGHT) {
+			AddUnLight(missile._mlid);
+			missile._mlid = NO_LIGHT;
+		}
+	}
 	PutMissile(missile);
 }
 
@@ -2728,6 +2734,7 @@ void AddBlizzardShard(Missile &missile, AddMissileParameter &parameter)
 	ScaleMissile(missile, 50, 16);
 	missile._mirange = std::max<int>(missile._miAnimLen, 1);
 	missile.var5 = 0; // 1: a shard for the picture only (ProcessBlizzard)
+	missile._mlid = AddLight(missile.position.tile, 1); // a glint a shard (dev note, 2026-10-01: "1 lr to each shard")
 	if (parameter.pParent != nullptr) {
 		missile.var3 = parameter.pParent->var3;
 		missile.var4 = parameter.pParent->var4;
@@ -2748,8 +2755,13 @@ void ProcessBlizzardShard(Missile &missile)
 		if (missile.sourceType() == MissileSource::Player && static_cast<size_t>(missile._misource) == MyPlayerId)
 			oracool::PlaySkillSound(oracool::ClassTreeSkill::Blizzard, oracool::SkillSoundEvent::Impact);
 	}
-	if (missile._mirange <= 0)
+	if (missile._mirange <= 0) {
 		missile._miDelFlag = true;
+		if (missile._mlid != NO_LIGHT) {
+			AddUnLight(missile._mlid);
+			missile._mlid = NO_LIGHT;
+		}
+	}
 	PutMissile(missile);
 }
 
@@ -3991,7 +4003,7 @@ Displacement CensusEffectOffset(MissileID type)
 }
 
 /** @brief Meteor impact: frames 1-10 burst once, 11-14 are the ground burn, looped for as long as it burns. */
-constexpr int MeteorImpactBurnFrame = 11;
+constexpr int MeteorImpactBurnFrame = 21; // 11 until the frames were doubled (dev note, 2026-10-01)
 /** @brief Bone wall: frames 1-6 rise once, 7-10 stand, looped for as long as the wall holds (batch 38's notes). */
 constexpr int BoneWallStandFrame = 7;
 
@@ -4120,6 +4132,10 @@ uint8_t ArtEffectLightRadius(MissileGraphicID art)
 		return 4;
 	case MissileGraphicID::FurnaceFlame:
 		return 5; // fire lights the floor too
+	case MissileGraphicID::AbsoluteZero:
+		return 4; // the cold ones too (dev note, 2026-10-01: "add light radius to all the rest cold spells")
+	case MissileGraphicID::ChillTouch:
+		return 2;
 	case MissileGraphicID::EmberMine:
 	case MissileGraphicID::AshenRing:
 		return 2;
@@ -4424,7 +4440,7 @@ void ProcessCensusEffect(Missile &missile)
 	        MissileGraphicID::LightningStrikeLong, MissileGraphicID::LightningStrikeImpact))
 		missile.oracoolAlpha = missile._mirange <= 1 ? 128 : 256;
 	if (missile._mitype == MissileID::MeteorImpact && missile._miAnimFrame >= MeteorImpactBurnFrame) {
-		missile._miAnimDelay = 3; // the embers flicker slower than the burst
+		missile._miAnimDelay = 2; // the embers flicker slower than the burst (2 since the loop has twice its frames)
 		// On the last frame, about to step: step back to the burn's first frame instead of the burst's.
 		if (missile._miAnimFrame >= missile._miAnimLen && missile._miAnimCnt + 1 >= missile._miAnimDelay)
 			missile._miAnimFrame = MeteorImpactBurnFrame - 1;
@@ -4483,6 +4499,8 @@ void ProcessAcidJavelin(Missile &missile)
 {
 	missile._mirange--;
 	MoveMissile(missile, [](Point) { return true; }); // nothing stops it: the blow has already landed
+	if (missile._mlid != NO_LIGHT)
+		ChangeLightXY(missile._mlid, missile.position.tile); // a lit flight carries its light (the ice arrows, 2026-10-01)
 	if (missile._mirange <= 0 || missile.position.tile == Point { missile.var1, missile.var2 }) {
 		missile._miDelFlag = true;
 		if (missile._mlid != NO_LIGHT) { // Ball Lightning's ball carries one (2026-10-01)

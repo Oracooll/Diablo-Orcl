@@ -22,6 +22,7 @@
 #include "items.h"
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
+#include "oracool/grid_bezel.h" // DrawButtonSlotGround - every button in its slot frame (2026-10-02)
 #include "oracool/hud_art.h"
 #include "oracool/imbuement.h"
 #include "oracool/signets.h" // CheckPassiveMilestones
@@ -1088,6 +1089,9 @@ void OutlineRectRgb(const Surface &out, const Rectangle &rect, uint32_t rgb, uin
 void DrawTabColumn(const Surface &out)
 {
 	const std::vector<Tab> tabs = TabsFor(Host);
+	// Every tab's slot frame before any face (user, 2026-10-02) - see DrawSideTabGround.
+	for (int i = 0; i < static_cast<int>(tabs.size()); i++)
+		DrawSideTabGround(out, i, Pressed == static_cast<Control>(static_cast<int>(Control::Tab0) + i));
 	for (int i = 0; i < static_cast<int>(tabs.size()); i++) {
 		const bool active = tabs[i] == OpenTab;
 		// Held down: the face sinks and springs back on the release, like every other button here (user,
@@ -1338,6 +1342,7 @@ void DrawServiceIcon(const Surface &out, Control control, const char *glyph, boo
 	if (rect.size.width == 0)
 		return;
 	const bool hovered = rect.contains(MousePosition);
+	DrawButtonSlotGround(out, rect, Pressed == control); // in its slot frame (user, 2026-10-02)
 	const Rectangle face { rect.position + (Pressed == control ? PressSink : Displacement { 0, 0 }), rect.size };
 	if (GetLoosePngSize(BoardButtonFrameAsset).width > 0)
 		DrawLoosePng(out, BoardButtonFrameAsset, face.position);
@@ -1381,6 +1386,7 @@ void DrawBoardArrow(const Surface &out, Control control, bool enabled)
 	if (rect.size.width == 0)
 		return;
 	const bool hovered = rect.contains(MousePosition);
+	DrawButtonSlotGround(out, rect, Pressed == control); // in its slot frame (user, 2026-10-02)
 	const Rectangle face { rect.position + (Pressed == control ? PressSink : Displacement { 0, 0 }), rect.size };
 	if (GetLoosePngSize(BoardButtonFrameAsset).width > 0)
 		DrawLoosePng(out, BoardButtonFrameAsset, face.position);
@@ -1421,6 +1427,9 @@ void DrawBoardMessage(const Surface &out)
 		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 		// The TWO answers, and only those: this loop draws a YES/NO plate per entry, so anything else
 		// in it renders as a "NO" box wherever its rect happens to be.
+		// Both answers in their slot frames before either face (user, 2026-10-02).
+		for (const Control which : { Control::ConfirmStep, Control::CancelStep })
+			DrawButtonSlotGround(out, ControlRect(which), Pressed == which);
 		for (const Control which : { Control::ConfirmStep, Control::CancelStep }) {
 			const Rectangle rect = ControlRect(which);
 			const bool confirm = which == Control::ConfirmStep;
@@ -1447,6 +1456,9 @@ void DrawBoard(const Surface &out)
 	if (OfferOpen) {
 		DrawString(out, _("Choose one:"), Rectangle { { board.position.x + 6, board.position.y + 4 }, { board.size.width - 12, BoardLineHeight } },
 		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+		// Every option in its slot frame, all frames before any face: the rows stand four pixels apart (user, 2026-10-02).
+		for (int i = 0; i < OptionCount; i++)
+			DrawButtonSlotGround(out, OptionRect(i), Pressed == static_cast<Control>(static_cast<int>(Control::Option0) + i));
 		for (int i = 0; i < OptionCount; i++) {
 			const Rectangle rect = OptionRect(i);
 			const bool hovered = rect.contains(MousePosition);
@@ -1980,6 +1992,7 @@ void DrawCraftPage(const Surface &out)
 	} else {
 		ready = FirstReadyLevskiRecipeFor(CraftGrid.data(), TransmuteHost::Tavern) >= 0;
 	}
+	DrawButtonSlotGround(out, rect, Pressed == Control::Transmute); // in its slot frame (user, 2026-10-02)
 	const Rectangle face { rect.position + (Pressed == Control::Transmute ? PressSink : Displacement { 0, 0 }), rect.size };
 	if (GetLoosePngSize(BoardButtonFrameAsset).width > 0)
 		DrawLoosePng(out, BoardButtonFrameAsset, face.position);

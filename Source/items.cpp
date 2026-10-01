@@ -8183,6 +8183,18 @@ bool AffixStatesIndestructible(const Item &item)
 	return false;
 }
 
+/**
+ * The staff charges line names the spell too: the spell left the staff's name, so "Charges: x/y" alone no
+ * longer said what the charges cast (user, 2026-10-02). Shared by the identified and unidentified views.
+ */
+static std::string StaffChargesLine(const Item &item)
+{
+	if (!IsValidSpell(item._iSpell))
+		return fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges);
+	return fmt::format(fmt::runtime(_("Spell: {:s}  Charges: {:d}/{:d}")),
+	    pgettext("spell", GetSpellData(item._iSpell).sNameText), item._iCharges, item._iMaxCharges);
+}
+
 void PrintItemDetails(const Item &item)
 {
 	if (HeadlessMode)
@@ -8273,7 +8285,7 @@ void PrintItemDetails(const Item &item)
 			AddPanelString(fmt::format(fmt::runtime(_("armor: {:d}  Indestructible")), item._iAC), ItemBaseStatColor);
 	}
 	if (item._iMiscId == IMISC_STAFF && item._iMaxCharges != 0) {
-		AddPanelString(fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges), ItemBaseStatColor);
+		AddPanelString(StaffChargesLine(item), ItemBaseStatColor);
 	}
 	// The tier label used to print here, between the affixes and the power list; it now leads the
 	// panel instead (user request, 2026-08-16 - "just below their name and above the dmg stats").
@@ -8440,7 +8452,7 @@ void PrintItemDur(const Item &item)
 				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}-{:d}  Dur: {:d}/{:d}")), item._iMinDam, item._iMaxDam, item._iDurability, item._iMaxDur), ItemBaseStatColor);
 		}
 		if (item._iMiscId == IMISC_STAFF && item._iMaxCharges > 0) {
-			AddPanelString(fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges), ItemBaseStatColor);
+			AddPanelString(StaffChargesLine(item), ItemBaseStatColor);
 		}
 		if (item._iMagical != ITEM_QUALITY_NORMAL)
 			AddPanelString(_("Not Identified"), ItemAffixColor);
@@ -8453,7 +8465,7 @@ void PrintItemDur(const Item &item)
 		if (item._iMagical != ITEM_QUALITY_NORMAL)
 			AddPanelString(_("Not Identified"), ItemAffixColor);
 		if (item._iMiscId == IMISC_STAFF && item._iMaxCharges > 0) {
-			AddPanelString(fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges), ItemBaseStatColor);
+			AddPanelString(StaffChargesLine(item), ItemBaseStatColor);
 		}
 	}
 	// Blue on jewellery too (tooltip audit, 2026-09-25): the weapon and armour lines above are the affix blue, and

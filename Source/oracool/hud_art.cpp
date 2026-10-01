@@ -2032,6 +2032,75 @@ void DrawGridBezel(const Surface &out, Rectangle contentRect)
 	    Point { contentRect.position.x + contentRect.size.width, contentRect.position.y });
 }
 
+void DrawButtonBezel(const Surface &out, Rectangle face)
+{
+	// The ring/amulet slot's frame, stretched round a button (user, 2026-10-02: "take a 1x1 frame for a ring
+	// or amulet and scale it up a bit to fit the buttons inside itself"). Stretched along its LENGTH only: the
+	// corners stay 1:1 and the band stays six deep, so a 110px button wears the same carved edge a 28px slot
+	// does rather than a frame three times as thick. Frame only, as DrawGridBezel - the face fills the hole.
+	GridBezelEntry *entry = FindGridBezel({ CellPx, CellPx });
+	if (entry == nullptr || face.size.width <= 0 || face.size.height <= 0)
+		return;
+	EnsureLoadedAll();
+	if (entry->art.rgba.empty())
+		return;
+	EnsureQuantized();
+	if (!entry->art.bright)
+		return;
+
+	const ArtAsset &art = entry->art;
+	const int w = art.width;
+	const int h = art.height;
+	const int inset = GridBezelInset;
+	const int innerW = w - 2 * inset;
+	const int innerH = h - 2 * inset;
+	if (innerW <= 0 || innerH <= 0)
+		return;
+	const Point outer = face.position - Displacement { inset, inset };
+	const int right = face.position.x + face.size.width;
+	const int bottom = face.position.y + face.size.height;
+
+	BlitLayer(out, art, Layer::Bright, MakeSdlRect(0, 0, inset, inset), outer);
+	BlitLayer(out, art, Layer::Bright, MakeSdlRect(w - inset, 0, inset, inset), Point { right, outer.y });
+	BlitLayer(out, art, Layer::Bright, MakeSdlRect(0, h - inset, inset, inset), Point { outer.x, bottom });
+	BlitLayer(out, art, Layer::Bright, MakeSdlRect(w - inset, h - inset, inset, inset), Point { right, bottom });
+
+	// One band: scaled on the 32-bit screen; on an indexed target, which has no scaler here (see BlitLayerScaled),
+	// the 28px middle repeated end to end instead, so a golden test still sees a whole frame.
+	const bool scaled = !out.isIndexed() && !art.argb.empty();
+	const auto band = [&](SDL_Rect src, Point at, bool horizontal, int length) {
+		if (scaled) {
+			BlitLayerScaled(out, art, src, horizontal ? Rectangle { at, { length, src.h } } : Rectangle { at, { src.w, length } },
+			    /*halfTransparent=*/false);
+			return;
+		}
+		const int step = horizontal ? src.w : src.h;
+		for (int done = 0; done < length; done += step) {
+			const int part = std::min(step, length - done);
+			SDL_Rect piece = src;
+			(horizontal ? piece.w : piece.h) = part;
+			BlitLayer(out, art, Layer::Bright, piece, horizontal ? Point { at.x + done, at.y } : Point { at.x, at.y + done });
+		}
+	};
+	band(MakeSdlRect(inset, 0, innerW, inset), Point { face.position.x, outer.y }, true, face.size.width);
+	band(MakeSdlRect(inset, h - inset, innerW, inset), Point { face.position.x, bottom }, true, face.size.width);
+	band(MakeSdlRect(0, inset, inset, innerH), Point { outer.x, face.position.y }, false, face.size.height);
+	band(MakeSdlRect(w - inset, inset, inset, innerH), Point { right, face.position.y }, false, face.size.height);
+}
+
+void DrawButtonSlotGround(const Surface &out, Rectangle rest, bool sunk)
+{
+	// The inventory slot's own shadow at its own size (DrawDropShadow with the bezel's six), cast from where the
+	// button RESTS and a pixel smaller on every side while it is held (user, 2026-10-02: "with shadow as big as it
+	// is in the inventory screen and make it reducable by 1px in each direction when button is sunk"). Then the
+	// frame, which goes down with the face - the same order the Abilities cells draw in (DrawTreeCell).
+	// An absent control is a zero rect, and the shadow's footprint would still grow it into a 12px square.
+	if (rest.size.width <= 0 || rest.size.height <= 0)
+		return;
+	DrawDropShadow(out, rest, GridBezelInset, sunk);
+	DrawButtonBezel(out, { rest.position + (sunk ? ButtonSlotSink : Displacement { 0, 0 }), rest.size });
+}
+
 void DrawWaypointPanelArt(const Surface &out, Point origin)
 {
 	EnsureLoadedAll();
@@ -2251,6 +2320,11 @@ void ApplyPlateTint(SkillPlateTint tint)
 		break;
 	case SkillPlateTint::Purple:
 		SetSpellTransPurple();
+		break;
+	case SkillPlateTint::Book:
+		// The spells sheet's blue for a learned book spell (GetSBookTrans -> SpellType::Spell), so the tree
+		// and the sheet agree about what a book row is (user, 2026-10-02).
+		SetSpellTrans(SpellType::Spell);
 		break;
 	}
 }
@@ -2652,6 +2726,9 @@ void DrawSkillTintOutline(const Surface &out, Rectangle cell, SkillPlateTint tin
 		break;
 	case SkillPlateTint::Scroll:
 		color = PAL16_BEIGE + 4;
+		break;
+	case SkillPlateTint::Book:
+		color = PAL16_BLUE + 4;
 		break;
 	case SkillPlateTint::Unspent:
 	case SkillPlateTint::Yellow:

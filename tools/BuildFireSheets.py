@@ -4,7 +4,7 @@ Input: "Resources/02. Oracooll Assets/Sorc Skills/Fire Spells/" and the game's o
 Output, in Packaging/resources/oracool_assets/missiles/:
   ember_mine.png     the user's mine A: 8 frames of 128x64 on a green screen, keyed, the stone locked to one colour
                      across frames (its per-frame palettes made it shimmer), at half size (the user's 50% pick): 8 x 64x32;
-  furnace_mouth.png  the user's furnace, 8 rows (S, SW, W, NW, N, NE, E, SE - the engine's order), one 448x320 frame each,
+  furnace_mouth.png  the user's furnace at 35% (no larger than Frozen Sentinel, dev note 2026-10-01), 8 rows (S, SW, W, NW, N, NE, E, SE - the engine's order), one 448x320 frame each,
                      the floor at (224, 160);
   furnace_flame.png  its flame, the same rows and anchor, three tiles along each facing;
   ashen_ring.png     aura_holy_fire at 448x224 - the 3 tiles round Ashen Brand's cursor - its soft glow an ordered dither
@@ -74,7 +74,19 @@ save(np.concatenate(half, 1), "ember_mine.png")
 
 # Furnace Mouth: the furnace and the flame, rows as delivered.
 base = os.path.join(SRC, "Furnace Mouth", "Final Assets")
-save(key(np.asarray(Image.open(os.path.join(base, "furnace_mouth_B_8row_448x2560.png")).convert("RGB"))), "furnace_mouth.png")
+# The furnace no larger than Frozen Sentinel (dev note, 2026-10-01): 35% about its floor point (224, 160), which every row
+# and the flame share. The flame starts at that point, so it still meets the head and keeps its three tiles.
+FURNACE_SCALE = 0.35
+furnace = key(np.asarray(Image.open(os.path.join(base, "furnace_mouth_B_8row_448x2560.png")).convert("RGB")))
+small_furnace = np.zeros_like(furnace)
+for row in range(8):
+    cell = Image.fromarray(np.ascontiguousarray(furnace[320 * row:320 * (row + 1)]), "RGBA")
+    w, h = round(448 * FURNACE_SCALE), round(320 * FURNACE_SCALE)
+    shrunk = cell.resize((w, h), Image.LANCZOS)
+    canvas = Image.new("RGBA", (448, 320), (0, 0, 0, 0))
+    canvas.paste(shrunk, (224 - round(224 * FURNACE_SCALE), 160 - round(160 * FURNACE_SCALE)))
+    small_furnace[320 * row:320 * (row + 1)] = np.asarray(canvas)
+save(small_furnace, "furnace_mouth.png")
 save(key(np.asarray(Image.open(os.path.join(base, "dragon_breath_B_8row_448x2560.png")).convert("RGB"))), "furnace_flame.png")
 
 # Ashen Brand's ring: the holy-fire aura at the curse's 3 tiles, its glow dithered.

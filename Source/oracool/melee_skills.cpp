@@ -35,6 +35,8 @@ namespace {
 std::optional<ClassMeleeSkill> ArmedSkill;
 /** Leap Attack's leap paid for the blow it lands on arrival (round 60 audit: the arriving swing paid its 14 Rage again). */
 std::optional<ClassMeleeSkill> LeapAttackPrepaid; // Vaulting Strike too since round 65 (it paid twice the same way)
+/** The armed skill and whether it could be paid when this hit frame began (LatchClassMeleeSwingPrice); nullopt outside one. */
+std::optional<std::pair<ClassMeleeSkill, bool>> SwingPrice;
 
 /**
  * Double Swing and Frenzy swing twice: the second blow is a second SWING, each compressed so the two take the time of
@@ -135,6 +137,14 @@ bool CanPay(const Player &player, ClassMeleeSkill skill)
 	if (LeapAttackPrepaid == skill && &player == MyPlayer)
 		return true;
 	return CanPaySkill(player, ClassMeleeSkillSpell(skill));
+}
+
+/** @brief CanPay as the hit frame began, when one is latched for @p skill; live otherwise. */
+bool PaidAtFront(const Player &player, ClassMeleeSkill skill)
+{
+	if (&player == MyPlayer && SwingPrice.has_value() && SwingPrice->first == skill)
+		return SwingPrice->second;
+	return CanPay(player, skill);
 }
 
 /** @brief Settles a use that landed: the price paid, or - for a Rage generator - the Rage of each landed blow. */
@@ -341,6 +351,7 @@ void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill)
 	if (skill.has_value() && skill != LeapAttackPrepaid)
 		LeapAttackPrepaid.reset();
 	ArmedSkill = skill;
+	SwingPrice.reset(); // a re-arm asks afresh (round 68)
 	BeginClassMeleeSwing(); // a new click: no chain carries over
 	// One latch at a time: arming or disarming this one drops the RfA-12 swing (rfa12_actives.h), which is
 	// armed after it where it is meant.
@@ -353,6 +364,18 @@ void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill)
 void ForgetLeapAttackPrepaid()
 {
 	LeapAttackPrepaid.reset();
+}
+
+void LatchClassMeleeSwingPrice(const Player &player)
+{
+	SwingPrice.reset();
+	if (&player == MyPlayer && ArmedSkill.has_value())
+		SwingPrice = std::make_pair(*ArmedSkill, CanPay(player, *ArmedSkill));
+}
+
+void ForgetClassMeleeSwingPrice()
+{
+	SwingPrice.reset();
 }
 
 bool LeapAttackBlowPrepaid(ClassMeleeSkill skill)
@@ -389,7 +412,7 @@ int ClassMeleeSkillDamagePercent(const Player &player)
 	// The spin's blows (oracool/whirlwind.h) carry no bonus: they are a share of a normal blow (ClassMeleeSkillSharePercent).
 	if (IsWhirlwinding(player))
 		return 0;
-	if (&player != MyPlayer || !ArmedSkill.has_value() || !CanPay(player, *ArmedSkill))
+	if (&player != MyPlayer || !ArmedSkill.has_value() || !PaidAtFront(player, *ArmedSkill)) // as the frame began (round 68)
 		return 0;
 	const Profile p = ProfileOf(*ArmedSkill);
 	// A chained swing's extra blow carries the bonus too: it is a share of a first blow that had it.
@@ -402,7 +425,7 @@ int ClassMeleeSkillSharePercent(const Player &player)
 	// full blow, a chain's half-blow 86%. Multiplied after the pool, it is the share the rows quote.
 	if (IsWhirlwinding(player))
 		return WhirlwindDamagePercent(RankOf(player, ClassMeleeSkill::Whirlwind));
-	if (&player != MyPlayer || !ArmedSkill.has_value() || !CanPay(player, *ArmedSkill))
+	if (&player != MyPlayer || !ArmedSkill.has_value() || !PaidAtFront(player, *ArmedSkill)) // as the frame began (round 68)
 		return 100;
 	if (ChainFollowUp && IsSwingChainSkill(*ArmedSkill)) {
 		const Profile p = ProfileOf(*ArmedSkill);
@@ -477,7 +500,7 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 	const ClassMeleeSkill skill = *ArmedSkill;
 	// Cannot pay: the swing was a plain swing (the damage bonus already answered zero), and it
 	// costs nothing. The latch stays, so the next swing asks again - mana comes back.
-	if (!CanPay(player, skill))
+	if (!PaidAtFront(player, skill)) // as the frame began: the bonus's own answer (round 68)
 		return false;
 	SweptThisSwing = skill == ClassMeleeSkill::SweepingReed || skill == ClassMeleeSkill::WheelOfHeaven;
 

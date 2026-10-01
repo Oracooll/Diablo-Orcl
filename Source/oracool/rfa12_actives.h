@@ -56,6 +56,9 @@ bool Rfa12MeleeUsable(const Player &player, SpellID spell);
 
 /** @brief Records which RfA-12 melee skill the swing now being launched was thrown with. */
 void ArmRfa12Melee(std::optional<SpellID> spell);
+/** @brief LatchClassMeleeSwingPrice for the RfA-12 melee latch (round 68 audit). */
+void LatchRfa12SwingPrice(const Player &player);
+void ForgetRfa12SwingPrice();
 
 /** @brief The RfA-12 melee skill the swing being resolved was thrown with, if any. */
 std::optional<SpellID> ArmedRfa12Melee();

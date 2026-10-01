@@ -37,6 +37,7 @@
 #include "oracool/skill_sounds.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/warcries.h"
+#include "oracool/whirlwind.h" // IsWhirlwinding - no RfA-12 bonus on a spin's blows (round 68)
 #include "nthread.h" // ProgressToNextGameTick: Serenity's ring glides between ticks
 #include "player.h"
 #include "spells.h"
@@ -514,6 +515,8 @@ void SentinelArt(const Player &player, Point tile, int row, int ticks = 0)
 	if (Missile *sentinel = AddArtEffectFacing(tile, MissileGraphicID::Guardian, static_cast<int>(player.getId()), row, ticks); sentinel != nullptr) {
 		sentinel->oracoolTint = Tint::Hue;
 		sentinel->oracoolTintRgb = hue::IceBlue;
+		if (sentinel->_mlid == NO_LIGHT)
+			sentinel->_mlid = AddLight(tile, 3); // it glows cold (dev note, 2026-10-01); EndArtEffects frees it with each stage
 	}
 }
 
@@ -1430,6 +1433,8 @@ constexpr int PulseCount(int firstClock, int ticks, int period)
 // =================================================================================================
 
 std::optional<SpellID> ArmedSpell;
+/** The armed RfA-12 swing and whether it could be paid when this hit frame began (round 68); nullopt outside one. */
+std::optional<std::pair<SpellID, bool>> SwingPrice;
 
 bool IsMeleeSpell(SpellID spell)
 {
@@ -1486,6 +1491,14 @@ int MeleeBonusPercent(SpellID spell, int rank)
 bool CanPay(const Player &player, SpellID spell)
 {
 	return CanPaySkill(player, spell);
+}
+
+/** @brief CanPay as the hit frame began, when one is latched for @p spell; live otherwise (round 68 audit). */
+bool PaidAtFront(const Player &player, SpellID spell)
+{
+	if (&player == MyPlayer && SwingPrice.has_value() && SwingPrice->first == spell)
+		return SwingPrice->second;
+	return CanPay(player, spell);
 }
 
 /** @brief Settles a use that landed: the price paid, or a Rage generator's Rage for each landed blow. */
@@ -1629,6 +1642,11 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	if (IsAnyOf(spell, SpellID::RainOfArrows, SpellID::WaveOfLight, SpellID::SevenSidedStrike, SpellID::ValkyriesSpear, SpellID::ArmyOfTheDead)
 	    && InDungeonBounds(target) && IsTileSolid(target))
 		target = LastClearTileToward(here, target);
+	// The summons stand at the last open tile toward a cursor past a wall (round 67 audit: a Decoy set there held the closed
+	// room; round 68: refused, a live companion's refresh and a click by a wall failed too - so clamped, never refused).
+	if (IsAnyOf(spell, SpellID::Valkyrie, SpellID::Decoy, SpellID::SpiritGuardian, SpellID::AncestralCall) && CastSightFrom
+	    && InDungeonBounds(target) && (IsTileSolid(target) || !LineClearMissile(here, target)))
+		target = LastClearTileToward(here, target);
 	const int earshot = AuraRadiusForPoints(r);
 	// The skills that set a field or a charge down at the cursor: not past a wall from the hero (round 40 audit - Meteor,
 	// Funeral Star and the rest landed on the next room's pack, and their ticks, which see from the field, burned it).
@@ -1639,10 +1657,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	    && IsAnyOf(spell, SpellID::Meteor, SpellID::AncestralCourt, SpellID::FrozenSentinel, SpellID::LightningRod,
 	        SpellID::EmberMine, SpellID::StormCrucible, SpellID::BrittleGround, SpellID::ArmyOfTheDead, // the Army too (round 41)
 	        SpellID::FaradayRing, SpellID::FurnaceMouth, SpellID::Firestorm, SpellID::TuningFork, // and these (round 41)
-	        SpellID::RainOfArrows, SpellID::WaveOfLight, SpellID::ValkyriesSpear, SpellID::SevenSidedStrike,
-	        // The summons too (round 67 audit): a Decoy set past a wall held the closed room's every monster, and a Valkyrie or a
-	        // Spirit Guardian stood there to regroup.
-	        SpellID::Valkyrie, SpellID::Decoy, SpellID::SpiritGuardian, SpellID::AncestralCall)) {
+	        SpellID::RainOfArrows, SpellID::WaveOfLight, SpellID::ValkyriesSpear, SpellID::SevenSidedStrike)) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
@@ -1829,6 +1844,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			arrow->oracoolTint = Tint::Hue;
 			arrow->oracoolTintRgb = hue::IceBlue;
 			ScaleMissile(*arrow, 50);
+			arrow->_mlid = AddLight(here, 1); // its own light, carried along (dev note, 2026-10-01)
 		}
 		return true;
 	}
@@ -1861,6 +1877,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			arrow->oracoolTint = Tint::Hue;
 			arrow->oracoolTintRgb = hue::IceBlue;
 			ScaleMissile(*arrow, 200); // twice the arrow (dev note, 2026-10-01)
+			arrow->_mlid = AddLight(here, 2); // its own light, carried along (dev note, 2026-10-01)
 		}
 		return true;
 	}
@@ -1879,6 +1896,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 				ice->_miAnimFrame = std::min(variant, ice->_miAnimLen);
 				ice->_miAnimAdd = 0;
 				ice->oracoolTint = Tint::Glint; // light running over the ice, slick underfoot (dev note, 2026-09-30)
+				if (ice->_mlid == NO_LIGHT)
+					ice->_mlid = AddLight(tile, 2); // the ice gleams (dev note, 2026-10-01)
 			}
 			variant++;
 		}
@@ -1972,6 +1991,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (Missile *ball = end != here ? AddArtBolt(here, end, MissileGraphicID::BallLightning, static_cast<int>(player.getId()), speed) : nullptr; ball != nullptr) {
 			ball->_mirange = BallLightningTicks;
 			ball->oracoolScaleLift = 8; // rolling on the floor: its foot (y 56 of 64) on the tile
+			ball->_miAnimAdd = 4;       // four times the spin: it is lightning (dev note, 2026-10-01); 72 frames loop clean by 4s
 			ball->var5 = f->stamp;
 			ball->_mlid = AddLight(here, 5); // it lights its way (user, 2026-10-01); TickField moves it, the ball's end frees it
 		}
@@ -3120,6 +3140,8 @@ void TickField(Player &player, Field &field)
 					flame->oracoolTint = Tint::Hue;
 					flame->oracoolTintRgb = hue::IceBlue;
 					ScaleMissile(*flame, 50, 16); // half the wave, its foot on the tile (dev note, 2026-10-01)
+					if (flame->_mlid == NO_LIGHT)
+						flame->_mlid = AddLight(tile, 1); // the snow gleams (dev note, 2026-10-01)
 					raised = true;
 				}
 			}
@@ -3442,9 +3464,25 @@ void TickField(Player &player, Field &field)
 		break;
 	case SpellID::FurnaceMouth:
 		if (field.clock % TicksPerSecond == 0) {
+			// It turns its head to the nearest enemy in reach and fires at it, and with none in reach it holds its fire (dev notes,
+			// 2026-10-01: "its head should rotate automatically to face targets and fire at them", "only fire when target is in
+			// reach ... i dont want some random direction firing").
+			Monster *mark = NearestStrikable(field.tile, FurnaceMouthTiles, DamageType::Fire);
+			if (mark == nullptr)
+				break;
+			field.dir = GetDirection(field.tile, mark->position.tile);
+			for (Missile &furnace : Missiles) {
+				if (!furnace._miDelFlag && furnace._miAnimType == MissileGraphicID::FurnaceMouth && furnace.position.tile == field.tile
+				    && furnace._misource == static_cast<int>(player.getId()) && furnace._mimfnum != static_cast<int>(field.dir))
+					SetMissDir(furnace, static_cast<int>(field.dir)); // the head turns: its row is the facing
+			}
 			const Range d = SkillDamage(field.spell, r);
-			for (Monster *m : MonstersOnLine(field.tile, field.tile + field.dir, FurnaceMouthTiles))
-				Strike(player, *m, DamageType::Fire, Rolled(d));
+			// Its mark, and whatever else stands on the line toward it (the mark may sit off the eight ways).
+			Strike(player, *mark, DamageType::Fire, Rolled(d));
+			for (Monster *m : MonstersOnLine(field.tile, field.tile + field.dir, FurnaceMouthTiles)) {
+				if (m != mark)
+					Strike(player, *m, DamageType::Fire, Rolled(d));
+			}
 			// The user's flame (2026-10-01) spat three tiles along the furnace's facing, each pulse, light running out along
 			// it; the ring without it.
 			if (Missile *flame = AddArtEffectFacing(field.tile, MissileGraphicID::FurnaceFlame, static_cast<int>(player.getId()), static_cast<int>(field.dir), FurnaceFlameTicks); flame != nullptr) {
@@ -3681,6 +3719,19 @@ bool Rfa12MeleeUsable(const Player &player, SpellID spell)
 void ArmRfa12Melee(std::optional<SpellID> spell)
 {
 	ArmedSpell = spell;
+	SwingPrice.reset(); // a re-arm asks afresh (round 68)
+}
+
+void LatchRfa12SwingPrice(const Player &player)
+{
+	SwingPrice.reset();
+	if (&player == MyPlayer && ArmedSpell.has_value())
+		SwingPrice = std::make_pair(*ArmedSpell, CanPay(player, *ArmedSpell));
+}
+
+void ForgetRfa12SwingPrice()
+{
+	SwingPrice.reset();
 }
 
 std::optional<SpellID> ArmedRfa12Melee()
@@ -3697,7 +3748,8 @@ int Rfa12MeleeBonusPercentFor(const Player &player, SpellID spell)
 
 int Rfa12MeleeDamagePercent(const Player &player)
 {
-	if (&player != MyPlayer || !ArmedSpell.has_value() || !CanPay(player, *ArmedSpell))
+	// As the frame began (round 68), and never on a spin's blows, which nothing settles (round 68 hardening).
+	if (&player != MyPlayer || !ArmedSpell.has_value() || !PaidAtFront(player, *ArmedSpell) || IsWhirlwinding(player))
 		return 0;
 	return MeleeBonusPercent(*ArmedSpell, RankOf(player, *ArmedSpell));
 }
@@ -3707,7 +3759,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	if (&player != MyPlayer || !ArmedSpell.has_value())
 		return false;
 	const SpellID spell = *ArmedSpell;
-	if (!CanPay(player, spell) || !Rfa12MeleeUsable(player, spell))
+	if (!PaidAtFront(player, spell) || !Rfa12MeleeUsable(player, spell)) // as the frame began (round 68)
 		return false;
 	const int r = RankOf(player, spell);
 	const bool landed = front != nullptr && frontHit;
@@ -4228,7 +4280,8 @@ void ProcessRfa12ActivesTick(Player &player)
 		return;
 	PlayerState &state = StateOf(player);
 	// The lightning buffs light the floor round him (user, 2026-10-01), the light walking with him.
-	if (BuffRank(player, Buff::StaticCharge) > 0 || BuffRank(player, Buff::Conduit) > 0) {
+	// And the cold armours (dev note, 2026-10-01: "add light radius to all the rest cold spells").
+	if (BuffRank(player, Buff::StaticCharge) > 0 || BuffRank(player, Buff::Conduit) > 0 || ColdArmourShellFrame(player) >= 0) {
 		if (state.buffLight == NO_LIGHT)
 			state.buffLight = AddLight(player.position.tile, 4);
 		else
@@ -4818,7 +4871,8 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		duration();
 		break;
 	case SpellID::FurnaceMouth:
-		say(_("Fire damage: {:d} - {:d} on the {:d} tiles ahead, {:d} times a second apart"), d.min, d.max, FurnaceMouthTiles,
+		say(_("Turns to the nearest enemy within {:d} tiles and breathes fire at it, once a second"), FurnaceMouthTiles);
+		say(_("Fire damage: {:d} - {:d} on the {:d} tiles toward it, {:d} times a second apart"), d.min, d.max, FurnaceMouthTiles,
 		    PulseCount(TicksPerSecond - 1, FurnaceMouthTicks, TicksPerSecond));
 		break;
 	case SpellID::Firestorm: {

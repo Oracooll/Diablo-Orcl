@@ -174,7 +174,9 @@ void SettleSkill(Player &player, SpellID spell, int landedBlows)
 		SpendEssence(player, essence);
 		return;
 	}
-	const int cost = GetManaAmount(player, spell);
+	// Paid as the frame began (round 68): what is left is taken, never below nothing - Sacrifice's wound or Peril under Mana
+	// Shield drains mana between the price check and here.
+	const int cost = std::min(GetManaAmount(player, spell), std::max(player._pMana, 0));
 	player._pMana -= cost;
 	player._pManaBase -= cost;
 	OnPassiveManaSpent(player, cost);

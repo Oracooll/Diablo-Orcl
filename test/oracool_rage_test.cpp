@@ -99,6 +99,29 @@ TEST(OracoolRage, GeneratorsFillAndSpendersDrainWithinThePool)
 	EXPECT_EQ(player._pRage, oracool::BaseMaxRage) << "the pool never overfills";
 }
 
+// Round 68 audit: a swing is priced once, as its hit frame begins. Rage that arrives between the front blow and the settle (a
+// kill's Bloodcall, Weapons Master) used to charge a swing that had carried no bonus.
+TEST(OracoolRage, ASwingIsPricedOnceAtItsHitFrame)
+{
+	devilution::Player &player = FreshBarbarian();
+	MyPlayer = &player;
+	oracool::ArmClassMeleeSkill(std::nullopt);
+	oracool::ArmRfa12Melee(SpellID::HammerOfTheAncients);
+	ASSERT_FALSE(oracool::CanPaySkill(player, SpellID::HammerOfTheAncients)) << "no Rage: Hammer cannot be paid";
+	oracool::LatchRfa12SwingPrice(player);
+	EXPECT_EQ(oracool::Rfa12MeleeDamagePercent(player), 0);
+	oracool::GainRage(player, 50); // Bloodcall's kill, mid-swing
+	EXPECT_EQ(oracool::Rfa12MeleeDamagePercent(player), 0) << "the frame was priced unpaid when it began";
+	oracool::ForgetRfa12SwingPrice();
+	EXPECT_EQ(oracool::Rfa12MeleeDamagePercent(player), oracool::Rfa12MeleeBonusPercentFor(player, SpellID::HammerOfTheAncients))
+	    << "outside a frame it asks live";
+	oracool::LatchRfa12SwingPrice(player);
+	oracool::ArmRfa12Melee(SpellID::HammerOfTheAncients);
+	EXPECT_EQ(oracool::Rfa12MeleeDamagePercent(player), oracool::Rfa12MeleeBonusPercentFor(player, SpellID::HammerOfTheAncients))
+	    << "a re-arm drops the latch";
+	oracool::ArmRfa12Melee(std::nullopt);
+}
+
 TEST(OracoolRage, TheSkillCheckAsksForRageNotMana)
 {
 	devilution::Player &player = FreshBarbarian();

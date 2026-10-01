@@ -59,4 +59,26 @@ bool HasGridBezel(Size contentSize);
  */
 void DrawGridBezel(const Surface &out, Rectangle contentRect);
 
+/**
+ * @brief The 1x1 (ring and amulet) bezel stretched round a button's @p face, six pixels outside it.
+ *
+ * Every vendor and artisan button sits in a slot frame (user, 2026-10-02: "i want all buttons in
+ * vendors/artisans to be put in a frame - the frame we use for skill buttons or item slots in inventory
+ * screen"). Corners 1:1, bands stretched along their length, so the frame keeps the slots' thickness at
+ * any button size. Frame only; draws nothing if the 1x1 bezel did not load.
+ */
+void DrawButtonBezel(const Surface &out, Rectangle face);
+
+/** @brief The 2px down-left sink every held button in the mod wears (feedback_button_press_and_sound). */
+constexpr Displacement ButtonSlotSink { -2, 2 };
+
+/**
+ * @brief Everything UNDER a framed button: the inventory slot's drop shadow, cast from @p rest and a pixel
+ * smaller on every side while @p sunk, then DrawButtonBezel round the face - which has sunk with it.
+ *
+ * Call it before the face. Where buttons stand closer than two bezels apart, call it for the whole row first
+ * and draw the faces after, so a neighbour's frame never lands on a face.
+ */
+void DrawButtonSlotGround(const Surface &out, Rectangle rest, bool sunk);
+
 } // namespace devilution::oracool

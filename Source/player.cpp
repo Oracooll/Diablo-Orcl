@@ -823,8 +823,10 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	if (!adjacentDamage)
 		oracool::NotePlayerAttackedMonster(player, monster, /*arrow=*/false, 0);
 
+	// Lifted, not struck (round 68 audit): no damage, so no landing for skills, passives, Rage or wear - Hammer of the Ancients
+	// paid its 10 Rage to wake a perched gargoyle.
 	if (monster.tryLiftGargoyle())
-		return true;
+		return false;
 
 	if (hit >= hper) {
 #ifdef _DEBUG
@@ -1120,6 +1122,17 @@ bool DoAttack(Player &player)
 		// but only when it fires, which the swing itself reports (ClassMeleeSkillSwept, round 28 audit).
 		oracool::ForgetClassMeleeSweep();
 		SwingSkillPercent = 0; // until the front blow lands: a missed or empty front gives the sides no skill bonus (round 65)
+		// One answer to "is the skill paid" for this hit frame (round 68 audit): a kill's Bloodcall, Weapons Master, a mana steal
+		// or Righteousness between the front blow and the settle turned a swing that carried no bonus into one that was charged.
+		oracool::LatchClassMeleeSwingPrice(player);
+		oracool::LatchRfa12SwingPrice(player);
+		struct SwingPriceScope {
+			~SwingPriceScope()
+			{
+				oracool::ForgetClassMeleeSwingPrice();
+				oracool::ForgetRfa12SwingPrice();
+			}
+		} swingPriceScope;
 		if (monster != nullptr) {
 			// A swing at a monster, landed or not, is combat: the Barbarian's Rage holds (2026-09-14).
 			// A swing at an empty tile is not, and lets the calm clock run.

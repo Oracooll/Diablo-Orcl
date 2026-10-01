@@ -262,6 +262,7 @@ const std::array<uint8_t, 16> MissileAnimLengths[] {
 	Repeat(44), // Oracool 2026-10-01: Absolute Zero's grow, loop and shrink
 	Repeat(72), // Oracool 2026-10-01: Ball Lightning's three-second ball
 	Repeat(32), // Oracool 2026-10-01: a lightning strike piece's 32 angles (its rows are variants)
+	Repeat(28), // Oracool 2026-10-02: Meteor's impact at twice its frames
 };
 
 constexpr uint8_t AnimLen_0 = 0;        // NOLINT(readability-identifier-naming)
@@ -289,6 +290,7 @@ constexpr uint8_t AnimLen_2 = 21;       // NOLINT(readability-identifier-naming)
 constexpr uint8_t AnimLen_44 = 22;      // NOLINT(readability-identifier-naming)
 constexpr uint8_t AnimLen_72 = 23;      // NOLINT(readability-identifier-naming)
 constexpr uint8_t AnimLen_32 = 24;      // NOLINT(readability-identifier-naming)
+constexpr uint8_t AnimLen_28 = 25;      // NOLINT(readability-identifier-naming)
 
 } // namespace
 
@@ -398,8 +400,10 @@ MissileFileData MissileSpriteData[] = {
 /*ThrownAxe*/                { {},               48,          -8, "thrown_axe",        1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
 /*AcidJavelin*/              { {},               64,           0, "acid_javelin",     16, MissileGraphicsFlags::PngOnly,                 0, AnimLen_1       },
 /*AcidCloud*/                { {},              128,          32, "acid_cloud",        1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_12      },
-/*Meteor*/                   { {},               96,          16, "meteor",            1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_10      },
-/*MeteorImpact*/             { {},              160,          48, "meteor_impact",     1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_14      },
+// Twice the frames since the dev note of 2026-10-01 ("more fluid"), by tools/BuildMeteorFrames.py: the fall's 20 a tick each
+// (its second as ever), the impact's 28 (the burn loop from 21, missiles.cpp MeteorImpactBurnFrame).
+/*Meteor*/                   { {},               96,          16, "meteor",            1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_20      },
+/*MeteorImpact*/             { {},              160,          48, "meteor_impact",     1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_28      },
 /*ThunderBolt*/              { {},               64,           0, "thunder_bolt",      1, MissileGraphicsFlags::PngOnly,                 2, AnimLen_8       },
 /*Grenade*/                  { {},               32,         -16, "grenade",           1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
 // RfA-17 (2026-09-18), batch 38 - the Necromancer. Cells and frame counts are the delivery's notes; animWidth2 is (frame - 64) / 2.

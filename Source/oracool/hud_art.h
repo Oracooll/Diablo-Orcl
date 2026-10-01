@@ -300,6 +300,12 @@ enum class SkillPlateTint : uint8_t {
 	Orange,
 	/** The waypoint list's Orcl Act button while selected. Values, like Green - the palette has no purple. */
 	Purple,
+	/**
+	 * A tree row that IS a vanilla book spell, once the book is read (user, 2026-10-02: "their backing
+	 * blue, not gold, same as in the spells sheet ... until then - they remain red"). The engine's own
+	 * SpellType::Spell table - the blue the spells sheet and the speedbook give a memorised spell.
+	 */
+	Book,
 };
 
 /**

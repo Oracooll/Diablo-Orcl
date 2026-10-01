@@ -99,6 +99,14 @@ void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill);
 std::optional<ClassMeleeSkill> ArmedClassMeleeSkill();
 /** @brief A new game: no Leap Attack blow paid by the last character's leap. */
 void ForgetLeapAttackPrepaid();
+/**
+ * @brief The hit frame's one answer to "is the armed swing skill paid" (round 68 audit): taken before the front blow, read by
+ * its bonus, its share and its settle, forgotten when the frame ends (DoAttack). Outside a hit frame each asks live. A kill's
+ * Bloodcall, Weapons Master, a mana steal or Righteousness between the front blow and the settle charged a swing that had
+ * carried no bonus.
+ */
+void LatchClassMeleeSwingPrice(const Player &player);
+void ForgetClassMeleeSwingPrice();
 /** @brief Whether a Leap Attack leap has paid for the blow still to come. */
 bool LeapAttackBlowPrepaid(ClassMeleeSkill skill);
 
