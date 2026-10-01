@@ -3113,7 +3113,7 @@ void OperateShrineDivine(Player &player, Point spawnPosition)
 	if (&player != MyPlayer)
 		return;
 
-	if (currlevel < 4) {
+	if (ShrineFloor() < 4) { // a rift's depth, not its set-level id (round 68 audit)
 		CreateTypeItem(spawnPosition, false, ItemType::Misc, IMISC_FULLMANA, false, false, true);
 		CreateTypeItem(spawnPosition, false, ItemType::Misc, IMISC_FULLHEAL, false, false, true);
 	} else {
@@ -4937,6 +4937,8 @@ bool IsWaypointTileClear(Point position)
 		return false; // an arch or similar overlay would draw across the platform
 	if (IsObjectAtPosition(position))
 		return false;
+	if (dItem[position.x][position.y] != 0)
+		return false; // not over a floor item, which only its label could pick up then (round 68 audit)
 	if (TileContainsSetPiece(position))
 		return false;
 	// Same cathedral/crypt piece-range exclusion RndLocOk applies - those ids are doorway pieces.

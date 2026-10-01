@@ -78,7 +78,9 @@ bool IsReadiedPairValid(const Player &player, SpellID spell, SpellType type)
 		return (player._pISpells & GetSpellBitmask(spell)) != 0;
 
 	case SpellType::Scroll:
-		return (player._pScrlSpells & GetSpellBitmask(spell)) != 0;
+		// Or in hand (round 68 audit): moving the last stack of a readied scroll by hand cleared both bindings while it was held,
+		// as SORT did before round 65.
+		return (player._pScrlSpells & GetSpellBitmask(spell)) != 0 || player.HoldItem.isScrollOf(spell) || player.HoldItem.isRuneOf(spell);
 
 	default:
 		return false;

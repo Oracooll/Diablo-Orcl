@@ -48,6 +48,7 @@
 #include "oracool/signets.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/levski_roar.h" // ctrl+click routes into the transmute grid
+#include "oracool/workshop.h" // IsWorkshopOpen - ctrl beside a bench drops nothing (round 68)
 #include "oracool/runewords.h"
 #include "oracool/salvage.h"
 #include "oracool/socket_overlay.h"
@@ -926,7 +927,8 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 				NetSendCmdChInvItem(false, ii);
 			}
 		} else if (it != 0 && oracool::IsSinglePlayer()
-		    && player.HoldItem.canStackWith(GetActiveInvListItem(player, it - 1))) {
+		    && player.HoldItem.canStackWith(GetActiveInvListItem(player, it - 1))
+		    && GetActiveInvListItem(player, it - 1).stackCount() < Item::MaxStackCount) { // a full stack swaps (round 68 audit)
 			Item &target = GetActiveInvListItem(player, it - 1);
 			int room = Item::MaxStackCount - target.stackCount();
 			int moved = std::min(room, player.HoldItem.stackCount());
@@ -975,7 +977,8 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 		if (player.SpdList[ii].isEmpty()) {
 			player.SpdList[ii] = player.HoldItem.pop();
 		} else if (oracool::IsSinglePlayer()
-		    && player.HoldItem.canStackWith(player.SpdList[ii])) {
+		    && player.HoldItem.canStackWith(player.SpdList[ii])
+		    && player.SpdList[ii].stackCount() < Item::MaxStackCount) { // a full stack swaps (round 68 audit)
 			Item &target = player.SpdList[ii];
 			int room = Item::MaxStackCount - target.stackCount();
 			int moved = std::min(room, player.HoldItem.stackCount());
@@ -3100,7 +3103,7 @@ int AddGoldToInventory(Player &player, int value)
 			continue;
 		}
 
-		if (goldItem._ivalue + value > MaxGold) {
+		if (value > MaxGold - goldItem._ivalue) { // not pile + value, which overflows from a stash of billions (round 68 audit)
 			value -= MaxGold - goldItem._ivalue;
 			goldItem._ivalue = MaxGold;
 		} else {
@@ -3677,6 +3680,9 @@ void CheckInvItem(bool isShiftHeld, bool isCtrlHeld)
 		//
 		// Tested after the stash so an open stash still wins, which is the order the player set by
 		// opening it.
+	} else if (isCtrlHeld && (oracool::IsWorkshopOpen() || stextflag != TalkID::None)) {
+		// Nor beside an artisan's bench or a store (round 68 audit): Ctrl's vanilla arm drops the item on the floor, the one thing
+		// the gesture must not do beside an open window, as with Levski's Roar above.
 	} else {
 		CheckInvCut(*MyPlayer, MousePosition, isShiftHeld, isCtrlHeld);
 	}
@@ -4407,7 +4413,9 @@ void ConsumeScroll(Player &player)
 
 	// Try to remove the scroll from selected inventory slot
 	const int8_t itemSlot = player.executedSpell.spellFrom;
-	if (itemSlot >= INVITEM_INV_FIRST && itemSlot <= INVITEM_INV_LAST) {
+	// Page one's slot only (round 68 audit): a read from pages 2-10 records its page's own index, and the same index on page
+	// one held another stack. From another page the first scroll of the spell found anywhere is taken (below).
+	if (itemSlot >= INVITEM_INV_FIRST && itemSlot <= INVITEM_INV_LAST && ActiveInventoryTab == 0) {
 		const int itemIndex = itemSlot - INVITEM_INV_FIRST;
 		const Item *item = &player.InvList[itemIndex];
 		if (!item->isEmpty() && isCurrentSpell(*item)) {
@@ -4807,7 +4815,7 @@ void CloseInventory()
 	ActiveInventoryTab = 0;
 }
 
-void CloseStash()
+void CloseStash(bool levelChange)
 {
 	if (!IsStashOpen)
 		return;
@@ -4828,6 +4836,12 @@ void CloseStash()
 			if (placed) {
 				myPlayer._pGold = CalculateGold(myPlayer);
 				CalcPlrInvKeepingLife(myPlayer);
+			} else if (levelChange) {
+				// No room anywhere and the floor about to go (round 68 audit): the old level is saved already and the new one not
+				// built, so a drop here was lost. It stays in hand, as a held item crosses the stairs.
+				IsStashOpen = false;
+				oracool::CloseStashChestObject();
+				return;
 			} else {
 				// No room anywhere: made on the floor, beside the hero, as every other return path does - this ended the
 				// game and the item with it (round 27 audit).

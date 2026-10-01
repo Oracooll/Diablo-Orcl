@@ -233,7 +233,8 @@ bool CanBePlacedOnBelt(const Item &item);
 using ItemFunc = void (*)(Item &);
 
 void CloseInventory();
-void CloseStash();
+/** @brief @p levelChange: a level is changing - a held item with nowhere to go stays in hand rather than dropping (round 68). */
+void CloseStash(bool levelChange = false);
 void FreeInvGFX();
 void InitInv();
 

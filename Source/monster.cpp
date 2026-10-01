@@ -922,6 +922,7 @@ void PlaceQuestMonsters()
 		}
 		if (Quests[Q_ZHAR].IsAvailable() && zharlib == -1) {
 			Quests[Q_ZHAR]._qactive = QUEST_NOTAVAIL;
+			Quests[Q_ZHAR]._qvar2 = ZharNoLibraryMark; // GetLevelMTypes keeps his type (round 68 audit)
 		}
 
 		if (currlevel == Quests[Q_BETRAYER]._qlevel && UseMultiplayerQuests()) {
@@ -4062,7 +4063,10 @@ void GetLevelMTypes()
 			AddMonsterType(MT_CLEAVER, PLACE_SPECIAL);
 		if (Quests[Q_GARBUD].IsAvailable())
 			AddMonsterType(UniqueMonsterType::Garbud, PLACE_UNIQUE);
-		if (Quests[Q_ZHAR].IsAvailable())
+		// And when he was dropped for want of a library on this level (round 68 audit): the first visit's list held his type, and
+		// a revisit without it shifted every saved monster's type index by one - the wrong art, or a read past the list.
+		if (Quests[Q_ZHAR].IsAvailable()
+		    || (Quests[Q_ZHAR]._qactive == QUEST_NOTAVAIL && Quests[Q_ZHAR]._qvar2 == ZharNoLibraryMark && currlevel == Quests[Q_ZHAR]._qlevel))
 			AddMonsterType(UniqueMonsterType::Zhar, PLACE_UNIQUE);
 		if (Quests[Q_LTBANNER].IsAvailable())
 			AddMonsterType(UniqueMonsterType::SnotSpill, PLACE_UNIQUE);

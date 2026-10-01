@@ -543,6 +543,8 @@ void M_StartHit(Monster &monster, const Player &player, int dam);
  */
 /** @brief goalVar3's mark on a bat or a sneak whose Retreat is a repel's, not its own (round 49 audit). */
 constexpr int8_t RepelRetreatMark = 0x52;
+/** @brief Quests[Q_ZHAR]._qvar2 when Zhar was dropped because no theme room fit his library (round 68 audit). */
+constexpr uint8_t ZharNoLibraryMark = 0x5A;
 /** @brief The fork's repels (Howl, Daze, Sanctuary, Blinding Flash): @p steps away along @p away. */
 void StartRepelRetreat(Monster &monster, Direction away, int steps);
 void StunMonster(Monster &monster, int ticks);
