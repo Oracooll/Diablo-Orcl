@@ -1176,7 +1176,9 @@ bool DoAttack(Player &player)
 		// Not under Sweeping Reed or Wheel of Heaven: they strike these same side tiles themselves, and each side enemy took
 		// two blows (round 26 audit, v1.12.251) - when the swing's skill actually fired (round 28 audit).
 		const bool skillSweeps = &player == MyPlayer && oracool::ClassMeleeSkillSwept();
-		if (!skillSweeps && (player._pClass == HeroClass::Monk
+		// The guard over all three classes (round 66 audit: it bracketed the Monk's alone, and an axe Barbarian's Cleave struck
+		// each side enemy, then the axe's own cleave struck it again).
+		if (!skillSweeps && ((player._pClass == HeroClass::Monk
 		        && (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Staff || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Staff))
 		    || (player._pClass == HeroClass::Bard
 		        && player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Sword && player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Sword)
@@ -1186,7 +1188,7 @@ bool DoAttack(Player &player)
 		                    || (player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Mace && player.InvBody[INVLOC_HAND_RIGHT]._iLoc == ILOC_TWOHAND)
 		                    || (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Sword && player.InvBody[INVLOC_HAND_LEFT]._iLoc == ILOC_TWOHAND)
 		                    || (player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Sword && player.InvBody[INVLOC_HAND_RIGHT]._iLoc == ILOC_TWOHAND))
-		                && !(player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Shield || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Shield))))) {
+		                && !(player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Shield || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Shield)))))) {
 			// playing as a class/weapon with cleave
 			position = player.position.tile + Right(player._pdir);
 			monster = FindMonsterAtPosition(position);

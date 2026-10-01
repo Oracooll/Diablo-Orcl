@@ -206,6 +206,12 @@ struct CMonster {
 	/** placeflag enum as a flags*/
 	uint8_t placeFlags;
 	int8_t corpseId;
+	/**
+	 * @brief Oracool (round 66 audit): loaded mid-level for a Necromancer's minion alone (AddMinionBody). No enemy spawns as
+	 * it: the Skeleton King raised the army's own skeleton kind, and a level saved with one held a type index the next
+	 * visit never rebuilds.
+	 */
+	bool minionOnly = false;
 
 	/**
 	 * @brief Returns AnimStruct for specified graphic

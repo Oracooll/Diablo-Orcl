@@ -528,6 +528,7 @@ size_t AddMonsterType(_monster_id type, placeflag placeflag)
 	if (typeIndex == LevelMonsterTypeCount) {
 		LevelMonsterTypeCount++;
 		monsterType.type = type;
+		monsterType.minionOnly = false; // AddMinionBody marks the one it adds
 		// No body until InitCorpses gives it one. A type added mid-level (a raised minion's body) kept the corpse id
 		// this slot held on the previous floor, and left another monster's corpse (round 3 audit, v1.12.228).
 		monsterType.corpseId = 0;
@@ -2283,7 +2284,7 @@ Monster *AddSkeleton(Point position, Direction dir, bool inMap)
 	size_t typeCount = 0;
 	size_t skeletonIndexes[SkeletonTypes.size()];
 	for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
-		if (IsSkel(LevelMonsterTypes[i].type)) {
+		if (IsSkel(LevelMonsterTypes[i].type) && !LevelMonsterTypes[i].minionOnly) {
 			// A rift's sarcophagi and barrels hold the floor's own skeletons, not the low-floor type a Skeleton King rift loads
 			// for the King alone to raise (round 48 audit: floor-1 skeletons at any rung, cheap credit for the bar).
 			if (!inMap && oracool::InRift() && (LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) == 0)
@@ -4505,7 +4506,10 @@ Monster *AddMinionBody(Point position, Direction dir, _monster_id type)
 		return nullptr;
 	// Loaded on demand rather than with every level (as MT_GOLEM is): a type added at level load counts against the
 	// level's sprite budget and would change which monsters a floor rolls - for every hero, army or not.
+	const bool fresh = GetMonsterTypeIndex(type) >= LevelMonsterTypeCount;
 	const size_t typeIndex = AddMonsterType(type, PLACE_SPECIAL);
+	if (fresh)
+		LevelMonsterTypes[typeIndex].minionOnly = true; // the floor never rolled it: no enemy spawns as it (round 66 audit)
 	Monster &monster = Monsters[ActiveMonsters[ActiveMonsterCount++]];
 	dMonster[position.x][position.y] = static_cast<int16_t>(monster.getId() + 1);
 	// Not ordinary: a minion takes no variant (audit, 2026-09-27) - a "Hollow Skeleton" in the army, re-rolled every level,
@@ -4604,7 +4608,7 @@ Monster *SpawnRiftGuardian()
 		size_t minionType = typeIndex;
 		if (*unique == UniqueMonsterType::SkeletonKing) {
 			for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
-				if (IsSkel(LevelMonsterTypes[i].type)) {
+				if (IsSkel(LevelMonsterTypes[i].type) && !LevelMonsterTypes[i].minionOnly) { // not the army's kind (round 66)
 					minionType = i;
 					break;
 				}

@@ -692,10 +692,11 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 			productLine = fmt::format(fmt::runtime(_("Armor: {:d}  ")), item._iAC);
 		// Zod's stamp is on the durability, not the maximum: "Dur: 255/60" (round 27 audit).
 		const bool indestructible = item._iMaxDur == DUR_INDESTRUCTIBLE || item._iDurability == DUR_INDESTRUCTIBLE;
-		if (!indestructible && item._iMaxDur != 0)
-			productLine += fmt::format(fmt::runtime(_("Dur: {:d}/{:d},  ")), item._iDurability, item._iMaxDur);
-		else
+		// Jewellery has no durability at all, and is not "Indestructible" (round 66 audit: every ring and amulet said so).
+		if (indestructible)
 			AppendStrView(productLine, _("Indestructible,  "));
+		else if (item._iMaxDur != 0)
+			productLine += fmt::format(fmt::runtime(_("Dur: {:d}/{:d},  ")), item._iDurability, item._iMaxDur);
 	}
 
 	// What CanUseItem asks: Hel and Ease lower the stats, and the level and class rules follow (round 27 audit).

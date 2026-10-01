@@ -65,13 +65,10 @@ half = []
 for f in F:
     f[stable, :3] = np.round(med[stable])
     f[stable, 3] = 255
-    # Premultiplied, so the keyed black never bleeds into the edge as the frame shrinks.
-    pre = f.copy()
-    pre[..., :3] *= pre[..., 3:] / 255.0
-    small = np.asarray(Image.fromarray(pre.astype(np.uint8), "RGBA").resize((64, 32), Image.LANCZOS)).astype(float)
-    alpha = small[..., 3:]
-    small[..., :3] = np.where(alpha > 0, small[..., :3] * 255.0 / np.maximum(alpha, 1), 0)
-    half.append(np.clip(small, 0, 255).astype(np.uint8))
+    # Pillow resizes RGBA premultiplied on its own, so the keyed black never bleeds into the edge (round 66 audit: doing it
+    # here as well brightened the edge pixels twice).
+    small = Image.fromarray(np.clip(f, 0, 255).astype(np.uint8), "RGBA").resize((64, 32), Image.LANCZOS)
+    half.append(np.asarray(small).copy())
 print("ember mine: locked", int(stable.sum()), "pixels")
 save(np.concatenate(half, 1), "ember_mine.png")
 

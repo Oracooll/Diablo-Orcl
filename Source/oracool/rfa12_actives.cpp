@@ -710,10 +710,6 @@ struct PlayerState {
 	int wrathClock = 0;
 	int wrathRank = 0;
 	// Funeral Star: the channel.
-	int funeralTicks = 0;
-	Point funeralTile;
-	Point funeralFrom;
-	int funeralRank = 0;
 	// Storm Crucible: the first conductor, waiting for its pair.
 	int crucibleTicks = 0;
 	Point crucibleTile;
@@ -802,8 +798,9 @@ struct Field {
 	int ticksTotal = 0; // as cast: the countdown row's 5-second rule (a seeded clock is not its age)
 };
 
-// 64 since 2026-10-01: Meteor's shower takes a field a rock, up to 16 at once.
-constexpr size_t MaxFields = 64;
+// 128 since round 66 (64 on 2026-10-01): Meteor's shower takes a field a rock, up to 16 a cast, and four quick casts filled
+// 64 - NewField then evicted a live field (a running Lightning Clone froze, never merging).
+constexpr size_t MaxFields = 128;
 /**
  * @brief Funeral Spiral (user, 2026-10-01, in place of Funeral Star): 12 of Immolation's fireballs burst from the Sorcerer
  * and spiral outward as Blessed Hammer does, each exploding on the first enemy it meets. Radians and screen pixels a tick.
@@ -814,7 +811,6 @@ constexpr double FuneralSpiralTurn = 0.14;
 constexpr double FuneralSpiralGrow = 4.0;
 constexpr int FuneralSpiralMark = 0x4653;
 constexpr int FurnaceFlameTicks = 12; // each spit's flame on screen
-constexpr int AshenRingTicks = 20;    // the curse ring's fade in, hold and fade out (missiles.cpp fades it by the same count)
 std::array<Field, MaxFields> Fields;
 int FieldStamp = 0;
 
@@ -1623,7 +1619,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	// was a dud). Rain of Arrows, Wave of Light, Valkyrie's Spear and Seven-Sided Strike joined too (round 45): their volley,
 	// bell or spear landed in the next room with its cue, and the cast was paid.
 	if (CastSightFrom && target != here && (!InDungeonBounds(target) || IsTileSolid(target) || !LineClearMissile(here, target))
-	    && IsAnyOf(spell, SpellID::Meteor, SpellID::FuneralStar, SpellID::AncestralCourt, SpellID::FrozenSentinel, SpellID::LightningRod,
+	    && IsAnyOf(spell, SpellID::Meteor, SpellID::AncestralCourt, SpellID::FrozenSentinel, SpellID::LightningRod,
 	        SpellID::EmberMine, SpellID::StormCrucible, SpellID::BrittleGround, SpellID::ArmyOfTheDead, // the Army too (round 41)
 	        SpellID::FaradayRing, SpellID::FurnaceMouth, SpellID::Firestorm, SpellID::TuningFork, // and these (round 41)
 	        SpellID::RainOfArrows, SpellID::WaveOfLight, SpellID::ValkyriesSpear, SpellID::SevenSidedStrike)) {
@@ -2012,6 +2008,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (LightningStrikeLoaded()) {
 			Field *f = NewField(player, spell, here, LightningCloneMaxTicks, r);
 			if (SpawnLightningClone(player, here, f->stamp) != nullptr) {
+				f->ticksTotal = 0;       // no countdown by the mini-map: it ends when the clone reaches him (round 66 audit)
 				f->step = 1;             // the first strike as it starts to run
 				f->tile2 = { -99, 0 };   // x: the clock of its last strike cue
 				AddLightningStrike(here, LightningCloneCore, landed, LightningCloneCore, static_cast<int>(player.getId()), 3, /*fork=*/false);
@@ -2085,6 +2082,14 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			fireball->var5 = f->stamp;
 			fireball->var6 = FuneralSpiralMark;
 			fireball->_mlid = AddLight(here, 3);
+		}
+		// Without the Fireball sheet (headless, a missing graphic) no ball flies: the blow lands round her at once, with the
+		// ring, rather than a paid cast doing nothing (round 66 audit).
+		if (!MissileArtLoaded(MissileGraphicID::Fireball)) {
+			f->ticksLeft = 0;
+			for (Monster *m : MonstersWithin(here, ReachTiles(spell, r)))
+				Strike(player, *m, DamageType::Fire, Rolled(SkillDamage(spell, r)));
+			Ring(player, here);
 		}
 		return true;
 	}
@@ -2251,7 +2256,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			for (int attempt = 0; attempt < 12; attempt++) {
 				const Displacement d { GenerateRnd(2 * MeteorShowerRadius + 1) - MeteorShowerRadius, GenerateRnd(2 * MeteorShowerRadius + 1) - MeteorShowerRadius };
 				const Point p = target + d;
-				if (d.deltaX * d.deltaX + d.deltaY * d.deltaY <= MeteorShowerRadius * MeteorShowerRadius && InDungeonBounds(p) && !IsTileSolid(p)) {
+				// In the cursor's sight too (round 66 audit): a rock in the next room burned the pack behind the wall, the leak the
+				// round-40 cast-sight rule closed for the single rock.
+				if (d.deltaX * d.deltaX + d.deltaY * d.deltaY <= MeteorShowerRadius * MeteorShowerRadius && InDungeonBounds(p) && !IsTileSolid(p)
+				    && LineClearMissile(target, p)) {
 					at = p;
 					break;
 				}
@@ -2259,6 +2267,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			const int delay = GenerateRnd(MeteorShowerSpreadTicks + 1);
 			Field *f = NewField(player, spell, at, EffectTicks(spell, r) + delay + 1, r);
 			f->clock = -delay - 1;
+			f->ticksTotal = EffectTicks(spell, r); // as cast: a late rock's 101 ticks put a countdown by the mini-map (round 66 audit)
 		}
 		return true;
 	}
@@ -3212,9 +3221,14 @@ void TickField(Player &player, Field &field)
 		// and the ball bursts in Fireball's explosion. A wall ends a ball too.
 		const Range d = SkillDamage(field.spell, r);
 		const double t = field.clock;
+		const bool last = field.ticksLeft <= 1; // the balls go with the field, not two ticks after it (round 66 audit)
 		for (Missile &ball : Missiles) {
 			if (ball._miDelFlag || ball.var6 != FuneralSpiralMark || ball.var5 != field.stamp || ball._misource != field.owner || ball._mirange <= 1)
 				continue;
+			if (last) {
+				ball._mirange = 1;
+				continue;
+			}
 			const double angle = ball.var2 * 2 * 3.14159265358979 / FuneralSpiralBalls + t * FuneralSpiralTurn;
 			const double radius = 12 + t * FuneralSpiralGrow;
 			const Displacement pixels { static_cast<int>(std::cos(angle) * radius), static_cast<int>(std::sin(angle) * radius / 2) };
@@ -3231,8 +3245,14 @@ void TickField(Player &player, Field &field)
 			const double dx = -std::sin(angle) * radius * FuneralSpiralTurn + std::cos(angle) * FuneralSpiralGrow;
 			const double dy = (std::cos(angle) * radius * FuneralSpiralTurn + std::sin(angle) * FuneralSpiralGrow) / 2;
 			const int dir16 = (static_cast<int>(std::lround((std::atan2(dy, dx) * 180 / 3.14159265358979 - 90) / 22.5)) % 16 + 16) % 16;
-			if (dir16 != ball._mimfnum)
+			if (dir16 != ball._mimfnum) {
+				// SetMissAnim restarts the sheet: a ball turning every few ticks showed only its first frames (round 66 audit).
+				const int frame = ball._miAnimFrame;
+				const int count = ball._miAnimCnt;
 				SetMissDir(ball, dir16);
+				ball._miAnimFrame = std::clamp(frame, 1, std::max(ball._miAnimLen, 1));
+				ball._miAnimCnt = count;
+			}
 			if (ball._mlid != NO_LIGHT)
 				ChangeLightXY(ball._mlid, tile);
 			Monster *hit = FindMonsterAtPosition(tile);
@@ -3699,7 +3719,8 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		// Each monster once, and not the one the swing itself struck: a walker stands on two lance tiles and took two
 		// blows, and the front target a third (round 16 audit, v1.12.241).
 		for (Monster *m : MonstersOnLine(ahead, ahead + player._pdir, 2)) {
-			if (m != nullptr && m != front && Hittable(*m)) {
+			// Not a magic-immune one: StrikeBlow refuses it, and the mana and the cue were paid for nothing (round 66 audit).
+			if (m != nullptr && m != front && Hittable(*m) && !m->isImmune(MissileID::Null, DamageType::Magic)) {
 				StrikeBlow(player, *m, DamageType::Magic, BlowPercent(spell, r), /*melee=*/true);
 				struck = true;
 			}
@@ -4345,11 +4366,13 @@ void ClearRfa12ActivesState()
 		state.claimTicks = 0;
 		state.claimMonster = -1;
 		state.wrathPillars = 0;
-		state.funeralTicks = 0;
 		state.crucibleTicks = 0;
 		state.landingTicks = 0;
 		state.buffLight = NO_LIGHT; // the new level's lights start afresh; the next tick lights him again
 	}
+	// A leap's paid blow that never landed stays on the floor it was paid on (round 66 audit: floors later, a Leap Attack
+	// beside an enemy swung free at +50%).
+	ForgetLeapAttackPrepaid();
 }
 
 void ClearRfa12ActivesForMonster(const Monster &monster)
@@ -4395,6 +4418,8 @@ void ClearRfa12ActiveBuffs(Player &player)
 		if (state.ticks[i] > 0 && IsSheetBuff(static_cast<Buff>(i)))
 			sheetMoved = true;
 	}
+	if (state.buffLight != NO_LIGHT)
+		AddUnLight(state.buffLight); // its id goes with the state (round 66 audit)
 	state = PlayerState {};
 	if (sheetMoved)
 		CalcPlrInv(player, false);
@@ -4404,6 +4429,11 @@ void ClearRfa12PlayerBuffs(Player &player)
 {
 	// The cooldowns outlive a death (round 59 audit: dying gave a fresh Absolute Zero); a new game clears them.
 	std::vector<std::pair<SpellID, int>> cooldowns = std::move(StateOf(player).cooldowns);
+	// His buff light goes out before the state is wiped (round 66 audit: the id was dropped and the light stayed where he died).
+	if (StateOf(player).buffLight != NO_LIGHT)
+		AddUnLight(StateOf(player).buffLight);
+	if (&player == MyPlayer)
+		ForgetLeapAttackPrepaid(); // nor does a leap's paid blow outlive him (round 66 audit)
 	StateOf(player) = PlayerState {};
 	StateOf(player).cooldowns = std::move(cooldowns);
 	// His carried Bone Storm too (round 49 audit: frozen while he lay dead, it came back with him after the respawn), and
@@ -4984,7 +5014,7 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		poison();
 		break;
 	case SpellID::BonePrison:
-		say(_("Hold: {} s"), Secs(StunTicks(spell, r)));
+		say(_("Hold: {} s (uniques shrug it off)"), Secs(StunTicks(spell, r)));
 		say(_("Magic damage: {:d} - {:d} a second"), bone.min, bone.max);
 		break;
 	case SpellID::BoneStorm:

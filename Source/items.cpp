@@ -7749,6 +7749,19 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 	// while IPL_GETHIT_CURSE *increases* it (bad, positive delta) - the naming refers to what the
 	// affix does to the "get hit" stat, not to whether it's beneficial.
 	switch (affix.type) {
+	case IPL_STEALLIFE:
+	case IPL_STEALMANA: {
+		// The row's own roll (round 66 audit): the shared printer read the item's flags, 3% first, so a Blood Craft's 3%
+		// beside a Rare's own 5% printed "3%" twice. The hit takes the larger (they do not add), so the smaller row says so.
+		const bool life = affix.type == IPL_STEALLIFE;
+		const bool both = life ? HasAllOf(item._iFlags, ItemSpecialEffect::StealLife3 | ItemSpecialEffect::StealLife5)
+		                       : HasAllOf(item._iFlags, ItemSpecialEffect::StealMana3 | ItemSpecialEffect::StealMana5);
+		std::string line = life ? fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "hit steals {:d}% life")), affix.param1)
+		                        : fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "hit steals {:d}% mana")), affix.param1);
+		if (both && affix.param1 < 5)
+			line += _(" (the 5% applies)");
+		return line;
+	}
 	case IPL_TOHIT_DAMP:
 	case IPL_TOHIT_DAMP_CURSE:
 	case IPL_DOPPELGANGER: {
@@ -8447,6 +8460,24 @@ void PrintItemDur(const Item &item)
 	// this one was the default white - one message in two colours depending on the slot.
 	if (IsAnyOf(item._itype, ItemType::Ring, ItemType::Amulet))
 		AddPanelString(_("Not Identified"), ItemAffixColor);
+	// What is not a roll shows unidentified too (round 66 audit): its stones, shards, ethereal state and breakage all apply
+	// to an unidentified item, and the view printed none of them.
+	if (item._iOracoolEthereal)
+		AddPanelString(_("Ethereal (no smith repairs it; the Cube's Mend does)"), UiFlags::ColorGray7);
+	if (item._iOracoolBroken)
+		AddPanelString(item._iOracoolEthereal ? _("Broken - gives nothing until mended") : _("Broken - gives nothing until repaired"), UiFlags::ColorRed);
+	if (const std::string imbueLine = oracool::ImbueCountLine(item); !imbueLine.empty())
+		AddPanelString(imbueLine, ItemBaseStatColor);
+	if (const std::string kinds = oracool::ImbueBreakdownLine(item); !kinds.empty())
+		AddPanelString(kinds, ItemAffixColor);
+	if (item._iSocketCount > 0) {
+		AddPanelString(fmt::format(fmt::runtime(_("Sockets: {:d}/{:d}")), item.socketedCount(), item._iSocketCount), UiFlags::ColorGray5);
+		const oracool::SocketHost host = oracool::SocketHostForItemType(item._itype);
+		for (const uint16_t gemIdx : item._iSocketed) {
+			if (gemIdx != Item::EmptySocket)
+				AddPanelString(oracool::GemSocketLine(gemIdx, host), ItemAffixColor);
+		}
+	}
 	PrintItemInfo(item);
 }
 

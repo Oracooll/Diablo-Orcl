@@ -347,6 +347,9 @@ int ZealToHitBonus(const Player &player)
 	const std::optional<PaladinSkill> armed = ArmedMeleeSkill();
 	if (&player != MyPlayer || !armed.has_value() || *armed != PaladinSkill::Zeal)
 		return 0;
+	// An unaffordable Zeal is a plain swing everywhere else, and Smite's accuracy asks the same (round 66 audit).
+	if (!CanUsePaladinSkill(player, PaladinSkill::Zeal))
+		return 0;
 	return ZealToHitBonusAtRank(player);
 }
 

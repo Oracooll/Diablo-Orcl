@@ -482,7 +482,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Fire Ball"), N_("A bursting ball of flame. This engine's Fireball, raised by its books rather than by skill points."), Sor, 2, 2, 1, Kind::Active, SpellID::Fireball, true },
 	{ N_("Fire Wall"), N_("A wall of flame across the ground. This engine's Fire Wall, raised by its books rather than by skill points."), Sor, 2, 3, 0, Kind::Active, SpellID::FireWall, true },
 	{ N_("Enchant"), N_("Your weapon burns: every blow carries fire. A passive rather than a cast buff, since a tree skill with no spell slot has no way to be cast."), Sor, 2, 3, 1, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Meteor"), N_("12 to 16 burning rocks fall at random within 5 tiles of the cursor a second after the cast: each deals 20-40 fire damage, +8-12 per level, within 1 tile of where it lands, and the ground burns for 3 seconds."), Sor, 2, 4, 0, Kind::Active, SpellID::Meteor, true },
+	{ N_("Meteor"), N_("12 to 16 burning rocks fall at random within 5 tiles of the cursor over the next two seconds: each deals 20-40 fire damage, +8-12 per level, within 1 tile of where it lands, and the ground burns for 3 seconds."), Sor, 2, 4, 0, Kind::Active, SpellID::Meteor, true },
 	{ N_("Fire Mastery"), N_("Your weapon blows carry fire, and fire burns you less. Your fire spells are not raised: they deepen by their own level."), Sor, 2, 5, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Fire Hydra"), N_("Sets a fire-breathing hydra to guard a spot. This engine's Fire Hydra (Guardian until v1.12.312), raised by its books rather than by skill points."), Sor, 2, 5, 0, Kind::Active, SpellID::Guardian, true },
 

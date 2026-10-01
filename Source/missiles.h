@@ -585,6 +585,8 @@ void AddLightningStrike(Point fromTile, Displacement from, Point toTile, Displac
  * live sprites, var7 the facing, var4 the frame) in Tint::Clone, never as its carrier's sheet. rfa12_actives moves it.
  */
 constexpr int LightningCloneMark = 0x4C43;
+/** @brief Ashen Brand's ring, in ticks: rfa12_actives spawns it for this long, ProcessCensusEffect fades it by the count. */
+constexpr int AshenRingTicks = 20;
 /** @brief Whether AddLightningStrike has its sheets (the callers fall back to what they drew before). */
 bool LightningStrikeLoaded();
 /**

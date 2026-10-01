@@ -177,7 +177,8 @@ void ProcessWhirlwindTick(Player &player)
 {
 	if (!Active || &player != MyPlayer)
 		return;
-	const bool outOfRage = UsesRage(player) && player._pRage <= 0;
+	// Not in the first second, which the start paid (round 66 audit: started on exactly its 5 Rage it struck once and stopped).
+	const bool outOfRage = UsesRage(player) && player._pRage <= 0 && Clock >= TicksPerSecond;
 	// ...or another skill readied on the right mid-spin, by an F-key (audit, 2026-09-29: it spun on, draining Rage).
 	// ...or a window opened over it, or a modal screen (round 60 audit: it spun on behind the inventory, gliding and draining
 	// Rage) - as RepeatMouseAction stops every held action (rounds 36-38).

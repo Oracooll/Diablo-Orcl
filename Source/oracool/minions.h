@@ -96,6 +96,8 @@ void DismissMinions(Player &owner, MinionGroup group);
 /** @brief Living minions of @p owner in @p group, on this level or waiting to re-form. */
 int MinionCount(const Player &owner, MinionGroup group);
 int MinionCount(const Player &owner);
+/** @brief @p owner's minions standing on this floor now - not the waiting records a town visit leaves (round 66 audit). */
+int LivingMinionCount(const Player &owner);
 /** @brief Monster slots minion bodies hold right now, the dying included - what AddMonster leaves out of the enemies' count. */
 size_t ActiveMinionBodies();
 

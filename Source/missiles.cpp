@@ -4001,9 +4001,6 @@ constexpr int BoneWallStandFrame = 7;
  */
 MissileGraphicID CensusArtOverride = MissileGraphicID::None;
 
-/** @brief Ashen Brand's ring, in ticks (rfa12_actives spawns it for this long; ProcessCensusEffect fades it by them). */
-constexpr int AshenRingTicks = 20;
-
 /** @brief AddArtEffect's carrier: a census row that loops its sheet for the ticks it is given and does nothing else. */
 constexpr MissileID ArtEffectCarrier = MissileID::AcidCloud;
 // Absolute Zero's sheet (tools/BuildAbsoluteZero.py's INTRO, LOOP, OUTRO): the parts ProcessCensusEffect plays, a frame a tick.
@@ -4040,10 +4037,10 @@ Displacement ArtEffectAnchor(MissileGraphicID art)
 	case MissileGraphicID::FrenzyOfTheDead:
 	case MissileGraphicID::Serenity:
 	case MissileGraphicID::DarkMending:
-	case MissileGraphicID::LightningRod:
-		return { 0, -7 }; // the redesigned totem's foot at y 119 of 128 (2026-10-01)
 	case MissileGraphicID::UnholyOffering:
 		return { 0, -4 }; // feet at y 116 of 128 (84 of 96)
+	case MissileGraphicID::LightningRod:
+		return { 0, -7 }; // the redesigned totem's foot at y 119 of 128 (2026-10-01; its own case since round 66 - the overlays above fell into it)
 	case MissileGraphicID::StormArc:
 	case MissileGraphicID::FuneralStarCharge:
 		return { 0, -1 }; // y 49 of 64
@@ -4096,6 +4093,8 @@ Displacement ArtEffectAnchor(MissileGraphicID art)
 	case MissileGraphicID::LongThrust:
 	case MissileGraphicID::ReapingPoint:
 	case MissileGraphicID::ChillTouch:
+		return { 0, 80 }; // the feet at the cell's centre, y 96 of 192
+	// Their own case (round 66 audit: v1.12.312 gave the four 192px sheets above the furnace's anchor, 64px too low).
 	case MissileGraphicID::FurnaceMouth:
 	case MissileGraphicID::FurnaceFlame:
 		return { 0, 144 }; // the floor at the cell's centre, y 160 of 320 (the user's sheets, 2026-10-01)
@@ -4318,7 +4317,9 @@ void AddLightningStrike(Point fromTile, Displacement from, Point toTile, Displac
 {
 	if (!LightningStrikeLoaded())
 		return;
-	ticks = std::max(ticks, 1);
+	// One more than asked: it is laid during the players' turn and ProcessCensusEffect takes a tick before the first draw,
+	// so a 2-tick strike showed once at half strength and Storm Crucible's arc blinked off every third tick (round 66 audit).
+	ticks = std::max(ticks, 1) + 1;
 	const Displacement span = ScreenStep(toTile - fromTile) + to - from;
 	const double length = std::hypot(span.deltaX, span.deltaY);
 	if (length < 4)
@@ -4362,8 +4363,8 @@ void AddLightningStrike(Point fromTile, Displacement from, Point toTile, Displac
 		Missile *piece = isLong[i] ? lay(laid * squeeze, LightningPieceLong, MissileGraphicID::LightningStrikeLong, 4, 144)
 		                           : lay(laid * squeeze, LightningPieceShort, MissileGraphicID::LightningStrikeChain, 8, 96);
 		// A strike lights its way: the body's middle piece carries a light (an arc's only one; a strike's besides its fork's).
-		if (piece != nullptr && i == isLong.size() / 2)
-			piece->_mlid = AddLight(piece->position.tile, 4);
+		if (!fork && piece != nullptr && i == isLong.size() / 2)
+			piece->_mlid = AddLight(piece->position.tile, 4); // an arc's only light; a strike's fork lights the hit (round 66: the pool)
 		laid += isLong[i] ? LightningPieceLong : LightningPieceShort;
 	}
 }
@@ -4386,8 +4387,9 @@ void ProcessCensusEffect(Missile &missile)
 			AddUnLight(missile._mlid);
 		return;
 	}
+	// A meteor's 4 since the shower (round 66 audit: sixteen rocks at 8 took a quarter of the light pool for 3 s).
 	if (missile._mlid == NO_LIGHT && IsAnyOf(missile._mitype, MissileID::MeteorImpact, MissileID::ThunderBolt))
-		missile._mlid = AddLight(missile.position.tile, 8);
+		missile._mlid = AddLight(missile.position.tile, missile._mitype == MissileID::MeteorImpact ? 4 : 8);
 	if (missile._mitype == MissileID::BoneWallEffect && missile._miAnimFrame >= BoneWallStandFrame) {
 		if (missile._miAnimFrame >= missile._miAnimLen && missile._miAnimCnt + 1 >= missile._miAnimDelay)
 			missile._miAnimFrame = BoneWallStandFrame - 1;

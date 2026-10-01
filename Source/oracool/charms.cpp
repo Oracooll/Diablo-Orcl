@@ -167,7 +167,7 @@ std::string CharmEffectLine(const Player &player, uint16_t charmIdx)
 	if (charm->lightningRes > 0)
 		return fmt::format(fmt::runtime(_("+{:d}% lightning resist while in your backpack")), charm->lightningRes);
 	if (charm->magicFind > 0)
-		return fmt::format(fmt::runtime(_("{:d}% chance a plain weapon or armor found is Rare")), charm->magicFind); // the affix's own words (round 16)
+		return fmt::format(fmt::runtime(_("{:+d}% chance a plain weapon or armor found is Rare")), charm->magicFind); // the affix's own words (round 16)
 	if (charm->goldFind > 0)
 		return fmt::format(fmt::runtime(_("+{:d}% gold from monsters")), charm->goldFind);
 	return fmt::format(fmt::runtime(_("+{:d}% to hit while in your backpack")), charm->toHit);

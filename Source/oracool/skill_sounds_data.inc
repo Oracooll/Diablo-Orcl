@@ -3,7 +3,7 @@
 // sounds per your decision"). The slots are tools/skill_sound_slots.csv; aura loops are left out on purpose.
 // The user's picks on the review page (tools/skill_sound_picks.json) come before the rules.
 //
-// 486 cues across 7 classes, from 57 vanilla sounds.
+// 487 cues across 7 classes, from 57 vanilla sounds.
 
 // clang-format off
 const SkillSound SkillSounds[] = {
@@ -400,7 +400,7 @@ const SkillSound SkillSounds[] = {
 	{ Skill::AbsoluteZero, SkillSoundEvent::Cast, "sfx\\misc\\nestxpld.wav" },
 	{ Skill::Arc, SkillSoundEvent::Cast, "sfx\\misc\\lning1.wav" },
 	{ Skill::Arc, SkillSoundEvent::Impact, "sfx\\misc\\elecimp1.wav" },
-	{ Skill::AshenBrand, SkillSoundEvent::Cast, "sfx\\misc\\flamwave.wav" }, // the user's pick, 2026-10-01
+	{ Skill::AshenBrand, SkillSoundEvent::Cast, "sfx\\misc\\flamwave.wav" },
 	{ Skill::AshenBrand, SkillSoundEvent::Impact, "sfx\\misc\\firimp2.wav" },
 	{ Skill::Blaze, SkillSoundEvent::Cast, "sfx\\misc\\flamwave.wav" },
 	{ Skill::Blaze, SkillSoundEvent::Impact, "sfx\\misc\\firimp2.wav" },
@@ -472,7 +472,7 @@ const SkillSound SkillSounds[] = {
 	{ Skill::NovaSkill, SkillSoundEvent::Cast, "sfx\\misc\\nova.wav" },
 	{ Skill::NovaSkill, SkillSoundEvent::Impact, "sfx\\misc\\elecimp1.wav" },
 	{ Skill::RideTheLightning, SkillSoundEvent::Cast, "sfx\\misc\\teleport.wav" },
-	{ Skill::RideTheLightning, SkillSoundEvent::Impact, "sfx\\misc\\elecimp1.wav" }, // Lightning Clone's strikes (user's pick, 2026-10-01)
+	{ Skill::RideTheLightning, SkillSoundEvent::Impact, "sfx\\misc\\elecimp1.wav" },
 	{ Skill::ShiverArmor, SkillSoundEvent::Start, "sfx\\misc\\elementl.wav" },
 	{ Skill::ShiverArmor, SkillSoundEvent::Stop, "sfx\\misc\\elementl.wav" },
 	{ Skill::StaticCharge, SkillSoundEvent::Cast, "sfx\\misc\\cbolt.wav" },

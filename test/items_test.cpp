@@ -763,6 +763,20 @@ TEST(Item, RepairOracoolAffixesIfCorrupted_LeavesACraftMergedValueAlone)
 // the item's single shared accumulated field (item._iPLStr here) - otherwise two distinct affix
 // types that both happen to add into the same field would both render the combined total instead
 // of their own individual contribution, looking like a duplicate line.
+// Round 66 audit: the steal lines read the item's flags (3% first), so a crafted 3% beside a rolled 5% printed "3%" twice.
+// Each row prints its own roll, and the smaller says the larger applies (they do not add).
+TEST(Item, StealLinesPrintTheirOwnRoll)
+{
+	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, true, ItemType::Sword);
+	item._iFlags |= ItemSpecialEffect::StealLife3 | ItemSpecialEffect::StealLife5;
+	const std::string five(PrintOracoolAffixPower(OracoolAffix { IPL_STEALLIFE, 5, 0 }, item));
+	const std::string three(PrintOracoolAffixPower(OracoolAffix { IPL_STEALLIFE, 3, 0 }, item));
+	EXPECT_NE(five.find("5%"), std::string::npos) << five;
+	EXPECT_EQ(five.find("applies"), std::string::npos) << five;
+	EXPECT_NE(three.find("3%"), std::string::npos) << three;
+	EXPECT_NE(three.find("the 5% applies"), std::string::npos) << three;
+}
+
 TEST(Item, PrintOracoolAffixPower_UsesEachAffixsOwnValueNotTheItemsSharedField)
 {
 	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, true, ItemType::Staff);

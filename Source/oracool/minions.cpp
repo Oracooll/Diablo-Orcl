@@ -204,6 +204,13 @@ void MinionHurts(Player &owner, Monster &minion, Monster &monster, DamageType ty
 	if ((minion.hitPoints >> 6) > 0 && minion.mode != MonsterMode::Death)
 		OnCursedMonsterStruck(monster, owner, &minion, damage);
 	ApplyMonsterDamage(type, monster, damage);
+	// Grisly Tribute's tenth on these too (round 66 audit: "the damage your minions deal" left out the Fire Golem's burn
+	// and the golems' thorns, which never pass OnMinionBlow).
+	if (owner._pHitPoints > 0 && PassiveActive(owner, ClassTreeSkill::GrislyTribute)) {
+		owner._pHitPoints = std::min(owner._pHitPoints + damage / GrislyTributeDivisor, owner._pMaxHP);
+		owner._pHPBase = std::min(owner._pHPBase + damage / GrislyTributeDivisor, owner._pMaxHPBase);
+		RedrawComponent(PanelDrawComponent::Health);
+	}
 	if ((monster.hitPoints >> 6) <= 0) {
 		M_StartKill(monster, owner);
 		return;
@@ -341,6 +348,16 @@ int MinionCount(const Player &owner, MinionGroup group)
 	int count = 0;
 	for (const Record &record : Records) {
 		if (Counts(record) && record.owner == owner.getId() && record.spec.group == group)
+			count++;
+	}
+	return count;
+}
+
+int LivingMinionCount(const Player &owner)
+{
+	int count = 0;
+	for (const Record &record : Records) {
+		if (record.active && record.owner == owner.getId() && BodyAlive(record))
 			count++;
 	}
 	return count;

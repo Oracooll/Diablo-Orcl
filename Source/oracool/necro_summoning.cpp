@@ -413,6 +413,11 @@ bool CastNecromancerSummoning(Player &player, SpellID spell, Point target, int r
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
+		// Nor with no army standing here, or one told never to attack (round 66 audit: paid, and nothing obeyed).
+		if (LivingMinionCount(player) == 0 || GetCompanionStance() == CompanionStance::Passive) {
+			player.Say(HeroSpeech::ICantDoThat);
+			return false;
+		}
 		FocusCompanionsOn(*monster, (CommandBaseSeconds + r) * TicksPerSecond);
 		return true;
 	}
@@ -421,7 +426,8 @@ bool CastNecromancerSummoning(Player &player, SpellID spell, Point target, int r
 	case SpellID::DarkMending:
 		return HealMinions(player, DarkMendingRadius, DarkMendingPercent(r)) > 0;
 	case SpellID::FrenzyOfTheDead:
-		if (MinionCount(player) == 0) {
+		// Bodies on this floor, not waiting records (round 66 audit: in town every record waits, and the frenzy was paid).
+		if (LivingMinionCount(player) == 0) {
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}

@@ -543,7 +543,10 @@ Card BuildCard(const TooltipBlock &block, const Item *item)
 		// first description line were taken for one (round 35 audit).
 		const bool printsTypeLine = item == nullptr
 		    || (item->_iLoc != ILOC_NONE && item->_iLoc != ILOC_UNEQUIPABLE && item->_iLoc != ILOC_BELT);
-		if (i == first && printsTypeLine && line.color == card.title.color && line.runs.empty() && !isRequirement(text) && !isHeadStat(text)
+		// In the title's colour, or the item's own: a runeword's title turns gold while its type line keeps the socketed grey
+		// (round 66 audit: "basic sword" became the card's first stat line).
+		const bool typeColour = line.color == card.title.color || (item != nullptr && line.color == item->getTextColor());
+		if (i == first && printsTypeLine && typeColour && line.runs.empty() && !isRequirement(text) && !isHeadStat(text)
 		    && !CardStartsWith(text, levelPrefix) && !CardStartsWith(text, tierPrefix)) {
 			type = line.text;
 			continue;

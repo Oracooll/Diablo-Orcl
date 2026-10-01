@@ -9437,6 +9437,7 @@ TEST(OracoolAudit, ZealToHitLadder)
 	    << "below the unlock level the bonus cannot be bought early";
 
 	player._pLevel = 50;
+	player._pMana = 1000 << 6; // a Zeal that can be paid for (round 66: an unaffordable one is a plain swing, no accuracy)
 	// One point per SKILL level, from the first - the levels that also buy a strike pay it too, and
 	// it carries on alone once the strikes stop at rung 5.
 	const struct {
@@ -9448,6 +9449,12 @@ TEST(OracoolAudit, ZealToHitLadder)
 		EXPECT_EQ(oracool::ZealToHitBonus(player), step.bonus)
 		    << "at Zeal skill level " << step.skillLevel;
 	}
+
+	// Round 66 audit: at no mana a held Zeal swings plainly, and carries none of its accuracy (as Smite since round 20).
+	player._pSkillInvestment[zeal] = 10;
+	player._pMana = 0;
+	EXPECT_EQ(oracool::ZealToHitBonus(player), 0) << "an unaffordable Zeal must not lend its accuracy";
+	player._pMana = 1000 << 6;
 
 	// The narrowing itself. Before 2026-08-30 this was added for EVERY Paladin melee hit without
 	// asking what the swing was thrown with, so an ordinary swing and every other melee skill

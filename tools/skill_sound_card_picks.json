@@ -149,8 +149,12 @@
    "why": "the Sorcerer Skill Cards page: Explosion (Hellfire)"
   },
   "sorcerer.AbsoluteZero.Impact": {
-   "path": "sfx\\items\\barlfire.wav",
-   "why": "the Sorcerer Skill Cards page: Fire barrel blast"
+   "path": "sfx\\misc\\blsimpt.wav",
+   "why": "the Sorcerer Skill Cards page: Blood Star impact (2026-10-01)"
+  },
+  "sorcerer.AshenBrand.Cast": {
+   "path": "sfx\\misc\\flamwave.wav",
+   "why": "the Sorcerer Skill Cards page: Flame Wave (2026-10-01)"
   },
   "sorcerer.Blizzard.Cast": {
    "path": "sfx\\misc\\cast6.wav",
@@ -168,10 +172,6 @@
    "path": "monsters\\skelaxe\\sklaxd1.wav",
    "why": "the Sorcerer Skill Cards page: Skeleton crumbles"
   },
-  "sorcerer.ChillingArmor.Stop": {
-   "path": "sfx\\misc\\mshield.wav",
-   "why": "the Sorcerer Skill Cards page: Mana Shield"
-  },
   "sorcerer.ChillTouch.Cast": {
    "path": "sfx\\misc\\fballbow.wav",
    "why": "the Sorcerer Skill Cards page: Fire arrow (Hellfire)"
@@ -180,15 +180,19 @@
    "path": "sfx\\misc\\bsimpct.wav",
    "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
   },
+  "sorcerer.ChillingArmor.Stop": {
+   "path": "sfx\\misc\\mshield.wav",
+   "why": "the Sorcerer Skill Cards page: Mana Shield"
+  },
+  "sorcerer.FrostNova.Impact": {
+   "path": "sfx\\misc\\bsimpct.wav",
+   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
   "sorcerer.Frostbite.Cast": {
    "path": "sfx\\misc\\fballbow.wav",
    "why": "the Sorcerer Skill Cards page: Fire arrow (Hellfire)"
   },
   "sorcerer.Frostbite.Impact": {
-   "path": "sfx\\misc\\bsimpct.wav",
-   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
-  },
-  "sorcerer.FrostNova.Impact": {
    "path": "sfx\\misc\\bsimpct.wav",
    "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
   },
@@ -251,6 +255,10 @@
   "sorcerer.IceNeedle.Impact": {
    "path": "sfx\\misc\\bsimpct.wav",
    "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
+  "sorcerer.RideTheLightning.Impact": {
+   "path": "sfx\\misc\\elecimp1.wav",
+   "why": "the Sorcerer Skill Cards page: Lightning impact (Lightning Clone, 2026-10-01)"
   },
   "sorcerer.ShiverArmor.Impact": {
    "path": "sfx\\misc\\bsimpct.wav",

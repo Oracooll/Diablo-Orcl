@@ -99,8 +99,8 @@ const Pages = {
 	'sorcerer/fire-spells': {
 		Cast: 'firebolt', Impact: 'fireHit', Start: 'firebolt', Stop: 'invisible',
 		by: [
-			[/Fire Wall|Blaze|Flame Ring|Inferno/, { Cast: 'flameWave' }],
-			[/Meteor|Funeral Star/, { Cast: 'cast4', Impact: 'apocalypse' }],
+			[/Fire Wall|Blaze|Flame Wave|Flame Ring|Inferno/, { Cast: 'flameWave' }],
+			[/Meteor|Funeral Star|Funeral Spiral/, { Cast: 'cast4', Impact: 'apocalypse' }],
 			[/Hydra/, { Cast: 'elemental' }],
 			[/Ember Mine/, { Cast: 'cast4', Impact: 'explosion' }],
 		],
@@ -119,7 +119,7 @@ const Pages = {
 		by: [
 			[/Charged Bolt|Static Charge/, { Cast: 'chargedBolt' }],
 			[/Nova|Faraday Ring|Storm Crucible/, { Cast: 'nova' }],
-			[/Teleport|Ride the Lightning/, { Cast: 'teleport', Impact: 'teleport' }],
+			[/Teleport|Ride the Lightning|Lightning Clone/, { Cast: 'teleport', Impact: 'teleport' }],
 			[/Telekinesis/, { Cast: 'cast2' }],
 			[/Static Field/, { Cast: 'elemental' }],
 			[/Conduit/, { Cast: 'cast4' }],
