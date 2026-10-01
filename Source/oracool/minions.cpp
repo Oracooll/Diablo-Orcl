@@ -167,6 +167,8 @@ bool SpawnBody(Record &record, const Player &owner, Point near)
 			const Point tile = near + RingTile(radius, step);
 			if (!InDungeonBounds(tile))
 				continue;
+			if (!LineClearMissile(near, tile))
+				continue; // not behind a wall from where it was called (round 70 audit: a golem rose in the next room)
 			Monster *body = AddMinionBody(tile, GetDirection(tile, owner.position.tile), record.spec.type);
 			if (body == nullptr)
 				continue; // something stands there
@@ -531,10 +533,13 @@ void ProcessMinions(Player &owner)
 			continue;
 		if (--record.spec.ticksLeft > 0)
 			continue;
-		if (BodyAlive(record))
+		if (BodyAlive(record)) {
 			M_StartKill(Monsters[record.body], owner);
-		else
+		} else {
+			const MinionGroup group = record.spec.group;
 			Release(record);
+			Renumber(static_cast<uint8_t>(owner.getId()), group); // its ring slot closes (round 70 audit)
+		}
 	}
 	if (leveltype == DTYPE_TOWN || owner._pLvlChanging || !owner.isOnActiveLevel())
 		return;

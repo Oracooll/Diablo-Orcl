@@ -653,7 +653,7 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 		        ? (!Monsters[mid].isPlayerMinion() && !oracool::IsCompanion(Monsters[mid]))
 		        : (missile._micaster == TARGET_PLAYERS && (                                        // or was fired by a monster and
 		              Monsters[mid].isPlayerMinion() != missile.sourceMinion                       //  the monsters are on opposing factions
-		              || (Monsters[missile._misource].flags & MFLAG_BERSERK) != 0                  //  or the attacker is berserked
+		              || (missile.liveSourceMonster() != nullptr && (missile.liveSourceMonster()->flags & MFLAG_BERSERK) != 0) // or the attacker is berserked (alive: round 70 audit)
 		              || (Monsters[mid].flags & MFLAG_BERSERK) != 0                                //  or the target is berserked
 		              )
 		              // but a converted monster's shot spares the hero's side (round 40 audit: a converted Succubus's

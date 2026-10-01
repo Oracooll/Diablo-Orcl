@@ -1623,6 +1623,10 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 		hit = 0;
 	if (target.tryLiftGargoyle())
 		return;
+	// The army's armour counts (round 70 audit: its records set armorClass, and nothing read it - a Clay Golem was struck
+	// as often as a Skeleton). At least 5%, the floor the hero's own armour leaves a monster.
+	if (oracool::IsMinion(target))
+		hper = std::max(hper - target.armorClass, 5);
 	if (hit >= hper)
 		return;
 

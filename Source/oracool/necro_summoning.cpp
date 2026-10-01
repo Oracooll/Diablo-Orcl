@@ -13,6 +13,7 @@
 #include <fmt/format.h>
 
 #include "engine.h"
+#include "engine/backbuffer_state.hpp"
 #include "engine/random.hpp"
 #include "missiles.h"
 #include "monster.h"
@@ -442,6 +443,7 @@ bool CastNecromancerSummoning(Player &player, SpellID spell, Point target, int r
 		const int heal = life * UnholyOfferingPercent(r) / 100;
 		player._pHitPoints = std::min(player._pHitPoints + heal, player._pMaxHP);
 		player._pHPBase = std::min(player._pHPBase + heal, player._pMaxHPBase);
+		RedrawComponent(PanelDrawComponent::Health); // round 70 audit
 		return true;
 	}
 	case SpellID::ArmyOfTheDead: {

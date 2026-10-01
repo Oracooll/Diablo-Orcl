@@ -1219,7 +1219,7 @@ bool DoAttack(Player &player)
 						didhit = true;
 						// The on-hit passives on a side blow too (round 69 audit: Leech, Dark Reaping, Righteousness, Weapons
 						// Master's Rage and Life Tap answered the front blow alone - the RfA-12 side blows had them since round 65).
-						oracool::OnPassiveHit(player, *monster, sideDamage, true);
+						oracool::OnPassiveHit(player, *monster, sideDamage, true, /*burst=*/true);
 						oracool::OnRfa12Hit(player, *monster, sideDamage, true);
 						oracool::OnCursedMonsterStruck(*monster, player, nullptr, sideDamage);
 					}
@@ -1234,7 +1234,7 @@ bool DoAttack(Player &player)
 						didhit = true;
 						// The on-hit passives on a side blow too (round 69 audit: Leech, Dark Reaping, Righteousness, Weapons
 						// Master's Rage and Life Tap answered the front blow alone - the RfA-12 side blows had them since round 65).
-						oracool::OnPassiveHit(player, *monster, sideDamage, true);
+						oracool::OnPassiveHit(player, *monster, sideDamage, true, /*burst=*/true);
 						oracool::OnRfa12Hit(player, *monster, sideDamage, true);
 						oracool::OnCursedMonsterStruck(*monster, player, nullptr, sideDamage);
 					}

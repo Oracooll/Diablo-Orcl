@@ -14237,6 +14237,7 @@ TEST(OracoolRfa12, ImmovableHoldsItsGroundOnlyWhileItBurns)
 TEST(OracoolRfa12, MercyHealsOnceBelowThirtyPercentAndThenWaits)
 {
 	oracool::ClearRfa12State();
+	oracool::ForgetRfa12Clocks(); // a new game: the stairs keep Mercy's cooldown, and a shuffled run armed it first
 	devilution::Player &player = FreshHero(HeroClass::Warrior);
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Mercy));
 	ASSERT_TRUE(oracool::SelectClassAura(player, oracool::ClassTreeSkill::Mercy));

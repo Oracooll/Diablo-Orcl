@@ -1006,8 +1006,18 @@ std::vector<int> GridMaterialsFor(const Item *grid, int index)
 	case FullRejuvenationRecipe: // 3 rejuvenation
 		return FindGridPotions(grid, IMISC_REJUV, 3);
 	case UnbindLevelRecipe: { // a wearable that asks a level, and one Shard of Ease
-		const int target = FindGridWearable(grid, /*plainOnly=*/false);
-		if (target < 0 || grid[target]._iOracoolLevelFree || RequiredLevel(grid[target]) <= 1)
+		// The first wearable that still asks a level (round 70 audit: the first wearable of any kind was taken, so an unbound
+		// ring ahead of the helm in the grid refused the recipe).
+		int target = -1;
+		for (int i = 0; i < GridSlots && target < 0; i++) {
+			const Item &item = grid[i];
+			if (item.isEmpty() || item.IDidx < 0 || item.IDidx > IDI_LAST || item._iOracoolLevelFree || RequiredLevel(item) <= 1)
+				continue;
+			const item_equip_type loc = AllItemsList[item.IDidx].iLoc;
+			if (loc != ILOC_UNEQUIPABLE && loc != ILOC_BELT) // FindGridWearable's test
+				target = i;
+		}
+		if (target < 0)
 			return {};
 		const std::vector<int> shard = FindGridReagents(grid, IDI_ORACOOL_SHARD_EASE, 1);
 		if (shard.empty())

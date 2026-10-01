@@ -682,7 +682,7 @@ bool PassiveCheatsDeath(Player &player)
 {
 	Clocks &clocks = ClocksFor(player);
 	// Final Service (the Necromancer): the army dies in your place, once a floor. Before the cooldown - it has its own.
-	if (PassiveActive(player, Skill::FinalService) && clocks.finalServiceLevel != FloorStamp() && MinionCount(player) > 0) {
+	if (PassiveActive(player, Skill::FinalService) && clocks.finalServiceLevel != FloorStamp() && LivingMinionCount(player) > 0) { // living (round 70 audit)
 		clocks.finalServiceLevel = FloorStamp();
 		DismissMinions(player);
 		SetPlayerHitPoints(player, std::max(64, player._pMaxHP / FinalServiceLifeDivisor)); // at least 1 life (round 12 audit)
@@ -719,7 +719,7 @@ bool PassiveCheatsDeath(Player &player)
 	return true;
 }
 
-void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee)
+void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee, bool burst)
 {
 	Clocks &clocks = ClocksFor(player);
 	if (damage > 0 && PassiveActive(player, Skill::Leech))
@@ -729,7 +729,7 @@ void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee)
 		RestoreMana(player, DarkReapingMana);
 		GainEssence(player, DarkReapingEssence);
 	}
-	if (melee && PassiveActive(player, Skill::Cadence))
+	if (melee && !burst && PassiveActive(player, Skill::Cadence))
 		clocks.cadenceCount = (clocks.cadenceCount + 1) % 3;
 	// Weapons Master's mace: a point of Rage for every blow that lands, with or without a skill.
 	// Not the blows of a Whirlwind spin (audit, 2026-09-29): four a second on each monster beside him, they paid for the
@@ -740,6 +740,8 @@ void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee)
 		RestoreMana(player, RighteousnessMana);
 	if (!melee && PassiveActive(player, Skill::NightStalker))
 		RestoreMana(player, NightStalkerMana);
+	if (burst)
+		return; // a side blow: the swing's own counters and the shared rules wait for its front blow (round 70 audit)
 	if (melee) {
 		// Counterstroke's empowered blow has landed.
 		clocks.counterTicks = 0;

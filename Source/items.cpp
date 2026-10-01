@@ -3801,6 +3801,9 @@ bool ReforgeOracoolItem(Item &item)
 	const std::optional<OracoolOilWork> oilWork = item._iMagical != ITEM_QUALITY_UNIQUE && MyPlayer != nullptr ? MeasureOracoolOilWork(*MyPlayer, item) : std::nullopt;
 	if (item.isEmpty())
 		return false;
+	// The base tier stands, as at Retier (round 70 audit: the fresh roll drew a new one, so a Normal base could come back
+	// Cruel - a free climb the base-tier recipes charge for). Read before the record is cleared.
+	const auto reforgeBaseTier = static_cast<oracool::BaseItemTier>(item._iOracoolBaseTier);
 	ClearOracoolAffixRecord(item);
 	item._iOracoolLockedAffix = -1; // a new roll: the Mystic's lock named the old one's slot (round 36 audit)
 	const int ilvl = item._iOracoolItemLevel;
@@ -3816,8 +3819,10 @@ bool ReforgeOracoolItem(Item &item)
 	// spent its one drop of the game (round 34 audit).
 	std::array<bool, MaxUniqueItems> uniqueFlags;
 	std::copy(std::begin(UniqueItemFlags), std::end(UniqueItemFlags), uniqueFlags.begin());
+	PinnedBaseTier = reforgeBaseTier;
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), ilvl, 1, /*onlygood=*/false,
 	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, std::nullopt, ilvl);
+	PinnedBaseTier = std::nullopt;
 	std::copy(uniqueFlags.begin(), uniqueFlags.end(), std::begin(UniqueItemFlags));
 	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
 	// The wear it had, as RetierOracoolItem keeps it: SetupAllItems cleared the broken flag and rolled fresh durability, a
@@ -4130,6 +4135,9 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	const int staffCharges = rescaled(item._iCharges);
 	const int staffMaxCharges = rescaled(item._iMaxCharges);
 	const uint8_t staffMinMag = item._iMinMag;
+	// The spell's share of the base value (GetStaffSpell adds it): GetItemAttrs puts the bare base value back, and a
+	// reworked staff was priced as a plain stick with the same spell on it (round 70 audit).
+	const int staffValueBefore = item._ivalue;
 	// Copied first: GetItemAttrs empties the item's affix list, and a caller may hand in that very list.
 	std::array<OracoolAffix, Item::MaxOracoolAffixes> wanted {};
 	const int wantedCount = std::clamp(count, 0, Item::MaxOracoolAffixes);
@@ -4225,6 +4233,7 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 		item._iCharges = staffCharges;
 		item._iMaxCharges = staffMaxCharges;
 		item._iMinMag = staffMinMag;
+		item._ivalue = std::max(item._ivalue, staffValueBefore);
 	}
 	item._iSocketCount = sockets;
 	std::copy(std::begin(socketed), std::end(socketed), std::begin(item._iSocketed));

@@ -98,6 +98,10 @@ _item_indexes SmartLootAimBase(_item_indexes first, const Player &player, tl::fu
 		const _item_indexes candidate = drawCandidate(slot);
 		if (!SmartLootIsEquipmentBase(candidate) || AllItemsList[static_cast<size_t>(candidate)].iLoc != slot)
 			continue;
+		// A shield stays a shield and a weapon a weapon (round 70 audit): both are ILOC_ONEHAND, so the aim turned a shield
+		// drop into a sword - "the slot stands" held for the location word, not for what the hero holds in it.
+		if ((AllItemsList[static_cast<size_t>(candidate)].itype == ItemType::Shield) != (AllItemsList[static_cast<size_t>(first)].itype == ItemType::Shield))
+			continue;
 		const int score = SmartLootScoreForBase(candidate, player);
 		if (score <= bestScore)
 			continue;

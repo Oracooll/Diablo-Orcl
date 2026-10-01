@@ -88,7 +88,9 @@ bool ArrowPierces(Missile &missile);
 bool PassiveCheatsDeath(Player &player);
 
 /** @brief A blow @p player landed on @p target for @p damage (in the engine's 1/64 life units). */
-void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee);
+/** @p burst: a weapon cleave's side blow (round 70 audit) - the per-blow passives pay, the swing's counters (Counterstroke,
+ *  Cadence, Combination Strike, Mythic Rhythm, the shared rules) wait for the front blow. */
+void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee, bool burst = false);
 
 /**
  * @brief Juggernaut: a stagger @p player would take is shrugged off half the time; one that lands has

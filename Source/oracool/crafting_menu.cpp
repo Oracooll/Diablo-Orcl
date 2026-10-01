@@ -267,7 +267,7 @@ void DrawCraftingMenu(const Surface &out)
 
 /** @brief The book button held down, acted on at the release inside it (round 69 audit: they switched on the press, the one
  *  window left out of the game-wide press/release rule). -1: none. */
-int PressedHostButton = -1;
+static int PressedHostButton = -1;
 
 void ReleaseCraftingMenuButton()
 {

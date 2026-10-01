@@ -1649,7 +1649,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		target = LastClearTileToward(here, target);
 	// The summons stand at the last open tile toward a cursor past a wall (round 67 audit: a Decoy set there held the closed
 	// room; round 68: refused, a live companion's refresh and a click by a wall failed too - so clamped, never refused).
-	if (IsAnyOf(spell, SpellID::Valkyrie, SpellID::Decoy, SpellID::SpiritGuardian, SpellID::AncestralCall) && CastSightFrom
+	if (IsAnyOf(spell, SpellID::Valkyrie, SpellID::Decoy, SpellID::SpiritGuardian, SpellID::AncestralCall,
+	        SpellID::ClayGolem, SpellID::BloodGolem, SpellID::IronGolem, SpellID::FireGolem) // the golems too (round 70 audit)
+	    && CastSightFrom
 	    && InDungeonBounds(target) && (IsTileSolid(target) || !LineClearMissile(here, target)))
 		target = LastClearTileToward(here, target);
 	const int earshot = AuraRadiusForPoints(r);

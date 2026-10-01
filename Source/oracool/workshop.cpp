@@ -2365,7 +2365,7 @@ int RollOffers(int slot)
 		if (!RollOracoolAffixFor(*MyPlayer, Bench, drawn, exclude.data(), excludeCount))
 			break;
 		bool already = false;
-		for (int i = 1; i < rolled; i++) {
+		for (int i = 0; i < rolled; i++) { // from 0: the affix as it stands is no new offer (round 70 audit)
 			if (Offers[i].type == drawn.type && Offers[i].param1 == drawn.param1)
 				already = true;
 		}
@@ -2543,6 +2543,14 @@ void RunControl(Control control)
 		TakePlrsMoney(price);
 		Bench._iOracoolLockedAffix = static_cast<int8_t>(SelectedRow);
 		Bench._iOracoolRerolls = static_cast<uint8_t>(std::min<int>(Item::MaxWorkshopAttempts, Bench._iOracoolRerolls + 1));
+		// And on every offer, built from the bench before this reroll was paid (round 70 audit: taking one undid the lock and
+		// the doubled price the click had just paid for).
+		for (Item &offer : OfferItems) {
+			if (offer.isEmpty())
+				continue;
+			offer._iOracoolLockedAffix = Bench._iOracoolLockedAffix;
+			offer._iOracoolRerolls = Bench._iOracoolRerolls;
+		}
 		break;
 	}
 	case Control::Option0:
