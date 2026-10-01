@@ -1755,6 +1755,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		// endgame boss's blow (oracool::MonsterColdMeleePercent). A cold part that lands chills, as in Diablo II.
 		const DamageType variantElement = oracool::VariantHitElement(monster);
 		const int bossCold = oracool::MonsterColdMeleePercent(monster);
+		const int lifeBeforeBlow = player._pHitPoints; // the drain below takes what life actually lost
 		if (variantElement != DamageType::Physical || bossCold > 0) {
 			const DamageType element = variantElement != DamageType::Physical ? variantElement : DamageType::Cold;
 			const int elemental = variantElement != DamageType::Physical ? dam / 3 : dam * bossCold / 100;
@@ -1797,10 +1798,13 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 			oracool::OnCursedMonsterDealtBlow(monster, dam); // Iron Maiden (oracool/curses.h)
 		}
 		if (monster.mode != MonsterMode::Death) {
-			oracool::OnLesserUniqueDealtDamage(monster, dam);
+			// What the hero's life actually lost (round 44 audit): the blow before resistance, Mana Shield and the damage-taken
+			// passives healed a Vampiric champion through a shield that took it all.
+			const int landed = std::max(lifeBeforeBlow - player._pHitPoints, 0);
+			oracool::OnLesserUniqueDealtDamage(monster, landed);
 			// And the boss's own drain, which is a different trait on a different field - a boss's
 			// lesserAffix is Dread, so OnLesserUniqueDealtDamage's Vampiric test never fires for one.
-			oracool::OnBossDealtDamage(monster, dam);
+			oracool::OnBossDealtDamage(monster, landed);
 		}
 	}
 
@@ -4878,8 +4882,10 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	// loot path, because the reward is for the KILL - a boss that dropped nothing still counts, and
 	// tying it to the drop would make the milestone depend on a roll.
 	if (oracool::IsEndgameBoss(monster) && MyPlayer != nullptr) {
-		oracool::ClaimMilestone(*MyPlayer, oracool::Milestone::SlayDreadBoss);
-		CalcPlrInv(*MyPlayer, true); // the milestone charms grow with it - at once, not at the next gear change (round 10 audit)
+		// The charms grow with it at once - not at the next gear change (round 10 audit) - but only when it was claimed and the
+		// hero lives: a recalculation over a dying hero gave the corpse life (round 44 audit). Respawn recalculates anyway.
+		if (oracool::ClaimMilestone(*MyPlayer, oracool::Milestone::SlayDreadBoss) && MyPlayer->_pmode != PM_DEATH)
+			CalcPlrInv(*MyPlayer, true);
 	}
 
 	// Phase 4: a named encounter's guardian pays its reward here. GUARANTEED - the map said what it
@@ -6037,8 +6043,10 @@ GolemStats GolemStatsAt(const Player &player, int spellLevel)
 	GolemStats stats;
 	stats.maxHitPoints = 2 * (320 * spellLevel + player._pMaxMana / 3);
 	stats.toHit = 5 * (spellLevel + 8) + 2 * player._pLevel;
-	stats.minDamage = 2 * (spellLevel + 4);
-	stats.maxDamage = 2 * (spellLevel + 8);
+	// Held at the byte the monster keeps them in (round 44 audit: past spell level 119 the maximum wrapped to 0 under a
+	// minimum of 248), and the tooltip reads these same numbers.
+	stats.minDamage = std::min(2 * (spellLevel + 4), 255);
+	stats.maxDamage = std::min(2 * (spellLevel + 8), 255);
 	return stats;
 }
 

@@ -1022,7 +1022,9 @@ void OptionEntryResolution::LoadFromIni(string_view category)
 	const bool curatedHeight = std::any_of(std::begin(CuratedResolutions), std::end(CuratedResolutions),
 	    [&loaded](const CuratedResolution &entry) { return entry.size.height == loaded.height; });
 	// Only with Fit to Screen on (round 43 audit): off, the list is the curated one and an off-list size still snaps.
-	if (*sgOptions.Graphics.fitToScreen && curatedHeight && loaded.width >= loaded.height * 4 / 3 && loaded.width <= FitToScreenMaxWidth(loaded.height)) {
+	// Fit to Screen read from the ini itself: its entry loads after this one, so the option still held its default here
+	// (round 44 audit).
+	if (GetIniBool(category.data(), "Fit to Screen", true) && curatedHeight && loaded.width >= loaded.height * 4 / 3 && loaded.width <= FitToScreenMaxWidth(loaded.height)) {
 		size = loaded;
 		return;
 	}

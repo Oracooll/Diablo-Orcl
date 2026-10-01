@@ -729,8 +729,15 @@ void RiftLevelPopulated()
 	if (State.creditNeeded > 0)
 		return; // a revisit keeps the bar it had
 	int total = 0;
-	for (size_t i = 0; i < ActiveMonsterCount; i++)
-		total += RiftKillCredit(Monsters[ActiveMonsters[i]]);
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		const Monster &monster = Monsters[ActiveMonsters[i]];
+		// Only what stands on the floor (round 44 audit, a regression of round 43): a skeleton waiting in a sarcophagus or a
+		// barrel is active but off the map, and counted, it raised the bar past what the open floor could pay.
+		const Point tile = monster.position.tile;
+		if (!InDungeonBounds(tile) || dMonster[tile.x][tile.y] != static_cast<int>(monster.getId()) + 1)
+			continue;
+		total += RiftKillCredit(monster);
+	}
 	State.creditNeeded = std::max(RiftBarMinimum, total * RiftBarPercentOfFloor / 100);
 }
 

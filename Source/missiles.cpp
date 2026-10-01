@@ -111,15 +111,16 @@ constexpr float BlessedHammerRadiansPerTick = 0.35F;
  * This is EXPONENTIAL: it multiplies by 9/8 for every level, so it doubles roughly every six. That
  * was safe in vanilla, where a spell level could not exceed 15 - a base of 99 comes out at 558.
  *
- * This fork raised the ceiling to 98 (MaxSpellLevel), and Player::GetSpellLevel sums three stores -
+ * This fork raised the book ceiling (MaxSpellLevel, 30 since), and Player::GetSpellLevel sums three stores -
  * books, invested points and item +spell levels - while clamping none of them, so the effective
  * level can pass even that. At 98 this returns nearly ten million; by 135, that times Flash's own
  * x3 passes INT_MAX and wraps NEGATIVE. Signed overflow is undefined behaviour, not just a silly
  * number, and it surfaced as Flash reporting negative damage (audit, 2026-08-31).
  *
- * The ceiling is INT_MAX/8, chosen to leave headroom for the largest multiplier any caller applies
- * to the result afterwards (x5, in the Elemental case). It sits far above every value a legitimate
- * spell level produces, so nothing reachable today changes - this only stops the wrap.
+ * The ceiling is INT_MAX/512: headroom for the largest multiplier any caller applies afterwards (x5, in the
+ * Elemental case) AND the x64 MonsterMHit applies to every non-shifted missile's damage (round 44 audit: at
+ * INT_MAX/8 that shift wrapped Flash from about spell level 91, Fireball from 107). It is still far above every
+ * value a legitimate spell level produces - this only stops the wrap.
  *
  * It does NOT address how large these numbers get before that: ~10 million damage at spell level 98
  * is a balance question about an exponential curve meeting a raised cap, and that is the user's
@@ -127,7 +128,7 @@ constexpr float BlessedHammerRadiansPerTick = 0.35F;
  */
 int ScaleSpellEffect(int base, int spellLevel)
 {
-	constexpr int64_t Ceiling = std::numeric_limits<int>::max() / 8;
+	constexpr int64_t Ceiling = std::numeric_limits<int>::max() / 512;
 	int64_t value = base;
 	for (int i = 0; i < spellLevel; i++) {
 		value += value / 8;
@@ -1618,11 +1619,13 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	if (resper > 0) {
 		dam -= dam * resper / 100;
 		if (&player == MyPlayer) {
+			const int lifeBefore = player._pHitPoints;
 			ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
 			if (monster != nullptr) {
 				if ((player._pHitPoints >> 6) > 0) // not from the corpse (round 38 audit)
 					oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
-				OnMonsterMissileLanded(player, *monster, dam, poisonBase);
+				// The drain takes what life actually lost (round 44 audit: Mana Shield and the passives were drained through).
+				OnMonsterMissileLanded(player, *monster, std::max(lifeBefore - player._pHitPoints, 0), poisonBase);
 			}
 		}
 
@@ -1633,11 +1636,12 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	}
 
 	if (&player == MyPlayer) {
+		const int lifeBefore = player._pHitPoints;
 		ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
 		if (monster != nullptr) {
 			if ((player._pHitPoints >> 6) > 0) // not from the corpse (round 38 audit)
 				oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
-			OnMonsterMissileLanded(player, *monster, dam, poisonBase);
+			OnMonsterMissileLanded(player, *monster, std::max(lifeBefore - player._pHitPoints, 0), poisonBase);
 		}
 	}
 
@@ -5967,17 +5971,14 @@ void ProcessFlameWaveControl(Missile &missile)
 		na += dira;
 		Point nb = src + sd + dirb;
 		for (int j = 0; j < FlameWaveSideTiles(missile._mispllvl); j++) {
-			pn = dPiece[na.x][na.y]; // BUGFIX: dPiece is accessed before check against dungeon size and 0
-			assert(pn >= 0 && pn <= MAXTILES);
-			if (TileHasAny(pn, TileProperties::BlockMissile) || f1 || !InDungeonBounds(na)) {
+			// The bounds first (round 44 audit): a wide wave read dPiece past the map's edge before asking.
+			if (f1 || !InDungeonBounds(na) || TileHasAny(dPiece[na.x][na.y], TileProperties::BlockMissile)) {
 				f1 = true;
 			} else {
 				AddMissile(na, na + sd, pdir, MissileID::FlameWave, TARGET_MONSTERS, id, 0, missile._mispllvl);
 				na += dira;
 			}
-			pn = dPiece[nb.x][nb.y]; // BUGFIX: dPiece is accessed before check against dungeon size and 0
-			assert(pn >= 0 && pn <= MAXTILES);
-			if (TileHasAny(pn, TileProperties::BlockMissile) || f2 || !InDungeonBounds(nb)) {
+			if (f2 || !InDungeonBounds(nb) || TileHasAny(dPiece[nb.x][nb.y], TileProperties::BlockMissile)) {
 				f2 = true;
 			} else {
 				AddMissile(nb, nb + sd, pdir, MissileID::FlameWave, TARGET_MONSTERS, id, 0, missile._mispllvl);

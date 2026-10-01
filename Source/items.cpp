@@ -3791,8 +3791,9 @@ void RestoreRebuildKeepsake(Item &item, const RebuildKeepsake &keepsake, bool ke
 bool ReforgeOracoolItem(Item &item)
 {
 	// The oils survive the rebuild, as at Gillian's reroll (round 43 audit: every Cube rebuild put the base fields back -
-	// Sharpness, Hardening, Permanence's indestructible - and the oil was gone).
-	const std::optional<OracoolOilWork> oilWork = item._iOracoolAffixCount > 0 && MyPlayer != nullptr ? MeasureOracoolOilWork(*MyPlayer, item) : std::nullopt;
+	// Sharpness, Hardening, Permanence's indestructible - and the oil was gone). Not a unique's: the probe does not replay
+	// its powers, which would read as oil work and double (round 44 audit).
+	const std::optional<OracoolOilWork> oilWork = item._iMagical != ITEM_QUALITY_UNIQUE && MyPlayer != nullptr ? MeasureOracoolOilWork(*MyPlayer, item) : std::nullopt;
 	if (item.isEmpty())
 		return false;
 	ClearOracoolAffixRecord(item);
@@ -3828,8 +3829,9 @@ bool ReforgeOracoolItem(Item &item)
 bool RetierOracoolItem(Item &item, OracoolItemTier tier)
 {
 	// The oils survive the rebuild, as at Gillian's reroll (round 43 audit: every Cube rebuild put the base fields back -
-	// Sharpness, Hardening, Permanence's indestructible - and the oil was gone).
-	const std::optional<OracoolOilWork> oilWork = item._iOracoolAffixCount > 0 && MyPlayer != nullptr ? MeasureOracoolOilWork(*MyPlayer, item) : std::nullopt;
+	// Sharpness, Hardening, Permanence's indestructible - and the oil was gone). Not a unique's: the probe does not replay
+	// its powers, which would read as oil work and double (round 44 audit).
+	const std::optional<OracoolOilWork> oilWork = item._iMagical != ITEM_QUALITY_UNIQUE && MyPlayer != nullptr ? MeasureOracoolOilWork(*MyPlayer, item) : std::nullopt;
 	if (item.isEmpty())
 		return false;
 	// Kept whole so a refusal below hands the item back as it came in (2026-09-25). A false return used to
@@ -4225,8 +4227,9 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 bool EnnobleOracoolRare(Item &item)
 {
 	// The oils survive the rebuild, as at Gillian's reroll (round 43 audit: every Cube rebuild put the base fields back -
-	// Sharpness, Hardening, Permanence's indestructible - and the oil was gone).
-	const std::optional<OracoolOilWork> oilWork = item._iOracoolAffixCount > 0 && MyPlayer != nullptr ? MeasureOracoolOilWork(*MyPlayer, item) : std::nullopt;
+	// Sharpness, Hardening, Permanence's indestructible - and the oil was gone). Not a unique's: the probe does not replay
+	// its powers, which would read as oil work and double (round 44 audit).
+	const std::optional<OracoolOilWork> oilWork = item._iMagical != ITEM_QUALITY_UNIQUE && MyPlayer != nullptr ? MeasureOracoolOilWork(*MyPlayer, item) : std::nullopt;
 	std::vector<int> candidates = UniquesForBaseOf(item);
 	if (candidates.empty())
 		return false;
@@ -4266,6 +4269,9 @@ bool EnnobleOracoolRare(Item &item)
 	GetUniqueItem(*MyPlayer, item, static_cast<_unique_items>(uid));
 	UniqueItemFlags[uid] = wasFound;
 	SetupItem(item);
+	// The ethereal bargain before the oils, as Reforge and Retier order them (round 44 audit: after, it took its +35% and its
+	// halving on the oil's work too).
+	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/false);
 	if (oilWork)
 		ReapplyOracoolOilWork(item, *oilWork);
 	if (oldDurability != DUR_INDESTRUCTIBLE && item._iMaxDur != DUR_INDESTRUCTIBLE)
@@ -4275,7 +4281,6 @@ bool EnnobleOracoolRare(Item &item)
 	// an ennobled item forgets the depth it was found at, and a later reforge would roll it at
 	// whatever GetItemAttrs happened to leave behind.
 	item._iOracoolItemLevel = static_cast<uint8_t>(ilvl);
-	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/false);
 	item._iIdentified = true;
 	return true;
 }
@@ -10863,6 +10868,7 @@ void SpendOneOil(Player &player)
 		else
 			Stash.RemoveStashItem(static_cast<StashStruct::StashCell>(i));
 		Stash.dirty = true;
+		oracool::ScheduleAutoSaveForStashChange(); // as every stash change (round 44 audit)
 		return;
 	}
 }

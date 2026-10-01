@@ -194,6 +194,10 @@ MinionSpec GolemSpec(const Player &player, GolemKind kind, int rank)
 	spec.life += spec.life * GolemMasteryLifePercent * mastery / 100;
 	spec.toHit = 70 + 4 * rank + GolemMasteryToHit * mastery;
 	spec.armorClass += BonePlatingArmour * plating;
+	// The monster keeps its damage in a byte (minions.cpp clamps there): held here too, so the tooltip and the Fire Golem's
+	// burn read what the golem strikes for (round 44 audit).
+	spec.minDamage = std::min(spec.minDamage, 255);
+	spec.maxDamage = std::min(spec.maxDamage, 255);
 	return spec;
 }
 
