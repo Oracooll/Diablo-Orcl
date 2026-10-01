@@ -1142,7 +1142,7 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP = 
 
 /**
  * @brief The life the last ApplyPlrDamage call took, in 64ths, before any heal it set off (Mercy, a cheat-death passive) -
- * what a monster's drain reads (round 45 audit).
+ * what a monster's drain reads (round 45 audit). Before a minHP floor too: a caller passing minHP reads more than was lost.
  */
 extern int LastPlayerLifeLost;
 void InitPlayer(Player &player, bool FirstTime);

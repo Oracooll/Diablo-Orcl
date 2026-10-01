@@ -508,10 +508,21 @@ bool HasOwnCue(const Player &player, SpellID spell)
  * @brief Moves @p player to @p dst through the engine's Teleport. @p spell names the skill that moved him: when its row
  * has a delivered cue (RfA-27), Teleport's own LS_ELEMENTL stays quiet - one sound per moment, the skill's.
  */
+} // namespace
+std::optional<Point> SightedLandingNear(const Player &player, Point dst);
+namespace {
+
 bool TeleportTo(Player &player, Point dst, SpellID spell = SpellID::Invalid)
 {
 	if (dst == player.position.tile || !InDungeonBounds(dst))
 		return false;
+	// Where he will really land, chosen here with sight from where he stands (round 46 audit: the engine's teleport took the
+	// nearest open tile within five of a crowded target, and that could be the room behind the wall). Handed to the teleport
+	// as its target, which its own search then answers at once.
+	const std::optional<Point> landing = SightedLandingNear(player, dst);
+	if (!landing)
+		return false;
+	dst = *landing;
 	std::optional<_sfx_id> sound;
 	if (spell != SpellID::Invalid && HasOwnCue(player, spell))
 		sound = SFX_NONE;
@@ -1346,6 +1357,11 @@ std::optional<Corpse> BurstCorpse(Player &player, Point target)
 bool CastOnce(Player &player, SpellID spell, Point target, int r)
 {
 	const Point here = player.position.tile;
+	// An area skill aimed at the foot of a wall strikes from the last open tile toward it, as it did before the wall-tile
+	// refusal below (round 46 audit: a click on the wall beside a visible pack was refused). Fields and mines keep the refusal.
+	if (IsAnyOf(spell, SpellID::RainOfArrows, SpellID::WaveOfLight, SpellID::SevenSidedStrike, SpellID::ValkyriesSpear, SpellID::ArmyOfTheDead)
+	    && InDungeonBounds(target) && IsTileSolid(target))
+		target = LastClearTileToward(here, target);
 	const int earshot = AuraRadiusForPoints(r);
 	// The skills that set a field or a charge down at the cursor: not past a wall from the hero (round 40 audit - Meteor,
 	// Funeral Star and the rest landed on the next room's pack, and their ticks, which see from the field, burned it).
@@ -1366,6 +1382,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::HeavensDescent: {
 		// Short of a wall, as Ride the Lightning since round 40 (round 45 audit: these four moved through walls).
 		const Point dst = LastClearTileToward(here, Clamped(here, target, ReachTiles(spell, r)));
+		if (dst == here && target != here) {
+			player.Say(HeroSpeech::ICantDoThat); // a wall at once: no room to move (round 46 audit: it fizzled in silence)
+			return false;
+		}
 		if (!TeleportTo(player, dst, spell))
 			return false;
 		PlayerState &state = StateOf(player);
@@ -1489,7 +1509,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Strike(player, *m, DamageType::Magic, Rolled(d));
 			Stagger(*m, StunTicks(spell, r));
 		}
-		return true;
+		return !heard.empty(); // a cry no one hears costs nothing, as every other cry (round 46 audit: 10 Rage for nothing)
 	}
 	// ---------------- Sorceress: cold ----------------
 	case SpellID::ChillTouch: {
@@ -1866,6 +1886,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::Vault: {
 		const Point dst = LastClearTileToward(here, Clamped(here, target, ReachTiles(spell, r)));
+		if (dst == here && target != here) {
+			player.Say(HeroSpeech::ICantDoThat);
+			return false;
+		}
 		if (!TeleportTo(player, dst, spell))
 			return false;
 		// RfA-27 batch 57: the dust at take-off and landing, and the landing's cue.
@@ -2170,24 +2194,32 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	// ---------------- Monk: body ----------------
 	case SpellID::LeapingCrane: {
 		const Point dst = LastClearTileToward(here, Clamped(here, target, ReachTiles(spell, r)));
+		if (dst == here && target != here) {
+			player.Say(HeroSpeech::ICantDoThat);
+			return false;
+		}
 		if (!TeleportTo(player, dst, spell))
 			return false;
 		Art(player, MissileGraphicID::LeapingCrane, here); // RfA-27 batch 57: the take-off; the landing's is TickLanding's
 		PlayerState &state = StateOf(player);
 		state.landingTicks = 2;
-		state.landingTile = target;
+		state.landingTile = dst; // where he landed (round 46 audit)
 		state.landingSpell = spell;
 		state.landingRank = r;
 		return true;
 	}
 	case SpellID::ShoulderGate: {
 		const Point dst = LastClearTileToward(here, Clamped(here, target, ReachTiles(spell, r)));
+		if (dst == here && target != here) {
+			player.Say(HeroSpeech::ICantDoThat);
+			return false;
+		}
 		if (!TeleportTo(player, dst, spell))
 			return false;
 		Art(player, MissileGraphicID::ShoulderGate, here); // RfA-27 batch 57: the rush's start; the impact ring is TickLanding's
 		PlayerState &state = StateOf(player);
 		state.landingTicks = 2;
-		state.landingTile = target;
+		state.landingTile = dst;
 		state.landingSpell = spell;
 		state.landingRank = r;
 		return true;
@@ -2967,6 +2999,18 @@ void TickLanding(Player &player, PlayerState &state)
 }
 
 } // namespace
+
+Point LastOpenTileToward(Point here, Point aim)
+{
+	return LastClearTileToward(here, aim);
+}
+
+std::optional<Point> SightedLandingNear(const Player &player, Point dst)
+{
+	const Point here = player.position.tile;
+	return FindClosestValidPosition(
+	    [&player, here](Point tile) { return InDungeonBounds(tile) && PosOkPlayer(player, tile) && LineClearMissile(here, tile); }, dst, 0, 5);
+}
 
 // =================================================================================================
 // The exported surface

@@ -650,8 +650,15 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 		const int longest = std::max(std::abs(delta.deltaX), std::abs(delta.deltaY));
 		dst = here + Displacement { delta.deltaX * range / longest, delta.deltaY * range / longest };
 	}
+	// Over monsters, not through walls (round 46 audit: a cursor past a wall landed him in the closed room, paid): the last open
+	// tile toward the clamped aim, and a landing he can see.
+	dst = LastOpenTileToward(here, dst);
 	if (dst == here)
 		return false;
+	const std::optional<Point> landing = SightedLandingNear(player, dst);
+	if (!landing || *landing == here)
+		return false;
+	dst = *landing;
 	// Its own cues, not Teleport's launch sound too: three sounds for one leap (round 23 audit, as TeleportTo since round 13).
 	const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, ClassMeleeSkillSpell(skill));
 	Missile *missile = AddMissile(here, dst, player._pdir, MissileID::Teleport, TARGET_MONSTERS,

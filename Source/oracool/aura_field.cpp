@@ -423,7 +423,8 @@ uint16_t EffectiveResistances(const Monster &monster)
 
 void ProcessOutwardAura(Player &player)
 {
-	if (&player != MyPlayer || player._pHitPoints <= 0)
+	// Not in town (round 46 audit): dMonster there holds towners, and Sanctuary's retreat set goals on stale monster slots.
+	if (&player != MyPlayer || player._pHitPoints <= 0 || leveltype == DTYPE_TOWN)
 		return;
 
 	ProcessHolyPulse(player);

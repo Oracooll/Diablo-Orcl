@@ -198,6 +198,7 @@ MinionSpec GolemSpec(const Player &player, GolemKind kind, int rank)
 	// burn read what the golem strikes for (round 44 audit).
 	spec.minDamage = std::min(spec.minDamage, 255);
 	spec.maxDamage = std::min(spec.maxDamage, 255);
+	spec.armorClass = std::min(spec.armorClass, 255); // the body's armour is a byte too (round 46 audit)
 	return spec;
 }
 
@@ -405,7 +406,11 @@ bool CastNecromancerSummoning(Player &player, SpellID spell, Point target, int r
 	case SpellID::CommandTheDead: {
 		// Not in town, where dMonster holds towner ids and FindMonsterAtPosition answers a stale slot (round 5 audit).
 		Monster *monster = leveltype == DTYPE_TOWN ? nullptr : FindMonsterAtPosition(target);
-		if (monster == nullptr || monster->isPlayerMinion() || IsCompanion(*monster) || (monster->hitPoints >> 6) <= 0) {
+		// Nor one the army could never strike - a talker, a hidden or fading one, one behind a wall - paid for an order that did
+		// nothing (round 46 audit).
+		if (monster == nullptr || monster->isPlayerMinion() || IsCompanion(*monster) || (monster->hitPoints >> 6) <= 0
+		    || !monster->isPossibleToHit() || (monster->flags & MFLAG_HIDDEN) != 0
+		    || !LineClearMissile(player.position.tile, monster->position.tile)) {
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}

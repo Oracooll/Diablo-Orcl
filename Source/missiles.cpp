@@ -4,6 +4,7 @@
  * Implementation of missile functionality.
  */
 #include "missiles.h"
+#include "qol/stash.h" // AutoPlaceItemInStash - a stolen potion's last resort
 #include "oracool/sat_math.h" // AddPercentSat - the damage passives past int (round 27 audit)
 
 #include <vector>
@@ -2016,8 +2017,12 @@ void AddStealPotions(Missile &missile, AddMissileParameter & /*parameter*/)
 				hasPlayedSFX = true;
 			}
 		}
-		for (const Item &unit : downgradedUnits)
-			AutoPlaceItemInBelt(player, unit, true);
+		// Belt, then pack, then stash, then the floor beside him (round 46 audit: with no belt room the downgraded potion was lost).
+		for (const Item &unit : downgradedUnits) {
+			if (!AutoPlaceItemInBelt(player, unit, true) && !AutoPlaceItemInInventory(player, unit, true)
+			    && !(&player == MyPlayer && AutoPlaceItemInStash(player, unit, true)))
+				DropItemBesidePlayer(player, unit);
+		}
 		player.CalcScrolls();
 		RedrawEverything();
 

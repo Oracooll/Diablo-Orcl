@@ -71,6 +71,16 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 /** @brief Performs a cast RfA-12 active at its cast frame. False if it had nothing to do. */
 bool CastRfa12Active(Player &player, SpellID spell, Point target);
 
+/** @brief The last open tile of the straight line from @p here to @p aim, short of a wall or blocked sight (round 46). */
+Point LastOpenTileToward(Point here, Point aim);
+
+/**
+ * @brief Where @p player can land near @p dst: the nearest tile within five a hero may stand on AND that he can see from where
+ * he stands - the engine's teleport search, with sight (round 46 audit: a crowded target sent him through the wall). Nullopt
+ * when there is none.
+ */
+std::optional<Point> SightedLandingNear(const Player &player, Point dst);
+
 /** @brief Whether a cast of @p spell leaves the cry's shockwave on the floor under the caster. */
 bool Rfa12CastLeavesRing(SpellID spell);
 

@@ -1198,6 +1198,8 @@ bool ReturnGridToPlayer()
 		else
 			allReturned = false;
 	}
+	if (MyPlayer != nullptr)
+		CalcPlrInvKeepingLife(*MyPlayer); // a charm back in the pack counts at once (round 46 audit)
 	// Rebuild rather than patch: a partial return leaves some items behind, and their occupancy has
 	// to match what is actually still in the grid.
 	RebuildGridOccupancy();
@@ -2880,6 +2882,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			PlaySFX(ItemInvSnds[GetItemDropAnimIndex(GridItems[anchor]._iCurs)]);
 			MarkCells(anchor, GetInventorySize(GridItems[anchor]), 0);
 			GridItems[anchor].clear();
+			CalcPlrInvKeepingLife(player); // a charm back in the pack counts at once (round 46 audit)
 			return true;
 		}
 		if (!player.HoldItem.isEmpty() && player.HoldItem._itype == ItemType::Gold)

@@ -1354,7 +1354,12 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 									// was about to be overwritten with the item being equipped, and the displaced one was lost. It
 									// is still worn (the body slot is not cleared yet); the other goes back to the cell it left.
 									player.HoldItem.clear();
-									PlaceItemInTabSlot(player, vacatedTab, vacatedSlot, equipping);
+									// And if its cell will not take it back (a locked page, a grid out of step), the pack, else the
+									// cursor - never nowhere (round 46 audit).
+									if (!PlaceItemInTabSlot(player, vacatedTab, vacatedSlot, equipping) && !AutoPlaceItemInInventory(player, equipping, true)) {
+										player.HoldItem = equipping;
+										NewCursor(player.HoldItem);
+									}
 									if (&player == MyPlayer)
 										player.SaySpecific(HeroSpeech::IHaveNoRoom);
 									return;
@@ -1374,8 +1379,10 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 					// bag, so put it back rather than lose it.
 					if (newItemTakenFromBag && !automaticallyEquipped && !AutoPlaceItemInInventory(player, holdItem, true)) {
 						player.HoldItem = holdItem;
-						if (!TryDropItem())
+						if (!TryDropItem()) {
 							NewCursor(player.HoldItem);
+							return; // on the cursor it stays: the clear below would have destroyed it (round 46 audit)
+						}
 					}
 				}
 			}
@@ -3720,7 +3727,8 @@ void InvGetItem(Player &player, int ii)
 	// reported success, and destroyed the rest.
 	auto mergeAll = [&player](const Item &source, bool persist) -> int {
 		Item rest = source;
-		int taken = MergeStackableItemIntoBelt(player, rest, persist);
+		// The belt for potions only, as AutoGetItem has it (round 46 audit: a Town Portal scroll joined a belt stack).
+		int taken = source.isPotion() ? MergeStackableItemIntoBelt(player, rest, persist) : 0;
 		if (taken > 0 && taken < rest.stackCount()) {
 			rest.setStackCount(rest.stackCount() - taken);
 			taken += MergeStackableItemIntoInventory(player, rest, persist);

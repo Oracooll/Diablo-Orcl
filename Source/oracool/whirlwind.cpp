@@ -22,6 +22,7 @@
 #include "oracool/rfa12_actives.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/sprite_scale.h"
+#include "engine/backbuffer_state.hpp" // RedrawComponent - the Rage orb
 #include "player.h"
 
 #include <SDL.h>
@@ -185,6 +186,7 @@ void ProcessWhirlwindTick(Player &player)
 	if (UsesRage(player) && Clock > TicksPerSecond && Clock % (TicksPerSecond / WhirlwindRagePerSecond) == 0 && player._pRage > 0) {
 		player._pRage -= 1;
 		OnPassiveManaSpent(player, 1 << 6);
+		RedrawComponent(PanelDrawComponent::Mana); // the orb shows Rage (round 46 audit: it lagged through a spin)
 	}
 	// Being hit breaks a walk into the hit animation; the glide simply picks up again when it is over.
 	if (player._pmode == PM_STAND || player._pmode == PM_WALK_NORTHWARDS || player._pmode == PM_WALK_SOUTHWARDS

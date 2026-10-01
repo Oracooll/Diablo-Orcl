@@ -1,4 +1,5 @@
 #include "oracool/paladin_ranged.h"
+#include "oracool/rfa12_actives.h" // LastOpenTileToward
 
 #include "engine/random.hpp"
 #include "missiles.h"
@@ -82,6 +83,10 @@ bool CastFistOfTheHeavens(Player &player, Point target, int spellLevel)
 	// a full pool, and this used to spend first and discard that result (audit, 2026-08-26).
 	if (!MissilePoolHasRoom())
 		return false;
+	// On the foot of a wall, the last open tile toward it (round 46 audit: LineClear does not test the end tile, and the
+	// ring's 36 bolts fanned out of the wall into both rooms).
+	if (InDungeonBounds(target) && IsTileSolid(target))
+		target = LastOpenTileToward(player.position.tile, target);
 	// Not on a tile past a wall, before the mana (round 39 audit: a shift-click brought the mace down in the next room).
 	if (!LineClearMissile(player.position.tile, target))
 		return false;

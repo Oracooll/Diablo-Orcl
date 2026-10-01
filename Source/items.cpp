@@ -4106,8 +4106,14 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	};
 	const int oldChargeMultiplier = chargeMultiplier(item._iOracoolAffixes.data(), std::clamp<int>(item._iOracoolAffixCount, 0, Item::MaxOracoolAffixes));
 	const int newChargeMultiplier = chargeMultiplier(affixes, std::max(count, 0));
-	const int staffCharges = item._iCharges / oldChargeMultiplier * newChargeMultiplier;
-	const int staffMaxCharges = item._iMaxCharges / oldChargeMultiplier * newChargeMultiplier;
+	// Untouched when the multiplier is (round 46 audit: divide-then-multiply took 8/18 down to 6/18 on every rework), and
+	// rescaled in 64 bits otherwise, multiplying first.
+	const auto rescaled = [&](int charges) {
+		return oldChargeMultiplier == newChargeMultiplier ? charges
+		                                                  : static_cast<int>(static_cast<int64_t>(charges) * newChargeMultiplier / oldChargeMultiplier);
+	};
+	const int staffCharges = rescaled(item._iCharges);
+	const int staffMaxCharges = rescaled(item._iMaxCharges);
 	const uint8_t staffMinMag = item._iMinMag;
 	// Copied first: GetItemAttrs empties the item's affix list, and a caller may hand in that very list.
 	std::array<OracoolAffix, Item::MaxOracoolAffixes> wanted {};

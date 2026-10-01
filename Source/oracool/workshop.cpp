@@ -1057,6 +1057,7 @@ bool ReturnBench()
 	if (!AutoPlaceItemInInventory(*MyPlayer, Bench, true) && !AutoPlaceItemInStash(*MyPlayer, Bench, true))
 		return false;
 	Bench.clear();
+	CalcPlrInvKeepingLife(*MyPlayer); // a charm back in the pack counts at once (round 46 audit)
 	return true;
 }
 
@@ -1781,6 +1782,7 @@ bool ReturnCraftGrid(Player &player)
 		}
 		all = false;
 	}
+	CalcPlrInvKeepingLife(player); // a charm back in the pack counts at once (round 46 audit)
 	return all;
 }
 
