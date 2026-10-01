@@ -699,7 +699,7 @@ void CheckStashCut(Point cursorPosition, bool automaticMove)
 	Player &player = *MyPlayer;
 
 	if (IsWithdrawGoldOpen) {
-		IsWithdrawGoldOpen = false;
+		CloseGoldWithdraw(); // the text input with it (round 56 audit)
 	}
 
 	Point slot = InvalidStashPoint;
@@ -773,6 +773,7 @@ void CheckStashCut(Point cursorPosition, bool automaticMove)
 
 int WithdrawGold(Player &player, int amount)
 {
+	amount = std::min(amount, std::max(Stash.gold, 0)); // never more than the pool holds now (round 56 audit)
 	const int unplacedGold = AddGoldToInventory(player, amount);
 	const int transferredGold = amount - unplacedGold;
 	if (transferredGold == 0)
@@ -1314,7 +1315,7 @@ bool UseStashItem(uint16_t c)
 	}
 
 	if (IsWithdrawGoldOpen) {
-		IsWithdrawGoldOpen = false;
+		CloseGoldWithdraw(); // the text input with it (round 56 audit)
 	}
 
 	if (item->isScroll()) {

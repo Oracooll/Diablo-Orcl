@@ -670,13 +670,15 @@ void ProcessWarcriesTick(Player &player)
 	// Grim Ward: the totem repels while it stands.
 	if (Ward &ward = Wards[player.getId()]; ward.ticksLeft > 0) {
 		ward.ticksLeft--;
-		ForEachInEarshot(ward.position, ward.radius, [&](Monster &m) { Repel(m, ward.position, 4); });
+		if (leveltype != DTYPE_TOWN) // its clock runs on, but town's dMonster holds the towners (round 56 audit)
+			ForEachInEarshot(ward.position, ward.radius, [&](Monster &m) { Repel(m, ward.position, 4); });
 	}
 
 	// Tranquility: the ground around the Monk is a sanctuary - what stands beside him is slowed,
 	// and every second a fiftieth of his life returns.
 	if (const Buff *tranquility = FindBuff(player, SpellID::Tranquility); tranquility != nullptr) {
-		ForEachInEarshot(player.position.tile, TranquilityReach, [&](Monster &m) { ChillMonster(m, 3); });
+		if (leveltype != DTYPE_TOWN) // the heal goes on in town, the chill does not (round 56 audit)
+			ForEachInEarshot(player.position.tile, TranquilityReach, [&](Monster &m) { ChillMonster(m, 3); });
 		if (tranquility->ticksLeft % TicksPerSecond == 0 && player._pHitPoints < player._pMaxHP) {
 			const int heal = player._pMaxHP * TranquilityHealPercent / 100;
 			player._pHitPoints = std::min(player._pHitPoints + heal, player._pMaxHP);

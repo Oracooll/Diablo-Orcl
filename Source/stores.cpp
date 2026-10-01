@@ -2863,7 +2863,7 @@ void SmithSellEnter()
 		return;
 
 	// A belt item frees no backpack cell for the gold (round 42 audit).
-	if (!StoreGoldFit(StoreHoldSalePrice(storehold[idx]), storehidx[idx] < 0 && storehTabIdx[idx] < 0 ? nullptr : &storehold[idx])) {
+	if (!StoreGoldFit(StoreHoldSalePrice(storehold[idx]), storehidx[idx] < 0 || storehTabIdx[idx] >= 0 ? nullptr : &storehold[idx])) {
 		StartStore(TalkID::NoRoom);
 		return;
 	}
@@ -3120,7 +3120,7 @@ void WitchSellEnter()
 		return;
 
 	// A belt item frees no backpack cell for the gold (round 42 audit).
-	if (!StoreGoldFit(StoreHoldSalePrice(storehold[idx]), storehidx[idx] < 0 && storehTabIdx[idx] < 0 ? nullptr : &storehold[idx])) {
+	if (!StoreGoldFit(StoreHoldSalePrice(storehold[idx]), storehidx[idx] < 0 || storehTabIdx[idx] >= 0 ? nullptr : &storehold[idx])) {
 		StartStore(TalkID::NoRoom);
 		return;
 	}
@@ -3729,6 +3729,8 @@ void DrunkEnter()
 
 int TakeGold(Player &player, int cost, bool skipMaxPiles)
 {
+	if (cost <= 0)
+		return 0; // round 56 audit
 	for (int i = 0; i < player._pNumInv; i++) {
 		auto &item = player.InvList[i];
 		if (item._itype != ItemType::Gold || (skipMaxPiles && item._ivalue == MaxGold))
@@ -5267,7 +5269,7 @@ bool ShopSellInventoryItem(int cii)
 	// Checked BEFORE the item is removed - the same gate the list path uses, which this gesture also
 	// skipped (external audit of v1.9.92, finding 4). freesItemCells is true here: this one IS in the
 	// backpack, so its cells become available to hold the gold it fetches.
-	if (!StoreGoldFit(price, &pristine)) {
+	if (!StoreGoldFit(price, ActiveInventoryTab == 0 ? &pristine : nullptr)) { // page 1's cells only (round 56 audit)
 		stextshold = stextflag;
 		stextlhold = stextup;
 		StartStore(TalkID::NoRoom);
@@ -5369,7 +5371,8 @@ bool ShopSellItemAt(Player &player, int tab, int index)
 	const int price = GetItemSellValue(sold);
 	// The item's own cells DO free up here, unlike the held-item sale - it is in the pack, so selling
 	// it makes room the gold may need.
-	if (!StoreGoldFit(price, item)) {
+	// Only page 1's cells: the proceeds go to page 1 and the stash, never to pages 2-10 (round 56 audit).
+	if (!StoreGoldFit(price, tab >= 0 ? nullptr : item)) {
 		stextshold = stextflag;
 		stextlhold = stextup;
 		StartStore(TalkID::NoRoom);
@@ -6181,6 +6184,8 @@ void StoreNext()
 
 void TakePlrsMoney(int cost)
 {
+	if (cost <= 0)
+		return; // a bad price is never a gold faucet (round 56 audit)
 	Player &myPlayer = *MyPlayer;
 
 	myPlayer._pGold -= std::min(cost, myPlayer._pGold);

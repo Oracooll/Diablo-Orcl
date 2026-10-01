@@ -60,7 +60,7 @@ std::optional<MagicType> PaladinCastAnimation(SpellID spell);
 /**
  * @brief The per-hit damage @p skill does for @p player, at both ends of the weapon roll - what the cast
  * itself rolls (the weapon, its bonuses, then the skill's percentage), for the character sheet
- * (2026-09-11). Fist of the Heavens answers with its centre blast. nullopt for any other skill.
+ * (2026-09-11). Fist of the Heavens answers with its lightning ring (round 55 audit). nullopt for any other skill.
  */
 std::optional<std::pair<int, int>> PaladinCastDamageRange(const Player &player, PaladinSkill skill);
 
