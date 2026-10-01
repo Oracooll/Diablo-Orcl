@@ -9,7 +9,8 @@
 //    from frame to frame. The loop now holds the one whole frame, OpenHoldFrame; the game's own rune pulse, glow pulse and
 //    live grid (levski_roar.cpp) keep it alive.
 //
-// Runs after LevskiCubeSteady (the frames are already on the idle pedestal). Running it twice changes nothing.
+// Runs ONCE, after LevskiCubeSteady, on a sheet freshly built from the stills (build_levski_cube_sheet.cmd does exactly
+// that). It is not idempotent: run on its own output it mirrors the already rebuilt cubes again.
 // Usage (PowerShell): Add-Type -Path tools\LevskiCubeRepair.cs -ReferencedAssemblies System.Drawing
 //                     [LevskiCubeRepair]::Run(<strip in>, <strip out>)
 using System;

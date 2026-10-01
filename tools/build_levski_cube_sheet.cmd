@@ -12,4 +12,7 @@ set EXE=%TEMP%\LevskiCubeSheet.exe
 REM Then steady the foundation (user, 2026-10-01): the opening and opened frames are lined up on the idle pedestal and the
 REM idle foundation is pasted under the open cube - see tools\LevskiCubeSteady.cs. Running it twice changes nothing.
 powershell -NoProfile -Command "Add-Type -Path tools\LevskiCubeSteady.cs -ReferencedAssemblies System.Drawing; [LevskiCubeSteady]::Run('Packaging\resources\oracool_assets\objects\levski_cube.png', '%TEMP%\levski_cube_aligned.png', 'Packaging\resources\oracool_assets\objects\levski_cube.png')" || exit /b 1
+REM Then mend what the stills could not give (user, 2026-10-01, approved on the Levski's Cube Frames page): the opening's cut
+REM left sub-cubes rebuilt from their right-hand twins, the opened loop held still - see tools\LevskiCubeRepair.cs. Once only.
+powershell -NoProfile -Command "Add-Type -Path tools\LevskiCubeRepair.cs -ReferencedAssemblies System.Drawing; [LevskiCubeRepair]::Run('Packaging\resources\oracool_assets\objects\levski_cube.png', 'Packaging\resources\oracool_assets\objects\levski_cube.png')" || exit /b 1
 endlocal

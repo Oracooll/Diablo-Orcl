@@ -9558,6 +9558,9 @@ TEST(OracoolAudit, TheXpBarDoesNotLetClicksReachTheWorld)
 // ResetLevskiRoarForNewGame; this pins that it really empties both.
 TEST(OracoolAudit, LeavingAGameDoesNotLeakLevskisGridToTheNextCharacter)
 {
+	// The archives first (round 56): opening the Cube asks for its painted pages, and with nothing mounted the art cache
+	// remembered them as missing for the rest of the run - a later Cube test in a shuffled order found no tabs.
+	MountTestArchives();
 	Players.resize(1);
 	MyPlayer = &Players[0];
 	*MyPlayer = {};
