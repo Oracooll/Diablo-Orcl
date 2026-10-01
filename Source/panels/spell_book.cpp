@@ -1217,8 +1217,10 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	// have this spell", so it is read off the memorised set rather than off the investment array.
 	const bool bookRow = oracool::IsClassTreeRowRetiredAsSpell(skill);
 	const SpellID rowSpell = oracool::ClassTreeSpellId(skill);
+	// Learned, and at a level above nothing: items can take a book spell's level to 0, which cannot be cast (round 69 audit: it
+	// stayed blue with a "0" badge).
 	const bool bookKnown = bookRow && IsValidSpell(rowSpell)
-	    && (player._pMemSpells & GetSpellBitmask(rowSpell)) != 0;
+	    && (player._pMemSpells & GetSpellBitmask(rowSpell)) != 0 && player.GetSpellLevel(rowSpell) > 0;
 	const bool usable = bookRow ? bookKnown : (unlocked && (isPassiveRow || data.implemented));
 	// A passive has its own two lit states (user, 2026-09-12: "make unlocked passive skills gold, and
 	// the assigned ones green"): earned is the gold plate, slotted the green one. Every other row keeps

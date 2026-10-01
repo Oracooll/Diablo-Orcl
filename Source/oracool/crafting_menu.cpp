@@ -265,6 +265,22 @@ void DrawCraftingMenu(const Surface &out)
 	}
 }
 
+/** @brief The book button held down, acted on at the release inside it (round 69 audit: they switched on the press, the one
+ *  window left out of the game-wide press/release rule). -1: none. */
+int PressedHostButton = -1;
+
+void ReleaseCraftingMenuButton()
+{
+	const int i = PressedHostButton;
+	PressedHostButton = -1;
+	if (i < 0 || i >= HostButtonCount || !HostButtonRect(i).contains(MousePosition))
+		return;
+	if (HostButtons[i] != HostFilter) {
+		HostFilter = HostButtons[i];
+		ScrollOffset = 0; // a book always opens at the top of its own list
+	}
+}
+
 void CheckCraftingMenuClick(Point mousePosition)
 {
 	// The close button is not tested here either: diablo.cpp's LeftMouseDown asks
@@ -274,10 +290,7 @@ void CheckCraftingMenuClick(Point mousePosition)
 	for (int i = 0; i < HostButtonCount; i++) {
 		if (!HostButtonRect(i).contains(mousePosition))
 			continue;
-		if (HostButtons[i] != HostFilter) {
-			HostFilter = HostButtons[i];
-			ScrollOffset = 0; // a book always opens at the top of its own list
-		}
+		PressedHostButton = i; // switched at the release inside it (ReleaseCraftingMenuButton)
 		PlayUiSelectSound();
 		return;
 	}

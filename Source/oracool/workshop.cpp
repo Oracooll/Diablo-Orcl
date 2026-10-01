@@ -2349,7 +2349,8 @@ bool SetWorkshopHoverInfoString()
 namespace {
 
 /** @brief Rolls the menu: the affix as it stands, then three the pool offers at this item's level. */
-void RollOffers(int slot)
+/** @brief Rolls the offers for @p slot and opens them. Returns how many new affixes were drawn (0: nothing else could). */
+int RollOffers(int slot)
 {
 	Offers[0] = Bench._iOracoolAffixes[slot];
 	std::array<item_effect_type, OptionCount + Item::MaxOracoolAffixes> exclude {};
@@ -2394,6 +2395,7 @@ void RollOffers(int slot)
 	SetRndSeed(rngState);
 	OfferSlot = slot;
 	OfferOpen = true;
+	return rolled - 1;
 }
 
 /** @brief The release's work for one control. */
@@ -2426,6 +2428,16 @@ void RunStep(bool up)
 	if (CountOwned(player, idx) < cost) {
 		SetBoard(fmt::format(fmt::runtime(_("You need {:d} of those.")), cost));
 		return;
+	}
+	// Nowhere for the made one - pack, stash and a full town floor - and nothing is taken (round 69 audit: the stones went and
+	// the board said "nowhere to put it", the gamble's round-63 shape). A probe of the made kind asks the pack and the stash.
+	if (ActiveItemCount >= MAXITEMS) {
+		Item probe;
+		InitializeItem(probe, static_cast<_item_indexes>(made));
+		if (!AutoPlaceItemInInventory(player, probe, false) && !AutoPlaceItemInStash(player, probe, false)) {
+			SetBoard(std::string(_("You have no room for it.")));
+			return;
+		}
 	}
 	TakeOwned(player, idx, cost);
 	const Landing where = GiveOwned(player, made);
@@ -2521,10 +2533,16 @@ void RunControl(Control control)
 			SetBoard(std::string(_("You do not have enough gold.")));
 			break;
 		}
+		// Rolled first, paid only for a wheel with something new on it (round 69 audit: an item whose slot's pool its other
+		// affixes had used up was charged for four copies of what it had, and the next reroll cost double).
+		if (RollOffers(SelectedRow) == 0) {
+			OfferOpen = false;
+			SetBoard(std::string(_("Nothing else could take its place.")));
+			break;
+		}
 		TakePlrsMoney(price);
 		Bench._iOracoolLockedAffix = static_cast<int8_t>(SelectedRow);
 		Bench._iOracoolRerolls = static_cast<uint8_t>(std::min<int>(Item::MaxWorkshopAttempts, Bench._iOracoolRerolls + 1));
-		RollOffers(SelectedRow);
 		break;
 	}
 	case Control::Option0:

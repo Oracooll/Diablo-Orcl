@@ -883,6 +883,7 @@ void LeftMouseUp(uint16_t modState)
 	ReleaseSpellBookButtons();
 	oracool::ReleaseWaypointActButton();   // the pressed Act button springs back (2026-09-20)
 	oracool::ReleaseRunewordBookButton();  // and the runeword book's pressed filter toggles (2026-09-27)
+	oracool::ReleaseCraftingMenuButton();  // and the crafting book's (round 69 audit)
 	oracool::ReleaseHudWells();            // and the pressed LMB/RMB well (2026-09-20)
 	oracool::ReleaseStonegateMenuButton(); // and the Rift Monument menu's pressed button (2026-09-20)
 	oracool::ReleaseWorkshopButton();       // and the artisan workshop's (2026-09-21)

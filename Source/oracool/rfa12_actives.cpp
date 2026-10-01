@@ -759,8 +759,13 @@ void StartCooldown(const Player &player, SpellID spell)
 void EndAbsoluteZeroArt(const Player &player)
 {
 	for (Missile &missile : Missiles) {
-		if (missile._miAnimType == MissileGraphicID::AbsoluteZero && missile._misource == static_cast<int>(player.getId()))
+		if (missile._miAnimType == MissileGraphicID::AbsoluteZero && missile._misource == static_cast<int>(player.getId())) {
 			missile._miDelFlag = true;
+			if (missile._mlid != NO_LIGHT) { // it lights since v1.12.315 (round 69 audit)
+				AddUnLight(missile._mlid);
+				missile._mlid = NO_LIGHT;
+			}
+		}
 	}
 }
 
@@ -4278,6 +4283,10 @@ void ProcessRfa12ActivesTick(Player &player)
 {
 	if (&player != MyPlayer)
 		return;
+	// A readied scroll's binding holds while the scroll is in hand (round 68); once it leaves the hand for anywhere but the pack
+	// - the floor, the stash, a bench - nothing recalculated it, and a click cast nothing (round 69 audit). Asked each tick.
+	if (player._pRSplType == SpellType::Scroll || player._pLRSplType == SpellType::Scroll)
+		EnsureValidReadiedSpell(player);
 	PlayerState &state = StateOf(player);
 	// The lightning buffs light the floor round him (user, 2026-10-01), the light walking with him.
 	// And the cold armours (dev note, 2026-10-01: "add light radius to all the rest cold spells").

@@ -28,6 +28,8 @@ void DrawCraftingMenu(const Surface &out);
 
 /** @brief Left-click while open: crafting a rowable recipe runs it and logs the result. */
 void CheckCraftingMenuClick(Point mousePosition);
+/** @brief The mouse-up: a book button pressed and released inside it switches the list (round 69 audit). */
+void ReleaseCraftingMenuButton();
 
 /**
  * @brief Wheel over the window: scrolls the recipe list. True when the notch was consumed.

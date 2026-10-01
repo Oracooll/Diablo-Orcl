@@ -1180,10 +1180,26 @@ enum class Layer : uint8_t {
  * @brief A layer drawn in true colour onto the 32-bit screen. Returns false on an indexed target,
  * where the caller keeps the 8-bit blit it always had.
  */
+/** @brief @p src cut to @p asset's own pixels (round 69 audit: a recut or smaller PNG read past its buffer - the blits clip only
+ *  against the screen). Empty when nothing of it is inside. */
+SDL_Rect ClampToAsset(const ArtAsset &asset, SDL_Rect src)
+{
+	const int x0 = std::max(src.x, 0), y0 = std::max(src.y, 0);
+	const int x1 = std::min(src.x + src.w, asset.width), y1 = std::min(src.y + src.h, asset.height);
+	return { x0, y0, std::max(x1 - x0, 0), std::max(y1 - y0, 0) };
+}
+
 bool BlitLayerTrueColour(const Surface &out, const ArtAsset &asset, Layer layer, SDL_Rect src, Point position, int alphaPercent)
 {
 	if (out.isIndexed() || asset.argb.empty())
 		return false;
+	{
+		const SDL_Rect inside = ClampToAsset(asset, src);
+		if (inside.w <= 0 || inside.h <= 0)
+			return true; // nothing of it to draw
+		position += Displacement { inside.x - src.x, inside.y - src.y };
+		src = inside;
+	}
 	switch (layer) {
 	case Layer::Half:
 		return true;
@@ -1246,6 +1262,13 @@ void BlitLayer(const Surface &out, const ArtAsset &asset, Layer layer, SDL_Rect 
 {
 	if (BlitLayerTrueColour(out, asset, layer, src, position, 100))
 		return;
+	{
+		const SDL_Rect inside = ClampToAsset(asset, src); // the indexed path too (round 69 audit)
+		if (inside.w <= 0 || inside.h <= 0)
+			return;
+		position += Displacement { inside.x - src.x, inside.y - src.y };
+		src = inside;
+	}
 	out.BlitFromSkipColorIndexZero(IndexedLayer(asset, layer), src, position);
 }
 
@@ -2406,6 +2429,7 @@ void ResetHudArtCaches()
 	reset(AttackIconsArt);
 	for (ArtAsset &silhouette : SilhouetteArt)
 		reset(silhouette);
+	LoosePngs.clear(); // and the loose PNGs (round 69 audit: they kept their old pixels)
 }
 
 void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint)
@@ -2791,6 +2815,12 @@ bool IsGlyphFrame(ArtAsset &asset, int index, int cell)
 void DrawClassTreeIconOutlined(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
     bool unlocked, SkillPlateTint tint)
 {
+	// An empty slot: the plate alone, in its tint (round 69 audit: nothing was drawn, and an open slot read as a locked one).
+	if (skillIndex < 0) {
+		ApplyPlateTint(tint);
+		DrawSpellIconFittedTo(out, cell, SpellID::Null);
+		return;
+	}
 	ArtAsset &strip = TreeStripFor(heroClass);
 	const int frame = StripIconSize(strip).width;
 	if (skillIndex >= 0 && !StripHasFrame(strip, skillIndex)) {

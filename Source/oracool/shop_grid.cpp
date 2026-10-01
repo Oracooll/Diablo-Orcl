@@ -1966,11 +1966,14 @@ bool CheckShopGridClick(Point position, bool rightClick)
 			if (!ShopServiceSlotOnPage(slot, stextflag) || !ShopServiceSlotRect(slot).contains(position))
 				continue;
 			if (!MyPlayer->HoldItem.isEmpty()) {
-				// A held item is a DROP, not a click, and only two of the six take one.
+				// A held item is a DROP, not a click, and three of the six take one: the Sell plate too (round 69 audit: the hint
+				// says "drop an item anywhere on this panel", and the plate was the one spot it did nothing).
 				if (ShopServiceSlotDoes[slot] == ServiceButton::Repair)
 					ShopRepairHeldItem();
 				else if (ShopServiceSlotDoes[slot] == ServiceButton::Recharge)
 					ShopRechargeHeldItem();
+				else if (ShopServiceSlotDoes[slot] == ServiceButton::Sell)
+					ShopSellHeldItem();
 				return true;
 			}
 			// A greyed button absorbs the click and does nothing - it is still a button, so the click

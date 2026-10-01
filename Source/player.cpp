@@ -782,6 +782,10 @@ namespace {
  */
 std::optional<int> SwingSkillPercent;
 
+/** @brief The swing's front blow woke a perched gargoyle (round 69 audit): its class skill does not fire - Fend and Wheel of
+ *  Heaven gathered the just-lifted one into their spin, struck it and paid. Cleared at each hit frame. */
+bool LiftedThisSwing = false;
+
 bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, int *dealtDamage = nullptr)
 {
 	int hper = 0;
@@ -825,8 +829,10 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 
 	// Lifted, not struck (round 68 audit): no damage, so no landing for skills, passives, Rage or wear - Hammer of the Ancients
 	// paid its 10 Rage to wake a perched gargoyle.
-	if (monster.tryLiftGargoyle())
+	if (monster.tryLiftGargoyle()) {
+		LiftedThisSwing = true; // and no spin skill rides the swing (round 69 audit), see DoAttack
 		return false;
+	}
 
 	if (hit >= hper) {
 #ifdef _DEBUG
@@ -1126,6 +1132,7 @@ bool DoAttack(Player &player)
 		// or Righteousness between the front blow and the settle turned a swing that carried no bonus into one that was charged.
 		oracool::LatchClassMeleeSwingPrice(player);
 		oracool::LatchRfa12SwingPrice(player);
+		LiftedThisSwing = false;
 		struct SwingPriceScope {
 			~SwingPriceScope()
 			{
@@ -1160,7 +1167,7 @@ bool DoAttack(Player &player)
 				oracool::OnCursedMonsterStruck(*monster, player, nullptr, hitDamage); // Life Tap (oracool/curses.h)
 			// And the Barbarian's and Monk's (Round 4), which want the swing whether or not it
 			// landed - Whirlwind spins through an empty front tile as readily as a full one.
-			if (oracool::ApplyClassMeleeSkillOnSwing(player, monster, didhit, hitDamage))
+			if (!LiftedThisSwing && oracool::ApplyClassMeleeSkillOnSwing(player, monster, didhit, hitDamage))
 				didhit = true;
 			// And the RfA-12 swings, on their own latch.
 			if (oracool::ApplyRfa12MeleeOnSwing(player, monster, didhit, hitDamage))
@@ -1207,16 +1214,30 @@ bool DoAttack(Player &player)
 			monster = FindMonsterAtPosition(position);
 			if (monster != nullptr) {
 				if (!CanTalkToMonst(*monster) && monster->position.old == position) {
-					if (PlrHitMonst(player, *monster, true))
+					int sideDamage = 0;
+					if (PlrHitMonst(player, *monster, true, &sideDamage)) {
 						didhit = true;
+						// The on-hit passives on a side blow too (round 69 audit: Leech, Dark Reaping, Righteousness, Weapons
+						// Master's Rage and Life Tap answered the front blow alone - the RfA-12 side blows had them since round 65).
+						oracool::OnPassiveHit(player, *monster, sideDamage, true);
+						oracool::OnRfa12Hit(player, *monster, sideDamage, true);
+						oracool::OnCursedMonsterStruck(*monster, player, nullptr, sideDamage);
+					}
 				}
 			}
 			position = player.position.tile + Left(player._pdir);
 			monster = FindMonsterAtPosition(position);
 			if (monster != nullptr) {
 				if (!CanTalkToMonst(*monster) && monster->position.old == position) {
-					if (PlrHitMonst(player, *monster, true))
+					int sideDamage = 0;
+					if (PlrHitMonst(player, *monster, true, &sideDamage)) {
 						didhit = true;
+						// The on-hit passives on a side blow too (round 69 audit: Leech, Dark Reaping, Righteousness, Weapons
+						// Master's Rage and Life Tap answered the front blow alone - the RfA-12 side blows had them since round 65).
+						oracool::OnPassiveHit(player, *monster, sideDamage, true);
+						oracool::OnRfa12Hit(player, *monster, sideDamage, true);
+						oracool::OnCursedMonsterStruck(*monster, player, nullptr, sideDamage);
+					}
 				}
 			}
 		}

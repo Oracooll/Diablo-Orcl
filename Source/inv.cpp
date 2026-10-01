@@ -4414,11 +4414,12 @@ void ConsumeScroll(Player &player)
 	// Try to remove the scroll from selected inventory slot
 	const int8_t itemSlot = player.executedSpell.spellFrom;
 	// Page one's slot only (round 68 audit): a read from pages 2-10 records its page's own index, and the same index on page
-	// one held another stack. From another page the first scroll of the spell found anywhere is taken (below).
-	if (itemSlot >= INVITEM_INV_FIRST && itemSlot <= INVITEM_INV_LAST && ActiveInventoryTab == 0) {
+	// one held another stack. From another page the first scroll of the spell found anywhere is taken (below). The test sits
+	// inside this branch (round 69 audit: on the branch itself, a page-2 read fell through to the fatal "invalid index").
+	if (itemSlot >= INVITEM_INV_FIRST && itemSlot <= INVITEM_INV_LAST) {
 		const int itemIndex = itemSlot - INVITEM_INV_FIRST;
 		const Item *item = &player.InvList[itemIndex];
-		if (!item->isEmpty() && isCurrentSpell(*item)) {
+		if (ActiveInventoryTab == 0 && !item->isEmpty() && isCurrentSpell(*item)) {
 			DecrementOrRemoveInvItem(player, itemIndex);
 			return;
 		}
