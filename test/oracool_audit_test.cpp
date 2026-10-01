@@ -9430,6 +9430,8 @@ TEST(OracoolAudit, ZealToHitLadder)
 	// Narrowed to Zeal (user, 2026-08-30): it is Zeal's accuracy, not the Paladin's, so the swing
 	// has to have been thrown with Zeal. This latch is what PlrHitMonst asks through.
 	oracool::ArmMeleeSkill(oracool::PaladinSkill::Zeal);
+	// A Zeal that can be paid for, before anything is asked (round 67: at no mana every check below passed for that reason).
+	player._pMana = 1000 << 6;
 
 	player._pLevel = 5;
 	player._pSkillInvestment[zeal] = 4;
@@ -9437,7 +9439,6 @@ TEST(OracoolAudit, ZealToHitLadder)
 	    << "below the unlock level the bonus cannot be bought early";
 
 	player._pLevel = 50;
-	player._pMana = 1000 << 6; // a Zeal that can be paid for (round 66: an unaffordable one is a plain swing, no accuracy)
 	// One point per SKILL level, from the first - the levels that also buy a strike pay it too, and
 	// it carries on alone once the strikes stop at rung 5.
 	const struct {

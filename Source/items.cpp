@@ -7759,7 +7759,7 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 		std::string line = life ? fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "hit steals {:d}% life")), affix.param1)
 		                        : fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "hit steals {:d}% mana")), affix.param1);
 		if (both && affix.param1 < 5)
-			line += _(" (the 5% applies)");
+			line += _(/*xgettext:no-c-format*/ " (the 5% applies)");
 		return line;
 	}
 	case IPL_TOHIT_DAMP:

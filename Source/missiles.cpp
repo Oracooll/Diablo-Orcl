@@ -4362,7 +4362,7 @@ void AddLightningStrike(Point fromTile, Displacement from, Point toTile, Displac
 	for (size_t i = 0; i < isLong.size(); i++) {
 		Missile *piece = isLong[i] ? lay(laid * squeeze, LightningPieceLong, MissileGraphicID::LightningStrikeLong, 4, 144)
 		                           : lay(laid * squeeze, LightningPieceShort, MissileGraphicID::LightningStrikeChain, 8, 96);
-		// A strike lights its way: the body's middle piece carries a light (an arc's only one; a strike's besides its fork's).
+		// An arc lights its way from its middle piece; a strike's fork lights the hit, so its body takes none (round 66).
 		if (!fork && piece != nullptr && i == isLong.size() / 2)
 			piece->_mlid = AddLight(piece->position.tile, 4); // an arc's only light; a strike's fork lights the hit (round 66: the pool)
 		laid += isLong[i] ? LightningPieceLong : LightningPieceShort;
@@ -4895,8 +4895,10 @@ Missile *AddMissile(Point src, Point dst, Direction midir, MissileID mitype,
 		if (monster.isUnique()) {
 			missile._miUniqTrans = monster.uniqTrans + 1;
 		}
-		missile.sourceMinion = monster.isPlayerMinion(); // its side, fixed now (Missile::sourceMinion)
-		missile.sourceSpawnSerial = monster.spawnSerial; // and which spawn fired it (Missile::liveSourceMonster)
+		// A follow-up (a splash, a lightning segment) takes its parent's side and spawn, not the slot's: the caster may be dead
+		// and its slot someone else's by now (round 67 audit: a minion's acid splash came out an enemy's, and the reverse).
+		missile.sourceMinion = parent != nullptr ? parent->sourceMinion : monster.isPlayerMinion(); // its side (Missile::sourceMinion)
+		missile.sourceSpawnSerial = parent != nullptr ? parent->sourceSpawnSerial : monster.spawnSerial; // which spawn fired it
 	}
 
 	if (missile._miAnimType == MissileGraphicID::None || GetMissileSpriteData(missile._miAnimType).animFAmt < 8)
@@ -5843,10 +5845,10 @@ void ProcessAcidSplate(Missile &missile)
 		int monst = missile._misource;
 		// Oracool (2026-09-26): a poison Skeletal Mage's splash leaves no pool - a puddle is a trap for players, and
 		// his army's owner would walk into it. The bolt's own hit is the mage's whole blow.
-		if (monst >= 0 && Monsters[monst].isPlayerMinion())
+		if (missile.sourceMinion) // the side it was fired from, not the slot's now (round 67 audit)
 			return;
 		int dam = (Monsters[monst].data().level >= 2 ? 2 : 1);
-		AddMissile(missile.position.tile, { 0, 0 }, Direction::South, MissileID::AcidPuddle, TARGET_PLAYERS, monst, dam, missile._mispllvl);
+		AddMissile(missile.position.tile, { 0, 0 }, Direction::South, MissileID::AcidPuddle, TARGET_PLAYERS, monst, dam, missile._mispllvl, &missile);
 	} else {
 		PutMissile(missile);
 	}

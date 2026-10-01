@@ -73,9 +73,10 @@ bool StartBuff(Player &player, SpellID spell, int rank, int ticks)
 		// the old life until some later recalculation, then healed the difference) - a nearly full one too (round 40 audit).
 		// Refused first, and only at the same rank (round 60 audit: a nearly full buff recast at another rank took the new rank
 		// and fizzled, unpaid - Battle Orders under Battle Command for free). Another rank is a cast: paid, refreshed.
-		// Battle Command counts as the same rank: its own +1 raises the rank it is recast at, so it always looked like another
-		// one and beat the refusal (round 66 audit).
-		if ((slot->rank == rank || spell == SpellID::BattleCommand) && slot->ticksLeft > ticks * 9 / 10)
+		// Battle Command's own +1 raises the rank it is recast at, so a recast one higher is the same rank and beat the refusal
+		// (round 66 audit); two higher is a point spent, a real rank-up that applies (round 67).
+		const bool sameRank = slot->rank == rank || (spell == SpellID::BattleCommand && rank == slot->rank + 1);
+		if (sameRank && slot->ticksLeft > ticks * 9 / 10)
 			return false;
 		if (slot->rank != rank) {
 			slot->rank = rank;
@@ -754,6 +755,14 @@ void ClearWarcryStateForMonster(const Monster &monster)
 	const size_t id = monster.getId();
 	if (id < Debuffs.size())
 		Debuffs[id] = Debuff {};
+}
+
+void RevertConversionOnDeath(Monster &monster)
+{
+	if (!IsMonsterConverted(monster))
+		return;
+	monster.flags &= ~(MFLAG_BERSERK | MFLAG_GOLEM);
+	DebuffOf(monster).convertTicks = 0;
 }
 
 void RevertConversionsForLevelSave()

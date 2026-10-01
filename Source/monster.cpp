@@ -4994,6 +4994,9 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	// Not a Revived one (round 61 audit: the puddle hurts only players - the hero, standing among his own army).
 	if (IsAnyOf(monster.type().type, MT_NACID, MT_RACID, MT_BACID, MT_XACID, MT_SPIDLORD) && !monster.isPlayerMinion())
 		AddMissile(monster.position.tile, { 0, 0 }, Direction::South, MissileID::AcidPuddle, TARGET_PLAYERS, monster.getId(), monster.intelligence + 1, 0);
+	// Conversion ends with the body (round 67 audit): its flags stayed on the corpse, and the slot's delete then put out a
+	// Luminous variant's own light as if the berserk one.
+	oracool::RevertConversionOnDeath(monster);
 }
 
 void StartMonsterDeath(Monster &monster, const Player &player, bool sendmsg)
@@ -6278,7 +6281,9 @@ bool Monster::isPossibleToHit() const
 {
 	return !(hitPoints >> 6 <= 0
 	    || talkMsg != TEXT_NONE
-	    || (type().type == MT_ILLWEAV && goal == MonsterGoal::Retreat)
+	    // Its own Sneak retreat only, not a repel's walk back (round 67 audit: Howl, Grim Ward, Daze and Blinding Flash made a
+	    // visible weaver unhittable for the whole repel - the Counselors' round-40 case).
+	    || (type().type == MT_ILLWEAV && goal == MonsterGoal::Retreat && goalVar3 != RepelRetreatMark)
 	    || (IsAnyOf(mode, MonsterMode::Charge, MonsterMode::Death))
 	    || (IsAnyOf(type().type, MT_COUNSLR, MT_MAGISTR, MT_CABALIST, MT_ADVOCATE) && goal != MonsterGoal::Normal
 	        // A visible Counselor walked back by a repel (Howl, Grim Ward, Daze, Blinding Flash) can be hit: vanilla's own

@@ -3270,7 +3270,9 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 	}
 
 	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
-		if (!file.IsValid()) {
+		// The whole grid and its count, not one byte (round 67 audit: a file cut inside the last page's grid read zeros past its
+		// end, was taken as an empty page, and the next autosave wrote that over the items for good).
+		if (!file.IsValid(InventoryGridCells + 1)) {
 			RefuseInvTabsFile(player); // corrupt/truncated stream (audit, 2026-09-29)
 			return;
 		}

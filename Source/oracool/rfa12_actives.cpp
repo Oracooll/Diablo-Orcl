@@ -1342,6 +1342,23 @@ Missile *FieldClone(const Field &field)
 	return nullptr;
 }
 
+/**
+ * @brief The monster nearest @p at within @p reach that a blow of @p type can land on: not immune, and not @p except. Asks
+ * MonstersWithin, so a cast's sight rules hold (round 67 audit: Arc, Chi Wave and Shock Arrow picked an immune first target or
+ * one round a corner, paid, and struck nothing).
+ */
+Monster *NearestStrikable(Point at, int reach, DamageType type, const Monster *except = nullptr)
+{
+	Monster *best = nullptr;
+	for (Monster *m : MonstersWithin(at, reach)) {
+		if (m == except || m->isImmune(MissileID::Null, type))
+			continue;
+		if (best == nullptr || at.WalkingDistance(m->position.tile) < at.WalkingDistance(best->position.tile))
+			best = m;
+	}
+	return best;
+}
+
 /** @brief Seven-Sided Strike's enemies. */
 int SevenSidedTargets(int r)
 {
@@ -1622,7 +1639,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	    && IsAnyOf(spell, SpellID::Meteor, SpellID::AncestralCourt, SpellID::FrozenSentinel, SpellID::LightningRod,
 	        SpellID::EmberMine, SpellID::StormCrucible, SpellID::BrittleGround, SpellID::ArmyOfTheDead, // the Army too (round 41)
 	        SpellID::FaradayRing, SpellID::FurnaceMouth, SpellID::Firestorm, SpellID::TuningFork, // and these (round 41)
-	        SpellID::RainOfArrows, SpellID::WaveOfLight, SpellID::ValkyriesSpear, SpellID::SevenSidedStrike)) {
+	        SpellID::RainOfArrows, SpellID::WaveOfLight, SpellID::ValkyriesSpear, SpellID::SevenSidedStrike,
+	        // The summons too (round 67 audit): a Decoy set past a wall held the closed room's every monster, and a Valkyrie or a
+	        // Spirit Guardian stood there to regroup.
+	        SpellID::Valkyrie, SpellID::Decoy, SpellID::SpiritGuardian, SpellID::AncestralCall)) {
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
@@ -1908,7 +1928,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	// ---------------- Sorceress: lightning ----------------
 	case SpellID::Arc: {
-		Monster *m = NearestTo(target, 3);
+		Monster *m = NearestStrikable(target, 3, DamageType::Lightning);
 		if (m == nullptr)
 			return false;
 		const Range d = SkillDamage(spell, r);
@@ -1923,7 +1943,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Monster *next = nullptr;
 			const NoCastSight hopSees; // a hop needs the struck one's sight, not the hero's (round 35 audit)
 			for (Monster *candidate : MonstersWithin(at, ReachTiles(spell, r))) {
-				if (std::find(struck.begin(), struck.end(), candidate) == struck.end()) {
+				if (std::find(struck.begin(), struck.end(), candidate) == struck.end() && !candidate->isImmune(MissileID::Null, DamageType::Lightning)) {
 					next = candidate;
 					break;
 				}
@@ -2110,8 +2130,11 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			return false;
 		const Point at = m->position.tile;
 		StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
-		if (Monster *other = NearestTo(at, ReachTiles(spell, r), m); other != nullptr)
-			Strike(player, *other, DamageType::Lightning, Rolled(SkillDamage(spell, r)));
+		{
+			const NoCastSight arcSees; // the arc leaps from the struck one, round its corners, as Arc's hops (round 67 audit)
+			if (Monster *other = NearestStrikable(at, ReachTiles(spell, r), DamageType::Lightning, m); other != nullptr)
+				Strike(player, *other, DamageType::Lightning, Rolled(SkillDamage(spell, r)));
+		}
 		Fly(player, MissileGraphicID::ShockArrow, here, at, spell); // RfA-27 batch 54: the arrow, landing with its cue
 		return true;
 	}
@@ -2166,7 +2189,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::PhantomVolley: {
-		const auto all = MonstersWithin(here, ReachTiles(spell, r));
+		// Not the magic-immune: StrikeBlow refuses them, and a volley at only those was paid for nothing (round 67 audit).
+		auto all = MonstersWithin(here, ReachTiles(spell, r));
+		all.erase(std::remove_if(all.begin(), all.end(), [](const Monster *m) { return m->isImmune(MissileID::Null, DamageType::Magic); }), all.end());
 		for (Monster *m : all)
 			StrikeBlow(player, *m, DamageType::Magic, BlowPercent(spell, r));
 		// RfA-27 batch 54: a spectral arrow to each; the first to land carries the volley's one impact cue.
@@ -2194,7 +2219,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::HuntersClaim: {
 		Monster *best = nullptr;
 		for (Monster *m : MonstersWithin(target, 3)) {
-			if (m->isUnique() && (best == nullptr || target.WalkingDistance(m->position.tile) < target.WalkingDistance(best->position.tile)))
+			// A boss too (round 67 audit: Diablo and the endgame bosses are not isUnique, and "a unique or boss" refused them).
+			if ((m->isUnique() || FightsAsUnique(*m)) && (best == nullptr || target.WalkingDistance(m->position.tile) < target.WalkingDistance(best->position.tile)))
 				best = m;
 		}
 		if (best == nullptr)
@@ -2528,6 +2554,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::HeavenSplitter: {
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
+		if (line.empty())
+			return false; // a blade on nothing costs nothing, as Seismic Slam since round 28 (round 67 audit)
 		for (Monster *m : line)
 			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batch 54: the blade of force skimming the floor down the line; the cry's ring while it is missing.
@@ -2593,6 +2621,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::DragonsWrath: {
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
+		if (line.empty())
+			return false; // as Heaven Splitter (round 67 audit)
 		for (Monster *m : line)
 			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batch 54: the wave of wind and force down the line; the cry's ring while it is missing.
@@ -2610,7 +2640,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		StartBuff(player, Buff::Evasion, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::ChiWave: {
-		Monster *m = NearestTo(target, 3);
+		Monster *m = NearestStrikable(target, 3, DamageType::Magic);
 		if (m == nullptr)
 			return false;
 		const Range d = SkillDamage(spell, r);
@@ -2625,7 +2655,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Monster *next = nullptr;
 			const NoCastSight hopSees; // as Arc's (round 35 audit)
 			for (Monster *candidate : MonstersWithin(at, ReachTiles(spell, r))) {
-				if (std::find(struck.begin(), struck.end(), candidate) == struck.end()) {
+				if (std::find(struck.begin(), struck.end(), candidate) == struck.end() && !candidate->isImmune(MissileID::Null, DamageType::Magic)) {
 					next = candidate;
 					break;
 				}
@@ -3329,7 +3359,7 @@ void TickField(Player &player, Field &field)
 			const int pid = static_cast<int>(player.getId());
 			const int arcs = field.clock % CruciblePeriod == 0 ? 2 : 1;
 			for (int arc = 0; arc < arcs; arc++)
-				AddLightningStrike(field.tile, LightningRodCrown, field.tile2, LightningRodCrown, pid, CrucibleArcEvery, /*fork=*/false);
+				AddLightningStrike(field.tile, LightningRodCrown, field.tile2, LightningRodCrown, pid, CrucibleArcEvery - 1, /*fork=*/false); // shown 3 ticks: one arc (and light) at a time
 		}
 		if (field.clock % CruciblePeriod == 0) {
 			const Range d = SkillDamage(field.spell, r);
@@ -4072,7 +4102,7 @@ bool Rfa12ActiveArrowIgnores(const Player &player, const Monster &monster)
 	if (state.claimTicks <= 0 || state.claimMonster < 0 || state.claimMonster == static_cast<int>(monster.getId()))
 		return false;
 	const Monster &claimed = Monsters[state.claimMonster];
-	return (claimed.hitPoints >> 6) > 0 && !monster.isUnique();
+	return (claimed.hitPoints >> 6) > 0 && !monster.isUnique() && !FightsAsUnique(monster); // a boss is no "ordinary" (round 67)
 }
 
 bool Rfa12ActiveHidesPlayer(const Player &player)

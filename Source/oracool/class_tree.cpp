@@ -949,7 +949,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 0, 0, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Long Thrust"), N_("A thrust that reaches the first enemy within 2 tiles for 100% of a blow, +8% per level."),
 	    Monk, 0, 0, 2, Kind::Active, SpellID::LongThrust, true },
-	{ N_("Low Branch"), N_("A sweep at the legs that slows the target to half speed for 3 seconds without staggering it."),
+	{ N_("Low Branch"), N_("A sweep at the legs that slows the target to half speed for 3 seconds."),
 	    Monk, 0, 1, 1, Kind::Active, SpellID::LowBranch, true },
 	{ N_("Rearward Reach"), N_("Strike the enemy behind you with the staff's end, without turning, for 100% of a blow, +8% per level."),
 	    Monk, 0, 1, 2, Kind::Active, SpellID::RearwardReach, true },

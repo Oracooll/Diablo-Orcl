@@ -533,8 +533,10 @@ void ProcessMinions(Player &owner)
 			continue;
 		if (BodyAlive(record))
 			M_StartKill(Monsters[record.body], owner);
-		else
+		else if (record.body < 0)
 			Release(record);
+		// A body already falling keeps its record until its slot is freed (OnMonsterSlotFreed), as DismissMinions does: released
+		// here, the level save's withdraw never saw it and it was saved as an ownerless minion (round 67 audit).
 	}
 	if (leveltype == DTYPE_TOWN || owner._pLvlChanging || !owner.isOnActiveLevel())
 		return;
