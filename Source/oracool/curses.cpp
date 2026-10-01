@@ -543,6 +543,10 @@ void ProcessCursesTick(Player &player)
 			Release(monster, curse);
 			continue;
 		}
+		// Decrepify's clock stops while its chill's does (round 63 audit): stone pauses the chill, and the curse ran out first,
+		// leaving the monster slowed with no curse on it.
+		if (curse.kind == CurseKind::Decrepify && monster.mode == MonsterMode::Petrified)
+			continue;
 		curse.ticks--;
 		if (curse.kind == CurseKind::Bane && (++curse.pulse >= TicksPerSecond || curse.ticks == 0)) {
 			curse.pulse = 0; // its own second (round 37 audit)

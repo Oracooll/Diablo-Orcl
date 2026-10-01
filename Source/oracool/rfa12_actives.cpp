@@ -63,13 +63,6 @@ int Roll(int min, int max)
 	return (min + GenerateRnd(std::max(max - min, 0) + 1)) << 6;
 }
 
-/** @brief One blow of the weapon in hand, as the character sheet rolls it - bonuses included, no to-hit. */
-int WeaponBlow(const Player &player)
-{
-	int dam = PooledWeaponDamage(player, player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1), 0);
-	return std::max(dam, 1) << 6;
-}
-
 /** @brief Earthen Might: Rage for every enemy a ground skill strikes. */
 constexpr int EarthenMightPerEnemy = 3;
 
@@ -119,7 +112,7 @@ struct BowStrikeScope {
 };
 
 /** @brief A skill's strike: immunity and resistance honoured, kill credit and the flinch to @p player. */
-void Strike(Player &player, Monster &monster, DamageType type, int damage, bool melee = false, bool applyPassives = true)
+void Strike(Player &player, Monster &monster, DamageType type, int damage, bool melee = false, bool applyPassives = true, bool pooled = false)
 {
 	if (damage <= 0 || !Hittable(monster))
 		return;
@@ -138,7 +131,8 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	// a share of a blow that already took them (the echo, Tragedy's share), which paid them twice.
 	// With the RfA-12 half of that sum (Hunter's Mark, Judgment, Dead Ground, Deadeye), which the missile path adds beside
 	// the passives' - round 13 brought over only the first half (round 15 audit, v1.12.240).
-	if (applyPassives)
+	// Not again for a weapon blow that took them into its pool (StrikeBlow, round 63 audit).
+	if (applyPassives && !pooled)
 		damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, melee) + Rfa12DamageDealtPercent(player, monster, melee));
 	if (damage <= 0)
 		return;
@@ -590,6 +584,21 @@ bool HoldsShield(const Player &player)
 int Percent(int value, int percent)
 {
 	return value * percent / 100;
+}
+
+/**
+ * @brief A weapon skill's blow at @p blowPercent of the sheet's on @p monster - Diablo II's pool (round 63 audit): the damage
+ * passives add to the items' +% and the stat share, as a plain swing and a plain arrow take them since v1.12.294, and the
+ * skill's share multiplies the whole. They multiplied on top before: Barbed Shaft's "100% of an arrow" landed at 150% of one.
+ */
+void StrikeBlow(Player &player, Monster &monster, DamageType type, int blowPercent, bool melee = false)
+{
+	if (!Hittable(monster))
+		return;
+	const int pool = PassiveDamageDealtPercent(player, monster, melee) + Rfa12DamageDealtPercent(player, monster, melee);
+	const int roll = player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1);
+	const int blow = std::max(PooledWeaponDamage(player, roll, pool), 1) << 6;
+	Strike(player, monster, type, Percent(blow, blowPercent), melee, /*applyPassives=*/true, /*pooled=*/true);
 }
 
 // =================================================================================================
@@ -1494,7 +1503,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Monster *behind = FindMonsterAtPosition(here + Opposite(player._pdir));
 		if (behind == nullptr || !Hittable(*behind))
 			return false;
-		Strike(player, *behind, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		StrikeBlow(player, *behind, DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batch 53: the arc behind him - row n is the arc behind a hero facing n, so his own facing picks it.
 		ArtFacing(player, MissileGraphicID::RearwardReach, here, player._pdir);
 		Impact(player, spell);
@@ -1537,7 +1546,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::SeismicSlam: {
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		EarthenMightRage(player, line.size());
 		GoldenFlameWave(player, here, target, ReachTiles(spell, r));
 		return !line.empty(); // a slam on nothing costs nothing, as Rend and Ground Stomp (round 28 audit)
@@ -1885,7 +1894,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (m == nullptr)
 			return false;
 		const Point at = m->position.tile;
-		Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		Bleed(*m, EffectTicks(spell, r), PerSecond(spell, r));
 		Fly(player, MissileGraphicID::BarbedArrow, here, at, spell); // RfA-27 batch 54: the arrow, landing with its cue
 		return true;
@@ -1895,7 +1904,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (m == nullptr)
 			return false;
 		const Point at = m->position.tile;
-		Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		if (Monster *other = NearestTo(at, ReachTiles(spell, r), m); other != nullptr)
 			Strike(player, *other, DamageType::Lightning, Rolled(SkillDamage(spell, r)));
 		Fly(player, MissileGraphicID::ShockArrow, here, at, spell); // RfA-27 batch 54: the arrow, landing with its cue
@@ -1904,7 +1913,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::PiercingShot: {
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batch 54: the arrow, through to the farthest it struck, landing with its cue.
 		if (!line.empty())
 			Fly(player, MissileGraphicID::PiercingArrow, here, line.back()->position.tile, spell);
@@ -1912,7 +1921,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::RainOfArrows: {
 		for (Monster *m : MonstersWithin(target, ReachTiles(spell, r)))
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		if (Art(player, MissileGraphicID::RainOfArrows, target) == nullptr) // RfA-27 batch 55; the ring without it
 			Ring(player, target);
 		Impact(player, spell);
@@ -1923,7 +1932,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (m == nullptr)
 			return false;
 		const Point at = m->position.tile;
-		Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		if ((m->hitPoints >> 6) > 0) {
 			ChillMonster(*m, SlowTicks(spell, r));
 			MarksOf(*m).slowMarkTicks = SlowTicks(spell, r); // RfA-27 batch 58: the Slowed sigil
@@ -1945,7 +1954,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			return false;
 		const Point at = m->position.tile;
 		for (int i = 0; i < BarrageArrows && (m->hitPoints >> 6) > 0; i++)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batch 54: five arrows, a little slower each, so they arrive as a string rather than as one.
 		for (int i = 0; i < BarrageArrows; i++)
 			Fly(player, MissileGraphicID::BarrageArrow, here, at, SpellID::Invalid, 32 - 3 * i);
@@ -1954,7 +1963,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::PhantomVolley: {
 		const auto all = MonstersWithin(here, ReachTiles(spell, r));
 		for (Monster *m : all)
-			Strike(player, *m, DamageType::Magic, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Magic, BlowPercent(spell, r));
 		// RfA-27 batch 54: a spectral arrow to each; the first to land carries the volley's one impact cue.
 		bool first = true;
 		for (Monster *m : all) {
@@ -1995,7 +2004,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			return false;
 		Monster &m = *line.front();
 		const Point at = m.position.tile;
-		Strike(player, m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		StrikeBlow(player, m, DamageType::Physical, BlowPercent(spell, r));
 		if ((m.hitPoints >> 6) > 0) {
 			Shove(m, GetDirection(m.position.tile, here));
 			Stagger(m, StunTicks(spell, r));
@@ -2024,7 +2033,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			return false;
 		Monster &pinned = *line.front();
 		const Point at = pinned.position.tile;
-		Strike(player, pinned, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		StrikeBlow(player, pinned, DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batch 58: the Pinned sigil, for as long as the pin holds - the ones Stagger leaves alone are not pinned.
 		if (!ShrugsOff(pinned) && pinned.mode != MonsterMode::Petrified && (pinned.hitPoints >> 6) > 0)
 			MarksOf(pinned).pinTicks = StunTicks(spell, r);
@@ -2048,7 +2057,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			return false;
 		Monster &m = *line.front();
 		const Point pool = m.position.tile;
-		Strike(player, m, DamageType::Acid, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		StrikeBlow(player, m, DamageType::Acid, BlowPercent(spell, r));
 		NewField(player, spell, pool, EffectTicks(spell, r), r);
 		Show(player, MissileID::AcidJavelin, MissileGraphicID::AcidJavelin, here, pool);
 		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, pool, pool, EffectTicks(spell, r));
@@ -2066,7 +2075,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::ValkyriesSpear: {
 		for (Monster *m : MonstersWithin(target, ReachTiles(spell, r)))
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batches 54-55: the spear flies and bursts where it lands, with its cue; without the spear the burst and the
 		// cue come at once, and with neither sheet the cry's ring stands in, as before.
 		if (!MissileArtLoaded(MissileGraphicID::ValkyrieSpear) && !MissileArtLoaded(MissileGraphicID::ValkyrieBurst))
@@ -2250,7 +2259,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		if (line.empty())
 			return false;
-		Strike(player, *line.front(), DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+		StrikeBlow(player, *line.front(), DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batch 53: the staff's streak along his aim, and the jab's cue.
 		ArtFacing(player, MissileGraphicID::LongThrust, here, target == here ? player._pdir : GetDirection(here, target));
 		Impact(player, spell);
@@ -2259,7 +2268,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::MountainPole: {
 		const auto around = MonstersWithin(here, 1);
 		for (Monster *m : around) {
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 			Stagger(*m, StunTicks(spell, r));
 		}
 		if (around.empty())
@@ -2274,7 +2283,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			nearby.resize(static_cast<size_t>(BambooRainTargets));
 		for (Monster *m : nearby) {
 			Art(player, MissileGraphicID::StaffFlurry, m->position.tile); // RfA-27 batch 52: the flurry on each it strikes
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		}
 		if (!nearby.empty())
 			Impact(player, spell);
@@ -2284,7 +2293,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::WhirlingKick: {
 		const auto around = MonstersWithin(here, 1);
 		for (Monster *m : around) {
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 			Shove(*m, GetDirection(here, m->position.tile));
 		}
 		if (around.empty())
@@ -2296,7 +2305,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::HeavenSplitter: {
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batch 54: the blade of force skimming the floor down the line; the cry's ring while it is missing.
 		if (MissileArtLoaded(MissileGraphicID::HeavenSplitterWave))
 			Fly(player, MissileGraphicID::HeavenSplitterWave, here, LineEnd(here, target, ReachTiles(spell, r)), SpellID::Invalid, 16);
@@ -2308,7 +2317,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const auto all = MonstersWithin(here, ReachTiles(spell, r));
 		for (Monster *m : all) {
 			Art(player, MissileGraphicID::StaffFlurry, m->position.tile); // RfA-27 batch 52: the flurry on each it strikes
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		}
 		return !all.empty();
 	}
@@ -2354,14 +2363,14 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			nearby.resize(cap);
 		for (Monster *m : nearby) {
 			Art(player, MissileGraphicID::SevenSidedStrike, m->position.tile); // RfA-27 batch 52: on each one struck
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		}
 		return !nearby.empty();
 	}
 	case SpellID::DragonsWrath: {
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batch 54: the wave of wind and force down the line; the cry's ring while it is missing.
 		if (MissileArtLoaded(MissileGraphicID::DragonsWrathWave))
 			Fly(player, MissileGraphicID::DragonsWrathWave, here, LineEnd(here, target, ReachTiles(spell, r)), SpellID::Invalid, 16);
@@ -2403,12 +2412,14 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::BlindingFlash: {
 		const auto nearby = MonstersWithin(here, ReachTiles(spell, r));
+		bool blinded = false; // only what it blinds counts (round 63 audit, as the stuns since round 60)
 		for (Monster *m : nearby) {
 			if (ShrugsOff(*m) || m->mode == MonsterMode::Petrified)
 				continue;
 			StartRepelRetreat(*m, static_cast<Direction>(GenerateRnd(8)), 3);
+			blinded = true;
 		}
-		if (nearby.empty())
+		if (!blinded)
 			return false;
 		// RfA-27 batch 55: the flash, in place of the cry's shockwave (Rfa12CastLeavesRing).
 		Art(player, MissileGraphicID::BlindingFlash, here);
@@ -2772,7 +2783,7 @@ void TickField(Player &player, Field &field)
 		if (field.clock % TicksPerSecond == 0) {
 			const auto shaken = MonstersWithin(field.tile, ReachTiles(field.spell, r));
 			for (Monster *m : shaken)
-				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(field.spell, r)));
+				StrikeBlow(player, *m, DamageType::Physical, BlowPercent(field.spell, r));
 			EarthenMightRage(player, shaken.size());
 			Impact(player, field.spell); // one tremor pulse a second
 		}
@@ -3167,7 +3178,7 @@ void TickLanding(Player &player, PlayerState &state)
 	}
 	case SpellID::LeapingCrane:
 		if (Monster *m = NearestTo(player.position.tile, 1); m != nullptr)
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(state.landingSpell, r)), /*melee=*/true); // a weapon blow (round 15)
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(state.landingSpell, r), /*melee=*/true); // a weapon blow (round 15)
 		Art(player, MissileGraphicID::LeapingCrane, player.position.tile); // RfA-27 batch 57: the landing's wind burst
 		Impact(player, state.landingSpell);
 		break;
@@ -3293,7 +3304,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		// blows, and the front target a third (round 16 audit, v1.12.241).
 		for (Monster *m : MonstersOnLine(ahead, ahead + player._pdir, 2)) {
 			if (m != nullptr && m != front && Hittable(*m)) {
-				Strike(player, *m, DamageType::Magic, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
+				StrikeBlow(player, *m, DamageType::Magic, BlowPercent(spell, r), /*melee=*/true);
 				struck = true;
 			}
 		}
@@ -3303,7 +3314,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		for (Monster *m : MonstersWithin(player.position.tile, 1)) {
 			if (m == front || blows >= CrusadeOthers)
 				continue;
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true);
 			blows++;
 			struck = true;
 		}
@@ -3317,7 +3328,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 				continue;
 			slammed.push_back(m);
 			if (m != front)
-				Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
+				StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true);
 			// Shoved first, then stunned: the shove's knockback put it into hit recovery over the stun (round 16 audit).
 			Shove(*m, player._pdir);
 			Stagger(*m, StunTicks(spell, r));
@@ -3332,7 +3343,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		const Point behindTile = player.position.tile + Opposite(player._pdir);
 		Monster *behind = InDungeonBounds(behindTile) ? FindMonsterAtPosition(behindTile) : nullptr;
 		if (behind != nullptr && behind != front && Hittable(*behind)) {
-			Strike(player, *behind, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
+			StrikeBlow(player, *behind, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true);
 			struck = true;
 			landedBlows++;
 		}
@@ -3349,7 +3360,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			if (m == nullptr || m == front || m == first || !Hittable(*m))
 				continue;
 			first = m;
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true);
 			struck = true;
 			landedBlows++;
 		}
@@ -3372,7 +3383,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	case SpellID::ReapingPoint: {
 		Monster *beyond = InDungeonBounds(ahead + player._pdir) ? FindMonsterAtPosition(ahead + player._pdir) : nullptr;
 		if (beyond != nullptr && Hittable(*beyond)) {
-			Strike(player, *beyond, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(spell, r)), /*melee=*/true);
+			StrikeBlow(player, *beyond, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true);
 			struck = true;
 		}
 		break;
@@ -3733,7 +3744,7 @@ void OnRfa12ActiveMonsterKilled(Player &player, const Monster &monster)
 		const int r = marks.palmRank;
 		marks.palmTicks = 0;
 		for (Monster *m : MonstersWithin(at, 1))
-			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), BlowPercent(SpellID::ExplodingPalm, r)), /*melee=*/true); // round 15
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(SpellID::ExplodingPalm, r), /*melee=*/true); // round 15
 		if (Art(player, MissileGraphicID::ExplodingPalmBurst, at) == nullptr) // RfA-27 batch 55; the ring without it
 			Ring(player, at);
 	}
@@ -3788,7 +3799,8 @@ void ProcessRfa12ActivesTick(Player &player)
 		RestoreMana(player, ManaFlowPerTick(r));
 	if (const int r = BuffRank(player, Buff::Conduit); r > 0)
 		RestoreMana(player, ManaFlowPerTick(r));
-	if (const int r = BuffRank(player, Buff::Immolate); r > 0 && state.ticks[static_cast<size_t>(Buff::Immolate)] % TicksPerSecond == 0) {
+	// Once a second from the first tick, so its ten seconds burn ten times (round 63 audit: nine - the tenth fell on the tick it ended).
+	if (const int r = BuffRank(player, Buff::Immolate); r > 0 && (state.ticks[static_cast<size_t>(Buff::Immolate)] + 1) % TicksPerSecond == 0) {
 		const Range d = SkillDamage(SpellID::Immolate, r);
 		const auto burning = MonstersWithin(player.position.tile, 1);
 		for (Monster *m : burning)
@@ -4392,7 +4404,7 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		say(_("Slow: half speed for {} s"), Secs(SlowTicks(spell, r)));
 		break;
 	case SpellID::HuntersMark:
-		say(_("Arrow damage taken: +{:d}% for {} s"), EffectPercent(spell, r), Secs(EffectTicks(spell, r)));
+		say(_("Damage taken from your ranged hits: +{:d}% for {} s"), EffectPercent(spell, r), Secs(EffectTicks(spell, r)));
 		break;
 	case SpellID::Barrage:
 		say(_("Arrows: {:d} at one target, each {:d}% of an arrow"), BarrageArrows, blow);
@@ -4411,7 +4423,7 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		break;
 	case SpellID::Harpoon:
 		say(_("Damage: {:d}% of a blow, the first enemy on an {:d}-tile line"), blow, reach);
-		say(_("Drags it a tile toward you; stun {} s"), Secs(StunTicks(spell, r)));
+		say(_("Drags it a tile toward you; stun {} s (uniques shrug it off)"), Secs(StunTicks(spell, r)));
 		break;
 	case SpellID::Vault:
 		say(_("Range: {:d} tiles"), reach);
@@ -4450,7 +4462,7 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		break;
 	case SpellID::MountainPole:
 		say(_("Damage: {:d}% of a blow, everything beside you"), blow);
-		say(_("Stun: {} s"), Secs(StunTicks(spell, r)));
+		say(_("Stun: {} s (uniques shrug it off)"), Secs(StunTicks(spell, r)));
 		break;
 	case SpellID::BambooRain:
 		say(_("Damage: {:d}% of a blow, up to {:d} enemies within {:d} tiles"), blow, BambooRainTargets, reach);
@@ -4484,7 +4496,7 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		break;
 	case SpellID::ShoulderGate:
 		say(_("Rush: up to {:d} tiles"), reach);
-		say(_("Stun: {} s"), Secs(StunTicks(spell, r)));
+		say(_("Stun: {} s (uniques shrug it off)"), Secs(StunTicks(spell, r)));
 		break;
 	case SpellID::SevenSidedStrike:
 		say(_("Damage: {:d}% of a blow, up to {:d} enemies within {:d} tiles of the cursor"), blow, SevenSidedTargets(r), reach);
@@ -4554,7 +4566,7 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		break;
 	case SpellID::BoneSpikes:
 		say(_("Magic damage: {:d} - {:d} within {:d} tile of the cursor"), bone.min, bone.max, reach);
-		say(_("Stun: {} s"), Secs(StunTicks(spell, r)));
+		say(_("Stun: {} s (uniques shrug it off)"), Secs(StunTicks(spell, r)));
 		break;
 	case SpellID::PoisonExplosion:
 		poison();

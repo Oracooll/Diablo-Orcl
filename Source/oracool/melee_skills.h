@@ -99,6 +99,8 @@ void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill);
 std::optional<ClassMeleeSkill> ArmedClassMeleeSkill();
 /** @brief A new game: no Leap Attack blow paid by the last character's leap. */
 void ForgetLeapAttackPrepaid();
+/** @brief Whether a Leap Attack leap has paid for the blow still to come. */
+bool LeapAttackBlowPrepaid();
 
 /**
  * @brief The armed skill's damage bonus on the swing being resolved, in percent. Zero when nothing

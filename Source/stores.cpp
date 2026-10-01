@@ -3311,6 +3311,12 @@ void GambleBuyItemAt(int idx)
 	Item &slot = gambleitems[idx];
 	const int price = slot._iIvalue;
 	const _item_indexes base = slot.IDidx;
+	// Refused before the gold when the town floor is full (round 63 audit): a roll that fit neither pack nor stash went to
+	// DropItemBesidePlayer, which drops nothing past MAXITEMS - paid and gone, the log saying it fell at his feet.
+	if (ActiveItemCount >= MAXITEMS) {
+		StartStore(TalkID::NoRoom);
+		return;
+	}
 	TakePlrsMoney(price);
 	// The gamble: the roll happens NOW, after the gold, and the result goes to the pack identified.
 	Item result;

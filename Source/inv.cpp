@@ -1236,7 +1236,8 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 
 			holdItem = GetActiveInvListItem(player, iv - 1);
 			if (automaticMove) {
-				if (CanBePlacedOnBelt(holdItem)) {
+				// Potions only to the belt (round 63 audit, the user's rule of 2026-09-14).
+				if (holdItem.isPotion() && CanBePlacedOnBelt(holdItem)) {
 					automaticallyMoved = AutoPlaceItemInBelt(player, holdItem, true);
 				} else if (CanEquip(holdItem)) {
 					/*

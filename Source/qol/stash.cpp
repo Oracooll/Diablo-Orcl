@@ -731,10 +731,16 @@ void CheckStashCut(Point cursorPosition, bool automaticMove)
 	if (iv != StashStruct::EmptyCell) {
 		holdItem = Stash.stashList[iv];
 		if (automaticMove) {
-			if (CanBePlacedOnBelt(holdItem)) {
+			// Potions to the belt, the rest to the pack or onto the hero (round 63 audit: a shift-clicked scroll went to the
+			// belt, and with the belt full it said "no room" over an empty pack).
+			if (holdItem.isPotion() && CanBePlacedOnBelt(holdItem)) {
 				automaticallyMoved = AutoPlaceItemInBelt(player, holdItem, true);
-			} else {
+			}
+			if (!automaticallyMoved) { // AutoEquip refuses what cannot be worn
 				automaticallyMoved = automaticallyEquipped = AutoEquip(player, holdItem);
+			}
+			if (!automaticallyMoved) {
+				automaticallyMoved = AutoPlaceItemInInventory(player, holdItem, true);
 			}
 		}
 

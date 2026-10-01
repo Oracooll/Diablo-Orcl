@@ -4388,7 +4388,10 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// skill armed. Distant target and a leaping skill: the leap. Distant target otherwise: walk, as
 	// the Paladin's skills do. Shift: swing in place, armed.
 	if (const std::optional<oracool::ClassMeleeSkill> skill = oracool::ClassMeleeSkillForSpell(spellID); skill.has_value()) {
-		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
+		// The blow a Leap Attack's leap already paid for is not priced again (round 63 audit: the leap left under 14 Rage and the
+		// follow-up was refused "short of Rage").
+		const bool prepaidBlow = *skill == oracool::ClassMeleeSkill::LeapAttack && oracool::LeapAttackBlowPrepaid();
+		if (!prepaidBlow && CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
 			myPlayer.Say(ShortOfPriceSpeech(myPlayer, spellID));
 			LastMouseButtonAction = MouseActionType::None; // said once, not at the held button's repeat rate (round 32 audit)
 			return;

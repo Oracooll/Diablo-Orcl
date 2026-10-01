@@ -151,9 +151,11 @@ void Pay(Player &player, ClassMeleeSkill skill, int landedBlows)
  * @brief One blow of the weapon in hand as the sheet rolls it - +% damage, flat damage and Strength included - in 1/64s.
  * The spins and the sweep rolled the bare dice: "at full force" and "80% of a blow" landed far under (round 20 audit).
  */
-int FullBlow(const Player &player)
+int FullBlowAt(Player &player, const Monster &monster)
 {
-	int dam = PooledWeaponDamage(player, player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1), 0);
+	// The damage passives in the pool (round 63 audit), as the front swing takes them - they multiplied on top before.
+	const int pool = PassiveDamageDealtPercent(player, monster, /*melee=*/true) + Rfa12DamageDealtPercent(player, monster, /*melee=*/true);
+	int dam = PooledWeaponDamage(player, player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1), pool);
 	return std::max(dam, 1) << 6;
 }
 
@@ -162,11 +164,11 @@ int FullBlow(const Player &player)
  * @p applyPassives: a fresh blow (the spins, the sweep) takes the damage passives and feeds Leech, Life Tap and the rest,
  * as the front swing and the RfA-12 sweeps do; a share of the front blow already took them (round 26 audit, v1.12.251).
  */
-void Strike(Player &player, Monster &monster, int damage, bool applyPassives = true)
+void Strike(Player &player, Monster &monster, int damage, bool applyPassives = true, bool pooled = false)
 {
 	if (damage <= 0 || monster.hitPoints >> 6 <= 0)
 		return;
-	if (applyPassives)
+	if (applyPassives && !pooled) // a pooled blow took them already (FullBlowAt, round 63 audit)
 		damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, /*melee=*/true) + Rfa12DamageDealtPercent(player, monster, /*melee=*/true)); // saturating (round 27 audit)
 	if (damage <= 0)
 		return;
@@ -353,6 +355,11 @@ void ForgetLeapAttackPrepaid()
 	LeapAttackPrepaid = false;
 }
 
+bool LeapAttackBlowPrepaid()
+{
+	return LeapAttackPrepaid;
+}
+
 std::optional<ClassMeleeSkill> ArmedClassMeleeSkill()
 {
 	return ArmedSkill;
@@ -534,8 +541,9 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		// Fend is the Rogue's spin, and a wider one: four fifths rather than two thirds.
 		const int share = (skill == ClassMeleeSkill::Fend ? 80 : 66) + 5 * (rank - 1);
 		for (int i = 0; i < found; i++) {
-			const int blow = FullBlow(player);
-			Strike(player, *targets[i], blow * share / 100);
+			// The passives in the blow's pool, the share on the whole (round 63 audit).
+			const int blow = FullBlowAt(player, *targets[i]);
+			Strike(player, *targets[i], blow * share / 100, /*applyPassives=*/true, /*pooled=*/true);
 			struck = true;
 			landedBlows++;
 		}
@@ -550,8 +558,8 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 			if (m == nullptr || m == front || m == first || (m->hitPoints >> 6) <= 0 || m->isPlayerMinion() || !m->isPossibleToHit())
 				continue;
 			first = m;
-			const int blow = FullBlow(player);
-			Strike(player, *m, blow);
+			const int blow = FullBlowAt(player, *m);
+			Strike(player, *m, blow, /*applyPassives=*/true, /*pooled=*/true);
 			struck = true;
 			landedBlows++;
 		}
