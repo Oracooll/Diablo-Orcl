@@ -3796,7 +3796,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		}
 		break;
 	case SpellID::Oathbrand:
-		if (alive) {
+		if (alive && !front->isImmune(MissileID::Null, DamageType::Magic)) { // no brand that strikes nothing (round 71 audit)
 			Marks &marks = MarksOf(*front);
 			marks.oathTicks = EffectTicks(spell, r);
 			marks.oathCharges = OathbrandCharges;
@@ -4195,7 +4195,8 @@ void OnRfa12ActiveHit(Player &player, Monster &monster, int damage, bool melee)
 	// Poison Dagger (the Necromancer, 2026-09-18): every landed weapon blow poisons.
 	if (melee && damage > 0 && BuffRank(player, Buff::Venom) > 0 && (monster.hitPoints >> 6) > 0)
 		Poison(player, monster, PoisonTicks(SpellID::PoisonDagger), PerSecond(SpellID::PoisonDagger, BuffRank(player, Buff::Venom)));
-	if (melee && marks.oathCharges > 0 && marks.oathTicks > 0 && (monster.hitPoints >> 6) > 0) {
+	if (melee && marks.oathCharges > 0 && marks.oathTicks > 0 && (monster.hitPoints >> 6) > 0
+	    && !monster.isImmune(MissileID::Null, DamageType::Magic)) { // the charge kept while it is immune (round 71 audit)
 		marks.oathCharges--;
 		Strike(player, monster, DamageType::Magic, Rolled(SkillDamage(SpellID::Oathbrand, marks.oathRank)));
 	}
@@ -4342,7 +4343,9 @@ void ProcessRfa12ActivesTick(Player &player)
 	// Wrath of the Heavens: a pillar every 12 ticks on a monster within five tiles.
 	if (state.wrathPillars > 0 && ++state.wrathClock % WrathPillarTicks == 0) {
 		state.wrathPillars--;
-		const auto nearby = MonstersWithin(player.position.tile, ReachTiles(SpellID::WrathOfTheHeavens, state.wrathRank));
+		auto nearby = MonstersWithin(player.position.tile, ReachTiles(SpellID::WrathOfTheHeavens, state.wrathRank));
+		// Not on a magic-immune one (round 71 audit: a pillar fell on a skeleton, did nothing and was spent).
+		nearby.erase(std::remove_if(nearby.begin(), nearby.end(), [](const Monster *m) { return m->isImmune(MissileID::Null, DamageType::Magic); }), nearby.end());
 		if (!nearby.empty()) {
 			Monster &m = *nearby[static_cast<size_t>(GenerateRnd(static_cast<int>(nearby.size())))];
 			const Point at = m.position.tile;

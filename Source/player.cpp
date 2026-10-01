@@ -814,7 +814,7 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	// Asked of the latch: IsShieldBashSwing answers which ANIMATION the swing wears, false in play wherever the shield
 	// sheet is loaded, so v1.12.244's test never fired (round 20 audit).
 	if (!adjacentDamage && &player == MyPlayer && oracool::ArmedMeleeSkill() == oracool::PaladinSkill::ShieldBash
-	    && oracool::CanUsePaladinSkill(player, oracool::PaladinSkill::ShieldBash))
+	    && oracool::PaladinSkillPaidAtFront(player, oracool::PaladinSkill::ShieldBash)) // the frame's answer (round 71)
 		hit = 0;
 
 	hper += player.GetMeleePiercingToHit() - player.CalculateArmorPierce(oracool::EffectiveMonsterArmor(monster), true);
@@ -1132,12 +1132,14 @@ bool DoAttack(Player &player)
 		// or Righteousness between the front blow and the settle turned a swing that carried no bonus into one that was charged.
 		oracool::LatchClassMeleeSwingPrice(player);
 		oracool::LatchRfa12SwingPrice(player);
+		oracool::LatchPaladinSwingPrice(player);
 		LiftedThisSwing = false;
 		struct SwingPriceScope {
 			~SwingPriceScope()
 			{
 				oracool::ForgetClassMeleeSwingPrice();
 				oracool::ForgetRfa12SwingPrice();
+				oracool::ForgetPaladinSwingPrice();
 			}
 		} swingPriceScope;
 		if (monster != nullptr) {

@@ -1625,8 +1625,13 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 		return;
 	// The army's armour counts (round 70 audit: its records set armorClass, and nothing read it - a Clay Golem was struck
 	// as often as a Skeleton). At least 5%, the floor the hero's own armour leaves a monster.
-	if (oracool::IsMinion(target))
-		hper = std::max(hper - target.armorClass, 5);
+	if (oracool::IsMinion(target)) {
+		// As the hero's own odds are built (MonsterAttackPlayer): +30 and the level gap, then the armour (round 71 audit: the
+		// armour off the raw to-hit left most blows at the 5% floor - the army was close to unkillable in melee).
+		const Player *owner = oracool::MinionOwner(target);
+		const int levelGap = owner != nullptr ? attacker.level(sgGameInitInfo.nDifficulty) - owner->_pLevel : 0;
+		hper = std::clamp(hper + 30 + 2 * levelGap - target.armorClass, 5, 95);
+	}
 	if (hit >= hper)
 		return;
 
@@ -4709,6 +4714,19 @@ bool M_Talker(const Monster &monster)
 	return IsAnyOf(monster.ai, MonsterAIID::Lazarus, MonsterAIID::Warlord, MonsterAIID::Gharbad, MonsterAIID::Zhar, MonsterAIID::Snotspill, MonsterAIID::Lachdanan, MonsterAIID::LazarusSuccubus);
 }
 
+void ReaimMonsterAfterSideChange(Monster &monster)
+{
+	if ((monster.hitPoints >> 6) <= 0 || monster.mode == MonsterMode::Death)
+		return;
+	monster.flags &= ~MFLAG_TARGETS_MONSTER;
+	UpdateEnemy(monster);
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		Monster &other = Monsters[ActiveMonsters[i]];
+		if (&other != &monster && (other.flags & MFLAG_TARGETS_MONSTER) != 0 && static_cast<size_t>(other.enemy) == monster.getId())
+			UpdateEnemy(other);
+	}
+}
+
 void M_StartStand(Monster &monster, Direction md)
 {
 	ClearMVars(monster);
@@ -5835,6 +5853,7 @@ void MissToMonst(Missile &missile, Point position)
 	auto &monster = Monsters[monsterId];
 
 	Point oldPosition = missile.position.tile;
+	const int aimed = monster.enemy; // before M_StartStand re-aims it (round 71 audit)
 	dMonster[position.x][position.y] = monsterId + 1;
 	monster.direction = static_cast<Direction>(missile._mimfnum);
 	monster.position.tile = position;
@@ -5878,6 +5897,11 @@ void MissToMonst(Missile &missile, Point position)
 	Monster *target = FindMonsterAtPosition(oldPosition, true);
 
 	if (target == nullptr)
+		return;
+	// Its mark or the other side only (round 71 audit): a charge drawn by a Decoy or Attract struck the packmate that stood
+	// in its path, unmissably, and the kill paid loot and experience.
+	if (static_cast<int>(target->getId()) != aimed && target->isPlayerMinion() == monster.isPlayerMinion()
+	    && ((monster.flags | target->flags) & MFLAG_BERSERK) == 0)
 		return;
 
 	MonsterAttackMonster(monster, *target, 500, monster.minDamageSpecial, monster.maxDamageSpecial);

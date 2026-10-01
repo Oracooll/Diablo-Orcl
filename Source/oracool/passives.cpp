@@ -740,8 +740,14 @@ void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee,
 		RestoreMana(player, RighteousnessMana);
 	if (!melee && PassiveActive(player, Skill::NightStalker))
 		RestoreMana(player, NightStalkerMana);
-	if (burst)
+	if (burst) {
+		// The per-target parts of OnAnyHit still land on it (round 71 audit): Resolve's debuff and the physical mark.
+		if (damage > 0 && PassiveActive(player, Skill::Resolve))
+			DebuffMonster(target, ResolveTicks, -ResolvePercent, 0);
+		if (melee)
+			MarkElement(target, DamageType::Physical, MarkTicks);
 		return; // a side blow: the swing's own counters and the shared rules wait for its front blow (round 70 audit)
+	}
 	if (melee) {
 		// Counterstroke's empowered blow has landed.
 		clocks.counterTicks = 0;

@@ -552,8 +552,12 @@ void ProcessCursesTick(Player &player)
 			curse.pulse = 0; // its own second (round 37 audit)
 			OwnerStrikes(player, monster, DamageType::Acid, BanePerSecond(curse.rank) << 6);
 		}
-		if (curse.ticks == 0)
+		if (curse.ticks == 0) {
+			const bool sideChange = curse.turned || curse.kind == CurseKind::Attract;
 			Release(monster, curse);
+			if (sideChange)
+				ReaimMonsterAfterSideChange(monster); // round 71 audit
+		}
 	}
 }
 

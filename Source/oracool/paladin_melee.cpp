@@ -21,12 +21,41 @@
 #include "spells.h" // IsValidSpell - a readied slot may hold Invalid
 #include <fmt/format.h>
 #include "utils/language.h"
+#include "engine/backbuffer_state.hpp" // RedrawComponent - the price taken at the front
 
 namespace devilution::oracool {
 
 namespace {
 
 std::optional<PaladinSkill> ArmedSkill;
+/** The armed skill and whether it could be paid when this hit frame began (LatchPaladinSwingPrice); nullopt outside one. */
+std::optional<std::pair<PaladinSkill, bool>> SwingPrice;
+
+/** @brief CanUsePaladinSkill as the hit frame began, when one is latched for @p skill; live otherwise. */
+bool PaidAtFront(const Player &player, PaladinSkill skill)
+{
+	if (&player == MyPlayer && SwingPrice.has_value() && SwingPrice->first == skill)
+		return SwingPrice->second;
+	return CanUsePaladinSkill(player, skill);
+}
+
+/**
+ * @brief Pays for a landed skill blow. A blow that could pay as its frame began and lost the mana since (Peril under Mana
+ * Shield) takes what is left, as SettleSkill does (round 71 audit: the boosted, forced Smite cost nothing).
+ */
+bool SpendAtFrontPrice(Player &player, PaladinSkill skill)
+{
+	if (SpendPaladinSkillMana(player, skill))
+		return true;
+	if (&player != MyPlayer || !SwingPrice.has_value() || SwingPrice->first != skill || !SwingPrice->second)
+		return false;
+	const int taken = std::max(player._pMana, 0);
+	player._pMana -= taken;
+	player._pManaBase -= taken;
+	OnPassiveManaSpent(player, taken);
+	RedrawComponent(PanelDrawComponent::Mana);
+	return true;
+}
 
 /**
  * @brief Zeal's ceiling - "to hit up to 5 times", whatever the level.
@@ -220,7 +249,7 @@ void ApplyZeal(Player &player, Monster &primaryTarget)
 {
 	// One mana a strike, the pairing the user gave (2 hits / 2 mana, up to 5 / 5), charged per
 	// LANDED swing. A chain the player cannot pay for ends rather than swinging free.
-	if (!SpendPaladinSkillMana(player, PaladinSkill::Zeal)) {
+	if (!SpendAtFrontPrice(player, PaladinSkill::Zeal)) {
 		ZealChainActive = false;
 		ZealChainLeft = 0;
 		return;
@@ -261,7 +290,7 @@ void ApplyHammerOfFaith(Player &player, Monster &primaryTarget, int hitDamage)
 	const int found = GatherAdjacent(primaryTarget, targets, 8);
 	if (found == 0)
 		return;
-	if (!SpendPaladinSkillMana(player, PaladinSkill::HammerOfFaith))
+	if (!SpendAtFrontPrice(player, PaladinSkill::HammerOfFaith))
 		return;
 	for (int i = 0; i < found; i++)
 		StrikeMonster(player, *targets[i], splashDamage);
@@ -278,7 +307,7 @@ void ApplyShieldBash(Player &player, Monster &primaryTarget)
 	//
 	// Mana follows the effect, and the effect is the harder blow now as well as the stun (2026-09-12) -
 	// so it is charged whenever the bash lands, on a boss or a killing blow too.
-	if (!SpendPaladinSkillMana(player, PaladinSkill::ShieldBash))
+	if (!SpendAtFrontPrice(player, PaladinSkill::ShieldBash))
 		return;
 	if ((primaryTarget.hitPoints >> 6) <= 0)
 		return; // nothing left to stun
@@ -293,6 +322,23 @@ void ApplyShieldBash(Player &player, Monster &primaryTarget)
 
 } // namespace
 
+void LatchPaladinSwingPrice(const Player &player)
+{
+	SwingPrice.reset();
+	if (&player == MyPlayer && ArmedSkill.has_value())
+		SwingPrice = std::make_pair(*ArmedSkill, CanUsePaladinSkill(player, *ArmedSkill));
+}
+
+void ForgetPaladinSwingPrice()
+{
+	SwingPrice.reset();
+}
+
+bool PaladinSkillPaidAtFront(const Player &player, PaladinSkill skill)
+{
+	return PaidAtFront(player, skill);
+}
+
 int PaladinMeleeDamagePercent(const Player &player)
 {
 	if (&player != MyPlayer || !ArmedSkill.has_value())
@@ -301,7 +347,7 @@ int PaladinMeleeDamagePercent(const Player &player)
 	// Charge's mana went at the dash's launch, so its blow asks only whether a dash ended in it.
 	if (*ArmedSkill == PaladinSkill::Charge)
 		return IsChargeBlowArmed() ? ChargeBlowPercentAt(rank) : 0;
-	if (*ArmedSkill == PaladinSkill::ShieldBash && CanUsePaladinSkill(player, PaladinSkill::ShieldBash))
+	if (*ArmedSkill == PaladinSkill::ShieldBash && PaidAtFront(player, PaladinSkill::ShieldBash)) // as the frame began (round 71)
 		return SmiteDamagePercentAt(rank) + PassiveSkillDamagePercent(player, SpellID::ShieldBash); // Towering Shield (2026-09-14)
 	return 0;
 }
@@ -551,7 +597,7 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 	}
 	// The mana and level gates in one call, so a Paladin who cannot pay simply swings normally -
 	// which is the same "still does something" rule the rest of these skills follow.
-	if (!CanUsePaladinSkill(player, *ArmedSkill))
+	if (!PaidAtFront(player, *ArmedSkill)) // as the frame began (round 71 audit: a mana steal mid-blow charged an unboosted Smite)
 		return;
 	// The landed blow's own Impact cue (2026-09-29); Hammer of Faith sounds its impact with the splash instead.
 	if (&player == MyPlayer && *ArmedSkill != PaladinSkill::HammerOfFaith) {
@@ -599,7 +645,7 @@ std::string PaladinMeleeFactsAt(PaladinSkill skill, int rank)
 		int strikes = 1;
 		for (int rung = ZealFirstStrikeRungSkillLevel; rung <= rank && strikes < MaxZealStrikes; rung += ZealStrikeRungSpacing)
 			strikes++;
-		line(fmt::format(fmt::runtime(_("Strikes: {:d} in one swing")), strikes));
+		line(fmt::format(fmt::runtime(_("Swings: {:d}, in one attack's time")), strikes));
 		line(fmt::format(fmt::runtime(_("To hit: +{:d}%")), rank * ZealToHitPercentPerSkillLevel));
 		break;
 	}

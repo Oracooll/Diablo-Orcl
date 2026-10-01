@@ -11889,9 +11889,9 @@ TEST(OracoolAudit, TheSkillFactsQuoteWhatTheModulesRoll)
 	gbIsHellfire = true; // the Oracool spells sit past LastDiablo, which IsValidSpell gates on Hellfire
 	// Paladin: Zeal's ladder - two strikes at rank 1, four at rank 5 - and its range.
 	const std::string zeal1 = SkillFactsAt(SpellID::Zeal, 1);
-	EXPECT_NE(zeal1.find("Strikes: 2"), std::string::npos) << zeal1;
+	EXPECT_NE(zeal1.find("Swings: 2"), std::string::npos) << zeal1;
 	EXPECT_NE(zeal1.find("Range:"), std::string::npos) << zeal1;
-	EXPECT_NE(SkillFactsAt(SpellID::Zeal, 5).find("Strikes: 4"), std::string::npos);
+	EXPECT_NE(SkillFactsAt(SpellID::Zeal, 5).find("Swings: 4"), std::string::npos);
 	// Melee: Sacrifice's +150% at rank 1, +170% at rank 2.
 	EXPECT_NE(SkillFactsAt(SpellID::Sacrifice, 1).find("+150%"), std::string::npos);
 	EXPECT_NE(SkillFactsAt(SpellID::Sacrifice, 2).find("+170%"), std::string::npos);

@@ -1427,9 +1427,7 @@ void DrawTreePage(const Surface &content, int page, int scroll)
 			Rectangle slot = TreeIconRect(page, column, tier);
 			slot.position.y -= scroll;
 			oracool::DrawDropShadow(content, slot, oracool::GridBezelInset);
-			oracool::DrawGridBezel(content, slot);
-			oracool::DrawClassTreeIconOutlined(content, slot, InspectPlayer->_pClass, /*skillIndex=*/-1,
-			    /*unlocked=*/false, oracool::SkillPlateTint::Unspent);
+			oracool::DrawGridBezel(content, slot); // no plate: it read as an unspent skill (round 71 audit)
 		}
 	}
 	for (size_t i = 0; i < count; i++)

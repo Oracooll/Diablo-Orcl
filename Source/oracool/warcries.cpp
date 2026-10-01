@@ -672,8 +672,10 @@ void ProcessWarcriesTick(Player &player)
 		if (debuff.armorTicks > 0 && --debuff.armorTicks == 0) {
 			debuff.armorPercent = 0;
 		}
-		if (debuff.convertTicks > 0 && --debuff.convertTicks == 0)
+		if (debuff.convertTicks > 0 && --debuff.convertTicks == 0) {
 			Monsters[i].flags &= ~(MFLAG_BERSERK | MFLAG_GOLEM);
+			ReaimMonsterAfterSideChange(Monsters[i]); // round 71 audit
+		}
 	}
 
 	// Grim Ward: the totem repels while it stands.

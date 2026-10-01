@@ -84,6 +84,13 @@ int MeleeHitFrame(const Player &player);
  */
 void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage);
 
+/** @brief LatchClassMeleeSwingPrice for the Paladin's swing skills (round 71 audit): Smite's bonus, its forced hit and the
+ *  on-hit settle all read one answer, taken as the hit frame began. */
+void LatchPaladinSwingPrice(const Player &player);
+void ForgetPaladinSwingPrice();
+/** @brief Whether @p skill could be paid as this hit frame began (live outside one). */
+bool PaladinSkillPaidAtFront(const Player &player, PaladinSkill skill);
+
 /**
  * @brief The swing's own sound, for a swing that carries a skill with one - played INSTEAD of the
  * plain swing whoosh (DoAttack), never on top of it. False, so the whoosh plays, for every other
