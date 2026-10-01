@@ -1234,6 +1234,10 @@ int StatDamage(const Player &player, int weaponRoll);
  */
 int PooledWeaponDamage(const Player &player, int weaponRoll, int poolPercent, int statSharePercent = 100);
 int StatPointsToSpend(const Player &player, CharacterAttribute attribute, int requested);
+/** @brief The held button's repeat: re-arms the skill a stagger cleared mid-hold. */
+void RestoreStaggeredSwingLatches();
+/** @brief A fresh press: what a stagger cleared is not this press's. */
+void ForgetStaggeredSwingLatches();
 void ModifyPlrStr(Player &player, int l);
 void ModifyPlrMag(Player &player, int l);
 void ModifyPlrDex(Player &player, int l);

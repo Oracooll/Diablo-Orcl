@@ -742,6 +742,39 @@ bool DamageWeapon(Player &player, unsigned damageFrequency)
 	return false;
 }
 
+} // namespace
+
+/** @brief The swing latches a stagger cleared, kept for the held button (round 60 audit). */
+struct SwingLatches {
+	std::optional<oracool::PaladinSkill> paladin;
+	std::optional<oracool::ClassMeleeSkill> classMelee;
+	std::optional<SpellID> rfa12;
+	bool held = false;
+};
+SwingLatches StaggeredSwingLatches;
+
+void ForgetStaggeredSwingLatches()
+{
+	StaggeredSwingLatches = {};
+}
+
+void RestoreStaggeredSwingLatches()
+{
+	if (!StaggeredSwingLatches.held)
+		return;
+	const SwingLatches latches = StaggeredSwingLatches;
+	StaggeredSwingLatches = {};
+	// The class swing first: arming it drops the RfA-12 one, which is armed after it where it was.
+	if (latches.classMelee)
+		oracool::ArmClassMeleeSkill(latches.classMelee);
+	if (latches.rfa12)
+		oracool::ArmRfa12Melee(latches.rfa12);
+	if (latches.paladin)
+		oracool::ArmMeleeSkill(latches.paladin);
+}
+
+namespace {
+
 bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, int *dealtDamage = nullptr)
 {
 	int hper = 0;
@@ -3458,6 +3491,11 @@ void StartPlrHit(Player &player, int dam, bool forcehit)
 		// next skill's hit frame, on another floor or in the next game (round 5 audit, v1.12.230).
 		// Except a Charge still dashing: its approach resumes after the stagger and its paid-for blow lands then - the
 		// latch cleared here made it a plain swing with the mana spent and the cooldown run (round 16 audit, v1.12.241).
+		// Remembered for the held button, which re-arms them at its next repeat (round 60 audit: a held Bash, Frenzy, Zeal or
+		// Cleave went on as plain swings after the first stagger - no bonus, no knockback, no Rage). Not a Charge, whose arming
+		// is its dash; not the throw (round 5).
+		StaggeredSwingLatches = { oracool::ArmedMeleeSkill() != oracool::PaladinSkill::Charge ? oracool::ArmedMeleeSkill() : std::nullopt,
+			oracool::ArmedClassMeleeSkill(), oracool::ArmedRfa12Melee(), true };
 		if (!oracool::IsFuriousChargeDashing())
 			oracool::ArmMeleeSkill(std::nullopt);
 		oracool::ArmArrowSkill(std::nullopt);

@@ -1606,6 +1606,8 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			const int oldDurability = target._iDurability;
 			const bool wasBroken = target._iOracoolBroken;
 			const int oldSockets = target._iSocketCount;
+			// The oils' work on the Rare (round 60 audit: Consecrate threw it away, the one non-unique rebuild without it).
+			const std::optional<OracoolOilWork> oilWork = MyPlayer != nullptr ? MeasureOracoolOilWork(*MyPlayer, target) : std::nullopt;
 			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetPiece(*chosen)));
 			MakeSetItem(target, *chosen);
 			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false, keptTier);
@@ -1613,6 +1615,8 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// 2026-09-13). May decline on an indestructible piece, which then simply stays whole.
 			if (wasEthereal)
 				MakeItemEthereal(target);
+			if (oilWork) // after the ethereal bargain, as Reforge and Retier order them (round 44)
+				ReapplyOracoolOilWork(target, *oilWork);
 			target._iOracoolLevelFree = wasLevelFree;
 			if (oldDurability != DUR_INDESTRUCTIBLE && target._iMaxDur != DUR_INDESTRUCTIBLE)
 				target._iDurability = std::min<int>(oldDurability, target._iMaxDur);

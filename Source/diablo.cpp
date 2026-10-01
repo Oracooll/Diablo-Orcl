@@ -475,6 +475,7 @@ bool TryOpenDungeonWithMouse()
 
 void LeftMouseDown(uint16_t modState)
 {
+	ForgetStaggeredSwingLatches(); // a fresh press: the last hold's staggered skill is not this one's (round 60)
 	LastMouseButtonAction = MouseActionType::None;
 	LastMouseButtonSpell = SpellID::Invalid;
 	LastMouseButtonSpellType = SpellType::Invalid;
@@ -947,6 +948,7 @@ void RightMouseBasicAttack(bool isShiftHeld)
 
 void RightMouseDown(bool isShiftHeld)
 {
+	ForgetStaggeredSwingLatches(); // a fresh press (round 60)
 	LastMouseButtonAction = MouseActionType::None;
 	LastMouseButtonSpell = SpellID::Invalid;
 	LastMouseButtonSpellType = SpellType::Invalid;

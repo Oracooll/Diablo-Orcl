@@ -33,6 +33,8 @@ namespace {
 
 /** The latch - see the header, and paladin_melee.cpp's ArmedSkill, which this mirrors. */
 std::optional<ClassMeleeSkill> ArmedSkill;
+/** Leap Attack's leap paid for the blow it lands on arrival (round 60 audit: the arriving swing paid its 14 Rage again). */
+bool LeapAttackPrepaid = false;
 
 /**
  * Double Swing and Frenzy swing twice: the second blow is a second SWING, each compressed so the two take the time of
@@ -130,12 +132,18 @@ int StrikeCount(const Player &player, ClassMeleeSkill skill)
 /** @brief Whether @p player can pay for @p skill right now - mana, or the Barbarian's Rage (oracool/rage.h). */
 bool CanPay(const Player &player, ClassMeleeSkill skill)
 {
+	if (skill == ClassMeleeSkill::LeapAttack && LeapAttackPrepaid && &player == MyPlayer)
+		return true;
 	return CanPaySkill(player, ClassMeleeSkillSpell(skill));
 }
 
 /** @brief Settles a use that landed: the price paid, or - for a Rage generator - the Rage of each landed blow. */
 void Pay(Player &player, ClassMeleeSkill skill, int landedBlows)
 {
+	if (skill == ClassMeleeSkill::LeapAttack && LeapAttackPrepaid && &player == MyPlayer) {
+		LeapAttackPrepaid = false; // the leap paid it
+		return;
+	}
 	SettleSkill(player, ClassMeleeSkillSpell(skill), landedBlows);
 }
 
@@ -325,6 +333,8 @@ int LeapRangeTiles(const Player &player, ClassMeleeSkill skill)
 
 void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill)
 {
+	if (skill.has_value() && *skill != ClassMeleeSkill::LeapAttack)
+		LeapAttackPrepaid = false; // another skill: the leap's blow is not coming
 	ArmedSkill = skill;
 	BeginClassMeleeSwing(); // a new click: no chain carries over
 	// One latch at a time: arming or disarming this one drops the RfA-12 swing (rfa12_actives.h), which is
@@ -588,7 +598,7 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		// The price: a twelfth of what the blow dealt, from the striker's own life. Never the last
 		// point of it - a Sacrifice cannot kill the one making it.
 		if (front != nullptr && frontHit && frontDamage > 0) {
-			const int wound = frontDamage / 12;
+			const int wound = static_cast<int>(static_cast<int64_t>(frontDamage) * 8 / 100); // 8%, as its text says (round 60: a twelfth)
 			ApplyPlrDamage(DamageType::Physical, player, wound >> 6, /*minHP=*/1, wound & 63);
 			// A quarter-size Holy Bolt burst, infrared, on the struck enemy (the Paladin Skill Cards page, 2026-09-28).
 			DrawHolyBurst(player, front->position.tile, 25, hue::Infrared);
@@ -682,6 +692,8 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 	if (missile == nullptr)
 		return false;
 	Pay(player, skill, /*landedBlows=*/0); // the leap itself strikes nothing
+	// ...and for Leap Attack its price is the blow's too: the swing he lands on arrival is paid (round 60 audit).
+	LeapAttackPrepaid = skill == ClassMeleeSkill::LeapAttack;
 	// Heard and seen (the Barbarian Skill Cards page, 2026-09-29): the Cast cue as he goes, the Impact cue and a
 	// half-again-size Holy Bolt burst, pale warm, where he lands - the teleport has already found the tile.
 	if (row != ClassTreeSkill::None) {

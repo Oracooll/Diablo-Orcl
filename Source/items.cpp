@@ -4036,14 +4036,18 @@ std::optional<OracoolOilWork> MeasureOracoolOilWork(const Player &player, const 
 	MeasuringOilWork = false;
 	if (!measured)
 		return std::nullopt;
+	// The armour the oils added: as recorded since format 16, or for an older item the whole difference - except a shop's
+	// (round 60 audit): its seed first picked the base in the shop, so its armour roll differs from the probe's, and that
+	// difference was carried on as "oil" for good. An older shop item's difference is its drift; its oil armour unknown, 0.
+	const bool olderShopItem = item._iOracoolOilAC < 0 && (item._iCreateInfo & (CF_SMITH | CF_SMITHPREMIUM | CF_BOY | CF_WITCH)) != 0;
+	const int oilAC = item._iOracoolOilAC >= 0 ? item._iOracoolOilAC : olderShopItem ? 0 : item._iAC - probe._iAC;
 	return OracoolOilWork { item._iPLToHit - probe._iPLToHit, item._iMinDam - probe._iMinDam, item._iMaxDam - probe._iMaxDam,
 		item._iMinStr - probe._iMinStr, item._iMinMag - probe._iMinMag, item._iMinDex - probe._iMinDex,
-		// The armour the oils added, as recorded since format 16; the difference only for an older item (round 54 audit).
-		item._iOracoolOilAC >= 0 ? item._iOracoolOilAC : item._iAC - probe._iAC, item._iMaxDur - probe._iMaxDur,
+		oilAC, item._iMaxDur - probe._iMaxDur,
 		// Only when the 255 was not an affix's (round 41 audit: an "of the ages" row reworked away stayed indestructible).
 		item._iMaxDur == DUR_INDESTRUCTIBLE && probe._iMaxDur != DUR_INDESTRUCTIBLE,
 		// The rest of the difference is the base's own drift from its seed's first draw (round 55 audit).
-		item._iOracoolOilAC >= 0 ? (item._iAC - probe._iAC) - item._iOracoolOilAC : 0 };
+		item._iOracoolOilAC >= 0 || olderShopItem ? (item._iAC - probe._iAC) - oilAC : 0 };
 }
 
 void ReapplyOracoolOilWork(Item &item, const OracoolOilWork &oil, bool sameSeed)

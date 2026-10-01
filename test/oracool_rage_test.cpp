@@ -250,7 +250,7 @@ TEST(OracoolCooldowns, AFreshHeroHasNoCooldown)
 {
 	Players.resize(1);
 	devilution::Player &player = Players[0];
-	oracool::ClearRfa12PlayerBuffs(player);
+	oracool::ClearRfa12ActiveBuffs(player); // a new game's clear; a death keeps them (round 59)
 	EXPECT_EQ(oracool::Rfa12CooldownTicksLeft(player, SpellID::AbsoluteZero), 0);
 	EXPECT_FLOAT_EQ(oracool::Rfa12CooldownProgress(player, SpellID::AbsoluteZero), 1.0F);
 	EXPECT_FLOAT_EQ(oracool::Rfa12CooldownProgress(player, SpellID::Bash), 1.0F) << "a skill with no cooldown is always ready";

@@ -1893,14 +1893,22 @@ int FindMysticRecipe(const Player &player, std::array<Item, CraftSlots> &scratch
 		const int material = CraftingRecipeReagentItem(recipe);
 		const int count = CraftingRecipeReagentCount(recipe);
 		if (count > 0) {
-			if (CountOwned(player, material) < count)
+			// Only what the well is short of (round 60 audit: 2 Powder on her well and 3 in the pack refused a 4-Powder
+			// Enrich - the loan asked the pack for all 4).
+			int onWell = 0;
+			for (const Item &item : scratch) {
+				if (!item.isEmpty() && item.IDidx == material)
+					onWell += std::max(item.stackCount(), 1);
+			}
+			const int need = count - onWell;
+			if (need <= 0 || CountOwned(player, material) < need)
 				continue;
 			// ONE stack is enough: FindGridReagents sums stackCount across the slots it finds, so a
-			// single item carrying the whole count satisfies it exactly as N separate ones would.
+			// single item carrying the shortfall completes it exactly as N separate ones would.
 			InitializeItem(scratch[free], static_cast<_item_indexes>(material));
-			scratch[free].setStackCount(count);
+			scratch[free].setStackCount(need);
 			wantIdx = material;
-			wantCount = count;
+			wantCount = need;
 		} else if (recipe == ReworkCharmsRecipe) {
 			// Charms do not stack, so the second one is an item rather than a count - and it is
 			// COPIED rather than rebuilt from its id, so whatever the recipe reads off it is real.

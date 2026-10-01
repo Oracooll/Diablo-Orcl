@@ -5,7 +5,12 @@
 #include <cstdlib>
 #include <vector>
 
+#include "control.h"     // IsOverLeftPanel, IsOverRightPanel - no spin under a window
 #include "cursor.h"
+#include "controls/plrctrls.h" // ControlMode
+#include "oracool/hud_layout.h" // IsPointOverFloatingWindow
+#include "help.h"        // HelpFlag
+#include "qol/chatlog.h" // ChatLogFlag
 #include "diablo.h"
 #include "engine.h"
 #include "engine/render/clx_render.hpp"
@@ -174,8 +179,13 @@ void ProcessWhirlwindTick(Player &player)
 		return;
 	const bool outOfRage = UsesRage(player) && player._pRage <= 0;
 	// ...or another skill readied on the right mid-spin, by an F-key (audit, 2026-09-29: it spun on, draining Rage).
+	// ...or a window opened over it, or a modal screen (round 60 audit: it spun on behind the inventory, gliding and draining
+	// Rage) - as RepeatMouseAction stops every held action (rounds 36-38).
+	const bool underWindow = (ControlMode == ControlTypes::KeyboardAndMouse
+	                             && (IsOverLeftPanel(MousePosition) || IsOverRightPanel(MousePosition) || IsPointOverFloatingWindow(MousePosition)))
+	    || ChatLogFlag || HelpFlag;
 	if (sgbMouseDown != CLICK_RIGHT || outOfRage || leveltype == DTYPE_TOWN || player._pHitPoints >> 6 <= 0
-	    || player._pmode == PM_DEATH || player._pRSpell != SpellID::Whirlwind) {
+	    || player._pmode == PM_DEATH || player._pRSpell != SpellID::Whirlwind || underWindow) {
 		StopWhirlwind(player);
 		return;
 	}

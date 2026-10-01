@@ -919,7 +919,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 3, 1, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Seize the Initiative"), N_("+30% damage against enemies still at full life."),
 	    Monk, 3, 1, 2, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("The Guardian's Path"), N_("With a weapon in each hand, 15% of melee blows miss you; with a two-handed staff, you hold 20 more mana."),
+	{ N_("The Guardian's Path"), N_("With a one-handed weapon and the other hand empty, 15% of melee blows miss you; with a two-handed staff, you hold 20 more mana."),
 	    Monk, 3, 2, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Sixth Sense"), N_("Everything that is not steel - fire, lightning, cold, magic - deals -25% damage to you."),
 	    Monk, 3, 2, 1, Kind::Passive, SpellID::Invalid, true, 1 },

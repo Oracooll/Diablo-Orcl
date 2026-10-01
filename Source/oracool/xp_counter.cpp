@@ -121,7 +121,8 @@ uint64_t GetLevelExperienceSpan(const Player &player)
 
 void DrawXpCounter(const Surface &out)
 {
-	if (!*sgOptions.Oracool.xpCounter)
+	// The bar's option too (round 60 audit): it answers clicks only where the bar is, so it shows only there.
+	if (!*sgOptions.Oracool.xpCounter || !*sgOptions.Gameplay.experienceBar)
 		return;
 
 	const Player &player = *MyPlayer;

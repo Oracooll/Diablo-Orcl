@@ -170,29 +170,35 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 		M_StartHit(monster, player, damage);
 }
 
-void Stagger(Monster &monster, int ticks)
+/** @brief Stuns @p monster for @p ticks; false when it shrugs it off (round 60: a skill pays only for what it stuns). */
+bool Stagger(Monster &monster, int ticks)
 {
 	if (ShrugsOff(monster) || monster.mode == MonsterMode::Petrified || (monster.hitPoints >> 6) <= 0)
-		return;
+		return false;
 	StunMonster(monster, ticks);
+	return true;
 }
 
 /** @brief Moves @p monster one tile in @p dir, through the engine's knockback (so the immune stay put). */
-void Shove(Monster &monster, Direction dir)
+/** @brief Shoves @p monster a tile; false when it did not move (round 60: a skill pays only for what it moves). */
+bool Shove(Monster &monster, Direction dir)
 {
 	if (ShrugsOff(monster) || monster.mode == MonsterMode::Petrified || (monster.hitPoints >> 6) <= 0)
-		return;
+		return false;
 	// Not an Unyielding one: the knockback refuses it, and the turn below was never undone (round 30 audit).
 	if (IsKnockbackImmune(monster))
-		return;
+		return false;
 	// M_GetKnockback moves a monster OPPOSITE to where it faces; face it the other way first - and back, when a wall
 	// refuses the move (round 30 audit: it slid and faced the wrong way).
 	const Direction facing = monster.direction;
 	const Point oldBefore = monster.position.old;
 	monster.direction = Opposite(dir);
 	M_GetKnockback(monster);
-	if (monster.position.old == oldBefore) // refused: M_GetKnockback moves position.old when it takes the shove
+	if (monster.position.old == oldBefore) { // refused: M_GetKnockback moves position.old when it takes the shove
 		monster.direction = facing;
+		return false;
+	}
+	return true;
 }
 
 /** @brief Every hittable monster within @p radius tiles of @p centre, gathered before anything is struck. */
@@ -1496,14 +1502,15 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::GroundStomp: {
 		const auto around = MonstersWithin(here, 1);
+		bool stunned = false; // only what it stuns counts (round 60 audit, as Howl and Taunt in round 55)
 		for (Monster *m : around)
-			Stagger(*m, StunTicks(spell, r));
+			stunned = Stagger(*m, StunTicks(spell, r)) || stunned;
 		EarthenMightRage(player, around.size());
 		// RfA-27 batch 55: the cracked ring at his feet, in place of the cry's shockwave (Rfa12CastLeavesRing). On every
 		// stomp, anything in reach or not, and at twice its size (dev notes, 2026-09-29); its floor point is 29px up.
 		if (Missile *ring = Art(player, MissileGraphicID::GroundStomp, here); ring != nullptr)
 			ScaleMissile(*ring, 200, 29);
-		if (around.empty())
+		if (!stunned)
 			return false;
 		Impact(player, spell); // its Impact cue, when it stuns anything (the Barbarian Skill Cards page, 2026-09-29)
 		return true;
@@ -1568,8 +1575,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			const bool left = toward == Left(dir);
 			if (toward != dir && !left && toward != Right(dir))
 				continue;
-			Shove(*m, left ? Left(Left(dir)) : Right(Right(dir)));
-			any = true;
+			any = Shove(*m, left ? Left(Left(dir)) : Right(Right(dir))) || any; // only what it moves (round 60 audit)
 		}
 		return any;
 	}
@@ -1709,6 +1715,11 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// In town (round 59 audit): every spell casts there, but the field ends in town - so the vortex is only shown, and the
 		// skill does not cool for a cast that did nothing.
 		if (leveltype == DTYPE_TOWN) {
+			// One at a time (round 60 audit: a held button laid a new vortex every cast, each following him).
+			for (const Missile &missile : Missiles) {
+				if (missile._miAnimType == MissileGraphicID::AbsoluteZero && missile._misource == static_cast<int>(player.getId()) && !missile._miDelFlag)
+					return true;
+			}
 			if (Missile *vortex = Art(player, MissileGraphicID::AbsoluteZero, here, AbsoluteZeroVortexTicks); vortex != nullptr)
 				ArtEffectFollowsItsCaster(*vortex);
 			return true;

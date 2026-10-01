@@ -104,6 +104,19 @@ void RepeatMouseAction()
 	// given once.
 	const bool inTown = leveltype == DTYPE_TOWN;
 
+	// The cast that just landed started its cooldown: holding on asked again and drew a red line and "I can't do that" after
+	// every Absolute Zero (round 59 audit) - at a monster or a player too, the usual way it is cast (round 60). The hold ends;
+	// a fresh press is told.
+	if (IsAnyOf(LastMouseButtonAction, MouseActionType::Spell, MouseActionType::SpellMonsterTarget, MouseActionType::SpellPlayerTarget)
+	    && IsValidSpell(LastMouseButtonSpell) && oracool::Rfa12CooldownTicksLeft(myPlayer, LastMouseButtonSpell) > 0) {
+		LastMouseButtonAction = MouseActionType::None;
+		return;
+	}
+
+	// A held skill swing staggered mid-hold comes back armed (round 60 audit).
+	if (IsAnyOf(LastMouseButtonAction, MouseActionType::Attack, MouseActionType::AttackMonsterTarget))
+		RestoreStaggeredSwingLatches();
+
 	bool rangedAttack = myPlayer.UsesRangedWeapon();
 	switch (LastMouseButtonAction) {
 	case MouseActionType::Attack:
@@ -130,12 +143,6 @@ void RepeatMouseAction()
 	case MouseActionType::Spell:
 		if (!IsValidSpell(LastMouseButtonSpell))
 			break;
-		// The cast that just landed started its cooldown: holding on asked again and drew a red line and "I can't do that"
-		// after every Absolute Zero (round 59 audit). The hold ends; a fresh press is told.
-		if (oracool::Rfa12CooldownTicksLeft(*MyPlayer, LastMouseButtonSpell) > 0) {
-			LastMouseButtonAction = MouseActionType::None;
-			break;
-		}
 		if (ControlMode != ControlTypes::KeyboardAndMouse) {
 			UpdateSpellTarget(LastMouseButtonSpell);
 		}

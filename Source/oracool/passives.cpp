@@ -312,14 +312,18 @@ bool WieldingMace(const Player &player)
 	return HoldsType(player, ItemType::Mace);
 }
 
-/** @brief A weapon in each hand - The Guardian's Path. */
-bool DualWielding(const Player &player)
+/**
+ * @brief One one-handed weapon and nothing in the other hand - The Guardian's Path's light stance (user, 2026-10-01: "a
+ * condition the Monk can meet"). It was "a weapon in each hand", which only the Bard may hold, so the Monk never had it.
+ */
+bool LightWeaponStance(const Player &player)
 {
-	for (const Item &item : { player.InvBody[INVLOC_HAND_LEFT], player.InvBody[INVLOC_HAND_RIGHT] }) {
-		if (item.isEmpty() || !item._iStatFlag || item._iClass != ICLASS_WEAPON || item._itype == ItemType::Shield)
-			return false;
-	}
-	return true;
+	const Item &left = player.InvBody[INVLOC_HAND_LEFT];
+	const Item &right = player.InvBody[INVLOC_HAND_RIGHT];
+	if (left.isEmpty() == right.isEmpty())
+		return false; // both hands empty, or both full
+	const Item &weapon = left.isEmpty() ? right : left;
+	return weapon._iStatFlag && weapon._iClass == ICLASS_WEAPON && weapon._itype != ItemType::Shield && weapon._iLoc != ILOC_TWOHAND;
 }
 
 std::optional<unique_base_item> BowBase(const Player &player)
@@ -634,7 +638,7 @@ int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool 
 int PassiveMeleeSlipChance(const Player &player, bool walking)
 {
 	int chance = SlipChance(player, walking ? Skill::Evade : Skill::Dodge);
-	if (DualWielding(player) && PassiveActive(player, Skill::TheGuardiansPath))
+	if (LightWeaponStance(player) && PassiveActive(player, Skill::TheGuardiansPath))
 		chance += GuardiansPathSlipChance;
 	return chance;
 }
@@ -1213,7 +1217,7 @@ std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int point
 		line(fmt::format(fmt::runtime(_("Chance to block: +{:d}%")), HoldYourGroundBlock));
 		break;
 	case Skill::TheGuardiansPath:
-		line(fmt::format(fmt::runtime(_("A weapon in each hand: {:d}% chance to slip a melee blow")), GuardiansPathSlipChance));
+		line(fmt::format(fmt::runtime(_("A one-handed weapon and the other hand empty: {:d}% chance to slip a melee blow")), GuardiansPathSlipChance));
 		break;
 	case Skill::Juggernaut:
 		line(fmt::format(fmt::runtime(_("Staggers shrugged off: {:d}%")), JuggernautShrugChance));
