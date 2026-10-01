@@ -1625,7 +1625,7 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 		return;
 	// The army's armour counts (round 70 audit: its records set armorClass, and nothing read it - a Clay Golem was struck
 	// as often as a Skeleton). At least 5%, the floor the hero's own armour leaves a monster.
-	if (oracool::IsMinion(target)) {
+	if (oracool::IsMinion(target) && hper < 500) { // a charge's 500 is unmissable, as on the hero (round 72 audit)
 		// As the hero's own odds are built (MonsterAttackPlayer): +30 and the level gap, then the armour (round 71 audit: the
 		// armour off the raw to-hit left most blows at the 5% floor - the army was close to unkillable in melee).
 		const Player *owner = oracool::MinionOwner(target);
@@ -4718,7 +4718,6 @@ void ReaimMonsterAfterSideChange(Monster &monster)
 {
 	if ((monster.hitPoints >> 6) <= 0 || monster.mode == MonsterMode::Death)
 		return;
-	monster.flags &= ~MFLAG_TARGETS_MONSTER;
 	UpdateEnemy(monster);
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		Monster &other = Monsters[ActiveMonsters[i]];

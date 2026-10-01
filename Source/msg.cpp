@@ -3,9 +3,11 @@
  *
  * Implementation of function for sending and reciving network messages.
  */
+#include <algorithm>
 #include <climits>
 #include <cstdint>
 #include <list>
+#include <vector>
 #include <memory>
 #include <unordered_map>
 
@@ -20,6 +22,7 @@
 #include "automap.h"
 #include "config.h"
 #include "control.h"
+#include "cursor.h"
 #include "dead.h"
 #include "engine/backbuffer_state.hpp"
 #include "engine/random.hpp"
@@ -35,8 +38,10 @@
 #include "options.h"
 #include "oracool/auto_save.h"
 #include "oracool/oracool.h" // IsBuiltInPortalAbility
+#include "inv.h"
 #include "pack.h"
 #include "pfile.h"
+#include "qol/stash.h"
 #include "plrmsg.h"
 #include "spells.h"
 #include "storm/storm_net.hpp"
@@ -265,7 +270,13 @@ std::unordered_map<uint8_t, LocalLevel> LocalLevels;
 DJunk sgJunk;
 uint8_t sgbDeltaChunks;
 std::list<TMegaPkt> MegaPktList;
-Item ItemLimbo;
+/**
+ * @brief The hero's own drops, each kept whole until its CMD_PUTITEM is handled (round 72 audit). One shared item was
+ * overwritten by the next send: two drops inside one tick put a copy of the second item down twice and the first was gone.
+ * Matched by seed, index and create info; a few at most, since each is taken on the next tick.
+ */
+std::vector<Item> ItemLimbo;
+constexpr size_t MaxItemLimbo = 16;
 
 /** @brief Last sent player command for the local player. */
 TCmdLocParam5 lastSentPlayerCmd;
@@ -1408,11 +1419,30 @@ size_t OnPutItem(const TCmd *pCmd, size_t pnum)
 		if (player.isOnActiveLevel()) {
 			int ii;
 			if (isSelf) {
-				std::optional<Point> itemTile = FindAdjacentPositionForItem(player.position.tile, GetDirection(player.position.tile, position));
-				if (itemTile)
-					ii = PlaceItemInWorld(std::move(ItemLimbo), *itemTile);
-				else
-					ii = -1;
+				const auto held = std::find_if(ItemLimbo.begin(), ItemLimbo.end(), [&](const Item &item) {
+					return item.keyAttributesMatch(static_cast<uint32_t>(dwSeed), wIndx, wCI);
+				});
+				if (held == ItemLimbo.end()) {
+					ii = SyncDropItem(message); // not one we kept: built from the message, as another player's drop is
+				} else {
+					Item item = std::move(*held);
+					ItemLimbo.erase(held);
+					std::optional<Point> itemTile = FindAdjacentPositionForItem(player.position.tile, GetDirection(player.position.tile, position));
+					if (itemTile) {
+						ii = PlaceItemInWorld(std::move(item), *itemTile);
+					} else {
+						// Nowhere to set it down by now (round 72 audit: it was thrown away, the hand already empty): back to the
+						// pack, the stash, or the hand.
+						ii = -1;
+						if (!AutoPlaceItemInInventory(player, item, /*persistItem=*/true) && !AutoPlaceItemInStash(player, item, /*persistItem=*/true)
+						    && player.HoldItem.isEmpty()) {
+							player.HoldItem = std::move(item);
+							NewCursor(player.HoldItem);
+						}
+						player._pGold = CalculateGold(player);
+						player.Say(HeroSpeech::WhereWouldIPutThis);
+					}
+				}
 			} else
 				ii = SyncDropItem(message);
 			if (ii != -1) {
@@ -3100,7 +3130,11 @@ void NetSendCmdPItem(bool bHiPri, _cmd_id bCmd, Point position, const Item &item
 	cmd.y = position.y;
 	PrepareItemForNetwork(item, cmd);
 
-	ItemLimbo = item;
+	if (bCmd == CMD_PUTITEM) { // the only command that takes it (OnPutItem); the spawns and sync drops rebuild from the message
+		if (ItemLimbo.size() >= MaxItemLimbo)
+			ItemLimbo.erase(ItemLimbo.begin());
+		ItemLimbo.push_back(item);
+	}
 
 	if (bHiPri)
 		NetSendHiPri(MyPlayerId, (byte *)&cmd, sizeof(cmd));

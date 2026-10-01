@@ -2025,8 +2025,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 				Ring(player, target);
 			return true;
 		}
-		if (target == state.crucibleTile) {
-			player.Say(HeroSpeech::ICantDoThat); // a pair on one tile has no line between (round 52 audit: paid, did nothing)
+		if (target == state.crucibleTile || !LineClearMissile(state.crucibleTile, target)) {
+			// A pair on one tile has no line between (round 52 audit: paid, did nothing); nor has a pair a wall stands between
+			// (round 72 audit: the arc was drawn through it and struck only up to it).
+			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
 		Field *f = NewField(player, spell, state.crucibleTile, CrucibleTicks, r);
@@ -3349,8 +3351,23 @@ void TickField(Player &player, Field &field)
 			field.ticksLeft = 0;
 			break;
 		}
-		clone->var2 += dx * LightningCloneStep / far;
-		clone->var3 += dy * LightningCloneStep / far;
+		const int nextX = clone->var2 + dx * LightningCloneStep / far;
+		const int nextY = clone->var3 + dy * LightningCloneStep / far;
+		if (const Point next { (nextX + 128) / 256, (nextY + 128) / 256 }; !InDungeonBounds(next) || IsTileSolid(next)) {
+			// A wall between them (he teleported or turned a corner): it bursts where it stands rather than cut through and strike
+			// the rooms beyond (round 72 audit).
+			const Point at = clone->position.tile;
+			const Displacement core = clone->position.offset + LightningCloneCore;
+			for (int i = 0; i < 5; i++) {
+				const double a = i * 2 * 3.14159265358979 / 5;
+				AddLightningStrike(at, core, at, core + Displacement { static_cast<int>(std::cos(a) * 60), static_cast<int>(std::sin(a) * 40) }, pid, 4);
+			}
+			clone->_mirange = 1;
+			field.ticksLeft = 0;
+			break;
+		}
+		clone->var2 = nextX;
+		clone->var3 = nextY;
 		const Point tile { (clone->var2 + 128) / 256, (clone->var3 + 128) / 256 };
 		const int rx = clone->var2 - tile.x * 256;
 		const int ry = clone->var3 - tile.y * 256;
@@ -4316,8 +4333,26 @@ void ProcessRfa12ActivesTick(Player &player)
 	for (auto &[spell, ticks] : state.cooldowns)
 		ticks = std::max(ticks - 1, 0);
 	std::erase_if(state.cooldowns, [](const auto &cooldown) { return cooldown.second <= 0; });
-	if (player._pHitPoints <= 0 || player._pmode == PM_DEATH)
+	if (player._pHitPoints <= 0 || player._pmode == PM_DEATH) {
+		// The field loop below does not run for him: his Lightning Clone and Funeral Spiral end now, not frozen in the air
+		// till their missiles run out (round 72 audit).
+		for (Field &field : Fields) {
+			if (field.ticksLeft <= 0 || field.owner != player.getId())
+				continue;
+			if (field.spell == SpellID::RideTheLightning) {
+				if (Missile *clone = FieldClone(field); clone != nullptr)
+					clone->_mirange = 1;
+				field.ticksLeft = 0;
+			} else if (field.spell == SpellID::FuneralStar) {
+				for (Missile &ball : Missiles) {
+					if (!ball._miDelFlag && ball.var6 == FuneralSpiralMark && ball.var5 == field.stamp && ball._misource == field.owner)
+						ball._mirange = 1;
+				}
+				field.ticksLeft = 0;
+			}
+		}
 		return;
+	}
 
 	if (BuffRank(player, Buff::Rally) > 0)
 		Heal(player, state.rallyPerTick);

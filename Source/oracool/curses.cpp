@@ -194,7 +194,10 @@ bool Lay(Monster &monster, CurseKind kind, int ticks, int rank, const Player &ow
 	if (curse.kind == CurseKind::Doom && curse.ticks > 0 && kind != CurseKind::Doom)
 		return false;
 	const int banePulse = curse.kind == CurseKind::Bane && curse.ticks > 0 ? curse.pulse : 0;
+	const bool sideChange = curse.turned || curse.kind == CurseKind::Attract;
 	Release(monster, curse);
+	if (sideChange)
+		ReaimMonsterAfterSideChange(monster); // a curse laid over Confuse or Attract (round 72 audit)
 	if (kind == CurseKind::Bane)
 		curse.pulse = banePulse;
 	// The curse's owner is the one who hit it: a Confused or Attracted pack's kills are his (round 37 audit).
@@ -540,7 +543,10 @@ void ProcessCursesTick(Player &player)
 		if (curse.kind == CurseKind::None || curse.owner != player.getId())
 			continue;
 		if (curse.ticks <= 0 || (monster.hitPoints >> 6) <= 0) {
+			const bool sideChange = curse.turned || curse.kind == CurseKind::Attract;
 			Release(monster, curse);
+			if (sideChange)
+				ReaimMonsterAfterSideChange(monster); // returns at once for a dead one (round 72 audit)
 			continue;
 		}
 		// Decrepify's clock stops while its chill's does (round 63 audit): stone pauses the chill, and the curse ran out first,
