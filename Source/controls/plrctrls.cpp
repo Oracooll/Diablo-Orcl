@@ -2344,6 +2344,8 @@ void PerformSecondaryAction()
 				TransferItemToInventory(myPlayer, pcursstashitem);
 			} else if (pcursinvitem != -1) {
 				TransferItemToStash(myPlayer, pcursinvitem);
+			} else {
+				TryTransferHoveredActiveTabItemToStash(myPlayer); // pages 2-10, as the mouse does (round 64 audit)
 			}
 		} else {
 			CtrlUseInvItem();

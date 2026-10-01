@@ -593,7 +593,8 @@ int Percent(int value, int percent)
  */
 void StrikeBlow(Player &player, Monster &monster, DamageType type, int blowPercent, bool melee = false)
 {
-	if (!Hittable(monster))
+	// Before the passives roll (round 64 audit: an immune target spent Sharpshooter's built-up crit for nothing).
+	if (!Hittable(monster) || monster.isImmune(MissileID::Null, type))
 		return;
 	const int pool = PassiveDamageDealtPercent(player, monster, melee) + Rfa12DamageDealtPercent(player, monster, melee);
 	const int roll = player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1);
@@ -761,6 +762,10 @@ void StartBuff(Player &player, Buff buff, int ticks, int rank)
 {
 	PlayerState &state = StateOf(player);
 	const bool wasOn = state.ticks[static_cast<size_t>(buff)] > 0;
+	// Immolate burns on its own second (round 64 audit): a recast set the clock back to a whole number of seconds and burned
+	// on the next tick, so recasting faster than once a second burned faster. Refreshed in step with the running burn.
+	if (buff == Buff::Immolate && wasOn && ticks >= TicksPerSecond)
+		ticks -= (ticks - state.ticks[static_cast<size_t>(buff)] % TicksPerSecond) % TicksPerSecond;
 	state.ticks[static_cast<size_t>(buff)] = ticks;
 	state.rank[static_cast<size_t>(buff)] = rank;
 	if (IsSheetBuff(buff) && !wasOn)

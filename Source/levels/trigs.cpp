@@ -784,13 +784,13 @@ bool ForceArenaTrig()
 		checkList = L4TWarpUpList;
 		len = sizeof(L4TWarpUpList) / sizeof(L4TWarpUpList[0]);
 		break;
-	case DTYPE_NEST:
-		checkList = L5TWarpUpList;
-		len = sizeof(L5TWarpUpList) / sizeof(L5TWarpUpList[0]);
-		break;
-	case DTYPE_CRYPT:
+	case DTYPE_NEST: // the Nest's stairs are L6's and the Crypt's L5's, as the floors above check them (round 64 audit)
 		checkList = L6TWarpUpList;
 		len = sizeof(L6TWarpUpList) / sizeof(L6TWarpUpList[0]);
+		break;
+	case DTYPE_CRYPT:
+		checkList = L5TWarpUpList;
+		len = sizeof(L5TWarpUpList) / sizeof(L5TWarpUpList[0]);
 		break;
 	default:
 		return false;

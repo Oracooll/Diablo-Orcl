@@ -3295,8 +3295,9 @@ void BoyGambleEnter()
 		StartStore(TalkID::NoMoney);
 		return;
 	}
-	// Room for the BASE: the roll keeps the base, so its footprint is the result's.
-	if (!StoreAutoPlace(gambleitems[idx], false)) {
+	// Room for the BASE: the roll keeps the base, so its footprint is the result's. And a floor to fall back on (round 64 audit:
+	// refused after the confirm, the No Room screen was replaced at once and the refusal read as a lost click).
+	if (!StoreAutoPlace(gambleitems[idx], false) || ActiveItemCount >= MAXITEMS) {
 		StartStore(TalkID::NoRoom);
 		return;
 	}
@@ -3312,11 +3313,10 @@ void GambleBuyItemAt(int idx)
 	const int price = slot._iIvalue;
 	const _item_indexes base = slot.IDidx;
 	// Refused before the gold when the town floor is full (round 63 audit): a roll that fit neither pack nor stash went to
-	// DropItemBesidePlayer, which drops nothing past MAXITEMS - paid and gone, the log saying it fell at his feet.
-	if (ActiveItemCount >= MAXITEMS) {
-		StartStore(TalkID::NoRoom);
+	// DropItemBesidePlayer, which drops nothing past MAXITEMS - paid and gone. GambleBuy says so before the confirm (round 64);
+	// this is the backstop.
+	if (ActiveItemCount >= MAXITEMS)
 		return;
-	}
 	TakePlrsMoney(price);
 	// The gamble: the roll happens NOW, after the gold, and the result goes to the pack identified.
 	Item result;

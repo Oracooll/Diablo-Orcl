@@ -1427,7 +1427,7 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 
 			if (automaticMove) {
 				if (!automaticallyMoved) {
-					if (CanBePlacedOnBelt(holdItem) || automaticallyUnequip) {
+					if ((holdItem.isPotion() && CanBePlacedOnBelt(holdItem)) || automaticallyUnequip) { // the belt is potions' (round 64)
 						player.SaySpecific(HeroSpeech::IHaveNoRoom);
 					} else {
 						player.SaySpecific(HeroSpeech::ICantDoThat);
@@ -3029,6 +3029,8 @@ bool AutoPlaceItemInExtraTabSlot(Player &player, int tabIndex, int slotIndex, co
 				grid[rowGridIndex + x] = static_cast<int8_t>((x == 0 && y == itemSize.height - 1) ? numInv : -numInv);
 			}
 		}
+		// A scroll on a later page reads as one at once (round 64 audit), as page one's placement does.
+		player.CalcScrolls();
 	}
 
 	return true;

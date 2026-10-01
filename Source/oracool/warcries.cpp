@@ -660,6 +660,10 @@ void ProcessWarcriesTick(Player &player)
 	// monster goes back to its own side when its clock runs out.
 	for (size_t i = 0; i < Debuffs.size(); i++) {
 		Debuff &debuff = Debuffs[i];
+		// Not while it is stone (round 64 audit): Decrepify's clock and chill stop under Stone Curse, and its damage and armour
+		// halves ran out beneath them.
+		if (Monsters[i].mode == MonsterMode::Petrified)
+			continue;
 		if (debuff.damageTicks > 0 && --debuff.damageTicks == 0)
 			debuff.damagePercent = 0;
 		if (debuff.armorTicks > 0 && --debuff.armorTicks == 0) {
