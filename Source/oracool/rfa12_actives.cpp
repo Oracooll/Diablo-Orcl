@@ -2538,7 +2538,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		for (Field &field : Fields) {
 			if (field.spell == SpellID::BoneStorm && field.owner == player.getId() && field.ticksLeft > 0) {
 				field.ticksLeft = std::max(field.ticksLeft, EffectTicks(spell, r));
-				field.rank = r;
+				field.rank = std::max(field.rank, r); // never weaker for a lower-rank recast (round 54 audit)
 				for (Missile &missile : Missiles) { // the old storm's art gives way to one as long as the renewed field
 					if (missile._mitype == MissileID::BoneStormEffect && missile._misource == static_cast<int>(player.getId()))
 						missile._miDelFlag = true;

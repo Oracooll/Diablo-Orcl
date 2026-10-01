@@ -4033,7 +4033,8 @@ std::optional<OracoolOilWork> MeasureOracoolOilWork(const Player &player, const 
 		return std::nullopt;
 	return OracoolOilWork { item._iPLToHit - probe._iPLToHit, item._iMinDam - probe._iMinDam, item._iMaxDam - probe._iMaxDam,
 		item._iMinStr - probe._iMinStr, item._iMinMag - probe._iMinMag, item._iMinDex - probe._iMinDex,
-		item._iAC - probe._iAC, item._iMaxDur - probe._iMaxDur,
+		// The armour the oils added, as recorded since format 16; the difference only for an older item (round 54 audit).
+		item._iOracoolOilAC >= 0 ? item._iOracoolOilAC : item._iAC - probe._iAC, item._iMaxDur - probe._iMaxDur,
 		// Only when the 255 was not an affix's (round 41 audit: an "of the ages" row reworked away stayed indestructible).
 		item._iMaxDur == DUR_INDESTRUCTIBLE && probe._iMaxDur != DUR_INDESTRUCTIBLE };
 }
@@ -4047,6 +4048,7 @@ void ReapplyOracoolOilWork(Item &item, const OracoolOilWork &oil)
 	item._iMinMag = static_cast<uint8_t>(std::clamp(item._iMinMag + oil.minMag, 0, 255));
 	item._iMinDex = static_cast<uint8_t>(std::clamp(item._iMinDex + oil.minDex, 0, 255));
 	item._iAC = std::clamp<int>(item._iAC + oil.ac, 0, INT16_MAX);
+	item._iOracoolOilAC = static_cast<int16_t>(std::clamp(oil.ac, 0, static_cast<int>(INT16_MAX))); // known from here on
 	if (item._iMaxDur > 0 && item._iMaxDur != DUR_INDESTRUCTIBLE)
 		item._iMaxDur = std::clamp(item._iMaxDur + oil.maxDur, 1, DUR_INDESTRUCTIBLE - 1);
 	// Oil of Permanence: the maximum was the indestructible value itself, which the sum above cannot reach (round 40 audit:
@@ -5696,6 +5698,7 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)
 	item._iPLCR = 0;
 	item._iPLMana = 0;
 	item._iPLHP = 0;
+	item._iOracoolOilAC = 0; // a fresh base carries no oil (round 54 audit)
 	item._iPLDamMod = 0;
 	item._iPLGetHit = 0;
 	item._iPLLight = 0;
@@ -7369,7 +7372,10 @@ bool MakeItemEthereal(Item &item)
 	} else {
 		item._iAC = std::max<int>(item._iAC * 135 / 100, item._iAC + 1);
 	}
-	item._iMaxDur = std::max<int>(1, item._iMaxDur / 2);
+	// The base halves, Tempering's shards do not (round 54 audit: halved here and taken back whole by Cleanse, they cost
+	// ten maximum durability a shard for good).
+	const int tempering = std::clamp(oracool::ShardDurabilityBonus(item), 0, item._iMaxDur);
+	item._iMaxDur = std::max<int>(1, (item._iMaxDur - tempering) / 2 + tempering);
 	item._iDurability = std::min<int>(item._iDurability, item._iMaxDur);
 
 	// Re-arm a socketed Zod, which the two lines above have just disarmed.
@@ -11001,12 +11007,18 @@ bool ApplyOilToItem(Item &item, Player &player)
 		break;
 	case IMISC_OILHARD:
 		if (item._iAC < 60) {
-			item._iAC += GenerateRnd(2) + 1;
+			const int added = GenerateRnd(2) + 1;
+			item._iAC += added;
+			if (item._iOracoolOilAC >= 0)
+				item._iOracoolOilAC = static_cast<int16_t>(std::min(item._iOracoolOilAC + added, static_cast<int>(INT16_MAX)));
 		}
 		break;
 	case IMISC_OILIMP:
 		if (item._iAC < 120) {
-			item._iAC += GenerateRnd(3) + 3;
+			const int added = GenerateRnd(3) + 3;
+			item._iAC += added;
+			if (item._iOracoolOilAC >= 0)
+				item._iOracoolOilAC = static_cast<int16_t>(std::min(item._iOracoolOilAC + added, static_cast<int>(INT16_MAX)));
 		}
 		break;
 	default:

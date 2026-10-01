@@ -778,6 +778,13 @@ struct Item {
 	uint8_t _iOracoolRerolls = 0;
 	uint8_t _iOracoolRemovals = 0;
 	int8_t _iOracoolLockedAffix = -1;
+	/**
+	 * @brief The armour the Oils of Hardening and Imperviousness added (item format 16, round 54 audit). The oil measure took
+	 * it as the item's armour less a rebuild of its seed, which assumed the base armour was the seed's first draw - untrue
+	 * for anything bought at Griswold's or Wirt's, so a Cube rebuild carried a phantom "oil" of up to +-60 armour onto every
+	 * new item. -1: unknown (an item saved before format 16), and the measure falls back to the difference.
+	 */
+	int16_t _iOracoolOilAC = 0;
 	/** The counters stop here; the price stops rising long before (PriceFor caps it). */
 	static constexpr uint8_t MaxWorkshopAttempts = 20;
 
@@ -1485,6 +1492,9 @@ struct OracoolOilWork {
  * an item with no affix record to measure against, or while a measure is already running.
  */
 std::optional<OracoolOilWork> MeasureOracoolOilWork(const Player &player, const Item &item);
+
+/** @brief Whether @p idx is one of the fork's own gear bases (not a vanilla row): such items are never stamped CF_BOY. */
+bool IsOracoolGearBase(_item_indexes idx);
 
 /** @brief Adds @p oil back onto a rebuilt @p item, Permanence's 255 included. */
 void ReapplyOracoolOilWork(Item &item, const OracoolOilWork &oil);

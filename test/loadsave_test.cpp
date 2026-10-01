@@ -79,15 +79,24 @@ TEST(LoadSaveItemFormats, Formats13And14StillReadAndTheFormatComesBack)
 	item._iOracoolRerolls = 3;
 	item._iOracoolRemovals = 2;
 	item._iOracoolLockedAffix = -1;
+	item._iOracoolOilAC = 7;
 
-	const std::vector<uint8_t> v15 = SaveItemBytesForTest(item);
+	const std::vector<uint8_t> v16 = SaveItemBytesForTest(item);
 	const uint8_t today = LoadingItemFormatForTest();
-	ASSERT_EQ(today, 15);
+	ASSERT_EQ(today, 16);
 
 	Item loaded;
+	ASSERT_TRUE(LoadItemBytesForTest(v16, 16, loaded));
+	EXPECT_EQ(loaded._iOracoolOilAC, 7) << "v16: the oils' armour comes back";
+	EXPECT_EQ(LoadingItemFormatForTest(), today);
+
+	// 15 lacks v16's two oil-armour bytes at the end: it loads as unknown (-1), and the oil measure falls back.
+	const std::vector<uint8_t> v15(v16.begin(), v16.end() - 2);
+	loaded = {};
 	ASSERT_TRUE(LoadItemBytesForTest(v15, 15, loaded));
 	EXPECT_EQ(loaded._iPLCR, 17);
 	EXPECT_EQ(loaded._iOracoolRerolls, 3);
+	EXPECT_EQ(loaded._iOracoolOilAC, -1);
 	EXPECT_EQ(LoadingItemFormatForTest(), today);
 
 	std::vector<uint8_t> v14(v15.begin(), v15.end() - 3);
@@ -103,7 +112,7 @@ TEST(LoadSaveItemFormats, Formats13And14StillReadAndTheFormatComesBack)
 	Item other = item;
 	other._iPLCR = 18;
 	const std::vector<uint8_t> otherBytes = SaveItemBytesForTest(other);
-	ASSERT_EQ(otherBytes.size(), v15.size());
+	ASSERT_EQ(otherBytes.size(), v16.size());
 	size_t at = 0;
 	while (at < v15.size() && v15[at] == otherBytes[at])
 		at++;

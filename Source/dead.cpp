@@ -170,8 +170,10 @@ void RestoreUniqueCorpsesAfterLoad()
 		// raised it unseen.
 		for (int x = 0; x < MAXDUNX; x++) {
 			for (int y = 0; y < MAXDUNY; y++) {
-				if ((dCorpse[x][y] & 0x1F) == static_cast<int>(k) + 1)
+				if ((dCorpse[x][y] & 0x1F) == static_cast<int>(k) + 1) {
 					dCorpse[x][y] = 0;
+					oracool::ForgetCorpseAt({ x, y }); // its record too (round 54 audit)
+				}
 			}
 		}
 	}

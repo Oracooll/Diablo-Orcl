@@ -3332,7 +3332,8 @@ void GambleBuyItemAt(int idx)
 	GetItemAttrs(slot, base, lvl);
 	slot._iIdentified = false;
 	slot._iIvalue = price;
-	slot._iCreateInfo = std::min(lvl, static_cast<int>(CF_LEVEL)) | CF_BOY;
+	// Stamped as the stock and the result are: an Oracool base is not one of Wirt's (round 54 audit).
+	slot._iCreateInfo = std::min(lvl, static_cast<int>(CF_LEVEL)) | (IsOracoolGearBase(base) ? 0 : CF_BOY);
 	slot._iStatFlag = MyPlayer->CanUseItem(slot);
 	CalcPlrInv(*MyPlayer, true);
 	oracool::ScheduleAutoSaveForStoreTransaction();
