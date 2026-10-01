@@ -650,11 +650,9 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 		const int longest = std::max(std::abs(delta.deltaX), std::abs(delta.deltaY));
 		dst = here + Displacement { delta.deltaX * range / longest, delta.deltaY * range / longest };
 	}
-	// Over monsters, not through walls (round 46 audit: a cursor past a wall landed him in the closed room, paid): the last open
-	// tile toward the clamped aim, and a landing he can see.
-	dst = LastOpenTileToward(here, dst);
-	if (dst == here)
-		return false;
+	// Not through walls (round 46 audit: a cursor past a wall landed him in the closed room, paid) - a landing he can see. Over
+	// lava and chasms still, which block no sight (round 47 audit: the round 46 stop at the first solid tile ended the leap at
+	// the lava's edge, against "over anything in the way").
 	const std::optional<Point> landing = SightedLandingNear(player, dst);
 	if (!landing || *landing == here)
 		return false;

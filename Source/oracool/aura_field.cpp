@@ -83,7 +83,7 @@ int RollDamage(AuraDamage range)
  * @p holy is Sanctuary's burn on the undead: no immunity or resistance stops it, Holy Bolt's rule - nearly every
  * undead is immune to magic, so as plain magic it burned none of them (2026-09-27, found with Radiance's).
  */
-void AuraStrike(Player &player, Monster &monster, DamageType type, int damage, bool holy = false)
+void AuraStrike(Player &player, Monster &monster, DamageType type, int damage, bool holy = false, int capDamage = -1)
 {
 	// Nor a monster Conversion turned: it fights for the hero, and the aura burned it every pulse (round 7 audit).
 	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || IsMonsterConverted(monster)
@@ -97,6 +97,8 @@ void AuraStrike(Player &player, Monster &monster, DamageType type, int damage, b
 	// Storm skipped every one of the Sorcerer's.
 	// With the RfA-12 half as Strike takes it (a Judgment mark's "+15% from everything"; round 16 audit, v1.12.241).
 	damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, /*melee=*/false) + Rfa12DamageDealtPercent(player, monster, /*melee=*/false)); // saturating (round 27 audit)
+	if (capDamage >= 0)
+		damage = std::min(damage, capDamage); // a stated share stays the stated share (round 47 audit)
 	if (damage <= 0)
 		return;
 	ApplyMonsterDamage(type, monster, damage);
@@ -196,7 +198,9 @@ void ProcessStaticField(Player &player)
 		int damage = monster->hitPoints * percent / 100;
 		if (FightsAsUnique(*monster)) // Diablo and the Dread bosses too (round 19 audit)
 			damage /= 2;
-		AuraStrike(player, *monster, DamageType::Lightning, std::max(damage, 1 << 6));
+		// At most the stated share once the damage passives have had their say (round 47 audit: Glass Cannon, Dynamo and the
+		// rest took a 20% field to about 43% of what was left).
+		AuraStrike(player, *monster, DamageType::Lightning, std::max(damage, 1 << 6), /*holy=*/false, /*capDamage=*/std::max(damage, 1 << 6));
 	}
 	AddMissile(player.position.tile, player.position.tile, player._pdir, MissileID::WarcryRing, TARGET_MONSTERS,
 	    static_cast<int>(player.getId()), 0, 0);

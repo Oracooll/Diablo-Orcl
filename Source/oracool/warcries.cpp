@@ -94,9 +94,11 @@ bool StartBuff(Player &player, SpellID spell, int rank, int ticks)
 // ---- the monsters' debuffs -------------------------------------------------------------------
 
 struct Debuff {
-	int ticksLeft = 0;
+	// Each cut on its own clock (round 47 audit: one clock let Resolve's every hit keep Pressure Point's armour cut alive).
+	int damageTicks = 0;
 	int damagePercent = 0; // negative
-	int armorPercent = 0;  // negative
+	int armorTicks = 0;
+	int armorPercent = 0; // negative
 	int convertTicks = 0;  // Conversion: ticks left on the Paladin's side
 };
 
@@ -114,9 +116,14 @@ void DebuffMonster(const Monster &monster, int ticks, int damagePercent, int arm
 	Debuff &debuff = DebuffOf(monster);
 	// The stronger of the two, not the sum: a second cry over the first lengthens it, and if it is
 	// the deeper cry it deepens it, but two cries are not twice one.
-	debuff.ticksLeft = std::max(debuff.ticksLeft, ticks);
-	debuff.damagePercent = std::min(debuff.damagePercent, damagePercent);
-	debuff.armorPercent = std::min(debuff.armorPercent, armorPercent);
+	if (damagePercent < 0) {
+		debuff.damagePercent = debuff.damageTicks > 0 ? std::min(debuff.damagePercent, damagePercent) : damagePercent;
+		debuff.damageTicks = std::max(debuff.damageTicks, ticks);
+	}
+	if (armorPercent < 0) {
+		debuff.armorPercent = debuff.armorTicks > 0 ? std::min(debuff.armorPercent, armorPercent) : armorPercent;
+		debuff.armorTicks = std::max(debuff.armorTicks, ticks);
+	}
 }
 
 namespace {
@@ -572,7 +579,7 @@ int MonsterDebuffDamagePercent(const Monster &monster)
 {
 	int percent = 0;
 	const Debuff &debuff = DebuffOf(monster);
-	if (debuff.ticksLeft > 0)
+	if (debuff.damageTicks > 0)
 		percent += debuff.damagePercent;
 	if (const int p = AuraPointsOn(monster, Skill::DirgeOfDread); p > 0)
 		percent -= std::min(15 + 2 * (p - 1), 40);
@@ -583,7 +590,7 @@ int MonsterDebuffArmorPercent(const Monster &monster)
 {
 	int percent = 0;
 	const Debuff &debuff = DebuffOf(monster);
-	if (debuff.ticksLeft > 0)
+	if (debuff.armorTicks > 0)
 		percent += debuff.armorPercent;
 	if (const int p = AuraPointsOn(monster, Skill::Discord); p > 0)
 		percent -= std::min(20 + 2 * (p - 1), 50);
@@ -638,8 +645,9 @@ void ProcessWarcriesTick(Player &player)
 	// monster goes back to its own side when its clock runs out.
 	for (size_t i = 0; i < Debuffs.size(); i++) {
 		Debuff &debuff = Debuffs[i];
-		if (debuff.ticksLeft > 0 && --debuff.ticksLeft == 0) {
+		if (debuff.damageTicks > 0 && --debuff.damageTicks == 0)
 			debuff.damagePercent = 0;
+		if (debuff.armorTicks > 0 && --debuff.armorTicks == 0) {
 			debuff.armorPercent = 0;
 		}
 		if (debuff.convertTicks > 0 && --debuff.convertTicks == 0)

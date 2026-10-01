@@ -162,8 +162,17 @@ void RestoreUniqueCorpsesAfterLoad()
 		claimed[id - 1] = true;
 	}
 	for (size_t k = static_cast<size_t>(stonendx); k < MaxCorpses; k++) {
-		if (!claimed[k])
-			Corpses[k] = {};
+		if (claimed[k])
+			continue;
+		Corpses[k] = {};
+		// Its tiles too (round 47 audit): the body is not drawn, and the corpse table, saved with the level since, would have
+		// raised it unseen.
+		for (int x = 0; x < MAXDUNX; x++) {
+			for (int y = 0; y < MAXDUNY; y++) {
+				if ((dCorpse[x][y] & 0x1F) == static_cast<int>(k) + 1)
+					dCorpse[x][y] = 0;
+			}
+		}
 	}
 }
 

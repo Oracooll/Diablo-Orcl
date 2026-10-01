@@ -652,7 +652,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Rog, RetiredFromTreePage, 4, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Leech"), N_("Every blow you land returns three hundredths of its damage as life."),
 	    Rog, 3, 4, 2, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Ambush"), N_("+40% damage against anything above 75% of its life."),
+	{ N_("Ambush"), N_("+40% damage against anything at 75% of its life or more."),
 	    Rog, 3, 5, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Awareness"), N_("Once a minute a killing blow leaves you standing at 33% of your life instead."),
 	    Rog, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -921,7 +921,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 3, 1, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("The Guardian's Path"), N_("With a weapon in each hand, 15% of melee blows miss you; with a two-handed staff, you hold 20 more mana."),
 	    Monk, 3, 2, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Sixth Sense"), N_("Everything that is not steel - fire, lightning, magic - deals -25% damage to you."),
+	{ N_("Sixth Sense"), N_("Everything that is not steel - fire, lightning, cold, magic - deals -25% damage to you."),
 	    Monk, 3, 2, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Determination"), N_("Every enemy pressing close gives you +5% damage, up to +20%."),
 	    Monk, 3, 2, 2, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -2476,7 +2476,7 @@ int RefundClassTreePoints(Player &player, Skill skill, int count)
 //
 // Three rules, and the third is what makes the page a choice rather than a list. Passives cost no
 // skill points. They unlock on their own, one every even character level. And a passive only DOES
-// anything while it sits in one of four slots, which open at levels 1, 10, 20 and 30 - so a
+// anything while it sits in one of four slots, which open at levels 10, 20, 30 and 40 - so a
 // character at the cap has every passive available and may run four of them.
 // ---------------------------------------------------------------------------------------------
 

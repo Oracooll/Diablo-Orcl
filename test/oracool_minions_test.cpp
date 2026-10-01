@@ -144,3 +144,30 @@ TEST(OracoolNecroSummoning, TheCorpseTableStartsEmptyAndIsEmptyAgainOnALevel)
 	EXPECT_FALSE(oracool::CorpseNear({ 40, 40 }, 3, false));
 	EXPECT_FALSE(oracool::TakeCorpseNear({ 40, 40 }, 3, true).has_value());
 }
+
+// The corpse table travels with its level (round 47 audit): a revisited floor drew its bodies and could raise none. What a
+// saved table brings back is exactly what was recorded, less any body that is no longer on the floor.
+TEST(OracoolNecroSummoning, TheCorpseTableComesBackWithItsLevel)
+{
+	oracool::ClearCorpses();
+	const oracool::Corpse saved[] = {
+		{ { 40, 40 }, MT_RFALLSP, 5, 30, 2, 6, 40, 10, true },
+		{ { 42, 40 }, MT_NZOMBIE, 7, 45, 3, 8, 45, 12, true },
+		{ { 44, 40 }, MT_SKING, 9, 900, 10, 30, 90, 70, false },
+	};
+	dCorpse[40][40] = 1;
+	dCorpse[42][40] = 2;
+	dCorpse[44][40] = 0; // eaten since: its record is dropped
+	oracool::RestoreCorpseTable(saved, 3);
+	EXPECT_EQ(oracool::CorpseCount(), 2);
+	const std::optional<oracool::Corpse> zombie = oracool::TakeCorpseNear({ 42, 40 }, 0, true);
+	ASSERT_TRUE(zombie.has_value());
+	EXPECT_EQ(zombie->type, MT_NZOMBIE);
+	EXPECT_EQ(zombie->maxLife, 45) << "the dead one's own numbers came back";
+
+	// Whatever a short or missing tail says, the last floor's table never survives a load.
+	oracool::RestoreCorpseTable(nullptr, 0);
+	EXPECT_EQ(oracool::CorpseCount(), 0);
+	dCorpse[40][40] = 0;
+	dCorpse[42][40] = 0;
+}

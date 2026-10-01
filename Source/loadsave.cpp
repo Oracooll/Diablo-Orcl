@@ -31,6 +31,7 @@
 #include "missiles.h"
 #include "monster.h"
 #include "mpq/mpq_common.hpp"
+#include "oracool/corpses.h" // the corpse table, saved with a dungeon level
 #include "oracool/save_status.h"
 #include "oracool/curses.h"
 #include "oracool/minions.h"
@@ -2225,6 +2226,58 @@ void LoadAdditionalMissiles()
 	}
 }
 
+namespace {
+
+/** @brief "CRP1": the corpse table's tail on a dungeon level save (round 47 audit). A save without it reads as no corpses. */
+constexpr uint32_t CorpseTableTag = 0x31505243;
+
+void SaveCorpseTable(SaveHelper &file)
+{
+	std::array<oracool::Corpse, oracool::CorpseTableSize> corpses;
+	const int count = oracool::CopyCorpseTable(corpses.data(), oracool::CorpseTableSize);
+	file.WriteLE<uint32_t>(CorpseTableTag);
+	file.WriteLE<uint8_t>(static_cast<uint8_t>(count));
+	for (int i = 0; i < count; i++) {
+		const oracool::Corpse &corpse = corpses[static_cast<size_t>(i)];
+		file.WriteLE<uint8_t>(static_cast<uint8_t>(corpse.position.x));
+		file.WriteLE<uint8_t>(static_cast<uint8_t>(corpse.position.y));
+		file.WriteLE<int16_t>(static_cast<int16_t>(corpse.type));
+		file.WriteLE<int32_t>(corpse.level);
+		file.WriteLE<int32_t>(corpse.maxLife);
+		file.WriteLE<int32_t>(corpse.minDamage);
+		file.WriteLE<int32_t>(corpse.maxDamage);
+		file.WriteLE<int32_t>(corpse.toHit);
+		file.WriteLE<int32_t>(corpse.armorClass);
+		file.WriteLE<uint8_t>(corpse.revivable ? 1 : 0);
+	}
+}
+
+void LoadCorpseTable(LoadHelper &file)
+{
+	if (file.NextLE<uint32_t>() != CorpseTableTag) {
+		oracool::RestoreCorpseTable(nullptr, 0);
+		return;
+	}
+	const int count = std::min<int>(file.NextLE<uint8_t>(), oracool::CorpseTableSize);
+	std::array<oracool::Corpse, oracool::CorpseTableSize> corpses {};
+	for (int i = 0; i < count; i++) {
+		oracool::Corpse &corpse = corpses[static_cast<size_t>(i)];
+		corpse.position.x = file.NextLE<uint8_t>();
+		corpse.position.y = file.NextLE<uint8_t>();
+		corpse.type = static_cast<_monster_id>(file.NextLE<int16_t>());
+		corpse.level = file.NextLE<int32_t>();
+		corpse.maxLife = file.NextLE<int32_t>();
+		corpse.minDamage = file.NextLE<int32_t>();
+		corpse.maxDamage = file.NextLE<int32_t>();
+		corpse.toHit = file.NextLE<int32_t>();
+		corpse.armorClass = file.NextLE<int32_t>();
+		corpse.revivable = file.NextLE<uint8_t>() != 0;
+	}
+	oracool::RestoreCorpseTable(corpses.data(), file.IsValid() ? count : 0);
+}
+
+} // namespace
+
 void SaveLevel(SaveWriter &saveWriter, LevelConversionData *levelConversionData)
 {
 	// The army leaves with its owner: a level is never stored with minion bodies on it. Stored, they would come back
@@ -2303,6 +2356,7 @@ void SaveLevel(SaveWriter &saveWriter, LevelConversionData *levelConversionData)
 			for (int i = 0; i < DMAXX; i++) // NOLINT(modernize-loop-convert)
 				file.WriteLE<uint8_t>(AutomapView[i][j]);
 		}
+		SaveCorpseTable(file); // the bodies a Necromancer can use, with the level they lie on (round 47 audit)
 	}
 
 	if (!setlevel)
@@ -2396,6 +2450,7 @@ void LoadLevel(LevelConversionData *levelConversionData)
 				AutomapView[i][j] = automapView == MAP_EXP_OLD ? MAP_EXP_SELF : automapView;
 			}
 		}
+		LoadCorpseTable(file); // after dCorpse: a saved body that is gone is dropped (round 47 audit)
 
 		// No need to load dLight, we can recreate it accurately from LightList
 		memcpy(dLight, dPreLight, sizeof(dLight));                                     // resets the light on entering a level to get rid of incorrect light

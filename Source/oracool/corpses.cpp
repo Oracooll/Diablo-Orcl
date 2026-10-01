@@ -5,6 +5,7 @@
  */
 #include "oracool/corpses.h"
 
+#include <algorithm>
 #include <array>
 
 #include "dead.h"
@@ -33,6 +34,25 @@ bool Revivable(const Monster &monster)
 }
 
 } // namespace
+
+int CopyCorpseTable(Corpse *out, int max)
+{
+	const int n = std::min(Count, std::max(max, 0));
+	for (int i = 0; i < n; i++)
+		out[i] = Table[static_cast<size_t>(i)];
+	return n;
+}
+
+void RestoreCorpseTable(const Corpse *in, int count)
+{
+	Count = 0;
+	for (int i = 0; i < count && Count < CorpseTableSize; i++) {
+		const Corpse &corpse = in[i];
+		if (!InDungeonBounds(corpse.position) || dCorpse[corpse.position.x][corpse.position.y] == 0)
+			continue;
+		Table[static_cast<size_t>(Count++)] = corpse;
+	}
+}
 
 void RecordCorpse(const Monster &monster)
 {

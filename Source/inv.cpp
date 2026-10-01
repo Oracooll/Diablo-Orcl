@@ -1381,6 +1381,7 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 						player.HoldItem = holdItem;
 						if (!TryDropItem()) {
 							NewCursor(player.HoldItem);
+							CalcPlrInv(player, true); // the slot it left is already empty (round 47 audit)
 							return; // on the cursor it stays: the clear below would have destroyed it (round 46 audit)
 						}
 					}

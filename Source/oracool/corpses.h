@@ -56,5 +56,15 @@ int CorpseCount();
 /** @brief A level is being torn down or built: nothing on the last floor is usable on this one. */
 void ClearCorpses();
 
+/** @brief The table as it stands, for the level save (round 47 audit): up to @p max entries into @p out; returns how many. */
+int CopyCorpseTable(Corpse *out, int max);
+
+/**
+ * @brief Replaces the table with @p count saved entries (round 47 audit: a revisited floor drew its bodies and could raise
+ * none, the table having emptied with the level load). Entries off the map, or on a tile whose body is gone (dCorpse 0), are
+ * dropped; more than the table holds are cut. Call after dCorpse is loaded.
+ */
+void RestoreCorpseTable(const Corpse *in, int count);
+
 } // namespace oracool
 } // namespace devilution

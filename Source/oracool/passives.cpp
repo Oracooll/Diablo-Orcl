@@ -45,8 +45,13 @@ struct Clocks {
 	int cadenceCount = 0;       // Cadence: melee blows since the last beat
 	int inspireTicks = 0;       // Inspiring Presence: ticks under a warcry blessing, for the per-second mend
 	int juggernautCooldown = 0; // Juggernaut: ticks until the next heal may fire
-	int hasteTicks = 0;         // Illusionist, Tactical Advantage, Hot Pursuit: a burst of speed
-	int hastePercent = 0;       // ...and how much
+	// Illusionist, Tactical Advantage, Hot Pursuit: bursts of speed, each on its own clock, the fastest running counts (round
+	// 47 audit: one shared clock let Hot Pursuit's +20% keep Tactical Advantage's +40% alive for the whole fight).
+	struct HasteSlot {
+		int ticks = 0;
+		int percent = 0;
+	};
+	std::array<HasteSlot, 2> haste {};
 	int unharmedTicks = 0;      // Galvanizing Ward: ticks since the last blow taken
 	int dominanceStacks = 0;    // Dominance: kills stacked
 	int dominanceTicks = 0;     // ...and ticks left before they fall off
@@ -419,8 +424,20 @@ int FloorStamp()
 
 void Haste(Clocks &clocks, int percent, int ticks)
 {
-	clocks.hastePercent = clocks.hasteTicks > 0 ? std::max(clocks.hastePercent, percent) : percent;
-	clocks.hasteTicks = std::max(clocks.hasteTicks, ticks);
+	// The same burst again lengthens itself; another takes a free clock, or the one with less left if it lasts longer.
+	for (Clocks::HasteSlot &slot : clocks.haste) {
+		if (slot.ticks > 0 && slot.percent == percent) {
+			slot.ticks = std::max(slot.ticks, ticks);
+			return;
+		}
+	}
+	Clocks::HasteSlot *spare = &clocks.haste[0];
+	for (Clocks::HasteSlot &slot : clocks.haste) {
+		if (slot.ticks < spare->ticks)
+			spare = &slot;
+	}
+	if (spare->ticks <= 0 || ticks > spare->ticks)
+		*spare = { ticks, percent };
 }
 
 std::optional<SpellID> ArmedMeleeSpell()
@@ -877,7 +894,11 @@ int PassiveThornsPercent(const Player &player)
 int PassiveMoveSpeedBonus(const Player &player)
 {
 	const Clocks &clocks = ClocksFor(player);
-	int bonus = clocks.hasteTicks > 0 ? clocks.hastePercent : 0;
+	int bonus = 0;
+	for (const Clocks::HasteSlot &slot : clocks.haste) {
+		if (slot.ticks > 0)
+			bonus = std::max(bonus, slot.percent);
+	}
 	// Crusader's Stride (2026-09-14): while an aura burns.
 	if (SongPlaying(player) && PassiveActive(player, Skill::CrusadersStride))
 		bonus += CrusadersStridePercent;
@@ -981,7 +1002,11 @@ void ProcessPassivesTick(Player &player)
 {
 	Clocks &clocks = ClocksFor(player);
 	const bool walking = IsAnyOf(player._pmode, PM_WALK_NORTHWARDS, PM_WALK_SOUTHWARDS, PM_WALK_SIDEWAYS);
-	clocks.stillTicks = walking ? 0 : std::min(clocks.stillTicks + 1, 1 << 20);
+	// Wound back by whole 20-tick beats past the cap, so the still passives keep their rhythm (round 47 audit: held at the cap
+	// they stopped after about 14 hours).
+	clocks.stillTicks = walking ? 0 : clocks.stillTicks + 1;
+	if (clocks.stillTicks > (1 << 20))
+		clocks.stillTicks -= 20 * 1000;
 	if (clocks.rampageTicks > 0 && --clocks.rampageTicks == 0)
 		clocks.rampageStacks = 0;
 	if (clocks.cheatDeathCooldown > 0)
@@ -1015,8 +1040,10 @@ void ProcessPassivesTick(Player &player)
 	}
 
 	// ---- the all-heroes sweep (2026-09-14) ----
-	if (clocks.hasteTicks > 0 && --clocks.hasteTicks == 0)
-		clocks.hastePercent = 0;
+	for (Clocks::HasteSlot &slot : clocks.haste) {
+		if (slot.ticks > 0 && --slot.ticks == 0)
+			slot.percent = 0;
+	}
 	clocks.unharmedTicks = std::min(clocks.unharmedTicks + 1, 1 << 20);
 	if (clocks.dominanceTicks > 0 && --clocks.dominanceTicks == 0)
 		clocks.dominanceStacks = 0;
@@ -1141,7 +1168,7 @@ std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int point
 
 	// ---- damage taken ----
 	case Skill::Vigilant:
-		line(fmt::format(fmt::runtime(_("Fire, lightning and magic damage taken: -{:d}%")), VigilantPercent));
+		line(fmt::format(fmt::runtime(_("Fire, lightning, cold and magic damage taken: -{:d}%")), VigilantPercent));
 		break;
 	case Skill::SixthSense:
 		line(fmt::format(fmt::runtime(_("Fire, lightning and magic damage taken: -{:d}%")), SixthSensePercent));
@@ -1265,7 +1292,7 @@ std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int point
 		    MythicRhythmPercent, sec(MythicRhythmTicks)));
 		break;
 	case Skill::ManaAttunement:
-		line(fmt::format(fmt::runtime(_("Mana above half: spell damage +{:d}%")), ManaAttunementPercent));
+		line(fmt::format(fmt::runtime(_("Mana above half: spell and arrow damage +{:d}%")), ManaAttunementPercent));
 		break;
 	case Skill::Sharpshooter:
 		line(fmt::format(fmt::runtime(_("Critical chance: +{:d}% per second without one")), SharpshooterPerSecond));

@@ -512,7 +512,7 @@ bool HasOwnCue(const Player &player, SpellID spell)
 std::optional<Point> SightedLandingNear(const Player &player, Point dst);
 namespace {
 
-bool TeleportTo(Player &player, Point dst, SpellID spell = SpellID::Invalid)
+bool TeleportTo(Player &player, Point dst, SpellID spell = SpellID::Invalid, Point *landedAt = nullptr)
 {
 	if (dst == player.position.tile || !InDungeonBounds(dst))
 		return false;
@@ -520,9 +520,12 @@ bool TeleportTo(Player &player, Point dst, SpellID spell = SpellID::Invalid)
 	// nearest open tile within five of a crowded target, and that could be the room behind the wall). Handed to the teleport
 	// as its target, which its own search then answers at once.
 	const std::optional<Point> landing = SightedLandingNear(player, dst);
-	if (!landing)
+	// Not his own tile either (round 47 audit: in a crowded corridor the search found nowhere but where he stood - paid for).
+	if (!landing || *landing == player.position.tile)
 		return false;
 	dst = *landing;
+	if (landedAt != nullptr)
+		*landedAt = dst; // where the art and the landing belong, up to five tiles from the aim (round 47 audit)
 	std::optional<_sfx_id> sound;
 	if (spell != SpellID::Invalid && HasOwnCue(player, spell))
 		sound = SFX_NONE;
@@ -1386,11 +1389,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			player.Say(HeroSpeech::ICantDoThat); // a wall at once: no room to move (round 46 audit: it fizzled in silence)
 			return false;
 		}
-		if (!TeleportTo(player, dst, spell))
+		Point landed = dst;
+		if (!TeleportTo(player, dst, spell, &landed))
 			return false;
 		PlayerState &state = StateOf(player);
 		state.landingTicks = 2;
-		state.landingTile = dst;
+		state.landingTile = landed;
 		state.landingSpell = spell;
 		state.landingRank = r;
 		return true;
@@ -1890,11 +1894,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
-		if (!TeleportTo(player, dst, spell))
+		Point landed = dst;
+		if (!TeleportTo(player, dst, spell, &landed))
 			return false;
 		// RfA-27 batch 57: the dust at take-off and landing, and the landing's cue.
 		Art(player, MissileGraphicID::VaultDust, here);
-		Art(player, MissileGraphicID::VaultDust, dst);
+		Art(player, MissileGraphicID::VaultDust, landed);
 		Impact(player, spell);
 		return true;
 	}
@@ -2198,12 +2203,13 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
-		if (!TeleportTo(player, dst, spell))
+		Point landed = dst;
+		if (!TeleportTo(player, dst, spell, &landed))
 			return false;
 		Art(player, MissileGraphicID::LeapingCrane, here); // RfA-27 batch 57: the take-off; the landing's is TickLanding's
 		PlayerState &state = StateOf(player);
 		state.landingTicks = 2;
-		state.landingTile = dst; // where he landed (round 46 audit)
+		state.landingTile = landed; // where he landed (round 46-47 audit)
 		state.landingSpell = spell;
 		state.landingRank = r;
 		return true;
@@ -2214,12 +2220,13 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
-		if (!TeleportTo(player, dst, spell))
+		Point landed = dst;
+		if (!TeleportTo(player, dst, spell, &landed))
 			return false;
 		Art(player, MissileGraphicID::ShoulderGate, here); // RfA-27 batch 57: the rush's start; the impact ring is TickLanding's
 		PlayerState &state = StateOf(player);
 		state.landingTicks = 2;
-		state.landingTile = dst;
+		state.landingTile = landed;
 		state.landingSpell = spell;
 		state.landingRank = r;
 		return true;
