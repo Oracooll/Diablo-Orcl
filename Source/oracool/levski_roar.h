@@ -131,6 +131,8 @@ void DrawLevskiCube(const Surface &out, const Object &cube, Point bottomLeft, Cl
  * is placed in the window shows there too, tiny. @p bottomLeft is where the object's sprite was drawn.
  */
 void DrawLevskiCubeLiveGrid(const Surface &out, const Object &cube, Point bottomLeft);
+/** @brief The window's items on the opened Cube whose frame's top-left is @p frameTopLeft (the preview renders it too). */
+void DrawLevskiCubeItemsAt(const Surface &out, Point frameTopLeft);
 
 /**
  * @brief Clears the window and its grid outright, for game teardown. Returns nothing to anyone.

@@ -1753,7 +1753,12 @@ void DrawLevskiCubeLiveGrid(const Surface &out, const Object &cube, Point bottom
 	if (out.isIndexed() || cube._oAnimFrame < CubeOpenFirst || cube._oAnimFrame > CubeOpenLast)
 		return;
 	const int frameTop = bottomLeft.y - static_cast<int>((*cube._oAnimData)[cube._oAnimFrame - 1].height()) + 1;
-	const Point origin { bottomLeft.x + CubePanelLeft, frameTop + CubePanelBottom - CubePanelHeight };
+	DrawLevskiCubeItemsAt(out, { bottomLeft.x, frameTop });
+}
+
+void DrawLevskiCubeItemsAt(const Surface &out, Point frameTopLeft)
+{
+	const Point origin { frameTopLeft.x + CubePanelLeft, frameTopLeft.y + CubePanelBottom - CubePanelHeight };
 	// No grid of its own (user, 2026-10-01): the held frame's painted grid is the grid; only the items are drawn, in its cells.
 	// What the window holds, cell for cell. Only the Cube's own window: Griswold's and Ogden's books leave it shut anyway.
 	if (!WindowOpen || WindowHost != TransmuteHost::Cube)

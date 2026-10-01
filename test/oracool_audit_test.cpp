@@ -15206,6 +15206,64 @@ TEST(OracoolColdResistance, ChillIsShortenedByResistanceAndHalvesAttacks)
 // hero_sheet_preview.png. Not a test - run by name, like the item look preview.
 // The Torment picker (user, 2026-10-01): the 800x600 art where the game puts it on a 960x720 screen, with the big
 // pentagram (ui_art\focus42) in every column's circle - one frame each - so the spot and the size can be seen to fit.
+// The opened Cube's held frame (19) with real item pictures drawn where the game draws them (user, 2026-10-01: "check how
+// they fit ... we might need to move them a pixel or two"). Two packings; the game's own DrawLevskiCubeItemsAt.
+TEST(OracoolPreview, DISABLED_LevskiCubeItemsOnFrame19)
+{
+	MountTestArchives(/*gameArchivesToo=*/true);
+	if (!HaveDiabdat())
+		GTEST_SKIP() << "needs diabdat.mpq";
+	EnsureCursorSpritesLoaded();
+	// The town palette, which the Cube stands in, for the item pictures.
+	InitPNG();
+	std::array<uint8_t, 768> pal {};
+	LoadFileInMem("levels\\towndata\\town.pal", pal);
+	for (int i = 0; i < 256; i++)
+		PaletteRGB[i] = (static_cast<uint32_t>(pal[i * 3]) << 16) | (static_cast<uint32_t>(pal[i * 3 + 1]) << 8) | pal[i * 3 + 2];
+	std::string sheetPath = __FILE__;
+	sheetPath = sheetPath.substr(0, sheetPath.find_last_of("/\\") + 1) + "../Packaging/resources/oracool_assets/objects/levski_cube.png";
+	SDL_Surface *png = IMG_LoadPNG(sheetPath.c_str());
+	ASSERT_NE(png, nullptr) << sheetPath;
+	SDL_Surface *rgba = SDL_ConvertSurfaceFormat(png, SDL_PIXELFORMAT_ABGR8888, 0);
+	SDL_FreeSurface(png);
+	ASSERT_NE(rgba, nullptr);
+	std::vector<uint32_t> frame(128 * 192);
+	for (int y = 0; y < 192; y++) {
+		const auto *row = static_cast<const uint8_t *>(rgba->pixels) + static_cast<size_t>(y) * rgba->pitch + 19 * 128 * 4;
+		for (int x = 0; x < 128; x++) {
+			const uint8_t *p = row + x * 4;
+			// Over the town's dark ground where the sheet is clear, so the picture reads as in game.
+			const int a = p[3];
+			const auto mix = [a](int c, int ground) { return static_cast<uint8_t>((c * a + ground * (255 - a)) / 255); };
+			frame[static_cast<size_t>(y) * 128 + x] = PackArgb(255, mix(p[0], 42), mix(p[1], 36), mix(p[2], 40));
+		}
+	}
+	SDL_FreeSurface(rgba);
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	*MyPlayer = {};
+	const auto render = [&](std::initializer_list<int> cursors, const char *file) {
+		oracool::ResetLevskiRoarForNewGame();
+		oracool::ToggleLevskiRoar();
+		ASSERT_TRUE(oracool::IsLevskiRoarOpen());
+		for (const int curs : cursors) {
+			devilution::Item item {};
+			item._iCurs = curs;
+			item._itype = ItemType::Misc;
+			item._iClass = ICLASS_MISC;
+			item._iIdentified = true;
+			EXPECT_TRUE(oracool::PlaceItemInLevskiGrid(item)) << "cursor " << curs;
+		}
+		OwnedSurface out = OwnedSurface::Rgb(128, 192);
+		BlitArgb(out, frame.data(), 128, MakeSdlRect(0, 0, 128, 192), Point { 0, 0 });
+		oracool::DrawLevskiCubeItemsAt(out, Point { 0, 0 });
+		PreviewSave(out, file);
+		oracool::ResetLevskiRoarForNewGame();
+	};
+	render({ ICURS_FULL_PLATE_MAIL, ICURS_RING, ICURS_AMULET, ICURS_POTION_OF_FULL_HEALING }, "cube_items_a.png");
+	render({ ICURS_BUCKLER, ICURS_SHORT_SWORD, ICURS_DAGGER, ICURS_RING, ICURS_RING }, "cube_items_b.png");
+}
+
 TEST(OracoolPreview, DISABLED_TormentPicker)
 {
 	MountTestArchives(/*gameArchivesToo=*/true);
