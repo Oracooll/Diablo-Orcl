@@ -1581,6 +1581,10 @@ struct StatButtonArt {
 	int cutWidth = 0;
 	int cutHeight = 0;
 	std::vector<uint32_t> cut;
+	// The same cut in the vanilla + button's red (user, 2026-10-01), for a + with points to spend.
+	int redWidth = 0;
+	int redHeight = 0;
+	std::vector<uint32_t> red;
 };
 StatButtonArt StatButtonFace;
 constexpr int StatButtonBorderLeft = 4;
@@ -1642,15 +1646,44 @@ const std::vector<uint32_t> *StatButtonPixels(int w, int h)
 }
 
 /**
+ * @brief The stone face of StatButtonPixels in the vanilla + button's red (user, 2026-10-01: "make it red as the vanilla
+ * + button when there are stat points available"): each pixel's brightness carried onto a dark-to-bright red ramp, so the
+ * stone's grain and bevel stay. Null when the art is missing.
+ */
+const std::vector<uint32_t> *RedStatButtonPixels(int w, int h)
+{
+	const std::vector<uint32_t> *grey = StatButtonPixels(w, h);
+	if (grey == nullptr)
+		return nullptr;
+	StatButtonArt &art = StatButtonFace;
+	if (art.redWidth != w || art.redHeight != h || art.red.size() != grey->size()) {
+		art.redWidth = w;
+		art.redHeight = h;
+		art.red.resize(grey->size());
+		for (size_t i = 0; i < grey->size(); i++) {
+			const uint32_t p = (*grey)[i];
+			const int r = (p >> 16) & 0xFF;
+			const int g = (p >> 8) & 0xFF;
+			const int b = p & 0xFF;
+			const int lum = (r * 30 + g * 59 + b * 11) / 100;
+			// Dark (44, 6, 4) at black to bright (236, 72, 48) at white: vanilla's level-up button, darkest crease to bevel.
+			const auto ramp = [lum](int dark, int bright) { return static_cast<uint32_t>(std::clamp(dark + (bright - dark) * lum / 255, 0, 255)); };
+			art.red[i] = (p & 0xFF000000) | (ramp(44, 236) << 16) | (ramp(6, 72) << 8) | ramp(4, 48);
+		}
+	}
+	return &art.red;
+}
+
+/**
  * @brief One stat button (user, 2026-09-27): the stone face with a dark grey sign drawn on it - a - to take a point
  * back, a + to spend one. Brighter under the pointer; held, it sinks 2px down and 2px left and shows its resting colour
  * ("click state - sunk, idle color"). @p rect is the hit rect, which never moves; it is placed so the sunk face sits
  * exactly 2px inside the frame (GroupedAttrBoxHeight).
  */
-void DrawStatButton(const Surface &content, const Rectangle &rect, bool plus, bool pressed, bool hovered)
+void DrawStatButton(const Surface &content, const Rectangle &rect, bool plus, bool pressed, bool hovered, bool red)
 {
 	const Rectangle face { rect.position + (pressed ? Displacement { -AttrButtonSink, AttrButtonSink } : Displacement { 0, 0 }), rect.size };
-	const std::vector<uint32_t> *pixels = StatButtonPixels(face.size.width, face.size.height);
+	const std::vector<uint32_t> *pixels = red ? RedStatButtonPixels(face.size.width, face.size.height) : StatButtonPixels(face.size.width, face.size.height);
 	const bool drawn = pixels != nullptr
 	    && BlitArgb(content, pixels->data(), face.size.width, SDL_Rect { 0, 0, face.size.width, face.size.height }, face.position, 100);
 	if (!drawn) {
@@ -1686,7 +1719,10 @@ void DrawGroupedStatButtons(const Surface &content)
 		for (int side = 0; side < 2; side++) {
 			const bool over = contentRect.contains(MousePosition) && ContentToScreen(*rects[side]).contains(MousePosition);
 			SoundOnHoverEntry(over, StatButtonHovered[side][buttonId]);
-			DrawStatButton(content, *rects[side], /*plus=*/side == 1, pressed[side], over);
+			// A + that can spend a point is red, as vanilla's is while points wait (user, 2026-10-01).
+			const bool spendable = side == 1 && InspectPlayer->_pStatPts > 0
+			    && InspectPlayer->GetBaseAttributeValue(static_cast<CharacterAttribute>(buttonId)) < MaxBaseAttribute;
+			DrawStatButton(content, *rects[side], /*plus=*/side == 1, pressed[side], over, spendable);
 		}
 	}
 }
