@@ -570,7 +570,8 @@ int HealMinions(Player &owner, int radius, int percent)
 		Monster &body = Monsters[record.body];
 		if (body.position.tile.WalkingDistance(owner.position.tile) > radius || body.hitPoints >= body.maxHitPoints)
 			continue;
-		body.hitPoints = std::min(body.hitPoints + body.maxHitPoints * percent / 100, body.maxHitPoints);
+		// In 64 bits (round 53 audit: a Revived at 4x a high Torment corpse's life wrapped the product).
+		body.hitPoints = static_cast<int>(std::min<int64_t>(int64_t { body.hitPoints } + int64_t { body.maxHitPoints } * percent / 100, body.maxHitPoints));
 		healed++;
 		// A lavender glow fading off it since v1.12.211 (user, 2026-09-27: "tint minions"), in place of the sheet.
 		record.mendedMs = std::max<uint32_t>(SDL_GetTicks(), 1);

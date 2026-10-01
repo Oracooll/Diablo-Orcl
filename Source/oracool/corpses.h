@@ -44,6 +44,12 @@ struct Corpse {
 
 /** @brief Writes @p monster into the table as it dies. Minions and the already-full table are not written. */
 void RecordCorpse(const Monster &monster);
+/**
+ * @brief Drops any record of the body at @p tile (round 53 audit): wherever a body leaves the floor (a scavenger, a corpse
+ * cry, Epitaph) or another is laid on its tile without a record (the Stone Curse shatter, the Golem's rubble). A record
+ * outliving its body raised the eaten monster's type and stats out of the next sprite on that tile.
+ */
+void ForgetCorpseAt(Point tile);
 /** @brief The nearest usable corpse within @p radius of @p tile, TAKEN: gone from the table and from the floor. */
 std::optional<Corpse> TakeCorpseNear(Point tile, int radius, bool forRevive);
 /** @brief As TakeCorpseNear, only a corpse in a clear line from @p seenFrom (round 38: the explosions). */

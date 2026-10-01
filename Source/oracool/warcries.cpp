@@ -1,4 +1,5 @@
 #include "oracool/warcries.h"
+#include "oracool/corpses.h"
 
 #include <algorithm>
 #include <array>
@@ -258,6 +259,7 @@ std::optional<Point> CorpseNear(Point centre, int radius, Point seenFrom)
 void ConsumeCorpse(Point tile)
 {
 	dCorpse[tile.x][tile.y] = 0;
+	ForgetCorpseAt(tile); // round 53 audit
 }
 
 /** @brief Grim Ward: one totem per player - where it stands, how far it reaches, how long it lasts. */

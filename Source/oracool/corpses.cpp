@@ -56,6 +56,14 @@ void RestoreCorpseTable(const Corpse *in, int count)
 	}
 }
 
+void ForgetCorpseAt(Point tile)
+{
+	for (int i = Count - 1; i >= 0; i--) {
+		if (Table[static_cast<size_t>(i)].position == tile)
+			Table[static_cast<size_t>(i)] = Table[static_cast<size_t>(--Count)];
+	}
+}
+
 void RecordCorpse(const Monster &monster)
 {
 	// One body a tile: a record left where a scavenger ate, a corpse skill used or Epitaph took the body came back with the

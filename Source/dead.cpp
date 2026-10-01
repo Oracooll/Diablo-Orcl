@@ -4,6 +4,7 @@
  * Implementation of functions for placing dead monsters.
  */
 #include "dead.h"
+#include "oracool/corpses.h"
 
 #include <array>
 #include <cstdint>
@@ -178,6 +179,8 @@ void RestoreUniqueCorpsesAfterLoad()
 
 void AddCorpse(Point tilePosition, int8_t dv, Direction ddir)
 {
+	// A new body on the tile is not the recorded one; a death that records it does so right after this (round 53 audit).
+	oracool::ForgetCorpseAt(tilePosition);
 	dCorpse[tilePosition.x][tilePosition.y] = (dv & 0x1F) + (static_cast<int>(ddir) << 5);
 }
 

@@ -273,7 +273,6 @@ std::vector<Point> LineOfTiles(Point from, Point toward, int length)
 	return tiles;
 }
 
-/** @brief Every hittable monster standing on a tile of the line, nearest first. */
 /**
  * @brief The tiles of the straight line from @p from to @p to, @p to included and @p from not, at any angle - stopped by the
  * first wall. LineOfTiles walks one of eight directions; this is for a line whose two ends are both given.
@@ -292,6 +291,7 @@ std::vector<Point> TilesBetween(Point from, Point to)
 	return tiles;
 }
 
+/** @brief Every hittable monster standing on a tile of the line, nearest first. */
 std::vector<Monster *> MonstersOnLine(Point from, Point toward, int length)
 {
 	std::vector<Monster *> out;
@@ -2113,6 +2113,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (!corpse)
 			return false;
 		dCorpse[corpse->x][corpse->y] = 0;
+		ForgetCorpseAt(*corpse); // round 53 audit
 		const Range d = Scale(r, 6, 12, 3, 5);
 		for (Monster *m : MonstersWithin(*corpse, 2))
 			Strike(player, *m, DamageType::Magic, Rolled(d));
@@ -2532,6 +2533,20 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::BoneStorm: {
+		// A storm already blowing is renewed, not doubled (round 53 audit: three casts were three storms, three times the
+		// damage, the buff row showing one).
+		for (Field &field : Fields) {
+			if (field.spell == SpellID::BoneStorm && field.owner == player.getId() && field.ticksLeft > 0) {
+				field.ticksLeft = std::max(field.ticksLeft, EffectTicks(spell, r));
+				field.rank = r;
+				for (Missile &missile : Missiles) { // the old storm's art gives way to one as long as the renewed field
+					if (missile._mitype == MissileID::BoneStormEffect && missile._misource == static_cast<int>(player.getId()))
+						missile._miDelFlag = true;
+				}
+				field.step = 1; // TickField shows it again at its full length
+				return true;
+			}
+		}
 		Field *f = NewField(player, spell, here, EffectTicks(spell, r), r);
 		f->clock = 0;
 		Show(player, MissileID::BoneStormEffect, MissileGraphicID::BoneStorm, here, here, EffectTicks(spell, r)); // it follows (ProcessCensusEffect)
@@ -2805,7 +2820,10 @@ void TickField(Player &player, Field &field)
 			const Range d = SkillDamage(field.spell, r);
 			// The straight line between the two conductors, whatever its angle (round 52 audit: an 8-way ray from the first
 			// missed the second unless it stood on one of the eight directions, striking off the line and skipping the pair's).
-			const std::vector<Point> between = TilesBetween(field.tile, field.tile2);
+			// Both conductors' own tiles too (round 53 audit: one standing on the first was never struck).
+			std::vector<Point> between = TilesBetween(field.tile, field.tile2);
+			if (InDungeonBounds(field.tile) && !IsTileSolid(field.tile))
+				between.insert(between.begin(), field.tile);
 			std::vector<Monster *> struck;
 			for (const Point tile : between) {
 				Monster *m = FindMonsterAtPosition(tile);

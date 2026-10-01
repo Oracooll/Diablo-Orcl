@@ -2861,8 +2861,10 @@ void ScavengerAi(Monster &monster)
 				monster.hitPoints += mMaxHP / 8;
 				if (monster.hitPoints > monster.maxHitPoints)
 					monster.hitPoints = monster.maxHitPoints;
-				if (monster.goalVar3 <= 0 || monster.hitPoints == monster.maxHitPoints)
+				if (monster.goalVar3 <= 0 || monster.hitPoints == monster.maxHitPoints) {
 					dCorpse[monster.position.tile.x][monster.position.tile.y] = 0;
+					oracool::ForgetCorpseAt(monster.position.tile); // eaten (round 53 audit)
+				}
 			} else {
 				monster.hitPoints += 64;
 			}
