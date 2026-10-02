@@ -91,7 +91,7 @@ Report bugs through [GitHub Issues](https://github.com/Oracooll/Diablo-Orcl/issu
 
 - **Claude — Lead Programmer**
 - **ChatGPT — Lead Artist**
-- **Oracoll — Coordinator**
+- **Oracooll — Coordinator**
 - **DevilutionX Team — Fundamental mod and engine foundation**
 - **Blizzard North — Creators of the original Diablo**
 
