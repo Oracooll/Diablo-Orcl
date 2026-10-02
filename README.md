@@ -89,6 +89,13 @@ Report bugs through [GitHub Issues](https://github.com/Oracooll/Diablo-Orcl/issu
 
 ## Credits and license
 
+- **Claude — Lead Programmer**
+- **ChatGPT — Lead Artist**
+- **Oracoll — Coordinator**
+- **DevilutionX Team — Fundamental mod and engine foundation**
+- **Blizzard North — Creators of the original Diablo**
+
+
 Diablo Orcl builds on DevilutionX and Devilution by the Diasurgical team and their contributors. Credit also belongs to the artists and contributors recorded in the repository and upstream project.
 
 See [LICENSE.md](LICENSE.md) for the Sustainable Use License and applicable terms. Existing dependency and asset notices remain applicable.
