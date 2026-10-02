@@ -785,6 +785,12 @@ struct Item {
 	 * new item. -1: unknown (an item saved before format 16), and the measure falls back to the difference.
 	 */
 	int16_t _iOracoolOilAC = 0;
+	/**
+	 * @brief The to-hit the Oils of Accuracy and Mastery added (item format 17, round 86 audit). It went into _iPLToHit with no
+	 * line of its own: a rare's tooltip never showed it, and King's, Dull and Doppelganger rows - whose to-hit is the item's
+	 * less the plain to-hit rows - showed it as their own roll, and a Cube rework kept it as theirs. -1: unknown (older items).
+	 */
+	int16_t _iOracoolOilToHit = 0;
 	/** The counters stop here; the price stops rising long before (PriceFor caps it). */
 	static constexpr uint8_t MaxWorkshopAttempts = 20;
 

@@ -80,20 +80,35 @@ TEST(LoadSaveItemFormats, Formats13And14StillReadAndTheFormatComesBack)
 	item._iOracoolRemovals = 2;
 	item._iOracoolLockedAffix = -1;
 	item._iOracoolOilAC = 7;
+	item._iOracoolOilToHit = 4;
 
-	const std::vector<uint8_t> v16 = SaveItemBytesForTest(item);
+	const std::vector<uint8_t> v17 = SaveItemBytesForTest(item);
 	const uint8_t today = LoadingItemFormatForTest();
-	ASSERT_EQ(today, 16);
+	ASSERT_EQ(today, 17);
 
 	Item loaded;
+	ASSERT_TRUE(LoadItemBytesForTest(v17, 17, loaded));
+	EXPECT_EQ(loaded._iOracoolOilToHit, 4) << "v17: the oils' to-hit comes back";
+	{
+		Item unknown = item;
+		unknown._iOracoolOilToHit = -1;
+		Item back;
+		ASSERT_TRUE(LoadItemBytesForTest(SaveItemBytesForTest(unknown), 17, back));
+		EXPECT_EQ(back._iOracoolOilToHit, -1);
+	}
+
+	// 16 lacks v17's two oil to-hit bytes: unknown (-1).
+	const std::vector<uint8_t> v16(v17.begin(), v17.end() - 2);
+	loaded = {};
 	ASSERT_TRUE(LoadItemBytesForTest(v16, 16, loaded));
+	EXPECT_EQ(loaded._iOracoolOilToHit, -1);
 	EXPECT_EQ(loaded._iOracoolOilAC, 7) << "v16: the oils' armour comes back";
 	{
 		// Unknown (-1, an item older than 16) stays unknown through a save and a load (round 55 audit).
 		Item unknown = item;
 		unknown._iOracoolOilAC = -1;
 		Item back;
-		ASSERT_TRUE(LoadItemBytesForTest(SaveItemBytesForTest(unknown), 16, back));
+		ASSERT_TRUE(LoadItemBytesForTest(SaveItemBytesForTest(unknown), 17, back));
 		EXPECT_EQ(back._iOracoolOilAC, -1);
 	}
 	EXPECT_EQ(LoadingItemFormatForTest(), today);
@@ -120,7 +135,7 @@ TEST(LoadSaveItemFormats, Formats13And14StillReadAndTheFormatComesBack)
 	Item other = item;
 	other._iPLCR = 18;
 	const std::vector<uint8_t> otherBytes = SaveItemBytesForTest(other);
-	ASSERT_EQ(otherBytes.size(), v16.size());
+	ASSERT_EQ(otherBytes.size(), v17.size());
 	size_t at = 0;
 	while (at < v15.size() && v15[at] == otherBytes[at])
 		at++;

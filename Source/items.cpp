@@ -4051,7 +4051,9 @@ std::optional<OracoolOilWork> MeasureOracoolOilWork(const Player &player, const 
 	// difference was carried on as "oil" for good. An older shop item's difference is its drift; its oil armour unknown, 0.
 	const bool olderShopItem = item._iOracoolOilAC < 0 && (item._iCreateInfo & (CF_SMITH | CF_SMITHPREMIUM | CF_BOY | CF_WITCH)) != 0;
 	const int oilAC = item._iOracoolOilAC >= 0 ? item._iOracoolOilAC : olderShopItem ? 0 : item._iAC - probe._iAC;
-	return OracoolOilWork { item._iPLToHit - probe._iPLToHit, item._iMinDam - probe._iMinDam, item._iMaxDam - probe._iMaxDam,
+	// The to-hit as recorded since format 17 (round 86 audit); for an older item the difference, as before.
+	const int oilToHit = item._iOracoolOilToHit >= 0 ? item._iOracoolOilToHit : item._iPLToHit - probe._iPLToHit;
+	return OracoolOilWork { oilToHit, item._iMinDam - probe._iMinDam, item._iMaxDam - probe._iMaxDam,
 		item._iMinStr - probe._iMinStr, item._iMinMag - probe._iMinMag, item._iMinDex - probe._iMinDex,
 		oilAC, item._iMaxDur - probe._iMaxDur,
 		// Only when the 255 was not an affix's (round 41 audit: an "of the ages" row reworked away stayed indestructible).
@@ -4065,6 +4067,7 @@ void ReapplyOracoolOilWork(Item &item, const OracoolOilWork &oil, bool sameSeed)
 	if (sameSeed)
 		item._iAC = std::clamp<int>(item._iAC + oil.acDrift, 0, INT16_MAX); // the shop roll the seed cannot redraw
 	item._iPLToHit += oil.toHit;
+	item._iOracoolOilToHit = static_cast<int16_t>(std::clamp(oil.toHit, 0, static_cast<int>(INT16_MAX))); // known from here on
 	item._iMinDam = std::clamp<int>(item._iMinDam + oil.minDam, 0, 255);
 	item._iMaxDam = std::clamp<int>(item._iMaxDam + oil.maxDam, item._iMinDam, 255);
 	item._iMinStr = static_cast<uint8_t>(std::clamp(item._iMinStr + oil.minStr, 0, 255));
@@ -4153,7 +4156,7 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	// rows as they were, their to-hit is put back as it was - the share the tooltip reads (the item's to-hit less the plain
 	// to-hit rows).
 	const auto dampToHitShare = [](const Item &it) {
-		int toHit = it._iPLToHit;
+		int toHit = it._iPLToHit - std::max<int>(it._iOracoolOilToHit, 0); // not the oils' (round 86 audit)
 		for (int i = 0; i < it._iOracoolAffixCount; i++) {
 			if (it._iOracoolAffixes[i].type == IPL_TOHIT)
 				toHit -= it._iOracoolAffixes[i].param1;
@@ -5726,6 +5729,7 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)
 	item._iPLMana = 0;
 	item._iPLHP = 0;
 	item._iOracoolOilAC = 0; // a fresh base carries no oil (round 54 audit)
+	item._iOracoolOilToHit = 0; // nor oil to-hit (round 86 audit)
 	// Nor shards: the ledger is put back by every rebuild that keeps it, and Make Ethereal read a stale one on a bare base
 	// and halved Tempering that was not there yet (round 55 audit).
 	item._iOracoolImbueCount = 0;
@@ -7793,7 +7797,7 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 		// the item's to-hit leaves once the plain to-hit affixes are taken out, shared between the affixes of this
 		// kind when there is more than one.
 		const int damage = affix.type == IPL_TOHIT_DAMP_CURSE ? -affix.param1 : affix.param1;
-		int toHit = item._iPLToHit;
+		int toHit = item._iPLToHit - std::max<int>(item._iOracoolOilToHit, 0); // the oils' have a line of their own (round 86)
 		int sharers = 0;
 		for (int i = 0; i < item._iOracoolAffixCount; i++) {
 			const OracoolAffix &other = item._iOracoolAffixes[i];
@@ -8323,6 +8327,9 @@ void PrintItemDetails(const Item &item)
 		for (int i = 0; i < item._iOracoolAffixCount; i++)
 			AddPanelString(PrintOracoolAffixPower(item._iOracoolAffixes[i], item), ItemAffixColor);
 	}
+	// The oils' to-hit, a line of its own (round 86 audit: a rare never showed it; a to-hit-and-damage row showed it as its own).
+	if (item._iOracoolOilToHit > 0)
+		AddPanelString(fmt::format(fmt::runtime(_("chance to hit: {:+d}% (oils)")), item._iOracoolOilToHit), ItemAffixColor);
 	// Phase 1 ethereal: the whole bargain in one line, directly under the tier - the buffed stats
 	// already show in the numbers above, so what the line carries is the PRICE.
 	if (item._iOracoolEthereal)
@@ -11038,12 +11045,18 @@ bool ApplyOilToItem(Item &item, Player &player)
 	switch (player._pOilType) {
 	case IMISC_OILACC:
 		if (item._iPLToHit < 50) {
-			item._iPLToHit += GenerateRnd(2) + 1;
+			const int added = GenerateRnd(2) + 1;
+			item._iPLToHit += added;
+			if (item._iOracoolOilToHit >= 0) // recorded from format 17 (round 86 audit)
+				item._iOracoolOilToHit = static_cast<int16_t>(std::min(item._iOracoolOilToHit + added, static_cast<int>(INT16_MAX)));
 		}
 		break;
 	case IMISC_OILMAST:
 		if (item._iPLToHit < 100) {
-			item._iPLToHit += GenerateRnd(3) + 3;
+			const int added = GenerateRnd(3) + 3;
+			item._iPLToHit += added;
+			if (item._iOracoolOilToHit >= 0)
+				item._iOracoolOilToHit = static_cast<int16_t>(std::min(item._iOracoolOilToHit + added, static_cast<int>(INT16_MAX)));
 		}
 		break;
 	case IMISC_OILSHARP:

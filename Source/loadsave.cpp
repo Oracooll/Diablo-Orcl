@@ -368,7 +368,7 @@ struct LevelConversionData {
 // this item has had, and the affix its first reroll locked. They lived in a per-game table keyed by seed, so going back
 // to the menu reset the doubling price and freed the lock (audit, 2026-09-27; user: "fix all four. dont worry about
 // save breaks"). Versions 13 and 14 are still read, their items as if never worked.
-constexpr uint8_t OracoolItemFormatVersion = 16;
+constexpr uint8_t OracoolItemFormatVersion = 17;
 /**
  * @brief The item format the file being read was written in. 14 added Item::_iPLCR, cold resistance (2026-09-26);
  * a 13 file is read the old way and its items load with none - nothing a hero owned is refused for it. Set by the
@@ -630,6 +630,8 @@ void LoadItemData(LoadHelper &file, Item &item)
 	// Version 16: the oils' armour (round 54 audit). Older items do not know it (-1), and the oil measure falls back.
 	// -1 survives a save and a load (round 55 audit: clamped to 0, an older item's unknown became "known, none" after one save).
 	item._iOracoolOilAC = LoadingItemFormat >= 16 ? std::max<int16_t>(file.NextLE<int16_t>(), -1) : -1;
+	// Version 17: the oils' to-hit (round 86 audit). Older items do not know it (-1).
+	item._iOracoolOilToHit = LoadingItemFormat >= 17 ? std::max<int16_t>(file.NextLE<int16_t>(), -1) : -1;
 
 	// Self-healing for negative durability (user, 2026-08-27: "i have magic oracool items with
 	// negative durability"). Until WearDurabilityPoint landed, gear that broke while equipped kept
@@ -1570,6 +1572,7 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<uint8_t>(item._iOracoolRemovals);
 	file.WriteLE<int8_t>(item._iOracoolLockedAffix);
 	file.WriteLE<int16_t>(item._iOracoolOilAC); // v16
+	file.WriteLE<int16_t>(item._iOracoolOilToHit); // v17
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)
@@ -2528,6 +2531,8 @@ constexpr int OracoolItemExtensionSaveSize =
     // v15: the Mystic's reroll and removal counts and the locked affix (2026-09-27).
     + 3
     // v16: the oils' armour, int16 (round 54 audit).
+    + 2
+    // v17: the oils' to-hit, int16 (round 86 audit).
     + 2;
 const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
 const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
@@ -2540,6 +2545,8 @@ const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
 size_t ItemSaveSizeFor(uint8_t format)
 {
 	size_t size = gbIsHellfireSaveGame ? HellfireItemSaveSize : DiabloItemSaveSize;
+	if (format < 17)
+		size -= 2;
 	if (format < 16)
 		size -= 2;
 	if (format < 15)
