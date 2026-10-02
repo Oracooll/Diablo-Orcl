@@ -144,6 +144,8 @@ bool StartGame(bool bNewGame, bool bSinglePlayer);
 int DiabloMain(int argc, char **argv);
 bool TryIconCurs();
 void diablo_pause_game();
+/** @brief Lets go of every held button as a release outside it would: nothing acts (round 75 audit). */
+void ReleaseHeldButtonsWithoutActing();
 bool diablo_is_focused();
 void diablo_focus_pause();
 void diablo_focus_unpause();

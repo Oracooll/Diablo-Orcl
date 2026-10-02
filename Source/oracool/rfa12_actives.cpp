@@ -112,6 +112,10 @@ struct BowStrikeScope {
 	bool previous;
 };
 
+/** A swing's side blow is striking (round 76 audit): the per-blow passives pay, the swing's counters (Cadence, Mythic Rhythm,
+ *  Momentum's charges) wait for its front blow - as the weapon cleave's since v1.12.318. Set by SideBlow. */
+bool SideBlowInFlight = false;
+
 /** @brief A skill's strike: immunity and resistance honoured, kill credit and the flinch to @p player. */
 void Strike(Player &player, Monster &monster, DamageType type, int damage, bool melee = false, bool applyPassives = true, bool pooled = false)
 {
@@ -148,7 +152,7 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	// An arrow's, as MonsterMHit feeds a plain arrow's; and a swing's extra blow (Sweep, Reaping Point), as the class melee
 	// strike feeds it - Leech healed nothing from them (round 29 audit).
 	if (&player == MyPlayer && applyPassives && (BowStrikeInFlight || melee))
-		OnPassiveHit(player, monster, damage, melee);
+		OnPassiveHit(player, monster, damage, melee, /*burst=*/SideBlowInFlight);
 	// And the RfA-12 half for a melee blow (round 65 audit): Cleave's, Backhand's and Crusade's side blows never bled, never
 	// fed Bloodlust, never reset Retaliation - the class melee Strike and Whirlwind's blows always did.
 	if (&player == MyPlayer && applyPassives && melee)
@@ -603,10 +607,18 @@ void StrikeBlow(Player &player, Monster &monster, DamageType type, int blowPerce
 	// Before the passives roll (round 64 audit: an immune target spent Sharpshooter's built-up crit for nothing).
 	if (!Hittable(monster) || monster.isImmune(MissileID::Null, type))
 		return;
-	const int pool = PassiveDamageDealtPercent(player, monster, melee) + Rfa12DamageDealtPercent(player, monster, melee);
+	const int pool = PassiveDamageDealtPercent(player, monster, melee, /*burst=*/SideBlowInFlight) + Rfa12DamageDealtPercent(player, monster, melee);
 	const int roll = player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1);
 	const int blow = std::max(PooledWeaponDamage(player, roll, pool), 1) << 6;
 	Strike(player, monster, type, Percent(blow, blowPercent), melee, /*applyPassives=*/true, /*pooled=*/true);
+}
+
+/** @brief StrikeBlow for a swing's side blow (Sweep, Cleave, Crusade, Aegis Slam, Backhand, Holy Lance, Reaping Point). */
+void SideBlow(Player &player, Monster &monster, DamageType type, int blowPercent)
+{
+	SideBlowInFlight = true;
+	StrikeBlow(player, monster, type, blowPercent, /*melee=*/true);
+	SideBlowInFlight = false;
 }
 
 // =================================================================================================
@@ -3827,7 +3839,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		for (Monster *m : MonstersOnLine(ahead, ahead + player._pdir, 2)) {
 			// Not a magic-immune one: StrikeBlow refuses it, and the mana and the cue were paid for nothing (round 66 audit).
 			if (m != nullptr && m != front && Hittable(*m) && !m->isImmune(MissileID::Null, DamageType::Magic)) {
-				StrikeBlow(player, *m, DamageType::Magic, BlowPercent(spell, r), /*melee=*/true);
+				SideBlow(player, *m, DamageType::Magic, BlowPercent(spell, r));
 				struck = true;
 			}
 		}
@@ -3837,7 +3849,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		for (Monster *m : MonstersWithin(player.position.tile, 1)) {
 			if (m == front || blows >= CrusadeOthers)
 				continue;
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true);
+			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 			blows++;
 			struck = true;
 		}
@@ -3851,7 +3863,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 				continue;
 			slammed.push_back(m);
 			if (m != front)
-				StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true);
+				SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 			// Shoved first, then stunned: the shove's knockback put it into hit recovery over the stun (round 16 audit).
 			Shove(*m, player._pdir);
 			Stagger(*m, StunTicks(spell, r));
@@ -3866,7 +3878,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		const Point behindTile = player.position.tile + Opposite(player._pdir);
 		Monster *behind = InDungeonBounds(behindTile) ? FindMonsterAtPosition(behindTile) : nullptr;
 		if (behind != nullptr && behind != front && Hittable(*behind)) {
-			StrikeBlow(player, *behind, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true);
+			SideBlow(player, *behind, DamageType::Physical, BlowPercent(spell, r));
 			struck = true;
 			landedBlows++;
 		}
@@ -3883,7 +3895,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			if (m == nullptr || m == front || m == first || !Hittable(*m))
 				continue;
 			first = m;
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true);
+			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 			struck = true;
 			landedBlows++;
 		}
@@ -3906,7 +3918,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	case SpellID::ReapingPoint: {
 		Monster *beyond = InDungeonBounds(ahead + player._pdir) ? FindMonsterAtPosition(ahead + player._pdir) : nullptr;
 		if (beyond != nullptr && Hittable(*beyond)) {
-			StrikeBlow(player, *beyond, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true);
+			SideBlow(player, *beyond, DamageType::Physical, BlowPercent(spell, r));
 			struck = true;
 		}
 		break;

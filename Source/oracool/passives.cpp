@@ -626,7 +626,7 @@ int PassiveDamageDealtPercent(const Player &player, const Monster &target, bool 
 		}
 		percent += CombinationStrikePerSkill * distinct;
 	}
-	if (clocks.momentumBlows > 0 && PassiveActive(player, Skill::Momentum))
+	if (!burst && clocks.momentumBlows > 0 && PassiveActive(player, Skill::Momentum)) // a burst spends no charge (round 76 audit)
 		percent += MomentumPercent;
 	// The replacements for the rows the engine could not carry (2026-09-14).
 	if (PassiveActive(player, Skill::Sanctified) && IsAnyOf(target.data().monsterClass, MonsterClass::Undead, MonsterClass::Demon))

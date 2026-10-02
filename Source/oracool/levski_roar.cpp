@@ -1399,7 +1399,10 @@ bool RunLevskiTransmute()
 	// nothing. A selected recipe that cannot run has to say so out loud - a Transmute button
 	// that silently does nothing is the exact ambiguity this fork has shipped twice already.
 	if (SelectedRecipe >= 0 && !CanCraftFromLevskiGrid(GridItems, SelectedRecipe)) {
-		LogEvent(StrCat("Levski's Cube: ", _(CraftingRecipeName(SelectedRecipe)), " is not ready"));
+		if (const std::string why = LevskiRecipeRefusal(GridItems, SelectedRecipe); !why.empty())
+			LogEvent(StrCat("Levski's Cube: ", why)); // the reason, where there is one (round 76 audit)
+		else
+			LogEvent(StrCat("Levski's Cube: ", _(CraftingRecipeName(SelectedRecipe)), " is not ready"));
 		return true;
 	}
 	// With no recipe picked, the readiest recipe of THIS host's book - never another host's.

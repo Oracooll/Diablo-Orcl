@@ -4105,6 +4105,7 @@ void diablo_focus_pause()
 	GameWasAlreadyPaused = PauseMode != 0;
 
 	if (!GameWasAlreadyPaused) {
+		ReleaseHeldButtonsWithoutActing(); // as the P key's pause (round 76 audit)
 		PauseMode = 2;
 		sound_stop();
 		LastMouseButtonAction = MouseActionType::None;

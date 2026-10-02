@@ -67,6 +67,7 @@ void RemovePortalMissiles()
 			continue;
 		if (missile._mlid != NO_LIGHT)
 			AddUnLight(missile._mlid);
+		missile._mlid = NO_LIGHT; // round 76 audit
 		missile._miDelFlag = true;
 	}
 }

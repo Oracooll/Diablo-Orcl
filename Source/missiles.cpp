@@ -4403,6 +4403,7 @@ void ProcessCensusEffect(Missile &missile)
 		missile._miDelFlag = true;
 		if (missile._mlid != NO_LIGHT)
 			AddUnLight(missile._mlid);
+		missile._mlid = NO_LIGHT; // round 76 audit
 		return;
 	}
 	// A meteor's 4 since the shower (round 66 audit: sixteen rocks at 8 took a quarter of the light pool for 3 s).
@@ -6552,6 +6553,12 @@ void ProcessMissiles()
 			dFlags[position.x][position.y] &= ~(DungeonFlag::Missile | DungeonFlag::MissileFireWall | DungeonFlag::MissileLightningWall);
 		} else {
 			missile._miDelFlag = true;
+			// Its light goes with it (round 76 audit: deleted here before its own process freed it, a lit bolt off the map held
+			// a slot of the 64 till the next level). Not a charge's, which is the charging monster's own.
+			if (missile._mlid != NO_LIGHT && missile._mitype != MissileID::Rhino) {
+				AddUnLight(missile._mlid);
+				missile._mlid = NO_LIGHT;
+			}
 		}
 	}
 

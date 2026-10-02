@@ -1159,6 +1159,16 @@ std::string ZodBoundInEthereal()
 	return std::string(_("Zod is bound for good in an ethereal item"));
 }
 
+std::string LevskiRecipeRefusal(const Item *grid, int index)
+{
+	if (index == 3) {
+		const int host = FindGridSocketedItem(grid);
+		if (host >= 0 && FreeableStones(grid[host]) == 0)
+			return ZodBoundInEthereal();
+	}
+	return {};
+}
+
 std::string NoRoomForResult()
 {
 	return std::string(_("not enough room for the result"));

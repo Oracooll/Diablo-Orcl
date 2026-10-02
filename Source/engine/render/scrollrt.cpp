@@ -402,6 +402,8 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 		ClxDrawRgbMap(out, at, body, oracool::TintedTable(table, oracool::Tint::Clone, 0, 0.0));
 		return;
 	}
+	if (missile._miAnimFrame < 1 || static_cast<size_t>(missile._miAnimFrame) > missile._miAnimData->numSprites())
+		return; // a frame the sheet has not got (round 76 audit: indexed unchecked)
 	const ClxSprite sprite = (*missile._miAnimData)[missile._miAnimFrame - 1];
 	// Oracool: the Guardian Rift's portal is VIOLET, a colour the palette has no ramp for - its sheet
 	// is vanilla's blue and this draw sends the blue ramp to violet values (GuardianPortalRgbTable).

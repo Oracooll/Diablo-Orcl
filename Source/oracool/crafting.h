@@ -111,6 +111,9 @@ std::string TransmuteLevskiGridWith(Item *grid, int index);
  * only the prose.
  */
 bool CanCraftFromLevskiGrid(const Item *grid, int index);
+/** @brief Why recipe @p index cannot run on @p grid, when there is a reason worth saying (only Free the Sockets on a Zod-only
+ *  ethereal host, so far); empty otherwise (round 76 audit: the reason was never reachable). */
+std::string LevskiRecipeRefusal(const Item *grid, int index);
 /** @brief The lowest-numbered recipe the grid can currently run, or -1 for none. */
 int FirstReadyLevskiRecipe(const Item *grid);
 /**

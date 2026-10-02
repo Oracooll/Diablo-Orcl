@@ -10,6 +10,7 @@
 #include <SDL.h>
 
 #include "control.h"
+#include "diablo.h"
 #include "engine.h"
 #include "engine/clx_sprite.hpp"
 #include "engine/demomode.h"
@@ -586,6 +587,7 @@ void ShowProgress(interface_mode uMsg)
 	plrmsg_delay(true);
 
 	EventHandler previousHandler = SetEventHandler(DisableInputEventHandler);
+	ReleaseHeldButtonsWithoutActing(); // a button held into the load does not act on a release after it (round 76 audit)
 
 	if (!HeadlessMode) {
 		assert(ghMainWnd);
