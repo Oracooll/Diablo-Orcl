@@ -6776,6 +6776,10 @@ void StartDropTumble(Item &item)
 {
 	// Played while in the level, settled while it is still loading - SetupItem's own rule.
 	item.setNewAnimation(MyPlayer != nullptr && MyPlayer->pLvlLoad == 0);
+	// Stamped where the hero stands or is stepping to, as RespawnItem stamps it (round 79 audit: a monster's rune kept the
+	// default and auto-pickup took it mid-tumble at the end of the step - "they appear straight into my backpack").
+	if (MyPlayer != nullptr)
+		item._iOracoolLandedNear = Point { MyPlayer->position.future.x, MyPlayer->position.future.y };
 }
 
 bool RepairFloorItemAnimation(Item &item)

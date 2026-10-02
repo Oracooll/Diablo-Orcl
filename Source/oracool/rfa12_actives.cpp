@@ -1415,7 +1415,7 @@ constexpr int TeethLineTiles = 6;
 /** @brief Teeth: the teeth that fly on down the line, past the three of the fan - no more than the line has tiles. */
 int TeethDownTheLine(int r)
 {
-	return std::min(2 + r, TeethLineTiles);
+	return std::min(2 + r, TeethLineTiles - 1); // the line's first tile is the fan's middle, already toothed (round 79 audit)
 }
 
 /** @brief Bone Armor's shell, in whole points. */
@@ -1594,6 +1594,22 @@ Range BoneRange(const Player &player, Range d)
 }
 
 /** @brief A bone skill's blow: magic, through Marrow - and Serration (+5% a tile flown, 50% at most) and Rigor Mortis (a second's chill). */
+/**
+ * @brief Bone Wall's segment @p k (-2..2) from @p centre along @p dir, or nullopt where its arm is stopped: each arm grows
+ * outward and ends at the first tile that is solid or out of the centre's sight (round 79 audit: the outer segments stood in
+ * the next room, cutting and shoving through the wall).
+ */
+std::optional<Point> BoneWallSegment(Point centre, Direction dir, int k)
+{
+	Point tile = centre;
+	for (int step = 0; step < std::abs(k); step++) {
+		tile = tile + (k < 0 ? Opposite(dir) : dir);
+		if (!InDungeonBounds(tile) || IsTileSolid(tile) || !LineClearMissile(centre, tile))
+			return std::nullopt;
+	}
+	return tile;
+}
+
 void BoneStrike(Player &player, Monster &monster, int damage, std::optional<Point> flewFrom = std::nullopt)
 {
 	int percent = MarrowPercent(player);
@@ -1601,8 +1617,10 @@ void BoneStrike(Player &player, Monster &monster, int damage, std::optional<Poin
 	// walls and the prison grew as he walked away from them.
 	if (flewFrom && PassiveActive(player, ClassTreeSkill::Serration))
 		percent += std::min(SerrationPerTile * flewFrom->WalkingDistance(monster.position.tile), SerrationCap);
+	const int lifeBefore = monster.hitPoints;
 	Strike(player, monster, DamageType::Magic, damage * percent / 100);
-	if ((monster.hitPoints >> 6) > 0 && PassiveActive(player, ClassTreeSkill::RigorMortis))
+	// What the bone hurt (round 79 audit: a magic-immune one took nothing and was slowed anyway).
+	if ((monster.hitPoints >> 6) > 0 && monster.hitPoints < lifeBefore && PassiveActive(player, ClassTreeSkill::RigorMortis))
 		ChillMonster(monster, RigorMortisTicks);
 	// The bone-hit burst (batch 38) where the blow landed; nothing while the sheet is not in the archive.
 	Show(player, MissileID::BoneHitBurst, MissileGraphicID::BoneHitNecro, monster.position.tile, monster.position.tile);
@@ -2838,20 +2856,18 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::BoneWall: {
 		// A line of five across the cursor, at right angles to the cast.
 		const Point centre = Clamped(here, target, 8);
-		if (!LineClearMissile(here, centre)) { // not raised in the next room (round 37 audit)
+		// Not raised in the next room (round 37 audit), nor inside a wall (round 79 audit).
+		if (!InDungeonBounds(centre) || IsTileSolid(centre) || !LineClearMissile(here, centre)) {
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
 		Field *f = NewField(player, spell, centre, EffectTicks(spell, r), r);
 		f->dir = Right(Right(target == here ? player._pdir : GetDirection(here, target)));
-		// The five segments (batch 38), each rising once and standing for the wall's life.
+		// The five segments (batch 38), each rising once and standing for the wall's life - an arm stops at a wall.
 		bool drawn = false;
 		for (int k = -2; k <= 2; k++) {
-			Point tile = centre;
-			for (int step = 0; step < std::abs(k); step++)
-				tile = tile + (k < 0 ? Opposite(f->dir) : f->dir);
-			if (InDungeonBounds(tile))
-				drawn = Show(player, MissileID::BoneWallEffect, MissileGraphicID::BoneWall, tile, tile, EffectTicks(spell, r)) || drawn;
+			if (const std::optional<Point> tile = BoneWallSegment(centre, f->dir, k))
+				drawn = Show(player, MissileID::BoneWallEffect, MissileGraphicID::BoneWall, *tile, *tile, EffectTicks(spell, r)) || drawn;
 		}
 		if (!drawn)
 			Ring(player, centre);
@@ -3014,10 +3030,8 @@ void TickField(Player &player, Field &field)
 		if (field.clock % (field.spell == SpellID::BoneWall ? BoneWallPeriod : BoneStormPeriod) == 0) {
 			std::vector<const Monster *> cut; // once a pulse: a walker holds two of the wall's tiles (round 5 audit)
 			for (int k = -2; k <= 2; k++) {
-				Point tile = field.tile;
-				for (int step = 0; step < std::abs(k); step++)
-					tile = tile + (k < 0 ? Opposite(field.dir) : field.dir);
-				Monster *m = InDungeonBounds(tile) ? FindMonsterAtPosition(tile) : nullptr;
+				const std::optional<Point> tile = BoneWallSegment(field.tile, field.dir, k); // as raised (round 79 audit)
+				Monster *m = tile ? FindMonsterAtPosition(*tile) : nullptr;
 				if (m == nullptr || !Hittable(*m) || std::find(cut.begin(), cut.end(), m) != cut.end())
 					continue;
 				cut.push_back(m);

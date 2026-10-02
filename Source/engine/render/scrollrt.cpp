@@ -1070,7 +1070,9 @@ void DrawItem(const Surface &out, Point tilePosition, Point targetBufferPosition
 		const int height = static_cast<int>(sprite.height());
 		DrawBrokenItemMarker(out, { position.x, position.y - height }, width, height);
 	}
-	if (item.AnimInfo.isLastFrame() || item._iCurs == ICURS_MAGIC_ROCK)
+	// Not a label in a room never seen (round 79 audit: names and positions of unexplored loot showed, clickable).
+	if ((item.AnimInfo.isLastFrame() || item._iCurs == ICURS_MAGIC_ROCK)
+	    && (leveltype == DTYPE_TOWN || HasAnyOf(dFlags[tilePosition.x][tilePosition.y], DungeonFlag::Explored)))
 		AddItemToLabelQueue(bItem - 1, position);
 }
 

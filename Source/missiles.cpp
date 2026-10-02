@@ -762,9 +762,13 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 				// Not every tick of an acid puddle: each landed tick fired a free Ice Bolt, eight a second (round 10 audit).
 				// Nor every tick of a monster's Inferno or Lightning, which strike on each tick they overlap him (round 78 audit: up to
 				// twenty free bolts a second).
-				if (isPlayerHit && !blocked && !IsAnyOf(missile._mitype, MissileID::AcidPuddle, MissileID::Inferno, MissileID::Lightning)
-				    && (Players[pid - 1]._pHitPoints >> 6) > 0) // not from a corpse (round 39)
+				// Once per missile (round 79 audit: v1.12.326 excluded Inferno and Lightning by type, which left an Advocate's bolt with
+				// no retort and a Storm Rider's ThinLightning still one a tick) - a segment that strikes each tick answers once.
+				if (isPlayerHit && !blocked && missile._mitype != MissileID::AcidPuddle && !missile.coldRetorted
+				    && (Players[pid - 1]._pHitPoints >> 6) > 0) { // not from a corpse (round 39)
+					missile.coldRetorted = true;
 					oracool::OnColdArmourStruckAtRange(Players[pid - 1], monster);
+				}
 			}
 		} else {
 			DeathReason deathReason = missile.sourceType() == MissileSource::Player ? DeathReason::Player : DeathReason::MonsterOrTrap;

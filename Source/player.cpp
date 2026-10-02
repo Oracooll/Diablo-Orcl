@@ -502,6 +502,9 @@ void StartSpell(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord c
 
 void RespawnDeadItem(Item &&itm, Point target)
 {
+	// A full floor gives up its cheapest ordinary item rather than this one (round 79 audit: an outgrown item, stolen potions,
+	// the excess gold and the cursor item on death were destroyed without a word).
+	MakeRoomForGuaranteedReward();
 	if (ActiveItemCount >= MAXITEMS)
 		return;
 
