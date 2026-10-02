@@ -43,6 +43,7 @@
 #include "playerdat.hpp" // ExpLvlsTbl - the Glowing Shrine stops at the level's floor
 #include "engine/palette.h" // PaletteRGB and PaletteRgbGeneration - the stash chest's gold cast
 #include "oracool/auto_save.h"
+#include "oracool/companion.h" // IsCompanion - traps spare the hero's side
 #include "oracool/event_log.h"
 #include "oracool/levski_roar.h"
 #include "oracool/spell_ranks.h" // CanReadSpellBookTo - the Chamber of Bone's Guardian rank
@@ -1845,8 +1846,8 @@ void UpdateFlameTrap(Object &trap)
 		int x = trap.position.x;
 		int y = trap.position.y;
 		constexpr MissileID TrapMissile = MissileID::FireWallControl;
-		if (dMonster[x][y] > 0)
-			MonsterTrapHit(dMonster[x][y] - 1, mindam / 2, maxdam / 2, 0, TrapMissile, GetMissileData(TrapMissile).damageType(), false);
+		if (dMonster[x][y] > 0 && !Monsters[dMonster[x][y] - 1].isPlayerMinion() && !oracool::IsCompanion(Monsters[dMonster[x][y] - 1]))
+			MonsterTrapHit(dMonster[x][y] - 1, mindam / 2, maxdam / 2, 0, TrapMissile, GetMissileData(TrapMissile).damageType(), false); // not the hero's side (round 80)
 		if (dPlayer[x][y] > 0) {
 			bool unused;
 			PlayerMHit(dPlayer[x][y] - 1, nullptr, 0, mindam, maxdam, TrapMissile, GetMissileData(TrapMissile).damageType(), false, DeathReason::MonsterOrTrap, &unused);
@@ -2345,9 +2346,6 @@ void OperateBook(Player &player, Object &book, bool sendmsg)
 
 void OperateBookLever(Object &questBook, bool sendmsg)
 {
-	if (ActiveItemCount >= MAXITEMS) {
-		return;
-	}
 	if (questBook._oSelFlag != 0 && !qtextflag) {
 		if (questBook._otype == OBJ_BLINDBOOK && Quests[Q_BLIND]._qvar1 == 0) {
 			Quests[Q_BLIND]._qactive = QUEST_ACTIVE;
@@ -2375,8 +2373,10 @@ void OperateBookLever(Object &questBook, bool sendmsg)
 			if (questBook._otype != OBJ_BLOODBOOK)
 				ObjChangeMap(questBook._oVar1, questBook._oVar2, questBook._oVar3, questBook._oVar4);
 			if (questBook._otype == OBJ_BLINDBOOK) {
-				if (sendmsg)
+				if (sendmsg) {
+					MakeRoomForGuaranteedReward(); // round 80 audit
 					SpawnUnique(UITEM_OPTAMULET, SetPiece.position.megaToWorld() + Displacement { 5, 5 }, std::nullopt, true, true);
+				}
 				auto tren = TransVal;
 				TransVal = 9;
 				DRLG_MRectTrans(WorldTilePosition(questBook._oVar1, questBook._oVar2), WorldTilePosition(questBook._oVar3, questBook._oVar4));
@@ -2494,16 +2494,15 @@ void OperateChest(const Player &player, Object &chest, bool sendLootMsg)
 
 void OperateMushroomPatch(const Player &player, Object &mushroomPatch)
 {
-	if (ActiveItemCount >= MAXITEMS) {
-		return;
-	}
-
 	if (Quests[Q_MUSHROOM]._qactive != QUEST_ACTIVE) {
 		if (&player == MyPlayer) {
 			player.Say(HeroSpeech::ICantUseThisYet);
 		}
 		return;
 	}
+	MakeRoomForGuaranteedReward(); // a guaranteed reward makes room on a full floor (round 80 audit: the click did nothing at all)
+	if (ActiveItemCount >= MAXITEMS)
+		return;
 
 	if (mushroomPatch._oSelFlag == 0) {
 		return;
@@ -2525,16 +2524,15 @@ void OperateMushroomPatch(const Player &player, Object &mushroomPatch)
 
 void OperateInnSignChest(const Player &player, Object &questContainer, bool sendmsg)
 {
-	if (ActiveItemCount >= MAXITEMS) {
-		return;
-	}
-
 	if (Quests[Q_LTBANNER]._qvar1 != 2) {
 		if (&player == MyPlayer) {
 			player.Say(HeroSpeech::ICantOpenThisYet);
 		}
 		return;
 	}
+	MakeRoomForGuaranteedReward(); // a guaranteed reward makes room on a full floor (round 80 audit: the click did nothing at all)
+	if (ActiveItemCount >= MAXITEMS)
+		return;
 
 	if (questContainer._oSelFlag == 0) {
 		return;
@@ -2629,6 +2627,8 @@ void OperateSarcophagus(Object &sarcophagus, bool sendMsg, bool sendLootMsg)
 
 void OperatePedestal(Player &player, Object &pedestal, bool sendmsg)
 {
+	if (pedestal._oVar6 != 3)
+		MakeRoomForGuaranteedReward(); // before the stone is taken (round 80 audit)
 	if (ActiveItemCount >= MAXITEMS) {
 		return;
 	}
@@ -3959,13 +3959,12 @@ void OperateStoryBook(Object &storyBook)
 
 void OperateLazStand(Object &stand)
 {
-	if (ActiveItemCount >= MAXITEMS) {
-		return;
-	}
-
 	if (stand._oSelFlag == 0 || qtextflag) {
 		return;
 	}
+	MakeRoomForGuaranteedReward(); // a guaranteed reward makes room on a full floor (round 80 audit: the click did nothing at all)
+	if (ActiveItemCount >= MAXITEMS)
+		return;
 
 	stand._oAnimFrame++;
 	stand._oSelFlag = 0;
@@ -4048,8 +4047,8 @@ void BreakBarrel(const Player &player, Object &barrel, bool forcebreak, bool sen
 		for (int yp = barrel.position.y - 1; yp <= barrel.position.y + 1; yp++) {
 			for (int xp = barrel.position.x - 1; xp <= barrel.position.x + 1; xp++) {
 				constexpr MissileID TrapMissile = MissileID::Firebolt;
-				if (dMonster[xp][yp] > 0) {
-					MonsterTrapHit(dMonster[xp][yp] - 1, 1, 4, 0, TrapMissile, GetMissileData(TrapMissile).damageType(), false);
+				if (dMonster[xp][yp] > 0 && !Monsters[dMonster[xp][yp] - 1].isPlayerMinion() && !oracool::IsCompanion(Monsters[dMonster[xp][yp] - 1])) {
+					MonsterTrapHit(dMonster[xp][yp] - 1, 1, 4, 0, TrapMissile, GetMissileData(TrapMissile).damageType(), false); // not the hero's side (round 80)
 				}
 				if (dPlayer[xp][yp] > 0) {
 					bool unused;

@@ -354,6 +354,10 @@ constexpr int ArtEffectFollowsCaster = 1;
 
 } // namespace
 
+/** An arrow's burst is striking (Exploding Arrow's ring, round 80 audit): part of the arrow that caused it - its damage takes
+ *  the passives as a burst, and the arrow's own rules (Night Stalker, Sharpshooter, Archery, Thrill) do not pay again. */
+bool ArrowBurstInFlight = false;
+
 bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, MissileID t, DamageType damageType, bool shift, int spellLevel)
 {
 	auto &monster = Monsters[monsterId];
@@ -426,7 +430,9 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 		// A companion's arrow is a burst to the passives (round 59 audit): its damage takes them, its shot does not roll or
 		// spend the hero's Sharpshooter count.
 		const int pool = oracool::PassiveDamageDealtPercent(player, monster, false, /*burst=*/CompanionHitPercent > 0) + oracool::Rfa12DamageDealtPercent(player, monster, false);
-		dam = PooledWeaponDamage(player, dam, pool, player._pClass == HeroClass::Rogue ? 100 : 50);
+		// Half only on a bow outside the Rogue, as the sheet halves it (round 80 audit: a Barbarian's thrown axe flies as an
+		// arrow and landed with half the share the sheet showed).
+		dam = PooledWeaponDamage(player, dam, pool, player._pClass == HeroClass::Rogue || !player.UsesRangedWeapon() ? 100 : 50);
 		if (monster.data().monsterClass == MonsterClass::Demon && HasAnyOf(player._pIFlags, ItemSpecialEffect::TripleDemonDamage))
 			dam *= 3;
 	}
@@ -446,7 +452,7 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	// Dynamo, Mana Attunement and Mythic Rhythm, and rolled Deadeye again per burst).
 	const bool swingBurst = t == MissileID::WeaponExplosion;
 	if (!pooledArrow) {
-		dam = oracool::AddPercentSat(dam, oracool::PassiveDamageDealtPercent(player, monster, swingBurst, /*burst=*/swingBurst || CompanionHitPercent > 0) + oracool::Rfa12DamageDealtPercent(player, monster, swingBurst)
+		dam = oracool::AddPercentSat(dam, oracool::PassiveDamageDealtPercent(player, monster, swingBurst, /*burst=*/swingBurst || CompanionHitPercent > 0 || ArrowBurstInFlight) + oracool::Rfa12DamageDealtPercent(player, monster, swingBurst)
 		        + (damageType == DamageType::Cold ? oracool::Rfa12ColdDamagePercent(monster) : 0));
 	}
 
@@ -458,7 +464,7 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	// The hero's own on-hit passives are for the hero's own shots (round 59 audit: the Valkyrie's volleys fed Night Stalker,
 	// Archery, Leech and Hot Pursuit, and spent Dead Ground). Life Tap answers any blow on a tapped monster.
 	const bool herosOwn = CompanionHitPercent == 0;
-	if (&player == MyPlayer && herosOwn && missileData.isArrow())
+	if (&player == MyPlayer && herosOwn && missileData.isArrow() && !ArrowBurstInFlight)
 		oracool::OnPassiveHit(*MyPlayer, monster, dam, false);
 	if (&player == MyPlayer && dam > 0) {
 		if (herosOwn)
@@ -467,8 +473,8 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	}
 	// The all-heroes sweep (2026-09-14): Paralysis, Temporal Flux, Thrill of the Hunt, the element marks.
 	if (&player == MyPlayer && herosOwn && dam > 0)
-		oracool::OnPassiveMissileHit(*MyPlayer, monster, dam, damageType, missileData.isArrow(),
-		    /*sharedRulesDone=*/t == MissileID::WeaponExplosion); // the swing's part, not a blow of its own: Momentum (round 37)
+		oracool::OnPassiveMissileHit(*MyPlayer, monster, dam, damageType, missileData.isArrow() && !ArrowBurstInFlight,
+		    /*sharedRulesDone=*/t == MissileID::WeaponExplosion || ArrowBurstInFlight); // the swing's part, not a blow of its own: Momentum (round 37)
 
 	// COLD CHILLS (Oracool, Round 1) - and from Round 2, freezes, depending on the missile. Every
 	// cold missile does it, rather than Ice Bolt doing it: the slow is what the damage type MEANS,
@@ -2975,6 +2981,7 @@ void ProcessRogueArrow(Missile &missile)
 		case oracool::RogueArrow::ExplodingArrow:
 			// The burst: fire damage across the eight tiles around the stop, and the magma-ball
 			// explosion drawn over it. The stop tile itself was already hit by the arrow.
+			ArrowBurstInFlight = true; // the ring is the arrow's, not eight more arrows (round 80 audit)
 			for (int dy = -1; dy <= 1; dy++) {
 				for (int dx = -1; dx <= 1; dx++) {
 					// The centre was the arrow's own hit - unless the burst stepped back off a wall, when the tile in front of it
@@ -2984,6 +2991,7 @@ void ProcessRogueArrow(Missile &missile)
 					CheckMissileCol(missile, DamageType::Fire, mind, maxd, false, at + Displacement { dx, dy }, true);
 				}
 			}
+			ArrowBurstInFlight = false;
 			AddMissile(at, at, dir, MissileID::MagmaBallExplosion, missile._micaster, missile._misource, 0, 0, &missile);
 			break;
 		case oracool::RogueArrow::ImmolationArrow:
@@ -3014,7 +3022,8 @@ void ProcessRogueArrow(Missile &missile)
 					Monster &monster = Monsters[abs(mid) - 1];
 					// Nor her own Valkyrie, Decoy or a converted ally, as Ice Arrow spares them (round 20 audit).
 					if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion() || oracool::IsCompanion(monster) || oracool::IsMinion(monster)
-					    || oracool::IsMonsterConverted(monster))
+					    || oracool::IsMonsterConverted(monster)
+					    || monster.isImmune(MissileID::FrostArrow, DamageType::Cold) || !monster.isPossibleToHit()) // round 80 audit
 						continue;
 					oracool::ApplyColdHit(MissileID::IceBlast, level, monster);
 				}

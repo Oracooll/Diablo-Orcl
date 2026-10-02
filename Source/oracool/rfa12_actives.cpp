@@ -1603,8 +1603,12 @@ std::optional<Point> BoneWallSegment(Point centre, Direction dir, int k)
 {
 	Point tile = centre;
 	for (int step = 0; step < std::abs(k); step++) {
+		const Point from = tile;
 		tile = tile + (k < 0 ? Opposite(dir) : dir);
 		if (!InDungeonBounds(tile) || IsTileSolid(tile) || !LineClearMissile(centre, tile))
+			return std::nullopt;
+		// Nor between two corner-touching walls on a diagonal step (round 80 audit).
+		if (tile.x != from.x && tile.y != from.y && (IsTileSolid({ tile.x, from.y }) || IsTileSolid({ from.x, tile.y })))
 			return std::nullopt;
 	}
 	return tile;
@@ -2187,7 +2191,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			return false;
 		const Point at = m->position.tile;
 		StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
-		Bleed(*m, EffectTicks(spell, r), PerSecond(spell, r));
+		if ((m->hitPoints >> 6) > 0) // not on the one it killed: its slot's next occupant bled (round 80 audit)
+			Bleed(*m, EffectTicks(spell, r), PerSecond(spell, r));
 		Fly(player, MissileGraphicID::BarbedArrow, here, at, spell); // RfA-27 batch 54: the arrow, landing with its cue
 		return true;
 	}
@@ -2199,6 +2204,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		{
 			const NoCastSight arcSees; // the arc leaps from the struck one, round its corners, as Arc's hops (round 67 audit)
+			BowStrikeScope notAnArrow { false }; // the arc is no second arrow (round 80 audit: Night Stalker, Leech, Archery paid twice)
 			if (Monster *other = NearestStrikable(at, ReachTiles(spell, r), DamageType::Lightning, m); other != nullptr)
 				Strike(player, *other, DamageType::Lightning, Rolled(SkillDamage(spell, r)));
 		}
@@ -2855,7 +2861,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::BoneWall: {
 		// A line of five across the cursor, at right angles to the cast.
-		const Point centre = Clamped(here, target, 8);
+		Point centre = Clamped(here, target, 8);
+		// A clamp that lands on a pillar steps back to the last open tile (round 80 audit: a clear room was refused).
+		if (InDungeonBounds(centre) && IsTileSolid(centre))
+			centre = LastClearTileToward(here, centre);
 		// Not raised in the next room (round 37 audit), nor inside a wall (round 79 audit).
 		if (!InDungeonBounds(centre) || IsTileSolid(centre) || !LineClearMissile(here, centre)) {
 			player.Say(HeroSpeech::ICantDoThat);
