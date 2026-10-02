@@ -10,7 +10,7 @@ A single-player overhaul of Diablo and Hellfire built on [DevilutionX](https://g
 
 - The default development branch is `renderer-32bit`.
 - Current source version: **v1.12.347** as of 2 October 2026; [ORACOOL_VERSION](ORACOOL_VERSION) is the authoritative version file.
-- Latest published download at this documentation review: **v1.12.225**. A source update does not automatically publish a new executable; check the [Releases page](https://github.com/Oracooll/Diablo-Orcl/releases) for available packages and their own instructions.
+- Latest published Windows download: **[v1.12.347](https://github.com/Oracooll/Diablo-Orcl/releases/tag/v1.12.347)**, with `DiabloOrcl-v1.12.347-win64.zip`. This matches the current source version. Read the release notes before installing or upgrading.
 - **V1 is single-player only.** Multiplayer is not supported.
 - Windows is the primary development platform. Upstream platform instructions do not guarantee that this fork has a supported package for every platform.
 - Save compatibility can change between development builds. Back up characters before upgrading.
