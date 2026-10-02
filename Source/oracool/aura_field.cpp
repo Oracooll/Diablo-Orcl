@@ -412,7 +412,7 @@ uint16_t ConvictionAdjusted(uint16_t resistances, int points)
 	// resistant rather than bare.
 	uint16_t out = resistances & ~static_cast<uint16_t>(RESIST_MAGIC | RESIST_FIRE | RESIST_LIGHTNING);
 	if (points >= ConvictionBreaksImmunityAt)
-		out = DemoteImmunitiesToResistances(out);
+		out = DemoteImmunitiesToResistances(out) | (out & IMMUNE_ACID); // poison immunity kept, as the other callers keep it (round 81)
 	return out;
 }
 

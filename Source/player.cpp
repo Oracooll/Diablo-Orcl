@@ -485,6 +485,12 @@ void StartSpell(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord c
 		if (sound == IS_CAST2 && &player == MyPlayer && !oracool::IsColdSpell(castSpell)) {
 			const oracool::ClassTreeSkill row = oracool::ClassTreeSkillForSpell(player._pClass, castSpell);
 			played = row != oracool::ClassTreeSkill::None && oracool::PlaySkillSound(row, oracool::SkillSoundEvent::Cast);
+		} else if (sound == IS_CAST2 && &player == MyPlayer) {
+			// A cold spell's cue rings at its missile's launch: the generic chime is not played as well (round 81 audit:
+			// Blizzard sounded cast2 and then its own cue - a delivered cue replaces IS_CAST2, never stacks).
+			const oracool::ClassTreeSkill row = oracool::ClassTreeSkillForSpell(player._pClass, castSpell);
+			played = row != oracool::ClassTreeSkill::None
+			    && (oracool::HasSkillSound(row, oracool::SkillSoundEvent::Cast) || oracool::HasSkillSound(row, oracool::SkillSoundEvent::Start));
 		}
 		if (!played)
 			PlaySfxLoc(sound, player.position.tile);
@@ -1136,6 +1142,7 @@ bool DoAttack(Player &player)
 		oracool::LatchClassMeleeSwingPrice(player);
 		oracool::LatchRfa12SwingPrice(player);
 		oracool::LatchPaladinSwingPrice(player);
+		oracool::StartZealChainAtSwing(player); // a missed opener still starts the burst (round 81 audit)
 		LiftedThisSwing = false;
 		struct SwingPriceScope {
 			~SwingPriceScope()
@@ -4646,7 +4653,10 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			// arrives at walking pace.
 			// Not while already dashing: every click of a sprint paid 10 mana again and restarted the dash, the cooldown
 			// starting only at the arriving swing (round 21 audit, v1.12.246).
+			// Not at a target behind a wall (round 81 audit: the dash ran out on the long way round - paid, a plain blow, no
+			// cooldown, and the next click paid again). It swings at walking pace instead, as out of mana does.
 			if (!oracool::IsFuriousChargeOnCooldown() && !oracool::IsFuriousChargeDashing()
+			    && LineClearMissile(myPlayer.position.tile, Monsters[pcursmonst].position.tile)
 			    && oracool::SpendPaladinSkillMana(myPlayer, oracool::PaladinSkill::Charge))
 				oracool::StartFuriousChargeDash();
 		}

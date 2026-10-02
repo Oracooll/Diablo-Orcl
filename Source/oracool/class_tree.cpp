@@ -186,7 +186,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Conviction"), N_("Strips the fire, lightning and magic resistances of every enemy near you and lowers their armour 3% per level, to 60%. At five points it begins to break immunities down into mere resistances."),
 	    Pal, 1, 5, 1, Kind::Aura, SpellID::Invalid, true },
 	// --- Defensive Auras ---
-	{ N_("Prayer"), N_("Mends your wounds steadily as you walk."), Pal, 2, 0, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Prayer"), N_("Mends your wounds steadily while it burns."), Pal, 2, 0, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Resist Fire"), N_("Hardens you against fire."), Pal, 2, 0, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Defiance"), N_("Raises your armour class."), Pal, 2, 1, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Resist Cold"), N_("Hardens you against cold."),
@@ -196,7 +196,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Resist Lightning"), N_("Hardens you against lightning."), Pal, 2, 2, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Vigor"), N_("Quickens your stride: +5% movement speed per level, anywhere, and every level counts. Items with +movement speed stack with it."),
 	    Pal, 2, 3, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Meditation"), N_("Restores your mana steadily as you walk."), Pal, 2, 4, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Meditation"), N_("Restores your mana steadily while it burns."), Pal, 2, 4, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Redemption"), N_("Once a second the nearest corpse in the field is consumed for 3% of your life and mana, +1% per level."),
 	    Pal, 2, 5, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Salvation"), N_("+10% to every resistance - fire, lightning, cold and magic - +3% per level."),

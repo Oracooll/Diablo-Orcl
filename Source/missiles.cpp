@@ -2825,7 +2825,8 @@ void ProcessFrozenOrb(Missile &missile)
 
 	const auto shed = [&missile](Direction direction) {
 		const Point dst = missile.position.tile + direction;
-		if (Missile *bolt = AddMissile(missile.position.tile, dst, direction, MissileID::IceBolt, missile._micaster, missile._misource, 0, missile._mispllvl, &missile); bolt != nullptr)
+		// Silent: a shed bolt is no Ice Bolt cast (round 81 audit: about thirteen of Ice Bolt's cast cues rang per orb).
+		if (Missile *bolt = AddMissile(missile.position.tile, dst, direction, MissileID::IceBolt, missile._micaster, missile._misource, 0, missile._mispllvl, &missile, SFX_NONE); bolt != nullptr)
 			bolt->oracoolImpactPercent = 50; // its splash at half (dev note, 2026-10-01)
 	};
 
@@ -3023,7 +3024,7 @@ void ProcessRogueArrow(Missile &missile)
 					// Nor her own Valkyrie, Decoy or a converted ally, as Ice Arrow spares them (round 20 audit).
 					if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion() || oracool::IsCompanion(monster) || oracool::IsMinion(monster)
 					    || oracool::IsMonsterConverted(monster)
-					    || monster.isImmune(MissileID::FrostArrow, DamageType::Cold) || !monster.isPossibleToHit()) // round 80 audit
+					    || !monster.isPossibleToHit()) // nor the unhittable (round 80 audit; there is no cold immunity to test)
 						continue;
 					oracool::ApplyColdHit(MissileID::IceBlast, level, monster);
 				}

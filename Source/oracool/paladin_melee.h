@@ -166,6 +166,8 @@ bool TryContinueZealChain(Player &player);
  * Cheap and idempotent, so the safe thing to do at a new interrupt point is call it.
  */
 void ResetZealChain();
+/** @brief At a Zeal-armed swing's hit frame, before the blow: starts the chain whether the opener lands (round 81 audit). */
+void StartZealChainAtSwing(const Player &player);
 
 /**
  * @brief Frames a Zeal-armed swing skips so every swing - the first included - fits the per-swing

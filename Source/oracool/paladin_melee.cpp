@@ -418,6 +418,18 @@ bool IsZealReadied(const Player &player)
 	return false;
 }
 
+void StartZealChainAtSwing(const Player &player)
+{
+	// The opener starts the chain at its hit frame, landed or not (round 81 audit - "Zeal's missed opener": a miss was a
+	// sped-up swing with nothing after it, and a held button swung free fast swings until one landed). Mana stays per
+	// landed blow (ApplyZeal), as the text says.
+	if (&player != MyPlayer || ArmedSkill != PaladinSkill::Zeal || ZealChainActive || !PaidAtFront(player, PaladinSkill::Zeal))
+		return;
+	ZealChainActive = true;
+	ZealStruckCount = 0;
+	ZealChainLeft = ZealStrikeCount(player) - 1;
+}
+
 void ResetZealChain()
 {
 	ZealChainActive = false;

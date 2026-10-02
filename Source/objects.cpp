@@ -2346,6 +2346,15 @@ void OperateBook(Player &player, Object &book, bool sendmsg)
 
 void OperateBookLever(Object &questBook, bool sendmsg)
 {
+	// A book that still owes its reward needs room for it BEFORE the quest moves (round 81 audit: on a floor full of items
+	// MakeRoom may not take, the quest advanced, the spawn failed, and the Blood Stone or the Optic Amulet was gone for good).
+	const bool owesReward = (questBook._otype == OBJ_BLOODBOOK && Quests[Q_BLOOD]._qvar1 == 0)
+	    || (questBook._otype == OBJ_BLINDBOOK && questBook._oAnimFrame != questBook._oVar6);
+	if (sendmsg && owesReward) {
+		MakeRoomForGuaranteedReward();
+		if (ActiveItemCount >= MAXITEMS)
+			return;
+	}
 	if (questBook._oSelFlag != 0 && !qtextflag) {
 		if (questBook._otype == OBJ_BLINDBOOK && Quests[Q_BLIND]._qvar1 == 0) {
 			Quests[Q_BLIND]._qactive = QUEST_ACTIVE;
@@ -2500,13 +2509,12 @@ void OperateMushroomPatch(const Player &player, Object &mushroomPatch)
 		}
 		return;
 	}
-	MakeRoomForGuaranteedReward(); // a guaranteed reward makes room on a full floor (round 80 audit: the click did nothing at all)
-	if (ActiveItemCount >= MAXITEMS)
-		return;
-
 	if (mushroomPatch._oSelFlag == 0) {
 		return;
 	}
+	MakeRoomForGuaranteedReward(); // a guaranteed reward makes room on a full floor (round 80 audit: the click did nothing at all)
+	if (ActiveItemCount >= MAXITEMS)
+		return;
 
 	mushroomPatch._oSelFlag = 0;
 	mushroomPatch._oAnimFrame++;
@@ -2627,8 +2635,10 @@ void OperateSarcophagus(Object &sarcophagus, bool sendMsg, bool sendLootMsg)
 
 void OperatePedestal(Player &player, Object &pedestal, bool sendmsg)
 {
-	if (pedestal._oVar6 != 3)
-		MakeRoomForGuaranteedReward(); // before the stone is taken (round 80 audit)
+	// Before the stone is taken (round 80 audit), and only when there is a stone to take (round 81 audit: each empty-handed
+	// click on a full floor deleted a floor item).
+	if (pedestal._oVar6 != 3 && (!sendmsg || HasInventoryItemWithId(player, IDI_BLDSTONE)))
+		MakeRoomForGuaranteedReward();
 	if (ActiveItemCount >= MAXITEMS) {
 		return;
 	}
