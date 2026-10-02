@@ -373,14 +373,17 @@ constexpr SalvageLayout SalvageTallPage {
 	{ { 316, 5 }, { 18, 18 } },
 	// 4x2 at the row's own 66 px pitch, split by whether the plate asks first (user, 2026-09-21): row one is the
 	// hammer and the three cheap tiers, which act at once; row two is the four dear ones, which ask.
-	{ { { 109, 344 }, { 56, 56 } }, // White - "All Basics", second of the top row
-	    { { 175, 344 }, { 56, 56 } }, // Magic
-	    { { 241, 344 }, { 56, 56 } }, // Rare
-	    { { 43, 410 }, { 56, 56 } },  // Unique - the lower row asks before it destroys
-	    { { 175, 410 }, { 56, 56 } }, // Primal
-	    { { 109, 410 }, { 56, 56 } }, // Set
-	    { { 241, 410 }, { 56, 56 } } },// Ethereal
-	{ { 43, 344 }, { 56, 56 } },   // the hammer that takes one item, first of the top row
+	// Two pixels higher since v1.12.348, so the lower row's slot frames end six pixels above the bow the results
+	// frame's top border makes round its title (y 476) - they ended four above it (user, 2026-10-02: "6px gap between
+	// their frames and surrounding ui elments").
+	{ { { 109, 342 }, { 56, 56 } }, // White - "All Basics", second of the top row
+	    { { 175, 342 }, { 56, 56 } }, // Magic
+	    { { 241, 342 }, { 56, 56 } }, // Rare
+	    { { 43, 408 }, { 56, 56 } },  // Unique - the lower row asks before it destroys
+	    { { 175, 408 }, { 56, 56 } }, // Primal
+	    { { 109, 408 }, { 56, 56 } }, // Set
+	    { { 241, 408 }, { 56, 56 } } },// Ethereal
+	{ { 43, 342 }, { 56, 56 } },   // the hammer that takes one item, first of the top row
 	true, true
 };
 
@@ -442,7 +445,9 @@ constexpr int ConfirmButton = 0;
 constexpr int CancelButton = 1;
 constexpr Size ConfirmButtonSize { 100, 28 };
 constexpr int ConfirmButtonGap = 20;
-constexpr int ConfirmButtonBottomGap = 16;
+// Twelve (v1.12.348): the slot frame's six and six of air above the results frame's gold foot. It was sixteen, ten of
+// air - more than the six every other framed button keeps to its neighbours.
+constexpr int ConfirmButtonBottomGap = GridBezelInset + 6;
 constexpr uint32_t ConfirmGreenRgb = 0x64A064;
 constexpr uint32_t CancelRedRgb = 0xC04030;
 /** Defined further down, beside the drawing they belong to; the release hook above them needs both. */
@@ -548,7 +553,9 @@ constexpr int CubeGridFrameLeft = 118;
 constexpr int CubeGridFrameRight = 224;
 constexpr int CubeGridFrameBottom = 541;
 constexpr int CubeTransmuteSize = 34;
-constexpr int CubeTransmuteClearance = 4;
+// FOURTEEN since the plate wears a slot frame (v1.12.348): the band's two black liner rows under its gold foot, six
+// of air and the frame's six - the workshop's CraftTransmuteClearance, which is the same plate under the same well.
+constexpr int CubeTransmuteClearance = 2 + 6 + GridBezelInset;
 constexpr Rectangle CubePageTransmuteRect {
 	{ (CubeGridFrameLeft + CubeGridFrameRight + 1) / 2 - CubeTransmuteSize / 2,
 	    CubeGridFrameBottom + 1 + CubeTransmuteClearance },

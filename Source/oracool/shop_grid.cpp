@@ -670,12 +670,20 @@ constexpr Size ShopServiceSlotSize { 34, 34 };
  * It was 128, which was right against the guide canvas and three pixels into the frame on this one.
  * Moved rather than cropped, because these are the user's painted 34x34 plates and a crop would have
  * cut through the frame drawn into the art itself.
+ *
+ * SIX PIXELS FROM THE SLOT FRAME, since every plate wears one (user, 2026-10-02: "now that we introduced frames
+ * around vendors/artisans buttons you need to move them a bit in in order to have a 6px gap between their frames
+ * and surrounding ui elments"). The frame reaches GridBezelInset (6) past the plate, so a plate stands twelve
+ * pixels clear of what is beside it. Measured on all four vendor canvases (v1.12.348): the stone border's inner
+ * edge is x 21 and x 318 and the grid frame's band starts at y 159 - so the row's plates run x 34.. and ..305 and
+ * end on y 146. Both groups keep their two-pixel pitch; the row moved, not the plates within it.
  */
 constexpr Point ShopServiceSlotAt[ShopServiceSlotCount] = {
-	{ 24, 121 }, { 60, 121 }, { 96, 121 },
-	{ 210, 121 }, { 246, 121 }, { 282, 121 },
-	// Clear of the gold count, which starts at x=25 and cannot run past ~x=105 even at eight digits.
-	{ 120, 627 }
+	{ 34, 113 }, { 70, 113 }, { 106, 113 },
+	{ 200, 113 }, { 236, 113 }, { 272, 113 },
+	// Clear of the gold count, which starts at x=25 and cannot run past ~x=105 even at eight digits. Six pixels of
+	// frame-to-frame air under the grid's band, which ends (its black liner) on y 630 on Griswold's framed canvas.
+	{ 120, 643 }
 };
 /** @brief In the user's stated order: "Repair, Repair All, Recharge, Sell, Sell All, Refresh". */
 constexpr ServiceButton ShopServiceSlotDoes[ShopServiceSlotCount] = {
@@ -1045,13 +1053,21 @@ constexpr int ShopMaxTabsPerVendor = 8;
 static_assert(ShopTabColumnSlots >= ShopMaxTabsPerVendor,
     "the tab column no longer fits a fully-stocked Griswold - shorten ShopTabHeight");
 
-/** @brief One tab in the column, flush against the panel's right edge. */
+/**
+ * How far the tab column stands off the panel's right edge: the tab's slot frame (GridBezelInset) plus six pixels of
+ * air between that frame and the painting's edge (user, 2026-10-02: "6px gap between their frames and surrounding ui
+ * elments"). The column was FLUSH before the tabs wore frames; a framed tab flush to the panel put its frame six
+ * pixels into the painting.
+ */
+constexpr int ShopTabColumnClearance = GridBezelInset + 6;
+
+/** @brief One tab in the column, ShopTabColumnClearance off the panel's right edge. */
 Rectangle ShopTabRect(size_t index)
 {
 	assert(index < static_cast<size_t>(ShopTabColumnSlots)
 	    && "a vendor has more tabs than the column has room for - the strip would run off the panel");
 	const Rectangle panel = GetShopPanelRect();
-	return Rectangle { { panel.position.x + panel.size.width,
+	return Rectangle { { panel.position.x + panel.size.width + ShopTabColumnClearance,
 	                       panel.position.y + ShopTabColumnTop + static_cast<int>(index) * (ShopTabHeight + ShopTabGap) },
 		{ ShopTabColumnWidth, ShopTabHeight } };
 }

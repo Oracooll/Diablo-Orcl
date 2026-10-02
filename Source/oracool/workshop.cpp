@@ -138,7 +138,12 @@ constexpr int BoardMaxSlots = 35;
  * means flush with the BOARD's edges, not the frame's, so they line up with the icons beneath them.
  */
 constexpr int BoardButtonSize = 34;
-constexpr int BoardRowClearance = 4;
+/**
+ * TWELVE since the plates wear slot frames (user, 2026-10-02: "6px gap between their frames and surrounding ui
+ * elments"): the frame's six (GridBezelInset) and six of air above the painted band at y 429 - it was four, which
+ * put the frame two pixels into the band.
+ */
+constexpr int BoardRowClearance = GridBezelInset + 6;
 constexpr int BoardButtonTop = 429 - BoardRowClearance - BoardButtonSize;
 constexpr Rectangle BoardDowngradeRect { { BoardOrigin.x, BoardButtonTop }, { BoardButtonSize, BoardButtonSize } };
 constexpr Rectangle BoardUpgradeRect {
@@ -150,8 +155,9 @@ constexpr Rectangle BoardUpgradeRect {
  * titles 40px upwards"). Only the title moves; the two plates keep their four-pixel clearance over
  * the painted band, so the name now stands clear of them on the open stone above.
  */
-// SEVENTY: forty on 2026-09-22, then thirty more the same day ("move titles 30px upwards").
-constexpr int BoardTitleLift = 70;
+// SEVENTY: forty on 2026-09-22, then thirty more the same day ("move titles 30px upwards"). Sixty-two since the plates
+// rose eight pixels to clear the band with their frames (v1.12.348), so the title itself stays at y 321.
+constexpr int BoardTitleLift = 62;
 /**
  * The title spans the canvas's whole opening, not the gap between the two arrow plates.
  *
@@ -191,8 +197,9 @@ constexpr Rectangle BoardMessageRect { { 22, 602 }, { 295, 20 } };
 constexpr const char *BoardGoldIconAsset = "ui\\shop_gold_icon.png";
 constexpr Point BoardGoldIconAt { 27, 626 };
 constexpr int BoardGoldIconHeight = 28;
-// EIGHTY wide, not Griswold's 140: his number has the whole width under his grid, and this one
-// shares its line with the confirmation at x 110. Eight digits at FontSize12 come to about seventy.
+// EIGHTY wide, not Griswold's 140: his number has the whole width under his grid. Eight digits at FontSize12 come to
+// about seventy. (It once shared its line with the confirmation; the gold is the Mystic's and the question Ogden's, so
+// the two are never on one page - DrawWorkshop.)
 constexpr Rectangle BoardGoldCountRect { { 25, BoardGoldIconAt.y + BoardGoldIconHeight - 1 }, { 80, 16 } };
 
 /**
@@ -205,17 +212,23 @@ constexpr Rectangle BoardGoldCountRect { { 25, BoardGoldIconAt.y + BoardGoldIcon
  * one button wide - so they stack rather than sitting side by side.
  */
 constexpr Size BoardConfirmSize { 62, 24 };
-constexpr int BoardConfirmLeft = 110;
-constexpr int BoardConfirmTop = 626;
+/**
+ * The pair as ONE group in its slot frames (v1.12.348; user, 2026-10-02: "6px gap between their frames and
+ * surrounding ui elments"). Measured on Ogden's canvas: the question's ink ends on y 618 and the stone border's
+ * black liner starts on y 695, so a 52px pair with a six-pixel frame fits with exactly six pixels of air on both
+ * sides at y 631 - and the frame's right edge stays six clear of the health orb's rect at x 175, at x 101.
+ */
+constexpr int BoardConfirmLeft = 101;
+constexpr int BoardConfirmTop = 631;
 constexpr int BoardConfirmGap = 4;
 constexpr Rectangle BoardConfirmRect { { BoardConfirmLeft, BoardConfirmTop }, BoardConfirmSize };
 constexpr Rectangle BoardCancelRect {
 	{ BoardConfirmLeft, BoardConfirmTop + BoardConfirmSize.height + BoardConfirmGap }, BoardConfirmSize
 };
-static_assert(BoardCancelRect.position.x + BoardCancelRect.size.width < 175,
-    "the confirmation runs under the health orb - keep it left of the orb's rect");
-static_assert(BoardGoldCountRect.position.x + BoardGoldCountRect.size.width <= BoardConfirmLeft,
-    "the gold readout runs into the confirmation beside it");
+static_assert(BoardCancelRect.position.x + BoardCancelRect.size.width - 1 + GridBezelInset + 6 < 175,
+    "the confirmation's frame runs under the health orb - keep it six pixels left of the orb's rect");
+static_assert(BoardCancelRect.position.y + BoardCancelRect.size.height - 1 + GridBezelInset + 6 < 695,
+    "the confirmation's frame runs into the canvas's foot");
 
 /**
  * OGDEN'S CRAFT BENCH and his RECIPE PAGE (user, 2026-09-22, items 6 and 7).
@@ -283,8 +296,11 @@ constexpr int CraftFrameLeft = 118;
 constexpr int CraftFrameRight = 224;
 constexpr int CraftFrameBottom = 541;
 constexpr int CraftPlateSize = 34;
+// FOURTEEN below the gold foot since the plate wears a slot frame (v1.12.348): the band's two black liner rows (542,
+// 543), six of air and the frame's six. It was four, which put the frame three pixels up the painted well.
+constexpr int CraftTransmuteClearance = 2 + 6 + GridBezelInset;
 constexpr Rectangle CraftTransmuteRect {
-	{ (CraftFrameLeft + CraftFrameRight + 1) / 2 - CraftPlateSize / 2, CraftFrameBottom + 1 + 4 },
+	{ (CraftFrameLeft + CraftFrameRight + 1) / 2 - CraftPlateSize / 2, CraftFrameBottom + 1 + CraftTransmuteClearance },
 	{ CraftPlateSize, CraftPlateSize }
 };
 // The Cube's own transmute icon, shared with it (2026-09-22). Griswold's Refresh glyph stood in
@@ -316,7 +332,8 @@ constexpr const char *BoardDownGlyphAsset = "ui\\shop_glyph_arrow_down.png";
 constexpr Size ServiceIconSize { 34, 34 };
 constexpr int ServiceIconGap = 28;
 constexpr int ServicePriceHeight = 14;
-constexpr int ServicePriceGap = 2;
+// Twelve since the plates wear slot frames (v1.12.348): the frame's six and six of air between it and the price line.
+constexpr int ServicePriceGap = GridBezelInset + 6;
 // A DIE (2026-09-22), not Griswold's restock arrows. She borrowed his because his was the nearest
 // thing on the shelf, and the two services are not the same: his refreshes a shop's stock, hers
 // gambles one affix on this item. A die says the second and the arrows say the first.
@@ -350,13 +367,26 @@ constexpr Rectangle CloseRect { { 316, 5 }, { 18, 18 } };
  * and the big frame's painted bezel runs 289..298: a number half over the moulding is the one thing
  * every canvas this week has been laid out to avoid.
  */
-constexpr int MysticIconRowClearance = 6;
-/** The rightmost pixel the row may use: six clear of the small frame's left border. */
+/*
+ * SIX PIXELS FROM THE PLATES' SLOT FRAMES, not from the plates (user, 2026-10-02: "now that we introduced frames
+ * around vendors/artisans buttons you need to move them a bit in in order to have a 6px gap between their frames and
+ * surrounding ui elments"). Each frame reaches GridBezelInset past its plate, so every clearance below is that plus
+ * six: the last plate ends twelve clear of the small frame's band (x 207), the first starts twelve inside the
+ * canvas's opening (x 22), and the feet stand twelve above the big frame's bezel (y 289, measured v1.12.348) - which
+ * lifts the row four pixels off the small frame's lower border it used to stand flush with.
+ */
+constexpr int MysticIconRowClearance = GridBezelInset + 6;
+/** The rightmost pixel the row may use: the plate's frame six clear of the small frame's left border. */
 constexpr int MysticIconRowRight = MysticFrameBandLeft - MysticIconRowClearance - 1;
-constexpr int MysticIconRowTop = MysticFrameBandBottom - ServiceIconSize.height + 1;
+/** The leftmost: the frame six inside the canvas's opening. */
+constexpr int MysticIconRowLeft = InnerLeft + MysticIconRowClearance;
+/** The big frame's top bezel, measured on her canvases (y 289..298). */
+constexpr int MysticBigFrameTop = 289;
+constexpr int MysticIconRowTop = MysticBigFrameTop - MysticIconRowClearance - ServiceIconSize.height;
 constexpr int MysticPriceRowTop = MysticIconRowTop - ServicePriceGap - ServicePriceHeight;
-static_assert(MysticFrameBandBottom < 289, "the icon row has walked into the big frame's top bezel");
-static_assert(MysticIconRowRight - InnerLeft + 1 >= 3 * ServiceIconSize.width,
+static_assert(MysticIconRowTop + ServiceIconSize.height - 1 + GridBezelInset + 6 < MysticBigFrameTop,
+    "the icon row's frames have walked into the big frame's top bezel");
+static_assert(MysticIconRowRight - MysticIconRowLeft + 1 >= 3 * ServiceIconSize.width,
     "the floor beside the frame no longer holds her three-plate row");
 
 /**
@@ -944,19 +974,26 @@ Rectangle ServiceIconRect(int index, int count)
 {
 	const Rectangle page = PageRect();
 	const int anchor = MysticIconRowRight + 1 - ServiceIconSize.width;
-	const int travel = anchor - InnerLeft;
+	const int travel = anchor - MysticIconRowLeft;
 	// Rounded rather than truncated, so the last plate lands exactly on the six-pixel clearance
 	// instead of a pixel or two inside it.
 	const int left = count <= 1
 	    ? anchor
-	    : InnerLeft + (index * travel + (count - 1) / 2) / (count - 1);
+	    : MysticIconRowLeft + (index * travel + (count - 1) / 2) / (count - 1);
 	return Rectangle { { page.position.x + left, page.position.y + MysticIconRowTop }, ServiceIconSize };
 }
 
 Rectangle OptionRect(int index)
 {
 	const Rectangle board = Panel(BoardRect);
-	return Rectangle { { board.position.x + 4, board.position.y + 26 + index * (BoardLineHeight + 6) }, { board.size.width - 8, BoardLineHeight + 2 } };
+	// Inside the board's gold outline with six pixels between it and the rows' slot frames (v1.12.348; user,
+	// 2026-10-02: "6px gap between their frames and surrounding ui elments"): thirteen in from each side - the
+	// outline's pixel, six of air, the frame's six - and the first row's frame six below the "Choose one:" ink,
+	// which ends on board.y + 20 (the ringed O's foot, measured). The rows keep their four-pixel pitch as one group.
+	constexpr int Side = 1 + 6 + GridBezelInset;
+	constexpr int FirstTop = 21 + 6 + GridBezelInset;
+	return Rectangle { { board.position.x + Side, board.position.y + FirstTop + index * (BoardLineHeight + 6) },
+		{ board.size.width - 2 * Side, BoardLineHeight + 2 } };
 }
 
 Rectangle ListRowRect(int row)

@@ -16286,6 +16286,169 @@ TEST(OracoolPreview, DISABLED_VendorHintCards)
 }
 
 /**
+ * Every vendor and artisan window whose buttons stand in slot frames (v1.12.315), drawn the way the game draws them on
+ * a 960x720 screen over a flat teal ground, so the six pixels between each frame and its neighbours can be measured
+ * (user, 2026-10-02: "move them a bit in in order to have a 6px gap between their frames and surrounding ui elements").
+ * Writes gaps_<window>.png into the working directory; ORCL_GAPS_PREFIX replaces the "gaps_" prefix.
+ */
+TEST(OracoolPreview, DISABLED_ButtonFrameGaps)
+{
+	MountTestArchives(/*gameArchivesToo=*/true);
+	if (!HaveDiabdat())
+		GTEST_SKIP() << "needs diabdat.mpq";
+	EnsureCursorSpritesLoaded();
+	PreviewLoadPalette();
+	InitPNG();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const Point savedMouse = MousePosition;
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	gnScreenWidth = 960;
+	gnScreenHeight = 720;
+	devilution::Player &player = AuditV188Hero();
+	player._pGold = 0;
+	Stash = {};
+	Stash.gold = 12345678; // eight digits: the widest gold count the layouts were written for
+	sgOptions.Oracool.refreshUntilButton.SetValue(true);
+	InitStores();
+	const char *prefixEnv = std::getenv("ORCL_GAPS_PREFIX");
+	const std::string prefix = prefixEnv != nullptr ? prefixEnv : "gaps_";
+	const Point away { -50, -50 };
+	MousePosition = away;
+	const auto render = [&](const std::string &name, const std::function<void(const Surface &)> &draw) {
+		OwnedSurface out = OwnedSurface::Rgb(960, 720);
+		SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 40, 160, 160));
+		MousePosition = away;
+		draw(out);
+		PreviewSave(out, (prefix + name + ".png").c_str());
+	};
+
+	// The vendors: Griswold's grid tabs, then the portrait pages.
+	const std::pair<TalkID, const char *> shops[] = {
+		{ TalkID::SmithBuy, "griswold_basic" }, { TalkID::SmithPremiumBuy, "griswold_magic" }, // Magic carries Refresh until
+		{ TalkID::SmithSell, "griswold_sold" }, { TalkID::WitchBuy, "adria_supplies" },
+		{ TalkID::WitchSell, "adria_sold" }, { TalkID::HealerBuy, "pepin_supplies" }, { TalkID::BoyBuy, "wirt_shop" },
+		{ TalkID::BoyGamble, "wirt_gamble" }
+	};
+	premiumitems[0] = PreviewBase(PreviewIdx(ICURS_SHORT_SWORD), 777); // the Magic tab bounces to Basic when its shelf is bare
+	for (const auto &[id, name] : shops) {
+		StartStore(id);
+		EXPECT_EQ(stextflag, id) << name << " did not open";
+		render(name, [](const Surface &out) { oracool::DrawShopGrid(out); });
+	}
+	stextflag = TalkID::None;
+
+	// Griswold's Salvage page, and its question with the two answers.
+	oracool::ResetLevskiRoarForNewGame();
+	oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Smith);
+	ASSERT_TRUE(oracool::IsLevskiRoarOpen());
+	stextflag = TalkID::SmithTransmute;
+	render("griswold_salvage", [](const Surface &out) { oracool::DrawLevskiRoar(out); });
+	{
+		// The Unique plate - second row, first column - asks before it destroys.
+		const Point unique = oracool::GetLevskiRoarRect().position + Displacement { 43 + 28, 410 + 28 };
+		MousePosition = unique;
+		oracool::CheckLevskiRoarClick(unique, false);
+		oracool::ReleaseLevskiButtons();
+	}
+	render("griswold_salvage_confirm", [](const Surface &out) { oracool::DrawLevskiRoar(out); });
+	oracool::ResetLevskiRoarForNewGame();
+	stextflag = TalkID::None;
+
+	// Levski's Cube, both tabs.
+	oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Cube);
+	ASSERT_TRUE(oracool::IsLevskiRoarOpen());
+	render("levski_cube", [](const Surface &out) { oracool::DrawLevskiRoar(out); });
+	{
+		const Point recipesTab = oracool::GetSideTabRect(1).Center();
+		MousePosition = recipesTab;
+		oracool::CheckLevskiRoarClick(recipesTab, false);
+		oracool::ReleaseLevskiButtons();
+	}
+	render("levski_recipes", [](const Surface &out) { oracool::DrawLevskiRoar(out); });
+	oracool::ResetLevskiRoarForNewGame();
+
+	// The two workshops, every tab, by pressing and releasing on each tab as a click would.
+	const auto click = [](Point at) {
+		MousePosition = at;
+		oracool::CheckWorkshopClick(at);
+		oracool::ReleaseWorkshopButton();
+	};
+	const auto drawWorkshop = [](const Surface &out) { oracool::DrawWorkshop(out); };
+	oracool::ResetWorkshopForNewGame();
+	oracool::OpenWorkshop(oracool::WorkshopHost::Mystic);
+	ASSERT_TRUE(oracool::IsWorkshopOpen());
+	const char *gillianTabs[] = { "gillian_reroll", "gillian_imbue", "gillian_craft", "gillian_recipes" };
+	for (int i = 0; i < 4; i++) {
+		click(oracool::GetSideTabRect(i).Center());
+		render(gillianTabs[i], drawWorkshop);
+	}
+	{
+		// Her alternatives: an item on the bench, its first affix chosen, Reroll paid for.
+		click(oracool::GetSideTabRect(0).Center());
+		player.HoldItem = PreviewMagic(player, PreviewIdx(ICURS_SHORT_SWORD), 4242, 3);
+		const Point bench = oracool::GetWorkshopRect().position + Displacement { 217 + 43, 155 + 57 };
+		MousePosition = bench;
+		oracool::CheckWorkshopClick(bench);
+		player.HoldItem.clear();
+		click(oracool::GetWorkshopRect().position + Displacement { 100, 305 + 10 });
+		// Reroll's plate, wherever the row puts it: swept for the first point that presses it.
+		bool rerolled = false;
+		const Rectangle window = oracool::GetWorkshopRect();
+		for (int y = window.position.y + 200; y < window.position.y + 300 && !rerolled; y += 2) {
+			for (int x = window.position.x + 20; x < window.position.x + 215 && !rerolled; x += 2) {
+				MousePosition = { x, y };
+				if (!oracool::SetWorkshopHoverInfoString())
+					continue;
+				if (InfoString.str().find("Reroll") == std::string::npos)
+					continue;
+				click({ x, y });
+				rerolled = true;
+			}
+		}
+		EXPECT_TRUE(rerolled) << "no Reroll plate found";
+		render("gillian_reroll_offers", drawWorkshop);
+	}
+	oracool::ResetWorkshopForNewGame();
+	oracool::OpenWorkshop(oracool::WorkshopHost::Jeweller);
+	ASSERT_TRUE(oracool::IsWorkshopOpen());
+	const char *ogdenTabs[] = { "ogden_gems", "ogden_runes", "ogden_jewels", "ogden_craft", "ogden_recipes" };
+	for (int i = 0; i < 5; i++) {
+		click(oracool::GetSideTabRect(i).Center());
+		render(ogdenTabs[i], drawWorkshop);
+	}
+	{
+		// The runes ask: the first rune chosen, then Upgrade - found by sweeping the row above the board.
+		click(oracool::GetSideTabRect(1).Center());
+		click(oracool::GetWorkshopRect().position + Displacement { 65 + 15, 440 + 15 });
+		bool asked = false;
+		const Rectangle window = oracool::GetWorkshopRect();
+		for (int y = window.position.y + 360; y < window.position.y + 440 && !asked; y += 2) {
+			for (int x = window.position.x + 200; x < window.position.x + 320 && !asked; x += 2) {
+				MousePosition = { x, y };
+				if (!oracool::SetWorkshopHoverInfoString())
+					continue;
+				if (InfoString.str().find("Upgrade") == std::string::npos)
+					continue;
+				click({ x, y });
+				asked = true;
+			}
+		}
+		EXPECT_TRUE(asked) << "no Upgrade plate found";
+		render("ogden_runes_confirm", drawWorkshop);
+	}
+	oracool::ResetWorkshopForNewGame();
+
+	ClearPanelStrings();
+	Stash = {};
+	MousePosition = savedMouse;
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
+	HeadlessMode = savedHeadless;
+}
+
+/**
  * Writes the vanilla sounds the game now plays (2026-09-27) out of the player's own archives, through the engine's asset
  * reader - which decrypts them; diabdat keys every sound by its name - for the review page. Reads the list from the
  * file named by ORCL_SOUND_MANIFEST (one archive path a line) and writes each under ORCL_SOUND_OUT, keeping its path.
