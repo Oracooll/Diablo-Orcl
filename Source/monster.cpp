@@ -4539,6 +4539,8 @@ Monster *AddMinionBody(Point position, Direction dir, _monster_id type)
 	if (fresh)
 		LevelMonsterTypes[typeIndex].minionOnly = true; // the floor never rolled it: no enemy spawns as it (round 66 audit)
 	Monster &monster = Monsters[ActiveMonsters[ActiveMonsterCount++]];
+	RegroupBestDistance[monster.getId()] = 0; // the slot's last body's watchdog is not this one's (round 82 audit)
+	RegroupTriesWithoutGain[monster.getId()] = 0;
 	dMonster[position.x][position.y] = static_cast<int16_t>(monster.getId() + 1);
 	// Not ordinary: a minion takes no variant (audit, 2026-09-27) - a "Hollow Skeleton" in the army, re-rolled every level,
 	// and a Luminous one lit a light nothing ever freed.
@@ -6089,6 +6091,8 @@ void TalktoMonster(Player &player, Monster &monster)
 
 void SpawnCompanionBody(Monster &slot, Point position, Direction facing)
 {
+	RegroupBestDistance[slot.getId()] = 0; // round 82 audit
+	RegroupTriesWithoutGain[slot.getId()] = 0;
 	dMonster[position.x][position.y] = slot.getId() + 1;
 	slot.position.tile = position;
 	slot.position.future = position;

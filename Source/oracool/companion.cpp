@@ -520,7 +520,9 @@ bool SpawnInDungeon(Instance &inst, Point near, bool full)
 				if (std::max(std::abs(dx), std::abs(dy)) != radius)
 					continue;
 				const Point tile = near + Displacement { dx, dy };
-				if (InDungeonBounds(tile) && IsTileAvailable(body, tile)) {
+				// On this side of a wall (round 82 audit: back from the stairs, a Decoy or a Hold guard stood in the next room for
+				// its whole life), as SpawnBody and PlaceCompanionNear choose.
+				if (InDungeonBounds(tile) && IsTileAvailable(body, tile) && LineClearMissile(near, tile)) {
 					spot = tile;
 					break;
 				}
@@ -831,6 +833,21 @@ bool HasCompanion(CompanionKind kind)
 	return std::any_of(Instances.begin(), Instances.end(), [kind](const Instance &inst) { return inst.active && inst.kind == kind; });
 }
 
+void DismissCompanions(const Player &owner)
+{
+	// They go with their master, as the army does (round 82 audit: the Ancients fought on through the death animation,
+	// stood beside him in town after a Respawn and re-formed on the next floor).
+	bool any = false;
+	for (Instance &inst : Instances) {
+		if (!inst.active || inst.owner != owner.getId())
+			continue;
+		LetGo(inst, /*flourish=*/true);
+		any = true;
+	}
+	if (any)
+		ReassignOrders();
+}
+
 void ForgetCompanions()
 {
 	ForgetMinions(); // the same moment: a new game has no army either
@@ -1095,7 +1112,8 @@ int CompanionTauntTarget(const Monster &monster)
 			continue;
 		const int radius = def.role == Role::Bait ? BaitHoldRadius : (inst.tauntTicks > 0 ? GuardTauntRadius : GuardHoldRadius);
 		const int distance = monster.position.tile.WalkingDistance(body.position.tile);
-		if (distance <= radius && (best < 0 || distance < bestDistance)) {
+		if (distance <= radius && (best < 0 || distance < bestDistance)
+		    && LineClearMissile(monster.position.tile, body.position.tile)) { // not through a wall (round 82 audit)
 			best = inst.slot;
 			bestDistance = distance;
 		}

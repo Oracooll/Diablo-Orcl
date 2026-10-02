@@ -2350,10 +2350,13 @@ void OperateBookLever(Object &questBook, bool sendmsg)
 	// MakeRoom may not take, the quest advanced, the spawn failed, and the Blood Stone or the Optic Amulet was gone for good).
 	const bool owesReward = (questBook._otype == OBJ_BLOODBOOK && Quests[Q_BLOOD]._qvar1 == 0)
 	    || (questBook._otype == OBJ_BLINDBOOK && questBook._oAnimFrame != questBook._oVar6);
-	if (sendmsg && owesReward) {
+	if (questBook._oSelFlag != 0 && !qtextflag && sendmsg && owesReward) { // a real click (round 82 audit)
 		MakeRoomForGuaranteedReward();
-		if (ActiveItemCount >= MAXITEMS)
+		if (ActiveItemCount >= MAXITEMS) {
+			if (MyPlayer != nullptr)
+				MyPlayer->Say(HeroSpeech::ICantDoThat); // said, not silent (round 82 audit)
 			return;
+		}
 	}
 	if (questBook._oSelFlag != 0 && !qtextflag) {
 		if (questBook._otype == OBJ_BLINDBOOK && Quests[Q_BLIND]._qvar1 == 0) {

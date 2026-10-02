@@ -102,6 +102,8 @@ bool SummonCompanions(Player &owner, SpellID spell, Point target, int rank);
 bool HasCompanion(CompanionKind kind);
 /** @brief A new game: every companion forgotten, nothing touched in the monster table. */
 void ForgetCompanions();
+/** @brief @p owner died: every companion of his goes, as his army does (round 82 audit). */
+void DismissCompanions(const Player &owner);
 
 // ---- engine hooks ------------------------------------------------------------------------------------------------
 

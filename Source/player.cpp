@@ -3633,6 +3633,7 @@ StartPlayerKill(Player &player, DeathReason deathReason)
 	// The army dies with its master, Diablo II's rule: it re-formed whole on the next floor after a Respawn (round 14
 	// audit, v1.12.239). Final Service, which spends the army to save him, has already run by now.
 	oracool::DismissMinions(player);
+	oracool::DismissCompanions(player); // and the companions with it (round 82 audit)
 
 	if (&player != MyPlayer && dropItems) {
 		// Ensure that items are removed for remote players
