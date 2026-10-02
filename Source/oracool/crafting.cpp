@@ -596,6 +596,8 @@ bool IsTierRecipeGear(const Item &item)
 	const bool jewellery = item._iLoc == ILOC_RING || item._iLoc == ILOC_AMULET;
 	if (item._iClass != ICLASS_WEAPON && item._iClass != ICLASS_ARMOR && !jewellery)
 		return false;
+	if (!ItemTakesAffixes(item))
+		return false; // the Auric Amulet: no pool, so the recipe refused and jammed every item behind it (round 74 audit)
 	// A socketed item is excluded from every reroll and every tier bump, for the reason Reforge
 	// already records: its stats would come back without the stones inside it, and a completed
 	// runeword's name comes from the word rather than from a seed. Empty it first.
@@ -722,11 +724,29 @@ int FindGridGem(const Item *grid)
 	return -1;
 }
 
-/** @brief The single socketed item with at least one stone in it, or -1. */
+/** @brief Whether Free the Sockets keeps @p socketed in @p host: Zod in an ethereal item (round 38 audit). */
+bool StoneStaysIn(const Item &host, uint16_t socketed)
+{
+	return host._iOracoolEthereal && IsIndestructibleStone(socketed);
+}
+
+/** @brief The stones Free the Sockets would take out of @p host. */
+int FreeableStones(const Item &host)
+{
+	int n = 0;
+	for (const uint16_t socketed : host._iSocketed) {
+		if (socketed != Item::EmptySocket && !StoneStaysIn(host, socketed))
+			n++;
+	}
+	return n;
+}
+
+/** @brief The first socketed item with a stone that can come out, or -1 (round 74 audit: an ethereal Zod host ahead of
+ *  another socketed item left that one unfreeable). */
 int FindGridSocketedItem(const Item *grid)
 {
     for (int i = 0; i < GridSlots; i++) {
-        if (!grid[i].isEmpty() && grid[i].socketedCount() > 0)
+        if (!grid[i].isEmpty() && FreeableStones(grid[i]) > 0)
             return i;
     }
     return -1;
@@ -855,6 +875,8 @@ int FindGridWearable(const Item *grid, bool plainOnly)
 		const ItemData &data = AllItemsList[item.IDidx];
 		if (data.iLoc == ILOC_UNEQUIPABLE || data.iLoc == ILOC_BELT)
 			continue;
+		if (plainOnly && !ItemTakesAffixes(item))
+			continue; // a craft rebuilds it with affixes; one with no pool refused and jammed the rest (round 74 audit)
 		if (plainOnly && (item._iMagical == ITEM_QUALITY_UNIQUE || item._iOracoolTier != OracoolItemTier::None))
 			continue;
 		// A craft REBUILDS the item (RetierOracoolItem): stones inside it and shards on it would not
@@ -1083,7 +1105,7 @@ bool CanCraftFromLevskiGrid(const Item *grid, int index)
 	if (materials.empty())
 		return false;
 	// Not Free the Sockets on an ethereal Zod host, which refuses (round 39 audit: auto-pick kept choosing it).
-	if (index == 3 && grid[materials[0]]._iOracoolEthereal && SocketsMakeIndestructible(grid[materials[0]]))
+	if (index == 3 && FreeableStones(grid[materials[0]]) == 0)
 		return false;
 	return true;
 }
@@ -1268,7 +1290,8 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		const int stones = host.socketedCount();
 		// Zod stays in an ethereal item (round 38 audit): freed, the host came back whole at its maximum - a free repair of
 		// what no smith repairs, and the same Zod did it again for the next one. The wear before Zod is not kept.
-		if (host._iOracoolEthereal && SocketsMakeIndestructible(host))
+		// Only Zod stays (round 74 audit: one Zod refused the whole recipe, and the stones beside it were locked in for good).
+		if (FreeableStones(host) == 0)
 			return ZodBoundInEthereal();
 
 		std::vector<Item> after;
@@ -1278,7 +1301,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 				after.push_back(grid[i]);
 		}
 		for (const uint16_t socketed : host._iSocketed) {
-			if (socketed == Item::EmptySocket)
+			if (socketed == Item::EmptySocket || StoneStaysIn(host, socketed))
 				continue;
 			Item stone;
 			InitializeItem(stone, static_cast<_item_indexes>(socketed));
@@ -1292,7 +1315,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		// Asked before the stones come out: only a completed word's name is the word's (audit, 2026-09-29).
 		const bool hadRuneword = GetActiveRuneword(host) != nullptr;
 		for (uint16_t &socketed : host._iSocketed) {
-			if (socketed == Item::EmptySocket)
+			if (socketed == Item::EmptySocket || StoneStaysIn(host, socketed))
 				continue;
 			for (int slot = 0; slot < GridSlots && placed <= stones; slot++) {
 				if (!grid[slot].isEmpty())
@@ -1307,7 +1330,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		}
 		// The host keeps its sockets - they are empty again, ready to take something else. Zod's
 		// stamp is undone by restoring durability from the maximum it deliberately left intact.
-		if (host._iMaxDur > 0 && host._iDurability == DUR_INDESTRUCTIBLE)
+		if (host._iMaxDur > 0 && host._iDurability == DUR_INDESTRUCTIBLE && !SocketsMakeIndestructible(host)) // a kept Zod keeps its stamp
 			host._iDurability = host._iMaxDur;
 		// A completed runeword's name came from the word; with the runes gone it is a base item
 		// again, so the name has to go back too. A magic, rare or set host keeps its own (audit, 2026-09-29: it was

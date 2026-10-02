@@ -1570,6 +1570,8 @@ bool UseSalvageItemCursor(Player &player, int tab, int index)
 		                              : (tab < Player::NumExtraInventoryTabs && index >= 0 && index < player._pNumInvTab[tab] ? &player.InvTabList[tab][index] : nullptr);
 		if (target != nullptr && target->socketedCount() > 0)
 			LogEvent("Its stones would be lost - use Free the Sockets first.", UiFlags::ColorWhite);
+		else if (target != nullptr && target->_iOracoolImbueCount > 0)
+			LogEvent("Its shards would be lost - Cleanse it first.", UiFlags::ColorWhite);
 		else
 			LogEvent("That cannot be salvaged.", UiFlags::ColorWhite);
 		return false;

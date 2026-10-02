@@ -3709,6 +3709,11 @@ std::string GetTranslatedItemNameMagical(const Item &item, bool hellfireItem, bo
 
 } // namespace
 
+bool ItemTakesAffixes(const Item &item)
+{
+	return GetAffixItemTypeForItem(item) != AffixItemType::None;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Levski's Roar's two item-transforming recipes (v1.9.17).
 //

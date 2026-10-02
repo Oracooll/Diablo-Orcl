@@ -494,6 +494,14 @@ bool SocketsMakeIndestructible(const Item &item)
 	return false;
 }
 
+bool IsIndestructibleStone(uint16_t socketed)
+{
+	if (socketed == Item::EmptySocket)
+		return false;
+	const GemData *gem = FindGemRow(socketed);
+	return gem != nullptr && gem->indestructible;
+}
+
 int EffectiveRequirement(const Item &item, int baseRequirement)
 {
 	if (baseRequirement <= 0)

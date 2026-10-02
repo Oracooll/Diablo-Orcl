@@ -1111,6 +1111,8 @@ int GetGoldCursor(int value);
 void SetPlrHandGoldCurs(Item &gold);
 void CreatePlrItems(Player &player);
 bool ItemSpaceOk(Point position);
+/** @brief Oracool: whether @p item has an affix pool at all (round 74 audit: the Auric Amulet jammed the Cube's tier recipes). */
+bool ItemTakesAffixes(const Item &item);
 int AllocateItem();
 /**
  * @brief Moves the item onto the floor of the current dungeon level

@@ -338,12 +338,31 @@ void RestoreImbuements(Item &item, const ImbuementLedger &ledger)
 	// capped below the sentinel like the affix, because the rebuilt base may be larger than the old one.
 	const int bonus = ShardDurabilityBonus(item);
 	if (bonus > 0 && item._iMaxDur != DUR_INDESTRUCTIBLE) {
-		const int granted = std::min(bonus, DUR_INDESTRUCTIBLE - 1 - item._iMaxDur);
+		const int granted = std::max(std::min(bonus, DUR_INDESTRUCTIBLE - 1 - item._iMaxDur), 0);
 		if (granted > 0) {
 			item._iMaxDur += granted;
 			// Not over a Zod rune's sentinel (audit, 2026-09-19): 255 + 10 is a destructible 265.
 			if (item._iDurability != DUR_INDESTRUCTIBLE)
 				item._iDurability += granted;
+		}
+		// The shards whose durability did not fit come off the ledger (round 74 audit: a rebuild near the cap kept "Tempering
+		// x2" carrying none of its +20, and a later Cleanse took 20 the shards never gave). The ledger and the item agree.
+		int unpaid = (bonus - granted + TemperingStep - 1) / TemperingStep;
+		for (int i = item._iOracoolImbueCount - 1; i >= 0 && unpaid > 0; i--) {
+			if (item._iOracoolImbuements[i] != static_cast<uint8_t>(ShardKind::Tempering))
+				continue;
+			for (int j = i; j + 1 < item._iOracoolImbueCount; j++)
+				item._iOracoolImbuements[j] = item._iOracoolImbuements[j + 1];
+			item._iOracoolImbueCount--;
+			item._iOracoolImbuements[item._iOracoolImbueCount] = 0;
+			unpaid--;
+		}
+		// Rounded up, so one partly paid shard came off too: what it did pay goes back with it.
+		const int overpaid = granted - ShardDurabilityBonus(item);
+		if (overpaid > 0) {
+			item._iMaxDur -= overpaid;
+			if (item._iDurability != DUR_INDESTRUCTIBLE)
+				item._iDurability = std::min(item._iDurability, item._iMaxDur);
 		}
 	}
 }

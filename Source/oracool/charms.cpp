@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <vector>
 
+#include "inv.h" // IsInventoryTabLocked
 #include "items.h"
 #include "oracool/salvage.h"
 #include "oracool/signets.h"
@@ -204,6 +205,8 @@ std::vector<CharmSlot> CharmsInReadingOrder(const Player &player)
 			slots.push_back({ -1, i, anchorOf(player.InvGrid, i), static_cast<uint16_t>(item.IDidx) });
 	}
 	for (int tab = 0; tab < Player::NumExtraInventoryTabs; tab++) {
+		if (IsInventoryTabLocked(player, tab + 1))
+			continue; // a page the hero cannot open carries no live charm (round 74 audit)
 		for (int i = 0; i < player._pNumInvTab[tab]; i++) {
 			const Item &item = player.InvTabList[tab][i];
 			if (!item.isEmpty() && IsOracoolCharmIdx(item.IDidx))

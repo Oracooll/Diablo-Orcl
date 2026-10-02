@@ -174,6 +174,8 @@ int EffectiveRequirement(const Item &item, int baseRequirement);
 
 /** @brief Zod: whether @p item's sockets make it immune to durability loss. */
 bool SocketsMakeIndestructible(const Item &item);
+/** @brief Whether the socketed stone @p socketed is the indestructible one (Zod) - the one an ethereal host keeps (round 74). */
+bool IsIndestructibleStone(uint16_t socketed);
 
 /**
  * @brief Stamps Zod's indestructibility onto @p item if its sockets now carry one.

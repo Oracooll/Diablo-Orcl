@@ -25,6 +25,7 @@
 #include "cursor.h"
 #include "dead.h"
 #include "engine/backbuffer_state.hpp"
+#include "engine/path.h"
 #include "engine/random.hpp"
 #include "engine/world_tile.hpp"
 #include "gamemenu.h"
@@ -1434,14 +1435,20 @@ size_t OnPutItem(const TCmd *pCmd, size_t pnum)
 						// Nowhere to set it down by now (round 72 audit: it was thrown away, the hand already empty): back to the
 						// pack, the stash, or the hand.
 						ii = -1;
-						if (!AutoPlaceItemInInventory(player, item, /*persistItem=*/true) && !AutoPlaceItemInStash(player, item, /*persistItem=*/true)
-						    && player.HoldItem.isEmpty()) {
-							player.HoldItem = std::move(item);
-							NewCursor(player.HoldItem);
+						if (!AutoPlaceItemInInventory(player, item, /*persistItem=*/true) && !AutoPlaceItemInStash(player, item, /*persistItem=*/true)) {
+							if (player.HoldItem.isEmpty()) {
+								player.HoldItem = std::move(item);
+								NewCursor(player.HoldItem);
+							} else if (ActiveItemCount < MAXITEMS) {
+								// The hand refilled meanwhile (round 74 audit: the item was destroyed): the nearest free floor tile.
+								if (const std::optional<Point> far = FindClosestValidPosition(ItemSpaceOk, player.position.tile, 1, 50))
+									ii = PlaceItemInWorld(std::move(item), *far);
+							}
 						}
 						player._pGold = CalculateGold(player);
 						CalcPlrInvKeepingLife(player); // a charm counts from the pack (round 73 audit)
-						player.Say(HeroSpeech::WhereWouldIPutThis);
+						if (ii == -1)
+							player.Say(HeroSpeech::WhereWouldIPutThis);
 					}
 				}
 			} else

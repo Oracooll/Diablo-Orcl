@@ -152,6 +152,9 @@ bool SalvageMatches(const Item &item, SalvageTier tier)
 	// punched Rare full of runes was salvaged with every stone in it, and a salvage charm ate one on pickup (round 24).
 	if (item.socketedCount() > 0)
 		return false;
+	// Nor shards (round 74 audit: a Rare with six drop-only shards went to fibre on the plate, and on a charm's pickup).
+	if (item._iOracoolImbueCount > 0)
+		return false;
 	return true;
 }
 
@@ -252,7 +255,7 @@ bool SalvageSingleItem(Player &player, int tab, int index, SalvageTier *tierOut,
 	}
 	// Nor one with stones in it, one at a time either: the plates refuse it since round 24, and the hand-picked salvage
 	// ate a Rare's runes with it (round 25 audit). Free the Sockets first.
-	if (!IsSalvageable(*item) || item->socketedCount() > 0)
+	if (!IsSalvageable(*item) || item->socketedCount() > 0 || item->_iOracoolImbueCount > 0)
 		return false;
 	const SalvageTier tier = SalvageTierOf(*item);
 	const int materials = SalvageYield(*item);
