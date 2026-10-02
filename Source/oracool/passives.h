@@ -112,7 +112,8 @@ void OnPassiveStruck(Player &player);
 void OnPassiveBlock(Player &player);
 
 /** @brief @p player just lost @p damage life (1/64 units) - Galvanizing Ward, Illusionist. Asked by ApplyPlrDamage. */
-void OnPassiveDamaged(Player &player, int damage);
+/** @p lifeLost: what the blow actually took (round 87 audit); -1 reads @p damage. */
+void OnPassiveDamaged(Player &player, int damage, int lifeLost = -1);
 
 /** @brief Block chance added by Hold Your Ground and Reed in the Wind, in percent. */
 int PassiveBlockBonus(const Player &player);

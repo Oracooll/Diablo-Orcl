@@ -528,7 +528,7 @@ std::string NecroSummoningFactsAt(const Player &player, SpellID spell, int rank)
 		break;
 	case SpellID::IronGolem:
 		golem(GolemKind::Iron);
-		percentLine(N_("Returns: {:d}% of blows taken"), 100 / IronGolemReturnDivisor);
+		percentLine(N_("Returns: {:d}% of melee blows taken"), 100 / IronGolemReturnDivisor);
 		break;
 	case SpellID::FireGolem:
 		golem(GolemKind::Fire);
@@ -593,7 +593,7 @@ std::string NecroPassiveFactsAt(const Player &player, ClassTreeSkill skill, int 
 	case ClassTreeSkill::GrislyTribute:
 		return fmt::format(fmt::runtime(_("Heals you: {:d}% of the damage your minions deal")), 100 / GrislyTributeDivisor);
 	case ClassTreeSkill::AberrantAnimator:
-		return fmt::format(fmt::runtime(_("Minions return: {:d}% of blows taken")), 100 / AberrantAnimatorDivisor);
+		return fmt::format(fmt::runtime(_("Minions return: {:d}% of melee blows taken")), 100 / AberrantAnimatorDivisor);
 	default:
 		return CursePassiveFactsAt(skill, points); // Curse Mastery, Essence Tap, Wide Malice, Eternal Torment
 	}

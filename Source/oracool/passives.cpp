@@ -873,7 +873,7 @@ void OnPassiveBlock(Player &player)
 	}
 }
 
-void OnPassiveDamaged(Player &player, int damage)
+void OnPassiveDamaged(Player &player, int damage, int lifeLost)
 {
 	if (damage <= 0)
 		return;
@@ -884,7 +884,7 @@ void OnPassiveDamaged(Player &player, int damage)
 	// The Necromancer (2026-09-18).
 	if (PassiveActive(player, Skill::BloodIsPower)) {
 		// Losing life feeds Essence: one point for every twenty-fifth of your life.
-		clocks.bloodLost += damage;
+		clocks.bloodLost += lifeLost >= 0 ? lifeLost : damage; // the life lost, not the overkill (round 87 audit)
 		const int step = std::max(player._pMaxHP / BloodIsPowerDivisor, 64);
 		if (clocks.bloodLost >= step) {
 			GainEssence(player, clocks.bloodLost / step);

@@ -1155,7 +1155,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Nec, 3, 4, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Serration"), N_("Your bone skills deal more damage the farther they have flown."),
 	    Nec, 3, 4, 2, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Aberrant Animator"), N_("Your minions return a share of the blows they take."),
+	{ N_("Aberrant Animator"), N_("Your minions return a share of the melee blows they take."),
 	    Nec, 3, 5, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Blood is Power"), N_("Losing life feeds your Essence: one point for every twenty-fifth of your life lost."),
 	    Nec, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },

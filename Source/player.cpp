@@ -3808,7 +3808,7 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 	player._pHitPoints -= totalDamage;
 	player._pHPBase -= totalDamage;
 	// Galvanizing Ward's clock and Illusionist's burst (2026-09-14) answer a blow actually taken.
-	oracool::OnPassiveDamaged(player, totalDamage);
+	oracool::OnPassiveDamaged(player, totalDamage, LastPlayerLifeLost);
 	if (player._pHitPoints > player._pMaxHP) {
 		player._pHitPoints = player._pMaxHP;
 		player._pHPBase = player._pMaxHPBase;

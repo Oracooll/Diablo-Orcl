@@ -7517,14 +7517,14 @@ bool DoOil(Player &player, int cii, int tabIdx)
 {
 	switch (plidx) {
 	case IPL_TOHIT:
-	case IPL_TOHIT_CURSE:
-		return fmt::format(fmt::runtime(_("chance to hit: {:+d}%")), item._iPLToHit);
+	case IPL_TOHIT_CURSE: // less the oils', which print on their own line (round 87 audit: a unique showed them twice)
+		return fmt::format(fmt::runtime(_("chance to hit: {:+d}%")), item._iPLToHit - std::max<int>(item._iOracoolOilToHit, 0));
 	case IPL_DAMP:
 	case IPL_DAMP_CURSE:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% damage")), item._iPLDam);
 	case IPL_TOHIT_DAMP:
 	case IPL_TOHIT_DAMP_CURSE:
-		return fmt::format(fmt::runtime(_("to hit: {:+d}%, {:+d}% damage")), item._iPLToHit, item._iPLDam);
+		return fmt::format(fmt::runtime(_("to hit: {:+d}%, {:+d}% damage")), item._iPLToHit - std::max<int>(item._iOracoolOilToHit, 0), item._iPLDam);
 	case IPL_ACP:
 	case IPL_ACP_CURSE:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% armor")), item._iPLAC);

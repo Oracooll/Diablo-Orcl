@@ -1593,7 +1593,6 @@ Range BoneRange(const Player &player, Range d)
 	return { d.min * percent / 100, d.max * percent / 100 };
 }
 
-/** @brief A bone skill's blow: magic, through Marrow - and Serration (+5% a tile flown, 50% at most) and Rigor Mortis (a second's chill). */
 /**
  * @brief Bone Wall's segment @p k (-2..2) from @p centre along @p dir, or nullopt where its arm is stopped: each arm grows
  * outward and ends at the first tile that is solid or out of the centre's sight (round 79 audit: the outer segments stood in
@@ -1614,6 +1613,7 @@ std::optional<Point> BoneWallSegment(Point centre, Direction dir, int k)
 	return tile;
 }
 
+/** @brief A bone skill's blow: magic, through Marrow - and Serration (+5% a tile flown, 50% at most) and Rigor Mortis (a second's chill). */
 void BoneStrike(Player &player, Monster &monster, int damage, std::optional<Point> flewFrom = std::nullopt)
 {
 	int percent = MarrowPercent(player);
