@@ -4956,6 +4956,8 @@ void GrantRuneKillMana(char pmask)
 
 void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 {
+	// Read before the curse's release, which clears a Weaken's or Decrepify's debuff and a convert's ticks with it (round 86).
+	const bool wasConverted = oracool::IsMonsterConverted(monster);
 	oracool::OnCursedMonsterDeath(monster); // Death Mark bursts it, Essence Tap pays (oracool/curses.h)
 	if (MyPlayer != nullptr)
 		oracool::OnPassiveMonsterDied(*MyPlayer, monster); // Life from Death, whoever made the kill (round 13 audit)
@@ -5036,7 +5038,7 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	// Not a Revived one (round 61 audit: the puddle hurts only players - the hero, standing among his own army).
 	// Nor a converted one (round 85 audit: once its corpse went, the convert's puddle burned the hero and the army).
 	if (IsAnyOf(monster.type().type, MT_NACID, MT_RACID, MT_BACID, MT_XACID, MT_SPIDLORD) && !monster.isPlayerMinion()
-	    && !oracool::IsMonsterConverted(monster))
+	    && !wasConverted)
 		AddMissile(monster.position.tile, { 0, 0 }, Direction::South, MissileID::AcidPuddle, TARGET_PLAYERS, monster.getId(), monster.intelligence + 1, 0);
 }
 

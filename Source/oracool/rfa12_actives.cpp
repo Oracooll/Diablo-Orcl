@@ -2602,6 +2602,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::BambooRain: {
 		auto nearby = MonstersWithin(here, ReachTiles(spell, r));
+		// The nearest first (round 86 audit: the cap kept whichever came first in the monster table).
+		std::sort(nearby.begin(), nearby.end(), [here](const Monster *a, const Monster *b) {
+			return here.WalkingDistance(a->position.tile) < here.WalkingDistance(b->position.tile);
+		});
 		if (nearby.size() > static_cast<size_t>(BambooRainTargets))
 			nearby.resize(static_cast<size_t>(BambooRainTargets));
 		for (Monster *m : nearby) {
@@ -2683,6 +2687,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::SevenSidedStrike: {
 		auto nearby = MonstersWithin(target, ReachTiles(spell, r));
+		// The clicked one and its nearest first (round 86 audit: the cap could leave the monster under the cursor untouched).
+		std::sort(nearby.begin(), nearby.end(), [target](const Monster *a, const Monster *b) {
+			return target.WalkingDistance(a->position.tile) < target.WalkingDistance(b->position.tile);
+		});
 		const size_t cap = static_cast<size_t>(SevenSidedTargets(r));
 		if (nearby.size() > cap)
 			nearby.resize(cap);
@@ -4007,7 +4015,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		break;
 	case SpellID::ExplodingPalm:
 		if (alive) {
-			MarksOf(*front).palmTicks = EffectTicks(spell, r);
+			MarksOf(*front).palmTicks = EffectTicks(spell, r) + 1; // outlives the bleed's last pulse, which can kill (round 86 audit)
 			MarksOf(*front).palmRank = r;
 			Bleed(*front, EffectTicks(spell, r), PerSecond(spell, r));
 			struck = true;

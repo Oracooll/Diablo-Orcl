@@ -1286,7 +1286,7 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 							invloc = INVLOC_HAND_LEFT;
 						}
 						// Or in the right hand, where Heavenly Strength's grip left it (round 85 audit: "I have no room").
-						if (player.GetItemLocation(player.InvBody[INVLOC_HAND_RIGHT]) == ILOC_TWOHAND) {
+						if (player.GetItemLocation(player.InvBody[INVLOC_HAND_RIGHT]) == ILOC_TWOHAND && player.InvBody[INVLOC_HAND_LEFT].isEmpty()) {
 							invloc = INVLOC_HAND_RIGHT;
 						}
 						break;
@@ -1389,7 +1389,7 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 						player.HoldItem = holdItem;
 						if (!TryDropItem()) {
 							NewCursor(player.HoldItem);
-							CalcPlrInv(player, true); // the slot it left is already empty (round 47 audit)
+							CalcPlrInvKeepingLife(player); // the slot it left is already empty (round 47 audit); never kills (round 86)
 							return; // on the cursor it stays: the clear below would have destroyed it (round 46 audit)
 						}
 					}
