@@ -191,7 +191,7 @@ std::string SkillResourceLine(const Player &player, SpellID spell, int level)
 		if (const int cost = RageCost(spell); cost > 0)
 			return fmt::format(fmt::runtime(_("Rage Cost: {:d}")), cost);
 		if (const int gain = RageGain(spell); gain > 0)
-			return fmt::format(fmt::runtime(_("Generates {:d} Rage")), gain);
+			return fmt::format(fmt::runtime(_("Generates {:d} Rage per blow that lands")), gain);
 		return {};
 	}
 	if (const int essence = EssenceCost(spell); essence > 0 && UsesEssence(player))

@@ -509,6 +509,9 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 	bool struck = false;
 	// Every blow of this swing that struck a monster - the Barbarian's Rage is earned per blow.
 	int landedBlows = front != nullptr && frontHit ? 1 : 0;
+	// Whether a blow has counted for the swing's own counters yet (round 77 audit): the front's when it landed, else the
+	// first side blow that lands - with the front empty, a spin counted nothing at all.
+	bool counted = front != nullptr && frontHit;
 
 	// The extra blows on the front target, each a share of what the first one dealt - which already
 	// carries the skill's bonus, so a Double Swing's second blow is three quarters of a Bash-sized
@@ -565,8 +568,9 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		const int share = (skill == ClassMeleeSkill::Fend ? 80 : 66) + 5 * (rank - 1);
 		for (int i = 0; i < found; i++) {
 			// The passives in the blow's pool, the share on the whole (round 63 audit).
-			const int blow = FullBlowAt(player, *targets[i], /*burst=*/true);
-			Strike(player, *targets[i], blow * share / 100, /*applyPassives=*/true, /*pooled=*/true, /*burst=*/true);
+			const int blow = FullBlowAt(player, *targets[i], /*burst=*/counted);
+			Strike(player, *targets[i], blow * share / 100, /*applyPassives=*/true, /*pooled=*/true, /*burst=*/counted);
+			counted = true;
 			struck = true;
 			landedBlows++;
 		}
@@ -581,8 +585,9 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 			if (m == nullptr || m == front || m == first || (m->hitPoints >> 6) <= 0 || m->isPlayerMinion() || !m->isPossibleToHit())
 				continue;
 			first = m;
-			const int blow = FullBlowAt(player, *m, /*burst=*/true);
-			Strike(player, *m, blow, /*applyPassives=*/true, /*pooled=*/true, /*burst=*/true);
+			const int blow = FullBlowAt(player, *m, /*burst=*/counted);
+			Strike(player, *m, blow, /*applyPassives=*/true, /*pooled=*/true, /*burst=*/counted);
+			counted = true;
 			struck = true;
 			landedBlows++;
 		}

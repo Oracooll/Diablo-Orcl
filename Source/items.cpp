@@ -6949,7 +6949,7 @@ void TrySpawnGildedDrop(const Monster &monster, bool sendmsg)
 	// byte-identical, and through FinishOracoolDrop so it tumbles.
 	if (!oracool::VariantDropsGilded(monster) || ActiveItemCount >= MAXITEMS)
 		return;
-	const int lvl = std::max(ItemLevelOfMonster(monster) + 2, 1);
+	const int lvl = std::clamp(ItemLevelOfMonster(monster) + 2, 1, oracool::MaxAreaLevel); // the ladder's top (round 77 audit)
 	// The equipment pool without the ordinary roll's nothing-and-gold outcomes: a Gilded kill is
 	// always worth an item, or the recolour is a lie.
 	const _item_indexes idx = RndEquipmentForMonsterLevel(static_cast<int8_t>(std::min(lvl, 127)));

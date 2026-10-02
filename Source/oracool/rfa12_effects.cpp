@@ -545,8 +545,8 @@ void ProcessRfa12Tick(Player &player)
 			if (id == 0)
 				continue;
 			Monster &monster = Monsters[std::abs(id) - 1];
-			if (monster.position.tile != wake.tile || monster.isPlayerMinion())
-				continue;
+			if (monster.position.tile != wake.tile || monster.isPlayerMinion() || IsMonsterConverted(monster) || IsCompanion(monster))
+				continue; // an ally puts out no burning tile (round 77 audit)
 			const AuraDamage d = WakeDamage(procession);
 			Strike(player, monster, DamageType::Magic, Roll(d.min, d.max));
 			wake.ticksLeft = 0;

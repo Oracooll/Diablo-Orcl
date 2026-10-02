@@ -766,6 +766,14 @@ void PlaceNamedEncounter()
 		return;
 
 	PlaceLesserUniqueMonst(*choice, typeIndex, oracool::BossPackSize(), /*boss=*/true);
+	// No one in the room is immune to fire, lightning and magic at once, as no rift guardian is (round 77 audit: The Ember
+	// Vault's Obsidian Lords on Hell were, boss and escort - a caster could not earn the map's charm).
+	constexpr uint16_t AllThree = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		Monster &monster = Monsters[ActiveMonsters[i]];
+		if ((monster.resistance & AllThree) == AllThree)
+			monster.resistance = oracool::DemoteImmunitiesToResistances(monster.resistance) | (monster.resistance & IMMUNE_ACID);
+	}
 }
 
 void PlaceEndgameBoss()

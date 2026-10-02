@@ -115,6 +115,10 @@ struct BowStrikeScope {
 /** A swing's side blow is striking (round 76 audit): the per-blow passives pay, the swing's counters (Cadence, Mythic Rhythm,
  *  Momentum's charges) wait for its front blow - as the weapon cleave's since v1.12.318. Set by SideBlow. */
 bool SideBlowInFlight = false;
+/** Whether this swing has a blow that counted for it yet (round 77 audit): the front's when it landed, else the first side
+ *  blow that lands is the swing's - with the front tile empty, no blow counted and Mythic Rhythm, Combination Strike and
+ *  Hot Pursuit never moved. Set by ApplyRfa12MeleeOnSwing, read and set by SideBlow. */
+bool SwingCounted = true;
 
 /** @brief A skill's strike: immunity and resistance honoured, kill credit and the flinch to @p player. */
 void Strike(Player &player, Monster &monster, DamageType type, int damage, bool melee = false, bool applyPassives = true, bool pooled = false)
@@ -616,9 +620,13 @@ void StrikeBlow(Player &player, Monster &monster, DamageType type, int blowPerce
 /** @brief StrikeBlow for a swing's side blow (Sweep, Cleave, Crusade, Aegis Slam, Backhand, Holy Lance, Reaping Point). */
 void SideBlow(Player &player, Monster &monster, DamageType type, int blowPercent)
 {
-	SideBlowInFlight = true;
+	const bool previous = SideBlowInFlight;
+	SideBlowInFlight = SwingCounted;
+	const int lifeBefore = monster.hitPoints;
 	StrikeBlow(player, monster, type, blowPercent, /*melee=*/true);
-	SideBlowInFlight = false;
+	if (monster.hitPoints < lifeBefore)
+		SwingCounted = true;
+	SideBlowInFlight = previous;
 }
 
 // =================================================================================================
@@ -3797,6 +3805,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	const SpellID spell = *ArmedSpell;
 	if (!PaidAtFront(player, spell) || !Rfa12MeleeUsable(player, spell)) // as the frame began (round 68)
 		return false;
+	SwingCounted = frontHit; // a landed front blow counted already (round 77 audit)
 	const int r = RankOf(player, spell);
 	const bool landed = front != nullptr && frontHit;
 	const bool alive = landed && (front->hitPoints >> 6) > 0;
@@ -3862,12 +3871,18 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			if (m == nullptr || !Hittable(*m) || std::find(slammed.begin(), slammed.end(), m) != slammed.end())
 				continue;
 			slammed.push_back(m);
-			if (m != front)
+			bool did = false;
+			if (m != front) {
 				SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
+				did = true;
+			}
 			// Shoved first, then stunned: the shove's knockback put it into hit recovery over the stun (round 16 audit).
-			Shove(*m, player._pdir);
-			Stagger(*m, StunTicks(spell, r));
-			struck = true;
+			// Paid for only what it moved or stunned (round 77 audit: a lone boss shrugged both off, and every swing paid).
+			if (Shove(*m, player._pdir))
+				did = true;
+			if (Stagger(*m, StunTicks(spell, r)))
+				did = true;
+			struck = struck || did;
 		}
 		break;
 	}
@@ -3917,7 +3932,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		break;
 	case SpellID::ReapingPoint: {
 		Monster *beyond = InDungeonBounds(ahead + player._pdir) ? FindMonsterAtPosition(ahead + player._pdir) : nullptr;
-		if (beyond != nullptr && Hittable(*beyond)) {
+		if (beyond != nullptr && beyond != front && Hittable(*beyond)) { // not the front one walking away (round 77 audit)
 			SideBlow(player, *beyond, DamageType::Physical, BlowPercent(spell, r));
 			struck = true;
 		}
@@ -4283,8 +4298,12 @@ void OnRfa12ActiveMonsterKilled(Player &player, const Monster &monster)
 	if (marks.palmTicks > 0) {
 		const int r = marks.palmRank;
 		marks.palmTicks = 0;
+		// A burst, whichever blow made the kill (round 77 audit: from the front blow's kill it counted each enemy it hit).
+		const bool previous = SideBlowInFlight;
+		SideBlowInFlight = true;
 		for (Monster *m : MonstersWithin(at, 1))
 			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(SpellID::ExplodingPalm, r), /*melee=*/true); // round 15
+		SideBlowInFlight = previous;
 		if (Art(player, MissileGraphicID::ExplodingPalmBurst, at) == nullptr) // RfA-27 batch 55; the ring without it
 			Ring(player, at);
 	}
