@@ -10808,7 +10808,7 @@ void Item::updateRequiredStatsCacheForPlayer(const Player &player)
 		// Red when the Rule of Rangs refuses the next rank, as the read refuses it: a book asks no level through
 		// CanUseItem, so an unreadable one looked usable until clicked (round 13 audit, v1.12.238).
 		const int nextLevel = player._pSplLvl[static_cast<int16_t>(_iSpell)] + 1;
-		_iStatFlag = player.CanUseItem(*this) && oracool::CanReadSpellBookTo(player, _iSpell, nextLevel);
+		_iStatFlag = player.CanUseItem(*this) && oracool::CanReadSpellBookTo(player, _iSpell, nextLevel) && !oracool::UsesRage(player); // a Barbarian reads none (round 94)
 		return;
 	}
 	_iStatFlag = player.CanUseItem(*this);

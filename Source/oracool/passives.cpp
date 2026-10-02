@@ -449,11 +449,13 @@ void Haste(Clocks &clocks, int percent, int ticks)
 		*spare = { ticks, percent };
 }
 
-std::optional<SpellID> ArmedMeleeSpell()
+/** @brief The melee skill this swing carries - paid for (round 94 audit: an unaffordable armed skill's plain swings advanced
+ *  Mythic Rhythm and kept Combination Strike up). */
+std::optional<SpellID> ArmedMeleeSpell(const Player &player)
 {
-	if (const std::optional<ClassMeleeSkill> skill = ArmedClassMeleeSkill())
+	if (const std::optional<ClassMeleeSkill> skill = PaidArmedClassMeleeSkill(player))
 		return ClassMeleeSkillSpell(*skill);
-	return ArmedRfa12Melee();
+	return PaidArmedRfa12Melee(player);
 }
 
 /** @brief What any landed blow does, melee or missile. */
@@ -751,7 +753,7 @@ void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee,
 	if (melee) {
 		// Counterstroke's empowered blow has landed.
 		clocks.counterTicks = 0;
-		if (const std::optional<SpellID> spell = ArmedMeleeSpell(); spell.has_value()) {
+		if (const std::optional<SpellID> spell = ArmedMeleeSpell(player); spell.has_value()) {
 			if (PassiveActive(player, Skill::CombinationStrike)) {
 				size_t slot = 0;
 				for (size_t i = 0; i < clocks.comboSpells.size(); i++) {
@@ -1309,10 +1311,10 @@ std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int point
 		break;
 	case Skill::ArcaneDynamo:
 		line(fmt::format(fmt::runtime(_("Charged by {:d} spells costing {:d} mana or less")), ArcaneDynamoCharges, mana(CheapSpellMana)));
-		line(fmt::format(fmt::runtime(_("Next costlier spell: spell damage +{:d}% for {:d} s")), ArcaneDynamoPercent, sec(ArcaneDynamoTicks)));
+		line(fmt::format(fmt::runtime(_("Next costlier spell: spell and arrow damage +{:d}% for {:d} s")), ArcaneDynamoPercent, sec(ArcaneDynamoTicks)));
 		break;
 	case Skill::MythicRhythm:
-		line(fmt::format(fmt::runtime(_("Every {:d} melee skill blows: spell damage +{:d}% for {:d} s")), MythicRhythmBlows,
+		line(fmt::format(fmt::runtime(_("Every {:d} melee skill blows: spell and arrow damage +{:d}% for {:d} s")), MythicRhythmBlows,
 		    MythicRhythmPercent, sec(MythicRhythmTicks)));
 		break;
 	case Skill::ManaAttunement:

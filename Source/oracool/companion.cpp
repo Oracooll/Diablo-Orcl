@@ -416,7 +416,9 @@ int OwnerBlow(const Player &owner, int percent, const Monster *target = nullptr)
 	// The damage passives in the pool, as a companion's arrow takes them - a burst, spending nothing of the hero's (round 88
 	// audit: Korlic, Talic and the Guardian hit for less than the Valkyrie's arrows at the same share).
 	SetCompanionBlowInFlight(true); // the pool's Dead Ground reads it (round 92 audit)
-	const int pool = target != nullptr ? PassiveDamageDealtPercent(owner, *target, false, /*burst=*/true) + Rfa12DamageDealtPercent(owner, *target, false) : 0;
+	// Melee (round 94 audit): every OwnerBlow is a staff or a blade's, and as a spell it took Mythic Rhythm and the spell
+	// passives. A burst still, so Counterstroke and Momentum are not spent.
+	const int pool = target != nullptr ? PassiveDamageDealtPercent(owner, *target, true, /*burst=*/true) + Rfa12DamageDealtPercent(owner, *target, true) : 0;
 	SetCompanionBlowInFlight(false);
 	damage = PooledWeaponDamage(owner, damage, pool); // its share of the hero's pooled blow
 	if (target != nullptr && target->data().monsterClass == MonsterClass::Demon && HasAnyOf(owner._pIFlags, ItemSpecialEffect::TripleDemonDamage))

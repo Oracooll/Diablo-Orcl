@@ -3818,6 +3818,13 @@ std::optional<SpellID> ArmedRfa12Melee()
 	return ArmedSpell;
 }
 
+std::optional<SpellID> PaidArmedRfa12Melee(const Player &player)
+{
+	if (ArmedSpell.has_value() && PaidAtFront(player, *ArmedSpell) && Rfa12MeleeUsable(player, *ArmedSpell))
+		return ArmedSpell;
+	return std::nullopt;
+}
+
 int Rfa12MeleeBonusPercentFor(const Player &player, SpellID spell)
 {
 	if (!IsMeleeSpell(spell))

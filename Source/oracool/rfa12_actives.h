@@ -62,6 +62,8 @@ void ForgetRfa12SwingPrice();
 
 /** @brief The RfA-12 melee skill the swing being resolved was thrown with, if any. */
 std::optional<SpellID> ArmedRfa12Melee();
+/** @brief The armed RfA-12 melee skill only when this swing pays for it and can use it (round 94 audit). */
+std::optional<SpellID> PaidArmedRfa12Melee(const Player &player);
 
 /** @brief The armed skill's damage bonus on the swing being resolved, in percent. */
 int Rfa12MeleeDamagePercent(const Player &player);

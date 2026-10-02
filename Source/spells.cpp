@@ -244,11 +244,14 @@ void ConsumeSpell(Player &player, SpellID sn)
 		RedrawComponent(PanelDrawComponent::Mana);
 		break;
 	}
-	if (sn == SpellID::BloodStar) {
-		ApplyPlrDamage(DamageType::Physical, player, 5);
-	}
-	if (sn == SpellID::BoneSpirit) {
-		ApplyPlrDamage(DamageType::Physical, player, 6);
+	// A price paid in life, not a blow taken (round 94 audit: it went through ApplyPlrDamage - cut by Blur, spending Galvanizing
+	// Ward, and Bone Spirit's 6 tripped Illusionist on a small life pool). Taken straight; a price never kills below 1.
+	if (IsAnyOf(sn, SpellID::BloodStar, SpellID::BoneSpirit)) {
+		const int cost = (sn == SpellID::BloodStar ? 5 : 6) << 6;
+		const int paid = std::min(cost, std::max(player._pHitPoints - (1 << 6), 0));
+		player._pHitPoints -= paid;
+		player._pHPBase -= paid;
+		RedrawComponent(PanelDrawComponent::Health);
 	}
 }
 

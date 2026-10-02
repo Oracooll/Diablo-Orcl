@@ -1,5 +1,6 @@
 #include "oracool/warcries.h"
 #include "oracool/corpses.h"
+#include "oracool/rage.h" // UsesRage - Find Potion's mana half
 
 #include <algorithm>
 #include <array>
@@ -452,7 +453,7 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 		ConsumeCorpse(*corpse);
 		if (GenerateRnd(100) < std::min(50 + 5 * (rank - 1), 90)) {
 			const bool full = GenerateRnd(100) < 5 + 2 * (rank - 1);
-			const bool mana = FlipCoin();
+			const bool mana = FlipCoin() && !UsesRage(player); // a Barbarian drinks no mana (round 94 audit)
 			const int kind = full ? (mana ? IMISC_FULLMANA : IMISC_FULLHEAL) : (mana ? IMISC_MANA : IMISC_HEAL);
 			CreateTypeItem(*corpse, false, ItemType::Misc, kind, true, false);
 		}

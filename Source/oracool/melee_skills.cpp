@@ -388,6 +388,13 @@ std::optional<ClassMeleeSkill> ArmedClassMeleeSkill()
 	return ArmedSkill;
 }
 
+std::optional<ClassMeleeSkill> PaidArmedClassMeleeSkill(const Player &player)
+{
+	if (ArmedSkill.has_value() && PaidAtFront(player, *ArmedSkill))
+		return ArmedSkill;
+	return std::nullopt;
+}
+
 namespace {
 bool SweptThisSwing = false;
 } // namespace

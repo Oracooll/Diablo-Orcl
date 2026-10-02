@@ -97,6 +97,8 @@ void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill);
 
 /** @brief The melee skill the swing being resolved was thrown with, if any. */
 std::optional<ClassMeleeSkill> ArmedClassMeleeSkill();
+/** @brief The armed skill only when this swing pays for it (round 94 audit: an unpaid, plain swing counted as a skill blow). */
+std::optional<ClassMeleeSkill> PaidArmedClassMeleeSkill(const Player &player);
 /** @brief A new game: no Leap Attack blow paid by the last character's leap. */
 void ForgetLeapAttackPrepaid();
 /**
