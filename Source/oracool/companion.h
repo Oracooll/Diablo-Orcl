@@ -108,6 +108,8 @@ void DismissCompanions(const Player &owner);
 // ---- engine hooks ------------------------------------------------------------------------------------------------
 
 bool IsCompanion(const Monster &monster);
+/** @brief The hero a companion body serves, or nullptr (round 88 audit: monsters' odds against it). */
+const Player *CompanionOwner(const Monster &monster);
 const AnimStruct *GetCompanionAnim(const Monster &monster, MonsterGraphic graphic);
 
 /**

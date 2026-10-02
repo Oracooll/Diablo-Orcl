@@ -1633,10 +1633,10 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 		return;
 	// The army's armour counts (round 70 audit: its records set armorClass, and nothing read it - a Clay Golem was struck
 	// as often as a Skeleton). At least 5%, the floor the hero's own armour leaves a monster.
-	if (oracool::IsMinion(target) && hper < 500) { // a charge's 500 is unmissable, as on the hero (round 72 audit)
+	if ((oracool::IsMinion(target) || oracool::IsCompanion(target)) && hper < 500) { // a companion too (round 88 audit); a charge's 500 is unmissable (round 72)
 		// As the hero's own odds are built (MonsterAttackPlayer): +30 and the level gap, then the armour (round 71 audit: the
 		// armour off the raw to-hit left most blows at the 5% floor - the army was close to unkillable in melee).
-		const Player *owner = oracool::MinionOwner(target);
+		const Player *owner = oracool::IsMinion(target) ? oracool::MinionOwner(target) : oracool::CompanionOwner(target);
 		const int levelGap = owner != nullptr ? attacker.level(sgGameInitInfo.nDifficulty) - owner->_pLevel : 0;
 		hper = std::clamp(hper + 30 + 2 * levelGap - target.armorClass, 5, 95);
 	}
@@ -5526,7 +5526,9 @@ void ProcessMonsters()
 			monster.aiSeed = AdvanceRndSeed();
 		}
 		// Lasting Wounds and Deep Wounds (RfA-12) close the wound to regeneration.
-		if (monster.hitPoints < monster.maxHitPoints && monster.hitPoints >> 6 > 0 && !oracool::MonsterRegenBlocked(monster)) {
+		// Not a companion's body (round 88 audit: the Golem slot's level made a Decoy heal by difficulty and Torment, unsaid).
+		if (monster.hitPoints < monster.maxHitPoints && monster.hitPoints >> 6 > 0 && !oracool::MonsterRegenBlocked(monster)
+		    && !oracool::IsCompanion(monster)) {
 			if (monster.level(sgGameInitInfo.nDifficulty) > 1) {
 				monster.hitPoints += monster.level(sgGameInitInfo.nDifficulty) / 2;
 			} else {

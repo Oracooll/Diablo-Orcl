@@ -7718,7 +7718,7 @@ bool DoOil(Player &player, int cii, int tabIdx)
 	case IPL_CRYSTALLINE:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "low dur, {:+d}% damage")), item._iPLDam);
 	case IPL_DOPPELGANGER:
-		return fmt::format(fmt::runtime(_("to hit: {:+d}%, {:+d}% damage, 10% of hits clone the foe")), item._iPLToHit, item._iPLDam);
+		return fmt::format(fmt::runtime(_("to hit: {:+d}%, {:+d}% damage, 10% of hits clone the foe")), item._iPLToHit - std::max<int>(item._iOracoolOilToHit, 0), item._iPLDam); // less the oils (round 88)
 	case IPL_ACDEMON:
 		return _("extra AC vs demons");
 	case IPL_ACUNDEAD:

@@ -31,6 +31,8 @@
 #include "levels/gendung.h"
 #include "missiles.h"
 #include "oracool/event_log.h" // IsCornerHudShown
+#include "oracool/passives.h" // PassiveDamageDealtPercent - a melee companion's pool
+#include "oracool/rfa12_effects.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/whirlwind.h" // WhirlFrame, DrawWhirlingBlades - Talic's spin looks like the hero's
 #include "multi.h"
@@ -408,10 +410,15 @@ std::vector<Monster *> TargetsWithin(Point centre, int radius)
 }
 
 /** @brief A blow of @p owner's own, at @p percent: the weapon roll with the hero's bonus damage, in 1/64ths. */
-int OwnerBlow(const Player &owner, int percent)
+int OwnerBlow(const Player &owner, int percent, const Monster *target = nullptr)
 {
 	int damage = RandomIntBetween(owner._pIMinDam, std::max(owner._pIMinDam, owner._pIMaxDam));
-	damage = PooledWeaponDamage(owner, damage, 0); // its share of the hero's pooled blow
+	// The damage passives in the pool, as a companion's arrow takes them - a burst, spending nothing of the hero's (round 88
+	// audit: Korlic, Talic and the Guardian hit for less than the Valkyrie's arrows at the same share).
+	const int pool = target != nullptr ? PassiveDamageDealtPercent(owner, *target, false, /*burst=*/true) + Rfa12DamageDealtPercent(owner, *target, false) : 0;
+	damage = PooledWeaponDamage(owner, damage, pool); // its share of the hero's pooled blow
+	if (target != nullptr && target->data().monsterClass == MonsterClass::Demon && HasAnyOf(owner._pIFlags, ItemSpecialEffect::TripleDemonDamage))
+		damage *= 3;
 	damage = damage * percent / 100;
 	return std::max(damage, 1) << 6;
 }
@@ -876,6 +883,12 @@ bool IsCompanion(const Monster &monster)
 	return InstanceInSlot(monster) != nullptr;
 }
 
+const Player *CompanionOwner(const Monster &monster)
+{
+	const Instance *inst = InstanceInSlot(monster);
+	return inst != nullptr ? OwnerOf(*inst) : nullptr;
+}
+
 void StartCompanionSpin(Monster &companion)
 {
 	Instance *inst = InstanceInSlot(companion);
@@ -999,7 +1012,7 @@ void ProcessSpin(Instance &inst, const Monster &body, const Player &owner)
 	if (inst.spinClock % SpinStrikeTicks == 0 && !around.empty()) {
 		const int percent = CompanionStatsAt(inst.kind, inst.rank).damagePercent;
 		for (Monster *monster : around)
-			StrikeFor(owner, *monster, OwnerBlow(owner, percent));
+			StrikeFor(owner, *monster, OwnerBlow(owner, percent, monster));
 		PlaySkillSound(ClassTreeSkill::Whirlwind, SkillSoundEvent::Impact); // the hero's Whirlwind's strike, once a strike
 	}
 	if (!around.empty())
@@ -1312,7 +1325,7 @@ void CompanionMeleeHit(Monster &companion)
 	Monster &target = Monsters[inst->target];
 	if (owner == nullptr || !Targetable(target) || companion.position.tile.WalkingDistance(target.position.tile) > 1)
 		return;
-	StrikeFor(*owner, target, OwnerBlow(*owner, CompanionStatsAt(inst->kind, inst->rank).damagePercent));
+	StrikeFor(*owner, target, OwnerBlow(*owner, CompanionStatsAt(inst->kind, inst->rank).damagePercent, &target));
 }
 
 namespace {

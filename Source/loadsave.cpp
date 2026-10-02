@@ -3164,6 +3164,13 @@ void LoadStash()
 	}
 	for (unsigned i = 0; i < pages; i++) {
 		auto page = file.NextLE<uint32_t>();
+		// A page the stash cannot show (stash.cpp's CountStashPages, 100): refused, not loaded where nothing scans (round 88).
+		if (page >= 100) {
+			Stash = {};
+			StashFileRefused = true;
+			EventPlrMsg(_("The Stash file could not be read. It is left untouched and will not be saved over this game."), UiFlags::ColorRed);
+			return;
+		}
 		for (auto &row : Stash.stashGrids[page]) {
 			for (uint16_t &cell : row) {
 				cell = file.NextLE<uint16_t>();
@@ -3372,6 +3379,10 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 			}
 		}
 	}
+	// Every byte read (round 88 audit: a tail - a torn write, or pages a later build dropped - was accepted, and the next
+	// autosave wrote the shorter file over the items in it).
+	if (file.IsValid(1))
+		RefuseInvTabsFile(player);
 }
 
 void RemoveEmptyInventory(Player &player)

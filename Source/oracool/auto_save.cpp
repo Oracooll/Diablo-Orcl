@@ -327,6 +327,9 @@ void SaveOnExit()
 	// (Alt+F4) comes straight here - and lost whatever was staged. Closing twice is harmless.
 	CloseLevskiRoar();
 	CloseWorkshop();
+	// Said, not promised otherwise (round 88 audit: "keeps what it holds", and the exit then lost it).
+	if (IsLevskiRoarOpen() || IsWorkshopOpen())
+		LogEvent("No room to put away what the Cube or the workshop holds - those items will not be saved.", UiFlags::ColorRed);
 
 	Player &player = *MyPlayer;
 
