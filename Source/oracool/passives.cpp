@@ -1006,6 +1006,8 @@ void OnPassiveArrowLoosed(Player &player, Point target)
 	const Point dst = target == from ? from + player._pdir : target;
 	Missile *grenade = AddMissile(from, dst, GetDirection(from, dst), MissileID::Fireball, TARGET_MONSTERS,
 	    static_cast<int>(player.getId()), 0, std::max(player._pLevel / GrenadierLevelDivisor, 1));
+	if (grenade != nullptr)
+		grenade->burstShot = true; // part of the arrow: no crit roll of its own (round 92 audit)
 	if (grenade != nullptr && MissileArtLoaded(MissileGraphicID::Grenade))
 		UseMissileGraphic(*grenade, MissileGraphicID::Grenade);
 }

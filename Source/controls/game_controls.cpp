@@ -88,8 +88,7 @@ SDL_Keycode TranslateControllerButtonToSpellbookKey(ControllerButton controllerB
 	switch (TranslateTo(GamepadType, controllerButton)) {
 	case ControllerButton_BUTTON_B:
 		return SDLK_SPACE;
-	case ControllerButton_BUTTON_Y:
-		return SDLK_RETURN;
+	// Not Y as Return (round 92 audit): with the chat line on in single-player, it opened a text box a pad cannot type in.
 	case ControllerButton_BUTTON_LEFTSTICK:
 		return SDLK_TAB; // Map
 	case ControllerButton_BUTTON_DPAD_LEFT:

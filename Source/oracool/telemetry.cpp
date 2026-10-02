@@ -97,11 +97,12 @@ void FlushRows()
 	std::fseek(file, 0, SEEK_END);
 	// Kept to a size (round 91 audit: a row a kill and a pickup, never trimmed - tens of MB over a long run). Past 16 MB the
 	// file becomes balance_telemetry.old.csv, replacing any earlier one, and a fresh file starts.
-	if (std::ftell(file) > 16L * 1024 * 1024) {
+	static bool rotationFailed = false; // once refused (a lock on the file), not retried every flush (round 92 audit)
+	if (!rotationFailed && std::ftell(file) > 16L * 1024 * 1024) {
 		std::fclose(file);
 		const std::string old = paths::PrefPath() + "balance_telemetry.old.csv";
-		RemoveFile(old.c_str());
-		RenameFile(path.c_str(), old.c_str());
+		if (!ReplaceFileAtomically(path.c_str(), old.c_str()))
+			rotationFailed = true;
 		file = OpenFile(path.c_str(), "ab");
 		if (file == nullptr) {
 			PendingRows.clear();

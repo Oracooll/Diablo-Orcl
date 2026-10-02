@@ -10191,7 +10191,7 @@ std::string DebugSpawnSetPiece(string_view parameter)
 	Item item {};
 	InitializeItem(item, static_cast<_item_indexes>(oracool::BaseItemForSetPiece(def)));
 	oracool::MakeSetItem(item, def);
-	FinalizeSetPiece(item, std::max<int>(def.requiredLevel, MyPlayer->_pLevel), /*allowEtherealRoll=*/false); // round 13 audit
+	FinalizeSetPiece(item, std::min<int>(std::max<int>(def.requiredLevel, MyPlayer->_pLevel), oracool::MaxAreaLevel), /*allowEtherealRoll=*/false); // round 13 audit
 	item._iIdentified = true;
 
 	const int ii = AllocateItem();

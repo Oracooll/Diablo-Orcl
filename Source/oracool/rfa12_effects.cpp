@@ -289,7 +289,8 @@ int Rfa12DamageDealtPercent(const Player &player, const Monster &target, bool me
 		if (const int p = PointsIfOn(player, Skill::Retaliation); p > 0)
 			percent += ClocksOf(player).retaliationStacks * RetaliationPerStack(p);
 	} else {
-		if (DeadGroundApplies(player, target))
+		// The hero's own shots: a companion's never spent it, so took it on every arrow (round 92 audit).
+		if (!IsCompanionBlowInFlight() && DeadGroundApplies(player, target))
 			percent += DeadGroundPercent(PointsIfOn(player, Skill::DeadGround));
 		if (const int p = PointsIfOn(player, Skill::Deadeye); p > 0 && GenerateRnd(100) < DeadeyeChancePercent)
 			percent += DeadeyePercent(p);

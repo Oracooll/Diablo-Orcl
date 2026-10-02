@@ -216,6 +216,8 @@ struct Missile {
 	bool sentinelBolt = false;
 	/** @brief Oracool: Chilling Armor has answered this missile already - one retort a missile (round 79 audit). Not saved. */
 	bool coldRetorted = false;
+	/** @brief Oracool: a shot that is part of another (Grenadier's grenade): its hits are bursts to the passives (round 92). */
+	bool burstShot = false;
 
 	/** @brief Oracool: the caster's Monster::spawnSerial at launch - see liveSourceMonster. Not saved. */
 	uint32_t sourceSpawnSerial = 0;

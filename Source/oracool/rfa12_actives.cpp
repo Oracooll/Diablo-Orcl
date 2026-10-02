@@ -142,7 +142,7 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	// the passives' - round 13 brought over only the first half (round 15 audit, v1.12.240).
 	// Not again for a weapon blow that took them into its pool (StrikeBlow, round 63 audit).
 	if (applyPassives && !pooled)
-		damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, melee) + Rfa12DamageDealtPercent(player, monster, melee));
+		damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, melee, /*burst=*/SideBlowInFlight) + Rfa12DamageDealtPercent(player, monster, melee));
 	if (damage <= 0)
 		return;
 	// Once every six seconds per enemy, as its text says (round 16) - and only for a strike that lands something (round 17).
@@ -2205,8 +2205,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		{
 			const NoCastSight arcSees; // the arc leaps from the struck one, round its corners, as Arc's hops (round 67 audit)
 			BowStrikeScope notAnArrow { false }; // the arc is no second arrow (round 80 audit: Night Stalker, Leech, Archery paid twice)
+			// And a burst to the passives: no second Sharpshooter roll to spend the built-up crit on the arc (round 92 audit).
+			const bool previousSide = SideBlowInFlight;
+			SideBlowInFlight = true;
 			if (Monster *other = NearestStrikable(at, ReachTiles(spell, r), DamageType::Lightning, m); other != nullptr)
 				Strike(player, *other, DamageType::Lightning, Rolled(SkillDamage(spell, r)));
+			SideBlowInFlight = previousSide;
 		}
 		Fly(player, MissileGraphicID::ShockArrow, here, at, spell); // RfA-27 batch 54: the arrow, landing with its cue
 		return true;

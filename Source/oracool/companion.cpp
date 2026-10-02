@@ -415,7 +415,9 @@ int OwnerBlow(const Player &owner, int percent, const Monster *target = nullptr)
 	int damage = RandomIntBetween(owner._pIMinDam, std::max(owner._pIMinDam, owner._pIMaxDam));
 	// The damage passives in the pool, as a companion's arrow takes them - a burst, spending nothing of the hero's (round 88
 	// audit: Korlic, Talic and the Guardian hit for less than the Valkyrie's arrows at the same share).
+	SetCompanionBlowInFlight(true); // the pool's Dead Ground reads it (round 92 audit)
 	const int pool = target != nullptr ? PassiveDamageDealtPercent(owner, *target, false, /*burst=*/true) + Rfa12DamageDealtPercent(owner, *target, false) : 0;
+	SetCompanionBlowInFlight(false);
 	damage = PooledWeaponDamage(owner, damage, pool); // its share of the hero's pooled blow
 	if (target != nullptr && target->data().monsterClass == MonsterClass::Demon && HasAnyOf(owner._pIFlags, ItemSpecialEffect::TripleDemonDamage))
 		damage *= 3;
@@ -1088,6 +1090,11 @@ void ProcessCompanions(Player &owner)
 }
 
 bool CompanionBlowInFlight = false;
+
+bool IsCompanionBlowInFlight()
+{
+	return CompanionBlowInFlight;
+}
 
 void SetCompanionBlowInFlight(bool inFlight)
 {

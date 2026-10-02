@@ -711,7 +711,10 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 		} else if (IsAnyOf(missile._micaster, TARGET_BOTH, TARGET_MONSTERS)) {
 			CompanionHitPercent = missile.companionPercent;
 			oracool::SetCompanionBlowInFlight(missile.companionPercent > 0);
+			const bool previousBurst = ArrowBurstInFlight;
+			ArrowBurstInFlight = previousBurst || missile.burstShot; // a grenade rolls no Sharpshooter of its own (round 92 audit)
 			isMonsterHit = MonsterMHit(missile._misource, mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, missile._mispllvl);
+			ArrowBurstInFlight = previousBurst;
 			oracool::SetCompanionBlowInFlight(false);
 			CompanionHitPercent = 0;
 			// A cold hit with no impact art of its own - a Blizzard shard, a Cold or Ice Arrow - flashes where it landed.

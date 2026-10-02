@@ -22,6 +22,7 @@
 #include "engine/point.hpp"
 #include "error.h"
 #include "inv.h"
+#include "oracool/area_level.h" // MaxAreaLevel - a debug set piece stays on the ladder
 #include "levels/setmaps.h"
 #include "lighting.h"
 #include "levels/gendung.h"
@@ -903,7 +904,7 @@ std::string DebugCmdGiveItemSet(const string_view parameter)
 		oracool::MakeSetItem(item, def);
 		// The finish every real set piece gets - a seed, an item level, a base tier (round 13 audit: seed 0 made two
 		// pieces on one base the same item to the pickup filter).
-		FinalizeSetPiece(item, std::max<int>(def.requiredLevel, myPlayer._pLevel), /*allowEtherealRoll=*/false);
+		FinalizeSetPiece(item, std::min<int>(std::max<int>(def.requiredLevel, myPlayer._pLevel), oracool::MaxAreaLevel), /*allowEtherealRoll=*/false);
 		item._iStatFlag = myPlayer.CanUseItem(item);
 		if (!AutoPlaceItemInInventory(myPlayer, item, true)) {
 			noRoom++;
@@ -959,7 +960,7 @@ std::string DebugCmdGiveSetSet(const string_view parameter)
 			Item item {};
 			InitializeItem(item, static_cast<_item_indexes>(base));
 			oracool::MakeSetItem(item, def);
-			FinalizeSetPiece(item, std::max<int>(def.requiredLevel, myPlayer._pLevel), /*allowEtherealRoll=*/false); // round 13
+			FinalizeSetPiece(item, std::min<int>(std::max<int>(def.requiredLevel, myPlayer._pLevel), oracool::MaxAreaLevel), /*allowEtherealRoll=*/false); // round 13
 			item._iStatFlag = myPlayer.CanUseItem(item);
 			if (!AutoPlaceItemInInventory(myPlayer, item, true)) {
 				noRoom++;
