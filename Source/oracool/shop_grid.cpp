@@ -1053,21 +1053,13 @@ constexpr int ShopMaxTabsPerVendor = 8;
 static_assert(ShopTabColumnSlots >= ShopMaxTabsPerVendor,
     "the tab column no longer fits a fully-stocked Griswold - shorten ShopTabHeight");
 
-/**
- * How far the tab column stands off the panel's right edge: the tab's slot frame (GridBezelInset) plus six pixels of
- * air between that frame and the painting's edge (user, 2026-10-02: "6px gap between their frames and surrounding ui
- * elments"). The column was FLUSH before the tabs wore frames; a framed tab flush to the panel put its frame six
- * pixels into the painting.
- */
-constexpr int ShopTabColumnClearance = GridBezelInset + 6;
-
-/** @brief One tab in the column, ShopTabColumnClearance off the panel's right edge. */
+/** @brief One tab in the column, flush with the panel's right edge - the tabs wear no slot frame (user, 2026-10-02). */
 Rectangle ShopTabRect(size_t index)
 {
 	assert(index < static_cast<size_t>(ShopTabColumnSlots)
 	    && "a vendor has more tabs than the column has room for - the strip would run off the panel");
 	const Rectangle panel = GetShopPanelRect();
-	return Rectangle { { panel.position.x + panel.size.width + ShopTabColumnClearance,
+	return Rectangle { { panel.position.x + panel.size.width,
 	                       panel.position.y + ShopTabColumnTop + static_cast<int>(index) * (ShopTabHeight + ShopTabGap) },
 		{ ShopTabColumnWidth, ShopTabHeight } };
 }
@@ -1471,9 +1463,6 @@ void DrawShopTabColumn(const Surface &out, TalkID open)
 {
 	const std::vector<TalkID> tabs = ShopTabsFor(open);
 	const bool tabArt = HasShopArt(ShopTabArt);
-	// Every tab in its slot frame (user, 2026-10-02), the column's frames first - the tabs are two pixels apart.
-	for (size_t i = 0; i < tabs.size(); i++)
-		DrawButtonSlotGround(out, ShopTabRect(i), PressedShopTab == tabs[i]);
 	for (size_t i = 0; i < tabs.size(); i++) {
 		const Rectangle rect = ShopTabRect(i);
 		const bool active = tabs[i] == open;
@@ -1567,11 +1556,6 @@ void DrawSideTab(const Surface &out, int index, string_view label, bool active, 
 	}
 	if (!vanilla || !DrawSidewaysLabel(out, label, face, active ? UiFlags::ColorWhite : UiFlags::ColorWhitegold))
 		DrawVerticalLabel(out, label, face, active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold);
-}
-
-void DrawSideTabGround(const Surface &out, int index, bool pressed)
-{
-	DrawButtonSlotGround(out, GetSideTabRect(index), pressed);
 }
 
 bool DrawVendorButtonBacking(const Surface &out, Rectangle rect, bool selected, bool hovered)

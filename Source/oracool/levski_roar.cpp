@@ -2544,9 +2544,6 @@ void DrawLevskiRoar(const Surface &out)
 	// the eye catches when flipping between a vendor and the Cube.
 	if (CubeTabbedPages()) {
 		int hoveredTab = -1;
-		// Both tabs' slot frames before either face (user, 2026-10-02) - see DrawSideTabGround.
-		for (int i = 0; i < CubeTabCount; i++)
-			DrawSideTabGround(out, i, PressedCubeTab == i);
 		for (int i = 0; i < CubeTabCount; i++) {
 			const auto tab = static_cast<CubeTab>(i);
 			if (GetSideTabRect(i).contains(MousePosition))

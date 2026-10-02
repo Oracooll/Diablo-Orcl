@@ -1117,9 +1117,6 @@ void OutlineRectRgb(const Surface &out, const Rectangle &rect, uint32_t rgb, uin
 void DrawTabColumn(const Surface &out)
 {
 	const std::vector<Tab> tabs = TabsFor(Host);
-	// Every tab's slot frame before any face (user, 2026-10-02) - see DrawSideTabGround.
-	for (int i = 0; i < static_cast<int>(tabs.size()); i++)
-		DrawSideTabGround(out, i, Pressed == static_cast<Control>(static_cast<int>(Control::Tab0) + i));
 	for (int i = 0; i < static_cast<int>(tabs.size()); i++) {
 		const bool active = tabs[i] == OpenTab;
 		// Held down: the face sinks and springs back on the release, like every other button here (user,
