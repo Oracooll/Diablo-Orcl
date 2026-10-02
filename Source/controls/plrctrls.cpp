@@ -12,6 +12,7 @@
 #include "control.h"
 #include "diablo.h" // ClickUiAtCursor - A on the fork's windows
 #include "oracool/advanced_stats.h"
+#include "oracool/rage.h" // UsesRage - the pad's mana button
 #include "oracool/hud_layout.h" // IsPointOverFloatingWindow
 #include "oracool/inventory_layout.h"
 #include "oracool/melee_skills.h" // the latches Interact disarms
@@ -2025,7 +2026,8 @@ void UseBeltItem(int type)
 
 		bool isRejuvenation = IsAnyOf(item._iMiscId, IMISC_REJUV, IMISC_FULLREJUV) || (item._iMiscId == IMISC_ARENAPOT && MyPlayer->isOnArenaLevel());
 		bool isHealing = isRejuvenation || IsAnyOf(item._iMiscId, IMISC_HEAL, IMISC_FULLHEAL) || item.isScrollOf(SpellID::Healing);
-		bool isMana = isRejuvenation || IsAnyOf(item._iMiscId, IMISC_MANA, IMISC_FULLMANA);
+		// A Barbarian's mana potions are refused (v1.12.342): skipped, so the button reaches his Rejuvenation (round 93 audit).
+		bool isMana = isRejuvenation || (IsAnyOf(item._iMiscId, IMISC_MANA, IMISC_FULLMANA) && !oracool::UsesRage(*MyPlayer));
 
 		if ((type == BLT_HEALING && isHealing) || (type == BLT_MANA && isMana)) {
 			UseInvItem(INVITEM_BELT_FIRST + i);

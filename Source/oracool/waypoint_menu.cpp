@@ -766,7 +766,7 @@ void DrawWaypointMenu(const Surface &out)
 		// The keyboard's choice: a golden ring round the sigil, over the art, with the hover outline's half-transparent shadow
 		// two left and two down (user, 2026-10-02).
 		if (static_cast<int>(i) == KeyRow)
-			DrawKeyRing(content, { iconX + iconSize.width / 2, rowTop + RowHeight / 2 }, std::max(iconSize.width, iconSize.height) / 2 + 2);
+			DrawKeyRing(content, { iconX + iconSize.width / 2, rowTop + RowHeight / 2 }, iconSize.height / 2 - 1); // on the sigil's rim, inside its row (round 93 audit: past it, the list's edges cut it)
 
 		// Vertically centre the name in its row rather than sitting it on the row's top edge, so it
 		// lines up with the sigil beside it. Stops short of the scrollbar, not of the panel edge.

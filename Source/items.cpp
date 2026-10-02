@@ -45,6 +45,7 @@
 #include "oracool/sprite_mix.h"
 #include "oracool/player_resistance.h"
 #include "oracool/area_level.h"
+#include "oracool/rage.h" // UsesRage - a Barbarian carries no mana pool
 #include "oracool/auto_save.h"
 #include "oracool/class_skills.h"
 #include "oracool/spell_ranks.h"
@@ -5219,6 +5220,14 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 
 	player._pMaxMana = imana + player._pMaxManaBase;
 	player._pMana = std::min(imana + player._pManaBase, player._pMaxMana);
+	// A Barbarian has no mana (user, 2026-09-13: Rage, "the D3 road"). Magic, +Mana gear and the refills fed a pool he could
+	// not see, and book spells and Mana Shield ran on it (round 93 audit). Zero, always: every refill clamps to it.
+	if (oracool::UsesRage(player)) {
+		player._pMaxMana = 0;
+		player._pMana = 0;
+		player._pMaxManaBase = 0;
+		player._pManaBase = 0;
+	}
 
 	player._pIFMinDam = fmin;
 	player._pIFMaxDam = fmax;

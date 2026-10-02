@@ -4557,6 +4557,13 @@ bool RefuseUnreadableBook(Player &player, const Item &item)
 {
 	if (item._iMiscId != IMISC_BOOK)
 		return false;
+	// A Barbarian casts nothing from a book: he has no mana to cast it with (round 93 audit) - the book is kept, not eaten.
+	if (oracool::UsesRage(player)) {
+		player.Say(HeroSpeech::ICantUseThisYet);
+		if (&player == MyPlayer)
+			EventPlrMsg(_("A Barbarian has no mana to cast a book's spell with."), UiFlags::ColorRed);
+		return true;
+	}
 	const SpellID bookSpell = item._iSpell;
 	const int nextLevel = player._pSplLvl[static_cast<size_t>(bookSpell)] + 1;
 	// AND the ceiling, which used to be checked only inside UseItem - and only to skip the

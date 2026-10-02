@@ -3904,7 +3904,8 @@ Monster *NextBlessedShieldTarget(const Missile &missile, Point from)
 		    Monster &monster = Monsters[id];
 		    // Not a converted ally either: the shield turned toward it, passed through and lost the bounce (round 22 audit).
 		    return !BlessedShieldHasStruck(missile, id) && !monster.isPlayerMinion() && !oracool::IsMonsterConverted(monster)
-		        && monster.isPossibleToHit();
+		        && monster.isPossibleToHit()
+		        && !monster.isImmune(MissileID::BlessedShieldThrow, DamageType::Magic); // nor a magic-immune one (round 93 audit)
 	    },
 	    from, 1, BlessedShieldBounceTiles);
 	if (!found)

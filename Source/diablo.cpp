@@ -1245,7 +1245,8 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	    && oracool::HandleStonegateMenuKey(vkey))
 		return;
 	// And the waypoint list's (user, 2026-10-02): the golden ring on the arrows, Left/Right for the Act, Enter to travel.
-	if (PauseMode != 2 && !((modState & KMOD_ALT) != 0 && (vkey == SDLK_RETURN || vkey == SDLK_KP_ENTER))
+	// Not Alt+arrows (the minimap) nor with the automap up, whose panning the arrows are (round 93 audit).
+	if (PauseMode != 2 && (modState & KMOD_ALT) == 0 && !AutomapActive
 	    && oracool::HandleWaypointMenuKey(vkey))
 		return;
 
