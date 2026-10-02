@@ -760,7 +760,10 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 				// Chilling Armor answers a RANGED hit; the other two armours do not, which is the
 				// difference between them (Oracool, Round 2). A blocked shot is not a hit.
 				// Not every tick of an acid puddle: each landed tick fired a free Ice Bolt, eight a second (round 10 audit).
-				if (isPlayerHit && !blocked && missile._mitype != MissileID::AcidPuddle && (Players[pid - 1]._pHitPoints >> 6) > 0) // not from a corpse (round 39)
+				// Nor every tick of a monster's Inferno or Lightning, which strike on each tick they overlap him (round 78 audit: up to
+				// twenty free bolts a second).
+				if (isPlayerHit && !blocked && !IsAnyOf(missile._mitype, MissileID::AcidPuddle, MissileID::Inferno, MissileID::Lightning)
+				    && (Players[pid - 1]._pHitPoints >> 6) > 0) // not from a corpse (round 39)
 					oracool::OnColdArmourStruckAtRange(Players[pid - 1], monster);
 			}
 		} else {
@@ -2586,8 +2589,9 @@ void AddGlacialShatter(Missile &missile, AddMissileParameter &parameter)
 			if (mid == 0 || leveltype == DTYPE_TOWN) // a townsperson's id is no monster slot (round 39 audit)
 				continue;
 			Monster &monster = Monsters[abs(mid) - 1];
-			if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion())
-				continue;
+			if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion() || oracool::IsCompanion(monster) || oracool::IsMinion(monster)
+			    || oracool::IsMonsterConverted(monster))
+				continue; // the hero's side is not chilled (round 78 audit), as Freezing Arrow spares it
 			oracool::ApplyColdHit(MissileID::FrostNova, missile._mispllvl, monster);
 		}
 	}
@@ -2685,6 +2689,15 @@ void ProcessFrostNova(Missile &missile)
  */
 void AddBlizzard(Missile &missile, AddMissileParameter &parameter)
 {
+	// Not past a wall, nor on one (round 78 audit: the storm rained on the closed room, paid) - as the RfA-12 fields refuse.
+	if (missile.sourceType() == MissileSource::Player) {
+		const Point from = missile.sourcePlayer()->position.tile;
+		if (!InDungeonBounds(parameter.dst) || IsTileSolid(parameter.dst) || !LineClearMissile(from, parameter.dst)) {
+			missile._miDelFlag = true;
+			parameter.spellFizzled = true;
+			return;
+		}
+	}
 	missile.position.tile = parameter.dst;
 	missile.var1 = parameter.dst.x;
 	missile.var2 = parameter.dst.y;
@@ -2717,8 +2730,8 @@ void ProcessBlizzard(Missile &missile)
 	// search: a storm that misses a tick because every roll hit a wall is still a storm.
 	for (int attempt = 0; attempt < 4; attempt++) {
 		const Point tile = centre + Displacement { GenerateRnd(5) - 2, GenerateRnd(5) - 2 };
-		if (!InDungeonBounds(tile) || !IsTileNotSolid(tile))
-			continue;
+		if (!InDungeonBounds(tile) || !IsTileNotSolid(tile) || !LineClearMissile(centre, tile))
+			continue; // and on this side of a thin wall (round 78 audit)
 		Missile *shard = AddMissile(tile, tile, Direction::South, MissileID::BlizzardShard, missile._micaster, missile._misource, 0, missile._mispllvl, &missile);
 		if (shard != nullptr && !strikes)
 			shard->var5 = 1;

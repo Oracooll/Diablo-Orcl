@@ -3011,7 +3011,7 @@ void WitchEnter()
 		// The refunded ranks fed CalcPlrItemVals through the provider chain (spell levels, passive
 		// bonuses, a doused aura) - rebuild before the store screen returns, not on the next
 		// incidental recalc.
-		CalcPlrInv(*MyPlayer, true);
+		CalcPlrInvKeepingLife(*MyPlayer); // a respec never kills (round 78 audit)
 		oracool::ScheduleAutoSaveForSkillPointChange(); // as the Abilities window's refunds (round 35 audit)
 		oracool::LogEvent(fmt::format("Adria reclaimed {:d} skill point(s) for {:d} gold", refunded, cost),
 		    UiFlags::ColorWhitegold);

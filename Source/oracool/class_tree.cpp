@@ -469,7 +469,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Nova"), N_("A ring of lightning bursting outward. This engine's Nova, raised by its books rather than by skill points."), Sor, 1, 2, 0, Kind::Active, SpellID::Nova, true },
 	{ N_("Lightning"), N_("A bolt that strikes in a line. This engine's Lightning, raised by its books rather than by skill points."), Sor, 1, 2, 1, Kind::Active, SpellID::Lightning, true },
 	{ N_("Chain Lightning"), N_("A bolt that leaps between enemies. This engine's Chain Lightning, raised by its books rather than by skill points."), Sor, 1, 3, 0, Kind::Active, SpellID::ChainLightning, true },
-	{ N_("Teleport"), N_("Step instantly to a place you can see. This engine's Teleport, raised by its books rather than by skill points."), Sor, 1, 3, 1, Kind::Active, SpellID::Teleport, true },
+	{ N_("Teleport"), N_("Step instantly to the cursor, through walls if need be. This engine's Teleport, raised by its books rather than by skill points."), Sor, 1, 3, 1, Kind::Active, SpellID::Teleport, true },
 	// User note, 2026-09-14: an aura like Holy Fire - the storm strikes on its own while it burns.
 	{ N_("Thunder Storm"), N_("An aura. Every three seconds a bolt falls on one enemy within 6 tiles of you for 1-20 lightning damage, +10 per level."), Sor, 1, 4, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Mana Shield"), N_("Mana takes the damage your life would. Raised by its books rather than by skill points."), Sor, 1, 4, 1, Kind::Active, SpellID::ManaShield, true },
@@ -2623,7 +2623,7 @@ void ReleaseHeavenlyGrip(Player &player)
 	offHand.clear();
 	// With the sprites: the body is now a two-hander without a shield. The Abilities window's own recalc
 	// after the slot change is stats-only.
-	CalcPlrInv(player, true);
+	CalcPlrInvKeepingLife(player); // a shield to the pack never kills (round 78 audit)
 }
 
 } // namespace

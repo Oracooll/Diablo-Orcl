@@ -2185,7 +2185,7 @@ void CheckSBook(bool assignToRightButton)
 					if (oracool::ClearPassiveSlot(me, slot)) {
 						if (ArmedPassiveSlot == slot)
 							ArmedPassiveSlot = -1;
-						CalcPlrInv(me, true); // the look follows a stat change (round 38)
+						CalcPlrInvKeepingLife(me); // the look follows a stat change (round 38); a lost life bonus never kills (round 78 audit)
 						RedrawEverything();
 					}
 					return;
@@ -2205,7 +2205,7 @@ void CheckSBook(bool assignToRightButton)
 				// so a player who wants it gone does not have to find which slot holds it.
 				const int slot = oracool::PassiveSlotOf(me, *cell);
 				if (slot >= 0 && oracool::ClearPassiveSlot(me, slot)) {
-					CalcPlrInv(me, true); // the look follows a stat change (round 38)
+					CalcPlrInvKeepingLife(me); // the look follows a stat change (round 38); a lost life bonus never kills (round 78 audit)
 					RedrawEverything();
 				}
 				return;
@@ -2233,14 +2233,14 @@ void CheckSBook(bool assignToRightButton)
 			// and right-click still empties a slot for anyone who reaches for it.
 			if (const int already = oracool::PassiveSlotOf(me, *cell); already >= 0) {
 				if (oracool::ClearPassiveSlot(me, already)) {
-					CalcPlrInv(me, true); // the look follows a stat change (round 38)
+					CalcPlrInvKeepingLife(me); // the look follows a stat change (round 38); a lost life bonus never kills (round 78 audit)
 					RedrawEverything();
 				}
 				return;
 			}
 			if (oracool::SetPassiveSlot(me, ArmedPassiveSlot, *cell)) {
 				ArmedPassiveSlot = -1;
-				CalcPlrInv(me, true); // the look follows a stat change (round 38)
+				CalcPlrInvKeepingLife(me); // the look follows a stat change (round 38); a lost life bonus never kills (round 78 audit)
 				RedrawEverything();
 			}
 			return;
