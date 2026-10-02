@@ -365,7 +365,9 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	// A companion is never struck by its own side's missiles - its owner's, or its own arrows (oracool/companion.h). Nor a
 	// minion (audit, 2026-09-27): a Necromancer's Nova or Inferno cut down his own army; Apocalypse, Frost Nova and the
 	// Chain Lightning search already spared it.
-	if (oracool::IsCompanion(monster) || oracool::IsMinion(monster) || oracool::IsMonsterConverted(monster)) // converted: round 19
+	// Nor the Sorcerer's Golem in slot 0, which is neither (round 84 audit: Fireball, Nova and Inferno struck it).
+	if (oracool::IsCompanion(monster) || oracool::IsMinion(monster) || oracool::IsMonsterConverted(monster) // converted: round 19
+	    || monster.isPlayerMinion())
 		return false;
 
 	if (!monster.isPossibleToHit() || monster.isImmune(t, damageType))
@@ -1011,7 +1013,7 @@ bool GuardianTryFireAt(Missile &missile, Point target)
 	if (mid < 0)
 		return false;
 	const Monster &monster = Monsters[mid];
-	if (monster.isPlayerMinion())
+	if (monster.isPlayerMinion() || oracool::IsMonsterConverted(monster)) // nor a converted ally (round 84 audit)
 		return false;
 	if (monster.hitPoints >> 6 <= 0)
 		return false;
@@ -3278,6 +3280,9 @@ void AddTownPortal(Missile &missile, AddMissileParameter &parameter)
 			missile._miDelFlag = false;
 		} else {
 			missile._miDelFlag = true;
+			// Unpaid, and the standing portal left standing (round 84 audit: the scroll went and the old portal was wiped).
+			parameter.spellFizzled = true;
+			return;
 		}
 	}
 
@@ -3569,7 +3574,7 @@ void AddStoneCurse(Missile &missile, AddMissileParameter &parameter)
 		    if (IsAnyOf(monster.type().type, MT_GOLEM, MT_DIABLO, MT_NAKRUL)) {
 			    return false;
 		    }
-		    if (monster.isPlayerMinion() || oracool::IsCompanion(monster)) {
+		    if (monster.isPlayerMinion() || oracool::IsCompanion(monster) || oracool::IsMonsterConverted(monster)) { // round 84
 			    return false; // the hero's own side
 		    }
 		    // Not one already stone: the curse picked it over a valid monster beside it and did nothing (round 16 audit).
@@ -3623,6 +3628,16 @@ void AddGolem(Missile &missile, AddMissileParameter &parameter)
 	int playerId = missile._misource;
 	Player &player = Players[playerId];
 	Monster &golem = Monsters[playerId];
+	// A tile for the new one before the old one goes (round 84 audit: with none, the old Golem died and the cast was paid).
+	if (!FindClosestValidPosition(
+	        [start = missile.position.start, old = golem.position.tile](Point target) {
+		        return (!IsTileOccupied(target) || target == old) && LineClearMissile(start, target);
+	        },
+	        parameter.dst, 0, 5)) {
+		missile._miDelFlag = true;
+		parameter.spellFizzled = true;
+		return;
+	}
 	// The Golem spell takes this slot: a companion standing in it (a multiplayer owner's own slot) waits for another.
 	oracool::ForgetCompanionInSlot(golem);
 
@@ -5793,7 +5808,7 @@ void ProcessChainLightning(Missile &missile)
 		// Not to townspeople: town's dMonster holds towner ids (round 6 audit, v1.12.231).
 		// Nor at the hero's own army and companions, which drew a harmless bolt each (round 16 audit).
 		if (leveltype != DTYPE_TOWN && InDungeonBounds(target) && dMonster[target.x][target.y] > 0
-		    && !Monsters[dMonster[target.x][target.y] - 1].isPlayerMinion()) {
+		    && !Monsters[dMonster[target.x][target.y] - 1].isPlayerMinion() && !oracool::IsMonsterConverted(Monsters[dMonster[target.x][target.y] - 1])) {
 			dir = GetDirection(position, target);
 			AddMissile(position, target, dir, MissileID::LightningControl, TARGET_MONSTERS, id, 1, missile._mispllvl);
 		}
@@ -6187,7 +6202,7 @@ void ProcessApocalypse(Missile &missile)
 			int mid = dMonster[k][j] - 1;
 			if (mid < 0)
 				continue;
-			if (Monsters[mid].isPlayerMinion())
+			if (Monsters[mid].isPlayerMinion() || oracool::IsMonsterConverted(Monsters[mid])) // round 84 audit
 				continue;
 			if (TileHasAny(dPiece[k][j], TileProperties::Solid))
 				continue;
