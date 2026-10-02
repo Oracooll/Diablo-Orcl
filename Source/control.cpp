@@ -922,7 +922,7 @@ void FocusOnCharInfo()
 	int stat = -1;
 	for (auto attribute : enum_values<CharacterAttribute>()) {
 		const int maximum = MaxBaseAttribute;
-		if (myPlayer.GetBaseAttributeValue(attribute) >= maximum)
+		if (myPlayer.GetBaseAttributeValue(attribute) >= maximum || !AttributeTakesStatPoints(myPlayer, attribute))
 			continue;
 		stat = static_cast<int>(attribute);
 	}
@@ -1751,6 +1751,8 @@ void CheckChrBtns()
 		if (gbIsMultiplayer)
 			return;
 		for (auto attribute : enum_values<CharacterAttribute>()) {
+			if (!AttributeTakesStatPoints(myPlayer, attribute))
+				continue; // not drawn, not pressed (the Barbarian's Magic)
 			const auto buttonId = static_cast<size_t>(attribute);
 			const Rectangle decrease { GetPanelPosition(UiPanels::Character, ChrDecBtnsRect[buttonId].position), ChrDecBtnsRect[buttonId].size };
 			const Rectangle increase { GetPanelPosition(UiPanels::Character, ChrBtnsRect[buttonId].position), ChrBtnsRect[buttonId].size };
@@ -1770,7 +1772,7 @@ void CheckChrBtns()
 
 	for (auto attribute : enum_values<CharacterAttribute>()) {
 		const int maximum = MaxBaseAttribute;
-		if (myPlayer.GetBaseAttributeValue(attribute) >= maximum)
+		if (myPlayer.GetBaseAttributeValue(attribute) >= maximum || !AttributeTakesStatPoints(myPlayer, attribute))
 			continue;
 		auto buttonId = static_cast<size_t>(attribute);
 		Rectangle button = ChrBtnsRect[buttonId];

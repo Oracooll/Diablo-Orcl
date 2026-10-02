@@ -2696,7 +2696,10 @@ void OperateShrineMysterious(Player &player)
 	ModifyPlrDex(player, -1);
 	ModifyPlrVit(player, -1);
 
-	const auto boostedAttribute = static_cast<CharacterAttribute>(GenerateRnd(4));
+	auto boostedAttribute = static_cast<CharacterAttribute>(GenerateRnd(4));
+	// Never into the Barbarian's Magic (user, 2026-10-02): the boost goes to Vitality instead.
+	if (!AttributeTakesStatPoints(player, boostedAttribute))
+		boostedAttribute = CharacterAttribute::Vitality;
 	switch (boostedAttribute) {
 	case CharacterAttribute::Strength:
 		ModifyPlrStr(player, 6);
@@ -3858,6 +3861,9 @@ bool OperateFountains(Player &player, Object &fountain)
 		unsigned toStat = randomValue % 3;
 		if (toStat >= fromStat)
 			toStat++;
+		// Never into the Barbarian's Magic (user, 2026-10-02): the first other attribute instead.
+		if (toStat == 1 && !AttributeTakesStatPoints(player, CharacterAttribute::Magic))
+			toStat = fromStat == 3 ? 0 : 3;
 
 		const bool wasAlive = player._pHitPoints >> 6 > 0; // the -1 never kills (round 26 audit), as the Mysterious Shrine
 		std::pair<unsigned, int> alterations[] = { { fromStat, -1 }, { toStat, 1 } };

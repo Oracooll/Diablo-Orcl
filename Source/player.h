@@ -1234,6 +1234,12 @@ int StatDamage(const Player &player, int weaponRoll);
  */
 int PooledWeaponDamage(const Player &player, int weaponRoll, int poolPercent, int statSharePercent = 100);
 int StatPointsToSpend(const Player &player, CharacterAttribute attribute, int requested);
+/**
+ * @brief Whether @p attribute takes stat points for @p player at all: not Magic for the Barbarian (user, 2026-10-02: "remove
+ * barb -/+ buttons in the Magic Stats distribution. No stat points to be able to be assigned to magic"). Its buttons are
+ * not drawn or pressed, nothing spends into it, and the stat-moving shrine and fountain move nothing into it.
+ */
+bool AttributeTakesStatPoints(const Player &player, CharacterAttribute attribute);
 /** @brief The held button's repeat: re-arms the skill a stagger cleared mid-hold. */
 void RestoreStaggeredSwingLatches();
 /** @brief A fresh press: what a stagger cleared is not this press's. */

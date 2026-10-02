@@ -1714,6 +1714,8 @@ void DrawGroupedStatButtons(const Surface &content)
 		return;
 	const Rectangle contentRect = GetCharacterContentRect();
 	for (size_t buttonId = 0; buttonId < 4; ++buttonId) {
+		if (!AttributeTakesStatPoints(*InspectPlayer, static_cast<CharacterAttribute>(buttonId)))
+			continue; // the Barbarian's Magic: no -/+ (user, 2026-10-02)
 		const Rectangle *rects[2] = { &ChrDecBtnsRect[buttonId], &ChrBtnsRect[buttonId] };
 		const bool pressed[2] = { chrDecBtn[buttonId], chrbtn[buttonId] };
 		for (int side = 0; side < 2; side++) {
@@ -1747,7 +1749,7 @@ void DrawPlusButtonSprites(const Surface &content)
 		};
 		if (InspectPlayer->_pBaseStr < MaxBaseAttribute)
 			drawButton(CharacterAttribute::Strength, 1);
-		if (InspectPlayer->_pBaseMag < MaxBaseAttribute)
+		if (InspectPlayer->_pBaseMag < MaxBaseAttribute && AttributeTakesStatPoints(*InspectPlayer, CharacterAttribute::Magic))
 			drawButton(CharacterAttribute::Magic, 3);
 		if (InspectPlayer->_pBaseDex < MaxBaseAttribute)
 			drawButton(CharacterAttribute::Dexterity, 5);

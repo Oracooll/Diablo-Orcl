@@ -4797,8 +4797,15 @@ void ResetPlayerStats(Player &player)
 		RefundStatPoints(player, attribute, maximumRefund);
 }
 
+bool AttributeTakesStatPoints(const Player &player, CharacterAttribute attribute)
+{
+	return !(attribute == CharacterAttribute::Magic && oracool::UsesRage(player));
+}
+
 int StatPointsToSpend(const Player &player, CharacterAttribute attribute, int requested)
 {
+	if (!AttributeTakesStatPoints(player, attribute))
+		return 0;
 	const int roomBelowCap = MaxBaseAttribute - player.GetBaseAttributeValue(attribute);
 	return std::max(0, std::min({ requested, player._pStatPts, roomBelowCap }));
 }
