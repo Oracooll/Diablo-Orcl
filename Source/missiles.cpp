@@ -5919,9 +5919,13 @@ void ProcessTeleport(Missile &missile)
 		return;
 	}
 
+	// A fallback in sight of the tile aimed at (round 83 audit: a monster stepping onto a Leap's landing sent the search
+	// round the wall into the next room, past the leap's reach). Teleport's own aim may be past a wall; its fallback stays
+	// on the aimed side.
+	const Point aimed = missile.position.tile;
 	std::optional<Point> teleportDestination = FindClosestValidPosition(
-	    [&player](Point target) {
-		    return PosOkPlayer(player, target);
+	    [&player, aimed](Point target) {
+		    return PosOkPlayer(player, target) && (target == aimed || LineClearMissile(aimed, target));
 	    },
 	    missile.position.tile, 0, 5);
 

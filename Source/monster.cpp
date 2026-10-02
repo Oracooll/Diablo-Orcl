@@ -6393,7 +6393,7 @@ unsigned int Monster::level(_difficulty difficulty) const
 {
 	unsigned int baseLevel = data().level;
 	if (isUnique()) {
-		baseLevel = UniqueMonstersData[static_cast<int8_t>(uniqueType)].mlevel;
+		baseLevel = UniqueMonstersData[static_cast<size_t>(uniqueType)].mlevel; // not int8: negative past 127 rows (round 83 audit)
 		if (baseLevel != 0) {
 			baseLevel *= 2;
 		} else {

@@ -6,7 +6,7 @@
  * mana as well. so we must go D3 road here").
  *
  * The Barbarian has no mana. His second orb holds Rage instead: a pool of 100 (120 with Animosity)
- * that starts empty on every level, fills a fixed amount for every blow a GENERATOR skill lands, and
+ * that starts empty for a new hero and after a respawn, and carries across levels (2026-09-16); it fills a fixed amount for every blow a GENERATOR skill lands, and
  * is spent by SPENDER skills, which cannot be used without it. It does not drain while he swings at
  * monsters; five seconds after the last swing it drains one point a second (2026-09-14) - or, with
  * Unforgiving, rises two a second instead.
@@ -18,7 +18,7 @@
  * the skill modules ask one question - "can this hero pay for this skill" - whatever the resource.
  *
  * Whole points, not the 1/64 fixed point life and mana are kept in: nothing earns a fraction of Rage.
- * Transient - never saved; a level always starts at zero.
+ * Transient - never saved; a new hero and a respawn start at zero.
  */
 
 #include <string>

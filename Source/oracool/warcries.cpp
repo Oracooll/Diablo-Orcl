@@ -871,6 +871,10 @@ void AddWarcry(Missile &missile, AddMissileParameter &parameter)
 
 std::string WarcryFactsAt(SpellID spell, int rank)
 {
+	// The self-buffs' seconds as StartBuff lasts them: Inspiring Presence doubles them (round 83 audit: "40 s" for 80).
+	const auto BuffSeconds = [](int seconds) {
+		return MyPlayer != nullptr ? seconds * PassiveWarcryDurationPercent(*MyPlayer) / 100 : seconds;
+	};
 	// The facts, from the same formulas CastWarcry and ApplyWarcryBuffsToTotals run - kept in step
 	// by being written beside them (user, 2026-09-05: "let them be known").
 	rank = std::max(rank, 1);
@@ -895,7 +899,7 @@ std::string WarcryFactsAt(SpellID spell, int rank)
 		radius(earshot);
 		break;
 	case SpellID::Shout:
-		duration(40 + 5 * (rank - 1));
+		duration(BuffSeconds(40 + 5 * (rank - 1)));
 		line(fmt::format(fmt::runtime(_("Armour: +{:d}")), 50 + 10 * (rank - 1))); // flat, as applied (round 30 audit)
 		break;
 	case SpellID::BattleCry:
@@ -904,7 +908,7 @@ std::string WarcryFactsAt(SpellID spell, int rank)
 		line(fmt::format(fmt::runtime(_("Enemy damage and armour: -{:d}%")), 25 + 2 * (rank - 1)));
 		break;
 	case SpellID::BattleOrders:
-		duration(40 + 5 * (rank - 1));
+		duration(BuffSeconds(40 + 5 * (rank - 1)));
 		line(fmt::format(fmt::runtime(_("Life: +{:d}")), 20 + 10 * (rank - 1)));
 		break;
 	case SpellID::WarCry:
@@ -913,7 +917,7 @@ std::string WarcryFactsAt(SpellID spell, int rank)
 		line(fmt::format(fmt::runtime(_("Stun: {:.1f} s")), 2.0 + 0.2 * (rank - 1)));
 		break;
 	case SpellID::BattleCommand:
-		duration(30 + 5 * (rank - 1));
+		duration(BuffSeconds(30 + 5 * (rank - 1)));
 		line(std::string(_("All skill levels: +1")));
 		break;
 	case SpellID::Lullaby:

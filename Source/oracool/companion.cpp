@@ -761,6 +761,10 @@ bool SummonCompanions(Player &owner, SpellID spell, Point target, int rank)
 	const KindList list = KindsFor(spell);
 	if (list.count == 0)
 		return false;
+	// A cursor the hero cannot see is no anchor (round 83 audit: whatever path skipped CastOnce's clamp set the Decoy in the
+	// next room): beside him instead.
+	if (!InDungeonBounds(target) || IsTileSolid(target) || !LineClearMissile(owner.position.tile, target))
+		target = owner.position.tile;
 	const bool town = leveltype == DTYPE_TOWN;
 	if (!town && !LevelHasGolemSlots()) {
 		owner.Say(HeroSpeech::ICantCastThatHere); // a quest's set level has no golem slot to stand in

@@ -5933,7 +5933,10 @@ Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level /*
 		SetupItem(item);
 		// Its item level, as every other drop has one (audit, 2026-09-29: a Normal boss's quest unique came out level 0 -
 		// Awaken refused it and Reroll Uniques could only roll it into itself). No lower than the unique's own level.
-		item._iOracoolItemLevel = static_cast<uint8_t>(std::clamp<int>(std::max<int>(curlv, UniqueItems[uid].UIMinLvl), 1, 255));
+		// The quest's floor where one is given, as the other difficulties take it (round 83 audit: a town-given quest unique was
+		// stamped with town's level 1).
+		const int stampLevel = level ? oracool::AreaLevel(*level, sgGameInitInfo.nDifficulty) : curlv;
+		item._iOracoolItemLevel = static_cast<uint8_t>(std::clamp<int>(std::max<int>(stampLevel, UniqueItems[uid].UIMinLvl), 1, 255));
 	} else {
 		// A quest's FLOOR run through the ladder, as CurrentAreaLevel does for quest set-levels: the raw floor stamped a
 		// Torment Anvil reward ilvl 10, Normal-grade beside Griswold's ilvl 54 shelf (round 10 audit, v1.12.235).
