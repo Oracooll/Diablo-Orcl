@@ -11089,6 +11089,8 @@ bool ApplyOilToItem(Item &item, Player &player)
 			item._iMaxDur++;
 			item._iDurability = item._iMaxDur;
 		}
+		if (item._iDurability > 0)
+			item._iOracoolBroken = false; // mended in the pack or stash too (round 92 audit)
 		break;
 	case IMISC_OILFORT:
 		// Not on a Zod host: 255 + r left the stamp and made the item destructible again (round 11 audit).
@@ -11097,10 +11099,13 @@ bool ApplyOilToItem(Item &item, Player &player)
 			item._iMaxDur += r;
 			item._iDurability += r;
 		}
+		if (item._iDurability > 0)
+			item._iOracoolBroken = false; // round 92 audit
 		break;
 	case IMISC_OILPERM:
 		item._iDurability = DUR_INDESTRUCTIBLE;
 		item._iMaxDur = DUR_INDESTRUCTIBLE;
+		item._iOracoolBroken = false; // round 92 audit
 		break;
 	case IMISC_OILHARD:
 		if (item._iAC < 60) {

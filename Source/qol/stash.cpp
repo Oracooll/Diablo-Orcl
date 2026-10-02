@@ -24,6 +24,7 @@
 #include "hwcursor.hpp"
 #include "minitext.h"
 #include "oracool/auto_save.h"
+#include "oracool/rage.h" // UsesRage - a Barbarian keeps his mana potions
 #include "oracool/hud_art.h"
 #include "oracool/gems.h"
 #include "oracool/levski_roar.h" // the Cube keeps the slot when it refuses to close
@@ -1317,6 +1318,11 @@ bool UseStashItem(uint16_t c)
 
 	if (!MyPlayer->CanUseItem(*item)) {
 		MyPlayer->Say(HeroSpeech::ICantUseThisYet);
+		return true;
+	}
+	// A Barbarian has no mana to fill: the potion is kept, not used up on a hidden pool (round 92 audit).
+	if (oracool::UsesRage((*MyPlayer)) && IsAnyOf(item->_iMiscId, IMISC_MANA, IMISC_FULLMANA)) {
+		(*MyPlayer).Say(HeroSpeech::ICantUseThisYet);
 		return true;
 	}
 

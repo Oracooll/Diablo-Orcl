@@ -33,6 +33,7 @@
 #include "options.h"
 #include "oracool/passives.h"
 #include "oracool/auto_save.h"
+#include "oracool/rage.h" // UsesRage - a Barbarian keeps his mana potions
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
 #include "oracool/spell_ranks.h"
@@ -4687,6 +4688,11 @@ bool UseInvItem(int cii)
 		return false;
 
 	if (!player.CanUseItem(*item)) {
+		player.Say(HeroSpeech::ICantUseThisYet);
+		return true;
+	}
+	// A Barbarian has no mana to fill: the potion is kept, not used up on a hidden pool (round 92 audit).
+	if (oracool::UsesRage(player) && IsAnyOf(item->_iMiscId, IMISC_MANA, IMISC_FULLMANA)) {
 		player.Say(HeroSpeech::ICantUseThisYet);
 		return true;
 	}
