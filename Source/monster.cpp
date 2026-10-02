@@ -5034,7 +5034,9 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	CheckQuestKill(monster, sendmsg);
 	M_FallenFear(monster.position.tile);
 	// Not a Revived one (round 61 audit: the puddle hurts only players - the hero, standing among his own army).
-	if (IsAnyOf(monster.type().type, MT_NACID, MT_RACID, MT_BACID, MT_XACID, MT_SPIDLORD) && !monster.isPlayerMinion())
+	// Nor a converted one (round 85 audit: once its corpse went, the convert's puddle burned the hero and the army).
+	if (IsAnyOf(monster.type().type, MT_NACID, MT_RACID, MT_BACID, MT_XACID, MT_SPIDLORD) && !monster.isPlayerMinion()
+	    && !oracool::IsMonsterConverted(monster))
 		AddMissile(monster.position.tile, { 0, 0 }, Direction::South, MissileID::AcidPuddle, TARGET_PLAYERS, monster.getId(), monster.intelligence + 1, 0);
 }
 
@@ -5871,6 +5873,10 @@ void MissToMonst(Missile &missile, Point position)
 	dMonster[position.x][position.y] = monsterId + 1;
 	monster.direction = static_cast<Direction>(missile._mimfnum);
 	monster.position.tile = position;
+	if (monster.lightId != NO_LIGHT) { // its glow where it stopped, not half a tile on (round 85 audit)
+		ChangeLightXY(monster.lightId, position);
+		ChangeLightOffset(monster.lightId, {});
+	}
 	M_StartStand(monster, monster.direction);
 	M_StartHit(monster, 0);
 
@@ -5911,6 +5917,10 @@ void MissToMonst(Missile &missile, Point position)
 	Monster *target = FindMonsterAtPosition(oldPosition, true);
 
 	if (target == nullptr)
+		return;
+	// A converted charger never strikes the hero's side (round 85 audit: its unmissable charge hit a skeleton in its path).
+	if (oracool::IsMonsterConverted(monster)
+	    && (target->isPlayerMinion() || oracool::IsCompanion(*target) || oracool::IsMonsterConverted(*target)))
 		return;
 	// Its mark or the other side only (round 71 audit): a charge drawn by a Decoy or Attract struck the packmate that stood
 	// in its path, unmissably, and the kill paid loot and experience.

@@ -3628,7 +3628,8 @@ void AddGolem(Missile &missile, AddMissileParameter &parameter)
 	int playerId = missile._misource;
 	Player &player = Players[playerId];
 	Monster &golem = Monsters[playerId];
-	// A tile for the new one before the old one goes (round 84 audit: with none, the old Golem died and the cast was paid).
+	// No tile for a Golem at all: unpaid, and a standing one is left standing (round 84 audit: with none, the old Golem died and
+	// the cast was paid). With a tile, a recast over a live Golem dismisses it, as vanilla does - the new one comes next cast.
 	if (!FindClosestValidPosition(
 	        [start = missile.position.start, old = golem.position.tile](Point target) {
 		        return (!IsTileOccupied(target) || target == old) && LineClearMissile(start, target);

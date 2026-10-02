@@ -580,7 +580,7 @@ bool AutoEquip(Player &player, const Item &item, inv_body_loc bodyLocation, bool
 			PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(item)]);
 		}
 
-		CalcPlrInv(player, true); // reloads the hero's sprites if the look changed (fixed 2026-09-29: v1.12.201 had flipped this to false)
+		CalcPlrInvKeepingLife(player); // a swapped-off +Life never kills (round 85 audit); reloads the look as it changes
 	}
 
 	return true;
@@ -1285,6 +1285,10 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 						if (player.GetItemLocation(player.InvBody[INVLOC_HAND_LEFT]) == ILOC_TWOHAND) {
 							invloc = INVLOC_HAND_LEFT;
 						}
+						// Or in the right hand, where Heavenly Strength's grip left it (round 85 audit: "I have no room").
+						if (player.GetItemLocation(player.InvBody[INVLOC_HAND_RIGHT]) == ILOC_TWOHAND) {
+							invloc = INVLOC_HAND_RIGHT;
+						}
 						break;
 					case ILOC_TWOHAND:
 						// Moving a two-hand item from inventory to InvBody requires emptying both hands
@@ -1418,7 +1422,8 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 			player._pGold = CalculateGold(player);
 		}
 
-		CalcPlrInv(player, true); // reloads the hero's sprites if the look changed (fixed 2026-09-29: v1.12.201 had flipped this to false)
+		// Kept alive, as the paste path keeps him (round 85 audit: a +Life item lifted at low life killed; dropped, it did not).
+		CalcPlrInvKeepingLife(player); // and reloads the hero's sprites if the look changed
 		holdItem.updateRequiredStatsCacheForPlayer(player); // with the book rule, as the pack's items (round 28 audit)
 
 		if (&player == MyPlayer) {
