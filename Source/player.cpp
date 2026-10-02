@@ -4196,6 +4196,9 @@ void CalcPlrStaff(Player &player)
 	    && player.InvBody[INVLOC_HAND_LEFT]._iCharges > 0) {
 		player._pISpells |= GetSpellBitmask(player.InvBody[INVLOC_HAND_LEFT]._iSpell);
 	}
+	// The readied buttons against the narrowed mask (round 90 audit: a staff of the same spell with no charges kept a Charges
+	// binding, drawn usable, and every click said "I can't do that").
+	EnsureValidReadiedSpell(player);
 }
 
 /** @brief What the hero says when he cannot pay for @p spell: "not enough mana" only when mana is the price (round 28 audit:

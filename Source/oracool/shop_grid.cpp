@@ -1996,7 +1996,11 @@ bool CheckShopGridClick(Point position, bool rightClick)
 	// other control on the panel: dropping a sword on the Repair button must repair it rather than
 	// fall through to whatever that rect does when the hand is empty.
 	const std::vector<ControlButton> buttons = redesigned ? std::vector<ControlButton>() : ShopControlButtons(stextflag);
-	if (!MyPlayer->HoldItem.isEmpty() && !rightClick) { // only a left click drops (round 89 audit)
+	// A right click with an item in hand does nothing (round 90 audit: falling through, it armed the Repair cursor, which
+	// dropped the held item on the floor). Only a left click drops (round 89 audit).
+	if (rightClick && !MyPlayer->HoldItem.isEmpty())
+		return true;
+	if (!MyPlayer->HoldItem.isEmpty()) {
 		for (size_t i = 0; i < buttons.size(); i++) {
 			if (buttons[i].kind != ControlKind::Service)
 				continue;

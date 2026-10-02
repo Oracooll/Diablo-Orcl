@@ -1699,8 +1699,12 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 	if (useLeft) {
 		// Only what the hero has, by the binding's own kind - the check ToggleSpell makes for the right button (audit,
 		// 2026-09-27). The left key readied whatever it held: a refunded skill, a spell never learned.
-		if (!HeroHasBinding(me, me._pSplLHotKey[slot], me._pSplLTHotKey[slot]))
-			return true;
+		if (!HeroHasBinding(me, me._pSplLHotKey[slot], me._pSplLTHotKey[slot])) {
+			const SpellType derived = BindingTypeFor(me, me._pSplLHotKey[slot]); // re-typed, as ToggleSpell does (round 90 audit)
+			if (!HeroHasBinding(me, me._pSplLHotKey[slot], derived))
+				return true;
+			me._pSplLTHotKey[slot] = derived;
+		}
 		me._pLRSpell = me._pSplLHotKey[slot];
 		me._pLRSplType = me._pSplLTHotKey[slot];
 		// The left-hand twin of ToggleSpell, and it had to be written out rather than reused - so

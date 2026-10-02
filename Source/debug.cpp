@@ -1146,6 +1146,7 @@ std::string DebugCmdSpawnUniqueMonster(const string_view parameter)
 	if (!found && LevelMonsterTypeCount >= MaxLvlMTypes)
 		return "The level's monster types are full."; // the last one's monsters stood on another's sprites (round 89 audit)
 	if (!found) {
+		id = LevelMonsterTypeCount++; // a slot of its own (round 90 audit: a second spawn's type took the first one's slot)
 		CMonster &monsterType = LevelMonsterTypes[id];
 		monsterType.type = static_cast<_monster_id>(mtype);
 		InitMonsterGFX(monsterType);
@@ -1234,6 +1235,7 @@ std::string DebugCmdSpawnMonster(const string_view parameter)
 	if (!found && LevelMonsterTypeCount >= MaxLvlMTypes)
 		return "The level's monster types are full."; // the last one's monsters stood on another's sprites (round 89 audit)
 	if (!found) {
+		id = LevelMonsterTypeCount++; // a slot of its own (round 90 audit: a second spawn's type took the first one's slot)
 		CMonster &monsterType = LevelMonsterTypes[id];
 		monsterType.type = static_cast<_monster_id>(mtype);
 		InitMonsterGFX(monsterType);

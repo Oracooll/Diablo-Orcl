@@ -377,6 +377,13 @@ void ToggleSpell(size_t slot)
 	if (!IsValidSpell(spellId)) {
 		return;
 	}
+	// A binding whose kind the hero no longer has, for a spell he can still cast another way, takes that way (round 90 audit:
+	// F3 bound to a scroll went dead once the book was read and the scrolls used up).
+	if (!HeroHasBinding(myPlayer, spellId, myPlayer._pSplTHotKey[slot])) {
+		const SpellType derived = BindingTypeFor(myPlayer, spellId);
+		if (HeroHasBinding(myPlayer, spellId, derived))
+			myPlayer._pSplTHotKey[slot] = derived;
+	}
 
 	switch (myPlayer._pSplTHotKey[slot]) {
 	case SpellType::Skill:

@@ -104,6 +104,9 @@ void ReleaseSpellBookButtons();
  * Shared by the burger menu and the HUD's two skill buttons, so those cannot drift apart in what
  * they close on the way.
  */
+/** @brief The binding kind @p spell would take for @p player now: a skill or a spell before a scroll or a staff's charges. */
+SpellType BindingTypeFor(const Player &player, SpellID spell);
+
 void ToggleAbilitiesWindow();
 
 void InitSpellBook();
