@@ -2783,7 +2783,8 @@ static bool KeptFromSellAll(const Item &item)
 	for (const _item_indexes quest : { IDI_CLEAVER, IDI_SKCROWN, IDI_HARCREST, IDI_STEELVEIL, IDI_ARMOFVAL, IDI_GRISWOLD, IDI_LGTFORGE })
 		if (item.IDidx == quest)
 			return true;
-	return IsOracoolCharmIdx(item.IDidx) || item._iMiscId == IMISC_ORACOOL_MAP || item._iMiscId == IMISC_ORACOOL_SIGNET;
+	// And the Imbuement Shards, drop-only like the Signets (round 75 audit: Sell All sold every one on page 1).
+	return IsOracoolCharmIdx(item.IDidx) || IsOracoolShardIdx(item.IDidx) || item._iMiscId == IMISC_ORACOOL_MAP || item._iMiscId == IMISC_ORACOOL_SIGNET;
 }
 void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 {
@@ -3409,37 +3410,6 @@ void SmithConsumablesBuyItem(Item &item)
 	StoreAutoPlace(item, true);
 	UpdateSmithConsumablesStockAfterPurchase(entry);
 	CalcPlrInv(*MyPlayer, true);
-}
-
-void BoyBuyEnter()
-{
-	if (stextsel != 10) {
-		stextflag = TalkID::None;
-		return;
-	}
-
-	stextshold = TalkID::BoyBuy;
-	stextvhold = stextsval;
-	stextlhold = 10;
-	int price = boyitem._iIvalue;
-	if (gbIsHellfire)
-		price -= boyitem._iIvalue / 4;
-	else
-		price += boyitem._iIvalue / 2;
-
-	if (!PlayerCanAfford(price)) {
-		StartStore(TalkID::NoMoney);
-		return;
-	}
-
-	if (!StoreAutoPlace(boyitem, false)) {
-		StartStore(TalkID::NoRoom);
-		return;
-	}
-
-	StoreItem = boyitem;
-	StoreItem._iIvalue = price;
-	StartStore(TalkID::Confirm);
 }
 
 void StorytellerIdentifyItem(Item &item)
@@ -6279,7 +6249,7 @@ void StoreEnter()
 		BoyEnter();
 		break;
 	case TalkID::BoyBuy:
-		BoyBuyEnter();
+		BoyShopBuyEnter(); // the grid shop's own (round 75 audit: the old handler priced the empty boyitem, so it never refused)
 		break;
 	case TalkID::Healer:
 		HealerEnter();

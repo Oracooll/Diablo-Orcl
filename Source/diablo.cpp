@@ -2813,6 +2813,9 @@ void CloseAllWindows()
 	// space cannot force, by design rather than by omission.
 	oracool::CloseLevskiRoar();
 	oracool::CloseRunewordBook();
+	// Chat first: it hides the log and puts it back on closing (round 75 audit: closed after, it reopened the log).
+	if (talkflag)
+		control_reset_talk();
 	if (oracool::IsEventLogOpen())
 		oracool::ToggleEventLog();
 	// Stores go through StoreESC(), the same path Escape uses - so a store closes the way it always
@@ -3477,6 +3480,8 @@ void InitPadmapActions()
 	auto rightMouseUp = [] {
 		LastMouseButtonAction = MouseActionType::None;
 		sgbMouseDown = CLICK_NONE;
+		ReleaseSpellBookButtons(); // as the mouse's right release (round 75 audit: they stayed sunk)
+		oracool::ReleaseHudWells();
 	};
 	sgOptions.Padmapper.AddAction(
 	    "RightMouseClick1",
@@ -4045,12 +4050,29 @@ bool TryIconCurs()
 	return false;
 }
 
+/**
+ * @brief Lets go of every held button as a release OUTSIDE it would (round 75 audit): the sunk faces spring back and nothing
+ * acts. For a release that must not count - one during the pause (only the Stonegate and waypoint menus refused it), or one
+ * a loading screen swallowed (the sheet's next click was eaten, the wells stayed sunk).
+ */
+void ReleaseHeldButtonsWithoutActing()
+{
+	const Point held = MousePosition;
+	MousePosition = { -10000, -10000 };
+	LeftMouseUp(0);
+	ReleaseSpellBookButtons();
+	oracool::ReleaseHudWells();
+	MousePosition = held;
+	sgbMouseDown = CLICK_NONE;
+}
+
 void diablo_pause_game()
 {
 	if (!gbIsMultiplayer) {
 		if (PauseMode != 0) {
 			PauseMode = 0;
 		} else {
+			ReleaseHeldButtonsWithoutActing(); // a button held into the pause does not act on its release
 			PauseMode = 2;
 			sound_stop();
 			qtextflag = false;
@@ -4264,7 +4286,7 @@ void DisableInputEventHandler(const SDL_Event &event, uint16_t modState)
 			return;
 		}
 	case SDL_MOUSEBUTTONUP:
-		sgbMouseDown = CLICK_NONE;
+		ReleaseHeldButtonsWithoutActing(); // the pressed faces spring back; the release does not act
 		return;
 	}
 

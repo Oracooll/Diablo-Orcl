@@ -741,15 +741,21 @@ int FreeableStones(const Item &host)
 	return n;
 }
 
-/** @brief The first socketed item with a stone that can come out, or -1 (round 74 audit: an ethereal Zod host ahead of
- *  another socketed item left that one unfreeable). */
+/** @brief The first socketed item with a stone that can come out (round 74 audit: an ethereal Zod host ahead of another
+ *  socketed item left that one unfreeable); else the first with any stone, so a Zod-only host still hears why
+ *  (ZodBoundInEthereal - round 75 audit), while CanCraftFromLevskiGrid keeps it off the auto-pick. -1 for none. */
 int FindGridSocketedItem(const Item *grid)
 {
+    int zodOnly = -1;
     for (int i = 0; i < GridSlots; i++) {
-        if (!grid[i].isEmpty() && FreeableStones(grid[i]) > 0)
+        if (grid[i].isEmpty() || grid[i].socketedCount() == 0)
+            continue;
+        if (FreeableStones(grid[i]) > 0)
             return i;
+        if (zodOnly < 0)
+            zodOnly = i;
     }
-    return -1;
+    return zodOnly;
 }
 
 /** @brief The first item carrying an Imbuement Shard, or -1 - the Cleanse recipe's one input. */

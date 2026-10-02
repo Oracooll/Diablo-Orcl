@@ -95,6 +95,8 @@ void DoGameMenu()
 }
 void DoInventory()
 {
+	if (stextflag != TalkID::None)
+		return; // the backpack a shop sells from stays (round 75 audit), as the I key leaves it
 	// The full-screen books close first, as the I key closes them (round 25 audit).
 	CloseCraftingMenu();
 	CloseRunewordBook();

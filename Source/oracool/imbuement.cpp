@@ -362,7 +362,7 @@ void RestoreImbuements(Item &item, const ImbuementLedger &ledger)
 		if (overpaid > 0) {
 			item._iMaxDur -= overpaid;
 			if (item._iDurability != DUR_INDESTRUCTIBLE)
-				item._iDurability = std::min(item._iDurability, item._iMaxDur);
+				item._iDurability = std::clamp(item._iDurability - overpaid, 0, static_cast<int>(item._iMaxDur)); // what it was given (round 75)
 		}
 	}
 }
