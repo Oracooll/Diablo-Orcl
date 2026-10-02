@@ -815,6 +815,11 @@ void TravelToWaypointEntry(int entry)
 	// still beside the sigil, which the draw's walk-away check misses on a skipped frame.
 	if (MyPlayer->_pmode != PM_STAND)
 		return;
+	// Not with an item in hand, as a rift is not entered with one (round 91 audit: it travelled, and the arrival save waited).
+	if (!MyPlayer->HoldItem.isEmpty()) {
+		MyPlayer->Say(HeroSpeech::ICantDoThat);
+		return;
+	}
 	if (MyPlayer->position.tile.WalkingDistance(OpenedFromPosition) > 1) {
 		CloseWaypointMenu();
 		return;

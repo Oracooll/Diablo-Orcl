@@ -78,7 +78,7 @@ void FlushRows()
 		return;
 	const std::string path = paths::PrefPath() + "balance_telemetry.csv";
 
-	// OpenFile, not fopen: the pref path is UTF-8, and fopen reads it in the ANSI code page - a profile named José had no
+	// OpenFile, not fopen: the pref path is UTF-8, and fopen reads it in the ANSI code page - a profile named Josï¿½ had no
 	// telemetry at all (round 4 audit, v1.12.229).
 	FILE *file = OpenFile(path.c_str(), "ab");
 	if (file == nullptr) {
@@ -95,6 +95,20 @@ void FlushRows()
 	// write-only file is never wrong until someone reads it. That is the argument for reading it
 	// back on a schedule, not just when a question needs answering.
 	std::fseek(file, 0, SEEK_END);
+	// Kept to a size (round 91 audit: a row a kill and a pickup, never trimmed - tens of MB over a long run). Past 16 MB the
+	// file becomes balance_telemetry.old.csv, replacing any earlier one, and a fresh file starts.
+	if (std::ftell(file) > 16L * 1024 * 1024) {
+		std::fclose(file);
+		const std::string old = paths::PrefPath() + "balance_telemetry.old.csv";
+		RemoveFile(old.c_str());
+		RenameFile(path.c_str(), old.c_str());
+		file = OpenFile(path.c_str(), "ab");
+		if (file == nullptr) {
+			PendingRows.clear();
+			return;
+		}
+		std::fseek(file, 0, SEEK_END);
+	}
 	if (std::ftell(file) == 0) {
 		const char header[] = "time,session,event,level,player_level,subject,value1,value2\n";
 		std::fwrite(header, sizeof(header) - 1, 1, file);

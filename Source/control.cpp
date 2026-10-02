@@ -906,11 +906,9 @@ void CalculatePanelAreas()
 
 bool IsChatAvailable()
 {
-#ifdef _DEBUG
+	// In single-player too, Release included (user, 2026-10-02: "I want /dev command and functionality in release versions").
+	// The debug commands stay compiled out; /arena and /arenapot refuse single-player themselves.
 	return true;
-#else
-	return gbIsMultiplayer;
-#endif
 }
 
 void FocusOnCharInfo()

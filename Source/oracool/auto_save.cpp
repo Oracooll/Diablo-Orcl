@@ -179,6 +179,9 @@ void ScheduleSpaced(int spacingSeconds)
 }
 
 constexpr int FrequentTriggerSpacingSeconds = 10;
+/** Equipment, drops and the stash: a burst of moves saves once, two seconds on (round 91 audit: forty ctrl-clicks into the
+ *  stash wrote the hero and the stash forty times on the main thread). */
+constexpr int BulkMoveSpacingSeconds = 2;
 
 } // namespace
 
@@ -263,19 +266,19 @@ void ScheduleAutoSaveForSkillChange()
 void ScheduleAutoSaveForEquipmentChange()
 {
 	if (*sgOptions.Oracool.autoSaveOnEquipmentChange)
-		ScheduleAfterSeconds(0);
+		ScheduleSpaced(BulkMoveSpacingSeconds);
 }
 
 void ScheduleAutoSaveForItemDrop()
 {
 	if (*sgOptions.Oracool.autoSaveOnItemDrop)
-		ScheduleAfterSeconds(0);
+		ScheduleSpaced(BulkMoveSpacingSeconds);
 }
 
 void ScheduleAutoSaveForStashChange()
 {
 	if (*sgOptions.Oracool.autoSaveOnStashChange)
-		ScheduleAfterSeconds(0);
+		ScheduleSpaced(BulkMoveSpacingSeconds);
 }
 
 void ScheduleAutoSaveForStoreTransaction()

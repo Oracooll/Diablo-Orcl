@@ -1700,6 +1700,8 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 		// Only what the hero has, by the binding's own kind - the check ToggleSpell makes for the right button (audit,
 		// 2026-09-27). The left key readied whatever it held: a refunded skill, a spell never learned.
 		if (!HeroHasBinding(me, me._pSplLHotKey[slot], me._pSplLTHotKey[slot])) {
+			if (me._pSplLTHotKey[slot] == SpellType::Scroll && (me.HoldItem.isScrollOf(me._pSplLHotKey[slot]) || me.HoldItem.isRuneOf(me._pSplLHotKey[slot])))
+				return true; // the stack is in hand (round 91 audit)
 			const SpellType derived = BindingTypeFor(me, me._pSplLHotKey[slot]); // re-typed, as ToggleSpell does (round 90 audit)
 			if (!HeroHasBinding(me, me._pSplLHotKey[slot], derived))
 				return true;

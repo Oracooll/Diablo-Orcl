@@ -1148,6 +1148,7 @@ std::string DebugCmdSpawnUniqueMonster(const string_view parameter)
 	if (!found) {
 		id = LevelMonsterTypeCount++; // a slot of its own (round 90 audit: a second spawn's type took the first one's slot)
 		CMonster &monsterType = LevelMonsterTypes[id];
+		monsterType.minionOnly = false; // not the last floor's flag on this slot (round 91 audit)
 		monsterType.type = static_cast<_monster_id>(mtype);
 		InitMonsterGFX(monsterType);
 		InitMonsterSND(monsterType);
@@ -1237,6 +1238,7 @@ std::string DebugCmdSpawnMonster(const string_view parameter)
 	if (!found) {
 		id = LevelMonsterTypeCount++; // a slot of its own (round 90 audit: a second spawn's type took the first one's slot)
 		CMonster &monsterType = LevelMonsterTypes[id];
+		monsterType.minionOnly = false; // not the last floor's flag on this slot (round 91 audit)
 		monsterType.type = static_cast<_monster_id>(mtype);
 		InitMonsterGFX(monsterType);
 		InitMonsterSND(monsterType);
