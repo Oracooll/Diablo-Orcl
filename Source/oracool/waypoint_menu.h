@@ -13,6 +13,8 @@
 
 #include <cstdint>
 
+#include <SDL.h>
+
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
 
@@ -35,6 +37,12 @@ enum class WaypointAct : uint8_t {
 WaypointAct ActiveWaypointAct();
 /** @brief Shows @p act's list from the top. What a click on an Act button does. */
 void SelectWaypointAct(WaypointAct act);
+/**
+ * @brief The keyboard's way through the list (user, 2026-10-02: "put a golden circle around the waypoint sigil in the menus
+ * which moves with the arrow keys"): Up/Down move the ring and scroll it into view, Left/Right change the Act, Enter
+ * travels. False for any other key, or with the list closed.
+ */
+bool HandleWaypointMenuKey(SDL_Keycode key);
 /** @brief Rows in @p act's list: 17 / 9 / 1 (Tristram alone) - the Hellfire act is 1 too outside a Hellfire game. */
 size_t WaypointActRowCount(WaypointAct act);
 /** @brief The dungeon level at row @p row of @p act's list, or -1 past its end. */

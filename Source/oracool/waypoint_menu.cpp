@@ -347,6 +347,8 @@ Point OpenedFromPosition;
 
 /** @brief Pixels of list scrolled above the top of the viewport. Reset each time the menu opens. */
 int ScrollOffset = 0;
+/** The row the keyboard's golden ring stands on (HandleWaypointMenuKey); back to the top on open and on an Act change. */
+int KeyRow = 0;
 int MaxScrollOffset = 0;
 int ListHeight = 0;
 
@@ -543,6 +545,7 @@ void OpenWaypointMenu(Point sigilPosition)
 	// Back to Tristram at the top every time, the same reset-on-open the event log does. Reopening
 	// where you last scrolled to would be a small surprise every single time.
 	ScrollOffset = 0;
+	KeyRow = 0;
 	LastHoveredAct = -1; // so a cursor already over a button when the menu opens counts as an entry
 	// The act opens on the one the player is standing in: a sigil in the Crypt opens the Hellfire
 	// list, where the Crypt's other floors are. In town the last act chosen stays - a hub sigil has
@@ -560,6 +563,7 @@ void SelectWaypointAct(WaypointAct act)
 {
 	ActiveAct = act;
 	ScrollOffset = 0;
+	KeyRow = 0;
 }
 
 size_t WaypointActRowCount(WaypointAct act)
@@ -639,6 +643,32 @@ void ReleaseWaypointActButton()
 	}
 	if (entry >= 0 && MouseToEntry(MousePosition) == entry)
 		TravelToWaypointEntry(entry);
+}
+
+/** @brief The keyboard's golden ring: two pixels thick at @p radius round @p centre, with a half-transparent shadow. */
+void DrawKeyRing(const Surface &out, Point centre, int radius)
+{
+	constexpr uint32_t Gold = 0xE8C46A; // the warm gold of the list's other highlights
+	constexpr uint8_t GoldIndex = 198;  // MidHighlightColor, the indexed fallback
+	const int inner = (radius - 1) * (radius - 1);
+	const int outer = (radius + 1) * (radius + 1);
+	for (const bool shadow : { true, false }) {
+		const Displacement shift = shadow ? Displacement { -2, 2 } : Displacement { 0, 0 };
+		for (int dy = -radius - 1; dy <= radius + 1; dy++) {
+			for (int dx = -radius - 1; dx <= radius + 1; dx++) {
+				const int d2 = dx * dx + dy * dy;
+				if (d2 < inner || d2 > outer)
+					continue;
+				const Point p = centre + Displacement { dx, dy } + shift;
+				if (p.x < 0 || p.y < 0 || p.x >= out.w() || p.y >= out.h())
+					continue;
+				if (shadow)
+					DrawHalfTransparentRectTo(out, p.x, p.y, 1, 1);
+				else
+					FillRectRgb(out, p.x, p.y, 1, 1, Gold, GoldIndex);
+			}
+		}
+	}
 }
 
 void DrawWaypointMenu(const Surface &out)
@@ -733,6 +763,10 @@ void DrawWaypointMenu(const Surface &out)
 		// stays correct if the art is ever recut smaller.
 		if (iconSize.height > 0)
 			DrawWaypointIcon(content, { iconX, rowTop + (RowHeight - iconSize.height) / 2 }, unlocked);
+		// The keyboard's choice: a golden ring round the sigil, over the art, with the hover outline's half-transparent shadow
+		// two left and two down (user, 2026-10-02).
+		if (static_cast<int>(i) == KeyRow)
+			DrawKeyRing(content, { iconX + iconSize.width / 2, rowTop + RowHeight / 2 }, std::max(iconSize.width, iconSize.height) / 2 + 2);
 
 		// Vertically centre the name in its row rather than sitting it on the row's top edge, so it
 		// lines up with the sigil beside it. Stops short of the scrollbar, not of the panel edge.
@@ -881,6 +915,51 @@ bool ConsumeWaypointSpawnRequest()
 void SetWaypointSpawnRequestForTest()
 {
 	WaypointSpawnRequested = true;
+}
+
+bool HandleWaypointMenuKey(SDL_Keycode key)
+{
+	if (!WaypointMenuOpen || MyPlayer == nullptr)
+		return false;
+	const int count = static_cast<int>(VisibleWaypointCount());
+	const auto bringIntoView = [] {
+		UpdateScrollBounds();
+		const int top = KeyRow * RowPitch;
+		if (top < ScrollOffset)
+			ScrollOffset = top;
+		else if (top + RowHeight > ScrollOffset + ViewportHeight)
+			ScrollOffset = top + RowHeight - ViewportHeight;
+		ScrollOffset = std::clamp(ScrollOffset, 0, MaxScrollOffset);
+	};
+	switch (key) {
+	case SDLK_UP:
+		if (count > 0)
+			KeyRow = KeyRow <= 0 ? count - 1 : KeyRow - 1;
+		bringIntoView();
+		PlayUiMoveSound();
+		return true;
+	case SDLK_DOWN:
+		if (count > 0)
+			KeyRow = KeyRow >= count - 1 ? 0 : KeyRow + 1;
+		bringIntoView();
+		PlayUiMoveSound();
+		return true;
+	case SDLK_LEFT:
+	case SDLK_RIGHT: {
+		// The three Acts in their button order, round the ends.
+		const int step = key == SDLK_RIGHT ? 1 : 2;
+		SelectWaypointAct(static_cast<WaypointAct>((static_cast<int>(ActiveAct) + step) % 3));
+		PlayUiMoveSound();
+		return true;
+	}
+	case SDLK_RETURN:
+	case SDLK_KP_ENTER:
+		if (KeyRow >= 0 && KeyRow < count)
+			TravelToWaypointEntry(KeyRow);
+		return true;
+	default:
+		return false;
+	}
 }
 
 void ResetWaypointMenuForNewGame()

@@ -1244,6 +1244,10 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	if (PauseMode != 2 && !((modState & KMOD_ALT) != 0 && (vkey == SDLK_RETURN || vkey == SDLK_KP_ENTER)) // Alt+Enter is fullscreen (round 36)
 	    && oracool::HandleStonegateMenuKey(vkey))
 		return;
+	// And the waypoint list's (user, 2026-10-02): the golden ring on the arrows, Left/Right for the Act, Enter to travel.
+	if (PauseMode != 2 && !((modState & KMOD_ALT) != 0 && (vkey == SDLK_RETURN || vkey == SDLK_KP_ENTER))
+	    && oracool::HandleWaypointMenuKey(vkey))
+		return;
 
 	// Oracool: F1-F8 are the ability hotkeys, reserved outright (user, 2026-08-17: "F1-F6 to be
 	// available for hotkeying, ergo not be used in any other way in the game"; widened to F8 on
