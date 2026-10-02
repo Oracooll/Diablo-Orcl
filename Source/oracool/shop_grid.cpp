@@ -1198,7 +1198,7 @@ void SetServiceHint(ServiceButton service)
 		break;
 	case ServiceButton::SellAll:
 		SetPanelString(_("Sell All"), UiFlags::ColorWhitegold);
-		AddPanelString(_("Sells everything on the backpack's first page this vendor will take. Pages 2-10 are left alone."), UiFlags::ColorWhite);
+		AddPanelString(_("Sells what this vendor will take from the backpack's first page - not charms, shards, maps, signets, quest or socketed items. Pages 2-10 are left alone."), UiFlags::ColorWhite);
 		break;
 	case ServiceButton::RefreshUntil: {
 		SetPanelString(_("Refresh Until"), UiFlags::ColorWhitegold);
@@ -1965,6 +1965,8 @@ bool CheckShopGridClick(Point position, bool rightClick)
 		for (int slot = 0; slot < ShopServiceSlotCount; slot++) {
 			if (!ShopServiceSlotOnPage(slot, stextflag) || !ShopServiceSlotRect(slot).contains(position))
 				continue;
+			if (rightClick && !MyPlayer->HoldItem.isEmpty())
+				return true; // a right click is no drop (round 89 audit: it sold or repaired the held item)
 			if (!MyPlayer->HoldItem.isEmpty()) {
 				// A held item is a DROP, not a click, and three of the six take one: the Sell plate too (round 69 audit: the hint
 				// says "drop an item anywhere on this panel", and the plate was the one spot it did nothing).
@@ -1994,7 +1996,7 @@ bool CheckShopGridClick(Point position, bool rightClick)
 	// other control on the panel: dropping a sword on the Repair button must repair it rather than
 	// fall through to whatever that rect does when the hand is empty.
 	const std::vector<ControlButton> buttons = redesigned ? std::vector<ControlButton>() : ShopControlButtons(stextflag);
-	if (!MyPlayer->HoldItem.isEmpty()) {
+	if (!MyPlayer->HoldItem.isEmpty() && !rightClick) { // only a left click drops (round 89 audit)
 		for (size_t i = 0; i < buttons.size(); i++) {
 			if (buttons[i].kind != ControlKind::Service)
 				continue;

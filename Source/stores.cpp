@@ -5602,11 +5602,19 @@ void ShopRepairAll()
 		StartSmithRepair();
 		if (storenumh == 0)
 			break;
-		if (!PlayerCanAfford(storehold[0]._iIvalue)) {
+		// The dearest one it can afford, not only the dearest (round 89 audit: one unaffordable chest stopped ten cheap repairs).
+		int pick = -1;
+		for (int i = 0; i < storenumh; i++) {
+			if (PlayerCanAfford(storehold[i]._iIvalue)) {
+				pick = i;
+				break;
+			}
+		}
+		if (pick < 0) {
 			shortOfGold = true;
 			break;
 		}
-		SmithRepairItemAt(storehold[0]._iIvalue, 0);
+		SmithRepairItemAt(storehold[pick]._iIvalue, pick);
 		repaired++;
 	}
 	// One sound for the whole batch, and only if something was mended. Here rather than in

@@ -249,6 +249,9 @@ void FreeGame()
 	// next hero.
 	oracool::ResetWorkshopForNewGame();
 	oracool::ResetRiftForNewGame(); // a rift open in one game must not be open in the next (oracool/rift.h)
+#ifdef _DEBUG
+	DebugGodMode = false; // god mode is one game's, not the next one's (round 89 audit)
+#endif
 	// The log is the same shape of problem without the item duplication: its entries are a
 	// file-local deque, so the next character opened it onto the previous one's kills and crafts.
 	oracool::ClearEventLogForNewGame();

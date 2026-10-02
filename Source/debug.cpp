@@ -629,7 +629,8 @@ std::string DebugCmdQuest(const string_view parameter)
 
 std::string DebugCmdLevelUp(const string_view parameter)
 {
-	int levels = std::max(1, atoi(parameter.data()));
+	// No more than the levels left (round 89 audit: givexp 100000000 queued a hundred million packets in one frame).
+	const int levels = std::min(std::max(1, atoi(parameter.data())), MaxCharacterLevel - MyPlayer->_pLevel);
 	for (int i = 0; i < levels; i++)
 		NetSendCmd(true, CMD_CHEAT_EXPERIENCE);
 	return "New experience leads to new insights.";
@@ -723,6 +724,7 @@ std::string DebugCmdChangeHealth(const string_view parameter)
 	if (change == 0)
 		return "Health hasn't changed.";
 
+	change = std::clamp(change, -1000000, 1000000); // * 64 overflowed past 33 million (round 89 audit)
 	int newHealth = myPlayer._pHitPoints + (change * 64);
 	SetPlayerHitPoints(myPlayer, newHealth);
 	if (newHealth <= 0)
@@ -742,7 +744,8 @@ std::string DebugCmdChangeMana(const string_view parameter)
 	if (change == 0)
 		return "Mana hasn't changed.";
 
-	int newMana = myPlayer._pMana + (change * 64);
+	change = std::clamp(change, -1000000, 1000000);
+	const int newMana = std::clamp(myPlayer._pMana + (change * 64), 0, myPlayer._pMaxMana); // a state play reaches (round 89 audit)
 	myPlayer._pMana = newMana;
 	myPlayer._pManaBase = myPlayer._pMana + myPlayer._pMaxManaBase - myPlayer._pMaxMana;
 	RedrawComponent(PanelDrawComponent::Mana);
@@ -1140,6 +1143,8 @@ std::string DebugCmdSpawnUniqueMonster(const string_view parameter)
 		}
 	}
 
+	if (!found && LevelMonsterTypeCount >= MaxLvlMTypes)
+		return "The level's monster types are full."; // the last one's monsters stood on another's sprites (round 89 audit)
 	if (!found) {
 		CMonster &monsterType = LevelMonsterTypes[id];
 		monsterType.type = static_cast<_monster_id>(mtype);
@@ -1226,6 +1231,8 @@ std::string DebugCmdSpawnMonster(const string_view parameter)
 		}
 	}
 
+	if (!found && LevelMonsterTypeCount >= MaxLvlMTypes)
+		return "The level's monster types are full."; // the last one's monsters stood on another's sprites (round 89 audit)
 	if (!found) {
 		CMonster &monsterType = LevelMonsterTypes[id];
 		monsterType.type = static_cast<_monster_id>(mtype);
@@ -1335,10 +1342,9 @@ std::string DebugCmdItemInfo(const string_view parameter)
 	if (!myPlayer.HoldItem.isEmpty()) {
 		pItem = &myPlayer.HoldItem;
 	} else if (pcursinvitem != -1) {
-		if (pcursinvitem <= INVITEM_INV_LAST)
-			pItem = &myPlayer.InvList[pcursinvitem - INVITEM_INV_FIRST];
-		else
-			pItem = &myPlayer.SpdList[pcursinvitem - INVITEM_BELT_FIRST];
+		pItem = &GetInventoryItem(myPlayer, pcursinvitem); // body, pack and belt alike (round 89 audit: a worn slot read InvList[-13])
+	} else if (pcursinvtabitem != -1) {
+		pItem = &GetActiveInvListItem(myPlayer, pcursinvtabitem); // pages 2-10 (round 89 audit)
 	} else if (pcursitem != -1) {
 		pItem = &Items[pcursitem];
 	}

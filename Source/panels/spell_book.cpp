@@ -2263,8 +2263,9 @@ void CheckSBook(bool assignToRightButton)
 		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(*hit);
 		// UNBUILT rows stay wholly inert (user, 2026-08-18). Taking points for something that does
 		// nothing with them is exactly the trap that rule exists to prevent, and a struck-out cell
-		// already says it is not a control.
-		if (!data.implemented)
+		// already says it is not a control. A refund still goes through: points a data change left in an unbuilt row come back
+		// with a right click, not only through Adria (round 89 audit).
+		if (!data.implemented && !(assignToRightButton && oracool::ClassTreeRank(*MyPlayer, *hit) > 0))
 			return;
 		// A BOOK row is listed for reference and binding, not for spending (user rule, 2026-08-20).
 		// Silence here would look like a dead cell, which is the complaint that put these rows back
