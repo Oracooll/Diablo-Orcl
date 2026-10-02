@@ -21,6 +21,32 @@
 
 namespace devilution::oracool {
 
+int FlagLifeStealPercent(ItemSpecialEffect flags)
+{
+	return (HasAnyOf(flags, ItemSpecialEffect::StealLife3) ? 3 : 0) + (HasAnyOf(flags, ItemSpecialEffect::StealLife5) ? 5 : 0);
+}
+
+int FlagManaStealPercent(ItemSpecialEffect flags)
+{
+	return (HasAnyOf(flags, ItemSpecialEffect::StealMana3) ? 3 : 0) + (HasAnyOf(flags, ItemSpecialEffect::StealMana5) ? 5 : 0);
+}
+
+void ItemBonusTotals::AddFlags(ItemSpecialEffect f)
+{
+	flags |= f;
+	lifeSteal += FlagLifeStealPercent(f);
+	manaSteal += FlagManaStealPercent(f);
+}
+
+void ItemBonusTotals::AddDamAcFlags(ItemSpecialEffectHf f)
+{
+	damAcFlags |= f;
+	if (HasAnyOf(f, ItemSpecialEffectHf::ACAgainstUndead))
+		armorVsUndead += ArmorVsUndeadPerSource;
+	if (HasAnyOf(f, ItemSpecialEffectHf::ACAgainstDemons))
+		armorVsDemons += ArmorVsDemonsPerSource;
+}
+
 void ItemBonusTotals::AddItem(const Item &item)
 {
 	if (item.isEmpty() || !item._iStatFlag)
@@ -49,8 +75,8 @@ void ItemBonusTotals::AddItem(const Item &item)
 			itemBonusAc = math::Sign(item._iPLAC);
 		bonusArmor += itemBonusAc;
 	}
-	flags |= item._iFlags;
-	damAcFlags |= item._iDamAcFlags;
+	AddFlags(item._iFlags);
+	AddDamAcFlags(item._iDamAcFlags);
 	strength += item._iPLStr;
 	magic += item._iPLMag;
 	dexterity += item._iPLDex;

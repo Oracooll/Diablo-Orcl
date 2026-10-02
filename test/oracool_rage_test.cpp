@@ -9,6 +9,7 @@
 
 #include <string>
 
+#include "items.h"
 #include "misdat.h"
 #include "oracool/class_tree.h"
 #include "oracool/melee_skills.h"
@@ -266,6 +267,26 @@ TEST(OracoolRage, WhirlwindIsHeldOnTheRightButton)
 	devilution::Player &player = FreshBarbarian();
 	EXPECT_FALSE(oracool::IsWhirlwinding(player)) << "nothing spins until the right button is held";
 	EXPECT_FALSE(oracool::CanPaySkill(player, SpellID::Whirlwind)) << "it takes Rage to start";
+}
+
+// A Barbarian's gear tooltips leave mana-only powers out: he carries no mana pool (v1.12.344). Mana to Life and
+// Life to Mana stay, since each moves life as well; every other class still reads every mana line.
+TEST(OracoolRage, GearTooltipsHideManaOnlyPowersFromABarbarian)
+{
+	for (const item_effect_type type : { IPL_MANA, IPL_MANA_CURSE, IPL_STEALMANA, IPL_NOMANA })
+		EXPECT_TRUE(IsManaOnlyPower(type)) << "power " << static_cast<int>(type);
+	for (const item_effect_type type : { IPL_LIFE, IPL_STEALLIFE, IPL_MANATOLIFE, IPL_LIFETOMANA, IPL_MAG })
+		EXPECT_FALSE(IsManaOnlyPower(type)) << "power " << static_cast<int>(type);
+
+	devilution::Player *const savedMyPlayer = MyPlayer;
+	devilution::Player &player = FreshBarbarian();
+	MyPlayer = &player;
+	EXPECT_TRUE(HideManaPowerLineForViewer(IPL_MANA));
+	EXPECT_TRUE(HideManaPowerLineForViewer(IPL_STEALMANA));
+	EXPECT_FALSE(HideManaPowerLineForViewer(IPL_LIFE));
+	player._pClass = HeroClass::Sorcerer;
+	EXPECT_FALSE(HideManaPowerLineForViewer(IPL_MANA)) << "a mana user still reads his +Mana";
+	MyPlayer = savedMyPlayer;
 }
 
 // Absolute Zero cools for 30 seconds after a cast (user, 2026-10-01); a hero who never cast it can cast it.

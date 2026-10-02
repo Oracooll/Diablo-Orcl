@@ -88,10 +88,10 @@ bool ChanceToBeHit(const Player &player, int &chance, std::string &name)
 		return false;
 	// MonsterAttackPlayer's arithmetic, the monster's half as it was at the blow.
 	int armor = player.GetArmor();
-	if (LastAttacker.demon && HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::ACAgainstDemons))
-		armor += 40;
-	if (LastAttacker.undead && HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::ACAgainstUndead))
-		armor += 20;
+	if (LastAttacker.demon)
+		armor += player._pIArmorVsDemons;
+	if (LastAttacker.undead)
+		armor += player._pIArmorVsUndead;
 	const int hit = std::max(LastAttacker.toHit + 2 * (LastAttacker.level - player._pLevel) + 30 - armor, LastAttacker.minimumHit);
 	const int lands = std::clamp(hit, 0, 100);
 	// And what MonsterAttackPlayer does with a blow that lands (user, 2026-09-27: "fix all four" - the bar was the

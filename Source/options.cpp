@@ -554,7 +554,7 @@ void SaveOptions()
 	setString("Griswold Refresh Until Item Names", sgOptions.Oracool.refreshUntilItemNames,
 	    "; Semicolon-separated exact displayed item names. Matching is case-insensitive\n; and ignores spaces around entries. Do not use quotation marks or commas.");
 	setInteger("Griswold Refresh Until Timeout Seconds", *sgOptions.Oracool.refreshUntilTimeoutSeconds,
-	    "; Maximum search duration in seconds. Zero disables the time stop, but the hard\n; safety limit of 100,000 premium generations remains active.");
+	    "; Maximum search duration in seconds. Zero disables the time stop; the search then\n; stops after 2,000 premium generations (100,000 with a timeout).");
 
 	setBoolean("Griswold Restore Health", *sgOptions.Oracool.griswoldRestoreHealth,
 	    "; ----- GRISWOLD: SERVICES -----------------------------------------------------\n; Silently restores current health to maximum whenever Griswold's main menu opens.\n; No additional menu entry, dialog, or sound appears.");
@@ -1581,7 +1581,7 @@ OracoolOptions::OracoolOptions()
     , inventoryTabLevelGates("Inventory Tab Level Gates", OptionEntryFlags::None, N_("Inventory Tab Level Gates"), N_("Backpack pages 2-10 open at levels 10, 20 ... 90."), true)
     , griswoldPremiumRefresh("Griswold Premium Refresh", OptionEntryFlags::None, N_("Griswold Premium Refresh"), N_("Adds a free Refresh action to Griswold's Premium Items."), true)
     , refreshUntilButton("Griswold Refresh Until Button", OptionEntryFlags::None, N_("Griswold Refresh Until Button"), N_("Searches Griswold's Premium Items for configured item names."), false)
-    , refreshUntilTimeoutSeconds("Griswold Refresh Until Timeout Seconds", OptionEntryFlags::None, N_("Griswold Refresh Until Timeout Seconds"), N_("Maximum search duration; zero relies on the hard iteration limit."), 5, { 0, 1, 2, 3, 5, 10, 15, 30, 60 })
+    , refreshUntilTimeoutSeconds("Griswold Refresh Until Timeout Seconds", OptionEntryFlags::None, N_("Griswold Refresh Until Timeout Seconds"), N_("Maximum search duration; zero stops after 2,000 refreshes instead."), 5, { 0, 1, 2, 3, 5, 10, 15, 30, 60 })
     , griswoldRestoreHealth("Griswold Restore Health", OptionEntryFlags::None, N_("Griswold Restore Health"), N_("Silently restores health when Griswold's menu opens."), true)
     , griswoldRestoreMana("Griswold Restore Mana", OptionEntryFlags::None, N_("Griswold Restore Mana"), N_("Silently restores mana when Griswold's menu opens."), true)
     , griswoldSellUniqueItems("Griswold Sell Unique Items", OptionEntryFlags::None, N_("Griswold Sell Unique Items"), N_("Adds a separate unique-item shop to Griswold."), false)

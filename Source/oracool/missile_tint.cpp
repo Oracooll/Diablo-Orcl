@@ -50,19 +50,77 @@ Colour AtBrightness(Colour hue, double luma)
 	return { hue.r * k + white, hue.g * k + white, hue.b * k + white };
 }
 
-/** @brief Seconds on the game clock, for effects that drift with time rather than with their animation. */
-double Seconds()
+/** @brief Whether @p tint drifts with the game clock (the rest depend only on the base, the hue and the progress). */
+bool TintUsesClock(Tint tint)
 {
-	return static_cast<double>(SDL_GetTicks()) / 1000.0;
+	switch (tint) {
+	case Tint::HueCycle:
+	case Tint::Earthquake:
+	case Tint::Astral:
+	case Tint::Electric:
+	case Tint::Clone:
+	case Tint::Glint:
+		return true;
+	default:
+		return false;
+	}
 }
 
-std::array<uint32_t, 256> Result;
+/** @brief Whether @p tint reads its progress argument. */
+bool TintUsesProgress(Tint tint)
+{
+	return tint == Tint::HueCycle || tint == Tint::Mend;
+}
+
+/**
+ * The clock a clock-driven tint reads, in steps of this many milliseconds: every missile drawn in one step shares one
+ * table (round 76 audit: the 256 entries were rebuilt per tinted missile per frame). 8 ms is under half a 60 Hz frame,
+ * finer than any of the tints' bands can show.
+ */
+constexpr uint32_t TintClockStepMs = 8;
+
+/**
+ * A built table and what it was built from. The base's own values are kept, not its address: a sheet's colour table can
+ * be freed and another land at the same address, and the lit palette is rebuilt in place when the palette moves.
+ */
+struct TintCacheEntry {
+	bool used = false;
+	Tint tint = Tint::None;
+	uint32_t rgb = 0;
+	double progress = 0.0;
+	uint32_t clockStep = 0;
+	std::array<uint32_t, 256> base {};
+	std::array<uint32_t, 256> table {};
+};
+
+constexpr size_t TintCacheSize = 16;
+std::array<TintCacheEntry, TintCacheSize> TintCache;
+size_t TintCacheNext = 0;
 
 } // namespace
 
 const uint32_t *TintedTable(const uint32_t *base, Tint tint, uint32_t rgb, double progress)
 {
-	const double t = Seconds();
+	const bool usesClock = TintUsesClock(tint);
+	if (!TintUsesProgress(tint))
+		progress = 0.0;
+	const uint32_t clockStep = usesClock ? SDL_GetTicks() / TintClockStepMs : 0;
+	for (TintCacheEntry &entry : TintCache) {
+		if (entry.used && entry.tint == tint && entry.rgb == rgb && entry.progress == progress && entry.clockStep == clockStep
+		    && std::equal(entry.base.begin(), entry.base.end(), base))
+			return entry.table.data();
+	}
+	TintCacheEntry &slot = TintCache[TintCacheNext];
+	TintCacheNext = (TintCacheNext + 1) % TintCacheSize;
+	slot.used = true;
+	slot.tint = tint;
+	slot.rgb = rgb;
+	slot.progress = progress;
+	slot.clockStep = clockStep;
+	std::copy(base, base + 256, slot.base.begin());
+	std::array<uint32_t, 256> &Result = slot.table;
+
+	const double t = static_cast<double>(clockStep) * TintClockStepMs / 1000.0;
 	const Colour hue = Unpack(rgb);
 	for (size_t i = 0; i < 256; i++) {
 		const Colour c = Unpack(base[i]);

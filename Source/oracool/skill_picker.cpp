@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "DiabloUI/ui_flags.hpp"
@@ -89,6 +90,10 @@ struct Entry {
 	ClassTreeSkill tree = ClassTreeSkill::None;
 	SpellID spell = SpellID::Invalid;
 };
+
+/** The cell held down (its index in draw order) and what it stood for at the press; it binds on the release inside it. */
+std::optional<size_t> PressedCell;
+Entry PressedCellEntry { EntryKind::Attack };
 
 /**
  * @brief One heading and its run of entries (dev note, 2026-09-27: "subgroups 1/2/3/spells/staff/etc"): the attacks, the
@@ -390,6 +395,7 @@ bool IsSkillPickerOpen() { return PickerOpen; }
 void OpenSkillPicker(bool forLeftButton)
 {
 	PickerOpen = true;
+	PressedCell = std::nullopt;
 	PickerForLeft = forLeftButton;
 	PickerScroll = 0;
 	HoveredPickerSpell = SpellID::Invalid;
@@ -399,6 +405,7 @@ void OpenSkillPicker(bool forLeftButton)
 void CloseSkillPicker()
 {
 	PickerOpen = false;
+	PressedCell = std::nullopt;
 	PickerScroll = 0;
 	HoveredPickerSpell = SpellID::Invalid;
 	HoveredPickerAura = ClassTreeSkill::None;
@@ -515,15 +522,17 @@ void DrawSkillPicker(const Surface &out)
 		for (size_t i = 0; i < count; i++) {
 			const int row = static_cast<int>(i) / Columns;
 			const int column = static_cast<int>(i) % Columns;
-			const Rectangle cell {
+			const Rectangle slot {
 				{ window.position.x + Padding + column * (IconSize + CellGap),
 				    y + row * (IconSize + CellGap) },
 				{ IconSize, IconSize }
 			};
 			// Whole cells only: a half-drawn icon at the clip edge reads as a rendering fault
 			// rather than as more content below. The click walk applies the SAME test.
-			if (!IsCellVisible(window, cell))
+			if (!IsCellVisible(window, slot))
 				continue;
+			// The held cell sinks 2px down and left until the release (round 75 audit); hover asks the slot itself.
+			const Rectangle cell = PressedCell == first + i ? Rectangle { slot.position + Displacement { -2, 2 }, slot.size } : slot;
 			const Entry &entry = entries[first + i];
 			// An entry this button cannot take is greyed rather than hidden - the LMB picker's
 			// auras. Grey is already this fork's "you cannot use this" plate everywhere else, so it
@@ -595,7 +604,7 @@ void DrawSkillPicker(const Surface &out)
 				DrawBadge(out, cell, BadgeCorner::TopRight, StrCat("F", fkey));
 			}
 
-			if (cell.contains(MousePosition)) {
+			if (slot.contains(MousePosition)) {
 				DrawHoverOutline(out, cell);
 				// What an F-key press binds while this window is open (user, 2026-08-30: "we are
 				// making F1-F8 hotkeys assignable from the quicklists, not from the abilities
@@ -783,20 +792,45 @@ bool CheckSkillPickerClick(Point mousePosition)
 		return false;
 	}
 
-	if (CheckWindowCloseButtonClick(window, mousePosition)) {
-		CloseSkillPicker();
+	if (CheckWindowCloseButtonClick(window, mousePosition, [] { CloseSkillPicker(); }))
 		return true;
-	}
 
-	Player &player = *MyPlayer;
 	std::vector<Entry> entries;
 	std::vector<Section> sections;
-	BuildEntries(player, entries, sections);
+	BuildEntries(*MyPlayer, entries, sections);
 
 	// The same walk the draw does, in the same order, through PickerEntryAt - one geometry, so a
 	// cell cannot be drawn in one place and clicked in another (or hovered in a third: the F-key
 	// hover asks the same function, see RefreshSkillPickerHover).
+	// The press sinks the cell and does nothing else: ReleaseSkillPickerCell binds it, and only when the release lands
+	// back inside the same cell (round 75 audit: the cells acted on the press).
 	if (const std::optional<size_t> hit = PickerEntryAt(mousePosition, window, sections); hit.has_value()) {
+		PressedCell = *hit;
+		PressedCellEntry = entries[*hit];
+		PlayUiMoveSound();
+		return true;
+	}
+
+	// Inside the window but on no cell: absorbed, deliberately. A click that lands on the frame or
+	// on a gap must not reach the world behind it.
+	return true;
+}
+
+void ReleaseSkillPickerCell()
+{
+	const std::optional<size_t> pressed = std::exchange(PressedCell, std::nullopt);
+	if (!pressed || !PickerOpen || MyPlayer == nullptr)
+		return;
+	Player &player = *MyPlayer;
+	std::vector<Entry> entries;
+	std::vector<Section> sections;
+	BuildEntries(player, entries, sections);
+	const std::optional<size_t> hit = PickerEntryAt(MousePosition, GetSkillPickerRect(), sections);
+	// Released off the cell, or the list changed under the held button (a staff's last charge spent): nothing binds.
+	if (!hit || *hit != *pressed || entries[*hit].kind != PressedCellEntry.kind || entries[*hit].spell != PressedCellEntry.spell
+	    || entries[*hit].tree != PressedCellEntry.tree)
+		return;
+	{
 		{
 			const Entry &entry = entries[*hit];
 			switch (entry.kind) {
@@ -854,13 +888,8 @@ bool CheckSkillPickerClick(Point mousePosition)
 			}
 			CloseSkillPicker();
 			RedrawEverything();
-			return true;
 		}
 	}
-
-	// Inside the window but on no cell: absorbed, deliberately. A click that lands on the frame or
-	// on a gap must not reach the world behind it.
-	return true;
 }
 
 } // namespace devilution::oracool

@@ -7,7 +7,9 @@
 
 #include "items.h"
 #include "oracool/gems.h"
+#include "oracool/rage.h" // UsesRage - a Barbarian viewer has no mana for a word to give
 #include "oracool/stat_sheet.h"
+#include "player.h"
 #include "utils/language.h"
 #include "utils/utf8.hpp"
 
@@ -113,7 +115,7 @@ void ApplyRunewordToTotals(const RunewordDefinition &word, ItemBonusTotals &tota
 	totals.mana += word.mana << 6;
 	totals.hitPoints += word.hitPoints << 6;
 	// The second half (2026-09-05), through the same channels the runes' socket effects use.
-	totals.flags |= word.flags;
+	totals.AddFlags(word.flags); // AddFlags, so a runeword's life steal adds to the rest (round 91 audit)
 	totals.strength += word.strength;
 	totals.dexterity += word.dexterity;
 	totals.magic += word.magic;
@@ -156,7 +158,9 @@ std::vector<std::string> RunewordBonusLines(const RunewordDefinition &word)
 	line(N_("Magic Resistance"), word.magicResist, "%");
 	line(N_("Armor"), word.bonusAc);
 	line(N_("Spell Levels"), word.spellLevels);
-	line(N_("Mana"), word.mana);
+	// Not for a Barbarian viewer: he runs on Rage and carries no mana pool (v1.12.344).
+	if (MyPlayer == nullptr || !UsesRage(*MyPlayer))
+		line(N_("Mana"), word.mana);
 	line(N_("Life"), word.hitPoints);
 	line(N_("Strength"), word.strength);
 	line(N_("Dexterity"), word.dexterity);

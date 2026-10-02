@@ -580,6 +580,13 @@ struct Player {
 	 * wrong class, or a level they no longer meet - reads as empty rather than as that skill.
 	 */
 	uint8_t _pPassiveSlots[4] = { 0xFF, 0xFF, 0xFF, 0xFF };
+	/**
+	 * @brief The tier of the Guardian Keystone spent on stepping into a Guardian Rift that is not over yet - neither cleared
+	 * nor out of time - and 0 for none (rounds 71-72 audit). Rift state is never saved, so a game exited or crashed inside
+	 * the rift lost the keystone. Persisted by HeroChunkOwedKeystone; the next game hands the keystone back
+	 * (oracool::RefundOwedGuardianKeystone).
+	 */
+	uint16_t _pOracoolOwedKeystoneTier = 0;
 	/** @brief Phase 1 Magic/Gold Find: derived each CalcPlrItemVals from the bonus providers
 	 * (charms carry them today), never saved. Consumed by the drop tail in items.cpp. */
 	int _pMagicFind = 0;
@@ -588,6 +595,15 @@ struct Player {
 	int _pIMoveSpeed = 0;
 	/** @brief Oracool: Faster Cast Rate +X%, derived by CalcPlrItemVals from the worn affixes (2026-09-11). */
 	int _pIFastCast = 0;
+	/**
+	 * @brief Oracool: life / mana stolen per melee hit in percent, summed over every worn source (round 91 audit,
+	 * 2026-10-02): a 3% and a 5% source steal 8%, two 5% sources 10%. Derived by CalcPlrItemVals, never saved.
+	 */
+	int _pILifeSteal = 0;
+	int _pIManaSteal = 0;
+	/** @brief Oracool: armour against undead / demons, 20 / 40 per source and summed (round 91 audit). Derived, never saved. */
+	int _pIArmorVsUndead = 0;
+	int _pIArmorVsDemons = 0;
 	/** @brief Bitmask of staff spell */
 	SpellMask _pISpells;
 	/** @brief Bitmask of learned spells */

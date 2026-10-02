@@ -9,8 +9,15 @@
  */
 #pragma once
 
+#include <string>
+
+#include "engine/point.hpp"
 #include "spelldat.h"
 #include "utils/stdcompat/string_view.hpp"
+
+namespace devilution {
+struct Player;
+} // namespace devilution
 
 namespace devilution::oracool {
 
@@ -128,5 +135,15 @@ bool IsChargeBlowArmed();
 
 /** @brief Charge's arriving blow at @p rank, its dash and its cooldown, one per line. For the tooltip. */
 std::string FuriousChargeFacts(int rank);
+
+/** @brief How many tiles longer than the straight line Charge's walk to its target may be (the movers' one-tile cap). */
+constexpr int ChargePathSlackTiles = 1;
+
+/**
+ * @brief Whether @p player can walk to @p target in no more than ChargePathSlackTiles past the straight distance (round 82-83
+ * audit: the line test reads only the missile-blocking flag, so a target across a gap he cannot walk launched the dash on
+ * the long way round). False with no path at all.
+ */
+bool ChargePathIsDirect(const Player &player, Point target);
 
 } // namespace devilution::oracool

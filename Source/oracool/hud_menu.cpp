@@ -3,6 +3,7 @@
 #include <algorithm> // std::max, for keeping the icon row clear of the level-up indicator
 #include <array>
 #include <cstdint>
+#include <utility> // std::exchange - a press is taken once by its release
 
 #include <SDL.h>
 
@@ -16,6 +17,7 @@
 #include "engine/render/text_render.hpp"
 #include "error.h"
 #include "gamemenu.h"
+#include "gmenu.h" // gmenu_is_active - the Portal and Run cells are refused under the game menu
 #include "inv.h"
 #include "levels/gendung.h"
 #include "minitext.h"
@@ -250,6 +252,31 @@ void StartButtonFlash(int visibleIndex)
 	RedrawComponent(PanelDrawComponent::Belt);
 }
 
+/**
+ * The control held down: a menu icon (its index) or a belt slot (its visible index), -1 for none. The press shows it
+ * pressed and does nothing else; ReleaseHudMenuButtons runs it only on a release inside it (round 75 audit: the menu
+ * icons and the belt's Menu, Portal and Run slots acted on the press).
+ */
+int PressedMenuIcon = -1;
+int PressedBeltSlot = -1;
+
+/** The pressed face's sink, every Orcl button's: 2px down and left. */
+constexpr Displacement PressSink { -2, 2 };
+
+constexpr int GameMenuEntryIndex = 3;
+
+bool HeroIsDying()
+{
+	return MyPlayerIsDead || (MyPlayer != nullptr && MyPlayer->_pmode == PM_DEATH);
+}
+
+void PressBeltSlot(int slot)
+{
+	PressedBeltSlot = slot;
+	PlayUiMoveSound();
+	RedrawComponent(PanelDrawComponent::Belt);
+}
+
 } // namespace
 
 bool IsHudMenuOpen()
@@ -280,7 +307,9 @@ void DrawHudMenu(const Surface &out)
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
 
 	for (int i = 0; i < MenuIconCount; i++) {
-		const Rectangle rect = IconRect(i);
+		const Rectangle slot = IconRect(i);
+		// Held down: the plate sinks until the release (round 75 audit). Hover asks the slot itself.
+		const Rectangle rect = i == PressedMenuIcon ? Rectangle { slot.position + PressSink, slot.size } : slot;
 		// The plate's colour IS the state (user, 2026-09-06: "hovering over the burger menu items to
 		// color the backing from gray to white and to blink once and hold gold on click"): light
 		// grey at rest, WHITE under the cursor, and on a click one blink - gold for the first half of
@@ -290,7 +319,7 @@ void DrawHudMenu(const Surface &out)
 		SkillPlateTint tint = lit ? SkillPlateTint::Ready : SkillPlateTint::Unspent;
 		if (i == flashingIcon)
 			tint = (elapsed / MenuBlinkPhaseMs) % 2 == 0 ? SkillPlateTint::Ready : SkillPlateTint::Unspent;
-		else if (!lit && rect.contains(MousePosition))
+		else if (!lit && slot.contains(MousePosition))
 			tint = SkillPlateTint::White;
 		DrawPlateIn(out, rect, tint);
 		// The entry's glyph (oracool-hud-glyphs-v1, in since v1.9.292); the initial, white with the
@@ -339,8 +368,11 @@ Rectangle GetHudMenuCellRect(int index)
 
 void CheckHudMenuClick(Point mousePosition)
 {
-	// The X closes; so does a click anywhere in the window that is not a cell, and anywhere
-	// outside it - the old row closed on any miss too.
+	// The X closes on the release inside it, as every window's X does (round 75 audit).
+	if (HudMenuOpen && CheckWindowCloseButtonClick(MenuWindowRect(), mousePosition, [] { CloseHudMenu(); }))
+		return;
+	// A click anywhere else in the window that is not a cell, and anywhere outside it, closes at once -
+	// the old row closed on any miss too. That is a click away, not a button.
 	const int index = HitTestHudMenuIcon(mousePosition);
 	if (index < 0) {
 		PlayUiMoveSound();
@@ -348,10 +380,6 @@ void CheckHudMenuClick(Point mousePosition)
 		return;
 	}
 
-	// Oracool: "Game Menu" manages its own menu-active state via gamemenu_handle_previous, matching
-	// the old CheckBtnUp's gamemenuOff bookkeeping - every other entry should close a still-open
-	// pause menu behind this row.
-	constexpr int GameMenuEntryIndex = 3;
 	// Dead players get the Game Menu and nothing else (self-audit, 2026-08-15). The dead-mode branch
 	// in LeftMouseDown routes clicks here so the OLD panel's dead-mode buttons - Game Menu, Chat -
 	// stay reachable from a corpse. But it routes to the WHOLE row, and vanilla's dead mode never let
@@ -359,27 +387,18 @@ void CheckHudMenuClick(Point mousePosition)
 	// half-functional anyway: LeftMouseDown returns before any in-window click handling while dead,
 	// so an entry like Inventory produced a panel that draws but cannot be clicked.
 	// Nor during the fall, before MyPlayerIsDead is set (round 38 audit: the windows opened on the corpse).
-	if ((MyPlayerIsDead || (MyPlayer != nullptr && MyPlayer->_pmode == PM_DEATH)) && index != GameMenuEntryIndex)
+	if (HeroIsDying() && index != GameMenuEntryIndex)
 		return;
-	MenuEntries[index].action();
-	// The entry's click, here rather than in the entries: the W key reaches the same runeword toggle
-	// and sounds on its own, so a sound inside the toggle would ring twice from here.
-	PlayUiSelectSound();
-	// Deliberately left open: the icons show what is currently up, so keeping the row on screen
-	// lets several panels be toggled in one go rather than reopening the menu each time.
-	StartButtonFlash(MenuFlashBase + index);
-	if (index != GameMenuEntryIndex)
-		gamemenu_off();
+	// The press sinks the plate and does nothing else: ReleaseHudMenuButtons runs the entry.
+	PressedMenuIcon = index;
+	PlayUiMoveSound();
 }
 
 bool CheckHudMenuSlotClick(Point mousePosition)
 {
 	if (!GetBeltSlotRect(BeltMenuSlotIndex).contains(mousePosition))
 		return false;
-
-	HudMenuOpen = !HudMenuOpen;
-	PlayUiSelectSound();
-	StartButtonFlash(BeltMenuSlotIndex);
+	PressBeltSlot(BeltMenuSlotIndex); // toggles the popup on the release (ReleaseHudMenuButtons)
 	return true;
 }
 
@@ -387,14 +406,7 @@ bool CheckTownPortalBeltSlotClick(Point mousePosition)
 {
 	if (!GetBeltSlotRect(BeltTownPortalSlotIndex).contains(mousePosition))
 		return false;
-
-	// A cast sounds as the spell. Only the refusal needs a click of its own, or the flash below would
-	// be the whole answer.
-	if (!CastTownPortalAtFeet())
-		PlayUiMoveSound();
-	// Flash regardless of whether the cast went through: an unlit button would read as a dead
-	// click, when the real reason is "not available here" (in town, or multiplayer).
-	StartButtonFlash(BeltTownPortalSlotIndex);
+	PressBeltSlot(BeltTownPortalSlotIndex); // casts on the release
 	return true;
 }
 
@@ -402,13 +414,57 @@ bool CheckRunToggleBeltSlotClick(Point mousePosition)
 {
 	if (!GetBeltSlotRect(BeltRunToggleSlotIndex).contains(mousePosition))
 		return false;
-
-	// ToggleRun already writes the new mode to the event log, so the click needs no message of its
-	// own - only the sound and the flash, like the two buttons beside it.
-	ToggleRun();
-	PlayUiSelectSound();
-	StartButtonFlash(BeltRunToggleSlotIndex);
+	PressBeltSlot(BeltRunToggleSlotIndex); // toggles on the release
 	return true;
+}
+
+void ReleaseHudMenuButtons()
+{
+	const int icon = std::exchange(PressedMenuIcon, -1);
+	const int slot = std::exchange(PressedBeltSlot, -1);
+	if (slot >= 0)
+		RedrawComponent(PanelDrawComponent::Belt); // the pressed cell springs back
+	if (icon >= 0 && HudMenuOpen && IconRect(icon).contains(MousePosition)) {
+		// Asked again at the release: the hero may have died while the button was held.
+		if (HeroIsDying() && icon != GameMenuEntryIndex)
+			return;
+		MenuEntries[icon].action();
+		// The entry's click, here rather than in the entries: the W key reaches the same runeword toggle
+		// and sounds on its own, so a sound inside the toggle would ring twice from here.
+		PlayUiSelectSound();
+		// Deliberately left open: the icons show what is currently up, so keeping the row on screen
+		// lets several panels be toggled in one go rather than reopening the menu each time.
+		StartButtonFlash(MenuFlashBase + icon);
+		// Oracool: "Game Menu" manages its own menu-active state via gamemenu_handle_previous, matching
+		// the old CheckBtnUp's gamemenuOff bookkeeping - every other entry should close a still-open
+		// pause menu behind this row.
+		if (icon != GameMenuEntryIndex)
+			gamemenu_off();
+		return;
+	}
+	if (slot < 0 || !GetBeltSlotRect(slot).contains(MousePosition) || talkflag)
+		return; // released off the cell: it springs back and nothing runs
+	if (slot == BeltMenuSlotIndex) {
+		HudMenuOpen = !HudMenuOpen;
+		PlayUiSelectSound();
+		StartButtonFlash(BeltMenuSlotIndex);
+		return;
+	}
+	// The Portal and Run cells are refused under the game menu and on a dying hero, as their press is (round 6 audit).
+	if (gmenu_is_active() || HeroIsDying())
+		return;
+	if (slot == BeltTownPortalSlotIndex) {
+		// A cast sounds as the spell; a refusal already had the press's click. Flash regardless: an unlit button would
+		// read as a dead click, when the real reason is "not available here" (in town, or multiplayer).
+		CastTownPortalAtFeet();
+		StartButtonFlash(BeltTownPortalSlotIndex);
+	} else if (slot == BeltRunToggleSlotIndex) {
+		// ToggleRun already writes the new mode to the event log, so the click needs no message of its
+		// own - only the sound and the flash, like the two buttons beside it.
+		ToggleRun();
+		PlayUiSelectSound();
+		StartButtonFlash(BeltRunToggleSlotIndex);
+	}
 }
 
 void DrawBeltButtonFeedback(const Surface &out)
@@ -446,7 +502,9 @@ void DrawBeltButtonFeedback(const Surface &out)
 	// unlit, lit, and at 30fps it is still exactly that, because the phase is read from the clock
 	// and not counted in frames.
 	int menuState = menuHot ? 1 : 0;
-	if (FlashingCell == BeltMenuSlotIndex) {
+	if (PressedBeltSlot == BeltMenuSlotIndex) {
+		menuState = 2; // held down: the pressed picture until the release (round 75 audit)
+	} else if (FlashingCell == BeltMenuSlotIndex) {
 		const uint32_t elapsed = SDL_GetTicks() - FlashStartedAtMs;
 		// With the three-state sheet (2026-09-05) the blink alternates hover and CLICK rather than
 		// unlit and lit, so the pressed picture is what flashes and the button never goes dark
@@ -465,7 +523,7 @@ void DrawBeltButtonFeedback(const Surface &out)
 	// not read as a dead click; see TryHandleTownPortalClick.
 	const Rectangle portalCell = GetBeltSlotRect(BeltTownPortalSlotIndex);
 	int portalState = 0;
-	if (flashingNow && FlashingCell == BeltTownPortalSlotIndex)
+	if (PressedBeltSlot == BeltTownPortalSlotIndex || (flashingNow && FlashingCell == BeltTownPortalSlotIndex))
 		portalState = 2;
 	else if (portalCell.contains(MousePosition))
 		portalState = 1;
@@ -478,7 +536,7 @@ void DrawBeltButtonFeedback(const Surface &out)
 	// here is a blink and then back to idle even though the mode it set persists.
 	const Rectangle runCell = GetBeltSlotRect(BeltRunToggleSlotIndex);
 	int runState = 0;
-	if (flashingNow && FlashingCell == BeltRunToggleSlotIndex)
+	if (PressedBeltSlot == BeltRunToggleSlotIndex || (flashingNow && FlashingCell == BeltRunToggleSlotIndex))
 		runState = 2;
 	else if (runCell.contains(MousePosition))
 		runState = 1;

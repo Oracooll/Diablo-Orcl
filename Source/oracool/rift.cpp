@@ -345,9 +345,62 @@ bool SpendPendingKeystone(Player &player)
 	if (!spent)
 		return false;
 	State.keystonePending = false;
+	// Owed back until the rift is over - cleared or out of time (rounds 71-72 audit): the rift is never saved, and a game
+	// left or crashed inside it lost the keystone. Saved with the hero; the next game refunds it.
+	player._pOracoolOwedKeystoneTier = static_cast<uint16_t>(std::clamp(State.tier, 1, 255));
 	ScheduleAutoSaveForItemDrop();
 	return true;
 }
+
+namespace {
+
+/**
+ * @brief Puts @p item on any backpack page or in the stash. False when none has room - the item is then untouched.
+ */
+bool CarryToPackOrStash(Player &player, const Item &item)
+{
+	if (AutoPlaceItemInInventory(player, item, /*persistItem=*/true) || AutoPlaceItemInExtraTabs(player, item, /*persistItem=*/true))
+		return true;
+	if (!AutoPlaceItemInStash(player, item, /*persistItem=*/true))
+		return false;
+	Stash.dirty = true;
+	ScheduleAutoSaveForStashChange();
+	return true;
+}
+
+/**
+ * @brief Every Guardian Keystone lying on the rift's floor goes with the hero as he walks out of a cleared Guardian Rift
+ * (round 72 audit): walking out ends it, and the next tier's keystone left on the floor was lost with it. False when one
+ * found no room: it stays where it lies.
+ */
+bool CarryFloorKeystonesHome(Player &player)
+{
+	bool allCarried = true;
+	bool carried = false;
+	for (int i = 0; i < ActiveItemCount;) {
+		const Item &item = Items[ActiveItems[i]];
+		if (item.isEmpty() || item._iMiscId != IMISC_ORACOOL_KEYSTONE) {
+			i++;
+			continue;
+		}
+		if (!CarryToPackOrStash(player, item)) {
+			allCarried = false;
+			i++;
+			continue;
+		}
+		if (InDungeonBounds(item.position))
+			dItem[item.position.x][item.position.y] = 0;
+		DeleteItem(i); // the last active item takes slot i: looked at next
+		carried = true;
+	}
+	if (carried) {
+		LogEvent("The keystone left on the rift's floor goes with you.", UiFlags::ColorWhitegold);
+		ScheduleAutoSaveForItemDrop();
+	}
+	return allCarried;
+}
+
+} // namespace
 
 const Item *FindBestKeystoneInBackpack(const Player &player)
 {
@@ -421,6 +474,27 @@ bool DropKeystoneAt(Point tile, int tier)
 void DropGuardianKeystone(Point tile, int tier)
 {
 	DropKeystone(tile, tier);
+}
+
+void RefundOwedGuardianKeystone(Player &player)
+{
+	const int tier = player._pOracoolOwedKeystoneTier;
+	if (tier <= 0 || &player != MyPlayer)
+		return;
+	player._pOracoolOwedKeystoneTier = 0;
+	Item keystone {};
+	InitializeItem(keystone, IDI_ORACOOL_KEYSTONE);
+	GenerateNewSeed(keystone);
+	keystone._iIdentified = true;
+	keystone._iStatFlag = true;
+	keystone._iOracoolRiftTier = static_cast<uint8_t>(std::min(tier, 255));
+	// The pack or the stash first; a hero with no room anywhere finds it at his feet.
+	if (!CarryToPackOrStash(player, keystone) && !DropKeystoneAt(player.position.tile, tier)) {
+		LogEvent("The keystone of a Guardian Rift left unfinished could not be given back: no room anywhere.", UiFlags::ColorRed);
+		return;
+	}
+	ScheduleAutoSaveForItemDrop();
+	LogEvent(StrCat("The Guardian Rift you left unfinished gives back its keystone, tier ", tier, "."), UiFlags::ColorWhitegold);
 }
 
 bool EnterRift(Player &player)
@@ -832,6 +906,9 @@ void OnRiftMonsterKilled(const Monster &monster)
 		if (State.done)
 			return;
 		State.done = true;
+		// The keystone has bought its fight: nothing is owed back from here on (rounds 71-72 audit).
+		if (State.kind == RiftKind::Guardian && MyPlayer != nullptr)
+			MyPlayer->_pOracoolOwedKeystoneTier = 0;
 		// The way back (r7): a return trigger BESIDE where he fell - his pile and the keystone land on
 		// his tile, and a trigger under them would warp a player home mid-pickup (audit, 2026-09-20).
 		// The rift's own portal is drawn on it so the tile is not a secret. GetMapReturnLevel answers
@@ -927,6 +1004,9 @@ void ProcessRift()
 	if (State.kind == RiftKind::Guardian && RiftEntered() && !State.done && !State.timedOut && State.ticksLeft > 0) {
 		if (--State.ticksLeft == 0) {
 			State.timedOut = true;
+			// Out of time is a run that failed, not one left unfinished: the keystone is not owed back (rounds 71-72 audit).
+			if (MyPlayer != nullptr)
+				MyPlayer->_pOracoolOwedKeystoneTier = 0;
 			LogEvent("The Guardian Rift's time is up. The guardian will still fall, but no keystone comes of it.", UiFlags::ColorRed);
 		}
 	}
@@ -1003,8 +1083,18 @@ void RiftNoteReturnHome()
 	// were lost to the next rift (round 12 audit, v1.12.237).
 	if (!InRift())
 		return;
-	if (State.done && State.kind != RiftKind::Nephalem)
+	if (State.done && State.kind != RiftKind::Nephalem) {
+		// The next tier's keystone goes with him - by either exit, the arrival's too (round 72 audit: walking back out the
+		// way he came ended the rift with the keystone still on the floor). With no room for it anywhere the rift stays
+		// open, the keystone waiting in it, as for a hero who died after the kill.
+		if (MyPlayer != nullptr && !CarryFloorKeystonesHome(*MyPlayer)) {
+			const std::string why = "No room for the keystone: it waits in the rift, which stays open until you come back for it.";
+			LogEvent(why, UiFlags::ColorRed);
+			EventPlrMsg(why, UiFlags::ColorRed);
+			return;
+		}
 		State.returnedHome = true;
+	}
 }
 bool RiftReturnedHome() { return State.returnedHome; }
 bool RiftGuardianSpawned() { return State.guardianSpawned; }

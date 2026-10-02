@@ -4319,7 +4319,9 @@ void DecrementOrRemoveSpdBarItem(Player &player, int spdIndex)
 		return;
 	}
 
-	const bool tryRefill = oracool::IsSinglePlayer() && item.isStackableConsumable();
+	// Belt: potions only (user, 2026-09-14). A stack the player placed by hand (Town Portal
+	// scrolls, oils, runes) may be used up from the belt, but the pack never refills it.
+	const bool tryRefill = oracool::IsSinglePlayer() && item.isStackableConsumable() && item.isPotion();
 	const Item drunk = item; // what the slot held, for the refill's stacking test
 
 	player.RemoveSpdBarItem(spdIndex);

@@ -70,8 +70,9 @@ constexpr uint32_t DeepIceBlue = Rgb(64, 104, 224);
 
 /**
  * @brief @p base (256 colour values, already lit) recoloured by @p tint. @p rgb is the hue for Hue and HueCycle;
- * @p progress is how far the effect has played, 0..1 (HueCycle), or the strength (Mend). The result lives until the next
- * call - draw with it at once.
+ * @p progress is how far the effect has played, 0..1 (HueCycle), or the strength (Mend). Tables are cached (16 of them,
+ * keyed by the base's values, the tint, the hue, the progress and an 8 ms step of the clock), so a frame of like missiles
+ * builds one; the result may be reused by a later call - draw with it at once.
  */
 const uint32_t *TintedTable(const uint32_t *base, Tint tint, uint32_t rgb, double progress);
 

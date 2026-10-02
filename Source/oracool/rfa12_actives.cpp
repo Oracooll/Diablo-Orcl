@@ -39,11 +39,24 @@
 #include "oracool/warcries.h"
 #include "oracool/whirlwind.h" // IsWhirlwinding - no RfA-12 bonus on a spin's blows (round 68)
 #include "nthread.h" // ProgressToNextGameTick: Serenity's ring glides between ticks
+#include "objects.h" // SightLineClear - closed doors
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
 
 namespace devilution::oracool {
+
+bool SightLineClear(Point from, Point to)
+{
+	return LineClear([](Point tile) {
+		if (!PosOkMissile(tile))
+			return false;
+		// A closed door stops an arrow through its object's flag (IsMissileBlockedByTile), not its tile's (round 80 audit).
+		const Object *object = FindObjectAtPosition(tile);
+		return object == nullptr || !object->isDoor() || object->_oMissFlag;
+	},
+	    from, to);
+}
 
 namespace {
 
@@ -232,8 +245,8 @@ std::vector<Monster *> MonstersWithin(Point centre, int radius)
 		// Strike and Wave of Light struck a pack behind a wall with the cursor on its far side (round 34 audit). The fields
 		// that tick after the cast are unset and keep their own centre's sight.
 		if (Hittable(monster) && centre.WalkingDistance(monster.position.tile) <= radius
-		    && LineClearMissile(centre, monster.position.tile)
-		    && (!CastSightFrom || LineClearMissile(*CastSightFrom, monster.position.tile)))
+		    && SightLineClear(centre, monster.position.tile) // nor past a closed door (round 80 audit)
+		    && (!CastSightFrom || SightLineClear(*CastSightFrom, monster.position.tile)))
 			out.push_back(&monster);
 	}
 	return out;
@@ -255,7 +268,7 @@ Monster *NearestTo(Point centre, int radius, const Monster *except = nullptr)
 		Monster &monster = Monsters[ActiveMonsters[i]];
 		if (&monster == except || !Hittable(monster))
 			continue;
-		if (CastSightFrom && !LineClearMissile(*CastSightFrom, monster.position.tile))
+		if (CastSightFrom && !SightLineClear(*CastSightFrom, monster.position.tile))
 			continue;
 		const int distance = centre.WalkingDistance(monster.position.tile);
 		if (distance < bestDistance) {
@@ -495,8 +508,32 @@ Point LastClearTileToward(Point here, Point aim)
 	const int steps = std::max(std::abs(delta.deltaX), std::abs(delta.deltaY));
 	for (int k = 1; k <= steps; k++) {
 		const Point tile = here + Displacement { (delta.deltaX * k * 2 + (delta.deltaX >= 0 ? steps : -steps)) / (2 * steps), (delta.deltaY * k * 2 + (delta.deltaY >= 0 ? steps : -steps)) / (2 * steps) };
-		if (!InDungeonBounds(tile) || IsTileSolid(tile) || !LineClearMissile(here, tile))
+		if (!InDungeonBounds(tile) || IsTileSolid(tile) || !SightLineClear(here, tile))
 			break;
+		last = tile;
+	}
+	return last;
+}
+
+/**
+ * @brief Where Shoulder Gate's rush stops: LastClearTileToward's line, ended on the tile before the first enemy on it, which
+ * is put in @p met (round 86 audit: the rush passed through the monster it should stop at, and the stagger then took
+ * whichever stood nearest where he landed). @p met is null when the line holds none.
+ */
+Point RushEndToward(Point here, Point aim, Monster *&met)
+{
+	met = nullptr;
+	Point last = here;
+	const Displacement delta = aim - here;
+	const int steps = std::max(std::abs(delta.deltaX), std::abs(delta.deltaY));
+	for (int k = 1; k <= steps; k++) {
+		const Point tile = here + Displacement { (delta.deltaX * k * 2 + (delta.deltaX >= 0 ? steps : -steps)) / (2 * steps), (delta.deltaY * k * 2 + (delta.deltaY >= 0 ? steps : -steps)) / (2 * steps) };
+		if (!InDungeonBounds(tile) || IsTileSolid(tile) || !SightLineClear(here, tile))
+			break;
+		if (Monster *monster = FindMonsterAtPosition(tile); monster != nullptr && Hittable(*monster)) {
+			met = monster;
+			break;
+		}
 		last = tile;
 	}
 	return last;
@@ -745,6 +782,7 @@ struct PlayerState {
 	Point landingTile;
 	SpellID landingSpell = SpellID::Invalid;
 	int landingRank = 0;
+	int landingMonster = -1; // Shoulder Gate: the enemy his rush met, which the stagger takes (round 86 audit)
 	// Serenity: the ring of light still rising and falling round her (drawn only; the cure was at the cast).
 	int serenityTicks = 0;
 	// The skills on a cooldown (Absolute Zero, user 2026-10-01): ticks left on each, counted down every tick.
@@ -1694,7 +1732,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	if (IsAnyOf(spell, SpellID::Valkyrie, SpellID::Decoy, SpellID::SpiritGuardian, SpellID::AncestralCall,
 	        SpellID::ClayGolem, SpellID::BloodGolem, SpellID::IronGolem, SpellID::FireGolem) // the golems too (round 70 audit)
 	    && CastSightFrom
-	    && InDungeonBounds(target) && (IsTileSolid(target) || !LineClearMissile(here, target)))
+	    && InDungeonBounds(target) && (IsTileSolid(target) || !SightLineClear(here, target)))
 		target = LastClearTileToward(here, target);
 	const int earshot = AuraRadiusForPoints(r);
 	// The skills that set a field or a charge down at the cursor: not past a wall from the hero (round 40 audit - Meteor,
@@ -1702,7 +1740,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	// A wall tile is no target either (round 45 audit: LineClear never tests the end tile, and a sentinel or a mine set there
 	// was a dud). Rain of Arrows, Wave of Light, Valkyrie's Spear and Seven-Sided Strike joined too (round 45): their volley,
 	// bell or spear landed in the next room with its cue, and the cast was paid.
-	if (CastSightFrom && target != here && (!InDungeonBounds(target) || IsTileSolid(target) || !LineClearMissile(here, target))
+	if (CastSightFrom && target != here && (!InDungeonBounds(target) || IsTileSolid(target) || !SightLineClear(here, target))
 	    && IsAnyOf(spell, SpellID::Meteor, SpellID::AncestralCourt, SpellID::FrozenSentinel, SpellID::LightningRod,
 	        SpellID::EmberMine, SpellID::StormCrucible, SpellID::BrittleGround, SpellID::ArmyOfTheDead, // the Army too (round 41)
 	        SpellID::FaradayRing, SpellID::FurnaceMouth, SpellID::Firestorm, SpellID::TuningFork, // and these (round 41)
@@ -2673,7 +2711,18 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::ShoulderGate: {
-		const Point dst = LastClearTileToward(here, Clamped(here, target, ReachTiles(spell, r)));
+		// The rush stops at the first enemy in its way, as the tooltip says (round 86 audit: it went through him).
+		Monster *met = nullptr;
+		const Point dst = RushEndToward(here, Clamped(here, target, ReachTiles(spell, r)), met);
+		if (dst == here && met != nullptr) {
+			// Already at his shoulder: no rush, the stop at once - paid only when it stops him (round 60's rule).
+			if (!Stagger(*met, StunTicks(spell, r))) {
+				player.Say(HeroSpeech::ICantDoThat);
+				return false;
+			}
+			Art(player, MissileGraphicID::ShoulderGate, met->position.tile);
+			return true;
+		}
 		if (dst == here && target != here) {
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
@@ -2687,6 +2736,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		state.landingTile = landed;
 		state.landingSpell = spell;
 		state.landingRank = r;
+		state.landingMonster = met != nullptr ? static_cast<int>(met->getId()) : -1;
 		return true;
 	}
 	case SpellID::SevenSidedStrike: {
@@ -2878,7 +2928,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (InDungeonBounds(centre) && IsTileSolid(centre))
 			centre = LastClearTileToward(here, centre);
 		// Not raised in the next room (round 37 audit), nor inside a wall (round 79 audit).
-		if (!InDungeonBounds(centre) || IsTileSolid(centre) || !LineClearMissile(here, centre)) {
+		if (!InDungeonBounds(centre) || IsTileSolid(centre) || !SightLineClear(here, centre)) {
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
@@ -2932,7 +2982,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// Not on a poison-immune one: the poison slid off and the cast was paid for nothing (round 33 audit).
 		// And in the hero's sight, as NearestTo's picks since round 15 (round 37 audit: through a wall).
 		if (m == nullptr || !Hittable(*m) || m->isImmune(MissileID::Null, DamageType::Acid)
-		    || (CastSightFrom && !LineClearMissile(*CastSightFrom, m->position.tile))) {
+		    || (CastSightFrom && !SightLineClear(*CastSightFrom, m->position.tile))) {
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
@@ -2942,7 +2992,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::BonePrison: {
 		Monster *m = FindMonsterAtPosition(target);
-		if (m == nullptr || !Hittable(*m) || (CastSightFrom && !LineClearMissile(*CastSightFrom, m->position.tile))) { // round 37
+		if (m == nullptr || !Hittable(*m) || (CastSightFrom && !SightLineClear(*CastSightFrom, m->position.tile))) { // round 37
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}
@@ -3745,11 +3795,22 @@ void TickLanding(Player &player, PlayerState &state)
 		Art(player, MissileGraphicID::LeapingCrane, player.position.tile); // RfA-27 batch 57: the landing's wind burst
 		Impact(player, state.landingSpell);
 		break;
-	case SpellID::ShoulderGate:
-		if (Monster *m = NearestTo(player.position.tile, 1); m != nullptr)
+	case SpellID::ShoulderGate: {
+		// The enemy the rush met, when he still stands beside him; else the nearest (round 86 audit).
+		Monster *m = nullptr;
+		if (state.landingMonster >= 0 && static_cast<size_t>(state.landingMonster) < MaxMonsters) {
+			Monster &met = Monsters[state.landingMonster];
+			if (Hittable(met) && player.position.tile.WalkingDistance(met.position.tile) <= 1)
+				m = &met;
+		}
+		if (m == nullptr)
+			m = NearestTo(player.position.tile, 1);
+		if (m != nullptr)
 			Stagger(*m, StunTicks(state.landingSpell, r));
+		state.landingMonster = -1;
 		Art(player, MissileGraphicID::ShoulderGate, player.position.tile); // RfA-27 batch 57: the impact ring
 		break;
+	}
 	default:
 		break;
 	}
@@ -3767,7 +3828,7 @@ std::optional<Point> SightedLandingNear(const Player &player, Point dst)
 {
 	const Point here = player.position.tile;
 	return FindClosestValidPosition(
-	    [&player, here](Point tile) { return InDungeonBounds(tile) && PosOkPlayer(player, tile) && LineClearMissile(here, tile); }, dst, 0, 5);
+	    [&player, here](Point tile) { return InDungeonBounds(tile) && PosOkPlayer(player, tile) && SightLineClear(here, tile); }, dst, 0, 5);
 }
 
 // =================================================================================================

@@ -830,6 +830,17 @@ int ItemsGetCurrlevel()
 	return oracool::CurrentAreaLevel();
 }
 
+/**
+ * @brief The level a chest, barrel, sarcophagus, corpse, rack or theme room draws its loot at: the floor's own, as an ordinary
+ * monster on it pays (ItemLevelOfMonster less a champion's or unique's bonus). Vanilla drew their bases and quality roll from
+ * TWICE the floor's level, so a Nightmare floor-8 chest could roll any base in the game while the monsters beside it drew
+ * from their floor (round 83 audit). The item level - and with it every affix ceiling - was the floor's already.
+ */
+int ObjectLootLevel()
+{
+	return std::min(ItemsGetCurrlevel(), oracool::MaxAreaLevel);
+}
+
 bool ItemPlace(Point position)
 {
 	if (dMonster[position.x][position.y] != 0)
@@ -2307,7 +2318,7 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 
 _item_indexes RndUItem(Monster *monster)
 {
-	int itemMaxLevel = ItemsGetCurrlevel() * 2;
+	int itemMaxLevel = ObjectLootLevel(); // a chest's onlygood draw (round 83 audit: was twice the floor's level)
 	if (monster != nullptr)
 		itemMaxLevel = ItemLevelOfMonster(*monster);
 	return GetItemIndexForDroppableItem(false, [&itemMaxLevel](const ItemData &item) {
@@ -2326,9 +2337,23 @@ _item_indexes RndAllItems()
 	if (GenerateRnd(100) > 25)
 		return IDI_GOLD;
 
-	int itemMaxLevel = ItemsGetCurrlevel() * 2;
+	int itemMaxLevel = ObjectLootLevel(); // the floor's, as its monsters draw (round 83 audit: was twice it)
 	return GetItemIndexForDroppableItem(false, [&itemMaxLevel](const ItemData &item) {
 		if (itemMaxLevel < PoolQlvl(item))
+			return false;
+		return true;
+	});
+}
+
+/** @brief A droppable base of @p itemType (and misc id @p imid, -1 for any) whose pool level is at most @p itemMaxLevel. */
+_item_indexes RndTypeItemsUpTo(ItemType itemType, int imid, int itemMaxLevel)
+{
+	return GetItemIndexForDroppableItem(false, [&itemMaxLevel, &itemType, &imid](const ItemData &item) {
+		if (itemMaxLevel < PoolQlvl(item))
+			return false;
+		if (item.itype != itemType)
+			return false;
+		if (imid != -1 && item.iMiscId != imid)
 			return false;
 		return true;
 	});
@@ -2660,13 +2685,15 @@ void SetupBaseItem(Point position, _item_indexes idx, bool onlygood, bool sendms
 	int ii = AllocateItem();
 	auto &item = Items[ii];
 	GetSuperItemSpace(position, ii);
-	int curlv = ItemsGetCurrlevel();
+	// The floor's level for the quality roll as well as the stamp, as a monster on it rolls (round 83 audit: the roll was
+	// at twice the floor's level, vanilla's, and the magic chance with it).
+	const int curlv = ObjectLootLevel();
 
-	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), 2 * curlv, 1, onlygood, false, delta,
+	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), curlv, 1, onlygood, false, delta,
 	    /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/curlv);
 	// The same tail a monster drop gets, at the level this item was generated at: chests, racks,
 	// corpses, barrels, theme rooms and Find Item are fresh drops too (DROP-01, 2026-09-07).
-	FinalizeFreshDrop(item, 2 * curlv);
+	FinalizeFreshDrop(item, curlv);
 
 	if (sendmsg)
 		NetSendCmdPItem(false, CMD_DROPITEM, item.position, item);
@@ -4063,6 +4090,33 @@ std::optional<OracoolOilWork> MeasureOracoolOilWork(const Player &player, const 
 		item._iOracoolOilAC >= 0 || olderShopItem ? (item._iAC - probe._iAC) - oilAC : 0 };
 }
 
+std::optional<OracoolOilWork> MeasureOracoolSetPieceOilWork(const Item &item)
+{
+	if (item.isEmpty() || MyPlayer == nullptr || item._iOracoolTier != OracoolItemTier::Set)
+		return std::nullopt;
+	const oracool::SetItemDefinition *def = oracool::FindSetItemByCursor(item._iCurs);
+	if (def == nullptr)
+		return std::nullopt;
+	// The piece as the drop and the recipes build it - its own base, the set's numbers and powers, the tier it carries, the
+	// ethereal bargain and its shards - with nothing poured on it. A set piece keeps no affix record for
+	// MeasureOracoolOilWork to replay, so this is its probe (round 84 audit: Recast dropped the oils' work).
+	Item probe;
+	InitializeItem(probe, static_cast<_item_indexes>(item.IDidx));
+	oracool::MakeSetItem(probe, *def);
+	oracool::ApplyBaseTier(probe, static_cast<oracool::BaseItemTier>(item._iOracoolBaseTier));
+	if (item._iOracoolEthereal)
+		MakeItemEthereal(probe);
+	oracool::RestoreImbuements(probe, oracool::CaptureImbuements(item));
+	// The armour as recorded since format 16; an older piece's difference is mostly its own armour roll (a set piece draws it
+	// from a range), so its oil armour is unknown and 0. The to-hit as recorded since format 17, else the difference.
+	const int oilAC = item._iOracoolOilAC >= 0 ? item._iOracoolOilAC : 0;
+	const int oilToHit = item._iOracoolOilToHit >= 0 ? item._iOracoolOilToHit : std::max(item._iPLToHit - probe._iPLToHit, 0);
+	return OracoolOilWork { oilToHit, std::max(item._iMinDam - probe._iMinDam, 0), std::max(item._iMaxDam - probe._iMaxDam, 0),
+		item._iMinStr - probe._iMinStr, item._iMinMag - probe._iMinMag, item._iMinDex - probe._iMinDex,
+		oilAC, item._iMaxDur == DUR_INDESTRUCTIBLE ? 0 : std::max(item._iMaxDur - probe._iMaxDur, 0),
+		item._iMaxDur == DUR_INDESTRUCTIBLE && probe._iMaxDur != DUR_INDESTRUCTIBLE, 0 };
+}
+
 void ReapplyOracoolOilWork(Item &item, const OracoolOilWork &oil, bool sameSeed)
 {
 	if (sameSeed)
@@ -4273,6 +4327,25 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 	else if (item._iMagical == ITEM_QUALITY_UNIQUE)
 		item._iIvalue = priceBefore;
 	return true;
+}
+
+void RepriceOracoolItemFromRecord(Item &item)
+{
+	// The rework's own pricing (RebuildOracoolItemWithAffixes, above), row for row, so a price set here is the price the next
+	// rework arrives at (round 84 audit: a craft's two powers went unpriced until then, and the price jumped).
+	if (item.isEmpty() || item._iMagical != ITEM_QUALITY_MAGIC)
+		return;
+	int priceAddTotal = 0;
+	int priceMultTotal = 0;
+	const int count = std::clamp<int>(item._iOracoolAffixCount, 0, Item::MaxOracoolAffixes);
+	for (int i = 0; i < count; i++) {
+		const PLStruct *row = FindAffixRowForRecord(item._iOracoolAffixes[i]);
+		if (row == nullptr)
+			continue;
+		priceAddTotal += PLVal(item._iOracoolAffixes[i].param1, row->power.param1, row->power.param2, row->minVal, row->maxVal);
+		priceMultTotal += row->multVal;
+	}
+	CalcOracoolTieredItemValue(item, priceAddTotal, priceMultTotal);
 }
 
 bool EnnobleOracoolRare(Item &item)
@@ -5241,6 +5314,13 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	player._pIMoveSpeed = totals.moveSpeed;
 	// Faster Cast Rate: the items' affixes, one percentage (2026-09-11). StartSpell turns it into frames.
 	player._pIFastCast = totals.fastCast;
+	// Life/mana steal and armour vs undead/demons, SUMMED over every source (round 91 audit: "if it is an affix that
+	// can be accumulated - accumulate it"). The flag reading is the floor, for any provider that raised a flag without
+	// ItemBonusTotals::AddFlags - it can only add what the flags alone would have paid, never less.
+	player._pILifeSteal = std::max(totals.lifeSteal, oracool::FlagLifeStealPercent(totals.flags));
+	player._pIManaSteal = std::max(totals.manaSteal, oracool::FlagManaStealPercent(totals.flags));
+	player._pIArmorVsUndead = std::max(totals.armorVsUndead, HasAnyOf(totals.damAcFlags, ItemSpecialEffectHf::ACAgainstUndead) ? oracool::ArmorVsUndeadPerSource : 0);
+	player._pIArmorVsDemons = std::max(totals.armorVsDemons, HasAnyOf(totals.damAcFlags, ItemSpecialEffectHf::ACAgainstDemons) ? oracool::ArmorVsDemonsPerSource : 0);
 
 	player._pInfraFlag = oracool::IsSinglePlayer() && *sgOptions.Oracool.permanentInfravision;
 
@@ -6490,9 +6570,8 @@ void CreateTypeItem(Point position, bool onlygood, ItemType itemType, int imisc,
 {
 	_item_indexes idx;
 
-	int curlv = ItemsGetCurrlevel();
 	if (itemType != ItemType::Gold)
-		idx = RndTypeItems(itemType, imisc, curlv);
+		idx = RndTypeItemsUpTo(itemType, imisc, ObjectLootLevel()); // the floor's, not twice it (round 83 audit)
 	else
 		idx = IDI_GOLD;
 
@@ -7771,6 +7850,17 @@ bool DoOil(Player &player, int cii, int tabIdx)
  * ...), which remain susceptible to the same field-collision display issue this fixes for the common
  * cases, but are rarer combinations and were out of scope for this pass.
  */
+bool IsManaOnlyPower(item_effect_type type)
+{
+	// Not Mana to Life / Life to Mana: each moves LIFE too, and that half still tells a Barbarian something.
+	return IsAnyOf(type, IPL_MANA, IPL_MANA_CURSE, IPL_STEALMANA, IPL_NOMANA);
+}
+
+bool HideManaPowerLineForViewer(item_effect_type type)
+{
+	return IsManaOnlyPower(type) && MyPlayer != nullptr && oracool::UsesRage(*MyPlayer);
+}
+
 StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 {
 	// affix.param1 is always the positive roll magnitude (see RepairOracoolAffixValue / SaveItemPower,
@@ -7786,15 +7876,10 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 	case IPL_STEALLIFE:
 	case IPL_STEALMANA: {
 		// The row's own roll (round 66 audit): the shared printer read the item's flags, 3% first, so a Blood Craft's 3%
-		// beside a Rare's own 5% printed "3%" twice. The hit takes the larger (they do not add), so the smaller row says so.
+		// beside a Rare's own 5% printed "3%" twice. Since round 91 the two ADD (8%), so each row is just its own share.
 		const bool life = affix.type == IPL_STEALLIFE;
-		const bool both = life ? HasAllOf(item._iFlags, ItemSpecialEffect::StealLife3 | ItemSpecialEffect::StealLife5)
-		                       : HasAllOf(item._iFlags, ItemSpecialEffect::StealMana3 | ItemSpecialEffect::StealMana5);
-		std::string line = life ? fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "hit steals {:d}% life")), affix.param1)
-		                        : fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "hit steals {:d}% mana")), affix.param1);
-		if (both && affix.param1 < 5)
-			line += _(/*xgettext:no-c-format*/ " (the 5% applies)");
-		return line;
+		return life ? fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "hit steals {:d}% life")), affix.param1)
+		            : fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "hit steals {:d}% mana")), affix.param1);
 	}
 	case IPL_TOHIT_DAMP:
 	case IPL_TOHIT_DAMP_CURSE:
@@ -8075,6 +8160,8 @@ void AddItemPowerPanelStrings(const Item &item)
 		for (const ItemPower &power : def->powers) {
 			if (power.type == IPL_INVALID)
 				break;
+			if (HideManaPowerLineForViewer(power.type))
+				continue; // a Barbarian has no mana for it to give
 			AddPanelString(PrintOracoolAffixPower(OracoolAffix { power.type, power.param1, 0 }, item), ItemAffixColor);
 		}
 
@@ -8119,7 +8206,7 @@ void AddItemPowerPanelStrings(const Item &item)
 			// piece ladder now fits on screen rather than merely nearly fitting.
 			std::string granted;
 			for (const ItemPower &power : rung.powers) {
-				if (power.type == IPL_INVALID)
+				if (power.type == IPL_INVALID || HideManaPowerLineForViewer(power.type))
 					continue;
 				std::string text = PrintSetBonusPower(power);
 				if (text.empty())
@@ -8142,8 +8229,10 @@ void AddItemPowerPanelStrings(const Item &item)
 		// Rare/Buffed Unique/Primal items: unlike a static UniqueItem, the affix list comes from
 		// the item instance itself (up to six affixes from any table, in one list), so the vanilla
 		// UniqueItems[uid].powers[] table isn't involved at all here.
-		for (int i = 0; i < item._iOracoolAffixCount; i++)
-			AddPanelString(PrintOracoolAffixPower(item._iOracoolAffixes[i], item), ItemAffixColor);
+		for (int i = 0; i < item._iOracoolAffixCount; i++) {
+			if (!HideManaPowerLineForViewer(item._iOracoolAffixes[i].type))
+				AddPanelString(PrintOracoolAffixPower(item._iOracoolAffixes[i], item), ItemAffixColor);
+		}
 		return;
 	}
 
@@ -8158,6 +8247,8 @@ void AddItemPowerPanelStrings(const Item &item)
 		// tooltips once every one of them carried its icon this way (audit, 2026-08-17).
 		if (power.type == IPL_INVCURS)
 			continue;
+		if (HideManaPowerLineForViewer(power.type))
+			continue; // a Barbarian has no mana for it to give or take
 		// A fixed-value stat whose field another of the row's powers also writes prints its OWN value, as set pieces do:
 		// PrintItemPower reads the accumulated field, so The Quiet Sun (all attributes 5, strength 11) read "+16 to all
 		// attributes" and its all-resist line carried the fire resist too - about 55 expansion uniques (round 8 audit,
@@ -8333,8 +8424,11 @@ void PrintItemDetails(const Item &item)
 		// when those two were empty - the fix for "when i rerolled a weapon i stopped seeing its affixes on its
 		// pop-up display" (2026-09-22), because the Mystic's rebuild left the pair empty. With the pair gone
 		// the list is the only store, so it always prints and nothing can print it twice.
-		for (int i = 0; i < item._iOracoolAffixCount; i++)
-			AddPanelString(PrintOracoolAffixPower(item._iOracoolAffixes[i], item), ItemAffixColor);
+		// A mana-only affix is left out for a Barbarian viewer: he has no mana pool.
+		for (int i = 0; i < item._iOracoolAffixCount; i++) {
+			if (!HideManaPowerLineForViewer(item._iOracoolAffixes[i].type))
+				AddPanelString(PrintOracoolAffixPower(item._iOracoolAffixes[i], item), ItemAffixColor);
+		}
 	}
 	// The oils' to-hit, a line of its own (round 86 audit: a rare never showed it; a to-hit-and-damage row showed it as its own).
 	if (item._iOracoolOilToHit > 0)
@@ -8460,8 +8554,11 @@ void PrintItemDetails(const Item &item)
 		AddPanelString(fmt::format(fmt::runtime(_("Sockets: {:d}/{:d}")), item.socketedCount(), item._iSocketCount), UiFlags::ColorGray5);
 		const oracool::SocketHost host = oracool::SocketHostForItemType(item._itype);
 		for (const uint16_t gemIdx : item._iSocketed) {
-			if (gemIdx != Item::EmptySocket)
-				AddPanelString(oracool::GemSocketLine(gemIdx, host), ItemAffixColor);
+			if (gemIdx == Item::EmptySocket)
+				continue;
+			// Empty when a Barbarian views a mana-only stone: no blank line for it.
+			if (const std::string line = oracool::GemSocketLine(gemIdx, host); !line.empty())
+				AddPanelString(line, ItemAffixColor);
 		}
 	}
 	PrintItemInfo(item);
@@ -8523,8 +8620,11 @@ void PrintItemDur(const Item &item)
 		AddPanelString(fmt::format(fmt::runtime(_("Sockets: {:d}/{:d}")), item.socketedCount(), item._iSocketCount), UiFlags::ColorGray5);
 		const oracool::SocketHost host = oracool::SocketHostForItemType(item._itype);
 		for (const uint16_t gemIdx : item._iSocketed) {
-			if (gemIdx != Item::EmptySocket)
-				AddPanelString(oracool::GemSocketLine(gemIdx, host), ItemAffixColor);
+			if (gemIdx == Item::EmptySocket)
+				continue;
+			// Empty when a Barbarian views a mana-only stone: no blank line for it.
+			if (const std::string line = oracool::GemSocketLine(gemIdx, host); !line.empty())
+				AddPanelString(line, ItemAffixColor);
 		}
 	}
 	PrintItemInfo(item);
@@ -11190,7 +11290,7 @@ _item_indexes RndEquipmentForMonsterLevel(int8_t monsterLevel, item_equip_type s
 _item_indexes RndEquipmentForCurrentLevel(item_equip_type slot)
 {
 	// RndAllItems' walk, which gives gold three times in four, without the gold.
-	const int itemMaxLevel = ItemsGetCurrlevel() * 2;
+	const int itemMaxLevel = ObjectLootLevel(); // the floor's, as its monsters draw (round 83 audit)
 	return GetItemIndexForDroppableItem(false, [&itemMaxLevel, slot](const ItemData &item) {
 		return PoolQlvl(item) <= itemMaxLevel && IsSmartLootEquipmentData(item) && (slot == ILOC_INVALID || item.iLoc == slot);
 	});

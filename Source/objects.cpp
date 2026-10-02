@@ -46,6 +46,7 @@
 #include "oracool/companion.h" // IsCompanion - traps spare the hero's side
 #include "oracool/event_log.h"
 #include "oracool/levski_roar.h"
+#include "oracool/rage.h" // UsesRage - a Barbarian has no mana for a shrine to take or fill
 #include "oracool/spell_ranks.h" // CanReadSpellBookTo - the Chamber of Bone's Guardian rank
 #include "oracool/stonegate.h"
 #include "oracool/wirt_cart.h"
@@ -229,6 +230,34 @@ const char *const ShrineDescriptions[] = {
 	// TRANSLATORS: Shrine Description Block end
 	N_("Halves a random item's durability, or costs you gold"),
 };
+
+/**
+ * @brief The hover line @p viewer reads for @p shrine. A Barbarian runs on Rage and has no mana pool
+ * (v1.12.344), so the shrines whose stock line is about mana tell him what they do for him instead.
+ */
+const char *ShrineDescriptionFor(const Player &viewer, int shrine)
+{
+	if (oracool::UsesRage(viewer)) {
+		switch (shrine) {
+		case ShrineMagical:
+		case ShrineMagicaL2:
+			return N_("Casts a Mana Shield around you - a Barbarian has no mana for it to use");
+		case ShrineFascinating:
+		case ShrineSacred:
+		case ShrineOrnate:
+			return N_("Trades max mana for a spell level - a Barbarian has neither, so nothing happens");
+		case ShrineCryptic:
+			return N_("Casts a Nova");
+		case ShrineDivine:
+			return N_("Fully restores HP, spawns potions nearby");
+		case ShrineShimmering:
+			return N_("Restores mana - a Barbarian has none, so nothing happens");
+		default:
+			break;
+		}
+	}
+	return ShrineDescriptions[shrine];
+}
 /** Specifies the minimum dungeon level on which each shrine will appear. */
 char shrinemin[] = {
 	1, // Mysterious
@@ -2990,6 +3019,14 @@ void OperateShrineCostOfWisdom(Player &player, SpellID spellId, diablo_message m
 	if (&player != MyPlayer)
 		return;
 
+	// A Barbarian runs on Rage: he has no mana to pay with and reads no spell books (v1.12.344), so the
+	// wisdom is not his to trade. Nothing is learned and nothing taken; the shrine says so.
+	if (oracool::UsesRage(player)) {
+		InitDiabloMsg(message);
+		oracool::LogEvent(fmt::format("{:s} Shrine: a Barbarian has no mana to pay with - nothing happens", shrineName), UiFlags::ColorRed);
+		return;
+	}
+
 	player._pMemSpells |= GetSpellBitmask(spellId);
 
 	uint8_t curSpellLevel = player._pSplLvl[static_cast<int16_t>(spellId)];
@@ -3130,7 +3167,8 @@ void OperateShrineDivine(Player &player, Point spawnPosition)
 		return;
 
 	if (ShrineFloor() < 4) { // a rift's depth, not its set-level id (round 68 audit)
-		CreateTypeItem(spawnPosition, false, ItemType::Misc, IMISC_FULLMANA, false, false, true);
+		// A Barbarian has no mana: his pair is two Full Healing, as Find Potion finds him no mana (round 94).
+		CreateTypeItem(spawnPosition, false, ItemType::Misc, oracool::UsesRage(player) ? IMISC_FULLHEAL : IMISC_FULLMANA, false, false, true);
 		CreateTypeItem(spawnPosition, false, ItemType::Misc, IMISC_FULLHEAL, false, false, true);
 	} else {
 		CreateTypeItem(spawnPosition, false, ItemType::Misc, IMISC_FULLREJUV, false, false, true);
@@ -6425,7 +6463,7 @@ void GetObjectStr(const Object &object)
 		// description too wide for the box's 288px overlapped its own following line instead of
 		// wrapping onto a fresh one. The name (set above) still renders as its own top line;
 		// wrapping only affects the description that follows it.
-		AddPanelString(WordWrapString(_(ShrineDescriptions[object._oVar1]), InfoBoxSize.width));
+		AddPanelString(WordWrapString(_(ShrineDescriptionFor(*MyPlayer, object._oVar1)), InfoBoxSize.width));
 	} else if (object._otype == OBJ_TEARFTN) {
 		// Oracool: Fountain of Tears is its own object type, not OBJ_SHRINEL/OBJ_SHRINER, so it
 		// never went through the shrine-description branch above - it has no ShrineDescriptions

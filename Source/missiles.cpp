@@ -330,6 +330,9 @@ namespace {
 /** @brief Oracool: the percent of its owner's damage the companion arrow being checked deals - see CheckMissileCol. */
 int CompanionHitPercent = 0;
 
+/** @brief Oracool: the shot being checked rolls no to-hit (Missile::neverMisses) - see CheckMissileCol. */
+bool ShotNeverMisses = false;
+
 /**
  * @brief Oracool (2026-09-26): whether @p missile lands in a cold impact sheet of its own - Ice Bolt and Ice Blast in
  * ice_impact, Glacial Spike in glacial_shatter, Freezing Arrow in freezing_burst. Every other cold hit gets the
@@ -401,6 +404,9 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	// Guided Arrow cannot miss (Oracool, Round 3): the whole of the skill, and the stone-curse line
 	// above is the precedent for a roll that is not rolled.
 	if (t == MissileID::GuidedArrow)
+		hit = 0;
+	// Madawc's hammers land as Korlic's and Talic's blows do, which roll no to-hit (round 88 audit).
+	if (ShotNeverMisses)
 		hit = 0;
 	// Diablo II's rule, on trial: a spell that reaches a monster lands (see SpellsNeverMiss). Only the
 	// miss is gone - immunities above, and the resistances in the damage, still apply.
@@ -708,12 +714,17 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 				if ((bolter.hitPoints >> 6) > 0 && bolter.mode != MonsterMode::Death)
 					oracool::OnCursedMonsterStruck(Monsters[mid], Players[armyOwner->getId()], &bolter, dealt);
 			}
+		} else if (missile._mitype == MissileID::MiniNovaBall && missile._micaster == TARGET_MONSTERS
+		    && !oracool::ClaimFistRingTarget(missile.var3, mid)) {
+			// Fist of the Heavens' ring met this monster already: the bolt runs on through it (round 93 audit).
 		} else if (IsAnyOf(missile._micaster, TARGET_BOTH, TARGET_MONSTERS)) {
 			CompanionHitPercent = missile.companionPercent;
 			oracool::SetCompanionBlowInFlight(missile.companionPercent > 0);
 			const bool previousBurst = ArrowBurstInFlight;
 			ArrowBurstInFlight = previousBurst || missile.burstShot; // a grenade rolls no Sharpshooter of its own (round 92 audit)
+			ShotNeverMisses = missile.neverMisses;
 			isMonsterHit = MonsterMHit(missile._misource, mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, missile._mispllvl);
+			ShotNeverMisses = false;
 			ArrowBurstInFlight = previousBurst;
 			oracool::SetCompanionBlowInFlight(false);
 			CompanionHitPercent = 0;
@@ -4489,7 +4500,12 @@ void ProcessCensusEffect(Missile &missile)
 	if (missile._mitype == ArtEffectCarrier && IsAnyOf(missile._miAnimType, MissileGraphicID::LightningStrikeShort, MissileGraphicID::LightningStrikeChain,
 	        MissileGraphicID::LightningStrikeLong, MissileGraphicID::LightningStrikeImpact))
 		missile.oracoolAlpha = missile._mirange <= 1 ? 128 : 256;
+	// The burst at its old half second (round 69 audit: its doubled frames at one a tick took a second): two frames a tick,
+	// 1, 3, ... 19 - the delivered frames, the cross-faded in-betweens skipped - and onto the burn's first, 21, on the tenth.
+	if (missile._mitype == MissileID::MeteorImpact && missile._miAnimFrame < MeteorImpactBurnFrame)
+		missile._miAnimAdd = 2;
 	if (missile._mitype == MissileID::MeteorImpact && missile._miAnimFrame >= MeteorImpactBurnFrame) {
+		missile._miAnimAdd = 1; // the burn loop plays every frame
 		missile._miAnimDelay = 2; // the embers flicker slower than the burst (2 since the loop has twice its frames)
 		// On the last frame, about to step: step back to the burn's first frame instead of the burst's.
 		if (missile._miAnimFrame >= missile._miAnimLen && missile._miAnimCnt + 1 >= missile._miAnimDelay)

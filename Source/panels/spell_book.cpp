@@ -2,12 +2,17 @@
 #include "oracool/crafting_menu.h" // CloseCraftingMenu
 
 #include <cstdint>
+#include <cstdlib>
 
 #include <algorithm>
+#include <limits>
+#include <utility> // std::exchange - a press is taken once by its release
+#include <vector>
 
 #include <fmt/format.h>
 
 #include "control.h"
+#include "diablo.h" // SetCursorPos, ClickUiAtCursor - the window's key and pad focus
 #include "engine/backbuffer_state.hpp"
 #include "engine/clx_sprite.hpp"
 #include "engine/rectangle.hpp"
@@ -514,6 +519,28 @@ void PressIconButton(IconButton button)
 {
 	PressedIcon = button;
 	oracool::PlayUiMoveSound();
+}
+
+/**
+ * Press/release for the whole window (round 89 audit: the tree, the passive slots, the spell rows and the tab plates
+ * acted on the press). The click walk runs twice: at the press, where a control only sinks and sounds, and again from
+ * ReleaseSpellBookButtons, where it acts only if the control under the release is the one pressed.
+ */
+bool SBookReleasePass = false;
+/** At the release pass: what was held down, taken from PressedIcon / PressedTab. */
+IconButton ReleasedIcon;
+int ReleasedTab = -1;
+/** Which button pressed it: a left press invests or readies on the left, a right one refunds or readies on the right. */
+bool PressedWithRightButton = false;
+
+/** @brief At the press, sinks @p button and says stop (false); at the release, true when it is the one pressed - act. */
+bool HitIconButton(IconButton button)
+{
+	if (!SBookReleasePass) {
+		PressIconButton(button);
+		return false;
+	}
+	return ReleasedIcon.kind != IconButtonKind::None && button == ReleasedIcon;
 }
 
 // The ClassAbilitySheetsHidden flag that used to live here is gone with the two sheets it hid.
@@ -1456,7 +1483,231 @@ std::optional<oracool::ClassTreeSkill> TreeCellAt(int page, Point localPoint, bo
 	return std::nullopt;
 }
 
+// ---------------------------------------------------------------------------------------------
+// The keyboard's and the pad's way through the window (round 87 audit; round 69 left the window with no focus at all).
+// The focus is the CURSOR, parked on a tab or an icon: the hover panel, the F-key binding (which binds the hovered row)
+// and the click all read the cursor already, so parking it there makes every one of them work unchanged - the way the
+// pad already walks the backpack. A golden frame marks it, as the golden ring marks the waypoint list's sigils, until
+// the mouse moves off.
+// ---------------------------------------------------------------------------------------------
+
+/** @brief One place the focus can stand: a sheet tab (rect on screen) or an icon (rect in list space, unscrolled). */
+struct FocusTarget {
+	Rectangle rect;
+	bool isTab;
+};
+
+/** @brief Whether the golden frame is out, and the cursor point it parked the cursor on. */
+bool KeyFocusShown = false;
+Point KeyFocusPoint;
+
+/** @brief Every tab and every icon on the open sheet. */
+std::vector<FocusTarget> CollectFocusTargets()
+{
+	std::vector<FocusTarget> targets;
+	for (size_t i = 0; i < AbilitySheetCount; i++) {
+		if (IsSheetAvailable(TabPlates[i].sheet))
+			targets.push_back({ GetTabPlateRect(i), true });
+	}
+	if (const std::optional<int> page = TreePageOf(CurrentSheet); page.has_value()) {
+		if (IsPassivePage(*page)) {
+			for (int slot = 0; slot < static_cast<int>(oracool::PassiveSlotCount); slot++)
+				targets.push_back({ { { PassiveSlotX0 + slot * PassiveSlotPitch, PassiveSlotBandTop }, { PassiveSlotSize, PassiveSlotSize } }, false });
+		}
+		oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
+		const size_t count = oracool::BuildClassTreePage(InspectPlayer->_pClass, *page, skills);
+		for (size_t i = 0; i < count; i++) {
+			const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skills[i]);
+			targets.push_back({ TreeIconRect(data.page, data.column, data.tier), false });
+		}
+		return targets;
+	}
+	SpellID rows[MaxSpellRows];
+	const size_t rowCount = BuildSpellRows(rows);
+	for (size_t i = 0; i < rowCount; i++)
+		targets.push_back({ SpellRowIconRect(AbilitiesListTop + static_cast<int>(i) * RowHeightFor(CurrentSheet)), false });
+	return targets;
+}
+
+/** @brief @p target's rect on screen: an icon moved by the content's place and the scroll. */
+Rectangle FocusScreenRect(const FocusTarget &target)
+{
+	if (target.isTab)
+		return target.rect;
+	const Rectangle content = GetSpellBookContentRect();
+	return { content.position + Displacement { target.rect.position.x, target.rect.position.y - CurrentScroll() }, target.rect.size };
+}
+
+/** @brief Where @p target stands for the walk, in list space: the tabs on a row of their own above everything listed. */
+Point FocusNavPoint(const FocusTarget &target)
+{
+	const Point centre = target.rect.Center();
+	if (target.isTab)
+		return { centre.x - GetSpellBookPanelRect().position.x, -10000 };
+	return centre;
+}
+
+/** @brief The target @p point is on, or -1. An icon only where it is inside the list's viewport. */
+int FocusIndexAt(const std::vector<FocusTarget> &targets, Point point)
+{
+	const Rectangle content = GetSpellBookContentRect();
+	for (size_t i = 0; i < targets.size(); i++) {
+		if (!FocusScreenRect(targets[i]).contains(point))
+			continue;
+		if (!targets[i].isTab && !content.contains(point))
+			continue;
+		return static_cast<int>(i);
+	}
+	return -1;
+}
+
+/** @brief Whether the mouse is still where the focus parked it (a pixel or two of scaling either way). */
+bool IsCursorOnKeyFocus()
+{
+	return KeyFocusShown && std::abs(MousePosition.x - KeyFocusPoint.x) <= 2 && std::abs(MousePosition.y - KeyFocusPoint.y) <= 2;
+}
+
+/** @brief Parks the cursor on @p target, scrolling an icon, frame and all, into view. */
+void FocusOn(const FocusTarget &target)
+{
+	if (target.isTab) {
+		oracool::PlayUiMoveSound(); // an icon sounds by its own hover entry; a tab has none
+	} else {
+		UpdateScrollBounds();
+		int &offset = ScrollOffset[static_cast<size_t>(CurrentSheet)];
+		const int top = target.rect.position.y - oracool::GridBezelInset;
+		const int bottom = target.rect.position.y + target.rect.size.height + oracool::GridBezelInset;
+		if (top < offset)
+			offset = top;
+		else if (bottom > offset + AbilitiesContentSize.height)
+			offset = bottom - AbilitiesContentSize.height;
+		offset = std::clamp(offset, 0, MaxScrollOffset);
+	}
+	KeyFocusPoint = FocusScreenRect(target).Center();
+	KeyFocusShown = true;
+	SetCursorPos(KeyFocusPoint);
+}
+
+/** @brief The key frame: 2px of the waypoint ring's gold round @p rect, over a half-transparent shadow down-left. */
+void DrawKeyFrame(const Surface &out, Rectangle rect)
+{
+	constexpr uint32_t Gold = 0xE8C46A; // the waypoint list's key ring (DrawKeyRing)
+	constexpr uint8_t GoldIndex = 198;
+	const int w = rect.size.width;
+	const int h = rect.size.height;
+	for (const bool shadow : { true, false }) {
+		const Point p = rect.position + (shadow ? Displacement { -2, 2 } : Displacement { 0, 0 });
+		const auto fill = [&](int x, int y, int fw, int fh) {
+			if (shadow)
+				DrawHalfTransparentRectTo(out, x, y, fw, fh);
+			else
+				FillRectRgb(out, x, y, fw, fh, Gold, GoldIndex);
+		};
+		fill(p.x, p.y, w, 2);
+		fill(p.x, p.y + h - 2, w, 2);
+		fill(p.x, p.y + 2, 2, h - 4);
+		fill(p.x + w - 2, p.y + 2, 2, h - 4);
+	}
+}
+
+/** @brief The frame on the focused tab or icon, while the cursor stays where the focus put it. */
+void DrawKeyFocusFrame(const Surface &out, const Surface &content)
+{
+	if (!KeyFocusShown)
+		return;
+	if (!IsCursorOnKeyFocus()) {
+		KeyFocusShown = false; // the mouse took over
+		return;
+	}
+	const std::vector<FocusTarget> targets = CollectFocusTargets();
+	const int index = FocusIndexAt(targets, KeyFocusPoint);
+	if (index < 0)
+		return;
+	const FocusTarget &target = targets[index];
+	if (target.isTab) {
+		DrawKeyFrame(out, target.rect);
+		return;
+	}
+	// On the slot frame's outer rim, as the waypoint ring sits on the sigil's.
+	const int inset = oracool::GridBezelInset;
+	DrawKeyFrame(content, { { target.rect.position.x - inset, target.rect.position.y - inset - CurrentScroll() },
+	                          { target.rect.size.width + 2 * inset, target.rect.size.height + 2 * inset } });
+}
+
 } // namespace
+
+void MoveSpellBookFocus(int dx, int dy)
+{
+	if (!sbookflag || MyPlayer == nullptr || (dx == 0 && dy == 0))
+		return;
+	UpdateScrollBounds();
+	const std::vector<FocusTarget> targets = CollectFocusTargets();
+	if (targets.empty())
+		return;
+	const int current = FocusIndexAt(targets, IsCursorOnKeyFocus() ? KeyFocusPoint : MousePosition);
+	int next = -1;
+	if (current < 0) {
+		// Not on anything yet: the first icon on the sheet, or the first tab on a sheet with none.
+		for (size_t i = 0; i < targets.size() && next < 0; i++) {
+			if (!targets[i].isTab)
+				next = static_cast<int>(i);
+		}
+		if (next < 0)
+			next = 0;
+	} else {
+		// Up/Down: the nearest row that way, then the nearest column in it. Left/Right: the nearest along the same row.
+		const Point from = FocusNavPoint(targets[current]);
+		long best = std::numeric_limits<long>::max();
+		for (size_t i = 0; i < targets.size(); i++) {
+			if (static_cast<int>(i) == current)
+				continue;
+			const Point to = FocusNavPoint(targets[i]);
+			const int along = dy != 0 ? dy * (to.y - from.y) : dx * (to.x - from.x);
+			const int across = dy != 0 ? std::abs(to.x - from.x) : std::abs(to.y - from.y);
+			if (along <= 0)
+				continue;
+			if (dy == 0 && across > 8)
+				continue;
+			const long score = dy != 0 ? static_cast<long>(along) * 1000 + across : along;
+			if (score < best) {
+				best = score;
+				next = static_cast<int>(i);
+			}
+		}
+	}
+	if (next >= 0)
+		FocusOn(targets[next]);
+}
+
+bool HandleSpellBookKey(SDL_Keycode key)
+{
+	if (!sbookflag || MyPlayer == nullptr)
+		return false;
+	switch (key) {
+	case SDLK_UP:
+		MoveSpellBookFocus(0, -1);
+		return true;
+	case SDLK_DOWN:
+		MoveSpellBookFocus(0, 1);
+		return true;
+	case SDLK_LEFT:
+		MoveSpellBookFocus(-1, 0);
+		return true;
+	case SDLK_RIGHT:
+		MoveSpellBookFocus(1, 0);
+		return true;
+	case SDLK_RETURN:
+	case SDLK_KP_ENTER:
+		// Only with the frame out: otherwise Enter keeps opening the chat line, as it always has here.
+		if (!IsCursorOnKeyFocus())
+			return false;
+		MousePosition = KeyFocusPoint; // the warp's motion event may not have landed yet
+		ClickUiAtCursor();             // the mouse's whole route: a tab turns, a point goes in, a row is readied
+		return true;
+	default:
+		return false;
+	}
+}
 
 Rectangle GetSpellBookPanelRect()
 {
@@ -1753,6 +2004,8 @@ void ScrollSpellBook(int notches)
 void ResetSpellBookScroll()
 {
 	ArmedPassiveSlot = -1;
+	KeyFocusShown = false; // the frame does not outlive the window
+
 	for (int &offset : ScrollOffset)
 		offset = 0;
 	// Opening on a sheet the character cannot use would show an empty window.
@@ -2113,6 +2366,7 @@ void DrawSpellBook(const Surface &out)
 
 	if (const std::optional<int> page = TreePageOf(CurrentSheet); page.has_value()) {
 		DrawTreePage(content, *page, scroll);
+		DrawKeyFocusFrame(out, content);
 		return;
 	}
 
@@ -2125,9 +2379,13 @@ void DrawSpellBook(const Surface &out)
 			continue;
 		DrawSpellRow(content, i, rows[i], top);
 	}
+	DrawKeyFocusFrame(out, content);
 }
 
-void CheckSBook(bool assignToRightButton)
+namespace {
+
+/** @brief The click walk: at the press it only sinks the control hit, at the release it acts (see SBookReleasePass). */
+void RunSBookClick(bool assignToRightButton)
 {
 	// The tab plates first, and outside the inspect guard - changing sheet is reading, not acting, so
 	// it stays available while inspecting another player's abilities. Hit-tested only where a plate
@@ -2137,7 +2395,13 @@ void CheckSBook(bool assignToRightButton)
 			continue;
 		if (!GetTabPlateRect(i).contains(MousePosition))
 			continue;
-		PressedTab = static_cast<int>(i);
+		if (!SBookReleasePass) {
+			PressedTab = static_cast<int>(i); // drawn pressed; the sheet changes on the release inside it
+			RedrawEverything();
+			return;
+		}
+		if (ReleasedTab != static_cast<int>(i))
+			return; // released on another plate than the one pressed
 		// Clicking the open sheet's own plate is a no-op rather than a reset: it must not throw
 		// away the scroll position of the page you are already reading.
 		if (TabPlates[i].sheet != CurrentSheet) {
@@ -2178,7 +2442,8 @@ void CheckSBook(bool assignToRightButton)
 		if (IsPassivePage(*page)) {
 			Player &me = *MyPlayer;
 			if (const int slot = PassiveSlotAt(local); slot >= 0) {
-				PressIconButton({ IconButtonKind::PassiveSlot, slot }); // sinks and sounds whatever follows
+				if (!HitIconButton({ IconButtonKind::PassiveSlot, slot }))
+					return; // the press sinks and sounds whatever follows; the release acts
 				if (me._pLevel < oracool::PassiveSlotRequiredLevel(slot)) {
 					EventPlrMsg(fmt::format(fmt::runtime(_("This slot opens at level {:d}.")),
 					                oracool::PassiveSlotRequiredLevel(slot)),
@@ -2205,7 +2470,8 @@ void CheckSBook(bool assignToRightButton)
 			const std::optional<oracool::ClassTreeSkill> cell = TreeCellAt(*page, local, onBar);
 			if (!cell.has_value())
 				return;
-			PressIconButton({ IconButtonKind::TreeCell, static_cast<int>(*cell) });
+			if (!HitIconButton({ IconButtonKind::TreeCell, static_cast<int>(*cell) }))
+				return;
 			if (assignToRightButton) {
 				// Right-clicking a slotted passive pulls it out wherever it happens to be sitting,
 				// so a player who wants it gone does not have to find which slot holds it.
@@ -2255,7 +2521,8 @@ void CheckSBook(bool assignToRightButton)
 		const std::optional<oracool::ClassTreeSkill> hit = TreeCellAt(*page, local, onBar);
 		if (!hit.has_value())
 			return;
-		PressIconButton({ IconButtonKind::TreeCell, static_cast<int>(*hit) }); // before every refusal below
+		if (!HitIconButton({ IconButtonKind::TreeCell, static_cast<int>(*hit) })) // before every refusal below
+			return;
 		// POINTS ONLY, and the whole icon is the target. User, 2026-08-20: "in abilities window we
 		// repurpose left/right clicks - left click ADDS point, right click SUBTRACTS."
 		//
@@ -2335,7 +2602,8 @@ void CheckSBook(bool assignToRightButton)
 		if (rowIndex >= rowCount)
 			return;
 		sn = rows[rowIndex];
-		PressIconButton({ IconButtonKind::SpellRow, static_cast<int>(rowIndex) }); // an unlearned row too
+		if (!HitIconButton({ IconButtonKind::SpellRow, static_cast<int>(rowIndex) })) // an unlearned row too
+			return;
 		// The spend corners are GONE from this sheet. User rule, 2026-08-20: "Spells cant be
 		// affected by skill points, only by books. Vanila D1." A spell's level is its book level
 		// plus item bonuses, and nothing on this list spends a point any more - so the whole row is
@@ -2376,10 +2644,29 @@ void CheckSBook(bool assignToRightButton)
 	RedrawEverything(); // the click sounded at the press
 }
 
+} // namespace
+
+void CheckSBook(bool assignToRightButton)
+{
+	if (SBookReleasePass)
+		return;
+	PressedWithRightButton = assignToRightButton;
+	RunSBookClick(assignToRightButton);
+}
+
 void ReleaseSpellBookButtons()
 {
-	PressedTab = -1;
-	PressedIcon = {};
+	ReleasedTab = std::exchange(PressedTab, -1);
+	ReleasedIcon = std::exchange(PressedIcon, IconButton {});
+	// The pressed control acts now, and only if the release is inside it (round 89 audit). A release moved off-screen by
+	// ReleaseHeldButtonsWithoutActing hits nothing, so nothing acts.
+	if (!SBookReleasePass && sbookflag && (ReleasedTab >= 0 || ReleasedIcon.kind != IconButtonKind::None)) {
+		SBookReleasePass = true;
+		RunSBookClick(PressedWithRightButton);
+		SBookReleasePass = false;
+	}
+	ReleasedTab = -1;
+	ReleasedIcon = {};
 }
 
 } // namespace devilution

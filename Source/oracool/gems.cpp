@@ -7,6 +7,7 @@
 
 #include "inv.h"
 #include "items.h"
+#include "oracool/rage.h" // UsesRage - a Barbarian viewer has no mana for a stone to give
 #include "oracool/stat_sheet.h"
 #include "player.h"
 #include "utils/language.h"
@@ -413,7 +414,7 @@ void ApplyGemToTotals(uint16_t gemIdx, SocketHost host, ItemBonusTotals &totals)
 		totals.damageMod += at(gem->weaponDamageMod);
 		totals.mana += at(gem->weaponMana) << 6; // mana runs in <<6 fixed point
 		totals.bonusDamage += at(gem->weaponDamagePercent);
-		totals.flags |= gem->weaponFlags;
+		totals.AddFlags(gem->weaponFlags); // AddFlags: a rune's life steal adds to the rest (round 91 audit)
 		// lifePerKill is deliberately absent here: it is an EVENT, not a stat - resolved per kill
 		// in GemLifePerKill, the same shape as the runes' manaPerKill.
 		break;
@@ -426,7 +427,7 @@ void ApplyGemToTotals(uint16_t gemIdx, SocketHost host, ItemBonusTotals &totals)
 		totals.mana += at(gem->shieldMana) << 6;
 		if (gem->shieldThorns)
 			totals.flags |= ItemSpecialEffect::Thorns; // same route the class tree's thorns take
-		totals.flags |= gem->shieldFlags;
+		totals.AddFlags(gem->shieldFlags);
 		break;
 	case SocketHost::Armor:
 		totals.fireResist += at(gem->armorFireRes);
@@ -440,7 +441,7 @@ void ApplyGemToTotals(uint16_t gemIdx, SocketHost host, ItemBonusTotals &totals)
 		totals.dexterity += at(gem->armorDexterity);
 		totals.bonusToHit += at(gem->armorToHit);
 		totals.magicFind += at(gem->armorMagicFind);
-		totals.flags |= gem->armorFlags;
+		totals.AddFlags(gem->armorFlags);
 		break;
 	}
 	// Host-independent effects (the D2 rune column): light radius everywhere; Sol's flat damage
@@ -518,6 +519,14 @@ int EffectiveRequirement(const Item &item, int baseRequirement)
 	return std::max(1, eased * (100 - reduction) / 100);
 }
 
+namespace {
+/** @brief The local player runs on Rage and carries no mana pool (v1.12.344): mana lines say nothing to him. */
+bool ViewerHasNoMana()
+{
+	return MyPlayer != nullptr && UsesRage(*MyPlayer);
+}
+} // namespace
+
 std::string AttackSpeedWords(std::string_view words)
 {
 	std::string text { words };
@@ -561,7 +570,7 @@ std::string FlagText(ItemSpecialEffect flags)
 		add(std::string(_("knockback")));
 	if (HasAnyOf(flags, ItemSpecialEffect::StealLife5))
 		add(std::string(_("steals life")));
-	if (HasAnyOf(flags, ItemSpecialEffect::StealMana5))
+	if (HasAnyOf(flags, ItemSpecialEffect::StealMana5) && !ViewerHasNoMana())
 		add(std::string(_("steals mana")));
 	if (HasAnyOf(flags, ItemSpecialEffect::Thorns))
 		add(std::string(_("attackers take damage")));
@@ -585,6 +594,7 @@ std::string FlagText(ItemSpecialEffect flags)
 std::string GemEffectParts(const GemData *gem, SocketHost host, int percent)
 {
 	const auto at = [percent](int value) { return AtQuality(value, percent); };
+	const bool noMana = ViewerHasNoMana(); // a Barbarian's stones list no mana
 	// The D2 runes stack several effects on one host (El: armor AND light radius), so the line is
 	// built from every nonzero field rather than the first one found.
 	std::string parts;
@@ -605,7 +615,7 @@ std::string GemEffectParts(const GemData *gem, SocketHost host, int percent)
 			add(fmt::format(fmt::runtime(_("+{:d}% to hit")), at(gem->weaponToHit)));
 		if (at(gem->weaponDamageMod) > 0)
 			add(fmt::format(fmt::runtime(_("+{:d} damage")), at(gem->weaponDamageMod)));
-		if (at(gem->weaponMana) > 0)
+		if (at(gem->weaponMana) > 0 && !noMana)
 			add(fmt::format(fmt::runtime(_("+{:d} mana")), at(gem->weaponMana)));
 		if (at(gem->lifePerKill) > 0)
 			add(fmt::format(fmt::runtime(_("+{:d} life per kill")), at(gem->lifePerKill)));
@@ -621,7 +631,7 @@ std::string GemEffectParts(const GemData *gem, SocketHost host, int percent)
 			add(fmt::format(fmt::runtime(_("+{:d}% cold resist")), at(gem->shieldColdRes)));
 		if (at(gem->shieldBonusAc) > 0)
 			add(fmt::format(fmt::runtime(_("+{:d} armor")), at(gem->shieldBonusAc)));
-		if (at(gem->shieldMana) > 0)
+		if (at(gem->shieldMana) > 0 && !noMana)
 			add(fmt::format(fmt::runtime(_("+{:d} mana")), at(gem->shieldMana)));
 		if (gem->shieldThorns)
 			add(std::string(_("attackers take damage")));
@@ -637,7 +647,7 @@ std::string GemEffectParts(const GemData *gem, SocketHost host, int percent)
 			add(fmt::format(fmt::runtime(_("+{:d}% cold resist")), at(gem->armorColdRes)));
 		if (at(gem->armorHitPoints) > 0)
 			add(fmt::format(fmt::runtime(_("+{:d} life")), at(gem->armorHitPoints)));
-		if (at(gem->armorMana) > 0)
+		if (at(gem->armorMana) > 0 && !noMana)
 			add(fmt::format(fmt::runtime(_("+{:d} mana")), at(gem->armorMana)));
 		if (at(gem->armorBonusAc) > 0)
 			add(fmt::format(fmt::runtime(_("+{:d} armor")), at(gem->armorBonusAc)));
@@ -681,7 +691,7 @@ std::string GemEffectParts(const GemData *gem, SocketHost host, int percent)
 		add(std::string(_("indestructible")));
 	if (gem->lightRadius > 0)
 		add(fmt::format(fmt::runtime(_("+{:d} light radius")), gem->lightRadius));
-	if (gem->manaPerKill > 0)
+	if (gem->manaPerKill > 0 && !noMana)
 		add(fmt::format(fmt::runtime(_("+{:d} mana per kill")), gem->manaPerKill));
 	return parts;
 }

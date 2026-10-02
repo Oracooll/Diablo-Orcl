@@ -1738,10 +1738,11 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		hper = 1000;
 #endif
 	int ac = player.GetArmor();
-	if (HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::ACAgainstDemons) && monster.data().monsterClass == MonsterClass::Demon)
-		ac += 40;
-	if (HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::ACAgainstUndead) && monster.data().monsterClass == MonsterClass::Undead)
-		ac += 20;
+	// Summed per source (round 91 audit): 40 / 20 for each worn "+AC vs demons / undead", not once however many.
+	if (monster.data().monsterClass == MonsterClass::Demon)
+		ac += player._pIArmorVsDemons;
+	if (monster.data().monsterClass == MonsterClass::Undead)
+		ac += player._pIArmorVsUndead;
 	const int monsterToHit = hit; // before the level and armour terms - the hero sheet's odds bar keeps it (combat_odds.h)
 	hit += 2 * (monster.level(sgGameInitInfo.nDifficulty) - player._pLevel)
 	    + 30

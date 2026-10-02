@@ -638,6 +638,8 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 				for (const ItemPower &power : def->powers) {
 					if (power.type == IPL_INVALID)
 						break;
+					if (HideManaPowerLineForViewer(power.type))
+						continue; // a Barbarian has no mana pool
 					if (!productLine.empty())
 						AppendStrView(productLine, _(",  "));
 					// Its own value, as the set piece's tooltip prints it - not the accumulated field (round 8 audit).
@@ -650,6 +652,8 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 			// vanilla prefix/suffix pair of fields plus this list; the pair is gone and the list is the whole of
 			// it. A vanilla unique has no list entries, so nothing is added for one.
 			for (int i = 0; i < item._iOracoolAffixCount; i++) {
+				if (HideManaPowerLineForViewer(item._iOracoolAffixes[i].type))
+					continue; // a Barbarian has no mana pool
 				if (!productLine.empty())
 					AppendStrView(productLine, _(",  "));
 				AppendStrView(productLine, PrintOracoolAffixPower(item._iOracoolAffixes[i], item));
@@ -2527,10 +2531,14 @@ std::string RefreshPremiumUntilTarget()
 	if (targets.empty())
 		return std::string(_("Refresh Until has no item names configured."));
 
+	// Timeout 0 has no clock to stop it, and 100,000 generations froze the game for a while (round 89 audit), so
+	// without a timeout the search stops at 2,000: about a second at worst, and the same count on every machine.
 	constexpr int MaximumAttempts = 100000;
-	const int timeoutSeconds = *sgOptions.Oracool.refreshUntilTimeoutSeconds;
+	constexpr int MaximumAttemptsWithoutTimeout = 2000;
+	const int timeoutSeconds = std::max(*sgOptions.Oracool.refreshUntilTimeoutSeconds, 0);
+	const int attemptLimit = timeoutSeconds > 0 ? MaximumAttempts : MaximumAttemptsWithoutTimeout;
 	const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeoutSeconds);
-	for (int attempt = 1; attempt <= MaximumAttempts; ++attempt) {
+	for (int attempt = 1; attempt <= attemptLimit; ++attempt) {
 		for (Item &item : premiumitems)
 			item.clear();
 		numpremium = 0;
@@ -2556,7 +2564,7 @@ std::string RefreshPremiumUntilTarget()
 			return fmt::format(fmt::runtime(_("Refresh Until timed out after {:d} refreshes.")), attempt);
 	}
 
-	return std::string(_("Refresh Until stopped at the 100,000-refresh safety limit."));
+	return fmt::format(fmt::runtime(_("Refresh Until stopped at the {:d}-refresh safety limit.")), attemptLimit);
 }
 
 /**
@@ -4133,11 +4141,11 @@ bool CheckRefreshUntilPromptPress(Point mousePosition)
 	// audit, v1.12.238). It cancels the way Escape does; Enter still confirms.
 	if (!IsRefreshUntilPromptOpen || !pGBoxBuff)
 		return false;
-	if (oracool::CheckWindowCloseButtonClick(RefreshUntilPromptRect(), mousePosition)) {
-		RefreshUntilPromptKeyPress(SDLK_ESCAPE);
-		return true;
-	}
-	return false;
+	// On the release inside it (round 75 audit), and only while the prompt is still up.
+	return oracool::CheckWindowCloseButtonClick(RefreshUntilPromptRect(), mousePosition, [] {
+		if (IsRefreshUntilPromptOpen)
+			RefreshUntilPromptKeyPress(SDLK_ESCAPE);
+	});
 }
 
 void DrawRefreshUntilPrompt(const Surface &out)

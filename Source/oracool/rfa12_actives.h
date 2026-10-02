@@ -85,6 +85,13 @@ float Rfa12CooldownProgress(const Player &player, SpellID spell);
 Point LastOpenTileToward(Point here, Point aim);
 
 /**
+ * @brief The skills' sight test: LineClearMissile, and no closed door between (round 80 audit: a closed door blocks a missile
+ * through its object's flag, not its tile's, so LineClearMissile saw through it and the area bow skills struck the room
+ * behind). As LineClear, neither end tile is tested.
+ */
+bool SightLineClear(Point from, Point to);
+
+/**
  * @brief Where @p player can land near @p dst: the nearest tile within five a hero may stand on AND that he can see from where
  * he stands - the engine's teleport search, with sight (round 46 audit: a crowded target sent him through the wall). Nullopt
  * when there is none.

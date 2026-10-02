@@ -133,6 +133,12 @@ int NextKeystoneTier(int tier, int ticksLeft, int ticksTotal, bool timedOut);
  * `keystone` debug command (user, 2026-09-20: "i need a debug command for Guardian Rift keys").
  */
 void DropGuardianKeystone(Point tile, int tier);
+/**
+ * @brief Gives back the keystone of a Guardian Rift the last game was left (or crashed) inside of before it was over
+ * (rounds 71-72 audit) - Player::_pOracoolOwedKeystoneTier, saved with the hero. Into the pack or the stash, else at the
+ * hero's feet; the debt is cleared. Run once per game load, after the hero and his items are in place.
+ */
+void RefundOwedGuardianKeystone(Player &player);
 /** @brief From town: sets the tileset and starts the set level. False outside town or with no rift open. */
 bool EnterRift(Player &player);
 /**

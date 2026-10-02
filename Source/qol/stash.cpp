@@ -1564,10 +1564,12 @@ bool CheckGoldWithdrawPromptPress(Point mousePosition)
 		return false;
 	// The red X in the box's top-right corner, where every window has it (user, 2026-09-24 dev note:
 	// "put the X close button on same spot on the draw gold window").
-	if (oracool::CheckWindowCloseButtonClick(GoldWithdrawBoxRect(), mousePosition)) {
-		CloseGoldWithdraw();
+	// It closes on the release inside it (round 75 audit), as the pile below does.
+	if (oracool::CheckWindowCloseButtonClick(GoldWithdrawBoxRect(), mousePosition, [] {
+		    if (IsWithdrawGoldOpen)
+			    CloseGoldWithdraw();
+	    }))
 		return true;
-	}
 	// And the pile, which closes what it opened - pressed here, acted on at the release.
 	if (GoldButtonContains(mousePosition)) {
 		GoldDisplayPressed = true;

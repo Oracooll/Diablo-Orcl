@@ -693,11 +693,9 @@ bool HandleRunewordBookClick(Point position)
 	if (!window.contains(position))
 		return false;
 
-	if (GetWindowCloseButtonRect(window).contains(position)) {
-		CloseRunewordBook();
-		PlayUiMoveSound(); // its own hit test, so no click from CheckWindowCloseButtonClick
+	// The X closes on the release inside it, as the filters below toggle (round 75 audit).
+	if (CheckWindowCloseButtonClick(window, position, [] { CloseRunewordBook(); }))
 		return true;
-	}
 
 	// Each filter is pressed here and toggles on the release inside it (ReleaseRunewordBookButton).
 	if (PossibleFilterRect().contains(position))

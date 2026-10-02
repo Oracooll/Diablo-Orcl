@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstring>
 #include <string>
+#include <utility> // std::exchange - a press is taken once by its release
 #include <vector>
 
 #include <SDL.h>
@@ -964,6 +965,13 @@ struct ControlButton {
 };
 
 /**
+ * @brief The fallback control row's button held down (its index), or -1, and what it was at the press. It runs on the
+ * release inside it (round 69-71 audits: with the painted canvas missing, this row still acted on the press).
+ */
+int PressedShopControl = -1;
+ControlButton PressedShopControlButton { ControlKind::Service };
+
+/**
  * @brief The services and bulk actions, in draw order. NOT the tabs - those have their own column.
  *
  * Still one tagged list for the two that share the panel's rows, because their geometry, hit-testing
@@ -1256,14 +1264,13 @@ void DrawShopControls(const Surface &out, int pageCount)
 	// into a face. Drawn first they merge into one carved wall between the faces.
 	for (size_t i = 0; i < buttons.size(); i++) {
 		const Rectangle rest = ShopControlRect(buttons, i);
-		DrawButtonSlotGround(out, rest, rest.contains(MousePosition) && sgbMouseDown == CLICK_LEFT);
+		DrawButtonSlotGround(out, rest, PressedShopControl == static_cast<int>(i));
 	}
 	for (size_t i = 0; i < buttons.size(); i++) {
 		const Rectangle rest = ShopControlRect(buttons, i);
 		const bool hovered = rest.contains(MousePosition);
-		// Oracool: pressed for as long as the left button is held on it. The shop acts on mouse-DOWN,
-		// so this is the span between the click and the release, and sgbMouseDown is that span exactly.
-		const bool pressed = hovered && sgbMouseDown == CLICK_LEFT;
+		// Oracool: pressed from the press until the release, which is when it acts (round 69-71 audits).
+		const bool pressed = PressedShopControl == static_cast<int>(i);
 		// The face sinks with its frame while held (user, 2026-10-02: "make sinkable"); hit tests stay on the rest rect.
 		const Rectangle rect { rest.position + (pressed ? ButtonSlotSink : Displacement { 0, 0 }), rest.size };
 		const VanillaFace face = pressed ? VanillaFace::Pressed : hovered ? VanillaFace::Lit : VanillaFace::Rest;
@@ -1594,6 +1601,45 @@ TalkID TakeReleasedShopTab()
 
 void ReleaseShopServiceButton()
 {
+	// The fallback control row first (no painted canvas): its pressed button runs only on a release inside it, and only
+	// while the same button still stands there (round 69-71 audits).
+	if (const int control = std::exchange(PressedShopControl, -1); control >= 0 && IsShopGridScreen(stextflag)
+	    && !IsRedesignedShopScreen(stextflag) && MyPlayer != nullptr && MyPlayer->HoldItem.isEmpty()) {
+		const std::vector<ControlButton> buttons = ShopControlButtons(stextflag);
+		const size_t i = static_cast<size_t>(control);
+		if (i < buttons.size() && ShopControlRect(buttons, i).contains(MousePosition) && buttons[i].kind == PressedShopControlButton.kind
+		    && buttons[i].service == PressedShopControlButton.service && buttons[i].actionLine == PressedShopControlButton.actionLine) {
+			switch (buttons[i].kind) {
+			case ControlKind::Tab:
+				// Unreachable - the tabs are their own column now and CheckShopTabColumnClick answers
+				// them. Kept so the switch stays exhaustive over the enum rather than needing a
+				// default that would swallow a kind added later.
+				break;
+			case ControlKind::Service:
+				if (buttons[i].service == ServiceButton::RepairAll)
+					ShopRepairAll();
+				else if (buttons[i].service == ServiceButton::Repair)
+					// The hammer, not a drop target (user, 2026-08-27: "make it work as the vanilla
+					// Repair Item skill - summon a Hammer cursor instead of the regular cursor, then
+					// click on item i want repaired"). Dropping an item on the button still works and
+					// is unchanged; this is what the button does when your hand is empty.
+					ArmShopRepairCursor();
+				else if (buttons[i].service == ServiceButton::Recharge)
+					// The same gesture at Adria's (user, 2026-08-27: "make recharge button work as
+					// repair button").
+					ArmShopRechargeCursor();
+				else if (buttons[i].service == ServiceButton::Refresh)
+					RefreshBoyStock(stextflag); // Wirt's fresh stock, free (2026-09-20)
+				// Picking up the hammer is silent in itself; Repair all sounds when the work is done.
+				if (buttons[i].service != ServiceButton::RepairAll)
+					PlayUiSelectSound();
+				break;
+			case ControlKind::Action:
+				ShopActivateAction(stextflag, buttons[i].actionLine);
+				break;
+			}
+		}
+	}
 	const int slot = PressedShopServiceSlot;
 	PressedShopServiceSlot = -1; // always taken, so a press that outlived its screen cannot fire late
 	if (slot < 0 || !PageHasServiceFrames(stextflag))
@@ -1921,11 +1967,18 @@ bool CheckShopGridClick(Point position, bool rightClick)
 	// one should not cost the player a sword.
 	if (CheckShopTabColumnClick(position, rightClick))
 		return true;
-	if (ShopCloseRect().contains(position)) {
-		// Out of the shop entirely, not back to the vendor's dialog - the X on every other Oracool
-		// window closes the window, and the tabs are how you move between shop screens.
+	// Out of the shop entirely, not back to the vendor's dialog - the X on every other Oracool
+	// window closes the window, and the tabs are how you move between shop screens. The left button
+	// closes on the release inside it, as every X does (round 75 audit); a right click has no release
+	// to wait for and closes at once, as it always did.
+	if (!rightClick && PressWindowCloseButtonAt(ShopCloseRect(), position, [] {
+		    if (IsShopGridScreen(stextflag))
+			    stextflag = TalkID::None;
+	    }))
+		return true;
+	if (rightClick && ShopCloseRect().contains(position)) {
 		stextflag = TalkID::None;
-		PlayUiMoveSound(); // its own hit test, so it does not get CheckWindowCloseButtonClick's click
+		PlayUiMoveSound();
 		return true;
 	}
 	{
@@ -2023,35 +2076,13 @@ bool CheckShopGridClick(Point position, bool rightClick)
 	for (size_t i = 0; i < buttons.size(); i++) {
 		if (!ShopControlRect(buttons, i).contains(position))
 			continue;
-		switch (buttons[i].kind) {
-		case ControlKind::Tab:
-			// Unreachable - the tabs are their own column now and CheckShopTabColumnClick answers
-			// them above. Kept so the switch stays exhaustive over the enum rather than needing a
-			// default that would swallow a kind added later.
-			break;
-		case ControlKind::Service:
-			if (buttons[i].service == ServiceButton::RepairAll)
-				ShopRepairAll();
-			else if (buttons[i].service == ServiceButton::Repair)
-				// The hammer, not a drop target (user, 2026-08-27: "make it work as the vanilla
-				// Repair Item skill - summon a Hammer cursor instead of the regular cursor, then
-				// click on item i want repaired"). Dropping an item on the button still works and
-				// is unchanged; this is what the button does when your hand is empty.
-				ArmShopRepairCursor();
-			else if (buttons[i].service == ServiceButton::Recharge)
-				// The same gesture at Adria's (user, 2026-08-27: "make recharge button work as
-				// repair button").
-				ArmShopRechargeCursor();
-			else if (buttons[i].service == ServiceButton::Refresh)
-				RefreshBoyStock(stextflag); // Wirt's fresh stock, free (2026-09-20)
-			// Picking up the hammer is silent in itself; Repair all sounds when the work is done.
-			if (buttons[i].service != ServiceButton::RepairAll)
-				PlayUiSelectSound();
-			break;
-		case ControlKind::Action:
-			ShopActivateAction(stextflag, buttons[i].actionLine);
-			break;
-		}
+		// A right press has no release to act on: absorbed, as the painted frames absorb it.
+		if (rightClick)
+			return true;
+		// The press sinks the button and sounds; ReleaseShopControlRow runs it (round 69-71 audits).
+		PressedShopControl = static_cast<int>(i);
+		PressedShopControlButton = buttons[i];
+		PlayUiMoveSound();
 		return true;
 	}
 

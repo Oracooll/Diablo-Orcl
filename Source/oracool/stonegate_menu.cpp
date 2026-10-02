@@ -315,11 +315,9 @@ bool CheckStonegateMenuClick(Point mousePosition)
 		PlayUiMoveSound();
 		return true;
 	}
-	if (CloseButtonRect(panel).contains(mousePosition)) {
-		CloseStonegateMenu();
-		PlayUiMoveSound();
+	// The X closes on the release inside it, as its rows act (round 75 audit).
+	if (PressWindowCloseButtonAt(CloseButtonRect(panel), mousePosition, [] { CloseStonegateMenu(); }))
 		return true;
-	}
 	for (int row = 0; row < RowCount; row++) {
 		if (!RowRect(panel, row).contains(mousePosition))
 			continue;

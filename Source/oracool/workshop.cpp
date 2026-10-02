@@ -2739,6 +2739,12 @@ void RunControl(Control control)
 			// The loan as it went in, to see afterwards how much of it the recipe really used.
 			const Item loan = reagentSlot >= 0 ? scratch[reagentSlot] : Item {};
 			const std::string made = TransmuteLevskiGridWith(scratch.data(), mine);
+			// EMPTY means nothing was made (round 74 audit): it blanked the board and played the
+			// success sound. The scratch copy is dropped, so the well and the pack stay as they were.
+			if (made.empty()) {
+				SetBoard(std::string(_("Nothing on the bench makes anything.")));
+				break;
+			}
 			if (IsTransmuteRefusal(made)) {
 				SetBoard(made);
 				break;
@@ -2782,6 +2788,13 @@ void RunControl(Control control)
 			break;
 		}
 		const std::string result = TransmuteLevskiGridWith(CraftGrid.data(), recipe);
+		if (result.empty()) {
+			// Nothing was made (round 74 audit): no success sound, no blank board, and the bench
+			// put back exactly as it was in case the recipe touched it before giving up.
+			restoreBench();
+			SetBoard(std::string(_("Nothing on the bench makes anything.")));
+			break;
+		}
 		if (IsTransmuteRefusal(result)) {
 			// A refusal leaves the grid as it was, so the map is still right; restore anyway rather
 			// than trust that, because "leaves it as it was" is a property of another file.

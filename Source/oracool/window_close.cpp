@@ -1,5 +1,8 @@
 #include "oracool/window_close.h"
 
+#include <optional>
+#include <utility>
+
 #include "engine/render/primitive_render.hpp"
 
 #include "oracool/ornate_border.h"
@@ -20,6 +23,17 @@ constexpr uint8_t ClosePlateColor = PAL16_RED + 13;
 constexpr int StrokeWidth = 2;
 /** Gap between the glyph and the edge of its plate. */
 constexpr int GlyphInset = 4;
+/** The pressed face's sink, every Orcl button's: 2px down and left (2026-09-20). */
+constexpr Displacement PressSink { -2, 2 };
+
+/** The X held down, if any, and what its release inside it does. */
+std::optional<Rectangle> PressedButton;
+std::function<void()> PressedClose;
+
+bool SameRect(const Rectangle &a, const Rectangle &b)
+{
+	return a.position == b.position && a.size.width == b.size.width && a.size.height == b.size.height;
+}
 
 } // namespace
 
@@ -42,7 +56,8 @@ void DrawWindowCloseButton(const Surface &out, const Rectangle &window)
 
 void DrawWindowCloseButtonAt(const Surface &out, const Rectangle &button)
 {
-	DrawWindowCloseButtonStyled(out, button, CloseGlyphColor, ClosePlateColor);
+	const bool pressed = PressedButton && SameRect(*PressedButton, button);
+	DrawWindowCloseButtonStyled(out, pressed ? Rectangle { button.position + PressSink, button.size } : button, CloseGlyphColor, ClosePlateColor);
 }
 
 void DrawWindowCloseButtonStyled(const Surface &out, const Rectangle &button, uint8_t glyphColor, uint8_t plateColor)
@@ -63,13 +78,37 @@ void DrawWindowCloseButtonStyled(const Surface &out, const Rectangle &button, ui
 	}
 }
 
-bool CheckWindowCloseButtonClick(const Rectangle &window, Point mousePosition)
+bool CheckWindowCloseButtonClick(const Rectangle &window, Point mousePosition, std::function<void()> close)
 {
-	if (!GetWindowCloseButtonRect(window).contains(mousePosition))
+	return PressWindowCloseButtonAt(GetWindowCloseButtonRect(window), mousePosition, std::move(close));
+}
+
+bool PressWindowCloseButtonAt(const Rectangle &button, Point mousePosition, std::function<void()> close)
+{
+	if (!button.contains(mousePosition))
 		return false;
-	// Every caller closes on true, so the close sounds here - once, for every window that has an X.
+	// The press sinks the face and sounds - once, for every window that has an X - and closes nothing.
+	PressedButton = button;
+	PressedClose = std::move(close);
 	PlayUiMoveSound();
 	return true;
+}
+
+void ReleaseWindowCloseButton(Point mousePosition)
+{
+	if (!PressedButton)
+		return;
+	const Rectangle button = *PressedButton;
+	std::function<void()> close = std::move(PressedClose);
+	PressedButton = std::nullopt;
+	PressedClose = nullptr;
+	if (button.contains(mousePosition) && close)
+		close(); // released off the X: the face springs back and the window stands
+}
+
+bool IsWindowCloseButtonPressed()
+{
+	return PressedButton.has_value();
 }
 
 } // namespace devilution::oracool

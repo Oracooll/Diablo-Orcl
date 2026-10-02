@@ -849,6 +849,35 @@ TEST_F(InvTest, DecrementOrRemoveSpdBarItem_lastUnitConsumed_refillsFromMatching
 	EXPECT_EQ(MyPlayer->_pNumInv, 0); // the drained inventory stack was fully removed
 }
 
+// Belt: potions only. A hand-placed scroll stack used up from the belt is not refilled from
+// the pack (audit rounds 64-91: the belt refilled Town Portal scrolls, oils and runes).
+TEST_F(InvTest, DecrementOrRemoveSpdBarItem_lastScrollConsumed_doesNotRefillFromInventory)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	clear_inventory();
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+
+	Item scroll = MakeStackablePotion(IDI_HEAL, true, 1);
+	scroll._iMiscId = IMISC_SCROLL;
+	scroll._iSpell = SpellID::TownPortal;
+	ASSERT_TRUE(scroll.isStackableConsumable());
+	ASSERT_FALSE(scroll.isPotion());
+
+	MyPlayer->SpdList[0] = scroll;
+	MyPlayer->InvList[0] = scroll;
+	MyPlayer->InvList[0].setStackCount(10);
+	MyPlayer->InvGrid[0] = 1;
+	MyPlayer->_pNumInv = 1;
+
+	DecrementOrRemoveSpdBarItem(*MyPlayer, 0);
+
+	EXPECT_TRUE(MyPlayer->SpdList[0].isEmpty()) << "the belt refilled a non-potion stack";
+	ASSERT_EQ(MyPlayer->_pNumInv, 1);
+	EXPECT_EQ(MyPlayer->InvList[0].stackCount(), 10);
+}
+
 // Refill should keep drawing from subsequent matching inventory stacks (in scan order)
 // until the belt slot hits the cap, partially draining the last stack it touches.
 TEST_F(InvTest, RefillBeltSlotFromInventory_combinesMultipleMatchingStacksUpToCap)

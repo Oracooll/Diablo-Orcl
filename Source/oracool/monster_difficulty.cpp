@@ -27,7 +27,6 @@ uint16_t PromoteResistancesToImmunities(uint16_t resistances)
 	// So the promotion is applied in school order and stops before the last one standing. Whatever
 	// the monster was weakest to on Hell stays merely resisted on Torment, which is also the more
 	// interesting rule: every monster keeps exactly one answer, and finding it is the game.
-	constexpr uint16_t ResistBits = RESIST_MAGIC | RESIST_FIRE | RESIST_LIGHTNING;
 	constexpr uint16_t ImmuneBits = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
 
 	uint16_t out = resistances;
@@ -45,7 +44,9 @@ uint16_t PromoteResistancesToImmunities(uint16_t resistances)
 			continue;
 		// Would this promotion leave nothing but immunities? Count what stays answerable.
 		const uint16_t promoted = static_cast<uint16_t>((out & ~school.resist) | school.immune);
-		if ((promoted & ImmuneBits) == ImmuneBits && (promoted & ResistBits) == 0)
+		// A resistance bit beside its own school's immunity is no answer (a Hell row resisting all three and immune to
+		// lightning came out immune to everything), so only the immunities count.
+		if ((promoted & ImmuneBits) == ImmuneBits)
 			break; // the last school standing keeps its resistance
 		out = promoted;
 	}
@@ -72,7 +73,18 @@ uint16_t MonsterResistancesFor(const MonsterData &data, _difficulty difficulty)
 		// not already asked (Pipeline: "make it difficulty-aware so Hell and Torment demand real
 		// resistance gear"). Hell's resistances harden into immunities here - the same step
 		// Nightmare-to-Hell makes, taken once more.
-		return cold | PromoteResistancesToImmunities(data.resistanceHell);
+	{
+		uint16_t torment = PromoteResistancesToImmunities(data.resistanceHell);
+		// And no monster immune to all three schools on Torment, not even one authored so on Hell (round 86 audit, the user's
+		// call): the Obsidian Lord, Soul Burner, Advocate, Arch Lich and Reaper were walls no caster could touch, the case the
+		// promotion above refuses to create and the Sealed Map arena and the rift guardians already demote. Lightning is given
+		// back as a resistance - the one school, in the order ChampionResistancesFor gives one back - so every monster keeps
+		// one answer, and every other Hell immunity stands.
+		constexpr uint16_t AllImmune = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
+		if ((torment & AllImmune) == AllImmune)
+			torment = static_cast<uint16_t>((torment & ~static_cast<uint16_t>(IMMUNE_LIGHTNING)) | RESIST_LIGHTNING);
+		return cold | torment;
+	}
 	default:
 		return cold | data.resistance;
 	}

@@ -2,6 +2,8 @@
 
 #include <SDL.h>
 
+#include "engine/path.h"
+#include "levels/gendung.h"
 #include "options.h"
 #include "oracool/oracool.h"
 #include "oracool/paladin_skills.h"
@@ -134,6 +136,16 @@ std::string FuriousChargeFacts(int rank)
 	line(fmt::format(fmt::runtime(_("Dash: up to {:.1f} s")), MaxDashDurationTicks / 20.0)); // 20 game ticks a second
 	line(fmt::format(fmt::runtime(_("Cooldown: {:.1f} s")), CooldownDurationTicks / 20.0));
 	return out;
+}
+
+bool ChargePathIsDirect(const Player &player, Point target)
+{
+	if (!InDungeonBounds(target) || player.position.tile == target)
+		return false;
+	int8_t path[MaxPathLength];
+	const int steps = FindPath([&player](Point position) { return PosOkPlayer(player, position); }, player.position.future, target, path);
+	// The movers' cap (TeleportTo since round 52): no more than a tile past the straight distance.
+	return steps > 0 && steps <= player.position.tile.WalkingDistance(target) + ChargePathSlackTiles;
 }
 
 } // namespace devilution::oracool

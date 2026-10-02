@@ -963,13 +963,9 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 		}
 		RedrawComponent(PanelDrawComponent::Health);
 	}
-	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::StealMana3 | ItemSpecialEffect::StealMana5) && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
-		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::StealMana3)) {
-			skdam = 3 * dam / 100;
-		}
-		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::StealMana5)) {
-			skdam = 5 * dam / 100;
-		}
+	// The summed percentages (round 91 audit): a 3% and a 5% source steal 8%, where the 5% used to overwrite the 3%.
+	if (player._pIManaSteal > 0 && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
+		skdam = player._pIManaSteal * dam / 100;
 		player._pMana += skdam;
 		if (player._pMana > player._pMaxMana) {
 			player._pMana = player._pMaxMana;
@@ -980,13 +976,8 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 		}
 		RedrawComponent(PanelDrawComponent::Mana);
 	}
-	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::StealLife3 | ItemSpecialEffect::StealLife5)) {
-		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::StealLife3)) {
-			skdam = 3 * dam / 100;
-		}
-		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::StealLife5)) {
-			skdam = 5 * dam / 100;
-		}
+	if (player._pILifeSteal > 0) {
+		skdam = player._pILifeSteal * dam / 100;
 		player._pHitPoints += skdam;
 		if (player._pHitPoints > player._pMaxHP) {
 			player._pHitPoints = player._pMaxHP;
@@ -4661,6 +4652,9 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			// cooldown, and the next click paid again). It swings at walking pace instead, as out of mana does.
 			if (!oracool::IsFuriousChargeOnCooldown() && !oracool::IsFuriousChargeDashing()
 			    && LineClearMissile(myPlayer.position.tile, Monsters[pcursmonst].position.tile)
+			    // Nor at one he can reach only the long way round (round 82-83 audit: the line test reads the missile flag
+			    // alone, so a gap he cannot walk still launched the dash).
+			    && oracool::ChargePathIsDirect(myPlayer, Monsters[pcursmonst].position.tile)
 			    && oracool::SpendPaladinSkillMana(myPlayer, oracool::PaladinSkill::Charge))
 				oracool::StartFuriousChargeDash();
 		}

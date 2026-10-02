@@ -306,9 +306,13 @@ StyledText GetReadiedSlotDamage(bool leftButton)
 
 	int minDam = -1;
 	int maxDam = -1;
-	// At least 1: several formulas take the level as a real term, and a spell readied from a staff
-	// the character has no book for reads back as level 0.
-	GetDamageAmtAtLevel(spell, std::max(player.GetSpellLevel(spell), 1), &minDam, &maxDam);
+	// A scroll or a staff casts at the level StartSpell reads - GetSpellLevel, which is 0 for a spell the
+	// character has no book for - so the row shows that level, not 1 (round 90 audit: the sheet read level
+	// 1 while the cast used 0). A book spell keeps the floor of 1: at level 0 it cannot be cast at all.
+	const SpellType readiedType = leftButton ? player._pLRSplType : player._pRSplType;
+	const int castLevel = player.GetSpellLevel(spell);
+	const bool fromItem = readiedType == SpellType::Scroll || readiedType == SpellType::Charges;
+	GetDamageAmtAtLevel(spell, fromItem ? castLevel : std::max(castLevel, 1), &minDam, &maxDam);
 	if (minDam == -1)
 		return StyledText { UiFlags::ColorWhite, "-" };
 	// Glass Cannon reaches every spell too (round 33 audit). Not a heal: it is damage dealt.
@@ -447,26 +451,18 @@ int BlockChancePercent()
 	return std::clamp(InspectPlayer->GetBlockChance(false) + oracool::Rfa12BlockBonus(*InspectPlayer) + oracool::PassiveBlockBonus(*InspectPlayer), 0, 100);
 }
 
-/** @brief Fixed life-steal percentage. Both flags present means 5 - the later test overwrites. */
+/** @brief Fixed life-steal percentage, summed over every source (round 91 audit) - what PlrHitMonst steals. */
 int LifeStealPercent()
 {
-	if (HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::StealLife5))
-		return 5;
-	if (HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::StealLife3))
-		return 3;
-	return 0;
+	return InspectPlayer->_pILifeSteal;
 }
 
-/** @brief Fixed mana-steal percentage. NoMana disables the whole branch (player.cpp:720). */
+/** @brief Fixed mana-steal percentage, summed the same way. NoMana disables the whole branch (PlrHitMonst). */
 int ManaStealPercent()
 {
 	if (HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana))
 		return 0;
-	if (HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::StealMana5))
-		return 5;
-	if (HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::StealMana3))
-		return 3;
-	return 0;
+	return InspectPlayer->_pIManaSteal;
 }
 
 /** @brief "0" when a bonus is absent, so a row of zeroes reads as "nothing here" at a glance. */

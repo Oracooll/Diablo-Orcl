@@ -81,6 +81,8 @@ void UpdateSpellTarget(SpellID spell);
 bool TryDropItem();
 void InvalidateInventorySlot();
 void FocusOnInventory();
+/** @brief Turns the open backpack to the next (@p direction +1) or previous (-1) unlocked page, round the ends. The pad's LB/RB. */
+void StepInventoryPage(int direction);
 void PerformSpellAction();
 void QuickCast(size_t slot);
 

@@ -1365,6 +1365,7 @@ void ThrowHammers(Instance &inst, Point from, Point to)
 		if (hammer == nullptr)
 			continue;
 		hammer->companionPercent = static_cast<int16_t>(percent);
+		hammer->neverMisses = true; // as Korlic's and Talic's blows (round 88 audit: his hammers alone rolled to hit)
 		if (MissileArtLoaded(MissileGraphicID::BlessedHammerSpin)) {
 			UseMissileGraphic(*hammer, MissileGraphicID::BlessedHammerSpin);
 			ScaleMissile(*hammer, ThrownHammerPercent);

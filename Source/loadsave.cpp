@@ -1397,6 +1397,10 @@ void LoadMatchingItems(LoadHelper &file, const Player &player, const int n, Item
  */
 void LoadDroppedItems(LoadHelper &file, size_t savedItemCount)
 {
+	// More than Items[] holds would write past it (rounds 68-75 audit: level files were trusted on load). The count fixes
+	// where the rest of the file lies, so it cannot be clamped.
+	if (savedItemCount > MAXITEMS)
+		app_fatal(_("This level file is damaged (a count or id out of range) and cannot be loaded."));
 	// Skip loading ActiveItems and AvailableItems, the indices are initialised below based on the number of valid items
 	file.Skip<uint8_t>(MAXITEMS * 2);
 
@@ -1409,6 +1413,8 @@ void LoadDroppedItems(LoadHelper &file, size_t savedItemCount)
 	for (size_t i = 0; i < savedItemCount; i++) {
 		Item &item = Items[ActiveItemCount];
 		LoadItem(file, item);
+		if (!item.isEmpty() && !InDungeonBounds(item.position))
+			item.clear(); // a floor item off the map would index dItem out of range: dropped, as an empty one is
 
 		if (!item.isEmpty()) {
 			// Oracool: a drop saved before its hook started the tumble carries a frame count of 0 and
@@ -2264,6 +2270,16 @@ void SaveCorpseTable(SaveHelper &file)
 	}
 }
 
+/**
+ * @brief Refuses a level file whose counts or slot ids would index past the arrays they fill (rounds 68-75 audit: every
+ * count was trusted). Those fix where the rest of the file lies, so nothing can be skipped or clamped instead.
+ */
+void RequireLevelFileInRange(bool inRange)
+{
+	if (!inRange)
+		app_fatal(_("This level file is damaged (a count or id out of range) and cannot be loaded."));
+}
+
 void LoadCorpseTable(LoadHelper &file)
 {
 	if (file.NextLE<uint32_t>() != CorpseTableTag) {
@@ -2402,23 +2418,32 @@ void LoadLevel(LevelConversionData *levelConversionData)
 		MoveLightsToCorpses();
 	}
 
-	ActiveMonsterCount = file.NextBE<int32_t>();
+	const int32_t savedMonsterCount = file.NextBE<int32_t>();
 	auto savedItemCount = file.NextBE<uint32_t>();
 	// Town's objects are placed afresh on every entry and never saved, so its count is the one just placed, not the last
 	// visit's (round 42 audit: a town object placed only sometimes would have been cut off ActiveObjects).
 	const int32_t savedObjectCount = file.NextBE<int32_t>();
-	if (leveltype != DTYPE_TOWN)
+	if (leveltype != DTYPE_TOWN) {
+		RequireLevelFileInRange(savedMonsterCount >= 0 && static_cast<size_t>(savedMonsterCount) <= MaxMonsters);
+		RequireLevelFileInRange(savedObjectCount >= 0 && savedObjectCount <= MAXOBJECTS);
 		ActiveObjectCount = savedObjectCount;
+	}
+	ActiveMonsterCount = static_cast<size_t>(std::clamp<int32_t>(savedMonsterCount, 0, static_cast<int32_t>(MaxMonsters)));
 
 	if (leveltype != DTYPE_TOWN) {
-		for (int &monsterId : ActiveMonsters)
+		for (int &monsterId : ActiveMonsters) {
 			monsterId = file.NextBE<int32_t>();
+			RequireLevelFileInRange(monsterId >= 0 && static_cast<size_t>(monsterId) < MaxMonsters);
+		}
 		for (size_t i = 0; i < ActiveMonsterCount; i++) {
 			Monster &monster = Monsters[ActiveMonsters[i]];
 			MonsterConversionData *monsterConversionData = nullptr;
 			if (levelConversionData != nullptr)
 				monsterConversionData = &levelConversionData->monsterConversionData[ActiveMonsters[i]];
 			LoadMonster(&file, monster, monsterConversionData);
+			// The level's own type list is only built when the level is entered; a conversion pass has none to check.
+			if (levelConversionData == nullptr && monster.levelType >= LevelMonsterTypeCount)
+				monster.levelType = 0;
 			// No light revived here: the saved id is a slot of the first visit's pool. RelightLoadedMonsters gives each
 			// its own after the load (round 7 audit, v1.12.232).
 		}
@@ -2426,10 +2451,14 @@ void LoadLevel(LevelConversionData *levelConversionData)
 			for (size_t i = 0; i < ActiveMonsterCount; i++)
 				SyncMonsterAnim(Monsters[ActiveMonsters[i]]);
 		}
-		for (int &objectId : ActiveObjects)
+		for (int &objectId : ActiveObjects) {
 			objectId = file.NextLE<int8_t>();
-		for (int &objectId : AvailableObjects)
+			RequireLevelFileInRange(objectId >= 0 && objectId < MAXOBJECTS);
+		}
+		for (int &objectId : AvailableObjects) {
 			objectId = file.NextLE<int8_t>();
+			RequireLevelFileInRange(objectId >= 0 && objectId < MAXOBJECTS);
+		}
 		for (int i = 0; i < ActiveObjectCount; i++)
 			LoadObject(file, Objects[ActiveObjects[i]]);
 		if (!gbSkipSync) {
@@ -2449,18 +2478,25 @@ void LoadLevel(LevelConversionData *levelConversionData)
 	file.Skip<uint8_t>(MAXDUNX * MAXDUNY);
 
 	if (leveltype != DTYPE_TOWN) {
+		// The tile maps index the monster, object and light arrays: a cell out of range is emptied, not trusted (rounds
+		// 68-75 audit). They fix nothing about the file's layout, so one bad cell need not refuse the level.
 		for (int j = 0; j < MAXDUNY; j++) {
-			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-				dMonster[i][j] = file.NextBE<int32_t>();
+			for (int i = 0; i < MAXDUNX; i++) { // NOLINT(modernize-loop-convert)
+				const int32_t monsterCell = file.NextBE<int32_t>();
+				const bool inRange = monsterCell >= -static_cast<int32_t>(MaxMonsters) && monsterCell <= static_cast<int32_t>(MaxMonsters);
+				dMonster[i][j] = static_cast<int16_t>(inRange ? monsterCell : 0);
+			}
 		}
 		for (int j = 0; j < MAXDUNY; j++) {
-			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-				dObject[i][j] = file.NextLE<int8_t>();
+			for (int i = 0; i < MAXDUNX; i++) { // NOLINT(modernize-loop-convert)
+				const int8_t objectCell = file.NextLE<int8_t>();
+				dObject[i][j] = static_cast<int8_t>(objectCell >= -MAXOBJECTS ? objectCell : 0);
+			}
 		}
 		file.Skip<uint8_t>(MAXDUNY * MAXDUNX); // dLight
 		for (int j = 0; j < MAXDUNY; j++) {
 			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-				dPreLight[i][j] = file.NextLE<uint8_t>();
+				dPreLight[i][j] = std::min<uint8_t>(file.NextLE<uint8_t>(), static_cast<uint8_t>(LightsMax));
 		}
 		for (int j = 0; j < DMAXY; j++) {
 			for (int i = 0; i < DMAXX; i++) { // NOLINT(modernize-loop-convert)
@@ -3435,6 +3471,10 @@ void LoadGame(bool firstflag)
 	auto savedItemCount = file.NextBE<uint32_t>();
 	int tmpNummissiles = file.NextBE<int32_t>();
 	int tmpNobjects = file.NextBE<int32_t>();
+	// The level inside the save, checked as LoadLevel checks a level file (rounds 68-75 audit).
+	RequireLevelFileInRange(tmpNummonsters >= 0 && static_cast<size_t>(tmpNummonsters) <= MaxMonsters);
+	RequireLevelFileInRange(tmpNobjects >= 0 && tmpNobjects <= MAXOBJECTS);
+	RequireLevelFileInRange(tmpNummissiles >= 0 && static_cast<size_t>(tmpNummissiles) <= MaxMissilesForSaveGame);
 
 	if (!gbIsHellfire && IsAnyOf(leveltype, DTYPE_NEST, DTYPE_CRYPT))
 		app_fatal(_("Player is on a Hellfire only level"));
@@ -3483,10 +3523,16 @@ void LoadGame(bool firstflag)
 	// skip ahead for vanilla save compatibility (Related to bugfix where MonsterKillCounts[MaxMonsters] was changed to MonsterKillCounts[NUM_MTYPES]
 	file.Skip(4 * (MaxMonsters - NUM_MTYPES));
 	if (leveltype != DTYPE_TOWN) {
-		for (int &monsterId : ActiveMonsters)
+		for (int &monsterId : ActiveMonsters) {
 			monsterId = file.NextBE<int32_t>();
-		for (size_t i = 0; i < ActiveMonsterCount; i++)
-			LoadMonster(&file, Monsters[ActiveMonsters[i]]);
+			RequireLevelFileInRange(monsterId >= 0 && static_cast<size_t>(monsterId) < MaxMonsters);
+		}
+		for (size_t i = 0; i < ActiveMonsterCount; i++) {
+			Monster &monster = Monsters[ActiveMonsters[i]];
+			LoadMonster(&file, monster);
+			if (monster.levelType >= LevelMonsterTypeCount)
+				monster.levelType = 0;
+		}
 		for (size_t i = 0; i < ActiveMonsterCount; i++)
 			SyncPackSize(Monsters[ActiveMonsters[i]]);
 		// Skip ActiveMissiles
@@ -3499,24 +3545,32 @@ void LoadGame(bool firstflag)
 		// load the appropriate animation data for the monster in missile.var2
 		for (size_t i = 0; i < ActiveMonsterCount; i++)
 			SyncMonsterAnim(Monsters[ActiveMonsters[i]]);
-		for (int &objectId : ActiveObjects)
+		for (int &objectId : ActiveObjects) {
 			objectId = file.NextLE<int8_t>();
-		for (int &objectId : AvailableObjects)
+			RequireLevelFileInRange(objectId >= 0 && objectId < MAXOBJECTS);
+		}
+		for (int &objectId : AvailableObjects) {
 			objectId = file.NextLE<int8_t>();
+			RequireLevelFileInRange(objectId >= 0 && objectId < MAXOBJECTS);
+		}
 		for (int i = 0; i < ActiveObjectCount; i++)
 			LoadObject(file, Objects[ActiveObjects[i]]);
 		for (int i = 0; i < ActiveObjectCount; i++)
 			SyncObjectAnim(Objects[ActiveObjects[i]]);
 
 		ActiveLightCount = file.NextBE<int32_t>();
+		RequireLevelFileInRange(ActiveLightCount >= 0 && ActiveLightCount <= MAXLIGHTS);
 
-		for (uint8_t &lightId : ActiveLights)
+		for (uint8_t &lightId : ActiveLights) {
 			lightId = file.NextLE<uint8_t>();
+			RequireLevelFileInRange(lightId < MAXLIGHTS);
+		}
 		for (int i = 0; i < ActiveLightCount; i++)
 			LoadLighting(&file, &Lights[ActiveLights[i]]);
 
 		file.Skip<int32_t>(); // VisionId
 		int visionCount = file.NextBE<int32_t>();
+		RequireLevelFileInRange(visionCount >= 0 && visionCount <= MAXVISION);
 
 		for (int i = 0; i < visionCount; i++) {
 			LoadLighting(&file, &VisionList[i]);

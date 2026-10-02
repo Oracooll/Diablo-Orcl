@@ -79,8 +79,10 @@ void HandleSpellBookInteraction(const SDL_Event &event)
 	if (!sbookflag)
 		return;
 
-	if (event.type == SDL_FINGERUP)
-		CheckSBook();
+	if (event.type == SDL_FINGERUP) {
+		CheckSBook();               // the press half...
+		ReleaseSpellBookButtons(); // ...and the release that acts: a tap is both at once
+	}
 }
 
 bool HandleSpeedBookInteraction(const SDL_Event &event)

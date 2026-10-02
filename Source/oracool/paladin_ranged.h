@@ -14,6 +14,7 @@
 
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "engine/point.hpp"
 #include "misdat.h" // DamageType
@@ -77,6 +78,19 @@ std::optional<DamageType> PaladinCastDamageType(PaladinSkill skill);
  * @p damage is already the weapon roll for this cast; the mana was charged at the cast.
  */
 void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellLevel);
+
+/** @brief The ring's 32 aim points around the impact, each once (round 93 audit: the four on the axes were fired twice). */
+std::vector<WorldTileDisplacement> FistRingOffsets();
+
+/**
+ * @brief Whether a bolt of the ring @p ringId (a MiniNovaBall's var3) may strike monster @p monsterId: true the first
+ * time the ring meets it, false after (round 93 audit: a monster beside the impact took 4-5 of the 60% bolts). True
+ * for a bolt of no ring (0) or of one no longer tracked.
+ */
+bool ClaimFistRingTarget(int ringId, int monsterId);
+
+/** @brief A new ring for ClaimFistRingTarget: an id never used before in this run, with no monster met. */
+int StartFistRing();
 
 /**
  * @brief A player's Blessed Shield launches with its own cue INSTEAD of the generic cast sound its

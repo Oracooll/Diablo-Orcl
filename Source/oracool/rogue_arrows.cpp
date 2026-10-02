@@ -11,6 +11,7 @@
 #include "monster.h"
 #include "oracool/paladin_skills.h" // MissilePoolHasRoom
 #include "oracool/passives.h"
+#include "oracool/rfa12_actives.h" // SightLineClear - Strafe's targets
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
@@ -202,7 +203,7 @@ void FireArrowSkill(Player &player, RogueArrow arrow, Point target)
 			if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion() || (monster.flags & MFLAG_HIDDEN) != 0 || !monster.isPossibleToHit())
 				continue;
 			const int distance = player.position.tile.WalkingDistance(monster.position.tile);
-			if (distance > 8 || !LineClearMissile(player.position.tile, monster.position.tile))
+			if (distance > 8 || !SightLineClear(player.position.tile, monster.position.tile)) // nor past a closed door (round 80)
 				continue;
 			targets.emplace_back(distance, monster.position.tile);
 		}

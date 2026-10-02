@@ -40,6 +40,8 @@
 #include "minitext.h"
 #include "missiles.h"
 #include "oracool/auto_save.h"
+#include "oracool/event_log.h" // GetEventLogWindowRect - the pad's A beside the backpack
+#include "oracool/ui_sound.h" // PlayUiMoveSound - a page turned from the pad
 #include "panels/charpanel.hpp"
 #include "panels/spell_book.hpp"
 #include "panels/spell_icons.hpp"
@@ -93,6 +95,49 @@ int Slot = SLOTXY_INV_FIRST;
 Point ActiveStashSlot = InvalidStashPoint;
 int PreviousInventoryColumn = -1;
 bool BeltReturnsToStash = false;
+/**
+ * @brief The backpack page tab the D-pad stands on, or -1 (round 87 audit: the pad could not reach the tab row). Slot is
+ * -1 while it is set; the tab sits over its own backpack column, so the row maps one to one onto the grid below it.
+ */
+int FocusedInvTab = -1;
+
+/** @brief Screen centre of backpack page tab @p tab. */
+Point InvTabCoord(int tab)
+{
+	const Point centre = oracool::GetTabRect(tab).Center();
+	return oracool::GetInventoryPanelRect().position + Displacement { centre.x, centre.y };
+}
+
+/** @brief Puts the D-pad's focus, and the cursor, on page tab @p tab. */
+void MoveToInvTab(int tab)
+{
+	tab = std::clamp(tab, 0, oracool::TabCount - 1);
+	FocusedInvTab = tab;
+	PreviousInventoryColumn = tab;
+	Slot = -1;
+	SetCursorPos(InvTabCoord(tab));
+}
+
+/** @brief Whether the D-pad's focus is on a page tab and the cursor still with it (the right stick moves it off). */
+bool IsOnInvTab()
+{
+	return FocusedInvTab >= 0 && TabbedInventoryEnabled() && MousePosition == InvTabCoord(FocusedInvTab);
+}
+
+/**
+ * @brief The real belt slot (1-4) under backpack column @p column: the four spread across the ten columns (round 87 audit:
+ * columns 0-7 went onto SpdList 0-7, Menu, Portal, Run and the hidden slot among them).
+ */
+int BeltSlotBelowColumn(int column)
+{
+	return 1 + std::clamp(column * 4 / INV_ROW_SLOT_SIZE, 0, 3);
+}
+
+/** @brief The backpack column above real belt slot @p beltSlot (1-4), the inverse of BeltSlotBelowColumn. */
+int ColumnAboveBeltSlot(int beltSlot)
+{
+	return std::clamp(((beltSlot - 1) * INV_ROW_SLOT_SIZE + INV_ROW_SLOT_SIZE / 2) / 4, 0, INV_ROW_SLOT_SIZE - 1);
+}
 
 const Direction FaceDir[3][3] = {
 	// NONE             UP                DOWN
@@ -710,7 +755,9 @@ Point InvGetEquipSlotCoordFromInvSlot(const inv_xy_slot slot)
 Point GetSlotCoord(int slot)
 {
 	if (slot >= SLOTXY_BELT_FIRST && slot <= SLOTXY_BELT_LAST) {
-		return GetPanelPosition(UiPanels::Main, InvRect[slot].Center());
+		// Where the belt is drawn and hit-tested (round 87 audit): InvRect's belt cells are vanilla's BeltRect, which the
+		// plate art left behind, so the cursor parked off the slot it meant.
+		return oracool::GetBeltSlotRect(slot - SLOTXY_BELT_FIRST).Center();
 	}
 
 	return GetPanelPosition(UiPanels::Inventory, InvRect[slot].Center());
@@ -960,11 +1007,39 @@ void InventoryMove(AxisDirection dir)
 	Point mousePos = MousePosition;
 
 	const Item &heldItem = MyPlayer->HoldItem;
+
+	// On the page tabs (round 87 audit): Left/Right walk the row, Down drops to the column below, Up goes on to the paper
+	// doll as row 1 did before the tabs were reachable.
+	bool fromTabRow = false;
+	int tabLeft = -1;
+	if (FocusedInvTab >= 0) {
+		if (!IsOnInvTab()) {
+			FocusedInvTab = -1; // the right stick took the cursor elsewhere
+		} else {
+			if (dir.x == AxisDirectionX_LEFT && FocusedInvTab > 0)
+				MoveToInvTab(FocusedInvTab - 1);
+			else if (dir.x == AxisDirectionX_RIGHT && FocusedInvTab < oracool::TabCount - 1)
+				MoveToInvTab(FocusedInvTab + 1);
+			if (dir.y == AxisDirectionY_NONE)
+				return;
+			const int width = heldItem.isEmpty() ? 1 : GetInventorySize(heldItem).width;
+			tabLeft = FocusedInvTab;
+			FocusedInvTab = -1;
+			Slot = SLOTXY_INV_ROW1_FIRST + std::min(tabLeft, INV_ROW_SLOT_SIZE - width);
+			if (dir.y == AxisDirectionY_DOWN) {
+				ResetInvCursorPosition();
+				return;
+			}
+			fromTabRow = true;
+			dir.x = AxisDirectionX_NONE;
+		}
+	}
+
 	// normalize slots
 	if (Slot < 0)
 		Slot = FindClosestInventorySlot(mousePos, heldItem);
-	else if (Slot > SLOTXY_BELT_LAST)
-		Slot = SLOTXY_BELT_LAST;
+	else if (Slot >= SLOTXY_BELT_FIRST && !oracool::IsRealBeltItemSlot(Slot - SLOTXY_BELT_FIRST))
+		Slot = SLOTXY_BELT_FIRST + std::clamp(Slot - SLOTXY_BELT_FIRST, 1, 4); // the four real belt slots only (round 87 audit)
 
 	const int initialSlot = Slot;
 
@@ -1041,8 +1116,19 @@ void InventoryMove(AxisDirection dir)
 			}
 		}
 	}
+	// Along the belt only its four real slots (round 87 audit): Menu, Portal, Run and the hidden slot are not items.
+	if (Slot >= SLOTXY_BELT_FIRST && Slot <= SLOTXY_BELT_LAST && !oracool::IsRealBeltItemSlot(Slot - SLOTXY_BELT_FIRST))
+		Slot = initialSlot;
 	if (dir.y == AxisDirectionY_UP) {
-		if (isHoldingItem) {
+		// Row 1 goes up to the page tabs above it, when there are pages (round 87 audit) - not when Up came from them.
+		if (!fromTabRow && TabbedInventoryEnabled() && Slot >= SLOTXY_INV_ROW1_FIRST && Slot <= SLOTXY_INV_ROW1_LAST) {
+			MoveToInvTab(Slot - SLOTXY_INV_ROW1_FIRST);
+			return;
+		}
+		if (Slot >= SLOTXY_BELT_FIRST && Slot <= SLOTXY_BELT_LAST) {
+			// The belt goes back up to the backpack column over it (round 87 audit), not to the column of its SpdList index.
+			Slot = SlotXyInvLastRowFirst + ColumnAboveBeltSlot(Slot - SLOTXY_BELT_FIRST);
+		} else if (isHoldingItem) {
 			if (Slot >= SLOTXY_INV_FIRST + INV_ROW_SLOT_SIZE) { // general inventory
 				Slot -= INV_ROW_SLOT_SIZE;
 			} else if (Slot >= SLOTXY_INV_FIRST) {
@@ -1082,7 +1168,12 @@ void InventoryMove(AxisDirection dir)
 				if (itemId != 0) {
 					for (int i = 1; i < 5; i++) {
 						if (Slot - i * INV_ROW_SLOT_SIZE < SLOTXY_INV_ROW1_FIRST) {
-							Slot = InventoryMoveToBody(Slot - (i - 1) * INV_ROW_SLOT_SIZE);
+							const int topCell = Slot - (i - 1) * INV_ROW_SLOT_SIZE;
+							if (TabbedInventoryEnabled()) { // an item reaching row 1 leads up to the tabs too
+								MoveToInvTab(topCell - SLOTXY_INV_ROW1_FIRST);
+								return;
+							}
+							Slot = InventoryMoveToBody(topCell);
 							break;
 						}
 						if (itemId != GetItemIdOnSlot(Slot - i * INV_ROW_SLOT_SIZE)) {
@@ -1105,9 +1196,8 @@ void InventoryMove(AxisDirection dir)
 				Slot = SLOTXY_INV_ROW1_LAST - 1;
 			} else if (Slot <= (SLOTXY_INV_LAST - (itemSize.height * INV_ROW_SLOT_SIZE))) {
 				Slot += INV_ROW_SLOT_SIZE;
-			} else if (Slot <= SLOTXY_INV_LAST && heldItem._itype == ItemType::Misc && itemSize == Size { 1, 1 }) { // forcing only 1x1 misc items
-				if (Slot + INV_ROW_SLOT_SIZE <= SLOTXY_BELT_LAST)
-					Slot += INV_ROW_SLOT_SIZE;
+			} else if (Slot >= SlotXyInvLastRowFirst && Slot <= SLOTXY_INV_LAST && heldItem._itype == ItemType::Misc && itemSize == Size { 1, 1 }) { // forcing only 1x1 misc items
+				Slot = SLOTXY_BELT_FIRST + BeltSlotBelowColumn(Slot - SlotXyInvLastRowFirst); // a real belt slot (round 87 audit)
 			}
 		} else {
 			if (Slot == SLOTXY_HEAD) {
@@ -1134,16 +1224,25 @@ void InventoryMove(AxisDirection dir)
 			} else if (Slot == SLOTXY_HAND_RIGHT) {
 				Slot = SLOTXY_RING_RIGHT;
 			} else if (Slot <= SLOTXY_INV_LAST) {
+				// Off the bottom row onto the real belt slot under the column (round 87 audit), whatever the column.
+				const int beltBelow = SLOTXY_BELT_FIRST + BeltSlotBelowColumn((Slot - SLOTXY_INV_FIRST) % INV_ROW_SLOT_SIZE);
 				int8_t itemId = GetItemIdOnSlot(Slot);
 				if (itemId != 0) {
-					for (int i = 1; i < 5 && Slot + i * INV_ROW_SLOT_SIZE <= SLOTXY_BELT_LAST; i++) {
-						if (itemId != GetItemIdOnSlot(Slot + i * INV_ROW_SLOT_SIZE)) {
-							Slot += i * INV_ROW_SLOT_SIZE;
+					for (int i = 1; i < 5; i++) {
+						const int below = Slot + i * INV_ROW_SLOT_SIZE;
+						if (below > SLOTXY_INV_LAST) {
+							Slot = beltBelow;
+							break;
+						}
+						if (itemId != GetItemIdOnSlot(below)) {
+							Slot = below;
 							break;
 						}
 					}
-				} else if (Slot + INV_ROW_SLOT_SIZE <= SLOTXY_BELT_LAST) {
+				} else if (Slot + INV_ROW_SLOT_SIZE <= SLOTXY_INV_LAST) {
 					Slot += INV_ROW_SLOT_SIZE;
+				} else {
+					Slot = beltBelow;
 				}
 			}
 		}
@@ -1167,8 +1266,14 @@ void InventoryMove(AxisDirection dir)
 	}
 
 	// no movement was made
-	if (Slot == initialSlot)
+	if (Slot == initialSlot) {
+		if (fromTabRow) {
+			// Up from a tab with nowhere to go (an item no worn slot takes): the focus stays on the tab.
+			FocusedInvTab = tabLeft;
+			Slot = -1;
+		}
 		return;
+	}
 
 	if (Slot < SLOTXY_INV_FIRST) {
 		mousePos = InvGetEquipSlotCoordFromInvSlot(static_cast<inv_xy_slot>(Slot));
@@ -1250,6 +1355,10 @@ void StashMove(AxisDirection dir)
 		return;
 
 	Item &holdItem = MyPlayer->HoldItem;
+	if (IsOnInvTab()) { // the backpack's page tabs are the backpack's to walk
+		InventoryMove(dir);
+		return;
+	}
 	if (Slot < 0 && ActiveStashSlot == InvalidStashPoint) {
 		int invSlot = FindClosestInventorySlot(MousePosition, holdItem);
 		Point invSlotCoord = GetSlotCoord(invSlot);
@@ -1371,7 +1480,9 @@ void StashMove(AxisDirection dir)
 				}
 			}
 		} else if ((holdItem.isEmpty() || CanBePlacedOnBelt(holdItem)) && ActiveStashSlot.x > 1) {
-			int beltSlot = ActiveStashSlot.x - 2;
+			// The inverse of the belt-to-stash jump above, onto a real belt slot (round 87 audit): columns 2-9 went onto
+			// SpdList 0-7, Menu, Portal, Run and the hidden slot among them.
+			const int beltSlot = std::clamp(ActiveStashSlot.x - 2, 1, 4);
 			Slot = SLOTXY_BELT_FIRST + beltSlot;
 			ActiveStashSlot = InvalidStashPoint;
 			BeltReturnsToStash = true;
@@ -1467,14 +1578,13 @@ void SpellBookMove(AxisDirection dir)
 	static AxisDirectionRepeater repeater;
 	dir = repeater.Get(dir);
 
-	// Oracool V1: the book has no tabs any more - every spell is in one scrolling list - so the
-	// stick scrolls it rather than paging between six grids. Left/right kept alongside up/down
-	// because the old binding was horizontal and muscle memory is cheap to honour.
-	if (dir.x == AxisDirectionX_LEFT || dir.y == AxisDirectionY_UP) {
-		ScrollSpellBook(-1);
-	} else if (dir.x == AxisDirectionX_RIGHT || dir.y == AxisDirectionY_DOWN) {
-		ScrollSpellBook(1);
-	}
+	// The window's focus (round 87 audit, the round-69 open item): the stick and the D-pad walk the sheet tabs, the cells
+	// and the rows, scrolling to keep the focus in view, and B (the Primary action) clicks where it stands. It only
+	// scrolled before, and nothing could be chosen.
+	const int dx = dir.x == AxisDirectionX_LEFT ? -1 : (dir.x == AxisDirectionX_RIGHT ? 1 : 0);
+	const int dy = dir.y == AxisDirectionY_UP ? -1 : (dir.y == AxisDirectionY_DOWN ? 1 : 0);
+	if (dx != 0 || dy != 0)
+		MoveSpellBookFocus(dx, dy);
 }
 
 /**
@@ -1932,6 +2042,27 @@ void InvalidateInventorySlot()
 {
 	Slot = -1;
 	ActiveStashSlot = InvalidStashPoint;
+	FocusedInvTab = -1;
+}
+
+void StepInventoryPage(int direction)
+{
+	if (!invflag || !TabbedInventoryEnabled() || MyPlayer == nullptr)
+		return;
+	// Round the ends, stepping over locked pages; page 1 is never locked, so the walk always ends.
+	int page = ActiveInventoryTab;
+	for (int step = 0; step < oracool::TabCount; step++) {
+		page = (page + direction + oracool::TabCount) % oracool::TabCount;
+		if (!IsInventoryTabLocked(*MyPlayer, page))
+			break;
+	}
+	if (page == ActiveInventoryTab)
+		return;
+	ActiveInventoryTab = page;
+	oracool::PlayUiMoveSound(); // as a click on the tab sounds
+	// The cell under the cursor now holds the new page's item, or none: re-centre on it.
+	if (Slot >= SLOTXY_INV_FIRST && Slot <= SLOTXY_INV_LAST)
+		ResetInvCursorPosition();
 }
 
 /**
@@ -2044,7 +2175,33 @@ void PerformPrimaryAction()
 		oracool::HandleAdvancedStatsClick(MousePosition);
 		return;
 	}
+	// The fork's own windows answer A as a left click where the cursor is (user, 2026-09-27: "fix the decisions for me
+	// too"). The right stick already moves the cursor over them; A went to Interact() and acted on the world behind -
+	// the Rift Monument's menu, the workshop, the Cube, the waypoints could not be worked with a pad at all.
+	// Ahead of the backpack's branch (round 87 audit): with the backpack open beside the Cube, the workshop or the
+	// runeword book, that branch returned first and A over them did nothing. The event log is the one floating window
+	// the mouse asks AFTER the backpack (LeftMouseDown), so where the two overlap the backpack's branch keeps it.
+	const bool eventLogOverBackpack = invflag && oracool::GetInventoryPanelRect().contains(MousePosition)
+	    && oracool::GetEventLogWindowRect().contains(MousePosition);
+	if ((oracool::IsPointOverFloatingWindow(MousePosition) && !eventLogOverBackpack)
+	    || (IsOverLeftPanel(MousePosition) && IsAnyOf(GetLeftPanelContent(), LeftPanelContent::WaypointMenu, LeftPanelContent::Crafting))) {
+		ClickUiAtCursor();
+		return;
+	}
+	// And the Abilities window (round 87 audit): a point invested, a skill bound, a sheet turned, a passive slotted -
+	// nothing on the class tree answered a pad button before.
+	if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
+		ClickUiAtCursor();
+		return;
+	}
 	if (invflag) { // inventory is open
+		// On a page tab (round 87 audit): the tab sinks and turns, and the cursor stays on it - the slot logic below would
+		// have jumped it to the nearest backpack cell.
+		if (IsOnInvTab()) {
+			CheckInvItem();
+			ReleaseInventoryTabButton();
+			return;
+		}
 		if (pcurs > CURSOR_HAND && pcurs < CURSOR_FIRSTITEM) {
 			if (pcurs == CURSOR_HOURGLASS)
 				return;
@@ -2054,7 +2211,8 @@ void PerformPrimaryAction()
 			TryIconCurs();
 			if (!(wasOil && pcurs == CURSOR_OIL))
 				NewCursor(CURSOR_HAND);
-		} else if (oracool::GetInventoryPanelRect().contains(MousePosition) || GetMainPanel().contains(MousePosition)) {
+		} else if (oracool::GetInventoryPanelRect().contains(MousePosition) || GetMainPanel().contains(MousePosition)
+		    || oracool::GetMiddleHudRect().contains(MousePosition)) { // the belt's cells, on the plate art (round 87 audit)
 			int inventorySlot = (Slot >= 0) ? Slot : FindClosestInventorySlot(MousePosition, MyPlayer->HoldItem);
 
 			int jumpSlot = inventorySlot; // If the cursor is over an inventory slot we may need to adjust it due to pasting items of different sizes over each other
@@ -2130,16 +2288,6 @@ void PerformPrimaryAction()
 
 			SetCursorPos(mousePos);
 		}
-		return;
-	}
-
-	// The fork's own windows answer A as a left click where the cursor is (user, 2026-09-27: "fix the decisions for me
-	// too"). The right stick already moves the cursor over them; A went to Interact() and acted on the world behind -
-	// the Rift Monument's menu, the workshop, the Cube, the waypoints could not be worked with a pad at all.
-	if (oracool::IsPointOverFloatingWindow(MousePosition)
-	    || (oracool::IsAdvancedStatsOpen() && oracool::GetAdvancedStatsRect().contains(MousePosition))
-	    || (IsOverLeftPanel(MousePosition) && IsAnyOf(GetLeftPanelContent(), LeftPanelContent::WaypointMenu, LeftPanelContent::Crafting))) {
-		ClickUiAtCursor();
 		return;
 	}
 
@@ -2238,7 +2386,7 @@ void PerformSpellAction()
 		else if (pcurs > CURSOR_HAND) {
 			TryIconCurs();
 			NewCursor(CURSOR_HAND);
-		} else if (pcursinvitem != -1) {
+		} else if (pcursinvitem != -1 || pcursinvtabitem != -1) { // pages 2-10 hover through pcursinvtabitem (round 87 audit)
 			int itemId = GetItemIdOnSlot(Slot);
 			CheckInvItem(true, false);
 			if (itemId != GetItemIdOnSlot(Slot))
@@ -2278,16 +2426,16 @@ void PerformSpellAction()
 
 void CtrlUseInvItem()
 {
-	if (pcursinvitem == -1) {
-		// Backpack pages 2-10 hover through pcursinvtabitem, as the mouse's use does (diablo.cpp): the pad could not
-		// use anything there (round 12 audit, v1.12.237).
-		if (pcursinvtabitem != -1)
-			UseInvItem(pcursinvtabitem + INVITEM_INV_FIRST);
+	// Backpack pages 2-10 hover through pcursinvtabitem, as the mouse's use does (diablo.cpp): the pad could not use
+	// anything there (round 12 audit, v1.12.237). They take page 1's checks too (round 87 audit): a monster-targeted
+	// scroll fired at the tile ahead and was used up, and equipment was "used" rather than worn.
+	const bool onExtraPage = pcursinvitem == -1;
+	if (onExtraPage && pcursinvtabitem == -1)
 		return;
-	}
+	const int useIndex = onExtraPage ? pcursinvtabitem + INVITEM_INV_FIRST : pcursinvitem;
 
 	Player &myPlayer = *MyPlayer;
-	Item &item = GetInventoryItem(myPlayer, pcursinvitem);
+	Item &item = onExtraPage ? GetActiveInvListItem(myPlayer, pcursinvtabitem) : GetInventoryItem(myPlayer, pcursinvitem);
 	if (item.isScroll()) {
 		if (TargetsMonster(item._iSpell)) {
 			return;
@@ -2301,7 +2449,7 @@ void CtrlUseInvItem()
 	if (item.isEquipment()) {
 		CheckInvItem(true, false); // auto-equip if it's an equipment
 	} else {
-		UseInvItem(pcursinvitem);
+		UseInvItem(useIndex);
 	}
 	if (itemId != GetItemIdOnSlot(Slot)) {
 		ResetInvCursorPosition();

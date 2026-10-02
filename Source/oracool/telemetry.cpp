@@ -97,12 +97,20 @@ void FlushRows()
 	std::fseek(file, 0, SEEK_END);
 	// Kept to a size (round 91 audit: a row a kill and a pickup, never trimmed - tens of MB over a long run). Past 16 MB the
 	// file becomes balance_telemetry.old.csv, replacing any earlier one, and a fresh file starts.
-	static bool rotationFailed = false; // once refused (a lock on the file), not retried every flush (round 92 audit)
+	// A refused rotation (a lock on the file) is not retried every flush (round 92 audit), but it is retried five
+	// minutes on: a lock is usually an editor or a backup holding the file for a while, not for the whole session.
+	constexpr uint32_t RotationRetryMs = 5 * 60 * 1000;
+	static bool rotationFailed = false;
+	static uint32_t rotationFailedAtMs = 0;
+	if (rotationFailed && SDL_GetTicks() - rotationFailedAtMs >= RotationRetryMs)
+		rotationFailed = false;
 	if (!rotationFailed && std::ftell(file) > 16L * 1024 * 1024) {
 		std::fclose(file);
 		const std::string old = paths::PrefPath() + "balance_telemetry.old.csv";
-		if (!ReplaceFileAtomically(path.c_str(), old.c_str()))
+		if (!ReplaceFileAtomically(path.c_str(), old.c_str())) {
 			rotationFailed = true;
+			rotationFailedAtMs = SDL_GetTicks();
+		}
 		file = OpenFile(path.c_str(), "ab");
 		if (file == nullptr) {
 			PendingRows.clear();

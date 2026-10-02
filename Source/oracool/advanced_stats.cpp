@@ -244,10 +244,11 @@ void AddDefense(const Player &p, std::vector<Row> &rows)
 		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("Hit recovery: {:d} frames (base {:d})")),
 		                                     p._pHFrames - skipped, p._pHFrames) });
 	}
-	if (HasAnyOf(p.pDamAcFlags, ItemSpecialEffectHf::ACAgainstDemons))
-		rows.push_back({ RowKind::Bonus, std::string(_("Extra armor vs demons")) });
-	if (HasAnyOf(p.pDamAcFlags, ItemSpecialEffectHf::ACAgainstUndead))
-		rows.push_back({ RowKind::Bonus, std::string(_("Extra armor vs undead")) });
+	// The summed points (round 91 audit): each worn source adds its own 40 / 20.
+	if (p._pIArmorVsDemons > 0)
+		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("+{:d} armor vs demons")), p._pIArmorVsDemons) });
+	if (p._pIArmorVsUndead > 0)
+		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("+{:d} armor vs undead")), p._pIArmorVsUndead) });
 	// The four contributors behind the sheet's one Armor class number - GetArmor() is _pIBonusAC + _pIAC
 	// + dexterity/5 (player.h), and the sheet adds level * 2, so these four sum to exactly that box.
 	rows.push_back({ RowKind::Fact, fmt::format(fmt::runtime(_("AC: armor {:d}, magic {:d}, dex {:d}, level {:d}")),

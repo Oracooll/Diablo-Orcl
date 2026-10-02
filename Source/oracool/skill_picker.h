@@ -72,6 +72,12 @@ void DrawSkillPicker(const Surface &out);
  */
 bool CheckSkillPickerClick(Point mousePosition);
 
+/**
+ * @brief LeftMouseUp: a cell pressed in CheckSkillPickerClick binds (or lights its aura) only if the release lands back
+ * inside the same cell - the press/release default (round 75 audit). Safe when nothing is pressed.
+ */
+void ReleaseSkillPickerCell();
+
 /** @brief Scrolls the list by @p notches, for the mouse wheel. Only matters when it overflows. */
 void ScrollSkillPicker(int notches);
 

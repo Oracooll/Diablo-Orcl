@@ -687,25 +687,34 @@ void LeftMouseDown(uint16_t modState)
 			// The close-button rule (user, 2026-08-19). Tested ahead of every window's own click
 			// handling, because the X is the one control that must never be shadowed by whatever
 			// happens to sit under it - a scroll arrow, a tab, a grid cell.
-			if (IsLeftPanelOpen() && oracool::CheckWindowCloseButtonClick(GetLeftPanelContentRect(), MousePosition)) {
-				CloseLeftPanelContent();
+			// Each X presses here and closes on the release inside it (ReleaseWindowCloseButton in LeftMouseUp); every
+			// close re-asks its window's flag, as Esc may have shut it while the button was held (round 75 audit).
+			if (IsLeftPanelOpen() && oracool::CheckWindowCloseButtonClick(GetLeftPanelContentRect(), MousePosition, [] {
+				    if (IsLeftPanelOpen())
+					    CloseLeftPanelContent();
+			    })) {
 			} else if (oracool::IsAdvancedStatsOpen()
-			    && oracool::CheckWindowCloseButtonClick(oracool::GetAdvancedStatsRect(), MousePosition)) {
+			    && oracool::CheckWindowCloseButtonClick(oracool::GetAdvancedStatsRect(), MousePosition, [] {
+				       if (oracool::IsAdvancedStatsOpen())
+					       oracool::CloseAdvancedStats();
+			       })) {
 				// The Advanced Stats window (2026-09-26). Tested before the inventory and the Abilities window: it is drawn
 				// over them where they overlap, and has its own X beside either (dev note, 2026-09-29). Its X puts back
 				// the inventory or Abilities window it covered - see advanced_stats.h.
-				oracool::CloseAdvancedStats();
-			} else if (invflag && oracool::CheckWindowCloseButtonClick(oracool::GetInventoryPanelRect(), MousePosition)) {
-				CloseInventory();
-			} else if (sbookflag && oracool::CheckWindowCloseButtonClick(GetSpellBookPanelRect(), MousePosition)) {
-				sbookflag = false;
+			} else if (invflag && oracool::CheckWindowCloseButtonClick(oracool::GetInventoryPanelRect(), MousePosition, [] {
+				           if (invflag)
+					           CloseInventory();
+			           })) {
+			} else if (sbookflag && oracool::CheckWindowCloseButtonClick(GetSpellBookPanelRect(), MousePosition, [] { sbookflag = false; })) {
 			} else if (oracool::IsEventLogOpen()
-			    && oracool::CheckWindowCloseButtonClick(oracool::GetEventLogWindowRect(), MousePosition)) {
+			    && oracool::CheckWindowCloseButtonClick(oracool::GetEventLogWindowRect(), MousePosition, [] {
+				       if (oracool::IsEventLogOpen())
+					       oracool::ToggleEventLog();
+			       })) {
 				// The log got its X in v1.9.147 (audit). It is a floating window the player opens, so
 				// the close-button rule covers it - it had been closable only by pressing its key
 				// again. Routed here with the other three rather than in a handler of its own,
 				// because this block is where the X is deliberately tested ahead of everything else.
-				oracool::ToggleEventLog();
 			} else if (qtextflag && !(IsOverLeftPanel(MousePosition) && GetLeftPanelContent() == LeftPanelContent::QuestLog)) {
 				// The quest text is drawn OVER the left panels, so it takes the click first, as the right button does: a click on
 				// a stash cell or waypoint row under it acted and left the text up (round 25 audit). Except the quest log, as
@@ -891,6 +900,9 @@ void LeftMouseUp(uint16_t modState)
 	oracool::ReleaseStonegateMenuButton(); // and the Rift Monument menu's pressed button (2026-09-20)
 	oracool::ReleaseWorkshopButton();       // and the artisan workshop's (2026-09-21)
 	oracool::ReleaseLevskiButtons();       // and Levski's Cube's painted TRANSMUTE / RECIPE BOOK (2026-09-20)
+	oracool::ReleaseWindowCloseButton(MousePosition); // and every window's red X (round 75 audit: it closed on the press)
+	oracool::ReleaseSkillPickerCell();     // and the LMB/RMB quick list's cells (round 75 audit)
+	oracool::ReleaseHudMenuButtons();      // and the burger menu's icons and the belt's Menu, Portal and Run cells (round 75)
 	oracool::ReleaseShopTabButton();       // and the vendor tab the player was holding down (2026-09-21)
 	oracool::ReleaseShopServiceButton();   // and Griswold's six service buttons (2026-09-21)
 	ReleaseInventoryTabButton();           // and the backpack tabs, the last strip to act on the press
@@ -1248,6 +1260,11 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	// Not Alt+arrows (the minimap) nor with the automap up, whose panning the arrows are (round 93 audit).
 	if (PauseMode != 2 && (modState & KMOD_ALT) == 0 && !AutomapActive
 	    && oracool::HandleWaypointMenuKey(vkey))
+		return;
+	// And the Abilities window's (round 87 audit; round 69 left it with no keyboard focus): the arrows walk a golden frame
+	// over its tabs and icons, Enter clicks where it stands. Same guards as the waypoint list's.
+	if (PauseMode != 2 && (modState & KMOD_ALT) == 0 && !AutomapActive
+	    && HandleSpellBookKey(vkey))
 		return;
 
 	// Oracool: F1-F8 are the ability hotkeys, reserved outright (user, 2026-08-17: "F1-F6 to be
@@ -4664,8 +4681,12 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	if (MyPlayer != nullptr && MyPlayer->isOnActiveLevel())
 		oracool::EnforceTwoHandedGrip(*MyPlayer);
 	// Items whose size grew since they were saved move to a free spot, once per game load (2026-09-27: the shields).
-	if ((firstflag || lvldir == ENTRY_LOAD) && MyPlayer != nullptr && MyPlayer->isOnActiveLevel())
+	if ((firstflag || lvldir == ENTRY_LOAD) && MyPlayer != nullptr && MyPlayer->isOnActiveLevel()) {
 		ReseatOutgrownItems(*MyPlayer);
+		// The keystone of a Guardian Rift the last game ended inside of, given back (rounds 71-72 audit): no rift survives
+		// the game, so none is open now.
+		oracool::RefundOwedGuardianKeystone(*MyPlayer);
+	}
 
 	IncProgress();
 	IncProgress();

@@ -7,6 +7,8 @@
 
 #include <string>
 
+#include <SDL.h> // SDL_Keycode, for HandleSpellBookKey
+
 namespace devilution {
 
 struct Player; // BindAbilityHotkey takes one; player.h is heavy and this header is widely included
@@ -95,7 +97,24 @@ void CycleAbilitySheet(int direction);
 /** @brief Returns every sheet to the top. Called when the window is opened. */
 void ResetSpellBookScroll();
 
-/** @brief Clears the pressed state of the sheet arrows, on mouse release. */
+/**
+ * @brief Walks the window's focus one step (@p dx, @p dy each -1, 0 or 1) over the sheet tabs and the open sheet's icons,
+ * parking the cursor on the one it lands on and scrolling it into view; a golden frame marks it until the mouse moves
+ * (round 87 audit - round 69 left the window with no keyboard or pad focus). The pad's stick and D-pad come here.
+ */
+void MoveSpellBookFocus(int dx, int dy);
+
+/**
+ * @brief The keyboard's way through the window: the arrows walk the focus (MoveSpellBookFocus), Enter clicks where it
+ * stands while the frame is out. False for any other key, with the window closed, or Enter with no frame out (it opens
+ * the chat line then, as before).
+ */
+bool HandleSpellBookKey(SDL_Keycode key);
+
+/**
+ * @brief The mouse release (either button): the pressed tab plate or icon button springs back, and acts only if the
+ * release lands inside it - CheckSBook only presses (round 89 audit: the tree acted on the press).
+ */
 void ReleaseSpellBookButtons();
 
 /**
@@ -112,7 +131,8 @@ void ToggleAbilitiesWindow();
 void InitSpellBook();
 void FreeSpellBook();
 /**
- * @brief Handles a click inside the Abilities window.
+ * @brief Handles a PRESS inside the Abilities window: the control under it sinks and sounds; ReleaseSpellBookButtons
+ * runs it on the release inside it.
  *
  * @param assignToRightButton which mouse button did the clicking - a row is readied on the button
  * that clicked it (user request, 2026-08-15). Defaults to the left, which is also where a touch tap

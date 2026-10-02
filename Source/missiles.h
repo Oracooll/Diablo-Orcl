@@ -218,6 +218,8 @@ struct Missile {
 	bool coldRetorted = false;
 	/** @brief Oracool: a shot that is part of another (Grenadier's grenade): its hits are bursts to the passives (round 92). */
 	bool burstShot = false;
+	/** @brief Oracool: a shot that rolls no to-hit - Madawc's hammers, as his brothers' blows never miss (round 88). Not saved. */
+	bool neverMisses = false;
 
 	/** @brief Oracool: the caster's Monster::spawnSerial at launch - see liveSourceMonster. Not saved. */
 	uint32_t sourceSpawnSerial = 0;

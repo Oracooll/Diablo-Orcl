@@ -80,6 +80,14 @@ bool CheckTownPortalBeltSlotClick(Point mousePosition);
 bool CheckRunToggleBeltSlotClick(Point mousePosition);
 
 /**
+ * @brief LeftMouseUp for the menu's icons and the belt's Menu, Portal and Run cells. The four Check* functions above
+ * only PRESS (the plate sinks, the cell shows its pressed picture); the pressed control runs here, and only when the
+ * release lands back inside it - the press/release default (round 75 audit). The window's X is the shared one's
+ * (ReleaseWindowCloseButton). Safe when nothing is pressed.
+ */
+void ReleaseHudMenuButtons();
+
+/**
  * @brief Draws click feedback over the plate's two button cells, since neither has any art state
  * of its own to react with (their frames and icons are baked into the plate image).
  *

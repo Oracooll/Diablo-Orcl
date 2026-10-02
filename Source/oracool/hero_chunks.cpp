@@ -484,6 +484,13 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 			PutU16(out, static_cast<uint16_t>(std::clamp(base, 0, MaxBaseAttribute)));
 		EndChunk(out, at);
 	}
+	if (player._pOracoolOwedKeystoneTier > 0) {
+		// Only when one is owed: an absent chunk and a 0 mean the same thing - nothing owed - so, unlike the stat points,
+		// the shape cannot mislead a reader, and every hero not inside a Guardian Rift saves byte for byte as before.
+		const size_t at = BeginChunk(out, HeroChunkOwedKeystone);
+		PutU16(out, player._pOracoolOwedKeystoneTier);
+		EndChunk(out, at);
+	}
 
 	return out;
 }
@@ -661,6 +668,10 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 				player._pBaseVit = base(3);
 				player._pVitality = player._pBaseVit;
 			}
+			break;
+		case HeroChunkOwedKeystone:
+			if (chunkLen >= 2)
+				player._pOracoolOwedKeystoneTier = std::min<uint16_t>(GetU16(payload), 255); // a keystone's own tier range
 			break;
 		case HeroChunkStatPoints:
 			if (chunkLen >= 4) {

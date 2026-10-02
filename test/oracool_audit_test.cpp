@@ -14,6 +14,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <functional>
 #include <filesystem>
 #include <fstream>
@@ -54,6 +55,7 @@
 #include "oracool/skill_facts.h"
 #include "oracool/combat_odds.h"
 #include "oracool/skill_picker.h"
+#include "oracool/missile_tint.h" // TintedTable - the per-frame table cache (round 76 audit)
 #include "oracool/class_tree.h"
 #include "oracool/aura_ground.h"
 #include "oracool/aura_field.h"
@@ -112,6 +114,8 @@
 #include "oracool/levski_cube_skin.h"
 #include "oracool/rift.h"
 #include "oracool/furious_charge.h" // ChargeBlowPercentAt - Charge's arriving blow
+#include "levels/gendung.h" // dPiece, SOLData - the closed door and Charge path tests
+#include "objects.h"        // Objects, dObject - the closed door test
 #include "oracool/quest_marks.h"
 #include "towners.h" // Towner and the TOWN_* types the mark is asked about
 #include "oracool/paladin_melee.h"
@@ -1410,6 +1414,57 @@ TEST(OracoolHeroChunks, BaseAttributesPast255RoundTrip)
 	EXPECT_EQ(loaded._pBaseVit, MaxBaseAttribute);
 }
 
+// Rounds 71-72 audit: a keystone spent on stepping into a Guardian Rift was lost when the game was left or crashed inside
+// it, since rift state is never saved. The debt rides the hero file and comes back; a hero who owes nothing writes no chunk.
+TEST(OracoolHeroChunks, OwedGuardianKeystoneRoundTrips)
+{
+	Players.resize(1);
+	devilution::Player &source = Players[0];
+	source = {};
+	source._pClass = HeroClass::Warrior;
+	const std::vector<uint8_t> plain = oracool::BuildHeroChunkTail(source);
+	source._pOracoolOwedKeystoneTier = 7;
+	const std::vector<uint8_t> owing = oracool::BuildHeroChunkTail(source);
+	EXPECT_GT(owing.size(), plain.size()) << "the debt was not written";
+
+	devilution::Player loaded {};
+	loaded._pClass = HeroClass::Warrior;
+	oracool::ApplyHeroChunks(loaded, owing.data(), owing.size());
+	EXPECT_EQ(loaded._pOracoolOwedKeystoneTier, 7);
+
+	devilution::Player clean {};
+	clean._pClass = HeroClass::Warrior;
+	oracool::ApplyHeroChunks(clean, plain.data(), plain.size());
+	EXPECT_EQ(clean._pOracoolOwedKeystoneTier, 0);
+}
+
+// Round 84 audit: the four D2 crafts add their two powers to the record by hand, and the price did not move until the
+// item's next rework - then it jumped. RepriceOracoolItemFromRecord prices it as that rework will.
+TEST(OracoolAudit, AHandAddedRecordIsPricedAsTheReworkPricesIt)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	SetRndSeed(0x0C4AF7ED);
+
+	devilution::Item item {};
+	InitializeItem(item, IDI_ORACOOL_HELM);
+	item._iOracoolItemLevel = 60;
+	item._iIdentified = true;
+	ASSERT_TRUE(RetierOracoolItem(item, OracoolItemTier::Rare));
+	ASSERT_LT(static_cast<int>(item._iOracoolAffixCount), static_cast<int>(devilution::Item::MaxOracoolAffixes));
+	RepriceOracoolItemFromRecord(item);
+	const int before = item._iIvalue;
+	// A craft's power, recorded as the crafts record it: the roll, no price multiplier.
+	item._iOracoolAffixes[item._iOracoolAffixCount++] = OracoolAffix { IPL_ALLRES, 12, 0 };
+	RepriceOracoolItemFromRecord(item);
+	EXPECT_NE(item._iIvalue, before) << "the new power did not move the price";
+
+	devilution::Item reworked = item;
+	const std::vector<OracoolAffix> record(item._iOracoolAffixes.begin(), item._iOracoolAffixes.begin() + item._iOracoolAffixCount);
+	ASSERT_TRUE(RebuildOracoolItemWithAffixes(*MyPlayer, reworked, record.data(), static_cast<int>(record.size())));
+	EXPECT_EQ(reworked._iIvalue, item._iIvalue) << "the next rework moved the price";
+}
+
 // is rejected WHOLE rather than half-applied.
 TEST(OracoolHeroChunks, SkillPointsAndWaypointsRoundTrip)
 {
@@ -2319,7 +2374,6 @@ TEST(OracoolAudit, TormentHardensHellResistancesIntoImmunities)
 // every monster keeps exactly one answer.
 TEST(OracoolAudit, TormentNeverLeavesAMonsterImmuneToEverything)
 {
-	constexpr uint16_t ResistBits = RESIST_MAGIC | RESIST_FIRE | RESIST_LIGHTNING;
 	constexpr uint16_t ImmuneBits = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
 
 	// Every authorable combination of the six school bits, not a sample.
@@ -2331,14 +2385,19 @@ TEST(OracoolAudit, TormentNeverLeavesAMonsterImmuneToEverything)
 		    | ((hell & 16) != 0 ? IMMUNE_FIRE : 0) | ((hell & 32) != 0 ? IMMUNE_LIGHTNING : 0));
 
 		const uint16_t torment = oracool::MonsterResistancesFor(data, DIFF_TORMENT);
-		const bool immuneToAll = (torment & ImmuneBits) == ImmuneBits && (torment & ResistBits) == 0;
+		// No Torment monster is immune to all three schools - not even a row authored that way on Hell (round 86 audit, the
+		// user's call: the Obsidian Lord, Soul Burner, Advocate, Arch Lich and Reaper were walls no caster could touch).
+		EXPECT_NE(torment & ImmuneBits, ImmuneBits) << "a Torment monster is immune to all three schools, hell bits = " << hell;
+
 		const bool authoredThatWay = (data.resistanceHell & ImmuneBits) == ImmuneBits;
-		if (!authoredThatWay) {
-			EXPECT_FALSE(immuneToAll)
-			    << "Torment promoted a monster into total immunity, hell bits = " << hell;
+		if (authoredThatWay) {
+			// One school given back, and only as far as a resistance: the other two immunities stand.
+			EXPECT_EQ(torment & ImmuneBits, ImmuneBits & ~static_cast<uint16_t>(IMMUNE_LIGHTNING)) << "hell bits = " << hell;
+			EXPECT_NE(torment & RESIST_LIGHTNING, 0) << "the school given back is not even resisted, hell bits = " << hell;
+			continue;
 		}
 
-		// And Torment must never be SOFTER than Hell: every Hell immunity survives.
+		// And otherwise Torment is never SOFTER than Hell: every Hell immunity survives.
 		EXPECT_EQ(torment & data.resistanceHell & ImmuneBits, data.resistanceHell & ImmuneBits)
 		    << "Torment dropped an immunity Hell had, hell bits = " << hell;
 	}
@@ -3609,6 +3668,83 @@ TEST(OracoolFindStats, RatKingsTitheGoldFindReachesThePlayer)
 	EXPECT_EQ(player._pGoldFind, 70);
 }
 
+// Round 91 audit (user, 2026-10-02: "if it is an affix that can be accumulated - accumulate it"). The 3% and 5% steal
+// flags used to be read as "the larger applies" (PlrHitMonst overwrote the 3% with the 5%), so the Crimson Compact's and
+// Leoric's Court's 3% + 5% rungs paid 5%, and a 5% ring beside a 5% rung paid 5%. Every source now adds its share.
+TEST(OracoolItemSets, StackedLifeStealSums)
+{
+	// The totals on their own: a 3% item, a 5% item, an item carrying both, and armour vs undead twice.
+	{
+		const auto source = [](ItemSpecialEffect flags, ItemSpecialEffectHf damAc) {
+			devilution::Item item {};
+			item._itype = ItemType::Ring;
+			item._iMagical = ITEM_QUALITY_MAGIC;
+			item._iIdentified = true;
+			item._iStatFlag = true;
+			item._iFlags = flags;
+			item._iDamAcFlags = damAc;
+			return item;
+		};
+		oracool::ItemBonusTotals totals;
+		totals.AddItem(source(ItemSpecialEffect::StealLife3, ItemSpecialEffectHf::ACAgainstUndead));
+		totals.AddItem(source(ItemSpecialEffect::StealLife5 | ItemSpecialEffect::StealMana5, ItemSpecialEffectHf::ACAgainstUndead));
+		EXPECT_EQ(totals.lifeSteal, 8) << "3% + 5% life steal did not add up";
+		EXPECT_EQ(totals.manaSteal, 5);
+		EXPECT_EQ(totals.armorVsUndead, 2 * oracool::ArmorVsUndeadPerSource) << "armour vs undead did not add up";
+		totals.AddItem(source(ItemSpecialEffect::StealLife3 | ItemSpecialEffect::StealLife5, ItemSpecialEffectHf::None));
+		EXPECT_EQ(totals.lifeSteal, 16) << "one item's 3% and 5% did not add up";
+		// A runeword or a rune raises its flag through AddFlags, and it adds as well.
+		totals.AddFlags(ItemSpecialEffect::StealLife5);
+		EXPECT_EQ(totals.lifeSteal, 21);
+	}
+
+	// The whole chain, through the set ladder and CalcPlrItemVals: no Crimson piece steals, so the full compact's 8% is
+	// its 3-piece rung's 3% PLUS its 5-piece rung's 5%. Dawnwarden's rungs 3 and 6 each grant armour vs undead.
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	const auto reset = [&]() {
+		player = {};
+		player._pClass = HeroClass::Warrior;
+		player._pLevel = 45;
+		player._pBaseStr = 150;
+		player._pBaseMag = 100;
+		player._pBaseDex = 100;
+		player._pBaseVit = 100;
+		player._pLightRad = 10;
+		player._pRSpell = SpellID::Invalid;
+		player._pRSplType = SpellType::Invalid;
+	};
+	const auto wear = [&](inv_body_loc slot, const char *id) {
+		const oracool::SetItemDefinition *piece = oracool::FindSetItem(id);
+		ASSERT_NE(piece, nullptr) << id;
+		devilution::Item &item = player.InvBody[slot];
+		item = {};
+		InitializeItem(item, static_cast<_item_indexes>(oracool::BaseItemForSetPiece(*piece)));
+		oracool::MakeSetItem(item, *piece);
+		item._iStatFlag = true;
+	};
+
+	reset();
+	wear(INVLOC_HAND_LEFT, "SET_CRIMSON_CLAUSE");
+	wear(INVLOC_CHEST, "SET_CRIMSON_SEAL");
+	wear(INVLOC_GLOVES, "SET_CRIMSON_HANDS");
+	wear(INVLOC_WAIST, "SET_CRIMSON_GIRDLE");
+	wear(INVLOC_RING_LEFT, "SET_CRIMSON_SIGNET");
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(player._pILifeSteal, 8) << "the Crimson Compact's 3% and 5% rungs did not stack";
+
+	reset();
+	wear(INVLOC_HEAD, "SET_DAWN_HELM");
+	wear(INVLOC_CHEST, "SET_DAWN_CUIRASS");
+	wear(INVLOC_HAND_RIGHT, "SET_DAWN_AEGIS");
+	wear(INVLOC_HAND_LEFT, "SET_DAWN_MORROWBELL");
+	wear(INVLOC_AMULET, "SET_DAWN_RELIQUARY");
+	wear(INVLOC_RING_LEFT, "SET_DAWN_BAND");
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(player._pIArmorVsUndead, 2 * oracool::ArmorVsUndeadPerSource) << "Dawnwarden's rung 6 armour vs undead is inert again";
+}
+
 TEST(OracoolFindStats, GoldFindScalesDroppedGold)
 {
 	Players.resize(1);
@@ -4330,6 +4466,51 @@ TEST(OracoolItemSets, EveryBonusRungGrantsSomething)
 			EXPECT_GT(oracool::CountLivePowers(rung.powers, 4), 0)
 			    << set.id << " rung '" << rung.name << "' (" << rung.pieces
 			    << " pieces) compiles to nothing - add a row to item_set_bonus_overrides.txt";
+		}
+	}
+}
+
+// Round 91 audit (v1.12.340): a rung can grant something and still add nothing - an ON/OFF power (thorns, knockback,
+// faster block, ...) or a speed TIER that a lower rung or a piece of the same set already gives. The line turns green
+// and the hero gains nothing: the Lost Cartographer's 4/4 hit recovery (already on its boots), Ashen, Iron Root,
+// Clockwork and Stormcrow. Steal and armour vs undead are not here: they ADD UP since the same audit (see
+// StackedLifeStealSums). A tier rung is fine when it is strictly faster than every copy below it - it upgrades.
+TEST(OracoolItemSets, NoRungRepeatsAnOnOffPowerOfItsOwnSet)
+{
+	const auto isOnOff = [](item_effect_type t) {
+		return IsAnyOf(t, IPL_THORNS, IPL_KNOCKBACK, IPL_ABSHALFTRAP, IPL_MULT_ARROWS, IPL_3XDAMVDEM, IPL_FASTBLOCK, IPL_ONEHAND,
+		    IPL_NOMANA, IPL_RNDARROWVEL, IPL_JESTERS);
+	};
+	const auto isTier = [](item_effect_type t) { return IsAnyOf(t, IPL_FASTATTACK, IPL_FASTRECOVER); };
+	for (const oracool::ItemSetDefinition &set : oracool::ItemSets) {
+		for (int i = 0; i < set.bonusCount; i++) {
+			const oracool::SetBonusDefinition &rung = oracool::ItemSetBonuses[set.firstBonus + i];
+			for (const ItemPower &power : rung.powers) {
+				if (!isOnOff(power.type) && !isTier(power.type))
+					continue;
+				// Does an earlier source of this set already give it (at this tier or a faster one)?
+				const auto covers = [&](const ItemPower &earlier) {
+					if (earlier.type != power.type)
+						return false;
+					return isOnOff(power.type) || earlier.param1 >= power.param1;
+				};
+				for (int k = 0; k < set.itemCount; k++) {
+					const oracool::SetItemDefinition &piece = oracool::ItemSetItems[set.firstItem + k];
+					for (const ItemPower &own : piece.powers) {
+						EXPECT_FALSE(covers(own))
+						    << set.id << " rung '" << rung.name << "' (" << rung.pieces << " pieces) grants power " << static_cast<int>(power.type)
+						    << " that the piece " << piece.id << " already gives - an inert green line; grant a stat that adds";
+					}
+				}
+				for (int j = 0; j < i; j++) {
+					const oracool::SetBonusDefinition &lower = oracool::ItemSetBonuses[set.firstBonus + j];
+					for (const ItemPower &earlier : lower.powers) {
+						EXPECT_FALSE(covers(earlier))
+						    << set.id << " rung '" << rung.name << "' (" << rung.pieces << " pieces) repeats power " << static_cast<int>(power.type)
+						    << " from the " << lower.pieces << "-piece rung - an inert green line; grant a stat that adds";
+					}
+				}
+			}
 		}
 	}
 }
@@ -5129,6 +5310,13 @@ TEST(OracoolAudit, TheCastScopeClosesBehindItself)
  */
 TEST(OracoolAudit, EveryRuneDescribesItselfInEveryHost)
 {
+	// No viewer: a Barbarian left as MyPlayer by an earlier test hides the mana lines (Sur), as his tooltips do since v1.12.347.
+	devilution::Player *const savedMyPlayer = MyPlayer;
+	MyPlayer = nullptr;
+	struct RestoreViewer {
+		devilution::Player *saved;
+		~RestoreViewer() { MyPlayer = saved; }
+	} restoreViewer { savedMyPlayer };
 	int runesChecked = 0;
 	for (int i = IDI_GOLD; i <= IDI_LAST; i++) {
 		if (!IsOracoolRuneIdx(i))
@@ -6350,6 +6538,13 @@ TEST(OracoolAudit, SortGivesEveryQualityTierItsOwnPageAndKeepsASetTogether)
  */
 TEST(OracoolAudit, JewelsAreAWholeSocketFamily)
 {
+	// No viewer, as in EveryRuneDescribesItselfInEveryHost: a Barbarian left as MyPlayer hides the Jewel of Focus's mana.
+	devilution::Player *const savedMyPlayer = MyPlayer;
+	MyPlayer = nullptr;
+	struct RestoreViewer {
+		devilution::Player *saved;
+		~RestoreViewer() { MyPlayer = saved; }
+	} restoreViewer { savedMyPlayer };
 	constexpr int First = IDI_ORACOOL_JEWEL_FERVOR_FLAWED;
 	constexpr int Last = IDI_ORACOOL_JEWEL_WARDING_RADIANT;
 	EXPECT_EQ(Last - First + 1, 15) << "the jewel family is not five families by three grades";
@@ -7617,6 +7812,19 @@ TEST(OracoolAudit, ARebuildKeepsEtherealAndNameAndStillRefusesSocketsAndOrbs)
 		ASSERT_FALSE(TransmuteLevskiGridWith(grid, 12).empty()) << "Reroll Rares did not run";
 		expectBargainKept(grid[0], "Reroll Rares");
 		EXPECT_STREQ(grid[0]._iIName, "Tarnished Doom") << "a reroll renamed the item";
+	}
+
+	// ---- REROLL RARES drops a craft's word with the craft's powers, and keeps the rest of the name (round 84 audit) ----
+	{
+		devilution::Item grid[LevskiGridSlots];
+		makeGear(grid[0]);
+		grid[0]._iMagical = ITEM_QUALITY_MAGIC;
+		grid[0]._iOracoolTier = OracoolItemTier::Rare;
+		setName(grid[0], "Blood Tarnished Doom");
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_RARE_FIBRES, 3);
+
+		ASSERT_FALSE(TransmuteLevskiGridWith(grid, 12).empty()) << "Reroll Rares did not run";
+		EXPECT_STREQ(grid[0]._iIName, "Tarnished Doom") << "a craft's word outlived the reroll that took its powers";
 	}
 
 	// ---- AWAKEN keeps the name of a rolled item climbing a rung ----
@@ -10111,8 +10319,13 @@ TEST(OracoolAudit, EveryWindowsCloseButtonSitsWhereTheSharedHelperPutsIt)
 	ASSERT_GT(logWindow.size.width, 0) << "test setup: the log reports an empty rect while open";
 	expectSharedCorner("the event log", logWindow, GetWindowCloseButtonRect(logWindow));
 	// And the button must be reachable by the router that rejects clicks over this window.
-	EXPECT_TRUE(CheckWindowCloseButtonClick(logWindow, GetWindowCloseButtonRect(logWindow).position))
+	bool closed = false;
+	EXPECT_TRUE(CheckWindowCloseButtonClick(logWindow, GetWindowCloseButtonRect(logWindow).position, [&closed] { closed = true; }))
 	    << "the log's own close button does not hit-test";
+	// Press/release (round 75 audit): the press only sinks the X, the release inside it closes.
+	EXPECT_FALSE(closed) << "the X acted on the press";
+	ReleaseWindowCloseButton(GetWindowCloseButtonRect(logWindow).position);
+	EXPECT_TRUE(closed) << "the X did not act on the release inside it";
 	ToggleEventLog();
 }
 
@@ -12614,6 +12827,72 @@ TEST(OracoolFindStats, TheFreshDropFunnelAppliesTheTail)
 	FinalizeFreshDrop(gold, 5);
 	EXPECT_EQ(gold._ivalue, 150) << "the funnel did not apply Gold Find";
 	player._pGoldFind = 0;
+}
+
+// Round 75 audit: the quick list's cells acted on the press. The press now only sinks a cell; the release binds it, and
+// only inside the same cell.
+TEST(OracoolAudit, SkillPickerCellBindsOnTheReleaseInsideIt)
+{
+	const Uint16 savedWidth = gnScreenWidth;
+	const Uint16 savedHeight = gnScreenHeight;
+	const Point savedMouse = MousePosition;
+	gnScreenWidth = 960;
+	gnScreenHeight = 720;
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	InspectPlayer = MyPlayer;
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Sorcerer;
+	player._pMemSpells = GetSpellBitmask(SpellID::Firebolt);
+	player._pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 1;
+	player._pRSpell = SpellID::Firebolt;
+	player._pRSplType = SpellType::Spell;
+
+	oracool::OpenSkillPicker(false);
+	const Point attackCell = oracool::GetSkillPickerCellCenter(0); // the basic attack heads the list
+	ASSERT_GE(attackCell.x, 0) << "test setup: the picker shows no cells";
+
+	MousePosition = attackCell;
+	EXPECT_TRUE(oracool::CheckSkillPickerClick(attackCell));
+	EXPECT_EQ(player._pRSpell, SpellID::Firebolt) << "the cell acted on the press";
+	MousePosition = { 0, 0 };
+	oracool::ReleaseSkillPickerCell();
+	EXPECT_EQ(player._pRSpell, SpellID::Firebolt) << "a release off the cell still bound it";
+	EXPECT_TRUE(oracool::IsSkillPickerOpen()) << "a release off the cell closed the picker";
+
+	MousePosition = attackCell;
+	EXPECT_TRUE(oracool::CheckSkillPickerClick(attackCell));
+	oracool::ReleaseSkillPickerCell();
+	EXPECT_NE(player._pRSpell, SpellID::Firebolt) << "the release inside the basic attack's cell did not ready it";
+	EXPECT_FALSE(oracool::IsSkillPickerOpen());
+
+	oracool::CloseSkillPicker();
+	MousePosition = savedMouse;
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
+}
+
+// Round 76 audit: TintedTable rebuilt its 256 entries for every tinted missile every frame. Like draws now share one
+// table, keyed by the base's VALUES (a freed sheet's address can be reused), the tint, the colour and the progress.
+TEST(OracoolAudit, TintedTableIsBuiltOncePerBaseAndColour)
+{
+	std::array<uint32_t, 256> base {};
+	for (size_t i = 0; i < base.size(); i++)
+		base[i] = static_cast<uint32_t>(i) * 0x010101U;
+	const uint32_t *first = oracool::TintedTable(base.data(), oracool::Tint::Hue, oracool::hue::FireOrange, 0.0);
+	std::array<uint32_t, 256> firstValues {};
+	std::copy(first, first + 256, firstValues.begin());
+	EXPECT_EQ(oracool::TintedTable(base.data(), oracool::Tint::Hue, oracool::hue::FireOrange, 0.0), first)
+	    << "the same base and colour built a second table";
+	const uint32_t *other = oracool::TintedTable(base.data(), oracool::Tint::Hue, oracool::hue::IceBlue, 0.0);
+	EXPECT_NE(other, first) << "a second colour was answered with the first colour's table";
+	EXPECT_TRUE(std::equal(firstValues.begin(), firstValues.end(), first)) << "the second colour overwrote the first's table";
+	// The same address with other values is another base.
+	ASSERT_NE(firstValues[200], 0U);
+	base[200] = 0;
+	const uint32_t *changed = oracool::TintedTable(base.data(), oracool::Tint::Hue, oracool::hue::FireOrange, 0.0);
+	EXPECT_EQ(changed[200], 0U) << "a base changed in place was answered from the cache";
 }
 
 // External audit, 2026-09-06 (UI-01): the F-key handler read the hover the LAST DRAW recorded, so
@@ -16814,4 +17093,109 @@ TEST(OracoolAudit, ChargingPastAllGoldLeavesTheStashAtNothing)
 	TakePlrsMoney(50);
 	EXPECT_EQ(Stash.gold, 0) << "the pool went below nothing";
 	Stash.gold = savedGold;
+}
+
+// Fist of the Heavens' ring fired its four axis bolts twice, and every bolt struck: a monster beside the impact stood in
+// the path of 4-5 of them and took 250-300% of the weapon where the tooltip says 60% (round 93 audit).
+TEST(OracoolAudit94, FistOfTheHeavensRingStrikesEachMonsterOnce)
+{
+	const std::vector<WorldTileDisplacement> offsets = oracool::FistRingOffsets();
+	EXPECT_EQ(offsets.size(), 32U) << "the ring is 32 aim points, each once";
+	for (size_t i = 0; i < offsets.size(); i++) {
+		EXPECT_EQ(std::max(std::abs(offsets[i].deltaX), std::abs(offsets[i].deltaY)), 4) << "an aim point off the radius-4 ring";
+		for (size_t j = 0; j < i; j++)
+			EXPECT_FALSE(offsets[i] == offsets[j]) << "aim point " << i << " is fired twice";
+	}
+
+	const int ring = oracool::StartFistRing();
+	EXPECT_TRUE(oracool::ClaimFistRingTarget(ring, 7)) << "the ring's first bolt to meet a monster strikes it";
+	EXPECT_FALSE(oracool::ClaimFistRingTarget(ring, 7)) << "a second bolt of the same ring struck it again";
+	EXPECT_TRUE(oracool::ClaimFistRingTarget(ring, 8)) << "another monster is struck too";
+	const int next = oracool::StartFistRing();
+	EXPECT_NE(next, ring);
+	EXPECT_TRUE(oracool::ClaimFistRingTarget(next, 7)) << "the next cast's ring strikes it afresh";
+	EXPECT_TRUE(oracool::ClaimFistRingTarget(0, 7)) << "a bolt of no ring (the Thunderous burst) is not limited";
+	EXPECT_TRUE(oracool::ClaimFistRingTarget(0, 7));
+}
+
+namespace {
+
+/** @brief Saves @p grid and zeroes it; Round94RestoreGrid puts it back. */
+template <typename Grid>
+std::vector<unsigned char> Round94SaveGrid(Grid &grid)
+{
+	std::vector<unsigned char> saved(sizeof(grid));
+	std::memcpy(saved.data(), &grid, sizeof(grid));
+	std::memset(&grid, 0, sizeof(grid));
+	return saved;
+}
+
+template <typename Grid>
+void Round94RestoreGrid(Grid &grid, const std::vector<unsigned char> &saved)
+{
+	std::memcpy(&grid, saved.data(), sizeof(grid));
+}
+
+} // namespace
+
+// The skills' sight test was LineClearMissile, which reads only the tile's missile flag; a closed door blocks a missile
+// through its object's _oMissFlag, so the area bow skills saw and struck through it (round 80 audit, unconfirmed until now).
+TEST(OracoolAudit94, AClosedDoorBlocksTheSkillsSight)
+{
+	const auto savedPiece = Round94SaveGrid(dPiece);
+	const auto savedObject = Round94SaveGrid(dObject);
+	const auto savedSol = SOLData;
+	const Object savedDoor = Objects[0];
+	SOLData.fill(TileProperties::None);
+	Objects[0] = {};
+
+	constexpr Point from { 10, 10 };
+	constexpr Point to { 16, 10 };
+	dObject[13][10] = 1;
+	Objects[0].position = { 13, 10 };
+	Objects[0]._otype = _object_id::OBJ_L1LDOOR;
+	Objects[0]._oMissFlag = false; // SetDoorStateClosed
+	EXPECT_TRUE(LineClearMissile(from, to)) << "the finding: the engine's line test sees through a closed door";
+	EXPECT_FALSE(oracool::SightLineClear(from, to)) << "the skills saw through a closed door";
+	EXPECT_FALSE(oracool::SightLineClear(to, from)) << "nor from the other side";
+
+	Objects[0]._oMissFlag = true; // SetDoorStateOpen
+	EXPECT_TRUE(oracool::SightLineClear(from, to)) << "an open door blocked the skills' sight";
+
+	SOLData = savedSol;
+	Objects[0] = savedDoor;
+	Round94RestoreGrid(dObject, savedObject);
+	Round94RestoreGrid(dPiece, savedPiece);
+}
+
+// Charge's line test reads only the missile flag, so a target he could reach only the long way round launched the dash
+// (rounds 82-83 audit). The walk may be at most a tile longer than the straight line, the movers' cap.
+TEST(OracoolAudit94, ChargeRefusesTheLongWayRound)
+{
+	const auto savedPiece = Round94SaveGrid(dPiece);
+	const auto savedObject = Round94SaveGrid(dObject);
+	const auto savedPlayer = Round94SaveGrid(dPlayer);
+	const auto savedSol = SOLData;
+	SOLData.fill(TileProperties::None);
+
+	devilution::Player player {};
+	player.position.tile = { 10, 10 };
+	player.position.future = { 10, 10 };
+	constexpr Point target { 14, 10 };
+	EXPECT_TRUE(oracool::ChargePathIsDirect(player, target)) << "an open floor refused the dash";
+
+	// A wall between them, with a gap four tiles down: the walk is twice the straight line.
+	SOLData[1] = TileProperties::Solid;
+	for (int y = 0; y < MAXDUNY; y++) {
+		if (y != 14)
+			dPiece[12][y] = 1;
+	}
+	EXPECT_FALSE(oracool::ChargePathIsDirect(player, target)) << "the dash ran the long way round the wall";
+	dPiece[12][14] = 1;
+	EXPECT_FALSE(oracool::ChargePathIsDirect(player, target)) << "a target he cannot reach launched the dash";
+
+	SOLData = savedSol;
+	Round94RestoreGrid(dPlayer, savedPlayer);
+	Round94RestoreGrid(dObject, savedObject);
+	Round94RestoreGrid(dPiece, savedPiece);
 }

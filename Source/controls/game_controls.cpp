@@ -13,8 +13,12 @@
 #include "doom.h"
 #include "gamemenu.h"
 #include "gmenu.h"
+#include "inv.h"
 #include "options.h"
+#include "panels/spell_book.hpp" // HandleAbilityFKey - the pad's quick-spell menu
+#include "player.h"
 #include "qol/stash.h"
+#include "spells.h" // IsValidSpell
 #include "stores.h"
 
 namespace devilution {
@@ -86,19 +90,13 @@ SDL_Keycode TranslateControllerButtonToQuestLogKey(ControllerButton controllerBu
 SDL_Keycode TranslateControllerButtonToSpellbookKey(ControllerButton controllerButton)
 {
 	switch (TranslateTo(GamepadType, controllerButton)) {
-	case ControllerButton_BUTTON_B:
-		return SDLK_SPACE;
-	// Not Y as Return (round 92 audit): with the chat line on in single-player, it opened a text box a pad cannot type in.
+	// Not B as Space (round 87 audit): Space is the master closer, so the button shut every window, and B is the
+	// padmapper's Primary action - it now reaches PerformPrimaryAction, which clicks the Abilities window where the
+	// cursor is (invest, bind, turn a sheet), while the Cancel action closes the window alone (Esc closes the top window
+	// only). Not Y as Return (round 92 audit): with the chat line on in single-player, it opened a text box a pad cannot
+	// type in. Nor the D-pad as arrows: SpellBookMove takes it with the stick and walks the window's focus.
 	case ControllerButton_BUTTON_LEFTSTICK:
 		return SDLK_TAB; // Map
-	case ControllerButton_BUTTON_DPAD_LEFT:
-		return SDLK_LEFT;
-	case ControllerButton_BUTTON_DPAD_RIGHT:
-		return SDLK_RIGHT;
-	case ControllerButton_BUTTON_DPAD_UP:
-		return SDLK_UP;
-	case ControllerButton_BUTTON_DPAD_DOWN:
-		return SDLK_DOWN;
 	default:
 		return SDLK_UNKNOWN;
 	}
@@ -243,6 +241,19 @@ void PressControllerButton(ControllerButton button)
 		default:
 			break;
 		}
+	} else if (invflag) {
+		// The backpack's pages 2-10 (round 87 audit): with the backpack open the shoulders turn its pages, as they turn
+		// the stash's, rather than drink a potion behind it. Locked pages are stepped over.
+		switch (button) {
+		case ControllerButton_BUTTON_LEFTSHOULDER:
+			StepInventoryPage(-1);
+			return;
+		case ControllerButton_BUTTON_RIGHTSHOULDER:
+			StepInventoryPage(1);
+			return;
+		default:
+			break;
+		}
 	}
 
 	if (PadHotspellMenuActive) {
@@ -251,10 +262,14 @@ void PressControllerButton(ControllerButton button)
 				SetSpeedSpell(slot);
 				return;
 			}
-			if (!*sgOptions.Gameplay.quickCast)
-				ToggleSpell(slot);
-			else
+			// The F-key's own road (round 87 audit): an aura on the key lights, a left-button binding readies the left
+			// button. ToggleSpell and QuickCast know only the right button's array, so both were ignored. Quick cast still
+			// casts a right-button binding outright, as before.
+			const Player &me = *MyPlayer;
+			if (*sgOptions.Gameplay.quickCast && me._pAuraHotKey[slot] == 0xFFFF && IsValidSpell(me._pSplHotKey[slot]))
 				QuickCast(slot);
+			else
+				HandleAbilityFKey(slot, /*shift=*/false);
 		};
 		switch (button) {
 		case devilution::ControllerButton_BUTTON_A:

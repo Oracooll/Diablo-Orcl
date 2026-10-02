@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include <functional>
+
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
@@ -43,12 +45,22 @@ void DrawWindowCloseButtonAt(const Surface &out, const Rectangle &button);
  */
 void DrawWindowCloseButtonStyled(const Surface &out, const Rectangle &button, uint8_t glyphColor, uint8_t plateColor);
 
-/** @brief True when @p mousePosition is on @p window's close button. The caller closes itself -
- * this helper deliberately does not know how, so it works for every window regardless of what
- * closing one involves.
+/**
+ * @brief The PRESS half of @p window's close button: true when @p mousePosition is on it, so the caller stops routing
+ * the click. The face sinks and the click sounds (IS_TITLEMOV), but nothing closes yet: @p close runs from
+ * ReleaseWindowCloseButton, and only when the release lands back inside the same X (the press/release default,
+ * 2026-09-21; the X kept acting on the press until round 75). The caller says how to close - this helper deliberately
+ * does not know how, so it works for every window regardless of what closing one involves.
  *
- * It DOES play the close click (IS_TITLEMOV) when it returns true, because every caller closes on
- * true. So it is a click handler, not a hit test: never ask it from a hover or a draw. */
-bool CheckWindowCloseButtonClick(const Rectangle &window, Point mousePosition);
+ * @p close must be safe to run on a window already closed some other way (Esc while the button is held): test the
+ * window's own open flag in it. A click handler, not a hit test: never ask it from a hover or a draw.
+ */
+bool CheckWindowCloseButtonClick(const Rectangle &window, Point mousePosition, std::function<void()> close);
+/** @brief As CheckWindowCloseButtonClick, for an X placed at @p button itself (see DrawWindowCloseButtonAt). */
+bool PressWindowCloseButtonAt(const Rectangle &button, Point mousePosition, std::function<void()> close);
+/** @brief LeftMouseUp: the pressed X springs back, and its window closes if the release is inside it. Safe when none is pressed. */
+void ReleaseWindowCloseButton(Point mousePosition);
+/** @brief Whether an X is held down right now (tests). */
+bool IsWindowCloseButtonPressed();
 
 } // namespace devilution::oracool

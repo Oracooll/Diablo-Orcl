@@ -1222,6 +1222,11 @@ void GetPrimalItemAffixes(const Player &player, Item &item, int minlvl, int maxl
  * generating the affixes and pass them in directly.
  */
 void CalcOracoolTieredItemValue(Item &item, int addTotal, int multTotal);
+/**
+ * @brief Prices a rolled (magic-quality) item from its affix record exactly as a rework (RebuildOracoolItemWithAffixes)
+ * prices it - for a recipe that adds records by hand, so its price does not jump at the next rework (round 84 audit).
+ */
+void RepriceOracoolItemFromRecord(Item &item);
 /** @brief The affix that undoes @p type - a stat and its curse - or @p type itself; one item never carries both. */
 item_effect_type AffixTwinOf(item_effect_type type);
 /**
@@ -1425,6 +1430,13 @@ void DoRepair(Player &player, int cii, int tabIdx = -1);
 void DoRecharge(Player &player, int cii, int tabIdx = -1);
 bool DoOil(Player &player, int cii, int tabIdx = -1);
 [[nodiscard]] StringOrView PrintItemPower(char plidx, const Item &item);
+/** @brief A power that only gives or takes mana: +/- Mana, mana steal, "user loses all mana". */
+[[nodiscard]] bool IsManaOnlyPower(item_effect_type type);
+/**
+ * @brief Whether an item text line for @p type is left out for the local player: a Barbarian runs on
+ * Rage and carries no mana pool (v1.12.344), so a mana-only power says nothing to him.
+ */
+[[nodiscard]] bool HideManaPowerLineForViewer(item_effect_type type);
 /** @brief Like PrintItemPower, but reads a Rare/Buffed Unique/Primal item's own per-affix value instead of the item's shared accumulated field - see the definition for why that distinction matters. */
 [[nodiscard]] StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item);
 /** @brief One set-BONUS stat, read from the rung's own two parameters - a rung has no item to read. Empty for a type with no rendering; OracoolItemSets.EverySetBonusStatHasText makes that a test failure. */
@@ -1506,6 +1518,12 @@ struct OracoolOilWork {
  * an item with no affix record to measure against, or while a measure is already running.
  */
 std::optional<OracoolOilWork> MeasureOracoolOilWork(const Player &player, const Item &item);
+
+/**
+ * @brief The oils' work on a SET piece, measured against the piece rebuilt from its set definition (round 84 audit): a set piece
+ * has no affix record, so MeasureOracoolOilWork cannot probe it. Nullopt for anything that is not a known set piece.
+ */
+std::optional<OracoolOilWork> MeasureOracoolSetPieceOilWork(const Item &item);
 
 /** @brief Whether @p idx is one of the fork's own gear bases (not a vanilla row): such items are never stamped CF_BOY. */
 bool IsOracoolGearBase(_item_indexes idx);

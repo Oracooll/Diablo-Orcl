@@ -1,6 +1,11 @@
 #include "oracool/paladin_ranged.h"
 #include "oracool/rfa12_actives.h" // LastOpenTileToward
 
+#include <algorithm>
+#include <array>
+#include <bitset>
+#include <vector>
+
 #include "engine/random.hpp"
 #include "missiles.h"
 #include "monster.h"
@@ -153,7 +158,69 @@ bool CastBlessedHammer(Player &player, int spellLevel)
 	return true;
 }
 
+/**
+ * @brief The monsters each recent ring has already met (round 93 audit: the ring's bolts crowd together near the
+ * impact, so a monster beside it stood in the path of 4-5 of them and took 250-300% of the weapon where the tooltip
+ * says 60%). Sixteen rings is far more than can be alive at once - a ring lives 12 ticks.
+ *
+ * Not saved, and not cleared between games: a ring id is never reused within a run, and a bolt loaded from a save
+ * whose ring is unknown here simply strikes, as it did before.
+ */
+struct FistRing {
+	int id = 0;
+	std::bitset<MaxMonsters> struck;
+};
+std::array<FistRing, 16> FistRings;
+int LastFistRingId = 0;
+size_t NextFistRingSlot = 0;
+
 } // namespace
+
+int StartFistRing()
+{
+	if (++LastFistRingId <= 0)
+		LastFistRingId = 1;
+	FistRing &ring = FistRings[NextFistRingSlot];
+	NextFistRingSlot = (NextFistRingSlot + 1) % FistRings.size();
+	ring.id = LastFistRingId;
+	ring.struck.reset();
+	return ring.id;
+}
+
+std::vector<WorldTileDisplacement> FistRingOffsets()
+{
+	// The ring, laid out exactly as ProcessNovaCommon does: a quarter arc mirrored into four, which
+	// is what gives Nova its round front rather than a square one. Its radius is 4 tiles, which is
+	// already the travel distance the user asked for.
+	constexpr std::array<WorldTileDisplacement, 9> quarterRadius = {
+		{ { 4, 0 }, { 4, 1 }, { 4, 2 }, { 4, 3 }, { 4, 4 }, { 3, 4 }, { 2, 4 }, { 1, 4 }, { 0, 4 } }
+	};
+	std::vector<WorldTileDisplacement> offsets;
+	offsets.reserve(quarterRadius.size() * 4);
+	for (WorldTileDisplacement quarterOffset : quarterRadius) {
+		for (WorldTileDisplacement offset : { quarterOffset, quarterOffset.flipXY(), quarterOffset.flipX(), quarterOffset.flipY() }) {
+			// An axis point mirrors onto itself: the four on the axes were fired twice (round 93 audit).
+			if (std::find(offsets.begin(), offsets.end(), offset) == offsets.end())
+				offsets.push_back(offset);
+		}
+	}
+	return offsets;
+}
+
+bool ClaimFistRingTarget(int ringId, int monsterId)
+{
+	if (ringId <= 0 || monsterId < 0 || static_cast<size_t>(monsterId) >= MaxMonsters)
+		return true;
+	for (FistRing &ring : FistRings) {
+		if (ring.id != ringId)
+			continue;
+		if (ring.struck.test(static_cast<size_t>(monsterId)))
+			return false;
+		ring.struck.set(static_cast<size_t>(monsterId));
+		return true;
+	}
+	return true; // a ring long gone (or from a save): strike, as before
+}
 
 void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellLevel)
 {
@@ -162,12 +229,6 @@ void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellL
 	// shield-into-slot sound the Stash's and the inventory's Sort buttons both play.
 	PlaySfxLoc(IS_ISHIEL, target);
 
-	// The ring, laid out exactly as ProcessNovaCommon does: a quarter arc mirrored into four, which
-	// is what gives Nova its round front rather than a square one. Its radius is 4 tiles, which is
-	// already the travel distance the user asked for.
-	constexpr std::array<WorldTileDisplacement, 9> quarterRadius = {
-		{ { 4, 0 }, { 4, 1 }, { 4, 2 }, { 4, 3 }, { 4, 4 }, { 3, 4 }, { 2, 4 }, { 1, 4 }, { 0, 4 } }
-	};
 	const int boltDamage = std::max(damage * FistNovaPercentAt(spellLevel) / 100, 1);
 	// THE LIGHTNING SPRITE, not the holy spark (user, 2026-09-13: "i just want to change the asset
 	// that disperses with the lightning asset used in charged bolt").
@@ -177,14 +238,15 @@ void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellL
 	// spell uses, so removing the re-skin below is the entire change. Between 2026-09-11 and now the
 	// ring wore MissileGraphicID::HolySpark whenever that art was loaded, which is what made the
 	// landing look like a burst of sparks rather than lightning.
-	for (WorldTileDisplacement quarterOffset : quarterRadius) {
-		const std::array<WorldTileDisplacement, 4> offsets {
-			quarterOffset, quarterOffset.flipXY(), quarterOffset.flipX(), quarterOffset.flipY()
-		};
-		for (WorldTileDisplacement offset : offsets) {
-			AddMissile(target, target + offset, player._pdir, MissileID::MiniNovaBall,
-			    TARGET_MONSTERS, static_cast<int>(player.getId()), boltDamage, spellLevel);
-		}
+	//
+	// The ring strikes each monster once (round 93 audit): every bolt carries the ring's id in var3, and
+	// CheckMissileCol lets a bolt through a monster an earlier bolt of the same ring already met.
+	const int ringId = StartFistRing();
+	for (WorldTileDisplacement offset : FistRingOffsets()) {
+		Missile *bolt = AddMissile(target, target + offset, player._pdir, MissileID::MiniNovaBall,
+		    TARGET_MONSTERS, static_cast<int>(player.getId()), boltDamage, spellLevel);
+		if (bolt != nullptr)
+			bolt->var3 = ringId;
 	}
 }
 

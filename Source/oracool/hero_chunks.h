@@ -197,6 +197,12 @@ enum HeroChunkTag : uint16_t {
 	 * reader still sees a sane hero. Each value is clamped to MaxBaseAttribute on the way in.
 	 */
 	HeroChunkBaseAttributes = 20,
+	/**
+	 * @brief A Guardian Keystone owed back (rounds 71-72 audit): u16 tier, 0 for none - Player::_pOracoolOwedKeystoneTier, the
+	 * keystone spent on stepping into a Guardian Rift the game was left (or crashed) inside of before it was over. The next
+	 * game's first level load refunds it (oracool::RefundOwedGuardianKeystone). Written only while one is owed.
+	 */
+	HeroChunkOwedKeystone = 21,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

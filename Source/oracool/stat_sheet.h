@@ -84,6 +84,25 @@ struct ItemBonusTotals {
 	 * level-up stat (2026-09-26) - it used to land in bonusArmor, which is FLAT, so "+6% armour" gave six points.
 	 */
 	int armorPercent = 0;
+	/**
+	 * @brief Life / mana stolen per melee hit, in percent, SUMMED over every source (round 91 audit, user 2026-10-02:
+	 * "if it is an affix that can be accumulated - accumulate it"). The 3% and 5% flags used to be read as "the larger
+	 * applies", so the Crimson Compact's and Leoric's Court's 3% + 5% rungs, or a 5% ring beside a 5% set rung, paid
+	 * one of them. Every item, set rung, rune and runeword now adds its own share through AddFlags.
+	 */
+	int lifeSteal = 0;
+	int manaSteal = 0;
+	/**
+	 * @brief Armour against undead / demons, SUMMED: each IPL_ACUNDEAD source adds ArmorVsUndeadPerSource, each
+	 * IPL_ACDEMON source ArmorVsDemonsPerSource (same audit - Dawnwarden's rung 6 repeated rung 3's flag for nothing).
+	 */
+	int armorVsUndead = 0;
+	int armorVsDemons = 0;
+
+	/** @brief ORs @p f into flags and adds its steal percentages - the one way a source raises a steal flag. */
+	void AddFlags(ItemSpecialEffect f);
+	/** @brief ORs @p f into damAcFlags and adds its armour-vs-undead/demons points. */
+	void AddDamAcFlags(ItemSpecialEffectHf f);
 
 	/**
 	 * @brief Accumulates one item with the vanilla loop's exact semantics: nothing from an empty
@@ -93,6 +112,16 @@ struct ItemBonusTotals {
 	 */
 	void AddItem(const Item &item);
 };
+
+/** @brief Armour one "+AC vs undead" source grants (monster.cpp's vanilla +20). */
+constexpr int ArmorVsUndeadPerSource = 20;
+/** @brief Armour one "+AC vs demons" source grants (monster.cpp's vanilla +40). */
+constexpr int ArmorVsDemonsPerSource = 40;
+
+/** @brief The life-steal percent @p flags carry: 3 for StealLife3 plus 5 for StealLife5 - both flags add up to 8. */
+int FlagLifeStealPercent(ItemSpecialEffect flags);
+/** @brief The mana-steal percent @p flags carry, the same way. NoMana is the caller's business. */
+int FlagManaStealPercent(ItemSpecialEffect flags);
 
 /** @brief Who the totals are being computed FOR. A hireling passes itself here one day. */
 struct BonusContext {

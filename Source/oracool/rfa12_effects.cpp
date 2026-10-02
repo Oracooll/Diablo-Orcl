@@ -511,7 +511,7 @@ void ProcessRfa12Tick(Player &player)
 			const int distance = monster.position.tile.WalkingDistance(player.position.tile);
 			if (radiance > 0 && pulse && distance <= AuraRadiusForPoints(radiance)
 			    && monster.data().monsterClass == MonsterClass::Undead
-			    && LineClearMissile(player.position.tile, monster.position.tile)) { // not through a wall (round 81 audit)
+			    && SightLineClear(player.position.tile, monster.position.tile)) { // not through a wall (round 81) or a closed door
 				const AuraDamage d = RadianceDamage(radiance);
 				StrikeHoly(player, monster, Roll(d.min, d.max));
 			}

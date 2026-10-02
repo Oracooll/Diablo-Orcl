@@ -1093,6 +1093,29 @@ int GridRoomAfter(const Item *grid, const std::vector<int> &consumed)
 	return free;
 }
 
+/** @brief The four D2 crafts' words, which a craft puts before the Rare's name ("Blood ..."). */
+constexpr const char *CraftWords[] = { N_("Blood"), N_("Caster"), N_("Hit Power"), N_("Safety") };
+
+/**
+ * @brief Takes a craft's word off the front of @p item's name (round 84 audit): a reroll keeps the rolled name (D5), and a
+ * "Blood ..." Rare whose craft powers the reroll took away still claimed them. Repeated, so an older "Caster Blood ..." clears too.
+ */
+void StripCraftWord(Item &item)
+{
+	for (bool stripped = true; stripped;) {
+		stripped = false;
+		const std::string name = item._iIName;
+		for (const char *word : CraftWords) {
+			const std::string prefix = std::string(_(word)) + " ";
+			if (name.size() > prefix.size() && name.compare(0, prefix.size(), prefix) == 0) {
+				CopyUtf8(item._iIName, name.substr(prefix.size()), sizeof(item._iIName));
+				stripped = true;
+				break;
+			}
+		}
+	}
+}
+
 } // namespace
 
 int CraftingRecipeReagentCount(int index)
@@ -1447,6 +1470,8 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		Item &target = grid[materials[0]];
 		if (!RetierOracoolItem(target, OracoolItemTier::Rare))
 			return {};
+		// The rolled name stays (D5), the last craft's word does not (round 84 audit): a second craft read "Caster Blood ...".
+		StripCraftWord(target);
 		// Inside the Rare's own limits (user, 2026-09-27: "fix the decisions for me too"). The Rare rolled 2-4 affixes and
 		// the two powers below came on top - six on an item whose limit is four. It keeps two of its rolls now, and the
 		// two powers make four.
@@ -1505,6 +1530,8 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			else if (target._iOracoolAffixCount < Item::MaxOracoolAffixes)
 				target._iOracoolAffixes[target._iOracoolAffixCount++] = OracoolAffix { power.type, raw, 0 };
 		}
+		// Priced now, with the two powers, as the next rework would price it (round 84 audit: the price jumped there).
+		RepriceOracoolItemFromRecord(target);
 		const std::string crafted = fmt::format("{:s} {:s}", _(craft.word), std::string(target.getName()));
 		CopyUtf8(target._iIName, crafted, sizeof(target._iIName));
 		target._iIdentified = true;
@@ -1568,6 +1595,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		case 5: // REFORGE - the same base, every roll taken again at its own item level
 			if (!ReforgeOracoolItem(target))
 				return {};
+			StripCraftWord(target); // the craft's powers went with the old rolls (round 84 audit)
 			what = std::string(target.getName());
 			break;
 		case 6: // ENNOBLE - a rare becomes a unique of its own kind
@@ -1595,6 +1623,9 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			const int oldDurability = target._iDurability;
 			const bool wasBroken = target._iOracoolBroken;
 			const int oldSockets = target._iSocketCount;
+			// The oils' work on the piece, as Consecrate carries it (round 84 audit: Recast threw it away). Measured against
+			// the piece rebuilt from its own set definition - a set piece has no affix record to replay.
+			const std::optional<OracoolOilWork> oilWork = MeasureOracoolSetPieceOilWork(target);
 			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetPiece(*chosen)));
 			MakeSetItem(target, *chosen);
 			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false, keptTier);
@@ -1602,6 +1633,8 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// 2026-09-13). May decline on an indestructible piece, which then simply stays whole.
 			if (wasEthereal)
 				MakeItemEthereal(target);
+			if (oilWork) // after the ethereal bargain, as Consecrate orders them
+				ReapplyOracoolOilWork(target, *oilWork);
 			target._iOracoolLevelFree = wasLevelFree;
 			if (oldDurability != DUR_INDESTRUCTIBLE && target._iMaxDur != DUR_INDESTRUCTIBLE)
 				target._iDurability = std::min<int>(oldDurability, target._iMaxDur);
@@ -1683,6 +1716,9 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		case 12: // REROLL RARES - the rare rolls taken again at the same rung
 			if (!RetierOracoolItem(target, OracoolItemTier::Rare))
 				return {};
+			// The name stays (D5), a craft's word does not (round 84 audit): "Blood ..." named a Rare whose craft powers the
+			// reroll had just taken away.
+			StripCraftWord(target);
 			what = std::string(target.getName());
 			break;
 		case 13: // REROLL UNIQUES

@@ -2774,10 +2774,8 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 
 	if (inBook) {
 		// The book's own X closes the book, not the window under it - each window owns its button.
-		if (CheckWindowCloseButtonClick(book, mousePosition)) {
-			RecipeBookOpen = false;
-			return true;
-		}
+		if (CheckWindowCloseButtonClick(book, mousePosition, [] { RecipeBookOpen = false; }))
+			return true; // closes on the release inside it (round 75 audit)
 		// The book is a control surface now (v1.9.18): clicking a recipe SELECTS it, and clicking
 		// the selected one again clears the selection. It stopped being a pure reference the moment
 		// two recipes could take the same target and the same material at different costs, because
