@@ -212,23 +212,19 @@ constexpr Rectangle BoardGoldCountRect { { 25, BoardGoldIconAt.y + BoardGoldIcon
  * one button wide - so they stack rather than sitting side by side.
  */
 constexpr Size BoardConfirmSize { 62, 24 };
-/**
- * The pair as ONE group in its slot frames (v1.12.348; user, 2026-10-02: "6px gap between their frames and
- * surrounding ui elments"). Measured on Ogden's canvas: the question's ink ends on y 618 and the stone border's
- * black liner starts on y 695, so a 52px pair with a six-pixel frame fits with exactly six pixels of air on both
- * sides at y 631 - and the frame's right edge stays six clear of the health orb's rect at x 175, at x 101.
- */
-constexpr int BoardConfirmLeft = 101;
-constexpr int BoardConfirmTop = 631;
+// No slot frame on the pair (user, 2026-10-02: buttons without the gold plate lose it), so it stands where it did
+// before v1.12.348 made room for one.
+constexpr int BoardConfirmLeft = 110;
+constexpr int BoardConfirmTop = 626;
 constexpr int BoardConfirmGap = 4;
 constexpr Rectangle BoardConfirmRect { { BoardConfirmLeft, BoardConfirmTop }, BoardConfirmSize };
 constexpr Rectangle BoardCancelRect {
 	{ BoardConfirmLeft, BoardConfirmTop + BoardConfirmSize.height + BoardConfirmGap }, BoardConfirmSize
 };
-static_assert(BoardCancelRect.position.x + BoardCancelRect.size.width - 1 + GridBezelInset + 6 < 175,
-    "the confirmation's frame runs under the health orb - keep it six pixels left of the orb's rect");
-static_assert(BoardCancelRect.position.y + BoardCancelRect.size.height - 1 + GridBezelInset + 6 < 695,
-    "the confirmation's frame runs into the canvas's foot");
+static_assert(BoardCancelRect.position.x + BoardCancelRect.size.width < 175,
+    "the confirmation runs under the health orb - keep it left of the orb's rect");
+static_assert(BoardCancelRect.position.y + BoardCancelRect.size.height < 695,
+    "the confirmation runs into the canvas's foot");
 
 /**
  * OGDEN'S CRAFT BENCH and his RECIPE PAGE (user, 2026-09-22, items 6 and 7).
@@ -986,14 +982,9 @@ Rectangle ServiceIconRect(int index, int count)
 Rectangle OptionRect(int index)
 {
 	const Rectangle board = Panel(BoardRect);
-	// Inside the board's gold outline with six pixels between it and the rows' slot frames (v1.12.348; user,
-	// 2026-10-02: "6px gap between their frames and surrounding ui elments"): thirteen in from each side - the
-	// outline's pixel, six of air, the frame's six - and the first row's frame six below the "Choose one:" ink,
-	// which ends on board.y + 20 (the ringed O's foot, measured). The rows keep their four-pixel pitch as one group.
-	constexpr int Side = 1 + 6 + GridBezelInset;
-	constexpr int FirstTop = 21 + 6 + GridBezelInset;
-	return Rectangle { { board.position.x + Side, board.position.y + FirstTop + index * (BoardLineHeight + 6) },
-		{ board.size.width - 2 * Side, BoardLineHeight + 2 } };
+	// No slot frame on these rows (user, 2026-10-02: buttons without the gold plate lose it), so they stand where they
+	// did before v1.12.348 made room for one.
+	return Rectangle { { board.position.x + 4, board.position.y + 26 + index * (BoardLineHeight + 6) }, { board.size.width - 8, BoardLineHeight + 2 } };
 }
 
 Rectangle ListRowRect(int row)
@@ -1464,9 +1455,7 @@ void DrawBoardMessage(const Surface &out)
 		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 		// The TWO answers, and only those: this loop draws a YES/NO plate per entry, so anything else
 		// in it renders as a "NO" box wherever its rect happens to be.
-		// Both answers in their slot frames before either face (user, 2026-10-02).
-		for (const Control which : { Control::ConfirmStep, Control::CancelStep })
-			DrawButtonSlotGround(out, ControlRect(which), Pressed == which);
+		// No slot frames: the answers have no gold plate (user, 2026-10-02).
 		for (const Control which : { Control::ConfirmStep, Control::CancelStep }) {
 			const Rectangle rect = ControlRect(which);
 			const bool confirm = which == Control::ConfirmStep;
@@ -1493,9 +1482,7 @@ void DrawBoard(const Surface &out)
 	if (OfferOpen) {
 		DrawString(out, _("Choose one:"), Rectangle { { board.position.x + 6, board.position.y + 4 }, { board.size.width - 12, BoardLineHeight } },
 		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
-		// Every option in its slot frame, all frames before any face: the rows stand four pixels apart (user, 2026-10-02).
-		for (int i = 0; i < OptionCount; i++)
-			DrawButtonSlotGround(out, OptionRect(i), Pressed == static_cast<Control>(static_cast<int>(Control::Option0) + i));
+		// No slot frames: the rows have no gold plate (user, 2026-10-02).
 		for (int i = 0; i < OptionCount; i++) {
 			const Rectangle rect = OptionRect(i);
 			const bool hovered = rect.contains(MousePosition);

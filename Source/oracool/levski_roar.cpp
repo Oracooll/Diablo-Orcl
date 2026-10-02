@@ -373,17 +373,16 @@ constexpr SalvageLayout SalvageTallPage {
 	{ { 316, 5 }, { 18, 18 } },
 	// 4x2 at the row's own 66 px pitch, split by whether the plate asks first (user, 2026-09-21): row one is the
 	// hammer and the three cheap tiers, which act at once; row two is the four dear ones, which ask.
-	// Two pixels higher since v1.12.348, so the lower row's slot frames end six pixels above the bow the results
-	// frame's top border makes round its title (y 476) - they ended four above it (user, 2026-10-02: "6px gap between
-	// their frames and surrounding ui elments").
-	{ { { 109, 342 }, { 56, 56 } }, // White - "All Basics", second of the top row
-	    { { 175, 342 }, { 56, 56 } }, // Magic
-	    { { 241, 342 }, { 56, 56 } }, // Rare
-	    { { 43, 408 }, { 56, 56 } },  // Unique - the lower row asks before it destroys
-	    { { 175, 408 }, { 56, 56 } }, // Primal
-	    { { 109, 408 }, { 56, 56 } }, // Set
-	    { { 241, 408 }, { 56, 56 } } },// Ethereal
-	{ { 43, 342 }, { 56, 56 } },   // the hammer that takes one item, first of the top row
+	// No slot frames on these plates (user, 2026-10-02: "remove frames from Salvage page of Griswold"), so they stand
+	// where they did before v1.12.348 made room for one.
+	{ { { 109, 344 }, { 56, 56 } }, // White - "All Basics", second of the top row
+	    { { 175, 344 }, { 56, 56 } }, // Magic
+	    { { 241, 344 }, { 56, 56 } }, // Rare
+	    { { 43, 410 }, { 56, 56 } },  // Unique - the lower row asks before it destroys
+	    { { 175, 410 }, { 56, 56 } }, // Primal
+	    { { 109, 410 }, { 56, 56 } }, // Set
+	    { { 241, 410 }, { 56, 56 } } },// Ethereal
+	{ { 43, 344 }, { 56, 56 } },   // the hammer that takes one item, first of the top row
 	true, true
 };
 
@@ -445,9 +444,8 @@ constexpr int ConfirmButton = 0;
 constexpr int CancelButton = 1;
 constexpr Size ConfirmButtonSize { 100, 28 };
 constexpr int ConfirmButtonGap = 20;
-// Twelve (v1.12.348): the slot frame's six and six of air above the results frame's gold foot. It was sixteen, ten of
-// air - more than the six every other framed button keeps to its neighbours.
-constexpr int ConfirmButtonBottomGap = GridBezelInset + 6;
+// Sixteen: these buttons wear no slot frame (user, 2026-10-02: "remove frames from Salvage page of Griswold").
+constexpr int ConfirmButtonBottomGap = 16;
 constexpr uint32_t ConfirmGreenRgb = 0x64A064;
 constexpr uint32_t CancelRedRgb = 0xC04030;
 /** Defined further down, beside the drawing they belong to; the release hook above them needs both. */
@@ -2304,14 +2302,7 @@ void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 		DrawString(out, _("Salvage"), Rectangle { window.position + Displacement { page->title.position.x, page->title.position.y }, page->title.size },
 		    { UiFlags::ColorGold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
-	// Every plate in its slot frame (user, 2026-10-02: all vendor and artisan buttons), all frames before any face so
-	// a neighbour's frame never lands on a plate.
-	for (int i = 0; i < SalvageTierCount; i++)
-		DrawButtonSlotGround(out, SalvageButtonRect(window, i), PressedSalvageIcon == i);
-	if (page->itemIcon.size.width > 0) {
-		DrawButtonSlotGround(out, { window.position + Displacement { page->itemIcon.position.x, page->itemIcon.position.y }, page->itemIcon.size },
-		    PressedSalvageIcon == SalvageTierCount);
-	}
+	// No slot frames on this page (user, 2026-10-02: "remove frames from Salvage page of Griswold").
 	int hoveredNow = -1;
 	for (int i = 0; i < SalvageTierCount; i++) {
 		const Rectangle rect = SalvageButtonRect(window, i);
@@ -2370,8 +2361,6 @@ void DrawSalvageWindow(const Surface &out, const Rectangle &window)
 		DrawString(out, wrapped, Rectangle { { results.position.x + 8, results.position.y + (buttonsTop - results.position.y - lines * lineHeight) / 2 },
 		                             { results.size.width - 16, lines * lineHeight } },
 		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter });
-		for (int which = ConfirmButton; which <= CancelButton; which++)
-			DrawButtonSlotGround(out, SalvageConfirmButtonRect(results, which), PressedConfirmButton == which); // framed (user, 2026-10-02)
 		for (int which = ConfirmButton; which <= CancelButton; which++) {
 			const Rectangle rect = SalvageConfirmButtonRect(results, which);
 			const bool hovered = rect.contains(MousePosition);
