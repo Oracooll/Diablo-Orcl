@@ -1,6 +1,8 @@
 # Diablo Oracool Edition — Changelog
 
-This file tracks every feature Oracool Edition adds on top of DevilutionX 1.5.5, organized by the Oracool release version each one first shipped in. Oracool's own version number (shown on the main menu, e.g. `Oracool Edition v0.1.3`) is independent of the DevilutionX engine version and the multiplayer compatibility version — it only tracks this mod's own feature history.
+This historical changelog records the earlier Oracool Edition release line. For current Diablo Orcl V1 status, see [the root README](../../README.md) and [development reports](../02-Development-Reports). The entries below retain their original version-specific behaviour; current V1 is single-player only.
+
+The entries are organized by the Oracool release version each one first shipped in. Oracool's own version number (shown on the main menu, e.g. `Oracool Edition v0.1.3`) is independent of the DevilutionX engine version and the multiplayer compatibility version — it only tracks this mod's own feature history.
 
 All features are single-player-only unless stated otherwise, and every feature that can reasonably be made optional is controlled by a setting in `diablo.ini` under `[Oracool Edition]`.
 

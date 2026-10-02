@@ -1,14 +1,13 @@
-# Contribution Guide
+# Contributing to Diablo Orcl
 
-This guide outlines useful resources, tools and processes for contribution to
-DevilutionX.
+Diablo Orcl is a development fork of DevilutionX. Target the default `renderer-32bit` branch, and use [this project's issues](https://github.com/Oracooll/Diablo-Orcl/issues) for mod bugs and proposals. V1 is single-player only; do not assume upstream multiplayer or platform support applies to this fork.
 
-## C++ Standard
+## Build and review
 
-Despite setting C++ standard to 20 in CMakeLists.txt, features from this version are not being used.
-The oldest compiler used is GCC 6.5 - and that defines our C++ feature set (meaning most of C++17).
-It's present only to take advantage of fmt::format build time errors.
+The CMake build requests C++20. Use [the root README](../README.md#building-from-source) and the checked-in build configuration to set up a toolchain; Windows configuration paths need adapting to your machine. Keep changes focused, describe their player-facing effect, and verify affected behaviour and relevant tests. Report save-format or asset dependencies explicitly.
 
-## Code style guide
+Do not commit original Diablo/Hellfire game archives, credentials, local settings, generated builds or save files. Respect the [license](../LICENSE.md) and existing dependency and asset notices.
 
-[The code style guide](https://github.com/diasurgical/devilutionX/wiki/Code-Style) is evolving with the project.
+## Style and documentation
+
+Follow the repository's formatting and surrounding C++ conventions. The [upstream style guide](https://github.com/diasurgical/devilutionX/wiki/Code-Style) provides background. Record mod development and compatibility changes under [`.ProjectDocumentation`](../.ProjectDocumentation). Preserve dated reports as history and update current documentation when behaviour changes.

@@ -5,7 +5,7 @@ tags: [moc, home]
 
 # Diablo Oracool Edition V1 — Project Documentation
 
-This is the documentation vault for **Diablo Orcl**, the 960×720 UI-overhaul line of Diablo Oracool Edition. It is a fork of Diablo Oracool Edition V0 (which continues on its own vanilla-faithful, quality-of-life-only path) — see [[V0 to V1 Fork]] for the full story.
+This is the documentation vault for **Diablo Orcl**, the class, loot, progression and 32-bit interface overhaul line of Diablo Oracool Edition. It is a fork of Diablo Oracool Edition V0 (which continues on its own vanilla-faithful, quality-of-life-only path) — see [[V0 to V1 Fork]] for the full story.
 
 Open this folder (`.ProjectDocumentation/`) as an Obsidian vault to get backlinks, the graph view, and clickable `[[wikilinks]]` between notes.
 
@@ -18,9 +18,13 @@ If you're new here, read in this order: [[About This Documentation]] → [[V0 to
 - [[Design-Decisions]] — standing design choices and the reasoning behind them
 - [[V0 to V1 Fork]] — why the project split into two version lines, and what each one owns
 
+## Current development
+
+The default branch is `renderer-32bit`. See [the current README](../README.md) and [development reports](02-Development-Reports) for current status. Latest reviewed source: v1.12.347, 2 October 2026. V1 is single-player only. The older report index below is historical and is not a complete current report list.
+
 ## Development Reports
 
-Dated, atomic reports — one per unit of work — written as the work happens. This is the primary "what happened and why" record for a third party auditing the project's history. Newest first:
+Dated, atomic reports — one per unit of work — written as the work happens. This is the primary "what happened and why" record for a third party auditing the project's history. Historical index (newer reports are in the folder linked above):
 
 - [[2026-08-11 - Panel Darkening and HUD Recolour]]
 - [[2026-08-11 - Asset Studio]]

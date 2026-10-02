@@ -1,90 +1,96 @@
-# Diablo Oracool Edition
+# Diablo Orcl — Oracool Edition
 
-A single-player-focused overhaul of Diablo built on top of [DevilutionX](https://github.com/diasurgical/devilutionX) 1.5.5. Oracool Edition keeps the original game's feel intact while adding three new item quality tiers, a much larger inventory, a fourth difficulty above Hell, a level cap of 99, and dozens of smaller quality-of-life fixes — all configurable, most on by default, none of it touching multiplayer.
+A single-player overhaul of Diablo and Hellfire built on [DevilutionX](https://github.com/diasurgical/devilutionX). Diablo Orcl expands character builds, loot, crafting, endgame progression and the interface, with a 32-bit colour renderer.
 
-[![Latest release](https://img.shields.io/github/v/release/Oracooll/Diablo-Oracool-Edition?label=latest%20release)](https://github.com/Oracooll/Diablo-Oracool-Edition/releases/latest)
-[![License](https://img.shields.io/badge/license-Sustainable%20Use-blue)](LICENSE.md)
+**Project still in development. Bugs are common and come in hordes :)**
 
-> **Note:** this is a personal single-player mod, not an official DevilutionX release. If you're looking for the base engine project this is built on, see [diasurgical/devilutionX](https://github.com/diasurgical/devilutionX).
+[Website](https://diabloorcl.oracooll.com/) · [Downloads](https://github.com/Oracooll/Diablo-Orcl/releases) · [Report a bug](https://github.com/Oracooll/Diablo-Orcl/issues) · [License](LICENSE.md)
 
----
+## Current status
 
-## What is this
+- The default development branch is `renderer-32bit`.
+- Current source version: **v1.12.347** as of 2 October 2026; [ORACOOL_VERSION](ORACOOL_VERSION) is the authoritative version file.
+- Latest published download at this documentation review: **v1.12.225**. A source update does not automatically publish a new executable; check the [Releases page](https://github.com/Oracooll/Diablo-Orcl/releases) for available packages and their own instructions.
+- **V1 is single-player only.** Multiplayer is not supported.
+- Windows is the primary development platform. Upstream platform instructions do not guarantee that this fork has a supported package for every platform.
+- Save compatibility can change between development builds. Back up characters before upgrading.
 
-[DevilutionX](https://github.com/diasurgical/devilutionX) is a reverse-engineered, cross-platform port of the original Diablo and Hellfire that fixes bugs and adds engine-level improvements while keeping the original game byte-for-byte faithful. Oracool Edition starts from that foundation and builds a substantial single-player content and quality-of-life layer on top of it: new item tiers, a bigger inventory, extra difficulty, a higher level cap, and a long tail of UI and bugfix polish accumulated over more than seventy dated feature entries.
+## Heroes and skills
 
-Everything Oracool Edition adds is single-player-only by construction — multiplayer behaves exactly like vanilla DevilutionX, with no risk of desync or unfair advantage. Almost every feature that can reasonably be made optional has its own on/off switch in `diablo.ini`, under an `[Oracool Edition]` section, so you can keep as much or as little of this mod's behavior as you want.
+Six classes: **Paladin, Rogue, Sorcerer, Monk, Barbarian and Necromancer**. The Paladin replaces the Warrior; the Barbarian and Necromancer have their own class systems. The Sorcerer is male.
 
-## Key features
+The current class-tree definitions contain **303 skill entries** across seven tiers. Skill ranks grow their effects, and tooltips explain bonuses. The Barbarian uses Rage instead of mana; the Necromancer uses Essence and has summons, curses and bone skills. Paladin auras appear on the ground. Summoned companions include the Valkyrie, Korlic, Talic, Madawc, Spirit Guardian and Decoy. Passive slots and F-key cast slots support character builds.
 
-### New item tiers
+Cold joins fire, lightning and magic as a damage element, and Strength scales physical damage as a percentage.
 
-Three procedurally generated item quality tiers sit between Magic and vanilla Unique in power, built on the game's own affix system:
+## Items, crafting and town
 
-- **Rare** (yellow) — up to two prefixes and two suffixes (always at least one of each).
-- **Buffed Unique** (gold, displays as `Unique {name}` to blend in with real Uniques) — two to three prefixes and suffixes each.
-- **Primal** (orange) — always exactly three prefixes and three suffixes, every one of them rolled at its maximum possible value, and always full durability.
+- **256 named uniques**: 250 expansion uniques and six Necromancer uniques; **94 set pieces across 15 sets**, with bonuses for equipped pieces.
+- A shared affix pool constrained by item level, class-weighted Smart Loot, and monster treasure classes.
+- Sockets, **33 runes**, **370 runeword definitions**, a runeword book, gems and jewels.
+- Inventory charms, including growing charms; **24 Imbuement Shard kinds**; ethereal equipment, item tiers and oils; drop-only Signets and Sealed Maps.
+- Levski's Cube, including reroll, Recast and Consecrate recipes; Gillian and Ogden's crafting workshops; Griswold salvage; Wirt's unidentified-item gambling shop.
+- Vendor grids and tabs, a ten-page backpack and a shared stash.
 
-Each tier has its own configurable drop chance, follows the same "Auto Identify Drops" setting as everything else, and gets its own inventory-slot background color so it's recognizable at a glance.
+Counts describe the current source definitions and can change as development continues; they do not imply that an older downloadable package includes every current feature.
 
-### Tabbed Inventory
+## Progression and interface
 
-Your backpack grows from 1 page to 10. Tab 1 is your original backpack, unchanged; tabs 2–10 are full-size extra storage pages, numbered with roman numerals. Every interaction — placing, stacking, equipping, selling, identifying, repairing, reading a book — works in an extra tab exactly like it does in your main backpack, and everything you store there saves inside your one existing character save file.
+Torment is the fourth difficulty above Hell. Rifts reached through the Rift Monument have kill progress and tiers; keystones open Guardian Rifts. Waypoints cover the Diablo, Hellfire and Orcl Acts. Monster variants, named encounters and endgame bosses sit within a 64-step area difficulty and loot ladder.
 
-### Torment difficulty & level cap 99
+The interface includes a redesigned hero sheet, advanced stats, item tooltip cards, event log, XP bar and counter. Equipment changes the hero's appearance, including shields, and dual wielding is supported. Keyboard and gamepad navigation, buttons that act on release, and Escape closing the top window support the new panels.
 
-A fourth difficulty above Hell, with an adjustable multiplier (1.1x–5.0x) that scales Hell's own monster and treasure formulas further, plus an optional level-gate (15/30/40) for Nightmare/Hell/Torment. The character level cap is raised from 50 to 99, with a new experience curve for the extra levels.
+The game auto-saves. On Windows, saves are in `Saved_Games` beside the executable and settings are in `diablo.ini` beside it. Options include auto-identify, game speed, unique drop multiplier, unlocked town entrances and the trial Spells Never Miss setting. Consult the current in-game settings for availability and defaults.
 
-### Stackable Consumables & Belt Mod
+## Download and install
 
-Potions, elixirs, scrolls, books, and oils stack up to 99 per slot instead of eating one slot each. Belt slots go further with Belt Mod: each slot holds its own physical stock and automatically refills itself from a matching inventory stack once emptied, instead of going empty after a single use.
+1. Choose a package from [this project's Releases page](https://github.com/Oracooll/Diablo-Orcl/releases). Read its release notes; the latest development source may be newer than the latest download.
+2. Extract the entire package into its own writable folder. Keep its DLLs, mod archive and engine assets together.
+3. Supply your own **`diabdat.mpq`** from an owned Diablo installation beside `DiabloOrcl.exe`.
+4. For the full Hellfire content and Monk assets, also supply **`hellfire.mpq`, `hfmonk.mpq`, `hfmusic.mpq` and `hfvoice.mpq`** from an owned Hellfire installation. Use the complete four-file set when enabling Hellfire.
+5. Run `DiabloOrcl.exe` and check the displayed version. Older packages may have different instructions; follow their bundled README.
 
-### HUD additions
+**No original Diablo or Hellfire game-data archives are distributed by this project. Players must supply their own.** Keep `oracool.mpq` and the packaged DevilutionX assets (`devilutionx.mpq` or the bundled `assets` folder), as well as the supplied libraries. Do not mix packages from different versions.
 
-- **Event Log** — a collapsible, timestamped log of session events: saves, boss/unique kills, tiered/Unique/Quest item drops, deaths, shrine effects, quest-log additions, and level-ups.
-- **Mini-map** — an always-on corner map (independent of the full map, which still works exactly like vanilla via TAB).
-- **Game Clock** — a real-world clock, 12- or 24-hour.
-- **XP Counter** — experience needed for your next level; press and hold to see the total remaining monster XP on the level instead.
-- **Monster Range Highlight** — nearby monsters get a red outline before they're even on screen, at an adjustable range.
-
-### Griswold enhancements
-
-A "Buy unique items" shop (an independent, non-restocking stock of identified Uniques), a Premium refresh service, and "Repair all"/"Sell all" buttons that batch-process your whole inventory in one click.
-
-### Quality of life
-
-Local portable saves (`diablo.ini` and `Saved_Games` live beside the executable, so the whole install is copy-anywhere portable), automatic saving, auto-identify and configurable-radius auto-pickup, a raised gold stack cap, Respawn In Town (keep all your gear when you die), broken items going inactive instead of being destroyed, an inventory sort button, and a large number of smaller fixes and polish passes documented in full below.
-
-For the complete, dated history of every feature and fix — including exactly which ones are on by default and which need to be enabled — see [`CHANGELOG.md`](_ProjectLibrary/Documentation/CHANGELOG.md) and the more technical [`Gameplay-Changes.md`](_ProjectLibrary/Documentation/Gameplay-Changes.md).
-
-## Installation
-
-1. You'll need the original game data. If you don't own the game, you can [buy Diablo on GoG.com](https://www.gog.com/game/diablo), or use `spawn.mpq` from the shareware version in place of `DIABDAT.MPQ` to play the shareware portion for free.
-2. Download the latest release from the [Releases page](https://github.com/Oracooll/Diablo-Oracool-Edition/releases/latest) and extract it into its own folder.
-3. Copy `DIABDAT.MPQ` from your CD or GoG installation into that same folder.
-4. To play the Hellfire expansion, also copy `hellfire.mpq`, `hfmonk.mpq`, `hfmusic.mpq`, and `hfvoice.mpq` into the folder.
-5. Run `devilutionx.exe`. The title screen should show `DevilutionX 1.5.5` above `Oracool Edition vX.X.X` as two separate lines.
-
-Every release's bundled README documents that specific version's save compatibility with earlier characters — check it before loading an existing save into a new release, since some feature-driven format changes require starting a fresh character.
-
-## Configuration
-
-Settings live in `diablo.ini`, in a dedicated `[Oracool Edition]` section created automatically the first time you run the game. Most features are on by default; a handful of especially foundational ones (uncapped stats, Respawn In Town, Stackable Consumables, Belt Mod, Tabbed Inventory, Torment difficulty, the level 99 cap, and a few others) are permanent parts of the mod and no longer have a toggle at all. Everything else — drop chances, HUD elements, auto-pickup behavior, and more — stays configurable.
+Back up `Saved_Games` and `diablo.ini` before replacing a build. Do not assume that older Oracool Edition or development saves remain compatible.
 
 ## Building from source
 
-Oracool Edition builds exactly the way DevilutionX itself does — the engine, build system, and platform support are untouched. See DevilutionX's own [build instructions](https://github.com/diasurgical/devilutionX/wiki) for your platform; the only difference is cloning this repository's `oracool-main` branch instead of upstream.
+Clone the current branch:
 
-```bash
-git clone --branch oracool-main https://github.com/Oracooll/Diablo-Oracool-Edition.git
+```sh
+git clone --branch renderer-32bit https://github.com/Oracooll/Diablo-Orcl.git
+cd Diablo-Orcl
 ```
 
-## Credits
+The project uses CMake and requests C++20. See the [upstream build guide](https://github.com/diasurgical/devilutionX/wiki) for toolchain and dependency setup, then use this fork's [CMakeLists.txt](CMakeLists.txt) and [CMakeSettings.json](CMakeSettings.json). The checked-in Windows settings contain machine-specific toolchain paths that need adjusting on another machine.
 
-Diablo Oracool Edition is a derivative work built on [DevilutionX](https://github.com/diasurgical/devilutionX), originally the [Devilution](https://github.com/diasurgical/devilution#credits) project, by the [Diasurgical](https://github.com/diasurgical) team and its [many contributors](https://github.com/diasurgical/devilutionX/graphs/contributors) — including [Nikolay Popov](https://www.instagram.com/nikolaypopovz/) for UI and graphics work reused here. All the engine work, platform support, and countless bugfixes this mod builds on belong to that project; Oracool Edition adds a single-player content and quality-of-life layer on top of it.
+For an already configured Windows Release build:
 
-## Legal
+```powershell
+cmake --build build/x64-Release --target devilutionx --parallel
+tools\build_oracool_mpq.cmd build\x64-Release
+powershell -File tools\BuildReleasePackage.ps1
+```
 
-Diablo Oracool Edition, like the DevilutionX base it's built on, is released under the Sustainable Use License (see [LICENSE.md](LICENSE.md)). The source code in this repository is for non-commercial use only — you may not charge others for access to it or any derivative work.
+[BuildReleasePackage.ps1](tools/BuildReleasePackage.ps1) checks package contents and version consistency. Building an executable alone does not assemble the required mod and engine assets. Original game archives remain user-supplied.
 
-Diablo® – Copyright © 1996 Blizzard Entertainment, Inc. All rights reserved. Diablo and Blizzard Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc. in the U.S. and/or other countries. This project does not include or distribute any of Blizzard's original game data, and neither DevilutionX nor Diablo Oracool Edition are associated with or endorsed by Blizzard Entertainment®.
+## Documentation and contributions
+
+- [Current project scope](.ProjectDocumentation/01-Project-Overview/Project-Scope.md)
+- [Documentation home](.ProjectDocumentation/Home.md)
+- [Development reports](.ProjectDocumentation/02-Development-Reports) and [v1.12.347 report](.ProjectDocumentation/02-Development-Reports/2026-10-02-open-list-fixed-v1.12.347.md)
+- [Historical changelog](.ProjectDocumentation/04-Changelog/CHANGELOG.md)
+- [Contribution guide](docs/CONTRIBUTING.md)
+
+Dated reports, old release notes and archived feature plans describe their own point in development. They are not a promise of current behaviour. The documentation vault uses Obsidian wikilinks; use the folder listings on GitHub when a wikilink does not resolve there.
+
+Report bugs through [GitHub Issues](https://github.com/Oracooll/Diablo-Orcl/issues), with the version, reproduction steps, expected and actual behaviour, and a screenshot or error message where useful.
+
+## Credits and license
+
+Diablo Orcl builds on DevilutionX and Devilution by the Diasurgical team and their contributors. Credit also belongs to the artists and contributors recorded in the repository and upstream project.
+
+See [LICENSE.md](LICENSE.md) for the Sustainable Use License and applicable terms. Existing dependency and asset notices remain applicable.
+
+Diablo and Hellfire, their original assets and related trademarks belong to Blizzard Entertainment. This independent, non-commercial fan project is not endorsed by Blizzard or an official DevilutionX release.

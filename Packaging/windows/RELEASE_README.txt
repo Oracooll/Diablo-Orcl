@@ -1,92 +1,62 @@
 Diablo Orcl - Oracool Edition v{{VERSION}}
-Windows x64, Release build
-========================================
+Windows x64 Release package
+Source branch: renderer-32bit
 
-GAME DATA YOU MUST SUPPLY
+Diablo Orcl - Oracool Edition
+Windows player instructions
+==========================
 
-This package contains no original game data and cannot: those archives are
-Blizzard's, and they are not ours to hand out. You supply them from copies of
-Diablo and Hellfire that you own — the GOG installers, the original discs, or
-an existing installation.
+DEVELOPMENT STATUS
 
-Copy them into this folder, next to DiabloOrcl.exe.
+V1 is single-player only. Multiplayer is not supported.
+This project is still in development; bugs are common.
+Read the notes for the particular package you downloaded. Its version may
+be older than the current development source, and save compatibility is
+not guaranteed between versions. Back up characters before upgrading.
 
+INSTALLATION
 
-  REQUIRED
+1. Extract the complete package into its own writable folder.
+2. Put your own diabdat.mpq beside DiabloOrcl.exe.
+3. For the full Hellfire content and Monk assets, also supply hellfire.mpq,
+   hfmonk.mpq, hfmusic.mpq and hfvoice.mpq from your own Hellfire installation.
+   Use all four together when enabling Hellfire. An incomplete enabled set
+   causes the game to report missing Hellfire archives.
+4. Keep oracool.mpq, the supplied engine assets (devilutionx.mpq or the assets
+   folder), and every packaged DLL together. Do not mix different versions.
+5. Run DiabloOrcl.exe.
 
-    diabdat.mpq       Diablo's game data. Without it the game cannot start and
-                      will ask you to insert the CD.
+No original Diablo or Hellfire game-data archives are shipped. You must
+supply the archives from copies of the games that you own.
 
-  REQUIRED FOR THE FULL GAME — all four, or none of them
+SAVES AND SETTINGS
 
-    hellfire.mpq      Hellfire's data.
-    hfmonk.mpq        The Monk's sprites and sound.
-    hfmusic.mpq       Hellfire's music.
-    hfvoice.mpq       Hellfire's speech.
+On Windows, saves live in Saved_Games beside DiabloOrcl.exe.
+Settings live in diablo.ini beside DiabloOrcl.exe. The game auto-saves.
+Back up both before upgrading or moving an installation.
 
-    Oracool Edition is built on top of Hellfire, not just Diablo. Its area
-    ladder runs to 24 areas and includes the Nest and the Crypt, which are
-    Hellfire's dungeons, and the Monk is one of its six classes. Without these
-    you get a shorter game and five classes instead of six.
+CLASSES
 
-    *** These four go together. If hellfire.mpq is present and any of the
-    other three is missing, the game shows "Some Hellfire MPQs are missing"
-    and exits. It is all four or none. ***
+Paladin, Rogue, Sorcerer, Monk, Barbarian and Necromancer.
+The Sorcerer is male. The Paladin replaces the Warrior.
+Full expansion content and Monk assets require the Hellfire data above.
 
-  OPTIONAL
+PROJECT LINKS
 
-    hfbard.mpq        Forces the Bard on. Not needed — the Bard is offered by
-    hfbarb.mpq        default, and the Barbarian can be enabled in the options.
-                      Both classes borrow the Rogue's and the Warrior's
-                      artwork, so these archives only ever added voices.
+Website: https://diabloorcl.oracooll.com/
+Source: https://github.com/Oracooll/Diablo-Orcl
+Current development branch: renderer-32bit
+Downloads: https://github.com/Oracooll/Diablo-Orcl/releases
+Bug reports: https://github.com/Oracooll/Diablo-Orcl/issues
 
-    hfmonk.mpq alone  If you own Hellfire but would rather play Diablo's
-    (no hellfire.mpq) content, supplying only the monk archive gets you the
-                      Monk class without turning on Hellfire's quests, levels,
-                      monsters and item tables. Oracool searches this one
-                      archive whether or not it is a Hellfire game, precisely
-                      so that this works.
+CREDITS AND LICENSE
 
+Built on DevilutionX and Devilution by the Diasurgical team and contributors.
+See LICENSE.md in the source repository and the notices in your package for
+license terms. This fork uses the Sustainable Use License; it is not described
+as public-domain software.
 
-HOW TO RUN
-
-  1. Copy the archives above into this folder.
-  2. Run DiabloOrcl.exe.
-
-Saves and settings go to %APPDATA%\diasurgical\devilution\ — not to this
-folder — so you can replace this build in place without losing a character.
-
-  *** SAVES: this is a development build and save compatibility is NOT being
-  maintained between versions. A character from an earlier release may fail to
-  load or may lose items. Do not get attached to a hero you care about. ***
-
-
-WHAT IS IN HERE
-
-  DiabloOrcl.exe   The game.
-  oracool.mpq      Oracool Edition's own art and data. Searched before every
-                   other archive, so it overrides the original game's assets
-                   without diabdat.mpq or the Hellfire archives ever being
-                   modified. Some of the interface art and the loading-screen
-                   paintings were made by reworking textures and pictures from
-                   Diablo; those remain Blizzard's property and are included as
-                   non-commercial fan work for people who own the game.
-  devilutionx.mpq  DevilutionX's own fonts, interface art and level data.
-                   REQUIRED — the game will not start without it. Some builds
-                   ship this same data loose in an assets\ folder instead; if
-                   you see that folder rather than this file, it belongs here
-                   just the same.
-  *.dll            SDL2 and the compression/format libraries the game links.
-
-Everything here is this fork's own work or an open-source dependency, except the
-part of oracool.mpq noted above that reworks Blizzard's art. That is offered as
-fan work, without charge, to owners of Diablo; nothing here is sold.
-
-
-BUILT FROM
-
-  Repository : github.com/Oracooll/Diablo-Orcl
-  Branch     : oracool-v1-main
-  Version    : {{VERSION}}
-
-Based on DevilutionX, which is itself a reimplementation of the Diablo engine.
+Diablo and Hellfire and their original assets and trademarks belong to
+Blizzard Entertainment. Some mod artwork reworks original game art as
+non-commercial fan work. This project is not endorsed by Blizzard and is
+not an official DevilutionX release.

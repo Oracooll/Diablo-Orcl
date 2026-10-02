@@ -1,40 +1,58 @@
-# DevilutionX
-DevilutionX is a source port of Diablo and Hellfire that strives to make it simple to run the game while providing engine improvements, bugfixes, and some optional quality of life features.
+Diablo Orcl - Oracool Edition
+Windows player instructions
+==========================
 
-# Links
-Discord: https://discord.gg/devilutionx
-GitHub: https://github.com/diasurgical/devilutionX
+DEVELOPMENT STATUS
 
-Check out the manual for what features are available and how best to take advantage of them: https://github.com/diasurgical/devilutionX/wiki
-For a full list of DevilutionX engine changes see: https://github.com/diasurgical/devilutionX/blob/master/docs/CHANGELOG.md
-For Diablo Oracool Edition's own feature changelog, see CHANGELOG.txt included in this folder.
+V1 is single-player only. Multiplayer is not supported.
+This project is still in development; bugs are common.
+Read the notes for the particular package you downloaded. Its version may
+be older than the current development source, and save compatibility is
+not guaranteed between versions. Back up characters before upgrading.
 
-# How To Install:
- - Extract the files in the zip
- - Copy DIABDAT.MPQ from the CD or GOG-installation (or extract it from the GoG installer) to the DevilutionX folder.
- - To run the Diablo: Hellfire expansion you will need to also copy hellfire.mpq, hfmonk.mpq, hfmusic.mpq, hfvoice.mpq.
- - For Chinese, Japanese, and Korean text support download https://github.com/diasurgical/devilutionx-assets/releases/download/v2/fonts.mpq and add it to the game folder.
- - For the Polish voice pack download https://github.com/diasurgical/devilutionx-assets/releases/download/v2/pl.mpq.
- - For the Russian voice pack download https://github.com/diasurgical/devilutionx-assets/releases/download/v2/ru.mpq.
- - Run DiabloOrcl.exe
+INSTALLATION
 
-# Multiplayer
- - TCP/IP requires the host to expose port 6112.
+1. Extract the complete package into its own writable folder.
+2. Put your own diabdat.mpq beside DiabloOrcl.exe.
+3. For the full Hellfire content and Monk assets, also supply hellfire.mpq,
+   hfmonk.mpq, hfmusic.mpq and hfvoice.mpq from your own Hellfire installation.
+   Use all four together when enabling Hellfire. An incomplete enabled set
+   causes the game to report missing Hellfire archives.
+4. Keep oracool.mpq, the supplied engine assets (devilutionx.mpq or the assets
+   folder), and every packaged DLL together. Do not mix different versions.
+5. Run DiabloOrcl.exe.
 
-All games are encrypted and password protected.
+No original Diablo or Hellfire game-data archives are shipped. You must
+supply the archives from copies of the games that you own.
 
-# Save Games and configurations
-The configurations and save games are located in:
-C:\Users\[username]\AppData\Roaming\diasurgical\devilution
+SAVES AND SETTINGS
 
-# Credits
- - See list of contributors https://github.com/diasurgical/devilutionX/graphs/contributors
+On Windows, saves live in Saved_Games beside DiabloOrcl.exe.
+Settings live in diablo.ini beside DiabloOrcl.exe. The game auto-saves.
+Back up both before upgrading or moving an installation.
 
-# Legal
-This software is being released to the Public Domain. No assets of Diablo are being provided. You must own a copy of Diablo and have access to the assets beforehand in order to use this software.
+CLASSES
 
-Battle.net® - Copyright © 1996 Blizzard Entertainment, Inc. All rights reserved. Battle.net and Blizzard Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc. in the U.S. and/or other countries.
+Paladin, Rogue, Sorcerer, Monk, Barbarian and Necromancer.
+The Sorcerer is male. The Paladin replaces the Warrior.
+Full expansion content and Monk assets require the Hellfire data above.
 
-Diablo® - Copyright © 1996 Blizzard Entertainment, Inc. All rights reserved. Diablo and Blizzard Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc. in the U.S. and/or other countries.
+PROJECT LINKS
 
-This software is in no way associated with or endorsed by Blizzard Entertainment®.
+Website: https://diabloorcl.oracooll.com/
+Source: https://github.com/Oracooll/Diablo-Orcl
+Current development branch: renderer-32bit
+Downloads: https://github.com/Oracooll/Diablo-Orcl/releases
+Bug reports: https://github.com/Oracooll/Diablo-Orcl/issues
+
+CREDITS AND LICENSE
+
+Built on DevilutionX and Devilution by the Diasurgical team and contributors.
+See LICENSE.md in the source repository and the notices in your package for
+license terms. This fork uses the Sustainable Use License; it is not described
+as public-domain software.
+
+Diablo and Hellfire and their original assets and trademarks belong to
+Blizzard Entertainment. Some mod artwork reworks original game art as
+non-commercial fan work. This project is not endorsed by Blizzard and is
+not an official DevilutionX release.

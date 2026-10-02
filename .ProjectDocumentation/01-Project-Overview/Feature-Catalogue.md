@@ -1,3 +1,5 @@
+> **Historical feature catalogue:** the tables below preserve prototype defaults and earlier acceptance notes. For the current Diablo Orcl V1 overview, see the [root README](../../README.md). V1 is single-player only; older multiplayer descriptions do not define current support.
+
 # Oracool Edition Feature Catalogue
 
 This catalogue reconstructs the stable DevilutionX 1.5.4 prototype from its development history. It is the authoritative scope for the 1.5.5 migration.
