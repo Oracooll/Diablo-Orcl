@@ -676,11 +676,16 @@ constexpr Size ShopServiceSlotSize { 34, 34 };
  * and surrounding ui elments"). The frame reaches GridBezelInset (6) past the plate, so a plate stands twelve
  * pixels clear of what is beside it. Measured on all four vendor canvases (v1.12.348): the stone border's inner
  * edge is x 21 and x 318 and the grid frame's band starts at y 159 - so the row's plates run x 34.. and ..305 and
- * end on y 146. Both groups keep their two-pixel pitch; the row moved, not the plates within it.
+ * end on y 146.
+ *
+ * ONE EVEN ROW since v1.12.351 (user, 2026-10-02: "the 6 top griswold buttons look to crowded, we need to introduce
+ * gaps there"; chose an even single row): the two three-plate groups at a two-pixel pitch became six plates spread
+ * over the same x 34..305 - 13 or 14 pixels between plates (238 / 5, rounded), so their frames stand a pixel or two
+ * apart instead of overlapping. Six 34px plates cannot have six pixels between FRAMES inside this border.
  */
 constexpr Point ShopServiceSlotAt[ShopServiceSlotCount] = {
-	{ 34, 113 }, { 70, 113 }, { 106, 113 },
-	{ 200, 113 }, { 236, 113 }, { 272, 113 },
+	{ 34, 113 }, { 82, 113 }, { 129, 113 },
+	{ 177, 113 }, { 224, 113 }, { 272, 113 },
 	// Clear of the gold count, which starts at x=25 and cannot run past ~x=105 even at eight digits. Six pixels of
 	// frame-to-frame air under the grid's band, which ends (its black liner) on y 630 on Griswold's framed canvas.
 	{ 120, 643 }
