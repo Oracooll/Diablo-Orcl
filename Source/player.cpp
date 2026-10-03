@@ -60,6 +60,7 @@
 #include "oracool/rfa12_effects.h"
 #include "oracool/curses.h"
 #include "oracool/essence.h"
+#include "oracool/elixirs.h"
 #include "oracool/necro_items.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
@@ -3282,6 +3283,7 @@ void InitPlayer(Player &player, bool firstTime)
 		// drains it, and a level change is not a reason to stop being angry.
 		oracool::ResetRage(player);
 		oracool::ResetEssence(player); // the same moment, for the same reason: a new game, not a new level
+		oracool::ResetElixirs(player); // and the timed elixirs: a hero enters the game with none
 		// NORMALISED, not cleared (user, 2026-09-02: "forgetting lmb skill isnt [fixed]. fix it.").
 		//
 		// This reset exists for one narrow reason, recorded when the left pair was added: value-

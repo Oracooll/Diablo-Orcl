@@ -5718,7 +5718,7 @@ TEST(OracoolAudit, ConsumableNamesAreColouredByFunction)
 	} cases[] = {
 		{ IMISC_SCROLL, UiFlags::ColorScroll, "a scroll casts a spell" },
 		{ IMISC_SCROLLT, UiFlags::ColorScroll, "a targeted scroll casts a spell" },
-		{ IMISC_ELIXSTR, UiFlags::ColorElixir, "an elixir raises a stat for good" },
+		{ IMISC_ELIXSTR, UiFlags::ColorElixir, "an elixir raises a stat for five minutes" },
 		{ IMISC_ELIXVIT, UiFlags::ColorElixir, "an elixir raises a stat for good" },
 		{ IMISC_OILSHARP, UiFlags::ColorOil, "an oil improves gear" },
 		{ IMISC_RUNEF, UiFlags::ColorTrap, "a trap rune lays a trap" },

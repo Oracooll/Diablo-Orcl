@@ -34,6 +34,7 @@
 #include "oracool/passives.h"
 #include "oracool/auto_save.h"
 #include "oracool/rage.h" // UsesRage - a Barbarian keeps his mana potions
+#include "oracool/elixirs.h" // RefuseElixir - asked before the elixir is used
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
 #include "oracool/spell_ranks.h"
@@ -4710,6 +4711,9 @@ bool UseInvItem(int cii)
 	// well"). Checked HERE rather than inside UseItem, because the book is consumed by this function
 	// AFTER UseItem returns - refusing any later would eat the book and teach nothing.
 	if (RefuseUnreadableBook(player, *item))
+		return true;
+	// The eleventh elixir of a kind, or Magic for a Barbarian: refused here, where refusing still keeps it (2026-10-03).
+	if (oracool::RefuseElixir(player, *item))
 		return true;
 
 	// The signet's lifetime cap, checked HERE for exactly the reason the book gate above is here:

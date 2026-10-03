@@ -20,6 +20,7 @@
 #include "oracool/passives.h"
 #include "oracool/curses.h"
 #include "oracool/essence.h"
+#include "oracool/elixirs.h"
 #include "oracool/furious_charge.h" // TickFuriousCharge
 #include "oracool/necro_summoning.h"
 #include "oracool/rage.h"
@@ -3127,6 +3128,7 @@ void ProcessClassTreeTick(Player &player)
 	ProcessCursesTick(player);
 	ProcessRfa12Tick(player);
 	ProcessWarcriesTick(player);
+	ProcessElixirsTick(player); // the timed elixirs' five minutes (oracool/elixirs.h)
 	TickMovementSlow(player);
 
 	// The Sorceress's Warmth is a passive, so it needs no activation - the points alone. But a

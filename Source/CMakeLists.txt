@@ -83,6 +83,7 @@ set(libdevilutionx_SRCS
   oracool/passives.cpp
   oracool/rage.cpp
   oracool/essence.cpp
+  oracool/elixirs.cpp
   oracool/weapon_throw.cpp
   oracool/whirlwind.cpp
   oracool/companion.cpp

@@ -1918,7 +1918,7 @@ string_view DamageKindPhrase(DamageType type)
 }
 
 /**
- * @brief The grey second line of a button's box: "LMB  -  damage", "RMB  -  magic damage".
+ * @brief The grey second line of a button's box: "LMB: damage", "RMB: magic damage".
  *
  * The mock-up's replacement for the list's "Left button: Zeal" / "Damage" pair. It asks the same four
  * questions ReadiedSlotColor does, in the same order, so the grey words and the coloured number above
@@ -1945,7 +1945,9 @@ std::string ReadiedSlotKindText(bool leftButton)
 	// "LMB" / "RMB", not "left button" / "right button" (dev note, 2026-10-03: "reduce left/right button to lmb/rmb to
 	// leave more room"): the short form keeps the line at 11px beside the longest element names.
 	const string_view button = leftButton ? _(/* TRANSLATORS: short for "left mouse button" */ "LMB") : _(/* TRANSLATORS: short for "right mouse button" */ "RMB");
-	return StrCat(button, "  -  ", kind);
+	// "LMB: damage", not "LMB  -  damage" (dev note, 2026-10-03: "replace (space space dash space space), with (:space)
+	// to leave more space for name of skills").
+	return StrCat(button, ": ", kind);
 }
 
 /** @brief One mouse button's box: the readied name and its number on the first line, the grey kind under it. */

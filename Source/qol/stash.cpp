@@ -25,6 +25,7 @@
 #include "minitext.h"
 #include "oracool/auto_save.h"
 #include "oracool/rage.h" // UsesRage - a Barbarian keeps his mana potions
+#include "oracool/elixirs.h" // RefuseElixir - asked before the elixir is used
 #include "oracool/hud_art.h"
 #include "oracool/gems.h"
 #include "oracool/levski_roar.h" // the Cube keeps the slot when it refuses to close
@@ -1378,6 +1379,9 @@ bool UseStashItem(uint16_t c)
 	// The backpack's book gate: read from the stash, a book above the hero's level (or at the ceiling) was used up and
 	// taught nothing (round 10 audit, v1.12.235).
 	if (RefuseUnreadableBook(*MyPlayer, *item))
+		return true;
+	// And the backpack's elixir gate (2026-10-03): the eleventh of a kind, or Magic for a Barbarian, stays in the stash.
+	if (oracool::RefuseElixir(*MyPlayer, *item))
 		return true;
 
 	if (item->_iMiscId == IMISC_BOOK)

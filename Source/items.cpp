@@ -46,6 +46,7 @@
 #include "oracool/player_resistance.h"
 #include "oracool/area_level.h"
 #include "oracool/rage.h" // UsesRage - a Barbarian carries no mana pool
+#include "oracool/elixirs.h" // ElixirBonus, DrinkElixir - the timed elixirs
 #include "oracool/auto_save.h"
 #include "oracool/class_skills.h"
 #include "oracool/spell_ranks.h"
@@ -2914,16 +2915,24 @@ void PrintItemOil(const Item &item)
 		AddPanelString(_("restore all mana"));
 		break;
 	case IMISC_ELIXSTR:
-		AddPanelString(_("increase strength"));
+		// Two rows, so the tooltip stays narrow (user, 2026-10-03: "Make in to rows to avoid very wide tooltips").
+		AddPanelString(_("Temporary boost +5 to strength for 5 min."));
+		AddPanelString(_("Stacks up to 10 times."));
 		break;
 	case IMISC_ELIXMAG:
-		AddPanelString(_("increase magic"));
+		// Two rows, so the tooltip stays narrow (user, 2026-10-03: "Make in to rows to avoid very wide tooltips").
+		AddPanelString(_("Temporary boost +5 to magic for 5 min."));
+		AddPanelString(_("Stacks up to 10 times."));
 		break;
 	case IMISC_ELIXDEX:
-		AddPanelString(_("increase dexterity"));
+		// Two rows, so the tooltip stays narrow (user, 2026-10-03: "Make in to rows to avoid very wide tooltips").
+		AddPanelString(_("Temporary boost +5 to dexterity for 5 min."));
+		AddPanelString(_("Stacks up to 10 times."));
 		break;
 	case IMISC_ELIXVIT:
-		AddPanelString(_("increase vitality"));
+		// Two rows, so the tooltip stays narrow (user, 2026-10-03: "Make in to rows to avoid very wide tooltips").
+		AddPanelString(_("Temporary boost +5 to vitality for 5 min."));
+		AddPanelString(_("Stacks up to 10 times."));
 		break;
 	case IMISC_SPECELIX:
 		// Hellfire's Spectral Elixir, +3 to each attribute (UseItem). It printed nothing at all - no line here and
@@ -5093,10 +5102,11 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	int bac = totals.bonusArmor;
 	ItemSpecialEffect iflgs = totals.flags;
 	ItemSpecialEffectHf pDamAcFlags = totals.damAcFlags;
-	int sadd = totals.strength;
-	int madd = totals.magic;
-	int dadd = totals.dexterity;
-	int vadd = totals.vitality;
+	// The timed elixirs ride on the items' side, like a ring's +Strength (user, 2026-10-03: "+5 point ... to last 5 minutes").
+	int sadd = totals.strength + oracool::ElixirBonus(player, CharacterAttribute::Strength);
+	int madd = totals.magic + oracool::ElixirBonus(player, CharacterAttribute::Magic);
+	int dadd = totals.dexterity + oracool::ElixirBonus(player, CharacterAttribute::Dexterity);
+	int vadd = totals.vitality + oracool::ElixirBonus(player, CharacterAttribute::Vitality);
 	SpellMask spl = totals.spells;
 	int fr = totals.fireResist;
 	int lr = totals.lightningResist;
@@ -8672,11 +8682,12 @@ void UseItem(size_t pnum, item_misc_id mid, SpellID spellID, int spellFrom)
 			RedrawComponent(PanelDrawComponent::Mana);
 		}
 		break;
+	// Timed since 2026-10-03 (oracool/elixirs.h): a stack of +5 for five minutes, not vanilla's base point for good.
 	case IMISC_ELIXSTR:
-		ModifyPlrStr(player, 1);
+		oracool::DrinkElixir(player, CharacterAttribute::Strength);
 		break;
 	case IMISC_ELIXMAG:
-		ModifyPlrMag(player, 1);
+		oracool::DrinkElixir(player, CharacterAttribute::Magic);
 		if (gbIsHellfire) {
 			player.RestoreFullMana();
 			if (&player == MyPlayer) {
@@ -8685,10 +8696,10 @@ void UseItem(size_t pnum, item_misc_id mid, SpellID spellID, int spellFrom)
 		}
 		break;
 	case IMISC_ELIXDEX:
-		ModifyPlrDex(player, 1);
+		oracool::DrinkElixir(player, CharacterAttribute::Dexterity);
 		break;
 	case IMISC_ELIXVIT:
-		ModifyPlrVit(player, 1);
+		oracool::DrinkElixir(player, CharacterAttribute::Vitality);
 		if (gbIsHellfire) {
 			player.RestoreFullLife();
 			if (&player == MyPlayer) {

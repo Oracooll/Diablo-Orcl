@@ -1,18 +1,22 @@
 #include "oracool/spell_timers.h"
 
 #include <array>
+#include <string>
 #include <vector>
 
 #include <fmt/format.h>
 
 #include "DiabloUI/ui_flags.hpp"
 #include "automap.h"
+#include "cursor.h" // GetInvItemSprite - the elixir rows' icons
+#include "engine/render/clx_render.hpp"
 #include "engine/palette.h"
 #include "engine/rectangle.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "missiles.h"
 #include "oracool/cold.h"
+#include "oracool/elixirs.h"
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h" // GetManaOrbRect - where the column stops
 #include "oracool/rfa12_actives.h"
@@ -39,6 +43,9 @@ constexpr uint8_t BlueBackingIndex = PAL16_BLUE + 4;
 struct Timer {
 	SpellID spell;
 	int ticks;
+	/** A timed elixir's row (2026-10-03): its inventory icon instead of a spell's, and its stack count on it. */
+	int elixirCursor = -1;
+	int elixirStacks = 0;
 };
 
 /** @brief The seven cries that leave a timed buff on the caster (warcries.h). */
@@ -122,6 +129,12 @@ std::vector<Timer> ActiveTimers(const Player &player)
 	}
 	for (const auto &[spell, ticks] : Rfa12FieldTimers(player))
 		timers.push_back({ spell, ticks });
+	// The timed elixirs last (user, 2026-10-03: "countdown icon to be the elixir potion icon"), one row per stat.
+	for (const CharacterAttribute attribute : { CharacterAttribute::Strength, CharacterAttribute::Magic,
+	         CharacterAttribute::Dexterity, CharacterAttribute::Vitality }) {
+		if (const int ticks = ElixirTicksLeft(player, attribute); ticks > 0)
+			timers.push_back({ SpellID::Null, ticks, static_cast<int>(ElixirCursor(attribute)), ElixirStacks(player, attribute) });
+	}
 	return timers;
 }
 
@@ -149,7 +162,19 @@ void DrawSpellTimers(const Surface &out)
 		}
 		const Rectangle icon { { iconX, y }, { IconSize, IconSize } };
 		FillRectRgb(out, icon.position.x, icon.position.y, IconSize, IconSize, BlueBacking, BlueBackingIndex);
-		DrawTimedSpellIcon(out, icon, player._pClass, timer.spell);
+		if (timer.elixirCursor >= 0) {
+			// The elixir's own inventory icon - a 1x1 item, so 28x28 like the square - anchored bottom-left as the grids
+			// draw items, and its stacks bottom-right on a dark plate.
+			const ClxSprite sprite = GetInvItemSprite(timer.elixirCursor + CURSOR_FIRSTITEM);
+			ClxDraw(out, { icon.position.x + (IconSize - sprite.width()) / 2, icon.position.y + IconSize }, sprite);
+			const std::string stacks = fmt::format("x{:d}", timer.elixirStacks);
+			const int width = GetLineWidth(stacks, GameFont12) + 2;
+			DrawHalfTransparentRectTo(out, icon.position.x + IconSize - width, icon.position.y + IconSize - 12, width, 12);
+			DrawString(out, stacks, Rectangle { { icon.position.x + IconSize - width, icon.position.y + IconSize - 12 }, { width, 12 } },
+			    { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize12 | UiFlags::ColorWhite });
+		} else {
+			DrawTimedSpellIcon(out, icon, player._pClass, timer.spell);
+		}
 
 		// Whole seconds, rounded up: the last second reads 1 until the effect is gone, never 0.
 		const int seconds = (timer.ticks + TicksPerSecond - 1) / TicksPerSecond;

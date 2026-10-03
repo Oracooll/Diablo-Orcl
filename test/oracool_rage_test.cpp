@@ -12,6 +12,7 @@
 #include "items.h"
 #include "misdat.h"
 #include "oracool/class_tree.h"
+#include "oracool/elixirs.h"
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
 #include "oracool/rage.h"
@@ -307,4 +308,45 @@ TEST(OracoolCooldowns, AbsoluteZeroSheetIsCentredOnHim)
 	const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::AbsoluteZero);
 	EXPECT_EQ(data.animWidth, 256);
 	EXPECT_EQ(data.animWidth2, (256 - 64) / 2);
+}
+
+
+// Timed elixirs (user, 2026-10-03): +5 a drink for five minutes, ten at most per stat, refused at the eleventh - and an Elixir of
+// Magic refused outright by a Barbarian. The refusals are asked before the item is used, so a refused elixir is kept.
+TEST(OracoolElixirs, StackToTenThenRefuseAndABarbarianRefusesMagic)
+{
+	devilution::Player &player = FreshBarbarian();
+	devilution::Player *const savedMyPlayer = MyPlayer;
+	MyPlayer = nullptr; // no log line from a test
+	oracool::ResetElixirs(player);
+	EXPECT_EQ(oracool::ElixirAttribute(IMISC_ELIXSTR), CharacterAttribute::Strength);
+	EXPECT_EQ(oracool::ElixirAttribute(IMISC_ELIXVIT), CharacterAttribute::Vitality);
+	EXPECT_FALSE(oracool::ElixirAttribute(IMISC_HEAL).has_value());
+
+	devilution::Item strength {};
+	strength._iMiscId = IMISC_ELIXSTR;
+	devilution::Item magic {};
+	magic._iMiscId = IMISC_ELIXMAG;
+	EXPECT_TRUE(oracool::RefuseElixir(player, magic)) << "a Barbarian puts nothing into Magic";
+	EXPECT_FALSE(oracool::RefuseElixir(player, strength));
+
+	// Nine drinks standing (set directly - DrinkElixir recalculates the whole hero), then the tenth and the eleventh.
+	player._pElixirStacks[static_cast<size_t>(CharacterAttribute::Strength)] = 9;
+	player._pElixirTicks[static_cast<size_t>(CharacterAttribute::Strength)] = 100;
+	EXPECT_EQ(oracool::ElixirBonus(player, CharacterAttribute::Strength), 45);
+	EXPECT_FALSE(oracool::RefuseElixir(player, strength)) << "the tenth still goes down";
+	player._pElixirStacks[static_cast<size_t>(CharacterAttribute::Strength)] = 10;
+	EXPECT_EQ(oracool::ElixirBonus(player, CharacterAttribute::Strength), 50);
+	EXPECT_TRUE(oracool::RefuseElixir(player, strength)) << "the eleventh is refused";
+	EXPECT_EQ(oracool::ElixirTicksLeft(player, CharacterAttribute::Strength), 100);
+	EXPECT_EQ(oracool::ElixirTicksLeft(player, CharacterAttribute::Dexterity), 0);
+
+	player._pClass = HeroClass::Sorcerer;
+	EXPECT_FALSE(oracool::RefuseElixir(player, magic)) << "everyone else drinks Magic";
+	EXPECT_EQ(oracool::ElixirCursor(CharacterAttribute::Magic), ICURS_ELIXIR_OF_MAGIC);
+
+	oracool::ResetElixirs(player);
+	EXPECT_EQ(oracool::ElixirBonus(player, CharacterAttribute::Strength), 0);
+	EXPECT_FALSE(oracool::RefuseElixir(player, strength));
+	MyPlayer = savedMyPlayer;
 }

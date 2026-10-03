@@ -417,6 +417,10 @@ struct Player {
 	int _pRageIdleTicks;
 	/** The Necromancer's Essence in 1/64 points - see oracool/essence.h. Transient: a hero enters the game with none. */
 	int _pEssence;
+	/** Timed elixirs per CharacterAttribute (Strength, Magic, Dexterity, Vitality): stacks standing and ticks left - see
+	 * oracool/elixirs.h. Transient: a hero enters the game with none. */
+	uint8_t _pElixirStacks[4];
+	uint16_t _pElixirTicks[4];
 	int _pIMinDam;
 	int _pIMaxDam;
 	int _pIAC;
