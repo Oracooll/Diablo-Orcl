@@ -2019,10 +2019,18 @@ bool MonsterRangedAttack(Monster &monster)
 					continue;
 				if (missileType == MissileID::ChargedBolt)
 					shot->_midam = monster.minDamage + GenerateRnd(monster.maxDamage - monster.minDamage + 1);
-				// The bone mage's arrow wears the Necromancer's bone tooth (sixteen facings) once that sheet is in.
-				if (missileType == MissileID::Arrow && MissileArtLoaded(MissileGraphicID::BoneTooth)) {
+				// Every mage's shot wears the Necromancer's bone tooth (sixteen facings) once that sheet is in, tinted in its
+				// element's colour - fire, lightning, poison; the bone mage's stays bone (the Necromancer Skill Cards page,
+				// 2026-10-03: "Tint bone tooth according to type of dmg each mage is causing"). The bolt flies and lands as
+				// its own missile still: the firebolt's burst, the charged bolt's spark, the acid's splash.
+				if (IsAnyOf(missileType, MissileID::Arrow, MissileID::Firebolt, MissileID::ChargedBolt, MissileID::Acid)
+				    && MissileArtLoaded(MissileGraphicID::BoneTooth)) {
 					shot->_miAnimType = MissileGraphicID::BoneTooth;
 					SetMissDir(*shot, GetDirection16(monster.position.tile, monster.enemyPosition));
+					if (missileType != MissileID::Arrow) {
+						shot->oracoolTint = oracool::Tint::Hue;
+						shot->oracoolTintRgb = oracool::MageElementHue(missileType);
+					}
 				}
 			}
 		}

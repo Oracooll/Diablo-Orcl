@@ -44,6 +44,16 @@ enum class Tint : uint8_t {
 	 * (user, 2026-10-01: Lightning Clone).
 	 */
 	Clone,
+	/**
+	 * Hue, with a subtle grade of the same colour drifting through the brightness levels on the clock - a slow +/-12% swing
+	 * (the Necromancer Skill Cards page, 2026-10-03: the Skeletal Mages, each in its element's colour).
+	 */
+	Shimmer,
+	/**
+	 * Hue, with glints coming and going over it at random - each colour of the sprite flashes toward white on its own
+	 * phase and pace, so the highlights wander rather than travel in bands (2026-10-03: the Iron Golem's reflective iron).
+	 */
+	Sheen,
 };
 
 /** @brief 0xRRGGBB. */
@@ -66,6 +76,15 @@ constexpr uint32_t PaleWarm = Rgb(236, 220, 186);
 constexpr uint32_t FrostWhite = Rgb(236, 244, 255);
 constexpr uint32_t ShiverYellow = Rgb(255, 220, 110);
 constexpr uint32_t DeepIceBlue = Rgb(64, 104, 224);
+/** The Necromancer's golems and mages (the Necromancer Skill Cards page, 2026-10-03). */
+constexpr uint32_t Clay = Rgb(184, 120, 78);
+constexpr uint32_t BloodRed = Rgb(216, 30, 36);
+constexpr uint32_t Iron = Rgb(132, 146, 168);
+constexpr uint32_t LightningBlue = Rgb(130, 172, 255);
+constexpr uint32_t PoisonGreen = Rgb(112, 214, 84);
+constexpr uint32_t BoneWhite = Rgb(236, 228, 206);
+/** Frenzy of the Dead's ring under every frenzied minion. */
+constexpr uint32_t FrenzyOrange = Rgb(255, 140, 40);
 } // namespace hue
 
 /**

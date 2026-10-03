@@ -508,6 +508,15 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::TintedTable(oracool::LitPaletteTable(LightTableIndex), oracool::Tint::Mend, 0, mend));
 		return;
 	}
+	// The Necromancer's golems and mages in their materials and elements (the Necromancer Skill Cards page, 2026-10-03):
+	// the vanilla sheet through colour values, lit as it stands. Ice, stone and infravision win; on an 8-bit target the
+	// golems keep their palette ramp below.
+	if (!out.isIndexed() && (trn == nullptr || trn == monster.uniqueMonsterTRN.get())) {
+		if (const oracool::MinionLook look = oracool::MinionBodyLook(monster); look.tint != oracool::Tint::None) {
+			ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::TintedTable(oracool::LitPaletteTable(LightTableIndex), look.tint, look.rgb, 0.0));
+			return;
+		}
+	}
 	// Converted to the Paladin's side: green, lit as it stands (dev note, 2026-09-27). Ice, stone and infravision win.
 	if (oracool::IsMonsterConverted(monster) && trn != oracool::ColdTRN() && trn != GetStoneTRN() && trn != GetInfravisionTRN() && !out.isIndexed()) {
 		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::ConvertedRgbTable(LightTableIndex));
@@ -1209,10 +1218,8 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	oracool::DrawCompanionBlades(out, monster, targetBufferPosition + offset, /*front=*/false);
 	DrawMonster(out, tilePosition, monsterRenderPosition, monster);
 	oracool::DrawCompanionBlades(out, monster, targetBufferPosition + offset, /*front=*/true);
-	// RfA-27 batch 56: Frenzy of the Dead's motes over every frenzied minion, drawn like a hero's overlay from the monster's
-	// own foot point (feet at y 84 of 96: 4px above the shell rule). Nothing while the sheet is not in the archive.
-	if (oracool::IsMinion(monster) && oracool::MinionDamagePercent(monster) > 100)
-		DrawPlayerIconHelper(out, MissileGraphicID::FrenzyOfTheDead, targetBufferPosition + offset + Displacement { 0, -4 }, true, false, GetAnimationFrame(8, 100));
+	// Frenzy of the Dead wears a ring on the floor since 2026-10-03 (oracool::DrawMinionFrenzyRings, beside the aura rings),
+	// in place of RfA-27 batch 56's motes over each minion (the Necromancer Skill Cards page).
 	// A cursed monster wears its curse over its head (oracool/curses.h), and since RfA-27 its skill markers beside it.
 	oracool::DrawCurseMarker(out, monster, monsterRenderPosition + Displacement { monster.animInfo.currentSprite().width() / 2, -monster.animInfo.currentSprite().height() });
 }
@@ -1636,6 +1643,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// arguments and repeats DrawFloor's walk rather than deriving the player's screen position
 	// separately, so the two cannot disagree about where a tile is.
 	oracool::DrawAuraGround(out, position, Point {} + offset, rows, columns);
+	oracool::DrawMinionFrenzyRings(out, position, Point {} + offset, rows, columns); // Frenzy of the Dead, under each minion
 	DrawTileContent(out, position, Point {} + offset, rows, columns);
 	// The deferred monster outlines, drained HERE - after the whole scene is composited, so they
 	// land on top of any wall that would otherwise hide the body, but still BEFORE ZoomScale, so

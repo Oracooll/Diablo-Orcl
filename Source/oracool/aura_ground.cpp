@@ -13,8 +13,12 @@
 #include "engine.h"
 #include "engine/palette.h"
 #include "engine/render/primitive_render.hpp" // SetHalfTransparentPixelUnchecked (v1.11)
+#include "levels/gendung.h"
+#include "monster.h"
 #include "oracool/aura_field.h"
 #include "oracool/class_tree.h"
+#include "oracool/minions.h"
+#include "oracool/missile_tint.h"
 #include "player.h"
 #include "utils/log.hpp"
 #include "utils/png.h"
@@ -336,22 +340,29 @@ int AuraVisualDiameterHalfTiles(int points)
 }
 
 /**
- * @brief Blits the aura @p diameterHalfTiles half-tiles across, centred on @p centre.
- *
- * Nearest-neighbour sampled: the source is a soft gradient with no hard edges to alias, and the
- * shrink is never more than half, so a filtered sample would cost more than it showed.
+ * @brief @p own (XRGB) taken to @p hue at its own brightness - missile_tint.cpp's Hue rule (dark stays dark, the brightest
+ * parts run on toward white) - for a ring drawn in another colour than its art's.
  */
-void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameterHalfTiles, int pulsePercent)
+uint32_t RingColourInHue(uint32_t own, uint32_t hue)
 {
-	// The ellipse, stated directly. One tile step on screen is (TILE_WIDTH/2, TILE_HEIGHT/2), so a
-	// ring N tiles across is N*TILE_WIDTH wide and N*TILE_HEIGHT tall - and in half-tiles that is
-	// the same expression without the factor of two.
-	//
-	// A two-tile ring is 128x64, so the 512px source is shrunk to a quarter. That is well inside
-	// what nearest-neighbour handles on an all-gradient source, and the dither is applied in
-	// destination space so it stays fine-grained at any scale.
-	const int dstW = diameterHalfTiles * (TILE_WIDTH / 2);
-	const int dstH = diameterHalfTiles * (TILE_HEIGHT / 2);
+	const double r = (own >> 16) & 0xFF;
+	const double g = (own >> 8) & 0xFF;
+	const double b = own & 0xFF;
+	const double luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+	const double k = luma * 1.6;
+	const double white = std::max(0.0, luma - 0.7) * 1.6 * 255.0;
+	const auto ch = [&](int shift) {
+		return static_cast<uint32_t>(std::clamp(((hue >> shift) & 0xFF) * k + white, 0.0, 255.0)) << shift;
+	};
+	return ch(16) | ch(8) | ch(0);
+}
+
+/**
+ * @brief Blits the ring @p dstW x @p dstH pixels, centred on @p centre; @p hue 0 keeps the art's colours, anything else
+ * draws it in that hue (32-bit screen only).
+ */
+void BlitAuraPixels(const Surface &out, const AuraArt &art, Point centre, int dstW, int dstH, int pulsePercent, uint32_t hue)
+{
 	if (dstW <= 0 || dstH <= 0)
 		return;
 
@@ -387,7 +398,7 @@ void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameter
 				const int coverage = std::min(255, art.alpha[at] * pulsePercent / 100 * factor / 256);
 				if (coverage == 0)
 					continue;
-				const uint32_t own = art.rgb[at];
+				const uint32_t own = hue == 0 ? art.rgb[at] : RingColourInHue(art.rgb[at], hue);
 				const auto channel = [&](int shift) { return static_cast<uint32_t>(std::min(255, static_cast<int>((own >> shift) & 0xFF) * factor / 256)) << shift; };
 				const uint32_t lit = channel(16) | channel(8) | channel(0);
 				dstRow[x] = CompositeArgbOver(lit | (static_cast<uint32_t>(coverage) << 24), dstRow[x], 75);
@@ -429,9 +440,117 @@ void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameter
 	}
 }
 
+/**
+ * @brief Blits the aura @p diameterHalfTiles half-tiles across, centred on @p centre.
+ *
+ * Nearest-neighbour sampled: the source is a soft gradient with no hard edges to alias, and the
+ * shrink is never more than half, so a filtered sample would cost more than it showed.
+ */
+void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameterHalfTiles, int pulsePercent)
+{
+	// The ellipse, stated directly. One tile step on screen is (TILE_WIDTH/2, TILE_HEIGHT/2), so a
+	// ring N tiles across is N*TILE_WIDTH wide and N*TILE_HEIGHT tall - and in half-tiles that is
+	// the same expression without the factor of two.
+	//
+	// A two-tile ring is 128x64, so the 512px source is shrunk to a quarter. That is well inside
+	// what nearest-neighbour handles on an all-gradient source, and the dither is applied in
+	// destination space so it stays fine-grained at any scale.
+	BlitAuraPixels(out, art, centre, diameterHalfTiles * (TILE_WIDTH / 2), diameterHalfTiles * (TILE_HEIGHT / 2), pulsePercent, 0);
+}
+
+/**
+ * Frenzy of the Dead's ring (the Necromancer Skill Cards page, 2026-10-03: "orange aura ring under every minion for the
+ * duration of the spell. Colour cycled aura ring. Small scale - 50% of paladin aura rings. Choose one proper aura ring and
+ * tint orange"): Holy Fire's ring of flames, drawn in FrenzyOrange at half the Paladin's ring, with the rings' cycle.
+ */
+constexpr Skill FrenzyRingArt = Skill::HolyFire;
+
+/** @brief The frenzy ring's art, loaded on first use; null while it is missing. */
+const AuraArt *FrenzyRing()
+{
+	const int slot = IndexOfSkill(FrenzyRingArt);
+	if (slot < 0)
+		return nullptr;
+	DropQuantisationIfPaletteMoved();
+	if (!Art[slot].loadAttempted)
+		LoadAura(slot);
+	return Art[slot].usable ? &Art[slot] : nullptr;
+}
+
 } // namespace
 
 int AuraRingClockOverrideMs = -1;
+
+Size FrenzyRingSize()
+{
+	const int paladin = AuraVisualDiameterHalfTiles(1); // the Paladin's ring, in half-tiles across
+	return { paladin * (TILE_WIDTH / 2) * FrenzyRingPercent / 100, paladin * (TILE_HEIGHT / 2) * FrenzyRingPercent / 100 };
+}
+
+bool DrawFrenzyRingPreview(const Surface &out, Point centre)
+{
+	const AuraArt *art = FrenzyRing();
+	if (art == nullptr)
+		return false;
+	const Size size = FrenzyRingSize();
+	BlitAuraPixels(out, *art, centre, size.width, size.height, 100, hue::FrenzyOrange);
+	return true;
+}
+
+void DrawMinionFrenzyRings(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
+{
+	if (leveltype == DTYPE_TOWN || MyPlayer == nullptr || !MyPlayer->isOnActiveLevel())
+		return; // town's dMonster holds towners, and no army stands there
+	const AuraArt *art = nullptr;
+	const Size size = FrenzyRingSize();
+	const int pulse = PulsePercent();
+	// DrawFloor's walk again (see DrawAuraGround). At each tile, the body DrawMonsterHelper would draw from it: a monster
+	// is drawn from its positive dMonster tile, or - walking sideways to the west - from the negative one, 64px back.
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < columns; j++) {
+			if (InDungeonBounds(tilePosition) && dMonster[tilePosition.x][tilePosition.y] != 0 && IsTileLit(tilePosition)) {
+				const int mi = dMonster[tilePosition.x][tilePosition.y];
+				const size_t id = static_cast<size_t>(std::abs(mi) - 1);
+				if (id < MaxMonsters) {
+					const Monster &monster = Monsters[id];
+					if ((monster.flags & MFLAG_HIDDEN) == 0 && IsMinionFrenzied(monster)) {
+						Displacement offset {};
+						bool drawnHere = mi > 0;
+						if (monster.isWalking()) {
+							const bool sideLeft = monster.mode == MonsterMode::MoveSideways && monster.direction == Direction::West;
+							drawnHere = sideLeft ? mi < 0 : mi > 0;
+							offset = GetOffsetForWalking(monster.animInfo, monster.direction);
+							if (sideLeft)
+								offset -= Displacement { 64, 0 };
+						}
+						if (drawnHere) {
+							if (art == nullptr)
+								art = FrenzyRing();
+							if (art == nullptr)
+								return;
+							const Point centre = targetBufferPosition + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 } + offset;
+							BlitAuraPixels(out, *art, centre, size.width, size.height, pulse, hue::FrenzyOrange);
+						}
+					}
+				}
+			}
+			tilePosition += Direction::East;
+			targetBufferPosition.x += TILE_WIDTH;
+		}
+		tilePosition += Displacement(Direction::West) * columns;
+		targetBufferPosition.x -= columns * TILE_WIDTH;
+		targetBufferPosition.y += TILE_HEIGHT / 2;
+		if ((i & 1) != 0) {
+			tilePosition.x++;
+			columns--;
+			targetBufferPosition.x += TILE_WIDTH / 2;
+		} else {
+			tilePosition.y++;
+			columns++;
+			targetBufferPosition.x -= TILE_WIDTH / 2;
+		}
+	}
+}
 
 bool DrawAuraRingPreview(const Surface &out, ClassTreeSkill aura, Point centre, int diameterHalfTiles)
 {

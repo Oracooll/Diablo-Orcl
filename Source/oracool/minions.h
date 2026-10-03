@@ -32,6 +32,7 @@
 #include "engine/surface.hpp"
 #include "misdat.h"
 #include "monstdat.h"
+#include "oracool/missile_tint.h"
 
 namespace devilution {
 
@@ -182,6 +183,28 @@ int MinionDamagePercent(const Monster &monster);
 void OnMinionBlow(Monster &minion, Monster &target, int damage);
 /** @brief A blow struck a minion (monster.cpp MonsterAttackMonster): the Iron Golem gives a share back. */
 void OnMinionStruck(Monster &minion, Monster &attacker, int damage);
+
+// ---- how the army is drawn (the Necromancer Skill Cards page, 2026-10-03) --------------------------------------
+
+/** @brief A body's colours on the 32-bit screen: a tint of missile_tint.h and its hue. Tint::None draws it as it is. */
+struct MinionLook {
+	Tint tint = Tint::None;
+	uint32_t rgb = 0;
+};
+
+/**
+ * @brief A golem's material over the vanilla golem's sprite: Clay in clay, Blood in blood red, Iron in iron with a
+ * glint running over it at random (Tint::Sheen). The Fire Golem keeps its own look until its sprite is decided.
+ */
+MinionLook GolemLook(GolemKind kind);
+/** @brief The hue of a Skeletal Mage's element, by the missile it shoots: fire, lightning, poison, or bone (Arrow). */
+uint32_t MageElementHue(MissileID missile);
+/** @brief A Skeletal Mage's body: the regular skeleton in its element's hue, a subtle cycle of that hue on it (Tint::Shimmer). */
+MinionLook MageLook(MissileID missile);
+/** @brief What @p monster wears as drawn: its golem material or mage element; Tint::None for anything else. */
+MinionLook MinionBodyLook(const Monster &monster);
+/** @brief Whether @p monster is a living minion under Frenzy of the Dead now - it wears the frenzy ring (aura_ground.h). */
+bool IsMinionFrenzied(const Monster &monster);
 
 /** @brief The army panel, under the companions' (or in its place). */
 void DrawMinionHud(const Surface &out);

@@ -179,6 +179,7 @@ Bane,Cast,necromancer,curses,Bane
 Blight,Cast,necromancer,poison-and-bone,Blight
 Blight,Impact,necromancer,poison-and-bone,Blight
 BloodGolem,Cast,necromancer,summoning,Blood Golem
+BloodGolem,Impact,necromancer,summoning,Blood Golem
 BoneArmor,Cast,necromancer,poison-and-bone,Bone Armor
 BonePrison,Cast,necromancer,poison-and-bone,Bone Prison
 BoneSpear,Cast,necromancer,poison-and-bone,Bone Spear
@@ -188,6 +189,7 @@ BoneSplinters,Cast,necromancer,poison-and-bone,Bone Splinters
 BoneStorm,Cast,necromancer,poison-and-bone,Bone Storm
 BoneWall,Cast,necromancer,poison-and-bone,Bone Wall
 ClayGolem,Cast,necromancer,summoning,Clay Golem
+ClayGolem,Impact,necromancer,summoning,Clay Golem
 CommandTheDead,Cast,necromancer,summoning,Command the Dead
 Confuse,Cast,necromancer,curses,Confuse
 CorpseExplosion,Cast,necromancer,poison-and-bone,Corpse Explosion
@@ -200,10 +202,12 @@ Decrepify,Cast,necromancer,curses,Decrepify
 DimVision,Cast,necromancer,curses,Dim Vision
 Doom,Cast,necromancer,curses,Doom
 FireGolem,Cast,necromancer,summoning,Fire Golem
+FireGolem,Impact,necromancer,summoning,Fire Golem
 Frailty,Cast,necromancer,curses,Frailty
 FrenzyOfTheDead,Cast,necromancer,summoning,Frenzy of the Dead
 GatherTheDead,Cast,necromancer,summoning,Gather the Dead
 IronGolem,Cast,necromancer,summoning,Iron Golem
+IronGolem,Impact,necromancer,summoning,Iron Golem
 NecroIronMaiden,Cast,necromancer,curses,Iron Maiden
 LifeTap,Cast,necromancer,curses,Life Tap
 LowerResist,Cast,necromancer,curses,Lower Resist

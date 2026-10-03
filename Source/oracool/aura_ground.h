@@ -40,6 +40,7 @@
 #pragma once
 
 #include "engine/point.hpp"
+#include "engine/size.hpp"
 #include "engine/surface.hpp"
 #include "oracool/class_tree.h"
 #include "utils/attributes.h"
@@ -62,6 +63,20 @@ const char *AuraRingFileId(ClassTreeSkill aura);
  */
 void DrawAuraGround(const Surface &out, Point tilePosition, Point targetBufferPosition,
     int rows, int columns);
+
+/**
+ * @brief Frenzy of the Dead's ring under every frenzied minion (the Necromancer Skill Cards page, 2026-10-03): Holy Fire's
+ * ring in orange, colour-cycled like the auras', at FrenzyRingPercent of the Paladin's ring. Same arguments and walk as
+ * DrawAuraGround, and called beside it, so everything stands on it. Nothing in town or while the art is missing.
+ */
+void DrawMinionFrenzyRings(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns);
+
+/** @brief The frenzy ring's size against the Paladin's aura ring, in percent ("Small scale - 50% of paladin aura rings"). */
+constexpr int FrenzyRingPercent = 50;
+/** @brief The frenzy ring as drawn, in pixels. */
+DVL_API_FOR_TEST Size FrenzyRingSize();
+/** @brief Tests only: the frenzy ring centred on @p centre, at full pulse. False while the art is missing. */
+DVL_API_FOR_TEST bool DrawFrenzyRingPreview(const Surface &out, Point centre);
 
 /** @brief Tests only: the moment the rings' colour cycle is drawn at, in ms; -1 (the default) is the live clock. */
 extern DVL_API_FOR_TEST int AuraRingClockOverrideMs;

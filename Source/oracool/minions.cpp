@@ -30,6 +30,7 @@
 #include "oracool/companion.h"
 #include "oracool/event_log.h" // IsCornerHudShown
 #include "oracool/passives.h"
+#include "oracool/skill_sounds.h"
 #include "player.h"
 #include "utils/language.h"
 
@@ -198,6 +199,19 @@ bool SpawnBody(Record &record, const Player &owner, Point near)
 }
 
 std::array<int, MaxMinionBodies> FireClocks {};
+
+/** @brief The skill that raises a golem of @p kind - whose cues its blows play. */
+ClassTreeSkill GolemSkill(GolemKind kind)
+{
+	switch (kind) {
+	case GolemKind::Clay: return ClassTreeSkill::ClayGolem;
+	case GolemKind::Blood: return ClassTreeSkill::BloodGolem;
+	case GolemKind::Iron: return ClassTreeSkill::IronGolem;
+	case GolemKind::Fire: return ClassTreeSkill::FireGolem;
+	case GolemKind::None: break;
+	}
+	return ClassTreeSkill::None;
+}
 
 /** @brief A blow of a minion's on @p monster, credited to @p owner: nothing to the immune, a quarter to the resistant. */
 void MinionHurts(Player &owner, Monster &minion, Monster &monster, DamageType type, int damage)
@@ -694,6 +708,56 @@ int SummonResistPercent(int points)
 	return std::min(20 + 5 * (points - 1), 75);
 }
 
+MinionLook GolemLook(GolemKind kind)
+{
+	// The user's words (the Necromancer Skill Cards page, 2026-10-03): "vanilla golem, tinted in clay colour", "tinted
+	// blood red or infrared red", "tinted in iron colour ... subtle colour cycling in random pattern to imitate iron
+	// reflective surface". The Fire Golem waits for its sprite (an Elemental proposal), keeping its orange ramp meanwhile.
+	switch (kind) {
+	case GolemKind::Clay: return { Tint::Hue, hue::Clay };
+	case GolemKind::Blood: return { Tint::Hue, hue::BloodRed };
+	case GolemKind::Iron: return { Tint::Sheen, hue::Iron };
+	case GolemKind::Fire:
+	case GolemKind::None: break;
+	}
+	return {};
+}
+
+uint32_t MageElementHue(MissileID missile)
+{
+	switch (missile) {
+	case MissileID::Firebolt: return hue::FireOrange;
+	case MissileID::ChargedBolt: return hue::LightningBlue;
+	case MissileID::Acid: return hue::PoisonGreen;
+	default: return hue::BoneWhite; // the bone mage's Arrow, worn as the bone tooth
+	}
+}
+
+MinionLook MageLook(MissileID missile)
+{
+	// "Regular skeleton sprites tinted in colour of magic they use and apply subtle colour cycling to them with a subtle
+	// grade of same colour" (2026-10-03).
+	return { Tint::Shimmer, MageElementHue(missile) };
+}
+
+MinionLook MinionBodyLook(const Monster &monster)
+{
+	const Record *record = RecordOf(monster);
+	if (record == nullptr)
+		return {};
+	if (record->spec.group == MinionGroup::Golem)
+		return GolemLook(record->spec.golem);
+	if (record->spec.group == MinionGroup::Mage)
+		return MageLook(record->spec.missile);
+	return {};
+}
+
+bool IsMinionFrenzied(const Monster &monster)
+{
+	const Record *record = RecordOf(monster);
+	return record != nullptr && BodyAlive(*record) && MinionDamagePercent(monster) > 100;
+}
+
 int MinionDamagePercent(const Monster &monster)
 {
 	const Record *record = RecordOf(monster);
@@ -714,6 +778,13 @@ void OnMinionBlow(Monster &minion, Monster &target, int damage)
 		owner._pHitPoints = std::min(owner._pHitPoints + damage / GrislyTributeDivisor, owner._pMaxHP);
 		owner._pHPBase = std::min(owner._pHPBase + damage / GrislyTributeDivisor, owner._pMaxHPBase);
 		RedrawComponent(PanelDrawComponent::Health);
+	}
+	// A golem's blow landing plays its skill's Impact cue (the Necromancer Skill Cards page, 2026-10-03: the golem grunt for
+	// Clay, Blood and Iron, Firebolt for Fire) - the local player's own golem only, as every skill cue is his.
+	if (&owner == MyPlayer) {
+		const ClassTreeSkill skill = GolemSkill(record->spec.golem);
+		if (skill != ClassTreeSkill::None)
+			PlaySkillSound(skill, SkillSoundEvent::Impact);
 	}
 	switch (record->spec.golem) {
 	case GolemKind::Clay:

@@ -17475,3 +17475,109 @@ TEST(OracoolPreview, DISABLED_NecromancerSheetGlyphs)
 	}
 	HeadlessMode = savedHeadless;
 }
+
+#include "oracool/minions.h"
+
+/**
+ * The Necromancer Skill Cards page's Summoning notes (v1.12.363, 2026-10-03), as the game's own tables draw them at full
+ * light: the vanilla golem plain and as Clay, Blood and Iron (GolemLook); the regular skeleton plain and as the four mages
+ * (MageLook); the bone tooth in each element's hue; and Frenzy of the Dead's ring under a skeleton (DrawFrenzyRingPreview).
+ * Eight moments 150 ms apart, left to right, so the Iron Golem's sheen and the mages' shimmer show moving. Writes
+ * necro363_golems.png, necro363_mages.png and necro363_bolts_ring.png into ORCL_NECRO363_OUT (default: working directory).
+ */
+TEST(OracoolPreview, DISABLED_Necro363SummoningLooks)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	InitMissileGFX(true);
+	const char *outDir = std::getenv("ORCL_NECRO363_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	constexpr int Moments = 8;
+	constexpr int MomentMs = 150;
+
+	const std::optional<OwnedClxSpriteSheet> golem = FxBody("monsters\\golem\\golemw", 96);
+	const std::optional<OwnedClxSpriteSheet> skeleton = FxBody("monsters\\skelaxe\\sklaxn", 128);
+	ASSERT_TRUE(golem.has_value()) << "the vanilla golem's walk is needed";
+	ASSERT_TRUE(skeleton.has_value()) << "the regular skeleton is needed";
+
+	struct Row {
+		oracool::MinionLook look;
+	};
+	const std::vector<Row> golemRows { { {} }, { oracool::GolemLook(oracool::GolemKind::Clay) }, { oracool::GolemLook(oracool::GolemKind::Blood) },
+		{ oracool::GolemLook(oracool::GolemKind::Iron) } };
+	const std::vector<Row> mageRows { { {} }, { oracool::MageLook(MissileID::Firebolt) }, { oracool::MageLook(MissileID::ChargedBolt) },
+		{ oracool::MageLook(MissileID::Acid) }, { oracool::MageLook(MissileID::Arrow) } };
+
+	const auto sheetOf = [&](const OwnedClxSpriteSheet &body, const std::vector<Row> &rows, int cellW, int cellH, const char *file) {
+		OwnedSurface out = OwnedSurface::Rgb(Moments * cellW, static_cast<int>(rows.size()) * cellH);
+		SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 0x26, 0x22, 0x1F));
+		const ClxSpriteList frames = body[0]; // facing south
+		for (int k = 0; k < Moments; k++) {
+			for (size_t r = 0; r < rows.size(); r++) {
+				const ClxSprite sprite = frames[static_cast<size_t>(k) % frames.numSprites()];
+				const uint32_t *table = FxTable(nullptr, rows[r].look.tint, rows[r].look.rgb);
+				ClxDrawRgbMap(out, Point { k * cellW + (cellW - sprite.width()) / 2, static_cast<int>(r + 1) * cellH - 4 }, sprite, table);
+			}
+			SDL_Delay(MomentMs);
+		}
+		PreviewSave(out, (dir + file).c_str());
+		std::cout << "wrote " << dir << file << "\n";
+	};
+	sheetOf(*golem, golemRows, 104, 104, "necro363_golems.png");
+	sheetOf(*skeleton, mageRows, 112, 120, "necro363_mages.png");
+	// A close look at the Iron Golem's sheen and a fire mage's shimmer: one standing frame each at 300%, eight moments.
+	{
+		const OwnedClxSpriteList bigGolem = oracool::ScaleClxList((*golem)[0], 300);
+		const OwnedClxSpriteList bigMage = oracool::ScaleClxList((*skeleton)[0], 300);
+		const ClxSprite g = ClxSpriteList(bigGolem)[0];
+		const ClxSprite m = ClxSpriteList(bigMage)[0];
+		const int cellW = std::max<int>(g.width(), m.width()) / 2 + 16;
+		const int rowH = std::max<int>(g.height(), m.height()) + 8;
+		OwnedSurface out = OwnedSurface::Rgb(Moments * cellW, 2 * rowH);
+		SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 0x26, 0x22, 0x1F));
+		const oracool::MinionLook iron = oracool::GolemLook(oracool::GolemKind::Iron);
+		const oracool::MinionLook fire = oracool::MageLook(MissileID::Firebolt);
+		for (int k = 0; k < Moments; k++) {
+			ClxDrawRgbMap(out, Point { k * cellW + cellW / 2 - g.width() / 2, rowH - 4 }, g, FxTable(nullptr, iron.tint, iron.rgb));
+			ClxDrawRgbMap(out, Point { k * cellW + cellW / 2 - m.width() / 2, 2 * rowH - 4 }, m, FxTable(nullptr, fire.tint, fire.rgb));
+			SDL_Delay(MomentMs);
+		}
+		PreviewSave(out, (dir + "necro363_closeup.png").c_str());
+		std::cout << "wrote " << dir << "necro363_closeup.png\n";
+	}
+
+	// The bone tooth flying east in the four mages' colours, then Frenzy of the Dead's ring under a skeleton (eight moments).
+	{
+		constexpr int CellW = 112;
+		constexpr int CellH = 120;
+		OwnedSurface out = OwnedSurface::Rgb(Moments * CellW, 2 * CellH);
+		SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 0x26, 0x22, 0x1F));
+		const MissileFileData &tooth = GetMissileSpriteData(MissileGraphicID::BoneTooth);
+		ASSERT_TRUE(tooth.sprites) << "bone_tooth.png is needed";
+		const ClxSprite east = (*tooth.spritesForDirection(12))[0];
+		const MissileID elements[] = { MissileID::Firebolt, MissileID::ChargedBolt, MissileID::Acid, MissileID::Arrow };
+		for (size_t e = 0; e < 4; e++) {
+			const uint32_t *table = elements[e] == MissileID::Arrow ? FxTable(tooth.colours.get())
+			                                                        : FxTable(tooth.colours.get(), oracool::Tint::Hue, oracool::MageElementHue(elements[e]));
+			ClxDrawRgbMap(out, Point { static_cast<int>(e) * 2 * CellW + (2 * CellW - east.width()) / 2, CellH - 30 }, east, table);
+		}
+		const ClxSpriteList stand = (*skeleton)[0];
+		for (int k = 0; k < Moments; k++) {
+			const ClxSprite sprite = stand[static_cast<size_t>(k) % stand.numSprites()];
+			const int left = k * CellW + (CellW - sprite.width()) / 2;
+			const int bottom = 2 * CellH - 4;
+			ASSERT_TRUE(oracool::DrawFrenzyRingPreview(out, Point { left + sprite.width() / 2, bottom - 12 })) << "aura_holy_fire.png is needed";
+			ClxDrawRgbMap(out, Point { left, bottom }, sprite, FxTable(nullptr));
+			SDL_Delay(MomentMs);
+		}
+		PreviewSave(out, (dir + "necro363_bolts_ring.png").c_str());
+		std::cout << "wrote " << dir << "necro363_bolts_ring.png\n";
+	}
+	gbIsHellfire = savedHellfire;
+	HeadlessMode = savedHeadless;
+}

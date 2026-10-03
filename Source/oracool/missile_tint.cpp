@@ -60,6 +60,8 @@ bool TintUsesClock(Tint tint)
 	case Tint::Electric:
 	case Tint::Clone:
 	case Tint::Glint:
+	case Tint::Shimmer:
+	case Tint::Sheen:
 		return true;
 	default:
 		return false;
@@ -179,6 +181,27 @@ const uint32_t *TintedTable(const uint32_t *base, Tint tint, uint32_t rgb, doubl
 			const double wave = std::cos(2.0 * Pi * (2.0 * l - t / 0.9));
 			const Colour base = rgb == 0 ? c : Lerp(c, AtBrightness(hue, 0.35 + 0.75 * l), 0.6);
 			out = { base.r * (1.0 + 0.4 * wave), base.g * (1.0 + 0.4 * wave), base.b * (1.0 + 0.4 * wave) };
+			break;
+		}
+		case Tint::Shimmer: {
+			// One slow band of the same hue rolling through the brightness levels: the body stays its element's colour, a
+			// shade lighter at the crest and a shade deeper behind it, never another colour.
+			const double wave = std::cos(2.0 * Pi * (1.5 * l - t / 2.0));
+			const Colour lit = AtBrightness(hue, l);
+			out = { lit.r * (1.0 + 0.12 * wave), lit.g * (1.0 + 0.12 * wave), lit.b * (1.0 + 0.12 * wave) };
+			break;
+		}
+		case Tint::Sheen: {
+			// Each palette entry its own phase and pace, from a hash of its index: the sprite's colours light up one by one,
+			// so the glints wander over the surface instead of travelling in bands. A glint is short (the cosine's crest,
+			// raised to a power) and strongest on the brighter parts, as light catches the high faces of metal.
+			const uint32_t h = static_cast<uint32_t>(i + 1) * 2654435761U;
+			const double phase = static_cast<double>((h >> 8) & 0xFFFF) / 65536.0;
+			const double pace = 0.5 + static_cast<double>(h >> 24) / 255.0;
+			const double glint = std::pow(std::max(0.0, std::cos(2.0 * Pi * (phase + pace * t / 1.6))), 6.0);
+			const Colour lit = AtBrightness(hue, l);
+			const Colour bright { lit.r * 1.7 + 60.0 * l, lit.g * 1.7 + 60.0 * l, lit.b * 1.7 + 60.0 * l };
+			out = Lerp(lit, bright, 0.7 * glint * std::min(1.0, 0.4 + l));
 			break;
 		}
 		}

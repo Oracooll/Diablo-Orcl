@@ -121,24 +121,15 @@ _monster_id SkeletonBodyAt(int rank)
 	return MT_WSKELAX;
 }
 
-_monster_id MageBodyAt(int rank)
-{
-	if (rank >= 10)
-		return MT_XSKELBW;
-	if (rank >= 7)
-		return MT_RSKELBW;
-	if (rank >= 4)
-		return MT_TSKELBW;
-	return MT_WSKELBW;
-}
-
 MinionSpec SkeletonSpec(const Player &player, int rank, bool mage)
 {
 	const int mastery = Points(player, ClassTreeSkill::SkeletonMastery);
 	const int plating = Points(player, ClassTreeSkill::BonePlating);
 	MinionSpec spec {};
 	spec.group = mage ? MinionGroup::Mage : MinionGroup::Skeleton;
-	spec.type = mage ? MageBodyAt(rank) : SkeletonBodyAt(rank);
+	// A mage wears the regular skeleton too, in its element's colour (minions.h MageLook), not the bowman's sheet (the
+	// Necromancer Skill Cards page, 2026-10-03: "For mages sprites use regular skeleton sprites tinted in colour of magic").
+	spec.type = SkeletonBodyAt(rank);
 	spec.life = (mage ? 14 : 20) + 6 * rank + SkeletonMasteryLife * mastery;
 	spec.minDamage = (mage ? 1 : 2) + rank / 2 + SkeletonMasteryMinDamage * mastery;
 	spec.maxDamage = (mage ? 4 : 5) + rank + SkeletonMasteryMaxDamage * mastery;

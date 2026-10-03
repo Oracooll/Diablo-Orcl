@@ -3,7 +3,7 @@
 // sounds per your decision"). The slots are tools/skill_sound_slots.csv; aura loops are left out on purpose.
 // The user's picks on the review page (tools/skill_sound_picks.json) come before the rules.
 //
-// 487 cues across 7 classes, from 57 vanilla sounds.
+// 491 cues across 7 classes, from 58 vanilla sounds.
 
 // clang-format off
 const SkillSound SkillSounds[] = {
@@ -175,6 +175,7 @@ const SkillSound SkillSounds[] = {
 	{ Skill::Blight, SkillSoundEvent::Cast, "sfx\\misc\\acids1.wav" },
 	{ Skill::Blight, SkillSoundEvent::Impact, "sfx\\misc\\acids2.wav" },
 	{ Skill::BloodGolem, SkillSoundEvent::Cast, "sfx\\misc\\golum.wav" },
+	{ Skill::BloodGolem, SkillSoundEvent::Impact, "monsters\\golem\\golma1.wav" },
 	{ Skill::BoneArmor, SkillSoundEvent::Cast, "sfx\\misc\\mshield.wav" },
 	{ Skill::BonePrison, SkillSoundEvent::Cast, "sfx\\misc\\bonesp.wav" },
 	{ Skill::BoneSpear, SkillSoundEvent::Cast, "sfx\\misc\\bonesp.wav" },
@@ -184,6 +185,7 @@ const SkillSound SkillSounds[] = {
 	{ Skill::BoneStorm, SkillSoundEvent::Cast, "sfx\\misc\\bonesp.wav" },
 	{ Skill::BoneWall, SkillSoundEvent::Cast, "sfx\\misc\\bonesp.wav" },
 	{ Skill::ClayGolem, SkillSoundEvent::Cast, "sfx\\misc\\golum.wav" },
+	{ Skill::ClayGolem, SkillSoundEvent::Impact, "monsters\\golem\\golma1.wav" },
 	{ Skill::CommandTheDead, SkillSoundEvent::Cast, "sfx\\misc\\resur.wav" },
 	{ Skill::Confuse, SkillSoundEvent::Cast, "sfx\\misc\\dserp.wav" },
 	{ Skill::CorpseExplosion, SkillSoundEvent::Cast, "sfx\\misc\\cast4.wav" },
@@ -195,11 +197,13 @@ const SkillSound SkillSounds[] = {
 	{ Skill::Decrepify, SkillSoundEvent::Cast, "sfx\\misc\\dserp.wav" },
 	{ Skill::DimVision, SkillSoundEvent::Cast, "sfx\\misc\\dserp.wav" },
 	{ Skill::Doom, SkillSoundEvent::Cast, "sfx\\misc\\dserp.wav" },
-	{ Skill::FireGolem, SkillSoundEvent::Cast, "sfx\\misc\\golum.wav" },
+	{ Skill::FireGolem, SkillSoundEvent::Cast, "sfx\\misc\\elementl.wav" },
+	{ Skill::FireGolem, SkillSoundEvent::Impact, "sfx\\misc\\fbolt1.wav" },
 	{ Skill::Frailty, SkillSoundEvent::Cast, "sfx\\misc\\dserp.wav" },
 	{ Skill::FrenzyOfTheDead, SkillSoundEvent::Cast, "sfx\\misc\\cast4.wav" },
 	{ Skill::GatherTheDead, SkillSoundEvent::Cast, "sfx\\misc\\resur.wav" },
 	{ Skill::IronGolem, SkillSoundEvent::Cast, "sfx\\misc\\golum.wav" },
+	{ Skill::IronGolem, SkillSoundEvent::Impact, "monsters\\golem\\golma1.wav" },
 	{ Skill::NecroIronMaiden, SkillSoundEvent::Cast, "sfx\\misc\\dserp.wav" },
 	{ Skill::LifeTap, SkillSoundEvent::Cast, "sfx\\misc\\acids2.wav" },
 	{ Skill::LowerResist, SkillSoundEvent::Cast, "sfx\\misc\\dserp.wav" },

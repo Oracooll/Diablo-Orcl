@@ -144,6 +144,26 @@
    "path": "sfx\\items\\invaxe.wav",
    "why": "the Barbarian Skill Cards page: Axe (inventory)"
   },
+  "necromancer.BloodGolem.Impact": {
+   "path": "monsters\\golem\\golma1.wav",
+   "why": "the Necromancer Skill Cards page: Golem grunt"
+  },
+  "necromancer.ClayGolem.Impact": {
+   "path": "monsters\\golem\\golma1.wav",
+   "why": "the Necromancer Skill Cards page: Golem grunt"
+  },
+  "necromancer.FireGolem.Cast": {
+   "path": "sfx\\misc\\elementl.wav",
+   "why": "the Necromancer Skill Cards page: Elemental"
+  },
+  "necromancer.FireGolem.Impact": {
+   "path": "sfx\\misc\\fbolt1.wav",
+   "why": "the Necromancer Skill Cards page: Firebolt"
+  },
+  "necromancer.IronGolem.Impact": {
+   "path": "monsters\\golem\\golma1.wav",
+   "why": "the Necromancer Skill Cards page: Golem grunt"
+  },
   "sorcerer.AbsoluteZero.Cast": {
    "path": "sfx\\misc\\nestxpld.wav",
    "why": "the Sorcerer Skill Cards page: Explosion (Hellfire)"
