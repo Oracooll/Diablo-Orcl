@@ -17785,3 +17785,50 @@ TEST(OracoolPreview, DISABLED_Necro364FireGolem)
 	}
 	gbIsHellfire = savedHellfire;
 }
+
+/**
+ * The summons' bodies for the Necromancer Skill Cards page (user, 2026-10-03: "I dont see the tinted vanilla golems in the
+ * artefact"): each one's walk loop facing south as a strip of 16 frames, drawn through the game's own tables (GolemLook,
+ * MageLook) on the page's stone (#16120f), one frame every 50 ms of real time so the Iron Golem's sheen and the mages'
+ * shimmer move as they do in game. Writes fx_golem_<kind>.png and fx_mage_<element>.png into ORCL_CARD_STRIPS_OUT.
+ */
+TEST(OracoolPreview, DISABLED_NecroSummonCardStrips)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true; // as DISABLED_Necro363SummoningLooks: the sheets load through the Hellfire mount
+	InitMissileGFX(true);
+	const char *outDir = std::getenv("ORCL_CARD_STRIPS_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const std::optional<OwnedClxSpriteSheet> golem = FxBody("monsters\\golem\\golemw", 96);
+	const std::optional<OwnedClxSpriteSheet> skeleton = FxBody("monsters\\skelaxe\\sklaxw", 128);
+	ASSERT_TRUE(golem.has_value()) << "the vanilla golem's walk is needed";
+	ASSERT_TRUE(skeleton.has_value()) << "the regular skeleton's walk is needed";
+	const auto strip = [&](const OwnedClxSpriteSheet &body, oracool::MinionLook look, int cell, const std::string &file) {
+		const ClxSpriteList frames = body[0]; // facing south
+		const int count = static_cast<int>(frames.numSprites());
+		OwnedSurface out = OwnedSurface::Rgb(count * cell, cell);
+		SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 0x16, 0x12, 0x0F));
+		for (int k = 0; k < count; k++) {
+			const ClxSprite sprite = frames[static_cast<size_t>(k)];
+			ClxDrawRgbMap(out, Point { k * cell + (cell - sprite.width()) / 2, cell - 6 }, sprite, FxTable(nullptr, look.tint, look.rgb));
+			SDL_Delay(50);
+		}
+		PreviewSave(out, (dir + file).c_str());
+		std::cout << "wrote " << file << " (" << count << " frames of " << cell << "px)\n";
+	};
+	strip(*golem, {}, 104, "fx_golem_vanilla.png");
+	strip(*golem, oracool::GolemLook(oracool::GolemKind::Clay), 104, "fx_golem_clay.png");
+	strip(*golem, oracool::GolemLook(oracool::GolemKind::Blood), 104, "fx_golem_blood.png");
+	strip(*golem, oracool::GolemLook(oracool::GolemKind::Iron), 104, "fx_golem_iron.png");
+	strip(*skeleton, oracool::MageLook(MissileID::Firebolt), 112, "fx_mage_fire.png");
+	strip(*skeleton, oracool::MageLook(MissileID::ChargedBolt), 112, "fx_mage_lightning.png");
+	strip(*skeleton, oracool::MageLook(MissileID::Acid), 112, "fx_mage_poison.png");
+	strip(*skeleton, oracool::MageLook(MissileID::Arrow), 112, "fx_mage_bone.png");
+	gbIsHellfire = savedHellfire;
+	HeadlessMode = savedHeadless;
+}
