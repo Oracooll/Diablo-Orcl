@@ -1269,7 +1269,7 @@ GroupedLayout ComputeGroupedLayout()
 	GroupedLayout g {};
 	// The right column: GroupedGap between every frame, and the frames stretched so the last ends on
 	// GroupedColumnsBottom - the spare rows shared out evenly, a frame's contents centred in its extra height (see
-	// RightShift). The Necromancer's Essence frame takes its share of the room; with it the column may need all of it.
+	// RightShift). The Necromancer's Essence frame takes its share of the room, and more than the spare rows: see rightGap.
 	const int baseHeights[RightFrameCount] = { GroupedButtonBoxHeight, GroupedButtonBoxHeight, GroupedOddsBoxHeight, GroupedOddsBoxHeight,
 		GroupedPoolBoxHeight, GroupedPoolBoxHeight, GroupedShowsEssence() ? GroupedPoolBoxHeight : 0,
 		GroupedResistBoxHeight, GroupedResistBoxHeight, GroupedResistBoxHeight, GroupedResistBoxHeight };
@@ -1281,7 +1281,13 @@ GroupedLayout ComputeGroupedLayout()
 			baseTotal += h;
 		}
 	}
-	const int spare = std::max(GroupedColumnsBottom - GroupedColumnsTop - baseTotal - (present - 1) * GroupedGap, 0);
+	// The gap closes up when the frames need it (dev note, 2026-10-03: "when a player plays with necro and essence needs to
+	// appear on the stats screen, you reduce the gaps between the different stats in the right column to fit essence
+	// without cropping res cold"): the widest gap, up to GroupedGap, that still ends the column on GroupedColumnsBottom.
+	// Without Essence it is GroupedGap with rows to spare; with it, 4px.
+	const int room = GroupedColumnsBottom - GroupedColumnsTop;
+	const int rightGap = std::clamp((room - baseTotal) / (present - 1), 0, GroupedGap);
+	const int spare = std::max(room - baseTotal - (present - 1) * rightGap, 0);
 	int y = GroupedColumnsTop;
 	int nth = 0;
 	for (int k = 0; k < RightFrameCount; k++) {
@@ -1291,9 +1297,10 @@ GroupedLayout ComputeGroupedLayout()
 			continue;
 		g.rightHeight[k] = baseHeights[k] + (nth + 1) * spare / present - nth * spare / present;
 		nth++;
-		y += g.rightHeight[k] + GroupedGap;
+		y += g.rightHeight[k] + rightGap;
 	}
-	const int rightEnd = y - GroupedGap;
+	const int rightEnd = y - rightGap;
+	assert(rightEnd <= GroupedColumnsBottom && "the grouped sheet's right column runs past the stash grid's bottom - it would be cropped");
 
 	// The left column's five frames - the four attributes and the points - are one height, GroupedGap apart, as tall as
 	// fills the column down to Resist cold's bottom (user, 2026-09-27: "make STR, MAG, DEX, VIT, Points Frame and Reset
@@ -1457,13 +1464,14 @@ void EnsureLayout()
 	// and are not meant to. Overshooting the bottom by less than a row would be an accident,
 	// though, so the clamp is against the real total either way.
 	MaxScrollOffset = std::max(0, CharListHeight - CharContentSize.height);
-	// The grouped sheet measures itself instead (2026-09-26). It fits its window as designed, so its
-	// maximum is normally zero and it never shows a scrollbar; the arithmetic is here so that a box
-	// added later scrolls rather than slides under the orb.
+	// The grouped sheet never scrolls (dev note, 2026-10-03: "i dont want stats window to be scrolable any more. i want
+	// us to fit the contents in the visible area"): ComputeGroupedLayout fits every frame between the header and the
+	// stash grid's bottom, closing the right column's gaps when the Necromancer's Essence needs the room.
 	LayoutGrouped = grouped;
 	if (grouped) {
 		Grouped = ComputeGroupedLayout();
-		MaxScrollOffset = std::max(0, Grouped.listHeight - GroupedContentSize.height);
+		assert(Grouped.listHeight - GroupedGap <= GroupedContentSize.height && "the grouped sheet no longer fits its window");
+		MaxScrollOffset = 0;
 	}
 	ScrollOffset = std::min(ScrollOffset, MaxScrollOffset);
 	PlaceWidgets();
@@ -1910,7 +1918,7 @@ string_view DamageKindPhrase(DamageType type)
 }
 
 /**
- * @brief The grey second line of a button's box: "left button  -  damage", "right button  -  magic damage".
+ * @brief The grey second line of a button's box: "LMB  -  damage", "RMB  -  magic damage".
  *
  * The mock-up's replacement for the list's "Left button: Zeal" / "Damage" pair. It asks the same four
  * questions ReadiedSlotColor does, in the same order, so the grey words and the coloured number above
@@ -1934,7 +1942,9 @@ std::string ReadiedSlotKindText(bool leftButton)
 		kind = _("no damage");
 	else
 		kind = DamageKindPhrase(ReadiedSpellDamageType(spell));
-	const string_view button = leftButton ? _("left button") : _("right button");
+	// "LMB" / "RMB", not "left button" / "right button" (dev note, 2026-10-03: "reduce left/right button to lmb/rmb to
+	// leave more room"): the short form keeps the line at 11px beside the longest element names.
+	const string_view button = leftButton ? _(/* TRANSLATORS: short for "left mouse button" */ "LMB") : _(/* TRANSLATORS: short for "right mouse button" */ "RMB");
 	return StrCat(button, "  -  ", kind);
 }
 
@@ -1952,8 +1962,8 @@ void DrawGroupedButtonBox(const Surface &content, RightFrame frame, bool leftBut
 	const Rectangle nameRect { line1.position, { std::max(line1.size.width - amountWidth - 8, 16), line1.size.height } };
 	// Fitted: "Master of the Long Staff" beside a three-digit range is wider than the box at 12px.
 	oracool::DrawSheetTextFitted(content, ReadiedSlotSkillName(leftButton), nameRect, ReadiedSlotColor(leftButton) | UiFlags::VerticalCenter);
-	// 11px when it fits; the narrower column since the 4px inset (2026-09-26) cuts "left button  -  lightning
-	// damage", which then steps down like every other fitted line rather than lose its last word.
+	// 11px when it fits; the narrower column since the 4px inset (2026-09-26) cut "left button  -  lightning
+	// damage" (before LMB, 2026-10-03), and a long translation still steps down like every other fitted line rather than lose its last word.
 	const std::string kind = ReadiedSlotKindText(leftButton);
 	const Rectangle kindLine = FieldLine(box, FieldInkTop + InkHeight12 + FieldLineGap + shift);
 	if (GetLineWidth(kind, GameFont11, 1) <= kindLine.size.width)
@@ -2028,10 +2038,10 @@ void DrawGroupedHeader(const Surface &content, int top)
 	}
 	// Two thirds of its row's height, centred in it, its frame and marks twice as thick and pale gold (dev note, 2026-09-29:
 	// "reduce height of exp bar in char window to 2/3rds of current size. make border and vertical separators twice
-	// thicker, golden color") - pale, so the marks still show over the gold fill.
+	// thicker, golden color"). White since 2026-10-03 (dev note: "make exp bar grid in stats window white").
 	constexpr int XpBarHeight = (GroupedHeaderBarHeight * 2 + 2) / 3;
 	oracool::DrawSheetBar(content, { { innerX, top + GroupedHeaderBarTop + (GroupedHeaderBarHeight - XpBarHeight) / 2 }, { innerWidth, XpBarHeight } },
-	    into, span, 0xC8A04C, PAL16_YELLOW + 4, /*fromRight=*/false, /*segments=*/10, /*lineWidth=*/2, 0xF2D68A, PAL16_YELLOW + 1);
+	    into, span, 0xC8A04C, PAL16_YELLOW + 4, /*fromRight=*/false, /*segments=*/10, /*lineWidth=*/2, 0xFFFFFF, PAL16_GRAY);
 
 	// "1,284,300 / 1,520,000" on one row, "235,700 to level 35" on the next (their own rows since 2026-09-27).
 	const Rectangle xpLine { { innerX, top + GroupedHeaderXpInkTop - FieldLineInkOffset }, { innerWidth, FieldLineRectHeight } };
@@ -2270,26 +2280,9 @@ void DrawOddsBar(const Surface &content, const Rectangle &bar, int percent, bool
 	oracool::DrawSheetBar(content, bar, static_cast<uint64_t>(std::max(percent, 0)), 100, rgb, t >= 50 ? PAL8_GREEN + 2 : PAL16_RED + 3);
 }
 
-/** @brief The grouped sheet's scrollbar - the list's groove and thumb against its own content rect. */
-void DrawGroupedScrollbar(const Surface &out, const Rectangle &panel)
-{
-	if (MaxScrollOffset <= 0)
-		return;
-	const int x = panel.position.x + CharPanelSize.width - CharRightPad - CharScrollbarWidth;
-	const int top = panel.position.y + GroupedContentTop;
-	oracool::DrawThemedFill(out, { { x, top }, { CharScrollbarWidth, GroupedContentSize.height } }, 2);
-	const int thumbHeight = std::max(CharScrollbarMinThumb,
-	    GroupedContentSize.height * GroupedContentSize.height / std::max(Grouped.listHeight, 1));
-	const int travel = GroupedContentSize.height - thumbHeight;
-	const int thumbY = top + travel * ScrollOffset / MaxScrollOffset;
-	oracool::DrawOrnateSeparatorVertical(out, { x, thumbY }, thumbHeight);
-}
-
-/** @brief The whole grouped sheet, under the title DrawChr has already drawn. */
+/** @brief The whole grouped sheet, under the title DrawChr has already drawn. No scrollbar: it never scrolls (2026-10-03). */
 void DrawGroupedSheet(const Surface &out, const Rectangle &panel)
 {
-	DrawGroupedScrollbar(out, panel);
-
 	// Through the clipped content subregion, as the list draws - the same frame ChrBtnsRect,
 	// ResetButtonPosition and GroupedAdvancedButton are expressed in.
 	const Rectangle contentRect = GetCharacterContentRect();

@@ -15721,6 +15721,19 @@ TEST(OracoolPreview, DISABLED_HeroSheet)
 		PreviewSave(still, fmt::format("hero_bars_{:02d}.png", frame).c_str());
 	}
 	oracool::SheetBarClockOverrideMs = -1;
+	{
+		// The Necromancer's sheet (dev note, 2026-10-03): his Essence frame joins the right column, which must still end
+		// with Resist cold whole inside the window - no crop, no scrolling.
+		const HeroClass savedClass = player._pClass;
+		player._pClass = HeroClass::Necromancer;
+		CalcPlrItemVals(player, false);
+		OwnedSurface necro = OwnedSurface::Rgb(960, 720);
+		PreviewFloor(necro);
+		DrawChr(necro);
+		PreviewSave(necro, "hero_sheet_necro.png");
+		player._pClass = savedClass;
+		CalcPlrItemVals(player, false);
+	}
 	pChrButtons = std::nullopt;
 	chrflag = false;
 	HeadlessMode = savedHeadless;
