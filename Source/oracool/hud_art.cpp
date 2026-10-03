@@ -248,6 +248,12 @@ ArtAsset MenuGlyphsArt { "ui\\menu_glyphs.png" };
 ArtAsset TabGlyphsArt { "ui\\tab_glyphs.png" }; // two frames since v1.9.293: chest closed, chest open (oracool-tab-chest-glyphs-v1)
 /** The level-up indicator that appears under the clock when attribute points are unspent. */
 ArtAsset LevelUpIconArt { "ui\\level_up_icon.png" };
+// The vendors' and artisans' button, the user's own (2026-10-02: "look for buttonv2.png. apply it to all vendor/artisans
+// framed buttons, but only use the glyphs from the current buttons. this new button includes the gold backing in it").
+// 70x70: a ButtonFrameReach-deep band round a 56x56 gold face. The band frames the button (DrawButtonBezel) and the face,
+// scaled, fills it (DrawButtonFace) - one piece of art, so frame and backing always match. Version 3 since v1.12.354 (user,
+// 2026-10-02: "apply this to the same buttons - Button v3.png"), the same 7px band round a face shaded at its rim.
+ArtAsset ButtonFrameArt { "ui\\button_v3.png" };
 /**
  * The carved stone bezels - see oracool/grid_bezel.h for the family and the (6,6) placement rule.
  * Indexed by the size of the content they frame rather than by name, because that is the only
@@ -878,6 +884,8 @@ void EnsureLoadedAll()
 		LoadPixels(TabGlyphsArt);
 	if (!LevelUpIconArt.loadAttempted)
 		LoadPixels(LevelUpIconArt);
+	if (!ButtonFrameArt.loadAttempted)
+		LoadPixels(ButtonFrameArt);
 	for (GridBezelEntry &entry : GridBezels) {
 		if (!entry.art.loadAttempted)
 			LoadPixels(entry.art);
@@ -956,6 +964,8 @@ bool NeedsQuantize()
 	if (!TabGlyphsArt.rgba.empty() && !TabGlyphsArt.bright)
 		return true;
 	if (!LevelUpIconArt.rgba.empty() && !LevelUpIconArt.bright)
+		return true;
+	if (!ButtonFrameArt.rgba.empty() && !ButtonFrameArt.bright)
 		return true;
 	for (const GridBezelEntry &entry : GridBezels) {
 		if (!entry.art.rgba.empty() && !entry.art.bright)
@@ -1044,6 +1054,7 @@ void EnsureQuantized()
 	QuantizeAsset(MenuGlyphsArt, std::nullopt);
 	QuantizeAsset(TabGlyphsArt, std::nullopt);
 	QuantizeAsset(LevelUpIconArt, std::nullopt);
+	QuantizeAsset(ButtonFrameArt, std::nullopt);
 	// No tint: the bezels arrived already quantised against town.pal (their stone reads as exact
 	// palette entries - 30,30,30 and 61,61,61 off the grey ramp), so tinting would move art that is
 	// already sitting on the colours it was authored for.
@@ -2055,41 +2066,37 @@ void DrawGridBezel(const Surface &out, Rectangle contentRect)
 	    Point { contentRect.position.x + contentRect.size.width, contentRect.position.y });
 }
 
-void DrawButtonBezel(const Surface &out, Rectangle face)
-{
-	// The ring/amulet slot's frame, stretched round a button (user, 2026-10-02: "take a 1x1 frame for a ring
-	// or amulet and scale it up a bit to fit the buttons inside itself"). Stretched along its LENGTH only: the
-	// corners stay 1:1 and the band stays six deep, so a 110px button wears the same carved edge a 28px slot
-	// does rather than a frame three times as thick. Frame only, as DrawGridBezel - the face fills the hole.
-	GridBezelEntry *entry = FindGridBezel({ CellPx, CellPx });
-	if (entry == nullptr || face.size.width <= 0 || face.size.height <= 0)
-		return;
-	EnsureLoadedAll();
-	if (entry->art.rgba.empty())
-		return;
-	EnsureQuantized();
-	if (!entry->art.bright)
-		return;
+namespace {
 
-	const ArtAsset &art = entry->art;
+struct FrameBands {
+	int left = 0;
+	int top = 0;
+	int right = 0;
+	int bottom = 0;
+};
+
+/**
+ * @brief Draws @p art as a frame round @p face: corners 1:1, bands stretched along their length only, so a frame keeps
+ * its thickness at any button size. Scaled on the 32-bit screen; on an indexed target, which has no scaler here (see
+ * BlitLayerScaled), each band's middle is repeated end to end instead, so a golden test still sees a whole frame.
+ */
+void DrawStretchedFrame(const Surface &out, const ArtAsset &art, FrameBands bands, Rectangle face)
+{
 	const int w = art.width;
 	const int h = art.height;
-	const int inset = GridBezelInset;
-	const int innerW = w - 2 * inset;
-	const int innerH = h - 2 * inset;
-	if (innerW <= 0 || innerH <= 0)
+	const int innerW = w - bands.left - bands.right;
+	const int innerH = h - bands.top - bands.bottom;
+	if (innerW <= 0 || innerH <= 0 || bands.left <= 0 || bands.top <= 0 || bands.right <= 0 || bands.bottom <= 0)
 		return;
-	const Point outer = face.position - Displacement { inset, inset };
+	const Point outer = face.position - Displacement { bands.left, bands.top };
 	const int right = face.position.x + face.size.width;
 	const int bottom = face.position.y + face.size.height;
 
-	BlitLayer(out, art, Layer::Bright, MakeSdlRect(0, 0, inset, inset), outer);
-	BlitLayer(out, art, Layer::Bright, MakeSdlRect(w - inset, 0, inset, inset), Point { right, outer.y });
-	BlitLayer(out, art, Layer::Bright, MakeSdlRect(0, h - inset, inset, inset), Point { outer.x, bottom });
-	BlitLayer(out, art, Layer::Bright, MakeSdlRect(w - inset, h - inset, inset, inset), Point { right, bottom });
+	BlitLayer(out, art, Layer::Bright, MakeSdlRect(0, 0, bands.left, bands.top), outer);
+	BlitLayer(out, art, Layer::Bright, MakeSdlRect(w - bands.right, 0, bands.right, bands.top), Point { right, outer.y });
+	BlitLayer(out, art, Layer::Bright, MakeSdlRect(0, h - bands.bottom, bands.left, bands.bottom), Point { outer.x, bottom });
+	BlitLayer(out, art, Layer::Bright, MakeSdlRect(w - bands.right, h - bands.bottom, bands.right, bands.bottom), Point { right, bottom });
 
-	// One band: scaled on the 32-bit screen; on an indexed target, which has no scaler here (see BlitLayerScaled),
-	// the 28px middle repeated end to end instead, so a golden test still sees a whole frame.
 	const bool scaled = !out.isIndexed() && !art.argb.empty();
 	const auto band = [&](SDL_Rect src, Point at, bool horizontal, int length) {
 		if (scaled) {
@@ -2105,10 +2112,52 @@ void DrawButtonBezel(const Surface &out, Rectangle face)
 			BlitLayer(out, art, Layer::Bright, piece, horizontal ? Point { at.x + done, at.y } : Point { at.x, at.y + done });
 		}
 	};
-	band(MakeSdlRect(inset, 0, innerW, inset), Point { face.position.x, outer.y }, true, face.size.width);
-	band(MakeSdlRect(inset, h - inset, innerW, inset), Point { face.position.x, bottom }, true, face.size.width);
-	band(MakeSdlRect(0, inset, inset, innerH), Point { outer.x, face.position.y }, false, face.size.height);
-	band(MakeSdlRect(w - inset, inset, inset, innerH), Point { right, face.position.y }, false, face.size.height);
+	band(MakeSdlRect(bands.left, 0, innerW, bands.top), Point { face.position.x, outer.y }, true, face.size.width);
+	band(MakeSdlRect(bands.left, h - bands.bottom, innerW, bands.bottom), Point { face.position.x, bottom }, true, face.size.width);
+	band(MakeSdlRect(0, bands.top, bands.left, innerH), Point { outer.x, face.position.y }, false, face.size.height);
+	band(MakeSdlRect(w - bands.right, bands.top, bands.right, innerH), Point { right, face.position.y }, false, face.size.height);
+}
+
+} // namespace
+
+void DrawButtonBezel(const Surface &out, Rectangle face)
+{
+	// The band of the user's button (ui\button_v3.png, 2026-10-02), stretched round the button with its corners 1:1.
+	// Before it, the ring/amulet slot's frame wore this place ("take a 1x1 frame for a ring or amulet and scale it up a
+	// bit to fit the buttons inside itself"), and it still does if the new art is missing from the archive. Frame only -
+	// DrawButtonFace fills the hole.
+	if (face.size.width <= 0 || face.size.height <= 0)
+		return;
+	EnsureLoadedAll();
+	EnsureQuantized();
+	if (!ButtonFrameArt.rgba.empty() && ButtonFrameArt.bright) {
+		DrawStretchedFrame(out, ButtonFrameArt, { ButtonFrameReach, ButtonFrameReach, ButtonFrameReach, ButtonFrameReach }, face);
+		return;
+	}
+	GridBezelEntry *entry = FindGridBezel({ CellPx, CellPx });
+	if (entry == nullptr || entry->art.rgba.empty() || !entry->art.bright)
+		return;
+	DrawStretchedFrame(out, entry->art, { GridBezelInset, GridBezelInset, GridBezelInset, GridBezelInset }, face);
+}
+
+bool DrawButtonFace(const Surface &out, Rectangle face)
+{
+	// The gold backing inside the user's button, scaled from its 56x56 into the face - the stone's grain shrinks with it,
+	// the band round it does not (DrawButtonBezel). Only the 32-bit screen has the scaler (BlitLayerScaled); an indexed
+	// target returns false and the caller draws the old plate, as it does when the art is missing.
+	if (face.size.width <= 0 || face.size.height <= 0 || out.isIndexed())
+		return false;
+	EnsureLoadedAll();
+	EnsureQuantized();
+	const ArtAsset &art = ButtonFrameArt;
+	if (art.rgba.empty() || !art.bright || art.argb.empty())
+		return false;
+	const int innerW = art.width - 2 * ButtonFrameReach;
+	const int innerH = art.height - 2 * ButtonFrameReach;
+	if (innerW <= 0 || innerH <= 0)
+		return false;
+	BlitLayerScaled(out, art, MakeSdlRect(ButtonFrameReach, ButtonFrameReach, innerW, innerH), face, /*halfTransparent=*/false);
+	return true;
 }
 
 void DrawButtonSlotGround(const Surface &out, Rectangle rest, bool sunk)
@@ -2120,7 +2169,7 @@ void DrawButtonSlotGround(const Surface &out, Rectangle rest, bool sunk)
 	// An absent control is a zero rect, and the shadow's footprint would still grow it into a 12px square.
 	if (rest.size.width <= 0 || rest.size.height <= 0)
 		return;
-	DrawDropShadow(out, rest, GridBezelInset, sunk);
+	DrawDropShadow(out, rest, ButtonFrameReach, sunk);
 	DrawButtonBezel(out, { rest.position + (sunk ? ButtonSlotSink : Displacement { 0, 0 }), rest.size });
 }
 
@@ -2416,6 +2465,7 @@ void ResetHudArtCaches()
 	reset(MenuGlyphsArt);
 	reset(TabGlyphsArt);
 	reset(LevelUpIconArt);
+	reset(ButtonFrameArt);
 	for (GridBezelEntry &entry : GridBezels)
 		reset(entry.art);
 	reset(SkillPointsFrameArt);

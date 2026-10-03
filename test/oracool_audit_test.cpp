@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <functional>
 #include <filesystem>
 #include <fstream>
@@ -17361,4 +17362,103 @@ TEST(OracoolAudit94, ChargeRefusesTheLongWayRound)
 	Round94RestoreGrid(dPlayer, savedPlayer);
 	Round94RestoreGrid(dObject, savedObject);
 	Round94RestoreGrid(dPiece, savedPiece);
+}
+
+namespace devilution::oracool {
+// Defined in hud_art.cpp outside its anonymous namespaces; the tree strip's frame scaled to @p dest, no plate.
+void DrawClassTreeIconScaledTo(const Surface &out, Rectangle dest, HeroClass heroClass, int skillIndex, bool unlocked);
+} // namespace devilution::oracool
+
+/**
+ * The Necromancer's four Abilities sheets as reference cards (user, 2026-10-03: "Make a green background file with all
+ * of his glyphs and their names for all of his 4 abilities windows ... No gold backing. Just the glyphs with their
+ * shadow on a green screen. And their names"). One PNG per sheet, named after it, laid out as the sheet lays out its
+ * tree (column x tier), each glyph 1:1 from the class strip with no plate under it. Writes into the directory named by
+ * ORCL_NECRO_SHEETS_OUT (default: the working directory).
+ */
+TEST(OracoolPreview, DISABLED_NecromancerSheetGlyphs)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	LoadSmallSpellIcons(); // the vanilla plate the gold backing is cut from, for ORCL_NECRO_SHEETS_PLATES
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const char *outDir = std::getenv("ORCL_NECRO_SHEETS_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+
+	// Any class since 2026-10-03 (user: "now prepare same 4 sheets of current glyphs as you did for necro for the remaining
+	// two classes - rogue and monk"): ORCL_SHEETS_CLASS = Necromancer (default), Rogue, Monk, Sorcerer, Barbarian or Paladin.
+	const char *className = std::getenv("ORCL_SHEETS_CLASS");
+	const std::string wanted = className != nullptr ? className : "Necromancer";
+	HeroClass nec = HeroClass::Necromancer;
+	if (wanted == "Rogue")
+		nec = HeroClass::Rogue;
+	else if (wanted == "Monk")
+		nec = HeroClass::Monk;
+	else if (wanted == "Sorcerer")
+		nec = HeroClass::Sorcerer;
+	else if (wanted == "Barbarian")
+		nec = HeroClass::Barbarian;
+	else if (wanted == "Paladin")
+		nec = HeroClass::Warrior;
+	else
+		ASSERT_EQ(wanted, "Necromancer") << "unknown ORCL_SHEETS_CLASS";
+	const Size glyph = oracool::GetClassTreeIconSize(nec);
+	ASSERT_GT(glyph.width, 0) << "the Necromancer's tree strip did not load";
+	constexpr int CellWidth = 230; // the longest name, "Commander of the Risen Dead", on one line
+	constexpr int NameHeight = 34;
+	constexpr int CellHeight = 56 + 8 + NameHeight + 14;
+	constexpr int TitleHeight = 48;
+	constexpr int Margin = 20;
+	constexpr uint32_t GreenScreen = 0x00FF00;
+
+	for (int page = 0; page < 4; page++) {
+		std::array<oracool::ClassTreeSkill, oracool::MaxSkillsPerClass> skills {};
+		const size_t count = oracool::BuildClassTreePage(nec, page, skills.data());
+		ASSERT_GT(count, 0u) << "page " << page << " is empty";
+		int columns = 1;
+		int tiers = 1;
+		for (size_t i = 0; i < count; i++) {
+			const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skills[i]);
+			columns = std::max(columns, data.column + 1);
+			tiers = std::max(tiers, data.tier + 1);
+		}
+		const int width = 2 * Margin + columns * CellWidth;
+		const int height = 2 * Margin + TitleHeight + tiers * CellHeight;
+		OwnedSurface out = OwnedSurface::Rgb(width, height);
+		SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, (GreenScreen >> 16) & 0xFF, (GreenScreen >> 8) & 0xFF, GreenScreen & 0xFF));
+		const std::string title { oracool::GetClassTreePageName(nec, page) };
+		DrawString(out, title, Rectangle { { Margin, Margin }, { width - 2 * Margin, TitleHeight } },
+		    { UiFlags::ColorWhite | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		for (size_t i = 0; i < count; i++) {
+			const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skills[i]);
+			const Point cell { Margin + data.column * CellWidth, Margin + TitleHeight + data.tier * CellHeight };
+			const Rectangle icon { { cell.x + (CellWidth - glyph.width) / 2, cell.y + 4 }, glyph };
+			// ORCL_NECRO_SHEETS_PLATES=1: as the Abilities window draws them, on the gold plate (the glyph 1:1 in its middle).
+			if (std::getenv("ORCL_NECRO_SHEETS_PLATES") != nullptr)
+				oracool::DrawClassTreeIconOutlined(out, icon, nec, oracool::ClassTreeIconIndex(skills[i]), /*unlocked=*/true, oracool::SkillPlateTint::Ready);
+			else
+				oracool::DrawClassTreeIconScaledTo(out, icon, nec, oracool::ClassTreeIconIndex(skills[i]), /*unlocked=*/true);
+			const SpellID spell = oracool::ClassTreeSpellId(skills[i]);
+			if (IsValidSpell(spell) && IsLegacySpell(spell))
+				std::cout << "legacy spell row (the sheet shows the vanilla icon): " << data.name << "\n";
+			DrawString(out, _(data.name), Rectangle { { cell.x + 4, icon.position.y + glyph.height + 6 }, { CellWidth - 8, NameHeight } },
+			    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter });
+		}
+		std::string file = title;
+		// "POISON & BONE" -> "Poison & Bone.png": the sheet's name in title case, as the user named the files.
+		bool start = true;
+		for (char &c : file) {
+			if (c == ' ' || c == '&') {
+				start = true;
+				continue;
+			}
+			c = start ? static_cast<char>(std::toupper(static_cast<unsigned char>(c))) : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+			start = false;
+		}
+		PreviewSave(out, (dir + file + ".png").c_str());
+		std::cout << "wrote " << dir << file << ".png (" << count << " skills)\n";
+	}
+	HeadlessMode = savedHeadless;
 }

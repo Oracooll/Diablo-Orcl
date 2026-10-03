@@ -140,10 +140,10 @@ constexpr int BoardMaxSlots = 35;
 constexpr int BoardButtonSize = 34;
 /**
  * TWELVE since the plates wear slot frames (user, 2026-10-02: "6px gap between their frames and surrounding ui
- * elments"): the frame's six (GridBezelInset) and six of air above the painted band at y 429 - it was four, which
+ * elments"): the frame's reach (ButtonFrameReach, seven since frame v2) and six of air above the painted band at y 429 - it was four, which
  * put the frame two pixels into the band.
  */
-constexpr int BoardRowClearance = GridBezelInset + 6;
+constexpr int BoardRowClearance = ButtonFrameReach + 6;
 constexpr int BoardButtonTop = 429 - BoardRowClearance - BoardButtonSize;
 constexpr Rectangle BoardDowngradeRect { { BoardOrigin.x, BoardButtonTop }, { BoardButtonSize, BoardButtonSize } };
 constexpr Rectangle BoardUpgradeRect {
@@ -294,7 +294,7 @@ constexpr int CraftFrameBottom = 541;
 constexpr int CraftPlateSize = 34;
 // FOURTEEN below the gold foot since the plate wears a slot frame (v1.12.348): the band's two black liner rows (542,
 // 543), six of air and the frame's six. It was four, which put the frame three pixels up the painted well.
-constexpr int CraftTransmuteClearance = 2 + 6 + GridBezelInset;
+constexpr int CraftTransmuteClearance = 2 + 6 + ButtonFrameReach;
 constexpr Rectangle CraftTransmuteRect {
 	{ (CraftFrameLeft + CraftFrameRight + 1) / 2 - CraftPlateSize / 2, CraftFrameBottom + 1 + CraftTransmuteClearance },
 	{ CraftPlateSize, CraftPlateSize }
@@ -329,7 +329,7 @@ constexpr Size ServiceIconSize { 34, 34 };
 constexpr int ServiceIconGap = 28;
 constexpr int ServicePriceHeight = 14;
 // Twelve since the plates wear slot frames (v1.12.348): the frame's six and six of air between it and the price line.
-constexpr int ServicePriceGap = GridBezelInset + 6;
+constexpr int ServicePriceGap = ButtonFrameReach + 6;
 // A DIE (2026-09-22), not Griswold's restock arrows. She borrowed his because his was the nearest
 // thing on the shelf, and the two services are not the same: his refreshes a shop's stock, hers
 // gambles one affix on this item. A die says the second and the arrows say the first.
@@ -366,12 +366,12 @@ constexpr Rectangle CloseRect { { 316, 5 }, { 18, 18 } };
 /*
  * SIX PIXELS FROM THE PLATES' SLOT FRAMES, not from the plates (user, 2026-10-02: "now that we introduced frames
  * around vendors/artisans buttons you need to move them a bit in in order to have a 6px gap between their frames and
- * surrounding ui elments"). Each frame reaches GridBezelInset past its plate, so every clearance below is that plus
+ * surrounding ui elments"). Each frame reaches ButtonFrameReach past its plate, so every clearance below is that plus
  * six: the last plate ends twelve clear of the small frame's band (x 207), the first starts twelve inside the
  * canvas's opening (x 22), and the feet stand twelve above the big frame's bezel (y 289, measured v1.12.348) - which
  * lifts the row four pixels off the small frame's lower border it used to stand flush with.
  */
-constexpr int MysticIconRowClearance = GridBezelInset + 6;
+constexpr int MysticIconRowClearance = ButtonFrameReach + 6;
 /** The rightmost pixel the row may use: the plate's frame six clear of the small frame's left border. */
 constexpr int MysticIconRowRight = MysticFrameBandLeft - MysticIconRowClearance - 1;
 /** The leftmost: the frame six inside the canvas's opening. */
@@ -380,7 +380,7 @@ constexpr int MysticIconRowLeft = InnerLeft + MysticIconRowClearance;
 constexpr int MysticBigFrameTop = 289;
 constexpr int MysticIconRowTop = MysticBigFrameTop - MysticIconRowClearance - ServiceIconSize.height;
 constexpr int MysticPriceRowTop = MysticIconRowTop - ServicePriceGap - ServicePriceHeight;
-static_assert(MysticIconRowTop + ServiceIconSize.height - 1 + GridBezelInset + 6 < MysticBigFrameTop,
+static_assert(MysticIconRowTop + ServiceIconSize.height - 1 + ButtonFrameReach + 6 < MysticBigFrameTop,
     "the icon row's frames have walked into the big frame's top bezel");
 static_assert(MysticIconRowRight - MysticIconRowLeft + 1 >= 3 * ServiceIconSize.width,
     "the floor beside the frame no longer holds her three-plate row");
@@ -1369,10 +1369,13 @@ void DrawServiceIcon(const Surface &out, Control control, const char *glyph, boo
 	const bool hovered = rect.contains(MousePosition);
 	DrawButtonSlotGround(out, rect, Pressed == control); // in its slot frame (user, 2026-10-02)
 	const Rectangle face { rect.position + (Pressed == control ? PressSink : Displacement { 0, 0 }), rect.size };
-	if (GetLoosePngSize(BoardButtonFrameAsset).width > 0)
+	if (DrawButtonFace(out, face)) {
+		// The user's button v2 face (2026-10-02); the old plate below only where it cannot draw.
+	} else if (GetLoosePngSize(BoardButtonFrameAsset).width > 0) {
 		DrawLoosePng(out, BoardButtonFrameAsset, face.position);
-	else
+	} else {
 		DrawOrnateBorder(out, face);
+	}
 	if (const Size size = GetLoosePngSize(glyph); size.width > 0) {
 		DrawLoosePng(out, glyph, { face.position.x + (face.size.width - size.width) / 2,
 		                             face.position.y + (face.size.height - size.height) / 2 });
@@ -1413,10 +1416,13 @@ void DrawBoardArrow(const Surface &out, Control control, bool enabled)
 	const bool hovered = rect.contains(MousePosition);
 	DrawButtonSlotGround(out, rect, Pressed == control); // in its slot frame (user, 2026-10-02)
 	const Rectangle face { rect.position + (Pressed == control ? PressSink : Displacement { 0, 0 }), rect.size };
-	if (GetLoosePngSize(BoardButtonFrameAsset).width > 0)
+	if (DrawButtonFace(out, face)) {
+		// The user's button v2 face (2026-10-02); the old plate below only where it cannot draw.
+	} else if (GetLoosePngSize(BoardButtonFrameAsset).width > 0) {
 		DrawLoosePng(out, BoardButtonFrameAsset, face.position);
-	else
+	} else {
 		DrawOrnateBorder(out, face);
+	}
 	const char *glyph = control == Control::Upgrade ? BoardUpGlyphAsset : BoardDownGlyphAsset;
 	if (const Size size = GetLoosePngSize(glyph); size.width > 0) {
 		DrawLoosePng(out, glyph, { face.position.x + (face.size.width - size.width) / 2,
@@ -2015,10 +2021,13 @@ void DrawCraftPage(const Surface &out)
 	}
 	DrawButtonSlotGround(out, rect, Pressed == Control::Transmute); // in its slot frame (user, 2026-10-02)
 	const Rectangle face { rect.position + (Pressed == Control::Transmute ? PressSink : Displacement { 0, 0 }), rect.size };
-	if (GetLoosePngSize(BoardButtonFrameAsset).width > 0)
+	if (DrawButtonFace(out, face)) {
+		// The user's button v2 face (2026-10-02); the old plate below only where it cannot draw.
+	} else if (GetLoosePngSize(BoardButtonFrameAsset).width > 0) {
 		DrawLoosePng(out, BoardButtonFrameAsset, face.position);
-	else
+	} else {
 		DrawOrnateBorder(out, face);
+	}
 	if (const Size glyph = GetLoosePngSize(CraftTransmuteGlyphAsset); glyph.width > 0) {
 		DrawLoosePng(out, CraftTransmuteGlyphAsset,
 		    { face.position.x + (face.size.width - glyph.width) / 2,

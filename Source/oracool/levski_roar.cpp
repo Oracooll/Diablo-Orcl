@@ -553,7 +553,7 @@ constexpr int CubeGridFrameBottom = 541;
 constexpr int CubeTransmuteSize = 34;
 // FOURTEEN since the plate wears a slot frame (v1.12.348): the band's two black liner rows under its gold foot, six
 // of air and the frame's six - the workshop's CraftTransmuteClearance, which is the same plate under the same well.
-constexpr int CubeTransmuteClearance = 2 + 6 + GridBezelInset;
+constexpr int CubeTransmuteClearance = 2 + 6 + ButtonFrameReach;
 constexpr Rectangle CubePageTransmuteRect {
 	{ (CubeGridFrameLeft + CubeGridFrameRight + 1) / 2 - CubeTransmuteSize / 2,
 	    CubeGridFrameBottom + 1 + CubeTransmuteClearance },
@@ -2621,10 +2621,13 @@ void DrawLevskiRoar(const Surface &out)
 			// a redrawn icon of another size stays centred.
 			DrawButtonSlotGround(out, button, pressed); // in its slot frame (user, 2026-10-02)
 			const Rectangle face { button.position + (pressed ? CubeButtonSink : Displacement { 0, 0 }), button.size };
-			if (GetLoosePngSize(CubeTransmuteFrameAsset).width > 0)
+			if (DrawButtonFace(out, face)) {
+				// The user's button v2 face (2026-10-02); the old plate below only where it cannot draw.
+			} else if (GetLoosePngSize(CubeTransmuteFrameAsset).width > 0) {
 				DrawLoosePng(out, CubeTransmuteFrameAsset, face.position);
-			else
+			} else {
 				DrawOrnateBorder(out, face);
+			}
 			if (const Size glyph = GetLoosePngSize(CubeTransmuteGlyphAsset); glyph.width > 0) {
 				DrawLoosePng(out, CubeTransmuteGlyphAsset,
 				    { face.position.x + (face.size.width - glyph.width) / 2,

@@ -680,15 +680,18 @@ constexpr Size ShopServiceSlotSize { 34, 34 };
  *
  * ONE EVEN ROW since v1.12.351 (user, 2026-10-02: "the 6 top griswold buttons look to crowded, we need to introduce
  * gaps there"; chose an even single row): the two three-plate groups at a two-pixel pitch became six plates spread
- * over the same x 34..305 - 13 or 14 pixels between plates (238 / 5, rounded), so their frames stand a pixel or two
- * apart instead of overlapping. Six 34px plates cannot have six pixels between FRAMES inside this border.
+ * evenly - 13 or 14 pixels between plates, so their frames stand apart instead of overlapping. Six 34px plates cannot
+ * have six pixels between FRAMES inside this border.
+ *
+ * A pixel further in on every side since v1.12.352, for the user's button frame v2, whose bands are seven deep
+ * (ButtonFrameReach) - so x 35..304 and y 112..145 keep six pixels between frame and border and frame and grid band.
  */
 constexpr Point ShopServiceSlotAt[ShopServiceSlotCount] = {
-	{ 34, 113 }, { 82, 113 }, { 129, 113 },
-	{ 177, 113 }, { 224, 113 }, { 272, 113 },
+	{ 35, 112 }, { 82, 112 }, { 129, 112 },
+	{ 177, 112 }, { 224, 112 }, { 271, 112 },
 	// Clear of the gold count, which starts at x=25 and cannot run past ~x=105 even at eight digits. Six pixels of
 	// frame-to-frame air under the grid's band, which ends (its black liner) on y 630 on Griswold's framed canvas.
-	{ 120, 643 }
+	{ 120, 644 }
 };
 /** @brief In the user's stated order: "Repair, Repair All, Recharge, Sell, Sell All, Refresh". */
 constexpr ServiceButton ShopServiceSlotDoes[ShopServiceSlotCount] = {
@@ -1387,10 +1390,13 @@ void DrawShopServiceFrames(const Surface &out)
 		// Held down: the face sinks and springs back on the release. The HIT test stays on the unsunk
 		// rect, so a button cannot slide out from under a pointer that has not moved.
 		const Rectangle face { rect.position + (PressedShopServiceSlot == slot ? ShopServiceSink : Displacement { 0, 0 }), rect.size };
-		if (frameArt)
+		if (DrawButtonFace(out, face)) {
+			// The user's button v2 face (2026-10-02); the old plate below only where it cannot draw.
+		} else if (frameArt) {
 			DrawLoosePng(out, ShopButtonFrameAsset, face.position);
-		else
+		} else {
 			DrawOrnateBorder(out, face);
+		}
 		if (const Size glyph = GetLoosePngSize(ShopServiceSlotGlyph[slot]); glyph.width > 0) {
 			// CENTRED on the glyph's own size rather than a fixed inset (2026-09-21). The art has
 			// changed size once already - 24 px, then 28 when a set arrived at 56 and halved cleanly -

@@ -60,7 +60,17 @@ bool HasGridBezel(Size contentSize);
 void DrawGridBezel(const Surface &out, Rectangle contentRect);
 
 /**
- * @brief The 1x1 (ring and amulet) bezel stretched round a button's @p face, six pixels outside it.
+ * @brief How far a vendor or artisan button's frame reaches past the button, at its widest side.
+ *
+ * Seven: the user's button frame v2 (2026-10-02) has 7px bands on every side. Every
+ * "six pixels between a frame and its neighbours" clearance counts from this, not from GridBezelInset - the slot
+ * bezels the buttons wore before v2 reached six.
+ */
+constexpr int ButtonFrameReach = 7;
+
+/**
+ * @brief The band of the user's button (ui\button_v3.png) stretched round a button's @p face, its bands outside it -
+ * or, if that art is missing, the 1x1 (ring and amulet) bezel, six pixels outside it.
  *
  * Every vendor and artisan button sits in a slot frame (user, 2026-10-02: "i want all buttons in
  * vendors/artisans to be put in a frame - the frame we use for skill buttons or item slots in inventory
@@ -68,6 +78,13 @@ void DrawGridBezel(const Surface &out, Rectangle contentRect);
  * any button size. Frame only; draws nothing if the 1x1 bezel did not load.
  */
 void DrawButtonBezel(const Surface &out, Rectangle face);
+
+/**
+ * @brief The gold face of the user's button (ui\button_v3.png) scaled into @p face - the backing a vendor or artisan
+ * button's glyph sits on (user, 2026-10-02: "this new button includes the gold backing in it"). False when it cannot
+ * draw (art missing, or an indexed target with no scaler); the caller then draws its old plate.
+ */
+bool DrawButtonFace(const Surface &out, Rectangle face);
 
 /** @brief The 2px down-left sink every held button in the mod wears (feedback_button_press_and_sound). */
 constexpr Displacement ButtonSlotSink { -2, 2 };
