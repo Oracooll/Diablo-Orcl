@@ -323,6 +323,33 @@ const char *CurseName(CurseKind kind)
 	return "";
 }
 
+CurseKind CurseKindOf(SpellID spell)
+{
+	return KindOf(spell);
+}
+
+uint32_t CurseCastHue(CurseKind kind)
+{
+	switch (kind) {
+	case CurseKind::AmplifyDamage: return hue::BloodRed;
+	case CurseKind::DimVision: return hue::DuskViolet;
+	case CurseKind::Weaken: return hue::SicklyGreen;
+	case CurseKind::Frailty: return hue::BoneWhite;
+	case CurseKind::IronMaiden: return hue::Steel;
+	case CurseKind::Terror: return hue::GhostPale;
+	case CurseKind::Bane: return hue::RotGreen;
+	case CurseKind::Confuse: return hue::Magenta;
+	case CurseKind::LifeTap: return hue::Rose;
+	case CurseKind::Attract: return hue::LureGold;
+	case CurseKind::Decrepify: return hue::Umber;
+	case CurseKind::DeathMark: return hue::BlackRed;
+	case CurseKind::LowerResist: return hue::WardCyan;
+	case CurseKind::Doom: return hue::DoomOrange;
+	case CurseKind::None: break;
+	}
+	return 0;
+}
+
 bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 {
 	const int r = std::max(rank, 1);
@@ -395,8 +422,13 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
-	// The script ring on the floor (batch 38); it removes itself while the sheet is not in the archive.
-	AddMissile(target, target, player._pdir, MissileID::CurseCastEffect, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
+	// The script ring on the floor (batch 38); it removes itself while the sheet is not in the archive. In the curse's own
+	// colour since v1.12.369 (the Necromancer Skill Cards page, 2026-10-03), one of fourteen.
+	if (Missile *ring = AddMissile(target, target, player._pdir, MissileID::CurseCastEffect, TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
+	    ring != nullptr && !ring->_miDelFlag) {
+		ring->oracoolTint = Tint::Hue;
+		ring->oracoolTintRgb = CurseCastHue(kind);
+	}
 	return true;
 }
 

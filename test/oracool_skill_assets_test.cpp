@@ -571,3 +571,86 @@ TEST(OracoolSkillAssets, LevskiCubeWearsItsSheetInTown)
 		oracool::ProcessLevskiCubeAnimation();
 	EXPECT_NE(cube->_oAnimFrame, before);
 }
+
+#include <algorithm>
+
+#include "effects.h"
+#include "monstdat.h"
+#include "oracool/minions.h"
+
+namespace {
+
+/** @brief The bodies a Necromancer's army can wear: the skeletons (warriors and mages), the golem, and every revivable type. */
+std::vector<_monster_id> EveryMinionBodyType()
+{
+	std::vector<_monster_id> types { MT_WSKELAX, MT_TSKELAX, MT_RSKELAX, MT_XSKELAX, MT_GOLEM };
+	// Revive's rule (corpses.cpp Revivable): no story monster, no type the game never spawns, not Diablo, Na-Krul or the Defiler.
+	for (int t = 0; t < NUM_MTYPES; t++) {
+		const auto type = static_cast<_monster_id>(t);
+		if (MonstersData[t].availability == MonsterAvailability::Never || IsAnyOf(type, MT_DIABLO, MT_NAKRUL, MT_DEFILER, MT_GOLEM))
+			continue;
+		if (std::find(types.begin(), types.end(), type) == types.end())
+			types.push_back(type);
+	}
+	return types;
+}
+
+} // namespace
+
+/**
+ * @brief "When i cast this spell on one of my minion play its death sprite and its death sound. They all must have these
+ * assets." (the Necromancer Skill Cards page, 2026-10-03, v1.12.369): every body an army can wear has its death animation in
+ * the archives and both takes of its death cry (PlayEffect picks one at random), and the Fire Golem - which dies as the
+ * Elemental's explosion - has that explosion's sheet and sound.
+ */
+TEST(OracoolSkillAssets, EveryMinionDiesWithItsOwnSpriteAndCry)
+{
+	MountArchivesOnce();
+	if (!HaveDiabdat())
+		GTEST_SKIP() << "needs diabdat.mpq - the monsters' sprites and sounds are read from it";
+	const bool haveHellfire = AssetExists("nlevels\\l5data\\l5.cel");
+	std::vector<std::string> missing;
+	int checked = 0;
+	int unchecked = 0;
+	for (const _monster_id type : EveryMinionBodyType()) {
+		const MonsterData &data = MonstersData[type];
+		std::vector<std::string> absent;
+		if (data.frames[static_cast<size_t>(MonsterGraphic::Death)] <= 0)
+			absent.push_back("no death frames in the monster table");
+#ifdef UNPACKED_MPQS
+		const std::string sprite = std::string("monsters\\") + data.assetsSuffix + "d.clx";
+#else
+		const std::string sprite = std::string("monsters\\") + data.assetsSuffix + "d.cl2";
+#endif
+		if (!AssetExists(sprite))
+			absent.push_back(sprite);
+		const std::string soundSuffix = data.soundSuffix != nullptr ? data.soundSuffix : data.assetsSuffix;
+		for (const char *take : { "d1.wav", "d2.wav" }) {
+			const std::string cry = "monsters\\" + soundSuffix + take;
+			if (!AssetExists(cry))
+				absent.push_back(cry);
+		}
+		if (absent.empty()) {
+			checked++;
+			continue;
+		}
+		if (!haveHellfire) {
+			unchecked++; // a Hellfire type's files are in hellfire.mpq, which is not mounted
+			continue;
+		}
+		for (const std::string &file : absent)
+			missing.push_back(std::string(data.name) + " (" + std::to_string(static_cast<int>(type)) + "): " + file);
+	}
+	EXPECT_GT(checked, 50) << "the monster table looks empty";
+	RecordProperty("unchecked_without_hellfire", unchecked);
+	std::string list;
+	for (const std::string &line : missing)
+		list += "\n  " + line;
+	EXPECT_TRUE(missing.empty()) << missing.size() << " minion death asset(s) missing:" << list;
+
+	// The Fire Golem: the Elemental's explosion (bigexp, Hellfire) and its sound, in place of the golem's death and groan.
+	if (haveHellfire) {
+		EXPECT_EQ(CheckMissileGraphic(oracool::FireGolemDeathArt, haveHellfire).missing, false) << "bigexp";
+		EXPECT_TRUE(AssetExists("sfx\\misc\\nestxpld.wav")) << "the Elemental's explosion sound";
+	}
+}

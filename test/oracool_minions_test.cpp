@@ -456,3 +456,80 @@ TEST(OracoolNecro364, NothingButAFireGolemWearsTheElemental)
 		monster.mode = MonsterMode::Stand;
 	}
 }
+
+// ---- The Necromancer Skill Cards page's notes on Amplify Damage and Unholy Offering (v1.12.369, 2026-10-03) ----
+
+#include <cstdlib>
+#include <iterator>
+
+#include "oracool/curses.h"
+#include "spelldat.h"
+
+namespace {
+
+constexpr oracool::CurseKind EveryCurse[] = {
+	oracool::CurseKind::AmplifyDamage, oracool::CurseKind::DimVision, oracool::CurseKind::Weaken, oracool::CurseKind::Frailty,
+	oracool::CurseKind::IronMaiden, oracool::CurseKind::Terror, oracool::CurseKind::Bane, oracool::CurseKind::Confuse,
+	oracool::CurseKind::LifeTap, oracool::CurseKind::Attract, oracool::CurseKind::Decrepify, oracool::CurseKind::DeathMark,
+	oracool::CurseKind::LowerResist, oracool::CurseKind::Doom
+};
+
+int Red(uint32_t c) { return static_cast<int>((c >> 16) & 0xFF); }
+int Green(uint32_t c) { return static_cast<int>((c >> 8) & 0xFF); }
+int Blue(uint32_t c) { return static_cast<int>(c & 0xFF); }
+
+} // namespace
+
+// "Tint all curses from this skill sheet appropriately. Lets have a number of colours for sake of diversity": every one of
+// the fourteen curses that draws the cast ring has a colour, and no two share one - nor come close to it.
+TEST(OracoolNecro369, EveryCurseCastRingHasItsOwnColour)
+{
+	EXPECT_EQ(oracool::CurseCastHue(oracool::CurseKind::None), 0U);
+	EXPECT_EQ(std::size(EveryCurse), static_cast<size_t>(oracool::CurseKind::Doom)) << "every curse kind, None aside";
+	for (size_t i = 0; i < std::size(EveryCurse); i++) {
+		const uint32_t a = oracool::CurseCastHue(EveryCurse[i]);
+		EXPECT_NE(a, 0U) << oracool::CurseName(EveryCurse[i]) << " has no colour";
+		for (size_t j = i + 1; j < std::size(EveryCurse); j++) {
+			const uint32_t b = oracool::CurseCastHue(EveryCurse[j]);
+			const int distance = std::abs(Red(a) - Red(b)) + std::abs(Green(a) - Green(b)) + std::abs(Blue(a) - Blue(b));
+			EXPECT_GE(distance, 60) << oracool::CurseName(EveryCurse[i]) << " and " << oracool::CurseName(EveryCurse[j]) << " look alike";
+		}
+	}
+}
+
+// The colours fit the curses: Amplify Damage blood red, Frailty bone, Bane green rot, Lower Resist cyan, Dim Vision violet,
+// Doom orange, Death Mark near black.
+TEST(OracoolNecro369, TheCurseColoursFitTheirCurses)
+{
+	using oracool::CurseKind;
+	EXPECT_EQ(oracool::CurseCastHue(CurseKind::AmplifyDamage), oracool::hue::BloodRed);
+	EXPECT_EQ(oracool::CurseCastHue(CurseKind::Frailty), oracool::hue::BoneWhite);
+	const uint32_t bane = oracool::CurseCastHue(CurseKind::Bane);
+	EXPECT_GT(Green(bane), 2 * Red(bane));
+	const uint32_t cyan = oracool::CurseCastHue(CurseKind::LowerResist);
+	EXPECT_GT(Blue(cyan), 2 * Red(cyan));
+	EXPECT_GT(Green(cyan), 2 * Red(cyan));
+	const uint32_t violet = oracool::CurseCastHue(CurseKind::DimVision);
+	EXPECT_GT(Blue(violet), Red(violet));
+	EXPECT_GT(Red(violet), Green(violet));
+	const uint32_t doom = oracool::CurseCastHue(CurseKind::Doom);
+	EXPECT_GT(Red(doom), 2 * Green(doom));
+	EXPECT_GT(Green(doom), Blue(doom));
+	const uint32_t mark = oracool::CurseCastHue(CurseKind::DeathMark);
+	EXPECT_LT(Red(mark), Red(oracool::hue::BloodRed)) << "darker than Amplify Damage's red";
+	EXPECT_LT(Green(mark) + Blue(mark), 64);
+	// Every curse spell finds its kind, so the ring is tinted for each; Soul Harvest lays none and draws no ring.
+	EXPECT_EQ(oracool::CurseKindOf(SpellID::AmplifyDamage), CurseKind::AmplifyDamage);
+	EXPECT_EQ(oracool::CurseKindOf(SpellID::NecroWeaken), CurseKind::Weaken);
+	EXPECT_EQ(oracool::CurseKindOf(SpellID::NecroIronMaiden), CurseKind::IronMaiden);
+	EXPECT_EQ(oracool::CurseKindOf(SpellID::Doom), CurseKind::Doom);
+	EXPECT_EQ(oracool::CurseKindOf(SpellID::SoulHarvest), CurseKind::None);
+}
+
+// Only the Fire Golem trades its type's death cry for a sound of its own; every other body cries its own.
+TEST(OracoolNecro369, OnlyTheFireGolemDiesWithAnotherSound)
+{
+	oracool::ForgetMinions();
+	for (const size_t id : { size_t { 0 }, size_t { MaxEnemyMonsters }, size_t { MaxMonsters - 1 } })
+		EXPECT_EQ(oracool::MinionDeathSfx(Monsters[id]), SFX_NONE) << id;
+}

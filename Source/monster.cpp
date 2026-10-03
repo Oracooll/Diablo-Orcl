@@ -5022,6 +5022,8 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	// like the Butcher does (oracool/rift.h).
 	if (monster.type().type == MT_DIABLO && !oracool::InRift())
 		DiabloDeath(monster, true);
+	else if (const _sfx_id minionCry = oracool::MinionDeathSfx(monster); minionCry != SFX_NONE)
+		PlaySfxLoc(minionCry, monster.position.tile); // the Fire Golem's explosion, not the golem's groan (v1.12.369)
 	else
 		PlayEffect(monster, MonsterSound::Death);
 
@@ -5867,6 +5869,10 @@ void PlayEffect(Monster &monster, MonsterSound mode)
 	}
 
 	TSnd *snd = monster.type().sounds[static_cast<size_t>(mode)][sndIdx].get();
+	// The other take when this one did not load: a type with one file of a pair played nothing half the time (v1.12.369 -
+	// every minion dies with its cry, Unholy Offering's included).
+	if (snd == nullptr)
+		snd = monster.type().sounds[static_cast<size_t>(mode)][1 - sndIdx].get();
 	if (snd == nullptr || snd->isPlaying()) {
 		return;
 	}

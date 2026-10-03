@@ -267,6 +267,11 @@ void OnMinionStrikeFrame(const Monster &minion);
 void OnMinionDeathStarted(const Monster &minion);
 /** @brief Whether @p monster leaves no corpse when its death ends: the Fire Golem burns away to nothing. */
 bool MinionLeavesNoBody(const Monster &monster);
+/**
+ * @brief The sound @p monster dies with in place of its monster type's death cry: the Fire Golem's explosion (LS_NESTXPLD).
+ * SFX_NONE for every other body, which cries its own (PlayEffect, MonsterSound::Death) - Unholy Offering's victims included.
+ */
+_sfx_id MinionDeathSfx(const Monster &monster);
 
 /** @brief The army panel, under the companions' (or in its place). */
 void DrawMinionHud(const Surface &out);

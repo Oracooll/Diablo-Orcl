@@ -17832,3 +17832,181 @@ TEST(OracoolPreview, DISABLED_NecroSummonCardStrips)
 	gbIsHellfire = savedHellfire;
 	HeadlessMode = savedHeadless;
 }
+
+// ---- The Necromancer Skill Cards page's notes on Unholy Offering and the curse cast ring (v1.12.369, 2026-10-03) ----
+
+#include "oracool/curses.h"
+#include "oracool/necro_summoning.h"
+
+namespace {
+
+/** @brief The minion body of @p type standing on this level, or null. */
+Monster *MinionBodyOfType(_monster_id type)
+{
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		Monster &monster = Monsters[ActiveMonsters[i]];
+		if (oracool::IsMinion(monster) && monster.type().type == type && monster.mode != MonsterMode::Death)
+			return &monster;
+	}
+	return nullptr;
+}
+
+/** @brief Whether any live missile wears @p art. */
+bool AnyMissileWears(MissileGraphicID art)
+{
+	for (const Missile &missile : Missiles) {
+		if (missile._miAnimType == art && !missile._miDelFlag)
+			return true;
+	}
+	return false;
+}
+
+} // namespace
+
+/**
+ * "I dont like this animation. When i cast this spell on one of my minion play its death sprite and its death sound."
+ * Unholy Offering on a skeleton puts it into its own death (death mode, its type's cry - no other sound in its place), draws
+ * nothing over it, still heals the Necromancer, and pays no experience and no loot; on the Fire Golem it is the
+ * Elemental's explosion with that explosion's sound.
+ */
+TEST(OracoolNecro369, UnholyOfferingUnmakesAMinionByItsOwnDeath)
+{
+	MountTestArchives(true); // before gbIsHellfire is saved: the first mount sets it
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	LoadFireGolemArt();
+	ASSERT_TRUE(MissileArtLoaded(oracool::FireGolemDeathArt)) << "bigexp (hellfire.mpq) is needed";
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &necro = Players[0];
+	necro = {};
+	necro.plractive = true;
+	necro.position.tile = { 40, 40 };
+	necro._pMaxHP = necro._pMaxHPBase = 400 << 6;
+	necro._pHitPoints = necro._pHPBase = 20 << 6;
+	const dungeon_type savedLevelType = leveltype;
+	const uint8_t savedLevel = currlevel;
+	gbIsMultiplayer = false;
+	leveltype = DTYPE_CATHEDRAL;
+	currlevel = 1;
+	oracool::ForgetMinions();
+	Missiles.clear();
+	ActiveMonsterCount = 0;
+	for (size_t i = 0; i < MaxMonsters; i++)
+		ActiveMonsters[i] = static_cast<unsigned>(i);
+	LevelMonsterTypeCount = 0;
+	const uint8_t itemsBefore = ActiveItemCount;
+
+	// A raised skeleton, offered.
+	const oracool::MinionSpec skeleton { oracool::MinionGroup::Skeleton, MT_WSKELAX, 40, 2, 5, 60, 10 };
+	ASSERT_TRUE(oracool::SummonMinion(necro, skeleton, { 42, 40 }));
+	Monster *bones = MinionBodyOfType(MT_WSKELAX);
+	ASSERT_NE(bones, nullptr);
+	const int life = bones->hitPoints;
+	const size_t missilesBefore = Missiles.size();
+	ASSERT_TRUE(oracool::CastNecromancerSummoning(necro, SpellID::UnholyOffering, bones->position.tile, 1));
+	EXPECT_EQ(bones->mode, MonsterMode::Death) << "it dies its own death";
+	EXPECT_EQ(oracool::MinionDeathSfx(*bones), SFX_NONE) << "with its own cry (PlayEffect, MonsterSound::Death)";
+	EXPECT_FALSE(AnyMissileWears(MissileGraphicID::UnholyOffering)) << "the crumbling sheet is not played";
+	EXPECT_EQ(Missiles.size(), missilesBefore) << "nothing is drawn over the death";
+	EXPECT_EQ(necro._pHitPoints, (20 << 6) + life * 33 / 100) << "rank 1 heals 33% of the minion's life";
+	EXPECT_EQ(necro._pHPBase, (20 << 6) + life * 33 / 100);
+	EXPECT_EQ(oracool::MinionCount(necro, oracool::MinionGroup::Skeleton), 0);
+	EXPECT_EQ(necro._pExperience, 0U) << "no experience for an offered minion";
+	EXPECT_EQ(ActiveItemCount, itemsBefore) << "no loot";
+
+	// The Fire Golem, offered: the Elemental's explosion and its sound, no crumbling sheet.
+	oracool::MinionSpec fire { oracool::MinionGroup::Golem, MT_GOLEM, 100, 5, 12, 70, 15 };
+	fire.golem = oracool::GolemKind::Fire;
+	ASSERT_TRUE(oracool::SummonMinion(necro, fire, { 40, 44 }));
+	Monster *golem = MinionBodyOfType(MT_GOLEM);
+	ASSERT_NE(golem, nullptr);
+	const Point at = golem->position.tile;
+	ASSERT_TRUE(oracool::CastNecromancerSummoning(necro, SpellID::UnholyOffering, at, 1));
+	EXPECT_EQ(golem->mode, MonsterMode::Death);
+	EXPECT_EQ(oracool::MinionDeathSfx(*golem), LS_NESTXPLD) << "the Elemental's explosion sound, not the golem's groan";
+	EXPECT_NE(BurstAt(oracool::FireGolemDeathArt, at), nullptr) << "the Elemental's explosion";
+	EXPECT_TRUE(oracool::MinionLeavesNoBody(*golem));
+	EXPECT_FALSE(AnyMissileWears(MissileGraphicID::UnholyOffering));
+	EXPECT_EQ(necro._pExperience, 0U);
+
+	// Nothing of it outlives the test.
+	for (Monster *body : { bones, golem }) {
+		M_ClearSquares(*body);
+		*body = Monster {};
+	}
+	oracool::ForgetMinions();
+	Missiles.clear();
+	ActiveMonsterCount = 0;
+	LevelMonsterTypeCount = 0;
+	leveltype = savedLevelType;
+	currlevel = savedLevel;
+	gbIsHellfire = savedHellfire;
+}
+
+/**
+ * The curse cast ring (fx_sheet_curse_cast) in each curse's colour, as the game draws it (Tint::Hue on the sheet's own
+ * colours, CurseCastHue): the page's "a number of colours for sake of diversity". Writes one strip a curse,
+ * fx_curse_cast_<ClassTreeSkill code>.png - its frames left to right in the sheet's own cell on the page's stone (#16120f) -
+ * and fx_curse_cast_grid.png (the untinted sheet on top, then the fourteen in CurseKind order) into ORCL_CURSE_STRIPS_OUT.
+ */
+TEST(OracoolPreview, DISABLED_Necro369CurseCastTints)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	InitMissileGFX(true);
+	const char *outDir = std::getenv("ORCL_CURSE_STRIPS_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const MissileFileData &sheet = GetMissileSpriteData(MissileGraphicID::CurseCast);
+	ASSERT_TRUE(sheet.sprites) << "missiles\\curse_cast.png is needed";
+	const ClxSpriteList frames = *sheet.spritesForDirection(0);
+	const int count = static_cast<int>(frames.numSprites());
+	const int cellW = sheet.animWidth;
+	int cellH = 0;
+	for (const ClxSprite sprite : frames)
+		cellH = std::max<int>(cellH, sprite.height());
+	struct Row {
+		oracool::CurseKind kind;
+		const char *code;
+	};
+	const Row rows[] = {
+		{ oracool::CurseKind::AmplifyDamage, "AmplifyDamage" }, { oracool::CurseKind::DimVision, "DimVision" },
+		{ oracool::CurseKind::Weaken, "NecroWeaken" }, { oracool::CurseKind::Frailty, "Frailty" },
+		{ oracool::CurseKind::IronMaiden, "NecroIronMaiden" }, { oracool::CurseKind::Terror, "Terror" },
+		{ oracool::CurseKind::Bane, "Bane" }, { oracool::CurseKind::Confuse, "Confuse" },
+		{ oracool::CurseKind::LifeTap, "LifeTap" }, { oracool::CurseKind::Attract, "Attract" },
+		{ oracool::CurseKind::Decrepify, "Decrepify" }, { oracool::CurseKind::DeathMark, "DeathMark" },
+		{ oracool::CurseKind::LowerResist, "LowerResist" }, { oracool::CurseKind::Doom, "Doom" },
+	};
+	const auto draw = [&](const Surface &out, int top, uint32_t rgb) {
+		const uint32_t *table = rgb == 0 ? FxTable(sheet.colours.get()) : FxTable(sheet.colours.get(), oracool::Tint::Hue, rgb);
+		for (int k = 0; k < count; k++) {
+			const ClxSprite sprite = frames[static_cast<size_t>(k)];
+			ClxDrawRgbMap(out, Point { k * cellW + (cellW - sprite.width()) / 2, top + cellH - 1 }, sprite, table);
+		}
+	};
+	OwnedSurface grid = OwnedSurface::Rgb(count * cellW, (static_cast<int>(std::size(rows)) + 1) * cellH);
+	SDL_FillRect(grid.surface, nullptr, SDL_MapRGB(grid.surface->format, 0x16, 0x12, 0x0F));
+	draw(grid, 0, 0);
+	int r = 1;
+	for (const Row &row : rows) {
+		const uint32_t rgb = oracool::CurseCastHue(row.kind);
+		draw(grid, r++ * cellH, rgb);
+		OwnedSurface strip = OwnedSurface::Rgb(count * cellW, cellH);
+		SDL_FillRect(strip.surface, nullptr, SDL_MapRGB(strip.surface->format, 0x16, 0x12, 0x0F));
+		draw(strip, 0, rgb);
+		const std::string file = std::string("fx_curse_cast_") + row.code + ".png";
+		PreviewSave(strip, (dir + file).c_str());
+		std::cout << "wrote " << file << " (" << count << " frames of " << cellW << "x" << cellH << ", rgb " << std::hex << rgb << std::dec << ")\n";
+	}
+	PreviewSave(grid, (dir + "fx_curse_cast_grid.png").c_str());
+	std::cout << "wrote fx_curse_cast_grid.png\n";
+	gbIsHellfire = savedHellfire;
+	HeadlessMode = savedHeadless;
+}

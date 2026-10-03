@@ -85,6 +85,23 @@ constexpr uint32_t PoisonGreen = Rgb(112, 214, 84);
 constexpr uint32_t BoneWhite = Rgb(236, 228, 206);
 /** Frenzy of the Dead's ring under every frenzied minion. */
 constexpr uint32_t FrenzyOrange = Rgb(255, 140, 40);
+/**
+ * The Necromancer's curses, one colour each over the curse cast ring (the Necromancer Skill Cards page, 2026-10-03: "Tint
+ * all curses from this skill sheet appropriately. Lets have a number of colours for sake of diversity."). Amplify Damage
+ * wears BloodRed and Frailty BoneWhite from above; curses.cpp CurseCastHue picks.
+ */
+constexpr uint32_t DuskViolet = Rgb(116, 60, 196);   // Dim Vision: the light going out
+constexpr uint32_t SicklyGreen = Rgb(182, 204, 60);  // Weaken: strength draining off
+constexpr uint32_t Steel = Rgb(108, 142, 206);       // Iron Maiden: the spikes turned inward
+constexpr uint32_t GhostPale = Rgb(188, 246, 214);   // Terror: a ghost's pallor
+constexpr uint32_t RotGreen = Rgb(40, 142, 52);      // Bane: rot and acid
+constexpr uint32_t Magenta = Rgb(232, 60, 214);      // Confuse: the mind turned over
+constexpr uint32_t Rose = Rgb(242, 72, 124);         // Life Tap: lifeblood drawn off
+constexpr uint32_t LureGold = Rgb(255, 196, 28);     // Attract: the bait
+constexpr uint32_t Umber = Rgb(190, 138, 80);        // Decrepify: age and dust
+constexpr uint32_t BlackRed = Rgb(132, 14, 22);      // Death Mark: the mark of the grave
+constexpr uint32_t WardCyan = Rgb(58, 210, 236);     // Lower Resist: the wards stripped
+constexpr uint32_t DoomOrange = Rgb(240, 92, 0);     // Doom: the last embers
 } // namespace hue
 
 /**

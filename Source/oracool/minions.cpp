@@ -682,8 +682,10 @@ int SacrificeMinion(Player &owner, Point tile)
 	if (nearest == nullptr)
 		return 0;
 	const int life = std::max(Monsters[nearest->body].hitPoints, 0); // the life it has, as the tooltip says (round 48 audit)
-	// RfA-27 batch 56: the minion crumbling and its wisp rising. Nothing without the sheet.
-	AddArtEffect(Monsters[nearest->body].position.tile, MissileGraphicID::UnholyOffering, static_cast<int>(owner.getId()));
+	// The minion dies its own death - its death animation and its death cry (MonsterDeath, MinionDeathSfx) - and nothing is
+	// drawn over it: the Necromancer Skill Cards page, 2026-10-03, "I dont like this animation. When i cast this spell on one
+	// of my minion play its death sprite and its death sound." (v1.12.369; RfA-27 batch 56's crumbling sheet is no longer
+	// played.) No experience, no loot and no corpse, as for every minion's death (MonsterDeath, RecordCorpse).
 	M_StartKill(Monsters[nearest->body], owner);
 	return life;
 }
@@ -879,6 +881,15 @@ void OnMinionDeathStarted(const Monster &minion)
 bool MinionLeavesNoBody(const Monster &monster)
 {
 	return IsFireGolem(monster);
+}
+
+_sfx_id MinionDeathSfx(const Monster &monster)
+{
+	// The Fire Golem ends as the Elemental's explosion (FireGolemDeathArt), so it ends with that explosion's own sound - the
+	// BigExplosion missile's (misdat.cpp), not the clay golem's groan its monster type carries.
+	if (IsFireGolem(monster))
+		return LS_NESTXPLD;
+	return SFX_NONE;
 }
 
 int MinionDamagePercent(const Monster &monster)

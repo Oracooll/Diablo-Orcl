@@ -78,6 +78,13 @@ CurseKind CurseOn(const Monster &monster);
 /** @brief Living cursed monsters within @p radius of @p centre - Spreading Malediction. */
 int CursedMonstersNear(Point centre, int radius);
 const char *CurseName(CurseKind kind);
+/**
+ * @brief The colour the curse cast ring (fx_sheet_curse_cast) is tinted in for @p kind - Tint::Hue, one hue a curse, all
+ * fourteen different (the Necromancer Skill Cards page, 2026-10-03). 0 for None. Soul Harvest draws no ring.
+ */
+uint32_t CurseCastHue(CurseKind kind);
+/** @brief The curse @p spell lays, or None (Soul Harvest and anything that is no curse). */
+CurseKind CurseKindOf(SpellID spell);
 
 // ---- the seams ----------------------------------------------------------------------------------------------------
 /** @brief @p damage of @p type about to land on @p monster, after its curse. */
