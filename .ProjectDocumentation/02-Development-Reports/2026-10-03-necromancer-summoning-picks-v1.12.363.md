@@ -31,3 +31,28 @@ The user's notes come from the Necromancer Skill Cards page, db `picks`: 11 docs
 ## Notes
 - The renders (preview `OracoolPreview.DISABLED_Necro363SummoningLooks`) are not in-game screenshots. Check the ring's foot under a walking minion in play.
 - `frenzy_of_the_dead.png` is still loaded but no longer drawn.
+
+## v1.12.364: the Fire Golem is the Elemental (commit 99fd3855)
+The user chose the lunge. All 929 tests pass; ini unchanged.
+
+- **The hook:** `GetMinionAnim`, asked by `GetScaledAnim` beside `GetCompanionAnim`, binds the Elemental's run sheet (`firerun`, 8 facings x 12 frames) for every animation. The golem stays the logic carrier.
+- **Pace:** the walk is 12 frames x 2 ticks = 24 ticks a tile, against 16 for the vanilla golem: two-thirds pace.
+- **The lunge:** a surge of half a tile on sin(pi x attack progress), peaking at the hit frame. The hit_fire splash plays on the target.
+- **Brightness:** drawn full-bright, like the Elemental missile.
+- **Summon:** an Apocalypse boom.
+- **Death:** the Elemental's big explosion, with no body and no corpse.
+- **The old orange ramp:** off for this golem.
+- **To check in game:**
+  - the lunge's draw order toward north and west;
+  - the splash height;
+  - whether the flare reads as one;
+  - the full brightness in dark halls.
+
+## The Necromancer Skill Cards page (Version 7)
+- **What changed:** cards/build.js `SKILL_FX` gained the Necromancer's entries:
+  - the mages' fire, lightning and poison bone teeth;
+  - the Frenzy ring in place of the motes;
+  - the Fire Golem's run, flare and death;
+  - and new tints (frenzy, lightning, poison).
+- **How it was published:** the data was re-exported and rebuilt, then swapped into the live page's DATA block, keeping the fit-to-width snippet. The sounds now show the new picks.
+- **Picks:** the applied snapshot is `cards/db/necromancer`.
