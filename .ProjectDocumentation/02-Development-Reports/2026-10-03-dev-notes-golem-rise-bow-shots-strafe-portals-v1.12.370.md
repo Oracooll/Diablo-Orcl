@@ -78,3 +78,12 @@ The user: "align their size to other arrows size." `tools/ScaleMissileSheet.ps1`
 - **Test:** `OracoolDev372.RainOfArrowsDropsTheOneArrowMultiplied`. 938/938; ini unchanged.
 - **Not done:** the arrows have no floor shadow, though the brief told ChatGPT the game would add one.
 - **To check in play:** the fall speed and spread, and walls drawn over a falling arrow (it is drawn in its landing tile's pass).
+
+## v1.12.373: the arrows' impact rings
+The user: "add a little diameter - 0,5-1 tile of aura ring, you pick color, under each arrow of rain of arrows when an arrow impacts on ground."
+- **The ring:** Blessed Aim's aura ring (it suits arrows), tinted `hue::ArrowAmber` (255,184,64), warm against the red fletching.
+- **Where:** under each landed arrow, centred on its tip.
+- **How it plays:** it opens from half a tile (32x16) to a whole tile (64x32) over 8 ticks, fading from 140% to nothing.
+- **Code:** `oracool::DrawArrowImpactRings`, drawn in the floor pass after the frenzy rings so everything stands on it. It reads `FallingArrowLandedTicks` / `FallingArrowScatter` off the missiles.
+- **The arrow** still shows for 2 ticks on the floor; its missile lives on for the ring.
+- **Checks:** preview `OracoolPreview.DISABLED_Dev373ArrowRing` (env `ORCL_DEV373_OUT`). 938/938; ini unchanged.
