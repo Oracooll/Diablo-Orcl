@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "control.h"
+#include "effects.h" // PlaySfxLoc, PS_BFIRE - the Strafe spin's shots
 #include "engine/backbuffer_state.hpp"
 #include "engine/random.hpp"
 #include "missiles.h"
@@ -24,6 +25,7 @@ namespace {
 
 /** The latch - see the header, and paladin_melee.cpp's ArmedSkill, which this mirrors. */
 std::optional<RogueArrow> ArmedArrow;
+std::optional<SpellID> ArmedBowSpell;
 
 /** @brief The rank bonus an elemental arrow adds on top of the bow: two a rank, plus two. */
 int ElementalBonus(int spellLevel)
@@ -147,11 +149,54 @@ SpellID RogueArrowSpell(RogueArrow arrow)
 void ArmArrowSkill(std::optional<RogueArrow> arrow)
 {
 	ArmedArrow = arrow;
+	ArmedBowSpell = std::nullopt;
 }
 
 std::optional<RogueArrow> ArmedArrowSkill()
 {
 	return ArmedArrow;
+}
+
+void ArmBowSkillSpell(SpellID spell)
+{
+	ArmedArrow = std::nullopt;
+	ArmedBowSpell = spell;
+}
+
+std::optional<SpellID> ArmedBowSkillSpell()
+{
+	return ArmedBowSpell;
+}
+
+int StrafeAimPercent(int spellLevel)
+{
+	return std::min(60 + 5 * (std::max(spellLevel, 1) - 1), 95);
+}
+
+void LooseStrafeShot(Player &player)
+{
+	const int spellLevel = player.GetSpellLevel(SpellID::Strafe);
+	std::vector<Point> inView;
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		const Monster &monster = Monsters[ActiveMonsters[i]];
+		if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion() || (monster.flags & MFLAG_HIDDEN) != 0 || !monster.isPossibleToHit())
+			continue;
+		if (player.position.tile.WalkingDistance(monster.position.tile) > 8 || !SightLineClear(player.position.tile, monster.position.tile))
+			continue;
+		inView.push_back(monster.position.tile);
+	}
+	Point target;
+	if (!inView.empty() && GenerateRnd(100) < StrafeAimPercent(spellLevel)) {
+		target = inView[static_cast<size_t>(GenerateRnd(static_cast<int>(inView.size())))];
+	} else {
+		// Off into the room: any of the eight ways, five tiles out - the spin's arrows fly all round her.
+		const auto way = static_cast<Direction>(GenerateRnd(8));
+		target = player.position.tile + Displacement(way) * 5;
+	}
+	if (target == player.position.tile)
+		return;
+	Loose(player, RogueArrow::Strafe, target, spellLevel);
+	PlaySfxLoc(PS_BFIRE, player.position.tile);
 }
 
 void FireArrowSkill(Player &player, RogueArrow arrow, Point target)
@@ -283,7 +328,7 @@ const char *RogueArrowDescription(SpellID spell)
 	case SpellID::GuidedArrow:
 		return N_("An arrow that cannot miss.");
 	case SpellID::Strafe:
-		return N_("One arrow at each enemy in view, nearest first - three, and one more every two ranks, eight at most.");
+		return N_("Hold the mouse button: she spins and glides toward the cursor, loosing an arrow every quarter second, mostly at enemies in view. Costs its mana every second.");
 	case SpellID::ImmolationArrow:
 		return N_("A fire arrow that leaves a wall of flame burning where it stops.");
 	case SpellID::FreezingArrow:
@@ -320,7 +365,10 @@ std::string RogueArrowFactsAt(RogueArrow arrow, int spellLevel)
 		line(fmt::format(fmt::runtime(_("Arrows: {:d}")), MultipleShotCount(level)));
 		break;
 	case RogueArrow::Strafe:
-		line(fmt::format(fmt::runtime(_("Arrows: {:d}, nearest first, within 8 tiles")), StrafeCount(level)));
+		// The held spin (dev note, 2026-10-03): an arrow every quarter second, mostly at enemies in view.
+		line(std::string(_("Hold: spin and glide, an arrow every 0.25 s")));
+		line(fmt::format(fmt::runtime(_("Aimed at enemies within 8 tiles: {:d}%")), StrafeAimPercent(level)));
+		line(std::string(_("Mana: its cost every second")));
 		break;
 	case RogueArrow::GuidedArrow:
 		line(std::string(_("Cannot miss")));

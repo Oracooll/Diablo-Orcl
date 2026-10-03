@@ -2274,6 +2274,7 @@ bool MonsterSpecialStand(Monster &monster)
 		PlayEffect(monster, MonsterSound::Special);
 
 	if (monster.animInfo.isLastFrame()) {
+		oracool::OnMinionRisen(monster); // the Fire Golem ignites as it finishes rising (v1.12.370)
 		M_StartStand(monster, monster.direction);
 		return true;
 	}
@@ -4753,14 +4754,24 @@ void ReaimMonsterAfterSideChange(Monster &monster)
 	}
 }
 
+void M_StartRise(Monster &monster, Direction md)
+{
+	ClearMVars(monster);
+	StartSpecialStand(monster, md);
+}
+
 void M_StartStand(Monster &monster, Direction md)
 {
 	ClearMVars(monster);
 	// The Golem has no stand sheet and stands on its walk. A slot dressed in hero sheets (any companion) has a
 	// real stand - user, 2026-09-14: "when she is standing in one place she is still looping walking animation".
-	if (monster.type().type == MT_GOLEM && !oracool::IsCompanion(monster))
+	if (monster.type().type == MT_GOLEM && !oracool::IsCompanion(monster)) {
 		NewMonsterAnim(monster, MonsterGraphic::Walk, md);
-	else
+		// ...but standing STILL on one frame of it, both feet planted (dev note, 2026-10-03: "choose a proper frame to use as
+		// stand still frame when they are not moving") - ProcessMonsters holds it there. The Fire Golem's flames keep moving.
+		if (oracool::GolemHoldsStillFrame(monster))
+			monster.animInfo.currentFrame = std::min<int8_t>(oracool::GolemStandFrame, static_cast<int8_t>(monster.animInfo.numberOfFrames - 1));
+	} else
 		NewMonsterAnim(monster, MonsterGraphic::Stand, md);
 	monster.var1 = static_cast<int>(monster.mode);
 	monster.var2 = 0;
@@ -5634,7 +5645,9 @@ void ProcessMonsters()
 
 			GroupUnity(monster);
 		}
-		if (monster.mode != MonsterMode::Petrified && (monster.flags & MFLAG_ALLOW_SPECIAL) == 0) {
+		// A standing golem holds its still frame (M_StartStand) rather than walking on the spot.
+		const bool stillGolem = monster.mode == MonsterMode::Stand && monster.type().type == MT_GOLEM && oracool::GolemHoldsStillFrame(monster);
+		if (monster.mode != MonsterMode::Petrified && (monster.flags & MFLAG_ALLOW_SPECIAL) == 0 && !stillGolem) {
 			monster.animInfo.processAnimation((monster.flags & MFLAG_LOCK_ANIMATION) != 0);
 		}
 	}

@@ -55,6 +55,25 @@ bool RightButtonOnly(SpellID spell);
 bool IsWhirlwinding(const Player &player);
 
 /**
+ * The Rogue's Strafe works as the Whirlwind does (dev note, 2026-10-03: "strafe to work as barb whirlwind - rotating and
+ * gliding over the tiles, while shooting arrows in all directions predominantly towards enemies. a shot every 5 ticks"):
+ * held on the mouse button it is readied on (either), she glides toward the cursor at run speed turning on the spot with
+ * her bow drawn, and every StrafeShotTicks looses an arrow - at an enemy in view StrafeAimPercent of the time, else off
+ * in any direction. Its mana cost is paid at the start and again every second; it ends when she cannot pay, the button
+ * is let go, or the bow leaves her hands. From a key (no button held) it is the old single volley.
+ */
+constexpr int StrafeShotTicks = 5;
+
+/** @brief Whether @p player is spinning in Strafe. The local player only. */
+bool IsStrafing(const Player &player);
+
+/** @brief Whether @p player is in either spin - for what both share: the run-speed glide. */
+bool IsSpinning(const Player &player);
+
+/** @brief A mouse button went down with Strafe readied on it: start the spin. False when it did not start. */
+bool StartStrafe(Player &player);
+
+/**
  * @brief The right button went down with Whirlwind readied: start spinning, if there is Rage to start with and this is
  * not town. False when it did not start.
  */

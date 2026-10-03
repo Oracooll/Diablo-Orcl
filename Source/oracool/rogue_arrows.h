@@ -65,6 +65,27 @@ void ArmArrowSkill(std::optional<RogueArrow> arrow);
 std::optional<RogueArrow> ArmedArrowSkill();
 
 /**
+ * @brief Records that the shot now being launched is one of the eight RfA-12 bow skills (dev note, 2026-10-03: "some bow
+ * and crossbow skills seem to be castings ... double check if they need to be regular bow shots"). They were cast with
+ * the magic animation; now the click is the ordinary bow shot and DoRangeAttack casts the skill at its release frame.
+ * Arming one clears the arrow latch, and ArmArrowSkill (with anything) clears this one, so every place that drops the
+ * bow latch drops both.
+ */
+void ArmBowSkillSpell(SpellID spell);
+
+/** @brief The RfA-12 bow skill the shot being resolved was thrown with, if any. */
+std::optional<SpellID> ArmedBowSkillSpell();
+
+/** @brief Strafe's share of spin shots aimed at an enemy in view, in percent, at @p spellLevel: 60, +5 a rank, 95 at most. */
+int StrafeAimPercent(int spellLevel);
+
+/**
+ * @brief One shot of the Strafe spin (oracool/whirlwind.h): an arrow at an enemy in view (StrafeAimPercent of the time,
+ * when there is one) or off in a random direction, with the bow's sound. Pays nothing - the spin pays by the second.
+ */
+void LooseStrafeShot(Player &player);
+
+/**
  * @brief Looses the armed skill's arrow(s) from @p player at @p target - the whole of what a skill
  * does differently from a plain shot. Spends the mana; a shooter who cannot pay looses a plain
  * arrow and the latch is dropped, so holding the button on an empty pool degrades rather than jams.

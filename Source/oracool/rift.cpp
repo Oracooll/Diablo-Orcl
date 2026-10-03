@@ -1122,6 +1122,15 @@ const uint32_t *GuardianPortalRgbTable(const SpriteColours *sheetColours)
 		const uint32_t *own = sheetColours->Table(0);
 		for (size_t i = 0; i < shifted.size(); i++) {
 			const uint32_t c = own[i];
+			// Vanilla's shadow along the oval's foot stays as it is - its blue-grey near-blacks are not the ring's blues
+			// (dev note, 2026-10-03: "blue vanilla town portals have black shadow. copy this shadow to all other portals";
+			// tools/BuildRiftPortals.ps1 IsPortalShadow is the same test).
+			const int cr = static_cast<int>((c >> 16) & 0xFF), cg = static_cast<int>((c >> 8) & 0xFF), cb = static_cast<int>(c & 0xFF);
+			// Nor the black ground shadow under it (the CL2's, laid on the sheet by the same tool).
+			if ((std::abs(cr - cg) < 14 && cb >= cr + 8 && cb < cr + 60 && cg >= 10) || (cr == 0 && cg == 0 && cb == 0)) {
+				shifted[i] = c;
+				continue;
+			}
 			const int v = static_cast<int>(std::max({ (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF }));
 			const int pos = (255 - v) * 7 * 256 / 255;
 			const int lower = std::min(pos >> 8, 6);

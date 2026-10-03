@@ -523,6 +523,8 @@ void AddDoppelganger(Monster &monster);
 void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage);
 bool M_Talker(const Monster &monster);
 void M_StartStand(Monster &monster, Direction md);
+/** @brief Plays @p monster's special sheet once and then stands - a summoned golem rising out of the floor (v1.12.370). */
+void M_StartRise(Monster &monster, Direction md);
 /** @brief Oracool: @p monster's side just changed back (a Conversion, Confuse or Attract ran out). It and everything aimed at
  *  it pick a target afresh - a standing melee AI swings with no re-aim, and struck its own side (round 71 audit). */
 void ReaimMonsterAfterSideChange(Monster &monster);

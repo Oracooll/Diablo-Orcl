@@ -349,9 +349,10 @@ bool SummonMinion(Player &owner, const MinionSpec &spec, Point near)
 			record = {};
 			return false;
 		}
-		// The Fire Golem rises in a fire flare (v1.12.364) - when it is summoned, not when it re-forms on the next floor.
-		if (spec.golem == GolemKind::Fire)
-			AddFireGolemBurst(Monsters[record.body].position.tile, FireGolemSummonArt, static_cast<int>(owner.getId()));
+		// A golem rises out of the floor through the vanilla golem's build-up (v1.12.370) - when it is summoned, not when it
+		// re-forms on the next floor. The Fire Golem's flare waits for the end of the rise (OnMinionRisen).
+		if (spec.group == MinionGroup::Golem)
+			M_StartRise(Monsters[record.body], Monsters[record.body].direction);
 		Renumber(record.owner, spec.group);
 		return true;
 	}
@@ -755,6 +756,9 @@ MinionLook MinionBodyLook(const Monster &monster)
 	const Record *record = RecordOf(monster);
 	if (record == nullptr)
 		return {};
+	// The Fire Golem rises as a molten golem, the vanilla body in fire orange, before it bursts into flame (v1.12.370).
+	if (record->spec.group == MinionGroup::Golem && record->spec.golem == GolemKind::Fire && monster.mode == MonsterMode::SpecialStand)
+		return { Tint::Hue, hue::FireOrange };
 	if (record->spec.group == MinionGroup::Golem)
 		return GolemLook(record->spec.golem);
 	if (record->spec.group == MinionGroup::Mage)
@@ -794,7 +798,9 @@ bool IsFireGolem(const Monster &monster)
 
 const AnimStruct *GetMinionAnim(const Monster &monster, MonsterGraphic graphic)
 {
-	if (!IsFireGolem(monster))
+	// The rise is the vanilla golem's build-up sheet for every golem, the Fire Golem's too (v1.12.370): molten, it ignites at
+	// the end (OnMinionRisen) and wears the Elemental from then on.
+	if (!IsFireGolem(monster) || graphic == MonsterGraphic::Special)
 		return nullptr;
 	const MissileFileData &sheet = GetMissileSpriteData(MissileGraphicID::Elemental);
 	if (!sheet.sprites || !sheet.sprites->isSheet())
@@ -876,6 +882,19 @@ void OnMinionDeathStarted(const Monster &minion)
 	if (record == nullptr || record->spec.golem != GolemKind::Fire)
 		return;
 	AddFireGolemBurst(minion.position.tile, FireGolemDeathArt, record->owner);
+}
+
+bool GolemHoldsStillFrame(const Monster &monster)
+{
+	return !IsCompanion(monster) && !IsFireGolem(monster);
+}
+
+void OnMinionRisen(const Monster &monster)
+{
+	const Record *record = RecordOf(monster);
+	if (record == nullptr || record->spec.group != MinionGroup::Golem || record->spec.golem != GolemKind::Fire)
+		return;
+	AddFireGolemBurst(monster.position.tile, FireGolemSummonArt, record->owner);
 }
 
 bool MinionLeavesNoBody(const Monster &monster)

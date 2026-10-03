@@ -426,7 +426,7 @@ MissileFileData MissileSpriteData[] = {
 // and 86 / 2 - 11 = 32 now - the oval stays where it was.
 /*RiftPortalGold*/           { {},               86,          11, "portal_gold",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // vanilla's portal1/portal2 recoloured: row 0 opens, row 1 stands
 /*RiftPortalPurple*/         { {},               86,          11, "portal_purple",     2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      },
-/*TownPortalInTown*/         { {},               86,          11, "portal_town",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // the town's own portal at 90%, shadow stripped (2026-09-20)
+/*TownPortalInTown*/         { {},               86,          11, "portal_town",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // the town's own portal at 90% (2026-09-20), vanilla's shadow back (v1.12.370)
 // Oracool 2026-09-26: the frozen floor, two 128x128 frames that are two VARIANTS of one patch (the Cold brief), not an
 // animation - Brittle Ground picks one a tile and holds it (rfa12_actives). The ellipse's centre is y 80 of 128.
 /*IceGround*/                { {},              128,          32, "ice_ground",        1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_2       },

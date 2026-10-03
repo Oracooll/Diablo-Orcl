@@ -583,7 +583,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Exploding Arrow"), N_("A fire arrow that bursts where it stops, burning the tiles around it."), Rog, 0, 2, 0, Kind::Active, SpellID::ExplodingArrow, true },
 	{ N_("Ice Arrow"), N_("A frost arrow that freezes what it hits solid for a moment."), Rog, 0, 2, 1, Kind::Active, SpellID::IceArrow, true },
 	{ N_("Guided Arrow"), N_("An arrow that cannot miss."), Rog, 0, 3, 0, Kind::Active, SpellID::GuidedArrow, true },
-	{ N_("Strafe"), N_("One arrow at each enemy in view, nearest first - three, and one more every two ranks, eight at most."), Rog, 0, 4, 0, Kind::Active, SpellID::Strafe, true },
+	{ N_("Strafe"), N_("Hold the mouse button: she spins and glides toward the cursor, loosing an arrow every quarter second, mostly at enemies in view. Costs its mana every second."), Rog, 0, 4, 0, Kind::Active, SpellID::Strafe, true },
 	{ N_("Immolation Arrow"), N_("A fire arrow that leaves a wall of flame burning where it stops."), Rog, 0, 4, 1, Kind::Active, SpellID::ImmolationArrow, true },
 	{ N_("Freezing Arrow"), N_("A frost arrow that freezes everything around where it stops."), Rog, 0, 5, 0, Kind::Active, SpellID::FreezingArrow, true },
 	// --- Passive & Magic ---
@@ -3007,7 +3007,7 @@ int EffectiveMovementSpeedPercent(const Player &player)
 	// read 125% for 115% and 166% for 150% (round 25 audit, v1.12.250).
 	const int walkMilli = std::clamp(1000000 / std::max(MovementSpeedPercent(player), 10), MinStrideTicks * 1000, MaxStrideTicks * 1000);
 	const bool running = (leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0) || IsRunEnabled()
-	    || IsClassTreeRunActive(player) || IsWhirlwinding(player);
+	    || IsClassTreeRunActive(player) || IsSpinning(player);
 	int milli = walkMilli;
 	if (running)
 		milli = PlayerSlowPercent(player) > 0 ? std::max(walkMilli - 4000, std::min(walkMilli, 6000)) : std::min(walkMilli, 6000); // as the feet (round 20)

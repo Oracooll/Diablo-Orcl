@@ -3258,7 +3258,7 @@ void AddTownPortal(Missile &missile, AddMissileParameter &parameter)
 	if (leveltype == DTYPE_TOWN) {
 		missile.position.tile = parameter.dst;
 		missile.position.start = parameter.dst;
-		// Oracool (2026-09-20): IN TOWN the portal wears its 90% sheet with the ground shadow stripped
+		// Oracool (2026-09-20): IN TOWN the portal wears its 90% sheet (the ground shadow stripped then is back since v1.12.370)
 		// (user: "shrink the town portal asset in-town only, not in dungeons to 90% and remove its
 		// shadow") - it stands inside the Rift Monument's arch there. SetMissDir keeps the graphic, so
 		// the opening-to-standing switch below and AddWarpMissile's sync both stay on this sheet. The

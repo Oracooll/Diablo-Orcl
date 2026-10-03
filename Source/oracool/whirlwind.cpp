@@ -25,6 +25,8 @@
 #include "oracool/missile_tint.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
+#include "oracool/rogue_arrows.h" // LooseStrafeShot - the Strafe spin
+#include "spells.h"               // GetManaAmount - Strafe's price a second
 #include "oracool/skill_sounds.h"
 #include "oracool/sprite_scale.h"
 #include "engine/backbuffer_state.hpp" // RedrawComponent - the Rage orb
@@ -37,6 +39,14 @@ namespace devilution::oracool {
 namespace {
 
 bool Active = false;
+/** Which spin: the Barbarian's Whirlwind, or the Rogue's Strafe (dev note, 2026-10-03). */
+enum class SpinKind : uint8_t {
+	Whirlwind,
+	Strafe,
+};
+SpinKind Kind = SpinKind::Whirlwind;
+/** The button the Strafe spin is held on - either may carry it. */
+clicktype StrafeButton = CLICK_NONE;
 /** Ticks since the spin started: the strikes, the Rage drain and the turn all count from it. */
 int Clock = 0;
 /** The way he last glided - kept when the cursor is under him, so he never stops on it. */
@@ -127,7 +137,67 @@ bool RightButtonOnly(SpellID spell)
 
 bool IsWhirlwinding(const Player &player)
 {
+	return Active && Kind == SpinKind::Whirlwind && &player == MyPlayer;
+}
+
+bool IsStrafing(const Player &player)
+{
+	return Active && Kind == SpinKind::Strafe && &player == MyPlayer;
+}
+
+bool IsSpinning(const Player &player)
+{
 	return Active && &player == MyPlayer;
+}
+
+namespace {
+
+/** @brief The spell readied on @p button: the left one's or the right one's. */
+SpellID ReadiedOn(const Player &player, clicktype button)
+{
+	if (button == CLICK_LEFT)
+		return player._pLRSpell;
+	if (button == CLICK_RIGHT)
+		return player._pRSpell;
+	return SpellID::Invalid;
+}
+
+/** @brief Strafe's price for a second of the spin - its mana cost. False, and nothing taken, when she cannot pay it. */
+bool PayStrafeSecond(Player &player)
+{
+	const int cost = GetManaAmount(player, SpellID::Strafe);
+	if (player._pMana < cost)
+		return false;
+	player._pMana -= cost;
+	player._pManaBase -= cost;
+	OnPassiveManaSpent(player, cost);
+	RedrawComponent(PanelDrawComponent::Mana);
+	return true;
+}
+
+} // namespace
+
+bool StartStrafe(Player &player)
+{
+	if (&player != MyPlayer || leveltype == DTYPE_TOWN || player._pHitPoints >> 6 <= 0 || !player.UsesRangedWeapon())
+		return false;
+	const clicktype button = sgbMouseDown;
+	if (ReadiedOn(player, button) != SpellID::Strafe)
+		return false;
+	if (Active)
+		return Kind == SpinKind::Strafe;
+	if (!PayStrafeSecond(player))
+		return false;
+	LoadPlrGFX(player, player_graphic::Attack); // the sheet the spin is drawn with: the bow drawn
+	Active = true;
+	Kind = SpinKind::Strafe;
+	StrafeButton = button;
+	Clock = 0;
+	Heading = player._pdir;
+	Ordered = { -1, -1 };
+	LooseStrafeShot(player);
+	Glide(player);
+	return true;
 }
 
 bool StartWhirlwind(Player &player)
@@ -139,12 +209,13 @@ bool StartWhirlwind(Player &player)
 	if (!CanPaySkill(player, SpellID::Whirlwind))
 		return false;
 	if (Active)
-		return true;
+		return Kind == SpinKind::Whirlwind;
 	// The start's price, paid once (audit, 2026-09-29: it was checked and never taken, so tapping the button struck for
 	// nothing).
 	SettleSkill(player, SpellID::Whirlwind, /*landedBlows=*/0);
 	LoadPlrGFX(player, player_graphic::Magic); // the sheet the spin is drawn with
 	Active = true;
+	Kind = SpinKind::Whirlwind;
 	Clock = 0;
 	Heading = player._pdir;
 	Ordered = { -1, -1 };
@@ -177,6 +248,31 @@ void ProcessWhirlwindTick(Player &player)
 {
 	if (!Active || &player != MyPlayer)
 		return;
+	if (Kind == SpinKind::Strafe) {
+		// Held on the button it was started from, with Strafe still readied there and a bow still in hand - and stopped by
+		// the same windows and screens that stop the Barbarian's spin.
+		const bool underWindow = (ControlMode == ControlTypes::KeyboardAndMouse
+		                             && (IsOverLeftPanel(MousePosition) || IsOverRightPanel(MousePosition) || IsPointOverFloatingWindow(MousePosition)))
+		    || ChatLogFlag || HelpFlag;
+		if (sgbMouseDown != StrafeButton || ReadiedOn(player, StrafeButton) != SpellID::Strafe || !player.UsesRangedWeapon()
+		    || leveltype == DTYPE_TOWN || player._pHitPoints >> 6 <= 0 || player._pmode == PM_DEATH || underWindow) {
+			StopWhirlwind(player);
+			return;
+		}
+		Clock++;
+		// The start paid the first second; each second after it pays again, and the spin ends when she cannot.
+		if (Clock % TicksPerSecond == 0 && !PayStrafeSecond(player)) {
+			player.Say(HeroSpeech::NotEnoughMana);
+			StopWhirlwind(player);
+			return;
+		}
+		if (player._pmode == PM_STAND || player._pmode == PM_WALK_NORTHWARDS || player._pmode == PM_WALK_SOUTHWARDS
+		    || player._pmode == PM_WALK_SIDEWAYS)
+			Glide(player);
+		if (Clock % StrafeShotTicks == 0)
+			LooseStrafeShot(player);
+		return;
+	}
 	// Not in the first second, which the start paid (round 66 audit: started on exactly its 5 Rage it struck once and stopped).
 	const bool outOfRage = UsesRage(player) && player._pRage <= 0 && Clock >= TicksPerSecond;
 	// ...or another skill readied on the right mid-spin, by an F-key (audit, 2026-09-29: it spun on, draining Rage).
@@ -214,6 +310,16 @@ int WhirlwindDamagePercent(int rank)
 
 std::optional<ClxSprite> WhirlwindSprite(const Player &player)
 {
+	if (IsStrafing(player)) {
+		// The Rogue turns on the spot with her bow drawn: the bow attack's release frame, its facing stepping round.
+		const PlayerAnimationData &shot = player.AnimationData[static_cast<size_t>(player_graphic::Attack)];
+		const Direction facing = static_cast<Direction>((Clock / WhirlwindTurnTicks) % 8);
+		const OptionalClxSpriteList frames = shot.spritesForDirection(facing);
+		if (!frames || frames->numSprites() == 0)
+			return std::nullopt;
+		const int count = static_cast<int>(frames->numSprites());
+		return (*frames)[static_cast<size_t>(std::clamp(player._pAFNum - 1, 0, count - 1))];
+	}
 	if (!IsWhirlwinding(player))
 		return std::nullopt;
 	const PlayerAnimationData &cast = player.AnimationData[static_cast<size_t>(player_graphic::Magic)];

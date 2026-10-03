@@ -17657,6 +17657,16 @@ TEST(OracoolNecro364, AFireGolemRisesStrikesAndEndsInTheElementalsFire)
 	EXPECT_TRUE(oracool::IsFireGolem(*golem));
 	EXPECT_EQ(golem->uniqueMonsterTRN, nullptr) << "no orange ramp over a sheet that is fire already";
 
+	// It rises first (v1.12.370): the vanilla golem's build-up, molten orange, and no flare until the rise ends.
+	EXPECT_EQ(golem->mode, MonsterMode::SpecialStand) << "summoned, it rises out of the floor";
+	EXPECT_EQ(golem->animInfo.numberOfFrames, golem->type().getAnimData(MonsterGraphic::Special).frames) << "the golem's build-up sheet";
+	EXPECT_EQ(oracool::MinionBodyLook(*golem).tint, oracool::Tint::Hue);
+	EXPECT_EQ(oracool::MinionBodyLook(*golem).rgb, oracool::hue::FireOrange) << "molten";
+	EXPECT_EQ(BurstAt(oracool::FireGolemSummonArt, golem->position.tile), nullptr) << "the flare waits for the end of the rise";
+	oracool::OnMinionRisen(*golem); // MonsterSpecialStand, at the rise's last frame
+	M_StartStand(*golem, golem->direction);
+	EXPECT_EQ(oracool::MinionBodyLook(*golem).tint, oracool::Tint::None) << "the Elemental wears no tint";
+
 	// Its body is the run sheet, at the walk's slowed pace (it stands on its walk).
 	const ClxSpriteListOrSheet sheet { *GetMissileSpriteData(MissileGraphicID::Elemental).sprites };
 	ASSERT_TRUE(golem->animInfo.sprites.has_value());
@@ -17665,7 +17675,7 @@ TEST(OracoolNecro364, AFireGolemRisesStrikesAndEndsInTheElementalsFire)
 	EXPECT_EQ(golem->animInfo.ticksPerFrame, oracool::FireGolemWalkTicksPerFrame);
 	EXPECT_TRUE(oracool::MinionDrawsUnlit(*golem));
 	const Point at = golem->position.tile;
-	EXPECT_NE(BurstAt(oracool::FireGolemSummonArt, at), nullptr) << "it rises in a fire flare";
+	EXPECT_NE(BurstAt(oracool::FireGolemSummonArt, at), nullptr) << "it ignites in a fire flare as the rise ends";
 
 	// The hit frame: the splash on the tile it strikes.
 	golem->direction = Direction::East;
@@ -18007,6 +18017,209 @@ TEST(OracoolPreview, DISABLED_Necro369CurseCastTints)
 	}
 	PreviewSave(grid, (dir + "fx_curse_cast_grid.png").c_str());
 	std::cout << "wrote fx_curse_cast_grid.png\n";
+	gbIsHellfire = savedHellfire;
+	HeadlessMode = savedHeadless;
+}
+
+// ---- The dev notes of 2026-10-03 (v1.12.370): golems rise and stand still, the bow skills are shot, Strafe spins ----
+
+#include "oracool/whirlwind.h"
+
+/**
+ * "we need to introduce the golem's buildup animation when summoned for all golems, and we also need to choose a proper
+ * frame to use as stand still frame when they are not moving." A summoned Clay Golem rises through the vanilla golem's
+ * build-up sheet, then stands on one frame of its walk; the Fire Golem's flames are left moving.
+ */
+TEST(OracoolDev370, AGolemRisesWhenSummonedAndThenStandsStill)
+{
+	MountTestArchives(true); // before gbIsHellfire is saved: the first mount sets it
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	LoadFireGolemArt();
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &necro = Players[0];
+	necro = {};
+	necro.plractive = true;
+	necro.position.tile = { 40, 40 };
+	const dungeon_type savedLevelType = leveltype;
+	const uint8_t savedLevel = currlevel;
+	gbIsMultiplayer = false;
+	leveltype = DTYPE_CATHEDRAL;
+	currlevel = 1;
+	oracool::ForgetMinions();
+	Missiles.clear();
+	ActiveMonsterCount = 0;
+	for (size_t i = 0; i < MaxMonsters; i++)
+		ActiveMonsters[i] = static_cast<unsigned>(i);
+	LevelMonsterTypeCount = 0;
+
+	oracool::MinionSpec clay { oracool::MinionGroup::Golem, MT_GOLEM, 100, 5, 12, 70, 15 };
+	clay.golem = oracool::GolemKind::Clay;
+	ASSERT_TRUE(oracool::SummonMinion(necro, clay, { 44, 40 }));
+	Monster *golem = MinionBodyOfType(MT_GOLEM);
+	ASSERT_NE(golem, nullptr);
+	EXPECT_EQ(golem->mode, MonsterMode::SpecialStand) << "it rises out of the floor";
+	ASSERT_GT(golem->type().getAnimData(MonsterGraphic::Special).frames, 0) << "golems.cl2, the build-up";
+	EXPECT_EQ(golem->animInfo.numberOfFrames, golem->type().getAnimData(MonsterGraphic::Special).frames);
+	EXPECT_EQ(oracool::MinionBodyLook(*golem).rgb, oracool::GolemLook(oracool::GolemKind::Clay).rgb) << "in its clay all the while";
+	// (Its art is not asked for here: headless, InitMonsterGFX loads no sprites - DISABLED_Dev370Looks draws the rise.)
+
+	// The rise over, it stands - on one frame of its walk, held there.
+	M_StartStand(*golem, golem->direction);
+	EXPECT_EQ(golem->mode, MonsterMode::Stand);
+	EXPECT_TRUE(oracool::GolemHoldsStillFrame(*golem));
+	EXPECT_EQ(golem->animInfo.numberOfFrames, golem->type().getAnimData(MonsterGraphic::Walk).frames) << "its walk sheet";
+	EXPECT_EQ(golem->animInfo.currentFrame, oracool::GolemStandFrame) << "both feet planted";
+
+	// The Fire Golem stands on its flames, moving.
+	M_ClearSquares(*golem);
+	*golem = Monster {};
+	oracool::ForgetMinions();
+	oracool::MinionSpec fire = clay;
+	fire.golem = oracool::GolemKind::Fire;
+	ASSERT_TRUE(oracool::SummonMinion(necro, fire, { 44, 40 }));
+	Monster *flames = MinionBodyOfType(MT_GOLEM);
+	ASSERT_NE(flames, nullptr);
+	EXPECT_EQ(flames->mode, MonsterMode::SpecialStand) << "the Fire Golem rises too";
+	EXPECT_FALSE(oracool::GolemHoldsStillFrame(*flames));
+
+	M_ClearSquares(*flames);
+	*flames = Monster {};
+	oracool::ForgetMinions();
+	Missiles.clear();
+	ActiveMonsterCount = 0;
+	LevelMonsterTypeCount = 0;
+	leveltype = savedLevelType;
+	currlevel = savedLevel;
+	gbIsHellfire = savedHellfire;
+}
+
+/** The eight RfA-12 bow skills are shot on their own latch, which the arrow latch's every reset clears too. */
+TEST(OracoolDev370, TheEightBowSkillsAreShotOnALatch)
+{
+	for (const SpellID spell : { SpellID::BarbedShaft, SpellID::ShockArrow, SpellID::PiercingShot, SpellID::RainOfArrows,
+	         SpellID::CripplingShot, SpellID::HuntersMark, SpellID::Barrage, SpellID::PhantomVolley })
+		EXPECT_TRUE(oracool::IsRfa12BowSkill(spell)) << static_cast<int>(spell);
+	for (const SpellID spell : { SpellID::MagicArrow, SpellID::Strafe, SpellID::Firebolt, SpellID::Jab })
+		EXPECT_FALSE(oracool::IsRfa12BowSkill(spell)) << static_cast<int>(spell);
+
+	oracool::ArmArrowSkill(oracool::RogueArrow::MagicArrow);
+	oracool::ArmBowSkillSpell(SpellID::Barrage);
+	EXPECT_FALSE(oracool::ArmedArrowSkill().has_value()) << "one latch at a time";
+	ASSERT_TRUE(oracool::ArmedBowSkillSpell().has_value());
+	EXPECT_EQ(*oracool::ArmedBowSkillSpell(), SpellID::Barrage);
+	oracool::ArmArrowSkill(std::nullopt);
+	EXPECT_FALSE(oracool::ArmedBowSkillSpell().has_value()) << "every reset of the bow latch drops it";
+	oracool::ArmBowSkillSpell(SpellID::Barrage);
+	oracool::ArmArrowSkill(oracool::RogueArrow::FireArrow);
+	EXPECT_FALSE(oracool::ArmedBowSkillSpell().has_value());
+	oracool::ArmArrowSkill(std::nullopt);
+}
+
+/** "strafe to work as barb whirlwind ... predominantly towards enemies. a shot every 5 ticks." */
+TEST(OracoolDev370, StrafeShootsEveryFiveTicksMostlyAtEnemies)
+{
+	EXPECT_EQ(oracool::StrafeShotTicks, 5);
+	EXPECT_EQ(oracool::StrafeAimPercent(1), 60);
+	EXPECT_EQ(oracool::StrafeAimPercent(2), 65);
+	EXPECT_EQ(oracool::StrafeAimPercent(8), 95);
+	EXPECT_EQ(oracool::StrafeAimPercent(20), 95) << "never every shot: some fly off all round her";
+	for (int rank = 1; rank < 8; rank++)
+		EXPECT_GT(oracool::StrafeAimPercent(rank + 1), oracool::StrafeAimPercent(rank)) << "every rank grows";
+	EXPECT_GT(oracool::StrafeAimPercent(1), 50) << "predominantly";
+	devilution::Player nobody {};
+	EXPECT_FALSE(oracool::IsStrafing(nobody));
+	EXPECT_FALSE(oracool::StartStrafe(nobody)) << "not the local player";
+}
+
+/**
+ * The looks of v1.12.370, as the game draws them, into ORCL_DEV370_OUT:
+ *   - dev370_golem_rise_<clay|fire>.png: the vanilla golem's build-up (golems), facing south, in the Clay Golem's clay and
+ *     the Fire Golem's molten orange, then a cell of the still stand frame (GolemStandFrame of the walk);
+ *   - dev370_portals.png: the five portals' first standing frame on a stone floor - the dungeon's blue (vanilla CL2), the red
+ *     (rportal.png), the Nephalem gold, the Guardian purple through GuardianPortalRgbTable, and the town's;
+ *   - dev370_arrows.png: Magic Arrow, Guided Arrow and Cold Arrow flying east, side by side.
+ */
+TEST(OracoolPreview, DISABLED_Dev370Looks)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	InitMissileGFX(true);
+	const char *outDir = std::getenv("ORCL_DEV370_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+
+	// The build-up is ONE list, not eight facings: vanilla only ever played it facing south (SpawnGolem).
+	ASSERT_TRUE(FindAsset("monsters\\golem\\golems.cl2").ok()) << "golems";
+	const OwnedClxSpriteListOrSheet rise = LoadCl2ListOrSheet("monsters\\golem\\golems", PointerOrValue<uint16_t> { uint16_t { 96 } });
+	const std::optional<OwnedClxSpriteSheet> walk = FxBody("monsters\\golem\\golemw", 96);
+	ASSERT_TRUE(walk.has_value()) << "golemw";
+	const auto golemStrip = [&](oracool::MinionLook look, const std::string &file) {
+		const ClxSpriteListOrSheet riseView { rise };
+		const ClxSpriteList frames = riseView.isSheet() ? riseView.sheet()[0] : riseView.list();
+		const int count = static_cast<int>(frames.numSprites());
+		constexpr int Cell = 104;
+		OwnedSurface out = FxCanvas(count + 1, Cell, Cell);
+		for (int k = 0; k <= count; k++) {
+			const ClxSprite sprite = k < count ? frames[static_cast<size_t>(k)] : (*walk)[0][static_cast<size_t>(oracool::GolemStandFrame)];
+			ClxDrawRgbMap(out, Point { k * Cell + (Cell - sprite.width()) / 2, Cell - 6 }, sprite, FxTable(nullptr, look.tint, look.rgb));
+		}
+		PreviewSave(out, (dir + file).c_str());
+		std::cout << "wrote " << file << " (" << count << " rise frames + the stand frame)\n";
+	};
+	golemStrip(oracool::GolemLook(oracool::GolemKind::Clay), "dev370_golem_rise_clay.png");
+	golemStrip({ oracool::Tint::Hue, oracool::hue::FireOrange }, "dev370_golem_rise_fire.png");
+
+	{
+		constexpr int Cell = 120;
+		OwnedSurface out = OwnedSurface::Rgb(5 * Cell, 150);
+		SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 0x6E, 0x66, 0x5A));
+		const MissileGraphicID portals[] = { MissileGraphicID::TownPortal, MissileGraphicID::RedPortal, MissileGraphicID::RiftPortalGold,
+			MissileGraphicID::RiftPortalPurple, MissileGraphicID::TownPortalInTown };
+		for (int k = 0; k < 5; k++) {
+			const MissileFileData &data = GetMissileSpriteData(portals[k]);
+			ASSERT_TRUE(data.sprites) << k;
+			const ClxSprite sprite = (*data.spritesForDirection(1))[0];
+			const uint32_t *table = portals[k] == MissileGraphicID::RiftPortalPurple ? oracool::GuardianPortalRgbTable(data.colours.get()) : FxTable(data.colours.get());
+			ClxDrawRgbMap(out, Point { k * Cell + (Cell - sprite.width()) / 2, 140 }, sprite, table);
+		}
+		PreviewSave(out, (dir + "dev370_portals.png").c_str());
+
+		// The dungeon's blue portal as its CL2 draws, every frame of both rows in 96x128 cells on a transparent sheet, the
+		// layout of the exported strip tools/BuildRiftPortals.ps1 reads: the strip lost the black ground shadow the CL2 draws
+		// (it reads index 0 as clear), and the build takes it from here (portal_cl2_frames.png).
+		const MissileFileData &blue = GetMissileSpriteData(MissileGraphicID::TownPortal);
+		OwnedSurface sheet = OwnedSurface::Rgb(16 * 96, 2 * 128);
+		SDL_FillRect(sheet.surface, nullptr, SDL_MapRGB(sheet.surface->format, 0xFF, 0x00, 0xFF));
+		for (size_t row = 0; row < 2; row++) {
+			const ClxSpriteList frames = *blue.spritesForDirection(row);
+			for (size_t k = 0; k < frames.numSprites() && k < 16; k++)
+				ClxDrawRgbMap(sheet, Point { static_cast<int>(k) * 96, static_cast<int>(row) * 128 + 127 }, frames[k], FxTable(nullptr));
+		}
+		PreviewSave(sheet, (dir + "portal_cl2_frames.png").c_str());
+		std::cout << "wrote portal_cl2_frames.png (magenta = clear)\n";
+		std::cout << "wrote dev370_portals.png (red from png: " << (GetMissileSpriteData(MissileGraphicID::RedPortal).colours != nullptr) << ")\n";
+	}
+
+	{
+		constexpr int Cell = 100;
+		OwnedSurface out = FxCanvas(3, Cell, Cell);
+		const MissileGraphicID arrows[] = { MissileGraphicID::MagicArrowLight, MissileGraphicID::GuidedArrowGold, MissileGraphicID::FrostArrow };
+		for (int k = 0; k < 3; k++) {
+			const MissileFileData &data = GetMissileSpriteData(arrows[k]);
+			ASSERT_TRUE(data.sprites) << k;
+			const ClxSprite sprite = (*data.spritesForDirection(12))[0];
+			ClxDrawRgbMap(out, Point { k * Cell + (Cell - sprite.width()) / 2, Cell - 2 }, sprite, FxTable(data.colours.get()));
+		}
+		PreviewSave(out, (dir + "dev370_arrows.png").c_str());
+		std::cout << "wrote dev370_arrows.png\n";
+	}
 	gbIsHellfire = savedHellfire;
 	HeadlessMode = savedHeadless;
 }

@@ -231,7 +231,7 @@ void StartWalkAnimation(Player &player, Direction dir, bool pmWillBeCalled)
 		skippedFrames = static_cast<int8_t>(std::max(0, std::min(oracool::ChargeDashSkipFrames, player._pWFrames - 2)));
 	} else if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0)
 	    || oracool::IsRunEnabled() || oracool::IsClassTreeRunActive(player)
-	    || oracool::IsWhirlwinding(player)) // the spin glides at run speed (2026-09-29)
+	    || oracool::IsSpinning(player)) // the spin glides at run speed (2026-09-29), Strafe's too (2026-10-03)
 		// The run, slowed: four frames over the slowed walk, but never past the run the same walk gives unslowed - a chilled
 		// hero at +60% ran faster than an unchilled one, and past +90% crossed the whole path in one tick (round 20 audit).
 		skippedFrames = oracool::PlayerSlowPercent(player) > 0 ? std::min<int8_t>(static_cast<int8_t>(walkSkip + 4), std::max<int8_t>(2, walkSkip))
@@ -783,6 +783,8 @@ void RestoreStaggeredSwingLatches()
 		oracool::ArmMeleeSkill(latches.paladin);
 }
 
+HeroSpeech ShortOfPriceSpeech(const Player &player, SpellID spell); // below CheckPlrSpell; DoRangeAttack says it too
+
 namespace {
 
 /**
@@ -1288,8 +1290,21 @@ bool DoRangeAttack(Player &player)
 
 	// A bow skill looses its volley on the first release frame only: the multiple-arrows flag's second frame shoots
 	// nothing then, and wore the bow twice and counted a Grenadier shot for it (round 19 audit, v1.12.244).
-	if (arrows == 2 && &player == MyPlayer && oracool::ArmedArrowSkill().has_value())
+	if (arrows == 2 && &player == MyPlayer && (oracool::ArmedArrowSkill().has_value() || oracool::ArmedBowSkillSpell().has_value()))
 		arrows = 0;
+
+	// An RfA-12 bow skill shot (v1.12.370) casts at the first release frame. One it can no longer pay for, or still cooling
+	// under a held button, drops its latch and looses a plain arrow, as an unpaid arrow skill does.
+	std::optional<SpellID> bowSpell = &player == MyPlayer ? oracool::ArmedBowSkillSpell() : std::nullopt;
+	if (bowSpell.has_value() && arrows > 0 && player.AnimInfo.currentFrame == player._pAFNum - 1) {
+		const SpellCheckResult check = CheckSpell(player, *bowSpell, SpellType::Skill, /*manaonly=*/true);
+		if (check != SpellCheckResult::Success) {
+			if (check == SpellCheckResult::Fail_NoMana)
+				player.Say(ShortOfPriceSpeech(player, *bowSpell));
+			oracool::ArmArrowSkill(std::nullopt);
+			bowSpell = std::nullopt;
+		}
+	}
 
 	// Grenadier (Rogue, 2026-09-14) counts the shots this frame looses.
 	if (arrows > 0 && &player == MyPlayer)
@@ -1318,6 +1333,17 @@ bool DoRangeAttack(Player &player)
 			// skill fired and was paid again on it (round 8 audit, v1.12.233).
 			if (arrow == 0 && player.AnimInfo.currentFrame == player._pAFNum - 1) {
 				oracool::FireArrowSkill(player, *skill, player.position.temp);
+				PlaySfxLoc(PS_BFIRE, player.position.tile);
+			}
+		} else if (bowSpell.has_value()) {
+			if (arrow == 0 && player.AnimInfo.currentFrame == player._pAFNum - 1) {
+				// Cast as the magic animation's cast frame would have: AddWarcry reads the spell off executedSpell.
+				const SpellCastInfo saved = player.executedSpell;
+				player.executedSpell.spellId = *bowSpell;
+				player.executedSpell.spellType = SpellType::Skill;
+				player.executedSpell.spellLevel = player.GetSpellLevel(*bowSpell);
+				CastSpell(player.getId(), *bowSpell, player.position.tile.x, player.position.tile.y, player.position.temp.x, player.position.temp.y, player.executedSpell.spellLevel);
+				player.executedSpell = saved;
 				PlaySfxLoc(PS_BFIRE, player.position.tile);
 			}
 		} else {
@@ -4347,6 +4373,26 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// Needs a bow in hand - a skill that promises an arrow cannot be swung - and the mana up front,
 	// so the refusal is heard at the click rather than discovered at the release. Shift keeps its
 	// meaning: shoot at the cursor's tile, monster or not.
+	// Strafe held on a mouse button spins (dev note, 2026-10-03: "strafe to work as barb whirlwind") - see
+	// oracool/whirlwind.h. From a key, with no button down, it stays the single volley below.
+	if (spellID == SpellID::Strafe && (sgbMouseDown == CLICK_LEFT || sgbMouseDown == CLICK_RIGHT)) {
+		oracool::ArmArrowSkill(std::nullopt);
+		LastMouseButtonAction = MouseActionType::None;
+		if (!myPlayer.UsesRangedWeapon()) {
+			myPlayer.Say(HeroSpeech::ICantDoThat);
+			return;
+		}
+		if (oracool::IsStrafing(myPlayer))
+			return;
+		if (myPlayer._pMana < GetManaAmount(myPlayer, SpellID::Strafe)) {
+			myPlayer.Say(ShortOfPriceSpeech(myPlayer, spellID));
+			return;
+		}
+		if (!oracool::StartStrafe(myPlayer))
+			myPlayer.Say(HeroSpeech::ICantDoThat);
+		return;
+	}
+
 	if (const std::optional<oracool::RogueArrow> arrow = oracool::RogueArrowForSpell(spellID); arrow.has_value()) {
 		if (!myPlayer.UsesRangedWeapon()) {
 			myPlayer.Say(HeroSpeech::ICantDoThat);
@@ -4375,6 +4421,28 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	if (oracool::Rfa12LacksBowFor(myPlayer, spellID)) {
 		myPlayer.Say(HeroSpeech::ICantDoThat);
 		LastMouseButtonAction = MouseActionType::None; // said once, not at tick rate under a held button (round 19)
+		return;
+	}
+	// ...and since v1.12.370 they are SHOT, as the ten arrows above are (dev note, 2026-10-03: "some bow and crossbow skills
+	// seem to be castings. i am not sure they shoulb be"): the click is the ordinary bow attack - bow animation, the bow's
+	// sound, weapon wear - with the RfA-12 bow latch armed, and DoRangeAttack casts the skill at the release frame through
+	// CastSpell, so the price, the cooldown and the skill's own cues are the cast's to the letter.
+	if (oracool::IsRfa12BowSkill(spellID)) {
+		// The cooldown is said in the log as a cast's is; the price as the arrows' is.
+		const SpellCheckResult check = CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/false);
+		if (check != SpellCheckResult::Success) {
+			myPlayer.Say(check == SpellCheckResult::Fail_NoMana ? ShortOfPriceSpeech(myPlayer, spellID) : HeroSpeech::ICantDoThat);
+			LastMouseButtonAction = MouseActionType::None;
+			return;
+		}
+		oracool::ArmBowSkillSpell(spellID);
+		if (pcursmonst != -1 && !isShiftHeld) {
+			LastMouseButtonAction = MouseActionType::AttackMonsterTarget;
+			NetSendCmdParam1(true, CMD_RATTACKID, pcursmonst);
+		} else {
+			LastMouseButtonAction = MouseActionType::Attack;
+			NetSendCmdLoc(MyPlayerId, true, CMD_RATTACKXY, cursPosition);
+		}
 		return;
 	}
 

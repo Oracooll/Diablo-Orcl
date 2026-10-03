@@ -265,6 +265,23 @@ Missile *AddFireGolemBurst(Point tile, MissileGraphicID art, int playerId);
 void OnMinionStrikeFrame(const Monster &minion);
 /** @brief A minion began to die (monster.cpp MonsterDeath): the Fire Golem bursts in the Elemental's explosion. */
 void OnMinionDeathStarted(const Monster &minion);
+
+// ---- the golems' rise and stand (dev note, 2026-10-03: "we need to introduce the golem's buildup animation when summoned for
+// all golems, and we also need to choose a proper frame to use as stand still frame when they are not moving") ----------
+
+/**
+ * The frame of the vanilla golem's 16-frame walk a standing golem holds: both feet planted side by side, arms down. The
+ * golem has no stand sheet and stood on its walk, walking on the spot.
+ */
+constexpr int8_t GolemStandFrame = 4;
+/** @brief Whether @p monster, a golem body, stands on GolemStandFrame - every golem but the Fire Golem, whose flames move. */
+bool GolemHoldsStillFrame(const Monster &monster);
+/**
+ * @brief A monster finished its special stand (monster.cpp MonsterSpecialStand). A golem summoned by the Necromancer rises
+ * out of the floor through the vanilla golem's build-up sheet (golems) - the Fire Golem too, molten orange, and it bursts
+ * into its Elemental's flame here, at the end of the rise.
+ */
+void OnMinionRisen(const Monster &monster);
 /** @brief Whether @p monster leaves no corpse when its death ends: the Fire Golem burns away to nothing. */
 bool MinionLeavesNoBody(const Monster &monster);
 /**
