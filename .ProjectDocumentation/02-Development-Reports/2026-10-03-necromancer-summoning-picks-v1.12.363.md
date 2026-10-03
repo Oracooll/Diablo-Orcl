@@ -56,3 +56,24 @@ The user chose the lunge. All 929 tests pass; ini unchanged.
   - and new tints (frenzy, lightning, poison).
 - **How it was published:** the data was re-exported and rebuilt, then swapped into the live page's DATA block, keeping the fit-to-width snippet. The sounds now show the new picks.
 - **Picks:** the applied snapshot is `cards/db/necromancer`.
+
+## v1.12.368: summon bodies on the cards (commit 6c472966)
+- **The request:** "I dont see the tinted vanilla golems in the artefact".
+- **The fix:** `OracoolPreview.DISABLED_NecroSummonCardStrips` renders each summon's walk loop through the game's own tables:
+  - the vanilla, Clay, Blood and Iron golems;
+  - the four mages.
+- The page (Version 8) shows them on the golem and mage cards.
+
+## v1.12.369: curse colours and Unholy Offering (commit da93728c)
+- **Curse colours:** "Tint all curses from this skill sheet appropriately. Lets have a number of colours for sake of diversity."
+  - The cast ring (`fx_sheet_curse_cast`) wears `Tint::Hue` with `CurseCastHue(kind)`. 14 curses get 14 distinct hues (12 new `hue::` constants).
+  - Soul Harvest draws no ring.
+- **Unholy Offering:** "When i cast this spell on one of my minion play its death sprite and its death sound."
+  - No sheet is drawn any more. The minion dies by its own death animation and cry, and the heal is unchanged.
+  - The Fire Golem dies with `nestxpld`.
+  - `PlayEffect` falls back to a monster's other death recording when one of the two is missing.
+  - A test checks every minion kind's death sprite and both cries in the archives.
+- **The page (Version 9):**
+  - each curse card shows its own coloured cast ring;
+  - Unholy Offering shows no animation.
+- **Picks:** the applied snapshot is `cards/db/necromancer`, 13 docs.
