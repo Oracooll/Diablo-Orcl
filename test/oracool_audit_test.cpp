@@ -18275,8 +18275,54 @@ TEST(OracoolDev372, RainOfArrowsDropsTheOneArrowMultiplied)
 		}
 	}
 	EXPECT_EQ(first.position.offset.deltaY, -13 + first.var4) << "the tip on the floor";
+	EXPECT_EQ(FallingArrowLandedTicks(first), 0) << "struck: its ring starts";
 	for (int tick = 0; tick < FallingArrowHoldTicks; tick++)
 		ProcessCensusEffect(first);
-	EXPECT_TRUE(first._miDelFlag) << "gone after standing a moment";
+	EXPECT_LT(first.position.offset.deltaY, -1000) << "the arrow goes after standing a moment";
+	EXPECT_FALSE(first._miDelFlag) << "its ring plays on";
+	for (int tick = FallingArrowHoldTicks; tick < FallingArrowRingTicks; tick++)
+		ProcessCensusEffect(first);
+	EXPECT_TRUE(first._miDelFlag) << "gone with its ring";
+	EXPECT_EQ(FallingArrowLandedTicks(first), -1);
 	Missiles.clear();
+
+	// "a little diameter - 0,5-1 tile of aura ring": half a tile across as it strikes, a whole tile at its end.
+	EXPECT_EQ(oracool::ArrowRingSize(0).width, 32);
+	EXPECT_EQ(oracool::ArrowRingSize(0).height, 16);
+	EXPECT_EQ(oracool::ArrowRingSize(FallingArrowRingTicks - 1).width, 64);
+	EXPECT_EQ(oracool::ArrowRingSize(FallingArrowRingTicks - 1).height, 32);
+}
+
+/**
+ * Rain of Arrows' impact (2026-10-03): the falling arrow landing on a stone floor and its amber ring opening under it, one
+ * cell a tick from the landing, written to ORCL_DEV373_OUT as dev373_arrow_ring.png (cells 96x64, 3x size).
+ */
+TEST(OracoolPreview, DISABLED_Dev373ArrowRing)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	InitMissileGFX(true);
+	const char *outDir = std::getenv("ORCL_DEV373_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::FallingArrow);
+	ASSERT_TRUE(data.sprites);
+	const ClxSprite arrow = (*data.spritesForDirection(0))[0];
+	constexpr int CellW = 96, CellH = 96;
+	OwnedSurface out = OwnedSurface::Rgb(FallingArrowRingTicks * CellW, CellH);
+	SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 0x3A, 0x33, 0x2C));
+	for (int t = 0; t < FallingArrowRingTicks; t++) {
+		const Point floor { t * CellW + CellW / 2, CellH - 24 };
+		ASSERT_TRUE(oracool::DrawArrowRingPreview(out, floor, t)) << "ui/aura_blessed_aim.png";
+		if (t < FallingArrowHoldTicks)
+			ClxDrawRgbMap(out, floor + Displacement { -12, 3 }, arrow, FxTable(data.colours.get()));
+	}
+	PreviewSave(out, (dir + "dev373_arrow_ring.png").c_str());
+	std::cout << "wrote dev373_arrow_ring.png\n";
+	gbIsHellfire = savedHellfire;
+	HeadlessMode = savedHeadless;
 }

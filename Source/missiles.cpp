@@ -4290,11 +4290,27 @@ Displacement FallingArrowOffset(const Missile &missile)
 	const int age = missile.var5 - missile._mirange;
 	if (age < missile.var2)
 		return { 0, FallingArrowHiddenY };
+	// Its ring outlasts it (2026-10-03): the arrow goes after its hold, the ring plays on.
+	if (age - missile.var2 >= FallingArrowFallTicks + FallingArrowHoldTicks)
+		return { 0, FallingArrowHiddenY };
 	const int fallen = std::min(age - missile.var2 + 1, FallingArrowFallTicks);
 	return { missile.var3, FallingArrowLandY + missile.var4 - FallingArrowHeight * (FallingArrowFallTicks - fallen) / FallingArrowFallTicks };
 }
 
 } // namespace
+
+int FallingArrowLandedTicks(const Missile &missile)
+{
+	if (missile._mitype != ArtEffectCarrier || missile._miAnimType != MissileGraphicID::FallingArrow || missile._miDelFlag)
+		return -1;
+	const int sinceSetOff = missile.var5 - missile._mirange - missile.var2;
+	return sinceSetOff >= FallingArrowFallTicks ? sinceSetOff - FallingArrowFallTicks : -1;
+}
+
+Displacement FallingArrowScatter(const Missile &missile)
+{
+	return { missile.var3, missile.var4 };
+}
 
 bool AddFallingArrows(Point target, int playerId, int radius)
 {
@@ -4305,7 +4321,7 @@ bool AddFallingArrows(Point target, int playerId, int radius)
 		if (!InDungeonBounds(tile) || IsTileSolid(tile))
 			tile = target;
 		const int wait = i * FallingArrowSpreadTicks / FallingArrowCount + GenerateRnd(2);
-		const int life = wait + FallingArrowFallTicks + FallingArrowHoldTicks;
+		const int life = wait + FallingArrowFallTicks + std::max(FallingArrowHoldTicks, FallingArrowRingTicks);
 		Missile *arrow = AddArtEffect(tile, MissileGraphicID::FallingArrow, playerId, life);
 		if (arrow == nullptr)
 			continue;

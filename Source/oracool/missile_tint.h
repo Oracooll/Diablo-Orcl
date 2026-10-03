@@ -102,6 +102,8 @@ constexpr uint32_t Umber = Rgb(190, 138, 80);        // Decrepify: age and dust
 constexpr uint32_t BlackRed = Rgb(132, 14, 22);      // Death Mark: the mark of the grave
 constexpr uint32_t WardCyan = Rgb(58, 210, 236);     // Lower Resist: the wards stripped
 constexpr uint32_t DoomOrange = Rgb(240, 92, 0);     // Doom: the last embers
+// Rain of Arrows' impact ring (2026-10-03, "you pick color"): warm amber, apart from the arrows' red fletching.
+constexpr uint32_t ArrowAmber = Rgb(255, 184, 64);
 } // namespace hue
 
 /**

@@ -73,6 +73,21 @@ void DrawMinionFrenzyRings(const Surface &out, Point tilePosition, Point targetB
 
 /** @brief The frenzy ring's size against the Paladin's aura ring, in percent ("Small scale - 50% of paladin aura rings"). */
 constexpr int FrenzyRingPercent = 50;
+
+/**
+ * @brief Rain of Arrows' impact rings (user, 2026-10-03: "add a little diameter - 0,5-1 tile of aura ring, you pick color,
+ * under each arrow of rain of arrows when an arrow impacts on ground"): Blessed Aim's ring in hue::ArrowAmber under each
+ * landed arrow (missiles.h FallingArrowLandedTicks), opening from ArrowRingStartPercent to ArrowRingEndPercent of a tile
+ * across over FallingArrowRingTicks as it fades out. Same arguments and walk as DrawAuraGround.
+ */
+void DrawArrowImpactRings(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns);
+/** The impact ring's width at its start and end, in percent of a tile (64 px). */
+constexpr int ArrowRingStartPercent = 50;
+constexpr int ArrowRingEndPercent = 100;
+/** @brief Tests only: the impact ring's size in pixels @p ticks after the arrow landed. */
+DVL_API_FOR_TEST Size ArrowRingSize(int ticks);
+/** @brief Tests only: the impact ring @p ticks after landing, centred on @p centre, as DrawArrowImpactRings draws it. */
+DVL_API_FOR_TEST bool DrawArrowRingPreview(const Surface &out, Point centre, int ticks);
 /** @brief The frenzy ring as drawn, in pixels. */
 DVL_API_FOR_TEST Size FrenzyRingSize();
 /** @brief Tests only: the frenzy ring centred on @p centre, at full pulse. False while the art is missing. */

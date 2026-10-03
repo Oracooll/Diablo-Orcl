@@ -14,6 +14,7 @@
 #include "engine/palette.h"
 #include "engine/render/primitive_render.hpp" // SetHalfTransparentPixelUnchecked (v1.11)
 #include "levels/gendung.h"
+#include "missiles.h" // FallingArrowLandedTicks - Rain of Arrows' impact rings
 #include "monster.h"
 #include "oracool/aura_field.h"
 #include "oracool/class_tree.h"
@@ -532,6 +533,96 @@ void DrawMinionFrenzyRings(const Surface &out, Point tilePosition, Point targetB
 							BlitAuraPixels(out, *art, centre, size.width, size.height, pulse, hue::FrenzyOrange);
 						}
 					}
+				}
+			}
+			tilePosition += Direction::East;
+			targetBufferPosition.x += TILE_WIDTH;
+		}
+		tilePosition += Displacement(Direction::West) * columns;
+		targetBufferPosition.x -= columns * TILE_WIDTH;
+		targetBufferPosition.y += TILE_HEIGHT / 2;
+		if ((i & 1) != 0) {
+			tilePosition.x++;
+			columns--;
+			targetBufferPosition.x += TILE_WIDTH / 2;
+		} else {
+			tilePosition.y++;
+			columns++;
+			targetBufferPosition.x -= TILE_WIDTH / 2;
+		}
+	}
+}
+
+Size ArrowRingSize(int ticks)
+{
+	const int t = std::clamp(ticks, 0, FallingArrowRingTicks - 1);
+	const int percent = ArrowRingStartPercent + (ArrowRingEndPercent - ArrowRingStartPercent) * t / std::max(FallingArrowRingTicks - 1, 1);
+	return { TILE_WIDTH * percent / 100, TILE_HEIGHT * percent / 100 };
+}
+
+namespace {
+
+/** @brief Blessed Aim's ring art for the arrows' impacts, loaded on first use; null while it is missing. */
+const AuraArt *ArrowRingArt()
+{
+	const int slot = IndexOfSkill(Skill::BlessedAim);
+	if (slot < 0)
+		return nullptr;
+	DropQuantisationIfPaletteMoved();
+	if (!Art[slot].loadAttempted)
+		LoadAura(slot);
+	return Art[slot].usable ? &Art[slot] : nullptr;
+}
+
+/** @brief One impact ring @p ticks after its arrow landed: opening out, bright as it strikes and gone at the end. */
+void BlitArrowRing(const Surface &out, const AuraArt &art, Point centre, int ticks)
+{
+	const Size size = ArrowRingSize(ticks);
+	const int fade = 140 * (FallingArrowRingTicks - ticks) / FallingArrowRingTicks;
+	BlitAuraPixels(out, art, centre, size.width, size.height, fade, hue::ArrowAmber);
+}
+
+} // namespace
+
+bool DrawArrowRingPreview(const Surface &out, Point centre, int ticks)
+{
+	const AuraArt *art = ArrowRingArt();
+	if (art == nullptr)
+		return false;
+	BlitArrowRing(out, *art, centre, ticks);
+	return true;
+}
+
+void DrawArrowImpactRings(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
+{
+	if (leveltype == DTYPE_TOWN || MyPlayer == nullptr || !MyPlayer->isOnActiveLevel())
+		return;
+	// The landed arrows first - a volley is sixteen, so the walk below asks a short list, not the missile pool per tile.
+	struct Landed {
+		Point tile;
+		Displacement scatter;
+		int ticks;
+	};
+	std::vector<Landed> landed;
+	for (const Missile &missile : Missiles) {
+		const int ticks = FallingArrowLandedTicks(missile);
+		if (ticks >= 0 && ticks < FallingArrowRingTicks)
+			landed.push_back({ missile.position.tile, FallingArrowScatter(missile), ticks });
+	}
+	if (landed.empty())
+		return;
+	const AuraArt *art = ArrowRingArt();
+	if (art == nullptr)
+		return;
+	// DrawFloor's walk again (see DrawAuraGround).
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < columns; j++) {
+			if (InDungeonBounds(tilePosition) && IsTileLit(tilePosition)) {
+				for (const Landed &arrow : landed) {
+					if (arrow.tile != tilePosition)
+						continue;
+					const Point centre = targetBufferPosition + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 } + arrow.scatter;
+					BlitArrowRing(out, *art, centre, arrow.ticks);
 				}
 			}
 			tilePosition += Direction::East;

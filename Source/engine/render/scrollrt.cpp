@@ -1655,6 +1655,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// separately, so the two cannot disagree about where a tile is.
 	oracool::DrawAuraGround(out, position, Point {} + offset, rows, columns);
 	oracool::DrawMinionFrenzyRings(out, position, Point {} + offset, rows, columns); // Frenzy of the Dead, under each minion
+	oracool::DrawArrowImpactRings(out, position, Point {} + offset, rows, columns); // Rain of Arrows, under each landed arrow
 	DrawTileContent(out, position, Point {} + offset, rows, columns);
 	// The deferred monster outlines, drained HERE - after the whole scene is composited, so they
 	// land on top of any wall that would otherwise hide the body, but still BEFORE ZoomScale, so

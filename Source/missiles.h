@@ -563,6 +563,12 @@ constexpr int FallingArrowSpreadTicks = 16;
 constexpr int FallingArrowFallTicks = 6;
 constexpr int FallingArrowHoldTicks = 2;
 constexpr int FallingArrowHeight = 192;
+/** Ticks the impact ring under a landed arrow lasts (aura_ground.cpp DrawArrowImpactRings); the arrow's life covers it. */
+constexpr int FallingArrowRingTicks = 8;
+/** @brief Ticks since falling arrow @p missile struck the floor, or -1 while it waits or falls (or is no falling arrow). */
+int FallingArrowLandedTicks(const Missile &missile);
+/** @brief Where on its tile falling arrow @p missile lands, from the tile's floor point. */
+Displacement FallingArrowScatter(const Missile &missile);
 /**
  * @brief Drops FallingArrowCount copies of falling_arrow.png on the tiles within @p radius of @p target, each setting off at
  * its own moment over FallingArrowSpreadTicks, falling FallingArrowHeight pixels in FallingArrowFallTicks and standing a
