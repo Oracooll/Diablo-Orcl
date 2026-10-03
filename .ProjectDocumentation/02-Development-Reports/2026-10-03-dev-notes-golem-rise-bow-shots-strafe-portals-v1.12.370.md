@@ -61,3 +61,20 @@ Seven `/dev` notes, all logged at v1.12.369, all done and archived in `developme
 - Bow skills: Rain of Arrows / Phantom Volley timing at the release frame.
 - Portal shadows on real floors, the in-town portal inside the Rift Monument's arch, and the red portal's colours now that it draws true colour.
 - Not done: the other new arrow sheets (barbed 71px, piercing 74, crippling 66, phantom 71, shock 58, barrage 44) are also longer than 38px. Only Magic and Guided were asked for.
+
+## v1.12.371: every new arrow at 38 px (commit 8bf0bb91)
+The user: "align their size to other arrows size." `tools/ScaleMissileSheet.ps1` on the other six arrow sheets:
+- barbed 54%, piercing 51%, crippling 58%, phantom 54%, shock 66%, barrage 86%.
+- All nine arrow sheets now measure 38-39 px. 937/937; ini unchanged.
+
+## v1.12.372: Rain of Arrows' falling arrow (commit eef19276)
+- **The delivery:** RfA-61 arrived in `delivered-packs/batch-90-falling-arrow`. Checked: 24x72, binary alpha, 281 colours, tip at (12,69).
+- **Registered as** `missiles/falling_arrow.png`, `MissileGraphicID::FallingArrow` (animWidth 24, animWidth2 -20).
+- **`AddFallingArrows`** (missiles.cpp) places 16 art-effect copies on random tiles within the skill's reach. Each one:
+  - sets off at its own moment over 16 ticks, out of sight (offset -4000) until then;
+  - falls 192 px in 6 ticks onto its tile with a ±10/±5 px scatter;
+  - stands 2 ticks, then goes.
+- **Rain of Arrows** uses it; the old volley sheet is the fallback without the art. The damage is unchanged and still lands at the cast, not with the arrows.
+- **Test:** `OracoolDev372.RainOfArrowsDropsTheOneArrowMultiplied`. 938/938; ini unchanged.
+- **Not done:** the arrows have no floor shadow, though the brief told ChatGPT the game would add one.
+- **To check in play:** the fall speed and spread, and walls drawn over a falling arrow (it is drawn in its landing tile's pass).
