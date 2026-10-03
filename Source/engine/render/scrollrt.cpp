@@ -508,6 +508,12 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::TintedTable(oracool::LitPaletteTable(LightTableIndex), oracool::Tint::Mend, 0, mend));
 		return;
 	}
+	// The Fire Golem is the Elemental's run sheet, drawn as the Elemental missile is: as it is, at full brightness - it burns
+	// in the dark (v1.12.364). Ice, stone and infravision win; Dark Mending's glow above too.
+	if (trn == nullptr && oracool::MinionDrawsUnlit(monster)) {
+		ClxDraw(out, targetBufferPosition, sprite);
+		return;
+	}
 	// The Necromancer's golems and mages in their materials and elements (the Necromancer Skill Cards page, 2026-10-03):
 	// the vanilla sheet through colour values, lit as it stands. Ice, stone and infravision win; on an 8-bit target the
 	// golems keep their palette ramp below.
@@ -1172,7 +1178,12 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 			offset -= Displacement { 64, 0 };
 	} else if (isNegativeMonster) {
 		return;
+	} else {
+		offset += oracool::MinionLungeOffset(monster); // the Fire Golem's lunge toward what it strikes (v1.12.364)
 	}
+	// A dying Fire Golem is all explosion: no body under it (v1.12.364).
+	if (oracool::MinionBodyHidden(monster))
+		return;
 
 	const Point monsterRenderPosition { targetBufferPosition + offset - Displacement { CalculateWidth2(sprite.width()), 0 } };
 	// Scent of Blood (RfA-12): a monster the Rogue wounded stays drawn a moment after it leaves the light.

@@ -7,6 +7,7 @@
 #include "diablo.h"
 #include "levels/gendung.h"
 #include "oracool/companion.h"
+#include "oracool/minions.h" // GetMinionAnim: the Fire Golem's run sheet
 #include "oracool/sprite_scale.h"
 
 namespace devilution::oracool {
@@ -158,6 +159,9 @@ const AnimStruct *GetScaledAnim(const Monster &monster, MonsterGraphic graphic)
 	// A companion wears its hero sheets (oracool/companion.h) - asked here because this is where both binders ask.
 	if (const AnimStruct *companion = GetCompanionAnim(monster, graphic))
 		return companion;
+	// And the Necromancer's Fire Golem the Elemental's run sheet (oracool/minions.h, v1.12.364).
+	if (const AnimStruct *minion = GetMinionAnim(monster, graphic))
+		return minion;
 	const unsigned percent = MonsterSizePercent(GetMonsterSize(monster));
 	if (percent == 100)
 		return nullptr;

@@ -178,7 +178,8 @@ MinionSpec GolemSpec(const Player &player, GolemKind kind, int rank)
 		spec.minDamage = 5 + 2 * rank;
 		spec.maxDamage = 12 + 3 * rank;
 		spec.armorClass = 15 + 2 * rank;
-		spec.ramp = 208; // the oranges
+		// No ramp (v1.12.364): the body is the Elemental's run sheet, already fire; the old orange ramp would recolour it twice.
+		spec.ramp = 0;
 		break;
 	case GolemKind::None:
 		break;

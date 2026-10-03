@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdlib>
 
 #include <SDL.h>
@@ -192,6 +193,10 @@ bool SpawnBody(Record &record, const Player &owner, Point near)
 				body->uniqueMonsterTRN = RampTranslation(record.spec.ramp, 2, true);
 			record.body = static_cast<int>(body->getId());
 			RecordOfSlot[body->getId()] = static_cast<int8_t>(&record - Records.data());
+			// The Fire Golem's body is the Elemental's run sheet (GetMinionAnim), which asks the record - only there now, so
+			// the stand AddMinionBody bound on the golem's own sheet is bound again (v1.12.364).
+			if (record.spec.golem == GolemKind::Fire)
+				M_StartStand(*body, body->direction);
 			return true;
 		}
 	}
@@ -344,6 +349,9 @@ bool SummonMinion(Player &owner, const MinionSpec &spec, Point near)
 			record = {};
 			return false;
 		}
+		// The Fire Golem rises in a fire flare (v1.12.364) - when it is summoned, not when it re-forms on the next floor.
+		if (spec.golem == GolemKind::Fire)
+			AddFireGolemBurst(Monsters[record.body].position.tile, FireGolemSummonArt, static_cast<int>(owner.getId()));
 		Renumber(record.owner, spec.group);
 		return true;
 	}
@@ -712,7 +720,7 @@ MinionLook GolemLook(GolemKind kind)
 {
 	// The user's words (the Necromancer Skill Cards page, 2026-10-03): "vanilla golem, tinted in clay colour", "tinted
 	// blood red or infrared red", "tinted in iron colour ... subtle colour cycling in random pattern to imitate iron
-	// reflective surface". The Fire Golem waits for its sprite (an Elemental proposal), keeping its orange ramp meanwhile.
+	// reflective surface". The Fire Golem wears the Elemental's run sheet as it is drawn (v1.12.364): no tint, no ramp.
 	switch (kind) {
 	case GolemKind::Clay: return { Tint::Hue, hue::Clay };
 	case GolemKind::Blood: return { Tint::Hue, hue::BloodRed };
@@ -756,6 +764,121 @@ bool IsMinionFrenzied(const Monster &monster)
 {
 	const Record *record = RecordOf(monster);
 	return record != nullptr && BodyAlive(*record) && MinionDamagePercent(monster) > 100;
+}
+
+// ---- the Fire Golem (v1.12.364) -------------------------------------------------------------------------------------
+
+FireGolemTiming FireGolemAnimTiming(MonsterGraphic graphic)
+{
+	switch (graphic) {
+	case MonsterGraphic::Stand:
+	case MonsterGraphic::Walk:
+		// The golem stands on its walk (M_StartStand), so the idle loop and the step are one slowed run loop.
+		return { static_cast<int8_t>(FireGolemSheetFrames), static_cast<int8_t>(FireGolemWalkTicksPerFrame) };
+	case MonsterGraphic::Attack:
+	case MonsterGraphic::GotHit:
+	case MonsterGraphic::Death:
+	case MonsterGraphic::Special:
+		break;
+	}
+	return { static_cast<int8_t>(FireGolemSheetFrames), static_cast<int8_t>(FireGolemAttackTicksPerFrame) };
+}
+
+bool IsFireGolem(const Monster &monster)
+{
+	const Record *record = RecordOf(monster);
+	return record != nullptr && record->spec.group == MinionGroup::Golem && record->spec.golem == GolemKind::Fire;
+}
+
+const AnimStruct *GetMinionAnim(const Monster &monster, MonsterGraphic graphic)
+{
+	if (!IsFireGolem(monster))
+		return nullptr;
+	const MissileFileData &sheet = GetMissileSpriteData(MissileGraphicID::Elemental);
+	if (!sheet.sprites || !sheet.sprites->isSheet())
+		return nullptr; // the art is not loaded (headless, or no hellfire.mpq): the vanilla golem stands in
+	// Rebuilt on every ask from the sheet as it is loaded now, never cached: InitMissileGFX reloads the missiles with each
+	// level, and a view kept from the last one would point at freed art.
+	static std::array<AnimStruct, 6> Anims {};
+	AnimStruct &anim = Anims[static_cast<size_t>(graphic)];
+	const ClxSpriteListOrSheet view { *sheet.sprites };
+	const FireGolemTiming timing = FireGolemAnimTiming(graphic);
+	anim.sprites = view;
+	anim.width = sheet.animWidth;
+	anim.frames = static_cast<int8_t>(std::min<int>(timing.frames, view.sheet()[0].numSprites()));
+	anim.rate = timing.rate;
+	return &anim;
+}
+
+double FireGolemLungeFraction(int progress)
+{
+	constexpr double Pi = 3.14159265358979323846;
+	const double p = static_cast<double>(std::clamp<int>(progress, 0, AnimationInfo::baseValueFraction)) / AnimationInfo::baseValueFraction;
+	return std::max(std::sin(Pi * p), 0.0);
+}
+
+Displacement FireGolemLungeOffset(Direction facing, int progress)
+{
+	// One tile's step on the screen per facing, as the walk moves (scrollrt.cpp GetOffsetForWalking's MovingOffset).
+	constexpr Displacement Step[8] = { { 0, 32 }, { -32, 16 }, { -64, 0 }, { -32, -16 }, { 0, -32 }, { 32, -16 }, { 64, 0 }, { 32, 16 } };
+	const size_t index = static_cast<size_t>(facing);
+	if (index >= 8)
+		return {};
+	const double reach = FireGolemLungeFraction(progress) * FireGolemLungeTenths / 10.0;
+	return { static_cast<int>(std::lround(Step[index].deltaX * reach)), static_cast<int>(std::lround(Step[index].deltaY * reach)) };
+}
+
+Displacement MinionLungeOffset(const Monster &monster)
+{
+	if (monster.mode != MonsterMode::MeleeAttack || !IsFireGolem(monster))
+		return {};
+	return FireGolemLungeOffset(monster.direction, monster.animInfo.getAnimationProgress());
+}
+
+bool MinionBodyHidden(const Monster &monster)
+{
+	return monster.mode == MonsterMode::Death && IsFireGolem(monster) && MissileArtLoaded(FireGolemDeathArt);
+}
+
+bool MinionDrawsUnlit(const Monster &monster)
+{
+	return IsFireGolem(monster);
+}
+
+MissileGraphicID FireGolemStrikeArt()
+{
+	return MissileArtLoaded(MissileGraphicID::HitFire) ? MissileGraphicID::HitFire : MissileGraphicID::MagmaBallExplosion;
+}
+
+Missile *AddFireGolemBurst(Point tile, MissileGraphicID art, int playerId)
+{
+	return AddArtEffect(tile, art, playerId);
+}
+
+void OnMinionStrikeFrame(const Monster &minion)
+{
+	const Record *record = RecordOf(minion);
+	if (record == nullptr || record->spec.golem != GolemKind::Fire)
+		return;
+	// On the one it strikes, or the tile it faces when that one is gone (the splash still marks the blow).
+	Point at = minion.position.tile + minion.direction;
+	if ((minion.flags & MFLAG_TARGETS_MONSTER) != 0 && minion.enemy < MaxMonsters
+	    && Monsters[minion.enemy].position.tile.WalkingDistance(minion.position.tile) < 2)
+		at = Monsters[minion.enemy].position.tile;
+	AddFireGolemBurst(at, FireGolemStrikeArt(), record->owner);
+}
+
+void OnMinionDeathStarted(const Monster &minion)
+{
+	const Record *record = RecordOf(minion);
+	if (record == nullptr || record->spec.golem != GolemKind::Fire)
+		return;
+	AddFireGolemBurst(minion.position.tile, FireGolemDeathArt, record->owner);
+}
+
+bool MinionLeavesNoBody(const Monster &monster)
+{
+	return IsFireGolem(monster);
 }
 
 int MinionDamagePercent(const Monster &monster)

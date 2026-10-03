@@ -326,3 +326,133 @@ TEST(OracoolNecro363, TheGolemsPlayThePagesSounds)
 	EXPECT_STREQ(oracool::SkillSoundPath(ClassTreeSkill::FireGolem, SkillSoundEvent::Impact), "sfx\\misc\\fbolt1.wav");
 	EXPECT_STREQ(oracool::SkillSoundPath(ClassTreeSkill::FireGolem, SkillSoundEvent::Cast), "sfx\\misc\\elementl.wav");
 }
+
+// ---- The Fire Golem as the Hellfire Elemental, the user's LUNGE pick (v1.12.364) ----
+
+#include "engine/animationinfo.h"
+#include "missiles.h"
+
+namespace {
+
+/** @brief Ticks an animation started as a monster's step starts (NewMonsterAnim's walk: pending, one frame back) runs to its last frame. */
+int TicksToLastFrame(int frames, int rate, int8_t skipped)
+{
+	AnimationInfo anim {};
+	anim.setNewAnimation(std::nullopt, static_cast<int8_t>(frames), static_cast<int8_t>(rate), AnimationDistributionFlags::ProcessAnimationPending, skipped);
+	int ticks = 0;
+	while (!anim.isLastFrame() && ticks < 1000) {
+		anim.processAnimation();
+		ticks++;
+	}
+	return ticks;
+}
+
+} // namespace
+
+// "Reduce its movement speed a bit": a tile takes the run sheet's 12 frames at two ticks against the vanilla golem's 16 at
+// one - 2/3 of the pace - and the step, which ends on the last frame, is the same animation the body shows.
+TEST(OracoolNecro364, TheFireGolemWalksAtTwoThirdsTheGolemsPace)
+{
+	const MonsterData &golem = MonstersData[MT_GOLEM];
+	ASSERT_EQ(golem.frames[1], 16) << "the vanilla golem's walk";
+	ASSERT_EQ(golem.rate[1], 1);
+	const oracool::FireGolemTiming walk = oracool::FireGolemAnimTiming(MonsterGraphic::Walk);
+	EXPECT_EQ(walk.frames, 12) << "the Elemental's run sheet has twelve frames a facing";
+	EXPECT_EQ(walk.rate, 2);
+	const int vanillaTicks = TicksToLastFrame(golem.frames[1], golem.rate[1], -1);
+	const int fireTicks = TicksToLastFrame(walk.frames, walk.rate, -1);
+	EXPECT_EQ(vanillaTicks, 16);
+	EXPECT_EQ(fireTicks, 24);
+	EXPECT_NEAR(static_cast<double>(vanillaTicks) / fireTicks, 2.0 / 3.0, 0.01);
+	// It stands on its walk (M_StartStand), so the idle loop is the same slowed run.
+	EXPECT_EQ(oracool::FireGolemAnimTiming(MonsterGraphic::Stand).rate, walk.rate);
+}
+
+// The blow keeps its timing: the attack runs the sheet at one tick a frame, the golem's own 12 ticks, and the golem's hit
+// frame (animFrameNum 7) is on the sheet with frames to spare.
+TEST(OracoolNecro364, TheFireGolemsBlowLandsWhenItAlwaysDid)
+{
+	const MonsterData &golem = MonstersData[MT_GOLEM];
+	const oracool::FireGolemTiming attack = oracool::FireGolemAnimTiming(MonsterGraphic::Attack);
+	EXPECT_EQ(attack.frames * attack.rate, golem.frames[2] * golem.rate[2]) << "the attack lasts what the golem's did";
+	EXPECT_EQ(golem.animFrameNum, 7);
+	EXPECT_LT(golem.animFrameNum, attack.frames);
+	EXPECT_EQ(oracool::FireGolemAnimTiming(MonsterGraphic::Death).frames, 12);
+}
+
+// The lunge: out to half a tile at the middle of the attack (the hit frame) and back, easing, the same on the way back as
+// on the way out, and nothing at either end - the body ends where it started.
+TEST(OracoolNecro364, TheLungeSurgesHalfATileAndComesBack)
+{
+	constexpr int End = AnimationInfo::baseValueFraction;
+	EXPECT_NEAR(oracool::FireGolemLungeFraction(0), 0.0, 1e-9);
+	EXPECT_NEAR(oracool::FireGolemLungeFraction(End), 0.0, 1e-9);
+	EXPECT_NEAR(oracool::FireGolemLungeFraction(End / 2), 1.0, 1e-9);
+	EXPECT_NEAR(oracool::FireGolemLungeFraction(-20), 0.0, 1e-9) << "clamped";
+	EXPECT_NEAR(oracool::FireGolemLungeFraction(End + 20), 0.0, 1e-9) << "clamped";
+	double last = -1.0;
+	for (int p = 0; p <= End; p++) {
+		EXPECT_NEAR(oracool::FireGolemLungeFraction(p), oracool::FireGolemLungeFraction(End - p), 1e-9) << "progress " << p;
+		const double f = oracool::FireGolemLungeFraction(p);
+		if (p <= End / 2) {
+			EXPECT_GE(f, last) << "out all the way to the middle, progress " << p;
+			last = f;
+		}
+	}
+	EXPECT_GT(oracool::FireGolemLungeFraction(End / 4), 0.6) << "eases out: fast first, slow at the peak";
+	// The golem's hit frame (7 of 12) falls on the lunge's peak region.
+	EXPECT_GT(oracool::FireGolemLungeFraction(End * 6 / 12), 0.95);
+
+	// As a screen offset: half a tile toward the facing at the peak, nothing at the ends, mirror-equal around the middle.
+	EXPECT_EQ(oracool::FireGolemLungeOffset(Direction::South, End / 2), (Displacement { 0, 16 }));
+	EXPECT_EQ(oracool::FireGolemLungeOffset(Direction::North, End / 2), (Displacement { 0, -16 }));
+	EXPECT_EQ(oracool::FireGolemLungeOffset(Direction::East, End / 2), (Displacement { 32, 0 }));
+	EXPECT_EQ(oracool::FireGolemLungeOffset(Direction::West, End / 2), (Displacement { -32, 0 }));
+	EXPECT_EQ(oracool::FireGolemLungeOffset(Direction::SouthEast, End / 2), (Displacement { 16, 8 }));
+	EXPECT_EQ(oracool::FireGolemLungeOffset(Direction::NorthWest, End / 2), (Displacement { -16, -8 }));
+	for (int d = 0; d < 8; d++) {
+		const auto facing = static_cast<Direction>(d);
+		EXPECT_EQ(oracool::FireGolemLungeOffset(facing, 0), (Displacement { 0, 0 })) << d;
+		EXPECT_EQ(oracool::FireGolemLungeOffset(facing, End), (Displacement { 0, 0 })) << d;
+		for (int p = 0; p <= End; p += 8)
+			EXPECT_EQ(oracool::FireGolemLungeOffset(facing, p), oracool::FireGolemLungeOffset(facing, End - p)) << d << " at " << p;
+	}
+	EXPECT_EQ(oracool::FireGolemLungeOffset(Direction::NoDirection, End / 2), (Displacement { 0, 0 }));
+}
+
+// The three bursts: a small splash on the target, the Apocalypse boom to rise in, the Elemental's own explosion to end in -
+// the splash smaller than the end.
+TEST(OracoolNecro364, TheFireGolemsBurstsAreSmallSplashFlareAndTheElementalsEnd)
+{
+	EXPECT_EQ(oracool::FireGolemDeathArt, MissileGraphicID::BigExplosion) << "the missile the Elemental spell ends in";
+	EXPECT_EQ(oracool::FireGolemSummonArt, MissileGraphicID::ApocalypseBoom);
+	const MissileGraphicID strike = oracool::FireGolemStrikeArt();
+	EXPECT_TRUE(strike == MissileGraphicID::HitFire || strike == MissileGraphicID::MagmaBallExplosion);
+	if (!MissileArtLoaded(MissileGraphicID::HitFire))
+		EXPECT_EQ(strike, MissileGraphicID::MagmaBallExplosion) << "the magma ball's burst stands in for hit_fire.png";
+	EXPECT_LT(GetMissileSpriteData(strike).animWidth, GetMissileSpriteData(oracool::FireGolemDeathArt).animWidth) << "a splash, not the big explosion";
+	EXPECT_LT(GetMissileSpriteData(oracool::FireGolemSummonArt).animWidth, GetMissileSpriteData(oracool::FireGolemDeathArt).animWidth);
+}
+
+// None of it touches anything that is no Fire Golem: no other sheet, no lunge, no hidden body, a corpse as before, no burst.
+TEST(OracoolNecro364, NothingButAFireGolemWearsTheElemental)
+{
+	oracool::ForgetMinions();
+	EXPECT_EQ(oracool::GolemLook(oracool::GolemKind::Fire).tint, oracool::Tint::None) << "the sheet is fire already: no tint";
+	for (const size_t id : { size_t { 0 }, size_t { MaxEnemyMonsters }, size_t { MaxMonsters - 1 } }) {
+		Monster &monster = Monsters[id];
+		monster.mode = MonsterMode::MeleeAttack;
+		EXPECT_FALSE(oracool::IsFireGolem(monster)) << id;
+		EXPECT_EQ(oracool::GetMinionAnim(monster, MonsterGraphic::Walk), nullptr) << id;
+		EXPECT_EQ(oracool::MinionLungeOffset(monster), (Displacement { 0, 0 })) << id;
+		EXPECT_FALSE(oracool::MinionDrawsUnlit(monster)) << id;
+		EXPECT_FALSE(oracool::MinionLeavesNoBody(monster)) << id;
+		monster.mode = MonsterMode::Death;
+		EXPECT_FALSE(oracool::MinionBodyHidden(monster)) << id;
+		const size_t before = Missiles.size();
+		oracool::OnMinionDeathStarted(monster);
+		oracool::OnMinionStrikeFrame(monster);
+		EXPECT_EQ(Missiles.size(), before) << id;
+		monster.mode = MonsterMode::Stand;
+	}
+}

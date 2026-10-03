@@ -17581,3 +17581,207 @@ TEST(OracoolPreview, DISABLED_Necro363SummoningLooks)
 	gbIsHellfire = savedHellfire;
 	HeadlessMode = savedHeadless;
 }
+
+namespace {
+
+/** @brief The Fire Golem's art (v1.12.364): the Elemental's run sheet and the three bursts, loaded as InitMissileGFX would. */
+void LoadFireGolemArt()
+{
+	MountTestArchives(true);
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	for (const MissileGraphicID art : { MissileGraphicID::Elemental, MissileGraphicID::BigExplosion, MissileGraphicID::ApocalypseBoom,
+	         MissileGraphicID::MagmaBallExplosion, MissileGraphicID::HitFire }) {
+		if (!GetMissileSpriteData(art).sprites)
+			GetMissileSpriteData(art).LoadGFX();
+	}
+	HeadlessMode = savedHeadless;
+}
+
+/** @brief The still art effect of @p art standing on @p tile, or null. */
+const Missile *BurstAt(MissileGraphicID art, Point tile)
+{
+	for (const Missile &missile : Missiles) {
+		if (missile._miAnimType == art && missile.position.tile == tile && !missile._miDelFlag)
+			return &missile;
+	}
+	return nullptr;
+}
+
+} // namespace
+
+/**
+ * The user's LUNGE pick for the Fire Golem (v1.12.364), end to end on a real summon: it stands in the Elemental's run sheet
+ * at the slowed pace, rises in the Apocalypse boom, splashes fire on what it strikes, and dies in the Elemental's own
+ * explosion with no body drawn and none left.
+ */
+TEST(OracoolNecro364, AFireGolemRisesStrikesAndEndsInTheElementalsFire)
+{
+	// Mounted BEFORE gbIsHellfire is saved: the first mount sets it (init.cpp), and restoring the value from before the mount
+	// took Hellfire away from every test after this one in a shuffled run (objcurs2 never loaded).
+	MountTestArchives(true);
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	LoadFireGolemArt();
+	ASSERT_TRUE(MissileArtLoaded(MissileGraphicID::Elemental)) << "firerun1..8.cl2 (hellfire.mpq) are needed";
+	ASSERT_TRUE(MissileArtLoaded(oracool::FireGolemDeathArt));
+	ASSERT_TRUE(MissileArtLoaded(oracool::FireGolemSummonArt));
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &necro = Players[0];
+	necro = {};
+	necro.plractive = true;
+	necro.position.tile = { 40, 40 };
+	const dungeon_type savedLevelType = leveltype;
+	const uint8_t savedLevel = currlevel;
+	gbIsMultiplayer = false;
+	leveltype = DTYPE_CATHEDRAL;
+	currlevel = 1;
+	oracool::ForgetMinions();
+	Missiles.clear();
+	ActiveMonsterCount = 0;
+	for (size_t i = 0; i < MaxMonsters; i++)
+		ActiveMonsters[i] = static_cast<unsigned>(i);
+	LevelMonsterTypeCount = 0;
+
+	oracool::MinionSpec spec { oracool::MinionGroup::Golem, MT_GOLEM, 100, 5, 12, 70, 15 };
+	spec.golem = oracool::GolemKind::Fire;
+	ASSERT_TRUE(oracool::SummonMinion(necro, spec, { 44, 40 }));
+	Monster *golem = nullptr;
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		if (oracool::IsMinion(Monsters[ActiveMonsters[i]]))
+			golem = &Monsters[ActiveMonsters[i]];
+	}
+	ASSERT_NE(golem, nullptr);
+	EXPECT_TRUE(oracool::IsFireGolem(*golem));
+	EXPECT_EQ(golem->uniqueMonsterTRN, nullptr) << "no orange ramp over a sheet that is fire already";
+
+	// Its body is the run sheet, at the walk's slowed pace (it stands on its walk).
+	const ClxSpriteListOrSheet sheet { *GetMissileSpriteData(MissileGraphicID::Elemental).sprites };
+	ASSERT_TRUE(golem->animInfo.sprites.has_value());
+	EXPECT_EQ(golem->animInfo.sprites->data(), sheet.sheet()[static_cast<size_t>(golem->direction)].data()) << "bound to the Elemental's sheet";
+	EXPECT_EQ(golem->animInfo.numberOfFrames, 12);
+	EXPECT_EQ(golem->animInfo.ticksPerFrame, oracool::FireGolemWalkTicksPerFrame);
+	EXPECT_TRUE(oracool::MinionDrawsUnlit(*golem));
+	const Point at = golem->position.tile;
+	EXPECT_NE(BurstAt(oracool::FireGolemSummonArt, at), nullptr) << "it rises in a fire flare";
+
+	// The hit frame: the splash on the tile it strikes.
+	golem->direction = Direction::East;
+	golem->mode = MonsterMode::MeleeAttack;
+	oracool::OnMinionStrikeFrame(*golem);
+	EXPECT_NE(BurstAt(oracool::FireGolemStrikeArt(), at + Direction::East), nullptr) << "the splash bursts on the target";
+	EXPECT_EQ(BurstAt(oracool::FireGolemDeathArt, at), nullptr) << "not the big explosion";
+	golem->mode = MonsterMode::Stand;
+
+	// Its end: the Elemental's explosion where it stands, no body drawn, none left.
+	M_StartKill(*golem, necro);
+	EXPECT_EQ(golem->mode, MonsterMode::Death);
+	EXPECT_NE(BurstAt(oracool::FireGolemDeathArt, at), nullptr) << "the Elemental's explosion";
+	EXPECT_TRUE(oracool::MinionBodyHidden(*golem));
+	EXPECT_TRUE(oracool::MinionLeavesNoBody(*golem));
+	EXPECT_EQ(golem->animInfo.sprites->data(), sheet.sheet()[static_cast<size_t>(golem->direction)].data()) << "the death binds the sheet too";
+
+	// Nothing of it outlives the test: its tile, its type slot, the floor it stood on.
+	M_ClearSquares(*golem);
+	*golem = Monster {};
+	oracool::ForgetMinions();
+	Missiles.clear();
+	ActiveMonsterCount = 0;
+	LevelMonsterTypeCount = 0;
+	leveltype = savedLevelType;
+	currlevel = savedLevel;
+	gbIsHellfire = savedHellfire;
+}
+
+/**
+ * The Fire Golem as the game draws it (v1.12.364), at full light on a dark floor: its walk facing south (12 frames at two
+ * ticks); its lunge facing east and facing south-west, frame by frame, the body carried by FireGolemLungeOffset with a
+ * grey mark on its own tile and the splash on the target from the hit frame; and the summon flare and the death explosion
+ * over the body. Writes necro364_walk_lunge.png and necro364_bursts.png into ORCL_NECRO364_OUT (default: working directory).
+ */
+TEST(OracoolPreview, DISABLED_Necro364FireGolem)
+{
+	InitPNG();
+	MountTestArchives(true); // before gbIsHellfire is saved: the first mount sets it
+	PreviewLoadPalette();
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	LoadFireGolemArt();
+	ASSERT_TRUE(MissileArtLoaded(MissileGraphicID::Elemental));
+	const char *outDir = std::getenv("ORCL_NECRO364_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const ClxSpriteListOrSheet body { *GetMissileSpriteData(MissileGraphicID::Elemental).sprites };
+	const uint32_t *table = FxTable(nullptr);
+	const auto drawArt = [&](const Surface &out, MissileGraphicID art, int frame, Point base) {
+		const MissileFileData &data = GetMissileSpriteData(art);
+		if (!data.sprites)
+			return;
+		const ClxSpriteList list = *data.spritesForDirection(0);
+		if (frame < 0 || frame >= static_cast<int>(list.numSprites()))
+			return;
+		ClxDrawRgbMap(out, base - Displacement { data.animWidth2, 0 }, list[static_cast<size_t>(frame)], data.colours != nullptr ? FxTable(data.colours.get()) : table);
+	};
+	const auto mark = [](const Surface &out, Point base) {
+		// A tile's floor diamond, 64x32, as a grey outline: a tile's draw point is its left corner, its centre 32 px right.
+		for (int x = -32; x <= 32; x++) {
+			const int dy = 16 - std::abs(x) / 2;
+			const int px = base.x + 32 + x;
+			for (const int y : { base.y - 16 - dy, base.y - 16 + dy }) {
+				if (px >= 0 && px < out.w() && y >= 0 && y < out.h())
+					*reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(out.surface->pixels) + y * out.surface->pitch + px * 4) = 0x5A5550;
+			}
+		}
+	};
+	const MissileGraphicID strike = oracool::FireGolemStrikeArt();
+	constexpr int Frames = oracool::FireGolemSheetFrames;
+	constexpr int CellW = 176;
+	constexpr int CellH = 136;
+	{
+		OwnedSurface out = OwnedSurface::Rgb(Frames * CellW, 3 * CellH);
+		SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 0x16, 0x12, 0x0F));
+		const struct {
+			Direction facing;
+			bool attack;
+		} rows[] = { { Direction::South, false }, { Direction::East, true }, { Direction::SouthWest, true } };
+		for (int r = 0; r < 3; r++) {
+			const ClxSpriteList frames = body.sheet()[static_cast<size_t>(rows[r].facing)];
+			const Displacement half = oracool::FireGolemLungeOffset(rows[r].facing, AnimationInfo::baseValueFraction / 2);
+			const Displacement step { half.deltaX * 2, half.deltaY * 2 }; // one whole tile toward the target
+			for (int k = 0; k < Frames; k++) {
+				const Point base { k * CellW + CellW / 2 - step.deltaX / 2, (r + 1) * CellH - 24 - step.deltaY / 2 };
+				mark(out, base);
+				if (rows[r].attack)
+					mark(out, base + step);
+				const int progress = rows[r].attack ? k * AnimationInfo::baseValueFraction / (Frames - 1) : 0;
+				const Displacement lunge = rows[r].attack ? oracool::FireGolemLungeOffset(rows[r].facing, progress) : Displacement {};
+				const ClxSprite sprite = frames[static_cast<size_t>(k) % frames.numSprites()];
+				ClxDrawRgbMap(out, base + lunge - Displacement { (sprite.width() - 64) / 2, 0 }, sprite, table);
+				if (rows[r].attack && k >= 6) // the golem's hit frame is animFrameNum 7: index 6
+					drawArt(out, strike, k - 6, base + step);
+			}
+		}
+		PreviewSave(out, (dir + "necro364_walk_lunge.png").c_str());
+		std::cout << "wrote " << dir << "necro364_walk_lunge.png\n";
+	}
+	{
+		constexpr int BurstFrames = 15;
+		OwnedSurface out = OwnedSurface::Rgb(BurstFrames * CellW, 2 * CellH + 40);
+		SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 0x16, 0x12, 0x0F));
+		const ClxSpriteList south = body.sheet()[0];
+		for (int k = 0; k < BurstFrames; k++) {
+			Point base { k * CellW + CellW / 2, CellH - 24 };
+			mark(out, base);
+			const ClxSprite sprite = south[static_cast<size_t>(k) % south.numSprites()];
+			ClxDrawRgbMap(out, base - Displacement { (sprite.width() - 64) / 2, 0 }, sprite, table);
+			drawArt(out, oracool::FireGolemSummonArt, k, base);
+			base = { k * CellW + CellW / 2, 2 * CellH + 40 - 24 };
+			mark(out, base);
+			drawArt(out, oracool::FireGolemDeathArt, k, base); // no body: it is all explosion
+		}
+		PreviewSave(out, (dir + "necro364_bursts.png").c_str());
+		std::cout << "wrote " << dir << "necro364_bursts.png\n";
+	}
+	gbIsHellfire = savedHellfire;
+}

@@ -30,12 +30,16 @@
 
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
+#include "engine/direction.hpp"
+#include "engine/displacement.hpp"
 #include "misdat.h"
 #include "monstdat.h"
+#include "monster.h" // AnimStruct, MonsterGraphic: the Fire Golem's sheet
 #include "oracool/missile_tint.h"
 
 namespace devilution {
 
+struct Missile;
 struct Monster;
 struct Player;
 
@@ -194,7 +198,8 @@ struct MinionLook {
 
 /**
  * @brief A golem's material over the vanilla golem's sprite: Clay in clay, Blood in blood red, Iron in iron with a
- * glint running over it at random (Tint::Sheen). The Fire Golem keeps its own look until its sprite is decided.
+ * glint running over it at random (Tint::Sheen). The Fire Golem wears no tint: its body is the Elemental's run sheet,
+ * fire-coloured as drawn (GetMinionAnim, v1.12.364).
  */
 MinionLook GolemLook(GolemKind kind);
 /** @brief The hue of a Skeletal Mage's element, by the missile it shoots: fire, lightning, poison, or bone (Arrow). */
@@ -205,6 +210,63 @@ MinionLook MageLook(MissileID missile);
 MinionLook MinionBodyLook(const Monster &monster);
 /** @brief Whether @p monster is a living minion under Frenzy of the Dead now - it wears the frenzy ring (aura_ground.h). */
 bool IsMinionFrenzied(const Monster &monster);
+
+// ---- the Fire Golem: the Hellfire Elemental's body (the user's LUNGE pick, v1.12.364) ----------------------------
+//
+// "We must use Elemental sprite but we need to reduce its movement speed a bit and we need to come up with some
+// attacking animation." The golem monster stays the logic carrier (its blow, its burn, fire healing it); every one of
+// its six animations binds the Elemental's run sheet instead (missiles\firerun1..8: eight facings of twelve frames,
+// 96 px wide) through GetMinionAnim, which monster_scale.cpp's GetScaledAnim asks beside the companions' sheets.
+
+/** The run sheet's frames per facing (misdat.cpp, MissileGraphicID::Elemental, AnimLen_12). */
+constexpr int FireGolemSheetFrames = 12;
+/** Its walk: twelve frames at two ticks each, 24 ticks a tile against the vanilla golem's 16 frames at one - 2/3 the pace. */
+constexpr int FireGolemWalkTicksPerFrame = 2;
+/** Its attack: the run loop at one tick a frame, the vanilla golem's 12 ticks, so the blow lands on the tick it always did. */
+constexpr int FireGolemAttackTicksPerFrame = 1;
+/** How far the lunge carries the body toward its target at the peak, in tenths of a tile: half a tile. */
+constexpr int FireGolemLungeTenths = 5;
+
+/** @brief The frames and ticks per frame the Fire Golem's @p graphic binds - the run sheet, slowed for a walk or a stand. */
+struct FireGolemTiming {
+	int8_t frames;
+	int8_t rate;
+};
+FireGolemTiming FireGolemAnimTiming(MonsterGraphic graphic);
+/** @brief Whether @p monster is a Necromancer's Fire Golem (its record says so). */
+bool IsFireGolem(const Monster &monster);
+/**
+ * @brief The animation @p monster binds for @p graphic in place of its type's, or nullptr: the Fire Golem's run sheet,
+ * while the Elemental's art is loaded. Asked by GetScaledAnim, i.e. by both of the engine's sprite binders.
+ */
+const AnimStruct *GetMinionAnim(const Monster &monster, MonsterGraphic graphic);
+/**
+ * @brief The lunge's share of its full reach at @p progress (0..AnimationInfo::baseValueFraction through the attack):
+ * sin(pi * p), easing out to 1 at the middle (the hit frame) and back to 0 at both ends - symmetric about the middle.
+ */
+double FireGolemLungeFraction(int progress);
+/** @brief The lunge as a screen offset toward @p facing at @p progress: up to half a tile, 0 at the start and the end. */
+Displacement FireGolemLungeOffset(Direction facing, int progress);
+/** @brief Where @p monster is drawn off its tile beyond its walk: the Fire Golem's lunge during an attack, else nothing. */
+Displacement MinionLungeOffset(const Monster &monster);
+/** @brief Whether @p monster's body is not drawn: a Fire Golem dying is all explosion (FireGolemDeathArt), no body. */
+bool MinionBodyHidden(const Monster &monster);
+/** @brief Whether @p monster is drawn at full brightness, as the Elemental missile is: the Fire Golem burns in the dark. */
+bool MinionDrawsUnlit(const Monster &monster);
+/** @brief The splash at the Fire Golem's hit frame, on its target: hit_fire.png when delivered, the magma ball's burst if not. */
+MissileGraphicID FireGolemStrikeArt();
+/** @brief The flare the Fire Golem rises in: the Apocalypse boom (newexp), a fire burst about one tile across. */
+constexpr MissileGraphicID FireGolemSummonArt = MissileGraphicID::ApocalypseBoom;
+/** @brief The Fire Golem's end: the explosion the Elemental spell ends in (bigexp). */
+constexpr MissileGraphicID FireGolemDeathArt = MissileGraphicID::BigExplosion;
+/** @brief Plays @p art on @p tile for @p playerId as a still sheet (AddArtEffect); the Fire Golem's three bursts go through here. */
+Missile *AddFireGolemBurst(Point tile, MissileGraphicID art, int playerId);
+/** @brief A minion's attack reached its hit frame (monster.cpp MonsterAttack): the Fire Golem's splash bursts on the target. */
+void OnMinionStrikeFrame(const Monster &minion);
+/** @brief A minion began to die (monster.cpp MonsterDeath): the Fire Golem bursts in the Elemental's explosion. */
+void OnMinionDeathStarted(const Monster &minion);
+/** @brief Whether @p monster leaves no corpse when its death ends: the Fire Golem burns away to nothing. */
+bool MinionLeavesNoBody(const Monster &monster);
 
 /** @brief The army panel, under the companions' (or in its place). */
 void DrawMinionHud(const Surface &out);

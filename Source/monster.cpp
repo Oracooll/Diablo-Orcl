@@ -1935,6 +1935,7 @@ bool MonsterAttack(Monster &monster)
 		    oracool::PackAdjustedDamage(monster, monster.maxDamage) * minionPercent / 100);
 		if (monster.ai != MonsterAIID::Snake)
 			PlayEffect(monster, MonsterSound::Attack);
+		oracool::OnMinionStrikeFrame(monster); // the Fire Golem's splash at the peak of its lunge (v1.12.364)
 	}
 	if (IsAnyOf(monster.type().type, MT_NMAGMA, MT_YMAGMA, MT_BMAGMA, MT_WMAGMA) && monster.animInfo.currentFrame == 8) {
 		const int minionPercent = oracool::MinionDamagePercent(monster); // as the first blow (round 28 audit)
@@ -2239,6 +2240,8 @@ void MonsterDeath(Monster &monster)
 	} else if (monster.animInfo.isLastFrame()) {
 		if (oracool::TitheTakesCorpse(monster)) {
 			// Tithe of Ash (RfA-12) took the corpse: nothing is left to raise or search.
+		} else if (oracool::MinionLeavesNoBody(monster)) {
+			// The Fire Golem burns away in the Elemental's explosion: no golem rubble, nothing to raise (v1.12.364).
 		} else if (oracool::IsCompanion(monster)) {
 			// A fallen companion leaves no body: it wore the Golem's type, and the Golem's rubble lay where it fell (round 31).
 		} else if (monster.isUnique() && monster.corpseId != 0) {
@@ -5034,6 +5037,8 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	monster.var1 = 0;
 	monster.position.tile = monster.position.old;
 	monster.position.future = monster.position.old;
+	if (monster.mode == MonsterMode::Death)
+		oracool::OnMinionDeathStarted(monster); // the Fire Golem's end, on the tile it dies on: the Elemental's explosion (v1.12.364)
 	// Its light too, killed mid-step: a Luminous or champion glow stayed a tile off the corpse (round 32 audit). Not a
 	// petrified unique's, freed just above.
 	if (monster.lightId != NO_LIGHT && monster.mode != MonsterMode::Petrified) {
