@@ -18223,3 +18223,60 @@ TEST(OracoolPreview, DISABLED_Dev370Looks)
 	gbIsHellfire = savedHellfire;
 	HeadlessMode = savedHeadless;
 }
+
+/**
+ * RfA-61: "a single good looking downward looking arrow asset which we will multiply." Rain of Arrows drops sixteen copies of
+ * falling_arrow.png over the area, setting off one after another; each waits out of sight, falls 192 px in six ticks onto
+ * its tile and stands there a moment.
+ */
+TEST(OracoolDev372, RainOfArrowsDropsTheOneArrowMultiplied)
+{
+	MountTestArchives(true);
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	if (!GetMissileSpriteData(MissileGraphicID::FallingArrow).sprites)
+		GetMissileSpriteData(MissileGraphicID::FallingArrow).LoadGFX();
+	HeadlessMode = savedHeadless;
+	ASSERT_TRUE(MissileArtLoaded(MissileGraphicID::FallingArrow)) << "missiles/falling_arrow.png (batch 90)";
+	EXPECT_EQ(GetMissileSpriteData(MissileGraphicID::FallingArrow).animWidth, 24);
+
+	Missiles.clear();
+	const Point target { 40, 40 };
+	ASSERT_TRUE(AddFallingArrows(target, 0, 2));
+	std::vector<Missile *> arrows;
+	for (Missile &m : Missiles) {
+		if (m._miAnimType == MissileGraphicID::FallingArrow && !m._miDelFlag)
+			arrows.push_back(&m);
+	}
+	ASSERT_EQ(static_cast<int>(arrows.size()), FallingArrowCount);
+	int waiting = 0;
+	int latest = 0;
+	for (const Missile *m : arrows) {
+		EXPECT_LE(m->position.tile.WalkingDistance(target), 2) << "within the volley's two tiles";
+		latest = std::max(latest, m->var2);
+		if (m->var2 > 0) {
+			waiting++;
+			EXPECT_LT(m->position.offset.deltaY, -1000) << "a waiting arrow is out of sight";
+		}
+	}
+	EXPECT_GE(waiting, FallingArrowCount - 2) << "they set off one after another";
+	EXPECT_GE(latest, FallingArrowSpreadTicks - 2);
+
+	// One arrow, tick by tick: its wait, a fall that only goes down, then the floor.
+	Missile &first = *arrows.front();
+	const int wait = first.var2;
+	int lastY = first.position.offset.deltaY;
+	for (int tick = 0; tick < wait + FallingArrowFallTicks; tick++) {
+		ProcessCensusEffect(first);
+		ASSERT_FALSE(first._miDelFlag) << "tick " << tick;
+		if (tick >= wait) {
+			EXPECT_GE(first.position.offset.deltaY, lastY) << "falling, tick " << tick;
+			lastY = first.position.offset.deltaY;
+		}
+	}
+	EXPECT_EQ(first.position.offset.deltaY, -13 + first.var4) << "the tip on the floor";
+	for (int tick = 0; tick < FallingArrowHoldTicks; tick++)
+		ProcessCensusEffect(first);
+	EXPECT_TRUE(first._miDelFlag) << "gone after standing a moment";
+	Missiles.clear();
+}

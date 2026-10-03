@@ -556,6 +556,19 @@ Missile *AddArtEffect(Point tile, MissileGraphicID art, int playerId, int ticks 
 Missile *AddArtEffectFacing(Point tile, MissileGraphicID art, int playerId, int dir16, int ticks = 0);
 /** @brief Oracool (RfA-27): an AddArtEffect sheet that keeps to its caster's tile while it plays (a body overlay, a leap's dust). */
 void ArtEffectFollowsItsCaster(Missile &effect);
+
+/** Rain of Arrows' falling arrows (RfA-61, 2026-10-03): how many, over how many ticks they set off, and how they fall. */
+constexpr int FallingArrowCount = 16;
+constexpr int FallingArrowSpreadTicks = 16;
+constexpr int FallingArrowFallTicks = 6;
+constexpr int FallingArrowHoldTicks = 2;
+constexpr int FallingArrowHeight = 192;
+/**
+ * @brief Drops FallingArrowCount copies of falling_arrow.png on the tiles within @p radius of @p target, each setting off at
+ * its own moment over FallingArrowSpreadTicks, falling FallingArrowHeight pixels in FallingArrowFallTicks and standing a
+ * moment where it lands. Drawn only - the skill deals its damage itself. False when the art is not loaded.
+ */
+bool AddFallingArrows(Point target, int playerId, int radius);
 /**
  * @brief Oracool (RfA-27): ends every AddArtEffect sheet of @p art standing on @p tile for @p playerId - a field's loop
  * whose field ended early (the rod that burst, the mine that went off, the star she walked away from).

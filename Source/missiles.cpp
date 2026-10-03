@@ -4277,6 +4277,48 @@ Missile *AddArtEffectFacing(Point tile, MissileGraphicID art, int playerId, int 
 	return effect;
 }
 
+namespace {
+
+/** Where a falling arrow's tip meets the floor: its tip is 3 px above the cell's foot, and the floor point is 16 above the tile's. */
+constexpr int FallingArrowLandY = -13;
+/** Drawn far above the screen while it waits its turn - a waiting arrow is not seen. */
+constexpr int FallingArrowHiddenY = -4000;
+
+/** @brief Where falling arrow @p missile is drawn this tick: var2 its wait, var3/var4 its scatter, var5 its whole life. */
+Displacement FallingArrowOffset(const Missile &missile)
+{
+	const int age = missile.var5 - missile._mirange;
+	if (age < missile.var2)
+		return { 0, FallingArrowHiddenY };
+	const int fallen = std::min(age - missile.var2 + 1, FallingArrowFallTicks);
+	return { missile.var3, FallingArrowLandY + missile.var4 - FallingArrowHeight * (FallingArrowFallTicks - fallen) / FallingArrowFallTicks };
+}
+
+} // namespace
+
+bool AddFallingArrows(Point target, int playerId, int radius)
+{
+	if (!MissileArtLoaded(MissileGraphicID::FallingArrow))
+		return false;
+	for (int i = 0; i < FallingArrowCount; i++) {
+		Point tile = target + Displacement { GenerateRnd(2 * radius + 1) - radius, GenerateRnd(2 * radius + 1) - radius };
+		if (!InDungeonBounds(tile) || IsTileSolid(tile))
+			tile = target;
+		const int wait = i * FallingArrowSpreadTicks / FallingArrowCount + GenerateRnd(2);
+		const int life = wait + FallingArrowFallTicks + FallingArrowHoldTicks;
+		Missile *arrow = AddArtEffect(tile, MissileGraphicID::FallingArrow, playerId, life);
+		if (arrow == nullptr)
+			continue;
+		arrow->_mirange = life;
+		arrow->var2 = wait;
+		arrow->var3 = GenerateRnd(21) - 10; // a scatter within the tile, so two on one tile never stack
+		arrow->var4 = GenerateRnd(11) - 5;
+		arrow->var5 = life;
+		arrow->position.offset = FallingArrowOffset(*arrow);
+	}
+	return true;
+}
+
 void ArtEffectFollowsItsCaster(Missile &effect)
 {
 	effect.var1 = ArtEffectFollowsCaster;
@@ -4491,6 +4533,9 @@ void ProcessCensusEffect(Missile &missile)
 		else if (missile._miAnimFrame >= AbsoluteZeroIntroFrames + AbsoluteZeroLoopFrames && missile._miAnimCnt + 1 >= missile._miAnimDelay)
 			missile._miAnimFrame = AbsoluteZeroIntroFrames; // steps back onto the loop's first frame
 	}
+	// Rain of Arrows' falling arrow (RfA-61): waits its turn out of sight, then drops onto its tile.
+	if (missile._mitype == ArtEffectCarrier && missile._miAnimType == MissileGraphicID::FallingArrow)
+		missile.position.offset = FallingArrowOffset(missile);
 	// Ashen Brand's ring fades in over 6 ticks, holds, and fades out over its last 8 (user, 2026-10-01: "fade in and out").
 	if (missile._mitype == ArtEffectCarrier && missile._miAnimType == MissileGraphicID::AshenRing) {
 		const int age = AshenRingTicks - missile._mirange;

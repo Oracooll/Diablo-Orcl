@@ -2265,7 +2265,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::RainOfArrows: {
 		for (Monster *m : MonstersWithin(target, ReachTiles(spell, r)))
 			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
-		if (Art(player, MissileGraphicID::RainOfArrows, target) == nullptr) // RfA-27 batch 55; the ring without it
+		// RfA-61 (2026-10-03): the user's one falling arrow, multiplied over the area - "a single good looking downward
+		// looking arrow asset which we will multiply". The old volley sheet (RfA-27 batch 55) stands in without it.
+		if (!AddFallingArrows(target, static_cast<int>(player.getId()), ReachTiles(spell, r))
+		    && Art(player, MissileGraphicID::RainOfArrows, target) == nullptr)
 			Ring(player, target);
 		Impact(player, spell);
 		return true;

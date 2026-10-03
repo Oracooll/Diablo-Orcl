@@ -313,6 +313,8 @@ enum class MissileGraphicID : uint8_t {
 	// 2026-10-01 (user): Furnace Mouth's flame (its furnace keeps the FurnaceMouth row) and Ashen Brand's curse ring.
 	FurnaceFlame,
 	AshenRing,
+	// 2026-10-03 (RfA-61, batch 90): Rain of Arrows' one falling arrow, a 24x72 still the game drops many of (AddFallingArrows).
+	FallingArrow,
 	None,
 };
 

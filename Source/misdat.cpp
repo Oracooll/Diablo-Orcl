@@ -551,6 +551,8 @@ MissileFileData MissileSpriteData[] = {
 /*FurnaceFlame*/             { {},             448,         192, "furnace_flame",          8, MissileGraphicsFlags::PngOnly,                 1, AnimLen_1       },
 // Ashen Brand's ring: aura_holy_fire at 448x224, the 3 tiles round the cursor, its glow dithered (tools/BuildFireSheets.py).
 /*AshenRing*/                { {},             448,         192, "ashen_ring",             1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_1       },
+// RfA-61 (2026-10-03): one still, tip at (12, 69) of 24x72; animWidth2 (24 - 64) / 2 centres it on the tile.
+/*FallingArrow*/             { {},              24,         -20, "falling_arrow",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_1       },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };
