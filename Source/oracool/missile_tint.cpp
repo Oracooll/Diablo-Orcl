@@ -153,6 +153,8 @@ const uint32_t *TintedTable(const uint32_t *base, Tint tint, uint32_t rgb, doubl
 			break;
 		}
 		case Tint::Ice:
+			if (c.r + c.g + c.b <= 0.0)
+				break; // a shadow stays a shadow, as under Electric (a chilled hero, 2026-10-04)
 			out = Lerp(c, AtBrightness({ 150, 200, 255 }, 0.35 + 0.75 * l), 0.55);
 			break;
 		case Tint::Astral:

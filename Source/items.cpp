@@ -5354,16 +5354,24 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 
 	ItemType weaponItemType = ItemType::None;
 	bool holdsShield = false;
+	// Oracool: a spear or pike is held like a staff (dev note, 2026-10-04: "wearing spear as a weapon to load staff
+	// wielding sprites sheets"), whatever its item type - the Spear rolls as a sword, the Pike as an axe.
+	const auto isSpearBase = [](const Item &item) {
+		if (item.IDidx < 0 || item.IDidx > IDI_LAST)
+			return false;
+		const unique_base_item base = AllItemsList[static_cast<size_t>(item.IDidx)].iItemId;
+		return base == UITYPE_SPEAR || base == UITYPE_PIKE;
+	};
 	if (!player.InvBody[INVLOC_HAND_LEFT].isEmpty()
 	    && player.InvBody[INVLOC_HAND_LEFT]._iClass == ICLASS_WEAPON
 	    && player.InvBody[INVLOC_HAND_LEFT]._iStatFlag) {
-		weaponItemType = player.InvBody[INVLOC_HAND_LEFT]._itype;
+		weaponItemType = isSpearBase(player.InvBody[INVLOC_HAND_LEFT]) ? ItemType::Staff : player.InvBody[INVLOC_HAND_LEFT]._itype;
 	}
 
 	if (!player.InvBody[INVLOC_HAND_RIGHT].isEmpty()
 	    && player.InvBody[INVLOC_HAND_RIGHT]._iClass == ICLASS_WEAPON
 	    && player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag) {
-		weaponItemType = player.InvBody[INVLOC_HAND_RIGHT]._itype;
+		weaponItemType = isSpearBase(player.InvBody[INVLOC_HAND_RIGHT]) ? ItemType::Staff : player.InvBody[INVLOC_HAND_RIGHT]._itype;
 	}
 
 	if (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Shield && player.InvBody[INVLOC_HAND_LEFT]._iStatFlag) {

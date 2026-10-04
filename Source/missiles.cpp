@@ -3265,7 +3265,7 @@ void AddTownPortal(Missile &missile, AddMissileParameter &parameter)
 	if (leveltype == DTYPE_TOWN) {
 		missile.position.tile = parameter.dst;
 		missile.position.start = parameter.dst;
-		// Oracool (2026-09-20): IN TOWN the portal wears its 90% sheet (the ground shadow stripped then is back since v1.12.370)
+		// Oracool (2026-09-20): IN TOWN the portal wears its 90% sheet, shadowless (back in v1.12.370, stripped again in v1.12.377: no portal shadows in town)
 		// (user: "shrink the town portal asset in-town only, not in dungeons to 90% and remove its
 		// shadow") - it stands inside the Rift Monument's arch there. SetMissDir keeps the graphic, so
 		// the opening-to-standing switch below and AddWarpMissile's sync both stay on this sheet. The
@@ -5045,8 +5045,12 @@ void AddRiftPortal(Missile &missile, AddMissileParameter & /*parameter*/)
 	// (the plinth is in front), so unlifted the portal stood in the plinth. Measured with
 	// tools/ScalePainting.ps1's opening readout and a composite preview.
 	// Only in the monument (dev note, 2026-09-30): a rift's own exit stands on its floor like any portal, not 27px over it.
-	if (leveltype == DTYPE_TOWN)
+	if (leveltype == DTYPE_TOWN) {
 		missile.position.offset = { 0, -27 }; // 27 = the 20 of the first fit plus the user's "move up 7px" on the 90% sheet
+		// No portal shadows in town (RTM dev note, 2026-10-04: "dont cast portal shadows over monuments"): the monument's portals
+		// wear their shadowless sheets there. SetMissDir keeps the graphic, so ProcessRiftPortal's switch to the loop stays on it.
+		SetMissAnim(missile, missile._mitype == MissileID::RiftPortalPurple ? MissileGraphicID::RiftPortalPurpleInTown : MissileGraphicID::RiftPortalGoldInTown);
+	}
 	missile._mlid = AddLight(missile.position.tile, 6);
 	PutMissile(missile);
 }

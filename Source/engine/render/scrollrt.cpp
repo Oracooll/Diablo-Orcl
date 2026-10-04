@@ -676,8 +676,15 @@ bool DrawPlayerTinted(const Surface &out, const Player &player, Point position, 
 	    : oracool::ColdArmourShellFrame(player) >= 0                   ? oracool::Tint::Ice
 	    : oracool::Rfa12ConduitWorn(player)                            ? oracool::Tint::Electric
 	                                                                   : oracool::Tint::None;
-	if (tint == oracool::Tint::None)
-		return false;
+	if (tint == oracool::Tint::None) {
+		// Slowed by a cold hit: a steady light-blue glaze for as long as the chill holds (RTM dev note, 2026-10-04: "if i am
+		// slowed down by a cold hit tint me cooled - light blue"). The tints above win; the cold armour already shows ice.
+		if (!oracool::IsPlayerChilled(player))
+			return false;
+		const uint32_t *table = colours != nullptr ? colours->Table(light) : oracool::LitPaletteTable(light);
+		ClxDrawRgbMap(out, position, sprite, oracool::TintedTable(table, oracool::Tint::Ice, 0, 0.0));
+		return true;
+	}
 	const uint32_t *table = colours != nullptr ? colours->Table(light) : oracool::LitPaletteTable(light);
 	// The armours glint, each in its own hue (dev note, 2026-09-30).
 	if (tint == oracool::Tint::Ice) {

@@ -190,7 +190,7 @@ enum class MissileGraphicID : uint8_t {
 	RiftPortalPurple,
 	/**
 	 * Oracool 2026-09-20: the town portal AS IT STANDS IN TOWN - vanilla's frames at 90%, the ground
-	 * shadow back since v1.12.370 (missiles\portal_town.png, tools/BuildRiftPortals.ps1). AddTownPortal switches a
+	 * shadow stripped (back in v1.12.370, gone again in v1.12.377: no portal shadows in town; missiles\portal_town.png, tools/BuildRiftPortals.ps1). AddTownPortal switches a
 	 * portal onto it in town only; the dungeon-side portal keeps TownPortal's CL2.
 	 */
 	TownPortalInTown,
@@ -315,6 +315,10 @@ enum class MissileGraphicID : uint8_t {
 	AshenRing,
 	// 2026-10-03 (RfA-61, batch 90): Rain of Arrows' one falling arrow, a 24x72 still the game drops many of (AddFallingArrows).
 	FallingArrow,
+	// 2026-10-04 (RTM dev note: "no portal shadows in town"): the Rift Monument's two portals as they stand in town, their
+	// shadows stripped (tools/BuildRiftPortals.ps1). AddRiftPortal switches onto them in town; a rift's exit keeps the shadowed sheets.
+	RiftPortalGoldInTown,
+	RiftPortalPurpleInTown,
 	None,
 };
 

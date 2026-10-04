@@ -297,6 +297,9 @@ bool SwingWearsStaffLook(const Player &player)
 {
 	if (&player != MyPlayer || leveltype == DTYPE_TOWN || HeadlessMode)
 		return false;
+	// A held spear or pike already wears the staff sheet (dev note, 2026-10-04).
+	if (static_cast<PlayerWeaponGraphic>(player._pgfxnum & 0xF) == PlayerWeaponGraphic::Staff)
+		return false;
 	if (oracool::ArmedJavelinThrow().has_value())
 		return true;
 	if (const std::optional<oracool::ClassMeleeSkill> skill = oracool::ArmedClassMeleeSkill(); skill.has_value() && oracool::IsJavelinStrike(oracool::ClassMeleeSkillSpell(*skill)))

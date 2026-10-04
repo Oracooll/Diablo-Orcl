@@ -254,7 +254,13 @@ HueShift $Source (Join-Path $out "portal_purple.png") -1 1.0 1.0 @(0, 0, 60)
 # portal asset lost its black center ... Now there is a transparent hole in the center"); opaque black
 # quantises to a near-black index above 128, never to the transparent 0. MissileGraphicID::TownPortalInTown;
 # the dungeon-side portal keeps the CL2.
-# The shadow is BACK since 2026-10-03 (dev note: "copy this shadow to all other portals in the game incl. rifts portals").
-HueShift $Source (Join-Path $out "portal_town.png") -1 1.0 1.0 @(0, 0, 0) $false $true
+# The shadow was back on 2026-10-03 (dev note: "copy this shadow to all other portals in the game incl. rifts portals"),
+# and is gone again since 2026-10-04 (RTM dev note: "dont cast portal shadows over monuments - we have two in town, so - no
+# portal shadows in town"): this sheet is only ever worn in town.
+HueShift $Source (Join-Path $out "portal_town.png") -1 1.0 1.0 @(0, 0, 0) $true $false
+# The Rift Monument's two portals as they stand in town, shadowless for the same note (MissileGraphicID::RiftPortalGoldInTown,
+# RiftPortalPurpleInTown); a rift's own exit keeps the shadowed sheets above.
+HueShift $Source (Join-Path $out "portal_gold_town.png") 42 1.25 1.05 @(40, 27, 3) $true $false
+HueShift $Source (Join-Path $out "portal_purple_town.png") -1 1.0 1.0 @(0, 0, 60) $true $false
 # The red portal (Lazarus's, the quest levels'): vanilla's red sheet with the blue portal's shadow (2026-10-03).
 CopyShadowOntoRed $Source $RedSource (Join-Path $out "rportal.png")

@@ -14068,6 +14068,20 @@ TEST(OracoolClassTree, HeavenlyStrengthLetsATwoHanderShareTheHandsWithAShield)
 		CalcPlrItemVals(player, false);
 		EXPECT_EQ(static_cast<int>(player._pgfxnum & 0xF), static_cast<int>(body)) << "ItemType " << static_cast<int>(type) << " with a shield wears the wrong body";
 	}
+	// A spear or pike is held like a staff (RTM dev note, 2026-10-04: "wearing spear as a weapon to load staff wielding sprites
+	// sheets") though the Spear rolls as a sword and the Pike as an axe - and beside a shield, the staff's mace-and-shield body.
+	for (const _item_indexes base : { IDI_ORACOOL_UNQBASE_SPEAR, IDI_ORACOOL_UNQBASE_PIKE }) {
+		devilution::Item spear {};
+		InitializeItem(spear, base);
+		spear._iStatFlag = true;
+		player.InvBody[INVLOC_HAND_LEFT] = spear;
+		player.InvBody[INVLOC_HAND_RIGHT].clear();
+		CalcPlrItemVals(player, false);
+		EXPECT_EQ(static_cast<int>(player._pgfxnum & 0xF), static_cast<int>(PlayerWeaponGraphic::Staff)) << "base " << static_cast<int>(base) << " is not held like a staff";
+		player.InvBody[INVLOC_HAND_RIGHT] = buckler;
+		CalcPlrItemVals(player, false);
+		EXPECT_EQ(static_cast<int>(player._pgfxnum & 0xF), static_cast<int>(PlayerWeaponGraphic::MaceShield)) << "base " << static_cast<int>(base) << " with a shield";
+	}
 	player.InvBody[INVLOC_HAND_LEFT].clear();
 	player.InvBody[INVLOC_HAND_RIGHT].clear();
 

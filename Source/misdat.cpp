@@ -426,7 +426,7 @@ MissileFileData MissileSpriteData[] = {
 // and 86 / 2 - 11 = 32 now - the oval stays where it was.
 /*RiftPortalGold*/           { {},               86,          11, "portal_gold",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // vanilla's portal1/portal2 recoloured: row 0 opens, row 1 stands
 /*RiftPortalPurple*/         { {},               86,          11, "portal_purple",     2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      },
-/*TownPortalInTown*/         { {},               86,          11, "portal_town",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // the town's own portal at 90% (2026-09-20), vanilla's shadow back (v1.12.370)
+/*TownPortalInTown*/         { {},               86,          11, "portal_town",       2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      }, // the town's own portal at 90% (2026-09-20), shadowless again since v1.12.377 (no portal shadows in town)
 // Oracool 2026-09-26: the frozen floor, two 128x128 frames that are two VARIANTS of one patch (the Cold brief), not an
 // animation - Brittle Ground picks one a tile and holds it (rfa12_actives). The ellipse's centre is y 80 of 128.
 /*IceGround*/                { {},              128,          32, "ice_ground",        1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_2       },
@@ -553,6 +553,9 @@ MissileFileData MissileSpriteData[] = {
 /*AshenRing*/                { {},             448,         192, "ashen_ring",             1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_1       },
 // RfA-61 (2026-10-03): one still, tip at (12, 69) of 24x72; animWidth2 (24 - 64) / 2 centres it on the tile.
 /*FallingArrow*/             { {},              24,         -20, "falling_arrow",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_1       },
+// 2026-10-04 (RTM dev note): the monument's portals in town, shadowless - the same frames as RiftPortalGold/Purple.
+/*RiftPortalGoldInTown*/     { {},               86,          11, "portal_gold_town",  2, MissileGraphicsFlags::PngOnly,                 3, AnimLen_16      },
+/*RiftPortalPurpleInTown*/   { {},               86,          11, "portal_purple_town", 2, MissileGraphicsFlags::PngOnly,                3, AnimLen_16      },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };
