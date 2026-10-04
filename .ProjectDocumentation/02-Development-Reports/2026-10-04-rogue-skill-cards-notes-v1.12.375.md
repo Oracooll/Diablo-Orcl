@@ -73,3 +73,8 @@ The source is the Rogue Skill Cards page, db `picks`: 54 docs, the first Rogue n
 - Phantom Volley's purple rain.
 - Barrage's cadence.
 - The arrow colours on real floors.
+
+## v1.12.376: dev note - the Main Menu tooltip
+"when i open burger menu then main menu the tooltip main menu remains open all the time while i browse the main menu."
+- **Cause:** in single player the game menu pauses the frame logic before `CheckCursMove`, so the hover pass that clears the panel strings never ran. The burger icon's "Main Menu" hint card stayed drawn.
+- **Fix:** diablo.cpp clears the panel strings and `panelflag` every frame the game menu is open. 940/940; ini unchanged.
