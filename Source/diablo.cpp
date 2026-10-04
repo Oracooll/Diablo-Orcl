@@ -319,6 +319,10 @@ bool ProcessInput()
 	plrctrls_every_frame();
 
 	if (!gbIsMultiplayer && gmenu_is_active()) {
+		// The hover pass does not run under the game menu, so the last frame's hover text stays - the burger icon's "Main
+		// Menu" card hung over the menu the whole time it was open (dev note, 2026-10-04). Cleared here, each frame it is up.
+		ClearPanelStrings();
+		panelflag = false;
 		RedrawViewport();
 		return false;
 	}
