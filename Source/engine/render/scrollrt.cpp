@@ -40,6 +40,7 @@
 #include "oracool/attack_skills.h"
 #include "oracool/companion.h"
 #include "oracool/rift.h"      // DrawRiftHud: the bar and the clock under the mini-map
+#include "oracool/rift_bosses.h" // RiftBossGlaze: a rift boss's colour
 #include "oracool/stonegate.h" // IsStonegatePortalArch: the arch draws in the floor pass
 #include "oracool/workshop.h"
 #include "oracool/curses.h"
@@ -543,6 +544,11 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 	if (!out.isIndexed() && (trn == nullptr || trn == monster.uniqueMonsterTRN.get())) {
 		if (const oracool::MinionLook look = oracool::MinionBodyLook(monster); look.tint != oracool::Tint::None) {
 			ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::TintedTable(oracool::LitPaletteTable(LightTableIndex), look.tint, look.rgb, 0.0));
+			return;
+		}
+		// A rift boss in his row's colour (the Rift Boss Roster, 2026-10-04), lit as he stands; Grimwing's rest turns him stone.
+		if (const oracool::BossGlaze glaze = oracool::RiftBossGlaze(monster); glaze.tint != oracool::Tint::None) {
+			ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::TintedTable(oracool::LitPaletteTable(LightTableIndex), glaze.tint, glaze.rgb, 0.0));
 			return;
 		}
 		// The Decoy: the Rogue's own sheets, ghost white-grey with light running through them (2026-10-04), lit as it stands.

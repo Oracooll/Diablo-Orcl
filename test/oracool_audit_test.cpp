@@ -73,6 +73,7 @@
 #include "oracool/named_encounters.h"
 #include "oracool/levski_cube_skin.h"
 #include "oracool/rift.h"
+#include "oracool/rift_bosses.h"
 #include "oracool/class_skills.h"
 #include "oracool/crafting.h"
 #include "oracool/gradual_healing.h"
@@ -18613,4 +18614,203 @@ TEST(OracoolPreview, DISABLED_Rogue375CardStrips)
 
 	gbIsHellfire = savedHellfire;
 	HeadlessMode = savedHeadless;
+}
+
+// The Rift Boss Roster (2026-10-04): the page's thirty-two approved whole, the four faces of old kept as they were (Q1)
+// with six versions of them, Guardian bosses up to 250% (Q2), a boss now and then off his home floors (Q3).
+TEST(OracoolRiftBosses, TheRosterKeepsTheFourFacesAndThePagesThirtyTwo)
+{
+	ASSERT_EQ(oracool::RiftBossCount(), 42u) << "4 faces of old + 6 versions + the page's 32";
+	const oracool::RiftGuardianType faces[] = { oracool::RiftGuardianType::SkeletonKing, oracool::RiftGuardianType::Butcher,
+		oracool::RiftGuardianType::Diablo, oracool::RiftGuardianType::NaKrul };
+	const _monster_id faceTypes[] = { MT_SKING, MT_CLEAVER, MT_DIABLO, MT_NAKRUL };
+	for (size_t i = 0; i < 4; i++) {
+		const oracool::RiftBossDef &face = oracool::RiftBossAt(i);
+		EXPECT_TRUE(face.original) << i;
+		EXPECT_EQ(face.face, faces[i]) << i;
+		EXPECT_EQ(face.type, faceTypes[i]) << i;
+		EXPECT_EQ(face.sizePercent, 100) << "a face of old stays as it was";
+		EXPECT_EQ(face.tint, oracool::Tint::None) << i;
+		EXPECT_EQ(face.lifePercent, 100) << i;
+		EXPECT_EQ(face.signature, oracool::BossSignature::None) << i;
+		EXPECT_EQ(face.name, nullptr) << "a face of old keeps its unique's name";
+	}
+	// Who met whom before: Diablo on Hell, Na-Krul on the Crypt, Leoric and the Butcher anywhere.
+	EXPECT_EQ(oracool::RiftBossAt(2).homes, oracool::HomeOf(DTYPE_HELL));
+	EXPECT_EQ(oracool::RiftBossAt(3).homes, oracool::HomeOf(DTYPE_CRYPT));
+
+	std::set<std::string> names;
+	int versions = 0;
+	int nephalem = 0;
+	int guardian = 0;
+	for (size_t i = 4; i < oracool::RiftBossCount(); i++) {
+		const oracool::RiftBossDef &def = oracool::RiftBossAt(i);
+		SCOPED_TRACE(def.name != nullptr ? def.name : "(unnamed)");
+		ASSERT_NE(def.name, nullptr) << "row " << i;
+		EXPECT_TRUE(names.insert(def.name).second) << "a name is used twice";
+		EXPECT_FALSE(def.original);
+		if (def.face != oracool::RiftGuardianType::None && i < 10)
+			versions++;
+		(def.kind == oracool::RiftKind::Guardian ? guardian : nephalem)++;
+		EXPECT_GE(def.sizePercent, 130);
+		EXPECT_LE(def.sizePercent, oracool::MaxBossSizePercent) << "Q2: up to 250%";
+		if (def.kind == oracool::RiftKind::Nephalem)
+			EXPECT_LE(def.sizePercent, 170) << "the Nephalem sizes are the page's";
+		EXPECT_NE(def.tint, oracool::Tint::None) << "every new boss is tinted";
+		EXPECT_GE(def.lifePercent, 100);
+		EXPECT_GE(def.damagePercent, 100);
+		EXPECT_NE(def.homes, 0) << "a boss with no home floor";
+		EXPECT_GE(def.minTier, 1);
+		EXPECT_GE(static_cast<int>(def.type), 0);
+		EXPECT_LT(static_cast<int>(def.type), static_cast<int>(NUM_MTYPES));
+		EXPECT_NE(def.type, MT_GOLEM);
+		if (def.escortCount > 0)
+			EXPECT_NE(def.escort, MT_INVALID);
+		if (IsAnyOf(def.signature, oracool::BossSignature::RaiseDead, oracool::BossSignature::GraveRaise, oracool::BossSignature::FrostNovaRaise,
+		        oracool::BossSignature::HorkBrood)) {
+			EXPECT_NE(def.summon, MT_INVALID) << "it raises nothing";
+		}
+		if (def.signature == oracool::BossSignature::CallGuard)
+			EXPECT_NE(def.escort, MT_INVALID) << "it calls nobody";
+	}
+	EXPECT_EQ(versions, 6) << "Q1: six versions of the four faces";
+	EXPECT_EQ(nephalem, 2 + 20) << "two versions and the page's twenty";
+	EXPECT_EQ(guardian, 4 + 12) << "four versions and the page's twelve";
+}
+
+TEST(OracoolRiftBosses, EveryKindMeetsSomebodyAtEveryRungAndTheBandsHold)
+{
+	for (const oracool::RiftKind kind : { oracool::RiftKind::Nephalem, oracool::RiftKind::Guardian }) {
+		for (int rung = 1; rung <= 16; rung++) {
+			bool any = false;
+			for (size_t i = 0; i < oracool::RiftBossCount(); i++) {
+				if (!oracool::RiftBossEligible(i, kind, rung))
+					continue;
+				any = true;
+				EXPECT_EQ(oracool::RiftBossAt(i).kind, kind);
+				EXPECT_GE(rung, 2 * oracool::RiftBossAt(i).minTier - 1) << "met below its band";
+			}
+			EXPECT_TRUE(any) << "rung " << rung << " meets nobody";
+			const size_t drawn = oracool::RiftBossForTest(kind, rung, rung * 7);
+			EXPECT_TRUE(oracool::RiftBossEligible(drawn, kind, rung)) << "drew an ineligible row";
+		}
+	}
+	// "Captain Sareth" is the page's tier 6: rung 11 and up.
+	const std::optional<size_t> sareth = oracool::FindRiftBoss("sareth");
+	ASSERT_TRUE(sareth.has_value());
+	EXPECT_FALSE(oracool::RiftBossEligible(*sareth, oracool::RiftKind::Nephalem, 10));
+	EXPECT_TRUE(oracool::RiftBossEligible(*sareth, oracool::RiftKind::Nephalem, 11));
+	EXPECT_FALSE(oracool::RiftBossEligible(*sareth, oracool::RiftKind::Guardian, 16)) << "a Nephalem boss in a Guardian Rift";
+}
+
+TEST(OracoolRiftBosses, AForcedBossIsDrawnAtHomeAndNamedRows)
+{
+	oracool::ResetRiftBossesForNewGame();
+	const std::optional<size_t> kharzug = oracool::FindRiftBoss("ram");
+	ASSERT_TRUE(kharzug.has_value());
+	EXPECT_STREQ(oracool::RiftBossAt(*kharzug).name, "Kharzug the Ram");
+	EXPECT_EQ(oracool::FindRiftBoss("1"), std::optional<size_t>(0)) << "numbers are 1-based";
+	EXPECT_EQ(oracool::FindRiftBoss("42"), std::optional<size_t>(41));
+	EXPECT_FALSE(oracool::FindRiftBoss("43").has_value());
+	EXPECT_FALSE(oracool::FindRiftBoss("nobody at all").has_value());
+	EXPECT_EQ(oracool::FindRiftBoss("skeleton king"), std::optional<size_t>(0)) << "a face of old by its unique's name";
+
+	SetRndSeed(1234);
+	for (int round = 0; round < 20; round++) {
+		oracool::ForceNextRiftBoss(*kharzug);
+		dungeon_type tileset = DTYPE_TOWN;
+		ASSERT_EQ(oracool::PickRiftBoss(oracool::RiftKind::Nephalem, 1, tileset), *kharzug) << "the forced row was not drawn";
+		EXPECT_NE(oracool::RiftBossAt(*kharzug).homes & oracool::HomeOf(tileset), 0) << "a forced boss walks his own floor";
+	}
+	// A forced row waits for its own kind (audit, 2026-10-04): a failed `riftboss` left Frostmaw for the next keystone's rift.
+	oracool::ForceNextRiftBoss(*kharzug);
+	{
+		dungeon_type tileset = DTYPE_TOWN;
+		EXPECT_EQ(oracool::RiftBossAt(oracool::PickRiftBoss(oracool::RiftKind::Guardian, 16, tileset)).kind, oracool::RiftKind::Guardian)
+		    << "a Nephalem row forced into a Guardian Rift";
+	}
+	oracool::ResetRiftBossesForNewGame();
+	// Unforced: never the same face as one of the last three, while there are others to meet.
+	int last[3] = { -1, -1, -1 };
+	for (int round = 0; round < 40; round++) {
+		dungeon_type tileset = DTYPE_TOWN;
+		const size_t drawn = oracool::PickRiftBoss(oracool::RiftKind::Nephalem, 16, tileset);
+		for (const int seen : last)
+			EXPECT_NE(static_cast<int>(drawn), seen) << "round " << round << ": met again within three rifts";
+		EXPECT_NE(tileset, DTYPE_TOWN);
+		last[2] = last[1];
+		last[1] = last[0];
+		last[0] = static_cast<int>(drawn);
+	}
+	oracool::ResetRiftBossesForNewGame();
+}
+
+TEST(OracoolRiftBosses, TheGuardianWearsHisRowsSizeColourPaceAndName)
+{
+	oracool::ResetRiftForNewGame();
+	const std::optional<size_t> frostmaw = oracool::FindRiftBoss("frostmaw");
+	ASSERT_TRUE(frostmaw.has_value());
+	oracool::SetRiftBossForTest(oracool::RiftKind::Nephalem, 9, *frostmaw);
+	constexpr int Slot = 9;
+	oracool::SetRiftGuardianForTest(Slot);
+	const bool savedSetlevel = setlevel;
+	const _setlevels savedLevel = setlvlnum;
+	setlevel = true;
+	setlvlnum = oracool::RiftLevelFor(oracool::RiftKind::Nephalem);
+
+	const Monster &boss = Monsters[Slot];
+	ASSERT_TRUE(oracool::IsRiftGuardian(boss));
+	EXPECT_EQ(oracool::RiftBossSizePercent(boss), 160u);
+	const oracool::BossGlaze glaze = oracool::RiftBossGlaze(boss);
+	EXPECT_EQ(glaze.tint, oracool::Tint::Glint);
+	EXPECT_EQ(glaze.rgb, 0x96D2FFu);
+	EXPECT_EQ(oracool::RiftBossSkippedFrames(boss, MonsterGraphic::Walk), 2) << "Frostmaw walks fast";
+	EXPECT_EQ(oracool::RiftBossSkippedFrames(boss, MonsterGraphic::Attack), 0);
+	EXPECT_EQ(oracool::GetMonsterDisplayName(boss), "Frostmaw");
+	EXPECT_EQ(oracool::RiftBossName(), "Frostmaw");
+	EXPECT_TRUE(oracool::FightsAsUnique(boss)) << "control effects treat him as a unique";
+	EXPECT_FALSE(oracool::IsRiftConjured(boss)) << "nothing conjured";
+
+	// Any other slot is nobody's boss.
+	const Monster &other = Monsters[Slot + 1];
+	EXPECT_EQ(oracool::RiftBossSizePercent(other), 0u);
+	EXPECT_EQ(oracool::RiftBossGlaze(other).tint, oracool::Tint::None);
+	EXPECT_EQ(oracool::RiftBossSkippedFrames(other, MonsterGraphic::Walk), 0);
+	EXPECT_FALSE(oracool::RiftBossIsSteady(other));
+
+	// A steady one stands against knockback; a face of old keeps his unique's name.
+	const std::optional<size_t> sareth = oracool::FindRiftBoss("sareth");
+	ASSERT_TRUE(sareth.has_value());
+	oracool::SetRiftBossForTest(oracool::RiftKind::Nephalem, 16, *sareth);
+	EXPECT_TRUE(oracool::RiftBossIsSteady(boss));
+	EXPECT_TRUE(oracool::IsKnockbackImmune(boss));
+	oracool::SetRiftBossForTest(oracool::RiftKind::Nephalem, 1, 1);
+	EXPECT_EQ(oracool::RiftBossName(), "the Butcher");
+	EXPECT_EQ(oracool::RiftBossSizePercent(boss), 100u);
+
+	setlevel = savedSetlevel;
+	setlvlnum = savedLevel;
+	oracool::ResetRiftForNewGame();
+}
+
+// Every sprite the roster sends to the floor - the boss, his escort, what he raises - is in the archives: Malignus's
+// sheet was cut content in 1996 and a missing one would fail the level load.
+TEST(OracoolRiftBosses, EverySpriteTheRosterNamesIsInTheArchives)
+{
+	MountTestArchives(/*gameArchivesToo=*/true);
+	if (!HaveDiabdat())
+		GTEST_SKIP() << "needs diabdat.mpq";
+	const bool hellfire = FindAsset("monsters\\nkr\\nkrn.cl2").ok(); // Na-Krul's sheet: hellfire.mpq is mounted
+	for (size_t i = 0; i < oracool::RiftBossCount(); i++) {
+		const oracool::RiftBossDef &def = oracool::RiftBossAt(i);
+		for (const _monster_id type : { def.type, def.escort, def.summon }) {
+			if (type == MT_INVALID)
+				continue;
+			const MonsterData &data = MonstersData[type];
+			if (!hellfire && type >= MT_HELLBOAR)
+				continue; // a Hellfire type, and no hellfire.mpq here
+			const std::string path = std::string("monsters\\") + data.assetsSuffix + "n.cl2";
+			EXPECT_TRUE(FindAsset(path.c_str()).ok()) << "row " << i + 1 << " (" << (def.name != nullptr ? def.name : "face") << "): no " << path;
+		}
+	}
 }

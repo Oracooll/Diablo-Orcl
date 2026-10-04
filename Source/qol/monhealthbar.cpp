@@ -20,6 +20,7 @@
 #include "options.h"
 #include "oracool/aura_field.h"
 #include "oracool/lesser_uniques.h"
+#include "oracool/rift.h" // IsRiftGuardian: a rift boss reads as a unique
 #include "player.h" // KillExperienceFor
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -162,7 +163,9 @@ void DrawMonsterHealthBar(const Surface &out)
 	const string_view name = displayName;
 
 	DrawString(out, name, { position + Displacement { -1, 1 }, { width, height } }, { style | UiFlags::ColorBlack });
-	if (monster.isUnique())
+	// A rift's guardian reads as a unique whatever monster he is built on (the Rift Boss Roster, 2026-10-04).
+	const bool readsUnique = monster.isUnique() || oracool::IsRiftGuardian(monster);
+	if (readsUnique)
 		style |= UiFlags::ColorWhitegold;
 	else if (monster.leader != Monster::NoLeader)
 		style |= UiFlags::ColorBlue;
@@ -238,7 +241,7 @@ void DrawMonsterHealthBar(const Surface &out)
 			DrawString(out, lines[i], line, { colors[i] });
 		}
 	}
-	if (monster.isUnique() || MonsterKillCounts[monster.type().type] >= 15) {
+	if (readsUnique || MonsterKillCounts[monster.type().type] >= 15) {
 		monster_resistance immunes[] = { IMMUNE_MAGIC, IMMUNE_FIRE, IMMUNE_LIGHTNING };
 		monster_resistance resists[] = { RESIST_MAGIC, RESIST_FIRE, RESIST_LIGHTNING };
 

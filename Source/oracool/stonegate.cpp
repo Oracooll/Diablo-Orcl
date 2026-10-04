@@ -12,6 +12,7 @@
 #include "objects.h"
 #include "oracool/event_log.h"
 #include "oracool/rift.h"
+#include "oracool/rift_bosses.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/stonegate_menu.h"
 #include "player.h"
@@ -277,7 +278,7 @@ bool OpenNephalemAtGate()
 		return false;
 	LightGate(*gate, RiftKind::Nephalem, /*sound=*/true);
 	LogEvent(StrCat("A golden portal opens in the Rift Monument: a Nephalem Rift, tier ", RiftTier(), ". Walk in; ",
-	             RiftGuardianName(RiftGuardian()), " waits at the end and drops a keystone."),
+	             RiftBossName(), " waits at the end and drops a keystone."),
 	    UiFlags::ColorWhitegold);
 	return true;
 }

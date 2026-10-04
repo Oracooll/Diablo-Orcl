@@ -21,6 +21,7 @@
  */
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 #include "engine/point.hpp"
@@ -44,12 +45,16 @@ enum class RiftKind : uint8_t {
 	Guardian,
 };
 
-/** @brief Who waits at 100%: the Nephalem pair, then the Guardian pair. */
+/**
+ * @brief The FACE the boss wears: the four of old, whose unique rows dress them and their versions (oracool/rift_bosses.h),
+ * or None for a roster boss of an ordinary type. Which boss rises is the roster row (ActiveRiftBoss), not this.
+ */
 enum class RiftGuardianType : uint8_t {
 	SkeletonKing,
 	Butcher,
 	Diablo,
 	NaKrul,
+	None,
 };
 
 /** @brief The Guardian Rift's clock (r9): fifteen minutes, Diablo III's number, a first value for play. */
@@ -97,6 +102,8 @@ int RiftTier();
 /** @brief The Nephalem tier: one rung per three levels of @p player, inside this difficulty's block (2026-09-24). */
 int NephalemRiftTierFor(const Player &player);
 RiftGuardianType RiftGuardian();
+/** @brief The open rift's row in the boss roster (oracool/rift_bosses.h). */
+size_t RiftBossIndex();
 const char *RiftGuardianName(RiftGuardianType guardian);
 const char *RiftKindName(RiftKind kind);
 
@@ -194,6 +201,8 @@ int RiftKillCredit(const Monster &monster);
 void OnRiftMonsterKilled(const Monster &monster);
 /** @brief Whether @p monster is the active rift's guardian. */
 bool IsRiftGuardian(const Monster &monster);
+/** @brief Whether @p monster is the open rift's guardian in his death throes: the kill has marked the rift done. For his look. */
+bool IsFallenRiftGuardian(const Monster &monster);
 /**
  * @brief Whether @p tile is the cleared rift's way home or beside it. No item lands there: a pickup walk stops one tile
  * short of its item, and a later kill's loot beside the way home walked the hero through it (round 19 audit, v1.12.244).
@@ -236,5 +245,9 @@ void DrawRiftHud(const Surface &out);
 void ResetRiftForNewGame();
 /** @brief Names Monsters[@p monsterId] the open rift's guardian, as its spawn does - for the WORLD-02 test. */
 void SetRiftGuardianForTest(int monsterId);
+/** @brief Test seam: opens no rift, but sets its kind, tier and boss row as OpenCommon would. */
+void SetRiftBossForTest(RiftKind kind, int tier, size_t boss);
+/** @brief The `riftboss` debug command: the open rift's bar starts full, so its boss rises on arrival. */
+void FillRiftBarOnArrival();
 
 } // namespace devilution::oracool

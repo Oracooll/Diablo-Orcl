@@ -2,6 +2,7 @@
 
 #include "oracool/endgame_boss.h"
 #include "oracool/monster_difficulty.h"
+#include "oracool/rift_bosses.h" // ActiveRiftBossFor: a rift boss's own name
 #include "oracool/monster_variants.h"
 
 #include <array>
@@ -434,6 +435,10 @@ int IsQuestUniqueForTest(const char *mName)
 
 std::string GetMonsterDisplayName(const Monster &monster)
 {
+	// A rift boss goes by his roster row's name (the Rift Boss Roster, 2026-10-04): "Kharzug the Ram", not "Horned Demon".
+	// The four faces of old have no row name and keep their unique's.
+	if (const RiftBossDef *boss = ActiveRiftBossFor(monster); boss != nullptr && boss->name != nullptr)
+		return std::string(boss->name);
 	if (monster.lesserAffix == LesserUniqueAffix::None) {
 		// Phase 3: a recoloured variant wears its word in front of the ORDINARY name - "Ashen
 		// Skeleton", not a name of its own. That is the whole distinction from a champion: a

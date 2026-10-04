@@ -31,6 +31,7 @@
 #include "options.h" // the mini-map option: where the rift bar hangs
 #include "oracool/area_level.h"
 #include "oracool/endgame_boss.h"
+#include "oracool/rift_bosses.h"
 #include "oracool/event_log.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/sprite_colours.h"
@@ -59,6 +60,8 @@ struct RiftState {
 	uint32_t seed = 0;
 	dungeon_type tileset = DTYPE_CATHEDRAL;
 	RiftGuardianType guardian = RiftGuardianType::SkeletonKing;
+	/** The roster row that rises at 100% (oracool/rift_bosses.h); guardian is its face. */
+	size_t boss = 0;
 	int creditNeeded = 0;
 	int credit = 0;
 	bool guardianSpawned = false;
@@ -93,6 +96,8 @@ struct RiftState {
 	uint32_t keystoneSeed = 0;
 	/** Ticks until the next "the guardian found no ground" note, so a stuck spawn says so once in a while. */
 	int spawnNoteTicks = 0;
+	/** Opened by the `riftboss` debug command: the bar is full from the start. */
+	bool debugBarFull = false;
 };
 
 RiftState State;
@@ -117,12 +122,6 @@ int GenerationFloorFor(dungeon_type tileset)
 	default:
 		return 2;
 	}
-}
-
-dungeon_type RandomTileset()
-{
-	constexpr dungeon_type Sets[] = { DTYPE_CATHEDRAL, DTYPE_CATACOMBS, DTYPE_CAVES, DTYPE_HELL, DTYPE_NEST, DTYPE_CRYPT };
-	return Sets[GenerateRnd(6)];
 }
 
 /** @brief The rift's rung inside a difficulty block: 1..16. */
@@ -152,15 +151,14 @@ void OpenCommon(Player &player, RiftKind kind, int tier)
 	State.kind = kind;
 	State.tier = std::max(tier, 1);
 	State.seed = GenerateSeed();
-	if (kind == RiftKind::Guardian) {
-		State.guardian = FlipCoin() ? RiftGuardianType::Diablo : RiftGuardianType::NaKrul;
-		// The guardian's home (r2): Diablo needs a Hell floor, Na-Krul a Crypt floor.
-		State.tileset = State.guardian == RiftGuardianType::Diablo ? DTYPE_HELL : DTYPE_CRYPT;
+	// The boss first, then the floor (the Rift Boss Roster, 2026-10-04): a row of this kind for the rift's band rung, and
+	// one of its home tilesets - or any, now and then. Was a coin flip between two faces: Diablo on Hell, Na-Krul on the
+	// Crypt, Leoric and the Butcher on any floor - which is what their rows' homes still say.
+	ResetRiftBossRun();
+	State.boss = PickRiftBoss(kind, RiftMonsterBandFloor(), State.tileset);
+	State.guardian = RiftBossAt(State.boss).face;
+	if (kind == RiftKind::Guardian)
 		State.ticksLeft = GuardianRiftSeconds * RiftTicksPerSecond;
-	} else {
-		State.guardian = FlipCoin() ? RiftGuardianType::SkeletonKing : RiftGuardianType::Butcher;
-		State.tileset = RandomTileset();
-	}
 	// A rift is always a FRESH floor: the visited flag is what makes LoadGameLevel restore a saved
 	// level instead of generating (the Sealed Maps' trick, named_encounters.cpp).
 	player._pSLvlVisited[RiftLevelFor(kind)] = false;
@@ -217,6 +215,11 @@ RiftGuardianType RiftGuardian()
 	return State.guardian;
 }
 
+size_t RiftBossIndex()
+{
+	return State.boss;
+}
+
 const char *RiftGuardianName(RiftGuardianType guardian)
 {
 	switch (guardian) {
@@ -228,6 +231,8 @@ const char *RiftGuardianName(RiftGuardianType guardian)
 		return "Diablo";
 	case RiftGuardianType::NaKrul:
 		return "Na-Krul";
+	case RiftGuardianType::None:
+		break;
 	}
 	return "the guardian";
 }
@@ -300,7 +305,7 @@ bool UseGuardianKeystone(Player &player, const Item &keystone)
 	State.keystoneSeed = keystone._iSeed;
 	LightStonegate(RiftKind::Guardian);
 	LogEvent(StrCat("The keystone turns: a violet portal opens in the Rift Monument - a Guardian Rift, tier ", tier,
-	             ", fifteen minutes. ", RiftGuardianName(State.guardian), " waits at the end. The keystone is spent when you step through."),
+	             ", fifteen minutes. ", RiftBossName(), " waits at the end. The keystone is spent when you step through."),
 	    UiFlags::ColorWhitegold);
 	return true;
 }
@@ -782,6 +787,7 @@ void PlayGuardianRisesSound(const Monster &guardian)
 		break;
 	case RiftGuardianType::Diablo:
 	case RiftGuardianType::NaKrul:
+	case RiftGuardianType::None: // a roster boss of an ordinary type has no greeting either: the sting
 		PlaySFX(PS_DIABLVLINT);
 		break;
 	}
@@ -829,6 +835,9 @@ void RiftLevelPopulated()
 		total += RiftKillCredit(monster);
 	}
 	State.creditNeeded = std::max(RiftBarMinimum, total * RiftBarPercentOfFloor / 100);
+	// The `riftboss` debug command: the bar starts full, so the boss rises on arrival.
+	if (State.debugBarFull)
+		State.credit = State.creditNeeded;
 }
 
 int RiftScalePercent(int tier, int floorTier)
@@ -886,6 +895,12 @@ bool IsBesideRiftWayHome(Point tile)
 	if (!State.homeLaid)
 		return false;
 	return std::max(std::abs(tile.x - State.homeTile.x), std::abs(tile.y - State.homeTile.y)) <= 1;
+}
+
+bool IsFallenRiftGuardian(const Monster &monster)
+{
+	return InRift() && State.guardianSpawned && State.done && State.guardianId == static_cast<int>(monster.getId())
+	    && monster.mode == MonsterMode::Death;
 }
 
 bool IsRiftGuardian(const Monster &monster)
@@ -974,9 +989,9 @@ void OnRiftMonsterKilled(const Monster &monster)
 		// guardian drops the next tier's, unless the clock ran out.
 		LayWayHome(/*sound=*/true);
 		if (State.kind == RiftKind::Guardian && State.timedOut)
-			LogEvent(StrCat(RiftGuardianName(State.guardian), " falls, but the clock had run out: no keystone. The portal leads home."), UiFlags::ColorWhitegold);
+			LogEvent(StrCat(RiftBossName(), " falls, but the clock had run out: no keystone. The portal leads home."), UiFlags::ColorWhitegold);
 		else
-			LogEvent(StrCat(RiftGuardianName(State.guardian), " falls. The rift is cleared - the portal leads home."), UiFlags::ColorWhitegold);
+			LogEvent(StrCat(RiftBossName(), " falls. The rift is cleared - the portal leads home."), UiFlags::ColorWhitegold);
 		// A cleared NEPHALEM Rift closes on its own a minute later (NephalemRiftCloseSeconds): the
 		// countdown runs on the HUD, and at zero a hero still inside is put down on the new-game spawn
 		// in town and the portal is gone. Nothing else ends it - the gate's menu no longer can.
@@ -1044,6 +1059,16 @@ void ProcessRift()
 		return;
 	}
 
+	// The risen boss's own clock: its raises, rings, rests and thresholds (oracool/rift_bosses.h). His split copies keep
+	// their own, so they go when their ten seconds are up even after he has fallen.
+	if (InRift())
+		TickRiftConjured();
+	if (InRift() && State.guardianSpawned && !State.done && State.guardianId >= 0) {
+		Monster &boss = Monsters[State.guardianId];
+		if (boss.hitPoints > 0 && boss.mode != MonsterMode::Death)
+			TickRiftBoss(boss);
+	}
+
 	if (!InRift() || State.guardianSpawned || State.creditNeeded <= 0 || State.credit < State.creditNeeded)
 		return;
 	Monster *guardian = SpawnRiftGuardian();
@@ -1063,7 +1088,9 @@ void ProcessRift()
 	}
 	State.guardianSpawned = true;
 	State.guardianId = guardian->getId();
-	LogEvent(StrCat("The rift shudders: ", RiftGuardianName(State.guardian), " rises!"), UiFlags::ColorRed);
+	// Named first, so every hook that asks IsRiftGuardian knows him: his size, colour and pace are bound here.
+	OnRiftBossRisen(*guardian);
+	LogEvent(StrCat("The rift shudders: ", RiftBossName(), " rises!"), UiFlags::ColorRed);
 	PlayGuardianRisesSound(*guardian);
 }
 
@@ -1250,7 +1277,7 @@ void DrawRiftHud(const Surface &out)
 	else if (State.done)
 		label += ": cleared";
 	else if (State.guardianSpawned)
-		label += StrCat(": ", RiftGuardianName(State.guardian));
+		label += StrCat(": ", RiftBossName());
 	else
 		label += fmt::format("  {:d}%", RiftProgressPercent());
 	if (State.kind == RiftKind::Guardian && !State.done)
@@ -1289,9 +1316,23 @@ void SetRiftGuardianForTest(int monsterId)
 	State.guardianId = monsterId;
 }
 
+void FillRiftBarOnArrival()
+{
+	State.debugBarFull = true;
+}
+
+void SetRiftBossForTest(RiftKind kind, int tier, size_t boss)
+{
+	State.kind = kind;
+	State.tier = std::max(tier, 1);
+	State.boss = boss;
+	State.guardian = RiftBossAt(boss).face;
+}
+
 void ResetRiftForNewGame()
 {
 	State = RiftState {};
+	ResetRiftBossesForNewGame();
 }
 
 } // namespace devilution::oracool

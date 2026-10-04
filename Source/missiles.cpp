@@ -34,6 +34,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/endgame_boss.h"    // OnBossDealtDamage - Devouring drains from a missile too
 #include "oracool/lesser_uniques.h"  // OnLesserUniqueDealtDamage, GetMonsterDisplayName
+#include "oracool/rift_bosses.h"     // OnRiftBossDealtBlow: a rift boss's missile landing
 #include "oracool/monster_variants.h" // VariantPoisonsOnHit
 #include "oracool/venom.h"
 #include "oracool/combat_odds.h"
@@ -319,6 +320,7 @@ void OnMonsterMissileLanded(Player &player, Monster &monster, int dam, int poiso
 		return;
 	oracool::OnLesserUniqueDealtDamage(monster, dam);
 	oracool::OnBossDealtDamage(monster, dam);
+	oracool::OnRiftBossDealtBlow(monster, player, dam, /*missile=*/true); // the Swarm Mother's venom rides her acid
 }
 
 int ProjectileTrapDamage(Missile &missile)

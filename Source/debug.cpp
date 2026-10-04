@@ -31,6 +31,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/minions.h"
 #include "oracool/rift.h"
+#include "oracool/rift_bosses.h"
 #include "oracool/item_sets.h"
 #include "oracool/telemetry.h"
 #include "oracool/waypoint_menu.h"
@@ -299,7 +300,35 @@ std::string DebugCmdRift(const string_view parameter)
 	if (!oracool::EnterRift(myPlayer))
 		return "The rift would not open.";
 	return StrCat("Entering a ", oracool::RiftKindName(oracool::ActiveRift()), " at tier ", oracool::RiftTier(),
-	    "; ", oracool::RiftGuardianName(oracool::RiftGuardian()), " waits at 100%.");
+	    "; ", oracool::RiftBossName(), " waits at 100%.");
+}
+
+std::string DebugCmdRiftBoss(const string_view parameter)
+{
+	Player &myPlayer = *MyPlayer;
+	if (parameter.empty()) {
+		std::string list = StrCat(oracool::RiftBossCount(), " rift bosses: ");
+		for (size_t i = 0; i < oracool::RiftBossCount(); i++) {
+			const oracool::RiftBossDef &def = oracool::RiftBossAt(i);
+			StrAppend(list, i == 0 ? "" : ", ", i + 1, " ", def.name != nullptr ? def.name : oracool::RiftGuardianName(def.face));
+		}
+		return list;
+	}
+	if (!myPlayer.isOnLevel(0) || setlevel)
+		return "The rifts open from town.";
+	const std::optional<size_t> found = oracool::FindRiftBoss(parameter);
+	if (!found)
+		return StrCat("No rift boss answers to \"", parameter, "\". Type riftboss alone for the list.");
+	const oracool::RiftBossDef &def = oracool::RiftBossAt(*found);
+	oracool::ForceNextRiftBoss(*found);
+	const bool opened = def.kind == oracool::RiftKind::Guardian ? oracool::OpenGuardianRift(myPlayer, oracool::NephalemRiftTierFor(myPlayer))
+	                                                            : oracool::OpenNephalemRift(myPlayer);
+	if (!opened)
+		return "Could not open a rift here.";
+	oracool::FillRiftBarOnArrival();
+	if (!oracool::EnterRift(myPlayer))
+		return "The rift would not open.";
+	return StrCat("Entering a ", oracool::RiftKindName(oracool::ActiveRift()), " with its bar full: ", oracool::RiftBossName(), " rises on arrival.");
 }
 
 std::string DebugCmdLoadMap(const string_view parameter)
@@ -1583,6 +1612,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "searchobject", "Searches the automap for {object}", "{object}", &DebugCmdSearchObject },
 	{ "clearsearch", "Search in the auto map is cleared", "", &DebugCmdClearSearch },
 	{ "rift", "Opens a rift at the Rift Monument and enters it: nephalem (free, the deepest floor's tier) or guardian at {tier}.", "{nephalem|guardian} ({tier})", &DebugCmdRift },
+	{ "riftboss", "Opens a rift whose bar starts full, so the named roster boss rises on arrival; alone, lists the bosses.", "({number}|{name})", &DebugCmdRiftBoss },
 	{ "keystone", "Drops a Guardian Keystone at your feet: of {tier}, or of the deepest floor's tier when none is given.", "({tier})", &DebugCmdKeystone },
 };
 

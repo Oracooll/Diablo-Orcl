@@ -58,6 +58,7 @@
 #include "oracool/monster_scale.h"
 #include "oracool/named_encounters.h"
 #include "oracool/rift.h" // the rift floor's roster, its guardian, its kill bar (2026-09-20)
+#include "oracool/rift_bosses.h" // the guardian roster: who rises, how big, how fast, what he does (2026-10-04)
 #include "oracool/signets.h"
 #include "oracool/telemetry.h"
 
@@ -1030,7 +1031,7 @@ void NewMonsterAnim(Monster &monster, MonsterGraphic graphic, Direction md, Anim
 	// before it; the attack distributes the skip before the hit frame, as NewPlrAnim does.
 	int8_t skipped = numSkippedFrames;
 	int8_t distributeBefore = distributeFramesBeforeFrame;
-	if (const int extra = oracool::VariantSkippedFrames(monster, graphic); extra > 0) {
+	if (const int extra = oracool::VariantSkippedFrames(monster, graphic) + oracool::RiftBossSkippedFrames(monster, graphic); extra > 0) {
 		if (graphic == MonsterGraphic::Attack) {
 			const int hitFrame = monster.data().animFrameNum;
 			skipped = static_cast<int8_t>(std::clamp<int>(skipped + extra, 0, std::max(0, hitFrame - 3)));
@@ -1858,6 +1859,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 			// And the boss's own drain, which is a different trait on a different field - a boss's
 			// lesserAffix is Dread, so OnLesserUniqueDealtDamage's Vampiric test never fires for one.
 			oracool::OnBossDealtDamage(monster, landed);
+			oracool::OnRiftBossDealtBlow(monster, player, landed); // a rift boss's signature on a landed blow
 		}
 	}
 
@@ -1997,7 +1999,8 @@ bool MonsterRangedAttack(Monster &monster)
 	if (oracool::IsCompanion(monster))
 		return CompanionRangedAttack(monster);
 	if (monster.animInfo.currentFrame == monster.data().animFrameNum - 1) {
-		const auto &missileType = static_cast<MissileID>(monster.var1);
+		// A rift boss may turn the cast (Magistrate Vael's fire, lightning, fire), and fans or doubles it below.
+		const MissileID missileType = oracool::RiftBossShotType(monster, static_cast<MissileID>(monster.var1));
 		if (missileType != MissileID::Null) {
 			// Oracool (2026-09-26): a Skeletal Mage's shot is ONE missile at its own damage, whatever its element.
 			// Firebolt, Acid and Arrow already roll the shooter's min-max; a monster's Charged Bolt is three bolts of a
@@ -2034,6 +2037,7 @@ bool MonsterRangedAttack(Monster &monster)
 					}
 				}
 			}
+			oracool::RiftBossExtraShots(monster, missileType, monster.var2);
 		}
 		PlayEffect(monster, MonsterSound::Attack);
 	}
@@ -2060,6 +2064,9 @@ bool MonsterRangedSpecialAttack(Monster &monster)
 		        0)
 		    != nullptr) {
 			PlayEffect(monster, MonsterSound::Special);
+			// The acid spitters, the magma demons and the storms shoot through here (AiRangedAvoidance): a rift boss's fan and
+			// doubled bolt ride this shot too (audit, 2026-10-04: hooked into MonsterRangedAttack only, they never fired).
+			oracool::RiftBossExtraShots(monster, static_cast<MissileID>(monster.var1), monster.var3);
 		}
 	}
 
@@ -4156,11 +4163,18 @@ void GetLevelMTypes()
 		for (int i = 0; i < MAX_PLRS; i++)
 			AddMonster(GolemHoldingCell, Direction::South, 0, false);
 
-		// The guardian's type, loaded now so his sprites are in memory when the bar fills. The
-		// Skeleton King also wants a skeleton type on the floor to raise.
-		switch (oracool::RiftGuardian()) {
-		case oracool::RiftGuardianType::SkeletonKing: {
-			AddMonsterType(MT_SKING, PLACE_SPECIAL);
+		// The guardian's type, loaded now so his sprites are in memory when the bar fills - the roster row's (oracool/
+		// rift_bosses.h), with his escort and what he raises. A Skeleton King with nothing named to raise also wants a skeleton
+		// type on the floor, as ever.
+		const oracool::RiftBossDef &riftBoss = oracool::ActiveRiftBoss();
+		AddMonsterType(riftBoss.type, PLACE_SPECIAL);
+		for (const _monster_id extra : oracool::RiftBossExtraTypes())
+			AddMonsterType(extra, PLACE_SPECIAL);
+		// Gorefeast's puddle is a monster-owned sheet an Overlord does not load; every build of the floor loads it, since a level
+		// change frees the missile sheets and a revisit does not rise him again (audit, 2026-10-04).
+		if (riftBoss.signature == oracool::BossSignature::AcidPoolOnHit && !HeadlessMode)
+			GetMissileSpriteData(MissileGraphicID::AcidPuddle).LoadGFX();
+		if (riftBoss.face == oracool::RiftGuardianType::SkeletonKing && riftBoss.summon == MT_INVALID) {
 			_monster_id skeltypes[NUM_MTYPES];
 			int skeletonTypeCount = 0;
 			for (_monster_id skeletonType : SkeletonTypes) {
@@ -4172,16 +4186,6 @@ void GetLevelMTypes()
 			// scattered floor-one skeletons as cheap kill-bar credit (round 13 audit). AddSkeleton finds them by kind.
 			if (skeletonTypeCount > 0)
 				AddMonsterType(skeltypes[GenerateRnd(skeletonTypeCount)], PLACE_SPECIAL);
-		} break;
-		case oracool::RiftGuardianType::Butcher:
-			AddMonsterType(MT_CLEAVER, PLACE_SPECIAL);
-			break;
-		case oracool::RiftGuardianType::Diablo:
-			AddMonsterType(MT_DIABLO, PLACE_SPECIAL);
-			break;
-		case oracool::RiftGuardianType::NaKrul:
-			AddMonsterType(MT_NAKRUL, PLACE_SPECIAL);
-			break;
 		}
 
 		// The roster (plan r2): a mix from the WHOLE game in the tier's band - a Caves floor full of
@@ -4619,23 +4623,23 @@ Monster *SpawnRiftGuardian()
 	if (!spot)
 		return nullptr;
 
-	_monster_id type = MT_SKING;
+	// The roster row's type, dressed in its face's unique row (oracool/rift_bosses.h); a roster boss of an ordinary type has
+	// none, and takes its name and look from the row.
+	const _monster_id type = oracool::ActiveRiftBoss().type;
 	std::optional<UniqueMonsterType> unique;
 	switch (oracool::RiftGuardian()) {
 	case oracool::RiftGuardianType::SkeletonKing:
-		type = MT_SKING;
 		unique = UniqueMonsterType::SkeletonKing;
 		break;
 	case oracool::RiftGuardianType::Butcher:
-		type = MT_CLEAVER;
 		unique = UniqueMonsterType::Butcher;
 		break;
 	case oracool::RiftGuardianType::Diablo:
-		type = MT_DIABLO; // no unique row: floor 16 stamps him from its map, and so does this
-		break;
+		break; // no unique row: floor 16 stamps him from its map, and so does this
 	case oracool::RiftGuardianType::NaKrul:
-		type = MT_NAKRUL;
 		unique = UniqueMonsterType::NaKrul;
+		break;
+	case oracool::RiftGuardianType::None:
 		break;
 	}
 	const size_t typeIndex = GetMonsterTypeIndex(type);
@@ -4672,6 +4676,91 @@ Monster *SpawnRiftGuardian()
 	monster.corpseId = 0;
 	oracool::ScaleRiftMonster(monster);
 	return &monster;
+}
+
+void DespawnMonster(Monster &monster)
+{
+	if (monster.isInvalid)
+		return;
+	M_ClearSquares(monster);
+	if (dMonster[monster.position.tile.x][monster.position.tile.y] == static_cast<int>(monster.getId()) + 1)
+		dMonster[monster.position.tile.x][monster.position.tile.y] = 0;
+	if (monster.lightId != NO_LIGHT) {
+		AddUnLight(monster.lightId);
+		monster.lightId = NO_LIGHT;
+	}
+	monster.hitPoints = 0;
+	monster.isInvalid = true; // DeleteMonsterList frees the slot at the next tick, as for any monster gone from the floor
+}
+
+size_t LevelMonsterTypeIndexOf(_monster_id type)
+{
+	return GetMonsterTypeIndex(type);
+}
+
+Monster *SpawnRiftBossMinion(size_t typeIndex, Point near, bool rise)
+{
+	if (typeIndex >= LevelMonsterTypeCount || !EnemyMonsterRoomLeft())
+		return nullptr;
+	std::optional<Point> spot;
+	for (int radius = 1; radius <= 4 && !spot; radius++) {
+		for (int dx = -radius; dx <= radius && !spot; dx++) {
+			for (int dy = -radius; dy <= radius; dy++) {
+				if (std::max(std::abs(dx), std::abs(dy)) != radius)
+					continue;
+				const Point candidate = near + Displacement { dx, dy };
+				if (InDungeonBounds(candidate) && IsTileAvailable(candidate) && !TileContainsSetPiece(candidate)) {
+					spot = candidate;
+					break;
+				}
+			}
+		}
+	}
+	if (!spot)
+		return nullptr;
+	const Direction facing = MyPlayer != nullptr ? GetDirection(*spot, MyPlayer->position.tile) : Direction::South;
+	Monster *minion = AddMonster(*spot, facing, typeIndex, true);
+	if (minion == nullptr)
+		return nullptr;
+	if (oracool::InRift())
+		oracool::ScaleRiftMonster(*minion);
+	if (rise && IsSkel(minion->type().type))
+		StartSpecialStand(*minion, facing); // the climb out of the floor, as the Skeleton King's raised dead
+	else
+		M_StartStand(*minion, facing);
+	return minion;
+}
+
+bool MoveMonsterInstantly(Monster &monster, Point target)
+{
+	if (monster.mode == MonsterMode::Petrified || monster.mode == MonsterMode::Death)
+		return false;
+	std::optional<Point> spot;
+	for (int radius = 0; radius <= 4 && !spot; radius++) {
+		for (int dx = -radius; dx <= radius && !spot; dx++) {
+			for (int dy = -radius; dy <= radius; dy++) {
+				if (std::max(std::abs(dx), std::abs(dy)) != radius)
+					continue;
+				const Point candidate = target + Displacement { dx, dy };
+				if (InDungeonBounds(candidate) && IsTileAvailable(candidate) && !TileContainsSetPiece(candidate)) {
+					spot = candidate;
+					break;
+				}
+			}
+		}
+	}
+	if (!spot)
+		return false;
+	M_ClearSquares(monster);
+	dMonster[monster.position.tile.x][monster.position.tile.y] = 0;
+	monster.position.tile = *spot;
+	monster.position.future = *spot;
+	monster.position.old = *spot;
+	dMonster[spot->x][spot->y] = monster.getId() + 1;
+	if (monster.lightId != NO_LIGHT)
+		ChangeLightXY(monster.lightId, *spot);
+	M_StartStand(monster, MyPlayer != nullptr ? GetDirection(*spot, MyPlayer->position.tile) : monster.direction);
+	return true;
 }
 
 void AddDoppelganger(Monster &monster)
@@ -4721,6 +4810,7 @@ void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage)
 	// ones that skip the stagger. Recording at the point of damage makes a one-shot kill report a
 	// short time instead of no time.
 	oracool::TelemetryRecordFirstHit(monster);
+	oracool::OnRiftBossStruck(monster, damageType, damage); // a rift boss's answer to a blow (oracool/rift_bosses.h)
 
 	monster.hitPoints -= damage;
 	// Frailty: below a sliver, it simply dies (oracool/curses.h).
@@ -4984,7 +5074,9 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	oracool::OnCursedMonsterDeath(monster); // Death Mark bursts it, Essence Tap pays (oracool/curses.h)
 	if (MyPlayer != nullptr)
 		oracool::OnPassiveMonsterDied(*MyPlayer, monster); // Life from Death, whoever made the kill (round 13 audit)
-	if (!monster.isPlayerMinion())
+	// A rift boss's split copy pays nothing (oracool/rift_bosses.h): it was conjured for ten seconds.
+	const bool conjured = oracool::IsRiftConjured(monster);
+	if (!monster.isPlayerMinion() && !conjured)
 		AddPlrMonstExper(monster.level(sgGameInitInfo.nDifficulty), monster.exp(sgGameInitInfo.nDifficulty), monster.whoHit);
 
 	if (!monster.isPlayerMinion()) // the army's own deaths are not kills of that kind (round 14 audit)
@@ -5001,7 +5093,9 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 		GrantRuneKillMana(monster.whoHit);
 	}
 
-	SpawnLoot(monster, sendmsg);
+	if (!conjured)
+		SpawnLoot(monster, sendmsg);
+	oracool::ForgetRiftConjured(monster);
 
 	// Oracool: AFTER the loot, and the reason is the line above SetRndSeed(monster.rndItemSeed).
 	// That seed exists to make a monster's drop reproducible, and Thunderous spends 36 AddMissile
@@ -5582,7 +5676,7 @@ void ProcessMonsters()
 						PlaySFX(USFX_NAKRUL5);
 				}
 			}
-			if (monster.type().type == MT_DEFILER)
+			if (monster.type().type == MT_DEFILER && !oracool::IsRiftGuardian(monster)) // the Defiler Empress is not the quest's (audit, 2026-10-04)
 				PlaySFX(USFX_DEFILER8);
 			UpdateEnemy(monster);
 		}
@@ -5627,6 +5721,9 @@ void ProcessMonsters()
 		// hold its death animation forever, and stone already stops everything this would.
 		if (monster.mode != MonsterMode::Death && monster.mode != MonsterMode::Petrified
 		    && oracool::ChillTakesThisTick(monster))
+			continue;
+		// A slow rift boss loses a walking tick in four, and a resting stone its every tick (oracool/rift_bosses.h).
+		if (monster.mode != MonsterMode::Death && oracool::RiftBossSkipsThisTick(monster))
 			continue;
 
 		while (true) {

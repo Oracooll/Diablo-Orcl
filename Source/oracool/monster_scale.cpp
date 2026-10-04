@@ -8,6 +8,7 @@
 #include "levels/gendung.h"
 #include "oracool/companion.h"
 #include "oracool/minions.h" // GetMinionAnim: the Fire Golem's run sheet
+#include "oracool/rift_bosses.h" // RiftBossSizePercent: a rift boss's own size, up to 250%
 #include "oracool/sprite_scale.h"
 
 namespace devilution::oracool {
@@ -154,6 +155,14 @@ MonsterSize GetMonsterSize(const Monster &monster)
 	return OrdinaryMonsterSize(glSeedTbl[currlevel], monster.levelType, monster.getId());
 }
 
+/** @brief The size @p monster is drawn at, in percent: a rift boss's own (oracool/rift_bosses.h), else its MonsterSize's. */
+unsigned DrawPercentOf(const Monster &monster)
+{
+	if (const unsigned boss = RiftBossSizePercent(monster); boss != 0)
+		return boss;
+	return MonsterSizePercent(GetMonsterSize(monster));
+}
+
 const AnimStruct *GetScaledAnim(const Monster &monster, MonsterGraphic graphic)
 {
 	// A companion wears its hero sheets (oracool/companion.h) - asked here because this is where both binders ask.
@@ -162,7 +171,7 @@ const AnimStruct *GetScaledAnim(const Monster &monster, MonsterGraphic graphic)
 	// And the Necromancer's Fire Golem the Elemental's run sheet (oracool/minions.h, v1.12.364).
 	if (const AnimStruct *minion = GetMinionAnim(monster, graphic))
 		return minion;
-	const unsigned percent = MonsterSizePercent(GetMonsterSize(monster));
+	const unsigned percent = DrawPercentOf(monster);
 	if (percent == 100)
 		return nullptr;
 	return ScaledAnimIn(EntryFor(monster.levelType, percent), graphic);
@@ -170,7 +179,7 @@ const AnimStruct *GetScaledAnim(const Monster &monster, MonsterGraphic graphic)
 
 OptionalClxSpriteListOrSheet GetScaledCorpse(const Monster &monster)
 {
-	const unsigned percent = MonsterSizePercent(GetMonsterSize(monster));
+	const unsigned percent = DrawPercentOf(monster);
 	if (percent == 100)
 		return std::nullopt;
 	const int corpseId = monster.type().corpseId;
@@ -200,7 +209,7 @@ void ClearMonsterScaleCache()
 	if (!Cache.empty()) {
 		for (size_t i = 0; i < MaxMonsters; i++) {
 			Monster &monster = Monsters[i];
-			if (GetMonsterSize(monster) != MonsterSize::Normal)
+			if (DrawPercentOf(monster) != 100)
 				monster.animInfo.sprites = std::nullopt;
 		}
 	}

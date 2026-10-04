@@ -509,6 +509,14 @@ void InitLevelMonsters();
  * plain MT_DIABLO body floor 16 stamps from its map. Nullptr when no tile near the hero is free this tick.
  */
 Monster *SpawnRiftGuardian();
+/** @brief Oracool: takes @p monster off the floor without a death - no corpse, loot, experience or kill (a rift boss's split copy). */
+void DespawnMonster(Monster &monster);
+/** @brief Oracool: the floor's type slot holding @p type, or LevelMonsterTypeCount when it is not loaded. */
+size_t LevelMonsterTypeIndexOf(_monster_id type);
+/** @brief Oracool: a rift boss's summon beside @p near - an escort, a raise (@p rise plays a skeleton's climb), a split copy (oracool/rift_bosses.h). */
+Monster *SpawnRiftBossMinion(size_t typeIndex, Point near, bool rise);
+/** @brief Oracool: moves @p monster at once to the free tile nearest @p target, within four - a rift boss's blink. False when none. */
+bool MoveMonsterInstantly(Monster &monster, Point target);
 void GetLevelMTypes();
 void InitMonsterSND(CMonster &monsterType);
 void InitMonsterGFX(CMonster &monsterType);

@@ -7,6 +7,7 @@
 #include "oracool/area_level.h"
 #include "utils/language.h"
 #include "oracool/rift.h" // InRift - the generated set level
+#include "oracool/rift_bosses.h" // RiftBossIsSteady
 
 namespace devilution::oracool {
 
@@ -67,7 +68,8 @@ bool IsEndgameBoss(const Monster &monster)
 
 bool FightsAsUnique(const Monster &monster)
 {
-	return monster.isUnique() || monster.type().type == MT_DIABLO || IsEndgameBoss(monster);
+	// And a rift's guardian, whatever monster he is built on (the Rift Boss Roster, 2026-10-04).
+	return monster.isUnique() || monster.type().type == MT_DIABLO || IsEndgameBoss(monster) || IsRiftGuardian(monster);
 }
 
 BossTrait SecondaryTraitOf(uint16_t seed)
@@ -152,6 +154,9 @@ bool IsKnockbackImmune(const Monster &monster)
 		return true;
 	// The Unyielding variant (2026-09-19): an ordinary monster that stands its ground.
 	if (VariantIsKnockbackImmune(monster))
+		return true;
+	// And a steady rift boss (oracool/rift_bosses.h: Sareth, Vargoth, Ghorm, the Prime Evil, Na-Krul Unchained).
+	if (RiftBossIsSteady(monster))
 		return true;
 	return IsEndgameBoss(monster) && SecondaryTraitFor(monster) == BossTrait::Implacable;
 }
