@@ -46,7 +46,9 @@ std::optional<std::pair<ClassMeleeSkill, bool>> SwingPrice;
  */
 bool IsSwingChainSkill(ClassMeleeSkill skill)
 {
-	return skill == ClassMeleeSkill::DoubleSwing || skill == ClassMeleeSkill::Frenzy;
+	// Jab too (the Rogue Skill Cards page, 2026-10-04: "makes three attacks in the span of one regular attack ticks. plays heavy
+	// weapon swing for each thrust"): three real thrusts, each with its swing cue.
+	return skill == ClassMeleeSkill::DoubleSwing || skill == ClassMeleeSkill::Frenzy || skill == ClassMeleeSkill::Jab;
 }
 /** Swings still to come in this chain. */
 int ChainLeft = 0;
@@ -457,6 +459,9 @@ int ClassMeleeSwingSkipFrames(const Player &player)
 	// Two swings in one attack's time: each keeps the second half of its windup (at least 3 frames), and the first hands
 	// over at its blow, so windup + windup + one recovery is about one whole swing.
 	const int hitFrame = MeleeHitFrame(player);
+	const int swings = StrikeCount(player, *ArmedSkill);
+	if (swings >= 3) // Jab's three: a third of the windup each (at least 2 frames)
+		return std::max(0, hitFrame - std::max(hitFrame / swings, 2));
 	return std::max(0, std::min(hitFrame / 2, hitFrame - 3));
 }
 

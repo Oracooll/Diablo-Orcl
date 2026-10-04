@@ -402,6 +402,23 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 		ClxDrawRgbMap(out, at, body, oracool::TintedTable(table, oracool::Tint::Clone, 0, 0.0));
 		return;
 	}
+	// Shadow Step's ghost (the Rogue Skill Cards page, 2026-10-04): its hero's stand where she left, glinting bright white and
+	// fading out over its ticks. 32-bit only.
+	if (missile.var6 == ShadowStepGhostMark && missile._mitype == MissileID::AcidCloud && missile._misource >= 0 && static_cast<size_t>(missile._misource) < Players.size()) {
+		if (out.isIndexed())
+			return;
+		const Player &hero = Players[missile._misource];
+		const OptionalClxSpriteList stand = hero.AnimationData[static_cast<size_t>(player_graphic::Stand)].spritesForDirection(static_cast<Direction>(missile.var7 & 7));
+		if (!stand || stand->numSprites() == 0)
+			return;
+		const ClxSprite body = (*stand)[0];
+		const oracool::SpriteColours *bodyColours = PlayerSpriteColours(hero, body);
+		const uint32_t *table = bodyColours != nullptr ? bodyColours->Table(0) : oracool::LitPaletteTable(0);
+		const Point at = targetBufferPosition + missile.position.offsetForRendering - Displacement { CalculateWidth2(body.width()), 0 };
+		const int alpha = std::clamp(256 * missile._mirange / std::max(missile.var5, 1), 16, 256);
+		ClxDrawRgbMapAlpha(out, at, body, oracool::TintedTable(table, oracool::Tint::Glint, oracool::hue::FrostWhite, 0.0), static_cast<uint16_t>(alpha));
+		return;
+	}
 	if (missile._miAnimFrame < 1 || static_cast<size_t>(missile._miAnimFrame) > missile._miAnimData->numSprites())
 		return; // a frame the sheet has not got (round 76 audit: indexed unchecked)
 	const ClxSprite sprite = (*missile._miAnimData)[missile._miAnimFrame - 1];
@@ -482,6 +499,12 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 		ClxDrawTRN(out, targetBufferPosition, sprite, GetInfravisionTRN());
 		return;
 	}
+	// Piercing Shot's blink: each monster its arrow goes through flashes infrared for a moment (the Rogue Skill Cards page,
+	// 2026-10-04), at full brightness over everything else it wears.
+	if (oracool::MonsterBlinking(monster) && !out.isIndexed()) {
+		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::TintedTable(oracool::LitPaletteTable(0), oracool::Tint::Hue, oracool::hue::Infrared, 0.0));
+		return;
+	}
 	// Whether a TRN EXISTS, not whether the monster is unique. Only uniques used to carry one, so
 	// the two questions had the same answer and the narrower one was written; recoloured variants
 	// (oracool/monster_variants.h) build a translation for ordinary monsters, and would have been
@@ -493,7 +516,7 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 		trn = oracool::ColdTRN();
 	if (monster.mode == MonsterMode::Petrified)
 		trn = GetStoneTRN();
-	if (MyPlayer->_pInfraFlag && LightTableIndex > 8)
+	if ((MyPlayer->_pInfraFlag || oracool::MonsterHunterMarked(monster)) && LightTableIndex > 8)
 		trn = GetInfravisionTRN();
 	// On the 32-bit screen a frozen monster is drawn through colour values (stage 3's machinery),
 	// lit and shaded as it stands, under frost - see FrozenRgbTable. Stone and infravision still
@@ -520,6 +543,11 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 	if (!out.isIndexed() && (trn == nullptr || trn == monster.uniqueMonsterTRN.get())) {
 		if (const oracool::MinionLook look = oracool::MinionBodyLook(monster); look.tint != oracool::Tint::None) {
 			ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::TintedTable(oracool::LitPaletteTable(LightTableIndex), look.tint, look.rgb, 0.0));
+			return;
+		}
+		// The Decoy: the Rogue's own sheets, ghost white-grey with light running through them (2026-10-04), lit as it stands.
+		if (oracool::IsDecoyBody(monster)) {
+			ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::TintedTable(oracool::LitPaletteTable(LightTableIndex), oracool::Tint::Glint, oracool::hue::GhostGrey, 0.0));
 			return;
 		}
 	}
@@ -633,6 +661,16 @@ bool DrawPlayerTinted(const Surface &out, const Player &player, Point position, 
 {
 	if (out.isIndexed())
 		return false;
+	// Shadow Step (the Rogue Skill Cards page, 2026-10-04): unseen while her ghost fades where she left, then fading in at the
+	// landing, glinting bright white until her own sprite is back.
+	if (const int fade = oracool::ShadowStepFadeTicks(player); fade > 0) {
+		if (fade > oracool::ShadowStepHalfTicks)
+			return true; // not drawn
+		const uint32_t *base = colours != nullptr ? colours->Table(light) : oracool::LitPaletteTable(light);
+		const int alpha = std::clamp(256 * (oracool::ShadowStepHalfTicks - fade + 1) / (oracool::ShadowStepHalfTicks + 1), 16, 256);
+		ClxDrawRgbMapAlpha(out, position, sprite, oracool::TintedTable(base, oracool::Tint::Glint, oracool::hue::FrostWhite, 0.0), static_cast<uint16_t>(alpha));
+		return true;
+	}
 	// Conduit (user, 2026-10-01): electric bluish-white over him for as long as it lasts, in place of its loop sheet.
 	const oracool::Tint tint = oracool::Rfa12ActiveHidesPlayer(player) ? oracool::Tint::Astral
 	    : oracool::ColdArmourShellFrame(player) >= 0                   ? oracool::Tint::Ice
@@ -1187,7 +1225,8 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 
 	const Point monsterRenderPosition { targetBufferPosition + offset - Displacement { CalculateWidth2(sprite.width()), 0 } };
 	// Scent of Blood (RfA-12): a monster the Rogue wounded stays drawn a moment after it leaves the light.
-	const bool tileLit = IsTileLit(tilePosition) || MyPlayer->_pInfraFlag || oracool::MonsterScented(monster);
+	// Hunter's Mark: the marked one is seen as through infravision (the Rogue Skill Cards page, 2026-10-04).
+	const bool tileLit = IsTileLit(tilePosition) || MyPlayer->_pInfraFlag || oracool::MonsterScented(monster) || oracool::MonsterHunterMarked(monster);
 	// Oracool: user request - the same red outline normally shown only for the hovered monster
 	// (pcursmonst) also applies to any monster within the configured range, so nearby threats
 	// stand out even before the cursor finds them. 0 (OFF) never triggers this extra check.
@@ -1656,6 +1695,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	oracool::DrawAuraGround(out, position, Point {} + offset, rows, columns);
 	oracool::DrawMinionFrenzyRings(out, position, Point {} + offset, rows, columns); // Frenzy of the Dead, under each minion
 	oracool::DrawArrowImpactRings(out, position, Point {} + offset, rows, columns); // Rain of Arrows, under each landed arrow
+	oracool::DrawFendRing(out, position, Point {} + offset, rows, columns);         // Fend, under the Rogue while she swings
 	DrawTileContent(out, position, Point {} + offset, rows, columns);
 	// The deferred monster outlines, drained HERE - after the whole scene is composited, so they
 	// land on top of any wall that would otherwise hide the body, but still BEFORE ZoomScale, so

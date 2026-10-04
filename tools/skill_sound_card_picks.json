@@ -164,6 +164,70 @@
    "path": "monsters\\golem\\golma1.wav",
    "why": "the Necromancer Skill Cards page: Golem grunt"
   },
+  "rogue.AnchorJavelin.Cast": {
+   "path": "sfx\\misc\\fballbow.wav",
+   "why": "the Rogue Skill Cards page: Fire arrow (Hellfire)"
+  },
+  "rogue.Decoy.Cast": {
+   "path": "sfx\\misc\\cast6.wav",
+   "why": "the Rogue Skill Cards page: Generic cast (cast6)"
+  },
+  "rogue.Harpoon.Cast": {
+   "path": "sfx\\misc\\fballbow.wav",
+   "why": "the Rogue Skill Cards page: Fire arrow (Hellfire)"
+  },
+  "rogue.LightningStrike.Cast": {
+   "path": "sfx\\misc\\swing2.wav",
+   "why": "the Rogue Skill Cards page: Heavy weapon swing"
+  },
+  "rogue.LightningStrike.Impact": {
+   "path": "sfx\\misc\\lning1.wav",
+   "why": "the Rogue Skill Cards page: Lightning"
+  },
+  "rogue.PhantomVolley.Cast": {
+   "path": "sfx\\misc\\cast6.wav",
+   "why": "the Rogue Skill Cards page: Generic cast (cast6)"
+  },
+  "rogue.PhantomVolley.Impact": {
+   "path": "sfx\\misc\\sting1.wav",
+   "why": "the Rogue Skill Cards page: Arrow hit (Hellfire)"
+  },
+  "rogue.PlagueJavelin.Cast": {
+   "path": "sfx\\misc\\fballbow.wav",
+   "why": "the Rogue Skill Cards page: Fire arrow (Hellfire)"
+  },
+  "rogue.PoisonJavelin.Cast": {
+   "path": "sfx\\misc\\fballbow.wav",
+   "why": "the Rogue Skill Cards page: Fire arrow (Hellfire)"
+  },
+  "rogue.RainOfArrows.Cast": {
+   "path": "sfx\\misc\\cast2.wav",
+   "why": "the Rogue Skill Cards page: Generic cast (cast2)"
+  },
+  "rogue.ReapingPoint.Cast": {
+   "path": "sfx\\misc\\swing2.wav",
+   "why": "the Rogue Skill Cards page: Heavy weapon swing"
+  },
+  "rogue.TurningPike.Cast": {
+   "path": "sfx\\misc\\swing2.wav",
+   "why": "the Rogue Skill Cards page: Heavy weapon swing"
+  },
+  "rogue.ValkyriesSpear.Cast": {
+   "path": "sfx\\misc\\fballbow.wav",
+   "why": "the Rogue Skill Cards page: Fire arrow (Hellfire)"
+  },
+  "rogue.ValkyriesSpear.Impact": {
+   "path": "sfx\\misc\\nestxpld.wav",
+   "why": "the Rogue Skill Cards page: Explosion (Hellfire)"
+  },
+  "rogue.Vault.Cast": {
+   "path": "sfx\\misc\\teleport.wav",
+   "why": "the Rogue Skill Cards page: Teleport"
+  },
+  "rogue.Vault.Impact": {
+   "path": null,
+   "why": "the Rogue Skill Cards page: None"
+  },
   "sorcerer.AbsoluteZero.Cast": {
    "path": "sfx\\misc\\nestxpld.wav",
    "why": "the Sorcerer Skill Cards page: Explosion (Hellfire)"
@@ -192,6 +256,10 @@
    "path": "monsters\\skelaxe\\sklaxd1.wav",
    "why": "the Sorcerer Skill Cards page: Skeleton crumbles"
   },
+  "sorcerer.ChillingArmor.Stop": {
+   "path": "sfx\\misc\\mshield.wav",
+   "why": "the Sorcerer Skill Cards page: Mana Shield"
+  },
   "sorcerer.ChillTouch.Cast": {
    "path": "sfx\\misc\\fballbow.wav",
    "why": "the Sorcerer Skill Cards page: Fire arrow (Hellfire)"
@@ -200,19 +268,15 @@
    "path": "sfx\\misc\\bsimpct.wav",
    "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
   },
-  "sorcerer.ChillingArmor.Stop": {
-   "path": "sfx\\misc\\mshield.wav",
-   "why": "the Sorcerer Skill Cards page: Mana Shield"
-  },
-  "sorcerer.FrostNova.Impact": {
-   "path": "sfx\\misc\\bsimpct.wav",
-   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
-  },
   "sorcerer.Frostbite.Cast": {
    "path": "sfx\\misc\\fballbow.wav",
    "why": "the Sorcerer Skill Cards page: Fire arrow (Hellfire)"
   },
   "sorcerer.Frostbite.Impact": {
+   "path": "sfx\\misc\\bsimpct.wav",
+   "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
+  },
+  "sorcerer.FrostNova.Impact": {
    "path": "sfx\\misc\\bsimpct.wav",
    "why": "the Sorcerer Skill Cards page: Bone Spirit impact"
   },

@@ -45,8 +45,23 @@ enum class ClassTreeSkill : uint16_t;
 /** @brief Whether @p spell is one of the 114 RfA-12 actives. */
 bool IsRfa12Active(SpellID spell);
 
-/** @brief Whether @p spell is one of the eight RfA-12 bow skills - shot, not cast, since v1.12.370 (rogue_arrows.h). */
+/**
+ * @brief Whether @p spell is an RfA-12 bow skill that is SHOT, not cast (v1.12.370, rogue_arrows.h): five of the eight since
+ * the Rogue Skill Cards page of 2026-10-04 named Rain of Arrows, Hunter's Mark and Phantom Volley casts.
+ */
 bool IsRfa12BowSkill(SpellID spell);
+
+/** Shadow Step's fade (the Rogue Skill Cards page, 2026-10-04): 10 ticks in all, the ghost's half and the arrival's half. */
+constexpr int ShadowStepHalfTicks = 5;
+/** @brief Ticks left of @p player's Shadow Step fade: above ShadowStepHalfTicks unseen, then fading in white; 0 none. */
+int ShadowStepFadeTicks(const Player &player);
+
+/** @brief Whether @p monster carries Hunter's Mark: drawn as through infravision while it lasts (2026-10-04). */
+bool MonsterHunterMarked(const Monster &monster);
+/** @brief Whether @p monster is in Piercing Shot's infrared blink, the moment its arrow goes through (2026-10-04). */
+bool MonsterBlinking(const Monster &monster);
+/** @brief Starts @p monster's infrared blink for @p ticks - an arrow flown with ArtBoltBlinks went through it. */
+void BlinkMonster(const Monster &monster, int ticks);
 
 /** @brief Whether @p spell is one of the eight RfA-12 bow skills and @p player holds no bow to loose it from. */
 bool Rfa12LacksBowFor(const Player &player, SpellID spell);

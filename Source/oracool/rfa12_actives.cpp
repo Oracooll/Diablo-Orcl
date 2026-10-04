@@ -490,6 +490,27 @@ Missile *Fly(const Player &player, MissileGraphicID art, Point from, Point to, S
 	return nullptr;
 }
 
+/**
+ * @brief The vanilla arrow flown as a skill's arrow or thrown javelin (the Rogue Skill Cards page, 2026-10-04: "replace with
+ * regular arrow tinted ..."): a frame a facing as AddArrow, in @p rgb through @p tint, @p scale percent, and a light of
+ * @p light tiles carried along. Lands with @p impactSpell's cue and leaves @p arrivalArt, as Fly.
+ */
+Missile *FlyArrow(const Player &player, Point from, Point to, SpellID impactSpell, Tint tint, uint32_t rgb, int light, int scale = 100,
+    int speed = 32, MissileGraphicID arrivalArt = MissileGraphicID::None)
+{
+	Missile *arrow = Fly(player, MissileGraphicID::Arrow, from, to, impactSpell, speed, arrivalArt);
+	if (arrow == nullptr)
+		return nullptr;
+	arrow->_miAnimFrame = static_cast<int>(GetDirection16(from, to == from ? from + player._pdir : to)) + 1;
+	arrow->oracoolTint = tint;
+	arrow->oracoolTintRgb = rgb;
+	if (scale != 100)
+		ScaleMissile(*arrow, scale);
+	if (light > 0)
+		arrow->_mlid = AddLight(from, light);
+	return arrow;
+}
+
 /** @brief The last open tile of the @p length-tile line from @p from toward @p toward - where a travelling wave stops. */
 Point LineEnd(Point from, Point toward, int length)
 {
@@ -711,6 +732,8 @@ struct Marks {
 	int slowMarkTicks = 0;
 	int armourBreakTicks = 0;
 	int rotTicks = 0;
+	// Piercing Shot's infrared blink as its arrow goes through (the Rogue Skill Cards page, 2026-10-04). Drawn only.
+	int blinkTicks = 0;
 };
 
 std::array<Marks, MaxMonsters> MonsterMarks;
@@ -787,6 +810,12 @@ struct PlayerState {
 	int serenityTicks = 0;
 	// The skills on a cooldown (Absolute Zero, user 2026-10-01): ticks left on each, counted down every tick.
 	std::vector<std::pair<SpellID, int>> cooldowns;
+	// Vault's charges (the Rogue Skill Cards page, 2026-10-04: "to be cast up to 3 times withing 3 seconds, then - 15 seconds
+	// cooldown"): the vaults inside the window, and the window's ticks left.
+	int vaultUses = 0;
+	int vaultWindow = 0;
+	// Shadow Step's fade (2026-10-04): unseen for the first half, fading in white for the second. Drawn only.
+	int shadowFadeTicks = 0;
 };
 
 /** @brief Serenity's ring (v1.12.211): two seconds, up from the feet over the head and back down. */
@@ -1095,10 +1124,16 @@ Range AbsoluteZeroPulse64(int r)
 }
 
 /** @brief How long @p spell waits after a cast before it can be cast again, in ticks. Zero: no cooldown. */
+/** Vault (the Rogue Skill Cards page, 2026-10-04): three vaults inside three seconds, then fifteen seconds' cooldown. */
+constexpr int VaultCharges = 3;
+constexpr int VaultWindowTicks = 3 * 20;
+constexpr int VaultCooldownTicks = 15 * 20;
+
 int CooldownTicks(SpellID spell)
 {
 	switch (spell) {
 	case SpellID::AbsoluteZero: return 30 * TicksPerSecond;
+	case SpellID::Vault: return VaultCooldownTicks; // after its third vault in the window (2026-10-04)
 	default: return 0;
 	}
 }
@@ -1243,6 +1278,8 @@ constexpr int ArcHops = 3;
 constexpr int ArcFalloffPercent = 75;
 constexpr int ChiWaveHops = 4;
 constexpr int BarrageArrows = 5;
+/** Ticks between Barrage's arrows: five inside one bow shot's 12 frames (the Rogue Skill Cards page, 2026-10-04). */
+constexpr int BarrageIntervalTicks = 2;
 constexpr int BambooRainTargets = 3;
 constexpr int IceNeedleTargets = 2;
 constexpr int BoneSplinterTargets = 3;
@@ -2231,7 +2268,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		if ((m->hitPoints >> 6) > 0) // not on the one it killed: its slot's next occupant bled (round 80 audit)
 			Bleed(*m, EffectTicks(spell, r), PerSecond(spell, r));
-		Fly(player, MissileGraphicID::BarbedArrow, here, at, spell); // RfA-27 batch 54: the arrow, landing with its cue
+		FlyArrow(player, here, at, spell, Tint::Hue, hue::Infrared, 1); // "regular arrow tinted infrared. add lightradius 1." (the Rogue Skill Cards page, 2026-10-04)
 		return true;
 	}
 	case SpellID::ShockArrow: {
@@ -2250,7 +2287,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 				Strike(player, *other, DamageType::Lightning, Rolled(SkillDamage(spell, r)));
 			SideBlowInFlight = previousSide;
 		}
-		Fly(player, MissileGraphicID::ShockArrow, here, at, spell); // RfA-27 batch 54: the arrow, landing with its cue
+		// "use regular arrow, bright lit and releasing lightning sparks from the sparks family every 4 ticks" (the Rogue Skill Cards page, 2026-10-04).
+		if (Missile *arrow = FlyArrow(player, here, at, spell, Tint::Hue, hue::BrightWhite, 3); arrow != nullptr)
+			ArtBoltSparks(*arrow, 4);
 		return true;
 	}
 	case SpellID::PiercingShot: {
@@ -2258,8 +2297,11 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		for (Monster *m : line)
 			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batch 54: the arrow, through to the farthest it struck, landing with its cue.
-		if (!line.empty())
-			Fly(player, MissileGraphicID::PiercingArrow, here, line.back()->position.tile, spell);
+		// "regular arrow tinted infrared. add lightradius 2 and blink infrared every monster it goes through" (the Rogue Skill Cards page, 2026-10-04).
+		if (!line.empty()) {
+			if (Missile *arrow = FlyArrow(player, here, line.back()->position.tile, spell, Tint::Hue, hue::Infrared, 2); arrow != nullptr)
+				ArtBoltBlinks(*arrow);
+		}
 		return !line.empty();
 	}
 	case SpellID::RainOfArrows: {
@@ -2283,7 +2325,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			ChillMonster(*m, SlowTicks(spell, r));
 			MarksOf(*m).slowMarkTicks = SlowTicks(spell, r); // RfA-27 batch 58: the Slowed sigil
 		}
-		Fly(player, MissileGraphicID::CripplingArrow, here, at, spell); // RfA-27 batch 54: the arrow, landing with its cue
+		FlyArrow(player, here, at, spell, Tint::Glint, hue::FireOrange, 2); // "regular arrow tinted fire ... colorcycling ... light radius 2" (the Rogue Skill Cards page, 2026-10-04)
 		return true;
 	}
 	case SpellID::HuntersMark: {
@@ -2298,12 +2340,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Monster *m = NearestTo(target, 1);
 		if (m == nullptr)
 			return false;
-		const Point at = m->position.tile;
-		for (int i = 0; i < BarrageArrows && (m->hitPoints >> 6) > 0; i++)
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
-		// RfA-27 batch 54: five arrows, a little slower each, so they arrive as a string rather than as one.
-		for (int i = 0; i < BarrageArrows; i++)
-			Fly(player, MissileGraphicID::BarrageArrow, here, at, SpellID::Invalid, 32 - 3 * i);
+		// "regular arrow tinted pink. add light radius 2. each arrow takes 1/5th of regular arrow shot ticks to fire. 5 arrows shot
+		// in 1 regular arrow shot ticks." (the Rogue Skill Cards page, 2026-10-04): the first now, the other four a BarrageIntervalTicks apart (TickField).
+		StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
+		FlyArrow(player, here, m->position.tile, spell, Tint::Hue, hue::ArrowPink, 2);
+		Field *volley = NewField(player, spell, m->position.tile, BarrageIntervalTicks * (BarrageArrows - 1) + 1, r);
+		volley->step = static_cast<int>(m->getId());
 		return true;
 	}
 	case SpellID::PhantomVolley: {
@@ -2312,26 +2354,37 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		all.erase(std::remove_if(all.begin(), all.end(), [](const Monster *m) { return m->isImmune(MissileID::Null, DamageType::Magic); }), all.end());
 		for (Monster *m : all)
 			StrikeBlow(player, *m, DamageType::Magic, BlowPercent(spell, r));
-		// RfA-27 batch 54: a spectral arrow to each; the first to land carries the volley's one impact cue.
-		bool first = true;
-		for (Monster *m : all) {
-			Fly(player, MissileGraphicID::PhantomArrow, here, m->position.tile, first ? spell : SpellID::Invalid);
-			first = false;
+		// "use Rain of Arrows asset, tinted purple. upon impact play small purple aura ring colorcycled" (the Rogue Skill Cards page, 2026-10-04): a falling
+		// arrow onto each one struck, each striking the floor with its ring and the arrow-hit sound.
+		std::vector<Point> tiles;
+		for (const Monster *m : all)
+			tiles.push_back(m->position.tile);
+		if (!AddFallingArrowsOn(tiles, static_cast<int>(player.getId()), hue::PhantomPurple)) {
+			bool first = true;
+			for (Monster *m : all) {
+				Fly(player, MissileGraphicID::PhantomArrow, here, m->position.tile, first ? spell : SpellID::Invalid);
+				first = false;
+			}
 		}
 		return !all.empty();
 	}
 	// ---------------- Rogue: magic and spear ----------------
 	case SpellID::ShadowStep: {
-		Monster *m = NearestTo(target, ReachTiles(spell, r));
-		if (m == nullptr)
+		// To the cursor (the Rogue Skill Cards page, 2026-10-04: "colorcycle brightwhite into fading out the hero on its current
+		// location and then reappear on cursor location again by fading-in and colorcycling until regular sprite appears.
+		// colorcycling/fade-out/in effects to take total 10 ticks"): her white ghost fades where she stood for the first half,
+		// and she fades in, glinting white, at the landing for the second.
+		const Point dst = LastClearTileToward(here, Clamped(here, target, ReachTiles(spell, r)));
+		Point landed = dst;
+		if (!TeleportTo(player, dst, spell, &landed))
 			return false;
-		const Point behind = m->position.tile + GetDirection(here, m->position.tile);
-		Point landed = behind;
-		if (!TeleportTo(player, behind, spell, &landed))
-			return false;
-		// RfA-27 batch 57: the smoke where she left and where she stands (round 48 audit: not where she aimed).
-		Art(player, MissileGraphicID::ShadowStep, here);
-		Art(player, MissileGraphicID::ShadowStep, landed);
+		if (Missile *ghost = AddArtEffect(here, MissileGraphicID::ShadowStep, static_cast<int>(player.getId()), ShadowStepHalfTicks); ghost != nullptr) {
+			ghost->_mirange = ShadowStepHalfTicks;
+			ghost->var5 = ShadowStepHalfTicks;
+			ghost->var6 = ShadowStepGhostMark;
+			ghost->var7 = static_cast<int>(player._pdir);
+		}
+		StateOf(player).shadowFadeTicks = 2 * ShadowStepHalfTicks;
 		return true;
 	}
 	case SpellID::HuntersClaim: {
@@ -2358,7 +2411,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Shove(m, GetDirection(m.position.tile, here));
 			Stagger(m, StunTicks(spell, r));
 		}
-		Fly(player, MissileGraphicID::Harpoon, here, at, spell); // RfA-27 batch 54: the harpoon, landing with its cue
+		FlyArrow(player, here, at, spell, Tint::Hue, hue::HarpoonBrown, 1); // "brown tinted arrow ... 1 tile light radius" (the Rogue Skill Cards page, 2026-10-04)
 		return true;
 	}
 	case SpellID::Vault: {
@@ -2370,10 +2423,21 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Point landed = dst;
 		if (!TeleportTo(player, dst, spell, &landed))
 			return false;
-		// RfA-27 batch 57: the dust at take-off and landing, and the landing's cue.
+		// RfA-27 batch 57: the dust at take-off and landing. No landing cue (the Rogue Skill Cards page, 2026-10-04: "it is not an
+		// attack skill. no impact sound played").
 		Art(player, MissileGraphicID::VaultDust, here);
 		Art(player, MissileGraphicID::VaultDust, landed);
-		Impact(player, spell);
+		// Three vaults inside VaultWindowTicks, then the cooldown.
+		PlayerState &vaulter = StateOf(player);
+		if (vaulter.vaultWindow == 0) {
+			vaulter.vaultUses = 0;
+			vaulter.vaultWindow = VaultWindowTicks;
+		}
+		if (++vaulter.vaultUses >= VaultCharges) {
+			vaulter.vaultUses = 0;
+			vaulter.vaultWindow = 0;
+			StartCooldown(player, spell);
+		}
 		return true;
 	}
 	case SpellID::AnchorJavelin: {
@@ -2387,7 +2451,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (!ShrugsOff(pinned) && pinned.mode != MonsterMode::Petrified && (pinned.hitPoints >> 6) > 0)
 			MarksOf(pinned).pinTicks = StunTicks(spell, r);
 		Stagger(pinned, StunTicks(spell, r));
-		Fly(player, MissileGraphicID::AnchorJavelin, here, at, spell); // RfA-27 batch 54: the javelin, landing with its cue
+		FlyArrow(player, here, at, spell, Tint::Hue, hue::BrightWhite, 1); // "bright tinted arrow ... 1 tile light radius" (the Rogue Skill Cards page, 2026-10-04)
 		return true;
 	}
 	// ---- the census notes (2026-09-14) ----
@@ -2427,7 +2491,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const Point pool = m.position.tile;
 		StrikeBlow(player, m, DamageType::Acid, BlowPercent(spell, r));
 		NewField(player, spell, pool, EffectTicks(spell, r), r);
-		Show(player, MissileID::AcidJavelin, MissileGraphicID::AcidJavelin, here, pool);
+		FlyArrow(player, here, pool, SpellID::Invalid, Tint::Hue, hue::PoisonGreen, 1); // "acid tinted arrow ... 1 tile light radius" (the Rogue Skill Cards page, 2026-10-04)
 		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, pool, pool, EffectTicks(spell, r));
 		return true;
 	}
@@ -2436,7 +2500,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// Short of a wall when nothing is struck (round 45 audit: the cloud landed in the next room and pulsed there).
 		const Point burst = line.empty() ? LastClearTileToward(here, Clamped(here, target, 8)) : Point(line.front()->position.tile);
 		NewField(player, spell, burst, EffectTicks(spell, r), r);
-		Show(player, MissileID::AcidJavelin, MissileGraphicID::AcidJavelin, here, burst);
+		FlyArrow(player, here, burst, SpellID::Invalid, Tint::Hue, hue::PoisonGreen, 1); // "acid tinted arrow ... 1 tile light radius" (the Rogue Skill Cards page, 2026-10-04)
 		if (!Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, burst, burst, EffectTicks(spell, r)))
 			Ring(player, burst);
 		return true;
@@ -2446,9 +2510,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batches 54-55: the spear flies and bursts where it lands, with its cue; without the spear the burst and the
 		// cue come at once, and with neither sheet the cry's ring stands in, as before.
-		if (!MissileArtLoaded(MissileGraphicID::ValkyrieSpear) && !MissileArtLoaded(MissileGraphicID::ValkyrieBurst))
-			Ring(player, target);
-		Fly(player, MissileGraphicID::ValkyrieSpear, here, target, spell, 32, MissileGraphicID::ValkyrieBurst);
+		// "throw 150% size regular arrow tinted fire. colorcycled. upon impact play apocalipse explosion" (the Rogue Skill Cards page, 2026-10-04).
+		FlyArrow(player, here, target, spell, Tint::Glint, hue::FireOrange, 2, 150, 32, MissileGraphicID::ApocalypseBoom);
 		return true;
 	}
 	// ---------------- Bard: harmony ----------------
@@ -3092,6 +3155,20 @@ void TickField(Player &player, Field &field)
 	const BowStrikeScope bow { IsBowSkill(field.spell) }; // Rain of Arrows' later volleys are arrows too
 	field.clock++;
 	switch (field.spell) {
+	// ---------------- Rogue: bow ----------------
+	case SpellID::Barrage: {
+		// The four arrows after the first, a BarrageIntervalTicks apart, at the one it was loosed at while it stands.
+		if (field.clock % BarrageIntervalTicks != 0 || field.clock / BarrageIntervalTicks >= BarrageArrows)
+			break;
+		if (field.step < 0 || static_cast<size_t>(field.step) >= MaxMonsters)
+			break;
+		Monster &m = Monsters[field.step];
+		if ((m.hitPoints >> 6) <= 0 || m.mode == MonsterMode::Death || !m.isPossibleToHit())
+			break;
+		StrikeBlow(player, m, DamageType::Physical, BlowPercent(field.spell, r));
+		FlyArrow(player, player.position.tile, m.position.tile, SpellID::Invalid, Tint::Hue, hue::ArrowPink, 2);
+		break;
+	}
 	// ---------------- Necromancer: Poison & Bone ----------------
 	case SpellID::Blight:
 		if (field.clock % TicksPerSecond == 0) {
@@ -4045,7 +4122,9 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		break;
 	}
 	case SpellID::TurningPike:
-		if (landed) {
+		// After every strike at a target, landed or not (the Rogue Skill Cards page, 2026-10-04: "melee attack with staff
+		// acompanied by an adjacent tile teleport after strike").
+		if (landed || front != nullptr) {
 			for (const Point side : { player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {
 				// PosOkPlayer, objects included: a barrel beside him passed, and the landing search put him elsewhere (round 20).
 				if (InDungeonBounds(side) && PosOkPlayer(player, side) && dMonster[side.x][side.y] == 0) {
@@ -4469,6 +4548,10 @@ void ProcessRfa12ActivesTick(Player &player)
 	// And the cooldowns.
 	for (auto &[spell, ticks] : state.cooldowns)
 		ticks = std::max(ticks - 1, 0);
+	if (state.vaultWindow > 0 && --state.vaultWindow == 0)
+		state.vaultUses = 0;
+	if (state.shadowFadeTicks > 0)
+		state.shadowFadeTicks--;
 	std::erase_if(state.cooldowns, [](const auto &cooldown) { return cooldown.second <= 0; });
 	if (player._pHitPoints <= 0 || player._pmode == PM_DEATH) {
 		// The field loop below does not run for him: his Lightning Clone and Funeral Spiral end now, not frozen in the air
@@ -4567,7 +4650,7 @@ void ProcessRfa12ActivesTick(Player &player)
 		Marks &marks = MarksOf(m);
 		for (int *ticks : { &marks.judgmentTicks, &marks.oathTicks, &marks.huntTicks, &marks.frostbiteTicks, &marks.tragedyTicks,
 		         &marks.satireTicks, &marks.ashenTicks, &marks.palmTicks, &marks.brittleCooldown, &marks.pinTicks,
-		         &marks.slowMarkTicks, &marks.armourBreakTicks, &marks.rotTicks }) {
+		         &marks.slowMarkTicks, &marks.armourBreakTicks, &marks.rotTicks, &marks.blinkTicks }) {
 			if (*ticks > 0)
 				(*ticks)--;
 		}
@@ -5340,7 +5423,29 @@ std::string Rfa12ActivesPassiveFactsAt(const Player &player, ClassTreeSkill skil
 
 bool IsRfa12BowSkill(SpellID spell)
 {
-	return IsBowSkill(spell);
+	// Rain of Arrows, Hunter's Mark and Phantom Volley are casts again (the Rogue Skill Cards page, 2026-10-04: "play fire
+	// magic cast rogue sprite when casting", "this is a curse cast", "this is a casted spell"). They still need the bow.
+	return IsBowSkill(spell) && !IsAnyOf(spell, SpellID::RainOfArrows, SpellID::HuntersMark, SpellID::PhantomVolley);
+}
+
+int ShadowStepFadeTicks(const Player &player)
+{
+	return StateOf(player).shadowFadeTicks;
+}
+
+bool MonsterHunterMarked(const Monster &monster)
+{
+	return MarksOf(monster).huntTicks > 0;
+}
+
+bool MonsterBlinking(const Monster &monster)
+{
+	return MarksOf(monster).blinkTicks > 0;
+}
+
+void BlinkMonster(const Monster &monster, int ticks)
+{
+	MarksOf(monster).blinkTicks = std::max(MarksOf(monster).blinkTicks, ticks);
 }
 
 bool Rfa12LacksBowFor(const Player &player, SpellID spell)

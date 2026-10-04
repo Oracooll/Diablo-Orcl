@@ -887,6 +887,12 @@ bool IsCompanion(const Monster &monster)
 	return InstanceInSlot(monster) != nullptr;
 }
 
+bool IsDecoyBody(const Monster &monster)
+{
+	const Instance *inst = InstanceInSlot(monster);
+	return inst != nullptr && inst->kind == CompanionKind::Decoy;
+}
+
 const Player *CompanionOwner(const Monster &monster)
 {
 	const Instance *inst = InstanceInSlot(monster);

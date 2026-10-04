@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <list>
+#include <vector>
 
 #include "engine.h"
 #include "engine/point.hpp"
@@ -557,8 +558,15 @@ Missile *AddArtEffectFacing(Point tile, MissileGraphicID art, int playerId, int 
 /** @brief Oracool (RfA-27): an AddArtEffect sheet that keeps to its caster's tile while it plays (a body overlay, a leap's dust). */
 void ArtEffectFollowsItsCaster(Missile &effect);
 
+/** @brief The var6 of an AddArtBolt flight given sparks or blinks: var7 bit 0 blinks, bits 8-15 the sparks' interval. */
+constexpr int ArtBoltExtrasMark = 0x4258;
+/** @brief An AddArtBolt flight leaves an ArcSpark every @p everyTicks along its way (Shock Arrow, 2026-10-04). */
+void ArtBoltSparks(Missile &bolt, int everyTicks);
+/** @brief An AddArtBolt flight blinks every monster it passes infrared (Piercing Shot, 2026-10-04). */
+void ArtBoltBlinks(Missile &bolt);
+
 /** Rain of Arrows' falling arrows (RfA-61, 2026-10-03): how many, over how many ticks they set off, and how they fall. */
-constexpr int FallingArrowCount = 16;
+constexpr int FallingArrowCount = 12; // "the twelve arrows" (the Rogue Skill Cards page, 2026-10-04); 16 at v1.12.372
 constexpr int FallingArrowSpreadTicks = 16;
 constexpr int FallingArrowFallTicks = 6;
 constexpr int FallingArrowHoldTicks = 2;
@@ -574,7 +582,11 @@ Displacement FallingArrowScatter(const Missile &missile);
  * its own moment over FallingArrowSpreadTicks, falling FallingArrowHeight pixels in FallingArrowFallTicks and standing a
  * moment where it lands. Drawn only - the skill deals its damage itself. False when the art is not loaded.
  */
-bool AddFallingArrows(Point target, int playerId, int radius);
+bool AddFallingArrows(Point target, int playerId, int radius, uint32_t rgb = 0);
+/** @brief One falling arrow onto each of @p tiles, one after another, in @p rgb with its ring in it too (Phantom Volley's purple). */
+bool AddFallingArrowsOn(const std::vector<Point> &tiles, int playerId, uint32_t rgb);
+/** @brief The colour of falling arrow @p missile's impact ring: its own tint's, or the amber of Rain of Arrows. */
+uint32_t FallingArrowRingHue(const Missile &missile);
 /**
  * @brief Oracool (RfA-27): ends every AddArtEffect sheet of @p art standing on @p tile for @p playerId - a field's loop
  * whose field ended early (the rod that burst, the mine that went off, the star she walked away from).
@@ -610,6 +622,11 @@ void AddLightningStrike(Point fromTile, Displacement from, Point toTile, Displac
  * live sprites, var7 the facing, var4 the frame) in Tint::Clone, never as its carrier's sheet. rfa12_actives moves it.
  */
 constexpr int LightningCloneMark = 0x4C43;
+/**
+ * @brief A missile whose var6 is this is Shadow Step's ghost (the Rogue Skill Cards page, 2026-10-04): its hero's stand, var7
+ * the facing, glinting bright white and fading out over its var5 ticks where she left. Drawn only.
+ */
+constexpr int ShadowStepGhostMark = 0x5347;
 /** @brief Ashen Brand's ring, in ticks: rfa12_actives spawns it for this long, ProcessCensusEffect fades it by the count. */
 constexpr int AshenRingTicks = 20;
 /** @brief Whether AddLightningStrike has its sheets (the callers fall back to what they drew before). */

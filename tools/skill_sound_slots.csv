@@ -426,6 +426,7 @@ PowerStrike,Cast,rogue,javelin-and-spear,Power Strike
 PowerStrike,Impact,rogue,javelin-and-spear,Power Strike
 RainOfArrows,Cast,rogue,bow-and-crossbow,Rain of Arrows
 RainOfArrows,Impact,rogue,bow-and-crossbow,Rain of Arrows
+ReapingPoint,Cast,rogue,javelin-and-spear,Reaping Point
 ReapingPoint,Impact,rogue,javelin-and-spear,Reaping Point
 ShadowStep,Cast,rogue,passive-and-magic,Shadow Step
 ShockArrow,Cast,rogue,bow-and-crossbow,Shock Arrow
@@ -434,6 +435,7 @@ SlowMissiles,Cast,rogue,passive-and-magic,Slow Missiles
 Strafe,Cast,rogue,bow-and-crossbow,Strafe
 Strafe,Impact,rogue,bow-and-crossbow,Strafe
 Sweep,Impact,rogue,javelin-and-spear,Sweep
+TurningPike,Cast,rogue,javelin-and-spear,Turning Pike
 TurningPike,Impact,rogue,javelin-and-spear,Turning Pike
 Valkyrie,Arrive,rogue,passive-and-magic,Valkyrie
 Valkyrie,Cast,rogue,passive-and-magic,Valkyrie

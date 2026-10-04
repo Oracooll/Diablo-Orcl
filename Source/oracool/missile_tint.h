@@ -104,6 +104,13 @@ constexpr uint32_t WardCyan = Rgb(58, 210, 236);     // Lower Resist: the wards 
 constexpr uint32_t DoomOrange = Rgb(240, 92, 0);     // Doom: the last embers
 // Rain of Arrows' impact ring (2026-10-03, "you pick color"): warm amber, apart from the arrows' red fletching.
 constexpr uint32_t ArrowAmber = Rgb(255, 184, 64);
+/** The Rogue's arrows and throws (the Rogue Skill Cards page, 2026-10-04): the vanilla arrow in the skill's colour. */
+constexpr uint32_t ArrowPink = Rgb(255, 105, 190);     // Magic Arrow, Barrage
+constexpr uint32_t HarpoonBrown = Rgb(156, 104, 60);   // Harpoon
+constexpr uint32_t BrightWhite = Rgb(255, 250, 228);   // Anchor Javelin, Shock Arrow
+constexpr uint32_t PhantomPurple = Rgb(170, 90, 255);  // Phantom Volley's arrows and rings
+constexpr uint32_t GhostGrey = Rgb(222, 226, 236);     // the Decoy
+constexpr uint32_t FendOrange = Rgb(255, 150, 50);     // Fend's ring
 } // namespace hue
 
 /**

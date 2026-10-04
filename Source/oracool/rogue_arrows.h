@@ -30,6 +30,7 @@
 #include <optional>
 
 #include "engine/point.hpp"
+#include "oracool/missile_tint.h" // Tint - RogueArrowLook
 #include "spelldat.h"
 
 namespace devilution {
@@ -55,6 +56,18 @@ enum class RogueArrow : uint8_t {
 /** @brief The bow skill @p spell is, if it is one. */
 std::optional<RogueArrow> RogueArrowForSpell(SpellID spell);
 
+/**
+ * @brief How a skill's arrow is drawn (the Rogue Skill Cards page, 2026-10-04): every one is the vanilla arrow now - "replace
+ * with regular arrow tinted ..." - in its skill's colour, burning or frosted ones glinting (Tint::Glint, the colour cycling
+ * the page asked for), with a light of @p light tiles carried along. Multiple Shot and Strafe stay the plain arrow.
+ */
+struct RogueArrowLook {
+	Tint tint = Tint::None;
+	uint32_t rgb = 0;
+	int light = 0;
+};
+RogueArrowLook RogueArrowLookOf(RogueArrow arrow);
+
 /** @brief The spell @p arrow is readied and priced as - the inverse of RogueArrowForSpell. */
 SpellID RogueArrowSpell(RogueArrow arrow);
 
@@ -75,6 +88,22 @@ void ArmBowSkillSpell(SpellID spell);
 
 /** @brief The RfA-12 bow skill the shot being resolved was thrown with, if any. */
 std::optional<SpellID> ArmedBowSkillSpell();
+
+// ---- The Javelin & Spear page (the Rogue Skill Cards page, 2026-10-04) ----------------------------------------------
+// "all javelin strikes to use staff animations. melee attack." and, for the four throws, "this is a throw skill. we play staff
+// attack but hero releases [tinted] arrow towards target. Range - N tiles. doesnt trigger if distance is longer."
+
+/** @brief Whether @p spell is a javelin-page melee strike, swung in the staff's attack sheet (player.cpp's staff look). */
+bool IsJavelinStrike(SpellID spell);
+/** @brief Whether @p spell is thrown: a staff swing in place that lets the skill go at the hit frame. */
+bool IsJavelinThrow(SpellID spell);
+/** @brief How far @p spell is thrown, in tiles: Poison, Plague and Anchor Javelin 6, Harpoon 8, Valkyrie's Spear 8. */
+int JavelinThrowRange(SpellID spell);
+/** @brief Records the throw the swing now launched lets go at @p target (nullopt clears). ArmArrowSkill clears it too. */
+void ArmJavelinThrow(std::optional<SpellID> spell, Point target = {});
+/** @brief The throw the swing being resolved carries, if any, and where it goes. */
+std::optional<SpellID> ArmedJavelinThrow();
+Point ArmedJavelinThrowTarget();
 
 /** @brief Strafe's share of spin shots aimed at an enemy in view, in percent, at @p spellLevel: 60, +5 a rank, 95 at most. */
 int StrafeAimPercent(int spellLevel);

@@ -6,6 +6,7 @@
 
 #include "control.h"
 #include "effects.h" // PlaySfxLoc, PS_BFIRE - the Strafe spin's shots
+#include "lighting.h" // AddLight - each skill arrow's own light
 #include "engine/backbuffer_state.hpp"
 #include "engine/random.hpp"
 #include "missiles.h"
@@ -26,6 +27,8 @@ namespace {
 /** The latch - see the header, and paladin_melee.cpp's ArmedSkill, which this mirrors. */
 std::optional<RogueArrow> ArmedArrow;
 std::optional<SpellID> ArmedBowSpell;
+std::optional<SpellID> ArmedThrow;
+Point ArmedThrowTarget;
 
 /** @brief The rank bonus an elemental arrow adds on top of the bow: two a rank, plus two. */
 int ElementalBonus(int spellLevel)
@@ -73,8 +76,19 @@ void Loose(Player &player, RogueArrow arrow, Point target, int spellLevel)
 {
 	Missile *missile = AddMissile(player.position.tile, target, player._pdir, MissileFor(arrow),
 	    TARGET_MONSTERS, static_cast<int>(player.getId()), 0, spellLevel);
-	if (missile != nullptr)
-		missile->var5 = static_cast<int>(arrow);
+	if (missile == nullptr)
+		return;
+	missile->var5 = static_cast<int>(arrow);
+	// The vanilla arrow in the skill's colour, with a light of its own carried along (the Rogue Skill Cards page,
+	// 2026-10-04): AddRogueArrow flies every one as the plain arrow, and ProcessRogueArrow walks the light with it.
+	const RogueArrowLook look = RogueArrowLookOf(arrow);
+	missile->oracoolTint = look.tint;
+	missile->oracoolTintRgb = look.rgb;
+	if (look.light > 0 && !missile->_miDelFlag) {
+		if (missile->_mlid != NO_LIGHT)
+			AddUnLight(missile->_mlid);
+		missile->_mlid = AddLight(missile->position.tile, look.light);
+	}
 }
 
 /** @brief A unit step at right angles to the shot, for fanning arrows out beside the target. */
@@ -150,6 +164,7 @@ void ArmArrowSkill(std::optional<RogueArrow> arrow)
 {
 	ArmedArrow = arrow;
 	ArmedBowSpell = std::nullopt;
+	ArmedThrow = std::nullopt;
 }
 
 std::optional<RogueArrow> ArmedArrowSkill()
@@ -157,15 +172,74 @@ std::optional<RogueArrow> ArmedArrowSkill()
 	return ArmedArrow;
 }
 
+bool IsJavelinStrike(SpellID spell)
+{
+	return IsAnyOf(spell, SpellID::Jab, SpellID::PowerStrike, SpellID::Impale, SpellID::ChargedStrike, SpellID::Fend, SpellID::LightningStrike,
+	    SpellID::Sweep, SpellID::ReapingPoint, SpellID::TurningPike);
+}
+
+bool IsJavelinThrow(SpellID spell)
+{
+	return IsAnyOf(spell, SpellID::PoisonJavelin, SpellID::PlagueJavelin, SpellID::Harpoon, SpellID::AnchorJavelin, SpellID::ValkyriesSpear);
+}
+
+int JavelinThrowRange(SpellID spell)
+{
+	return IsAnyOf(spell, SpellID::Harpoon, SpellID::ValkyriesSpear) ? 8 : 6;
+}
+
+void ArmJavelinThrow(std::optional<SpellID> spell, Point target)
+{
+	ArmedArrow = std::nullopt;
+	ArmedBowSpell = std::nullopt;
+	ArmedThrow = spell;
+	ArmedThrowTarget = target;
+}
+
+std::optional<SpellID> ArmedJavelinThrow()
+{
+	return ArmedThrow;
+}
+
+Point ArmedJavelinThrowTarget()
+{
+	return ArmedThrowTarget;
+}
+
 void ArmBowSkillSpell(SpellID spell)
 {
 	ArmedArrow = std::nullopt;
+	ArmedThrow = std::nullopt;
 	ArmedBowSpell = spell;
 }
 
 std::optional<SpellID> ArmedBowSkillSpell()
 {
 	return ArmedBowSpell;
+}
+
+RogueArrowLook RogueArrowLookOf(RogueArrow arrow)
+{
+	// The page's words per card: Magic Arrow "tinted pink, light radius 2"; Fire, Exploding, Immolation and Guided Arrow
+	// "tinted fire, colorcycling to imitate burning, light radius 2"; Cold, Ice and Freezing Arrow "tinted ice-cold,
+	// colorcycling to imitate ice reflection, lightradius 2"; Multiple Shot "use regular arrows".
+	switch (arrow) {
+	case RogueArrow::MagicArrow:
+		return { Tint::Hue, hue::ArrowPink, 2 };
+	case RogueArrow::FireArrow:
+	case RogueArrow::ExplodingArrow:
+	case RogueArrow::ImmolationArrow:
+	case RogueArrow::GuidedArrow:
+		return { Tint::Glint, hue::FireOrange, 2 };
+	case RogueArrow::ColdArrow:
+	case RogueArrow::IceArrow:
+	case RogueArrow::FreezingArrow:
+		return { Tint::Glint, hue::IceBlue, 2 };
+	case RogueArrow::MultipleShot:
+	case RogueArrow::Strafe:
+		break;
+	}
+	return {};
 }
 
 int StrafeAimPercent(int spellLevel)

@@ -18099,8 +18099,8 @@ TEST(OracoolDev370, AGolemRisesWhenSummonedAndThenStandsStill)
 /** The eight RfA-12 bow skills are shot on their own latch, which the arrow latch's every reset clears too. */
 TEST(OracoolDev370, TheEightBowSkillsAreShotOnALatch)
 {
-	for (const SpellID spell : { SpellID::BarbedShaft, SpellID::ShockArrow, SpellID::PiercingShot, SpellID::RainOfArrows,
-	         SpellID::CripplingShot, SpellID::HuntersMark, SpellID::Barrage, SpellID::PhantomVolley })
+	// Five since v1.12.375: Rain of Arrows, Hunter's Mark and Phantom Volley are casts again (OracoolRogue375).
+	for (const SpellID spell : { SpellID::BarbedShaft, SpellID::ShockArrow, SpellID::PiercingShot, SpellID::CripplingShot, SpellID::Barrage })
 		EXPECT_TRUE(oracool::IsRfa12BowSkill(spell)) << static_cast<int>(spell);
 	for (const SpellID spell : { SpellID::MagicArrow, SpellID::Strafe, SpellID::Firebolt, SpellID::Jab })
 		EXPECT_FALSE(oracool::IsRfa12BowSkill(spell)) << static_cast<int>(spell);
@@ -18240,6 +18240,8 @@ TEST(OracoolDev372, RainOfArrowsDropsTheOneArrowMultiplied)
 	ASSERT_TRUE(MissileArtLoaded(MissileGraphicID::FallingArrow)) << "missiles/falling_arrow.png (batch 90)";
 	EXPECT_EQ(GetMissileSpriteData(MissileGraphicID::FallingArrow).animWidth, 24);
 
+	Players.resize(1);
+	MyPlayer = &Players[0]; // each arrow's landing sound is placed from the local hero (v1.12.375)
 	Missiles.clear();
 	const Point target { 40, 40 };
 	ASSERT_TRUE(AddFallingArrows(target, 0, 2));
@@ -18355,5 +18357,246 @@ TEST(OracoolPreview, DISABLED_Dev374StrafeSpin)
 	}
 	PreviewSave(out, (dir + "fx_strafe_spin.png").c_str());
 	std::cout << "wrote fx_strafe_spin.png (release frame " << release << ")\n";
+	HeadlessMode = savedHeadless;
+}
+
+// ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
+
+#include "oracool/rogue_arrows.h"
+
+/** Every Round-3 arrow is the vanilla arrow, coloured and lit by its skill; Multiple Shot and Strafe stay plain. */
+TEST(OracoolRogue375, EveryArrowSkillIsTheVanillaArrowInItsColour)
+{
+	using oracool::RogueArrow;
+	EXPECT_EQ(oracool::RogueArrowLookOf(RogueArrow::MagicArrow).rgb, oracool::hue::ArrowPink);
+	EXPECT_EQ(oracool::RogueArrowLookOf(RogueArrow::MagicArrow).light, 2);
+	for (const RogueArrow fire : { RogueArrow::FireArrow, RogueArrow::ExplodingArrow, RogueArrow::ImmolationArrow, RogueArrow::GuidedArrow }) {
+		EXPECT_EQ(oracool::RogueArrowLookOf(fire).tint, oracool::Tint::Glint) << "burning: light running through it";
+		EXPECT_EQ(oracool::RogueArrowLookOf(fire).rgb, oracool::hue::FireOrange);
+		EXPECT_EQ(oracool::RogueArrowLookOf(fire).light, 2);
+	}
+	for (const RogueArrow ice : { RogueArrow::ColdArrow, RogueArrow::IceArrow, RogueArrow::FreezingArrow }) {
+		EXPECT_EQ(oracool::RogueArrowLookOf(ice).tint, oracool::Tint::Glint) << "ice reflection";
+		EXPECT_EQ(oracool::RogueArrowLookOf(ice).rgb, oracool::hue::IceBlue);
+	}
+	EXPECT_EQ(oracool::RogueArrowLookOf(RogueArrow::MultipleShot).tint, oracool::Tint::None) << "regular arrows";
+	EXPECT_EQ(oracool::RogueArrowLookOf(RogueArrow::MultipleShot).light, 0);
+}
+
+/** The throws, the strikes, the casts and Vault (the page's notes on the Javelin & Spear and Magic sheets). */
+TEST(OracoolRogue375, ThrowsStrikesAndCastsAreSortedAsThePageSays)
+{
+	for (const SpellID spell : { SpellID::PoisonJavelin, SpellID::PlagueJavelin, SpellID::Harpoon, SpellID::AnchorJavelin, SpellID::ValkyriesSpear })
+		EXPECT_TRUE(oracool::IsJavelinThrow(spell)) << static_cast<int>(spell);
+	EXPECT_EQ(oracool::JavelinThrowRange(SpellID::Harpoon), 8);
+	EXPECT_EQ(oracool::JavelinThrowRange(SpellID::PoisonJavelin), 6);
+	EXPECT_EQ(oracool::JavelinThrowRange(SpellID::PlagueJavelin), 6);
+	EXPECT_EQ(oracool::JavelinThrowRange(SpellID::AnchorJavelin), 6);
+	for (const SpellID spell : { SpellID::Jab, SpellID::Impale, SpellID::ChargedStrike, SpellID::Fend, SpellID::LightningStrike, SpellID::Sweep,
+	         SpellID::ReapingPoint, SpellID::TurningPike })
+		EXPECT_TRUE(oracool::IsJavelinStrike(spell)) << static_cast<int>(spell);
+	EXPECT_FALSE(oracool::IsJavelinStrike(SpellID::LightningFury)) << "a spell, cast";
+	// Rain of Arrows, Hunter's Mark and Phantom Volley are casts again; the other five bow skills stay shots.
+	for (const SpellID cast : { SpellID::RainOfArrows, SpellID::HuntersMark, SpellID::PhantomVolley })
+		EXPECT_FALSE(oracool::IsRfa12BowSkill(cast)) << static_cast<int>(cast);
+	for (const SpellID shot : { SpellID::BarbedShaft, SpellID::ShockArrow, SpellID::PiercingShot, SpellID::CripplingShot, SpellID::Barrage })
+		EXPECT_TRUE(oracool::IsRfa12BowSkill(shot)) << static_cast<int>(shot);
+	// The throw latch: armed, read, and dropped by every reset of the bow latch.
+	oracool::ArmJavelinThrow(SpellID::Harpoon, { 10, 12 });
+	ASSERT_TRUE(oracool::ArmedJavelinThrow().has_value());
+	EXPECT_EQ(*oracool::ArmedJavelinThrow(), SpellID::Harpoon);
+	EXPECT_EQ(oracool::ArmedJavelinThrowTarget(), Point(10, 12));
+	oracool::ArmArrowSkill(std::nullopt);
+	EXPECT_FALSE(oracool::ArmedJavelinThrow().has_value());
+	EXPECT_EQ(FallingArrowCount, 12) << "the twelve arrows";
+	EXPECT_EQ(oracool::ShadowStepHalfTicks * 2, 10) << "fade-out and fade-in take 10 ticks in all";
+	EXPECT_EQ(oracool::FendRingSize(1.0).width, 128) << "a tile's radius";
+	EXPECT_EQ(oracool::FendRingSize(1.0).height, 64);
+	EXPECT_LT(oracool::FendRingSize(0.25).width, oracool::FendRingSize(0.75).width) << "it opens with the swing";
+}
+
+/**
+ * The Rogue's new looks for her Skill Cards page, as the game draws them, into ORCL_ROGUE375_OUT (8 cells a strip unless
+ * said, 50 ms): the vanilla arrow flying east in each skill's colour (fx_rogue_arrow_<look>); Multiple Shot's six arrows
+ * fanning out from her bow; Phantom Volley's purple arrow falling into its purple ring; the Decoy; Shadow Step's white
+ * fade-out and fade-in; Freezing Arrow's Frost Nova at 100%; the magma burst Exploding Arrow ends in; her staff attack
+ * (every javelin strike and throw); Fend's ring opening under that attack.
+ */
+TEST(OracoolPreview, DISABLED_Rogue375CardStrips)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	InitMissileGFX(true);
+	const char *outDir = std::getenv("ORCL_ROGUE375_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const auto save = [&](OwnedSurface &out, const std::string &name) {
+		PreviewSave(out, (dir + name + ".png").c_str());
+		std::cout << "wrote " << name << "\n";
+	};
+
+	// ---- the arrows ----
+	const MissileFileData &arrowData = GetMissileSpriteData(MissileGraphicID::Arrow);
+	ASSERT_TRUE(arrowData.sprites);
+	const ClxSpriteList arrowFacings = *arrowData.spritesForDirection(0); // sixteen frames, a facing each
+	const ClxSprite east = arrowFacings[12];
+	struct Look {
+		const char *name;
+		oracool::Tint tint;
+		uint32_t rgb;
+		int scale;
+	};
+	const Look looks[] = {
+		{ "pink", oracool::Tint::Hue, oracool::hue::ArrowPink, 100 },
+		{ "infrared", oracool::Tint::Hue, oracool::hue::Infrared, 100 },
+		{ "fire", oracool::Tint::Glint, oracool::hue::FireOrange, 100 },
+		{ "ice", oracool::Tint::Glint, oracool::hue::IceBlue, 100 },
+		{ "bright", oracool::Tint::Hue, oracool::hue::BrightWhite, 100 },
+		{ "brown", oracool::Tint::Hue, oracool::hue::HarpoonBrown, 100 },
+		{ "acid", oracool::Tint::Hue, oracool::hue::PoisonGreen, 100 },
+		{ "valkyrie", oracool::Tint::Glint, oracool::hue::FireOrange, 150 },
+	};
+	constexpr int ArrowCellW = 160;
+	constexpr int ArrowCellH = 64;
+	for (const Look &look : looks) {
+		OwnedSurface out = FxCanvas(8, ArrowCellW, ArrowCellH);
+		std::optional<OwnedClxSpriteList> scaled;
+		if (look.scale != 100)
+			scaled.emplace(oracool::ScaleClxList(ClxSpriteList { arrowFacings }, static_cast<unsigned>(look.scale)));
+		const ClxSprite sprite = scaled ? (*scaled)[12] : east;
+		for (int k = 0; k < 8; k++) {
+			const uint32_t *table = FxTable(nullptr, look.tint, look.rgb);
+			// The arrow is drawn high in its 96px cell, as the game's own offset puts it at the tile's middle.
+			ClxDrawRgbMap(out, Point { k * ArrowCellW + 12 + k * 14, ArrowCellH + 28 }, sprite, table);
+			SDL_Delay(50); // the glint runs on the clock
+		}
+		save(out, std::string("fx_rogue_arrow_") + look.name);
+	}
+
+	// ---- the Rogue's own sheets ----
+	const std::optional<OwnedClxSpriteSheet> bow = FxBody("plrgfx\\rogue\\rlb\\rlbat", 128);
+	const std::optional<OwnedClxSpriteSheet> stand = FxBody("plrgfx\\rogue\\rlb\\rlbas", 96);
+	const std::optional<OwnedClxSpriteSheet> staff = FxBody("plrgfx\\rogue\\rlt\\rltat", 128);
+	ASSERT_TRUE(bow.has_value() && stand.has_value() && staff.has_value()) << "the Rogue's bow attack, stand and staff attack";
+
+	// Multiple Shot: her release pose facing south-east, six arrows fanning out from the bow.
+	{
+		constexpr int W = 256, H = 192, Frames = 8;
+		OwnedSurface out = FxCanvas(Frames, W, H);
+		const ClxSprite pose = (*bow)[7][6]; // facing south-east (7), the release frame
+		for (int k = 0; k < Frames; k++) {
+			const Point foot { k * W + 60, 110 };
+			ClxDrawRgbMap(out, foot - Displacement { (pose.width() - 64) / 2, 0 }, pose, FxTable(nullptr));
+			for (int a = 0; a < 6; a++) {
+				// Six facings a step apart round south-east (dir16 14), each flying out along its own facing.
+				const int facing = (12 + a) % 16;
+				const double angle = (facing + 4) * 3.14159265358979 / 8.0; // dir16 0 points down the screen, clockwise: 12 is east
+				const Point at = foot + Displacement { 20 + static_cast<int>(std::lround(std::cos(angle) * 18 * (k + 1))),
+					20 + static_cast<int>(std::lround(std::sin(angle) * 9 * (k + 1))) };
+				ClxDrawRgbMap(out, at, arrowFacings[static_cast<size_t>(facing)], FxTable(nullptr));
+			}
+		}
+		save(out, "fx_rogue_multishot6");
+	}
+
+	// Phantom Volley: the falling arrow in purple, then its purple ring (as DrawArrowImpactRings, in hue::PhantomPurple).
+	{
+		const MissileFileData &fall = GetMissileSpriteData(MissileGraphicID::FallingArrow);
+		ASSERT_TRUE(fall.sprites);
+		const ClxSprite falling = (*fall.spritesForDirection(0))[0];
+		constexpr int W = 96, H = 160, FallFrames = FallingArrowFallTicks, Frames = FallingArrowFallTicks + FallingArrowRingTicks;
+		OwnedSurface out = FxCanvas(Frames, W, H);
+		for (int k = 0; k < Frames; k++) {
+			const Point floor { k * W + W / 2, H - 24 };
+			if (k >= FallFrames)
+				oracool::DrawArrowRingPreview(out, floor, k - FallFrames, oracool::hue::PhantomPurple);
+			const int fallen = std::min(k + 1, FallFrames);
+			if (k < FallFrames + FallingArrowHoldTicks)
+				ClxDrawRgbMap(out, floor + Displacement { -12, 3 - 112 * (FallFrames - fallen) / FallFrames }, falling,
+				    FxTable(fall.colours.get(), oracool::Tint::Hue, oracool::hue::PhantomPurple));
+		}
+		save(out, "fx_phantom_volley");
+	}
+
+	// The Decoy: her stand facing south, ghost white-grey with light running through it.
+	{
+		const ClxSpriteList frames = (*stand)[0];
+		const int n = static_cast<int>(frames.numSprites());
+		constexpr int W = 112;
+		OwnedSurface out = FxCanvas(n, W, W);
+		for (int k = 0; k < n; k++) {
+			const ClxSprite s = frames[static_cast<size_t>(k)];
+			ClxDrawRgbMap(out, Point { k * W + (W - s.width()) / 2, W - 8 }, s, FxTable(nullptr, oracool::Tint::Glint, oracool::hue::GhostGrey));
+			SDL_Delay(50);
+		}
+		save(out, "fx_decoy");
+	}
+
+	// Shadow Step: fading out white where she stood (5 ticks), then fading in white where she lands (5 ticks).
+	{
+		const ClxSprite s = (*stand)[0][0];
+		constexpr int W = 112, Half = oracool::ShadowStepHalfTicks;
+		OwnedSurface out = FxCanvas(2 * Half, W, W);
+		for (int k = 0; k < 2 * Half; k++) {
+			const int alpha = k < Half ? 256 * (Half - k) / Half : 256 * (k - Half + 1) / (Half + 1);
+			ClxDrawRgbMapAlpha(out, Point { k * W + (W - s.width()) / 2, W - 8 }, s, FxTable(nullptr, oracool::Tint::Glint, oracool::hue::FrostWhite),
+			    static_cast<uint16_t>(std::clamp(alpha, 16, 256)));
+			SDL_Delay(50);
+		}
+		save(out, "fx_shadow_step_fade");
+	}
+
+	// Freezing Arrow's Frost Nova at its own size, white and light blue running through it.
+	{
+		const MissileFileData &nova = GetMissileSpriteData(MissileGraphicID::FrostNova);
+		ASSERT_TRUE(nova.sprites);
+		const ClxSpriteList frames = *nova.spritesForDirection(0);
+		const int n = static_cast<int>(frames.numSprites());
+		const Size e = FxExtent(frames);
+		const int W = e.width + 16, H = e.height + 16;
+		OwnedSurface out = FxCanvas(n, W, H);
+		for (int k = 0; k < n; k++)
+			ClxDrawRgbMap(out, FxAt(k, W, H, frames[static_cast<size_t>(k)].width()), frames[static_cast<size_t>(k)],
+			    FxTable(nova.colours.get(), oracool::Tint::HueCycle, oracool::hue::IceBlue, n > 1 ? static_cast<double>(k) / (n - 1) : 0.0));
+		save(out, "fx_freezing_nova");
+	}
+
+	// Exploding Arrow's burst: the magma-ball explosion it ends in.
+	{
+		const MissileFileData &burst = GetMissileSpriteData(MissileGraphicID::MagmaBallExplosion);
+		ASSERT_TRUE(burst.sprites);
+		const ClxSpriteList frames = *burst.spritesForDirection(0);
+		const int n = static_cast<int>(frames.numSprites());
+		const Size e = FxExtent(frames);
+		const int W = e.width + 16, H = e.height + 16;
+		OwnedSurface out = FxCanvas(n, W, H);
+		for (int k = 0; k < n; k++)
+			ClxDrawRgbMap(out, FxAt(k, W, H, frames[static_cast<size_t>(k)].width()), frames[static_cast<size_t>(k)], FxTable(burst.colours.get()));
+		save(out, "fx_exploding_burst");
+	}
+
+	// Her staff attack facing south (every javelin strike and throw), and Fend's ring opening under it.
+	{
+		const ClxSpriteList frames = (*staff)[0];
+		const int n = static_cast<int>(frames.numSprites());
+		constexpr int W = 160, H = 128;
+		OwnedSurface plain = FxCanvas(n, W, H);
+		OwnedSurface fend = FxCanvas(n, W, H);
+		for (int k = 0; k < n; k++) {
+			const ClxSprite s = frames[static_cast<size_t>(k)];
+			const Point foot { k * W + W / 2, H - 20 };
+			oracool::DrawFendRingPreview(fend, foot + Displacement { 0, -8 }, static_cast<double>(k + 1) / n);
+			for (OwnedSurface *out : { &plain, &fend })
+				ClxDrawRgbMap(*out, foot - Displacement { s.width() / 2, 0 }, s, FxTable(nullptr));
+		}
+		save(plain, "fx_rogue_staff_attack");
+		save(fend, "fx_fend_ring");
+	}
+
+	gbIsHellfire = savedHellfire;
 	HeadlessMode = savedHeadless;
 }

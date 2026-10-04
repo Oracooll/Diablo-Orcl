@@ -108,6 +108,11 @@ void DismissCompanions(const Player &owner);
 // ---- engine hooks ------------------------------------------------------------------------------------------------
 
 bool IsCompanion(const Monster &monster);
+/**
+ * @brief Whether @p monster is a Decoy's body: the caster in her own armour and weapon, drawn ghost white-grey with light
+ * running through it (the Rogue Skill Cards page, 2026-10-04: "tinted ghost white/grey, colorcycling"; was a blue ramp).
+ */
+bool IsDecoyBody(const Monster &monster);
 /** @brief The hero a companion body serves, or nullptr (round 88 audit: monsters' odds against it). */
 const Player *CompanionOwner(const Monster &monster);
 const AnimStruct *GetCompanionAnim(const Monster &monster, MonsterGraphic graphic);

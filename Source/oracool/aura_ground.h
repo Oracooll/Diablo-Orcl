@@ -86,8 +86,18 @@ constexpr int ArrowRingStartPercent = 50;
 constexpr int ArrowRingEndPercent = 100;
 /** @brief Tests only: the impact ring's size in pixels @p ticks after the arrow landed. */
 DVL_API_FOR_TEST Size ArrowRingSize(int ticks);
+/**
+ * @brief Fend's ring (the Rogue Skill Cards page, 2026-10-04: "every swing produces expanding aura ring with 1 tile radius which
+ * after swing end disappears. aura ring to be orange-ish."): Might's ring in hue::FendOrange under the Rogue while a Fend swing
+ * plays, opening with the swing to two tiles across. Same arguments and walk as DrawAuraGround.
+ */
+void DrawFendRing(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns);
+/** @brief Fend's ring's size at @p progress (0..1) through the swing: nothing to 128x64. */
+DVL_API_FOR_TEST Size FendRingSize(double progress);
+/** @brief Tests only: Fend's ring at @p progress centred on @p centre. */
+DVL_API_FOR_TEST bool DrawFendRingPreview(const Surface &out, Point centre, double progress);
 /** @brief Tests only: the impact ring @p ticks after landing, centred on @p centre, as DrawArrowImpactRings draws it. */
-DVL_API_FOR_TEST bool DrawArrowRingPreview(const Surface &out, Point centre, int ticks);
+DVL_API_FOR_TEST bool DrawArrowRingPreview(const Surface &out, Point centre, int ticks, uint32_t ringHue = 0);
 /** @brief The frenzy ring as drawn, in pixels. */
 DVL_API_FOR_TEST Size FrenzyRingSize();
 /** @brief Tests only: the frenzy ring centred on @p centre, at full pulse. False while the art is missing. */

@@ -264,6 +264,103 @@ void ClearStateVariables(Player &player)
 	player.queuedSpell.spellLevel = 0;
 }
 
+/**
+ * The staff look (the Rogue Skill Cards page, 2026-10-04: "all javelin strikes to use staff animations", "Uses staff animation
+ * sprite sheet", "we play staff attack"): a javelin-page swing or throw is drawn in the hero's STAFF attack sheet whatever she
+ * holds, with the staff's frames and hit frame. The staff sheet is loaded once per armour (LoadPlrGFX with the weapon bits set
+ * to Staff, so a PNG or mixed look is found as for a staff in hand) and swapped into AnimationData[Attack] for the swing;
+ * StaffLookTick swaps it back when the swing is over. If the slot was reloaded meanwhile (a level, a new look) the swap-back is
+ * dropped and the cache built again on the next swing.
+ */
+struct StaffLookState {
+	bool built = false;
+	uint8_t armour = 0xFF;
+	HeroClass heroClass = HeroClass::Warrior;
+	PlayerAnimationData sheet;
+	int8_t frames = 0;
+	int8_t actionFrame = 0;
+	bool active = false;
+	const void *activeData = nullptr;
+	int8_t savedFrames = 0;
+	int8_t savedActionFrame = 0;
+};
+StaffLookState StaffLook;
+
+const void *AttackSheetData(const Player &player)
+{
+	const PlayerAnimationData &attack = player.AnimationData[static_cast<size_t>(player_graphic::Attack)];
+	return attack.sprites ? static_cast<const void *>((*attack.sprites)[0].data()) : nullptr;
+}
+
+/** @brief Whether the swing @p player is about to start is a javelin-page strike or throw. */
+bool SwingWearsStaffLook(const Player &player)
+{
+	if (&player != MyPlayer || leveltype == DTYPE_TOWN || HeadlessMode)
+		return false;
+	if (oracool::ArmedJavelinThrow().has_value())
+		return true;
+	if (const std::optional<oracool::ClassMeleeSkill> skill = oracool::ArmedClassMeleeSkill(); skill.has_value() && oracool::IsJavelinStrike(oracool::ClassMeleeSkillSpell(*skill)))
+		return true;
+	if (const std::optional<SpellID> rfa12 = oracool::ArmedRfa12Melee(); rfa12.has_value() && oracool::IsJavelinStrike(*rfa12))
+		return true;
+	return false;
+}
+
+void EndStaffLook(Player &player)
+{
+	if (!StaffLook.active)
+		return;
+	StaffLook.active = false;
+	PlayerAnimationData &attack = player.AnimationData[static_cast<size_t>(player_graphic::Attack)];
+	if (AttackSheetData(player) != StaffLook.activeData) {
+		StaffLook.built = false; // reloaded under the swing: the staff sheet went with it
+		return;
+	}
+	std::swap(attack, StaffLook.sheet);
+	player._pAFrames = StaffLook.savedFrames;
+	player._pAFNum = StaffLook.savedActionFrame;
+}
+
+void BeginStaffLook(Player &player)
+{
+	EndStaffLook(player);
+	const uint8_t armour = player._pgfxnum >> 4;
+	if (!StaffLook.built || StaffLook.armour != armour || StaffLook.heroClass != player._pClass) {
+		// The worn sheet is set aside, not reloaded after: LoadPlrGFX keeps a slot that is already loaded, so with it in place
+		// the staff load did nothing and the cache took the worn weapon's sheet (audit, 2026-10-04).
+		PlayerAnimationData &slot = player.AnimationData[static_cast<size_t>(player_graphic::Attack)];
+		PlayerAnimationData wornSheet = std::move(slot);
+		slot = PlayerAnimationData {};
+		const uint8_t worn = player._pgfxnum;
+		const int8_t wornFrames = player._pAFrames;
+		const int8_t wornActionFrame = player._pAFNum;
+		player._pgfxnum = static_cast<uint8_t>((worn & 0xF0) | static_cast<uint8_t>(PlayerWeaponGraphic::Staff));
+		LoadPlrGFX(player, player_graphic::Attack);
+		SetPlrAnims(player);
+		StaffLook.sheet = std::move(slot);
+		StaffLook.sheet.pendingSheetKey.clear(); // the plain staff sheet is worn; no mixed one is waited for
+		StaffLook.frames = player._pAFrames;
+		StaffLook.actionFrame = player._pAFNum;
+		player._pgfxnum = worn;
+		slot = std::move(wornSheet);
+		SetPlrAnims(player);
+		player._pAFrames = wornFrames;
+		player._pAFNum = wornActionFrame;
+		StaffLook.built = StaffLook.sheet.sprites.has_value();
+		StaffLook.armour = armour;
+		StaffLook.heroClass = player._pClass;
+	}
+	if (!StaffLook.built)
+		return;
+	StaffLook.savedFrames = player._pAFrames;
+	StaffLook.savedActionFrame = player._pAFNum;
+	std::swap(player.AnimationData[static_cast<size_t>(player_graphic::Attack)], StaffLook.sheet);
+	player._pAFrames = StaffLook.frames;
+	player._pAFNum = StaffLook.actionFrame;
+	StaffLook.active = true;
+	StaffLook.activeData = AttackSheetData(player);
+}
+
 void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 {
 	if (player._pInvincible && player._pHitPoints == 0 && &player == MyPlayer) {
@@ -309,6 +406,13 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 		oracool::StopFuriousChargeDash();
 		oracool::StartFuriousChargeCooldown();
 	}
+
+	// A javelin-page strike or throw swings in the staff's sheet, with the staff's frames (2026-10-04). Before the frame skips
+	// below: they read the hit frame.
+	if (SwingWearsStaffLook(player))
+		BeginStaffLook(player);
+	else if (&player == MyPlayer)
+		EndStaffLook(player);
 
 	int8_t skippedAnimationFrames = 0;
 	if (includesFirstFrame) {
@@ -373,6 +477,8 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 
 void StartRangeAttack(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord cy, bool includesFirstFrame)
 {
+	if (&player == MyPlayer)
+		EndStaffLook(player); // a shot queued as a javelin swing ended in this tick (audit, 2026-10-04)
 	if (player._pInvincible && player._pHitPoints == 0 && &player == MyPlayer) {
 		SyncPlrKill(player, DeathReason::Unknown);
 		return;
@@ -415,6 +521,10 @@ player_graphic GetPlayerGraphicForSpell(SpellID spellId)
 	// Oracool: the Paladin's three cast skills take the animation the user named for each (2026-09-11:
 	// Blessed Shield "magic", Fist of the Heavens "lightning", and Blessed Hammer magic once its damage
 	// became magic the same day) rather than their element's - the element stays what the rows say.
+	// Rain of Arrows plays the fire cast (the Rogue Skill Cards page, 2026-10-04: "play fire magic cast rogue sprite when
+	// casting"); its arrows stay physical.
+	if (spellId == SpellID::RainOfArrows)
+		return player_graphic::Fire;
 	switch (oracool::PaladinCastAnimation(spellId).value_or(GetSpellData(spellId).type())) {
 	case MagicType::Fire:
 		return player_graphic::Fire;
@@ -427,6 +537,8 @@ player_graphic GetPlayerGraphicForSpell(SpellID spellId)
 
 void StartSpell(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord cy)
 {
+	if (&player == MyPlayer)
+		EndStaffLook(player);
 	if (player._pInvincible && player._pHitPoints == 0 && &player == MyPlayer) {
 		SyncPlrKill(player, DeathReason::Unknown);
 		return;
@@ -1074,6 +1186,36 @@ bool PlrHitObj(const Player &player, Object &targetObject)
 	return false;
 }
 
+/**
+ * @brief The javelin throw this swing carries (oracool/rogue_arrows.h ArmJavelinThrow) goes at its hit frame: cast at the
+ * aimed tile through CastSpell, so the price, the cooldown and the skill's own art and cues are the cast's. True when the
+ * swing carried one - it strikes nothing itself then.
+ */
+bool ThrowArmedJavelin(Player &player)
+{
+	if (&player != MyPlayer)
+		return false;
+	const std::optional<SpellID> spell = oracool::ArmedJavelinThrow();
+	if (!spell.has_value())
+		return false;
+	const Point target = oracool::ArmedJavelinThrowTarget();
+	oracool::ArmJavelinThrow(std::nullopt);
+	if (CheckSpell(player, *spell, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
+		player.Say(ShortOfPriceSpeech(player, *spell));
+		return true; // the swing lets nothing go
+	}
+	const oracool::ClassTreeSkill row = oracool::ClassTreeSkillForSpell(player._pClass, *spell);
+	if (row != oracool::ClassTreeSkill::None)
+		oracool::PlaySkillSound(row, oracool::SkillSoundEvent::Cast); // the release (the page's picks: a bow's fire-arrow loose)
+	const SpellCastInfo saved = player.executedSpell;
+	player.executedSpell.spellId = *spell;
+	player.executedSpell.spellType = SpellType::Skill;
+	player.executedSpell.spellLevel = player.GetSpellLevel(*spell);
+	CastSpell(player.getId(), *spell, player.position.tile.x, player.position.tile.y, target.x, target.y, player.executedSpell.spellLevel);
+	player.executedSpell = saved;
+	return true;
+}
+
 bool DoAttack(Player &player)
 {
 	// Oracool: MeleeHitFrame, not _pAFNum - a Shield Bash borrows the shorter block animation and
@@ -1089,6 +1231,8 @@ bool DoAttack(Player &player)
 
 	if (player.AnimInfo.currentFrame == hitFrame - 1 && oracool::ThrowArmedWeapon(player)) {
 		// Weapon Throw: this swing let go of the weapon instead of striking with it (oracool/weapon_throw.h).
+	} else if (player.AnimInfo.currentFrame == hitFrame - 1 && ThrowArmedJavelin(player)) {
+		// A javelin throw: this staff swing let the skill go instead of striking (2026-10-04).
 	} else if (player.AnimInfo.currentFrame == hitFrame - 1) {
 		Point position = player.position.tile + player._pdir;
 		Monster *monster = FindMonsterAtPosition(position);
@@ -2812,6 +2956,9 @@ void InitPlayerGFX(Player &player)
 	if (HeadlessMode)
 		return;
 
+	// Every sheet is loaded again: the staff look's cache goes with them (a new level, look or hero).
+	if (&player == MyPlayer)
+		StaffLook = {};
 	ResetPlayerGFX(player);
 
 	if (player._pHitPoints >> 6 == 0) {
@@ -3487,6 +3634,8 @@ void StartStand(Player &player, Direction dir)
 
 void StartPlrBlock(Player &player, Direction dir)
 {
+	if (&player == MyPlayer)
+		EndStaffLook(player);
 	if (player._pInvincible && player._pHitPoints == 0 && &player == MyPlayer) {
 		SyncPlrKill(player, DeathReason::Unknown);
 		return;
@@ -4034,6 +4183,10 @@ void ProcessPlayers()
 		myPlayer.pLvlLoad--;
 	}
 
+	// The staff look comes off when the javelin swing is over (StartAttack put it on).
+	if (StaffLook.active && myPlayer._pmode != PM_ATTACK)
+		EndStaffLook(myPlayer);
+
 	if (sfxdelay > 0) {
 		sfxdelay--;
 		if (sfxdelay == 0) {
@@ -4390,6 +4543,71 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		}
 		if (!oracool::StartStrafe(myPlayer))
 			myPlayer.Say(HeroSpeech::ICantDoThat);
+		return;
+	}
+
+	// The four javelin throws and Valkyrie's Spear are THROWN (the Rogue Skill Cards page, 2026-10-04: "this is a throw skill.
+	// we play staff attack but hero releases [a tinted] arrow towards target. Range - N tiles. doesnt trigger if distance is
+	// longer."): a staff swing in place toward the target, and ThrowArmedJavelin casts the skill at its hit frame. Out of
+	// reach, she walks toward it as a melee skill does; with shift, out of reach, nothing.
+	if (oracool::IsJavelinThrow(spellID) && spellType == SpellType::Skill) {
+		oracool::ArmMeleeSkill(std::nullopt);
+		oracool::ArmClassMeleeSkill(std::nullopt);
+		oracool::ArmRfa12Melee(std::nullopt);
+		oracool::ArmArrowSkill(std::nullopt);
+		const SpellCheckResult check = CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/false);
+		if (check != SpellCheckResult::Success) {
+			myPlayer.Say(check == SpellCheckResult::Fail_NoMana ? ShortOfPriceSpeech(myPlayer, spellID) : HeroSpeech::ICantDoThat);
+			LastMouseButtonAction = MouseActionType::None;
+			return;
+		}
+		const Point target = pcursmonst != -1 && !isShiftHeld ? Point(Monsters[pcursmonst].position.tile) : Point(cursPosition);
+		if (myPlayer.position.tile.WalkingDistance(target) > oracool::JavelinThrowRange(spellID)) {
+			if (isShiftHeld) {
+				LastMouseButtonAction = MouseActionType::None;
+				return;
+			}
+			// The held button asks again each repeat (audit, 2026-10-04: as a Walk it walked all the way and never threw).
+			LastMouseButtonSpell = spellID;
+			LastMouseButtonSpellType = spellType;
+			LastMouseButtonAction = MouseActionType::Spell;
+			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, target);
+			return;
+		}
+		oracool::ArmJavelinThrow(spellID, target);
+		// The hold is a cast, so each repeat comes back here and re-arms, as Weapon Throw's.
+		LastMouseButtonSpell = spellID;
+		LastMouseButtonSpellType = spellType;
+		LastMouseButtonAction = MouseActionType::Spell;
+		NetSendCmdLoc(MyPlayerId, true, CMD_SATTACKXY, target);
+		return;
+	}
+
+	// Vault is a rapid teleport with no cast animation (the Rogue Skill Cards page, 2026-10-04: "does not require playing
+	// cast sprite sheet. to evacuate from bad spots"): the click casts it at once, three times inside three seconds before
+	// its cooldown (CastRfa12Active counts them).
+	if (spellID == SpellID::Vault && spellType == SpellType::Skill) {
+		LastMouseButtonAction = MouseActionType::None;
+		const SpellCheckResult check = CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/false);
+		if (check != SpellCheckResult::Success) {
+			myPlayer.Say(check == SpellCheckResult::Fail_NoMana ? ShortOfPriceSpeech(myPlayer, spellID) : HeroSpeech::ICantDoThat);
+			return;
+		}
+		if (myPlayer._pmode != PM_STAND) {
+			// Mid-step, -swing or -cast: the engine's teleport wants her standing on her tile. The walk stops there; the next
+			// click vaults.
+			ClrPlrPath(myPlayer);
+			return;
+		}
+		const oracool::ClassTreeSkill row = oracool::ClassTreeSkillForSpell(myPlayer._pClass, spellID);
+		if (row != oracool::ClassTreeSkill::None)
+			oracool::PlaySkillSound(row, oracool::SkillSoundEvent::Cast);
+		const SpellCastInfo saved = myPlayer.executedSpell;
+		myPlayer.executedSpell.spellId = spellID;
+		myPlayer.executedSpell.spellType = SpellType::Skill;
+		myPlayer.executedSpell.spellLevel = myPlayer.GetSpellLevel(spellID);
+		CastSpell(myPlayer.getId(), spellID, myPlayer.position.tile.x, myPlayer.position.tile.y, cursPosition.x, cursPosition.y, myPlayer.executedSpell.spellLevel);
+		myPlayer.executedSpell = saved;
 		return;
 	}
 

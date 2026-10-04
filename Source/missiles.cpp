@@ -46,6 +46,7 @@
 #include "oracool/companion.h"
 #include "oracool/monster_scale.h" // GetScaledAnim - a sized charger keeps its size
 #include "oracool/passives.h"
+#include "oracool/rfa12_actives.h" // BlinkMonster - Piercing Shot's arrow blinks what it goes through
 #include "oracool/rfa12_effects.h"
 #include "oracool/rogue_arrows.h"
 #include "oracool/warcries.h"
@@ -2931,10 +2932,9 @@ void AddRogueArrow(Missile &missile, AddMissileParameter &parameter)
 	// AddElementalArrow each know one of those, so the family asks the right one for its sheet.
 	// Magic and Guided Arrow have their own sixteen-facing sheets once delivered (2026-09-11); until
 	// then they fly as the plain arrow. Chosen before the branch, because the branch reads it.
-	if (missile._mitype == MissileID::MagicArrow && MissileArtLoaded(MissileGraphicID::MagicArrowLight))
-		missile._miAnimType = MissileGraphicID::MagicArrowLight;
-	else if (missile._mitype == MissileID::GuidedArrow && MissileArtLoaded(MissileGraphicID::GuidedArrowGold))
-		missile._miAnimType = MissileGraphicID::GuidedArrowGold;
+	// Since 2026-10-04 every one is the vanilla arrow (the Rogue Skill Cards page: "replace with regular arrow tinted ..."),
+	// coloured and lit by its skill in oracool::Loose (RogueArrowLookOf); the delivered sheets stay loaded, unused here.
+	SetMissAnim(missile, MissileGraphicID::Arrow); // the sprites too, not the type alone (audit, 2026-10-04)
 	if (missile._miAnimType == MissileGraphicID::Arrow)
 		AddArrow(missile, parameter);
 	else
@@ -2977,7 +2977,7 @@ void ProcessRogueArrow(Missile &missile)
 	if (missile._mlid != NO_LIGHT && missile.position.tile != Point { missile.var1, missile.var2 }) {
 		missile.var1 = missile.position.tile.x;
 		missile.var2 = missile.position.tile.y;
-		ChangeLight(missile._mlid, missile.position.tile, 5);
+		ChangeLightXY(missile._mlid, missile.position.tile); // its own radius, as Loose lit it (audit, 2026-10-04: was 5)
 	}
 
 	if (missile._mirange == 0) {
@@ -3045,7 +3045,14 @@ void ProcessRogueArrow(Missile &missile)
 					oracool::ApplyColdHit(MissileID::IceBlast, level, monster);
 				}
 			}
-			AddMissile(at, at, dir, MissileID::FreezingBurst, missile._micaster, missile._misource, 0, level, &missile);
+			// The Frost Nova sheet at its own size over it (the Rogue Skill Cards page, 2026-10-04: "use frost nova animation.
+			// 100% size."); the freezing_burst sheet only where Frost Nova's is missing.
+			if (Missile *nova = AddArtEffect(at, MissileGraphicID::FrostNova, missile._misource); nova != nullptr) {
+				nova->oracoolTint = oracool::Tint::HueCycle; // white and light blue running through it, as the spell's ring
+				nova->oracoolTintRgb = oracool::hue::IceBlue;
+			} else {
+				AddMissile(at, at, dir, MissileID::FreezingBurst, missile._micaster, missile._misource, 0, level, &missile);
+			}
 			break;
 		default:
 			break;
@@ -4312,7 +4319,30 @@ Displacement FallingArrowScatter(const Missile &missile)
 	return { missile.var3, missile.var4 };
 }
 
-bool AddFallingArrows(Point target, int playerId, int radius)
+namespace {
+
+/** @brief One falling arrow onto @p tile, setting off after @p wait ticks, in @p rgb (0: as drawn, its ring amber). */
+void DropFallingArrow(Point tile, int playerId, int wait, uint32_t rgb)
+{
+	const int life = wait + FallingArrowFallTicks + std::max(FallingArrowHoldTicks, FallingArrowRingTicks);
+	Missile *arrow = AddArtEffect(tile, MissileGraphicID::FallingArrow, playerId, life);
+	if (arrow == nullptr)
+		return;
+	arrow->_mirange = life;
+	arrow->var2 = wait;
+	arrow->var3 = GenerateRnd(21) - 10; // a scatter within the tile, so two on one tile never stack
+	arrow->var4 = GenerateRnd(11) - 5;
+	arrow->var5 = life;
+	if (rgb != 0) {
+		arrow->oracoolTint = oracool::Tint::Hue;
+		arrow->oracoolTintRgb = rgb;
+	}
+	arrow->position.offset = FallingArrowOffset(*arrow);
+}
+
+} // namespace
+
+bool AddFallingArrows(Point target, int playerId, int radius, uint32_t rgb)
 {
 	if (!MissileArtLoaded(MissileGraphicID::FallingArrow))
 		return false;
@@ -4320,19 +4350,26 @@ bool AddFallingArrows(Point target, int playerId, int radius)
 		Point tile = target + Displacement { GenerateRnd(2 * radius + 1) - radius, GenerateRnd(2 * radius + 1) - radius };
 		if (!InDungeonBounds(tile) || IsTileSolid(tile))
 			tile = target;
-		const int wait = i * FallingArrowSpreadTicks / FallingArrowCount + GenerateRnd(2);
-		const int life = wait + FallingArrowFallTicks + std::max(FallingArrowHoldTicks, FallingArrowRingTicks);
-		Missile *arrow = AddArtEffect(tile, MissileGraphicID::FallingArrow, playerId, life);
-		if (arrow == nullptr)
-			continue;
-		arrow->_mirange = life;
-		arrow->var2 = wait;
-		arrow->var3 = GenerateRnd(21) - 10; // a scatter within the tile, so two on one tile never stack
-		arrow->var4 = GenerateRnd(11) - 5;
-		arrow->var5 = life;
-		arrow->position.offset = FallingArrowOffset(*arrow);
+		DropFallingArrow(tile, playerId, i * FallingArrowSpreadTicks / FallingArrowCount + GenerateRnd(2), rgb);
 	}
 	return true;
+}
+
+bool AddFallingArrowsOn(const std::vector<Point> &tiles, int playerId, uint32_t rgb)
+{
+	if (!MissileArtLoaded(MissileGraphicID::FallingArrow))
+		return false;
+	const int count = static_cast<int>(tiles.size());
+	for (int i = 0; i < count; i++) {
+		if (InDungeonBounds(tiles[static_cast<size_t>(i)]))
+			DropFallingArrow(tiles[static_cast<size_t>(i)], playerId, i * FallingArrowSpreadTicks / std::max(count, 1) + GenerateRnd(2), rgb);
+	}
+	return true;
+}
+
+uint32_t FallingArrowRingHue(const Missile &missile)
+{
+	return missile.oracoolTint == oracool::Tint::Hue && missile.oracoolTintRgb != 0 ? missile.oracoolTintRgb : oracool::hue::ArrowAmber;
 }
 
 void ArtEffectFollowsItsCaster(Missile &effect)
@@ -4550,8 +4587,13 @@ void ProcessCensusEffect(Missile &missile)
 			missile._miAnimFrame = AbsoluteZeroIntroFrames; // steps back onto the loop's first frame
 	}
 	// Rain of Arrows' falling arrow (RfA-61): waits its turn out of sight, then drops onto its tile.
-	if (missile._mitype == ArtEffectCarrier && missile._miAnimType == MissileGraphicID::FallingArrow)
+	if (missile._mitype == ArtEffectCarrier && missile._miAnimType == MissileGraphicID::FallingArrow) {
 		missile.position.offset = FallingArrowOffset(missile);
+		// The arrow-hit sound on every one that strikes the floor (the Rogue Skill Cards page, 2026-10-04: "play arrow hit
+		// sound on every impact of the twelve arrows").
+		if (FallingArrowLandedTicks(missile) == 0)
+			PlaySfxLoc(IS_STING1, missile.position.tile);
+	}
 	// Ashen Brand's ring fades in over 6 ticks, holds, and fades out over its last 8 (user, 2026-10-01: "fade in and out").
 	if (missile._mitype == ArtEffectCarrier && missile._miAnimType == MissileGraphicID::AshenRing) {
 		const int age = AshenRingTicks - missile._mirange;
@@ -4622,12 +4664,37 @@ void ArtBoltLands(const Missile &missile)
 
 } // namespace
 
+void ArtBoltSparks(Missile &bolt, int everyTicks)
+{
+	bolt.var6 = ArtBoltExtrasMark;
+	bolt.var7 = (bolt.var7 & 1) | (std::clamp(everyTicks, 0, 255) << 8);
+}
+
+void ArtBoltBlinks(Missile &bolt)
+{
+	bolt.var6 = ArtBoltExtrasMark;
+	bolt.var7 |= 1;
+}
+
 void ProcessAcidJavelin(Missile &missile)
 {
 	missile._mirange--;
 	MoveMissile(missile, [](Point) { return true; }); // nothing stops it: the blow has already landed
 	if (missile._mlid != NO_LIGHT)
 		ChangeLightXY(missile._mlid, missile.position.tile); // a lit flight carries its light (the ice arrows, 2026-10-01)
+	// Shock Arrow's sparks, one every few ticks along the way, and Piercing Shot's blink on each monster it goes through
+	// (the Rogue Skill Cards page, 2026-10-04). Drawn only: the blows have landed.
+	// Only flights marked by ArtBoltSparks/ArtBoltBlinks (audit, 2026-10-04: a test of var5 sparked Ball Lightning by its stamp).
+	const int sparkEvery = missile._mitype == ArtBoltCarrier && missile.var6 == ArtBoltExtrasMark ? (missile.var7 >> 8) & 0xFF : 0;
+	if (sparkEvery > 0 && missile._mirange % sparkEvery == 0)
+		AddArtEffect(missile.position.tile, MissileGraphicID::ArcSpark, missile._misource);
+	if (missile._mitype == ArtBoltCarrier && missile.var6 == ArtBoltExtrasMark && (missile.var7 & 1) != 0 && InDungeonBounds(missile.position.tile) && leveltype != DTYPE_TOWN) {
+		if (const int mid = dMonster[missile.position.tile.x][missile.position.tile.y]; mid != 0) {
+			const Monster &monster = Monsters[std::abs(mid) - 1];
+			if (!monster.isPlayerMinion())
+				oracool::BlinkMonster(monster, 4);
+		}
+	}
 	if (missile._mirange <= 0 || missile.position.tile == Point { missile.var1, missile.var2 }) {
 		missile._miDelFlag = true;
 		if (missile._mlid != NO_LIGHT) { // Ball Lightning's ball carries one (2026-10-01)

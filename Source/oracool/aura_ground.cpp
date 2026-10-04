@@ -15,6 +15,7 @@
 #include "engine/render/primitive_render.hpp" // SetHalfTransparentPixelUnchecked (v1.11)
 #include "levels/gendung.h"
 #include "missiles.h" // FallingArrowLandedTicks - Rain of Arrows' impact rings
+#include "oracool/melee_skills.h" // ArmedClassMeleeSkill - Fend's ring
 #include "monster.h"
 #include "oracool/aura_field.h"
 #include "oracool/class_tree.h"
@@ -465,6 +466,8 @@ void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameter
  * tint orange"): Holy Fire's ring of flames, drawn in FrenzyOrange at half the Paladin's ring, with the rings' cycle.
  */
 constexpr Skill FrenzyRingArt = Skill::HolyFire;
+/** Fend's ring (the Rogue Skill Cards page, 2026-10-04: "expanding aura ring with 1 tile radius ... orange-ish"): Might's ring. */
+constexpr Skill FendRingArt = Skill::Might;
 
 /** @brief The frenzy ring's art, loaded on first use; null while it is missing. */
 const AuraArt *FrenzyRing()
@@ -575,21 +578,21 @@ const AuraArt *ArrowRingArt()
 }
 
 /** @brief One impact ring @p ticks after its arrow landed: opening out, bright as it strikes and gone at the end. */
-void BlitArrowRing(const Surface &out, const AuraArt &art, Point centre, int ticks)
+void BlitArrowRing(const Surface &out, const AuraArt &art, Point centre, int ticks, uint32_t ringHue = hue::ArrowAmber)
 {
 	const Size size = ArrowRingSize(ticks);
 	const int fade = 140 * (FallingArrowRingTicks - ticks) / FallingArrowRingTicks;
-	BlitAuraPixels(out, art, centre, size.width, size.height, fade, hue::ArrowAmber);
+	BlitAuraPixels(out, art, centre, size.width, size.height, fade, ringHue);
 }
 
 } // namespace
 
-bool DrawArrowRingPreview(const Surface &out, Point centre, int ticks)
+bool DrawArrowRingPreview(const Surface &out, Point centre, int ticks, uint32_t ringHue)
 {
 	const AuraArt *art = ArrowRingArt();
 	if (art == nullptr)
 		return false;
-	BlitArrowRing(out, *art, centre, ticks);
+	BlitArrowRing(out, *art, centre, ticks, ringHue != 0 ? ringHue : hue::ArrowAmber);
 	return true;
 }
 
@@ -602,12 +605,13 @@ void DrawArrowImpactRings(const Surface &out, Point tilePosition, Point targetBu
 		Point tile;
 		Displacement scatter;
 		int ticks;
+		uint32_t ringHue; // amber for Rain of Arrows, purple for Phantom Volley (2026-10-04)
 	};
 	std::vector<Landed> landed;
 	for (const Missile &missile : Missiles) {
 		const int ticks = FallingArrowLandedTicks(missile);
 		if (ticks >= 0 && ticks < FallingArrowRingTicks)
-			landed.push_back({ missile.position.tile, FallingArrowScatter(missile), ticks });
+			landed.push_back({ missile.position.tile, FallingArrowScatter(missile), ticks, FallingArrowRingHue(missile) });
 	}
 	if (landed.empty())
 		return;
@@ -622,7 +626,7 @@ void DrawArrowImpactRings(const Surface &out, Point tilePosition, Point targetBu
 					if (arrow.tile != tilePosition)
 						continue;
 					const Point centre = targetBufferPosition + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 } + arrow.scatter;
-					BlitArrowRing(out, *art, centre, arrow.ticks);
+					BlitArrowRing(out, *art, centre, arrow.ticks, arrow.ringHue);
 				}
 			}
 			tilePosition += Direction::East;
@@ -641,6 +645,71 @@ void DrawArrowImpactRings(const Surface &out, Point tilePosition, Point targetBu
 			targetBufferPosition.x -= TILE_WIDTH / 2;
 		}
 	}
+}
+
+Size FendRingSize(double progress)
+{
+	const double p = std::clamp(progress, 0.0, 1.0);
+	// Opens to a tile's radius: two tiles across, 128x64 on screen.
+	return { std::max(1, static_cast<int>(2 * TILE_WIDTH * p)), std::max(1, static_cast<int>(2 * TILE_HEIGHT * p)) };
+}
+
+void DrawFendRing(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
+{
+	if (leveltype == DTYPE_TOWN || MyPlayer == nullptr || !MyPlayer->isOnActiveLevel())
+		return;
+	const Player &player = *MyPlayer;
+	const std::optional<ClassMeleeSkill> armed = ArmedClassMeleeSkill();
+	if (player._pmode != PM_ATTACK || !armed.has_value() || *armed != ClassMeleeSkill::Fend || player.AnimInfo.numberOfFrames <= 0)
+		return;
+	const int slot = IndexOfSkill(FendRingArt);
+	if (slot < 0)
+		return;
+	DropQuantisationIfPaletteMoved();
+	if (!Art[slot].loadAttempted)
+		LoadAura(slot);
+	if (!Art[slot].usable)
+		return;
+	const double progress = static_cast<double>(player.AnimInfo.currentFrame + 1) / player.AnimInfo.numberOfFrames;
+	const Size size = FendRingSize(progress);
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < columns; j++) {
+			if (tilePosition == player.position.tile) {
+				const Point centre = targetBufferPosition + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 };
+				BlitAuraPixels(out, Art[slot], centre, size.width, size.height, 120, hue::FendOrange);
+				return;
+			}
+			tilePosition += Direction::East;
+			targetBufferPosition.x += TILE_WIDTH;
+		}
+		tilePosition += Displacement(Direction::West) * columns;
+		targetBufferPosition.x -= columns * TILE_WIDTH;
+		targetBufferPosition.y += TILE_HEIGHT / 2;
+		if ((i & 1) != 0) {
+			tilePosition.x++;
+			columns--;
+			targetBufferPosition.x += TILE_WIDTH / 2;
+		} else {
+			tilePosition.y++;
+			columns++;
+			targetBufferPosition.x -= TILE_WIDTH / 2;
+		}
+	}
+}
+
+bool DrawFendRingPreview(const Surface &out, Point centre, double progress)
+{
+	const int slot = IndexOfSkill(FendRingArt);
+	if (slot < 0)
+		return false;
+	DropQuantisationIfPaletteMoved();
+	if (!Art[slot].loadAttempted)
+		LoadAura(slot);
+	if (!Art[slot].usable)
+		return false;
+	const Size size = FendRingSize(progress);
+	BlitAuraPixels(out, Art[slot], centre, size.width, size.height, 120, hue::FendOrange);
+	return true;
 }
 
 bool DrawAuraRingPreview(const Surface &out, ClassTreeSkill aura, Point centre, int diameterHalfTiles)
