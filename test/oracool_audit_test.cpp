@@ -18326,3 +18326,34 @@ TEST(OracoolPreview, DISABLED_Dev373ArrowRing)
 	gbIsHellfire = savedHellfire;
 	HeadlessMode = savedHeadless;
 }
+
+/**
+ * Strafe's spin (v1.12.370) as oracool::WhirlwindSprite draws it: the Rogue's bow attack sheet (light armour, bow) held on its
+ * release frame (PlayersAnimData bowActionFrame - 1), its facing stepping round one a tick, twice round - written to
+ * ORCL_DEV374_OUT as fx_strafe_spin.png (16 cells of 128x128, 50 ms).
+ */
+TEST(OracoolPreview, DISABLED_Dev374StrafeSpin)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const char *outDir = std::getenv("ORCL_DEV374_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const std::optional<OwnedClxSpriteSheet> bow = FxBody("plrgfx\\rogue\\rlb\\rlbat", 128);
+	ASSERT_TRUE(bow.has_value()) << "the Rogue's bow attack (rlbat)";
+	const int release = 7 - 1; // the Rogue's bowActionFrame in playerdat.cpp PlayersAnimData (not exported to the tests)
+	constexpr int Cell = 128;
+	constexpr int Frames = 16;
+	OwnedSurface out = OwnedSurface::Rgb(Frames * Cell, Cell);
+	SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 0x16, 0x12, 0x0F));
+	for (int k = 0; k < Frames; k++) {
+		const ClxSpriteList frames = (*bow)[static_cast<size_t>(k % 8)];
+		const ClxSprite sprite = frames[static_cast<size_t>(std::clamp(release, 0, static_cast<int>(frames.numSprites()) - 1))];
+		ClxDrawRgbMap(out, Point { k * Cell + (Cell - sprite.width()) / 2, Cell - 8 }, sprite, FxTable(nullptr));
+	}
+	PreviewSave(out, (dir + "fx_strafe_spin.png").c_str());
+	std::cout << "wrote fx_strafe_spin.png (release frame " << release << ")\n";
+	HeadlessMode = savedHeadless;
+}
