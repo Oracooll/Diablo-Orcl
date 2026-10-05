@@ -18931,3 +18931,50 @@ TEST(OracoolRiftBosses, EveryRowsFloorHasAScatterType)
 	currlevel = savedCurrlevel;
 	oracool::ResetRiftForNewGame();
 }
+
+// The next Guardian Keystone is owed from the kill until THAT keystone, by its seed, is in the hero's keeping (rounds 104-105
+// audit: "no keystone on the floor" settled it when a spare was dropped there, or the reward held on the cursor - a duplicate
+// or a loss on the next game's refund).
+TEST(OracoolAudit105, TheOwedRewardKeystoneSettlesOnlyByItsSeed)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	devilution::Player *const savedMyPlayer = MyPlayer;
+	MyPlayer = &player;
+	player._pNumInv = 0;
+	for (int t = 0; t < devilution::Player::NumExtraInventoryTabs; t++)
+		player._pNumInvTab[t] = 0;
+	for (devilution::Item &item : player.SpdList)
+		item.clear();
+	const auto savedStash = Stash.stashList;
+	Stash.stashList.clear();
+	oracool::ResetRiftForNewGame();
+
+	constexpr uint32_t RewardSeed = 0x1234567;
+	player._pOracoolOwedKeystoneTier = 7;
+	oracool::SetRiftRewardForTest(RewardSeed);
+
+	devilution::Item spare {};
+	spare._itype = ItemType::Misc;
+	spare._iMiscId = IMISC_ORACOOL_KEYSTONE;
+	spare.IDidx = IDI_ORACOOL_KEYSTONE;
+	spare._iSeed = 0x7654321;
+	player.InvList[0] = spare;
+	player._pNumInv = 1;
+	oracool::SettleRiftRewardKeystone(player);
+	EXPECT_EQ(player._pOracoolOwedKeystoneTier, 7) << "a spare keystone in the pack settled the reward";
+
+	devilution::Item reward = spare;
+	reward._iSeed = RewardSeed;
+	player.InvList[1] = reward;
+	player._pNumInv = 2;
+	oracool::SettleRiftRewardKeystone(player);
+	EXPECT_EQ(player._pOracoolOwedKeystoneTier, 0) << "the reward in the pack still owed";
+	EXPECT_TRUE(oracool::HeroKeepsKeystone(player, RewardSeed));
+
+	player._pNumInv = 0;
+	player._pOracoolOwedKeystoneTier = 0;
+	Stash.stashList = savedStash;
+	MyPlayer = savedMyPlayer;
+	oracool::ResetRiftForNewGame();
+}

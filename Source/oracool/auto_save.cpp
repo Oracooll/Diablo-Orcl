@@ -17,6 +17,7 @@
 #include "multi.h"
 #include "options.h"
 #include "oracool/save_status.h"
+#include "oracool/rift.h" // SettleRiftRewardKeystone - an owed keystone settled before the save
 #include "oracool/event_log.h"
 #include "oracool/levski_roar.h"
 #include "oracool/workshop.h"
@@ -365,6 +366,7 @@ void SaveOnExit()
 	// Put down rather than persisted: the item belongs in a container, and adding it to the hero
 	// format would mean a character who loads with something stuck to the cursor.
 	ReturnHeldItemBeforeSaving(player);
+	oracool::SettleRiftRewardKeystone(player); // a reward keystone just put down from the cursor is no longer owed (round 105)
 
 	BeginSaveAttempt();
 	SaveHeroAndStash(/*writeGameData=*/false);

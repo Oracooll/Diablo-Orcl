@@ -146,6 +146,13 @@ void DropGuardianKeystone(Point tile, int tier);
  * hero's feet; the debt is cleared. Run once per game load, after the hero and his items are in place.
  */
 void RefundOwedGuardianKeystone(Player &player);
+/** @brief Whether the keystone with @p seed is in @p player's pack (any page), belt or stash. */
+bool HeroKeepsKeystone(const Player &player, uint32_t seed);
+/**
+ * @brief Settles the next Guardian Keystone owed since the kill once that keystone (by its seed) is in the hero's pack, belt or
+ * stash (rounds 104-105 audit). Called each tick, after carrying the floor's keystones home, and before every save.
+ */
+void SettleRiftRewardKeystone(Player &player);
 /** @brief From town: sets the tileset and starts the set level. False outside town or with no rift open. */
 bool EnterRift(Player &player);
 /**
@@ -251,5 +258,7 @@ void SetRiftGuardianForTest(int monsterId);
 void SetRiftBossForTest(RiftKind kind, int tier, size_t boss);
 /** @brief The `riftboss` debug command: the open rift's bar starts full, so its boss rises on arrival. */
 void FillRiftBarOnArrival(bool full = true);
+/** @brief Test seam: the next keystone owed since a kill, known by @p seed. */
+void SetRiftRewardForTest(uint32_t seed);
 
 } // namespace devilution::oracool
