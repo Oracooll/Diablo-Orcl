@@ -1724,6 +1724,11 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 
 	// Oracool, Round 6: what a cry or a song has done to this monster - Battle Cry and Dirge of Dread
 	// blunt the blow, Weaken the aim.
+	// A rift boss's blow past what his damage bytes hold (oracool/rift_bosses.h, round 95 audit).
+	if (const int boss = oracool::RiftBossDamagePercent(monster); boss > 100) {
+		minDam = minDam * boss / 100;
+		maxDam = maxDam * boss / 100;
+	}
 	if (const int weakened = oracool::MonsterDebuffDamagePercent(monster) + oracool::Rfa12MonsterDamagePercent(monster) + oracool::PassiveMonsterDamagePercent(monster); weakened != 0) {
 		minDam += minDam * weakened / 100;
 		maxDam = std::max(maxDam + maxDam * weakened / 100, minDam);
@@ -2890,7 +2895,8 @@ void ScavengerAi(Monster &monster)
 {
 	if (monster.mode != MonsterMode::Stand)
 		return;
-	if (monster.hitPoints < (monster.maxHitPoints / 2) && monster.goal != MonsterGoal::Healing) {
+	// Not a rift's guardian (round 95 audit): the Endless Maw ate his own escort's corpses back to full life.
+	if (monster.hitPoints < (monster.maxHitPoints / 2) && monster.goal != MonsterGoal::Healing && !oracool::IsRiftGuardian(monster)) {
 		if (monster.leaderRelation != LeaderRelation::None) {
 			ShrinkLeaderPacksize(monster);
 			monster.leaderRelation = LeaderRelation::None;
@@ -3181,7 +3187,9 @@ void GargoyleAi(Monster &monster)
 		return;
 	}
 
-	if (monster.hitPoints < (monster.maxHitPoints / 2))
+	// Not a rift's guardian (round 95 audit): Grimwing backed off and turned to stone until he was whole again - his own rest
+	// is the two short ones of his row (oracool/rift_bosses.h).
+	if (monster.hitPoints < (monster.maxHitPoints / 2) && !oracool::IsRiftGuardian(monster))
 		monster.goal = MonsterGoal::Retreat;
 	if (monster.goal == MonsterGoal::Retreat) {
 		if (distanceToEnemy >= monster.intelligence + 2u) {

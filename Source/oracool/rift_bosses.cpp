@@ -133,6 +133,8 @@ struct Run {
 	uint8_t thresholds = 0;
 	bool ambushReady = false;
 	bool struckPending = false;
+	/** What his damage could not fit in its bytes, as a percent laid on at every blow (round 95 audit). 100 when it fit. */
+	int damageOverflow = 100;
 	std::vector<int> raised;
 	std::vector<Conjured> conjured;
 };
@@ -191,7 +193,8 @@ std::string Lower(std::string_view text)
 
 int RollDamage(const Monster &monster)
 {
-	return monster.minDamage + GenerateRnd(std::max(monster.maxDamage - monster.minDamage, 0) + 1);
+	const int rolled = monster.minDamage + GenerateRnd(std::max(monster.maxDamage - monster.minDamage, 0) + 1);
+	return rolled * RiftBossDamagePercent(monster) / 100;
 }
 
 /**
@@ -466,6 +469,11 @@ BossGlaze RiftBossGlaze(const Monster &monster)
 	return { def->tint, def->rgb };
 }
 
+int RiftBossDamagePercent(const Monster &monster)
+{
+	return ActiveRiftBossFor(monster) != nullptr ? std::max(RunState.damageOverflow, 100) : 100;
+}
+
 bool RiftBossIsSteady(const Monster &monster)
 {
 	const RiftBossDef *def = ActiveRiftBossFor(monster);
@@ -483,10 +491,18 @@ void OnRiftBossRisen(Monster &monster)
 		const int64_t life = static_cast<int64_t>(monster.maxHitPoints) * band / 100 * def->lifePercent / 100;
 		monster.maxHitPoints = static_cast<int>(std::clamp<int64_t>(life, 64, INT32_MAX / 2));
 		monster.hitPoints = monster.maxHitPoints;
-		monster.minDamage = ScaledByte(monster.minDamage, band, def->damagePercent);
-		monster.maxDamage = std::max(ScaledByte(monster.maxDamage, band, def->damagePercent), monster.minDamage);
-		monster.minDamageSpecial = ScaledByte(monster.minDamageSpecial, band, def->damagePercent);
-		monster.maxDamageSpecial = std::max(ScaledByte(monster.maxDamageSpecial, band, def->damagePercent), monster.minDamageSpecial);
+		// The damage bytes cap at 255, and on Hell a boss's scaled blow passed it - every Guardian boss struck a flat 255 and his
+		// x2.0 or x2.4 meant nothing (round 95 audit). What does not fit is kept as a percent laid on at every blow
+		// (RiftBossDamagePercent), and the bytes keep the spread, scaled down together.
+		const auto wanted = [&](int value) { return static_cast<int64_t>(value) * band / 100 * def->damagePercent / 100; };
+		const int64_t top = std::max(wanted(monster.maxDamage), wanted(monster.maxDamageSpecial));
+		const int overflow = top > 255 ? static_cast<int>((top * 100 + 254) / 255) : 100;
+		const auto fit = [&](int value) { return static_cast<uint8_t>(std::clamp<int64_t>(wanted(value) * 100 / overflow, 0, 255)); };
+		monster.minDamage = fit(monster.minDamage);
+		monster.maxDamage = std::max(fit(monster.maxDamage), monster.minDamage);
+		monster.minDamageSpecial = fit(monster.minDamageSpecial);
+		monster.maxDamageSpecial = std::max(fit(monster.maxDamageSpecial), monster.minDamageSpecial);
+		RunState.damageOverflow = overflow;
 		monster.armorClass = ScaledByte(monster.armorClass, def->armourPercent, 100);
 		monster.resistance |= def->resistAdd;
 		// Never fire, lightning and magic at once, as SpawnRiftGuardian rules for the faces: a caster could not touch him.
@@ -755,6 +771,10 @@ bool IsRiftConjured(const Monster &monster)
 
 void ForgetRiftConjured(const Monster &monster)
 {
+	// The rift's own slots only (round 95 audit): a dungeon monster dying in a copy's slot number, the copy still alive in the
+	// rift left behind, struck the copy off - it never went, and paid in full when killed.
+	if (!InRift())
+		return;
 	const int id = static_cast<int>(monster.getId());
 	RunState.conjured.erase(std::remove_if(RunState.conjured.begin(), RunState.conjured.end(), [id](const Conjured &entry) { return entry.id == id; }),
 	    RunState.conjured.end());
@@ -777,6 +797,13 @@ void ForceNextRiftBoss(size_t index)
 {
 	if (index < RosterSize)
 		Forced = index;
+	else
+		Forced.reset();
+}
+
+void ClearForcedRiftBoss()
+{
+	Forced.reset();
 }
 
 std::optional<size_t> FindRiftBoss(std::string_view query)

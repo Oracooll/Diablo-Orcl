@@ -875,6 +875,9 @@ struct SwingLatches {
 	std::optional<oracool::ClassMeleeSkill> classMelee;
 	std::optional<SpellID> rfa12;
 	bool held = false;
+	/** The bow's too (round 95 audit): a held bow skill went on as plain, unpaid arrows after a stagger. */
+	std::optional<oracool::RogueArrow> arrow;
+	std::optional<SpellID> bowSpell;
 };
 SwingLatches StaggeredSwingLatches;
 
@@ -896,6 +899,11 @@ void RestoreStaggeredSwingLatches()
 		oracool::ArmRfa12Melee(latches.rfa12);
 	if (latches.paladin)
 		oracool::ArmMeleeSkill(latches.paladin);
+	// A bow latch is never armed beside a swing's: each arm call clears the other family.
+	if (latches.arrow)
+		oracool::ArmArrowSkill(latches.arrow);
+	else if (latches.bowSpell)
+		oracool::ArmBowSkillSpell(*latches.bowSpell);
 }
 
 HeroSpeech ShortOfPriceSpeech(const Player &player, SpellID spell); // below CheckPlrSpell; DoRangeAttack says it too
@@ -1543,6 +1551,10 @@ bool DoRangeAttack(Player &player)
 				PlaySfxLoc(arrows != 1 ? IS_STING1 : PS_BFIRE, player.position.tile);
 			}
 		}
+
+		// A quick-cast key's bow skill was this one shot's (round 95 audit).
+		if (&player == MyPlayer && player.AnimInfo.currentFrame == player._pAFNum - 1)
+			oracool::DropOneShotBowLatch();
 
 		if (DamageWeapon(player, 40)) {
 			StartStand(player, player._pdir);
@@ -2980,6 +2992,10 @@ void InitPlayerGFX(Player &player)
 
 void ResetPlayerGFX(Player &player)
 {
+	// The staff look goes with the sheets (round 95 audit): a reloaded sheet can land at the freed one's address and pass the
+	// "reloaded?" check, putting an old worn sheet back after a gear change mid-swing.
+	if (&player == MyPlayer)
+		StaffLook = {};
 	player.AnimInfo.sprites = std::nullopt;
 	for (PlayerAnimationData &animData : player.AnimationData) {
 		animData.sprites = std::nullopt;
@@ -3730,8 +3746,8 @@ void StartPlrHit(Player &player, int dam, bool forcehit)
 			// The latches armed now, whole - never mixed with an older stash, which made two families armed at once (round 62
 			// audit: a quick-cast between two staggers). Nothing armed (a second hit in recovery) keeps the stash as it is.
 			const std::optional<oracool::PaladinSkill> paladin = oracool::ArmedMeleeSkill() != oracool::PaladinSkill::Charge ? oracool::ArmedMeleeSkill() : std::nullopt;
-			if (paladin || oracool::ArmedClassMeleeSkill() || oracool::ArmedRfa12Melee())
-				StaggeredSwingLatches = { paladin, oracool::ArmedClassMeleeSkill(), oracool::ArmedRfa12Melee(), true };
+			if (paladin || oracool::ArmedClassMeleeSkill() || oracool::ArmedRfa12Melee() || oracool::ArmedArrowSkill() || oracool::ArmedBowSkillSpell())
+				StaggeredSwingLatches = { paladin, oracool::ArmedClassMeleeSkill(), oracool::ArmedRfa12Melee(), true, oracool::ArmedArrowSkill(), oracool::ArmedBowSkillSpell() };
 		}
 		if (!oracool::IsFuriousChargeDashing())
 			oracool::ArmMeleeSkill(std::nullopt);
@@ -4531,7 +4547,9 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// meaning: shoot at the cursor's tile, monster or not.
 	// Strafe held on a mouse button spins (dev note, 2026-10-03: "strafe to work as barb whirlwind") - see
 	// oracool/whirlwind.h. From a key, with no button down, it stays the single volley below.
-	if (spellID == SpellID::Strafe && (sgbMouseDown == CLICK_LEFT || sgbMouseDown == CLICK_RIGHT)) {
+	// Only when Strafe is the HELD button's skill (round 95 audit): a key's Strafe while another button walked or attacked was
+	// refused by StartStrafe and said "I can't do that"; it is the key's single volley now.
+	if (spellID == SpellID::Strafe && (sgbMouseDown == CLICK_LEFT || sgbMouseDown == CLICK_RIGHT) && oracool::StrafeReadiedOnHeldButton(myPlayer)) {
 		oracool::ArmArrowSkill(std::nullopt);
 		LastMouseButtonAction = MouseActionType::None;
 		if (!myPlayer.UsesRangedWeapon()) {
@@ -4591,6 +4609,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// its cooldown (CastRfa12Active counts them).
 	if (spellID == SpellID::Vault && spellType == SpellType::Skill) {
 		LastMouseButtonAction = MouseActionType::None;
+		oracool::ArmArrowSkill(std::nullopt); // a throw queued from where she stood does not go from where she lands (round 95 audit)
 		const SpellCheckResult check = CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/false);
 		if (check != SpellCheckResult::Success) {
 			myPlayer.Say(check == SpellCheckResult::Fail_NoMana ? ShortOfPriceSpeech(myPlayer, spellID) : HeroSpeech::ICantDoThat);

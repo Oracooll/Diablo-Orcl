@@ -248,6 +248,6 @@ void SetRiftGuardianForTest(int monsterId);
 /** @brief Test seam: opens no rift, but sets its kind, tier and boss row as OpenCommon would. */
 void SetRiftBossForTest(RiftKind kind, int tier, size_t boss);
 /** @brief The `riftboss` debug command: the open rift's bar starts full, so its boss rises on arrival. */
-void FillRiftBarOnArrival();
+void FillRiftBarOnArrival(bool full = true);
 
 } // namespace devilution::oracool

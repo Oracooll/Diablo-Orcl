@@ -305,7 +305,8 @@ int ProjectileMonsterDamage(Missile &missile)
 	// shots hit at base damage (round 11 audit, v1.12.236).
 	const int minDamage = oracool::PackAdjustedDamage(monster, monster.minDamage);
 	const int maxDamage = std::max<int>(oracool::PackAdjustedDamage(monster, monster.maxDamage), minDamage);
-	return minDamage + GenerateRnd(maxDamage - minDamage + 1);
+	// A rift boss's shot past what his damage bytes hold (round 95 audit).
+	return (minDamage + GenerateRnd(maxDamage - minDamage + 1)) * oracool::RiftBossDamagePercent(monster) / 100;
 }
 
 /**
@@ -6516,6 +6517,9 @@ void ProcessChargedBolt(Missile &missile)
 
 			missile._mirnd = (missile._mirnd + 1) & 0xF;
 			UpdateMissileVelocity(missile, missile.position.tile + md, 8);
+			// A lightning mage's bolt wears the bone tooth: it turns with the bolt, or flew sideways (round 95 audit).
+			if (missile._miAnimType == MissileGraphicID::BoneTooth)
+				SetMissDir(missile, GetDirection16(missile.position.tile, missile.position.tile + md));
 			missile.var3 = 16;
 		} else {
 			missile.var3--;

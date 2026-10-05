@@ -145,7 +145,9 @@ bool ChargePathIsDirect(const Player &player, Point target)
 	int8_t path[MaxPathLength];
 	const int steps = FindPath([&player](Point position) { return PosOkPlayer(player, position); }, player.position.future, target, path);
 	// The movers' cap (TeleportTo since round 52): no more than a tile past the straight distance.
-	return steps > 0 && steps <= player.position.tile.WalkingDistance(target) + ChargePathSlackTiles;
+	// Both from the tile the path starts on (round 95 audit): mid-step away, the line was measured from the tile she was leaving
+	// and the path from the one she was reaching, and a straight charge was refused.
+	return steps > 0 && steps <= player.position.future.WalkingDistance(target) + ChargePathSlackTiles;
 }
 
 } // namespace devilution::oracool

@@ -89,6 +89,14 @@ void ArmBowSkillSpell(SpellID spell);
 /** @brief The RfA-12 bow skill the shot being resolved was thrown with, if any. */
 std::optional<SpellID> ArmedBowSkillSpell();
 
+/**
+ * @brief The bow latch armed now came from a quick-cast key: it is that one shot's (round 95 audit). QuickCast puts a held
+ * plain attack back after it, and the held button's repeats shot - and paid - the key's skill until mana ran out.
+ */
+void MarkBowLatchOneShot();
+/** @brief After a release frame: drops a one-shot bow latch (MarkBowLatchOneShot), leaving a button's own latch alone. */
+void DropOneShotBowLatch();
+
 // ---- The Javelin & Spear page (the Rogue Skill Cards page, 2026-10-04) ----------------------------------------------
 // "all javelin strikes to use staff animations. melee attack." and, for the four throws, "this is a throw skill. we play staff
 // attack but hero releases [tinted] arrow towards target. Range - N tiles. doesnt trigger if distance is longer."

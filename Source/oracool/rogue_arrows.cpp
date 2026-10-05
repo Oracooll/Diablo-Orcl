@@ -27,6 +27,8 @@ namespace {
 /** The latch - see the header, and paladin_melee.cpp's ArmedSkill, which this mirrors. */
 std::optional<RogueArrow> ArmedArrow;
 std::optional<SpellID> ArmedBowSpell;
+/** A quick-cast armed the bow latch: it is one shot's, and goes after it (round 95 audit). */
+bool BowLatchOneShot = false;
 std::optional<SpellID> ArmedThrow;
 Point ArmedThrowTarget;
 
@@ -162,6 +164,7 @@ SpellID RogueArrowSpell(RogueArrow arrow)
 
 void ArmArrowSkill(std::optional<RogueArrow> arrow)
 {
+	BowLatchOneShot = false;
 	ArmedArrow = arrow;
 	ArmedBowSpell = std::nullopt;
 	ArmedThrow = std::nullopt;
@@ -208,6 +211,7 @@ Point ArmedJavelinThrowTarget()
 
 void ArmBowSkillSpell(SpellID spell)
 {
+	BowLatchOneShot = false;
 	ArmedArrow = std::nullopt;
 	ArmedThrow = std::nullopt;
 	ArmedBowSpell = spell;
@@ -216,6 +220,21 @@ void ArmBowSkillSpell(SpellID spell)
 std::optional<SpellID> ArmedBowSkillSpell()
 {
 	return ArmedBowSpell;
+}
+
+void MarkBowLatchOneShot()
+{
+	if (ArmedArrow.has_value() || ArmedBowSpell.has_value())
+		BowLatchOneShot = true;
+}
+
+void DropOneShotBowLatch()
+{
+	if (!BowLatchOneShot)
+		return;
+	BowLatchOneShot = false;
+	ArmedArrow = std::nullopt;
+	ArmedBowSpell = std::nullopt;
 }
 
 RogueArrowLook RogueArrowLookOf(RogueArrow arrow)

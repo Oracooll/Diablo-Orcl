@@ -323,11 +323,15 @@ std::string DebugCmdRiftBoss(const string_view parameter)
 	oracool::ForceNextRiftBoss(*found);
 	const bool opened = def.kind == oracool::RiftKind::Guardian ? oracool::OpenGuardianRift(myPlayer, oracool::NephalemRiftTierFor(myPlayer))
 	                                                            : oracool::OpenNephalemRift(myPlayer);
-	if (!opened)
+	if (!opened) {
+		oracool::ClearForcedRiftBoss(); // or the next rift of that kind would draw him (round 95 audit)
 		return "Could not open a rift here.";
-	oracool::FillRiftBarOnArrival();
-	if (!oracool::EnterRift(myPlayer))
+	}
+	oracool::FillRiftBarOnArrival(true);
+	if (!oracool::EnterRift(myPlayer)) {
+		oracool::FillRiftBarOnArrival(false); // or the next real entry would start full (round 95 audit)
 		return "The rift would not open.";
+	}
 	return StrCat("Entering a ", oracool::RiftKindName(oracool::ActiveRift()), " with its bar full: ", oracool::RiftBossName(), " rises on arrival.");
 }
 

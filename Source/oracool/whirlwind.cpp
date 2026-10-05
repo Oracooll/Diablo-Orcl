@@ -177,6 +177,11 @@ bool PayStrafeSecond(Player &player)
 
 } // namespace
 
+bool StrafeReadiedOnHeldButton(const Player &player)
+{
+	return ReadiedOn(player, sgbMouseDown) == SpellID::Strafe;
+}
+
 bool StartStrafe(Player &player)
 {
 	if (&player != MyPlayer || leveltype == DTYPE_TOWN || player._pHitPoints >> 6 <= 0 || !player.UsesRangedWeapon())

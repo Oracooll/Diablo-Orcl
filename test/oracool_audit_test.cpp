@@ -74,6 +74,7 @@
 #include "oracool/levski_cube_skin.h"
 #include "oracool/rift.h"
 #include "oracool/rift_bosses.h"
+#include "oracool/elixirs.h" // the timed elixirs count for wearing an item (round 95)
 #include "oracool/class_skills.h"
 #include "oracool/crafting.h"
 #include "oracool/gradual_healing.h"
@@ -1041,6 +1042,18 @@ TEST(OracoolStatSheet, WornItemRequirementsMeetTheSheetsStrength)
 	CalcPlrInv(player, false);
 	EXPECT_FALSE(player.CanUseItem(player.InvBody[INVLOC_HAND_LEFT])) << "a 144-strength axe at 112 strength";
 	EXPECT_FALSE(player.InvBody[INVLOC_HAND_LEFT]._iStatFlag);
+
+	// And the timed elixirs count for wearing it, as for equipping it (round 95 audit): seven Elixirs of Strength, +35, carry
+	// 112 to 147 - the axe was equipped by CanUseItem and switched off by the requirement pass, drawn red.
+	player._pElixirStacks[static_cast<size_t>(CharacterAttribute::Strength)] = 7;
+	player._pElixirTicks[static_cast<size_t>(CharacterAttribute::Strength)] = 100;
+	CalcPlrInv(player, false);
+	EXPECT_EQ(player._pStrength, 147);
+	EXPECT_TRUE(player.CanUseItem(player.InvBody[INVLOC_HAND_LEFT]));
+	EXPECT_TRUE(player.InvBody[INVLOC_HAND_LEFT]._iStatFlag) << "the elixirs' strength wears it";
+	oracool::ResetElixirs(player);
+	CalcPlrInv(player, false);
+	EXPECT_FALSE(player.InvBody[INVLOC_HAND_LEFT]._iStatFlag) << "and when they run out, it is short again";
 
 	player.InvBody[INVLOC_HAND_LEFT].clear();
 	player._pSpellFlags = SpellFlag::None;

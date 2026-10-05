@@ -1316,9 +1316,9 @@ void SetRiftGuardianForTest(int monsterId)
 	State.guardianId = monsterId;
 }
 
-void FillRiftBarOnArrival()
+void FillRiftBarOnArrival(bool full)
 {
-	State.debugBarFull = true;
+	State.debugBarFull = full;
 }
 
 void SetRiftBossForTest(RiftKind kind, int tier, size_t boss)

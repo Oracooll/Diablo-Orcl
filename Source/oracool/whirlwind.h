@@ -72,6 +72,8 @@ bool IsSpinning(const Player &player);
 
 /** @brief A mouse button went down with Strafe readied on it: start the spin. False when it did not start. */
 bool StartStrafe(Player &player);
+/** @brief Whether the mouse button held now has Strafe readied on it. */
+bool StrafeReadiedOnHeldButton(const Player &player);
 
 /**
  * @brief The right button went down with Whirlwind readied: start spinning, if there is Rage to start with and this is

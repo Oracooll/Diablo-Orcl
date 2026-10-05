@@ -156,6 +156,8 @@ struct BossGlaze {
 	uint32_t rgb;
 };
 BossGlaze RiftBossGlaze(const Monster &monster);
+/** @brief The percent laid on every blow of the guardian's: what his damage could not fit in its bytes; 100 for anything else. */
+int RiftBossDamagePercent(const Monster &monster);
 /** @brief Whether the guardian stands against knockback. */
 bool RiftBossIsSteady(const Monster &monster);
 
@@ -188,6 +190,8 @@ void ResetRiftBossesForNewGame();
 
 /** @brief The `riftboss` debug command: the next rift opened draws row @p index, on one of its homes. */
 void ForceNextRiftBoss(size_t index);
+/** @brief Drops a forced row that was never drawn (the debug command's rift did not open). */
+void ClearForcedRiftBoss();
 /** @brief The row named by @p query: a 1-based number, or a case-blind piece of its name (or its monster's). */
 std::optional<size_t> FindRiftBoss(std::string_view query);
 

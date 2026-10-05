@@ -1260,7 +1260,7 @@ int ReachTiles(SpellID spell, int r)
 	case SpellID::Arc:
 	case SpellID::ChiWave: return 3; // each leap
 	case SpellID::ShockArrow: return 3; // the arc
-	case SpellID::ShadowStep: return 2; // from the cursor
+	case SpellID::ShadowStep: return std::min(6 + p / 4, 10); // how far toward the cursor (round 95 audit: the old 2 capped the step)
 	case SpellID::CorpseExplosion:
 	case SpellID::PoisonExplosion: return 2; // around the corpse
 	case SpellID::BoneSpikes: return 1;
@@ -4744,6 +4744,11 @@ void ClearRfa12ActivesForMonster(const Monster &monster)
 			state.echoTicks = 0;
 		}
 	}
+	// Barrage's last four arrows name their target by slot too (round 95 audit): a new monster in it took them.
+	for (Field &field : Fields) {
+		if (field.spell == SpellID::Barrage && field.step == id)
+			field.step = -1;
+	}
 	for (Marks &marks : MonsterMarks) {
 		if (marks.threadPartner == id) {
 			marks.threadPartner = -1;
@@ -5201,7 +5206,7 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		say(_("Magic damage: {:d}% of an arrow, every enemy within {:d} tiles"), blow, reach);
 		break;
 	case SpellID::ShadowStep:
-		say(_("Steps to the far side of an enemy within {:d} tiles of the cursor"), reach);
+		say(_("Steps to the cursor, up to {:d} tiles"), reach);
 		break;
 	case SpellID::HuntersClaim:
 		say(_("Your arrows pass every ordinary monster on the way to the claimed one, for {} s"), Secs(EffectTicks(spell, r)));

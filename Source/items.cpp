@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <bitset>
+#include <limits>
 #ifdef _DEBUG
 #include <random>
 #endif
@@ -944,9 +945,11 @@ void CalcSelfItems(Player &player)
 	do {
 		oracool::ItemBonusTotals totals;
 		oracool::AccumulateBonuses({ &player }, totals);
-		const int currstr = std::max(0, totals.strength + player._pBaseStr);
-		const int currmag = std::max(0, totals.magic + player._pBaseMag);
-		const int currdex = std::max(0, totals.dexterity + player._pBaseDex);
+		// And the timed elixirs, which CalcPlrItemVals adds and CanUseItem equips by (round 95 audit: an axe equipped on two
+		// Elixirs of Strength was switched off here and drawn red).
+		const int currstr = std::max(0, totals.strength + player._pBaseStr + oracool::ElixirBonus(player, CharacterAttribute::Strength));
+		const int currmag = std::max(0, totals.magic + player._pBaseMag + oracool::ElixirBonus(player, CharacterAttribute::Magic));
+		const int currdex = std::max(0, totals.dexterity + player._pBaseDex + oracool::ElixirBonus(player, CharacterAttribute::Dexterity));
 
 		changeflag = false;
 		for (Item &equipment : EquippedPlayerItemsRange(player)) {
@@ -2349,15 +2352,25 @@ _item_indexes RndAllItems()
 /** @brief A droppable base of @p itemType (and misc id @p imid, -1 for any) whose pool level is at most @p itemMaxLevel. */
 _item_indexes RndTypeItemsUpTo(ItemType itemType, int imid, int itemMaxLevel)
 {
-	return GetItemIndexForDroppableItem(false, [&itemMaxLevel, &itemType, &imid](const ItemData &item) {
-		if (itemMaxLevel < PoolQlvl(item))
-			return false;
+	int lowest = std::numeric_limits<int>::max();
+	bool any = false;
+	const _item_indexes idx = GetItemIndexForDroppableItem(false, [&](const ItemData &item) {
 		if (item.itype != itemType)
 			return false;
 		if (imid != -1 && item.iMiscId != imid)
 			return false;
+		lowest = std::min(lowest, PoolQlvl(item));
+		if (itemMaxLevel < PoolQlvl(item))
+			return false;
+		any = true;
 		return true;
 	});
+	// No base of the type that low (round 95 audit: an armour stand on Normal floor 6 asked for medium armour at level 6, and
+	// on floors 10-16 for heavy armour, which starts at 17): the draw read a stale slot and the stand dropped a potion or a
+	// ring. It takes the type's lowest base instead. A draw that found one is untouched, seed for seed.
+	if (!any && lowest != std::numeric_limits<int>::max())
+		return RndTypeItemsUpTo(itemType, imid, lowest);
+	return idx;
 }
 
 _item_indexes RndTypeItems(ItemType itemType, int imid, int lvl)
@@ -3380,18 +3393,12 @@ bool HealerItemOk(const Player &player, const ItemData &item)
 		return item.iSpell == SpellID::HealOther && gbIsMultiplayer;
 
 	if (!gbIsMultiplayer) {
-		// Against MaxBaseAttribute, the cap every base stat has in this fork (ModifyPlr*, StatPointsToSpend, the hero file):
-		// the class row's vanilla maximum stopped the elixirs early - a Paladin at 60 Dexterity, a Barbarian's Magic never
-		// (round 10 audit, v1.12.235).
-		constexpr int BaseCap = MaxBaseAttribute;
-		if (item.iMiscId == IMISC_ELIXSTR)
-			return player._pBaseStr < BaseCap;
+		// The elixirs are timed now (v1.12.362) and touch no base stat, so a base at its cap no longer stops them; only the one a
+		// hero cannot drink is kept off the shelf - Magic for a Barbarian, who refuses it (round 95 audit).
 		if (item.iMiscId == IMISC_ELIXMAG)
-			return player._pBaseMag < BaseCap;
-		if (item.iMiscId == IMISC_ELIXDEX)
-			return player._pBaseDex < BaseCap;
-		if (item.iMiscId == IMISC_ELIXVIT)
-			return player._pBaseVit < BaseCap;
+			return !oracool::UsesRage(player);
+		if (IsAnyOf(item.iMiscId, IMISC_ELIXSTR, IMISC_ELIXDEX, IMISC_ELIXVIT))
+			return true;
 	}
 
 	if (item.iMiscId == IMISC_REJUV)

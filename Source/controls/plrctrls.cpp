@@ -2542,7 +2542,13 @@ void QuickCast(size_t slot)
 		UpdateSpellTarget(spell);
 	}
 
+	const std::optional<oracool::RogueArrow> heldArrow = oracool::ArmedArrowSkill();
+	const std::optional<SpellID> heldBowSpell = oracool::ArmedBowSkillSpell();
 	CheckPlrSpell(false, spell, spellType);
+	// A bow skill from a key is one shot (round 95 audit): the held attack put back below would repeat it, paid, every shot.
+	// Only a latch this key armed - the held button's own stays its own.
+	if (oracool::ArmedArrowSkill() != heldArrow || oracool::ArmedBowSkillSpell() != heldBowSpell)
+		oracool::MarkBowLatchOneShot();
 	LastMouseButtonAction = prevMouseButtonAction;
 	LastMouseButtonSpell = prevMouseButtonSpell;
 	LastMouseButtonSpellType = prevMouseButtonSpellType;
