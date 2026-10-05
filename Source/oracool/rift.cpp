@@ -98,16 +98,18 @@ struct RiftState {
 	int spawnNoteTicks = 0;
 	/** Opened by the `riftboss` debug command: the bar is full from the start. */
 	bool debugBarFull = false;
-	/**
-	 * The next Guardian Keystone, owed since the kill until it is in the hero's pack, belt or stash (rounds 104-105 audit):
-	 * known by its seed, so a spare keystone on the floor or one held on the cursor does not settle it. 0 when it could not
-	 * be laid at all.
-	 */
-	bool rewardOwed = false;
-	uint32_t rewardSeed = 0;
 };
 
 RiftState State;
+
+/**
+ * The next Guardian Keystone, owed since the kill until it is in the hero's pack, belt or stash (rounds 104-106 audit): known
+ * by its seed, so a spare keystone on the floor or one held on the cursor does not settle it; 0 when it could not be laid at
+ * all. NOT in RiftState: the rift ending (town rebuilt, EndRift, a new rift) wiped it while the tier stayed owed, and the
+ * reward carried out on the cursor was refunded a second time (round 106 audit). Only a new game clears it.
+ */
+bool RewardOwed = false;
+uint32_t RewardSeed = 0;
 
 /** @brief The floor the DRLG is told it is building, per tileset: one with no quest set piece of its own
  * (the Catacombs and Caves have a quest on every floor; 7 and 11 carry the smallest stamps). */
@@ -294,12 +296,18 @@ bool OpenGuardianRift(Player &player, int tier)
 		return false;
 	// A keystone still owed from before (a refund that found no room) is given now, or the rift is not opened: entering it
 	// writes the owed tier anew, and the older debt was lost (round 105 audit).
-	if (State.kind == RiftKind::None && player._pOracoolOwedKeystoneTier > 0) {
+	// Whatever rift is open (round 106 audit: a Nephalem Rift left open skipped this, and the entry overwrote the older debt) -
+	// EnteredRiftStillOpen above has already refused a Guardian Rift still running.
+	SettleRiftRewardKeystone(player); // a reward already in his keeping owes nothing
+	const bool rewardOnCursor = RewardOwed && RewardSeed != 0 && player.HoldItem._iMiscId == IMISC_ORACOOL_KEYSTONE
+	    && player.HoldItem._iSeed == RewardSeed;
+	if (player._pOracoolOwedKeystoneTier > 0 && !rewardOnCursor) {
 		RefundOwedGuardianKeystone(player);
 		if (player._pOracoolOwedKeystoneTier > 0) {
 			EventPlrMsg("Make room in the pack or the stash for the keystone you are owed first.", UiFlags::ColorRed);
 			return false;
 		}
+		RewardOwed = false; // given back: a reward left on an ended rift's floor is not owed twice
 	}
 	OpenCommon(player, RiftKind::Guardian, tier);
 	return true;
@@ -314,11 +322,14 @@ bool UseGuardianKeystone(Player &player, const Item &keystone)
 {
 	if (&player != MyPlayer || !player.isOnLevel(0) || setlevel)
 		return false;
+	// Read before opening (round 106 audit): the refund OpenGuardianRift may give can grow the stash's vector, and a keystone
+	// used from the stash is a reference into it.
 	const int tier = std::max<int>(1, keystone._iOracoolRiftTier);
+	const uint32_t seed = keystone._iSeed;
 	if (!OpenGuardianRift(player, tier))
 		return false;
 	State.keystonePending = true;
-	State.keystoneSeed = keystone._iSeed;
+	State.keystoneSeed = seed;
 	LightStonegate(RiftKind::Guardian);
 	LogEvent(StrCat("The keystone turns: a violet portal opens in the Rift Monument - a Guardian Rift, tier ", tier,
 	             ", fifteen minutes. ", RiftBossName(), " waits at the end. The keystone is spent when you step through."),
@@ -347,11 +358,11 @@ bool HeroKeepsKeystone(const Player &player, uint32_t seed)
 
 void SettleRiftRewardKeystone(Player &player)
 {
-	if (!State.rewardOwed || State.rewardSeed == 0 || &player != MyPlayer)
+	if (!RewardOwed || RewardSeed == 0 || &player != MyPlayer)
 		return;
-	if (!HeroKeepsKeystone(player, State.rewardSeed))
+	if (!HeroKeepsKeystone(player, RewardSeed))
 		return; // on the floor, on the cursor, or not yet his
-	State.rewardOwed = false;
+	RewardOwed = false;
 	player._pOracoolOwedKeystoneTier = 0;
 }
 
@@ -695,10 +706,11 @@ void FinishRiftLevel(bool fresh)
 		ResetRiftBossRun(); // and his copies and raised dead name the lost floor's slots (round 104 audit)
 	}
 	// A cleared floor built anew lost the reward lying on it: laid again where he fell (round 105 audit).
-	if (State.done && State.rewardOwed && MyPlayer != nullptr && MyPlayer->_pOracoolOwedKeystoneTier > 0
-	    && (State.rewardSeed == 0 || !HeroKeepsKeystone(*MyPlayer, State.rewardSeed))) {
+	if (State.done && RewardOwed && MyPlayer != nullptr && MyPlayer->_pOracoolOwedKeystoneTier > 0
+	    && (RewardSeed == 0 || !HeroKeepsKeystone(*MyPlayer, RewardSeed))
+	    && !(MyPlayer->HoldItem._iMiscId == IMISC_ORACOOL_KEYSTONE && MyPlayer->HoldItem._iSeed == RewardSeed && RewardSeed != 0)) {
 		if (DropKeystoneAt(State.homeTile, MyPlayer->_pOracoolOwedKeystoneTier))
-			State.rewardSeed = LastLaidKeystoneSeed;
+			RewardSeed = LastLaidKeystoneSeed;
 	}
 	const uint8_t savedLevel = currlevel;
 	currlevel = static_cast<uint8_t>(GenerationFloorFor(leveltype));
@@ -1005,9 +1017,9 @@ void OnRiftMonsterKilled(const Monster &monster)
 			// clears the debt when the keystone with this seed is in the pack, the belt or the stash.
 			if (next > 0 && MyPlayer != nullptr) {
 				MyPlayer->_pOracoolOwedKeystoneTier = static_cast<uint16_t>(std::min(next, 255));
-				State.rewardOwed = true;
-				State.rewardSeed = DropKeystoneAt(monster.position.tile, next) ? LastLaidKeystoneSeed : 0;
-				if (State.rewardSeed == 0)
+				RewardOwed = true;
+				RewardSeed = DropKeystoneAt(monster.position.tile, next) ? LastLaidKeystoneSeed : 0;
+				if (RewardSeed == 0)
 					LogEvent("The floor is too full for the keystone: it is owed to you, and comes back next game.", UiFlags::ColorRed);
 			}
 		}
@@ -1127,6 +1139,13 @@ void ProcessRift()
 		return;
 	}
 
+	// In town too: a reward carried out on the cursor and put away (round 106 audit). Once a second: it scans the pack and the
+	// stash; the exit save and the carry home settle at once.
+	static int settleClock = 0;
+	if (MyPlayer != nullptr && ++settleClock >= RiftTicksPerSecond) {
+		settleClock = 0;
+		SettleRiftRewardKeystone(*MyPlayer);
+	}
 	if (leveltype == DTYPE_TOWN) {
 		// The portal in the gate after town is rebuilt (a death in the rift): AddStonegateObject runs
 		// before InitMissiles clears the list, so the relight happens here, once the missiles exist.
@@ -1139,8 +1158,6 @@ void ProcessRift()
 	// their own, so they go when their ten seconds are up even after he has fallen.
 	if (InRift())
 		TickRiftConjured();
-	if (MyPlayer != nullptr)
-		SettleRiftRewardKeystone(*MyPlayer); // the next keystone, owed since the kill, once it is in his keeping
 	if (InRift() && State.guardianSpawned && !State.done && State.guardianId >= 0) {
 		Monster &boss = Monsters[State.guardianId];
 		if (boss.hitPoints > 0 && boss.mode != MonsterMode::Death)
@@ -1412,8 +1429,8 @@ void FillRiftBarOnArrival(bool full)
 
 void SetRiftRewardForTest(uint32_t seed)
 {
-	State.rewardOwed = true;
-	State.rewardSeed = seed;
+	RewardOwed = true;
+	RewardSeed = seed;
 }
 
 void SetRiftBossForTest(RiftKind kind, int tier, size_t boss)
@@ -1427,6 +1444,8 @@ void SetRiftBossForTest(RiftKind kind, int tier, size_t boss)
 void ResetRiftForNewGame()
 {
 	State = RiftState {};
+	RewardOwed = false;
+	RewardSeed = 0;
 	ResetRiftBossesForNewGame();
 }
 

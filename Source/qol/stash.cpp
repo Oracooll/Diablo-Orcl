@@ -1350,7 +1350,10 @@ bool UseStashItem(uint16_t c)
 	}
 	if (item->_iMiscId == IMISC_ORACOOL_KEYSTONE || item->_iMiscId == IMISC_ORACOOL_MAP) {
 		bool opened = false;
-		if (item->_iMiscId == IMISC_ORACOOL_KEYSTONE) {
+		// Read now: opening a Guardian Rift may give back an owed keystone into this very stash, and `item` points into it
+		// (round 106 audit).
+		const bool isKeystone = item->_iMiscId == IMISC_ORACOOL_KEYSTONE;
+		if (isKeystone) {
 			opened = oracool::UseGuardianKeystone(*MyPlayer, *item);
 			if (!opened && (!MyPlayer->isOnLevel(0) || setlevel)) // in town the refusal logged its own reason
 				oracool::LogEvent("A keystone only turns in town, at the Rift Monument.");
@@ -1369,7 +1372,7 @@ bool UseStashItem(uint16_t c)
 			return true;
 		}
 		// A keystone stays until the first step through the portal (oracool::SpendPendingKeystone); a map is used now.
-		if (item->_iMiscId == IMISC_ORACOOL_KEYSTONE)
+		if (isKeystone)
 			return true;
 		Stash.RemoveStashItem(c);
 		oracool::ScheduleAutoSaveForStashChange();

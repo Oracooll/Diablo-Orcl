@@ -1264,13 +1264,15 @@ Monster *PickCompanionTarget(const Monster &companion, const CompanionOrders &or
 	int bestDistance = 0;
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		Monster &monster = Monsters[ActiveMonsters[i]];
-		if (!Targetable(monster) || !inReach(monster))
+		if (!Targetable(monster))
 			continue;
 		const int distance = orders.owner.WalkingDistance(monster.position.tile);
-		if (best == nullptr || distance < bestDistance) {
-			best = &monster;
-			bestDistance = distance;
-		}
+		if (best != nullptr && distance >= bestDistance)
+			continue; // no nearer than the best: no sight line paid for it (round 106)
+		if (!inReach(monster))
+			continue;
+		best = &monster;
+		bestDistance = distance;
 	}
 	return best;
 }

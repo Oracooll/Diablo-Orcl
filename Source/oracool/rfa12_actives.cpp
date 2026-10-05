@@ -68,7 +68,10 @@ bool SightLineClear(Point from, Point to)
 	// And no step of the line squeezed diagonally between two corner-touching walls, at the ends or in the middle (rounds 98-99
 	// audit). The tiles come in line order but either end first, so they are put in order from @p from.
 	const size_t tiles = std::min(pathLength, path.size());
-	std::sort(path.begin(), path.begin() + tiles, [from](Point a, Point b) { return from.WalkingDistance(a) < from.WalkingDistance(b); });
+	// LineClear visits them in line order from one end or the other: reversed if it began at @p to (round 106: a sort was paid
+	// on every call for what one comparison decides).
+	if (tiles > 1 && from.WalkingDistance(path[0]) > from.WalkingDistance(path[tiles - 1]))
+		std::reverse(path.begin(), path.begin() + tiles);
 	// Walls by the property the line itself is stopped by, not IsTileSolid (round 100 audit: lava and chasms are solid but a
 	// missile flies over them, and every off-axis line across a lava pool was refused).
 	const auto squeezed = [](Point a, Point b) {
@@ -309,13 +312,13 @@ Monster *NearestTo(Point centre, int radius, const Monster *except = nullptr)
 		Monster &monster = Monsters[ActiveMonsters[i]];
 		if (&monster == except || !Hittable(monster))
 			continue;
+		const int distance = centre.WalkingDistance(monster.position.tile);
+		if (distance >= bestDistance)
+			continue; // the cheap test first: a sight line for every monster on the floor was paid per cast (round 106)
 		if (CastSightFrom && !SightLineClear(*CastSightFrom, monster.position.tile))
 			continue;
-		const int distance = centre.WalkingDistance(monster.position.tile);
-		if (distance < bestDistance) {
-			bestDistance = distance;
-			best = &monster;
-		}
+		bestDistance = distance;
+		best = &monster;
 	}
 	return best;
 }

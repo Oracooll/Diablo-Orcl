@@ -4639,6 +4639,10 @@ Monster *SpawnRiftGuardian()
 {
 	if (MyPlayer == nullptr || !EnemyMonsterRoomLeft())
 		return nullptr;
+	// His type loaded, before the search (round 106 audit: the search ran first, then this refusal, and ProcessRift retried it
+	// every tick).
+	if (GetMonsterTypeIndex(oracool::ActiveRiftBoss().type) == LevelMonsterTypeCount)
+		return nullptr;
 	const Point hero = MyPlayer->position.tile;
 
 	// Open ground near the hero (plan r4): the nearest ring of tiles from three out that can take a
@@ -4650,6 +4654,10 @@ Monster *SpawnRiftGuardian()
 	// First a tile the hero can see, so he rises in this room and not the next one over a wall (round 48 audit); only when
 	// none qualifies, any open tile, as before.
 	std::optional<Point> spot;
+	// At most this many reachability paths (round 106 audit: a hero by a lava lake saw hundreds of unreachable tiles, each a
+	// failed 300-node path - a hitch of tens of milliseconds).
+	int pathTries = 0;
+	constexpr int MaxPathTries = 32;
 	for (const bool sighted : { true, false }) {
 		// The sighted pass only to 20: past it no walk of 20 steps can reach, and each tile there cost a sight line and a path (round 104).
 		for (int radius = 3; radius <= (sighted ? 20 : 40) && !spot; radius++) {
@@ -4659,7 +4667,7 @@ Monster *SpawnRiftGuardian()
 						continue;
 					const Point candidate = hero + Displacement { dx, dy };
 					if (InDungeonBounds(candidate) && dMonster[candidate.x][candidate.y] == 0 && dPlayer[candidate.x][candidate.y] == 0
-					    && !TileContainsSetPiece(candidate) && !IsTileOccupied(candidate) && (!sighted || RiftGuardianSpotReachable(hero, candidate))) {
+					    && !TileContainsSetPiece(candidate) && !IsTileOccupied(candidate) && (!sighted || (pathTries++ < MaxPathTries && RiftGuardianSpotReachable(hero, candidate)))) {
 						spot = candidate;
 						break;
 					}

@@ -1030,10 +1030,10 @@ bool GuardianTryFireAt(Missile &missile, Point target)
 	// Town's dMonster holds towner ids, not monsters (round 6 audit, v1.12.231). The Guardian fired on Griswold and Ogden.
 	if (leveltype == DTYPE_TOWN)
 		return false;
-	if (!oracool::SightLineClear(position, target))
-		return false;
 	int mid = dMonster[target.x][target.y] - 1;
 	if (mid < 0)
+		return false; // nobody there: no sight line paid for the empty tile (round 106)
+	if (!oracool::SightLineClear(position, target))
 		return false;
 	const Monster &monster = Monsters[mid];
 	if (monster.isPlayerMinion() || oracool::IsMonsterConverted(monster)) // nor a converted ally (round 84 audit)
