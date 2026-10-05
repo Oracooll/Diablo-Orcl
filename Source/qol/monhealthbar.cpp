@@ -158,8 +158,12 @@ void DrawMonsterHealthBar(const Surface &out)
 	// player cannot read is just a monster that unaccountably hits harder - the same argument that
 	// put the champion's own modifier on this bar in the first place.
 	std::string displayName = oracool::GetMonsterDisplayName(monster);
-	if (const char *lent = oracool::PackAuraName(monster); lent[0] != '\0')
-		StrAppend(displayName, " (", _(lent), ")");
+	if (const char *lent = oracool::PackAuraName(monster); lent[0] != '\0') {
+		// The lent aura only where it fits (round 102 audit: a rift boss's long name plus " (Defiance)" ran past the bar).
+		const std::string withAura = StrCat(displayName, " (", _(lent), ")");
+		if (GetLineWidth(withAura) <= width - 4)
+			displayName = withAura;
+	}
 	const string_view name = displayName;
 
 	DrawString(out, name, { position + Displacement { -1, 1 }, { width, height } }, { style | UiFlags::ColorBlack });

@@ -323,6 +323,9 @@ bool ProcessInput()
 		// Menu" card hung over the menu the whole time it was open (dev note, 2026-10-04). Cleared here, each frame it is up.
 		ClearPanelStrings();
 		panelflag = false;
+		// And the hovered monster and item: the last one's health bar hung over the menu too (round 102 audit).
+		pcursmonst = -1;
+		pcursitem = -1;
 		RedrawViewport();
 		return false;
 	}

@@ -846,6 +846,13 @@ int RiftScalePercent(int tier, int floorTier)
 	return 100 + RiftScalePercentPerTier * extra;
 }
 
+int RiftMonsterScalePercent()
+{
+	if (State.kind == RiftKind::None)
+		return 100;
+	return std::max(100, RiftScalePercent(State.tier, AreaLevel(RiftMonsterBandFloor(), sgGameInitInfo.nDifficulty)));
+}
+
 void ScaleRiftMonster(Monster &monster)
 {
 	if (State.kind == RiftKind::None || monster.isPlayerMinion() || monster.type().type == MT_GOLEM)
@@ -1276,8 +1283,12 @@ void DrawRiftHud(const Surface &out)
 		label += fmt::format(": cleared - closes in {:d}s", RiftCloseSecondsLeft()); // the countdown (user, 2026-09-20)
 	else if (State.done)
 		label += ": cleared";
-	else if (State.guardianSpawned)
-		label += StrCat(": ", RiftBossName());
+	else if (State.guardianSpawned) {
+		// His name, unless it would push the line past the mini-map's width into the timer column below it (round 102 audit:
+		// "Captain Sareth of the Red Watch" ran over the elixir countdowns); his health bar carries the name anyway.
+		const std::string named = StrCat(label, ": ", RiftBossName());
+		label = GetLineWidth(named, GameFont12) + 60 <= BarWidth ? named : StrCat(label, ": the boss");
+	}
 	else
 		label += fmt::format("  {:d}%", RiftProgressPercent());
 	if (State.kind == RiftKind::Guardian && !State.done)

@@ -324,9 +324,16 @@ void BlinkNearHero(Monster &monster, int tiles)
 	const Player *hero = MyPlayer;
 	if (hero == nullptr)
 		return;
-	const auto dir = static_cast<Direction>(GenerateRnd(8));
-	// Onto a tile the hero can see (round 101 audit: a random aim landed him past a wall, in a sealed pocket).
-	MoveMonsterInstantly(monster, hero->position.tile + Displacement(dir) * tiles, hero->position.tile);
+	// Onto a tile the hero can see (round 101 audit: a random aim landed him past a wall, in a sealed pocket) - every direction
+	// from a random one, then beside the hero (round 102 audit: in a narrow passage one direction rarely had such a tile, and
+	// the blink did nothing).
+	const int first = GenerateRnd(8);
+	for (int i = 0; i < 8; i++) {
+		const auto dir = static_cast<Direction>((first + i) % 8);
+		if (MoveMonsterInstantly(monster, hero->position.tile + Displacement(dir) * tiles, hero->position.tile))
+			return;
+	}
+	MoveMonsterInstantly(monster, hero->position.tile, hero->position.tile);
 }
 
 } // namespace
@@ -493,7 +500,10 @@ void OnRiftBossRisen(Monster &monster)
 		return;
 	RunState = Run {};
 	if (!def->original) {
-		const int band = def->face == RiftGuardianType::None ? BandPercent(*def) : 100;
+		// The floor band for a roster boss of an ordinary type, and for every non-original row the rift's tier scaling too, which
+		// SpawnRiftGuardian leaves to this (round 102 audit: applied there first, it was clamped away with the damage bytes).
+		const int tier = RiftMonsterScalePercent();
+		const int band = (def->face == RiftGuardianType::None ? BandPercent(*def) : 100) * tier / 100;
 		const int64_t life = static_cast<int64_t>(monster.maxHitPoints) * band / 100 * def->lifePercent / 100;
 		monster.maxHitPoints = static_cast<int>(std::clamp<int64_t>(life, 64, INT32_MAX / 2));
 		monster.hitPoints = monster.maxHitPoints;
@@ -509,7 +519,7 @@ void OnRiftBossRisen(Monster &monster)
 		monster.minDamageSpecial = fit(monster.minDamageSpecial);
 		monster.maxDamageSpecial = std::max(fit(monster.maxDamageSpecial), monster.minDamageSpecial);
 		RunState.damageOverflow = overflow;
-		monster.armorClass = ScaledByte(monster.armorClass, def->armourPercent, 100);
+		monster.armorClass = ScaledByte(monster.armorClass + (tier - 100) / 6, def->armourPercent, 100); // ScaleRiftMonster's armour rule
 		monster.resistance |= def->resistAdd;
 		// Never fire, lightning and magic at once, as SpawnRiftGuardian rules for the faces: a caster could not touch him.
 		constexpr uint16_t AllThree = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;

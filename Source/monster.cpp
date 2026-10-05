@@ -4181,6 +4181,9 @@ void GetLevelMTypes()
 		// rift_bosses.h), with his escort and what he raises. A Skeleton King with nothing named to raise also wants a skeleton
 		// type on the floor, as ever.
 		const oracool::RiftBossDef &riftBoss = oracool::ActiveRiftBoss();
+		// The boss and his own are not charged to the floor's image budget (round 102 audit): a Balrog, a Doom Guard or a Mage
+		// with his escort ate all 4000, the roster below found no room, and the rift had nothing to kill - the bar never filled.
+		const int budgetBeforeBoss = monstimgtot;
 		AddMonsterType(riftBoss.type, PLACE_SPECIAL);
 		for (const _monster_id extra : oracool::RiftBossExtraTypes())
 			AddMonsterType(extra, PLACE_SPECIAL);
@@ -4201,6 +4204,7 @@ void GetLevelMTypes()
 			if (skeletonTypeCount > 0)
 				AddMonsterType(skeltypes[GenerateRnd(skeletonTypeCount)], PLACE_SPECIAL);
 		}
+		monstimgtot = budgetBeforeBoss;
 
 		// The roster (plan r2): a mix from the WHOLE game in the tier's band - a Caves floor full of
 		// Cathedral skeletons and Hell knights - under the same image budget a floor has.
@@ -4230,6 +4234,19 @@ void GetLevelMTypes()
 			AddMonsterType(typelist[i], PLACE_SCATTER);
 			typelist[i] = typelist[--nt];
 			picked++;
+		}
+		// Never an empty floor (round 102 audit): the lightest accepted type, whatever the budget says.
+		if (picked == 0) {
+			_monster_id lightest = MT_INVALID;
+			for (int i = MT_NZOMBIE; i < NUM_MTYPES; i++) {
+				const auto id = static_cast<_monster_id>(i);
+				if (IsAnyOf(id, MT_GOLEM, MT_DIABLO, MT_NAKRUL, MT_SKING, MT_CLEAVER) || !oracool::RiftAcceptsMonster(MonstersData[i]))
+					continue;
+				if (lightest == MT_INVALID || MonstersData[i].image < MonstersData[lightest].image)
+					lightest = id;
+			}
+			if (lightest != MT_INVALID && LevelMonsterTypeCount < MaxLvlMTypes)
+				AddMonsterType(lightest, PLACE_SCATTER);
 		}
 	} else {
 		if (setlvlnum == SL_SKELKING) {
@@ -4690,7 +4707,10 @@ Monster *SpawnRiftGuardian()
 	// No corpse entry of his own - he rises after InitCorpses - so none inherited either: the slot's last unique's id drew
 	// his body over a dead champion's, or drew none (round 20 audit, v1.12.245). His type's plain body is his.
 	monster.corpseId = 0;
-	oracool::ScaleRiftMonster(monster);
+	// A roster boss takes the tier's scaling inside his own (OnRiftBossRisen): scaled here first, his damage bytes clamped at 255
+	// and the tier was lost past it (round 102 audit). The four faces of old are scaled here, as ever.
+	if (oracool::ActiveRiftBoss().original)
+		oracool::ScaleRiftMonster(monster);
 	return &monster;
 }
 

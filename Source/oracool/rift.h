@@ -192,6 +192,8 @@ bool RiftAcceptsMonster(const MonsterData &data);
 void RiftLevelPopulated();
 /** @brief Tier scaling on one monster of the rift floor (or the guardian): life, damage, armour. */
 void ScaleRiftMonster(Monster &monster);
+/** @brief The percent ScaleRiftMonster lays on the open rift's monsters (100 when none) - a roster boss takes it in his own sums. */
+int RiftMonsterScalePercent();
 /** @brief The percentage scale RiftTier would apply above @p floorTier (100 = none). Exposed for tests. */
 int RiftScalePercent(int tier, int floorTier);
 /** @brief The credit a kill of @p monster adds to the bar (0 for the hero's own). */
