@@ -570,7 +570,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 2, 3, 2, Kind::Active, SpellID::FurnaceMouth, true },
 	{ N_("Firestorm"), N_("For 4 seconds you hurl fireballs at points scattered around the cursor; each bursts on the first thing in its path."),
 	    Sor, 2, 4, 1, Kind::Active, SpellID::Firestorm, true },
-	{ N_("Immolate"), N_("For 10 seconds you burn everything beside you, nine times, once a second: 3-6 fire damage, +1-2 per level."),
+	{ N_("Immolate"), N_("For 10 seconds you burn everything beside you, ten times, once a second: 3-6 fire damage, +1-2 per level."),
 	    Sor, 2, 4, 2, Kind::Active, SpellID::Immolate, true },
 	{ N_("Funeral Spiral"), N_("Twelve fireballs burst from you and spiral outward; each strikes the first enemy it meets for 15-30 fire damage, +6-10 per level."),
 	    Sor, 2, 5, 2, Kind::Active, SpellID::FuneralStar, true },
@@ -890,16 +890,16 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 1, 4, 0, Kind::Active, SpellID::PurifyingBreath, true, 5 },
 	{ N_("Hundred Fists"), N_("Four blows in one swing, one more every two ranks up to seven; the extra blows at 50% damage."),
 	    Monk, 1, 5, 0, Kind::Active, SpellID::HundredFists, true, 5 },
-	{ N_("Perfect Vessel"), N_("Your mastery of the body empowers every Way of the Body skill: +10% life, +2% per rank, and you shake off hits faster."),
+	{ N_("Perfect Vessel"), N_("Your mastery of the body: +10% life, +2% per rank, and you shake off hits faster."),
 	    Monk, 1, 5, 1, Kind::Passive, SpellID::Invalid, true, 5 },
 	// --- Way of the Spirit ---
-	{ N_("Inner Sight"), N_("Reveal nearby objects, traps and treasure. The Monk's own Search, raised by books rather than skill points."),
+	{ N_("Inner Sight"), N_("Reveal the items lying on the ground nearby. The Monk's own Search, raised by books rather than skill points."),
 	    Monk, 2, 0, 0, Kind::Active, SpellID::Search, true, 5 },
 	{ N_("Healing Mantra"), N_("Restore life to yourself over time. Held like an aura rather than cast, so it mends you for as long as it plays."),
 	    Monk, 2, 1, 0, Kind::Aura, SpellID::Invalid, true, 5 },
 	{ N_("Temple Bell"), N_("A tone that strikes every undead in earshot for three to six a rank, staggers it and drives it back."),
 	    Monk, 2, 2, 0, Kind::Active, SpellID::TempleBell, true, 5 },
-	{ N_("Spirit Ward"), N_("Surround yourself with a barrier against magic. Rides this engine's Mana Shield, which drinks the blow into your mana; raised by books rather than skill points."),
+	{ N_("Spirit Ward"), N_("Surround yourself with a spirit barrier. Rides this engine's Mana Shield, which drinks the blow into your mana; raised by books rather than skill points."),
 	    Monk, 2, 3, 0, Kind::Active, SpellID::ManaShield, true, 5 },
 	{ N_("Radiant Palm"), N_("A strike at +20% damage, +10% per rank; an enemy it kills erupts, dealing the blow again to everything beside it."),
 	    Monk, 2, 4, 0, Kind::Active, SpellID::RadiantPalm, true, 5 },
@@ -922,7 +922,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 3, 1, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("The Guardian's Path"), N_("With a one-handed weapon and the other hand empty, 15% of melee blows miss you; with a two-handed staff, you hold 20 more mana."),
 	    Monk, 3, 2, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Sixth Sense"), N_("Everything that is not steel - fire, lightning, cold, magic - deals -25% damage to you."),
+	{ N_("Sixth Sense"), N_("Everything that is not steel - fire, lightning, cold, magic, acid - deals -25% damage to you."),
 	    Monk, 3, 2, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Determination"), N_("Every enemy pressing close gives you +5% damage, up to +20%."),
 	    Monk, 3, 2, 2, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -3364,7 +3364,9 @@ std::string ClassTreeRankBlock(const Player &player, Skill skill, int points)
 	if (data.kind == Kind::Active) {
 		// With the items' +spell levels, which every effect reads through GetSpellLevel (audit, 2026-09-27): the block
 		// showed the invested rank alone, so a +2 item left the hover two ranks behind the swing.
-		const int at = std::max(points + player._pISplLvlAdd, 1);
+		// Floored as GetSpellLevel floors it once a point is in (round 110 audit: -spell-level gear such as Bovine Plate cast a
+		// one-point skill at level 0 while the hover showed level 1); an unlearned row still previews its first rank.
+		const int at = points > 0 ? std::max<int>(points + player._pISplLvlAdd, 0) : std::max<int>(player._pISplLvlAdd, 1);
 		if (const SpellID spell = ClassTreeSpellId(skill); IsValidSpell(spell))
 			line(SpellLevelLines(player, spell, at));
 		// The level-up stat is the points' alone: ApplyClassTreeToTotals applies it at the investment, not at the spell

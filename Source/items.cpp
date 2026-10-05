@@ -5170,6 +5170,10 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	player._pIBonusDam = bdam;
 	player._pIBonusToHit = btohit;
 	player._pIBonusAC = bac;
+	// Fastest attack wins outright (round 110 audit): vanilla's frame skipper reads Fastest together with Quick or Fast as a
+	// SLOWER swing, so a skill's fast-attack flag (Alacrity, Rhythm, Fanaticism...) on a hero with a Fastest item lengthened it.
+	if (HasAnyOf(iflgs, ItemSpecialEffect::FastestAttack))
+		iflgs &= ~(ItemSpecialEffect::QuickAttack | ItemSpecialEffect::FastAttack);
 	player._pIFlags = iflgs;
 	// Swift Harvesting (the Necromancer, N9): a wand or scythe in hand swings fast.
 	if (oracool::SwiftHarvestingApplies(player))

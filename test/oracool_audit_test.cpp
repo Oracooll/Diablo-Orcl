@@ -1455,6 +1455,7 @@ TEST(OracoolHeroChunks, OwedGuardianKeystoneRoundTrips)
 	clamped->_pClass = HeroClass::Warrior;
 	oracool::ApplyHeroChunks(*clamped, huge.data(), huge.size());
 	EXPECT_EQ(clamped->_pOracoolOwedKeystoneTier, 255);
+	source._pOracoolOwedKeystoneTier = 0; // Players[0] is shared: no debt leaks into the next test (round 110 audit)
 
 	devilution::Player clean {};
 	clean._pClass = HeroClass::Warrior;
@@ -19027,8 +19028,12 @@ TEST(OracoolAudit108, TheRewardKeystoneOnTheFloorIsStillWithinReach)
 	for (int t = 0; t < devilution::Player::NumExtraInventoryTabs; t++)
 		player._pNumInvTab[t] = 0;
 	player._pOracoolOwedKeystoneTier = 5;
+	// Only a level change counts the held reward kept (round 110 audit: settled while held, an exit or a death with no room
+	// lost it with no refund).
 	oracool::SettleRiftRewardKeystone(player);
-	EXPECT_EQ(player._pOracoolOwedKeystoneTier, 0) << "the reward held on the cursor still owed";
+	EXPECT_EQ(player._pOracoolOwedKeystoneTier, 5) << "a held reward settled outside a level change - lost on an exit with no room";
+	oracool::SettleRiftRewardKeystone(player, /*heldCounts=*/true);
+	EXPECT_EQ(player._pOracoolOwedKeystoneTier, 0) << "the reward held across a level change still owed";
 	EXPECT_FALSE(oracool::RewardKeystoneStillReachable(player)) << "a settled reward still refused the rift";
 	MyPlayer = savedMyPlayer;
 

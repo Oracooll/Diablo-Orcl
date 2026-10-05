@@ -539,6 +539,10 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 			ChainTarget = front;
 		}
 	} else if (front != nullptr && frontHit && frontDamage > 0) {
+		// The flurry's first blow landed: paid, even when it killed and no extra blow followed (round 110 audit: a Hundred
+		// Fists that one-shot its target cost nothing).
+		if (StrikeCount(player, skill) > 1)
+			struck = true;
 		const int share = p.extraSharePercent + p.extraSharePerRank * (rank - 1);
 		for (int i = 1; i < StrikeCount(player, skill); i++) {
 			if (front->hitPoints >> 6 <= 0)
@@ -555,7 +559,14 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		// One push a blow: a Knockback item already pushed it in PlrHitMonst, and the two sent it two tiles (round 19).
 		if (front != nullptr && frontHit && front->hitPoints >> 6 > 0 && front->mode != MonsterMode::Petrified
 		    && !HasAnyOf(player._pIFlags, ItemSpecialEffect::Knockback)) {
+			// Away from the hero, as Shove does (round 110 audit): M_GetKnockback moves a monster opposite its OWN facing, and
+			// only a hard hit turns it toward him - a side-walker slid along its line, one facing away was pushed into him.
+			const Direction facing = front->direction;
+			const Point oldBefore = front->position.old;
+			front->direction = GetDirection(front->position.tile, player.position.tile);
 			M_GetKnockback(*front);
+			if (front->position.old == oldBefore)
+				front->direction = facing; // refused (a wall, an Unyielding one): faces as it did
 			struck = true;
 		}
 		break;

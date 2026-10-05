@@ -391,16 +391,19 @@ void StowRewardKeystoneOnLevelChange(Player &player)
 		player.HoldItem.clear();
 		NewCursor(CURSOR_HAND);
 	}
-	SettleRiftRewardKeystone(player); // put away or, with no room anywhere, still held: kept either way (round 109 audit)
+	SettleRiftRewardKeystone(player, /*heldCounts=*/true); // put away or, with no room anywhere, still held: kept either way
 }
 
-void SettleRiftRewardKeystone(Player &player)
+void SettleRiftRewardKeystone(Player &player, bool heldCounts)
 {
 	if (!RewardOwed || RewardSeed == 0 || &player != MyPlayer)
 		return;
-	// Held on the cursor is kept too (round 109 audit): with no room anywhere it rode to another floor, was dropped there out of
-	// every check, and the next rift refunded a second one. In his hand, it is his; the exit save puts it away.
-	const bool held = player.HoldItem._iMiscId == IMISC_ORACOOL_KEYSTONE && player.HoldItem._iSeed == RewardSeed && !player.HoldItem.isEmpty();
+	// Held on the cursor is kept only when asked - on a level change (round 109 audit: with no room anywhere it rode to another
+	// floor, was dropped there out of every check, and the next rift refunded a second one). Everywhere else a held reward stays
+	// owed (round 110 audit: settled while held, an exit or a death with no room lost it with no refund; the cursor is never
+	// saved, so the debt kept is no duplicate).
+	const bool held = heldCounts && !player.HoldItem.isEmpty() && player.HoldItem._iMiscId == IMISC_ORACOOL_KEYSTONE
+	    && player.HoldItem._iSeed == RewardSeed;
 	if (!held && !HeroKeepsKeystone(player, RewardSeed))
 		return; // on the floor, or not yet his
 	RewardOwed = false;

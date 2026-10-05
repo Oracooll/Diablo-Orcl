@@ -163,7 +163,7 @@ void StowRewardKeystoneOnLevelChange(Player &player);
  * @brief Settles the next Guardian Keystone owed since the kill once that keystone (by its seed) is in the hero's pack, belt or
  * stash (rounds 104-105 audit). Called each tick, after carrying the floor's keystones home, and before every save.
  */
-void SettleRiftRewardKeystone(Player &player);
+void SettleRiftRewardKeystone(Player &player, bool heldCounts = false);
 /** @brief From town: sets the tileset and starts the set level. False outside town or with no rift open. */
 bool EnterRift(Player &player);
 /**

@@ -152,7 +152,7 @@ void ApplyColdHit(MissileID type, int level, Monster &monster)
 	case MissileID::GlacialSpike:
 		// A unique is chilled rather than frozen - see the header - for the freeze's own duration,
 		// so it is still the harder hit.
-		if (FightsAsUnique(monster))
+		if (FightsAsUnique(monster) || monster.lesserAffix != LesserUniqueAffix::None) // a lesser unique too, as Absolute Zero (round 110)
 			ChillMonster(monster, FreezeTicksFor(level));
 		else
 			FreezeMonster(monster, FreezeTicksFor(level));
@@ -349,7 +349,7 @@ void OnColdArmourStruckInMelee(Player &player, Monster &monster)
 		return;
 	switch (state.spell) {
 	case SpellID::FrozenArmor:
-		if (FightsAsUnique(monster))
+		if (FightsAsUnique(monster) || monster.lesserAffix != LesserUniqueAffix::None) // a lesser unique too, as Absolute Zero (round 110)
 			ChillMonster(monster, FreezeTicksFor(state.level));
 		else
 			FreezeMonster(monster, FreezeTicksFor(state.level));

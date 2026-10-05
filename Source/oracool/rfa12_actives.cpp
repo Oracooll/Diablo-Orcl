@@ -1887,12 +1887,21 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	// ---------------- Barbarian ----------------
 	case SpellID::RearwardReach: {
-		Monster *behind = FindMonsterAtPosition(here + Opposite(player._pdir));
+		// The foe clicked, when it stands beside him (round 110 audit: the cast turns the hero toward the cursor, so a mouse aimed
+		// at the foe behind him struck the empty tile behind his NEW facing and fizzled). Else the tile behind his facing.
+		Direction away = player._pdir;
+		Monster *behind = nullptr;
+		if (Monster *clicked = FindMonsterAtPosition(target); clicked != nullptr && clicked->position.tile.WalkingDistance(here) == 1) {
+			behind = clicked;
+			away = Opposite(GetDirection(here, target));
+		} else {
+			behind = FindMonsterAtPosition(here + Opposite(player._pdir));
+		}
 		if (behind == nullptr || !Hittable(*behind) || !SightLineClear(here, behind->position.tile)) // not across a corner (round 99)
 			return false;
-		StrikeBlow(player, *behind, DamageType::Physical, BlowPercent(spell, r));
-		// RfA-27 batch 53: the arc behind him - row n is the arc behind a hero facing n, so his own facing picks it.
-		ArtFacing(player, MissileGraphicID::RearwardReach, here, player._pdir);
+		StrikeBlow(player, *behind, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true);
+		// RfA-27 batch 53: the arc behind him - row n is the arc behind a hero facing n, so the facing away from the foe picks it.
+		ArtFacing(player, MissileGraphicID::RearwardReach, here, away);
 		Impact(player, spell);
 		return true;
 	}
@@ -2774,7 +2783,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		if (line.empty())
 			return false;
-		StrikeBlow(player, *line.front(), DamageType::Physical, BlowPercent(spell, r));
+		StrikeBlow(player, *line.front(), DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
 		// RfA-27 batch 53: the staff's streak along his aim, and the jab's cue.
 		ArtFacing(player, MissileGraphicID::LongThrust, here, target == here ? player._pdir : GetDirection(here, target));
 		Impact(player, spell);
@@ -2783,7 +2792,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::MountainPole: {
 		const auto around = MonstersWithin(here, 1);
 		for (Monster *m : around) {
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
 			Stagger(*m, StunTicks(spell, r));
 		}
 		if (around.empty())
@@ -2802,7 +2811,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			nearby.resize(static_cast<size_t>(BambooRainTargets));
 		for (Monster *m : nearby) {
 			Art(player, MissileGraphicID::StaffFlurry, m->position.tile); // RfA-27 batch 52: the flurry on each it strikes
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
 		}
 		if (!nearby.empty())
 			Impact(player, spell);
@@ -2812,7 +2821,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::WhirlingKick: {
 		const auto around = MonstersWithin(here, 1);
 		for (Monster *m : around) {
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
 			Shove(*m, GetDirection(here, m->position.tile));
 		}
 		if (around.empty())
@@ -2826,7 +2835,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (line.empty())
 			return false; // a blade on nothing costs nothing, as Seismic Slam since round 28 (round 67 audit)
 		for (Monster *m : line)
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
 		// RfA-27 batch 54: the blade of force skimming the floor down the line; the cry's ring while it is missing.
 		if (MissileArtLoaded(MissileGraphicID::HeavenSplitterWave))
 			Fly(player, MissileGraphicID::HeavenSplitterWave, here, LineEnd(here, target, ReachTiles(spell, r)), SpellID::Invalid, 16);
@@ -2838,7 +2847,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const auto all = MonstersWithin(here, ReachTiles(spell, r));
 		for (Monster *m : all) {
 			Art(player, MissileGraphicID::StaffFlurry, m->position.tile); // RfA-27 batch 52: the flurry on each it strikes
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
 		}
 		return !all.empty();
 	}
@@ -2900,7 +2909,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			nearby.resize(cap);
 		for (Monster *m : nearby) {
 			Art(player, MissileGraphicID::SevenSidedStrike, m->position.tile); // RfA-27 batch 52: on each one struck
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
 		}
 		return !nearby.empty();
 	}
@@ -2909,7 +2918,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (line.empty())
 			return false; // as Heaven Splitter (round 67 audit)
 		for (Monster *m : line)
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
+			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
 		// RfA-27 batch 54: the wave of wind and force down the line; the cry's ring while it is missing.
 		if (MissileArtLoaded(MissileGraphicID::DragonsWrathWave))
 			Fly(player, MissileGraphicID::DragonsWrathWave, here, LineEnd(here, target, ReachTiles(spell, r)), SpellID::Invalid, 16);
@@ -4082,7 +4091,9 @@ void FireStaffEcho(Player &player, PlayerState &state)
 {
 	if (state.echoMonster >= 0 && static_cast<size_t>(state.echoMonster) < MaxMonsters) {
 		Monster &m = Monsters[state.echoMonster];
-		if (Hittable(m) && player.position.tile.WalkingDistance(m.position.tile) <= 1) {
+		// Not across a wall corner or a door it stepped behind in the second (round 110 audit).
+		if (Hittable(m) && player.position.tile.WalkingDistance(m.position.tile) <= 1
+		    && !LineStepBlocked(player.position.tile, m.position.tile)) {
 			// RfA-27: the ghost of the blow landing again (batch 52), and the echo's cue (batch 51).
 			Art(player, MissileGraphicID::StaffEcho, m.position.tile);
 			Strike(player, m, DamageType::Physical, state.echoDamage, /*melee=*/true, /*applyPassives=*/false); // round 14
@@ -4223,7 +4234,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		}
 		break;
 	case SpellID::CinderTouch:
-		if (alive) {
+		if (alive && !front->isImmune(MissileID::Null, DamageType::Fire)) { // not paid for a burn that cannot take (round 110)
 			// The longer and the stronger, as the poison takes them (round 35 audit).
 			MarksOf(*front).burnTicks = std::max(MarksOf(*front).burnTicks, EffectTicks(spell, r));
 			MarksOf(*front).burnDamage = std::max(MarksOf(*front).burnDamage, PerSecond(spell, r) << 6);
@@ -4283,6 +4294,8 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		}
 		break;
 	case SpellID::PressurePoint:
+		if (landed)
+			struck = true; // paid for the blow that landed, a killing one too (round 110 audit: a one-shot was free)
 		if (alive) {
 			ChillMonster(*front, SlowTicks(spell, r));
 			DebuffMonster(*front, EffectTicks(spell, r), 0, -EffectPercent(spell, r));
@@ -4325,7 +4338,7 @@ bool CastRfa12Active(Player &player, SpellID spell, Point target)
 {
 	if (!IsRfa12Active(spell) || IsRfa12Melee(spell))
 		return false;
-	if (IsBowSkill(spell) && !player.UsesRangedWeapon()) {
+	if (Rfa12LacksBowFor(player, spell)) { // no bow for a bow skill, or a bow for a weapon blow (round 110)
 		player.Say(HeroSpeech::ICantDoThat);
 		return false;
 	}
@@ -5576,9 +5589,25 @@ void BlinkMonster(const Monster &monster, int ticks)
 	MarksOf(monster).blinkTicks = std::max(MarksOf(monster).blinkTicks, ticks);
 }
 
+namespace {
+/** @brief The cast skills that strike with the weapon in hand as a blow (StrikeBlow, melee) - a bow is not swung. */
+bool IsCastWeaponBlow(SpellID spell)
+{
+	return IsAnyOf(spell, SpellID::LongThrust, SpellID::RearwardReach, SpellID::MountainPole, SpellID::BambooRain,
+	    SpellID::DragonTailSweep, SpellID::WhirlingKick, SpellID::HeavenSplitter, SpellID::ThousandReeds,
+	    SpellID::SevenSidedStrike, SpellID::DragonsWrath, SpellID::LeapingCrane);
+}
+} // namespace
+
 bool Rfa12LacksBowFor(const Player &player, SpellID spell)
 {
-	return IsRfa12Active(spell) && IsBowSkill(spell) && !player.UsesRangedWeapon();
+	if (!IsRfa12Active(spell))
+		return false;
+	// And the reverse: a cast weapon blow with a bow in hand (round 110 audit: Dragon's Wrath and the staff casts struck with
+	// the bow's damage, while the swung skills refuse a bow since round 19).
+	if (IsCastWeaponBlow(spell) && player.UsesRangedWeapon())
+		return true;
+	return IsBowSkill(spell) && !player.UsesRangedWeapon();
 }
 
 } // namespace devilution::oracool

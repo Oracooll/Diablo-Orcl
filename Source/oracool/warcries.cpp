@@ -421,14 +421,20 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 		}) > 0;
 
 	// --- the Monk's ---
-	case SpellID::TempleBell:
-		return ForEachInEarshot(here, earshot, [&](Monster &m) {
+	case SpellID::TempleBell: {
+		// Only the undead it rang for count (round 110 audit: every monster in earshot counted, so a bell over Fallen alone was
+		// paid for nothing - the pattern Howl and Taunt lost in round 55).
+		int struck = 0;
+		ForEachInEarshot(here, earshot, [&](Monster &m) {
 			if (m.data().monsterClass != MonsterClass::Undead)
 				return;
 			Strike(player, m, Roll(3 * rank, 6 * rank), /*holy=*/true);
 			Stagger(m, seconds + seconds / 2);
 			Repel(m, here, 3);
-		}) > 0;
+			struck++;
+		});
+		return struck > 0;
+	}
 	case SpellID::PurifyingBreath:
 		return StartBuff(player, spell, rank, (30 + 5 * (rank - 1)) * seconds);
 	case SpellID::Tranquility:
@@ -693,7 +699,9 @@ void ProcessWarcriesTick(Player &player)
 	if (const Buff *tranquility = FindBuff(player, SpellID::Tranquility); tranquility != nullptr) {
 		if (leveltype != DTYPE_TOWN) // the heal goes on in town, the chill does not (round 56 audit)
 			ForEachInEarshot(player.position.tile, TranquilityReach, [&](Monster &m) { ChillMonster(m, 3); });
-		if (tranquility->ticksLeft % TicksPerSecond == 0 && player._pHitPoints < player._pMaxHP) {
+		// +1, the Immolate rule (round 110 audit): the clock is already counted down and its last tick is never seen, so
+		// `% == 0` healed once short of the seconds the hover promises.
+		if ((tranquility->ticksLeft + 1) % TicksPerSecond == 0 && player._pHitPoints < player._pMaxHP) {
 			const int heal = player._pMaxHP * TranquilityHealPercent / 100;
 			player._pHitPoints = std::min(player._pHitPoints + heal, player._pMaxHP);
 			player._pHPBase = std::min(player._pHPBase + heal, player._pMaxHPBase);

@@ -219,7 +219,10 @@ void ProcessThunderStorm(Player &player)
 	if (++clock < HolyPulseTicks)
 		return;
 	clock = 0;
-	const std::vector<Monster *> near = AuraTargetsWithin(player, AuraFieldRadius(Skill::ThunderStorm, points));
+	std::vector<Monster *> near = AuraTargetsWithin(player, AuraFieldRadius(Skill::ThunderStorm, points));
+	// Only what the bolt can hurt (round 110 audit: the pick came first and AuraStrike refused the immune or converted one after,
+	// so a storm beside a lightning-immune monster wasted its pulses on it - round 96's fix for the RfA-12 strikes).
+	std::erase_if(near, [](const Monster *m) { return m->isImmune(MissileID::Null, DamageType::Lightning) || IsMonsterConverted(*m); });
 	if (near.empty())
 		return;
 	Monster &target = *near[GenerateRnd(static_cast<int32_t>(near.size()))];

@@ -26,9 +26,9 @@
  *   MonsterKilled               ConsumeSpell, death  Requiem, Cadence
  *   ProcessPassivesTick         ProcessClassTreeTick the clocks: stillness, stacks, cooldowns, Brooding
  *
- * The state the clocks need is file-local and per player index, and ClearPassiveState empties it
- * where the chill table is emptied - per level, which is where every other per-game static in this
- * fork learned it has to be cleared (see the "statics outlive the game" memory).
+ * The state the clocks need is file-local and per player index: ClearPassiveClocks empties it for a new game
+ * (InitPlayer), ClearPassiveMarks empties the monster marks per level, and ClearPassiveMarksForMonster when a
+ * slot is reused (see the "statics outlive the game" memory; corrected in the round 110 audit).
  */
 #pragma once
 

@@ -1199,7 +1199,7 @@ std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int point
 		line(fmt::format(fmt::runtime(_("Fire, lightning, cold and magic damage taken: -{:d}%")), VigilantPercent));
 		break;
 	case Skill::SixthSense:
-		line(fmt::format(fmt::runtime(_("Fire, cold, lightning and magic damage taken: -{:d}%")), SixthSensePercent));
+		line(fmt::format(fmt::runtime(_("Fire, cold, lightning, magic and acid damage taken: -{:d}%")), SixthSensePercent));
 		break;
 	case Skill::Blur:
 		line(fmt::format(fmt::runtime(_("Damage taken: -{:d}%")), BlurPercent));
@@ -1365,7 +1365,7 @@ std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int point
 		line(fmt::format(fmt::runtime(_("Composite or battle bow: +{:d} mana per arrow that strikes")), mana(ArcheryMana)));
 		break;
 	case Skill::Paralysis:
-		line(fmt::format(fmt::runtime(_("Lightning: {:d}% chance to stun for {:d} s, not uniques")), ParalysisChance, sec(ParalysisTicks)));
+		line(fmt::format(fmt::runtime(_("Lightning: {:d}% chance to stun for {:d} s, not uniques or bosses")), ParalysisChance, sec(ParalysisTicks)));
 		break;
 	case Skill::TemporalFlux:
 		line(fmt::format(fmt::runtime(_("Magic damage slows its target for {:d} s")), sec(TemporalFluxTicks)));
