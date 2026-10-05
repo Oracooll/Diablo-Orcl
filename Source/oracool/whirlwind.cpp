@@ -94,7 +94,8 @@ std::vector<Monster *> EnemiesBeside(const Player &player)
 		Monster &m = Monsters[ActiveMonsters[i]];
 		if ((m.hitPoints >> 6) <= 0 || !m.isPossibleToHit() || m.isPlayerMinion() || IsMinion(m) || IsCompanion(m))
 			continue;
-		if (player.position.tile.WalkingDistance(m.position.tile) <= 1)
+		// In reach and in sight: not across a squeezed wall corner or a door (round 99 audit).
+		if (player.position.tile.WalkingDistance(m.position.tile) <= 1 && SightLineClear(player.position.tile, m.position.tile))
 			found.push_back(&m);
 	}
 	return found;

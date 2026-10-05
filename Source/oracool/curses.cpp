@@ -26,6 +26,7 @@
 #include "multi.h"
 #include "oracool/chill.h"
 #include "oracool/class_tree.h"
+#include "oracool/companion.h" // NoteOwnerStruck
 #include "missiles.h"
 #include "oracool/essence.h"
 #include "oracool/hud_art.h"
@@ -256,6 +257,7 @@ bool OwnerStrikes(Player &owner, Monster &monster, DamageType type, int damage, 
 		// Credited to the owner, flinched as a monster's blow flinches it - MinionHurts' rule (round 25): the hero's hit path
 		// turned it onto him (round 98 audit: Iron Maiden pulled a pack off the Iron Golem and onto the Necromancer).
 		monster.tag(owner);
+		NoteOwnerStruck(owner, monster); // the companions' focus, as the hero's own hit path notes it (round 99 audit)
 		M_StartHit(monster, damage);
 		return true;
 	}

@@ -2627,6 +2627,8 @@ void AddGlacialShatter(Missile &missile, AddMissileParameter &parameter)
 			if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion() || oracool::IsCompanion(monster) || oracool::IsMinion(monster)
 			    || oracool::IsMonsterConverted(monster))
 				continue; // the hero's side is not chilled (round 78 audit), as Freezing Arrow spares it
+			if (!monster.isPossibleToHit() || !oracool::SightLineClear(centre, tile))
+				continue; // nor across a squeezed corner or a door (round 99 audit)
 			oracool::ApplyColdHit(MissileID::FrostNova, missile._mispllvl, monster);
 		}
 	}
@@ -2688,7 +2690,7 @@ void AddFrostNova(Missile &missile, AddMissileParameter & /*parameter*/)
 			continue;
 		if (monster.position.tile.WalkingDistance(missile.position.tile) > 3)
 			continue;
-		if (!LineClearMissile(missile.position.tile, monster.position.tile))
+		if (!oracool::SightLineClear(missile.position.tile, monster.position.tile)) // a closed door too (round 99 audit)
 			continue; // the ring stops at walls, as the missiles do
 		// The ring has no impact sheet: each monster it catches flashes (hit_cold, 2026-09-26).
 		if (MonsterMHit(missile._misource, id, minDamage, maxDamage, 0, MissileID::FrostNova, DamageType::Cold, false, missile._mispllvl))
@@ -2727,7 +2729,7 @@ void AddBlizzard(Missile &missile, AddMissileParameter &parameter)
 	// Not past a wall, nor on one (round 78 audit: the storm rained on the closed room, paid) - as the RfA-12 fields refuse.
 	if (missile.sourceType() == MissileSource::Player) {
 		const Point from = missile.sourcePlayer()->position.tile;
-		if (!InDungeonBounds(parameter.dst) || IsTileSolid(parameter.dst) || !LineClearMissile(from, parameter.dst)) {
+		if (!InDungeonBounds(parameter.dst) || IsTileSolid(parameter.dst) || !oracool::SightLineClear(from, parameter.dst)) { // round 99
 			missile._miDelFlag = true;
 			parameter.spellFizzled = true;
 			return;
@@ -2765,7 +2767,7 @@ void ProcessBlizzard(Missile &missile)
 	// search: a storm that misses a tick because every roll hit a wall is still a storm.
 	for (int attempt = 0; attempt < 4; attempt++) {
 		const Point tile = centre + Displacement { GenerateRnd(5) - 2, GenerateRnd(5) - 2 };
-		if (!InDungeonBounds(tile) || !IsTileNotSolid(tile) || !LineClearMissile(centre, tile))
+		if (!InDungeonBounds(tile) || !IsTileNotSolid(tile) || !oracool::SightLineClear(centre, tile)) // round 99
 			continue; // and on this side of a thin wall (round 78 audit)
 		Missile *shard = AddMissile(tile, tile, Direction::South, MissileID::BlizzardShard, missile._micaster, missile._misource, 0, missile._mispllvl, &missile);
 		if (shard != nullptr && !strikes)
@@ -2843,7 +2845,7 @@ void ProcessFrozenOrb(Missile &missile)
 	missile._mirange--;
 	// The orb stops at a wall rather than passing through it: MoveMissile stops it there. Its return
 	// only says whether the orb changed tile, which a half-speed orb often does not - so it is no wall test.
-	MoveMissile(missile, [](Point tile) { return IsTileNotSolid(tile); }, true);
+	MoveMissile(missile, [](Point tile) { return !IsMissileBlockedByTile(tile); }, true); // a closed door too (round 99 audit)
 	if (missile.position.velocity == Displacement {})
 		missile._mirange = 0;
 	ChangeLight(missile._mlid, missile.position.tile, 8);
@@ -3418,7 +3420,7 @@ void AddGuardian(Missile &missile, AddMissileParameter &parameter)
 			    return false;
 		    }
 
-		    return LineClearMissile(start, target);
+		    return oracool::SightLineClear(start, target); // not a Hydra behind a closed door (round 99 audit)
 	    },
 	    parameter.dst, 0, 5);
 
@@ -3773,7 +3775,7 @@ void AddFireWallControl(Missile &missile, AddMissileParameter &parameter)
 {
 	std::optional<Point> spreadPosition = FindClosestValidPosition(
 	    [start = missile.position.start](Point target) {
-		    return start != target && IsTileNotSolid(target) && !IsObjectAtPosition(target) && LineClearMissile(start, target);
+		    return start != target && IsTileNotSolid(target) && !IsObjectAtPosition(target) && oracool::SightLineClear(start, target); // round 99
 	    },
 	    parameter.dst, 0, 5);
 
@@ -5449,7 +5451,8 @@ void ProcessFireball(Missile &missile)
 				Direction::North
 			};
 			for (Direction offset : Offsets) {
-				if (!CheckBlock(missile.position.start, missilePosition + offset))
+				// Not through the closed door it burst on (round 99 audit: the splash reached the room behind).
+				if (!CheckBlock(missile.position.start, missilePosition + offset) && oracool::SightLineClear(missile.position.start, missilePosition + offset))
 					CheckMissileCol(missile, damageType, minDam, maxDam, false, missilePosition + offset, true);
 			}
 

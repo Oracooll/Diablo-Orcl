@@ -211,6 +211,8 @@ int GatherAround(Point centre, const Monster *except, Monster **out, int maxTarg
 			continue;
 		if (centre.WalkingDistance(other.position.tile) != 1)
 			continue;
+		if (!SightLineClear(centre, other.position.tile))
+			continue; // not across a squeezed wall corner or a door (round 99 audit)
 		out[found++] = &other;
 	}
 	return found;
@@ -594,7 +596,8 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		const Monster *first = nullptr; // once each: a walker holds both tiles on a diagonal facing (round 7 audit)
 		for (const Point tile : { player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {
 			Monster *m = InDungeonBounds(tile) ? FindMonsterAtPosition(tile) : nullptr;
-			if (m == nullptr || m == front || m == first || (m->hitPoints >> 6) <= 0 || m->isPlayerMinion() || !m->isPossibleToHit())
+			if (m == nullptr || m == front || m == first || (m->hitPoints >> 6) <= 0 || m->isPlayerMinion() || !m->isPossibleToHit()
+			    || !SightLineClear(player.position.tile, tile)) // round 99
 				continue;
 			first = m;
 			const int blow = FullBlowAt(player, *m, /*burst=*/counted);
@@ -705,6 +708,10 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		// chains in v1.12.375 and was free; round 96: a missed first thrust gave two free ones).
 		Pay(player, skill, landedBlows);
 	}
+	// The leap's arriving swing settles its prepaid blow landed or not (round 99 audit: a missed one left it set, and every
+	// later Leap Attack beside the target was free until one landed).
+	if (LeapAttackPrepaid == skill && &player == MyPlayer)
+		LeapAttackPrepaid.reset();
 	return struck;
 }
 

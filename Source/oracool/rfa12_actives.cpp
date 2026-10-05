@@ -52,17 +52,35 @@ bool SightLineClear(Point from, Point to)
 		const Object *object = FindObjectAtPosition(tile);
 		return object != nullptr && object->isDoor() && !object->_oMissFlag;
 	};
-	if (!LineClear([&closedDoorAt](Point tile) {
+	std::array<Point, 64> path;
+	size_t pathLength = 0;
+	if (!LineClear([&](Point tile) {
+		    if (pathLength < path.size())
+			    path[pathLength++] = tile;
 		    // A closed door stops an arrow through its object's flag (IsMissileBlockedByTile), not its tile's (round 80 audit).
 		    return PosOkMissile(tile) && !closedDoorAt(tile);
 	    },
 	        from, to))
 		return false;
-	// LineClear never tests its end tile (rounds 97-98 audit): a closed door there, or the one diagonal step squeezed between two
-	// corner-touching walls, was "in sight" - every adjacent strike reached across a wall corner.
+	// The end tile in both directions (LineClear tests it only one way; rounds 97-98 audit): a closed door there was "in sight".
 	if (to != from && closedDoorAt(to))
 		return false;
-	if (from.WalkingDistance(to) == 1 && from.x != to.x && from.y != to.y && IsTileSolid({ to.x, from.y }) && IsTileSolid({ from.x, to.y }))
+	// And no step of the line squeezed diagonally between two corner-touching walls, at the ends or in the middle (rounds 98-99
+	// audit). The tiles come in line order but either end first, so they are put in order from @p from.
+	const size_t tiles = std::min(pathLength, path.size());
+	std::sort(path.begin(), path.begin() + tiles, [from](Point a, Point b) { return from.WalkingDistance(a) < from.WalkingDistance(b); });
+	const auto squeezed = [](Point a, Point b) {
+		return a.WalkingDistance(b) == 1 && a.x != b.x && a.y != b.y && IsTileSolid({ b.x, a.y }) && IsTileSolid({ a.x, b.y });
+	};
+	Point prev = from;
+	for (size_t i = 0; i < tiles; i++) {
+		if (path[i] == prev)
+			continue;
+		if (squeezed(prev, path[i]))
+			return false;
+		prev = path[i];
+	}
+	if (prev != to && squeezed(prev, to))
 		return false;
 	return true;
 }
@@ -112,7 +130,9 @@ bool Hittable(const Monster &monster)
 /** @brief "Uniques shrug it off" - the exemption every stagger in this fork carries. */
 bool ShrugsOff(const Monster &monster)
 {
-	return monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None || monster.type().type == MT_DIABLO;
+	// FightsAsUnique too (round 99 audit): a rift's roster boss of an ordinary type has no unique row and no affix, and Absolute
+	// Zero froze him solid, every stagger and shove moved him.
+	return FightsAsUnique(monster) || monster.lesserAffix != LesserUniqueAffix::None;
 }
 
 int FrostbitePercentOn(const Monster &monster);
@@ -1850,8 +1870,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		{
 			auto nearby = MonstersWithin(here, ReachTiles(spell, r));
 			nearby.erase(std::remove_if(nearby.begin(), nearby.end(), [](const Monster *m) { return m->isImmune(MissileID::Null, DamageType::Magic); }), nearby.end());
-			if (nearby.empty())
+			if (nearby.empty()) {
+				player.Say(HeroSpeech::ICantDoThat);
 				return false;
+			}
 		}
 		PlayerState &state = StateOf(player);
 		state.wrathPillars = WrathPillars;
@@ -1862,7 +1884,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	// ---------------- Barbarian ----------------
 	case SpellID::RearwardReach: {
 		Monster *behind = FindMonsterAtPosition(here + Opposite(player._pdir));
-		if (behind == nullptr || !Hittable(*behind))
+		if (behind == nullptr || !Hittable(*behind) || !SightLineClear(here, behind->position.tile)) // not across a corner (round 99)
 			return false;
 		StrikeBlow(player, *behind, DamageType::Physical, BlowPercent(spell, r));
 		// RfA-27 batch 53: the arc behind him - row n is the arc behind a hero facing n, so his own facing picks it.
@@ -1980,6 +2002,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Monster *m = FindMonsterAtPosition(tile);
 			if (m == nullptr || !Hittable(*m) || std::find(chilled.begin(), chilled.end(), m) != chilled.end())
 				continue;
+			if (LineStepBlocked(here, tile))
+				continue; // not across a squeezed corner or a door (round 99 audit)
 			chilled.push_back(m);
 			Strike(player, *m, DamageType::Cold, Rolled(d));
 			if ((m->hitPoints >> 6) > 0)
@@ -2055,6 +2079,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::BrittleGround: {
 		Field *f = NewField(player, spell, target, EffectTicks(spell, r), r);
 		f->tile2 = target + (target == here ? player._pdir : GetDirection(here, target));
+		if (LineStepBlocked(f->tile, f->tile2))
+			f->tile2 = f->tile; // not past a door or a squeezed corner (round 99 audit)
 		// The frozen floor under both tiles for the field's life (ice_ground.png, 2026-09-26): one of the sheet's two
 		// variants each, held rather than animated, on the floor under whoever walks it. Nothing while it is missing.
 		int variant = 1;
@@ -2521,7 +2547,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 				// In the cursor's sight too (round 66 audit): a rock in the next room burned the pack behind the wall, the leak the
 				// round-40 cast-sight rule closed for the single rock.
 				if (d.deltaX * d.deltaX + d.deltaY * d.deltaY <= MeteorShowerRadius * MeteorShowerRadius && InDungeonBounds(p) && !IsTileSolid(p)
-				    && LineClearMissile(target, p)) {
+				    && SightLineClear(target, p)) { // not behind a closed door (round 99 audit)
 					at = p;
 					break;
 				}
@@ -2972,6 +2998,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			Monster *m = FindMonsterAtPosition(tile);
 			if (m == nullptr || !Hittable(*m) || std::find(struck.begin(), struck.end(), m) != struck.end())
 				continue; // a walking monster holds two fan tiles: one tooth (round 5 audit)
+			if (LineStepBlocked(here, tile))
+				continue; // not across a squeezed corner or a door (round 99 audit)
 			BoneStrike(player, *m, Rolled(d), here); // flown from the hero (round 41)
 			struck.push_back(m);
 			any = true;
@@ -3360,8 +3388,9 @@ void TickField(Player &player, Field &field)
 		break;
 	case SpellID::Whiteout:
 		if (field.clock % WhiteoutStepTicks == 0) {
+			const Point from = field.tile;
 			field.tile = field.tile + field.dir;
-			if (!InDungeonBounds(field.tile) || IsTileSolid(field.tile)) {
+			if (LineStepBlocked(from, field.tile)) { // a closed door or a squeezed corner too (round 99 audit)
 				field.ticksLeft = 0;
 				break;
 			}
@@ -3537,7 +3566,8 @@ void TickField(Player &player, Field &field)
 			const Displacement pixels { static_cast<int>(std::cos(angle) * radius), static_cast<int>(std::sin(angle) * radius / 2) };
 			const Displacement tiles = pixels.screenToMissile();
 			const Point tile = field.tile + tiles;
-			if (!InDungeonBounds(tile) || IsTileSolid(tile)) {
+			// Not through a closed door either (round 99 audit): the ball crossed the door tile and struck the room beyond.
+			if (!InDungeonBounds(tile) || IsTileSolid(tile) || !SightLineClear(ball.position.tile, tile)) {
 				ball._mirange = 1;
 				continue;
 			}
@@ -4158,7 +4188,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		// hero as well"). It was a cast that struck only behind, with no swing.
 		const Point behindTile = player.position.tile + Opposite(player._pdir);
 		Monster *behind = InDungeonBounds(behindTile) ? FindMonsterAtPosition(behindTile) : nullptr;
-		if (behind != nullptr && behind != front && Hittable(*behind)) {
+		if (behind != nullptr && behind != front && Hittable(*behind) && SightLineClear(player.position.tile, behindTile)) { // round 99
 			SideBlow(player, *behind, DamageType::Physical, BlowPercent(spell, r));
 			struck = true;
 			landedBlows++;
@@ -4173,7 +4203,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		const Monster *first = nullptr; // a walker holds both side tiles on a diagonal facing: once, and one Rage (round 7 audit)
 		for (const Point tile : { player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {
 			Monster *m = FindMonsterAtPosition(tile);
-			if (m == nullptr || m == front || m == first || !Hittable(*m))
+			if (m == nullptr || m == front || m == first || !Hittable(*m) || !SightLineClear(player.position.tile, tile)) // round 99
 				continue;
 			first = m;
 			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
@@ -4689,9 +4719,9 @@ void ProcessRfa12ActivesTick(Player &player)
 
 	// Wrath of the Heavens: a pillar every 12 ticks on a monster within five tiles.
 	if (state.wrathPillars > 0 && ++state.wrathClock % WrathPillarTicks == 0) {
-		// A pillar is spent on an enemy (round 98 audit), and the storm passes after twice its time whatever is left.
-		if (state.wrathClock >= 2 * WrathPillars * WrathPillarTicks)
-			state.wrathPillars = 0;
+		// A pillar is spent on an enemy (round 98 audit), and the storm passes after twice its time whatever is left - after
+		// this tick's pillar, not before it (round 99 audit).
+		const bool lastTick = state.wrathClock >= 2 * WrathPillars * WrathPillarTicks;
 		auto nearby = MonstersWithin(player.position.tile, ReachTiles(SpellID::WrathOfTheHeavens, state.wrathRank));
 		// Not on a magic-immune one (round 71 audit: a pillar fell on a skeleton, did nothing and was spent).
 		nearby.erase(std::remove_if(nearby.begin(), nearby.end(), [](const Monster *m) { return m->isImmune(MissileID::Null, DamageType::Magic); }), nearby.end());
@@ -4709,6 +4739,8 @@ void ProcessRfa12ActivesTick(Player &player)
 				ScaleMissile(*pillar, 75, pillar->position.offset.deltaY + 16);
 			Impact(player, SpellID::WrathOfTheHeavens);
 		}
+		if (lastTick)
+			state.wrathPillars = 0;
 	}
 
 	if (state.crucibleTicks > 0)
@@ -5060,7 +5092,7 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		say(_("Magic damage: {:d} - {:d} to everything beside you"), d.min, d.max);
 		break;
 	case SpellID::WrathOfTheHeavens:
-		say(_("Pillars: {:d} over {} s, each on an enemy within {:d} tiles"), WrathPillars, Secs(WrathPillars * WrathPillarTicks), reach);
+		say(_("Pillars: up to {:d} within {} s, each on an enemy within {:d} tiles"), WrathPillars, Secs(2 * WrathPillars * WrathPillarTicks), reach);
 		say(_("Magic damage: {:d} - {:d} a pillar"), d.min, d.max);
 		break;
 	// ---------------- Barbarian ----------------
