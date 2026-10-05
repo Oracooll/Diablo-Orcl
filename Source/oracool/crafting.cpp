@@ -1476,9 +1476,18 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		// the two powers below came on top - six on an item whose limit is four. It keeps two of its rolls now, and the
 		// two powers make four.
 		constexpr int CraftPowers = 2;
-		if (const int keep = std::max(0, OracoolAffixBudget(target) - CraftPowers); target._iOracoolAffixCount > keep) {
-			const std::vector<OracoolAffix> kept(target._iOracoolAffixes.begin(), target._iOracoolAffixes.begin() + keep);
-			if (!RebuildOracoolItemWithAffixes(*MyPlayer, target, kept.data(), keep))
+		// Not a roll of the steal the craft adds (round 114 audit: Blood Craft skipped its steal over a kept "of the leech", so a
+		// slot was cut for a power that never came): another roll keeps the slot.
+		const bool addsLifeSteal = recipe == CraftBloodRecipe;
+		const auto craftDuplicate = [&](const OracoolAffix &a) { return addsLifeSteal && a.type == IPL_STEALLIFE; };
+		const bool hasDuplicate = std::any_of(target._iOracoolAffixes.begin(), target._iOracoolAffixes.begin() + target._iOracoolAffixCount, craftDuplicate);
+		if (const int keep = std::max(0, OracoolAffixBudget(target) - CraftPowers); target._iOracoolAffixCount > keep || hasDuplicate) {
+			std::vector<OracoolAffix> kept;
+			for (int i = 0; i < target._iOracoolAffixCount && static_cast<int>(kept.size()) < keep; i++) {
+				if (!craftDuplicate(target._iOracoolAffixes[i]))
+					kept.push_back(target._iOracoolAffixes[i]);
+			}
+			if (!RebuildOracoolItemWithAffixes(*MyPlayer, target, kept.data(), static_cast<int>(kept.size())))
 				return {};
 		}
 		// Diablo II's crafts each guarantee two properties on top of the Rare's own rolls. Applied

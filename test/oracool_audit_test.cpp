@@ -19057,5 +19057,8 @@ TEST(OracoolAudit113, CastWeaponBlowsRefuseABowAndBowSkillsNeedOne)
 	player._pgfxnum = static_cast<uint8_t>(PlayerWeaponGraphic::Mace);
 	for (const SpellID spell : { SpellID::SeismicSlam, SpellID::Earthquake, SpellID::DragonsWrath, SpellID::LongThrust })
 		EXPECT_FALSE(oracool::Rfa12LacksBowFor(player, spell)) << "refused with a mace: " << static_cast<int>(spell);
+	EXPECT_TRUE(oracool::Rfa12LacksBowFor(player, SpellID::PiercingShot)) << "a bow skill with a mace";
+	player._pgfxnum = static_cast<uint8_t>(PlayerWeaponGraphic::Bow);
+	EXPECT_FALSE(oracool::Rfa12LacksBowFor(player, SpellID::PiercingShot)) << "a bow skill with a bow";
 	player._pgfxnum = savedGfx;
 }

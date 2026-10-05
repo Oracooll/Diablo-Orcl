@@ -446,7 +446,7 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	if (pooledArrow) {
 		// A companion's arrow is a burst to the passives (round 59 audit): its damage takes them, its shot does not roll or
 		// spend the hero's Sharpshooter count.
-		const int pool = oracool::PassiveDamageDealtPercent(player, monster, false, /*burst=*/CompanionHitPercent > 0) + oracool::Rfa12DamageDealtPercent(player, monster, false);
+		const int pool = oracool::PassiveDamageDealtPercent(player, monster, false, /*burst=*/CompanionHitPercent > 0) + oracool::Rfa12DamageDealtPercent(player, monster, false, /*burst=*/ArrowBurstInFlight);
 		// Half only on a bow outside the Rogue, as the sheet halves it (round 80 audit: a Barbarian's thrown axe flies as an
 		// arrow and landed with half the share the sheet showed).
 		dam = PooledWeaponDamage(player, dam, pool, player._pClass == HeroClass::Rogue || !player.UsesRangedWeapon() ? 100 : 50);
@@ -1902,7 +1902,9 @@ void AddBerserk(Missile &missile, AddMissileParameter &parameter)
 			    return false;
 		    if ((monster.flags & MFLAG_BERSERK) != 0)
 			    return false;
-		    if (monster.isUnique() || monster.ai == MonsterAIID::Diablo)
+		    // FightsAsUnique: a rift roster boss on an ordinary type too (round 114 audit: Berserk turned him for good, his escort
+		    // fell on him) - the rule Conversion and the staggers follow since round 100.
+		    if (monster.isUnique() || monster.ai == MonsterAIID::Diablo || oracool::FightsAsUnique(monster))
 			    return false;
 		    if (IsAnyOf(monster.mode, MonsterMode::FadeIn, MonsterMode::FadeOut, MonsterMode::Charge))
 			    return false;

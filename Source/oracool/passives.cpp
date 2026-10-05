@@ -714,9 +714,17 @@ bool PassiveCheatsDeath(Player &player)
 			// Not a petrified one, as every other knockback caller spares it: the throw broke Stone Curse early (round 32 audit).
 			if (!other.isPlayerMinion() && other.hitPoints >> 6 > 0 && other.mode != MonsterMode::Petrified
 			    && other.isPossibleToHit() // not a charge in flight or a quest speaker mid-talk (round 35 audit)
+			    && !IsMonsterConverted(other) // not an ally Conversion turned (round 114 audit)
 			    && player.position.tile.WalkingDistance(other.position.tile) <= AnomalyThrowTiles
-			    && SightLineClear(player.position.tile, other.position.tile)) // not through a wall or a door (round 100 audit)
+			    && SightLineClear(player.position.tile, other.position.tile)) { // not through a wall or a door (round 100 audit)
+				// Away from the hero, as Bash and Shove (round 114 audit): the knockback moves a monster opposite its OWN facing.
+				const Direction facing = other.direction;
+				const Point oldBefore = other.position.old;
+				other.direction = GetDirection(other.position.tile, player.position.tile);
 				M_GetKnockback(other);
+				if (other.position.old == oldBefore)
+					other.direction = facing;
+			}
 		}
 	}
 	clocks.cheatDeathCooldown = CheatDeathCooldownTicks;
@@ -738,8 +746,9 @@ void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee,
 	// Weapons Master's mace: a point of Rage for every blow that lands, with or without a skill.
 	// Not the blows of a Whirlwind spin (audit, 2026-09-29): four a second on each monster beside him, they paid for the
 	// spin and more, and it never ran dry.
-	// Nor a burst - an Earthquake pulse, a cast blow's second target (round 113 audit: five foes in a quake paid about 20 Rage).
-	if (melee && !burst && PassiveActive(player, Skill::WeaponsMaster) && WieldingMace(player) && !IsWhirlwinding(player))
+	// Nor a ground pulse - Earthquake's (round 113 audit: five foes in a quake paid about 20 Rage). A swing's side blows still
+	// pay, as round 69 made them (round 114 audit: round 113's `!burst` took that away too).
+	if (melee && !Rfa12FieldPulseInFlight() && PassiveActive(player, Skill::WeaponsMaster) && WieldingMace(player) && !IsWhirlwinding(player))
 		GainRage(player, WeaponsMasterRage);
 	if (melee && PassiveActive(player, Skill::Righteousness))
 		RestoreMana(player, RighteousnessMana);

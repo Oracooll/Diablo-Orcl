@@ -1771,6 +1771,8 @@ size_t OnKnockback(const TCmd *pCmd, size_t pnum)
 
 	if (gbBufferMsgs != 1 && player.isOnActiveLevel() && monsterIdx < MaxMonsters) {
 		Monster &monster = Monsters[monsterIdx];
+		if (monster.mode == MonsterMode::Petrified)
+			return sizeof(message); // not a statue: the push broke Stone Curse early (round 114 audit), as every knockback spares it
 		M_GetKnockback(monster);
 		M_StartHit(monster, player, 0);
 	}

@@ -21,6 +21,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/rift.h" // IsRiftGuardian: a rift boss reads as a unique
+#include "oracool/rift_bosses.h" // RiftBossDamagePercent
 #include "player.h" // KillExperienceFor
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -233,7 +234,9 @@ void DrawMonsterHealthBar(const Surface &out)
 		const std::string lines[] = {
 			fmt::format(fmt::runtime(_("Class: {:s}")), className(monster.data().monsterClass)),
 			fmt::format(fmt::runtime(_("Hit Points: {:d} / {:d}")), monster.hitPoints >> 6, monster.maxHitPoints >> 6),
-			fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), oracool::PackAdjustedDamage(monster, monster.minDamage), oracool::PackAdjustedDamage(monster, monster.maxDamage)),
+			// With a roster boss's overflow percent, as his blows carry it (round 114 audit: the line read less than he dealt).
+			fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), oracool::PackAdjustedDamage(monster, monster.minDamage) * oracool::RiftBossDamagePercent(monster) / 100,
+			    oracool::PackAdjustedDamage(monster, monster.maxDamage) * oracool::RiftBossDamagePercent(monster) / 100),
 			// Nothing at the level cap, where AddPlrExperience pays nothing (round 18 audit).
 			fmt::format(fmt::runtime(_("XP: {:d}")), MyPlayer->_pLevel >= MaxCharacterLevel ? 0 : KillExperienceFor(*MyPlayer, static_cast<int>(monster.level(sgGameInitInfo.nDifficulty)), static_cast<int>(monster.exp(sgGameInitInfo.nDifficulty)))),
 		};

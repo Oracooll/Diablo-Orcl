@@ -187,7 +187,8 @@ int ForEachInEarshot(Point centre, int radius, Fn fn)
 				continue; // the second tile of a monster mid-step: counted where it stands
 			// isPossibleToHit: a quest speaker still talking, a charging beast, a fading Counselor are out of reach of a
 			// cry, as of a blow - Taunt made Gharbad an attacker nothing could hurt, and War Cry killed Lachdanan (round 3 audit).
-			if (!monster.isPossibleToHit() || monster.isPlayerMinion())
+			// Nor one Conversion turned: it fights for the hero (round 114 audit - Sanctuary has spared them since round 16).
+			if (!monster.isPossibleToHit() || monster.isPlayerMinion() || IsMonsterConverted(monster))
 				continue;
 			if (centre.WalkingDistance(tile) > radius)
 				continue;

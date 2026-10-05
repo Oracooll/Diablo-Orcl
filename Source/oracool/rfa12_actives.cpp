@@ -162,6 +162,8 @@ struct BowStrikeScope {
 /** A swing's side blow is striking (round 76 audit): the per-blow passives pay, the swing's counters (Cadence, Mythic Rhythm,
  *  Momentum's charges) wait for its front blow - as the weapon cleave's since v1.12.318. Set by SideBlow. */
 bool SideBlowInFlight = false;
+/** @brief An Earthquake pulse is striking (Rfa12FieldPulseInFlight). */
+bool FieldPulseInFlight = false;
 /** Whether this swing has a blow that counted for it yet (round 77 audit): the front's when it landed, else the first side
  *  blow that lands is the swing's - with the front tile empty, no blow counted and Mythic Rhythm, Combination Strike and
  *  Hot Pursuit never moved. Set by ApplyRfa12MeleeOnSwing, read and set by SideBlow. */
@@ -3353,8 +3355,10 @@ void TickField(Player &player, Field &field)
 			// Weapon blows, each pulse a burst (round 112 audit: as spells they skipped Bloodlust, Deep Wounds and the rest).
 			const bool previousSide = SideBlowInFlight;
 			SideBlowInFlight = true;
+			FieldPulseInFlight = true;
 			for (Monster *m : shaken)
 				StrikeBlow(player, *m, DamageType::Physical, BlowPercent(field.spell, r), /*melee=*/true);
+			FieldPulseInFlight = false;
 			SideBlowInFlight = previousSide;
 			EarthenMightRage(player, shaken.size());
 			Impact(player, field.spell); // one tremor pulse a second
@@ -5632,6 +5636,11 @@ bool IsCastWeaponBlow(SpellID spell)
 	    SpellID::SevenSidedStrike, SpellID::DragonsWrath, SpellID::LeapingCrane, SpellID::SeismicSlam, SpellID::Earthquake); // round 112: the Barbarian's two
 }
 } // namespace
+
+bool Rfa12FieldPulseInFlight()
+{
+	return FieldPulseInFlight;
+}
 
 bool Rfa12LacksBowFor(const Player &player, SpellID spell)
 {

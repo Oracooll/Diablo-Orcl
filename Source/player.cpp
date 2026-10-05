@@ -78,6 +78,7 @@
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
 #include "oracool/rift.h" // StowRewardKeystoneOnLevelChange
+#include "oracool/endgame_boss.h" // FightsAsUnique - Doppelganger spares a rift roster boss
 #include "oracool/sprite_import.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_ranged.h"
@@ -1042,7 +1043,7 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 		dam *= 3;
 	}
 
-	if (HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::Doppelganger) && monster.type().type != MT_DIABLO && !monster.isUnique() && GenerateRnd(100) < 10) {
+	if (HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::Doppelganger) && monster.type().type != MT_DIABLO && !monster.isUnique() && !oracool::FightsAsUnique(monster) && GenerateRnd(100) < 10) { // not a roster boss (round 114)
 		AddDoppelganger(monster);
 	}
 
@@ -5439,7 +5440,7 @@ bool PlayerStrikesMonster(Player &player, Monster &monster)
 	const Point struckAt = monster.position.tile;
 	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FireDamage) || player._pIFMaxDam > 0)
 		AddMissile(struckAt, { 1, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
-	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::LightningDamage) || player._pILMaxDam > 0)
+	if (player._pILMaxDam > 0) // a range to roll, not Thunderclap's placeholder flag (round 114: the Whirlwind copy of round 113's)
 		AddMissile(struckAt, { 2, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
 	oracool::OnPassiveHit(player, monster, hitDamage, true);
 	oracool::OnRfa12Hit(player, monster, hitDamage, true);

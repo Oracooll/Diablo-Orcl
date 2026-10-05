@@ -430,7 +430,7 @@ void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee, bool b
 	OnRfa12ActiveHit(player, monster, damage, melee);
 	if (const int p = PointsIfOn(player, Skill::SovereignMeasure); p > 0 && (monster.hitPoints >> 6) > 0
 	    && MonstersWithin(player.position.tile, 4) == 1) {
-		if (++clocks.sovereignCount >= 4) {
+		if (!burst && ++clocks.sovereignCount >= 4) { // a weapon's fire burst is not a second blow (round 114 audit)
 			clocks.sovereignCount = 0;
 			const AuraDamage d = SovereignDamage(p);
 			Strike(player, monster, DamageType::Magic, Roll(d.min, d.max));

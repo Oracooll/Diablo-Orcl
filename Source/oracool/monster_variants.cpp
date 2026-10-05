@@ -8,6 +8,7 @@
 #include "multi.h"
 #include "options.h"
 #include "oracool/lesser_uniques.h"
+#include "oracool/endgame_boss.h" // FightsAsUnique - the rift roster bosses too
 
 namespace devilution::oracool {
 
@@ -232,7 +233,9 @@ MonsterVariant VariantOf(const Monster &monster)
 {
 	// Uniques and champions are excluded at the source rather than at the call site: they carry an
 	// identity already, and a "Feral Gharbad the Weak" is two names fighting over one monster.
-	if (monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None)
+	// Nor a rift roster boss on an ordinary type (round 114 audit: no unique row, no affix - he rolled Searing, Fleet or Gilded
+	// on top of his own split, speed and item pile): FightsAsUnique counts him.
+	if (monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None || FightsAsUnique(monster))
 		return MonsterVariant::None;
 	// Nor the hero's own (audit, 2026-09-27): a raised skeleton read as "Hollow Skeleton" and could be Frenzied or Gilded.
 	if (monster.isPlayerMinion())
@@ -386,7 +389,7 @@ void ApplyMonsterVariant(Monster &monster)
 void RestoreVariantTint(Monster &monster)
 {
 	// Not a unique (SyncMonsterAnim reloads its own .trn) and not the hero's own - a companion wears its ramp there.
-	if (monster.isUnique() || monster.isPlayerMinion())
+	if (monster.isUnique() || FightsAsUnique(monster) || monster.isPlayerMinion()) // a roster boss keeps his tint (round 114)
 		return;
 	monster.uniqueMonsterTRN.reset();
 	const MonsterVariant variant = VariantOf(monster);

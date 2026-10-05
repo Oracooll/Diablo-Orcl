@@ -65,6 +65,8 @@ void BlinkMonster(const Monster &monster, int ticks);
 
 /** @brief Whether @p spell is one of the eight RfA-12 bow skills and @p player holds no bow to loose it from. */
 bool Rfa12LacksBowFor(const Player &player, SpellID spell);
+/** @brief Whether a ground field's pulse (Earthquake) is striking now - its blows earn no per-blow Rage (round 114). */
+bool Rfa12FieldPulseInFlight();
 
 /** @brief Whether @p spell is swung on the RfA-12 melee latch rather than cast. */
 bool IsRfa12Melee(SpellID spell);
