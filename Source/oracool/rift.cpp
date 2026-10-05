@@ -301,7 +301,13 @@ bool OpenGuardianRift(Player &player, int tier)
 	SettleRiftRewardKeystone(player); // a reward already in his keeping owes nothing
 	const bool rewardOnCursor = RewardOwed && RewardSeed != 0 && player.HoldItem._iMiscId == IMISC_ORACOOL_KEYSTONE
 	    && player.HoldItem._iSeed == RewardSeed;
-	if (player._pOracoolOwedKeystoneTier > 0 && !rewardOnCursor) {
+	// Not while the last reward is held on the cursor (round 107 audit): its debt would ride into this rift and, put away later,
+	// wipe the debt of the keystone this rift spends.
+	if (rewardOnCursor) {
+		EventPlrMsg("Put away the keystone you hold first.", UiFlags::ColorRed);
+		return false;
+	}
+	if (player._pOracoolOwedKeystoneTier > 0) {
 		RefundOwedGuardianKeystone(player);
 		if (player._pOracoolOwedKeystoneTier > 0) {
 			EventPlrMsg("Make room in the pack or the stash for the keystone you are owed first.", UiFlags::ColorRed);
@@ -364,6 +370,7 @@ void SettleRiftRewardKeystone(Player &player)
 		return; // on the floor, on the cursor, or not yet his
 	RewardOwed = false;
 	player._pOracoolOwedKeystoneTier = 0;
+	ScheduleAutoSaveForItemDrop(); // the cleared debt reaches the disk soon, not at some later save (round 107 audit)
 }
 
 bool SpendPendingKeystone(Player &player)
@@ -1097,6 +1104,14 @@ void OnRiftMonsterKilled(const Monster &monster)
 
 void ProcessRift()
 {
+	// The owed reward keystone, settled once it is in his keeping - FIRST, before any return: a cleared rift walked out of is
+	// ended (kind None) by the town's rebuild, and a reward carried out on the cursor was never settled there (rounds 106-107
+	// audit). Only while one is owed, once a second (it scans the pack and the stash); every save settles at once.
+	static int settleClock = 0;
+	if (RewardOwed && MyPlayer != nullptr && ++settleClock >= RiftTicksPerSecond) {
+		settleClock = 0;
+		SettleRiftRewardKeystone(*MyPlayer);
+	}
 	if (State.kind == RiftKind::None)
 		return;
 
@@ -1139,13 +1154,6 @@ void ProcessRift()
 		return;
 	}
 
-	// In town too: a reward carried out on the cursor and put away (round 106 audit). Once a second: it scans the pack and the
-	// stash; the exit save and the carry home settle at once.
-	static int settleClock = 0;
-	if (MyPlayer != nullptr && ++settleClock >= RiftTicksPerSecond) {
-		settleClock = 0;
-		SettleRiftRewardKeystone(*MyPlayer);
-	}
 	if (leveltype == DTYPE_TOWN) {
 		// The portal in the gate after town is rebuilt (a death in the rift): AddStonegateObject runs
 		// before InitMissiles clears the list, so the relight happens here, once the missiles exist.

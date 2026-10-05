@@ -417,6 +417,8 @@ void ProcessAutoSave()
 	// Everything durable still travels with the hero: stats, inventory, belt, equipment, gold, the
 	// waypoint table, the extra inventory tabs and the chunk tail. The stash is its own file and
 	// still needs its own write.
+	if (MyPlayer != nullptr)
+		oracool::SettleRiftRewardKeystone(*MyPlayer); // never a reward in the pack saved still owed (round 107 audit)
 	BeginSaveAttempt();
 	SaveHeroAndStash(/*writeGameData=*/false);
 	if (SaveAttemptFailed()) {

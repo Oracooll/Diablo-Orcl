@@ -4667,7 +4667,7 @@ Monster *SpawnRiftGuardian()
 						continue;
 					const Point candidate = hero + Displacement { dx, dy };
 					if (InDungeonBounds(candidate) && dMonster[candidate.x][candidate.y] == 0 && dPlayer[candidate.x][candidate.y] == 0
-					    && !TileContainsSetPiece(candidate) && !IsTileOccupied(candidate) && (!sighted || (pathTries++ < MaxPathTries && RiftGuardianSpotReachable(hero, candidate)))) {
+					    && !TileContainsSetPiece(candidate) && !IsTileOccupied(candidate) && (!sighted || (oracool::SightLineClear(hero, candidate) && pathTries++ < MaxPathTries && RiftGuardianSpotReachable(hero, candidate)))) {
 						spot = candidate;
 						break;
 					}

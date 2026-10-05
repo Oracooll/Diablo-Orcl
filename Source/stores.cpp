@@ -3347,7 +3347,9 @@ void GambleBuyItemAt(int idx)
 	SetRndSeed(slot._iSeed);
 	GetItemAttrs(slot, base, lvl);
 	slot._iIdentified = false;
-	slot._iIvalue = price;
+	// Priced at the hero's level NOW, as the roll is (round 107 audit: the old price stayed while levels within one restock band
+	// rolled ever higher bases for it).
+	slot._iIvalue = GamblePriceFor(AllItemsList[base].itype, lvl);
 	// Stamped as the stock and the result are: an Oracool base is not one of Wirt's (round 54 audit).
 	slot._iCreateInfo = std::min(lvl, static_cast<int>(CF_LEVEL)) | (IsOracoolGearBase(base) ? 0 : CF_BOY);
 	slot._iStatFlag = MyPlayer->CanUseItem(slot);

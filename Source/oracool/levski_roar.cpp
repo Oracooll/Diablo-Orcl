@@ -1413,6 +1413,12 @@ bool RunLevskiTransmute()
 	// With no recipe picked, the readiest recipe of THIS host's book - never another host's.
 	const int recipe = SelectedRecipe >= 0 ? SelectedRecipe : FirstReadyLevskiRecipeFor(GridItems, WindowHost);
 	const std::string result = recipe >= 0 ? TransmuteLevskiGridWith(GridItems, recipe) : std::string {};
+	// Made nothing: nothing changed either (round 107 audit). A craft that re-tiers its target and then fails the rebuild
+	// returned empty with the target already re-rolled and nothing consumed - a free re-roll. No recipe takes gold.
+	if (result.empty()) {
+		std::copy(std::begin(snapshotItems), std::end(snapshotItems), GridItems);
+		std::copy(std::begin(snapshotCells), std::end(snapshotCells), GridCells);
+	}
 	if (!RebuildGridOccupancy()) {
 		std::copy(std::begin(snapshotItems), std::end(snapshotItems), GridItems);
 		std::copy(std::begin(snapshotCells), std::end(snapshotCells), GridCells);
