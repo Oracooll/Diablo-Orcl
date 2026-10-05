@@ -638,7 +638,7 @@ void ReleaseConfusedForLevelSave()
 			continue;
 		Monsters[i].flags &= ~(MFLAG_BERSERK | MFLAG_GOLEM);
 		Curses[i].turned = false;
-		ReaimMonsterAfterSideChange(Monsters[i]); // as the curse ending does (round 116 audit)
+		AimAtHeroForLevelSave(Monsters[i]); // as the curse ending does (rounds 116-117 audit)
 	}
 }
 

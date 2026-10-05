@@ -162,7 +162,10 @@ void OpenCommon(Player &player, RiftKind kind, int tier)
 	State = RiftState {};
 	State.kind = kind;
 	State.tier = std::max(tier, 1);
-	State.seed = GenerateSeed();
+	// Mixed with the clock and a count (round 117 audit): drawn in town, where every load reseeds the game's generator to the
+	// same value, the next rift after a return repeated the last one's boss, tileset and map.
+	static uint32_t riftsOpened = 0;
+	State.seed = static_cast<uint32_t>(GenerateSeed()) ^ SDL_GetTicks() ^ (++riftsOpened * 0x9E3779B9U);
 	// The boss first, then the floor (the Rift Boss Roster, 2026-10-04): a row of this kind for the rift's band rung, and
 	// one of its home tilesets - or any, now and then. Was a coin flip between two faces: Diablo on Hell, Na-Krul on the
 	// Crypt, Leoric and the Butcher on any floor - which is what their rows' homes still say.

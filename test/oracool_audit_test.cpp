@@ -19062,3 +19062,42 @@ TEST(OracoolAudit113, CastWeaponBlowsRefuseABowAndBowSkillsNeedOne)
 	EXPECT_FALSE(oracool::Rfa12LacksBowFor(player, SpellID::PiercingShot)) << "a bow skill with a bow";
 	player._pgfxnum = savedGfx;
 }
+
+// A side change released at a level save aims the monster and its hunters at the hero by hand: UpdateEnemy skips a hero mid
+// level change, so the round-116 re-aim left them mid-swing at a packmate on the revisit (round 117 audit).
+TEST(OracoolAudit117, ALevelSaveReleaseAimsTheHuntersAtTheHero)
+{
+	Players.resize(1);
+	devilution::Player *const savedMyPlayer = MyPlayer;
+	MyPlayer = &Players[0];
+	MyPlayer->position.future = { 40, 40 };
+	const size_t savedCount = ActiveMonsterCount;
+	const auto savedA = ActiveMonsters[0], savedB = ActiveMonsters[1];
+	const auto savedFlagsA = Monsters[10].flags, savedFlagsB = Monsters[11].flags;
+	const auto savedEnemyA = Monsters[10].enemy, savedEnemyB = Monsters[11].enemy;
+	const auto savedPosA = Monsters[10].enemyPosition, savedPosB = Monsters[11].enemyPosition;
+	ActiveMonsters[0] = 10;
+	ActiveMonsters[1] = 11;
+	ActiveMonsterCount = 2;
+	devilution::Monster &released = Monsters[10];
+	devilution::Monster &hunter = Monsters[11];
+	released.flags = MFLAG_TARGETS_MONSTER;
+	released.enemy = 11;
+	hunter.flags = MFLAG_TARGETS_MONSTER;
+	hunter.enemy = 10;
+	AimAtHeroForLevelSave(released);
+	EXPECT_EQ(hunter.flags & MFLAG_TARGETS_MONSTER, 0) << "the hunter still aimed at a monster";
+	EXPECT_EQ(static_cast<size_t>(hunter.enemy), MyPlayerId);
+	EXPECT_EQ(released.flags & MFLAG_TARGETS_MONSTER, 0) << "the released one still aimed at its pack";
+	EXPECT_EQ(released.enemyPosition, MyPlayer->position.future);
+	Monsters[10].flags = savedFlagsA;
+	Monsters[11].flags = savedFlagsB;
+	Monsters[10].enemy = savedEnemyA;
+	Monsters[11].enemy = savedEnemyB;
+	Monsters[10].enemyPosition = savedPosA;
+	Monsters[11].enemyPosition = savedPosB;
+	ActiveMonsters[0] = savedA;
+	ActiveMonsters[1] = savedB;
+	ActiveMonsterCount = savedCount;
+	MyPlayer = savedMyPlayer;
+}

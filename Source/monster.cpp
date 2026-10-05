@@ -4921,6 +4921,30 @@ void ReaimMonsterAfterSideChange(Monster &monster)
 	}
 }
 
+/**
+ * At a level save, UpdateEnemy cannot help: the hero is mid level change and its player loop skips him, the one place that
+ * clears MFLAG_TARGETS_MONSTER (round 117 audit). So the released monster, and everything that hunted it, is aimed at the hero
+ * by hand - the target a hostile has on the revisit until its next stand re-picks.
+ */
+void AimAtHeroForLevelSave(Monster &monster)
+{
+	if (MyPlayer == nullptr)
+		return;
+	const auto aim = [](Monster &m) {
+		m.flags &= ~MFLAG_TARGETS_MONSTER;
+		m.enemy = static_cast<decltype(m.enemy)>(MyPlayerId);
+		m.enemyPosition = MyPlayer->position.future;
+	};
+	const size_t id = monster.getId();
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		Monster &other = Monsters[ActiveMonsters[i]];
+		if (&other != &monster && (other.flags & MFLAG_TARGETS_MONSTER) != 0 && static_cast<size_t>(other.enemy) == id)
+			aim(other);
+	}
+	if ((monster.flags & MFLAG_TARGETS_MONSTER) != 0)
+		aim(monster);
+}
+
 void M_StartRise(Monster &monster, Direction md)
 {
 	ClearMVars(monster);
