@@ -4627,8 +4627,7 @@ Monster *AddMonster(Point position, Direction dir, size_t typeIndex, bool inMap)
  */
 static bool RiftGuardianSpotReachable(Point hero, Point candidate)
 {
-	if (!oracool::SightLineClear(hero, candidate))
-		return false;
+	// Sight is the caller's test, asked first (round 108 audit: it was traced twice per candidate).
 	int8_t path[MaxPathLength];
 	// The hero's own walk (round 104 audit: !IsTileSolid passed solid objects - crosses, sarcophagi); doors count as passable.
 	const int steps = FindPath([](Point p) { return InDungeonBounds(p) && IsTileWalkable(p, /*ignoreDoors=*/true); }, hero, candidate, path);
@@ -4667,7 +4666,7 @@ Monster *SpawnRiftGuardian()
 						continue;
 					const Point candidate = hero + Displacement { dx, dy };
 					if (InDungeonBounds(candidate) && dMonster[candidate.x][candidate.y] == 0 && dPlayer[candidate.x][candidate.y] == 0
-					    && !TileContainsSetPiece(candidate) && !IsTileOccupied(candidate) && (!sighted || (oracool::SightLineClear(hero, candidate) && pathTries++ < MaxPathTries && RiftGuardianSpotReachable(hero, candidate)))) {
+					    && !TileContainsSetPiece(candidate) && !IsTileOccupied(candidate) && (!sighted || (pathTries < MaxPathTries && oracool::SightLineClear(hero, candidate) && (++pathTries, RiftGuardianSpotReachable(hero, candidate))))) {
 						spot = candidate;
 						break;
 					}

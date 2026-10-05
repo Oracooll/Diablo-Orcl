@@ -149,6 +149,17 @@ void RefundOwedGuardianKeystone(Player &player);
 /** @brief Whether the keystone with @p seed is in @p player's pack (any page), belt or stash. */
 bool HeroKeepsKeystone(const Player &player, uint32_t seed);
 /**
+ * @brief Whether the owed reward keystone is still within the hero's reach though not in his keeping: on the cursor, on this
+ * level's floor, or possibly in an open Cube grid or workshop bench. A refund then would be a second copy (round 108 audit).
+ */
+bool RewardKeystoneStillReachable(const Player &player);
+/**
+ * @brief On a level change, the owed reward keystone held on the cursor goes to the pack or the stash and is settled (round 108
+ * audit: carried on a gamepad to another floor and dropped there, it was out of every check, and the next rift refunded a
+ * second one).
+ */
+void StowRewardKeystoneOnLevelChange(Player &player);
+/**
  * @brief Settles the next Guardian Keystone owed since the kill once that keystone (by its seed) is in the hero's pack, belt or
  * stash (rounds 104-105 audit). Called each tick, after carrying the floor's keystones home, and before every save.
  */

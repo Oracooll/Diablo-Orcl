@@ -18978,3 +18978,41 @@ TEST(OracoolAudit105, TheOwedRewardKeystoneSettlesOnlyByItsSeed)
 	MyPlayer = savedMyPlayer;
 	oracool::ResetRiftForNewGame();
 }
+
+// The owed reward on the town floor or on the cursor is still his to pick up: no Guardian Rift (and no refund, which minted a
+// second one) while it is there (round 108 audit).
+TEST(OracoolAudit108, TheRewardKeystoneOnTheFloorIsStillWithinReach)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player.HoldItem.clear();
+	oracool::ResetRiftForNewGame();
+	constexpr uint32_t RewardSeed = 0x2345678;
+	devilution::Item reward {};
+	reward._itype = ItemType::Misc;
+	reward._iMiscId = IMISC_ORACOOL_KEYSTONE;
+	reward.IDidx = IDI_ORACOOL_KEYSTONE;
+	reward._iSeed = RewardSeed;
+
+	const auto savedCount = ActiveItemCount;
+	const auto savedSlot = ActiveItems[0];
+	const devilution::Item savedItem = Items[ActiveItems[0]];
+	ActiveItemCount = 1;
+	Items[ActiveItems[0]] = reward;
+	EXPECT_FALSE(oracool::RewardKeystoneStillReachable(player)) << "nothing owed, nothing to refuse";
+
+	oracool::SetRiftRewardForTest(RewardSeed);
+	EXPECT_TRUE(oracool::RewardKeystoneStillReachable(player)) << "the reward on the floor was refunded a second time";
+
+	Items[ActiveItems[0]]._iSeed = RewardSeed + 1;
+	EXPECT_FALSE(oracool::RewardKeystoneStillReachable(player)) << "a spare keystone on the floor blocked the rift";
+
+	player.HoldItem = reward;
+	EXPECT_TRUE(oracool::RewardKeystoneStillReachable(player)) << "the reward on the cursor";
+
+	player.HoldItem.clear();
+	Items[ActiveItems[0]] = savedItem;
+	ActiveItems[0] = savedSlot;
+	ActiveItemCount = savedCount;
+	oracool::ResetRiftForNewGame();
+}

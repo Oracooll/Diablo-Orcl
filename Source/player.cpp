@@ -77,6 +77,7 @@
 #include "oracool/skill_sounds.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
+#include "oracool/rift.h" // StowRewardKeystoneOnLevelChange
 #include "oracool/sprite_import.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_ranged.h"
@@ -719,6 +720,7 @@ void InitLevelChange(Player &player)
 		stream_stop();
 	}
 
+	oracool::StowRewardKeystoneOnLevelChange(player); // never carried to another floor on the cursor (round 108 audit)
 	FixPlrWalkTags(player);
 	SetPlayerOld(player);
 	if (&player == MyPlayer) {
