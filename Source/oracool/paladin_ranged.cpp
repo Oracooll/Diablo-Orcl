@@ -93,7 +93,8 @@ bool CastFistOfTheHeavens(Player &player, Point target, int spellLevel)
 			return false; // the wall at his feet: nowhere to bring the mace down (round 47 audit)
 	}
 	// Not on a tile past a wall, before the mana (round 39 audit: a shift-click brought the mace down in the next room).
-	if (!LineClearMissile(player.position.tile, target))
+	// A closed door too, on the way or as the target (round 98 audit: the blast landed past one, or fanned out of the doorway).
+	if (!SightLineClear(player.position.tile, target))
 		return false;
 	if (!SpendPaladinSkillMana(player, PaladinSkill::FistOfTheHeavens))
 		return false;

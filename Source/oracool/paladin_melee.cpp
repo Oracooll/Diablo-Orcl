@@ -191,6 +191,8 @@ int GatherAdjacent(const Monster &centre, Monster **out, int maxTargets)
 			continue;
 		if (other.position.tile.WalkingDistance(centre.position.tile) != 1)
 			continue;
+		if (!SightLineClear(centre.position.tile, other.position.tile))
+			continue; // not across a wall corner or a door (round 98 audit)
 		out[found++] = &other;
 	}
 	return found;

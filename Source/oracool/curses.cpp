@@ -231,7 +231,7 @@ bool Lay(Monster &monster, CurseKind kind, int ticks, int rank, const Player &ow
 
 /** @brief A blow credited to the curse's owner, immunity and resistance honoured. */
 /** @brief Strikes @p monster for @p owner; whether any damage landed (Soul Harvest pays only for those). */
-bool OwnerStrikes(Player &owner, Monster &monster, DamageType type, int damage, bool applyPassives = true)
+bool OwnerStrikes(Player &owner, Monster &monster, DamageType type, int damage, bool applyPassives = true, bool keepsItsTarget = false)
 {
 	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
 		return false;
@@ -250,6 +250,13 @@ bool OwnerStrikes(Player &owner, Monster &monster, DamageType type, int damage, 
 	ApplyMonsterDamage(type, monster, damage);
 	if ((monster.hitPoints >> 6) <= 0) {
 		M_StartKill(monster, owner);
+		return true;
+	}
+	if (keepsItsTarget) {
+		// Credited to the owner, flinched as a monster's blow flinches it - MinionHurts' rule (round 25): the hero's hit path
+		// turned it onto him (round 98 audit: Iron Maiden pulled a pack off the Iron Golem and onto the Necromancer).
+		monster.tag(owner);
+		M_StartHit(monster, damage);
 		return true;
 	}
 	M_StartHit(monster, owner, damage);
@@ -469,14 +476,14 @@ bool CurseFinishes(const Monster &monster, int hitPoints, int maxHitPoints)
 	return hitPoints <= maxHitPoints * FrailtyPercent(Of(monster).rank) / 100;
 }
 
-void OnCursedMonsterDealtBlow(Monster &monster, int damage)
+void OnCursedMonsterDealtBlow(Monster &monster, int damage, bool onArmy)
 {
 	if (!Live(monster) || Of(monster).kind != CurseKind::IronMaiden || damage <= 0)
 		return;
 	Player *owner = OwnerOf(Of(monster));
 	if (owner == nullptr)
 		return;
-	OwnerStrikes(*owner, monster, DamageType::Physical, damage * IronMaidenPercent(Of(monster).rank) / 100, /*applyPassives=*/false);
+	OwnerStrikes(*owner, monster, DamageType::Physical, damage * IronMaidenPercent(Of(monster).rank) / 100, /*applyPassives=*/false, /*keepsItsTarget=*/onArmy);
 }
 
 void OnCursedMonsterStruck(const Monster &monster, Player &player, Monster *minion, int damage)
@@ -532,6 +539,8 @@ int CurseLureTarget(const Monster &monster)
 		const int distance = monster.position.tile.WalkingDistance(other.position.tile);
 		if (distance > AttractReach)
 			continue;
+		if (!SightLineClear(monster.position.tile, other.position.tile))
+			continue; // not the next room's, through a wall or a door (round 98 audit; the taunt's rule since round 82)
 		if (best < 0 || distance < bestDistance) {
 			best = static_cast<int>(other.getId());
 			bestDistance = distance;

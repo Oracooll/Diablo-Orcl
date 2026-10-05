@@ -48,14 +48,23 @@ namespace devilution::oracool {
 
 bool SightLineClear(Point from, Point to)
 {
-	return LineClear([](Point tile) {
-		if (!PosOkMissile(tile))
-			return false;
-		// A closed door stops an arrow through its object's flag (IsMissileBlockedByTile), not its tile's (round 80 audit).
+	const auto closedDoorAt = [](Point tile) {
 		const Object *object = FindObjectAtPosition(tile);
-		return object == nullptr || !object->isDoor() || object->_oMissFlag;
-	},
-	    from, to);
+		return object != nullptr && object->isDoor() && !object->_oMissFlag;
+	};
+	if (!LineClear([&closedDoorAt](Point tile) {
+		    // A closed door stops an arrow through its object's flag (IsMissileBlockedByTile), not its tile's (round 80 audit).
+		    return PosOkMissile(tile) && !closedDoorAt(tile);
+	    },
+	        from, to))
+		return false;
+	// LineClear never tests its end tile (rounds 97-98 audit): a closed door there, or the one diagonal step squeezed between two
+	// corner-touching walls, was "in sight" - every adjacent strike reached across a wall corner.
+	if (to != from && closedDoorAt(to))
+		return false;
+	if (from.WalkingDistance(to) == 1 && from.x != to.x && from.y != to.y && IsTileSolid({ to.x, from.y }) && IsTileSolid({ from.x, to.y }))
+		return false;
+	return true;
 }
 
 namespace {
@@ -300,7 +309,9 @@ bool LineStepBlocked(Point prev, Point tile)
 		return true;
 	if (const Object *object = FindObjectAtPosition(tile); object != nullptr && object->isDoor() && !object->_oMissFlag)
 		return true;
-	return tile.x != prev.x && tile.y != prev.y && (IsTileSolid({ tile.x, prev.y }) || IsTileSolid({ prev.x, tile.y }));
+	// BOTH sides walls - a real leak between two corners. One wall is a doorway or a pillar's corner, which every line passes
+	// (round 98 audit: with either side, a line through any one-tile doorway stopped, and a hero standing in one could not aim).
+	return tile.x != prev.x && tile.y != prev.y && IsTileSolid({ tile.x, prev.y }) && IsTileSolid({ prev.x, tile.y });
 }
 
 /** @brief The tiles from @p from toward @p toward, @p length of them, stopping at a wall or a closed door. */
@@ -577,7 +588,8 @@ Point RushEndToward(Point here, Point aim, Monster *&met)
 	const int steps = std::max(std::abs(delta.deltaX), std::abs(delta.deltaY));
 	for (int k = 1; k <= steps; k++) {
 		const Point tile = here + Displacement { (delta.deltaX * k * 2 + (delta.deltaX >= 0 ? steps : -steps)) / (2 * steps), (delta.deltaY * k * 2 + (delta.deltaY >= 0 ? steps : -steps)) / (2 * steps) };
-		if (!InDungeonBounds(tile) || IsTileSolid(tile) || !SightLineClear(here, tile))
+		// The step itself too, as LastClearTileToward (round 98 audit: the rush ended on a closed door's tile).
+		if (LineStepBlocked(last, tile) || !SightLineClear(here, tile))
 			break;
 		if (Monster *monster = FindMonsterAtPosition(tile); monster != nullptr && Hittable(*monster)) {
 			met = monster;
@@ -1834,6 +1846,13 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::WrathOfTheHeavens: {
+		// Nobody in reach to fall on: refused, unpaid, as Ground Stomp (round 98 audit: an empty room took the mana).
+		{
+			auto nearby = MonstersWithin(here, ReachTiles(spell, r));
+			nearby.erase(std::remove_if(nearby.begin(), nearby.end(), [](const Monster *m) { return m->isImmune(MissileID::Null, DamageType::Magic); }), nearby.end());
+			if (nearby.empty())
+				return false;
+		}
 		PlayerState &state = StateOf(player);
 		state.wrathPillars = WrathPillars;
 		state.wrathClock = 0;
@@ -4087,6 +4106,9 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	case SpellID::HolyLance:
 		// Each monster once, and not the one the swing itself struck: a walker stands on two lance tiles and took two
 		// blows, and the front target a third (round 16 audit, v1.12.241).
+		// Not from a door or a wall in front of him: the line starts on that tile and its first step was the next room (round 98).
+		if (LineStepBlocked(player.position.tile, ahead))
+			break;
 		for (Monster *m : MonstersOnLine(ahead, ahead + player._pdir, 2)) {
 			// Not a magic-immune one: StrikeBlow refuses it, and the mana and the cue were paid for nothing (round 66 audit).
 			if (m != nullptr && m != front && Hittable(*m) && !m->isImmune(MissileID::Null, DamageType::Magic)) {
@@ -4112,6 +4134,8 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			Monster *m = FindMonsterAtPosition(tile);
 			if (m == nullptr || !Hittable(*m) || std::find(slammed.begin(), slammed.end(), m) != slammed.end())
 				continue;
+			if (!SightLineClear(player.position.tile, tile))
+				continue; // not across a wall corner or a door (round 98 audit)
 			slammed.push_back(m);
 			bool did = false;
 			if (m != front) {
@@ -4208,6 +4232,10 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 			// Monk who kept swinging never heard an echo.
 			if (state.echoTicks > 0)
 				FireStaffEcho(player, state);
+			if ((front->hitPoints >> 6) <= 0 || front->mode == MonsterMode::Death) {
+				struck = true; // the swing landed; the old echo finished him, and there is nothing to remember (round 98 audit)
+				break;
+			}
 			state.echoTicks = EffectTicks(spell, r);
 			state.echoMonster = static_cast<int>(front->getId());
 			state.echoDamage = Percent(frontDamage, BlowPercent(spell, r));
@@ -4661,11 +4689,14 @@ void ProcessRfa12ActivesTick(Player &player)
 
 	// Wrath of the Heavens: a pillar every 12 ticks on a monster within five tiles.
 	if (state.wrathPillars > 0 && ++state.wrathClock % WrathPillarTicks == 0) {
-		state.wrathPillars--;
+		// A pillar is spent on an enemy (round 98 audit), and the storm passes after twice its time whatever is left.
+		if (state.wrathClock >= 2 * WrathPillars * WrathPillarTicks)
+			state.wrathPillars = 0;
 		auto nearby = MonstersWithin(player.position.tile, ReachTiles(SpellID::WrathOfTheHeavens, state.wrathRank));
 		// Not on a magic-immune one (round 71 audit: a pillar fell on a skeleton, did nothing and was spent).
 		nearby.erase(std::remove_if(nearby.begin(), nearby.end(), [](const Monster *m) { return m->isImmune(MissileID::Null, DamageType::Magic); }), nearby.end());
-		if (!nearby.empty()) {
+		if (state.wrathPillars > 0 && !nearby.empty()) {
+			state.wrathPillars--;
 			Monster &m = *nearby[static_cast<size_t>(GenerateRnd(static_cast<int>(nearby.size())))];
 			const Point at = m.position.tile;
 			Strike(player, m, DamageType::Magic, Rolled(SkillDamage(SpellID::WrathOfTheHeavens, state.wrathRank)));

@@ -3924,7 +3924,9 @@ Monster *NextBlessedShieldTarget(const Missile &missile, Point from)
 {
 	const std::optional<Point> found = FindClosestValidPosition(
 	    [&missile, from](Point tile) {
-		    if (!InDungeonBounds(tile) || tile == missile.position.tile || dMonster[tile.x][tile.y] <= 0 || CheckBlock(from, tile))
+		    // Not one behind a closed door (round 98 audit): the shield turned to it, hit the door and lost the bounce.
+		    if (!InDungeonBounds(tile) || tile == missile.position.tile || dMonster[tile.x][tile.y] <= 0 || CheckBlock(from, tile)
+		        || !oracool::SightLineClear(from, tile))
 			    return false;
 		    const int id = dMonster[tile.x][tile.y] - 1;
 		    Monster &monster = Monsters[id];

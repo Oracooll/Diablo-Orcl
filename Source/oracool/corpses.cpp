@@ -13,7 +13,9 @@
 #include "engine.h"
 #include "levels/gendung.h"
 #include "monster.h"
+#include "oracool/endgame_boss.h" // IsEndgameBoss - no Revive of a boss
 #include "oracool/minions.h"
+#include "oracool/rift.h" // IsRiftGuardian, IsFallenRiftGuardian
 
 namespace devilution::oracool {
 
@@ -25,6 +27,10 @@ int Count = 0;
 bool Revivable(const Monster &monster)
 {
 	if (monster.isUnique() || monster.type().type == MT_GOLEM)
+		return false;
+	// Nor the bosses that fight as uniques (round 98 audit): a Dread boss or a rift's guardian - who has fallen by now, so asked
+	// as fallen - came back Revived with a boss's life.
+	if (IsEndgameBoss(monster) || IsFallenRiftGuardian(monster) || IsRiftGuardian(monster))
 		return false;
 	// The story monsters and the ones the variant system already keeps out: what could not be spawned twice
 	// should not be raised either.

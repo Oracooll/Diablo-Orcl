@@ -1669,7 +1669,7 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 	if (oracool::IsMinion(target)) {
 		oracool::OnMinionStruck(target, attacker, dam);
 		if (attacker.mode != MonsterMode::Death)
-			oracool::OnCursedMonsterDealtBlow(attacker, dam); // Iron Maiden
+			oracool::OnCursedMonsterDealtBlow(attacker, dam, /*onArmy=*/true); // Iron Maiden - it keeps its target (round 98)
 	} else if (attacker.isPlayerMinion() && attacker.getId() < Players.size()) {
 		int playerId = attacker.getId();
 		const Player &player = Players[playerId];
@@ -4579,7 +4579,9 @@ Monster *AddMinionBody(Point position, Direction dir, _monster_id type)
 	monster.flags |= MFLAG_GOLEM;
 	// And not hidden: a Revived Stalker or Unseen kept its type's MFLAG_HIDDEN, which only the Sneak AI clears, and
 	// fought its whole life unseen (round 14 audit, v1.12.239).
-	monster.flags &= ~(MFLAG_TARGETS_MONSTER | MFLAG_BERSERK | MFLAG_HIDDEN);
+	// And the Gargoyle AI's perch (round 98 audit): InitMonster sets ALLOW_SPECIAL on every Winged Demon, which holds the animation,
+	// and a Revived one froze on its first step until an enemy's blow lifted it.
+	monster.flags &= ~(MFLAG_TARGETS_MONSTER | MFLAG_BERSERK | MFLAG_HIDDEN | MFLAG_ALLOW_SPECIAL);
 	monster.enemy = 0;
 	monster.activeForTicks = UINT8_MAX;
 	monster.leaderRelation = LeaderRelation::None;

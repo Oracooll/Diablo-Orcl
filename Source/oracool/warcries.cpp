@@ -188,8 +188,8 @@ int ForEachInEarshot(Point centre, int radius, Fn fn)
 			if (centre.WalkingDistance(tile) > radius)
 				continue;
 			// Heard in sight only, as the RfA-12 cries and Frost Nova: War Cry stunned the next room (round 7 audit).
-			if (!LineClearMissile(centre, tile))
-				continue;
+			if (!SightLineClear(centre, tile))
+				continue; // a closed door too (round 98 audit)
 			fn(monster);
 			heard++;
 		}
@@ -249,8 +249,8 @@ std::optional<Point> CorpseNear(Point centre, int radius, Point seenFrom)
 			const Point tile { x, y };
 			if (!InDungeonBounds(tile) || dCorpse[x][y] == 0)
 				continue;
-			if (!LineClearMissile(seenFrom, tile))
-				continue; // not one behind a wall from the hero (round 39 audit)
+			if (!SightLineClear(seenFrom, tile))
+				continue; // not one behind a wall or a closed door from the hero (rounds 39, 98)
 			const int distance = centre.WalkingDistance(tile);
 			if (distance < bestDistance) {
 				bestDistance = distance;
@@ -486,8 +486,8 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 		ForEachInEarshot(target, 2, [&](Monster &m) {
 			if (turned != nullptr || ShrugsOff(m) || m.ai == MonsterAIID::Diablo)
 				return;
-			if (!LineClearMissile(player.position.tile, m.position.tile))
-				return; // not the next room's, through a wall (round 39 audit)
+			if (!SightLineClear(player.position.tile, m.position.tile))
+				return; // not the next room's, through a wall or a closed door (rounds 39, 98)
 			if ((m.flags & MFLAG_BERSERK) != 0 || (m.resistance & IMMUNE_MAGIC) != 0)
 				return;
 			if (IsAnyOf(m.mode, MonsterMode::FadeIn, MonsterMode::FadeOut, MonsterMode::Charge, MonsterMode::Petrified))

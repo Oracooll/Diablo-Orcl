@@ -92,7 +92,7 @@ int CurseDamageTaken(const Monster &monster, DamageType type, int damage);
 /** @brief Frailty: whether a monster now at @p hitPoints of @p maxHitPoints simply dies. */
 bool CurseFinishes(const Monster &monster, int hitPoints, int maxHitPoints);
 /** @brief Iron Maiden: @p monster landed a blow for @p damage on the hero or a minion; it takes a multiple back. */
-void OnCursedMonsterDealtBlow(Monster &monster, int damage);
+void OnCursedMonsterDealtBlow(Monster &monster, int damage, bool onArmy = false);
 /** @brief Life Tap: a blow for @p damage landed on @p monster by @p player, or by a minion of @p player's. */
 void OnCursedMonsterStruck(const Monster &monster, Player &player, Monster *minion, int damage);
 /** @brief Dim Vision: the monster sees only what stands beside it. */

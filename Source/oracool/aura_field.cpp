@@ -14,6 +14,7 @@
 #include "missiles.h"
 #include "monster.h"
 #include "oracool/endgame_boss.h" // FightsAsUnique
+#include "oracool/rfa12_actives.h" // SightLineClear - the door-aware sight (round 98)
 #include "oracool/chill.h"
 #include "oracool/class_tree.h"
 #include "utils/language.h"
@@ -150,8 +151,8 @@ void ProcessHolyPulse(Player &player)
 		Monster &monster = Monsters[std::abs(id) - 1];
 		if (monster.position.tile != tile || player.position.tile.WalkingDistance(tile) > radius)
 			continue; // the second tile of a monster mid-step, or a corner past the reach
-		if (!LineClearMissile(player.position.tile, tile))
-			continue; // not through a wall, as Static Field since round 8 (round 34 audit)
+		if (!SightLineClear(player.position.tile, tile))
+			continue; // not through a wall or a closed door, as Static Field since round 8 (rounds 34, 98)
 		struck.push_back(&monster);
 	}
 	for (Monster *monster : struck)
@@ -170,7 +171,7 @@ std::vector<Monster *> AuraTargetsWithin(const Player &player, int radius)
 			continue;
 		// In sight only, as MonstersWithin since round 5: Static Field and Thunder Storm reached the next room (round 8 audit).
 		if (player.position.tile.WalkingDistance(monster.position.tile) <= radius
-		    && LineClearMissile(player.position.tile, monster.position.tile))
+		    && SightLineClear(player.position.tile, monster.position.tile)) // a closed door too (round 98 audit)
 			found.push_back(&monster);
 	}
 	return found;
@@ -463,8 +464,8 @@ void ProcessOutwardAura(Player &player)
 		// uses to decide what it may burn.
 		if (monster.data().monsterClass != MonsterClass::Undead)
 			continue;
-		if (!LineClearMissile(player.position.tile, monster.position.tile))
-			continue; // not the next room's undead (round 34 audit)
+		if (!SightLineClear(player.position.tile, monster.position.tile))
+			continue; // not the next room's undead, through a wall or a closed door (rounds 34, 98)
 		// Not a monster Conversion turned: it fights for the Paladin, and since every AI obeys a retreat (v1.12.240) the
 		// field sent his own allies running (round 16 audit).
 		if (IsMonsterConverted(monster))
