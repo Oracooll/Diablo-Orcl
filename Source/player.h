@@ -1277,6 +1277,13 @@ void SetPlayerHitPoints(Player &player, int val);
  * made every off/on a free heal (round 16). Taking an ITEM off keeps vanilla's plain CalcPlrInv.
  */
 void CalcPlrInvKeepingLife(Player &player);
+/**
+ * @brief The item on-hit damage powers on a skill's weapon blow (user, 2026-10-05: "Skills trigger them" - they reached only the
+ * plain swing): triple damage to demons, and for a melee blow Devastation, Jester's and Doppelganger. @p damage in 1/64s.
+ */
+int SkillBlowItemDamage(Player &player, Monster &monster, int damage, bool melee);
+/** @brief After a skill's weapon blow landed @p damage (1/64s): the life and mana steals (melee), and the item knockback. */
+void SkillBlowItemAfterHit(Player &player, Monster &monster, int damage, bool melee, bool knockback);
 void SetPlrStr(Player &player, int v);
 void SetPlrMag(Player &player, int v);
 void SetPlrDex(Player &player, int v);

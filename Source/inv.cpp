@@ -4735,6 +4735,7 @@ bool UseInvItem(int cii)
 		oracool::NamedEncounter encounter;
 		if (!oracool::EncounterForMapItem(item->IDidx, encounter))
 			return true;
+		const bool reentry = oracool::NamedEncounterReentryIsFree(encounter); // asked before Enter, which keeps it so
 		if (!oracool::EnterNamedEncounter(player, encounter)) {
 			player.Say(HeroSpeech::ICantUseThisYet);
 			if (&player == MyPlayer)
@@ -4744,6 +4745,8 @@ bool UseInvItem(int cii)
 		// Consumed only once the encounter has actually opened.
 		if (&player == MyPlayer)
 			oracool::PlayUiEventSound(oracool::UiEventSound::MapUnseal);
+		if (reentry)
+			return true; // back into the open arena: the map is kept (user, 2026-10-05)
 		// From its own list: a map read from the belt removed backpack item c and stayed on the belt, ready to open
 		// the encounter again - and with an empty backpack drove _pNumInv to -1 (round 12 audit, v1.12.237).
 		if (speedlist)

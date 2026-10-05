@@ -11,6 +11,7 @@
  * crafted archive) - are listed in the round-eleven dev report instead, as play-test items.
  */
 
+#include <tuple>
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -18427,9 +18428,9 @@ TEST(OracoolRogue375, ThrowsStrikesAndCastsAreSortedAsThePageSays)
 	for (const SpellID spell : { SpellID::PoisonJavelin, SpellID::PlagueJavelin, SpellID::Harpoon, SpellID::AnchorJavelin, SpellID::ValkyriesSpear })
 		EXPECT_TRUE(oracool::IsJavelinThrow(spell)) << static_cast<int>(spell);
 	EXPECT_EQ(oracool::JavelinThrowRange(SpellID::Harpoon), 8);
-	EXPECT_EQ(oracool::JavelinThrowRange(SpellID::PoisonJavelin), 6);
-	EXPECT_EQ(oracool::JavelinThrowRange(SpellID::PlagueJavelin), 6);
-	EXPECT_EQ(oracool::JavelinThrowRange(SpellID::AnchorJavelin), 6);
+	EXPECT_EQ(oracool::JavelinThrowRange(SpellID::PoisonJavelin), 8); // user, 2026-10-05
+	EXPECT_EQ(oracool::JavelinThrowRange(SpellID::PlagueJavelin), 8); // user, 2026-10-05
+	EXPECT_EQ(oracool::JavelinThrowRange(SpellID::AnchorJavelin), 8); // user, 2026-10-05
 	for (const SpellID spell : { SpellID::Jab, SpellID::Impale, SpellID::ChargedStrike, SpellID::Fend, SpellID::LightningStrike, SpellID::Sweep,
 	         SpellID::ReapingPoint, SpellID::TurningPike })
 		EXPECT_TRUE(oracool::IsJavelinStrike(spell)) << static_cast<int>(spell);
@@ -19118,4 +19119,32 @@ TEST(OracoolAudit117, ALevelSaveReleaseAimsTheHuntersAtTheHero)
 	ActiveMonsterCount = savedCount;
 	MyPlayer->position.future = savedFuture;
 	MyPlayer = savedMyPlayer;
+}
+
+// Damage past the 255 of a monster's bytes is kept as its overflow percent (user, 2026-10-05: on Torment the champion and boss
+// multipliers were clamped away), and each later stage scales the REAL damage.
+TEST(OracoolUser1005, MonsterDamagePastItsBytesIsKeptAsOverflow)
+{
+	devilution::Monster &monster = Monsters[20];
+	const auto saved = std::make_tuple(monster.minDamage, monster.maxDamage, monster.minDamageSpecial, monster.maxDamageSpecial, monster.damageOverflow);
+	SetMonsterDamage(monster, 300, 600, 0, 0);
+	EXPECT_GT(monster.damageOverflow, 100);
+	EXPECT_LE(monster.maxDamage, 255);
+	EXPECT_NEAR(static_cast<double>(MonsterEffectiveDamage(monster, monster.maxDamage)), 600.0, 6.0) << "the real damage was lost";
+	EXPECT_NEAR(static_cast<double>(MonsterEffectiveDamage(monster, monster.minDamage)), 300.0, 6.0);
+	ScaleMonsterDamage(monster, 200, 100); // a Dread boss's x2 on top
+	EXPECT_NEAR(static_cast<double>(MonsterEffectiveDamage(monster, monster.maxDamage)), 1200.0, 12.0) << "the boss multiplier was clamped away";
+	SetMonsterDamage(monster, 10, 20, 5, 8);
+	EXPECT_EQ(monster.damageOverflow, 100) << "a monster that fits keeps 100";
+	EXPECT_EQ(monster.maxDamage, 20);
+	std::tie(monster.minDamage, monster.maxDamage, monster.minDamageSpecial, monster.maxDamageSpecial, monster.damageOverflow) = saved;
+}
+
+// A death in a Sealed Map arena keeps the way open: the next map of the kind re-enters it free until its boss falls (user,
+// 2026-10-05). A new game forgets it.
+TEST(OracoolUser1005, AnOpenArenaIsReenteredFreeUntilANewGame)
+{
+	oracool::ResetNamedEncountersForNewGame();
+	for (int i = 0; i < static_cast<int>(oracool::NamedEncounterCount); i++)
+		EXPECT_FALSE(oracool::NamedEncounterReentryIsFree(static_cast<oracool::NamedEncounter>(i))) << "a fresh game owes no free entry";
 }

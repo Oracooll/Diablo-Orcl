@@ -985,10 +985,7 @@ void ScaleRiftMonster(Monster &monster)
 	const auto scale = [pct](int value) { return static_cast<int>(static_cast<int64_t>(value) * pct / 100); };
 	monster.maxHitPoints = scale(monster.maxHitPoints);
 	monster.hitPoints = scale(monster.hitPoints);
-	monster.minDamage = static_cast<uint8_t>(std::min(255, scale(monster.minDamage)));
-	monster.maxDamage = static_cast<uint8_t>(std::min(255, scale(monster.maxDamage)));
-	monster.minDamageSpecial = static_cast<uint8_t>(std::min(255, scale(monster.minDamageSpecial)));
-	monster.maxDamageSpecial = static_cast<uint8_t>(std::min(255, scale(monster.maxDamageSpecial)));
+	ScaleMonsterDamage(monster, pct, pct); // past 255 kept as the overflow (user, 2026-10-05)
 	monster.armorClass = static_cast<uint8_t>(std::min(255, monster.armorClass + (pct - 100) / 6));
 }
 

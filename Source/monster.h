@@ -320,6 +320,12 @@ struct Monster { // note: missing field _mAFNum
 	 * with histories, and a fresh floor re-rolls them anyway.
 	 */
 	uint16_t lesserNameSeed = 0;
+	/**
+	 * @brief The percent laid on every blow of this monster's: what its damage could not fit in the 255 of its bytes (user,
+	 * 2026-10-05: "Overflow percent" - on Torment the champion, Dread boss, escort, variant and rift tier multipliers were clamped
+	 * away). 100 for most; the bytes keep the spread, scaled down together. Saved in two of the spare bytes after enemyPosition.
+	 */
+	uint16_t damageOverflow = 100;
 	uint8_t uniqTrans;
 	int8_t corpseId;
 	int8_t whoHit;
@@ -541,6 +547,12 @@ void M_StartRise(Monster &monster, Direction md);
 void ReaimMonsterAfterSideChange(Monster &monster);
 /** @brief At a level save: @p monster and its hunters aimed at the hero, as UpdateEnemy cannot while he changes level. */
 void AimAtHeroForLevelSave(Monster &monster);
+/** @brief @p byte as this monster really deals it: the byte times its overflow percent (Monster::damageOverflow). */
+int64_t MonsterEffectiveDamage(const Monster &monster, uint8_t byte);
+/** @brief Sets the four damage values as wanted: the bytes when they fit, else bytes scaled down with the overflow percent. */
+void SetMonsterDamage(Monster &monster, int64_t minDamage, int64_t maxDamage, int64_t minSpecial, int64_t maxSpecial);
+/** @brief Scales the real damage by @p normalPercent (the blow) and @p specialPercent (the special), keeping the overflow. */
+void ScaleMonsterDamage(Monster &monster, int normalPercent, int specialPercent);
 /** @brief At a level save: every hostile hunting monster slot @p monsterId aimed at the hero (a minion withdrawn, round 118). */
 void AimHuntersAtHeroForLevelSave(size_t monsterId);
 void M_ClearSquares(const Monster &monster);

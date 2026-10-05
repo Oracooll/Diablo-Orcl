@@ -1,6 +1,8 @@
 #include "oracool/named_encounters.h"
 #include "oracool/skill_sounds.h"
 
+#include <optional>
+
 #include <SDL.h> // SDL_GetTicks - the arena seed mixed with the clock
 
 #include "diablo.h"
@@ -205,6 +207,23 @@ bool CurrentNamedEncounter(NamedEncounter &out)
 /** @brief This entry's arena population seed, drawn at the map's use (SeedArenaPopulation; round 17 audit). */
 uint32_t ArenaEntrySeed = 0;
 
+/**
+ * The arena last opened, while its boss stands (user, 2026-10-05: "Re-enter free" - a death there spent the map for nothing).
+ * Cleared when its boss falls and on a new game; replaced when a map of another kind opens a new arena.
+ */
+std::optional<NamedEncounter> OpenArena;
+
+bool NamedEncounterReentryIsFree(NamedEncounter encounter)
+{
+	return OpenArena.has_value() && *OpenArena == encounter;
+}
+
+void ResetNamedEncountersForNewGame()
+{
+	OpenArena.reset();
+	ArenaEntrySeed = 0;
+}
+
 bool EnterNamedEncounter(Player &player, NamedEncounter encounter)
 {
 	if (!IsSinglePlayer())
@@ -231,6 +250,14 @@ bool EnterNamedEncounter(Player &player, NamedEncounter encounter)
 	// The stale saved level stays in the archive and is simply never read. Deleting it would mean
 	// reaching into the save writer from here for no benefit.
 	const _setlevels level = NamedEncounterLevel(encounter);
+	// The same arena again, its boss still standing (user, 2026-10-05): back into the room as it was left - saved, the boss as
+	// wounded as he was - on the same seed if its save could not be read. No fresh instance, no new seed, the portal kept.
+	if (NamedEncounterReentryIsFree(encounter)) {
+		setlvltype = NamedEncounterDungeon(encounter);
+		LogEvent(std::string(_("The sealed way still stands open - the map is kept.")));
+		StartNewLvl(player, WM_DIABSETLVL, level);
+		return true;
+	}
 	player._pSLvlVisited[level] = false;
 	// A town portal still standing into the old room closes with it, as a new rift closes the old rift's (round 12
 	// audit): the fresh arena restored the old portal into a room it no longer led to.
@@ -248,6 +275,7 @@ bool EnterNamedEncounter(Player &player, NamedEncounter encounter)
 	// redraws glSeedTbl[0]; round 118 audit correction).
 	static uint32_t arenasEntered = 0;
 	ArenaEntrySeed = (static_cast<uint32_t>(AdvanceRndSeed()) ^ SDL_GetTicks() ^ (++arenasEntered * 0x9E3779B9U)) | 1U; // this entry's population (SeedArenaPopulation)
+	OpenArena = encounter;
 	StartNewLvl(player, WM_DIABSETLVL, level);
 	return true;
 }
@@ -278,6 +306,7 @@ void AwardNamedEncounter(const Monster &monster)
 		return;
 	if (!IsEndgameBoss(monster))
 		return;
+	OpenArena.reset(); // its boss is down: the next map of the kind opens a new arena, and is spent
 
 	// "Guaranteed" has to survive a full floor. Audit finding, 2026-08-26: this used to return
 	// silently at the item cap, and the boss's ORDINARY loot is spawned first - so the one drop the

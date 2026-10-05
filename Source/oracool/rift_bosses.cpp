@@ -484,7 +484,10 @@ BossGlaze RiftBossGlaze(const Monster &monster)
 
 int RiftBossDamagePercent(const Monster &monster)
 {
-	return ActiveRiftBossFor(monster) != nullptr ? std::max(RunState.damageOverflow, 100) : 100;
+	// The rift boss's run overflow, times the monster's own (Monster::damageOverflow - every monster's since 2026-10-05: champions,
+	// Dread bosses, escorts and variants past 255 on Torment). The one percent every blow and readout lays on.
+	const int boss = ActiveRiftBossFor(monster) != nullptr ? std::max(RunState.damageOverflow, 100) : 100;
+	return static_cast<int>(static_cast<int64_t>(boss) * std::max<int>(monster.damageOverflow, 100) / 100);
 }
 
 bool RiftBossIsSteady(const Monster &monster)
@@ -510,7 +513,8 @@ void OnRiftBossRisen(Monster &monster)
 		// The damage bytes cap at 255, and on Hell a boss's scaled blow passed it - every Guardian boss struck a flat 255 and his
 		// x2.0 or x2.4 meant nothing (round 95 audit). What does not fit is kept as a percent laid on at every blow
 		// (RiftBossDamagePercent), and the bytes keep the spread, scaled down together.
-		const auto wanted = [&](int value) { return static_cast<int64_t>(value) * band / 100 * def->damagePercent / 100; };
+		// From the REAL damage, his own overflow included; the run's overflow then carries it all, so his own goes back to 100.
+		const auto wanted = [&](uint8_t value) { return MonsterEffectiveDamage(monster, value) * band / 100 * def->damagePercent / 100; };
 		const int64_t top = std::max(wanted(monster.maxDamage), wanted(monster.maxDamageSpecial));
 		const int overflow = top > 255 ? static_cast<int>((top * 100 + 254) / 255) : 100;
 		const auto fit = [&](int value) { return static_cast<uint8_t>(std::clamp<int64_t>(wanted(value) * 100 / overflow, 0, 255)); };
@@ -519,6 +523,7 @@ void OnRiftBossRisen(Monster &monster)
 		monster.minDamageSpecial = fit(monster.minDamageSpecial);
 		monster.maxDamageSpecial = std::max(fit(monster.maxDamageSpecial), monster.minDamageSpecial);
 		RunState.damageOverflow = overflow;
+		monster.damageOverflow = 100; // carried by the run's now, not twice
 		monster.armorClass = ScaledByte(monster.armorClass + (tier - 100) / 6, def->armourPercent, 100); // ScaleRiftMonster's armour rule
 		monster.resistance |= def->resistAdd;
 		// Never fire, lightning and magic at once, as SpawnRiftGuardian rules for the faces: a caster could not touch him.

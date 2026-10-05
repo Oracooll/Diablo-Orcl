@@ -209,6 +209,7 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 	// levels, so an ordinary monster taking a champion's old slot would inherit its modifier.
 	monster.lesserAffix = LesserUniqueAffix::None;
 	monster.lesserNameSeed = 0;
+	monster.damageOverflow = 100; // a reused slot's last overflow (Monster::damageOverflow)
 	// And the palette translation, for the SAME reason - which only became a reason when recoloured
 	// variants started giving ordinary monsters one (Phase 3). Before that only uniques carried a
 	// TRN and only uniques were re-tinted, so a stale one could never be seen; now an ordinary
@@ -278,10 +279,10 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 		// but scaling further by up to 5.0x can genuinely exceed 255, so every result here is
 		// clamped instead of silently wrapping (which would make a high multiplier setting
 		// unpredictably *weaker* for some monsters instead of stronger).
-		monster.minDamage = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.minDamage + 6) * multiplier), 255));
-		monster.maxDamage = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.maxDamage + 6) * multiplier), 255));
-		monster.minDamageSpecial = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.minDamageSpecial + 6) * multiplier), 255));
-		monster.maxDamageSpecial = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.maxDamageSpecial + 6) * multiplier), 255));
+		// What does not fit the 255 of the bytes is kept as the overflow percent (user, 2026-10-05), so the champion, boss, escort,
+		// variant and rift multipliers applied after this still mean something.
+		const auto torment = [multiplier](uint8_t value) { return static_cast<int64_t>((4 * value + 6) * multiplier); };
+		SetMonsterDamage(monster, torment(monster.minDamage), torment(monster.maxDamage), torment(monster.minDamageSpecial), torment(monster.maxDamageSpecial));
 		monster.armorClass = static_cast<uint8_t>(std::min(monster.armorClass + static_cast<int>(HellAcBonus * multiplier), 255));
 	}
 
@@ -645,14 +646,11 @@ void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int 
 	const uint8_t ordinaryMaxDamage = monster.maxDamage;
 	const uint8_t ordinaryMinSpecial = monster.minDamageSpecial;
 	const uint8_t ordinaryMaxSpecial = monster.maxDamageSpecial;
+	const int ordinaryOverflow = std::max<int>(monster.damageOverflow, 100);
 	const uint8_t ordinaryArmor = monster.armorClass;
 
 	const size_t firstMinionIndex = ActiveMonsterCount;
 	PrepareUniqueMonst(monster, uniqindex, minionType, packSize, uniqueMonsterData);
-
-	const auto scaleDamage = [](uint8_t base, int percent) {
-		return static_cast<uint8_t>(std::min(base * percent / 100, 255));
-	};
 
 	const int healthPercent = boss ? oracool::BossHealthPercent() : LesserUniqueHealthPercent;
 	const int damagePercent = boss ? oracool::BossDamagePercent() : LesserUniqueDamagePercent;
@@ -660,10 +658,10 @@ void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int 
 
 	monster.maxHitPoints = std::max(ordinaryHealth * healthPercent / 100, 64);
 	monster.hitPoints = monster.maxHitPoints;
-	monster.minDamage = scaleDamage(ordinaryMinDamage, damagePercent);
-	monster.maxDamage = scaleDamage(ordinaryMaxDamage, damagePercent);
-	monster.minDamageSpecial = scaleDamage(ordinaryMinSpecial, damagePercent);
-	monster.maxDamageSpecial = scaleDamage(ordinaryMaxSpecial, damagePercent);
+	// From the ordinary one's REAL damage, overflow and all, and what does not fit kept as the overflow (user, 2026-10-05: on
+	// Torment a Dread boss struck exactly as his trash did, both at 255).
+	const auto real = [&](uint8_t value) { return static_cast<int64_t>(value) * ordinaryOverflow / 100 * damagePercent / 100; };
+	SetMonsterDamage(monster, real(ordinaryMinDamage), real(ordinaryMaxDamage), real(ordinaryMinSpecial), real(ordinaryMaxSpecial));
 	monster.armorClass = static_cast<uint8_t>(std::min(ordinaryArmor + armorBonus, 255));
 
 	// The modifier last, so anything it adds sits on top of the floor-scaled numbers rather than
@@ -692,10 +690,7 @@ void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int 
 		Monster &minion = Monsters[i];
 		minion.maxHitPoints = std::max(minion.maxHitPoints * MinionHealthPercent / 100, 64);
 		minion.hitPoints = minion.maxHitPoints;
-		minion.minDamage = scaleDamage(minion.minDamage, MinionDamagePercent);
-		minion.maxDamage = scaleDamage(minion.maxDamage, MinionDamagePercent);
-		minion.minDamageSpecial = scaleDamage(minion.minDamageSpecial, MinionDamagePercent);
-		minion.maxDamageSpecial = scaleDamage(minion.maxDamageSpecial, MinionDamagePercent);
+		ScaleMonsterDamage(minion, MinionDamagePercent, MinionDamagePercent); // past 255 too (user, 2026-10-05)
 	}
 }
 
@@ -3945,6 +3940,7 @@ void PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t 
 	monster.maxDamage = uniqueMonsterData.mMaxDamage;
 	monster.minDamageSpecial = uniqueMonsterData.mMinDamage;
 	monster.maxDamageSpecial = uniqueMonsterData.mMaxDamage;
+	monster.damageOverflow = 100; // the unique's own numbers, from scratch
 	// Phase 3.3: UniqueMonsterData has only ONE resistance column where MonsterData has two, so this
 	// used to hand a champion its Normal-difficulty set on every difficulty - leaving it softer than
 	// the rank and file it leads once Hell switched THEM to the hard set. Unioned with its own
@@ -3989,10 +3985,8 @@ void PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t 
 		monster.hitPoints = monster.maxHitPoints;
 		// Clamped at 255 as Torment is (audit, 2026-09-27): Howlingire's 75 made 306, which wrapped to 50 - below his
 		// minimum, so every blow did the minimum.
-		monster.minDamage = static_cast<uint8_t>(std::min(4 * monster.minDamage + 6, 255));
-		monster.maxDamage = static_cast<uint8_t>(std::min(4 * monster.maxDamage + 6, 255));
-		monster.minDamageSpecial = static_cast<uint8_t>(std::min(4 * monster.minDamageSpecial + 6, 255));
-		monster.maxDamageSpecial = static_cast<uint8_t>(std::min(4 * monster.maxDamageSpecial + 6, 255));
+		const auto hell = [](uint8_t value) { return static_cast<int64_t>(4 * value + 6); };
+		SetMonsterDamage(monster, hell(monster.minDamage), hell(monster.maxDamage), hell(monster.minDamageSpecial), hell(monster.maxDamageSpecial));
 	} else if (sgGameInitInfo.nDifficulty == DIFF_TORMENT) {
 		const float multiplier = GetTormentDifficultyMultiplier();
 		monster.maxHitPoints = 4 * monster.maxHitPoints;
@@ -4002,10 +3996,8 @@ void PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t 
 			monster.maxHitPoints += 200 << 6;
 		monster.maxHitPoints = static_cast<int>(monster.maxHitPoints * multiplier);
 		monster.hitPoints = monster.maxHitPoints;
-		monster.minDamage = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.minDamage + 6) * multiplier), 255));
-		monster.maxDamage = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.maxDamage + 6) * multiplier), 255));
-		monster.minDamageSpecial = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.minDamageSpecial + 6) * multiplier), 255));
-		monster.maxDamageSpecial = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.maxDamageSpecial + 6) * multiplier), 255));
+		const auto torment = [multiplier](uint8_t value) { return static_cast<int64_t>((4 * value + 6) * multiplier); };
+		SetMonsterDamage(monster, torment(monster.minDamage), torment(monster.maxDamage), torment(monster.minDamageSpecial), torment(monster.maxDamageSpecial));
 	}
 
 	InitTRNForUniqueMonster(monster);
@@ -4955,6 +4947,34 @@ void AimAtHeroForLevelSave(Monster &monster)
 	AimHuntersAtHeroForLevelSave(monster.getId());
 	if ((monster.flags & MFLAG_TARGETS_MONSTER) != 0)
 		AimAtHeroNow(monster);
+}
+
+int64_t MonsterEffectiveDamage(const Monster &monster, uint8_t byte)
+{
+	return static_cast<int64_t>(byte) * std::max<int>(monster.damageOverflow, 100) / 100;
+}
+
+void SetMonsterDamage(Monster &monster, int64_t minDamage, int64_t maxDamage, int64_t minSpecial, int64_t maxSpecial)
+{
+	const int64_t top = std::max({ minDamage, maxDamage, minSpecial, maxSpecial, int64_t { 0 } });
+	const int overflow = top > 255 ? static_cast<int>(std::min<int64_t>((top * 100 + 254) / 255, UINT16_MAX)) : 100;
+	const auto fit = [overflow](int64_t value) { return static_cast<uint8_t>(std::clamp<int64_t>(value * 100 / overflow, 0, 255)); };
+	monster.minDamage = fit(minDamage);
+	monster.maxDamage = std::max(fit(maxDamage), monster.minDamage);
+	monster.minDamageSpecial = fit(minSpecial);
+	monster.maxDamageSpecial = std::max(fit(maxSpecial), monster.minDamageSpecial);
+	monster.damageOverflow = static_cast<uint16_t>(overflow);
+}
+
+void ScaleMonsterDamage(Monster &monster, int normalPercent, int specialPercent)
+{
+	// Never to 0 from a damage it had (ScalePercent's floor of 1, kept).
+	const auto scaled = [&](uint8_t byte, int percent) {
+		const int64_t real = MonsterEffectiveDamage(monster, byte);
+		return real > 0 ? std::max<int64_t>(real * percent / 100, 1) : 0;
+	};
+	SetMonsterDamage(monster, scaled(monster.minDamage, normalPercent), scaled(monster.maxDamage, normalPercent),
+	    scaled(monster.minDamageSpecial, specialPercent), scaled(monster.maxDamageSpecial, specialPercent));
 }
 
 void M_StartRise(Monster &monster, Direction md)

@@ -91,6 +91,8 @@ Clocks &ClocksFor(const Player &player)
 constexpr size_t ElementCount = 5; // physical, fire, lightning, magic, cold
 struct MonsterMarks {
 	std::array<int, ElementCount> elementTicks {};
+	/** Ticks until a spell's damage tick counts as a new hit for the per-hit rules (user, 2026-10-05: "once per spell"). */
+	int spellHitTicks = 0;
 };
 std::array<MonsterMarks, MaxMonsters> MarksOf;
 
@@ -179,6 +181,12 @@ constexpr int NightStalkerMana = 1 << 6;
 constexpr int ArcheryMana = 1 << 6;
 constexpr int ParalysisChance = 15;
 constexpr int ParalysisTicks = TicksPerSecond;
+/**
+ * A spell that strikes every tick it overlaps (Lightning's segments, Inferno, the walls) is ONE hit to the per-hit rules - Paralysis's
+ * roll, Momentum, Crescendo - for this long on each monster (user, 2026-10-05, "once per spell": a single bolt stunned 62-93% of the
+ * time against the hover's 15%). About the life of one bolt.
+ */
+constexpr int SpellHitGapTicks = TicksPerSecond;
 constexpr int TemporalFluxTicks = 2 * TicksPerSecond;
 constexpr int ThrillOfTheHuntChance = 20;
 constexpr int ThrillOfTheHuntTicks = 2 * TicksPerSecond;
@@ -797,7 +805,15 @@ void OnPassiveMissileHit(Player &player, const Monster &target, int damage, Dama
 		return; // not a monster of the level - nothing to stun or slow
 	Monster &monster = Monsters[target.getId()];
 	const bool alive = monster.hitPoints >> 6 > 0;
-	if (alive && damageType == DamageType::Lightning && PassiveActive(player, Skill::Paralysis) && !ShrugsOffStun(monster)
+	// A spell's repeated ticks are one hit (SpellHitGapTicks); arrows and skill blows are each their own.
+	bool freshHit = true;
+	if (!arrow && !sharedRulesDone) {
+		MonsterMarks &marks = MarksOf[target.getId()];
+		freshHit = marks.spellHitTicks == 0;
+		if (freshHit)
+			marks.spellHitTicks = SpellHitGapTicks;
+	}
+	if (freshHit && alive && damageType == DamageType::Lightning && PassiveActive(player, Skill::Paralysis) && !ShrugsOffStun(monster)
 	    && GenerateRnd(100) < ParalysisChance)
 		StunMonster(monster, ParalysisTicks);
 	if (alive && damageType == DamageType::Magic && PassiveActive(player, Skill::TemporalFlux))
@@ -813,7 +829,8 @@ void OnPassiveMissileHit(Player &player, const Monster &target, int damage, Dama
 	} else if (!sharedRulesDone) {
 		// Arrows already reached OnPassiveHit; the spells reach the shared rules here - and a melee skill blow that went
 		// through OnPassiveHit does not reach them twice (round 30 audit: Momentum's three blows went two at a time).
-		OnAnyHit(player, target, damage, false);
+		if (freshHit) // once a spell, not once a tick (user, 2026-10-05)
+			OnAnyHit(player, target, damage, false);
 	}
 }
 
@@ -1116,6 +1133,8 @@ void ProcessPassivesTick(Player &player)
 				if (ticks > 0)
 					ticks--;
 			}
+			if (marks.spellHitTicks > 0)
+				marks.spellHitTicks--;
 		}
 	}
 }

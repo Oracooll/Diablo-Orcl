@@ -1350,6 +1350,7 @@ bool UseStashItem(uint16_t c)
 	}
 	if (item->_iMiscId == IMISC_ORACOOL_KEYSTONE || item->_iMiscId == IMISC_ORACOOL_MAP) {
 		bool opened = false;
+		bool mapKept = false;
 		// Read now: opening a Guardian Rift may give back an owed keystone into this very stash, and `item` points into it
 		// (round 106 audit).
 		const bool isKeystone = item->_iMiscId == IMISC_ORACOOL_KEYSTONE;
@@ -1361,6 +1362,7 @@ bool UseStashItem(uint16_t c)
 			oracool::NamedEncounter encounter;
 			if (!oracool::EncounterForMapItem(item->IDidx, encounter))
 				return true;
+			mapKept = oracool::NamedEncounterReentryIsFree(encounter); // the open arena again: the map stays (user, 2026-10-05)
 			opened = oracool::EnterNamedEncounter(*MyPlayer, encounter);
 			if (opened)
 				oracool::PlayUiEventSound(oracool::UiEventSound::MapUnseal);
@@ -1372,7 +1374,7 @@ bool UseStashItem(uint16_t c)
 			return true;
 		}
 		// A keystone stays until the first step through the portal (oracool::SpendPendingKeystone); a map is used now.
-		if (isKeystone)
+		if (isKeystone || mapKept)
 			return true;
 		Stash.RemoveStashItem(c);
 		oracool::ScheduleAutoSaveForStashChange();

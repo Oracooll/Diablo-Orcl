@@ -332,14 +332,12 @@ void ApplyMonsterVariant(Monster &monster)
 	case MonsterVariant::Hollow:
 		monster.maxHitPoints = monster.maxHitPoints * HollowLifePercent / 100;
 		monster.hitPoints = monster.maxHitPoints;
-		monster.minDamage = ScalePercent(monster.minDamage, HollowDamagePercent);
-		monster.maxDamage = ScalePercent(monster.maxDamage, HollowDamagePercent);
+		ScaleMonsterDamage(monster, HollowDamagePercent, 100); // the real damage, overflow kept (user, 2026-10-05)
 		break;
 	case MonsterVariant::Feral:
 		monster.maxHitPoints = std::max(monster.maxHitPoints * FeralLifePercent / 100, 64);
 		monster.hitPoints = monster.maxHitPoints;
-		monster.minDamage = ScalePercent(monster.minDamage, FeralDamagePercent);
-		monster.maxDamage = ScalePercent(monster.maxDamage, FeralDamagePercent);
+		ScaleMonsterDamage(monster, FeralDamagePercent, 100); // past 255 too (user, 2026-10-05)
 		break;
 	// The eleven of 2026-09-19. The field kinds land here; the hook kinds (Frenzied, Fleet, Searing,
 	// Voltaic, Venomous, Unyielding, Gilded) are asked at their seams through the Variant* functions
@@ -354,8 +352,7 @@ void ApplyMonsterVariant(Monster &monster)
 		// A monster without a special attack never draws Brutal (VariantOf declines it), so this
 		// never lands on nothing - but the guard stays, because the draw is the part that changes.
 		if (monster.data().hasSpecial) {
-			monster.minDamageSpecial = ScalePercent(monster.minDamageSpecial, BrutalSpecialPercent);
-			monster.maxDamageSpecial = ScalePercent(monster.maxDamageSpecial, BrutalSpecialPercent);
+			ScaleMonsterDamage(monster, 100, BrutalSpecialPercent); // past 255 too (user, 2026-10-05)
 		}
 		break;
 	case MonsterVariant::Luminous:

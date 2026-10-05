@@ -249,6 +249,7 @@ void FreeGame()
 	// next hero.
 	oracool::ResetWorkshopForNewGame();
 	oracool::ResetRiftForNewGame(); // a rift open in one game must not be open in the next (oracool/rift.h)
+	oracool::ResetNamedEncountersForNewGame(); // nor an arena's free re-entry
 #ifdef _DEBUG
 	DebugGodMode = false; // god mode is one game's, not the next one's (round 89 audit)
 #endif

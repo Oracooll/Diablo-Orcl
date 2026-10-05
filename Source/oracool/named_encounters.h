@@ -108,6 +108,15 @@ bool CurrentNamedEncounter(NamedEncounter &out);
 bool EnterNamedEncounter(Player &player, NamedEncounter encounter);
 
 /**
+ * @brief Whether a map of @p encounter would re-enter the arena it opened before - entered, its boss still standing - rather than
+ * open a new one (user, 2026-10-05: "Re-enter free"). Such a read keeps the map. Ask BEFORE EnterNamedEncounter.
+ */
+bool NamedEncounterReentryIsFree(NamedEncounter encounter);
+
+/** @brief A new game: no arena is open from the last one. */
+void ResetNamedEncountersForNewGame();
+
+/**
  * @brief Rolls a Sealed Map from @p monster's death. Does nothing unless it is a Dread boss.
  *
  * The way IN, and until 2026-08-26 it did not exist. NamedEncounterMapItem had no production

@@ -189,9 +189,9 @@ bool IsJavelinThrow(SpellID spell)
 	return IsAnyOf(spell, SpellID::PoisonJavelin, SpellID::PlagueJavelin, SpellID::Harpoon, SpellID::AnchorJavelin, SpellID::ValkyriesSpear);
 }
 
-int JavelinThrowRange(SpellID spell)
+int JavelinThrowRange([[maybe_unused]] SpellID spell)
 {
-	return IsAnyOf(spell, SpellID::Harpoon, SpellID::ValkyriesSpear) ? 8 : 6;
+	return 8; // every throw from the 8-tile line its text promises (user, 2026-10-05: "Throw from 8")
 }
 
 void ArmJavelinThrow(std::optional<SpellID> spell, Point target)

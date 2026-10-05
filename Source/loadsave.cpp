@@ -975,7 +975,9 @@ void LoadMonster(LoadHelper *file, Monster &monster, MonsterConversionData *mons
 	monster.enemy = file->NextLE<int32_t>();
 	monster.enemyPosition.x = file->NextLE<uint8_t>();
 	monster.enemyPosition.y = file->NextLE<uint8_t>();
-	file->Skip(2); // Unused
+	// Oracool: the damage overflow percent (Monster::damageOverflow), in the two bytes this block wrote as unused. An older save
+	// reads 0 here, which means 100.
+	monster.damageOverflow = std::max<uint16_t>(file->NextLE<uint16_t>(), 100);
 
 	file->Skip(4); // Skip pointer _mAnimData
 	monster.animInfo = {};
@@ -1881,7 +1883,7 @@ void SaveMonster(SaveHelper *file, Monster &monster, MonsterConversionData *mons
 	file->WriteLE<int32_t>(monster.enemy);
 	file->WriteLE<uint8_t>(monster.enemyPosition.x);
 	file->WriteLE<uint8_t>(monster.enemyPosition.y);
-	file->Skip(2); // Unused
+	file->WriteLE<uint16_t>(monster.damageOverflow); // was Unused
 
 	file->Skip(4); // Skip pointer _mAnimData
 	file->WriteLE<int32_t>(monster.animInfo.ticksPerFrame);

@@ -192,6 +192,10 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	// Not again for a weapon blow that took them into its pool (StrikeBlow, round 63 audit).
 	if (applyPassives && !pooled)
 		damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, melee, /*burst=*/SideBlowInFlight) + Rfa12DamageDealtPercent(player, monster, melee, SideBlowInFlight));
+	// A weapon blow (StrikeBlow, the pooled path) takes the items' on-hit damage powers as a plain swing does (user, 2026-10-05).
+	const bool weaponBlow = pooled && &player == MyPlayer;
+	if (weaponBlow)
+		damage = SkillBlowItemDamage(player, monster, damage, melee);
 	if (damage <= 0)
 		return;
 	// Once every six seconds per enemy, as its text says (round 16) - and only for a strike that lands something (round 17).
@@ -202,6 +206,8 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	if (applyPassives)
 		OnCursedMonsterStruck(monster, player, nullptr, damage);
 	ApplyMonsterDamage(type, monster, damage);
+	if (weaponBlow)
+		SkillBlowItemAfterHit(player, monster, damage, melee, /*knockback=*/!SideBlowInFlight); // steals; one push a swing
 	// An arrow's, as MonsterMHit feeds a plain arrow's; and a swing's extra blow (Sweep, Reaping Point), as the class melee
 	// strike feeds it - Leech healed nothing from them (round 29 audit).
 	if (&player == MyPlayer && applyPassives && (BowStrikeInFlight || melee))

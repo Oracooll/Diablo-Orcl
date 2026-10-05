@@ -5453,4 +5453,55 @@ bool PlayerStrikesMonster(Player &player, Monster &monster)
 	return true;
 }
 
+int SkillBlowItemDamage(Player &player, Monster &monster, int damage, bool melee)
+{
+	// Triple damage to demons on every weapon blow - an arrow takes it too (MonsterMHit).
+	int64_t dam = damage;
+	if (monster.data().monsterClass == MonsterClass::Demon && HasAnyOf(player._pIFlags, ItemSpecialEffect::TripleDemonDamage))
+		dam *= 3;
+	if (melee) {
+		if (HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::Devastation) && GenerateRnd(100) < 5)
+			dam *= 3;
+		if (HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::Doppelganger) && monster.type().type != MT_DIABLO && !monster.isUnique()
+		    && !oracool::FightsAsUnique(monster) && GenerateRnd(100) < 10)
+			AddDoppelganger(monster);
+		if (HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::Jesters)) {
+			int r = GenerateRnd(201);
+			if (r >= 100)
+				r = 100 + (r - 100) * 5;
+			dam = dam * r / 100;
+		}
+	}
+	return static_cast<int>(std::min<int64_t>(dam, INT_MAX / 2));
+}
+
+void SkillBlowItemAfterHit(Player &player, Monster &monster, int damage, bool melee, bool knockback)
+{
+	if (melee) {
+		// The steals as PlrHitMonst gives them, in 1/64s of the damage dealt.
+		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::RandomStealLife) && damage >= 8) {
+			const int stolen = GenerateRnd(damage / 8);
+			player._pHitPoints = std::min(player._pHitPoints + stolen, player._pMaxHP);
+			player._pHPBase = std::min(player._pHPBase + stolen, player._pMaxHPBase);
+			RedrawComponent(PanelDrawComponent::Health);
+		}
+		if (player._pIManaSteal > 0 && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
+			const int stolen = static_cast<int>(static_cast<int64_t>(player._pIManaSteal) * damage / 100);
+			player._pMana = std::min(player._pMana + stolen, player._pMaxMana);
+			player._pManaBase = std::min(player._pManaBase + stolen, player._pMaxManaBase);
+			RedrawComponent(PanelDrawComponent::Mana);
+		}
+		if (player._pILifeSteal > 0) {
+			const int stolen = static_cast<int>(static_cast<int64_t>(player._pILifeSteal) * damage / 100);
+			player._pHitPoints = std::min(player._pHitPoints + stolen, player._pMaxHP);
+			player._pHPBase = std::min(player._pHPBase + stolen, player._pMaxHPBase);
+			RedrawComponent(PanelDrawComponent::Health);
+		}
+	}
+	// The push, once a swing (not its side blows), on a live monster not turned to stone.
+	if (knockback && (monster.hitPoints >> 6) > 0 && monster.mode != MonsterMode::Petrified
+	    && HasAnyOf(player._pIFlags, ItemSpecialEffect::Knockback))
+		M_GetKnockback(monster);
+}
+
 } // namespace devilution

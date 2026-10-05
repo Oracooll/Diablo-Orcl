@@ -183,11 +183,17 @@ void Strike(Player &player, Monster &monster, int damage, bool applyPassives = t
 		return;
 	if (applyPassives && !pooled) // a pooled blow took them already (FullBlowAt, round 63 audit)
 		damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, /*melee=*/true) + Rfa12DamageDealtPercent(player, monster, /*melee=*/true)); // saturating (round 27 audit)
+	// A fresh weapon blow (FullBlowAt) takes the items' on-hit powers as a plain swing does (user, 2026-10-05).
+	const bool weaponBlow = pooled && &player == MyPlayer;
+	if (weaponBlow)
+		damage = SkillBlowItemDamage(player, monster, damage, /*melee=*/true);
 	if (damage <= 0)
 		return;
 	if (applyPassives)
 		OnCursedMonsterStruck(monster, player, nullptr, damage); // Life Tap, while the curse is live
 	ApplyMonsterDamage(DamageType::Physical, monster, damage);
+	if (weaponBlow)
+		SkillBlowItemAfterHit(player, monster, damage, /*melee=*/true, /*knockback=*/!burst);
 	if (&player == MyPlayer && applyPassives) {
 		OnPassiveHit(player, monster, damage, /*melee=*/true, burst); // a spin's side blow is a burst (round 76 audit)
 		OnRfa12Hit(player, monster, damage, /*melee=*/true, burst); // nor for Sovereign Measure (round 116)
