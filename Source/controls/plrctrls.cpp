@@ -15,11 +15,14 @@
 #include "oracool/rage.h" // UsesRage - the pad's mana button
 #include "oracool/hud_layout.h" // IsPointOverFloatingWindow
 #include "oracool/inventory_layout.h"
+#include "oracool/levski_roar.h" // CancelSalvageItemCursor - the pad's close disarms the hammer
+#include "stores.h" // DisarmShopServiceCursor
 #include "oracool/melee_skills.h" // the latches Interact disarms
 #include "oracool/paladin_melee.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/rogue_arrows.h"
 #include "oracool/weapon_throw.h"
+#include "oracool/warcries.h" // IsMonsterConverted
 #include "controls/controller_motion.h"
 #ifndef USE_SDL1
 #include "controls/devices/game_controller.h"
@@ -299,7 +302,7 @@ bool CanTargetMonster(const Monster &monster)
 {
 	if ((monster.flags & MFLAG_HIDDEN) != 0)
 		return false;
-	if (monster.isPlayerMinion())
+	if (monster.isPlayerMinion() || oracool::IsMonsterConverted(monster)) // nor a convert, as the mouse (round 116 audit)
 		return false;
 	if (monster.hitPoints >> 6 <= 0) // dead
 		return false;
@@ -1339,6 +1342,7 @@ bool BlurInventory()
 		const bool placed = held._itype == ItemType::Gold
 		    ? GoldAutoPlace(myPlayer, held)
 		    : ((held.isPotion() && AutoPlaceItemInBelt(myPlayer, held, true)) || AutoPlaceItemInInventory(myPlayer, held, true)
+		          || AutoPlaceItemInExtraTabs(myPlayer, held, true) // pages 2-10 before the town stash (round 116 audit)
 		          || AutoPlaceItemInStash(myPlayer, held, true));
 		if (placed) {
 			held.clear();
@@ -1352,8 +1356,13 @@ bool BlurInventory()
 	}
 
 	CloseInventory();
-	if (pcurs > CURSOR_HAND)
+	if (pcurs > CURSOR_HAND) {
+		// The armed services with it (round 116 audit: the Cube's salvage hammer stayed armed under a plain hand, and the next
+		// repair click salvaged).
+		oracool::CancelSalvageItemCursor();
+		DisarmShopServiceCursor();
 		NewCursor(CURSOR_HAND);
+	}
 	if (chrflag)
 		FocusOnCharInfo();
 

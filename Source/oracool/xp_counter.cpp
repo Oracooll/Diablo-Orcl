@@ -89,7 +89,9 @@ uint64_t CalcRemainingMonsterXp(const Player &player)
 	uint64_t total = 0;
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		const Monster &monster = Monsters[ActiveMonsters[i]];
-		if (monster.hitPoints <= 0 || monster.isPlayerMinion())
+		// Nor an idle golem slot (round 116 audit: the four plain bodies InitGolems makes count 2000-4000 XP each from Nightmare,
+		// so a cleared floor never read 0) - quests.cpp's rule.
+		if (monster.hitPoints <= 0 || monster.isPlayerMinion() || ActiveMonsters[i] < MAX_PLRS)
 			continue;
 
 		// The kill's own formula (2026-09-07), so the counter and the health bar quote one number.

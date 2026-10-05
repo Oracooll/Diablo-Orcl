@@ -788,6 +788,7 @@ void RevertConversionsForLevelSave()
 			continue;
 		Monsters[i].flags &= ~(MFLAG_BERSERK | MFLAG_GOLEM);
 		Debuffs[i].convertTicks = 0;
+		ReaimMonsterAfterSideChange(Monsters[i]); // as the clock running out does (round 116 audit: saved mid-swing at its pack)
 	}
 }
 

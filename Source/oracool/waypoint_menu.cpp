@@ -563,7 +563,7 @@ void SelectWaypointAct(WaypointAct act)
 {
 	ActiveAct = act;
 	ScrollOffset = 0;
-	KeyRow = 0;
+	KeyRow = -1; // no row chosen on a new act either (round 116 audit)
 }
 
 size_t WaypointActRowCount(WaypointAct act)

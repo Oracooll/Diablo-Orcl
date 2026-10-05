@@ -12,6 +12,8 @@
 #include "engine/render/text_render.hpp"
 #include "levels/gendung.h"
 #include "oracool/event_log.h"
+#include "oracool/levski_roar.h" // IsLevskiRoarOpen
+#include "oracool/workshop.h" // IsWorkshopOpen
 #include "oracool/hud_art.h" // DrawLoosePng, GetLoosePngSize: the canvas
 #include "oracool/ornate_border.h"
 #include "oracool/rift.h"
@@ -147,6 +149,8 @@ void OpenStonegateMenu()
 		return;
 	// One surface at a time, as every other opener (round 115 audit: it closed nothing, and a store or bench opened under it).
 	CloseOtherShopSurfaces();
+	if (IsWorkshopOpen() || IsLevskiRoarOpen())
+		return; // a bench or the Cube that refused to close (it holds items with nowhere to go) keeps the slot (round 116)
 	MenuOpen = true;
 	KeyRow = -1;
 	PlayUiSelectSound();

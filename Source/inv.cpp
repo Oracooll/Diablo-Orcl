@@ -4859,6 +4859,7 @@ void CloseStash(bool levelChange)
 			    ? GoldAutoPlace(myPlayer, myPlayer.HoldItem)
 			    : ((myPlayer.HoldItem.isPotion() && AutoPlaceItemInBelt(myPlayer, myPlayer.HoldItem, true))
 			          || AutoPlaceItemInInventory(myPlayer, myPlayer.HoldItem, true)
+			          || AutoPlaceItemInExtraTabs(myPlayer, myPlayer.HoldItem, true) // pages 2-10 first (round 116 audit)
 			          || AutoPlaceItemInStash(myPlayer, myPlayer.HoldItem, true));
 			if (placed) {
 				myPlayer._pGold = CalculateGold(myPlayer);

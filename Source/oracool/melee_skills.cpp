@@ -190,7 +190,7 @@ void Strike(Player &player, Monster &monster, int damage, bool applyPassives = t
 	ApplyMonsterDamage(DamageType::Physical, monster, damage);
 	if (&player == MyPlayer && applyPassives) {
 		OnPassiveHit(player, monster, damage, /*melee=*/true, burst); // a spin's side blow is a burst (round 76 audit)
-		OnRfa12Hit(player, monster, damage, /*melee=*/true);
+		OnRfa12Hit(player, monster, damage, /*melee=*/true, burst); // nor for Sovereign Measure (round 116)
 	}
 	if ((monster.hitPoints >> 6) <= 0)
 		M_StartKill(monster, player);
