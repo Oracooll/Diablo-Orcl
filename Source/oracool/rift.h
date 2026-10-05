@@ -150,7 +150,7 @@ void RefundOwedGuardianKeystone(Player &player);
 bool HeroKeepsKeystone(const Player &player, uint32_t seed);
 /**
  * @brief Whether the owed reward keystone is still within the hero's reach though not in his keeping: on the cursor, on this
- * level's floor, or possibly in an open Cube grid or workshop bench. A refund then would be a second copy (round 108 audit).
+ * level's floor. A refund then would be a second copy (round 108 audit). Held, it is settled as kept (round 109).
  */
 bool RewardKeystoneStillReachable(const Player &player);
 /**

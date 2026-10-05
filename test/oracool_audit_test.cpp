@@ -1447,6 +1447,15 @@ TEST(OracoolHeroChunks, OwedGuardianKeystoneRoundTrips)
 	oracool::ApplyHeroChunks(loaded, owing.data(), owing.size());
 	EXPECT_EQ(loaded._pOracoolOwedKeystoneTier, 7);
 
+	// A damaged or hand-edited file: the tier is clamped to a keystone's range on load (round 109 audit).
+	source._pOracoolOwedKeystoneTier = 0xFFFF;
+	const std::vector<uint8_t> huge = oracool::BuildHeroChunkTail(source);
+	// On the heap: a fourth Player on the stack overflowed it (the extra pages make one large).
+	const auto clamped = std::make_unique<devilution::Player>();
+	clamped->_pClass = HeroClass::Warrior;
+	oracool::ApplyHeroChunks(*clamped, huge.data(), huge.size());
+	EXPECT_EQ(clamped->_pOracoolOwedKeystoneTier, 255);
+
 	devilution::Player clean {};
 	clean._pClass = HeroClass::Warrior;
 	oracool::ApplyHeroChunks(clean, plain.data(), plain.size());
@@ -19009,6 +19018,19 @@ TEST(OracoolAudit108, TheRewardKeystoneOnTheFloorIsStillWithinReach)
 
 	player.HoldItem = reward;
 	EXPECT_TRUE(oracool::RewardKeystoneStillReachable(player)) << "the reward on the cursor";
+
+	// Held, it is kept: the debt is settled, so no later refund can mint a second (round 109 audit: with no room anywhere it
+	// rode to another floor on the cursor and was dropped there).
+	devilution::Player *const savedMyPlayer = MyPlayer;
+	MyPlayer = &player;
+	player._pNumInv = 0;
+	for (int t = 0; t < devilution::Player::NumExtraInventoryTabs; t++)
+		player._pNumInvTab[t] = 0;
+	player._pOracoolOwedKeystoneTier = 5;
+	oracool::SettleRiftRewardKeystone(player);
+	EXPECT_EQ(player._pOracoolOwedKeystoneTier, 0) << "the reward held on the cursor still owed";
+	EXPECT_FALSE(oracool::RewardKeystoneStillReachable(player)) << "a settled reward still refused the rift";
+	MyPlayer = savedMyPlayer;
 
 	player.HoldItem.clear();
 	Items[ActiveItems[0]] = savedItem;

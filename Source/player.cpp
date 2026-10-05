@@ -3850,6 +3850,7 @@ StartPlayerKill(Player &player, DeathReason deathReason)
 		if (&player == MyPlayer) {
 			RedrawComponent(PanelDrawComponent::Health);
 
+			oracool::SettleRiftRewardKeystone(player); // a reward keystone held is his before it may fall at the corpse (round 109)
 			if (!player.HoldItem.isEmpty()) {
 				// Single-player death keeps everything carried, the cursor's item too (audit, 2026-09-29): dropped where he
 				// fell, it was lost to a Main Menu exit, which writes no world. Put away as the exit save puts it away -

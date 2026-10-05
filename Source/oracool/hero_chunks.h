@@ -200,7 +200,8 @@ enum HeroChunkTag : uint16_t {
 	/**
 	 * @brief A Guardian Keystone owed back (rounds 71-72 audit): u16 tier, 0 for none - Player::_pOracoolOwedKeystoneTier, the
 	 * keystone spent on stepping into a Guardian Rift the game was left (or crashed) inside of before it was over. The next
-	 * game's first level load refunds it (oracool::RefundOwedGuardianKeystone). Written only while one is owed.
+	 * game's first level load refunds it (oracool::RefundOwedGuardianKeystone). Also the next tier's keystone owed from a
+	 * guardian's kill until it is in the hero's keeping (since v1.12.388). Written only while one is owed.
 	 */
 	HeroChunkOwedKeystone = 21,
 };

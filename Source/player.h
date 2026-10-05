@@ -588,7 +588,8 @@ struct Player {
 	 * @brief The tier of the Guardian Keystone spent on stepping into a Guardian Rift that is not over yet - neither cleared
 	 * nor out of time - and 0 for none (rounds 71-72 audit). Rift state is never saved, so a game exited or crashed inside
 	 * the rift lost the keystone. Persisted by HeroChunkOwedKeystone; the next game hands the keystone back
-	 * (oracool::RefundOwedGuardianKeystone).
+	 * (oracool::RefundOwedGuardianKeystone). Since v1.12.388 also the NEXT tier's keystone owed from a guardian's kill until
+	 * that keystone, by its seed, is in the hero's keeping (oracool::SettleRiftRewardKeystone).
 	 */
 	uint16_t _pOracoolOwedKeystoneTier = 0;
 	/** @brief Phase 1 Magic/Gold Find: derived each CalcPlrItemVals from the bonus providers

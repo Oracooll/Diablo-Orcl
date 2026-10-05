@@ -34,8 +34,6 @@
 #include "oracool/rift_bosses.h"
 #include "oracool/event_log.h"
 #include "oracool/lesser_uniques.h"
-#include "oracool/levski_roar.h" // IsLevskiRoarOpen - a reward keystone may be in its grid
-#include "oracool/workshop.h" // IsWorkshopOpen - or on the bench
 #include "oracool/sprite_colours.h"
 #include "oracool/oracool.h" // IsSinglePlayer
 #include "oracool/ornate_border.h" // DrawLegacyTextBox - the rift bar's gold frame
@@ -303,7 +301,7 @@ bool OpenGuardianRift(Player &player, int tier)
 	// EnteredRiftStillOpen above has already refused a Guardian Rift still running.
 	SettleRiftRewardKeystone(player); // a reward already in his keeping owes nothing
 	// Not while the last reward is still within reach (rounds 107-108 audit): held on the cursor, its debt rode into this rift;
-	// dropped on the town floor or in the Cube, the refund below minted a second one and the first was picked up again.
+	// dropped on the town floor, the refund below minted a second one and the first was picked up again.
 	if (RewardKeystoneStillReachable(player)) {
 		EventPlrMsg("Pick up the keystone your last rift left you first.", UiFlags::ColorRed);
 		return false;
@@ -373,9 +371,9 @@ bool RewardKeystoneStillReachable(const Player &player)
 	for (int i = 0; i < ActiveItemCount; i++)
 		if (isIt(Items[ActiveItems[i]]))
 			return true;
-	// Their contents live only while they are open (closing hands everything back), and they are not searched: any open one
-	// may hold it.
-	return IsLevskiRoarOpen() || IsWorkshopOpen();
+	// Not the Cube grid or the workshop bench: the reward reaches them only by way of the cursor, which keeps it (round 109
+	// audit: an open window refused every Guardian Rift, telling him to pick up a keystone that may have been gone).
+	return false;
 }
 
 namespace {
@@ -389,19 +387,22 @@ void StowRewardKeystoneOnLevelChange(Player &player)
 	const Item &held = player.HoldItem;
 	if (held.isEmpty() || held._iMiscId != IMISC_ORACOOL_KEYSTONE || held._iSeed != RewardSeed)
 		return;
-	if (!CarryToPackOrStash(player, held))
-		return; // no room anywhere: it stays held, and the rift's refusal still sees it on the cursor
-	player.HoldItem.clear();
-	NewCursor(CURSOR_HAND);
-	SettleRiftRewardKeystone(player);
+	if (CarryToPackOrStash(player, held)) {
+		player.HoldItem.clear();
+		NewCursor(CURSOR_HAND);
+	}
+	SettleRiftRewardKeystone(player); // put away or, with no room anywhere, still held: kept either way (round 109 audit)
 }
 
 void SettleRiftRewardKeystone(Player &player)
 {
 	if (!RewardOwed || RewardSeed == 0 || &player != MyPlayer)
 		return;
-	if (!HeroKeepsKeystone(player, RewardSeed))
-		return; // on the floor, on the cursor, or not yet his
+	// Held on the cursor is kept too (round 109 audit): with no room anywhere it rode to another floor, was dropped there out of
+	// every check, and the next rift refunded a second one. In his hand, it is his; the exit save puts it away.
+	const bool held = player.HoldItem._iMiscId == IMISC_ORACOOL_KEYSTONE && player.HoldItem._iSeed == RewardSeed && !player.HoldItem.isEmpty();
+	if (!held && !HeroKeepsKeystone(player, RewardSeed))
+		return; // on the floor, or not yet his
 	RewardOwed = false;
 	player._pOracoolOwedKeystoneTier = 0;
 	ScheduleAutoSaveForItemDrop(); // the cleared debt reaches the disk soon, not at some later save (round 107 audit)
@@ -597,7 +598,7 @@ void RefundOwedGuardianKeystone(Player &player)
 	// The pack or the stash first; a hero with no room anywhere finds it at his feet.
 	// The pack or the stash; not the town floor, which no new game keeps (round 104 audit) - with no room it stays owed.
 	if (!CarryToPackOrStash(player, keystone)) {
-		player._pOracoolOwedKeystoneTier = static_cast<uint8_t>(std::min(tier, 255));
+		player._pOracoolOwedKeystoneTier = static_cast<uint16_t>(std::min(tier, 255));
 		LogEvent("No room for the keystone you are owed: make room in the pack or the stash, and it comes back next time.", UiFlags::ColorRed);
 		return;
 	}
