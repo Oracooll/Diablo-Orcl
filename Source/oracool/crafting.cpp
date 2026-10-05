@@ -1502,6 +1502,12 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			const int ceiling = LargestAffixRollAtOrBelow(power.type, std::max<int>(1, target._iOracoolItemLevel));
 			if (ceiling < 0)
 				continue;
+			// A steal the item already has is not added again (round 113 audit: its percentages are flags, so a second "steals 3%"
+			// row on an "of the leech" Rare printed 3% twice and stole 3%). The craft's other power still lands.
+			if (IsAnyOf(power.type, IPL_STEALLIFE, IPL_STEALMANA)
+			    && std::any_of(target._iOracoolAffixes.begin(), target._iOracoolAffixes.begin() + target._iOracoolAffixCount,
+			        [&](const OracoolAffix &a) { return a.type == power.type; }))
+				continue;
 			// The row it joins (below) counts against the same ceiling (round 45 audit: a +15-25 life craft on a Rare's +60 life
 			// row made one row of 85, a level-60 roll on a level-30 item). The craft adds only what fits.
 			int alreadyRolled = 0;

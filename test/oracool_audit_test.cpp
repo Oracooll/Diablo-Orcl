@@ -19043,3 +19043,19 @@ TEST(OracoolAudit108, TheRewardKeystoneOnTheFloorIsStillWithinReach)
 	ActiveItemCount = savedCount;
 	oracool::ResetRiftForNewGame();
 }
+
+// A cast weapon blow is not thrown with a bow (rounds 110-113 audit: Dragon's Wrath, then Seismic Slam and Earthquake, rolled the
+// bow's damage as a blow); a bow skill still needs one.
+TEST(OracoolAudit113, CastWeaponBlowsRefuseABowAndBowSkillsNeedOne)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	const uint8_t savedGfx = player._pgfxnum;
+	player._pgfxnum = static_cast<uint8_t>(PlayerWeaponGraphic::Bow);
+	for (const SpellID spell : { SpellID::SeismicSlam, SpellID::Earthquake, SpellID::DragonsWrath, SpellID::LongThrust })
+		EXPECT_TRUE(oracool::Rfa12LacksBowFor(player, spell)) << "cast with a bow: " << static_cast<int>(spell);
+	player._pgfxnum = static_cast<uint8_t>(PlayerWeaponGraphic::Mace);
+	for (const SpellID spell : { SpellID::SeismicSlam, SpellID::Earthquake, SpellID::DragonsWrath, SpellID::LongThrust })
+		EXPECT_FALSE(oracool::Rfa12LacksBowFor(player, spell)) << "refused with a mace: " << static_cast<int>(spell);
+	player._pgfxnum = savedGfx;
+}

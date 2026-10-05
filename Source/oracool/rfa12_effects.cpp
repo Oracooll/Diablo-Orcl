@@ -408,7 +408,7 @@ void MarkWoundedByScent(Player &player, Monster &monster, int damage)
 		MarksOf(monster).wounded = true;
 }
 
-void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee)
+void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee, bool burst)
 {
 	MonsterMarks &marks = MarksOf(monster);
 	PlayerClocks &clocks = ClocksOf(player);
@@ -424,7 +424,7 @@ void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee)
 			marks.noRegenTicks = LastingWoundsTicks;
 		if (const int p = PointsIfOn(player, Skill::Bloodlust); p > 0 && damage > 0)
 			Heal(player, damage * BloodlustPercent(p) / 100);
-	} else if (DeadGroundApplies(player, monster)) {
+	} else if (!burst && DeadGroundApplies(player, monster)) { // a burst never took the bonus, so starts no cooldown (round 113)
 		marks.deadGroundCooldown = DeadGroundCooldownTicks;
 	}
 	OnRfa12ActiveHit(player, monster, damage, melee);

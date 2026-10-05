@@ -3348,7 +3348,8 @@ void TickField(Player &player, Field &field)
 	}
 	case SpellID::Earthquake:
 		if (field.clock % TicksPerSecond == 0) {
-			const auto shaken = MonstersWithin(field.tile, ReachTiles(field.spell, r));
+			// Nothing struck with a bow taken up since the cast (round 113 audit): the pulse rolled the bow's damage as a blow.
+			const auto shaken = player.UsesRangedWeapon() ? std::vector<Monster *> {} : MonstersWithin(field.tile, ReachTiles(field.spell, r));
 			// Weapon blows, each pulse a burst (round 112 audit: as spells they skipped Bloodlust, Deep Wounds and the rest).
 			const bool previousSide = SideBlowInFlight;
 			SideBlowInFlight = true;

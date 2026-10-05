@@ -485,7 +485,7 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 		oracool::OnPassiveHit(*MyPlayer, monster, dam, false);
 	if (&player == MyPlayer && dam > 0) {
 		if (herosOwn)
-			oracool::OnRfa12Hit(*MyPlayer, monster, dam, false);
+			oracool::OnRfa12Hit(*MyPlayer, monster, dam, false, /*burst=*/ArrowBurstInFlight || swingBurst);
 		oracool::OnCursedMonsterStruck(monster, *MyPlayer, nullptr, dam); // Life Tap (oracool/curses.h)
 	}
 	// The all-heroes sweep (2026-09-14): Paralysis, Temporal Flux, Thrill of the Hunt, the element marks.

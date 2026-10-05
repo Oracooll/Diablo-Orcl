@@ -387,9 +387,9 @@ std::string GetReadiedSlotName(bool leftButton)
 /**
  * @brief Attack animation frames skipped by the speed modifiers on the player's items.
  *
- * Mirrors StartAttack's includesFirstFrame branch (player.cpp:222-241), which is the fresh-swing
- * case. The repeated-swing branch below it skips fewer frames - Fastest is even suppressed
- * entirely when Fast or Faster is also present - so quoting that one would understate the items.
+ * Mirrors StartAttack's includesFirstFrame branch, which is the fresh-swing case. The repeated-swing
+ * branch skips fewer frames, so quoting that one would understate the items. Fastest wins with Quick
+ * or Fast too since round 112.
  */
 int ItemAttackFramesSkipped();
 

@@ -91,7 +91,7 @@ Monster *Rfa12ReachTarget(const Player &player, Point swingTile);
 bool TitheTakesCorpse(const Monster &monster);
 
 /** @brief A blow @p player landed on @p monster for @p damage (1/64 units). */
-void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee);
+void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee, bool burst = false);
 
 /** @brief Scent of Blood's mark on a monster @p player wounded - for strikes that do not go through OnRfa12Hit. */
 void MarkWoundedByScent(Player &player, Monster &monster, int damage);

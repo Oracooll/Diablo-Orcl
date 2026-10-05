@@ -7,7 +7,9 @@
 #include <array>
 #include <cstdlib>
 #include <optional>
+#include <tuple>
 
+#include "cursor.h" // pcursmonst - Conversion takes the monster under the cursor (round 113)
 #include "engine/backbuffer_state.hpp"
 #include "engine/points_in_rectangle_range.hpp"
 #include "engine/random.hpp"
@@ -501,7 +503,13 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 			if (IsAnyOf(m.mode, MonsterMode::FadeIn, MonsterMode::FadeOut, MonsterMode::Charge, MonsterMode::Petrified))
 				return;
 			// The one nearest the cursor (round 112 audit: the first in scan order, top-left, turned rather than the one clicked).
-			if (turned == nullptr || m.position.tile.WalkingDistance(target) < turned->position.tile.WalkingDistance(target))
+			// The monster under the cursor first; else the nearest, ties to the straighter line (round 113).
+			const auto key = [&](const Monster &c) {
+				const bool hovered = pcursmonst >= 0 && &Monsters[pcursmonst] == &c;
+				const Displacement d = Point(c.position.tile) - target;
+				return std::make_tuple(hovered ? 0 : 1, c.position.tile.WalkingDistance(target), d.deltaX * d.deltaX + d.deltaY * d.deltaY);
+			};
+			if (turned == nullptr || key(m) < key(*turned))
 				turned = &m;
 		});
 		if (turned == nullptr)

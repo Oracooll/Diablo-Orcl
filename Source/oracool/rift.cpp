@@ -305,7 +305,7 @@ bool OpenGuardianRift(Player &player, int tier)
 	// Not while the last reward is still within reach (rounds 107-108 audit): held on the cursor, its debt rode into this rift;
 	// dropped on the town floor, the refund below minted a second one and the first was picked up again.
 	if (RewardKeystoneStillReachable(player)) {
-		EventPlrMsg("Put the keystone your last rift left you in your pack first.", UiFlags::ColorRed);
+		EventPlrMsg("Put the keystone your last rift left you in your pack or stash first.", UiFlags::ColorRed);
 		return false;
 	}
 	if (player._pOracoolOwedKeystoneTier > 0) {

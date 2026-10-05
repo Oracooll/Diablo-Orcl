@@ -1277,7 +1277,9 @@ bool DoAttack(Player &player)
 			if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FireDamage) || player._pIFMaxDam > 0) {
 				AddMissile(blowTile, { 1, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
 			}
-			if (HasAnyOf(player._pIFlags, ItemSpecialEffect::LightningDamage) || player._pILMaxDam > 0) {
+			// A range to roll, not the flag alone (round 113 audit: Thunderclap's Hellfire placeholder - flag set, 2 to 0 - burst
+			// an unadvertised lightning blow on every hit in single player, where its bolts are off).
+			if (player._pILMaxDam > 0) {
 				AddMissile(blowTile, { 2, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
 			}
 		}
