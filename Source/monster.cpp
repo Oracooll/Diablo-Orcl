@@ -4630,7 +4630,8 @@ static bool RiftGuardianSpotReachable(Point hero, Point candidate)
 	if (!oracool::SightLineClear(hero, candidate))
 		return false;
 	int8_t path[MaxPathLength];
-	const int steps = FindPath([](Point p) { return InDungeonBounds(p) && !IsTileSolid(p); }, hero, candidate, path);
+	// The hero's own walk (round 104 audit: !IsTileSolid passed solid objects - crosses, sarcophagi); doors count as passable.
+	const int steps = FindPath([](Point p) { return InDungeonBounds(p) && IsTileWalkable(p, /*ignoreDoors=*/true); }, hero, candidate, path);
 	return steps > 0 && steps <= 20;
 }
 
@@ -4650,7 +4651,8 @@ Monster *SpawnRiftGuardian()
 	// none qualifies, any open tile, as before.
 	std::optional<Point> spot;
 	for (const bool sighted : { true, false }) {
-		for (int radius = 3; radius <= 40 && !spot; radius++) {
+		// The sighted pass only to 20: past it no walk of 20 steps can reach, and each tile there cost a sight line and a path (round 104).
+		for (int radius = 3; radius <= (sighted ? 20 : 40) && !spot; radius++) {
 			for (int dx = -radius; dx <= radius && !spot; dx++) {
 				for (int dy = -radius; dy <= radius; dy++) {
 					if (std::max(std::abs(dx), std::abs(dy)) != radius)

@@ -18899,6 +18899,7 @@ TEST(OracoolRiftBosses, EveryRowsFloorHasAScatterType)
 	const _setlevels savedLevel = setlvlnum;
 	const uint8_t savedCurrlevel = currlevel;
 	const bool savedHeadless = HeadlessMode;
+	const size_t savedActive = ActiveMonsterCount;
 	HeadlessMode = true; // the type list only - no sprites
 	for (size_t row = 0; row < oracool::RiftBossCount(); row++) {
 		const oracool::RiftBossDef &def = oracool::RiftBossAt(row);
@@ -18907,6 +18908,8 @@ TEST(OracoolRiftBosses, EveryRowsFloorHasAScatterType)
 			oracool::SetRiftBossForTest(def.kind, tier, row);
 			setlevel = true;
 			setlvlnum = oracool::RiftLevelFor(def.kind);
+			currlevel = static_cast<uint8_t>(setlvlnum); // as the game runs a set level (round 104 audit)
+			ActiveMonsterCount = savedActive;              // the golem holding cells the rift branch adds, each time
 			ResetLevelMonsterTypesForTest(); // the type count and the image budget, as a level load clears them
 			GetLevelMTypes();
 			bool scatter = false;
@@ -18921,6 +18924,7 @@ TEST(OracoolRiftBosses, EveryRowsFloorHasAScatterType)
 		}
 	}
 	ResetLevelMonsterTypesForTest();
+	ActiveMonsterCount = savedActive;
 	HeadlessMode = savedHeadless;
 	setlevel = savedSetlevel;
 	setlvlnum = savedLevel;

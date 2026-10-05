@@ -402,6 +402,8 @@ bool CarryFloorKeystonesHome(Player &player)
 		LogEvent("The keystone left on the rift's floor goes with you.", UiFlags::ColorWhitegold);
 		ScheduleAutoSaveForItemDrop();
 	}
+	if (allCarried && State.done && State.kind == RiftKind::Guardian)
+		player._pOracoolOwedKeystoneTier = 0; // it is in the pack: nothing owed (round 104 audit)
 	return allCarried;
 }
 
@@ -494,12 +496,14 @@ void RefundOwedGuardianKeystone(Player &player)
 	keystone._iStatFlag = true;
 	keystone._iOracoolRiftTier = static_cast<uint8_t>(std::min(tier, 255));
 	// The pack or the stash first; a hero with no room anywhere finds it at his feet.
-	if (!CarryToPackOrStash(player, keystone) && !DropKeystoneAt(player.position.tile, tier)) {
-		LogEvent("The keystone of a Guardian Rift left unfinished could not be given back: no room anywhere.", UiFlags::ColorRed);
+	// The pack or the stash; not the town floor, which no new game keeps (round 104 audit) - with no room it stays owed.
+	if (!CarryToPackOrStash(player, keystone)) {
+		player._pOracoolOwedKeystoneTier = static_cast<uint8_t>(std::min(tier, 255));
+		LogEvent("No room for the keystone you are owed: make room in the pack or the stash, and it comes back next time.", UiFlags::ColorRed);
 		return;
 	}
 	ScheduleAutoSaveForItemDrop();
-	LogEvent(StrCat("The Guardian Rift you left unfinished gives back its keystone, tier ", tier, "."), UiFlags::ColorWhitegold);
+	LogEvent(StrCat("The keystone your last Guardian Rift owed you comes back, tier ", tier, "."), UiFlags::ColorWhitegold);
 }
 
 bool EnterRift(Player &player)
@@ -641,6 +645,7 @@ void FinishRiftLevel(bool fresh)
 	if (State.guardianSpawned && !State.done) {
 		State.guardianSpawned = false;
 		State.guardianId = -1;
+		ResetRiftBossRun(); // and his copies and raised dead name the lost floor's slots (round 104 audit)
 	}
 	const uint8_t savedLevel = currlevel;
 	currlevel = static_cast<uint8_t>(GenerationFloorFor(leveltype));
@@ -938,10 +943,17 @@ void OnRiftMonsterKilled(const Monster &monster)
 		State.homeTile = monster.position.tile;
 		// The keystone FIRST, so the search below sees it: laid after the way home, it could land in ring 2 beside a way
 		// home at 3 - the pickup-walk trap round 17 set out to close (round 18 audit, v1.12.243).
-		if (State.kind == RiftKind::Nephalem)
+		if (State.kind == RiftKind::Nephalem) {
 			DropKeystone(monster.position.tile, State.tier);
-		else
-			DropKeystone(monster.position.tile, NextKeystoneTier(State.tier, State.ticksLeft, GuardianRiftSeconds * RiftTicksPerSecond, State.timedOut));
+		} else {
+			const int next = NextKeystoneTier(State.tier, State.ticksLeft, GuardianRiftSeconds * RiftTicksPerSecond, State.timedOut);
+			DropKeystone(monster.position.tile, next);
+			// Owed until it is carried (round 104 audit): a quit, a crash, a death or a portal out before the pickup lost the
+			// next tier for good, the rift's state going with the session. RefundOwedGuardianKeystone gives it back; the floor
+			// emptied of keystones (ProcessRift) or CarryFloorKeystonesHome settles it.
+			if (next > 0 && MyPlayer != nullptr)
+				MyPlayer->_pOracoolOwedKeystoneTier = next;
+		}
 		// Nobody standing on it (audit, 2026-09-27): searched from South, it could land under the hero who struck the
 		// blow, and his standing still on it fired the trigger - home, the rift over, the pile and the keystone left.
 		// OUTSIDE the drop ring, on a tile with no item (round 9 audit, v1.12.234): the loot scatters over the 3x3 around the
@@ -1070,6 +1082,14 @@ void ProcessRift()
 	// their own, so they go when their ten seconds are up even after he has fallen.
 	if (InRift())
 		TickRiftConjured();
+	// The next keystone, owed since the kill, is settled once none lies on the rift's floor: picked up (round 104 audit).
+	if (InRift() && State.done && State.kind == RiftKind::Guardian && MyPlayer != nullptr && MyPlayer->_pOracoolOwedKeystoneTier > 0) {
+		bool onFloor = false;
+		for (int i = 0; i < ActiveItemCount && !onFloor; i++)
+			onFloor = Items[ActiveItems[i]]._iMiscId == IMISC_ORACOOL_KEYSTONE;
+		if (!onFloor)
+			MyPlayer->_pOracoolOwedKeystoneTier = 0;
+	}
 	if (InRift() && State.guardianSpawned && !State.done && State.guardianId >= 0) {
 		Monster &boss = Monsters[State.guardianId];
 		if (boss.hitPoints > 0 && boss.mode != MonsterMode::Death)
@@ -1289,9 +1309,13 @@ void DrawRiftHud(const Surface &out)
 	else if (State.guardianSpawned) {
 		// His name, unless it would push the line past the mini-map's width into the timer column below it (round 102 audit:
 		// "Captain Sareth of the Red Watch" ran over the elixir countdowns); his health bar carries the name anyway.
-		// Measured with the clock that follows it (round 103 audit: a guessed 60px reserve).
+		// Measured with the widest clock it can carry, not the live one (rounds 103-104 audit: a guess, then a choice that flipped
+		// between the name and "the boss" as the proportional digits ticked).
 		const std::string named = StrCat(label, ": ", RiftBossName());
-		label = GetLineWidth(StrCat(named, clock), GameFont12) <= BarWidth ? named : StrCat(label, ": the boss");
+		const int clockRoom = State.kind == RiftKind::Guardian
+		    ? std::max(GetLineWidth("  88:88", GameFont12), GetLineWidth("  out of time", GameFont12))
+		    : 0;
+		label = GetLineWidth(named, GameFont12) + clockRoom <= BarWidth ? named : StrCat(label, ": the boss");
 	}
 	else
 		label += fmt::format("  {:d}%", RiftProgressPercent());
