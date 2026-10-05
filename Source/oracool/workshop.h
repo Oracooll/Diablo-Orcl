@@ -53,6 +53,8 @@ void OpenWorkshop(WorkshopHost host);
 /** @brief Closes it and gives the held item back to the pack; refuses (and says so) when the pack is full. */
 void CloseWorkshop();
 bool IsWorkshopOpen();
+/** @brief Whether the bench or the craft grid holds the keystone with @p seed (the rift's owed reward, round 111 audit). */
+bool WorkshopHoldsKeystoneSeed(uint32_t seed);
 /** @brief Whose workshop is open. Meaningless while it is closed - ask IsWorkshopOpen first. */
 WorkshopHost CurrentWorkshopHost();
 

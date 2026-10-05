@@ -1454,6 +1454,12 @@ bool RunLevskiTransmute()
 } // namespace
 
 bool IsLevskiRoarOpen() { return WindowOpen; }
+
+bool LevskiGridHoldsKeystoneSeed(uint32_t seed)
+{
+	return std::any_of(std::begin(GridItems), std::end(GridItems),
+	    [seed](const Item &item) { return !item.isEmpty() && item._iMiscId == IMISC_ORACOOL_KEYSTONE && item._iSeed == seed; });
+}
 void ReleaseLevskiButtons()
 {
 	// What was pressed, read before it is cleared below: the Cube's controls act only on a release inside the control

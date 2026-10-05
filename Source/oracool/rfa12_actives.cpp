@@ -2577,7 +2577,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// Companions (user, 2026-09-14): the Valkyrie archer, and the Decoy that draws every blow. oracool/companion.h.
 		return SummonCompanions(player, spell, target, r);
 	case SpellID::PoisonJavelin: {
-		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
+		auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
+		// Its only damage is acid (round 111 audit: an acid-immune first target took nothing, and the pool and the price followed).
+		std::erase_if(line, [](const Monster *m) { return m->isImmune(MissileID::Null, DamageType::Acid); });
 		if (line.empty())
 			return false;
 		Monster &m = *line.front();
@@ -2783,7 +2785,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		if (line.empty())
 			return false;
-		StrikeBlow(player, *line.front(), DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
+		SideBlow(player, *line.front(), DamageType::Physical, BlowPercent(spell, r)); // a weapon blow, counted once a cast (rounds 110-111)
 		// RfA-27 batch 53: the staff's streak along his aim, and the jab's cue.
 		ArtFacing(player, MissileGraphicID::LongThrust, here, target == here ? player._pdir : GetDirection(here, target));
 		Impact(player, spell);
@@ -2792,7 +2794,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::MountainPole: {
 		const auto around = MonstersWithin(here, 1);
 		for (Monster *m : around) {
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
+			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r)); // a weapon blow, counted once a cast (rounds 110-111)
 			Stagger(*m, StunTicks(spell, r));
 		}
 		if (around.empty())
@@ -2811,7 +2813,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			nearby.resize(static_cast<size_t>(BambooRainTargets));
 		for (Monster *m : nearby) {
 			Art(player, MissileGraphicID::StaffFlurry, m->position.tile); // RfA-27 batch 52: the flurry on each it strikes
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
+			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r)); // a weapon blow, counted once a cast (rounds 110-111)
 		}
 		if (!nearby.empty())
 			Impact(player, spell);
@@ -2821,7 +2823,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::WhirlingKick: {
 		const auto around = MonstersWithin(here, 1);
 		for (Monster *m : around) {
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
+			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r)); // a weapon blow, counted once a cast (rounds 110-111)
 			Shove(*m, GetDirection(here, m->position.tile));
 		}
 		if (around.empty())
@@ -2835,7 +2837,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (line.empty())
 			return false; // a blade on nothing costs nothing, as Seismic Slam since round 28 (round 67 audit)
 		for (Monster *m : line)
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
+			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r)); // a weapon blow, counted once a cast (rounds 110-111)
 		// RfA-27 batch 54: the blade of force skimming the floor down the line; the cry's ring while it is missing.
 		if (MissileArtLoaded(MissileGraphicID::HeavenSplitterWave))
 			Fly(player, MissileGraphicID::HeavenSplitterWave, here, LineEnd(here, target, ReachTiles(spell, r)), SpellID::Invalid, 16);
@@ -2847,7 +2849,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		const auto all = MonstersWithin(here, ReachTiles(spell, r));
 		for (Monster *m : all) {
 			Art(player, MissileGraphicID::StaffFlurry, m->position.tile); // RfA-27 batch 52: the flurry on each it strikes
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
+			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r)); // a weapon blow, counted once a cast (rounds 110-111)
 		}
 		return !all.empty();
 	}
@@ -2909,7 +2911,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			nearby.resize(cap);
 		for (Monster *m : nearby) {
 			Art(player, MissileGraphicID::SevenSidedStrike, m->position.tile); // RfA-27 batch 52: on each one struck
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
+			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r)); // a weapon blow, counted once a cast (rounds 110-111)
 		}
 		return !nearby.empty();
 	}
@@ -2918,7 +2920,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		if (line.empty())
 			return false; // as Heaven Splitter (round 67 audit)
 		for (Monster *m : line)
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r), /*melee=*/true); // a weapon blow (round 110)
+			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r)); // a weapon blow, counted once a cast (rounds 110-111)
 		// RfA-27 batch 54: the wave of wind and force down the line; the cry's ring while it is missing.
 		if (MissileArtLoaded(MissileGraphicID::DragonsWrathWave))
 			Fly(player, MissileGraphicID::DragonsWrathWave, here, LineEnd(here, target, ReachTiles(spell, r)), SpellID::Invalid, 16);
@@ -3015,7 +3017,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 				continue; // not across a squeezed corner or a door (round 99 audit)
 			BoneStrike(player, *m, Rolled(d), here); // flown from the hero (round 41)
 			struck.push_back(m);
-			any = true;
+			any = any || !m->isImmune(MissileID::Null, DamageType::Magic); // a magic-immune skeleton is no hit (round 111 audit)
 		}
 		// Down the line, past the fan: the line starts on the fan's middle tile, whose monster already took a tooth (audit,
 		// 2026-09-29 - it took two).
@@ -3025,7 +3027,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			line.resize(static_cast<size_t>(TeethDownTheLine(r)));
 		for (Monster *m : line) {
 			BoneStrike(player, *m, Rolled(d), here); // flown from the hero (round 41)
-			any = true;
+			any = any || !m->isImmune(MissileID::Null, DamageType::Magic);
 		}
 		// The fan itself (batch 38): a tooth to each arc tile and one down the line.
 		for (const Point tile : FrontArc(player, target))
@@ -3060,6 +3062,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	}
 	case SpellID::BoneSplinters: {
 		auto line = MonstersOnLine(here, target, 4);
+		// Not the magic-immune, whose splinters did nothing and were paid for (round 111 audit) - Phantom Volley's rule.
+		std::erase_if(line, [](const Monster *m) { return m->isImmune(MissileID::Null, DamageType::Magic); });
 		if (line.size() > static_cast<size_t>(BoneSplinterTargets))
 			line.resize(static_cast<size_t>(BoneSplinterTargets));
 		const Range d = SkillDamage(spell, r);
@@ -3758,15 +3762,23 @@ void TickField(Player &player, Field &field)
 	case SpellID::PoisonJavelin:
 		if (field.clock % TicksPerSecond == 0) {
 			const Range d = SkillDamage(field.spell, r);
+			// A pulse is a burst, not a fresh hit (round 111 audit: each pulse on each monster rolled and spent Sharpshooter's
+			// built-up crit and Dead Ground's bonus - Shock Arrow's arc rule since round 92).
+			const bool previousSide = SideBlowInFlight;
+			SideBlowInFlight = true;
 			for (Monster *m : MonstersWithin(field.tile, 1))
 				Strike(player, *m, DamageType::Acid, Rolled(d));
+			SideBlowInFlight = previousSide;
 		}
 		break;
 	case SpellID::PlagueJavelin:
 		if (field.clock % TicksPerSecond == 0) {
 			const Range d = SkillDamage(field.spell, r);
+			const bool previousSide = SideBlowInFlight;
+			SideBlowInFlight = true; // a burst, as the pool's (round 111)
 			for (Monster *m : MonstersWithin(field.tile, ReachTiles(field.spell, r)))
 				Strike(player, *m, DamageType::Acid, Rolled(d));
+			SideBlowInFlight = previousSide;
 			if (!MissileArtLoaded(MissileGraphicID::AcidCloud))
 				Ring(player, field.tile); // the cloud shows the pulse's reach while it hangs there
 		}
@@ -4242,7 +4254,12 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		}
 		break;
 	case SpellID::ReapingPoint: {
-		Monster *beyond = InDungeonBounds(ahead + player._pdir) ? FindMonsterAtPosition(ahead + player._pdir) : nullptr;
+		// The enemy behind a target, not behind a wall or a closed door (round 111 audit: a shift-swing at a door struck the
+		// monster past it - Holy Lance's rule since round 98).
+		const Point past = ahead + player._pdir;
+		Monster *beyond = front != nullptr && InDungeonBounds(past) && !LineStepBlocked(player.position.tile, ahead) && !LineStepBlocked(ahead, past)
+		    ? FindMonsterAtPosition(past)
+		    : nullptr;
 		if (beyond != nullptr && beyond != front && Hittable(*beyond)) { // not the front one walking away (round 77 audit)
 			SideBlow(player, *beyond, DamageType::Physical, BlowPercent(spell, r));
 			struck = true;
@@ -4253,14 +4270,18 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		// After every strike at a target, landed or not (the Rogue Skill Cards page, 2026-10-04: "melee attack with staff
 		// acompanied by an adjacent tile teleport after strike").
 		if (landed || front != nullptr) {
+			bool pivoted = false;
 			for (const Point side : { player.position.tile + Left(player._pdir), player.position.tile + Right(player._pdir) }) {
 				// PosOkPlayer, objects included: a barrel beside him passed, and the landing search put him elsewhere (round 20).
 				if (InDungeonBounds(side) && PosOkPlayer(player, side) && dMonster[side.x][side.y] == 0) {
 					TeleportTo(player, side, spell, nullptr, /*sayRefusal=*/false); // its impact cue is the moment's sound (RfA-27)
+					pivoted = true;
 					break;
 				}
 			}
-			struck = true;
+			// Paid for a blow that landed or a pivot made (round 111 audit: a miss with no free side tile was paid for nothing).
+			if (landed || pivoted)
+				struck = true;
 		}
 		break;
 	case SpellID::LowBranch:
@@ -4357,6 +4378,14 @@ bool CastRfa12Active(Player &player, SpellID spell, Point target)
 		}
 	} sight { player };
 	const BowStrikeScope bow { IsBowSkill(spell) };
+	// A cast weapon blow on many foes is one blow to the passives: the first that lands counts (Mythic Rhythm, Combination
+	// Strike), the rest strike as side blows (round 111 audit: each target counted, so one cast filled a Mythic Rhythm charge).
+	const bool swingCountedBefore = SwingCounted;
+	SwingCounted = false;
+	struct SwingCountedRestore {
+		bool value;
+		~SwingCountedRestore() { SwingCounted = value; }
+	} restoreSwingCounted { swingCountedBefore };
 	if (!CastOnce(player, spell, target, r))
 		return false;
 	// Heroic Couplet: the next Poetry verse takes effect twice.

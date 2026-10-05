@@ -42,6 +42,13 @@ namespace devilution::oracool {
 
 namespace {
 
+/** @brief What "uniques do not" means for a curse: uniques, bosses and lesser uniques too, as every stagger and chill in
+ * this fork spares them (round 111 audit: Frailty killed a lesser unique at 11%, Terror and Confuse moved it). */
+bool SparedAsUnique(const Monster &monster)
+{
+	return FightsAsUnique(monster) || monster.lesserAffix != LesserUniqueAffix::None;
+}
+
 constexpr int TicksPerSecond = 20;
 
 // ---- the curses' numbers, one place each: the rules below and CurseFactsAt / CursePassiveFactsAt both read them ----
@@ -214,7 +221,7 @@ bool Lay(Monster &monster, CurseKind kind, int ticks, int rank, const Player &ow
 		ChillMonster(monster, ticks);
 		break;
 	case CurseKind::Confuse:
-		if ((monster.flags & MFLAG_BERSERK) == 0 && !FightsAsUnique(monster)) {
+		if ((monster.flags & MFLAG_BERSERK) == 0 && !SparedAsUnique(monster)) {
 			monster.flags |= MFLAG_BERSERK | MFLAG_GOLEM;
 			curse.turned = true;
 		}
@@ -409,12 +416,12 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 		const bool onTarget = monster.position.tile == target || monster.position.future == target;
 		if (single ? !onTarget : distance > radius)
 			continue;
-		if (kind == CurseKind::Terror && FightsAsUnique(monster))
+		if (kind == CurseKind::Terror && SparedAsUnique(monster))
 			continue; // "Uniques do not" run - and are not marked either
 		// Nor Confuse or Frailty, which do nothing to a unique: laid anyway, they cost Essence and replaced the curse it had
 		// (round 8 audit, v1.12.233).
 		// Nor Dim Vision: a blinded boss loses the hero at two tiles, and never fights back (round 21 audit).
-		if (IsAnyOf(kind, CurseKind::Confuse, CurseKind::Frailty, CurseKind::DimVision) && FightsAsUnique(monster))
+		if (IsAnyOf(kind, CurseKind::Confuse, CurseKind::Frailty, CurseKind::DimVision) && SparedAsUnique(monster))
 			continue;
 		if (kind == CurseKind::Bane && monster.isImmune(MissileID::Null, DamageType::Acid))
 			continue; // it rots nothing there (round 41 audit)
@@ -473,7 +480,7 @@ bool CurseFinishes(const Monster &monster, int hitPoints, int maxHitPoints)
 {
 	if (!Live(monster) || Of(monster).kind != CurseKind::Frailty || hitPoints <= 0)
 		return false;
-	if (FightsAsUnique(monster)) // Diablo and the Dread bosses too (round 19 audit)
+	if (SparedAsUnique(monster)) // Diablo and the Dread bosses too (round 19 audit)
 		return false;
 	return hitPoints <= maxHitPoints * FrailtyPercent(Of(monster).rank) / 100;
 }
@@ -513,7 +520,7 @@ bool CursedMonsterBlinded(const Monster &monster)
 
 bool CursedMonsterFlees(Monster &monster)
 {
-	if (!Live(monster) || Of(monster).kind != CurseKind::Terror || FightsAsUnique(monster))
+	if (!Live(monster) || Of(monster).kind != CurseKind::Terror || SparedAsUnique(monster))
 		return false;
 	if (monster.mode != MonsterMode::Stand)
 		return false;

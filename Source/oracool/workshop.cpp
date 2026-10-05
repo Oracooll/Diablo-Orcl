@@ -1608,6 +1608,14 @@ bool IsWorkshopOpen()
 	return WindowOpen;
 }
 
+bool WorkshopHoldsKeystoneSeed(uint32_t seed)
+{
+	const auto isIt = [seed](const Item &item) { return !item.isEmpty() && item._iMiscId == IMISC_ORACOOL_KEYSTONE && item._iSeed == seed; };
+	if (isIt(Bench))
+		return true;
+	return std::any_of(CraftGrid.begin(), CraftGrid.end(), isIt);
+}
+
 WorkshopHost CurrentWorkshopHost()
 {
 	return Host;

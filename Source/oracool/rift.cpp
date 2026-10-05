@@ -42,6 +42,8 @@
 #include "oracool/stonegate.h"
 #include "oracool/auto_save.h"
 #include "control.h" // IsLeftPanelOpen
+#include "oracool/levski_roar.h" // LevskiGridHoldsKeystoneSeed - the owed reward put in the Cube
+#include "oracool/workshop.h" // WorkshopHoldsKeystoneSeed - or on the bench
 #include "cursor.h" // NewCursor - the reward keystone put away from the cursor on a level change
 #include "inv.h"
 #include "player.h"
@@ -371,9 +373,9 @@ bool RewardKeystoneStillReachable(const Player &player)
 	for (int i = 0; i < ActiveItemCount; i++)
 		if (isIt(Items[ActiveItems[i]]))
 			return true;
-	// Not the Cube grid or the workshop bench: the reward reaches them only by way of the cursor, which keeps it (round 109
-	// audit: an open window refused every Guardian Rift, telling him to pick up a keystone that may have been gone).
-	return false;
+	// In the Cube grid or on the workshop bench, searched by its seed (round 111 audit: put there from the cursor it was never
+	// settled, and the refund minted a second; round 109's blanket "a window is open" refused even when it was gone).
+	return LevskiGridHoldsKeystoneSeed(RewardSeed) || WorkshopHoldsKeystoneSeed(RewardSeed);
 }
 
 namespace {

@@ -77,6 +77,8 @@ bool IsLevskiRoarObject(const Object &object);
 
 /** @brief Whether the monument's window is open. */
 bool IsLevskiRoarOpen();
+/** @brief Whether the grid holds the keystone with @p seed (the rift's owed reward, round 111 audit). */
+bool LevskiGridHoldsKeystoneSeed(uint32_t seed);
 
 /**
  * @brief Fills InfoString from the grid item under the cursor. True if it did.
