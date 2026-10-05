@@ -10,6 +10,7 @@
 
 #include <array>
 #include <functional>
+#include <optional>
 
 #include <function_ref.hpp>
 
@@ -516,7 +517,7 @@ size_t LevelMonsterTypeIndexOf(_monster_id type);
 /** @brief Oracool: a rift boss's summon beside @p near - an escort, a raise (@p rise plays a skeleton's climb), a split copy (oracool/rift_bosses.h). */
 Monster *SpawnRiftBossMinion(size_t typeIndex, Point near, bool rise);
 /** @brief Oracool: moves @p monster at once to the free tile nearest @p target, within four - a rift boss's blink. False when none. */
-bool MoveMonsterInstantly(Monster &monster, Point target);
+bool MoveMonsterInstantly(Monster &monster, Point target, std::optional<Point> seenFrom = std::nullopt);
 void GetLevelMTypes();
 void InitMonsterSND(CMonster &monsterType);
 void InitMonsterGFX(CMonster &monsterType);

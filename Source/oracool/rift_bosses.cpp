@@ -15,6 +15,7 @@
 #include "monster.h"
 #include "oracool/cold.h"
 #include "oracool/monster_difficulty.h" // DemoteImmunitiesToResistances
+#include "oracool/rfa12_actives.h" // SightLineClear
 #include "oracool/venom.h"
 #include "player.h"
 
@@ -231,6 +232,10 @@ Player *HeroInReach(const Monster &monster, int tiles)
 		return nullptr;
 	if (monster.position.tile.WalkingDistance(hero->position.tile) > tiles)
 		return nullptr;
+	// And in his sight (round 101 audit): the slam, the cold ring's chill and every timer ran through walls and closed doors, and
+	// he blinked into the next room after a hero he could not see.
+	if (!SightLineClear(monster.position.tile, hero->position.tile))
+		return nullptr;
 	return hero;
 }
 
@@ -320,7 +325,8 @@ void BlinkNearHero(Monster &monster, int tiles)
 	if (hero == nullptr)
 		return;
 	const auto dir = static_cast<Direction>(GenerateRnd(8));
-	MoveMonsterInstantly(monster, hero->position.tile + Displacement(dir) * tiles);
+	// Onto a tile the hero can see (round 101 audit: a random aim landed him past a wall, in a sealed pocket).
+	MoveMonsterInstantly(monster, hero->position.tile + Displacement(dir) * tiles, hero->position.tile);
 }
 
 } // namespace
@@ -525,6 +531,10 @@ void TickRiftBoss(Monster &monster)
 {
 	const RiftBossDef *def = ActiveRiftBossFor(monster);
 	if (def == nullptr)
+		return;
+	// Stone holds everything (round 101 audit: a petrified Prime Evil struck rang fire every second, and thresholds fired from
+	// the stone). A pending answer and an uncrossed threshold wait for him to wake.
+	if (monster.mode == MonsterMode::Petrified)
 		return;
 	Run &run = RunState;
 	if (run.struckCooldown > 0)

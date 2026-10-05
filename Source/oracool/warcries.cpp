@@ -832,7 +832,7 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::Vengeance:
 		return N_("Your blows burn and crackle for thirty seconds, five more a rank: fire, lightning and cold on every hit, more with rank, and the cold chills.");
 	case SpellID::Conversion:
-		return N_("Turns one enemy near the cursor to your side for 20 seconds, +2 per rank. Uniques and the magic-immune refuse.");
+		return N_("Turns one enemy near the cursor to your side for 20 seconds, +2 per rank. Uniques, bosses and the magic-immune refuse.");
 	case SpellID::FindPotion:
 		return N_("Search a corpse near the cursor. 50% of the time, +5% per rank to 90%, it yields a potion - rarely a full one. The corpse is used up.");
 	case SpellID::FindItem:

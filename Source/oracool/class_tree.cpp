@@ -162,7 +162,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// Corrected 2026-08-16: this row used to claim "no charmed-monster state exists", which was
 	// simply wrong - this engine's Berserk sets MFLAG_GOLEM on the target, making it fight for the
 	// player, which IS conversion. Found while wiring the Bard's Charm onto the same spell.
-	{ N_("Conversion"), N_("Turns one enemy near the cursor to your side for 20 seconds, +2 per rank. Uniques and the magic-immune refuse."),
+	{ N_("Conversion"), N_("Turns one enemy near the cursor to your side for 20 seconds, +2 per rank. Uniques, bosses and the magic-immune refuse."),
 	    Pal, 0, 4, 0, Kind::Active, SpellID::Conversion, true },
 	{ N_("Fist of the Heavens"), N_("Calls down a bolt from the sky, which bursts into holy energy where it lands."),
 	    Pal, 0, 5, 0, Kind::Active, SpellID::FistOfTheHeavens, true },

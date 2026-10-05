@@ -58,6 +58,7 @@
 #include "oracool/monster_scale.h"
 #include "oracool/named_encounters.h"
 #include "oracool/rift.h" // the rift floor's roster, its guardian, its kill bar (2026-09-20)
+#include "oracool/rfa12_actives.h" // SightLineClear - a rift boss blinks and summons in sight (round 101)
 #include "oracool/rift_bosses.h" // the guardian roster: who rises, how big, how fast, what he does (2026-10-04)
 #include "oracool/signets.h"
 #include "oracool/telemetry.h"
@@ -4705,6 +4706,9 @@ void DespawnMonster(Monster &monster)
 		monster.lightId = NO_LIGHT;
 	}
 	monster.hitPoints = 0;
+	// Out of stone first (round 101 audit): a petrified copy's Stone Curse saw 0 life and laid a stone corpse for it.
+	monster.mode = MonsterMode::Stand;
+	monster.animInfo.isPetrified = false;
 	monster.isInvalid = true; // DeleteMonsterList frees the slot at the next tick, as for any monster gone from the floor
 }
 
@@ -4717,19 +4721,25 @@ Monster *SpawnRiftBossMinion(size_t typeIndex, Point near, bool rise)
 {
 	if (typeIndex >= LevelMonsterTypeCount || !EnemyMonsterRoomLeft())
 		return nullptr;
+	// A tile on his side of the walls first (round 101 audit: raised dead and escorts rose in the next corridor), then any.
 	std::optional<Point> spot;
-	for (int radius = 1; radius <= 4 && !spot; radius++) {
-		for (int dx = -radius; dx <= radius && !spot; dx++) {
-			for (int dy = -radius; dy <= radius; dy++) {
-				if (std::max(std::abs(dx), std::abs(dy)) != radius)
-					continue;
-				const Point candidate = near + Displacement { dx, dy };
-				if (InDungeonBounds(candidate) && IsTileAvailable(candidate) && !TileContainsSetPiece(candidate)) {
-					spot = candidate;
-					break;
+	for (const bool sighted : { true, false }) {
+		for (int radius = 1; radius <= 4 && !spot; radius++) {
+			for (int dx = -radius; dx <= radius && !spot; dx++) {
+				for (int dy = -radius; dy <= radius; dy++) {
+					if (std::max(std::abs(dx), std::abs(dy)) != radius)
+						continue;
+					const Point candidate = near + Displacement { dx, dy };
+					if (InDungeonBounds(candidate) && IsTileAvailable(candidate) && !TileContainsSetPiece(candidate)
+					    && (!sighted || oracool::SightLineClear(near, candidate))) {
+						spot = candidate;
+						break;
+					}
 				}
 			}
 		}
+		if (spot)
+			break;
 	}
 	if (!spot)
 		return nullptr;
@@ -4746,7 +4756,7 @@ Monster *SpawnRiftBossMinion(size_t typeIndex, Point near, bool rise)
 	return minion;
 }
 
-bool MoveMonsterInstantly(Monster &monster, Point target)
+bool MoveMonsterInstantly(Monster &monster, Point target, std::optional<Point> seenFrom)
 {
 	if (monster.mode == MonsterMode::Petrified || monster.mode == MonsterMode::Death)
 		return false;
@@ -4757,7 +4767,8 @@ bool MoveMonsterInstantly(Monster &monster, Point target)
 				if (std::max(std::abs(dx), std::abs(dy)) != radius)
 					continue;
 				const Point candidate = target + Displacement { dx, dy };
-				if (InDungeonBounds(candidate) && IsTileAvailable(candidate) && !TileContainsSetPiece(candidate)) {
+				if (InDungeonBounds(candidate) && IsTileAvailable(candidate) && !TileContainsSetPiece(candidate)
+				    && (!seenFrom || oracool::SightLineClear(*seenFrom, candidate))) {
 					spot = candidate;
 					break;
 				}

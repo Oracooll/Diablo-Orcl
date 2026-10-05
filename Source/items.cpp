@@ -2939,6 +2939,8 @@ void PrintItemOil(const Item &item)
 		// Two rows, so the tooltip stays narrow (user, 2026-10-03: "Make in to rows to avoid very wide tooltips").
 		AddPanelString(_("Temporary boost +5 to magic for 5 min."));
 		AddPanelString(_("Stacks up to 10 times."));
+		if (gbIsHellfire)
+			AddPanelString(_("Restores all mana.")); // Hellfire's elixir refills it too (round 101 audit)
 		break;
 	case IMISC_ELIXDEX:
 		// Two rows, so the tooltip stays narrow (user, 2026-10-03: "Make in to rows to avoid very wide tooltips").
@@ -2949,6 +2951,8 @@ void PrintItemOil(const Item &item)
 		// Two rows, so the tooltip stays narrow (user, 2026-10-03: "Make in to rows to avoid very wide tooltips").
 		AddPanelString(_("Temporary boost +5 to vitality for 5 min."));
 		AddPanelString(_("Stacks up to 10 times."));
+		if (gbIsHellfire)
+			AddPanelString(_("Restores all life.")); // Hellfire's elixir refills it too (round 101 audit)
 		break;
 	case IMISC_SPECELIX:
 		// Hellfire's Spectral Elixir, +3 to each attribute (UseItem). It printed nothing at all - no line here and
