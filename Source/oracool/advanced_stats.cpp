@@ -304,7 +304,7 @@ void AddOther(const Player &p, std::vector<Row> &rows)
 		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:s}% gold find")), Signed(p._pGoldFind)) });
 	}
 	// The vanilla curses, in red, only while worn.
-	if (HasAnyOf(p._pIFlags, ItemSpecialEffect::NoMana))
+	if (HasAnyOf(p._pIFlags, ItemSpecialEffect::NoMana) && !UsesRage(p)) // meaningless to Rage (round 119)
 		rows.push_back({ RowKind::Curse, std::string(_("No mana")) });
 	if (HasAnyOf(p._pIFlags, ItemSpecialEffect::DrainLife))
 		rows.push_back({ RowKind::Curse, std::string(_("Life drained over time")) });

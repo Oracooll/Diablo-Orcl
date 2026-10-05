@@ -175,7 +175,7 @@ Monster *FindClosest(Point source, int rad)
 		    if (!InDungeonBounds(target) || dMonster[target.x][target.y] <= 0 || CheckBlock(source, target))
 			    return false;
 		    const Monster &monster = Monsters[dMonster[target.x][target.y] - 1];
-		    return !monster.isPlayerMinion() && !oracool::IsCompanion(monster);
+		    return !monster.isPlayerMinion() && !oracool::IsCompanion(monster) && !oracool::IsMonsterConverted(monster); // nor a convert (round 119)
 	    },
 	    source, 1, rad);
 
@@ -979,7 +979,8 @@ void SetMissAnim(Missile &missile, MissileGraphicID animtype)
 		ScaleMissile(missile, missile.oracoolScalePercent, missile.oracoolScaleFloor); // a turn keeps the size
 }
 
-void AddRune(Missile &missile, Point dst, MissileID missileID)
+/** @return false when no rune was laid - the caller fizzles the cast, so the rune is not spent (round 119 audit). */
+bool AddRune(Missile &missile, Point dst, MissileID missileID)
 {
 	if (oracool::SightLineClear(missile.position.start, dst)) {
 		std::optional<Point> runePosition = FindClosestValidPosition(
@@ -1007,11 +1008,12 @@ void AddRune(Missile &missile, Point dst, MissileID missileID)
 			if (missile.sourceType() == MissileSource::Player)
 				missile._mispllvl += oracool::PassiveRuneLevelBonus(*missile.sourcePlayer());
 			missile._mlid = AddLight(missile.position.tile, 8);
-			return;
+			return true;
 		}
 	}
 
 	missile._miDelFlag = true;
+	return false;
 }
 
 bool CheckIfTrig(Point position)
@@ -1053,12 +1055,20 @@ bool GuardianTryFireAt(Missile &missile, Point target)
 	return true;
 }
 
+/** @brief A closed door stands on @p tile: it blocks through its object, not its tile (round 119 audit). */
+bool ClosedDoorAt(Point tile)
+{
+	const Object *object = FindObjectAtPosition(tile);
+	return object != nullptr && object->isDoor() && !object->_oMissFlag;
+}
+
 bool GrowWall(int playerId, Point position, Point target, MissileID type, int spellLevel, int damage)
 {
 	int dp = dPiece[position.x][position.y];
 	assert(dp <= MAXTILES && dp >= 0);
 
-	if (TileHasAny(dp, TileProperties::BlockMissile) || !InDungeonBounds(target)) {
+	// Nor through a closed door (round 119 audit: round 99 checked only the anchor, and the wall grew into the next room).
+	if (TileHasAny(dp, TileProperties::BlockMissile) || !InDungeonBounds(target) || ClosedDoorAt(position)) {
 		return false;
 	}
 
@@ -1094,7 +1104,8 @@ void SpawnLightning(Missile &missile, int dam)
 		    assert(pn >= 0 && pn <= MAXTILES);
 
 		    if (!missile.IsTrap() || tile != missile.position.start) {
-			    if (TileHasAny(pn, TileProperties::BlockMissile)) {
+			    // A closed door too (round 119 audit: Lightning and Chain Lightning crossed it and struck the room beyond).
+			    if (TileHasAny(pn, TileProperties::BlockMissile) || ClosedDoorAt(tile)) {
 				    missile._mirange = 0;
 				    return false;
 			    }
@@ -1835,7 +1846,8 @@ void AddOpenNest(Missile &missile, AddMissileParameter &parameter)
 
 void AddRuneOfFire(Missile &missile, AddMissileParameter &parameter)
 {
-	AddRune(missile, parameter.dst, MissileID::BigExplosion);
+	if (!AddRune(missile, parameter.dst, MissileID::BigExplosion))
+		parameter.spellFizzled = true;
 }
 
 void AddRuneOfLight(Missile &missile, AddMissileParameter &parameter)
@@ -1843,22 +1855,26 @@ void AddRuneOfLight(Missile &missile, AddMissileParameter &parameter)
 	int lvl = (missile.sourceType() == MissileSource::Player) ? missile.sourcePlayer()->_pLevel : 0;
 	int dmg = 16 * (GenerateRndSum(10, 2) + lvl + 2);
 	missile._midam = dmg;
-	AddRune(missile, parameter.dst, MissileID::LightningWall);
+	if (!AddRune(missile, parameter.dst, MissileID::LightningWall))
+		parameter.spellFizzled = true;
 }
 
 void AddRuneOfNova(Missile &missile, AddMissileParameter &parameter)
 {
-	AddRune(missile, parameter.dst, MissileID::Nova);
+	if (!AddRune(missile, parameter.dst, MissileID::Nova))
+		parameter.spellFizzled = true;
 }
 
 void AddRuneOfImmolation(Missile &missile, AddMissileParameter &parameter)
 {
-	AddRune(missile, parameter.dst, MissileID::Immolation);
+	if (!AddRune(missile, parameter.dst, MissileID::Immolation))
+		parameter.spellFizzled = true;
 }
 
 void AddRuneOfStone(Missile &missile, AddMissileParameter &parameter)
 {
-	AddRune(missile, parameter.dst, MissileID::StoneCurse);
+	if (!AddRune(missile, parameter.dst, MissileID::StoneCurse))
+		parameter.spellFizzled = true;
 }
 
 void AddReflect(Missile &missile, AddMissileParameter & /*parameter*/)
@@ -5530,7 +5546,8 @@ void ProcessRune(Missile &missile)
 	// Not the hero's own army or companions (the blast spares them - the rune was wasted and could hit the hero beside
 	// them), nor a townsperson's id in town (round 9 audit, v1.12.234).
 	if (mid != 0
-	    && (leveltype == DTYPE_TOWN || Monsters[abs(mid) - 1].isPlayerMinion() || oracool::IsCompanion(Monsters[abs(mid) - 1])))
+	    && (leveltype == DTYPE_TOWN || Monsters[abs(mid) - 1].isPlayerMinion() || oracool::IsCompanion(Monsters[abs(mid) - 1])
+	        || oracool::IsMonsterConverted(Monsters[abs(mid) - 1]))) // nor a convert (round 119)
 		mid = 0;
 	if (mid != 0 || pid != 0) {
 		Point targetPosition = mid != 0 ? Monsters[abs(mid) - 1].position.tile : Players[abs(pid) - 1].position.tile;
@@ -6495,7 +6512,7 @@ void ProcessInfernoControl(Missile &missile)
 	UpdateMissilePos(missile);
 	if (missile.position.tile != Point { missile.var1, missile.var2 }) {
 		int id = dPiece[missile.position.tile.x][missile.position.tile.y];
-		if (!TileHasAny(id, TileProperties::BlockMissile)) {
+		if (!TileHasAny(id, TileProperties::BlockMissile) && !ClosedDoorAt(missile.position.tile)) { // nor a closed door (round 119)
 			AddMissile(
 			    missile.position.tile,
 			    missile.position.start,

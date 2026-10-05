@@ -313,7 +313,8 @@ SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool
 	}
 
 	// No town portal inside a Guardian Rift (plan r9): the only way out is the gate's own, after the
-	// guardian. Refused before any cost, from spell, scroll or staff alike.
+	// guardian. Refused before any cost - for a spell: scrolls and staves never reach CheckSpell, and refuse the in-town case in
+	// CanUseScroll/CanUseStaff (round 119 audit). RiftForbidsTownPortal has answered false since 2026-09-20.
 	// Nor in town (round 84 audit: it opened a door to the last portal's level and spot - another seed's, for a new hero).
 	if (sn == SpellID::TownPortal && leveltype == DTYPE_TOWN)
 		return SpellCheckResult::Fail_Level0;

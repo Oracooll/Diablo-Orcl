@@ -876,6 +876,8 @@ const CharRow CharRows[] = {
 	    nullptr, CharRowGroupGap },
 	{ N_("Mana steal"),
 	    []() {
+	        if (oracool::UsesRage(*InspectPlayer))
+		        return StyledText { UiFlags::ColorWhite, "-" }; // no mana to steal into (round 119)
 	        const int pct = ManaStealPercent();
 	        // NoMana zeroes this out no matter what the jewellery says - worth showing as such
 	        // rather than as a bonus the character cannot use.

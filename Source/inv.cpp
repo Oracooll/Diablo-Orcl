@@ -4454,6 +4454,10 @@ bool CanUseScroll(Player &player, SpellID spell)
 {
 	if (leveltype == DTYPE_TOWN && !GetSpellData(spell).isAllowedInTown())
 		return false;
+	// Nor a Town Portal in town: scrolls and staves never reach CheckSpell, whose refusal this is (round 119 audit - round 84's
+	// portal to the last destination, latent while no such scroll or staff drops).
+	if (leveltype == DTYPE_TOWN && spell == SpellID::TownPortal)
+		return false;
 
 	return HasInventoryOrBeltItem(player, [spell](const Item &item) {
 		return item.isScrollOf(spell) || item.isRuneOf(spell);
@@ -4473,6 +4477,8 @@ void ConsumeStaffCharge(Player &player)
 
 bool CanUseStaff(Player &player, SpellID spellId)
 {
+	if (leveltype == DTYPE_TOWN && spellId == SpellID::TownPortal)
+		return false; // as a scroll (round 119 audit)
 	return CanUseStaff(player.InvBody[INVLOC_HAND_LEFT], spellId);
 }
 

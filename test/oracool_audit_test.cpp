@@ -19079,7 +19079,14 @@ TEST(OracoolAudit117, ALevelSaveReleaseAimsTheHuntersAtTheHero)
 	const auto savedPosA = Monsters[10].enemyPosition, savedPosB = Monsters[11].enemyPosition;
 	ActiveMonsters[0] = 10;
 	ActiveMonsters[1] = 11;
-	ActiveMonsterCount = 2;
+	const auto savedC = ActiveMonsters[2];
+	const auto savedFlagsC = Monsters[12].flags;
+	const auto savedEnemyC = Monsters[12].enemy;
+	ActiveMonsters[2] = 12;
+	ActiveMonsterCount = 3;
+	devilution::Monster &minion = Monsters[12]; // the hero's own, hunting it too: left alone (round 118)
+	minion.flags = MFLAG_GOLEM | MFLAG_TARGETS_MONSTER;
+	minion.enemy = 10;
 	devilution::Monster &released = Monsters[10];
 	devilution::Monster &hunter = Monsters[11];
 	released.flags = MFLAG_TARGETS_MONSTER;
@@ -19093,6 +19100,11 @@ TEST(OracoolAudit117, ALevelSaveReleaseAimsTheHuntersAtTheHero)
 	EXPECT_EQ(released.enemyPosition, MyPlayer->position.future);
 	EXPECT_EQ(static_cast<size_t>(released.enemy), MyPlayerId);
 	EXPECT_EQ(hunter.enemyPosition, MyPlayer->position.future);
+	EXPECT_NE(minion.flags & MFLAG_TARGETS_MONSTER, 0) << "the hero's own minion was re-aimed at him";
+	EXPECT_EQ(minion.enemy, 10);
+	Monsters[12].flags = savedFlagsC;
+	Monsters[12].enemy = savedEnemyC;
+	ActiveMonsters[2] = savedC;
 	Monsters[10].flags = savedFlagsA;
 	Monsters[11].flags = savedFlagsB;
 	Monsters[10].enemy = savedEnemyA;
