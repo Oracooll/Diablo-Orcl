@@ -512,6 +512,8 @@ void InitLevelMonsters();
 Monster *SpawnRiftGuardian();
 /** @brief Oracool: takes @p monster off the floor without a death - no corpse, loot, experience or kill (a rift boss's split copy). */
 void DespawnMonster(Monster &monster);
+/** @brief Test seam: the level's monster types and their image budget, emptied as InitLevelMonsters empties them (round 103). */
+void ResetLevelMonsterTypesForTest();
 /** @brief Oracool: the floor's type slot holding @p type, or LevelMonsterTypeCount when it is not loaded. */
 size_t LevelMonsterTypeIndexOf(_monster_id type);
 /** @brief Oracool: a rift boss's summon beside @p near - an escort, a raise (@p rise plays a skeleton's climb), a split copy (oracool/rift_bosses.h). */

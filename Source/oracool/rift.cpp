@@ -1279,6 +1279,9 @@ void DrawRiftHud(const Surface &out)
 	const int y = *sgOptions.Oracool.miniMapEnabled ? miniMap.position.y + miniMap.size.height + Gap : miniMap.position.y;
 
 	std::string label = RiftKindName(State.kind);
+	const std::string clock = State.kind == RiftKind::Guardian && !State.done
+	    ? (State.timedOut ? std::string("  out of time") : fmt::format("  {:d}:{:02d}", RiftSecondsLeft() / 60, RiftSecondsLeft() % 60))
+	    : std::string();
 	if (State.done && State.closeTicks > 0)
 		label += fmt::format(": cleared - closes in {:d}s", RiftCloseSecondsLeft()); // the countdown (user, 2026-09-20)
 	else if (State.done)
@@ -1286,13 +1289,13 @@ void DrawRiftHud(const Surface &out)
 	else if (State.guardianSpawned) {
 		// His name, unless it would push the line past the mini-map's width into the timer column below it (round 102 audit:
 		// "Captain Sareth of the Red Watch" ran over the elixir countdowns); his health bar carries the name anyway.
+		// Measured with the clock that follows it (round 103 audit: a guessed 60px reserve).
 		const std::string named = StrCat(label, ": ", RiftBossName());
-		label = GetLineWidth(named, GameFont12) + 60 <= BarWidth ? named : StrCat(label, ": the boss");
+		label = GetLineWidth(StrCat(named, clock), GameFont12) <= BarWidth ? named : StrCat(label, ": the boss");
 	}
 	else
 		label += fmt::format("  {:d}%", RiftProgressPercent());
-	if (State.kind == RiftKind::Guardian && !State.done)
-		label += State.timedOut ? "  out of time" : fmt::format("  {:d}:{:02d}", RiftSecondsLeft() / 60, RiftSecondsLeft() % 60);
+	label += clock;
 	// THE LINE IS AS WIDE AS THE LINE NEEDS (user, 2026-09-22: "text with countdown timer doesnt fit
 	// the second digit of the time remaining").
 	//

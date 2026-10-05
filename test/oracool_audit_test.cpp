@@ -18889,3 +18889,41 @@ TEST(OracoolAudit100, SightCrossesLavaButNotASqueezedCorner)
 	Round94RestoreGrid(dObject, savedObject);
 	Round94RestoreGrid(dPiece, savedPiece);
 }
+
+// Every roster row's floor gets something to kill (round 102 audit: a Balrog Ascendant, Vortex Sovereign, Vargoth, Sareth or Vael
+// with their escorts ate the floor's whole image budget, the roster found no room, and the bar could never fill). At the band's
+// lowest and highest rungs, for every row of its own kind.
+TEST(OracoolRiftBosses, EveryRowsFloorHasAScatterType)
+{
+	const bool savedSetlevel = setlevel;
+	const _setlevels savedLevel = setlvlnum;
+	const uint8_t savedCurrlevel = currlevel;
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = true; // the type list only - no sprites
+	for (size_t row = 0; row < oracool::RiftBossCount(); row++) {
+		const oracool::RiftBossDef &def = oracool::RiftBossAt(row);
+		for (const int tier : { 2 * def.minTier - 1, 16 }) {
+			oracool::ResetRiftForNewGame();
+			oracool::SetRiftBossForTest(def.kind, tier, row);
+			setlevel = true;
+			setlvlnum = oracool::RiftLevelFor(def.kind);
+			ResetLevelMonsterTypesForTest(); // the type count and the image budget, as a level load clears them
+			GetLevelMTypes();
+			bool scatter = false;
+			bool boss = false;
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+				scatter = scatter || (LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0;
+				boss = boss || LevelMonsterTypes[i].type == def.type;
+			}
+			EXPECT_TRUE(scatter) << "row " << row + 1 << " (" << (def.name != nullptr ? def.name : "a face of old") << ") at tier " << tier
+			                     << ": nothing to fill the bar";
+			EXPECT_TRUE(boss) << "row " << row + 1 << ": the boss's own type was not loaded";
+		}
+	}
+	ResetLevelMonsterTypesForTest();
+	HeadlessMode = savedHeadless;
+	setlevel = savedSetlevel;
+	setlvlnum = savedLevel;
+	currlevel = savedCurrlevel;
+	oracool::ResetRiftForNewGame();
+}

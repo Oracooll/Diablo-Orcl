@@ -124,7 +124,7 @@ bool TFit_Obj5(int t)
 
 	int candidatesFound = 0;
 	for (Point tile : PointsInRectangle(Rectangle { { 0, 0 }, { MAXDUNX, MAXDUNY } })) {
-		if (dTransVal[tile.x][tile.y] == themes[t].ttval && IsTileNotSolid(tile) && CheckThemeObj5(tile, themes[t].ttval)) {
+		if (dTransVal[tile.x][tile.y] == themes[t].ttval && IsTileNotSolid(tile) && !NearRiftArrival(tile) && CheckThemeObj5(tile, themes[t].ttval)) {
 			// Use themex/y to keep track of the last candidate area found, in case we end up with fewer candidates than the target
 			themex = tile.x;
 			themey = tile.y;
@@ -165,6 +165,10 @@ bool TFit_GoatShrine(int t)
 
 bool CheckThemeObj3(Point origin, int8_t regionId, unsigned frequency = 0)
 {
+	// Not on a rift's landing (round 103 audit: a rack or a cross could stand on the hero's arrival tile). Rifts only, so an
+	// ordinary floor draws exactly as before.
+	if (NearRiftArrival(origin))
+		return false;
 	const auto searchArea = PointsInRectangle(Rectangle { origin, 1 });
 	return std::all_of(searchArea.cbegin(), searchArea.cend(), [regionId, frequency](Point testPosition) {
 		if (!InDungeonBounds(testPosition)) {
@@ -404,7 +408,8 @@ void Theme_Barrel(int t)
 
 	for (int yp = 0; yp < MAXDUNY; yp++) {
 		for (int xp = 0; xp < MAXDUNX; xp++) {
-			if (dTransVal[xp][yp] == themes[t].ttval && IsTileNotSolid({ xp, yp })) {
+			// Not on a rift's landing either (round 103 audit: the hero arrived standing on an explosive barrel).
+			if (dTransVal[xp][yp] == themes[t].ttval && IsTileNotSolid({ xp, yp }) && !NearRiftArrival({ xp, yp })) {
 				if (FlipCoin(barrnd[leveltype - 1])) {
 					_object_id r = FlipCoin(barrnd[leveltype - 1]) ? OBJ_BARREL : OBJ_BARRELEX;
 					AddObject(r, { xp, yp });

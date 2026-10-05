@@ -4620,6 +4620,20 @@ Monster *AddMonster(Point position, Direction dir, size_t typeIndex, bool inMap)
 	return nullptr;
 }
 
+/**
+ * @brief The guardian's first-choice spot: in the hero's door-aware sight AND a short walk from him (round 103 audit: sight
+ * crosses lava and the old test saw through closed doors, so he rose on the far bank of a lava river or behind a closed door,
+ * where neither could reach the other). The same walk the way home asks for.
+ */
+static bool RiftGuardianSpotReachable(Point hero, Point candidate)
+{
+	if (!oracool::SightLineClear(hero, candidate))
+		return false;
+	int8_t path[MaxPathLength];
+	const int steps = FindPath([](Point p) { return InDungeonBounds(p) && !IsTileSolid(p); }, hero, candidate, path);
+	return steps > 0 && steps <= 20;
+}
+
 Monster *SpawnRiftGuardian()
 {
 	if (MyPlayer == nullptr || !EnemyMonsterRoomLeft())
@@ -4643,7 +4657,7 @@ Monster *SpawnRiftGuardian()
 						continue;
 					const Point candidate = hero + Displacement { dx, dy };
 					if (InDungeonBounds(candidate) && dMonster[candidate.x][candidate.y] == 0 && dPlayer[candidate.x][candidate.y] == 0
-					    && !TileContainsSetPiece(candidate) && !IsTileOccupied(candidate) && (!sighted || LineClearMissile(hero, candidate))) {
+					    && !TileContainsSetPiece(candidate) && !IsTileOccupied(candidate) && (!sighted || RiftGuardianSpotReachable(hero, candidate))) {
 						spot = candidate;
 						break;
 					}
@@ -4730,6 +4744,14 @@ void DespawnMonster(Monster &monster)
 	monster.mode = MonsterMode::Stand;
 	monster.animInfo.isPetrified = false;
 	monster.isInvalid = true; // DeleteMonsterList frees the slot at the next tick, as for any monster gone from the floor
+}
+
+void ResetLevelMonsterTypesForTest()
+{
+	for (CMonster &type : LevelMonsterTypes)
+		type.placeFlags = 0;
+	LevelMonsterTypeCount = 0;
+	monstimgtot = 0;
 }
 
 size_t LevelMonsterTypeIndexOf(_monster_id type)
