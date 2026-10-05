@@ -18827,3 +18827,28 @@ TEST(OracoolRiftBosses, EverySpriteTheRosterNamesIsInTheArchives)
 		}
 	}
 }
+
+// A quick-cast key's bow skill is one shot (round 95), and the held button's own skill comes back after it (round 96: a held
+// Multishot went on as plain arrows); a plain hold gets nothing back.
+TEST(OracoolRogueArrows, AKeysBowShotIsOneShotAndTheHeldSkillReturns)
+{
+	oracool::ArmArrowSkill(oracool::RogueArrow::MultipleShot); // the held button's
+	const std::optional<oracool::RogueArrow> held = oracool::ArmedArrowSkill();
+	oracool::ArmArrowSkill(oracool::RogueArrow::FireArrow); // the key's
+	oracool::MarkBowLatchOneShot(held, std::nullopt);
+	EXPECT_TRUE(oracool::IsBowLatchOneShot());
+	EXPECT_EQ(oracool::ArmedArrowSkill(), std::optional<oracool::RogueArrow>(oracool::RogueArrow::FireArrow));
+	oracool::DropOneShotBowLatch();
+	EXPECT_FALSE(oracool::IsBowLatchOneShot());
+	EXPECT_EQ(oracool::ArmedArrowSkill(), std::optional<oracool::RogueArrow>(oracool::RogueArrow::MultipleShot)) << "the held skill is back";
+	oracool::DropOneShotBowLatch();
+	EXPECT_EQ(oracool::ArmedArrowSkill(), std::optional<oracool::RogueArrow>(oracool::RogueArrow::MultipleShot)) << "a button's own latch is not dropped";
+
+	oracool::ArmArrowSkill(std::nullopt); // a plain hold
+	oracool::ArmBowSkillSpell(SpellID::BarbedShaft);
+	oracool::MarkBowLatchOneShot(std::nullopt, std::nullopt);
+	oracool::DropOneShotBowLatch();
+	EXPECT_FALSE(oracool::ArmedArrowSkill().has_value());
+	EXPECT_FALSE(oracool::ArmedBowSkillSpell().has_value()) << "nothing comes back to a plain hold";
+	oracool::ArmArrowSkill(std::nullopt);
+}

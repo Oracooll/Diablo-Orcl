@@ -29,6 +29,9 @@ std::optional<RogueArrow> ArmedArrow;
 std::optional<SpellID> ArmedBowSpell;
 /** A quick-cast armed the bow latch: it is one shot's, and goes after it (round 95 audit). */
 bool BowLatchOneShot = false;
+/** What the held button had armed before the key's shot: put back after it (round 96 audit). */
+std::optional<RogueArrow> HeldArrowBeforeKey;
+std::optional<SpellID> HeldBowSpellBeforeKey;
 std::optional<SpellID> ArmedThrow;
 Point ArmedThrowTarget;
 
@@ -222,10 +225,18 @@ std::optional<SpellID> ArmedBowSkillSpell()
 	return ArmedBowSpell;
 }
 
-void MarkBowLatchOneShot()
+void MarkBowLatchOneShot(std::optional<RogueArrow> heldArrow, std::optional<SpellID> heldBowSpell)
 {
-	if (ArmedArrow.has_value() || ArmedBowSpell.has_value())
-		BowLatchOneShot = true;
+	if (!ArmedArrow.has_value() && !ArmedBowSpell.has_value())
+		return;
+	BowLatchOneShot = true;
+	HeldArrowBeforeKey = heldArrow;
+	HeldBowSpellBeforeKey = heldBowSpell;
+}
+
+bool IsBowLatchOneShot()
+{
+	return BowLatchOneShot;
 }
 
 void DropOneShotBowLatch()
@@ -233,8 +244,11 @@ void DropOneShotBowLatch()
 	if (!BowLatchOneShot)
 		return;
 	BowLatchOneShot = false;
-	ArmedArrow = std::nullopt;
-	ArmedBowSpell = std::nullopt;
+	// The held button's own skill comes back for the rest of the hold (round 96 audit: a held Multishot went on as plain arrows).
+	ArmedArrow = HeldArrowBeforeKey;
+	ArmedBowSpell = ArmedArrow.has_value() ? std::nullopt : HeldBowSpellBeforeKey;
+	HeldArrowBeforeKey = std::nullopt;
+	HeldBowSpellBeforeKey = std::nullopt;
 }
 
 RogueArrowLook RogueArrowLookOf(RogueArrow arrow)

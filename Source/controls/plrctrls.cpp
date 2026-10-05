@@ -2548,7 +2548,7 @@ void QuickCast(size_t slot)
 	// A bow skill from a key is one shot (round 95 audit): the held attack put back below would repeat it, paid, every shot.
 	// Only a latch this key armed - the held button's own stays its own.
 	if (oracool::ArmedArrowSkill() != heldArrow || oracool::ArmedBowSkillSpell() != heldBowSpell)
-		oracool::MarkBowLatchOneShot();
+		oracool::MarkBowLatchOneShot(heldArrow, heldBowSpell);
 	LastMouseButtonAction = prevMouseButtonAction;
 	LastMouseButtonSpell = prevMouseButtonSpell;
 	LastMouseButtonSpellType = prevMouseButtonSpellType;

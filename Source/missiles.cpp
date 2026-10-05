@@ -295,6 +295,11 @@ bool LiveMonsterDamageRange(Missile &missile, int &minDamage, int &maxDamage)
 	// Not Frenzy of the Dead: a minion's missile takes it where it strikes a monster (MoveMissileAndCheckMissileCol).
 	minDamage = oracool::PackAdjustedDamage(*monster, monster->minDamage);
 	maxDamage = std::max<int>(oracool::PackAdjustedDamage(*monster, monster->maxDamage), minDamage);
+	// And a rift boss's damage past his bytes (round 96 audit: arrows, Fireball, Lightning Control and Inferno read the bytes
+	// here and lost it).
+	const int boss = oracool::RiftBossDamagePercent(*monster);
+	minDamage = minDamage * boss / 100;
+	maxDamage = maxDamage * boss / 100;
 	return true;
 }
 

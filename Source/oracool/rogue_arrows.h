@@ -93,8 +93,10 @@ std::optional<SpellID> ArmedBowSkillSpell();
  * @brief The bow latch armed now came from a quick-cast key: it is that one shot's (round 95 audit). QuickCast puts a held
  * plain attack back after it, and the held button's repeats shot - and paid - the key's skill until mana ran out.
  */
-void MarkBowLatchOneShot();
-/** @brief After a release frame: drops a one-shot bow latch (MarkBowLatchOneShot), leaving a button's own latch alone. */
+void MarkBowLatchOneShot(std::optional<RogueArrow> heldArrow, std::optional<SpellID> heldBowSpell);
+/** @brief Whether the armed bow latch is a key's one shot - a stagger does not keep it for the held button (round 96). */
+bool IsBowLatchOneShot();
+/** @brief After a release frame: drops a one-shot bow latch (MarkBowLatchOneShot) and puts back what the held button had armed. */
 void DropOneShotBowLatch();
 
 // ---- The Javelin & Spear page (the Rogue Skill Cards page, 2026-10-04) ----------------------------------------------

@@ -235,6 +235,16 @@ struct NoCastSight {
 	NoCastSight &operator=(const NoCastSight &) = delete;
 };
 
+std::vector<Monster *> MonstersWithin(Point centre, int radius);
+
+/** @brief MonstersWithin, less the lightning-immune: a random strike at one of them was a strike wasted (round 96 audit). */
+std::vector<Monster *> LightningStrikableWithin(Point centre, int radius)
+{
+	std::vector<Monster *> near = MonstersWithin(centre, radius);
+	near.erase(std::remove_if(near.begin(), near.end(), [](const Monster *m) { return m->isImmune(MissileID::Null, DamageType::Lightning); }), near.end());
+	return near;
+}
+
 std::vector<Monster *> MonstersWithin(Point centre, int radius)
 {
 	std::vector<Monster *> out;
@@ -2118,6 +2128,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			ball->_miAnimAdd = 4;       // four times the spin: it is lightning (dev note, 2026-10-01); 72 frames loop clean by 4s
 			ball->var5 = f->stamp;
 			ball->_mlid = AddLight(here, 5); // it lights its way (user, 2026-10-01); TickField moves it, the ball's end frees it
+		} else {
+			// No ball (the missile list full, or nowhere to roll): nothing was cast, and nothing is paid (round 96 audit).
+			*f = Field {};
+			return false;
 		}
 		return true;
 	}
@@ -3348,7 +3362,8 @@ void TickField(Player &player, Field &field)
 			// It stops against a wall, and sparks where it stands for the rest of its time.
 			const Displacement next = (ball->position.traveled + ball->position.velocity) >> 16;
 			const Point ahead = ball->position.start + next.screenToMissile();
-			if (ahead != ball->position.tile && (!InDungeonBounds(ahead) || IsTileSolid(ahead)))
+			// A closed door stops it too (round 96 audit: it rolled through and struck the room behind).
+			if (ahead != ball->position.tile && (!InDungeonBounds(ahead) || IsTileSolid(ahead) || !SightLineClear(ball->position.tile, ahead)))
 				ball->position.StopMissile();
 			field.tile2 = ball->position.tile;
 			if (ball->_mlid != NO_LIGHT)
@@ -3358,7 +3373,7 @@ void TickField(Player &player, Field &field)
 			field.step = field.clock + BallLightningStrikeEvery + GenerateRnd(5);
 			const Point at = ball->position.tile;
 			const Displacement core = ball->position.offset + BallLightningCore;
-			const std::vector<Monster *> near = MonstersWithin(at, BallLightningReach);
+			const std::vector<Monster *> near = LightningStrikableWithin(at, BallLightningReach);
 			if (!near.empty()) {
 				Monster &monster = *near[GenerateRnd(static_cast<int>(near.size()))];
 				AddLightningStrike(at, core, monster.position.tile, StrikeBody, static_cast<int>(player.getId()), 2 + GenerateRnd(3));
@@ -3393,7 +3408,7 @@ void TickField(Player &player, Field &field)
 		// Both strike a monster near them on their own clock, from the ring's rim or the rod's crown.
 		if (field.clock % (field.spell == SpellID::FaradayRing ? FaradayRingStrikeEvery : LightningRodStrikeEvery) == 0) {
 			const int strikeReach = field.spell == SpellID::FaradayRing ? FaradayRingReach : LightningRodBurstRadius;
-			if (const std::vector<Monster *> near = MonstersWithin(field.tile, strikeReach); !near.empty()) {
+			if (const std::vector<Monster *> near = LightningStrikableWithin(field.tile, strikeReach); !near.empty()) {
 				Monster &monster = *near[GenerateRnd(static_cast<int>(near.size()))];
 				const Displacement from = field.spell == SpellID::FaradayRing ? FaradayRingRim(field.tile, monster.position.tile, StrikeBody) : LightningRodCrown;
 				AddLightningStrike(field.tile, from, monster.position.tile, StrikeBody, static_cast<int>(player.getId()), 2 + GenerateRnd(3));
@@ -3402,7 +3417,8 @@ void TickField(Player &player, Field &field)
 		}
 		bool fizzled = false;
 		for (Missile &missile : Missiles) {
-			if (missile._miDelFlag || missile.sourceType() != MissileSource::Monster)
+			// Every enemy missile, a trap's too (round 96 audit: "destroys every enemy missile" let trap arrows through).
+			if (missile._miDelFlag || missile.sourceType() == MissileSource::Player)
 				continue;
 			if (field.tile.WalkingDistance(missile.position.tile) > reach)
 				continue;
@@ -3538,7 +3554,7 @@ void TickField(Player &player, Field &field)
 		}
 		const int nextX = clone->var2 + dx * LightningCloneStep / far;
 		const int nextY = clone->var3 + dy * LightningCloneStep / far;
-		if (const Point next { (nextX + 128) / 256, (nextY + 128) / 256 }; !InDungeonBounds(next) || IsTileSolid(next)) {
+		if (const Point next { (nextX + 128) / 256, (nextY + 128) / 256 }; !InDungeonBounds(next) || IsTileSolid(next) || !SightLineClear(clone->position.tile, next)) {
 			// A wall between them (he teleported or turned a corner): it bursts where it stands rather than cut through and strike
 			// the rooms beyond (round 72 audit).
 			const Point at = clone->position.tile;
@@ -3568,7 +3584,7 @@ void TickField(Player &player, Field &field)
 			break;
 		field.step = field.clock + LightningCloneStrikeEvery(r);
 		const Displacement core = clone->position.offset + LightningCloneCore;
-		const std::vector<Monster *> near = MonstersWithin(tile, LightningCloneReach);
+		const std::vector<Monster *> near = LightningStrikableWithin(tile, LightningCloneReach);
 		if (!near.empty()) {
 			Monster &monster = *near[GenerateRnd(static_cast<int>(near.size()))];
 			AddLightningStrike(tile, core, monster.position.tile, StrikeBody, pid, 2 + GenerateRnd(3));
@@ -4445,7 +4461,8 @@ void OnRfa12ActiveHit(Player &player, Monster &monster, int damage, bool melee)
 void OnRfa12ActiveStruck(Player &player, Monster &monster)
 {
 	// RfA-27 batch 51: each discharge's own impact cue.
-	if (const int r = BuffRank(player, Buff::StaticCharge); r > 0) {
+	// Not at an attacker it cannot touch - immune, or already dead to the blow's reflect - nor its cue (round 96 audit).
+	if (const int r = BuffRank(player, Buff::StaticCharge); r > 0 && (monster.hitPoints >> 6) > 0 && !monster.isImmune(MissileID::Null, DamageType::Lightning)) {
 		Strike(player, monster, DamageType::Lightning, Rolled(SkillDamage(SpellID::StaticCharge, r)));
 		Impact(player, SpellID::StaticCharge);
 	}

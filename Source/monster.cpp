@@ -1626,6 +1626,11 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 {
 	if (!target.isPossibleToHit())
 		return;
+	// A rift boss's blow at the army past what his bytes hold (round 96 audit).
+	if (const int boss = oracool::RiftBossDamagePercent(attacker); boss > 100) {
+		mind = mind * boss / 100;
+		maxd = maxd * boss / 100;
+	}
 
 	int hit = GenerateRnd(100);
 	if (target.mode == MonsterMode::Petrified)

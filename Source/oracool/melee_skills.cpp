@@ -700,9 +700,9 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 	if (UsesRage(player)) {
 		if (struck || landedBlows > 0)
 			Pay(player, skill, landedBlows);
-	} else if (struck || (frontHit && p.bonusPercent > 0) || (frontHit && IsSwingChainSkill(skill))) {
-		// A chain's first thrust pays for the chain (round 95 audit: Jab joined the chains in v1.12.375, skipped the extra-strike
-		// loop that alone set `struck`, has no bonus, and was free).
+	} else if (struck || (frontHit && p.bonusPercent > 0) || (front != nullptr && IsSwingChainSkill(skill) && !ChainFollowUp)) {
+		// A chain's first thrust pays for the chain, landed or not - it arms the chain either way (round 95 audit: Jab joined the
+		// chains in v1.12.375 and was free; round 96: a missed first thrust gave two free ones).
 		Pay(player, skill, landedBlows);
 	}
 	return struck;

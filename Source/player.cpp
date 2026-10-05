@@ -3746,8 +3746,13 @@ void StartPlrHit(Player &player, int dam, bool forcehit)
 			// The latches armed now, whole - never mixed with an older stash, which made two families armed at once (round 62
 			// audit: a quick-cast between two staggers). Nothing armed (a second hit in recovery) keeps the stash as it is.
 			const std::optional<oracool::PaladinSkill> paladin = oracool::ArmedMeleeSkill() != oracool::PaladinSkill::Charge ? oracool::ArmedMeleeSkill() : std::nullopt;
-			if (paladin || oracool::ArmedClassMeleeSkill() || oracool::ArmedRfa12Melee() || oracool::ArmedArrowSkill() || oracool::ArmedBowSkillSpell())
-				StaggeredSwingLatches = { paladin, oracool::ArmedClassMeleeSkill(), oracool::ArmedRfa12Melee(), true, oracool::ArmedArrowSkill(), oracool::ArmedBowSkillSpell() };
+			// Not a key's one-shot bow latch (round 96 audit): kept for the held button it became the button's, and every held shot
+			// cast and paid for the key's skill again.
+			const bool keyShot = oracool::IsBowLatchOneShot();
+			const std::optional<oracool::RogueArrow> arrow = keyShot ? std::nullopt : oracool::ArmedArrowSkill();
+			const std::optional<SpellID> bowSpell = keyShot ? std::nullopt : oracool::ArmedBowSkillSpell();
+			if (paladin || oracool::ArmedClassMeleeSkill() || oracool::ArmedRfa12Melee() || arrow || bowSpell)
+				StaggeredSwingLatches = { paladin, oracool::ArmedClassMeleeSkill(), oracool::ArmedRfa12Melee(), true, arrow, bowSpell };
 		}
 		if (!oracool::IsFuriousChargeDashing())
 			oracool::ArmMeleeSkill(std::nullopt);

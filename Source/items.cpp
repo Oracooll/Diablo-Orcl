@@ -2370,6 +2370,9 @@ _item_indexes RndTypeItemsUpTo(ItemType itemType, int imid, int itemMaxLevel)
 	// ring. It takes the type's lowest base instead. A draw that found one is untouched, seed for seed.
 	if (!any && lowest != std::numeric_limits<int>::max())
 		return RndTypeItemsUpTo(itemType, imid, lowest);
+	// No base of the type at all (round 96 audit: the shareware build has no medium or heavy armour): nothing, not the stale slot.
+	if (!any)
+		return IDI_NONE;
 	return idx;
 }
 
@@ -6599,6 +6602,8 @@ void CreateTypeItem(Point position, bool onlygood, ItemType itemType, int imisc,
 		idx = RndTypeItemsUpTo(itemType, imisc, ObjectLootLevel()); // the floor's, not twice it (round 83 audit)
 	else
 		idx = IDI_GOLD;
+	if (idx == IDI_NONE)
+		return; // no base of the type exists (RndTypeItemsUpTo)
 
 	SetupBaseItem(position, idx, onlygood, sendmsg, delta, spawn);
 }
