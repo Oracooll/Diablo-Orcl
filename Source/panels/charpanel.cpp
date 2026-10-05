@@ -458,7 +458,7 @@ int LifeStealPercent()
 /** @brief Fixed mana-steal percentage, summed the same way. NoMana disables the whole branch (PlrHitMonst). */
 int ManaStealPercent()
 {
-	if (HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana))
+	if (HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana) || oracool::UsesRage(*InspectPlayer)) // no pool to steal into (round 118)
 		return 0;
 	return InspectPlayer->_pIManaSteal;
 }

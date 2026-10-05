@@ -538,6 +538,8 @@ void WithdrawMinionsForLevelSave()
 		if (!record.active || record.body < 0)
 			continue;
 		Monster &body = Monsters[record.body];
+		// What hunted it, aimed at the hero (round 118 audit: on the revisit the pack walked to the withdrawn body's old tile).
+		AimHuntersAtHeroForLevelSave(body.getId());
 		const bool alive = BodyAlive(record);
 		if (alive)
 			record.lifeNow = body.hitPoints;

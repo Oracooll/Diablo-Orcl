@@ -541,6 +541,8 @@ void M_StartRise(Monster &monster, Direction md);
 void ReaimMonsterAfterSideChange(Monster &monster);
 /** @brief At a level save: @p monster and its hunters aimed at the hero, as UpdateEnemy cannot while he changes level. */
 void AimAtHeroForLevelSave(Monster &monster);
+/** @brief At a level save: every hostile hunting monster slot @p monsterId aimed at the hero (a minion withdrawn, round 118). */
+void AimHuntersAtHeroForLevelSave(size_t monsterId);
 void M_ClearSquares(const Monster &monster);
 void M_GetKnockback(Monster &monster);
 void M_StartHit(Monster &monster, int dam);

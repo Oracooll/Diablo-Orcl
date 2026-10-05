@@ -162,8 +162,9 @@ void OpenCommon(Player &player, RiftKind kind, int tier)
 	State = RiftState {};
 	State.kind = kind;
 	State.tier = std::max(tier, 1);
-	// Mixed with the clock and a count (round 117 audit): drawn in town, where every load reseeds the game's generator to the
-	// same value, the next rift after a return repeated the last one's boss, tileset and map.
+	// Mixed with the clock and a count (round 117): defensive only - the town seed already moves on at every exit (SaveLevel
+	// redraws glSeedTbl[0]), so the feared repeat does not happen (round 118 audit correction). The boss and tileset picks still
+	// draw from the game generator.
 	static uint32_t riftsOpened = 0;
 	State.seed = static_cast<uint32_t>(GenerateSeed()) ^ SDL_GetTicks() ^ (++riftsOpened * 0x9E3779B9U);
 	// The boss first, then the floor (the Rift Boss Roster, 2026-10-04): a row of this kind for the rift's band rung, and

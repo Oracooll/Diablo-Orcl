@@ -244,8 +244,8 @@ bool EnterNamedEncounter(Player &player, NamedEncounter encounter)
 	// BEFORE StartNewLvl, not after. The /arena command does the same and that is the tell: the
 	// level loads its tileset from this, so setting it afterwards draws the room in the wrong art.
 	setlvltype = NamedEncounterDungeon(encounter);
-	// Mixed with the clock and a count (round 117 audit): the town reload reseeds the generator to the same value, so a second
-	// map of a kind drew the same boss, trait, pack and pile - round 17's fix quietly undone.
+	// Mixed with the clock and a count (round 117): defensive only - the town seed already moves on at every exit (SaveLevel
+	// redraws glSeedTbl[0]; round 118 audit correction).
 	static uint32_t arenasEntered = 0;
 	ArenaEntrySeed = (static_cast<uint32_t>(AdvanceRndSeed()) ^ SDL_GetTicks() ^ (++arenasEntered * 0x9E3779B9U)) | 1U; // this entry's population (SeedArenaPopulation)
 	StartNewLvl(player, WM_DIABSETLVL, level);

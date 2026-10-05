@@ -807,10 +807,10 @@ bool WeaponDecay(Player &player, int ii)
 		}
 		if (player.InvBody[ii]._iPLDam <= -100) {
 			RemoveEquipment(player, static_cast<inv_body_loc>(ii), true);
-			CalcPlrInv(player, true);
+			CalcPlrInvKeepingLife(player); // a decayed weapon's +life going never kills (round 118 audit)
 			return true;
 		}
-		CalcPlrInv(player, true);
+		CalcPlrInvKeepingLife(player);
 	}
 	return false;
 }
@@ -2254,7 +2254,9 @@ bool WearDurabilityPoint(Player &player, inv_body_loc slot)
 	// "Dur: x/y" line all read this field directly.
 	item._iDurability = 0;
 	BreakOrRemoveEquipment(player, slot, true);
-	CalcPlrInv(player, true);
+	// Keeping life (round 118 audit): a piece breaking at the end of a hit recovery, low on life, took its +life with it and
+	// killed the hero with no blow landing - the fork's rule that a bonus ending never kills.
+	CalcPlrInvKeepingLife(player);
 	return true;
 }
 

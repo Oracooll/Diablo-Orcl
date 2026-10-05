@@ -33,6 +33,7 @@
 #include "inv.h" // invflag
 #include "multi.h" // sgGameInitInfo - the difficulty, for the resistance penalty
 #include "oracool/class_tree.h" // MovementSpeedPercent
+#include "oracool/rage.h" // UsesRage - no mana lines for the Barbarian
 #include "oracool/cold.h"       // ColdMasteryDamagePercent, ColdResistanceDivisor
 #include "oracool/gems.h"       // GemLifePerKill, RuneManaPerKill
 #include "oracool/hud_art.h"    // the shared side-panel canvas
@@ -279,7 +280,7 @@ void AddRecovery(const Player &p, std::vector<Row> &rows)
 	if (const int life = GemLifePerKill(p); life > 0)
 		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("+{:d} life per kill")), life) });
 	// Not under NoMana, which the kill's grant skips (round 12 audit).
-	if (const int mana = RuneManaPerKill(p); mana > 0 && !HasAnyOf(p._pIFlags, ItemSpecialEffect::NoMana))
+	if (const int mana = RuneManaPerKill(p); mana > 0 && !HasAnyOf(p._pIFlags, ItemSpecialEffect::NoMana) && !UsesRage(p)) // nor for Rage (round 118)
 		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("+{:d} mana per kill")), mana) });
 }
 
