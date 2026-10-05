@@ -1593,6 +1593,12 @@ void CloseWorkshop()
 	}
 	WindowOpen = false;
 	OfferOpen = false;
+	// The last hero's offers with it (round 121 audit: unreachable behind OfferOpen, cleared for symmetry with the bench).
+	OfferSlot = -1;
+	Offers = {};
+	OfferLines = {};
+	for (Item &offer : OfferItems)
+		offer.clear();
 	Pressed = Control::None;
 	SelectedRow = -1;
 	// The board's pick and any standing rune question go with the window (audit, 2026-09-22). They
@@ -2684,12 +2690,13 @@ void RunControl(Control control)
 		// adds Tempering back to BOTH, so taking out any shard repaired a worn item - an ethereal one too.
 		const int durabilityBefore = Bench._iDurability;
 		const int maxBefore = Bench._iMaxDur;
+		const int temperingBefore = ShardDurabilityBonus(Bench);
 		StripImbuements(Bench);
 		RestoreImbuements(Bench, kept);
-		// Never a higher maximum than before (round 120 audit: the strip floors the maximum at 1 and the restore adds Tempering back
-		// in full, so on a worn-down tempered item a removal bought up to +60 maximum durability).
+		// Never a higher maximum than before less the Tempering taken out (rounds 120-121 audit: the strip floors the maximum at 1
+		// and the restore adds Tempering back in full, so a worn-down tempered item gained up to +60, or lost nothing for a Tempering).
 		if (maxBefore != DUR_INDESTRUCTIBLE)
-			Bench._iMaxDur = std::min<int>(Bench._iMaxDur, maxBefore);
+			Bench._iMaxDur = std::min<int>(Bench._iMaxDur, std::max(1, maxBefore - (temperingBefore - ShardDurabilityBonus(Bench))));
 		// Zod's indestructible stamp stays (audit, 2026-09-29: clamped to the maximum, the item wore down again).
 		Bench._iDurability = durabilityBefore == DUR_INDESTRUCTIBLE ? DUR_INDESTRUCTIBLE : std::min(durabilityBefore, Bench._iMaxDur);
 		SelectedRow = -1;
