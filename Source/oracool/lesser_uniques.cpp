@@ -478,7 +478,7 @@ void OnLesserUniqueKilled(Monster &monster)
 	for (const WorldTileDisplacement quarter : QuarterRadius) {
 		for (const WorldTileDisplacement offset : { quarter, quarter.flipXY(), quarter.flipX(), quarter.flipY() }) {
 			AddMissile(centre, centre + offset, Direction::South, MissileID::MiniNovaBall, TARGET_PLAYERS, -1,
-			    monster.maxDamage, 0);
+			    static_cast<int>(std::min<int64_t>(MonsterEffectiveDamage(monster, monster.maxDamage), INT_MAX / 2)), 0); // its real damage (user decisions audit)
 		}
 	}
 }

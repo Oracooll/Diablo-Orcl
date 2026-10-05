@@ -110,7 +110,7 @@ void DropOneShotBowLatch();
 bool IsJavelinStrike(SpellID spell);
 /** @brief Whether @p spell is thrown: a staff swing in place that lets the skill go at the hit frame. */
 bool IsJavelinThrow(SpellID spell);
-/** @brief How far @p spell is thrown, in tiles: Poison, Plague and Anchor Javelin 6, Harpoon 8, Valkyrie's Spear 8. */
+/** @brief How far @p spell is thrown, in tiles: 8 for every throw (user, 2026-10-05). */
 int JavelinThrowRange(SpellID spell);
 /** @brief Records the throw the swing now launched lets go at @p target (nullopt clears). ArmArrowSkill clears it too. */
 void ArmJavelinThrow(std::optional<SpellID> spell, Point target = {});

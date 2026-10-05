@@ -306,7 +306,8 @@ void AwardNamedEncounter(const Monster &monster)
 		return;
 	if (!IsEndgameBoss(monster))
 		return;
-	OpenArena.reset(); // its boss is down: the next map of the kind opens a new arena, and is spent
+	if (OpenArena == encounter) // this arena's, not another kept open meanwhile (user decisions audit)
+		OpenArena.reset(); // its boss is down: the next map of the kind opens a new arena, and is spent
 
 	// "Guaranteed" has to survive a full floor. Audit finding, 2026-08-26: this used to return
 	// silently at the item cap, and the boss's ORDINARY loot is spawned first - so the one drop the

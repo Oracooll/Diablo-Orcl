@@ -5477,7 +5477,7 @@ int SkillBlowItemDamage(Player &player, Monster &monster, int damage, bool melee
 
 void SkillBlowItemAfterHit(Player &player, Monster &monster, int damage, bool melee, bool knockback)
 {
-	if (melee) {
+	if (melee && player._pHitPoints > 0) { // not into a dead hero (an Exploding Palm burst after his death)
 		// The steals as PlrHitMonst gives them, in 1/64s of the damage dealt.
 		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::RandomStealLife) && damage >= 8) {
 			const int stolen = GenerateRnd(damage / 8);

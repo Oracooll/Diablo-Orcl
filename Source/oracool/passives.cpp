@@ -92,7 +92,7 @@ constexpr size_t ElementCount = 5; // physical, fire, lightning, magic, cold
 struct MonsterMarks {
 	std::array<int, ElementCount> elementTicks {};
 	/** Ticks until a spell's damage tick counts as a new hit for the per-hit rules (user, 2026-10-05: "once per spell"). */
-	int spellHitTicks = 0;
+	std::array<int, 8> spellHitTicks {}; // by DamageType
 };
 std::array<MonsterMarks, MaxMonsters> MarksOf;
 
@@ -796,7 +796,7 @@ void OnPassiveHit(Player &player, const Monster &target, int damage, bool melee,
 	OnAnyHit(player, target, damage, melee);
 }
 
-void OnPassiveMissileHit(Player &player, const Monster &target, int damage, DamageType damageType, bool arrow, bool sharedRulesDone)
+void OnPassiveMissileHit(Player &player, const Monster &target, int damage, DamageType damageType, bool arrow, bool sharedRulesDone, bool ownHit)
 {
 	if (damage <= 0)
 		return;
@@ -806,12 +806,15 @@ void OnPassiveMissileHit(Player &player, const Monster &target, int damage, Dama
 	Monster &monster = Monsters[target.getId()];
 	const bool alive = monster.hitPoints >> 6 > 0;
 	// A spell's repeated ticks are one hit (SpellHitGapTicks); arrows and skill blows are each their own.
+	// Kept per element (user decisions audit: one slot for all, a Fire Wall's ticks took the Lightning bolt's Paralysis roll), and
+	// not for a weapon blow or a thrown javelin, each its own hit (ownHit).
 	bool freshHit = true;
-	if (!arrow && !sharedRulesDone) {
+	if (!arrow && !sharedRulesDone && !ownHit) {
 		MonsterMarks &marks = MarksOf[target.getId()];
-		freshHit = marks.spellHitTicks == 0;
+		int &slot = marks.spellHitTicks[std::min<size_t>(static_cast<size_t>(damageType), marks.spellHitTicks.size() - 1)];
+		freshHit = slot == 0;
 		if (freshHit)
-			marks.spellHitTicks = SpellHitGapTicks;
+			slot = SpellHitGapTicks;
 	}
 	if (freshHit && alive && damageType == DamageType::Lightning && PassiveActive(player, Skill::Paralysis) && !ShrugsOffStun(monster)
 	    && GenerateRnd(100) < ParalysisChance)
@@ -1133,8 +1136,10 @@ void ProcessPassivesTick(Player &player)
 				if (ticks > 0)
 					ticks--;
 			}
-			if (marks.spellHitTicks > 0)
-				marks.spellHitTicks--;
+			for (int &ticks : marks.spellHitTicks) {
+				if (ticks > 0)
+					ticks--;
+			}
 		}
 	}
 }

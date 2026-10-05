@@ -3462,7 +3462,9 @@ void CounselorAi(Monster &monster)
 				// Both ends raised by the pack's Might, not the minimum only (round 28 audit).
 				const int minDamage = oracool::PackAdjustedDamage(monster, monster.minDamage);
 				const int maxDamage = std::max<int>(oracool::PackAdjustedDamage(monster, monster.maxDamage), minDamage);
-				StartRangedAttack(monster, MissileTypes[monster.intelligence], minDamage + GenerateRnd(maxDamage - minDamage + 1));
+				// With the overflow percent (user decisions audit: the Firebolt carried the byte roll alone, AddFirebolt recomputes only
+				// a zero) - every third cast of a Counselor-type boss hit at a fraction of his damage.
+				StartRangedAttack(monster, MissileTypes[monster.intelligence], (minDamage + GenerateRnd(maxDamage - minDamage + 1)) * oracool::RiftBossDamagePercent(monster) / 100);
 			} else if (GenerateRnd(100) < 30) {
 				monster.goal = MonsterGoal::Move;
 				monster.goalVar1 = 0;
@@ -4592,6 +4594,8 @@ Monster *AddMinionBody(Point position, Direction dir, _monster_id type)
 	// And the Gargoyle AI's perch (round 98 audit): InitMonster sets ALLOW_SPECIAL on every Winged Demon, which holds the animation,
 	// and a Revived one froze on its first step until an enemy's blow lifted it.
 	monster.flags &= ~(MFLAG_TARGETS_MONSTER | MFLAG_BERSERK | MFLAG_HIDDEN | MFLAG_ALLOW_SPECIAL);
+	// The body's damage is its record's bytes, set after this - not its type's Torment overflow on top (user decisions audit).
+	monster.damageOverflow = 100;
 	monster.enemy = 0;
 	monster.activeForTicks = UINT8_MAX;
 	monster.leaderRelation = LeaderRelation::None;

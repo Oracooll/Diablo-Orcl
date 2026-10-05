@@ -168,6 +168,13 @@ bool FieldPulseInFlight = false;
  *  blow that lands is the swing's - with the front tile empty, no blow counted and Mythic Rhythm, Combination Strike and
  *  Hot Pursuit never moved. Set by ApplyRfa12MeleeOnSwing, read and set by SideBlow. */
 bool SwingCounted = true;
+/** A skill that moves its target itself (Harpoon's pull, the sweeps' shove, Aegis Slam's push) is struck with no item knockback:
+ * the two pushed twice, or cancelled the pull (user decisions audit, 2026-10-05) - one push a blow, as Bash and Open Palm. */
+bool SkillMovesTarget = false;
+bool MovesItsTarget(SpellID spell)
+{
+	return IsAnyOf(spell, SpellID::Harpoon, SpellID::DragonTailSweep, SpellID::WhirlingKick, SpellID::AegisSlam);
+}
 
 /** @brief A skill's strike: immunity and resistance honoured, kill credit and the flinch to @p player. */
 void Strike(Player &player, Monster &monster, DamageType type, int damage, bool melee = false, bool applyPassives = true, bool pooled = false)
@@ -193,7 +200,9 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	if (applyPassives && !pooled)
 		damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, melee, /*burst=*/SideBlowInFlight) + Rfa12DamageDealtPercent(player, monster, melee, SideBlowInFlight));
 	// A weapon blow (StrikeBlow, the pooled path) takes the items' on-hit damage powers as a plain swing does (user, 2026-10-05).
-	const bool weaponBlow = pooled && &player == MyPlayer;
+	// Physical only, as an arrow and a plain swing take them (user decisions audit: Phantom Volley's magic and Poison Javelin's
+	// acid were tripled vs demons).
+	const bool weaponBlow = pooled && &player == MyPlayer && type == DamageType::Physical;
 	if (weaponBlow)
 		damage = SkillBlowItemDamage(player, monster, damage, melee);
 	if (damage <= 0)
@@ -207,7 +216,7 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 		OnCursedMonsterStruck(monster, player, nullptr, damage);
 	ApplyMonsterDamage(type, monster, damage);
 	if (weaponBlow)
-		SkillBlowItemAfterHit(player, monster, damage, melee, /*knockback=*/!SideBlowInFlight); // steals; one push a swing
+		SkillBlowItemAfterHit(player, monster, damage, melee, /*knockback=*/!SideBlowInFlight && !SkillMovesTarget); // steals; one push a swing
 	// An arrow's, as MonsterMHit feeds a plain arrow's; and a swing's extra blow (Sweep, Reaping Point), as the class melee
 	// strike feeds it - Leech healed nothing from them (round 29 audit).
 	if (&player == MyPlayer && applyPassives && (BowStrikeInFlight || melee))
@@ -221,7 +230,7 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	if (&player == MyPlayer && applyPassives)
 		MarkWoundedByScent(player, monster, damage);
 	if (&player == MyPlayer && applyPassives)
-		OnPassiveMissileHit(player, monster, damage, type, /*arrow=*/BowStrikeInFlight, /*sharedRulesDone=*/melee); // Paralysis, Temporal Flux, the marks
+		OnPassiveMissileHit(player, monster, damage, type, /*arrow=*/BowStrikeInFlight, /*sharedRulesDone=*/melee, /*ownHit=*/pooled); // Paralysis, Temporal Flux, the marks
 	// None of these cold skills has impact art of its own (Chill Touch, Ice Needle, Ice Lance, Brittle Ground,
 	// Whiteout, Absolute Zero): the cold hit flash marks the blow (hit_cold.png, 2026-09-26).
 	if (type == DamageType::Cold)
@@ -4139,6 +4148,12 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	if (!PaidAtFront(player, spell) || !Rfa12MeleeUsable(player, spell)) // as the frame began (round 68)
 		return false;
 	SwingCounted = frontHit; // a landed front blow counted already (round 77 audit)
+	const bool movesBefore = SkillMovesTarget;
+	SkillMovesTarget = MovesItsTarget(spell); // Aegis Slam pushes its own (user decisions audit)
+	struct MovesRestore {
+		bool value;
+		~MovesRestore() { SkillMovesTarget = value; }
+	} movesRestore { movesBefore };
 	const int r = RankOf(player, spell);
 	const bool landed = front != nullptr && frontHit;
 	const bool alive = landed && (front->hitPoints >> 6) > 0;
@@ -4393,6 +4408,15 @@ bool CastRfa12Active(Player &player, SpellID spell, Point target)
 		}
 	} sight { player };
 	const BowStrikeScope bow { IsBowSkill(spell) };
+	struct MovesTargetScope {
+		bool previous;
+		explicit MovesTargetScope(bool moves)
+		    : previous(SkillMovesTarget)
+		{
+			SkillMovesTarget = moves;
+		}
+		~MovesTargetScope() { SkillMovesTarget = previous; }
+	} movesTarget { MovesItsTarget(spell) };
 	// A cast weapon blow on many foes is one blow to the passives: the first that lands counts (Mythic Rhythm, Combination
 	// Strike), the rest strike as side blows (round 111 audit: each target counted, so one cast filled a Mythic Rhythm charge).
 	const bool swingCountedBefore = SwingCounted;

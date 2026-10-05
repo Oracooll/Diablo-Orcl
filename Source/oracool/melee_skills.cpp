@@ -186,7 +186,7 @@ void Strike(Player &player, Monster &monster, int damage, bool applyPassives = t
 	// A fresh weapon blow (FullBlowAt) takes the items' on-hit powers as a plain swing does (user, 2026-10-05).
 	const bool weaponBlow = pooled && &player == MyPlayer;
 	if (weaponBlow)
-		damage = SkillBlowItemDamage(player, monster, damage, /*melee=*/true);
+		damage = SkillBlowItemDamage(player, monster, damage, /*melee=*/true); // physical, as every blow here is
 	if (damage <= 0)
 		return;
 	if (applyPassives)
