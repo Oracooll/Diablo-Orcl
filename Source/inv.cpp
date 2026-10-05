@@ -4786,6 +4786,11 @@ bool UseInvItem(int cii)
 	if (item->isScroll() && leveltype == DTYPE_TOWN && !GetSpellData(item->_iSpell).isAllowedInTown()) {
 		return true;
 	}
+	// Said at the right-click, not silently refused at the cast (round 120 audit; CanUseScroll refuses it since round 119).
+	if (item->isScrollOf(SpellID::TownPortal) && leveltype == DTYPE_TOWN) {
+		player.Say(HeroSpeech::ICantCastThatHere);
+		return true;
+	}
 
 	if (item->_iMiscId > IMISC_RUNEFIRST && item->_iMiscId < IMISC_RUNELAST && leveltype == DTYPE_TOWN) {
 		return true;

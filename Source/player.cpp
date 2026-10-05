@@ -796,7 +796,9 @@ bool DoWalk(Player &player, int variant)
 
 bool WeaponDecay(Player &player, int ii)
 {
-	if (!player.InvBody[ii].isEmpty() && player.InvBody[ii]._iClass == ICLASS_WEAPON && HasAnyOf(player.InvBody[ii]._iDamAcFlags, ItemSpecialEffectHf::Decay)) {
+	// Not a broken or unusable weapon (round 120 audit: decay kept eating a broken one, and at -100 deleted it with its sockets).
+	if (!player.InvBody[ii].isEmpty() && player.InvBody[ii]._iClass == ICLASS_WEAPON && HasAnyOf(player.InvBody[ii]._iDamAcFlags, ItemSpecialEffectHf::Decay)
+	    && !player.InvBody[ii]._iOracoolBroken && player.InvBody[ii]._iStatFlag) {
 		player.InvBody[ii]._iPLDam -= 5;
 		// The record decays with it, so a rework of another row replays the decayed value, not the first roll (round 14
 		// audit, v1.12.239).

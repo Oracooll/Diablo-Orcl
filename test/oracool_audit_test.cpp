@@ -19082,6 +19082,7 @@ TEST(OracoolAudit117, ALevelSaveReleaseAimsTheHuntersAtTheHero)
 	const auto savedC = ActiveMonsters[2];
 	const auto savedFlagsC = Monsters[12].flags;
 	const auto savedEnemyC = Monsters[12].enemy;
+	const auto savedPosC = Monsters[12].enemyPosition;
 	ActiveMonsters[2] = 12;
 	ActiveMonsterCount = 3;
 	devilution::Monster &minion = Monsters[12]; // the hero's own, hunting it too: left alone (round 118)
@@ -19104,6 +19105,7 @@ TEST(OracoolAudit117, ALevelSaveReleaseAimsTheHuntersAtTheHero)
 	EXPECT_EQ(minion.enemy, 10);
 	Monsters[12].flags = savedFlagsC;
 	Monsters[12].enemy = savedEnemyC;
+	Monsters[12].enemyPosition = savedPosC;
 	ActiveMonsters[2] = savedC;
 	Monsters[10].flags = savedFlagsA;
 	Monsters[11].flags = savedFlagsB;

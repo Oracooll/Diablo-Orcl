@@ -546,8 +546,9 @@ Card BuildCard(const TooltipBlock &block, const Item *item)
 		// In the title's colour, or the item's own: a runeword's title turns gold while its type line keeps the socketed grey
 		// (round 66 audit: "basic sword" became the card's first stat line).
 		const bool typeColour = line.color == card.title.color || (item != nullptr && line.color == item->getTextColor());
+		// Nor "Not Identified": on a magic ring it is blue, the title's colour, and became the subtitle (round 120 audit).
 		if (i == first && printsTypeLine && typeColour && line.runs.empty() && !isRequirement(text) && !isHeadStat(text)
-		    && !CardStartsWith(text, levelPrefix) && !CardStartsWith(text, tierPrefix)) {
+		    && !CardStartsWith(text, levelPrefix) && !CardStartsWith(text, tierPrefix) && text != _("Not Identified")) {
 			type = line.text;
 			continue;
 		}

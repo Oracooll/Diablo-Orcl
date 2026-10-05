@@ -1057,7 +1057,9 @@ bool BenchIsWorkable(std::string &why)
 		why = _("She will not work on that.");
 		return false;
 	}
-	if (!Bench._iIdentified) {
+	// A white item has nothing to hide (round 120 audit: with Auto Identify off every drop is unidentified, and the bench refused
+	// plain gear Cain will not even list).
+	if (!Bench._iIdentified && Bench._iMagical != ITEM_QUALITY_NORMAL) {
 		why = _("Identify it first.");
 		return false;
 	}
@@ -2681,8 +2683,13 @@ void RunControl(Control control)
 		// Current durability kept as it was (audit, 2026-09-27): the strip clamps it to the lowered maximum and the restore
 		// adds Tempering back to BOTH, so taking out any shard repaired a worn item - an ethereal one too.
 		const int durabilityBefore = Bench._iDurability;
+		const int maxBefore = Bench._iMaxDur;
 		StripImbuements(Bench);
 		RestoreImbuements(Bench, kept);
+		// Never a higher maximum than before (round 120 audit: the strip floors the maximum at 1 and the restore adds Tempering back
+		// in full, so on a worn-down tempered item a removal bought up to +60 maximum durability).
+		if (maxBefore != DUR_INDESTRUCTIBLE)
+			Bench._iMaxDur = std::min<int>(Bench._iMaxDur, maxBefore);
 		// Zod's indestructible stamp stays (audit, 2026-09-29: clamped to the maximum, the item wore down again).
 		Bench._iDurability = durabilityBefore == DUR_INDESTRUCTIBLE ? DUR_INDESTRUCTIBLE : std::min(durabilityBefore, Bench._iMaxDur);
 		SelectedRow = -1;

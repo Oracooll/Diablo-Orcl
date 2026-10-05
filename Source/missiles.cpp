@@ -1118,7 +1118,8 @@ void SpawnLightning(Missile &missile, int dam)
 	// the lambda above just rejected. The dPiece read has to be inside the bounds test, not after it
 	// - the one that used to guard AddMissile was a line too late to protect this read.
 	const Point position = missile.position.tile;
-	if (InDungeonBounds(position) && !TileHasAny(dPiece[position.x][position.y], TileProperties::BlockMissile)) {
+	// Nor on the closed door it stopped at (round 120 audit: one segment flashed on the door).
+	if (InDungeonBounds(position) && !TileHasAny(dPiece[position.x][position.y], TileProperties::BlockMissile) && !ClosedDoorAt(position)) {
 		if (position != Point { missile.var1, missile.var2 }) {
 			MissileID type = MissileID::Lightning;
 			if (missile.sourceType() == MissileSource::Monster
