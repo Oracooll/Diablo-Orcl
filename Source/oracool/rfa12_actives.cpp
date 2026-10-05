@@ -289,7 +289,21 @@ Monster *NearestTo(Point centre, int radius, const Monster *except = nullptr)
 	return best;
 }
 
-/** @brief The tiles from @p from toward @p toward, @p length of them, stopping at a wall. */
+/**
+ * @brief Whether a line's step from @p prev onto @p tile is stopped: out of bounds, a wall, a closed door (its object's flag,
+ * not its tile - round 80's rule), or a diagonal squeezed between two corner-touching walls (round 97 audit: Long Thrust, Heaven
+ * Splitter and Dragon's Wrath struck through closed doors into the next room).
+ */
+bool LineStepBlocked(Point prev, Point tile)
+{
+	if (!InDungeonBounds(tile) || IsTileSolid(tile))
+		return true;
+	if (const Object *object = FindObjectAtPosition(tile); object != nullptr && object->isDoor() && !object->_oMissFlag)
+		return true;
+	return tile.x != prev.x && tile.y != prev.y && (IsTileSolid({ tile.x, prev.y }) || IsTileSolid({ prev.x, tile.y }));
+}
+
+/** @brief The tiles from @p from toward @p toward, @p length of them, stopping at a wall or a closed door. */
 std::vector<Point> LineOfTiles(Point from, Point toward, int length)
 {
 	std::vector<Point> tiles;
@@ -298,8 +312,9 @@ std::vector<Point> LineOfTiles(Point from, Point toward, int length)
 	const Direction dir = toward == from ? CastFacing.value_or(Direction::South) : GetDirection(from, toward);
 	Point tile = from;
 	for (int i = 0; i < length; i++) {
+		const Point prev = tile;
 		tile = tile + dir;
-		if (!InDungeonBounds(tile) || IsTileSolid(tile))
+		if (LineStepBlocked(prev, tile))
 			break;
 		tiles.push_back(tile);
 	}
@@ -315,11 +330,13 @@ std::vector<Point> TilesBetween(Point from, Point to)
 	std::vector<Point> tiles;
 	const Displacement delta = to - from;
 	const int steps = std::max(std::abs(delta.deltaX), std::abs(delta.deltaY));
+	Point prev = from;
 	for (int k = 1; k <= steps; k++) {
 		const Point tile = from + Displacement { (delta.deltaX * k * 2 + (delta.deltaX >= 0 ? steps : -steps)) / (2 * steps), (delta.deltaY * k * 2 + (delta.deltaY >= 0 ? steps : -steps)) / (2 * steps) };
-		if (!InDungeonBounds(tile) || IsTileSolid(tile))
+		if (LineStepBlocked(prev, tile))
 			break;
 		tiles.push_back(tile);
+		prev = tile;
 	}
 	return tiles;
 }
@@ -539,7 +556,8 @@ Point LastClearTileToward(Point here, Point aim)
 	const int steps = std::max(std::abs(delta.deltaX), std::abs(delta.deltaY));
 	for (int k = 1; k <= steps; k++) {
 		const Point tile = here + Displacement { (delta.deltaX * k * 2 + (delta.deltaX >= 0 ? steps : -steps)) / (2 * steps), (delta.deltaY * k * 2 + (delta.deltaY >= 0 ? steps : -steps)) / (2 * steps) };
-		if (!InDungeonBounds(tile) || IsTileSolid(tile) || !SightLineClear(here, tile))
+		// The step itself too (round 97 audit): SightLineClear never tests its end tile, so a closed door was a landing.
+		if (LineStepBlocked(last, tile) || !SightLineClear(here, tile))
 			break;
 		last = tile;
 	}
@@ -2110,6 +2128,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		StartBuff(player, Buff::StaticCharge, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::BallLightning: {
+		// No ball, no cast - asked before a field is taken, or a failed cast evicted a live one (round 97 audit).
+		if (!MissileArtLoaded(MissileGraphicID::BallLightning))
+			return false;
 		Field *f = NewField(player, spell, here, BallLightningTicks, r);
 		f->tile2 = here;
 		f->dir = target == here ? player._pdir : GetDirection(here, target);
@@ -3363,7 +3384,8 @@ void TickField(Player &player, Field &field)
 			const Displacement next = (ball->position.traveled + ball->position.velocity) >> 16;
 			const Point ahead = ball->position.start + next.screenToMissile();
 			// A closed door stops it too (round 96 audit: it rolled through and struck the room behind).
-			if (ahead != ball->position.tile && (!InDungeonBounds(ahead) || IsTileSolid(ahead) || !SightLineClear(ball->position.tile, ahead)))
+			// (round 97: SightLineClear never tests its end tile, so the door one step ahead passed; the step test does.)
+			if (ahead != ball->position.tile && LineStepBlocked(ball->position.tile, ahead))
 				ball->position.StopMissile();
 			field.tile2 = ball->position.tile;
 			if (ball->_mlid != NO_LIGHT)
@@ -3442,7 +3464,7 @@ void TickField(Player &player, Field &field)
 			}
 			missile._miDelFlag = true;
 			if (field.spell == SpellID::LightningRod) {
-				for (Monster *m : MonstersWithin(field.tile, LightningRodBurstRadius)) {
+				for (Monster *m : LightningStrikableWithin(field.tile, LightningRodBurstRadius)) { // not the immune (round 97 audit)
 					// 2026-10-01 (user): a lightning strike from the crown to each one it hits.
 					AddLightningStrike(field.tile, LightningRodCrown, m->position.tile, StrikeBody, static_cast<int>(player.getId()), 3 + GenerateRnd(2));
 					Strike(player, *m, DamageType::Lightning, Rolled(SkillDamage(field.spell, r)));
@@ -3554,7 +3576,7 @@ void TickField(Player &player, Field &field)
 		}
 		const int nextX = clone->var2 + dx * LightningCloneStep / far;
 		const int nextY = clone->var3 + dy * LightningCloneStep / far;
-		if (const Point next { (nextX + 128) / 256, (nextY + 128) / 256 }; !InDungeonBounds(next) || IsTileSolid(next) || !SightLineClear(clone->position.tile, next)) {
+		if (const Point next { (nextX + 128) / 256, (nextY + 128) / 256 }; next != clone->position.tile && LineStepBlocked(clone->position.tile, next)) {
 			// A wall between them (he teleported or turned a corner): it bursts where it stands rather than cut through and strike
 			// the rooms beyond (round 72 audit).
 			const Point at = clone->position.tile;
@@ -3886,7 +3908,9 @@ void TickLanding(Player &player, PlayerState &state)
 		break;
 	}
 	case SpellID::LeapingCrane:
-		if (Monster *m = NearestTo(player.position.tile, 1); m != nullptr)
+		// Not across a wall corner or a door (round 97 audit: the tick has no cast sight, and NearestTo asked none).
+		if (Monster *m = NearestTo(player.position.tile, 1); m != nullptr && SightLineClear(player.position.tile, m->position.tile)
+		    && !LineStepBlocked(player.position.tile, m->position.tile))
 			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(state.landingSpell, r), /*melee=*/true); // a weapon blow (round 15)
 		Art(player, MissileGraphicID::LeapingCrane, player.position.tile); // RfA-27 batch 57: the landing's wind burst
 		Impact(player, state.landingSpell);
@@ -3899,8 +3923,11 @@ void TickLanding(Player &player, PlayerState &state)
 			if (Hittable(met) && player.position.tile.WalkingDistance(met.position.tile) <= 1)
 				m = &met;
 		}
-		if (m == nullptr)
+		if (m == nullptr) {
 			m = NearestTo(player.position.tile, 1);
+			if (m != nullptr && (!SightLineClear(player.position.tile, m->position.tile) || LineStepBlocked(player.position.tile, m->position.tile)))
+				m = nullptr; // not across a wall corner or a door (round 97 audit)
+		}
 		if (m != nullptr)
 			Stagger(*m, StunTicks(state.landingSpell, r));
 		state.landingMonster = -1;
@@ -3995,6 +4022,22 @@ int Rfa12MeleeDamagePercent(const Player &player)
 	if (&player != MyPlayer || !ArmedSpell.has_value() || !PaidAtFront(player, *ArmedSpell) || IsWhirlwinding(player))
 		return 0;
 	return MeleeBonusPercent(*ArmedSpell, RankOf(player, *ArmedSpell));
+}
+
+/** @brief Staff of Echoes: the remembered blow lands again, on its monster if he still stands beside the hero. */
+void FireStaffEcho(Player &player, PlayerState &state)
+{
+	if (state.echoMonster >= 0 && static_cast<size_t>(state.echoMonster) < MaxMonsters) {
+		Monster &m = Monsters[state.echoMonster];
+		if (Hittable(m) && player.position.tile.WalkingDistance(m.position.tile) <= 1) {
+			// RfA-27: the ghost of the blow landing again (batch 52), and the echo's cue (batch 51).
+			Art(player, MissileGraphicID::StaffEcho, m.position.tile);
+			Strike(player, m, DamageType::Physical, state.echoDamage, /*melee=*/true, /*applyPassives=*/false); // round 14
+			Impact(player, SpellID::StaffOfEchoes);
+		}
+	}
+	state.echoTicks = 0;
+	state.echoMonster = -1;
 }
 
 bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int frontDamage)
@@ -4161,6 +4204,10 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	case SpellID::StaffOfEchoes:
 		if (alive && frontDamage > 0) {
 			PlayerState &state = StateOf(player);
+			// The echo still waiting lands now (round 97 audit): one slot, and a swing every under-a-second overwrote it, so a
+			// Monk who kept swinging never heard an echo.
+			if (state.echoTicks > 0)
+				FireStaffEcho(player, state);
 			state.echoTicks = EffectTicks(spell, r);
 			state.echoMonster = static_cast<int>(front->getId());
 			state.echoDamage = Percent(frontDamage, BlowPercent(spell, r));
@@ -4466,7 +4513,7 @@ void OnRfa12ActiveStruck(Player &player, Monster &monster)
 		Strike(player, monster, DamageType::Lightning, Rolled(SkillDamage(SpellID::StaticCharge, r)));
 		Impact(player, SpellID::StaticCharge);
 	}
-	if (const int r = BuffRank(player, Buff::Retribution); r > 0 && (monster.hitPoints >> 6) > 0) {
+	if (const int r = BuffRank(player, Buff::Retribution); r > 0 && (monster.hitPoints >> 6) > 0 && !monster.isImmune(MissileID::Null, DamageType::Magic)) {
 		Strike(player, monster, DamageType::Magic, Rolled(SkillDamage(SpellID::MantraOfRetribution, r)));
 		Impact(player, SpellID::MantraOfRetribution);
 	}
@@ -4639,16 +4686,8 @@ void ProcessRfa12ActivesTick(Player &player)
 		state.claimTicks--;
 
 	// Staff of Echoes: the blow lands again.
-	if (state.echoTicks > 0 && --state.echoTicks == 0 && state.echoMonster >= 0) {
-		Monster &m = Monsters[state.echoMonster];
-		if (Hittable(m) && player.position.tile.WalkingDistance(m.position.tile) <= 1) {
-			// RfA-27: the ghost of the blow landing again (batch 52), and the echo's cue (batch 51).
-			Art(player, MissileGraphicID::StaffEcho, m.position.tile);
-			Strike(player, m, DamageType::Physical, state.echoDamage, /*melee=*/true, /*applyPassives=*/false); // round 14
-			Impact(player, SpellID::StaffOfEchoes);
-		}
-		state.echoMonster = -1;
-	}
+	if (state.echoTicks > 0 && --state.echoTicks == 0)
+		FireStaffEcho(player, state);
 
 	TickLanding(player, state);
 	if (state.serenityTicks > 0)

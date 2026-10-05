@@ -539,8 +539,14 @@ bool ForceQuests()
 	if (UseMultiplayerQuests()) {
 		return false;
 	}
+	// Not on a set level (round 97 audit): back in one through a Town Portal, currlevel holds the set level's number, and the
+	// Chamber of Bone (2) showed Poisoned Water's "To A Dark Passage" over its tiles. CheckQuests has this guard; this had not.
+	if (setlevel)
+		return false;
 
 	for (auto &quest : Quests) {
+		if (quest._qactive == QUEST_NOTAVAIL)
+			continue;
 		if (quest._qidx != Q_BETRAYER && currlevel == quest._qlevel && quest._qslvl != 0) {
 			int ql = quest._qslvl - 1;
 

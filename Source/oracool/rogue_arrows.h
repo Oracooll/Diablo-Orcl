@@ -96,6 +96,9 @@ std::optional<SpellID> ArmedBowSkillSpell();
 void MarkBowLatchOneShot(std::optional<RogueArrow> heldArrow, std::optional<SpellID> heldBowSpell);
 /** @brief Whether the armed bow latch is a key's one shot - a stagger does not keep it for the held button (round 96). */
 bool IsBowLatchOneShot();
+/** @brief Under a key's one-shot latch, what the held button had armed - a stagger keeps that, not the key's (round 97). */
+std::optional<RogueArrow> HeldArrowUnderKeyShot();
+std::optional<SpellID> HeldBowSpellUnderKeyShot();
 /** @brief After a release frame: drops a one-shot bow latch (MarkBowLatchOneShot) and puts back what the held button had armed. */
 void DropOneShotBowLatch();
 

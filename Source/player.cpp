@@ -3748,9 +3748,10 @@ void StartPlrHit(Player &player, int dam, bool forcehit)
 			const std::optional<oracool::PaladinSkill> paladin = oracool::ArmedMeleeSkill() != oracool::PaladinSkill::Charge ? oracool::ArmedMeleeSkill() : std::nullopt;
 			// Not a key's one-shot bow latch (round 96 audit): kept for the held button it became the button's, and every held shot
 			// cast and paid for the key's skill again.
+			// What the held button had under it is kept instead (round 97 audit: it was lost, and the hold shot plain arrows).
 			const bool keyShot = oracool::IsBowLatchOneShot();
-			const std::optional<oracool::RogueArrow> arrow = keyShot ? std::nullopt : oracool::ArmedArrowSkill();
-			const std::optional<SpellID> bowSpell = keyShot ? std::nullopt : oracool::ArmedBowSkillSpell();
+			const std::optional<oracool::RogueArrow> arrow = keyShot ? oracool::HeldArrowUnderKeyShot() : oracool::ArmedArrowSkill();
+			const std::optional<SpellID> bowSpell = keyShot ? oracool::HeldBowSpellUnderKeyShot() : oracool::ArmedBowSkillSpell();
 			if (paladin || oracool::ArmedClassMeleeSkill() || oracool::ArmedRfa12Melee() || arrow || bowSpell)
 				StaggeredSwingLatches = { paladin, oracool::ArmedClassMeleeSkill(), oracool::ArmedRfa12Melee(), true, arrow, bowSpell };
 		}

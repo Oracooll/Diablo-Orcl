@@ -239,6 +239,16 @@ bool IsBowLatchOneShot()
 	return BowLatchOneShot;
 }
 
+std::optional<RogueArrow> HeldArrowUnderKeyShot()
+{
+	return BowLatchOneShot ? HeldArrowBeforeKey : std::nullopt;
+}
+
+std::optional<SpellID> HeldBowSpellUnderKeyShot()
+{
+	return BowLatchOneShot ? HeldBowSpellBeforeKey : std::nullopt;
+}
+
 void DropOneShotBowLatch()
 {
 	if (!BowLatchOneShot)
