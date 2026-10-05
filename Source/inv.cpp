@@ -3687,7 +3687,9 @@ void CheckInvItem(bool isShiftHeld, bool isCtrlHeld)
 		//
 		// Tested after the stash so an open stash still wins, which is the order the player set by
 		// opening it.
-	} else if (isCtrlHeld && (oracool::IsWorkshopOpen() || stextflag != TalkID::None)) {
+	} else if (isCtrlHeld && (oracool::IsWorkshopOpen() || oracool::IsLevskiRoarOpen() || stextflag != TalkID::None)) {
+		// Levski's Roar too, when the grid refused it - a worn piece, a belt potion, gold (round 115 audit: it fell through to
+		// the floor).
 		// Nor beside an artisan's bench or a store (round 68 audit): Ctrl's vanilla arm drops the item on the floor, the one thing
 		// the gesture must not do beside an open window, as with Levski's Roar above.
 	} else {

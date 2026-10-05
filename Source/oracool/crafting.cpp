@@ -1479,13 +1479,24 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		// Not a roll of the steal the craft adds (round 114 audit: Blood Craft skipped its steal over a kept "of the leech", so a
 		// slot was cut for a power that never came): another roll keeps the slot.
 		const bool addsLifeSteal = recipe == CraftBloodRecipe;
-		const auto craftDuplicate = [&](const OracoolAffix &a) { return addsLifeSteal && a.type == IPL_STEALLIFE; };
+		// Only a steal no better than the craft's 3% (round 115 audit: "of blood" at 5% was dropped and became 3%); a 5% stays,
+		// and the craft then adds none.
+		const auto craftDuplicate = [&](const OracoolAffix &a) { return addsLifeSteal && a.type == IPL_STEALLIFE && a.param1 <= 3; };
 		const bool hasDuplicate = std::any_of(target._iOracoolAffixes.begin(), target._iOracoolAffixes.begin() + target._iOracoolAffixCount, craftDuplicate);
-		if (const int keep = std::max(0, OracoolAffixBudget(target) - CraftPowers); target._iOracoolAffixCount > keep || hasDuplicate) {
+		// A kept better steal blocks the craft's own, so it keeps one roll more: no slot is cut for a power that never comes.
+		const bool keepsBetterSteal = addsLifeSteal
+		    && std::any_of(target._iOracoolAffixes.begin(), target._iOracoolAffixes.begin() + target._iOracoolAffixCount,
+		        [](const OracoolAffix &a) { return a.type == IPL_STEALLIFE && a.param1 > 3; });
+		if (const int keep = std::max(0, OracoolAffixBudget(target) - CraftPowers + (keepsBetterSteal ? 1 : 0)); target._iOracoolAffixCount > keep || hasDuplicate) {
 			std::vector<OracoolAffix> kept;
-			for (int i = 0; i < target._iOracoolAffixCount && static_cast<int>(kept.size()) < keep; i++) {
-				if (!craftDuplicate(target._iOracoolAffixes[i]))
-					kept.push_back(target._iOracoolAffixes[i]);
+			// The better steal first, so the extra slot it was given is its own and cannot be trimmed away.
+			const auto isBetterSteal = [&](const OracoolAffix &a) { return addsLifeSteal && a.type == IPL_STEALLIFE && a.param1 > 3; };
+			for (const bool betterPass : { true, false }) {
+				for (int i = 0; i < target._iOracoolAffixCount && static_cast<int>(kept.size()) < keep; i++) {
+					const OracoolAffix &a = target._iOracoolAffixes[i];
+					if (!craftDuplicate(a) && isBetterSteal(a) == betterPass)
+						kept.push_back(a);
+				}
 			}
 			if (!RebuildOracoolItemWithAffixes(*MyPlayer, target, kept.data(), static_cast<int>(kept.size())))
 				return {};

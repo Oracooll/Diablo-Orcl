@@ -545,7 +545,7 @@ void OpenWaypointMenu(Point sigilPosition)
 	// Back to Tristram at the top every time, the same reset-on-open the event log does. Reopening
 	// where you last scrolled to would be a small surprise every single time.
 	ScrollOffset = 0;
-	KeyRow = 0;
+	KeyRow = -1; // no row chosen until an arrow picks one (round 115 audit: Enter, meant for chat, travelled to row 0)
 	LastHoveredAct = -1; // so a cursor already over a button when the menu opens counts as an entry
 	// The act opens on the one the player is standing in: a sigil in the Crypt opens the Hellfire
 	// list, where the Crypt's other floors are. In town the last act chosen stays - a hub sigil has

@@ -145,6 +145,8 @@ void OpenStonegateMenu()
 {
 	if (MyPlayer == nullptr)
 		return;
+	// One surface at a time, as every other opener (round 115 audit: it closed nothing, and a store or bench opened under it).
+	CloseOtherShopSurfaces();
 	MenuOpen = true;
 	KeyRow = -1;
 	PlayUiSelectSound();

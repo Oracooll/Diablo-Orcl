@@ -389,7 +389,9 @@ void ApplyMonsterVariant(Monster &monster)
 void RestoreVariantTint(Monster &monster)
 {
 	// Not a unique (SyncMonsterAnim reloads its own .trn) and not the hero's own - a companion wears its ramp there.
-	if (monster.isUnique() || FightsAsUnique(monster) || monster.isPlayerMinion()) // a roster boss keeps his tint (round 114)
+	// A roster boss is let through (round 115 audit: kept out, his slot kept a dead monster's variant palette on a revisit):
+	// VariantOf answers None for him, so he is simply reset, and his glaze is drawn at render time.
+	if (monster.isUnique() || monster.isPlayerMinion())
 		return;
 	monster.uniqueMonsterTRN.reset();
 	const MonsterVariant variant = VariantOf(monster);

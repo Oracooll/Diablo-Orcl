@@ -273,6 +273,8 @@ void ReleaseCraftingMenuButton()
 {
 	const int i = PressedHostButton;
 	PressedHostButton = -1;
+	if (!IsCraftingMenuOpen())
+		return; // closed between the press and the release (round 115 audit), as every other release checks
 	if (i < 0 || i >= HostButtonCount || !HostButtonRect(i).contains(MousePosition))
 		return;
 	if (HostButtons[i] != HostFilter) {

@@ -209,7 +209,7 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	// And the RfA-12 half for a melee blow (round 65 audit): Cleave's, Backhand's and Crusade's side blows never bled, never
 	// fed Bloodlust, never reset Retaliation - the class melee Strike and Whirlwind's blows always did.
 	if (&player == MyPlayer && applyPassives && melee)
-		OnRfa12Hit(player, monster, damage, /*melee=*/true);
+		OnRfa12Hit(player, monster, damage, /*melee=*/true, /*burst=*/SideBlowInFlight); // a pulse is no blow for Sovereign Measure (round 115)
 	// Scent of Blood marks what every skill wounds, not only a plain swing (round 29 audit: no bow, javelin or spear skill
 	// ever marked one).
 	if (&player == MyPlayer && applyPassives)

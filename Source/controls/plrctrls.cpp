@@ -1332,8 +1332,21 @@ void CheckInventoryMove(AxisDirection dir)
 bool BlurInventory()
 {
 	if (!MyPlayer->HoldItem.isEmpty()) {
-		if (!TryDropItem()) {
-			MyPlayer->Say(HeroSpeech::WhereWouldIPutThis);
+		// Put away first, as CloseStash does - the belt for a potion, the pack, the stash - and the floor only when there is no
+		// room anywhere (round 115 audit: the pad's Cancel dropped what it held, gone with a rift's or an arena's floor).
+		Player &myPlayer = *MyPlayer;
+		Item &held = myPlayer.HoldItem;
+		const bool placed = held._itype == ItemType::Gold
+		    ? GoldAutoPlace(myPlayer, held)
+		    : ((held.isPotion() && AutoPlaceItemInBelt(myPlayer, held, true)) || AutoPlaceItemInInventory(myPlayer, held, true)
+		          || AutoPlaceItemInStash(myPlayer, held, true));
+		if (placed) {
+			held.clear();
+			NewCursor(CURSOR_HAND);
+			myPlayer._pGold = CalculateGold(myPlayer);
+			CalcPlrInvKeepingLife(myPlayer);
+		} else if (!TryDropItem()) {
+			myPlayer.Say(HeroSpeech::WhereWouldIPutThis);
 			return false;
 		}
 	}
