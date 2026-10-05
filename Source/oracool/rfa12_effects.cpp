@@ -389,6 +389,8 @@ Monster *Rfa12ReachTarget(const Player &player, Point swingTile)
 	Monster *monster = FindMonsterAtPosition(beyond);
 	if (monster == nullptr || monster->isPlayerMinion() || IsMonsterConverted(*monster) || !monster->isPossibleToHit())
 		return nullptr;
+	if (!SightLineClear(player.position.tile, beyond))
+		return nullptr; // not through a closed door at the swing tile (round 100 audit)
 	return monster;
 }
 

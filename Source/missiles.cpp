@@ -981,7 +981,7 @@ void SetMissAnim(Missile &missile, MissileGraphicID animtype)
 
 void AddRune(Missile &missile, Point dst, MissileID missileID)
 {
-	if (LineClearMissile(missile.position.start, dst)) {
+	if (oracool::SightLineClear(missile.position.start, dst)) {
 		std::optional<Point> runePosition = FindClosestValidPosition(
 		    [](Point target) {
 			    if (!InDungeonBounds(target)) {
@@ -1030,7 +1030,7 @@ bool GuardianTryFireAt(Missile &missile, Point target)
 	// Town's dMonster holds towner ids, not monsters (round 6 audit, v1.12.231). The Guardian fired on Griswold and Ogden.
 	if (leveltype == DTYPE_TOWN)
 		return false;
-	if (!LineClearMissile(position, target))
+	if (!oracool::SightLineClear(position, target))
 		return false;
 	int mid = dMonster[target.x][target.y] - 1;
 	if (mid < 0)
@@ -2845,7 +2845,14 @@ void ProcessFrozenOrb(Missile &missile)
 	missile._mirange--;
 	// The orb stops at a wall rather than passing through it: MoveMissile stops it there. Its return
 	// only says whether the orb changed tile, which a half-speed orb often does not - so it is no wall test.
-	MoveMissile(missile, [](Point tile) { return !IsMissileBlockedByTile(tile); }, true); // a closed door too (round 99 audit)
+	// Walls and closed doors (round 99), but not every object a missile is stopped by, and not over lava (round 100 audit: it halted
+	// at barrels and crossed lava pools).
+	MoveMissile(missile, [](Point tile) {
+		if (!IsTileNotSolid(tile))
+			return false;
+		const Object *object = FindObjectAtPosition(tile);
+		return object == nullptr || !object->isDoor() || object->_oMissFlag;
+	}, true);
 	if (missile.position.velocity == Displacement {})
 		missile._mirange = 0;
 	ChangeLight(missile._mlid, missile.position.tile, 8);
@@ -3663,7 +3670,7 @@ void AddGolem(Missile &missile, AddMissileParameter &parameter)
 	// the cast was paid). With a tile, a recast over a live Golem dismisses it, as vanilla does - the new one comes next cast.
 	if (!FindClosestValidPosition(
 	        [start = missile.position.start, old = golem.position.tile](Point target) {
-		        return (!IsTileOccupied(target) || target == old) && LineClearMissile(start, target);
+		        return (!IsTileOccupied(target) || target == old) && oracool::SightLineClear(start, target);
 	        },
 	        parameter.dst, 0, 5)) {
 		missile._miDelFlag = true;
@@ -3679,7 +3686,7 @@ void AddGolem(Missile &missile, AddMissileParameter &parameter)
 	if (golem.position.tile == GolemHoldingCell) {
 		std::optional<Point> spawnPosition = FindClosestValidPosition(
 		    [start = missile.position.start](Point target) {
-			    return !IsTileOccupied(target) && LineClearMissile(start, target);
+			    return !IsTileOccupied(target) && oracool::SightLineClear(start, target);
 		    },
 		    parameter.dst, 0, 5);
 
@@ -5582,7 +5589,7 @@ void ProcessRingOfFire(Missile &missile)
 			return false;
 		if (IsObjectAtPosition(target))
 			return false;
-		if (!LineClearMissile(missile.position.tile, target))
+		if (!oracool::SightLineClear(missile.position.tile, target))
 			return false;
 		if (TileHasAny(dp, TileProperties::BlockMissile)) {
 			missile.limitReached = true;
@@ -6106,7 +6113,7 @@ void ProcessTeleport(Missile &missile)
 	const Point aimed = missile.position.tile;
 	std::optional<Point> teleportDestination = FindClosestValidPosition(
 	    [&player, aimed](Point target) {
-		    return PosOkPlayer(player, target) && (target == aimed || LineClearMissile(aimed, target));
+		    return PosOkPlayer(player, target) && (target == aimed || oracool::SightLineClear(aimed, target));
 	    },
 	    missile.position.tile, 0, 5);
 
@@ -6372,7 +6379,7 @@ void ProcessApocalypse(Missile &missile)
 				continue;
 			if (TileHasAny(dPiece[k][j], TileProperties::Solid))
 				continue;
-			if (gbIsHellfire && !LineClearMissile(missile.position.tile, { k, j }))
+			if (gbIsHellfire && !oracool::SightLineClear(missile.position.tile, { k, j }))
 				continue;
 
 			int id = missile._misource;
@@ -6601,7 +6608,7 @@ void ProcessElemental(Missile &missile)
 			Direction::North
 		};
 		for (Direction offset : Offsets) {
-			if (!CheckBlock(startPoint, missilePosition + offset))
+			if (!CheckBlock(startPoint, missilePosition + offset) && oracool::SightLineClear(startPoint, missilePosition + offset)) // round 100
 				CheckMissileCol(missile, GetMissileData(missile._mitype).damageType(), dam, dam, true, missilePosition + offset, true);
 		}
 

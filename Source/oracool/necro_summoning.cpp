@@ -4,6 +4,7 @@
  * See necro_summoning.h.
  */
 #include "oracool/necro_summoning.h"
+#include "oracool/rfa12_actives.h" // round 100: SightLineClear / FightsAsUnique
 
 #include <algorithm>
 #include <array>
@@ -358,7 +359,7 @@ void ArmyPulse(Player &player, OwnerState &state)
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		Monster &monster = Monsters[ActiveMonsters[i]];
 		if (monster.position.tile.WalkingDistance(state.armyTile) > ArmyRadius
-		    || !LineClearMissile(state.armyTile, monster.position.tile)) // in sight of the charge (round 8 audit)
+		    || !SightLineClear(state.armyTile, monster.position.tile)) // in sight of the charge (round 8 audit)
 			continue;
 		const int damage = (ArmyDamageMin(rank) + GenerateRnd(ArmyDamageSpread(rank))) << 6;
 		HeroStrikes(player, monster, DamageType::Magic, damage);
@@ -404,7 +405,7 @@ bool CastNecromancerSummoning(Player &player, SpellID spell, Point target, int r
 		// nothing (round 46 audit).
 		if (monster == nullptr || monster->isPlayerMinion() || IsCompanion(*monster) || (monster->hitPoints >> 6) <= 0
 		    || !monster->isPossibleToHit() || (monster->flags & MFLAG_HIDDEN) != 0
-		    || !LineClearMissile(player.position.tile, monster->position.tile)) {
+		    || !SightLineClear(player.position.tile, monster->position.tile)) {
 			player.Say(HeroSpeech::ICantDoThat);
 			return false;
 		}

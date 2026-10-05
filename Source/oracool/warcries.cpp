@@ -1,4 +1,5 @@
 #include "oracool/warcries.h"
+#include "oracool/endgame_boss.h" // round 100: SightLineClear / FightsAsUnique
 #include "oracool/corpses.h"
 #include "oracool/rage.h" // UsesRage - Find Potion's mana half
 
@@ -160,7 +161,8 @@ constexpr int TranquilityHealPercent = 2;
 
 bool ShrugsOff(const Monster &monster)
 {
-	return monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None || monster.type().type == MT_DIABLO;
+	// FightsAsUnique (round 100 audit): a rift's roster boss was staggered, repelled - and Converted to the Paladin's side.
+	return FightsAsUnique(monster) || monster.lesserAffix != LesserUniqueAffix::None;
 }
 
 /** @brief Every live monster within @p radius tiles of @p centre, through @p fn; how many there were. */

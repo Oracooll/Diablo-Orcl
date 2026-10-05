@@ -4,6 +4,7 @@
  * See minions.h.
  */
 #include "oracool/minions.h"
+#include "oracool/rfa12_actives.h" // round 100: SightLineClear / FightsAsUnique
 #include "oracool/curses.h"
 #include "oracool/necro_summoning.h"
 
@@ -178,7 +179,7 @@ bool SpawnBody(Record &record, const Player &owner, Point near)
 			const Point tile = near + RingTile(radius, step);
 			if (!InDungeonBounds(tile))
 				continue;
-			if (!LineClearMissile(near, tile))
+			if (!SightLineClear(near, tile))
 				continue; // not behind a wall from where it was called (round 70 audit: a golem rose in the next room)
 			Monster *body = AddMinionBody(tile, GetDirection(tile, owner.position.tile), record.spec.type);
 			if (body == nullptr)
@@ -282,6 +283,8 @@ void FireGolemsBurn(Player &owner)
 			Monster &monster = Monsters[ActiveMonsters[m]];
 			if (monster.position.tile.WalkingDistance(golem.position.tile) > 1)
 				continue;
+			if (!SightLineClear(golem.position.tile, monster.position.tile))
+				continue; // not across a squeezed corner or a door (round 100 audit)
 			const int blow = record.spec.minDamage + GenerateRnd(std::max(record.spec.maxDamage - record.spec.minDamage, 0) + 1);
 			MinionHurts(owner, golem, monster, DamageType::Fire, (blow << 6) / FireGolemBurnDivisor);
 		}
@@ -324,7 +327,7 @@ bool MinionTileNear(Point near)
 	for (int radius = 1; radius <= 5; radius++) { // SpawnBody's search
 		for (int step = 0; step < 8 * radius; step++) {
 			const Point tile = near + RingTile(radius, step);
-			if (InDungeonBounds(tile) && LineClearMissile(near, tile) && MinionBodyFitsAt(tile))
+			if (InDungeonBounds(tile) && SightLineClear(near, tile) && MinionBodyFitsAt(tile))
 				return true;
 		}
 	}
@@ -673,7 +676,7 @@ int SacrificeMinion(Player &owner, Point tile)
 		const Point at = Monsters[record.body].position.tile;
 		const int distance = at.WalkingDistance(tile);
 		// Within reach of the cursor and in the hero's sight (round 48 audit: one across the level or behind a wall was unmade).
-		if (distance > UnholyOfferingReach || !LineClearMissile(owner.position.tile, at))
+		if (distance > UnholyOfferingReach || !SightLineClear(owner.position.tile, at))
 			continue;
 		if (nearest == nullptr || distance < bestDistance) {
 			nearest = &record;

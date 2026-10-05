@@ -4,6 +4,7 @@
  * See corpses.h.
  */
 #include "oracool/corpses.h"
+#include "oracool/rfa12_actives.h" // round 100: SightLineClear / FightsAsUnique
 
 #include <algorithm>
 #include <array>
@@ -123,7 +124,7 @@ int NearestIndex(Point tile, int radius, bool forRevive, std::optional<Point> se
 		const int distance = tile.WalkingDistance(corpse.position);
 		if (distance > radius)
 			continue;
-		if (seenFrom && !LineClearMissile(*seenFrom, corpse.position))
+		if (seenFrom && !SightLineClear(*seenFrom, corpse.position))
 			continue; // behind a wall from the caster (round 38 audit)
 		if (best < 0 || distance < bestDistance) {
 			best = i;

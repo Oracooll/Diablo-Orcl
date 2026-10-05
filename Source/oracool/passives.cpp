@@ -1,4 +1,5 @@
 #include "oracool/passives.h"
+#include "oracool/endgame_boss.h" // round 100: SightLineClear / FightsAsUnique
 #include "oracool/rift.h" // IsRiftLevel, RiftRosterSeed - every rift its own floor
 
 #include <algorithm>
@@ -363,7 +364,7 @@ bool SongPlaying(const Player &player)
 /** @brief The fork's stagger exemption: uniques, champions and Diablo (rfa12's ShrugsOff) - Paralysis stunned Diablo. */
 bool ShrugsOffStun(const Monster &monster)
 {
-	return monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None || monster.type().type == MT_DIABLO;
+	return FightsAsUnique(monster) || monster.lesserAffix != LesserUniqueAffix::None; // a rift boss too (round 100 audit)
 }
 
 /** @brief Monsters that can be hit within @p range tiles of @p centre, not counting @p except. */
@@ -713,7 +714,8 @@ bool PassiveCheatsDeath(Player &player)
 			// Not a petrified one, as every other knockback caller spares it: the throw broke Stone Curse early (round 32 audit).
 			if (!other.isPlayerMinion() && other.hitPoints >> 6 > 0 && other.mode != MonsterMode::Petrified
 			    && other.isPossibleToHit() // not a charge in flight or a quest speaker mid-talk (round 35 audit)
-			    && player.position.tile.WalkingDistance(other.position.tile) <= AnomalyThrowTiles)
+			    && player.position.tile.WalkingDistance(other.position.tile) <= AnomalyThrowTiles
+			    && SightLineClear(player.position.tile, other.position.tile)) // not through a wall or a door (round 100 audit)
 				M_GetKnockback(other);
 		}
 	}

@@ -18852,3 +18852,40 @@ TEST(OracoolRogueArrows, AKeysBowShotIsOneShotAndTheHeldSkillReturns)
 	EXPECT_FALSE(oracool::ArmedBowSkillSpell().has_value()) << "nothing comes back to a plain hold";
 	oracool::ArmArrowSkill(std::nullopt);
 }
+
+// Sight passes over lava (solid, but no missile blocker) and refuses only a real squeeze between two walls (rounds 99-100 audit:
+// the squeeze test read IsTileSolid, and every off-axis line across a lava pool was refused - Blizzard, Leap, the auras).
+TEST(OracoolAudit100, SightCrossesLavaButNotASqueezedCorner)
+{
+	const auto savedPiece = Round94SaveGrid(dPiece);
+	const auto savedObject = Round94SaveGrid(dObject);
+	const auto savedSol = SOLData;
+	SOLData.fill(TileProperties::None);
+	SOLData[1] = TileProperties::Solid;                                // lava: a missile flies over it
+	SOLData[2] = TileProperties::Solid | TileProperties::BlockMissile; // a wall
+	for (int x = 0; x < MAXDUNX; x++)
+		for (int y = 0; y < MAXDUNY; y++) {
+			dPiece[x][y] = 0;
+			dObject[x][y] = 0;
+		}
+
+	// A lava pool between them, crossed off-axis.
+	for (int x = 11; x <= 14; x++)
+		for (int y = 9; y <= 13; y++)
+			dPiece[x][y] = 1;
+	EXPECT_TRUE(oracool::SightLineClear({ 10, 10 }, { 15, 12 })) << "an off-axis line over lava was refused";
+	EXPECT_TRUE(oracool::SightLineClear({ 15, 12 }, { 10, 10 })) << "nor the other way";
+
+	// A single diagonal step between two corner-touching walls: refused. Between two lava tiles: seen.
+	dPiece[31][30] = 2;
+	dPiece[30][31] = 2;
+	EXPECT_FALSE(oracool::SightLineClear({ 30, 30 }, { 31, 31 })) << "sight squeezed between two walls";
+	EXPECT_FALSE(oracool::SightLineClear({ 29, 29 }, { 33, 33 })) << "nor the same squeeze in the middle of a longer line";
+	dPiece[31][30] = 1;
+	dPiece[30][31] = 1;
+	EXPECT_TRUE(oracool::SightLineClear({ 30, 30 }, { 31, 31 })) << "two lava tiles are no squeeze";
+
+	SOLData = savedSol;
+	Round94RestoreGrid(dObject, savedObject);
+	Round94RestoreGrid(dPiece, savedPiece);
+}

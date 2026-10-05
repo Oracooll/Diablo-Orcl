@@ -1,4 +1,5 @@
 #include "oracool/paladin_melee.h"
+#include "oracool/endgame_boss.h" // round 100: SightLineClear / FightsAsUnique
 
 #include "items.h"
 #include "monster.h"
@@ -220,6 +221,8 @@ Monster *NextZealTarget(const Player &player, Monster **struck, int struckCount)
 			continue; // Zeal swings at enemies only (audit, 2026-09-27)
 		if (candidate.position.tile.WalkingDistance(player.position.tile) > MeleeSkillRangeTiles)
 			continue;
+		if (!SightLineClear(player.position.tile, candidate.position.tile))
+			continue; // not across a squeezed corner or a door (round 100 audit)
 
 		bool alreadyStruck = false;
 		for (int s = 0; s < struckCount; s++) {
@@ -316,8 +319,7 @@ void ApplyShieldBash(Player &player, Monster &primaryTarget)
 	// "Invalid against uniques and bosses" (user, 2026-08-16) - the STUN is: one that locks down a boss
 	// trivially beats every other answer to a boss. Scripted uniques, our lesser uniques, and Diablo
 	// himself, placed as a plain MT_DIABLO and so the one boss isUnique() cannot see.
-	if (primaryTarget.isUnique() || primaryTarget.lesserAffix != LesserUniqueAffix::None
-	    || primaryTarget.type().type == MT_DIABLO)
+	if (FightsAsUnique(primaryTarget) || primaryTarget.lesserAffix != LesserUniqueAffix::None) // a rift boss too (round 100 audit)
 		return;
 	StunMonster(primaryTarget, ShieldBashStunTicks);
 }

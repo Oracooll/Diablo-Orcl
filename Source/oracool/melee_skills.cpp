@@ -1,4 +1,5 @@
 #include "oracool/melee_skills.h"
+#include "oracool/endgame_boss.h" // round 100: SightLineClear / FightsAsUnique
 #include "oracool/sat_math.h" // AddPercentSat - the damage passives past int (round 27 audit)
 
 #include <algorithm>
@@ -221,7 +222,7 @@ int GatherAround(Point centre, const Monster *except, Monster **out, int maxTarg
 /** @brief "Uniques shrug it off": the same exemption Shield Bash's stun carries, for the same reason. */
 bool ShrugsOffStagger(const Monster &monster)
 {
-	return monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None || monster.type().type == MT_DIABLO;
+	return FightsAsUnique(monster) || monster.lesserAffix != LesserUniqueAffix::None; // a rift boss too (round 100 audit)
 }
 
 } // namespace

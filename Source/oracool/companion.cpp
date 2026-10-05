@@ -1,4 +1,5 @@
 #include "oracool/companion.h"
+#include "oracool/rfa12_actives.h" // round 100: SightLineClear / FightsAsUnique
 #include "oracool/warcries.h" // IsMonsterConverted
 
 #include "oracool/minions.h"
@@ -403,7 +404,8 @@ std::vector<Monster *> TargetsWithin(Point centre, int radius)
 	std::vector<Monster *> found;
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		Monster &monster = Monsters[ActiveMonsters[i]];
-		if (Targetable(monster) && centre.WalkingDistance(monster.position.tile) <= radius)
+		if (Targetable(monster) && centre.WalkingDistance(monster.position.tile) <= radius
+		    && SightLineClear(centre, monster.position.tile)) // not across a squeezed corner or a door (round 100 audit)
 			found.push_back(&monster);
 	}
 	return found;
@@ -533,7 +535,7 @@ bool SpawnInDungeon(Instance &inst, Point near, bool full)
 				const Point tile = near + Displacement { dx, dy };
 				// On this side of a wall (round 82 audit: back from the stairs, a Decoy or a Hold guard stood in the next room for
 				// its whole life), as SpawnBody and PlaceCompanionNear choose.
-				if (InDungeonBounds(tile) && IsTileAvailable(body, tile) && LineClearMissile(near, tile)) {
+				if (InDungeonBounds(tile) && IsTileAvailable(body, tile) && SightLineClear(near, tile)) {
 					spot = tile;
 					break;
 				}
@@ -774,7 +776,7 @@ bool SummonCompanions(Player &owner, SpellID spell, Point target, int rank)
 		return false;
 	// A cursor the hero cannot see is no anchor (round 83 audit: whatever path skipped CastOnce's clamp set the Decoy in the
 	// next room): beside him instead.
-	if (!InDungeonBounds(target) || IsTileSolid(target) || !LineClearMissile(owner.position.tile, target))
+	if (!InDungeonBounds(target) || IsTileSolid(target) || !SightLineClear(owner.position.tile, target))
 		target = owner.position.tile;
 	const bool town = leveltype == DTYPE_TOWN;
 	if (!town && !LevelHasGolemSlots()) {
@@ -1145,7 +1147,7 @@ int CompanionTauntTarget(const Monster &monster)
 		const int radius = def.role == Role::Bait ? BaitHoldRadius : (inst.tauntTicks > 0 ? GuardTauntRadius : GuardHoldRadius);
 		const int distance = monster.position.tile.WalkingDistance(body.position.tile);
 		if (distance <= radius && (best < 0 || distance < bestDistance)
-		    && LineClearMissile(monster.position.tile, body.position.tile)) { // not through a wall (round 82 audit)
+		    && SightLineClear(monster.position.tile, body.position.tile)) { // not through a wall (round 82 audit)
 			best = inst.slot;
 			bestDistance = distance;
 		}
@@ -1241,7 +1243,7 @@ Monster *PickCompanionTarget(const Monster &companion, const CompanionOrders &or
 	const auto inReach = [&](const Monster &monster) {
 		if (orders.attack == CompanionAttack::Bow || orders.attack == CompanionAttack::Throw)
 			return companion.position.tile.WalkingDistance(monster.position.tile) <= orders.reach
-			    && LineClearMissile(companion.position.tile, monster.position.tile);
+			    && SightLineClear(companion.position.tile, monster.position.tile);
 		const int fromHer = companion.position.tile.WalkingDistance(monster.position.tile);
 		if (Stance == CompanionStance::Hold)
 			return fromHer <= 1;
@@ -1249,7 +1251,7 @@ Monster *PickCompanionTarget(const Monster &companion, const CompanionOrders &or
 		// reachable one, or one past its leash, and stood idle or rocked a tile back and forth (round 17 audit).
 		return std::min(fromHer, orders.owner.WalkingDistance(monster.position.tile)) <= orders.reach
 		    && orders.owner.WalkingDistance(monster.position.tile) <= orders.leash + 1
-		    && LineClearMissile(companion.position.tile, monster.position.tile);
+		    && SightLineClear(companion.position.tile, monster.position.tile);
 	};
 	// Focus fire: what the owner is striking comes first.
 	if (FocusMonster >= 0 && static_cast<size_t>(FocusMonster) < MaxMonsters) {
@@ -1297,14 +1299,14 @@ CompanionAct TryCompanionAbility(Monster &companion, Monster &target)
 	CompanionAct act = CompanionAct::None;
 	switch (def.ability) {
 	case Ability::Volley:
-		if (distance <= 8 && LineClearMissile(here, there)) {
+		if (distance <= 8 && SightLineClear(here, there)) {
 			inst->volley = true;
 			act = CompanionAct::Volley;
 		}
 		break;
 	case Ability::DoubleThrow:
 		// Thrown as his ordinary throw is, twice (CompanionShot).
-		if (distance <= ThrowReach && LineClearMissile(here, there)) {
+		if (distance <= ThrowReach && SightLineClear(here, there)) {
 			inst->volley = true;
 			act = CompanionAct::Volley;
 		}

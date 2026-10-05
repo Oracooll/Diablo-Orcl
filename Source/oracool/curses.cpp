@@ -368,7 +368,7 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 		for (size_t i = 0; i < ActiveMonsterCount; i++) {
 			Monster &monster = Monsters[ActiveMonsters[i]];
 			if (!Live(monster) || monster.position.tile.WalkingDistance(player.position.tile) > SoulHarvestRadius
-			    || !LineClearMissile(player.position.tile, monster.position.tile)) // in sight (round 8 audit)
+			    || !SightLineClear(player.position.tile, monster.position.tile)) // in sight (round 8 audit)
 				continue;
 			const Point from = monster.position.tile;
 			// Paid only for a soul actually torn: a magic-immune monster took nothing and paid 5 Essence (round 14 audit).
@@ -419,10 +419,10 @@ bool CastNecromancerCurse(Player &player, SpellID spell, Point target, int rank)
 		if (kind == CurseKind::Bane && monster.isImmune(MissileID::Null, DamageType::Acid))
 			continue; // it rots nothing there (round 41 audit)
 		// In sight of the cast, as every area skill since round 5 (round 8 audit).
-		if (!single && !LineClearMissile(target, monster.position.tile))
+		if (!single && !SightLineClear(target, monster.position.tile))
 			continue;
 		// And of the Necromancer, single curses too (round 37 audit: a cursor on the room behind a wall cursed its pack).
-		if (!LineClearMissile(player.position.tile, monster.position.tile))
+		if (!SightLineClear(player.position.tile, monster.position.tile))
 			continue;
 		if (Lay(monster, kind, ticks, r, player))
 			laid++;
@@ -570,7 +570,7 @@ void OnCursedMonsterDeath(const Monster &monster)
 			for (size_t i = 0; i < ActiveMonsterCount; i++) {
 				Monster &other = Monsters[ActiveMonsters[i]];
 				if (&other == &monster || other.position.tile.WalkingDistance(monster.position.tile) > DeathMarkBurstRadius
-				    || !LineClearMissile(monster.position.tile, other.position.tile)) // the burst stops at walls (round 8 audit)
+				    || !SightLineClear(monster.position.tile, other.position.tile)) // the burst stops at walls (round 8 audit)
 					continue;
 				OwnerStrikes(*owner, other, DamageType::Physical, share);
 			}

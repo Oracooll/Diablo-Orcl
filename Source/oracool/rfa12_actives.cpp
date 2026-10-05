@@ -69,8 +69,10 @@ bool SightLineClear(Point from, Point to)
 	// audit). The tiles come in line order but either end first, so they are put in order from @p from.
 	const size_t tiles = std::min(pathLength, path.size());
 	std::sort(path.begin(), path.begin() + tiles, [from](Point a, Point b) { return from.WalkingDistance(a) < from.WalkingDistance(b); });
+	// Walls by the property the line itself is stopped by, not IsTileSolid (round 100 audit: lava and chasms are solid but a
+	// missile flies over them, and every off-axis line across a lava pool was refused).
 	const auto squeezed = [](Point a, Point b) {
-		return a.WalkingDistance(b) == 1 && a.x != b.x && a.y != b.y && IsTileSolid({ b.x, a.y }) && IsTileSolid({ a.x, b.y });
+		return a.WalkingDistance(b) == 1 && a.x != b.x && a.y != b.y && !PosOkMissile({ b.x, a.y }) && !PosOkMissile({ a.x, b.y });
 	};
 	Point prev = from;
 	for (size_t i = 0; i < tiles; i++) {
@@ -1739,10 +1741,9 @@ std::optional<Point> BoneWallSegment(Point centre, Direction dir, int k)
 	for (int step = 0; step < std::abs(k); step++) {
 		const Point from = tile;
 		tile = tile + (k < 0 ? Opposite(dir) : dir);
-		if (!InDungeonBounds(tile) || IsTileSolid(tile) || !LineClearMissile(centre, tile))
-			return std::nullopt;
-		// Nor between two corner-touching walls on a diagonal step (round 80 audit).
-		if (tile.x != from.x && tile.y != from.y && (IsTileSolid({ tile.x, from.y }) || IsTileSolid({ from.x, tile.y })))
+		// The step test and the door-aware sight (round 100 audit: an arm stood on a closed door and the next one in the room past
+		// it, cutting and shoving there).
+		if (LineStepBlocked(from, tile) || !SightLineClear(centre, tile))
 			return std::nullopt;
 	}
 	return tile;
@@ -2222,7 +2223,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 				Ring(player, target);
 			return true;
 		}
-		if (target == state.crucibleTile || !LineClearMissile(state.crucibleTile, target)) {
+		if (target == state.crucibleTile || !SightLineClear(state.crucibleTile, target)) {
 			// A pair on one tile has no line between (round 52 audit: paid, did nothing); nor has a pair a wall stands between
 			// (round 72 audit: the arc was drawn through it and struck only up to it).
 			player.Say(HeroSpeech::ICantDoThat);
