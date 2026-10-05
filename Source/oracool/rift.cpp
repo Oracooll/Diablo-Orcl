@@ -305,7 +305,7 @@ bool OpenGuardianRift(Player &player, int tier)
 	// Not while the last reward is still within reach (rounds 107-108 audit): held on the cursor, its debt rode into this rift;
 	// dropped on the town floor, the refund below minted a second one and the first was picked up again.
 	if (RewardKeystoneStillReachable(player)) {
-		EventPlrMsg("Pick up the keystone your last rift left you first.", UiFlags::ColorRed);
+		EventPlrMsg("Put the keystone your last rift left you in your pack first.", UiFlags::ColorRed);
 		return false;
 	}
 	if (player._pOracoolOwedKeystoneTier > 0) {
@@ -755,6 +755,7 @@ void FinishRiftLevel(bool fresh)
 	// A cleared floor built anew lost the reward lying on it: laid again where he fell (round 105 audit).
 	if (State.done && RewardOwed && MyPlayer != nullptr && MyPlayer->_pOracoolOwedKeystoneTier > 0
 	    && (RewardSeed == 0 || !HeroKeepsKeystone(*MyPlayer, RewardSeed))
+	    && !(RewardSeed != 0 && (LevskiGridHoldsKeystoneSeed(RewardSeed) || WorkshopHoldsKeystoneSeed(RewardSeed))) // round 112
 	    && !(MyPlayer->HoldItem._iMiscId == IMISC_ORACOOL_KEYSTONE && MyPlayer->HoldItem._iSeed == RewardSeed && RewardSeed != 0)) {
 		if (DropKeystoneAt(State.homeTile, MyPlayer->_pOracoolOwedKeystoneTier))
 			RewardSeed = LastLaidKeystoneSeed;

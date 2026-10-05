@@ -492,7 +492,7 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 		// attempt lacked and why it was withdrawn. Its own strength is left as it is.
 		Monster *turned = nullptr;
 		ForEachInEarshot(target, 2, [&](Monster &m) {
-			if (turned != nullptr || ShrugsOff(m) || m.ai == MonsterAIID::Diablo)
+			if (ShrugsOff(m) || m.ai == MonsterAIID::Diablo)
 				return;
 			if (!SightLineClear(player.position.tile, m.position.tile))
 				return; // not the next room's, through a wall or a closed door (rounds 39, 98)
@@ -500,7 +500,9 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 				return;
 			if (IsAnyOf(m.mode, MonsterMode::FadeIn, MonsterMode::FadeOut, MonsterMode::Charge, MonsterMode::Petrified))
 				return;
-			turned = &m;
+			// The one nearest the cursor (round 112 audit: the first in scan order, top-left, turned rather than the one clicked).
+			if (turned == nullptr || m.position.tile.WalkingDistance(target) < turned->position.tile.WalkingDistance(target))
+				turned = &m;
 		});
 		if (turned == nullptr)
 			return false;

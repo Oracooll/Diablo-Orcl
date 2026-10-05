@@ -50,7 +50,7 @@ namespace devilution::oracool {
 struct ItemBonusTotals;
 
 /** @brief Net change to a blow @p player deals @p target, in percent. */
-int Rfa12DamageDealtPercent(const Player &player, const Monster &target, bool melee);
+int Rfa12DamageDealtPercent(const Player &player, const Monster &target, bool melee, bool burst = false);
 /** @brief Starts Dead Ground's per-enemy cooldown when its bonus applied to a hit on @p target. */
 void SpendDeadGroundIfApplies(const Player &player, const Monster &target);
 

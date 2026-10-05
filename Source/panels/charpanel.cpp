@@ -405,9 +405,7 @@ int AttackFramesSkipped()
 int ItemAttackFramesSkipped()
 {
 	const ItemSpecialEffect flags = InspectPlayer->_pIFlags;
-	if (HasAnyOf(flags, ItemSpecialEffect::FastestAttack) && HasAnyOf(flags, ItemSpecialEffect::QuickAttack | ItemSpecialEffect::FastAttack))
-		return 3; // Fastest plus Quick/Fast skips the fourth frame, costing one - see StartAttack
-	if (HasAnyOf(flags, ItemSpecialEffect::FastestAttack))
+	if (HasAnyOf(flags, ItemSpecialEffect::FastestAttack)) // wins outright, with Quick or Fast too (round 112) - see StartAttack
 		return 4;
 	if (HasAnyOf(flags, ItemSpecialEffect::FasterAttack))
 		return 3;

@@ -275,7 +275,7 @@ bool DeadGroundApplies(const Player &player, const Monster &target)
 
 } // namespace
 
-int Rfa12DamageDealtPercent(const Player &player, const Monster &target, bool melee)
+int Rfa12DamageDealtPercent(const Player &player, const Monster &target, bool melee, bool burst)
 {
 	int percent = 0;
 	const MonsterClass monsterClass = target.data().monsterClass;
@@ -288,7 +288,7 @@ int Rfa12DamageDealtPercent(const Player &player, const Monster &target, bool me
 	if (melee) {
 		if (const int p = PointsIfOn(player, Skill::Retaliation); p > 0)
 			percent += ClocksOf(player).retaliationStacks * RetaliationPerStack(p);
-	} else {
+	} else if (!burst) { // not a burst - an arc, a pulse - which rolled Deadeye and took Dead Ground every pulse (round 112 audit)
 		// The hero's own shots: a companion's never spent it, so took it on every arrow (round 92 audit).
 		if (!IsCompanionBlowInFlight() && DeadGroundApplies(player, target))
 			percent += DeadGroundPercent(PointsIfOn(player, Skill::DeadGround));

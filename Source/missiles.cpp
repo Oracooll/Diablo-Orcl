@@ -469,7 +469,7 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	// Dynamo, Mana Attunement and Mythic Rhythm, and rolled Deadeye again per burst).
 	const bool swingBurst = t == MissileID::WeaponExplosion;
 	if (!pooledArrow) {
-		dam = oracool::AddPercentSat(dam, oracool::PassiveDamageDealtPercent(player, monster, swingBurst, /*burst=*/swingBurst || CompanionHitPercent > 0 || ArrowBurstInFlight) + oracool::Rfa12DamageDealtPercent(player, monster, swingBurst)
+		dam = oracool::AddPercentSat(dam, oracool::PassiveDamageDealtPercent(player, monster, swingBurst, /*burst=*/swingBurst || CompanionHitPercent > 0 || ArrowBurstInFlight) + oracool::Rfa12DamageDealtPercent(player, monster, swingBurst, /*burst=*/ArrowBurstInFlight)
 		        + (damageType == DamageType::Cold ? oracool::Rfa12ColdDamagePercent(monster) : 0));
 	}
 

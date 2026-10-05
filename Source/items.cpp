@@ -5468,13 +5468,6 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		player._pGearLook = gearLook;
 	}
 
-	// Fastest attack wins outright for a swung weapon (round 110 audit): vanilla's frame skipper reads Fastest together with
-	// Quick or Fast as a SLOWER swing, so a skill's fast-attack flag (Alacrity, Rhythm, Fanaticism, Swift Harvesting) on a hero
-	// with a Fastest item lengthened it. After Swift Harvesting and the weapon graphic (round 111), and not for a bow, whose
-	// flags add arrow speed instead.
-	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastestAttack) && !player.UsesRangedWeapon())
-		player._pIFlags &= ~(ItemSpecialEffect::QuickAttack | ItemSpecialEffect::FastAttack);
-
 	if (&player == MyPlayer) {
 		const int previousMaxGold = MaxGold;
 		if (oracool::IsSinglePlayer())

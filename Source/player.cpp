@@ -420,11 +420,10 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 
 	int8_t skippedAnimationFrames = 0;
 	if (includesFirstFrame) {
-		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastestAttack) && HasAnyOf(player._pIFlags, ItemSpecialEffect::QuickAttack | ItemSpecialEffect::FastAttack)) {
-			// Combining Fastest Attack with any other attack speed modifier skips over the fourth frame, reducing the effectiveness of Fastest Attack.
-			// Faster Attack makes up for this by also skipping the sixth frame so this case only applies when using Quick or Fast Attack modifiers.
-			skippedAnimationFrames = 3;
-		} else if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastestAttack)) {
+		// Fastest Attack wins outright (rounds 110-112 audit): vanilla read Fastest together with Quick or Fast as a SLOWER swing
+		// (3 frames here, 1 below), so a skill's fast-attack flag (Alacrity, Rhythm, Fanaticism, Swift Harvesting) on a hero with
+		// a Fastest item lengthened it. Decided here and in the sheet, not by clearing flags: a bow's flags add arrow speed.
+		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastestAttack)) {
 			skippedAnimationFrames = 4;
 		} else if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FasterAttack)) {
 			skippedAnimationFrames = 3;
@@ -437,11 +436,11 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FasterAttack)) {
 			// The combination of Faster and Fast Attack doesn't result in more skipped frames, because the second frame skip of Faster Attack is not triggered.
 			skippedAnimationFrames = 2;
+		} else if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastestAttack)) {
+			// Before Fast: Fastest wins (round 112 audit, see above).
+			skippedAnimationFrames = 2;
 		} else if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastAttack)) {
 			skippedAnimationFrames = 1;
-		} else if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastestAttack)) {
-			// Fastest Attack is skipped if Fast or Faster Attack is also specified, because both skip the frame that triggers Fastest Attack skipping.
-			skippedAnimationFrames = 2;
 		}
 	}
 

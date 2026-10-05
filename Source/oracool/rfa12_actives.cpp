@@ -189,11 +189,11 @@ void Strike(Player &player, Monster &monster, DamageType type, int damage, bool 
 	// the passives' - round 13 brought over only the first half (round 15 audit, v1.12.240).
 	// Not again for a weapon blow that took them into its pool (StrikeBlow, round 63 audit).
 	if (applyPassives && !pooled)
-		damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, melee, /*burst=*/SideBlowInFlight) + Rfa12DamageDealtPercent(player, monster, melee));
+		damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, melee, /*burst=*/SideBlowInFlight) + Rfa12DamageDealtPercent(player, monster, melee, SideBlowInFlight));
 	if (damage <= 0)
 		return;
 	// Once every six seconds per enemy, as its text says (round 16) - and only for a strike that lands something (round 17).
-	if (applyPassives && !melee)
+	if (applyPassives && !melee && !SideBlowInFlight) // a burst never took it (round 112)
 		SpendDeadGroundIfApplies(player, monster);
 	// Life Tap, as a swing and a spell missile feed it: every tree skill strikes through here, and Teeth or Bone Spear on a
 	// tapped monster healed nothing (round 20 audit, v1.12.245). Before the damage, while the curse is still live.
@@ -734,7 +734,7 @@ void StrikeBlow(Player &player, Monster &monster, DamageType type, int blowPerce
 	// Before the passives roll (round 64 audit: an immune target spent Sharpshooter's built-up crit for nothing).
 	if (!Hittable(monster) || monster.isImmune(MissileID::Null, type))
 		return;
-	const int pool = PassiveDamageDealtPercent(player, monster, melee, /*burst=*/SideBlowInFlight) + Rfa12DamageDealtPercent(player, monster, melee);
+	const int pool = PassiveDamageDealtPercent(player, monster, melee, /*burst=*/SideBlowInFlight) + Rfa12DamageDealtPercent(player, monster, melee, SideBlowInFlight);
 	const int roll = player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1);
 	const int blow = std::max(PooledWeaponDamage(player, roll, pool), 1) << 6;
 	Strike(player, monster, type, Percent(blow, blowPercent), melee, /*applyPassives=*/true, /*pooled=*/true);
@@ -1942,7 +1942,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::SeismicSlam: {
 		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
 		for (Monster *m : line)
-			StrikeBlow(player, *m, DamageType::Physical, BlowPercent(spell, r));
+			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r)); // a weapon blow, counted once a cast (round 112)
 		EarthenMightRage(player, line.size());
 		GoldenFlameWave(player, here, target, ReachTiles(spell, r));
 		return !line.empty(); // a slam on nothing costs nothing, as Rend and Ground Stomp (round 28 audit)
@@ -2577,10 +2577,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// Companions (user, 2026-09-14): the Valkyrie archer, and the Decoy that draws every blow. oracool/companion.h.
 		return SummonCompanions(player, spell, target, r);
 	case SpellID::PoisonJavelin: {
-		auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
-		// Its only damage is acid (round 111 audit: an acid-immune first target took nothing, and the pool and the price followed).
-		std::erase_if(line, [](const Monster *m) { return m->isImmune(MissileID::Null, DamageType::Acid); });
-		if (line.empty())
+		const auto line = MonstersOnLine(here, target, ReachTiles(spell, r));
+		// The first enemy on the line, as its text says - refused unpaid when that one is acid-immune, its only damage (rounds
+		// 111-112 audit: passing over it read as piercing).
+		if (line.empty() || line.front()->isImmune(MissileID::Null, DamageType::Acid))
 			return false;
 		Monster &m = *line.front();
 		const Point pool = m.position.tile;
@@ -3349,8 +3349,12 @@ void TickField(Player &player, Field &field)
 	case SpellID::Earthquake:
 		if (field.clock % TicksPerSecond == 0) {
 			const auto shaken = MonstersWithin(field.tile, ReachTiles(field.spell, r));
+			// Weapon blows, each pulse a burst (round 112 audit: as spells they skipped Bloodlust, Deep Wounds and the rest).
+			const bool previousSide = SideBlowInFlight;
+			SideBlowInFlight = true;
 			for (Monster *m : shaken)
-				StrikeBlow(player, *m, DamageType::Physical, BlowPercent(field.spell, r));
+				StrikeBlow(player, *m, DamageType::Physical, BlowPercent(field.spell, r), /*melee=*/true);
+			SideBlowInFlight = previousSide;
 			EarthenMightRage(player, shaken.size());
 			Impact(player, field.spell); // one tremor pulse a second
 		}
@@ -5624,7 +5628,7 @@ bool IsCastWeaponBlow(SpellID spell)
 {
 	return IsAnyOf(spell, SpellID::LongThrust, SpellID::RearwardReach, SpellID::MountainPole, SpellID::BambooRain,
 	    SpellID::DragonTailSweep, SpellID::WhirlingKick, SpellID::HeavenSplitter, SpellID::ThousandReeds,
-	    SpellID::SevenSidedStrike, SpellID::DragonsWrath, SpellID::LeapingCrane);
+	    SpellID::SevenSidedStrike, SpellID::DragonsWrath, SpellID::LeapingCrane, SpellID::SeismicSlam, SpellID::Earthquake); // round 112: the Barbarian's two
 }
 } // namespace
 
