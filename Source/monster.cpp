@@ -2012,6 +2012,9 @@ bool MonsterRangedAttack(Monster &monster)
 			// Firebolt, Acid and Arrow already roll the shooter's min-max; a monster's Charged Bolt is three bolts of a
 			// flat 15, so a mage's single bolt is given the same min-max roll the other three elements make.
 			const bool minionShot = oracool::IsMinion(monster);
+			// The stored roll with the damage percent, at the release in an int (round 123 audit: the Counselor's Firebolt carries its
+			// own roll, and the scaled value in the int16 var2 had little headroom). A zero stays zero. The extra shots get the same.
+			const int rangedDamage = static_cast<int>(static_cast<int64_t>(monster.var2) * oracool::RiftBossDamagePercent(monster) / 100);
 			int multimissiles = 1;
 			if (missileType == MissileID::ChargedBolt && !minionShot)
 				multimissiles = 3;
@@ -2023,14 +2026,17 @@ bool MonsterRangedAttack(Monster &monster)
 				    missileType,
 				    TARGET_PLAYERS,
 				    monster.getId(),
-				    // The stored roll with the damage percent, at the release in an int (round 123 audit: the Counselor's Firebolt carries
-				    // its own roll, and the scaled value in the int16 var2 had little headroom). A zero stays zero.
-				    static_cast<int>(static_cast<int64_t>(monster.var2) * oracool::RiftBossDamagePercent(monster) / 100),
+				    rangedDamage,
 				    0);
 				if (shot == nullptr || !minionShot)
 					continue;
 				if (missileType == MissileID::ChargedBolt)
-					shot->_midam = (monster.minDamage + GenerateRnd(monster.maxDamage - monster.minDamage + 1)) * oracool::RiftBossDamagePercent(monster) / 100; // its overflow (round 123)
+				{
+					// With Might and its overflow, as the other elements' ProjectileMonsterDamage (rounds 123-124).
+					const int lo = oracool::PackAdjustedDamage(monster, monster.minDamage);
+					const int hi = std::max(oracool::PackAdjustedDamage(monster, monster.maxDamage), lo);
+					shot->_midam = (lo + GenerateRnd(hi - lo + 1)) * oracool::RiftBossDamagePercent(monster) / 100;
+				}
 				// Every mage's shot wears the Necromancer's bone tooth (sixteen facings) once that sheet is in, tinted in its
 				// element's colour - fire, lightning, poison; the bone mage's stays bone (the Necromancer Skill Cards page,
 				// 2026-10-03: "Tint bone tooth according to type of dmg each mage is causing"). The bolt flies and lands as
@@ -2045,7 +2051,7 @@ bool MonsterRangedAttack(Monster &monster)
 					}
 				}
 			}
-			oracool::RiftBossExtraShots(monster, missileType, monster.var2);
+			oracool::RiftBossExtraShots(monster, missileType, rangedDamage);
 		}
 		PlayEffect(monster, MonsterSound::Attack);
 	}

@@ -6149,6 +6149,10 @@ void ProcessTeleport(Missile &missile)
 		StartStand(player, player._pdir);
 		ChangeLightOffset(player.lightId, {});
 	}
+	// The old walk path dropped whatever the mode (round 124 audit: a hero standing on a blocked path kept it through Vault or
+	// Leap, and walked the rest of it from the landing, back toward what she leapt from).
+	ClrPlrPath(player);
+	player.destAction = ACTION_NONE;
 	// His own companion or minion on the landing tile gives way, as it does to a walk: they shared a tile (round 20).
 	oracool::CompanionsMakeWay(player, *teleportDestination);
 

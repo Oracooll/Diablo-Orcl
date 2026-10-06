@@ -1465,7 +1465,11 @@ bool DoRangeAttack(Player &player)
 		if (check != SpellCheckResult::Success) {
 			if (check == SpellCheckResult::Fail_NoMana)
 				player.Say(ShortOfPriceSpeech(player, *bowSpell));
-			oracool::ArmArrowSkill(std::nullopt);
+			// A key's one-shot gives the held button its own skill back (round 124 audit: dropped, the button shot plain arrows after).
+			if (oracool::IsBowLatchOneShot())
+				oracool::DropOneShotBowLatch();
+			else
+				oracool::ArmArrowSkill(std::nullopt);
 			bowSpell = std::nullopt;
 		}
 	}
@@ -4610,6 +4614,14 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			LastMouseButtonSpellType = spellType;
 			LastMouseButtonAction = MouseActionType::Spell;
 			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, target);
+			return;
+		}
+		// Not a second throw queued while one is still armed for the swing in flight (round 124 audit: the first swing's release
+		// consumed the latch, and the queued one went out as a plain melee swing - in the bow's sheet, at melee range).
+		if (myPlayer._pmode == PM_ATTACK && oracool::ArmedJavelinThrow().has_value()) {
+			LastMouseButtonSpell = spellID;
+			LastMouseButtonSpellType = spellType;
+			LastMouseButtonAction = MouseActionType::Spell;
 			return;
 		}
 		oracool::ArmJavelinThrow(spellID, target);

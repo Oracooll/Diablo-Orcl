@@ -325,8 +325,12 @@ void FireArrowSkill(Player &player, RogueArrow arrow, Point target)
 	// leaves the player for a bow skill, and hold-to-fire reaches it many times per click.
 	const int cost = GetManaAmount(player, spell);
 	if (player._pMana < cost) {
-		// Degrade, do not jam: a plain arrow, and the latch dropped so the next shot does not ask.
-		ArmArrowSkill(std::nullopt);
+		// Degrade, do not jam: a plain arrow, and the latch dropped so the next shot does not ask - a key's one-shot back to the
+		// held button's own skill (round 124 audit).
+		if (IsBowLatchOneShot())
+			DropOneShotBowLatch();
+		else
+			ArmArrowSkill(std::nullopt);
 		AddMissile(player.position.tile, target, player._pdir, MissileID::Arrow, TARGET_MONSTERS,
 		    static_cast<int>(player.getId()), 4, 0);
 		if (&player == MyPlayer)
