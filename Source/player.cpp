@@ -1439,6 +1439,10 @@ bool DoAttack(Player &player)
 	return false;
 }
 
+/** Whether this shot's first release was a skill volley (round 126 audit): the second release frame asks this, not the live
+ * latch, which a key's one-shot has already given back to the held button by then. */
+bool SkillVolleyThisShot = false;
+
 bool DoRangeAttack(Player &player)
 {
 	int arrows = 0;
@@ -1454,7 +1458,7 @@ bool DoRangeAttack(Player &player)
 
 	// A bow skill looses its volley on the first release frame only: the multiple-arrows flag's second frame shoots
 	// nothing then, and wore the bow twice and counted a Grenadier shot for it (round 19 audit, v1.12.244).
-	if (arrows == 2 && &player == MyPlayer && (oracool::ArmedArrowSkill().has_value() || oracool::ArmedBowSkillSpell().has_value()))
+	if (arrows == 2 && &player == MyPlayer && SkillVolleyThisShot)
 		arrows = 0;
 
 	// An RfA-12 bow skill shot (v1.12.370) casts at the first release frame. One it can no longer pay for, or still cooling
@@ -1475,6 +1479,10 @@ bool DoRangeAttack(Player &player)
 			plainShot = true; // the held arrow skill given back fires from the next shot, not this one
 		}
 	}
+
+	// What the first release looses, kept for the second frame's question above.
+	if (arrows == 1 && &player == MyPlayer)
+		SkillVolleyThisShot = !plainShot && (oracool::ArmedArrowSkill().has_value() || bowSpell.has_value());
 
 	// Grenadier (Rogue, 2026-09-14) counts the shots this frame looses.
 	if (arrows > 0 && &player == MyPlayer)
@@ -3670,8 +3678,13 @@ void StartStand(Player &player, Direction dir)
 
 void StartPlrBlock(Player &player, Direction dir)
 {
-	if (&player == MyPlayer)
+	if (&player == MyPlayer) {
 		EndStaffLook(player);
+		// A throw interrupted by a block takes its latch with it, as a stagger's does (round 126 audit: kept, the next held swing
+		// threw at the old tile).
+		oracool::ArmArrowSkill(std::nullopt);
+		oracool::ArmWeaponThrow(std::nullopt);
+	}
 	if (player._pInvincible && player._pHitPoints == 0 && &player == MyPlayer) {
 		SyncPlrKill(player, DeathReason::Unknown);
 		return;

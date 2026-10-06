@@ -1303,7 +1303,8 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 							{
 								Item placedRightHandItem = holdItem; // AutoPlaceItemInInventory already placed this copy; remember its identity in case the next check fails and it needs undoing.
 								holdItem = player.InvBody[INVLOC_HAND_LEFT];
-								if (!AutoPlaceItemInInventory(player, holdItem, false)) {
+								// An empty left hand needs no room (round 126 audit: clear() keeps _iCurs, and the stale size refused the equip).
+								if (!holdItem.isEmpty() && !AutoPlaceItemInInventory(player, holdItem, false)) {
 									// No space for left item. Move back right item to right hand and abort.
 									// The earlier placement may have landed in an extra tab rather than
 									// InvList (AutoPlaceItemInInventory falls back there when tab 1 is
@@ -2141,6 +2142,7 @@ bool CanBePlacedOnBelt(const Item &item)
 	return FitsInBeltSlot(item)
 	    && item._itype != ItemType::Gold
 	    && item._iMiscId != IMISC_ORACOOL_MAP && item._iMiscId != IMISC_ORACOOL_KEYSTONE
+	    && item._iClass != ICLASS_QUEST // nor a quest item: their uses spend from the pack (round 126 audit)
 	    && MyPlayer->CanUseItem(item)
 	    && item.isUsable();
 }
@@ -2979,9 +2981,11 @@ bool AutoPlaceItemInInventorySlot(Player &player, int slotIndex, const Item &ite
 		yy += 10;
 	}
 
+	// Asked before the dry run passes too (round 126 audit: the probe said "fits" and the real placement refused, after the
+	// caller had committed its stack merges).
+	if (player._pNumInv >= InventoryGridCells)
+		return false; // never past the list (round 20 audit)
 	if (persistItem) {
-		if (player._pNumInv >= InventoryGridCells)
-			return false; // never past the list (round 20 audit)
 		player.InvList[player._pNumInv] = item;
 		player._pNumInv++;
 
@@ -3023,6 +3027,8 @@ bool AutoPlaceItemInExtraTabSlot(Player &player, int tabIndex, int slotIndex, co
 		yy += 10;
 	}
 
+	if (player._pNumInvTab[tabIndex] >= InventoryGridCells)
+		return false; // the probe as the placement (round 126 audit)
 	if (persistItem) {
 		int &numInv = player._pNumInvTab[tabIndex];
 		// Same capacity guard as the paste path: the grid said there was room, but the LIST is the
@@ -4692,12 +4698,19 @@ bool UseInvItem(int cii)
 	if (player.isOnLevel(0)) {
 		if (UseItemOpensHive(*item, player.position.tile)) {
 			OpenHive();
-			ConsumeUsedBackpackItem(player, c, item);
+			// From its own list (round 126 audit: a belt index removed backpack item c).
+			if (speedlist)
+				DecrementOrRemoveSpdBarItem(player, c);
+			else
+				ConsumeUsedBackpackItem(player, c, item);
 			return true;
 		}
 		if (UseItemOpensGrave(*item, player.position.tile)) {
 			OpenGrave();
-			ConsumeUsedBackpackItem(player, c, item);
+			if (speedlist)
+				DecrementOrRemoveSpdBarItem(player, c);
+			else
+				ConsumeUsedBackpackItem(player, c, item);
 			return true;
 		}
 	}
@@ -4816,6 +4829,8 @@ bool UseInvItem(int cii)
 	UseItem(player.getId(), item->_iMiscId, item->_iSpell, cii);
 
 	if (speedlist) {
+		if (player.SpdList[c]._iMiscId == IMISC_MAPOFDOOM)
+			return true; // kept, as from the pack (round 126 audit)
 		if (player.SpdList[c]._iMiscId == IMISC_NOTE) {
 			InitQTextMsg(TEXT_BOOK9);
 			CloseInventory();
