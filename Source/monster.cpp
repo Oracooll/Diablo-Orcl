@@ -103,6 +103,15 @@ bool *StunFlagOf(const Monster &monster)
 	const size_t id = monster.getId();
 	return id < StunnedBySkill.size() ? &StunnedBySkill[id] : nullptr;
 }
+} // namespace
+
+void SetMonsterStunnedBySkill(const Monster &monster, bool stunned)
+{
+	if (bool *flag = StunFlagOf(monster); flag != nullptr)
+		*flag = stunned && monster.mode == MonsterMode::Delay;
+}
+
+namespace {
 
 constexpr int NightmareToHitBonus = 85;
 constexpr int HellToHitBonus = 120;

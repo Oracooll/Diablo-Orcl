@@ -634,6 +634,9 @@ void ClearAllCurses()
 void ReleaseConfusedForLevelSave()
 {
 	for (size_t i = 0; i < Curses.size(); i++) {
+		// Attract's lured neighbours too (round 127 audit): they hunted the cursed one, whose curse the load forgets.
+		if (Curses[i].kind == CurseKind::Attract && Curses[i].ticks > 0)
+			AimHuntersAtHeroForLevelSave(i);
 		if (!Curses[i].turned)
 			continue;
 		Monsters[i].flags &= ~(MFLAG_BERSERK | MFLAG_GOLEM);

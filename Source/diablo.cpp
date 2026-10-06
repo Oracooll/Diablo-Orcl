@@ -4604,6 +4604,9 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 		else
 			ResyncQuests();
 	} else {
+		// Before the map's own monsters too (round 127 audit: LoadSetMap places them, a Luminous one lit for real, and the saved
+		// population replaced it with the light left burning where it stood).
+		SuppressMonsterLights = !(firstflag || lvldir == ENTRY_LOAD || !myPlayer._pSLvlVisited[setlvlnum] || gbIsMultiplayer);
 		LoadSetMap();
 		// The set level's tile properties BEFORE its monsters: a named encounter places its boss and pack by a random
 		// search that asks IsTileSolid, and read town's table - the boss could stand in a wall or out in the dirt past

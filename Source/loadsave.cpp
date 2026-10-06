@@ -961,7 +961,9 @@ void LoadMonster(LoadHelper *file, Monster &monster, MonsterConversionData *mons
 	// And two more of the same run for the name/tint roll - see Monster::lesserNameSeed for why that
 	// could not just be read off aiSeed. One byte of the original four is still spare.
 	monster.lesserNameSeed = file->NextLE<uint16_t>();
-	file->Skip(1); // Unused
+	// Oracool: a skill stun's flag, in the last spare byte of the run (round 127 audit). Read into a local: the stun table is
+	// cleared with the level, and set once the monster is whole (after its mode is read).
+	const bool stunnedBySkill = file->NextLE<uint8_t>() != 0;
 	monster.pathCount = file->NextLE<uint8_t>();
 	file->Skip(3); // Alignment
 	monster.position.tile.x = file->NextLE<int32_t>();
@@ -1061,6 +1063,7 @@ void LoadMonster(LoadHelper *file, Monster &monster, MonsterConversionData *mons
 
 	if (monster.mode == MonsterMode::Petrified)
 		monster.animInfo.isPetrified = true;
+	SetMonsterStunnedBySkill(monster, stunnedBySkill); // a skill stun still running, as it was saved (round 127)
 }
 
 /**
@@ -1858,7 +1861,7 @@ void SaveMonster(SaveHelper *file, Monster &monster, MonsterConversionData *mons
 	file->WriteLE<int32_t>(monster.goalVar3);
 	file->WriteLE<uint8_t>(static_cast<uint8_t>(monster.lesserAffix)); // was the first Unused byte
 	file->WriteLE<uint16_t>(monster.lesserNameSeed);                   // was the second and third
-	file->Skip(1);                                                     // Unused
+	file->WriteLE<uint8_t>(IsMonsterStunned(monster) ? 1 : 0);         // was the last Unused byte (round 127)
 	file->WriteLE<uint8_t>(monster.pathCount);
 	file->Skip(3); // Alignment
 	file->WriteLE<int32_t>(monster.position.tile.x);

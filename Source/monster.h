@@ -582,6 +582,8 @@ void StartRepelRetreat(Monster &monster, Direction away, int steps);
 void StunMonster(Monster &monster, int ticks);
 /** @brief Whether @p monster stands in a skill's stun - not merely an AI's own pause, which is the same Delay mode. */
 bool IsMonsterStunned(const Monster &monster);
+/** @brief Restores a saved skill stun's flag on a loaded monster (round 127 audit: unsaved, the stun's end gave a free attack). */
+void SetMonsterStunnedBySkill(const Monster &monster, bool stunned);
 void StartMonsterDeath(Monster &monster, const Player &player, bool sendmsg);
 void MonsterDeath(Monster &monster, Direction md, bool sendmsg);
 void KillMyGolem();

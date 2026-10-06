@@ -1465,6 +1465,12 @@ bool DoRangeAttack(Player &player)
 	// under a held button, drops its latch and looses a plain arrow, as an unpaid arrow skill does.
 	std::optional<SpellID> bowSpell = &player == MyPlayer ? oracool::ArmedBowSkillSpell() : std::nullopt;
 	bool plainShot = false; // this release looses a plain arrow, whatever latch comes back for the next (round 125 audit)
+	// The second release frame of a shot whose first loosed plain arrows looses plain ones too, not the live latch's nothing
+	// (round 127 audit: a latch given back by a key's one-shot fired no arrows there and still counted a Grenadier shot).
+	if (arrows == 2 && &player == MyPlayer) {
+		plainShot = true;
+		bowSpell = std::nullopt;
+	}
 	if (bowSpell.has_value() && arrows > 0 && player.AnimInfo.currentFrame == player._pAFNum - 1) {
 		const SpellCheckResult check = CheckSpell(player, *bowSpell, SpellType::Skill, /*manaonly=*/true);
 		if (check != SpellCheckResult::Success) {
