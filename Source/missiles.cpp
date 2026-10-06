@@ -6152,7 +6152,11 @@ void ProcessTeleport(Missile &missile)
 	// The old walk path dropped whatever the mode (round 124 audit: a hero standing on a blocked path kept it through Vault or
 	// Leap, and walked the rest of it from the landing, back toward what she leapt from).
 	ClrPlrPath(player);
-	player.destAction = ACTION_NONE;
+	// The action a click queued meanwhile stays when it builds its own way from wherever she stands - an attack, a shot, a spell
+	// (round 125 audit: Turning Pike's mid-swing pivot dropped the next click's attack); the walking ones go with their path.
+	if (IsNoneOf(player.destAction, ACTION_ATTACK, ACTION_RATTACK, ACTION_SPELL, ACTION_ATTACKMON, ACTION_ATTACKPLR, ACTION_RATTACKMON,
+	        ACTION_RATTACKPLR, ACTION_SPELLMON, ACTION_SPELLPLR, ACTION_SPELLWALL))
+		player.destAction = ACTION_NONE;
 	// His own companion or minion on the landing tile gives way, as it does to a walk: they shared a tile (round 20).
 	oracool::CompanionsMakeWay(player, *teleportDestination);
 

@@ -1460,6 +1460,7 @@ bool DoRangeAttack(Player &player)
 	// An RfA-12 bow skill shot (v1.12.370) casts at the first release frame. One it can no longer pay for, or still cooling
 	// under a held button, drops its latch and looses a plain arrow, as an unpaid arrow skill does.
 	std::optional<SpellID> bowSpell = &player == MyPlayer ? oracool::ArmedBowSkillSpell() : std::nullopt;
+	bool plainShot = false; // this release looses a plain arrow, whatever latch comes back for the next (round 125 audit)
 	if (bowSpell.has_value() && arrows > 0 && player.AnimInfo.currentFrame == player._pAFNum - 1) {
 		const SpellCheckResult check = CheckSpell(player, *bowSpell, SpellType::Skill, /*manaonly=*/true);
 		if (check != SpellCheckResult::Success) {
@@ -1471,6 +1472,7 @@ bool DoRangeAttack(Player &player)
 			else
 				oracool::ArmArrowSkill(std::nullopt);
 			bowSpell = std::nullopt;
+			plainShot = true; // the held arrow skill given back fires from the next shot, not this one
 		}
 	}
 
@@ -1495,7 +1497,7 @@ bool DoRangeAttack(Player &player)
 		// (oracool/rogue_arrows.h). The latch is only ever armed for the local player, and the
 		// skill decides its own count, so the multiple-arrows item flag's second shot is not fired
 		// on top of it - one skill, one volley.
-		if (const std::optional<oracool::RogueArrow> skill = oracool::ArmedArrowSkill();
+		if (const std::optional<oracool::RogueArrow> skill = plainShot ? std::nullopt : oracool::ArmedArrowSkill();
 		    skill.has_value() && &player == MyPlayer) {
 			// On the FIRST release frame only: Gnat Sting's multiple-arrows flag brings a second release frame, and the
 			// skill fired and was paid again on it (round 8 audit, v1.12.233).
@@ -4593,6 +4595,15 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// longer."): a staff swing in place toward the target, and ThrowArmedJavelin casts the skill at its hit frame. Out of
 	// reach, she walks toward it as a melee skill does; with shift, out of reach, nothing.
 	if (oracool::IsJavelinThrow(spellID) && spellType == SpellType::Skill) {
+		// Not a second throw queued while one is still armed for the swing in flight (rounds 124-125 audit: the first swing's
+		// release consumed the latch, and the queued one went out as a plain melee swing in the bow's sheet). Asked FIRST: the
+		// disarms below clear the throw latch too, and round 124's guard below them never fired.
+		if (myPlayer._pmode == PM_ATTACK && oracool::ArmedJavelinThrow().has_value()) {
+			LastMouseButtonSpell = spellID;
+			LastMouseButtonSpellType = spellType;
+			LastMouseButtonAction = MouseActionType::Spell;
+			return;
+		}
 		oracool::ArmMeleeSkill(std::nullopt);
 		oracool::ArmClassMeleeSkill(std::nullopt);
 		oracool::ArmRfa12Melee(std::nullopt);
@@ -4614,14 +4625,6 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			LastMouseButtonSpellType = spellType;
 			LastMouseButtonAction = MouseActionType::Spell;
 			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, target);
-			return;
-		}
-		// Not a second throw queued while one is still armed for the swing in flight (round 124 audit: the first swing's release
-		// consumed the latch, and the queued one went out as a plain melee swing - in the bow's sheet, at melee range).
-		if (myPlayer._pmode == PM_ATTACK && oracool::ArmedJavelinThrow().has_value()) {
-			LastMouseButtonSpell = spellID;
-			LastMouseButtonSpellType = spellType;
-			LastMouseButtonAction = MouseActionType::Spell;
 			return;
 		}
 		oracool::ArmJavelinThrow(spellID, target);
@@ -4718,6 +4721,13 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// Weapon Throw (Barbarian, user note 2026-09-14): the ordinary attack, in place, toward the cursor - and at the hit
 	// frame DoAttack throws the weapon instead of swinging it (oracool/weapon_throw.h).
 	if (oracool::IsWeaponThrow(spellID)) {
+		// The same for Weapon Throw's own latch (round 125 audit): a double click queued a plain swing behind the throw.
+		if (myPlayer._pmode == PM_ATTACK && oracool::IsWeaponThrowArmed()) {
+			LastMouseButtonSpell = spellID;
+			LastMouseButtonSpellType = spellType;
+			LastMouseButtonAction = MouseActionType::Spell;
+			return;
+		}
 		if (!oracool::CanThrowWeapon(myPlayer)) {
 			myPlayer.Say(HeroSpeech::ICantDoThat);
 			LastMouseButtonAction = MouseActionType::None; // said once, not at the hold's repeat rate (round 20 audit)
