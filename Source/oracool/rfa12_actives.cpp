@@ -5667,9 +5667,12 @@ bool IsCastWeaponBlow(SpellID spell)
 }
 } // namespace
 
-bool Rfa12ArmedSwingMovesItsTarget()
+bool Rfa12ArmedSwingMovesItsTarget(const Player &player)
 {
-	return ArmedSpell.has_value() && MovesItsTarget(*ArmedSpell);
+	// Only a swing that will really slam - paid and usable - holds the knockback back (round 123 audit: armed but unpaid, the
+	// blow landed plain and lost the item's push too).
+	const std::optional<SpellID> paid = PaidArmedRfa12Melee(player);
+	return paid.has_value() && MovesItsTarget(*paid);
 }
 
 bool Rfa12FieldPulseInFlight()

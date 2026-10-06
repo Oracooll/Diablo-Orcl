@@ -6241,6 +6241,7 @@ void SyncObjectAnim(Object &object)
 		const auto &found = std::find(std::begin(ObjFileList), std::begin(ObjFileList) + numobjfiles, index);
 		if (found == std::begin(ObjFileList) + numobjfiles) {
 			LogCritical("Unable to find object_graphic_id {} in list of objects to load, level generation error.", static_cast<int>(index));
+			object._oAnimData = std::nullopt; // as SetupObject: not a freed sheet from the slot's last level (round 123 audit)
 			return;
 		}
 

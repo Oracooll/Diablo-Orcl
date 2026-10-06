@@ -1854,7 +1854,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		// in MonsterMode::Death with positive hit points - a corpse the health bar says is alive.
 		// The Thorns block immediately below has carried exactly this guard, for exactly this
 		// reason, the whole time (audit, 2026-08-26).
-		if (monster.mode != MonsterMode::Death) {
+		if (monster.mode != MonsterMode::Death && (player._pHitPoints >> 6) > 0) { // nor from a dead hero, as Thorns (round 123)
 			oracool::OnCursedMonsterDealtBlow(monster, dam); // Iron Maiden (oracool/curses.h)
 		}
 		if (monster.mode != MonsterMode::Death) {
@@ -2023,12 +2023,14 @@ bool MonsterRangedAttack(Monster &monster)
 				    missileType,
 				    TARGET_PLAYERS,
 				    monster.getId(),
-				    monster.var2,
+				    // The stored roll with the damage percent, at the release in an int (round 123 audit: the Counselor's Firebolt carries
+				    // its own roll, and the scaled value in the int16 var2 had little headroom). A zero stays zero.
+				    static_cast<int>(static_cast<int64_t>(monster.var2) * oracool::RiftBossDamagePercent(monster) / 100),
 				    0);
 				if (shot == nullptr || !minionShot)
 					continue;
 				if (missileType == MissileID::ChargedBolt)
-					shot->_midam = monster.minDamage + GenerateRnd(monster.maxDamage - monster.minDamage + 1);
+					shot->_midam = (monster.minDamage + GenerateRnd(monster.maxDamage - monster.minDamage + 1)) * oracool::RiftBossDamagePercent(monster) / 100; // its overflow (round 123)
 				// Every mage's shot wears the Necromancer's bone tooth (sixteen facings) once that sheet is in, tinted in its
 				// element's colour - fire, lightning, poison; the bone mage's stays bone (the Necromancer Skill Cards page,
 				// 2026-10-03: "Tint bone tooth according to type of dmg each mage is causing"). The bolt flies and lands as
@@ -2058,6 +2060,9 @@ bool MonsterRangedAttack(Monster &monster)
 
 bool MonsterRangedSpecialAttack(Monster &monster)
 {
+	// The stored base (Diablo's 40) with the damage percent, in an int at the release (round 123 audit: scaled into the int8 var3
+	// it wrapped). 0 stays 0 - the others' missiles roll their own.
+	const int specialDamage = static_cast<int>(static_cast<int64_t>(monster.var3) * oracool::RiftBossDamagePercent(monster) / 100);
 	if (monster.animInfo.currentFrame == monster.data().animFrameNumSpecial - 1 && monster.animInfo.tickCounterOfCurrentFrame == 0 && (monster.ai != MonsterAIID::Mega || monster.var2 == 0)) {
 		if (AddMissile(
 		        monster.position.tile,
@@ -2066,13 +2071,13 @@ bool MonsterRangedSpecialAttack(Monster &monster)
 		        static_cast<MissileID>(monster.var1),
 		        TARGET_PLAYERS,
 		        monster.getId(),
-		        monster.var3,
+		        specialDamage,
 		        0)
 		    != nullptr) {
 			PlayEffect(monster, MonsterSound::Special);
 			// The acid spitters, the magma demons and the storms shoot through here (AiRangedAvoidance): a rift boss's fan and
 			// doubled bolt ride this shot too (audit, 2026-10-04: hooked into MonsterRangedAttack only, they never fired).
-			oracool::RiftBossExtraShots(monster, static_cast<MissileID>(monster.var1), monster.var3);
+			oracool::RiftBossExtraShots(monster, static_cast<MissileID>(monster.var1), specialDamage);
 		}
 	}
 
@@ -2305,7 +2310,12 @@ bool MonsterDelay(Monster &monster)
 
 	if (monster.var2-- == 0) {
 		int oFrame = monster.animInfo.currentFrame;
+		const bool stunned = IsMonsterStunned(monster);
 		M_StartStand(monster, monster.direction);
+		// A stun's end is no AI pause (round 123 audit): the skeleton, snake and Counselor AIs read var1 == Delay as "strike now",
+		// so every stun ended in a guaranteed blow or Flash.
+		if (stunned)
+			monster.var1 = static_cast<int>(MonsterMode::Stand);
 		monster.animInfo.currentFrame = oFrame;
 		return true;
 	}
@@ -2710,8 +2720,9 @@ void AiRangedAvoidance(Monster &monster)
 	if (IsAnyOf(monster.ai, MonsterAIID::Magma, MonsterAIID::Storm, MonsterAIID::BoneDemon) && monster.activeForTicks < UINT8_MAX)
 		MonstCheckDoors(monster);
 	int lessmissiles = (monster.ai == MonsterAIID::Acid) ? 1 : 0;
-	// Diablo's Apocalypse with his damage percent (round 122 audit: the rift faces' 150% and Torment's overflow never reached it).
-	int dam = (monster.ai == MonsterAIID::Diablo) ? 40 * oracool::RiftBossDamagePercent(monster) / 100 : 0;
+	// The base only: var3 is an int8, and the percent scaled in here wrapped past 127 to a 1-damage Apocalypse (round 123 audit).
+	// MonsterRangedSpecialAttack lays his damage percent on at the release, in an int.
+	int dam = (monster.ai == MonsterAIID::Diablo) ? 40 : 0;
 	MissileID missileType = GetMissileType(monster.ai);
 	int v = GenerateRnd(10000);
 	unsigned distanceToEnemy = monster.distanceToEnemy();
@@ -3465,7 +3476,7 @@ void CounselorAi(Monster &monster)
 				const int maxDamage = std::max<int>(oracool::PackAdjustedDamage(monster, monster.maxDamage), minDamage);
 				// With the overflow percent (user decisions audit: the Firebolt carried the byte roll alone, AddFirebolt recomputes only
 				// a zero) - every third cast of a Counselor-type boss hit at a fraction of his damage.
-				StartRangedAttack(monster, MissileTypes[monster.intelligence], (minDamage + GenerateRnd(maxDamage - minDamage + 1)) * oracool::RiftBossDamagePercent(monster) / 100);
+				StartRangedAttack(monster, MissileTypes[monster.intelligence], minDamage + GenerateRnd(maxDamage - minDamage + 1)); // the percent at the release
 			} else if (GenerateRnd(100) < 30) {
 				monster.goal = MonsterGoal::Move;
 				monster.goalVar1 = 0;
@@ -6198,7 +6209,8 @@ void MissToMonst(Missile &missile, Point position)
 	    && ((monster.flags | target->flags) & MFLAG_BERSERK) == 0)
 		return;
 
-	MonsterAttackMonster(monster, *target, 500, monster.minDamageSpecial, monster.maxDamageSpecial);
+	MonsterAttackMonster(monster, *target, 500, oracool::PackAdjustedDamage(monster, monster.minDamageSpecial),
+	    oracool::PackAdjustedDamage(monster, monster.maxDamageSpecial)); // with Might, as the charge at the hero (round 123)
 
 	if (IsAnyOf(monster.type().type, MT_NSNAKE, MT_RSNAKE, MT_BSNAKE, MT_GSNAKE))
 		return;

@@ -1124,7 +1124,7 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 		// Not under a swing that moves its target itself (round 122 audit: Aegis Slam's target was pushed off the tile its slam
 		// then looked on, and escaped the stun) - one push a blow, as Bash and Open Palm.
 		if (monster.mode != MonsterMode::Petrified && HasAnyOf(player._pIFlags, ItemSpecialEffect::Knockback)
-		    && !oracool::Rfa12ArmedSwingMovesItsTarget())
+		    && !oracool::Rfa12ArmedSwingMovesItsTarget(player))
 			M_GetKnockback(monster);
 		M_StartHit(monster, player, dam);
 	}
