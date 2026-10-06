@@ -14,6 +14,7 @@
 #include "options.h"
 #include "oracool/lesser_uniques.h"
 #include "player.h"
+#include "playerdat.hpp" // PlayersData - the hero_class column
 #include "utils/file_util.h" // OpenFile - UTF-8 paths
 #include "utils/paths.h"
 
@@ -32,8 +33,13 @@ uint32_t FirstHitAtMs[MaxMonsters];
 uint32_t GameTicks = 0;
 constexpr uint32_t MsPerTick = 50;
 
-/** @brief One id per process run, so rows from different sessions separate cleanly in analysis. */
+/**
+ * @brief One id per game (user, 2026-10-06: it was one per process run, so two heroes played in one run shared it):
+ * TelemetryStartSession clears it as each game starts, and the next row takes a fresh one.
+ */
 std::string SessionId;
+/** @brief The CSV's columns. hero_class was added last (user, 2026-10-06); a file with the older header is rotated. */
+constexpr char CsvHeader[] = "time,session,event,level,player_level,subject,value1,value2,hero_class\n";
 
 bool TelemetryEnabled()
 {
@@ -104,7 +110,20 @@ void FlushRows()
 	static uint32_t rotationFailedAtMs = 0;
 	if (rotationFailed && SDL_GetTicks() - rotationFailedAtMs >= RotationRetryMs)
 		rotationFailed = false;
-	if (!rotationFailed && std::ftell(file) > 16L * 1024 * 1024) {
+	// A file begun under the older header (no hero_class column) is rotated out once a run, so one file never mixes the two
+	// row shapes (user, 2026-10-06).
+	static bool headerChecked = false;
+	bool oldHeader = false;
+	if (!headerChecked && std::ftell(file) > 0) {
+		headerChecked = true;
+		if (FILE *head = OpenFile(path.c_str(), "rb"); head != nullptr) {
+			char firstLine[sizeof(CsvHeader)] {};
+			const size_t read = std::fread(firstLine, 1, sizeof(CsvHeader) - 1, head);
+			std::fclose(head);
+			oldHeader = read != sizeof(CsvHeader) - 1 || std::string(firstLine, read) != CsvHeader;
+		}
+	}
+	if (!rotationFailed && (oldHeader || std::ftell(file) > 16L * 1024 * 1024)) {
 		std::fclose(file);
 		const std::string old = paths::PrefPath() + "balance_telemetry.old.csv";
 		if (!ReplaceFileAtomically(path.c_str(), old.c_str())) {
@@ -118,10 +137,8 @@ void FlushRows()
 		}
 		std::fseek(file, 0, SEEK_END);
 	}
-	if (std::ftell(file) == 0) {
-		const char header[] = "time,session,event,level,player_level,subject,value1,value2\n";
-		std::fwrite(header, sizeof(header) - 1, 1, file);
-	}
+	if (std::ftell(file) == 0)
+		std::fwrite(CsvHeader, sizeof(CsvHeader) - 1, 1, file);
 
 	std::fwrite(PendingRows.data(), PendingRows.size(), 1, file);
 	std::fclose(file);
@@ -132,14 +149,24 @@ void AppendRow(const std::string &event, const std::string &subject, int value1,
 {
 	EnsureSessionId();
 	const int playerLevel = MyPlayer != nullptr ? MyPlayer->_pLevel : 0;
-	PendingRows += fmt::format("{:s},{:s},{:s},{:d},{:d},{:s},{:d},{:d}\n",
+	// The hero's class, untranslated, so a run's rows say whose they are (user, 2026-10-06).
+	const std::string heroClass = MyPlayer != nullptr && MyPlayer->_pClass <= HeroClass::LAST
+	    ? std::string(PlayersData[static_cast<size_t>(MyPlayer->_pClass)].className)
+	    : std::string();
+	PendingRows += fmt::format("{:s},{:s},{:s},{:d},{:d},{:s},{:d},{:d},{:s}\n",
 	    CurrentClock(), SessionId, event, currlevel, playerLevel,
-	    TelemetryEscapeCsvField(subject), value1, value2);
+	    TelemetryEscapeCsvField(subject), value1, value2, TelemetryEscapeCsvField(heroClass));
 	if (PendingRows.size() > 16384)
 		FlushRows();
 }
 
 } // namespace
+
+void TelemetryStartSession()
+{
+	// The rows already written carry the old id in their text; the next row takes a new one (user, 2026-10-06).
+	SessionId.clear();
+}
 
 std::string TelemetryEscapeCsvField(const std::string &field)
 {

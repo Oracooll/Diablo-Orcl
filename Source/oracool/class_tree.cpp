@@ -260,7 +260,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 3, 5, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Blunt"), N_("Blessed Hammer strikes 25% harder."),
 	    Pal, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Towering Shield"), N_("Smite and Blessed Shield strike 25% harder."),
+	// Smite's bonus takes +25 points, Blessed Shield's damage x1.25 - "25% harder" read the same for both (user, 2026-10-06).
+	{ N_("Towering Shield"), N_("Smite's damage bonus +25%; Blessed Shield strikes 25% harder."),
 	    Pal, 3, 5, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	// ---- RfA-12 skills (2026-09-13): the empty cells of the three class pages, from the final list ----
 	{ N_("Votive Strike"), N_("A blow at +30% damage, +8% per level. An enemy it kills leaves no corpse to raise."),
@@ -277,7 +278,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 4, 2, Kind::Active, SpellID::AegisSlam, true },
 	{ N_("Heaven's Descent"), N_("Leap up to 6 tiles to the cursor and land in a holy explosion: 8-16 magic damage to everything beside you, +4-6 per level."),
 	    Pal, 0, 5, 1, Kind::Active, SpellID::HeavensDescent, true },
-	{ N_("Wrath of the Heavens"), N_("Five pillars of light fall over 3 seconds, each on an enemy within 5 tiles: 10-20 magic damage, +4-7 per level."),
+	// One pillar every 0.6 seconds while an enemy is in reach, the storm gone after 6 (user, 2026-10-06: "over 3 seconds" read short).
+	{ N_("Wrath of the Heavens"), N_("Up to five pillars of light fall within 6 seconds, one every 0.6 seconds on an enemy within 5 tiles: 10-20 magic damage, +4-7 per level."),
 	    Pal, 0, 5, 2, Kind::Active, SpellID::WrathOfTheHeavens, true },
 	{ N_("Valor"), N_("Adds 3 damage to every blow, +2 per level."),
 	    Pal, 1, 0, 1, Kind::Aura, SpellID::Invalid, true },
@@ -319,7 +321,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Stun"), N_("A blow that leaves the target reeling for 1.5 seconds, +0.2 seconds per rank. Uniques shrug it off."), Bar, 0, 2, 0, Kind::Active, SpellID::Stun, true },
 	// User note, 2026-09-14: "We remove Double Throw ... but we need to keep single weapon throw ... using normal attack animation."
 	{ N_("Weapon Throw"), N_("Hurl the sword or axe in your hand at the enemy under the cursor, as an arrow flies: the weapon's damage and half your Strength bonus. It is back in your grip for the next blow."), Bar, 0, 2, 1, Kind::Active, SpellID::WeaponThrow, true },
-	{ N_("Leap Attack"), N_("Leap onto a distant enemy; the blow you land there is at +50% damage, +10% per rank."), Bar, 0, 3, 0, Kind::Active, SpellID::LeapAttack, true },
+	// Reworded to what it does - a leap to the cursor, the blow swung where he lands (user, 2026-10-06).
+	{ N_("Leap Attack"), N_("Leap toward the cursor, four tiles and a tile further every three ranks; the blow you swing where you land is at +50% damage, +10% per rank."), Bar, 0, 3, 0, Kind::Active, SpellID::LeapAttack, true },
 	{ N_("Concentrate"), N_("A focused blow at +50% damage, +10% per rank. The steadiness half is not built yet."), Bar, 0, 3, 1, Kind::Active, SpellID::Concentrate, true },
 	{ N_("Frenzy"), N_("Two swings in one attack's time, both at 100% damage, +10% per rank."), Bar, 0, 4, 0, Kind::Active, SpellID::Frenzy, true },
 	{ N_("Whirlwind"), N_("Hold the right button to spin toward the cursor at a run, striking everything beside you four times a second at 66% damage, +5% per rank, for 5 Rage a second."), Bar, 0, 5, 0, Kind::Active, SpellID::Whirlwind, true },
@@ -515,7 +518,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 3, 3, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Dominance"), N_("Every kill hardens you: 4% less damage taken for 5 seconds, stacking five high."),
 	    Sor, 3, 4, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Arcane Dynamo"), N_("Five spells costing 6 mana or less charge the next costlier spell: +60% damage to your spells and arrows for 3 seconds."),
+	// Reworded (user, 2026-10-06): the costlier spell releases the charge, and what follows it for 3 seconds is empowered.
+	{ N_("Arcane Dynamo"), N_("Five spells costing 6 mana or less charge it; a costlier spell then releases it, empowering the spells and arrows you loose after it: +60% damage for 3 seconds."),
 	    Sor, 3, 4, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Unstable Anomaly"), N_("Once a minute a killing blow leaves you standing at 33% of your life instead, and throws back everything within 2 tiles."),
 	    Sor, 3, 4, 2, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -546,13 +550,13 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 1, 0, 1, Kind::Active, SpellID::Arc, true },
 	{ N_("Static Charge"), N_("For 20 seconds, +2 per level, every enemy that strikes you in melee takes 2-10 lightning damage, +1-3 per level."),
 	    Sor, 1, 0, 2, Kind::Active, SpellID::StaticCharge, true },
-	{ N_("Lightning Ball"), N_("A ball of lightning rolls ahead for three seconds, striking the enemies near it with lightning."),
+	{ N_("Lightning Ball"), N_("A ball of lightning rolls ahead for three seconds, striking the enemies near it with lightning, +10% per level."),
 	    Sor, 1, 1, 2, Kind::Active, SpellID::BallLightning, true },
 	{ N_("Conduit"), N_("For 10 seconds: +20% faster cast rate, +2% per level to 60%, and your mana flows back."),
 	    Sor, 1, 2, 2, Kind::Active, SpellID::Conduit, true },
-	{ N_("Lightning Rod"), N_("Plants a rod for 12 seconds that strikes an enemy within 2 tiles with lightning once a second, and swallows the first enemy lightning missile to come near it and bursts: 4-14 lightning damage within 2 tiles, +2-5 per level."),
+	{ N_("Lightning Rod"), N_("Plants a rod for 12 seconds that strikes an enemy within 2 tiles with lightning once a second, +10% per level, and swallows the first enemy lightning missile to come near it and bursts: 4-14 lightning damage within 2 tiles, +2-5 per level."),
 	    Sor, 1, 3, 2, Kind::Active, SpellID::LightningRod, true },
-	{ N_("Faraday Ring"), N_("A ring for 4 seconds that destroys every enemy missile within 2 tiles of it and strikes an enemy within 2 tiles with lightning twice a second."),
+	{ N_("Faraday Ring"), N_("A ring for 4 seconds that destroys every enemy missile within 2 tiles of it and strikes an enemy within 2 tiles with lightning twice a second, +10% per level."),
 	    Sor, 1, 4, 2, Kind::Active, SpellID::FaradayRing, true },
 	{ N_("Storm Crucible"), N_("Cast once to place a conductor and again within 8 seconds to place its pair: lightning runs between them three times, 4-16 damage, +2-6 per level."),
 	    Sor, 1, 5, 1, Kind::Active, SpellID::StormCrucible, true },
@@ -873,7 +877,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 0, 3, 0, Kind::Active, SpellID::VaultingStrike, true, 5 },
 	{ N_("Wheel of Heaven"), N_("Every swing strikes everything around you at 66% damage, +5% per rank."),
 	    Monk, 0, 4, 0, Kind::Active, SpellID::WheelOfHeaven, true, 5 },
-	{ N_("Seven Reeds"), N_("Three blows in one swing, one more every three ranks up to seven; the extra blows at 60% damage."),
+	{ N_("Seven Reeds"), N_("Three blows in one swing, one more each rank up to seven; the extra blows at 60% damage."),
 	    Monk, 0, 5, 0, Kind::Active, SpellID::SevenReeds, true, 5 },
 	{ N_("Master of the Long Staff"), N_("Your mastery of the staff empowers every Way of the Staff skill. With a staff in hand: +10% damage and +15% to hit, +2% and +3% per rank."),
 	    Monk, 0, 5, 1, Kind::Passive, SpellID::Invalid, true, 5 },
@@ -882,13 +886,14 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 1, 0, 0, Kind::Active, SpellID::OpenPalm, true, 5 },
 	{ N_("Flowing Step"), N_("Move through battle with greater speed. One point makes you run rather than walk."),
 	    Monk, 1, 1, 0, Kind::Passive, SpellID::Invalid, true, 5 },
-	{ N_("Iron Robe"), N_("Discipline hardens your body while you wear light armour or none at all. Unarmoured: armour class by level, and blows land lighter. Light armour keeps 50% of it. Mail and plate switch it off."),
+	// No armour class of its own since 2026-10-06 (user): the Monk's unarmoured armour class by level is the class's, not this row's.
+	{ N_("Iron Robe"), N_("Discipline hardens your body while you wear light armour or none at all. Unarmoured, blows land 3 lighter, +3 per rank, to 20. Light armour keeps 50% of it. Mail and plate switch it off."),
 	    Monk, 1, 2, 0, Kind::Passive, SpellID::Invalid, true, 5 },
 	{ N_("Counterstroke"), N_("A block empowers your next melee blow within 3 seconds: +30% damage, +10% per level."),
 	    Monk, 1, 3, 0, Kind::Passive, SpellID::Invalid, true, 5 },
 	{ N_("Purifying Breath"), N_("Centre yourself: +20 to every resistance, +5 per rank, for 30 seconds, +5 per rank."),
 	    Monk, 1, 4, 0, Kind::Active, SpellID::PurifyingBreath, true, 5 },
-	{ N_("Hundred Fists"), N_("Four blows in one swing, one more every two ranks up to seven; the extra blows at 50% damage."),
+	{ N_("Hundred Fists"), N_("Four blows in one swing, one more each rank up to seven; the extra blows at 50% damage."),
 	    Monk, 1, 5, 0, Kind::Active, SpellID::HundredFists, true, 5 },
 	{ N_("Perfect Vessel"), N_("Your mastery of the body: +10% life, +2% per rank, and you shake off hits faster."),
 	    Monk, 1, 5, 1, Kind::Passive, SpellID::Invalid, true, 5 },
@@ -1146,7 +1151,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Nec, 3, 2, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Spreading Malediction"), N_("You deal 5% more damage for each cursed monster within six tiles, up to 30%."),
 	    Nec, 3, 3, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Eternal Torment"), N_("Your curses never run out; they end when the monster does."),
+	{ N_("Eternal Torment"), N_("Your curses never run out; they last until the monster dies or you leave the floor."),
 	    Nec, 3, 3, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Final Service"), N_("A blow that would kill you unmakes every minion you have instead, and leaves you a quarter of your life. Once a floor."),
 	    Nec, 3, 3, 2, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -1503,8 +1508,8 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 				// "3% per rank capped at 20%" is spent as points off each blow instead.
 				const int reduction = std::min(3 * points, 20);
 				totals.getHit -= unarmoured ? reduction : reduction / 2;
-				if (unarmoured)
-					totals.bonusArmor += 2 * player._pLevel;
+				// No armour class of its own: the engine already gives an unarmoured Monk +2 a level (CalcPlrItemVals), and
+				// this paid it a second time (user, 2026-10-06). The reduction grows each rank.
 			}
 		}
 		break;
@@ -1907,8 +1912,8 @@ constexpr LevelUpStat LevelUpStats[] = {
 	{ Skill::Cleansing, StatChannel::Vitality, 2, 1, 0, 0, 1 }, // the shortening stops at rank 15
 	{ Skill::StaticField, StatChannel::LightningResist, 3, 1, 0, 0, 1 }, // the share stops at rank 17
 	{ Skill::SweepingReed, StatChannel::DamagePercent, 6, 3, 0, 0, 1 },
-	{ Skill::SevenReeds, StatChannel::DamagePercent, 4, 2, 0, 0, 1 }, // a strike more every three ranks
-	{ Skill::HundredFists, StatChannel::Dexterity, 2, 1, 0, 0, 1 }, // a strike more every two ranks
+	{ Skill::SevenReeds, StatChannel::DamagePercent, 4, 2, 0, 0, 1 }, // a strike more each rank (2026-10-06)
+	{ Skill::HundredFists, StatChannel::Dexterity, 2, 1, 0, 0, 1 }, // a strike more each rank, to the cap (2026-10-06)
 	{ Skill::BreakingCurrent, StatChannel::ToHitPercent, 3, 1, 0, 0, 1 },
 	{ Skill::FlowingStep, StatChannel::MoveSpeed, 3, 1, 0, 0, 1 },
 	{ Skill::GatherTheDead, StatChannel::Life, 8, 3, 0, 0, 1 },
@@ -2893,7 +2898,9 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 		const int points = ClassTreeInvestment(player, skill);
 		if (points > 0) {
 			ApplyPassive(player, skill, ClassTreeRank(player, skill), totals); // Battle Command's rank too (2026-09-29)
-			ApplyLevelUpStat(skill, points, totals);
+			// Iron Fist's level-up damage under the passive's own condition: it landed with any weapon (user, 2026-10-06).
+			if (skill != Skill::IronFist || WieldingNoWeapon(player) || WieldingType(player, ItemType::Staff))
+				ApplyLevelUpStat(skill, points, totals);
 		}
 	}
 }
@@ -3317,10 +3324,10 @@ std::string ClassTreeAuraFactsAt(Skill aura, int points)
 }
 
 /** @brief Every module's rule-facts for a passive, each answering only for the rows whose rule it holds. */
-std::string PassiveRuleFactsAt(const Player &player, Skill skill, int points)
+std::string PassiveRuleFactsAt(const Player &player, Skill skill, int points, bool withCondition = true)
 {
 	std::string out;
-	if (const char *condition = PassiveConditionLine(skill); condition != nullptr)
+	if (const char *condition = PassiveConditionLine(skill); withCondition && condition != nullptr)
 		AddTooltipLine(out, std::string(_(condition)));
 	AddTooltipLine(out, ClassTreePassiveFactsAt(skill, points));
 	AddTooltipLine(out, PassiveFactsAt(player, skill, points));
@@ -3350,6 +3357,11 @@ std::string ClassTreeLevelUpLine(Skill skill, int points)
 	if (!line.empty() && GetClassTreeSkillData(skill).kind == Kind::Aura) {
 		line += ' ';
 		line.append(_("(while lit)"));
+	}
+	// Iron Fist's applies under its passive's condition (user, 2026-10-06).
+	if (!line.empty() && skill == Skill::IronFist) {
+		line += ' ';
+		line.append(_("(unarmed or with a staff)"));
 	}
 	return line;
 }
@@ -3385,6 +3397,11 @@ std::string ClassTreeRankBlock(const Player &player, Skill skill, int points)
 		ApplyAura(skill, working, totals);
 	else
 		ApplyPassive(player, skill, working, totals, /*assumeCondition=*/true);
+	// The Guardian's Path's condition is its sheet half's (the staff's mana), so it heads that line rather than sitting above
+	// the slip rule, which has a condition of its own (user, 2026-10-06).
+	const bool conditionLeadsSheet = skill == Skill::TheGuardiansPath;
+	if (const char *condition = PassiveConditionLine(skill); conditionLeadsSheet && condition != nullptr)
+		line(std::string(_(condition)) + ":");
 	line(DescribeBonusTotals(totals, "\n"));
 	line(ClassTreeLevelUpLine(skill, points));
 	if (data.kind == Kind::Aura) {
@@ -3397,7 +3414,7 @@ std::string ClassTreeRankBlock(const Player &player, Skill skill, int points)
 		if (AuraReachesMonsters(skill))
 			line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), AuraFieldRadius(skill, working)));
 	} else {
-		line(PassiveRuleFactsAt(player, skill, working));
+		line(PassiveRuleFactsAt(player, skill, working, /*withCondition=*/!conditionLeadsSheet));
 	}
 	return text;
 }

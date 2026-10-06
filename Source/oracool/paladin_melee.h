@@ -72,6 +72,19 @@ bool SwingsShieldAttackSheet(const Player &player);
 int MeleeHitFrame(const Player &player);
 
 /**
+ * @brief Fixes the local player's swing hit frame at the swing's start (StartAttack and each chained follow-up swing),
+ * returning it. MeleeHitFrame reads the live latches, so a mid-swing click that armed or dropped Shield Bash or Aegis
+ * Slam moved the frame DoAttack waited for - a blow added or lost (user, 2026-10-06).
+ */
+int SnapshotSwingHitFrame(const Player &player);
+
+/**
+ * @brief The hit frame of the swing in progress: the snapshot for the local player in PM_ATTACK, else MeleeHitFrame.
+ * DoAttack and the chain hand-over ask this (user, 2026-10-06).
+ */
+int SwingHitFrame(const Player &player);
+
+/**
  * @brief Runs the armed skill's extra effect for a swing that just connected.
  *
  * @p hitDamage is the damage the swing itself dealt. Every skill here scales from it rather than

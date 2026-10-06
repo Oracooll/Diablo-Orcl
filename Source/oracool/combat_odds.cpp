@@ -127,6 +127,14 @@ bool ChanceToHit(const Player &player, int &chance, std::string &name)
 	return true;
 }
 
+bool LastAttackerLevel(int &level)
+{
+	if (!LastAttacker.known)
+		return false;
+	level = LastAttacker.level;
+	return true;
+}
+
 void ClearCombatOdds()
 {
 	LastAttacker = {};

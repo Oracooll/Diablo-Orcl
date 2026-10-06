@@ -3,6 +3,7 @@
 #include "oracool/warcries.h" // IsMonsterConverted
 
 #include "oracool/minions.h"
+#include "oracool/endgame_boss.h" // FightsAsUnique - the taunts spare bosses (user, 2026-10-06)
 
 #include <algorithm>
 #include <array>
@@ -1133,6 +1134,10 @@ int CompanionTauntTarget(const Monster &monster)
 	// Nor a convert: it is on the companion's side (round 37 audit).
 	if (monster.isPlayerMinion() || IsMonsterConverted(monster) || (monster.hitPoints >> 6) <= 0)
 		return -1;
+	// Nor a unique, a champion, a Dread boss, Diablo or a rift guardian: the Decoy and the Spirit Guardian held them as
+	// they hold trash, which no other control in the fork does (user, 2026-10-06).
+	if (FightsAsUnique(monster))
+		return -1;
 	int best = -1;
 	int bestDistance = 0;
 	for (const Instance &inst : Instances) {
@@ -1584,6 +1589,9 @@ Rectangle HeaderRect()
 	return { Point { HudX, HudY }, Size { HudWidth, HeaderHeight } };
 }
 
+/** @brief The header held down: its label sinks 2px down-left until the release (user, 2026-10-06). */
+bool CompanionHeaderPressed = false;
+
 int MyCompanionCount()
 {
 	if (MyPlayer == nullptr)
@@ -1600,8 +1608,9 @@ void DrawCompanionHud(const Surface &out)
 	if (count == 0)
 		return;
 	DrawHalfTransparentRectTo(out, HudX, HudY, HudWidth, HeaderHeight + count * RowHeight + 4);
+	const Displacement sink = CompanionHeaderPressed ? Displacement { -2, 2 } : Displacement { 0, 0 }; // pressed face (user, 2026-10-06)
 	DrawString(out, fmt::format(fmt::runtime(_("Companions: {:s}")), _(StanceName(Stance))),
-	    Rectangle { Point { HudX + 4, HudY }, Size { HudWidth - 8, HeaderHeight } },
+	    Rectangle { Point { HudX + 4, HudY } + sink, Size { HudWidth - 8, HeaderHeight } },
 	    { UiFlags::VerticalCenter | UiFlags::FontSize12 | UiFlags::ColorWhitegold });
 
 	int y = HudY + HeaderHeight;
@@ -1649,11 +1658,21 @@ bool HandleCompanionHudClick(Point mouse)
 	if (MyPlayer == nullptr || MyCompanionCount() == 0 || !IsCornerHudShown() || !CompanionPanelRect().contains(mouse))
 		return false;
 	// The stance cycles on the header only; the rows take the click and do nothing.
-	if (HeaderRect().contains(mouse)) {
-		CycleCompanionStance();
-		AnnounceCompanionStance();
-	}
+	// Pressed here, acted on the release inside it (user, 2026-10-06: the stance changed on the press).
+	if (HeaderRect().contains(mouse))
+		CompanionHeaderPressed = true;
 	return true;
+}
+
+void ReleaseCompanionHeader(Point mouse)
+{
+	if (!CompanionHeaderPressed)
+		return;
+	CompanionHeaderPressed = false;
+	if (MyPlayer == nullptr || MyCompanionCount() == 0 || !IsCornerHudShown() || !HeaderRect().contains(mouse))
+		return;
+	CycleCompanionStance();
+	AnnounceCompanionStance();
 }
 
 } // namespace devilution::oracool

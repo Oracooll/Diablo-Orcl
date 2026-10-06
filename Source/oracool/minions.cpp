@@ -438,6 +438,12 @@ bool IsMinion(const Monster &monster)
 	return RecordOf(monster) != nullptr;
 }
 
+bool IsMageMinion(const Monster &monster)
+{
+	const Record *record = RecordOf(monster);
+	return record != nullptr && record->spec.group == MinionGroup::Mage;
+}
+
 const Player *MinionOwner(const Monster &monster)
 {
 	const Record *record = RecordOf(monster);
@@ -1005,6 +1011,9 @@ Rectangle HeaderRect()
 	return Rectangle { Point { HudX, HudY }, Size { HudWidth, HeaderHeight } };
 }
 
+/** @brief The header held down: its label sinks 2px down-left until the release (user, 2026-10-06). */
+bool MinionHeaderPressed = false;
+
 } // namespace
 
 void DrawMinionHud(const Surface &out)
@@ -1017,8 +1026,9 @@ void DrawMinionHud(const Surface &out)
 			rows++;
 	}
 	DrawHalfTransparentRectTo(out, HudX, HudY, HudWidth, HeaderHeight + rows * RowHeight + 4);
+	const Displacement sink = MinionHeaderPressed ? Displacement { -2, 2 } : Displacement { 0, 0 }; // pressed face (user, 2026-10-06)
 	DrawString(out, fmt::format(fmt::runtime(_("Army: {:s}")), _(CompanionStanceName())),
-	    Rectangle { Point { HudX + 4, HudY }, Size { HudWidth - 8, HeaderHeight } },
+	    Rectangle { Point { HudX + 4, HudY } + sink, Size { HudWidth - 8, HeaderHeight } },
 	    { UiFlags::VerticalCenter | UiFlags::FontSize12 | UiFlags::ColorWhitegold });
 
 	int y = HudY + HeaderHeight;
@@ -1080,11 +1090,22 @@ bool HandleMinionHudClick(Point mouse)
 {
 	if (MyPlayer == nullptr || MinionCount(*MyPlayer) == 0 || !IsCornerHudShown() || !MinionPanelRect().contains(mouse))
 		return false;
-	if (HeaderRect().contains(mouse)) { // the stance on the header; the rows take the click and do nothing
-		CycleCompanionStance();
-		AnnounceCompanionStance();
-	}
+	// The stance on the header, on the release inside it (user, 2026-10-06: it changed on the press); the rows take the click
+	// and do nothing.
+	if (HeaderRect().contains(mouse))
+		MinionHeaderPressed = true;
 	return true;
+}
+
+void ReleaseMinionHeader(Point mouse)
+{
+	if (!MinionHeaderPressed)
+		return;
+	MinionHeaderPressed = false;
+	if (MyPlayer == nullptr || MinionCount(*MyPlayer) == 0 || !IsCornerHudShown() || !HeaderRect().contains(mouse))
+		return;
+	CycleCompanionStance();
+	AnnounceCompanionStance();
 }
 
 } // namespace devilution::oracool

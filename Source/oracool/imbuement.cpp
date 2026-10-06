@@ -90,6 +90,19 @@ int Scaled(int value, int percent)
 	return scaled < 0 ? -magnitude : magnitude;
 }
 
+/**
+ * @brief Scaled for a stat stored in fractional units: the floor is one WHOLE point (@p unit), not one unit. Life and mana
+ * are 1/64ths, so Scaled's minimum of 1 paid 1/64 of a life point - nothing on the sheet (user, 2026-10-06).
+ */
+int ScaledWhole(int value, int percent, int unit)
+{
+	if (value == 0 || percent == 0)
+		return 0;
+	const int scaled = value * percent;
+	const int magnitude = std::max(unit, (std::abs(scaled) + 50) / 100);
+	return scaled < 0 ? -magnitude : magnitude;
+}
+
 } // namespace
 
 const ShardDefinition &ShardDef(ShardKind kind)
@@ -294,8 +307,9 @@ void ApplyImbuementsToTotals(const Item &item, ItemBonusTotals &totals)
 	totals.damageMod += Scaled(own.damageMod, percent);
 	totals.getHit += Scaled(own.getHit, percent);
 	totals.lightRadius += ScaledTier(own.lightRadius, percent);
-	totals.hitPoints += Scaled(own.hitPoints, percent);
-	totals.mana += Scaled(own.mana, percent);
+	// Life and mana are stored in 1/64ths: at least one whole point each (user, 2026-10-06).
+	totals.hitPoints += ScaledWhole(own.hitPoints, percent, 64);
+	totals.mana += ScaledWhole(own.mana, percent, 64);
 	totals.spellLevelAdd += ScaledTier(own.spellLevelAdd, percent);
 	totals.enhancedAccuracy += ScaledTier(own.enhancedAccuracy, percent);
 	totals.fireMin += Scaled(own.fireMin, percent);

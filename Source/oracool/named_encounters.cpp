@@ -13,7 +13,10 @@
 #include "multi.h"
 #include "portal.h" // a stale portal into the arena closes with it
 #include "engine/random.hpp"
+#include "inv.h" // RemoveExtraTabItem - the map spent at the boss's death
+#include "oracool/auto_save.h"
 #include "oracool/endgame_boss.h"
+#include "qol/stash.h"
 #include "oracool/event_log.h"
 #include "oracool/oracool.h"
 #include "player.h"
@@ -91,6 +94,50 @@ size_t IndexOf(NamedEncounter encounter)
 }
 
 // MakeRoomForGuaranteedReward lives in items.cpp since round 15: the quest drops need it too.
+
+/**
+ * @brief Takes ONE Sealed Map of @p encounter from @p player - backpack, its extra pages, belt, then stash - the map kept
+ * since its first read (user, 2026-10-06: "Keep the first map until the boss dies"). False when he carries none.
+ */
+bool SpendSealedMap(Player &player, NamedEncounter encounter)
+{
+	const int mapIdx = NamedEncounterMapItem(encounter);
+	const auto isIt = [mapIdx](const Item &item) {
+		return !item.isEmpty() && item._iMiscId == IMISC_ORACOOL_MAP && item.IDidx == mapIdx;
+	};
+	for (int i = 0; i < player._pNumInv; i++) {
+		if (isIt(player.InvList[i])) {
+			player.RemoveInvItem(i);
+			ScheduleAutoSaveForItemDrop();
+			return true;
+		}
+	}
+	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
+		for (int i = 0; i < player._pNumInvTab[t]; i++) {
+			if (isIt(player.InvTabList[t][i])) {
+				RemoveExtraTabItem(player, t, i);
+				ScheduleAutoSaveForItemDrop();
+				return true;
+			}
+		}
+	}
+	for (int i = 0; i < MaxBeltItems; i++) {
+		if (isIt(player.SpdList[i])) {
+			player.RemoveSpdBarItem(i);
+			ScheduleAutoSaveForItemDrop();
+			return true;
+		}
+	}
+	for (size_t i = 0; i < Stash.stashList.size(); i++) {
+		if (isIt(Stash.stashList[i])) {
+			Stash.RemoveStashItem(static_cast<StashStruct::StashCell>(i));
+			Stash.dirty = true;
+			ScheduleAutoSaveForStashChange();
+			return true;
+		}
+	}
+	return false;
+}
 
 } // namespace
 
@@ -229,7 +276,7 @@ bool EnterNamedEncounter(Player &player, NamedEncounter encounter)
 	if (!IsSinglePlayer())
 		return false;
 	// From TOWN only. The arena command allows arena-to-arena travel; this deliberately does not -
-	// the map is consumed on use, and hopping between encounters without passing through town would
+	// the map is consumed when the guardian dies (since 2026-10-06), and hopping between encounters without passing through town would
 	// make it possible to be in one with no way back if anything ever went wrong with the exit.
 	if (!player.isOnLevel(0))
 		return false;
@@ -254,7 +301,7 @@ bool EnterNamedEncounter(Player &player, NamedEncounter encounter)
 	// wounded as he was - on the same seed if its save could not be read. No fresh instance, no new seed, the portal kept.
 	if (NamedEncounterReentryIsFree(encounter)) {
 		setlvltype = NamedEncounterDungeon(encounter);
-		LogEvent(std::string(_("The sealed way still stands open - the map is kept.")));
+		LogEvent(std::string(_("The sealed way still stands open.")));
 		StartNewLvl(player, WM_DIABSETLVL, level);
 		return true;
 	}
@@ -276,6 +323,8 @@ bool EnterNamedEncounter(Player &player, NamedEncounter encounter)
 	static uint32_t arenasEntered = 0;
 	ArenaEntrySeed = (static_cast<uint32_t>(AdvanceRndSeed()) ^ SDL_GetTicks() ^ (++arenasEntered * 0x9E3779B9U)) | 1U; // this entry's population (SeedArenaPopulation)
 	OpenArena = encounter;
+	// The map stays with the hero until this arena's guardian dies (user, 2026-10-06): AwardNamedEncounter spends it.
+	LogEvent(std::string(_("The sealed map opens the way - it is kept until the guardian dies.")));
 	StartNewLvl(player, WM_DIABSETLVL, level);
 	return true;
 }
@@ -306,8 +355,13 @@ void AwardNamedEncounter(const Monster &monster)
 		return;
 	if (!IsEndgameBoss(monster))
 		return;
-	if (OpenArena == encounter) // this arena's, not another kept open meanwhile (user decisions audit)
-		OpenArena.reset(); // its boss is down: the next map of the kind opens a new arena, and is spent
+	if (OpenArena == encounter) { // this arena's, not another kept open meanwhile (user decisions audit)
+		OpenArena.reset(); // its boss is down: the next map of the kind opens a new arena
+		// The map is spent NOW, not at the read (user, 2026-10-06: "Keep the first map until the boss dies"): one map of
+		// this kind leaves the hero. None left on him (dropped, sold) - nothing to take.
+		if (MyPlayer != nullptr && SpendSealedMap(*MyPlayer, encounter))
+			LogEvent(std::string(_("The sealed map crumbles - its guardian is dead.")));
+	}
 
 	// "Guaranteed" has to survive a full floor. Audit finding, 2026-08-26: this used to return
 	// silently at the item cap, and the boss's ORDINARY loot is spawned first - so the one drop the
@@ -325,7 +379,7 @@ void AwardNamedEncounter(const Monster &monster)
 	}
 
 	// GUARANTEED, which is the whole point of a named encounter - the map said what it pays and a
-	// roll here would make that a lie. The map is already spent by the time this runs.
+	// roll here would make that a lie. The map was spent just above (since 2026-10-06; it used to go at the read).
 	//
 	// Through SpawnQuestItem rather than by hand: the placement helpers it uses are file-local to
 	// items.cpp, and this is the public door that already means "put exactly this item on the floor

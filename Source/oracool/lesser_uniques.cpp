@@ -475,10 +475,17 @@ void OnLesserUniqueKilled(Monster &monster)
 		{ { 4, 0 }, { 4, 1 }, { 4, 2 }, { 4, 3 }, { 4, 4 }, { 3, 4 }, { 2, 4 }, { 1, 4 }, { 0, 4 } }
 	};
 	const Point centre = monster.position.tile;
+	// The champion's own bolts, not a trap's (user, 2026-10-06): a death by them reads its name, Half Trap Damage does not
+	// halve them, and its escort - its own side - is spared. It is dying here, which a monster's shot survives: the hero
+	// path asks liveSourceMonster (the slot still holds this spawn until the body is gone) and OnMonsterMissileLanded
+	// skips a dead shooter's on-hit traits.
+	const int source = static_cast<int>(monster.getId());
 	for (const WorldTileDisplacement quarter : QuarterRadius) {
 		for (const WorldTileDisplacement offset : { quarter, quarter.flipXY(), quarter.flipX(), quarter.flipY() }) {
-			AddMissile(centre, centre + offset, Direction::South, MissileID::MiniNovaBall, TARGET_PLAYERS, -1,
+			Missile *bolt = AddMissile(centre, centre + offset, Direction::South, MissileID::MiniNovaBall, TARGET_PLAYERS, source,
 			    static_cast<int>(std::min<int64_t>(MonsterEffectiveDamage(monster, monster.maxDamage), INT_MAX / 2)), 0); // its real damage (user decisions audit)
+			if (bolt != nullptr)
+				bolt->_miUniqTrans = 0; // the ring keeps its own colours, not the champion's tint
 		}
 	}
 }

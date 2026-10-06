@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <vector>
 
 #include <fmt/core.h>
 #include <fmt/format.h>
@@ -621,7 +622,46 @@ void ClrAllMonsters()
  * below is the same step, and a second copy of it would be a second place for the escort scaling,
  * the tint and the name seed to drift.
  */
-void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int packSize, bool boss = false)
+/**
+ * @brief The free walkable tile farthest (in steps) from @p origin among those a walk from it reaches - visibility ignored.
+ * For an arena whose every free tile was in sight of the arrival: CanPlaceMonster refused them all and the boss was never
+ * placed (user, 2026-10-06). nullopt when nothing is free.
+ */
+std::optional<Point> FarthestFreeTileFrom(Point origin)
+{
+	if (!InDungeonBounds(origin))
+		return std::nullopt;
+	std::vector<int> dist(static_cast<size_t>(MAXDUNX) * MAXDUNY, -1);
+	const auto at = [](Point p) { return static_cast<size_t>(p.x) * MAXDUNY + static_cast<size_t>(p.y); };
+	std::vector<Point> queue;
+	queue.reserve(static_cast<size_t>(MAXDUNX) * MAXDUNY);
+	queue.push_back(origin);
+	dist[at(origin)] = 0;
+	std::optional<Point> best;
+	int bestDist = -1;
+	for (size_t head = 0; head < queue.size(); head++) {
+		const Point p = queue[head];
+		const int d = dist[at(p)];
+		if (d > bestDist && p != origin && !IsTileOccupied(p) && !TileContainsSetPiece(p)) {
+			best = p;
+			bestDist = d;
+		}
+		for (int dx = -1; dx <= 1; dx++) {
+			for (int dy = -1; dy <= 1; dy++) {
+				const Point n = p + Displacement { dx, dy };
+				if ((dx == 0 && dy == 0) || !InDungeonBounds(n) || dist[at(n)] >= 0 || !IsTileWalkable(n, /*ignoreDoors=*/true))
+					continue;
+				dist[at(n)] = d + 1;
+				queue.push_back(n);
+			}
+		}
+	}
+	return best;
+}
+
+/** @p fallbackFrom: where an arena's boss goes when no hidden tile is free - the farthest free tile from it (user, 2026-10-06). */
+void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int packSize, bool boss = false,
+    std::optional<Point> fallbackFrom = std::nullopt)
 {
 	// A champion is worth several ordinary monsters, but is still something a player at this depth is
 	// meant to beat. Three times the health is the felt difference; damage rises more gently, because
@@ -637,9 +677,14 @@ void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int 
 
 	const auto &uniqueMonsterData = UniqueMonstersData[static_cast<size_t>(uniqindex)];
 	const size_t typeIndex = GetMonsterTypeIndex(uniqueMonsterData.mtype);
-	const std::optional<Point> spot = GetUniqueMonstPosition(uniqindex);
+	std::optional<Point> spot = GetUniqueMonstPosition(uniqindex);
+	// An arena small enough to be all in sight: the farthest free tile from the arrival, seen or not (user, 2026-10-06).
+	if (!spot && fallbackFrom)
+		spot = FarthestFreeTileFrom(*fallbackFrom);
 	if (!spot) {
 		LogWarn("PlaceLesserUniqueMonst: no free tile for unique {:d} - not placed", static_cast<int>(uniqindex));
+		if (fallbackFrom)
+			oracool::LogEvent(std::string(_("The guardian found no room to stand - the arena is empty.")), UiFlags::ColorRed);
 		return; // a full floor drops the champion rather than hang (round 49 audit)
 	}
 	const Point position = *spot;
@@ -771,7 +816,8 @@ void PlaceNamedEncounter()
 	if (ActiveMonsterCount + oracool::BossPackSize() + 1 > MaxEnemyMonsters - 10)
 		return;
 
-	PlaceLesserUniqueMonst(*choice, typeIndex, oracool::BossPackSize(), /*boss=*/true);
+	// With the arrival as the fallback's origin: a room all in sight of it refused every tile (user, 2026-10-06).
+	PlaceLesserUniqueMonst(*choice, typeIndex, oracool::BossPackSize(), /*boss=*/true, /*fallbackFrom=*/ViewPosition);
 	// No one in the room is immune to fire, lightning and magic at once, as no rift guardian is (round 77 audit: The Ember
 	// Vault's Obsidian Lords on Hell were, boss and escort - a caster could not earn the map's charm).
 	constexpr uint16_t AllThree = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
@@ -1670,6 +1716,10 @@ void MonsterAttackMonster(Monster &attacker, Monster &target, int hper, int mind
 		target.tag(*armyOwner);
 		oracool::OnMinionBlow(attacker, target, dam);
 		oracool::OnCursedMonsterStruck(target, Players[armyOwner->getId()], &attacker, dam); // Life Tap
+	} else if (oracool::IsMonsterConverted(attacker) && MyPlayer != nullptr) {
+		// A convert's kill is the Paladin's, as the army's is its owner's: tagged by no one, its kills paid no experience
+		// (user, 2026-10-06). Single-player: the one who converted it is the hero at the keyboard.
+		target.tag(*MyPlayer);
 	}
 	if (oracool::IsMinion(target)) {
 		oracool::OnMinionStruck(target, attacker, dam);
@@ -2018,8 +2068,8 @@ bool MonsterRangedAttack(Monster &monster)
 		const MissileID missileType = oracool::RiftBossShotType(monster, static_cast<MissileID>(monster.var1));
 		if (missileType != MissileID::Null) {
 			// Oracool (2026-09-26): a Skeletal Mage's shot is ONE missile at its own damage, whatever its element.
-			// Firebolt, Acid and Arrow already roll the shooter's min-max; a monster's Charged Bolt is three bolts of a
-			// flat 15, so a mage's single bolt is given the same min-max roll the other three elements make.
+			// Firebolt, Acid and Arrow already roll the shooter's min-max; a monster's Charged Bolt is three bolts (each its
+			// caster's roll since 2026-10-06, AddChargedBolt), and a mage's single bolt is given the min-max roll here.
 			const bool minionShot = oracool::IsMinion(monster);
 			// The stored roll with the damage percent, at the release in an int (round 123 audit: the Counselor's Firebolt carries its
 			// own roll, and the scaled value in the int16 var2 had little headroom). A zero stays zero. The extra shots get the same.
@@ -2050,8 +2100,9 @@ bool MonsterRangedAttack(Monster &monster)
 				// element's colour - fire, lightning, poison; the bone mage's stays bone (the Necromancer Skill Cards page,
 				// 2026-10-03: "Tint bone tooth according to type of dmg each mage is causing"). The bolt flies and lands as
 				// its own missile still: the firebolt's burst, the charged bolt's spark, the acid's splash.
+				// A mage's only: a revived archer or caster looses its own kind's shot as it did in life (user, 2026-10-06).
 				if (IsAnyOf(missileType, MissileID::Arrow, MissileID::Firebolt, MissileID::ChargedBolt, MissileID::Acid)
-				    && MissileArtLoaded(MissileGraphicID::BoneTooth)) {
+				    && oracool::IsMageMinion(monster) && MissileArtLoaded(MissileGraphicID::BoneTooth)) {
 					shot->_miAnimType = MissileGraphicID::BoneTooth;
 					SetMissDir(*shot, GetDirection16(monster.position.tile, monster.enemyPosition));
 					if (missileType != MissileID::Arrow) {
@@ -5185,7 +5236,10 @@ void M_StartHit(Monster &monster, const Player &player, int dam)
 	oracool::NoteOwnerStruck(player, monster); // the companions' focus
 	// Phase 0.9: the time-to-kill clock starts at the first player hit that connects.
 	oracool::TelemetryRecordFirstHit(monster);
-	if (IsHardHit(monster, dam)) {
+	// A companion's blow or arrow is credited to the hero but leaves the monster on whoever it fights: a hard hit turned it
+	// onto the hero, off the Valkyrie or the Ancient that struck it (user, 2026-10-06), as a minion's blow never does
+	// (MinionHurts). StrikeFor and CheckMissileCol raise the flag for exactly those blows.
+	if (IsHardHit(monster, dam) && !oracool::IsCompanionBlowInFlight()) {
 		monster.enemy = player.getId();
 		monster.enemyPosition = player.position.future;
 		monster.flags &= ~MFLAG_TARGETS_MONSTER;
@@ -6690,7 +6744,8 @@ unsigned int Monster::exp(_difficulty difficulty) const
 	}
 
 	if (isUnique()) {
-		monsterExp *= 2;
+		// A Dread boss carries eight times its trash's life; x2 paid a quarter of the fight (user, 2026-10-06).
+		monsterExp *= lesserAffix == LesserUniqueAffix::Dread ? 4 : 2;
 	}
 
 	return monsterExp;
@@ -6699,7 +6754,9 @@ unsigned int Monster::exp(_difficulty difficulty) const
 unsigned int Monster::level(_difficulty difficulty) const
 {
 	unsigned int baseLevel = data().level;
-	if (isUnique()) {
+	// A champion or Dread boss borrows a unique's shape, not its home floor: it is levelled as an ordinary one of its
+	// type on this floor, so a deep unique's mlevel no longer lifts its to-hit, block and XP (user, 2026-10-06).
+	if (isUnique() && lesserAffix == LesserUniqueAffix::None) {
 		baseLevel = UniqueMonstersData[static_cast<size_t>(uniqueType)].mlevel; // not int8: negative past 127 rows (round 83 audit)
 		if (baseLevel != 0) {
 			baseLevel *= 2;

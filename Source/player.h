@@ -1265,6 +1265,18 @@ bool AttributeTakesStatPoints(const Player &player, CharacterAttribute attribute
 void RestoreStaggeredSwingLatches();
 /** @brief A fresh press: what a stagger cleared is not this press's. */
 void ForgetStaggeredSwingLatches();
+/**
+ * @brief A quick-cast key's melee skill is one swing's (user, 2026-10-06): QuickCast notes the latches before the key's
+ * CheckPlrSpell and marks what the key armed after it; the swing that strikes with it puts back what was armed before
+ * when it ends (DoAttack), and a stagger or block stashes the held latches, not the key's.
+ */
+void NoteMeleeLatchesBeforeKey();
+void MarkMeleeLatchOneShotIfKeyArmed();
+void DropOneShotMeleeLatch();
+/** @brief Whether a swing has struck with a key's one-shot melee latch: the next swing start or swing end drops it. */
+bool HasStruckOneShotMeleeLatch();
+/** @brief A new game: no key's one-shot melee latch carries over (statics outlive the game). */
+void ForgetOneShotMeleeLatch();
 void ModifyPlrStr(Player &player, int l);
 void ModifyPlrMag(Player &player, int l);
 void ModifyPlrDex(Player &player, int l);

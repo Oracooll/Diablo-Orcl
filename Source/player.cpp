@@ -401,6 +401,11 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 		return;
 	}
 
+	// A held attack starts its next swing past the hit frame, before the key's swing reached its end: the key's melee latch
+	// was one swing's (user, 2026-10-06). First, before anything below reads the latches for this swing.
+	if (&player == MyPlayer && HasStruckOneShotMeleeLatch())
+		DropOneShotMeleeLatch();
+
 	// Oracool: a furious-charge dash resolves into this swing - end the dash and start the
 	// cooldown here so it fires regardless of whether the target was already adjacent (no walk
 	// needed) or reached after several walk steps.
@@ -465,15 +470,17 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 	// Double Swing and Frenzy compress the same way, two swings to one attack's time (2026-09-29).
 	if (&player == MyPlayer)
 		oracool::BeginClassMeleeSwing();
+	// The hit frame fixed for this swing: DoAttack reads the snapshot, so a click mid-swing cannot move it (user, 2026-10-06).
+	const int swingHitFrame = oracool::SnapshotSwingHitFrame(player);
 	skippedAnimationFrames = static_cast<int8_t>(std::min<int>(
 	    skippedAnimationFrames + oracool::ZealSwingSkipFrames(player) + oracool::ClassMeleeSwingSkipFrames(player)
 	        - oracool::HeavenlyStrengthSwingDelayFrames(player),
-	    std::max(0, oracool::MeleeHitFrame(player) - 2)));
+	    std::max(0, swingHitFrame - 2)));
 	const player_graphic swing = oracool::SwingsShieldAttackSheet(player) ? player_graphic::ShieldAttack
 	    : bashesWithShield                                             ? player_graphic::Block
 	                                                                   : player_graphic::Attack;
 	NewPlrAnim(player, swing, d,
-	    animationFlags, skippedAnimationFrames, oracool::MeleeHitFrame(player));
+	    animationFlags, skippedAnimationFrames, swingHitFrame);
 	player._pmode = PM_ATTACK;
 	FixPlayerLocation(player, d);
 	SetPlayerOld(player);
@@ -910,6 +917,85 @@ void RestoreStaggeredSwingLatches()
 		oracool::ArmBowSkillSpell(*latches.bowSpell);
 }
 
+namespace {
+
+/** @brief The three melee swing latches, as one value (user, 2026-10-06). */
+struct MeleeLatchSet {
+	std::optional<oracool::PaladinSkill> paladin;
+	std::optional<oracool::ClassMeleeSkill> classMelee;
+	std::optional<SpellID> rfa12;
+	bool operator==(const MeleeLatchSet &) const = default;
+	[[nodiscard]] bool any() const { return paladin || classMelee || rfa12; }
+};
+
+MeleeLatchSet CurrentMeleeLatches()
+{
+	return { oracool::ArmedMeleeSkill(), oracool::ArmedClassMeleeSkill(), oracool::ArmedRfa12Melee() };
+}
+
+/**
+ * A melee skill fired from a quick-cast key is one swing's, as a key's bow shot is (user, 2026-10-06): left armed, a held
+ * plain attack carried it - and paid for it - on every swing after. The key's latches, what was armed under them, and
+ * whether a swing has struck with them yet (a key pressed past the current swing's hit frame belongs to the next swing).
+ */
+MeleeLatchSet MeleeLatchesBeforeKey;
+bool MeleeKeyOneShot = false;
+bool MeleeKeyStruck = false;
+MeleeLatchSet MeleeKeyHeld;
+MeleeLatchSet MeleeKeyArmed;
+
+} // namespace
+
+void NoteMeleeLatchesBeforeKey()
+{
+	MeleeLatchesBeforeKey = CurrentMeleeLatches();
+}
+
+void MarkMeleeLatchOneShotIfKeyArmed()
+{
+	const MeleeLatchSet now = CurrentMeleeLatches();
+	if (!now.any() || now == MeleeLatchesBeforeKey)
+		return;
+	// A second key before the first one's swing resolved keeps the hold's own latches underneath, not the first key's.
+	if (!MeleeKeyOneShot)
+		MeleeKeyHeld = MeleeLatchesBeforeKey;
+	MeleeKeyOneShot = true;
+	MeleeKeyStruck = false;
+	MeleeKeyArmed = now;
+}
+
+void DropOneShotMeleeLatch()
+{
+	if (!MeleeKeyOneShot)
+		return;
+	MeleeKeyOneShot = false;
+	MeleeKeyStruck = false;
+	const MeleeLatchSet held = MeleeKeyHeld;
+	MeleeKeyHeld = {};
+	// Something re-armed since the key (a click of its own): that latch is not the key's to take back.
+	if (CurrentMeleeLatches() != MeleeKeyArmed)
+		return;
+	// As RestoreStaggeredSwingLatches: the class swing first, its arming drops the RfA-12 one.
+	oracool::ArmClassMeleeSkill(held.classMelee);
+	oracool::ArmRfa12Melee(held.rfa12);
+	if (!oracool::IsFuriousChargeDashing())
+		oracool::ArmMeleeSkill(held.paladin);
+}
+
+bool HasStruckOneShotMeleeLatch()
+{
+	return MeleeKeyOneShot && MeleeKeyStruck;
+}
+
+void ForgetOneShotMeleeLatch()
+{
+	MeleeKeyOneShot = false;
+	MeleeKeyStruck = false;
+	MeleeKeyHeld = {};
+	MeleeKeyArmed = {};
+	MeleeLatchesBeforeKey = {};
+}
+
 HeroSpeech ShortOfPriceSpeech(const Player &player, SpellID spell); // below CheckPlrSpell; DoRangeAttack says it too
 
 namespace {
@@ -1238,7 +1324,8 @@ bool DoAttack(Player &player)
 {
 	// Oracool: MeleeHitFrame, not _pAFNum - a Shield Bash borrows the shorter block animation and
 	// lands its blow earlier. See oracool/paladin_melee.h.
-	const int hitFrame = oracool::MeleeHitFrame(player);
+	// SwingHitFrame: the frame fixed when the swing started, not the live latch (user, 2026-10-06).
+	const int hitFrame = oracool::SwingHitFrame(player);
 	if (player.AnimInfo.currentFrame == hitFrame - 2) {
 		// Oracool: a skill with its own swing sound plays it instead of the whoosh - one sound.
 		if (!oracool::PlayArmedSwingCue(player))
@@ -1252,6 +1339,9 @@ bool DoAttack(Player &player)
 	} else if (player.AnimInfo.currentFrame == hitFrame - 1 && ThrowArmedJavelin(player)) {
 		// A javelin throw: this staff swing let the skill go instead of striking (2026-10-04).
 	} else if (player.AnimInfo.currentFrame == hitFrame - 1) {
+		// This swing struck with a key's one-shot melee latch: its end gives the hold its own latches back (user, 2026-10-06).
+		if (&player == MyPlayer && MeleeKeyOneShot)
+			MeleeKeyStruck = true;
 		Point position = player.position.tile + player._pdir;
 		Monster *monster = FindMonsterAtPosition(position);
 		// Where the blow's fire and lightning burst: the tile in front, or the enemy Long Reach took - the burst hits only
@@ -1413,6 +1503,8 @@ bool DoAttack(Player &player)
 		}
 
 		if (didhit && DamageWeapon(player, 30)) {
+			if (&player == MyPlayer && MeleeKeyStruck)
+				DropOneShotMeleeLatch(); // the swing is over (user, 2026-10-06)
 			StartStand(player, player._pdir);
 			ClearStateVariables(player);
 			return true;
@@ -1423,7 +1515,7 @@ bool DoAttack(Player &player)
 	// frames - that is what fits N swings inside 150% of ONE attack (user spec, 2026-08-15). The
 	// burst's final swing finds no chain to continue and plays its recovery out through the
 	// isLastFrame path below, so the flurry ends on a complete motion.
-	if (player.AnimInfo.currentFrame >= oracool::MeleeHitFrame(player) && (oracool::TryContinueZealChain(player) || oracool::TryContinueClassMeleeChain(player)))
+	if (player.AnimInfo.currentFrame >= hitFrame && (oracool::TryContinueZealChain(player) || oracool::TryContinueClassMeleeChain(player)))
 		return false;
 
 	if (player.AnimInfo.isLastFrame()) {
@@ -1431,6 +1523,9 @@ bool DoAttack(Player &player)
 		// compressed chain swing) must still hand over.
 		if (oracool::TryContinueZealChain(player) || oracool::TryContinueClassMeleeChain(player))
 			return false;
+		// The key's swing (and any chain it threw) is over: the held attack goes on with its own latches (user, 2026-10-06).
+		if (&player == MyPlayer && MeleeKeyStruck)
+			DropOneShotMeleeLatch();
 		StartStand(player, player._pdir);
 		ClearStateVariables(player);
 		return true;
@@ -1673,14 +1768,22 @@ void DamageArmor(Player &player)
 bool DoSpell(Player &player)
 {
 	if (player.AnimInfo.currentFrame == player._pSFNum) {
-		CastSpell(
-		    player.getId(),
-		    player.executedSpell.spellId,
-		    player.position.tile.x,
-		    player.position.tile.y,
-		    player.position.temp.x,
-		    player.position.temp.y,
-		    player.executedSpell.spellLevel);
+		// The scroll or the staff charge it is cast from is asked again at the cast frame (user, 2026-10-06): moved off during
+		// the animation (to the hand, the stash, the ground, the staff off the arm), ConsumeScroll and ConsumeStaffCharge found
+		// nothing to take and the spell went free. Gone, the cast ends without effect.
+		const SpellID castSpell = player.executedSpell.spellId;
+		const bool sourceGone = (player.executedSpell.spellType == SpellType::Scroll && !CanUseScroll(player, castSpell))
+		    || (player.executedSpell.spellType == SpellType::Charges && !CanUseStaff(player, castSpell));
+		if (!sourceGone) {
+			CastSpell(
+			    player.getId(),
+			    castSpell,
+			    player.position.tile.x,
+			    player.position.tile.y,
+			    player.position.temp.x,
+			    player.position.temp.y,
+			    player.executedSpell.spellLevel);
+		}
 
 		if (IsAnyOf(player.executedSpell.spellType, SpellType::Scroll, SpellType::Charges)) {
 			EnsureValidReadiedSpell(player);
@@ -3682,14 +3785,58 @@ void StartStand(Player &player, Direction dir)
 	SetPlayerOld(player);
 }
 
+namespace {
+
+/**
+ * @brief The local player's swing was interrupted (a stagger, or a block - user, 2026-10-06: a block mid-swing kept the
+ * melee latches, and the next plain swing carried and paid the interrupted skill): every swing latch goes, the held button's
+ * stashed for its next repeat.
+ */
+void ClearSwingLatchesOnInterrupt()
+{
+	oracool::ResetZealChain();
+	// Every swing latch with it: the swing they were armed for is over. A throw armed and then interrupted threw at the
+	// next skill's hit frame, on another floor or in the next game (round 5 audit, v1.12.230).
+	// Except a Charge still dashing: its approach resumes after the stagger and its paid-for blow lands then - the
+	// latch cleared here made it a plain swing with the mana spent and the cooldown run (round 16 audit, v1.12.241).
+	// Remembered for the held button, which re-arms them at its next repeat (round 60 audit: a held Bash, Frenzy, Zeal or
+	// Cleave went on as plain swings after the first stagger - no bonus, no knockback, no Rage). Not a Charge, whose arming
+	// is its dash; not the throw (round 5).
+	// Only while a button is held (round 61 audit: a pad's plain attack later took the stash), and a second stagger in
+	// hit recovery adds to it rather than wiping it with the latches the first one cleared.
+	if (sgbMouseDown != CLICK_NONE || ControllerActionHeld != GameActionType_NONE) {
+		// A key's one-shot melee latch is not the held button's either (user, 2026-10-06): what was armed under it is kept.
+		const MeleeLatchSet melee = MeleeKeyOneShot ? MeleeKeyHeld : CurrentMeleeLatches();
+		// The latches armed now, whole - never mixed with an older stash, which made two families armed at once (round 62
+		// audit: a quick-cast between two staggers). Nothing armed (a second hit in recovery) keeps the stash as it is.
+		const std::optional<oracool::PaladinSkill> paladin = melee.paladin != oracool::PaladinSkill::Charge ? melee.paladin : std::nullopt;
+		// Not a key's one-shot bow latch (round 96 audit): kept for the held button it became the button's, and every held shot
+		// cast and paid for the key's skill again.
+		// What the held button had under it is kept instead (round 97 audit: it was lost, and the hold shot plain arrows).
+		const bool keyShot = oracool::IsBowLatchOneShot();
+		const std::optional<oracool::RogueArrow> arrow = keyShot ? oracool::HeldArrowUnderKeyShot() : oracool::ArmedArrowSkill();
+		const std::optional<SpellID> bowSpell = keyShot ? oracool::HeldBowSpellUnderKeyShot() : oracool::ArmedBowSkillSpell();
+		if (paladin || melee.classMelee || melee.rfa12 || arrow || bowSpell)
+			StaggeredSwingLatches = { paladin, melee.classMelee, melee.rfa12, true, arrow, bowSpell };
+	}
+	ForgetOneShotMeleeLatch(); // the latches it guarded go now
+	if (!oracool::IsFuriousChargeDashing())
+		oracool::ArmMeleeSkill(std::nullopt);
+	oracool::ArmArrowSkill(std::nullopt);
+	oracool::ArmClassMeleeSkill(std::nullopt);
+	oracool::ArmRfa12Melee(std::nullopt);
+	oracool::ArmWeaponThrow(std::nullopt);
+}
+
+} // namespace
+
 void StartPlrBlock(Player &player, Direction dir)
 {
 	if (&player == MyPlayer) {
 		EndStaffLook(player);
 		// A throw interrupted by a block takes its latch with it, as a stagger's does (round 126 audit: kept, the next held swing
-		// threw at the old tile).
-		oracool::ArmArrowSkill(std::nullopt);
-		oracool::ArmWeaponThrow(std::nullopt);
+		// threw at the old tile). The melee latches too, stashed for a held button as a stagger does (user, 2026-10-06).
+		ClearSwingLatchesOnInterrupt();
 	}
 	if (player._pInvincible && player._pHitPoints == 0 && &player == MyPlayer) {
 		SyncPlrKill(player, DeathReason::Unknown);
@@ -3767,37 +3914,8 @@ void StartPlrHit(Player &player, int dam, bool forcehit)
 	// resuming inside whatever the player does next. Placed after the two early returns above: a
 	// blow too small to stagger this character does not interrupt anything, so it must not disarm
 	// the chain either. See oracool::ResetZealChain.
-	if (&player == MyPlayer) {
-		oracool::ResetZealChain();
-		// Every swing latch with it: the swing they were armed for is over. A throw armed and then interrupted threw at the
-		// next skill's hit frame, on another floor or in the next game (round 5 audit, v1.12.230).
-		// Except a Charge still dashing: its approach resumes after the stagger and its paid-for blow lands then - the
-		// latch cleared here made it a plain swing with the mana spent and the cooldown run (round 16 audit, v1.12.241).
-		// Remembered for the held button, which re-arms them at its next repeat (round 60 audit: a held Bash, Frenzy, Zeal or
-		// Cleave went on as plain swings after the first stagger - no bonus, no knockback, no Rage). Not a Charge, whose arming
-		// is its dash; not the throw (round 5).
-		// Only while a button is held (round 61 audit: a pad's plain attack later took the stash), and a second stagger in
-		// hit recovery adds to it rather than wiping it with the latches the first one cleared.
-		if (sgbMouseDown != CLICK_NONE || ControllerActionHeld != GameActionType_NONE) {
-			// The latches armed now, whole - never mixed with an older stash, which made two families armed at once (round 62
-			// audit: a quick-cast between two staggers). Nothing armed (a second hit in recovery) keeps the stash as it is.
-			const std::optional<oracool::PaladinSkill> paladin = oracool::ArmedMeleeSkill() != oracool::PaladinSkill::Charge ? oracool::ArmedMeleeSkill() : std::nullopt;
-			// Not a key's one-shot bow latch (round 96 audit): kept for the held button it became the button's, and every held shot
-			// cast and paid for the key's skill again.
-			// What the held button had under it is kept instead (round 97 audit: it was lost, and the hold shot plain arrows).
-			const bool keyShot = oracool::IsBowLatchOneShot();
-			const std::optional<oracool::RogueArrow> arrow = keyShot ? oracool::HeldArrowUnderKeyShot() : oracool::ArmedArrowSkill();
-			const std::optional<SpellID> bowSpell = keyShot ? oracool::HeldBowSpellUnderKeyShot() : oracool::ArmedBowSkillSpell();
-			if (paladin || oracool::ArmedClassMeleeSkill() || oracool::ArmedRfa12Melee() || arrow || bowSpell)
-				StaggeredSwingLatches = { paladin, oracool::ArmedClassMeleeSkill(), oracool::ArmedRfa12Melee(), true, arrow, bowSpell };
-		}
-		if (!oracool::IsFuriousChargeDashing())
-			oracool::ArmMeleeSkill(std::nullopt);
-		oracool::ArmArrowSkill(std::nullopt);
-		oracool::ArmClassMeleeSkill(std::nullopt);
-		oracool::ArmRfa12Melee(std::nullopt);
-		oracool::ArmWeaponThrow(std::nullopt);
-	}
+	if (&player == MyPlayer)
+		ClearSwingLatchesOnInterrupt();
 
 	NewPlrAnim(player, player_graphic::Hit, pd, AnimationDistributionFlags::None, skippedAnimationFrames);
 
@@ -4627,6 +4745,13 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		oracool::ArmClassMeleeSkill(std::nullopt);
 		oracool::ArmRfa12Melee(std::nullopt);
 		oracool::ArmArrowSkill(std::nullopt);
+		// A bow is not thrown: with one in hand the throw rolled the bow's damage. Refused at the click, as the Monk's cast
+		// weapon blows are (user, 2026-10-06).
+		if (oracool::Rfa12LacksBowFor(myPlayer, spellID)) {
+			myPlayer.Say(HeroSpeech::ICantDoThat);
+			LastMouseButtonAction = MouseActionType::None; // said once, not at tick rate under a held button
+			return;
+		}
 		const SpellCheckResult check = CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/false);
 		if (check != SpellCheckResult::Success) {
 			myPlayer.Say(check == SpellCheckResult::Fail_NoMana ? ShortOfPriceSpeech(myPlayer, spellID) : HeroSpeech::ICantDoThat);
@@ -4656,7 +4781,7 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	}
 
 	// Vault is a rapid teleport with no cast animation (the Rogue Skill Cards page, 2026-10-04: "does not require playing
-	// cast sprite sheet. to evacuate from bad spots"): the click casts it at once, three times inside three seconds before
+	// cast sprite sheet. to evacuate from bad spots"): the click casts it at once, three times inside fifteen seconds (2026-10-06) before
 	// its cooldown (CastRfa12Active counts them).
 	if (spellID == SpellID::Vault && spellType == SpellType::Skill) {
 		LastMouseButtonAction = MouseActionType::None;
@@ -5506,8 +5631,10 @@ int SkillBlowItemDamage(Player &player, Monster &monster, int damage, bool melee
 	if (melee) {
 		if (HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::Devastation) && GenerateRnd(100) < 5)
 			dam *= 3;
-		if (HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::Doppelganger) && monster.type().type != MT_DIABLO && !monster.isUnique()
-		    && !oracool::FightsAsUnique(monster) && GenerateRnd(100) < 10)
+		// Rolled on a skill's own blow only, not on each of a burst's (user, 2026-10-06): every Earthquake pulse and every
+		// Thousand Reeds target rolled its 10% - a cast's first landed blow rolls, its side blows and a field's pulses do not.
+		if (HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::Doppelganger) && !oracool::Rfa12SideBlowInFlight() && !oracool::Rfa12FieldPulseInFlight()
+		    && monster.type().type != MT_DIABLO && !monster.isUnique() && !oracool::FightsAsUnique(monster) && GenerateRnd(100) < 10)
 			AddDoppelganger(monster);
 		if (HasAnyOf(player.pDamAcFlags, ItemSpecialEffectHf::Jesters)) {
 			int r = GenerateRnd(201);

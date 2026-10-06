@@ -184,7 +184,7 @@ bool TownerHasQuestNews(const Towner &towner)
 	case TOWN_BMAID:
 		// TalkToBarmaid, towners.cpp:477: the Cathedral Map, before the Crypt is entered.
 		return !player._pLvlVisited[21] && HasItem(player, IDI_MAPOFDOOM)
-		    && Quests[Q_GRAVE]._qmsg != TEXT_GRAVE8;
+		    && Quests[Q_GRAVE]._qmsg != TEXT_GRAVE8 && Quests[Q_GRAVE]._qactive != QUEST_DONE; // as TalkToBarmaid (user, 2026-10-06)
 	case TOWN_HEALER:
 		return HealerHasNews(player);
 	case TOWN_STORY:

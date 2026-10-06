@@ -67,6 +67,13 @@ void BlinkMonster(const Monster &monster, int ticks);
 bool Rfa12LacksBowFor(const Player &player, SpellID spell);
 /** @brief Whether a ground field's pulse (Earthquake) is striking now - its blows earn no per-blow Rage (round 114). */
 bool Rfa12FieldPulseInFlight();
+/** @brief Whether a burst's side blow (a swing's extra blows, a cast's after its first, a field pulse) is striking now. */
+bool Rfa12SideBlowInFlight();
+/**
+ * @brief A swing's side blow on @p monster at @p blowPercent of a fresh weapon blow (StrikeBlow): the per-target passives and
+ * the items' on-hit effects apply as on every RfA-12 side blow (Hammer of Faith's splash, user, 2026-10-06).
+ */
+void StrikeSideWeaponBlow(Player &player, Monster &monster, int blowPercent);
 
 /** @brief Whether @p spell is swung on the RfA-12 melee latch rather than cast. */
 bool IsRfa12Melee(SpellID spell);

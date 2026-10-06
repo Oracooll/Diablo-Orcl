@@ -109,7 +109,8 @@ bool EnterNamedEncounter(Player &player, NamedEncounter encounter);
 
 /**
  * @brief Whether a map of @p encounter would re-enter the arena it opened before - entered, its boss still standing - rather than
- * open a new one (user, 2026-10-05: "Re-enter free"). Such a read keeps the map. Ask BEFORE EnterNamedEncounter.
+ * open a new one (user, 2026-10-05: "Re-enter free"). Ask BEFORE EnterNamedEncounter. Since 2026-10-06 no read spends the
+ * map: AwardNamedEncounter takes one map of the kind from the hero when the open arena's guardian dies.
  */
 bool NamedEncounterReentryIsFree(NamedEncounter encounter);
 
@@ -135,7 +136,8 @@ bool IsNamedEncounterBoss(const Monster &monster);
 /** @brief Seeds an arena's population from this entry's own seed (called by LoadGameLevel after its map loads). */
 void SeedArenaPopulation();
 
-/** @brief Pays @p encounter's reward at @p monster's feet. Called once, on the boss's death. */
+/** @brief Pays @p encounter's reward at @p monster's feet, and spends one map of the kind if this is the open arena
+ * (user, 2026-10-06). Called once, on the boss's death. */
 void AwardNamedEncounter(const Monster &monster);
 
 } // namespace devilution::oracool

@@ -209,6 +209,7 @@ void StartGame(interface_mode uMsg)
 		oracool::ResetAutoSave();
 		// Same reason as the autosave clock: session state must not leak from the previous hero.
 		oracool::ResetGradualHealing();
+		oracool::TelemetryStartSession(); // one telemetry session a game, not a program run (user, 2026-10-06)
 	}
 	CalcViewportGeometry();
 	cineflag = false;
@@ -281,6 +282,7 @@ void FreeGame()
 	oracool::ArmClassMeleeSkill(std::nullopt);
 	oracool::ForgetLeapAttackPrepaid(); // a disarm keeps it (round 62); a new game does not
 	ForgetStaggeredSwingLatches();
+	ForgetOneShotMeleeLatch(); // a key's one-swing melee latch (user, 2026-10-06)
 	oracool::ArmRfa12Melee(std::nullopt);
 	oracool::ArmWeaponThrow(std::nullopt);
 	// And Zeal's burst holds raw Monster POINTERS into the monster array this teardown is about to
@@ -679,6 +681,10 @@ void LeftMouseDown(uint16_t modState)
 		NewCursor(CURSOR_HAND);
 		return;
 	}
+	// A Telekinesis cursor over a window is kept, not spent: its mana went at the cast, and TryIconCurs below spent it on
+	// nothing under the window (user, 2026-10-06). The click is the window's to ignore; aim it at the world.
+	if (pcurs == CURSOR_TELEKINESIS && IsOverAnyInterface(MousePosition))
+		return;
 
 	if (!isOverHud) {
 		if (!gmenu_is_active() && !TryIconCurs()) {
@@ -913,6 +919,8 @@ void LeftMouseUp(uint16_t modState)
 	oracool::ReleaseHudMenuButtons();      // and the burger menu's icons and the belt's Menu, Portal and Run cells (round 75)
 	oracool::ReleaseShopTabButton();       // and the vendor tab the player was holding down (2026-09-21)
 	oracool::ReleaseShopServiceButton();   // and Griswold's six service buttons (2026-09-21)
+	oracool::ReleaseCompanionHeader(MousePosition); // and the companion and army stance headers (user, 2026-10-06)
+	oracool::ReleaseMinionHeader(MousePosition);
 	ReleaseInventoryTabButton();           // and the backpack tabs, the last strip to act on the press
 }
 
@@ -1081,6 +1089,8 @@ void RightMouseDown(bool isShiftHeld)
 		NewCursor(CURSOR_HAND);
 		return;
 	}
+	if (pcurs == CURSOR_TELEKINESIS && IsOverAnyInterface(MousePosition))
+		return; // kept for the world, not spent on the window (user, 2026-10-06)
 	if (TryIconCurs())
 		return;
 	if (isShiftHeld && pcursinvitem != -1 && TryStartStackSplit(pcursinvitem))
@@ -1652,7 +1662,9 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				// consumed
 			} else if (oracool::HandleCraftingMenuScroll(1)) {
 				// consumed
-			} else if (stextflag != TalkID::None) {
+			} else if (stextflag != TalkID::None && (!oracool::IsShopTab(stextflag) || oracool::IsPointOverShop(MousePosition))) {
+				// Over the shop panel only (user, 2026-10-06): the docked shop moved its selection wherever the cursor was. A
+				// towner's dialog is modal and keeps the whole wheel, as its clicks do.
 				StoreUp();
 			} else if (QuestLogIsOpen && IsOverLeftPanel(MousePosition)) { // the window under the cursor (round 43 audit)
 				QuestlogUp();
@@ -1715,8 +1727,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				// consumed
 			} else if (oracool::HandleCraftingMenuScroll(-1)) {
 				// consumed
-			} else if (stextflag != TalkID::None) {
-				StoreDown();
+			} else if (stextflag != TalkID::None && (!oracool::IsShopTab(stextflag) || oracool::IsPointOverShop(MousePosition))) {
+				StoreDown(); // over the shop panel only - see the wheel-up branch above
 			} else if (QuestLogIsOpen && IsOverLeftPanel(MousePosition)) {
 				QuestlogDown();
 			} else if (HelpFlag) {
@@ -3324,26 +3336,17 @@ void InitPadmapActions()
 	    N_("Close menus."),
 	    ControllerButton_BUTTON_A,
 	    [] {
-		    if (DoomFlag) {
-			    doom_close();
-			    return;
-		    }
-
-		    GameAction action;
-		    if (spselflag)
-			    action = GameAction(GameActionType_TOGGLE_QUICK_SPELL_MENU);
-		    else if (invflag)
-			    action = GameAction(GameActionType_TOGGLE_INVENTORY);
-		    else if (sbookflag)
-			    action = GameAction(GameActionType_TOGGLE_SPELL_BOOK);
-		    else if (QuestLogIsOpen)
-			    action = GameAction(GameActionType_TOGGLE_QUEST_LOG);
-		    else if (chrflag)
-			    action = GameAction(GameActionType_TOGGLE_CHARACTER_INFO);
-		    ProcessGameAction(action);
+		    // As Escape (user, 2026-10-06): the top window first, Orcl's included - the pad closed only the vanilla panels, under
+		    // a bench or a book still up. PressEscKey closes one window a press, Doom's map included.
+		    PressEscKey();
 	    },
 	    nullptr,
-	    [] { return DoomFlag || spselflag || invflag || sbookflag || QuestLogIsOpen || chrflag; });
+	    [] {
+		    return DoomFlag || spselflag || invflag || sbookflag || QuestLogIsOpen || chrflag
+		        || oracool::IsSkillPickerOpen() || oracool::IsHudMenuOpen() || oracool::IsStonegateMenuOpen()
+		        || oracool::IsAdvancedStatsOpen() || oracool::IsWorkshopOpen() || oracool::IsLevskiRoarOpen()
+		        || oracool::IsRunewordBookOpen() || IsLeftPanelOpen();
+	    });
 	sgOptions.Padmapper.AddAction(
 	    "MoveUp",
 	    N_("Move up"),
@@ -4231,8 +4234,18 @@ bool PressEscKey()
 		return true;
 	}
 	// The benches and the books. The key is spent even when a close refuses (a full pack keeps the window up, and says so).
+	// The Mystic's reroll offer over her bench: Escape keeps the item as it was and leaves the bench up (user, 2026-10-06).
+	if (oracool::IsWorkshopOfferOpen()) {
+		oracool::DismissWorkshopOffer();
+		return true;
+	}
 	if (oracool::IsWorkshopOpen()) {
 		oracool::CloseWorkshop();
+		return true;
+	}
+	// The Salvage question on Griswold's page: withdrawn alone, the page stays (user, 2026-10-06).
+	if (oracool::IsSalvageConfirmPending()) {
+		oracool::CancelSalvageConfirm();
 		return true;
 	}
 	if (oracool::IsLevskiRoarOpen()) {

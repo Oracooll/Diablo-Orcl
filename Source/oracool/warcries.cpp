@@ -2,6 +2,7 @@
 #include "oracool/endgame_boss.h" // round 100: SightLineClear / FightsAsUnique
 #include "oracool/corpses.h"
 #include "oracool/rage.h" // UsesRage - Find Potion's mana half
+#include "oracool/sat_math.h" // AddPercentSat - the cries' damage passives (user, 2026-10-06)
 
 #include <algorithm>
 #include <array>
@@ -210,31 +211,40 @@ void Repel(Monster &monster, Point from, int distance)
 	StartRepelRetreat(monster, GetDirection(from, monster.position.tile), distance);
 }
 
-void Stagger(Monster &monster, int ticks)
+/** @brief Stuns @p monster for @p ticks; false when it shrugs it off (a cry pays only for what it moves, user, 2026-10-06). */
+bool Stagger(Monster &monster, int ticks)
 {
-	if (ShrugsOff(monster) || monster.mode == MonsterMode::Petrified)
-		return;
+	if (ShrugsOff(monster) || monster.mode == MonsterMode::Petrified || monster.hitPoints >> 6 <= 0)
+		return false;
 	StunMonster(monster, ticks);
+	return true;
 }
 
-void Strike(Player &player, Monster &monster, int damage, bool holy = false)
+/** @brief A cry's strike; true when it landed damage. */
+bool Strike(Player &player, Monster &monster, int damage, bool holy = false)
 {
 	if (damage <= 0 || monster.hitPoints >> 6 <= 0)
-		return;
+		return false;
 	// Magic, so magic immunity and resistance answer, as the RfA-12 Strike asks (round 7 audit, v1.12.232). HOLY light on
 	// an undead answers to neither, Holy Bolt's rule (StrikeHoly): 21 of the 27 undead are immune to magic, and Temple
 	// Bell's strike reached almost none of the undead it names (round 20 audit, v1.12.245).
 	if (!holy && monster.isImmune(MissileID::Null, DamageType::Magic))
-		return;
+		return false;
 	if (!holy && monster.isResistant(MissileID::Null, DamageType::Magic))
 		damage >>= 2;
+	// The damage-dealt passives and the on-hit ones, as an aura's pulse takes them (AuraStrike): War Cry, Sound Shock and
+	// Temple Bell skipped every one (user, 2026-10-06).
+	damage = AddPercentSat(damage, PassiveDamageDealtPercent(player, monster, /*melee=*/false) + Rfa12DamageDealtPercent(player, monster, /*melee=*/false));
 	if (damage <= 0)
-		return;
+		return false;
 	ApplyMonsterDamage(DamageType::Magic, monster, damage);
+	if (&player == MyPlayer)
+		OnPassiveMissileHit(player, monster, damage, DamageType::Magic, /*arrow=*/false);
 	if (monster.hitPoints >> 6 <= 0)
 		M_StartKill(monster, player);
 	else
 		M_StartHit(monster, player, damage);
+	return true;
 }
 
 int Roll(int min, int max)
@@ -390,11 +400,18 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 		}) > 0;
 	case SpellID::BattleOrders:
 		return StartBuff(player, spell, rank, (40 + 5 * (rank - 1)) * seconds);
-	case SpellID::WarCry:
-		return ForEachInEarshot(here, earshot, [&](Monster &m) {
-			Strike(player, m, Roll(4 * rank, 8 * rank));
-			Stagger(m, 2 * seconds + 4 * (rank - 1));
-		}) > 0;
+	case SpellID::WarCry: {
+		// Only what it hurt or stunned counts: a cry every monster shrugged off (magic-immune uniques) took the Rage for
+		// nothing (user, 2026-10-06) - the pattern Howl and Taunt lost in round 55.
+		int moved = 0;
+		ForEachInEarshot(here, earshot, [&](Monster &m) {
+			const bool hurt = Strike(player, m, Roll(4 * rank, 8 * rank));
+			const bool stunned = Stagger(m, 2 * seconds + 4 * (rank - 1));
+			if (hurt || stunned)
+				moved++;
+		});
+		return moved > 0;
+	}
 	case SpellID::BattleCommand:
 		return StartBuff(player, spell, rank, (30 + 5 * (rank - 1)) * seconds);
 

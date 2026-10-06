@@ -180,6 +180,10 @@ bool IsSalvageItemCursorArmed();
 
 /** @brief Takes that hammer back without salvaging anything - a click that landed on no item. */
 void CancelSalvageItemCursor();
+/** @brief Whether the Salvage page's "are you sure" question is standing (Escape takes it alone first, user 2026-10-06). */
+bool IsSalvageConfirmPending();
+/** @brief Withdraws the standing Salvage question as its Cancel button does; the page stays up. */
+void CancelSalvageConfirm();
 
 /**
  * @brief That hammer's click: salvages the item at @p index (@p tab -1 for the main backpack), writes the window's

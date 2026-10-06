@@ -209,8 +209,10 @@ void ProcessTownCompanions();
 void DrawTownCompanions(const Surface &out, Point tilePosition, Point targetBufferPosition);
 /** @brief The companion panel under the clock: each companion's name, life and time, and the stance. */
 void DrawCompanionHud(const Surface &out);
-/** @brief A click on the panel's stance line cycles the stance. True if the click was the panel's. */
+/** @brief A press on the panel's stance line sinks it; the release inside cycles the stance. True if the click was the panel's. */
 bool HandleCompanionHudClick(Point mouse);
+/** @brief The left button's release: a held stance line cycles the stance when let go inside it (user, 2026-10-06). */
+void ReleaseCompanionHeader(Point mouse);
 /** @brief Whether @p mouse is over the companion header - HUD, not the world behind it. */
 bool IsPointOverCompanionHeader(Point mouse);
 

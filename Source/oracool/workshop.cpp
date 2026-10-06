@@ -1406,7 +1406,9 @@ void DrawServiceIcon(const Surface &out, Control control, const char *glyph, boo
 	const Rectangle line { { rect.position.x - overhang, page.position.y + MysticPriceRowTop },
 		{ rect.size.width + 2 * overhang, ServicePriceHeight } };
 	const bool afford = price <= 0 || static_cast<int64_t>(TotalPlayerGold()) >= price;
-	DrawString(out, price > 0 ? FormatInteger(price) : std::string { _("Free") }, line,
+	// A negative price is a hidden one: "?" - the bench item is unidentified and its price would tell its item level
+	// (user, 2026-10-06).
+	DrawString(out, price > 0 ? FormatInteger(price) : (price < 0 ? std::string { "?" } : std::string { _("Free") }), line,
 	    { (afford ? UiFlags::ColorWhitegold : UiFlags::ColorRed) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 }
 
@@ -1614,6 +1616,22 @@ void CloseWorkshop()
 bool IsWorkshopOpen()
 {
 	return WindowOpen;
+}
+
+bool IsWorkshopOfferOpen()
+{
+	return WindowOpen && OfferOpen;
+}
+
+void DismissWorkshopOffer()
+{
+	// Escape on the reroll offer is "keep it as it was" - the offer's own first option - and leaves the bench up (user,
+	// 2026-10-06: it closed the whole bench). The reroll was paid when it rolled, as with the option.
+	if (!OfferOpen)
+		return;
+	OfferOpen = false;
+	Pressed = Control::None;
+	SetBoard(std::string(_("Kept as it was.")));
 }
 
 bool WorkshopHoldsKeystoneSeed(uint32_t seed)
@@ -2198,14 +2216,18 @@ void DrawWorkshop(const Surface &out)
 	} else if (OpenTab == Tab::Reroll) {
 		DrawRerollList(out);
 		const bool ready = !Bench.isEmpty() && Bench._iOracoolAffixCount > 0 && SelectedRow >= 0;
-		DrawServiceIcon(out, Control::Reroll, RerollGlyphAsset, ready, Bench.isEmpty() ? 0 : RerollPrice(Bench));
+		// "?" for an unidentified magic-or-better item, as on the Imbue tab: 500 x item level would tell it (user, 2026-10-06).
+		const bool rerollPriceHidden = !Bench.isEmpty() && !Bench._iIdentified && Bench._iMagical != ITEM_QUALITY_NORMAL;
+		DrawServiceIcon(out, Control::Reroll, RerollGlyphAsset, ready, Bench.isEmpty() ? 0 : (rerollPriceHidden ? -1 : RerollPrice(Bench)));
 	} else {
 		DrawImbueList(out);
 		// Imbue takes the first shard the pack can spare and costs nothing, so its line reads "Free"
 		// rather than a zero - a zero beside two real prices looks like a bug in the pricing.
 		DrawServiceIcon(out, Control::Imbue, ImbueGlyphAsset, !Bench.isEmpty(), 0);
-		DrawServiceIcon(out, Control::Remove, RemoveGlyphAsset, SelectedRow >= 0, Bench.isEmpty() ? 0 : RemovePrice(Bench));
-		DrawServiceIcon(out, Control::Cleanse, CleanseGlyphAsset, !Bench.isEmpty(), Bench.isEmpty() ? 0 : CleansePrice(Bench));
+		// Unidentified magic and better: "?" in place of the prices, which are 250 x the item level (user, 2026-10-06).
+		const bool priceHidden = !Bench.isEmpty() && !Bench._iIdentified && Bench._iMagical != ITEM_QUALITY_NORMAL;
+		DrawServiceIcon(out, Control::Remove, RemoveGlyphAsset, SelectedRow >= 0, Bench.isEmpty() ? 0 : (priceHidden ? -1 : RemovePrice(Bench)));
+		DrawServiceIcon(out, Control::Cleanse, CleanseGlyphAsset, !Bench.isEmpty(), Bench.isEmpty() ? 0 : (priceHidden ? -1 : CleansePrice(Bench)));
 	}
 
 	// GOLD ONLY WHERE GOLD IS SPENT (user, 2026-09-22: "If there is no gold cost to ogden services, i

@@ -525,7 +525,10 @@ void TalkToWitch(Player &player, Towner & /*witch*/)
 
 void TalkToBarmaid(Player &player, Towner & /*barmaid*/)
 {
-	if (!player._pLvlVisited[21] && HasInventoryItemWithId(player, IDI_MAPOFDOOM) && Quests[Q_GRAVE]._qmsg != TEXT_GRAVE8) {
+	// Not once the quest is done: with "Unlock All Town Entrances" the map's pickup completes it, and this turned it back to
+	// active (user, 2026-10-06).
+	if (!player._pLvlVisited[21] && HasInventoryItemWithId(player, IDI_MAPOFDOOM) && Quests[Q_GRAVE]._qmsg != TEXT_GRAVE8
+	    && Quests[Q_GRAVE]._qactive != QUEST_DONE) {
 		Quests[Q_GRAVE]._qactive = QUEST_ACTIVE;
 		Quests[Q_GRAVE]._qlog = true;
 		Quests[Q_GRAVE]._qmsg = TEXT_GRAVE8;

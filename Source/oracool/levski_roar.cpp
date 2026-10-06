@@ -1373,7 +1373,8 @@ bool SetLevskiHoverInfoString()
 	// reads identically wherever the player is looking at it - which is the whole of the request.
 	const Item &item = GridItems[anchor];
 	SetPanelString(item.getName(), item.getTextColor());
-	if (item._iIdentified)
+	// A white item has nothing to identify: tier and item level print as for an identified one (user, 2026-10-06).
+	if (item._iIdentified || item._iMagical == ITEM_QUALITY_NORMAL)
 		PrintItemDetails(item);
 	else
 		PrintItemDur(item);
@@ -1577,6 +1578,18 @@ bool IsSalvageItemCursorArmed()
 void CancelSalvageItemCursor()
 {
 	SalvageItemCursorArmed = false;
+}
+
+bool IsSalvageConfirmPending()
+{
+	return WindowOpen && PendingConfirmTier >= 0 && SalvagePage() != nullptr;
+}
+
+void CancelSalvageConfirm()
+{
+	// Escape answers the question as its Cancel button does, and leaves Griswold's page up (user, 2026-10-06).
+	PendingConfirmTier = -1;
+	PressedConfirmButton = -1;
 }
 
 bool UseSalvageItemCursor(Player &player, int tab, int index)

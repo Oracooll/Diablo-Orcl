@@ -6,8 +6,10 @@
 #include "gamemenu.h"
 
 #include <algorithm>
+#include <string>
 
 #include "cursor.h"
+#include "error.h" // InitDiabloMsg - a refused exit says why on screen (user, 2026-10-06)
 #include "engine/backbuffer_state.hpp"
 #include "engine/events.hpp"
 #include "engine/sound.h"
@@ -16,6 +18,7 @@
 #include "init.h"
 #include "options.h"
 #include "oracool/auto_save.h"
+#include "oracool/event_log.h" // LogEvent - and in the log
 #include "oracool/game_speed.h" // MinGameSpeed, MaxGameSpeed - the Speed slider's range
 #include "oracool/levski_roar.h" // the monument's grid is handed back before the exit save
 #include "oracool/workshop.h" // and the workshop's bench and craft grid
@@ -132,8 +135,37 @@ void GamemenuReturnToGame(bool /*bActivate*/)
 	gamemenu_off();
 }
 
-void GamemenuNewGame(bool /*bActivate*/)
+/**
+ * @brief Whether the player said, in this opening of the menu, to leave without the items the Cube or the workshop could
+ * not hand back (user, 2026-10-06: with a full pack and stash they were lost on the way out without a word before it).
+ */
+bool LeaveWithoutStagedItemsConfirmed = false;
+
+/**
+ * @brief The way out, asked before it is taken: the Cube's grid and the workshop's bench hand their items back, and when
+ * they cannot (a full pack and stash) the first choice of an exit refuses and says so - make room, or choose it again to
+ * leave without them. The second choice is the confirmation.
+ */
+bool ExitMayLeaveStagedItems()
 {
+	oracool::CloseLevskiRoar();
+	oracool::CloseWorkshop();
+	if (!oracool::IsLevskiRoarOpen() && !oracool::IsWorkshopOpen())
+		return true;
+	if (LeaveWithoutStagedItemsConfirmed)
+		return true;
+	LeaveWithoutStagedItemsConfirmed = true;
+	const std::string warning(_("The Cube or the workshop still holds items, and your pack and stash are full. Make room, or choose again to leave without them."));
+	oracool::LogEvent(warning, UiFlags::ColorRed);
+	InitDiabloMsg(warning);
+	return false;
+}
+
+/** @brief GamemenuNewGame's body; false when the exit was refused (ExitMayLeaveStagedItems). */
+bool LeaveGame()
+{
+	if (!ExitMayLeaveStagedItems())
+		return false;
 	// Oracool: user request - persist the character on the way out, so the last thing you did
 	// before quitting is never lost. Both "Main Menu" (GamemenuReturnToMainMenu) and "Exit Game"
 	// (gamemenu_quit_game) funnel through here, so this one call covers both.
@@ -169,6 +201,12 @@ void GamemenuNewGame(bool /*bActivate*/)
 	CornerStone.activated = false;
 	gbRunGame = false;
 	gamemenu_off();
+	return true;
+}
+
+void GamemenuNewGame(bool /*bActivate*/)
+{
+	LeaveGame();
 }
 
 /**
@@ -182,10 +220,10 @@ void GamemenuNewGame(bool /*bActivate*/)
  * StartGame checks right after its game loop returns, short-circuiting past its own hero-select
  * retry loop straight back to mainmenu_loop (menu.cpp).
  */
-void GamemenuReturnToMainMenu(bool bActivate)
+void GamemenuReturnToMainMenu(bool /*bActivate*/)
 {
-	GamemenuNewGame(bActivate);
-	ReturnToMainMenu = true;
+	if (LeaveGame()) // a refused exit stays in the game, and is not a return to the title later (user, 2026-10-06)
+		ReturnToMainMenu = true;
 }
 
 void GamemenuRestartTown(bool /*bActivate*/)
@@ -370,9 +408,10 @@ void GamemenuSpeed(bool bActivate)
 
 } // namespace
 
-void gamemenu_quit_game(bool bActivate)
+void gamemenu_quit_game(bool /*bActivate*/)
 {
-	GamemenuNewGame(bActivate);
+	if (!LeaveGame())
+		return; // refused: the game goes on, and a later Main Menu is not a quit (user, 2026-10-06)
 #ifndef NOEXIT
 	gbRunGameResult = false;
 #else
@@ -394,6 +433,7 @@ void gamemenu_on()
 	}
 	// Every window, not the top one only: Escape closes one a press since 2026-09-30, and the menu (and death) wants them all.
 	CloseWindowsForGameMenu();
+	LeaveWithoutStagedItemsConfirmed = false; // each opening asks afresh (user, 2026-10-06)
 }
 
 void gamemenu_off()

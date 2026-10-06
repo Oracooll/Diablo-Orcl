@@ -1434,7 +1434,8 @@ bool DoOil(Player &player, int cii, int tabIdx = -1);
 [[nodiscard]] bool IsManaOnlyPower(item_effect_type type);
 /**
  * @brief Whether an item text line for @p type is left out for the local player: a Barbarian runs on
- * Rage and carries no mana pool (v1.12.344), so a mana-only power says nothing to him.
+ * Rage and carries no mana pool (v1.12.344), so a mana-only power says nothing to him. Mana to Life and Life to
+ * Mana as well: SaveItemPower skips both for a Rage user (user, 2026-10-06).
  */
 [[nodiscard]] bool HideManaPowerLineForViewer(item_effect_type type);
 /** @brief Like PrintItemPower, but reads a Rare/Buffed Unique/Primal item's own per-affix value instead of the item's shared accumulated field - see the definition for why that distinction matters. */

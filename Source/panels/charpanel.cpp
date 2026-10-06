@@ -399,7 +399,10 @@ int AttackFramesSkipped()
 	// Strength's grip adds frames (round 12 audit, v1.12.237 - the sheet showed neither).
 	if (InspectPlayer->UsesRangedWeapon())
 		return 0;
-	return ItemAttackFramesSkipped() - oracool::HeavenlyStrengthSwingDelayFrames(*InspectPlayer);
+	// StartAttack's clamp, so the hit frame survives the skips (user, 2026-10-06). The fresh swing's skips: a repeated swing
+	// skips fewer, which is why the row says "first swing".
+	return std::min(ItemAttackFramesSkipped() - oracool::HeavenlyStrengthSwingDelayFrames(*InspectPlayer),
+	    std::max(0, oracool::MeleeHitFrame(*InspectPlayer) - 2));
 }
 
 int ItemAttackFramesSkipped()
@@ -430,13 +433,14 @@ int HitRecoveryFramesSkipped()
 }
 
 /**
- * @brief Chance to block an attack from an equal-level enemy, as a percentage.
+ * @brief Chance to block the last monster that hit the hero (an equal-level enemy until one has), as a percentage.
  *
  * PlrHitPlr (player.cpp:784) rolls against `target.GetBlockChance() - attacker._pLevel * 2`,
  * clamped 0..100. GetBlockChance() adds the target's OWN level * 2, so against an equal-level
  * attacker the two level terms cancel exactly and what remains is dexterity plus the class block
- * bonus - which is GetBlockChance(false). A sheet has no attacker to name, so the equal-level
- * reading is the honest one to quote.
+ * bonus - which is GetBlockChance(false). Since 2026-10-06 (user) the sheet names the last monster
+ * that hit the hero, as the Armor class bar does, and falls back to the equal-level reading only
+ * until one has.
  *
  * Zero without a shield: _pBlockFlag gates the roll entirely, so the potential is unreachable.
  */
@@ -446,7 +450,13 @@ int BlockChancePercent()
 		return 0;
 	// With the skills' block, as the blow adds it (audit, 2026-09-27): Hold Your Ground, Reed in the Wind, Staff Parry and
 	// Brace added up to twenty points the sheet never showed.
-	return std::clamp(InspectPlayer->GetBlockChance(false) + oracool::Rfa12BlockBonus(*InspectPlayer) + oracool::PassiveBlockBonus(*InspectPlayer), 0, 100);
+	// Against the last monster that hit the hero, as the Armor class bar reads it (MonsterAttackPlayer's
+	// `GetBlockChance() - monster level * 2`); the equal-level reading until one has (user, 2026-10-06).
+	int attackerLevel = 0;
+	const int base = InspectPlayer == MyPlayer && oracool::LastAttackerLevel(attackerLevel)
+	    ? InspectPlayer->GetBlockChance() - attackerLevel * 2
+	    : InspectPlayer->GetBlockChance(false);
+	return std::clamp(base + oracool::Rfa12BlockBonus(*InspectPlayer) + oracool::PassiveBlockBonus(*InspectPlayer), 0, 100);
 }
 
 /** @brief Fixed life-steal percentage, summed over every source (round 91 audit) - what PlrHitMonst steals. */
@@ -843,7 +853,7 @@ const CharRow CharRows[] = {
 	    []() { return StyledText { UiFlags::ColorWhitegold, std::string(_("Now")) }; },
 	    []() { return StyledText { UiFlags::ColorWhitegold, std::string(_("Base")) }; },
 	    CharRowGroupGap },
-	{ N_("Attack frames"),
+	{ N_("First swing frames"), // a held button's repeated swings skip fewer (user, 2026-10-06)
 	    []() {
 	        const int skipped = AttackFramesSkipped();
 	        return StyledText { skipped > 0 ? UiFlags::ColorBlue : UiFlags::ColorWhite,

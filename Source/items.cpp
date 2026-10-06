@@ -1522,11 +1522,17 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 		item._iDamAcFlags |= ItemSpecialEffectHf::ACAgainstUndead;
 		break;
 	case IPL_MANATOLIFE: {
+		// A Rage user has no mana to move either way: both powers do nothing for him - the Gladiator's Ring cost him
+		// 40% of his life for mana CalcPlrItemVals zeroes (user, 2026-10-06). The tooltip hides both lines for him.
+		if (oracool::UsesRage(player))
+			break;
 		int portion = ((player._pMaxManaBase >> 6) * 50 / 100) << 6;
 		item._iPLMana -= portion;
 		item._iPLHP += portion;
 	} break;
 	case IPL_LIFETOMANA: {
+		if (oracool::UsesRage(player))
+			break; // see IPL_MANATOLIFE (user, 2026-10-06)
 		int portion = ((player._pMaxHPBase >> 6) * 40 / 100) << 6;
 		item._iPLHP -= portion;
 		item._iPLMana += portion;
@@ -2979,7 +2985,8 @@ void PrintItemOil(const Item &item)
 			    _(oracool::NamedEncounterName(encounter))));
 			AddPanelString(fmt::format(fmt::runtime(_("its guardian carries: {:s}")),
 			    _(AllItemsList[oracool::NamedEncounterReward(encounter)].iName)));
-			AddPanelString(_("use in town - the map is consumed"));
+			// Spent when the guardian dies, not at the read (user, 2026-10-06).
+		AddPanelString(_("use in town - spent when its guardian dies"));
 		}
 	} break;
 	case IMISC_ORACOOL_KEYSTONE:
@@ -3075,7 +3082,12 @@ void PrintItemMisc(const Item &item)
 		return;
 	}
 	if (item._iMiscId == IMISC_AURIC) {
-		AddPanelString(_("Doubles gold capacity"));
+		// Single player has no gold cap to double (MaxGold is the save limit there), so the amulet gives
+		// gold find instead - ItemBonusTotals::AddItem pays it (user, 2026-10-06).
+		if (oracool::IsSinglePlayer())
+			AddPanelString(fmt::format(fmt::runtime(_("+{:d}% gold find")), oracool::AuricAmuletGoldFind));
+		else
+			AddPanelString(_("Doubles gold capacity"));
 		return;
 	}
 	const bool isOil = (item._iMiscId >= IMISC_USEFIRST && item._iMiscId <= IMISC_USELAST)
@@ -5217,7 +5229,9 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		if (leftSword || rightSword)
 			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength + player._pDexterity, 150);
 		else if (leftBow || rightBow) {
-			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength + player._pDexterity, 250);
+			// 125, not 250 (user, 2026-10-06): the blow halves a bow's stat share outside the Rogue (PooledWeaponDamage's 50),
+			// so the class's own /250 is reached once, not halved twice to /500.
+			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength + player._pDexterity, 125);
 		} else {
 			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength, 100);
 		}
@@ -5240,7 +5254,9 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		} else if (leftMace || rightMace) {
 			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength, 75);
 		} else if (leftBow || rightBow) {
-			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength, 300);
+			// 150, not 300 (user, 2026-10-06): the blow halves a bow's stat share outside the Rogue (PooledWeaponDamage's 50),
+			// so the class's own /300 is reached once, not halved twice to /600.
+			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength, 150);
 		} else {
 			player._pStatDamageBasisPoints = statBasisPoints(player._pStrength, 100);
 		}
@@ -7892,7 +7908,9 @@ bool IsManaOnlyPower(item_effect_type type)
 
 bool HideManaPowerLineForViewer(item_effect_type type)
 {
-	return IsManaOnlyPower(type) && MyPlayer != nullptr && oracool::UsesRage(*MyPlayer);
+	// Mana to Life and Life to Mana too: for a Rage user both do nothing (SaveItemPower skips them), so their lines
+	// would promise a trade that never happens (user, 2026-10-06).
+	return (IsManaOnlyPower(type) || IsAnyOf(type, IPL_MANATOLIFE, IPL_LIFETOMANA)) && MyPlayer != nullptr && oracool::UsesRage(*MyPlayer);
 }
 
 StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)

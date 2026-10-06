@@ -1347,7 +1347,8 @@ std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int point
 		break;
 	case Skill::ArcaneDynamo:
 		line(fmt::format(fmt::runtime(_("Charged by {:d} spells costing {:d} mana or less")), ArcaneDynamoCharges, mana(CheapSpellMana)));
-		line(fmt::format(fmt::runtime(_("Next costlier spell: spell and arrow damage +{:d}% for {:d} s")), ArcaneDynamoPercent, sec(ArcaneDynamoTicks)));
+		// The costlier spell releases it; what follows is empowered (user, 2026-10-06).
+		line(fmt::format(fmt::runtime(_("After a costlier spell: spell and arrow damage +{:d}% for {:d} s")), ArcaneDynamoPercent, sec(ArcaneDynamoTicks)));
 		break;
 	case Skill::MythicRhythm:
 		line(fmt::format(fmt::runtime(_("Every {:d} melee skill blows: spell and arrow damage +{:d}% for {:d} s")), MythicRhythmBlows,
@@ -1376,7 +1377,9 @@ std::string PassiveFactsAt(const Player &player, ClassTreeSkill skill, int point
 		line(fmt::format(fmt::runtime(_("Blessed Hammer damage: +{:d}%")), BluntPercent));
 		break;
 	case Skill::ToweringShield:
-		line(fmt::format(fmt::runtime(_("Smite and Blessed Shield damage: +{:d}%")), ToweringShieldPercent));
+		// Smite adds the points to its bonus, Blessed Shield multiplies (user, 2026-10-06).
+		line(fmt::format(fmt::runtime(_("Smite damage bonus: +{:d}%")), ToweringShieldPercent));
+		line(fmt::format(fmt::runtime(_("Blessed Shield damage: +{:d}% of its own")), ToweringShieldPercent));
 		break;
 
 	// ---- on a blow, a missile, a block, a kill, a spend ----

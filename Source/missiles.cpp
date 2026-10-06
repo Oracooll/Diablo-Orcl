@@ -703,6 +703,10 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 					maxDamage = std::max(maxDamage + maxDamage * weakened / 100, minDamage);
 				}
 			}
+			// A convert's shot is the Paladin's kill, as a minion's is its owner's (user, 2026-10-06): tagged before the hit,
+			// which runs MonsterDeath itself.
+			if (shooter != nullptr && armyOwner == nullptr && oracool::IsMonsterConverted(*shooter) && MyPlayer != nullptr)
+				Monsters[mid].tag(*MyPlayer);
 			if (armyOwner != nullptr) {
 				Monsters[mid].tag(*armyOwner);
 				// Frenzy of the Dead's "minion damage" reaches a Skeletal Mage's bolt too, not only a blow (round 14 audit).
@@ -1553,6 +1557,11 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	if (missileData.isArrow()) {
 		int tac = player.GetArmor();
 		if (monster != nullptr) {
+			// "+AC vs demons / undead" holds against their arrows too, as MonsterAttackPlayer adds it to a blow (user, 2026-10-06).
+			if (monster->data().monsterClass == MonsterClass::Demon)
+				tac += player._pIArmorVsDemons;
+			if (monster->data().monsterClass == MonsterClass::Undead)
+				tac += player._pIArmorVsUndead;
 			hper = monster->toHit(sgGameInitInfo.nDifficulty)
 			    + ((monster->level(sgGameInitInfo.nDifficulty) - player._pLevel) * 2)
 			    + 30
@@ -1808,7 +1817,7 @@ void InitMissiles(bool keepHeroTimedSpells)
 			if (missile._mitype == MissileID::Rage) {
 				if (missile.sourcePlayer() == MyPlayer) {
 					int missingHP = myPlayer._pMaxHP - myPlayer._pHitPoints;
-					CalcPlrItemVals(myPlayer, true);
+					CalcPlrInvKeepingLife(myPlayer); // requirements rechecked as the rage ends, as ProcessRage (user, 2026-10-06)
 					ApplyPlrDamage(DamageType::Physical, myPlayer, 0, 1, missingHP + missile.var2);
 				}
 			}
@@ -3132,7 +3141,7 @@ void AddTeleport(Missile &missile, AddMissileParameter &parameter)
 
 	std::optional<Point> teleportDestination = FindClosestValidPosition(
 	    [&player](Point target) {
-		    return PosOkPlayer(player, target);
+		    return PosOkPlayer(player, target) && !ClosedDoorAt(target); // never into a closed door (user, 2026-10-06)
 	    },
 	    parameter.dst, 0, 5);
 
@@ -3160,7 +3169,8 @@ void AddNovaBall(Missile &missile, AddMissileParameter &parameter)
 		if (InDungeonBounds(start))
 			missile.lastCollisionTargetHash = dMonster[start.x][start.y] ^ dPlayer[start.x][start.y];
 	}
-	const Point position { missile._misource < 0 ? missile.position.start : Point(Players[missile._misource].position.tile) };
+	// A monster's ring (the Thunderous burst, user 2026-10-06) indexes Monsters with its source, not Players.
+	const Point position { missile.sourcePlayer() == nullptr ? missile.position.start : Point(missile.sourcePlayer()->position.tile) };
 	missile.var1 = position.x;
 	missile.var2 = position.y;
 }
@@ -3667,6 +3677,9 @@ void AddStoneCurse(Missile &missile, AddMissileParameter &parameter)
 	missile.position.tile = *targetMonsterPosition;
 	missile.position.start = missile.position.tile;
 	missile._mirange = StoneCurseDurationTicks(missile._mispllvl);
+	// A unique, a champion, a Dread boss or a rift guardian stands stone for half as long (user, 2026-10-06).
+	if (oracool::FightsAsUnique(monster))
+		missile._mirange = std::max(missile._mirange / 2, 1);
 }
 
 void AddGolem(Missile &missile, AddMissileParameter &parameter)
@@ -4873,7 +4886,9 @@ void AddRage(Missile &missile, AddMissileParameter &parameter)
 	missile.var2 = tmp;
 	int lvl = player._pLevel * 2;
 	missile._mirange = lvl + 10 * missile._mispllvl + 245;
-	CalcPlrItemVals(player, true);
+	// CalcPlrInv, not CalcPlrItemVals: the stats the rage gives can meet an item's requirements, which only CalcSelfItems
+	// rechecks (user, 2026-10-06). A rage only adds, so no life can be lost here.
+	CalcPlrInv(player, true);
 	RedrawEverything();
 	player.Say(HeroSpeech::Aaaaargh);
 }
@@ -4928,9 +4943,16 @@ void AddTrapDisarm(Missile &missile, AddMissileParameter & /*parameter*/)
 	}
 }
 
-void AddApocalypse(Missile &missile, AddMissileParameter & /*parameter*/)
+void AddApocalypse(Missile &missile, AddMissileParameter &parameter)
 {
 	Player &player = Players[missile._misource];
+
+	// Not in town, where it strikes nothing: a fizzle, so the mana, the scroll or the charge is not spent (user, 2026-10-06).
+	if (leveltype == DTYPE_TOWN) {
+		missile._miDelFlag = true;
+		parameter.spellFizzled = true;
+		return;
+	}
 
 	missile.var1 = 8;
 	missile.var2 = std::max(missile.position.start.y - 8, 1);
@@ -4983,6 +5005,11 @@ void AddChargedBolt(Missile &missile, AddMissileParameter &parameter)
 	Point dst = parameter.dst;
 	missile._mirnd = GenerateRnd(15) + 1;
 	missile._midam = (missile._micaster == TARGET_MONSTERS) ? (GenerateRnd(Players[missile._misource]._pMagic / 4) + 1) : 15;
+	// A Counselor's or Advocate's bolt rolls its caster's damage, Might and a rift boss's share included, as its other
+	// shots do; it was a flat 15 on every floor and difficulty (user, 2026-10-06). A trap keeps the 15. A minion mage
+	// sets its own after AddMissile, over this.
+	if (int minDamage, maxDamage; missile._micaster == TARGET_PLAYERS && LiveMonsterDamageRange(missile, minDamage, maxDamage))
+		missile._midam = std::max(minDamage + GenerateRnd(maxDamage - minDamage + 1), 1);
 
 	if (missile.position.start == dst) {
 		dst += parameter.midir;
@@ -6132,7 +6159,8 @@ void ProcessTeleport(Missile &missile)
 	const Point aimed = missile.position.tile;
 	std::optional<Point> teleportDestination = FindClosestValidPosition(
 	    [&player, aimed](Point target) {
-		    return PosOkPlayer(player, target) && (target == aimed || oracool::SightLineClear(aimed, target));
+		    // Nor a closed door's tile (user, 2026-10-06: the hero landed inside the shut door).
+		    return PosOkPlayer(player, target) && !ClosedDoorAt(target) && (target == aimed || oracool::SightLineClear(aimed, target));
 	    },
 	    missile.position.tile, 0, 5);
 
@@ -6483,7 +6511,9 @@ void ProcessRage(Missile &missile)
 		hpdif += missile.var2;
 	}
 
-	CalcPlrItemVals(player, true);
+	// The stats change both ways here (the rage ends, the cooldown's cut ends), so an item's requirements are rechecked, and
+	// an item that lapses never takes the hero's last life with it (user, 2026-10-06).
+	CalcPlrInvKeepingLife(player);
 	ApplyPlrDamage(DamageType::Physical, player, 0, 1, hpdif);
 	RedrawEverything();
 	player.Say(HeroSpeech::HeavyBreathing);

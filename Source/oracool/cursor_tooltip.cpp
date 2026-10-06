@@ -10,6 +10,7 @@
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "inv.h"
+#include "oracool/gems.h" // GemSocketLine - the card counts the stones that printed a line
 #include "oracool/ornate_border.h" // ThemeEdgeColor
 #include "oracool/levski_roar.h" // HoveredLevskiGridItem
 #include "oracool/shop_grid.h"
@@ -383,7 +384,8 @@ TooltipBlock CaptureItemBlock(const Item &item)
 
 	ClearPanelStrings();
 	SetPanelString(item.getName(), item.getTextColor());
-	if (item._iIdentified)
+	// A white item has nothing to identify: tier and item level print as for an identified one (user, 2026-10-06).
+	if (item._iIdentified || item._iMagical == ITEM_QUALITY_NORMAL)
 		PrintItemDetails(item);
 	else
 		PrintItemDur(item);
@@ -579,6 +581,17 @@ Card BuildCard(const TooltipBlock &block, const Item *item)
 		bool isStone = false;
 		if (CardStartsWith(text, socketsPrefix)) {
 			socketLinesLeft = std::max(0, std::atoi(std::string(text.substr(socketsPrefix.size())).c_str()));
+			// Only the stones that printed a line: a mana-only stone prints none for a Barbarian, and counting it moved
+			// a bullet onto the line after the stones (user, 2026-10-06).
+			if (item != nullptr && item->_iSocketCount > 0) {
+				const SocketHost host = SocketHostForItemType(item->_itype);
+				int printed = 0;
+				for (const uint16_t gemIdx : item->_iSocketed) {
+					if (gemIdx != Item::EmptySocket && !GemSocketLine(gemIdx, host).empty())
+						printed++;
+				}
+				socketLinesLeft = printed;
+			}
 		} else if (socketLinesLeft > 0 && !CardStartsWith(text, " ")) {
 			isStone = true;
 			socketLinesLeft--;

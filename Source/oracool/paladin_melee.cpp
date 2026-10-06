@@ -29,6 +29,8 @@ namespace devilution::oracool {
 namespace {
 
 std::optional<PaladinSkill> ArmedSkill;
+/** The local player's swing hit frame, fixed when the swing started (SnapshotSwingHitFrame); 0 = none (user, 2026-10-06). */
+int SnappedSwingHitFrame = 0;
 /** The armed skill and whether it could be paid when this hit frame began (LatchPaladinSwingPrice); nullopt outside one. */
 std::optional<std::pair<PaladinSkill, bool>> SwingPrice;
 
@@ -144,7 +146,7 @@ int ZealPerSwingTicks(const Player &player)
 }
 
 /**
- * @brief What Hammer of Faith's splash does, as a percentage of the blow that landed.
+ * @brief What Hammer of Faith's splash does, as a percentage of a weapon blow (a fresh one per neighbour since 2026-10-06).
  *
  * Half. It is ONE hammer blow whose force carries, not a second attack on each neighbour - full
  * damage all round would make it strictly better than Zeal at every count of enemies, and the two
@@ -161,16 +163,6 @@ int ZealPerSwingTicks(const Player &player)
  * scale; the blow does, +15% a level since 2026-09-12 (SmiteDamagePercentAt).
  */
 constexpr int ShieldBashStunTicks = 40;
-
-/** @brief Applies @p damage to @p monster, killing it or staggering it as the total decides. */
-void StrikeMonster(Player &player, Monster &monster, int damage)
-{
-	ApplyMonsterDamage(DamageType::Physical, monster, damage);
-	if ((monster.hitPoints >> 6) <= 0)
-		M_StartKill(monster, player);
-	else
-		M_StartHit(monster, player, damage);
-}
 
 /**
  * @brief Collects up to @p maxTargets monsters within one tile of @p centre, excluding @p centre.
@@ -276,11 +268,11 @@ void ApplyZeal(Player &player, Monster &primaryTarget)
  * caught, because a hammer's impact does not count heads, and half damage rather than full, because
  * they are catching the shockwave rather than the hammer.
  */
-void ApplyHammerOfFaith(Player &player, Monster &primaryTarget, int hitDamage)
+void ApplyHammerOfFaith(Player &player, Monster &primaryTarget)
 {
 	const int rank = std::max(player.GetSpellLevel(GetPaladinSkillData(PaladinSkill::HammerOfFaith).spellId), 1);
-	const int splashDamage = hitDamage * HammerOfFaithSplashPercentAt(rank) / 100;
-	if (splashDamage <= 0)
+	const int splashPercent = HammerOfFaithSplashPercentAt(rank);
+	if (splashPercent <= 0)
 		return;
 
 	// Eight is every square touching the target - the whole ring, since this one does not cap.
@@ -297,8 +289,11 @@ void ApplyHammerOfFaith(Player &player, Monster &primaryTarget, int hitDamage)
 		return;
 	if (!SpendAtFrontPrice(player, PaladinSkill::HammerOfFaith))
 		return;
+	// Each neighbour takes its own side blow at the splash share of a fresh weapon blow, so its own damage passives, the
+	// items' on-hit effects and the resistances apply - a share of the front blow's number carried the front's bonuses
+	// (Hunter's Mark, demon damage) to everyone and none of theirs (user, 2026-10-06).
 	for (int i = 0; i < found; i++)
-		StrikeMonster(player, *targets[i], splashDamage);
+		StrikeSideWeaponBlow(player, *targets[i], splashPercent);
 }
 
 /**
@@ -481,7 +476,7 @@ bool TryContinueZealChain(Player &player)
 	player._pdir = d;
 	NewPlrAnim(player, player_graphic::Attack, d,
 	    static_cast<AnimationDistributionFlags>(AnimationDistributionFlags::ProcessAnimationPending | AnimationDistributionFlags::RepeatedAction),
-	    ZealSwingSkipFrames(player), MeleeHitFrame(player));
+	    ZealSwingSkipFrames(player), SnapshotSwingHitFrame(player)); // the follow-up's own frame, fixed now (user, 2026-10-06)
 	return true;
 }
 
@@ -563,6 +558,22 @@ int MeleeHitFrame(const Player &player)
 	return std::min<int>(player._pAFNum, player._pBFrames);
 }
 
+int SnapshotSwingHitFrame(const Player &player)
+{
+	const int hitFrame = MeleeHitFrame(player);
+	if (&player == MyPlayer)
+		SnappedSwingHitFrame = hitFrame;
+	return hitFrame;
+}
+
+int SwingHitFrame(const Player &player)
+{
+	// Only inside a swing: the static outlives the game, and outside PM_ATTACK nothing set it for this one (user, 2026-10-06).
+	if (&player == MyPlayer && player._pmode == PM_ATTACK && SnappedSwingHitFrame > 0)
+		return SnappedSwingHitFrame;
+	return MeleeHitFrame(player);
+}
+
 SpellID ArmedMeleeSpell(const Player &player)
 {
 	if (&player != MyPlayer)
@@ -629,7 +640,7 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 		ApplyZeal(player, primaryTarget);
 		break;
 	case PaladinSkill::HammerOfFaith:
-		ApplyHammerOfFaith(player, primaryTarget, hitDamage);
+		ApplyHammerOfFaith(player, primaryTarget);
 		break;
 	case PaladinSkill::ShieldBash:
 		// Smite: a quarter-size Holy Bolt burst, Paladin gold, on the bashed enemy (the Skill Cards page, 2026-09-28).

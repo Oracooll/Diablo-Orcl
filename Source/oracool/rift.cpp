@@ -865,12 +865,32 @@ void LayArrivalExit()
 		// hero"); South, the tile in front of him, only when nothing else is open.
 		constexpr Direction Behind[] = { Direction::North, Direction::NorthWest, Direction::NorthEast, Direction::West,
 			Direction::East, Direction::SouthWest, Direction::SouthEast, Direction::South };
+		const auto isFree = [](Point tile) {
+			return InDungeonBounds(tile) && !IsTileSolid(tile) && dObject[tile.x][tile.y] == 0
+			    && dMonster[tile.x][tile.y] == 0 && dPlayer[tile.x][tile.y] == 0;
+		};
 		for (const Direction d : Behind) {
 			const Point neighbour = ViewPosition + d;
-			if (InDungeonBounds(neighbour) && !IsTileSolid(neighbour) && dObject[neighbour.x][neighbour.y] == 0
-			    && dMonster[neighbour.x][neighbour.y] == 0 && dPlayer[neighbour.x][neighbour.y] == 0) {
+			if (isFree(neighbour)) {
 				State.arrivalTile = neighbour;
 				break;
+			}
+		}
+		// All eight neighbours blocked: the rings two and then three tiles out, so a walled-in landing still gets its way
+		// out (user, 2026-10-06) - the nearest free tile of the nearer ring first.
+		for (int ring = 2; ring <= 3 && State.arrivalTile == Point { 0, 0 }; ring++) {
+			int bestDistance = 1000; // above any ring-3 distance (18)
+			for (int dx = -ring; dx <= ring; dx++) {
+				for (int dy = -ring; dy <= ring; dy++) {
+					if (std::max(std::abs(dx), std::abs(dy)) != ring)
+						continue;
+					const Point tile = ViewPosition + Displacement { dx, dy };
+					const int distance = dx * dx + dy * dy;
+					if (distance < bestDistance && isFree(tile)) {
+						State.arrivalTile = tile;
+						bestDistance = distance;
+					}
+				}
 			}
 		}
 	}

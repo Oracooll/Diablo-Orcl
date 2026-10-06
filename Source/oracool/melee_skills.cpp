@@ -92,12 +92,14 @@ Profile ProfileOf(ClassMeleeSkill skill)
 	case ClassMeleeSkill::BreakingCurrent:
 		return { 33, 0, 0, 0, 1, 0, 0 };
 	case ClassMeleeSkill::SevenReeds:
-		return { 0, 0, 2, 3, 7, 60, 0 };
+		// One blow more each rank, seven at rank 5 - every three ranks stopped at four by the cap (user, 2026-10-06).
+		return { 0, 0, 2, 1, 7, 60, 0 };
 	case ClassMeleeSkill::OpenPalm:
 	case ClassMeleeSkill::RadiantPalm:
 		return { 20, 10, 0, 0, 1, 0, 0 };
 	case ClassMeleeSkill::HundredFists:
-		return { 0, 0, 3, 2, 7, 50, 0 };
+		// One blow more each rank, seven from rank 4 - every two ranks stopped at six by the cap (user, 2026-10-06).
+		return { 0, 0, 3, 1, 7, 50, 0 };
 	case ClassMeleeSkill::Jab:
 		return { 0, 0, 2, 0, 3, 50, 5 };
 	case ClassMeleeSkill::PowerStrike:
@@ -490,7 +492,7 @@ bool TryContinueClassMeleeChain(Player &player)
 	// A REAL swing, as Zeal's: the blow lands through DoAttack's hit frame - to-hit roll, damage and all.
 	NewPlrAnim(player, player_graphic::Attack, d,
 	    static_cast<AnimationDistributionFlags>(AnimationDistributionFlags::ProcessAnimationPending | AnimationDistributionFlags::RepeatedAction),
-	    ClassMeleeSwingSkipFrames(player), MeleeHitFrame(player));
+	    ClassMeleeSwingSkipFrames(player), SnapshotSwingHitFrame(player)); // the follow-up's own frame, fixed now (user, 2026-10-06)
 	return true;
 }
 
@@ -803,7 +805,8 @@ const char *ClassMeleeSkillDescription(SpellID spell)
 	case SpellID::Stun:
 		return N_("A blow that leaves the target reeling for 1.5 seconds, +0.2 seconds per rank. Uniques shrug it off.");
 	case SpellID::LeapAttack:
-		return N_("Leap onto a distant enemy; the blow you land there is at +50% damage, +10% per rank.");
+		// What it does: a leap to the cursor, the blow swung where he lands (user, 2026-10-06 - it never sought an enemy).
+		return N_("Leap toward the cursor, four tiles and a tile further every three ranks; the blow you swing where you land is at +50% damage, +10% per rank.");
 	case SpellID::Concentrate:
 		return N_("A focused blow at +50% damage, +10% per rank.");
 	case SpellID::Frenzy:
@@ -821,11 +824,11 @@ const char *ClassMeleeSkillDescription(SpellID spell)
 	case SpellID::WheelOfHeaven:
 		return N_("Every swing strikes everything around you at 66% damage, +5% per rank.");
 	case SpellID::SevenReeds:
-		return N_("Three blows in one swing, one more every three ranks up to seven: the first at full damage, the others at 60%.");
+		return N_("Three blows in one swing, one more each rank up to seven: the first at full damage, the others at 60%.");
 	case SpellID::OpenPalm:
 		return N_("An open-hand strike at +20% damage, +10% per rank, that drives the enemy back a tile.");
 	case SpellID::HundredFists:
-		return N_("Four blows in one swing, one more every two ranks up to seven: the first at full damage, the others at 50%.");
+		return N_("Four blows in one swing, one more each rank up to seven: the first at full damage, the others at 50%.");
 	case SpellID::RadiantPalm:
 		return N_("A strike at +20% damage, +10% per rank; an enemy it kills erupts, dealing the blow again to everything beside it.");
 	case SpellID::Jab:

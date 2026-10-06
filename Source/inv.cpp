@@ -1538,12 +1538,24 @@ void CheckQuestItem(Player &player, Item &questItem)
 		myPlayer.Say(HeroSpeech::MayTheSpiritOfArkaineProtectMe, 20);
 	}
 
+	// With "Unlock All Town Entrances" the Hive and the Crypt stand open already, so the rune bomb and the Cathedral Map have
+	// nothing left to open: picking one up completes its quest, and Lester pays the vanilla way (user, 2026-10-06).
+	const bool entrancesUnlocked = oracool::IsSinglePlayer() && *sgOptions.Oracool.unlockAllTownEntrances;
 	if (questItem.IDidx == IDI_MAPOFDOOM) {
-		Quests[Q_GRAVE]._qactive = QUEST_ACTIVE;
+		if (entrancesUnlocked) {
+			Quests[Q_GRAVE]._qactive = QUEST_DONE; // as OpenGrave completes it
+		} else {
+			Quests[Q_GRAVE]._qactive = QUEST_ACTIVE;
+		}
 		if (Quests[Q_GRAVE]._qvar1 != 1) {
 			MyPlayer->Say(HeroSpeech::UhHuh, 10);
 			Quests[Q_GRAVE]._qvar1 = 1;
 		}
+	}
+	if (questItem.IDidx == IDI_RUNEBOMB && entrancesUnlocked
+	    && IsNoneOf(Quests[Q_FARMER]._qactive, QUEST_DONE, QUEST_HIVE_DONE)) {
+		Quests[Q_FARMER]._qactive = QUEST_DONE; // as OpenHive completes it: Lester's QUEST_DONE talk pays the Auric Amulet
+		Quests[Q_FARMER]._qlog = true;
 	}
 
 	TryCombineNaKrulNotes(player, questItem);
@@ -4255,7 +4267,8 @@ int8_t CheckInvHLight()
 		// then builds, and the tooltip's size check correctly refuses the whole thing and falls
 		// back to one colour - which is exactly how this went unnoticed the first time.
 		SetPanelString(pi->getName(), pi->getTextColor());
-		if (pi->_iIdentified) {
+		// A white item has nothing to identify: it prints its tier and item level like an identified one (user, 2026-10-06).
+		if (pi->_iIdentified || pi->_iMagical == ITEM_QUALITY_NORMAL) {
 			PrintItemDetails(*pi);
 		} else {
 			PrintItemDur(*pi);
@@ -4748,24 +4761,16 @@ bool UseInvItem(int cii)
 		oracool::NamedEncounter encounter;
 		if (!oracool::EncounterForMapItem(item->IDidx, encounter))
 			return true;
-		const bool reentry = oracool::NamedEncounterReentryIsFree(encounter); // asked before Enter, which keeps it so
 		if (!oracool::EnterNamedEncounter(player, encounter)) {
 			player.Say(HeroSpeech::ICantUseThisYet);
 			if (&player == MyPlayer)
 				oracool::LogEvent("A sealed map only opens in town.");
 			return true;
 		}
-		// Consumed only once the encounter has actually opened.
 		if (&player == MyPlayer)
 			oracool::PlayUiEventSound(oracool::UiEventSound::MapUnseal);
-		if (reentry)
-			return true; // back into the open arena: the map is kept (user, 2026-10-05)
-		// From its own list: a map read from the belt removed backpack item c and stayed on the belt, ready to open
-		// the encounter again - and with an empty backpack drove _pNumInv to -1 (round 12 audit, v1.12.237).
-		if (speedlist)
-			DecrementOrRemoveSpdBarItem(player, c);
-		else
-			ConsumeUsedBackpackItem(player, c, item);
+		// Never consumed here: the map is kept until the arena's guardian dies, and AwardNamedEncounter takes one map of the
+		// kind from the hero then (user, 2026-10-06: "Keep the first map until the boss dies").
 		return true;
 	}
 

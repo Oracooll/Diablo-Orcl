@@ -82,6 +82,22 @@ MonsterMarks &MarksOf(const Monster &monster)
 	return MonsterState[monster.getId()];
 }
 
+/**
+ * @brief A new bleed of @p ticks at @p perSecond (1/64 units) on @p marks: whichever of the two has more damage left to deal
+ * runs, whole - the clock and the rate were two separate maximums, so a long weak bleed and a short strong one merged into
+ * a long strong one neither skill gives (user, 2026-10-06).
+ */
+void MergeBleed(MonsterMarks &marks, int ticks, int perSecond)
+{
+	if (ticks <= 0 || perSecond <= 0)
+		return;
+	const int64_t running = marks.bleedTicks > 0 ? static_cast<int64_t>(marks.bleedTicks) * marks.bleedDamage : 0;
+	if (static_cast<int64_t>(ticks) * perSecond <= running)
+		return;
+	marks.bleedTicks = ticks;
+	marks.bleedDamage = perSecond;
+}
+
 // ---- small helpers -----------------------------------------------------------------------------
 
 /**
@@ -417,8 +433,7 @@ void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee, bool b
 	if (melee) {
 		clocks.retaliationStacks = 0;
 		if (const int p = PointsIfOn(player, Skill::DeepWounds); p > 0 && GenerateRnd(100) < DeepWoundsChance(p)) {
-			marks.bleedTicks = std::max(marks.bleedTicks, DeepWoundsTicks); // not cutting a longer bleed short (round 35)
-			marks.bleedDamage = std::max(marks.bleedDamage, DeepWoundsPerSecond(p) << 6);
+			MergeBleed(marks, DeepWoundsTicks, DeepWoundsPerSecond(p) << 6); // the bigger bleed of the two (user, 2026-10-06)
 		}
 		if (PointsIfOn(player, Skill::LastingWounds) > 0)
 			marks.noRegenTicks = LastingWoundsTicks;
@@ -659,9 +674,7 @@ void ApplyRfa12BuffsToTotals(const Player &player, ItemBonusTotals &totals)
 
 void BleedMonster(const Monster &monster, int ticks, int perSecond)
 {
-	MonsterMarks &marks = MarksOf(monster);
-	marks.bleedTicks = std::max(marks.bleedTicks, ticks);
-	marks.bleedDamage = std::max(marks.bleedDamage, perSecond);
+	MergeBleed(MarksOf(monster), ticks, perSecond);
 }
 
 bool MonsterBleeding(const Monster &monster)

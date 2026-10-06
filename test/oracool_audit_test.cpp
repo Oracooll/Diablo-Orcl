@@ -18864,6 +18864,31 @@ TEST(OracoolRogueArrows, AKeysBowShotIsOneShotAndTheHeldSkillReturns)
 	oracool::ArmArrowSkill(std::nullopt);
 }
 
+// A quick-cast key's melee skill is one swing too (user, 2026-10-06): a held plain attack carried it, paid, every swing after.
+TEST(OracoolRogueArrows, AKeysMeleeSkillIsOneSwingAndTheHeldSkillReturns)
+{
+	ForgetOneShotMeleeLatch();
+	oracool::ArmMeleeSkill(std::nullopt); // a plain hold
+	oracool::ArmClassMeleeSkill(std::nullopt);
+	NoteMeleeLatchesBeforeKey();
+	oracool::ArmMeleeSkill(oracool::PaladinSkill::Zeal); // the key's
+	MarkMeleeLatchOneShotIfKeyArmed();
+	EXPECT_FALSE(HasStruckOneShotMeleeLatch()) << "no swing has struck with it yet";
+	DropOneShotMeleeLatch();
+	EXPECT_FALSE(oracool::ArmedMeleeSkill().has_value()) << "nothing comes back to a plain hold";
+
+	oracool::ArmMeleeSkill(oracool::PaladinSkill::ShieldBash); // the held button's
+	NoteMeleeLatchesBeforeKey();
+	oracool::ArmMeleeSkill(oracool::PaladinSkill::Zeal); // the key's
+	MarkMeleeLatchOneShotIfKeyArmed();
+	DropOneShotMeleeLatch();
+	EXPECT_EQ(oracool::ArmedMeleeSkill(), std::optional<oracool::PaladinSkill>(oracool::PaladinSkill::ShieldBash)) << "the held skill is back";
+	DropOneShotMeleeLatch();
+	EXPECT_EQ(oracool::ArmedMeleeSkill(), std::optional<oracool::PaladinSkill>(oracool::PaladinSkill::ShieldBash)) << "a button's own latch is not dropped";
+	oracool::ArmMeleeSkill(std::nullopt);
+	ForgetOneShotMeleeLatch();
+}
+
 // Sight passes over lava (solid, but no missile blocker) and refuses only a real squeeze between two walls (rounds 99-100 audit:
 // the squeeze test read IsTileSolid, and every off-axis line across a lava pool was refused - Blizzard, Leap, the auras).
 TEST(OracoolAudit100, SightCrossesLavaButNotASqueezedCorner)
@@ -19147,4 +19172,39 @@ TEST(OracoolUser1005, AnOpenArenaIsReenteredFreeUntilANewGame)
 	oracool::ResetNamedEncountersForNewGame();
 	for (int i = 0; i < static_cast<int>(oracool::NamedEncounterCount); i++)
 		EXPECT_FALSE(oracool::NamedEncounterReentryIsFree(static_cast<oracool::NamedEncounter>(i))) << "a fresh game owes no free entry";
+}
+
+// The javelin and spear throws are not thrown with a bow (user, 2026-10-06: they rolled the bow's damage), refused at the
+// click and on the red skill-bar plate, as the cast weapon blows are.
+TEST(OracoolUser1006, JavelinThrowsRefuseABow)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true; // IsValidSpell admits the fork's spells only then, as in play
+	const uint8_t savedGfx = player._pgfxnum;
+	const SpellID throws[] = { SpellID::Harpoon, SpellID::AnchorJavelin, SpellID::PoisonJavelin, SpellID::PlagueJavelin, SpellID::ValkyriesSpear };
+	player._pgfxnum = static_cast<uint8_t>(PlayerWeaponGraphic::Bow);
+	for (const SpellID spell : throws) {
+		EXPECT_TRUE(oracool::Rfa12LacksBowFor(player, spell)) << "thrown with a bow: " << static_cast<int>(spell);
+		EXPECT_TRUE(oracool::LacksShieldFor(player, spell)) << "no red plate with a bow: " << static_cast<int>(spell);
+	}
+	player._pgfxnum = static_cast<uint8_t>(PlayerWeaponGraphic::Staff);
+	for (const SpellID spell : throws)
+		EXPECT_FALSE(oracool::Rfa12LacksBowFor(player, spell)) << "refused with a staff: " << static_cast<int>(spell);
+	player._pgfxnum = savedGfx;
+	gbIsHellfire = savedHellfire;
+}
+
+// The sheet's block line reads against the last monster that hit the hero, as the Armor class bar does (user, 2026-10-06).
+TEST(OracoolUser1006, LastAttackerLevelIsKeptForTheBlockLine)
+{
+	oracool::ClearCombatOdds();
+	int level = -1;
+	EXPECT_FALSE(oracool::LastAttackerLevel(level)) << "a new game has no attacker: the equal-level reading";
+	oracool::NoteAttacker("Fallen One", 30, 12, false, false, 10);
+	ASSERT_TRUE(oracool::LastAttackerLevel(level));
+	EXPECT_EQ(level, 12);
+	oracool::ClearCombatOdds();
+	EXPECT_FALSE(oracool::LastAttackerLevel(level));
 }

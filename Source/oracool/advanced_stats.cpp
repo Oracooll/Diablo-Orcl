@@ -172,6 +172,10 @@ void AddOffense(const Player &p, std::vector<Row> &rows)
 	// As a percentage (2026-09-27): the field is a tier, and tier 2 halves the armour - "Ignores 2" said otherwise.
 	if (p._pIEnAc > 0)
 		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("Ignores {:d}% of the target's armor")), GetSheetArmorPiercePercentFor(p)) });
+	// The Warrior's and Barbarian's class gift: PlrHitMonst doubles a melee blow on GenerateRnd(100) < level, so never with
+	// a bow (user, 2026-10-06 - the sheet never showed it).
+	if ((p._pClass == HeroClass::Warrior || p._pClass == HeroClass::Barbarian) && !p.UsesRangedWeapon() && p._pLevel > 0)
+		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:d}% chance to deal double damage")), std::min<int>(p._pLevel, 100)) });
 
 	// The fixed 3/5% and the random drain are independent and can both be active - the old sheet's Life
 	// steal row, word for word in its arithmetic (player.cpp's steal branch; the random one is
@@ -191,9 +195,10 @@ void AddOffense(const Player &p, std::vector<Row> &rows)
 	if (const int manaPct = GetSheetManaStealPercent(); manaPct > 0)
 		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("{:d}% mana stolen per melee hit")), manaPct) });
 
-	// Animation frames, so LOWER is faster: the old sheet's Now/Base pair in one line.
+	// Animation frames, so LOWER is faster: the old sheet's Now/Base pair in one line. The first swing's: a held button's
+	// repeated swings skip fewer (user, 2026-10-06).
 	if (const int skipped = GetSheetAttackFramesSkipped(); skipped > 0) {
-		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("Attack speed: {:d} frames (base {:d})")),
+		rows.push_back({ RowKind::Bonus, fmt::format(fmt::runtime(_("Attack speed: {:d} frames on the first swing (base {:d})")),
 		                                     p._pAFrames - skipped, p._pAFrames) });
 	}
 	if (p._pIFastCast > 0)
@@ -225,7 +230,8 @@ void AddOffense(const Player &p, std::vector<Row> &rows)
 /** @brief DEFENSE: what happens to a hit the hero takes. */
 void AddDefense(const Player &p, std::vector<Row> &rows)
 {
-	// Equal-level reading, zero without a shield - GetSheetBlockChancePercent explains both.
+	// Against the last monster that hit the hero (equal level until one has), zero without a shield -
+	// GetSheetBlockChancePercent explains both.
 	if (const int block = GetSheetBlockChancePercent(); block > 0) {
 		rows.push_back({ RowKind::Bonus, HasAnyOf(p._pIFlags, ItemSpecialEffect::FastBlock)
 		        ? fmt::format(fmt::runtime(_("Block chance {:d}%  -  fast block")), block)

@@ -32,6 +32,7 @@
 #include "oracool/passives.h"
 #include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
+#include "oracool/rogue_arrows.h" // IsJavelinThrow - a bow is not thrown (user, 2026-10-06)
 #include "oracool/endgame_boss.h" // IsKnockbackImmune - Shove's refusal
 #include "oracool/melee_skills.h" // NoteSideSweep - Cleave and Sweep stand the vanilla cleave aside
 #include "oracool/skill_sounds.h"
@@ -893,9 +894,9 @@ struct PlayerState {
 	// The skills on a cooldown (Absolute Zero, user 2026-10-01): ticks left on each, counted down every tick.
 	std::vector<std::pair<SpellID, int>> cooldowns;
 	// Vault's charges (the Rogue Skill Cards page, 2026-10-04: "to be cast up to 3 times withing 3 seconds, then - 15 seconds
-	// cooldown"): the vaults inside the window, and the window's ticks left.
-	int vaultUses = 0;
-	int vaultWindow = 0;
+	// cooldown"): the ticks each of the last two vaults still counts for. A sliding window since 2026-10-06 (user): the fixed
+	// 3-second one restarted after two vaults, so two every three seconds never met the cooldown.
+	std::array<int, 2> vaultRecent {};
 	// Shadow Step's fade (2026-10-04): unseen for the first half, fading in white for the second. Drawn only.
 	int shadowFadeTicks = 0;
 };
@@ -954,6 +955,20 @@ void StartBuff(Player &player, Buff buff, int ticks, int rank)
 		CalcPlrInv(player, false);
 }
 
+/**
+ * @brief StartBuff, refused for a same-rank recast with more than 90% of the clock left - paying again for a buff that is
+ * still nearly full bought nothing (user, 2026-10-06; warcries.cpp's StartBuff rule since round 60). False when refused.
+ */
+bool StartBuffUnlessFull(Player &player, Buff buff, int ticks, int rank)
+{
+	const PlayerState &state = StateOf(player);
+	const size_t index = static_cast<size_t>(buff);
+	if (state.ticks[index] > 0 && state.rank[index] == rank && state.ticks[index] > ticks * 9 / 10)
+		return false;
+	StartBuff(player, buff, ticks, rank);
+	return true;
+}
+
 int BuffRank(const Player &player, Buff buff)
 {
 	const PlayerState &state = StateOf(player);
@@ -988,6 +1003,7 @@ constexpr double FuneralSpiralTurn = 0.14;
 constexpr double FuneralSpiralGrow = 4.0;
 constexpr int FuneralSpiralMark = 0x4653;
 constexpr int FurnaceFlameTicks = 12; // each spit's flame on screen
+constexpr int PoisonExplosionCloudTicks = 3 * TicksPerSecond; // the burst's cloud, a poison pulse a second (user, 2026-10-06)
 std::array<Field, MaxFields> Fields;
 int FieldStamp = 0;
 
@@ -1206,9 +1222,12 @@ Range AbsoluteZeroPulse64(int r)
 }
 
 /** @brief How long @p spell waits after a cast before it can be cast again, in ticks. Zero: no cooldown. */
-/** Vault (the Rogue Skill Cards page, 2026-10-04): three vaults inside three seconds, then fifteen seconds' cooldown. */
+/**
+ * Vault (the Rogue Skill Cards page, 2026-10-04): three vaults, then fifteen seconds' cooldown. The three count over any
+ * 15 seconds since 2026-10-06 (user: two every three seconds slipped past a 3-second window that restarted).
+ */
 constexpr int VaultCharges = 3;
-constexpr int VaultWindowTicks = 3 * 20;
+constexpr int VaultWindowTicks = 15 * 20;
 constexpr int VaultCooldownTicks = 15 * 20;
 
 int CooldownTicks(SpellID spell)
@@ -1471,13 +1490,21 @@ Missile *FieldBall(const Field &field)
 	return nullptr;
 }
 
-/** @brief A Ball Lightning strike's damage at rank @p r: Charged Bolt's at that level, as its bolts were. */
+/**
+ * @brief A Ball Lightning, Lightning Rod or Faraday Ring strike's damage at rank @p r: Charged Bolt's, as its bolts were, grown
+ * +10% a rank past the first and +1 / +2 at the ends - Charged Bolt's own reads only Magic, so a rank changed nothing
+ * (user, 2026-10-06). The hover facts read this same function.
+ */
 Range BallLightningDamage(int r)
 {
 	int min = 0;
 	int max = 0;
 	GetDamageAmtAtLevel(SpellID::ChargedBolt, r, &min, &max);
-	return { std::max(min, 0), std::max(max, 0) };
+	const int step = std::max(r - 1, 0);
+	const int percent = 100 + 10 * step;
+	min = std::max(min, 0) * percent / 100 + step;
+	max = std::max(max, 0) * percent / 100 + 2 * step;
+	return { min, std::max(max, min) };
 }
 
 /**
@@ -1965,6 +1992,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return !line.empty(); // a slam on nothing costs nothing, as Rend and Ground Stomp (round 28 audit)
 	}
 	case SpellID::Earthquake: {
+		// Not into empty ground (user, 2026-10-06): with nothing within its reach at the cast, the quake is refused unpaid, as
+		// Seismic Slam and Rend on nothing.
+		if (MonstersWithin(here, ReachTiles(spell, r)).empty())
+			return false;
 		Field *f = NewField(player, spell, here, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
 		// Drawn as cry rings, one after another for the four seconds (TickField), sized to its reach (dev note,
@@ -1979,10 +2010,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return !heard.empty();
 	}
 	case SpellID::RallyingCry: {
+		// Not again while nearly full, at the same rank (user, 2026-10-06): the recast was paid for nothing.
+		if (!StartBuffUnlessFull(player, Buff::Rally, EffectTicks(spell, r), r))
+			return false;
 		PlayerState &state = StateOf(player);
 		const int total = Percent(player._pMaxHP, EffectPercent(spell, r));
 		state.rallyPerTick = std::max(total / EffectTicks(spell, r), 1);
-		StartBuff(player, Buff::Rally, EffectTicks(spell, r), r);
 		return true;
 	}
 	case SpellID::Intimidate: {
@@ -2003,12 +2036,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		}
 		return any;
 	}
-	case SpellID::IronWill:
-		StartBuff(player, Buff::IronWill, EffectTicks(spell, r), r);
-		return true;
+	case SpellID::IronWill: // refused while nearly full at the same rank (user, 2026-10-06)
+		return StartBuffUnlessFull(player, Buff::IronWill, EffectTicks(spell, r), r);
 	case SpellID::Bloodcall:
-		StartBuff(player, Buff::Bloodcall, EffectTicks(spell, r), r);
-		return true;
+		return StartBuffUnlessFull(player, Buff::Bloodcall, EffectTicks(spell, r), r);
 	case SpellID::AncestralCall:
 	case SpellID::SpiritGuardian:
 		// Companions (user, 2026-09-14) - the Ancients together, and the Monk's guardian. oracool/companion.h.
@@ -2016,11 +2047,17 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 	case SpellID::EarthshakerCry: {
 		const auto heard = MonstersWithin(here, ReachTiles(spell, r));
 		const Range d = SkillDamage(spell, r);
+		// A cry no one hears costs nothing, as every other cry (round 46 audit: 10 Rage for nothing) - nor one every monster
+		// shrugged off: only what it hurt or stunned counts (user, 2026-10-06).
+		bool moved = false;
 		for (Monster *m : heard) {
+			const int lifeBefore = m->hitPoints;
 			Strike(player, *m, DamageType::Magic, Rolled(d));
-			Stagger(*m, StunTicks(spell, r));
+			const bool hurt = m->hitPoints < lifeBefore;
+			const bool stunned = Stagger(*m, StunTicks(spell, r));
+			moved = moved || hurt || stunned;
 		}
-		return !heard.empty(); // a cry no one hears costs nothing, as every other cry (round 46 audit: 10 Rage for nothing)
+		return moved;
 	}
 	// ---------------- Sorceress: cold ----------------
 	case SpellID::ChillTouch: {
@@ -2537,16 +2574,15 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// attack skill. no impact sound played").
 		Art(player, MissileGraphicID::VaultDust, here);
 		Art(player, MissileGraphicID::VaultDust, landed);
-		// Three vaults inside VaultWindowTicks, then the cooldown.
+		// Three vaults inside any VaultWindowTicks, then the cooldown: the window slides with each vault (user, 2026-10-06).
 		PlayerState &vaulter = StateOf(player);
-		if (vaulter.vaultWindow == 0) {
-			vaulter.vaultUses = 0;
-			vaulter.vaultWindow = VaultWindowTicks;
-		}
-		if (++vaulter.vaultUses >= VaultCharges) {
-			vaulter.vaultUses = 0;
-			vaulter.vaultWindow = 0;
+		const auto recent = static_cast<int>(std::count_if(vaulter.vaultRecent.begin(), vaulter.vaultRecent.end(), [](int ticks) { return ticks > 0; }));
+		if (recent + 1 >= VaultCharges) {
+			vaulter.vaultRecent = {};
 			StartCooldown(player, spell);
+		} else {
+			// Into the slot that has run out (or would run out first).
+			*std::min_element(vaulter.vaultRecent.begin(), vaulter.vaultRecent.end()) = VaultWindowTicks;
 		}
 		return true;
 	}
@@ -2946,12 +2982,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	// ---------------- Monk: spirit ----------------
-	case SpellID::MantraOfClarity:
-		StartBuff(player, Buff::Clarity, EffectTicks(spell, r), r);
-		return true;
+	case SpellID::MantraOfClarity: // the mantras: refused while nearly full at the same rank (user, 2026-10-06)
+		return StartBuffUnlessFull(player, Buff::Clarity, EffectTicks(spell, r), r);
 	case SpellID::MantraOfEvasion:
-		StartBuff(player, Buff::Evasion, EffectTicks(spell, r), r);
-		return true;
+		return StartBuffUnlessFull(player, Buff::Evasion, EffectTicks(spell, r), r);
 	case SpellID::ChiWave: {
 		Monster *m = NearestStrikable(target, 3, DamageType::Magic);
 		if (m == nullptr)
@@ -2993,9 +3027,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		return true;
 	}
 	case SpellID::MantraOfRetribution:
-		StartBuff(player, Buff::Retribution, EffectTicks(spell, r), r);
-		return true;
+		return StartBuffUnlessFull(player, Buff::Retribution, EffectTicks(spell, r), r);
 	case SpellID::Serenity:
+		// Nothing to cleanse, nothing paid (user, 2026-10-06): Serenity is a cure, and a cast with no slow or chill on her
+		// was mana for the ring alone.
+		if (PlayerSlowPercent(player) <= 0 && !IsPlayerChilled(player)) // what ClearPlayerSlow ends
+			return false;
 		ClearPlayerSlow(player);
 		// An aura ring rising round her and sinking back, colour-cycled, since v1.12.211 (user, 2026-09-27: "use a still
 		// image, like an aura ring, animate it up and down and use color cycling on it"). Drawn by scrollrt's DrawPlayer.
@@ -3010,9 +3047,8 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		Impact(player, spell);
 		return true;
 	}
-	case SpellID::AstralProjection:
-		StartBuff(player, Buff::Astral, EffectTicks(spell, r), r);
-		return true;
+	case SpellID::AstralProjection: // refused while nearly full at the same rank (user, 2026-10-06)
+		return StartBuffUnlessFull(player, Buff::Astral, EffectTicks(spell, r), r);
 	case SpellID::AncestralCourt: {
 		Field *f = NewField(player, spell, target, AncestralCourtTicks, r);
 		f->clock = 0;
@@ -3143,8 +3179,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			return false;
 		for (Monster *m : MonstersWithin(corpse->position, ReachTiles(spell, r)))
 			Poison(player, *m, PoisonTicks(spell), PerSecond(spell, r));
+		// The cloud is poison too, not only a picture: it pulses every second while it hangs there (user, 2026-10-06).
+		NewField(player, spell, corpse->position, PoisonExplosionCloudTicks, r);
 		Show(player, MissileID::CorpseBurst, MissileGraphicID::CorpseExplosion, corpse->position, corpse->position);
-		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, corpse->position, corpse->position, 3 * TicksPerSecond);
+		Show(player, MissileID::AcidCloud, MissileGraphicID::AcidCloud, corpse->position, corpse->position, PoisonExplosionCloudTicks);
 		Impact(player, spell); // RfA-27 batch 51
 		return true;
 	}
@@ -3289,6 +3327,13 @@ void TickField(Player &player, Field &field)
 	case SpellID::Blight:
 		if (field.clock % TicksPerSecond == 0) {
 			for (Monster *m : MonstersWithin(field.tile, 1))
+				Poison(player, *m, PoisonTicks(field.spell), PerSecond(field.spell, r));
+		}
+		break;
+	case SpellID::PoisonExplosion:
+		// The burst's cloud: whatever stands in it, or walks in, is poisoned again every second (user, 2026-10-06).
+		if (field.clock % TicksPerSecond == 0) {
+			for (Monster *m : MonstersWithin(field.tile, ReachTiles(field.spell, r)))
 				Poison(player, *m, PoisonTicks(field.spell), PerSecond(field.spell, r));
 		}
 		break;
@@ -4755,8 +4800,8 @@ void ProcessRfa12ActivesTick(Player &player)
 	// And the cooldowns.
 	for (auto &[spell, ticks] : state.cooldowns)
 		ticks = std::max(ticks - 1, 0);
-	if (state.vaultWindow > 0 && --state.vaultWindow == 0)
-		state.vaultUses = 0;
+	for (int &vaultTicks : state.vaultRecent)
+		vaultTicks = std::max(vaultTicks - 1, 0);
 	if (state.shadowFadeTicks > 0)
 		state.shadowFadeTicks--;
 	std::erase_if(state.cooldowns, [](const auto &cooldown) { return cooldown.second <= 0; });
@@ -5424,6 +5469,8 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 		break;
 	case SpellID::Vault:
 		say(_("Range: {:d} tiles"), reach);
+		// Its limits on the hover (user, 2026-10-06).
+		say(_("{:d} vaults within {} s, then {} s cooldown"), VaultCharges, Secs(VaultWindowTicks), Secs(VaultCooldownTicks));
 		break;
 	case SpellID::ReapingPoint:
 		blowBonus();
@@ -5568,6 +5615,7 @@ std::string Rfa12ActiveFactsAt(const Player &player, SpellID spell, int rank)
 	case SpellID::PoisonExplosion:
 		poison();
 		say(_("Radius: {:d} tiles around the corpse"), reach);
+		say(_("Cloud: {} s; it poisons again every second"), Secs(PoisonExplosionCloudTicks)); // user, 2026-10-06
 		break;
 	case SpellID::BoneSpear:
 		say(_("Magic damage: {:d} - {:d}, everything on a {:d}-tile line"), bone.min, bone.max, reach);
@@ -5680,6 +5728,20 @@ bool Rfa12FieldPulseInFlight()
 	return FieldPulseInFlight;
 }
 
+bool Rfa12SideBlowInFlight()
+{
+	return SideBlowInFlight;
+}
+
+void StrikeSideWeaponBlow(Player &player, Monster &monster, int blowPercent)
+{
+	// Always a burst blow: the swing it carries from already counted for it (user, 2026-10-06).
+	const bool previous = SideBlowInFlight;
+	SideBlowInFlight = true;
+	StrikeBlow(player, monster, DamageType::Physical, blowPercent, /*melee=*/true);
+	SideBlowInFlight = previous;
+}
+
 bool Rfa12LacksBowFor(const Player &player, SpellID spell)
 {
 	if (!IsRfa12Active(spell))
@@ -5687,6 +5749,9 @@ bool Rfa12LacksBowFor(const Player &player, SpellID spell)
 	// And the reverse: a cast weapon blow with a bow in hand (round 110 audit: Dragon's Wrath and the staff casts struck with
 	// the bow's damage, while the swung skills refuse a bow since round 19).
 	if (IsCastWeaponBlow(spell) && player.UsesRangedWeapon())
+		return true;
+	// The javelin and spear throws too: with a bow in hand they rolled the bow's damage (user, 2026-10-06).
+	if (IsJavelinThrow(spell) && player.UsesRangedWeapon())
 		return true;
 	return IsBowSkill(spell) && !player.UsesRangedWeapon();
 }

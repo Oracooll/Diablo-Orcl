@@ -2238,7 +2238,9 @@ bool SetShopHoverInfoString()
 	// The unidentified form for unidentified stock, as the backpack and the stash already print it (tooltip
 	// audit, 2026-09-25): Wirt's Gamble bases showed the identified layout - quality, tier, item level - over a
 	// base name, promising a roll that has not happened yet.
-	if (slot.item->_iIdentified)
+	// A white item has nothing to identify, so it prints its tier and item level like an identified one - except
+	// a Gamble base, whose roll has not happened (user, 2026-10-06).
+	if (slot.item->_iIdentified || (slot.item->_iMagical == ITEM_QUALITY_NORMAL && stextflag != TalkID::BoyGamble))
 		PrintItemDetails(*slot.item);
 	else
 		PrintItemDur(*slot.item);

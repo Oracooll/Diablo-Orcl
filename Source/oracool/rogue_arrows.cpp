@@ -14,6 +14,7 @@
 #include "oracool/paladin_skills.h" // MissilePoolHasRoom
 #include "oracool/passives.h"
 #include "oracool/rfa12_actives.h" // SightLineClear - Strafe's targets
+#include "oracool/rfa12_effects.h" // Rfa12ArrowIgnores - Strafe under Hunter's Claim
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
@@ -298,6 +299,8 @@ void LooseStrafeShot(Player &player)
 		const Monster &monster = Monsters[ActiveMonsters[i]];
 		if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion() || (monster.flags & MFLAG_HIDDEN) != 0 || !monster.isPossibleToHit())
 			continue;
+		if (Rfa12ArrowIgnores(player, monster)) // Hunter's Claim: only the claimed, whom the arrows can hit (user, 2026-10-06)
+			continue;
 		if (player.position.tile.WalkingDistance(monster.position.tile) > 8 || !SightLineClear(player.position.tile, monster.position.tile))
 			continue;
 		inView.push_back(monster.position.tile);
@@ -367,6 +370,9 @@ void FireArrowSkill(Player &player, RogueArrow arrow, Point target)
 			// Nor one no arrow can hit - a talker, a charging or retreating counselor: the arrow passed through and counted
 			// against the volley (round 22 audit).
 			if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion() || (monster.flags & MFLAG_HIDDEN) != 0 || !monster.isPossibleToHit())
+				continue;
+			// Under Hunter's Claim the arrows pass the unclaimed by: aim only at the claimed (user, 2026-10-06).
+			if (Rfa12ArrowIgnores(player, monster))
 				continue;
 			const int distance = player.position.tile.WalkingDistance(monster.position.tile);
 			if (distance > 8 || !SightLineClear(player.position.tile, monster.position.tile)) // nor past a closed door (round 80)

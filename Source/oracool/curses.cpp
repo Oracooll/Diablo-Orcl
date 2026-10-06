@@ -748,7 +748,7 @@ std::string CurseFactsAt(const Player &player, SpellID spell, int rank)
 		return {};
 	line(fmt::format(fmt::runtime(_("Duration: {:s} s")), SecondsText(CurseTicksAt(r, Points(player, ClassTreeSkill::CurseMastery)))));
 	if (PassiveActive(player, ClassTreeSkill::EternalTorment))
-		line(std::string(_("Eternal Torment: lasts until the monster dies")));
+		line(std::string(_("Eternal Torment: lasts until the monster dies or you leave the floor")));
 	if (IsAnyOf(kind, CurseKind::Attract, CurseKind::DeathMark))
 		line(std::string(_("Target: one monster")));
 	else

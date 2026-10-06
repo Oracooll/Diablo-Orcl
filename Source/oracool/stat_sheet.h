@@ -36,6 +36,10 @@ struct Player;
 
 namespace devilution::oracool {
 
+/** @brief The Auric Amulet's single-player effect: gold find while worn, since single player has no gold cap
+ * for it to double (user, 2026-10-06). ItemBonusTotals::AddItem pays it; PrintItemMisc prints it. */
+constexpr int AuricAmuletGoldFind = 25;
+
 /**
  * @brief Every quantity the equipment loop accumulates, one field per vanilla local.
  * lightRadius is the DELTA against the base of 10, which stays in CalcPlrItemVals.

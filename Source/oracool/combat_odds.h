@@ -46,6 +46,11 @@ bool ChanceToBeHit(const Player &player, int &chance, std::string &name);
 /** @brief The chance, 5-95, @p player hits the last monster they attacked now, and its name. False when none yet. */
 bool ChanceToHit(const Player &player, int &chance, std::string &name);
 
+/**
+ * @brief The level of the last monster to hit the local hero, for the sheet's block line (user, 2026-10-06). False when
+ * none has yet.
+ */
+bool LastAttackerLevel(int &level);
 /** @brief Forgets both - a new game, or another character. */
 void ClearCombatOdds();
 

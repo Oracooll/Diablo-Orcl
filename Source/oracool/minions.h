@@ -109,6 +109,8 @@ int LivingMinionCount(const Player &owner);
 size_t ActiveMinionBodies();
 
 bool IsMinion(const Monster &monster);
+/** @brief Whether @p monster is a Skeletal Mage of the army - its shots wear the bone tooth; a revived caster's keep their own. */
+bool IsMageMinion(const Monster &monster);
 /** @brief Whose it is, or null - so its kills are its owner's. */
 const Player *MinionOwner(const Monster &monster);
 
@@ -292,8 +294,10 @@ _sfx_id MinionDeathSfx(const Monster &monster);
 
 /** @brief The army panel, under the companions' (or in its place). */
 void DrawMinionHud(const Surface &out);
-/** @brief A click on the panel's header cycles the shared stance. */
+/** @brief A press on the panel's header sinks it; the release inside cycles the shared stance. */
 bool HandleMinionHudClick(Point mouse);
+/** @brief The left button's release: a held army header cycles the stance when let go inside it (user, 2026-10-06). */
+void ReleaseMinionHeader(Point mouse);
 /** @brief Whether @p mouse is over the army header - HUD, not the world behind it. */
 bool IsPointOverMinionHeader(Point mouse);
 

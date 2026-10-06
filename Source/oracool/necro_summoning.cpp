@@ -81,6 +81,53 @@ int ReviveTicks(int lastingBondPoints, bool extendedServitude)
 	return ticks;
 }
 
+/**
+ * @brief What a revived @p type shoots, as its kind shot in life (monster.cpp GetMissileType and CounselorAi); Null for a
+ * fighter, which keeps its blade (user, 2026-10-06: revived archers and casters walked up and swung). The shot flies the
+ * minion's ranged path (MonsterRangedAttack), and each of these rolls the shooter's own damage when launched at 0.
+ * Diablo's Apocalypse is left out: it aims at players only.
+ */
+MissileID RevivedShot(_monster_id type)
+{
+	const MonsterData &data = MonstersData[type];
+	switch (data.ai) {
+	case MonsterAIID::SkeletonRanged:
+	case MonsterAIID::GoatRanged:
+		return MissileID::Arrow;
+	case MonsterAIID::Succubus:
+	case MonsterAIID::LazarusSuccubus:
+		return MissileID::BloodStar;
+	case MonsterAIID::Acid:
+	case MonsterAIID::AcidUnique:
+		return MissileID::Acid;
+	case MonsterAIID::FireBat:
+		return MissileID::Firebolt;
+	case MonsterAIID::Torchant:
+		return MissileID::Fireball;
+	case MonsterAIID::Magma:
+		return MissileID::MagmaBall;
+	case MonsterAIID::Storm:
+		return MissileID::ThinLightningControl;
+	case MonsterAIID::Lich:
+		return MissileID::OrangeFlare;
+	case MonsterAIID::ArchLich:
+		return MissileID::YellowFlare;
+	case MonsterAIID::Psychorb:
+		return MissileID::BlueFlare;
+	case MonsterAIID::Necromorb:
+		return MissileID::RedFlare;
+	case MonsterAIID::BoneDemon:
+		return MissileID::BlueFlare2;
+	case MonsterAIID::Counselor: {
+		// Counselor, Magistrate, Cabalist, Advocate: the type's intelligence picks the spell, as CounselorAi reads it.
+		constexpr MissileID Spells[4] = { MissileID::Firebolt, MissileID::ChargedBolt, MissileID::LightningControl, MissileID::Fireball };
+		return Spells[std::min<size_t>(data.intelligence, 3)];
+	}
+	default:
+		return MissileID::Null;
+	}
+}
+
 /** @brief @p ticks as seconds: "12", or "12.5" when it does not come out whole. */
 std::string SecondsText(int ticks)
 {
@@ -274,6 +321,7 @@ bool Revive(Player &player, Point target, int rank)
 	spec.maxDamage = corpse->maxDamage;
 	spec.toHit = corpse->toHit;
 	spec.armorClass = corpse->armorClass;
+	spec.missile = RevivedShot(corpse->type); // an archer or a caster shoots again (user, 2026-10-06)
 	// Three minutes, and half a minute more for every point of Lasting Bond.
 	spec.ticksLeft = ReviveTicks(Points(player, ClassTreeSkill::LastingBond), PassiveActive(player, ClassTreeSkill::ExtendedServitude));
 	// The body first, the corpse, the haste and the effect after (audit, 2026-09-19; round 48: the corpse is taken only once
@@ -442,6 +490,11 @@ bool CastNecromancerSummoning(Player &player, SpellID spell, Point target, int r
 		return true;
 	}
 	case SpellID::ArmyOfTheDead: {
+		// Not in town, where it strikes nothing: it was paid there and erupted on the square (user, 2026-10-06).
+		if (leveltype == DTYPE_TOWN) {
+			player.Say(HeroSpeech::ICantDoThat);
+			return false;
+		}
 		OwnerState &state = StateOf(player);
 		state.armyTile = target;
 		state.armyPulses = ArmyPulses;

@@ -265,7 +265,10 @@ void OpenHive()
 {
 	NetSendCmd(false, CMD_OPENHIVE);
 	auto &quest = Quests[Q_FARMER];
-	quest._qactive = QUEST_DONE;
+	// Never back from paid to unpaid: with "Unlock All Town Entrances" the bomb's pickup completes the quest and the bomb is
+	// kept, so a bomb used here after Lester paid would have made him pay a second Auric Amulet (user, 2026-10-06).
+	if (quest._qactive != QUEST_HIVE_DONE)
+		quest._qactive = QUEST_DONE;
 	if (gbIsMultiplayer)
 		NetSendCmdQuest(true, quest);
 }

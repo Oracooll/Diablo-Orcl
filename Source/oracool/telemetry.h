@@ -14,7 +14,9 @@
  * deaths, and item pickups by tier. Events that would fire every tick (damage dealt, mana spent)
  * stay out - a firehose CSV is as useless as no CSV.
  *
- * Columns: time,session,event,level,player_level,subject,value1,value2
+ * Columns: time,session,event,level,player_level,subject,value1,value2,hero_class
+ *   session: one id per game since 2026-10-06 (it was per program run); hero_class: the hero's class, untranslated
+ *            (added 2026-10-06 - a file begun under the older eight-column header is rotated to .old.csv on first write)
  *   kill:   subject = monster name, value1 = monster level, value2 = time-to-kill in ms (0 if the
  *           first hit was never seen, e.g. a golem kill or trap)
  *   death:  subject = what killed the player
@@ -111,5 +113,8 @@ void TelemetryRecordDebugCommand(const std::string &command);
 
 /** @brief CSV field escaping, exposed for tests: quotes fields containing comma/quote/newline. */
 std::string TelemetryEscapeCsvField(const std::string &field);
+
+/** @brief A game starts: the rows after it take a new session id (one per game, not per program run - user, 2026-10-06). */
+void TelemetryStartSession();
 
 } // namespace devilution::oracool

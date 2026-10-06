@@ -318,6 +318,10 @@ SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool
 	// Nor in town (round 84 audit: it opened a door to the last portal's level and spot - another seed's, for a new hero).
 	if (sn == SpellID::TownPortal && leveltype == DTYPE_TOWN)
 		return SpellCheckResult::Fail_Level0;
+	// Nor Apocalypse (user, 2026-10-06): cast and paid in town, where it strikes nothing. AddApocalypse fizzles there too,
+	// for the scroll and the staff that never reach this check.
+	if (sn == SpellID::Apocalypse && leveltype == DTYPE_TOWN)
+		return SpellCheckResult::Fail_Level0;
 	if (sn == SpellID::TownPortal && oracool::RiftForbidsTownPortal()) {
 		// Said on a cast, not on the wells' per-frame plate check (manaonly): it counted "(xN)" up every frame (round 23).
 		if (&player == MyPlayer && !manaonly)

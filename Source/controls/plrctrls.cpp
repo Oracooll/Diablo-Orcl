@@ -2566,7 +2566,10 @@ void QuickCast(size_t slot)
 
 	const std::optional<oracool::RogueArrow> heldArrow = oracool::ArmedArrowSkill();
 	const std::optional<SpellID> heldBowSpell = oracool::ArmedBowSkillSpell();
+	NoteMeleeLatchesBeforeKey();
 	CheckPlrSpell(false, spell, spellType);
+	// A melee skill from a key is one swing too (user, 2026-10-06): a held plain attack went on carrying it, paid, every swing.
+	MarkMeleeLatchOneShotIfKeyArmed();
 	// A bow skill from a key is one shot (round 95 audit): the held attack put back below would repeat it, paid, every shot.
 	// Only a latch this key armed - the held button's own stays its own.
 	if (oracool::ArmedArrowSkill() != heldArrow || oracool::ArmedBowSkillSpell() != heldBowSpell)

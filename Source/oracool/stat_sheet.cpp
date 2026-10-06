@@ -12,6 +12,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/warcries.h"
 #include "oracool/item_sets.h"
+#include "oracool/oracool.h" // IsSinglePlayer - the Auric Amulet's gold find
 #include "oracool/runewords.h"
 #include "player.h"
 #include "spells.h"
@@ -94,6 +95,10 @@ void ItemBonusTotals::AddItem(const Item &item)
 	// The item half of gold find. The charm half already came through ApplyCharmToTotals; this is
 	// what lets a worn item, a set rung or a unique contribute the same way.
 	goldFind += item._iPLGoldFind;
+	// The Auric Amulet in single player: gold find instead of the doubled gold cap single player never had
+	// (user, 2026-10-06). Multiplayer keeps the vanilla cap effect and gets nothing here.
+	if (item._iMiscId == IMISC_AURIC && IsSinglePlayer())
+		goldFind += AuricAmuletGoldFind;
 	magicFind += item._iPLMagicFind;
 	moveSpeed += item._iPLMoveSpeed;
 	fastCast += item._iPLFastCast;
