@@ -186,8 +186,11 @@ bool SpawnBody(Record &record, const Player &owner, Point near)
 				continue; // something stands there
 			body->maxHitPoints = std::max(record.spec.life, 1) << 6;
 			body->hitPoints = std::clamp(record.lifeNow, 64, body->maxHitPoints);
-			body->minDamage = static_cast<uint8_t>(std::clamp(record.spec.minDamage, 0, 255));
-			body->maxDamage = static_cast<uint8_t>(std::clamp(record.spec.maxDamage, 0, 255));
+			// The record's REAL damage, past 255 kept as the body's overflow (round 122 audit: a revived Torment corpse kept only its
+			// bytes); the special keeps its type's real values, read before the overflow is reset.
+			const int64_t minSpecial = MonsterEffectiveDamage(*body, body->minDamageSpecial);
+			const int64_t maxSpecial = MonsterEffectiveDamage(*body, body->maxDamageSpecial);
+			SetMonsterDamage(*body, std::max(record.spec.minDamage, 0), std::max(record.spec.maxDamage, record.spec.minDamage), minSpecial, maxSpecial);
 			body->golemToHit = static_cast<uint16_t>(std::clamp(record.spec.toHit, 0, 65535));
 			body->armorClass = static_cast<uint8_t>(std::clamp(record.spec.armorClass, 0, 255));
 			if (record.spec.ramp != 0)

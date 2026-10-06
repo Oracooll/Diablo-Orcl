@@ -82,6 +82,8 @@ void ForgetRfa12SwingPrice();
 
 /** @brief The RfA-12 melee skill the swing being resolved was thrown with, if any. */
 std::optional<SpellID> ArmedRfa12Melee();
+/** @brief Whether the armed swing moves its own target (Aegis Slam): the plain hit then takes no item knockback (round 122). */
+bool Rfa12ArmedSwingMovesItsTarget();
 /** @brief The armed RfA-12 melee skill only when this swing pays for it and can use it (round 94 audit). */
 std::optional<SpellID> PaidArmedRfa12Melee(const Player &player);
 

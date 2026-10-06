@@ -5667,6 +5667,11 @@ bool IsCastWeaponBlow(SpellID spell)
 }
 } // namespace
 
+bool Rfa12ArmedSwingMovesItsTarget()
+{
+	return ArmedSpell.has_value() && MovesItsTarget(*ArmedSpell);
+}
+
 bool Rfa12FieldPulseInFlight()
 {
 	return FieldPulseInFlight;

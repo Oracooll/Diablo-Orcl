@@ -541,9 +541,12 @@ uint8_t RaiseDamageByPercent(uint8_t base, int percent)
 	return static_cast<uint8_t>(std::min(base + base * percent / 100, 255));
 }
 
-uint8_t PackAdjustedDamage(const Monster &monster, uint8_t base)
+int PackAdjustedDamage(const Monster &monster, uint8_t base)
 {
-	return RaiseDamageByPercent(base, PackAuraOn(monster).damagePercent);
+	// Not clamped to the byte (user, 2026-10-06: "FIX!"): a monster with damage overflow has its top byte at 255 by construction,
+	// and Might's percent was lost on the max end. The callers work in int and lay the overflow percent on after.
+	const int percent = PackAuraOn(monster).damagePercent;
+	return percent > 0 ? base + base * percent / 100 : base;
 }
 
 const char *PackAuraName(const Monster &monster)

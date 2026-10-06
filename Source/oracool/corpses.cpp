@@ -101,8 +101,9 @@ void RecordCorpse(const Monster &monster)
 	corpse.type = monster.type().type;
 	corpse.level = static_cast<int>(monster.level(sgGameInitInfo.nDifficulty));
 	corpse.maxLife = std::max(monster.maxHitPoints >> 6, 1);
-	corpse.minDamage = monster.minDamage;
-	corpse.maxDamage = monster.maxDamage;
+	// Its REAL damage, the overflow percent included (round 122 audit: the bytes alone revived a Torment monster at 1/overflow).
+	corpse.minDamage = static_cast<int>(std::min<int64_t>(MonsterEffectiveDamage(monster, monster.minDamage), INT_MAX / 2));
+	corpse.maxDamage = static_cast<int>(std::min<int64_t>(MonsterEffectiveDamage(monster, monster.maxDamage), INT_MAX / 2));
 	corpse.toHit = static_cast<int>(monster.toHit(sgGameInitInfo.nDifficulty));
 	corpse.armorClass = monster.armorClass;
 	corpse.revivable = Revivable(monster);

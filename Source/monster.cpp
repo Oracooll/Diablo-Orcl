@@ -2710,7 +2710,8 @@ void AiRangedAvoidance(Monster &monster)
 	if (IsAnyOf(monster.ai, MonsterAIID::Magma, MonsterAIID::Storm, MonsterAIID::BoneDemon) && monster.activeForTicks < UINT8_MAX)
 		MonstCheckDoors(monster);
 	int lessmissiles = (monster.ai == MonsterAIID::Acid) ? 1 : 0;
-	int dam = (monster.ai == MonsterAIID::Diablo) ? 40 : 0;
+	// Diablo's Apocalypse with his damage percent (round 122 audit: the rift faces' 150% and Torment's overflow never reached it).
+	int dam = (monster.ai == MonsterAIID::Diablo) ? 40 * oracool::RiftBossDamagePercent(monster) / 100 : 0;
 	MissileID missileType = GetMissileType(monster.ai);
 	int v = GenerateRnd(10000);
 	unsigned distanceToEnemy = monster.distanceToEnemy();
@@ -4594,8 +4595,6 @@ Monster *AddMinionBody(Point position, Direction dir, _monster_id type)
 	// And the Gargoyle AI's perch (round 98 audit): InitMonster sets ALLOW_SPECIAL on every Winged Demon, which holds the animation,
 	// and a Revived one froze on its first step until an enemy's blow lifted it.
 	monster.flags &= ~(MFLAG_TARGETS_MONSTER | MFLAG_BERSERK | MFLAG_HIDDEN | MFLAG_ALLOW_SPECIAL);
-	// The body's damage is its record's bytes, set after this - not its type's Torment overflow on top (user decisions audit).
-	monster.damageOverflow = 100;
 	monster.enemy = 0;
 	monster.activeForTicks = UINT8_MAX;
 	monster.leaderRelation = LeaderRelation::None;

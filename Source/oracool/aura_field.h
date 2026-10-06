@@ -197,7 +197,7 @@ PackAuraBonus PackAuraOn(const Monster &monster);
 uint8_t RaiseDamageByPercent(uint8_t base, int percent);
 
 /** @brief @p base raised by whatever pack aura is on @p monster. Clamped to a uint8_t's range. */
-uint8_t PackAdjustedDamage(const Monster &monster, uint8_t base);
+int PackAdjustedDamage(const Monster &monster, uint8_t base);
 
 /** @brief @p monster's armour class as it stands, its pack aura included. */
 int PackAdjustedArmor(const Monster &monster);

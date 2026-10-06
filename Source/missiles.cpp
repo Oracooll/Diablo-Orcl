@@ -1939,17 +1939,16 @@ void AddBerserk(Missile &missile, AddMissileParameter &parameter)
 		Player &player = *missile.sourcePlayer();
 		const int slvl = BerserkDamageBonus(player.GetSpellLevel(SpellID::Berserk));
 		monster.flags |= MFLAG_BERSERK | MFLAG_GOLEM;
-		// Clamped to the byte (round 30 audit): Hell and Torment damage over 212 wrapped to near nothing, and the minimum
-		// could land above the maximum. Same draws, same order.
-		const auto berserked = [](int percent, int value, int bonus) {
-			return static_cast<uint8_t>(std::min(percent * value / 100 + bonus, 255));
+		// On the REAL damage, the overflow percent included, and what does not fit the bytes kept as overflow (user, 2026-10-06:
+		// "FIX!" - the byte clamp of round 30 lost Berserk's 120-130% on a monster already at 255). Same draws, same order.
+		const auto berserked = [&monster](int percent, uint8_t value, int bonus) {
+			return MonsterEffectiveDamage(monster, value) * percent / 100 + bonus;
 		};
-		monster.minDamage = berserked(GenerateRnd(10) + 120, monster.minDamage, slvl);
-		monster.maxDamage = berserked(GenerateRnd(10) + 120, monster.maxDamage, slvl);
-		monster.minDamageSpecial = berserked(GenerateRnd(10) + 120, monster.minDamageSpecial, slvl);
-		monster.maxDamageSpecial = berserked(GenerateRnd(10) + 120, monster.maxDamageSpecial, slvl);
-		monster.maxDamage = std::max(monster.maxDamage, monster.minDamage);
-		monster.maxDamageSpecial = std::max(monster.maxDamageSpecial, monster.minDamageSpecial);
+		const int64_t minDamage = berserked(GenerateRnd(10) + 120, monster.minDamage, slvl);
+		const int64_t maxDamage = berserked(GenerateRnd(10) + 120, monster.maxDamage, slvl);
+		const int64_t minSpecial = berserked(GenerateRnd(10) + 120, monster.minDamageSpecial, slvl);
+		const int64_t maxSpecial = berserked(GenerateRnd(10) + 120, monster.maxDamageSpecial, slvl);
+		SetMonsterDamage(monster, minDamage, std::max(maxDamage, minDamage), minSpecial, std::max(maxSpecial, minSpecial));
 		int lightRadius = leveltype == DTYPE_NEST ? 9 : 3;
 		// A Luminous monster already carries a light: resized, not orphaned (round 9 audit).
 		if (monster.lightId != NO_LIGHT)

@@ -889,6 +889,7 @@ void SetupObject(Object &object, Point position, _object_id ot)
 		const auto &found = std::find(std::begin(ObjFileList), std::begin(ObjFileList) + numobjfiles, ofi);
 		if (found == std::begin(ObjFileList) + numobjfiles) {
 			LogCritical("Unable to find object_graphic_id {} in list of objects to load, level generation error.", static_cast<int>(ofi));
+			object._oAnimData = std::nullopt; // not the slot's last object's sheet, freed with its level (round 122 audit)
 			return;
 		}
 

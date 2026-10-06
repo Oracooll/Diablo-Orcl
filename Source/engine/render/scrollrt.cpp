@@ -905,6 +905,11 @@ void DrawObject(const Surface &out, Point tilePosition, Point targetBufferPositi
 		return;
 	}
 
+	// Nothing to draw without its sheet or past its frames (round 122 audit: the one draw path with no such guard; a reused slot
+	// whose art was not found kept the last level's freed sheet).
+	if (!objectToDraw._oAnimData || objectToDraw._oAnimFrame < 1
+	    || static_cast<size_t>(objectToDraw._oAnimFrame) > objectToDraw._oAnimData->numSprites())
+		return;
 	const ClxSprite sprite = (*objectToDraw._oAnimData)[objectToDraw._oAnimFrame - 1];
 
 	Point screenPosition = targetBufferPosition - Displacement { CalculateWidth2(sprite.width()), 0 };

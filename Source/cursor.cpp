@@ -607,6 +607,11 @@ void InitCursor()
 		pCursCels2 = LoadCel("data\\inv\\objcurs2", InvItemWidth2);
 	// Oracool: unconditional - the six worn types exist in Diablo as well as Hellfire.
 	pCursCels3 = LoadCel("data\\inv\\oracool_items", InvItemWidth3);
+	// Matched against the icon table, or every hover reads past the sheet (round 122 audit: a build with new icons and no MPQ
+	// repack ran into undefined behaviour instead of saying why).
+	if (pCursCels3->numSprites() != InvItems3Size)
+		app_fatal(StrCat("oracool.mpq is out of date: its item icons (", pCursCels3->numSprites(), ") do not match this build (", InvItems3Size,
+		    "). Repack it with tools\\build_oracool_mpq.cmd."));
 	ClearCursor();
 }
 
