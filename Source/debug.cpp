@@ -15,7 +15,9 @@
 
 #include "automap.h"
 #include "control.h"
+#include "controls/plrctrls.h"
 #include "cursor.h"
+#include "hwcursor.hpp"
 #include "engine/backbuffer_state.hpp"
 #include "engine/events.hpp"
 #include "engine/load_cel.hpp"
@@ -1128,6 +1130,42 @@ std::string DebugCmdClearUi(const string_view parameter)
 	return "HUD restored.";
 }
 
+/**
+ * The cursor's state, for the cursor that vanished after the Poisoned Water level (user, 2026-10-10: gone for good,
+ * mouse movement did nothing, keyboard and mouse only, hardware cursor on): what the game thinks it is drawing and
+ * where. Type it the moment the cursor is gone, before anything else.
+ */
+std::string DebugCmdCursorInfo(const string_view parameter)
+{
+	const CursorInfo &info = GetCurrentCursorInfo();
+	const char *mode = ControlMode == ControlTypes::KeyboardAndMouse ? "mouse"
+	    : ControlMode == ControlTypes::Gamepad                       ? "gamepad"
+	    : ControlMode == ControlTypes::VirtualGamepad                ? "virtual pad"
+	                                                                 : "none";
+	const char *device = ControlDevice == ControlTypes::KeyboardAndMouse ? "mouse"
+	    : ControlDevice == ControlTypes::Gamepad                         ? "gamepad"
+	    : ControlDevice == ControlTypes::VirtualGamepad                  ? "virtual pad"
+	                                                                     : "none";
+	return StrCat("cursor ", pcurs, " | mode ", mode, " / device ", device, " | hardware ", IsHardwareCursorEnabled() ? "on" : "off",
+	    ", in use ", IsHardwareCursor() ? "yes" : "no", ", shown ", IsHardwareCursorVisible() ? "yes" : "no",
+	    ", type ", static_cast<int>(info.type()), ", reinit ", GetCurrentCursorInfo().needsReinitialization() ? "pending" : "no");
+}
+
+/** Rebuilds the cursor from scratch - the hand, its hardware image and its visibility - without restarting. */
+std::string DebugCmdCursorFix(const string_view parameter)
+{
+	ControlMode = ControlTypes::KeyboardAndMouse;
+	ControlDevice = ControlTypes::KeyboardAndMouse;
+	if (MyPlayer->HoldItem.isEmpty() && pcurs <= CURSOR_NONE)
+		NewCursor(CURSOR_HAND);
+	if (IsHardwareCursorEnabled()) {
+		SetHardwareCursor(CursorInfo::GameCursor(pcurs));
+		SetHardwareCursorVisible(true);
+	}
+	RedrawEverything();
+	return StrCat("Cursor rebuilt. ", DebugCmdCursorInfo(parameter));
+}
+
 std::string DebugCmdSpawnUniqueMonster(const string_view parameter)
 {
 	if (leveltype == DTYPE_TOWN)
@@ -1601,6 +1639,8 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "arrow", "Changes arrow effect (normal, fire, lightning, explosion).", "{effect}", &DebugCmdArrow },
 	{ "grid", "Toggles showing grid.", "", &DebugCmdShowGrid },
 	{ "hideui", "Toggles hiding the main HUD (panel, orbs, belt, buttons, XP bar) for clean screenshots.", "", &DebugCmdHideUi },
+	{ "cursorinfo", "Shows the cursor's state (type it the moment the cursor vanishes).", "", &DebugCmdCursorInfo },
+	{ "cursorfix", "Rebuilds the cursor from scratch, without restarting.", "", &DebugCmdCursorFix },
 	{ "clearui", "Toggles hiding every HUD element (panel, mini-map, overlays, cursor, etc.) for a fully clean screenshot.", "", &DebugCmdClearUi },
 	{ "spawnu", "Spawns unique monster {name}.", "{name} ({count})", &DebugCmdSpawnUniqueMonster },
 	{ "spawn", "Spawns monster {name}.", "{name} ({count})", &DebugCmdSpawnMonster },
