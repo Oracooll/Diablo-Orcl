@@ -416,6 +416,16 @@ void ArmyPulse(Player &player, OwnerState &state)
 
 } // namespace
 
+void AppendSummonBodyTypes(const Player &player, std::vector<_monster_id> &out)
+{
+	// The bodies a Raise would stand up at the hero's rank now - the rank CastRfa12Active passes (GetSpellLevel). The
+	// golems wear MT_GOLEM, which every floor loads already; a Revive takes a corpse's own kind, loaded with the floor.
+	for (const SpellID spell : { SpellID::RaiseSkeleton, SpellID::RaiseSkeletalMage }) {
+		if (const int rank = player.GetSpellLevel(spell); rank > 0)
+			out.push_back(SkeletonBodyAt(rank));
+	}
+}
+
 int RaisedCountAtRank(int rank, int cap)
 {
 	return std::clamp(1 + std::max(rank - 1, 0) / 3, 1, cap);

@@ -649,6 +649,12 @@ bool CanAddMinionBody(_monster_id type);
  * CanAddMinionBody is false.
  */
 Monster *AddMinionBody(Point position, Direction dir, _monster_id type);
+/**
+ * @brief Oracool (user, 2026-10-10): loads @p type's sprites and sounds for a minion ahead of the cast, as AddMinionBody
+ * would on it - marked minionOnly, so no enemy spawns as it. Only into a FREE type slot with @p keepFree more left; never
+ * in town or headless. True when the type is loaded (already or now).
+ */
+bool PreloadMinionType(_monster_id type, size_t keepFree);
 /** @brief Oracool: whether AddMinionBody would find @p position free (round 73 audit: RaiseGolem asks before it dismisses). */
 bool MinionBodyFitsAt(Point position);
 /** @brief Oracool: one step away from @p from, straight or up to two turns aside - Terror (oracool/curses.h). */

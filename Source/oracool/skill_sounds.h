@@ -125,6 +125,13 @@ void SilenceClassAuraLoop();
 void FreeSkillSounds();
 
 /**
+ * @brief Loads every cue of every skill @p player has a point in that is not loaded yet (user, 2026-10-10): at level
+ * load, so a first cast mid-fight does not read and decode its WAV inside the tick. Kept, like the lazy loads, until
+ * FreeSkillSounds. A no-op without a mixer. Returns how many it loaded.
+ */
+int PreloadSkillSounds(const Player &player);
+
+/**
  * @brief The tree row whose cast is currently creating missiles, or None.
  *
  * A missile outlives the call that made it by many ticks, so the skill that fired it has to travel

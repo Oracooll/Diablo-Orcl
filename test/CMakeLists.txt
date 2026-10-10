@@ -32,8 +32,10 @@ set(tests
   math_test
   missiles_test
   oracool_audit_test
+  oracool_colour_light_test
   oracool_rage_test
   oracool_essence_test
+  oracool_frame_smoothing_test
   oracool_minions_test
   oracool_necro_items_test
   oracool_passive_sweep_test

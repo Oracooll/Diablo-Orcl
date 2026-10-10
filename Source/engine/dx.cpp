@@ -14,6 +14,7 @@
 #include "engine.h"
 #include "engine/backbuffer_state.hpp"
 #include "options.h"
+#include "oracool/frame_timing.h"
 #include "utils/display.h"
 #include "utils/log.hpp"
 #include "utils/sdl_wrap.h"
@@ -292,6 +293,9 @@ void RenderPresent()
 		LimitFrameRate();
 		return;
 	}
+
+	// Oracool: present to present, for the frame-time line under the FPS counter (user, 2026-10-10).
+	oracool::NoteFramePresented();
 
 #ifndef USE_SDL1
 	if (renderer != nullptr) {

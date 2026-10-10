@@ -482,6 +482,11 @@ inline bool MissileArtLoaded(MissileGraphicID graphicId)
 }
 
 void InitMissileGFX(bool loadHellfireGraphics = false);
+/** @brief Frees the level's missile art. A PNG sheet is kept back for the next level (user, 2026-10-10) - see misdat.cpp. */
 void FreeMissileGFX();
+/** @brief Oracool: drops the PNG missile sheets FreeMissileGFX keeps between levels. At the end of a game (FreeGame). */
+DVL_API_FOR_TEST void ClearMissileGfxCache();
+/** @brief Oracool: how many decoded PNG sheets are parked between levels right now - for the tests. */
+DVL_API_FOR_TEST size_t CachedPngMissileSheetCount();
 
 } // namespace devilution

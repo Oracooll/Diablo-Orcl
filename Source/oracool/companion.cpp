@@ -25,6 +25,7 @@
 #include "engine/palette.h"
 #include "engine/path.h"
 #include "engine/random.hpp"
+#include "diablo.h" // HeadlessMode
 #include "engine/rectangle.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
@@ -518,6 +519,43 @@ void ClearSlotDress(size_t slot)
 	Monsters[slot].uniqueMonsterTRN = nullptr;
 }
 
+/**
+ * @brief Each companion's dungeon sheets, loaded with the level (user, 2026-10-10) - PrepareCompanionDress - so the
+ * quarter-second return after the stairs takes them ready instead of reading five or six CL2s in that tick (20-80 ms).
+ * Keyed by everything LoadDress reads; a mismatch (the owner changed gear since) loads on the spot, as before.
+ */
+std::array<HeroSheets, MaxCompanions> PreparedDress;
+std::array<uint32_t, MaxCompanions> PreparedKey {};
+
+uint32_t DressKey(const Instance &inst, const Player *owner)
+{
+	uint32_t key = static_cast<uint32_t>(inst.kind) + 1;
+	if (DefOf(inst.kind).casterGear && owner != nullptr)
+		key |= 0x80000000u | (static_cast<uint32_t>(owner->_pClass) << 8) | (static_cast<uint32_t>(owner->_pgfxnum) << 16);
+	return key;
+}
+
+void ForgetPreparedDress()
+{
+	for (HeroSheets &sheets : PreparedDress)
+		sheets = HeroSheets {};
+	PreparedKey.fill(0);
+}
+
+/** @brief @p inst's dungeon dress into @p sheets: the prepared set when it still fits, else loaded now. */
+void DressForDungeon(HeroSheets &sheets, Instance &inst, const CompanionDef &def, const Player *owner)
+{
+	const auto i = static_cast<size_t>(&inst - Instances.data());
+	if (i < PreparedDress.size() && PreparedDress[i].active && PreparedKey[i] == DressKey(inst, owner)) {
+		// Moved, not copied: the views in `anims` point at the owned sheets' heap buffers, which do not move.
+		sheets = std::move(PreparedDress[i]);
+		PreparedDress[i] = HeroSheets {};
+		PreparedKey[i] = 0;
+		return;
+	}
+	LoadDress(sheets, def, owner, /*town=*/false);
+}
+
 bool SpawnInDungeon(Instance &inst, Point near, bool full)
 {
 	const Player *owner = OwnerOf(inst);
@@ -550,7 +588,7 @@ bool SpawnInDungeon(Instance &inst, Point near, bool full)
 	// Dressed BEFORE the body is stood up, so its first animation is already the hero sheet's.
 	SlotInstance[static_cast<size_t>(slot)] = static_cast<int8_t>(&inst - Instances.data());
 	inst.slot = slot;
-	LoadDress(SlotSheets[static_cast<size_t>(slot)], def, owner, /*town=*/false);
+	DressForDungeon(SlotSheets[static_cast<size_t>(slot)], inst, def, owner);
 	body.uniqueMonsterTRN = RampTranslation(def.ramp, def.lightest, def.keepShadow);
 	SpawnCompanionBody(body, *spot, *spot == owner->position.tile ? Direction::South : GetDirection(*spot, owner->position.tile));
 	ApplyStats(inst, body, full);
@@ -874,6 +912,7 @@ void ForgetCompanions()
 		inst = Instance {};
 	for (HeroSheets &sheets : SlotSheets)
 		sheets = HeroSheets {};
+	ForgetPreparedDress();
 	SlotInstance.fill(-1);
 	Stance = CompanionStance::Follow;
 	FocusMonster = -1;
@@ -1000,10 +1039,39 @@ void OnCompanionLevelLoad()
 	}
 	for (HeroSheets &sheets : SlotSheets)
 		sheets = HeroSheets {};
+	ForgetPreparedDress(); // the last floor's, unused; PrepareCompanionDress loads this one's at the end of the load
 	SlotInstance.fill(-1);
 	FocusMonster = -1;
 	FocusTicks = 0;
 	FocusCommanded = false;
+}
+
+void ForgetPreparedCompanionDress()
+{
+	ForgetPreparedDress();
+}
+
+int PrepareCompanionDress()
+{
+	ForgetPreparedDress();
+	if (HeadlessMode || leveltype == DTYPE_TOWN || !LevelHasGolemSlots())
+		return 0;
+	int prepared = 0;
+	for (size_t i = 0; i < Instances.size(); i++) {
+		Instance &inst = Instances[i];
+		if (!inst.active || inst.slot >= 0)
+			continue;
+		const Player *owner = OwnerOf(inst);
+		if (owner == nullptr)
+			continue;
+		if (LoadDress(PreparedDress[i], DefOf(inst.kind), owner, /*town=*/false)) {
+			PreparedKey[i] = DressKey(inst, owner);
+			prepared++;
+		} else {
+			PreparedDress[i] = HeroSheets {};
+		}
+	}
+	return prepared;
 }
 
 namespace {

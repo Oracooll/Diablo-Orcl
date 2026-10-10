@@ -38,7 +38,9 @@
 #include "options.h"
 #include "oracool/advanced_stats.h" // the right-hand slot's third window, and IsRightPanelOpen's third answer
 #include "oracool/attack_skills.h"
+#include "oracool/colour_light.h" // smooth and coloured lighting
 #include "oracool/companion.h"
+#include "oracool/frame_timing.h"
 #include "oracool/rift.h"      // DrawRiftHud: the bar and the clock under the mini-map
 #include "oracool/rift_bosses.h" // RiftBossGlaze: a rift boss's colour
 #include "oracool/stonegate.h" // IsStonegatePortalArch: the arch draws in the floor pass
@@ -1061,11 +1063,18 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
  * @param tilePosition dPiece coordinates
  * @param targetBufferPosition Target buffer coordinate
  */
+/**
+ * Smooth lighting (oracool/colour_light.h, user 2026-10-10): this frame's floor is drawn at full brightness, darkened
+ * afterwards by the light between tile centres, and the floor-pass objects wait for that pass (DrawFloorObjects) so they
+ * keep their own light. Set by DrawGame around its DrawFloor.
+ */
+bool SmoothFloorThisFrame = false;
+
 void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
 	LightTableIndex = dLight[tilePosition.x][tilePosition.y];
 
-	const uint8_t *tbl = LightTables[LightTableIndex].data();
+	const uint8_t *tbl = LightTables[SmoothFloorThisFrame && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
 #ifdef _DEBUG
 	if (DebugPath && MyPlayer->IsPositionInPath(tilePosition))
 		tbl = GetPauseTRN();
@@ -1090,7 +1099,8 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 	// Oracool: floor-pass objects (see IsFloorPassObject) draw here, on top of their own tile but
 	// beneath every tile's characters, items and missiles - the whole floor sweep completes before
 	// DrawTileContent starts.
-	DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
+	if (!SmoothFloorThisFrame)
+		DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
 }
 
 /**
@@ -1465,6 +1475,36 @@ bool IsWall(Point position)
  * @param rows Number of rows
  * @param columns Tile in a row
  */
+/**
+ * @brief The floor-pass objects alone, by DrawFloor's walk - drawn after the smooth floor pass so the pass darkens
+ * only the floor (an object is drawn with its own tile's light, like every sprite).
+ */
+void DrawFloorObjects(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
+{
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < columns; j++) {
+			if (InDungeonBounds(tilePosition) && !TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid)) {
+				LightTableIndex = dLight[tilePosition.x][tilePosition.y];
+				DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
+			}
+			tilePosition += Direction::East;
+			targetBufferPosition.x += TILE_WIDTH;
+		}
+		tilePosition += Displacement(Direction::West) * columns;
+		targetBufferPosition.x -= columns * TILE_WIDTH;
+		targetBufferPosition.y += TILE_HEIGHT / 2;
+		if ((i & 1) != 0) {
+			tilePosition.x++;
+			columns--;
+			targetBufferPosition.x += TILE_WIDTH / 2;
+		} else {
+			tilePosition.y++;
+			columns++;
+			targetBufferPosition.x -= TILE_WIDTH / 2;
+		}
+	}
+}
+
 void DrawTileContent(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
 {
 	// Keep evaluating until MicroTiles can't affect screen
@@ -1705,7 +1745,15 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	DunRenderStats.clear();
 #endif
 
+	// Smooth lighting (oracool/colour_light.h, user 2026-10-10): the floor drawn bright, darkened by the light between
+	// tile centres, and only then the floor-pass objects, each by its own tile's light.
+	SmoothFloorThisFrame = oracool::SmoothFloorLightActive(out);
 	DrawFloor(out, position, Point {} + offset, rows, columns);
+	if (SmoothFloorThisFrame) {
+		oracool::ApplySmoothFloorLight(out, position, Point {} + offset);
+		SmoothFloorThisFrame = false;
+		DrawFloorObjects(out, position, Point {} + offset, rows, columns);
+	}
 	// Between the two passes, and only here: a lit aura's ring lies ON the floor, so every wall,
 	// monster and player must draw over it. See oracool/aura_ground.h - it takes these same four
 	// arguments and repeats DrawFloor's walk rather than deriving the player's screen position
@@ -1715,6 +1763,9 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	oracool::DrawArrowImpactRings(out, position, Point {} + offset, rows, columns); // Rain of Arrows, under each landed arrow
 	oracool::DrawFendRing(out, position, Point {} + offset, rows, columns);         // Fend, under the Rogue while she swings
 	DrawTileContent(out, position, Point {} + offset, rows, columns);
+	// Coloured lighting (oracool/colour_light.h): the whole world, every light's hue over it - before the outlines,
+	// which are the cursor's and stay their own colour.
+	oracool::ApplyLightColour(out, position, Point {} + offset);
 	// The deferred monster outlines, drained HERE - after the whole scene is composited, so they
 	// land on top of any wall that would otherwise hide the body, but still BEFORE ZoomScale, so
 	// they are scaled along with everything else.
@@ -2566,6 +2617,7 @@ void DrawAndBlit()
 		oracool::DrawCursorTooltip(out);
 		DrawCursor(out);
 		DrawFPS(out);
+		oracool::DrawFrameTiming(out, Point { 8, 84 }); // the worst frame of the last second, under the FPS (user, 2026-10-10)
 #ifdef _DEBUG
 	}
 #endif

@@ -42,8 +42,13 @@ constexpr int VolumeLoop = -1200; // -12 dB
 std::unique_ptr<TSnd> SoundCache[SkillSoundCount];
 std::unique_ptr<TSnd> SetCompleteSound;
 
-/** @brief The running aura loop, and which skill owns it. See the header on why one is enough. */
-std::unique_ptr<TSnd> AuraLoop;
+/**
+ * @brief The running aura loop, and which skill owns it. See the header on why one is enough.
+ *
+ * A view into SoundCache since 2026-10-10 (user): it owned a fresh load, so lighting an aura or coming back from the
+ * stairs decoded its WAV again each time. The loop's row is cached like any cue, and only stopped here.
+ */
+TSnd *AuraLoop = nullptr;
 Skill AuraLoopSkill = Skill::None;
 
 /** @brief Which sets were complete last time we looked. Bit i is ItemSets[i]. */
@@ -145,7 +150,7 @@ void ResumeClassAuraLoop(Skill skill)
 	if (index == SkillSoundCount)
 		return; // a persistent skill with a start but no loop is fine - the start just rings once
 
-	AuraLoop = sound_file_load(SkillSounds[index].path);
+	AuraLoop = LoadCached(SoundCache[index], SkillSounds[index].path);
 	if (AuraLoop == nullptr || !AuraLoop->DSB.IsLoaded()) {
 		AuraLoop = nullptr;
 		return;
@@ -345,6 +350,25 @@ void FreeSkillSounds()
 	for (std::unique_ptr<TSnd> &cue : UiEventCache)
 		cue = nullptr;
 	SetCompleteSound = nullptr;
+}
+
+int PreloadSkillSounds(const Player &player)
+{
+	if (!gbSndInited)
+		return 0; // see PlaySkillSound
+	int loaded = 0;
+	for (size_t i = 0; i < SkillSoundCount; i++) {
+		if (SoundCache[i] != nullptr)
+			continue;
+		const Skill skill = SkillSounds[i].skill;
+		// His own class's rows only: the tree's investment array is indexed within a class, so another class's row with
+		// the same index would read his points.
+		if (skill > Skill::LAST || GetClassTreeSkillData(skill).heroClass != player._pClass || ClassTreeInvestment(player, skill) <= 0)
+			continue;
+		LoadCached(SoundCache[i], SkillSounds[i].path);
+		loaded++;
+	}
+	return loaded;
 }
 
 } // namespace devilution::oracool

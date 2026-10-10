@@ -13,6 +13,7 @@
 #include "diablo.h"
 #include "engine/load_file.hpp"
 #include "engine/points_in_rectangle_range.hpp"
+#include "oracool/colour_light.h"
 #include "player.h"
 
 namespace devilution {
@@ -584,6 +585,7 @@ void ProcessLightList()
 			continue; // Monster hidden in a wall, don't spoil the surprise
 		DoLighting(light.position.tile, light.radius, light.position.offset);
 	}
+	oracool::RebuildLightColourField(); // the same lights, as colours (user, 2026-10-10)
 
 	UpdateLighting = false;
 }

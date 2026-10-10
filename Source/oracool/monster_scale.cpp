@@ -1,6 +1,14 @@
 #include "oracool/monster_scale.h"
 
+#include <algorithm>
+#include <condition_variable>
+#include <cstdlib>
+#include <cstring>
+#include <deque>
 #include <memory>
+#include <mutex>
+#include <system_error>
+#include <thread>
 #include <vector>
 
 #include "dead.h"
@@ -10,6 +18,7 @@
 #include "oracool/minions.h" // GetMinionAnim: the Fire Golem's run sheet
 #include "oracool/rift_bosses.h" // RiftBossSizePercent: a rift boss's own size, up to 250%
 #include "oracool/sprite_scale.h"
+#include "player.h"
 
 namespace devilution::oracool {
 
@@ -28,11 +37,14 @@ struct ScaledEntry {
 	std::unique_ptr<OwnedClxSpriteListOrSheet> owned[6];
 	AnimStruct anims[6];
 	std::unique_ptr<OwnedClxSpriteListOrSheet> corpse;
+	/** Handed to the worker and not back yet (user, 2026-10-10). The unscaled sprites stand in meanwhile. */
+	bool pending[6] = {};
+	bool corpsePending = false;
 };
 
 std::vector<std::unique_ptr<ScaledEntry>> Cache;
 
-/** @brief Scales one sprite source, list or sheet, keeping whichever shape it had. */
+/** @brief Scales one sprite source, list or sheet, keeping whichever shape it had. Pure: safe on the worker. */
 OwnedClxSpriteListOrSheet ScaleListOrSheet(ClxSpriteListOrSheet src, unsigned percent)
 {
 	if (src.isSheet())
@@ -55,8 +67,215 @@ ScaledEntry &EntryFor(size_t typeIndex, unsigned percent)
 	return *Cache.back();
 }
 
+// =================================================================================================================
+// The worker (user, 2026-10-10: "never stall a frame")
+//
+// A sized sheet used to be built the first time a sized monster walked, attacked, flinched or died - six animations of
+// eight directions, decoded, resampled and re-encoded inside one game tick, mid-fight. Now LoadGameLevel queues every
+// size the floor uses, nearest monster first (PrebuildMonsterSizes), a worker builds them while the unscaled sprites
+// stand in, and the main thread installs each one at the next tick (PumpMonsterScale) and rebinds the monsters still
+// wearing the stand-in.
+//
+// Thread safety: the worker never touches game state. Each job carries its OWN COPY of the source sprite data, taken on
+// the main thread, so FreeMonsters, a level change or a type loaded mid-floor cannot free or move what the worker is
+// reading. ScaleClxList and SurfaceToClx are pure (an 8-bit OwnedSurface and plain buffers - the sprite mixer's worker
+// runs the same pair). A level change bumps Generation and empties the queue; the result of a job already in hand is
+// dropped on delivery by its generation. Everything the two threads share sits behind JobMutex.
+// =================================================================================================================
+
+/** The corpse's slot in a job, after the six animations. */
+constexpr int CorpseSlot = 6;
+
+struct ScaleJob {
+	uint32_t generation;
+	size_t typeIndex;
+	unsigned percent;
+	int slot;
+	/** Lower first: the nearest monster's distance times eight, plus the animation's place in BuildOrder. */
+	int priority;
+	uint32_t sequence;
+	std::unique_ptr<OwnedClxSpriteListOrSheet> source;
+};
+
+struct ScaleResult {
+	uint32_t generation;
+	size_t typeIndex;
+	unsigned percent;
+	int slot;
+	std::unique_ptr<OwnedClxSpriteListOrSheet> scaled;
+};
+
+enum class WorkerState : uint8_t {
+	NotStarted,
+	Running,
+	/** The thread could not be made: everything is built on the spot, as before. */
+	Unavailable,
+};
+
+std::mutex JobMutex; // guards Pending, Results and WorkerStop
+std::condition_variable JobWake;
+std::vector<std::unique_ptr<ScaleJob>> Pending;
+std::deque<ScaleResult> Results;
+bool WorkerStop = false;
+// Main thread only, all three.
+WorkerState Worker = WorkerState::NotStarted;
+uint32_t Generation = 1;
+uint32_t NextSequence = 0;
+
+/** Joined on destruction, as the sprite mixer's is: a joinable static std::thread at exit is std::terminate. */
+struct ScaleWorkerHolder {
+	std::thread thread;
+	~ScaleWorkerHolder()
+	{
+		{
+			const std::lock_guard<std::mutex> lock(JobMutex);
+			WorkerStop = true;
+			Pending.clear();
+		}
+		JobWake.notify_all();
+		if (thread.joinable())
+			thread.join();
+	}
+};
+ScaleWorkerHolder ScaleWorkerThread;
+
+void ScaleWorkerMain()
+{
+	for (;;) {
+		std::unique_ptr<ScaleJob> job;
+		{
+			std::unique_lock<std::mutex> lock(JobMutex);
+			JobWake.wait(lock, [] { return WorkerStop || !Pending.empty(); });
+			if (WorkerStop)
+				return;
+			// A few dozen jobs at most: a scan beats keeping a heap sorted while priorities are revised.
+			auto best = Pending.begin();
+			for (auto it = Pending.begin(); it != Pending.end(); ++it) {
+				if ((*it)->priority < (*best)->priority || ((*it)->priority == (*best)->priority && (*it)->sequence < (*best)->sequence))
+					best = it;
+			}
+			job = std::move(*best);
+			Pending.erase(best);
+		}
+		auto scaled = std::make_unique<OwnedClxSpriteListOrSheet>(ScaleListOrSheet(*job->source, job->percent));
+		job->source = nullptr;
+		const std::lock_guard<std::mutex> lock(JobMutex);
+		Results.push_back({ job->generation, job->typeIndex, job->percent, job->slot, std::move(scaled) });
+	}
+}
+
+/** @brief Whether background building is on: not in a headless run (the tests want the answer now), and a thread. */
+bool WorkerUsable()
+{
+	if (HeadlessMode || Worker == WorkerState::Unavailable)
+		return false;
+	if (Worker == WorkerState::NotStarted) {
+		try {
+			ScaleWorkerThread.thread = std::thread(ScaleWorkerMain);
+			Worker = WorkerState::Running;
+		} catch (const std::system_error &) {
+			Worker = WorkerState::Unavailable;
+			return false;
+		}
+	}
+	return true;
+}
+
+/** @brief A copy of @p src the worker can own: the level may free the original while it reads. */
+std::unique_ptr<OwnedClxSpriteListOrSheet> CopyOf(ClxSpriteListOrSheet src)
+{
+	const size_t size = src.dataSize();
+	std::unique_ptr<uint8_t[]> data { new uint8_t[size] };
+	std::memcpy(data.get(), src.isSheet() ? src.sheet().data() : src.list().data(), size);
+	return std::make_unique<OwnedClxSpriteListOrSheet>(std::move(data), src.isSheet() ? src.sheet().numLists() : static_cast<uint16_t>(0));
+}
+
+/** @brief The source of @p slot of @p entry: one of the type's six animations, or its corpse. Null if not loaded. */
+OptionalClxSpriteListOrSheet SourceOf(const ScaledEntry &entry, int slot)
+{
+	if (entry.typeIndex >= LevelMonsterTypeCount)
+		return std::nullopt;
+	const CMonster &type = LevelMonsterTypes[entry.typeIndex];
+	if (slot == CorpseSlot) {
+		if (type.corpseId < 1 || static_cast<size_t>(type.corpseId) > MaxCorpses)
+			return std::nullopt;
+		return Corpses[type.corpseId - 1].sprites;
+	}
+	return type.anims[slot].sprites;
+}
+
 /**
- * @brief The scaled version of one animation, built on first ask, or nullptr if it cannot be.
+ * @brief Hands @p slot of @p entry to the worker, or revises its priority if it is already there - to @p priority when
+ * @p exact (the level-load scan, which knows where everything stands), else to the more urgent of the two. False when
+ * there is no worker (or nothing to scale) - the caller then builds it on the spot.
+ */
+bool QueueScale(ScaledEntry &entry, int slot, int priority, bool exact = false)
+{
+	bool &pending = slot == CorpseSlot ? entry.corpsePending : entry.pending[slot];
+	if (pending) {
+		const std::lock_guard<std::mutex> lock(JobMutex);
+		for (const std::unique_ptr<ScaleJob> &job : Pending) {
+			if (job->typeIndex == entry.typeIndex && job->percent == entry.percent && job->slot == slot)
+				job->priority = exact ? priority : std::min(job->priority, priority);
+		}
+		return true;
+	}
+	if (!WorkerUsable())
+		return false;
+	const OptionalClxSpriteListOrSheet src = SourceOf(entry, slot);
+	if (!src)
+		return false;
+	auto job = std::make_unique<ScaleJob>();
+	job->generation = Generation;
+	job->typeIndex = entry.typeIndex;
+	job->percent = entry.percent;
+	job->slot = slot;
+	job->priority = priority;
+	job->sequence = NextSequence++;
+	job->source = CopyOf(*src);
+	{
+		const std::lock_guard<std::mutex> lock(JobMutex);
+		Pending.push_back(std::move(job));
+	}
+	pending = true;
+	JobWake.notify_one();
+	return true;
+}
+
+/** @brief Binds @p owned as animation @p i of @p entry, from the type's own @p src. */
+void InstallAnim(ScaledEntry &entry, size_t i, const AnimStruct &src, std::unique_ptr<OwnedClxSpriteListOrSheet> owned)
+{
+	entry.owned[i] = std::move(owned);
+	entry.anims[i] = src;
+	entry.anims[i].sprites = OptionalClxSpriteListOrSheet { *entry.owned[i] };
+	// The width CalculateWidth2 centres on. A scaled sprite centred on its unscaled width sits
+	// visibly off its own tile.
+	entry.anims[i].width = static_cast<uint16_t>(src.width * entry.percent / 100);
+}
+
+/** The order a type's animations are built in: what a monster shows first, first. */
+constexpr MonsterGraphic BuildOrder[] = { MonsterGraphic::Stand, MonsterGraphic::Walk, MonsterGraphic::Attack,
+	MonsterGraphic::GotHit, MonsterGraphic::Death, MonsterGraphic::Special };
+
+int RankInBuildOrder(MonsterGraphic graphic)
+{
+	for (int k = 0; k < 6; k++) {
+		if (BuildOrder[k] == graphic)
+			return k;
+	}
+	return 5;
+}
+
+int DistanceToHero(const Monster &monster)
+{
+	if (MyPlayer == nullptr)
+		return 0;
+	const Point hero = MyPlayer->position.tile;
+	return std::max(std::abs(monster.position.tile.x - hero.x), std::abs(monster.position.tile.y - hero.y));
+}
+
+/**
+ * @brief The scaled version of one animation, or nullptr while it is not there.
  *
  * Per-animation and lazy rather than all six at once, and that is a correctness point rather than a
  * thrift: a monster binds its Stand animation during placement, which can precede the load of the
@@ -64,22 +283,22 @@ ScaledEntry &EntryFor(size_t typeIndex, unsigned percent)
  * whatever had not loaded yet, and a Colossal champion would be invisible the moment it attacked.
  * An animation that is not ready simply is not scaled yet, and the caller falls back to the shared
  * data - which is what it would have drawn anyway.
+ *
+ * Since 2026-10-10 (user) "not ready" includes "on the worker": the shared data stands in until PumpMonsterScale
+ * installs the sheet and rebinds. Built here and now only when there is no worker.
  */
-const AnimStruct *ScaledAnimIn(ScaledEntry &entry, MonsterGraphic graphic)
+const AnimStruct *ScaledAnimIn(ScaledEntry &entry, MonsterGraphic graphic, int priority, bool exactPriority = false)
 {
 	const auto i = static_cast<size_t>(graphic);
 	const AnimStruct &src = LevelMonsterTypes[entry.typeIndex].anims[i];
 	// Not loaded, or a monster that simply has no special animation.
 	if (!src.sprites)
 		return nullptr;
-	if (!entry.owned[i]) {
-		entry.owned[i] = std::make_unique<OwnedClxSpriteListOrSheet>(ScaleListOrSheet(*src.sprites, entry.percent));
-		entry.anims[i] = src;
-		entry.anims[i].sprites = OptionalClxSpriteListOrSheet { *entry.owned[i] };
-		// The width CalculateWidth2 centres on. A scaled sprite centred on its unscaled width sits
-		// visibly off its own tile.
-		entry.anims[i].width = static_cast<uint16_t>(src.width * entry.percent / 100);
-	}
+	if (entry.owned[i])
+		return &entry.anims[i];
+	if (QueueScale(entry, static_cast<int>(i), priority, exactPriority))
+		return nullptr;
+	InstallAnim(entry, i, src, std::make_unique<OwnedClxSpriteListOrSheet>(ScaleListOrSheet(*src.sprites, entry.percent)));
 	return &entry.anims[i];
 }
 
@@ -174,7 +393,7 @@ const AnimStruct *GetScaledAnim(const Monster &monster, MonsterGraphic graphic)
 	const unsigned percent = DrawPercentOf(monster);
 	if (percent == 100)
 		return nullptr;
-	return ScaledAnimIn(EntryFor(monster.levelType, percent), graphic);
+	return ScaledAnimIn(EntryFor(monster.levelType, percent), graphic, DistanceToHero(monster) * 8 + RankInBuildOrder(graphic));
 }
 
 OptionalClxSpriteListOrSheet GetScaledCorpse(const Monster &monster)
@@ -192,6 +411,10 @@ OptionalClxSpriteListOrSheet GetScaledCorpse(const Monster &monster)
 		// once, and a floor that never sees a Colossal die never pays for this. No "already tried"
 		// flag, for the same reason the animations have none - an unloaded source must stay
 		// retryable rather than cache a miss forever.
+		//
+		// Built HERE even with a worker (user, 2026-10-10): a body keeps the sprites it was laid with for good, so a
+		// stand-in would be a wrong-sized corpse for the rest of the floor - and a corpse is one sprite a facing, cheap.
+		// PrebuildMonsterSizes queues it ahead, so this is the rare case; a job still in hand is dropped on delivery.
 		const Corpse &corpse = Corpses[corpseId - 1];
 		if (!corpse.sprites)
 			return std::nullopt;
@@ -214,6 +437,118 @@ void ClearMonsterScaleCache()
 		}
 	}
 	Cache.clear();
+	// And the worker's queue (user, 2026-10-10): its jobs are for sprites about to go. A job in hand finishes on its own
+	// copy and is dropped on delivery, by its generation.
+	Generation++;
+	{
+		const std::lock_guard<std::mutex> lock(JobMutex);
+		Pending.clear();
+		Results.clear();
+	}
+}
+
+namespace {
+
+/**
+ * @brief Moves every monster of @p entry's type and size that wears the unscaled stand-in for @p graphic onto the
+ * scaled sheet just installed. Same frame, same frame count (scaling keeps the frames): only the pictures change.
+ */
+void RebindStandIns(const ScaledEntry &entry, size_t graphic)
+{
+	const AnimStruct &src = LevelMonsterTypes[entry.typeIndex].anims[graphic];
+	const AnimStruct &scaled = entry.anims[graphic];
+	if (!src.sprites || !scaled.sprites)
+		return;
+	for (size_t k = 0; k < ActiveMonsterCount; k++) {
+		Monster &monster = Monsters[ActiveMonsters[k]];
+		if (monster.levelType != entry.typeIndex || !monster.animInfo.sprites)
+			continue;
+		if (DrawPercentOf(monster) != entry.percent)
+			continue;
+		for (size_t d = 0; d < 8; d++) {
+			const OptionalClxSpriteList standIn = src.spritesForDirection(static_cast<Direction>(d));
+			if (!standIn || standIn->data() != monster.animInfo.sprites->data())
+				continue;
+			monster.animInfo.sprites = scaled.spritesForDirection(static_cast<Direction>(d));
+			break;
+		}
+	}
+}
+
+} // namespace
+
+void PumpMonsterScale()
+{
+	std::deque<ScaleResult> taken;
+	{
+		const std::lock_guard<std::mutex> lock(JobMutex);
+		if (Results.empty())
+			return;
+		taken.swap(Results);
+	}
+	for (ScaleResult &result : taken) {
+		if (result.generation != Generation)
+			continue; // built for a level that is gone
+		ScaledEntry *entry = nullptr;
+		for (const std::unique_ptr<ScaledEntry> &candidate : Cache) {
+			if (candidate->typeIndex == result.typeIndex && candidate->percent == result.percent)
+				entry = candidate.get();
+		}
+		if (entry == nullptr || result.typeIndex >= LevelMonsterTypeCount)
+			continue;
+		if (result.slot == CorpseSlot) {
+			entry->corpsePending = false;
+			if (!entry->corpse)
+				entry->corpse = std::move(result.scaled);
+			continue;
+		}
+		const auto i = static_cast<size_t>(result.slot);
+		entry->pending[i] = false;
+		const AnimStruct &src = LevelMonsterTypes[result.typeIndex].anims[i];
+		if (entry->owned[i] || !src.sprites)
+			continue;
+		InstallAnim(*entry, i, src, std::move(result.scaled));
+		RebindStandIns(*entry, i);
+	}
+}
+
+void PrebuildMonsterSizes()
+{
+	if (HeadlessMode)
+		return;
+	// Every (type, size) the floor uses, by its nearest monster - so what the hero sees first is built first.
+	struct Want {
+		size_t typeIndex;
+		unsigned percent;
+		int distance;
+	};
+	std::vector<Want> wants;
+	for (size_t k = 0; k < ActiveMonsterCount; k++) {
+		const Monster &monster = Monsters[ActiveMonsters[k]];
+		if (monster.levelType >= LevelMonsterTypeCount || GetCompanionAnim(monster, MonsterGraphic::Stand) != nullptr
+		    || GetMinionAnim(monster, MonsterGraphic::Stand) != nullptr)
+			continue;
+		const unsigned percent = DrawPercentOf(monster);
+		if (percent == 100)
+			continue;
+		const int distance = DistanceToHero(monster);
+		auto it = std::find_if(wants.begin(), wants.end(), [&](const Want &want) { return want.typeIndex == monster.levelType && want.percent == percent; });
+		if (it == wants.end())
+			wants.push_back({ monster.levelType, percent, distance });
+		else
+			it->distance = std::min(it->distance, distance);
+	}
+	std::stable_sort(wants.begin(), wants.end(), [](const Want &a, const Want &b) { return a.distance < b.distance; });
+	for (const Want &want : wants) {
+		ScaledEntry &entry = EntryFor(want.typeIndex, want.percent);
+		// With no worker these build now - on the loading screen, which is still better than mid-fight.
+		for (int k = 0; k < 6; k++)
+			ScaledAnimIn(entry, BuildOrder[k], want.distance * 8 + k, /*exactPriority=*/true);
+		if (!entry.corpse && !QueueScale(entry, CorpseSlot, want.distance * 8 + CorpseSlot, /*exact=*/true)) {
+			if (const OptionalClxSpriteListOrSheet src = SourceOf(entry, CorpseSlot))
+				entry.corpse = std::make_unique<OwnedClxSpriteListOrSheet>(ScaleListOrSheet(*src, want.percent));
+		}
+	}
 }
 
 } // namespace devilution::oracool

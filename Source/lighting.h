@@ -47,9 +47,9 @@ struct Light {
 
 extern Light VisionList[MAXVISION];
 extern std::array<bool, MAXVISION> VisionActive;
-extern Light Lights[MAXLIGHTS];
-extern std::array<uint8_t, MAXLIGHTS> ActiveLights;
-extern int ActiveLightCount;
+extern DVL_API_FOR_TEST Light Lights[MAXLIGHTS];
+extern DVL_API_FOR_TEST std::array<uint8_t, MAXLIGHTS> ActiveLights;
+extern DVL_API_FOR_TEST int ActiveLightCount;
 constexpr char LightsMax = 15;
 extern DVL_API_FOR_TEST std::array<std::array<uint8_t, 256>, NumLightingLevels> LightTables;
 extern std::array<uint8_t, 256> InfravisionTable;

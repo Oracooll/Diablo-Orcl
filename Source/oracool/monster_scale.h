@@ -92,7 +92,8 @@ DVL_API_FOR_TEST MonsterSize OrdinaryMonsterSize(uint32_t levelSeed, size_t type
  *
  * Builds the scaled data on first use for this (type, size) pair and shares it thereafter. The
  * returned pointer stays valid until ClearMonsterScaleCache, which is why callers must not hold it
- * across a level change.
+ * across a level change. Since 2026-10-10 (user) the build is queued on a worker and this answers nullptr - draw the
+ * shared sprites - until PumpMonsterScale delivers it; built synchronously only with no worker or headless.
  */
 const AnimStruct *GetScaledAnim(const Monster &monster, MonsterGraphic graphic);
 
@@ -107,5 +108,18 @@ OptionalClxSpriteListOrSheet GetScaledCorpse(const Monster &monster);
 
 /** @brief Drops every scaled sheet. Called wherever the sprites they were scaled from are freed. */
 void ClearMonsterScaleCache();
+
+/**
+ * @brief Queues every sized sheet the floor's monsters use, nearest monster first, on a background worker (user,
+ * 2026-10-10). Until a sheet arrives GetScaledAnim answers nullptr and the unscaled sprites stand in. Called at the end
+ * of LoadGameLevel (oracool/level_preload). With no worker thread - or headless - it builds them on the spot instead.
+ */
+void PrebuildMonsterSizes();
+
+/**
+ * @brief Once a game tick, main thread: installs the sheets the worker has finished and moves the monsters wearing their
+ * unscaled stand-ins onto them. Results of a level since left are dropped.
+ */
+void PumpMonsterScale();
 
 } // namespace devilution::oracool

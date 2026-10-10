@@ -494,6 +494,10 @@ void SaveOptions()
 
 	setBoolean("Rim and Glow Item Backings", *sgOptions.Oracool.itemBackingRimGlow,
 	    "; ----- ITEM LOOKS -----------------------------------------------------------------\n; On: each item sits on one backing with a rim in its quality colour and a glow fading\n; in from it, with dark gaps between neighbours. Off: the earlier tint, gold outline\n; and cell lines.");
+	setBoolean("Coloured Lighting", *sgOptions.Oracool.colouredLighting,
+	    "; ----- LIGHTING -------------------------------------------------------------------\n; On: lights take the colour of what casts them - fire orange, lightning blue-white,\n; holy gold, poison green, cold cyan, champions and uniques their own hue. How far\n; light reaches is unchanged.");
+	setBoolean("Smooth Lighting", *sgOptions.Oracool.smoothLighting,
+	    "; On: the floor fades smoothly from light to dark instead of in tile-sized steps.\n; Walls and figures keep the original per-tile light.");
 	setBoolean("Item Tooltip Card", *sgOptions.Oracool.itemTooltipCard,
 	    "; On: the item tooltip is a card - name large, type and tier under it, armour or damage\n; as one big number, the item's picture top right, stats left-aligned, requirements in\n; a band at the foot. Off: the earlier centred panel.");
 	setBoolean("Grouped Hero Sheet", *sgOptions.Oracool.heroSheetGrouped,
@@ -1619,6 +1623,8 @@ OracoolOptions::OracoolOptions()
     , miniMapEnabled("Mini-Map", OptionEntryFlags::None, N_("Mini-Map"), N_("Shows an always-on mini-map in the top-right corner during gameplay. Independent of TAB, which still opens/closes the normal full map."), true)
     , hudPlateArt("HUD Plate Art", OptionEntryFlags::None, N_("HUD Plate Art"), N_("Draws the stone plate behind the belt and the two skill wells. Off leaves the belt items, skill icons and both orbs in place and removes the plate and everything painted into it - the cell frames, the well rims and the Menu/Portal button faces."), true) // on since the fifth HUD (2026-09-05, "take and use"); off for the fourth (v1.9.209-212) at "revert back to the old hud"
     , itemBackingRimGlow("Rim and Glow Item Backings", OptionEntryFlags::None, N_("Rim and Glow Item Backings"), N_("Each item sits on one backing with a rim in its quality colour and a glow fading in from it. Off: the earlier tint with a gold outline and cell lines."), true)
+    , colouredLighting("Coloured Lighting", OptionEntryFlags::None, N_("Coloured Lighting"), N_("Lights take the colour of what casts them: fire orange, lightning blue-white, holy gold, poison green, cold cyan, and champions and uniques their own hue. How far light reaches is unchanged."), true)
+    , smoothLighting("Smooth Lighting", OptionEntryFlags::None, N_("Smooth Lighting"), N_("The floor fades smoothly from light to dark instead of in tile-sized steps. Walls and figures keep the original per-tile light."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("A timestamped log of noteworthy session events, opened from the Menu popup or with F11."), true)
@@ -1707,6 +1713,8 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&miniMapEnabled,
 		&hudPlateArt,
 		&itemBackingRimGlow,
+		&colouredLighting,
+		&smoothLighting,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,

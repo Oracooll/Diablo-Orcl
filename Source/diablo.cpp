@@ -60,6 +60,7 @@
 #include "multi.h"
 #include "nthread.h"
 #include "objects.h"
+#include "oracool/level_preload.h"
 #include "oracool/weapon_throw.h"
 #include "oracool/attack_skills.h"
 #include "oracool/shutdown_watchdog.h"
@@ -309,6 +310,10 @@ void FreeGame()
 	FreeDebugGFX();
 #endif
 	FreeGameMem();
+	// The PNG missile sheets FreeGameMem parked for the next level, and the hero's preloads: this game is over (user,
+	// 2026-10-10 - statics outlive the game).
+	ClearMissileGfxCache();
+	oracool::ForgetLevelPreloads();
 	stream_stop();
 	music_stop();
 }
@@ -2548,6 +2553,7 @@ void GameLogic()
 	}
 	// Oracool: one archive read for the background sprite mixer, and any sheet it has finished onto its hero.
 	PumpPlayerSheetMixer();
+	oracool::PumpLevelPreload(); // and the sized monster sheets the scale worker has finished (user, 2026-10-10)
 	if (gbProcessPlayers) {
 		gGameLogicStep = GameLogicStep::ProcessPlayers;
 		ProcessPlayers();
@@ -4747,6 +4753,10 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	if (MinimizePaused) {
 		music_mute();
 	}
+
+	// Oracool (user, 2026-10-10): the floor's sized monster sheets onto the worker nearest first, the hero's skill cues, his
+	// minions' monster types and his companions' sheets - here, under the loading screen, rather than mid-fight.
+	oracool::PreloadForLevel();
 
 	CompleteProgress();
 

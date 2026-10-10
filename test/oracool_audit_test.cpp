@@ -19208,3 +19208,84 @@ TEST(OracoolUser1006, LastAttackerLevelIsKeptForTheBlockLine)
 	oracool::ClearCombatOdds();
 	EXPECT_FALSE(oracool::LastAttackerLevel(level));
 }
+
+/**
+ * User, 2026-10-10 (frame smoothing): the PNG missile sheets are decoded once a game, not on every level load. A level
+ * change (FreeMissileGFX, then a load) must hand back the SAME decoded buffer and colour table; the end of the game
+ * (ClearMissileGfxCache) must leave nothing for the next character.
+ */
+TEST(OracoolFrameSmoothing, PngMissileSheetsSurviveALevelReload)
+{
+	MountTestArchives(true);
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	// Whatever other cases loaded, put back afterwards: a shuffled run may come to them next.
+	std::vector<size_t> loadedBefore;
+	for (size_t mi = 0; mi < static_cast<size_t>(MissileGraphicID::None); mi++) {
+		if (MissileSpriteData[mi].sprites)
+			loadedBefore.push_back(mi);
+	}
+	MissileFileData &arrow = GetMissileSpriteData(MissileGraphicID::FallingArrow);
+	arrow.LoadGFX();
+	ASSERT_TRUE(arrow.sprites) << "missiles/falling_arrow.png (batch 90)";
+	ASSERT_NE(arrow.colours, nullptr) << "a PNG sheet keeps its own colours";
+	const uint8_t *before = (*arrow.spritesForDirection(0)).data();
+	const std::shared_ptr<const oracool::SpriteColours> colours = arrow.colours;
+
+	FreeMissileGFX(); // the level is left
+	EXPECT_FALSE(arrow.sprites);
+	EXPECT_EQ(arrow.colours, nullptr);
+	EXPECT_GE(CachedPngMissileSheetCount(), 1u) << "the decoded sheet was freed, not parked";
+
+	arrow.LoadGFX(); // the next level
+	ASSERT_TRUE(arrow.sprites);
+	EXPECT_EQ((*arrow.spritesForDirection(0)).data(), before) << "decoded again rather than taken back";
+	EXPECT_EQ(arrow.colours, colours);
+
+	FreeMissileGFX();
+	ClearMissileGfxCache(); // the game ends
+	EXPECT_EQ(CachedPngMissileSheetCount(), 0u) << "a parked sheet outlived the game";
+	arrow.LoadGFX();
+	EXPECT_TRUE(arrow.sprites) << "with the cache empty the sheet decodes again";
+
+	for (const size_t mi : loadedBefore)
+		MissileSpriteData[mi].LoadGFX();
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * User, 2026-10-10 (frame smoothing): a minion's monster type preloaded with the level takes only a FREE type slot and
+ * leaves `keepFree` more - never one a floor's own monster needed - and nothing in town.
+ */
+TEST(OracoolFrameSmoothing, MinionPreloadNeverTakesTheLastTypeSlots)
+{
+	const bool savedHeadless = HeadlessMode;
+	const dungeon_type savedLevelType = leveltype;
+	const size_t savedCount = LevelMonsterTypeCount;
+	std::array<_monster_id, MaxLvlMTypes> savedTypes;
+	for (size_t i = 0; i < MaxLvlMTypes; i++)
+		savedTypes[i] = LevelMonsterTypes[i].type;
+	HeadlessMode = false;
+	leveltype = DTYPE_CATHEDRAL;
+	LevelMonsterTypeCount = MaxLvlMTypes - 1;
+	for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+		LevelMonsterTypes[i].type = MT_NZOMBIE;
+
+	EXPECT_FALSE(PreloadMinionType(MT_WSKELAX, 1)) << "the last free slot went to a minion";
+	EXPECT_EQ(LevelMonsterTypeCount, MaxLvlMTypes - 1);
+
+	LevelMonsterTypes[3].type = MT_WSKELAX;
+	EXPECT_TRUE(PreloadMinionType(MT_WSKELAX, 1)) << "a type the floor already has needs no slot";
+	EXPECT_EQ(LevelMonsterTypeCount, MaxLvlMTypes - 1);
+
+	leveltype = DTYPE_TOWN;
+	LevelMonsterTypeCount = 1;
+	EXPECT_FALSE(PreloadMinionType(MT_TSKELAX, 1)) << "town has no minions";
+	EXPECT_EQ(LevelMonsterTypeCount, 1u);
+
+	for (size_t i = 0; i < MaxLvlMTypes; i++)
+		LevelMonsterTypes[i].type = savedTypes[i];
+	LevelMonsterTypeCount = savedCount;
+	leveltype = savedLevelType;
+	HeadlessMode = savedHeadless;
+}

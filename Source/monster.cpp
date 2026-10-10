@@ -4643,6 +4643,23 @@ bool CanAddMinionBody(_monster_id type)
 	return GetMonsterTypeIndex(type) < LevelMonsterTypeCount || LevelMonsterTypeCount < MaxLvlMTypes;
 }
 
+bool PreloadMinionType(_monster_id type, size_t keepFree)
+{
+	if (leveltype == DTYPE_TOWN || HeadlessMode)
+		return false;
+	if (GetMonsterTypeIndex(type) < LevelMonsterTypeCount)
+		return true; // the floor has it already
+	// Never a level monster's slot: this runs after the floor is populated, and only into slots nothing else asked for,
+	// with @p keepFree left over for what a cast mid-floor may still need (a Revive's corpse kind is always loaded).
+	if (LevelMonsterTypeCount + keepFree >= MaxLvlMTypes)
+		return false;
+	// As AddMinionBody would load it on the first cast - the same slot, the same minionOnly mark - only now, on the
+	// loading screen, instead of in the tick of the cast (user, 2026-10-10).
+	const size_t typeIndex = AddMonsterType(type, PLACE_SPECIAL);
+	LevelMonsterTypes[typeIndex].minionOnly = true;
+	return true;
+}
+
 bool MinionBodyFitsAt(Point position)
 {
 	return InDungeonBounds(position) && IsTileAvailable(position);

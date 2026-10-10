@@ -540,6 +540,14 @@ void OnMinionLevelLoad()
 	RenumberEveryRing(); // as at the level save (round 73 audit)
 }
 
+void AppendWaitingMinionTypes(const Player &owner, std::vector<_monster_id> &out)
+{
+	for (const Record &record : Records) {
+		if (record.active && record.body < 0 && record.owner == owner.getId())
+			out.push_back(record.spec.type);
+	}
+}
+
 void WithdrawMinionsForLevelSave()
 {
 	bool removed = false;

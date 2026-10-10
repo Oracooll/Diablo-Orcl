@@ -5,7 +5,9 @@
  */
 #include "misdat.h"
 
+#include <array>
 #include <cstdint>
+#include <memory>
 
 #include "engine/load_cl2.hpp"
 #include "engine/load_clx.hpp"
@@ -564,6 +566,53 @@ MissileFileData MissileSpriteData[] = {
 static_assert(sizeof(MissileSpriteData) / sizeof(MissileSpriteData[0]) == static_cast<size_t>(MissileGraphicID::None) + 1,
     "MissileSpriteData needs a row for every MissileGraphicID, in the enum's order");
 
+namespace {
+
+/**
+ * @brief Oracool (user, 2026-10-10): the PNG missile sheets, decoded once a game rather than once a level. About 150 of
+ * them were read, colour-counted and re-encoded on every InitMissileGFX - every stairway, every portal.
+ *
+ * Content only, nothing of the level in it: ColouredRowsFromSurface quantizes against town.pal ALWAYS (LevelPalettePath
+ * is a constant, not the level's palette), and the colours table is the sheet's own. So a sheet decoded on floor 1 is
+ * byte-for-byte the one floor 16 would decode. FreeMissileGFX parks a PNG row's sprites here instead of freeing them,
+ * and LoadGFX takes them back - the same buffer, so not even a copy. Only sheets that WERE found are kept: a missing PNG
+ * is not remembered, so a different archive set (a test, a mod) is never answered from a stale "no". Emptied by
+ * ClearMissileGfxCache when the game ends (statics outlive the game).
+ */
+struct PngMissileCacheRow {
+	OptionalOwnedClxSpriteListOrSheet sprites;
+	std::shared_ptr<const oracool::SpriteColours> colours;
+};
+
+std::array<PngMissileCacheRow, static_cast<size_t>(MissileGraphicID::None) + 1> PngMissileCache;
+
+/** @brief @p row's cache row, or null for a MissileFileData that is not one of MissileSpriteData's (a test's own). */
+PngMissileCacheRow *PngCacheRowOf(const MissileFileData *row)
+{
+	const MissileFileData *first = &MissileSpriteData[0];
+	if (row < first || row >= first + PngMissileCache.size())
+		return nullptr;
+	return &PngMissileCache[static_cast<size_t>(row - first)];
+}
+
+} // namespace
+
+void ClearMissileGfxCache()
+{
+	for (PngMissileCacheRow &row : PngMissileCache)
+		row = PngMissileCacheRow {};
+}
+
+size_t CachedPngMissileSheetCount()
+{
+	size_t count = 0;
+	for (const PngMissileCacheRow &row : PngMissileCache) {
+		if (row.sprites)
+			count++;
+	}
+	return count;
+}
+
 uint8_t MissileFileData::animDelay(uint8_t dir) const
 {
 	return MissileAnimDelays[animDelayIdx][dir];
@@ -591,6 +640,15 @@ void MissileFileData::LoadGFX()
 	// In TRUE COLOUR since 2026-09-27 (v1.12.211): the sheet keeps its own colours, as the user approved them on the
 	// review page, and draws through `colours`. The shared-palette import had drawn them in the level palette's nearest
 	// colours - duller than approved, and with no green at all.
+	//
+	// Decoded once a game since 2026-10-10 (user): see PngMissileCache.
+	if (PngMissileCacheRow *cached = PngCacheRowOf(this); cached != nullptr && cached->sprites) {
+		sprites.emplace(std::move(*cached->sprites));
+		cached->sprites = std::nullopt;
+		colours = std::move(cached->colours);
+		cached->colours = nullptr;
+		return;
+	}
 	if (std::optional<oracool::ColouredMissileSheet> png
 	    = oracool::LoadPngMissileSheetColoured(name, animWidth, animFAmt); // one row per file/direction, as the exporter writes them (2 for the portals since 2026-09-20)
 	    png.has_value()) {
@@ -636,7 +694,14 @@ void InitMissileGFX(bool loadHellfireGraphics)
 
 void FreeMissileGFX()
 {
-	for (auto &missileData : MissileSpriteData) {
+	for (size_t i = 0; i < PngMissileCache.size(); i++) {
+		MissileFileData &missileData = MissileSpriteData[i];
+		// A PNG sheet is parked for the next level rather than freed (user, 2026-10-10) - see PngMissileCache.
+		PngMissileCacheRow &cached = PngMissileCache[i];
+		if (missileData.sprites && missileData.colours != nullptr && !cached.sprites) {
+			cached.sprites.emplace(std::move(*missileData.sprites));
+			cached.colours = missileData.colours;
+		}
 		missileData.FreeGFX();
 	}
 }

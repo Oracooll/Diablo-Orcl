@@ -948,6 +948,17 @@ struct OracoolOptions : OptionCategoryBase {
 	 */
 	OptionEntryBoolean itemBackingRimGlow;
 	/**
+	 * @brief Coloured lighting (user, 2026-10-10, inspired by DamnationX's dynamic lights): fire washes the floor orange,
+	 * lightning blue-white, holy gold, poison green, cold cyan, and champions and uniques glow in their own colour. Only
+	 * the colour is new - how far light reaches and what the hero can see are unchanged. oracool/colour_light.h.
+	 */
+	OptionEntryBoolean colouredLighting;
+	/**
+	 * @brief Smooth lighting (user, 2026-10-10): the floor fades from light to dark across each tile instead of in
+	 * Diablo's tile-sized bands. Walls and sprites keep the per-tile light. oracool/colour_light.h.
+	 */
+	OptionEntryBoolean smoothLighting;
+	/**
 	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
 	 * the name large, type and tier under it, the armour or damage as one big number, the item's
 	 * picture top right, the stats left-aligned, the requirements in a band at the foot). OFF is the

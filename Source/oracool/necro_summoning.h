@@ -12,8 +12,10 @@
  */
 
 #include <string>
+#include <vector>
 
 #include "engine/point.hpp"
+#include "monstdat.h"
 #include "oracool/class_tree.h"
 #include "spelldat.h"
 
@@ -44,6 +46,9 @@ std::string NecroPassiveFactsAt(const Player &player, ClassTreeSkill skill, int 
 
 /** @brief How many of a group a hero of this rank may keep: 1 at rank 1, one more every three ranks, @p cap at most. */
 int RaisedCountAtRank(int rank, int cap);
+
+/** @brief The monster types @p player's Raise skills would stand up now, appended to @p out - for the level-load preload (user, 2026-10-10). */
+void AppendSummonBodyTypes(const Player &player, std::vector<_monster_id> &out);
 
 } // namespace oracool
 } // namespace devilution

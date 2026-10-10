@@ -137,6 +137,13 @@ int CompanionDamageTaken(const Monster &monster, DamageType type, int damage);
 void ForgetCompanionInSlot(Monster &slot);
 /** @brief Any level load: bodies and town figures are gone; companions with time left come back on the new level. */
 void OnCompanionLevelLoad();
+/**
+ * @brief End of a level load (user, 2026-10-10): loads the dungeon sheets of every companion waiting to come back, so its
+ * return a quarter-second later costs no archive reads. Returns how many it dressed; none in town or headless.
+ */
+int PrepareCompanionDress();
+/** @brief Drops what PrepareCompanionDress loaded and nobody took - leaving the game (statics outlive the game). */
+void ForgetPreparedCompanionDress();
 /** @brief Once a game tick, on every level: time, cooldowns, a fallen body, a return after a level change. */
 void ProcessCompanions(Player &owner);
 /** @brief @p player struck @p monster - the companions' focus. */

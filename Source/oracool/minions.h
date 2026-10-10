@@ -27,6 +27,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
@@ -129,6 +130,8 @@ bool MinionThinksThisTick(const Monster &monster, uint32_t tick);
 void ForgetMinions();
 /** @brief The level is being torn down: every body is gone, every record keeps its life and waits. */
 void OnMinionLevelLoad();
+/** @brief The types of @p owner's minions waiting to re-form on this level, appended to @p out - preloaded with the level (user, 2026-10-10). */
+void AppendWaitingMinionTypes(const Player &owner, std::vector<_monster_id> &out);
 /**
  * @brief The level is about to be STORED (loadsave.cpp SaveLevel): every minion body is taken off it now, the living
  * keeping their life in their records. Must run before the monsters are written.

@@ -78,6 +78,7 @@ set(libdevilutionx_SRCS
   oracool/chill.cpp
   oracool/combat_odds.cpp
   oracool/cold.cpp
+  oracool/colour_light.cpp
   oracool/rogue_arrows.cpp
   oracool/melee_skills.cpp
   oracool/passives.cpp
@@ -146,6 +147,8 @@ set(libdevilutionx_SRCS
   oracool/missile_tint.cpp
   oracool/cycled_still.cpp
   oracool/sprite_mix.cpp
+  oracool/frame_timing.cpp
+  oracool/level_preload.cpp
   oracool/ui_backgrounds.cpp
   oracool/save_indicator.cpp
   oracool/shop_toast.cpp
