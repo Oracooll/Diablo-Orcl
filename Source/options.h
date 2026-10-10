@@ -958,6 +958,17 @@ struct OracoolOptions : OptionCategoryBase {
 	 * Diablo's tile-sized bands. Walls and sprites keep the per-tile light. oracool/colour_light.h.
 	 */
 	OptionEntryBoolean smoothLighting;
+	// The nine visual techniques (user, 2026-10-10: "i like all 9"); visual only, each its own switch.
+	OptionEntryBoolean torchFlicker;
+	OptionEntryBoolean glowingSpells;
+	OptionEntryBoolean ambientOcclusion;
+	OptionEntryBoolean areaMood;
+	OptionEntryBoolean vignette;
+	OptionEntryBoolean bloom;
+	OptionEntryBoolean particles;
+	OptionEntryBoolean heatHaze;
+	OptionEntryBoolean rayTracedShadows;
+	OptionEntryBoolean zoomFilter;
 	/**
 	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
 	 * the name large, type and tier under it, the armour or damage as one big number, the item's

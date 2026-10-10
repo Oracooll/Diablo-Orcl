@@ -35,7 +35,13 @@ void RebuildLightColourField();
 /** @brief True when the floor pass applies to @p out: the option is on, the surface is 32-bit, and this is a lit dungeon. */
 bool SmoothFloorLightActive(const Surface &out);
 
-/** @brief True when the colour pass applies to @p out (the option is on, a 32-bit surface, a lit dungeon). */
+/**
+ * @brief True when the floor pass runs at all: smooth floors, or wall shadows (user, 2026-10-10). The floor-pass objects
+ * wait for it, and DrawCell must not redraw a floor triangle over it.
+ */
+bool FloorPassActive(const Surface &out);
+
+/** @brief True when the colour pass applies to @p out (coloured lights or torch flicker on, a 32-bit surface, a lit dungeon). */
 bool ColouredLightActive(const Surface &out);
 
 /**

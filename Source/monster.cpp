@@ -63,6 +63,7 @@
 #include "oracool/rift_bosses.h" // the guardian roster: who rises, how big, how fast, what he does (2026-10-04)
 #include "oracool/signets.h"
 #include "oracool/telemetry.h"
+#include "oracool/particles.h" // EmitHitSparks - a picture only
 
 #include "qol/floatingnumbers.h"
 #include "spelldat.h"
@@ -1898,6 +1899,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		} else {
 			ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam);
 		}
+		oracool::EmitHitSparks(player.position.tile, oracool::SparkRgb(variantElement), 5); // Particles (user, 2026-10-10): visual only, own RNG
 		// The Venomous variant: a bleed after the bite - as much again as the blow, over five seconds.
 		if (oracool::VariantPoisonsOnHit(monster))
 			oracool::PoisonPlayer(player, dam, 100);

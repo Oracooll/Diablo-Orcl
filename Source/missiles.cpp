@@ -57,6 +57,7 @@
 #include "oracool/skill_sounds.h"
 #include "oracool/paladin_ranged.h"
 #include "oracool/sprite_scale.h"
+#include "oracool/particles.h" // EmitHitSparks / EmitMissileSparks - a picture only
 #include "spells.h"
 #include "utils/str_cat.hpp"
 
@@ -503,6 +504,7 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	if (damageType == DamageType::Cold && monster.hitPoints >> 6 > 0)
 		oracool::ApplyColdHit(t, spellLevel, monster);
 
+	oracool::EmitHitSparks(monster.position.tile, oracool::SparkRgb(damageType), 6); // Particles (user, 2026-10-10): visual only, own RNG
 	if (monster.hitPoints >> 6 <= 0) {
 		M_StartKill(monster, player);
 	} else if (resist) {
@@ -3266,6 +3268,7 @@ void AddMissileExplosion(Missile &missile, AddMissileParameter &parameter)
 	missile.position.offset = parent.position.offset;
 	missile.position.traveled = parent.position.traveled;
 	missile._mirange = missile._miAnimLen;
+	oracool::EmitMissileSparks(missile, 10); // Particles (user, 2026-10-10): visual only, own RNG
 }
 
 namespace {

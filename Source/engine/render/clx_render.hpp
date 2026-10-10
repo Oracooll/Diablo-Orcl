@@ -96,6 +96,15 @@ void ClxDrawBlendedTRN(const Surface &out, Point position, ClxSprite clx, const 
 void ClxDrawRgbMapAlpha(const Surface &out, Point position, ClxSprite clx, const uint32_t *rgbMap, int alpha);
 
 /**
+ * @brief Glowing Spells (user, 2026-10-10): the sprite ADDED onto what is already drawn, as light - per channel
+ * dst = min(255, dst + src * strength / 255) for every opaque pixel, its colour value looked up in @p rgbMap.
+ * Over black it is the sprite as drawn (at full strength); over a lit floor the floor shows through and brightens.
+ * Black pixels (a sheet's shadow, its dark rim) add nothing. An indexed target has no colour values to add: it gets the
+ * plain ClxDraw (a caller with a TRN for it draws that itself).
+ */
+void ClxDrawRgbMapAdditive(const Surface &out, Point position, ClxSprite clx, const uint32_t *rgbMap, uint8_t strength);
+
+/**
  * @brief Blit CLX sprite with 50% transparency to the given buffer at the given coordinates.
  * @param out Output buffer
  * @param position Target buffer coordinate

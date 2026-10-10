@@ -84,6 +84,7 @@
 #include "oracool/paladin_ranged.h"
 #include "oracool/xp_gain_indicator.h"
 #include "oracool/whirlwind.h"
+#include "oracool/particles.h" // EmitHitSparks - a picture only
 #include "player.h"
 #include "oracool/sat_math.h"
 #include "playerdat.hpp"
@@ -1204,6 +1205,7 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 		}
 		RedrawComponent(PanelDrawComponent::Health);
 	}
+	oracool::EmitHitSparks(monster.position.tile, oracool::SteelSparkRgb, 6); // Particles (user, 2026-10-10): visual only, own RNG
 	if ((monster.hitPoints >> 6) <= 0) {
 		M_StartKill(monster, player);
 	} else {

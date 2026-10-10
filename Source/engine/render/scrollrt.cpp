@@ -41,7 +41,9 @@
 #include "oracool/colour_light.h" // smooth and coloured lighting
 #include "oracool/companion.h"
 #include "oracool/frame_timing.h"
-#include "oracool/rift.h"      // DrawRiftHud: the bar and the clock under the mini-map
+#include "oracool/particles.h" // Particles: embers, sparks, dust, ash
+#include "oracool/post_fx.h" // mood, vignette, bloom, heat haze, the filtered zoom
+#include "oracool/rift.h"    // DrawRiftHud: the bar and the clock under the mini-map
 #include "oracool/rift_bosses.h" // RiftBossGlaze: a rift boss's colour
 #include "oracool/stonegate.h" // IsStonegatePortalArch: the arch draws in the floor pass
 #include "oracool/workshop.h"
@@ -50,6 +52,7 @@
 #include "oracool/minions.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/sprite_colours.h"
+#include "oracool/spell_glow.h" // Glowing Spells: light-emitting missiles drawn additively
 #include "oracool/missile_tint.h"
 #include "oracool/cycled_still.h"
 #include "oracool/chill.h"
@@ -447,7 +450,10 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 				const double progress = missile._miAnimLen > 1 ? static_cast<double>(missile._miAnimFrame - 1) / (missile._miAnimLen - 1) : 0.0;
 				table = oracool::TintedTable(table, missile.oracoolTint, missile.oracoolTintRgb, progress);
 			}
-			if (missile.oracoolAlpha < 256)
+			// Glowing Spells (user, 2026-10-10): light added onto what is behind it, through the same table, so every tint holds.
+			if (oracool::MissileGlows(missile))
+				ClxDrawRgbMapAdditive(out, missileRenderPosition, sprite, table, oracool::MissileGlowStrength(missile));
+			else if (missile.oracoolAlpha < 256)
 				ClxDrawRgbMapAlpha(out, missileRenderPosition, sprite, table, missile.oracoolAlpha);
 			else
 				ClxDrawRgbMap(out, missileRenderPosition, sprite, table);
@@ -456,6 +462,12 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 	}
 	// Oracool: a caller-supplied recolour, checked before the unique-monster one because a player's
 	// missile can never have the latter. See Missile::oracoolTrn.
+	// Glowing Spells (user, 2026-10-10): a light-emitting CL2 is added onto the screen through the colours its plain draw
+	// would have used (MissileGlows is never true for an oracoolTrn missile). 32-bit only; the golden tests keep this path.
+	if (!out.isIndexed() && oracool::MissileGlows(missile)) {
+		ClxDrawRgbMapAdditive(out, missileRenderPosition, sprite, oracool::MissileGlowTable(missile, lightTableIndex), oracool::SpellGlowStrength);
+		return;
+	}
 	if (missile.oracoolTrn != nullptr)
 		ClxDrawTRN(out, missileRenderPosition, sprite, missile.oracoolTrn);
 	else if (missile._miUniqTrans != 0 && Monsters[missile._misource].uniqueMonsterTRN != nullptr) // its caster's slot can be reused mid-flight
@@ -958,6 +970,8 @@ static void DrawDungeon(const Surface & /*out*/, Point /*tilePosition*/, Point /
 bool SmoothFloorThisFrame = false;
 /** The floor of this frame was smoothed: DrawCell must not paint a floor triangle over it again (see there). */
 bool FloorSmoothedThisFrame = false;
+/** The floor pass runs this frame (smooth floors or wall shadows): DrawFloor leaves the floor-pass objects for after it. */
+bool DeferFloorObjectsThisFrame = false;
 void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
 	const uint16_t levelPieceId = dPiece[tilePosition.x][tilePosition.y];
@@ -1105,7 +1119,7 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 	// Oracool: floor-pass objects (see IsFloorPassObject) draw here, on top of their own tile but
 	// beneath every tile's characters, items and missiles - the whole floor sweep completes before
 	// DrawTileContent starts.
-	if (!SmoothFloorThisFrame)
+	if (!DeferFloorObjectsThisFrame)
 		DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
 }
 
@@ -1613,6 +1627,12 @@ void ZoomScale(const Surface &out, float zoomFactor)
 	uint8_t *base = out.at(viewportOffsetX, 0);
 	const int pitch = out.pitch();
 
+	// Zoom filter (oracool/post_fx.h, user 2026-10-10): Scale2x at exactly 2x, a sharp bilinear otherwise - 32-bit only.
+	if (bpp == 4 && *sgOptions.Oracool.zoomFilter) {
+		oracool::ZoomScaleFiltered(base, pitch, srcWidth, srcHeight, viewportWidth, dstHeight);
+		return;
+	}
+
 	for (int dstY = dstHeight - 1; dstY >= 0; dstY--) {
 		int srcY = (dstY * srcHeight) / dstHeight;
 		if (srcY >= srcHeight)
@@ -1753,12 +1773,15 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 
 	// Smooth lighting (oracool/colour_light.h, user 2026-10-10): the floor drawn bright, darkened by the light between
 	// tile centres, and only then the floor-pass objects, each by its own tile's light.
+	// Wall shadows and ray-traced shadows (user, 2026-10-10) ride the same floor pass.
 	SmoothFloorThisFrame = oracool::SmoothFloorLightActive(out);
-	FloorSmoothedThisFrame = SmoothFloorThisFrame;
+	DeferFloorObjectsThisFrame = oracool::FloorPassActive(out);
+	FloorSmoothedThisFrame = DeferFloorObjectsThisFrame;
 	DrawFloor(out, position, Point {} + offset, rows, columns);
-	if (SmoothFloorThisFrame) {
+	SmoothFloorThisFrame = false;
+	if (DeferFloorObjectsThisFrame) {
 		oracool::ApplySmoothFloorLight(out, position, Point {} + offset);
-		SmoothFloorThisFrame = false;
+		DeferFloorObjectsThisFrame = false;
 		DrawFloorObjects(out, position, Point {} + offset, rows, columns);
 	}
 	// Between the two passes, and only here: a lit aura's ring lies ON the floor, so every wall,
@@ -1774,6 +1797,13 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// which are the cursor's and stay their own colour.
 	FloorSmoothedThisFrame = false;
 	oracool::ApplyLightColour(out, position, Point {} + offset);
+	// The other visual techniques (user, 2026-10-10: "i like all 9"), each behind its own option: particles over the lit
+	// world, the haze before the bloom so shimmered lava still glows, the area mood and vignette last so they cover the
+	// glow too - all before the outlines (the cursor's own colour) and the zoom.
+	oracool::UpdateAndDrawParticles(out, position, Point {} + offset);
+	oracool::ApplyHeatHazeAndWater(out, position, Point {} + offset);
+	oracool::ApplyBloom(out);
+	oracool::ApplyAreaMoodAndVignette(out);
 	// The deferred monster outlines, drained HERE - after the whole scene is composited, so they
 	// land on top of any wall that would otherwise hide the body, but still BEFORE ZoomScale, so
 	// they are scaled along with everything else.

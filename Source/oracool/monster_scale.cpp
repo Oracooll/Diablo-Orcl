@@ -427,15 +427,15 @@ OptionalClxSpriteListOrSheet GetScaledCorpse(const Monster &monster)
 	const unsigned percent = DrawPercentOf(monster);
 	if (percent == 100)
 		return std::nullopt;
-	const int corpseId = monster.type().corpseId;
-	if (corpseId < 1)
-		return std::nullopt;
-
 	ScaledEntry &entry = EntryFor(monster.levelType, percent);
 	// A corpse IS its type's Death sheet (dead.cpp: Corpse::sprites is the Death animation, drawn at its last frame), so
 	// once the scaled Death is in, the body is a view of it - not a second copy built for the same pixels (round 2 audit).
+	// Asked before the type's corpse slot (round 3): a unique whose type ran past the corpse cap still lies at its size.
 	if (const auto death = static_cast<size_t>(MonsterGraphic::Death); entry.owned[death])
 		return OptionalClxSpriteListOrSheet { *entry.owned[death] };
+	const int corpseId = monster.type().corpseId;
+	if (corpseId < 1)
+		return std::nullopt;
 	if (!entry.corpse) {
 		// Built lazily and separately from the six animations: most champions are killed exactly
 		// once, and a floor that never sees a Colossal die never pays for this. No "already tried"

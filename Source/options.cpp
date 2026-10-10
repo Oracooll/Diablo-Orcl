@@ -498,6 +498,26 @@ void SaveOptions()
 	    "; ----- LIGHTING -------------------------------------------------------------------\n; On: lights take the colour of what casts them - fire orange, lightning blue-white,\n; holy gold, poison green, cold cyan, champions and uniques their own hue. How far\n; light reaches is unchanged.");
 	setBoolean("Smooth Lighting", *sgOptions.Oracool.smoothLighting,
 	    "; On: the floor fades smoothly from light to dark instead of in tile-sized steps.\n; Walls and figures keep the original per-tile light.");
+	setBoolean("Torch Flicker", *sgOptions.Oracool.torchFlicker,
+	    "; On: torches, candles and braziers flicker - their light wavers softly across the floor.");
+	setBoolean("Glowing Spells", *sgOptions.Oracool.glowingSpells,
+	    "; On: fire, lightning, holy and magic spells are drawn as light - added onto what lies\n; behind them, so a fireball glows and lightning flashes white-hot.");
+	setBoolean("Wall Shadows", *sgOptions.Oracool.ambientOcclusion,
+	    "; On: the floor darkens softly where it meets walls and pillars.");
+	setBoolean("Area Colour Mood", *sgOptions.Oracool.areaMood,
+	    "; On: each area has its own subtle colour - the Cathedral cold grey-blue, the Catacombs\n; ochre, the Caves damp green-brown, Hell blood-warm.");
+	setBoolean("Vignette", *sgOptions.Oracool.vignette,
+	    "; On: the edges of the dungeon view darken slightly.");
+	setBoolean("Bloom", *sgOptions.Oracool.bloom,
+	    "; On: very bright spots - spells, lava, fire - bleed a soft halo around them.");
+	setBoolean("Particles", *sgOptions.Oracool.particles,
+	    "; On: embers rise from fires, sparks fly from hits, dust drifts in your light, ash\n; falls in Hell. Visual only.");
+	setBoolean("Lava Haze and Water Light", *sgOptions.Oracool.heatHaze,
+	    "; On: the air shimmers above lava, and light ripples across water.");
+	setBoolean("Ray-Traced Shadows", *sgOptions.Oracool.rayTracedShadows,
+	    "; On: walls and pillars cast shadows on the floor from every light, traced across\n; the tile grid. Visual only - what you can see and fight is unchanged.");
+	setBoolean("Sharp Zoom Filter", *sgOptions.Oracool.zoomFilter,
+	    "; On: when zoomed in, the picture is enlarged with a pixel-art filter (Scale2x at 2x,\n; sharp bilinear in between) instead of plain pixel doubling.");
 	setBoolean("Item Tooltip Card", *sgOptions.Oracool.itemTooltipCard,
 	    "; On: the item tooltip is a card - name large, type and tier under it, armour or damage\n; as one big number, the item's picture top right, stats left-aligned, requirements in\n; a band at the foot. Off: the earlier centred panel.");
 	setBoolean("Grouped Hero Sheet", *sgOptions.Oracool.heroSheetGrouped,
@@ -1625,6 +1645,16 @@ OracoolOptions::OracoolOptions()
     , itemBackingRimGlow("Rim and Glow Item Backings", OptionEntryFlags::None, N_("Rim and Glow Item Backings"), N_("Each item sits on one backing with a rim in its quality colour and a glow fading in from it. Off: the earlier tint with a gold outline and cell lines."), true)
     , colouredLighting("Coloured Lighting", OptionEntryFlags::None, N_("Coloured Lighting"), N_("Lights take the colour of what casts them: fire orange, lightning blue-white, holy gold, poison green, cold cyan, and champions and uniques their own hue. How far light reaches is unchanged."), true)
     , smoothLighting("Smooth Lighting", OptionEntryFlags::None, N_("Smooth Lighting"), N_("The floor fades smoothly from light to dark instead of in tile-sized steps. Walls and figures keep the original per-tile light."), true)
+    , torchFlicker("Torch Flicker", OptionEntryFlags::None, N_("Torch Flicker"), N_("Torches, candles and braziers flicker: their light wavers softly across the floor."), true)
+    , glowingSpells("Glowing Spells", OptionEntryFlags::None, N_("Glowing Spells"), N_("Fire, lightning, holy and magic spells are drawn as light, adding onto what lies behind them, so they glow."), true)
+    , ambientOcclusion("Wall Shadows", OptionEntryFlags::None, N_("Wall Shadows"), N_("The floor darkens softly where it meets walls and pillars, giving rooms depth."), true)
+    , areaMood("Area Colour Mood", OptionEntryFlags::None, N_("Area Colour Mood"), N_("Each area has its own subtle colour: the Cathedral cold grey-blue, the Catacombs ochre, the Caves damp green-brown, Hell blood-warm."), true)
+    , vignette("Vignette", OptionEntryFlags::None, N_("Vignette"), N_("The edges of the dungeon view darken slightly, drawing the eye to the centre."), true)
+    , bloom("Bloom", OptionEntryFlags::None, N_("Bloom"), N_("Very bright spots - spells, lava, fire - bleed a soft halo of light around them."), true)
+    , particles("Particles", OptionEntryFlags::None, N_("Particles"), N_("Embers rise from fires, sparks fly from hits, dust drifts in your light, ash falls in Hell."), true)
+    , heatHaze("Lava Haze and Water Light", OptionEntryFlags::None, N_("Lava Haze and Water Light"), N_("The air shimmers above lava, and light ripples across water."), true)
+    , rayTracedShadows("Ray-Traced Shadows", OptionEntryFlags::None, N_("Ray-Traced Shadows"), N_("Walls and pillars cast shadows on the floor from every light. Visual only: what you can see and fight is unchanged."), true)
+    , zoomFilter("Sharp Zoom Filter", OptionEntryFlags::None, N_("Sharp Zoom Filter"), N_("When zoomed in, the picture is enlarged with a pixel-art filter (Scale2x at 2x, sharp bilinear between) instead of plain pixel doubling."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("A timestamped log of noteworthy session events, opened from the Menu popup or with F11."), true)
@@ -1715,6 +1745,16 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&itemBackingRimGlow,
 		&colouredLighting,
 		&smoothLighting,
+		&torchFlicker,
+		&glowingSpells,
+		&ambientOcclusion,
+		&areaMood,
+		&vignette,
+		&bloom,
+		&particles,
+		&heatHaze,
+		&rayTracedShadows,
+		&zoomFilter,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,

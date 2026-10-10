@@ -44,6 +44,9 @@ struct LightScene {
 	dungeon_type savedType = leveltype;
 	bool savedSmooth = *sgOptions.Oracool.smoothLighting;
 	bool savedColour = *sgOptions.Oracool.colouredLighting;
+	bool savedShadows = *sgOptions.Oracool.rayTracedShadows;
+	bool savedAo = *sgOptions.Oracool.ambientOcclusion;
+	bool savedFlicker = *sgOptions.Oracool.torchFlicker;
 	size_t savedMonsters = ActiveMonsterCount;
 	int savedObjects = ActiveObjectCount;
 
@@ -52,6 +55,10 @@ struct LightScene {
 		leveltype = DTYPE_CATHEDRAL;
 		sgOptions.Oracool.smoothLighting.SetValue(true);
 		sgOptions.Oracool.colouredLighting.SetValue(true);
+		// The other lighting techniques off unless a test asks: these tests measure the smooth and colour passes alone.
+		sgOptions.Oracool.rayTracedShadows.SetValue(false);
+		sgOptions.Oracool.ambientOcclusion.SetValue(false);
+		sgOptions.Oracool.torchFlicker.SetValue(false);
 		ActiveMonsterCount = 0;
 		ActiveObjectCount = 0;
 		Missiles.clear();
@@ -68,6 +75,10 @@ struct LightScene {
 		ActiveObjectCount = savedObjects;
 		sgOptions.Oracool.smoothLighting.SetValue(savedSmooth);
 		sgOptions.Oracool.colouredLighting.SetValue(savedColour);
+		sgOptions.Oracool.rayTracedShadows.SetValue(savedShadows);
+		sgOptions.Oracool.ambientOcclusion.SetValue(savedAo);
+		sgOptions.Oracool.torchFlicker.SetValue(savedFlicker);
+		std::memset(dPiece, 0, sizeof(dPiece));
 		leveltype = savedType;
 		oracool::RebuildLightColourField();
 	}
@@ -232,6 +243,7 @@ TEST(OracoolColourLight, DISABLED_ExportLightingPreview)
 	constexpr int W = 960, H = 540;
 	const Point firstTile { 36, 36 };
 	const Point firstBuffer { 448, -180 }; // puts the hero's tile (50, 50) at the middle of the frame
+	constexpr uint16_t PillarPiece = 7;
 	const auto paint = [&](OwnedSurface &s, bool stepped) {
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
@@ -241,6 +253,12 @@ TEST(OracoolColourLight, DISABLED_ExportLightingPreview)
 				const double fu = u - std::floor(u + 0.5), fv = v - std::floor(v + 0.5);
 				const bool mortar = std::abs(fu) > 0.46 || std::abs(fv) > 0.46;
 				uint8_t g = mortar ? 70 : static_cast<uint8_t>(150 + ((static_cast<int>(std::floor(u + 0.5)) * 7 + static_cast<int>(std::floor(v + 0.5)) * 13) % 5) * 8);
+				{
+					const int tx = std::clamp(static_cast<int>(std::floor(u + 0.5)), 0, MAXDUNX - 1);
+					const int ty = std::clamp(static_cast<int>(std::floor(v + 0.5)), 0, MAXDUNY - 1);
+					if (dPiece[tx][ty] == PillarPiece)
+						g = 36; // the top of a pillar: in the game a wall is drawn here
+				}
 				if (stepped) {
 					const int tx = std::clamp(static_cast<int>(std::floor(u + 0.5)), 0, MAXDUNX - 1);
 					const int ty = std::clamp(static_cast<int>(std::floor(v + 0.5)), 0, MAXDUNY - 1);
@@ -264,4 +282,21 @@ TEST(OracoolColourLight, DISABLED_ExportLightingPreview)
 	ASSERT_EQ(IMG_SavePNG(stepped.surface, (dir / "light_1_per_tile_today.png").string().c_str()), 0);
 	ASSERT_EQ(IMG_SavePNG(smooth.surface, (dir / "light_2_smooth.png").string().c_str()), 0);
 	ASSERT_EQ(IMG_SavePNG(coloured.surface, (dir / "light_3_smooth_coloured.png").string().c_str()), 0);
+
+	// 4: the same, with pillars and a wall - ray-traced shadows and wall shadows on.
+	const TileProperties savedPillar = SOLData[PillarPiece];
+	SOLData[PillarPiece] = TileProperties::Solid | TileProperties::BlockLight;
+	for (const Point pillar : { Point { 48, 48 }, Point { 52, 52 }, Point { 47, 53 }, Point { 53, 48 }, Point { 50, 46 } })
+		dPiece[pillar.x][pillar.y] = PillarPiece;
+	for (int y = 42; y <= 58; y++)
+		dPiece[43][y] = PillarPiece;
+	sgOptions.Oracool.rayTracedShadows.SetValue(true);
+	sgOptions.Oracool.ambientOcclusion.SetValue(true);
+	oracool::RebuildLightColourField();
+	OwnedSurface shadowed = OwnedSurface::Rgb(W, H);
+	paint(shadowed, false);
+	oracool::ApplySmoothFloorLight(shadowed, firstTile, firstBuffer);
+	oracool::ApplyLightColour(shadowed, firstTile, firstBuffer);
+	SOLData[PillarPiece] = savedPillar;
+	ASSERT_EQ(IMG_SavePNG(shadowed.surface, (dir / "light_4_shadows_and_wall_shadows.png").string().c_str()), 0);
 }

@@ -14,6 +14,8 @@
 #include <string>
 #include <vector>
 
+#include <SDL.h>
+
 #include "engine/palette.h"
 #include "engine/surface.hpp"
 #include "levels/gendung.h"
@@ -64,6 +66,7 @@ int TintMinX = 1, TintMaxX = 0, TintMinY = 1, TintMaxY = 0;
 
 std::array<uint32_t, MAXLIGHTS> IdColour {};
 std::array<float, MAXLIGHTS> IdGain {};
+std::array<bool, MAXLIGHTS> IdFlame {};
 std::array<uint16_t, NumLightingLevels> LevelBrightness {};
 
 struct Source {
@@ -72,8 +75,17 @@ struct Source {
 	float reach; // tiles at which the light is gone
 	uint32_t rgb; // 0 = neutral
 	float gain;   // how strongly its colour counts
+	bool flame;   // a torch, candle, brazier, burning cross or flame trap: it flickers
 };
 std::vector<Source> Sources;
+/** Flicker: the level's flames, each wavering on its own phase. Rebuilt with the sources; applied each frame. */
+struct Flame {
+	float x;
+	float y;
+	float reach;
+	float phase;
+};
+std::vector<Flame> Flames;
 
 constexpr uint32_t WarmFlame = Rgb(255, 170, 92); // torches, candles, braziers, the burning crosses
 /** The level's own flames are everywhere in the Cathedral: a little over half a spell's hue, or every room goes orange. */
@@ -87,7 +99,8 @@ float Luma(float r, float g, float b)
 /**
  * The hue a unique's recolour moves it to: the colour its TRN SHIFTS toward - the rewritten entries' average, pushed
  * further along the difference from the entries they were (round 2 audit: the plain average of the targets is half the
- * palette, the same for every recolour). A recolour that only darkens or greys out reads as neutral.
+ * palette, the same for every recolour). A recolour that darkens by a third or more, or greys out, reads as neutral; a
+ * gentler darkening reads as its sources' own hue, saturated - only real uniques reach this, and theirs are hues.
  */
 uint32_t TrnHue(const uint8_t *trn)
 {
@@ -175,17 +188,21 @@ uint32_t ArtNameHue(MissileGraphicID graphic)
 		return false;
 	};
 	uint32_t rgb = 0;
-	if (has({ "holy", "divine", "bless", "heaven", "smite", "sanct", "angel", "zeal" }))
+	// Round 3 of the audit: "unholy" before "holy", "ashen" not "ash" (manashld, blinding_flash), "storm_" not "storm"
+	// (bone_storm), and the vanilla sheets a Physical row can borrow (magblos, miniltng, the flare explosions).
+	if (has({ "unholy" }))
+		rgb = hue::DuskViolet;
+	else if (has({ "holy", "divine", "bless", "heaven", "smite", "sanct", "angel", "zeal", "ex_yel" }))
 		rgb = hue::PaladinGold;
-	else if (has({ "blood", "blod" }))
+	else if (has({ "blood", "blod", "ex_red" }))
 		rgb = hue::BloodRed;
 	else if (has({ "poison", "acid", "venom", "plague", "toxic", "bile" }))
 		rgb = hue::PoisonGreen;
-	else if (has({ "ice", "frost", "cold", "chill", "zero", "glint", "snow", "freez", "blizz", "glacial", "frozen", "shiver" }))
+	else if (has({ "ice", "frost", "cold", "chill", "zero", "glint", "snow", "freez", "blizz", "glacial", "frozen", "shiver", "whiteout" }))
 		rgb = hue::IceBlue;
-	else if (has({ "fire", "flame", "ember", "ash", "burn", "infern", "meteor", "lava", "magma", "furnace", "funeral", "blaze" }))
+	else if (has({ "fire", "flame", "ember", "ashen", "burn", "infern", "meteor", "lava", "magma", "furnace", "funeral", "blaze", "magblos", "magball", "cinder", "immolat", "ex_ora" }))
 		rgb = hue::FireOrange;
-	else if (has({ "lightn", "lght", "storm", "thunder", "spark", "static", "shock", "conduit", "faraday", "rod", "volt", "arc_" }))
+	else if (has({ "lightn", "lght", "lghning", "miniltng", "ex_blu", "storm_", "thunder", "spark", "static", "shock", "conduit", "faraday", "rod", "volt", "arc_" }))
 		rgb = hue::LightningBlue;
 	cache[i] = rgb;
 	return rgb;
@@ -205,6 +222,13 @@ uint32_t MissileLightHue(const Missile &missile)
 	case MissileGraphicID::RiftPortalPurple:
 	case MissileGraphicID::RiftPortalPurpleInTown: return hue::PhantomPurple;
 	case MissileGraphicID::BloodStar: return hue::BloodRed;
+	default: break;
+	}
+	switch (missile._mitype) {
+	case MissileID::RuneOfFire:
+	case MissileID::RuneOfImmolation: return hue::FireOrange;
+	case MissileID::RuneOfLight:
+	case MissileID::RuneOfNova: return hue::LightningBlue;
 	default: break;
 	}
 	switch (GetMissileData(missile._mitype).damageType()) {
@@ -242,11 +266,12 @@ int BakedObjectLightRadius(const Object &object)
 	}
 }
 
-void NoteId(int id, uint32_t rgb, float gain = 1.0F)
+void NoteId(int id, uint32_t rgb, float gain = 1.0F, bool flame = false)
 {
 	if (id >= 0 && id < MAXLIGHTS) {
 		IdColour[id] = rgb;
 		IdGain[id] = gain;
+		IdFlame[id] = flame;
 	}
 }
 
@@ -254,6 +279,7 @@ void GatherSources()
 {
 	IdColour.fill(0);
 	IdGain.fill(1.0F);
+	IdFlame.fill(false);
 	for (const Missile &missile : Missiles) {
 		if (missile._mlid != NO_LIGHT)
 			NoteId(missile._mlid, MissileLightHue(missile));
@@ -269,16 +295,16 @@ void GatherSources()
 		const Object &object = Objects[ActiveObjects[i]];
 		if (object._otype == OBJ_FLAMEHOLE) {
 			if (object._oVar4 != 0 && object._olid != NO_LIGHT)
-				NoteId(object._olid, hue::FireOrange, FlameGain);
+				NoteId(object._olid, hue::FireOrange, FlameGain, true);
 			continue;
 		}
 		const int radius = BakedObjectLightRadius(object);
 		if (radius == 0)
 			continue;
 		if (object._oVar1 == -1) // baked into dPreLight at level load (AddObjectLight): no light id, always there
-			Sources.push_back({ static_cast<float>(object.position.x), static_cast<float>(object.position.y), static_cast<float>(radius + 1), WarmFlame, FlameGain });
+			Sources.push_back({ static_cast<float>(object.position.x), static_cast<float>(object.position.y), static_cast<float>(radius + 1), WarmFlame, FlameGain, true });
 		else if (object._oVar1 == 1) // switched on by UpdateObjectLight
-			NoteId(object._olid, WarmFlame, FlameGain);
+			NoteId(object._olid, WarmFlame, FlameGain, true);
 	}
 
 	for (int i = 0; i < ActiveLightCount; i++) {
@@ -290,7 +316,16 @@ void GatherSources()
 			continue; // ProcessLightList leaves a monster hidden in a wall unlit; so does its colour
 		const float x = static_cast<float>(light.position.tile.x) + static_cast<float>(light.position.offset.deltaX) / 8.0F;
 		const float y = static_cast<float>(light.position.tile.y) + static_cast<float>(light.position.offset.deltaY) / 8.0F;
-		Sources.push_back({ x, y, static_cast<float>(light.radius + 1), IdColour[id], IdGain[id] });
+		Sources.push_back({ x, y, static_cast<float>(light.radius + 1), IdColour[id], IdGain[id], IdFlame[id] });
+	}
+
+	Flames.clear();
+	for (const Source &source : Sources) {
+		if (!source.flame)
+			continue;
+		// A phase from the flame's place, so two torches side by side never pulse together.
+		const uint32_t seed = static_cast<uint32_t>(source.x * 73.0F) * 2654435761U ^ static_cast<uint32_t>(source.y * 151.0F) * 40503U;
+		Flames.push_back({ source.x, source.y, source.reach, static_cast<float>(seed % 6283U) / 1000.0F });
 	}
 }
 
@@ -362,12 +397,164 @@ int ClampY(int64_t i)
 /** Samples are taken this many pixels apart along a row and joined linearly - the field is smooth over a 64 px tile. */
 constexpr int Span = 8;
 
+// =================================================================================================================
+// Ray-traced shadows, wall shadows and flicker (user, 2026-10-10: three of the nine visual techniques)
+// =================================================================================================================
+
+/**
+ * Ray-traced shadows: the darkness every light would leave on the floor if walls stopped it - the same linear falloff
+ * as MakeLightTable's (15 levels over radius + 1 tiles), but a tile counts a light only when the ray from the light to
+ * the tile's centre crosses no BlockLight tile. Visual only: dLight, which decides what the hero sees and what is drawn,
+ * is untouched; the floor pass reads the darker of the two.
+ */
+std::array<uint8_t, FieldW * FieldH> ShadowLevel;
+std::array<uint8_t, FieldW * FieldH> Blocks;
+bool ShadowsBuilt = false;
+
+/** Walks the tiles between @p from and the centre of @p to (Amanatides-Woo); true when one of them blocks light. */
+bool RayBlocked(float sx, float sy, int tx, int ty)
+{
+	int cx = static_cast<int>(std::floor(sx + 0.5F));
+	int cy = static_cast<int>(std::floor(sy + 0.5F));
+	const float dx = static_cast<float>(tx) - sx;
+	const float dy = static_cast<float>(ty) - sy;
+	const int stepX = dx > 0 ? 1 : -1;
+	const int stepY = dy > 0 ? 1 : -1;
+	constexpr float Far = 1e9F;
+	const float tDeltaX = dx != 0 ? std::abs(1.0F / dx) : Far;
+	const float tDeltaY = dy != 0 ? std::abs(1.0F / dy) : Far;
+	float tMaxX = dx != 0 ? ((static_cast<float>(cx) + 0.5F * static_cast<float>(stepX)) - sx) / dx : Far;
+	float tMaxY = dy != 0 ? ((static_cast<float>(cy) + 0.5F * static_cast<float>(stepY)) - sy) / dy : Far;
+	for (int guard = 0; guard < 64 && (cx != tx || cy != ty); guard++) {
+		if (tMaxX < tMaxY) {
+			tMaxX += tDeltaX;
+			cx += stepX;
+		} else {
+			tMaxY += tDeltaY;
+			cy += stepY;
+		}
+		if (cx == tx && cy == ty)
+			return false; // the target itself is never its own blocker: a lit wall face is a wall
+		if (cx < 0 || cy < 0 || cx >= FieldW || cy >= FieldH)
+			return true;
+		if (Blocks[cx * FieldH + cy] != 0)
+			return true;
+	}
+	return false;
+}
+
+void BuildShadows()
+{
+	ShadowsBuilt = false;
+	if (!*sgOptions.Oracool.rayTracedShadows || !InLitDungeon())
+		return;
+	for (int x = 0; x < FieldW; x++)
+		for (int y = 0; y < FieldH; y++)
+			Blocks[x * FieldH + y] = TileHasAny(dPiece[x][y], TileProperties::BlockLight) ? 1 : 0;
+	ShadowLevel.fill(LightsMax);
+	for (const Source &s : Sources) {
+		const int x0 = ClampX(static_cast<int64_t>(std::floor(s.x - s.reach)));
+		const int x1 = ClampX(static_cast<int64_t>(std::ceil(s.x + s.reach)));
+		const int y0 = ClampY(static_cast<int64_t>(std::floor(s.y - s.reach)));
+		const int y1 = ClampY(static_cast<int64_t>(std::ceil(s.y + s.reach)));
+		for (int y = y0; y <= y1; y++) {
+			for (int x = x0; x <= x1; x++) {
+				const float dx = static_cast<float>(x) - s.x;
+				const float dy = static_cast<float>(y) - s.y;
+				const float d = std::sqrt(dx * dx + dy * dy);
+				if (d > s.reach)
+					continue;
+				const int level = static_cast<int>(d / s.reach * LightsMax + 0.5F);
+				uint8_t &cell = ShadowLevel[x * FieldH + y];
+				if (level >= cell)
+					continue;
+				if (RayBlocked(s.x, s.y, x, y))
+					continue;
+				cell = static_cast<uint8_t>(level);
+			}
+		}
+	}
+	ShadowsBuilt = true;
+}
+
+/**
+ * Wall shadows (ambient occlusion): a darkening of the floor where it meets a solid tile, at half-tile resolution so the
+ * bilinear sample makes a gradient along the wall's foot rather than darkening whole tiles. Built once a level, keyed on
+ * where we are and a checksum of dPiece.
+ */
+constexpr int AoW = FieldW * 2;
+constexpr int AoH = FieldH * 2;
+constexpr float AoReach = 0.6F;    // tiles from a wall's edge at which the shadow is gone
+constexpr float AoStrength = 0.38F; // how dark the floor gets right at the wall's foot
+std::array<uint16_t, AoW * AoH> AoPlane;
+uint64_t AoKey = 0;
+bool AoBuilt = false;
+
+uint64_t LevelKey()
+{
+	uint64_t h = 1469598103934665603ULL;
+	const auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ULL; };
+	mix(static_cast<uint64_t>(leveltype));
+	mix(currlevel);
+	mix(setlevel ? 1 : 0);
+	mix(static_cast<uint64_t>(setlvlnum));
+	const uint16_t *pieces = &dPiece[0][0];
+	for (int i = 0; i < FieldW * FieldH; i += 7)
+		mix(pieces[i]);
+	return h;
+}
+
+void EnsureAoPlane()
+{
+	const uint64_t key = LevelKey();
+	if (AoBuilt && key == AoKey)
+		return;
+	AoKey = key;
+	AoBuilt = true;
+	for (int x = 0; x < FieldW; x++) {
+		for (int y = 0; y < FieldH; y++) {
+			const bool selfSolid = TileHasAny(dPiece[x][y], TileProperties::Solid);
+			for (int i = 0; i < 2; i++) {
+				for (int j = 0; j < 2; j++) {
+					const float px = static_cast<float>(x) - 0.25F + 0.5F * static_cast<float>(i);
+					const float py = static_cast<float>(y) - 0.25F + 0.5F * static_cast<float>(j);
+					float occlusion = selfSolid ? 1.0F : 0.0F;
+					for (int nx = x - 1; nx <= x + 1 && occlusion < 1.0F; nx++) {
+						for (int ny = y - 1; ny <= y + 1; ny++) {
+							if ((nx == x && ny == y) || nx < 0 || ny < 0 || nx >= FieldW || ny >= FieldH)
+								continue;
+							if (!TileHasAny(dPiece[nx][ny], TileProperties::Solid))
+								continue;
+							// Distance from the sample to the solid tile's square.
+							const float ex = std::max({ static_cast<float>(nx) - 0.5F - px, 0.0F, px - (static_cast<float>(nx) + 0.5F) });
+							const float ey = std::max({ static_cast<float>(ny) - 0.5F - py, 0.0F, py - (static_cast<float>(ny) + 0.5F) });
+							occlusion = std::max(occlusion, 1.0F - std::sqrt(ex * ex + ey * ey) / AoReach);
+						}
+					}
+					const float factor = 1.0F - AoStrength * std::clamp(occlusion, 0.0F, 1.0F);
+					AoPlane[(2 * x + i) * AoH + (2 * y + j)] = static_cast<uint16_t>(factor * One + 0.5F);
+				}
+			}
+		}
+	}
+}
+
+std::array<LightTint, FieldW * FieldH> FrameTints;
+constexpr float FlickerDepth = 0.13F; // at a flame's own tile, light swings this far either way
+
+float FlameWaver(float seconds, float phase)
+{
+	// Three incommensurate sines: no visible period, never a strobe.
+	return 0.5F * std::sin(seconds * 7.3F + phase) + 0.3F * std::sin(seconds * 13.1F + phase * 2.1F) + 0.2F * std::sin(seconds * 23.7F + phase * 3.7F);
+}
+
 } // namespace
 
 void RebuildLightColourField()
 {
 	RefreshLevelBrightness();
 	GatherSources();
+	BuildShadows(); // ray-traced shadows (user, 2026-10-10): the same lights, stopped by walls
 
 	std::fill(Accumulated.begin(), Accumulated.end(), Accum {});
 	int minX = FieldW, maxX = -1, minY = FieldH, maxY = -1;
@@ -452,28 +639,52 @@ bool SmoothFloorLightActive(const Surface &out)
 	return *sgOptions.Oracool.smoothLighting && !out.isIndexed() && InLitDungeon() && !IsAnyOf(leveltype, DTYPE_NEST, DTYPE_CRYPT);
 }
 
+bool FloorPassActive(const Surface &out)
+{
+	// Wall shadows darken the floor too, whether or not it is smoothed (the Nest and the Crypt included: a darker foot
+	// of the wall dims no lava in the middle of a room).
+	return SmoothFloorLightActive(out) || (*sgOptions.Oracool.ambientOcclusion && !out.isIndexed() && InLitDungeon());
+}
+
 bool ColouredLightActive(const Surface &out)
 {
-	return *sgOptions.Oracool.colouredLighting && !out.isIndexed() && InLitDungeon();
+	return (*sgOptions.Oracool.colouredLighting || *sgOptions.Oracool.torchFlicker) && !out.isIndexed() && InLitDungeon();
 }
 
 void ApplySmoothFloorLight(const Surface &out, Point firstTile, Point firstTileBuffer)
 {
-	if (!SmoothFloorLightActive(out) || out.w() <= 0 || out.h() <= 0)
+	if (!FloorPassActive(out) || out.w() <= 0 || out.h() <= 0)
 		return;
 	if (LevelBrightness[0] != One)
 		RefreshLevelBrightness();
+	const bool smooth = SmoothFloorLightActive(out);
+	const bool shadows = smooth && ShadowsBuilt && *sgOptions.Oracool.rayTracedShadows;
+	const bool ao = *sgOptions.Oracool.ambientOcclusion;
+	if (ao)
+		EnsureAoPlane();
 
 	// Everything below is written out by hand - no helpers, no std::clamp, no lambdas, no std::array operator[] in the
 	// loops. The pragma above optimises this file even in the Debug build, but /Ob0 still forbids inlining, so every
 	// call would stay a call: about 25 million a frame at 1080p before round 2 of the audit (v1.12.421).
+	//
+	// The brightness plane: the floor drawn bright is darkened to its light (smooth floors) - by the darker of dLight and
+	// the ray-traced shadows, so a shadow only ever takes light away. Without smooth floors the floor was drawn at its
+	// own per-tile light, and only the wall shadows apply.
 	uint16_t *plane = BrightPlane.data();
 	const uint16_t *levels = LevelBrightness.data();
 	const uint8_t *light = &dLight[0][0];
+	const uint8_t *shadow = ShadowLevel.data();
 	for (int i = 0; i < FieldW * FieldH; i++) {
-		const int level = light[i];
+		if (!smooth) {
+			plane[i] = One;
+			continue;
+		}
+		int level = light[i];
+		if (shadows && shadow[i] > level)
+			level = shadow[i];
 		plane[i] = levels[level > LightsMax ? LightsMax : level];
 	}
+	const uint16_t *aoPlane = AoPlane.data();
 
 	const GroundMap m = MakeGroundMap(firstTile, firstTileBuffer);
 	const int w = out.w();
@@ -497,7 +708,25 @@ void ApplySmoothFloorLight(const Surface &out, Point firstTile, Point firstTileB
 			const int y1 = iv + 1 < 0 ? 0 : (iv + 1 > FieldH - 1 ? FieldH - 1 : static_cast<int>(iv + 1));
 			const int top = plane[x0 * FieldH + y0] * (256 - fu) + plane[x1 * FieldH + y0] * fu;
 			const int bottom = plane[x0 * FieldH + y1] * (256 - fu) + plane[x1 * FieldH + y1] * fu;
-			const int f1 = (top * (256 - fv) + bottom * fv) >> 16;
+			int f1 = (top * (256 - fv) + bottom * fv) >> 16;
+			if (ao) {
+				// The same sample on the half-tile wall-shadow grid: its cell centres sit at u - 0.25 and u + 0.25, so the
+				// grid coordinate is 2u + 0.5.
+				const int64_t au = (u << 1) + 32768;
+				const int64_t av = (v << 1) + 32768;
+				const int64_t ia = au >> 16;
+				const int64_t ja = av >> 16;
+				const int fa = static_cast<int>((au >> 8) & 0xFF);
+				const int fb = static_cast<int>((av >> 8) & 0xFF);
+				const int a0 = ia < 0 ? 0 : (ia > AoW - 1 ? AoW - 1 : static_cast<int>(ia));
+				const int a1 = ia + 1 < 0 ? 0 : (ia + 1 > AoW - 1 ? AoW - 1 : static_cast<int>(ia + 1));
+				const int b0 = ja < 0 ? 0 : (ja > AoH - 1 ? AoH - 1 : static_cast<int>(ja));
+				const int b1 = ja + 1 < 0 ? 0 : (ja + 1 > AoH - 1 ? AoH - 1 : static_cast<int>(ja + 1));
+				const int aoTop = aoPlane[a0 * AoH + b0] * (256 - fa) + aoPlane[a1 * AoH + b0] * fa;
+				const int aoBottom = aoPlane[a0 * AoH + b1] * (256 - fa) + aoPlane[a1 * AoH + b1] * fa;
+				const int occ = (aoTop * (256 - fb) + aoBottom * fb) >> 16;
+				f1 = (f1 * occ) >> 8;
+			}
 			if (sx > 0) {
 				const int from = sx - Span;
 				const int len = x - from;
@@ -522,14 +751,57 @@ void ApplySmoothFloorLight(const Surface &out, Point firstTile, Point firstTileB
 
 void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer)
 {
-	if (!ColouredLightActive(out) || TintMinX > TintMaxX || out.w() <= 0 || out.h() <= 0)
+	if (!ColouredLightActive(out) || out.w() <= 0 || out.h() <= 0)
+		return;
+	const bool colour = *sgOptions.Oracool.colouredLighting;
+	const bool flicker = *sgOptions.Oracool.torchFlicker && !Flames.empty();
+	if (!colour && !flicker)
+		return;
+
+	// This frame's tints: the colour field (or none), and every flame's waver over it. The box grows to the flames.
+	int minX = colour ? TintMinX : FieldW, maxX = colour ? TintMaxX : -1, minY = colour ? TintMinY : FieldH, maxY = colour ? TintMaxY : -1;
+	const LightTint *tints = Tints.data();
+	if (flicker) {
+		if (colour)
+			FrameTints = Tints;
+		else
+			FrameTints.fill(LightTint { One, One, One });
+		const float seconds = static_cast<float>(SDL_GetTicks() % 3600000U) / 1000.0F;
+		for (const Flame &flame : Flames) {
+			const float waver = FlameWaver(seconds, flame.phase) * FlickerDepth;
+			const int fx0 = ClampX(static_cast<int64_t>(std::floor(flame.x - flame.reach)));
+			const int fx1 = ClampX(static_cast<int64_t>(std::ceil(flame.x + flame.reach)));
+			const int fy0 = ClampY(static_cast<int64_t>(std::floor(flame.y - flame.reach)));
+			const int fy1 = ClampY(static_cast<int64_t>(std::ceil(flame.y + flame.reach)));
+			for (int x = fx0; x <= fx1; x++) {
+				for (int y = fy0; y <= fy1; y++) {
+					const float dx = static_cast<float>(x) - flame.x;
+					const float dy = static_cast<float>(y) - flame.y;
+					const float weight = 1.0F - std::sqrt(dx * dx + dy * dy) / flame.reach;
+					if (weight <= 0)
+						continue;
+					const float k = 1.0F + waver * weight;
+					LightTint &t = FrameTints[x * FieldH + y];
+					t.r = static_cast<uint16_t>(std::min(static_cast<float>(t.r) * k, 400.0F));
+					t.g = static_cast<uint16_t>(std::min(static_cast<float>(t.g) * k, 400.0F));
+					t.b = static_cast<uint16_t>(std::min(static_cast<float>(t.b) * k, 400.0F));
+				}
+			}
+			minX = std::min(minX, fx0);
+			maxX = std::max(maxX, fx1);
+			minY = std::min(minY, fy0);
+			maxY = std::max(maxY, fy1);
+		}
+		tints = FrameTints.data();
+	}
+	if (minX > maxX || minY > maxY)
 		return;
 	const GroundMap m = MakeGroundMap(firstTile, firstTileBuffer);
 
 	// Only the screen rectangle the coloured tiles project to: the corners of their tile box, one tile out for the
 	// bilinear's reach. (A pixel is tinted by the floor tile under it, so a wall takes the colour of the tiles behind it.)
 	int left = out.w(), right = -1, top = out.h(), bottom = -1;
-	for (const Point corner : { Point { TintMinX - 1, TintMinY - 1 }, Point { TintMaxX + 1, TintMinY - 1 }, Point { TintMinX - 1, TintMaxY + 1 }, Point { TintMaxX + 1, TintMaxY + 1 } }) {
+	for (const Point corner : { Point { minX - 1, minY - 1 }, Point { maxX + 1, minY - 1 }, Point { minX - 1, maxY + 1 }, Point { maxX + 1, maxY + 1 } }) {
 		const int cx = firstTileBuffer.x + 32 + (corner.x - firstTile.x) * 32 - (corner.y - firstTile.y) * 32;
 		const int cy = firstTileBuffer.y - 15 + (corner.x - firstTile.x) * 16 + (corner.y - firstTile.y) * 16;
 		left = std::min(left, cx - 32);
@@ -546,7 +818,6 @@ void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer
 
 	// Written out by hand, as ApplySmoothFloorLight is (no calls survive /Ob0): the four tints read once per sample and
 	// all three channels interpolated with the same weights.
-	const LightTint *tints = Tints.data();
 	const int end = right + 1;
 	for (int py = top; py <= bottom; py++) {
 		uint32_t *row = out.at<uint32_t>(0, py);

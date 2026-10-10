@@ -636,6 +636,81 @@ void ClxDrawRgbMapAlpha(const Surface &out, Point position, ClxSprite clx, const
 	DoRenderBackwardsDispatch(out, position, clx, BlitWithRgbMapAlpha { rgbMap, static_cast<uint32_t>(alpha) });
 }
 
+// Glowing Spells (user, 2026-10-10): the additive run is optimised even in the Debug build, as oracool/colour_light.cpp
+// is. The per-run functor is still a call (/Ob0), but nothing inside a run's loop is.
+#ifdef _MSC_VER
+#pragma runtime_checks("", off)
+#pragma optimize("gt", on)
+#endif
+
+namespace {
+
+/** @brief Adds each source colour value at @p k of 256 onto the destination, clamped per channel. 32-bit only. */
+struct BlitWithRgbMapAdditive {
+	const uint32_t *DVL_RESTRICT rgbMap;
+	uint32_t k; // 0..256
+
+	void operator()(unsigned length, uint32_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src) const
+	{
+		const uint32_t *map = rgbMap;
+		const uint32_t s = k;
+		for (unsigned i = 0; i < length; i++) {
+			const uint32_t c = map[src[i]];
+			const uint32_t d = dst[i];
+			uint32_t r = ((d >> 16) & 0xFFu) + ((((c >> 16) & 0xFFu) * s) >> 8);
+			uint32_t g = ((d >> 8) & 0xFFu) + ((((c >> 8) & 0xFFu) * s) >> 8);
+			uint32_t b = (d & 0xFFu) + (((c & 0xFFu) * s) >> 8);
+			r = r > 255u ? 255u : r;
+			g = g > 255u ? 255u : g;
+			b = b > 255u ? 255u : b;
+			dst[i] = (r << 16) | (g << 8) | b;
+		}
+	}
+	void operator()(unsigned /*length*/, uint8_t * /*dst*/, const uint8_t * /*src*/) const
+	{
+	}
+	void operator()(unsigned length, uint8_t color, uint32_t *DVL_RESTRICT dst) const
+	{
+		const uint32_t c = rgbMap[color];
+		const uint32_t ar = (((c >> 16) & 0xFFu) * k) >> 8;
+		const uint32_t ag = (((c >> 8) & 0xFFu) * k) >> 8;
+		const uint32_t ab = ((c & 0xFFu) * k) >> 8;
+		for (unsigned i = 0; i < length; i++) {
+			const uint32_t d = dst[i];
+			uint32_t r = ((d >> 16) & 0xFFu) + ar;
+			uint32_t g = ((d >> 8) & 0xFFu) + ag;
+			uint32_t b = (d & 0xFFu) + ab;
+			r = r > 255u ? 255u : r;
+			g = g > 255u ? 255u : g;
+			b = b > 255u ? 255u : b;
+			dst[i] = (r << 16) | (g << 8) | b;
+		}
+	}
+	void operator()(unsigned /*length*/, uint8_t /*color*/, uint8_t * /*dst*/) const
+	{
+	}
+};
+
+} // namespace
+
+void ClxDrawRgbMapAdditive(const Surface &out, Point position, ClxSprite clx, const uint32_t *rgbMap, uint8_t strength)
+{
+	if (out.isIndexed()) {
+		ClxDraw(out, position, clx);
+		return;
+	}
+	if (strength == 0)
+		return;
+	// 0..255 to 0..256, so full strength adds the value exactly.
+	const uint32_t k = static_cast<uint32_t>(strength) + (static_cast<uint32_t>(strength) >> 7);
+	DoRenderBackwardsDispatch(out, position, clx, BlitWithRgbMapAdditive { rgbMap, k });
+}
+
+#ifdef _MSC_VER
+#pragma optimize("", on)
+#pragma runtime_checks("", restore)
+#endif
+
 void ClxDrawBlended(const Surface &out, Point position, ClxSprite clx)
 {
 	DoRenderBackwardsDispatch(out, position, clx, BlitBlended {});
