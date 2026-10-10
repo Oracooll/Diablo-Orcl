@@ -144,13 +144,24 @@ TEST(OracoolSpellGlow, FireBoltGlowsArrowDoesNot)
 TEST(OracoolParticles, PoolNeverPassesItsCapacityAndForgetEmptiesIt)
 {
 	OptionScene scene;
+	// Forty different tiles: one tile gets one burst per 150 ms.
 	for (int i = 0; i < 40; i++)
-		oracool::EmitHitSparks({ 40, 40 }, oracool::SteelSparkRgb, 64);
+		oracool::EmitHitSparks({ 20 + i, 40 }, oracool::SteelSparkRgb, 64);
 	EXPECT_EQ(oracool::ParticleCount(), oracool::MaxParticles);
-	oracool::EmitHitSparks({ 40, 40 }, oracool::SteelSparkRgb, 64);
+	oracool::EmitHitSparks({ 70, 40 }, oracool::SteelSparkRgb, 64);
 	EXPECT_EQ(oracool::ParticleCount(), oracool::MaxParticles);
 	oracool::ForgetParticles();
 	EXPECT_EQ(oracool::ParticleCount(), 0u);
+}
+
+TEST(OracoolParticles, ATileSparksOnceAFireWallTickNotEveryTick)
+{
+	OptionScene scene;
+	oracool::EmitHitSparks({ 40, 40 }, oracool::SteelSparkRgb, 6);
+	oracool::EmitHitSparks({ 40, 40 }, oracool::SteelSparkRgb, 6); // the same tile, the next tick: throttled
+	EXPECT_EQ(oracool::ParticleCount(), 6u);
+	oracool::EmitHitSparks({ 41, 40 }, oracool::SteelSparkRgb, 6); // another monster: its own burst
+	EXPECT_EQ(oracool::ParticleCount(), 12u);
 }
 
 TEST(OracoolParticles, OptionOffEmitsNothingAndEmptiesThePool)

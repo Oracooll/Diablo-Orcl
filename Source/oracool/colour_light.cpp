@@ -402,20 +402,32 @@ constexpr int Span = 8;
 // =================================================================================================================
 
 /**
- * Ray-traced shadows: the darkness every light would leave on the floor if walls stopped it - the same linear falloff
- * as MakeLightTable's (15 levels over radius + 1 tiles), but a tile counts a light only when the ray from the light to
- * the tile's centre crosses no BlockLight tile. Visual only: dLight, which decides what the hero sees and what is drawn,
- * is untouched; the floor pass reads the darker of the two.
+ * Ray-traced shadows: how much darker each tile is because walls stop the lights - every light worked out twice with
+ * MakeLightTable's linear falloff (15 levels over radius + 1 tiles), once as the engine does it (through walls) and once
+ * counting a light only when the ray from it to the tile's centre crosses no BlockLight tile. The floor pass adds the
+ * difference to dLight. A DARKENING, not a replacement (visual audit round 1): light the engine has that is no source
+ * here - the Caves' lava, baked by PlaceCaveLights into dPreLight - survives, and the two falloffs' rounding cancels.
+ * Visual only: dLight, which decides what the hero sees and what is drawn, is untouched.
  */
-std::array<uint8_t, FieldW * FieldH> ShadowLevel;
+std::array<uint8_t, FieldW * FieldH> ShadowDarkening;
+std::array<uint8_t, FieldW * FieldH> OpenLevel;
+std::array<uint8_t, FieldW * FieldH> ShadedLevel;
 std::array<uint8_t, FieldW * FieldH> Blocks;
+uint64_t BlocksKey = 0;
 bool ShadowsBuilt = false;
+uint64_t LevelKey();
 
-/** Walks the tiles between @p from and the centre of @p to (Amanatides-Woo); true when one of them blocks light. */
-bool RayBlocked(float sx, float sy, int tx, int ty)
+/**
+ * Walks the tiles between @p from and the centre of @p to (Amanatides-Woo); true when one of them blocks light. A light
+ * standing in a wall (the Catacombs' wall torches, AddL2Torches) ignores the walls touching its own tile, or its rays
+ * along the wall would leave through the next wall tile and the torch would light a wedge (visual audit round 1).
+ */
+bool RayBlocked(float sx, float sy, int tx, int ty, bool fromInsideWall)
 {
 	int cx = static_cast<int>(std::floor(sx + 0.5F));
 	int cy = static_cast<int>(std::floor(sy + 0.5F));
+	const int startX = cx;
+	const int startY = cy;
 	const float dx = static_cast<float>(tx) - sx;
 	const float dy = static_cast<float>(ty) - sy;
 	const int stepX = dx > 0 ? 1 : -1;
@@ -437,8 +449,11 @@ bool RayBlocked(float sx, float sy, int tx, int ty)
 			return false; // the target itself is never its own blocker: a lit wall face is a wall
 		if (cx < 0 || cy < 0 || cx >= FieldW || cy >= FieldH)
 			return true;
-		if (Blocks[cx * FieldH + cy] != 0)
+		if (Blocks[cx * FieldH + cy] != 0) {
+			if (fromInsideWall && std::abs(cx - startX) <= 1 && std::abs(cy - startY) <= 1)
+				continue;
 			return true;
+		}
 	}
 	return false;
 }
@@ -448,11 +463,19 @@ void BuildShadows()
 	ShadowsBuilt = false;
 	if (!*sgOptions.Oracool.rayTracedShadows || !InLitDungeon())
 		return;
-	for (int x = 0; x < FieldW; x++)
-		for (int y = 0; y < FieldH; y++)
-			Blocks[x * FieldH + y] = TileHasAny(dPiece[x][y], TileProperties::BlockLight) ? 1 : 0;
-	ShadowLevel.fill(LightsMax);
+	// The walls change only with the map: rebuilt when the level key moves, not every tick (visual audit round 1).
+	if (const uint64_t key = LevelKey(); key != BlocksKey) {
+		BlocksKey = key;
+		for (int x = 0; x < FieldW; x++)
+			for (int y = 0; y < FieldH; y++)
+				Blocks[x * FieldH + y] = TileHasAny(dPiece[x][y], TileProperties::BlockLight) ? 1 : 0;
+	}
+	OpenLevel.fill(LightsMax);
+	ShadedLevel.fill(LightsMax);
 	for (const Source &s : Sources) {
+		const int sx = static_cast<int>(std::floor(s.x + 0.5F));
+		const int sy = static_cast<int>(std::floor(s.y + 0.5F));
+		const bool insideWall = sx >= 0 && sy >= 0 && sx < FieldW && sy < FieldH && Blocks[sx * FieldH + sy] != 0;
 		const int x0 = ClampX(static_cast<int64_t>(std::floor(s.x - s.reach)));
 		const int x1 = ClampX(static_cast<int64_t>(std::ceil(s.x + s.reach)));
 		const int y0 = ClampY(static_cast<int64_t>(std::floor(s.y - s.reach)));
@@ -465,15 +488,19 @@ void BuildShadows()
 				if (d > s.reach)
 					continue;
 				const int level = static_cast<int>(d / s.reach * LightsMax + 0.5F);
-				uint8_t &cell = ShadowLevel[x * FieldH + y];
-				if (level >= cell)
+				const size_t i = static_cast<size_t>(x) * FieldH + y;
+				if (level < OpenLevel[i])
+					OpenLevel[i] = static_cast<uint8_t>(level);
+				if (level >= ShadedLevel[i])
 					continue;
-				if (RayBlocked(s.x, s.y, x, y))
+				if (RayBlocked(s.x, s.y, x, y, insideWall))
 					continue;
-				cell = static_cast<uint8_t>(level);
+				ShadedLevel[i] = static_cast<uint8_t>(level);
 			}
 		}
 	}
+	for (size_t i = 0; i < ShadowDarkening.size(); i++)
+		ShadowDarkening[i] = ShadedLevel[i] > OpenLevel[i] ? static_cast<uint8_t>(ShadedLevel[i] - OpenLevel[i]) : 0;
 	ShadowsBuilt = true;
 }
 
@@ -499,8 +526,8 @@ uint64_t LevelKey()
 	mix(setlevel ? 1 : 0);
 	mix(static_cast<uint64_t>(setlvlnum));
 	const uint16_t *pieces = &dPiece[0][0];
-	for (int i = 0; i < FieldW * FieldH; i += 7)
-		mix(pieces[i]);
+	for (int i = 0; i < FieldW * FieldH; i++) // every piece: a small map change must not leave the shadows stale
+		h = (h ^ pieces[i]) * 1099511628211ULL;
 	return h;
 }
 
@@ -513,7 +540,8 @@ void EnsureAoPlane()
 	AoBuilt = true;
 	for (int x = 0; x < FieldW; x++) {
 		for (int y = 0; y < FieldH; y++) {
-			const bool selfSolid = TileHasAny(dPiece[x][y], TileProperties::Solid);
+			// BlockLight, not Solid (visual audit round 1): lava and water stop feet, not light, and must get no dark rim.
+			const bool selfSolid = TileHasAny(dPiece[x][y], TileProperties::BlockLight);
 			for (int i = 0; i < 2; i++) {
 				for (int j = 0; j < 2; j++) {
 					const float px = static_cast<float>(x) - 0.25F + 0.5F * static_cast<float>(i);
@@ -523,7 +551,7 @@ void EnsureAoPlane()
 						for (int ny = y - 1; ny <= y + 1; ny++) {
 							if ((nx == x && ny == y) || nx < 0 || ny < 0 || nx >= FieldW || ny >= FieldH)
 								continue;
-							if (!TileHasAny(dPiece[nx][ny], TileProperties::Solid))
+							if (!TileHasAny(dPiece[nx][ny], TileProperties::BlockLight))
 								continue;
 							// Distance from the sample to the solid tile's square.
 							const float ex = std::max({ static_cast<float>(nx) - 0.5F - px, 0.0F, px - (static_cast<float>(nx) + 0.5F) });
@@ -673,15 +701,15 @@ void ApplySmoothFloorLight(const Surface &out, Point firstTile, Point firstTileB
 	uint16_t *plane = BrightPlane.data();
 	const uint16_t *levels = LevelBrightness.data();
 	const uint8_t *light = &dLight[0][0];
-	const uint8_t *shadow = ShadowLevel.data();
+	const uint8_t *shadow = ShadowDarkening.data();
 	for (int i = 0; i < FieldW * FieldH; i++) {
 		if (!smooth) {
 			plane[i] = One;
 			continue;
 		}
 		int level = light[i];
-		if (shadows && shadow[i] > level)
-			level = shadow[i];
+		if (shadows)
+			level += shadow[i];
 		plane[i] = levels[level > LightsMax ? LightsMax : level];
 	}
 	const uint16_t *aoPlane = AoPlane.data();

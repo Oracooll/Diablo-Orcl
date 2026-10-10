@@ -32,6 +32,10 @@ namespace devilution::oracool {
 
 namespace {
 
+/** The last hit burst per tile (hashed into 64 slots): one burst a tile per 150 ms (visual audit round 1). */
+std::array<uint32_t, 64> BurstTicks {};
+std::array<int32_t, 64> BurstTile {};
+
 enum class Kind : uint8_t {
 	Ember,
 	Spark,
@@ -374,6 +378,8 @@ void ForgetParticles()
 {
 	Count = 0;
 	LastTicks = 0;
+	BurstTicks.fill(0);
+	BurstTile.fill(0);
 }
 
 size_t ParticleCount()
@@ -419,6 +425,17 @@ void EmitHitSparks(Point tile, uint32_t rgb, int count)
 {
 	if (!*sgOptions.Oracool.particles || count <= 0)
 		return;
+	// A fire wall or an inferno hits every monster in it every tick: one burst per tile per 150 ms, or the pool fills
+	// with a fountain and the embers and dust starve (visual audit round 1).
+	{
+		const int32_t key = tile.x * 256 + tile.y + 1;
+		const size_t slot = static_cast<size_t>((static_cast<uint32_t>(key) * 2654435761U) >> 26);
+		const uint32_t now = SDL_GetTicks();
+		if (BurstTile[slot] == key && now - BurstTicks[slot] < 150)
+			return;
+		BurstTile[slot] = key;
+		BurstTicks[slot] = now;
+	}
 	if (count > 64)
 		count = 64;
 	const int cr = static_cast<int>((rgb >> 16) & 0xFF);

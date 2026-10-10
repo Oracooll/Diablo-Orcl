@@ -45,7 +45,6 @@ Glow GraphicGlow(MissileGraphicID graphic)
 	case MissileGraphicID::Lightning:
 	case MissileGraphicID::FireWall:
 	case MissileGraphicID::MagmaBallExplosion:
-	case MissileGraphicID::TownPortal:
 	case MissileGraphicID::FlashBottom:
 	case MissileGraphicID::FlashTop:
 	case MissileGraphicID::FireArrow: // vanilla's fire arrow is a flame, not a shaft
@@ -63,7 +62,6 @@ Glow GraphicGlow(MissileGraphicID graphic)
 	case MissileGraphicID::FireArrowExplosion:
 	case MissileGraphicID::Elemental:
 	case MissileGraphicID::Resurrect:
-	case MissileGraphicID::RedPortal:
 	case MissileGraphicID::DiabloApocalypseBoom:
 	case MissileGraphicID::BloodStarBlue:
 	case MissileGraphicID::BloodStarBlueExplosion:
@@ -105,12 +103,16 @@ Glow GraphicGlow(MissileGraphicID graphic)
 	case MissileGraphicID::Meteor:
 	case MissileGraphicID::MeteorImpact:
 	case MissileGraphicID::ThunderBolt:
+		return Glow::Yes;
+	// The portals' dark hearts add nothing, so drawn as light the floor showed through them (visual audit round 1).
+	case MissileGraphicID::TownPortal:
+	case MissileGraphicID::RedPortal:
 	case MissileGraphicID::RiftPortalGold:
 	case MissileGraphicID::RiftPortalPurple:
 	case MissileGraphicID::TownPortalInTown:
 	case MissileGraphicID::RiftPortalGoldInTown:
 	case MissileGraphicID::RiftPortalPurpleInTown:
-		return Glow::Yes;
+		return Glow::No;
 	// Solid things, splashes and dark art.
 	case MissileGraphicID::Arrow:
 	case MissileGraphicID::Guardian:
@@ -203,8 +205,9 @@ bool WearsBorrowedSprites(const Missile &missile)
 {
 	if (missile.oracoolTrn != nullptr)
 		return true; // a recoloured item sprite (Missile::oracoolTrn)
-	if ((static_cast<uint8_t>(missile._miAnimFlags) & static_cast<uint8_t>(MissileGraphicsFlags::MonsterOwned)) != 0)
-		return true;
+	// Not MonsterOwned (visual audit round 1): that is a FILE attribute SetMissAnim copies - the succubi's, mages' and
+	// Diablo's own sheets carry it - so it turned off 26 of the light sheets below. A creature bolt or a charger has its
+	// flags set to None and is caught by the checks that follow.
 	if (missile._miAnimType >= MissileGraphicID::None)
 		return true; // a charger's body (AddRhino's row has no graphic of its own)
 	if (!missile._miAnimData)
@@ -242,7 +245,10 @@ bool MissileGlows(const Missile &missile)
 uint8_t MissileGlowStrength(const Missile &missile)
 {
 	const int alpha = missile.oracoolAlpha >= 256 ? 256 : missile.oracoolAlpha;
-	return static_cast<uint8_t>(SpellGlowStrength * alpha / 256);
+	// Lightning lays a segment on every tile it crosses and the fire walls overlap by half: at full strength the stack
+	// clips to a white bar (visual audit round 1), so those add at half.
+	const bool stacks = IsAnyOf(missile._miAnimType, MissileGraphicID::Lightning, MissileGraphicID::ThinLightning, MissileGraphicID::FireWall, MissileGraphicID::Inferno);
+	return static_cast<uint8_t>((stacks ? SpellGlowStrength / 2 : SpellGlowStrength) * alpha / 256);
 }
 
 const uint32_t *MissileGlowTable(const Missile &missile, int lightTableIndex)

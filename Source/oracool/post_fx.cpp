@@ -236,7 +236,19 @@ void RefreshLiquidMap()
 	for (int x = 0; x < FieldW; x++) {
 		for (int y = 0; y < FieldH; y++) {
 			const uint16_t piece = dPiece[x][y];
-			if (piece >= MAXTILES || TileHasAny(piece, TileProperties::Solid))
+			if (piece >= MAXTILES)
+				continue;
+			// Lava and water cannot be walked on, so their pieces are Solid (path.cpp's walkability is exactly !Solid):
+			// skipping Solid skipped the liquid itself and left only the shores (visual audit round 1). A WALL is what
+			// must be skipped - a piece with micros above its floor pair.
+			bool wall = false;
+			for (uint_fast8_t m = 2; m < MicroTileLen; m++) {
+				if (LevelCelBlock { DPieceMicros[piece].mt[m] }.hasValue()) {
+					wall = true;
+					break;
+				}
+			}
+			if (wall)
 				continue;
 			uint8_t &kind = PieceKind[piece];
 			if (kind == PieceUnknown)
@@ -294,6 +306,8 @@ constexpr int BloomRadius = 3;
 std::vector<int> BloomR, BloomG, BloomB, BloomTmp;
 std::vector<int> BloomRowR, BloomRowG, BloomRowB;
 std::vector<uint8_t> BloomRowAny;
+std::vector<int> BloomRowMin;
+std::vector<int> BloomRowMax;
 std::vector<int> BloomColX0, BloomColX1, BloomColF;
 std::array<int, 256> BloomWeight;
 bool BloomWeightReady = false;
@@ -456,6 +470,8 @@ void ApplyBloom(const Surface &out)
 		BloomRowG.assign(static_cast<size_t>(qw), 0);
 		BloomRowB.assign(static_cast<size_t>(qw), 0);
 		BloomRowAny.assign(static_cast<size_t>(qh), 0);
+		BloomRowMin.assign(static_cast<size_t>(qh), 0);
+		BloomRowMax.assign(static_cast<size_t>(qh), -1);
 		BloomColX0.resize(static_cast<size_t>(w));
 		BloomColX1.resize(static_cast<size_t>(w));
 		BloomColF.resize(static_cast<size_t>(w));
@@ -513,13 +529,23 @@ void ApplyBloom(const Surface &out)
 			BoxBlur(tmp, channel, qh, qw, qw, 1);
 		}
 	}
+	// Each quarter row's glow, and the columns it spans (visual audit round 1: a row with one torch in it paid for the
+	// whole screen width).
 	uint8_t *rowAny = BloomRowAny.data();
+	int *rowMin = BloomRowMin.data();
+	int *rowMax = BloomRowMax.data();
 	for (int qy = 0; qy < qh; qy++) {
-		int any = 0;
+		int lo = qw, hi = -1;
 		const int base = qy * qw;
-		for (int qx = 0; qx < qw; qx++)
-			any |= qr[base + qx] | qg[base + qx] | qb[base + qx];
-		rowAny[qy] = any != 0 ? 1 : 0;
+		for (int qx = 0; qx < qw; qx++) {
+			if ((qr[base + qx] | qg[base + qx] | qb[base + qx]) != 0) {
+				lo = qx < lo ? qx : lo;
+				hi = qx;
+			}
+		}
+		rowAny[qy] = hi >= 0 ? 1 : 0;
+		rowMin[qy] = lo;
+		rowMax[qy] = hi;
 	}
 
 	// Back on, bilinear from the quarter buffer.
@@ -536,6 +562,13 @@ void ApplyBloom(const Surface &out)
 		const int yb = y0 + 1 < 0 ? 0 : (y0 + 1 > qh - 1 ? qh - 1 : y0 + 1);
 		if (rowAny[ya] == 0 && rowAny[yb] == 0)
 			continue;
+		// The screen columns the two quarter rows' glow reaches, one quarter pixel out for the bilinear.
+		int qlo = rowMin[ya] < rowMin[yb] ? rowMin[ya] : rowMin[yb];
+		int qhi = rowMax[ya] > rowMax[yb] ? rowMax[ya] : rowMax[yb];
+		qlo = qlo - 1 < 0 ? 0 : qlo - 1;
+		qhi = qhi + 1 > qw - 1 ? qw - 1 : qhi + 1;
+		const int xFrom = qlo * 4 - 2 < 0 ? 0 : qlo * 4 - 2;
+		const int xTo = qhi * 4 + 6 > w ? w : qhi * 4 + 6;
 		const int fy = (q >> 8) & 0xFF;
 		const int *ra = qr + ya * qw, *rb = qr + yb * qw;
 		const int *ga = qg + ya * qw, *gb = qg + yb * qw;
@@ -546,7 +579,7 @@ void ApplyBloom(const Surface &out)
 			vb[qx] = (ba[qx] * (256 - fy) + bb[qx] * fy) >> 8;
 		}
 		uint32_t *row = out.at<uint32_t>(0, y);
-		for (int x = 0; x < w; x++) {
+		for (int x = xFrom; x < xTo; x++) {
 			const int a = cx0[x], b = cx1[x], f = cf[x];
 			const int ar = (((vr[a] * (256 - f) + vr[b] * f) >> 8) * BloomStrength) >> 16;
 			const int ag = (((vg[a] * (256 - f) + vg[b] * f) >> 8) * BloomStrength) >> 16;

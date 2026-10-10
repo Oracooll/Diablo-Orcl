@@ -1720,6 +1720,30 @@ void CalcFirstTilePosition(Point &position, Displacement &offset)
  * @param position First tile of view in dPiece coordinate
  * @param offset Amount to offset the rendering in screen space
  */
+/**
+ * @brief The part of the pre-zoom world @p out that ZoomScale will show: the full width at 1.0x, else the left
+ * width / zoom columns (from the left panel's edge when it covers the view) - the same sums ZoomScale makes. The bloom
+ * and the vignette must see only this, or at 2x the vignette's middle lands on the screen's right edge (visual audit
+ * round 1, v1.12.423).
+ */
+Surface VisibleWorldRegion(const Surface &out, float zoomFactor)
+{
+	int viewportWidth = out.w();
+	int viewportOffsetX = 0;
+	if (CanPanelsCoverView()) {
+		if (IsLeftPanelOpen()) {
+			viewportWidth -= SidePanelSize.width;
+			viewportOffsetX = SidePanelSize.width;
+		} else if (IsRightPanelOpen()) {
+			viewportWidth -= SidePanelSize.width;
+		}
+	}
+	if (viewportWidth <= 0)
+		return out;
+	const int srcWidth = zoomFactor > 1.0F ? std::clamp(ScaledDimension(viewportWidth, zoomFactor), 1, viewportWidth) : viewportWidth;
+	return out.subregion(viewportOffsetX, 0, srcWidth, out.h());
+}
+
 void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 {
 	const float zoomFactor = *sgOptions.Oracool.dungeonZoomLevel;
@@ -1802,8 +1826,11 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// glow too - all before the outlines (the cursor's own colour) and the zoom.
 	oracool::UpdateAndDrawParticles(out, position, Point {} + offset);
 	oracool::ApplyHeatHazeAndWater(out, position, Point {} + offset);
-	oracool::ApplyBloom(out);
-	oracool::ApplyAreaMoodAndVignette(out);
+	{
+		const Surface visible = VisibleWorldRegion(out, zoomFactor);
+		oracool::ApplyBloom(visible);
+		oracool::ApplyAreaMoodAndVignette(visible);
+	}
 	// The deferred monster outlines, drained HERE - after the whole scene is composited, so they
 	// land on top of any wall that would otherwise hide the body, but still BEFORE ZoomScale, so
 	// they are scaled along with everything else.
