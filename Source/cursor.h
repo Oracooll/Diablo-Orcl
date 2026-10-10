@@ -100,6 +100,17 @@ ClxSprite GetHalfSizeItemSpriteRed(int cursId);
 void CreateHalfSizeItemSprites();
 void FreeHalfSizeItemSprites();
 
+/**
+ * @brief The half-size shop icon in TRUE COLOUR (user, 2026-10-10: true-colour migration): GetHalfSizeItemSprite's
+ * picture, downscaled from the item's own colours rather than through the palette's 50% blend table, drawn at
+ * @p position (bottom-left, as ClxDraw takes it). Built beside the 8-bit sprites by CreateHalfSizeItemSprites.
+ * @return false on an indexed target or when there is no half-size icon for @p cursId - draw the 8-bit sprite then.
+ */
+bool DrawHalfSizeItemArgb(const Surface &out, Point position, int cursId, bool red);
+
+/** @brief The cached ARGB icon's pixel at (@p x, @p y) from its top-left, 0 when there is none - for tests. */
+uint32_t HalfSizeItemArgbPixel(int cursId, bool red, int x, int y);
+
 /** Returns the width and height for an inventory index. */
 Size GetInvItemSize(int cursId);
 

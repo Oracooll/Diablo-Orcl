@@ -54,7 +54,14 @@ constexpr int ArtHeight = 256;
  * a different floor tile every time - so it can only happen at draw.
  */
 struct AuraArt {
-	std::vector<uint8_t> index;
+	/**
+	 * Built LAZILY, for an indexed target only (user, 2026-10-10: true-colour migration): the 32-bit
+	 * screen draws `rgb`, which is the PNG's own colour and does not depend on the palette, so it is
+	 * never dropped when the palette moves. This quantised copy is (re)built from `rgb` by
+	 * EnsureAuraIndex when an indexed draw finds it missing or older than the palette.
+	 */
+	mutable std::vector<uint8_t> index;
+	mutable uint32_t indexGeneration = 0;
 	std::vector<uint8_t> alpha;
 	/** Renderer stage 2 (v1.11): the ring's own colours, XRGB, for the 32-bit screen; `alpha` is shared. */
 	std::vector<uint32_t> rgb;
@@ -146,10 +153,13 @@ std::array<AuraArt, AuraFiles.size()> Art;
  *
  * Only entries 128-255 matter: the lower half is redefined per level type and colour-cycled, which
  * is precisely why the brief confined the art to the upper half. If those 128 ever change the
- * quantisation is stale and everything is dropped and redone.
+ * quantisation is stale: IndexGeneration moves, and each ring's index is redone on its next indexed
+ * draw. The loaded art itself stays (user, 2026-10-10: true-colour migration - it used to be dropped
+ * and reloaded from the archive on every front-end <-> level switch).
  */
 std::array<SDL_Color, 128> QuantisedAgainst {};
 bool HaveQuantised = false;
+uint32_t IndexGeneration = 1;
 
 int IndexOfSkill(Skill skill)
 {
@@ -218,11 +228,11 @@ void LoadAura(int slot)
 		return;
 	}
 
-	art.index.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
+	art.index.clear(); // the indexed copy waits for an indexed draw - EnsureAuraIndex
+	art.indexGeneration = 0;
 	art.alpha.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
 	art.rgb.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
 	art.angle.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
-	std::vector<uint8_t> cache(1 << 15, 0);
 	const auto *pixels = static_cast<const uint8_t *>(rgba->pixels);
 	for (int y = 0; y < ArtHeight; y++) {
 		const uint8_t *row = pixels + static_cast<size_t>(y) * rgba->pitch;
@@ -231,7 +241,6 @@ void LoadAura(int slot)
 			const size_t at = static_cast<size_t>(y) * ArtWidth + x;
 			if (a == 0)
 				continue;
-			art.index[at] = NearestSharedPaletteIndex(row[x * 4 + 0], row[x * 4 + 1], row[x * 4 + 2], cache);
 			art.alpha[at] = a;
 			art.rgb[at] = PackArgb(0, row[x * 4 + 0], row[x * 4 + 1], row[x * 4 + 2]);
 			// Measured on the ellipse's own circle: the art is twice as wide as it is tall, so y counts double.
@@ -243,20 +252,35 @@ void LoadAura(int slot)
 	art.usable = true;
 }
 
+/**
+ * @brief Stales every ring's indexed copy when the palette's global half has moved. Nothing else: the
+ * art, its alpha, its true colour and its angles do not depend on the palette (user, 2026-10-10:
+ * true-colour migration). Name kept for its six callers.
+ */
 void DropQuantisationIfPaletteMoved()
 {
 	if (HaveQuantised && std::memcmp(QuantisedAgainst.data(), &orig_palette[128], sizeof(QuantisedAgainst)) == 0)
 		return;
-	for (AuraArt &art : Art) {
-		art.index.clear();
-		art.alpha.clear();
-		art.rgb.clear();
-		art.angle.clear();
-		art.loadAttempted = false;
-		art.usable = false;
-	}
+	if (HaveQuantised)
+		IndexGeneration++;
 	std::memcpy(QuantisedAgainst.data(), &orig_palette[128], sizeof(QuantisedAgainst));
 	HaveQuantised = true;
+}
+
+/** @brief The ring quantised to the shared palette half, built (or rebuilt) for an indexed draw. */
+void EnsureAuraIndex(const AuraArt &art)
+{
+	if (art.indexGeneration == IndexGeneration && art.index.size() == art.rgb.size())
+		return;
+	art.index.assign(art.rgb.size(), 0);
+	std::vector<uint8_t> cache(1 << 15, 0);
+	for (size_t at = 0; at < art.rgb.size(); at++) {
+		if (art.alpha[at] == 0)
+			continue;
+		const uint32_t px = art.rgb[at];
+		art.index[at] = NearestSharedPaletteIndex(static_cast<uint8_t>(px >> 16), static_cast<uint8_t>(px >> 8), static_cast<uint8_t>(px), cache);
+	}
+	art.indexGeneration = IndexGeneration;
 }
 
 /**
@@ -409,6 +433,7 @@ void BlitAuraPixels(const Surface &out, const AuraArt &art, Point centre, int ds
 		return;
 	}
 
+	EnsureAuraIndex(art); // the indexed copy is built only here (2026-10-10: true-colour migration)
 	for (int dy = dyFrom; dy < dyTo; dy++) {
 		const int y = top + dy;
 		const int sy = dy * ArtHeight / dstH;

@@ -35,6 +35,7 @@ set(tests
   oracool_colour_light_test
   oracool_spell_glow_test
   oracool_post_fx_test
+  oracool_true_colour_migration_test
   oracool_rage_test
   oracool_essence_test
   oracool_frame_smoothing_test

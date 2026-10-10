@@ -75,6 +75,12 @@ private:
 	// NumLightingLevels lit tables and one more for infravision.
 	mutable std::array<std::array<uint32_t, 256>, NumLightingLevels + 1> tables_;
 	mutable std::array<uint32_t, NumLightingLevels + 1> builtFor_ {};
+	/**
+	 * The LightTableVersion each table was built against (user, 2026-10-10: true-colour migration): MakeLightTable rebuilds
+	 * the light tables per level without PaletteRgbGeneration moving, so a table is stale when either has moved. Not
+	 * copied, like builtFor_: a copy builds its own tables.
+	 */
+	mutable std::array<uint32_t, NumLightingLevels + 1> builtForLight_ {};
 
 	void Build(size_t slot, const uint8_t *indexTable) const;
 };

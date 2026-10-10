@@ -144,11 +144,8 @@ bool CaptureImage(const std::string &path, const Surface &buf, SDL_Color *palett
  */
 void RedPalette()
 {
-	for (int i = 0; i < 256; i++) {
-		system_palette[i].g = 0;
-		system_palette[i].b = 0;
-	}
-	palette_update();
+	// The flash is a present-time transform only (2026-10-10): tinting system_palette and pushing it through
+	// palette_update rebuilt PaletteRGB twice per screenshot, and the restore could write a stale palette back.
 	PresentRedFlash = true; // v1.11: the frame is already colours; the flash is applied at present
 	BltFast(nullptr, nullptr);
 	RenderPresent();
@@ -179,10 +176,7 @@ void CaptureTo(const Surface &buf)
 		Log("Screenshot saved at {}", fileName);
 	}
 	SDL_Delay(300);
-	for (int i = 0; i < 256; i++) {
-		system_palette[i] = palette[i];
-	}
-	palette_update();
+	PresentRedFlash = false; // the palette was never touched, so there is nothing to put back
 }
 
 } // namespace

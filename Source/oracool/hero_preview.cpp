@@ -162,6 +162,32 @@ bool EnsureTrn()
 }
 
 /**
+ * @brief The 32-bit screen's key for "no pixel here" in the preview's scratch frame (user, 2026-10-10:
+ * true-colour migration). The X byte is never set by a colour this file writes, so it cannot collide.
+ */
+constexpr uint32_t PreviewTransparentKey = 0xFF000000u;
+
+/** Level-palette index -> its own colour, XRGB, straight from town.pal: the 32-bit preview's table. */
+std::array<uint32_t, 256> LevelRgb {};
+bool LevelRgbBuilt = false;
+
+/**
+ * @brief Loads LevelRgb once. It is the file's colours, not the screen palette's, so it never goes
+ * stale - the reason the 32-bit preview needs no nearest-colour pass at all (user, 2026-10-10:
+ * true-colour migration).
+ */
+void EnsureLevelRgb()
+{
+	if (LevelRgbBuilt)
+		return;
+	std::array<uint8_t, 768> levelPalette {};
+	LoadFileInMem(LevelPalettePath, levelPalette);
+	for (int i = 0; i < 256; i++)
+		LevelRgb[i] = (static_cast<uint32_t>(levelPalette[i * 3]) << 16) | (static_cast<uint32_t>(levelPalette[i * 3 + 1]) << 8) | levelPalette[i * 3 + 2];
+	LevelRgbBuilt = true;
+}
+
+/**
  * @brief Measures PreviewInk by drawing every frame once and looking at which pixels were touched.
  *
  * Asks WHERE the sprite draws, not what colour, so it runs off a translation whose every entry is
@@ -325,7 +351,7 @@ void DrawHeroPreview(const Surface &out, Rectangle area)
 		}
 	}
 
-	if (!PreviewSheet || !EnsureTrn())
+	if (!PreviewSheet || LevelPaletteMissing)
 		return;
 
 	const ClxSpriteList frames = (*PreviewSheet)[static_cast<size_t>(Direction::South)];
@@ -342,6 +368,53 @@ void DrawHeroPreview(const Surface &out, Rectangle area)
 	const int scale = PreviewScaleFor(area);
 	if (scale <= 0)
 		return; // the area cannot hold the figure even at 1:1
+
+	// Centred across the area and standing on its bottom edge, so a taller class does not float.
+	// PreviewScaleFor guarantees both of these stay inside the area, so neither can go negative.
+	const int scaledWidth = PreviewInk.size.width * scale;
+	const int scaledHeight = PreviewInk.size.height * scale;
+	const Point origin { area.position.x + (area.size.width - scaledWidth) / 2,
+		area.position.y + area.size.height - scaledHeight };
+
+	// THE 32-BIT SCREEN (user, 2026-10-10: true-colour migration): the sheet's indices resolved to their
+	// own colours - town.pal's for a plain index, the sheet's SpriteColours for a dyed or mixed one -
+	// drawn into a 32-bit scratch and blown up as colours. No nearest-palette match on the way, so the
+	// Necromancer's greens and the Barbarian's dye reach the screen as they were picked.
+	if (!out.isIndexed()) {
+		EnsureLevelRgb();
+		std::array<uint32_t, 256> map = LevelRgb;
+		if (PreviewColours != nullptr) {
+			for (size_t i = 1; i < 256; i++) {
+				const auto index = static_cast<uint8_t>(i);
+				if (PreviewColours->HasOwn(index))
+					map[i] = PreviewColours->Own(index) & 0x00FFFFFF;
+			}
+		}
+		map[0] = PreviewTransparentKey; // the sheet's transparent colour and its shadow, as LevelToUiTrn[0] = 0 is
+		OwnedSurface frame = OwnedSurface::Rgb(width, height);
+		for (int y = 0; y < height; y++) {
+			uint32_t *row = frame.at<uint32_t>(0, y);
+			for (int x = 0; x < width; x++)
+				row[x] = PreviewTransparentKey;
+		}
+		ClxDrawRgbMap(frame, { 0, height - 1 }, sprite, map.data());
+
+		// Only the ink is scaled, as below; clipped to the target once, then a plain copy per pixel.
+		const int y0 = std::max(0, -origin.y), y1 = std::min(scaledHeight, out.h() - origin.y);
+		const int x0 = std::max(0, -origin.x), x1 = std::min(scaledWidth, out.w() - origin.x);
+		for (int y = y0; y < y1 && x0 < x1; y++) {
+			const uint32_t *srcRow = frame.at<uint32_t>(PreviewInk.position.x, PreviewInk.position.y + y / scale);
+			uint32_t *dstRow = out.at<uint32_t>(origin.x + x0, origin.y + y);
+			for (int x = x0; x < x1; x++) {
+				const uint32_t px = srcRow[x / scale];
+				if (px != PreviewTransparentKey)
+					dstRow[x - x0] = px;
+			}
+		}
+		return;
+	}
+	if (!EnsureTrn())
+		return;
 
 	// Rendered at 1:1 first because ClxDrawTRN cannot scale, then blown up. The intermediate is
 	// cleared to 0 so that whatever the sprite's transparent runs leave untouched stays 0 - which is
@@ -367,8 +440,6 @@ void DrawHeroPreview(const Surface &out, Rectangle area)
 
 	// Only the ink is scaled. Blowing up the whole frame would spend most of the area on the padding
 	// around the character and cap the figure at a third of the size it can actually be.
-	const int scaledWidth = PreviewInk.size.width * scale;
-	const int scaledHeight = PreviewInk.size.height * scale;
 	OwnedSurface scaled(scaledWidth, scaledHeight);
 	for (int y = 0; y < scaledHeight; y++) {
 		const uint8_t *srcRow = &frame[Point { PreviewInk.position.x, PreviewInk.position.y + y / scale }];
@@ -377,10 +448,6 @@ void DrawHeroPreview(const Surface &out, Rectangle area)
 			dstRow[x] = srcRow[x / scale];
 	}
 
-	// Centred across the area and standing on its bottom edge, so a taller class does not float.
-	// PreviewScaleFor guarantees both of these stay inside the area, so neither can go negative.
-	const Point origin { area.position.x + (area.size.width - scaledWidth) / 2,
-		area.position.y + area.size.height - scaledHeight };
 	out.BlitFromSkipColorIndexZero(scaled, MakeSdlRect(0, 0, scaledWidth, scaledHeight), origin);
 }
 

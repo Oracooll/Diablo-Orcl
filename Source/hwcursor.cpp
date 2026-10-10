@@ -37,9 +37,12 @@ SDLCursorUniquePtr CurrentCursor;
  * from PaletteRGB, looked right. PaletteRGB holds the unfaded colours during a fade, so the cursor no longer fades out
  * with the screen either; it stays the hand the player sees.
  */
+uint32_t CursorBuiltGeneration = 0;
+
 SDL_Palette *CursorPalette()
 {
 	static SDLPaletteUniquePtr palette = SDLWrap::AllocPalette();
+	CursorBuiltGeneration = PaletteRgbGeneration;
 	std::array<SDL_Color, 256> colours;
 	for (size_t i = 0; i < colours.size(); i++) {
 		const uint32_t c = PaletteRGB[i];
@@ -175,6 +178,16 @@ bool SetHardwareCursorFromSprite(int pcurs)
 #endif
 
 } // namespace
+
+void RefreshHardwareCursorColours()
+{
+#if SDL_VERSION_ATLEAST(2, 0, 0)
+	// A palette loaded with no fade after it (the Poisoned Water's purification) changes PaletteRGB under a cursor built
+	// from the old one: rebuild it once (2026-10-10).
+	if (IsHardwareCursor() && CursorBuiltGeneration != PaletteRgbGeneration)
+		ReinitializeHardwareCursor();
+#endif
+}
 
 CursorInfo &GetCurrentCursorInfo()
 {

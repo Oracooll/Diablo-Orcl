@@ -267,6 +267,17 @@ void LoadPalette(const char *pszFileName, bool blend /*= true*/)
 	// ones agree.
 	ApplyGamma(logical_palette, orig_palette, 256);
 	RebuildPaletteRgb(logical_palette, 0, 256);
+	// And the display palette with it, at the fade it stands at (2026-10-10). Without this a LoadPalette that no fade
+	// follows - the Poisoned Water's purification (StartPWaterPurify loads l3pwater.pal mid-level), a front-end screen's
+	// UiLoadDefaultPalette - left system_palette on the PREVIOUS palette: the hardware cursor, drawn through it, came out
+	// an invisible black hand, and the screenshot flash's restore wrote the old colours back into PaletteRGB.
+	for (int i = 0; i < 256; i++) {
+		system_palette[i].r = static_cast<Uint8>(FadeLevel * logical_palette[i].r / 256);
+		system_palette[i].g = static_cast<Uint8>(FadeLevel * logical_palette[i].g / 256);
+		system_palette[i].b = static_cast<Uint8>(FadeLevel * logical_palette[i].b / 256);
+	}
+	if (!HeadlessMode)
+		palette_update();
 }
 
 void LoadRndLvlPal(dungeon_type l)

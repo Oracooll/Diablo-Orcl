@@ -262,10 +262,14 @@ const uint32_t *FrozenRgbTable(int lightTableIndex)
 {
 	static std::array<std::array<uint32_t, 256>, NumLightingLevels> tables;
 	static std::array<uint32_t, NumLightingLevels> builtFor {};
+	// And the light tables' version: they are rebuilt per level without the palette generation moving (user, 2026-10-10:
+	// true-colour migration).
+	static std::array<uint32_t, NumLightingLevels> builtForLight {};
 	lightTableIndex = std::clamp(lightTableIndex, 0, static_cast<int>(NumLightingLevels) - 1);
 	std::array<uint32_t, 256> &table = tables[lightTableIndex];
-	if (builtFor[lightTableIndex] == PaletteRgbGeneration && builtFor[lightTableIndex] != 0)
+	if (builtFor[lightTableIndex] == PaletteRgbGeneration && builtFor[lightTableIndex] != 0 && builtForLight[lightTableIndex] == LightTableVersion)
 		return table.data();
+	builtForLight[lightTableIndex] = LightTableVersion;
 	const std::array<uint8_t, 256> &light = LightTables[lightTableIndex];
 	// Frost over the lit sprite: three quarters of the way to grey, then the grey tinted cold - red
 	// held back, blue lifted - and a touch brighter, since ice catches light. The old ColdTRN's
@@ -296,10 +300,12 @@ const uint32_t *ConvertedRgbTable(int lightTableIndex)
 {
 	static std::array<std::array<uint32_t, 256>, NumLightingLevels> tables;
 	static std::array<uint32_t, NumLightingLevels> builtFor {};
+	static std::array<uint32_t, NumLightingLevels> builtForLight {}; // see FrozenRgbTable (2026-10-10)
 	lightTableIndex = std::clamp(lightTableIndex, 0, static_cast<int>(NumLightingLevels) - 1);
 	std::array<uint32_t, 256> &table = tables[lightTableIndex];
-	if (builtFor[lightTableIndex] == PaletteRgbGeneration && builtFor[lightTableIndex] != 0)
+	if (builtFor[lightTableIndex] == PaletteRgbGeneration && builtFor[lightTableIndex] != 0 && builtForLight[lightTableIndex] == LightTableVersion)
 		return table.data();
+	builtForLight[lightTableIndex] = LightTableVersion;
 	const std::array<uint8_t, 256> &light = LightTables[lightTableIndex];
 	// Half-way to grey keeps the monster readable as itself; then red and blue held back and green lifted.
 	constexpr int GreyPercent = 55;

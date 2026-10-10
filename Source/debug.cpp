@@ -1170,9 +1170,11 @@ std::string DebugCmdCursorInfo(const string_view parameter)
 					break;
 				const int i = static_cast<int>(best - count.begin());
 				*best = 0;
-				const SDL_Color sys = Palette != nullptr ? Palette->colors[i] : SDL_Color {};
+				// What the cursor is drawn from since v1.12.428 (hwcursor.cpp CursorPalette): the true-colour table.
+				const uint32_t rgb = PaletteRGB[i];
+				const SDL_Color sys { static_cast<Uint8>((rgb >> 16) & 0xFF), static_cast<Uint8>((rgb >> 8) & 0xFF), static_cast<Uint8>(rgb & 0xFF), 255 };
 				const SDL_Color log = logical_palette[i];
-				colours += StrCat(" | #", i, " sdl ", sys.r, ",", sys.g, ",", sys.b, " game ", log.r, ",", log.g, ",", log.b);
+				colours += StrCat(" | #", i, " screen ", sys.r, ",", sys.g, ",", sys.b, " game ", log.r, ",", log.g, ",", log.b);
 			}
 		}
 	}
@@ -1189,7 +1191,7 @@ std::string DebugCmdCursorFix(const string_view parameter)
 	ControlDevice = ControlTypes::KeyboardAndMouse;
 	if (MyPlayer->HoldItem.isEmpty() && pcurs <= CURSOR_NONE)
 		NewCursor(CURSOR_HAND);
-	// The SDL palette back in step with the game's (it is what the hardware cursor is drawn through), then the cursor.
+	// The display palette back in step with the game's (hygiene: LoadPalette keeps them in step since v1.12.429), then the cursor.
 	if (FadeLevel == 256) {
 		system_palette = logical_palette;
 		palette_update();

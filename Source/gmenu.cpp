@@ -84,6 +84,15 @@ std::array<SDL_Color, 256> LogoPalette;
 std::array<uint8_t, 256> LogoTrn;
 std::array<SDL_Color, 128> LogoTrnBuiltFor;
 bool LogoTrnBuilt;
+/**
+ * @brief The masthead's own palette as colour values, for the 32-bit screen (user, 2026-10-10: true-colour migration).
+ *
+ * The TRN above exists because an index has to land on a colour the LEVEL palette has; a colour value does not. So on
+ * the 32-bit screen the sprite is drawn straight through LogoPalette - the fire in the colours smlogo was painted in -
+ * and the TRN is built only for an indexed target. Depends on LogoPalette alone, so it is built once per load.
+ */
+std::array<uint32_t, 256> LogoRgb;
+bool LogoRgbBuilt;
 
 bool isDraggingSlider;
 TMenuItem *sgpCurrItem;
@@ -280,6 +289,7 @@ void gmenu_init_menu()
 	// before it can say what they should become here.
 	sgpLogo = LoadPcxSpriteList("ui_art\\smlogo", /*numFrames=*/15, /*transparentColor=*/250, LogoPalette.data());
 	LogoTrnBuilt = false;
+	LogoRgbBuilt = false;
 	PentSpin_cel = LoadCel("data\\pentspin", 48);
 	option_cel = LoadCel("data\\option", SliderMarkerWidth);
 	optbar_cel = LoadCel("data\\optbar", SliderValueBoxWidth);
@@ -328,11 +338,6 @@ void gmenu_draw(const Surface &out)
 		// is not there. Guarded, because a masthead that failed to load should cost the menu its
 		// picture and nothing else.
 		if (sgpLogo) {
-			// Rebuilt when the level palette's stable half actually moves, which in practice is once
-			// per level load, and never while the menu is up.
-			if (!LogoTrnBuilt || std::memcmp(LogoTrnBuiltFor.data(), &orig_palette[128], sizeof(LogoTrnBuiltFor)) != 0)
-				BuildLogoTrn();
-
 			const ClxSpriteList frames { *sgpLogo };
 			// Oracool: user report - "the animation is too fast". It was hand-rolled here at a frame
 			// every 25ms: 15 frames in under four tenths of a second, a flicker rather than a flame.
@@ -341,7 +346,22 @@ void gmenu_draw(const Surface &out)
 			// animate at one speed instead of two. The tick counter and frame index it replaces were
 			// this file's alone.
 			const ClxSprite sprite = frames[GetAnimationFrame(static_cast<int>(frames.numSprites()))];
-			ClxDrawTRN(out, { (gnScreenWidth - sprite.width()) / 2, 102 + uiPositionY }, sprite, LogoTrn.data());
+			const Point logoAt { (gnScreenWidth - sprite.width()) / 2, 102 + uiPositionY };
+			if (!out.isIndexed()) {
+				// The 32-bit screen: smlogo's own colours (see LogoRgb).
+				if (!LogoRgbBuilt) {
+					for (size_t i = 0; i < LogoRgb.size(); i++)
+						LogoRgb[i] = (static_cast<uint32_t>(LogoPalette[i].r) << 16) | (static_cast<uint32_t>(LogoPalette[i].g) << 8) | LogoPalette[i].b;
+					LogoRgbBuilt = true;
+				}
+				ClxDrawRgbMap(out, logoAt, sprite, LogoRgb.data());
+			} else {
+				// Rebuilt when the level palette's stable half actually moves, which in practice is once
+				// per level load, and never while the menu is up.
+				if (!LogoTrnBuilt || std::memcmp(LogoTrnBuiltFor.data(), &orig_palette[128], sizeof(LogoTrnBuiltFor)) != 0)
+					BuildLogoTrn();
+				ClxDrawTRN(out, logoAt, sprite, LogoTrn.data());
+			}
 		}
 		int y = 110 + uiPositionY;
 		TMenuItem *i = sgpCurrentMenu;

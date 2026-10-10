@@ -3873,7 +3873,9 @@ void UseItemDropAnimation(Missile &missile, int8_t animIndex)
 	if (!sprites)
 		return; // before InitItems, or after the graphics were freed - keep the misdat sprite
 	missile._miAnimData = sprites;
-	missile.oracoolColours = nullptr; // an item's sprite, in the level palette
+	// An item's sprite: the level palette for a CEL, or its own colours where items\<name>.png replaced it (user,
+	// 2026-10-10: true-colour migration - those tumbles index their own table now, see GetItemDropColours).
+	missile.oracoolColours = GetItemDropColours(animIndex);
 	missile._miAnimLen = static_cast<int>(sprites->numSprites());
 	missile._miAnimWidth = (*sprites)[0].width();
 	missile._miAnimWidth2 = CalculateWidth2(missile._miAnimWidth);
@@ -3882,6 +3884,13 @@ void UseItemDropAnimation(Missile &missile, int8_t animIndex)
 	// The borrowed sprite is painted as LOOT - a plain steel shield reads as something to pick up,
 	// not as something a Paladin blessed and threw. The recolour is what makes it divine rather than
 	// dropped (user, 2026-08-15: "make them a bit shiny. lightning shiny. divine shyni").
+	//
+	// As colour VALUES on the 32-bit screen (user, 2026-10-10: true-colour migration): the shine is a tint, so it is the
+	// brightened colour itself rather than the nearest of the palette's upper half to it. The TRN stays for an indexed
+	// target, which draws it as it always has (DrawMissilePrivate takes the tint on 32-bit only) - and it is also what
+	// marks the sprite as borrowed, so the Glowing Spells pass leaves it alone (WearsBorrowedSprites).
+	missile.oracoolTint = oracool::Tint::Divine;
+	missile.oracoolTintRgb = 0;
 	missile.oracoolTrn = oracool::GetDivineTrn();
 }
 

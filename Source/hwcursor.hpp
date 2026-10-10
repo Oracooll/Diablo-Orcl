@@ -129,6 +129,9 @@ inline bool IsHardwareCursor()
 
 void SetHardwareCursor(CursorInfo cursorInfo);
 
+/** @brief Rebuilds the hardware cursor's image when the true-colour table it was drawn from has changed since. */
+void RefreshHardwareCursorColours();
+
 inline void DoReinitializeHardwareCursor()
 {
 #if LOG_HWCURSOR

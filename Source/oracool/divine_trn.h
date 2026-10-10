@@ -27,14 +27,8 @@ namespace devilution::oracool {
  */
 const uint8_t *GetDivineTrn();
 
-/**
- * @brief The GOLD recolour: every colour becomes a gold of its own brightness.
- *
- * Blessed Hammer's mace (user, 2026-09-07: "Use asset of a mace instead of this fireball you are
- * using. Tint the mace GOLD."). A repaint rather than a shine - the steel has to stop being steel -
- * so the table keeps only each colour's luminance and paints it along a gold ramp. Same lifetime and
- * rebuild rules as GetDivineTrn.
- */
-const uint8_t *GetGoldTrn();
+// GetGoldTrn (Blessed Hammer's gold mace, 2026-09-07) is gone (user, 2026-10-10: true-colour migration): nothing called
+// it any more, and a gold repaint today is Tint::Hue with hue::PaladinGold (oracool/missile_tint.h), by colour values.
+// The 32-bit screen draws the divine shine above as Tint::Divine too; this TRN is the indexed target's.
 
 } // namespace devilution::oracool

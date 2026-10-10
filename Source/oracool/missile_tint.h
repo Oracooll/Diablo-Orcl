@@ -54,6 +54,12 @@ enum class Tint : uint8_t {
 	 * phase and pace, so the highlights wander rather than travel in bands (2026-10-03: the Iron Golem's reflective iron).
 	 */
 	Sheen,
+	/**
+	 * The divine shine (user, 2026-10-10: true-colour migration): every colour pushed 55% of the way to white, green and
+	 * blue lifted a little more than red - oracool/divine_trn's look, as values rather than the nearest palette entry to
+	 * them. Entry 0 is kept as it is, as the TRN keeps it. The Paladin's thrown shield and falling mace (item tumbles).
+	 */
+	Divine,
 };
 
 /** @brief 0xRRGGBB. */

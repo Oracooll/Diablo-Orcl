@@ -206,6 +206,19 @@ const uint32_t *TintedTable(const uint32_t *base, Tint tint, uint32_t rgb, doubl
 			out = Lerp(lit, bright, 0.7 * glint * std::min(1.0, 0.4 + l));
 			break;
 		}
+		case Tint::Divine: {
+			if (i == 0)
+				break; // DivineTrn[0] = 0: the entry a CLX treats as its own stays as it is
+			// divine_trn.cpp's Brighten, channel for channel and in its integer steps, so the 32-bit shine is the colour
+			// the 8-bit table went looking for (ShinePercent 55; biases 100/112/125).
+			const auto shine = [](double v, int bias) {
+				const int channel = static_cast<int>(v);
+				const int lifted = channel + (255 - channel) * 55 / 100;
+				return static_cast<double>(std::min(lifted * bias / 100, 255));
+			};
+			out = { shine(c.r, 100), shine(c.g, 112), shine(c.b, 125) };
+			break;
+		}
 		}
 		Result[i] = Pack(out);
 	}
@@ -216,12 +229,16 @@ const uint32_t *LitPaletteTable(int lightLevel)
 {
 	static std::array<std::array<uint32_t, 256>, NumLightingLevels> tables;
 	static std::array<uint32_t, NumLightingLevels> builtFor {};
+	// And the light tables' version (user, 2026-10-10: true-colour migration): MakeLightTable rebuilds them per level -
+	// Hell's blood walls, the Nest's and Crypt's lava - with the palette generation where it was.
+	static std::array<uint32_t, NumLightingLevels> builtForLight {};
 	const size_t level = static_cast<size_t>(std::clamp(lightLevel, 0, static_cast<int>(NumLightingLevels) - 1));
-	if (builtFor[level] != PaletteRgbGeneration || PaletteRgbGeneration == 0) {
+	if (builtFor[level] != PaletteRgbGeneration || PaletteRgbGeneration == 0 || builtForLight[level] != LightTableVersion) {
 		for (size_t i = 0; i < 256; i++)
 			// Level 0 is full light, the palette itself: its table's one odd entry sends white to black (see DrawMonster).
 			tables[level][i] = PaletteRGB[level == 0 ? i : LightTables[level][i]];
 		builtFor[level] = PaletteRgbGeneration;
+		builtForLight[level] = LightTableVersion;
 	}
 	return tables[level].data();
 }

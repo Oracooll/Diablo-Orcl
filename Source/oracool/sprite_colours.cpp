@@ -69,12 +69,13 @@ void SpriteColours::Build(size_t slot, const uint8_t *indexTable) const
 		table[i] = Scale(rgb_[i], Luminance(PaletteRGB[shaded]), base);
 	}
 	builtFor_[slot] = PaletteRgbGeneration;
+	builtForLight_[slot] = LightTableVersion;
 }
 
 const uint32_t *SpriteColours::Table(int level) const
 {
 	const auto slot = static_cast<size_t>(std::clamp(level, 0, static_cast<int>(NumLightingLevels) - 1));
-	if (builtFor_[slot] != PaletteRgbGeneration || builtFor_[slot] == 0) {
+	if (builtFor_[slot] != PaletteRgbGeneration || builtFor_[slot] == 0 || builtForLight_[slot] != LightTableVersion) {
 		// Level 0 is "no table", as in ClxDrawLight: table 0's one non-identity entry sends white to
 		// black, and the plain draw it stands in for never consults it.
 		Build(slot, slot == 0 ? nullptr : LightTables[slot].data());
@@ -85,7 +86,7 @@ const uint32_t *SpriteColours::Table(int level) const
 const uint32_t *SpriteColours::InfravisionTable() const
 {
 	constexpr size_t Slot = NumLightingLevels;
-	if (builtFor_[Slot] != PaletteRgbGeneration || builtFor_[Slot] == 0) {
+	if (builtFor_[Slot] != PaletteRgbGeneration || builtFor_[Slot] == 0 || builtForLight_[Slot] != LightTableVersion) {
 		// Infravision is a recolour, not a darkening: every index goes to the red ramp by way of its
 		// fallback, own colours included - a heat image has no blue shirt in it.
 		const uint8_t *infravision = GetInfravisionTRN();
@@ -93,6 +94,7 @@ const uint32_t *SpriteColours::InfravisionTable() const
 		for (size_t i = 0; i < 256; i++)
 			table[i] = PaletteRGB[infravision[fallback_[i]]];
 		builtFor_[Slot] = PaletteRgbGeneration;
+		builtForLight_[Slot] = LightTableVersion; // infra.trn is loaded by MakeLightTable too
 	}
 	return tables_[Slot].data();
 }

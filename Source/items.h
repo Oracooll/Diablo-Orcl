@@ -24,6 +24,7 @@
 namespace devilution::oracool {
 struct SetItemDefinition;
 enum class BaseItemTier : uint8_t;
+struct SpriteColours;
 } // namespace devilution::oracool
 
 namespace devilution {
@@ -1322,6 +1323,21 @@ bool RepairFloorItemAnimation(Item &item);
  * Empty before InitItems has run, and after FreeItemGFX; callers must tolerate that.
  */
 OptionalClxSpriteList GetItemDropAnim(int8_t animIndex);
+
+/**
+ * @brief What GetItemDropAnim(@p animIndex)'s indices mean, or null for a CEL (the level palette).
+ *
+ * Oracool (user, 2026-10-10: true-colour migration): an items\<name>.png tumble is loaded in its OWN colours
+ * (LoadPngItemDropSheetColoured), so its sprites index this table rather than the palette, and every draw of them must go
+ * through it - DrawSpriteWithColours, or a missile's oracoolColours. Alive exactly as long as the animation is.
+ */
+const oracool::SpriteColours *GetItemDropColours(int8_t animIndex);
+
+/**
+ * @brief GetItemDropColours for the animation @p item is actually showing: null unless its AnimInfo holds that coloured
+ * tumble (a CEL, a borrowed sheet or no sprite at all draw through the palette as they always did).
+ */
+const oracool::SpriteColours *ItemDropColoursFor(const Item &item);
 
 /** @brief Drop-animation index of the mace - a mace falling to the ground and settling. */
 constexpr int8_t MaceDropAnimIndex = 6;

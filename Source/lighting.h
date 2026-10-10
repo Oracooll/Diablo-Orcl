@@ -52,6 +52,12 @@ extern DVL_API_FOR_TEST std::array<uint8_t, MAXLIGHTS> ActiveLights;
 extern DVL_API_FOR_TEST int ActiveLightCount;
 constexpr char LightsMax = 15;
 extern DVL_API_FOR_TEST std::array<std::array<uint8_t, 256>, NumLightingLevels> LightTables;
+/**
+ * @brief Oracool (user, 2026-10-10: true-colour migration): bumped at the end of every MakeLightTable. The light tables
+ * are rebuilt per level (Hell's blood walls, the Nest's and Crypt's bright lava) without PaletteRgbGeneration moving, so
+ * a colour table built from them keys on (PaletteRgbGeneration, LightTableVersion).
+ */
+extern DVL_API_FOR_TEST uint32_t LightTableVersion;
 extern std::array<uint8_t, 256> InfravisionTable;
 extern std::array<uint8_t, 256> StoneTable;
 extern std::array<uint8_t, 256> PauseTable;

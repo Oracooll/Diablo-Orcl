@@ -4649,7 +4649,12 @@ void PrintSString(const Surface &out, int margin, int line, string_view text, Ui
 			rect.position.x + (HalfCursWidth - sprite.width()) / 2,
 			rect.position.y + (TextHeight() * 3 + sprite.height()) / 2
 		};
-		if (useHalfSize || !useRed) {
+		if (useHalfSize) {
+			// The true-colour half-size icon on the 32-bit screen (user, 2026-10-10: true-colour migration); the 8-bit
+			// sprite on an indexed target, as before.
+			if (!DrawHalfSizeItemArgb(out, position, cursId, useRed))
+				ClxDraw(out, position, sprite);
+		} else if (!useRed) {
 			ClxDraw(out, position, sprite);
 		} else {
 			ClxDrawTRN(out, position, sprite, GetInfravisionTRN());

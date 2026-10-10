@@ -74,7 +74,14 @@ struct ArtAsset {
 	 * 0 = not measured yet, 1 = no, 2 = yes.
 	 */
 	std::vector<uint8_t> glyphFrames;
-	std::optional<OwnedSurface> bright;
+	/*
+	 * THE 8-BIT LAYERS ARE LAZY (user, 2026-10-10: true-colour migration). The 32-bit screen draws
+	 * `argb` and never reads bright/half/frame/sphereDim/outline, so they are built only when an
+	 * INDEXED target asks for one (EnsureIndexedLayers) - offscreen work and the golden tests - and
+	 * rebuilt there only when the palette's global half has moved since. Mutable because the draws
+	 * that reach them hold the asset const; building a cache is not a change to the art.
+	 */
+	mutable std::optional<OwnedSurface> bright;
 	/**
 	 * The HALF-transparent pixels: every source pixel with alpha in [HalfAlphaFloor, 128), quantised
 	 * to its own colour, everything else 0. Drawn after `bright` through the palette's 50% blend
@@ -84,35 +91,54 @@ struct ArtAsset {
 	 * them, and a binary key made that a black ring or nothing. One blend level is what an 8-bit
 	 * palette affords; the cutter shapes the gradient to it (tools/CutHudPlate.ps1).
 	 */
-	std::optional<OwnedSurface> half;
+	mutable std::optional<OwnedSurface> half;
 	/**
 	 * Orbs only. The composition MINUS the sphere: everything outside the glass circle, with the
 	 * circle itself left transparent. Drawn first and opaquely, so the ornament and the rim are
 	 * never affected by whatever happens inside the glass.
 	 */
-	std::optional<OwnedSurface> frame;
+	mutable std::optional<OwnedSurface> frame;
 	/**
 	 * Orbs only. The mirror image of `frame`: the sphere circle alone, dimmed, everything else
 	 * transparent. This is what gets blended into the empty part of the orb - see DrawOrb.
 	 */
-	std::optional<OwnedSurface> sphereDim;
+	mutable std::optional<OwnedSurface> sphereDim;
 	/**
 	 * Silhouette only. A 1px band tracing just outside the figure's edge, everything else
 	 * transparent. Drawn opaquely after the blended body, which is the whole point: the body is
 	 * half-transparent and takes the panel's colour, so without a solid edge the shape has no
 	 * definition at all.
 	 */
-	std::optional<OwnedSurface> outline;
+	mutable std::optional<OwnedSurface> outline;
 	/**
 	 * Renderer stage 2 (v1.11): the same art in TRUE COLOUR - ARGB8888, straight alpha, with the
 	 * luminance and tint the quantiser applied done in RGB instead. Every draw in this file takes
 	 * this copy when the target is the 32-bit screen and the 8-bit layers above when it is an
-	 * indexed surface (offscreen work, the golden tests). Built by QuantizeAsset beside them, so the
-	 * two can never disagree about which pixels exist.
+	 * indexed surface (offscreen work, the golden tests). Both are built from the same rgba with the
+	 * same treatment (PrepareAsset's record below), so they cannot disagree about which pixels exist.
+	 *
+	 * Built once (user, 2026-10-10: true-colour migration): an untinted asset's argb does not depend
+	 * on the palette at all, so a front-end <-> level switch no longer discards and rebuilds it. Only
+	 * a TINTED or blue-repainted asset, whose target colours are read off orig_palette's ramps,
+	 * rebuilds it when the palette's global half moves - which keeps the look it always had.
 	 */
 	std::vector<uint32_t> argb;
 	/** Orbs only: the sphere circle QuantizeAsset split `frame`/`sphereDim` along, for the true-colour draw. */
 	std::optional<Rectangle> dimCircle;
+	/** @brief Set by QuantizeAsset once the asset's treatment is recorded and its argb built: the "can draw" test. */
+	bool prepared = false;
+	/** @brief The treatment QuantizeAsset was asked for, kept so the lazy 8-bit build applies the same one. */
+	std::optional<uint8_t> tintRampBase;
+	int tintStrengthPercent = 100;
+	int luminancePercent = 100;
+	/** @brief The repainted-blue look (RepaintBlueInvertedArgb/Indexed) (the burger button), applied to whichever layer is built. */
+	bool blueInverted = false;
+	/** @brief The silhouettes: BuildOutline's band, built with the 8-bit layers. */
+	std::optional<uint8_t> outlineIndex;
+	/** @brief PaletteGeneration the argb was built against (only consulted for palette-dependent treatment). */
+	uint32_t argbGeneration = 0;
+	/** @brief PaletteGeneration the 8-bit layers were built against; 0 = not built. */
+	mutable uint32_t indexedGeneration = 0;
 };
 
 /**
@@ -449,6 +475,12 @@ constexpr Size BurgerMenuButtonSize { 31, 31 }; // 31 with the large-belt HUD - 
 // design, see engine/palette.h) triggers a requantize if it ever actually changes.
 std::array<SDL_Color, 128> PaletteSnapshot;
 bool QuantizedOnce = false;
+/**
+ * @brief Bumped by EnsureQuantized each time the snapshot above actually moves (user, 2026-10-10:
+ * true-colour migration). The lazy 8-bit layers and the palette-dependent argb compare against it,
+ * so a palette change costs nothing until something draws from the copy that depends on it.
+ */
+uint32_t PaletteGeneration = 0;
 
 bool GlobalPaletteChanged()
 {
@@ -624,9 +656,15 @@ Point CentreOpaqueIn(const ArtAsset &asset, int cellX, Size cellSize, Rectangle 
  * portal ring's own blue (PAL8_BLUE + 1 is the ring's 5757ff), the two buttons read as a pair and
  * neither is the colour of the plate. The bars' bevel highlights come out as the darker blues.
  */
-void RepaintOntoBlueInverted(ArtAsset &asset)
+/**
+ * Split in two (user, 2026-10-10: true-colour migration): the 8-bit layer is built lazily now, so the
+ * repaint is applied to whichever copy is being built - RepaintBlueInvertedIndexed to `bright`,
+ * RepaintBlueInvertedArgb to `argb` - rather than to both at once. Same rule in both: every pixel the
+ * opaque layer holds (alpha >= 128) goes to PAL8_BLUE + luminance/32.
+ */
+void RepaintBlueInvertedIndexed(const ArtAsset &asset)
 {
-	if (asset.rgba.empty() || !asset.bright)
+	if (asset.rgba.empty() || !asset.bright.has_value())
 		return;
 	for (int y = 0; y < asset.height; y++) {
 		const uint8_t *srcRow = &asset.rgba[static_cast<size_t>(y) * asset.width * 4];
@@ -636,11 +674,23 @@ void RepaintOntoBlueInverted(ArtAsset &asset)
 				continue;
 			const int luminance = (299 * srcRow[x * 4] + 587 * srcRow[x * 4 + 1] + 114 * srcRow[x * 4 + 2]) / 1000;
 			brightRow[x] = static_cast<uint8_t>(PAL8_BLUE + std::min(7, luminance * 8 / 256));
-			if (!asset.argb.empty()) {
-				const SDL_Color &c = orig_palette[brightRow[x]];
-				uint32_t &px = asset.argb[static_cast<size_t>(y) * asset.width + x];
-				px = PackArgb(static_cast<uint8_t>(px >> 24), c.r, c.g, c.b);
-			}
+		}
+	}
+}
+
+void RepaintBlueInvertedArgb(ArtAsset &asset)
+{
+	if (asset.rgba.empty() || asset.argb.empty())
+		return;
+	for (int y = 0; y < asset.height; y++) {
+		const uint8_t *srcRow = &asset.rgba[static_cast<size_t>(y) * asset.width * 4];
+		for (int x = 0; x < asset.width; x++) {
+			if (srcRow[x * 4 + 3] < 128)
+				continue; // the pixels the 8-bit opaque layer keys away
+			const int luminance = (299 * srcRow[x * 4] + 587 * srcRow[x * 4 + 1] + 114 * srcRow[x * 4 + 2]) / 1000;
+			const SDL_Color &c = orig_palette[PAL8_BLUE + std::min(7, luminance * 8 / 256)];
+			uint32_t &px = asset.argb[static_cast<size_t>(y) * asset.width + x];
+			px = PackArgb(static_cast<uint8_t>(px >> 24), c.r, c.g, c.b);
 		}
 	}
 }
@@ -656,7 +706,7 @@ void RepaintOntoBlueInverted(ArtAsset &asset)
  * has no room for an outline there. The cutter leaves a transparent margin, so in practice this
  * only matters if the art is ever recut tight to the subject.
  */
-void BuildOutline(ArtAsset &asset, uint8_t outlineIndex)
+void BuildOutline(const ArtAsset &asset, uint8_t outlineIndex)
 {
 	asset.outline.emplace(asset.width, asset.height);
 	for (int y = 0; y < asset.height; y++) {
@@ -677,20 +727,52 @@ void BuildOutline(ArtAsset &asset, uint8_t outlineIndex)
 	}
 }
 
-void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle,
-    std::optional<uint8_t> tintRampBase = std::nullopt, int tintStrengthPercent = 100,
-    int luminancePercent = 100)
+/**
+ * @brief The true-colour copy (stage 2): tint and luminance in RGB, the PNG's own alpha kept, so a
+ * gradient edge is a gradient and not one blend level. Its own pass since the 8-bit layers went lazy
+ * (user, 2026-10-10: true-colour migration) - see ArtAsset::argb.
+ */
+void BuildArgb(ArtAsset &asset)
 {
-	if (asset.rgba.empty())
-		return;
+	asset.argb.assign(static_cast<size_t>(asset.width) * asset.height, 0);
+	const int luminancePercent = asset.luminancePercent;
+	for (int y = 0; y < asset.height; y++) {
+		const uint8_t *srcRow = &asset.rgba[static_cast<size_t>(y) * asset.width * 4];
+		uint32_t *dstRow = &asset.argb[static_cast<size_t>(y) * asset.width];
+		for (int x = 0; x < asset.width; x++) {
+			// Scaled first, exactly as the 8-bit pass scales, so the two copies take the same input.
+			const uint8_t r = static_cast<uint8_t>(srcRow[x * 4 + 0] * luminancePercent / 100);
+			const uint8_t g = static_cast<uint8_t>(srcRow[x * 4 + 1] * luminancePercent / 100);
+			const uint8_t b = static_cast<uint8_t>(srcRow[x * 4 + 2] * luminancePercent / 100);
+			const uint8_t a = srcRow[x * 4 + 3];
+			const SDL_Color t = asset.tintRampBase ? TintedRgb(*asset.tintRampBase, asset.tintStrengthPercent, r, g, b) : SDL_Color { r, g, b, 255 };
+			dstRow[x] = PackArgb(a, t.r, t.g, t.b);
+		}
+	}
+	if (asset.blueInverted)
+		RepaintBlueInvertedArgb(asset);
+	asset.argbGeneration = PaletteGeneration;
+}
+
+/**
+ * @brief Quantises an asset's RGBA pixels into its 8-bit layers, against the palette as it is now.
+ * Called only through EnsureIndexedLayers, i.e. only when an indexed target draws the asset.
+ */
+void BuildIndexedLayers(const ArtAsset &asset)
+{
+	const std::optional<Rectangle> dimCircle = asset.dimCircle;
+	const std::optional<uint8_t> tintRampBase = asset.tintRampBase;
+	const int tintStrengthPercent = asset.tintStrengthPercent;
+	const int luminancePercent = asset.luminancePercent;
 
 	asset.bright.emplace(asset.width, asset.height);
 	asset.half.emplace(asset.width, asset.height);
-	asset.argb.assign(static_cast<size_t>(asset.width) * asset.height, 0);
-	asset.dimCircle = dimCircle;
 	if (dimCircle) {
 		asset.frame.emplace(asset.width, asset.height);
 		asset.sphereDim.emplace(asset.width, asset.height);
+	} else {
+		asset.frame.reset();
+		asset.sphereDim.reset();
 	}
 
 	std::vector<uint8_t> cache(1 << 15, 0);
@@ -715,13 +797,6 @@ void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle,
 			const uint8_t g = scale(srcRow[x * 4 + 1]);
 			const uint8_t b = scale(srcRow[x * 4 + 2]);
 			const uint8_t a = srcRow[x * 4 + 3];
-
-			// The true-colour pixel (stage 2): tint and luminance in RGB, the PNG's own alpha kept,
-			// so a gradient edge is a gradient and not one blend level.
-			{
-				const SDL_Color t = tintRampBase ? TintedRgb(*tintRampBase, tintStrengthPercent, r, g, b) : SDL_Color { r, g, b, 255 };
-				asset.argb[static_cast<size_t>(y) * asset.width + x] = PackArgb(a, t.r, t.g, t.b);
-			}
 
 			if (a < 128) {
 				brightRow[x] = 0;
@@ -759,6 +834,55 @@ void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle,
 			}
 		}
 	}
+
+	if (asset.blueInverted)
+		RepaintBlueInvertedIndexed(asset);
+	if (asset.outlineIndex)
+		BuildOutline(asset, *asset.outlineIndex);
+	asset.indexedGeneration = PaletteGeneration;
+}
+
+/** @brief The 8-bit layers, built (or rebuilt after a palette move) on an indexed target's first ask. */
+void EnsureIndexedLayers(const ArtAsset &asset)
+{
+	if (asset.rgba.empty() || !asset.prepared)
+		return;
+	if (asset.bright && asset.indexedGeneration == PaletteGeneration)
+		return;
+	BuildIndexedLayers(asset);
+}
+
+/**
+ * @brief Records an asset's treatment and builds its true-colour copy; the 8-bit layers wait for an
+ * indexed draw (EnsureIndexedLayers).
+ *
+ * If `dimCircle` is set (orbs), the composition is split in two along that circle when the 8-bit
+ * layers are built: `frame` gets everything outside it, `sphereDim` gets the inside, dimmed. The
+ * true-colour draw splits on the fly from the same circle (BlitLayerTrueColour).
+ *
+ * Name kept from when this did the quantising itself (user, 2026-10-10: true-colour migration) - it
+ * is still the one call per asset that EnsureQuantized makes, on every palette move as before, but an
+ * untinted asset now keeps its argb across the move and nothing is quantised here at all.
+ */
+void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle,
+    std::optional<uint8_t> tintRampBase = std::nullopt, int tintStrengthPercent = 100,
+    int luminancePercent = 100)
+{
+	if (asset.rgba.empty())
+		return;
+	const bool firstTime = !asset.prepared;
+	asset.dimCircle = dimCircle;
+	asset.tintRampBase = tintRampBase;
+	asset.tintStrengthPercent = tintStrengthPercent;
+	asset.luminancePercent = luminancePercent;
+	// TintedRgb and the blue repaint read orig_palette's ramps, so those two treatments are the only
+	// ones whose argb follows the palette. Everything else is the PNG and nothing but.
+	const bool paletteDependent = tintRampBase.has_value() || asset.blueInverted;
+	if (firstTime || asset.argb.empty() || (paletteDependent && asset.argbGeneration != PaletteGeneration))
+		BuildArgb(asset);
+	if (firstTime)
+		asset.indexedGeneration = 0;
+	asset.prepared = true;
 }
 
 /**
@@ -921,87 +1045,88 @@ bool NeedsQuantize()
 {
 	if (GlobalPaletteChanged())
 		return true;
-	if (!PlateArt.rgba.empty() && !PlateArt.bright)
+	if (!PlateArt.rgba.empty() && !PlateArt.prepared)
 		return true;
-	if (!HealthOrbArt.rgba.empty() && !HealthOrbArt.bright)
+	if (!HealthOrbArt.rgba.empty() && !HealthOrbArt.prepared)
 		return true;
-	if (!HealthOrbLiquidArt.rgba.empty() && !HealthOrbLiquidArt.bright)
+	if (!HealthOrbLiquidArt.rgba.empty() && !HealthOrbLiquidArt.prepared)
 		return true;
-	if (!ManaOrbLiquidArt.rgba.empty() && !ManaOrbLiquidArt.bright)
+	if (!ManaOrbLiquidArt.rgba.empty() && !ManaOrbLiquidArt.prepared)
 		return true;
-	if (!RageOrbLiquidArt.rgba.empty() && !RageOrbLiquidArt.bright)
+	if (!RageOrbLiquidArt.rgba.empty() && !RageOrbLiquidArt.prepared)
 		return true;
-	if (!EssenceOrbLiquidArt.rgba.empty() && !EssenceOrbLiquidArt.bright)
+	if (!EssenceOrbLiquidArt.rgba.empty() && !EssenceOrbLiquidArt.prepared)
 		return true;
-	if (!ManaOrbArt.rgba.empty() && !ManaOrbArt.bright)
+	if (!ManaOrbArt.rgba.empty() && !ManaOrbArt.prepared)
 		return true;
-	if (!MenuIconsArt.rgba.empty() && !MenuIconsArt.bright)
+	if (!MenuIconsArt.rgba.empty() && !MenuIconsArt.prepared)
 		return true;
-	if (!InventoryPanelArt.rgba.empty() && !InventoryPanelArt.bright)
+	if (!InventoryPanelArt.rgba.empty() && !InventoryPanelArt.prepared)
 		return true;
-	if (!SidePanelArt.rgba.empty() && !SidePanelArt.bright)
+	if (!SidePanelArt.rgba.empty() && !SidePanelArt.prepared)
 		return true;
-	if (!AbilitiesPanelArt.rgba.empty() && !AbilitiesPanelArt.bright)
+	if (!AbilitiesPanelArt.rgba.empty() && !AbilitiesPanelArt.prepared)
 		return true;
-	if (!InventoryTabsArt.rgba.empty() && !InventoryTabsArt.bright)
+	if (!InventoryTabsArt.rgba.empty() && !InventoryTabsArt.prepared)
 		return true;
-	if (!InventorySortArt.rgba.empty() && !InventorySortArt.bright)
+	if (!InventorySortArt.rgba.empty() && !InventorySortArt.prepared)
 		return true;
-	if (!TownPortalIconArt.rgba.empty() && !TownPortalIconArt.bright)
+	if (!TownPortalIconArt.rgba.empty() && !TownPortalIconArt.prepared)
 		return true;
-	if (!BurgerMenuButtonArt.rgba.empty() && !BurgerMenuButtonArt.bright)
+	if (!BurgerMenuButtonArt.rgba.empty() && !BurgerMenuButtonArt.prepared)
 		return true;
-	if (!TownPortalGlyphsArt.rgba.empty() && !TownPortalGlyphsArt.bright)
+	if (!TownPortalGlyphsArt.rgba.empty() && !TownPortalGlyphsArt.prepared)
 		return true;
-	if (!RunGlyphsArt.rgba.empty() && !RunGlyphsArt.bright)
+	if (!RunGlyphsArt.rgba.empty() && !RunGlyphsArt.prepared)
 		return true;
-	if (!WalkGlyphsArt.rgba.empty() && !WalkGlyphsArt.bright)
+	if (!WalkGlyphsArt.rgba.empty() && !WalkGlyphsArt.prepared)
 		return true;
-	if (!BurgerMenuGlyphsArt.rgba.empty() && !BurgerMenuGlyphsArt.bright)
+	if (!BurgerMenuGlyphsArt.rgba.empty() && !BurgerMenuGlyphsArt.prepared)
 		return true;
-	if (!MenuGlyphsArt.rgba.empty() && !MenuGlyphsArt.bright)
+	if (!MenuGlyphsArt.rgba.empty() && !MenuGlyphsArt.prepared)
 		return true;
-	if (!TabGlyphsArt.rgba.empty() && !TabGlyphsArt.bright)
+	if (!TabGlyphsArt.rgba.empty() && !TabGlyphsArt.prepared)
 		return true;
-	if (!LevelUpIconArt.rgba.empty() && !LevelUpIconArt.bright)
+	if (!LevelUpIconArt.rgba.empty() && !LevelUpIconArt.prepared)
 		return true;
-	if (!ButtonFrameArt.rgba.empty() && !ButtonFrameArt.bright)
+	if (!ButtonFrameArt.rgba.empty() && !ButtonFrameArt.prepared)
 		return true;
 	for (const GridBezelEntry &entry : GridBezels) {
-		if (!entry.art.rgba.empty() && !entry.art.bright)
+		if (!entry.art.rgba.empty() && !entry.art.prepared)
 			return true;
 	}
-	if (!WaypointPanelArt.rgba.empty() && !WaypointPanelArt.bright)
+	if (!WaypointPanelArt.rgba.empty() && !WaypointPanelArt.prepared)
 		return true;
-	if (!WaypointIconsArt.rgba.empty() && !WaypointIconsArt.bright)
+	if (!WaypointIconsArt.rgba.empty() && !WaypointIconsArt.prepared)
 		return true;
-	if (!CurseMarkersArt.rgba.empty() && !CurseMarkersArt.bright)
+	if (!CurseMarkersArt.rgba.empty() && !CurseMarkersArt.prepared)
 		return true;
-	if (!SkillMarkersArt.rgba.empty() && !SkillMarkersArt.bright)
+	if (!SkillMarkersArt.rgba.empty() && !SkillMarkersArt.prepared)
 		return true;
 	for (const ArtAsset *strip : ClassTreeStrips) {
-		if (!strip->rgba.empty() && !strip->bright)
+		if (!strip->rgba.empty() && !strip->prepared)
 			return true;
 	}
-	if (!PaladinSkillIconsArt.rgba.empty() && !PaladinSkillIconsArt.bright)
+	if (!PaladinSkillIconsArt.rgba.empty() && !PaladinSkillIconsArt.prepared)
 		return true;
-	if (!AttackIconsArt.rgba.empty() && !AttackIconsArt.bright)
+	if (!AttackIconsArt.rgba.empty() && !AttackIconsArt.prepared)
 		return true;
 	for (const ArtAsset &silhouette : SilhouetteArt) {
-		if (!silhouette.rgba.empty() && !silhouette.bright)
+		if (!silhouette.rgba.empty() && !silhouette.prepared)
 			return true;
 	}
 	return false;
 }
 
-/** @brief Bumped every time EnsureQuantized actually requantises - the loose-PNG cache keys off it. */
-uint32_t QuantizeGeneration = 0;
-
 void EnsureQuantized()
 {
 	if (!NeedsQuantize())
 		return;
-	QuantizeGeneration++;
+	// Only a real move of the global half stales the 8-bit layers and the tinted argb; a pass that
+	// runs because one more asset finished loading leaves every other asset's copies alone (user,
+	// 2026-10-10: true-colour migration).
+	if (GlobalPaletteChanged())
+		PaletteGeneration++;
 
 	// Oracool: user request - "now that our UI theme is predominantly goldish I say we apply
 	// goldish tint on the main HUD", then the burger menu with it. Half strength, not full: these
@@ -1045,8 +1170,10 @@ void EnsureQuantized()
 	QuantizeAsset(InventoryTabsArt, std::nullopt, PAL16_GRAY, 70);
 	QuantizeAsset(InventorySortArt, std::nullopt);
 	QuantizeAsset(TownPortalIconArt, std::nullopt);
+	// The portal ring's blue, bright where the bars are dark (2026-09-06) - a flag now, applied by
+	// whichever of the two copies is built (RepaintBlueInvertedArgb / RepaintBlueInvertedIndexed).
+	BurgerMenuButtonArt.blueInverted = true;
 	QuantizeAsset(BurgerMenuButtonArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
-	RepaintOntoBlueInverted(BurgerMenuButtonArt); // the portal ring's blue, bright where the bars are dark (2026-09-06)
 	QuantizeAsset(TownPortalGlyphsArt, std::nullopt);
 	QuantizeAsset(BurgerMenuGlyphsArt, std::nullopt);
 	QuantizeAsset(RunGlyphsArt, std::nullopt);
@@ -1094,10 +1221,10 @@ void EnsureQuantized()
 	// Walked down from +2, which read as near-white, then +6, which was still hot. The shared
 	// constant records where it landed and why - and the cursor tooltip's border now reads the same
 	// one, so the two thin gold edges on screen cannot drift apart.
-	for (ArtAsset &silhouette : SilhouetteArt) {
-		if (!silhouette.rgba.empty())
-			BuildOutline(silhouette, ThemeEdgeColor);
-	}
+	// Built with the 8-bit layers now (EnsureIndexedLayers): the outline is an index surface and only
+	// an indexed draw could use it (user, 2026-10-10: true-colour migration).
+	for (ArtAsset &silhouette : SilhouetteArt)
+		silhouette.outlineIndex = ThemeEdgeColor;
 
 	std::memcpy(PaletteSnapshot.data(), &orig_palette[128], sizeof(PaletteSnapshot));
 	QuantizedOnce = true;
@@ -1137,47 +1264,9 @@ void BlitHalfTransparentSkipZero(const Surface &out, const Surface &src, Point p
 	}
 }
 
-/**
- * @brief Nearest-neighbour blit of one square strip cell INTO @p dest, whatever size that is.
- *
- * Exists because the class-tree strips are cut at 56px while the LMB/RMB wells have a net opening of
- * 46px (user, 2026-08-18: "measure how many px is the net area within the bezels and don't spill out
- * of it [...] consider this the hard boundary of these slots and don't ever spill over it"). Centring
- * a 56px cell in a 46px hole put five pixels of painting over each bezel; clipping instead would eat
- * the icon's own border. Scaling keeps the whole picture and obeys the boundary.
- *
- * Nearest-neighbour rather than a resampler: the source is already palette-quantized, so there are no
- * in-between colours to interpolate toward - a blend would have to re-quantize per pixel, per frame.
- */
-void BlitStripCellScaled(const Surface &out, const Surface &src, SDL_Rect srcCell, Rectangle dest,
-    bool halfTransparent = false)
-{
-	if (dest.size.width <= 0 || dest.size.height <= 0 || srcCell.w <= 0 || srcCell.h <= 0)
-		return;
-	for (int y = 0; y < dest.size.height; y++) {
-		const int dstY = dest.position.y + y;
-		if (dstY < 0 || dstY >= out.h())
-			continue;
-		const int sy = srcCell.y + y * srcCell.h / dest.size.height;
-		const uint8_t *srcRow = &src[Point { 0, sy }];
-		for (int x = 0; x < dest.size.width; x++) {
-			const uint8_t value = srcRow[srcCell.x + x * srcCell.w / dest.size.width];
-			if (value == 0)
-				continue; // the strips key on index 0, exactly as DrawStripIcon does
-			const int dstX = dest.position.x + x;
-			if (dstX < 0 || dstX >= out.w())
-				continue;
-			// The locked half of what DrawStripIcon has always offered, carried over so that the
-			// scaled path is a drop-in for the native one - see the Rectangle overload of
-			// DrawClassTreeIcon. Without it, scaling an Abilities row would have quietly made every
-			// unearned skill look earned.
-			if (halfTransparent)
-				SetHalfTransparentPixelUnchecked(out, { dstX, dstY }, value);
-			else
-				out.SetPixelUnchecked({ dstX, dstY }, value);
-		}
-	}
-}
+// BlitStripCellScaled (the 8-bit nearest-neighbour cell scaler) is gone (user, 2026-10-10: true-colour
+// migration): nothing had called it since the scaled draws moved to BlitLayerScaled's argb path, and an
+// indexed scaled draw deliberately draws nothing (see BlitLayerScaled). It is in the git history.
 
 /** @brief Which of an ArtAsset's layers a draw wants; the true-colour path derives each from `argb`. */
 enum class Layer : uint8_t {
@@ -1256,6 +1345,8 @@ bool BlitLayerTrueColour(const Surface &out, const ArtAsset &asset, Layer layer,
 
 const Surface &IndexedLayer(const ArtAsset &asset, Layer layer)
 {
+	// The 8-bit layers are built here, on an indexed target's first ask (user, 2026-10-10: true-colour migration).
+	EnsureIndexedLayers(asset);
 	switch (layer) {
 	case Layer::Half:
 		return *asset.half;
@@ -1317,7 +1408,8 @@ void DrawOrb(const Surface &out, ArtAsset &asset, ArtAsset &liquid, Point positi
 	if (asset.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!asset.frame || !asset.sphereDim || !asset.bright)
+	// The split layers are built lazily now, so the circle they are cut along is the test (2026-10-10).
+	if (!asset.dimCircle || !asset.prepared)
 		return;
 
 	const int radius = GetOrbSphereRadius();
@@ -1331,7 +1423,7 @@ void DrawOrb(const Surface &out, ArtAsset &asset, ArtAsset &liquid, Point positi
 	// reveal. Instead: the liquid, opaque, from the fill line down - then the whole cradle over it,
 	// whose empty glass lets the world show above the line and whose rim sits on the liquid's edge.
 	// Two blits, and the fill is a real level rather than a lit part of a painting.
-	if (liquid.bright && liquid.width == asset.width && liquid.height == asset.height) {
+	if (liquid.prepared && liquid.width == asset.width && liquid.height == asset.height) {
 		if (revealTop < asset.height) {
 			BlitLayer(out, liquid, Layer::Bright,
 			    MakeSdlRect(0, revealTop, liquid.width, liquid.height - revealTop),
@@ -1374,10 +1466,10 @@ bool DrawSplitOrb(const Surface &out, ArtAsset &asset, ArtAsset &leftLiquid, Art
 	if (asset.rgba.empty())
 		return false;
 	EnsureQuantized();
-	if (!asset.bright)
+	if (!asset.prepared)
 		return false;
 	for (const ArtAsset *liquid : { &leftLiquid, &rightLiquid }) {
-		if (!liquid->bright || liquid->width != asset.width || liquid->height != asset.height)
+		if (!liquid->prepared || liquid->width != asset.width || liquid->height != asset.height)
 			return false;
 	}
 
@@ -1407,7 +1499,7 @@ bool DrawSplitOrb(const Surface &out, ArtAsset &asset, ArtAsset &leftLiquid, Art
 
 bool HasMiddleHudArt()
 {
-	return PlateArt.bright.has_value();
+	return PlateArt.prepared;
 }
 
 /**
@@ -1425,7 +1517,7 @@ bool PlateIsDrawn()
 	if (PlateArt.rgba.empty())
 		return false;
 	EnsureQuantized();
-	return PlateArt.bright.has_value();
+	return PlateArt.prepared;
 }
 
 void DrawMiddleHudArt(const Surface &out)
@@ -1440,7 +1532,7 @@ void DrawMiddleHudArt(const Surface &out)
 	if (PlateArt.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!PlateArt.bright)
+	if (!PlateArt.prepared)
 		return;
 
 	const Point position = GetMiddleHudRect().position;
@@ -1448,8 +1540,9 @@ void DrawMiddleHudArt(const Surface &out)
 	// The plate's partial alpha, blended at 50% over whatever is under it - the wells' inward
 	// shadow onto the spell plates the game drew there first (see scrollrt.cpp's order). See
 	// ArtAsset::half.
-	if (PlateArt.half)
-		BlitLayerHalf(out, PlateArt, Layer::Half, position, 0, PlateArt.height);
+	// Unconditional since the 8-bit layers went lazy (2026-10-10): the true-colour draw skips Half
+	// itself, and an indexed one builds it on the way in.
+	BlitLayerHalf(out, PlateArt, Layer::Half, position, 0, PlateArt.height);
 }
 
 void DrawMenuIcon(const Surface &out, int iconIndex, int state, Point position)
@@ -1461,7 +1554,7 @@ void DrawMenuIcon(const Surface &out, int iconIndex, int state, Point position)
 	if (MenuIconsArt.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!MenuIconsArt.bright)
+	if (!MenuIconsArt.prepared)
 		return;
 
 	// The sheet is a plain grid: column = state, row = entry.
@@ -1476,7 +1569,7 @@ void DrawInventoryPanelArt(const Surface &out)
 	if (InventoryPanelArt.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!InventoryPanelArt.bright)
+	if (!InventoryPanelArt.prepared)
 		return;
 
 	BlitLayer(out, InventoryPanelArt, Layer::Bright,
@@ -1496,7 +1589,7 @@ void DrawSidePanelArt(const Surface &out, Point origin)
 	if (SidePanelArt.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!SidePanelArt.bright)
+	if (!SidePanelArt.prepared)
 		return;
 
 	BlitLayer(out, SidePanelArt, Layer::Bright,
@@ -1513,7 +1606,7 @@ void DrawAbilitiesPanelArt(const Surface &out, Point origin)
 	if (AbilitiesPanelArt.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!AbilitiesPanelArt.bright)
+	if (!AbilitiesPanelArt.prepared)
 		return;
 
 	BlitLayer(out, AbilitiesPanelArt, Layer::Bright,
@@ -1572,7 +1665,6 @@ namespace {
 /** A ui\ PNG looked up by path rather than declared above - see DrawLoosePng in the header. */
 struct LoosePng {
 	ArtAsset asset;
-	uint32_t generation = 0;
 };
 
 // std::less<> so a lookup takes the const char* as it is: with the plain comparator every find built a std::string -
@@ -1591,15 +1683,14 @@ LoosePng &LoosePngFor(const char *assetPath)
 	LoosePng &entry = it->second;
 	if (!entry.asset.loadAttempted)
 		LoadPixels(entry.asset);
-	// The declared set first, so the palette snapshot and the generation are current, then this
-	// one against the generation - the same "requantise when the palette moved" rule, kept in one
-	// counter rather than one more `if` in NeedsQuantize per file.
+	// The declared set first, so the palette snapshot and PaletteGeneration are current. A loose PNG
+	// is untinted, so its argb is built once and never follows the palette; its 8-bit layer is lazy
+	// and compares itself against PaletteGeneration when an indexed target asks (user, 2026-10-10:
+	// true-colour migration - this requantised every loose file on every palette move).
 	EnsureLoadedAll();
 	EnsureQuantized();
-	if (!entry.asset.rgba.empty() && (!entry.asset.bright || entry.generation != QuantizeGeneration)) {
+	if (!entry.asset.rgba.empty() && !entry.asset.prepared)
 		QuantizeAsset(entry.asset, std::nullopt);
-		entry.generation = QuantizeGeneration;
-	}
 	return entry;
 }
 
@@ -1616,7 +1707,7 @@ Size GetLoosePngSize(const char *assetPath)
 void DrawLoosePng(const Surface &out, const char *assetPath, Point origin)
 {
 	const LoosePng &entry = LoosePngFor(assetPath);
-	if (entry.asset.rgba.empty() || !entry.asset.bright)
+	if (entry.asset.rgba.empty() || !entry.asset.prepared)
 		return;
 	BlitLayer(out, entry.asset, Layer::Bright,
 	    MakeSdlRect(0, 0, entry.asset.width, entry.asset.height), origin);
@@ -1625,7 +1716,7 @@ void DrawLoosePng(const Surface &out, const char *assetPath, Point origin)
 void DrawLoosePngPart(const Surface &out, const char *assetPath, Rectangle source, Point origin)
 {
 	const LoosePng &entry = LoosePngFor(assetPath);
-	if (entry.asset.rgba.empty() || !entry.asset.bright)
+	if (entry.asset.rgba.empty() || !entry.asset.prepared)
 		return;
 	BlitLayer(out, entry.asset, Layer::Bright,
 	    MakeSdlRect(source.position.x, source.position.y, source.size.width, source.size.height), origin);
@@ -1655,7 +1746,7 @@ void DrawSlotBackground(const Surface &out, Rectangle cell)
 		return;
 	}
 	const LoosePng &entry = LoosePngFor(SlotBackgroundAsset);
-	if (entry.asset.rgba.empty() || !entry.asset.bright)
+	if (entry.asset.rgba.empty() || !entry.asset.prepared)
 		return;
 	BlitLayerScaled(out, entry.asset, MakeSdlRect(0, 0, art.width, art.height), cell, /*halfTransparent=*/false);
 }
@@ -1741,7 +1832,7 @@ void DrawInventoryTab(const Surface &out, int index, InventoryTabState state)
 	if (InventoryTabsArt.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!InventoryTabsArt.bright)
+	if (!InventoryTabsArt.prepared)
 		return;
 
 	// A three-frame atlas, one frame per state, NOT one column per tab: the reliquary chest is the
@@ -1798,7 +1889,7 @@ bool TryDrawBeltGlyph(const Surface &out, ArtAsset &strip, Rectangle cell, int s
 	if (!IsGlyphFrame(strip, state, frame))
 		return false;
 	EnsureQuantized();
-	if (!strip.bright)
+	if (!strip.prepared)
 		return false;
 	DrawStripIcon(out, strip,
 	    { cell.position.x + (cell.size.width - frame) / 2, cell.position.y + (cell.size.height - frame) / 2 },
@@ -1841,6 +1932,72 @@ void DrawBeltSlotFace(const Surface &out, Rectangle cell)
  * A 32-bit target takes the rgb straight; an indexed one takes @p fallbackIndex, which is the
  * nearest the palette has and the honest answer where there are no colours to write.
  */
+/**
+ * @brief Glyph cell @p index of @p strip at @p origin with its WHITE recoloured: @p rgb on the 32-bit
+ * screen, @p whiteIndex on an indexed surface. Everything that is not white (the glyph's hard shadow)
+ * is drawn as it is.
+ *
+ * The 32-bit side walks `argb`, not the quantised index (user, 2026-10-10: true-colour migration):
+ * the shadow keeps the art's own colour rather than the nearest palette entry to it, and the white is
+ * told by its luminance - a glyph frame is exactly (243,243,243) or (12,7,7) (IsGlyphFrame), so any
+ * pixel at half brightness or above is the white the indexed rule finds on the grey ramp's top three
+ * entries. It is scaled by the tint so that the glyph's white (243) lands on @p rgb exactly, as the
+ * old straight write did, and anything lighter or darker keeps its step. The 8-bit side is unchanged.
+ */
+void DrawGlyphCellRecoloured(const Surface &out, const ArtAsset &strip, int index, Point origin, uint32_t rgb, uint8_t whiteIndex)
+{
+	const int frame = strip.height;
+	// The cell clipped to the target once, so the loops below test nothing per pixel.
+	const int x0 = std::max(0, -origin.x), y0 = std::max(0, -origin.y);
+	const int x1 = std::min(frame, out.w() - origin.x), y1 = std::min(frame, out.h() - origin.y);
+	if (x0 >= x1 || y0 >= y1 || (index + 1) * frame > strip.width)
+		return;
+	if (!out.isIndexed() && !strip.argb.empty()) {
+		const uint32_t tr = (rgb >> 16) & 0xFF, tg = (rgb >> 8) & 0xFF, tb = rgb & 0xFF;
+		for (int y = y0; y < y1; y++) {
+			const uint32_t *src = &strip.argb[static_cast<size_t>(y) * strip.width + static_cast<size_t>(index * frame)];
+			uint32_t *dst = out.at<uint32_t>(origin.x + x0, origin.y + y); // column x0 of the cell
+			for (int x = x0; x < x1; x++) {
+				const uint32_t px = src[x];
+				if ((px >> 24) < 128)
+					continue; // the 8-bit layer keys at 128, and so does a glyph
+				const uint32_t r = (px >> 16) & 0xFF, g = (px >> 8) & 0xFF, b = px & 0xFF;
+				if ((299 * r + 587 * g + 114 * b) / 1000 < 128) {
+					dst[x - x0] = px & 0x00FFFFFF;
+					continue;
+				}
+				uint32_t nr = tr * r / 243, ng = tg * g / 243, nb = tb * b / 243;
+				nr = nr > 255 ? 255 : nr;
+				ng = ng > 255 ? 255 : ng;
+				nb = nb > 255 ? 255 : nb;
+				dst[x - x0] = (nr << 16) | (ng << 8) | nb;
+			}
+		}
+		return;
+	}
+	EnsureIndexedLayers(strip);
+	if (!strip.bright)
+		return;
+	for (int y = y0; y < y1; y++) {
+		for (int x = x0; x < x1; x++) {
+			const uint8_t c = (*strip.bright)[Point { index * frame + x, y }];
+			if (c == 0)
+				continue;
+			const Point at = origin + Displacement { x, y };
+			// White is the grey ramp's top three entries after quantising; anything darker is the
+			// glyph's own shadow and is left exactly as it is, so the figure keeps its relief.
+			const bool white = c >= PAL16_GRAY && c < PAL16_GRAY + 3;
+			if (!white) {
+				out.SetPixelUnchecked(at, c);
+			} else if (out.isIndexed()) {
+				out.SetPixelUnchecked(at, whiteIndex);
+			} else {
+				*out.at<uint32_t>(at.x, at.y) = rgb; // a 32-bit target with no argb (an asset that never loaded one)
+			}
+		}
+	}
+}
+
 bool DrawBeltGlyphTinted(const Surface &out, ArtAsset &strip, Rectangle cell, int state, uint32_t rgb, uint8_t fallbackIndex)
 {
 	EnsureLoadedAll();
@@ -1850,30 +2007,11 @@ bool DrawBeltGlyphTinted(const Surface &out, ArtAsset &strip, Rectangle cell, in
 	if (!IsGlyphFrame(strip, state, frame))
 		return false;
 	EnsureQuantized();
-	if (!strip.bright)
+	if (!strip.prepared)
 		return false;
 	const Point origin { cell.position.x + (cell.size.width - frame) / 2,
 		cell.position.y + (cell.size.height - frame) / 2 };
-	for (int y = 0; y < frame; y++) {
-		for (int x = 0; x < frame; x++) {
-			const uint8_t c = (*strip.bright)[Point { state * frame + x, y }];
-			if (c == 0)
-				continue;
-			const Point at = origin + Displacement { x, y };
-			if (!out.InBounds(at))
-				continue;
-			// White is the grey ramp's top three entries after quantising; anything darker is the
-			// glyph's own shadow and is left exactly as it is, so the figure keeps its relief.
-			const bool white = c >= PAL16_GRAY && c < PAL16_GRAY + 3;
-			if (!white) {
-				out.SetPixelUnchecked(at, c);
-			} else if (out.isIndexed()) {
-				out.SetPixelUnchecked(at, fallbackIndex);
-			} else {
-				*out.at<uint32_t>(at.x, at.y) = rgb;
-			}
-		}
-	}
+	DrawGlyphCellRecoloured(out, strip, state, origin, rgb, fallbackIndex);
 	return true;
 }
 
@@ -1907,21 +2045,13 @@ bool DrawTabGlyph(const Surface &out, Rectangle cell, bool open, bool gold)
 	if (!IsGlyphFrame(TabGlyphsArt, index, frame))
 		return false;
 	EnsureQuantized();
-	if (!TabGlyphsArt.bright)
+	if (!TabGlyphsArt.prepared)
 		return false;
 	const Point origin { at.position.x + (at.size.width - frame) / 2, at.position.y + (at.size.height - frame) / 2 };
-	for (int y = 0; y < frame; y++) {
-		for (int x = 0; x < frame; x++) {
-			const uint8_t c = (*TabGlyphsArt.bright)[Point { index * frame + x, y }];
-			if (c == 0)
-				continue;
-			const Point at = origin + Displacement { x, y };
-			if (!out.InBounds(at))
-				continue;
-			// White is the grey ramp's top three entries after quantising; anything darker is shadow.
-			out.SetPixelUnchecked(at, (c >= PAL16_GRAY && c < PAL16_GRAY + 3) ? whiteTo : c); // an index, resolved by the surface (v1.11)
-		}
-	}
+	// The belt glyphs' recolour (user, 2026-10-10: true-colour migration): on the 32-bit screen the
+	// white becomes the colour the index resolves to right now - the same gold or grey PaletteRGB gave
+	// it when this wrote the index - over the art's own shadow; an indexed target writes the index.
+	DrawGlyphCellRecoloured(out, TabGlyphsArt, index, origin, PaletteRGB[whiteTo] & 0x00FFFFFF, whiteTo);
 	return true;
 }
 
@@ -2007,7 +2137,7 @@ void DrawLevelUpIconArt(const Surface &out, int state)
 	if (LevelUpIconArt.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!LevelUpIconArt.bright)
+	if (!LevelUpIconArt.prepared)
 		return;
 
 	const Rectangle rect = GetLevelUpIconRect();
@@ -2035,7 +2165,7 @@ void DrawGridBezel(const Surface &out, Rectangle contentRect)
 	if (entry->art.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!entry->art.bright)
+	if (!entry->art.prepared)
 		return;
 
 	// FRAME ONLY - four bands, with the art's own interior deliberately not blitted.
@@ -2130,12 +2260,12 @@ void DrawButtonBezel(const Surface &out, Rectangle face)
 		return;
 	EnsureLoadedAll();
 	EnsureQuantized();
-	if (!ButtonFrameArt.rgba.empty() && ButtonFrameArt.bright) {
+	if (!ButtonFrameArt.rgba.empty() && ButtonFrameArt.prepared) {
 		DrawStretchedFrame(out, ButtonFrameArt, { ButtonFrameReach, ButtonFrameReach, ButtonFrameReach, ButtonFrameReach }, face);
 		return;
 	}
 	GridBezelEntry *entry = FindGridBezel({ CellPx, CellPx });
-	if (entry == nullptr || entry->art.rgba.empty() || !entry->art.bright)
+	if (entry == nullptr || entry->art.rgba.empty() || !entry->art.prepared)
 		return;
 	DrawStretchedFrame(out, entry->art, { GridBezelInset, GridBezelInset, GridBezelInset, GridBezelInset }, face);
 }
@@ -2179,7 +2309,7 @@ void DrawWaypointPanelArt(const Surface &out, Point origin)
 	if (WaypointPanelArt.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!WaypointPanelArt.bright)
+	if (!WaypointPanelArt.prepared)
 		return;
 
 	BlitLayer(out, WaypointPanelArt, Layer::Bright,
@@ -2198,7 +2328,7 @@ void DrawWaypointIcon(const Surface &out, Point origin, bool active)
 	if (WaypointIconsArt.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!WaypointIconsArt.bright)
+	if (!WaypointIconsArt.prepared)
 		return;
 
 	// Two equal cells side by side: column 0 dormant, column 1 active. Derived from the sheet's own
@@ -2217,7 +2347,7 @@ void DrawClassSilhouette(const Surface &out, Point panelOrigin, int areaWidth, i
 	if (silhouette == nullptr || silhouette->rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!silhouette->bright)
+	if (!silhouette->prepared)
 		return;
 
 	// Centred across the panel's width, hanging from `top`. The asset is pre-scaled by its cutter
@@ -2262,7 +2392,7 @@ bool DrawCurseMarkerIcon(const Surface &out, Point origin, int index)
 	if (CurseMarkersArt.rgba.empty())
 		return false;
 	EnsureQuantized();
-	if (!CurseMarkersArt.bright)
+	if (!CurseMarkersArt.prepared)
 		return false;
 	DrawStripIcon(out, CurseMarkersArt, origin, index, /*unlocked=*/true);
 	return true;
@@ -2281,7 +2411,7 @@ bool DrawSkillMarkerIcon(const Surface &out, Point origin, int index)
 	if (SkillMarkersArt.rgba.empty())
 		return false;
 	EnsureQuantized();
-	if (!SkillMarkersArt.bright)
+	if (!SkillMarkersArt.prepared)
 		return false;
 	DrawStripIcon(out, SkillMarkersArt, origin, index, /*unlocked=*/true);
 	return true;
@@ -2293,7 +2423,7 @@ void DrawStripIcon(const Surface &out, ArtAsset &asset, Point origin, int index,
 	if (asset.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!asset.bright)
+	if (!asset.prepared)
 		return;
 
 	// One square cell per entry, so the cell size is the strip's height - derived rather than
@@ -2431,6 +2561,9 @@ void ResetHudArtCaches()
 		asset.argb.clear();
 		asset.argb.shrink_to_fit();
 		asset.dimCircle.reset();
+		asset.prepared = false; // and the lazy layers' bookkeeping (2026-10-10: true-colour migration)
+		asset.argbGeneration = 0;
+		asset.indexedGeneration = 0;
 		// The per-frame crop cache, which this used to leave behind (external audit of v1.9.88,
 		// finding 4). StripCellInset only builds it when it is EMPTY and then indexes it with an
 		// index it has validated against the NEWLY loaded frame count - so reloading a strip that
@@ -2641,7 +2774,7 @@ bool DrawUnspentPointsIcon(const Surface &out, Point origin, int count, bool lit
 	// loads at all. i cant tell how many point i have" (user, 2026-08-17). hud_art keeps THREE
 	// hand-maintained per-asset lists (load, quantize, reset); testing the END of that pipeline is
 	// what makes missing any of them degrade to the placeholder instead of to blank.
-	if (asset.rgba.empty() || !asset.bright)
+	if (asset.rgba.empty() || !asset.prepared)
 		return false;
 	// Index 0: the file is one 64x64 picture, so the "strip" has exactly one frame. Drawn through
 	// DrawStripIcon anyway rather than a bespoke blit, because that is where the quantize/bright
@@ -2674,7 +2807,7 @@ bool DrawSkillWellBacking(const Surface &out, Rectangle well)
 	ArtAsset &asset = SkillPointsFrameArt;
 	EnsureLoadedAll();
 	EnsureQuantized();
-	if (asset.rgba.empty() || !asset.bright)
+	if (asset.rgba.empty() || !asset.prepared)
 		return false;
 
 	const Point origin { well.position.x + (well.size.width - PointsIconSize.width) / 2,
@@ -2685,7 +2818,7 @@ bool DrawSkillWellBacking(const Surface &out, Rectangle well)
 
 // Defined further down, next to the other scaled drawing. Declared here because the Rectangle
 // overload of DrawClassTreeIcon below needs it, and moving the definitions up would separate them
-// from BlitStripCellScaled, which is the thing they are all about.
+// from BlitLayerScaled, which is the thing they are all about.
 void DrawStripIconScaledTo(const Surface &out, ArtAsset &asset, Rectangle dest, int index,
     bool unlocked = true);
 void DrawClassTreeIconScaledTo(const Surface &out, Rectangle dest, HeroClass heroClass, int skillIndex,
@@ -2717,7 +2850,7 @@ void DrawBeltBacking(const Surface &out)
 	ArtAsset &asset = SkillPointsFrameArt;
 	EnsureLoadedAll();
 	EnsureQuantized();
-	if (asset.rgba.empty() || !asset.bright)
+	if (asset.rgba.empty() || !asset.prepared)
 		return;
 
 	for (int i = 0; i < BeltVisibleSlotCount; i++)
@@ -2955,7 +3088,7 @@ void DrawStripIconScaledTo(const Surface &out, ArtAsset &asset, Rectangle dest, 
 	if (asset.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!asset.bright)
+	if (!asset.prepared)
 		return;
 	// One square cell per entry, derived from the strip's height, exactly as DrawStripIcon does - a
 	// recut at another icon size stays correct here for the same reason it does there.

@@ -499,6 +499,8 @@ int8_t GetItemDropAnimIndexFor(const Item &item)
 namespace {
 
 OptionalOwnedClxSpriteList itemanims[ITEMTYPES];
+/** What a PNG tumble's indices mean (null for a CEL) - see GetItemDropColours. Loaded and freed with itemanims. */
+std::shared_ptr<const oracool::SpriteColours> itemanimColours[ITEMTYPES];
 
 enum class PlayerArmorGraphic : uint8_t {
 	// clang-format off
@@ -5048,16 +5050,23 @@ void InitItemGFX()
 		// Hellfire's eight (35-42) exist only in hellfire.mpq; the fork's own load in either mode.
 		if (!gbIsHellfire && i >= 35 && i < FirstOracoolDropAnim)
 			continue;
+		itemanimColours[i] = nullptr;
 		// Oracool: a PNG sheet (items\<name>.png, one row) wins when present and has exactly the
 		// frame count ItemAnimLs promises - the animation indexes frames by that count.
-		OptionalOwnedClxSpriteList png = oracool::LoadPngItemDropSheet(ItemDropNames[i], ItemAnimWidth);
-		if (png && ClxSpriteList { *png }.numSprites() == static_cast<uint32_t>(ItemAnimLs[i])) {
+		//
+		// In its OWN colours since 2026-10-10 (user: true-colour migration): it was squeezed into town.pal's upper half,
+		// and is now up to 255 colours of its own with the nearest shared entry as each one's fallback (shading, and an
+		// indexed target). Its sprites index that table, so DrawItem and a borrowing missile draw through it.
+		std::optional<oracool::ColouredSpriteList> png = oracool::LoadPngItemDropSheetColoured(ItemDropNames[i], ItemAnimWidth);
+		if (png && ClxSpriteList { png->list }.numSprites() == static_cast<uint32_t>(ItemAnimLs[i])) {
 			// The fork's own sheets at the size chosen for each (see OracoolDropAnimScale). Scaled once, here,
-			// so every drop, label and outline reads the smaller frames; the count cannot change.
+			// so every drop, label and outline reads the smaller frames; the count cannot change. Nearest
+			// neighbour keeps every index, so the colours still fit the scaled frames.
 			const int percent = OracoolDropAnimScalePercent(static_cast<int8_t>(i));
 			if (percent != 100)
-				png = oracool::ScaleClxList(ClxSpriteList { *png }, static_cast<unsigned>(percent));
-			itemanims[i] = std::move(png);
+				png->list = oracool::ScaleClxList(ClxSpriteList { png->list }, static_cast<unsigned>(percent));
+			itemanims[i] = std::move(png->list);
+			itemanimColours[i] = std::move(png->colours);
 			continue;
 		}
 		// The CEL otherwise. The fork's tumbles have none, so without their PNG they borrow larmor's
@@ -7017,6 +7026,8 @@ void FreeItemGFX()
 	for (auto &itemanim : itemanims) {
 		itemanim = std::nullopt;
 	}
+	for (auto &colours : itemanimColours)
+		colours = nullptr;
 }
 
 void GetItemFrm(Item &item)
@@ -7031,6 +7042,25 @@ OptionalClxSpriteList GetItemDropAnim(int8_t animIndex)
 	if (animIndex < 0 || animIndex >= ITEMTYPES || !itemanims[animIndex])
 		return std::nullopt;
 	return OptionalClxSpriteList { *itemanims[animIndex] };
+}
+
+const oracool::SpriteColours *GetItemDropColours(int8_t animIndex)
+{
+	if (animIndex < 0 || animIndex >= ITEMTYPES || !itemanims[animIndex])
+		return nullptr;
+	return itemanimColours[animIndex].get();
+}
+
+const oracool::SpriteColours *ItemDropColoursFor(const Item &item)
+{
+	if (!item.AnimInfo.sprites)
+		return nullptr;
+	const int8_t animIndex = GetItemDropAnimIndexFor(item);
+	const oracool::SpriteColours *colours = GetItemDropColours(animIndex);
+	// Only when the item is SHOWING that sheet: the colours mean nothing for any other list's indices.
+	if (colours == nullptr || item.AnimInfo.sprites->data() != ClxSpriteList { *itemanims[animIndex] }.data())
+		return nullptr;
+	return colours;
 }
 
 void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg)

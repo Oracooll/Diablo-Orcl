@@ -320,6 +320,7 @@ void DrawCursor(const Surface &out)
 {
 	DrawnCursor &cursor = GetDrawnCursor();
 	if (IsHardwareCursor()) {
+		RefreshHardwareCursorColours();
 		SetHardwareCursorVisible(ShouldShowCursor());
 		cursor.rect.size = { 0, 0 };
 		return;
@@ -1152,13 +1153,24 @@ void DrawItem(const Surface &out, Point tilePosition, Point targetBufferPosition
 	if (stextflag == TalkID::None && (bItem - 1 == pcursitem || AutoMapShowItems)) {
 		ClxDrawOutlineSkipColorZero(out, GetOutlineColor(item, false), position, sprite);
 	}
+	// Oracool (user, 2026-10-10: true-colour migration): an items\<name>.png tumble indexes its OWN colours, not the
+	// palette, so it is drawn through them at the tile's light - colour values on the 32-bit screen, the fallback
+	// indices through the same light table on an indexed one. The outline above and the label below read only the
+	// sprite's shape, so they are the same for either kind of sheet.
+	const oracool::SpriteColours *dropColours = ItemDropColoursFor(item);
 	// Oracool: an oil on the floor keeps its colour - the tint composed with the tile's light
 	// table, since ClxDrawTRN takes one table (2026-09-05).
 	if (const uint8_t *tint = oracool::ItemTRN(item); tint != nullptr) {
+		// A coloured tumble's indices go through their fallbacks first - the palette entries the old importer
+		// quantised them to - so the oil's translation lands where it always did.
 		std::array<uint8_t, 256> lit;
-		for (int i = 0; i < 256; i++)
-			lit[static_cast<size_t>(i)] = LightTableIndex != 0 ? LightTables[LightTableIndex][tint[i]] : tint[i];
+		for (int i = 0; i < 256; i++) {
+			const uint8_t source = dropColours != nullptr ? dropColours->Fallback(static_cast<uint8_t>(i)) : static_cast<uint8_t>(i);
+			lit[static_cast<size_t>(i)] = LightTableIndex != 0 ? LightTables[LightTableIndex][tint[source]] : tint[source];
+		}
 		ClxDrawTRN(out, position, sprite, lit.data());
+	} else if (dropColours != nullptr) {
+		oracool::DrawSpriteWithColours(out, position, sprite, *dropColours, LightTableIndex);
 	} else {
 		ClxDrawLight(out, position, sprite, LightTableIndex);
 	}

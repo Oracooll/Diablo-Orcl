@@ -145,6 +145,13 @@ std::optional<ColouredSpriteList> LoadPngObjectSheetColoured(const char *name, u
 OptionalOwnedClxSpriteList LoadPngItemDropSheet(const char *name, uint16_t frameWidth);
 
 /**
+ * @brief LoadPngItemDropSheet in TRUE COLOUR (user, 2026-10-10: true-colour migration): the tumble keeps its own colours,
+ * up to 255 of them, as the object sheets do. What InitItemGFX loads; draw it through its colours (DrawItem does, via
+ * GetItemDropColours), never plain. The quantizing loader above is kept for any caller that still wants indices.
+ */
+std::optional<ColouredSpriteList> LoadPngItemDropSheetColoured(const char *name, uint16_t frameWidth);
+
+/**
  * @brief One row of @p frameWidth-wide frames from a PNG at an EXACT archive path.
  *
  * The general form of the two helpers above, for callers whose asset does not live under a fixed

@@ -477,6 +477,21 @@ OptionalOwnedClxSpriteList LoadPngItemDropSheet(const char *name, uint16_t frame
 	return LoadPngSpriteList(path, frameWidth);
 }
 
+std::optional<ColouredSpriteList> LoadPngItemDropSheetColoured(const char *name, uint16_t frameWidth)
+{
+	// The same file as LoadPngItemDropSheet, in its own colours (user, 2026-10-10: true-colour migration) - the object
+	// sheets' route (LoadPngObjectSheetColoured), one directory over.
+	char path[MaxMpqPathSize];
+	*BufCopy(path, "items\\", name, ".png") = '\0';
+	SDLSurfaceUniquePtr png { LoadPNG(path) };
+	if (png == nullptr)
+		return std::nullopt;
+	std::optional<ColouredRows> rows = ColouredRowsFromSurface(png.get(), frameWidth, 1);
+	if (!rows || rows->lists.empty())
+		return std::nullopt;
+	return ColouredSpriteList { std::move(rows->lists[0]), std::move(rows->colours) };
+}
+
 OptionalOwnedClxSpriteSheet ScaleSpriteSheet(ClxSpriteSheet sheet, int percent)
 {
 	if (percent <= 0 || percent == 100 || sheet.numLists() == 0)

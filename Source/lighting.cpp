@@ -24,6 +24,7 @@ Light Lights[MAXLIGHTS];
 std::array<uint8_t, MAXLIGHTS> ActiveLights;
 int ActiveLightCount;
 std::array<std::array<uint8_t, 256>, NumLightingLevels> LightTables;
+uint32_t LightTableVersion = 0;
 std::array<uint8_t, 256> InfravisionTable;
 std::array<uint8_t, 256> StoneTable;
 std::array<uint8_t, 256> PauseTable;
@@ -408,6 +409,7 @@ void MakeLightTable()
 			}
 		}
 	}
+	LightTableVersion++; // Oracool (user, 2026-10-10: true-colour migration): stales every table built from LightTables
 }
 
 #ifdef _DEBUG

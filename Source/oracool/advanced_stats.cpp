@@ -476,6 +476,16 @@ struct FieldStrip {
 	int bevel = 0;
 	/** Straight-alpha ARGB, row-major. Empty when neither source is in the archives. */
 	std::vector<uint32_t> argb;
+	/**
+	 * Vanilla's CLX fallback only (user, 2026-10-10: true-colour migration): the three frames, kept so the strip can be
+	 * decoded again through PaletteRGB when it is rebuilt (generation below) - it was decoded once through
+	 * logical_palette and froze in whichever palette was live at the first draw.
+	 */
+	OptionalOwnedClxSpriteList vanillaLeft;
+	OptionalOwnedClxSpriteList vanillaMiddle;
+	OptionalOwnedClxSpriteList vanillaRight;
+	/** The PaletteRgbGeneration the vanilla strip was decoded against. */
+	uint32_t decodedFor = 0;
 };
 FieldStrip Strip;
 
@@ -487,8 +497,14 @@ struct FieldCacheEntry {
 };
 std::vector<FieldCacheEntry> FieldCache;
 
-/** @brief Decodes one CLX frame into @p strip at column @p x0 through the palette (CLX rows run bottom-up). */
-void DecodeInto(ClxSprite sprite, FieldStrip &strip, int x0)
+/**
+ * @brief Decodes one CLX frame into @p pixels (a strip @p stripWidth x @p stripHeight) at column @p x0 through the
+ * palette (CLX rows run bottom-up).
+ *
+ * Through PaletteRGB since 2026-10-10 (user: true-colour migration) - the colours every index on the 32-bit screen
+ * resolves to, gamma included - rather than logical_palette, and again whenever PaletteRGB is rebuilt (LoadFieldStrip).
+ */
+void DecodeInto(ClxSprite sprite, std::vector<uint32_t> &pixels, int stripWidth, int stripHeight, int x0)
 {
 	const int w = sprite.width();
 	const int h = sprite.height();
@@ -497,10 +513,8 @@ void DecodeInto(ClxSprite sprite, FieldStrip &strip, int x0)
 	int i = 0;
 	const auto put = [&](uint8_t value) {
 		const int row = h - 1 - i / w;
-		if (row >= 0 && row < strip.height) {
-			const SDL_Color c = logical_palette[value];
-			strip.argb[static_cast<size_t>(row * strip.width + x0 + i % w)] = PackArgb(255, c.r, c.g, c.b);
-		}
+		if (row >= 0 && row < stripHeight)
+			pixels[static_cast<size_t>(row * stripWidth + x0 + i % w)] = 0xFF000000u | (PaletteRGB[value] & 0x00FFFFFF);
 		i++;
 	};
 	while (src < end && i < w * h) {
@@ -570,16 +584,30 @@ bool LoadUserFieldStrip()
 	return true;
 }
 
+/** @brief Whether PaletteRGB holds a level palette yet: decoded before that, the frame would be cached black. */
+bool PaletteReadyForFieldStrip()
+{
+	return (PaletteRGB[0xC3] & 0x00FFFFFF) != 0;
+}
+
+/** @brief Decodes the kept vanilla frames into @p pixels at Strip's size, through PaletteRGB as it is now. */
+void DecodeVanillaStrip(std::vector<uint32_t> &pixels)
+{
+	pixels.assign(static_cast<size_t>(Strip.width * Strip.height), 0);
+	DecodeInto((*Strip.vanillaLeft)[0], pixels, Strip.width, Strip.height, 0);
+	DecodeInto((*Strip.vanillaMiddle)[0], pixels, Strip.width, Strip.height, Strip.leftWidth);
+	DecodeInto((*Strip.vanillaRight)[0], pixels, Strip.width, Strip.height, Strip.leftWidth + Strip.middleWidth);
+	Strip.decodedFor = PaletteRgbGeneration;
+}
+
 /** @brief Vanilla's CLX frame, the fallback. False when it is not in the archives either. */
 bool LoadVanillaFieldStrip()
 {
-	// The palette is loaded with the first level; decoded before that, the frame would be cached black.
-	const SDL_Color probe = logical_palette[0xC3];
-	if (probe.r == 0 && probe.g == 0 && probe.b == 0)
+	if (!PaletteReadyForFieldStrip())
 		return false;
-	const OptionalOwnedClxSpriteList left = LoadOptionalClx("data\\boxleftend.clx");
-	const OptionalOwnedClxSpriteList middle = LoadOptionalClx("data\\boxmiddle.clx");
-	const OptionalOwnedClxSpriteList right = LoadOptionalClx("data\\boxrightend.clx");
+	OptionalOwnedClxSpriteList left = LoadOptionalClx("data\\boxleftend.clx");
+	OptionalOwnedClxSpriteList middle = LoadOptionalClx("data\\boxmiddle.clx");
+	OptionalOwnedClxSpriteList right = LoadOptionalClx("data\\boxrightend.clx");
 	if (!left || !middle || !right)
 		return false;
 	const ClxSprite l = (*left)[0];
@@ -597,10 +625,10 @@ bool LoadVanillaFieldStrip()
 	Strip.topRows = TopRows;
 	Strip.bottomRows = BottomRows;
 	Strip.bevel = 3;
-	Strip.argb.assign(static_cast<size_t>(Strip.width * Strip.height), 0);
-	DecodeInto(l, Strip, 0);
-	DecodeInto(m, Strip, Strip.leftWidth);
-	DecodeInto(r, Strip, Strip.leftWidth + Strip.middleWidth);
+	Strip.vanillaLeft = std::move(left);
+	Strip.vanillaMiddle = std::move(middle);
+	Strip.vanillaRight = std::move(right);
+	DecodeVanillaStrip(Strip.argb);
 	return true;
 }
 
@@ -611,8 +639,19 @@ bool LoadFieldStrip()
 		if (LoadUserFieldStrip() || LoadVanillaFieldStrip())
 			Strip.attempted = true;
 		// Not marked attempted when vanilla's failed for want of a palette: the next draw tries again.
-		else if (logical_palette[0xC3].r != 0 || logical_palette[0xC3].g != 0 || logical_palette[0xC3].b != 0)
+		else if (PaletteReadyForFieldStrip())
 			Strip.attempted = true;
+	}
+	// The vanilla frame follows the palette (user, 2026-10-10: true-colour migration). PaletteRGB is rebuilt by colour
+	// cycling as well, which never touches the frame's gold, so the decode is compared before the built fields are
+	// thrown away: only a real change of the frame's own colours costs a rebuild of the cache.
+	if (Strip.vanillaMiddle && Strip.decodedFor != PaletteRgbGeneration && PaletteReadyForFieldStrip()) {
+		std::vector<uint32_t> fresh;
+		DecodeVanillaStrip(fresh);
+		if (fresh != Strip.argb) {
+			Strip.argb = std::move(fresh);
+			FieldCache.clear();
+		}
 	}
 	return !Strip.argb.empty();
 }

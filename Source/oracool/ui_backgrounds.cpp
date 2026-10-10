@@ -167,8 +167,12 @@ bool Build(BackgroundSlot &slot)
 {
 	const Size screen { gnScreenWidth, gnScreenHeight };
 	const bool trueColour = !Surface(DiabloUiSurface()).isIndexed();
-	if ((trueColour ? !slot.argb.empty() : slot.sprite.has_value()) && slot.builtForScreen == screen
-	    && std::memcmp(slot.builtForPalette.data(), orig_palette.data(), sizeof(slot.builtForPalette)) == 0) {
+	// The true-colour painting is the PNG resampled and nothing else, so only the screen size can stale it; the palette
+	// is a key of the quantised sprite alone (user, 2026-10-10: true-colour migration - it rebuilt the whole screen-sized
+	// resample whenever orig_palette moved).
+	if (trueColour ? (!slot.argb.empty() && slot.builtForScreen == screen)
+	               : (slot.sprite.has_value() && slot.builtForScreen == screen
+	                     && std::memcmp(slot.builtForPalette.data(), orig_palette.data(), sizeof(slot.builtForPalette)) == 0)) {
 		return true;
 	}
 	if (slot.loadFailed)
@@ -200,7 +204,6 @@ bool Build(BackgroundSlot &slot)
 			}
 		}
 		slot.builtForScreen = screen;
-		std::memcpy(slot.builtForPalette.data(), orig_palette.data(), sizeof(slot.builtForPalette));
 		return true;
 	}
 

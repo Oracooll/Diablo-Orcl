@@ -5,7 +5,9 @@
  */
 #include "cursor.h"
 
+#include <array>
 #include <cstdint>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -574,6 +576,52 @@ const uint16_t InvItemHeight2[InvItems2Size] = {
 OptionalOwnedClxSpriteList *HalfSizeItemSprites;
 OptionalOwnedClxSpriteList *HalfSizeItemSpritesRed;
 
+/**
+ * @brief One half-size shop icon as ARGB8888, straight alpha (user, 2026-10-10: true-colour migration). The 8-bit
+ * downscale averages through paletteTransparencyLookup, which is built once for whatever palette was live and can
+ * land on the level-specific entries 32-127; this averages the colours themselves.
+ */
+struct HalfSizeItemArgb {
+	int width = 0;
+	int height = 0;
+	std::vector<uint32_t> pixels;
+};
+HalfSizeItemArgb *HalfSizeItemArgbs;
+HalfSizeItemArgb *HalfSizeItemArgbsRed;
+
+/** @brief "No pixel here" in the full-size scratch: the X byte a colour value never sets. */
+constexpr uint32_t HalfSizeKey = 0xFF000000u;
+
+/**
+ * @brief @p src (a 32-bit scratch with HalfSizeKey where the sprite did not draw) halved into @p dst: each 2x2 block the
+ * average of its drawn pixels, opaque if any was drawn - the 8-bit downscale's rule (BilinearDownscaleByHalf8 averages
+ * only the opaque ones of a quad and leaves it transparent only when all four are), in colour values.
+ */
+void DownscaleArgbByHalf(const Surface &src, HalfSizeItemArgb &dst)
+{
+	dst.width = src.w() / 2;
+	dst.height = src.h() / 2;
+	dst.pixels.assign(static_cast<size_t>(dst.width) * dst.height, 0);
+	for (int y = 0; y < dst.height; y++) {
+		const uint32_t *top = src.at<uint32_t>(0, 2 * y);
+		const uint32_t *bottom = src.at<uint32_t>(0, 2 * y + 1);
+		uint32_t *out = &dst.pixels[static_cast<size_t>(y) * dst.width];
+		for (int x = 0; x < dst.width; x++) {
+			const uint32_t quad[4] = { top[2 * x], top[2 * x + 1], bottom[2 * x], bottom[2 * x + 1] };
+			uint32_t r = 0, g = 0, b = 0, n = 0;
+			for (int k = 0; k < 4; k++) {
+				if (quad[k] == HalfSizeKey)
+					continue;
+				r += (quad[k] >> 16) & 0xFF;
+				g += (quad[k] >> 8) & 0xFF;
+				b += quad[k] & 0xFF;
+				n++;
+			}
+			out[x] = n == 0 ? 0 : (0xFF000000u | ((r / n) << 16) | ((g / n) << 8) | (b / n));
+		}
+	}
+}
+
 } // namespace
 
 /** Current highlighted monster */
@@ -675,12 +723,23 @@ void CreateHalfSizeItemSprites()
 	const int numInvItems = InvItems1Size + InvItems2Size + InvItems3Size - (static_cast<size_t>(CURSOR_FIRSTITEM) - 1);
 	HalfSizeItemSprites = new OptionalOwnedClxSpriteList[numInvItems];
 	HalfSizeItemSpritesRed = new OptionalOwnedClxSpriteList[numInvItems];
+	HalfSizeItemArgbs = new HalfSizeItemArgb[numInvItems];
+	HalfSizeItemArgbsRed = new HalfSizeItemArgb[numInvItems];
 	const uint8_t *redTrn = GetInfravisionTRN();
 
 	constexpr int MaxWidth = 28 * 3;
 	constexpr int MaxHeight = 28 * 3;
 	OwnedSurface ownedItemSurface { MaxWidth, MaxHeight };
 	OwnedSurface ownedHalfSurface { MaxWidth / 2, MaxHeight / 2 };
+	// The true-colour copies (2026-10-10): the sprite resolved through the palette as the screen shows it now, and the
+	// red one through the same infravision translation, both with the X byte clear so HalfSizeKey stays unambiguous.
+	OwnedSurface ownedItemRgb = OwnedSurface::Rgb(MaxWidth, MaxHeight);
+	std::array<uint32_t, 256> plainRgb;
+	std::array<uint32_t, 256> redRgb;
+	for (size_t i = 0; i < 256; i++) {
+		plainRgb[i] = PaletteRGB[i] & 0x00FFFFFF;
+		redRgb[i] = PaletteRGB[redTrn[i]] & 0x00FFFFFF;
+	}
 
 	const auto createHalfSize = [&, redTrn](const ClxSprite itemSprite, size_t outputIndex) {
 		if (itemSprite.width() <= 28 && itemSprite.height() <= 28) {
@@ -703,6 +762,18 @@ void CreateHalfSizeItemSprites()
 		ClxDrawTRN(itemSurface, { 0, itemSurface.h() }, itemSprite, redTrn);
 		BilinearDownscaleByHalf8(itemSurface.surface, paletteTransparencyLookup, halfSurface.surface, 1);
 		HalfSizeItemSpritesRed[outputIndex].emplace(SurfaceToClx(halfSurface, 1, 1));
+
+		// The same two pictures in colour values, from the same anchor, so they are the 8-bit sprites' size exactly.
+		const Surface itemRgb = ownedItemRgb.subregion(0, 0, itemSprite.width(), itemSprite.height());
+		for (const bool red : { false, true }) {
+			for (int y = 0; y < itemRgb.h(); y++) {
+				uint32_t *row = itemRgb.at<uint32_t>(0, y);
+				for (int x = 0; x < itemRgb.w(); x++)
+					row[x] = HalfSizeKey;
+			}
+			ClxDrawRgbMap(itemRgb, { 0, itemRgb.h() }, itemSprite, red ? redRgb.data() : plainRgb.data());
+			DownscaleArgbByHalf(itemRgb, red ? HalfSizeItemArgbsRed[outputIndex] : HalfSizeItemArgbs[outputIndex]);
+		}
 	};
 
 	size_t outputIndex = 0;
@@ -727,7 +798,42 @@ void FreeHalfSizeItemSprites()
 		HalfSizeItemSprites = nullptr;
 		delete[] HalfSizeItemSpritesRed;
 		HalfSizeItemSpritesRed = nullptr;
+		delete[] HalfSizeItemArgbs;
+		HalfSizeItemArgbs = nullptr;
+		delete[] HalfSizeItemArgbsRed;
+		HalfSizeItemArgbsRed = nullptr;
 	}
+}
+
+namespace {
+const HalfSizeItemArgb *FindHalfSizeItemArgb(int cursId, bool red)
+{
+	const int count = InvItems1Size + InvItems2Size + InvItems3Size - (static_cast<int>(CURSOR_FIRSTITEM) - 1);
+	if (HalfSizeItemArgbs == nullptr || cursId < 0 || cursId >= count)
+		return nullptr;
+	const HalfSizeItemArgb &icon = red ? HalfSizeItemArgbsRed[cursId] : HalfSizeItemArgbs[cursId];
+	return icon.pixels.empty() ? nullptr : &icon;
+}
+} // namespace
+
+bool DrawHalfSizeItemArgb(const Surface &out, Point position, int cursId, bool red)
+{
+	if (out.isIndexed())
+		return false;
+	const HalfSizeItemArgb *icon = FindHalfSizeItemArgb(cursId, red);
+	if (icon == nullptr)
+		return false;
+	// ClxDraw's anchor is the bottom-left (its y the last row drawn); BlitArgb takes the top-left.
+	BlitArgb(out, icon->pixels.data(), icon->width, MakeSdlRect(0, 0, icon->width, icon->height), { position.x, position.y - icon->height + 1 });
+	return true;
+}
+
+uint32_t HalfSizeItemArgbPixel(int cursId, bool red, int x, int y)
+{
+	const HalfSizeItemArgb *icon = FindHalfSizeItemArgb(cursId, red);
+	if (icon == nullptr || x < 0 || y < 0 || x >= icon->width || y >= icon->height)
+		return 0;
+	return icon->pixels[static_cast<size_t>(y) * icon->width + x];
 }
 
 void DrawBrokenItemMarker(const Surface &out, Point topLeft, int width, int height)
