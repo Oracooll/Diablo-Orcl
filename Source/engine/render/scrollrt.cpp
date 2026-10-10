@@ -1797,6 +1797,11 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 
 	// Smooth lighting (oracool/colour_light.h, user 2026-10-10): the floor drawn bright, darkened by the light between
 	// tile centres, and only then the floor-pass objects, each by its own tile's light.
+	// The world passes (oracool/colour_light.h, post_fx.h, particles.h) work over the columns ZoomScale will show and no
+	// further: at 2x half of the pre-zoom width is never seen (visual audit round 2). Their start point moves with the
+	// region's left edge (a left panel covering the view).
+	const Surface visible = VisibleWorldRegion(out, zoomFactor);
+	const Point visibleStart = Point {} + offset - Displacement { visible.region.x - out.region.x, 0 };
 	// Wall shadows and ray-traced shadows (user, 2026-10-10) ride the same floor pass.
 	SmoothFloorThisFrame = oracool::SmoothFloorLightActive(out);
 	DeferFloorObjectsThisFrame = oracool::FloorPassActive(out);
@@ -1804,7 +1809,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	DrawFloor(out, position, Point {} + offset, rows, columns);
 	SmoothFloorThisFrame = false;
 	if (DeferFloorObjectsThisFrame) {
-		oracool::ApplySmoothFloorLight(out, position, Point {} + offset);
+		oracool::ApplySmoothFloorLight(visible, position, visibleStart);
 		DeferFloorObjectsThisFrame = false;
 		DrawFloorObjects(out, position, Point {} + offset, rows, columns);
 	}
@@ -1820,17 +1825,14 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// Coloured lighting (oracool/colour_light.h): the whole world, every light's hue over it - before the outlines,
 	// which are the cursor's and stay their own colour.
 	FloorSmoothedThisFrame = false;
-	oracool::ApplyLightColour(out, position, Point {} + offset);
+	oracool::ApplyLightColour(visible, position, visibleStart);
 	// The other visual techniques (user, 2026-10-10: "i like all 9"), each behind its own option: particles over the lit
 	// world, the haze before the bloom so shimmered lava still glows, the area mood and vignette last so they cover the
 	// glow too - all before the outlines (the cursor's own colour) and the zoom.
-	oracool::UpdateAndDrawParticles(out, position, Point {} + offset);
-	oracool::ApplyHeatHazeAndWater(out, position, Point {} + offset);
-	{
-		const Surface visible = VisibleWorldRegion(out, zoomFactor);
-		oracool::ApplyBloom(visible);
-		oracool::ApplyAreaMoodAndVignette(visible);
-	}
+	oracool::UpdateAndDrawParticles(visible, position, visibleStart);
+	oracool::ApplyHeatHazeAndWater(visible, position, visibleStart);
+	oracool::ApplyBloom(visible);
+	oracool::ApplyAreaMoodAndVignette(visible);
 	// The deferred monster outlines, drained HERE - after the whole scene is composited, so they
 	// land on top of any wall that would otherwise hide the body, but still BEFORE ZoomScale, so
 	// they are scaled along with everything else.

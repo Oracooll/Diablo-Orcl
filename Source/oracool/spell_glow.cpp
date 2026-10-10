@@ -194,7 +194,7 @@ bool NameGlows(MissileGraphicID graphic)
 		    "cinder", "immolat", "lightn", "storm", "thunder", "spark", "static", "shock", "conduit", "faraday", "volt",
 		    "holy", "divine", "heaven", "smite", "sanct", "wrath", "judgment", "votive", "oath", "light", "flash", "radian",
 		    "frost", "ice_", "glacial", "frozen", "freez", "blizz", "zero", "whiteout", "chill", "nova", "flare", "glow",
-		    "wisp", "astral", "mantra", "serenity", "redemption", "chi_", "explo", "portal" });
+		    "wisp", "astral", "mantra", "serenity", "redemption", "chi_", "explo" }); // not "portal": a portal's dark heart drawn as light shows the floor (visual audit round 1)
 	}
 	cache[i] = glows ? Glow::Yes : Glow::No;
 	return glows;

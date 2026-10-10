@@ -568,6 +568,7 @@ void EnsureAoPlane()
 }
 
 std::array<LightTint, FieldW * FieldH> FrameTints;
+std::array<float, FieldW * FieldH> FlickerMul;
 constexpr float FlickerDepth = 0.13F; // at a flame's own tile, light swings this far either way
 
 float FlameWaver(float seconds, float phase)
@@ -702,13 +703,17 @@ void ApplySmoothFloorLight(const Surface &out, Point firstTile, Point firstTileB
 	const uint16_t *levels = LevelBrightness.data();
 	const uint8_t *light = &dLight[0][0];
 	const uint8_t *shadow = ShadowDarkening.data();
+	const uint8_t *open = OpenLevel.data();
 	for (int i = 0; i < FieldW * FieldH; i++) {
 		if (!smooth) {
 			plane[i] = One;
 			continue;
 		}
 		int level = light[i];
-		if (shadows)
+		// A tile dLight lights clearly brighter than every source here would, unblocked, leave it is lit by a light that
+		// is no source - the Caves' lava, baked by PlaceCaveLights into dPreLight - and keeps that light (visual audit
+		// round 2: lava shores behind a wall from the hero went dark as he came near).
+		if (shadows && level + 1 >= open[i])
 			level += shadow[i];
 		plane[i] = levels[level > LightsMax ? LightsMax : level];
 	}
@@ -795,6 +800,7 @@ void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer
 		else
 			FrameTints.fill(LightTint { One, One, One });
 		const float seconds = static_cast<float>(SDL_GetTicks() % 3600000U) / 1000.0F;
+		FlickerMul.fill(1.0F);
 		for (const Flame &flame : Flames) {
 			const float waver = FlameWaver(seconds, flame.phase) * FlickerDepth;
 			const int fx0 = ClampX(static_cast<int64_t>(std::floor(flame.x - flame.reach)));
@@ -808,17 +814,27 @@ void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer
 					const float weight = 1.0F - std::sqrt(dx * dx + dy * dy) / flame.reach;
 					if (weight <= 0)
 						continue;
-					const float k = 1.0F + waver * weight;
-					LightTint &t = FrameTints[x * FieldH + y];
-					t.r = static_cast<uint16_t>(std::min(static_cast<float>(t.r) * k, 400.0F));
-					t.g = static_cast<uint16_t>(std::min(static_cast<float>(t.g) * k, 400.0F));
-					t.b = static_cast<uint16_t>(std::min(static_cast<float>(t.b) * k, 400.0F));
+					// Combined per tile and capped (visual audit round 2): three overlapping flames multiplied
+					// flame by flame dipped a spot by up to 40%.
+					float &mul = FlickerMul[x * FieldH + y];
+					mul = std::clamp(mul * (1.0F + waver * weight), 1.0F - FlickerDepth, 1.0F + FlickerDepth);
 				}
 			}
 			minX = std::min(minX, fx0);
 			maxX = std::max(maxX, fx1);
 			minY = std::min(minY, fy0);
 			maxY = std::max(maxY, fy1);
+		}
+		for (int x = std::max(minX, 0); x <= maxX && x < FieldW; x++) {
+			for (int y = std::max(minY, 0); y <= maxY && y < FieldH; y++) {
+				const float k = FlickerMul[x * FieldH + y];
+				if (k == 1.0F)
+					continue;
+				LightTint &t = FrameTints[x * FieldH + y];
+				t.r = static_cast<uint16_t>(std::min(static_cast<float>(t.r) * k, 400.0F));
+				t.g = static_cast<uint16_t>(std::min(static_cast<float>(t.g) * k, 400.0F));
+				t.b = static_cast<uint16_t>(std::min(static_cast<float>(t.b) * k, 400.0F));
+			}
 		}
 		tints = FrameTints.data();
 	}
