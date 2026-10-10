@@ -14,3 +14,6 @@ Added two Debug console commands:
 - `cursorfix` - forces keyboard-and-mouse, the hand cursor if nothing is held, rebuilds and shows the hardware cursor.
 
 Next: the user reproduces and types `cursorinfo` the moment the cursor vanishes; the answer decides the fix.
+
+## v1.12.426 (same day)
+User: "we should not have heat waves over the water in poisoned water well. we only need that effect over lava." The pool's cycling colours read red-dominant while poisoned, so the classifier called it lava; the Poisoned Water Supply set level (SL_POISONWATER) is now always water (the moving light only, no shimmer).

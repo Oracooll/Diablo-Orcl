@@ -227,7 +227,10 @@ void RefreshLiquidMap()
 		sg += (PaletteRGB[i] >> 8) & 0xFF;
 		sb += PaletteRGB[i] & 0xFF;
 	}
-	const uint8_t liquid = sr * 2 > sg + sb ? LiquidLava : LiquidWater;
+	// The Poisoned Water Supply's pool is water whatever colour its poison gives it (user, 2026-10-10: "we should not have
+	// heat waves over the water in poisoned water well. we only need that effect over lava").
+	const bool poisonedWater = setlevel && setlvlnum == SL_POISONWATER;
+	const uint8_t liquid = !poisonedWater && sr * 2 > sg + sb ? LiquidLava : LiquidWater;
 
 	std::array<uint8_t, 256> identity;
 	for (int i = 0; i < 256; i++)
