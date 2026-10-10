@@ -210,6 +210,6 @@ ${bases}
 One bold pictogram per skill, readable at native size, not to be mistaken for any other glyph on its page.
 **#** is the skill's frame in his strip. Deliver a contact sheet per page.
 ${glyphs}`;
-const out = 'C:/Users/hroga/OneDrive/2. Personal Files/Software/Diablo/Resources/02. Oracooll Assets/ChatGPT RfA/RfA-17 - The Necromancer (draft).md';
+const out = 'C:/Users/hroga/OneDrive/2. Personal Files/Software/Diablo/Diablo Orcl/Resources/02. Oracooll Assets/ChatGPT RfA/RfA-17 - The Necromancer (draft).md';
 fs.writeFileSync(out, doc);
 console.log('written', doc.split('\n').length, 'lines');

@@ -18,7 +18,7 @@
 
 Add-Type -AssemblyName System.Drawing
 
-$IconDir = "C:\Users\hroga\OneDrive\2. Personal Files\Software\Diablo\Resources\Icons"
+$IconDir = "C:\Users\hroga\OneDrive\2. Personal Files\Software\Diablo\Diablo Orcl\Resources\Icons"
 $OutDir  = Join-Path (Get-Location) "Packaging\resources\oracool_assets\ui"
 # How far green must lead red and blue before a pixel counts as chroma rather than art.
 $GreenCut = 40

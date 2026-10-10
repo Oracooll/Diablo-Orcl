@@ -14,8 +14,8 @@ use strict; use warnings;
 # (The wiki page that folded it in was deleted 2026-09-17.)
 use Compress::Zlib;
 use MIME::Base64;
-my $repo = 'C:/Users/hroga/OneDrive/2. Personal Files/Software/Diablo/Diablo Orcl';
-my $palf = 'C:/Users/hroga/OneDrive/2. Personal Files/Software/Diablo/Resources/02. Oracooll Assets/delivered-packs/oracool-stash-tab-button-pack/assets/source/town-patched-runtime.pal';
+my $repo = 'C:/Users/hroga/OneDrive/2. Personal Files/Software/Diablo/Diablo Orcl/DiabloOrcl-src';
+my $palf = 'C:/Users/hroga/OneDrive/2. Personal Files/Software/Diablo/Diablo Orcl/Resources/02. Oracooll Assets/delivered-packs/oracool-stash-tab-button-pack/assets/source/town-patched-runtime.pal';
 my $fonts = "$repo/Packaging/resources/assets/fonts";
 my $ofonts = "$repo/Packaging/resources/oracool_assets/fonts";
 sub slurp { my $f = shift; open my $F, '<:raw', $f or die "$f: $!"; local $/; my $d = <$F>; close $F; return $d; }
