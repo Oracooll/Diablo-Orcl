@@ -42,6 +42,9 @@ struct ScaledEntry {
 	/** Handed to the worker and not back yet (user, 2026-10-10). The unscaled sprites stand in meanwhile. */
 	bool pending[6] = {};
 	bool corpsePending = false;
+	/** All six handed over at the first ask (round 2 audit): a monster that arrives after the load - a rift guardian -
+	 * then grows into every animation at once instead of popping at each first use. */
+	bool allQueued = false;
 };
 
 std::vector<std::unique_ptr<ScaledEntry>> Cache;
@@ -406,7 +409,17 @@ const AnimStruct *GetScaledAnim(const Monster &monster, MonsterGraphic graphic)
 	const unsigned percent = DrawPercentOf(monster);
 	if (percent == 100)
 		return nullptr;
-	return ScaledAnimIn(EntryFor(monster.levelType, percent), graphic, DistanceToHero(monster) * 8 + RankInBuildOrder(graphic));
+	ScaledEntry &entry = EntryFor(monster.levelType, percent);
+	const int base = DistanceToHero(monster) * 8;
+	// PrebuildMonsterSizes covers the floor as it loads; anything sized that arrives later (a rift guardian at up to
+	// 250%, a summoned skeleton, a doppelganger) asks one animation at a time - so its first ask hands over all six,
+	// and the Death sheet is ready long before the killing blow (round 2 audit, v1.12.421).
+	if (!entry.allQueued && !SuppressMonsterLights && WorkerUsable()) {
+		entry.allQueued = true;
+		for (int k = 0; k < 6; k++)
+			ScaledAnimIn(entry, BuildOrder[k], base + k);
+	}
+	return ScaledAnimIn(entry, graphic, base + RankInBuildOrder(graphic));
 }
 
 OptionalClxSpriteListOrSheet GetScaledCorpse(const Monster &monster)
@@ -419,6 +432,10 @@ OptionalClxSpriteListOrSheet GetScaledCorpse(const Monster &monster)
 		return std::nullopt;
 
 	ScaledEntry &entry = EntryFor(monster.levelType, percent);
+	// A corpse IS its type's Death sheet (dead.cpp: Corpse::sprites is the Death animation, drawn at its last frame), so
+	// once the scaled Death is in, the body is a view of it - not a second copy built for the same pixels (round 2 audit).
+	if (const auto death = static_cast<size_t>(MonsterGraphic::Death); entry.owned[death])
+		return OptionalClxSpriteListOrSheet { *entry.owned[death] };
 	if (!entry.corpse) {
 		// Built lazily and separately from the six animations: most champions are killed exactly
 		// once, and a floor that never sees a Colossal die never pays for this. No "already tried"
@@ -426,12 +443,18 @@ OptionalClxSpriteListOrSheet GetScaledCorpse(const Monster &monster)
 		// retryable rather than cache a miss forever.
 		//
 		// Built HERE even with a worker (user, 2026-10-10): a body keeps the sprites it was laid with for good, so a
-		// stand-in would be a wrong-sized corpse for the rest of the floor - and a corpse is one sprite a facing, cheap.
-		// PrebuildMonsterSizes queues it ahead, so this is the rare case; a job still in hand is dropped on delivery.
+		// stand-in would be a wrong-sized corpse for the rest of the floor. It is the whole Death sheet, not one sprite a
+		// facing - but the worker normally has the Death sheet in long before (see above), so this is the rare case.
 		const Corpse &corpse = Corpses[corpseId - 1];
 		if (!corpse.sprites)
 			return std::nullopt;
-		entry.corpse = std::make_unique<OwnedClxSpriteListOrSheet>(ScaleListOrSheet(*corpse.sprites, percent));
+		// Only when the Death sheet is not in yet: the whole sheet, here - a stall, but rarer since every animation is
+		// handed over at the first ask. A sheet that cannot be built leaves the body at its own size (round 2 audit).
+		try {
+			entry.corpse = std::make_unique<OwnedClxSpriteListOrSheet>(ScaleListOrSheet(*corpse.sprites, percent));
+		} catch (const std::exception &) {
+			return std::nullopt;
+		}
 	}
 	return OptionalClxSpriteListOrSheet { *entry.corpse };
 }
@@ -559,10 +582,8 @@ void PrebuildMonsterSizes()
 		// With no worker these build now - on the loading screen, which is still better than mid-fight.
 		for (int k = 0; k < 6; k++)
 			ScaledAnimIn(entry, BuildOrder[k], want.distance * 8 + k, /*exactPriority=*/true);
-		if (!entry.corpse && !QueueScale(entry, CorpseSlot, want.distance * 8 + CorpseSlot, /*exact=*/true)) {
-			if (const OptionalClxSpriteListOrSheet src = SourceOf(entry, CorpseSlot))
-				entry.corpse = std::make_unique<OwnedClxSpriteListOrSheet>(ScaleListOrSheet(*src, want.percent));
-		}
+		entry.allQueued = true;
+		// No corpse job: the body is a view of the Death sheet just queued (GetScaledCorpse).
 	}
 }
 

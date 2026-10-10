@@ -8,7 +8,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cctype>
 #include <cstdint>
+#include <initializer_list>
+#include <string>
 #include <vector>
 
 #include "engine/palette.h"
@@ -22,6 +25,7 @@
 #include "options.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/missile_tint.h"
+#include "oracool/monster_variants.h"
 
 // The two passes walk every world pixel once a frame, and the game is played from the Debug build: this file is
 // optimised even there (MSVC honours the pragma under /Od /RTC1 - checked 2026-10-10, the loops come out vectorised).
@@ -41,8 +45,9 @@ constexpr uint16_t One = 256; // 8.8 fixed point
 
 /** How strongly a light's colour shows where it is the only light (1 = the full hue). */
 constexpr float ColourStrength = 0.75F;
-/** The most one channel may be lifted, so a red light cannot bleach a dark wall to pink. */
-constexpr float MaxChannelLift = 1.9F;
+/** The most one channel may be lifted, so a red light cannot bleach a dark wall to pink (1.9 until round 2 of the audit). */
+constexpr float MaxChannelLift = 1.5F;
+constexpr float MaxBlueLift = 1.35F;
 
 struct Accum {
 	float coloured; // summed weight of coloured lights
@@ -52,6 +57,8 @@ struct Accum {
 
 std::array<Accum, FieldW * FieldH> Accumulated;
 std::array<LightTint, FieldW * FieldH> Tints;
+/** The smooth pass's per-tile brightness, refilled from dLight each frame. */
+std::array<uint16_t, FieldW * FieldH> BrightPlane;
 /** The tiles any coloured light reaches, inclusive; empty when minX > maxX. */
 int TintMinX = 1, TintMaxX = 0, TintMinY = 1, TintMaxY = 0;
 
@@ -78,24 +85,32 @@ float Luma(float r, float g, float b)
 }
 
 /**
- * The hue a monster's recolour moves it to: the average colour of the palette entries its TRN rewrites, against the
- * entries they were. A unique wears its own colour; a recolour that only darkens or greys out reads as neutral.
+ * The hue a unique's recolour moves it to: the colour its TRN SHIFTS toward - the rewritten entries' average, pushed
+ * further along the difference from the entries they were (round 2 audit: the plain average of the targets is half the
+ * palette, the same for every recolour). A recolour that only darkens or greys out reads as neutral.
  */
 uint32_t TrnHue(const uint8_t *trn)
 {
-	float r = 0, g = 0, b = 0;
+	float tr = 0, tg = 0, tb = 0, sr = 0, sg = 0, sb = 0;
 	int n = 0;
 	for (int i = 1; i < 255; i++) {
 		if (trn[i] == i)
 			continue;
 		const uint32_t c = PaletteRGB[trn[i]];
-		r += static_cast<float>((c >> 16) & 0xFF);
-		g += static_cast<float>((c >> 8) & 0xFF);
-		b += static_cast<float>(c & 0xFF);
+		const uint32_t o = PaletteRGB[i];
+		tr += static_cast<float>((c >> 16) & 0xFF);
+		tg += static_cast<float>((c >> 8) & 0xFF);
+		tb += static_cast<float>(c & 0xFF);
+		sr += static_cast<float>((o >> 16) & 0xFF);
+		sg += static_cast<float>((o >> 8) & 0xFF);
+		sb += static_cast<float>(o & 0xFF);
 		n++;
 	}
 	if (n < 8)
 		return 0;
+	const float r = std::max(0.0F, tr + 2.0F * (tr - sr));
+	const float g = std::max(0.0F, tg + 2.0F * (tg - sg));
+	const float b = std::max(0.0F, tb + 2.0F * (tb - sb));
 	const float hi = std::max({ r, g, b });
 	const float lo = std::min({ r, g, b });
 	if (hi <= 0 || (hi - lo) < 0.18F * hi) // too grey to call a colour
@@ -124,17 +139,62 @@ uint32_t MonsterLightHue(const Monster &monster)
 		return hue::Infrared;
 	if ((monster.flags & MFLAG_BERSERK) != 0)
 		return hue::BloodRed;
-	if (monster.uniqueMonsterTRN != nullptr) {
-		const uint32_t fromTrn = TrnHue(monster.uniqueMonsterTRN.get());
-		if (fromTrn != 0)
-			return fromTrn;
-	}
-	return AffixHue(monster.lesserAffix);
+	// A champion's affix has a colour of its own; its TRN is only a small shift along its own ramps (round 2 audit).
+	if (const uint32_t affix = AffixHue(monster.lesserAffix); affix != 0)
+		return affix;
+	if (VariantOf(monster) == MonsterVariant::Luminous)
+		return WarmFlame;
+	if (monster.uniqueMonsterTRN != nullptr)
+		return TrnHue(monster.uniqueMonsterTRN.get());
+	return 0;
+}
+
+/**
+ * The colour an Orcl effect's ART says it is, from its sheet's file name: the skill effects ride carrier missiles whose
+ * rows are Physical (AddArtEffect's AcidCloud, AddArtBolt's AcidJavelin, the census bolts), so the damage type cannot tell
+ * a Furnace Flame from an Absolute Zero (round 2 audit, v1.12.421). Worked out once a graphic.
+ */
+uint32_t ArtNameHue(MissileGraphicID graphic)
+{
+	static std::array<uint32_t, 256> cache {};
+	static std::array<bool, 256> known {};
+	const auto i = static_cast<size_t>(graphic);
+	if (i >= cache.size() || graphic >= MissileGraphicID::None)
+		return 0;
+	if (known[i])
+		return cache[i];
+	known[i] = true;
+	std::string name = GetMissileSpriteData(graphic).name;
+	for (char &c : name)
+		c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+	const auto has = [&](std::initializer_list<const char *> words) {
+		for (const char *word : words) {
+			if (name.find(word) != std::string::npos)
+				return true;
+		}
+		return false;
+	};
+	uint32_t rgb = 0;
+	if (has({ "holy", "divine", "bless", "heaven", "smite", "sanct", "angel", "zeal" }))
+		rgb = hue::PaladinGold;
+	else if (has({ "blood", "blod" }))
+		rgb = hue::BloodRed;
+	else if (has({ "poison", "acid", "venom", "plague", "toxic", "bile" }))
+		rgb = hue::PoisonGreen;
+	else if (has({ "ice", "frost", "cold", "chill", "zero", "glint", "snow", "freez", "blizz", "glacial", "frozen", "shiver" }))
+		rgb = hue::IceBlue;
+	else if (has({ "fire", "flame", "ember", "ash", "burn", "infern", "meteor", "lava", "magma", "furnace", "funeral", "blaze" }))
+		rgb = hue::FireOrange;
+	else if (has({ "lightn", "lght", "storm", "thunder", "spark", "static", "shock", "conduit", "faraday", "rod", "volt", "arc_" }))
+		rgb = hue::LightningBlue;
+	cache[i] = rgb;
+	return rgb;
 }
 
 uint32_t MissileLightHue(const Missile &missile)
 {
-	if (IsAnyOf(missile.oracoolTint, Tint::Hue, Tint::HueCycle) && missile.oracoolTintRgb != 0)
+	// Any recolour that names a hue (Hue, HueCycle, Glint...): Guided Arrow's fire glint, a mage's bolt (round 2 audit).
+	if (missile.oracoolTint != Tint::None && missile.oracoolTintRgb != 0)
 		return missile.oracoolTintRgb;
 	switch (missile._miAnimType) {
 	case MissileGraphicID::HolyBolt: return hue::PaladinGold;
@@ -153,7 +213,7 @@ uint32_t MissileLightHue(const Missile &missile)
 	case DamageType::Magic: return hue::SpectralLavender;
 	case DamageType::Acid: return hue::PoisonGreen;
 	case DamageType::Cold: return hue::IceBlue;
-	default: return 0;
+	default: return ArtNameHue(missile._miAnimType);
 	}
 }
 
@@ -299,22 +359,6 @@ int ClampY(int64_t i)
 	return static_cast<int>(std::clamp<int64_t>(i, 0, FieldH - 1));
 }
 
-/** Bilinear between tile centres of a per-tile value, at 16.16 tile coordinates. */
-template <typename Get>
-int Bilinear(int64_t u, int64_t v, Get get)
-{
-	const int64_t iu = u >> 16;
-	const int64_t iv = v >> 16;
-	const int fu = static_cast<int>((u >> 8) & 0xFF);
-	const int fv = static_cast<int>((v >> 8) & 0xFF);
-	const int x0 = ClampX(iu), x1 = ClampX(iu + 1);
-	const int y0 = ClampY(iv), y1 = ClampY(iv + 1);
-	const int a = get(x0, y0), b = get(x1, y0), c = get(x0, y1), d = get(x1, y1);
-	const int top = a * (256 - fu) + b * fu;
-	const int bottom = c * (256 - fu) + d * fu;
-	return (top * (256 - fv) + bottom * fv) >> 16;
-}
-
 /** Samples are taken this many pixels apart along a row and joined linearly - the field is smooth over a 64 px tile. */
 constexpr int Span = 8;
 
@@ -383,11 +427,20 @@ void RebuildLightColourField()
 			// The share of this tile's light that is coloured: alone, a light shows its full hue; beside the hero's
 			// white light, half of it.
 			const float strength = ColourStrength * a.coloured / std::max(a.coloured + a.neutral, 1e-3F);
-			const auto lift = [&](float channel) {
-				const float m = 1.0F + strength * (channel / luma - 1.0F);
-				return static_cast<uint16_t>(std::clamp(m, 0.0F, MaxChannelLift) * One + 0.5F);
-			};
-			Tints[x * FieldH + y] = { lift(r), lift(g), lift(b) };
+			// Each channel lifted or lowered toward the hue, capped (blue lower: Diablo's art carries little of it, and a
+			// lifted blue only clips), then the three rescaled to keep a grey pixel's brightness - so a red light no
+			// longer darkens the floor it reddens (round 2 audit, v1.12.421).
+			float lr = std::clamp(1.0F + strength * (r / luma - 1.0F), 0.0F, MaxChannelLift);
+			float lg = std::clamp(1.0F + strength * (g / luma - 1.0F), 0.0F, MaxChannelLift);
+			float lb = std::clamp(1.0F + strength * (b / luma - 1.0F), 0.0F, MaxBlueLift);
+			const float lumaLift = Luma(lr, lg, lb);
+			if (lumaLift > 0.05F) {
+				lr /= lumaLift;
+				lg /= lumaLift;
+				lb /= lumaLift;
+			}
+			const auto fixed = [](float m, float cap) { return static_cast<uint16_t>(std::clamp(m, 0.0F, cap) * One + 0.5F); };
+			Tints[x * FieldH + y] = { fixed(lr, MaxChannelLift), fixed(lg, MaxChannelLift), fixed(lb, MaxBlueLift) };
 		}
 	}
 }
@@ -410,38 +463,59 @@ void ApplySmoothFloorLight(const Surface &out, Point firstTile, Point firstTileB
 		return;
 	if (LevelBrightness[0] != One)
 		RefreshLevelBrightness();
+
+	// Everything below is written out by hand - no helpers, no std::clamp, no lambdas, no std::array operator[] in the
+	// loops. The pragma above optimises this file even in the Debug build, but /Ob0 still forbids inlining, so every
+	// call would stay a call: about 25 million a frame at 1080p before round 2 of the audit (v1.12.421).
+	uint16_t *plane = BrightPlane.data();
+	const uint16_t *levels = LevelBrightness.data();
+	const uint8_t *light = &dLight[0][0];
+	for (int i = 0; i < FieldW * FieldH; i++) {
+		const int level = light[i];
+		plane[i] = levels[level > LightsMax ? LightsMax : level];
+	}
+
 	const GroundMap m = MakeGroundMap(firstTile, firstTileBuffer);
-	const auto brightness = [](int x, int y) {
-		return static_cast<int>(LevelBrightness[std::min<int>(dLight[x][y], LightsMax)]);
-	};
 	const int w = out.w();
 	for (int py = 0; py < out.h(); py++) {
-		auto *row = out.at<uint32_t>(0, py);
-		int64_t u = m.u0 + m.duY * py;
-		int64_t v = m.v0 + m.dvY * py;
-		int f0 = Bilinear(u, v, brightness);
-		for (int sx = 0; sx < w; sx += Span) {
-			const int len = std::min(Span, w - sx);
-			const int64_t u1 = u + m.duX * len;
-			const int64_t v1 = v + m.dvX * len;
-			const int f1 = Bilinear(u1, v1, brightness);
-			if (f0 < One || f1 < One) {
-				int f = f0 << 8;
-				const int df = ((f1 - f0) << 8) / len;
-				for (int i = 0; i < len; i++, f += df) {
-					const uint32_t c = row[sx + i];
-					if (c == 0)
-						continue;
-					const uint32_t k = static_cast<uint32_t>(f >> 8);
-					const uint32_t r = (((c >> 16) & 0xFF) * k) >> 8;
-					const uint32_t g = (((c >> 8) & 0xFF) * k) >> 8;
-					const uint32_t b = ((c & 0xFF) * k) >> 8;
-					row[sx + i] = (r << 16) | (g << 8) | b;
+		uint32_t *row = out.at<uint32_t>(0, py);
+		const int64_t rowU = m.u0 + m.duY * py;
+		const int64_t rowV = m.v0 + m.dvY * py;
+		int f0 = 0;
+		for (int sx = 0;; sx += Span) {
+			const int x = sx < w ? sx : w;
+			const int64_t u = rowU + m.duX * x;
+			const int64_t v = rowV + m.dvX * x;
+			// The bilinear sample between the four tile centres around (u, v).
+			const int64_t iu = u >> 16;
+			const int64_t iv = v >> 16;
+			const int fu = static_cast<int>((u >> 8) & 0xFF);
+			const int fv = static_cast<int>((v >> 8) & 0xFF);
+			const int x0 = iu < 0 ? 0 : (iu > FieldW - 1 ? FieldW - 1 : static_cast<int>(iu));
+			const int x1 = iu + 1 < 0 ? 0 : (iu + 1 > FieldW - 1 ? FieldW - 1 : static_cast<int>(iu + 1));
+			const int y0 = iv < 0 ? 0 : (iv > FieldH - 1 ? FieldH - 1 : static_cast<int>(iv));
+			const int y1 = iv + 1 < 0 ? 0 : (iv + 1 > FieldH - 1 ? FieldH - 1 : static_cast<int>(iv + 1));
+			const int top = plane[x0 * FieldH + y0] * (256 - fu) + plane[x1 * FieldH + y0] * fu;
+			const int bottom = plane[x0 * FieldH + y1] * (256 - fu) + plane[x1 * FieldH + y1] * fu;
+			const int f1 = (top * (256 - fv) + bottom * fv) >> 16;
+			if (sx > 0) {
+				const int from = sx - Span;
+				const int len = x - from;
+				if (len > 0 && (f0 < One || f1 < One)) {
+					int f = f0 << 8;
+					const int df = ((f1 - f0) << 8) / len;
+					for (int i = from; i < x; i++, f += df) {
+						const uint32_t c = row[i];
+						if (c == 0)
+							continue;
+						const uint32_t k = static_cast<uint32_t>(f >> 8);
+						row[i] = (((((c >> 16) & 0xFF) * k) >> 8) << 16) | (((((c >> 8) & 0xFF) * k) >> 8) << 8) | (((c & 0xFF) * k) >> 8);
+					}
 				}
 			}
-			u = u1;
-			v = v1;
 			f0 = f1;
+			if (x >= w)
+				break;
 		}
 	}
 }
@@ -470,35 +544,58 @@ void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer
 	if (left > right || top > bottom)
 		return;
 
-	const auto red = [](int x, int y) { return static_cast<int>(Tints[x * FieldH + y].r); };
-	const auto green = [](int x, int y) { return static_cast<int>(Tints[x * FieldH + y].g); };
-	const auto blue = [](int x, int y) { return static_cast<int>(Tints[x * FieldH + y].b); };
+	// Written out by hand, as ApplySmoothFloorLight is (no calls survive /Ob0): the four tints read once per sample and
+	// all three channels interpolated with the same weights.
+	const LightTint *tints = Tints.data();
+	const int end = right + 1;
 	for (int py = top; py <= bottom; py++) {
-		auto *row = out.at<uint32_t>(0, py);
-		int64_t u = m.u0 + m.duY * py + m.duX * left;
-		int64_t v = m.v0 + m.dvY * py + m.dvX * left;
-		int r0 = Bilinear(u, v, red), g0 = Bilinear(u, v, green), b0 = Bilinear(u, v, blue);
-		for (int sx = left; sx <= right; sx += Span) {
-			const int len = std::min(Span, right + 1 - sx);
-			const int64_t u1 = u + m.duX * len;
-			const int64_t v1 = v + m.dvX * len;
-			const int r1 = Bilinear(u1, v1, red), g1 = Bilinear(u1, v1, green), b1 = Bilinear(u1, v1, blue);
-			if (r0 != One || g0 != One || b0 != One || r1 != One || g1 != One || b1 != One) {
-				int fr = r0 << 8, fg = g0 << 8, fb = b0 << 8;
-				const int dr = ((r1 - r0) << 8) / len, dg = ((g1 - g0) << 8) / len, db = ((b1 - b0) << 8) / len;
-				for (int i = 0; i < len; i++, fr += dr, fg += dg, fb += db) {
-					const uint32_t c = row[sx + i];
-					if (c == 0)
-						continue;
-					const uint32_t r = std::min<uint32_t>((((c >> 16) & 0xFF) * static_cast<uint32_t>(fr >> 8)) >> 8, 255);
-					const uint32_t g = std::min<uint32_t>((((c >> 8) & 0xFF) * static_cast<uint32_t>(fg >> 8)) >> 8, 255);
-					const uint32_t b = std::min<uint32_t>(((c & 0xFF) * static_cast<uint32_t>(fb >> 8)) >> 8, 255);
-					row[sx + i] = (r << 16) | (g << 8) | b;
+		uint32_t *row = out.at<uint32_t>(0, py);
+		const int64_t rowU = m.u0 + m.duY * py;
+		const int64_t rowV = m.v0 + m.dvY * py;
+		int r0 = One, g0 = One, b0 = One;
+		for (int sx = left;; sx += Span) {
+			const int x = sx < end ? sx : end;
+			const int64_t u = rowU + m.duX * x;
+			const int64_t v = rowV + m.dvX * x;
+			const int64_t iu = u >> 16;
+			const int64_t iv = v >> 16;
+			const int fu = static_cast<int>((u >> 8) & 0xFF);
+			const int fv = static_cast<int>((v >> 8) & 0xFF);
+			const int x0 = iu < 0 ? 0 : (iu > FieldW - 1 ? FieldW - 1 : static_cast<int>(iu));
+			const int x1 = iu + 1 < 0 ? 0 : (iu + 1 > FieldW - 1 ? FieldW - 1 : static_cast<int>(iu + 1));
+			const int y0 = iv < 0 ? 0 : (iv > FieldH - 1 ? FieldH - 1 : static_cast<int>(iv));
+			const int y1 = iv + 1 < 0 ? 0 : (iv + 1 > FieldH - 1 ? FieldH - 1 : static_cast<int>(iv + 1));
+			const LightTint &ta = tints[x0 * FieldH + y0];
+			const LightTint &tb = tints[x1 * FieldH + y0];
+			const LightTint &tc = tints[x0 * FieldH + y1];
+			const LightTint &td = tints[x1 * FieldH + y1];
+			const int wa = (256 - fu) * (256 - fv), wb = fu * (256 - fv), wc = (256 - fu) * fv, wd = fu * fv;
+			const int r1 = (ta.r * wa + tb.r * wb + tc.r * wc + td.r * wd) >> 16;
+			const int g1 = (ta.g * wa + tb.g * wb + tc.g * wc + td.g * wd) >> 16;
+			const int b1 = (ta.b * wa + tb.b * wb + tc.b * wc + td.b * wd) >> 16;
+			if (sx > left) {
+				const int from = sx - Span;
+				const int len = x - from;
+				if (len > 0 && (r0 != One || g0 != One || b0 != One || r1 != One || g1 != One || b1 != One)) {
+					int fr = r0 << 8, fg = g0 << 8, fb = b0 << 8;
+					const int dr = ((r1 - r0) << 8) / len, dg = ((g1 - g0) << 8) / len, db = ((b1 - b0) << 8) / len;
+					for (int i = from; i < x; i++, fr += dr, fg += dg, fb += db) {
+						const uint32_t c = row[i];
+						if (c == 0)
+							continue;
+						uint32_t r = (((c >> 16) & 0xFF) * static_cast<uint32_t>(fr >> 8)) >> 8;
+						uint32_t g = (((c >> 8) & 0xFF) * static_cast<uint32_t>(fg >> 8)) >> 8;
+						uint32_t b = ((c & 0xFF) * static_cast<uint32_t>(fb >> 8)) >> 8;
+						r = r > 255 ? 255 : r;
+						g = g > 255 ? 255 : g;
+						b = b > 255 ? 255 : b;
+						row[i] = (r << 16) | (g << 8) | b;
+					}
 				}
 			}
-			u = u1;
-			v = v1;
 			r0 = r1, g0 = g1, b0 = b1;
+			if (x >= end)
+				break;
 		}
 	}
 }
