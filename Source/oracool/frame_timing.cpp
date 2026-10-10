@@ -57,7 +57,10 @@ void NoteFramePresented()
 	if (LastPresentCounter != 0 && now > LastPresentCounter) {
 		static const uint64_t Frequency = SDL_GetPerformanceFrequency();
 		const uint64_t micros = (now - LastPresentCounter) * 1000000 / Frequency;
-		Ring.Push(NowMicros(), static_cast<uint32_t>(std::min<uint64_t>(micros, UINT32_MAX)));
+		// Over a second is the window coming back from the background (RenderPresent skips while inactive) or a level
+		// load, not a frame of play: not counted, or the line would show a false stutter (round 1 audit).
+		if (micros <= 1000000)
+			Ring.Push(NowMicros(), static_cast<uint32_t>(std::min<uint64_t>(micros, UINT32_MAX)));
 	}
 	LastPresentCounter = now;
 }

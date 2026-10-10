@@ -237,16 +237,18 @@ void GatherSources()
 void RefreshLevelBrightness()
 {
 	// What each darkness level does to the level's palette on average: the floor pass darkens a full-bright pixel by
-	// this much, so a tile centre comes out as bright as the per-tile draw made it.
+	// this much, so a tile centre comes out as bright as the per-tile draw made it. Hell's 1..31 are its own blood ramp
+	// (MakeLightTable rewrites them, LightTables[0] included) and would bias the average: left out (round 1 audit).
+	const int first = leveltype == DTYPE_HELL ? 32 : 1;
 	double full = 0;
-	for (int i = 1; i < 255; i++) {
+	for (int i = first; i < 255; i++) {
 		const uint32_t c = PaletteRGB[i];
 		full += Luma(static_cast<float>((c >> 16) & 0xFF), static_cast<float>((c >> 8) & 0xFF), static_cast<float>(c & 0xFF));
 	}
 	LevelBrightness[0] = One;
 	for (size_t level = 1; level < NumLightingLevels; level++) {
 		double lit = 0;
-		for (int i = 1; i < 255; i++) {
+		for (int i = first; i < 255; i++) {
 			const uint32_t c = PaletteRGB[LightTables[level][i]];
 			lit += Luma(static_cast<float>((c >> 16) & 0xFF), static_cast<float>((c >> 8) & 0xFF), static_cast<float>(c & 0xFF));
 		}
@@ -271,10 +273,10 @@ struct GroundMap {
 GroundMap MakeGroundMap(Point firstTile, Point firstTileBuffer)
 {
 	// DrawFloor's walk: the first tile's 64x32 diamond has its bottom-left at firstTileBuffer, so its centre is 32 px
-	// right and 16 px up; one tile +x is (+32, +16) on screen and one tile +y is (-32, +16). Inverted:
+	// right and 14.5 px up; one tile +x is (+32, +16) on screen and one tile +y is (-32, +16). Inverted:
 	//   u = x0 + rx/64 + ry/32,  v = y0 + ry/32 - rx/64   (rx, ry from that centre)
 	const double cx = firstTileBuffer.x + 32.0;
-	const double cy = firstTileBuffer.y - 16.0;
+	const double cy = firstTileBuffer.y - 14.5; // a floor triangle is rows y-30..y, widest at y-15 (round 1 audit)
 	const double rx = 0.5 - cx;
 	const double ry = 0.5 - cy;
 	constexpr double Fix = 65536.0;
@@ -455,7 +457,7 @@ void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer
 	int left = out.w(), right = -1, top = out.h(), bottom = -1;
 	for (const Point corner : { Point { TintMinX - 1, TintMinY - 1 }, Point { TintMaxX + 1, TintMinY - 1 }, Point { TintMinX - 1, TintMaxY + 1 }, Point { TintMaxX + 1, TintMaxY + 1 } }) {
 		const int cx = firstTileBuffer.x + 32 + (corner.x - firstTile.x) * 32 - (corner.y - firstTile.y) * 32;
-		const int cy = firstTileBuffer.y - 16 + (corner.x - firstTile.x) * 16 + (corner.y - firstTile.y) * 16;
+		const int cy = firstTileBuffer.y - 15 + (corner.x - firstTile.x) * 16 + (corner.y - firstTile.y) * 16;
 		left = std::min(left, cx - 32);
 		right = std::max(right, cx + 32);
 		top = std::min(top, cy - 16);

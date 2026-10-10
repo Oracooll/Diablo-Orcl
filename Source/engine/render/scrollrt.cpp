@@ -950,6 +950,14 @@ static void DrawDungeon(const Surface & /*out*/, Point /*tilePosition*/, Point /
  * @param tilePosition dPiece coordinates
  * @param targetBufferPosition Target buffer coordinates
  */
+/**
+ * Smooth lighting (oracool/colour_light.h, user 2026-10-10): this frame's floor is drawn at full brightness, darkened
+ * afterwards by the light between tile centres, and the floor-pass objects wait for that pass (DrawFloorObjects) so they
+ * keep their own light. Set by DrawGame around its DrawFloor.
+ */
+bool SmoothFloorThisFrame = false;
+/** The floor of this frame was smoothed: DrawCell must not paint a floor triangle over it again (see there). */
+bool FloorSmoothedThisFrame = false;
 void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
 	const uint16_t levelPieceId = dPiece[tilePosition.x][tilePosition.y];
@@ -967,6 +975,10 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 		transparency = false;
 #endif
 	const bool foliage = !TileHasAny(levelPieceId, TileProperties::Solid);
+	// A see-through floor tile (an archway, a door frame, while the hero's room is transparent) redraws its two floor
+	// triangles here at the tile's own light - identical pixels in vanilla, but after a smoothed floor it would put the
+	// tile-sized step back (round 1 audit, v1.12.420). DrawFloor already drew them.
+	const bool skipFloorTriangles = FloorSmoothedThisFrame && foliage;
 
 	const auto getFirstTileMaskLeft = [=](TileType tile) -> MaskType {
 		if (transparency) {
@@ -1014,7 +1026,7 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 			const TileType tileType = levelCelBlock.type();
 			const MaskType maskType = getFirstTileMaskLeft(tileType);
 			if (levelCelBlock.hasValue()) {
-				if (maskType != MaskType::LeftFoliage || tileType == TileType::TransparentSquare) {
+				if ((maskType != MaskType::LeftFoliage || tileType == TileType::TransparentSquare) && !(skipFloorTriangles && tileType == TileType::LeftTriangle)) {
 					RenderTile(out, targetBufferPosition,
 					    levelCelBlock, maskType, tbl);
 				}
@@ -1026,7 +1038,7 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 			const MaskType maskType = getFirstTileMaskRight(tileType);
 			if (levelCelBlock.hasValue()) {
 				if (transparency || !foliage || levelCelBlock.type() == TileType::TransparentSquare) {
-					if (maskType != MaskType::RightFoliage || tileType == TileType::TransparentSquare) {
+					if ((maskType != MaskType::RightFoliage || tileType == TileType::TransparentSquare) && !(skipFloorTriangles && tileType == TileType::RightTriangle)) {
 						RenderTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 },
 						    levelCelBlock, maskType, tbl);
 					}
@@ -1063,12 +1075,6 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
  * @param tilePosition dPiece coordinates
  * @param targetBufferPosition Target buffer coordinate
  */
-/**
- * Smooth lighting (oracool/colour_light.h, user 2026-10-10): this frame's floor is drawn at full brightness, darkened
- * afterwards by the light between tile centres, and the floor-pass objects wait for that pass (DrawFloorObjects) so they
- * keep their own light. Set by DrawGame around its DrawFloor.
- */
-bool SmoothFloorThisFrame = false;
 
 void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
@@ -1748,6 +1754,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// Smooth lighting (oracool/colour_light.h, user 2026-10-10): the floor drawn bright, darkened by the light between
 	// tile centres, and only then the floor-pass objects, each by its own tile's light.
 	SmoothFloorThisFrame = oracool::SmoothFloorLightActive(out);
+	FloorSmoothedThisFrame = SmoothFloorThisFrame;
 	DrawFloor(out, position, Point {} + offset, rows, columns);
 	if (SmoothFloorThisFrame) {
 		oracool::ApplySmoothFloorLight(out, position, Point {} + offset);
@@ -1765,6 +1772,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	DrawTileContent(out, position, Point {} + offset, rows, columns);
 	// Coloured lighting (oracool/colour_light.h): the whole world, every light's hue over it - before the outlines,
 	// which are the cursor's and stay their own colour.
+	FloorSmoothedThisFrame = false;
 	oracool::ApplyLightColour(out, position, Point {} + offset);
 	// The deferred monster outlines, drained HERE - after the whole scene is composited, so they
 	// land on top of any wall that would otherwise hide the body, but still BEFORE ZoomScale, so

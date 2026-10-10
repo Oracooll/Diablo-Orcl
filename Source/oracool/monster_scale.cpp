@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <deque>
+#include <exception>
 #include <memory>
 #include <mutex>
 #include <system_error>
@@ -14,6 +15,7 @@
 #include "dead.h"
 #include "diablo.h"
 #include "levels/gendung.h"
+#include "monster.h"
 #include "oracool/companion.h"
 #include "oracool/minions.h" // GetMinionAnim: the Fire Golem's run sheet
 #include "oracool/rift_bosses.h" // RiftBossSizePercent: a rift boss's own size, up to 250%
@@ -157,7 +159,14 @@ void ScaleWorkerMain()
 			job = std::move(*best);
 			Pending.erase(best);
 		}
-		auto scaled = std::make_unique<OwnedClxSpriteListOrSheet>(ScaleListOrSheet(*job->source, job->percent));
+		// An exception leaving this thread would end the game (std::terminate): a sheet that cannot be built - a 250%
+		// rift boss is six times its source - comes back empty and the type keeps its stand-in (round 1 audit).
+		std::unique_ptr<OwnedClxSpriteListOrSheet> scaled;
+		try {
+			scaled = std::make_unique<OwnedClxSpriteListOrSheet>(ScaleListOrSheet(*job->source, job->percent));
+		} catch (const std::exception &) {
+			scaled = nullptr;
+		}
 		job->source = nullptr;
 		const std::lock_guard<std::mutex> lock(JobMutex);
 		Results.push_back({ job->generation, job->typeIndex, job->percent, job->slot, std::move(scaled) });
@@ -296,6 +305,10 @@ const AnimStruct *ScaledAnimIn(ScaledEntry &entry, MonsterGraphic graphic, int p
 		return nullptr;
 	if (entry.owned[i])
 		return &entry.anims[i];
+	// A revisit's throwaway population (InitMonsters before LoadLevel, lights suppressed) is discarded at once: queueing
+	// its sheets would only put jobs, prioritised from the last floor, ahead of the real ones (round 1 audit).
+	if (SuppressMonsterLights && WorkerUsable())
+		return nullptr;
 	if (QueueScale(entry, static_cast<int>(i), priority, exactPriority))
 		return nullptr;
 	InstallAnim(entry, i, src, std::make_unique<OwnedClxSpriteListOrSheet>(ScaleListOrSheet(*src.sprites, entry.percent)));
@@ -496,6 +509,8 @@ void PumpMonsterScale()
 		}
 		if (entry == nullptr || result.typeIndex >= LevelMonsterTypeCount)
 			continue;
+		if (result.scaled == nullptr)
+			continue; // the worker could not build it: left pending, so it is never asked again and the stand-in stays
 		if (result.slot == CorpseSlot) {
 			entry->corpsePending = false;
 			if (!entry->corpse)

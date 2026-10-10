@@ -92,7 +92,7 @@ Point TileCentre(Point firstTile, Point firstBuffer, Point tile)
 {
 	const int dx = tile.x - firstTile.x;
 	const int dy = tile.y - firstTile.y;
-	return { firstBuffer.x + 32 + dx * 32 - dy * 32, firstBuffer.y - 16 + dx * 16 + dy * 16 };
+	return { firstBuffer.x + 32 + dx * 32 - dy * 32, firstBuffer.y - 15 + dx * 16 + dy * 16 };
 }
 
 } // namespace
@@ -236,7 +236,7 @@ TEST(OracoolColourLight, DISABLED_ExportLightingPreview)
 		for (int y = 0; y < H; y++) {
 			for (int x = 0; x < W; x++) {
 				// A flagstone texture: a base grey with a light grid of mortar lines in tile space.
-				const double rx = x + 0.5 - (firstBuffer.x + 32.0), ry = y + 0.5 - (firstBuffer.y - 16.0);
+				const double rx = x + 0.5 - (firstBuffer.x + 32.0), ry = y + 0.5 - (firstBuffer.y - 14.5);
 				const double u = firstTile.x + rx / 64.0 + ry / 32.0, v = firstTile.y + ry / 32.0 - rx / 64.0;
 				const double fu = u - std::floor(u + 0.5), fv = v - std::floor(v + 0.5);
 				const bool mortar = std::abs(fu) > 0.46 || std::abs(fv) > 0.46;
