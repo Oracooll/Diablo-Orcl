@@ -17,6 +17,9 @@
 #include "control.h"
 #include "controls/plrctrls.h"
 #include "cursor.h"
+#include "engine/surface.hpp"
+#include "utils/display.h"
+#include "engine/palette.h"
 #include "hwcursor.hpp"
 #include "engine/backbuffer_state.hpp"
 #include "engine/events.hpp"
@@ -1146,9 +1149,37 @@ std::string DebugCmdCursorInfo(const string_view parameter)
 	    : ControlDevice == ControlTypes::Gamepad                         ? "gamepad"
 	    : ControlDevice == ControlTypes::VirtualGamepad                  ? "virtual pad"
 	                                                                     : "none";
+	std::string colours;
+	// The hardware cursor is the hand drawn through the SDL palette (hwcursor.cpp SetHardwareCursorFromSprite): its three
+	// most used colour indices, as that palette has them and as the game's own palette has them. A dark SDL entry beside
+	// a bright game entry is a cursor drawn black (2026-10-10: in use, shown, and still invisible).
+	if (pcurs > CURSOR_NONE) {
+		const Size size = GetInvItemSize(pcurs);
+		if (size.width > 0 && size.height > 0) {
+			OwnedSurface scratch { size };
+			SDL_FillRect(scratch.surface, nullptr, 1);
+			DrawSoftwareCursor(scratch, { 0, size.height }, pcurs);
+			std::array<int, 256> count {};
+			for (int y = 0; y < size.height; y++)
+				for (int x = 0; x < size.width; x++)
+					count[*scratch.at(x, y)]++;
+			count[1] = 0;
+			for (int n = 0; n < 3; n++) {
+				const auto best = std::max_element(count.begin(), count.end());
+				if (*best == 0)
+					break;
+				const int i = static_cast<int>(best - count.begin());
+				*best = 0;
+				const SDL_Color sys = Palette != nullptr ? Palette->colors[i] : SDL_Color {};
+				const SDL_Color log = logical_palette[i];
+				colours += StrCat(" | #", i, " sdl ", sys.r, ",", sys.g, ",", sys.b, " game ", log.r, ",", log.g, ",", log.b);
+			}
+		}
+	}
 	return StrCat("cursor ", pcurs, " | mode ", mode, " / device ", device, " | hardware ", IsHardwareCursorEnabled() ? "on" : "off",
 	    ", in use ", IsHardwareCursor() ? "yes" : "no", ", shown ", IsHardwareCursorVisible() ? "yes" : "no",
-	    ", type ", static_cast<int>(info.type()), ", reinit ", GetCurrentCursorInfo().needsReinitialization() ? "pending" : "no");
+	    ", type ", static_cast<int>(info.type()), ", reinit ", GetCurrentCursorInfo().needsReinitialization() ? "pending" : "no",
+	    " | fade ", FadeLevel, colours);
 }
 
 /** Rebuilds the cursor from scratch - the hand, its hardware image and its visibility - without restarting. */
@@ -1158,6 +1189,11 @@ std::string DebugCmdCursorFix(const string_view parameter)
 	ControlDevice = ControlTypes::KeyboardAndMouse;
 	if (MyPlayer->HoldItem.isEmpty() && pcurs <= CURSOR_NONE)
 		NewCursor(CURSOR_HAND);
+	// The SDL palette back in step with the game's (it is what the hardware cursor is drawn through), then the cursor.
+	if (FadeLevel == 256) {
+		system_palette = logical_palette;
+		palette_update();
+	}
 	if (IsHardwareCursorEnabled()) {
 		SetHardwareCursor(CursorInfo::GameCursor(pcurs));
 		SetHardwareCursorVisible(true);

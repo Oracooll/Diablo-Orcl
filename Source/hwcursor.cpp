@@ -1,5 +1,6 @@
 #include "hwcursor.hpp"
 
+#include <array>
 #include <cstdint>
 #include <tuple>
 
@@ -14,6 +15,7 @@
 #include "appfat.h"
 #include "cursor.h"
 #include "engine/clx_sprite.hpp"
+#include "engine/palette.h"
 #include "engine/render/clx_render.hpp"
 #include "engine/surface.hpp"
 #include "utils/display.h"
@@ -26,6 +28,26 @@ CursorInfo CurrentCursorInfo;
 
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 SDLCursorUniquePtr CurrentCursor;
+
+/**
+ * The colours the hardware cursor is drawn in: PaletteRGB, the same table the 32-bit renderer draws the world from - not
+ * the SDL display palette, which the cursor used to share with the 8-bit era (user, 2026-10-10: "cant the cursor use its
+ * own color now that we have new renderer?"). After the Poisoned Water level the cursor was built through a display
+ * palette gone dark and came out a black hand on a black floor - in use, shown, and invisible - while the world, drawn
+ * from PaletteRGB, looked right. PaletteRGB holds the unfaded colours during a fade, so the cursor no longer fades out
+ * with the screen either; it stays the hand the player sees.
+ */
+SDL_Palette *CursorPalette()
+{
+	static SDLPaletteUniquePtr palette = SDLWrap::AllocPalette();
+	std::array<SDL_Color, 256> colours;
+	for (size_t i = 0; i < colours.size(); i++) {
+		const uint32_t c = PaletteRGB[i];
+		colours[i] = SDL_Color { static_cast<Uint8>((c >> 16) & 0xFF), static_cast<Uint8>((c >> 8) & 0xFF), static_cast<Uint8>(c & 0xFF), SDL_ALPHA_OPAQUE };
+	}
+	SDL_SetPaletteColors(palette.get(), colours.data(), 0, static_cast<int>(colours.size()));
+	return palette.get();
+}
 
 enum class HotpointPosition : uint8_t {
 	TopLeft,
@@ -115,7 +137,7 @@ bool SetHardwareCursorFromSurface(SDL_Surface *surface, HotpointPosition hotpoin
 bool SetHardwareCursorFromClxSprite(ClxSprite sprite, HotpointPosition hotpointPosition)
 {
 	OwnedSurface surface { sprite.width(), sprite.height() };
-	SDL_SetSurfacePalette(surface.surface, Palette.get());
+	SDL_SetSurfacePalette(surface.surface, CursorPalette());
 	SDL_SetColorKey(surface.surface, SDL_TRUE, 0);
 	RenderClxSprite(surface, sprite, { 0, 0 });
 	return SetHardwareCursorFromSurface(surface.surface, hotpointPosition);
@@ -137,7 +159,7 @@ bool SetHardwareCursorFromSprite(int pcurs)
 		return false;
 
 	OwnedSurface out { size };
-	SDL_SetSurfacePalette(out.surface, Palette.get());
+	SDL_SetSurfacePalette(out.surface, CursorPalette());
 
 	// Transparent color must not be used in the sprite itself.
 	// Colors 1-127 are outside of the UI palette so are safe to use.
