@@ -675,6 +675,8 @@ void lighting_color_cycling()
 		// shift elements between indexes 1-31 to left
 		std::rotate(lightTable.begin() + 1, lightTable.begin() + 2, lightTable.begin() + 32);
 	}
+	// The tables moved: every colour table built from them is stale (2026-10-11 audit - Hell's sprites stood still).
+	LightTableVersion++;
 }
 
 } // namespace devilution

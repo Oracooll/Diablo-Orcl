@@ -1040,7 +1040,9 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 	// A see-through floor tile (an archway, a door frame, while the hero's room is transparent) redraws its two floor
 	// triangles here at the tile's own light - identical pixels in vanilla, but after a smoothed floor it would put the
 	// tile-sized step back (round 1 audit, v1.12.420). DrawFloor already drew them.
-	const bool skipFloorTriangles = FloorSmoothedThisFrame && foliage;
+	// A wall piece's pure floor triangles too (dev note, 2026-10-11: "tiles under walls seem to have checkboard effect"): the
+	// floor pass draws them now, smoothed with the floor beside them, so they are not redrawn here at the tile's own light.
+	const bool skipFloorTriangles = FloorSmoothedThisFrame;
 
 	const auto getFirstTileMaskLeft = [=](TileType tile) -> MaskType {
 		if (transparency) {
@@ -1174,6 +1176,24 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 	// DrawTileContent starts.
 	if (!DeferFloorObjectsThisFrame)
 		DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
+}
+
+/**
+ * @brief A wall piece's pure floor triangles, in the floor pass with the open floor (dev note, 2026-10-11: drawn later by
+ * DrawCell at the tile's own light, they stood out from the smoothed floor around them as a checkerboard). DrawCell skips
+ * them while the floor pass runs.
+ */
+void DrawWallFloorTriangles(const Surface &out, Point tilePosition, Point targetBufferPosition)
+{
+	LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
+	const uint8_t *tbl = LightTables[SmoothFloorThisFrame && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
+	const MICROS &micros = DPieceMicros[dPiece[tilePosition.x][tilePosition.y]];
+	const LevelCelBlock left { micros.mt[0] };
+	if (left.hasValue() && left.type() == TileType::LeftTriangle)
+		RenderTile(out, targetBufferPosition, left, MaskType::Solid, tbl);
+	const LevelCelBlock right { micros.mt[1] };
+	if (right.hasValue() && right.type() == TileType::RightTriangle)
+		RenderTile(out, targetBufferPosition + Displacement { TILE_WIDTH / 2, 0 }, right, MaskType::Solid, tbl);
 }
 
 /**
@@ -1609,6 +1629,8 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 			if (InDungeonBounds(tilePosition)) {
 				if (!TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid))
 					DrawFloor(out, tilePosition, targetBufferPosition);
+				else if (DeferFloorObjectsThisFrame)
+					DrawWallFloorTriangles(out, tilePosition, targetBufferPosition);
 			} else {
 				world_draw_black_tile(out, targetBufferPosition.x, targetBufferPosition.y);
 			}

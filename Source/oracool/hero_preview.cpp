@@ -6,6 +6,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <SDL.h>
 #include <fmt/format.h>
@@ -20,6 +21,7 @@
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/render/clx_render.hpp"
+#include "options.h" // pixelSmoothing - the close-up's edges
 #include "oracool/hero_look.h"
 #include "oracool/sprite_colours.h"
 #include "oracool/sprite_mix.h"
@@ -242,6 +244,99 @@ void MeasurePreviewInk()
 	PreviewInk = { { minX, minY }, { maxX - minX + 1, maxY - minY + 1 } };
 }
 
+/**
+ * Pixel art smoothing for the close-up (dev note, 2026-10-11: "use zoom pixels smoothing on player select/player create
+ * windows ... to make the close-ups on the class sprites look better"): Scale2x and Scale3x (AdvMAME), the edge rules that
+ * round a staircase into a slope and keep every colour as it was - no blur, no new colours. Chained for 4 and 6.
+ */
+std::vector<uint32_t> Scale2x(const std::vector<uint32_t> &src, int w, int h)
+{
+	std::vector<uint32_t> dst(static_cast<size_t>(w) * h * 4);
+	const int dw = w * 2;
+	for (int y = 0; y < h; y++) {
+		for (int x = 0; x < w; x++) {
+			const uint32_t p = src[static_cast<size_t>(y) * w + x];
+			const uint32_t a = y > 0 ? src[static_cast<size_t>(y - 1) * w + x] : p;
+			const uint32_t b = x < w - 1 ? src[static_cast<size_t>(y) * w + x + 1] : p;
+			const uint32_t c = x > 0 ? src[static_cast<size_t>(y) * w + x - 1] : p;
+			const uint32_t d = y < h - 1 ? src[static_cast<size_t>(y + 1) * w + x] : p;
+			uint32_t *top = &dst[static_cast<size_t>(y * 2) * dw + x * 2];
+			uint32_t *bottom = top + dw;
+			top[0] = c == a && c != d && a != b ? a : p;
+			top[1] = a == b && a != c && b != d ? b : p;
+			bottom[0] = d == c && d != b && c != a ? c : p;
+			bottom[1] = b == d && b != a && d != c ? d : p;
+		}
+	}
+	return dst;
+}
+
+std::vector<uint32_t> Scale3x(const std::vector<uint32_t> &src, int w, int h)
+{
+	std::vector<uint32_t> dst(static_cast<size_t>(w) * h * 9);
+	const int dw = w * 3;
+	const auto at = [&](int x, int y) {
+		x = x < 0 ? 0 : (x >= w ? w - 1 : x);
+		y = y < 0 ? 0 : (y >= h ? h - 1 : y);
+		return src[static_cast<size_t>(y) * w + x];
+	};
+	for (int y = 0; y < h; y++) {
+		for (int x = 0; x < w; x++) {
+			const uint32_t A = at(x - 1, y - 1), B = at(x, y - 1), C = at(x + 1, y - 1);
+			const uint32_t D = at(x - 1, y), E = at(x, y), F = at(x + 1, y);
+			const uint32_t G = at(x - 1, y + 1), H = at(x, y + 1), I = at(x + 1, y + 1);
+			uint32_t *r0 = &dst[static_cast<size_t>(y * 3) * dw + x * 3];
+			uint32_t *r1 = r0 + dw;
+			uint32_t *r2 = r1 + dw;
+			const bool db = D == B && B != F && D != H;
+			const bool bf = B == F && B != D && F != H;
+			const bool dh = D == H && D != B && H != F;
+			const bool hf = H == F && D != H && B != F;
+			r0[0] = db ? D : E;
+			r0[1] = (db && E != C) || (bf && E != A) ? B : E;
+			r0[2] = bf ? F : E;
+			r1[0] = (db && E != G) || (dh && E != A) ? D : E;
+			r1[1] = E;
+			r1[2] = (bf && E != I) || (hf && E != C) ? F : E;
+			r2[0] = dh ? D : E;
+			r2[1] = (dh && E != I) || (hf && E != G) ? H : E;
+			r2[2] = hf ? F : E;
+		}
+	}
+	return dst;
+}
+
+/** @brief The ink of @p frame enlarged @p scale times, smoothed by the factors 3 and 2 it holds, the rest by copying. */
+std::vector<uint32_t> SmoothScale(const OwnedSurface &frame, Rectangle ink, int scale)
+{
+	int w = ink.size.width;
+	int h = ink.size.height;
+	std::vector<uint32_t> buf(static_cast<size_t>(w) * h);
+	for (int y = 0; y < h; y++)
+		std::memcpy(&buf[static_cast<size_t>(y) * w], frame.at<uint32_t>(ink.position.x, ink.position.y + y), static_cast<size_t>(w) * 4);
+	int rest = scale;
+	while (rest % 3 == 0) {
+		buf = Scale3x(buf, w, h);
+		w *= 3;
+		h *= 3;
+		rest /= 3;
+	}
+	while (rest % 2 == 0) {
+		buf = Scale2x(buf, w, h);
+		w *= 2;
+		h *= 2;
+		rest /= 2;
+	}
+	if (rest > 1) {
+		std::vector<uint32_t> out(static_cast<size_t>(w) * rest * h * rest);
+		for (int y = 0; y < h * rest; y++)
+			for (int x = 0; x < w * rest; x++)
+				out[static_cast<size_t>(y) * w * rest + x] = buf[static_cast<size_t>(y / rest) * w + x / rest];
+		buf = std::move(out);
+	}
+	return buf;
+}
+
 /** @brief The largest whole-pixel scale that keeps the figure inside @p area, up to the target. */
 int PreviewScaleFor(Rectangle area)
 {
@@ -402,6 +497,32 @@ void DrawHeroPreview(const Surface &out, Rectangle area)
 		// Only the ink is scaled, as below; clipped to the target once, then a plain copy per pixel.
 		const int y0 = std::max(0, -origin.y), y1 = std::min(scaledHeight, out.h() - origin.y);
 		const int x0 = std::max(0, -origin.x), x1 = std::min(scaledWidth, out.w() - origin.x);
+		if (*sgOptions.Oracool.pixelSmoothing && scale > 1) {
+			// Smoothed edges (Pixel Art Smoothing, the in-game zoom's option): the close-up enlarged by Scale3x/Scale2x.
+			static std::vector<uint32_t> Smoothed;
+			static const void *SmoothedFor = nullptr;
+			static int SmoothedScale = 0;
+			static int SmoothedLook = -1;
+			// Once per frame of the animation, not once per screen frame; a new hero or look smooths anew.
+			const int look = static_cast<int>(LoadedClass) * 65536 + LoadedGfxNum * 256 + LoadedGearLook;
+			if (SmoothedFor != sprite.pixelData() || SmoothedScale != scale || SmoothedLook != look
+			    || Smoothed.size() != static_cast<size_t>(scaledWidth) * scaledHeight) {
+				Smoothed = SmoothScale(frame, PreviewInk, scale);
+				SmoothedFor = sprite.pixelData();
+				SmoothedScale = scale;
+				SmoothedLook = look;
+			}
+			for (int y = y0; y < y1 && x0 < x1; y++) {
+				const uint32_t *srcRow = &Smoothed[static_cast<size_t>(y) * scaledWidth];
+				uint32_t *dstRow = out.at<uint32_t>(origin.x + x0, origin.y + y);
+				for (int x = x0; x < x1; x++) {
+					const uint32_t px = srcRow[x];
+					if (px != PreviewTransparentKey)
+						dstRow[x - x0] = px;
+				}
+			}
+			return;
+		}
 		for (int y = y0; y < y1 && x0 < x1; y++) {
 			const uint32_t *srcRow = frame.at<uint32_t>(PreviewInk.position.x, PreviewInk.position.y + y / scale);
 			uint32_t *dstRow = out.at<uint32_t>(origin.x + x0, origin.y + y);

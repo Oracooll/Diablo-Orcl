@@ -17,6 +17,7 @@
 #include "engine/random.hpp"
 #include "hwcursor.hpp"
 #include "levels/gendung.h"
+#include "lighting.h" // LightTableVersion - the cycling band stales the sprite colour tables
 #include "options.h"
 #include "oracool/zone_registry.h"
 #include "utils/display.h"
@@ -165,15 +166,25 @@ void RebuildPaletteRgb(const std::array<SDL_Color, 256> &source, int first, int 
 	// each bump made every text colour and frost table rebake. Nothing derived from the palette
 	// reads the cycling band.
 	bool changed = false;
+	bool cycled = false;
 	for (int i = first; i < first + ncolor; i++) {
 		const SDL_Color &c = source[i];
 		const uint32_t rgb = (static_cast<uint32_t>(c.r) << 16) | (static_cast<uint32_t>(c.g) << 8) | c.b;
-		if (i >= 32 && PaletteRGB[i] != rgb)
-			changed = true;
+		if (PaletteRGB[i] != rgb) {
+			if (i >= 32)
+				changed = true;
+			else if (i > 0)
+				cycled = true;
+		}
 		PaletteRGB[i] = rgb;
 	}
 	if (changed)
 		PaletteRgbGeneration++;
+	// The cycling band moved (2026-10-11 audit of the Necromancer video): the sprite colour tables built through the light
+	// tables read 1..31 too - a lava-coloured sprite pixel stood frozen while the floor flowed. They key on
+	// LightTableVersion, so that moves; the text bakes and the cursor, which key on the generation alone, do not rebake.
+	if (cycled)
+		LightTableVersion++;
 }
 
 } // namespace
@@ -439,7 +450,7 @@ void PaletteFadeOut(int fr)
 void palette_update_caves()
 {
 	CycleColors(1, 31);
-	palette_update(0, 31);
+	palette_update(0, 32); // 0..31: entry 31 cycles too (vanilla's 0, 31 left it standing)
 }
 
 /**
@@ -456,7 +467,7 @@ void palette_update_crypt()
 	}
 
 	CycleColorsReverse(16, 31);
-	palette_update(0, 31);
+	palette_update(0, 32); // 0..31, entry 31 included
 	delayLava = !delayLava;
 }
 
@@ -484,7 +495,7 @@ void palette_update_quest_palette(int n)
 	int i = 32 - n;
 	logical_palette[i] = orig_palette[i];
 	ApplyGamma(system_palette, logical_palette, 32);
-	palette_update(0, 31);
+	palette_update(0, 32); // 0..31: the entry restored can be 31 itself
 	// Update blended transparency, but only for the color that was updated
 	for (int j = 0; j < 256; j++) {
 		if (i == j) { // No need to calculate transparency between 2 identical colors
