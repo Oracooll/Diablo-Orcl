@@ -531,6 +531,9 @@ LootLook LootLookFor(const Item &item)
 		return { 0xE8C468, 1.0F, 1.0F };
 	if (item._iMagical == ITEM_QUALITY_UNIQUE)
 		return { 0xE8C468, 1.0F, 1.0F };
+	// Magic items too (user, 2026-10-11: "add glow and loot beams also to blue items"): the label's blue, the smallest beam.
+	if (item._iMagical == ITEM_QUALITY_MAGIC)
+		return { 0x6A8CFF, 0.5F, 0.5F };
 	return { 0, 0, 0 };
 }
 

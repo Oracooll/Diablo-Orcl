@@ -8,7 +8,7 @@
  *    a soft-edged isometric blot with a ragged rim from its own seed, no art - and fades after a minute or two. The
  *    marks blend with the floor already drawn and lit, so a mark in the dark is dark. Floor tiles only: never on a wall,
  *    lava or water. Cleared on a level change.
- *  - Loot beams: an item on the ground worth turning for (rare, unique, set, primal, runeword) stands in a beam of light
+ *  - Loot beams: an item on the ground worth turning for (magic, rare, unique, set, primal, runeword) stands in a beam of light
  *    in its colour, with a glow on the floor under it, and lights the floor around it in that colour (colour_light.h).
  *
  * Purely visual: own clock (real time, stopped while paused), own xorshift, no game state touched. Each is behind its

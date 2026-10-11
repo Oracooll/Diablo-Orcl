@@ -1129,11 +1129,14 @@ std::vector<int16_t> ReliefLuma; // three rows of brightness; -1 where the pixel
  */
 void ReliefLumaRow(const uint32_t *row, const uint32_t *kept, int16_t *dst, int w)
 {
-	const uint32_t o1 = PaletteRGB[165] & 0xFFFFFF, o2 = PaletteRGB[233] & 0xFFFFFF, o3 = PaletteRGB[181] & 0xFFFFFF, o4 = PaletteRGB[129] & 0xFFFFFF;
+	// The hover outlines drawn inside DrawTileContent (scrollrt.cpp, audit round 2): the hero 165, objects 194, monsters
+	// 233, items by quality 181 / 197 / 245.
+	const uint32_t o1 = PaletteRGB[165] & 0xFFFFFF, o2 = PaletteRGB[194] & 0xFFFFFF, o3 = PaletteRGB[233] & 0xFFFFFF;
+	const uint32_t o4 = PaletteRGB[181] & 0xFFFFFF, o5 = PaletteRGB[197] & 0xFFFFFF, o6 = PaletteRGB[245] & 0xFFFFFF;
 	for (int x = 0; x < w; x++) {
 		const uint32_t c = row[x];
 		const uint32_t rgb = c & 0xFFFFFF;
-		dst[x] = c == kept[x] || rgb == o1 || rgb == o2 || rgb == o3 || rgb == o4 ? static_cast<int16_t>(-1) : static_cast<int16_t>(((((c >> 16) & 0xFF) * 77) + (((c >> 8) & 0xFF) * 150) + ((c & 0xFF) * 29)) >> 8);
+		dst[x] = c == kept[x] || rgb == o1 || rgb == o2 || rgb == o3 || rgb == o4 || rgb == o5 || rgb == o6 ? static_cast<int16_t>(-1) : static_cast<int16_t>(((((c >> 16) & 0xFF) * 77) + (((c >> 8) & 0xFF) * 150) + ((c & 0xFF) * 29)) >> 8);
 	}
 }
 } // namespace
@@ -1214,9 +1217,9 @@ void ApplySurfaceRelief(const Surface &out, Point firstTile, Point firstTileBuff
 						below = below < 0 ? l : below;
 						const int gx = right - left;
 						const int gy = below - above;
-						// A quarter of the slope (audit round 1): a mortar line of 56 levels hit the cap at once - an
-						// emboss filter, not shading. Now a step of 160 does.
-						int delta = -((gx * (fx >> 8) + gy * (fy >> 8)) >> 10);
+						// Half the slope (audit rounds 1-2): at full, a mortar line of 56 levels hit the cap at once - an
+						// emboss filter, not shading; at a quarter it barely showed. Now a step of 80 does.
+						int delta = -((gx * (fx >> 8) + gy * (fy >> 8)) >> 9);
 						delta = delta > ReliefMax ? ReliefMax : (delta < -ReliefMax ? -ReliefMax : delta);
 						if (delta == 0)
 							continue;

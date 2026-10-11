@@ -306,7 +306,9 @@ TEST(OracoolLootBeams, TheBetterItemsStandInALight)
 	item._iMagical = ITEM_QUALITY_NORMAL;
 	EXPECT_EQ(oracool::LootLookFor(item).rgb, 0U);
 	item._iMagical = ITEM_QUALITY_MAGIC;
-	EXPECT_EQ(oracool::LootLookFor(item).rgb, 0U); // too common to light
+	const oracool::LootLook magic = oracool::LootLookFor(item);
+	EXPECT_GT(B(magic.rgb), R(magic.rgb)); // the magic blue
+	EXPECT_LT(magic.height, 1.0F);         // the smallest beam
 	item._iMagical = ITEM_QUALITY_UNIQUE;
 	EXPECT_NE(oracool::LootLookFor(item).rgb, 0U);
 	item._iOracoolTier = OracoolItemTier::Set;

@@ -523,7 +523,7 @@ void SaveOptions()
 	setBoolean("Floor Marks", *sgOptions.Oracool.floorMarks,
 	    "; On: battles mark the floor - blood where monsters fall, scorch marks from fire,\n; frost from cold, acid stains - fading after a minute or two.");
 	setBoolean("Loot Beams", *sgOptions.Oracool.lootBeams,
-	    "; On: rare, unique, set, primal and runeword items on the ground stand in a beam of\n; light in their colour, with a glow on the floor under them.");
+	    "; On: magic, rare, unique, set, primal and runeword items on the ground stand in a beam of\n; light in their colour, with a glow on the floor under them.");
 	setBoolean("Lit Surface Relief", *sgOptions.Oracool.surfaceRelief,
 	    "; On: walls, objects and figures catch the light from the side it comes from - the\n; side toward a torch or spell brightens, the far side falls into shade.");
 	setBoolean("Zoom Sharpening", *sgOptions.Oracool.zoomSharpen,
@@ -1669,7 +1669,7 @@ OracoolOptions::OracoolOptions()
     , zoomFilter("Sharp Zoom Filter", OptionEntryFlags::None, N_("Sharp Zoom Filter"), N_("When zoomed in, the picture is enlarged with a pixel-art filter (Scale2x at 2x, sharp bilinear between) instead of plain pixel doubling."), true)
     , dayNightCycle("Day and Night", OptionEntryFlags::None, N_("Day and Night"), N_("Tristram has a day and night cycle: dusk turns the town amber, night is dark blue, lit by your own light, the townsfolk's lamps and portals."), true)
     , floorMarks("Floor Marks", OptionEntryFlags::None, N_("Floor Marks"), N_("Battles mark the floor: blood where monsters fall, scorch marks from fire, frost from cold, acid stains. They fade after a minute or two."), true)
-    , lootBeams("Loot Beams", OptionEntryFlags::None, N_("Loot Beams"), N_("Rare, unique, set, primal and runeword items on the ground stand in a beam of light in their colour, with a glow on the floor under them."), true)
+    , lootBeams("Loot Beams", OptionEntryFlags::None, N_("Loot Beams"), N_("Magic, rare, unique, set, primal and runeword items on the ground stand in a beam of light in their colour, with a glow on the floor under them."), true)
     , surfaceRelief("Lit Surface Relief", OptionEntryFlags::None, N_("Lit Surface Relief"), N_("Walls, objects and figures catch the light from the side it comes from: the side toward a torch or spell brightens, the far side falls into shade."), true)
     , zoomSharpen("Zoom Sharpening", OptionEntryFlags::None, N_("Zoom Sharpening"), N_("When zoomed in, the enlarged picture is sharpened (contrast-adaptive) so it stays crisp instead of soft."), true)
     , animationBlending("Smooth Animation", OptionEntryFlags::None, N_("Smooth Animation"), N_("Heroes and monsters blend each animation frame into the next, so walking and fighting look smoother. Off: Diablo's original frame steps."), true)
