@@ -42,6 +42,7 @@
 #include "oracool/companion.h"
 #include "oracool/frame_blend.h" // Smooth animation: a frame cross-faded into the next
 #include "oracool/frame_timing.h"
+#include "oracool/gpu_post.h"     // Stage 1 of the GPU plan: bloom, mood, vignette, zoom on the graphics card
 #include "oracool/ground_fx.h"   // Floor marks and loot beams
 #include "oracool/particles.h" // Particles: embers, sparks, dust, ash
 #include "oracool/post_fx.h" // mood, vignette, bloom, heat haze, the filtered zoom
@@ -1802,6 +1803,26 @@ Surface VisibleWorldRegion(const Surface &out, float zoomFactor)
 	return out.subregion(viewportOffsetX, 0, srcWidth, out.h());
 }
 
+/**
+ * @brief Where ZoomScale writes: the viewport of @p fullOut, less a side panel covering the view - the same sums
+ * ZoomScale makes. The graphics card's zoom (oracool/gpu_post.h) writes there too.
+ */
+Surface ZoomDestination(const Surface &fullOut)
+{
+	const Surface out = fullOut.subregionY(0, gnViewportHeight);
+	int viewportWidth = out.w();
+	int viewportOffsetX = 0;
+	if (CanPanelsCoverView()) {
+		if (IsLeftPanelOpen()) {
+			viewportWidth -= SidePanelSize.width;
+			viewportOffsetX = SidePanelSize.width;
+		} else if (IsRightPanelOpen()) {
+			viewportWidth -= SidePanelSize.width;
+		}
+	}
+	return out.subregion(viewportOffsetX, 0, std::max(viewportWidth, 1), out.h());
+}
+
 void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 {
 	const float zoomFactor = *sgOptions.Oracool.dungeonZoomLevel;
@@ -1906,8 +1927,29 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// glow too - all before the outlines (the cursor's own colour) and the zoom.
 	{ oracool::ScopedFramePass timed(oracool::FramePass::Particles); oracool::UpdateAndDrawParticles(visible, position, visibleStart); }
 	{ oracool::ScopedFramePass timed(oracool::FramePass::Haze); oracool::ApplyHeatHazeAndWater(visible, position, visibleStart); }
-	{ oracool::ScopedFramePass timed(oracool::FramePass::Bloom); oracool::ApplyBloom(visible); }
-	{ oracool::ScopedFramePass timed(oracool::FramePass::Mood); oracool::ApplyAreaMoodAndVignette(visible); }
+	// The GPU renderer plan, Stage 1 (oracool/gpu_post.h, user 2026-10-11): the bloom, the mood and vignette, the zoom
+	// and its sharpening on the graphics card - the monster outlines go on first, into the world it receives. If the card
+	// cannot, the CPU passes below run as before.
+	const bool zoomed = zoomFactor > 1.0f;
+	bool outlinesDrawn = false;
+	bool doneOnGpu = false;
+	if (!visible.isIndexed() && oracool::GpuWorldPostAvailable()) {
+		oracool::GpuWorldPostSettings gpu;
+		gpu.bloom = *sgOptions.Oracool.bloom;
+		gpu.mood = *sgOptions.Oracool.areaMood && leveltype != DTYPE_TOWN;
+		gpu.moodType = leveltype;
+		gpu.vignette = *sgOptions.Oracool.vignette;
+		gpu.zoom = !zoomed ? oracool::GpuZoom::None : (*sgOptions.Oracool.zoomFilter ? oracool::GpuZoom::Filtered : oracool::GpuZoom::Nearest);
+		gpu.sharpen = zoomed && *sgOptions.Oracool.zoomFilter && *sgOptions.Oracool.zoomSharpen;
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Outlines); DrawMonsterWallOutlines(out); }
+		outlinesDrawn = true;
+		oracool::ScopedFramePass timed(oracool::FramePass::Gpu);
+		doneOnGpu = oracool::GpuWorldPost(visible, zoomed ? ZoomDestination(fullOut) : visible, gpu);
+	}
+	if (!doneOnGpu) {
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Bloom); oracool::ApplyBloom(visible); }
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Mood); oracool::ApplyAreaMoodAndVignette(visible); }
+	}
 	// The deferred monster outlines, drained HERE - after the whole scene is composited, so they
 	// land on top of any wall that would otherwise hide the body, but still BEFORE ZoomScale, so
 	// they are scaled along with everything else.
@@ -1925,9 +1967,12 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// deferred queue (`position *= dungeonZoomLevel`): a label is text drawn at a point, but this
 	// is a SPRITE, and ClxDrawOutlineSkipColorZero has no scale. Drawing it inside the scaled
 	// region is the only way it can come out the right size.
-	{ oracool::ScopedFramePass timed(oracool::FramePass::Outlines); DrawMonsterWallOutlines(out); }
+	if (!outlinesDrawn) {
+		oracool::ScopedFramePass timed(oracool::FramePass::Outlines);
+		DrawMonsterWallOutlines(out);
+	}
 
-	if (zoomFactor > 1.0f) {
+	if (zoomFactor > 1.0f && !doneOnGpu) {
 		{ oracool::ScopedFramePass timed(oracool::FramePass::Zoom); ZoomScale(fullOut.subregionY(0, gnViewportHeight), zoomFactor); }
 	}
 	oracool::NoteWorldFrameDrawn();

@@ -977,6 +977,11 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean zoomSharpen;
 	OptionEntryBoolean animationBlending;
 	/**
+	 * @brief The GPU renderer plan, Stage 1 (user, 2026-10-11): bloom, area mood, vignette, the zoom filter and zoom
+	 * sharpening run on the graphics card (oracool/gpu_post.h). Off, or when the card cannot, the CPU runs them.
+	 */
+	OptionEntryBoolean gpuRenderer;
+	/**
 	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
 	 * the name large, type and tier under it, the armour or damage as one big number, the item's
 	 * picture top right, the stats left-aligned, the requirements in a band at the foot). OFF is the

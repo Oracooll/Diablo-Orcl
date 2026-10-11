@@ -29,6 +29,7 @@
 #include "inv.h"
 #include "oracool/area_level.h" // MaxAreaLevel - a debug set piece stays on the ladder
 #include "oracool/colour_light.h" // TownHour / SetTownHour - the timeofday command
+#include "oracool/gpu_post.h"     // GpuWorldPostStatus - the gpuinfo command
 #include "levels/setmaps.h"
 #include "lighting.h"
 #include "levels/gendung.h"
@@ -1185,6 +1186,15 @@ std::string DebugCmdCursorInfo(const string_view parameter)
 	    " | fade ", FadeLevel, colours);
 }
 
+std::string DebugCmdGpuInfo(const string_view parameter)
+{
+	// The GPU renderer plan, Stage 1: which card does the world's tail passes, or why none does.
+	const bool on = *sgOptions.Oracool.gpuRenderer;
+	const bool available = oracool::GpuWorldPostAvailable();
+	const std::string status = oracool::GpuWorldPostStatus();
+	return StrCat("Graphics Card Renderer: ", on ? "on" : "off", " | ", available ? "in use" : "not in use", status.empty() ? "" : " | ", status);
+}
+
 std::string DebugCmdTimeOfDay(const string_view parameter)
 {
 	// Day and night in Tristram (user, 2026-10-11): the town's clock, read or set, so dusk and night can be seen at once.
@@ -1699,6 +1709,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "cursorinfo", "Shows the cursor's state (type it the moment the cursor vanishes).", "", &DebugCmdCursorInfo },
 	{ "cursorfix", "Rebuilds the cursor from scratch, without restarting.", "", &DebugCmdCursorFix },
 	{ "timeofday", "Shows or sets Tristram's clock (0-24) for the day and night cycle.", "({hour})", &DebugCmdTimeOfDay },
+	{ "gpuinfo", "Shows whether the graphics card renderer is in use, and on which card.", "", &DebugCmdGpuInfo },
 	{ "clearui", "Toggles hiding every HUD element (panel, mini-map, overlays, cursor, etc.) for a fully clean screenshot.", "", &DebugCmdClearUi },
 	{ "spawnu", "Spawns unique monster {name}.", "{name} ({count})", &DebugCmdSpawnUniqueMonster },
 	{ "spawn", "Spawns monster {name}.", "{name} ({count})", &DebugCmdSpawnMonster },

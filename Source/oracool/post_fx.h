@@ -20,14 +20,34 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 #include "engine/point.hpp"
+#include "levels/gendung.h"
 
 namespace devilution {
 struct Surface;
 }
 
 namespace devilution::oracool {
+
+// ----- Shared with the graphics-card path (oracool/gpu_post.h, GPU renderer plan Stage 1): the very tables and
+// constants the CPU passes use, so both give the same pixels. ---------------------------------------------------------
+
+/** @brief Bloom: how much of the blurred glow goes back on, /65536 after the bilinear; the box radius. */
+constexpr int BloomStrengthShared = 90;
+constexpr int BloomRadiusShared = 3;
+/** @brief Bloom: the bright pass's weight for a luma, 0..256. */
+int BloomWeightFor(int luma);
+/** @brief Area mood: the level's three channel curves, 256 entries each. */
+void MoodCurves(dungeon_type type, uint8_t *r, uint8_t *g, uint8_t *b);
+/** @brief Vignette: one axis of @p n pixels, 256 = untouched. */
+void VignetteAxis(std::vector<uint16_t> &axis, int n);
+/** @brief Sharp bilinear zoom: one axis from @p src to @p dst pixels (the two source pixels and the weight of the second). */
+void ZoomAxis(int src, int dst, std::vector<int> &i0, std::vector<int> &i1, std::vector<int> &w);
+/** @brief Zoom sharpening: sqrt(i / 256) * 256 for i in 0..256, and the negative lobe at full amplitude (/256). */
+const uint16_t *CasAmplitudeTable();
+constexpr int CasPeakShared = 41;
 
 /** @brief Area mood and vignette, one pass over the world surface @p out. Pure black pixels are left black. */
 void ApplyAreaMoodAndVignette(const Surface &out);

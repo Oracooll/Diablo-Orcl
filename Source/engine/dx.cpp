@@ -15,6 +15,7 @@
 #include "engine/backbuffer_state.hpp"
 #include "options.h"
 #include "oracool/frame_timing.h"
+#include "oracool/gpu_post.h"
 #include "utils/display.h"
 #include "utils/log.hpp"
 #include "utils/sdl_wrap.h"
@@ -112,6 +113,7 @@ void dx_cleanup()
 		SDL_HideWindow(ghMainWnd);
 #endif
 
+	oracool::ShutdownGpuWorldPost(); // the GPU renderer plan's device (Stage 1)
 	PalSurface = nullptr;
 	PinnedPalSurface = nullptr;
 	Palette = nullptr;

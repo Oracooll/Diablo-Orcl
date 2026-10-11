@@ -304,8 +304,8 @@ std::vector<uint32_t> HazeRow;
 /** Luma where the bright pass starts (a soft knee up to full at 255): about 200 counts a tenth, 230 half. */
 constexpr int BloomKnee = 176;
 /** How much of the blurred glow goes back on, /256 (0.35). */
-constexpr int BloomStrength = 90;
-constexpr int BloomRadius = 3;
+constexpr int BloomStrength = BloomStrengthShared;
+constexpr int BloomRadius = BloomRadiusShared;
 
 std::vector<int> BloomR, BloomG, BloomB, BloomTmp;
 std::vector<int> BloomRowR, BloomRowG, BloomRowB;
@@ -856,7 +856,7 @@ struct CasCurve {
 };
 const CasCurve CasAmplitude;
 /** The negative lobe at full amplitude, of 256: CAS's -1 / lerp(8, 5, sharpness) at a sharpness of 0.6. */
-constexpr int CasPeak = 41;
+constexpr int CasPeak = CasPeakShared;
 std::vector<uint32_t> CasRows;
 
 } // namespace
@@ -918,6 +918,37 @@ void SharpenAdaptive(uint8_t *base, int pitch, int width, int height)
 			dst[x] = (static_cast<uint32_t>(ch[0]) << 16) | (static_cast<uint32_t>(ch[1]) << 8) | static_cast<uint32_t>(ch[2]);
 		}
 	}
+}
+
+int BloomWeightFor(int luma)
+{
+	constexpr int Range = 255 - BloomKnee;
+	const int t = luma - BloomKnee;
+	return t <= 0 ? 0 : t * t * 256 / (Range * Range);
+}
+
+void MoodCurves(dungeon_type type, uint8_t *r, uint8_t *g, uint8_t *b)
+{
+	if (MoodType != static_cast<int>(type))
+		BuildMood(type);
+	std::copy_n(MoodR.data(), 256, r);
+	std::copy_n(MoodG.data(), 256, g);
+	std::copy_n(MoodB.data(), 256, b);
+}
+
+void VignetteAxis(std::vector<uint16_t> &axis, int n)
+{
+	BuildVignetteAxis(axis, n);
+}
+
+void ZoomAxis(int src, int dst, std::vector<int> &i0, std::vector<int> &i1, std::vector<int> &w)
+{
+	BuildZoomAxis(src, dst, i0, i1, w);
+}
+
+const uint16_t *CasAmplitudeTable()
+{
+	return CasAmplitude.v.data();
 }
 
 uint8_t LiquidKindAt(Point tile)

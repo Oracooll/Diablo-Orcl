@@ -82,6 +82,7 @@ set(libdevilutionx_SRCS
   oracool/spell_glow.cpp
   oracool/particles.cpp
   oracool/frame_blend.cpp
+  oracool/gpu_post.cpp
   oracool/ground_fx.cpp
   oracool/post_fx.cpp
   oracool/rogue_arrows.cpp
@@ -441,6 +442,11 @@ foreach(path ${DEVILUTIONX_PLATFORM_SUBDIRECTORIES})
 endforeach()
 
 target_link_libraries(libdevilutionx PUBLIC ${DEVILUTIONX_PLATFORM_LINK_LIBRARIES})
+
+# The GPU renderer plan, Stage 1 (oracool/gpu_post.cpp): the world's tail passes on a Direct3D 11 device.
+if(WIN32 AND NOT USE_SDL1)
+  target_link_libraries(libdevilutionx PUBLIC d3d11 d3dcompiler dxgi)
+endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9 AND NOT AMIGA)

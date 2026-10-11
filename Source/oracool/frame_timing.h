@@ -118,6 +118,7 @@ enum class FramePass : uint8_t {
 	Mood,        // area mood and vignette
 	Outlines,    // the deferred monster outlines
 	Zoom,        // ZoomScale: the zoom filter and sharpening
+	Gpu,         // Stage 1: the world up to the graphics card, its passes, and the picture back
 	Count,
 };
 

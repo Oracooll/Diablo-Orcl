@@ -528,6 +528,8 @@ void SaveOptions()
 	    "; On: walls, objects and figures catch the light from the side it comes from - the\n; side toward a torch or spell brightens, the far side falls into shade.");
 	setBoolean("Zoom Sharpening", *sgOptions.Oracool.zoomSharpen,
 	    "; On: when zoomed in, the enlarged picture is sharpened (contrast-adaptive, after\n; AMD FidelityFX CAS) so it stays crisp instead of soft.");
+	setBoolean("Graphics Card Renderer", *sgOptions.Oracool.gpuRenderer,
+	    "; On: bloom, the area mood, the vignette and the zoom filter and sharpening run on the\n; graphics card (Direct3D 11), which is much faster. Off, or if the card cannot, the CPU\n; runs them. The picture is the same either way.");
 	setBoolean("Smooth Animation", *sgOptions.Oracool.animationBlending,
 	    "; On: heroes and monsters blend each animation frame into the next, so walking and\n; fighting look smoother. Off: Diablo's original frame steps.");
 	setBoolean("Item Tooltip Card", *sgOptions.Oracool.itemTooltipCard,
@@ -1672,6 +1674,7 @@ OracoolOptions::OracoolOptions()
     , lootBeams("Loot Beams", OptionEntryFlags::None, N_("Loot Beams"), N_("Magic, rare, unique, set, primal and runeword items on the ground stand in a beam of light in their colour, with a glow on the floor under them."), true)
     , surfaceRelief("Lit Surface Relief", OptionEntryFlags::None, N_("Lit Surface Relief"), N_("Walls, objects and figures catch the light from the side it comes from: the side toward a torch or spell brightens, the far side falls into shade."), true)
     , zoomSharpen("Zoom Sharpening", OptionEntryFlags::None, N_("Zoom Sharpening"), N_("When zoomed in, the enlarged picture is sharpened (contrast-adaptive) so it stays crisp instead of soft."), true)
+    , gpuRenderer("Graphics Card Renderer", OptionEntryFlags::None, N_("Graphics Card Renderer"), N_("Bloom, the area mood, the vignette and the zoom filter and sharpening run on the graphics card (Direct3D 11), which is much faster. Off, or if the card cannot, the CPU runs them. The picture is the same either way."), true)
     , animationBlending("Smooth Animation", OptionEntryFlags::None, N_("Smooth Animation"), N_("Heroes and monsters blend each animation frame into the next, so walking and fighting look smoother. Off: Diablo's original frame steps."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
@@ -1779,6 +1782,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&surfaceRelief,
 		&zoomSharpen,
 		&animationBlending,
+		&gpuRenderer,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,
