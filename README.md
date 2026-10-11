@@ -1,19 +1,42 @@
 # Diablo Orcl — Oracool Edition
 
-A single-player overhaul of Diablo and Hellfire built on [DevilutionX](https://github.com/diasurgical/devilutionX). Diablo Orcl expands character builds, loot, crafting, endgame progression and the interface, with a 32-bit colour renderer.
+A free, non-profit, single-player overhaul of Diablo and Hellfire built on [DevilutionX](https://github.com/diasurgical/devilutionX). Diablo Orcl expands character builds, loot, crafting, endgame progression and the interface. Version 1.13 opens the era of next-gen Diablo graphics: coloured and per-pixel lighting, shadows, bloom and a graphics-card renderer.
 
 **Project still in development. Bugs are common and come in hordes :)**
 
-[Website](https://diabloorcl.oracooll.com/) · [Downloads](https://github.com/Oracooll/Diablo-Orcl/releases) · [Report a bug](https://github.com/Oracooll/Diablo-Orcl/issues) · [License](LICENSE.md)
+[Website](https://diabloorcl.oracooll.com/) · [Downloads](https://github.com/Oracooll/Diablo-Orcl/releases) · [Trailers](https://diabloorcl.oracooll.com/media/) · [Interface tour](https://diabloorcl.oracooll.com/interface/) · [Report a bug](https://github.com/Oracooll/Diablo-Orcl/issues) · [License](LICENSE.md)
+
+## Trailers
+
+| [![The Paladin trailer](https://diabloorcl.oracooll.com/assets/trailer-paladin.jpg)](https://youtu.be/yExCXtGM7PQ) | [![The Barbarian trailer](https://diabloorcl.oracooll.com/assets/trailer-barbarian.jpg)](https://youtu.be/8cknWYUSkcU) |
+| :---: | :---: |
+| **[The Paladin](https://youtu.be/yExCXtGM7PQ)**: hero creation, rift combat under the v1.13 lighting and a tour of the town's interface | **[The Barbarian](https://youtu.be/8cknWYUSkcU)**: Torment tiers, the Guardian Rift, Whirlwind and the fight with Na-Krul |
 
 ## Current status
 
 - The default development branch is `renderer-32bit`.
-- Current source version: **v1.12.347** as of 2 October 2026; [ORACOOL_VERSION](ORACOOL_VERSION) is the authoritative version file.
-- Latest published Windows download: **[v1.12.347](https://github.com/Oracooll/Diablo-Orcl/releases/tag/v1.12.347)**, with `DiabloOrcl-v1.12.347-win64.zip`. This matches the current source version. Read the release notes before installing or upgrading.
+- Current source version: **v1.13.004** as of 11 October 2026; [ORACOOL_VERSION](ORACOOL_VERSION) is the authoritative version file.
+- Latest published Windows download: **[v1.13.001](https://github.com/Oracooll/Diablo-Orcl/releases/tag/v1.13.001)**, with `DiabloOrcl-v1.13.001-win64.zip`. The source is a few builds ahead of it (the pipelined graphics-card read-back, a softer lightning glow and speed work). Read the release notes before installing or upgrading.
 - **V1 is single-player only.** Multiplayer is not supported.
 - Windows is the primary development platform. Upstream platform instructions do not guarantee that this fork has a supported package for every platform.
 - Save compatibility can change between development builds. Back up characters before upgrading.
+
+## Next-gen graphics (v1.13)
+
+Every effect has its own setting under **Settings → Oracool Edition**, and all are on by default.
+
+- **Light and shadow:** coloured lighting (fire orange, lightning blue-white, holy gold, poison green, cold cyan), smooth light falloff, ray-traced shadows from walls and pillars, torch flicker, and on the graphics card per-pixel lights and lit sprites.
+- **Atmosphere:** spell glow and a wide bloom, light shafts, heat distortion over lava and fire, a colour grade for each area, a vignette, particles, and lava haze and water light.
+- **A living world:** a 20-minute day and night in Tristram, floor marks after a fight, loot beams under magic and better items, smooth animation between frames, and a pixel-art zoom with adaptive sharpening.
+- **The graphics-card renderer:** everything drawn after the figures runs through Direct3D 11 on any Direct3D 11 card (Intel HD 4000, GeForce 400, Radeon HD 5000 or newer, and every Snapdragon X). Without one, the game falls back to the CPU on its own, and the picture is the same apart from the card-only effects. With **Show FPS** on, the game shows what each effect costs.
+
+| ![The skill tree in a rift](https://diabloorcl.oracooll.com/assets/shots/skill-tree.jpg) | ![The Barbarian against Na-Krul](https://diabloorcl.oracooll.com/assets/shots/nakrul.jpg) | ![Torment tiers](https://diabloorcl.oracooll.com/assets/shots/torment-tiers.jpg) |
+| :---: | :---: | :---: |
+| Class skill tree | Na-Krul, guardian of the rift | Torment and its eight tiers |
+| ![Griswold's shop](https://diabloorcl.oracooll.com/assets/shots/vendor-tabs.jpg) | ![The hero sheet](https://diabloorcl.oracooll.com/assets/shots/hero-sheet.jpg) | ![The Runeword Book](https://diabloorcl.oracooll.com/assets/shots/runeword-book.jpg) |
+| Grid shops with tabs | Hero sheet and advanced stats | The Runeword Book |
+
+More on the website's [interface tour](https://diabloorcl.oracooll.com/interface/) and [media page](https://diabloorcl.oracooll.com/media/).
 
 ## Heroes and skills
 
@@ -79,7 +102,7 @@ powershell -File tools\BuildReleasePackage.ps1
 
 - [Current project scope](.ProjectDocumentation/01-Project-Overview/Project-Scope.md)
 - [Documentation home](.ProjectDocumentation/Home.md)
-- [Development reports](.ProjectDocumentation/02-Development-Reports) and [v1.12.347 report](.ProjectDocumentation/02-Development-Reports/2026-10-02-open-list-fixed-v1.12.347.md)
+- [Development reports](.ProjectDocumentation/02-Development-Reports), the latest being the [graphics-card renderer report](.ProjectDocumentation/02-Development-Reports/2026-10-11-gpu-renderer-stages1-3-v1.12.434-439.md)
 - [Historical changelog](.ProjectDocumentation/04-Changelog/CHANGELOG.md)
 - [Contribution guide](docs/CONTRIBUTING.md)
 
@@ -95,8 +118,27 @@ Report bugs through [GitHub Issues](https://github.com/Oracooll/Diablo-Orcl/issu
 - **DevilutionX Team — Fundamental mod and engine foundation**
 - **Blizzard North — Creators of the original Diablo**
 
-
 Diablo Orcl builds on DevilutionX and Devilution by the Diasurgical team and their contributors. Credit also belongs to the artists and contributors recorded in the repository and upstream project.
+
+### Thanks
+
+Diablo Orcl would not exist without these people and projects:
+
+- **Blizzard Entertainment and Blizzard North**, for creating Diablo and giving the world the Diablo franchise.
+- **Synergistic Software and Sierra On-Line**, for Diablo: Hellfire, the 1997 expansion.
+- **The DevilutionX team and contributors**, for the open-source Diablo engine this mod is built on.
+- **The teams behind the Belzebub and Tchernobog mods**, for showing how far Diablo 1 can be taken.
+- **The Median XL team**, for setting the standard for deep Diablo mods.
+- **The DamnationX team**, for inspiration.
+- **Claude (Anthropic)**, for writing the code and recommending which new features this project could implement.
+- **ChatGPT (OpenAI)**, for creating the visual assets.
+- **Cloudflare**, for hosting the website, and **GitHub**, for hosting the source code and releases.
+- **The Paint.NET and Notepad++ teams**, for the image and text editors.
+- **The FFmpeg project**, for the tools the trailers are cut with.
+- **SDL, CMake** and the other open-source libraries and tools the game is built with.
+- And everyone in the Diablo modding community who has kept this game alive for almost thirty years.
+
+Diablo Orcl is free and non-profit; neither the mod nor its videos are monetised.
 
 See [LICENSE.md](LICENSE.md) for the Sustainable Use License and applicable terms. Existing dependency and asset notices remain applicable.
 
