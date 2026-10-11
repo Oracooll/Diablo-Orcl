@@ -36,6 +36,7 @@
 #include "utils/log.hpp"
 #include "utils/png.h"
 #include "utils/sdl_geometry.h"
+#include "oracool/scene_glow.h"
 
 namespace devilution::oracool {
 
@@ -1421,8 +1422,13 @@ bool DrawLivingLiquid(const Surface &out, ArtAsset &liquid, int srcLeft, int src
 	// Each column's surface, kept for the glow below (round 2 audit: it filled from the flat line, over empty glass).
 	static std::vector<int> Tops;
 	Tops.assign(static_cast<size_t>(srcRight - srcLeft), liquid.height);
+	// Orb Slosh (the sixth graphics batch, oracool/scene_glow.h): each orb half keyed by where it is drawn.
+	const int sloshKey = position.x * 4 + (srcLeft > 0 ? 1 : 0);
+	oracool::OrbSlosh(sloshKey, -1, revealTop);
 	for (int x = srcLeft; x < srcRight; x++) {
-		const float wave = (1.6F * std::sin(static_cast<float>(x) * 0.11F + t * 2.2F) + 0.9F * std::sin(static_cast<float>(x) * 0.23F - t * 3.1F)) * depth;
+		const float wave = (1.6F * std::sin(static_cast<float>(x) * 0.11F + t * 2.2F) + 0.9F * std::sin(static_cast<float>(x) * 0.23F - t * 3.1F)
+		                      + oracool::OrbSlosh(sloshKey, x, revealTop))
+		    * depth;
 		const int top = std::clamp(revealTop + static_cast<int>(std::lround(wave)), 0, liquid.height);
 		Tops[static_cast<size_t>(x - srcLeft)] = top;
 		if (top >= liquid.height)
@@ -1439,6 +1445,20 @@ bool DrawLivingLiquid(const Surface &out, ArtAsset &liquid, int srcLeft, int src
 		const int cb = std::min(255, static_cast<int>(c & 0xFF) + b);
 		c = (static_cast<uint32_t>(cr) << 16) | (static_cast<uint32_t>(cg) << 8) | static_cast<uint32_t>(cb);
 	};
+	// A slow glint crossing the surface (Orb Slosh).
+	if (depth > 0) {
+		for (int x = srcLeft; x < srcRight; x++) {
+			const float g = oracool::OrbGlint(sloshKey, x, liquid.width) * depth;
+			const int top = Tops[static_cast<size_t>(x - srcLeft)];
+			if (g <= 0.02F || top + 2 >= sphereBottom)
+				continue;
+			const int dx = x - sphereCenterLocal.x, dy = top + 1 - sphereCenterLocal.y;
+			if (dx * dx + dy * dy >= (radius - 2) * (radius - 2))
+				continue;
+			lighten(x, top + 1, static_cast<int>(80.0F * g), static_cast<int>(80.0F * g), static_cast<int>(80.0F * g));
+			lighten(x, top + 2, static_cast<int>(35.0F * g), static_cast<int>(35.0F * g), static_cast<int>(35.0F * g));
+		}
+	}
 	// Bubbles: each rises from the bottom of the sphere to the surface, wobbling, and starts again.
 	if (revealTop < sphereBottom - 4) {
 		for (int i = 0; i < 7; i++) {

@@ -1031,6 +1031,27 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean deathEffects;
 	OptionEntryBoolean windowLight;
 	OptionEntryBoolean levelTransition;
+	// The sixth graphics batch (user, 2026-10-11: "do all 20 suggestions"; oracool/scene_glow.h), all on.
+	OptionEntryBoolean levelUpBurst;
+	OptionEntryBoolean castingGlow;
+	OptionEntryBoolean potionEffects;
+	OptionEntryBoolean pickupGlints;
+	OptionEntryBoolean containerEffects;
+	OptionEntryBoolean eliteAuras;
+	OptionEntryBoolean heroHurtFlash;
+	OptionEntryBoolean shrineGlow;
+	OptionEntryBoolean litHomes;
+	OptionEntryBoolean lensGlints;
+	OptionEntryBoolean spellCharge;
+	OptionEntryBoolean statusLights;
+	OptionEntryBoolean bloodTrails;
+	OptionEntryBoolean lingeringMarks;
+	OptionEntryBoolean bossPresence;
+	OptionEntryBoolean orbSlosh;
+	OptionEntryBoolean exitGlow;
+	OptionEntryBoolean corpseSettle;
+	OptionEntryBoolean townForge;
+	OptionEntryBoolean armourSparks;
 	/**
 	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
 	 * the name large, type and tier under it, the armour or damage as one big number, the item's

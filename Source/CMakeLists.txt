@@ -87,6 +87,7 @@ set(libdevilutionx_SRCS
   oracool/scene_fx.cpp
   oracool/scene_life.cpp
   oracool/scene_feel.cpp
+  oracool/scene_glow.cpp
   oracool/post_fx.cpp
   oracool/rogue_arrows.cpp
   oracool/melee_skills.cpp

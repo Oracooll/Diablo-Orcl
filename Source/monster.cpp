@@ -66,6 +66,7 @@
 #include "oracool/particles.h" // EmitHitSparks - a picture only
 #include "oracool/ground_fx.h" // AddDeathMark - a picture only
 #include "oracool/scene_feel.h" // NoteMonsterHit - a picture only
+#include "oracool/scene_glow.h" // NoteMonsterHitGlow - a picture only
 #include "oracool/scene_fx.h"  // DissolvesOnDeath - a burnt-away guardian leaves no body
 
 #include "qol/floatingnumbers.h"
@@ -5175,6 +5176,7 @@ void M_StartHit(Monster &monster, int dam)
 {
 	PlayEffect(monster, MonsterSound::Hit);
 	oracool::NoteMonsterHit(monster, dam); // the fifth graphics batch's hit flash and blood (oracool/scene_feel.h): a picture only
+	oracool::NoteMonsterHitGlow(monster, dam); // the sixth's splashes and sparks (oracool/scene_glow.h)
 
 	// A stunned monster does not flinch out of its stun: a hard hit set HitRecovery over it, so Paralysis - stunning inside
 	// the very hit that then flinched - was a flinch, and every stun ended at the next blow (round 19 audit, v1.12.244).

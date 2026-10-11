@@ -42,6 +42,7 @@
 #include "oracool/rift.h"
 #include "oracool/rift_bosses.h"
 #include "oracool/scene_feel.h"
+#include "oracool/scene_glow.h"
 #include "oracool/scene_life.h"
 #include "oracool/splats.h"
 #include "oracool/whirlwind.h"
@@ -1862,6 +1863,7 @@ void ForgetSceneFx()
 	Kick = {};
 	ForgetSceneLife(); // the fourth batch's records go with the third's
 	ForgetSceneFeel(); // and the fifth's
+	ForgetSceneGlow(); // and the sixth's
 }
 
 } // namespace devilution::oracool

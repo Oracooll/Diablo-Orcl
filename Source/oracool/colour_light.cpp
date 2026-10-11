@@ -34,6 +34,7 @@
 #include "oracool/lesser_uniques.h"
 #include "oracool/missile_tint.h"
 #include "oracool/monster_variants.h"
+#include "oracool/scene_glow.h"
 #include "player.h"
 #include "towners.h"
 
@@ -754,6 +755,9 @@ const std::vector<TownLight> &GatherTownLights()
 			continue;
 		lights.push_back({ static_cast<float>(towner.position.x), static_cast<float>(towner.position.y), 4.5F, 0.9F, 1.0F, 0.74F, 0.46F });
 	}
+	// The homes' windows and the forge (the sixth graphics batch, oracool/scene_glow.h).
+	for (const HomeLamp &lamp : TownHomeLamps())
+		addRgb(lamp.x, lamp.y, lamp.reach, lamp.strength, lamp.rgb);
 	for (const Missile &missile : Missiles) {
 		// A portal in town has no light of its own (ProcessTownPortal lights it only in the dungeon): by its kind.
 		if (missile._mlid == NO_LIGHT && missile._mitype != MissileID::TownPortal && missile._mitype != MissileID::RedPortal)

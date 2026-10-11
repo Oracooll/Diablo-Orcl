@@ -92,6 +92,7 @@
 #include "oracool/whirlwind.h"
 #include "oracool/scene_fx.h"
 #include "oracool/scene_feel.h"
+#include "oracool/scene_glow.h"
 #include "oracool/scene_life.h"
 #include "panels/charpanel.hpp"
 #include "panels/spell_book.hpp"
@@ -843,6 +844,8 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 		}
 		blendBody();
 		if (!bodyOnly)
+			oracool::DrawHeroHurtFlash(out, player, spriteBufferPosition, sprite); // a blow that hurt (oracool/scene_glow.h)
+		if (!bodyOnly)
 			DrawPlayerIcons(out, player, targetBufferPosition, false);
 		return;
 	}
@@ -871,6 +874,8 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 			ClxDrawLight(out, spriteBufferPosition, sprite, LightTableIndex);
 	}
 	blendBody();
+	if (!bodyOnly)
+		oracool::DrawHeroHurtFlash(out, player, spriteBufferPosition, sprite); // the Hive and the Crypt draw him here (audit round 1)
 	if (!bodyOnly)
 		DrawPlayerIcons(out, player, targetBufferPosition, false);
 
@@ -1565,6 +1570,7 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 					ClxDrawTRN(out, position, sprite, corpse.laidTrn.data());
 				else
 					ClxDrawLight(out, position, sprite, LightTableIndex);
+				oracool::DrawCorpseSettle(out, tilePosition, position, sprite, LightTableIndex); // cooling toward grey (oracool/scene_glow.h)
 			}
 		}
 	}
@@ -2075,6 +2081,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// The fourth graphics batch (oracool/scene_life.h): where the world lands this frame, and its per-frame bookkeeping.
 	oracool::NoteWorldView(visible, fullOut, position, visibleStart, zoomFactor);
 	oracool::TickSceneFeel(visible, position, visibleStart); // and the fifth's (oracool/scene_feel.h)
+	oracool::TickSceneGlow(visible, position, visibleStart); // and the sixth's (oracool/scene_glow.h)
 	// Wall shadows and ray-traced shadows (user, 2026-10-10) ride the same floor pass.
 	SmoothFloorThisFrame = oracool::SmoothFloorLightActive(out);
 	DeferFloorObjectsThisFrame = oracool::FloorPassActive(out);
@@ -2086,11 +2093,13 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 		DeferFloorObjectsThisFrame = false;
 		oracool::ApplyWeatherGround(visible, position, visibleStart); // Tristram's rain-dark or snow-white ground, under the marks
 		oracool::ApplySceneLifeGround(visible, position, visibleStart); // its puddles and footprints
+		oracool::DrawSceneGlowGround(visible, position, visibleStart); // elite rings, a boss's darkness (oracool/scene_glow.h)
 		{ oracool::ScopedFramePass timed(oracool::FramePass::Marks); oracool::DrawFloorMarks(visible, position, visibleStart); } // blood, scorch, frost, loot glows: on the lit floor
 		{ oracool::ScopedFramePass timed(oracool::FramePass::FloorThings); DrawFloorObjects(out, position, Point {} + offset, rows, columns); }
 	} else {
 		oracool::ApplyWeatherGround(visible, position, visibleStart);
 		oracool::ApplySceneLifeGround(visible, position, visibleStart);
+		oracool::DrawSceneGlowGround(visible, position, visibleStart);
 		{ oracool::ScopedFramePass timed(oracool::FramePass::Marks); oracool::DrawFloorMarks(visible, position, visibleStart); }
 	}
 	// Between the two passes, and only here: a lit aura's ring lies ON the floor, so every wall,
@@ -2153,6 +2162,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// Cloud shadows, crows, leaves and torch smoke (oracool/scene_life.h): before the light passes, so night falls on them.
 	oracool::DrawSceneLifeBodies(visible, position, visibleStart);
 	oracool::DrawSceneFeelBodies(visible, position, visibleStart); // lava light, drop shadows, blood and dust
+	oracool::DrawSceneGlowBodies(visible, position, visibleStart); // the sixth batch's dust
 
 	bool doneOnGpu = false;
 	if (gpuFrame) {
@@ -2168,7 +2178,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 		static std::vector<oracool::Splat> splats;
 		splats.clear();
 		oracool::BeginSplatCollection(&splats);
-		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); oracool::DrawSceneLifeLights(visible, position, visibleStart); oracool::DrawSceneFeelLights(visible, position, visibleStart); }
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); oracool::DrawSceneLifeLights(visible, position, visibleStart); oracool::DrawSceneFeelLights(visible, position, visibleStart); oracool::DrawSceneGlowLights(visible, position, visibleStart); }
 		{ oracool::ScopedFramePass timed(oracool::FramePass::Particles); oracool::UpdateAndDrawParticles(visible, position, visibleStart); }
 		oracool::EndSplatCollection();
 		oracool::HazePlan haze;
@@ -2227,7 +2237,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 		// Day and night in Tristram (user, 2026-10-11): the town's own light over the finished town; then the loot beams,
 		// which are light and stay bright at night, and bloom with the rest.
 		{ oracool::ScopedFramePass timed(oracool::FramePass::DayNight); oracool::ApplyTownDayNight(visible, position, visibleStart); }
-		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); oracool::DrawSceneLifeLights(visible, position, visibleStart); oracool::DrawSceneFeelLights(visible, position, visibleStart); }
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); oracool::DrawSceneLifeLights(visible, position, visibleStart); oracool::DrawSceneFeelLights(visible, position, visibleStart); oracool::DrawSceneGlowLights(visible, position, visibleStart); }
 		// The other visual techniques (user, 2026-10-10: "i like all 9"), each behind its own option: particles over the
 		// lit world, the haze before the bloom so shimmered lava still glows, the area mood and vignette last so they
 		// cover the glow too - all before the outlines (the cursor's own colour) and the zoom.
@@ -2285,6 +2295,7 @@ void DrawView(const Surface &out, Point startPosition)
 	// Before it, the fourth batch's shockwaves and a guardian's fall (oracool/scene_life.h), so the shake moves them too.
 	oracool::ApplySceneFeelAfterWorld(out.subregionY(0, gnViewportHeight)); // the guardian's lean-in (oracool/scene_feel.h)
 	oracool::ApplySceneLifeAfterWorld(out.subregionY(0, gnViewportHeight));
+	oracool::ApplySceneGlowAfterWorld(out.subregionY(0, gnViewportHeight)); // a hurt's red pulse, a boss's darkness at the edges
 	oracool::ApplyAfterWorld(out.subregionY(0, gnViewportHeight));
 	// Oracool: user rule - a window hides the UI behind it until it closes. At 340x720 a right-hand
 	// window is the full height of the screen in the top-right corner, which is exactly where the

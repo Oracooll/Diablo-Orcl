@@ -621,6 +621,47 @@ void SaveOptions()
 	    "; On: soft beams of light slant down from high on the Cathedral's walls, with motes turning in them.");
 	setBoolean("Level Transition", *sgOptions.Oracool.levelTransition,
 	    "; On: a level change closes and opens like an iris instead of a flat fade to black.");
+	// The sixth graphics batch (user, 2026-10-11).
+	setBoolean("Level-Up Burst", *sgOptions.Oracool.levelUpBurst,
+	    "; On: a column of golden light, a ring across the floor and rising sparks when your hero gains a level.");
+	setBoolean("Casting Glow", *sgOptions.Oracool.castingGlow,
+	    "; On: the floor round a caster lights in the spell's colour while the spell is cast.");
+	setBoolean("Potion Effects", *sgOptions.Oracool.potionEffects,
+	    "; On: a big gain of life or mana at once - a potion, a heal, a shrine - swirls red or blue round your hero.");
+	setBoolean("Pickup Glints", *sgOptions.Oracool.pickupGlints,
+	    "; On: gold and magic items on the floor glint now and then, and picking one up throws a few sparkles.");
+	setBoolean("Chest and Door Effects", *sgOptions.Oracool.containerEffects,
+	    "; On: a chest opens in a burst of gold sparks and light; a door opening or closing raises dust.");
+	setBoolean("Elite Auras", *sgOptions.Oracool.eliteAuras,
+	    "; On: champions and uniques stand in a slowly turning ring on the floor, in their own colour.");
+	setBoolean("Hero Hurt Flash", *sgOptions.Oracool.heroHurtFlash,
+	    "; On: a blow that hurts flashes your hero red and pulses red at the edges of the screen.");
+	setBoolean("Shrine Glow", *sgOptions.Oracool.shrineGlow,
+	    "; On: unused shrines and the fountains glow softly, with motes rising from them.");
+	setBoolean("Lit Homes", *sgOptions.Oracool.litHomes,
+	    "; On: after dark Tristram's homes show warm windows and light the ground before them.");
+	setBoolean("Lens Glints", *sgOptions.Oracool.lensGlints,
+	    "; On: the brightest flames and fire spells throw a short horizontal streak of light.");
+	setBoolean("Spell Charge", *sgOptions.Oracool.spellCharge,
+	    "; On: motes gather into your hero's hands while a spell is cast, and flash as it leaves.");
+	setBoolean("Status Lights", *sgOptions.Oracool.statusLights,
+	    "; On: a burning monster lights the floor round it with flickering fire, a frozen one with cold.");
+	setBoolean("Blood Trails", *sgOptions.Oracool.bloodTrails,
+	    "; On: a hard blow splashes blood on the floor, and a badly wounded monster leaves drips where it walks (needs Floor Marks).");
+	setBoolean("Lingering Marks", *sgOptions.Oracool.lingeringMarks,
+	    "; On: fire that stays on the ground - Fire Wall, Flame Wave, Inferno - scorches it, and cold that strikes home leaves frost (needs Floor Marks).");
+	setBoolean("Boss Presence", *sgOptions.Oracool.bossPresence,
+	    "; On: a boss or rift guardian darkens the floor round him and the edges of the screen while he is near.");
+	setBoolean("Orb Slosh", *sgOptions.Oracool.orbSlosh,
+	    "; On: the life and mana orbs slosh when they change quickly, and a slow glint crosses their surface (needs Living Orbs).");
+	setBoolean("Exit Glow", *sgOptions.Oracool.exitGlow,
+	    "; On: stairs and level entrances breathe a faint light - cold going down, warm going up.");
+	setBoolean("Corpse Settle", *sgOptions.Oracool.corpseSettle,
+	    "; On: a body cools toward grey over its first minute, so fresh kills stand out from old ones.");
+	setBoolean("Town Forge", *sgOptions.Oracool.townForge,
+	    "; On: Griswold's forge glows and throws sparks as he works.");
+	setBoolean("Armour Sparks", *sgOptions.Oracool.armourSparks,
+	    "; On: a melee blow on a skeleton, a knight, a golem or a gargoyle throws white-gold sparks.");
 	setBoolean("Item Tooltip Card", *sgOptions.Oracool.itemTooltipCard,
 	    "; On: the item tooltip is a card - name large, type and tier under it, armour or damage\n; as one big number, the item's picture top right, stats left-aligned, requirements in\n; a band at the foot. Off: the earlier centred panel.");
 	setBoolean("Grouped Hero Sheet", *sgOptions.Oracool.heroSheetGrouped,
@@ -1808,6 +1849,26 @@ OracoolOptions::OracoolOptions()
     , deathEffects("Death Effects", OptionEntryFlags::None, N_("Death Effects"), N_("A hard blow or a kill sprays blood - bone chips from the undead - and a corpse lands in a puff of dust."), true)
     , windowLight("Window Light", OptionEntryFlags::None, N_("Window Light"), N_("Soft beams of light slant down from high on the Cathedral’s walls, with motes turning in them."), true)
     , levelTransition("Level Transition", OptionEntryFlags::None, N_("Level Transition"), N_("A level change closes and opens like an iris instead of a flat fade to black."), true)
+    , levelUpBurst("Level-Up Burst", OptionEntryFlags::None, N_("Level-Up Burst"), N_("A column of golden light, a ring across the floor and rising sparks when your hero gains a level."), true)
+    , castingGlow("Casting Glow", OptionEntryFlags::None, N_("Casting Glow"), N_("The floor round a caster lights in the spell's colour while the spell is cast."), true)
+    , potionEffects("Potion Effects", OptionEntryFlags::None, N_("Potion Effects"), N_("A big gain of life or mana at once - a potion, a heal, a shrine - swirls red or blue round your hero."), true)
+    , pickupGlints("Pickup Glints", OptionEntryFlags::None, N_("Pickup Glints"), N_("Gold and magic items on the floor glint now and then, and picking one up throws a few sparkles."), true)
+    , containerEffects("Chest and Door Effects", OptionEntryFlags::None, N_("Chest and Door Effects"), N_("A chest opens in a burst of gold sparks and light; a door opening or closing raises dust."), true)
+    , eliteAuras("Elite Auras", OptionEntryFlags::None, N_("Elite Auras"), N_("Champions and uniques stand in a slowly turning ring on the floor, in their own colour."), true)
+    , heroHurtFlash("Hero Hurt Flash", OptionEntryFlags::None, N_("Hero Hurt Flash"), N_("A blow that hurts flashes your hero red and pulses red at the edges of the screen."), true)
+    , shrineGlow("Shrine Glow", OptionEntryFlags::None, N_("Shrine Glow"), N_("Unused shrines and the fountains glow softly, with motes rising from them."), true)
+    , litHomes("Lit Homes", OptionEntryFlags::None, N_("Lit Homes"), N_("After dark Tristram's homes show warm windows and light the ground before them."), true)
+    , lensGlints("Lens Glints", OptionEntryFlags::None, N_("Lens Glints"), N_("The brightest flames and fire spells throw a short horizontal streak of light."), true)
+    , spellCharge("Spell Charge", OptionEntryFlags::None, N_("Spell Charge"), N_("Motes gather into your hero's hands while a spell is cast, and flash as it leaves."), true)
+    , statusLights("Status Lights", OptionEntryFlags::None, N_("Status Lights"), N_("A burning monster lights the floor round it with flickering fire, a frozen one with cold."), true)
+    , bloodTrails("Blood Trails", OptionEntryFlags::None, N_("Blood Trails"), N_("A hard blow splashes blood on the floor, and a badly wounded monster leaves drips where it walks (needs Floor Marks)."), true)
+    , lingeringMarks("Lingering Marks", OptionEntryFlags::None, N_("Lingering Marks"), N_("Fire that stays on the ground - Fire Wall, Flame Wave, Inferno - scorches it, and cold that strikes home leaves frost (needs Floor Marks)."), true)
+    , bossPresence("Boss Presence", OptionEntryFlags::None, N_("Boss Presence"), N_("A boss or rift guardian darkens the floor round him and the edges of the screen while he is near."), true)
+    , orbSlosh("Orb Slosh", OptionEntryFlags::None, N_("Orb Slosh"), N_("The life and mana orbs slosh when they change quickly, and a slow glint crosses their surface (needs Living Orbs)."), true)
+    , exitGlow("Exit Glow", OptionEntryFlags::None, N_("Exit Glow"), N_("Stairs and level entrances breathe a faint light - cold going down, warm going up."), true)
+    , corpseSettle("Corpse Settle", OptionEntryFlags::None, N_("Corpse Settle"), N_("A body cools toward grey over its first minute, so fresh kills stand out from old ones."), true)
+    , townForge("Town Forge", OptionEntryFlags::None, N_("Town Forge"), N_("Griswold's forge glows and throws sparks as he works."), true)
+    , armourSparks("Armour Sparks", OptionEntryFlags::None, N_("Armour Sparks"), N_("A melee blow on a skeleton, a knight, a golem or a gargoyle throws white-gold sparks."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("A timestamped log of noteworthy session events, opened from the Menu popup or with F11."), true)
@@ -1958,6 +2019,26 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&deathEffects,
 		&windowLight,
 		&levelTransition,
+		&levelUpBurst,
+		&castingGlow,
+		&potionEffects,
+		&pickupGlints,
+		&containerEffects,
+		&eliteAuras,
+		&heroHurtFlash,
+		&shrineGlow,
+		&litHomes,
+		&lensGlints,
+		&spellCharge,
+		&statusLights,
+		&bloodTrails,
+		&lingeringMarks,
+		&bossPresence,
+		&orbSlosh,
+		&exitGlow,
+		&corpseSettle,
+		&townForge,
+		&armourSparks,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,
