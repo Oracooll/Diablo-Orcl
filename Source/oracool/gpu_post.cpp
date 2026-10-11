@@ -37,6 +37,13 @@
 #include "utils/log.hpp"
 #endif
 
+// The CPU's share (the shadow tracing, the table packing) runs every frame from the Debug build: optimised even there,
+// as colour_light.cpp is.
+#ifdef _MSC_VER
+#pragma runtime_checks("", off)
+#pragma optimize("gt", on)
+#endif
+
 namespace devilution::oracool {
 
 #ifdef ORCL_GPU_POST
@@ -1389,20 +1396,23 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 		if (perPixelLights) {
 			// Each light's shadows, once a tile: three rays a little apart, each stopped by the first wall.
 			static std::vector<uint8_t> vis(static_cast<size_t>(MAXDUNX) * MAXDUNY * MaxGpuLights);
-			std::fill(vis.begin(), vis.end(), 0);
+			std::fill(vis.begin(), vis.begin() + static_cast<ptrdiff_t>(lights * MAXDUNX * MAXDUNY), 0);
 			for (size_t k = 0; k < lights; k++) {
 				const GpuLight &l = *kept[k];
-				const int x0 = std::max(static_cast<int>(std::floor(l.x - l.reach)) - 1, 0);
-				const int x1 = std::min(static_cast<int>(std::ceil(l.x + l.reach)) + 1, MAXDUNX - 1);
-				const int y0 = std::max(static_cast<int>(std::floor(l.y - l.reach)) - 1, 0);
-				const int y1 = std::min(static_cast<int>(std::ceil(l.y + l.reach)) + 1, MAXDUNY - 1);
+				// Its reach, clipped to the ground the view shows (audit round 2: the whole circle traced every frame).
+				const int x0 = std::max({ static_cast<int>(std::floor(l.x - l.reach)) - 1, static_cast<int>(std::floor(minU)) - 1, 0 });
+				const int x1 = std::min({ static_cast<int>(std::ceil(l.x + l.reach)) + 1, static_cast<int>(std::ceil(maxU)) + 1, MAXDUNX - 1 });
+				const int y0 = std::max({ static_cast<int>(std::floor(l.y - l.reach)) - 1, static_cast<int>(std::floor(minV)) - 1, 0 });
+				const int y1 = std::min({ static_cast<int>(std::ceil(l.y + l.reach)) + 1, static_cast<int>(std::ceil(maxV)) + 1, MAXDUNY - 1 });
 				for (int x = x0; x <= x1; x++)
 					for (int y = y0; y <= y1; y++)
 						vis[(k * MAXDUNX + static_cast<size_t>(x)) * MAXDUNY + static_cast<size_t>(y)] = static_cast<uint8_t>(TileVisibility(in.blocks, l.x, l.y, x, y) * 255.0F + 0.5F);
 			}
 			if (!Ensure(Gpu->blocks, MAXDUNY, MAXDUNX * static_cast<int>(MaxGpuLights), DXGI_FORMAT_R8_UNORM, D3D11_BIND_SHADER_RESOURCE))
 				return false;
-			Gpu->context->UpdateSubresource(Gpu->blocks.texture.Get(), 0, nullptr, vis.data(), MAXDUNY, 0);
+			// Only the rows of the lights in use.
+			const D3D11_BOX rows { 0, 0, 0, static_cast<UINT>(MAXDUNY), static_cast<UINT>(std::max<size_t>(lights, 1) * MAXDUNX), 1 };
+			Gpu->context->UpdateSubresource(Gpu->blocks.texture.Get(), 0, &rows, vis.data(), MAXDUNY, 0);
 		}
 		if (heatPass && in.liquid != nullptr) {
 			if (!liquidSent && !UploadField(Gpu->liquid, in.liquid, 1, DXGI_FORMAT_R8_UINT)) // once a frame (audit round 1)
@@ -1664,3 +1674,8 @@ const char *GpuWorldPostStatus()
 #endif
 
 } // namespace devilution::oracool
+
+#ifdef _MSC_VER
+#pragma optimize("", on)
+#pragma runtime_checks("", restore)
+#endif

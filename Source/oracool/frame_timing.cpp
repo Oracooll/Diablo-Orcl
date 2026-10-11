@@ -93,7 +93,7 @@ void WriteLogRow(const FrameTimingStats &frames)
 	for (size_t i = 0; i < PassCount; i++)
 		header += std::string(",") + FramePassName(static_cast<FramePass>(i)) + "_ms";
 	// options: smooth colour flicker glow ao mood vignette bloom particles haze shadows zoomfilter daynight marks beams relief sharpen blend gpu pplights litsprites widebloom shafts heat grade
-	header += ",options";
+	header += ",options25"; // the count in the name: a file with fewer digits is kept aside, not mixed in
 	// A file with other columns (an older build's) is kept aside, never appended to: the rows would not line up.
 	bool fresh = true;
 	if (FILE *head = OpenFile(path.c_str(), "rb"); head != nullptr) {
