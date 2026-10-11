@@ -16,8 +16,10 @@
 
 #include <SDL.h>
 
+#include "diablo.h"
 #include "engine/palette.h"
 #include "engine/surface.hpp"
+#include "items.h"
 #include "levels/gendung.h"
 #include "lighting.h"
 #include "misdat.h"
@@ -25,9 +27,12 @@
 #include "monster.h"
 #include "objects.h"
 #include "options.h"
+#include "oracool/ground_fx.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/missile_tint.h"
 #include "oracool/monster_variants.h"
+#include "player.h"
+#include "towners.h"
 
 // The two passes walk every world pixel once a frame, and the game is played from the Debug build: this file is
 // optimised even there (MSVC honours the pragma under /Od /RTC1 - checked 2026-10-10, the loops come out vectorised).
@@ -59,6 +64,14 @@ struct Accum {
 
 std::array<Accum, FieldW * FieldH> Accumulated;
 std::array<LightTint, FieldW * FieldH> Tints;
+/**
+ * Lit surface relief (user, 2026-10-11): the way the light comes from at each tile, in screen space, 8.8 - the sum of every
+ * light's direction weighted by its falloff, so two lights either side cancel and a single torch points hard. Rebuilt with
+ * the colour field.
+ */
+std::array<int16_t, FieldW * FieldH> ReliefDirX;
+std::array<int16_t, FieldW * FieldH> ReliefDirY;
+bool ReliefBuilt = false;
 /** The smooth pass's per-tile brightness, refilled from dLight each frame. */
 std::array<uint16_t, FieldW * FieldH> BrightPlane;
 /** The tiles any coloured light reaches, inclusive; empty when minX > maxX. */
@@ -569,6 +582,186 @@ void EnsureAoPlane()
 
 std::array<LightTint, FieldW * FieldH> FrameTints;
 std::array<float, FieldW * FieldH> FlickerMul;
+std::array<float, FieldW * FieldH> ReliefSumX;
+std::array<float, FieldW * FieldH> ReliefSumY;
+/** How far up the relief's light direction leans, against a light's own pull (1). */
+constexpr float ReliefUpBias = 0.3F;
+/** The most the relief brightens or darkens a pixel, of 256. */
+constexpr int ReliefMax = 56;
+
+/**
+ * Multiplies the pixels of @p out in [left, right] x [top, bottom] by the tint field @p tints under them - the colour
+ * pass's loop, shared with the town's day and night. Written out by hand: no calls survive /Ob0.
+ */
+void TintRect(const Surface &out, const GroundMap &m, const LightTint *tints, int left, int right, int top, int bottom)
+{
+	const int end = right + 1;
+	for (int py = top; py <= bottom; py++) {
+		uint32_t *row = out.at<uint32_t>(0, py);
+		const int64_t rowU = m.u0 + m.duY * py;
+		const int64_t rowV = m.v0 + m.dvY * py;
+		int r0 = One, g0 = One, b0 = One;
+		for (int sx = left;; sx += Span) {
+			const int x = sx < end ? sx : end;
+			const int64_t u = rowU + m.duX * x;
+			const int64_t v = rowV + m.dvX * x;
+			const int64_t iu = u >> 16;
+			const int64_t iv = v >> 16;
+			const int fu = static_cast<int>((u >> 8) & 0xFF);
+			const int fv = static_cast<int>((v >> 8) & 0xFF);
+			const int x0 = iu < 0 ? 0 : (iu > FieldW - 1 ? FieldW - 1 : static_cast<int>(iu));
+			const int x1 = iu + 1 < 0 ? 0 : (iu + 1 > FieldW - 1 ? FieldW - 1 : static_cast<int>(iu + 1));
+			const int y0 = iv < 0 ? 0 : (iv > FieldH - 1 ? FieldH - 1 : static_cast<int>(iv));
+			const int y1 = iv + 1 < 0 ? 0 : (iv + 1 > FieldH - 1 ? FieldH - 1 : static_cast<int>(iv + 1));
+			const LightTint &ta = tints[x0 * FieldH + y0];
+			const LightTint &tb = tints[x1 * FieldH + y0];
+			const LightTint &tc = tints[x0 * FieldH + y1];
+			const LightTint &td = tints[x1 * FieldH + y1];
+			const int wa = (256 - fu) * (256 - fv), wb = fu * (256 - fv), wc = (256 - fu) * fv, wd = fu * fv;
+			const int r1 = (ta.r * wa + tb.r * wb + tc.r * wc + td.r * wd) >> 16;
+			const int g1 = (ta.g * wa + tb.g * wb + tc.g * wc + td.g * wd) >> 16;
+			const int b1 = (ta.b * wa + tb.b * wb + tc.b * wc + td.b * wd) >> 16;
+			if (sx > left) {
+				const int from = sx - Span;
+				const int len = x - from;
+				if (len > 0 && (r0 != One || g0 != One || b0 != One || r1 != One || g1 != One || b1 != One)) {
+					int fr = r0 << 8, fg = g0 << 8, fb = b0 << 8;
+					const int dr = ((r1 - r0) << 8) / len, dg = ((g1 - g0) << 8) / len, db = ((b1 - b0) << 8) / len;
+					for (int i = from; i < x; i++, fr += dr, fg += dg, fb += db) {
+						const uint32_t c = row[i];
+						if (c == 0)
+							continue;
+						uint32_t r = (((c >> 16) & 0xFF) * static_cast<uint32_t>(fr >> 8)) >> 8;
+						uint32_t g = (((c >> 8) & 0xFF) * static_cast<uint32_t>(fg >> 8)) >> 8;
+						uint32_t b = ((c & 0xFF) * static_cast<uint32_t>(fb >> 8)) >> 8;
+						r = r > 255 ? 255 : r;
+						g = g > 255 ? 255 : g;
+						b = b > 255 ? 255 : b;
+						row[i] = (r << 16) | (g << 8) | b;
+					}
+				}
+			}
+			r0 = r1, g0 = g1, b0 = b1;
+			if (x >= end)
+				break;
+		}
+	}
+}
+
+// =================================================================================================================
+// Day and night in Tristram (user, 2026-10-11)
+// =================================================================================================================
+
+/** A full day, in real seconds: twenty minutes, a game hour every 50 s. */
+constexpr float DaySeconds = 1200.0F;
+/** The town's clock, in hours; the first game starts mid-morning. Stopped while paused. */
+float TownClock = 10.0F;
+uint32_t TownClockTicks = 0;
+
+struct AmbientKey {
+	float hour;
+	float r, g, b;
+};
+// Night, dawn's rose, the day, dusk's amber, back to night.
+constexpr AmbientKey AmbientKeys[] = {
+	{ 0.0F, 0.34F, 0.38F, 0.60F },
+	{ 4.5F, 0.34F, 0.38F, 0.60F },
+	{ 6.0F, 0.86F, 0.70F, 0.70F },
+	{ 7.5F, 1.00F, 1.00F, 1.00F },
+	{ 16.5F, 1.00F, 1.00F, 1.00F },
+	{ 18.0F, 1.00F, 0.76F, 0.52F },
+	{ 19.5F, 0.46F, 0.42F, 0.60F },
+	{ 20.5F, 0.34F, 0.38F, 0.60F },
+	{ 24.0F, 0.34F, 0.38F, 0.60F },
+};
+
+void AdvanceTownClock()
+{
+	const uint32_t now = SDL_GetTicks();
+	float dt = TownClockTicks == 0 ? 0.0F : static_cast<float>(now - TownClockTicks) / 1000.0F;
+	TownClockTicks = now == 0 ? 1 : now;
+	dt = dt < 0 ? 0 : (dt > 0.25F ? 0.25F : dt);
+	if (PauseMode != 0)
+		dt = 0;
+	TownClock = std::fmod(TownClock + dt * 24.0F / DaySeconds, 24.0F);
+}
+
+/** The town's ambient light at @p hour, per channel 0..1. */
+void AmbientAt(float hour, float &r, float &g, float &b)
+{
+	hour = std::fmod(hour, 24.0F);
+	if (hour < 0)
+		hour += 24.0F;
+	for (size_t i = 1; i < sizeof(AmbientKeys) / sizeof(AmbientKeys[0]); i++) {
+		const AmbientKey &k1 = AmbientKeys[i];
+		if (hour > k1.hour)
+			continue;
+		const AmbientKey &k0 = AmbientKeys[i - 1];
+		const float t = k1.hour > k0.hour ? (hour - k0.hour) / (k1.hour - k0.hour) : 0.0F;
+		r = k0.r + (k1.r - k0.r) * t;
+		g = k0.g + (k1.g - k0.g) * t;
+		b = k0.b + (k1.b - k0.b) * t;
+		return;
+	}
+	r = g = b = 1.0F;
+}
+
+struct TownLight {
+	float x, y, reach, strength;
+	float r, g, b;
+};
+
+/** The town's lights after dark: the heroes' own, the townsfolk's lamps, the portals, the loot. */
+std::vector<TownLight> GatherTownLights()
+{
+	std::vector<TownLight> lights;
+	const auto addRgb = [&lights](float x, float y, float reach, float strength, uint32_t rgb) {
+		const float r = static_cast<float>((rgb >> 16) & 0xFF) / 255.0F;
+		const float g = static_cast<float>((rgb >> 8) & 0xFF) / 255.0F;
+		const float b = static_cast<float>(rgb & 0xFF) / 255.0F;
+		const float hi = std::max({ r, g, b, 1e-3F });
+		lights.push_back({ x, y, reach, strength, r / hi, g / hi, b / hi });
+	};
+	for (const Player &player : Players) {
+		if (!player.plractive || !player.isOnActiveLevel())
+			continue;
+		float x = static_cast<float>(player.position.tile.x);
+		float y = static_cast<float>(player.position.tile.y);
+		if (player.isWalking()) {
+			// The walk between tiles, as UpdatePlayerLightOffset works it out in the dungeon (eighths of a tile).
+			const WorldTileDisplacement offset = player.position.CalculateWalkingOffset(player._pdir, player.AnimInfo);
+			const auto light = offset.screenToLight();
+			x += static_cast<float>(light.deltaX) / 8.0F;
+			y += static_cast<float>(light.deltaY) / 8.0F;
+		}
+		lights.push_back({ x, y, &player == MyPlayer ? 9.5F : 7.0F, 1.0F, 1.0F, 0.92F, 0.80F });
+	}
+	for (const Towner &towner : Towners) {
+		if (!towner.anim || IsAnyOf(towner._ttype, TOWN_COW, TOWN_COWFARM) || towner.position == Point { 0, 0 })
+			continue;
+		lights.push_back({ static_cast<float>(towner.position.x), static_cast<float>(towner.position.y), 4.5F, 0.9F, 1.0F, 0.74F, 0.46F });
+	}
+	for (const Missile &missile : Missiles) {
+		if (missile._mlid == NO_LIGHT)
+			continue;
+		const uint32_t rgb = MissileLightHue(missile);
+		addRgb(static_cast<float>(missile.position.tile.x), static_cast<float>(missile.position.tile.y), 5.0F, 0.9F, rgb != 0 ? rgb : WarmFlame);
+	}
+	if (*sgOptions.Oracool.lootBeams) {
+		for (uint8_t i = 0; i < ActiveItemCount; i++) {
+			const Item &item = Items[ActiveItems[i]];
+			const LootLook look = LootLookFor(item);
+			if (look.rgb != 0 && LootShows(item))
+				addRgb(static_cast<float>(item.position.x), static_cast<float>(item.position.y), 2.5F, 0.7F * look.strength, look.rgb);
+		}
+	}
+	return lights;
+}
+
+std::array<float, FieldW * FieldH> TownLitR;
+std::array<float, FieldW * FieldH> TownLitG;
+std::array<float, FieldW * FieldH> TownLitB;
+std::array<LightTint, FieldW * FieldH> TownTints;
 constexpr float FlickerDepth = 0.13F; // at a flame's own tile, light swings this far either way
 
 float FlameWaver(float seconds, float phase)
@@ -584,8 +777,22 @@ void RebuildLightColourField()
 	RefreshLevelBrightness();
 	GatherSources();
 	BuildShadows(); // ray-traced shadows (user, 2026-10-10): the same lights, stopped by walls
+	// Loot beams (user, 2026-10-11): an item worth the turn lights the floor round it in its colour. After the shadows -
+	// the engine has no such light, and the shadows are the engine's lights stopped by walls.
+	if (*sgOptions.Oracool.lootBeams) {
+		for (uint8_t i = 0; i < ActiveItemCount; i++) {
+			const Item &item = Items[ActiveItems[i]];
+			const LootLook look = LootLookFor(item);
+			if (look.rgb != 0 && LootShows(item))
+				Sources.push_back({ static_cast<float>(item.position.x), static_cast<float>(item.position.y), 3.0F, look.rgb, 0.7F * look.strength, false });
+		}
+	}
 
 	std::fill(Accumulated.begin(), Accumulated.end(), Accum {});
+	std::array<float, FieldW * FieldH> &dirX = ReliefSumX;
+	std::array<float, FieldW * FieldH> &dirY = ReliefSumY;
+	dirX.fill(0);
+	dirY.fill(0);
 	int minX = FieldW, maxX = -1, minY = FieldH, maxY = -1;
 	bool anyColour = false;
 	for (const Source &s : Sources) {
@@ -603,6 +810,19 @@ void RebuildLightColourField()
 				const float w = 1.0F - std::sqrt(dx * dx + dy * dy) / s.reach;
 				if (w <= 0)
 					continue;
+				{
+					// The relief's light direction: from the tile toward the light, on screen (one tile +x is (+32, +16),
+					// +y is (-32, +16)), and a little up - the lights hang above the floor.
+					const float vx = (-dx + dy) * 32.0F;
+					const float vy = (-dx - dy) * 16.0F;
+					const float len = std::sqrt(vx * vx + vy * vy);
+					const size_t i = static_cast<size_t>(x) * FieldH + y;
+					if (len > 4.0F) {
+						dirX[i] += w * vx / len;
+						dirY[i] += w * vy / len;
+					}
+					dirY[i] -= ReliefUpBias * w;
+				}
 				Accum &a = Accumulated[x * FieldH + y];
 				if (s.rgb == 0) {
 					a.neutral += w;
@@ -624,6 +844,19 @@ void RebuildLightColourField()
 			maxY = std::max(maxY, y1);
 		}
 	}
+
+	for (size_t i = 0; i < ReliefDirX.size(); i++) {
+		float vx = dirX[i];
+		float vy = dirY[i];
+		const float len = std::sqrt(vx * vx + vy * vy);
+		if (len > 1.0F) {
+			vx /= len;
+			vy /= len;
+		}
+		ReliefDirX[i] = static_cast<int16_t>(vx * 256.0F);
+		ReliefDirY[i] = static_cast<int16_t>(vy * 256.0F);
+	}
+	ReliefBuilt = true;
 
 	std::fill(Tints.begin(), Tints.end(), LightTint { One, One, One });
 	if (!anyColour) {
@@ -860,16 +1093,72 @@ void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer
 	if (left > right || top > bottom)
 		return;
 
-	// Written out by hand, as ApplySmoothFloorLight is (no calls survive /Ob0): the four tints read once per sample and
-	// all three channels interpolated with the same weights.
-	const int end = right + 1;
-	for (int py = top; py <= bottom; py++) {
+	TintRect(out, m, tints, left, right, top, bottom);
+}
+
+bool SurfaceReliefActive(const Surface &out)
+{
+	return *sgOptions.Oracool.surfaceRelief && !out.isIndexed() && InLitDungeon() && ReliefBuilt;
+}
+
+namespace {
+std::vector<uint32_t> ReliefKept;
+int ReliefKeptW = 0;
+int ReliefKeptH = 0;
+std::vector<int16_t> ReliefLuma; // three rows of brightness; -1 where the pixel is floor (unchanged since the keep)
+
+/** One row's brightness, -1 where the pixel is as it was kept. */
+void ReliefLumaRow(const uint32_t *row, const uint32_t *kept, int16_t *dst, int w)
+{
+	for (int x = 0; x < w; x++) {
+		const uint32_t c = row[x];
+		dst[x] = c == kept[x] ? static_cast<int16_t>(-1) : static_cast<int16_t>(((((c >> 16) & 0xFF) * 77) + (((c >> 8) & 0xFF) * 150) + ((c & 0xFF) * 29)) >> 8);
+	}
+}
+} // namespace
+
+void BeginSurfaceRelief(const Surface &out)
+{
+	ReliefKeptW = ReliefKeptH = 0;
+	if (!SurfaceReliefActive(out) || out.w() <= 0 || out.h() <= 0)
+		return;
+	ReliefKeptW = out.w();
+	ReliefKeptH = out.h();
+	ReliefKept.resize(static_cast<size_t>(ReliefKeptW) * ReliefKeptH);
+	for (int y = 0; y < ReliefKeptH; y++)
+		std::copy_n(out.at<uint32_t>(0, y), ReliefKeptW, ReliefKept.data() + static_cast<size_t>(y) * ReliefKeptW);
+}
+
+void ApplySurfaceRelief(const Surface &out, Point firstTile, Point firstTileBuffer)
+{
+	if (!SurfaceReliefActive(out) || ReliefKeptW != out.w() || ReliefKeptH != out.h() || ReliefKeptW <= 2 || ReliefKeptH <= 2)
+		return;
+	const int w = ReliefKeptW;
+	const int h = ReliefKeptH;
+	ReliefLuma.resize(static_cast<size_t>(w) * 3);
+	int16_t *rows[3] = { ReliefLuma.data(), ReliefLuma.data() + w, ReliefLuma.data() + 2 * w };
+	const uint32_t *kept = ReliefKept.data();
+	const int16_t *dirX = ReliefDirX.data();
+	const int16_t *dirY = ReliefDirY.data();
+	const GroundMap m = MakeGroundMap(firstTile, firstTileBuffer);
+
+	// The surface is what DrawTileContent drew - every pixel changed since the keep - and its height is its brightness:
+	// the light direction under it (bilinear between tile centres, joined linearly every Span pixels) against the
+	// brightness slope gives how much it faces the light, n.l of the normal (-dL/dx, -dL/dy, 1). The inner loop is
+	// written out by hand (no calls survive /Ob0); the row helper runs once a row.
+	ReliefLumaRow(out.at<uint32_t>(0, 0), kept, rows[1], w);
+	ReliefLumaRow(out.at<uint32_t>(0, 1), kept + w, rows[2], w);
+	std::copy_n(rows[1], w, rows[0]); // the row above the first is the first itself
+	for (int py = 0; py < h; py++) {
+		const int16_t *up = rows[0];
+		const int16_t *mid = rows[1];
+		const int16_t *down = rows[2];
 		uint32_t *row = out.at<uint32_t>(0, py);
 		const int64_t rowU = m.u0 + m.duY * py;
 		const int64_t rowV = m.v0 + m.dvY * py;
-		int r0 = One, g0 = One, b0 = One;
-		for (int sx = left;; sx += Span) {
-			const int x = sx < end ? sx : end;
+		int dx0 = 0, dy0 = 0;
+		for (int sx = 0;; sx += Span) {
+			const int x = sx < w ? sx : w;
 			const int64_t u = rowU + m.duX * x;
 			const int64_t v = rowV + m.dvX * x;
 			const int64_t iu = u >> 16;
@@ -880,27 +1169,39 @@ void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer
 			const int x1 = iu + 1 < 0 ? 0 : (iu + 1 > FieldW - 1 ? FieldW - 1 : static_cast<int>(iu + 1));
 			const int y0 = iv < 0 ? 0 : (iv > FieldH - 1 ? FieldH - 1 : static_cast<int>(iv));
 			const int y1 = iv + 1 < 0 ? 0 : (iv + 1 > FieldH - 1 ? FieldH - 1 : static_cast<int>(iv + 1));
-			const LightTint &ta = tints[x0 * FieldH + y0];
-			const LightTint &tb = tints[x1 * FieldH + y0];
-			const LightTint &tc = tints[x0 * FieldH + y1];
-			const LightTint &td = tints[x1 * FieldH + y1];
 			const int wa = (256 - fu) * (256 - fv), wb = fu * (256 - fv), wc = (256 - fu) * fv, wd = fu * fv;
-			const int r1 = (ta.r * wa + tb.r * wb + tc.r * wc + td.r * wd) >> 16;
-			const int g1 = (ta.g * wa + tb.g * wb + tc.g * wc + td.g * wd) >> 16;
-			const int b1 = (ta.b * wa + tb.b * wb + tc.b * wc + td.b * wd) >> 16;
-			if (sx > left) {
+			const int dx1 = (dirX[x0 * FieldH + y0] * wa + dirX[x1 * FieldH + y0] * wb + dirX[x0 * FieldH + y1] * wc + dirX[x1 * FieldH + y1] * wd) / 65536;
+			const int dy1 = (dirY[x0 * FieldH + y0] * wa + dirY[x1 * FieldH + y0] * wb + dirY[x0 * FieldH + y1] * wc + dirY[x1 * FieldH + y1] * wd) / 65536;
+			if (sx > 0) {
 				const int from = sx - Span;
 				const int len = x - from;
-				if (len > 0 && (r0 != One || g0 != One || b0 != One || r1 != One || g1 != One || b1 != One)) {
-					int fr = r0 << 8, fg = g0 << 8, fb = b0 << 8;
-					const int dr = ((r1 - r0) << 8) / len, dg = ((g1 - g0) << 8) / len, db = ((b1 - b0) << 8) / len;
-					for (int i = from; i < x; i++, fr += dr, fg += dg, fb += db) {
-						const uint32_t c = row[i];
-						if (c == 0)
+				if (len > 0 && (dx0 != 0 || dy0 != 0 || dx1 != 0 || dy1 != 0)) {
+					int fx = dx0 << 8, fy = dy0 << 8;
+					const int sdx = ((dx1 - dx0) << 8) / len, sdy = ((dy1 - dy0) << 8) / len;
+					for (int i = from; i < x; i++, fx += sdx, fy += sdy) {
+						const int l = mid[i];
+						if (l < 0)
 							continue;
-						uint32_t r = (((c >> 16) & 0xFF) * static_cast<uint32_t>(fr >> 8)) >> 8;
-						uint32_t g = (((c >> 8) & 0xFF) * static_cast<uint32_t>(fg >> 8)) >> 8;
-						uint32_t b = ((c & 0xFF) * static_cast<uint32_t>(fb >> 8)) >> 8;
+						// A neighbour that is floor is no slope: it stands at this pixel's own height.
+						int left = i > 0 ? mid[i - 1] : l;
+						int right = i + 1 < w ? mid[i + 1] : l;
+						int above = up[i];
+						int below = down[i];
+						left = left < 0 ? l : left;
+						right = right < 0 ? l : right;
+						above = above < 0 ? l : above;
+						below = below < 0 ? l : below;
+						const int gx = right - left;
+						const int gy = below - above;
+						int delta = -((gx * (fx >> 8) + gy * (fy >> 8)) >> 8);
+						delta = delta > ReliefMax ? ReliefMax : (delta < -ReliefMax ? -ReliefMax : delta);
+						if (delta == 0)
+							continue;
+						const uint32_t c = row[i];
+						const uint32_t f = static_cast<uint32_t>(256 + delta);
+						uint32_t r = (((c >> 16) & 0xFF) * f) >> 8;
+						uint32_t g = (((c >> 8) & 0xFF) * f) >> 8;
+						uint32_t b = ((c & 0xFF) * f) >> 8;
 						r = r > 255 ? 255 : r;
 						g = g > 255 ? 255 : g;
 						b = b > 255 ? 255 : b;
@@ -908,11 +1209,96 @@ void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer
 					}
 				}
 			}
-			r0 = r1, g0 = g1, b0 = b1;
-			if (x >= end)
+			dx0 = dx1, dy0 = dy1;
+			if (x >= w)
 				break;
 		}
+		// Roll the rows: the next one's brightness from the pixels as drawn (the rows below are not touched yet).
+		int16_t *oldUp = rows[0];
+		rows[0] = rows[1];
+		rows[1] = rows[2];
+		rows[2] = oldUp;
+		const int next = py + 2;
+		if (next < h)
+			ReliefLumaRow(out.at<uint32_t>(0, next), kept + static_cast<size_t>(next) * w, rows[2], w);
+		else
+			std::copy_n(rows[1], w, rows[2]);
 	}
+}
+
+void ApplyTownDayNight(const Surface &out, Point firstTile, Point firstTileBuffer)
+{
+	AdvanceTownClock();
+	if (!*sgOptions.Oracool.dayNightCycle || out.isIndexed() || leveltype != DTYPE_TOWN || out.w() <= 0 || out.h() <= 0)
+		return;
+	float ar, ag, ab;
+	AmbientAt(TownClock, ar, ag, ab);
+	if (ar > 0.995F && ag > 0.995F && ab > 0.995F)
+		return; // broad day: nothing to do
+	TownLitR.fill(0);
+	TownLitG.fill(0);
+	TownLitB.fill(0);
+	for (const TownLight &light : GatherTownLights()) {
+		const int x0 = ClampX(static_cast<int64_t>(std::floor(light.x - light.reach)));
+		const int x1 = ClampX(static_cast<int64_t>(std::ceil(light.x + light.reach)));
+		const int y0 = ClampY(static_cast<int64_t>(std::floor(light.y - light.reach)));
+		const int y1 = ClampY(static_cast<int64_t>(std::ceil(light.y + light.reach)));
+		for (int x = x0; x <= x1; x++) {
+			for (int y = y0; y <= y1; y++) {
+				const float dx = static_cast<float>(x) - light.x;
+				const float dy = static_cast<float>(y) - light.y;
+				const float w = 1.0F - std::sqrt(dx * dx + dy * dy) / light.reach;
+				if (w <= 0)
+					continue;
+				const float t = w * w * (3.0F - 2.0F * w) * light.strength;
+				const size_t i = static_cast<size_t>(x) * FieldH + y;
+				TownLitR[i] += t * light.r;
+				TownLitG[i] += t * light.g;
+				TownLitB[i] += t * light.b;
+			}
+		}
+	}
+	for (size_t i = 0; i < TownTints.size(); i++) {
+		const float lr = std::min(TownLitR[i], 1.0F);
+		const float lg = std::min(TownLitG[i], 1.0F);
+		const float lb = std::min(TownLitB[i], 1.0F);
+		TownTints[i] = {
+			static_cast<uint16_t>((ar + (1.0F - ar) * lr) * One + 0.5F),
+			static_cast<uint16_t>((ag + (1.0F - ag) * lg) * One + 0.5F),
+			static_cast<uint16_t>((ab + (1.0F - ab) * lb) * One + 0.5F),
+		};
+	}
+	TintRect(out, MakeGroundMap(firstTile, firstTileBuffer), TownTints.data(), 0, out.w() - 1, 0, out.h() - 1);
+}
+
+float TownHour()
+{
+	return TownClock;
+}
+
+void SetTownHour(float hour)
+{
+	hour = std::fmod(hour, 24.0F);
+	TownClock = hour < 0 ? hour + 24.0F : hour;
+}
+
+LightTint TownAmbientAt(float hour)
+{
+	float r, g, b;
+	AmbientAt(hour, r, g, b);
+	return { static_cast<uint16_t>(r * One + 0.5F), static_cast<uint16_t>(g * One + 0.5F), static_cast<uint16_t>(b * One + 0.5F) };
+}
+
+LightTint TownTintAt(Point tile)
+{
+	return TownTints[ClampX(tile.x) * FieldH + ClampY(tile.y)];
+}
+
+void ReliefDirectionAt(Point tile, int &dx, int &dy)
+{
+	const size_t i = static_cast<size_t>(ClampX(tile.x)) * FieldH + ClampY(tile.y);
+	dx = ReliefDirX[i];
+	dy = ReliefDirY[i];
 }
 
 LightTint LightTintAt(Point tile)

@@ -518,6 +518,18 @@ void SaveOptions()
 	    "; On: walls and pillars cast shadows on the floor from every light, traced across\n; the tile grid. Visual only - what you can see and fight is unchanged.");
 	setBoolean("Sharp Zoom Filter", *sgOptions.Oracool.zoomFilter,
 	    "; On: when zoomed in, the picture is enlarged with a pixel-art filter (Scale2x at 2x,\n; sharp bilinear in between) instead of plain pixel doubling.");
+	setBoolean("Day and Night", *sgOptions.Oracool.dayNightCycle,
+	    "; On: Tristram has a day and night cycle - dusk turns the town amber, night is dark\n; blue, lit by your own light, the townsfolk's lamps and portals.");
+	setBoolean("Floor Marks", *sgOptions.Oracool.floorMarks,
+	    "; On: battles mark the floor - blood where monsters fall, scorch marks from fire,\n; frost from cold, acid stains - fading after a minute or two.");
+	setBoolean("Loot Beams", *sgOptions.Oracool.lootBeams,
+	    "; On: rare, unique, set, primal and runeword items on the ground stand in a beam of\n; light in their colour, with a glow on the floor under them.");
+	setBoolean("Lit Surface Relief", *sgOptions.Oracool.surfaceRelief,
+	    "; On: walls, objects and figures catch the light from the side it comes from - the\n; side toward a torch or spell brightens, the far side falls into shade.");
+	setBoolean("Zoom Sharpening", *sgOptions.Oracool.zoomSharpen,
+	    "; On: when zoomed in, the enlarged picture is sharpened (contrast-adaptive, after\n; AMD FidelityFX CAS) so it stays crisp instead of soft.");
+	setBoolean("Smooth Animation", *sgOptions.Oracool.animationBlending,
+	    "; On: heroes and monsters blend each animation frame into the next, so walking and\n; fighting look smoother. Off: Diablo's original frame steps.");
 	setBoolean("Item Tooltip Card", *sgOptions.Oracool.itemTooltipCard,
 	    "; On: the item tooltip is a card - name large, type and tier under it, armour or damage\n; as one big number, the item's picture top right, stats left-aligned, requirements in\n; a band at the foot. Off: the earlier centred panel.");
 	setBoolean("Grouped Hero Sheet", *sgOptions.Oracool.heroSheetGrouped,
@@ -1655,6 +1667,12 @@ OracoolOptions::OracoolOptions()
     , heatHaze("Lava Haze and Water Light", OptionEntryFlags::None, N_("Lava Haze and Water Light"), N_("The air shimmers above lava, and light ripples across water."), true)
     , rayTracedShadows("Ray-Traced Shadows", OptionEntryFlags::None, N_("Ray-Traced Shadows"), N_("Walls and pillars cast shadows on the floor from every light. Visual only: what you can see and fight is unchanged."), true)
     , zoomFilter("Sharp Zoom Filter", OptionEntryFlags::None, N_("Sharp Zoom Filter"), N_("When zoomed in, the picture is enlarged with a pixel-art filter (Scale2x at 2x, sharp bilinear between) instead of plain pixel doubling."), true)
+    , dayNightCycle("Day and Night", OptionEntryFlags::None, N_("Day and Night"), N_("Tristram has a day and night cycle: dusk turns the town amber, night is dark blue, lit by your own light, the townsfolk's lamps and portals."), true)
+    , floorMarks("Floor Marks", OptionEntryFlags::None, N_("Floor Marks"), N_("Battles mark the floor: blood where monsters fall, scorch marks from fire, frost from cold, acid stains. They fade after a minute or two."), true)
+    , lootBeams("Loot Beams", OptionEntryFlags::None, N_("Loot Beams"), N_("Rare, unique, set, primal and runeword items on the ground stand in a beam of light in their colour, with a glow on the floor under them."), true)
+    , surfaceRelief("Lit Surface Relief", OptionEntryFlags::None, N_("Lit Surface Relief"), N_("Walls, objects and figures catch the light from the side it comes from: the side toward a torch or spell brightens, the far side falls into shade."), true)
+    , zoomSharpen("Zoom Sharpening", OptionEntryFlags::None, N_("Zoom Sharpening"), N_("When zoomed in, the enlarged picture is sharpened (contrast-adaptive) so it stays crisp instead of soft."), true)
+    , animationBlending("Smooth Animation", OptionEntryFlags::None, N_("Smooth Animation"), N_("Heroes and monsters blend each animation frame into the next, so walking and fighting look smoother. Off: Diablo's original frame steps."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("A timestamped log of noteworthy session events, opened from the Menu popup or with F11."), true)
@@ -1755,6 +1773,12 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&heatHaze,
 		&rayTracedShadows,
 		&zoomFilter,
+		&dayNightCycle,
+		&floorMarks,
+		&lootBeams,
+		&surfaceRelief,
+		&zoomSharpen,
+		&animationBlending,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,

@@ -47,6 +47,14 @@ void ApplyHeatHazeAndWater(const Surface &out, Point firstTile, Point firstTileB
  */
 void ZoomScaleFiltered(uint8_t *base, int pitch, int srcWidth, int srcHeight, int dstWidth, int dstHeight);
 
+/**
+ * @brief Zoom sharpening (user, 2026-10-11): contrast-adaptive sharpening after AMD FidelityFX CAS, in place over the
+ * @p width x @p height 32-bit picture at @p base. Each pixel is sharpened against its four neighbours by an amount set
+ * by how much room its neighbourhood leaves before clipping - strong on soft detail, none on a hard edge already at black
+ * or white - so the filtered zoom comes out crisp without halos. The outermost rows and columns are left as they are.
+ */
+void SharpenAdaptive(uint8_t *base, int pitch, int width, int height);
+
 /** @brief Test hook: what the liquid scan found for the current level at @p tile (0 none, 1 lava, 2 water). */
 uint8_t LiquidKindAt(Point tile);
 

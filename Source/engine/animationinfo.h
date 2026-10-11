@@ -83,6 +83,12 @@ public:
 	[[nodiscard]] uint8_t getAnimationProgress() const;
 
 	/**
+	 * @brief Oracool (smooth animation, user 2026-10-11): how far the frame getFrameToUseForRendering shows is toward the
+	 * next one, 0 .. baseValueFraction - the same sums, keeping the fraction they throw away.
+	 */
+	[[nodiscard]] uint8_t getFrameBlendFraction() const;
+
+	/**
 	 * @brief Sets the new Animation with all relevant information for rendering
 	 * @param sprites Animation sprites
 	 * @param numberOfFrames Number of Frames in Animation

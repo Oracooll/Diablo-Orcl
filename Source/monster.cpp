@@ -64,6 +64,7 @@
 #include "oracool/signets.h"
 #include "oracool/telemetry.h"
 #include "oracool/particles.h" // EmitHitSparks - a picture only
+#include "oracool/ground_fx.h" // AddDeathMark - a picture only
 
 #include "qol/floatingnumbers.h"
 #include "spelldat.h"
@@ -5318,6 +5319,7 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 		MonsterKillCounts[monster.type().type]++;
 	monster.hitPoints = 0;
 	monster.flags &= ~MFLAG_HIDDEN;
+	oracool::AddDeathMark(monster); // Floor marks (user, 2026-10-11): blood or bone dust; visual only, own RNG
 	SetRndSeed(monster.rndItemSeed);
 
 	if (monster.isUnique())

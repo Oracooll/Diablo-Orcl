@@ -59,6 +59,37 @@ struct LightTint {
 	uint16_t g;
 	uint16_t b;
 };
+
+/**
+ * Lit surface relief (user, 2026-10-11, "normal maps" in the second graphics batch): walls, objects and figures catch the
+ * light from the side it comes from. Each pixel drawn over the floor takes its brightness as its height, and the light's
+ * direction at its tile (every light's pull, weighted by falloff, plus a lean upward) against that slope brightens what
+ * faces the light and shades what faces away, up to about a fifth either way. The floor is left as it is. Dungeon only,
+ * 32-bit only, behind its option.
+ */
+bool SurfaceReliefActive(const Surface &out);
+/** @brief Keeps the world as it stands before DrawTileContent: what changes after it is what the relief works on. */
+void BeginSurfaceRelief(const Surface &out);
+/** @brief The relief over what DrawTileContent drew; same start arguments as ApplySmoothFloorLight. */
+void ApplySurfaceRelief(const Surface &out, Point firstTile, Point firstTileBuffer);
+/** @brief Test hook: the relief's light direction at @p tile, screen space, 8.8 (256 = full strength). */
+void ReliefDirectionAt(Point tile, int &dx, int &dy);
+
+/**
+ * Day and night in Tristram (user, 2026-10-11): a twenty-minute day on the town's own clock (stopped while paused). Dawn
+ * is rose, the day untouched, dusk amber, night dark blue - and after dark the town is lit by the heroes' own light, a
+ * lamp by each of the townsfolk, the portals and the loot, as tints over the finished town (the colour pass's loop).
+ * Town only, 32-bit only, behind its option. Called every frame (the clock runs in the dungeon too).
+ */
+void ApplyTownDayNight(const Surface &out, Point firstTile, Point firstTileBuffer);
+/** @brief The town's clock, 0..24 hours. */
+float TownHour();
+/** @brief Sets the town's clock (the timeofday debug command, the tests). */
+void SetTownHour(float hour);
+/** @brief Test hook: the ambient light at @p hour (256 = full day). */
+LightTint TownAmbientAt(float hour);
+/** @brief Test hook: the tint the last town pass gave @p tile. */
+LightTint TownTintAt(Point tile);
 /** @brief Test hook: the colour multiplier the last rebuild gave @p tile. */
 LightTint LightTintAt(Point tile);
 

@@ -28,6 +28,7 @@
 #include "error.h"
 #include "inv.h"
 #include "oracool/area_level.h" // MaxAreaLevel - a debug set piece stays on the ladder
+#include "oracool/colour_light.h" // TownHour / SetTownHour - the timeofday command
 #include "levels/setmaps.h"
 #include "lighting.h"
 #include "levels/gendung.h"
@@ -1185,6 +1186,24 @@ std::string DebugCmdCursorInfo(const string_view parameter)
 }
 
 /** Rebuilds the cursor from scratch - the hand, its hardware image and its visibility - without restarting. */
+std::string DebugCmdTimeOfDay(const string_view parameter)
+{
+	// Day and night in Tristram (user, 2026-10-11): the town's clock, read or set, so dusk and night can be seen at once.
+	const auto show = [](float hour) {
+		const int h = static_cast<int>(hour);
+		const int m = static_cast<int>((hour - static_cast<float>(h)) * 60.0F);
+		return fmt::format("{:02d}:{:02d}", h, m);
+	};
+	if (parameter.empty())
+		return fmt::format("Tristram's clock: {} (a day lasts 20 minutes; dusk 16:30-20:30, night to 04:30, dawn 04:30-07:30).", show(oracool::TownHour()));
+	const std::string text(parameter);
+	const int hour = atoi(text.c_str());
+	if (hour < 0 || hour > 24 || (hour == 0 && text.find_first_not_of(" 0") != std::string::npos))
+		return "Give an hour, 0-24: timeofday 19 is dusk, timeofday 0 midnight.";
+	oracool::SetTownHour(static_cast<float>(hour));
+	return fmt::format("Tristram's clock set to {}.", show(oracool::TownHour()));
+}
+
 std::string DebugCmdCursorFix(const string_view parameter)
 {
 	ControlMode = ControlTypes::KeyboardAndMouse;
@@ -1679,6 +1698,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "hideui", "Toggles hiding the main HUD (panel, orbs, belt, buttons, XP bar) for clean screenshots.", "", &DebugCmdHideUi },
 	{ "cursorinfo", "Shows the cursor's state (type it the moment the cursor vanishes).", "", &DebugCmdCursorInfo },
 	{ "cursorfix", "Rebuilds the cursor from scratch, without restarting.", "", &DebugCmdCursorFix },
+	{ "timeofday", "Shows or sets Tristram's clock (0-24) for the day and night cycle.", "({hour})", &DebugCmdTimeOfDay },
 	{ "clearui", "Toggles hiding every HUD element (panel, mini-map, overlays, cursor, etc.) for a fully clean screenshot.", "", &DebugCmdClearUi },
 	{ "spawnu", "Spawns unique monster {name}.", "{name} ({count})", &DebugCmdSpawnUniqueMonster },
 	{ "spawn", "Spawns monster {name}.", "{name} ({count})", &DebugCmdSpawnMonster },

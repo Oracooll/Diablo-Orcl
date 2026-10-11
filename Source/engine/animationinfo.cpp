@@ -6,6 +6,7 @@
 
 #include "animationinfo.h"
 
+#include <algorithm>
 #include <cstdint>
 
 #include "appfat.h"
@@ -80,6 +81,23 @@ uint8_t AnimationInfo::getAnimationProgress() const
 	int32_t animationFraction = progressInAnimationFrames / numberOfFrames / baseValueFraction;
 	assert(animationFraction <= baseValueFraction);
 	return static_cast<uint8_t>(animationFraction);
+}
+
+uint8_t AnimationInfo::getFrameBlendFraction() const
+{
+	if (ticksPerFrame <= 0 || numberOfFrames <= 0)
+		return 0;
+	const int32_t progress = getProgressToNextGameTick();
+	if (relevantFramesForDistributing_ <= 0 || currentFrame >= relevantFramesForDistributing_) {
+		// One frame per ticksPerFrame game ticks: the ticks counted into this frame, plus the part of the next one.
+		const int32_t fraction = (tickCounterOfCurrentFrame * baseValueFraction + progress) / ticksPerFrame;
+		return static_cast<uint8_t>(std::clamp<int32_t>(fraction, 0, baseValueFraction));
+	}
+	// Distributed frames (getFrameToUseForRendering): the fraction of a frame its division drops.
+	const int32_t total = progress + std::max<int16_t>(0, ticksSinceSequenceStarted_);
+	const int32_t frames = total * tickModifier_; // frames * baseValueFraction^2
+	constexpr int32_t Whole = baseValueFraction * baseValueFraction;
+	return static_cast<uint8_t>((frames % Whole) / baseValueFraction);
 }
 
 void AnimationInfo::setNewAnimation(OptionalClxSpriteList celSprite, int8_t numberOfFrames, int8_t ticksPerFrame, AnimationDistributionFlags flags /*= AnimationDistributionFlags::None*/, int8_t numSkippedFrames /*= 0*/, int8_t distributeFramesBeforeFrame /*= 0*/, uint8_t previewShownGameTickFragments /*= 0*/)

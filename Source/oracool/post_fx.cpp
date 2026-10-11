@@ -5,6 +5,7 @@
  */
 #include "oracool/post_fx.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -838,6 +839,83 @@ void ZoomScaleFiltered(uint8_t *base, int pitch, int srcWidth, int srcHeight, in
 				const uint32_t lower = wx == 0 ? c : ORCL_MIX(c, bottom[c1[x]], wx);
 				out[x] = ORCL_MIX(upper, lower, wy);
 			}
+		}
+	}
+}
+
+namespace {
+
+/** sqrt(i / 256) * 256 for i in 0..256: CAS's amplitude curve. */
+struct CasCurve {
+	std::array<uint16_t, 257> v;
+	CasCurve()
+	{
+		for (size_t i = 0; i < v.size(); i++)
+			v[i] = static_cast<uint16_t>(std::sqrt(static_cast<double>(i) / 256.0) * 256.0 + 0.5);
+	}
+};
+const CasCurve CasAmplitude;
+/** The negative lobe at full amplitude, of 256: CAS's -1 / lerp(8, 5, sharpness) at a sharpness of 0.6. */
+constexpr int CasPeak = 41;
+std::vector<uint32_t> CasRows;
+
+} // namespace
+
+void SharpenAdaptive(uint8_t *base, int pitch, int width, int height)
+{
+	if (base == nullptr || width < 3 || height < 3)
+		return;
+	CasRows.resize(static_cast<size_t>(width) * 3);
+	uint32_t *prev = CasRows.data();
+	uint32_t *cur = prev + width;
+	uint32_t *next = cur + width;
+	const uint16_t *amplitude = CasAmplitude.v.data();
+	const auto rowAt = [base, pitch](int y) { return reinterpret_cast<uint32_t *>(base + static_cast<ptrdiff_t>(y) * pitch); };
+	std::copy_n(rowAt(0), width, cur);
+	std::copy_n(rowAt(1), width, next);
+	// Rows 1 .. height-2, each from the three original rows round it (kept, since the picture is written in place). The
+	// loop is written out by hand: no calls survive /Ob0.
+	for (int y = 1; y < height - 1; y++) {
+		uint32_t *roll = prev;
+		prev = cur;
+		cur = next;
+		next = roll;
+		std::copy_n(rowAt(y + 1), width, next);
+		uint32_t *dst = rowAt(y);
+		for (int x = 1; x < width - 1; x++) {
+			const uint32_t c = cur[x];
+			const uint32_t n = prev[x];
+			const uint32_t s = next[x];
+			const uint32_t w = cur[x - 1];
+			const uint32_t e = cur[x + 1];
+			// The amplitude from the green channel's spread, as CAS's fast path does.
+			const int cg = static_cast<int>((c >> 8) & 0xFF), ng = static_cast<int>((n >> 8) & 0xFF), sg = static_cast<int>((s >> 8) & 0xFF);
+			const int wg = static_cast<int>((w >> 8) & 0xFF), eg = static_cast<int>((e >> 8) & 0xFF);
+			int mn = cg, mx = cg;
+			mn = ng < mn ? ng : mn, mx = ng > mx ? ng : mx;
+			mn = sg < mn ? sg : mn, mx = sg > mx ? sg : mx;
+			mn = wg < mn ? wg : mn, mx = wg > mx ? wg : mx;
+			mn = eg < mn ? eg : mn, mx = eg > mx ? eg : mx;
+			if (mx == mn || mx == 0)
+				continue; // flat: nothing to sharpen
+			const int room = mn < 255 - mx ? mn : 255 - mx;
+			int ratio = room * 256 / mx;
+			ratio = ratio > 256 ? 256 : (ratio < 0 ? 0 : ratio);
+			const int lobe = -((amplitude[ratio] * CasPeak) >> 8); // of 256, <= 0
+			if (lobe == 0)
+				continue;
+			const int denominator = 256 + 4 * lobe;
+			if (denominator <= 0)
+				continue;
+			const int rcp = (1 << 16) / denominator;
+			int ch[3];
+			for (int k = 0; k < 3; k++) {
+				const int shift = 16 - 8 * k;
+				const int sum = static_cast<int>((n >> shift) & 0xFF) + static_cast<int>((s >> shift) & 0xFF) + static_cast<int>((w >> shift) & 0xFF) + static_cast<int>((e >> shift) & 0xFF);
+				int v = ((static_cast<int>((c >> shift) & 0xFF) * 256 + lobe * sum) * rcp) >> 16;
+				ch[k] = v < 0 ? 0 : (v > 255 ? 255 : v);
+			}
+			dst[x] = (static_cast<uint32_t>(ch[0]) << 16) | (static_cast<uint32_t>(ch[1]) << 8) | static_cast<uint32_t>(ch[2]);
 		}
 	}
 }

@@ -40,7 +40,9 @@
 #include "oracool/attack_skills.h"
 #include "oracool/colour_light.h" // smooth and coloured lighting
 #include "oracool/companion.h"
+#include "oracool/frame_blend.h" // Smooth animation: a frame cross-faded into the next
 #include "oracool/frame_timing.h"
+#include "oracool/ground_fx.h"   // Floor marks and loot beams
 #include "oracool/particles.h" // Particles: embers, sparks, dust, ash
 #include "oracool/post_fx.h" // mood, vignette, bloom, heat haze, the filtered zoom
 #include "oracool/rift.h"    // DrawRiftHud: the bar and the clock under the mini-map
@@ -501,7 +503,7 @@ void DrawMissile(const Surface &out, Point tilePosition, Point targetBufferPosit
  * @param targetBufferPosition Output buffer coordinates
  * @param monster Monster reference
  */
-void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosition, const Monster &monster)
+void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosition, const Monster &monster, std::optional<ClxSprite> spriteOverride = std::nullopt)
 {
 	if (!monster.animInfo.sprites) {
 		Log("Draw Monster \"{}\": NULL Cel Buffer", monster.name());
@@ -509,7 +511,8 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 	}
 
 	// Oracool (2026-09-29): Talic spinning is drawn from his cast sheet, as the hero's Whirlwind is (oracool/companion.h).
-	const ClxSprite sprite = oracool::CompanionSpinSprite(monster).value_or(monster.animInfo.currentSprite());
+	// Smooth animation's second draw (oracool/frame_blend.h) names the next frame.
+	const ClxSprite sprite = spriteOverride ? *spriteOverride : oracool::CompanionSpinSprite(monster).value_or(monster.animInfo.currentSprite());
 
 	if (!IsTileLit(tilePosition)) {
 		ClxDrawTRN(out, targetBufferPosition, sprite, GetInfravisionTRN());
@@ -769,7 +772,7 @@ const oracool::SpriteColours *PlayerSpriteColours(const Player &player, ClxSprit
 	return nullptr;
 }
 
-void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Point targetBufferPosition)
+void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Point targetBufferPosition, std::optional<ClxSprite> spriteOverride = std::nullopt)
 {
 	if (!IsTileLit(tilePosition) && !MyPlayer->_pInfraFlag && !MyPlayer->isOnArenaLevel() && leveltype != DTYPE_TOWN) {
 		return;
@@ -785,14 +788,35 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 	// Oracool (2026-09-29): a spinning Whirlwind draws the hero's magic cast sheet, its facing turning - the walk that
 	// carries him is not what is seen. See oracool/whirlwind.h.
 	const std::optional<ClxSprite> spin = oracool::WhirlwindSprite(player);
-	const ClxSprite sprite = spin ? *spin : player.previewCelSprite ? *player.previewCelSprite : player.AnimInfo.currentSprite();
+	const ClxSprite sprite = spriteOverride ? *spriteOverride : spin ? *spin : player.previewCelSprite ? *player.previewCelSprite : player.AnimInfo.currentSprite();
+	// Smooth animation's second draw (oracool/frame_blend.h): the body only - the stills, blades, outline and icons are
+	// the first draw's and are not drawn twice.
+	const bool bodyOnly = spriteOverride.has_value();
+	// Smooth animation (user, 2026-10-11): the next frame drawn the same way and mixed in - after the body and before the
+	// icons, so a Mana Shield or a worn loop stays whole over him. Not while Whirlwind spins him on another sheet.
+	const int entryLight = LightTableIndex;
+	const auto blendBody = [&]() {
+		if (bodyOnly || spin)
+			return;
+		const std::optional<oracool::FrameBlendPlan> blend = oracool::PlanPlayerFrameBlend(out, player);
+		if (!blend)
+			return;
+		const int drawLight = LightTableIndex;
+		LightTableIndex = entryLight; // the second draw picks its branch and its light from the same start
+		oracool::BeginFrameBlend(out, targetBufferPosition - Displacement { CalculateWidth2(blend->next.width()), 0 }, blend->next);
+		DrawPlayer(out, player, tilePosition, targetBufferPosition, blend->next);
+		oracool::EndFrameBlend(out, blend->alpha);
+		LightTableIndex = drawLight;
+	};
 
 	Point spriteBufferPosition = targetBufferPosition - Displacement { CalculateWidth2(sprite.width()), 0 };
 
-	DrawPlayerStills(out, player, targetBufferPosition, oracool::StillPart::Back);
-	oracool::DrawWhirlwindBlades(out, player, targetBufferPosition, /*front=*/false); // the far half, behind him (2026-09-29)
+	if (!bodyOnly) {
+		DrawPlayerStills(out, player, targetBufferPosition, oracool::StillPart::Back);
+		oracool::DrawWhirlwindBlades(out, player, targetBufferPosition, /*front=*/false); // the far half, behind him (2026-09-29)
+	}
 
-	if (static_cast<size_t>(pcursplr) < Players.size() && &player == &Players[pcursplr])
+	if (!bodyOnly && static_cast<size_t>(pcursplr) < Players.size() && &player == &Players[pcursplr])
 		ClxDrawOutlineSkipColorZero(out, 165, spriteBufferPosition, sprite);
 
 	// Oracool: a sheet with colours of its own (a dyed class, an imported PNG) draws colour values; the
@@ -806,7 +830,9 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 			else
 				ClxDraw(out, spriteBufferPosition, sprite);
 		}
-		DrawPlayerIcons(out, player, targetBufferPosition, false);
+		blendBody();
+		if (!bodyOnly)
+			DrawPlayerIcons(out, player, targetBufferPosition, false);
 		return;
 	}
 
@@ -815,7 +841,9 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 			oracool::DrawSpriteWithColours(out, spriteBufferPosition, sprite, *colours, oracool::InfravisionLight);
 		else
 			ClxDrawTRN(out, spriteBufferPosition, sprite, GetInfravisionTRN());
-		DrawPlayerIcons(out, player, targetBufferPosition, true);
+		blendBody();
+		if (!bodyOnly)
+			DrawPlayerIcons(out, player, targetBufferPosition, true);
 		return;
 	}
 
@@ -831,7 +859,9 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 		else
 			ClxDrawLight(out, spriteBufferPosition, sprite, LightTableIndex);
 	}
-	DrawPlayerIcons(out, player, targetBufferPosition, false);
+	blendBody();
+	if (!bodyOnly)
+		DrawPlayerIcons(out, player, targetBufferPosition, false);
 
 	LightTableIndex = l;
 }
@@ -1327,6 +1357,12 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	// A spinning companion's blades: the far half behind it, the near half in front (oracool/companion.h).
 	oracool::DrawCompanionBlades(out, monster, targetBufferPosition + offset, /*front=*/false);
 	DrawMonster(out, tilePosition, monsterRenderPosition, monster);
+	// Smooth animation (user, 2026-10-11): the next frame drawn the same way and mixed in by how near it is.
+	if (const std::optional<oracool::FrameBlendPlan> blend = oracool::PlanMonsterFrameBlend(out, monster)) {
+		oracool::BeginFrameBlend(out, monsterRenderPosition, blend->next);
+		DrawMonster(out, tilePosition, monsterRenderPosition, monster, blend->next);
+		oracool::EndFrameBlend(out, blend->alpha);
+	}
 	oracool::DrawCompanionBlades(out, monster, targetBufferPosition + offset, /*front=*/true);
 	// Frenzy of the Dead wears a ring on the floor since 2026-10-03 (oracool::DrawMinionFrenzyRings, beside the aura rings),
 	// in place of RfA-27 batch 56's motes over each minion (the Necromancer Skill Cards page).
@@ -1642,6 +1678,9 @@ void ZoomScale(const Surface &out, float zoomFactor)
 	// Zoom filter (oracool/post_fx.h, user 2026-10-10): Scale2x at exactly 2x, a sharp bilinear otherwise - 32-bit only.
 	if (bpp == 4 && *sgOptions.Oracool.zoomFilter) {
 		oracool::ZoomScaleFiltered(base, pitch, srcWidth, srcHeight, viewportWidth, dstHeight);
+		// Zoom sharpening (user, 2026-10-11): contrast-adaptive, after AMD FidelityFX CAS, over the enlarged picture.
+		if (*sgOptions.Oracool.zoomSharpen)
+			oracool::SharpenAdaptive(base, pitch, viewportWidth, dstHeight);
 		return;
 	}
 
@@ -1823,7 +1862,10 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	if (DeferFloorObjectsThisFrame) {
 		oracool::ApplySmoothFloorLight(visible, position, visibleStart);
 		DeferFloorObjectsThisFrame = false;
+		oracool::DrawFloorMarks(visible, position, visibleStart); // blood, scorch, frost, loot glows: on the lit floor
 		DrawFloorObjects(out, position, Point {} + offset, rows, columns);
+	} else {
+		oracool::DrawFloorMarks(visible, position, visibleStart);
 	}
 	// Between the two passes, and only here: a lit aura's ring lies ON the floor, so every wall,
 	// monster and player must draw over it. See oracool/aura_ground.h - it takes these same four
@@ -1833,11 +1875,19 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	oracool::DrawMinionFrenzyRings(out, position, Point {} + offset, rows, columns); // Frenzy of the Dead, under each minion
 	oracool::DrawArrowImpactRings(out, position, Point {} + offset, rows, columns); // Rain of Arrows, under each landed arrow
 	oracool::DrawFendRing(out, position, Point {} + offset, rows, columns);         // Fend, under the Rogue while she swings
+	// Lit surface relief (oracool/colour_light.h, user 2026-10-11): what DrawTileContent draws over the floor catches the
+	// light from the side it comes from - kept here, applied after it, before the colour.
+	oracool::BeginSurfaceRelief(visible);
 	DrawTileContent(out, position, Point {} + offset, rows, columns);
+	oracool::ApplySurfaceRelief(visible, position, visibleStart);
 	// Coloured lighting (oracool/colour_light.h): the whole world, every light's hue over it - before the outlines,
 	// which are the cursor's and stay their own colour.
 	FloorSmoothedThisFrame = false;
 	oracool::ApplyLightColour(visible, position, visibleStart);
+	// Day and night in Tristram (user, 2026-10-11): the town's own light over the finished town; then the loot beams, which
+	// are light and stay bright at night, and bloom with the rest.
+	oracool::ApplyTownDayNight(visible, position, visibleStart);
+	oracool::DrawLootBeams(visible, position, visibleStart);
 	// The other visual techniques (user, 2026-10-10: "i like all 9"), each behind its own option: particles over the lit
 	// world, the haze before the bloom so shimmered lava still glows, the area mood and vignette last so they cover the
 	// glow too - all before the outlines (the cursor's own colour) and the zoom.

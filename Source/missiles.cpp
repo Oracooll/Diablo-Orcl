@@ -58,6 +58,7 @@
 #include "oracool/paladin_ranged.h"
 #include "oracool/sprite_scale.h"
 #include "oracool/particles.h" // EmitHitSparks / EmitMissileSparks - a picture only
+#include "oracool/ground_fx.h" // AddExplosionMark - a picture only
 #include "spells.h"
 #include "utils/str_cat.hpp"
 
@@ -3269,6 +3270,7 @@ void AddMissileExplosion(Missile &missile, AddMissileParameter &parameter)
 	missile.position.traveled = parent.position.traveled;
 	missile._mirange = missile._miAnimLen;
 	oracool::EmitMissileSparks(missile, 10); // Particles (user, 2026-10-10): visual only, own RNG
+	oracool::AddExplosionMark(missile);      // Floor marks (user, 2026-10-11): scorch, frost, acid; visual only, own RNG
 }
 
 namespace {
