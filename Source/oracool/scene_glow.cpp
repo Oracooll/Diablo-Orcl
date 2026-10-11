@@ -212,6 +212,22 @@ LightPen MakePen(const Surface &out)
 	return pen;
 }
 
+/** Splats are written here first and appended in one copy (audit round 2: resize() built each Splat by a call in Debug). */
+std::vector<Splat> Scratch;
+
+Splat *ScratchFor(size_t n)
+{
+	if (Scratch.size() < n)
+		Scratch.resize(n); // grows a few times, then never again
+	return Scratch.data();
+}
+
+void AppendScratch(std::vector<Splat> *splats, const Splat *end)
+{
+	if (end > Scratch.data())
+		splats->insert(splats->end(), static_cast<const Splat *>(Scratch.data()), end);
+}
+
 /**
  * A soft elliptical pool of light: (1 - d)^2 from the middle, @p rx across and @p ry down. Written straight onto the
  * picture, row by row, when nothing collects splats (the per-pixel work inline: the Debug build makes no inline calls).
@@ -230,10 +246,7 @@ void Pool(const LightPen &pen, int cx, int cy, int rx, int ry, uint32_t rgb, flo
 	// On the GPU path the splats are written through a raw pointer into room made once (audit round 1: a push_back a
 	// pixel cost ~35 ns in Debug, ~1.5 ms a frame with a pack of burning monsters), and the vector cut to what was written.
 	std::vector<Splat> *splats = pen.splats;
-	const size_t base = splats != nullptr ? splats->size() : 0;
-	if (splats != nullptr)
-		splats->resize(base + static_cast<size_t>(2 * rx + 1) * static_cast<size_t>(2 * ry + 1));
-	Splat *next = splats != nullptr ? splats->data() + base : nullptr;
+	Splat *next = splats != nullptr ? ScratchFor(static_cast<size_t>(2 * rx + 1) * static_cast<size_t>(2 * ry + 1)) : nullptr;
 	for (int dy = -ry; dy <= ry; dy++) {
 		const int py = cy + dy;
 		if (py < 0 || py >= pen.h)
@@ -273,7 +286,7 @@ void Pool(const LightPen &pen, int cx, int cy, int rx, int ry, uint32_t rgb, flo
 		}
 	}
 	if (splats != nullptr)
-		splats->resize(static_cast<size_t>(next - splats->data()));
+		AppendScratch(splats, next);
 }
 
 /** A small round dot of light, @p r pixels. */
@@ -907,6 +920,29 @@ void SeedCorpses()
 				CorpseAges[static_cast<size_t>(x) * MAXDUNY + y] = { dCorpse[x][y], old };
 	CorpsesSeeded = true;
 }
+
+/** Twice a second: a body laid out of sight since (a companion's kill) is dated now, not when it is first drawn (round 2). */
+void DateNewCorpses()
+{
+	static float last = -100;
+	const float now = Now();
+	if (now - last < 0.5F && now >= last)
+		return;
+	last = now;
+	if (CorpseAges.size() != static_cast<size_t>(MAXDUNX) * MAXDUNY)
+		return;
+	CorpseAge *ages = CorpseAges.data();
+	for (int x = 0; x < MAXDUNX; x++) {
+		for (int y = 0; y < MAXDUNY; y++) {
+			const int8_t id = dCorpse[x][y];
+			CorpseAge &age = ages[static_cast<size_t>(x) * MAXDUNY + y];
+			if (age.id != id) {
+				age.id = id;
+				age.born = now;
+			}
+		}
+	}
+}
 std::array<uint32_t, 256> CoolTable {};
 bool CoolBuilt = false;
 std::array<uint32_t, 256> HurtTable {};
@@ -1032,6 +1068,8 @@ void TickSceneGlow(const Surface &visible, Point firstTile, Point firstTileBuffe
 	Flashes.erase(std::remove_if(Flashes.begin(), Flashes.end(), [now](const Flash &f) { return now - f.born > f.life || now < f.born; }), Flashes.end());
 	if (!CorpsesSeeded)
 		SeedCorpses();
+	else if (*sgOptions.Oracool.corpseSettle)
+		DateNewCorpses();
 	TickHero();
 	TickFloorItems();
 	TickObjects();
@@ -1280,11 +1318,12 @@ void DrawSceneGlowGround(const Surface &out, Point firstTile, Point firstTileBuf
 				const float spin = (ring == 0 ? 0.6F : -0.9F) * now;
 				const int steps = ring == 0 ? 72 : 48;
 				const float cs = std::cos(spin), sn = std::sin(spin);
-				const float dcs = std::cos(spin * 6.0F), dsn = std::sin(spin * 6.0F);
+				const float m = ring == 0 ? 6.0F : 4.0F; // the dashes turn with their ring (audit round 2)
+				const float dcs = std::cos(spin * m), dsn = std::sin(spin * m);
 				const RingTable &tab = Tables[ring];
 				for (int k = 0; k < steps; k++) {
 					const size_t i = static_cast<size_t>(k);
-					const float dash = tab.ds[i] * dcs + tab.dc[i] * dsn; // sin(a m + 6 spin)
+					const float dash = tab.ds[i] * dcs + tab.dc[i] * dsn; // sin(m (a + spin))
 					if (dash < 0.1F)
 						continue;
 					const float ca = tab.c[i] * cs - tab.s[i] * sn; // cos(a + spin)
@@ -1382,6 +1421,7 @@ void DrawSceneGlowLights(const Surface &out, Point firstTile, Point firstTileBuf
 			const float env = lAge < 0.15F ? lAge / 0.15F : 1.0F - (lAge - 0.15F) / 1.65F;
 			constexpr uint32_t Gold = SG_PACK(255, 214, 120);
 			const int top = cy - 220;
+			Splat *next = pen.splats != nullptr ? ScratchFor(static_cast<size_t>(221) * 33) : nullptr; // rows x widest row
 			for (int py = std::max(top, 0); py <= std::min(cy, v.h - 1); py++) {
 				const float t = static_cast<float>(cy - py) / 220.0F; // 0 at the feet .. 1 at the top
 				const float fade = (1.0F - t) * (t < 0.08F ? t / 0.08F : 1.0F);
@@ -1403,10 +1443,18 @@ void DrawSceneGlowLights(const Surface &out, Point firstTile, Point firstTileBuf
 						const uint32_t c = row[px];
 						row[px] = SG_ADD(c, ar, ag, ab);
 					} else {
-						pen.add(px, py, ar, ag, ab);
+						next->x = static_cast<float>(px);
+						next->y = static_cast<float>(py);
+						next->r = static_cast<float>(SG_SAT(ar)) * (1.0F / 255.0F);
+						next->g = static_cast<float>(SG_SAT(ag)) * (1.0F / 255.0F);
+						next->b = static_cast<float>(SG_SAT(ab)) * (1.0F / 255.0F);
+						next->cover = 0.0F;
+						next++;
 					}
 				}
 			}
+			if (pen.splats != nullptr)
+				AppendScratch(pen.splats, next);
 			const float ring = lAge * 140.0F;
 			const int steps = 96;
 			for (int k = 0; k < steps; k++) {
