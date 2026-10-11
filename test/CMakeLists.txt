@@ -37,6 +37,7 @@ set(tests
   oracool_post_fx_test
   oracool_graphics_batch2_test
   oracool_graphics_batch3_test
+  oracool_graphics_batch4_test
   oracool_gpu_post_test
   oracool_gpu_stage2_test
   oracool_gpu_stage3_test

@@ -113,7 +113,9 @@ void ApplyTownSway(const Surface &out, Point firstTile, Point firstTileBuffer);
 
 /** @brief Advances the effects' clock: real time, standing still while the game is paused. Once a frame, before the world. */
 void AdvanceSceneClock();
-/** @brief The view's shake this frame (the guardian's entrance), in pixels. */
+/** @brief A short shake of the picture (the fourth batch's guardian fall): @p amplitude pixels, dying away over @p seconds. */
+void KickScreenShake(float amplitude, float seconds);
+/** @brief The view's shake this frame (the guardian's entrance, a kick), in pixels. */
 Displacement ScreenShakeOffset();
 /**
  * @brief Over the finished world, before the HUD: the shake (the picture moved, its edges repeated so nothing undrawn

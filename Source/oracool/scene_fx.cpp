@@ -41,6 +41,7 @@
 #include "oracool/rfa12_actives.h"
 #include "oracool/rift.h"
 #include "oracool/rift_bosses.h"
+#include "oracool/scene_life.h"
 #include "oracool/splats.h"
 #include "oracool/whirlwind.h"
 #include "player.h"
@@ -654,6 +655,15 @@ FoliageBox FoliageKeep;
 
 float HeartPhase = 0;
 float HeartSeverity = 0;
+
+// ---- A kick of the picture (the fourth batch, oracool/scene_life.h) -------------------------------------------------------
+
+struct ShakeKick {
+	float start = 0;
+	float amplitude = 0;
+	float length = 0;
+};
+ShakeKick Kick;
 
 } // namespace
 
@@ -1523,18 +1533,27 @@ void ApplyTownSway(const Surface &out, Point firstTile, Point firstTileBuffer)
 
 // ==== After the world ===================================================================================================
 
+void KickScreenShake(float amplitude, float seconds)
+{
+	Kick = { Now(), amplitude, seconds };
+}
+
 Displacement ScreenShakeOffset()
 {
 	ExpireEntrance();
-	if (!TheEntrance.active || !*sgOptions.Oracool.bossEntrance)
-		return {};
-	const float age = EntranceAge() - 0.15F;
-	if (age < 0 || age > ShakeLength)
-		return {};
-	const float decay = std::pow(1.0F - age / ShakeLength, 1.6F);
-	const float amp = 7.0F * decay;
-	return { static_cast<int>(std::floor(amp * (std::sin(age * 57.0F) * 0.7F + std::sin(age * 91.0F) * 0.3F) + 0.5F)),
-		static_cast<int>(std::floor(amp * 0.6F * (std::cos(age * 63.0F) * 0.7F + std::sin(age * 79.0F) * 0.3F) + 0.5F)) };
+	float x = 0;
+	float y = 0;
+	const auto shake = [&x, &y](float age, float length, float amplitude) {
+		if (age < 0 || age > length || length <= 0)
+			return;
+		const float amp = amplitude * std::pow(1.0F - age / length, 1.6F);
+		x += amp * (std::sin(age * 57.0F) * 0.7F + std::sin(age * 91.0F) * 0.3F);
+		y += amp * 0.6F * (std::cos(age * 63.0F) * 0.7F + std::sin(age * 79.0F) * 0.3F);
+	};
+	if (TheEntrance.active && *sgOptions.Oracool.bossEntrance)
+		shake(EntranceAge() - 0.15F, ShakeLength, 7.0F);
+	shake(Now() - Kick.start, Kick.length, Kick.amplitude); // the fourth batch's kick (a guardian's fall)
+	return { static_cast<int>(std::floor(x + 0.5F)), static_cast<int>(std::floor(y + 0.5F)) };
 }
 
 void ApplyAfterWorld(const Surface &world)
@@ -1843,6 +1862,8 @@ void ForgetSceneFx()
 	Foliage.any = false;
 	MonsterLastDrawn.fill(0);
 	MonsterAppeared.fill(0);
+	Kick = {};
+	ForgetSceneLife(); // the fourth batch's records go with the third's
 }
 
 } // namespace devilution::oracool

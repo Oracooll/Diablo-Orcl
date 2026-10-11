@@ -1008,6 +1008,18 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean debanding;
 	OptionEntryBoolean bossEntrance;
 	OptionEntryBoolean lowHealthWarning;
+	// The fourth graphics batch (user, 2026-10-11: "proceed with all suggested"; oracool/scene_life.h), all on.
+	OptionEntryBoolean cloudShadows;
+	OptionEntryBoolean townLife;
+	OptionEntryBoolean puddles;
+	OptionEntryBoolean footprints;
+	OptionEntryBoolean torchSmoke;
+	OptionEntryBoolean swingTrails;
+	OptionEntryBoolean missileTrails;
+	OptionEntryBoolean shockwaves;
+	OptionEntryBoolean guardianDeathMoment;
+	OptionEntryBoolean dropFlares;
+	OptionEntryBoolean livingPortals;
 	/**
 	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
 	 * the name large, type and tier under it, the armour or damage as one big number, the item's

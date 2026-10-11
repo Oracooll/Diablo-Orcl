@@ -577,6 +577,29 @@ void SaveOptions()
 	    "; On: below a third of your life, a red glow bleeds in from the screen's edges, pulsing\n; like a heartbeat - deeper and faster as you near death.");
 	setBoolean("Rift Guardian Entrance", *sgOptions.Oracool.bossEntrance,
 	    "; On: a rift guardian rises a few steps away in a great beam of light; the ground\n; shakes, black bars close in and his name appears.");
+	// The fourth graphics batch (user, 2026-10-11).
+	setBoolean("Cloud Shadows", *sgOptions.Oracool.cloudShadows,
+	    "; On: soft shadows of clouds drift over Tristram by day.");
+	setBoolean("Town Life", *sgOptions.Oracool.townLife,
+	    "; On: crows peck on Tristram's ground by day and take off as you come near, leaves\n; blow through, and fireflies glow at night.");
+	setBoolean("Puddles", *sgOptions.Oracool.puddles,
+	    "; On: rain leaves puddles in Tristram, rippling while it falls, drying after.");
+	setBoolean("Footprints", *sgOptions.Oracool.footprints,
+	    "; On: you leave footprints in Tristram's snow and on its wet ground.");
+	setBoolean("Torch Smoke", *sgOptions.Oracool.torchSmoke,
+	    "; On: wisps of smoke rise from the dungeons' torches, candles and burning crosses.");
+	setBoolean("Swing Trails", *sgOptions.Oracool.swingTrails,
+	    "; On: a melee swing leaves a bright arc, coloured by the weapon's fire or lightning.");
+	setBoolean("Missile Trails", *sgOptions.Oracool.missileTrails,
+	    "; On: arrows, bolts and spells in flight leave a fading streak in their element's colour.");
+	setBoolean("Shockwaves", *sgOptions.Oracool.shockwaves,
+	    "; On: big explosions, novas and impacts send a ripple across the picture.");
+	setBoolean("Guardian Death Moment", *sgOptions.Oracool.guardianDeathMoment,
+	    "; On: a rift guardian's fall flashes the screen, drains its colour a moment, shakes it\n; and shows his name.");
+	setBoolean("Drop Flares", *sgOptions.Oracool.dropFlares,
+	    "; On: a unique, set, primal or runeword item flares like a star as it lands.");
+	setBoolean("Living Portals", *sgOptions.Oracool.livingPortals,
+	    "; On: portals swirl, glow on the floor and draw motes of light into them.");
 	setBoolean("Item Tooltip Card", *sgOptions.Oracool.itemTooltipCard,
 	    "; On: the item tooltip is a card - name large, type and tier under it, armour or damage\n; as one big number, the item's picture top right, stats left-aligned, requirements in\n; a band at the foot. Off: the earlier centred panel.");
 	setBoolean("Grouped Hero Sheet", *sgOptions.Oracool.heroSheetGrouped,
@@ -1743,6 +1766,17 @@ OracoolOptions::OracoolOptions()
     , debanding("Debanding", OptionEntryFlags::None, N_("Debanding"), N_("A grain too faint to see smooths the steps in dark gradients, so the smooth lighting stays smooth in dark rooms and in recordings."), true)
     , bossEntrance("Rift Guardian Entrance", OptionEntryFlags::None, N_("Rift Guardian Entrance"), N_("A rift guardian rises from the ground a few steps away in a great beam of light: the ground shakes, black bars close in and his name appears."), true)
     , lowHealthWarning("Low Health Warning", OptionEntryFlags::None, N_("Low Health Warning"), N_("Below a third of your life, a red glow bleeds in from the edges of the screen, pulsing like a heartbeat - deeper and faster as you near death."), true)
+    , cloudShadows("Cloud Shadows", OptionEntryFlags::None, N_("Cloud Shadows"), N_("Soft shadows of clouds drift over Tristram by day."), true)
+    , townLife("Town Life", OptionEntryFlags::None, N_("Town Life"), N_("Tristram lives: crows peck on the ground by day and take off as you come near, leaves blow through, and fireflies glow at night."), true)
+    , puddles("Puddles", OptionEntryFlags::None, N_("Puddles"), N_("Rain leaves puddles on Tristram's ground, rippling while it falls and drying slowly after it stops."), true)
+    , footprints("Footprints", OptionEntryFlags::None, N_("Footprints"), N_("You leave footprints in Tristram's snow and on its wet ground; they fade behind you."), true)
+    , torchSmoke("Torch Smoke", OptionEntryFlags::None, N_("Torch Smoke"), N_("Wisps of smoke rise from the dungeons' torches, candles and burning crosses."), true)
+    , swingTrails("Swing Trails", OptionEntryFlags::None, N_("Swing Trails"), N_("A melee swing leaves a bright arc, coloured by the weapon's fire or lightning."), true)
+    , missileTrails("Missile Trails", OptionEntryFlags::None, N_("Missile Trails"), N_("Arrows, bolts and spells in flight draw a fading streak behind them in their element's colour."), true)
+    , shockwaves("Shockwaves", OptionEntryFlags::None, N_("Shockwaves"), N_("Big explosions, novas and impacts send a ripple across the picture that bends what lies under it."), true)
+    , guardianDeathMoment("Guardian Death Moment", OptionEntryFlags::None, N_("Guardian Death Moment"), N_("A rift guardian's fall flashes the screen, drains its colour a moment, shakes it and sends a shockwave out, and his name appears."), true)
+    , dropFlares("Drop Flares", OptionEntryFlags::None, N_("Drop Flares"), N_("A unique, set, primal or runeword item flares like a star as it lands."), true)
+    , livingPortals("Living Portals", OptionEntryFlags::None, N_("Living Portals"), N_("Portals swirl, glow on the floor under them and draw motes of light into them."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("A timestamped log of noteworthy session events, opened from the Menu popup or with F11."), true)
@@ -1872,6 +1906,17 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&debanding,
 		&bossEntrance,
 		&lowHealthWarning,
+		&cloudShadows,
+		&townLife,
+		&puddles,
+		&footprints,
+		&torchSmoke,
+		&swingTrails,
+		&missileTrails,
+		&shockwaves,
+		&guardianDeathMoment,
+		&dropFlares,
+		&livingPortals,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,

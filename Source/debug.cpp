@@ -30,6 +30,7 @@
 #include "oracool/area_level.h" // MaxAreaLevel - a debug set piece stays on the ladder
 #include "oracool/colour_light.h" // TownHour / SetTownHour - the timeofday command
 #include "oracool/scene_fx.h"     // SetWeather - the weather command
+#include "oracool/scene_life.h"   // SetGroundWetness - its wet and dry
 #include "oracool/gpu_post.h"     // GpuWorldPostStatus - the gpuinfo command
 #include "levels/setmaps.h"
 #include "lighting.h"
@@ -1224,6 +1225,11 @@ std::string DebugCmdWeather(const string_view parameter)
 		return fmt::format("Tristram's weather: {} ({}%). weather rain, weather snow or weather clear sets it.", name(now), static_cast<int>(intensity * 100.0F));
 	}
 	const std::string text(parameter);
+	if (text == "wet" || text == "dry") {
+		// The fourth batch's puddles (oracool/scene_life.h): the ground soaked, or dried, at once.
+		oracool::SetGroundWetness(text == "wet" ? 1.0F : 0.0F);
+		return text == "wet" ? "Tristram's ground is soaked: puddles everywhere until it dries." : "Tristram's ground is dry.";
+	}
 	oracool::Weather w;
 	if (text == "rain")
 		w = oracool::Weather::Rain;
@@ -1232,7 +1238,7 @@ std::string DebugCmdWeather(const string_view parameter)
 	else if (text == "clear")
 		w = oracool::Weather::Clear;
 	else
-		return "Give rain, snow or clear.";
+		return "Give rain, snow, clear, wet or dry.";
 	oracool::SetWeather(w);
 	return fmt::format("Tristram's weather set to {}.", name(w));
 }
@@ -1733,7 +1739,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "cursorinfo", "Shows the cursor's state (type it the moment the cursor vanishes).", "", &DebugCmdCursorInfo },
 	{ "cursorfix", "Rebuilds the cursor from scratch, without restarting.", "", &DebugCmdCursorFix },
 	{ "timeofday", "Shows or sets Tristram's clock (0-24) for the day and night cycle.", "({hour})", &DebugCmdTimeOfDay },
-	{ "weather", "Shows or sets Tristram's weather: rain, snow or clear.", "({rain|snow|clear})", &DebugCmdWeather },
+	{ "weather", "Shows or sets Tristram's weather: rain, snow or clear; wet or dry soaks or dries the ground (puddles).", "({rain|snow|clear|wet|dry})", &DebugCmdWeather },
 	{ "gpuinfo", "Shows whether the graphics card renderer is in use, and on which card.", "", &DebugCmdGpuInfo },
 	{ "clearui", "Toggles hiding every HUD element (panel, mini-map, overlays, cursor, etc.) for a fully clean screenshot.", "", &DebugCmdClearUi },
 	{ "spawnu", "Spawns unique monster {name}.", "{name} ({count})", &DebugCmdSpawnUniqueMonster },
