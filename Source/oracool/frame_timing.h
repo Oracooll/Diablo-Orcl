@@ -96,4 +96,53 @@ void NoteFramePresented();
  */
 void DrawFrameTiming(const Surface &out, Point position);
 
+/**
+ * GPU renderer plan, Stage 0 (user, 2026-10-11): what each pass of the world draw costs. DrawGame wraps every pass in a
+ * ScopedFramePass; the averages per drawn world frame over the last second are shown under the frame-time line while the
+ * FPS counter is on, and every ten seconds of play with it on a row goes to frame_passes.csv in the pref folder (the
+ * level, zoom, screen size, the effect options and every pass), so a play session can be read back afterwards.
+ */
+enum class FramePass : uint8_t {
+	Floor,       // DrawFloor
+	FloorLight,  // smooth floors, wall shadows, ray-traced shadows
+	Marks,       // floor marks and loot glows
+	FloorThings, // floor-pass objects, aura and skill rings
+	Sprites,     // DrawTileContent: walls, objects, items, monsters, heroes, missiles (with spell glow, smooth animation)
+	Relief,      // lit surface relief (keep + pass)
+	Colour,      // coloured light and torch flicker
+	DayNight,    // Tristram's day and night
+	Beams,       // loot beams
+	Particles,
+	Haze,        // lava haze and water light
+	Bloom,
+	Mood,        // area mood and vignette
+	Outlines,    // the deferred monster outlines
+	Zoom,        // ZoomScale: the zoom filter and sharpening
+	Count,
+};
+
+/** @brief Starts timing @p pass (cumulative within the frame). */
+void BeginFramePass(FramePass pass);
+/** @brief Stops timing @p pass. */
+void EndFramePass(FramePass pass);
+/** @brief Once a world frame, at the end of DrawGame: the frame's pass times go into the averages. */
+void NoteWorldFrameDrawn();
+
+struct ScopedFramePass {
+	explicit ScopedFramePass(FramePass pass)
+	    : pass_(pass)
+	{
+		BeginFramePass(pass_);
+	}
+	~ScopedFramePass() { EndFramePass(pass_); }
+	ScopedFramePass(const ScopedFramePass &) = delete;
+	ScopedFramePass &operator=(const ScopedFramePass &) = delete;
+
+private:
+	FramePass pass_;
+};
+
+/** @brief The short name a pass is shown and logged under ("floor", "sprites"...). */
+DVL_API_FOR_TEST const char *FramePassName(FramePass pass);
+
 } // namespace devilution::oracool

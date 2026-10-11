@@ -10,6 +10,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <set>
+#include <string>
 
 #include "engine/animationinfo.h"
 #include "engine/clx_sprite.hpp"
@@ -25,6 +27,7 @@
 #include "options.h"
 #include "oracool/colour_light.h"
 #include "oracool/frame_blend.h"
+#include "oracool/frame_timing.h"
 #include "oracool/ground_fx.h"
 #include "oracool/missile_tint.h"
 #include "oracool/particles.h"
@@ -489,4 +492,16 @@ TEST(OracoolFrameBlend, NoBlendIntoTheFirstFrameOrWithoutASheet)
 	AnimationInfo anim {};
 	anim.setNewAnimation(std::nullopt, 8, 1);
 	EXPECT_FALSE(oracool::PlanAnimationFrameBlend(anim).has_value()); // no sprites
+}
+
+// ----- GPU plan, Stage 0: the pass timer -------------------------------------------------------------------------
+
+TEST(OracoolFramePasses, EveryPassHasItsOwnName)
+{
+	std::set<std::string> names;
+	for (int i = 0; i < static_cast<int>(oracool::FramePass::Count); i++) {
+		const std::string name = oracool::FramePassName(static_cast<oracool::FramePass>(i));
+		EXPECT_NE(name, "?") << i;
+		EXPECT_TRUE(names.insert(name).second) << name; // the CSV's columns must not collide
+	}
 }

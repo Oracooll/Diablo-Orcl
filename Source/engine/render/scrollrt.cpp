@@ -1864,44 +1864,50 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	SmoothFloorThisFrame = oracool::SmoothFloorLightActive(out);
 	DeferFloorObjectsThisFrame = oracool::FloorPassActive(out);
 	FloorSmoothedThisFrame = DeferFloorObjectsThisFrame;
-	DrawFloor(out, position, Point {} + offset, rows, columns);
+	{ oracool::ScopedFramePass timed(oracool::FramePass::Floor); DrawFloor(out, position, Point {} + offset, rows, columns); } // Stage 0 of the GPU plan: each pass timed
 	SmoothFloorThisFrame = false;
 	if (DeferFloorObjectsThisFrame) {
-		oracool::ApplySmoothFloorLight(visible, position, visibleStart);
+		{ oracool::ScopedFramePass timed(oracool::FramePass::FloorLight); oracool::ApplySmoothFloorLight(visible, position, visibleStart); }
 		DeferFloorObjectsThisFrame = false;
-		oracool::DrawFloorMarks(visible, position, visibleStart); // blood, scorch, frost, loot glows: on the lit floor
-		DrawFloorObjects(out, position, Point {} + offset, rows, columns);
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Marks); oracool::DrawFloorMarks(visible, position, visibleStart); } // blood, scorch, frost, loot glows: on the lit floor
+		{ oracool::ScopedFramePass timed(oracool::FramePass::FloorThings); DrawFloorObjects(out, position, Point {} + offset, rows, columns); }
 	} else {
-		oracool::DrawFloorMarks(visible, position, visibleStart);
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Marks); oracool::DrawFloorMarks(visible, position, visibleStart); }
 	}
 	// Between the two passes, and only here: a lit aura's ring lies ON the floor, so every wall,
 	// monster and player must draw over it. See oracool/aura_ground.h - it takes these same four
 	// arguments and repeats DrawFloor's walk rather than deriving the player's screen position
 	// separately, so the two cannot disagree about where a tile is.
+	oracool::BeginFramePass(oracool::FramePass::FloorThings);
 	oracool::DrawAuraGround(out, position, Point {} + offset, rows, columns);
 	oracool::DrawMinionFrenzyRings(out, position, Point {} + offset, rows, columns); // Frenzy of the Dead, under each minion
 	oracool::DrawArrowImpactRings(out, position, Point {} + offset, rows, columns); // Rain of Arrows, under each landed arrow
 	oracool::DrawFendRing(out, position, Point {} + offset, rows, columns);         // Fend, under the Rogue while she swings
+	oracool::EndFramePass(oracool::FramePass::FloorThings);
 	// Lit surface relief (oracool/colour_light.h, user 2026-10-11): what DrawTileContent draws over the floor catches the
 	// light from the side it comes from - kept here, applied after it, before the colour.
+	oracool::BeginFramePass(oracool::FramePass::Relief);
 	oracool::BeginSurfaceRelief(visible);
-	DrawTileContent(out, position, Point {} + offset, rows, columns);
+	oracool::EndFramePass(oracool::FramePass::Relief);
+	{ oracool::ScopedFramePass timed(oracool::FramePass::Sprites); DrawTileContent(out, position, Point {} + offset, rows, columns); }
+	oracool::BeginFramePass(oracool::FramePass::Relief);
 	oracool::ApplySurfaceRelief(visible, position, visibleStart);
+	oracool::EndFramePass(oracool::FramePass::Relief);
 	// Coloured lighting (oracool/colour_light.h): the whole world, every light's hue over it - before the outlines,
 	// which are the cursor's and stay their own colour.
 	FloorSmoothedThisFrame = false;
-	oracool::ApplyLightColour(visible, position, visibleStart);
+	{ oracool::ScopedFramePass timed(oracool::FramePass::Colour); oracool::ApplyLightColour(visible, position, visibleStart); }
 	// Day and night in Tristram (user, 2026-10-11): the town's own light over the finished town; then the loot beams, which
 	// are light and stay bright at night, and bloom with the rest.
-	oracool::ApplyTownDayNight(visible, position, visibleStart);
-	oracool::DrawLootBeams(visible, position, visibleStart);
+	{ oracool::ScopedFramePass timed(oracool::FramePass::DayNight); oracool::ApplyTownDayNight(visible, position, visibleStart); }
+	{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); }
 	// The other visual techniques (user, 2026-10-10: "i like all 9"), each behind its own option: particles over the lit
 	// world, the haze before the bloom so shimmered lava still glows, the area mood and vignette last so they cover the
 	// glow too - all before the outlines (the cursor's own colour) and the zoom.
-	oracool::UpdateAndDrawParticles(visible, position, visibleStart);
-	oracool::ApplyHeatHazeAndWater(visible, position, visibleStart);
-	oracool::ApplyBloom(visible);
-	oracool::ApplyAreaMoodAndVignette(visible);
+	{ oracool::ScopedFramePass timed(oracool::FramePass::Particles); oracool::UpdateAndDrawParticles(visible, position, visibleStart); }
+	{ oracool::ScopedFramePass timed(oracool::FramePass::Haze); oracool::ApplyHeatHazeAndWater(visible, position, visibleStart); }
+	{ oracool::ScopedFramePass timed(oracool::FramePass::Bloom); oracool::ApplyBloom(visible); }
+	{ oracool::ScopedFramePass timed(oracool::FramePass::Mood); oracool::ApplyAreaMoodAndVignette(visible); }
 	// The deferred monster outlines, drained HERE - after the whole scene is composited, so they
 	// land on top of any wall that would otherwise hide the body, but still BEFORE ZoomScale, so
 	// they are scaled along with everything else.
@@ -1919,11 +1925,12 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// deferred queue (`position *= dungeonZoomLevel`): a label is text drawn at a point, but this
 	// is a SPRITE, and ClxDrawOutlineSkipColorZero has no scale. Drawing it inside the scaled
 	// region is the only way it can come out the right size.
-	DrawMonsterWallOutlines(out);
+	{ oracool::ScopedFramePass timed(oracool::FramePass::Outlines); DrawMonsterWallOutlines(out); }
 
 	if (zoomFactor > 1.0f) {
-		ZoomScale(fullOut.subregionY(0, gnViewportHeight), zoomFactor);
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Zoom); ZoomScale(fullOut.subregionY(0, gnViewportHeight), zoomFactor); }
 	}
+	oracool::NoteWorldFrameDrawn();
 
 #ifdef DUN_RENDER_STATS
 	std::vector<std::pair<DunRenderType, size_t>> sortedStats(DunRenderStats.begin(), DunRenderStats.end());
