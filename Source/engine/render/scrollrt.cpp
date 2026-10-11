@@ -1976,7 +1976,8 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// Stage 3 (user, 2026-10-11): the effects only the card runs. The per-pixel lights work in the dungeon, and in town
 	// after dark, when its lamps count.
 	gpu.perPixelLights = *sgOptions.Oracool.perPixelLights && (leveltype != DTYPE_TOWN || oracool::TownIsDark());
-	gpu.litSprites = *sgOptions.Oracool.litSprites;
+	// Lit Sprites needs lights: in town only after dark (audit: a daylight trip to the card for nothing).
+	gpu.litSprites = *sgOptions.Oracool.litSprites && (leveltype != DTYPE_TOWN || oracool::TownIsDark());
 	gpu.wideBloom = *sgOptions.Oracool.wideBloom;
 	gpu.lightShafts = *sgOptions.Oracool.lightShafts;
 	gpu.heatDistortion = *sgOptions.Oracool.heatDistortion && leveltype != DTYPE_TOWN;

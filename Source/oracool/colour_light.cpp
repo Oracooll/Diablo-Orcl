@@ -1398,7 +1398,8 @@ LightTint TownTintAt(Point tile)
 
 size_t GpuLightsNear(Point centre, GpuLight *out, size_t max)
 {
-	std::vector<GpuLight> all;
+	static std::vector<GpuLight> all; // reused, not made each frame
+	all.clear();
 	if (leveltype == DTYPE_TOWN) {
 		if (!TownIsDark())
 			return 0;
@@ -1429,7 +1430,8 @@ size_t GpuLightsNear(Point centre, GpuLight *out, size_t max)
 
 size_t GpuHeatNear(Point centre, GpuHeat *out, size_t max)
 {
-	std::vector<GpuHeat> all;
+	static std::vector<GpuHeat> all; // reused, not made each frame
+	all.clear();
 	if (leveltype != DTYPE_TOWN) {
 		for (const Missile &missile : Missiles) {
 			const uint32_t rgb = MissileLightHue(missile);

@@ -21,6 +21,7 @@
 #ifdef ORCL_GPU_POST
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstring>
 #include <vector>
 
@@ -87,7 +88,7 @@ Texture2D<float4> Outlines : register(t14);// alpha 1 where no outline is
 
 // Stage 3's, declared here so the composite can use them.
 SamplerState Linear : register(s0);
-Texture2D<uint> Blocks : register(t15);    // FIELD_H x FIELD_W: 1 where a tile stops light
+Texture2D<float> LightVis : register(t15); // FIELD_H x (FIELD_W * 12): each light's visibility per tile (the CPU's rays)
 Texture2D<float4> WideGlow : register(t16);
 Texture2D<float4> ShaftGlow : register(t17);
 Texture2D<float4> GradeTable : register(t18); // 4 x 1: gain, lift, gamma, (saturation, contrast, black, strength)
@@ -487,44 +488,31 @@ float2 TileToScreen(float2 t)
 	return float2(FirstBufX + 32.0 + (d.x - d.y) * 32.0, FirstBufY - 14.5 + (d.x + d.y) * 16.0);
 }
 
-bool Blocked(int2 t)
+float VisTile(int k, int2 t)
 {
-	return t.x >= 0 && t.y >= 0 && t.x < FIELD_W && t.y < FIELD_H && Blocks.Load(int3(t.y, t.x, 0)) != 0;
+	if (t.x < 0 || t.y < 0 || t.x >= FIELD_W || t.y >= FIELD_H)
+		return 0;
+	return LightVis.Load(int3(t.y, k * FIELD_W + t.x, 0));
 }
 
-/** How much of a light at @p from reaches @p to: three rays a little apart, each stopped by the first wall. */
-float Visibility(float2 from, float2 to)
+/** Light @p k's visibility at ground @p g: bilinear between tile centres, so a shadow's edge is soft. */
+float Visibility(int k, float2 g)
 {
-	const int2 start = int2(floor(from + 0.5));
-	const int2 target = int2(floor(to + 0.5));
-	const float2 d = to - from;
-	const float2 side = normalize(float2(-d.y, d.x) + 1e-4) * 0.3;
-	float open = 0;
-	[unroll] for (int r = -1; r <= 1; r++) {
-		const float2 a = from + side * r;
-		float ray = 1;
-		[loop] for (int s = 1; s < 9; s++) {
-			const int2 t = int2(floor(lerp(a, to, s / 9.0) + 0.5));
-			if (all(t == target))
-				break; // the lit tile is never its own blocker
-			if (all(abs(t - start) <= 1))
-				continue; // a light in a wall (a wall torch) lights past the walls round it
-			if (Blocked(t)) {
-				ray = 0;
-				break;
-			}
-		}
-		open += ray;
-	}
-	return open / 3.0;
+	const float2 b = floor(g);
+	const float2 f = g - b;
+	const int2 t = int2(b);
+	return lerp(lerp(VisTile(k, t), VisTile(k, t + int2(1, 0)), f.x), lerp(VisTile(k, t + int2(0, 1)), VisTile(k, t + int2(1, 1)), f.x), f.y);
 }
 
-/** Per-pixel lights: each light's round pool, in its colour, stopped softly by walls. */
+/**
+ * Per-pixel lights: each light's round pool, in its colour, stopped softly by walls - the shadows traced once a tile on
+ * the CPU (audit round 1: three rays a pixel a light cost an iGPU tens of milliseconds).
+ */
 float4 PSPerPixelLights(VsOut i) : SV_Target
 {
 	const int2 p = int2(i.pos.xy);
 	const int3 c = Px(p);
-	const float2 g = Ground(p + 0.5);
+	const float2 g = Ground(float2(p));
 	float3 sum = 0;
 	[loop] for (int k = 0; k < LightCount; k++) {
 		const float4 a = LightA[k];
@@ -533,7 +521,7 @@ float4 PSPerPixelLights(VsOut i) : SV_Target
 			continue;
 		float w = 1.0 - dist / a.z;
 		w *= w;
-		sum += LightB[k].rgb * (w * a.w * Visibility(a.xy, g));
+		sum += LightB[k].rgb * (w * a.w * Visibility(k, g));
 	}
 	return Out(int3(min(c * (1.0 + PplStrength * sum) + 0.5, 255.0)));
 }
@@ -558,7 +546,7 @@ float4 PSLitSprites(VsOut i) : SV_Target
 	const float gy = (SurfaceHeight(p + int2(-2, 2), l) + 2 * SurfaceHeight(p + int2(0, 2), l) + SurfaceHeight(p + int2(2, 2), l))
 	    - (SurfaceHeight(p + int2(-2, -2), l) + 2 * SurfaceHeight(p + int2(0, -2), l) + SurfaceHeight(p + int2(2, -2), l));
 	const float3 n = normalize(float3(-gx / 340.0, -gy / 340.0, 1.0));
-	const float2 g = Ground(p + 0.5);
+	const float2 g = Ground(float2(p)); // the ground map's origin is a pixel's centre already
 	float delta = 0;
 	[loop] for (int k = 0; k < LightCount; k++) {
 		const float4 a = LightA[k];
@@ -568,7 +556,7 @@ float4 PSLitSprites(VsOut i) : SV_Target
 		float w = 1.0 - dist / a.z;
 		w *= w * a.w;
 		const float2 at = TileToScreen(a.xy) - float2(0, 40.0); // lights hang above the floor
-		const float3 L = normalize(float3(at - (p + 0.5), 48.0));
+		const float3 L = normalize(float3(at - float2(p), 48.0));
 		delta += w * (max(dot(n, L), 0.0) - L.z);
 	}
 	const float f = clamp(1.0 + SurfaceStrength * delta, 0.72, 1.32);
@@ -581,10 +569,10 @@ float4 PSHeat(VsOut i) : SV_Target
 	const int2 p = int2(i.pos.xy);
 	float m = 0;
 	// Heat rises: the lava a little below the pixel counts.
-	const int2 lava = int2(floor(Ground(p + float2(0.5, 14.5)) + 0.5));
+	const int2 lava = int2(floor(Ground(p + float2(0, 14)) + 0.5));
 	if ((Flags & 64) != 0 && lava.x >= 0 && lava.y >= 0 && lava.x < FIELD_W && lava.y < FIELD_H && Liquid.Load(int3(lava.y, lava.x, 0)) == 1)
 		m = 1.0;
-	const float2 g = Ground(p + float2(0.5, 20.5));
+	const float2 g = Ground(p + float2(0, 20));
 	[loop] for (int k = 0; k < HeatCount; k++) {
 		const float d = length(g - HeatSrc[k].xy);
 		if (d < HeatSrc[k].z)
@@ -989,6 +977,42 @@ bool Ensure(Target &t, int w, int h, DXGI_FORMAT format, UINT bind)
 	return true;
 }
 
+/** The most lights Stage 3 lights the view with (audit round 1: 32 cost an iGPU too much). */
+constexpr size_t MaxGpuLights = 12;
+
+/** How much of a light at (@p fx, @p fy) reaches tile (@p tx, @p ty): three rays a little apart, each stopped by a wall. */
+float TileVisibility(const uint8_t *blocks, float fx, float fy, int tx, int ty)
+{
+	const int sx = static_cast<int>(std::floor(fx + 0.5F));
+	const int sy = static_cast<int>(std::floor(fy + 0.5F));
+	const float dx = static_cast<float>(tx) - fx;
+	const float dy = static_cast<float>(ty) - fy;
+	const float len = std::sqrt(dx * dx + dy * dy);
+	const float sideX = len > 1e-4F ? -dy / len * 0.3F : 0.0F;
+	const float sideY = len > 1e-4F ? dx / len * 0.3F : 0.0F;
+	int open = 0;
+	for (int r = -1; r <= 1; r++) {
+		const float ax = fx + sideX * static_cast<float>(r);
+		const float ay = fy + sideY * static_cast<float>(r);
+		bool ray = true;
+		for (int s = 1; s < 9; s++) {
+			const float t = static_cast<float>(s) / 9.0F;
+			const int cx = static_cast<int>(std::floor(ax + (static_cast<float>(tx) - ax) * t + 0.5F));
+			const int cy = static_cast<int>(std::floor(ay + (static_cast<float>(ty) - ay) * t + 0.5F));
+			if (cx == tx && cy == ty)
+				break; // the lit tile is never its own blocker
+			if (std::abs(cx - sx) <= 1 && std::abs(cy - sy) <= 1)
+				continue; // a light in a wall (a wall torch) lights past the walls round it
+			if (cx < 0 || cy < 0 || cx >= MAXDUNX || cy >= MAXDUNY || blocks[static_cast<size_t>(cx) * MAXDUNY + cy] != 0) {
+				ray = false;
+				break;
+			}
+		}
+		open += ray ? 1 : 0;
+	}
+	return static_cast<float>(open) / 3.0F;
+}
+
 /** A table as a one-row integer texture of @p texels, each @p texelBytes wide. */
 bool UploadTable(Target &t, const void *values, int texels, int texelBytes, DXGI_FORMAT format)
 {
@@ -1175,13 +1199,15 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 	const bool relief = extra.relief != nullptr && Gpu->keptValid && Gpu->kept.w == w && Gpu->kept.h == h;
 	if (relief) {
 		const ReliefPlan &r = *extra.relief;
-		std::vector<int32_t> field(static_cast<size_t>(MAXDUNX) * MAXDUNY * 2);
-		for (size_t i = 0; i < static_cast<size_t>(MAXDUNX) * MAXDUNY; i++) {
-			field[i * 2] = r.dirX[i];
-			field[i * 2 + 1] = r.dirY[i];
+		if (r.reliefPass) { // Lit Sprites' plan needs only the mask (audit round 1)
+			static std::vector<int32_t> field(static_cast<size_t>(MAXDUNX) * MAXDUNY * 2); // reused, not made each frame
+			for (size_t i = 0; i < static_cast<size_t>(MAXDUNX) * MAXDUNY; i++) {
+				field[i * 2] = r.dirX[i];
+				field[i * 2 + 1] = r.dirY[i];
+			}
+			if (!UploadField(Gpu->reliefDir, field.data(), 8, DXGI_FORMAT_R32G32_SINT))
+				return false;
 		}
-		if (!UploadField(Gpu->reliefDir, field.data(), 8, DXGI_FORMAT_R32G32_SINT))
-			return false;
 		params.flags |= FlagRelief;
 		params.reliefShift = r.slopeShift;
 		params.reliefMax = r.maxDelta;
@@ -1197,7 +1223,7 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 	const bool tint = extra.tint != nullptr && extra.tint->tints != nullptr && extra.tint->left <= extra.tint->right && extra.tint->top <= extra.tint->bottom;
 	if (tint) {
 		const TintPlan &t = *extra.tint;
-		std::vector<int32_t> field(static_cast<size_t>(MAXDUNX) * MAXDUNY * 4);
+		static std::vector<int32_t> field(static_cast<size_t>(MAXDUNX) * MAXDUNY * 4); // reused, not made each frame
 		for (size_t i = 0; i < static_cast<size_t>(MAXDUNX) * MAXDUNY; i++) {
 			field[i * 4] = t.tints[i].r;
 			field[i * 4 + 1] = t.tints[i].g;
@@ -1212,17 +1238,26 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 		params.tintTop = t.top;
 		params.tintBottom = t.bottom;
 	}
+	bool liquidSent = false;
 	const bool haze = extra.haze != nullptr && (extra.haze->water || extra.haze->lava) && extra.haze->liquid != nullptr;
 	if (haze) {
 		const HazePlan &z = *extra.haze;
 		if (!UploadField(Gpu->liquid, z.liquid, 1, DXGI_FORMAT_R8_UINT))
 			return false;
+		liquidSent = z.liquid == (extra.stage3 != nullptr ? extra.stage3->liquid : nullptr);
 		if (Gpu->sine.texture == nullptr && !UploadTable(Gpu->sine, HazeSineTable(), 1024, 4, DXGI_FORMAT_R32_SINT))
 			return false;
 		if (z.lava) {
-			if (!Ensure(Gpu->strength, z.nbx, z.nby, DXGI_FORMAT_R8_UINT, D3D11_BIND_SHADER_RESOURCE))
-				return false;
-			Gpu->context->UpdateSubresource(Gpu->strength.texture.Get(), 0, nullptr, z.strength, static_cast<UINT>(z.nbx), 0);
+			// Grown to the largest lava box so far, not made again each time the box changes size (audit).
+			if (Gpu->strength.texture == nullptr || z.nbx > Gpu->strength.w || z.nby > Gpu->strength.h) {
+				const int sw = std::max(z.nbx, Gpu->strength.texture != nullptr ? Gpu->strength.w : 0);
+				const int sh = std::max(z.nby, Gpu->strength.texture != nullptr ? Gpu->strength.h : 0);
+				Gpu->strength = Target {};
+				if (!Ensure(Gpu->strength, sw, sh, DXGI_FORMAT_R8_UINT, D3D11_BIND_SHADER_RESOURCE))
+					return false;
+			}
+			const D3D11_BOX region { 0, 0, 0, static_cast<UINT>(z.nbx), static_cast<UINT>(z.nby), 1 };
+			Gpu->context->UpdateSubresource(Gpu->strength.texture.Get(), 0, &region, z.strength, static_cast<UINT>(z.nbx), 0);
 		}
 		params.hazeU0 = static_cast<int32_t>(z.u0);
 		params.hazeV0 = static_cast<int32_t>(z.v0);
@@ -1298,15 +1333,31 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 		s3.firstBufY = static_cast<float>(in.firstTileBuffer.y);
 		s3.seconds = in.seconds;
 		s3.pplStrength = 0.5F;
-		s3.wideStrength = settings.wideBloom ? 0.22F : 0.0F;
+		// The chain adds its five levels together: a fifth of what a single level would take (audit round 1: big fires
+		// went white).
+		s3.wideStrength = settings.wideBloom ? 0.06F : 0.0F;
 		s3.shaftStrength = settings.lightShafts ? 0.35F : 0.0F;
 		s3.surfaceStrength = 0.55F;
 		s3.heatAmplitude = 1.6F;
-		const size_t lights = std::min<size_t>(in.lightCount, 32);
-		for (size_t k = 0; k < lights; k++) {
+		// The lights that reach the view at all (audit round 1): the ground the view's corners stand on, as a box.
+		float minU = 1e9F, maxU = -1e9F, minV = 1e9F, maxV = -1e9F;
+		for (const float px : { 0.0F, static_cast<float>(w) }) {
+			for (const float py : { 0.0F, static_cast<float>(h) + 64.0F }) {
+				const float u = s3.groundU0 + py / 32.0F + px / 64.0F;
+				const float v = s3.groundV0 + py / 32.0F - px / 64.0F;
+				minU = std::min(minU, u), maxU = std::max(maxU, u), minV = std::min(minV, v), maxV = std::max(maxV, v);
+			}
+		}
+		size_t lights = 0;
+		std::array<const GpuLight *, MaxGpuLights> kept {};
+		for (size_t k = 0; k < in.lightCount && lights < MaxGpuLights; k++) {
 			const GpuLight &l = in.lights[k];
-			s3.lightA[k][0] = l.x, s3.lightA[k][1] = l.y, s3.lightA[k][2] = l.reach, s3.lightA[k][3] = l.intensity;
-			s3.lightB[k][0] = l.r, s3.lightB[k][1] = l.g, s3.lightB[k][2] = l.b, s3.lightB[k][3] = static_cast<float>(l.kind);
+			if (l.x + l.reach < minU || l.x - l.reach > maxU || l.y + l.reach < minV || l.y - l.reach > maxV)
+				continue;
+			kept[lights] = &l;
+			s3.lightA[lights][0] = l.x, s3.lightA[lights][1] = l.y, s3.lightA[lights][2] = l.reach, s3.lightA[lights][3] = l.intensity;
+			s3.lightB[lights][0] = l.r, s3.lightB[lights][1] = l.g, s3.lightB[lights][2] = l.b, s3.lightB[lights][3] = static_cast<float>(l.kind);
+			lights++;
 		}
 		s3.lightCount = static_cast<int32_t>(lights);
 		const size_t heats = std::min<size_t>(in.heatCount, 16);
@@ -1318,7 +1369,7 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 		// The shafts: the flames' and spells' lights nearest the middle of the view, on screen or just off it.
 		int shaftCount = 0;
 		for (size_t k = 0; k < lights && shaftCount < 4; k++) {
-			const GpuLight &l = in.lights[k];
+			const GpuLight &l = *kept[k];
 			if (l.kind == 0)
 				continue;
 			const float dx = l.x - s3.firstTileX, dy = l.y - s3.firstTileY;
@@ -1335,10 +1386,26 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 		heatPass = settings.heatDistortion && (heats > 0 || in.liquid != nullptr);
 		wideBloom = settings.wideBloom;
 		shafts = settings.lightShafts && shaftCount > 0;
-		if (perPixelLights && !UploadField(Gpu->blocks, in.blocks, 1, DXGI_FORMAT_R8_UINT))
-			return false;
+		if (perPixelLights) {
+			// Each light's shadows, once a tile: three rays a little apart, each stopped by the first wall.
+			static std::vector<uint8_t> vis(static_cast<size_t>(MAXDUNX) * MAXDUNY * MaxGpuLights);
+			std::fill(vis.begin(), vis.end(), 0);
+			for (size_t k = 0; k < lights; k++) {
+				const GpuLight &l = *kept[k];
+				const int x0 = std::max(static_cast<int>(std::floor(l.x - l.reach)) - 1, 0);
+				const int x1 = std::min(static_cast<int>(std::ceil(l.x + l.reach)) + 1, MAXDUNX - 1);
+				const int y0 = std::max(static_cast<int>(std::floor(l.y - l.reach)) - 1, 0);
+				const int y1 = std::min(static_cast<int>(std::ceil(l.y + l.reach)) + 1, MAXDUNY - 1);
+				for (int x = x0; x <= x1; x++)
+					for (int y = y0; y <= y1; y++)
+						vis[(k * MAXDUNX + static_cast<size_t>(x)) * MAXDUNY + static_cast<size_t>(y)] = static_cast<uint8_t>(TileVisibility(in.blocks, l.x, l.y, x, y) * 255.0F + 0.5F);
+			}
+			if (!Ensure(Gpu->blocks, MAXDUNY, MAXDUNX * static_cast<int>(MaxGpuLights), DXGI_FORMAT_R8_UNORM, D3D11_BIND_SHADER_RESOURCE))
+				return false;
+			Gpu->context->UpdateSubresource(Gpu->blocks.texture.Get(), 0, nullptr, vis.data(), MAXDUNY, 0);
+		}
 		if (heatPass && in.liquid != nullptr) {
-			if (!UploadField(Gpu->liquid, in.liquid, 1, DXGI_FORMAT_R8_UINT))
+			if (!liquidSent && !UploadField(Gpu->liquid, in.liquid, 1, DXGI_FORMAT_R8_UINT)) // once a frame (audit round 1)
 				return false;
 			params.flags |= FlagLavaHeat;
 		}

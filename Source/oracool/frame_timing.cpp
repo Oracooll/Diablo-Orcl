@@ -76,7 +76,8 @@ std::string OptionDigits()
 	const OracoolOptions &o = sgOptions.Oracool;
 	const bool states[] = { *o.smoothLighting, *o.colouredLighting, *o.torchFlicker, *o.glowingSpells, *o.ambientOcclusion, *o.areaMood,
 		*o.vignette, *o.bloom, *o.particles, *o.heatHaze, *o.rayTracedShadows, *o.zoomFilter, *o.dayNightCycle, *o.floorMarks,
-		*o.lootBeams, *o.surfaceRelief, *o.zoomSharpen, *o.animationBlending, *o.gpuRenderer };
+		*o.lootBeams, *o.surfaceRelief, *o.zoomSharpen, *o.animationBlending, *o.gpuRenderer,
+		*o.perPixelLights, *o.litSprites, *o.wideBloom, *o.lightShafts, *o.heatDistortion, *o.filmicGrade };
 	std::string digits;
 	for (const bool on : states)
 		digits.push_back(on ? '1' : '0');
@@ -91,7 +92,7 @@ void WriteLogRow(const FrameTimingStats &frames)
 	std::string header = "time,leveltype,level,setlevel,zoom,width,height,world_frames,avg_frame_ms,worst_frame_ms,over25,world_ms";
 	for (size_t i = 0; i < PassCount; i++)
 		header += std::string(",") + FramePassName(static_cast<FramePass>(i)) + "_ms";
-	// options: smooth colour flicker glow ao mood vignette bloom particles haze shadows zoomfilter daynight marks beams relief sharpen blend gpu
+	// options: smooth colour flicker glow ao mood vignette bloom particles haze shadows zoomfilter daynight marks beams relief sharpen blend gpu pplights litsprites widebloom shafts heat grade
 	header += ",options";
 	// A file with other columns (an older build's) is kept aside, never appended to: the rows would not line up.
 	bool fresh = true;
@@ -108,6 +109,10 @@ void WriteLogRow(const FrameTimingStats &frames)
 			const std::string old = paths::PrefPath() + "frame_passes.old.csv";
 			RemoveFile(old.c_str());
 			RenameFile(path.c_str(), old.c_str());
+			// Still there (open in a spreadsheet, say): this row is skipped rather than written under the old header
+			// (audit round 1: a fresh header went in every ten seconds).
+			if (FileExists(path.c_str()))
+				return;
 		}
 	}
 	FILE *file = OpenFile(path.c_str(), "ab");

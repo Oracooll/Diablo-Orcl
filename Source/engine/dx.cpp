@@ -99,6 +99,10 @@ void dx_init()
 	palette_init();
 	CreateBackBuffer();
 	pal_surface_palette_version = 1;
+	// The graphics card renderer's device and shaders, made now - at start-up, not as a stall in the first level frame
+	// (GPU plan audit round 1).
+	if (!HeadlessMode && *sgOptions.Oracool.gpuRenderer)
+		oracool::GpuWorldPostAvailable();
 }
 
 Surface GlobalBackBuffer()
