@@ -501,9 +501,6 @@ void DrawMissile(const Surface &out, Point tilePosition, Point targetBufferPosit
 	const auto range = MissilesAtRenderingTile.equal_range(tilePosition);
 	for (auto it = range.first; it != range.second; it++) {
 		DrawMissilePrivate(out, *it->second, targetBufferPosition, pre, lightTableIndex);
-		// Living portals (oracool/scene_life.h): the portal's middle turned about itself, right after it is drawn.
-		if (it->second->_miPreFlag == pre && it->second->_miDrawFlag && oracool::IsLivingPortal(*it->second))
-			oracool::SwirlPortal(out, *it->second, targetBufferPosition);
 	}
 }
 

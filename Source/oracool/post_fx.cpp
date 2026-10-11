@@ -739,7 +739,13 @@ bool PlanHeatHazeAndWater(const Surface &out, Point firstTile, Point firstTileBu
 	plan.lavaL = lavaL, plan.lavaR = lavaR, plan.lavaT = lavaT, plan.lavaB = lavaB;
 	plan.nbx = nbx, plan.nby = nby;
 	plan.strength = strength;
-	plan.p1 = (now * 4 / 3) & 1023, plan.p2 = (now * 9 / 5) & 1023;
+	// Anchored to the world (dev note, 2026-10-11: "fix its animation speed up while i move my hero"): the waves' phase
+	// runs with the screen's place in the world, so the ripple travels with the lava instead of the lava sliding under a
+	// ripple that stood on the screen. And slower than before.
+	const uint32_t worldX = static_cast<uint32_t>((firstTile.x - firstTile.y) * 32 - firstTileBuffer.x);
+	const uint32_t worldY = static_cast<uint32_t>((firstTile.x + firstTile.y) * 16 - firstTileBuffer.y);
+	plan.p1 = (now + worldY * 40U + worldX * 6U) & 1023;
+	plan.p2 = (now * 4 / 3 + worldY * 67U - worldX * 3U) & 1023;
 	plan.segL = lavaL - 2 < 0 ? 0 : lavaL - 2;
 	plan.segR = lavaR + 2 > w - 1 ? w - 1 : lavaR + 2;
 	return true;
@@ -819,11 +825,12 @@ void ApplyHazePlan(const Surface &out, const HazePlan &plan)
 			const int a = (rowStrength[bx0] * (8 - fx) + rowStrength[bx1] * fx) >> 3;
 			if (a == 0)
 				continue;
-			// Two waves rising through the rows, slowly varying along them: up to 1.5 px either way.
+			// Two waves rising through the rows, slowly varying along them: up to 0.75 px either way (dev note, 2026-10-11:
+			// "make the heatwave over the lava more subtle" - half what it was).
 			const int wave = (sine[(static_cast<uint32_t>(py * 40 + px * 6) + p1) & 1023] * 170
 			                     + sine[(static_cast<uint32_t>(py * 67 - px * 3) + p2) & 1023] * 86)
 			    >> 8;
-			const int at = px * 256 + ((a * wave * 3) >> 9);
+			const int at = px * 256 + ((a * wave * 3) >> 10);
 			int i = at >> 8;
 			const uint32_t f = static_cast<uint32_t>(at & 0xFF);
 			i = i < segL ? segL : (i > segR ? segR : i);

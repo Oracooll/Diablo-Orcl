@@ -500,7 +500,7 @@ float4 PSHazeLava(VsOut i) : SV_Target
 	if (a == 0)
 		return Out(c);
 	const int wave = (SineAt(asuint(p.y * 40 + p.x * 6) + asuint(P1)) * 170 + SineAt(asuint(p.y * 67 - p.x * 3) + asuint(P2)) * 86) >> 8;
-	const int at = p.x * 256 + ((a * wave * 3) >> 9);
+	const int at = p.x * 256 + ((a * wave * 3) >> 10); // half, as the CPU's (dev note 2026-10-11)
 	const int ii = clamp(at >> 8, SegL, SegR);
 	const int jj = min(ii + 1, SegR);
 	return Out(Mix(Px(int2(ii, p.y)), Px(int2(jj, p.y)), at & 0xFF));
@@ -637,7 +637,9 @@ float4 PSHeat(VsOut i) : SV_Target
 	}
 	if (m <= 0.0)
 		return Out(Px(p));
-	const float2 offset = float2(sin(p.y * 0.21 + Seconds * 5.1 + p.x * 0.05), cos(p.y * 0.17 - Seconds * 3.7 + p.x * 0.11)) * (HeatAmplitude * m);
+	// In world pixels, so the bend travels with the ground as the view scrolls (dev note, 2026-10-11).
+	const float2 wp = float2(p) + float2((FirstTileX - FirstTileY) * 32.0 - FirstBufX, (FirstTileX + FirstTileY) * 16.0 - FirstBufY);
+	const float2 offset = float2(sin(wp.y * 0.21 + Seconds * 3.6 + wp.x * 0.05), cos(wp.y * 0.17 - Seconds * 2.6 + wp.x * 0.11)) * (HeatAmplitude * m);
 	return float4(Src.SampleLevel(Linear, (p + 0.5 + offset) / float2(SrcSize), 0).rgb, 0);
 }
 
@@ -1410,7 +1412,7 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 		s3.wideStrength = settings.wideBloom ? 0.06F : 0.0F;
 		s3.shaftStrength = settings.lightShafts ? 0.35F : 0.0F;
 		s3.surfaceStrength = 0.55F;
-		s3.heatAmplitude = 1.6F;
+		s3.heatAmplitude = 0.9F; // gentler (dev note, 2026-10-11: "more subtle")
 		// The lights that reach the view at all (audit round 1): the ground the view's corners stand on, as a box.
 		float minU = 1e9F, maxU = -1e9F, minV = 1e9F, maxV = -1e9F;
 		for (const float px : { 0.0F, static_cast<float>(w) }) {

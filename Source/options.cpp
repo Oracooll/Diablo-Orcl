@@ -599,7 +599,7 @@ void SaveOptions()
 	setBoolean("Drop Flares", *sgOptions.Oracool.dropFlares,
 	    "; On: a unique, set, primal or runeword item flares like a star as it lands.");
 	setBoolean("Living Portals", *sgOptions.Oracool.livingPortals,
-	    "; On: portals swirl, glow on the floor and draw motes of light into them.");
+	    "; On: portals glow on the floor and draw motes of light into them.");
 	// The fifth graphics batch (user, 2026-10-11).
 	setBoolean("Hit Flash", *sgOptions.Oracool.hitFlash,
 	    "; On: a monster you strike flashes white for a moment.");
@@ -1797,7 +1797,7 @@ OracoolOptions::OracoolOptions()
     , shockwaves("Shockwaves", OptionEntryFlags::None, N_("Shockwaves"), N_("Big explosions, novas and impacts send a ripple across the picture that bends what lies under it."), true)
     , guardianDeathMoment("Guardian Death Moment", OptionEntryFlags::None, N_("Guardian Death Moment"), N_("A rift guardian's fall flashes the screen, drains its colour a moment, shakes it and sends a shockwave out, and his name appears."), true)
     , dropFlares("Drop Flares", OptionEntryFlags::None, N_("Drop Flares"), N_("A unique, set, primal or runeword item flares like a star as it lands."), true)
-    , livingPortals("Living Portals", OptionEntryFlags::None, N_("Living Portals"), N_("Portals swirl, glow on the floor under them and draw motes of light into them."), true)
+    , livingPortals("Living Portals", OptionEntryFlags::None, N_("Living Portals"), N_("Portals glow on the floor under them and draw motes of light into them."), true)
     , hitFlash("Hit Flash", OptionEntryFlags::None, N_("Hit Flash"), N_("A monster you strike flashes white for a moment."), true)
     , impactLights("Impact Lights", OptionEntryFlags::None, N_("Impact Lights"), N_("Spells and arrows striking home light the floor and walls around them in their element’s colour."), true)
     , areaAtmosphere("Area Atmosphere", OptionEntryFlags::None, N_("Area Atmosphere"), N_("The air of each place: dust motes in the Cathedral’s and Catacombs’ light, drips in the Caves, ash and embers in Hell, wisps in the Crypt, spores in the Nest."), true)

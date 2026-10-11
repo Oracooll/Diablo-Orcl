@@ -17,7 +17,8 @@
  *  - The guardian's death moment: a rift guardian's fall flashes the screen, drains the colour from it a moment, shakes
  *    it, sends a shockwave out and shows "VANQUISHED" and his name.
  *  - Drop flares: a unique, set, primal or runeword item flares like a star as it lands.
- *  - Living portals: town portals, red portals and the rifts' portals swirl, glow on the floor and draw motes into them.
+ *  - Living portals: town portals, red portals and the rifts' portals glow on the floor and draw motes into them (their
+ *    swirl came out at the user's word, 2026-10-11: "i dont like it").
  *
  * Where each is drawn, and why there (the third batch's rule: anything changed after the world is kept for the relief and
  * Lit Sprites is read as a wall or a sprite):
@@ -26,7 +27,6 @@
  *    day and night fall on them too.
  *  - DrawSceneLifeLights: fireflies, swing and missile trails, drop flares and the portals' glow - light, beside the
  *    loot beams (collected as splats when the graphics card finishes the frame).
- *  - SwirlPortal: a portal's own pixels turned about its middle, right after it is drawn.
  *  - ApplySceneLifeAfterWorld: shockwaves and the death moment's flash, over the finished (zoomed) world.
  */
 #pragma once
@@ -59,8 +59,6 @@ void DrawSceneLifeBodies(const Surface &out, Point firstTile, Point firstTileBuf
 void DrawSceneLifeLights(const Surface &out, Point firstTile, Point firstTileBuffer);
 /** @brief Whether @p missile is a portal that swirls (the town portal, the red portal, the rifts' two). */
 bool IsLivingPortal(const Missile &missile);
-/** @brief Turns the portal's middle about itself, right after DrawMissile drew it at @p targetBufferPosition. */
-void SwirlPortal(const Surface &out, const Missile &missile, Point targetBufferPosition);
 /** @brief The shockwaves and the death moment's flash and grey, over the finished world (before the third batch's shake). */
 void ApplySceneLifeAfterWorld(const Surface &world);
 /** @brief "VANQUISHED" and the fallen guardian's name, over the HUD (beside the entrance card). */
