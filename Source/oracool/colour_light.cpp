@@ -1415,7 +1415,9 @@ size_t GpuLightsNear(Point centre, GpuLight *out, size_t max)
 			const float g = neutral ? 0.95F : static_cast<float>((source.rgb >> 8) & 0xFF) / 255.0F;
 			const float b = neutral ? 0.85F : static_cast<float>(source.rgb & 0xFF) / 255.0F;
 			const int kind = source.flame ? 1 : (neutral ? 0 : 2);
-			all.push_back({ source.x, source.y, source.reach, kind == 0 ? 0.6F : 1.0F, r, g, b, kind });
+			// Lightning's light, half (user, 2026-10-11: too bright): a bolt lights every tile it crosses.
+			const float intensity = kind == 0 ? 0.6F : (source.rgb == hue::LightningBlue ? 0.5F : 1.0F);
+			all.push_back({ source.x, source.y, source.reach, intensity, r, g, b, kind });
 		}
 	}
 	const auto distance = [centre](const GpuLight &l) {

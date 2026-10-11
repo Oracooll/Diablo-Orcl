@@ -472,7 +472,8 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 	// Glowing Spells (user, 2026-10-10): a light-emitting CL2 is added onto the screen through the colours its plain draw
 	// would have used (MissileGlows is never true for an oracoolTrn missile). 32-bit only; the golden tests keep this path.
 	if (!out.isIndexed() && oracool::MissileGlows(missile)) {
-		ClxDrawRgbMapAdditive(out, missileRenderPosition, sprite, oracool::MissileGlowTable(missile, lightTableIndex), oracool::SpellGlowStrength);
+		// Its own strength (user, 2026-10-11): this path drew every vanilla sheet at full, the lightning that stacks included.
+		ClxDrawRgbMapAdditive(out, missileRenderPosition, sprite, oracool::MissileGlowTable(missile, lightTableIndex), oracool::MissileGlowStrength(missile));
 		return;
 	}
 	if (missile.oracoolTrn != nullptr)
@@ -1973,6 +1974,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	gpu.vignette = *sgOptions.Oracool.vignette;
 	gpu.zoom = !zoomed ? oracool::GpuZoom::None : (*sgOptions.Oracool.zoomFilter ? oracool::GpuZoom::Filtered : oracool::GpuZoom::Nearest);
 	gpu.sharpen = zoomed && *sgOptions.Oracool.zoomFilter && *sgOptions.Oracool.zoomSharpen;
+	gpu.pipelined = *sgOptions.Oracool.gpuPipelined;
 	// Stage 3 (user, 2026-10-11): the effects only the card runs. The per-pixel lights work in the dungeon, and in town
 	// after dark, when its lamps count.
 	gpu.perPixelLights = *sgOptions.Oracool.perPixelLights && (leveltype != DTYPE_TOWN || oracool::TownIsDark());

@@ -981,6 +981,8 @@ struct OracoolOptions : OptionCategoryBase {
 	 * sharpening run on the graphics card (oracool/gpu_post.h). Off, or when the card cannot, the CPU runs them.
 	 */
 	OptionEntryBoolean gpuRenderer;
+	/** @brief The card's picture read a frame later, so the CPU never waits for it (user, 2026-10-11, "async readback"). */
+	OptionEntryBoolean gpuPipelined;
 	// The GPU renderer plan, Stage 3 (user, 2026-10-11): effects only the graphics card can afford - each its own
 	// switch, and each needs the Graphics Card Renderer (oracool/gpu_post.h).
 	OptionEntryBoolean perPixelLights;

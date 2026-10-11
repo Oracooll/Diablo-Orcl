@@ -247,8 +247,15 @@ uint8_t MissileGlowStrength(const Missile &missile)
 	const int alpha = missile.oracoolAlpha >= 256 ? 256 : missile.oracoolAlpha;
 	// Lightning lays a segment on every tile it crosses and the fire walls overlap by half: at full strength the stack
 	// clips to a white bar (visual audit round 1), so those add at half.
-	const bool stacks = IsAnyOf(missile._miAnimType, MissileGraphicID::Lightning, MissileGraphicID::ThinLightning, MissileGraphicID::FireWall, MissileGraphicID::Inferno);
-	return static_cast<uint8_t>((stacks ? SpellGlowStrength / 2 : SpellGlowStrength) * alpha / 256);
+	const bool stacks = IsAnyOf(missile._miAnimType, MissileGraphicID::FireWall, MissileGraphicID::Inferno);
+	// Lightning is the brightest art there is and its bolt is a segment a tile: a third of the glow, and its other sheets
+	// three fifths (user, 2026-10-11: "tone down the lightning glow as it is indeed too bright" - with the bloom, the wide
+	// bloom and the per-pixel lights it went to a white bar over the lava).
+	const bool bolt = IsAnyOf(missile._miAnimType, MissileGraphicID::Lightning, MissileGraphicID::ThinLightning);
+	const bool lightning = IsAnyOf(missile._miAnimType, MissileGraphicID::ChargedBolt, MissileGraphicID::LightningArrow, MissileGraphicID::HitLightning,
+	    MissileGraphicID::ThunderBolt, MissileGraphicID::BlueFlare, MissileGraphicID::BlueFlare2, MissileGraphicID::BlueFlareExplosion, MissileGraphicID::BlueFlareExplosion2);
+	const int strength = bolt ? SpellGlowStrength / 3 : (stacks ? SpellGlowStrength / 2 : (lightning ? SpellGlowStrength * 3 / 5 : SpellGlowStrength));
+	return static_cast<uint8_t>(strength * alpha / 256);
 }
 
 const uint32_t *MissileGlowTable(const Missile &missile, int lightTableIndex)

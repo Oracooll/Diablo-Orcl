@@ -530,6 +530,8 @@ void SaveOptions()
 	    "; On: when zoomed in, the enlarged picture is sharpened (contrast-adaptive, after\n; AMD FidelityFX CAS) so it stays crisp instead of soft.");
 	setBoolean("Graphics Card Renderer", *sgOptions.Oracool.gpuRenderer,
 	    "; On: everything drawn after the figures - relief, coloured light, day and night, beams,\n; particles, haze, bloom, mood, vignette, the zoom filter and sharpening - runs on the\n; graphics card (Direct3D 11), which is much faster, and the card-only effects below can\n; run. Off, or if the card cannot, the CPU runs them - the same picture, but for the\n; card-only effects below.");
+	setBoolean("Graphics Card Pipelining", *sgOptions.Oracool.gpuPipelined,
+	    "; On: the game does not wait for the graphics card - the world on screen is the one the card\n; finished a frame earlier, which is faster. Off: no frame of delay, a little slower.");
 	setBoolean("Per-Pixel Lights", *sgOptions.Oracool.perPixelLights,
 	    "; On (needs the Graphics Card Renderer): every light lights the world pixel by pixel, in round\n; pools of its own colour, with soft shadows behind walls and pillars.");
 	setBoolean("Lit Sprites", *sgOptions.Oracool.litSprites,
@@ -1688,6 +1690,7 @@ OracoolOptions::OracoolOptions()
     , zoomSharpen("Zoom Sharpening", OptionEntryFlags::None, N_("Zoom Sharpening"), N_("When zoomed in, the enlarged picture is sharpened (contrast-adaptive) so it stays crisp instead of soft."), true)
     , animationBlending("Smooth Animation", OptionEntryFlags::None, N_("Smooth Animation"), N_("Heroes and monsters blend each animation frame into the next, so walking and fighting look smoother. Off: Diablo's original frame steps."), true)
     , gpuRenderer("Graphics Card Renderer", OptionEntryFlags::None, N_("Graphics Card Renderer"), N_("Everything drawn after the figures (relief, coloured light, day and night, beams, particles, haze, bloom, mood, vignette, the zoom filter and sharpening) runs on the graphics card (Direct3D 11), which is much faster, and the card-only effects can run. Off, or if the card cannot, the CPU runs them: the same picture, but for the card-only effects."), true)
+    , gpuPipelined("Graphics Card Pipelining", OptionEntryFlags::None, N_("Graphics Card Pipelining"), N_("The game does not wait for the graphics card: the world on screen is the one the card finished a frame earlier, which is faster. Off: no frame of delay, a little slower."), true)
     , perPixelLights("Per-Pixel Lights", OptionEntryFlags::None, N_("Per-Pixel Lights"), N_("Needs the Graphics Card Renderer. Every light lights the world pixel by pixel, in round pools of its own colour, with soft shadows behind walls and pillars."), true)
     , litSprites("Lit Sprites", OptionEntryFlags::None, N_("Lit Sprites"), N_("Needs the Graphics Card Renderer. Walls, objects and figures are shaded by each light around them from its own direction, so torchlight wraps round pillars and monsters. Takes over from Lit Surface Relief."), true)
     , wideBloom("Wide Soft Bloom", OptionEntryFlags::None, N_("Wide Soft Bloom"), N_("Needs the Graphics Card Renderer. Fire, lightning and lava spread a wide, soft glow over the world, beyond the close bloom."), true)
@@ -1801,6 +1804,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&zoomSharpen,
 		&animationBlending,
 		&gpuRenderer,
+		&gpuPipelined,
 		&perPixelLights,
 		&litSprites,
 		&wideBloom,

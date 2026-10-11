@@ -60,6 +60,8 @@ struct GpuWorldPostSettings {
 	bool vignette = false;
 	GpuZoom zoom = GpuZoom::None;
 	bool sharpen = false; // after a zoom only
+	/** Read the picture the card finished a frame ago (user, 2026-10-11): the CPU never waits; one frame later on screen. */
+	bool pipelined = false;
 };
 
 /**

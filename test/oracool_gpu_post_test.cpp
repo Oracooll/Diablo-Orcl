@@ -197,3 +197,26 @@ TEST(OracoolGpuPost, OffTheCardIsNeverUsed)
 	sgOptions.Oracool.gpuRenderer.SetValue(false);
 	EXPECT_FALSE(oracool::GpuWorldPostAvailable());
 }
+
+TEST(OracoolGpuPost, PipelinedTheFirstFrameWaitsAndTheNextShowsThePreviousOne)
+{
+	GpuScene scene;
+	if (!oracool::GpuWorldPostAvailable())
+		GTEST_SKIP() << "no Direct3D 11: " << oracool::GpuWorldPostStatus();
+	OwnedSurface out = OwnedSurface::Rgb(64, 48);
+	oracool::GpuWorldPostSettings settings;
+	settings.vignette = true; // something for the card to do; the middle pixel is untouched by it
+	settings.pipelined = true;
+	const auto frame = [&](uint8_t grey) {
+		for (int y = 0; y < 48; y++)
+			for (int x = 0; x < 64; x++)
+				*out.at<uint32_t>(x, y) = Rgb(grey, grey, grey);
+		EXPECT_TRUE(oracool::GpuWorldPost(out, out, settings)) << oracool::GpuWorldPostStatus();
+		return static_cast<int>((*out.at<uint32_t>(32, 24) >> 16) & 0xFF);
+	};
+	EXPECT_EQ(frame(50), 50);   // nothing earlier to show: this frame's own
+	EXPECT_EQ(frame(200), 50);  // a frame later on screen
+	EXPECT_EQ(frame(120), 200);
+	settings.pipelined = false;
+	EXPECT_EQ(frame(90), 90);   // off: this frame's own again
+}

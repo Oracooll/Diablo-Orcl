@@ -20,11 +20,13 @@
 
 #ifdef ORCL_GPU_POST
 #include <algorithm>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
 #include <vector>
 
+#include <SDL.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <wrl/client.h>
@@ -729,8 +731,18 @@ struct Device {
 	Target source, quarterA, quarterB, mid, zoomed, sharpened;
 	Target work[2], kept, outlines;
 	bool keptValid = false;
-	ComPtr<ID3D11Texture2D> staging;
+	// The read-back: two staging textures, so a frame can be read while the next is drawn (pipelined, user 2026-10-11).
+	ComPtr<ID3D11Texture2D> staging[2];
 	int stagingW = 0, stagingH = 0;
+	int stagingNext = 0;
+	struct Pending {
+		bool valid = false;
+		int w = 0, h = 0;
+		const void *out = nullptr;
+		int pitch = 0;
+		uint32_t ticks = 0;
+		uint32_t scene = 0;
+	} pending;
 	Target moodCurves, vignetteCols, vignetteRows, zoomCols, zoomRows, casCurve;
 	Target reliefDir, tints, liquid, sine, strength;
 	int moodFor = -1;
@@ -1394,19 +1406,57 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 		wideBloom = settings.wideBloom;
 		shafts = settings.lightShafts && shaftCount > 0;
 		if (perPixelLights) {
-			// Each light's shadows, once a tile: three rays a little apart, each stopped by the first wall.
+			// Each light's shadows, once a tile: three rays a little apart, each stopped by the first wall - its whole reach,
+			// kept by where the light stands and how far it reaches, so a torch is traced once a level, not every frame
+			// (the speed pass, user 2026-10-11). The walls' own checksum keys the cache too: an opened door retraces.
+			struct Traced {
+				int qx, qy, qr;
+				uint64_t walls;
+				int x0, y0, x1, y1;
+				std::vector<uint8_t> vis;
+				uint32_t used;
+			};
+			static std::vector<Traced> cache;
+			static uint32_t frame = 0;
+			frame++;
+			uint64_t walls = 1469598103934665603ULL;
+			for (size_t i = 0; i < static_cast<size_t>(MAXDUNX) * MAXDUNY; i++)
+				walls = (walls ^ in.blocks[i]) * 1099511628211ULL;
 			static std::vector<uint8_t> vis(static_cast<size_t>(MAXDUNX) * MAXDUNY * MaxGpuLights);
 			std::fill(vis.begin(), vis.begin() + static_cast<ptrdiff_t>(lights * MAXDUNX * MAXDUNY), 0);
 			for (size_t k = 0; k < lights; k++) {
 				const GpuLight &l = *kept[k];
-				// Its reach, clipped to the ground the view shows (audit round 2: the whole circle traced every frame).
-				const int x0 = std::max({ static_cast<int>(std::floor(l.x - l.reach)) - 1, static_cast<int>(std::floor(minU)) - 1, 0 });
-				const int x1 = std::min({ static_cast<int>(std::ceil(l.x + l.reach)) + 1, static_cast<int>(std::ceil(maxU)) + 1, MAXDUNX - 1 });
-				const int y0 = std::max({ static_cast<int>(std::floor(l.y - l.reach)) - 1, static_cast<int>(std::floor(minV)) - 1, 0 });
-				const int y1 = std::min({ static_cast<int>(std::ceil(l.y + l.reach)) + 1, static_cast<int>(std::ceil(maxV)) + 1, MAXDUNY - 1 });
-				for (int x = x0; x <= x1; x++)
-					for (int y = y0; y <= y1; y++)
-						vis[(k * MAXDUNX + static_cast<size_t>(x)) * MAXDUNY + static_cast<size_t>(y)] = static_cast<uint8_t>(TileVisibility(in.blocks, l.x, l.y, x, y) * 255.0F + 0.5F);
+				const int qx = static_cast<int>(std::lround(l.x * 8.0F)), qy = static_cast<int>(std::lround(l.y * 8.0F)), qr = static_cast<int>(std::lround(l.reach * 8.0F));
+				Traced *hit = nullptr;
+				for (Traced &t : cache) {
+					if (t.qx == qx && t.qy == qy && t.qr == qr && t.walls == walls) {
+						hit = &t;
+						break;
+					}
+				}
+				if (hit == nullptr) {
+					if (cache.size() >= 96) {
+						// The least lately used gives way.
+						auto oldest = std::min_element(cache.begin(), cache.end(), [](const Traced &a, const Traced &b) { return a.used < b.used; });
+						cache.erase(oldest);
+					}
+					Traced t { qx, qy, qr, walls, 0, 0, 0, 0, {}, frame };
+					t.x0 = std::max(static_cast<int>(std::floor(l.x - l.reach)) - 1, 0);
+					t.x1 = std::min(static_cast<int>(std::ceil(l.x + l.reach)) + 1, MAXDUNX - 1);
+					t.y0 = std::max(static_cast<int>(std::floor(l.y - l.reach)) - 1, 0);
+					t.y1 = std::min(static_cast<int>(std::ceil(l.y + l.reach)) + 1, MAXDUNY - 1);
+					const int bw = t.x1 - t.x0 + 1, bh = t.y1 - t.y0 + 1;
+					t.vis.resize(static_cast<size_t>(bw) * bh);
+					for (int x = t.x0; x <= t.x1; x++)
+						for (int y = t.y0; y <= t.y1; y++)
+							t.vis[static_cast<size_t>(x - t.x0) * bh + (y - t.y0)] = static_cast<uint8_t>(TileVisibility(in.blocks, l.x, l.y, x, y) * 255.0F + 0.5F);
+					cache.push_back(std::move(t));
+					hit = &cache.back();
+				}
+				hit->used = frame;
+				const int bh = hit->y1 - hit->y0 + 1;
+				for (int x = hit->x0; x <= hit->x1; x++)
+					std::memcpy(&vis[(k * MAXDUNX + static_cast<size_t>(x)) * MAXDUNY + static_cast<size_t>(hit->y0)], &hit->vis[static_cast<size_t>(x - hit->x0) * bh], static_cast<size_t>(bh));
 			}
 			if (!Ensure(Gpu->blocks, MAXDUNY, MAXDUNX * static_cast<int>(MaxGpuLights), DXGI_FORMAT_R8_UNORM, D3D11_BIND_SHADER_RESOURCE))
 				return false;
@@ -1591,36 +1641,53 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 	ctx->OMSetRenderTargets(0, nullptr, nullptr);
 
 	// And back down into the back buffer.
-	if (Gpu->staging == nullptr || Gpu->stagingW != last->w || Gpu->stagingH != last->h) {
-		Gpu->staging.Reset();
-		D3D11_TEXTURE2D_DESC d {};
-		d.Width = static_cast<UINT>(last->w);
-		d.Height = static_cast<UINT>(last->h);
-		d.MipLevels = 1;
-		d.ArraySize = 1;
-		d.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-		d.SampleDesc.Count = 1;
-		d.Usage = D3D11_USAGE_STAGING;
-		d.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-		const HRESULT hr = Gpu->device->CreateTexture2D(&d, nullptr, &Gpu->staging);
-		if (FAILED(hr)) {
-			Fail("making the read-back texture", hr);
-			return false;
+	if (Gpu->staging[0] == nullptr || Gpu->stagingW != last->w || Gpu->stagingH != last->h) {
+		for (ComPtr<ID3D11Texture2D> &staging : Gpu->staging) {
+			staging.Reset();
+			D3D11_TEXTURE2D_DESC d {};
+			d.Width = static_cast<UINT>(last->w);
+			d.Height = static_cast<UINT>(last->h);
+			d.MipLevels = 1;
+			d.ArraySize = 1;
+			d.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+			d.SampleDesc.Count = 1;
+			d.Usage = D3D11_USAGE_STAGING;
+			d.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+			const HRESULT hr = Gpu->device->CreateTexture2D(&d, nullptr, &staging);
+			if (FAILED(hr)) {
+				Fail("making the read-back texture", hr);
+				return false;
+			}
 		}
 		Gpu->stagingW = last->w;
 		Gpu->stagingH = last->h;
+		Gpu->pending.valid = false;
 	}
-	ctx->CopyResource(Gpu->staging.Get(), last->texture.Get());
+	const Surface &out = zooming ? dst : src;
+	const int writeSlot = Gpu->stagingNext;
+	ctx->CopyResource(Gpu->staging[writeSlot].Get(), last->texture.Get());
+	// Pipelined (user, 2026-10-11: "do the async readback"): the picture the card finished a frame ago comes down while
+	// it works on this one, so the CPU no longer waits for the card - one frame later on screen. Never across a change of
+	// level, size or place in the back buffer, or after a pause in the GPU frames: that frame waits for its own picture.
+	const uint32_t now = SDL_GetTicks();
+	const uint32_t scene = static_cast<uint32_t>(leveltype) | (static_cast<uint32_t>(currlevel) << 8) | (static_cast<uint32_t>(setlevel ? 1 : 0) << 16)
+	    | (static_cast<uint32_t>(setlvlnum) << 24);
+	const auto &was = Gpu->pending;
+	const bool usePrevious = settings.pipelined && was.valid && was.w == last->w && was.h == last->h && was.out == out.at<uint32_t>(0, 0)
+	    && was.pitch == out.pitch() && was.scene == scene && now - was.ticks <= 150;
+	const int read = usePrevious ? writeSlot ^ 1 : writeSlot;
 	D3D11_MAPPED_SUBRESOURCE mapped {};
-	const HRESULT hr = ctx->Map(Gpu->staging.Get(), 0, D3D11_MAP_READ, 0, &mapped);
+	const HRESULT hr = ctx->Map(Gpu->staging[read].Get(), 0, D3D11_MAP_READ, 0, &mapped);
 	if (FAILED(hr)) {
 		Fail("reading the picture back", hr);
 		return false;
 	}
-	const Surface &out = zooming ? dst : src;
 	for (int y = 0; y < last->h; y++)
 		std::memcpy(out.at<uint32_t>(0, y), static_cast<const uint8_t *>(mapped.pData) + static_cast<size_t>(y) * mapped.RowPitch, static_cast<size_t>(last->w) * 4);
-	ctx->Unmap(Gpu->staging.Get(), 0);
+	ctx->Unmap(Gpu->staging[read].Get(), 0);
+	Gpu->pending = { settings.pipelined, last->w, last->h, out.at<uint32_t>(0, 0), out.pitch(), now == 0 ? 1U : now, scene };
+	if (settings.pipelined)
+		Gpu->stagingNext ^= 1;
 	return true;
 }
 

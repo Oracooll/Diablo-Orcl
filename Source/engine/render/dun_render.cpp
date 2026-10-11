@@ -32,6 +32,13 @@
 #include "utils/str_cat.hpp"
 #endif
 
+// The GPU plan's speed pass (user, 2026-10-11: "optimize speed more ... without sacrificing visual looks"): every
+// sprite and tile is drawn through this file, and the game is played from the Debug build - optimised even there, as
+// oracool/colour_light.cpp is (MSVC honours the pragma under /Od /RTC1; /Ob0 still keeps calls as calls).
+#ifdef _MSC_VER
+#pragma runtime_checks("", off)
+#pragma optimize("gt", on)
+#endif
 namespace devilution {
 
 namespace {
@@ -1207,3 +1214,8 @@ void world_draw_black_tile(const Surface &out, int sx, int sy)
 }
 
 } // namespace devilution
+
+#ifdef _MSC_VER
+#pragma optimize("", on)
+#pragma runtime_checks("", restore)
+#endif

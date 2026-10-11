@@ -22,6 +22,13 @@
 #include "utils/str_cat.hpp"
 #endif
 
+// The GPU plan's speed pass (user, 2026-10-11: "optimize speed more ... without sacrificing visual looks"): every
+// sprite and tile is drawn through this file, and the game is played from the Debug build - optimised even there, as
+// oracool/colour_light.cpp is (MSVC honours the pragma under /Od /RTC1; /Ob0 still keeps calls as calls).
+#ifdef _MSC_VER
+#pragma runtime_checks("", off)
+#pragma optimize("gt", on)
+#endif
 namespace devilution {
 namespace {
 
@@ -638,10 +645,6 @@ void ClxDrawRgbMapAlpha(const Surface &out, Point position, ClxSprite clx, const
 
 // Glowing Spells (user, 2026-10-10): the additive run is optimised even in the Debug build, as oracool/colour_light.cpp
 // is. The per-run functor is still a call (/Ob0), but nothing inside a run's loop is.
-#ifdef _MSC_VER
-#pragma runtime_checks("", off)
-#pragma optimize("gt", on)
-#endif
 
 namespace {
 
@@ -706,10 +709,6 @@ void ClxDrawRgbMapAdditive(const Surface &out, Point position, ClxSprite clx, co
 	DoRenderBackwardsDispatch(out, position, clx, BlitWithRgbMapAdditive { rgbMap, k });
 }
 
-#ifdef _MSC_VER
-#pragma optimize("", on)
-#pragma runtime_checks("", restore)
-#endif
 
 void ClxDrawBlended(const Surface &out, Point position, ClxSprite clx)
 {
@@ -737,3 +736,8 @@ void ClearClxDrawCache()
 }
 
 } // namespace devilution
+
+#ifdef _MSC_VER
+#pragma optimize("", on)
+#pragma runtime_checks("", restore)
+#endif
