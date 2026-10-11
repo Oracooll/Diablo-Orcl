@@ -19,7 +19,9 @@
 #include "multi.h"
 #include "options.h"
 #include "oracool/chill.h"
+#include "oracool/cold.h"
 #include "oracool/companion.h"
+#include "oracool/rift_bosses.h"
 #include "player.h"
 
 // The mix walks every pixel under each hero and monster, from the Debug build: optimised even there (see colour_light.cpp).
@@ -65,19 +67,35 @@ bool StillAdvancing(SeenState &seen, const AnimationInfo &anim)
 	return now - seen.changedAt <= window;
 }
 
+/** The box both frames cover, what lay under them before either was drawn, and the first frame's picture. */
 struct Kept {
 	int x = 0, y = 0, w = 0, h = 0;
-	std::vector<uint32_t> pixels;
+	std::vector<uint32_t> under;
+	std::vector<uint32_t> first;
 	bool active = false;
 };
 Kept Keep;
+
+void CopyOut(const Surface &out, std::vector<uint32_t> &to)
+{
+	to.resize(static_cast<size_t>(Keep.w) * Keep.h);
+	for (int y = 0; y < Keep.h; y++)
+		std::copy_n(out.at<uint32_t>(Keep.x, Keep.y + y), Keep.w, to.data() + static_cast<size_t>(y) * Keep.w);
+}
+
+void CopyIn(const Surface &out, const std::vector<uint32_t> &from)
+{
+	for (int y = 0; y < Keep.h; y++)
+		std::copy_n(from.data() + static_cast<size_t>(y) * Keep.w, Keep.w, out.at<uint32_t>(Keep.x, Keep.y + y));
+}
 
 } // namespace
 
 uint16_t FrameBlendAlphaForFraction(uint8_t fraction)
 {
 	const int alpha = static_cast<int>(fraction) * 256 / AnimationInfo::baseValueFraction;
-	return static_cast<uint16_t>(alpha < MinAlpha || alpha >= 256 ? 0 : alpha);
+	// A due tick (the fraction at its whole) shows the next frame whole, not the one it leaves (audit round 1).
+	return static_cast<uint16_t>(alpha < MinAlpha ? 0 : (alpha > 256 ? 256 : alpha));
 }
 
 std::optional<FrameBlendPlan> PlanAnimationFrameBlend(const AnimationInfo &anim)
@@ -101,7 +119,9 @@ std::optional<FrameBlendPlan> PlanMonsterFrameBlend(const Surface &out, const Mo
 		return std::nullopt;
 	if (monster.mode == MonsterMode::Petrified || (monster.flags & (MFLAG_LOCK_ANIMATION | MFLAG_ALLOW_SPECIAL)) != 0)
 		return std::nullopt;
-	if (IsMonsterFrozen(monster) || CompanionSpinSprite(monster))
+	// A chill and a slow rift boss skip game ticks (monster.cpp ProcessMonsters): an animation that moves only on some
+	// ticks would fade toward its next frame and snap back on each skipped one (audit round 1).
+	if (IsMonsterFrozen(monster) || IsMonsterChilled(monster) || ActiveRiftBossFor(monster) != nullptr || CompanionSpinSprite(monster))
 		return std::nullopt;
 	const size_t id = monster.getId();
 	if (id >= SeenMonsters.size() || !StillAdvancing(SeenMonsters[id], monster.animInfo))
@@ -113,31 +133,44 @@ std::optional<FrameBlendPlan> PlanPlayerFrameBlend(const Surface &out, const Pla
 {
 	if (!*sgOptions.Oracool.animationBlending || out.isIndexed() || player.previewCelSprite)
 		return std::nullopt;
+	if (IsPlayerChilled(player)) // a chilled hero's attacks and casts skip every other tick (player.cpp ProcessPlayers)
+		return std::nullopt;
 	const size_t id = player.getId();
 	if (id >= SeenPlayers.size() || !StillAdvancing(SeenPlayers[id], player.AnimInfo))
 		return std::nullopt;
 	return PlanAnimationFrameBlend(player.AnimInfo);
 }
 
-void BeginFrameBlend(const Surface &out, Point bottomLeft, ClxSprite next)
+void BeginFrameBlend(const Surface &out, Point firstBottomLeft, ClxSprite firstSprite, Point nextBottomLeft, ClxSprite next)
 {
 	Keep.active = false;
 	if (out.isIndexed())
 		return;
-	const int x0 = std::max(bottomLeft.x, 0);
-	const int x1 = std::min(bottomLeft.x + static_cast<int>(next.width()), out.w());
-	const int y0 = std::max(bottomLeft.y - static_cast<int>(next.height()) + 1, 0);
-	const int y1 = std::min(bottomLeft.y + 1, out.h());
+	// The union of the two frames' boxes, clipped to the surface.
+	int x0 = std::min(firstBottomLeft.x, nextBottomLeft.x);
+	int x1 = std::max(firstBottomLeft.x + static_cast<int>(firstSprite.width()), nextBottomLeft.x + static_cast<int>(next.width()));
+	int y0 = std::min(firstBottomLeft.y - static_cast<int>(firstSprite.height()) + 1, nextBottomLeft.y - static_cast<int>(next.height()) + 1);
+	int y1 = std::max(firstBottomLeft.y, nextBottomLeft.y) + 1;
+	x0 = std::max(x0, 0);
+	y0 = std::max(y0, 0);
+	x1 = std::min(x1, out.w());
+	y1 = std::min(y1, out.h());
 	if (x0 >= x1 || y0 >= y1)
 		return;
 	Keep.x = x0;
 	Keep.y = y0;
 	Keep.w = x1 - x0;
 	Keep.h = y1 - y0;
-	Keep.pixels.resize(static_cast<size_t>(Keep.w) * Keep.h);
-	for (int y = 0; y < Keep.h; y++)
-		std::copy_n(out.at<uint32_t>(Keep.x, Keep.y + y), Keep.w, Keep.pixels.data() + static_cast<size_t>(y) * Keep.w);
+	CopyOut(out, Keep.under);
 	Keep.active = true;
+}
+
+void SwapFrameBlend(const Surface &out)
+{
+	if (!Keep.active)
+		return;
+	CopyOut(out, Keep.first);
+	CopyIn(out, Keep.under);
 }
 
 void EndFrameBlend(const Surface &out, uint16_t alpha)
@@ -145,14 +178,16 @@ void EndFrameBlend(const Surface &out, uint16_t alpha)
 	if (!Keep.active)
 		return;
 	Keep.active = false;
+	if (Keep.first.size() != static_cast<size_t>(Keep.w) * Keep.h)
+		return; // no swap: the second draw is all there is
 	const uint32_t a = alpha > 256 ? 256 : alpha;
 	const uint32_t b = 256 - a;
 	for (int y = 0; y < Keep.h; y++) {
 		uint32_t *row = out.at<uint32_t>(Keep.x, Keep.y + y);
-		const uint32_t *kept = Keep.pixels.data() + static_cast<size_t>(y) * Keep.w;
+		const uint32_t *first = Keep.first.data() + static_cast<size_t>(y) * Keep.w;
 		for (int x = 0; x < Keep.w; x++) {
 			const uint32_t now = row[x];
-			const uint32_t was = kept[x];
+			const uint32_t was = first[x];
 			if (now == was)
 				continue;
 			const uint32_t r = (((now >> 16) & 0xFF) * a + ((was >> 16) & 0xFF) * b) >> 8;
@@ -161,6 +196,7 @@ void EndFrameBlend(const Surface &out, uint16_t alpha)
 			row[x] = (r << 16) | (g << 8) | bl;
 		}
 	}
+	Keep.first.clear();
 }
 
 bool InFrameBlendPass()

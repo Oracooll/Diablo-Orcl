@@ -27,6 +27,8 @@
 #include "monster.h"
 #include "objects.h"
 #include "options.h"
+#include "gmenu.h"
+#include "multi.h"
 #include "oracool/ground_fx.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/missile_tint.h"
@@ -586,8 +588,10 @@ std::array<float, FieldW * FieldH> ReliefSumX;
 std::array<float, FieldW * FieldH> ReliefSumY;
 /** How far up the relief's light direction leans, against a light's own pull (1). */
 constexpr float ReliefUpBias = 0.3F;
-/** The most the relief brightens or darkens a pixel, of 256. */
-constexpr int ReliefMax = 56;
+/** The most the relief brightens or darkens a pixel, of 256 (audit round 1: 56 hit on almost every edge). */
+constexpr int ReliefMax = 40;
+/** How far from a light its pull is full, in tiles. */
+constexpr float ReliefNear = 3.0F;
 
 /**
  * Multiplies the pixels of @p out in [left, right] x [top, bottom] by the tint field @p tints under them - the colour
@@ -681,8 +685,8 @@ void AdvanceTownClock()
 	float dt = TownClockTicks == 0 ? 0.0F : static_cast<float>(now - TownClockTicks) / 1000.0F;
 	TownClockTicks = now == 0 ? 1 : now;
 	dt = dt < 0 ? 0 : (dt > 0.25F ? 0.25F : dt);
-	if (PauseMode != 0)
-		dt = 0;
+	if (PauseMode != 0 || (!gbIsMultiplayer && gmenu_is_active()))
+		dt = 0; // the game stands still with the single-player menu up, and so does the clock (audit round 1)
 	TownClock = std::fmod(TownClock + dt * 24.0F / DaySeconds, 24.0F);
 }
 
@@ -712,10 +716,11 @@ struct TownLight {
 };
 
 /** The town's lights after dark: the heroes' own, the townsfolk's lamps, the portals, the loot. */
-std::vector<TownLight> GatherTownLights()
+const std::vector<TownLight> &GatherTownLights()
 {
-	std::vector<TownLight> lights;
-	const auto addRgb = [&lights](float x, float y, float reach, float strength, uint32_t rgb) {
+	static std::vector<TownLight> lights; // reused, not grown every frame from dusk to dawn (audit round 1)
+	lights.clear();
+	const auto addRgb = [](float x, float y, float reach, float strength, uint32_t rgb) {
 		const float r = static_cast<float>((rgb >> 16) & 0xFF) / 255.0F;
 		const float g = static_cast<float>((rgb >> 8) & 0xFF) / 255.0F;
 		const float b = static_cast<float>(rgb & 0xFF) / 255.0F;
@@ -736,13 +741,19 @@ std::vector<TownLight> GatherTownLights()
 		}
 		lights.push_back({ x, y, &player == MyPlayer ? 9.5F : 7.0F, 1.0F, 1.0F, 0.92F, 0.80F });
 	}
-	for (const Towner &towner : Towners) {
-		if (!towner.anim || IsAnyOf(towner._ttype, TOWN_COW, TOWN_COWFARM) || towner.position == Point { 0, 0 })
+	for (size_t t = 0; t < NUM_TOWNERS; t++) {
+		const Towner &towner = Towners[t];
+		// Only one standing where it says (audit round 1): InitTowners fills only the townsfolk present, and a slot past
+		// them still holds whoever stood there last game. The town's dMonster holds a towner's index + 1.
+		const Point at = towner.position;
+		if (!towner.anim || towner._ttype == TOWN_COW || at.x <= 0 || at.y <= 0 || at.x >= MAXDUNX || at.y >= MAXDUNY
+		    || dMonster[at.x][at.y] != static_cast<int>(t) + 1)
 			continue;
 		lights.push_back({ static_cast<float>(towner.position.x), static_cast<float>(towner.position.y), 4.5F, 0.9F, 1.0F, 0.74F, 0.46F });
 	}
 	for (const Missile &missile : Missiles) {
-		if (missile._mlid == NO_LIGHT)
+		// A portal in town has no light of its own (ProcessTownPortal lights it only in the dungeon): by its kind.
+		if (missile._mlid == NO_LIGHT && missile._mitype != MissileID::TownPortal && missile._mitype != MissileID::RedPortal)
 			continue;
 		const uint32_t rgb = MissileLightHue(missile);
 		addRgb(static_cast<float>(missile.position.tile.x), static_cast<float>(missile.position.tile.y), 5.0F, 0.9F, rgb != 0 ? rgb : WarmFlame);
@@ -817,11 +828,16 @@ void RebuildLightColourField()
 					const float vy = (-dx - dy) * 16.0F;
 					const float len = std::sqrt(vx * vx + vy * vy);
 					const size_t i = static_cast<size_t>(x) * FieldH + y;
+					// No pull from a light within a few tiles (audit round 1): a sprite's pixels lie over the tiles
+					// behind it, so the hero's own light pulled down the screen through his body and lit him from
+					// below. The pull grows from nothing at the light to full at ReliefNear tiles.
+					const float dist = std::sqrt(dx * dx + dy * dy);
+					const float pull = dist >= ReliefNear ? 1.0F : dist / ReliefNear;
 					if (len > 4.0F) {
-						dirX[i] += w * vx / len;
-						dirY[i] += w * vy / len;
+						dirX[i] += w * pull * vx / len;
+						dirY[i] += w * pull * vy / len;
 					}
-					dirY[i] -= ReliefUpBias * w;
+					dirY[i] -= ReliefUpBias * w * pull;
 				}
 				Accum &a = Accumulated[x * FieldH + y];
 				if (s.rgb == 0) {
@@ -1107,12 +1123,17 @@ int ReliefKeptW = 0;
 int ReliefKeptH = 0;
 std::vector<int16_t> ReliefLuma; // three rows of brightness; -1 where the pixel is floor (unchanged since the keep)
 
-/** One row's brightness, -1 where the pixel is as it was kept. */
+/**
+ * One row's brightness, -1 where the pixel is as it was kept - or is one of the hover outlines' colours (audit round 1:
+ * an outline is a line, not a surface, and took a one-sided shift beside the sprite).
+ */
 void ReliefLumaRow(const uint32_t *row, const uint32_t *kept, int16_t *dst, int w)
 {
+	const uint32_t o1 = PaletteRGB[165] & 0xFFFFFF, o2 = PaletteRGB[233] & 0xFFFFFF, o3 = PaletteRGB[181] & 0xFFFFFF, o4 = PaletteRGB[129] & 0xFFFFFF;
 	for (int x = 0; x < w; x++) {
 		const uint32_t c = row[x];
-		dst[x] = c == kept[x] ? static_cast<int16_t>(-1) : static_cast<int16_t>(((((c >> 16) & 0xFF) * 77) + (((c >> 8) & 0xFF) * 150) + ((c & 0xFF) * 29)) >> 8);
+		const uint32_t rgb = c & 0xFFFFFF;
+		dst[x] = c == kept[x] || rgb == o1 || rgb == o2 || rgb == o3 || rgb == o4 ? static_cast<int16_t>(-1) : static_cast<int16_t>(((((c >> 16) & 0xFF) * 77) + (((c >> 8) & 0xFF) * 150) + ((c & 0xFF) * 29)) >> 8);
 	}
 }
 } // namespace
@@ -1193,7 +1214,9 @@ void ApplySurfaceRelief(const Surface &out, Point firstTile, Point firstTileBuff
 						below = below < 0 ? l : below;
 						const int gx = right - left;
 						const int gy = below - above;
-						int delta = -((gx * (fx >> 8) + gy * (fy >> 8)) >> 8);
+						// A quarter of the slope (audit round 1): a mortar line of 56 levels hit the cap at once - an
+						// emboss filter, not shading. Now a step of 160 does.
+						int delta = -((gx * (fx >> 8) + gy * (fy >> 8)) >> 10);
 						delta = delta > ReliefMax ? ReliefMax : (delta < -ReliefMax ? -ReliefMax : delta);
 						if (delta == 0)
 							continue;

@@ -21,6 +21,7 @@
 #include "monster.h"
 #include "monstdat.h"
 #include "options.h"
+#include "oracool/companion.h"
 #include "oracool/missile_tint.h"
 #include "oracool/particles.h"
 #include "oracool/runewords.h"
@@ -55,6 +56,7 @@ float Clock = 0;
 uint32_t LastTicks = 0;
 uint32_t LevelKey = 0xFFFFFFFFU;
 uint32_t Rng = 0x9E3779B9U;
+uint64_t LootKey = 0;
 
 uint32_t Next()
 {
@@ -358,6 +360,7 @@ void DrawLootBeam(const Surface &out, const Projection &p, const Item &item, con
 		uint32_t *row = out.at<uint32_t>(0, py);
 		const float t = (base - static_cast<float>(py)) / height; // 0 at the floor, 1 at the top
 		float up = 1.0F - t;
+		up = up < 0 ? 0 : (up > 1 ? 1 : up); // the top row is a fraction past the height (audit round 1: a NaN)
 		up = up * std::sqrt(up); // fades as it rises
 		// Light running up the beam.
 		const float shimmer = 0.85F + 0.15F * std::sin(static_cast<float>(py) * 0.13F + seconds * 5.5F);
@@ -410,7 +413,8 @@ void AddFloorMark(float x, float y, FloorMarkKind kind, float radius)
 		const float a = static_cast<float>(i) / RimBins * 6.2831853F;
 		float r = 1.0F + ragged * (0.5F * std::sin(a * 2.0F + p1) + 0.3F * std::sin(a * 3.0F + p2) + 0.2F * std::sin(a * 5.0F + p3));
 		r += ragged * 0.5F * (Frand() - 0.5F);
-		r = r < 0.4F ? 0.4F : (r > 1.5F ? 1.5F : r);
+		// Within the 1.3 the pixel loop reaches, less the soft edge (audit round 1: a lobe was cut off square).
+		r = r < 0.4F ? 0.4F : (r > 1.22F ? 1.22F : r);
 		m.rim[static_cast<size_t>(i)] = static_cast<uint8_t>(r * 128.0F);
 	}
 }
@@ -418,6 +422,10 @@ void AddFloorMark(float x, float y, FloorMarkKind kind, float radius)
 void AddDeathMark(const Monster &monster)
 {
 	if (!*sgOptions.Oracool.floorMarks)
+		return;
+	// The hero's own - a golem recast, a minion dismissed, a Decoy or a companion whose time is up - do not bleed (audit
+	// round 1): MonsterDeath is how they leave too.
+	if (monster.isPlayerMinion() || IsCompanion(monster))
 		return;
 	const bool undead = monster.data().monsterClass == MonsterClass::Undead;
 	const float jitter = (Frand() - 0.5F) * 0.3F;
@@ -549,13 +557,23 @@ void DrawFloorMarks(const Surface &out, Point firstTile, Point firstTileBuffer)
 	} else {
 		ForgetFloorMarks();
 	}
+	// The loot's coloured light lives in the colour field, rebuilt only when a light changes: an item landing or picked up
+	// changes no light (audit round 1: a gold patch stayed on the floor where a unique had been). Hashed here, and a
+	// change asks for the rebuild.
+	uint64_t lootKey = 1469598103934665603ULL;
 	if (*sgOptions.Oracool.lootBeams) {
 		for (uint8_t i = 0; i < ActiveItemCount; i++) {
 			const Item &item = Items[ActiveItems[i]];
 			const LootLook look = LootLookFor(item);
-			if (look.rgb != 0 && LootShows(item))
-				DrawLootGlow(out, p, item, look);
+			if (look.rgb == 0 || !LootShows(item))
+				continue;
+			DrawLootGlow(out, p, item, look);
+			lootKey = (lootKey ^ (static_cast<uint64_t>(item.position.x) | (static_cast<uint64_t>(item.position.y) << 8) | (static_cast<uint64_t>(look.rgb) << 16))) * 1099511628211ULL;
 		}
+	}
+	if (lootKey != LootKey) {
+		LootKey = lootKey;
+		UpdateLighting = true;
 	}
 }
 

@@ -5,10 +5,12 @@
  * second; between two ticks a hero or monster is drawn as its frame cross-faded into the next one, by how far the
  * animation is toward it (AnimationInfo::getFrameBlendFraction), so walking and fighting move at the screen's rate.
  *
- * Generic over every way a sprite is drawn (lit, recoloured, glazed, frozen...): the draw runs as usual, the pixels
- * under the next frame are kept, the same draw runs again with the next frame, and the two results are mixed. An
+ * Generic over every way a sprite is drawn (lit, recoloured, glazed, frozen...): what lies under both frames is kept, the
+ * draw runs as usual, its picture is kept and the ground put back, the same draw runs with the next frame, and the two
+ * pictures are mixed - so the frame left behind fades out as the next fades in (audit round 1). An
  * animation that has stopped advancing (paused, frozen, petrified, a golem holding its still) is never blended: the state
- * it was last seen in must have changed within a tick and a half. 32-bit only; off with the option.
+ * it was last seen in must have changed within a tick and a half, and an animation that skips game ticks (a chill, a slow
+ * rift boss) is left as it was. 32-bit only; off with the option.
  */
 #pragma once
 
@@ -39,13 +41,17 @@ std::optional<FrameBlendPlan> PlanMonsterFrameBlend(const Surface &out, const Mo
 /** @brief The blend for @p player this frame, or none. */
 std::optional<FrameBlendPlan> PlanPlayerFrameBlend(const Surface &out, const Player &player);
 
-/** @brief Keeps the pixels @p next will cover when drawn at @p bottomLeft; the second draw follows, then EndFrameBlend. */
-void BeginFrameBlend(const Surface &out, Point bottomLeft, ClxSprite next);
-
-/** @brief Mixes the kept pixels with the second draw's: @p alpha of 256 is the second draw alone. */
+/**
+ * @brief A true cross-fade, in three steps round the two draws: BeginFrameBlend keeps what lies under both frames (the
+ * first drawn at @p firstBottomLeft, the next at @p nextBottomLeft); the first frame is drawn; SwapFrameBlend keeps that
+ * picture and puts back what lay under it; the next frame is drawn; EndFrameBlend mixes the two pictures.
+ */
+void BeginFrameBlend(const Surface &out, Point firstBottomLeft, ClxSprite firstSprite, Point nextBottomLeft, ClxSprite next);
+void SwapFrameBlend(const Surface &out);
+/** @brief Mixes the first frame's picture with the next's: @p alpha of 256 is the next alone. */
 void EndFrameBlend(const Surface &out, uint16_t alpha);
 
-/** @brief True between BeginFrameBlend and EndFrameBlend: the draw is the second one (no outline, no icons twice). */
+/** @brief True between BeginFrameBlend and EndFrameBlend. */
 bool InFrameBlendPass();
 
 /** @brief Test hook: the blend's alpha for an animation's fraction (0..AnimationInfo::baseValueFraction), 0 = none. */

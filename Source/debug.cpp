@@ -1185,7 +1185,6 @@ std::string DebugCmdCursorInfo(const string_view parameter)
 	    " | fade ", FadeLevel, colours);
 }
 
-/** Rebuilds the cursor from scratch - the hand, its hardware image and its visibility - without restarting. */
 std::string DebugCmdTimeOfDay(const string_view parameter)
 {
 	// Day and night in Tristram (user, 2026-10-11): the town's clock, read or set, so dusk and night can be seen at once.
@@ -1204,6 +1203,7 @@ std::string DebugCmdTimeOfDay(const string_view parameter)
 	return fmt::format("Tristram's clock set to {}.", show(oracool::TownHour()));
 }
 
+/** Rebuilds the cursor from scratch - the hand, its hardware image and its visibility - without restarting. */
 std::string DebugCmdCursorFix(const string_view parameter)
 {
 	ControlMode = ControlTypes::KeyboardAndMouse;

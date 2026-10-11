@@ -794,16 +794,16 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 	const bool bodyOnly = spriteOverride.has_value();
 	// Smooth animation (user, 2026-10-11): the next frame drawn the same way and mixed in - after the body and before the
 	// icons, so a Mana Shield or a worn loop stays whole over him. Not while Whirlwind spins him on another sheet.
+	// A true cross-fade (audit round 1): what lies under both frames is kept before the body is drawn, the body is drawn,
+	// then put back and the next frame drawn, and the two pictures mixed.
 	const int entryLight = LightTableIndex;
+	const std::optional<oracool::FrameBlendPlan> blend = bodyOnly || spin ? std::nullopt : oracool::PlanPlayerFrameBlend(out, player);
 	const auto blendBody = [&]() {
-		if (bodyOnly || spin)
-			return;
-		const std::optional<oracool::FrameBlendPlan> blend = oracool::PlanPlayerFrameBlend(out, player);
 		if (!blend)
 			return;
 		const int drawLight = LightTableIndex;
 		LightTableIndex = entryLight; // the second draw picks its branch and its light from the same start
-		oracool::BeginFrameBlend(out, targetBufferPosition - Displacement { CalculateWidth2(blend->next.width()), 0 }, blend->next);
+		oracool::SwapFrameBlend(out);
 		DrawPlayer(out, player, tilePosition, targetBufferPosition, blend->next);
 		oracool::EndFrameBlend(out, blend->alpha);
 		LightTableIndex = drawLight;
@@ -822,6 +822,9 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 	// Oracool: a sheet with colours of its own (a dyed class, an imported PNG) draws colour values; the
 	// three cases below are the same three, through its tables instead of the palette's.
 	const oracool::SpriteColours *colours = PlayerSpriteColours(player, sprite);
+
+	if (blend)
+		oracool::BeginFrameBlend(out, spriteBufferPosition, sprite, targetBufferPosition - Displacement { CalculateWidth2(blend->next.width()), 0 }, blend->next);
 
 	if (&player == MyPlayer && IsNoneOf(leveltype, DTYPE_NEST, DTYPE_CRYPT)) {
 		if (!DrawPlayerTinted(out, player, spriteBufferPosition, sprite, colours, 0)) {
@@ -1356,12 +1359,16 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 
 	// A spinning companion's blades: the far half behind it, the near half in front (oracool/companion.h).
 	oracool::DrawCompanionBlades(out, monster, targetBufferPosition + offset, /*front=*/false);
-	DrawMonster(out, tilePosition, monsterRenderPosition, monster);
-	// Smooth animation (user, 2026-10-11): the next frame drawn the same way and mixed in by how near it is.
+	// Smooth animation (user, 2026-10-11): this frame and the next each drawn over what lies under them, then mixed by how
+	// near the next one is - a true cross-fade (audit round 1).
 	if (const std::optional<oracool::FrameBlendPlan> blend = oracool::PlanMonsterFrameBlend(out, monster)) {
-		oracool::BeginFrameBlend(out, monsterRenderPosition, blend->next);
+		oracool::BeginFrameBlend(out, monsterRenderPosition, monster.animInfo.currentSprite(), monsterRenderPosition, blend->next);
+		DrawMonster(out, tilePosition, monsterRenderPosition, monster);
+		oracool::SwapFrameBlend(out);
 		DrawMonster(out, tilePosition, monsterRenderPosition, monster, blend->next);
 		oracool::EndFrameBlend(out, blend->alpha);
+	} else {
+		DrawMonster(out, tilePosition, monsterRenderPosition, monster);
 	}
 	oracool::DrawCompanionBlades(out, monster, targetBufferPosition + offset, /*front=*/true);
 	// Frenzy of the Dead wears a ring on the floor since 2026-10-03 (oracool::DrawMinionFrenzyRings, beside the aura rings),

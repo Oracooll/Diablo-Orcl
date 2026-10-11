@@ -350,6 +350,10 @@ TEST(OracoolSurfaceRelief, TheLightPullsTowardItself)
 	// A tile three to its -y has it to its +y: left and down on screen.
 	oracool::ReliefDirectionAt({ 30, 27 }, dx, dy);
 	EXPECT_LT(dx, -40);
+	// Under it: no pull, or a sprite standing in a light (the hero in his own) is lit from below (audit round 1).
+	oracool::ReliefDirectionAt({ 30, 30 }, dx, dy);
+	EXPECT_EQ(dx, 0);
+	EXPECT_EQ(dy, 0);
 	// Far from it: no pull.
 	oracool::ReliefDirectionAt({ 70, 70 }, dx, dy);
 	EXPECT_EQ(dx, 0);
@@ -437,7 +441,7 @@ TEST(OracoolFrameBlend, TheAlphaFollowsTheFraction)
 	EXPECT_EQ(oracool::FrameBlendAlphaForFraction(2), 0); // too little to show
 	EXPECT_EQ(oracool::FrameBlendAlphaForFraction(64), 128);
 	EXPECT_EQ(oracool::FrameBlendAlphaForFraction(96), 192);
-	EXPECT_EQ(oracool::FrameBlendAlphaForFraction(AnimationInfo::baseValueFraction), 0); // the next frame is due itself
+	EXPECT_EQ(oracool::FrameBlendAlphaForFraction(AnimationInfo::baseValueFraction), 256); // a due tick shows the next whole
 }
 
 TEST(OracoolFrameBlend, TheFractionCountsTicksAndTheTickInProgress)
@@ -456,24 +460,26 @@ TEST(OracoolFrameBlend, TheFractionCountsTicksAndTheTickInProgress)
 	ProgressToNextGameTick = savedProgress;
 }
 
-TEST(OracoolFrameBlend, TheSecondDrawIsMixedInOnlyWhereItChangedSomething)
+TEST(OracoolFrameBlend, TheFrameLeftBehindFadesOutAsTheNextFadesIn)
 {
 	const std::array<uint8_t, 6> header { 6, 0, 4, 0, 3, 0 }; // a 4x3 sprite: only its size is read
-	const ClxSprite next(header.data(), 6);
+	const ClxSprite sprite(header.data(), 6);
 	OwnedSurface out = OwnedSurface::Rgb(10, 10);
 	Fill(out, Grey(40));
-	Px(out, 3, 5) = Grey(200); // the first draw's pixel, under the second's box
-	oracool::BeginFrameBlend(out, Point { 2, 6 }, next); // rows 4..6, columns 2..5
+	oracool::BeginFrameBlend(out, Point { 2, 6 }, sprite, Point { 3, 6 }, sprite); // rows 4..6, columns 2..6
 	EXPECT_TRUE(oracool::InFrameBlendPass());
-	Px(out, 3, 5) = Grey(100); // the second draw
-	Px(out, 4, 5) = Grey(240);
-	Px(out, 8, 8) = Grey(240); // outside the kept box: not the blend's
+	Px(out, 2, 5) = Grey(200); // the first frame: only it covers (2, 5)
+	Px(out, 4, 5) = Grey(200);
+	oracool::SwapFrameBlend(out);
+	EXPECT_EQ(Px(out, 2, 5), Grey(40)); // the ground put back for the second
+	Px(out, 4, 5) = Grey(100); // the next frame: both cover (4, 5)
+	Px(out, 6, 5) = Grey(240); // only it covers (6, 5)
 	oracool::EndFrameBlend(out, 128);
 	EXPECT_FALSE(oracool::InFrameBlendPass());
-	EXPECT_EQ(Px(out, 3, 5), Grey(150)); // half of each
-	EXPECT_EQ(Px(out, 4, 5), Grey(140));
-	EXPECT_EQ(Px(out, 2, 4), Grey(40)); // untouched by the second draw
-	EXPECT_EQ(Px(out, 8, 8), Grey(240));
+	EXPECT_EQ(Px(out, 2, 5), Grey(120)); // the frame left behind, half gone
+	EXPECT_EQ(Px(out, 4, 5), Grey(150)); // half of each
+	EXPECT_EQ(Px(out, 6, 5), Grey(140)); // the next, half come
+	EXPECT_EQ(Px(out, 3, 4), Grey(40));  // neither: the ground
 }
 
 TEST(OracoolFrameBlend, NoBlendIntoTheFirstFrameOrWithoutASheet)
