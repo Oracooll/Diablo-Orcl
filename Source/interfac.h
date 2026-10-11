@@ -59,6 +59,8 @@ enum Cutscenes : uint8_t {
 void interface_msg_pump();
 void IncProgress();
 void CompleteProgress();
+/** @brief Whether the loading screen is up (the fifth graphics batch's iris stays out of its fades). */
+bool IsShowingProgress();
 void ShowProgress(interface_mode uMsg);
 
 } // namespace devilution

@@ -8,6 +8,7 @@
 #include "oracool/scene_feel.h"
 
 #include <algorithm>
+#include <functional>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -15,6 +16,7 @@
 #include <vector>
 
 #include "diablo.h"
+#include "interfac.h"
 #include "engine/render/clx_render.hpp"
 #include "engine/render/scrollrt.h"
 #include "engine/surface.hpp"
@@ -354,6 +356,8 @@ void TickDeaths()
 		}
 		if (!*sgOptions.Oracool.deathEffects || !InMap(monster.position.tile) || LitAt(monster.position.tile) <= 0.05F)
 			continue;
+		if (DissolvesOnDeath(monster))
+			continue; // a guardian burning away leaves no body to bleed or land (audit round 1)
 		if (seen == 0) {
 			seen = 1;
 			EmitSpray(monster.position.tile, BleedsBone(monster), 16);
@@ -431,6 +435,7 @@ struct Flying {
 	const Missile *missile;
 	MissileID type;
 	Point start;
+	Point tile;
 	float x, y; // last seen, world pixels
 	uint32_t rgb;
 	bool moving;
@@ -445,6 +450,25 @@ struct Burst {
 };
 std::vector<Burst> Bursts;
 constexpr float BurstLife = 0.38F;
+
+bool ByMissile(const Flying &a, const Flying &b)
+{
+	return std::less<const Missile *>()(a.missile, b.missile); // unrelated pointers ordered portably (audit round 1)
+}
+
+bool StruckSomething(Point tile)
+{
+	for (int dx = -1; dx <= 1; dx++) {
+		for (int dy = -1; dy <= 1; dy++) {
+			const Point t { tile.x + dx, tile.y + dy };
+			if (!InMap(t))
+				continue;
+			if (dMonster[t.x][t.y] != 0 || dPlayer[t.x][t.y] != 0 || TileHasAny(dPiece[t.x][t.y], TileProperties::Solid))
+				return true;
+		}
+	}
+	return false;
+}
 
 void PushBurst(float x, float y, uint32_t rgb, float strength)
 {
@@ -463,24 +487,25 @@ void TickImpacts()
 		const uint32_t rgb = MissileTrailColour(static_cast<int>(m._mitype));
 		if (rgb == 0)
 			continue;
-		Flying f { &m, m._mitype, m.position.start, WorldX(m.position.tile) + static_cast<float>(m.position.offset.deltaX),
+		Flying f { &m, m._mitype, m.position.start, m.position.tile, WorldX(m.position.tile) + static_cast<float>(m.position.offset.deltaX),
 			WorldY(m.position.tile) + static_cast<float>(m.position.offset.deltaY), rgb, m.position.velocity != Displacement {} };
 		// Stopped this frame after flying: it struck something (a fireball turns into its burst where it stands).
-		const auto was = std::lower_bound(Flights.begin(), Flights.end(), f, [](const Flying &a, const Flying &b) { return a.missile < b.missile; });
+		const auto was = std::lower_bound(Flights.begin(), Flights.end(), f, ByMissile);
 		if (on && was != Flights.end() && was->missile == &m && was->type == m._mitype && was->start == m.position.start && was->moving && !f.moving
 		    && LitAt(m.position.tile) > 0.02F)
 			PushBurst(f.x, f.y, rgb, GetMissileData(m._mitype).isArrow() ? 0.45F : 1.0F);
 		FlightsNext.push_back(f);
 	}
-	std::sort(FlightsNext.begin(), FlightsNext.end(), [](const Flying &a, const Flying &b) { return a.missile < b.missile; });
+	std::sort(FlightsNext.begin(), FlightsNext.end(), ByMissile);
 	// Gone while still flying: it struck home and was removed in the same tick.
 	if (on) {
 		for (const Flying &f : Flights) {
 			if (!f.moving)
 				continue;
-			const auto now2 = std::lower_bound(FlightsNext.begin(), FlightsNext.end(), f, [](const Flying &a, const Flying &b) { return a.missile < b.missile; });
+			const auto now2 = std::lower_bound(FlightsNext.begin(), FlightsNext.end(), f, ByMissile);
 			const bool alive = now2 != FlightsNext.end() && now2->missile == f.missile && now2->type == f.type && now2->start == f.start;
-			if (!alive && LitAt(TileAtWorld(f.x, f.y)) > 0.02F)
+			// A hit, not its range running out (audit round 1: Charged Bolt flashed in empty air): someone, or a wall, beside it.
+			if (!alive && StruckSomething(f.tile) && LitAt(f.tile) > 0.02F)
 				PushBurst(f.x, f.y, f.rgb, f.type == MissileID::Arrow ? 0.4F : 0.8F);
 		}
 	}
@@ -490,7 +515,9 @@ void TickImpacts()
 // ---- The camera ---------------------------------------------------------------------------------------------------------------
 
 float HeroLastX = 0, HeroLastY = 0;
+Point HeroLastTile;
 bool HeroLastValid = false;
+int LeanW = 0, LeanH = 0; // the world surface the lean-in last worked on: the pointer's inverse needs its middle
 float GlideX = 0, GlideY = 0, GlideAt = -100;
 constexpr float GlideLength = 0.24F;
 float Lean = 0; // the guardian's lean-in, 0..1
@@ -503,20 +530,29 @@ void TickCamera(float dt)
 	const Displacement walk = player.isWalking() ? GetOffsetForWalking(player.AnimInfo, player._pdir) : Displacement {};
 	const float x = WorldX(player.position.tile) + static_cast<float>(walk.deltaX);
 	const float y = WorldY(player.position.tile) + static_cast<float>(walk.deltaY);
-	if (HeroLastValid && *sgOptions.Oracool.smoothCamera) {
-		const float dx = x - HeroLastX;
-		const float dy = y - HeroLastY;
-		const float d = std::sqrt(dx * dx + dy * dy);
-		// A jump the walk never makes (a Teleport, a Leap, a phase): the picture eases from where it was.
-		if (d > 90.0F && d < 1400.0F) {
-			const float k = d > 110.0F ? 110.0F / d : 1.0F;
-			GlideX = dx * k;
-			GlideY = dy * k;
+	if (HeroLastValid && *sgOptions.Oracool.smoothCamera && !player.isWalking()) {
+		// A jump the walk never makes - three tiles or more while not walking (audit round 1: a frame hitch mid-walk
+		// passed for a Teleport): a Teleport, a Leap, a phase. The picture eases from where it was, in screen pixels
+		// (the zoom enlarges the jump), added to what is left of a glide under way, never more than 80 px.
+		const Point t = player.position.tile;
+		if (std::max(std::abs(t.x - HeroLastTile.x), std::abs(t.y - HeroLastTile.y)) >= 3) {
+			const float zoom = std::max(1.0F, static_cast<float>(*sgOptions.Oracool.dungeonZoomLevel));
+			const Displacement left = CameraGlideOffset();
+			float gx = (x - HeroLastX) * zoom + static_cast<float>(left.deltaX);
+			float gy = (y - HeroLastY) * zoom + static_cast<float>(left.deltaY);
+			const float d = std::sqrt(gx * gx + gy * gy);
+			if (d > 80.0F) {
+				gx *= 80.0F / d;
+				gy *= 80.0F / d;
+			}
+			GlideX = gx;
+			GlideY = gy;
 			GlideAt = Now();
 		}
 	}
 	HeroLastX = x;
 	HeroLastY = y;
+	HeroLastTile = player.position.tile;
 	HeroLastValid = true;
 	// Lean in while a living rift guardian is near.
 	bool near = false;
@@ -635,8 +671,9 @@ void DrawSceneFeelBodies(const Surface &out, Point firstTile, Point firstTileBuf
 						const int gx = tx + dx - x0, gy = ty + dy - y0;
 						if (gx < 0 || gy < 0 || gx >= tw || gy >= th)
 							continue;
-						const float d = std::sqrt(static_cast<float>(dx * dx + dy * dy));
-						const int value = static_cast<int>((1.0F - d / 2.9F) * 255.0F);
+						static constexpr int Falloff[5][5] = { { 0, 21, 41, 21, 0 }, { 21, 99, 167, 99, 21 }, { 41, 167, 255, 167, 41 },
+							{ 21, 99, 167, 99, 21 }, { 0, 21, 41, 21, 0 } }; // (1 - d / 2.9) * 255, d from the middle (audit round 1: no sqrt)
+						const int value = Falloff[dx + 2][dy + 2];
 						uint8_t &g = Glow[static_cast<size_t>(gx) * th + gy];
 						g = value > g ? static_cast<uint8_t>(value) : g;
 					}
@@ -644,21 +681,33 @@ void DrawSceneFeelBodies(const Surface &out, Point firstTile, Point firstTileBuf
 			}
 		}
 		if (any) {
+			// The flicker once per tile, into the field (audit round 1: two sines a cell).
+			for (int gx = 0; gx < tw; gx++) {
+				for (int gy = 0; gy < th; gy++) {
+					uint8_t &g = Glow[static_cast<size_t>(gx) * th + gy];
+					if (g == 0)
+						continue;
+					const int tx = gx + x0, ty = gy + y0;
+					const float flicker = 0.78F + 0.22F * std::sin(now * 7.0F + static_cast<float>(tx * 3 + ty * 5)) * std::sin(now * 2.3F + static_cast<float>(ty));
+					g = static_cast<uint8_t>(static_cast<float>(g) * 0.42F * flicker);
+				}
+			}
 			constexpr int Cell = 8;
 			for (int gy = 0; gy * Cell < h; gy++) {
 				for (int gx = 0; gx * Cell < w; gx++) {
 					// The tile a little below the cell: the glow rises from the floor onto what stands there.
-					const float sx = static_cast<float>(gx * Cell + 4);
-					const float sy = static_cast<float>(gy * Cell + 4) + 22.0F;
-					const Point tile = TileAtWorld(sx - v.ox, sy - v.oy);
-					const int gtx = tile.x - x0, gty = tile.y - y0;
+					const float u = (static_cast<float>(gx * Cell + 4) - v.ox) / 32.0F;
+					const float vv = (static_cast<float>(gy * Cell + 4) + 22.0F - v.oy) / 16.0F;
+					const float fa = (u + vv) * 0.5F + 0.5F, fb = (vv - u) * 0.5F + 0.5F;
+					int ttx = static_cast<int>(fa), tty = static_cast<int>(fb);
+					ttx -= fa < static_cast<float>(ttx) ? 1 : 0; // floor, by hand
+					tty -= fb < static_cast<float>(tty) ? 1 : 0;
+					const int gtx = ttx - x0, gty = tty - y0;
 					if (gtx < 0 || gty < 0 || gtx >= tw || gty >= th)
 						continue;
-					const int g = Glow[static_cast<size_t>(gtx) * th + gty];
-					if (g == 0)
+					const int k = Glow[static_cast<size_t>(gtx) * th + gty];
+					if (k == 0)
 						continue;
-					const float flicker = 0.78F + 0.22F * std::sin(now * 7.0F + static_cast<float>(tile.x * 3 + tile.y * 5)) * std::sin(now * 2.3F + static_cast<float>(tile.y));
-					const int k = static_cast<int>(static_cast<float>(g) * 0.42F * flicker);
 					for (int fy = 0; fy < Cell; fy++) {
 						const int y = gy * Cell + fy;
 						if (y >= h)
@@ -755,12 +804,31 @@ void DrawSceneFeelLights(const Surface &out, Point firstTile, Point firstTileBuf
 			const int r = static_cast<int>(64.0F * (0.7F + 0.3F * b.strength));
 			if (cx < -r || cy < -r || cx > w + r || cy > h + r)
 				continue;
+			const float invR = 1.0F / static_cast<float>(r);
+			const float kr = static_cast<float>(SF_R(b.rgb)) * env * 0.55F, kg = static_cast<float>(SF_G(b.rgb)) * env * 0.55F,
+			            kb = static_cast<float>(SF_B(b.rgb)) * env * 0.55F;
 			for (int dy = -r / 2; dy <= r / 2; dy++) {
+				const int py = cy + dy;
+				if (py < 0 || py >= h)
+					continue;
+				uint32_t *row = pen.splats == nullptr ? out.at<uint32_t>(0, py) : nullptr;
 				for (int dx = -r; dx <= r; dx++) {
-					const float d = std::sqrt(static_cast<float>(dx * dx + dy * dy * 4)) / static_cast<float>(r);
+					const int px = cx + dx;
+					if (px < 0 || px >= w)
+						continue;
+					const float d = std::sqrt(static_cast<float>(dx * dx + dy * dy * 4)) * invR;
 					if (d >= 1.0F)
 						continue;
-					pen.addF(cx + dx, cy + dy, b.rgb, (1.0F - d) * (1.0F - d) * env * 0.55F);
+					const float f = (1.0F - d) * (1.0F - d);
+					const int ar = static_cast<int>(kr * f), ag = static_cast<int>(kg * f), ab = static_cast<int>(kb * f);
+					if ((ar | ag | ab) <= 0)
+						continue;
+					if (row != nullptr) {
+						const uint32_t c = row[px];
+						row[px] = SF_ADD(c, ar, ag, ab); // straight onto the picture (audit round 1: a call a pixel)
+					} else {
+						pen.add(px, py, ar, ag, ab);
+					}
 				}
 			}
 			// The air at the strike: a small bright core.
@@ -909,10 +977,24 @@ void DrawSceneFeelLights(const Surface &out, Point firstTile, Point firstTileBuf
 		int x0, x1, y0, y1;
 		ViewTiles(v, x0, x1, y0, y1);
 		constexpr uint32_t Beam = SF_PACK(255, 244, 214);
-		for (int tx = x0; tx <= x1; tx++) {
-			for (int ty = y0; ty <= y1; ty++) {
-				if (!InMap({ tx, ty }) || !TileHasAny(dPiece[tx][ty], TileProperties::Solid))
-					continue;
+		// At most the ten nearest the hero (audit round 1: a wide view held thirty, each thousands of pixels).
+		struct Window {
+			int tx, ty, d;
+		};
+		static std::vector<Window> Windows;
+		Windows.clear();
+		const Point hero = MyPlayer != nullptr ? Point(MyPlayer->position.tile) : Point { (x0 + x1) / 2, (y0 + y1) / 2 };
+		for (int tx = x0; tx <= x1; tx++)
+			for (int ty = y0; ty <= y1; ty++)
+				if (Hash(static_cast<uint32_t>(tx), static_cast<uint32_t>(ty), 1601) % 9 == 0 && InMap({ tx, ty }) && TileHasAny(dPiece[tx][ty], TileProperties::Solid))
+					Windows.push_back({ tx, ty, std::abs(tx - hero.x) + std::abs(ty - hero.y) });
+		std::sort(Windows.begin(), Windows.end(), [](const Window &a, const Window &b) { return a.d < b.d; });
+		int beams = 0;
+		for (const Window &win : Windows) {
+			if (beams >= 10)
+				break;
+			const int tx = win.tx, ty = win.ty;
+			{
 				const uint32_t s = Hash(static_cast<uint32_t>(tx), static_cast<uint32_t>(ty), 1601);
 				if (s % 9 != 0)
 					continue;
@@ -930,6 +1012,7 @@ void DrawSceneFeelLights(const Surface &out, Point firstTile, Point firstTileBuf
 				const float botY = WorldY(floor2) + v.oy;
 				if (std::max(topX, botX) < -60 || std::min(topX, botX) > static_cast<float>(w) + 60 || botY < 0 || topY > static_cast<float>(h))
 					continue;
+				beams++;
 				const float breathe = 0.85F + 0.15F * std::sin(now * 0.35F + Unit(s >> 12) * 6.28F);
 				const int yA = std::max(0, static_cast<int>(topY));
 				const int yB = std::min(h - 1, static_cast<int>(botY));
@@ -940,9 +1023,22 @@ void DrawSceneFeelLights(const Surface &out, Point firstTile, Point firstTileBuf
 					const float fall = (t < 0.15F ? t / 0.15F : 1.0F) * (1.0F - 0.55F * t);
 					const int xa = std::max(0, static_cast<int>(cx - half));
 					const int xb = std::min(w - 1, static_cast<int>(cx + half));
+					const float peak = fall * breathe * lit * 0.11F;
+					const float invHalf = 1.0F / half;
+					uint32_t *row = pen.splats == nullptr ? out.at<uint32_t>(0, y) : nullptr;
 					for (int x = xa; x <= xb; x++) {
-						const float across = 1.0F - std::fabs(static_cast<float>(x) - cx) / half;
-						pen.addF(x, y, Beam, across * across * fall * breathe * lit * 0.11F);
+						const float off = static_cast<float>(x) - cx;
+						const float across = 1.0F - (off < 0 ? -off : off) * invHalf;
+						const float k = across * across * peak;
+						const int ar = static_cast<int>(255.0F * k), ag = static_cast<int>(244.0F * k), ab = static_cast<int>(214.0F * k);
+						if ((ar | ag | ab) <= 0)
+							continue;
+						if (row != nullptr) {
+							const uint32_t c = row[x];
+							row[x] = SF_ADD(c, ar, ag, ab); // straight onto the picture (audit round 1)
+						} else {
+							pen.add(x, y, ar, ag, ab);
+						}
 					}
 				}
 				for (uint32_t m = 0; m < 4; m++) {
@@ -957,6 +1053,21 @@ void DrawSceneFeelLights(const Surface &out, Point firstTile, Point firstTileBuf
 }
 
 // ==== After the world ===================================================================================================================
+
+Point WorldPointerFor(Point screen)
+{
+	const Displacement shift = ScreenShakeOffset();
+	float x = static_cast<float>(screen.x - shift.deltaX);
+	float y = static_cast<float>(screen.y - shift.deltaY);
+	if (FrameViewValid && Lean > 0.002F && LeanW > 0 && LeanH > 0 && y < static_cast<float>(LeanH)) {
+		const float k = 1.0F + 0.05F * Smooth(Lean);
+		const float cx = static_cast<float>(LeanW) * 0.5F;
+		const float cy = static_cast<float>(LeanH) * 0.5F;
+		x = cx + (x - cx) / k;
+		y = cy + (y - cy) / k;
+	}
+	return { static_cast<int>(std::floor(x + 0.5F)), static_cast<int>(std::floor(y + 0.5F)) };
+}
 
 Displacement CameraGlideOffset()
 {
@@ -973,6 +1084,8 @@ Displacement CameraGlideOffset()
 
 void ApplySceneFeelAfterWorld(const Surface &world)
 {
+	LeanW = world.w();
+	LeanH = world.h();
 	if (world.isIndexed() || !FrameViewValid || Lean <= 0.002F || MyPlayer == nullptr || world.w() <= 0 || world.h() <= 0)
 		return;
 	// The lean-in: the finished world enlarged up to 5% about the screen's middle, sampled bilinearly.
@@ -985,28 +1098,42 @@ void ApplySceneFeelAfterWorld(const Surface &world)
 		std::memcpy(&Copy[static_cast<size_t>(y) * w], world.at<uint32_t>(0, y), static_cast<size_t>(w) * 4);
 	const float cx = static_cast<float>(w) * 0.5F;
 	const float cy = static_cast<float>(h) * 0.5F;
-	const int step = static_cast<int>(65536.0F / k);
-	const int sx0 = static_cast<int>((cx - cx / k) * 65536.0F);
-	const int sy0 = static_cast<int>((cy - cy / k) * 65536.0F);
+	// Per column, once: the two source columns and the weight (audit round 1: the per-pixel channel split cost ~15 ms in
+	// Debug for the whole fight). The blends below work on the packed word, red and blue together.
+	static std::vector<int> Col0, Col1, ColW;
+	Col0.resize(static_cast<size_t>(w));
+	Col1.resize(static_cast<size_t>(w));
+	ColW.resize(static_cast<size_t>(w));
+	for (int x = 0; x < w; x++) {
+		const float sx = cx + (static_cast<float>(x) - cx) / k;
+		int ix = static_cast<int>(sx);
+		ix = ix < 0 ? 0 : (ix > w - 1 ? w - 1 : ix);
+		Col0[static_cast<size_t>(x)] = ix;
+		Col1[static_cast<size_t>(x)] = ix + 1 < w ? ix + 1 : w - 1;
+		ColW[static_cast<size_t>(x)] = static_cast<int>((sx - static_cast<float>(ix)) * 256.0F) & 0xFF;
+	}
+	const int *col0 = Col0.data();
+	const int *col1 = Col1.data();
+	const int *colW = ColW.data();
 	const uint32_t *src = Copy.data();
 	for (int y = 0; y < h; y++) {
-		const int sy = sy0 + y * step;
-		const int iy = sy >> 16;
-		const int fy = (sy >> 8) & 0xFF;
+		const float sy = cy + (static_cast<float>(y) - cy) / k;
+		int iy = static_cast<int>(sy);
+		iy = iy < 0 ? 0 : (iy > h - 1 ? h - 1 : iy);
+		const uint32_t fy = static_cast<uint32_t>((sy - static_cast<float>(iy)) * 256.0F) & 0xFF;
 		const int iy1 = iy + 1 < h ? iy + 1 : h - 1;
 		const uint32_t *r0 = src + static_cast<size_t>(iy) * w;
 		const uint32_t *r1 = src + static_cast<size_t>(iy1) * w;
 		uint32_t *dst = world.at<uint32_t>(0, y);
-		int sx = sx0;
-		for (int x = 0; x < w; x++, sx += step) {
-			const int ix = sx >> 16;
-			const int fx = (sx >> 8) & 0xFF;
-			const int ix1 = ix + 1 < w ? ix + 1 : w - 1;
-			const uint32_t a = r0[ix], b = r0[ix1], c = r1[ix], d = r1[ix1];
-			const int rTop = SF_R(a) * (256 - fx) + SF_R(b) * fx, rBot = SF_R(c) * (256 - fx) + SF_R(d) * fx;
-			const int gTop = SF_G(a) * (256 - fx) + SF_G(b) * fx, gBot = SF_G(c) * (256 - fx) + SF_G(d) * fx;
-			const int bTop = SF_B(a) * (256 - fx) + SF_B(b) * fx, bBot = SF_B(c) * (256 - fx) + SF_B(d) * fx;
-			dst[x] = SF_PACK((rTop * (256 - fy) + rBot * fy) >> 16, (gTop * (256 - fy) + gBot * fy) >> 16, (bTop * (256 - fy) + bBot * fy) >> 16);
+		for (int x = 0; x < w; x++) {
+			const uint32_t fx = static_cast<uint32_t>(colW[x]);
+			const uint32_t a = r0[col0[x]], b = r0[col1[x]], c = r1[col0[x]], d = r1[col1[x]];
+			// Lerp a-b and c-d by fx, then the two by fy: red and blue in one word, green in another.
+			const uint32_t topRB = (((a & 0xFF00FFU) * (256 - fx) + (b & 0xFF00FFU) * fx) >> 8) & 0xFF00FFU;
+			const uint32_t topG = (((a & 0x00FF00U) * (256 - fx) + (b & 0x00FF00U) * fx) >> 8) & 0x00FF00U;
+			const uint32_t botRB = (((c & 0xFF00FFU) * (256 - fx) + (d & 0xFF00FFU) * fx) >> 8) & 0xFF00FFU;
+			const uint32_t botG = (((c & 0x00FF00U) * (256 - fx) + (d & 0x00FF00U) * fx) >> 8) & 0x00FF00U;
+			dst[x] = ((((topRB * (256 - fy) + botRB * fy) >> 8) & 0xFF00FFU) | (((topG * (256 - fy) + botG * fy) >> 8) & 0x00FF00U));
 		}
 	}
 }
@@ -1015,7 +1142,8 @@ void ApplySceneFeelAfterWorld(const Surface &world)
 
 bool IrisFadeActive()
 {
-	return *sgOptions.Oracool.levelTransition && gbRunGame;
+	// The game's own fade only - not the loading screen's (audit round 1: it opened and closed like an iris too).
+	return *sgOptions.Oracool.levelTransition && gbRunGame && !IsShowingProgress();
 }
 
 int IrisFadeAt(int x, int y, int w, int h, int fade)
@@ -1039,18 +1167,34 @@ int IrisFadeAt(int x, int y, int w, int h, int fade)
 
 void IrisFadeRow(int y, int w, int h, int fade, uint16_t *out)
 {
+	// Solid runs where the row is wholly inside or outside the circle; per pixel only across the soft band, and the right
+	// half the mirror of the left (audit round 1: a sqrt a pixel was ~10 ms a frame in Debug).
 	const float dy = static_cast<float>(y) - static_cast<float>(h) * 0.5F;
 	const float corner = std::sqrt(static_cast<float>(w * w + h * h)) * 0.5F;
 	const float edge = corner * 0.25F;
 	const float radius = static_cast<float>(fade) / 256.0F * (corner + edge);
-	const float invEdge = 1.0F / edge;
+	const float inner = radius - edge;
 	const float dy2 = dy * dy;
 	const float halfW = static_cast<float>(w) * 0.5F;
-	for (int x = 0; x < w; x++) {
-		const float dx = static_cast<float>(x) - halfW;
-		float inside = (radius - std::sqrt(dx * dx + dy2)) * invEdge;
-		inside = inside < 0 ? 0 : (inside > 1 ? 1 : inside);
-		out[x] = static_cast<uint16_t>(inside * inside * (3.0F - 2.0F * inside) * 256.0F);
+	const float outerX2 = radius * radius - dy2;
+	const float innerX2 = inner > 0 ? inner * inner - dy2 : -1.0F;
+	const float invEdge = 1.0F / edge;
+	const int half = (w + 1) / 2;
+	for (int x = 0; x < half; x++) {
+		const float dx = halfW - static_cast<float>(x) - 0.5F;
+		const float dx2 = dx * dx;
+		uint16_t v;
+		if (dx2 >= outerX2)
+			v = 0;
+		else if (dx2 <= innerX2)
+			v = 256;
+		else {
+			float inside = (radius - std::sqrt(dx2 + dy2)) * invEdge;
+			inside = inside < 0 ? 0 : (inside > 1 ? 1 : inside);
+			v = static_cast<uint16_t>(inside * inside * (3.0F - 2.0F * inside) * 256.0F);
+		}
+		out[x] = v;
+		out[w - 1 - x] = v;
 	}
 }
 

@@ -48,6 +48,8 @@ void DrawSceneFeelBodies(const Surface &out, Point firstTile, Point firstTileBuf
 void DrawSceneFeelLights(const Surface &out, Point firstTile, Point firstTileBuffer);
 /** @brief The guardian's lean-in, over the finished (zoomed) world, before the shake. */
 void ApplySceneFeelAfterWorld(const Surface &world);
+/** @brief The screen point @p screen aims at in the world as it would be drawn without the glide, shake and lean-in. */
+Point WorldPointerFor(Point screen);
 /** @brief The camera's glide after a jump, in pixels; scene_fx's ScreenShakeOffset adds it to the shake. */
 Displacement CameraGlideOffset();
 

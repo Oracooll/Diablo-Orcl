@@ -55,6 +55,7 @@ TEST(OracoolGraphicsBatch5, TheHitFlashIsBriefAndFades)
 TEST(OracoolGraphicsBatch5, OnlyTheCavesAndTheNestHaveDampFloors)
 {
 	const dungeon_type was = leveltype;
+	const bool wasWet = *sgOptions.Oracool.wetFloors;
 	sgOptions.Oracool.wetFloors.SetValue(true);
 	leveltype = DTYPE_CAVES;
 	EXPECT_TRUE(oracool::DampFloorsHere());
@@ -65,6 +66,7 @@ TEST(OracoolGraphicsBatch5, OnlyTheCavesAndTheNestHaveDampFloors)
 	leveltype = DTYPE_TOWN;
 	EXPECT_FALSE(oracool::DampFloorsHere());
 	leveltype = was;
+	sgOptions.Oracool.wetFloors.SetValue(wasWet);
 }
 
 TEST(OracoolGraphicsBatch5, ForgettingClearsTheParticles)

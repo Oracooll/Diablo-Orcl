@@ -1473,7 +1473,9 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	}
 	oracool::DrawCompanionBlades(out, monster, targetBufferPosition + offset, /*front=*/true);
 	oracool::EndMonsterVeil(out, veil);
-	oracool::DrawMonsterHitFlash(out, monster, monsterRenderPosition, sprite); // the fifth batch (oracool/scene_feel.h)
+	// The fifth batch's hit flash (oracool/scene_feel.h), on the body as drawn - not over a veiled one (audit round 1).
+	if (!veilHides)
+		oracool::DrawMonsterHitFlash(bodyOut, monster, bodyPosition, sprite);
 	if (!veil.active)
 		oracool::DrawMonsterStatus(out, monster, monsterRenderPosition, sprite);
 	// Frenzy of the Dead wears a ring on the floor since 2026-10-03 (oracool::DrawMinionFrenzyRings, beside the aura rings),

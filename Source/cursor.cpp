@@ -4,6 +4,7 @@
  * Implementation of cursor tracking functionality.
  */
 #include "cursor.h"
+#include "oracool/scene_feel.h" // WorldPointerFor - the picture the pointer aims at
 
 #include <array>
 #include <cstdint>
@@ -1057,8 +1058,11 @@ void CheckCursMove()
 		return;
 	}
 
-	int sx = MousePosition.x;
-	int sy = MousePosition.y;
+	// Where the pointer is in the world as drawn: the fifth graphics batch's camera glide and lean-in move the finished
+	// picture, and the guardian's shake with them (audit round 1: a click near the edge aimed past its target).
+	const Point aimed = oracool::WorldPointerFor(MousePosition);
+	int sx = aimed.x;
+	int sy = aimed.y;
 
 	if (CanPanelsCoverView()) {
 		if (IsLeftPanelOpen()) {
