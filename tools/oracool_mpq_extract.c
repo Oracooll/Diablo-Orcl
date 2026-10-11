@@ -88,7 +88,9 @@ static int ExtractOne(mpq_archive_s *archive, const char *internalPath, const ch
 		return 1;
 	}
 
-	rc = libmpq__file_read(archive, fileNumber, buffer, unpackedSize, &transferred);
+	/* With the filename: an ENCRYPTED file (every sfx\misc wav, for one) is keyed by its name, and the plain
+	 * read cannot decrypt it - it wrote the cipher bytes out as if they were the file (2026-10-11). */
+	rc = libmpq__file_read_with_filename(archive, fileNumber, internalPath, buffer, unpackedSize, &transferred);
 	if (rc != 0 || transferred != unpackedSize) {
 		fprintf(stderr, "  READ ERROR: %s (rc=%d, got %lld of %lld bytes)\n",
 		    internalPath, rc, (long long)transferred, (long long)unpackedSize);
