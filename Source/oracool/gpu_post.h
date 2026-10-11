@@ -21,14 +21,23 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
+#include "engine/point.hpp"
+#include "engine/rectangle.hpp"
 #include "levels/gendung.h"
+#include "oracool/splats.h"
 
 namespace devilution {
 struct Surface;
 }
 
 namespace devilution::oracool {
+
+struct TintPlan;
+struct ReliefPlan;
+struct HazePlan;
+struct GpuStage3;
 
 /** @brief The world zoom as the card does it: none (1.0x), nearest, or the filter (Scale2x at 2x, sharp bilinear else). */
 enum class GpuZoom : uint8_t {
@@ -38,6 +47,13 @@ enum class GpuZoom : uint8_t {
 };
 
 struct GpuWorldPostSettings {
+	// Stage 3 (user, 2026-10-11): the effects only the card runs - each its own option (scrollrt.cpp sets them).
+	bool perPixelLights = false;
+	bool litSprites = false; // in place of the relief, when the relief applies
+	bool wideBloom = false;
+	bool lightShafts = false;
+	bool heatDistortion = false;
+	bool filmicGrade = false;
 	bool bloom = false;
 	bool mood = false;
 	dungeon_type moodType = DTYPE_TOWN;
@@ -45,6 +61,51 @@ struct GpuWorldPostSettings {
 	GpuZoom zoom = GpuZoom::None;
 	bool sharpen = false; // after a zoom only
 };
+
+/**
+ * @brief Stage 2 (user, 2026-10-11: "proceed with the other stages"): the passes between the sprites and the bloom, in
+ * the CPU's order - the relief (against the world GpuKeepWorld sent before the sprites), the coloured light or Tristram's
+ * day and night, the beams' and particles' splats, the water light and lava haze - and the deferred monster outlines,
+ * laid on after the mood as the CPU lays them. Any null part is skipped.
+ */
+struct GpuStage2 {
+	const ReliefPlan *relief = nullptr;
+	const TintPlan *tint = nullptr;
+	const std::vector<Splat> *splats = nullptr;
+	const HazePlan *haze = nullptr;
+	/** The outlines, drawn on their own: a surface the world region's size, X byte 0xFF where nothing is. */
+	const Surface *outlines = nullptr;
+	/** The part of @p outlines that may hold any, in the world region's coordinates (empty: none). */
+	Rectangle outlineBox {};
+	/** Stage 3's inputs, when any of its effects is on. */
+	const GpuStage3 *stage3 = nullptr;
+};
+
+/** @brief A light for Stage 3's passes, in tile coordinates. Kind: 0 a hero's own (neutral), 1 a flame, 2 a spell or portal. */
+struct GpuLight {
+	float x, y, reach, intensity;
+	float r, g, b;
+	int kind;
+};
+/** @brief A source of heat for the distortion, in tile coordinates. */
+struct GpuHeat {
+	float x, y, radius, strength;
+};
+/** @brief Stage 3's inputs: where the world is on the floor grid, the lights, the heat, what stops light, the clock. */
+struct GpuStage3 {
+	Point firstTile {};
+	Point firstTileBuffer {};
+	const GpuLight *lights = nullptr;
+	size_t lightCount = 0;
+	const GpuHeat *heat = nullptr;
+	size_t heatCount = 0;
+	const uint8_t *blocks = nullptr; // FieldW x FieldH, x major: 1 where a tile stops light
+	const uint8_t *liquid = nullptr; // the haze's liquid map, or null
+	float seconds = 0;
+};
+
+/** @brief Sends the world as it stands - before the sprites - for this frame's relief. */
+void GpuKeepWorld(const Surface &src);
 
 /** @brief True when the card can take the world's tail passes this frame: the option on and a device made (lazily). */
 bool GpuWorldPostAvailable();
@@ -54,7 +115,7 @@ bool GpuWorldPostAvailable();
  * (the viewport; the same surface as @p src at 1.0x). False when the card could not do it, with nothing written - the
  * caller runs the CPU passes then.
  */
-bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSettings &settings);
+bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSettings &settings, const GpuStage2 *stage2 = nullptr);
 
 /** @brief Releases the device. From dx_cleanup. */
 void ShutdownGpuWorldPost();

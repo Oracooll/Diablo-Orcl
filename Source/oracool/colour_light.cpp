@@ -29,6 +29,7 @@
 #include "options.h"
 #include "gmenu.h"
 #include "multi.h"
+#include "oracool/gpu_post.h"
 #include "oracool/ground_fx.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/missile_tint.h"
@@ -590,6 +591,8 @@ std::array<float, FieldW * FieldH> ReliefSumY;
 constexpr float ReliefUpBias = 0.3F;
 /** The most the relief brightens or darkens a pixel, of 256 (audit round 1: 56 hit on almost every edge). */
 constexpr int ReliefMax = 40;
+/** The slope's scale: half (audit rounds 1-2). Shared with the graphics card's relief (PlanSurfaceRelief). */
+constexpr int ReliefSlopeShift = 9;
 /** How far from a light its pull is full, in tiles. */
 constexpr float ReliefNear = 3.0F;
 
@@ -1031,14 +1034,14 @@ void ApplySmoothFloorLight(const Surface &out, Point firstTile, Point firstTileB
 	}
 }
 
-void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer)
+bool PlanLightColour(const Surface &out, Point firstTile, Point firstTileBuffer, TintPlan &plan)
 {
 	if (!ColouredLightActive(out) || out.w() <= 0 || out.h() <= 0)
-		return;
+		return false;
 	const bool colour = *sgOptions.Oracool.colouredLighting;
 	const bool flicker = *sgOptions.Oracool.torchFlicker && !Flames.empty();
 	if (!colour && !flicker)
-		return;
+		return false;
 
 	// This frame's tints: the colour field (or none), and every flame's waver over it. The box grows to the flames.
 	int minX = colour ? TintMinX : FieldW, maxX = colour ? TintMaxX : -1, minY = colour ? TintMinY : FieldH, maxY = colour ? TintMaxY : -1;
@@ -1088,7 +1091,7 @@ void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer
 		tints = FrameTints.data();
 	}
 	if (minX > maxX || minY > maxY)
-		return;
+		return false;
 	const GroundMap m = MakeGroundMap(firstTile, firstTileBuffer);
 
 	// Only the screen rectangle the coloured tiles project to: the corners of their tile box, one tile out for the
@@ -1107,10 +1110,27 @@ void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer
 	top = std::max(top, 0);
 	bottom = std::min(bottom, out.h() - 1);
 	if (left > right || top > bottom)
-		return;
+		return false;
 
-	TintRect(out, m, tints, left, right, top, bottom);
+	plan = { tints, left, right, top, bottom, m.u0, m.v0 };
+	return true;
 }
+
+void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer)
+{
+	TintPlan plan;
+	if (PlanLightColour(out, firstTile, firstTileBuffer, plan))
+		ApplyTintPlan(out, plan);
+}
+
+void ApplyTintPlan(const Surface &out, const TintPlan &plan)
+{
+	if (plan.tints == nullptr || plan.left > plan.right || plan.top > plan.bottom)
+		return;
+	const GroundMap m { plan.u0, plan.v0, 1024, -1024, 2048, 2048 };
+	TintRect(out, m, plan.tints, plan.left, plan.right, plan.top, plan.bottom);
+}
+
 
 bool SurfaceReliefActive(const Surface &out)
 {
@@ -1127,12 +1147,11 @@ std::vector<int16_t> ReliefLuma; // three rows of brightness; -1 where the pixel
  * One row's brightness, -1 where the pixel is as it was kept - or is one of the hover outlines' colours (audit round 1:
  * an outline is a line, not a surface, and took a one-sided shift beside the sprite).
  */
-void ReliefLumaRow(const uint32_t *row, const uint32_t *kept, int16_t *dst, int w)
+void ReliefLumaRow(const uint32_t *row, const uint32_t *kept, int16_t *dst, int w, const uint32_t *outline)
 {
 	// The hover outlines drawn inside DrawTileContent (scrollrt.cpp, audit round 2): the hero 165, objects 194, monsters
-	// 233, items by quality 181 / 197 / 245.
-	const uint32_t o1 = PaletteRGB[165] & 0xFFFFFF, o2 = PaletteRGB[194] & 0xFFFFFF, o3 = PaletteRGB[233] & 0xFFFFFF;
-	const uint32_t o4 = PaletteRGB[181] & 0xFFFFFF, o5 = PaletteRGB[197] & 0xFFFFFF, o6 = PaletteRGB[245] & 0xFFFFFF;
+	// 233, items by quality 181 / 197 / 245 - PlanSurfaceRelief's six.
+	const uint32_t o1 = outline[0], o2 = outline[1], o3 = outline[2], o4 = outline[3], o5 = outline[4], o6 = outline[5];
 	for (int x = 0; x < w; x++) {
 		const uint32_t c = row[x];
 		const uint32_t rgb = c & 0xFFFFFF;
@@ -1140,6 +1159,39 @@ void ReliefLumaRow(const uint32_t *row, const uint32_t *kept, int16_t *dst, int 
 	}
 }
 } // namespace
+
+bool PlanSurfaceRelief(const Surface &out, Point firstTile, Point firstTileBuffer, ReliefPlan &plan)
+{
+	if (!SurfaceReliefActive(out) || out.w() <= 2 || out.h() <= 2)
+		return false;
+	const GroundMap m = MakeGroundMap(firstTile, firstTileBuffer);
+	plan.dirX = ReliefDirX.data();
+	plan.dirY = ReliefDirY.data();
+	const int indices[6] = { 165, 194, 233, 181, 197, 245 };
+	for (int i = 0; i < 6; i++)
+		plan.outline[i] = PaletteRGB[indices[i]] & 0xFFFFFF;
+	plan.u0 = m.u0;
+	plan.v0 = m.v0;
+	plan.slopeShift = ReliefSlopeShift;
+	plan.maxDelta = ReliefMax;
+	return true;
+}
+
+bool PlanLitSprites(const Surface &out, Point firstTile, Point firstTileBuffer, ReliefPlan &plan)
+{
+	if (out.isIndexed() || out.w() <= 2 || out.h() <= 2)
+		return false;
+	const GroundMap m = MakeGroundMap(firstTile, firstTileBuffer);
+	plan.dirX = ReliefDirX.data();
+	plan.dirY = ReliefDirY.data();
+	const int indices[6] = { 165, 194, 233, 181, 197, 245 };
+	for (int i = 0; i < 6; i++)
+		plan.outline[i] = PaletteRGB[indices[i]] & 0xFFFFFF;
+	plan.u0 = m.u0;
+	plan.v0 = m.v0;
+	plan.reliefPass = false;
+	return true;
+}
 
 void BeginSurfaceRelief(const Surface &out)
 {
@@ -1155,23 +1207,32 @@ void BeginSurfaceRelief(const Surface &out)
 
 void ApplySurfaceRelief(const Surface &out, Point firstTile, Point firstTileBuffer)
 {
-	if (!SurfaceReliefActive(out) || ReliefKeptW != out.w() || ReliefKeptH != out.h() || ReliefKeptW <= 2 || ReliefKeptH <= 2)
+	ReliefPlan plan;
+	if (ReliefKeptW != out.w() || ReliefKeptH != out.h() || !PlanSurfaceRelief(out, firstTile, firstTileBuffer, plan))
 		return;
-	const int w = ReliefKeptW;
-	const int h = ReliefKeptH;
+	ApplyReliefPlan(out, ReliefKept.data(), plan);
+}
+
+void ApplyReliefPlan(const Surface &out, const uint32_t *kept, const ReliefPlan &plan)
+{
+	const int w = out.w();
+	const int h = out.h();
+	if (w <= 2 || h <= 2 || plan.dirX == nullptr)
+		return;
 	ReliefLuma.resize(static_cast<size_t>(w) * 3);
 	int16_t *rows[3] = { ReliefLuma.data(), ReliefLuma.data() + w, ReliefLuma.data() + 2 * w };
-	const uint32_t *kept = ReliefKept.data();
-	const int16_t *dirX = ReliefDirX.data();
-	const int16_t *dirY = ReliefDirY.data();
-	const GroundMap m = MakeGroundMap(firstTile, firstTileBuffer);
+	const int16_t *dirX = plan.dirX;
+	const int16_t *dirY = plan.dirY;
+	const GroundMap m { plan.u0, plan.v0, 1024, -1024, 2048, 2048 };
+	const int slopeShift = plan.slopeShift;
+	const int maxDelta = plan.maxDelta;
 
 	// The surface is what DrawTileContent drew - every pixel changed since the keep - and its height is its brightness:
 	// the light direction under it (bilinear between tile centres, joined linearly every Span pixels) against the
 	// brightness slope gives how much it faces the light, n.l of the normal (-dL/dx, -dL/dy, 1). The inner loop is
 	// written out by hand (no calls survive /Ob0); the row helper runs once a row.
-	ReliefLumaRow(out.at<uint32_t>(0, 0), kept, rows[1], w);
-	ReliefLumaRow(out.at<uint32_t>(0, 1), kept + w, rows[2], w);
+	ReliefLumaRow(out.at<uint32_t>(0, 0), kept, rows[1], w, plan.outline);
+	ReliefLumaRow(out.at<uint32_t>(0, 1), kept + w, rows[2], w, plan.outline);
 	std::copy_n(rows[1], w, rows[0]); // the row above the first is the first itself
 	for (int py = 0; py < h; py++) {
 		const int16_t *up = rows[0];
@@ -1219,8 +1280,8 @@ void ApplySurfaceRelief(const Surface &out, Point firstTile, Point firstTileBuff
 						const int gy = below - above;
 						// Half the slope (audit rounds 1-2): at full, a mortar line of 56 levels hit the cap at once - an
 						// emboss filter, not shading; at a quarter it barely showed. Now a step of 80 does.
-						int delta = -((gx * (fx >> 8) + gy * (fy >> 8)) >> 9);
-						delta = delta > ReliefMax ? ReliefMax : (delta < -ReliefMax ? -ReliefMax : delta);
+						int delta = -((gx * (fx >> 8) + gy * (fy >> 8)) >> slopeShift);
+						delta = delta > maxDelta ? maxDelta : (delta < -maxDelta ? -maxDelta : delta);
 						if (delta == 0)
 							continue;
 						const uint32_t c = row[i];
@@ -1246,21 +1307,20 @@ void ApplySurfaceRelief(const Surface &out, Point firstTile, Point firstTileBuff
 		rows[2] = oldUp;
 		const int next = py + 2;
 		if (next < h)
-			ReliefLumaRow(out.at<uint32_t>(0, next), kept + static_cast<size_t>(next) * w, rows[2], w);
+			ReliefLumaRow(out.at<uint32_t>(0, next), kept + static_cast<size_t>(next) * w, rows[2], w, plan.outline);
 		else
 			std::copy_n(rows[1], w, rows[2]);
 	}
 }
 
-void ApplyTownDayNight(const Surface &out, Point firstTile, Point firstTileBuffer)
+bool PlanTownDayNight(const Surface &out, Point firstTile, Point firstTileBuffer, TintPlan &plan)
 {
-	AdvanceTownClock();
 	if (!*sgOptions.Oracool.dayNightCycle || out.isIndexed() || leveltype != DTYPE_TOWN || out.w() <= 0 || out.h() <= 0)
-		return;
+		return false;
 	float ar, ag, ab;
 	AmbientAt(TownClock, ar, ag, ab);
 	if (ar > 0.995F && ag > 0.995F && ab > 0.995F)
-		return; // broad day: nothing to do
+		return false; // broad day: nothing to do
 	TownLitR.fill(0);
 	TownLitG.fill(0);
 	TownLitB.fill(0);
@@ -1294,8 +1354,24 @@ void ApplyTownDayNight(const Surface &out, Point firstTile, Point firstTileBuffe
 			static_cast<uint16_t>((ab + (1.0F - ab) * lb) * One + 0.5F),
 		};
 	}
-	TintRect(out, MakeGroundMap(firstTile, firstTileBuffer), TownTints.data(), 0, out.w() - 1, 0, out.h() - 1);
+	const GroundMap m = MakeGroundMap(firstTile, firstTileBuffer);
+	plan = { TownTints.data(), 0, out.w() - 1, 0, out.h() - 1, m.u0, m.v0 };
+	return true;
 }
+
+void AdvanceTownDayNightClock()
+{
+	AdvanceTownClock();
+}
+
+void ApplyTownDayNight(const Surface &out, Point firstTile, Point firstTileBuffer)
+{
+	AdvanceTownClock();
+	TintPlan plan;
+	if (PlanTownDayNight(out, firstTile, firstTileBuffer, plan))
+		ApplyTintPlan(out, plan);
+}
+
 
 float TownHour()
 {
@@ -1318,6 +1394,81 @@ LightTint TownAmbientAt(float hour)
 LightTint TownTintAt(Point tile)
 {
 	return TownTints[ClampX(tile.x) * FieldH + ClampY(tile.y)];
+}
+
+size_t GpuLightsNear(Point centre, GpuLight *out, size_t max)
+{
+	std::vector<GpuLight> all;
+	if (leveltype == DTYPE_TOWN) {
+		if (!TownIsDark())
+			return 0;
+		for (const TownLight &light : GatherTownLights()) {
+			// The heroes' lights are the long ones (9.5 and 7 tiles); the townsfolk's lamps are flames; the rest spells.
+			const int kind = light.reach > 6.0F ? 0 : (light.reach == 4.5F ? 1 : 2);
+			all.push_back({ light.x, light.y, light.reach, kind == 0 ? 0.6F : light.strength, light.r, light.g, light.b, kind });
+		}
+	} else {
+		for (const Source &source : Sources) {
+			const bool neutral = source.rgb == 0;
+			const float r = neutral ? 1.0F : static_cast<float>((source.rgb >> 16) & 0xFF) / 255.0F;
+			const float g = neutral ? 0.95F : static_cast<float>((source.rgb >> 8) & 0xFF) / 255.0F;
+			const float b = neutral ? 0.85F : static_cast<float>(source.rgb & 0xFF) / 255.0F;
+			const int kind = source.flame ? 1 : (neutral ? 0 : 2);
+			all.push_back({ source.x, source.y, source.reach, kind == 0 ? 0.6F : 1.0F, r, g, b, kind });
+		}
+	}
+	const auto distance = [centre](const GpuLight &l) {
+		const float dx = l.x - static_cast<float>(centre.x), dy = l.y - static_cast<float>(centre.y);
+		return dx * dx + dy * dy;
+	};
+	std::sort(all.begin(), all.end(), [&](const GpuLight &a, const GpuLight &b) { return distance(a) < distance(b); });
+	const size_t n = std::min(all.size(), max);
+	std::copy_n(all.begin(), n, out);
+	return n;
+}
+
+size_t GpuHeatNear(Point centre, GpuHeat *out, size_t max)
+{
+	std::vector<GpuHeat> all;
+	if (leveltype != DTYPE_TOWN) {
+		for (const Missile &missile : Missiles) {
+			const uint32_t rgb = MissileLightHue(missile);
+			if (rgb != hue::FireOrange && rgb != hue::Infrared)
+				continue;
+			const float ox = static_cast<float>(missile.position.offset.deltaX), oy = static_cast<float>(missile.position.offset.deltaY);
+			all.push_back({ static_cast<float>(missile.position.tile.x) + ox / 64.0F + oy / 32.0F, static_cast<float>(missile.position.tile.y) + oy / 32.0F - ox / 64.0F, 1.4F, 1.0F });
+		}
+		for (const Flame &flame : Flames)
+			all.push_back({ flame.x, flame.y, 0.7F, 0.45F });
+	}
+	const auto distance = [centre](const GpuHeat &h) {
+		const float dx = h.x - static_cast<float>(centre.x), dy = h.y - static_cast<float>(centre.y);
+		return dx * dx + dy * dy;
+	};
+	std::sort(all.begin(), all.end(), [&](const GpuHeat &a, const GpuHeat &b) { return distance(a) < distance(b); });
+	const size_t n = std::min(all.size(), max);
+	std::copy_n(all.begin(), n, out);
+	return n;
+}
+
+const uint8_t *LightBlockingMap()
+{
+	static std::array<uint8_t, FieldW * FieldH> map {};
+	static uint64_t builtFor = 0;
+	if (const uint64_t key = LevelKey(); key != builtFor) {
+		builtFor = key;
+		for (int x = 0; x < FieldW; x++)
+			for (int y = 0; y < FieldH; y++)
+				map[static_cast<size_t>(x) * FieldH + y] = TileHasAny(dPiece[x][y], TileProperties::BlockLight) ? 1 : 0;
+	}
+	return map.data();
+}
+
+bool TownIsDark()
+{
+	float r, g, b;
+	AmbientAt(TownClock, r, g, b);
+	return *sgOptions.Oracool.dayNightCycle && Luma(r, g, b) < 0.9F;
 }
 
 void ReliefDirectionAt(Point tile, int &dx, int &dy)

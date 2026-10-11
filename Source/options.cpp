@@ -529,7 +529,19 @@ void SaveOptions()
 	setBoolean("Zoom Sharpening", *sgOptions.Oracool.zoomSharpen,
 	    "; On: when zoomed in, the enlarged picture is sharpened (contrast-adaptive, after\n; AMD FidelityFX CAS) so it stays crisp instead of soft.");
 	setBoolean("Graphics Card Renderer", *sgOptions.Oracool.gpuRenderer,
-	    "; On: bloom, the area mood, the vignette and the zoom filter and sharpening run on the\n; graphics card (Direct3D 11), which is much faster. Off, or if the card cannot, the CPU\n; runs them. The picture is the same either way.");
+	    "; On: everything drawn after the figures - relief, coloured light, day and night, beams,\n; particles, haze, bloom, mood, vignette, the zoom filter and sharpening - runs on the\n; graphics card (Direct3D 11), which is much faster, and the card-only effects below can\n; run. Off, or if the card cannot, the CPU runs them. The picture is the same either way.");
+	setBoolean("Per-Pixel Lights", *sgOptions.Oracool.perPixelLights,
+	    "; On (needs the Graphics Card Renderer): every light lights the world pixel by pixel, in round\n; pools of its own colour, with soft shadows behind walls and pillars.");
+	setBoolean("Lit Sprites", *sgOptions.Oracool.litSprites,
+	    "; On (needs the Graphics Card Renderer): walls, objects and figures are shaded by each light\n; around them from its own direction, so torchlight wraps round pillars and monsters. Takes\n; over from Lit Surface Relief.");
+	setBoolean("Wide Soft Bloom", *sgOptions.Oracool.wideBloom,
+	    "; On (needs the Graphics Card Renderer): fire, lightning and lava spread a wide, soft glow\n; over the world, beyond the close bloom.");
+	setBoolean("Light Shafts", *sgOptions.Oracool.lightShafts,
+	    "; On (needs the Graphics Card Renderer): torches and bright spells cast faint shafts of light\n; through the air.");
+	setBoolean("Heat Distortion", *sgOptions.Oracool.heatDistortion,
+	    "; On (needs the Graphics Card Renderer): the air above lava, fire spells and torches truly\n; bends the picture.");
+	setBoolean("Filmic Colour Grade", *sgOptions.Oracool.filmicGrade,
+	    "; On (needs the Graphics Card Renderer): a film-like grade for each area - deeper blacks,\n; richer highlights, a little more colour.");
 	setBoolean("Smooth Animation", *sgOptions.Oracool.animationBlending,
 	    "; On: heroes and monsters blend each animation frame into the next, so walking and\n; fighting look smoother. Off: Diablo's original frame steps.");
 	setBoolean("Item Tooltip Card", *sgOptions.Oracool.itemTooltipCard,
@@ -1674,8 +1686,14 @@ OracoolOptions::OracoolOptions()
     , lootBeams("Loot Beams", OptionEntryFlags::None, N_("Loot Beams"), N_("Magic, rare, unique, set, primal and runeword items on the ground stand in a beam of light in their colour, with a glow on the floor under them."), true)
     , surfaceRelief("Lit Surface Relief", OptionEntryFlags::None, N_("Lit Surface Relief"), N_("Walls, objects and figures catch the light from the side it comes from: the side toward a torch or spell brightens, the far side falls into shade."), true)
     , zoomSharpen("Zoom Sharpening", OptionEntryFlags::None, N_("Zoom Sharpening"), N_("When zoomed in, the enlarged picture is sharpened (contrast-adaptive) so it stays crisp instead of soft."), true)
-    , gpuRenderer("Graphics Card Renderer", OptionEntryFlags::None, N_("Graphics Card Renderer"), N_("Bloom, the area mood, the vignette and the zoom filter and sharpening run on the graphics card (Direct3D 11), which is much faster. Off, or if the card cannot, the CPU runs them. The picture is the same either way."), true)
     , animationBlending("Smooth Animation", OptionEntryFlags::None, N_("Smooth Animation"), N_("Heroes and monsters blend each animation frame into the next, so walking and fighting look smoother. Off: Diablo's original frame steps."), true)
+    , gpuRenderer("Graphics Card Renderer", OptionEntryFlags::None, N_("Graphics Card Renderer"), N_("Everything drawn after the figures (relief, coloured light, day and night, beams, particles, haze, bloom, mood, vignette, the zoom filter and sharpening) runs on the graphics card (Direct3D 11), which is much faster, and the card-only effects can run. Off, or if the card cannot, the CPU runs them. The picture is the same either way."), true)
+    , perPixelLights("Per-Pixel Lights", OptionEntryFlags::None, N_("Per-Pixel Lights"), N_("Needs the Graphics Card Renderer. Every light lights the world pixel by pixel, in round pools of its own colour, with soft shadows behind walls and pillars."), true)
+    , litSprites("Lit Sprites", OptionEntryFlags::None, N_("Lit Sprites"), N_("Needs the Graphics Card Renderer. Walls, objects and figures are shaded by each light around them from its own direction, so torchlight wraps round pillars and monsters. Takes over from Lit Surface Relief."), true)
+    , wideBloom("Wide Soft Bloom", OptionEntryFlags::None, N_("Wide Soft Bloom"), N_("Needs the Graphics Card Renderer. Fire, lightning and lava spread a wide, soft glow over the world, beyond the close bloom."), true)
+    , lightShafts("Light Shafts", OptionEntryFlags::None, N_("Light Shafts"), N_("Needs the Graphics Card Renderer. Torches and bright spells cast faint shafts of light through the air."), true)
+    , heatDistortion("Heat Distortion", OptionEntryFlags::None, N_("Heat Distortion"), N_("Needs the Graphics Card Renderer. The air above lava, fire spells and torches truly bends the picture."), true)
+    , filmicGrade("Filmic Colour Grade", OptionEntryFlags::None, N_("Filmic Colour Grade"), N_("Needs the Graphics Card Renderer. A film-like grade for each area: deeper blacks, richer highlights, a little more colour."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("A timestamped log of noteworthy session events, opened from the Menu popup or with F11."), true)
@@ -1783,6 +1801,12 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&zoomSharpen,
 		&animationBlending,
 		&gpuRenderer,
+		&perPixelLights,
+		&litSprites,
+		&wideBloom,
+		&lightShafts,
+		&heatDistortion,
+		&filmicGrade,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,

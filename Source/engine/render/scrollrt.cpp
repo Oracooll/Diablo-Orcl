@@ -6,6 +6,7 @@
 #include "engine/render/scrollrt.h"
 
 #include <algorithm>
+#include <climits>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -42,7 +43,9 @@
 #include "oracool/companion.h"
 #include "oracool/frame_blend.h" // Smooth animation: a frame cross-faded into the next
 #include "oracool/frame_timing.h"
-#include "oracool/gpu_post.h"     // Stage 1 of the GPU plan: bloom, mood, vignette, zoom on the graphics card
+#include "oracool/gpu_post.h"     // the GPU plan: everything after the sprites on the graphics card
+#include "oracool/post_fx.h"
+#include "oracool/splats.h"
 #include "oracool/ground_fx.h"   // Floor marks and loot beams
 #include "oracool/particles.h" // Particles: embers, sparks, dust, ash
 #include "oracool/post_fx.h" // mood, vignette, bloom, heat haze, the filtered zoom
@@ -1251,6 +1254,59 @@ void DrawMonsterWallOutlines(const Surface &out)
 	HiddenMonsterOutlineQueue.clear();
 }
 
+/** The deferred outlines' own layer for the graphics card (oracool/gpu_post.h), reused; X byte 0xFF where none is. */
+std::optional<OwnedSurface> WallOutlineSurface;
+
+/**
+ * @brief Draws the deferred monster outlines onto a layer of their own instead of onto @p out, and returns the layer's
+ * part the shape of @p visible (a subregion of @p out); @p box is the part of it that may hold any. Only that part is
+ * cleared: the layer is never read elsewhere.
+ */
+Surface WallOutlineLayer(const Surface &out, const Surface &visible, Rectangle &box)
+{
+	if (!WallOutlineSurface || WallOutlineSurface->w() != out.w() || WallOutlineSurface->h() != out.h()) {
+		WallOutlineSurface.reset();
+		WallOutlineSurface.emplace(OwnedSurface::Rgb(out.w(), out.h()));
+	}
+	int x0 = INT_MAX, y0 = INT_MAX, x1 = INT_MIN, y1 = INT_MIN;
+	for (const HiddenMonsterOutline &entry : HiddenMonsterOutlineQueue) {
+		x0 = std::min(x0, entry.position.x - 1);
+		x1 = std::max(x1, entry.position.x + static_cast<int>(entry.sprite.width()) + 1);
+		y0 = std::min(y0, entry.position.y - static_cast<int>(entry.sprite.height()));
+		y1 = std::max(y1, entry.position.y + 2);
+	}
+	const Surface layer = *WallOutlineSurface;
+	box = {};
+	if (x0 < x1 && y0 < y1) {
+		x0 = std::max(x0, 0), y0 = std::max(y0, 0), x1 = std::min(x1, layer.w()), y1 = std::min(y1, layer.h());
+		for (int y = y0; y < y1; y++)
+			std::fill_n(layer.at<uint32_t>(x0, y), std::max(x1 - x0, 0), 0xFF000000U);
+		for (const HiddenMonsterOutline &entry : HiddenMonsterOutlineQueue)
+			ClxDrawOutlineSkipColorZero(layer, 233, entry.position, entry.sprite);
+		// Into the visible region's coordinates.
+		const int dx = visible.region.x - out.region.x;
+		const int bx0 = std::max(x0 - dx, 0), bx1 = std::min(x1 - dx, visible.w());
+		const int by1 = std::min(y1, visible.h());
+		if (bx0 < bx1 && y0 < by1)
+			box = Rectangle { Point { bx0, y0 }, Size { bx1 - bx0, by1 - y0 } };
+	}
+	HiddenMonsterOutlineQueue.clear();
+	return layer.subregion(visible.region.x - out.region.x, 0, visible.w(), std::min(visible.h(), layer.h()));
+}
+
+/** @brief The CPU lays the outline layer onto @p visible (the graphics card's fallback, one frame). */
+void LayWallOutlines(const Surface &visible, const Surface &layer, const Rectangle &box)
+{
+	for (int y = box.position.y; y < box.position.y + box.size.height; y++) {
+		const uint32_t *from = layer.at<uint32_t>(box.position.x, y);
+		uint32_t *to = visible.at<uint32_t>(box.position.x, y);
+		for (int x = 0; x < box.size.width; x++) {
+			if ((from[x] & 0xFF000000U) == 0)
+				to[x] = from[x];
+		}
+	}
+}
+
 /**
  * @brief Check if and how a monster should be rendered
  * @param out Output buffer
@@ -1905,75 +1961,134 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	oracool::DrawArrowImpactRings(out, position, Point {} + offset, rows, columns); // Rain of Arrows, under each landed arrow
 	oracool::DrawFendRing(out, position, Point {} + offset, rows, columns);         // Fend, under the Rogue while she swings
 	oracool::EndFramePass(oracool::FramePass::FloorThings);
-	// Lit surface relief (oracool/colour_light.h, user 2026-10-11): what DrawTileContent draws over the floor catches the
-	// light from the side it comes from - kept here, applied after it, before the colour.
+	// The GPU renderer plan (oracool/gpu_post.h, user 2026-10-11): everything after the sprites in one trip to the
+	// graphics card - Stage 2's relief, coloured light or day and night, beams and particles (as splats) and haze, Stage
+	// 1's bloom, mood and vignette, the outlines, the zoom and its sharpening - and the picture back before the HUD. The
+	// CPU passes run instead when the card is off or cannot, and whenever there is nothing for it to do.
+	const bool zoomed = zoomFactor > 1.0f;
+	oracool::GpuWorldPostSettings gpu;
+	gpu.bloom = *sgOptions.Oracool.bloom;
+	gpu.mood = *sgOptions.Oracool.areaMood && leveltype != DTYPE_TOWN;
+	gpu.moodType = leveltype;
+	gpu.vignette = *sgOptions.Oracool.vignette;
+	gpu.zoom = !zoomed ? oracool::GpuZoom::None : (*sgOptions.Oracool.zoomFilter ? oracool::GpuZoom::Filtered : oracool::GpuZoom::Nearest);
+	gpu.sharpen = zoomed && *sgOptions.Oracool.zoomFilter && *sgOptions.Oracool.zoomSharpen;
+	// Stage 3 (user, 2026-10-11): the effects only the card runs. The per-pixel lights work in the dungeon, and in town
+	// after dark, when its lamps count.
+	gpu.perPixelLights = *sgOptions.Oracool.perPixelLights && (leveltype != DTYPE_TOWN || oracool::TownIsDark());
+	gpu.litSprites = *sgOptions.Oracool.litSprites;
+	gpu.wideBloom = *sgOptions.Oracool.wideBloom;
+	gpu.lightShafts = *sgOptions.Oracool.lightShafts;
+	gpu.heatDistortion = *sgOptions.Oracool.heatDistortion && leveltype != DTYPE_TOWN;
+	gpu.filmicGrade = *sgOptions.Oracool.filmicGrade;
+	const bool anyStage3 = gpu.perPixelLights || gpu.litSprites || gpu.wideBloom || gpu.lightShafts || gpu.heatDistortion || gpu.filmicGrade;
+	const bool reliefNow = oracool::SurfaceReliefActive(visible);
+	const bool gpuWorth = anyStage3 || gpu.bloom || gpu.mood || gpu.vignette || gpu.zoom == oracool::GpuZoom::Filtered || reliefNow
+	    || oracool::ColouredLightActive(visible) || (leveltype == DTYPE_TOWN && *sgOptions.Oracool.dayNightCycle)
+	    || (leveltype != DTYPE_TOWN && *sgOptions.Oracool.heatHaze);
+	const bool gpuFrame = !visible.isIndexed() && gpuWorth && oracool::GpuWorldPostAvailable();
+
+	// Lit surface relief (oracool/colour_light.h, user 2026-10-11): the world before the sprites is kept - on the card, or
+	// for the CPU's pass after them.
 	oracool::BeginFramePass(oracool::FramePass::Relief);
-	oracool::BeginSurfaceRelief(visible);
+	// Lit Sprites (Stage 3) takes over from the relief and needs the same keep - in town too, where the relief is off.
+	if (gpuFrame && (reliefNow || gpu.litSprites))
+		oracool::GpuKeepWorld(visible);
+	else if (!gpuFrame)
+		oracool::BeginSurfaceRelief(visible);
 	oracool::EndFramePass(oracool::FramePass::Relief);
 	{ oracool::ScopedFramePass timed(oracool::FramePass::Sprites); DrawTileContent(out, position, Point {} + offset, rows, columns); }
-	oracool::BeginFramePass(oracool::FramePass::Relief);
-	oracool::ApplySurfaceRelief(visible, position, visibleStart);
-	oracool::EndFramePass(oracool::FramePass::Relief);
-	// Coloured lighting (oracool/colour_light.h): the whole world, every light's hue over it - before the outlines,
-	// which are the cursor's and stay their own colour.
 	FloorSmoothedThisFrame = false;
-	{ oracool::ScopedFramePass timed(oracool::FramePass::Colour); oracool::ApplyLightColour(visible, position, visibleStart); }
-	// Day and night in Tristram (user, 2026-10-11): the town's own light over the finished town; then the loot beams, which
-	// are light and stay bright at night, and bloom with the rest.
-	{ oracool::ScopedFramePass timed(oracool::FramePass::DayNight); oracool::ApplyTownDayNight(visible, position, visibleStart); }
-	{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); }
-	// The other visual techniques (user, 2026-10-10: "i like all 9"), each behind its own option: particles over the lit
-	// world, the haze before the bloom so shimmered lava still glows, the area mood and vignette last so they cover the
-	// glow too - all before the outlines (the cursor's own colour) and the zoom.
-	{ oracool::ScopedFramePass timed(oracool::FramePass::Particles); oracool::UpdateAndDrawParticles(visible, position, visibleStart); }
-	{ oracool::ScopedFramePass timed(oracool::FramePass::Haze); oracool::ApplyHeatHazeAndWater(visible, position, visibleStart); }
-	// The GPU renderer plan, Stage 1 (oracool/gpu_post.h, user 2026-10-11): the bloom, the mood and vignette, the zoom
-	// and its sharpening on the graphics card - the monster outlines go on first, into the world it receives. If the card
-	// cannot, the CPU passes below run as before.
-	const bool zoomed = zoomFactor > 1.0f;
-	bool outlinesDrawn = false;
+
 	bool doneOnGpu = false;
-	if (!visible.isIndexed() && oracool::GpuWorldPostAvailable()) {
-		oracool::GpuWorldPostSettings gpu;
-		gpu.bloom = *sgOptions.Oracool.bloom;
-		gpu.mood = *sgOptions.Oracool.areaMood && leveltype != DTYPE_TOWN;
-		gpu.moodType = leveltype;
-		gpu.vignette = *sgOptions.Oracool.vignette;
-		gpu.zoom = !zoomed ? oracool::GpuZoom::None : (*sgOptions.Oracool.zoomFilter ? oracool::GpuZoom::Filtered : oracool::GpuZoom::Nearest);
-		gpu.sharpen = zoomed && *sgOptions.Oracool.zoomFilter && *sgOptions.Oracool.zoomSharpen;
-		{ oracool::ScopedFramePass timed(oracool::FramePass::Outlines); DrawMonsterWallOutlines(out); }
-		outlinesDrawn = true;
-		oracool::ScopedFramePass timed(oracool::FramePass::Gpu);
-		doneOnGpu = oracool::GpuWorldPost(visible, zoomed ? ZoomDestination(fullOut) : visible, gpu);
-	}
-	if (!doneOnGpu) {
+	if (gpuFrame) {
+		oracool::ReliefPlan relief;
+		bool hasRelief = reliefNow && oracool::PlanSurfaceRelief(visible, position, visibleStart, relief);
+		if (!hasRelief && gpu.litSprites)
+			hasRelief = oracool::PlanLitSprites(visible, position, visibleStart, relief); // its mask, the relief's own
+		oracool::AdvanceTownDayNightClock();
+		oracool::TintPlan tint;
+		bool hasTint = oracool::PlanLightColour(visible, position, visibleStart, tint);
+		if (!hasTint)
+			hasTint = oracool::PlanTownDayNight(visible, position, visibleStart, tint);
+		static std::vector<oracool::Splat> splats;
+		splats.clear();
+		oracool::BeginSplatCollection(&splats);
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); }
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Particles); oracool::UpdateAndDrawParticles(visible, position, visibleStart); }
+		oracool::EndSplatCollection();
+		oracool::HazePlan haze;
+		const bool hasHaze = oracool::PlanHeatHazeAndWater(visible, position, visibleStart, haze);
+		// The deferred monster outlines on their own layer, laid on after the mood as the CPU lays them.
+		Rectangle outlineBox;
+		const Surface outlineLayer = WallOutlineLayer(out, visible, outlineBox);
+
+		oracool::GpuStage2 stage2;
+		stage2.relief = hasRelief ? &relief : nullptr;
+		stage2.tint = hasTint ? &tint : nullptr;
+		stage2.splats = &splats;
+		stage2.haze = hasHaze ? &haze : nullptr;
+		stage2.outlines = &outlineLayer;
+		stage2.outlineBox = outlineBox;
+		// Stage 3's inputs.
+		static std::array<oracool::GpuLight, 32> lights;
+		static std::array<oracool::GpuHeat, 16> heat;
+		oracool::GpuStage3 stage3;
+		if (anyStage3) {
+			const Point centre = MyPlayer != nullptr ? Point(MyPlayer->position.tile) : position;
+			stage3.firstTile = position;
+			stage3.firstTileBuffer = visibleStart;
+			stage3.lights = lights.data();
+			stage3.lightCount = oracool::GpuLightsNear(centre, lights.data(), lights.size());
+			stage3.heat = heat.data();
+			stage3.heatCount = gpu.heatDistortion ? oracool::GpuHeatNear(centre, heat.data(), heat.size()) : 0;
+			stage3.blocks = gpu.perPixelLights ? oracool::LightBlockingMap() : nullptr;
+			stage3.liquid = gpu.heatDistortion ? oracool::LiquidMapForGpu() : nullptr;
+			stage3.seconds = static_cast<float>(SDL_GetTicks() % 3600000U) / 1000.0F;
+			stage2.stage3 = &stage3;
+		}
+		{
+			oracool::ScopedFramePass timed(oracool::FramePass::Gpu);
+			doneOnGpu = oracool::GpuWorldPost(visible, zoomed ? ZoomDestination(fullOut) : visible, gpu, &stage2);
+		}
+		if (!doneOnGpu) {
+			// The card failed mid-frame: the CPU finishes it (the relief, kept only on the card, and this frame's splats
+			// are lost - one frame).
+			if (hasTint)
+				oracool::ApplyTintPlan(visible, tint);
+			if (hasHaze)
+				oracool::ApplyHazePlan(visible, haze);
+			oracool::ApplyBloom(visible);
+			oracool::ApplyAreaMoodAndVignette(visible);
+			LayWallOutlines(visible, outlineLayer, outlineBox);
+			if (zoomed)
+				ZoomScale(fullOut.subregionY(0, gnViewportHeight), zoomFactor);
+		}
+	} else {
+		oracool::BeginFramePass(oracool::FramePass::Relief);
+		oracool::ApplySurfaceRelief(visible, position, visibleStart);
+		oracool::EndFramePass(oracool::FramePass::Relief);
+		// Coloured lighting (oracool/colour_light.h): the whole world, every light's hue over it.
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Colour); oracool::ApplyLightColour(visible, position, visibleStart); }
+		// Day and night in Tristram (user, 2026-10-11): the town's own light over the finished town; then the loot beams,
+		// which are light and stay bright at night, and bloom with the rest.
+		{ oracool::ScopedFramePass timed(oracool::FramePass::DayNight); oracool::ApplyTownDayNight(visible, position, visibleStart); }
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); }
+		// The other visual techniques (user, 2026-10-10: "i like all 9"), each behind its own option: particles over the
+		// lit world, the haze before the bloom so shimmered lava still glows, the area mood and vignette last so they
+		// cover the glow too - all before the outlines (the cursor's own colour) and the zoom.
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Particles); oracool::UpdateAndDrawParticles(visible, position, visibleStart); }
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Haze); oracool::ApplyHeatHazeAndWater(visible, position, visibleStart); }
 		{ oracool::ScopedFramePass timed(oracool::FramePass::Bloom); oracool::ApplyBloom(visible); }
 		{ oracool::ScopedFramePass timed(oracool::FramePass::Mood); oracool::ApplyAreaMoodAndVignette(visible); }
-	}
-	// The deferred monster outlines, drained HERE - after the whole scene is composited, so they
-	// land on top of any wall that would otherwise hide the body, but still BEFORE ZoomScale, so
-	// they are scaled along with everything else.
-	//
-	// This used to run from DrawView, after DrawGame returned, and so after the scale (user,
-	// 2026-08-27: "the ghost double outline of mobs [...] triggers after a few minutes of gameplay
-	// for unknown reason"). The reason was the mouse wheel: a plain notch is one 0.1x zoom step
-	// (diablo.cpp's wheel handler), so an accidental scroll put the view at 1.1x and left it there.
-	// From that moment the first-pass outline was scaled up with the scene while the second pass
-	// painted the same sprite again, unscaled and at its pre-zoom position - a smaller outline
-	// sitting inside and offset from the real one. Exactly a ghost double outline, and permanent
-	// until the player zoomed back to 1.0x, which is why it looked like it appeared from nowhere.
-	//
-	// Position alone could not have been corrected the way qol/itemlabels.cpp corrects its own
-	// deferred queue (`position *= dungeonZoomLevel`): a label is text drawn at a point, but this
-	// is a SPRITE, and ClxDrawOutlineSkipColorZero has no scale. Drawing it inside the scaled
-	// region is the only way it can come out the right size.
-	if (!outlinesDrawn) {
-		oracool::ScopedFramePass timed(oracool::FramePass::Outlines);
-		DrawMonsterWallOutlines(out);
-	}
-
-	if (zoomFactor > 1.0f && !doneOnGpu) {
-		{ oracool::ScopedFramePass timed(oracool::FramePass::Zoom); ZoomScale(fullOut.subregionY(0, gnViewportHeight), zoomFactor); }
+		// The deferred monster outlines, drained HERE - after the whole scene is composited, so they land on top of any
+		// wall that would otherwise hide the body, but still BEFORE ZoomScale, so they are scaled with everything else
+		// (2026-08-27: drawn after the scale they left a ghost double outline at any zoom past 1.0x).
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Outlines); DrawMonsterWallOutlines(out); }
+		if (zoomed) {
+			oracool::ScopedFramePass timed(oracool::FramePass::Zoom);
+			ZoomScale(fullOut.subregionY(0, gnViewportHeight), zoomFactor);
+		}
 	}
 	oracool::NoteWorldFrameDrawn();
 

@@ -49,6 +49,30 @@ void ZoomAxis(int src, int dst, std::vector<int> &i0, std::vector<int> &i1, std:
 const uint16_t *CasAmplitudeTable();
 constexpr int CasPeakShared = 41;
 
+/** @brief The level's liquid tiles (FieldW x FieldH, x major: 0 none, 1 lava, 2 water), or null when it has none. */
+const uint8_t *LiquidMapForGpu();
+
+/** @brief The haze's sine, 1024 steps, -256..256. */
+const int *HazeSineTable();
+
+/** @brief Heat haze and water light, worked out for a frame (PlanHeatHazeAndWater); the per-pixel work follows it. */
+struct HazePlan {
+	const uint8_t *liquid = nullptr; // FieldW x FieldH, x major: 0 none, 1 lava, 2 water
+	int64_t u0 = 0, v0 = 0;          // the GroundMap's origin (its steps are fixed)
+	int w = 0, h = 0;
+	bool water = false;
+	int waterL = 0, waterR = -1, waterT = 0, waterB = -1;
+	uint32_t t1 = 0, t2 = 0, t3 = 0;
+	bool lava = false;
+	int lavaL = 0, lavaR = -1, lavaT = 0, lavaB = -1;
+	int nbx = 0, nby = 0;
+	const uint8_t *strength = nullptr; // nbx x nby, row major
+	uint32_t p1 = 0, p2 = 0;
+	int segL = 0, segR = -1;
+};
+bool PlanHeatHazeAndWater(const Surface &out, Point firstTile, Point firstTileBuffer, HazePlan &plan);
+void ApplyHazePlan(const Surface &out, const HazePlan &plan);
+
 /** @brief Area mood and vignette, one pass over the world surface @p out. Pure black pixels are left black. */
 void ApplyAreaMoodAndVignette(const Surface &out);
 

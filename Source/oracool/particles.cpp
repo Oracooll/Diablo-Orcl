@@ -4,6 +4,7 @@
  * Particles - see particles.h.
  */
 #include "oracool/particles.h"
+#include "oracool/splats.h"
 
 #include <array>
 #include <cmath>
@@ -337,6 +338,7 @@ void Draw(const Surface &out, Point firstTile, Point firstTileBuffer)
 		const uint32_t cg = (p.rgb >> 8) & 0xFFu;
 		const uint32_t cb = p.rgb & 0xFFu;
 		const bool additive = p.kind != Kind::Ash; // ash is dark: it covers, light adds
+		std::vector<Splat> *splats = SplatCollection(); // the GPU plan's Stage 2: the card blends them (oracool/splats.h)
 		for (int k = 0; k < 9; k++) {
 			const int weight = kernel[k];
 			if (weight == 0)
@@ -345,9 +347,19 @@ void Draw(const Surface &out, Point firstTile, Point firstTileBuffer)
 			const int py = sy + (k / 3) - 1;
 			if (px < 0 || py < 0 || px >= w || py >= h)
 				continue;
+			const uint32_t a = static_cast<uint32_t>((intensity * weight) >> 8); // 0..256
+			if (splats != nullptr) {
+				// Relative to the surface's own origin (out.at(0, 0)), as the pixel loop's px and py are.
+				if (additive)
+					splats->push_back({ static_cast<float>(px), static_cast<float>(py), static_cast<float>((cr * a) >> 8) / 255.0F,
+					    static_cast<float>((cg * a) >> 8) / 255.0F, static_cast<float>((cb * a) >> 8) / 255.0F, 0.0F });
+				else
+					splats->push_back({ static_cast<float>(px), static_cast<float>(py), static_cast<float>(cr * a) / (256.0F * 255.0F),
+					    static_cast<float>(cg * a) / (256.0F * 255.0F), static_cast<float>(cb * a) / (256.0F * 255.0F), static_cast<float>(a) / 256.0F });
+				continue;
+			}
 			uint32_t *dst = base + py * pitch + px;
 			const uint32_t d = *dst;
-			const uint32_t a = static_cast<uint32_t>((intensity * weight) >> 8); // 0..256
 			uint32_t r, g, b;
 			if (additive) {
 				r = ((d >> 16) & 0xFFu) + ((cr * a) >> 8);

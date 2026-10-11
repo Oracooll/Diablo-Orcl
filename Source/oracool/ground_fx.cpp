@@ -25,6 +25,7 @@
 #include "oracool/missile_tint.h"
 #include "oracool/particles.h"
 #include "oracool/runewords.h"
+#include "oracool/splats.h"
 
 // Every mark and beam is a loop over its pixels, from the Debug build: optimised even there (see colour_light.cpp).
 #ifdef _MSC_VER
@@ -356,6 +357,7 @@ void DrawLootBeam(const Surface &out, const Projection &p, const Item &item, con
 		const float t = 1.0F - static_cast<float>(dx < 0 ? -dx : dx) / static_cast<float>(HalfWidth + 1);
 		across[dx + HalfWidth] = t * t;
 	}
+	std::vector<Splat> *splats = SplatCollection();
 	for (int py = top; py <= bottom; py++) {
 		uint32_t *row = out.at<uint32_t>(0, py);
 		const float t = (base - static_cast<float>(py)) / height; // 0 at the floor, 1 at the top
@@ -372,12 +374,38 @@ void DrawLootBeam(const Surface &out, const Projection &p, const Item &item, con
 			const float f = v * across[dx + HalfWidth] * 0.6F;
 			// The core runs toward white.
 			const float white = (dx >= -1 && dx <= 1) ? v * 70.0F : 0.0F;
-			AddLight(row[px], static_cast<int>(cr * f + white), static_cast<int>(cg * f + white), static_cast<int>(cb * f + white));
+			const int ar = static_cast<int>(cr * f + white), ag = static_cast<int>(cg * f + white), ab = static_cast<int>(cb * f + white);
+			if (splats != nullptr) {
+				// The card adds it, saturating as AddLight does (oracool/splats.h).
+				splats->push_back({ static_cast<float>(px), static_cast<float>(py), static_cast<float>(std::min(ar, 255)) / 255.0F,
+				    static_cast<float>(std::min(ag, 255)) / 255.0F, static_cast<float>(std::min(ab, 255)) / 255.0F, 0.0F });
+				continue;
+			}
+			AddLight(row[px], ar, ag, ab);
 		}
 	}
 }
 
 } // namespace
+
+namespace {
+std::vector<Splat> *Splats = nullptr;
+} // namespace
+
+void BeginSplatCollection(std::vector<Splat> *into)
+{
+	Splats = into;
+}
+
+void EndSplatCollection()
+{
+	Splats = nullptr;
+}
+
+std::vector<Splat> *SplatCollection()
+{
+	return Splats;
+}
 
 void AddFloorMark(float x, float y, FloorMarkKind kind, float radius)
 {

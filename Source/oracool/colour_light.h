@@ -19,6 +19,7 @@
  */
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 #include "engine/point.hpp"
@@ -90,6 +91,54 @@ void SetTownHour(float hour);
 LightTint TownAmbientAt(float hour);
 /** @brief Test hook: the tint the last town pass gave @p tile. */
 LightTint TownTintAt(Point tile);
+
+// ----- Shared with the graphics card's passes (oracool/gpu_post.h, the GPU renderer plan's Stage 2): each pass split
+// into its plan - everything worked out once a frame - and the per-pixel work, which the CPU or the card then does with
+// the same numbers. ----------------------------------------------------------------------------------------------------
+
+/** @brief A tint over a screen rectangle: the per-tile field (FieldW x FieldH, x major) and the floor map's origin. */
+struct TintPlan {
+	const LightTint *tints = nullptr;
+	int left = 0, right = -1, top = 0, bottom = -1; // inclusive; empty when left > right
+	int64_t u0 = 0, v0 = 0;                          // the GroundMap's origin, 16.16 tiles (steps are fixed)
+};
+/** @brief What ApplyLightColour would do this frame (the colour field and the flicker); false for nothing. */
+bool PlanLightColour(const Surface &out, Point firstTile, Point firstTileBuffer, TintPlan &plan);
+/** @brief What ApplyTownDayNight would do this frame (its clock not moved); false for nothing. */
+bool PlanTownDayNight(const Surface &out, Point firstTile, Point firstTileBuffer, TintPlan &plan);
+/** @brief Moves Tristram's clock on, as ApplyTownDayNight does each frame. */
+void AdvanceTownDayNightClock();
+/** @brief The CPU's per-pixel work for a plan. */
+void ApplyTintPlan(const Surface &out, const TintPlan &plan);
+
+/** @brief The relief's numbers: its direction field (FieldW x FieldH, x major, 8.8), the outline colours it leaves be. */
+struct ReliefPlan {
+	const int16_t *dirX = nullptr;
+	const int16_t *dirY = nullptr;
+	uint32_t outline[6] {};
+	int64_t u0 = 0, v0 = 0;
+	int slopeShift = 9;
+	int maxDelta = 40;
+	bool reliefPass = true; // false: only the mask (the outline colours, the floor map) for Stage 3's Lit Sprites
+};
+// ----- Stage 3's inputs (oracool/gpu_post.h) ------------------------------------------------------------------------
+struct GpuLight;
+struct GpuHeat;
+/** @brief Up to @p max lights nearest @p centre: the dungeon's light sources, or Tristram's after dark. */
+size_t GpuLightsNear(Point centre, GpuLight *out, size_t max);
+/** @brief Up to @p max sources of heat nearest @p centre: fire spells, and the level's flames. */
+size_t GpuHeatNear(Point centre, GpuHeat *out, size_t max);
+/** @brief What stops light, a byte a tile (FieldW x FieldH, x major), kept with the level. */
+const uint8_t *LightBlockingMap();
+/** @brief True while Tristram is dim enough (dusk to dawn) for its lamps to count. */
+bool TownIsDark();
+
+/** @brief The relief's plan when it applies to @p out this frame. */
+bool PlanSurfaceRelief(const Surface &out, Point firstTile, Point firstTileBuffer, ReliefPlan &plan);
+/** @brief Lit Sprites' plan (Stage 3, the graphics card only): the relief's mask without its pass - in town as well. */
+bool PlanLitSprites(const Surface &out, Point firstTile, Point firstTileBuffer, ReliefPlan &plan);
+/** @brief The CPU's relief over @p out, against @p kept - the world as it was before DrawTileContent, @p out's size, packed. */
+void ApplyReliefPlan(const Surface &out, const uint32_t *kept, const ReliefPlan &plan);
 /** @brief Test hook: the colour multiplier the last rebuild gave @p tile. */
 LightTint LightTintAt(Point tile);
 

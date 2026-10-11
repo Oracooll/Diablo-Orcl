@@ -602,13 +602,14 @@ void ApplyBloom(const Surface &out)
 	}
 }
 
-void ApplyHeatHazeAndWater(const Surface &out, Point firstTile, Point firstTileBuffer)
+bool PlanHeatHazeAndWater(const Surface &out, Point firstTile, Point firstTileBuffer, HazePlan &plan)
 {
+	plan = HazePlan {};
 	if (!*sgOptions.Oracool.heatHaze || out.isIndexed() || leveltype == DTYPE_TOWN || out.w() <= 0 || out.h() <= 0)
-		return;
+		return false;
 	RefreshLiquidMap();
 	if (!AnyLiquid)
-		return;
+		return false;
 	const int w = out.w();
 	const int h = out.h();
 	const GroundMap m = MakeGroundMap(firstTile, firstTileBuffer);
@@ -655,12 +656,67 @@ void ApplyHeatHazeAndWater(const Surface &out, Point firstTile, Point firstTileB
 	waterL = waterL < 0 ? 0 : waterL, waterR = waterR > w - 1 ? w - 1 : waterR;
 	waterT = waterT < 0 ? 0 : waterT, waterB = waterB > h - 1 ? h - 1 : waterB;
 
-	const int *sine = Sine();
 	const uint32_t now = SDL_GetTicks();
+	plan.liquid = liquid;
+	plan.u0 = m.u0;
+	plan.v0 = m.v0;
+	plan.w = w;
+	plan.h = h;
+	plan.water = waterL <= waterR && waterT <= waterB;
+	plan.waterL = waterL, plan.waterR = waterR, plan.waterT = waterT, plan.waterB = waterB;
+	plan.t1 = (now * 3 / 8) & 1023, plan.t2 = (now * 2 / 7) & 1023, plan.t3 = (now / 5) & 1023;
 
+	if (lavaL > lavaR || lavaT > lavaB)
+		return plan.water;
+
+	// The haze's strength on a grid of 8 px blocks: full on the lava, fading over HazeRise pixels above it.
+	const int nbx = (lavaR - lavaL) / HazeBlock + 2;
+	const int nby = (lavaB - lavaT) / HazeBlock + 2;
+	HazeStrength.assign(static_cast<size_t>(nbx) * nby, 0);
+	uint8_t *strength = HazeStrength.data();
+	bool anyHaze = false;
+	for (int by = 0; by < nby; by++) {
+		const int py = lavaT + by * HazeBlock + HazeBlock / 2;
+		for (int bx = 0; bx < nbx; bx++) {
+			const int px = lavaL + bx * HazeBlock + HazeBlock / 2;
+			for (int k = 0; k <= 6; k++) {
+				const int sy = py + k * 7;
+				const int64_t iu = (m.u0 + m.duX * px + m.duY * sy + 0x8000) >> 16;
+				const int64_t iv = (m.v0 + m.dvX * px + m.dvY * sy + 0x8000) >> 16;
+				if (iu < 0 || iu >= FieldW || iv < 0 || iv >= FieldH)
+					continue;
+				if (liquid[iu * FieldH + iv] == LiquidLava) {
+					strength[by * nbx + bx] = static_cast<uint8_t>(255 - k * 34);
+					anyHaze = true;
+					break;
+				}
+			}
+		}
+	}
+	if (!anyHaze)
+		return plan.water;
+
+	plan.lava = true;
+	plan.lavaL = lavaL, plan.lavaR = lavaR, plan.lavaT = lavaT, plan.lavaB = lavaB;
+	plan.nbx = nbx, plan.nby = nby;
+	plan.strength = strength;
+	plan.p1 = (now * 4 / 3) & 1023, plan.p2 = (now * 9 / 5) & 1023;
+	plan.segL = lavaL - 2 < 0 ? 0 : lavaL - 2;
+	plan.segR = lavaR + 2 > w - 1 ? w - 1 : lavaR + 2;
+	return true;
+}
+
+void ApplyHazePlan(const Surface &out, const HazePlan &plan)
+{
+	const int *sine = Sine();
+	const GroundMap m { plan.u0, plan.v0, 1024, -1024, 2048, 2048 };
+	const uint8_t *liquid = plan.liquid;
+	const int w = out.w();
+	(void)w;
 	// Water first (the haze above a shore then bends the lit water too): light moving over the floor in tile space.
-	if (waterL <= waterR && waterT <= waterB) {
-		const uint32_t t1 = (now * 3 / 8) & 1023, t2 = (now * 2 / 7) & 1023, t3 = (now / 5) & 1023;
+	if (plan.water) {
+		const int waterL = plan.waterL, waterR = plan.waterR, waterT = plan.waterT, waterB = plan.waterB;
+		const uint32_t t1 = plan.t1, t2 = plan.t2, t3 = plan.t3;
 		for (int py = waterT; py <= waterB; py++) {
 			uint32_t *row = out.at<uint32_t>(0, py);
 			int64_t u = m.u0 + m.duY * py + m.duX * waterL;
@@ -690,43 +746,17 @@ void ApplyHeatHazeAndWater(const Surface &out, Point firstTile, Point firstTileB
 		}
 	}
 
-	if (lavaL > lavaR || lavaT > lavaB)
+	if (!plan.lava)
 		return;
-
-	// The haze's strength on a grid of 8 px blocks: full on the lava, fading over HazeRise pixels above it.
-	const int nbx = (lavaR - lavaL) / HazeBlock + 2;
-	const int nby = (lavaB - lavaT) / HazeBlock + 2;
-	HazeStrength.assign(static_cast<size_t>(nbx) * nby, 0);
+	const int lavaL = plan.lavaL, lavaR = plan.lavaR, lavaT = plan.lavaT, lavaB = plan.lavaB;
+	const int nbx = plan.nbx, nby = plan.nby;
+	const uint8_t *strength = plan.strength;
+	const uint32_t p1 = plan.p1, p2 = plan.p2;
+	const int segL = plan.segL, segR = plan.segR;
 	HazeRowStrength.resize(static_cast<size_t>(nbx));
-	HazeRow.resize(static_cast<size_t>(w) + 8);
-	uint8_t *strength = HazeStrength.data();
+	HazeRow.resize(static_cast<size_t>(out.w()) + 8);
 	int *rowStrength = HazeRowStrength.data();
 	uint32_t *copy = HazeRow.data();
-	bool anyHaze = false;
-	for (int by = 0; by < nby; by++) {
-		const int py = lavaT + by * HazeBlock + HazeBlock / 2;
-		for (int bx = 0; bx < nbx; bx++) {
-			const int px = lavaL + bx * HazeBlock + HazeBlock / 2;
-			for (int k = 0; k <= 6; k++) {
-				const int sy = py + k * 7;
-				const int64_t iu = (m.u0 + m.duX * px + m.duY * sy + 0x8000) >> 16;
-				const int64_t iv = (m.v0 + m.dvX * px + m.dvY * sy + 0x8000) >> 16;
-				if (iu < 0 || iu >= FieldW || iv < 0 || iv >= FieldH)
-					continue;
-				if (liquid[iu * FieldH + iv] == LiquidLava) {
-					strength[by * nbx + bx] = static_cast<uint8_t>(255 - k * 34);
-					anyHaze = true;
-					break;
-				}
-			}
-		}
-	}
-	if (!anyHaze)
-		return;
-
-	const uint32_t p1 = (now * 4 / 3) & 1023, p2 = (now * 9 / 5) & 1023;
-	const int segL = lavaL - 2 < 0 ? 0 : lavaL - 2;
-	const int segR = lavaR + 2 > w - 1 ? w - 1 : lavaR + 2;
 	for (int py = lavaT; py <= lavaB; py++) {
 		const int t = py - lavaT - HazeBlock / 2;
 		const int by0 = t < 0 ? 0 : (t / HazeBlock > nby - 1 ? nby - 1 : t / HazeBlock);
@@ -764,6 +794,13 @@ void ApplyHeatHazeAndWater(const Surface &out, Point firstTile, Point firstTileB
 			row[px] = ORCL_MIX(c0, c1, f);
 		}
 	}
+}
+
+void ApplyHeatHazeAndWater(const Surface &out, Point firstTile, Point firstTileBuffer)
+{
+	HazePlan plan;
+	if (PlanHeatHazeAndWater(out, firstTile, firstTileBuffer, plan))
+		ApplyHazePlan(out, plan);
 }
 
 void ZoomScaleFiltered(uint8_t *base, int pitch, int srcWidth, int srcHeight, int dstWidth, int dstHeight)
@@ -918,6 +955,19 @@ void SharpenAdaptive(uint8_t *base, int pitch, int width, int height)
 			dst[x] = (static_cast<uint32_t>(ch[0]) << 16) | (static_cast<uint32_t>(ch[1]) << 8) | static_cast<uint32_t>(ch[2]);
 		}
 	}
+}
+
+const uint8_t *LiquidMapForGpu()
+{
+	if (leveltype == DTYPE_TOWN)
+		return nullptr;
+	RefreshLiquidMap();
+	return AnyLiquid ? LiquidMap.data() : nullptr;
+}
+
+const int *HazeSineTable()
+{
+	return Sine();
 }
 
 int BloomWeightFor(int luma)

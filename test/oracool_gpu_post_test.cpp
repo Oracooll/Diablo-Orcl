@@ -185,6 +185,7 @@ TEST(OracoolGpuPost, TheNearestZoomMatchesTheCpu)
 	PaintTestFrame(gpu.subregion(0, 0, 230, 150));
 	oracool::GpuWorldPostSettings settings;
 	settings.zoom = oracool::GpuZoom::Nearest;
+	settings.vignette = true; // a nearest zoom alone stays on the CPU (nothing the card does better)
 	ASSERT_TRUE(RunBoth(cpu, gpu, 230, 150, settings)) << oracool::GpuWorldPostStatus();
 	const int diff = FirstDifference(cpu, gpu);
 	EXPECT_EQ(diff, -1) << "first difference at x " << diff % 100000 << ", y " << diff / 100000;

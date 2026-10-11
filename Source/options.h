@@ -981,6 +981,14 @@ struct OracoolOptions : OptionCategoryBase {
 	 * sharpening run on the graphics card (oracool/gpu_post.h). Off, or when the card cannot, the CPU runs them.
 	 */
 	OptionEntryBoolean gpuRenderer;
+	// The GPU renderer plan, Stage 3 (user, 2026-10-11): effects only the graphics card can afford - each its own
+	// switch, and each needs the Graphics Card Renderer (oracool/gpu_post.h).
+	OptionEntryBoolean perPixelLights;
+	OptionEntryBoolean litSprites;
+	OptionEntryBoolean wideBloom;
+	OptionEntryBoolean lightShafts;
+	OptionEntryBoolean heatDistortion;
+	OptionEntryBoolean filmicGrade;
 	/**
 	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
 	 * the name large, type and tier under it, the armour or damage as one big number, the item's

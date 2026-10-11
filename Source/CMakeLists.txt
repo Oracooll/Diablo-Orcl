@@ -445,7 +445,7 @@ target_link_libraries(libdevilutionx PUBLIC ${DEVILUTIONX_PLATFORM_LINK_LIBRARIE
 
 # The GPU renderer plan, Stage 1 (oracool/gpu_post.cpp): the world's tail passes on a Direct3D 11 device.
 if(WIN32 AND NOT USE_SDL1)
-  target_link_libraries(libdevilutionx PUBLIC d3d11 d3dcompiler dxgi)
+  target_link_libraries(libdevilutionx PUBLIC d3d11 dxgi) # d3dcompiler_47.dll is looked up at run time
 endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
