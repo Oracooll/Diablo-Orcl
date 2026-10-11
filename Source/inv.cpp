@@ -32,6 +32,7 @@
 #include "minitext.h"
 #include "options.h"
 #include "oracool/passives.h"
+#include "oracool/charms.h" // CharmActiveState - a live charm wears the Set green
 #include "oracool/auto_save.h"
 #include "oracool/rage.h" // UsesRage - a Barbarian keeps his mana potions
 #include "oracool/elixirs.h" // RefuseElixir - asked before the elixir is used
@@ -1771,11 +1772,20 @@ namespace {
  * GREY now (user: "grey backing for plain items"), uniques stay GOLD (user: "no salmon for uniques. we
  * keep gold for uniques"), and salmon goes to the Primal ("we might use salmon for primals").
  */
+/** @brief A charm inside the active cap in our own backpack (dev note, 2026-10-11: "active charms to get set-item greenish
+ * backing"). Charms only, so the backpack walk runs for the few on screen. */
+bool IsLiveCharm(const Item &item)
+{
+	return IsOracoolCharmIdx(item.IDidx) && MyPlayer != nullptr && oracool::CharmActiveState(*MyPlayer, item) == 1;
+}
+
 uint32_t RimGlowHue(const Item &item, bool &quiet)
 {
 	quiet = false;
 	if (IsInspectingPlayer())
 		return 0xE8A040; // vanilla's rule, kept: every class is orange while looking at another player's gear
+	if (IsLiveCharm(item))
+		return 0x4CB050; // the Set green
 	if (item._iSocketCount > 0) {
 		if (oracool::GetActiveRuneword(item) != nullptr)
 			return 0x30C0B0; // runeword teal
@@ -2032,6 +2042,11 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 		// Vanilla: every class is orange while looking at another player's gear.
 		hue = PaletteRGB[PAL16_ORANGE + 2];
 		fallbackRamp = PAL16_ORANGE;
+	} else if (IsLiveCharm(item)) {
+		// The Set green, as the rim-and-glow look gives it (dev note, 2026-10-11).
+		hue = 0x64A064u;
+		fallbackRamp = PAL8_GREEN;
+		depth = FullTintDepthPercent;
 	} else if (item._iSocketCount > 0) {
 		// "Dark gray ... backing" for a socketed base, green for a formed runeword (user, 2026-08-20).
 		// Dark is the depth; white as a hue is the stone's own grey, so this is the well pushed down.

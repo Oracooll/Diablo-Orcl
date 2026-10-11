@@ -1481,22 +1481,35 @@ void Render(const UiScrollbar &uiSb)
 	constexpr uint8_t ShadowColor = 188;    // (57,49,29)
 	constexpr uint8_t BodyColor = 186;      // (91,81,52)
 	constexpr uint8_t HighlightColor = 182; // (152,139,93)
-	constexpr int BarWidth = 3;             // oracool::OrnateBorderWidth, the theme's bevel thickness
+	// A dark slot down the whole height of the widget, edged in the bevel's shadow gold (user, 2026-10-11:
+	// "apply dark backing along the entire height of the scroll bar" - a thumb alone on the hero list
+	// "looks almost as some missplaced graphics artefact"). The thumb sits inside it, 2px in from each side.
+	constexpr int SlotWidth = 9;
+	constexpr int ThumbWidth = 5;
 
 	const Surface out = Surface(DiabloUiSurface());
-	const int x = uiSb.m_rect.x + std::max(0, (uiSb.m_rect.w - BarWidth) / 2);
-
-	// Only as tall as the thumb can travel, so the bar has no dead ends the thumb never reaches.
-	const SDL_Rect track = BarRect(uiSb);
-	for (int i = 0; i < BarWidth; i++)
-		DrawVerticalLine(out, { x + i, track.y }, track.h, GrooveColor);
+	const int slotWidth = std::min<int>(SlotWidth, uiSb.m_rect.w);
+	const int slotX = uiSb.m_rect.x + std::max(0, (uiSb.m_rect.w - slotWidth) / 2);
+	const int slotY = uiSb.m_rect.y;
+	const int slotH = uiSb.m_rect.h;
+	DrawVerticalLine(out, { slotX, slotY }, slotH, ShadowColor);
+	DrawVerticalLine(out, { slotX + slotWidth - 1, slotY }, slotH, ShadowColor);
+	DrawHorizontalLine(out, { slotX, slotY }, slotWidth, ShadowColor);
+	DrawHorizontalLine(out, { slotX, slotY + slotH - 1 }, slotWidth, ShadowColor);
+	for (int i = 1; i < slotWidth - 1; i++)
+		DrawVerticalLine(out, { slotX + i, slotY + 1 }, std::max(0, slotH - 2), GrooveColor);
 
 	if (SelectedItemMax > 0) {
 		const SDL_Rect thumb = ThumbRect(uiSb, SelectedItem, SelectedItemMax + 1);
+		const int thumbWidth = std::min(ThumbWidth, std::max(1, slotWidth - 4));
+		const int x = slotX + (slotWidth - thumbWidth) / 2;
 		// Left to right, matching how the bevel lights a left edge dark and a right edge bright.
 		DrawVerticalLine(out, { x, thumb.y }, thumb.h, ShadowColor);
-		DrawVerticalLine(out, { x + 1, thumb.y }, thumb.h, BodyColor);
-		DrawVerticalLine(out, { x + 2, thumb.y }, thumb.h, HighlightColor);
+		for (int i = 1; i < thumbWidth - 1; i++)
+			DrawVerticalLine(out, { x + i, thumb.y }, thumb.h, BodyColor);
+		DrawVerticalLine(out, { x + thumbWidth - 1, thumb.y }, thumb.h, HighlightColor);
+		DrawHorizontalLine(out, { x, thumb.y }, thumbWidth, HighlightColor);
+		DrawHorizontalLine(out, { x, thumb.y + thumb.h - 1 }, thumbWidth, ShadowColor);
 	}
 }
 

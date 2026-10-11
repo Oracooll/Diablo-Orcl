@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 
 #include "DiabloUI/ui_item.h"
@@ -57,14 +58,18 @@ inline SDL_Rect BarRect(const UiScrollbar &bar)
 inline SDL_Rect ThumbRect(const UiScrollbar &bar, size_t selectedIndex, size_t numItems)
 {
 	constexpr int ThumbOffsetX = 3;
-	const int thumbMaxY = BarHeight(bar) - bar.m_thumb.height();
+	// Oracool: taller than the vanilla art's thumb (user, 2026-10-11: "make the scroll cursor taller") -
+	// a quarter of the track, never less than twice the art. The mouse handler reads the same rect.
+	const int barHeight = BarHeight(bar);
+	const int thumbHeight = std::min(barHeight, std::max(2 * static_cast<int>(bar.m_thumb.height()), barHeight / 4));
+	const int thumbMaxY = barHeight - thumbHeight;
 	const int thumbY = static_cast<int>(selectedIndex * thumbMaxY / (numItems - 1));
 
 	return MakeSdlRect(
 	    bar.m_rect.x + ThumbOffsetX,
 	    bar.m_rect.y + bar.m_arrow[0].height() + thumbY,
 	    bar.m_rect.w - ThumbOffsetX,
-	    bar.m_thumb.height());
+	    thumbHeight);
 }
 
 void LoadScrollBar();

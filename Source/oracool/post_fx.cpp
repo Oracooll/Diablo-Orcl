@@ -830,7 +830,8 @@ void ApplyHazePlan(const Surface &out, const HazePlan &plan)
 			const int wave = (sine[(static_cast<uint32_t>(py * 40 + px * 6) + p1) & 1023] * 170
 			                     + sine[(static_cast<uint32_t>(py * 67 - px * 3) + p2) & 1023] * 86)
 			    >> 8;
-			const int at = px * 256 + ((a * wave * 3) >> 10);
+			// >> 11 (dev note, 2026-10-11 22:16: "even more subtle. half of what it is now"): up to 0.375 px either way.
+			const int at = px * 256 + ((a * wave * 3) >> 11);
 			int i = at >> 8;
 			const uint32_t f = static_cast<uint32_t>(at & 0xFF);
 			i = i < segL ? segL : (i > segR ? segR : i);
