@@ -436,6 +436,7 @@ struct Flying {
 	MissileID type;
 	Point start;
 	Point tile;
+	Point next; // the tile it was flying into
 	float x, y; // last seen, world pixels
 	uint32_t rgb;
 	bool moving;
@@ -456,16 +457,18 @@ bool ByMissile(const Flying &a, const Flying &b)
 	return std::less<const Missile *>()(a.missile, b.missile); // unrelated pointers ordered portably (audit round 1)
 }
 
-bool StruckSomething(Point tile)
+bool StruckSomething(Point tile, Point next)
 {
-	for (int dx = -1; dx <= 1; dx++) {
-		for (int dy = -1; dy <= 1; dy++) {
-			const Point t { tile.x + dx, tile.y + dy };
-			if (!InMap(t))
-				continue;
-			if (dMonster[t.x][t.y] != 0 || dPlayer[t.x][t.y] != 0 || TileHasAny(dPiece[t.x][t.y], TileProperties::Solid))
-				return true;
-		}
+	// Its own tile or the next one along its flight (audit round 2: a ring of eight held a wall in every corridor, and
+	// the hero beside it): a monster there, or a wall it flew into. A player counts only when it is not ours.
+	for (const Point t : { tile, next }) {
+		if (!InMap(t))
+			continue;
+		if (dMonster[t.x][t.y] != 0 || TileHasAny(dPiece[t.x][t.y], TileProperties::Solid))
+			return true;
+		const int pid = dPlayer[t.x][t.y];
+		if (pid != 0 && MyPlayer != nullptr && &Players[std::abs(pid) - 1] != MyPlayer)
+			return true;
 	}
 	return false;
 }
@@ -487,7 +490,9 @@ void TickImpacts()
 		const uint32_t rgb = MissileTrailColour(static_cast<int>(m._mitype));
 		if (rgb == 0)
 			continue;
-		Flying f { &m, m._mitype, m.position.start, m.position.tile, WorldX(m.position.tile) + static_cast<float>(m.position.offset.deltaX),
+		const Displacement v = m.position.velocity;
+		const Point ahead = m.position.tile + Displacement { v.deltaX > 0 ? 1 : (v.deltaX < 0 ? -1 : 0), v.deltaY > 0 ? 1 : (v.deltaY < 0 ? -1 : 0) };
+		Flying f { &m, m._mitype, m.position.start, m.position.tile, ahead, WorldX(m.position.tile) + static_cast<float>(m.position.offset.deltaX),
 			WorldY(m.position.tile) + static_cast<float>(m.position.offset.deltaY), rgb, m.position.velocity != Displacement {} };
 		// Stopped this frame after flying: it struck something (a fireball turns into its burst where it stands).
 		const auto was = std::lower_bound(Flights.begin(), Flights.end(), f, ByMissile);
@@ -505,7 +510,7 @@ void TickImpacts()
 			const auto now2 = std::lower_bound(FlightsNext.begin(), FlightsNext.end(), f, ByMissile);
 			const bool alive = now2 != FlightsNext.end() && now2->missile == f.missile && now2->type == f.type && now2->start == f.start;
 			// A hit, not its range running out (audit round 1: Charged Bolt flashed in empty air): someone, or a wall, beside it.
-			if (!alive && StruckSomething(f.tile) && LitAt(f.tile) > 0.02F)
+			if (!alive && StruckSomething(f.tile, f.next) && LitAt(f.tile) > 0.02F)
 				PushBurst(f.x, f.y, f.rgb, f.type == MissileID::Arrow ? 0.4F : 0.8F);
 		}
 	}
@@ -671,8 +676,8 @@ void DrawSceneFeelBodies(const Surface &out, Point firstTile, Point firstTileBuf
 						const int gx = tx + dx - x0, gy = ty + dy - y0;
 						if (gx < 0 || gy < 0 || gx >= tw || gy >= th)
 							continue;
-						static constexpr int Falloff[5][5] = { { 0, 21, 41, 21, 0 }, { 21, 99, 167, 99, 21 }, { 41, 167, 255, 167, 41 },
-							{ 21, 99, 167, 99, 21 }, { 0, 21, 41, 21, 0 } }; // (1 - d / 2.9) * 255, d from the middle (audit round 1: no sqrt)
+						static constexpr int Falloff[5][5] = { { 6, 58, 79, 58, 6 }, { 58, 130, 167, 130, 58 }, { 79, 167, 255, 167, 79 },
+							{ 58, 130, 167, 130, 58 }, { 6, 58, 79, 58, 6 } }; // (1 - d / 2.9) * 255, d from the middle (audit round 1: no sqrt)
 						const int value = Falloff[dx + 2][dy + 2];
 						uint8_t &g = Glow[static_cast<size_t>(gx) * th + gy];
 						g = value > g ? static_cast<uint8_t>(value) : g;
@@ -988,7 +993,10 @@ void DrawSceneFeelLights(const Surface &out, Point firstTile, Point firstTileBuf
 			for (int ty = y0; ty <= y1; ty++)
 				if (Hash(static_cast<uint32_t>(tx), static_cast<uint32_t>(ty), 1601) % 9 == 0 && InMap({ tx, ty }) && TileHasAny(dPiece[tx][ty], TileProperties::Solid))
 					Windows.push_back({ tx, ty, std::abs(tx - hero.x) + std::abs(ty - hero.y) });
-		std::sort(Windows.begin(), Windows.end(), [](const Window &a, const Window &b) { return a.d < b.d; });
+		// Ties broken by place, so the same ten hold from frame to frame (audit round 2).
+		std::sort(Windows.begin(), Windows.end(), [](const Window &a, const Window &b) {
+			return a.d != b.d ? a.d < b.d : (a.tx != b.tx ? a.tx < b.tx : a.ty < b.ty);
+		});
 		int beams = 0;
 		for (const Window &win : Windows) {
 			if (beams >= 10)
@@ -996,8 +1004,6 @@ void DrawSceneFeelLights(const Surface &out, Point firstTile, Point firstTileBuf
 			const int tx = win.tx, ty = win.ty;
 			{
 				const uint32_t s = Hash(static_cast<uint32_t>(tx), static_cast<uint32_t>(ty), 1601);
-				if (s % 9 != 0)
-					continue;
 				// The room it faces: the tile south-east or south-west of the wall (the walls drawn facing the viewer).
 				const bool east = (s >> 8) & 1;
 				const Point step = east ? Point { 1, 0 } : Point { 0, 1 };
