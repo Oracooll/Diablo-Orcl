@@ -20,7 +20,6 @@
 
 #ifdef ORCL_GPU_POST
 #include <algorithm>
-#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -742,6 +741,7 @@ struct Device {
 		int pitch = 0;
 		uint32_t ticks = 0;
 		uint32_t scene = 0;
+		uint32_t frame = 0; // the world frame it was drawn in (GpuBeginWorldFrame)
 	} pending;
 	Target moodCurves, vignetteCols, vignetteRows, zoomCols, zoomRows, casCurve;
 	Target reliefDir, tints, liquid, sine, strength;
@@ -753,6 +753,8 @@ struct Device {
 
 Device *Gpu = nullptr;
 bool Broken = false;
+/** World frames, counted by GpuBeginWorldFrame: a pipelined picture is only ever the very last frame's. */
+uint32_t WorldFrame = 0;
 bool OptionWasOn = true;
 
 /**
@@ -1426,7 +1428,11 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 			std::fill(vis.begin(), vis.begin() + static_cast<ptrdiff_t>(lights * MAXDUNX * MAXDUNY), 0);
 			for (size_t k = 0; k < lights; k++) {
 				const GpuLight &l = *kept[k];
-				const int qx = static_cast<int>(std::lround(l.x * 8.0F)), qy = static_cast<int>(std::lround(l.y * 8.0F)), qr = static_cast<int>(std::lround(l.reach * 8.0F));
+				// Eighths of a tile, and the tile it stands on (TileVisibility's own) - so a light either side of a tile's
+				// edge never shares a trace (audit: the walls round a wall torch's tile differ there).
+				const int qx = static_cast<int>(std::lround(l.x * 8.0F)) * 2 + static_cast<int>(std::floor(l.x + 0.5F)) * 4096;
+				const int qy = static_cast<int>(std::lround(l.y * 8.0F)) * 2 + static_cast<int>(std::floor(l.y + 0.5F)) * 4096;
+				const int qr = static_cast<int>(std::lround(l.reach * 8.0F));
 				Traced *hit = nullptr;
 				for (Traced &t : cache) {
 					if (t.qx == qx && t.qy == qy && t.qr == qr && t.walls == walls) {
@@ -1666,6 +1672,7 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 	const Surface &out = zooming ? dst : src;
 	const int writeSlot = Gpu->stagingNext;
 	ctx->CopyResource(Gpu->staging[writeSlot].Get(), last->texture.Get());
+	ctx->Flush(); // the card starts at once, not when the next frame's Map asks
 	// Pipelined (user, 2026-10-11: "do the async readback"): the picture the card finished a frame ago comes down while
 	// it works on this one, so the CPU no longer waits for the card - one frame later on screen. Never across a change of
 	// level, size or place in the back buffer, or after a pause in the GPU frames: that frame waits for its own picture.
@@ -1674,7 +1681,8 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 	    | (static_cast<uint32_t>(setlvlnum) << 24);
 	const auto &was = Gpu->pending;
 	const bool usePrevious = settings.pipelined && was.valid && was.w == last->w && was.h == last->h && was.out == out.at<uint32_t>(0, 0)
-	    && was.pitch == out.pitch() && was.scene == scene && now - was.ticks <= 150;
+	    && was.pitch == out.pitch() && was.scene == scene && now - was.ticks <= 150
+	    && was.frame + 1 == WorldFrame; // the frame just before (audit: a CPU frame between showed an older picture)
 	const int read = usePrevious ? writeSlot ^ 1 : writeSlot;
 	D3D11_MAPPED_SUBRESOURCE mapped {};
 	const HRESULT hr = ctx->Map(Gpu->staging[read].Get(), 0, D3D11_MAP_READ, 0, &mapped);
@@ -1685,10 +1693,15 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 	for (int y = 0; y < last->h; y++)
 		std::memcpy(out.at<uint32_t>(0, y), static_cast<const uint8_t *>(mapped.pData) + static_cast<size_t>(y) * mapped.RowPitch, static_cast<size_t>(last->w) * 4);
 	ctx->Unmap(Gpu->staging[read].Get(), 0);
-	Gpu->pending = { settings.pipelined, last->w, last->h, out.at<uint32_t>(0, 0), out.pitch(), now == 0 ? 1U : now, scene };
+	Gpu->pending = { settings.pipelined, last->w, last->h, out.at<uint32_t>(0, 0), out.pitch(), now == 0 ? 1U : now, scene, WorldFrame };
 	if (settings.pipelined)
 		Gpu->stagingNext ^= 1;
 	return true;
+}
+
+void GpuBeginWorldFrame()
+{
+	WorldFrame++;
 }
 
 void ShutdownGpuWorldPost()
@@ -1710,6 +1723,10 @@ const char *GpuWorldPostStatus()
 }
 
 #else // !ORCL_GPU_POST
+
+void GpuBeginWorldFrame()
+{
+}
 
 void GpuKeepWorld(const Surface &)
 {

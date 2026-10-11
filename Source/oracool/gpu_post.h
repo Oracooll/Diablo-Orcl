@@ -119,6 +119,9 @@ bool GpuWorldPostAvailable();
  */
 bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSettings &settings, const GpuStage2 *stage2 = nullptr);
 
+/** @brief A world frame begins (DrawGame's first line): what a pipelined read-back counts by. */
+void GpuBeginWorldFrame();
+
 /** @brief Releases the device. From dx_cleanup. */
 void ShutdownGpuWorldPost();
 

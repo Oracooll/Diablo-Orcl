@@ -208,6 +208,7 @@ TEST(OracoolGpuPost, PipelinedTheFirstFrameWaitsAndTheNextShowsThePreviousOne)
 	settings.vignette = true; // something for the card to do; the middle pixel is untouched by it
 	settings.pipelined = true;
 	const auto frame = [&](uint8_t grey) {
+		oracool::GpuBeginWorldFrame(); // as DrawGame does
 		for (int y = 0; y < 48; y++)
 			for (int x = 0; x < 64; x++)
 				*out.at<uint32_t>(x, y) = Rgb(grey, grey, grey);
@@ -219,4 +220,9 @@ TEST(OracoolGpuPost, PipelinedTheFirstFrameWaitsAndTheNextShowsThePreviousOne)
 	EXPECT_EQ(frame(120), 200);
 	settings.pipelined = false;
 	EXPECT_EQ(frame(90), 90);   // off: this frame's own again
+	settings.pipelined = true;
+	EXPECT_EQ(frame(60), 60);   // on again: its own first (nothing pipelined to show)
+	EXPECT_EQ(frame(80), 60);   // then the frame just before
+	oracool::GpuBeginWorldFrame(); // a frame the card never saw (the CPU drew it)
+	EXPECT_EQ(frame(70), 70);   // so no older picture comes back: this frame's own
 }

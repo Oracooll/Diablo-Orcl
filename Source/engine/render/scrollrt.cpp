@@ -1882,6 +1882,7 @@ Surface ZoomDestination(const Surface &fullOut)
 
 void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 {
+	oracool::GpuBeginWorldFrame(); // a pipelined picture is only ever the frame just before
 	const float zoomFactor = *sgOptions.Oracool.dungeonZoomLevel;
 
 	// Limit rendering to the view area - Oracool: generalized from the old binary zoom's fixed
