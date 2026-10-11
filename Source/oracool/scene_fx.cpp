@@ -41,6 +41,7 @@
 #include "oracool/rfa12_actives.h"
 #include "oracool/rift.h"
 #include "oracool/rift_bosses.h"
+#include "oracool/scene_feel.h"
 #include "oracool/scene_life.h"
 #include "oracool/splats.h"
 #include "oracool/whirlwind.h"
@@ -182,6 +183,7 @@ struct GroundPass {
 	bool active = false;
 	bool shadows = false;
 	bool reflect = false;
+	bool damp = false; // the fifth batch's wet floors (oracool/scene_feel.h): the Caves' and the Nest's floor mirrors too
 	Point firstTile;
 	Point firstTileBuffer;
 	int w = 0, h = 0;
@@ -378,13 +380,13 @@ void CastShadows(const Mask &mask, Point bottomLeft, Point foot, const std::arra
 
 bool WaterAt(const uint8_t *liquid, int x, int y)
 {
-	return x >= 0 && y >= 0 && x < MAXDUNX && y < MAXDUNY && liquid[static_cast<size_t>(x) * MAXDUNY + y] == 2;
+	return liquid != nullptr && x >= 0 && y >= 0 && x < MAXDUNX && y < MAXDUNY && liquid[static_cast<size_t>(x) * MAXDUNY + y] == 2;
 }
 
 void Reflect(const Surface &out, const Mask &mask, Point bottomLeft, Point foot, Point tile, int light)
 {
 	const uint8_t *liquid = Ground.liquid;
-	bool near = false;
+	bool near = Ground.damp; // a damp floor is under every figure
 	for (int dx = -1; dx <= 3 && !near; dx++)
 		for (int dy = -1; dy <= 3 && !near; dy++)
 			near = WaterAt(liquid, tile.x + dx, tile.y + dy);
@@ -418,11 +420,17 @@ void Reflect(const Surface &out, const Mask &mask, Point bottomLeft, Point foot,
 			const float u = static_cast<float>(px - foot.x) / 32.0F;
 			const int tdx = static_cast<int>(std::floor((u + v) * 0.5F + 0.5F));
 			const int tdy = static_cast<int>(std::floor((v - u) * 0.5F + 0.5F));
-			if (!WaterAt(liquid, tile.x + tdx, tile.y + tdy))
-				continue;
+			int a = alpha;
+			if (!WaterAt(liquid, tile.x + tdx, tile.y + tdy)) {
+				// A damp floor mirrors faintly, on open floor only (scene_feel.h's Wet Floors).
+				const int fx = tile.x + tdx, fy = tile.y + tdy;
+				if (!Ground.damp || fx < 0 || fy < 0 || fx >= MAXDUNX || fy >= MAXDUNY || TileHasAny(dPiece[fx][fy], TileProperties::Solid))
+					continue;
+				a = alpha * 3 / 10;
+			}
 			const uint32_t c = SFX_SCALE(PaletteRGB[idx], dimK);
 			const uint32_t d = row[px];
-			row[px] = SFX_MIX(d, SFX_R(c), SFX_G(c), SFX_B(c), alpha);
+			row[px] = SFX_MIX(d, SFX_R(c), SFX_G(c), SFX_B(c), a);
 		}
 	}
 }
@@ -726,7 +734,8 @@ void BeginFigureGround(const Surface &out, Point firstTile, Point firstTileBuffe
 	Ground.reflect = *sgOptions.Oracool.waterReflections;
 	Ground.liquid = Ground.reflect ? LiquidMapForGpu() : nullptr; // once a frame (audit round 1: it hashed per figure)
 	Ground.reflect = Ground.liquid != nullptr;
-	if (!Ground.shadows && !Ground.reflect)
+	Ground.damp = DampFloorsHere();
+	if (!Ground.shadows && !Ground.reflect && !Ground.damp)
 		return;
 	Ground.active = true;
 	Ground.firstTile = firstTile;
@@ -799,8 +808,8 @@ void AddFigureGround(const Surface &out, Point tile, Displacement offset, ClxSpr
 		const float fy = static_cast<float>(tile.y) + (v - u) * 0.5F;
 		n = ShadowCastersFor(fx, fy, isHero, casters);
 	}
-	bool water = false;
-	if (Ground.reflect) {
+	bool water = Ground.damp;
+	if (Ground.reflect && !water) {
 		for (int dx = -1; dx <= 3 && !water; dx++)
 			for (int dy = -1; dy <= 3 && !water; dy++)
 				water = WaterAt(Ground.liquid, tile.x + dx, tile.y + dy);
@@ -1539,7 +1548,9 @@ Displacement ScreenShakeOffset()
 	if (TheEntrance.active && *sgOptions.Oracool.bossEntrance)
 		shake(EntranceAge() - 0.15F, ShakeLength, 7.0F);
 	shake(Now() - Kick.start, Kick.length, Kick.amplitude); // the fourth batch's kick (a guardian's fall)
-	return { static_cast<int>(std::floor(x + 0.5F)), static_cast<int>(std::floor(y + 0.5F)) };
+	// And the fifth's camera glide after a jump (oracool/scene_feel.h): the picture eases from where it stood.
+	const Displacement glide = CameraGlideOffset();
+	return { static_cast<int>(std::floor(x + 0.5F)) + glide.deltaX, static_cast<int>(std::floor(y + 0.5F)) + glide.deltaY };
 }
 
 void ApplyAfterWorld(const Surface &world)
@@ -1850,6 +1861,7 @@ void ForgetSceneFx()
 	MonsterAppeared.fill(0);
 	Kick = {};
 	ForgetSceneLife(); // the fourth batch's records go with the third's
+	ForgetSceneFeel(); // and the fifth's
 }
 
 } // namespace devilution::oracool

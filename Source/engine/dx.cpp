@@ -16,6 +16,9 @@
 #include "options.h"
 #include "oracool/frame_timing.h"
 #include "oracool/gpu_post.h"
+#include <vector>
+
+#include "oracool/scene_feel.h" // IrisFadeRow - the level change's iris
 #include "utils/display.h"
 #include "utils/log.hpp"
 #include "utils/sdl_wrap.h"
@@ -207,17 +210,25 @@ SDL_Surface *ApplyPresentTransforms(SDL_Surface *src)
 		PresentScratch = SDLWrap::CreateRGBSurfaceWithFormat(0, src->w, src->h, 32, src->format->format);
 	const uint32_t fade = static_cast<uint32_t>(std::clamp(FadeLevel, 0, 256));
 	const uint32_t gbMask = PresentRedFlash ? 0x00FF0000u : 0x00FFFFFFu;
+	// A level change closes and opens like an iris (the fifth graphics batch, oracool/scene_feel.h), in a game only.
+	const bool iris = fade != 256 && oracool::IrisFadeActive();
+	static std::vector<uint16_t> irisRow;
+	if (iris)
+		irisRow.resize(static_cast<size_t>(src->w));
 	for (int y = 0; y < src->h; y++) {
 		const auto *s = reinterpret_cast<const uint32_t *>(static_cast<const uint8_t *>(src->pixels) + y * src->pitch);
 		auto *d = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(PresentScratch->pixels) + y * PresentScratch->pitch);
+		if (iris)
+			oracool::IrisFadeRow(y, src->w, src->h, static_cast<int>(fade), irisRow.data());
 		for (int x = 0; x < src->w; x++) {
 			const uint32_t c = s[x] & gbMask;
 			// Gamma first (the curve belongs to the colour), then the fade (a dimming of what is shown).
 			uint32_t r = lut[(c >> 16) & 0xFF], g = lut[(c >> 8) & 0xFF], b = lut[c & 0xFF];
 			if (fade != 256) {
-				r = r * fade / 256;
-				g = g * fade / 256;
-				b = b * fade / 256;
+				const uint32_t k = iris ? irisRow[static_cast<size_t>(x)] : fade;
+				r = r * k / 256;
+				g = g * k / 256;
+				b = b * k / 256;
 			}
 			d[x] = (r << 16) | (g << 8) | b;
 		}

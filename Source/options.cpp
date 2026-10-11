@@ -600,6 +600,27 @@ void SaveOptions()
 	    "; On: a unique, set, primal or runeword item flares like a star as it lands.");
 	setBoolean("Living Portals", *sgOptions.Oracool.livingPortals,
 	    "; On: portals swirl, glow on the floor and draw motes of light into them.");
+	// The fifth graphics batch (user, 2026-10-11).
+	setBoolean("Hit Flash", *sgOptions.Oracool.hitFlash,
+	    "; On: a monster you strike flashes white for a moment.");
+	setBoolean("Impact Lights", *sgOptions.Oracool.impactLights,
+	    "; On: spells and arrows striking home light the floor and walls around them in their element's colour.");
+	setBoolean("Area Atmosphere", *sgOptions.Oracool.areaAtmosphere,
+	    "; On: the air of each place: dust motes in the Cathedral's and Catacombs' light, drips in the Caves, ash and embers in Hell, wisps in the Crypt, spores in the Nest.");
+	setBoolean("Lava Light", *sgOptions.Oracool.lavaLight,
+	    "; On: lava casts a flickering warm glow on everything that stands near it.");
+	setBoolean("Smooth Camera", *sgOptions.Oracool.smoothCamera,
+	    "; On: the view glides after a Teleport or a Leap instead of jumping, and leans in a little while a rift guardian is near.");
+	setBoolean("Wet Floors", *sgOptions.Oracool.wetFloors,
+	    "; On: heroes and monsters are faintly mirrored in the damp floors of the Caves and the Nest.");
+	setBoolean("Drop Effects", *sgOptions.Oracool.dropEffects,
+	    "; On: a tumbling item casts a shadow, a rare one trails sparkles, and each lands in a puff of dust.");
+	setBoolean("Death Effects", *sgOptions.Oracool.deathEffects,
+	    "; On: a hard blow or a kill sprays blood - bone chips from the undead - and a corpse lands in a puff of dust.");
+	setBoolean("Window Light", *sgOptions.Oracool.windowLight,
+	    "; On: soft beams of light slant down from high on the Cathedral's walls, with motes turning in them.");
+	setBoolean("Level Transition", *sgOptions.Oracool.levelTransition,
+	    "; On: a level change closes and opens like an iris instead of a flat fade to black.");
 	setBoolean("Item Tooltip Card", *sgOptions.Oracool.itemTooltipCard,
 	    "; On: the item tooltip is a card - name large, type and tier under it, armour or damage\n; as one big number, the item's picture top right, stats left-aligned, requirements in\n; a band at the foot. Off: the earlier centred panel.");
 	setBoolean("Grouped Hero Sheet", *sgOptions.Oracool.heroSheetGrouped,
@@ -1777,6 +1798,16 @@ OracoolOptions::OracoolOptions()
     , guardianDeathMoment("Guardian Death Moment", OptionEntryFlags::None, N_("Guardian Death Moment"), N_("A rift guardian's fall flashes the screen, drains its colour a moment, shakes it and sends a shockwave out, and his name appears."), true)
     , dropFlares("Drop Flares", OptionEntryFlags::None, N_("Drop Flares"), N_("A unique, set, primal or runeword item flares like a star as it lands."), true)
     , livingPortals("Living Portals", OptionEntryFlags::None, N_("Living Portals"), N_("Portals swirl, glow on the floor under them and draw motes of light into them."), true)
+    , hitFlash("Hit Flash", OptionEntryFlags::None, N_("Hit Flash"), N_("A monster you strike flashes white for a moment."), true)
+    , impactLights("Impact Lights", OptionEntryFlags::None, N_("Impact Lights"), N_("Spells and arrows striking home light the floor and walls around them in their element’s colour."), true)
+    , areaAtmosphere("Area Atmosphere", OptionEntryFlags::None, N_("Area Atmosphere"), N_("The air of each place: dust motes in the Cathedral’s and Catacombs’ light, drips in the Caves, ash and embers in Hell, wisps in the Crypt, spores in the Nest."), true)
+    , lavaLight("Lava Light", OptionEntryFlags::None, N_("Lava Light"), N_("Lava casts a flickering warm glow on everything that stands near it."), true)
+    , smoothCamera("Smooth Camera", OptionEntryFlags::None, N_("Smooth Camera"), N_("The view glides after a Teleport or a Leap instead of jumping, and leans in a little while a rift guardian is near."), true)
+    , wetFloors("Wet Floors", OptionEntryFlags::None, N_("Wet Floors"), N_("Heroes and monsters are faintly mirrored in the damp floors of the Caves and the Nest."), true)
+    , dropEffects("Drop Effects", OptionEntryFlags::None, N_("Drop Effects"), N_("A tumbling item casts a shadow, a rare one trails sparkles, and each lands in a puff of dust."), true)
+    , deathEffects("Death Effects", OptionEntryFlags::None, N_("Death Effects"), N_("A hard blow or a kill sprays blood - bone chips from the undead - and a corpse lands in a puff of dust."), true)
+    , windowLight("Window Light", OptionEntryFlags::None, N_("Window Light"), N_("Soft beams of light slant down from high on the Cathedral’s walls, with motes turning in them."), true)
+    , levelTransition("Level Transition", OptionEntryFlags::None, N_("Level Transition"), N_("A level change closes and opens like an iris instead of a flat fade to black."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("A timestamped log of noteworthy session events, opened from the Menu popup or with F11."), true)
@@ -1917,6 +1948,16 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&guardianDeathMoment,
 		&dropFlares,
 		&livingPortals,
+		&hitFlash,
+		&impactLights,
+		&areaAtmosphere,
+		&lavaLight,
+		&smoothCamera,
+		&wetFloors,
+		&dropEffects,
+		&deathEffects,
+		&windowLight,
+		&levelTransition,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,

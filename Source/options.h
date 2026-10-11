@@ -1020,6 +1020,17 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean guardianDeathMoment;
 	OptionEntryBoolean dropFlares;
 	OptionEntryBoolean livingPortals;
+	// The fifth graphics batch (user, 2026-10-11: "do all 10 suggestions"; oracool/scene_feel.h), all on.
+	OptionEntryBoolean hitFlash;
+	OptionEntryBoolean impactLights;
+	OptionEntryBoolean areaAtmosphere;
+	OptionEntryBoolean lavaLight;
+	OptionEntryBoolean smoothCamera;
+	OptionEntryBoolean wetFloors;
+	OptionEntryBoolean dropEffects;
+	OptionEntryBoolean deathEffects;
+	OptionEntryBoolean windowLight;
+	OptionEntryBoolean levelTransition;
 	/**
 	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
 	 * the name large, type and tier under it, the armour or damage as one big number, the item's
