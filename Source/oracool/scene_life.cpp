@@ -986,6 +986,29 @@ void DrawSceneLifeBodies(const Surface &out, Point firstTile, Point firstTileBuf
 		const Weather shown = ShownWeather(weather);
 		const float day = Daylight();
 
+		// The weather's tone over the whole picture (user, 2026-10-11, the Necromancer video: snow laid on the floor pass
+		// alone whitened the floor tiles and left every tree's and rock's ground piece dark - a checkerboard). Even over
+		// everything: rain darkens and greys it a little, snow cools it, greys it and lifts it a little - roofs, trees and
+		// ground alike.
+		if (shown != Weather::Clear && weather > 0.01F) {
+			const bool snow = shown == Weather::Snow;
+			const int grey = static_cast<int>((snow ? 70.0F : 40.0F) * weather);
+			const uint32_t keep = static_cast<uint32_t>(256 - static_cast<int>((snow ? 0.0F : 30.0F) * weather));
+			const int lift = static_cast<int>(22.0F * weather);
+			for (int y = 0; y < h; y++) {
+				uint32_t *row = out.at<uint32_t>(0, y);
+				for (int x = 0; x < w; x++) {
+					uint32_t c = row[x];
+					if ((c & 0xFFFFFF) == 0)
+						continue; // the void beyond the map stays black
+					const int l = (SL_R(c) * 77 + SL_G(c) * 150 + SL_B(c) * 29) >> 8;
+					c = SL_MIX(c, l, l, l, grey);
+					c = snow ? SL_MIX(c, 205, 213, 228, lift) : SL_SCALE(c, keep);
+					row[x] = c;
+				}
+			}
+		}
+
 		// Cloud shadows by day, fainter under an overcast sky.
 		if (*sgOptions.Oracool.cloudShadows && day > 0.01F) {
 			const float k = day * (shown == Weather::Clear ? 1.0F : 1.0F - 0.8F * weather);

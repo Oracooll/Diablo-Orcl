@@ -440,7 +440,7 @@ std::vector<Ghost> Ghosts;
 Mask LastHeroMask;
 Mask CurrentHeroMask;
 Displacement LastHeroWorld;
-Point LastHeroTile;
+Point LastHeroTile; // where he truly stands (position.tile), not the tile he is drawn from
 bool LastHeroValid = false;
 float LastGhostAt = 0;
 uint32_t GhostLevel = 0;
@@ -892,7 +892,11 @@ void DrawPlayerAfterimages(const Surface &out, const Player &player, Point tile,
 
 	// This frame, noted for the next ones.
 	const Displacement world = Iso(tile.x, tile.y) + offset;
-	const int jump = LastHeroValid ? std::max(std::abs(tile.x - LastHeroTile.x), std::abs(tile.y - LastHeroTile.y)) : 0;
+	// A jump is where he STANDS moving two tiles or more between frames (user, 2026-10-11, the Necromancer video: the tile
+	// he is drawn from could step two at once on a plain walk past a tree, and a phantom trail blinked beside him). A walk
+	// moves him one tile at a time; only a Leap, a Teleport or a phase moves him further.
+	const Point stands = player.position.tile;
+	const int jump = LastHeroValid && !player.isWalking() ? std::max(std::abs(stands.x - LastHeroTile.x), std::abs(stands.y - LastHeroTile.y)) : 0;
 	if (jump >= 2 && jump <= 14 && Ghosts.size() < 24) {
 		// A Leap or a Teleport: a trail of him along the way he went, the first fading first.
 		constexpr int Trail = 6;
@@ -921,7 +925,7 @@ void DrawPlayerAfterimages(const Surface &out, const Player &player, Point tile,
 	if (have) {
 		std::swap(LastHeroMask, CurrentHeroMask);
 		LastHeroWorld = world;
-		LastHeroTile = tile;
+		LastHeroTile = stands;
 		LastHeroValid = true;
 	}
 }
@@ -1146,15 +1150,8 @@ void ApplyWeatherGround(const Surface &out, Point firstTile, Point firstTileBuff
 	const int w = out.w();
 	const int h = out.h();
 	if (Current == Weather::Rain) {
-		// Wet ground: darker.
-		const uint32_t keep = static_cast<uint32_t>(256 - static_cast<int>(36.0F * Intensity));
-		for (int y = 0; y < h; y++) {
-			uint32_t *row = out.at<uint32_t>(0, y);
-			for (int x = 0; x < w; x++) {
-				const uint32_t c = row[x];
-				row[x] = SFX_SCALE(c, keep);
-			}
-		}
+		// The wet and the white are laid over the whole picture now (scene_life.cpp's DrawSceneLifeBodies, user 2026-10-11:
+		// on the floor alone they left every tree's and rock's ground piece bare - a checkerboard of light tiles).
 		// Splashes on the ground, each a brief ring of light - on walkable floor only (audit round 1: they rang on roofs).
 		const float t = Now();
 		const int splashes = static_cast<int>(70.0F * Intensity);
@@ -1180,17 +1177,6 @@ void ApplyWeatherGround(const Surface &out, Point firstTile, Point firstTileBuff
 						c = SFX_MIX(c, 190, 205, 225, a);
 					}
 				}
-			}
-		}
-	} else {
-		// A thin cover of snow.
-		const int a = static_cast<int>(46.0F * Intensity);
-		for (int y = 0; y < h; y++) {
-			uint32_t *row = out.at<uint32_t>(0, y);
-			for (int x = 0; x < w; x++) {
-				const uint32_t c = row[x];
-				if ((c & 0xFFFFFF) != 0)
-					row[x] = SFX_MIX(c, 222, 230, 240, a);
 			}
 		}
 	}

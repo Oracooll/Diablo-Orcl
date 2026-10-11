@@ -14,6 +14,7 @@
 #include "lighting.h"
 #include "options.h"
 #include "oracool/scene_fx.h"
+#include "oracool/scene_life.h"
 
 using namespace devilution;
 
@@ -101,29 +102,42 @@ TEST_F(GraphicsBatch3, WeatherIsSetAndRead)
 	EXPECT_FLOAT_EQ(intensity, 0.0F);
 }
 
-TEST_F(GraphicsBatch3, RainDarkensTheTownGroundAndSnowWhitensIt)
+TEST_F(GraphicsBatch3, RainDarkensTheTownAndSnowWhitensIt)
 {
+	// Over the whole picture since v1.13.011 (oracool/scene_life.cpp): on the floor alone it left a checkerboard.
 	OwnedSurface s = OwnedSurface::Rgb(64, 32);
 	leveltype = DTYPE_TOWN;
+	const bool clouds = *sgOptions.Oracool.cloudShadows;
+	const bool life = *sgOptions.Oracool.townLife;
+	sgOptions.Oracool.cloudShadows.SetValue(false);
+	sgOptions.Oracool.townLife.SetValue(false);
 	sgOptions.Oracool.weather.SetValue(true);
 	oracool::SetWeather(oracool::Weather::Rain);
 	Fill(s, Grey(120));
-	oracool::ApplyWeatherGround(s, { 0, 0 }, { 0, 0 });
+	oracool::DrawSceneLifeBodies(s, { 0, 0 }, { 0, 0 });
 	EXPECT_LT(Luma(Px(s, 5, 5)), Luma(Grey(120)));
 	oracool::SetWeather(oracool::Weather::Snow);
 	Fill(s, Grey(120));
-	oracool::ApplyWeatherGround(s, { 0, 0 }, { 0, 0 });
+	oracool::DrawSceneLifeBodies(s, { 0, 0 }, { 0, 0 });
 	EXPECT_GT(Luma(Px(s, 5, 5)), Luma(Grey(120)));
+	// Every pixel alike: no tile left out.
+	EXPECT_EQ(Px(s, 5, 5), Px(s, 60, 30));
+	// The floor pass no longer whitens on its own.
+	Fill(s, Grey(120));
+	oracool::ApplyWeatherGround(s, { 0, 0 }, { 0, 0 });
+	EXPECT_EQ(Px(s, 5, 5), Grey(120));
 	// Off: nothing.
 	sgOptions.Oracool.weather.SetValue(false);
 	Fill(s, Grey(120));
-	oracool::ApplyWeatherGround(s, { 0, 0 }, { 0, 0 });
+	oracool::DrawSceneLifeBodies(s, { 0, 0 }, { 0, 0 });
 	EXPECT_EQ(Px(s, 5, 5), Grey(120));
 	// Not in town: nothing.
 	sgOptions.Oracool.weather.SetValue(true);
 	leveltype = DTYPE_CATHEDRAL;
-	oracool::ApplyWeatherGround(s, { 0, 0 }, { 0, 0 });
+	oracool::DrawSceneLifeBodies(s, { 0, 0 }, { 0, 0 });
 	EXPECT_EQ(Px(s, 5, 5), Grey(120));
+	sgOptions.Oracool.cloudShadows.SetValue(clouds);
+	sgOptions.Oracool.townLife.SetValue(life);
 }
 
 TEST_F(GraphicsBatch3, GroundFogShowsOnlyWhereThereIsLight)

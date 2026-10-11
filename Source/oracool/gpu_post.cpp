@@ -1442,14 +1442,17 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 		int shaftCount = 0;
 		for (size_t k = 0; k < lights && shaftCount < 4; k++) {
 			const GpuLight &l = *kept[k];
-			if (l.kind == 0)
+			// The level's fixed flames only (user, 2026-10-11, the Necromancer video: a fireball's shaft ran as a hard band
+			// from the hero through it and on, over the walls - a moving light smears whatever is bright between). A spell
+			// in flight leaves its own trail behind it instead (oracool/scene_life.h, Missile Trails).
+			if (l.kind != 1)
 				continue;
 			const float dx = l.x - s3.firstTileX, dy = l.y - s3.firstTileY;
 			const float sx = s3.firstBufX + 32.0F + (dx - dy) * 32.0F;
 			const float sy = s3.firstBufY - 14.5F + (dx + dy) * 16.0F - 30.0F;
 			if (sx < -64.0F || sy < -64.0F || sx > w + 64.0F || sy > h + 64.0F)
 				continue;
-			s3.shaft[shaftCount][0] = sx, s3.shaft[shaftCount][1] = sy, s3.shaft[shaftCount][2] = l.kind == 1 ? 0.6F : 0.9F;
+			s3.shaft[shaftCount][0] = sx, s3.shaft[shaftCount][1] = sy, s3.shaft[shaftCount][2] = 0.6F;
 			shaftCount++;
 		}
 		s3.shaftCount = shaftCount;

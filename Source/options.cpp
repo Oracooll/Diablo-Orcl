@@ -539,7 +539,7 @@ void SaveOptions()
 	setBoolean("Wide Soft Bloom", *sgOptions.Oracool.wideBloom,
 	    "; On (needs the Graphics Card Renderer): fire, lightning and lava spread a wide, soft glow\n; over the world, beyond the close bloom.");
 	setBoolean("Light Shafts", *sgOptions.Oracool.lightShafts,
-	    "; On (needs the Graphics Card Renderer): torches and bright spells cast faint shafts of light\n; through the air.");
+	    "; On (needs the Graphics Card Renderer): torches, candles and braziers cast faint shafts of light\n; through the air.");
 	setBoolean("Heat Distortion", *sgOptions.Oracool.heatDistortion,
 	    "; On (needs the Graphics Card Renderer): the air above lava, fire spells and torches truly\n; bends the picture.");
 	setBoolean("Filmic Colour Grade", *sgOptions.Oracool.filmicGrade,
@@ -1748,7 +1748,7 @@ OracoolOptions::OracoolOptions()
     , perPixelLights("Per-Pixel Lights", OptionEntryFlags::None, N_("Per-Pixel Lights"), N_("Needs the Graphics Card Renderer. Every light lights the world pixel by pixel, in round pools of its own colour, with soft shadows behind walls and pillars."), true)
     , litSprites("Lit Sprites", OptionEntryFlags::None, N_("Lit Sprites"), N_("Needs the Graphics Card Renderer. Walls, objects and figures are shaded by each light around them from its own direction, so torchlight wraps round pillars and monsters. Takes over from Lit Surface Relief."), true)
     , wideBloom("Wide Soft Bloom", OptionEntryFlags::None, N_("Wide Soft Bloom"), N_("Needs the Graphics Card Renderer. Fire, lightning and lava spread a wide, soft glow over the world, beyond the close bloom."), true)
-    , lightShafts("Light Shafts", OptionEntryFlags::None, N_("Light Shafts"), N_("Needs the Graphics Card Renderer. Torches and bright spells cast faint shafts of light through the air."), true)
+    , lightShafts("Light Shafts", OptionEntryFlags::None, N_("Light Shafts"), N_("Needs the Graphics Card Renderer. Torches, candles and braziers cast faint shafts of light through the air."), true)
     , heatDistortion("Heat Distortion", OptionEntryFlags::None, N_("Heat Distortion"), N_("Needs the Graphics Card Renderer. The air above lava, fire spells and torches truly bends the picture."), true)
     , filmicGrade("Filmic Colour Grade", OptionEntryFlags::None, N_("Filmic Colour Grade"), N_("Needs the Graphics Card Renderer. A film-like grade for each area: deeper blacks, richer highlights, a little more colour."), true)
     , figureShadows("Figure Shadows", OptionEntryFlags::None, N_("Figure Shadows"), N_("Heroes, monsters and townsfolk cast soft shadows away from the lights near them - torches, spells, lamps, and the sun in Tristram by day - beside the shadows painted into their art."), true)
