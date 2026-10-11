@@ -26,6 +26,7 @@
 #include "oracool/rage.h"
 #include "oracool/run_toggle.h" // IsRunEnabled - which glyph the belt's toggle wears
 #include "options.h" // the HUD Plate Art switch
+#include "oracool/scene_fx.h" // LowHealthHeartbeat - the life orb beats with the low health warning
 #include "oracool/ornate_border.h" // ThemeEdgeColor
 #include "panels/spell_icons.hpp" // the vanilla plate behind every skill icon
 #include "player.h"
@@ -1402,7 +1403,78 @@ void BlitLayerScaled(const Surface &out, const ArtAsset &asset, SDL_Rect srcCell
 	BlitArgbScaled(out, asset.argb.data(), asset.width, srcCell, dest, halfTransparent ? 50 : 100);
 }
 
-void DrawOrb(const Surface &out, ArtAsset &asset, ArtAsset &liquid, Point position, Point sphereCenterLocal, int currValue, int maxValue)
+/**
+ * @brief Living orbs (user, 2026-10-11; oracool/scene_fx.h): the liquid's columns @p srcLeft..@p srcRight drawn up to a
+ * swaying surface instead of a flat line, bubbles rising through it and - @p lowGlow above 0, the life orb running low -
+ * a red pulse in it. False when the option is off or the target indexed: the caller draws the flat liquid.
+ */
+bool DrawLivingLiquid(const Surface &out, ArtAsset &liquid, int srcLeft, int srcRight, int revealTop, Point position,
+    Point sphereCenterLocal, int radius, float lowGlow)
+{
+	if (!*sgOptions.Oracool.livingOrbs || out.isIndexed() || srcRight <= srcLeft)
+		return false;
+	const float t = SceneSeconds();
+	// The surface sways only while the orb is part full: a full or empty orb has no surface to see.
+	const int sphereTop = sphereCenterLocal.y - radius;
+	const int sphereBottom = sphereCenterLocal.y + radius;
+	const float depth = std::clamp(std::min(revealTop - sphereTop, sphereBottom - revealTop) / 6.0F, 0.0F, 1.0F);
+	// Each column's surface, kept for the glow below (round 2 audit: it filled from the flat line, over empty glass).
+	static std::vector<int> Tops;
+	Tops.assign(static_cast<size_t>(srcRight - srcLeft), liquid.height);
+	for (int x = srcLeft; x < srcRight; x++) {
+		const float wave = (1.6F * std::sin(static_cast<float>(x) * 0.11F + t * 2.2F) + 0.9F * std::sin(static_cast<float>(x) * 0.23F - t * 3.1F)) * depth;
+		const int top = std::clamp(revealTop + static_cast<int>(std::lround(wave)), 0, liquid.height);
+		Tops[static_cast<size_t>(x - srcLeft)] = top;
+		if (top >= liquid.height)
+			continue;
+		BlitLayer(out, liquid, Layer::Bright, MakeSdlRect(x, top, 1, liquid.height - top), position + Displacement { x, top });
+	}
+	const auto lighten = [&](int lx, int ly, int r, int g, int b) {
+		const int px = position.x + lx, py = position.y + ly;
+		if (px < 0 || py < 0 || px >= out.w() || py >= out.h())
+			return;
+		uint32_t &c = *out.at<uint32_t>(px, py);
+		const int cr = std::min(255, static_cast<int>((c >> 16) & 0xFF) + r);
+		const int cg = std::min(255, static_cast<int>((c >> 8) & 0xFF) + g);
+		const int cb = std::min(255, static_cast<int>(c & 0xFF) + b);
+		c = (static_cast<uint32_t>(cr) << 16) | (static_cast<uint32_t>(cg) << 8) | static_cast<uint32_t>(cb);
+	};
+	// Bubbles: each rises from the bottom of the sphere to the surface, wobbling, and starts again.
+	if (revealTop < sphereBottom - 4) {
+		for (int i = 0; i < 7; i++) {
+			const float seed = static_cast<float>((i * 7919) % 101) / 101.0F;
+			const float cycle = std::fmod(t * (0.35F + 0.25F * seed) + seed * 3.0F, 1.0F);
+			const int y = sphereBottom - 4 - static_cast<int>(cycle * static_cast<float>(sphereBottom - 4 - std::max(revealTop, sphereTop)));
+			const int x = sphereCenterLocal.x + static_cast<int>((seed * 2.0F - 1.0F) * static_cast<float>(radius) * 0.65F + std::sin(t * 3.0F + seed * 9.0F) * 2.0F);
+			const int bx = x - sphereCenterLocal.x, by = y - sphereCenterLocal.y;
+			if (x < srcLeft || x >= srcRight || y <= Tops[static_cast<size_t>(x - srcLeft)] + 2 || bx * bx + by * by >= (radius - 2) * (radius - 2))
+				continue; // above the surface, or out on the glass's rim (round 2 audit)
+			const int v = static_cast<int>(30.0F + 40.0F * (1.0F - cycle));
+			lighten(x, y, v, v, v);
+			lighten(x + 1, y, v / 2, v / 2, v / 2);
+			lighten(x, y - 1, v / 2, v / 2, v / 2);
+		}
+	}
+	// Running low: the liquid pulses with a red glow.
+	if (lowGlow > 0) {
+		// In step with the low health warning's heartbeat at the screen's edges (oracool/scene_fx.h).
+		const float pulse = LowHealthHeartbeat(nullptr) * lowGlow;
+		const int add = static_cast<int>(70.0F * pulse);
+		if (add > 0) {
+			for (int x = srcLeft; x < srcRight; x++) {
+				const int dx = x - sphereCenterLocal.x;
+				for (int y = std::max(Tops[static_cast<size_t>(x - srcLeft)], sphereTop); y < sphereBottom; y++) {
+					const int dy = y - sphereCenterLocal.y;
+					if (dx * dx + dy * dy <= radius * radius)
+						lighten(x, y, add, add / 6, add / 8);
+				}
+			}
+		}
+	}
+	return true;
+}
+
+void DrawOrb(const Surface &out, ArtAsset &asset, ArtAsset &liquid, Point position, Point sphereCenterLocal, int currValue, int maxValue, bool lifeOrb = false)
 {
 	EnsureLoadedAll();
 	if (asset.rgba.empty())
@@ -1424,7 +1496,11 @@ void DrawOrb(const Surface &out, ArtAsset &asset, ArtAsset &liquid, Point positi
 	// whose empty glass lets the world show above the line and whose rim sits on the liquid's edge.
 	// Two blits, and the fill is a real level rather than a lit part of a painting.
 	if (liquid.prepared && liquid.width == asset.width && liquid.height == asset.height) {
-		if (revealTop < asset.height) {
+		// Living orbs: the life orb under a third pulses, more as it empties.
+		const float fraction = maxValue > 0 ? static_cast<float>(curr) / static_cast<float>(maxValue) : 0.0F;
+		const float lowGlow = lifeOrb && curr > 0 && fraction < 1.0F / 3.0F ? 1.0F - fraction * 3.0F : 0.0F; // from a third, rising smoothly
+		if (revealTop < asset.height
+		    && !DrawLivingLiquid(out, liquid, 0, liquid.width, revealTop, position, sphereCenterLocal, radius, lowGlow)) {
 			BlitLayer(out, liquid, Layer::Bright,
 			    MakeSdlRect(0, revealTop, liquid.width, liquid.height - revealTop),
 			    position + Displacement { 0, revealTop });
@@ -1483,11 +1559,12 @@ bool DrawSplitOrb(const Surface &out, ArtAsset &asset, ArtAsset &leftLiquid, Art
 	};
 	const int leftTop = revealTopFor(leftValue, leftMax);
 	const int rightTop = revealTopFor(rightValue, rightMax);
-	if (leftTop < asset.height && split > 0) {
+	if (leftTop < asset.height && split > 0 && !DrawLivingLiquid(out, leftLiquid, 0, split, leftTop, position, sphereCenterLocal, radius, 0.0F)) {
 		BlitLayer(out, leftLiquid, Layer::Bright, MakeSdlRect(0, leftTop, split, asset.height - leftTop),
 		    position + Displacement { 0, leftTop });
 	}
-	if (rightTop < asset.height && split < asset.width) {
+	if (rightTop < asset.height && split < asset.width
+	    && !DrawLivingLiquid(out, rightLiquid, split, asset.width, rightTop, position, sphereCenterLocal, radius, 0.0F)) {
 		BlitLayer(out, rightLiquid, Layer::Bright, MakeSdlRect(split, rightTop, asset.width - split, asset.height - rightTop),
 		    position + Displacement { split, rightTop });
 	}
@@ -3420,7 +3497,7 @@ void DrawHealthOrb(const Surface &out, int yOffset)
 {
 	const Player &player = *MyPlayer;
 	DrawOrb(out, HealthOrbArt, HealthOrbLiquidArt, GetHealthOrbRect().position + Displacement { 0, yOffset }, GetHealthOrbSphereCenterLocal(),
-	    player._pHitPoints >> 6, player._pMaxHP >> 6);
+	    player._pHitPoints >> 6, player._pMaxHP >> 6, /*lifeOrb=*/true);
 }
 
 void DrawManaOrb(const Surface &out, int yOffset)

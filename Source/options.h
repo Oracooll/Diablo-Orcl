@@ -991,6 +991,23 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean lightShafts;
 	OptionEntryBoolean heatDistortion;
 	OptionEntryBoolean filmicGrade;
+	// The third graphics batch (user, 2026-10-11: "i like all of your suggestions"); visual only, each its own switch
+	// (oracool/scene_fx.h). Exploration Memory and the CRT look change what is seen most, so they start off.
+	OptionEntryBoolean figureShadows;
+	OptionEntryBoolean explorationMemory;
+	OptionEntryBoolean weather;
+	OptionEntryBoolean groundFog;
+	OptionEntryBoolean waterReflections;
+	OptionEntryBoolean livingTown;
+	OptionEntryBoolean afterimages;
+	OptionEntryBoolean dissolveEffects;
+	OptionEntryBoolean statusVisuals;
+	OptionEntryBoolean livingOrbs;
+	OptionEntryBoolean pixelSmoothing;
+	OptionEntryBoolean crtLook;
+	OptionEntryBoolean debanding;
+	OptionEntryBoolean bossEntrance;
+	OptionEntryBoolean lowHealthWarning;
 	/**
 	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
 	 * the name large, type and tier under it, the armour or damage as one big number, the item's

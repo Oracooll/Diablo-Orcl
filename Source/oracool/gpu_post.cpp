@@ -237,6 +237,54 @@ int3 Mix(int3 a, int3 b, int w)
 	return (a * (256 - w) + b * w) >> 8;
 }
 
+// Pixel Art Smoothing: the colour distance xBR weighs edges by - green counts most, as the eye does.
+int XbrDist(int3 a, int3 b)
+{
+	const int3 d = abs(a - b);
+	return d.r * 3 + d.g * 4 + d.b * 2;
+}
+
+int3 XbrPx(int2 p)
+{
+	return Px(clamp(p, int2(0, 0), SrcSize - 1));
+}
+
+/**
+ * xBR (level 1) at any scale: the output pixel's source pixel E and the corner of it the pixel lies toward. When the
+ * edge through that corner runs along the diagonal (the two weights of 2xBR's rule), the corner takes the nearer of its
+ * two edge neighbours' colours - blended across a soft diagonal line, so the stair steps of pixel art become slopes.
+ * Everywhere else, and under the blend, the sharp bilinear (@p base): at a fractional zoom, nearest pixels shimmered
+ * (audit round 1).
+ */
+int3 XbrSample(int2 p, int3 base)
+{
+	const float2 at = (float2(p) + 0.5) * float2(SrcSize) / float2(DstSize);
+	const int2 c = int2(floor(at));
+	const float2 inside = at - float2(c) - 0.5; // -0.5 .. 0.5 from the source pixel's centre
+	const int2 s = int2(inside.x >= 0 ? 1 : -1, inside.y >= 0 ? 1 : -1);
+	const int3 e = XbrPx(c);
+	const int3 f = XbrPx(c + int2(s.x, 0));
+	const int3 h = XbrPx(c + int2(0, s.y));
+	const int3 i = XbrPx(c + s);
+	const int3 cc = XbrPx(c + int2(s.x, -s.y));
+	const int3 g = XbrPx(c + int2(-s.x, s.y));
+	const int3 d = XbrPx(c + int2(-s.x, 0));
+	const int3 b = XbrPx(c + int2(0, -s.y));
+	const int3 i4 = XbrPx(c + int2(2 * s.x, s.y));
+	const int3 i5 = XbrPx(c + int2(s.x, 2 * s.y));
+	const int3 h5 = XbrPx(c + int2(0, 2 * s.y));
+	const int3 f4 = XbrPx(c + int2(2 * s.x, 0));
+	const int wd1 = XbrDist(e, cc) + XbrDist(e, g) + XbrDist(i, h5) + XbrDist(i, f4) + 4 * XbrDist(h, f);
+	const int wd2 = XbrDist(h, d) + XbrDist(h, i5) + XbrDist(f, i4) + XbrDist(f, b) + 4 * XbrDist(e, i);
+	if (wd1 >= wd2)
+		return base;
+	const int3 edge = XbrDist(e, f) <= XbrDist(e, h) ? f : h;
+	// Along the corner's diagonal: 0 at the centre, 1 at the corner; the edge line crosses at a half.
+	const float t = inside.x * s.x + inside.y * s.y;
+	const int w = int(saturate((t - 0.5) * 3.0 + 0.5) * 256.0);
+	return Mix(base, edge, w);
+}
+
 float4 PSZoom(VsOut i) : SV_Target
 {
 	const int2 p = int2(i.pos.xy);
@@ -268,10 +316,11 @@ float4 PSZoom(VsOut i) : SV_Target
 	const int3 a = Px(int2(col.x, row.x));
 	const int3 upper = col.z == 0 ? a : Mix(a, Px(int2(col.y, row.x)), col.z);
 	if (row.z == 0)
-		return Out(upper);
+		return Out(ZoomMode == 4 ? XbrSample(p, upper) : upper);
 	const int3 c = Px(int2(col.x, row.y));
 	const int3 lower = col.z == 0 ? c : Mix(c, Px(int2(col.y, row.y)), col.z);
-	return Out(Mix(upper, lower, row.z));
+	const int3 sharp = Mix(upper, lower, row.z);
+	return Out(ZoomMode == 4 ? XbrSample(p, sharp) : sharp);
 }
 
 float4 PSSharpen(VsOut i) : SV_Target
@@ -1108,7 +1157,7 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 	    || extra.haze != nullptr || (extra.outlines != nullptr && extra.outlineBox.size.width > 0 && extra.outlineBox.size.height > 0);
 	// Nothing the card does better (audit round 1): no pass at all and no filtered zoom - the CPU's copy or nearest zoom
 	// costs less than the round trip.
-	if (!settings.bloom && !settings.mood && !settings.vignette && settings.zoom != GpuZoom::Filtered && !anyStage2)
+	if (!settings.bloom && !settings.mood && !settings.vignette && settings.zoom != GpuZoom::Filtered && settings.zoom != GpuZoom::Smooth && !anyStage2)
 		return false;
 	if (!Init())
 		return false;
@@ -1165,12 +1214,14 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 	if (zooming && (dw != w || dh != h)) {
 		if (settings.zoom == GpuZoom::Nearest)
 			zoomMode = 1;
+		else if (settings.zoom == GpuZoom::Smooth)
+			zoomMode = 4;
 		else if (w * 2 == dw && h * 2 == dh)
 			zoomMode = 2;
 		else
 			zoomMode = 3;
 	}
-	if (zoomMode == 3) {
+	if (zoomMode == 3 || zoomMode == 4) {
 		const auto axisTable = [](Target &t, int from, int to, int (&builtFor)[2]) {
 			if (builtFor[0] == from && builtFor[1] == to && t.texture != nullptr)
 				return true;
@@ -1635,7 +1686,7 @@ bool GpuWorldPost(const Surface &src, const Surface &dst, const GpuWorldPostSett
 	const Target *last = &Gpu->mid;
 	if (zooming) {
 		RunPass(Gpu->zoom.Get(), Gpu->zoomed,
-		    { { 0, Gpu->mid.srv.Get() }, { 5, zoomMode == 3 ? Gpu->zoomCols.srv.Get() : nullptr }, { 6, zoomMode == 3 ? Gpu->zoomRows.srv.Get() : nullptr } });
+		    { { 0, Gpu->mid.srv.Get() }, { 5, (zoomMode == 3 || zoomMode == 4) ? Gpu->zoomCols.srv.Get() : nullptr }, { 6, (zoomMode == 3 || zoomMode == 4) ? Gpu->zoomRows.srv.Get() : nullptr } });
 		last = &Gpu->zoomed;
 		if (sharpen) {
 			RunPass(Gpu->sharpen.Get(), Gpu->sharpened, { { 0, Gpu->zoomed.srv.Get() }, { 7, Gpu->casCurve.srv.Get() } });

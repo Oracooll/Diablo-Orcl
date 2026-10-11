@@ -44,6 +44,7 @@ enum class GpuZoom : uint8_t {
 	None,
 	Nearest,
 	Filtered,
+	Smooth, // Pixel Art Smoothing (user, 2026-10-11): xBR's edge rule at any scale - card only, the CPU falls back to Filtered
 };
 
 struct GpuWorldPostSettings {

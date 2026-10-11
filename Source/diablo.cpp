@@ -110,6 +110,7 @@
 #include "oracool/window_close.h"
 #include "oracool/telemetry.h" // TelemetryTick
 #include "oracool/named_encounters.h" // SeedArenaPopulation
+#include "oracool/scene_fx.h" // ForgetSceneFx - the third graphics batch's per-level records
 #include "panels/spell_list.hpp"
 #include "pfile.h"
 #include "plrmsg.h"
@@ -4348,6 +4349,10 @@ void DisableInputEventHandler(const SDL_Event &event, uint16_t modState)
 
 void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 {
+	// The afterimages, a guardian's entrance, the fades: per level, so a new level (or a new game) starts without them
+	// (audit round 1: a new rift on the same level stamp drew the last hero's trail).
+	oracool::ForgetSceneFx();
+	ForgetEntranceHolds();
 	// The artisans' benches do not follow the hero down the stairs (audit, 2026-09-29: the Cube, whose town owner has
 	// no walk-away, stayed open into the dungeon and held autosave off the whole way). Either may refuse - its items with
 	// nowhere to go - and then stays open, as it does everywhere else.

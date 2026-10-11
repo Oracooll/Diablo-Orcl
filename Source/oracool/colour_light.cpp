@@ -956,12 +956,19 @@ void ApplySmoothFloorLight(const Surface &out, Point firstTile, Point firstTileB
 	const uint8_t *light = &dLight[0][0];
 	const uint8_t *shadow = ShadowDarkening.data();
 	const uint8_t *open = OpenLevel.data();
+	// Exploration memory (oracool/scene_fx.h, off by default): an explored tile that is dark now keeps a faint light - the
+	// same level ExplorationMemoryLight gives the floor's own draw.
+	const bool memory = *sgOptions.Oracool.explorationMemory && leveltype != DTYPE_TOWN;
+	const DungeonFlag *explored = &dFlags[0][0];
 	for (int i = 0; i < FieldW * FieldH; i++) {
 		if (!smooth) {
 			plane[i] = One;
 			continue;
 		}
 		int level = light[i];
+		// Any explored tile at least this bright, its faint lit edge too (round 2 audit: else a dark ring at the light's edge).
+		if (memory && level > LightsMax - 3 && HasAnyOf(explored[i], DungeonFlag::Explored))
+			level = LightsMax - 3;
 		// A tile dLight lights clearly brighter than every source here would, unblocked, leave it is lit by a light that
 		// is no source - the Caves' lava, baked by PlaceCaveLights into dPreLight - and keeps that light (visual audit
 		// round 2: lava shores behind a wall from the hero went dark as he came near).
@@ -973,8 +980,22 @@ void ApplySmoothFloorLight(const Surface &out, Point firstTile, Point firstTileB
 
 	const GroundMap m = MakeGroundMap(firstTile, firstTileBuffer);
 	const int w = out.w();
+	// Debanding (the third graphics batch, oracool/scene_fx.h): the light's multiply rounds through an 8x8 ordered pattern
+	// instead of always down, so a gradient in the dark breaks into a fine grain instead of steps. The light has the
+	// precision here that the finished picture no longer has (audit round 1: a grain added afterwards could not deband).
+	static constexpr int Bayer[8][8] = {
+		{ 0, 128, 32, 160, 8, 136, 40, 168 }, { 192, 64, 224, 96, 200, 72, 232, 104 }, { 48, 176, 16, 144, 56, 184, 24, 152 },
+		{ 240, 112, 208, 80, 248, 120, 216, 88 }, { 12, 140, 44, 172, 4, 132, 36, 164 }, { 204, 76, 236, 108, 196, 68, 228, 100 },
+		{ 60, 188, 28, 156, 52, 180, 20, 148 }, { 252, 124, 220, 92, 244, 116, 212, 84 }
+	};
+	static constexpr int NoDither[8] = { 0, 0, 0, 0, 0, 0, 0, 0 }; // off: rounded down, exactly as before
+	const bool deband = *sgOptions.Oracool.debanding;
+	// Anchored to the world, so it travels with the floor instead of standing on the screen (round 2 audit).
+	const int worldX0 = (firstTile.x - firstTile.y) * 32 - firstTileBuffer.x;
+	const int worldY0 = (firstTile.x + firstTile.y) * 16 - firstTileBuffer.y;
 	for (int py = 0; py < out.h(); py++) {
 		uint32_t *row = out.at<uint32_t>(0, py);
+		const int *dither = deband ? Bayer[(py + worldY0) & 7] : NoDither;
 		const int64_t rowU = m.u0 + m.duY * py;
 		const int64_t rowV = m.v0 + m.dvY * py;
 		int f0 = 0;
@@ -1023,7 +1044,12 @@ void ApplySmoothFloorLight(const Surface &out, Point firstTile, Point firstTileB
 						if (c == 0)
 							continue;
 						const uint32_t k = static_cast<uint32_t>(f >> 8);
-						row[i] = (((((c >> 16) & 0xFF) * k) >> 8) << 16) | (((((c >> 8) & 0xFF) * k) >> 8) << 8) | (((c & 0xFF) * k) >> 8);
+						const uint32_t d = static_cast<uint32_t>(dither[(i + worldX0) & 7]);
+						uint32_t r = (((c >> 16) & 0xFF) * k + d) >> 8, g = (((c >> 8) & 0xFF) * k + d) >> 8, b = ((c & 0xFF) * k + d) >> 8;
+						r = r > 255 ? 255 : r;
+						g = g > 255 ? 255 : g;
+						b = b > 255 ? 255 : b;
+						row[i] = (r << 16) | (g << 8) | b;
 					}
 				}
 			}

@@ -516,6 +516,12 @@ void InitLevelMonsters();
  * plain MT_DIABLO body floor 16 stamps from its map. Nullptr when no tile near the hero is free this tick.
  */
 Monster *SpawnRiftGuardian();
+/** @brief Holds @p monster where it stands for @p ticks game ticks (the AI's own pause) - a guardian rising (oracool/scene_fx.h). */
+void HoldMonsterStill(Monster &monster, int ticks);
+/** @brief Clears @p monster's entrance hold; true when it had one. MonsterDelay asks as the pause ends. */
+bool EndEntranceHold(Monster &monster);
+/** @brief Clears every entrance hold (a level load): a slot reused later never inherits one (round 3 audit). */
+void ForgetEntranceHolds();
 /** @brief Oracool: takes @p monster off the floor without a death - no corpse, loot, experience or kill (a rift boss's split copy). */
 void DespawnMonster(Monster &monster);
 /** @brief Test seam: the level's monster types and their image budget, emptied as InitLevelMonsters empties them (round 103). */

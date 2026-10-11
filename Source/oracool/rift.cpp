@@ -29,6 +29,7 @@
 #include "multi.h"
 #include "objects.h"
 #include "options.h" // the mini-map option: where the rift bar hangs
+#include "oracool/scene_fx.h" // the guardian's entrance
 #include "oracool/area_level.h"
 #include "oracool/endgame_boss.h"
 #include "oracool/rift_bosses.h"
@@ -1257,6 +1258,15 @@ void ProcessRift()
 	OnRiftBossRisen(*guardian);
 	LogEvent(StrCat("The rift shudders: ", RiftBossName(), " rises!"), UiFlags::ColorRed);
 	PlayGuardianRisesSound(*guardian);
+	// His entrance (user, 2026-10-11: a beam of light, the ground shaking, rising out of the floor): he stands still while
+	// he rises - the rise ends 1.85 s in (oracool/scene_fx.h) - and then the fight is his.
+	if (*sgOptions.Oracool.bossEntrance) {
+		BeginGuardianEntrance(*guardian);
+		// In ticks at the game's own speed (audit round 1: a fixed 37 ended early on a faster game, and he struck while
+		// still sunk in the floor).
+		const int ticksPerSecond = sgGameInitInfo.nTickRate > 0 ? sgGameInitInfo.nTickRate : RiftTicksPerSecond;
+		HoldMonsterStill(*guardian, (ticksPerSecond * 37 + 19) / 20);
+	}
 }
 
 bool RiftEntered() { return State.creditNeeded > 0; }

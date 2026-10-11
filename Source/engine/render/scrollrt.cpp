@@ -90,6 +90,7 @@
 #include "oracool/xp_counter.h"
 #include "oracool/xp_gain_indicator.h"
 #include "oracool/whirlwind.h"
+#include "oracool/scene_fx.h"
 #include "panels/charpanel.hpp"
 #include "panels/spell_book.hpp"
 #include "plrmsg.h"
@@ -1028,6 +1029,10 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 		transparency = false;
 #endif
 	const bool foliage = !TileHasAny(levelPieceId, TileProperties::Solid);
+	// The living town (oracool/scene_fx.h): a tree's micros above its floor are noted for the sway, with its floor line.
+	// Not while the piece is drawn see-through: its blend reads what lies under it, which would then sway too.
+	const bool noteFoliage = foliage && !transparency && leveltype == DTYPE_TOWN && *sgOptions.Oracool.livingTown && !out.isIndexed();
+	const int foliageBase = targetBufferPosition.y;
 	// A see-through floor tile (an archway, a door frame, while the hero's room is transparent) redraws its two floor
 	// triangles here at the tile's own light - identical pixels in vanilla, but after a smoothed floor it would put the
 	// tile-sized step back (round 1 audit, v1.12.420). DrawFloor already drew them.
@@ -1102,6 +1107,9 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 	}
 
 	for (uint_fast8_t i = 2, n = MicroTileLen; i < n; i += 2) {
+		const bool foliageHere = noteFoliage && (LevelCelBlock { pMap->mt[i] }.hasValue() || LevelCelBlock { pMap->mt[i + 1] }.hasValue());
+		if (foliageHere)
+			oracool::BeginFoliageMicro(out, targetBufferPosition.x, targetBufferPosition.y - TILE_HEIGHT + 1, TILE_WIDTH, TILE_HEIGHT);
 		{
 			const LevelCelBlock levelCelBlock { pMap->mt[i] };
 			if (levelCelBlock.hasValue()) {
@@ -1118,6 +1126,8 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 				    transparency ? MaskType::Transparent : MaskType::Solid, tbl);
 			}
 		}
+		if (foliageHere)
+			oracool::EndFoliageMicro(out, foliageBase);
 		targetBufferPosition.y -= TILE_HEIGHT;
 	}
 }
@@ -1131,7 +1141,7 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 
 void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
-	LightTableIndex = dLight[tilePosition.x][tilePosition.y];
+	LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 
 	const uint8_t *tbl = LightTables[SmoothFloorThisFrame && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
 #ifdef _DEBUG
@@ -1375,6 +1385,10 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 		return;
 
 	const Point monsterRenderPosition { targetBufferPosition + offset - Displacement { CalculateWidth2(sprite.width()), 0 } };
+	// The third graphics batch (oracool/scene_fx.h): how his body is veiled this frame - a guardian rising out of the floor,
+	// a conjured one fading in, a guardian burning away. While it hides part of him, no outline of all of him (audit round 1).
+	const oracool::MonsterVeil veil = oracool::PlanMonsterVeil(monster, monsterRenderPosition, sprite);
+	const bool veilHides = veil.active && (veil.sink > 0 || veil.dissolve > 0 || veil.alpha < 1.0F);
 	// Scent of Blood (RfA-12): a monster the Rogue wounded stays drawn a moment after it leaves the light.
 	// Hunter's Mark: the marked one is seen as through infravision (the Rogue Skill Cards page, 2026-10-04).
 	const bool tileLit = IsTileLit(tilePosition) || MyPlayer->_pInfraFlag || oracool::MonsterScented(monster) || oracool::MonsterHunterMarked(monster);
@@ -1393,7 +1407,7 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	// monster hidden by darkness is exactly the same "can't normally see it, but still want the
 	// outline" situation as one hidden by a wall. The lit check (tileLit, above) is now only used
 	// to gate the monster's own sprite at the very end of this function, never these outlines.
-	const bool shouldOutlineMonster = mi == pcursmonst || inHighlightRange;
+	const bool shouldOutlineMonster = (mi == pcursmonst || inHighlightRange) && !veilHides;
 	if (shouldOutlineMonster) {
 		ClxDrawOutlineSkipColorZero(out, 233, monsterRenderPosition, sprite);
 	}
@@ -1408,31 +1422,39 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	// already drawn above is therefore also unconditionally queued for the guaranteed-on-top second
 	// pass (see DrawMonsterWallOutlines) - redrawing pixels that are already visible is a harmless
 	// no-op, so there's no downside to always doing it regardless of tileset.
-	if (shouldOutlineMonster || (*sgOptions.Oracool.monsterWallOutline && !heroAlly && (!tileLit || !LineClearMissile(MyPlayer->position.tile, monster.position.tile)))) {
+	if (shouldOutlineMonster || (!veilHides && *sgOptions.Oracool.monsterWallOutline && !heroAlly && (!tileLit || !LineClearMissile(MyPlayer->position.tile, monster.position.tile)))) {
 		HiddenMonsterOutlineQueue.push_back({ monsterRenderPosition, sprite });
 	}
 
 	if (!tileLit)
 		return;
 
+	// Rising: drawn lower by the sink, the part below the floor line cut away.
+	const Surface bodyOut = veil.active && veil.sink > 0 ? out.subregionY(0, std::clamp(veil.clipBottom, 0, out.h())) : out;
+	const Point bodyPosition = monsterRenderPosition + Displacement { 0, veil.active ? veil.sink : 0 };
+	oracool::BeginMonsterVeil(out, veil, monsterRenderPosition, sprite);
 	// A spinning companion's blades: the far half behind it, the near half in front (oracool/companion.h).
 	oracool::DrawCompanionBlades(out, monster, targetBufferPosition + offset, /*front=*/false);
 	// Smooth animation (user, 2026-10-11): this frame and the next each drawn over what lies under them, then mixed by how
 	// near the next one is - a true cross-fade (audit round 1).
 	if (const std::optional<oracool::FrameBlendPlan> blend = oracool::PlanMonsterFrameBlend(out, monster)) {
-		oracool::BeginFrameBlend(out, monsterRenderPosition, monster.animInfo.currentSprite(), monsterRenderPosition, blend->next);
-		DrawMonster(out, tilePosition, monsterRenderPosition, monster);
-		oracool::SwapFrameBlend(out);
-		DrawMonster(out, tilePosition, monsterRenderPosition, monster, blend->next);
-		oracool::EndFrameBlend(out, blend->alpha);
+		oracool::BeginFrameBlend(bodyOut, bodyPosition, monster.animInfo.currentSprite(), bodyPosition, blend->next);
+		DrawMonster(bodyOut, tilePosition, bodyPosition, monster);
+		oracool::SwapFrameBlend(bodyOut);
+		DrawMonster(bodyOut, tilePosition, bodyPosition, monster, blend->next);
+		oracool::EndFrameBlend(bodyOut, blend->alpha);
 	} else {
-		DrawMonster(out, tilePosition, monsterRenderPosition, monster);
+		DrawMonster(bodyOut, tilePosition, bodyPosition, monster);
 	}
 	oracool::DrawCompanionBlades(out, monster, targetBufferPosition + offset, /*front=*/true);
+	oracool::EndMonsterVeil(out, veil);
+	if (!veil.active)
+		oracool::DrawMonsterStatus(out, monster, monsterRenderPosition, sprite);
 	// Frenzy of the Dead wears a ring on the floor since 2026-10-03 (oracool::DrawMinionFrenzyRings, beside the aura rings),
 	// in place of RfA-27 batch 56's motes over each minion (the Necromancer Skill Cards page).
 	// A cursed monster wears its curse over its head (oracool/curses.h), and since RfA-27 its skill markers beside it.
-	oracool::DrawCurseMarker(out, monster, monsterRenderPosition + Displacement { monster.animInfo.currentSprite().width() / 2, -monster.animInfo.currentSprite().height() });
+	if (!veilHides)
+		oracool::DrawCurseMarker(out, monster, monsterRenderPosition + Displacement { monster.animInfo.currentSprite().width() / 2, -monster.animInfo.currentSprite().height() });
 }
 
 /**
@@ -1451,6 +1473,13 @@ void DrawPlayerHelper(const Surface &out, const Player &player, Point tilePositi
 
 	const Point playerRenderPosition { targetBufferPosition + offset };
 
+	// The third graphics batch (oracool/scene_fx.h): the hero's afterimages behind him.
+	if (player.AnimInfo.sprites || player.previewCelSprite) {
+		const std::optional<ClxSprite> spin = oracool::WhirlwindSprite(player);
+		const ClxSprite sprite = spin ? *spin : player.previewCelSprite ? *player.previewCelSprite : player.AnimInfo.currentSprite();
+		oracool::DrawPlayerAfterimages(out, player, tilePosition, targetBufferPosition, offset, sprite);
+	}
+
 	DrawPlayer(out, player, tilePosition, playerRenderPosition);
 }
 
@@ -1468,9 +1497,12 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 		return;
 	dRendered.set(tilePosition.x, tilePosition.y);
 
-	LightTableIndex = dLight[tilePosition.x][tilePosition.y];
+	// Exploration memory (oracool/scene_fx.h): the walls of an explored dark tile are remembered; then the tile's own light
+	// again, so its corpses, items and missiles stay unseen (audit round 1).
+	LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 
 	DrawCell(out, tilePosition, targetBufferPosition);
+	LightTableIndex = dLight[tilePosition.x][tilePosition.y];
 
 	int8_t bDead = dCorpse[tilePosition.x][tilePosition.y];
 	int8_t bMap = dTransVal[tilePosition.x][tilePosition.y];
@@ -1537,10 +1569,12 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 			// Turn transparency off here for debugging
 			transparency = transparency && (SDL_GetModState() & KMOD_ALT) == 0;
 #endif
+			// An arch is wall: on a remembered tile it takes the remembered light (round 2 audit: it drew black over it).
+			const int archLight = oracool::ExplorationMemoryLight(tilePosition, LightTableIndex);
 			if (transparency) {
-				ClxDrawLightBlended(out, targetBufferPosition, (*pSpecialCels)[bArch - 1], LightTableIndex);
+				ClxDrawLightBlended(out, targetBufferPosition, (*pSpecialCels)[bArch - 1], archLight);
 			} else {
-				ClxDrawLight(out, targetBufferPosition, (*pSpecialCels)[bArch - 1], LightTableIndex);
+				ClxDrawLight(out, targetBufferPosition, (*pSpecialCels)[bArch - 1], archLight);
 			}
 		}
 	} else {
@@ -1880,6 +1914,78 @@ Surface ZoomDestination(const Surface &fullOut)
 	return out.subregion(viewportOffsetX, 0, std::max(viewportWidth, 1), out.h());
 }
 
+/**
+ * @brief The figures' shadows and reflections (oracool/scene_fx.h), laid on the floor before the world is kept - the
+ * figures found as DrawDungeon finds them (dPlayer, dMonster), on DrawFloor's walk of the same rows and columns.
+ */
+void DrawFigureGroundPass(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
+{
+	if (out.isIndexed() || (!*sgOptions.Oracool.figureShadows && !*sgOptions.Oracool.waterReflections))
+		return;
+	oracool::BeginFigureGround(out, tilePosition, targetBufferPosition);
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < columns; j++) {
+			if (InDungeonBounds(tilePosition)) {
+				const int light = dLight[tilePosition.x][tilePosition.y];
+				const int mi = dMonster[tilePosition.x][tilePosition.y];
+				if (leveltype == DTYPE_TOWN && mi > 0) {
+					const Towner &towner = Towners[mi - 1];
+					const ClxSprite sprite = towner.currentSprite();
+					const Point bottomLeft { targetBufferPosition.x - CalculateWidth2(towner._tAnimWidth), targetBufferPosition.y };
+					oracool::AddFigureGround(out, tilePosition, {}, sprite, bottomLeft, light, false);
+				} else if (leveltype != DTYPE_TOWN && mi != 0 && static_cast<size_t>(std::abs(mi) - 1) < MaxMonsters) {
+					const Monster &monster = Monsters[std::abs(mi) - 1];
+					const bool sideLeft = monster.mode == MonsterMode::MoveSideways && monster.direction == Direction::West;
+					// The tile it is drawn from (DrawMonsterHelper's rules): the positive one, or the negative one for a
+					// sideways step to the left.
+					const bool drawnHere = monster.isWalking() ? (mi > 0) != sideLeft : mi > 0;
+					if (drawnHere && (monster.flags & MFLAG_HIDDEN) == 0 && monster.animInfo.sprites && !oracool::MinionBodyHidden(monster)
+					    && IsTileLit(tilePosition) && !oracool::MonsterRising(monster)
+					    && !(monster.mode == MonsterMode::Death && oracool::DissolvesOnDeath(monster))) {
+						const ClxSprite sprite = oracool::CompanionSpinSprite(monster).value_or(monster.animInfo.currentSprite());
+						Displacement walk = {};
+						if (monster.isWalking()) {
+							walk = GetOffsetForWalking(monster.animInfo, monster.direction);
+							if (sideLeft)
+								walk -= Displacement { 64, 0 };
+						} else {
+							walk += oracool::MinionLungeOffset(monster);
+						}
+						const Point bottomLeft = targetBufferPosition + walk - Displacement { CalculateWidth2(sprite.width()), 0 };
+						oracool::AddFigureGround(out, tilePosition, walk, sprite, bottomLeft, light, false);
+					}
+				}
+				const int8_t playerId = dPlayer[tilePosition.x][tilePosition.y];
+				if (static_cast<size_t>(playerId - 1) < Players.size()) {
+					const Player &player = Players[playerId - 1];
+					if ((player.AnimInfo.sprites || player.previewCelSprite) && (IsTileLit(tilePosition) || leveltype == DTYPE_TOWN)) {
+						const std::optional<ClxSprite> spin = oracool::WhirlwindSprite(player);
+						const ClxSprite sprite = spin ? *spin : player.previewCelSprite ? *player.previewCelSprite : player.AnimInfo.currentSprite();
+						const Displacement walk = player.isWalking() ? GetOffsetForWalking(player.AnimInfo, player._pdir) : Displacement {};
+						const Point bottomLeft = targetBufferPosition + walk - Displacement { CalculateWidth2(sprite.width()), 0 };
+						oracool::AddFigureGround(out, tilePosition, walk, sprite, bottomLeft, light, &player == MyPlayer);
+					}
+				}
+			}
+			tilePosition += Direction::East;
+			targetBufferPosition.x += TILE_WIDTH;
+		}
+		tilePosition += Displacement(Direction::West) * columns;
+		targetBufferPosition.x -= columns * TILE_WIDTH;
+		targetBufferPosition.y += TILE_HEIGHT / 2;
+		if ((i & 1) != 0) {
+			tilePosition.x++;
+			columns--;
+			targetBufferPosition.x += TILE_WIDTH / 2;
+		} else {
+			tilePosition.y++;
+			columns++;
+			targetBufferPosition.x -= TILE_WIDTH / 2;
+		}
+	}
+	oracool::EndFigureGround(out);
+}
+
 void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 {
 	oracool::GpuBeginWorldFrame(); // a pipelined picture is only ever the frame just before
@@ -1948,9 +2054,11 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	if (DeferFloorObjectsThisFrame) {
 		{ oracool::ScopedFramePass timed(oracool::FramePass::FloorLight); oracool::ApplySmoothFloorLight(visible, position, visibleStart); }
 		DeferFloorObjectsThisFrame = false;
+		oracool::ApplyWeatherGround(visible, position, visibleStart); // Tristram's rain-dark or snow-white ground, under the marks
 		{ oracool::ScopedFramePass timed(oracool::FramePass::Marks); oracool::DrawFloorMarks(visible, position, visibleStart); } // blood, scorch, frost, loot glows: on the lit floor
 		{ oracool::ScopedFramePass timed(oracool::FramePass::FloorThings); DrawFloorObjects(out, position, Point {} + offset, rows, columns); }
 	} else {
+		oracool::ApplyWeatherGround(visible, position, visibleStart);
 		{ oracool::ScopedFramePass timed(oracool::FramePass::Marks); oracool::DrawFloorMarks(visible, position, visibleStart); }
 	}
 	// Between the two passes, and only here: a lit aura's ring lies ON the floor, so every wall,
@@ -1962,6 +2070,10 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	oracool::DrawMinionFrenzyRings(out, position, Point {} + offset, rows, columns); // Frenzy of the Dead, under each minion
 	oracool::DrawArrowImpactRings(out, position, Point {} + offset, rows, columns); // Rain of Arrows, under each landed arrow
 	oracool::DrawFendRing(out, position, Point {} + offset, rows, columns);         // Fend, under the Rogue while she swings
+	// The ground fog and the figures' shadows and reflections (oracool/scene_fx.h): on the floor, before the world is kept
+	// for the relief and Lit Sprites - which read anything changed after the keep as a wall or a sprite (audit round 1).
+	oracool::ApplyGroundFog(visible, position, visibleStart);
+	DrawFigureGroundPass(out, position, Point {} + offset, rows, columns);
 	oracool::EndFramePass(oracool::FramePass::FloorThings);
 	// The GPU renderer plan (oracool/gpu_post.h, user 2026-10-11): everything after the sprites in one trip to the
 	// graphics card - Stage 2's relief, coloured light or day and night, beams and particles (as splats) and haze, Stage
@@ -1973,8 +2085,9 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	gpu.mood = *sgOptions.Oracool.areaMood && leveltype != DTYPE_TOWN;
 	gpu.moodType = leveltype;
 	gpu.vignette = *sgOptions.Oracool.vignette;
-	gpu.zoom = !zoomed ? oracool::GpuZoom::None : (*sgOptions.Oracool.zoomFilter ? oracool::GpuZoom::Filtered : oracool::GpuZoom::Nearest);
-	gpu.sharpen = zoomed && *sgOptions.Oracool.zoomFilter && *sgOptions.Oracool.zoomSharpen;
+	gpu.zoom = !zoomed ? oracool::GpuZoom::None
+	                   : (*sgOptions.Oracool.zoomFilter ? (*sgOptions.Oracool.pixelSmoothing ? oracool::GpuZoom::Smooth : oracool::GpuZoom::Filtered) : oracool::GpuZoom::Nearest);
+	gpu.sharpen = zoomed && *sgOptions.Oracool.zoomFilter && *sgOptions.Oracool.zoomSharpen && !*sgOptions.Oracool.pixelSmoothing;
 	gpu.pipelined = *sgOptions.Oracool.gpuPipelined;
 	// Stage 3 (user, 2026-10-11): the effects only the card runs. The per-pixel lights work in the dungeon, and in town
 	// after dark, when its lamps count.
@@ -1987,9 +2100,9 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	gpu.filmicGrade = *sgOptions.Oracool.filmicGrade;
 	const bool anyStage3 = gpu.perPixelLights || gpu.litSprites || gpu.wideBloom || gpu.lightShafts || gpu.heatDistortion || gpu.filmicGrade;
 	const bool reliefNow = oracool::SurfaceReliefActive(visible);
-	const bool gpuWorth = anyStage3 || gpu.bloom || gpu.mood || gpu.vignette || gpu.zoom == oracool::GpuZoom::Filtered || reliefNow
+	const bool gpuWorth = anyStage3 || gpu.bloom || gpu.mood || gpu.vignette || gpu.zoom == oracool::GpuZoom::Filtered || gpu.zoom == oracool::GpuZoom::Smooth || reliefNow
 	    || oracool::ColouredLightActive(visible) || (leveltype == DTYPE_TOWN && *sgOptions.Oracool.dayNightCycle)
-	    || (leveltype != DTYPE_TOWN && *sgOptions.Oracool.heatHaze);
+	    || (leveltype != DTYPE_TOWN && *sgOptions.Oracool.heatHaze) || (leveltype == DTYPE_TOWN && *sgOptions.Oracool.heatHaze && *sgOptions.Oracool.livingTown);
 	const bool gpuFrame = !visible.isIndexed() && gpuWorth && oracool::GpuWorldPostAvailable();
 
 	// Lit surface relief (oracool/colour_light.h, user 2026-10-11): the world before the sprites is kept - on the card, or
@@ -2003,6 +2116,8 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	oracool::EndFramePass(oracool::FramePass::Relief);
 	{ oracool::ScopedFramePass timed(oracool::FramePass::Sprites); DrawTileContent(out, position, Point {} + offset, rows, columns); }
 	FloorSmoothedThisFrame = false;
+	// The trees' sway (oracool/scene_fx.h): over the figures, before the light passes, so the night falls on it too.
+	oracool::ApplyTownSway(out, position, Point {} + offset);
 
 	bool doneOnGpu = false;
 	if (gpuFrame) {
@@ -2018,7 +2133,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 		static std::vector<oracool::Splat> splats;
 		splats.clear();
 		oracool::BeginSplatCollection(&splats);
-		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); }
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); }
 		{ oracool::ScopedFramePass timed(oracool::FramePass::Particles); oracool::UpdateAndDrawParticles(visible, position, visibleStart); }
 		oracool::EndSplatCollection();
 		oracool::HazePlan haze;
@@ -2077,7 +2192,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 		// Day and night in Tristram (user, 2026-10-11): the town's own light over the finished town; then the loot beams,
 		// which are light and stay bright at night, and bloom with the rest.
 		{ oracool::ScopedFramePass timed(oracool::FramePass::DayNight); oracool::ApplyTownDayNight(visible, position, visibleStart); }
-		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); }
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); }
 		// The other visual techniques (user, 2026-10-10: "i like all 9"), each behind its own option: particles over the
 		// lit world, the haze before the bloom so shimmered lava still glows, the area mood and vignette last so they
 		// cover the glow too - all before the outlines (the cursor's own colour) and the zoom.
@@ -2128,7 +2243,11 @@ void DrawView(const Surface &out, Point startPosition)
 #endif
 	Displacement offset = {};
 	CalcFirstTilePosition(startPosition, offset);
+	oracool::AdvanceSceneClock(); // the third graphics batch's clock (oracool/scene_fx.h): stands still while paused
 	DrawGame(out, startPosition, offset);
+	// A guardian's entrance shaking the picture, the falling rain or snow, lightning far off on a rainy night and the low
+	// health warning: over the finished world, before the HUD.
+	oracool::ApplyAfterWorld(out.subregionY(0, gnViewportHeight));
 	// Oracool: user rule - a window hides the UI behind it until it closes. At 340x720 a right-hand
 	// window is the full height of the screen in the top-right corner, which is exactly where the
 	// mini-map (306x175 at x=646) and the event log below it live, so they would otherwise sit
@@ -2821,6 +2940,9 @@ void DrawAndBlit()
 		return;
 	}
 
+	if (*sgOptions.Oracool.crtLook || oracool::GuardianEntranceActive())
+		RedrawEverything();
+
 	int hgt = 0;
 	bool drawHealth = IsRedrawComponent(PanelDrawComponent::Health);
 	bool drawMana = IsRedrawComponent(PanelDrawComponent::Mana);
@@ -2920,6 +3042,8 @@ void DrawAndBlit()
 #endif
 		// Above the HUD, deliberately. The Abilities window is drawn far earlier in this function, so
 		// its hover panel has to be deferred to here or the belt and orbs paint over it.
+		// A rift guardian's entrance: the black bars and his name, over the HUD and under the cursor (oracool/scene_fx.h).
+		oracool::DrawGuardianEntranceCard(out);
 		DrawAbilityHoverPanel(out);
 		oracool::DrawCursorTooltip(out);
 		DrawCursor(out);
@@ -2928,6 +3052,10 @@ void DrawAndBlit()
 #ifdef _DEBUG
 	}
 #endif
+
+	// The CRT look over the whole finished frame, cursor and all (off by default; oracool/scene_fx.h) - only on a frame drawn
+	// whole (hgt is the screen's height), or a part not redrawn would darken twice (audit round 1).
+	oracool::ApplyCrtLook(out, hgt == gnScreenHeight);
 
 	DrawMain(out, hgt, drawInfoBox, drawHealth, drawMana, drawBelt);
 

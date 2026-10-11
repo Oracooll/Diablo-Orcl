@@ -546,6 +546,37 @@ void SaveOptions()
 	    "; On (needs the Graphics Card Renderer): a film-like grade for each area - deeper blacks,\n; richer highlights, a little more colour.");
 	setBoolean("Smooth Animation", *sgOptions.Oracool.animationBlending,
 	    "; On: heroes and monsters blend each animation frame into the next, so walking and\n; fighting look smoother. Off: Diablo's original frame steps.");
+	// The third graphics batch (user, 2026-10-11).
+	setBoolean("Figure Shadows", *sgOptions.Oracool.figureShadows,
+	    "; On: heroes, monsters and townsfolk cast soft shadows away from the lights near them\n; (torches, spells, lamps, the sun in Tristram by day), beside their painted shadows.");
+	setBoolean("Exploration Memory", *sgOptions.Oracool.explorationMemory,
+	    "; On: explored floor you cannot light now stays faintly visible instead of black.\n; Monsters there stay hidden. Off by default.");
+	setBoolean("Weather", *sgOptions.Oracool.weather,
+	    "; On: rain or snow falls on Tristram now and then; on rainy nights, distant lightning.");
+	setBoolean("Ground Fog", *sgOptions.Oracool.groundFog,
+	    "; On: slow, low mist drifts through the Caves and the Crypt and catches the light.");
+	setBoolean("Water Reflections", *sgOptions.Oracool.waterReflections,
+	    "; On: heroes and monsters by water are mirrored in it, faint and rippling.");
+	setBoolean("Living Town", *sgOptions.Oracool.livingTown,
+	    "; On: Tristram's river shimmers as it flows and its trees sway in the wind.");
+	setBoolean("Afterimages", *sgOptions.Oracool.afterimages,
+	    "; On: Charge, Leap, Teleport and Whirlwind leave fading ghosts of the hero behind.");
+	setBoolean("Dissolve Effects", *sgOptions.Oracool.dissolveEffects,
+	    "; On: rift guardians burn away into embers when they die, leaving no body; the\n; monsters they conjure fade in as they appear.");
+	setBoolean("Status Visuals", *sgOptions.Oracool.statusVisuals,
+	    "; On: frozen monsters sparkle, burning ones flicker with flames, poisoned ones drip\n; green, chilled ones shed frost motes.");
+	setBoolean("Living Orbs", *sgOptions.Oracool.livingOrbs,
+	    "; On: the orbs' liquid sways and bubbles; the life orb pulses when it runs low.");
+	setBoolean("Pixel Art Smoothing", *sgOptions.Oracool.pixelSmoothing,
+	    "; On (needs the Graphics Card Renderer and the Sharp Zoom Filter): when zoomed in, the\n; pixel art is redrawn with the xBR filter - smooth edges instead of blocks.");
+	setBoolean("CRT Look", *sgOptions.Oracool.crtLook,
+	    "; On: scanlines, a faint phosphor mask and darker corners, as on a 1996 monitor.\n; Off by default.");
+	setBoolean("Debanding", *sgOptions.Oracool.debanding,
+	    "; On: a grain too faint to see smooths the steps in dark gradients.");
+	setBoolean("Low Health Warning", *sgOptions.Oracool.lowHealthWarning,
+	    "; On: below a third of your life, a red glow bleeds in from the screen's edges, pulsing\n; like a heartbeat - deeper and faster as you near death.");
+	setBoolean("Rift Guardian Entrance", *sgOptions.Oracool.bossEntrance,
+	    "; On: a rift guardian rises a few steps away in a great beam of light; the ground\n; shakes, black bars close in and his name appears.");
 	setBoolean("Item Tooltip Card", *sgOptions.Oracool.itemTooltipCard,
 	    "; On: the item tooltip is a card - name large, type and tier under it, armour or damage\n; as one big number, the item's picture top right, stats left-aligned, requirements in\n; a band at the foot. Off: the earlier centred panel.");
 	setBoolean("Grouped Hero Sheet", *sgOptions.Oracool.heroSheetGrouped,
@@ -1697,6 +1728,21 @@ OracoolOptions::OracoolOptions()
     , lightShafts("Light Shafts", OptionEntryFlags::None, N_("Light Shafts"), N_("Needs the Graphics Card Renderer. Torches and bright spells cast faint shafts of light through the air."), true)
     , heatDistortion("Heat Distortion", OptionEntryFlags::None, N_("Heat Distortion"), N_("Needs the Graphics Card Renderer. The air above lava, fire spells and torches truly bends the picture."), true)
     , filmicGrade("Filmic Colour Grade", OptionEntryFlags::None, N_("Filmic Colour Grade"), N_("Needs the Graphics Card Renderer. A film-like grade for each area: deeper blacks, richer highlights, a little more colour."), true)
+    , figureShadows("Figure Shadows", OptionEntryFlags::None, N_("Figure Shadows"), N_("Heroes, monsters and townsfolk cast soft shadows away from the lights near them - torches, spells, lamps, and the sun in Tristram by day - beside the shadows painted into their art."), true)
+    , explorationMemory("Exploration Memory", OptionEntryFlags::None, N_("Exploration Memory"), N_("Floor you have explored but cannot light now stays faintly visible, like a memory, instead of black. Monsters there stay hidden."), false)
+    , weather("Weather", OptionEntryFlags::None, N_("Weather"), N_("Rain or snow falls on Tristram now and then: the ground turns wet or white, and on rainy nights lightning flashes in the distance."), true)
+    , groundFog("Ground Fog", OptionEntryFlags::None, N_("Ground Fog"), N_("Slow, low mist drifts through the Caves and the Crypt and catches the light of torches and spells."), true)
+    , waterReflections("Water Reflections", OptionEntryFlags::None, N_("Water Reflections"), N_("Heroes and monsters standing by water are mirrored in it, faint and rippling."), true)
+    , livingTown("Living Town", OptionEntryFlags::None, N_("Living Town"), N_("Tristram moves: the river shimmers as it flows and the trees sway in the wind."), true)
+    , afterimages("Afterimages", OptionEntryFlags::None, N_("Afterimages"), N_("Charge, Leap, Teleport and Whirlwind leave fading ghosts of the hero behind them."), true)
+    , dissolveEffects("Dissolve Effects", OptionEntryFlags::None, N_("Dissolve Effects"), N_("Rift guardians burn away into embers when they die, leaving no body, and the monsters they conjure fade in as they appear."), true)
+    , statusVisuals("Status Visuals", OptionEntryFlags::None, N_("Status Visuals"), N_("Frozen monsters sparkle with frost, burning ones flicker with flames, poisoned ones drip green, chilled ones shed frost motes."), true)
+    , livingOrbs("Living Orbs", OptionEntryFlags::None, N_("Living Orbs"), N_("The life, mana, Rage and Essence orbs are liquid: the surface sways and bubbles rise, and the life orb pulses when it runs low."), true)
+    , pixelSmoothing("Pixel Art Smoothing", OptionEntryFlags::None, N_("Pixel Art Smoothing"), N_("Needs the Graphics Card Renderer and the Sharp Zoom Filter. When zoomed in, the pixel art is redrawn with the xBR filter: smooth edges and curves instead of blocks."), true)
+    , crtLook("CRT Look", OptionEntryFlags::None, N_("CRT Look"), N_("The whole screen as on a 1996 monitor: scanlines, a faint phosphor mask and darker corners."), false)
+    , debanding("Debanding", OptionEntryFlags::None, N_("Debanding"), N_("A grain too faint to see smooths the steps in dark gradients, so the smooth lighting stays smooth in dark rooms and in recordings."), true)
+    , bossEntrance("Rift Guardian Entrance", OptionEntryFlags::None, N_("Rift Guardian Entrance"), N_("A rift guardian rises from the ground a few steps away in a great beam of light: the ground shakes, black bars close in and his name appears."), true)
+    , lowHealthWarning("Low Health Warning", OptionEntryFlags::None, N_("Low Health Warning"), N_("Below a third of your life, a red glow bleeds in from the edges of the screen, pulsing like a heartbeat - deeper and faster as you near death."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("A timestamped log of noteworthy session events, opened from the Menu popup or with F11."), true)
@@ -1811,6 +1857,21 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&lightShafts,
 		&heatDistortion,
 		&filmicGrade,
+		&figureShadows,
+		&explorationMemory,
+		&weather,
+		&groundFog,
+		&waterReflections,
+		&livingTown,
+		&afterimages,
+		&dissolveEffects,
+		&statusVisuals,
+		&livingOrbs,
+		&pixelSmoothing,
+		&crtLook,
+		&debanding,
+		&bossEntrance,
+		&lowHealthWarning,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,

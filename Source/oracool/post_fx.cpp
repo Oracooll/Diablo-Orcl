@@ -201,12 +201,50 @@ uint8_t ClassifyPiece(uint16_t piece, const Surface &scratch, const uint8_t *ide
 	return cycling >= 64 && cycling * 5 >= drawn ? liquid : LiquidNone;
 }
 
+/**
+ * Tristram's river (the living town, oracool/scene_fx.h): the town cycles no palette entries, so its water is found by
+ * colour - a floor piece drawn mostly in the palette's water blues.
+ */
+uint8_t ClassifyTownWater(uint16_t piece, const Surface &scratch, const uint8_t *identity)
+{
+	for (int y = 0; y < scratch.h(); y++)
+		std::memset(scratch.at(0, y), 0, static_cast<size_t>(scratch.w()));
+	for (int i = 0; i < 2; i++) {
+		const LevelCelBlock block { DPieceMicros[piece].mt[i] };
+		if (block.hasValue())
+			RenderTile(scratch, Point { i * 32, scratch.h() - 9 }, block, MaskType::Solid, identity);
+	}
+	int drawn = 0, water = 0;
+	for (int y = 0; y < scratch.h(); y++) {
+		const uint8_t *row = scratch.at(0, y);
+		for (int x = 0; x < scratch.w(); x++) {
+			const int c = row[x];
+			if (c == 0)
+				continue;
+			drawn++;
+			const int r = (PaletteRGB[c] >> 16) & 0xFF, g = (PaletteRGB[c] >> 8) & 0xFF, b = PaletteRGB[c] & 0xFF;
+			if (b > r + 24 && b + 6 >= g)
+				water++;
+		}
+	}
+	return water >= 64 && water * 5 >= drawn * 2 ? LiquidWater : LiquidNone;
+}
+
+bool TownRiverWas = false;
+
 /** Brings LiquidMap up to date with the level: the pieces once a level, the map again whenever dPiece changes. */
 void RefreshLiquidMap()
 {
 	const LevelKey key { static_cast<int>(leveltype), currlevel, setlevel, static_cast<int>(setlvlnum), pDungeonCels.get() };
 	if (!(key == LiquidKey)) {
 		LiquidKey = key;
+		PieceKind.fill(PieceUnknown);
+		LiquidMapValid = false;
+	}
+	// The town's river comes and goes with its option: a change rebuilds the map.
+	const bool townRiver = leveltype == DTYPE_TOWN && *sgOptions.Oracool.livingTown;
+	if (townRiver != TownRiverWas) {
+		TownRiverWas = townRiver;
 		PieceKind.fill(PieceUnknown);
 		LiquidMapValid = false;
 	}
@@ -219,7 +257,8 @@ void RefreshLiquidMap()
 	AnyLiquid = false;
 
 	int lo = 0, hi = 0;
-	if (leveltype == DTYPE_TOWN || pDungeonCels == nullptr || !CycleRange(leveltype, lo, hi))
+	const bool town = leveltype == DTYPE_TOWN;
+	if ((town && !townRiver) || pDungeonCels == nullptr || (!town && !CycleRange(leveltype, lo, hi)))
 		return;
 	// Lava or water: the cycling entries' own colour says (the Caves are lava, the Poisoned Water pool is not).
 	int sr = 0, sg = 0, sb = 0;
@@ -231,7 +270,7 @@ void RefreshLiquidMap()
 	// The Poisoned Water Supply's pool is water whatever colour its poison gives it (user, 2026-10-10: "we should not have
 	// heat waves over the water in poisoned water well. we only need that effect over lava").
 	const bool poisonedWater = setlevel && setlvlnum == SL_POISONWATER;
-	const uint8_t liquid = !poisonedWater && sr * 2 > sg + sb ? LiquidLava : LiquidWater;
+	const uint8_t liquid = town ? LiquidWater : (!poisonedWater && sr * 2 > sg + sb ? LiquidLava : LiquidWater);
 
 	std::array<uint8_t, 256> identity;
 	for (int i = 0; i < 256; i++)
@@ -256,7 +295,7 @@ void RefreshLiquidMap()
 				continue;
 			uint8_t &kind = PieceKind[piece];
 			if (kind == PieceUnknown)
-				kind = ClassifyPiece(piece, scratch, identity.data(), lo, hi, liquid);
+				kind = town ? ClassifyTownWater(piece, scratch, identity.data()) : ClassifyPiece(piece, scratch, identity.data(), lo, hi, liquid);
 			if (kind != LiquidNone) {
 				LiquidMap[static_cast<size_t>(x) * FieldH + y] = kind;
 				AnyLiquid = true;
@@ -605,7 +644,7 @@ void ApplyBloom(const Surface &out)
 bool PlanHeatHazeAndWater(const Surface &out, Point firstTile, Point firstTileBuffer, HazePlan &plan)
 {
 	plan = HazePlan {};
-	if (!*sgOptions.Oracool.heatHaze || out.isIndexed() || leveltype == DTYPE_TOWN || out.w() <= 0 || out.h() <= 0)
+	if (!*sgOptions.Oracool.heatHaze || out.isIndexed() || (leveltype == DTYPE_TOWN && !*sgOptions.Oracool.livingTown) || out.w() <= 0 || out.h() <= 0)
 		return false;
 	RefreshLiquidMap();
 	if (!AnyLiquid)
@@ -959,7 +998,7 @@ void SharpenAdaptive(uint8_t *base, int pitch, int width, int height)
 
 const uint8_t *LiquidMapForGpu()
 {
-	if (leveltype == DTYPE_TOWN)
+	if (leveltype == DTYPE_TOWN && !*sgOptions.Oracool.livingTown)
 		return nullptr;
 	RefreshLiquidMap();
 	return AnyLiquid ? LiquidMap.data() : nullptr;

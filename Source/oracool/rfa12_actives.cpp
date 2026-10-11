@@ -4570,6 +4570,16 @@ size_t Rfa12BodyOverlays(const Player &player, Rfa12BodyOverlay *out, size_t cap
 	return count;
 }
 
+bool MonsterBurning(const Monster &monster)
+{
+	return (monster.hitPoints >> 6) > 0 && MarksOf(monster).burnTicks > 0;
+}
+
+bool MonsterPoisoned(const Monster &monster)
+{
+	return (monster.hitPoints >> 6) > 0 && MarksOf(monster).poisonTicks > 0;
+}
+
 uint16_t Rfa12SkillMarkers(const Monster &monster)
 {
 	if ((monster.hitPoints >> 6) <= 0)

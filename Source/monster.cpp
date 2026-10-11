@@ -65,6 +65,7 @@
 #include "oracool/telemetry.h"
 #include "oracool/particles.h" // EmitHitSparks - a picture only
 #include "oracool/ground_fx.h" // AddDeathMark - a picture only
+#include "oracool/scene_fx.h"  // DissolvesOnDeath - a burnt-away guardian leaves no body
 
 #include "qol/floatingnumbers.h"
 #include "spelldat.h"
@@ -2331,6 +2332,8 @@ void MonsterDeath(Monster &monster)
 			// The Fire Golem burns away in the Elemental's explosion: no golem rubble, nothing to raise (v1.12.364).
 		} else if (oracool::IsCompanion(monster)) {
 			// A fallen companion leaves no body: it wore the Golem's type, and the Golem's rubble lay where it fell (round 31).
+		} else if (oracool::DissolvesOnDeath(monster)) {
+			// A rift guardian burnt away into embers as he fell (oracool/scene_fx.h): nothing is left to lie there.
 		} else if (monster.isUnique() && monster.corpseId != 0) {
 			// The body keeps the look it died with: this slot is freed next and the next summon takes it (dead.h).
 			Corpse &corpse = Corpses[monster.corpseId - 1];
@@ -2380,10 +2383,11 @@ bool MonsterDelay(Monster &monster)
 	if (monster.var2-- == 0) {
 		int oFrame = monster.animInfo.currentFrame;
 		const bool stunned = IsMonsterStunned(monster);
+		const bool risen = EndEntranceHold(monster); // a guardian's entrance hold (oracool/scene_fx.h): no free blow after it
 		M_StartStand(monster, monster.direction);
 		// A stun's end is no AI pause (round 123 audit): the skeleton, snake and Counselor AIs read var1 == Delay as "strike now",
 		// so every stun ended in a guaranteed blow or Flash.
-		if (stunned)
+		if (stunned || risen)
 			monster.var1 = static_cast<int>(MonsterMode::Stand);
 		monster.animInfo.currentFrame = oFrame;
 		return true;
@@ -4726,6 +4730,31 @@ static bool RiftGuardianSpotReachable(Point hero, Point candidate)
 	return steps > 0 && steps <= 20;
 }
 
+namespace {
+/** Who stands held for an entrance: when the hold ends he stands, not "strikes now" (round 2 audit, as a stun ends). */
+std::array<bool, MaxMonsters> HeldForEntrance {};
+} // namespace
+
+void HoldMonsterStill(Monster &monster, int ticks)
+{
+	AiDelay(monster, ticks);
+	if (monster.getId() < MaxMonsters)
+		HeldForEntrance[monster.getId()] = true;
+}
+
+void ForgetEntranceHolds()
+{
+	HeldForEntrance.fill(false);
+}
+
+bool EndEntranceHold(Monster &monster)
+{
+	if (monster.getId() >= MaxMonsters || !HeldForEntrance[monster.getId()])
+		return false;
+	HeldForEntrance[monster.getId()] = false;
+	return true;
+}
+
 Monster *SpawnRiftGuardian()
 {
 	if (MyPlayer == nullptr || !EnemyMonsterRoomLeft())
@@ -4749,9 +4778,19 @@ Monster *SpawnRiftGuardian()
 	// failed 300-node path - a hitch of tens of milliseconds).
 	int pathTries = 0;
 	constexpr int MaxPathTries = 32;
-	for (const bool sighted : { true, false }) {
+	// A few steps away first, where his entrance can be seen (user, 2026-10-11: "rift boss to appear a bit further away
+	// from hero"): seven tiles out and further; then from three, as before; then any open tile.
+	// One path budget for both sighted passes, and the near ring only out to the far one's start (audit round 1: a fresh
+	// budget per pass doubled the hitch the round 106 cap was there to prevent).
+	struct Pass {
+		bool sighted;
+		int firstRadius;
+		int lastRadius;
+	};
+	for (const Pass pass : { Pass { true, 7, 20 }, Pass { true, 3, 6 }, Pass { false, 3, 40 } }) {
+		const bool sighted = pass.sighted;
 		// The sighted pass only to 20: past it no walk of 20 steps can reach, and each tile there cost a sight line and a path (round 104).
-		for (int radius = 3; radius <= (sighted ? 20 : 40) && !spot; radius++) {
+		for (int radius = pass.firstRadius; radius <= pass.lastRadius && !spot; radius++) {
 			for (int dx = -radius; dx <= radius && !spot; dx++) {
 				for (int dy = -radius; dy <= radius; dy++) {
 					if (std::max(std::abs(dx), std::abs(dy)) != radius)

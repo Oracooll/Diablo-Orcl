@@ -29,6 +29,7 @@
 #include "inv.h"
 #include "oracool/area_level.h" // MaxAreaLevel - a debug set piece stays on the ladder
 #include "oracool/colour_light.h" // TownHour / SetTownHour - the timeofday command
+#include "oracool/scene_fx.h"     // SetWeather - the weather command
 #include "oracool/gpu_post.h"     // GpuWorldPostStatus - the gpuinfo command
 #include "levels/setmaps.h"
 #include "lighting.h"
@@ -1213,6 +1214,29 @@ std::string DebugCmdTimeOfDay(const string_view parameter)
 	return fmt::format("Tristram's clock set to {}.", show(oracool::TownHour()));
 }
 
+std::string DebugCmdWeather(const string_view parameter)
+{
+	// Weather in Tristram (user, 2026-10-11): read or set, so rain, snow and a clear sky can be seen at once.
+	const auto name = [](oracool::Weather w) { return w == oracool::Weather::Rain ? "rain" : (w == oracool::Weather::Snow ? "snow" : "clear"); };
+	if (parameter.empty()) {
+		float intensity = 0;
+		const oracool::Weather now = oracool::CurrentWeather(&intensity);
+		return fmt::format("Tristram's weather: {} ({}%). weather rain, weather snow or weather clear sets it.", name(now), static_cast<int>(intensity * 100.0F));
+	}
+	const std::string text(parameter);
+	oracool::Weather w;
+	if (text == "rain")
+		w = oracool::Weather::Rain;
+	else if (text == "snow")
+		w = oracool::Weather::Snow;
+	else if (text == "clear")
+		w = oracool::Weather::Clear;
+	else
+		return "Give rain, snow or clear.";
+	oracool::SetWeather(w);
+	return fmt::format("Tristram's weather set to {}.", name(w));
+}
+
 /** Rebuilds the cursor from scratch - the hand, its hardware image and its visibility - without restarting. */
 std::string DebugCmdCursorFix(const string_view parameter)
 {
@@ -1709,6 +1733,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "cursorinfo", "Shows the cursor's state (type it the moment the cursor vanishes).", "", &DebugCmdCursorInfo },
 	{ "cursorfix", "Rebuilds the cursor from scratch, without restarting.", "", &DebugCmdCursorFix },
 	{ "timeofday", "Shows or sets Tristram's clock (0-24) for the day and night cycle.", "({hour})", &DebugCmdTimeOfDay },
+	{ "weather", "Shows or sets Tristram's weather: rain, snow or clear.", "({rain|snow|clear})", &DebugCmdWeather },
 	{ "gpuinfo", "Shows whether the graphics card renderer is in use, and on which card.", "", &DebugCmdGpuInfo },
 	{ "clearui", "Toggles hiding every HUD element (panel, mini-map, overlays, cursor, etc.) for a fully clean screenshot.", "", &DebugCmdClearUi },
 	{ "spawnu", "Spawns unique monster {name}.", "{name} ({count})", &DebugCmdSpawnUniqueMonster },

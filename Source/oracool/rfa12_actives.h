@@ -179,6 +179,10 @@ constexpr int SkillMarkerCount = static_cast<int>(SkillMarker::Commanded) + 1;
 
 /** @brief The SkillMarker bits that hold on @p monster now; 0 for a dead one. */
 uint16_t Rfa12SkillMarkers(const Monster &monster);
+/** @brief A burn (the fire skills' damage over time) is on @p monster: drawn as flames (oracool/scene_fx.h). */
+bool MonsterBurning(const Monster &monster);
+/** @brief The Necromancer's poison is on @p monster: drawn as green drips (oracool/scene_fx.h). */
+bool MonsterPoisoned(const Monster &monster);
 /** @brief Astral Projection: whether the hero is out of body, and unnoticed. */
 bool Rfa12ActiveHidesPlayer(const Player &player);
 /** @brief Conduit is on him: drawn in Tint::Electric (user, 2026-10-01). */
