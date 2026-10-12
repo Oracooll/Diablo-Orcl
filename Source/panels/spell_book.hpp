@@ -141,6 +141,11 @@ void FreeSpellBook();
 void CheckSBook(bool assignToRightButton = false);
 void DrawSpellBook(const Surface &out);
 
+/** @brief Opens tree page @p page (0-2, 3 the passives) at the top - for the website's window renders (tests). */
+void ShowAbilityTreePage(int page);
+/** @brief Where the icon of the cell at @p column, @p tier of @p page is drawn on the screen, unscrolled. */
+Rectangle AbilityTreeIconScreenRect(int page, int column, int tier);
+
 /**
  * @brief Draws the hovered row's description panel, if any, and clears it.
  *

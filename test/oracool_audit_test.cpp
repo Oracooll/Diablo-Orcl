@@ -18560,6 +18560,80 @@ TEST(OracoolPreview, DISABLED_ShieldBeam)
 	HeadlessMode = savedHeadless;
 }
 
+#include "panels/spell_book.hpp"
+
+/**
+ * The website's Class Skills pages (user, 2026-10-12: "show a screenshot of their four abilities windows with hover pop-up
+ * over the skills icons with description"): every class's Abilities window on each of its four pages, drawn by
+ * DrawSpellBook at 960x720 and cropped to the window, into ORCL_ABILITIES_OUT as <class>_<page>.png, and abilities.json
+ * - for every skill on every page, where its icon is in the crop, its name, kind, tier and description.
+ */
+TEST(OracoolPreview, DISABLED_ExportAbilitiesWindows)
+{
+	MountTestArchives(true);
+	EnsureCursorSpritesLoaded();
+	PreviewLoadPalette();
+	InitPNG();
+	gnScreenWidth = 960;
+	gnScreenHeight = 720;
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const char *outDir = std::getenv("ORCL_ABILITIES_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const auto esc = [](const char *text) {
+		std::string out;
+		for (const char *c = text != nullptr ? text : ""; *c != '\0'; c++) {
+			if (*c == '"' || *c == '\\')
+				out += '\\';
+			if (*c == '\n')
+				out += "\\n";
+			else
+				out += *c;
+		}
+		return out;
+	};
+	std::ofstream json(dir + "abilities.json", std::ios::binary);
+	json << "[";
+	bool first = true;
+	const std::pair<HeroClass, const char *> classes[] = { { HeroClass::Warrior, "paladin" }, { HeroClass::Barbarian, "barbarian" },
+		{ HeroClass::Sorcerer, "sorcerer" }, { HeroClass::Rogue, "rogue" }, { HeroClass::Monk, "monk" }, { HeroClass::Necromancer, "necromancer" } };
+	InitSpellBook();
+	for (const auto &[heroClass, name] : classes) {
+		devilution::Player &player = FreshHero(heroClass, 0);
+		player._pLevel = 50;
+		InspectPlayer = MyPlayer = &player;
+		CalcPlrItemVals(player, false);
+		for (int page = 0; page < 4; page++) {
+			ShowAbilityTreePage(page);
+			OwnedSurface out = OwnedSurface::Rgb(960, 720);
+			PreviewFloor(out);
+			sbookflag = true;
+			DrawSpellBook(out);
+			sbookflag = false;
+			const Rectangle panel = GetSpellBookPanelRect();
+			OwnedSurface crop = OwnedSurface::Rgb(panel.size.width, panel.size.height);
+			const SDL_Rect from { panel.position.x, panel.position.y, panel.size.width, panel.size.height };
+			SDL_BlitSurface(out.surface, const_cast<SDL_Rect *>(&from), crop.surface, nullptr);
+			const std::string file = std::string(name) + "_" + std::to_string(page) + ".png";
+			PreviewSave(crop, (dir + file).c_str());
+			oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
+			const size_t count = oracool::BuildClassTreePage(heroClass, page, skills);
+			for (size_t i = 0; i < count; i++) {
+				const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skills[i]);
+				const Rectangle icon = AbilityTreeIconScreenRect(page, data.column, data.tier);
+				json << (first ? "" : ",") << "{\"class\":\"" << name << "\",\"page\":" << page << ",\"file\":\"" << file << "\",\"name\":\"" << esc(data.name)
+				     << "\",\"desc\":\"" << esc(data.description) << "\",\"kind\":" << static_cast<int>(data.kind) << ",\"tier\":" << data.tier
+				     << ",\"col\":" << data.column << ",\"implemented\":" << (data.implemented ? "true" : "false") << ",\"x\":" << icon.position.x - panel.position.x
+				     << ",\"y\":" << icon.position.y - panel.position.y << ",\"w\":" << icon.size.width << ",\"h\":" << icon.size.height << "}";
+				first = false;
+			}
+		}
+	}
+	json << "]";
+	std::cout << "wrote the Abilities windows and abilities.json\n";
+	HeadlessMode = savedHeadless;
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"

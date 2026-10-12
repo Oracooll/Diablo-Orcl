@@ -2669,4 +2669,18 @@ void ReleaseSpellBookButtons()
 	ReleasedIcon = {};
 }
 
+void ShowAbilityTreePage(int page)
+{
+	CurrentSheet = static_cast<AbilitySheet>(static_cast<int>(AbilitySheet::ClassTree0) + std::clamp(page, 0, 3));
+	ResetSpellBookScroll();
+}
+
+Rectangle AbilityTreeIconScreenRect(int page, int column, int tier)
+{
+	const Rectangle content = GetSpellBookContentRect();
+	Rectangle rect = TreeIconRect(page, column, tier);
+	rect.position += Displacement { content.position.x, content.position.y };
+	return rect;
+}
+
 } // namespace devilution
