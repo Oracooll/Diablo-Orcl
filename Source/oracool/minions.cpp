@@ -4,6 +4,7 @@
  * See minions.h.
  */
 #include "oracool/minions.h"
+#include "oracool/scene_glow.h" // DrawnSkillsOn: the golems drawn (2026-10-12)
 #include "oracool/rfa12_actives.h" // round 100: SightLineClear / FightsAsUnique
 #include "oracool/curses.h"
 #include "oracool/necro_summoning.h"
@@ -751,6 +752,9 @@ MinionLook GolemLook(GolemKind kind)
 	case GolemKind::Blood: return { Tint::Hue, hue::BloodRed };
 	case GolemKind::Iron: return { Tint::Sheen, hue::Iron };
 	case GolemKind::Fire:
+		if (DrawnSkillsOn())
+			return { Tint::Hue, Rgb(255, 196, 60) }; // the golem in yellow, the fire drawn over it (2026-10-12)
+		break;
 	case GolemKind::None: break;
 	}
 	return {};
@@ -812,6 +816,12 @@ FireGolemTiming FireGolemAnimTiming(MonsterGraphic graphic)
 	return { static_cast<int8_t>(FireGolemSheetFrames), static_cast<int8_t>(FireGolemAttackTicksPerFrame) };
 }
 
+GolemKind GolemKindOf(const Monster &monster)
+{
+	const Record *record = RecordOf(monster);
+	return record != nullptr && record->spec.group == MinionGroup::Golem ? record->spec.golem : GolemKind::None;
+}
+
 bool IsFireGolem(const Monster &monster)
 {
 	const Record *record = RecordOf(monster);
@@ -823,6 +833,9 @@ const AnimStruct *GetMinionAnim(const Monster &monster, MonsterGraphic graphic)
 	// The rise is the vanilla golem's build-up sheet for every golem, the Fire Golem's too (v1.12.370): molten, it ignites at
 	// the end (OnMinionRisen) and wears the Elemental from then on.
 	if (!IsFireGolem(monster) || graphic == MonsterGraphic::Special)
+		return nullptr;
+	// With the Drawn Skills it is the golem itself, yellow, with fire drawn over it (user, 2026-10-12).
+	if (DrawnSkillsOn())
 		return nullptr;
 	const MissileFileData &sheet = GetMissileSpriteData(MissileGraphicID::Elemental);
 	if (!sheet.sprites || !sheet.sprites->isSheet())
@@ -860,14 +873,14 @@ Displacement FireGolemLungeOffset(Direction facing, int progress)
 
 Displacement MinionLungeOffset(const Monster &monster)
 {
-	if (monster.mode != MonsterMode::MeleeAttack || !IsFireGolem(monster))
+	if (monster.mode != MonsterMode::MeleeAttack || !IsFireGolem(monster) || DrawnSkillsOn())
 		return {};
 	return FireGolemLungeOffset(monster.direction, monster.animInfo.getAnimationProgress());
 }
 
 bool MinionBodyHidden(const Monster &monster)
 {
-	return monster.mode == MonsterMode::Death && IsFireGolem(monster) && MissileArtLoaded(FireGolemDeathArt);
+	return monster.mode == MonsterMode::Death && IsFireGolem(monster) && !DrawnSkillsOn() && MissileArtLoaded(FireGolemDeathArt);
 }
 
 bool MinionDrawsUnlit(const Monster &monster)

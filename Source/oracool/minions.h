@@ -240,6 +240,8 @@ struct FireGolemTiming {
 FireGolemTiming FireGolemAnimTiming(MonsterGraphic graphic);
 /** @brief Whether @p monster is a Necromancer's Fire Golem (its record says so). */
 bool IsFireGolem(const Monster &monster);
+/** @brief Which golem @p monster is, or None (user, 2026-10-12: the golems' size, trails and fire). */
+GolemKind GolemKindOf(const Monster &monster);
 /**
  * @brief The animation @p monster binds for @p graphic in place of its type's, or nullptr: the Fire Golem's run sheet,
  * while the Elemental's art is loaded. Asked by GetScaledAnim, i.e. by both of the engine's sprite binders.

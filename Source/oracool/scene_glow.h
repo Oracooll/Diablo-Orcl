@@ -29,6 +29,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 #include "engine/clx_sprite.hpp"
@@ -36,6 +37,7 @@
 
 namespace devilution {
 struct Surface;
+struct Missile;
 struct Monster;
 struct Player;
 } // namespace devilution
@@ -107,6 +109,32 @@ void DrawnStomp(Point tile);
 void DrawnSeismicSlam(Point tile, Displacement dir, int tiles);
 void DrawnEarthquake(Point tile);
 void DrawnHammerCracks(Point tile);
+
+/**
+ * @brief The drawn skills (user, 2026-10-12: "check my feedback on the entire artefact ... go ahead and implement in game"):
+ * a drawing played for some seconds, asked each frame for its floor layer (on the lit floor) and its air layer (over the
+ * figures), with where things are on the screen that frame - so it can follow the hero, a monster or a missile.
+ */
+struct DrawnView {
+	float ox, oy;
+	Point Tile(Point tile) const;
+	Point Hero(const Player &player) const;
+	Point MonsterFoot(const Monster &monster) const;
+	Point MissileAt(const Missile &missile) const;
+	/** The monster's feet while it lives, else @p fallbackTile's. */
+	Point MonsterOr(int monsterId, Point fallbackTile) const;
+};
+using DrawnFn = std::function<void(const Surface &out, const DrawnView &view, float age, bool floorLayer)>;
+void PlayDrawn(float seconds, DrawnFn draw);
+/** @brief The Drawn Skills option: the drawn effects in place of the skills' sheets. */
+bool DrawnSkillsOn();
+/** @brief A worn effect's serial (@p slot per kind): a recast starts a new one, so the older drawing stops. */
+uint32_t NextWornSerial(int playerId, int slot);
+uint32_t WornSerial(int playerId, int slot);
+/** @brief The Monk's Leaping Crane flight from @p from to @p to (the Barbarian's Leap and Leap Attack wear it too). */
+void PlayLeapingCrane(Point from, Point to);
+/** @brief Shoulder Gate's rush and shield from @p from to @p to (the Paladin's Charge wears it too). */
+void PlayShoulderGate(Point from, Point to);
 /** @brief Test hook: the skill light events alive now. */
 int SkillLightCount();
 /** @brief Draws the skill light events onto @p out as if the world's first tile were at @p origin's screen place, at @p seconds -

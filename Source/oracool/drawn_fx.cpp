@@ -1178,7 +1178,7 @@ void DrawFrostNovaFx(const Surface &out, Point centre, float age, bool floorLaye
 		return;
 	const Px px { &out, out.w(), out.h() };
 	constexpr uint32_t Seed = 4621;
-	constexpr float Rmax = 150.0F; // across; half that down (the floor's diamond)
+	constexpr float Rmax = 180.0F; // across; half that down (the floor's diamond)
 	const float cx = static_cast<float>(centre.x), cy = static_cast<float>(centre.y);
 	// The ring: out fast, slowing toward its reach.
 	const float R = Rmax * (1.0F - std::exp(-age / 0.2F));
@@ -1844,6 +1844,39 @@ void DrawIceEncaseFx(const Surface &out, Point foot, float age, bool floorLayer)
 		const float k = 1.0F - ts / 0.6F;
 		for (int s = 0; s < 3; s++)
 			px.mix(static_cast<int>(x) + s, static_cast<int>(y), s == 0 ? 235 : 140, s == 0 ? 248 : 190, 255, 0.85F * k);
+	}
+}
+
+void ApplyEarthquakeEdges(const Surface &out, float age)
+{
+	if (out.isIndexed() || age < 0 || age > EarthquakeSeconds)
+		return;
+	const bool quaking = age < static_cast<float>(EarthquakePulses);
+	const float since = age - std::min(std::floor(age), static_cast<float>(EarthquakePulses - 1));
+	const float k = Clamp01(age / 0.4F) * Clamp01((EarthquakeSeconds - age) / 1.0F) * (quaking ? 0.8F + 0.2F * std::exp(-since / 0.25F) : 0.8F);
+	const float reach = 60.0F * k;
+	const int band = static_cast<int>(reach * 1.25F) + 1;
+	const int W = out.w(), H = out.h();
+	const auto shade = [&](uint32_t *row, int x, int y, float edge) {
+		const float ragged = 0.5F + 0.5F * std::sin(static_cast<float>(x) * 0.037F + std::sin(static_cast<float>(y) * 0.029F) * 2.0F) * std::sin(static_cast<float>(y) * 0.047F + std::sin(static_cast<float>(x) * 0.023F) * 2.0F);
+		const float reachHere = reach * (0.5F + 0.7F * ragged);
+		if (edge >= reachHere)
+			return;
+		const float grain = 0.75F + 0.25F * std::sin(static_cast<float>(x * 7 + y * 13) * 0.9F);
+		const float f = std::pow(1.0F - edge / std::max(1.0F, reachHere), 1.4F) * grain * 0.8F;
+		const uint32_t c = row[x];
+		const float r = static_cast<float>((c >> 16) & 0xFF), g = static_cast<float>((c >> 8) & 0xFF), b = static_cast<float>(c & 0xFF);
+		row[x] = (static_cast<uint32_t>(r + (118.0F - r) * f) << 16) | (static_cast<uint32_t>(g + (86.0F - g) * f) << 8) | static_cast<uint32_t>(b + (52.0F - b) * f);
+	};
+	for (int y = 0; y < H; y++) {
+		uint32_t *row = out.at<uint32_t>(0, y);
+		const float ey = std::min(static_cast<float>(y), static_cast<float>(H - 1 - y)) * 1.3F;
+		const bool fullRow = ey < static_cast<float>(band);
+		for (int x = 0; x < W; x++) {
+			if (!fullRow && x == band && W - band > band)
+				x = W - band; // a middle row: only its side bands
+			shade(row, x, y, std::min({ static_cast<float>(x), static_cast<float>(W - 1 - x), ey }));
+		}
 	}
 }
 
@@ -2779,6 +2812,66 @@ void Shade(const Px &px, float x, float y, float k, float t)
 }
 
 } // namespace
+
+void DrawSpiritWardFx(const Surface &out, Point foot, float seconds)
+{
+	if (out.isIndexed())
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float cx = static_cast<float>(foot.x), cy = static_cast<float>(foot.y) - 36.0F;
+	constexpr float Rx = 30.0F, Ry = 44.0F;
+	const float spin = seconds * 0.7F;
+	const float rise = Frac(seconds * 0.6F); // the shimmer running up through the shell
+	for (int dy = -static_cast<int>(Ry); dy <= static_cast<int>(Ry); dy++)
+		for (int dx = -static_cast<int>(Rx); dx <= static_cast<int>(Rx); dx++) {
+			const float nx = static_cast<float>(dx) / Rx, ny = static_cast<float>(dy) / Ry;
+			const float d2 = nx * nx + ny * ny;
+			if (d2 >= 1.0F)
+				continue;
+			const float nz = std::sqrt(1.0F - d2);
+			// A lattice on the sphere's skin, turning: hexagons from three families of bands.
+			const float lon = std::atan2(nx, nz) + spin, lat = std::asin(std::clamp(ny, -1.0F, 1.0F));
+			const float u = lon * 3.0F, v = lat * 3.4F;
+			const float hex = std::max({ std::abs(std::sin(u * 1.7F)), std::abs(std::sin(u * 0.85F + v * 1.47F)), std::abs(std::sin(u * 0.85F - v * 1.47F)) });
+			const float lattice = hex > 0.94F ? (hex - 0.94F) / 0.06F : 0.0F;
+			const float rim = std::pow(1.0F - nz, 2.0F);
+			const float band = std::max(0.0F, 1.0F - std::abs((ny + 1.0F) * 0.5F - (1.0F - rise)) / 0.08F);
+			const float k = 0.06F + 0.55F * rim + 0.35F * lattice * nz + 0.4F * band * nz;
+			px.add(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, 110, 170, 255, k);
+		}
+	// Motes circling it, the far ones dimmer.
+	for (int i = 0; i < 8; i++) {
+		const float a = seconds * (1.4F + 0.15F * static_cast<float>(i)) + static_cast<float>(i) * 0.785F;
+		const float h = std::sin(seconds * 1.3F + static_cast<float>(i) * 1.9F) * 30.0F;
+		const float x = cx + std::cos(a) * (Rx + 4.0F), y = cy + h + std::sin(a) * 8.0F;
+		px.add(static_cast<int>(x), static_cast<int>(y), 210, 235, 255, std::sin(a) < 0 ? 0.45F : 0.95F);
+		px.add(static_cast<int>(x), static_cast<int>(y) - 1, 140, 190, 255, std::sin(a) < 0 ? 0.25F : 0.5F);
+	}
+}
+
+void DrawGolemFireFx(const Surface &out, Point foot, float seconds, uint32_t seed)
+{
+	if (out.isIndexed())
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float fx = static_cast<float>(foot.x), fy = static_cast<float>(foot.y);
+	// Its fire's light round it, flickering.
+	const float flick = 0.8F + 0.2F * std::sin(seconds * 21.0F) * std::sin(seconds * 7.0F + static_cast<float>(seed & 7));
+	Halo(px, fx, fy - 40.0F, 34, 52, 255, 130, 40, 0.22F * flick);
+	// Tongues of flame over its body: at its shoulders, its arms and its head, each flickering on its own beat.
+	static constexpr float Spots[][2] = { { -14, 66 }, { 14, 64 }, { 0, 82 }, { -22, 46 }, { 22, 44 }, { -8, 30 }, { 9, 26 }, { 0, 52 } };
+	for (int j = 0; j < 8; j++) {
+		const float beat = std::sin(seconds * (9.0F + static_cast<float>(j) * 1.3F) + static_cast<float>(j) * 2.0F + static_cast<float>(seed % 13));
+		const float h = (10.0F + 8.0F * Unit(Hash(static_cast<uint32_t>(j), seed))) * (0.75F + 0.25F * beat);
+		FlameTongue(px, fx + Spots[j][0], fy - Spots[j][1], h, 3.5F, seconds, static_cast<float>(j) * 1.3F, 0.7F);
+	}
+	// Embers and smoke rising off it.
+	for (uint32_t i = 0; i < 12; i++) {
+		const float ph = Frac(seconds / 1.1F + Unit(Hash(i, seed + 1)));
+		const float x = fx + (Unit(Hash(i, seed + 2)) - 0.5F) * 34.0F + std::sin(ph * 6.0F + static_cast<float>(i)) * 4.0F;
+		FireAdd(px, static_cast<int>(x), static_cast<int>(fy - 60.0F - 50.0F * ph), 0.7F * (1.0F - ph), 1.0F - ph);
+	}
+}
 
 void DrawLeapingCraneFx(const Surface &out, Point from, Point to, float age, bool floorLayer)
 {

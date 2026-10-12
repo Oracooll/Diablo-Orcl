@@ -393,6 +393,9 @@ MonsterSize GetMonsterSize(const Monster &monster)
 /** @brief The size @p monster is drawn at, in percent: a rift boss's own (oracool/rift_bosses.h), else its MonsterSize's. */
 unsigned DrawPercentOf(const Monster &monster)
 {
+	// The Necromancer's golems a quarter larger (user, 2026-10-12: "make it 25% larger").
+	if (GolemKindOf(monster) != GolemKind::None)
+		return 125;
 	if (const unsigned boss = RiftBossSizePercent(monster); boss != 0)
 		return boss;
 	return MonsterSizePercent(GetMonsterSize(monster));

@@ -128,6 +128,9 @@ void DrawAbsoluteZeroFx(const Surface &out, Point castAt, Point heroAt, float ag
 void DrawIceEncaseFx(const Surface &out, Point foot, float age, bool floorLayer);
 /** @brief Absolute Zero over the whole picture: the colours draining to a frozen blue, frost creeping in over its edges. */
 void ApplyAbsoluteZeroGrade(const Surface &out, float age);
+/** @brief The drawn Earthquake over the picture (user, 2026-10-12: "add brownish tint along the bezels of the screen -
+ * absolute zero style"): a ragged band of brown dust over the edges, thickening on each pulse. */
+void ApplyEarthquakeEdges(const Surface &out, float age);
 
 /** @brief Static Charge's discharge, Cinder Touch's touch and burn, and one breath of the furnace, in seconds. */
 constexpr float StaticDischargeSeconds = 0.3F;
@@ -213,6 +216,13 @@ void DrawHeavenSplitterFx(const Surface &out, Point foot, int dirX, int dirY, in
 void DrawFlurryPathFx(const Surface &out, const Point *stops, int count, uint32_t rgb, float age);
 /** @brief Tiger Claw on the body at @p foot: three glowing rakes one after another, then the wounds dripping, a pool under it. */
 void DrawClawRakeFx(const Surface &out, Point foot, float age, bool floorLayer);
+
+/** @brief Spirit Ward (the Mana Shield) round the hero standing at @p foot: a shell of spirit light, a lattice turning in it,
+ * a shimmer rising through it, motes circling - alive, at @p seconds on the scene clock. */
+void DrawSpiritWardFx(const Surface &out, Point foot, float seconds);
+/** @brief The Fire Golem drawn burning (user, 2026-10-12: "a burning golem by somehow animating fire over a yellow golem"):
+ * tongues of flame licking up the golem standing at @p foot, embers and smoke rising, its fire's light; @p seed its own. */
+void DrawGolemFireFx(const Surface &out, Point foot, float seconds, uint32_t seed);
 
 /** @brief How long Leaping Crane's flight takes, in seconds. */
 constexpr float LeapingCraneFlight = 0.45F;

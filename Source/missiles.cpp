@@ -61,6 +61,7 @@
 #include "oracool/ground_fx.h" // AddExplosionMark - a picture only
 #include "spells.h"
 #include "utils/str_cat.hpp"
+#include "oracool/drawn_fx.h"   // the drawn skills (2026-10-12)
 #include "oracool/scene_glow.h" // the Skill Eye Candy page's skill light (2026-10-12)
 
 namespace devilution {
@@ -98,7 +99,7 @@ int AddClassHealingBonus(int hp, HeroClass heroClass)
  */
 /** @brief The pace AddHolyBolt launches at - Blessed Shield is specified as twice it. */
 constexpr int HolyBoltSpeed = 16;
-constexpr int BlessedShieldSpeedMultiplier = 2;
+constexpr int BlessedShieldSpeedMultiplier = 4; // twice the v1.12 speed (user, 2026-10-12: "fly x2 faster")
 /**
  * @brief How long a thrown shield stays in the air.
  *
@@ -2736,6 +2737,12 @@ void AddFrostNova(Missile &missile, AddMissileParameter & /*parameter*/)
 	missile.oracoolTint = oracool::Tint::HueCycle;
 	missile.oracoolTintRgb = oracool::hue::IceBlue;
 	missile._mlid = AddLight(missile.position.tile, 5); // the ring lights the floor as it spreads (dev note, 2026-10-01)
+	// Drawn since the verdicts (user, 2026-10-12): the ring of frost, ice spikes and hoarfrost, its sheet hidden.
+	if (oracool::DrawnSkillsOn() && !HeadlessMode) {
+		missile._miDrawFlag = false;
+		const Point at = missile.position.tile;
+		oracool::PlayDrawn(oracool::FrostNovaSeconds, [at](const Surface &o, const oracool::DrawnView &v, float age, bool floor) { oracool::DrawFrostNovaFx(o, v.Tile(at), age, floor); });
+	}
 	if (missile.sourceType() != MissileSource::Player)
 		return;
 	const Player &player = *missile.sourcePlayer();
@@ -2897,6 +2904,21 @@ void AddFrozenOrb(Missile &missile, AddMissileParameter &parameter)
 	missile.var1 = 0; // which way the next bolt goes
 	missile._mlid = AddLight(missile.position.start, 8);
 	missile._midam = 0;
+	// Drawn since the verdicts (user, 2026-10-12: "make it roll in direction it is fired at"): a ball of ice rolling where the
+	// missile goes, its sheet hidden.
+	if (oracool::DrawnSkillsOn() && !HeadlessMode) {
+		missile._miDrawFlag = false;
+		const Point start = missile.position.start;
+		const int source = missile._misource;
+		oracool::PlayDrawn(2.4F, [start, source](const Surface &o, const oracool::DrawnView &v, float age, bool floor) {
+			for (const Missile &m : Missiles) {
+				if (m._mitype == MissileID::FrozenOrb && m._misource == source && m.position.start == start && !m._miDelFlag) {
+					oracool::DrawFrozenOrbFx(o, v.Tile(start), v.MissileAt(m), age, floor);
+					return;
+				}
+			}
+		});
+	}
 }
 
 void ProcessFrozenOrb(Missile &missile)
@@ -2934,6 +2956,10 @@ void ProcessFrozenOrb(Missile &missile)
 
 	for (int i = 0; i < 8; i++)
 		shed(static_cast<Direction>(i));
+	if (oracool::DrawnSkillsOn()) { // the drawn orb shatters (2026-10-12)
+		const Point at = missile.position.tile;
+		oracool::PlayDrawn(oracool::FrozenOrbBurstSeconds, [at](const Surface &o, const oracool::DrawnView &v, float age, bool floor) { oracool::DrawFrozenOrbBurstFx(o, v.Tile(at), age, floor); });
+	}
 	missile._miDelFlag = true;
 	AddUnLight(missile._mlid);
 }

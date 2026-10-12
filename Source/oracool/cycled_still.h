@@ -38,4 +38,11 @@ enum class CycleShape : uint8_t {
 bool DrawCycledStill(const Surface &out, const char *path, Rectangle dst, CycleShape shape, int opacityPercent = 100,
     StillPart part = StillPart::Whole);
 
+/**
+ * @brief Draws the ring picture at @p path lying on the floor round @p centre, @p width pixels across, turned @p turn
+ * radians about its centre in the floor's plane (colour-cycled as a ring): its far half (@p part Back) or near half.
+ */
+bool DrawSpunStill(const Surface &out, const char *path, Point centre, int width, float turn, int opacityPercent = 100,
+    StillPart part = StillPart::Whole);
+
 } // namespace devilution::oracool

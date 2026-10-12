@@ -24,6 +24,6 @@ namespace devilution::oracool {
  * clock. @p front draws the half of the ring on the camera's side, false the far half. @p floor adds the light on the
  * floor (with the front half). Splat-aware: on the graphics card's path the pixels go to its splats.
  */
-void DrawWhirlArcs(const Surface &out, Point foot, float seconds, bool front, bool floor);
+void DrawWhirlArcs(const Surface &out, Point foot, float seconds, bool front, bool floor, bool low = false);
 
 } // namespace devilution::oracool

@@ -61,6 +61,8 @@
 #include "oracool/spell_glow.h" // Glowing Spells: light-emitting missiles drawn additively
 #include "oracool/missile_tint.h"
 #include "oracool/cycled_still.h"
+#include "oracool/drawn_fx.h"   // DrawSpiritWardFx (2026-10-12)
+#include "oracool/scene_glow.h" // DrawnSkillsOn
 #include "oracool/chill.h"
 #include "oracool/cold.h"
 #include "oracool/warcries.h" // IsMonsterConverted - Conversion's monsters draw green
@@ -672,8 +674,12 @@ void DrawPlayerStills(const Surface &out, const Player &player, Point position, 
 	const Point feet = position + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 };
 	if (oracool::Rfa12RetributionWorn(player)) {
 		// The approved still is a 96x128 cell drawn like the overlay it replaces: feet 12px above the cell's foot.
-		oracool::DrawCycledStill(out, "missiles\\mantra_of_retribution.png", { position + Displacement { -16, -4 - 127 }, Size { 96, 128 } },
-		    oracool::CycleShape::Ring, 100, part);
+		// At his feet and turning slowly with the Drawn Skills (user, 2026-10-12: "move to feet of monk and spin slowly").
+		if (oracool::DrawnSkillsOn())
+			oracool::DrawSpunStill(out, "missiles\\mantra_of_retribution.png", feet, 92, oracool::SceneSeconds() * 0.6F, 100, part);
+		else
+			oracool::DrawCycledStill(out, "missiles\\mantra_of_retribution.png", { position + Displacement { -16, -4 - 127 }, Size { 96, 128 } },
+			    oracool::CycleShape::Ring, 100, part);
 	}
 	if (const std::optional<double> progress = oracool::Rfa12SerenityProgress(player)) {
 		constexpr int RingWidth = 112;
@@ -738,8 +744,14 @@ bool DrawPlayerTinted(const Surface &out, const Player &player, Point position, 
  */
 void DrawPlayerIcons(const Surface &out, const Player &player, Point position, bool infraVision)
 {
-	if (player.pManaShield)
-		DrawPlayerIconHelper(out, MissileGraphicID::ManaShield, position, &player != MyPlayer, infraVision);
+	if (player.pManaShield) {
+		// A spirit barrier drawn round him with the Drawn Skills (user, 2026-10-12, Spirit Ward: "make more interesting than this
+		// static image. animate something"); the shield's sheet otherwise.
+		if (oracool::DrawnSkillsOn() && !out.isIndexed())
+			oracool::DrawSpiritWardFx(out, position + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 }, oracool::SceneSeconds());
+		else
+			DrawPlayerIconHelper(out, MissileGraphicID::ManaShield, position, &player != MyPlayer, infraVision);
+	}
 	if (player.wReflections > 0)
 		DrawPlayerIconHelper(out, MissileGraphicID::Reflect, position + Displacement { 0, 16 }, &player != MyPlayer, infraVision);
 	// The cold armours' shell is a tint on the hero since v1.12.211 (HeroTint), not a sheet over him.
@@ -827,7 +839,7 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 		// Whirlwind's and Strafe's arcs (user, 2026-10-12; oracool/whirl_arcs.h): the far half of the ring, behind him. The near
 		// half and the floor's light are drawn with the light (oracool/scene_glow.cpp), over him.
 		if (*sgOptions.Oracool.whirlwindArcs && oracool::IsSpinning(player))
-			oracool::DrawWhirlArcs(out, targetBufferPosition, oracool::SceneSeconds(), /*front=*/false, /*floor=*/false);
+			oracool::DrawWhirlArcs(out, targetBufferPosition, oracool::SceneSeconds(), /*front=*/false, /*floor=*/false, player._pClass == HeroClass::Rogue);
 	}
 
 	if (!bodyOnly && static_cast<size_t>(pcursplr) < Players.size() && &player == &Players[pcursplr])

@@ -36,6 +36,7 @@
 #include "oracool/rfa12_actives.h"
 #include "oracool/rift.h"
 #include "oracool/drawn_fx.h"
+#include "oracool/minions.h" // GolemKindOf: the golems' trails and fire
 #include "oracool/scene_fx.h"
 #include "oracool/scene_life.h"
 #include "oracool/splats.h"
@@ -1387,97 +1388,143 @@ bool DrawnLightningOn()
 
 namespace {
 
-enum class DrawnKind : uint8_t {
-	Stomp,
-	Slam,
-	Quake,
-	Cracks,
+/** One drawn effect playing: its drawing, from when, and for how long. */
+struct DrawnPlay {
+	DrawnFn draw;
+	float born, seconds;
 };
 
-struct DrawnFx {
-	DrawnKind kind;
-	Point tile;
-	Displacement dir;
-	int tiles;
-	float born;
-	uint32_t seed;
-};
+std::vector<DrawnPlay> DrawnPlays;
 
-std::vector<DrawnFx> DrawnFxs;
-uint32_t DrawnSeed = 1;
-
-float DrawnSeconds(DrawnKind kind)
-{
-	switch (kind) {
-	case DrawnKind::Stomp: return GroundStompSeconds;
-	case DrawnKind::Slam: return SeismicSlamSeconds;
-	case DrawnKind::Quake: return EarthquakeSeconds;
-	default: return GlowCracksSeconds;
-	}
-}
-
-void PushDrawn(DrawnKind kind, Point tile, Displacement dir = {}, int tiles = 0)
-{
-	if (!DrawnEarthOn() || !InMap(tile))
-		return;
-	if (DrawnFxs.size() >= 16)
-		DrawnFxs.erase(DrawnFxs.begin());
-	DrawnFxs.push_back({ kind, tile, dir, tiles, Now(), DrawnSeed++ * 2654435761U });
-}
-
-/** The drawn earth's @p floorLayer at each effect's floor point; the floor pass, first each frame, drops the spent ones. */
+/** Every drawn effect's @p floorLayer; the floor pass, first each frame, drops the spent ones. */
 void DrawDrawnFx(const Surface &out, const View &v, bool floorLayer, float now)
 {
 	if (floorLayer) {
-		DrawnFxs.erase(std::remove_if(DrawnFxs.begin(), DrawnFxs.end(), [now](const DrawnFx &f) {
-			const float age = now - f.born;
-			return age > DrawnSeconds(f.kind) || age < -1.0F; // -1: the scene clock wrapped
+		DrawnPlays.erase(std::remove_if(DrawnPlays.begin(), DrawnPlays.end(), [now](const DrawnPlay &p) {
+			const float age = now - p.born;
+			return age > p.seconds || age < -1.0F; // -1: the scene clock wrapped
 		}),
-		    DrawnFxs.end());
+		    DrawnPlays.end());
 	}
-	for (const DrawnFx &f : DrawnFxs) {
-		const float age = now - f.born;
-		const float sx = WorldX(f.tile) + v.ox, sy = WorldY(f.tile) + v.oy;
-		if (!OnScreen(v, sx, sy, 400.0F)) // the quake's reach and its rocks' fall, the slam's five tiles
-			continue;
-		const Point foot { static_cast<int>(sx), static_cast<int>(sy) };
-		switch (f.kind) {
-		case DrawnKind::Stomp: DrawGroundStompFx(out, foot, age, floorLayer); break;
-		case DrawnKind::Slam: DrawSeismicSlamFx(out, foot, f.dir.deltaX, f.dir.deltaY, f.tiles, age, floorLayer); break;
-		case DrawnKind::Quake: DrawEarthquakeFx(out, foot, age, floorLayer); break;
-		case DrawnKind::Cracks:
-			if (floorLayer)
-				DrawGlowCracksFx(out, foot, age, f.seed);
-			break;
-		}
+	const DrawnView view { v.ox, v.oy };
+	for (const DrawnPlay &p : DrawnPlays) {
+		const float age = now - p.born;
+		if (age >= 0)
+			p.draw(out, view, age, floorLayer);
 	}
 }
 
+uint32_t WornSerials[MAX_PLRS][8];
+
 } // namespace
+
+Point DrawnView::Tile(Point tile) const
+{
+	return { static_cast<int>(WorldX(tile) + ox), static_cast<int>(WorldY(tile) + oy) };
+}
+
+Point DrawnView::Hero(const Player &player) const
+{
+	float wx, wy;
+	HeroWorld(player, wx, wy);
+	return { static_cast<int>(wx + ox), static_cast<int>(wy + oy) };
+}
+
+Point DrawnView::MonsterFoot(const Monster &monster) const
+{
+	float wx, wy;
+	MonsterWorld(monster, wx, wy);
+	return { static_cast<int>(wx + ox), static_cast<int>(wy + oy) };
+}
+
+Point DrawnView::MissileAt(const Missile &missile) const
+{
+	return { static_cast<int>(WorldX(missile.position.tile) + static_cast<float>(missile.position.offset.deltaX) + ox),
+		static_cast<int>(WorldY(missile.position.tile) + static_cast<float>(missile.position.offset.deltaY) + oy) };
+}
+
+Point DrawnView::MonsterOr(int monsterId, Point fallbackTile) const
+{
+	if (monsterId >= 0 && static_cast<size_t>(monsterId) < MaxMonsters && Monsters[monsterId].hitPoints > 0)
+		return MonsterFoot(Monsters[monsterId]);
+	return Tile(fallbackTile);
+}
+
+void PlayDrawn(float seconds, DrawnFn draw)
+{
+	if (HeadlessMode)
+		return;
+	if (DrawnPlays.size() >= 64)
+		DrawnPlays.erase(DrawnPlays.begin());
+	DrawnPlays.push_back({ std::move(draw), Now(), seconds });
+}
+
+uint32_t NextWornSerial(int playerId, int slot)
+{
+	return ++WornSerials[std::clamp(playerId, 0, MAX_PLRS - 1)][std::clamp(slot, 0, 7)];
+}
+
+uint32_t WornSerial(int playerId, int slot)
+{
+	return WornSerials[std::clamp(playerId, 0, MAX_PLRS - 1)][std::clamp(slot, 0, 7)];
+}
 
 bool DrawnEarthOn()
 {
 	return *sgOptions.Oracool.drawnEarth;
 }
 
+bool DrawnSkillsOn()
+{
+	return *sgOptions.Oracool.drawnSkills;
+}
+
 void DrawnStomp(Point tile)
 {
-	PushDrawn(DrawnKind::Stomp, tile);
+	if (DrawnEarthOn())
+		PlayDrawn(GroundStompSeconds, [tile](const Surface &o, const DrawnView &v, float age, bool floor) { DrawGroundStompFx(o, v.Tile(tile), age, floor); });
 }
 
 void DrawnSeismicSlam(Point tile, Displacement dir, int tiles)
 {
-	PushDrawn(DrawnKind::Slam, tile, dir, tiles);
+	if (DrawnEarthOn())
+		PlayDrawn(SeismicSlamSeconds, [tile, dir, tiles](const Surface &o, const DrawnView &v, float age, bool floor) {
+			DrawSeismicSlamFx(o, v.Tile(tile), dir.deltaX, dir.deltaY, tiles, age, floor);
+		});
 }
 
 void DrawnEarthquake(Point tile)
 {
-	PushDrawn(DrawnKind::Quake, tile);
+	if (DrawnEarthOn())
+		PlayDrawn(EarthquakeSeconds, [tile](const Surface &o, const DrawnView &v, float age, bool floor) {
+			DrawEarthquakeFx(o, v.Tile(tile), age, floor);
+			if (!floor)
+				ApplyEarthquakeEdges(o, age); // the screen's edges browned with dust (user, 2026-10-12: "absolute zero style")
+		});
 }
 
 void DrawnHammerCracks(Point tile)
 {
-	PushDrawn(DrawnKind::Cracks, tile);
+	static uint32_t seed = 1;
+	const uint32_t s = seed++ * 2654435761U;
+	if (DrawnEarthOn())
+		PlayDrawn(GlowCracksSeconds, [tile, s](const Surface &o, const DrawnView &v, float age, bool floor) {
+			if (floor)
+				DrawGlowCracksFx(o, v.Tile(tile), age, s);
+		});
+}
+
+void PlayLeapingCrane(Point from, Point to)
+{
+	// The leap lands at once in the game: the flight drawn quicker than the Monk's preview, the wings still seen.
+	PlayDrawn(LeapingCraneFlight / 2.25F + 0.7F, [from, to](const Surface &o, const DrawnView &v, float age, bool floor) {
+		DrawLeapingCraneFx(o, v.Tile(from), v.Tile(to), age * 2.25F < LeapingCraneFlight ? age * 2.25F : age + LeapingCraneFlight - LeapingCraneFlight / 2.25F, floor);
+	});
+}
+
+void PlayShoulderGate(Point from, Point to)
+{
+	PlayDrawn(1.0F, [from, to](const Surface &o, const DrawnView &v, float age, bool floor) { DrawShoulderGateFx(o, v.Tile(from), v.Tile(to), age, floor); });
 }
 
 int SkillLightCount()
@@ -1570,7 +1617,7 @@ void ForgetSceneGlow()
 	HeroLastLevel = -1;
 	Orbs.fill(OrbState {});
 	SkillFxs.clear();
-	DrawnFxs.clear();
+	DrawnPlays.clear();
 	NextForgeStrike = 0; // the scene clock wraps (audit round 1: the strikes stopped for ten hours)
 	CorpsesSeeded = false;
 }
@@ -1878,6 +1925,37 @@ void DrawSceneGlowBodies(const Surface &out, Point firstTile, Point firstTileBuf
 	const float now = Now();
 	DrawSkillFxHeat(out, v.ox, v.oy, now); // the skill light's heat ripples (before the light)
 	DrawDrawnFx(out, v, /*floorLayer=*/false, now); // the drawn earth's stones, rocks and dust, over the figures
+	// The golems (user, 2026-10-12): the Fire Golem burning, the Blood Golem dripping, the Clay Golem leaving footprints.
+	if (DrawnSkillsOn() && leveltype != DTYPE_TOWN) {
+		static std::array<float, MaxMonsters> NextTrail {};
+		static std::array<uint8_t, MaxMonsters> TrailSide {};
+		for (size_t i = 0; i < ActiveMonsterCount; i++) {
+			const int id = ActiveMonsters[i];
+			if (id < 0 || static_cast<size_t>(id) >= MaxMonsters)
+				continue;
+			const Monster &monster = Monsters[id];
+			const GolemKind kind = GolemKindOf(monster);
+			if (kind == GolemKind::None || monster.hitPoints <= 0 || !MonsterShows(monster))
+				continue;
+			float wx, wy;
+			MonsterWorld(monster, wx, wy);
+			if (kind == GolemKind::Fire && monster.mode != MonsterMode::Death)
+				DrawGolemFireFx(out, { static_cast<int>(wx + v.ox), static_cast<int>(wy + v.oy) }, now, static_cast<uint32_t>(id) * 2654435761U);
+			if ((kind == GolemKind::Blood || kind == GolemKind::Clay) && monster.isWalking() && now >= NextTrail[static_cast<size_t>(id)]) {
+				NextTrail[static_cast<size_t>(id)] = now + (kind == GolemKind::Clay ? 0.28F : 0.22F);
+				// Back from the drawn place to the floor's tile coordinates.
+				const float tx = (wx / 32.0F + wy / 16.0F) / 2.0F, ty = (wy / 16.0F - wx / 32.0F) / 2.0F;
+				if (kind == GolemKind::Blood) {
+					AddFloorMark(tx + (Rand() - 0.5F) * 0.3F, ty + (Rand() - 0.5F) * 0.3F, FloorMarkKind::Blood, 0.05F + Rand() * 0.04F);
+				} else {
+					// Left foot, right foot: a little either side of its way.
+					const Displacement d(monster.direction);
+					const float side = TrailSide[static_cast<size_t>(id)]++ & 1 ? 0.14F : -0.14F;
+					AddFloorMark(tx - static_cast<float>(d.deltaY) * side, ty + static_cast<float>(d.deltaX) * side, FloorMarkKind::Clay, 0.07F);
+				}
+			}
+		}
+	}
 	const int w = out.w();
 	const int h = out.h();
 	for (const Particle &p : Particles) {
@@ -1924,7 +2002,7 @@ void DrawSceneGlowLights(const Surface &out, Point firstTile, Point firstTileBuf
 		const float lit = 0.4F + 0.6F * LitAt(player.position.tile);
 		// Whirlwind's and Strafe's arcs (oracool/whirl_arcs.h): the near half of the ring and the floor's light, as light.
 		if (*sgOptions.Oracool.whirlwindArcs && oracool::IsSpinning(player))
-			DrawWhirlArcs(out, { cx, cy }, now, /*front=*/true, /*floor=*/true);
+			DrawWhirlArcs(out, { cx, cy }, now, /*front=*/true, /*floor=*/true, player._pClass == HeroClass::Rogue);
 		if (player._pmode == PM_SPELL && player.AnimInfo.numberOfFrames > 0) {
 			const uint32_t rgb = SpellColour(player.executedSpell.spellId);
 			const int frame = player.AnimInfo.currentFrame;

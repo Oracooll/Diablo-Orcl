@@ -141,4 +141,52 @@ bool DrawCycledStill(const Surface &out, const char *path, Rectangle dst, CycleS
 	return true;
 }
 
+bool DrawSpunStill(const Surface &out, const char *path, Point centre, int width, float turn, int opacityPercent, StillPart part)
+{
+	if (out.isIndexed() || width <= 0)
+		return false;
+	const Still &still = StillFor(path);
+	if (!still.usable)
+		return false;
+	const double phase = static_cast<double>(SDL_GetTicks() % CycleMs) / CycleMs;
+	std::array<int, 256> factor;
+	for (int a = 0; a < 256; a++)
+		factor[a] = static_cast<int>(256.0 * (1.0 + CycleSwing * std::cos(2.0 * Pi * CycleCrests * (a / 256.0 - phase))));
+	// Back to the picture: from the floor's flat plane (y doubled), turned back by the spin, then onto the picture's own
+	// ellipse round its ring's centre.
+	const double scale = static_cast<double>(still.w) / width;
+	const double c = std::cos(turn), s = std::sin(turn);
+	const double cx = still.w / 2.0, cy = still.centreY;
+	const int half = width * 6 / 10;
+	const int up = half / 2 + 24, down = half / 2 + 8;
+	for (int dy = -up; dy <= down; dy++) {
+		if ((part == StillPart::Back && dy >= 0) || (part == StillPart::Front && dy < 0))
+			continue;
+		const int y = centre.y + dy;
+		if (y < 0 || y >= out.h())
+			continue;
+		uint32_t *row = out.at<uint32_t>(0, y);
+		for (int dx = -half; dx <= half; dx++) {
+			const int x = centre.x + dx;
+			if (x < 0 || x >= out.w())
+				continue;
+			const double fx = dx, fy = dy * 2.0;
+			const double rx = fx * c + fy * s, ry = -fx * s + fy * c;
+			const int sx = static_cast<int>(cx + rx * scale);
+			const int sy = static_cast<int>(cy + ry * 0.5 * scale);
+			if (sx < 0 || sy < 0 || sx >= still.w || sy >= still.h)
+				continue;
+			const size_t at = static_cast<size_t>(sy) * still.w + sx;
+			const uint8_t a = still.alpha[at];
+			if (a == 0)
+				continue;
+			const int f = factor[still.around[at]];
+			const uint32_t own = still.rgb[at];
+			const auto channel = [&](int shift) { return static_cast<uint32_t>(std::min(255, static_cast<int>((own >> shift) & 0xFF) * f / 256)) << shift; };
+			row[x] = CompositeArgbOver(channel(16) | channel(8) | channel(0) | (static_cast<uint32_t>(a) << 24), row[x], opacityPercent);
+		}
+	}
+	return true;
+}
+
 } // namespace devilution::oracool

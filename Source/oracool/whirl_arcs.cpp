@@ -123,7 +123,7 @@ void FloorPool(const Pen &pen, int cx, int cy, int rx, int ry, uint32_t rgb, flo
 
 } // namespace
 
-void DrawWhirlArcs(const Surface &out, Point foot, float seconds, bool front, bool floor)
+void DrawWhirlArcs(const Surface &out, Point foot, float seconds, bool front, bool floor, bool low)
 {
 	if (out.isIndexed() || out.w() <= 0 || out.h() <= 0)
 		return;
@@ -139,8 +139,9 @@ void DrawWhirlArcs(const Surface &out, Point foot, float seconds, bool front, bo
 	constexpr int Pieces = 16;
 	for (int i = 0; i < Arcs; i++) {
 		// Each arc rides its own ring: waist, chest, head - turning the way he spins, the higher the faster.
-		const float height = (i == 0 ? 22.0F : (i == 1 ? 42.0F : 62.0F)) + 4.0F * std::sin(seconds * 2.7F + static_cast<float>(i) * 2.1F);
-		const float rx = (i == 1 ? 42.0F : 36.0F) + 3.0F * std::sin(seconds * 3.3F + static_cast<float>(i));
+		// Low (the strafing Rogue, user 2026-10-12): the rings at her knees and hips, wider, round her rather than above her.
+		const float height = (low ? (i == 0 ? 6.0F : (i == 1 ? 14.0F : 24.0F)) : (i == 0 ? 22.0F : (i == 1 ? 42.0F : 62.0F))) + (low ? 2.0F : 4.0F) * std::sin(seconds * 2.7F + static_cast<float>(i) * 2.1F);
+		const float rx = (low ? (i == 1 ? 50.0F : 44.0F) : (i == 1 ? 42.0F : 36.0F)) + 3.0F * std::sin(seconds * 3.3F + static_cast<float>(i));
 		const float ry = rx * 0.38F;
 		const float tilt = 7.0F * std::sin(static_cast<float>(i) * 1.7F + seconds * 0.9F); // the ring leans a little
 		const float speed = 6.5F + static_cast<float>(i) * 1.3F;

@@ -36,6 +36,7 @@ enum class FloorMarkKind : uint8_t {
 	Scorch,
 	Frost,
 	Acid,
+	Clay, // the Clay Golem's footprints (user, 2026-10-12)
 };
 
 /** @brief The pool's size: past it the oldest mark gives way. */

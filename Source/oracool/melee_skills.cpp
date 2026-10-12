@@ -816,7 +816,11 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 		PlaySkillSound(row, SkillSoundEvent::Impact);
 	}
 	if (skill == ClassMeleeSkill::Leap || skill == ClassMeleeSkill::LeapAttack) {
-		DrawHolyBurst(player, missile->position.tile, 150, hue::PaleWarm);
+		// The Monk's Leaping Crane flight on both (user, 2026-10-12: "apply effect on barb leap", "apply also to leap attack").
+		if (DrawnSkillsOn())
+			PlayLeapingCrane(here, missile->position.tile);
+		else
+			DrawHolyBurst(player, missile->position.tile, 150, hue::PaleWarm);
 		// Skill light (Skill Eye Candy): he lands in a ring of dust-gold light, the air bending round it; Leap Attack's
 		// landing flashes gold.
 		const Point at = missile->position.tile;

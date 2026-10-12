@@ -86,6 +86,7 @@ float LifeOf(FloorMarkKind kind)
 	case FloorMarkKind::Scorch: return 90.0F;
 	case FloorMarkKind::Frost: return 45.0F; // it melts
 	case FloorMarkKind::Acid: return 60.0F;
+	case FloorMarkKind::Clay: return 40.0F;
 	}
 	return 60.0F;
 }
@@ -266,6 +267,9 @@ void DrawMark(const Surface &out, const Projection &p, const Mark &m)
 				tr = l * 230 >> 8, tg = l * 300 >> 8, tb = l * 390 >> 8;
 				break;
 			}
+			case FloorMarkKind::Clay:
+				tr = 118 + (r >> 2), tg = 84 + (g >> 2), tb = 54 + (bl >> 2);
+				break;
 			case FloorMarkKind::Acid:
 			default: {
 				const int l = (r * 77 + g * 150 + bl * 29) >> 8;
