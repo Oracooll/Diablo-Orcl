@@ -886,6 +886,46 @@ const char *WarcryDescription(SpellID spell)
 	}
 }
 
+namespace {
+
+/**
+ * @brief Skill light on a Barbarian's cry (Skill Eye Candy, the verdicts of 2026-10-12): the air bends in a ring with the
+ * cry's own; a buff then washes him gold; War Cry flashes and rings as well.
+ */
+void CryLight(const Player &player, SpellID spell)
+{
+	const Point at = player.position.tile;
+	switch (spell) {
+	case SpellID::WarCry:
+		SkillLightHeat(at, 130, 1.2F);
+		SkillLightFlash(at, hue::PaleWarm, 0.6F, 80, 10);
+		SkillLightRing(at, hue::PaleWarm, 120);
+		break;
+	case SpellID::Shout:
+	case SpellID::RallyingCry:
+	case SpellID::BattleCry:
+	case SpellID::IronWill:
+	case SpellID::BattleOrders:
+	case SpellID::BattleCommand:
+	case SpellID::AncestralCall:
+	case SpellID::Bloodcall:
+		SkillLightHeat(at, 110, 0.7F);
+		SkillLightFlash(at, hue::PaladinGold, 0.5F, 40, 40, 0.3F);
+		break;
+	case SpellID::Howl:
+	case SpellID::ThreateningShout:
+	case SpellID::Taunt:
+	case SpellID::Intimidate:
+	case SpellID::SplitRanks:
+	case SpellID::GrimWard:
+		SkillLightHeat(at, 110, 0.8F);
+		break;
+	default: break;
+	}
+}
+
+} // namespace
+
 void AddWarcry(Missile &missile, AddMissileParameter &parameter)
 {
 	missile._miDelFlag = true;
@@ -897,6 +937,8 @@ void AddWarcry(Missile &missile, AddMissileParameter &parameter)
 	const bool cast = CastWarcry(player, spell, parameter.dst) || CastRfa12Active(player, spell, parameter.dst);
 	if (!cast)
 		parameter.spellFizzled = true;
+	else
+		CryLight(player, spell);
 	// A cry's ring goes out on every cast, heard by anything or not (dev note, 2026-09-29: "warcray animation to play
 	// every time warcray is cast, not only when mobs are around"); a cry that found no one still fizzles.
 	if (!IsWarcry(spell) && !Rfa12CastLeavesRing(spell))

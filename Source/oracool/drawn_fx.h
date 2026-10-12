@@ -51,4 +51,14 @@ void DrawEarthquakeFx(const Surface &out, Point centre, float age, bool floorLay
 /** @brief The picture's shake at @p age: a jolt on each pulse, a tremor between (the game's screen shake would carry it). */
 Displacement EarthquakeShake(float age);
 
+/** @brief How long the Hammer's glowing cracks last, in seconds. */
+constexpr float GlowCracksSeconds = 0.9F;
+
+/**
+ * @brief Hammer of the Ancients' cracks (the Skill Eye Candy page, 2026-10-12): eight molten cracks running out from where
+ * the blow landed (@p centre, its floor point) at @p age seconds, cooling to dark scars and fading. On the floor only;
+ * @p seed picks the cracks' shape, so no two blows crack alike.
+ */
+void DrawGlowCracksFx(const Surface &out, Point centre, float age, uint32_t seed);
+
 } // namespace devilution::oracool

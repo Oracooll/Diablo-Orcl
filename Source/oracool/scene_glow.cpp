@@ -35,6 +35,7 @@
 #include "oracool/ground_fx.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/rift.h"
+#include "oracool/drawn_fx.h"
 #include "oracool/scene_fx.h"
 #include "oracool/scene_life.h"
 #include "oracool/splats.h"
@@ -1290,6 +1291,25 @@ void DrawSkillStates(const LightPen &pen, const View &v, float now)
 			}
 		}
 	}
+	// A thrown weapon's steel glint and a short streak behind it (Skill Eye Candy, the Barbarian's Weapon Throw).
+	for (const Missile &m : Missiles) {
+		if (m._mitype != MissileID::Arrow || !IsAnyOf(m._miAnimType, MissileGraphicID::ThrownAxe, MissileGraphicID::ThrownSword)
+		    || !InMap(m.position.tile))
+			continue;
+		const int cx = static_cast<int>(WorldX(m.position.tile) + static_cast<float>(m.position.offset.deltaX) + v.ox);
+		const int cy = static_cast<int>(WorldY(m.position.tile) + static_cast<float>(m.position.offset.deltaY) + v.oy) - 26;
+		float dx = static_cast<float>(m.position.velocity.deltaX), dy = static_cast<float>(m.position.velocity.deltaY);
+		const float len = std::sqrt(dx * dx + dy * dy);
+		if (len > 0) {
+			dx /= len;
+			dy /= len;
+			for (int s = 0; s < 34; s++) {
+				const float t = 1.0F - static_cast<float>(s) / 34.0F;
+				pen.addF(cx - static_cast<int>(dx * static_cast<float>(s)), cy - static_cast<int>(dy * static_cast<float>(s)), SG_PACK(210, 220, 235), t * t * 0.55F);
+			}
+		}
+		Dot(pen, cx, cy, 3, SG_PACK(255, 255, 255), 0.5F + 0.3F * std::sin(now * 25.0F));
+	}
 	for (const Missile &m : Missiles) {
 		if (m._mitype != MissileID::BlessedHammer || !InMap(m.position.tile))
 			continue;
@@ -1363,6 +1383,101 @@ void SkillLightGather(Point tile, uint32_t rgb, float seconds)
 bool DrawnLightningOn()
 {
 	return *sgOptions.Oracool.drawnLightning;
+}
+
+namespace {
+
+enum class DrawnKind : uint8_t {
+	Stomp,
+	Slam,
+	Quake,
+	Cracks,
+};
+
+struct DrawnFx {
+	DrawnKind kind;
+	Point tile;
+	Displacement dir;
+	int tiles;
+	float born;
+	uint32_t seed;
+};
+
+std::vector<DrawnFx> DrawnFxs;
+uint32_t DrawnSeed = 1;
+
+float DrawnSeconds(DrawnKind kind)
+{
+	switch (kind) {
+	case DrawnKind::Stomp: return GroundStompSeconds;
+	case DrawnKind::Slam: return SeismicSlamSeconds;
+	case DrawnKind::Quake: return EarthquakeSeconds;
+	default: return GlowCracksSeconds;
+	}
+}
+
+void PushDrawn(DrawnKind kind, Point tile, Displacement dir = {}, int tiles = 0)
+{
+	if (!DrawnEarthOn() || !InMap(tile))
+		return;
+	if (DrawnFxs.size() >= 16)
+		DrawnFxs.erase(DrawnFxs.begin());
+	DrawnFxs.push_back({ kind, tile, dir, tiles, Now(), DrawnSeed++ * 2654435761U });
+}
+
+/** The drawn earth's @p floorLayer at each effect's floor point; the floor pass, first each frame, drops the spent ones. */
+void DrawDrawnFx(const Surface &out, const View &v, bool floorLayer, float now)
+{
+	if (floorLayer) {
+		DrawnFxs.erase(std::remove_if(DrawnFxs.begin(), DrawnFxs.end(), [now](const DrawnFx &f) {
+			const float age = now - f.born;
+			return age > DrawnSeconds(f.kind) || age < -1.0F; // -1: the scene clock wrapped
+		}),
+		    DrawnFxs.end());
+	}
+	for (const DrawnFx &f : DrawnFxs) {
+		const float age = now - f.born;
+		const float sx = WorldX(f.tile) + v.ox, sy = WorldY(f.tile) + v.oy;
+		if (!OnScreen(v, sx, sy, 400.0F)) // the quake's reach and its rocks' fall, the slam's five tiles
+			continue;
+		const Point foot { static_cast<int>(sx), static_cast<int>(sy) };
+		switch (f.kind) {
+		case DrawnKind::Stomp: DrawGroundStompFx(out, foot, age, floorLayer); break;
+		case DrawnKind::Slam: DrawSeismicSlamFx(out, foot, f.dir.deltaX, f.dir.deltaY, f.tiles, age, floorLayer); break;
+		case DrawnKind::Quake: DrawEarthquakeFx(out, foot, age, floorLayer); break;
+		case DrawnKind::Cracks:
+			if (floorLayer)
+				DrawGlowCracksFx(out, foot, age, f.seed);
+			break;
+		}
+	}
+}
+
+} // namespace
+
+bool DrawnEarthOn()
+{
+	return *sgOptions.Oracool.drawnEarth;
+}
+
+void DrawnStomp(Point tile)
+{
+	PushDrawn(DrawnKind::Stomp, tile);
+}
+
+void DrawnSeismicSlam(Point tile, Displacement dir, int tiles)
+{
+	PushDrawn(DrawnKind::Slam, tile, dir, tiles);
+}
+
+void DrawnEarthquake(Point tile)
+{
+	PushDrawn(DrawnKind::Quake, tile);
+}
+
+void DrawnHammerCracks(Point tile)
+{
+	PushDrawn(DrawnKind::Cracks, tile);
 }
 
 int SkillLightCount()
@@ -1455,6 +1570,7 @@ void ForgetSceneGlow()
 	HeroLastLevel = -1;
 	Orbs.fill(OrbState {});
 	SkillFxs.clear();
+	DrawnFxs.clear();
 	NextForgeStrike = 0; // the scene clock wraps (audit round 1: the strikes stopped for ten hours)
 	CorpsesSeeded = false;
 }
@@ -1617,10 +1733,13 @@ float OrbGlint(int key, int x, int width)
 
 void DrawSceneGlowGround(const Surface &out, Point firstTile, Point firstTileBuffer)
 {
-	if (out.isIndexed() || out.w() <= 0 || out.h() <= 0 || leveltype == DTYPE_TOWN)
+	if (out.isIndexed() || out.w() <= 0 || out.h() <= 0)
 		return;
 	const View v = MakeView(out, firstTile, firstTileBuffer);
 	const float now = Now();
+	DrawDrawnFx(out, v, /*floorLayer=*/true, now); // the drawn earth's cracks, shockwaves and shadows, on the lit floor
+	if (leveltype == DTYPE_TOWN)
+		return;
 	const int w = out.w();
 	const int h = out.h();
 	const bool elites = *sgOptions.Oracool.eliteAuras;
@@ -1758,6 +1877,7 @@ void DrawSceneGlowBodies(const Surface &out, Point firstTile, Point firstTileBuf
 	const View v = MakeView(out, firstTile, firstTileBuffer);
 	const float now = Now();
 	DrawSkillFxHeat(out, v.ox, v.oy, now); // the skill light's heat ripples (before the light)
+	DrawDrawnFx(out, v, /*floorLayer=*/false, now); // the drawn earth's stones, rocks and dust, over the figures
 	const int w = out.w();
 	const int h = out.h();
 	for (const Particle &p : Particles) {

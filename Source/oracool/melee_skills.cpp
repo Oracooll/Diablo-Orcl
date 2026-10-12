@@ -708,6 +708,29 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		}
 		if (burst > 0)
 			DrawHolyBurst(player, front->position.tile, burst, burstHue);
+		// Skill light (Skill Eye Candy, the Barbarian's verdicts of 2026-10-12).
+		const Point at = front->position.tile;
+		switch (skill) {
+		case ClassMeleeSkill::Bash:
+			SkillLightFlash(at, Rgb(255, 70, 40), 0.8F, 40);
+			SkillLightSparks(at, Rgb(255, 150, 60), 8);
+			break;
+		case ClassMeleeSkill::Stun:
+			SkillLightFlash(at, hue::PaladinGold, 0.5F, 30);
+			SkillLightSparks(at, hue::PaladinGold, 6);
+			break;
+		case ClassMeleeSkill::Concentrate: SkillLightFlash(at, Rgb(255, 248, 230), 1.0F, 30); break;
+		case ClassMeleeSkill::DoubleSwing: SkillLightFlash(at, hue::PaleWarm, 0.7F, 32); break;
+		case ClassMeleeSkill::Frenzy: // and a red heat under him
+			SkillLightFlash(at, Rgb(255, 70, 40), 0.6F, 30);
+			SkillLightFlash(player.position.tile, Rgb(255, 70, 40), 0.45F, 50, 6);
+			break;
+		case ClassMeleeSkill::Berserk: // and a red rage glow on him
+			SkillLightFlash(at, Rgb(255, 60, 50), 0.7F, 40);
+			SkillLightFlash(player.position.tile, Rgb(255, 60, 50), 0.5F, 50, 40);
+			break;
+		default: break;
+		}
 		const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, ClassMeleeSkillSpell(skill));
 		if (row != ClassTreeSkill::None)
 			PlaySkillSound(row, SkillSoundEvent::Impact);
@@ -792,8 +815,16 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 		PlaySkillSound(row, SkillSoundEvent::Cast);
 		PlaySkillSound(row, SkillSoundEvent::Impact);
 	}
-	if (skill == ClassMeleeSkill::Leap || skill == ClassMeleeSkill::LeapAttack)
+	if (skill == ClassMeleeSkill::Leap || skill == ClassMeleeSkill::LeapAttack) {
 		DrawHolyBurst(player, missile->position.tile, 150, hue::PaleWarm);
+		// Skill light (Skill Eye Candy): he lands in a ring of dust-gold light, the air bending round it; Leap Attack's
+		// landing flashes gold.
+		const Point at = missile->position.tile;
+		const bool attack = skill == ClassMeleeSkill::LeapAttack;
+		SkillLightRing(at, hue::PaleWarm, 80);
+		SkillLightHeat(at, 70, attack ? 0.8F : 0.7F);
+		SkillLightFlash(at, attack ? hue::PaladinGold : hue::PaleWarm, attack ? 0.8F : 0.5F, 50, 6);
+	}
 	return true;
 }
 

@@ -16,7 +16,9 @@
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
 #include "oracool/curses.h"
+#include "oracool/missile_tint.h" // Rgb
 #include "oracool/rfa12_actives.h"
+#include "oracool/scene_glow.h" // the Skill Eye Candy page's skill light (2026-10-12)
 #include "oracool/whirlwind.h"
 #include "oracool/companion.h" // IsCompanion - Radiance spares them
 #include "oracool/warcries.h"  // IsMonsterConverted - and turned monsters
@@ -434,11 +436,16 @@ void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee, bool b
 		clocks.retaliationStacks = 0;
 		if (const int p = PointsIfOn(player, Skill::DeepWounds); p > 0 && GenerateRnd(100) < DeepWoundsChance(p)) {
 			MergeBleed(marks, DeepWoundsTicks, DeepWoundsPerSecond(p) << 6); // the bigger bleed of the two (user, 2026-10-06)
+			SkillLightMotes(monster.position.tile, Rgb(255, 60, 50), 6); // the wound drips red light (Skill Eye Candy)
 		}
 		if (PointsIfOn(player, Skill::LastingWounds) > 0)
 			marks.noRegenTicks = LastingWoundsTicks;
-		if (const int p = PointsIfOn(player, Skill::Bloodlust); p > 0 && damage > 0)
+		if (const int p = PointsIfOn(player, Skill::Bloodlust); p > 0 && damage > 0) {
 			Heal(player, damage * BloodlustPercent(p) / 100);
+			// Life drawn back (Skill Eye Candy): red motes off the struck enemy, a faint red wash on him.
+			SkillLightMotes(monster.position.tile, Rgb(255, 60, 50), 4);
+			SkillLightFlash(player.position.tile, Rgb(255, 60, 50), 0.3F, 30, 40, 0.3F);
+		}
 	} else if (!burst && DeadGroundApplies(player, monster)) { // a burst never took the bonus, so starts no cooldown (round 113)
 		marks.deadGroundCooldown = DeadGroundCooldownTicks;
 	}
@@ -456,6 +463,8 @@ void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee, bool b
 void OnRfa12Struck(Player &player, Monster &monster)
 {
 	OnRfa12ActiveStruck(player, monster);
+	if (PointsIfOn(player, Skill::IronSkin) > 0)
+		SkillLightFlash(player.position.tile, Rgb(210, 220, 235), 0.7F, 24, 40); // a steel glint across him (Skill Eye Candy)
 	if (PointsIfOn(player, Skill::Retaliation) > 0) {
 		PlayerClocks &clocks = ClocksOf(player);
 		clocks.retaliationStacks = std::min(clocks.retaliationStacks + 1, RetaliationMaxStacks);

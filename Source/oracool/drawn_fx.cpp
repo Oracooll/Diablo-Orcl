@@ -763,4 +763,30 @@ void DrawEarthquakeFx(const Surface &out, Point centre, float age, bool floorLay
 	}
 }
 
+void DrawGlowCracksFx(const Surface &out, Point centre, float age, uint32_t seed)
+{
+	if (out.isIndexed() || age < 0 || age > GlowCracksSeconds)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float cx = static_cast<float>(centre.x), cy = static_cast<float>(centre.y);
+	const float grown = Clamp01(age / 0.12F);                     // out in a blink
+	const float heat = std::exp(-age / 0.3F);                     // white-hot, cooling
+	const float scar = Clamp01(1.0F - (age - 0.5F) / 0.4F);        // then the scars fade
+	for (uint32_t i = 0; i < 8; i++) {
+		float ang = (static_cast<float>(i) + Unit(Hash(i, seed)) * 0.6F) / 8.0F * TwoPi;
+		const float len = (0.6F + 0.4F * Unit(Hash(i, seed + 1))) * grown;
+		float x = cx, y = cy;
+		for (int k = 1; k <= 6; k++) {
+			const float q = static_cast<float>(k) / 6.0F;
+			if (q > len)
+				break;
+			ang += (Unit(Hash(i, seed + 2, static_cast<uint32_t>(k))) - 0.5F) * 0.6F;
+			const float nx = cx + std::cos(ang) * 70.0F * q, ny = cy + std::sin(ang) * 35.0F * q;
+			CrackLine(px, x, y, nx, ny, heat * (1.0F - q * 0.5F), scar, q < 0.4F);
+			x = nx;
+			y = ny;
+		}
+	}
+}
+
 } // namespace devilution::oracool

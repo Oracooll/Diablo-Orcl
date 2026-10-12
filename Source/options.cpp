@@ -669,9 +669,11 @@ void SaveOptions()
 	setBoolean("Blessed Shield Beam", *sgOptions.Oracool.shieldBeam,
 	    "; On: a thrown Blessed Shield trails a beam of gold light a tile long.");
 	setBoolean("Skill Light", *sgOptions.Oracool.skillLight,
-	    "; On: approved skill effects light up: flashes, rings, pillars, beams and heat ripples on the Paladin's combat skills.");
+	    "; On: approved skill effects light up: flashes, rings, pillars, beams and heat ripples on the Paladin's and the Barbarian's skills.");
 	setBoolean("Drawn Lightning", *sgOptions.Oracool.drawnLightning,
 	    "; On: Fist of the Heavens and Wrath of the Heavens strike with lightning drawn in real time instead of their painted sheets.");
+	setBoolean("Drawn Earth", *sgOptions.Oracool.drawnEarth,
+	    "; On: Ground Stomp, Seismic Slam and Earthquake are drawn in real time - cracks, stone, dust and falling rocks - instead of\n; their painted sheets, and Hammer of the Ancients cracks the floor.");
 	setBoolean("Armour Sparks", *sgOptions.Oracool.armourSparks,
 	    "; On: a melee blow on a skeleton, a knight, a golem or a gargoyle throws white-gold sparks.");
 	setBoolean("Item Tooltip Card", *sgOptions.Oracool.itemTooltipCard,
@@ -1884,8 +1886,9 @@ OracoolOptions::OracoolOptions()
     , auraGlow("Aura Glow", OptionEntryFlags::None, N_("Aura Glow"), N_("Aura rings glow in their own colours and light the floor under the whole circle, flickering softly like a candle."), true)
     , novaLight("Nova Light", OptionEntryFlags::None, N_("Nova Light"), N_("The balls a Nova, a Rune of Nova and Fist of the Heavens scatter light the floor under them in their colour as they fly."), true)
     , shieldBeam("Blessed Shield Beam", OptionEntryFlags::None, N_("Blessed Shield Beam"), N_("A thrown Blessed Shield trails a beam of gold light a tile long."), true)
-    , skillLight("Skill Light", OptionEntryFlags::None, N_("Skill Light"), N_("Approved skill effects light up: flashes, rings, pillars, beams and heat ripples on the Paladin's combat skills."), true)
+    , skillLight("Skill Light", OptionEntryFlags::None, N_("Skill Light"), N_("Approved skill effects light up: flashes, rings, pillars, beams and heat ripples on the Paladin's and the Barbarian's skills."), true)
     , drawnLightning("Drawn Lightning", OptionEntryFlags::None, N_("Drawn Lightning"), N_("Fist of the Heavens and Wrath of the Heavens strike with lightning drawn in real time instead of their painted sheets."), true)
+    , drawnEarth("Drawn Earth", OptionEntryFlags::None, N_("Drawn Earth"), N_("Ground Stomp, Seismic Slam and Earthquake drawn in real time - cracks, stone, dust and falling rocks - instead of their painted sheets."), true)
     , armourSparks("Armour Sparks", OptionEntryFlags::None, N_("Armour Sparks"), N_("A melee blow on a skeleton, a knight, a golem or a gargoyle throws white-gold sparks."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
@@ -2063,6 +2066,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&shieldBeam,
 		&skillLight,
 		&drawnLightning,
+		&drawnEarth,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,

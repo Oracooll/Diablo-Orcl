@@ -44,6 +44,7 @@
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
+#include "oracool/scene_fx.h"   // KickScreenShake - the Hammer's blow and the quake's pulses
 #include "oracool/scene_glow.h" // the Skill Eye Candy page's skill light (2026-10-12)
 
 namespace devilution::oracool {
@@ -1960,7 +1961,11 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		EarthenMightRage(player, stunned); // and Earthen Might's Rage too (round 61: a free stomp beside a boss filled the pool)
 		// RfA-27 batch 55: the cracked ring at his feet, in place of the cry's shockwave (Rfa12CastLeavesRing). On every
 		// stomp, anything in reach or not, and at twice its size (dev notes, 2026-09-29); its floor point is 29px up.
-		if (Missile *ring = Art(player, MissileGraphicID::GroundStomp, here); ring != nullptr)
+		// Drawn by the game since the Barbarian's verdicts (user, 2026-10-12: "use the game-drawn suggestion"); the sheet with
+		// Drawn Earth off.
+		if (DrawnEarthOn())
+			DrawnStomp(here);
+		else if (Missile *ring = Art(player, MissileGraphicID::GroundStomp, here); ring != nullptr)
 			ScaleMissile(*ring, 200, 29);
 		if (stunned == 0)
 			return false;
@@ -1976,6 +1981,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			ring->oracoolTint = Tint::HueCycle;
 			ring->oracoolTintRgb = hue::Infrared;
 		}
+		// Skill light (Skill Eye Candy): the ring lights the floor blood red as it opens, red motes rising.
+		SkillLightFlash(here, Rgb(190, 20, 24), 0.7F, 80, 6);
+		SkillLightMotes(here, Rgb(255, 60, 50), 10);
 		const auto torn = MonstersWithin(here, ReachTiles(spell, r));
 		for (Monster *m : torn)
 			Bleed(*m, EffectTicks(spell, r), PerSecond(spell, r));
@@ -1989,7 +1997,12 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		for (Monster *m : line)
 			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r)); // a weapon blow, counted once a cast (round 112)
 		EarthenMightRage(player, line.size());
-		GoldenFlameWave(player, here, target, ReachTiles(spell, r));
+		// The drawn wave of earth since the Barbarian's verdicts (user, 2026-10-12: "use the game-drawn version you created");
+		// the golden flames with Drawn Earth off.
+		if (DrawnEarthOn())
+			DrawnSeismicSlam(here, Displacement(GetDirection(here, target)), ReachTiles(spell, r));
+		else
+			GoldenFlameWave(player, here, target, ReachTiles(spell, r));
 		return !line.empty(); // a slam on nothing costs nothing, as Rend and Ground Stomp (round 28 audit)
 	}
 	case SpellID::Earthquake: {
@@ -1999,6 +2012,9 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			return false;
 		Field *f = NewField(player, spell, here, EffectTicks(spell, r), r);
 		f->clock = TicksPerSecond - 1;
+		// The drawn quake with its falling rocks (user, 2026-10-12: "use the gamedrawn version with the rocks"): its four
+		// pulses keep time with the field's, the first on the next tick.
+		DrawnEarthquake(here);
 		// Drawn as cry rings, one after another for the four seconds (TickField), sized to its reach (dev note,
 		// 2026-09-29: "replace current animation with war cray animation, but release wave one after the other rapidly for
 		// four seconds"). The v1.12.223 spinning flare is gone with it.
@@ -3423,9 +3439,11 @@ void TickField(Player &player, Field &field)
 			SideBlowInFlight = previousSide;
 			EarthenMightRage(player, shaken.size());
 			Impact(player, field.spell); // one tremor pulse a second
+			if (DrawnEarthOn() && &player == MyPlayer)
+				KickScreenShake(3.0F, 0.45F); // the drawn quake's jolt on each pulse
 		}
 		// A ring every fifth of a second, in the quake's molten brown to dark orange (v1.12.211's cycle) - its look.
-		if (field.clock % EarthquakeRingTicks == 0) {
+		if (!DrawnEarthOn() && field.clock % EarthquakeRingTicks == 0) { // the rings only without the drawn quake
 			if (Missile *ring = ReachRing(player, field.tile, ReachTiles(field.spell, r)); ring != nullptr)
 				ring->oracoolTint = Tint::Earthquake;
 		}
@@ -3961,9 +3979,16 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 	uint32_t artHue = 0;
 	switch (spell) {
 	// Half size, Paladin gold (the Barbarian Skill Cards page, 2026-09-29).
-	case SpellID::Cleave: arc = MissileGraphicID::CleaveArc, artScale = 50, artHue = hue::PaladinGold; break;
+	case SpellID::Cleave:
+		arc = MissileGraphicID::CleaveArc, artScale = 50, artHue = hue::PaladinGold;
+		SkillLightFlash(from, hue::PaladinGold, 0.5F, 60, 10); // the sweep lights the floor gold (Skill Eye Candy)
+		break;
 	// Row n: the arc behind a hero facing n. Half size, fire orange (the same page).
-	case SpellID::Backhand: arc = MissileGraphicID::BackhandArc, artScale = 50, artHue = hue::FireOrange; break;
+	case SpellID::Backhand:
+		arc = MissileGraphicID::BackhandArc, artScale = 50, artHue = hue::FireOrange;
+		SkillLightFlash(from, hue::FireOrange, 0.6F, 55, 10); // an orange glow behind him and embers (Skill Eye Candy)
+		SkillLightMotes(from, Rgb(255, 150, 60), 8);
+		break;
 	case SpellID::AegisSlam:
 		// Holy Bolt's burst, half size, gold, on what the shield struck (Visual FX Schedule, 2026-09-28); was its
 		// ChatGPT arc sheet.
@@ -4028,11 +4053,27 @@ void SwingArt(const Player &player, SpellID spell, Point from, Direction facing,
 			SkillLightFlash(*landedOn, hue::SpectralLavender, 0.9F, 40); // the brand then glows under him (scene_glow)
 		break;
 	// Vanilla's Blood Star Blue at half size in place of its delivered strike (the Barbarian Skill Cards page, 2026-09-29).
-	case SpellID::ClaspOfRuin: flash = MissileGraphicID::BloodStarBlue, artScale = 50; break;
+	case SpellID::ClaspOfRuin:
+		flash = MissileGraphicID::BloodStarBlue, artScale = 50;
+		if (landedOn) { // a blue ring tightening round the held enemy (Skill Eye Candy)
+			SkillLightRing(*landedOn, Rgb(96, 150, 255), 50);
+			SkillLightFlash(*landedOn, Rgb(96, 150, 255), 0.6F, 40);
+		}
+		break;
 	case SpellID::HammerOfTheAncients:
 		// Holy Bolt's burst, full size, infrared (dev note, 2026-09-29); was the Blood Star at half size.
 		if (landedOn)
 			HolyBurst(player, *landedOn, 100, hue::Infrared);
+		// Skill light (Skill Eye Candy, the user's star): the air bends two tiles round, a white-gold flash, molten cracks
+		// running out and cooling, sparks, and a small kick of the screen.
+		if (landedOn) {
+			SkillLightHeat(*landedOn, 110, 1.2F);
+			SkillLightFlash(*landedOn, Rgb(255, 210, 120), 1.1F, 70);
+			SkillLightSparks(*landedOn, Rgb(255, 220, 150), 18);
+			DrawnHammerCracks(*landedOn);
+			if (&player == MyPlayer)
+				KickScreenShake(2.0F, 0.25F);
+		}
 		break;
 	case SpellID::CinderTouch: flash = MissileGraphicID::CinderTouch; break;
 	case SpellID::TigerClaw: flash = MissileGraphicID::TigerClaw; break;
@@ -4529,7 +4570,7 @@ bool Rfa12CastLeavesRing(SpellID spell)
 {
 	// RfA-27 batch 55: three of these draw a floor burst of their own now (CastOnce), and the ring is only their stand-in.
 	if (spell == SpellID::GroundStomp)
-		return !MissileArtLoaded(MissileGraphicID::GroundStomp);
+		return !DrawnEarthOn() && !MissileArtLoaded(MissileGraphicID::GroundStomp); // the drawn stomp has its own shockwave
 	if (spell == SpellID::MountainPole)
 		return !MissileArtLoaded(MissileGraphicID::MountainPole);
 	if (spell == SpellID::BlindingFlash)

@@ -98,6 +98,15 @@ void SkillLightning(Point tile, uint32_t rgb, float strength = 1.0F);
 void SkillLightGather(Point tile, uint32_t rgb, float seconds);
 /** @brief Whether the drawn lightning replaces Fist of the Heavens' and Wrath of the Heavens' sheets now. */
 bool DrawnLightningOn();
+/**
+ * @brief The Barbarian's drawn earth (user, 2026-10-12: "use the game-drawn version"): oracool/drawn_fx's effects drawn at
+ * a tile, the floor parts in the floor pass and the stones, rocks and dust over the figures. Nothing with Drawn Earth off.
+ */
+bool DrawnEarthOn();
+void DrawnStomp(Point tile);
+void DrawnSeismicSlam(Point tile, Displacement dir, int tiles);
+void DrawnEarthquake(Point tile);
+void DrawnHammerCracks(Point tile);
 /** @brief Test hook: the skill light events alive now. */
 int SkillLightCount();
 /** @brief Draws the skill light events onto @p out as if the world's first tile were at @p origin's screen place, at @p seconds -

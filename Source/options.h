@@ -1064,6 +1064,8 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean skillLight;
 	/** @brief Fist and Wrath of the Heavens' drawn lightning (same). */
 	OptionEntryBoolean drawnLightning;
+	/** @brief The Barbarian's drawn Ground Stomp, Seismic Slam, Earthquake and Hammer cracks (user, 2026-10-12; oracool/drawn_fx.h). */
+	OptionEntryBoolean drawnEarth;
 	/**
 	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
 	 * the name large, type and tier under it, the armour or damage as one big number, the item's
