@@ -18671,6 +18671,66 @@ TEST(OracoolPreview, DISABLED_DrawnLightning)
 	sgOptions.Oracool.drawnLightning.SetValue(was);
 }
 
+#include "oracool/living_aura.h"
+
+/**
+ * Living auras, the experiment (user, 2026-10-12: "instead of using static asset and colorcycling can you draw and animate
+ * their static assets thus infusing them with life? can you simulate one such experiment for me in a render?"): Holy Fire,
+ * Holy Freeze, Holy Shock and Might at the game's size - the top row as the game draws them now (the painted ring, its
+ * colour cycle and Aura Glow), the bottom row drawn by oracool::DrawLivingAura - 40 frames at 50 ms into
+ * ORCL_LIVINGAURA_OUT as living_aura_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_LivingAuras)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedGlow = *sgOptions.Oracool.auraGlow;
+	sgOptions.Oracool.auraGlow.SetValue(true);
+	const char *outDir = std::getenv("ORCL_LIVINGAURA_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const oracool::ClassTreeSkill auras[] = { oracool::ClassTreeSkill::HolyFire, oracool::ClassTreeSkill::HolyFreeze, oracool::ClassTreeSkill::HolyShock,
+		oracool::ClassTreeSkill::Might };
+	const oracool::LivingAuraKind living[] = { oracool::LivingAuraKind::HolyFire, oracool::LivingAuraKind::HolyFreeze, oracool::LivingAuraKind::HolyShock,
+		oracool::LivingAuraKind::Might };
+	// One row an aura; columns: the painted ring as before today, + Aura Glow, the living ring, + Aura Glow's floor light.
+	constexpr int CellW = 150, CellH = 100, Frames = 40;
+	for (int k = 0; k < Frames; k++) {
+		oracool::AuraRingClockOverrideMs = k * 50;
+		OwnedSurface out = OwnedSurface::Rgb(4 * CellW, 4 * CellH);
+		for (int y = 0; y < out.h(); y++)
+			for (int x = 0; x < out.w(); x++) {
+				const int v = 24 + ((x / 16 + y / 8) % 2) * 4;
+				*out.at<uint32_t>(x, y) = (static_cast<uint32_t>(v + 4) << 16) | (static_cast<uint32_t>(v + 2) << 8) | static_cast<uint32_t>(v);
+			}
+		OwnedSurface scratch = OwnedSurface::Rgb(4 * CellW, 4 * CellH); // the painted rings drawn here only to note their glow
+		for (int a = 0; a < 4; a++) {
+			const int cy = a * CellH + CellH / 2 + 8;
+			const Point painted { CellW / 2, cy }, paintedLit { CellW + CellW / 2, cy }, alive { 2 * CellW + CellW / 2, cy }, aliveLit { 3 * CellW + CellW / 2, cy };
+			oracool::BeginAuraGlowFrame();
+			oracool::DrawAuraRingPreview(out, auras[a], painted, 3);
+			oracool::BeginAuraGlowFrame();
+			oracool::DrawAuraRingPreview(out, auras[a], paintedLit, 3);
+			oracool::DrawAuraGlow(out);
+			oracool::BeginAuraGlowFrame();
+			oracool::DrawAuraRingPreview(scratch, auras[a], aliveLit, 3);
+			oracool::DrawAuraGlow(out, /*ringItself=*/false);
+			const float t = static_cast<float>(k) * 0.05F;
+			oracool::DrawLivingAura(out, alive, 48, 24, living[a], t);
+			oracool::DrawLivingAura(out, aliveLit, 48, 24, living[a], t);
+		}
+		char name[64];
+		std::snprintf(name, sizeof(name), "living_aura_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	oracool::AuraRingClockOverrideMs = -1;
+	oracool::BeginAuraGlowFrame();
+	sgOptions.Oracool.auraGlow.SetValue(savedGlow);
+	HeadlessMode = savedHeadless;
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"

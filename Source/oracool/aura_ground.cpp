@@ -605,7 +605,7 @@ size_t AuraGlowRingCount()
 	return GlowRings.size();
 }
 
-void DrawAuraGlow(const Surface &out)
+void DrawAuraGlow(const Surface &out, bool ringItself)
 {
 	if (GlowRings.empty() || out.isIndexed() || out.w() <= 0 || out.h() <= 0)
 		return;
@@ -657,7 +657,10 @@ void DrawAuraGlow(const Surface &out)
 				AddLight(out, splats, x, y, (kr * f8) >> 8, (kg * f8) >> 8, (kb * f8) >> 8);
 			}
 		}
-		// The ring itself glowing a little, at its own colours and the same candle - steady, not in bands.
+		// The ring itself glowing a little, at its own colours and the same candle - steady, not in bands. (Off: the floor's
+		// light alone - the living auras' preview lays it under a ring drawn another way.)
+		if (!ringItself)
+			continue;
 		const int left = centre.x - ring.w / 2;
 		const int top = centre.y - ring.h / 2;
 		const int candle256 = static_cast<int>(candle * 256.0);

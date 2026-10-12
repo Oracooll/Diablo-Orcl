@@ -79,7 +79,7 @@ void DrawMinionFrenzyRings(const Surface &out, Point tilePosition, Point targetB
  */
 void BeginAuraGlowFrame();
 /** @brief The glow of every ring noted this frame, onto @p out (the world region) or the graphics card's splats. */
-void DrawAuraGlow(const Surface &out);
+void DrawAuraGlow(const Surface &out, bool ringItself = true);
 /** @brief Test hook: the rings noted this frame. */
 size_t AuraGlowRingCount();
 
