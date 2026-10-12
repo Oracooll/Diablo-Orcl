@@ -45,12 +45,16 @@ float Frac(float v)
 	return v - std::floor(v);
 }
 
-/** The painting's pixels to the screen's: where the crop was drawn and how much larger. */
+/**
+ * The painting's pixels to the screen's: where the crop was drawn and how much larger, across and down; and the part of the
+ * surface the painting covers, which nothing here draws outside (audit, v1.13.050).
+ */
 struct Map {
-	float ox, oy, k; // screen = (art - crop.pos) * k + screen.pos
-	int w, h;
-	float X(float ax) const { return ox + ax * k; }
-	float Y(float ay) const { return oy + ay * k; }
+	float ox, oy, kx, ky; // screen = (art - crop.pos) * k + screen.pos
+	int x0, y0, x1, y1;   // the clip, inclusive: the screen rect within the surface
+	float X(float ax) const { return ox + ax * kx; }
+	float Y(float ay) const { return oy + ay * ky; }
+	bool In(int x, int y) const { return x >= x0 && y >= y0 && x <= x1 && y <= y1; }
 };
 
 /** A flicker from three sines: a flame's breath, never quite repeating. */
@@ -59,9 +63,9 @@ float Flicker(float t, float seed)
 	return 0.5F + 0.22F * std::sin(t * 7.3F + seed) + 0.17F * std::sin(t * 13.1F + seed * 2.3F) + 0.11F * std::sin(t * 23.7F + seed * 0.7F);
 }
 
-void Add(const Surface &out, int x, int y, float r, float g, float b, float k)
+void Add(const Surface &out, const Map &m, int x, int y, float r, float g, float b, float k)
 {
-	if (x < 0 || y < 0 || x >= out.w() || y >= out.h() || !(k > 0.004F))
+	if (!m.In(x, y) || !(k > 0.004F))
 		return;
 	uint32_t &c = *out.at<uint32_t>(x, y);
 	const int cr = std::min(255, static_cast<int>((c >> 16) & 0xFF) + static_cast<int>(r * k));
@@ -70,9 +74,9 @@ void Add(const Surface &out, int x, int y, float r, float g, float b, float k)
 	c = (static_cast<uint32_t>(cr) << 16) | (static_cast<uint32_t>(cg) << 8) | static_cast<uint32_t>(cb);
 }
 
-void Mix(const Surface &out, int x, int y, float r, float g, float b, float a)
+void Mix(const Surface &out, const Map &m, int x, int y, float r, float g, float b, float a)
 {
-	if (x < 0 || y < 0 || x >= out.w() || y >= out.h() || !(a > 0.004F))
+	if (!m.In(x, y) || !(a > 0.004F))
 		return;
 	a = std::min(a, 1.0F);
 	uint32_t &c = *out.at<uint32_t>(x, y);
@@ -82,13 +86,17 @@ void Mix(const Surface &out, int x, int y, float r, float g, float b, float a)
 
 /**
  * Bends the screen inside the painting's rect (@p x0, @p y0)-(@p x1, @p y1): each pixel takes the colour @p shift says (in the
- * painting's pixels, from where it is - u, v across the rect 0..1), sampled from the rect as it was.
+ * painting's pixels, from where it is - u, v across the whole rect 0..1, even where the screen cuts it), sampled from the rect
+ * as it was. @p RowOnly: the shift depends on v alone, so it is asked once a row (audit, v1.13.050: the banners' cost).
  */
-template <typename Shift>
+template <bool RowOnly = false, typename Shift>
 void Warp(const Surface &out, const Map &m, float x0, float y0, float x1, float y1, Shift shift)
 {
-	const int sx0 = std::max(0, static_cast<int>(m.X(x0))), sy0 = std::max(0, static_cast<int>(m.Y(y0)));
-	const int sx1 = std::min(out.w() - 1, static_cast<int>(m.X(x1))), sy1 = std::min(out.h() - 1, static_cast<int>(m.Y(y1)));
+	const float fx0 = m.X(x0), fy0 = m.Y(y0), fw = m.X(x1) - fx0, fh = m.Y(y1) - fy0;
+	if (!(fw > 1.0F) || !(fh > 1.0F))
+		return;
+	const int sx0 = std::max(m.x0, static_cast<int>(fx0)), sy0 = std::max(m.y0, static_cast<int>(fy0));
+	const int sx1 = std::min(m.x1, static_cast<int>(m.X(x1))), sy1 = std::min(m.y1, static_cast<int>(m.Y(y1)));
 	if (sx1 <= sx0 || sy1 <= sy0)
 		return;
 	const int W = sx1 - sx0 + 1, H = sy1 - sy0 + 1;
@@ -98,13 +106,19 @@ void Warp(const Surface &out, const Map &m, float x0, float y0, float x1, float 
 		std::memcpy(&copy[static_cast<size_t>(y) * W], out.at<uint32_t>(sx0, sy0 + y), static_cast<size_t>(W) * 4);
 	for (int y = 0; y < H; y++) {
 		uint32_t *row = out.at<uint32_t>(sx0, sy0 + y);
-		const float v = static_cast<float>(y) / static_cast<float>(H);
+		const float v = std::clamp((static_cast<float>(sy0 + y) - fy0) / fh, 0.0F, 1.0F);
+		float dx = 0, dy = 0;
+		if constexpr (RowOnly)
+			shift(0.0F, v, dx, dy);
 		for (int x = 0; x < W; x++) {
-			const float u = static_cast<float>(x) / static_cast<float>(W);
-			float dx = 0, dy = 0;
-			shift(u, v, dx, dy);
-			const int tx = std::clamp(x + static_cast<int>(std::lround(dx * m.k)), 0, W - 1);
-			const int ty = std::clamp(y + static_cast<int>(std::lround(dy * m.k)), 0, H - 1);
+			if constexpr (!RowOnly) {
+				const float u = std::clamp((static_cast<float>(sx0 + x) - fx0) / fw, 0.0F, 1.0F);
+				dx = 0;
+				dy = 0;
+				shift(u, v, dx, dy);
+			}
+			const int tx = std::clamp(x + static_cast<int>(std::lround(dx * m.kx)), 0, W - 1);
+			const int ty = std::clamp(y + static_cast<int>(std::lround(dy * m.ky)), 0, H - 1);
 			row[x] = copy[static_cast<size_t>(ty) * W + tx];
 		}
 	}
@@ -113,20 +127,26 @@ void Warp(const Surface &out, const Map &m, float x0, float y0, float x1, float 
 /** A glow round (@p ax, @p ay): light added that falls off over @p rx by @p ry painting pixels. */
 void Glow(const Surface &out, const Map &m, float ax, float ay, float rx, float ry, float r, float g, float b, float k)
 {
-	const float cx = m.X(ax), cy = m.Y(ay), Rx = rx * m.k, Ry = ry * m.k;
-	for (int dy = -static_cast<int>(Ry); dy <= static_cast<int>(Ry); dy++)
-		for (int dx = -static_cast<int>(Rx); dx <= static_cast<int>(Rx); dx++) {
+	const float cx = m.X(ax), cy = m.Y(ay), Rx = rx * m.kx, Ry = ry * m.ky;
+	if (!(Rx > 0.5F) || !(Ry > 0.5F))
+		return;
+	const int icx = static_cast<int>(cx), icy = static_cast<int>(cy);
+	// Only the part on the painting's rect is walked (audit, v1.13.050).
+	const int dy0 = std::max(-static_cast<int>(Ry), m.y0 - icy), dy1 = std::min(static_cast<int>(Ry), m.y1 - icy);
+	const int dx0 = std::max(-static_cast<int>(Rx), m.x0 - icx), dx1 = std::min(static_cast<int>(Rx), m.x1 - icx);
+	for (int dy = dy0; dy <= dy1; dy++)
+		for (int dx = dx0; dx <= dx1; dx++) {
 			const float d2 = static_cast<float>(dx * dx) / (Rx * Rx) + static_cast<float>(dy * dy) / (Ry * Ry);
 			if (d2 < 1.0F)
-				Add(out, static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, r, g, b, k * (1.0F - d2) * (1.0F - d2));
+				Add(out, m, static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, r, g, b, k * (1.0F - d2) * (1.0F - d2));
 		}
 }
 
 /** The bright pixels of a rect brightened by @p k (a window's light, a sigil's): only what already shines. */
 void Brighten(const Surface &out, const Map &m, float x0, float y0, float x1, float y1, float r, float g, float b, float k)
 {
-	const int sx0 = std::max(0, static_cast<int>(m.X(x0))), sy0 = std::max(0, static_cast<int>(m.Y(y0)));
-	const int sx1 = std::min(out.w() - 1, static_cast<int>(m.X(x1))), sy1 = std::min(out.h() - 1, static_cast<int>(m.Y(y1)));
+	const int sx0 = std::max(m.x0, static_cast<int>(m.X(x0))), sy0 = std::max(m.y0, static_cast<int>(m.Y(y0)));
+	const int sx1 = std::min(m.x1, static_cast<int>(m.X(x1))), sy1 = std::min(m.y1, static_cast<int>(m.Y(y1)));
 	for (int y = sy0; y <= sy1; y++) {
 		uint32_t *row = out.at<uint32_t>(0, y);
 		for (int x = sx0; x <= sx1; x++) {
@@ -134,7 +154,7 @@ void Brighten(const Surface &out, const Map &m, float x0, float y0, float x1, fl
 			const int l = (static_cast<int>((c >> 16) & 0xFF) * 77 + static_cast<int>((c >> 8) & 0xFF) * 151 + static_cast<int>(c & 0xFF) * 28) >> 8;
 			if (l < 70)
 				continue;
-			Add(out, x, y, r, g, b, k * static_cast<float>(l - 70) / 185.0F);
+			Add(out, m, x, y, r, g, b, k * static_cast<float>(l - 70) / 185.0F);
 		}
 	}
 }
@@ -155,7 +175,7 @@ void Flame(const Surface &out, const Map &m, float x0, float y0, float x1, float
 /** A banner hanging from its top edge, swaying a hair: nothing at the top, most at the bottom. */
 void Banner(const Surface &out, const Map &m, float x0, float y0, float x1, float y1, float t, float seed, float amp)
 {
-	Warp(out, m, x0 - amp, y0, x1 + amp, y1, [&](float u, float v, float &dx, float &dy) {
+	Warp</*RowOnly=*/true>(out, m, x0 - amp, y0, x1 + amp, y1, [&](float, float v, float &dx, float &dy) {
 		const float hang = std::pow(v, 1.4F);
 		// Barely moving (user, 2026-10-13: "make flags movement more subtle. barely moving"): one slow sway, no ripple.
 		dx = hang * amp * std::sin(t * 0.55F + seed + v * 1.2F);
@@ -184,7 +204,7 @@ void Smoke(const Surface &out, const Map &m, float ax, float ay, float t, float 
 		const float ph = Frac(t / period + static_cast<float>(i) / 16.0F);
 		const float x = ax + drift * ph * 90.0F + std::sin(ph * 5.0F + static_cast<float>(i)) * 6.0F;
 		const float y = ay - ph * 150.0F;
-		const float size = (6.0F + 26.0F * ph) * m.k;
+		const float size = (6.0F + 26.0F * ph) * m.kx;
 		const float alpha = 0.22F * std::sin(std::min(1.0F, ph * 1.3F) * Pi) * (1.0F - ph * 0.5F);
 		const int s = static_cast<int>(size);
 		const int cx = static_cast<int>(m.X(x)), cy = static_cast<int>(m.Y(y));
@@ -192,7 +212,7 @@ void Smoke(const Surface &out, const Map &m, float ax, float ay, float t, float 
 			for (int dx = -s; dx <= s; dx++) {
 				const float d2 = static_cast<float>(dx * dx + dy * dy) / (size * size);
 				if (d2 < 1.0F)
-					Mix(out, cx + dx, cy + dy, 34, 34, 40, alpha * (1.0F - d2));
+					Mix(out, m, cx + dx, cy + dy, 34, 34, 40, alpha * (1.0F - d2));
 			}
 	}
 }
@@ -215,11 +235,14 @@ void Lamp(const Surface &out, const Map &m, float ax, float ay, float r, float t
 
 void AnimateUiBackground(const Surface &out, UiBackground which, const Rectangle &crop, const Rectangle &screen, float t)
 {
-	if (out.isIndexed() || crop.size.width <= 0 || screen.size.width <= 0)
+	if (out.isIndexed() || crop.size.width <= 0 || crop.size.height <= 0 || screen.size.width <= 0 || screen.size.height <= 0)
 		return;
-	const float k = static_cast<float>(screen.size.width) / static_cast<float>(crop.size.width);
-	const Map m { static_cast<float>(screen.position.x) - static_cast<float>(crop.position.x) * k, static_cast<float>(screen.position.y) - static_cast<float>(crop.position.y) * k, k,
-		out.w(), out.h() };
+	const float kx = static_cast<float>(screen.size.width) / static_cast<float>(crop.size.width);
+	const float ky = static_cast<float>(screen.size.height) / static_cast<float>(crop.size.height);
+	const Map m { static_cast<float>(screen.position.x) - static_cast<float>(crop.position.x) * kx, static_cast<float>(screen.position.y) - static_cast<float>(crop.position.y) * ky, kx, ky,
+		std::max(0, screen.position.x), std::max(0, screen.position.y), std::min(out.w(), screen.position.x + screen.size.width) - 1, std::min(out.h(), screen.position.y + screen.size.height) - 1 };
+	if (m.x1 < m.x0 || m.y1 < m.y0)
+		return;
 	switch (which) {
 	case UiBackground::Settings: // the gallows road under the moon (1680x720)
 		Glow(out, m, 1150, 140, 70, 70, 210, 220, 255, 0.04F + 0.02F * std::sin(t * 0.7F));

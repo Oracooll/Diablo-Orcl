@@ -20,7 +20,8 @@ namespace devilution::oracool {
 
 /**
  * @brief Brings @p which to life on @p out, where the painting's @p crop (its own pixels) was drawn over @p screen.
- * @p seconds: a steady clock. Does nothing on an indexed surface or for a painting with no spots.
+ * @p seconds: a steady clock. Draws nothing outside @p screen. Lights in place, so call it each frame right after the painting
+ * is drawn and before anything is drawn over it. Does nothing on an indexed surface or for a painting with no spots.
  */
 void AnimateUiBackground(const Surface &out, UiBackground which, const Rectangle &crop, const Rectangle &screen, float seconds);
 

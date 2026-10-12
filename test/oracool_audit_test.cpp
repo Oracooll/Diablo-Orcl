@@ -20150,6 +20150,35 @@ TEST(OracoolPreview, DISABLED_UiBackgroundLife)
 	}
 }
 
+// The paintings' life stays on the painting (audit, v1.13.050): drawn cover-cropped into part of a larger surface, at a scale
+// that is not 1, nothing outside the rect it was drawn over changes - for every painting, at many moments.
+TEST(OracoolUiBackgroundLife, DrawsNothingOutsideItsScreenRect)
+{
+	const int W = 1280, H = 1024;
+	const Rectangle screen { { 100, 80 }, { 900, 700 } };
+	for (const oracool::UiBackground which : { oracool::UiBackground::MainMenu, oracool::UiBackground::HeroSelect, oracool::UiBackground::Settings }) {
+		const Rectangle crop = which == oracool::UiBackground::Settings ? Rectangle { { 400, 0 }, { 925, 720 } } : Rectangle { { 500, 0 }, { 1055, 821 } };
+		for (int k = 0; k < 6; k++) {
+			OwnedSurface out = OwnedSurface::Rgb(W, H);
+			for (int y = 0; y < H; y++)
+				for (int x = 0; x < W; x++)
+					*out.at<uint32_t>(x, y) = 0x00A0A0A0U; // bright enough for every light to act on
+			oracool::AnimateUiBackground(out, which, crop, screen, static_cast<float>(k) * 0.7F + 1.0F);
+			bool changedInside = false;
+			for (int y = 0; y < H; y++)
+				for (int x = 0; x < W; x++) {
+					const bool inside = x >= screen.position.x && y >= screen.position.y && x < screen.position.x + screen.size.width && y < screen.position.y + screen.size.height;
+					const uint32_t c = *out.at<uint32_t>(x, y);
+					if (!inside)
+						ASSERT_EQ(c, 0x00A0A0A0U) << "painting " << static_cast<int>(which) << " drew at " << x << "," << y;
+					else if (c != 0x00A0A0A0U)
+						changedInside = true;
+				}
+			EXPECT_TRUE(changedInside) << "painting " << static_cast<int>(which) << " did nothing";
+		}
+	}
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"

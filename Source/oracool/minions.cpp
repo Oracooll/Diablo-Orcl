@@ -300,13 +300,13 @@ void FireTrailBurn(Player &owner)
 		if (patch.ticksLeft % FireTrailPulseTicks != 0 || patch.body < 0 || static_cast<size_t>(patch.body) >= MaxMonsters)
 			continue;
 		Monster &golem = Monsters[patch.body];
-		if (golem.hitPoints <= 0 || !IsFireGolem(golem))
+		if (!IsFireGolem(golem))
 			continue; // the golem gone: its fire burns on, harmless
+		const Record *record = RecordOf(golem);
+		if (record == nullptr || !BodyAlive(*record))
+			continue; // dying or dead as the rest of the file reads it (audit, v1.13.050)
 		Monster *monster = FindMonsterAtPosition(patch.tile);
 		if (monster == nullptr || monster == &golem)
-			continue;
-		const Record *record = RecordOf(golem);
-		if (record == nullptr)
 			continue;
 		const int blow = record->spec.minDamage + GenerateRnd(std::max(record->spec.maxDamage - record->spec.minDamage, 0) + 1);
 		MinionHurts(owner, golem, *monster, DamageType::Fire, (blow << 6) / (FireGolemBurnDivisor * 2));
