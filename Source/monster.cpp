@@ -1087,7 +1087,7 @@ void NewMonsterAnim(Monster &monster, MonsterGraphic graphic, Direction md, Anim
 	// before it; the attack distributes the skip before the hit frame, as NewPlrAnim does.
 	int8_t skipped = numSkippedFrames;
 	int8_t distributeBefore = distributeFramesBeforeFrame;
-	if (const int extra = oracool::VariantSkippedFrames(monster, graphic) + oracool::RiftBossSkippedFrames(monster, graphic); extra > 0) {
+	if (const int extra = oracool::VariantSkippedFrames(monster, graphic) + oracool::RiftBossSkippedFrames(monster, graphic) + oracool::DrawnFireGolemSkippedFrames(monster, graphic); extra > 0) {
 		if (graphic == MonsterGraphic::Attack) {
 			const int hitFrame = monster.data().animFrameNum;
 			skipped = static_cast<int8_t>(std::clamp<int>(skipped + extra, 0, std::max(0, hitFrame - 3)));

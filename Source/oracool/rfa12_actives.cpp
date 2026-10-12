@@ -1072,10 +1072,10 @@ void DrawnWorn(const Player &player, Buff buff, int slot, int ticks, Fn fn)
 	const uint32_t serial = NextWornSerial(pid, slot);
 	PlayDrawn(static_cast<float>(ticks) / static_cast<float>(TicksPerSecond) + 0.5F, [=](const Surface &o, const DrawnView &v, float age, bool floor) {
 		const Player &p = Players[pid];
-		if (WornSerial(pid, slot) != serial || !p.plractive || BuffRank(p, buff) <= 0)
+		if (WornSerial(pid, slot) != serial || !p.plractive || !p.isOnActiveLevel() || BuffRank(p, buff) <= 0)
 			return;
 		fn(o, v, p, age, floor);
-	});
+	}, /*worn=*/true);
 }
 
 Field *NewField(const Player &player, SpellID spell, Point tile, int ticks, int rank)
@@ -2083,7 +2083,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// The drawn wave of earth since the Barbarian's verdicts (user, 2026-10-12: "use the game-drawn version you created");
 		// the golden flames with Drawn Earth off.
 		if (DrawnEarthOn())
-			DrawnSeismicSlam(here, Displacement(GetDirection(here, target)), ReachTiles(spell, r));
+			DrawnSeismicSlam(here, Displacement(GetDirection(here, target)), here.WalkingDistance(LineEnd(here, target, ReachTiles(spell, r)))); // to the first wall (audit round 1)
 		else
 			GoldenFlameWave(player, here, target, ReachTiles(spell, r));
 		return !line.empty(); // a slam on nothing costs nothing, as Rend and Ground Stomp (round 28 audit)
@@ -2316,10 +2316,16 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			// Drawn since the verdicts (user, 2026-10-12): the implosion and detonation, the spires, the vortex round him and
 			// the frozen picture; each one frozen sealed in ice.
 			const int pid = static_cast<int>(player.getId());
-			PlayDrawn(AbsoluteZeroSeconds, [pid, here](const Surface &o, const DrawnView &v, float age, bool floor) {
+			const int stamp = FieldStamp + 1; // the field NewField makes below (audit round 1: the picture outlived it)
+			PlayDrawn(AbsoluteZeroSeconds, [pid, here, stamp](const Surface &o, const DrawnView &v, float age, bool floor) {
+				const bool alive = age < AbsoluteZeroSeconds - 1.5F // a margin for the clocks' drift (audit round 2)
+				    ? std::any_of(Fields.begin(), Fields.end(), [stamp](const Field &f) { return f.stamp == stamp && f.ticksLeft > 0; })
+				    : true; // its last second, the thaw, after the field is done
+				if (!alive)
+					return;
 				DrawAbsoluteZeroFx(o, v.Tile(here), v.Hero(Players[pid]), age, floor);
 				if (!floor)
-					ApplyAbsoluteZeroGrade(o, age);
+					RequestAbsoluteZeroGrade(age);
 			});
 			for (Monster *m : MonstersWithin(here, ReachTiles(spell, r))) {
 				if (ShrugsOff(*m))
@@ -2794,8 +2800,21 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		// RfA-27 batches 54-55: the spear flies and bursts where it lands, with its cue; without the spear the burst and the
 		// cue come at once, and with neither sheet the cry's ring stands in, as before.
 		// "throw 150% size regular arrow tinted fire. colorcycled. upon impact play apocalipse explosion" (the Rogue Skill Cards page, 2026-10-04).
-		if (DrawnSkillsOn()) // the spear hurled on wings of light, planted with a burst (2026-10-12)
-			PlayDrawn(3.0F, [here, target](const Surface &o, const DrawnView &v, float age, bool floor) { DrawHurledSpearFx(o, v.Tile(here), v.Tile(target), age, floor); });
+		if (DrawnSkillsOn()) { // the spear hurled on wings of light, planted with a burst (2026-10-12)
+			// Its cue where it lands, as the sheet's flight played it (audit rounds 1-2): the drawing's own flight time.
+			const Displacement d = target - here;
+			const float sx = static_cast<float>(d.deltaX - d.deltaY) * 32.0F, sy = static_cast<float>(d.deltaX + d.deltaY) * 32.0F;
+			const float flight = std::clamp(std::sqrt(sx * sx + sy * sy) / 420.0F, 0.15F, 0.6F);
+			const int pid = static_cast<int>(player.getId());
+			auto cued = std::make_shared<bool>(false);
+			PlayDrawn(1.5F, [here, target, flight, pid, cued, spell](const Surface &o, const DrawnView &v, float age, bool floor) {
+				if (!*cued && age >= flight) {
+					*cued = true;
+					Impact(Players[pid], spell);
+				}
+				DrawHurledSpearFx(o, v.Tile(here), v.Tile(target), age, floor);
+			});
+		}
 		else
 			FlyArrow(player, here, target, spell, Tint::Glint, hue::FireOrange, 2, 150, 32, MissileGraphicID::ApocalypseBoom);
 		return true;
@@ -3066,7 +3085,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r)); // a weapon blow, counted once a cast (rounds 110-111)
 		// RfA-27 batch 54: the blade of force skimming the floor down the line; the cry's ring while it is missing.
 		const Displacement splitDir(GetDirection(here, target));
-		const int splitTiles = ReachTiles(spell, r);
+		const int splitTiles = here.WalkingDistance(LineEnd(here, target, ReachTiles(spell, r))); // to the first wall (audit round 1)
 		if (DrawnSkillsOn()) // the blow and its fissure of light, drawn (2026-10-12)
 			PlayDrawn(1.2F, [here, splitDir, splitTiles](const Surface &o, const DrawnView &v, float age, bool floor) { DrawHeavenSplitterFx(o, v.Tile(here), splitDir.deltaX, splitDir.deltaY, splitTiles, age, floor); });
 		else if (MissileArtLoaded(MissileGraphicID::HeavenSplitterWave))
@@ -3182,7 +3201,7 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			SideBlow(player, *m, DamageType::Physical, BlowPercent(spell, r)); // a weapon blow, counted once a cast (rounds 110-111)
 		// RfA-27 batch 54: the wave of wind and force down the line; the cry's ring while it is missing.
 		const Displacement wrathDir(GetDirection(here, target));
-		const int wrathTiles = ReachTiles(spell, r);
+		const int wrathTiles = here.WalkingDistance(LineEnd(here, target, ReachTiles(spell, r))); // to the first wall (audit round 1)
 		if (DrawnSkillsOn()) // the serpent of gold fire down the line, drawn (2026-10-12)
 			PlayDrawn(1.3F, [here, wrathDir, wrathTiles](const Surface &o, const DrawnView &v, float age, bool floor) { DrawDragonWaveFx(o, v.Tile(here), wrathDir.deltaX, wrathDir.deltaY, wrathTiles, age, floor); });
 		else if (MissileArtLoaded(MissileGraphicID::DragonsWrathWave))
@@ -3254,10 +3273,11 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 			blinded = true;
 			if (DrawnSkillsOn()) { // stars circling the blinded (2026-10-12)
 				const int id = IdOf(*m);
-				const Point at = m->position.tile;
-				PlayDrawn(3.2F, [id, at](const Surface &o, const DrawnView &v, float age, bool floor) {
-					if (!floor && age > 0.2F && Monsters[id].hitPoints > 0)
-						DrawDazedFx(o, v.MonsterOr(id, at), age);
+				const auto type = m->type().type;
+				PlayDrawn(3.2F, [id, type](const Surface &o, const DrawnView &v, float age, bool floor) {
+					// On its monster wherever it wanders, and nowhere once the slot is someone else's (audit round 2).
+					if (!floor && age > 0.2F && Monsters[id].hitPoints > 0 && Monsters[id].type().type == type)
+						DrawDazedFx(o, v.MonsterFoot(Monsters[id]), age);
 				});
 			}
 		}
@@ -4991,6 +5011,8 @@ int Rfa12ActiveAbsorbDamage(Player &player, int damage)
 	if (BuffRank(player, Buff::BoneShell) > 0 && state.bonePool > 0) {
 		const int held = std::min(state.bonePool, damage);
 		state.bonePool -= held;
+		if (held > 0)
+			CandyOnBlow(player, Rgb(236, 226, 200), 0.6F, 0); // the shell's pale shimmer as it takes the blow (Skill Eye Candy)
 		damage -= held;
 		if (state.bonePool <= 0)
 			state.ticks[static_cast<size_t>(Buff::BoneShell)] = 0;

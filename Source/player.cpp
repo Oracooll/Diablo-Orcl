@@ -4136,6 +4136,7 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 		}
 		if (&player == MyPlayer)
 			RedrawComponent(PanelDrawComponent::Mana);
+		oracool::CandyOnBlow(player, oracool::Rgb(110, 170, 255), 0.6F, 1); // the shield's blue as it drinks the blow (Skill Eye Candy)
 		if (player._pMana >= totalDamage) {
 			player._pMana -= totalDamage;
 			player._pManaBase -= totalDamage;

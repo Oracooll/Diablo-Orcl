@@ -839,7 +839,7 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 		// Whirlwind's and Strafe's arcs (user, 2026-10-12; oracool/whirl_arcs.h): the far half of the ring, behind him. The near
 		// half and the floor's light are drawn with the light (oracool/scene_glow.cpp), over him.
 		if (*sgOptions.Oracool.whirlwindArcs && oracool::IsSpinning(player))
-			oracool::DrawWhirlArcs(out, targetBufferPosition, oracool::SceneSeconds(), /*front=*/false, /*floor=*/false, player._pClass == HeroClass::Rogue);
+			oracool::DrawWhirlArcs(out, targetBufferPosition, oracool::SceneSeconds(), /*front=*/false, /*floor=*/false, player._pClass == HeroClass::Rogue && oracool::DrawnSkillsOn());
 	}
 
 	if (!bodyOnly && static_cast<size_t>(pcursplr) < Players.size() && &player == &Players[pcursplr])

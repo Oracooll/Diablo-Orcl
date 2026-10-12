@@ -57,7 +57,7 @@ struct Px {
 	int w, h;
 	void add(int x, int y, float r, float g, float b, float k) const
 	{
-		if (x < 0 || y < 0 || x >= w || y >= h || k <= 0.004F)
+		if (x < 0 || y < 0 || x >= w || y >= h || !(k > 0.004F)) // a NaN strength draws nothing (audit round 1)
 			return;
 		uint32_t &c = *out->at<uint32_t>(x, y);
 		const int cr = std::min(255, static_cast<int>((c >> 16) & 0xFF) + static_cast<int>(r * k));
@@ -67,7 +67,7 @@ struct Px {
 	}
 	void mix(int x, int y, float r, float g, float b, float a) const
 	{
-		if (x < 0 || y < 0 || x >= w || y >= h || a <= 0.004F)
+		if (x < 0 || y < 0 || x >= w || y >= h || !(a > 0.004F))
 			return;
 		a = std::min(a, 1.0F);
 		uint32_t &c = *out->at<uint32_t>(x, y);
@@ -128,7 +128,7 @@ void DrawGroundStompFx(const Surface &out, Point foot, float age, bool floorLaye
 		// orange to dark scars that fade with the rest.
 		const float grow = Clamp01(age / 0.12F);
 		const float heat = Clamp01(1.0F - age / 0.9F);
-		const float scar = Clamp01(1.0F - (age - 0.9F) / 0.5F) * (age > 0.9F ? 1.0F : 1.0F);
+		const float scar = Clamp01(1.0F - (age - 0.9F) / 0.5F);
 		for (uint32_t i = 0; i < 8; i++) {
 			float ang = (static_cast<float>(i) + Unit(Hash(i, Seed)) * 0.6F) / 8.0F * TwoPi;
 			const float len = (55.0F + Unit(Hash(i, Seed + 1)) * 30.0F) * grow;
@@ -243,7 +243,7 @@ void DrawGroundStompFx(const Surface &out, Point foot, float age, bool floorLaye
 
 void DrawSeismicSlamFx(const Surface &out, Point foot, int dirX, int dirY, int tiles, float age, bool floorLayer)
 {
-	if (out.isIndexed() || age < 0 || age > SeismicSlamSeconds || (dirX == 0 && dirY == 0))
+	if (out.isIndexed() || age < 0 || age > SeismicSlamSeconds || (dirX == 0 && dirY == 0) || tiles <= 0)
 		return;
 	const Px px { &out, out.w(), out.h() };
 	constexpr uint32_t Seed = 5077;
@@ -1555,6 +1555,8 @@ float AzReached(float r)
 /** A faceted spike of ice @p h tall and @p w wide at its foot (@p x, @p y), leaning @p lean, at strength @p k. */
 void IceSpire(const Px &px, float x, float y, float h, float w, float lean, float k)
 {
+	if (h <= 0)
+		return;
 	for (float z = 0; z <= h; z += 1.0F) {
 		const float t = z / h;
 		const float half = w * (1.0F - t) + 0.5F;
@@ -1857,13 +1859,17 @@ void ApplyEarthquakeEdges(const Surface &out, float age)
 	const float reach = 60.0F * k;
 	const int band = static_cast<int>(reach * 1.25F) + 1;
 	const int W = out.w(), H = out.h();
+	// The edge test first, the ragged sines only inside the band (audit round 1).
 	const auto shade = [&](uint32_t *row, int x, int y, float edge) {
+		if (edge >= static_cast<float>(band))
+			return;
 		const float ragged = 0.5F + 0.5F * std::sin(static_cast<float>(x) * 0.037F + std::sin(static_cast<float>(y) * 0.029F) * 2.0F) * std::sin(static_cast<float>(y) * 0.047F + std::sin(static_cast<float>(x) * 0.023F) * 2.0F);
 		const float reachHere = reach * (0.5F + 0.7F * ragged);
 		if (edge >= reachHere)
 			return;
-		const float grain = 0.75F + 0.25F * std::sin(static_cast<float>(x * 7 + y * 13) * 0.9F);
-		const float f = std::pow(1.0F - edge / std::max(1.0F, reachHere), 1.4F) * grain * 0.8F;
+		const float grain = 0.75F + 0.25F * Unit(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), 7702));
+		const float e = 1.0F - edge / std::max(1.0F, reachHere);
+		const float f = e * std::sqrt(e) * grain * 0.8F;
 		const uint32_t c = row[x];
 		const float r = static_cast<float>((c >> 16) & 0xFF), g = static_cast<float>((c >> 8) & 0xFF), b = static_cast<float>(c & 0xFF);
 		row[x] = (static_cast<uint32_t>(r + (118.0F - r) * f) << 16) | (static_cast<uint32_t>(g + (86.0F - g) * f) << 8) | static_cast<uint32_t>(b + (52.0F - b) * f);
@@ -1884,34 +1890,48 @@ void ApplyAbsoluteZeroGrade(const Surface &out, float age)
 {
 	if (out.isIndexed() || age < AzBlast || age > AbsoluteZeroSeconds)
 		return;
-	// The world draining to frozen blue while it lasts, and frost creeping in over the edges of the picture.
+	// The world draining to frozen blue while it lasts, and frost creeping in over the edges of the picture. Once a frame
+	// (scene_glow's final pass), integer maths for the colour, the frost only in the bands at the edges (audit round 1:
+	// four sines a pixel over the whole picture cost 15-100 ms a frame).
 	const float k = Clamp01((age - AzBlast) / 0.5F) * Clamp01((AbsoluteZeroSeconds - age) / 0.8F);
 	const float creep = Clamp01((age - AzBlast) / 1.2F) * Clamp01((AbsoluteZeroSeconds - age) / 0.8F);
 	const int W = out.w(), H = out.h();
 	const float reach = 70.0F * creep; // how far in from the edge the frost has grown
+	const int band = static_cast<int>(reach * 1.2F) + 1;
+	const int ik = static_cast<int>(0.55F * k * 256.0F);
+	static std::vector<float> colSin, rowSin;
+	colSin.resize(static_cast<size_t>(W));
+	rowSin.resize(static_cast<size_t>(H));
+	for (int x = 0; x < W; x++)
+		colSin[static_cast<size_t>(x)] = std::sin(static_cast<float>(x) * 0.027F);
+	for (int y = 0; y < H; y++)
+		rowSin[static_cast<size_t>(y)] = std::sin(static_cast<float>(y) * 0.031F);
 	for (int y = 0; y < H; y++) {
 		uint32_t *row = out.at<uint32_t>(0, y);
+		const float ey = std::min(static_cast<float>(y), static_cast<float>(H - 1 - y)) * 1.3F;
 		for (int x = 0; x < W; x++) {
 			const uint32_t c = row[x];
-			float r = static_cast<float>((c >> 16) & 0xFF), g = static_cast<float>((c >> 8) & 0xFF), b = static_cast<float>(c & 0xFF);
-			const float l = 0.3F * r + 0.59F * g + 0.11F * b;
+			int r = static_cast<int>((c >> 16) & 0xFF), g = static_cast<int>((c >> 8) & 0xFF), b = static_cast<int>(c & 0xFF);
+			const int l = (r * 77 + g * 151 + b * 28) >> 8;
 			// Desaturated and cooled.
-			r += (l * 0.78F - r) * 0.55F * k;
-			g += (l * 0.95F - g) * 0.55F * k;
-			b += (std::min(255.0F, l * 1.25F + 12.0F) - b) * 0.55F * k;
-			// The frost at the edges: a crystalline rime, thicker at the corners, with a fern-like grain.
-			const float edge = std::min({ static_cast<float>(x), static_cast<float>(W - 1 - x), static_cast<float>(y) * 1.3F, static_cast<float>(H - 1 - y) * 1.3F });
-			// Ragged: the frost reaches further in some places than others.
-			const float ragged = 0.5F + 0.5F * std::sin(static_cast<float>(x) * 0.043F + std::sin(static_cast<float>(y) * 0.031F) * 2.0F) * std::sin(static_cast<float>(y) * 0.052F + std::sin(static_cast<float>(x) * 0.027F) * 2.0F);
-			const float reachHere = reach * (0.45F + 0.75F * ragged);
-			if (edge < reachHere) {
-				const float grain = 0.5F + 0.5F * std::sin(static_cast<float>(x) * 0.31F + std::sin(static_cast<float>(y) * 0.17F) * 3.0F) * std::sin(static_cast<float>(y) * 0.27F + std::sin(static_cast<float>(x) * 0.13F) * 3.0F);
-				const float f = std::pow(1.0F - edge / std::max(1.0F, reachHere), 1.5F) * (0.8F + 0.2F * grain);
-				r += (215.0F - r) * 0.75F * f;
-				g += (235.0F - g) * 0.75F * f;
-				b += (255.0F - b) * 0.75F * f;
+			r += ((l * 200 >> 8) - r) * ik >> 8;
+			g += ((l * 243 >> 8) - g) * ik >> 8;
+			b += (std::min(255, (l * 320 >> 8) + 12) - b) * ik >> 8;
+			const float edge = std::min({ static_cast<float>(x), static_cast<float>(W - 1 - x), ey });
+			if (edge < static_cast<float>(band)) {
+				// The frost at the edges: ragged, thicker at the corners, with a grain fixed to the screen.
+				const float ragged = 0.5F + 0.5F * std::sin(static_cast<float>(x) * 0.043F + rowSin[static_cast<size_t>(y)] * 2.0F) * std::sin(static_cast<float>(y) * 0.052F + colSin[static_cast<size_t>(x)] * 2.0F);
+				const float reachHere = reach * (0.45F + 0.75F * ragged);
+				if (edge < reachHere) {
+					const float grain = Unit(Hash(static_cast<uint32_t>(x >> 1), static_cast<uint32_t>(y >> 1), 7701));
+					const float e = 1.0F - edge / std::max(1.0F, reachHere);
+					const int f = static_cast<int>(e * std::sqrt(e) * (0.8F + 0.2F * grain) * 0.75F * 256.0F);
+					r += (215 - r) * f >> 8;
+					g += (235 - g) * f >> 8;
+					b += (255 - b) * f >> 8;
+				}
 			}
-			row[x] = (static_cast<uint32_t>(std::min(255.0F, r)) << 16) | (static_cast<uint32_t>(std::min(255.0F, g)) << 8) | static_cast<uint32_t>(std::min(255.0F, b));
+			row[x] = (static_cast<uint32_t>(std::clamp(r, 0, 255)) << 16) | (static_cast<uint32_t>(std::clamp(g, 0, 255)) << 8) | static_cast<uint32_t>(std::clamp(b, 0, 255));
 		}
 	}
 }
@@ -1978,6 +1998,8 @@ void FireAdd(const Px &px, int x, int y, float h, float k)
 /** A tongue of flame @p h tall from (@p x, @p y), swaying with @p t; @p w wide at its foot. */
 void FlameTongue(const Px &px, float x, float y, float h, float w, float t, float sway, float k)
 {
+	if (h <= 0)
+		return;
 	for (float z = 0; z <= h; z += 1.0F) {
 		const float q = z / h;
 		const float half = w * std::pow(1.0F - q, 0.7F) * (0.6F + 0.4F * std::sin(q * Pi));
@@ -2420,7 +2442,7 @@ void DrawHurledSpearFx(const Surface &out, Point from, Point to, float age, bool
 	const float sx = static_cast<float>(from.x), sy = static_cast<float>(from.y);
 	const float ex = static_cast<float>(to.x), ey = static_cast<float>(to.y);
 	const float dist = std::sqrt((ex - sx) * (ex - sx) + (ey - sy) * (ey - sy) * 4.0F);
-	const float flight = std::max(0.15F, dist / 420.0F);
+	const float flight = std::clamp(dist / 420.0F, 0.15F, 0.6F); // a far throw flies no longer than 0.6 s (audit round 1)
 	const float land = age - flight;
 	if (land > HurledSpearImpactSeconds)
 		return;
@@ -2862,8 +2884,8 @@ void DrawGolemFireFx(const Surface &out, Point foot, float seconds, uint32_t see
 	static constexpr float Spots[][2] = { { -14, 66 }, { 14, 64 }, { 0, 82 }, { -22, 46 }, { 22, 44 }, { -8, 30 }, { 9, 26 }, { 0, 52 } };
 	for (int j = 0; j < 8; j++) {
 		const float beat = std::sin(seconds * (9.0F + static_cast<float>(j) * 1.3F) + static_cast<float>(j) * 2.0F + static_cast<float>(seed % 13));
-		const float h = (10.0F + 8.0F * Unit(Hash(static_cast<uint32_t>(j), seed))) * (0.75F + 0.25F * beat);
-		FlameTongue(px, fx + Spots[j][0], fy - Spots[j][1], h, 3.5F, seconds, static_cast<float>(j) * 1.3F, 0.7F);
+		const float h = (18.0F + 14.0F * Unit(Hash(static_cast<uint32_t>(j), seed))) * (0.75F + 0.25F * beat);
+		FlameTongue(px, fx + Spots[j][0], fy - Spots[j][1] + 8.0F, h, 6.0F, seconds, static_cast<float>(j) * 1.3F, 0.85F);
 	}
 	// Embers and smoke rising off it.
 	for (uint32_t i = 0; i < 12; i++) {

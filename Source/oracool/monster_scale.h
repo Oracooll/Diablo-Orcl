@@ -96,6 +96,8 @@ DVL_API_FOR_TEST MonsterSize OrdinaryMonsterSize(uint32_t levelSeed, size_t type
  * shared sprites - until PumpMonsterScale delivers it; built synchronously only with no worker or headless.
  */
 const AnimStruct *GetScaledAnim(const Monster &monster, MonsterGraphic graphic);
+/** @brief GetScaledAnim without the companions' and minions' own sheets: the monster's type's animation at its size. */
+const AnimStruct *GetScaledOwnAnim(const Monster &monster, MonsterGraphic graphic);
 
 /**
  * @brief The scaled corpse sprites for @p monster's corpse id, or nullopt for normal size.

@@ -41,6 +41,7 @@
 #include "oracool/cold.h"      // ActiveColdArmour: the cold armours' frost
 #include "oracool/curses.h"    // CurseOn: the cursed stand in their curse's colour
 #include "oracool/missile_tint.h"
+#include <unordered_set>
 #include "oracool/scene_fx.h"
 #include "oracool/scene_life.h"
 #include "oracool/splats.h"
@@ -1250,6 +1251,11 @@ void DrawSkillFxHeat(const Surface &out, float ox, float oy, float now)
 // ---- The approved light suggestions that last (the Skill Eye Candy page's verdicts, user 2026-10-12) -------------------------
 
 /** The light a missile carries while it lives: its colour, its pool's half-width, its strength, and what else it does. */
+std::unordered_set<uint64_t> CandySeen; // the bursts already flashed (DrawCandyStates)
+float CandyNextHeat[MAX_PLRS] {};
+std::array<float, MaxMonsters> GolemNextTrail {};
+std::array<uint8_t, MaxMonsters> GolemTrailSide {};
+
 struct CarriedLight {
 	uint32_t rgb;
 	int r;
@@ -1352,15 +1358,19 @@ void FlashOnAppearing(const Missile &m)
 
 void DrawCandyStates(const LightPen &pen, const View &v, float now)
 {
+	auto &NextHeat = CandyNextHeat;
 	// What the missiles carry, and the flash of each burst the first frame it shows.
-	static std::vector<std::pair<const Missile *, MissileGraphicID>> seen, next;
+	// Keyed on the node, its look and where it set out, in a hashed set (audit round 1: a vector scan was quadratic, and a
+	// reused node with the same look skipped its flash).
+	static std::unordered_set<uint64_t> next;
 	next.clear();
 	for (const Missile &m : Missiles) {
 		if (m._miDelFlag || !InMap(m.position.tile))
 			continue;
-		const std::pair<const Missile *, MissileGraphicID> key { &m, m._miAnimType };
-		next.push_back(key);
-		if (std::find(seen.begin(), seen.end(), key) == seen.end() && const_cast<Missile &>(m).sourceType() == MissileSource::Player)
+		const uint64_t key = (static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&m)) * 1099511628211ULL) ^ (static_cast<uint64_t>(m._miAnimType) << 48)
+		    ^ (static_cast<uint64_t>(m.position.start.x) << 32) ^ (static_cast<uint64_t>(m.position.start.y) << 40);
+		next.insert(key);
+		if (CandySeen.count(key) == 0 && const_cast<Missile &>(m).sourceType() == MissileSource::Player)
 			FlashOnAppearing(m);
 		CarriedLight light;
 		if (!CarriedBy(m, light))
@@ -1388,7 +1398,7 @@ void DrawCandyStates(const LightPen &pen, const View &v, float now)
 				Dot(pen, cx + static_cast<int>((Unit(t) - 0.5F) * static_cast<float>(light.r) * 1.6F), cy + static_cast<int>((Unit(t >> 8) - 0.5F) * static_cast<float>(light.r) * 0.8F), 1, SG_PACK(240, 250, 255), 0.7F * tw);
 			}
 	}
-	seen.swap(next);
+	CandySeen.swap(next);
 
 	// Cursed and marked monsters, frenzied minions, the decoy.
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
@@ -1448,7 +1458,6 @@ void DrawCandyStates(const LightPen &pen, const View &v, float now)
 	}
 
 	// The heroes' lasting buffs: the cold armours' frost, Conduit's crackle, Immolate's fire, the astral glow.
-	static float NextHeat[MAX_PLRS] {};
 	for (const Player &player : Players) {
 		if (!player.plractive || !player.isOnActiveLevel() || !InMap(player.position.tile))
 			continue;
@@ -1554,7 +1563,7 @@ void DrawSkillStates(const LightPen &pen, const View &v, float now)
 	}
 	// A thrown weapon's steel glint and a short streak behind it (Skill Eye Candy, the Barbarian's Weapon Throw).
 	for (const Missile &m : Missiles) {
-		if (m._mitype != MissileID::Arrow || !IsAnyOf(m._miAnimType, MissileGraphicID::ThrownAxe, MissileGraphicID::ThrownSword)
+		if (m._miDelFlag || m._mitype != MissileID::Arrow || !IsAnyOf(m._miAnimType, MissileGraphicID::ThrownAxe, MissileGraphicID::ThrownSword)
 		    || !InMap(m.position.tile))
 			continue;
 		const int cx = static_cast<int>(WorldX(m.position.tile) + static_cast<float>(m.position.offset.deltaX) + v.ox);
@@ -1641,11 +1650,13 @@ void SkillLightGather(Point tile, uint32_t rgb, float seconds)
 		PushSkillFx(SkillFxKind::Gather, tile, tile, rgb, 1.0F, 0, 0, std::max(0.05F, seconds), 0.0F);
 }
 
-void CandyOnCast(const Player &player, SpellID spell, Point target)
+void CandyOnCast(const Player &player, SpellID spell, Point target, Point from)
 {
 	// The approved light suggestions at the moment of the cast (the Skill Eye Candy page's verdicts, user 2026-10-12): H his
 	// tile, T where he cast. What lasts - clouds, fields, curses, buffs - is DrawCandyStates'; bursts are FlashOnAppearing's.
-	const Point H = player.position.tile, T = InMap(target) ? target : H;
+	// H his tile now (where a movement skill landed him), F where he stood before the cast (audit round 1: Shadow Step's
+	// leaving flash lit the landing, Vault's ring the cursor).
+	const Point H = player.position.tile, T = InMap(target) ? target : H, F = InMap(from) ? from : H;
 	constexpr uint32_t Pale = SG_PACK(236, 226, 200), Green = SG_PACK(150, 210, 90), Poison = SG_PACK(112, 214, 84), Ice = SG_PACK(150, 210, 255),
 	                   Bolt = SG_PACK(170, 210, 255), Fire = SG_PACK(255, 128, 40), Violet = SG_PACK(170, 90, 255), Gold = SG_PACK(244, 204, 96);
 	const auto scatter = [T](int i) { return T + Displacement { static_cast<int>(Hash(static_cast<uint32_t>(i), 7601) % 3) - 1, static_cast<int>(Hash(static_cast<uint32_t>(i), 7602) % 3) - 1 }; };
@@ -1675,10 +1686,10 @@ void CandyOnCast(const Player &player, SpellID spell, Point target)
 	// ---- Rogue ----
 	case SpellID::HuntersMark: SkillLightRing(T, Gold, 40); break;
 	case SpellID::ShadowStep:
-		SkillLightFlash(H, Violet, 0.8F, 40, 30);
-		SkillLightFlash(T, SG_PACK(90, 40, 140), 0.5F, 40, 6, 0.15F);
+		SkillLightFlash(F, Violet, 0.8F, 40, 30);
+		SkillLightFlash(H, SG_PACK(90, 40, 140), 0.5F, 40, 6, 0.15F);
 		break;
-	case SpellID::Vault: SkillLightRing(T, SG_PACK(236, 210, 150), 60, 0.4F); break;
+	case SpellID::Vault: SkillLightRing(H, SG_PACK(236, 210, 150), 60, 0.4F); break;
 	case SpellID::PhantomVolley: SkillLightFlash(T, Violet, 0.5F, 60, 6, 0.2F); break;
 	case SpellID::RainOfArrows:
 		for (int i = 0; i < 3; i++)
@@ -1702,11 +1713,11 @@ void CandyOnCast(const Player &player, SpellID spell, Point target)
 	case SpellID::Lightning: SkillLightFlash(T, SG_PACK(180, 215, 255), 0.8F, 50, 10, 0.1F); break;
 	case SpellID::Nova: SkillLightFlash(H, Bolt, 0.9F, 70, 10, 0.05F); break;
 	case SpellID::RideTheLightning:
-		SkillLightFlash(T, SG_PACK(220, 235, 255), 0.9F, 50, 20, 0.5F);
-		SkillLightRing(T, Bolt, 70, 0.5F);
+		SkillLightFlash(H, SG_PACK(220, 235, 255), 0.9F, 50, 20, 0.5F);
+		SkillLightRing(H, Bolt, 70, 0.5F);
 		break;
 	case SpellID::Teleport:
-		SkillLightFlash(H, Bolt, 0.8F, 40, 30);
+		SkillLightFlash(F, Bolt, 0.8F, 40, 30);
 		SkillLightRing(T, Bolt, 60, 0.3F);
 		break;
 	case SpellID::Frostbite:
@@ -1740,9 +1751,12 @@ namespace {
 struct DrawnPlay {
 	DrawnFn draw;
 	float born, seconds;
+	bool worn;
 };
 
 std::vector<DrawnPlay> DrawnPlays;
+float AzGradeAge = -1, QuakeEdgeAge = -1; // this frame's screen-wide passes, the latest cast's
+float BlowLightAt[MAX_PLRS][3] {};
 
 /** Every drawn effect's @p floorLayer; the floor pass, first each frame, drops the spent ones. */
 void DrawDrawnFx(const Surface &out, const View &v, bool floorLayer, float now)
@@ -1793,18 +1807,48 @@ Point DrawnView::MissileAt(const Missile &missile) const
 
 Point DrawnView::MonsterOr(int monsterId, Point fallbackTile) const
 {
-	if (monsterId >= 0 && static_cast<size_t>(monsterId) < MaxMonsters && Monsters[monsterId].hitPoints > 0)
+	// Alive and still near where it was struck: a slot taken by a new monster elsewhere is not followed (audit round 1).
+	if (monsterId >= 0 && static_cast<size_t>(monsterId) < MaxMonsters && Monsters[monsterId].hitPoints > 0
+	    && Monsters[monsterId].position.tile.WalkingDistance(fallbackTile) <= 6)
 		return MonsterFoot(Monsters[monsterId]);
 	return Tile(fallbackTile);
 }
 
-void PlayDrawn(float seconds, DrawnFn draw)
+void PlayDrawn(float seconds, DrawnFn draw, bool worn)
 {
 	if (HeadlessMode)
 		return;
-	if (DrawnPlays.size() >= 64)
-		DrawnPlays.erase(DrawnPlays.begin());
-	DrawnPlays.push_back({ std::move(draw), Now(), seconds });
+	if (DrawnPlays.size() >= 64) {
+		// Room: the play with the least time left that is no worn drawing goes (audit round 1: the oldest was a buff's).
+		const float now = Now();
+		auto victim = DrawnPlays.end();
+		for (auto it = DrawnPlays.begin(); it != DrawnPlays.end(); ++it)
+			if (!it->worn && (victim == DrawnPlays.end() || it->born + it->seconds - now < victim->born + victim->seconds - now))
+				victim = it;
+		DrawnPlays.erase(victim != DrawnPlays.end() ? victim : DrawnPlays.begin());
+	}
+	DrawnPlays.push_back({ std::move(draw), Now(), seconds, worn });
+}
+
+void RequestAbsoluteZeroGrade(float age)
+{
+	AzGradeAge = AzGradeAge < 0 ? age : std::min(AzGradeAge, age);
+}
+
+void RequestEarthquakeEdges(float age)
+{
+	QuakeEdgeAge = QuakeEdgeAge < 0 ? age : std::min(QuakeEdgeAge, age);
+}
+
+void CandyOnBlow(const Player &player, uint32_t rgb, float k, int slot)
+{
+	const size_t pid = static_cast<size_t>(player.getId()) % MAX_PLRS;
+	float &at = BlowLightAt[pid][std::clamp(slot, 0, 2)];
+	const float now = Now();
+	if (now - at < 0.4F && now >= at)
+		return;
+	at = now;
+	SkillLightFlash(player.position.tile, rgb, k, 32, 40);
 }
 
 uint32_t NextWornSerial(int playerId, int slot)
@@ -1847,7 +1891,7 @@ void DrawnEarthquake(Point tile)
 		PlayDrawn(EarthquakeSeconds, [tile](const Surface &o, const DrawnView &v, float age, bool floor) {
 			DrawEarthquakeFx(o, v.Tile(tile), age, floor);
 			if (!floor)
-				ApplyEarthquakeEdges(o, age); // the screen's edges browned with dust (user, 2026-10-12: "absolute zero style")
+				RequestEarthquakeEdges(age); // the screen's edges browned with dust (user, 2026-10-12: "absolute zero style")
 		});
 }
 
@@ -1965,7 +2009,14 @@ void ForgetSceneGlow()
 	HeroLastLevel = -1;
 	Orbs.fill(OrbState {});
 	SkillFxs.clear();
-	DrawnPlays.clear();
+	// Worn drawings follow their hero to the next level; the rest belong to the floor they were cast on (audit round 1).
+	DrawnPlays.erase(std::remove_if(DrawnPlays.begin(), DrawnPlays.end(), [](const DrawnPlay &p) { return !p.worn; }), DrawnPlays.end());
+	AzGradeAge = QuakeEdgeAge = -1;
+	for (auto &hero : BlowLightAt)
+		std::fill(std::begin(hero), std::end(hero), -100.0F);
+	CandySeen.clear();
+	std::fill(std::begin(CandyNextHeat), std::end(CandyNextHeat), 0.0F);
+	GolemNextTrail.fill(0.0F);
 	NextForgeStrike = 0; // the scene clock wraps (audit round 1: the strikes stopped for ten hours)
 	CorpsesSeeded = false;
 }
@@ -2275,8 +2326,8 @@ void DrawSceneGlowBodies(const Surface &out, Point firstTile, Point firstTileBuf
 	DrawDrawnFx(out, v, /*floorLayer=*/false, now); // the drawn earth's stones, rocks and dust, over the figures
 	// The golems (user, 2026-10-12): the Fire Golem burning, the Blood Golem dripping, the Clay Golem leaving footprints.
 	if (DrawnSkillsOn() && leveltype != DTYPE_TOWN) {
-		static std::array<float, MaxMonsters> NextTrail {};
-		static std::array<uint8_t, MaxMonsters> TrailSide {};
+		auto &NextTrail = GolemNextTrail; // reset with the level and the clock's wrap (audit round 1)
+		auto &TrailSide = GolemTrailSide;
 		for (size_t i = 0; i < ActiveMonsterCount; i++) {
 			const int id = ActiveMonsters[i];
 			if (id < 0 || static_cast<size_t>(id) >= MaxMonsters)
@@ -2321,6 +2372,12 @@ void DrawSceneGlowBodies(const Surface &out, Point firstTile, Point firstTileBuf
 				if (dx * dx + dy * dy <= r * r)
 					Blend(out, px + dx, py + dy, p.rgb, a * (r * r + 1 - dx * dx - dy * dy) / (r * r + 1));
 	}
+	// Once a frame after everything drawn in the air (audit round 1): graded last, so nothing drawn after shows ungraded.
+	if (QuakeEdgeAge >= 0)
+		ApplyEarthquakeEdges(out, QuakeEdgeAge);
+	if (AzGradeAge >= 0)
+		ApplyAbsoluteZeroGrade(out, AzGradeAge);
+	QuakeEdgeAge = AzGradeAge = -1;
 }
 
 // ==== Light ==================================================================================================================================
@@ -2350,7 +2407,7 @@ void DrawSceneGlowLights(const Surface &out, Point firstTile, Point firstTileBuf
 		const float lit = 0.4F + 0.6F * LitAt(player.position.tile);
 		// Whirlwind's and Strafe's arcs (oracool/whirl_arcs.h): the near half of the ring and the floor's light, as light.
 		if (*sgOptions.Oracool.whirlwindArcs && oracool::IsSpinning(player))
-			DrawWhirlArcs(out, { cx, cy }, now, /*front=*/true, /*floor=*/true, player._pClass == HeroClass::Rogue);
+			DrawWhirlArcs(out, { cx, cy }, now, /*front=*/true, /*floor=*/true, player._pClass == HeroClass::Rogue && DrawnSkillsOn());
 		if (player._pmode == PM_SPELL && player.AnimInfo.numberOfFrames > 0) {
 			const uint32_t rgb = SpellColour(player.executedSpell.spellId);
 			const int frame = player.AnimInfo.currentFrame;

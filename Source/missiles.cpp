@@ -99,7 +99,7 @@ int AddClassHealingBonus(int hp, HeroClass heroClass)
  */
 /** @brief The pace AddHolyBolt launches at - Blessed Shield is specified as twice it. */
 constexpr int HolyBoltSpeed = 16;
-constexpr int BlessedShieldSpeedMultiplier = 4; // twice the v1.12 speed (user, 2026-10-12: "fly x2 faster")
+constexpr int BlessedShieldSpeedMultiplier = 4; // four times Holy Bolt's: twice the v1.12 speed (user, 2026-10-12: "fly x2 faster")
 /**
  * @brief How long a thrown shield stays in the air.
  *
@@ -2917,11 +2917,14 @@ void AddFrozenOrb(Missile &missile, AddMissileParameter &parameter)
 	// missile goes, its sheet hidden.
 	if (oracool::DrawnSkillsOn() && !HeadlessMode) {
 		missile._miDrawFlag = false;
+		static int OrbSerial = 0;
+		missile.var2 = ++OrbSerial; // which orb this drawing follows (audit round 1: two from one tile drew one twice)
 		const Point start = missile.position.start;
 		const int source = missile._misource;
-		oracool::PlayDrawn(2.4F, [start, source](const Surface &o, const oracool::DrawnView &v, float age, bool floor) {
+		const int serial = missile.var2;
+		oracool::PlayDrawn(2.4F, [start, source, serial](const Surface &o, const oracool::DrawnView &v, float age, bool floor) {
 			for (const Missile &m : Missiles) {
-				if (m._mitype == MissileID::FrozenOrb && m._misource == source && m.position.start == start && !m._miDelFlag) {
+				if (m._mitype == MissileID::FrozenOrb && m._misource == source && m.var2 == serial && !m._miDelFlag) {
 					oracool::DrawFrozenOrbFx(o, v.Tile(start), v.MissileAt(m), age, floor);
 					return;
 				}

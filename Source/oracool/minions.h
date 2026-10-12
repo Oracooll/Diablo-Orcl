@@ -242,6 +242,8 @@ FireGolemTiming FireGolemAnimTiming(MonsterGraphic graphic);
 bool IsFireGolem(const Monster &monster);
 /** @brief Which golem @p monster is, or None (user, 2026-10-12: the golems' size, trails and fire). */
 GolemKind GolemKindOf(const Monster &monster);
+/** @brief The frames the drawn Fire Golem skips of its own sheet, so it keeps the Elemental's pace (audit round 2). */
+int DrawnFireGolemSkippedFrames(const Monster &monster, MonsterGraphic graphic);
 /**
  * @brief The animation @p monster binds for @p graphic in place of its type's, or nullptr: the Fire Golem's run sheet,
  * while the Elemental's art is loaded. Asked by GetScaledAnim, i.e. by both of the engine's sprite binders.

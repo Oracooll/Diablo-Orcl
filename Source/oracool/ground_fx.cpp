@@ -267,9 +267,11 @@ void DrawMark(const Surface &out, const Projection &p, const Mark &m)
 				tr = l * 230 >> 8, tg = l * 300 >> 8, tb = l * 390 >> 8;
 				break;
 			}
-			case FloorMarkKind::Clay:
-				tr = 118 + (r >> 2), tg = 84 + (g >> 2), tb = 54 + (bl >> 2);
+			case FloorMarkKind::Clay: { // from the floor's own light, as the others (audit round 1: it glowed in the dark)
+				const int l = (r * 77 + g * 150 + bl * 29) >> 8;
+				tr = l * 290 >> 8, tg = l * 210 >> 8, tb = l * 140 >> 8;
 				break;
+			}
 			case FloorMarkKind::Acid:
 			default: {
 				const int l = (r * 77 + g * 150 + bl * 29) >> 8;

@@ -407,7 +407,7 @@ void CastSpell(int id, SpellID spl, int sx, int sy, int dx, int dy, int spllvl)
 
 	// The approved light at a vanilla spell's cast (2026-10-12); the Orcl actives' comes from their cast (AddWarcry).
 	if (!fizzled && (spellData.sMissiles[0] != MissileID::Warcry))
-		oracool::CandyOnCast(player, spl, { dx, dy });
+		oracool::CandyOnCast(player, spl, { dx, dy }, { sx, sy });
 
 	if (!fizzled) {
 		ConsumeSpell(player, spl);

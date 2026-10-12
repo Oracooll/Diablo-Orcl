@@ -102,7 +102,7 @@ void SkillLightGather(Point tile, uint32_t rgb, float seconds);
 /** @brief Whether the drawn lightning replaces Fist of the Heavens' and Wrath of the Heavens' sheets now. */
 bool DrawnLightningOn();
 /** @brief The approved light at a skill's cast (the Skill Eye Candy page's verdicts, 2026-10-12), at @p target. */
-void CandyOnCast(const Player &player, SpellID spell, Point target);
+void CandyOnCast(const Player &player, SpellID spell, Point target, Point from);
 /**
  * @brief The Barbarian's drawn earth (user, 2026-10-12: "use the game-drawn version"): oracool/drawn_fx's effects drawn at
  * a tile, the floor parts in the floor pass and the stones, rocks and dust over the figures. Nothing with Drawn Earth off.
@@ -128,7 +128,13 @@ struct DrawnView {
 	Point MonsterOr(int monsterId, Point fallbackTile) const;
 };
 using DrawnFn = std::function<void(const Surface &out, const DrawnView &view, float age, bool floorLayer)>;
-void PlayDrawn(float seconds, DrawnFn draw);
+/** @p worn: a drawing worn for a buff - kept over a level change and never pushed out for room (audit round 1). */
+void PlayDrawn(float seconds, DrawnFn draw, bool worn = false);
+/** @brief The screen-wide passes, once a frame after every drawn effect: Absolute Zero's frozen grade, the Earthquake's edges. */
+void RequestAbsoluteZeroGrade(float age);
+void RequestEarthquakeEdges(float age);
+/** @brief A blow's light on the hero (Bone Armor, the shield, Shiver Armor): at most every 0.4 s a hero, so damage over time does not glow. */
+void CandyOnBlow(const Player &player, uint32_t rgb, float k, int slot);
 /** @brief The Drawn Skills option: the drawn effects in place of the skills' sheets. */
 bool DrawnSkillsOn();
 /** @brief A worn effect's serial (@p slot per kind): a recast starts a new one, so the older drawing stops. */

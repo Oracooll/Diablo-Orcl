@@ -475,13 +475,10 @@ void OnRfa12Struck(Player &player, Monster &monster)
 
 void OnRfa12PlayerDamaged(Player &player)
 {
-	// Skill Eye Candy (2026-10-12): what a blow on him lights.
-	if (Rfa12BuffTicks(player, SpellID::BoneArmor) > 0)
-		SkillLightFlash(player.position.tile, Rgb(236, 226, 200), 0.6F, 30, 40);
-	if (player.pManaShield)
-		SkillLightFlash(player.position.tile, Rgb(110, 170, 255), 0.6F, 34, 40);
+	// Skill Eye Candy (2026-10-12): Shiver Armor's cold on a blow that reached him; Bone Armor's and the shield's are where
+	// they drink the blow (Rfa12ActiveAbsorbDamage, ApplyPlrDamage). Rate-limited, so poison does not glow (audit round 1).
 	if (ActiveColdArmour(player) == SpellID::ShiverArmor)
-		SkillLightFlash(player.position.tile, hue::IceBlue, 0.7F, 40, 30);
+		CandyOnBlow(player, hue::IceBlue, 0.7F, 2);
 	PlayerClocks &clocks = ClocksOf(player);
 	const int p = PointsIfOn(player, Skill::Mercy);
 	if (p <= 0 || clocks.mercyCooldown > 0 || player._pHitPoints >> 6 <= 0 || player._pHitPoints * 100 >= player._pMaxHP * MercyBelowLifePercent)

@@ -18080,6 +18080,12 @@ TEST(OracoolPreview, DISABLED_Necro369CurseCastTints)
  */
 TEST(OracoolDev370, AGolemRisesWhenSummonedAndThenStandsStill)
 {
+	// The Elemental-sheet golem is the Drawn Skills off; with them on it is a yellow golem burning (DrawnFireGolemIsYellow).
+	struct DrawnSkillsOff {
+		bool saved = *sgOptions.Oracool.drawnSkills;
+		DrawnSkillsOff() { sgOptions.Oracool.drawnSkills.SetValue(false); }
+		~DrawnSkillsOff() { sgOptions.Oracool.drawnSkills.SetValue(saved); }
+	} drawnOff;
 	MountTestArchives(true); // before gbIsHellfire is saved: the first mount sets it
 	const bool savedHellfire = gbIsHellfire;
 	gbIsHellfire = true;
@@ -19994,6 +20000,98 @@ TEST(OracoolPreview, DISABLED_DrawnMonkSkills)
 		scene("ancestral_court", 42, still({ 60, 150 }), 7, mobs, [&](const Surface &o, float age, bool floor) { oracool::DrawAncestralCourtFx(o, centre, age, floor); });
 	}
 	HeadlessMode = savedHeadless;
+}
+
+#include "oracool/whirl_arcs.h"
+
+/**
+ * Three more game-drawn looks for the website's class pages (user, 2026-10-12): the Fire Golem burning (the golem in yellow,
+ * fire drawn over it), the Monk's Spirit Ward, and the strafing Rogue's arcs low round her. 40 frames at 50 ms each into
+ * ORCL_EXTRAS_OUT as fire_golem_NN.png, spirit_ward_NN.png, strafe_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_DrawnExtras)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	ColdCast c;
+	ASSERT_TRUE(c.Load());
+	const std::optional<OwnedClxSpriteSheet> golem = FxBody("monsters\\golem\\golemw", 96);
+	const std::optional<OwnedClxSpriteSheet> monk = FxBody("plrgfx\\monk\\mlt\\mltas", 112);
+	const std::optional<OwnedClxSpriteSheet> rogue = FxBody("plrgfx\\rogue\\rlb\\rlbat", 128);
+	ASSERT_TRUE(golem && monk && rogue);
+	const char *outDir = std::getenv("ORCL_EXTRAS_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const uint32_t *yellow = FxTable(nullptr, oracool::Tint::Hue, oracool::Rgb(255, 196, 60));
+	const auto monkColours = oracool::HeroColoursFor(HeroClass::Monk, 1 << 4);
+	const auto rogueColours = oracool::HeroColoursFor(HeroClass::Rogue, 1 << 4);
+	for (int k = 0; k < 40; k++) {
+		const float t = static_cast<float>(k) * 0.05F;
+		char name[96];
+		{
+			OwnedSurface out = OwnedSurface::Rgb(320, 200);
+			c.Floor(out);
+			const Point foot { 160, 150 };
+			const ClxSpriteList walk = (*golem)[7];
+			const ClxSprite s = walk[static_cast<size_t>(k % static_cast<int>(walk.numSprites()))];
+			ClxDrawRgbMap(out, Point { foot.x - s.width() / 2, foot.y }, s, yellow);
+			oracool::DrawGolemFireFx(out, foot, t, 2654435761U);
+			std::snprintf(name, sizeof(name), "fire_golem_%02d.png", k);
+			PreviewSave(out, (dir + name).c_str());
+		}
+		{
+			OwnedSurface out = OwnedSurface::Rgb(320, 200);
+			c.Floor(out);
+			const Point foot { 160, 150 };
+			const ClxSpriteList stand = (*monk)[0];
+			const ClxSprite s = stand[static_cast<size_t>((k / 2) % static_cast<int>(stand.numSprites()))];
+			ClxDrawRgbMap(out, Point { foot.x - s.width() / 2, foot.y }, s, FxTable(monkColours.get()));
+			oracool::DrawSpiritWardFx(out, foot, t);
+			std::snprintf(name, sizeof(name), "spirit_ward_%02d.png", k);
+			PreviewSave(out, (dir + name).c_str());
+		}
+		{
+			OwnedSurface out = OwnedSurface::Rgb(320, 200);
+			c.Floor(out);
+			const Point foot { 160, 150 };
+			oracool::DrawWhirlArcs(out, foot, t, /*front=*/false, /*floor=*/false, /*low=*/true);
+			const ClxSpriteList shot = (*rogue)[(k / 3) % 8];
+			const ClxSprite s = shot[static_cast<size_t>(k % static_cast<int>(shot.numSprites()))];
+			ClxDrawRgbMap(out, Point { foot.x - s.width() / 2, foot.y }, s, FxTable(rogueColours.get()));
+			oracool::DrawWhirlArcs(out, foot, t, /*front=*/true, /*floor=*/true, /*low=*/true);
+			std::snprintf(name, sizeof(name), "strafe_%02d.png", k);
+			PreviewSave(out, (dir + name).c_str());
+		}
+	}
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * The front end's wallpapers as the game loads them (user, 2026-10-12: "add subtle animation on the front end backgrounds -
+ * like animating flames, subtly moving flags"): each ui_art background with its own palette, into ORCL_WALLS_OUT as
+ * <name>.png, to see what could move.
+ */
+TEST(OracoolPreview, DISABLED_ExportFrontEndWallpapers)
+{
+	MountTestArchives(true);
+	InitPNG();
+	const char *outDir = std::getenv("ORCL_WALLS_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	for (const char *name : { "title", "mainmenu", "swmmenu", "selhero", "selgame", "selconn", "credits", "support" }) {
+		std::array<SDL_Color, 256> palette {};
+		const OptionalOwnedClxSpriteList art = LoadPcxSpriteList((std::string("ui_art") + static_cast<char>(92) + name).c_str(), 1, std::nullopt, palette.data(), /*logError=*/false);
+		if (!art)
+			continue;
+		const ClxSprite sprite = (*art)[0];
+		std::array<uint32_t, 256> table {};
+		for (size_t i = 0; i < 256; i++)
+			table[i] = (static_cast<uint32_t>(palette[i].r) << 16) | (static_cast<uint32_t>(palette[i].g) << 8) | palette[i].b;
+		OwnedSurface out = OwnedSurface::Rgb(sprite.width(), sprite.height());
+		ClxDrawRgbMap(out, Point { 0, sprite.height() }, sprite, table.data());
+		PreviewSave(out, (dir + name + ".png").c_str());
+	}
 }
 
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----

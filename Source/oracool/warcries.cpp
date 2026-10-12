@@ -934,13 +934,15 @@ void AddWarcry(Missile &missile, AddMissileParameter &parameter)
 	// animation. One missile for all seventeen rather than seventeen missiles.
 	// ...and every cast RfA-12 active (2026-09-13), which rides the same missile - see rfa12_actives.h.
 	const SpellID spell = player.executedSpell.spellId;
+	const Point from = player.position.tile; // before a movement skill moves him (audit round 1)
 	const bool cast = CastWarcry(player, spell, parameter.dst) || CastRfa12Active(player, spell, parameter.dst);
-	if (!cast) {
+	if (!cast)
 		parameter.spellFizzled = true;
-	} else {
+	else
+		CandyOnCast(player, spell, parameter.dst, from);
+	// A cry's light goes with its ring, on every cast, heard by anything or not (audit round 1).
+	if (cast || IsWarcry(spell))
 		CryLight(player, spell);
-		CandyOnCast(player, spell, parameter.dst);
-	}
 	// A cry's ring goes out on every cast, heard by anything or not (dev note, 2026-09-29: "warcray animation to play
 	// every time warcray is cast, not only when mobs are around"); a cry that found no one still fizzles.
 	if (!IsWarcry(spell) && !Rfa12CastLeavesRing(spell))

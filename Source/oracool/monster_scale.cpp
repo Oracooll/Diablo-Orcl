@@ -409,6 +409,11 @@ const AnimStruct *GetScaledAnim(const Monster &monster, MonsterGraphic graphic)
 	// And the Necromancer's Fire Golem the Elemental's run sheet (oracool/minions.h, v1.12.364).
 	if (const AnimStruct *minion = GetMinionAnim(monster, graphic))
 		return minion;
+	return GetScaledOwnAnim(monster, graphic);
+}
+
+const AnimStruct *GetScaledOwnAnim(const Monster &monster, MonsterGraphic graphic)
+{
 	const unsigned percent = DrawPercentOf(monster);
 	if (percent == 100)
 		return nullptr;

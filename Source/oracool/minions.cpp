@@ -5,6 +5,7 @@
  */
 #include "oracool/minions.h"
 #include "oracool/scene_glow.h" // DrawnSkillsOn: the golems drawn (2026-10-12)
+#include "oracool/monster_scale.h" // GetScaledOwnAnim: the drawn Fire Golem's body
 #include "oracool/rfa12_actives.h" // round 100: SightLineClear / FightsAsUnique
 #include "oracool/curses.h"
 #include "oracool/necro_summoning.h"
@@ -816,6 +817,19 @@ FireGolemTiming FireGolemAnimTiming(MonsterGraphic graphic)
 	return { static_cast<int8_t>(FireGolemSheetFrames), static_cast<int8_t>(FireGolemAttackTicksPerFrame) };
 }
 
+int DrawnFireGolemSkippedFrames(const Monster &monster, MonsterGraphic graphic)
+{
+	if (!DrawnSkillsOn() || !IsFireGolem(monster) || graphic == MonsterGraphic::Special)
+		return 0;
+	const AnimStruct *own = GetScaledOwnAnim(monster, graphic);
+	if (own == nullptr)
+		own = &monster.type().getAnimData(graphic);
+	if (!own->sprites)
+		return 0;
+	// The golem's 16-frame walk at the Elemental's 2 ticks a frame, 4 frames skipped: 24 ticks a step, as the Elemental's 12.
+	return std::max(0, own->frames - FireGolemAnimTiming(graphic).frames);
+}
+
 GolemKind GolemKindOf(const Monster &monster)
 {
 	const Record *record = RecordOf(monster);
@@ -834,9 +848,22 @@ const AnimStruct *GetMinionAnim(const Monster &monster, MonsterGraphic graphic)
 	// the end (OnMinionRisen) and wears the Elemental from then on.
 	if (!IsFireGolem(monster) || graphic == MonsterGraphic::Special)
 		return nullptr;
-	// With the Drawn Skills it is the golem itself, yellow, with fire drawn over it (user, 2026-10-12).
-	if (DrawnSkillsOn())
-		return nullptr;
+	// With the Drawn Skills it is the golem itself, yellow, with fire drawn over it (user, 2026-10-12) - at the Elemental's
+	// frame counts and rates, so it walks, strikes and falls at the pace it always had (audit round 1: the golem's own walk
+	// was a third faster).
+	if (DrawnSkillsOn()) {
+		const AnimStruct *own = GetScaledOwnAnim(monster, graphic);
+		if (own == nullptr)
+			own = &monster.type().getAnimData(graphic);
+		if (!own->sprites)
+			return nullptr;
+		static std::array<AnimStruct, 6> Drawn {};
+		AnimStruct &anim = Drawn[static_cast<size_t>(graphic)];
+		anim = *own;
+		const FireGolemTiming timing = FireGolemAnimTiming(graphic);
+		anim.rate = timing.rate; // its own frames, all of them; the rest of the pace is DrawnFireGolemSkippedFrames' (audit round 2)
+		return &anim;
+	}
 	const MissileFileData &sheet = GetMissileSpriteData(MissileGraphicID::Elemental);
 	if (!sheet.sprites || !sheet.sprites->isSheet())
 		return nullptr; // the art is not loaded (headless, or no hellfire.mpq): the vanilla golem stands in
@@ -921,7 +948,7 @@ void OnMinionDeathStarted(const Monster &minion)
 
 bool GolemHoldsStillFrame(const Monster &monster)
 {
-	return !IsCompanion(monster) && !IsFireGolem(monster);
+	return !IsCompanion(monster) && (!IsFireGolem(monster) || DrawnSkillsOn()); // the drawn one wears the golem's body (audit round 1)
 }
 
 void OnMinionRisen(const Monster &monster)
