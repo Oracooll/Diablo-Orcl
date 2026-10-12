@@ -71,6 +71,18 @@ void DrawAuraGround(const Surface &out, Point tilePosition, Point targetBufferPo
  */
 void DrawMinionFrenzyRings(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns);
 
+/**
+ * @brief The rings' glow (user, 2026-10-12: "can we now add glowing effect on aura rings? can they light the floor with their
+ * asset color while colorcycling?"): every ring the 32-bit path draws is noted; DrawAuraGlow then adds, as light, the ring's
+ * own colours and a glow of its colour on the floor under the whole circle - steady, not in the cycle's bands, and alive like
+ * a candle's flame (user, 2026-10-12). Behind the Aura Glow option.
+ */
+void BeginAuraGlowFrame();
+/** @brief The glow of every ring noted this frame, onto @p out (the world region) or the graphics card's splats. */
+void DrawAuraGlow(const Surface &out);
+/** @brief Test hook: the rings noted this frame. */
+size_t AuraGlowRingCount();
+
 /** @brief The frenzy ring's size against the Paladin's aura ring, in percent ("Small scale - 50% of paladin aura rings"). */
 constexpr int FrenzyRingPercent = 50;
 

@@ -93,6 +93,7 @@
 #include "oracool/scene_fx.h"
 #include "oracool/scene_feel.h"
 #include "oracool/scene_glow.h"
+#include "oracool/whirl_arcs.h"
 #include "oracool/scene_life.h"
 #include "panels/charpanel.hpp"
 #include "panels/spell_book.hpp"
@@ -751,7 +752,6 @@ void DrawPlayerIcons(const Surface &out, const Player &player, Point position, b
 	const size_t worn = oracool::Rfa12BodyOverlays(player, overlays.data(), overlays.size());
 	for (size_t i = 0; i < worn; i++)
 		DrawPlayerIconHelper(out, overlays[i].art, position + Displacement { 0, -4 }, &player != MyPlayer, infraVision, overlays[i].frame);
-	oracool::DrawWhirlwindBlades(out, player, position, /*front=*/true); // the near half of the circle (2026-09-29)
 	DrawPlayerStills(out, player, position, oracool::StillPart::Front);
 }
 
@@ -822,7 +822,12 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 
 	if (!bodyOnly) {
 		DrawPlayerStills(out, player, targetBufferPosition, oracool::StillPart::Back);
-		oracool::DrawWhirlwindBlades(out, player, targetBufferPosition, /*front=*/false); // the far half, behind him (2026-09-29)
+		// The circling axes and swords came out (user, 2026-10-12: "remove barb's circling axes and swords during whirlwind. they
+		// didnt look very well"); the arcs below took their place. Talic's spin keeps his (companion.cpp, DrawWhirlingBlades).
+		// Whirlwind's and Strafe's arcs (user, 2026-10-12; oracool/whirl_arcs.h): the far half of the ring, behind him. The near
+		// half and the floor's light are drawn with the light (oracool/scene_glow.cpp), over him.
+		if (*sgOptions.Oracool.whirlwindArcs && oracool::IsSpinning(player))
+			oracool::DrawWhirlArcs(out, targetBufferPosition, oracool::SceneSeconds(), /*front=*/false, /*floor=*/false);
 	}
 
 	if (!bodyOnly && static_cast<size_t>(pcursplr) < Players.size() && &player == &Players[pcursplr])

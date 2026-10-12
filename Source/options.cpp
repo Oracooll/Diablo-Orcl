@@ -660,6 +660,10 @@ void SaveOptions()
 	    "; On: a body cools toward grey over its first minute, so fresh kills stand out from old ones.");
 	setBoolean("Town Forge", *sgOptions.Oracool.townForge,
 	    "; On: Griswold's forge glows and throws sparks as he works.");
+	setBoolean("Whirlwind Arcs", *sgOptions.Oracool.whirlwindArcs,
+	    "; On: orange arcs of lightning circle the Barbarian while he whirlwinds and the Rogue while she strafes, lighting the floor under them.");
+	setBoolean("Aura Glow", *sgOptions.Oracool.auraGlow,
+	    "; On: aura rings glow in their own colours and light the floor under the whole circle, flickering softly like a candle.");
 	setBoolean("Armour Sparks", *sgOptions.Oracool.armourSparks,
 	    "; On: a melee blow on a skeleton, a knight, a golem or a gargoyle throws white-gold sparks.");
 	setBoolean("Item Tooltip Card", *sgOptions.Oracool.itemTooltipCard,
@@ -1868,6 +1872,8 @@ OracoolOptions::OracoolOptions()
     , exitGlow("Exit Glow", OptionEntryFlags::None, N_("Exit Glow"), N_("Stairs and level entrances breathe a faint light - cold going down, warm going up."), true)
     , corpseSettle("Corpse Settle", OptionEntryFlags::None, N_("Corpse Settle"), N_("A body cools toward grey over its first minute, so fresh kills stand out from old ones."), true)
     , townForge("Town Forge", OptionEntryFlags::None, N_("Town Forge"), N_("Griswold's forge glows and throws sparks as he works."), true)
+    , whirlwindArcs("Whirlwind Arcs", OptionEntryFlags::None, N_("Whirlwind Arcs"), N_("Orange arcs of lightning circle the Barbarian while he whirlwinds and the Rogue while she strafes, lighting the floor under them."), true)
+    , auraGlow("Aura Glow", OptionEntryFlags::None, N_("Aura Glow"), N_("Aura rings glow in their own colours and light the floor under the whole circle, flickering softly like a candle."), true)
     , armourSparks("Armour Sparks", OptionEntryFlags::None, N_("Armour Sparks"), N_("A melee blow on a skeleton, a knight, a golem or a gargoyle throws white-gold sparks."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
@@ -2039,6 +2045,8 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&corpseSettle,
 		&townForge,
 		&armourSparks,
+		&whirlwindArcs,
+		&auraGlow,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,

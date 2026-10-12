@@ -28,6 +28,7 @@
 #include "monster.h"
 #include "objects.h"
 #include "options.h"
+#include "oracool/aura_ground.h"
 #include "oracool/chill.h"
 #include "oracool/colour_light.h"
 #include "oracool/gpu_post.h"
@@ -37,6 +38,8 @@
 #include "oracool/scene_fx.h"
 #include "oracool/scene_life.h"
 #include "oracool/splats.h"
+#include "oracool/whirl_arcs.h"
+#include "oracool/whirlwind.h"
 #include "player.h"
 #include "spelldat.h"
 #include "towners.h"
@@ -1060,6 +1063,7 @@ void TickSceneGlow(const Surface &visible, Point firstTile, Point firstTileBuffe
 		TickLevel = LevelStamp();
 		ForgetSceneGlow();
 	}
+	BeginAuraGlowFrame(); // the rings drawn this frame note themselves for their glow (oracool/aura_ground.h)
 	const float now = Now();
 	float dt = LastTick < 0 || now < LastTick ? 0.0F : now - LastTick;
 	dt = dt > 0.25F ? 0.25F : dt;
@@ -1377,6 +1381,9 @@ void DrawSceneGlowLights(const Surface &out, Point firstTile, Point firstTileBuf
 	const float now = Now();
 	const bool town = leveltype == DTYPE_TOWN;
 
+	// ---- The aura rings' glow (oracool/aura_ground.h) ----------------------------------------------------------------------
+	DrawAuraGlow(out);
+
 	// ---- The heroes: casting, charging, levelling, drinking --------------------------------------------------------------
 	for (const Player &player : Players) {
 		if (!player.plractive || !player.isOnActiveLevel() || !InMap(player.position.tile))
@@ -1388,6 +1395,9 @@ void DrawSceneGlowLights(const Surface &out, Point firstTile, Point firstTileBuf
 		if (!OnScreen(v, static_cast<float>(cx), static_cast<float>(cy), 140))
 			continue;
 		const float lit = 0.4F + 0.6F * LitAt(player.position.tile);
+		// Whirlwind's and Strafe's arcs (oracool/whirl_arcs.h): the near half of the ring and the floor's light, as light.
+		if (*sgOptions.Oracool.whirlwindArcs && oracool::IsSpinning(player))
+			DrawWhirlArcs(out, { cx, cy }, now, /*front=*/true, /*floor=*/true);
 		if (player._pmode == PM_SPELL && player.AnimInfo.numberOfFrames > 0) {
 			const uint32_t rgb = SpellColour(player.executedSpell.spellId);
 			const int frame = player.AnimInfo.currentFrame;

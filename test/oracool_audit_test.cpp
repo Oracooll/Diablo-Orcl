@@ -18399,6 +18399,101 @@ TEST(OracoolPreview, DISABLED_Dev374StrafeSpin)
 	HeadlessMode = savedHeadless;
 }
 
+#include "oracool/whirl_arcs.h"
+#include "oracool/hero_look.h"
+
+/**
+ * Whirlwind's arcs (user, 2026-10-12: "render the effect before implementing"): the Barbarian in medium armour with an axe,
+ * spinning as WhirlwindSprite draws him (his magic cast sheet, WhirlFrame's full-cloud stretch, the facing stepping a tick),
+ * in his ramp-dyed colours, with oracool::DrawWhirlArcs round him - the far half before his body, the near half and the
+ * floor's light after - 48 frames at 50 ms (20 ticks a second) into ORCL_WHIRLARCS_OUT as whirl_arcs_NN.png and a strip.
+ */
+TEST(OracoolPreview, DISABLED_WhirlArcs)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const char *outDir = std::getenv("ORCL_WHIRLARCS_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const std::optional<OwnedClxSpriteSheet> cast = FxBody("plrgfx\\warrior\\wma\\wmaqm", 96);
+	ASSERT_TRUE(cast.has_value()) << "the Warrior's magic cast (wmaqm)";
+	const std::shared_ptr<const oracool::SpriteColours> colours = oracool::HeroColoursFor(HeroClass::Barbarian, 1 << 4);
+	constexpr int CellW = 200, CellH = 170, Frames = 48;
+	OwnedSurface strip = OwnedSurface::Rgb(12 * CellW, 4 * CellH);
+	for (int k = 0; k < Frames; k++) {
+		OwnedSurface out = OwnedSurface::Rgb(CellW, CellH);
+		// A dark flagstone floor, so the floor's light has something to fall on.
+		for (int y = 0; y < CellH; y++)
+			for (int x = 0; x < CellW; x++) {
+				const int v = 26 + ((x / 16 + y / 8) % 2) * 4 + (y > CellH / 2 ? 4 : 0);
+				*out.at<uint32_t>(x, y) = (static_cast<uint32_t>(v + 4) << 16) | (static_cast<uint32_t>(v + 2) << 8) | static_cast<uint32_t>(v);
+			}
+		const Point foot { CellW / 2, CellH - 30 };
+		const float seconds = static_cast<float>(k) * 0.05F;
+		const ClxSpriteList frames = (*cast)[static_cast<size_t>(k % 8)];
+		const ClxSprite sprite = oracool::WhirlFrame(frames, k);
+		oracool::DrawWhirlArcs(out, foot, seconds, /*front=*/false, /*floor=*/false);
+		ClxDrawRgbMap(out, Point { foot.x - sprite.width() / 2, foot.y }, sprite, FxTable(colours.get()));
+		oracool::DrawWhirlArcs(out, foot, seconds, /*front=*/true, /*floor=*/true);
+		char name[64];
+		std::snprintf(name, sizeof(name), "whirl_arcs_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+		const SDL_Rect to { (k % 12) * CellW, (k / 12) * CellH, CellW, CellH };
+		SDL_BlitSurface(out.surface, nullptr, strip.surface, const_cast<SDL_Rect *>(&to));
+	}
+	PreviewSave(strip, (dir + "whirl_arcs_strip.png").c_str());
+	std::cout << "wrote " << Frames << " frames and whirl_arcs_strip.png\n";
+	HeadlessMode = savedHeadless;
+}
+
+#include "oracool/aura_ground.h"
+
+/**
+ * The aura rings' glow (user, 2026-10-12): Might, Holy Fire, Holy Freeze and Sanctuary at the game's size (three half-tiles),
+ * the top row as before, the bottom row with oracool::DrawAuraGlow - 24 frames across one colour cycle (2400 ms) into
+ * ORCL_AURAGLOW_OUT as aura_glow_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_AuraGlow)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedGlow = *sgOptions.Oracool.auraGlow;
+	sgOptions.Oracool.auraGlow.SetValue(true);
+	const char *outDir = std::getenv("ORCL_AURAGLOW_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const oracool::ClassTreeSkill auras[] = { oracool::ClassTreeSkill::Might, oracool::ClassTreeSkill::HolyFire, oracool::ClassTreeSkill::HolyFreeze,
+		oracool::ClassTreeSkill::Sanctuary };
+	constexpr int CellW = 150, CellH = 90, Frames = 24;
+	for (int k = 0; k < Frames; k++) {
+		oracool::AuraRingClockOverrideMs = k * 100;
+		OwnedSurface out = OwnedSurface::Rgb(4 * CellW, 2 * CellH);
+		for (int y = 0; y < out.h(); y++)
+			for (int x = 0; x < out.w(); x++) {
+				const int v = 24 + ((x / 16 + y / 8) % 2) * 4;
+				*out.at<uint32_t>(x, y) = (static_cast<uint32_t>(v + 4) << 16) | (static_cast<uint32_t>(v + 2) << 8) | static_cast<uint32_t>(v);
+			}
+		for (int row = 0; row < 2; row++) {
+			oracool::BeginAuraGlowFrame();
+			for (int a = 0; a < 4; a++)
+				oracool::DrawAuraRingPreview(out, auras[a], { a * CellW + CellW / 2, row * CellH + CellH / 2 }, 3);
+			if (row == 1)
+				oracool::DrawAuraGlow(out);
+		}
+		char name[64];
+		std::snprintf(name, sizeof(name), "aura_glow_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	oracool::AuraRingClockOverrideMs = -1;
+	oracool::BeginAuraGlowFrame();
+	sgOptions.Oracool.auraGlow.SetValue(savedGlow);
+	HeadlessMode = savedHeadless;
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"

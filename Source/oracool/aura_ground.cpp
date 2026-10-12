@@ -21,6 +21,8 @@
 #include "oracool/class_tree.h"
 #include "oracool/minions.h"
 #include "oracool/missile_tint.h"
+#include "oracool/splats.h" // the rings' glow goes to the graphics card on its path
+#include "options.h"
 #include "player.h"
 #include "utils/log.hpp"
 #include "utils/png.h"
@@ -67,6 +69,8 @@ struct AuraArt {
 	std::vector<uint32_t> rgb;
 	/** The colour cycle (2026-09-27): each pixel's angle round the ring's centre, 0-255 for a full turn. */
 	std::vector<uint8_t> angle;
+	/** The glow (2026-10-12): the ring's colour on the whole, alpha-weighted, at full brightness; 0 until first asked. */
+	uint32_t mean = 0;
 	bool loadAttempted = false;
 	bool usable = false;
 };
@@ -383,6 +387,86 @@ uint32_t RingColourInHue(uint32_t own, uint32_t hue)
 	return ch(16) | ch(8) | ch(0);
 }
 
+// ---- The rings' glow (user, 2026-10-12: "can we now add glowing effect on aura rings? can they light the floor with their
+// asset color while colorcycling?") ----------------------------------------------------------------------------------------
+
+/** A ring drawn this frame: where (in the whole buffer's pixels), how big, which art in which hue. */
+struct GlowRing {
+	Point centre;
+	int w, h, pulse;
+	const AuraArt *art;
+	uint32_t hue;
+};
+std::vector<GlowRing> GlowRings;
+
+void NoteRingForGlow(const Surface &out, const AuraArt &art, Point centre, int dstW, int dstH, int pulsePercent, uint32_t hue)
+{
+	if (!*sgOptions.Oracool.auraGlow || GlowRings.size() >= 24)
+		return;
+	GlowRings.push_back({ centre + Displacement { out.region.x, out.region.y }, dstW, dstH, pulsePercent, &art, hue });
+}
+
+/** The ring's colour on the whole: its pixels' alpha-weighted mean, lifted to full brightness. */
+uint32_t MeanColour(const AuraArt &art)
+{
+	if (art.mean != 0)
+		return art.mean;
+	uint64_t r = 0, g = 0, b = 0, n = 0;
+	for (size_t i = 0; i < art.rgb.size(); i++) {
+		const uint32_t a = art.alpha[i];
+		if (a == 0)
+			continue;
+		r += ((art.rgb[i] >> 16) & 0xFF) * a;
+		g += ((art.rgb[i] >> 8) & 0xFF) * a;
+		b += (art.rgb[i] & 0xFF) * a;
+		n += a;
+	}
+	if (n == 0)
+		return 0;
+	const double mr = static_cast<double>(r) / n, mg = static_cast<double>(g) / n, mb = static_cast<double>(b) / n;
+	const double hi = std::max({ mr, mg, mb, 1.0 });
+	const auto c = [&](double v) { return static_cast<uint32_t>(std::clamp(v / hi * 255.0, 0.0, 255.0)); };
+	const_cast<AuraArt &>(art).mean = (c(mr) << 16) | (c(mg) << 8) | c(mb) | 0x01000000U; // the top byte: "worked out"
+	return art.mean;
+}
+
+/** Light added at one pixel: onto the picture, or to the graphics card's splats. */
+void AddLight(const Surface &out, std::vector<Splat> *splats, int x, int y, int r, int g, int b)
+{
+	if (x < 0 || y < 0 || x >= out.w() || y >= out.h() || (r | g | b) <= 0)
+		return;
+	r = std::min(r, 255);
+	g = std::min(g, 255);
+	b = std::min(b, 255);
+	if (splats != nullptr) {
+		splats->push_back({ static_cast<float>(x), static_cast<float>(y), r / 255.0F, g / 255.0F, b / 255.0F, 0.0F });
+		return;
+	}
+	uint32_t &c = *out.at<uint32_t>(x, y);
+	c = (static_cast<uint32_t>(std::min(255, static_cast<int>((c >> 16) & 0xFF) + r)) << 16)
+	    | (static_cast<uint32_t>(std::min(255, static_cast<int>((c >> 8) & 0xFF) + g)) << 8)
+	    | static_cast<uint32_t>(std::min(255, static_cast<int>(c & 0xFF) + b));
+}
+
+/** A soft pool of light on the floor, (1 - d2)^2, @p rx by @p ry, in @p rgb at @p k. */
+void LightPool(const Surface &out, std::vector<Splat> *splats, int cx, int cy, int rx, int ry, uint32_t rgb, float k)
+{
+	if (rx <= 0 || ry <= 0 || k <= 0.004F)
+		return;
+	const int kr = static_cast<int>(((rgb >> 16) & 0xFF) * k), kg = static_cast<int>(((rgb >> 8) & 0xFF) * k), kb = static_cast<int>((rgb & 0xFF) * k);
+	for (int dy = -ry; dy <= ry; dy++) {
+		const float fy = static_cast<float>(dy) / ry;
+		for (int dx = -rx; dx <= rx; dx++) {
+			const float fx = static_cast<float>(dx) / rx;
+			const float d2 = fx * fx + fy * fy;
+			if (d2 >= 1.0F)
+				continue;
+			const int f = static_cast<int>((1.0F - d2) * (1.0F - d2) * 256.0F);
+			AddLight(out, splats, cx + dx, cy + dy, (kr * f) >> 8, (kg * f) >> 8, (kb * f) >> 8);
+		}
+	}
+}
+
 /**
  * @brief Blits the ring @p dstW x @p dstH pixels, centred on @p centre; @p hue 0 keeps the art's colours, anything else
  * draws it in that hue (32-bit screen only).
@@ -410,6 +494,7 @@ void BlitAuraPixels(const Surface &out, const AuraArt &art, Point centre, int ds
 	// its own colours - no palette match, no dither. The 75% ceiling is the one the two-blend path
 	// below has always had, so the ring sits on the floor at the same weight it did.
 	if (!out.isIndexed() && !art.rgb.empty()) {
+		NoteRingForGlow(out, art, centre, dstW, dstH, pulsePercent, hue);
 		const std::array<int, 256> cycle = AuraCycleFactors();
 		for (int dy = dyFrom; dy < dyTo; dy++) {
 			const int y = top + dy;
@@ -509,6 +594,94 @@ const AuraArt *FrenzyRing()
 } // namespace
 
 int AuraRingClockOverrideMs = -1;
+
+void BeginAuraGlowFrame()
+{
+	GlowRings.clear();
+}
+
+size_t AuraGlowRingCount()
+{
+	return GlowRings.size();
+}
+
+void DrawAuraGlow(const Surface &out)
+{
+	if (GlowRings.empty() || out.isIndexed() || out.w() <= 0 || out.h() <= 0)
+		return;
+	std::vector<Splat> *splats = SplatCollection();
+	const double seconds = static_cast<double>(AuraRingClockOverrideMs >= 0 ? AuraRingClockOverrideMs : static_cast<int>(SDL_GetTicks())) / 1000.0;
+	for (size_t n = 0; n < GlowRings.size(); n++) {
+		const GlowRing &ring = GlowRings[n];
+		const AuraArt &art = *ring.art;
+		const Point centre = ring.centre - Displacement { out.region.x, out.region.y };
+		if (centre.x < -ring.w * 2 || centre.y < -ring.h * 2 || centre.x > out.w() + ring.w * 2 || centre.y > out.h() + ring.h * 2)
+			continue;
+		const uint32_t mean = ring.hue == 0 ? MeanColour(art) & 0xFFFFFF : RingColourInHue(MeanColour(art) & 0xFFFFFF, ring.hue);
+		// A candle's life, not the colour cycle's bands (user, 2026-10-12: "i prefer steady glow under the entire circle of the
+		// aura, independent of the colorcycling animation. we can animate the glow to give it a candle-like live-like
+		// behaviour"): three incommensurate sines and a slow breath, its own phase per ring - no period to see, never a strobe.
+		const double phi = static_cast<double>(art.rgb.size() % 97) + static_cast<double>(n) * 1.7;
+		const double candle = 0.84 + 0.07 * std::sin(seconds * 7.3 + phi) + 0.04 * std::sin(seconds * 13.1 + phi * 2.1)
+		    + 0.03 * std::sin(seconds * 23.7 + phi * 3.7) + 0.04 * std::sin(seconds * 1.1 + phi);
+		const float k = static_cast<float>(candle) * static_cast<float>(ring.pulse) / 100.0F;
+		const int kr = static_cast<int>(((mean >> 16) & 0xFF) * k), kg = static_cast<int>(((mean >> 8) & 0xFF) * k),
+		          kb = static_cast<int>((mean & 0xFF) * k);
+		// The glow follows the whole circle: brightest on the ring's line, falling off a little inside and further outside,
+		// with a faint fill over the floor it encloses. In the ring's own radii, so it fits any size.
+		const float rx = ring.w * 0.5F, ry = ring.h * 0.5F;
+		const int ex = static_cast<int>(rx * 1.7F), ey = static_cast<int>(ry * 1.7F);
+		for (int dy = -ey; dy <= ey; dy++) {
+			const int y = centre.y + dy;
+			if (y < 0 || y >= out.h())
+				continue;
+			const float fy = static_cast<float>(dy) / ry;
+			for (int dx = -ex; dx <= ex; dx++) {
+				const int x = centre.x + dx;
+				if (x < 0 || x >= out.w())
+					continue;
+				const float fx = static_cast<float>(dx) / rx;
+				const float rho = std::sqrt(fx * fx + fy * fy); // 1 on the ring's line
+				const float off = rho - 1.0F;
+				float f = 0;
+				if (off < 0) {
+					const float in = 1.0F + off / 0.45F; // fades over the inner 45%
+					f = (in > 0 ? in * in * 0.55F : 0.0F) + 0.10F * (1.0F - rho * rho);
+				} else {
+					const float outF = 1.0F - off / 0.7F; // and over 70% beyond
+					f = outF > 0 ? outF * outF * 0.55F : 0.0F;
+				}
+				if (f <= 0.004F)
+					continue;
+				const int f8 = static_cast<int>(f * 256.0F);
+				AddLight(out, splats, x, y, (kr * f8) >> 8, (kg * f8) >> 8, (kb * f8) >> 8);
+			}
+		}
+		// The ring itself glowing a little, at its own colours and the same candle - steady, not in bands.
+		const int left = centre.x - ring.w / 2;
+		const int top = centre.y - ring.h / 2;
+		const int candle256 = static_cast<int>(candle * 256.0);
+		for (int dy = 0; dy < ring.h; dy++) {
+			const int y = top + dy;
+			if (y < 0 || y >= out.h())
+				continue;
+			const int sy = dy * ArtHeight / ring.h;
+			for (int dx = 0; dx < ring.w; dx++) {
+				const int x = left + dx;
+				if (x < 0 || x >= out.w())
+					continue;
+				const size_t at = static_cast<size_t>(sy) * ArtWidth + static_cast<size_t>(dx * ArtWidth / ring.w);
+				const int a = art.alpha[at];
+				if (a == 0)
+					continue;
+				const uint32_t own = ring.hue == 0 ? art.rgb[at] : RingColourInHue(art.rgb[at], ring.hue);
+				const int q = a * candle256 / 256 * ring.pulse / 100; // 0..~180
+				AddLight(out, splats, x, y, static_cast<int>((own >> 16) & 0xFF) * q / 700, static_cast<int>((own >> 8) & 0xFF) * q / 700,
+				    static_cast<int>(own & 0xFF) * q / 700);
+			}
+		}
+	}
+}
 
 Size FrenzyRingSize()
 {
