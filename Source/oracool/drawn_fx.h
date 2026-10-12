@@ -61,4 +61,19 @@ constexpr float GlowCracksSeconds = 0.9F;
  */
 void DrawGlowCracksFx(const Surface &out, Point centre, float age, uint32_t seed);
 
+/** @brief The drawn Holy Lance: a gather before the thrust, the thrust's travel, and the whole, in seconds. */
+constexpr float HolyLanceGatherSeconds = 0.12F;
+constexpr float HolyLanceTravelSeconds = 0.12F;
+constexpr float HolyLanceSeconds = 0.9F;
+
+/**
+ * @brief The drawn Holy Lance (user, 2026-10-12: "invent holy lance animation. i dont like the asset"): a spear of holy light
+ * thrust level at chest height from in front of the Paladin standing at @p foot along the tile direction (@p dirX, @p dirY),
+ * through @p tiles tiles - a white-hot core in a gold halo, two ribbons of light winding round it, a star at its tip; each
+ * body it pierces flashes; a starburst, a ring of light on the floor and sparks where it ends; then it dissolves from the
+ * tail into rising motes. @p age from -HolyLanceGatherSeconds (the gather) to HolyLanceSeconds. @p floorLayer as
+ * DrawGroundStompFx.
+ */
+void DrawHolyLanceFx(const Surface &out, Point foot, int dirX, int dirY, int tiles, float age, bool floorLayer);
+
 } // namespace devilution::oracool

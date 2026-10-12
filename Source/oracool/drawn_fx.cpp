@@ -789,4 +789,206 @@ void DrawGlowCracksFx(const Surface &out, Point centre, float age, uint32_t seed
 	}
 }
 
+namespace {
+
+/** A soft round glow of @p r pixels (squashed to the floor when @p floor) added at strength @p k. */
+void Glow(const Px &px, float cx, float cy, float r, float cr, float cg, float cb, float k, bool floor)
+{
+	if (k <= 0.004F || r < 0.5F)
+		return;
+	const int R = static_cast<int>(r) + 1, Ry = floor ? R / 2 + 1 : R;
+	for (int dy = -Ry; dy <= Ry; dy++)
+		for (int dx = -R; dx <= R; dx++) {
+			const float fy = static_cast<float>(dy) * (floor ? 2.0F : 1.0F);
+			const float d2 = (static_cast<float>(dx * dx) + fy * fy) / (r * r);
+			if (d2 < 1.0F) {
+				const float f = 1.0F - d2;
+				px.add(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, cr, cg, cb, k * f * f);
+			}
+		}
+}
+
+/** A ray of light from (@p x, @p y) along (@p ux, @p uy), @p len long, bright at the root and fading to nothing. */
+void Ray(const Px &px, float x, float y, float ux, float uy, float len, float k)
+{
+	const int n = static_cast<int>(len);
+	for (int s = 0; s <= n; s++) {
+		const float f = 1.0F - static_cast<float>(s) / std::max(1.0F, len);
+		const int ix = static_cast<int>(x + ux * static_cast<float>(s)), iy = static_cast<int>(y + uy * static_cast<float>(s));
+		px.add(ix, iy, 255, 250, 235, k * f * f);
+		px.add(ix - static_cast<int>(uy >= 0 ? 1 : -1) * (std::abs(uy) > 0.5F ? 1 : 0), iy + (std::abs(uy) > 0.5F ? 0 : 1), 255, 210, 120, k * f * f * 0.35F);
+	}
+}
+
+/** A four-pointed star at (@p x, @p y): long across, shorter up and down, short diagonals. */
+void Star(const Px &px, float x, float y, float size, float k)
+{
+	Ray(px, x, y, 1, 0, size, k);
+	Ray(px, x, y, -1, 0, size, k);
+	Ray(px, x, y, 0, 1, size * 0.6F, k);
+	Ray(px, x, y, 0, -1, size * 0.6F, k);
+	const float d = 0.7071F;
+	Ray(px, x, y, d, d, size * 0.3F, k * 0.7F);
+	Ray(px, x, y, -d, d, size * 0.3F, k * 0.7F);
+	Ray(px, x, y, d, -d, size * 0.3F, k * 0.7F);
+	Ray(px, x, y, -d, -d, size * 0.3F, k * 0.7F);
+}
+
+} // namespace
+
+void DrawHolyLanceFx(const Surface &out, Point foot, int dirX, int dirY, int tiles, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < -HolyLanceGatherSeconds || age > HolyLanceSeconds || (dirX == 0 && dirY == 0))
+		return;
+	const Px px { &out, out.w(), out.h() };
+	constexpr uint32_t Seed = 6101;
+	constexpr float Height = 34.0F; // chest height: the thrust is level
+	// One tile along the direction on screen, and the path: from just in front of him to past the last tile it strikes.
+	const float stepX = static_cast<float>(dirX - dirY) * 32.0F, stepY = static_cast<float>(dirX + dirY) * 16.0F;
+	const float fx = static_cast<float>(foot.x), fy = static_cast<float>(foot.y);
+	const float sx = fx + stepX * 0.45F, sy = fy + stepY * 0.45F;                                          // start, on the floor
+	const float ex = fx + stepX * (static_cast<float>(tiles) + 0.3F), ey = fy + stepY * (static_cast<float>(tiles) + 0.3F); // end
+	const float len = std::max(1.0F, std::sqrt((ex - sx) * (ex - sx) + (ey - sy) * (ey - sy)));
+	const float ux = (ex - sx) / len, uy = (ey - sy) / len;
+	const float nx = -uy, ny = ux; // across the shaft, on screen
+	// The thrust: out in a blink, easing at the end of its reach.
+	const float travel = Clamp01(age / HolyLanceTravelSeconds);
+	const float reach = 1.0F - (1.0F - travel) * (1.0F - travel);
+	const float tipD = len * reach;
+	// From 0.3 s the shaft dissolves from the tail toward the tip; then everything fades.
+	const float tailD = len * Clamp01((age - 0.3F) / 0.35F);
+	const float fade = Clamp01(1.0F - (age - 0.6F) / 0.3F);
+	const float hitAge = age - HolyLanceTravelSeconds; // since the tip reached its end
+	// When the tip passed distance d (0..len): the ease inverted.
+	const auto passedAt = [&](float d) { return HolyLanceTravelSeconds * (1.0F - std::sqrt(std::max(0.0F, 1.0F - d / len))); };
+
+	if (floorLayer) {
+		if (age < 0)
+			return;
+		// The floor under the shaft lit gold, where the shaft still is.
+		for (float d = tailD; d <= tipD; d += 4.0F) {
+			const float t = d / len;
+			Glow(px, sx + ux * d, sy + uy * d, 18.0F, 244, 204, 96, 0.10F * (0.5F + 0.5F * t) * fade, true);
+		}
+		// Each tile it pierces flashes on the floor as the tip goes through.
+		for (int i = 1; i <= tiles; i++) {
+			const float cx = fx + stepX * static_cast<float>(i), cy = fy + stepY * static_cast<float>(i);
+			const float d = std::sqrt((cx - sx) * (cx - sx) + (cy - sy) * (cy - sy));
+			const float since = age - passedAt(std::min(d, len));
+			if (since >= 0 && since < 0.4F)
+				Glow(px, cx, cy, 34.0F, 255, 226, 150, 0.35F * (1.0F - since / 0.4F), true);
+		}
+		// At the end: a ring of light running out on the floor, and the air bending with it.
+		if (hitAge >= 0 && hitAge < 0.5F) {
+			const float u = hitAge / 0.5F;
+			const float R = 10.0F + 50.0F * std::sqrt(u);
+			for (int s = 0; s < 160; s++) {
+				const float a = static_cast<float>(s) / 160.0F * TwoPi;
+				const int x = static_cast<int>(ex + std::cos(a) * R), y = static_cast<int>(ey + std::sin(a) * R * 0.5F);
+				px.add(x, y, 255, 236, 180, 0.7F * (1.0F - u));
+				px.add(x, y + 1, 244, 204, 96, 0.35F * (1.0F - u));
+			}
+			Glow(px, ex, ey, 40.0F, 255, 220, 140, 0.4F * (1.0F - u), true);
+			Ripple(out, { static_cast<int>(ex), static_cast<int>(ey) }, R, 3.0F * (1.0F - u));
+		}
+		return;
+	}
+
+	// ---- In the air ----
+	// The gather: a point of light swelling in front of him before the thrust.
+	if (age < 0.05F) {
+		const float g = Clamp01((age + HolyLanceGatherSeconds) / HolyLanceGatherSeconds);
+		Glow(px, sx, sy - Height, 6.0F + 10.0F * g, 255, 236, 180, 0.6F * g, false);
+		Star(px, sx, sy - Height, 6.0F + 10.0F * g, 0.5F * g);
+		if (age < 0)
+			return;
+	}
+	// The shaft: a white-hot core in a gold halo, thickening toward the head; a shimmer runs along it.
+	const float headLen = 16.0F;
+	for (float d = tailD; d <= tipD; d += 1.0F) {
+		const float t = d / len;
+		const float toTip = tipD - d;
+		float hw = 1.5F + 1.5F * t; // half-width of the solid shaft
+		if (toTip < headLen) {       // the head: a long diamond, widest a third of the way back, to a point
+			const float h = toTip / headLen;
+			hw = h > 0.66F ? hw + (5.5F - hw) * (1.0F - h) / 0.34F : 5.5F * (h / 0.66F);
+		}
+		// The tail end softens as it dissolves.
+		const float tailSoft = Clamp01((d - tailD) / 20.0F);
+		const float shimmer = 0.85F + 0.15F * std::sin(d * 0.35F - age * 60.0F);
+		const float k = tailSoft * shimmer * fade;
+		const float cx = sx + ux * d, cy = sy + uy * d - Height;
+		const int span = static_cast<int>(hw) + 7;
+		for (int o = -span; o <= span; o++) {
+			const float a = std::abs(static_cast<float>(o));
+			const int x = static_cast<int>(cx + nx * static_cast<float>(o)), y = static_cast<int>(cy + ny * static_cast<float>(o));
+			if (a <= hw * 0.45F)
+				px.add(x, y, 255, 252, 240, 1.0F * k);
+			else if (a <= hw)
+				px.add(x, y, 255, 226, 150, 0.8F * k);
+			else {
+				const float f = std::exp(-(a - hw) / 2.5F);
+				px.add(x, y, 244, 190, 80, 0.45F * f * k);
+			}
+		}
+		// Two ribbons of light winding round it, fading toward the tail.
+		for (int r = 0; r < 2; r++) {
+			const float w = std::sin(d * 0.16F - age * 34.0F + static_cast<float>(r) * Pi) * (hw + 5.0F);
+			const float depth = std::cos(d * 0.16F - age * 34.0F + static_cast<float>(r) * Pi); // behind the shaft: dimmer
+			px.add(static_cast<int>(cx + nx * w), static_cast<int>(cy + ny * w), 255, 214, 110, (depth > 0 ? 0.7F : 0.3F) * k * Clamp01(t * 2.0F));
+		}
+	}
+	// The tip's star while it flies and as it strikes.
+	if (tipD > tailD) {
+		const float tx = sx + ux * tipD, ty = sy + uy * tipD - Height;
+		const float twinkle = 0.8F + 0.2F * std::sin(age * 50.0F);
+		Glow(px, tx, ty, 12.0F, 255, 240, 200, 0.6F * fade, false);
+		Star(px, tx, ty, 14.0F * twinkle, 0.8F * fade);
+	}
+	// Each body it passes through flashes white.
+	for (int i = 1; i <= tiles; i++) {
+		const float cx = fx + stepX * static_cast<float>(i), cy = fy + stepY * static_cast<float>(i);
+		const float d = std::sqrt((cx - sx) * (cx - sx) + (cy - sy) * (cy - sy));
+		const float since = age - passedAt(std::min(d, len));
+		if (since >= 0 && since < 0.25F) {
+			const float k = 1.0F - since / 0.25F;
+			Glow(px, cx, cy - Height, 22.0F, 255, 246, 220, 0.5F * k, false);
+			Star(px, cx, cy - Height, 20.0F * k + 6.0F, 0.6F * k);
+		}
+	}
+	// The strike at the end: a starburst, a flash, and sparks thrown forward and falling.
+	if (hitAge >= 0) {
+		const float u = Clamp01(hitAge / 0.35F);
+		const float burst = std::exp(-hitAge / 0.12F);
+		const float x = ex, y = ey - Height;
+		Glow(px, x, y, 30.0F, 255, 236, 180, 0.7F * burst, false);
+		Star(px, x, y, 26.0F + 30.0F * u, 0.9F * burst + 0.2F * (1.0F - u));
+		for (uint32_t i = 0; i < 16; i++) {
+			const float a = std::atan2(uy, ux) + (Unit(Hash(i, Seed)) - 0.5F) * 2.2F;
+			const float v = 60.0F + Unit(Hash(i, Seed + 1)) * 90.0F;
+			const float t = hitAge;
+			if (t > 0.55F)
+				continue;
+			const float px0 = x + std::cos(a) * v * t, py0 = y + std::sin(a) * v * t * 0.6F + 160.0F * t * t;
+			const float k = 1.0F - t / 0.55F;
+			px.add(static_cast<int>(px0), static_cast<int>(py0), 255, 240, 190, k);
+			px.add(static_cast<int>(px0 - std::cos(a) * 2.0F), static_cast<int>(py0 - std::sin(a) * 1.2F), 255, 200, 90, 0.5F * k);
+		}
+	}
+	// The shaft dissolving: gold motes rising off it where it has gone.
+	for (uint32_t i = 0; i < 36; i++) {
+		const float d = Unit(Hash(i, Seed + 5)) * len;
+		const float born = 0.3F + 0.35F * d / len; // as the dissolve passes it
+		const float t = age - born;
+		if (t < 0 || t > 0.6F)
+			continue;
+		const float k = std::sin(t / 0.6F * Pi) * 0.9F;
+		const float drift = (Unit(Hash(i, Seed + 6)) - 0.5F) * 10.0F;
+		const int x = static_cast<int>(sx + ux * d + nx * drift + drift * 0.3F);
+		const int y = static_cast<int>(sy + uy * d - Height + ny * drift - 28.0F * t);
+		px.add(x, y, 255, 230, 160, k);
+		px.add(x, y - 1, 244, 204, 96, 0.4F * k);
+	}
+}
+
 } // namespace devilution::oracool

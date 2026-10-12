@@ -18964,6 +18964,64 @@ TEST(OracoolPreview, DISABLED_DrawnFxCost)
 	HeadlessMode = savedHeadless;
 }
 
+/**
+ * A drawn Holy Lance (user, 2026-10-12: "invent holy lance animation. i dont like the asset"): the Paladin thrusting east
+ * (left) and south-east (right) through a skeleton beside him and one behind it, drawn by oracool::DrawHolyLanceFx - 30
+ * frames at 50 ms into ORCL_LANCE_OUT as lance_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_DrawnHolyLance)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const char *outDir = std::getenv("ORCL_LANCE_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const std::optional<OwnedClxSpriteSheet> attack = FxBody("plrgfx\\warrior\\whd\\whdat", 128);
+	const std::optional<OwnedClxSpriteSheet> skeleton = FxBody("monsters\\skelaxe\\sklaxn", 128);
+	ASSERT_TRUE(attack.has_value());
+	ASSERT_TRUE(skeleton.has_value());
+	const std::shared_ptr<const oracool::SpriteColours> colours = oracool::HeroColoursFor(HeroClass::Warrior, 1 << 4);
+	constexpr int W = 860, H = 300, Frames = 30;
+	struct Lane {
+		Point foot;
+		int dirX, dirY;
+		int heroDir, skelDir;
+	};
+	// East on screen is tile (1,-1), south-east tile (1,0); the skeletons face him.
+	const Lane lanes[] = { { { 80, 180 }, 1, -1, 6, 2 }, { { 560, 100 }, 1, 0, 7, 3 } };
+	for (int k = 0; k < Frames; k++) {
+		OwnedSurface out = OwnedSurface::Rgb(W, H);
+		for (int y = 0; y < H; y++)
+			for (int x = 0; x < W; x++) {
+				const int v = 26 + ((x / 16 + y / 8) % 2) * 4;
+				*out.at<uint32_t>(x, y) = (static_cast<uint32_t>(v + 4) << 16) | (static_cast<uint32_t>(v + 2) << 8) | static_cast<uint32_t>(v);
+			}
+		// The swing starts at frame 0; the lance leaves on its sixth frame.
+		const float age = static_cast<float>(k - 6) * 0.05F;
+		for (const Lane &l : lanes)
+			oracool::DrawHolyLanceFx(out, l.foot, l.dirX, l.dirY, 3, age, true);
+		for (const Lane &l : lanes) {
+			const ClxSpriteList swing = (*attack)[l.heroDir];
+			const ClxSprite hero = swing[static_cast<size_t>(std::min<int>(k, static_cast<int>(swing.numSprites()) - 1))];
+			ClxDrawRgbMap(out, Point { l.foot.x - hero.width() / 2, l.foot.y }, hero, FxTable(colours.get()));
+			for (int i = 1; i <= 2; i++) {
+				const ClxSpriteList stand = (*skeleton)[l.skelDir];
+				const ClxSprite s = stand[static_cast<size_t>((k / 2 + i * 3) % static_cast<int>(stand.numSprites()))];
+				const Point at { l.foot.x + (l.dirX - l.dirY) * 32 * i, l.foot.y + (l.dirX + l.dirY) * 16 * i };
+				ClxDrawRgbMap(out, Point { at.x - s.width() / 2, at.y }, s, FxTable(nullptr));
+			}
+		}
+		for (const Lane &l : lanes)
+			oracool::DrawHolyLanceFx(out, l.foot, l.dirX, l.dirY, 3, age, false);
+		char name[64];
+		std::snprintf(name, sizeof(name), "lance_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	HeadlessMode = savedHeadless;
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"
