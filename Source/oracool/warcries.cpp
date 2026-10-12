@@ -29,6 +29,7 @@
 #include "oracool/skill_sounds.h" // the Impact cues of Conversion and Vengeance
 #include "player.h"
 #include "utils/language.h"
+#include "oracool/scene_glow.h" // the Skill Eye Candy page's skill light (2026-10-12)
 #include <fmt/format.h>
 
 namespace devilution::oracool {
@@ -614,6 +615,10 @@ void ApplyVengeanceCold(Player &player, Monster &monster)
 	}
 	ChillMonster(monster, VengeanceChillTicks);
 	AddColdHitFlash(monster.position.tile, static_cast<int>(player.getId()), 50); // half size (the Paladin Skill Cards page, 2026-09-28)
+	// Skill light (Skill Eye Candy): fire, cold and lightning flash on the struck enemy in turn.
+	SkillLightFlash(monster.position.tile, hue::FireOrange, 0.8F, 35, 24, 0.0F);
+	SkillLightFlash(monster.position.tile, hue::IceBlue, 0.8F, 35, 24, 0.1F);
+	SkillLightFlash(monster.position.tile, hue::LightningBlue, 0.8F, 35, 24, 0.2F);
 }
 
 bool SlowMissilesTurnsAside(const Player &player)

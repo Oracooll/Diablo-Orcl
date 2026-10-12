@@ -98,6 +98,7 @@
 #include "utils/log.hpp"
 #include "utils/str_cat.hpp"
 #include "utils/utf8.hpp"
+#include "oracool/scene_glow.h" // the Skill Eye Candy page's skill light (2026-10-12)
 
 namespace devilution {
 
@@ -1419,6 +1420,8 @@ bool DoAttack(Player &player)
 			// Cards page, 2026-09-28).
 			if (didhit && oracool::IsChargeBlowArmed())
 				oracool::DrawHolyBurst(player, monster->position.tile, 50, oracool::hue::PaladinGold);
+			if (didhit && oracool::IsChargeBlowArmed())
+				oracool::SkillLightFlash(monster->position.tile, oracool::hue::PaladinGold, 1.1F, 60); // the dash's gold strike (Skill Eye Candy)
 			if (didhit)
 				oracool::OnPassiveHit(player, *monster, hitDamage, true);
 			if (didhit)

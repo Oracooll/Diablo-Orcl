@@ -23,6 +23,7 @@
 #include <fmt/format.h>
 #include "utils/language.h"
 #include "engine/backbuffer_state.hpp" // RedrawComponent - the price taken at the front
+#include "oracool/scene_glow.h" // the Skill Eye Candy page's skill light (2026-10-12)
 
 namespace devilution::oracool {
 
@@ -282,6 +283,9 @@ void ApplyHammerOfFaith(Player &player, Monster &primaryTarget)
 	if (&player == MyPlayer)
 		PlaySkillSound(ClassTreeSkill::HammerOfFaith, SkillSoundEvent::Impact);
 	DrawHolyBurst(player, primaryTarget.position.tile, 100, hue::HolyBlue);
+	// Skill light (the Skill Eye Candy page, approved 2026-10-12): the burst lights the floor blue and throws sparks.
+	SkillLightFlash(primaryTarget.position.tile, hue::HolyBlue, 1.0F, 60);
+	SkillLightSparks(primaryTarget.position.tile, hue::IceBlue, 10);
 
 	Monster *targets[8] = {};
 	const int found = GatherAdjacent(primaryTarget, targets, 8);
@@ -637,6 +641,7 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 	case PaladinSkill::Zeal:
 		// A quarter-size Holy Bolt burst, pale warm, on every blow that lands (the Paladin Skill Cards page, 2026-09-28).
 		DrawHolyBurst(player, primaryTarget.position.tile, 25, hue::PaleWarm);
+		SkillLightFlash(primaryTarget.position.tile, hue::PaleWarm, 0.7F, 30); // a small glint each strike (Skill Eye Candy)
 		ApplyZeal(player, primaryTarget);
 		break;
 	case PaladinSkill::HammerOfFaith:
@@ -645,6 +650,8 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 	case PaladinSkill::ShieldBash:
 		// Smite: a quarter-size Holy Bolt burst, Paladin gold, on the bashed enemy (the Skill Cards page, 2026-09-28).
 		DrawHolyBurst(player, primaryTarget.position.tile, 25, hue::PaladinGold);
+		SkillLightFlash(primaryTarget.position.tile, hue::PaladinGold, 1.0F, 50); // a holy flash and a ring (Skill Eye Candy)
+		SkillLightRing(primaryTarget.position.tile, hue::PaladinGold, 50);
 		ApplyShieldBash(player, primaryTarget);
 		break;
 	// Charge is intercepted before the swing (oracool/furious_charge.cpp); the three that throw

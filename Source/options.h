@@ -1060,6 +1060,10 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean novaLight;
 	/** @brief Blessed Shield's beam (user, 2026-10-12; oracool/scene_life.cpp's trails). */
 	OptionEntryBoolean shieldBeam;
+	/** @brief The Skill Eye Candy page's approved skill light (user, 2026-10-12; oracool/scene_glow.h). */
+	OptionEntryBoolean skillLight;
+	/** @brief Fist and Wrath of the Heavens' drawn lightning (same). */
+	OptionEntryBoolean drawnLightning;
 	/**
 	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
 	 * the name large, type and tier under it, the armour or damage as one big number, the item's

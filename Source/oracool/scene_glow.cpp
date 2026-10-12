@@ -40,6 +40,8 @@
 #include "oracool/splats.h"
 #include "oracool/whirl_arcs.h"
 #include "oracool/whirlwind.h"
+#include "oracool/furious_charge.h"
+#include "oracool/warcries.h"
 #include "player.h"
 #include "spelldat.h"
 #include "towners.h"
@@ -981,6 +983,408 @@ uint32_t TickLevel = 0;
 
 } // namespace
 
+// ==== Skill light (the Skill Eye Candy page's verdicts, 2026-10-12) ========================================================================
+
+namespace {
+
+enum class SkillFxKind : uint8_t {
+	Flash,
+	Ring,
+	Pillar,
+	Heat,
+	Beam,
+	Lightning,
+	Gather,
+};
+
+struct SkillFx {
+	SkillFxKind kind;
+	float x, y, x2, y2; // world pixels
+	float born, life;
+	uint32_t rgb;
+	float k;
+	int r, h;
+	uint32_t seed;
+	bool sparked;
+};
+
+std::vector<SkillFx> SkillFxs;
+uint32_t SkillFxSeed = 1;
+float PreviewNow = -1; // the preview's clock; -1 in the game
+
+float FxNow()
+{
+	return PreviewNow >= 0 ? PreviewNow : Now();
+}
+
+bool SkillLightOn()
+{
+	return *sgOptions.Oracool.skillLight;
+}
+
+void PushSkillFx(SkillFxKind kind, Point tile, Point tile2, uint32_t rgb, float k, int r, int h, float life, float delay)
+{
+	if (!InMap(tile) && PreviewNow < 0)
+		return;
+	if (SkillFxs.size() >= 48)
+		SkillFxs.erase(SkillFxs.begin());
+	SkillFxs.push_back({ kind, WorldX(tile), WorldY(tile), WorldX(tile2), WorldY(tile2), FxNow() + delay, life, rgb, k, r, h, SkillFxSeed++ * 2654435761U, false });
+}
+
+/** One pixel of a bolt at strength @p k: a white-hot core, its colour one pixel round, a haze two out. */
+void BoltBrush(const LightPen &pen, int x, int y, uint32_t rgb, float k)
+{
+	pen.addF(x, y, SG_PACK(255, 252, 240), k);
+	pen.addF(x - 1, y, rgb, k * 0.6F);
+	pen.addF(x + 1, y, rgb, k * 0.6F);
+	pen.addF(x, y - 1, rgb, k * 0.45F);
+	pen.addF(x, y + 1, rgb, k * 0.45F);
+	pen.addF(x - 2, y, rgb, k * 0.22F);
+	pen.addF(x + 2, y, rgb, k * 0.22F);
+}
+
+void BoltSegment(const LightPen &pen, float x0, float y0, float x1, float y1, uint32_t rgb, float k)
+{
+	const float dx = x1 - x0, dy = y1 - y0;
+	const int steps = static_cast<int>(std::max(std::abs(dx), std::abs(dy))) + 1;
+	for (int i = 0; i <= steps; i++) {
+		const float t = static_cast<float>(i) / static_cast<float>(steps);
+		BoltBrush(pen, static_cast<int>(x0 + dx * t), static_cast<int>(y0 + dy * t), rgb, k);
+	}
+}
+
+/** A jagged path from (@p x0, @p y0) to (@p x1, @p y1) by midpoint displacement, @p levels deep, its jags from @p seed. */
+void BoltPath(std::vector<float> &px, std::vector<float> &py, float x0, float y0, float x1, float y1, int levels, float rough, uint32_t seed)
+{
+	px.assign({ x0, x1 });
+	py.assign({ y0, y1 });
+	float spread = rough;
+	for (int level = 0; level < levels; level++) {
+		std::vector<float> nx, ny;
+		for (size_t i = 0; i + 1 < px.size(); i++) {
+			nx.push_back(px[i]);
+			ny.push_back(py[i]);
+			const float mx = (px[i] + px[i + 1]) * 0.5F, my = (py[i] + py[i + 1]) * 0.5F;
+			const float sx = py[i + 1] - py[i], sy = -(px[i + 1] - px[i]); // across the segment
+			const float len = std::max(1.0F, std::sqrt(sx * sx + sy * sy));
+			const float off = (Unit(Hash(seed, static_cast<uint32_t>(level), static_cast<uint32_t>(i))) - 0.5F) * spread;
+			nx.push_back(mx + sx / len * off);
+			ny.push_back(my + sy / len * off);
+		}
+		nx.push_back(px.back());
+		ny.push_back(py.back());
+		px.swap(nx);
+		py.swap(ny);
+		spread *= 0.55F;
+	}
+}
+
+void DrawLightning(const LightPen &pen, const SkillFx &f, float cx, float cy, float now)
+{
+	const float age = now - f.born;
+	// Three strikes, each a flash that falls away fast; the shape is new each strike and quivers between.
+	static constexpr float Strikes[] = { 0.0F, 0.13F, 0.29F };
+	float bright = 0;
+	int strike = 0;
+	for (int i = 0; i < 3; i++) {
+		const float a = age - Strikes[i];
+		if (a < 0)
+			continue;
+		const float b = std::exp(-a / 0.07F) * (i == 0 ? 1.0F : 0.8F);
+		if (b > bright) {
+			bright = b;
+			strike = i;
+		}
+	}
+	const float k = f.k;
+	// The floor's light, lingering a little past the last strike.
+	const float floorK = std::max(bright, 0.35F * Clamp01(1.0F - age / f.life));
+	Pool(pen, static_cast<int>(cx), static_cast<int>(cy), 110, 55, f.rgb, 0.55F * floorK * k);
+	Pool(pen, static_cast<int>(cx), static_cast<int>(cy) - 6, 34, 18, SG_PACK(255, 250, 235), 0.6F * bright * k);
+	if (bright < 0.06F)
+		return;
+	const uint32_t quiver = static_cast<uint32_t>(now * 30.0F);
+	const uint32_t seed = f.seed + static_cast<uint32_t>(strike) * 7919U;
+	static std::vector<float> px, py, bx, by;
+	const float topX = cx + (Unit(Hash(seed, 1)) - 0.5F) * 70.0F;
+	BoltPath(px, py, topX, cy - 300.0F, cx, cy - 4.0F, 6, 60.0F, seed + (quiver & 1));
+	for (size_t i = 0; i + 1 < px.size(); i++)
+		BoltSegment(pen, px[i], py[i], px[i + 1], py[i + 1], f.rgb, bright * k);
+	// Branches off the trunk, reaching down and out.
+	for (uint32_t b = 0; b < 3; b++) {
+		const size_t at = 8 + static_cast<size_t>(Hash(seed, 50 + b) % std::max<size_t>(1, px.size() / 2));
+		if (at >= px.size())
+			continue;
+		const float side = (Hash(seed, 60 + b) & 1) ? 1.0F : -1.0F;
+		const float len = 50.0F + Unit(Hash(seed, 70 + b)) * 60.0F;
+		BoltPath(bx, by, px[at], py[at], px[at] + side * len * 0.8F, py[at] + len * 0.6F, 4, 22.0F, seed + 100 + b);
+		for (size_t i = 0; i + 1 < bx.size(); i++) {
+			const float fade = 1.0F - static_cast<float>(i) / static_cast<float>(bx.size());
+			BoltSegment(pen, bx[i], by[i], bx[i + 1], by[i + 1], f.rgb, bright * k * 0.55F * fade);
+		}
+	}
+}
+
+void DrawSkillFxLights(const LightPen &pen, float ox, float oy, float now)
+{
+	for (SkillFx &f : SkillFxs) {
+		const float age = now - f.born;
+		if (age < 0 || age > f.life || f.kind == SkillFxKind::Heat)
+			continue;
+		const float u = age / f.life;
+		const float cx = f.x + ox, cy = f.y + oy;
+		const int ix = static_cast<int>(cx), iy = static_cast<int>(cy);
+		switch (f.kind) {
+		case SkillFxKind::Flash: {
+			const float env = (u < 0.15F ? u / 0.15F : std::pow(1.0F - (u - 0.15F) / 0.85F, 1.6F)) * f.k;
+			Pool(pen, ix, iy, f.r, f.r / 2, f.rgb, 0.5F * env);
+			Dot(pen, ix, iy - f.h, 5, SG_PACK(255, 250, 235), 0.9F * env);
+			Pool(pen, ix, iy - f.h, f.r / 3, f.r / 3, f.rgb, 0.45F * env);
+			break;
+		}
+		case SkillFxKind::Ring: {
+			const float R = static_cast<float>(f.r) * (0.1F + 0.9F * std::sqrt(u));
+			const float a = (1.0F - u) * 0.8F * f.k;
+			for (int s = 0; s < 72; s++) {
+				const float ang = static_cast<float>(s) / 72.0F * TwoPi;
+				Dot(pen, ix + static_cast<int>(std::cos(ang) * R), iy + static_cast<int>(std::sin(ang) * R * 0.5F), 1, f.rgb, a);
+			}
+			break;
+		}
+		case SkillFxKind::Pillar: {
+			const float env = u < 0.12F ? u / 0.12F : 1.0F - (u - 0.12F) / 0.88F;
+			for (int y = 0; y < f.h; y++) {
+				const float t = static_cast<float>(y) / static_cast<float>(f.h);
+				const int half = 6 + static_cast<int>(4.0F * (1.0F - t));
+				for (int dx = -half; dx <= half; dx++) {
+					const float e = 1.0F - static_cast<float>(std::abs(dx)) / static_cast<float>(half + 1);
+					pen.addF(ix + dx, iy - y, f.rgb, e * e * (1.0F - t) * env * 0.7F * f.k);
+				}
+			}
+			Pool(pen, ix, iy, 60, 30, f.rgb, 0.45F * env * f.k);
+			break;
+		}
+		case SkillFxKind::Beam: {
+			const float env = (1.0F - u) * f.k;
+			const float x2 = f.x2 + ox, y2 = f.y2 + oy;
+			const float dx = x2 - cx, dy = y2 - cy;
+			const int steps = static_cast<int>(std::max(std::abs(dx), std::abs(dy))) + 1;
+			for (int i = 0; i <= steps; i++) {
+				const float t = static_cast<float>(i) / static_cast<float>(steps);
+				const int px = static_cast<int>(cx + dx * t), py = static_cast<int>(cy + dy * t) - f.h;
+				const float k = env * (0.4F + 0.6F * t);
+				pen.addF(px, py, SG_PACK(255, 248, 225), k * 0.8F);
+				pen.addF(px, py - 1, f.rgb, k * 0.6F);
+				pen.addF(px, py + 1, f.rgb, k * 0.6F);
+				pen.addF(px, py - 2, f.rgb, k * 0.25F);
+				pen.addF(px, py + 2, f.rgb, k * 0.25F);
+			}
+			break;
+		}
+		case SkillFxKind::Gather:
+			Pool(pen, ix, iy, 30 + static_cast<int>(40.0F * u), 15 + static_cast<int>(20.0F * u), f.rgb, 0.5F * u * f.k);
+			break;
+		case SkillFxKind::Lightning:
+			if (!f.sparked && PreviewNow < 0) {
+				f.sparked = true;
+				EmitSparks(f.x, f.y, 6.0F, 16, SG_PACK(255, 245, 220), 110.0F);
+			}
+			DrawLightning(pen, f, cx, cy, now);
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+/** The heat ripples: the picture bent in a ring running out (before the light). */
+void DrawSkillFxHeat(const Surface &out, float ox, float oy, float now)
+{
+	static std::vector<uint32_t> Copy;
+	for (const SkillFx &f : SkillFxs) {
+		if (f.kind != SkillFxKind::Heat)
+			continue;
+		const float age = now - f.born;
+		if (age < 0 || age > f.life)
+			continue;
+		const float u = age / f.life;
+		const float R = static_cast<float>(f.r) * (0.15F + 0.85F * u);
+		const float band = 16.0F;
+		const float amp = 5.0F * f.k * (1.0F - u);
+		const int cx = static_cast<int>(f.x + ox), cy = static_cast<int>(f.y + oy);
+		const int x0 = std::max(0, static_cast<int>(cx - R - band)), x1 = std::min(out.w() - 1, static_cast<int>(cx + R + band));
+		const int y0 = std::max(0, static_cast<int>(cy - (R + band) * 0.5F - 30)), y1 = std::min(out.h() - 1, static_cast<int>(cy + (R + band) * 0.5F));
+		if (x1 <= x0 || y1 <= y0)
+			continue;
+		const int W = x1 - x0 + 1, H = y1 - y0 + 1;
+		Copy.resize(static_cast<size_t>(W) * H);
+		for (int y = 0; y < H; y++)
+			std::memcpy(&Copy[static_cast<size_t>(y) * W], out.at<uint32_t>(x0, y0 + y), static_cast<size_t>(W) * 4);
+		for (int y = 0; y < H; y++) {
+			uint32_t *row = out.at<uint32_t>(x0, y0 + y);
+			const float dy = static_cast<float>(y0 + y - cy) * 2.0F;
+			for (int x = 0; x < W; x++) {
+				const float dx = static_cast<float>(x0 + x - cx);
+				const float d = std::sqrt(dx * dx + dy * dy) + 0.001F;
+				const float off = d - R;
+				if (off <= -band || off >= band)
+					continue;
+				const float w = std::cos(off / band * Pi * 0.5F);
+				const float push = std::sin(off / band * Pi) * amp * w;
+				int sx = x - static_cast<int>(dx / d * push);
+				int sy = y - static_cast<int>(dy / d * push * 0.5F);
+				sx = sx < 0 ? 0 : (sx >= W ? W - 1 : sx);
+				sy = sy < 0 ? 0 : (sy >= H ? H - 1 : sy);
+				row[x] = Copy[static_cast<size_t>(sy) * W + sx];
+			}
+		}
+	}
+}
+
+/** The lasting light: Charge's trail, a brand's and a conversion's glow, the Blessed Hammers' light. */
+void DrawSkillStates(const LightPen &pen, const View &v, float now)
+{
+	if (MyPlayer != nullptr && MyPlayer->plractive && IsFuriousChargeDashing()) {
+		float wx, wy;
+		HeroWorld(*MyPlayer, wx, wy);
+		const Displacement step = Displacement(MyPlayer->_pdir);
+		float dx = static_cast<float>(step.deltaX - step.deltaY) * 32.0F, dy = static_cast<float>(step.deltaX + step.deltaY) * 16.0F;
+		const float len = std::max(1.0F, std::sqrt(dx * dx + dy * dy));
+		dx /= len;
+		dy /= len;
+		const int cx = static_cast<int>(wx + v.ox), cy = static_cast<int>(wy + v.oy) - 30;
+		for (int s = 0; s < 80; s++) {
+			const float t = 1.0F - static_cast<float>(s) / 80.0F;
+			const int px = cx - static_cast<int>(dx * static_cast<float>(s)), py = cy - static_cast<int>(dy * static_cast<float>(s));
+			pen.addF(px, py, SG_PACK(255, 240, 200), t * 0.7F);
+			pen.addF(px, py - 1, SG_PACK(244, 204, 96), t * 0.55F);
+			pen.addF(px, py + 1, SG_PACK(244, 204, 96), t * 0.55F);
+			pen.addF(px, py - 2, SG_PACK(244, 204, 96), t * 0.25F);
+			pen.addF(px, py + 2, SG_PACK(244, 204, 96), t * 0.25F);
+		}
+		Pool(pen, cx, cy + 30, 50, 25, SG_PACK(244, 204, 96), 0.3F);
+	}
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		const int id = ActiveMonsters[i];
+		if (id < 0 || static_cast<size_t>(id) >= MaxMonsters)
+			continue;
+		const Monster &monster = Monsters[id];
+		if (!MonsterShows(monster))
+			continue;
+		const bool branded = (Rfa12SkillMarkers(monster) & (1U << static_cast<unsigned>(SkillMarker::OathBranded))) != 0;
+		const bool converted = IsMonsterConverted(monster);
+		if (!branded && !converted)
+			continue;
+		float wx, wy;
+		MonsterWorld(monster, wx, wy);
+		const int cx = static_cast<int>(wx + v.ox), cy = static_cast<int>(wy + v.oy);
+		const float breathe = 0.8F + 0.2F * std::sin(now * 2.2F + static_cast<float>(id));
+		if (branded)
+			Pool(pen, cx, cy, 40, 20, SG_PACK(206, 182, 255), 0.4F * breathe);
+		if (converted) {
+			Pool(pen, cx, cy, 42, 21, SG_PACK(150, 230, 110), 0.35F * breathe);
+			for (int k = 0; k < 6; k++) {
+				const uint32_t s = Hash(static_cast<uint32_t>(id), static_cast<uint32_t>(k), 7101);
+				const float f = Frac(now * (0.4F + Unit(s) * 0.3F) + Unit(s >> 8));
+				pen.addF(cx + static_cast<int>((Unit(s >> 4) - 0.5F) * 34.0F), cy - 8 - static_cast<int>(f * 56.0F), SG_PACK(150, 230, 110), std::sin(f * Pi) * 0.7F);
+			}
+		}
+	}
+	for (const Missile &m : Missiles) {
+		if (m._mitype != MissileID::BlessedHammer || !InMap(m.position.tile))
+			continue;
+		const int cx = static_cast<int>(WorldX(m.position.tile) + static_cast<float>(m.position.offset.deltaX) + v.ox);
+		const int cy = static_cast<int>(WorldY(m.position.tile) + static_cast<float>(m.position.offset.deltaY) + v.oy);
+		Pool(pen, cx, cy, 28, 14, SG_PACK(244, 204, 96), 0.38F);
+		const float k = 0.45F * (0.75F + 0.25F * std::sin(now * 9.0F));
+		for (int dx = -18; dx <= 18; dx++) {
+			const float f = 1.0F - static_cast<float>(std::abs(dx)) / 19.0F;
+			pen.addF(cx + dx, cy - 26, SG_PACK(255, 230, 160), f * f * k);
+		}
+	}
+}
+
+} // namespace
+
+void SkillLightFlash(Point tile, uint32_t rgb, float strength, int radius, int height, float delay)
+{
+	if (SkillLightOn())
+		PushSkillFx(SkillFxKind::Flash, tile, tile, rgb, strength, radius, height, 0.35F, delay);
+}
+
+void SkillLightRing(Point tile, uint32_t rgb, int radius, float delay)
+{
+	if (SkillLightOn())
+		PushSkillFx(SkillFxKind::Ring, tile, tile, rgb, 1.0F, radius, 0, 0.45F, delay);
+}
+
+void SkillLightPillar(Point tile, uint32_t rgb, int height)
+{
+	if (SkillLightOn())
+		PushSkillFx(SkillFxKind::Pillar, tile, tile, rgb, 1.0F, 16, height, 0.6F, 0.0F);
+}
+
+void SkillLightHeat(Point tile, int radius, float strength)
+{
+	if (SkillLightOn())
+		PushSkillFx(SkillFxKind::Heat, tile, tile, 0, strength, radius, 0, 0.5F, 0.0F);
+}
+
+void SkillLightBeam(Point from, Point to, uint32_t rgb, float seconds)
+{
+	if (SkillLightOn())
+		PushSkillFx(SkillFxKind::Beam, from, to, rgb, 1.0F, 0, 26, seconds, 0.0F);
+}
+
+void SkillLightSparks(Point tile, uint32_t rgb, int count)
+{
+	if (SkillLightOn() && InMap(tile))
+		EmitSparks(WorldX(tile), WorldY(tile), 28.0F, count, rgb, 90.0F);
+}
+
+void SkillLightMotes(Point tile, uint32_t rgb, int count)
+{
+	if (SkillLightOn() && InMap(tile))
+		EmitMotes(WorldX(tile), WorldY(tile), 10.0F, count, rgb, 45.0F);
+}
+
+void SkillLightning(Point tile, uint32_t rgb, float strength)
+{
+	if (DrawnLightningOn())
+		PushSkillFx(SkillFxKind::Lightning, tile, tile, rgb, strength, 0, 0, 0.6F, 0.0F);
+}
+
+void SkillLightGather(Point tile, uint32_t rgb, float seconds)
+{
+	if (DrawnLightningOn())
+		PushSkillFx(SkillFxKind::Gather, tile, tile, rgb, 1.0F, 0, 0, std::max(0.05F, seconds), 0.0F);
+}
+
+bool DrawnLightningOn()
+{
+	return *sgOptions.Oracool.drawnLightning;
+}
+
+int SkillLightCount()
+{
+	return static_cast<int>(SkillFxs.size());
+}
+
+void DrawSkillLightPreview(const Surface &out, Point tileScreen, Point tile, float seconds)
+{
+	PreviewNow = seconds;
+	LightPen pen;
+	pen.out = &out;
+	pen.splats = nullptr;
+	pen.w = out.w();
+	pen.h = out.h();
+	const float ox = static_cast<float>(tileScreen.x) - WorldX(tile);
+	const float oy = static_cast<float>(tileScreen.y) - WorldY(tile);
+	DrawSkillFxHeat(out, ox, oy, seconds);
+	DrawSkillFxLights(pen, ox, oy, seconds);
+	PreviewNow = -1;
+}
+
 // ==== Tests' questions ===========================================================================================================
 
 bool IsBossForGlow(const Monster &monster)
@@ -1050,6 +1454,7 @@ void ForgetSceneGlow()
 	LevelUpAt = -100;
 	HeroLastLevel = -1;
 	Orbs.fill(OrbState {});
+	SkillFxs.clear();
 	NextForgeStrike = 0; // the scene clock wraps (audit round 1: the strikes stopped for ten hours)
 	CorpsesSeeded = false;
 }
@@ -1074,6 +1479,7 @@ void TickSceneGlow(const Surface &visible, Point firstTile, Point firstTileBuffe
 		SeedCorpses();
 	else if (*sgOptions.Oracool.corpseSettle)
 		DateNewCorpses();
+	SkillFxs.erase(std::remove_if(SkillFxs.begin(), SkillFxs.end(), [now](const SkillFx &f) { return now - f.born > f.life + 0.05F; }), SkillFxs.end());
 	TickHero();
 	TickFloorItems();
 	TickObjects();
@@ -1351,6 +1757,7 @@ void DrawSceneGlowBodies(const Surface &out, Point firstTile, Point firstTileBuf
 		return;
 	const View v = MakeView(out, firstTile, firstTileBuffer);
 	const float now = Now();
+	DrawSkillFxHeat(out, v.ox, v.oy, now); // the skill light's heat ripples (before the light)
 	const int w = out.w();
 	const int h = out.h();
 	for (const Particle &p : Particles) {
@@ -1508,6 +1915,11 @@ void DrawSceneGlowLights(const Surface &out, Point firstTile, Point firstTileBuf
 			Pool(pen, cx, cy, 20, 10, trail != 0 ? trail : SG_PACK(150, 190, 255), m._mitype == MissileID::MiniNovaBall ? 0.26F : 0.32F);
 		}
 	}
+
+	// ---- Skill light: the one-shot flashes, rings, pillars, beams, bolts; and the lasting glows ----------------------------
+	DrawSkillFxLights(pen, v.ox, v.oy, now);
+	if (SkillLightOn())
+		DrawSkillStates(pen, v, now);
 
 	// ---- Flashes (chests, pickups, sparks' strikes) ---------------------------------------------------------------------
 	for (const Flash &f : Flashes) {

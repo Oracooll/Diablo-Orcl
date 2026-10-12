@@ -16,6 +16,7 @@
 #include "player.h"
 #include <fmt/format.h>
 #include "utils/language.h"
+#include "oracool/scene_glow.h" // the Skill Eye Candy page's skill light (2026-10-12)
 
 namespace devilution::oracool {
 
@@ -226,6 +227,7 @@ bool ClaimFistRingTarget(int ringId, int monsterId)
 void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellLevel)
 {
 	DropBlast(player, target, damage * FistCentrePercentAt(spellLevel) / 100, spellLevel);
+	SkillLightning(target, Rgb(190, 225, 255), 1.1F); // the drawn bolt from the sky (Skill Eye Candy, 2026-10-12)
 	// "Replace the sound on ground hit with the sound we use for SORT buttons" - IS_ISHIEL, the
 	// shield-into-slot sound the Stash's and the inventory's Sort buttons both play.
 	PlaySfxLoc(IS_ISHIEL, target);

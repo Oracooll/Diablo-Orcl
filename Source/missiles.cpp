@@ -61,6 +61,7 @@
 #include "oracool/ground_fx.h" // AddExplosionMark - a picture only
 #include "spells.h"
 #include "utils/str_cat.hpp"
+#include "oracool/scene_glow.h" // the Skill Eye Candy page's skill light (2026-10-12)
 
 namespace devilution {
 
@@ -3977,6 +3978,12 @@ void AddFallingMace(Missile &missile, AddMissileParameter &parameter)
 	// The animation's own length, so the blast lands exactly when the mace does rather than on a
 	// number picked to look about right.
 	missile._mirange = missile._miAnimLen;
+	// Drawn lightning in place of the bolt sheet (the Skill Eye Candy page, 2026-10-12): the missile only keeps the time and is
+	// not drawn; light gathers on the floor while it falls, and the bolt strikes at the impact (FistOfTheHeavensImpact).
+	if (oracool::DrawnLightningOn()) {
+		missile._miDrawFlag = false;
+		oracool::SkillLightGather(missile.position.tile, oracool::hue::IceBlue, static_cast<float>(std::max(missile._mirange, 1)) / 20.0F);
+	}
 }
 
 void ProcessFallingMace(Missile &missile)

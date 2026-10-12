@@ -75,6 +75,35 @@ float OrbSlosh(int key, int x, int revealTop);
 /** @brief The glint across the orb's surface at column @p x of an orb @p width wide (0..1). */
 float OrbGlint(int key, int x, int width);
 
+// ---- Skill light (user, 2026-10-12, the Skill Eye Candy page's verdicts): one-shot light at a tile, drawn as light (the heat
+// ripple bends the picture). All behind the Skill Light option; the lightning behind Drawn Lightning. ----------------------
+
+/** @brief A flash of @p rgb at @p tile: a pool on the floor @p radius px across and a bright core @p height px up. */
+void SkillLightFlash(Point tile, uint32_t rgb, float strength = 1.0F, int radius = 60, int height = 24, float delay = 0.0F);
+/** @brief A ring of light running out across the floor to @p radius px. */
+void SkillLightRing(Point tile, uint32_t rgb, int radius = 80, float delay = 0.0F);
+/** @brief A column of light rising from the floor, @p height px. */
+void SkillLightPillar(Point tile, uint32_t rgb, int height = 150);
+/** @brief The air bending in a ring running out to @p radius px (the lava haze's ripple, once). */
+void SkillLightHeat(Point tile, int radius = 90, float strength = 1.0F);
+/** @brief A beam of light from @p from to @p to, fading over @p seconds. */
+void SkillLightBeam(Point from, Point to, uint32_t rgb, float seconds = 0.3F);
+/** @brief Sparks thrown up from @p tile. */
+void SkillLightSparks(Point tile, uint32_t rgb, int count = 12);
+/** @brief Motes rising from @p tile. */
+void SkillLightMotes(Point tile, uint32_t rgb, int count = 10);
+/** @brief A bolt of lightning from the sky onto @p tile, drawn in real time: branches, re-strikes, a flash on the floor. */
+void SkillLightning(Point tile, uint32_t rgb, float strength = 1.0F);
+/** @brief Light gathering on the floor at @p tile over @p seconds (before a bolt lands). */
+void SkillLightGather(Point tile, uint32_t rgb, float seconds);
+/** @brief Whether the drawn lightning replaces Fist of the Heavens' and Wrath of the Heavens' sheets now. */
+bool DrawnLightningOn();
+/** @brief Test hook: the skill light events alive now. */
+int SkillLightCount();
+/** @brief Draws the skill light events onto @p out as if the world's first tile were at @p origin's screen place, at @p seconds -
+ * the preview's entry point (the game draws them in DrawSceneGlowLights). */
+void DrawSkillLightPreview(const Surface &out, Point tileScreen, Point tile, float seconds);
+
 /** @brief Clears every per-level record; ForgetSceneFx calls it. */
 void ForgetSceneGlow();
 

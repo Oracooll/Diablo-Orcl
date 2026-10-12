@@ -26,6 +26,7 @@
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
+#include "oracool/scene_glow.h" // the Skill Eye Candy page's skill light (2026-10-12)
 #include <fmt/format.h>
 
 namespace devilution::oracool {
@@ -681,6 +682,9 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 			ApplyPlrDamage(DamageType::Physical, player, wound >> 6, /*minHP=*/1, wound & 63);
 			// A quarter-size Holy Bolt burst, infrared, on the struck enemy (the Paladin Skill Cards page, 2026-09-28).
 			DrawHolyBurst(player, front->position.tile, 25, hue::Infrared);
+			// Skill light (Skill Eye Candy): a red flash on the blow, and the price paid - a red flash on the Paladin.
+			SkillLightFlash(front->position.tile, hue::Infrared, 0.9F, 40);
+			SkillLightFlash(player.position.tile, Rgb(200, 30, 30), 0.6F, 36, 40, 0.05F);
 			struck = true;
 		}
 		break;
