@@ -1175,6 +1175,40 @@ void DrawSceneLifeBodies(const Surface &out, Point firstTile, Point firstTileBuf
 
 // ==== Light, beside the loot beams ========================================================================================
 
+/**
+ * @brief Blessed Shield's beam (user, 2026-10-12): gold light a tile long from the shield's middle (@p cx, @p cy) back along
+ * (@p dx, @p dy), the unit direction away from its flight - a bright core three pixels wide in a wider glow, both tapering
+ * to the tail. A tile is 64 pixels east-west and 32 north-south on screen, so its length follows the direction. Splat-aware.
+ */
+void DrawShieldBeam(const Surface &out, float cx, float cy, float dx, float dy)
+{
+	const LightPen pen = MakePen(out);
+	constexpr uint32_t Gold = SL_PACK(255, 196, 80);
+	constexpr uint32_t Core = SL_PACK(255, 230, 150); // warm, not white: gold, as the shield is
+	// One tile along (dx, dy): across the tile's diamond, |x| / 32 + |y| / 16 = 1 at its edge.
+	const float length = 2.0F / (std::fabs(dx) / 32.0F + std::fabs(dy) / 16.0F);
+	const int steps = static_cast<int>(length);
+	const float nx = -dy, ny = dx; // across the beam
+	for (int s = 0; s <= steps; s++) {
+		const float f = 1.0F - static_cast<float>(s) / length; // 1 at the shield, 0 at the tail
+		const float px = cx + dx * static_cast<float>(s);
+		const float py = cy + dy * static_cast<float>(s);
+		const float half = 1.0F + 3.0F * f; // the glow narrows to the tail
+		for (int o = -4; o <= 4; o++) {
+			const float across = static_cast<float>(o);
+			if (std::fabs(across) > half)
+				continue;
+			const float edge = 1.0F - std::fabs(across) / (half + 0.5F);
+			const int ix = static_cast<int>(px + nx * across);
+			const int iy = static_cast<int>(py + ny * across);
+			if (std::abs(o) <= 1)
+				pen.addF(ix, iy, Core, f * 0.8F);
+			else
+				pen.addF(ix, iy, Gold, f * edge * 0.8F);
+		}
+	}
+}
+
 void DrawSceneLifeLights(const Surface &out, Point firstTile, Point firstTileBuffer)
 {
 	if (out.isIndexed() || out.w() <= 0 || out.h() <= 0)
@@ -1273,11 +1307,37 @@ void DrawSceneLifeLights(const Surface &out, Point firstTile, Point firstTileBuf
 		}
 	}
 
+	// Blessed Shield's beam (user, 2026-10-12: "adding trailing light beam (1-tile) long"): gold light a tile long behind the
+	// spinning shield, from its middle back along its flight - a bright core three pixels wide in a wider glow, both tapering
+	// to the tail. A tile is 64 pixels east-west and 32 north-south on screen, so its length follows the direction.
+	if (*sgOptions.Oracool.shieldBeam) {
+		for (const Missile &m : Missiles) {
+			if (m._mitype != MissileID::BlessedShieldThrow || !m._miDrawFlag || m.position.velocity == Displacement {} || !TileShows(m.position.tileForRendering))
+				continue;
+			Point bottomLeft;
+			const std::optional<ClxSprite> drawn = MissileSprite(m, TileBox(v, m.position.tileForRendering), bottomLeft);
+			if (!drawn)
+				continue;
+			const float vx = static_cast<float>(m.position.velocity.deltaX) / 65536.0F;
+			const float vy = static_cast<float>(m.position.velocity.deltaY) / 65536.0F;
+			const float speed = std::sqrt(vx * vx + vy * vy);
+			if (speed < 0.5F)
+				continue;
+			const float cx = static_cast<float>(bottomLeft.x) + static_cast<float>(drawn->width()) * 0.5F;
+			const float cy = static_cast<float>(bottomLeft.y) - static_cast<float>(drawn->height()) * 0.5F;
+			if (cx < -80 || cy < -80 || cx > static_cast<float>(w) + 80 || cy > static_cast<float>(h) + 80)
+				continue;
+			DrawShieldBeam(out, cx, cy, -vx / speed, -vy / speed);
+		}
+	}
+
 	// Missile trails: a streak back along the way it flies, in its element's colour.
 	if (*sgOptions.Oracool.missileTrails) {
 		for (const Missile &m : Missiles) {
 			if (!m._miDrawFlag || m.position.velocity == Displacement {} || !TileShows(m.position.tileForRendering))
 				continue;
+			if (m._mitype == MissileID::BlessedShieldThrow && *sgOptions.Oracool.shieldBeam)
+				continue; // its beam above, in place of the element's streak
 			const uint32_t rgb = MissileTrailColour(static_cast<int>(m._mitype));
 			if (rgb == 0)
 				continue;

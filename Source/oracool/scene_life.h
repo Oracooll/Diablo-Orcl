@@ -86,5 +86,7 @@ size_t ShockwaveCount();
 bool TileHoldsPuddle(Point tile);
 /** @brief The trail colour of a missile type's element (0 = no trail). */
 uint32_t MissileTrailColour(int missileId);
+/** @brief Blessed Shield's gold beam, a tile long, from the shield's middle (@p cx, @p cy) back along the unit (@p dx, @p dy). */
+void DrawShieldBeam(const Surface &out, float cx, float cy, float dx, float dy);
 
 } // namespace devilution::oracool

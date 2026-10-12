@@ -18494,6 +18494,72 @@ TEST(OracoolPreview, DISABLED_AuraGlow)
 	HeadlessMode = savedHeadless;
 }
 
+#include "oracool/scene_life.h"
+#include "oracool/sprite_scale.h"
+
+/**
+ * Blessed Shield's beam (user, 2026-10-12: "render a blessed shield projectile with the light beam"): the spinning shield as
+ * AddBlessedShieldThrow dresses it (BlessedShieldSpin at 75%, Paladin gold), flying in eight directions, with
+ * oracool::DrawShieldBeam behind it - and a soft gold pool under it standing in for its radius-5 engine light, which the
+ * game's lighting draws - 32 frames at 50 ms into ORCL_SHIELDBEAM_OUT as shield_beam_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_ShieldBeam)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	InitMissileGFX(true);
+	const char *outDir = std::getenv("ORCL_SHIELDBEAM_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::BlessedShieldSpin);
+	ASSERT_TRUE(data.sprites.has_value()) << "the Blessed Shield spin sheet";
+	const OwnedClxSpriteList spin = oracool::ScaleClxList(*data.spritesForDirection(0), 75);
+	const uint32_t *table = FxTable(data.colours.get(), oracool::Tint::Hue, oracool::hue::PaladinGold);
+	constexpr int CellW = 160, CellH = 120, Frames = 32;
+	// The eight ways it can fly, on screen: east, south-east, south, ... (the beam points back the other way).
+	const float dirs[8][2] = { { 1, 0 }, { 0.894F, 0.447F }, { 0, 1 }, { -0.894F, 0.447F }, { -1, 0 }, { -0.894F, -0.447F }, { 0, -1 }, { 0.894F, -0.447F } };
+	for (int k = 0; k < Frames; k++) {
+		OwnedSurface out = OwnedSurface::Rgb(4 * CellW, 2 * CellH);
+		for (int y = 0; y < out.h(); y++)
+			for (int x = 0; x < out.w(); x++) {
+				const int v = 22 + ((x / 16 + y / 8) % 2) * 4;
+				*out.at<uint32_t>(x, y) = (static_cast<uint32_t>(v + 4) << 16) | (static_cast<uint32_t>(v + 2) << 8) | static_cast<uint32_t>(v);
+			}
+		for (int d = 0; d < 8; d++) {
+			const int cellX = (d % 4) * CellW, cellY = (d / 4) * CellH;
+			// It travels a little through its cell over the strip, so the beam is seen following it.
+			const float t = static_cast<float>(k) / static_cast<float>(Frames) - 0.5F;
+			const int mx = cellX + CellW / 2 + static_cast<int>(dirs[d][0] * t * 50.0F);
+			const int my = cellY + CellH / 2 + 18 + static_cast<int>(dirs[d][1] * t * 30.0F);
+			// The engine light's stand-in: a soft gold pool on the floor round it.
+			for (int y = -18; y <= 18; y++)
+				for (int x = -40; x <= 40; x++) {
+					const float fx = x / 40.0F, fy = y / 18.0F, d2 = fx * fx + fy * fy;
+					if (d2 >= 1 || mx + x < 0 || my + y < 0 || mx + x >= out.w() || my + y >= out.h())
+						continue;
+					uint32_t &c = *out.at<uint32_t>(mx + x, my + y);
+					const float f = (1 - d2) * (1 - d2) * 0.22F;
+					const auto ch = [&](int shift, float add) { return std::min(255, static_cast<int>((c >> shift) & 0xFF) + static_cast<int>(add * f)); };
+					c = (static_cast<uint32_t>(ch(16, 255)) << 16) | (static_cast<uint32_t>(ch(8, 214)) << 8) | static_cast<uint32_t>(ch(0, 120));
+				}
+			const ClxSprite sprite = spin[static_cast<size_t>(k % spin.numSprites())];
+			const Point bottomLeft { mx - sprite.width() / 2, my };
+			ClxDrawRgbMap(out, bottomLeft, sprite, table);
+			oracool::DrawShieldBeam(out, static_cast<float>(bottomLeft.x) + sprite.width() * 0.5F, static_cast<float>(bottomLeft.y) - sprite.height() * 0.5F,
+			    -dirs[d][0], -dirs[d][1]);
+		}
+		char name[64];
+		std::snprintf(name, sizeof(name), "shield_beam_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	gbIsHellfire = savedHellfire;
+	HeadlessMode = savedHeadless;
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"

@@ -3948,6 +3948,9 @@ void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter)
 	} else {
 		UseItemDropAnimation(missile, ShieldDropAnimIndex);
 	}
+	// Its light (user, 2026-10-12: "add a light to blessed shield projectiles"): Paladin gold through its tint
+	// (MissileLightHue), carried along in ProcessBlessedShieldThrow, freed when it ends.
+	missile._mlid = AddSpellLight(missile.position.tile, 5);
 }
 
 /**
@@ -4090,6 +4093,7 @@ void ProcessBlessedShieldThrow(Missile &missile)
 		const Monster *next = missile.var1 < BlessedShieldTargets ? NextBlessedShieldTarget(missile, *struck) : nullptr;
 		if (next == nullptr) {
 			missile._miDelFlag = true;
+			ReleaseSpellLight(missile);
 			return;
 		}
 		// No SetMissDir: it would re-dress the missile from its table graphic, and the shield spins,
@@ -4100,8 +4104,11 @@ void ProcessBlessedShieldThrow(Missile &missile)
 		if (walled)
 			oracool::PlayBlessedShieldImpactSound(missile);
 		missile._miDelFlag = true;
+		ReleaseSpellLight(missile);
 		return;
 	}
+	if (missile._mlid != NO_LIGHT)
+		ChangeLightXY(missile._mlid, missile.position.tile); // the light flies with it
 	PutMissile(missile);
 }
 
