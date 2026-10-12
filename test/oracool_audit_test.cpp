@@ -18731,6 +18731,62 @@ TEST(OracoolPreview, DISABLED_LivingAuras)
 	HeadlessMode = savedHeadless;
 }
 
+#include "oracool/drawn_fx.h"
+
+/**
+ * A drawn Ground Stomp (user, 2026-10-12: "can you suggest a game-drawn Ground Stomp animation for Barb?"): the Barbarian
+ * standing, the stomp landing at 0.1 s - left as the game draws it now (the painted ground_stomp sheet at 200%, its floor
+ * 29 px up), right drawn by oracool::DrawGroundStompFx - 32 frames at 50 ms into ORCL_STOMP_OUT as stomp_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_DrawnGroundStomp)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	InitMissileGFX(true);
+	const char *outDir = std::getenv("ORCL_STOMP_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const std::optional<OwnedClxSpriteSheet> stand = FxBody("plrgfx\\warrior\\wma\\wmaas", 96);
+	ASSERT_TRUE(stand.has_value());
+	const ClxSprite hero = (*stand)[0][0];
+	const std::shared_ptr<const oracool::SpriteColours> colours = oracool::HeroColoursFor(HeroClass::Barbarian, 1 << 4);
+	const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::GroundStomp);
+	ASSERT_TRUE(data.sprites.has_value());
+	const OwnedClxSpriteList stomp = oracool::ScaleClxList(*data.spritesForDirection(0), 200);
+	constexpr int CellW = 300, CellH = 230, Frames = 32;
+	for (int k = 0; k < Frames; k++) {
+		OwnedSurface out = OwnedSurface::Rgb(2 * CellW, CellH);
+		for (int y = 0; y < CellH; y++)
+			for (int x = 0; x < 2 * CellW; x++) {
+				const int v = 26 + ((x / 16 + y / 8) % 2) * 4;
+				*out.at<uint32_t>(x, y) = (static_cast<uint32_t>(v + 4) << 16) | (static_cast<uint32_t>(v + 2) << 8) | static_cast<uint32_t>(v);
+			}
+		const float t = static_cast<float>(k) * 0.05F;
+		const float age = t - 0.1F;
+		const Point now { CellW / 2, CellH - 70 }, drawn { CellW + CellW / 2, CellH - 70 };
+		// Now: the painted sheet, one play from the stomp.
+		const int frame = static_cast<int>(std::floor(age / 0.05F));
+		if (age >= 0 && frame < static_cast<int>(stomp.numSprites())) {
+			const ClxSprite s = stomp[static_cast<size_t>(frame)];
+			ClxDrawRgbMap(out, Point { now.x - s.width() / 2, now.y + 29 }, s, FxTable(data.colours.get()));
+		}
+		ClxDrawRgbMap(out, Point { now.x - hero.width() / 2, now.y }, hero, FxTable(colours.get()));
+		// Drawn: the floor's layers, the hero, the air's.
+		oracool::DrawGroundStompFx(out, drawn, age, true);
+		ClxDrawRgbMap(out, Point { drawn.x - hero.width() / 2, drawn.y }, hero, FxTable(colours.get()));
+		oracool::DrawGroundStompFx(out, drawn, age, false);
+		char name[64];
+		std::snprintf(name, sizeof(name), "stomp_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	gbIsHellfire = savedHellfire;
+	HeadlessMode = savedHeadless;
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"
