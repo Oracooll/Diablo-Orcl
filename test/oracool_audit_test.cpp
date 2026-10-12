@@ -19022,6 +19022,187 @@ TEST(OracoolPreview, DISABLED_DrawnHolyLance)
 	HeadlessMode = savedHeadless;
 }
 
+/**
+ * Blessed Shield on the Skill Eye Candy page (user, 2026-10-12: "in its animation pane add 3 mobs and animate a blessed shield
+ * hurling towards the first then ricocheting to the rest"): the Paladin throws, the shield strikes three skeletons in turn,
+ * each recoiling, and fades past the last. Drawn twice on the page's 320x200 stone floor: plain (plain_NN.png) and with the
+ * gold beam and its light as the game draws it since v1.13.026 (beam_NN.png) - 36 frames at 50 ms into ORCL_RICOCHET_OUT.
+ */
+TEST(OracoolPreview, DISABLED_BlessedShieldRicochet)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	// The dungeon's palette for the skeletons (town.pal has no bone in it), as the cathedral draws them.
+	{
+		std::array<uint8_t, 768> pal {};
+		LoadFileInMem("levels\\l1data\\l1.pal", pal);
+		for (int i = 0; i < 256; i++)
+			PaletteRGB[i] = (static_cast<uint32_t>(pal[i * 3]) << 16) | (static_cast<uint32_t>(pal[i * 3 + 1]) << 8) | pal[i * 3 + 2];
+		PaletteRgbGeneration++; // the lit tables rebuild from it
+	}
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	InitMissileGFX(true);
+	const char *outDir = std::getenv("ORCL_RICOCHET_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::BlessedShieldSpin);
+	ASSERT_TRUE(data.sprites.has_value());
+	const OwnedClxSpriteList spin = oracool::ScaleClxList(*data.spritesForDirection(0), 75);
+	const uint32_t *shieldTable = FxTable(data.colours.get(), oracool::Tint::Hue, oracool::hue::PaladinGold);
+	const std::optional<OwnedClxSpriteSheet> heroStand = FxBody("plrgfx\\warrior\\whd\\whdas", 96);
+	const std::optional<OwnedClxSpriteSheet> heroSwing = FxBody("plrgfx\\warrior\\whd\\whdat", 128);
+	const std::optional<OwnedClxSpriteSheet> skelStand = FxBody("monsters\\skelaxe\\sklaxn", 128);
+	const std::optional<OwnedClxSpriteSheet> skelHit = FxBody("monsters\\skelaxe\\sklaxh", 128);
+	ASSERT_TRUE(heroStand && heroSwing && skelStand && skelHit);
+	const std::shared_ptr<const oracool::SpriteColours> colours = oracool::HeroColoursFor(HeroClass::Warrior, 1 << 4);
+	// The plain Skeleton: the sheet is the Burning Dead's red, and the Skeleton's own white.trn turns it to bone.
+	std::array<uint8_t, 256> trn {};
+	LoadFileInMem("monsters\\skelaxe\\white.trn", trn);
+	std::array<uint32_t, 256> bone {};
+	for (size_t i = 0; i < 256; i++)
+		bone[i] = FxTable(nullptr)[trn[i]];
+	const uint32_t *skelTable = bone.data();
+	constexpr int W = 320, H = 200, Frames = 36;
+	constexpr float Lift = 34.0F; // the shield flies at chest height
+	const Point hero { 46, 150 };
+	const Point mobs[3] = { { 168, 118 }, { 262, 164 }, { 244, 66 } };
+	// The flight: from his chest to each skeleton's in turn, at 330 pixels a second, after the throw's wind-up.
+	constexpr float Speed = 330.0F, Release = 0.25F;
+	std::vector<std::pair<float, float>> path { { hero.x + 16.0F, hero.y - Lift } };
+	for (const Point &m : mobs)
+		path.push_back({ static_cast<float>(m.x), static_cast<float>(m.y) - Lift });
+	std::vector<float> at { Release }; // when it reaches each point
+	for (size_t i = 1; i < path.size(); i++) {
+		const float dx = path[i].first - path[i - 1].first, dy = path[i].second - path[i - 1].second;
+		at.push_back(at.back() + std::sqrt(dx * dx + dy * dy) / Speed);
+	}
+	for (int pass = 0; pass < 2; pass++) {
+		const bool lit = pass == 1;
+		for (int k = 0; k < Frames; k++) {
+			const float now = static_cast<float>(k) * 0.05F;
+			OwnedSurface out = OwnedSurface::Rgb(W, H);
+			// The page's stone floor: diamond flags, a little uneven.
+			for (int y = 0; y < H; y++)
+				for (int x = 0; x < W; x++) {
+					const int u = (x + 2 * y) >> 6, v = (2 * y - x + 640) >> 6;
+					const int e = std::min({ (x + 2 * y) & 63, (2 * y - x + 640) & 63, 63 - ((x + 2 * y) & 63), 63 - ((2 * y - x + 640) & 63) });
+					const int base = 30 + ((u * 7 + v * 13) & 7) - (e < 2 ? 10 : 0);
+					*out.at<uint32_t>(x, y) = (static_cast<uint32_t>(base + 4) << 16) | (static_cast<uint32_t>(base + 1) << 8) | static_cast<uint32_t>(base - 3);
+				}
+			// Where the shield is now, and which way it flies.
+			bool flying = false;
+			float sx = 0, sy = 0, dx = 1, dy = 0, fadeOut = 1;
+			if (now >= at.front()) {
+				size_t seg = 1;
+				while (seg < at.size() && now > at[seg])
+					seg++;
+				if (seg < at.size()) {
+					const float u = (now - at[seg - 1]) / (at[seg] - at[seg - 1]);
+					sx = path[seg - 1].first + (path[seg].first - path[seg - 1].first) * u;
+					sy = path[seg - 1].second + (path[seg].second - path[seg - 1].second) * u;
+					dx = path[seg].first - path[seg - 1].first;
+					dy = path[seg].second - path[seg - 1].second;
+					flying = true;
+				} else if (now < at.back() + 0.2F) { // past the last: on along its line, fading
+					const size_t n = path.size() - 1;
+					dx = path[n].first - path[n - 1].first;
+					dy = path[n].second - path[n - 1].second;
+					const float l = std::sqrt(dx * dx + dy * dy), t = now - at.back();
+					sx = path[n].first + dx / l * Speed * t;
+					sy = path[n].second + dy / l * Speed * t;
+					fadeOut = 1.0F - t / 0.2F;
+					flying = true;
+				}
+				const float l = std::max(1.0F, std::sqrt(dx * dx + dy * dy));
+				dx /= l;
+				dy /= l;
+			}
+			const auto addPool = [&](float cx, float cy, float rx, float ry, int r, int g, int b, float k) {
+				for (int y = -static_cast<int>(ry); y <= static_cast<int>(ry); y++)
+					for (int x = -static_cast<int>(rx); x <= static_cast<int>(rx); x++) {
+						const float fx = x / rx, fy = y / ry, d2 = fx * fx + fy * fy;
+						const int px = static_cast<int>(cx) + x, py = static_cast<int>(cy) + y;
+						if (d2 >= 1 || px < 0 || py < 0 || px >= W || py >= H)
+							continue;
+						uint32_t &c = *out.at<uint32_t>(px, py);
+						const float f = (1 - d2) * (1 - d2) * k;
+						const auto ch = [&](int shift, int add) { return std::min(255, static_cast<int>((c >> shift) & 0xFF) + static_cast<int>(add * f)); };
+						c = (static_cast<uint32_t>(ch(16, r)) << 16) | (static_cast<uint32_t>(ch(8, g)) << 8) | static_cast<uint32_t>(ch(0, b));
+					}
+			};
+			// Its light on the floor (the engine light's stand-in), with the beam's version.
+			if (lit && flying)
+				addPool(sx, sy + Lift, 40, 18, 255, 214, 120, 0.24F * fadeOut);
+			// Each strike: a gold flash on the floor where it lands, in the lit version.
+			if (lit)
+				for (size_t i = 1; i < at.size(); i++) {
+					const float since = now - at[i];
+					if (since >= 0 && since < 0.3F)
+						addPool(path[i].first, path[i].second + Lift, 36, 16, 255, 226, 150, 0.45F * (1.0F - since / 0.3F));
+				}
+			// The figures, back to front: the Paladin throwing, the skeletons recoiling as it strikes them.
+			struct Figure {
+				int y;
+				int which;
+			};
+			std::vector<Figure> figures { { hero.y, -1 }, { mobs[0].y, 0 }, { mobs[1].y, 1 }, { mobs[2].y, 2 } };
+			std::sort(figures.begin(), figures.end(), [](const Figure &a, const Figure &b) { return a.y < b.y; });
+			for (const Figure &f : figures) {
+				if (f.which < 0) {
+					const int swingFrame = static_cast<int>(now / 0.035F);
+					const ClxSpriteList swing = (*heroSwing)[6];
+					const bool throwing = swingFrame < static_cast<int>(swing.numSprites());
+					const ClxSprite sprite = throwing ? swing[static_cast<size_t>(swingFrame)] : (*heroStand)[6][static_cast<size_t>(k % (*heroStand)[6].numSprites())];
+					ClxDrawRgbMap(out, Point { hero.x - sprite.width() / 2, hero.y }, sprite, FxTable(colours.get()));
+					continue;
+				}
+				const Point m = mobs[f.which];
+				const float since = now - at[static_cast<size_t>(f.which) + 1];
+				const int facing = f.which == 0 ? 2 : (f.which == 1 ? 3 : 1); // toward where the shield came from
+				ClxSprite sprite = (*skelStand)[facing][static_cast<size_t>((k + f.which * 3) % (*skelStand)[facing].numSprites())];
+				if (since >= 0 && since < 0.4F) {
+					const ClxSpriteList hit = (*skelHit)[facing];
+					sprite = hit[static_cast<size_t>(std::min<int>(static_cast<int>(since / 0.05F), static_cast<int>(hit.numSprites()) - 1))];
+				}
+				ClxDrawRgbMap(out, Point { m.x - sprite.width() / 2, m.y }, sprite, skelTable);
+			}
+			// The shield, spinning; the beam behind it in the lit version.
+			if (flying) {
+				const ClxSprite sprite = spin[static_cast<size_t>(k % spin.numSprites())];
+				const Point bottomLeft { static_cast<int>(sx) - sprite.width() / 2, static_cast<int>(sy) + sprite.height() / 2 };
+				if (lit)
+					oracool::DrawShieldBeam(out, sx, sy, -dx, -dy);
+				if (fadeOut > 0.5F)
+					ClxDrawRgbMap(out, bottomLeft, sprite, shieldTable);
+			}
+			// The strikes: a white-gold burst on the struck body in the lit version, sparks thrown off in both.
+			for (size_t i = 1; i < at.size(); i++) {
+				const float since = now - at[i];
+				if (since < 0 || since >= 0.3F)
+					continue;
+				const float k2 = 1.0F - since / 0.3F;
+				if (lit)
+					addPool(path[i].first, path[i].second, 16, 16, 255, 246, 220, 0.8F * k2);
+				for (int sp = 0; sp < 8; sp++) {
+					const float a = static_cast<float>(sp) * 0.785F + static_cast<float>(i);
+					const int px = static_cast<int>(path[i].first + std::cos(a) * 60.0F * since);
+					const int py = static_cast<int>(path[i].second + std::sin(a) * 40.0F * since + 90.0F * since * since);
+					if (px >= 0 && py >= 0 && px < W && py < H)
+						*out.at<uint32_t>(px, py) = 0xFFF0C0U;
+				}
+			}
+			char name[64];
+			std::snprintf(name, sizeof(name), "%s_%02d.png", lit ? "beam" : "plain", k);
+			PreviewSave(out, (dir + name).c_str());
+		}
+	}
+	gbIsHellfire = savedHellfire;
+	HeadlessMode = savedHeadless;
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"
