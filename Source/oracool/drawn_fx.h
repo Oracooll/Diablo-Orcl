@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "engine/displacement.hpp"
 #include "engine/point.hpp"
 
 namespace devilution {
@@ -35,5 +36,19 @@ constexpr float SeismicTravelSeconds = 0.6F;
  * @p floorLayer as DrawGroundStompFx.
  */
 void DrawSeismicSlamFx(const Surface &out, Point foot, int dirX, int dirY, int tiles, float age, bool floorLayer);
+
+/** @brief The drawn Earthquake: four pulses a second apart, then a second for the fissures to cool. */
+constexpr int EarthquakePulses = 4;
+constexpr float EarthquakeSeconds = 5.0F;
+
+/**
+ * @brief The drawn Earthquake (user, 2026-10-12: "invent a proper earthquake animation"), round @p centre at @p age seconds:
+ * on each pulse a shockwave to the 3-tile reach, the air rippling, stones jumping all over the area and the fissures
+ * flaring; fissures out from under him growing with each pulse and arc cracks opening at each pulse's front, molten light
+ * in them and a warm glow over the area; dust hanging over it. @p floorLayer as DrawGroundStompFx.
+ */
+void DrawEarthquakeFx(const Surface &out, Point centre, float age, bool floorLayer);
+/** @brief The picture's shake at @p age: a jolt on each pulse, a tremor between (the game's screen shake would carry it). */
+Displacement EarthquakeShake(float age);
 
 } // namespace devilution::oracool

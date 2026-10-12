@@ -18830,6 +18830,46 @@ TEST(OracoolPreview, DISABLED_DrawnSeismicSlam)
 	HeadlessMode = savedHeadless;
 }
 
+/**
+ * A drawn Earthquake (user, 2026-10-12: "invent a proper earthquake animation"): the Barbarian in the middle of it, the quake
+ * starting at 0.2 s, its four pulses and the fissures cooling, the whole picture shaken as the game's screen shake would -
+ * drawn by oracool::DrawEarthquakeFx, 108 frames at 50 ms into ORCL_QUAKE_OUT as quake_NNN.png.
+ */
+TEST(OracoolPreview, DISABLED_DrawnEarthquake)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const char *outDir = std::getenv("ORCL_QUAKE_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const std::optional<OwnedClxSpriteSheet> stand = FxBody("plrgfx\\warrior\\wma\\wmaas", 96);
+	ASSERT_TRUE(stand.has_value());
+	const ClxSprite hero = (*stand)[0][0];
+	const std::shared_ptr<const oracool::SpriteColours> colours = oracool::HeroColoursFor(HeroClass::Barbarian, 1 << 4);
+	constexpr int W = 420, H = 280, Frames = 108;
+	for (int k = 0; k < Frames; k++) {
+		const float age = static_cast<float>(k) * 0.05F - 0.2F;
+		const Displacement shake = oracool::EarthquakeShake(age);
+		OwnedSurface out = OwnedSurface::Rgb(W, H);
+		for (int y = 0; y < H; y++)
+			for (int x = 0; x < W; x++) {
+				const int fx = x - shake.deltaX + 64, fy = y - shake.deltaY + 64;
+				const int v = 26 + ((fx / 16 + fy / 8) % 2) * 4;
+				*out.at<uint32_t>(x, y) = (static_cast<uint32_t>(v + 4) << 16) | (static_cast<uint32_t>(v + 2) << 8) | static_cast<uint32_t>(v);
+			}
+		const Point centre = Point { W / 2, H / 2 + 30 } + shake;
+		oracool::DrawEarthquakeFx(out, centre, age, true);
+		ClxDrawRgbMap(out, Point { centre.x - hero.width() / 2, centre.y }, hero, FxTable(colours.get()));
+		oracool::DrawEarthquakeFx(out, centre, age, false);
+		char name[64];
+		std::snprintf(name, sizeof(name), "quake_%03d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	HeadlessMode = savedHeadless;
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"

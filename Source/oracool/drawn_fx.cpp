@@ -42,6 +42,11 @@ float Unit(uint32_t h)
 	return static_cast<float>(h & 0xFFFFFF) / 16777216.0F;
 }
 
+float Frac(float v)
+{
+	return v - std::floor(v);
+}
+
 float Clamp01(float v)
 {
 	return v < 0 ? 0 : (v > 1 ? 1 : v);
@@ -451,6 +456,174 @@ void DrawSeismicSlamFx(const Surface &out, Point foot, int dirX, int dirY, int t
 				const float d2 = static_cast<float>(dx * dx + dy * dy) / (size * size);
 				if (d2 < 1.0F)
 					px.mix(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, 132, 118, 98, alpha * (1.0F - d2));
+			}
+	}
+}
+
+namespace {
+
+/** A line of crack from (x0, y0) to (x1, y1): a dark split with molten light in it at @p heat; @p wide for the main ones. */
+void CrackLine(const Px &px, float x0, float y0, float x1, float y1, float heat, float scar, bool wide)
+{
+	const int steps = static_cast<int>(std::max(std::abs(x1 - x0), std::abs(y1 - y0))) + 1;
+	for (int j = 0; j <= steps; j++) {
+		const float u = static_cast<float>(j) / static_cast<float>(steps);
+		const int ix = static_cast<int>(x0 + (x1 - x0) * u), iy = static_cast<int>(y0 + (y1 - y0) * u);
+		px.mix(ix, iy, 18, 10, 5, 0.9F * scar);
+		if (wide) {
+			px.mix(ix + 1, iy, 24, 15, 8, 0.7F * scar);
+			px.mix(ix, iy + 1, 28, 18, 10, 0.5F * scar);
+		}
+		px.add(ix, iy, 255, 120 + 110 * heat, 30 + 120 * heat * heat, heat);
+		px.add(ix, iy - 1, 255, 100, 25, 0.45F * heat);
+		if (wide)
+			px.add(ix + 1, iy, 255, 100, 25, 0.45F * heat);
+	}
+}
+
+/** How far into its pulse the quake is: the last pulse's time (0..3), or -1 before the first. */
+float LastPulse(float age)
+{
+	if (age < 0)
+		return -1;
+	return std::min(std::floor(age), static_cast<float>(EarthquakePulses - 1));
+}
+
+} // namespace
+
+Displacement EarthquakeShake(float age)
+{
+	if (age < 0 || age > static_cast<float>(EarthquakePulses))
+		return {};
+	const float since = age - LastPulse(age);
+	const float a = 3.5F * std::exp(-since / 0.18F) + 0.8F; // a jolt on each pulse, a tremor between
+	return { static_cast<int>(std::lround(std::sin(age * 61.0F) * a)), static_cast<int>(std::lround(std::cos(age * 47.0F) * a * 0.6F)) };
+}
+
+void DrawEarthquakeFx(const Surface &out, Point centre, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > EarthquakeSeconds)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	constexpr uint32_t Seed = 7211;
+	constexpr float Rx = 140.0F, Ry = 70.0F; // the 3-tile reach on the floor
+	const float cx = static_cast<float>(centre.x), cy = static_cast<float>(centre.y);
+	const bool quaking = age < static_cast<float>(EarthquakePulses);
+	const float last = LastPulse(age);
+	const float since = age - last;
+	// How bright the fissures burn: a flare on each pulse settling to a glow; cooling out once it ends.
+	const float after = age - static_cast<float>(EarthquakePulses);
+	const float glow = quaking ? 0.4F + 0.6F * std::exp(-since / 0.3F) : 0.4F * Clamp01(1.0F - after / 0.8F);
+	const float scar = quaking ? 1.0F : Clamp01(1.0F - (after - 0.3F) / 0.7F);
+	// How far the fissures have broken: a step out on each pulse, quick, then holding.
+	const float grown = (last + Clamp01(since / 0.15F)) / static_cast<float>(EarthquakePulses);
+	if (floorLayer) {
+		// The warm glow over the whole broken area, pulsing with the quake.
+		for (int dy = -static_cast<int>(Ry); dy <= static_cast<int>(Ry); dy++)
+			for (int dx = -static_cast<int>(Rx); dx <= static_cast<int>(Rx); dx++) {
+				const float d2 = static_cast<float>(dx * dx) / (Rx * Rx) + static_cast<float>(dy * dy) / (Ry * Ry);
+				if (d2 < 1.0F)
+					px.add(centre.x + dx, centre.y + dy, 255, 110, 30, (1.0F - d2) * 0.22F * glow);
+			}
+		// Radial fissures out from under him, growing with each pulse.
+		for (uint32_t i = 0; i < 11; i++) {
+			float ang = (static_cast<float>(i) + Unit(Hash(i, Seed)) * 0.7F) / 11.0F * TwoPi;
+			const float maxLen = 0.6F + 0.4F * Unit(Hash(i, Seed + 1));
+			const float len = maxLen * std::min(1.0F, grown * (1.0F + 0.3F * Unit(Hash(i, Seed + 2))));
+			float x = cx, y = cy;
+			constexpr int Pieces = 10;
+			for (int k = 1; k <= Pieces; k++) {
+				const float q = static_cast<float>(k) / static_cast<float>(Pieces);
+				if (q > len)
+					break;
+				ang += (Unit(Hash(i, Seed + 3, static_cast<uint32_t>(k))) - 0.5F) * 0.5F;
+				const float nx = cx + std::cos(ang) * Rx * q, ny = cy + std::sin(ang) * Ry * q;
+				CrackLine(px, x, y, nx, ny, glow * (1.0F - q * 0.4F), scar, q < 0.5F);
+				// Now and then a short branch.
+				if (k % 3 == 2) {
+					const float side = (Hash(i, Seed + 4, static_cast<uint32_t>(k)) & 1) ? 0.7F : -0.7F;
+					const float bl = 0.12F + 0.1F * Unit(Hash(i, Seed + 5, static_cast<uint32_t>(k)));
+					CrackLine(px, nx, ny, nx + std::cos(ang + side) * Rx * bl, ny + std::sin(ang + side) * Ry * bl, glow * 0.6F, scar * 0.8F, false);
+				}
+				x = nx;
+				y = ny;
+			}
+		}
+		// Arc cracks round him, opening at each pulse's front: two or three a pulse, at a wider ring each time.
+		for (int p = 0; p <= static_cast<int>(last); p++) {
+			const float open = p < static_cast<int>(last) ? 1.0F : Clamp01(since / 0.25F);
+			const float r = 0.35F + 0.17F * static_cast<float>(p);
+			for (uint32_t a = 0; a < 3; a++) {
+				const uint32_t h = Hash(static_cast<uint32_t>(p), a, Seed + 10);
+				const float a0 = Unit(h) * TwoPi, span = (0.4F + 0.6F * Unit(h >> 8)) * open;
+				float lx = cx + std::cos(a0) * Rx * r, ly = cy + std::sin(a0) * Ry * r;
+				for (int k = 1; k <= 8; k++) {
+					const float aa = a0 + span * static_cast<float>(k) / 8.0F;
+					const float rr = r * (1.0F + (Unit(Hash(h, static_cast<uint32_t>(k))) - 0.5F) * 0.06F);
+					const float nx = cx + std::cos(aa) * Rx * rr, ny = cy + std::sin(aa) * Ry * rr;
+					CrackLine(px, lx, ly, nx, ny, glow * 0.8F, scar, false);
+					lx = nx;
+					ly = ny;
+				}
+			}
+		}
+		// Each pulse's shockwave: a ring of dusty light running out to the reach, the air bending with it.
+		if (quaking && since < 0.5F) {
+			const float w = std::sqrt(since / 0.5F);
+			const float R = w, fade = 1.0F - since / 0.5F;
+			const int samples = 900;
+			for (int s = 0; s < samples; s++) {
+				const float a = static_cast<float>(s) / static_cast<float>(samples) * TwoPi;
+				const int x = static_cast<int>(cx + std::cos(a) * Rx * R), y = static_cast<int>(cy + std::sin(a) * Ry * R);
+				px.add(x, y, 250, 215, 150, 0.6F * fade);
+				px.add(x, y + 1, 240, 190, 120, 0.3F * fade);
+				px.mix(static_cast<int>(cx + std::cos(a) * Rx * R * 0.9F), static_cast<int>(cy + std::sin(a) * Ry * R * 0.9F), 120, 104, 84, 0.3F * fade);
+			}
+			Ripple(out, centre, Rx * R, 6.0F * fade);
+		}
+		return;
+	}
+	// ---- In the air ----
+	// Stones jumping up all over the area on each pulse, falling back.
+	if (quaking) {
+		for (uint32_t i = 0; i < 26; i++) {
+			const uint32_t h = Hash(static_cast<uint32_t>(last), i, Seed + 20);
+			const float t = since - Unit(h) * 0.12F; // not all at once
+			if (t < 0)
+				continue;
+			const float up = 50.0F + Unit(h >> 4) * 70.0F;
+			const float z = std::max(0.0F, up * t - 330.0F * t * t);
+			if (z <= 0 && t > 0.1F)
+				continue;
+			const float a = Unit(h >> 8) * TwoPi, r = std::sqrt(Unit(h >> 12));
+			const float x = cx + std::cos(a) * Rx * r, y = cy + std::sin(a) * Ry * r;
+			const int size = 1 + static_cast<int>(h % 3);
+			for (int ox = -size; ox <= size; ox++)
+				px.mix(static_cast<int>(x) + ox, static_cast<int>(y), 10, 8, 6, 0.3F);
+			for (int oy = 0; oy <= size; oy++)
+				for (int ox = 0; ox <= size; ox++) {
+					const float lit = oy == 0 ? 1.0F : (oy == size ? 0.45F : 0.75F);
+					px.mix(static_cast<int>(x) + ox, static_cast<int>(y - z) + oy, 168 * lit, 150 * lit, 120 * lit, 0.95F);
+				}
+		}
+	}
+	// The dust haze over the area: clouds rising and drifting the whole time, thinning out at the end.
+	const float haze = quaking ? Clamp01(age / 0.5F) : Clamp01(1.0F - after / 1.0F);
+	for (uint32_t i = 0; i < 18; i++) {
+		const float period = 1.4F + Unit(Hash(i, Seed + 30)) * 1.0F;
+		const float life = Frac(age / period + Unit(Hash(i, Seed + 31)));
+		const uint32_t round = static_cast<uint32_t>(age / period + Unit(Hash(i, Seed + 31)));
+		const uint32_t h = Hash(i, round, Seed + 32);
+		const float a = Unit(h) * TwoPi, r = 0.2F + 0.8F * std::sqrt(Unit(h >> 8));
+		const float size = 6.0F + 12.0F * life;
+		const float alpha = 0.32F * std::sin(life * Pi) * haze;
+		const float x = cx + std::cos(a) * Rx * r, y = cy + std::sin(a) * Ry * r - 6.0F - 16.0F * life;
+		const int s = static_cast<int>(size);
+		for (int dy = -s; dy <= s; dy++)
+			for (int dx = -s; dx <= s; dx++) {
+				const float d2 = static_cast<float>(dx * dx + dy * dy) / (size * size);
+				if (d2 < 1.0F)
+					px.mix(static_cast<int>(x) + dx, static_cast<int>(y) + dy, 132, 118, 98, alpha * (1.0F - d2));
 			}
 	}
 }
