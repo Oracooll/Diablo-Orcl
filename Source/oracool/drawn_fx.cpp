@@ -2879,7 +2879,9 @@ void DrawGolemFireFx(const Surface &out, Point foot, float seconds, uint32_t see
 	// feet. turns it into aura. place the golem in the middle"): a wide ring of tongues, the far half drawn on the floor
 	// before the figures (behind him), the near half over him; its light on the floor, embers rising.
 	const Px px { &out, out.w(), out.h() };
-	const float fx = static_cast<float>(foot.x), fy = static_cast<float>(foot.y);
+	// The ring centred on where its feet stand, a little above the sprite's bottom edge (user, 2026-10-13: "golem is not at the
+	// center of the aura. move the aura up").
+	const float fx = static_cast<float>(foot.x), fy = static_cast<float>(foot.y) - 10.0F;
 	constexpr float Rx = 38.0F, Ry = 18.0F;
 	constexpr int Tongues = 16;
 	if (floorLayer) {

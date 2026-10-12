@@ -3,9 +3,9 @@
  *
  * The front end's paintings alive (user, 2026-10-13: "can you use the 32bit renderer to add subtle animation on the front end
  * backgrounds - like animating flames, subtly moving flags and similar stuff?"). Each painting keeps a short list of spots
- * measured off it - flames, banners, smoke, a portal, the sky, water, glowing windows - and every frame those spots of the
- * painting already on the screen are bent, flickered and lit: a flame wavers and sheds embers, a banner sways from its top,
- * the clouds churn, a puddle shimmers. Nothing is repainted; the painting moves. 32-bit only.
+ * measured off it - flames, banners, smoke, a portal, glowing windows - and every frame those spots of the painting already on
+ * the screen are lit or barely moved: a flame's light flickers and glows round it, a banner sways a hair from its top, smoke
+ * rises from a chimney. No waves (user, 2026-10-13). Nothing is repainted. 32-bit only.
  */
 #pragma once
 

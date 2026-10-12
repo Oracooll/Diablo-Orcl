@@ -140,38 +140,26 @@ void Brighten(const Surface &out, const Map &m, float x0, float y0, float x1, fl
 }
 
 /**
- * A painted flame (rect around it, its base at the bottom): the picture wavers upward in it, its bright pixels breathe, its
- * light pulses round it and embers rise off its top.
+ * A painted flame (rect around it, its base at the bottom): no movement in the picture, only its light (user, 2026-10-13: "remove
+ * wave effects. add just a glowing light in the flaming areas") - the flame's pixels brightening with its flicker and a soft glow
+ * round it pulsing.
  */
 void Flame(const Surface &out, const Map &m, float x0, float y0, float x1, float y1, float t, float seed, float glowR)
 {
 	const float f = Flicker(t, seed);
 	const float h = y1 - y0;
-	Warp(out, m, x0, y0, x1, y1, [&](float u, float v, float &dx, float &dy) {
-		const float top = 1.0F - v; // more toward the tip
-		dx = top * 2.4F * std::sin(v * 9.0F - t * 11.0F + u * 2.0F + seed);
-		dy = top * (1.2F + 1.4F * f) * (0.5F + 0.5F * std::sin(t * 8.0F + u * 6.0F + seed)); // stretching up
-	});
-	Brighten(out, m, x0, y0, x1, y1, 255, 170, 70, 0.35F * (f - 0.35F));
-	Glow(out, m, (x0 + x1) * 0.5F, y1 - h * 0.35F, glowR, glowR * 0.75F, 255, 140, 50, 0.08F + 0.10F * f);
-	// Embers off its tip, each on its own cycle.
-	for (uint32_t i = 0; i < 6; i++) {
-		const float period = 1.6F + Unit(Hash(i, static_cast<uint32_t>(seed * 97.0F))) * 1.2F;
-		const float ph = Frac(t / period + Unit(Hash(i, 7, static_cast<uint32_t>(seed * 31.0F))));
-		const float ax = (x0 + x1) * 0.5F + (Unit(Hash(i, 9, static_cast<uint32_t>(seed * 13.0F))) - 0.5F) * (x1 - x0) + std::sin(ph * 6.0F + static_cast<float>(i)) * 4.0F;
-		const float ay = y0 + h * 0.2F - ph * h * 1.6F;
-		const float k = std::sin(ph * Pi) * 0.9F;
-		Add(out, static_cast<int>(m.X(ax)), static_cast<int>(m.Y(ay)), 255, 190, 90, k);
-	}
+	Brighten(out, m, x0, y0, x1, y1, 255, 170, 70, 0.22F * (f - 0.35F));
+	Glow(out, m, (x0 + x1) * 0.5F, y1 - h * 0.35F, glowR, glowR * 0.75F, 255, 140, 50, 0.06F + 0.10F * f);
 }
 
-/** A banner hanging from its top edge, swaying: nothing at the top, most at the bottom. */
+/** A banner hanging from its top edge, swaying a hair: nothing at the top, most at the bottom. */
 void Banner(const Surface &out, const Map &m, float x0, float y0, float x1, float y1, float t, float seed, float amp)
 {
 	Warp(out, m, x0 - amp, y0, x1 + amp, y1, [&](float u, float v, float &dx, float &dy) {
 		const float hang = std::pow(v, 1.4F);
-		dx = hang * amp * (std::sin(t * 0.9F + seed + v * 2.2F) + 0.3F * std::sin(t * 2.1F + seed * 1.7F + u * 4.0F));
-		dy = hang * 0.8F * std::sin(t * 1.3F + u * 5.0F + seed);
+		// Barely moving (user, 2026-10-13: "make flags movement more subtle. barely moving"): one slow sway, no ripple.
+		dx = hang * amp * std::sin(t * 0.55F + seed + v * 1.2F);
+		dy = 0;
 	});
 }
 
@@ -185,25 +173,6 @@ void Pendulum(const Surface &out, const Map &m, float x0, float y0, float x1, fl
 		// The point that turns onto here came from the other way round.
 		dx = (ax * ca + ay * sa) - ax;
 		dy = (-ax * sa + ay * ca) - ay;
-	});
-}
-
-/** The sky's clouds churning: a slow drift of the picture inside the rect, the field of it moving. */
-void Clouds(const Surface &out, const Map &m, float x0, float y0, float x1, float y1, float t)
-{
-	Warp(out, m, x0, y0, x1, y1, [&](float u, float v, float &dx, float &dy) {
-		const float edge = std::min(1.0F, (1.0F - v) * 4.0F); // still at the skyline
-		dx = edge * (3.5F * std::sin(v * 9.0F + t * 0.22F + u * 3.0F) + 2.0F * std::sin(u * 17.0F - t * 0.17F));
-		dy = edge * 1.6F * std::sin(u * 11.0F + t * 0.19F + v * 4.0F);
-	});
-}
-
-/** Water catching the light: rows shimmering sideways. */
-void Shimmer(const Surface &out, const Map &m, float x0, float y0, float x1, float y1, float t)
-{
-	Warp(out, m, x0, y0, x1, y1, [&](float u, float v, float &dx, float &dy) {
-		dx = 1.3F * std::sin(v * 160.0F + t * 2.6F + u * 9.0F);
-		dy = 0;
 	});
 }
 
@@ -228,25 +197,12 @@ void Smoke(const Surface &out, const Map &m, float ax, float ay, float t, float 
 	}
 }
 
-/** The blue portal's flame: a swirl in its fire, its light pulsing, sparks circling its ring. */
+/** The blue portal's flame: no movement in the picture, only its light breathing and its ring's glow (user, 2026-10-13). */
 void Portal(const Surface &out, const Map &m, float x0, float y0, float x1, float y1, float ringX, float ringY, float t)
 {
-	const float cx = (x0 + x1) * 0.5F, cy = (y0 + y1) * 0.5F;
-	Warp(out, m, x0, y0, x1, y1, [&](float u, float v, float &dx, float &dy) {
-		const float ax = x0 + u * (x1 - x0) - cx, ay = y0 + v * (y1 - y0) - cy;
-		const float r = std::sqrt(ax * ax + ay * ay) / ((x1 - x0) * 0.5F);
-		const float a = 0.35F * std::max(0.0F, 1.0F - r) * std::sin(t * 1.7F) + 0.15F * (1.0F - v) * std::sin(t * 6.0F + v * 8.0F);
-		dx = (ax * std::cos(a) - ay * std::sin(a)) - ax + (1.0F - v) * 1.8F * std::sin(v * 10.0F - t * 9.0F);
-		dy = (ax * std::sin(a) + ay * std::cos(a)) - ay;
-	});
 	const float f = Flicker(t * 0.8F, 3.1F);
-	Brighten(out, m, x0, y0, x1, y1, 90, 140, 255, 0.4F * (f - 0.3F));
-	Glow(out, m, ringX, ringY, 120, 50, 70, 120, 255, 0.08F + 0.07F * f);
-	for (int i = 0; i < 10; i++) {
-		const float a = t * 1.4F + static_cast<float>(i) * TwoPi / 10.0F;
-		const float x = ringX + std::cos(a) * 62.0F, y = ringY + std::sin(a) * 18.0F - 4.0F * std::sin(t * 3.0F + static_cast<float>(i));
-		Add(out, static_cast<int>(m.X(x)), static_cast<int>(m.Y(y)), 160, 200, 255, std::sin(a) > 0 ? 0.9F : 0.4F);
-	}
+	Brighten(out, m, x0, y0, x1, y1, 90, 140, 255, 0.3F * (f - 0.3F));
+	Glow(out, m, ringX, ringY, 120, 50, 70, 120, 255, 0.06F + 0.07F * f);
 }
 
 /** A small light in the distance (a window, a candle, a lantern): its glow breathing. */
@@ -266,22 +222,20 @@ void AnimateUiBackground(const Surface &out, UiBackground which, const Rectangle
 		out.w(), out.h() };
 	switch (which) {
 	case UiBackground::Settings: // the gallows road under the moon (1680x720)
-		Clouds(out, m, 0, 0, 1680, 330, t);
 		Glow(out, m, 1150, 140, 70, 70, 210, 220, 255, 0.04F + 0.02F * std::sin(t * 0.7F));
-		Banner(out, m, 448, 190, 528, 352, t, 0.0F, 7.0F);
-		Pendulum(out, m, 1350, 232, 1405, 372, 1378, 232, t, 0.035F);
-		Shimmer(out, m, 640, 470, 1250, 720, t);
+		Banner(out, m, 448, 190, 528, 352, t, 0.0F, 1.8F);
+		Pendulum(out, m, 1350, 232, 1405, 372, 1378, 232, t, 0.012F);
 		Flame(out, m, 484, 418, 512, 470, t, 1.0F, 90);
 		Flame(out, m, 1360, 438, 1388, 480, t, 2.7F, 90);
 		for (const auto &[x, y, s] : { std::array<float, 3> { 897, 392, 1 }, std::array<float, 3> { 1101, 402, 2 }, std::array<float, 3> { 1047, 400, 3 }, std::array<float, 3> { 1012, 413, 4 } })
 			Lamp(out, m, x, y, 10, t, s, 0.8F);
 		break;
 	case UiBackground::HeroSelect: // the cathedral hall (1916x821)
-		Banner(out, m, 192, 52, 268, 470, t, 0.0F, 6.0F);
-		Banner(out, m, 375, 55, 470, 310, t, 1.3F, 5.0F);
-		Banner(out, m, 1592, 70, 1690, 560, t, 2.1F, 7.0F);
-		Banner(out, m, 1690, 0, 1790, 420, t, 3.4F, 6.0F);
-		Banner(out, m, 1488, 385, 1585, 640, t, 4.2F, 5.0F);
+		Banner(out, m, 192, 52, 268, 470, t, 0.0F, 1.5F);
+		Banner(out, m, 375, 55, 470, 310, t, 1.3F, 1.2F);
+		Banner(out, m, 1592, 70, 1690, 560, t, 2.1F, 1.8F);
+		Banner(out, m, 1690, 0, 1790, 420, t, 3.4F, 1.5F);
+		Banner(out, m, 1488, 385, 1585, 640, t, 4.2F, 1.2F);
 		Brighten(out, m, 905, 55, 1005, 480, 255, 120, 60, 0.15F + 0.12F * Flicker(t * 0.6F, 5.0F)); // the window's fire
 		Brighten(out, m, 760, 620, 1140, 760, 255, 220, 150, 0.06F + 0.05F * std::sin(t * 1.1F)); // the dais's sigil breathing
 		Flame(out, m, 450, 468, 515, 565, t, 1.0F, 130);
@@ -290,9 +244,7 @@ void AnimateUiBackground(const Surface &out, UiBackground which, const Rectangle
 		Flame(out, m, 1400, 468, 1465, 565, t, 4.4F, 130);
 		break;
 	case UiBackground::MainMenu: // the town with the forge and the blue portal (1916x821)
-		Clouds(out, m, 0, 0, 1916, 300, t);
 		Smoke(out, m, 497, 168, t, -1.0F);
-		Shimmer(out, m, 700, 610, 1500, 821, t);
 		Flame(out, m, 562, 470, 606, 522, t, 1.0F, 110); // the forge
 		Lamp(out, m, 742, 440, 22, t, 2.0F);
 		Lamp(out, m, 1116, 428, 16, t, 3.0F);
