@@ -2200,6 +2200,19 @@ void DrawSceneGlowGround(const Surface &out, Point firstTile, Point firstTileBuf
 	const float now = Now();
 	DrawDrawnFx(out, v, /*floorLayer=*/true, now); // the drawn earth's cracks, shockwaves and shadows, on the lit floor
 	DrawFireTrail(out, v, now, /*floorLayer=*/true); // the Fire Golem's burning trail, scorched
+	// The far half of each Fire Golem's aura, before the figures: behind him (user, 2026-10-13: "place the golem in the middle").
+	if (DrawnSkillsOn())
+		for (size_t i = 0; i < ActiveMonsterCount; i++) {
+			const int id = ActiveMonsters[i];
+			if (id < 0 || static_cast<size_t>(id) >= MaxMonsters)
+				continue;
+			const Monster &monster = Monsters[id];
+			if (GolemKindOf(monster) != GolemKind::Fire || monster.hitPoints <= 0 || monster.mode == MonsterMode::Death || !MonsterShows(monster))
+				continue;
+			float wx, wy;
+			MonsterWorld(monster, wx, wy);
+			DrawGolemFireFx(out, { static_cast<int>(wx + v.ox), static_cast<int>(wy + v.oy) }, now, static_cast<uint32_t>(id) * 2654435761U, /*floorLayer=*/true);
+		}
 	if (leveltype == DTYPE_TOWN)
 		return;
 	const int w = out.w();
@@ -2356,7 +2369,7 @@ void DrawSceneGlowBodies(const Surface &out, Point firstTile, Point firstTileBuf
 			float wx, wy;
 			MonsterWorld(monster, wx, wy);
 			if (kind == GolemKind::Fire && monster.mode != MonsterMode::Death)
-				DrawGolemFireFx(out, { static_cast<int>(wx + v.ox), static_cast<int>(wy + v.oy) }, now, static_cast<uint32_t>(id) * 2654435761U);
+				DrawGolemFireFx(out, { static_cast<int>(wx + v.ox), static_cast<int>(wy + v.oy) }, now, static_cast<uint32_t>(id) * 2654435761U, /*floorLayer=*/false);
 			if ((kind == GolemKind::Blood || kind == GolemKind::Clay) && monster.isWalking() && now >= NextTrail[static_cast<size_t>(id)]) {
 				NextTrail[static_cast<size_t>(id)] = now + (kind == GolemKind::Clay ? 0.28F : 0.22F);
 				// Back from the drawn place to the floor's tile coordinates.

@@ -833,7 +833,7 @@ MinionLook GolemLook(GolemKind kind)
 	case GolemKind::Iron: return { Tint::Sheen, hue::Iron };
 	case GolemKind::Fire:
 		if (DrawnSkillsOn())
-			return { Tint::Hue, Rgb(255, 196, 60) }; // the golem in yellow, the fire drawn over it (2026-10-12)
+			return { Tint::HueCycle, Rgb(255, 150, 40) }; // fire running through it in bands (user, 2026-10-13: "fire colorcycling")
 		break;
 	case GolemKind::None: break;
 	}

@@ -20046,8 +20046,9 @@ TEST(OracoolPreview, DISABLED_DrawnExtras)
 			}
 			const ClxSpriteList walk = (*golem)[6];
 			const ClxSprite s = walk[static_cast<size_t>(k % static_cast<int>(walk.numSprites()))];
-			ClxDrawRgbMap(out, Point { foot.x - s.width() / 2, foot.y }, s, yellow);
-			oracool::DrawGolemFireFx(out, foot, t, 2654435761U);
+			oracool::DrawGolemFireFx(out, foot, t, 2654435761U, /*floorLayer=*/true);
+			ClxDrawRgbMap(out, Point { foot.x - s.width() / 2, foot.y }, s, FxTable(nullptr, oracool::Tint::HueCycle, oracool::Rgb(255, 150, 40), t));
+			oracool::DrawGolemFireFx(out, foot, t, 2654435761U, /*floorLayer=*/false);
 			std::snprintf(name, sizeof(name), "fire_golem_%02d.png", k);
 			PreviewSave(out, (dir + name).c_str());
 		}
@@ -20101,6 +20102,51 @@ TEST(OracoolPreview, DISABLED_ExportFrontEndWallpapers)
 		OwnedSurface out = OwnedSurface::Rgb(sprite.width(), sprite.height());
 		ClxDrawRgbMap(out, Point { 0, sprite.height() }, sprite, table.data());
 		PreviewSave(out, (dir + name + ".png").c_str());
+	}
+}
+
+#include "oracool/ui_background_life.h"
+
+/**
+ * The front end's paintings alive (user, 2026-10-13: "add subtle animation on the front end backgrounds - like animating
+ * flames, subtly moving flags"): main_menu_bg, hero_select_bg and hero_settings_bg, each at its own size, animated by
+ * oracool::AnimateUiBackground - 60 frames at 50 ms into ORCL_UILIFE_OUT as <name>_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_UiBackgroundLife)
+{
+	MountTestArchives(true);
+	InitPNG();
+	const char *outDir = std::getenv("ORCL_UILIFE_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	struct Painting {
+		const char *path, *name;
+		oracool::UiBackground which;
+	};
+	const Painting paintings[] = { { "ui\\main_menu_bg.png", "main_menu", oracool::UiBackground::MainMenu }, { "ui\\hero_select_bg.png", "hero_select", oracool::UiBackground::HeroSelect },
+		{ "ui\\hero_settings_bg.png", "hero_settings", oracool::UiBackground::Settings } };
+	for (const Painting &p : paintings) {
+		SDL_Surface *png = LoadPNG(p.path);
+		ASSERT_NE(png, nullptr) << p.path;
+		SDL_Surface *rgba = SDL_ConvertSurfaceFormat(png, SDL_PIXELFORMAT_ABGR8888, 0);
+		SDL_FreeSurface(png);
+		ASSERT_NE(rgba, nullptr);
+		const int W = rgba->w, H = rgba->h;
+		std::vector<uint32_t> base(static_cast<size_t>(W) * H);
+		for (int y = 0; y < H; y++)
+			for (int x = 0; x < W; x++) {
+				const uint8_t *q = static_cast<const uint8_t *>(rgba->pixels) + static_cast<size_t>(y) * rgba->pitch + static_cast<size_t>(x) * 4;
+				base[static_cast<size_t>(y) * W + x] = (static_cast<uint32_t>(q[0]) << 16) | (static_cast<uint32_t>(q[1]) << 8) | q[2];
+			}
+		SDL_FreeSurface(rgba);
+		for (int k = 0; k < 60; k++) {
+			OwnedSurface out = OwnedSurface::Rgb(W, H);
+			for (int y = 0; y < H; y++)
+				std::memcpy(out.at<uint32_t>(0, y), &base[static_cast<size_t>(y) * W], static_cast<size_t>(W) * 4);
+			oracool::AnimateUiBackground(out, p.which, Rectangle { { 0, 0 }, { W, H } }, Rectangle { { 0, 0 }, { W, H } }, static_cast<float>(k) * 0.05F + 3.0F);
+			char name[96];
+			std::snprintf(name, sizeof(name), "%s_%02d.png", p.name, k);
+			PreviewSave(out, (dir + name).c_str());
+		}
 	}
 }
 

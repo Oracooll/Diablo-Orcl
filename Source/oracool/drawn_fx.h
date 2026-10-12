@@ -220,9 +220,9 @@ void DrawClawRakeFx(const Surface &out, Point foot, float age, bool floorLayer);
 /** @brief Spirit Ward (the Mana Shield) round the hero standing at @p foot: a shell of spirit light, a lattice turning in it,
  * a shimmer rising through it, motes circling - alive, at @p seconds on the scene clock. */
 void DrawSpiritWardFx(const Surface &out, Point foot, float seconds);
-/** @brief The Fire Golem's fire (user, 2026-10-12: "only flames under his foot"): a ring of flames round the golem standing at
- * @p foot, embers rising, its fire's light; @p seed its own. */
-void DrawGolemFireFx(const Surface &out, Point foot, float seconds, uint32_t seed);
+/** @brief The Fire Golem's aura of fire (user, 2026-10-12/13): a wide ring of flames round the golem standing at @p foot -
+ * its light, its far half (@p floorLayer, drawn before the figures) or its near half and embers; @p seed its own. */
+void DrawGolemFireFx(const Surface &out, Point foot, float seconds, uint32_t seed, bool floorLayer);
 /** @brief A patch of fire the Fire Golem left on the floor at @p foot: a scorch and its light (@p floorLayer), a few tongues of
  * flame shrinking as it burns out (@p left: 1 lit, 0 out); @p seed its own. */
 void DrawFirePatchFx(const Surface &out, Point foot, float seconds, float left, uint32_t seed, bool floorLayer);

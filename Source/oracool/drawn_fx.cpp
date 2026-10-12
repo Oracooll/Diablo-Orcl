@@ -2871,26 +2871,42 @@ void DrawSpiritWardFx(const Surface &out, Point foot, float seconds)
 	}
 }
 
-void DrawGolemFireFx(const Surface &out, Point foot, float seconds, uint32_t seed)
+void DrawGolemFireFx(const Surface &out, Point foot, float seconds, uint32_t seed, bool floorLayer)
 {
 	if (out.isIndexed())
 		return;
-	// Flames only under its feet (user, 2026-10-12: "make fire golem to have only flames under his foot"): a ring of short
-	// tongues round where it stands, flickering on their own beats, embers rising, its fire's light on the floor.
+	// An aura of fire round its feet, the golem in the middle of it (user, 2026-10-13: "increase size of flame circle in his
+	// feet. turns it into aura. place the golem in the middle"): a wide ring of tongues, the far half drawn on the floor
+	// before the figures (behind him), the near half over him; its light on the floor, embers rising.
 	const Px px { &out, out.w(), out.h() };
 	const float fx = static_cast<float>(foot.x), fy = static_cast<float>(foot.y);
-	const float flick = 0.8F + 0.2F * std::sin(seconds * 21.0F) * std::sin(seconds * 7.0F + static_cast<float>(seed & 7));
-	Halo(px, fx, fy, 40, 20, 255, 130, 40, 0.3F * flick);
-	for (int j = 0; j < 9; j++) {
-		const float a = static_cast<float>(j) / 9.0F * TwoPi + Unit(Hash(static_cast<uint32_t>(j), seed)) * 0.4F;
-		const float beat = std::sin(seconds * (9.0F + static_cast<float>(j) * 1.3F) + static_cast<float>(j) * 2.0F + static_cast<float>(seed % 13));
-		const float h = (12.0F + 10.0F * Unit(Hash(static_cast<uint32_t>(j), seed + 1))) * (0.7F + 0.3F * beat);
-		FlameTongue(px, fx + std::cos(a) * 16.0F, fy + std::sin(a) * 7.0F + 2.0F, h, 5.0F, seconds, static_cast<float>(j) * 1.3F, 0.85F);
+	constexpr float Rx = 38.0F, Ry = 18.0F;
+	constexpr int Tongues = 16;
+	if (floorLayer) {
+		const float flick = 0.8F + 0.2F * std::sin(seconds * 21.0F) * std::sin(seconds * 7.0F + static_cast<float>(seed & 7));
+		Halo(px, fx, fy, Rx + 22.0F, Ry + 11.0F, 255, 120, 30, 0.34F * flick);
+		// The ring's line of embers on the floor.
+		for (int s2 = 0; s2 < 90; s2++) {
+			const float a = static_cast<float>(s2) / 90.0F * TwoPi;
+			FireAdd(px, static_cast<int>(fx + std::cos(a) * Rx), static_cast<int>(fy + std::sin(a) * Ry), 0.6F, 0.35F + 0.25F * std::sin(seconds * 6.0F + a * 5.0F));
+		}
 	}
-	for (uint32_t i = 0; i < 8; i++) {
-		const float ph = Frac(seconds / 1.0F + Unit(Hash(i, seed + 2)));
-		const float x = fx + (Unit(Hash(i, seed + 3)) - 0.5F) * 36.0F + std::sin(ph * 6.0F + static_cast<float>(i)) * 3.0F;
-		FireAdd(px, static_cast<int>(x), static_cast<int>(fy - 6.0F - 40.0F * ph), 0.7F * (1.0F - ph), 1.0F - ph);
+	for (int j = 0; j < Tongues; j++) {
+		const float a = (static_cast<float>(j) + Unit(Hash(static_cast<uint32_t>(j), seed)) * 0.5F) / static_cast<float>(Tongues) * TwoPi + seconds * 0.4F;
+		const bool far = std::sin(a) < 0; // up the screen: behind him
+		if (far != floorLayer)
+			continue;
+		const float beat = std::sin(seconds * (9.0F + static_cast<float>(j % 5) * 1.3F) + static_cast<float>(j) * 2.0F + static_cast<float>(seed % 13));
+		const float h = (16.0F + 12.0F * Unit(Hash(static_cast<uint32_t>(j), seed + 1))) * (0.7F + 0.3F * beat);
+		FlameTongue(px, fx + std::cos(a) * Rx, fy + std::sin(a) * Ry + 2.0F, h, 5.5F, seconds, static_cast<float>(j) * 1.3F, far ? 0.75F : 0.85F);
+	}
+	if (floorLayer)
+		return;
+	for (uint32_t i = 0; i < 10; i++) {
+		const float ph = Frac(seconds / 1.1F + Unit(Hash(i, seed + 2)));
+		const float a = Unit(Hash(i, seed + 3)) * TwoPi;
+		const float x = fx + std::cos(a) * Rx + std::sin(ph * 6.0F + static_cast<float>(i)) * 3.0F;
+		FireAdd(px, static_cast<int>(x), static_cast<int>(fy + std::sin(a) * Ry - 10.0F - 50.0F * ph), 0.7F * (1.0F - ph), 1.0F - ph);
 	}
 }
 

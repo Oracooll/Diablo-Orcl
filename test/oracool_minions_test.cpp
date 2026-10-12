@@ -441,6 +441,18 @@ TEST(OracoolNecro364, TheFireGolemsBurstsAreSmallSplashFlareAndTheElementalsEnd)
 	EXPECT_LT(GetMissileSpriteData(oracool::FireGolemSummonArt).animWidth, GetMissileSpriteData(oracool::FireGolemDeathArt).animWidth);
 }
 
+// With the Drawn Skills (user, 2026-10-12/13): the Fire Golem is the golem itself with fire running through it in bands, an aura
+// of flames drawn round its feet - no Elemental sheet.
+TEST(OracoolNecro364, DrawnFireGolemIsColourCycledFire)
+{
+	const bool saved = *sgOptions.Oracool.drawnSkills;
+	sgOptions.Oracool.drawnSkills.SetValue(true);
+	const oracool::MinionLook fire = oracool::GolemLook(oracool::GolemKind::Fire);
+	EXPECT_EQ(fire.tint, oracool::Tint::HueCycle) << "fire running through it";
+	EXPECT_GT((fire.rgb >> 16) & 0xFF, fire.rgb & 0xFF) << "fire: more red than blue";
+	sgOptions.Oracool.drawnSkills.SetValue(saved);
+}
+
 // None of it touches anything that is no Fire Golem: no other sheet, no lunge, no hidden body, a corpse as before, no burst.
 TEST(OracoolNecro364, NothingButAFireGolemWearsTheElemental)
 {
