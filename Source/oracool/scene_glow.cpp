@@ -37,6 +37,10 @@
 #include "oracool/rift.h"
 #include "oracool/drawn_fx.h"
 #include "oracool/minions.h" // GolemKindOf: the golems' trails and fire
+#include "oracool/companion.h" // IsDecoyBody: the decoy's shimmer
+#include "oracool/cold.h"      // ActiveColdArmour: the cold armours' frost
+#include "oracool/curses.h"    // CurseOn: the cursed stand in their curse's colour
+#include "oracool/missile_tint.h"
 #include "oracool/scene_fx.h"
 #include "oracool/scene_life.h"
 #include "oracool/splats.h"
@@ -1243,9 +1247,265 @@ void DrawSkillFxHeat(const Surface &out, float ox, float oy, float now)
 	}
 }
 
+// ---- The approved light suggestions that last (the Skill Eye Candy page's verdicts, user 2026-10-12) -------------------------
+
+/** The light a missile carries while it lives: its colour, its pool's half-width, its strength, and what else it does. */
+struct CarriedLight {
+	uint32_t rgb;
+	int r;
+	float k;
+	uint8_t extra; // 1 motes rising, 2 a glint, 4 slow twinkles, 8 a pulse
+};
+
+constexpr uint32_t CandyPale = SG_PACK(236, 226, 200), CandyIce = SG_PACK(150, 210, 255), CandyBolt = SG_PACK(150, 195, 255),
+                   CandyFire = SG_PACK(255, 128, 40), CandyPoison = SG_PACK(112, 214, 84), CandyViolet = SG_PACK(170, 90, 255);
+
+bool CarriedBy(const Missile &m, CarriedLight &light)
+{
+	const uint32_t tint = m.oracoolTint != Tint::None && m.oracoolTintRgb != 0 ? (m.oracoolTintRgb & 0xFFFFFF) : 0;
+	switch (m._miAnimType) {
+	case MissileGraphicID::BallLightning: light = { CandyBolt, 44, 0.4F, 2 }; return true;
+	case MissileGraphicID::ChargedBolt: light = { CandyBolt, 24, 0.32F, 0 }; return true;
+	case MissileGraphicID::AcidCloud: light = { CandyPoison, 52, 0.28F, 1 }; return true;
+	case MissileGraphicID::PoisonBolt: light = { CandyPoison, 18, 0.34F, 0 }; return true;
+	case MissileGraphicID::BoneTooth: light = { CandyPale, 10, 0.3F, 2 }; return true;
+	case MissileGraphicID::SoulWisp: light = { SG_PACK(210, 230, 255), 18, 0.4F, 0 }; return true;
+	case MissileGraphicID::Fireball:
+		if (m._mitype != MissileID::Firebolt)
+			return false;
+		light = { CandyFire, 22, 0.3F, 1 };
+		return true;
+	case MissileGraphicID::FireWall: light = { tint != 0 ? tint : CandyFire, 30, 0.22F, static_cast<uint8_t>(tint != 0 ? 4 : 0) }; return true;
+	case MissileGraphicID::IceGround: light = { CandyIce, 42, 0.24F, 4 }; return true;
+	case MissileGraphicID::FaradayRing: light = { CandyBolt, 52, 0.28F, 0 }; return true;
+	case MissileGraphicID::LightningRod:
+	case MissileGraphicID::StormConductor: light = { CandyBolt, 30, 0.3F, 2 }; return true;
+	case MissileGraphicID::Guardian:
+		if (tint == 0)
+			return false; // the vanilla Guardian; the Frozen Sentinel wears the cold
+		light = { tint, 40, 0.3F, 0 };
+		return true;
+	case MissileGraphicID::EmberMine: light = { CandyFire, 20, 0.3F, 8 }; return true;
+	case MissileGraphicID::BoneStorm: light = { CandyPale, 30, 0.14F, 2 }; return true;
+	case MissileGraphicID::FallingArrow:
+		if (tint != (oracool::hue::PhantomPurple & 0xFFFFFF))
+			return false;
+		light = { CandyViolet, 20, 0.34F, 0 };
+		return true;
+	case MissileGraphicID::Arrow:
+		if (m._mitype == MissileID::FrostArrow)
+			light = { CandyIce, 18, 0.3F, 0 };
+		else if (m._mitype == MissileID::FlameArrow)
+			light = { CandyFire, 18, 0.3F, 0 };
+		else
+			return false;
+		return true;
+	default: return false;
+	}
+}
+
+/** A burst's flash when it first shows: the ice that shatters, the fire that bursts, the lightning that discharges. */
+void FlashOnAppearing(const Missile &m)
+{
+	const Point at = m.position.tile;
+	switch (m._miAnimType) {
+	case MissileGraphicID::GlacialShatter:
+		SkillLightFlash(at, SG_PACK(230, 245, 255), 1.0F, 60);
+		SkillLightRing(at, CandyIce, 60);
+		SkillLightSparks(at, CandyIce, 14);
+		break;
+	case MissileGraphicID::IceImpact:
+		SkillLightFlash(at, SG_PACK(230, 245, 255), 0.9F, 50);
+		SkillLightSparks(at, CandyIce, 10);
+		break;
+	case MissileGraphicID::MagmaBallExplosion:
+		SkillLightHeat(at, 70, 0.8F);
+		SkillLightFlash(at, CandyFire, 0.9F, 60);
+		break;
+	case MissileGraphicID::ApocalypseBoom:
+		SkillLightHeat(at, 80, 0.9F);
+		SkillLightFlash(at, SG_PACK(255, 160, 60), 1.0F, 70);
+		break;
+	case MissileGraphicID::LightningRodBurst: SkillLightFlash(at, SG_PACK(180, 215, 255), 1.0F, 60); break;
+	case MissileGraphicID::CorpseExplosion: {
+		const bool poison = m.oracoolTint != Tint::None && ((m.oracoolTintRgb >> 8) & 0xFF) > ((m.oracoolTintRgb >> 16) & 0xFF);
+		SkillLightHeat(at, 70, 0.8F);
+		SkillLightFlash(at, poison ? CandyPoison : SG_PACK(255, 90, 40), 0.9F, 60);
+		if (!poison)
+			SkillLightSparks(at, SG_PACK(255, 120, 60), 10);
+		break;
+	}
+	case MissileGraphicID::FrostNova:
+		if (m._mitype == MissileID::FrostNova)
+			break; // the Sorcerer's own nova, drawn or sheeted, is its own light
+		SkillLightRing(at, CandyIce, 90);
+		SkillLightFlash(at, CandyIce, 0.8F, 60);
+		break;
+	case MissileGraphicID::ExplodingPalmBurst:
+		SkillLightHeat(at, 70, 0.8F);
+		SkillLightFlash(at, SG_PACK(255, 180, 90), 0.9F, 60);
+		break;
+	case MissileGraphicID::ArcSpark: SkillLightFlash(at, SG_PACK(170, 210, 255), 0.7F, 30); break;
+	default: break;
+	}
+}
+
+void DrawCandyStates(const LightPen &pen, const View &v, float now)
+{
+	// What the missiles carry, and the flash of each burst the first frame it shows.
+	static std::vector<std::pair<const Missile *, MissileGraphicID>> seen, next;
+	next.clear();
+	for (const Missile &m : Missiles) {
+		if (m._miDelFlag || !InMap(m.position.tile))
+			continue;
+		const std::pair<const Missile *, MissileGraphicID> key { &m, m._miAnimType };
+		next.push_back(key);
+		if (std::find(seen.begin(), seen.end(), key) == seen.end() && const_cast<Missile &>(m).sourceType() == MissileSource::Player)
+			FlashOnAppearing(m);
+		CarriedLight light;
+		if (!CarriedBy(m, light))
+			continue;
+		const int cx = static_cast<int>(WorldX(m.position.tile) + static_cast<float>(m.position.offset.deltaX) + v.ox);
+		const int cy = static_cast<int>(WorldY(m.position.tile) + static_cast<float>(m.position.offset.deltaY) + v.oy);
+		if (!OnScreen(v, static_cast<float>(cx), static_cast<float>(cy), 80))
+			continue;
+		const uint32_t s = Hash(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&m) >> 4), 7301);
+		float k = light.k;
+		if (light.extra & 8)
+			k *= 0.6F + 0.4F * std::sin(now * 4.0F + Unit(s) * 6.0F);
+		Pool(pen, cx, cy, light.r, light.r / 2, light.rgb, k);
+		if (light.extra & 1) // motes rising off it
+			for (int i = 0; i < 4; i++) {
+				const float f = Frac(now * 0.8F + Unit(Hash(s, static_cast<uint32_t>(i))));
+				pen.addF(cx + static_cast<int>((Unit(Hash(s, static_cast<uint32_t>(i), 1)) - 0.5F) * static_cast<float>(light.r)), cy - static_cast<int>(f * 40.0F), light.rgb, std::sin(f * Pi) * 0.7F);
+			}
+		if (light.extra & 2) // a glint
+			Dot(pen, cx, cy - 12, 2, SG_PACK(255, 255, 255), 0.4F + 0.4F * std::pow(0.5F + 0.5F * std::sin(now * 9.0F + Unit(s) * 6.0F), 6.0F));
+		if (light.extra & 4) // slow twinkles over it
+			for (int i = 0; i < 3; i++) {
+				const uint32_t t = Hash(s, static_cast<uint32_t>(now * 2.0F) + static_cast<uint32_t>(i) * 31U, 3);
+				const float tw = std::sin(Frac(now * 2.0F) * Pi);
+				Dot(pen, cx + static_cast<int>((Unit(t) - 0.5F) * static_cast<float>(light.r) * 1.6F), cy + static_cast<int>((Unit(t >> 8) - 0.5F) * static_cast<float>(light.r) * 0.8F), 1, SG_PACK(240, 250, 255), 0.7F * tw);
+			}
+	}
+	seen.swap(next);
+
+	// Cursed and marked monsters, frenzied minions, the decoy.
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		const int id = ActiveMonsters[i];
+		if (id < 0 || static_cast<size_t>(id) >= MaxMonsters)
+			continue;
+		const Monster &monster = Monsters[id];
+		if (!MonsterShows(monster) || monster.hitPoints <= 0)
+			continue;
+		float wx, wy;
+		MonsterWorld(monster, wx, wy);
+		const int cx = static_cast<int>(wx + v.ox), cy = static_cast<int>(wy + v.oy);
+		if (!OnScreen(v, static_cast<float>(cx), static_cast<float>(cy), 60))
+			continue;
+		const float breathe = 0.8F + 0.2F * std::sin(now * 2.4F + static_cast<float>(id));
+		// A curse: a faint pool of its colour, a ring at its edge.
+		if (const CurseKind curse = CurseOn(monster); curse != CurseKind::None) {
+			const uint32_t rgb = CurseCastHue(curse) & 0xFFFFFF;
+			if (rgb != 0) {
+				Pool(pen, cx, cy, 34, 17, rgb, 0.3F * breathe);
+				for (int s = 0; s < 48; s++) {
+					const float a = static_cast<float>(s) / 48.0F * TwoPi + now * 0.4F;
+					pen.addF(cx + static_cast<int>(std::cos(a) * 30.0F), cy + static_cast<int>(std::sin(a) * 15.0F), rgb, 0.22F * breathe);
+				}
+			}
+		}
+		if (MonsterHunterMarked(monster)) { // a gold mark on the floor under the hunted
+			Pool(pen, cx, cy, 30, 15, SG_PACK(244, 204, 96), 0.3F * breathe);
+			for (int s = 0; s < 40; s++) {
+				const float a = static_cast<float>(s) / 40.0F * TwoPi;
+				pen.addF(cx + static_cast<int>(std::cos(a) * 24.0F), cy + static_cast<int>(std::sin(a) * 12.0F), SG_PACK(244, 204, 96), 0.35F);
+			}
+		}
+		if (IsMinionFrenzied(monster))
+			Pool(pen, cx, cy, 32, 16, SG_PACK(255, 140, 50), 0.3F * breathe);
+		if (IsDecoyBody(monster)) { // now and then a pale shimmer
+			const float shimmer = std::pow(std::max(0.0F, std::sin(now * 1.6F + static_cast<float>(id))), 10.0F);
+			Pool(pen, cx, cy - 30, 18, 30, SG_PACK(220, 230, 255), 0.45F * shimmer);
+		}
+		const uint16_t marks = Rfa12SkillMarkers(monster);
+		const auto marked = [marks](SkillMarker m) { return (marks & (1U << static_cast<unsigned>(m))) != 0; };
+		const auto motes = [&](uint32_t rgb, int count, uint32_t salt) {
+			for (int k = 0; k < count; k++) {
+				const uint32_t s = Hash(static_cast<uint32_t>(id), static_cast<uint32_t>(k), salt);
+				const float f = Frac(now * (0.5F + Unit(s) * 0.3F) + Unit(s >> 8));
+				pen.addF(cx + static_cast<int>((Unit(s >> 4) - 0.5F) * 30.0F), cy - 10 - static_cast<int>(f * 50.0F), rgb, std::sin(f * Pi) * 0.7F);
+			}
+		};
+		if (marked(SkillMarker::Rotting))
+			motes(SG_PACK(150, 210, 90), 6, 7401);
+		if (marked(SkillMarker::Frostbitten))
+			motes(CandyIce, 5, 7402);
+		if (marked(SkillMarker::AshenBranded)) {
+			motes(SG_PACK(150, 145, 140), 5, 7403);
+			motes(CandyFire, 2, 7404);
+		}
+	}
+
+	// The heroes' lasting buffs: the cold armours' frost, Conduit's crackle, Immolate's fire, the astral glow.
+	static float NextHeat[MAX_PLRS] {};
+	for (const Player &player : Players) {
+		if (!player.plractive || !player.isOnActiveLevel() || !InMap(player.position.tile))
+			continue;
+		float wx, wy;
+		HeroWorld(player, wx, wy);
+		const int cx = static_cast<int>(wx + v.ox), cy = static_cast<int>(wy + v.oy);
+		if (!OnScreen(v, static_cast<float>(cx), static_cast<float>(cy), 80))
+			continue;
+		const uint32_t pid = static_cast<uint32_t>(player.getId());
+		if (ActiveColdArmour(player) != SpellID::Invalid)
+			for (int k = 0; k < 6; k++) { // frost glints twinkling on him
+				const uint32_t s = Hash(pid, static_cast<uint32_t>(now * 3.0F) + static_cast<uint32_t>(k) * 17U, 7501);
+				const float tw = std::sin(Frac(now * 3.0F) * Pi);
+				Dot(pen, cx + static_cast<int>((Unit(s) - 0.5F) * 30.0F), cy - 8 - static_cast<int>(Unit(s >> 8) * 60.0F), 1, SG_PACK(235, 248, 255), 0.8F * tw);
+			}
+		if (Rfa12ConduitWorn(player)) { // arcs crackling round him
+			const uint32_t tick = static_cast<uint32_t>(now * 14.0F);
+			for (int a = 0; a < 3; a++) {
+				const uint32_t s = Hash(pid, tick, 7502U + static_cast<uint32_t>(a));
+				float x = static_cast<float>(cx) + (Unit(s) - 0.5F) * 34.0F, y = static_cast<float>(cy) - 10.0F - Unit(s >> 8) * 56.0F;
+				for (int j = 0; j < 6; j++) {
+					const float nx = x + (Unit(Hash(s, static_cast<uint32_t>(j))) - 0.5F) * 10.0F, ny = y + (Unit(Hash(s, static_cast<uint32_t>(j), 1)) - 0.3F) * 8.0F;
+					const int steps = static_cast<int>(std::max(std::abs(nx - x), std::abs(ny - y))) + 1;
+					for (int q = 0; q <= steps; q++)
+						pen.addF(static_cast<int>(x + (nx - x) * static_cast<float>(q) / static_cast<float>(steps)), static_cast<int>(y + (ny - y) * static_cast<float>(q) / static_cast<float>(steps)), SG_PACK(190, 220, 255), 0.8F);
+					x = nx;
+					y = ny;
+				}
+			}
+		}
+		if (Rfa12BuffTicks(player, SpellID::Immolate) > 0) { // fire round him, embers, the air bending now and then
+			Pool(pen, cx, cy, 46, 23, CandyFire, 0.28F);
+			for (int k = 0; k < 6; k++) {
+				const uint32_t s = Hash(pid, static_cast<uint32_t>(k), 7503);
+				const float f = Frac(now * 0.9F + Unit(s));
+				pen.addF(cx + static_cast<int>((Unit(s >> 4) - 0.5F) * 34.0F), cy - 10 - static_cast<int>(f * 60.0F), CandyFire, std::sin(f * Pi));
+			}
+			if (now >= NextHeat[pid % MAX_PLRS]) {
+				NextHeat[pid % MAX_PLRS] = now + 0.7F;
+				SkillLightHeat(player.position.tile, 60, 0.5F);
+			}
+		}
+		if (Rfa12ActiveHidesPlayer(player)) { // the astral projection's violet light
+			Pool(pen, cx, cy, 40, 20, CandyViolet, 0.3F);
+			for (int k = 0; k < 6; k++) {
+				const uint32_t s = Hash(pid, static_cast<uint32_t>(k), 7504);
+				const float f = Frac(now * 0.6F + Unit(s));
+				pen.addF(cx + static_cast<int>((Unit(s >> 4) - 0.5F) * 30.0F), cy - 10 - static_cast<int>(f * 60.0F), CandyViolet, std::sin(f * Pi) * 0.8F);
+			}
+		}
+	}
+}
+
 /** The lasting light: Charge's trail, a brand's and a conversion's glow, the Blessed Hammers' light. */
 void DrawSkillStates(const LightPen &pen, const View &v, float now)
 {
+	DrawCandyStates(pen, v, now); // the other classes' approved lasting light (2026-10-12)
 	if (MyPlayer != nullptr && MyPlayer->plractive && IsFuriousChargeDashing()) {
 		float wx, wy;
 		HeroWorld(*MyPlayer, wx, wy);
@@ -1379,6 +1639,94 @@ void SkillLightGather(Point tile, uint32_t rgb, float seconds)
 {
 	if (DrawnLightningOn())
 		PushSkillFx(SkillFxKind::Gather, tile, tile, rgb, 1.0F, 0, 0, std::max(0.05F, seconds), 0.0F);
+}
+
+void CandyOnCast(const Player &player, SpellID spell, Point target)
+{
+	// The approved light suggestions at the moment of the cast (the Skill Eye Candy page's verdicts, user 2026-10-12): H his
+	// tile, T where he cast. What lasts - clouds, fields, curses, buffs - is DrawCandyStates'; bursts are FlashOnAppearing's.
+	const Point H = player.position.tile, T = InMap(target) ? target : H;
+	constexpr uint32_t Pale = SG_PACK(236, 226, 200), Green = SG_PACK(150, 210, 90), Poison = SG_PACK(112, 214, 84), Ice = SG_PACK(150, 210, 255),
+	                   Bolt = SG_PACK(170, 210, 255), Fire = SG_PACK(255, 128, 40), Violet = SG_PACK(170, 90, 255), Gold = SG_PACK(244, 204, 96);
+	const auto scatter = [T](int i) { return T + Displacement { static_cast<int>(Hash(static_cast<uint32_t>(i), 7601) % 3) - 1, static_cast<int>(Hash(static_cast<uint32_t>(i), 7602) % 3) - 1 }; };
+	switch (spell) {
+	// ---- Necromancer ----
+	case SpellID::BonePrison:
+		SkillLightRing(T, Pale, 60, 0.1F);
+		SkillLightFlash(T, Pale, 0.5F, 50, 6, 0.1F);
+		break;
+	case SpellID::BoneSpikes:
+		SkillLightFlash(T, Pale, 0.7F, 40, 10, 0.2F);
+		SkillLightSparks(T, Pale, 8);
+		break;
+	case SpellID::BoneWall: SkillLightRing(T, SG_PACK(200, 180, 140), 70, 0.1F); break;
+	case SpellID::DeathNova:
+		SkillLightRing(H, SG_PACK(176, 212, 88), 110, 0.05F);
+		SkillLightFlash(H, SG_PACK(176, 212, 88), 0.6F, 70);
+		break;
+	case SpellID::PoisonNova: SkillLightRing(H, Poison, 100, 0.05F); break;
+	case SpellID::ArmyOfTheDead:
+		SkillLightFlash(H, Green, 0.5F, 70, 4);
+		SkillLightMotes(H, Green, 14);
+		break;
+	case SpellID::GatherTheDead: SkillLightMotes(H, Pale, 12); break;
+	case SpellID::Decompose: SkillLightMotes(T, Green, 10); break;
+	case SpellID::SoulHarvest: SkillLightMotes(H, SG_PACK(210, 230, 255), 8); break;
+	// ---- Rogue ----
+	case SpellID::HuntersMark: SkillLightRing(T, Gold, 40); break;
+	case SpellID::ShadowStep:
+		SkillLightFlash(H, Violet, 0.8F, 40, 30);
+		SkillLightFlash(T, SG_PACK(90, 40, 140), 0.5F, 40, 6, 0.15F);
+		break;
+	case SpellID::Vault: SkillLightRing(T, SG_PACK(236, 210, 150), 60, 0.4F); break;
+	case SpellID::PhantomVolley: SkillLightFlash(T, Violet, 0.5F, 60, 6, 0.2F); break;
+	case SpellID::RainOfArrows:
+		for (int i = 0; i < 3; i++)
+			SkillLightFlash(scatter(i), Pale, 0.6F, 30, 4, 0.2F + 0.3F * static_cast<float>(i));
+		break;
+	case SpellID::LightningBoltSkill: SkillLightFlash(T, Bolt, 0.7F, 50, 10, 0.15F); break;
+	case SpellID::LightningFury: SkillLightFlash(T, SG_PACK(240, 245, 255), 0.8F, 60, 10, 0.4F); break;
+	case SpellID::ShockArrow: SkillLightFlash(T, SG_PACK(200, 225, 255), 0.9F, 40, 20, 0.25F); break;
+	case SpellID::PlagueJavelin: SkillLightMotes(T, Poison, 10); break;
+	// ---- Sorcerer ----
+	case SpellID::Blizzard:
+		for (int i = 0; i < 3; i++)
+			SkillLightFlash(scatter(i + 5), Ice, 0.6F, 30, 4, 0.2F + 0.33F * static_cast<float>(i));
+		break;
+	case SpellID::ChainLightning: SkillLightFlash(T, Bolt, 0.7F, 50, 10, 0.2F); break;
+	case SpellID::Firestorm:
+		SkillLightFlash(scatter(9), Fire, 0.7F, 40, 4, 0.25F);
+		SkillLightFlash(scatter(10), Fire, 0.7F, 40, 4, 0.65F);
+		SkillLightHeat(T, 70, 0.6F);
+		break;
+	case SpellID::Lightning: SkillLightFlash(T, SG_PACK(180, 215, 255), 0.8F, 50, 10, 0.1F); break;
+	case SpellID::Nova: SkillLightFlash(H, Bolt, 0.9F, 70, 10, 0.05F); break;
+	case SpellID::RideTheLightning:
+		SkillLightFlash(T, SG_PACK(220, 235, 255), 0.9F, 50, 20, 0.5F);
+		SkillLightRing(T, Bolt, 70, 0.5F);
+		break;
+	case SpellID::Teleport:
+		SkillLightFlash(H, Bolt, 0.8F, 40, 30);
+		SkillLightRing(T, Bolt, 60, 0.3F);
+		break;
+	case SpellID::Frostbite:
+		SkillLightFlash(T, Ice, 0.7F, 40);
+		SkillLightMotes(T, Ice, 8);
+		break;
+	case SpellID::FaradayRing: SkillLightFlash(T, Bolt, 0.5F, 70, 4); break;
+	case SpellID::FlameRing: SkillLightHeat(H, 110, 0.7F); break;
+	case SpellID::FlameWave:
+	case SpellID::FireWall: SkillLightHeat(T, 90, 0.6F); break;
+	case SpellID::BrittleGround:
+	case SpellID::Whiteout: SkillLightMotes(T, Ice, 10); break;
+	case SpellID::LightningRod:
+	case SpellID::StormCrucible: SkillLightFlash(T, Bolt, 0.5F, 40, 20); break;
+	case SpellID::FrozenSentinel: SkillLightFlash(T, Ice, 0.5F, 40, 20); break;
+	case SpellID::EmberMine: SkillLightFlash(T, Fire, 0.4F, 30, 4); break;
+	// ---- Monk ----
+	case SpellID::AstralProjection: SkillLightFlash(H, Violet, 0.6F, 50, 40); break;
+	default: break;
+	}
 }
 
 bool DrawnLightningOn()

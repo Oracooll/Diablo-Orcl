@@ -34,6 +34,7 @@
 
 #include "engine/clx_sprite.hpp"
 #include "engine/point.hpp"
+#include "spelldat.h" // SpellID: CandyOnCast
 
 namespace devilution {
 struct Surface;
@@ -100,6 +101,8 @@ void SkillLightning(Point tile, uint32_t rgb, float strength = 1.0F);
 void SkillLightGather(Point tile, uint32_t rgb, float seconds);
 /** @brief Whether the drawn lightning replaces Fist of the Heavens' and Wrath of the Heavens' sheets now. */
 bool DrawnLightningOn();
+/** @brief The approved light at a skill's cast (the Skill Eye Candy page's verdicts, 2026-10-12), at @p target. */
+void CandyOnCast(const Player &player, SpellID spell, Point target);
 /**
  * @brief The Barbarian's drawn earth (user, 2026-10-12: "use the game-drawn version"): oracool/drawn_fx's effects drawn at
  * a tile, the floor parts in the floor pass and the stones, rocks and dust over the figures. Nothing with Drawn Earth off.

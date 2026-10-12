@@ -19,6 +19,7 @@
 #include "oracool/missile_tint.h" // Rgb
 #include "oracool/rfa12_actives.h"
 #include "oracool/scene_glow.h" // the Skill Eye Candy page's skill light (2026-10-12)
+#include "oracool/cold.h"       // ActiveColdArmour: Shiver Armor's cold flash
 #include "oracool/whirlwind.h"
 #include "oracool/companion.h" // IsCompanion - Radiance spares them
 #include "oracool/warcries.h"  // IsMonsterConverted - and turned monsters
@@ -474,6 +475,13 @@ void OnRfa12Struck(Player &player, Monster &monster)
 
 void OnRfa12PlayerDamaged(Player &player)
 {
+	// Skill Eye Candy (2026-10-12): what a blow on him lights.
+	if (Rfa12BuffTicks(player, SpellID::BoneArmor) > 0)
+		SkillLightFlash(player.position.tile, Rgb(236, 226, 200), 0.6F, 30, 40);
+	if (player.pManaShield)
+		SkillLightFlash(player.position.tile, Rgb(110, 170, 255), 0.6F, 34, 40);
+	if (ActiveColdArmour(player) == SpellID::ShiverArmor)
+		SkillLightFlash(player.position.tile, hue::IceBlue, 0.7F, 40, 30);
 	PlayerClocks &clocks = ClocksOf(player);
 	const int p = PointsIfOn(player, Skill::Mercy);
 	if (p <= 0 || clocks.mercyCooldown > 0 || player._pHitPoints >> 6 <= 0 || player._pHitPoints * 100 >= player._pMaxHP * MercyBelowLifePercent)

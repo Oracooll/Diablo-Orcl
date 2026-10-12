@@ -17659,6 +17659,12 @@ const Missile *BurstAt(MissileGraphicID art, Point tile)
  */
 TEST(OracoolNecro364, AFireGolemRisesStrikesAndEndsInTheElementalsFire)
 {
+	// The Elemental-sheet golem is the Drawn Skills off; with them on it is a yellow golem burning (DrawnFireGolemIsYellow).
+	struct DrawnSkillsOff {
+		bool saved = *sgOptions.Oracool.drawnSkills;
+		DrawnSkillsOff() { sgOptions.Oracool.drawnSkills.SetValue(false); }
+		~DrawnSkillsOff() { sgOptions.Oracool.drawnSkills.SetValue(saved); }
+	} drawnOff;
 	// Mounted BEFORE gbIsHellfire is saved: the first mount sets it (init.cpp), and restoring the value from before the mount
 	// took Hellfire away from every test after this one in a shuffled run (objcurs2 never loaded).
 	MountTestArchives(true);

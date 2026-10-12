@@ -7,6 +7,7 @@
 
 #include <fmt/format.h>
 #include "oracool/class_tree.h"
+#include "oracool/scene_glow.h" // CandyOnCast: the approved light at a cast (2026-10-12)
 #include "oracool/oracool.h" // IsBuiltInPortalAbility
 #include "oracool/essence.h"
 #include "oracool/paladin_ranged.h"
@@ -403,6 +404,10 @@ void CastSpell(int id, SpellID spl, int sx, int sy, int dx, int dy, int spllvl)
 		}
 	}
 	oracool::EndSkillCast();
+
+	// The approved light at a vanilla spell's cast (2026-10-12); the Orcl actives' comes from their cast (AddWarcry).
+	if (!fizzled && (spellData.sMissiles[0] != MissileID::Warcry))
+		oracool::CandyOnCast(player, spl, { dx, dy });
 
 	if (!fizzled) {
 		ConsumeSpell(player, spl);

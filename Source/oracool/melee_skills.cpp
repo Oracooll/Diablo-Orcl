@@ -725,6 +725,23 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 			SkillLightFlash(at, Rgb(255, 70, 40), 0.6F, 30);
 			SkillLightFlash(player.position.tile, Rgb(255, 70, 40), 0.45F, 50, 6);
 			break;
+		case ClassMeleeSkill::ChargedStrike: // sparks and a blue flash (Skill Eye Candy, 2026-10-12)
+			SkillLightFlash(at, Rgb(150, 195, 255), 0.8F, 40);
+			SkillLightSparks(at, Rgb(170, 210, 255), 10);
+			break;
+		case ClassMeleeSkill::LightningStrike: // arcs crackling off the struck
+			SkillLightFlash(at, Rgb(220, 235, 255), 0.8F, 40);
+			SkillLightSparks(at, Rgb(150, 195, 255), 14);
+			break;
+		case ClassMeleeSkill::Fend: SkillLightFlash(at, Rgb(236, 220, 186), 0.6F, 34); break;
+		case ClassMeleeSkill::HundredFists: // small flashes rippling over it
+			for (int f = 0; f < 6; f++)
+				SkillLightFlash(at, Rgb(255, 220, 150), 0.45F, 26, 20 + 6 * (f % 3), 0.08F * static_cast<float>(f));
+			break;
+		case ClassMeleeSkill::RadiantPalm:
+			SkillLightFlash(at, hue::PaladinGold, 0.8F, 40);
+			SkillLightRing(at, hue::PaladinGold, 50);
+			break;
 		case ClassMeleeSkill::Berserk: // and a red rage glow on him
 			SkillLightFlash(at, Rgb(255, 60, 50), 0.7F, 40);
 			SkillLightFlash(player.position.tile, Rgb(255, 60, 50), 0.5F, 50, 40);

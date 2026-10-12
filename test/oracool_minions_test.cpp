@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include "options.h"
 #include "levels/gendung.h"
 #include "monster.h"
 #include "oracool/minions.h"
@@ -193,6 +194,12 @@ TEST(OracoolNecroSummoning, TheCorpseTableComesBackWithItsLevel)
 // keeps its own look until its sprite is proposed.
 TEST(OracoolNecro363, EachGolemWearsItsMaterial)
 {
+	// The Elemental-sheet golem is the Drawn Skills off; with them on it is a yellow golem burning (DrawnFireGolemIsYellow).
+	struct DrawnSkillsOff {
+		bool saved = *sgOptions.Oracool.drawnSkills;
+		DrawnSkillsOff() { sgOptions.Oracool.drawnSkills.SetValue(false); }
+		~DrawnSkillsOff() { sgOptions.Oracool.drawnSkills.SetValue(saved); }
+	} drawnOff;
 	const oracool::MinionLook clay = oracool::GolemLook(oracool::GolemKind::Clay);
 	const oracool::MinionLook blood = oracool::GolemLook(oracool::GolemKind::Blood);
 	const oracool::MinionLook iron = oracool::GolemLook(oracool::GolemKind::Iron);
@@ -437,6 +444,12 @@ TEST(OracoolNecro364, TheFireGolemsBurstsAreSmallSplashFlareAndTheElementalsEnd)
 // None of it touches anything that is no Fire Golem: no other sheet, no lunge, no hidden body, a corpse as before, no burst.
 TEST(OracoolNecro364, NothingButAFireGolemWearsTheElemental)
 {
+	// The Elemental-sheet golem is the Drawn Skills off; with them on it is a yellow golem burning (DrawnFireGolemIsYellow).
+	struct DrawnSkillsOff {
+		bool saved = *sgOptions.Oracool.drawnSkills;
+		DrawnSkillsOff() { sgOptions.Oracool.drawnSkills.SetValue(false); }
+		~DrawnSkillsOff() { sgOptions.Oracool.drawnSkills.SetValue(saved); }
+	} drawnOff;
 	oracool::ForgetMinions();
 	EXPECT_EQ(oracool::GolemLook(oracool::GolemKind::Fire).tint, oracool::Tint::None) << "the sheet is fire already: no tint";
 	for (const size_t id : { size_t { 0 }, size_t { MaxEnemyMonsters }, size_t { MaxMonsters - 1 } }) {

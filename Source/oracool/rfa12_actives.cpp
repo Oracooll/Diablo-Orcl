@@ -5050,7 +5050,10 @@ void OnRfa12ActiveHit(Player &player, Monster &monster, int damage, bool melee)
 	Marks &marks = MarksOf(monster);
 	// Poison Dagger (the Necromancer, 2026-09-18): every landed weapon blow poisons.
 	if (melee && damage > 0 && BuffRank(player, Buff::Venom) > 0 && (monster.hitPoints >> 6) > 0)
+	{
 		Poison(player, monster, PoisonTicks(SpellID::PoisonDagger), PerSecond(SpellID::PoisonDagger, BuffRank(player, Buff::Venom)));
+		SkillLightFlash(monster.position.tile, Rgb(112, 214, 84), 0.6F, 30); // a green glint on the stab (Skill Eye Candy)
+	}
 	if (melee && marks.oathCharges > 0 && marks.oathTicks > 0 && (monster.hitPoints >> 6) > 0
 	    && !monster.isImmune(MissileID::Null, DamageType::Magic)) { // the charge kept while it is immune (round 71 audit)
 		marks.oathCharges--;

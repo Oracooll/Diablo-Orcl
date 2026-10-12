@@ -746,6 +746,15 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			ArrowBurstInFlight = previousBurst;
 			oracool::SetCompanionBlowInFlight(false);
 			CompanionHitPercent = 0;
+			// Skill Eye Candy (2026-10-12): a cold arrow's flash and shards, lightning's flash on what it strikes.
+			if (isMonsterHit && missile.sourceType() == MissileSource::Player) {
+				if (missile._mitype == MissileID::FrostArrow) {
+					oracool::SkillLightFlash({ mx, my }, oracool::hue::IceBlue, 0.7F, 30);
+					oracool::SkillLightSparks({ mx, my }, oracool::hue::IceBlue, 6);
+				} else if (missile._mitype == MissileID::Lightning) {
+					oracool::SkillLightFlash({ mx, my }, oracool::Rgb(170, 210, 255), 0.5F, 30);
+				}
+			}
 			// A cold hit with no impact art of its own - a Blizzard shard, a Cold or Ice Arrow - flashes where it landed.
 			if (isMonsterHit && damageType == DamageType::Cold && !HasOwnColdImpact(missile))
 				AddColdHitFlash({ mx, my }, missile._misource);
