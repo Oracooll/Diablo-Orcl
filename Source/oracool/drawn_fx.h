@@ -214,4 +214,30 @@ void DrawFlurryPathFx(const Surface &out, const Point *stops, int count, uint32_
 /** @brief Tiger Claw on the body at @p foot: three glowing rakes one after another, then the wounds dripping, a pool under it. */
 void DrawClawRakeFx(const Surface &out, Point foot, float age, bool floorLayer);
 
+/** @brief How long Leaping Crane's flight takes, in seconds. */
+constexpr float LeapingCraneFlight = 0.45F;
+/** @brief The Monk's skills drawn (user, 2026-10-12), each a proposal on the Skill Eye Candy page: */
+/** Leaping Crane: he flies from @p from to @p to on a high arc, wings of light spread and beating, feathers of light falling; a ring where he lands. */
+void DrawLeapingCraneFx(const Surface &out, Point from, Point to, float age, bool floorLayer);
+/** Pressure Point on the body at @p foot: a needle of violet ki, its meridians lighting through it, its armour cracking off in shards. */
+void DrawPressurePointFx(const Surface &out, Point foot, float age);
+/** Shoulder Gate: streaks of speed as he rushes from @p from, then a wall of gold light slamming up at the enemy at @p to. */
+void DrawShoulderGateFx(const Surface &out, Point from, Point to, float age, bool floorLayer);
+/** Seven-Sided Strike's seal: a seven-pointed star of gold drawn on the floor round @p centre, stroke by stroke, flaring. */
+void DrawHeptagramFx(const Surface &out, Point centre, float radius, float age);
+/** Dragon's Wrath: a serpent of gold fire racing @p tiles tiles from the Monk at @p foot along (@p dirX, @p dirY), scorching its track. */
+void DrawDragonWaveFx(const Surface &out, Point foot, int dirX, int dirY, int tiles, float age, bool floorLayer);
+/** A mantra on the Monk at @p foot: a turning mandala in @p rgb as he chants, then motes rising (Clarity) or wind round him (@p evasion). */
+void DrawMantraFx(const Surface &out, Point foot, uint32_t rgb, bool evasion, float age, bool floorLayer);
+/** Chi Wave: a two-toned orb of chi hopping from body to body through @p stops (feet), a ring on each it strikes. */
+void DrawChiWaveFx(const Surface &out, const Point *stops, int count, float age);
+/** Blinding Flash: rays of white light bursting from his raised hand at @p foot, the area flooded with light. */
+void DrawBlindingFlashFx(const Surface &out, Point foot, float age, bool floorLayer);
+/** A blinded or dazed body at @p foot: three little stars circling over its head. */
+void DrawDazedFx(const Surface &out, Point foot, float age);
+/** Wave of Light: a great spectral bell of gold light dropping onto @p centre, its toll ringing out, a shockwave across the floor. */
+void DrawWaveOfLightFx(const Surface &out, Point centre, float age, bool floorLayer);
+/** Ancestral Court: three hooded shades forming out of mist round @p centre, then rushing inward together to strike. */
+void DrawAncestralCourtFx(const Surface &out, Point centre, float age, bool floorLayer);
+
 } // namespace devilution::oracool

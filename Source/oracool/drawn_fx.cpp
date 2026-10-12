@@ -2724,4 +2724,539 @@ void DrawClawRakeFx(const Surface &out, Point foot, float age, bool floorLayer)
 		}
 }
 
+namespace {
+
+void Ellipse(const Px &px, float cx, float cy, float rx, float ry, float r, float g, float b, float k, int samples = 160)
+{
+	for (int s = 0; s < samples; s++) {
+		const float a = static_cast<float>(s) / static_cast<float>(samples) * TwoPi;
+		px.add(static_cast<int>(cx + std::cos(a) * rx), static_cast<int>(cy + std::sin(a) * ry), r, g, b, k);
+	}
+}
+
+void Line(const Px &px, float x0, float y0, float x1, float y1, float r, float g, float b, float k, int width = 1)
+{
+	const int n = static_cast<int>(std::max(std::abs(x1 - x0), std::abs(y1 - y0))) + 1;
+	for (int j = 0; j <= n; j++) {
+		const float u = static_cast<float>(j) / static_cast<float>(n);
+		const int x = static_cast<int>(x0 + (x1 - x0) * u), y = static_cast<int>(y0 + (y1 - y0) * u);
+		px.add(x, y, r, g, b, k);
+		for (int w = 1; w < width; w++) {
+			px.add(x, y - w, r, g, b, k * 0.5F);
+			px.add(x, y + w, r, g, b, k * 0.5F);
+		}
+	}
+}
+
+void Blob(const Px &px, float cx, float cy, float rx, float ry, float r, float g, float b, float k, bool add)
+{
+	for (int dy = -static_cast<int>(ry); dy <= static_cast<int>(ry); dy++)
+		for (int dx = -static_cast<int>(rx); dx <= static_cast<int>(rx); dx++) {
+			const float d2 = static_cast<float>(dx * dx) / (rx * rx) + static_cast<float>(dy * dy) / (ry * ry);
+			if (d2 >= 1.0F)
+				continue;
+			if (add)
+				px.add(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, r, g, b, k * (1.0F - d2) * (1.0F - d2));
+			else
+				px.mix(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, r, g, b, k * (1.0F - d2));
+		}
+}
+
+/** A hooded shade of a monk standing at (@p x, @p y): a robe of mist tapering to the floor, a hood, two glowing eyes. */
+void Shade(const Px &px, float x, float y, float k, float t)
+{
+	for (float z = 0; z < 54.0F; z += 1.0F) {
+		const float q = z / 54.0F;
+		const float half = z < 40.0F ? 6.0F + 8.0F * (1.0F - z / 40.0F) * 0.6F + 2.0F * std::sin(z * 0.3F + t * 5.0F) : 7.0F * std::sqrt(std::max(0.0F, 1.0F - (z - 40.0F) / 14.0F * (z - 40.0F) / 14.0F)) + 1.0F;
+		const float wisp = z < 8.0F ? z / 8.0F : 1.0F; // the foot dissolves into the floor
+		for (int o = -static_cast<int>(half); o <= static_cast<int>(half); o++) {
+			const float e = 1.0F - std::abs(static_cast<float>(o)) / (half + 1.0F);
+			px.add(static_cast<int>(x + std::sin(z * 0.15F + t * 3.0F) * 2.0F) + o, static_cast<int>(y - z), 120, 200, 255, k * 0.6F * e * wisp * (0.6F + 0.4F * q));
+		}
+	}
+	px.add(static_cast<int>(x) - 2, static_cast<int>(y) - 47, 255, 255, 255, k);
+	px.add(static_cast<int>(x) + 2, static_cast<int>(y) - 47, 255, 255, 255, k);
+}
+
+} // namespace
+
+void DrawLeapingCraneFx(const Surface &out, Point from, Point to, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > LeapingCraneFlight + 0.7F)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float sx = static_cast<float>(from.x), sy = static_cast<float>(from.y), ex = static_cast<float>(to.x), ey = static_cast<float>(to.y);
+	const float u = Clamp01(age / LeapingCraneFlight);
+	const float land = age - LeapingCraneFlight;
+	if (floorLayer) {
+		if (land >= 0 && land < 0.5F) {
+			const float q = land / 0.5F;
+			Ellipse(px, ex, ey, 10.0F + 50.0F * std::sqrt(q), (10.0F + 50.0F * std::sqrt(q)) * 0.5F, 240, 245, 255, 0.8F * (1.0F - q), 200);
+			Blob(px, ex, ey, 40, 20, 220, 230, 255, 0.35F * (1.0F - q), true);
+			Ripple(out, to, 10.0F + 50.0F * std::sqrt(q), 3.0F * (1.0F - q));
+		}
+		return;
+	}
+	// In flight: a trail of white light along his arc, and two wings of light spread from his back, beating once.
+	const auto arcAt = [&](float q, float &x, float &y) { x = sx + (ex - sx) * q; y = sy + (ey - sy) * q - 50.0F * 4.0F * q * (1.0F - q) - 30.0F; };
+	if (land < 0.15F) {
+		const float k = land < 0 ? 1.0F : 1.0F - land / 0.15F;
+		for (int s = 0; s < 60; s++) {
+			const float q = u - static_cast<float>(s) * 0.008F;
+			if (q < 0)
+				break;
+			float x, y;
+			arcAt(q, x, y);
+			px.add(static_cast<int>(x), static_cast<int>(y), 240, 248, 255, 0.6F * k * (1.0F - static_cast<float>(s) / 60.0F));
+		}
+		if (land < 0) {
+			float x, y;
+			arcAt(u, x, y);
+			const float beat = std::sin(u * Pi * 2.0F) * 0.35F;
+			for (int side = -1; side <= 1; side += 2)
+				for (int f = 0; f < 6; f++) { // six long feathers a wing
+					const float a = -1.9F - beat + static_cast<float>(f) * 0.16F;
+					const float L = 26.0F + 10.0F * std::sin(static_cast<float>(f) * 0.6F);
+					for (float s = 4.0F; s < L; s += 1.0F) {
+						const int ix = static_cast<int>(x + static_cast<float>(side) * std::cos(a) * -s), iy = static_cast<int>(y - 8.0F + std::sin(a) * s * 0.6F);
+						px.add(ix, iy, 235, 245, 255, 0.55F * (1.0F - s / L));
+					}
+				}
+		}
+	}
+	// Feathers of light drifting down along the way.
+	for (uint32_t i = 0; i < 14; i++) {
+		const float q = Unit(Hash(i, 6601));
+		const float t = age - q * LeapingCraneFlight;
+		if (t < 0 || t > 0.8F)
+			continue;
+		float x, y;
+		arcAt(q, x, y);
+		x += std::sin(t * 7.0F + static_cast<float>(i)) * 6.0F;
+		y += 40.0F * t;
+		Line(px, x - 3.0F, y - 1.0F, x + 3.0F, y + 1.0F, 230, 240, 255, 0.7F * (1.0F - t / 0.8F));
+	}
+	// The kick landing.
+	if (land >= 0 && land < 0.3F)
+		Blob(px, ex, ey - 30.0F, 24, 28, 230, 240, 255, 1.0F - land / 0.3F, true);
+}
+
+void DrawPressurePointFx(const Surface &out, Point foot, float age)
+{
+	if (out.isIndexed() || age < 0 || age > 1.6F)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float x = static_cast<float>(foot.x), y = static_cast<float>(foot.y) - 34.0F;
+	// The needle: a point of violet ki struck into it, tiny rings closing on it.
+	const float strike = std::exp(-age / 0.1F);
+	Blob(px, x, y, 12, 12, 255, 230, 255, 1.5F * strike, true);
+	Blob(px, x, y + 4.0F, 18, 30, 170, 110, 255, 0.25F * Clamp01((1.6F - age) / 0.5F), true); // the slow's violet hanging on it
+	for (int ring = 0; ring < 3; ring++) {
+		const float t = age - 0.04F * static_cast<float>(ring);
+		if (t >= 0 && t < 0.2F)
+			Ellipse(px, x, y, 14.0F * (1.0F - t / 0.2F), 14.0F * (1.0F - t / 0.2F), 200, 150, 255, 0.8F * (1.0F - t / 0.2F), 60);
+	}
+	// The meridians lighting up through the body from the point, branching, pulsing as the slow takes hold.
+	const float spread = Clamp01((age - 0.05F) / 0.3F);
+	const float pulse = (0.6F + 0.4F * std::sin(age * 12.0F)) * Clamp01((1.6F - age) / 0.5F);
+	for (uint32_t i = 0; i < 9; i++) {
+		float a = Unit(Hash(i, 6701)) * TwoPi;
+		float lx = x, ly = y;
+		for (int s = 1; s <= 10; s++) {
+			const float q = static_cast<float>(s) / 10.0F;
+			if (q > spread)
+				break;
+			a += (Unit(Hash(i, 6702, static_cast<uint32_t>(s))) - 0.5F) * 0.8F;
+			const float nx = x + std::cos(a) * 14.0F * q, ny = y + std::sin(a) * 26.0F * q;
+			Line(px, lx, ly, nx, ny, 200, 150, 255, 1.0F * pulse * (1.0F - q * 0.5F), 2);
+			lx = nx;
+			ly = ny;
+		}
+	}
+	// Its armour cracking off: a shell of light round it breaking into shards that fall.
+	if (age > 0.12F) {
+		const float t = age - 0.12F;
+		if (t < 0.12F)
+			Ellipse(px, x, y + 4.0F, 16.0F, 30.0F, 230, 230, 245, 0.8F * (1.0F - t / 0.12F), 140);
+		for (uint32_t i = 0; i < 12; i++) {
+			const float a = static_cast<float>(i) / 12.0F * TwoPi;
+			const float sx = x + std::cos(a) * 16.0F + std::cos(a) * 30.0F * t, sy = y + 4.0F + std::sin(a) * 30.0F + 160.0F * t * t;
+			if (t > 0.6F || sy > static_cast<float>(foot.y))
+				continue;
+			Line(px, sx - 2.0F, sy, sx + 2.0F, sy - 1.0F, 210, 215, 235, 0.9F * (1.0F - t / 0.6F));
+		}
+	}
+}
+
+void DrawShoulderGateFx(const Surface &out, Point from, Point to, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > 1.0F)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float sx = static_cast<float>(from.x), sy = static_cast<float>(from.y), ex = static_cast<float>(to.x), ey = static_cast<float>(to.y);
+	const float len = std::max(1.0F, std::sqrt((ex - sx) * (ex - sx) + (ey - sy) * (ey - sy)));
+	const float ux = (ex - sx) / len, uy = (ey - sy) / len;
+	constexpr float Rush = 0.15F;
+	const float hit = age - Rush;
+	if (floorLayer) {
+		// Dust kicked up along the rush, and the shock ring where he stops it.
+		for (int i = 0; i < 6; i++) {
+			const float q = static_cast<float>(i) / 6.0F;
+			const float t = age - Rush * q;
+			if (t < 0 || t > 0.5F)
+				continue;
+			Blob(px, sx + (ex - sx) * q, sy + (ey - sy) * q, 6.0F + 14.0F * t, 3.0F + 7.0F * t, 130, 116, 96, 0.35F * (1.0F - t / 0.5F), false);
+		}
+		if (hit >= 0 && hit < 0.4F) {
+			const float q = hit / 0.4F;
+			Ellipse(px, ex, ey, 10.0F + 40.0F * q, (10.0F + 40.0F * q) * 0.5F, 255, 220, 140, 0.7F * (1.0F - q), 160);
+			Ripple(out, to, 10.0F + 40.0F * q, 3.0F * (1.0F - q));
+		}
+		return;
+	}
+	// Streaks of speed behind him while he rushes.
+	if (age < Rush + 0.15F) {
+		const float q = Clamp01(age / Rush);
+		const float hx = sx + (ex - sx) * q, hy = sy + (ey - sy) * q;
+		const float k = age < Rush ? 1.0F : 1.0F - (age - Rush) / 0.15F;
+		for (int l = -3; l <= 3; l++) {
+			const float off = static_cast<float>(l) * 7.0F;
+			const float L = 26.0F + 10.0F * static_cast<float>(3 - std::abs(l));
+			Line(px, hx - uy * off - ux * 10.0F, hy - 30.0F + ux * off * 0.6F - uy * 10.0F, hx - uy * off - ux * (10.0F + L), hy - 30.0F + ux * off * 0.6F - uy * (10.0F + L), 255, 240, 200, 0.45F * k);
+		}
+	}
+	// The gate: a wall of gold light slamming up across his way at the enemy, standing a moment, its edges bright.
+	if (hit >= 0 && hit < 0.7F) {
+		// A shield of gold light facing him at the enemy: an oval with a bright rim, a hexagonal lattice glowing in it.
+		const float rise = Clamp01(hit / 0.06F), k = Clamp01(1.0F - (hit - 0.2F) / 0.5F);
+		const float gx = ex - ux * 14.0F, gy = ey - uy * 14.0F - 32.0F;
+		const float rx = 24.0F * rise, ry = 34.0F * rise;
+		for (int dy = -static_cast<int>(ry); dy <= static_cast<int>(ry); dy++)
+			for (int dx = -static_cast<int>(rx); dx <= static_cast<int>(rx); dx++) {
+				const float d = std::sqrt(static_cast<float>(dx * dx) / (rx * rx + 0.01F) + static_cast<float>(dy * dy) / (ry * ry + 0.01F));
+				if (d > 1.0F)
+					continue;
+				const float hx = static_cast<float>(dx) * 0.2F, hy = static_cast<float>(dy) * 0.2F;
+				const float hex = std::max({ std::abs(std::sin(hx * 1.7F)), std::abs(std::sin((hx * 0.85F + hy * 1.47F))), std::abs(std::sin((hx * 0.85F - hy * 1.47F))) });
+				const float lattice = hex > 0.93F ? 0.5F : 0.0F;
+				px.add(static_cast<int>(gx) + dx, static_cast<int>(gy) + dy, 255, 214, 120, k * (d > 0.9F ? 0.95F : 0.14F + lattice + 0.15F * d));
+			}
+		Blob(px, ex, ey - 30.0F, 22, 26, 255, 240, 200, std::exp(-hit / 0.08F), true);
+	}
+}
+
+void DrawHeptagramFx(const Surface &out, Point centre, float radius, float age)
+{
+	if (out.isIndexed() || age < 0 || age > 1.4F)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	// The seven-pointed star drawn on the floor stroke by stroke, then flaring and fading: {7/3}.
+	const float drawn = Clamp01(age / 0.5F) * 7.0F;
+	const float k = Clamp01(1.0F - (age - 0.8F) / 0.6F) * (age > 0.5F && age < 0.7F ? 1.5F : 1.0F);
+	for (int i = 0; i < 7; i++) {
+		if (static_cast<float>(i) > drawn)
+			break;
+		const float part = std::min(1.0F, drawn - static_cast<float>(i));
+		const float a0 = -1.5708F + static_cast<float>(i * 3 % 7) / 7.0F * TwoPi, a1 = -1.5708F + static_cast<float>((i + 1) * 3 % 7) / 7.0F * TwoPi;
+		const float x0 = static_cast<float>(centre.x) + std::cos(a0) * radius, y0 = static_cast<float>(centre.y) + std::sin(a0) * radius * 0.5F;
+		const float x1 = static_cast<float>(centre.x) + std::cos(a1) * radius, y1 = static_cast<float>(centre.y) + std::sin(a1) * radius * 0.5F;
+		Line(px, x0, y0, x0 + (x1 - x0) * part, y0 + (y1 - y0) * part, 255, 220, 130, 0.8F * k, 2);
+	}
+	Ellipse(px, static_cast<float>(centre.x), static_cast<float>(centre.y), radius, radius * 0.5F, 255, 200, 110, 0.5F * k * Clamp01(age / 0.5F), 280);
+}
+
+void DrawDragonWaveFx(const Surface &out, Point foot, int dirX, int dirY, int tiles, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > 1.3F || (dirX == 0 && dirY == 0))
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float stepX = static_cast<float>(dirX - dirY) * 32.0F, stepY = static_cast<float>(dirX + dirY) * 16.0F;
+	const float sx = static_cast<float>(foot.x) + stepX * 0.5F, sy = static_cast<float>(foot.y) + stepY * 0.5F;
+	const float len = std::sqrt(stepX * stepX + stepY * stepY) * static_cast<float>(tiles);
+	const float ux = stepX / std::sqrt(stepX * stepX + stepY * stepY), uy = stepY / std::sqrt(stepX * stepX + stepY * stepY);
+	const float nx = -uy, ny = ux * 0.5F;
+	const float head = len * Clamp01(age / 0.55F); // the dragon's head racing down the line
+	const float fade = Clamp01(1.0F - (age - 0.7F) / 0.6F);
+	const float bodyLen = 150.0F;
+	if (floorLayer) {
+		for (float d = std::max(0.0F, head - bodyLen); d <= head; d += 2.0F)
+			Blob(px, sx + ux * d, sy + uy * d, 14, 7, 255, 150, 50, 0.08F * fade * (1.0F - (head - d) / bodyLen), true);
+		for (float d = 0; d <= head; d += 1.0F) // a scorched track left behind
+			px.mix(static_cast<int>(sx + ux * d), static_cast<int>(sy + uy * d), 30, 20, 12, 0.3F * fade);
+		return;
+	}
+	// The body: a ribbon of gold fire snaking behind the head, scales of light along it, thinning to the tail.
+	for (float d = std::max(0.0F, head - bodyLen); d <= head; d += 1.0F) {
+		const float q = (head - d) / bodyLen; // 0 at the head, 1 at the tail
+		const float wave = std::sin(d * 0.08F - age * 18.0F) * 10.0F * (0.4F + 0.6F * q);
+		const float x = sx + ux * d + nx * wave, y = sy + uy * d + ny * wave - 22.0F + 6.0F * std::sin(d * 0.05F);
+		const float w = 6.0F * (1.0F - q) + 1.0F;
+		for (int o = -static_cast<int>(w); o <= static_cast<int>(w); o++) {
+			const float e = 1.0F - std::abs(static_cast<float>(o)) / (w + 1.0F);
+			const float scale = (static_cast<int>(d) / 4 + o) % 3 == 0 ? 1.0F : 0.6F;
+			px.add(static_cast<int>(x), static_cast<int>(y) + o, 255, 140 + 100 * e, 40 + 120 * e * e, fade * (1.0F - q) * e * scale);
+		}
+	}
+	// The head: a bright crest with two whisker trails and horns of light.
+	if (head < len + 1.0F || age < 0.7F) {
+		const float wave = std::sin(head * 0.08F - age * 18.0F) * 4.0F;
+		const float x = sx + ux * head + nx * wave, y = sy + uy * head + ny * wave - 22.0F;
+		Blob(px, x, y, 12, 9, 255, 230, 160, fade, true);
+		for (int side = -1; side <= 1; side += 2) {
+			Line(px, x, y - 4.0F, x - ux * 16.0F + nx * static_cast<float>(side) * 8.0F, y - 14.0F, 255, 220, 140, 0.8F * fade);
+			for (int s = 0; s < 24; s++) {
+				const float q = static_cast<float>(s) / 24.0F;
+				px.add(static_cast<int>(x - ux * 30.0F * q + nx * static_cast<float>(side) * (6.0F + 8.0F * std::sin(q * 6.0F - age * 20.0F))), static_cast<int>(y + 3.0F - uy * 30.0F * q), 255, 200, 110, 0.7F * fade * (1.0F - q));
+			}
+		}
+	}
+}
+
+void DrawMantraFx(const Surface &out, Point foot, uint32_t rgb, bool evasion, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float r = static_cast<float>(rgb >> 16 & 0xFF), g = static_cast<float>(rgb >> 8 & 0xFF), b = static_cast<float>(rgb & 0xFF);
+	const float x = static_cast<float>(foot.x), y = static_cast<float>(foot.y);
+	const float chant = age < 1.6F ? Clamp01(age / 0.3F) * Clamp01((1.6F - age) / 0.6F) : 0.0F; // the cast's mandala
+	const float spin = age * 0.8F;
+	if (floorLayer) {
+		// The mandala under him: rings, sixteen petals and a turning star, blooming then settling to a faint ring.
+		const float R = 52.0F;
+		const float k = chant;
+		if (k > 0) {
+			Ellipse(px, x, y, R, R * 0.5F, r, g, b, 0.8F * k, 260);
+			Ellipse(px, x, y, R * 0.72F, R * 0.36F, r, g, b, 0.6F * k, 220);
+			for (int p = 0; p < 16; p++) {
+				const float a = spin + static_cast<float>(p) / 16.0F * TwoPi;
+				for (float s = 0; s < 1.0F; s += 0.04F) {
+					const float pr = R * (0.72F + 0.28F * s), pa = a + std::sin(s * Pi) * 0.12F;
+					px.add(static_cast<int>(x + std::cos(pa) * pr), static_cast<int>(y + std::sin(pa) * pr * 0.5F), r, g, b, 0.5F * k);
+					const float pb = a - std::sin(s * Pi) * 0.12F;
+					px.add(static_cast<int>(x + std::cos(pb) * pr), static_cast<int>(y + std::sin(pb) * pr * 0.5F), r, g, b, 0.5F * k);
+				}
+			}
+			for (int i = 0; i < 8; i++) {
+				const float a0 = -spin + static_cast<float>(i) / 8.0F * TwoPi, a1 = -spin + static_cast<float>(i + 3) / 8.0F * TwoPi;
+				Line(px, x + std::cos(a0) * R * 0.7F, y + std::sin(a0) * R * 0.35F, x + std::cos(a1) * R * 0.7F, y + std::sin(a1) * R * 0.35F, r, g, b, 0.45F * k);
+			}
+			Blob(px, x, y, R, R * 0.5F, r, g, b, 0.18F * k, true);
+		}
+		// While it lasts: a faint ring turning slowly at his feet.
+		Ellipse(px, x, y, 22.0F, 11.0F, r, g, b, 0.3F + 0.1F * std::sin(age * 3.0F), 120);
+		return;
+	}
+	if (!evasion) {
+		// Clarity: motes of mana rising round him, drawn in toward him as they climb.
+		for (uint32_t i = 0; i < 16; i++) {
+			const float ph = Frac(age * 0.7F + Unit(Hash(i, 6801)));
+			const float a = Unit(Hash(i, 6802)) * TwoPi + age;
+			const float rr = 24.0F * (1.0F - ph * 0.7F);
+			px.add(static_cast<int>(x + std::cos(a) * rr), static_cast<int>(y - 6.0F - 60.0F * ph + std::sin(a) * rr * 0.4F), r, g, b, std::sin(ph * Pi));
+			px.add(static_cast<int>(x + std::cos(a) * rr), static_cast<int>(y - 7.0F - 60.0F * ph + std::sin(a) * rr * 0.4F), 255, 255, 255, 0.5F * std::sin(ph * Pi));
+		}
+	} else {
+		// Evasion: wisps of wind curling round him, quick, never still.
+		for (int w = 0; w < 3; w++) {
+			const float a0 = age * 4.0F + static_cast<float>(w) * 2.1F;
+			for (int s = 0; s < 30; s++) {
+				const float a = a0 - static_cast<float>(s) * 0.07F;
+				const float h = 10.0F + 15.0F * static_cast<float>(w) + 6.0F * std::sin(a * 2.0F);
+				px.add(static_cast<int>(x + std::cos(a) * 18.0F), static_cast<int>(y - h + std::sin(a) * 7.0F), r, g, b, 0.7F * (1.0F - static_cast<float>(s) / 30.0F) * (std::sin(a) < 0 ? 0.5F : 1.0F));
+			}
+		}
+	}
+	if (chant > 0) // a glyph of light over his head as he chants
+		Ellipse(px, x, y - 74.0F, 8.0F, 8.0F, r, g, b, chant, 60);
+}
+
+void DrawChiWaveFx(const Surface &out, const Point *stops, int count, float age)
+{
+	if (out.isIndexed() || age < 0 || count < 2)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	constexpr float Leg = 0.2F;
+	const float total = Leg * static_cast<float>(count - 1);
+	if (age > total + 0.5F)
+		return;
+	// Where the orb is: hopping from body to body on low arcs.
+	const int leg = std::min(count - 2, static_cast<int>(age / Leg));
+	const float q = Clamp01((age - Leg * static_cast<float>(leg)) / Leg);
+	const auto at = [&](int i, float u, float &x, float &y) {
+		const float x0 = static_cast<float>(stops[i].x), y0 = static_cast<float>(stops[i].y) - 30.0F;
+		const float x1 = static_cast<float>(stops[i + 1].x), y1 = static_cast<float>(stops[i + 1].y) - 30.0F;
+		x = x0 + (x1 - x0) * u;
+		y = y0 + (y1 - y0) * u - 30.0F * 4.0F * u * (1.0F - u);
+	};
+	if (age <= total) {
+		// Its trail back along the arc, and the orb: a two-toned swirl, light and dark chasing round each other.
+		for (int s = 0; s < 30; s++) {
+			const float u = q - static_cast<float>(s) * 0.025F;
+			if (u < 0)
+				break;
+			float x, y;
+			at(leg, u, x, y);
+			px.add(static_cast<int>(x), static_cast<int>(y), 180, 255, 210, 0.5F * (1.0F - static_cast<float>(s) / 30.0F));
+		}
+		float x, y;
+		at(leg, q, x, y);
+		Blob(px, x, y, 12, 12, 120, 230, 180, 0.6F, true);
+		for (int dy = -7; dy <= 7; dy++)
+			for (int dx = -7; dx <= 7; dx++) {
+				if (dx * dx + dy * dy > 49)
+					continue;
+				const float a = std::atan2(static_cast<float>(dy), static_cast<float>(dx)) - age * 14.0F;
+				const float d = std::sqrt(static_cast<float>(dx * dx + dy * dy)) / 7.0F;
+				const bool light = std::sin(a + d * 3.0F) > 0;
+				px.mix(static_cast<int>(x) + dx, static_cast<int>(y) + dy, light ? 240 : 30, light ? 255 : 90, light ? 245 : 70, 0.85F);
+			}
+	}
+	// A ring of chi on each body as the orb strikes it.
+	for (int i = 1; i < count; i++) {
+		const float t = age - Leg * static_cast<float>(i);
+		if (t < 0 || t > 0.4F)
+			continue;
+		const float x = static_cast<float>(stops[i].x), y = static_cast<float>(stops[i].y) - 30.0F;
+		Ellipse(px, x, y, 8.0F + 30.0F * t / 0.4F, 8.0F + 30.0F * t / 0.4F, 150, 255, 200, 0.8F * (1.0F - t / 0.4F), 90);
+		Blob(px, x, y, 18, 20, 200, 255, 230, 0.7F * (1.0F - t / 0.4F), true);
+	}
+}
+
+void DrawBlindingFlashFx(const Surface &out, Point foot, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > 1.0F)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float x = static_cast<float>(foot.x), y = static_cast<float>(foot.y);
+	const float flash = std::exp(-age / 0.15F);
+	if (floorLayer) {
+		Blob(px, x, y, 170, 85, 255, 250, 230, 0.6F * flash, true);
+		Ellipse(px, x, y, 30.0F + 170.0F * Clamp01(age / 0.3F), (30.0F + 170.0F * Clamp01(age / 0.3F)) * 0.5F, 255, 250, 220, 0.7F * Clamp01(1.0F - age / 0.5F), 320);
+		return;
+	}
+	// The burst from his raised hand: rays of white light out over everything, and the light flooding the area.
+	const float hx = x, hy = y - 70.0F;
+	for (int ray = 0; ray < 24; ray++) {
+		const float a = static_cast<float>(ray) / 24.0F * TwoPi + 0.1F;
+		const float L = (60.0F + 60.0F * Unit(Hash(static_cast<uint32_t>(ray), 6901))) * Clamp01(age / 0.08F + 0.3F);
+		for (float s = 6.0F; s < L; s += 1.0F)
+			px.add(static_cast<int>(hx + std::cos(a) * s), static_cast<int>(hy + std::sin(a) * s * 0.8F), 255, 252, 235, flash * (1.0F - s / L));
+	}
+	Blob(px, hx, hy, 26, 26, 255, 255, 245, flash * 1.4F, true);
+	Blob(px, x, y - 40.0F, 200, 120, 255, 252, 240, 0.5F * flash, true);
+}
+
+void DrawDazedFx(const Surface &out, Point foot, float age)
+{
+	if (out.isIndexed() || age < 0)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	// Three little stars circling over its head.
+	for (int i = 0; i < 3; i++) {
+		const float a = age * 5.0F + static_cast<float>(i) * 2.094F;
+		const float x = static_cast<float>(foot.x) + std::cos(a) * 10.0F, y = static_cast<float>(foot.y) - 66.0F + std::sin(a) * 3.0F;
+		const float k = std::sin(a) < 0 ? 0.5F : 1.0F;
+		px.add(static_cast<int>(x), static_cast<int>(y), 255, 255, 220, k);
+		px.add(static_cast<int>(x) - 1, static_cast<int>(y), 255, 240, 160, 0.6F * k);
+		px.add(static_cast<int>(x) + 1, static_cast<int>(y), 255, 240, 160, 0.6F * k);
+		px.add(static_cast<int>(x), static_cast<int>(y) - 1, 255, 240, 160, 0.6F * k);
+		px.add(static_cast<int>(x), static_cast<int>(y) + 1, 255, 240, 160, 0.6F * k);
+	}
+}
+
+void DrawWaveOfLightFx(const Surface &out, Point centre, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > 1.6F)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float x = static_cast<float>(centre.x), y = static_cast<float>(centre.y);
+	constexpr float Fall = 0.3F;
+	const float land = age - Fall;
+	if (floorLayer) {
+		if (land < 0) { // its light gathering on the floor as it falls
+			Blob(px, x, y, 60.0F * age / Fall, 30.0F * age / Fall, 255, 220, 140, 0.4F * age / Fall, true);
+			return;
+		}
+		const float q = Clamp01(land / 0.5F);
+		Ellipse(px, x, y, 20.0F + 110.0F * std::sqrt(q), (20.0F + 110.0F * std::sqrt(q)) * 0.5F, 255, 236, 170, (1.0F - q), 300);
+		Blob(px, x, y, 100, 50, 255, 220, 140, 0.4F * std::exp(-land / 0.3F), true);
+		Ripple(out, centre, 20.0F + 110.0F * std::sqrt(q), 6.0F * (1.0F - q));
+		return;
+	}
+	// The bell: a great spectral bell of gold light dropping from above and striking the floor - its outline bright, its body
+	// translucent, rings of its toll going out after.
+	const float drop = land < 0 ? (1.0F - age / Fall) * (1.0F - age / Fall) * 160.0F : -6.0F * std::exp(-land / 0.05F) * std::sin(land * 60.0F);
+	const float fade = land < 0 ? Clamp01(age / 0.1F) : Clamp01(1.0F - (land - 0.2F) / 0.6F);
+	const float base = y - drop, H = 80.0F;
+	for (float z = 0; z < H; z += 1.0F) {
+		const float t = z / H; // 0 at the lip, 1 at the crown
+		const float half = (t < 0.15F ? 40.0F - t * 40.0F : 34.0F - 16.0F * (t - 0.15F) / 0.85F - (t > 0.85F ? (t - 0.85F) * 60.0F : 0.0F));
+		const int iy = static_cast<int>(base - z);
+		for (int o = -static_cast<int>(half); o <= static_cast<int>(half); o++) {
+			const bool edge = std::abs(o) >= static_cast<int>(half) - 1;
+			const float shade = 0.12F + 0.12F * (1.0F - std::abs(static_cast<float>(o)) / half);
+			px.add(static_cast<int>(x) + o, iy, 255, 222, 140, fade * (edge ? 0.85F : shade));
+		}
+	}
+	Ellipse(px, x, base, 40.0F, 8.0F, 255, 240, 190, fade, 160); // its lip
+	if (land >= 0) {
+		for (int ring = 0; ring < 3; ring++) {
+			const float t = land - 0.12F * static_cast<float>(ring);
+			if (t < 0 || t > 0.6F)
+				continue;
+			Ellipse(px, x, y - 40.0F, 40.0F + 100.0F * t, (40.0F + 100.0F * t) * 0.6F, 255, 236, 180, 0.6F * (1.0F - t / 0.6F), 220);
+		}
+		Blob(px, x, y - 10.0F, 50, 30, 255, 250, 220, std::exp(-land / 0.08F), true);
+	}
+}
+
+void DrawAncestralCourtFx(const Surface &out, Point centre, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > 1.8F)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float x = static_cast<float>(centre.x), y = static_cast<float>(centre.y);
+	constexpr float Strike = 1.0F;
+	const float after = age - Strike;
+	if (floorLayer) {
+		// A circle of pale light where they gather, and the burst where they meet.
+		const float k = Clamp01(age / 0.4F) * Clamp01(1.0F - (after - 0.2F) / 0.5F);
+		Ellipse(px, x, y, 90.0F, 45.0F, 140, 210, 255, 0.5F * k, 300);
+		Blob(px, x, y, 90, 45, 100, 170, 255, 0.12F * k, true);
+		if (after >= 0) {
+			const float q = Clamp01(after / 0.4F);
+			Ellipse(px, x, y, 10.0F + 70.0F * q, (10.0F + 70.0F * q) * 0.5F, 200, 235, 255, 0.8F * (1.0F - q), 220);
+		}
+		return;
+	}
+	for (int s = 0; s < 3; s++) {
+		const float a = -1.5708F + static_cast<float>(s) * TwoPi / 3.0F;
+		float sx = x + std::cos(a) * 90.0F, sy = y + std::sin(a) * 45.0F;
+		// They form out of mist, then rush inward together and strike.
+		const float form = Clamp01(age / 0.5F);
+		if (after >= 0) {
+			const float q = Clamp01(after / 0.12F);
+			const float px0 = sx, py0 = sy;
+			sx = sx + (x - sx) * q * 0.8F;
+			sy = sy + (y - sy) * q * 0.8F;
+			for (int l = 0; l < 12; l++) // streaks behind them as they rush
+				Line(px, px0 + (sx - px0) * static_cast<float>(l) / 12.0F, py0 + (sy - py0) * static_cast<float>(l) / 12.0F - 30.0F, sx, sy - 30.0F, 150, 220, 255, 0.05F * Clamp01(1.0F - after / 0.3F));
+		}
+		const float k = form * Clamp01(1.0F - (after - 0.2F) / 0.3F);
+		if (k <= 0)
+			continue;
+		// The mist gathering into them.
+		for (uint32_t i = 0; i < 10; i++) {
+			const float ph = Frac(age * 1.2F + Unit(Hash(static_cast<uint32_t>(s), i, 7001)));
+			const float ma = Unit(Hash(static_cast<uint32_t>(s), i, 7002)) * TwoPi;
+			const float r = 26.0F * (1.0F - ph);
+			px.add(static_cast<int>(sx + std::cos(ma) * r), static_cast<int>(sy - 26.0F + std::sin(ma) * r), 170, 225, 255, 0.6F * ph * (age < 0.9F ? 1.0F : 0.0F));
+		}
+		Shade(px, sx, sy, k, age + static_cast<float>(s));
+	}
+	if (after >= 0)
+		Blob(px, x, y - 30.0F, 40, 40, 210, 240, 255, std::exp(-after / 0.1F), true);
+}
+
 } // namespace devilution::oracool

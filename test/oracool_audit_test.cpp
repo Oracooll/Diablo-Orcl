@@ -19842,6 +19842,154 @@ TEST(OracoolPreview, DISABLED_DrawnWeaponSkills)
 	HeadlessMode = savedHeadless;
 }
 
+/**
+ * More of the Monk's skills drawn (user, 2026-10-12: Leaping Crane, Pressure Point, Whirling Kick, Shoulder Gate, Seven-Sided
+ * Strike, Dragon's Wrath, the two mantras, Chi Wave, Blinding Flash, Wave of Light, Ancestral Court): each a 320x200 scene,
+ * drawn by oracool/drawn_fx, into ORCL_MONK_OUT as <skill>_NN.png at 50 ms.
+ */
+TEST(OracoolPreview, DISABLED_DrawnMonkSkills)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	ColdCast c;
+	ASSERT_TRUE(c.Load());
+	const auto first = [](std::initializer_list<const char *> paths, uint16_t w) {
+		for (const char *path : paths)
+			if (std::optional<OwnedClxSpriteSheet> s = FxBody(path, w))
+				return s;
+		return std::optional<OwnedClxSpriteSheet> {};
+	};
+	const std::optional<OwnedClxSpriteSheet> monkAttack = first({ "plrgfx\\monk\\mlt\\mltat", "plrgfx\\monk\\mln\\mlnat" }, 130);
+	const std::optional<OwnedClxSpriteSheet> monkStand = first({ "plrgfx\\monk\\mlt\\mltas", "plrgfx\\monk\\mln\\mlnas" }, 112);
+	ASSERT_TRUE(monkAttack && monkStand);
+	const auto monkColours = oracool::HeroColoursFor(HeroClass::Monk, 1 << 4);
+	const char *outDir = std::getenv("ORCL_MONK_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	constexpr int W = 320, H = 200;
+	struct Mob {
+		Point foot;
+		int dir;
+		float hit;
+	};
+	using Fx = std::function<void(const Surface &, float, bool)>;
+	const auto scene = [&](const char *name, int frames, std::function<Point(float)> heroAt, int heroDir, std::vector<Mob> mobs, Fx fx) {
+		for (int k = 0; k < frames; k++) {
+			OwnedSurface out = OwnedSurface::Rgb(W, H);
+			c.Floor(out);
+			const float age = static_cast<float>(k - 5) * 0.05F;
+			fx(out, age, true);
+			const Point hero = heroAt(age);
+			std::vector<std::pair<int, int>> order { { hero.y, -1 } };
+			for (int i = 0; i < static_cast<int>(mobs.size()); i++)
+				order.push_back({ mobs[static_cast<size_t>(i)].foot.y, i });
+			std::sort(order.begin(), order.end());
+			for (const auto &[y, i] : order) {
+				if (i < 0) {
+					const ClxSpriteList swing = (*monkAttack)[heroDir];
+					ClxSprite s = (*monkStand)[heroDir][static_cast<size_t>((k / 2) % static_cast<int>((*monkStand)[heroDir].numSprites()))];
+					if (k < static_cast<int>(swing.numSprites()))
+						s = swing[static_cast<size_t>(k)];
+					ClxDrawRgbMap(out, Point { hero.x - s.width() / 2, hero.y }, s, FxTable(monkColours.get()));
+					continue;
+				}
+				const Mob &m = mobs[static_cast<size_t>(i)];
+				c.Skeleton(out, m.foot, m.dir, k, m.hit >= 0 ? age - m.hit : -1.0F);
+			}
+			fx(out, age, false);
+			char file[96];
+			std::snprintf(file, sizeof(file), "%s_%02d.png", name, k);
+			PreviewSave(out, (dir + file).c_str());
+		}
+	};
+	const auto still = [](Point p) { return [p](float) { return p; }; };
+	constexpr uint32_t Gold = 0xFFD678, Ember = 0xFFBE5A;
+	const Point hero { 110, 120 };
+	{
+		const Point from { 60, 150 }, to { 220, 110 };
+		scene("leaping_crane", 30, [&](float age) {
+			const float u = std::clamp(age / oracool::LeapingCraneFlight, 0.0F, 1.0F);
+			return Point { from.x + static_cast<int>((to.x - from.x) * u), from.y + static_cast<int>((to.y - from.y) * u - 50.0F * 4.0F * u * (1.0F - u)) };
+		}, 6, { { { 252, 110 }, 2, oracool::LeapingCraneFlight } }, [&](const Surface &o, float age, bool floor) {
+			oracool::DrawLeapingCraneFx(o, from, to, age, floor);
+			if (!floor)
+				oracool::DrawStrikeFlashFx(o, { 252, 110 }, 0xE6F0FF, age - oracool::LeapingCraneFlight);
+		});
+	}
+	scene("pressure_point", 34, still(hero), 6, { { { 174, 120 }, 2, 0.02F } }, [&](const Surface &o, float age, bool floor) {
+		if (!floor)
+			oracool::DrawPressurePointFx(o, { 174, 120 }, age);
+	});
+	{
+		const std::vector<Mob> mobs { { { 174, 120 }, 2, 0.02F }, { { 110, 152 }, 4, 0.08F }, { { 46, 120 }, 6, 0.14F }, { { 110, 88 }, 0, 0.2F } };
+		scene("whirling_kick", 26, still(hero), 6, mobs, [&](const Surface &o, float age, bool floor) {
+			oracool::DrawWeaponArcFx(o, { hero, -0.3F, 6.0F, 70.0F, 22.0F, 0.25F, 0.5F, Ember }, age, floor);
+			if (!floor)
+				for (const Mob &m : mobs)
+					oracool::DrawStrikeFlashFx(o, m.foot, Ember, age - m.hit);
+		});
+	}
+	{
+		const Point from { 70, 120 }, stop { 142, 120 }, mob { 174, 120 };
+		scene("shoulder_gate", 26, [&](float age) {
+			const float u = std::clamp(age / 0.15F, 0.0F, 1.0F);
+			return Point { from.x + static_cast<int>((stop.x - from.x) * u), from.y };
+		}, 6, { { mob, 2, 0.15F } }, [&](const Surface &o, float age, bool floor) { oracool::DrawShoulderGateFx(o, from, mob, age, floor); });
+	}
+	{
+		const Point centre { 200, 118 };
+		const Point stops[] = { { 90, 130 }, { 200, 82 }, { 262, 110 }, { 240, 150 }, { 160, 150 }, { 138, 104 }, { 90, 130 } };
+		const std::vector<Mob> mobs { { stops[1], 4, 0.09F }, { stops[2], 2, 0.18F }, { stops[3], 3, 0.27F }, { stops[4], 4, 0.36F }, { stops[5], 7, 0.45F } };
+		scene("seven_sided_strike", 40, still(stops[0]), 6, mobs, [&](const Surface &o, float age, bool floor) {
+			if (floor)
+				oracool::DrawHeptagramFx(o, centre, 76.0F, age - 0.45F);
+			else {
+				oracool::DrawFlurryPathFx(o, stops, 7, Gold, age);
+				for (const Mob &m : mobs)
+					oracool::DrawStrikeFlashFx(o, m.foot, Gold, age - m.hit);
+			}
+		});
+	}
+	{
+		const Point h2 { 40, 150 };
+		const std::vector<Mob> mobs { { { 136, 150 }, 2, 0.12F }, { { 200, 150 }, 2, 0.2F }, { { 264, 150 }, 2, 0.28F } };
+		scene("dragons_wrath", 32, still(h2), 6, mobs, [&](const Surface &o, float age, bool floor) { oracool::DrawDragonWaveFx(o, h2, 1, -1, 4, age, floor); });
+	}
+	scene("mantra_of_clarity", 44, still({ 160, 140 }), 0, {}, [&](const Surface &o, float age, bool floor) { oracool::DrawMantraFx(o, { 160, 140 }, 0x6EAAFF, false, age, floor); });
+	scene("mantra_of_evasion", 44, still({ 160, 140 }), 0, {}, [&](const Surface &o, float age, bool floor) { oracool::DrawMantraFx(o, { 160, 140 }, 0xC8F0DC, true, age, floor); });
+	{
+		const Point stops[] = { { 90, 130 }, { 180, 110 }, { 240, 146 }, { 200, 172 }, { 276, 92 } };
+		const std::vector<Mob> mobs { { stops[1], 2, 0.2F }, { stops[2], 2, 0.4F }, { stops[3], 1, 0.6F }, { stops[4], 3, 0.8F } };
+		scene("chi_wave", 34, still(stops[0]), 6, mobs, [&](const Surface &o, float age, bool floor) {
+			if (!floor)
+				oracool::DrawChiWaveFx(o, stops, 5, age);
+		});
+	}
+	{
+		const Point h { 160, 130 };
+		const std::vector<Mob> mobs { { { 240, 130 }, 2, -1 }, { { 80, 130 }, 6, -1 }, { { 160, 90 }, 0, -1 }, { { 210, 166 }, 3, -1 } };
+		scene("blinding_flash", 34, still(h), 0, mobs, [&](const Surface &o, float age, bool floor) {
+			oracool::DrawBlindingFlashFx(o, h, age, floor);
+			if (!floor && age > 0.2F)
+				for (const Mob &m : mobs)
+					oracool::DrawDazedFx(o, m.foot, age);
+		});
+	}
+	{
+		const Point centre { 200, 130 };
+		const std::vector<Mob> mobs { { { 172, 120 }, 2, 0.3F }, { { 230, 142 }, 3, 0.3F }, { { 214, 104 }, 1, 0.3F } };
+		scene("wave_of_light", 36, still({ 70, 150 }), 7, mobs, [&](const Surface &o, float age, bool floor) { oracool::DrawWaveOfLightFx(o, centre, age, floor); });
+	}
+	{
+		const Point centre { 200, 122 };
+		const std::vector<Mob> mobs { { centre, 2, 1.0F }, { { 176, 134 }, 3, 1.0F }, { { 226, 112 }, 1, 1.0F } };
+		scene("ancestral_court", 42, still({ 60, 150 }), 7, mobs, [&](const Surface &o, float age, bool floor) { oracool::DrawAncestralCourtFx(o, centre, age, floor); });
+	}
+	HeadlessMode = savedHeadless;
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"
