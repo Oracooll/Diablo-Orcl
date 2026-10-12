@@ -2248,11 +2248,39 @@ void AddWarp(Missile &missile, AddMissileParameter &parameter)
 	}
 }
 
+namespace {
+
+/**
+ * @brief A light for a vanilla spell that had none (user, 2026-10-12, the Spell Light Census page: "The weak spot - fix
+ * these"): Flash, Apocalypse's blasts, Resurrect's beam and Lightning Wall glowed as sprites but cast no light, and every
+ * Orcl light system - the colours, the graphics card's lights, the glints - starts from the missile's light. The pool is
+ * 64; these leave a quarter of it to the torches, the monsters and the bolts, and go without when it is that full.
+ */
+int AddSpellLight(Point tile, int radius)
+{
+	if (ActiveLightCount > MAXLIGHTS - 16 || !InDungeonBounds(tile))
+		return NO_LIGHT;
+	return AddLight(tile, static_cast<uint8_t>(radius));
+}
+
+/** @brief The spell's light goes with it. */
+void ReleaseSpellLight(Missile &missile)
+{
+	if (missile._mlid != NO_LIGHT) {
+		AddUnLight(missile._mlid);
+		missile._mlid = NO_LIGHT;
+	}
+}
+
+} // namespace
+
 void AddLightningWall(Missile &missile, AddMissileParameter &parameter)
 {
 	UpdateMissileVelocity(missile, parameter.dst, 16);
 	missile._miAnimFrame = GenerateRnd(8) + 1;
 	missile._mirange = LightningWallDurationTicks(missile._mispllvl);
+	if (((missile.position.start.x + missile.position.start.y) & 1) == 0)
+		missile._mlid = AddSpellLight(missile.position.start, 4); // every other piece: a wall is long
 	switch (missile.sourceType()) {
 	case MissileSource::Trap:
 		missile.var1 = missile.position.start.x;
@@ -3391,6 +3419,7 @@ void AddFlashBottom(Missile &missile, AddMissileParameter & /*parameter*/)
 	}
 
 	missile._mirange = 19;
+	missile._mlid = AddSpellLight(missile.position.tile, 8);
 }
 
 void AddFlashTop(Missile &missile, AddMissileParameter & /*parameter*/)
@@ -3737,6 +3766,7 @@ void AddApocalypseBoom(Missile &missile, AddMissileParameter &parameter)
 	missile.position.tile = parameter.dst;
 	missile.position.start = parameter.dst;
 	missile._mirange = missile._miAnimLen;
+	missile._mlid = AddSpellLight(missile.position.tile, 5);
 }
 
 void AddHealing(Missile &missile, AddMissileParameter & /*parameter*/)
@@ -5076,6 +5106,7 @@ void AddResurrectBeam(Missile &missile, AddMissileParameter &parameter)
 	missile.position.tile = parameter.dst;
 	missile.position.start = parameter.dst;
 	missile._mirange = GetMissileSpriteData(MissileGraphicID::Resurrect).animLen(0);
+	missile._mlid = AddSpellLight(missile.position.tile, 5);
 }
 
 void AddTelekinesis(Missile &missile, AddMissileParameter & /*parameter*/)
@@ -5610,8 +5641,10 @@ void ProcessLightningWall(Missile &missile)
 	CheckMissileCol(missile, GetMissileData(missile._mitype).damageType(), missile._midam, missile._midam, true, missile.position.tile, false);
 	if (missile._miHitFlag)
 		missile._mirange = range;
-	if (missile._mirange == 0)
+	if (missile._mirange == 0) {
 		missile._miDelFlag = true;
+		ReleaseSpellLight(missile);
+	}
 	PutMissile(missile);
 }
 
@@ -5884,6 +5917,7 @@ void ProcessFlashBottom(Missile &missile)
 
 	if (missile._mirange == 0) {
 		missile._miDelFlag = true;
+		ReleaseSpellLight(missile);
 		if (missile._micaster == TARGET_MONSTERS) {
 			if (!missile.IsTrap())
 				Players[missile._misource]._pInvincible = false;
@@ -6254,8 +6288,10 @@ void ProcessApocalypseBoom(Missile &missile)
 		CheckMissileCol(missile, GetMissileData(missile._mitype).damageType(), missile._midam, missile._midam, false, missile.position.tile, true);
 	if (missile._miHitFlag)
 		missile.var1 = 1;
-	if (missile._mirange == 0)
+	if (missile._mirange == 0) {
 		missile._miDelFlag = true;
+		ReleaseSpellLight(missile);
+	}
 	PutMissile(missile);
 }
 
@@ -6783,8 +6819,10 @@ void ProcessBoneSpirit(Missile &missile)
 void ProcessResurrectBeam(Missile &missile)
 {
 	missile._mirange--;
-	if (missile._mirange == 0)
+	if (missile._mirange == 0) {
 		missile._miDelFlag = true;
+		ReleaseSpellLight(missile);
+	}
 	PutMissile(missile);
 }
 

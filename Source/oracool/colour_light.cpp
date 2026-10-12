@@ -246,6 +246,10 @@ uint32_t MissileLightHue(const Missile &missile)
 	case MissileID::RuneOfImmolation: return hue::FireOrange;
 	case MissileID::RuneOfLight:
 	case MissileID::RuneOfNova: return hue::LightningBlue;
+	// The four lit since the Spell Light Census (2026-10-12); Lightning Wall takes its element's blue below.
+	case MissileID::FlashBottom: return hue::HolyBlue;
+	case MissileID::ApocalypseBoom: return hue::FireOrange;
+	case MissileID::ResurrectBeam: return hue::PaladinGold;
 	default: break;
 	}
 	switch (GetMissileData(missile._mitype).damageType()) {

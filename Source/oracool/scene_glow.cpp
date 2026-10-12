@@ -1494,6 +1494,21 @@ void DrawSceneGlowLights(const Surface &out, Point firstTile, Point firstTileBuf
 		}
 	}
 
+	// ---- Nova's balls lighting the floor (user, 2026-10-12: "Do these circularly scattering spells light the floor under
+	// them?" - they did not: dozens at once, too many for the engine's 64 lights, so a small pool each here instead) --------
+	if (*sgOptions.Oracool.novaLight) {
+		for (const Missile &m : Missiles) {
+			if (!IsAnyOf(m._mitype, MissileID::NovaBall, MissileID::MiniNovaBall) || !InMap(m.position.tile))
+				continue;
+			const int cx = static_cast<int>(WorldX(m.position.tile) + static_cast<float>(m.position.offset.deltaX) + v.ox);
+			const int cy = static_cast<int>(WorldY(m.position.tile) + static_cast<float>(m.position.offset.deltaY) + v.oy);
+			if (!OnScreen(v, static_cast<float>(cx), static_cast<float>(cy), 30))
+				continue;
+			const uint32_t trail = MissileTrailColour(static_cast<int>(m._mitype));
+			Pool(pen, cx, cy, 20, 10, trail != 0 ? trail : SG_PACK(150, 190, 255), m._mitype == MissileID::MiniNovaBall ? 0.26F : 0.32F);
+		}
+	}
+
 	// ---- Flashes (chests, pickups, sparks' strikes) ---------------------------------------------------------------------
 	for (const Flash &f : Flashes) {
 		const float age = now - f.born;

@@ -1056,6 +1056,8 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean whirlwindArcs;
 	/** @brief The aura rings' glow (user, 2026-10-12; oracool/aura_ground.h). */
 	OptionEntryBoolean auraGlow;
+	/** @brief Nova's scattering balls light the floor (user, 2026-10-12; oracool/scene_glow.cpp). */
+	OptionEntryBoolean novaLight;
 	/**
 	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
 	 * the name large, type and tier under it, the armour or damage as one big number, the item's
