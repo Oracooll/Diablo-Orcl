@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file oracool_audit_test.cpp
  *
  * Regression tests pinning the fixes from the 2026-08-15 self-audit (vault reports "Self-Audit -
@@ -12,6 +12,9 @@
  */
 
 #include <tuple>
+#include <chrono>
+#include <functional>
+
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -18867,6 +18870,97 @@ TEST(OracoolPreview, DISABLED_DrawnEarthquake)
 		std::snprintf(name, sizeof(name), "quake_%03d.png", k);
 		PreviewSave(out, (dir + name).c_str());
 	}
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * What the drawn effects cost (user, 2026-10-12: "analyze how hard this animation is on the cpu/gpu compared to previous
+ * assets"): each drawn on a 960x720 world surface over its whole life, the average and the worst frame in ms, beside the
+ * painted sheets they would replace drawn the way the game draws them. Printed; this build's own numbers.
+ */
+TEST(OracoolPreview, DISABLED_DrawnFxCost)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	InitMissileGFX(true);
+	const bool savedLightning = *sgOptions.Oracool.drawnLightning;
+	sgOptions.Oracool.drawnLightning.SetValue(true);
+	OwnedSurface out = OwnedSurface::Rgb(960, 720);
+	const auto fill = [&]() {
+		for (int y = 0; y < 720; y++)
+			std::fill_n(out.at<uint32_t>(0, y), 960, 0x201a14U);
+	};
+	using Clock = std::chrono::steady_clock;
+	const auto measure = [&](const char *what, int frames, const std::function<void(int)> &draw) {
+		double total = 0, worst = 0;
+		for (int k = 0; k < frames; k++) {
+			fill();
+			const auto start = Clock::now();
+			draw(k);
+			const double ms = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+			total += ms;
+			worst = std::max(worst, ms);
+		}
+		std::printf("COST | %-46s | avg %7.3f ms | worst %7.3f ms | %d frames\n", what, total / frames, worst, frames);
+	};
+	const Point centre { 480, 400 };
+	// ---- Drawn ----
+	measure("Earthquake, drawn (both layers, 5 s)", 100, [&](int k) {
+		const float age = static_cast<float>(k) * 0.05F;
+		oracool::DrawEarthquakeFx(out, centre, age, true);
+		oracool::DrawEarthquakeFx(out, centre, age, false);
+	});
+	measure("Seismic Slam, drawn (both layers, 1.8 s)", 36, [&](int k) {
+		const float age = static_cast<float>(k) * 0.05F;
+		oracool::DrawSeismicSlamFx(out, { 300, 360 }, 1, -1, 5, age, true);
+		oracool::DrawSeismicSlamFx(out, { 300, 360 }, 1, -1, 5, age, false);
+	});
+	measure("Ground Stomp, drawn (both layers, 1.4 s)", 28, [&](int k) {
+		const float age = static_cast<float>(k) * 0.05F;
+		oracool::DrawGroundStompFx(out, centre, age, true);
+		oracool::DrawGroundStompFx(out, centre, age, false);
+	});
+	oracool::ForgetSceneGlow();
+	oracool::SkillLightning({ 40, 40 }, oracool::Rgb(190, 225, 255), 1.1F);
+	measure("Lightning bolt, drawn (0.6 s)", 12, [&](int k) {
+		oracool::DrawSkillLightPreview(out, centre, { 40, 40 }, static_cast<float>(k) * 0.05F);
+	});
+	oracool::ForgetSceneGlow();
+	// ---- Painted, as the game draws them ----
+	const MissileFileData &ring = GetMissileSpriteData(MissileGraphicID::WarcryRing);
+	if (ring.sprites) {
+		const OwnedClxSpriteList ring180 = oracool::ScaleClxList(*ring.spritesForDirection(0), 180);
+		const uint32_t *molten = oracool::TintedTable(FxTable(ring.colours.get()), oracool::Tint::Earthquake, 0, 0.5);
+		// Earthquake today: a ring every fifth of a second, each playing 12 frames - three on screen at once.
+		measure("Earthquake today (3 molten rings at 180%)", 60, [&](int k) {
+			for (int r = 0; r < 3; r++) {
+				const ClxSprite s = ring180[static_cast<size_t>((k + r * 4) % ring180.numSprites())];
+				ClxDrawRgbMap(out, Point { centre.x - s.width() / 2, centre.y + s.height() / 2 }, s, molten);
+			}
+		});
+	}
+	const MissileFileData &stomp = GetMissileSpriteData(MissileGraphicID::GroundStomp);
+	if (stomp.sprites) {
+		const OwnedClxSpriteList stomp200 = oracool::ScaleClxList(*stomp.spritesForDirection(0), 200);
+		measure("Ground Stomp today (sheet at 200%)", 12, [&](int k) {
+			const ClxSprite s = stomp200[static_cast<size_t>(k % stomp200.numSprites())];
+			ClxDrawRgbMap(out, Point { centre.x - s.width() / 2, centre.y + 29 }, s, FxTable(stomp.colours.get()));
+		});
+	}
+	const MissileFileData &burst = GetMissileSpriteData(MissileGraphicID::HolyBoltExplosion);
+	if (burst.sprites) {
+		measure("Holy Bolt burst today (vanilla, 100%)", 8, [&](int k) {
+			const ClxSprite s = (*burst.spritesForDirection(0))[static_cast<size_t>(k % 8)];
+			ClxDrawRgbMap(out, Point { centre.x - s.width() / 2, centre.y }, s, FxTable(nullptr));
+		});
+	}
+	sgOptions.Oracool.drawnLightning.SetValue(savedLightning);
+	gbIsHellfire = savedHellfire;
 	HeadlessMode = savedHeadless;
 }
 

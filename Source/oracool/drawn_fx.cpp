@@ -489,6 +489,80 @@ float LastPulse(float age)
 	return std::min(std::floor(age), static_cast<float>(EarthquakePulses - 1));
 }
 
+/** How long the quake's rocks fall, the speed they hit with and how they roll. */
+constexpr int QuakeRocks = 13;
+constexpr float RockFallSeconds = 0.5F;
+constexpr float RockDropHeight = 260.0F;
+
+/** Rock @p i of the quake: when it drops, where it lands, how big, which way and how far it rolls. */
+struct QuakeRock {
+	float drop;   // seconds into the quake it starts to fall
+	float x, y;   // where it lands, from the centre (pixels)
+	float radius; // pixels
+	float rollX, rollY, rollDist;
+	uint32_t shape;
+};
+
+QuakeRock RockOf(uint32_t i)
+{
+	constexpr uint32_t Seed = 7301;
+	QuakeRock r;
+	// Spread over the four seconds, about three a second, never two at the same moment.
+	r.drop = 0.15F + (static_cast<float>(i) + 0.6F * Unit(Hash(i, Seed))) * (3.6F / static_cast<float>(QuakeRocks));
+	const float a = Unit(Hash(i, Seed + 1)) * TwoPi, d = 0.25F + 0.85F * std::sqrt(Unit(Hash(i, Seed + 2)));
+	r.x = std::cos(a) * 140.0F * d;
+	r.y = std::sin(a) * 70.0F * d;
+	r.radius = 4.0F + Unit(Hash(i, Seed + 3)) * 5.0F;
+	const float ra = Unit(Hash(i, Seed + 4)) * TwoPi;
+	r.rollX = std::cos(ra);
+	r.rollY = std::sin(ra) * 0.5F;
+	r.rollDist = 14.0F + Unit(Hash(i, Seed + 5)) * 22.0F;
+	r.shape = Hash(i, Seed + 6);
+	return r;
+}
+
+/** How far the rock has rolled @p t seconds after landing: out quickly, slowing to rest over 0.7 s. */
+float RockRolled(const QuakeRock &r, float t)
+{
+	const float u = Clamp01(t / 0.7F);
+	return r.rollDist * (1.0F - (1.0F - u) * (1.0F - u));
+}
+
+/** A rock: an irregular round shape of @p radius turned by @p turn, lit from above, shaded below and on its dark side. */
+void DrawRock(const Px &px, float cx, float cy, float radius, float turn, uint32_t shape, float alpha)
+{
+	// Its outline: eight lobes of its own sizes, turning with it.
+	float lobe[8];
+	for (int k = 0; k < 8; k++)
+		lobe[k] = 0.72F + 0.28F * Unit(Hash(shape, static_cast<uint32_t>(k)));
+	const int R = static_cast<int>(radius) + 1;
+	for (int dy = -R; dy <= R; dy++)
+		for (int dx = -R; dx <= R; dx++) {
+			// Squashed a little: a stone lying on the floor seen from above at an angle.
+			const float fx = static_cast<float>(dx), fy = static_cast<float>(dy) * 1.25F;
+			const float d = std::sqrt(fx * fx + fy * fy);
+			float a = std::atan2(fy, fx) - turn;
+			while (a < 0)
+				a += TwoPi;
+			const float pos = a / TwoPi * 8.0F;
+			const int k0 = static_cast<int>(pos) % 8, k1 = (k0 + 1) % 8;
+			const float f = pos - std::floor(pos);
+			const float edge = radius * (lobe[k0] + (lobe[k1] - lobe[k0]) * f);
+			if (d > edge)
+				continue;
+			// Light from above and a little left: the top bright, the bottom-right dark, a rim darker still.
+			const float nx = fx / std::max(edge, 1.0F), ny = fy / std::max(edge, 1.0F);
+			float lit = 0.62F - 0.42F * ny - 0.18F * nx;
+			if (d > edge - 1.0F)
+				lit *= 0.6F;
+			// A little grain, fixed to the stone so it turns with it.
+			const float gx = std::cos(turn) * fx + std::sin(turn) * fy, gy = -std::sin(turn) * fx + std::cos(turn) * fy;
+			lit *= 0.9F + 0.2F * Unit(Hash(shape, static_cast<uint32_t>(static_cast<int>(gx + 20.0F)), static_cast<uint32_t>(static_cast<int>(gy + 20.0F))));
+			lit = Clamp01(lit);
+			px.mix(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, 40 + 150 * lit, 34 + 132 * lit, 26 + 104 * lit, alpha);
+		}
+}
+
 } // namespace
 
 Displacement EarthquakeShake(float age)
@@ -567,6 +641,24 @@ void DrawEarthquakeFx(const Surface &out, Point centre, float age, bool floorLay
 				}
 			}
 		}
+		// The falling rocks' shadows, growing and darkening as they near the floor; then the shadow under it as it rolls.
+		for (uint32_t i = 0; i < static_cast<uint32_t>(QuakeRocks); i++) {
+			const QuakeRock r = RockOf(i);
+			const float t = age - r.drop;
+			if (t < 0)
+				continue;
+			const float near = Clamp01(t / RockFallSeconds);
+			const float rolled = t > RockFallSeconds ? RockRolled(r, t - RockFallSeconds) : 0.0F;
+			const float sx = cx + r.x + r.rollX * rolled, sy = cy + r.y + r.rollY * rolled;
+			const float w = r.radius * (0.6F + 0.7F * near), a = (0.15F + 0.4F * near * near) * scar;
+			const int iw = static_cast<int>(w) + 1;
+			for (int dy = -iw; dy <= iw; dy++)
+				for (int dx = -iw; dx <= iw; dx++) {
+					const float d2 = static_cast<float>(dx * dx) / (w * w) + static_cast<float>(dy * dy * 4) / (w * w);
+					if (d2 < 1.0F)
+						px.mix(static_cast<int>(sx) + dx, static_cast<int>(sy) + 2 + dy, 8, 6, 4, a * (1.0F - d2));
+				}
+		}
 		// Each pulse's shockwave: a ring of dusty light running out to the reach, the air bending with it.
 		if (quaking && since < 0.5F) {
 			const float w = std::sqrt(since / 0.5F);
@@ -605,6 +697,49 @@ void DrawEarthquakeFx(const Surface &out, Point centre, float age, bool floorLay
 					const float lit = oy == 0 ? 1.0F : (oy == size ? 0.45F : 0.75F);
 					px.mix(static_cast<int>(x) + ox, static_cast<int>(y - z) + oy, 168 * lit, 150 * lit, 120 * lit, 0.95F);
 				}
+		}
+	}
+	// The rocks from the roof: falling, landing in a puff of dust with chips flying, rolling a little and coming to rest.
+	for (uint32_t i = 0; i < static_cast<uint32_t>(QuakeRocks); i++) {
+		const QuakeRock r = RockOf(i);
+		const float t = age - r.drop;
+		if (t < 0)
+			continue;
+		const float alpha = scar;
+		if (t < RockFallSeconds) {
+			// Falling, speeding up: a streak of dust above it while it is fast.
+			const float u = t / RockFallSeconds;
+			const float z = RockDropHeight * (1.0F - u * u);
+			const float x = cx + r.x, y = cy + r.y - z;
+			for (int k = 1; k <= 6; k++)
+				px.mix(static_cast<int>(x), static_cast<int>(y) - static_cast<int>(r.radius) - k * 3, 150, 135, 110, 0.12F * u * (1.0F - static_cast<float>(k) / 7.0F));
+			DrawRock(px, x, y, r.radius, t * 3.0F, r.shape, alpha);
+			continue;
+		}
+		const float tl = t - RockFallSeconds;
+		const float rolled = RockRolled(r, tl);
+		const float x = cx + r.x + r.rollX * rolled, y = cy + r.y + r.rollY * rolled - r.radius * 0.6F;
+		// Turning as it rolls: the distance over its size.
+		DrawRock(px, x, y, r.radius, RockFallSeconds * 3.0F + rolled / r.radius, r.shape, alpha);
+		// The landing: a puff of dust spreading low, and chips flying off.
+		if (tl < 0.6F) {
+			const float pu = tl / 0.6F;
+			const float size = r.radius * (1.2F + 2.0F * pu);
+			const float pa = 0.45F * (1.0F - pu);
+			const int s2 = static_cast<int>(size);
+			for (int dy = -s2 / 2; dy <= s2 / 2; dy++)
+				for (int dx = -s2; dx <= s2; dx++) {
+					const float d2 = static_cast<float>(dx * dx) / (size * size) + static_cast<float>(dy * dy * 4) / (size * size);
+					if (d2 < 1.0F)
+						px.mix(static_cast<int>(cx + r.x) + dx, static_cast<int>(cy + r.y) + dy - 2, 140, 125, 102, pa * (1.0F - d2));
+				}
+			for (uint32_t c = 0; c < 5; c++) {
+				const float ca = Unit(Hash(r.shape, c, 1)) * TwoPi, cv = 30.0F + Unit(Hash(r.shape, c, 2)) * 40.0F;
+				const float cz = std::max(0.0F, 60.0F * tl - 300.0F * tl * tl);
+				const int chx = static_cast<int>(cx + r.x + std::cos(ca) * cv * tl), chy = static_cast<int>(cy + r.y + std::sin(ca) * cv * tl * 0.5F - cz);
+				px.mix(chx, chy, 160, 142, 112, 0.9F * (1.0F - pu));
+				px.mix(chx + 1, chy, 110, 96, 76, 0.9F * (1.0F - pu));
+			}
 		}
 	}
 	// The dust haze over the area: clouds rising and drifting the whole time, thinning out at the end.
