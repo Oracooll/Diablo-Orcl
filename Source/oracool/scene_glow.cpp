@@ -1356,6 +1356,21 @@ void FlashOnAppearing(const Missile &m)
 	}
 }
 
+/** The Fire Golem's trail (oracool/minions.h): each burning patch, its scorch and light or its flames. */
+void DrawFireTrail(const Surface &out, const View &v, float now, bool floorLayer)
+{
+	for (size_t i = 0; i < FireTrailCount(); i++) {
+		Point tile;
+		float left;
+		uint32_t seed;
+		if (!FireTrailPatch(i, tile, left, seed))
+			continue;
+		const float sx = WorldX(tile) + v.ox, sy = WorldY(tile) + v.oy;
+		if (OnScreen(v, sx, sy, 60))
+			DrawFirePatchFx(out, { static_cast<int>(sx), static_cast<int>(sy) }, now, left, seed, floorLayer);
+	}
+}
+
 void DrawCandyStates(const LightPen &pen, const View &v, float now)
 {
 	auto &NextHeat = CandyNextHeat;
@@ -2184,6 +2199,7 @@ void DrawSceneGlowGround(const Surface &out, Point firstTile, Point firstTileBuf
 	const View v = MakeView(out, firstTile, firstTileBuffer);
 	const float now = Now();
 	DrawDrawnFx(out, v, /*floorLayer=*/true, now); // the drawn earth's cracks, shockwaves and shadows, on the lit floor
+	DrawFireTrail(out, v, now, /*floorLayer=*/true); // the Fire Golem's burning trail, scorched
 	if (leveltype == DTYPE_TOWN)
 		return;
 	const int w = out.w();
@@ -2324,6 +2340,7 @@ void DrawSceneGlowBodies(const Surface &out, Point firstTile, Point firstTileBuf
 	const float now = Now();
 	DrawSkillFxHeat(out, v.ox, v.oy, now); // the skill light's heat ripples (before the light)
 	DrawDrawnFx(out, v, /*floorLayer=*/false, now); // the drawn earth's stones, rocks and dust, over the figures
+	DrawFireTrail(out, v, now, /*floorLayer=*/false); // the Fire Golem's burning trail, its flames
 	// The golems (user, 2026-10-12): the Fire Golem burning, the Blood Golem dripping, the Clay Golem leaving footprints.
 	if (DrawnSkillsOn() && leveltype != DTYPE_TOWN) {
 		auto &NextTrail = GolemNextTrail; // reset with the level and the clock's wrap (audit round 1)

@@ -20027,14 +20027,24 @@ TEST(OracoolPreview, DISABLED_DrawnExtras)
 	const uint32_t *yellow = FxTable(nullptr, oracool::Tint::Hue, oracool::Rgb(255, 196, 60));
 	const auto monkColours = oracool::HeroColoursFor(HeroClass::Monk, 1 << 4);
 	const auto rogueColours = oracool::HeroColoursFor(HeroClass::Rogue, 1 << 4);
-	for (int k = 0; k < 40; k++) {
+	for (int k = 0; k < 64; k++) {
 		const float t = static_cast<float>(k) * 0.05F;
 		char name[96];
 		{
 			OwnedSurface out = OwnedSurface::Rgb(320, 200);
 			c.Floor(out);
-			const Point foot { 160, 150 };
-			const ClxSpriteList walk = (*golem)[7];
+			// It walks east, a tile every 0.8 s, each tile it leaves burning for 3 s (FireTrailTicks).
+			const float tiles = t / 0.8F;
+			const Point foot { 40 + static_cast<int>(tiles * 64.0F), 140 };
+			for (int i = 0; i < static_cast<int>(tiles); i++) {
+				const float left = 1.0F - (t - static_cast<float>(i + 1) * 0.8F) / 3.0F;
+				oracool::DrawFirePatchFx(out, { 40 + i * 64, 140 }, t, left, static_cast<uint32_t>(i + 1) * 2654435761U, true);
+			}
+			for (int i = 0; i < static_cast<int>(tiles); i++) {
+				const float left = 1.0F - (t - static_cast<float>(i + 1) * 0.8F) / 3.0F;
+				oracool::DrawFirePatchFx(out, { 40 + i * 64, 140 }, t, left, static_cast<uint32_t>(i + 1) * 2654435761U, false);
+			}
+			const ClxSpriteList walk = (*golem)[6];
 			const ClxSprite s = walk[static_cast<size_t>(k % static_cast<int>(walk.numSprites()))];
 			ClxDrawRgbMap(out, Point { foot.x - s.width() / 2, foot.y }, s, yellow);
 			oracool::DrawGolemFireFx(out, foot, t, 2654435761U);

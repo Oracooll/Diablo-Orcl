@@ -270,15 +270,77 @@ int PanelCap(const Player &owner, MinionGroup group)
 	}
 }
 
+/** @brief A tile the Fire Golem stepped off, burning: where, on which level, how long still, whose. */
+struct FirePatch {
+	Point tile;
+	int level;
+	int ticksLeft;
+	int body;
+	uint8_t owner;
+	uint32_t seed;
+};
+std::vector<FirePatch> FireTrail;
+std::array<Point, MaxMinionBodies> FireLastTile {};
+uint32_t FireTrailSerial = 0;
+
+int TrailLevel()
+{
+	return setlevel ? 1000 + static_cast<int>(setlvlnum) : static_cast<int>(currlevel);
+}
+
+/** @brief The trail of @p owner's Fire Golems: a patch on each tile one steps off; twice a second they burn what stands on them. */
+void FireTrailBurn(Player &owner)
+{
+	// Patches of another level go out (the trail belongs to the floor it burns on).
+	FireTrail.erase(std::remove_if(FireTrail.begin(), FireTrail.end(), [](const FirePatch &p) { return p.ticksLeft <= 0 || p.level != TrailLevel(); }), FireTrail.end());
+	for (FirePatch &patch : FireTrail) {
+		if (patch.owner != owner.getId())
+			continue;
+		patch.ticksLeft--;
+		if (patch.ticksLeft % FireTrailPulseTicks != 0 || patch.body < 0 || static_cast<size_t>(patch.body) >= MaxMonsters)
+			continue;
+		Monster &golem = Monsters[patch.body];
+		if (golem.hitPoints <= 0 || !IsFireGolem(golem))
+			continue; // the golem gone: its fire burns on, harmless
+		Monster *monster = FindMonsterAtPosition(patch.tile);
+		if (monster == nullptr || monster == &golem)
+			continue;
+		const Record *record = RecordOf(golem);
+		if (record == nullptr)
+			continue;
+		const int blow = record->spec.minDamage + GenerateRnd(std::max(record->spec.maxDamage - record->spec.minDamage, 0) + 1);
+		MinionHurts(owner, golem, *monster, DamageType::Fire, (blow << 6) / (FireGolemBurnDivisor * 2));
+	}
+}
+
 /** @brief Once a second, every Fire Golem of @p owner burns everything standing beside it for half a blow. */
 void FireGolemsBurn(Player &owner)
 {
+	FireTrailBurn(owner);
 	for (size_t i = 0; i < Records.size(); i++) {
 		Record &record = Records[i];
 		if (!BodyAlive(record) || record.owner != owner.getId() || record.spec.golem != GolemKind::Fire) {
 			// A record that is no burning Fire Golem holds no clock: the next Fire Golem in it burned early (round 19).
 			FireClocks[i] = 0;
+			if (i < FireLastTile.size())
+				FireLastTile[i] = {};
 			continue;
+		}
+		// The tile it stepped off catches fire (user, 2026-10-12).
+		if (i < FireLastTile.size()) {
+			const Point at = Monsters[record.body].position.tile;
+			const Point last = FireLastTile[i];
+			if (last != Point {} && last != at && InDungeonBounds(last) && leveltype != DTYPE_TOWN) {
+				const auto same = std::find_if(FireTrail.begin(), FireTrail.end(), [&](const FirePatch &p) { return p.tile == last; });
+				if (same != FireTrail.end()) {
+					same->ticksLeft = FireTrailTicks; // walked over again: lit afresh
+				} else {
+					if (FireTrail.size() >= MaxFireTrail)
+						FireTrail.erase(FireTrail.begin());
+					FireTrail.push_back({ last, TrailLevel(), FireTrailTicks, record.body, static_cast<uint8_t>(owner.getId()), ++FireTrailSerial * 2654435761U });
+				}
+			}
+			FireLastTile[i] = at;
 		}
 		if (++FireClocks[i] < FireGolemPulseTicks)
 			continue;
@@ -515,8 +577,25 @@ bool MinionThinksThisTick(const Monster &monster, uint32_t tick)
 	return (tick + static_cast<uint32_t>(monster.getId())) % 3 == 0;
 }
 
+size_t FireTrailCount()
+{
+	return FireTrail.size();
+}
+
+bool FireTrailPatch(size_t i, Point &tile, float &left, uint32_t &seed)
+{
+	if (i >= FireTrail.size() || FireTrail[i].level != TrailLevel() || FireTrail[i].ticksLeft <= 0)
+		return false;
+	tile = FireTrail[i].tile;
+	left = static_cast<float>(FireTrail[i].ticksLeft) / static_cast<float>(FireTrailTicks);
+	seed = FireTrail[i].seed;
+	return true;
+}
+
 void ForgetMinions()
 {
+	FireTrail.clear();
+	FireLastTile.fill({});
 	for (Record &record : Records)
 		record = {};
 	RecordOfSlot.fill(-1);

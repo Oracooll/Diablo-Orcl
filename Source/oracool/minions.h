@@ -242,6 +242,18 @@ FireGolemTiming FireGolemAnimTiming(MonsterGraphic graphic);
 bool IsFireGolem(const Monster &monster);
 /** @brief Which golem @p monster is, or None (user, 2026-10-12: the golems' size, trails and fire). */
 GolemKind GolemKindOf(const Monster &monster);
+/**
+ * @brief The Fire Golem's trail (user, 2026-10-12: "leave flames flaming as he walks ... residual flames to cause fire dmg to
+ * mobs passing through them"): each tile it steps off burns FireTrailTicks; twice a second every enemy on a burning tile
+ * takes a quarter of the golem's blow as fire. Up to MaxFireTrail at once, the oldest giving way.
+ */
+constexpr int FireTrailTicks = 3 * 20;
+constexpr int FireTrailPulseTicks = 10;
+constexpr size_t MaxFireTrail = 24;
+/** @brief How many patches burn on this level now, and patch @p i's tile and the share of its time left (1..0). */
+size_t FireTrailCount();
+bool FireTrailPatch(size_t i, Point &tile, float &left, uint32_t &seed);
+
 /** @brief The frames the drawn Fire Golem skips of its own sheet, so it keeps the Elemental's pace (audit round 2). */
 int DrawnFireGolemSkippedFrames(const Monster &monster, MonsterGraphic graphic);
 /**
