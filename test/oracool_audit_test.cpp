@@ -18787,6 +18787,49 @@ TEST(OracoolPreview, DISABLED_DrawnGroundStomp)
 	HeadlessMode = savedHeadless;
 }
 
+/**
+ * A drawn Seismic Slam (user, 2026-10-12: "invent a good looking game drawn seismic slam effect and wave. render one for my
+ * review"): the Barbarian standing, the slam at 0.1 s, the wave rolling its five tiles east (left) and south-east (right),
+ * drawn by oracool::DrawSeismicSlamFx - 44 frames at 50 ms into ORCL_SEISMIC_OUT as seismic_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_DrawnSeismicSlam)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const char *outDir = std::getenv("ORCL_SEISMIC_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	const std::optional<OwnedClxSpriteSheet> stand = FxBody("plrgfx\\warrior\\wma\\wmaas", 96);
+	ASSERT_TRUE(stand.has_value());
+	const std::shared_ptr<const oracool::SpriteColours> colours = oracool::HeroColoursFor(HeroClass::Barbarian, 1 << 4);
+	constexpr int W = 820, H = 300, Frames = 44;
+	// East on screen is tile (1,-1); south-east is tile (1,0). The hero faces the way the wave goes.
+	const ClxSprite eastHero = (*stand)[6][0];
+	const ClxSprite southEastHero = (*stand)[7][0];
+	for (int k = 0; k < Frames; k++) {
+		OwnedSurface out = OwnedSurface::Rgb(W, H);
+		for (int y = 0; y < H; y++)
+			for (int x = 0; x < W; x++) {
+				const int v = 26 + ((x / 16 + y / 8) % 2) * 4;
+				*out.at<uint32_t>(x, y) = (static_cast<uint32_t>(v + 4) << 16) | (static_cast<uint32_t>(v + 2) << 8) | static_cast<uint32_t>(v);
+			}
+		const float age = static_cast<float>(k) * 0.05F - 0.1F;
+		const Point east { 60, 150 }, southEast { 520, 70 };
+		oracool::DrawSeismicSlamFx(out, east, 1, -1, 5, age, true);
+		oracool::DrawSeismicSlamFx(out, southEast, 1, 0, 5, age, true);
+		ClxDrawRgbMap(out, Point { east.x - eastHero.width() / 2, east.y }, eastHero, FxTable(colours.get()));
+		ClxDrawRgbMap(out, Point { southEast.x - southEastHero.width() / 2, southEast.y }, southEastHero, FxTable(colours.get()));
+		oracool::DrawSeismicSlamFx(out, east, 1, -1, 5, age, false);
+		oracool::DrawSeismicSlamFx(out, southEast, 1, 0, 5, age, false);
+		char name[64];
+		std::snprintf(name, sizeof(name), "seismic_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	HeadlessMode = savedHeadless;
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"

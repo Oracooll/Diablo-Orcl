@@ -24,4 +24,16 @@ constexpr float GroundStompSeconds = 1.4F;
  */
 void DrawGroundStompFx(const Surface &out, Point foot, float age, bool floorLayer);
 
+/** @brief How long the drawn Seismic Slam lasts, in seconds; its wave reaches the end of its path at SeismicTravelSeconds. */
+constexpr float SeismicSlamSeconds = 1.8F;
+constexpr float SeismicTravelSeconds = 0.6F;
+
+/**
+ * @brief The drawn Seismic Slam (user, 2026-10-12: "invent a good looking game drawn seismic slam effect and wave"): a wave of
+ * earth rolling @p tiles tiles from @p foot along the tile direction (@p dirX, @p dirY) - a rupture tearing open behind a
+ * ridge of heaving stone, chips and dust thrown up all along it, a burst at its end - at @p age seconds after the slam.
+ * @p floorLayer as DrawGroundStompFx.
+ */
+void DrawSeismicSlamFx(const Surface &out, Point foot, int dirX, int dirY, int tiles, float age, bool floorLayer);
+
 } // namespace devilution::oracool
