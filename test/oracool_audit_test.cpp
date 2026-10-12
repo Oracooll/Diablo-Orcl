@@ -19203,6 +19203,439 @@ TEST(OracoolPreview, DISABLED_BlessedShieldRicochet)
 	HeadlessMode = savedHeadless;
 }
 
+namespace {
+
+/** The cold previews' cast: the cathedral's palette, the Sorcerer casting, bone-white skeletons standing or recoiling. */
+struct ColdCast {
+	std::optional<OwnedClxSpriteSheet> cast, stand, skelStand, skelHit;
+	std::shared_ptr<const oracool::SpriteColours> colours;
+	std::array<uint32_t, 256> bone {};
+	bool Load()
+	{
+		std::array<uint8_t, 768> pal {};
+		LoadFileInMem("levels\\l1data\\l1.pal", pal);
+		for (int i = 0; i < 256; i++)
+			PaletteRGB[i] = (static_cast<uint32_t>(pal[i * 3]) << 16) | (static_cast<uint32_t>(pal[i * 3 + 1]) << 8) | pal[i * 3 + 2];
+		PaletteRgbGeneration++;
+		for (const char *path : { "plrgfx\\sorceror\\slt\\sltqm", "plrgfx\\sorceror\\sln\\slnqm", "plrgfx\\sorceror\\sls\\slsqm" }) {
+			cast = FxBody(path, 128);
+			if (cast)
+				break;
+		}
+		stand = FxBody("plrgfx\\sorceror\\slt\\sltas", 96);
+		skelStand = FxBody("monsters\\skelaxe\\sklaxn", 128);
+		skelHit = FxBody("monsters\\skelaxe\\sklaxh", 128);
+		std::array<uint8_t, 256> trn {};
+		LoadFileInMem("monsters\\skelaxe\\white.trn", trn);
+		for (size_t i = 0; i < 256; i++)
+			bone[i] = FxTable(nullptr)[trn[i]];
+		colours = oracool::HeroColoursFor(HeroClass::Sorcerer, 1 << 4);
+		return cast && skelStand && skelHit;
+	}
+	void Floor(const Surface &out) const
+	{
+		for (int y = 0; y < out.h(); y++)
+			for (int x = 0; x < out.w(); x++) {
+				const int u = (x + 2 * y) >> 6, v = (2 * y - x + 1280) >> 6;
+				const int e = std::min({ (x + 2 * y) & 63, (2 * y - x + 1280) & 63, 63 - ((x + 2 * y) & 63), 63 - ((2 * y - x + 1280) & 63) });
+				const int base = 30 + ((u * 7 + v * 13) & 7) - (e < 2 ? 10 : 0);
+				*out.at<uint32_t>(x, y) = (static_cast<uint32_t>(base + 4) << 16) | (static_cast<uint32_t>(base + 1) << 8) | static_cast<uint32_t>(base - 3);
+			}
+	}
+	void Sorcerer(const Surface &out, Point foot, int dir, int k) const
+	{
+		const ClxSpriteList l = (*cast)[dir];
+		ClxSprite s = l[static_cast<size_t>(std::min<int>(k, static_cast<int>(l.numSprites()) - 1))];
+		if (k >= static_cast<int>(l.numSprites()) && stand) // the cast done: standing, breathing
+			s = (*stand)[dir][static_cast<size_t>((k / 2) % static_cast<int>((*stand)[dir].numSprites()))];
+		ClxDrawRgbMap(out, Point { foot.x - s.width() / 2, foot.y }, s, FxTable(colours.get()));
+	}
+	void Skeleton(const Surface &out, Point foot, int dir, int k, float sinceHit) const
+	{
+		ClxSprite s = (*skelStand)[dir][static_cast<size_t>(k % static_cast<int>((*skelStand)[dir].numSprites()))];
+		if (sinceHit >= 0 && sinceHit < 0.4F) {
+			const ClxSpriteList hit = (*skelHit)[dir];
+			s = hit[static_cast<size_t>(std::min<int>(static_cast<int>(sinceHit / 0.05F), static_cast<int>(hit.numSprites()) - 1))];
+		}
+		ClxDrawRgbMap(out, Point { foot.x - s.width() / 2, foot.y }, s, bone.data());
+	}
+};
+
+} // namespace
+
+/**
+ * A drawn Chill Touch (user, 2026-10-12: "reinvent chill touch. i dont like the asset"): the Sorcerer breathing frost east
+ * (left) and south-east (right) over two skeletons in its cone, each taking the rime as the breath reaches it, drawn by
+ * oracool::DrawChillTouchFx and DrawRimeFx - 34 frames at 50 ms into ORCL_CHILL_OUT as chill_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_DrawnChillTouch)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	ColdCast c;
+	ASSERT_TRUE(c.Load());
+	const char *outDir = std::getenv("ORCL_CHILL_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	constexpr int W = 640, H = 260, Frames = 34;
+	struct Lane {
+		Point foot;
+		int dirX, dirY, heroDir;
+		Point mobs[2];
+		int mobDir;
+	};
+	// East: the tile ahead (64,0) and the one ahead-right (32,16); south-east: ahead (32,16) and ahead-left (32,-16)... kept in
+	// the cone: ahead and ahead-right (0,32).
+	const Lane lanes[] = { { { 70, 140 }, 1, -1, 6, { { 134, 140 }, { 102, 156 } }, 2 }, { { 390, 90 }, 1, 0, 7, { { 422, 106 }, { 390, 122 } }, 3 } };
+	for (int k = 0; k < Frames; k++) {
+		OwnedSurface out = OwnedSurface::Rgb(W, H);
+		c.Floor(out);
+		const float age = static_cast<float>(k - 4) * 0.05F;
+		const float hitAt = 0.1F; // when the breath reaches the first tile
+		for (const Lane &l : lanes) {
+			oracool::DrawChillTouchFx(out, l.foot, l.dirX, l.dirY, age, true);
+			for (const Point &m : l.mobs)
+				oracool::DrawRimeFx(out, m, age - hitAt, true);
+		}
+		for (const Lane &l : lanes) {
+			c.Sorcerer(out, l.foot, l.heroDir, k);
+			for (const Point &m : l.mobs)
+				c.Skeleton(out, m, l.mobDir, k, age - hitAt);
+		}
+		for (const Lane &l : lanes) {
+			oracool::DrawChillTouchFx(out, l.foot, l.dirX, l.dirY, age, false);
+			for (const Point &m : l.mobs)
+				oracool::DrawRimeFx(out, m, age - hitAt, false);
+		}
+		char name[64];
+		std::snprintf(name, sizeof(name), "chill_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * A drawn Frost Nova (user, 2026-10-12: "suggest a reinvented animated frost nova"): the Sorcerer casting with four skeletons
+ * round her, each taking the rime as the ring reaches it, drawn by oracool::DrawFrostNovaFx and DrawRimeFx - 36 frames at
+ * 50 ms into ORCL_NOVA_OUT as nova_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_DrawnFrostNova)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	ColdCast c;
+	ASSERT_TRUE(c.Load());
+	const char *outDir = std::getenv("ORCL_NOVA_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	constexpr int W = 400, H = 250, Frames = 36;
+	const Point hero { 200, 140 };
+	struct Mob {
+		Point foot;
+		int dir;
+	};
+	const Mob mobs[] = { { { 104, 140 }, 6 }, { { 296, 140 }, 2 }, { { 200, 92 }, 0 }, { { 252, 176 }, 3 } };
+	for (int k = 0; k < Frames; k++) {
+		OwnedSurface out = OwnedSurface::Rgb(W, H);
+		c.Floor(out);
+		const float age = static_cast<float>(k - 4) * 0.05F;
+		// When the ring reached each: its flat distance (y doubled) on the nova's curve.
+		const auto hitAt = [&](Point m) {
+			const float dx = static_cast<float>(m.x - hero.x), dy = static_cast<float>(m.y - hero.y) * 2.0F;
+			return -0.2F * std::log(std::max(0.001F, 1.0F - std::sqrt(dx * dx + dy * dy) / 150.0F));
+		};
+		oracool::DrawFrostNovaFx(out, hero, age, true);
+		for (const Mob &m : mobs)
+			oracool::DrawRimeFx(out, m.foot, age - hitAt(m.foot), true);
+		std::vector<std::pair<int, int>> order { { hero.y, -1 } };
+		for (int i = 0; i < 4; i++)
+			order.push_back({ mobs[i].foot.y, i });
+		std::sort(order.begin(), order.end());
+		for (const auto &[y, i] : order) {
+			if (i < 0)
+				c.Sorcerer(out, hero, 0, k);
+			else
+				c.Skeleton(out, mobs[i].foot, mobs[i].dir, k, age - hitAt(mobs[i].foot));
+		}
+		oracool::DrawFrostNovaFx(out, hero, age, false);
+		for (const Mob &m : mobs)
+			oracool::DrawRimeFx(out, m.foot, age - hitAt(m.foot), false);
+		char name[64];
+		std::snprintf(name, sizeof(name), "nova_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * A drawn Frozen Orb (user, 2026-10-12: "make it better and make it roll in direction it is fired at"): the Sorcerer casting,
+ * the orb rolling five tiles east (top) and south-east (bottom) shedding ice bolts, then shattering - drawn by
+ * oracool::DrawFrozenOrbFx and DrawFrozenOrbBurstFx; the shed bolts are a stand-in streak. 58 frames at 50 ms into
+ * ORCL_ORB_OUT as orb_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_DrawnFrozenOrb)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	ColdCast c;
+	ASSERT_TRUE(c.Load());
+	const char *outDir = std::getenv("ORCL_ORB_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	constexpr int W = 720, H = 300, Frames = 58;
+	constexpr float Roll = 2.0F; // seconds rolling before it bursts
+	struct Lane {
+		Point hero, from, to;
+		int dir;
+	};
+	const Lane lanes[] = { { { 50, 120 }, { 80, 120 }, { 400, 120 }, 6 }, { { 420, 60 }, { 446, 73 }, { 690, 195 }, 7 } };
+	for (int k = 0; k < Frames; k++) {
+		OwnedSurface out = OwnedSurface::Rgb(W, H);
+		c.Floor(out);
+		const float age = static_cast<float>(k - 4) * 0.05F;
+		const auto where = [&](const Lane &l, float t) {
+			const float u = std::clamp(t / Roll, 0.0F, 1.0F);
+			return Point { l.from.x + static_cast<int>((l.to.x - l.from.x) * u), l.from.y + static_cast<int>((l.to.y - l.from.y) * u) };
+		};
+		for (int layer = 1; layer >= 0; layer--) {
+			const bool floor = layer == 1;
+			for (const Lane &l : lanes) {
+				if (age >= 0 && age < Roll)
+					oracool::DrawFrozenOrbFx(out, l.from, where(l, age), age, floor);
+				oracool::DrawFrozenOrbBurstFx(out, l.to, age - Roll, floor);
+			}
+			if (floor)
+				for (const Lane &l : lanes)
+					c.Sorcerer(out, l.hero, l.dir, k);
+		}
+		// The ice bolts it sheds (the game's own Ice Bolt flies these): a fan of short streaks, three of eight a step.
+		for (const Lane &l : lanes)
+			for (int b = 0; b < 14; b++) {
+				const float born = 0.15F * static_cast<float>(b + 1);
+				const float t = age - born;
+				if (born >= Roll || t < 0 || t > 0.5F)
+					continue;
+				const Point o = where(l, born);
+				const float ang = static_cast<float>((b * 3) % 8) * 0.785F;
+				const float dx = std::cos(ang), dy = std::sin(ang) * 0.5F;
+				for (int s = 0; s < 7; s++) {
+					const int x = o.x + static_cast<int>(dx * (t * 160.0F - s)), y = o.y - 12 + static_cast<int>(dy * (t * 160.0F - s));
+					if (x >= 0 && y >= 0 && x < W && y < H)
+						*out.at<uint32_t>(x, y) = s == 0 ? 0xF0F8FFU : (s < 3 ? 0xA0D0FFU : 0x5080C0U);
+				}
+			}
+		char name[64];
+		std::snprintf(name, sizeof(name), "orb_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * A drawn Absolute Zero (user, 2026-10-12: "invent something overwhelming"): the Sorcerer casting among five skeletons, which
+ * freeze in blocks of ice and shatter free; the vortex its seven seconds round her; the whole picture graded - drawn by
+ * oracool::DrawAbsoluteZeroFx, DrawIceEncaseFx and ApplyAbsoluteZeroGrade. 164 frames at 50 ms into ORCL_AZERO_OUT as
+ * azero_NNN.png.
+ */
+TEST(OracoolPreview, DISABLED_DrawnAbsoluteZero)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	ColdCast c;
+	ASSERT_TRUE(c.Load());
+	const char *outDir = std::getenv("ORCL_AZERO_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	constexpr int W = 480, H = 320, Frames = 164;
+	const Point hero { 240, 200 };
+	struct Mob {
+		Point foot;
+		int dir;
+	};
+	const Mob mobs[] = { { { 150, 200 }, 6 }, { { 330, 200 }, 2 }, { { 240, 160 }, 0 }, { { 186, 230 }, 5 }, { { 300, 232 }, 3 } };
+	for (int k = 0; k < Frames; k++) {
+		OwnedSurface out = OwnedSurface::Rgb(W, H);
+		c.Floor(out);
+		const float age = static_cast<float>(k - 4) * 0.05F;
+		const float frozeAt = 0.34F;
+		oracool::DrawAbsoluteZeroFx(out, hero, hero, age, true);
+		for (const Mob &m : mobs)
+			oracool::DrawIceEncaseFx(out, m.foot, age - frozeAt, true);
+		std::vector<std::pair<int, int>> order { { hero.y, -1 } };
+		for (int i = 0; i < 5; i++)
+			order.push_back({ mobs[i].foot.y, i });
+		std::sort(order.begin(), order.end());
+		for (const auto &[y, i] : order) {
+			if (i < 0) {
+				c.Sorcerer(out, hero, 0, k);
+				continue;
+			}
+			// Frozen still while sealed in the ice, then about again.
+			const float since = age - frozeAt;
+			c.Skeleton(out, mobs[i].foot, mobs[i].dir, since >= 0 && since < oracool::IceEncaseSeconds ? 0 : k, -1);
+			oracool::DrawIceEncaseFx(out, mobs[i].foot, since, false);
+		}
+		oracool::DrawAbsoluteZeroFx(out, hero, hero, age, false);
+		oracool::ApplyAbsoluteZeroGrade(out, age);
+		char name[64];
+		std::snprintf(name, sizeof(name), "azero_%03d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * A drawn Static Charge (user, 2026-10-12: "reinvent static charge"): the Sorcerer charged, two skeletons hacking at her, the
+ * charge discharging into each blow's striker - drawn by oracool::DrawStaticChargeFx and DrawStaticDischargeFx. 48 frames at
+ * 50 ms into ORCL_STATIC_OUT as static_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_DrawnStaticCharge)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	ColdCast c;
+	ASSERT_TRUE(c.Load());
+	const std::optional<OwnedClxSpriteSheet> skelAttack = FxBody("monsters\\skelaxe\\sklaxa", 128);
+	ASSERT_TRUE(skelAttack.has_value());
+	const char *outDir = std::getenv("ORCL_STATIC_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	constexpr int W = 320, H = 200, Frames = 48;
+	const Point hero { 150, 130 };
+	const Point mobs[2] = { { 214, 130 }, { 118, 146 } };
+	const int mobDirs[2] = { 2, 5 };
+	for (int k = 0; k < Frames; k++) {
+		OwnedSurface out = OwnedSurface::Rgb(W, H);
+		c.Floor(out);
+		const float age = static_cast<float>(k) * 0.05F;
+		oracool::DrawStaticChargeFx(out, hero, age + 1.0F, true);
+		// Each skeleton swings in turn; its blow lands 0.45 s into the swing, and the charge answers.
+		const auto swingAge = [&](int m) { return std::fmod(age + static_cast<float>(m) * 1.2F, 2.4F); };
+		std::vector<std::pair<int, int>> order { { hero.y, -1 }, { mobs[0].y, 0 }, { mobs[1].y, 1 } };
+		std::sort(order.begin(), order.end());
+		for (const auto &[y, i] : order) {
+			if (i < 0) {
+				c.Sorcerer(out, hero, 0, 99 + k);
+				continue;
+			}
+			const float sa = swingAge(i);
+			const ClxSpriteList swing = (*skelAttack)[mobDirs[i]];
+			const int f = static_cast<int>(sa / 0.05F);
+			ClxSprite s = (*c.skelStand)[mobDirs[i]][static_cast<size_t>(k % static_cast<int>((*c.skelStand)[mobDirs[i]].numSprites()))];
+			if (f < static_cast<int>(swing.numSprites()))
+				s = swing[static_cast<size_t>(f)];
+			else if (sa - 0.45F < 0.4F && sa >= 0.45F)
+				s = (*c.skelHit)[mobDirs[i]][static_cast<size_t>(std::min<int>(static_cast<int>((sa - 0.45F) / 0.05F), static_cast<int>((*c.skelHit)[mobDirs[i]].numSprites()) - 1))];
+			ClxDrawRgbMap(out, Point { mobs[i].x - s.width() / 2, mobs[i].y }, s, c.bone.data());
+		}
+		oracool::DrawStaticChargeFx(out, hero, age + 1.0F, false);
+		for (int m = 0; m < 2; m++)
+			oracool::DrawStaticDischargeFx(out, hero, mobs[m], swingAge(m) - 0.45F);
+		char name[64];
+		std::snprintf(name, sizeof(name), "static_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * A drawn Cinder Touch (user, 2026-10-12: "reinvent cinder touch. current asset is ugly"): the Sorcerer touching the skeleton
+ * before her, which burns its three seconds - drawn by oracool::DrawCinderTouchFx. 72 frames at 50 ms into ORCL_CINDER_OUT as
+ * cinder_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_DrawnCinderTouch)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	ColdCast c;
+	ASSERT_TRUE(c.Load());
+	const char *outDir = std::getenv("ORCL_CINDER_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	constexpr int W = 320, H = 200, Frames = 72;
+	const Point hero { 120, 140 }, mob { 184, 140 };
+	for (int k = 0; k < Frames; k++) {
+		OwnedSurface out = OwnedSurface::Rgb(W, H);
+		c.Floor(out);
+		const float age = static_cast<float>(k - 4) * 0.05F;
+		oracool::DrawCinderTouchFx(out, hero, mob, age, true);
+		c.Sorcerer(out, hero, 6, k);
+		c.Skeleton(out, mob, 2, k, age - 0.1F);
+		oracool::DrawCinderTouchFx(out, hero, mob, age, false);
+		char name[64];
+		std::snprintf(name, sizeof(name), "cinder_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * A drawn Furnace Mouth (user, 2026-10-12: "better and longer lasting flamethrow animation ... use the current asset"): the
+ * user's furnace (its sheet as the game draws it), alive between breaths, breathing three tiles of drawn fire at a skeleton
+ * once a second - east (top) and south-east (bottom). 70 frames at 50 ms into ORCL_FURNACE_OUT as furnace_NN.png.
+ */
+TEST(OracoolPreview, DISABLED_DrawnFurnaceMouth)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	InitMissileGFX(true);
+	ColdCast c;
+	ASSERT_TRUE(c.Load());
+	const MissileFileData &data = GetMissileSpriteData(MissileGraphicID::FurnaceMouth);
+	ASSERT_TRUE(data.sprites.has_value()) << "the furnace sheet";
+	const char *outDir = std::getenv("ORCL_FURNACE_OUT");
+	const std::string dir = outDir != nullptr ? std::string(outDir) + "/" : std::string();
+	constexpr int W = 400, H = 300, Frames = 70;
+	struct Lane {
+		Point floor;
+		int dirX, dirY, row, mobDir;
+	};
+	const Lane lanes[] = { { { 70, 110 }, 1, -1, 6, 2 }, { { 90, 170 }, 1, 0, 7, 3 } };
+	for (int k = 0; k < Frames; k++) {
+		OwnedSurface out = OwnedSurface::Rgb(W, H);
+		c.Floor(out);
+		const float age = static_cast<float>(k) * 0.05F;
+		const float since = std::fmod(std::max(0.0F, age - 0.2F), 1.0F); // a breath each second
+		const float breath = age >= 0.2F ? since : -1.0F;
+		for (const Lane &l : lanes)
+			oracool::DrawFurnaceFlameFx(out, l.floor, l.dirX, l.dirY, breath, true);
+		for (const Lane &l : lanes) {
+			const ClxSprite furnace = (*data.spritesForDirection(l.row))[0];
+			// The sheet's floor point is (224, 160) in its 448x320 cell; a little recoil as it breathes.
+			const int recoil = breath >= 0 && breath < 0.15F ? 1 : 0;
+			ClxDrawRgbMap(out, Point { l.floor.x - 224 - recoil * (l.dirX - l.dirY), l.floor.y + 160 }, furnace, FxTable(data.colours.get()));
+			const Point mob { l.floor.x + (l.dirX - l.dirY) * 32 * 3, l.floor.y + (l.dirX + l.dirY) * 16 * 3 };
+			c.Skeleton(out, mob, l.mobDir, k, breath >= 0.1F ? breath - 0.1F : -1.0F);
+		}
+		for (const Lane &l : lanes) {
+			oracool::DrawFurnaceLife(out, l.floor, l.dirX, l.dirY, breath, age);
+			oracool::DrawFurnaceFlameFx(out, l.floor, l.dirX, l.dirY, breath, false);
+		}
+		char name[64];
+		std::snprintf(name, sizeof(name), "furnace_%02d.png", k);
+		PreviewSave(out, (dir + name).c_str());
+	}
+	gbIsHellfire = savedHellfire;
+	HeadlessMode = savedHeadless;
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"

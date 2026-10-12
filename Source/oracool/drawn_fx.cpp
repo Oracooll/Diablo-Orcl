@@ -991,4 +991,1222 @@ void DrawHolyLanceFx(const Surface &out, Point foot, int dirX, int dirY, int til
 	}
 }
 
+namespace {
+
+/** A feather of hoarfrost on the floor at (@p x, @p y): a stem along @p a with side barbs, grown to @p grown (0..1). */
+void FrostFern(const Px &px, float x, float y, float a, float len, float grown, float k, uint32_t seed)
+{
+	if (grown <= 0 || k <= 0.01F)
+		return;
+	const float l = len * grown;
+	const float ca = std::cos(a), sa = std::sin(a);
+	for (float s = 0; s <= l; s += 1.0F) {
+		const int ix = static_cast<int>(x + ca * s), iy = static_cast<int>(y + sa * s * 0.5F);
+		const float tip = 1.0F - s / std::max(1.0F, len);
+		px.mix(ix, iy, 214, 236, 255, 0.75F * k);
+		px.add(ix, iy, 120, 170, 255, 0.25F * k * tip);
+		// Barbs every few pixels, alternating sides, shorter toward the tip.
+		if (static_cast<int>(s) % 3 == 1) {
+			const float side = (static_cast<int>(s) / 3) % 2 ? 1.0F : -1.0F;
+			const float ba = a + side * 1.0F;
+			const float bl = (2.0F + 4.0F * Unit(Hash(seed, static_cast<uint32_t>(s)))) * tip;
+			for (float b = 1; b <= bl; b += 1.0F)
+				px.mix(static_cast<int>(x + ca * s + std::cos(ba) * b), static_cast<int>(y + (sa * s + std::sin(ba) * b) * 0.5F), 200, 228, 255, 0.55F * k * (1.0F - b / (bl + 1.0F)));
+		}
+	}
+}
+
+} // namespace
+
+void DrawChillTouchFx(const Surface &out, Point foot, int dirX, int dirY, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > ChillTouchSeconds || (dirX == 0 && dirY == 0))
+		return;
+	const Px px { &out, out.w(), out.h() };
+	constexpr uint32_t Seed = 4409;
+	// The cone on the floor, worked out flat (y doubled) and squashed back: its axis along the tile direction, 1.7 tiles long.
+	const float stepX = static_cast<float>(dirX - dirY) * 32.0F, stepY = static_cast<float>(dirX + dirY) * 16.0F;
+	const float axis = std::atan2(stepY * 2.0F, stepX);
+	const float reach = 1.7F * std::sqrt(stepX * stepX + stepY * stepY * 4.0F);
+	constexpr float Spread = 0.62F; // radians either side
+	const float fx = static_cast<float>(foot.x), fy = static_cast<float>(foot.y);
+	const float hx = fx + std::cos(axis) * 14.0F, hy = fy + std::sin(axis) * 7.0F; // under her outstretched hand
+	const auto at = [&](float a, float r, float &x, float &y) { x = hx + std::cos(a) * r; y = hy + std::sin(a) * r * 0.5F; };
+	// How far the breath has rolled out: fast, then slowing.
+	const float out01 = 1.0F - std::exp(-age / 0.13F);
+
+	if (floorLayer) {
+		// A cold sheen over the cone, following the breath out and lifting as it thaws.
+		const float sheen = Clamp01(age / 0.15F) * Clamp01(1.0F - (age - 0.7F) / 0.7F);
+		if (sheen > 0) {
+			const float R = reach * out01;
+			const int span = static_cast<int>(reach) + 2;
+			for (int dy = -span / 2; dy <= span / 2; dy++)
+				for (int dx = -span; dx <= span; dx++) {
+					const float wx = static_cast<float>(dx), wy = static_cast<float>(dy) * 2.0F;
+					const float r = std::sqrt(wx * wx + wy * wy);
+					if (r > R || r < 2.0F)
+						continue;
+					float da = std::atan2(wy, wx) - axis;
+					while (da > Pi)
+						da -= TwoPi;
+					while (da < -Pi)
+						da += TwoPi;
+					const float edge = 1.0F - std::abs(da) / Spread;
+					if (edge <= 0)
+						continue;
+					const float f = std::min(1.0F, edge * 2.5F) * (1.0F - r / (reach + 1.0F) * 0.5F) * sheen;
+					px.mix(static_cast<int>(hx) + dx, static_cast<int>(hy) + dy, 150, 190, 230, 0.20F * f);
+					px.add(static_cast<int>(hx) + dx, static_cast<int>(hy) + dy, 70, 120, 220, 0.18F * f);
+				}
+		}
+		// Hoarfrost ferns, each growing as the breath reaches it, melting away at the end.
+		for (uint32_t i = 0; i < 18; i++) {
+			const float a = axis + (Unit(Hash(i, Seed)) * 2.0F - 1.0F) * Spread * 0.9F;
+			const float r = reach * (0.25F + 0.75F * std::sqrt(Unit(Hash(i, Seed + 1))));
+			const float reached = -0.13F * std::log(std::max(0.001F, 1.0F - r / reach)); // when out01 got there
+			const float grown = Clamp01((age - reached) / 0.18F);
+			const float melt = Clamp01(1.0F - (age - 0.8F - 0.3F * Unit(Hash(i, Seed + 2))) / 0.4F);
+			float x, y;
+			at(a, r, x, y);
+			const float fa = a + (Unit(Hash(i, Seed + 3)) - 0.5F) * 1.6F;
+			FrostFern(px, x, y, fa, 7.0F + 9.0F * Unit(Hash(i, Seed + 4)), grown, melt, Hash(i, Seed + 5));
+			FrostFern(px, x, y, fa + Pi * 0.66F, 4.0F + 5.0F * Unit(Hash(i, Seed + 6)), grown, melt * 0.8F, Hash(i, Seed + 7));
+		}
+		return;
+	}
+
+	// ---- In the air ----
+	// A flash of cold at her hand as she casts.
+	if (age < 0.14F) {
+		const float k = 1.0F - age / 0.14F;
+		for (int dy = -9; dy <= 9; dy++)
+			for (int dx = -9; dx <= 9; dx++) {
+				const float d2 = static_cast<float>(dx * dx + dy * dy) / 81.0F;
+				if (d2 < 1.0F)
+					px.add(static_cast<int>(hx) + dx, static_cast<int>(hy) - 30 + dy, 190, 225, 255, k * (1.0F - d2) * (1.0F - d2));
+			}
+	}
+	// The breath: puffs of frost mist rolling out through the cone, swelling, sinking toward the floor and thinning.
+	for (uint32_t i = 0; i < 26; i++) {
+		const float t0 = Unit(Hash(i, Seed + 10)) * 0.12F;
+		const float t = age - t0;
+		const float life = 0.75F + 0.35F * Unit(Hash(i, Seed + 11));
+		if (t < 0 || t > life)
+			continue;
+		const float u = t / life;
+		const float a = axis + (Unit(Hash(i, Seed + 12)) * 2.0F - 1.0F) * Spread * 0.85F;
+		const float r = reach * (0.35F + 0.75F * Unit(Hash(i, Seed + 13))) * (1.0F - std::exp(-t / 0.14F));
+		float x, y;
+		at(a, r, x, y);
+		y -= 30.0F * (1.0F - Clamp01(t / 0.6F)) + 6.0F; // from hand height, settling low
+		const float size = 6.0F + 16.0F * std::sqrt(u);
+		const float alpha = 0.5F * std::sin(std::min(1.0F, u * 1.4F + 0.1F) * Pi) * (1.0F - u * 0.4F);
+		const int s = static_cast<int>(size);
+		for (int dy = -s; dy <= s; dy++)
+			for (int dx = -s; dx <= s; dx++) {
+				const float d2 = static_cast<float>(dx * dx + dy * dy * 2) / (size * size);
+				if (d2 < 1.0F)
+					px.mix(static_cast<int>(x) + dx, static_cast<int>(y) + dy, 212, 232, 255, alpha * (1.0F - d2));
+			}
+	}
+	// Ice crystals glittering in it: carried out with the mist, twinkling, falling a little.
+	for (uint32_t i = 0; i < 44; i++) {
+		const float t0 = Unit(Hash(i, Seed + 20)) * 0.15F;
+		const float t = age - t0;
+		if (t < 0 || t > 0.9F)
+			continue;
+		const float a = axis + (Unit(Hash(i, Seed + 21)) * 2.0F - 1.0F) * Spread;
+		const float r = reach * (0.2F + 0.9F * Unit(Hash(i, Seed + 22))) * (1.0F - std::exp(-t / 0.12F));
+		float x, y;
+		at(a, r, x, y);
+		y -= 28.0F * (1.0F - Clamp01(t / 0.7F)) + 4.0F;
+		const float tw = std::pow(0.5F + 0.5F * std::sin(t * 38.0F + static_cast<float>(i) * 2.1F), 6.0F);
+		const float k = (1.0F - t / 0.9F) * (0.35F + 0.65F * tw);
+		const int ix = static_cast<int>(x), iy = static_cast<int>(y);
+		px.add(ix, iy, 240, 250, 255, k);
+		if (tw > 0.6F) { // a sparkling one throws a tiny cross
+			px.add(ix - 1, iy, 160, 210, 255, 0.6F * k);
+			px.add(ix + 1, iy, 160, 210, 255, 0.6F * k);
+			px.add(ix, iy - 1, 160, 210, 255, 0.6F * k);
+			px.add(ix, iy + 1, 160, 210, 255, 0.6F * k);
+		}
+	}
+}
+
+void DrawRimeFx(const Surface &out, Point foot, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > RimeSeconds)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	constexpr uint32_t Seed = 4513;
+	const float fx = static_cast<float>(foot.x), fy = static_cast<float>(foot.y);
+	if (floorLayer) {
+		// A ring of frost at its feet, crystals pointing out, melting.
+		const float k = Clamp01(age / 0.1F) * Clamp01(1.0F - (age - 0.5F) / 0.4F);
+		for (uint32_t i = 0; i < 9; i++) {
+			const float a = static_cast<float>(i) / 9.0F * TwoPi + Unit(Hash(i, Seed)) * 0.5F;
+			FrostFern(px, fx + std::cos(a) * 8.0F, fy + std::sin(a) * 4.0F, a, 5.0F + 6.0F * Unit(Hash(i, Seed + 1)), Clamp01(age / 0.15F), k, Hash(i, Seed + 2));
+		}
+		return;
+	}
+	// A white-blue flash on the body, and splinters of ice bursting off it and falling.
+	const float flash = std::exp(-age / 0.1F);
+	for (int dy = -16; dy <= 16; dy++)
+		for (int dx = -12; dx <= 12; dx++) {
+			const float d2 = static_cast<float>(dx * dx) / 144.0F + static_cast<float>(dy * dy) / 256.0F;
+			if (d2 < 1.0F)
+				px.add(static_cast<int>(fx) + dx, static_cast<int>(fy) - 30 + dy, 170, 215, 255, 0.55F * flash * (1.0F - d2));
+		}
+	for (uint32_t i = 0; i < 9; i++) {
+		const float a = Unit(Hash(i, Seed + 3)) * TwoPi;
+		const float v = 40.0F + Unit(Hash(i, Seed + 4)) * 50.0F;
+		const float t = age;
+		if (t > 0.5F)
+			continue;
+		const float x = fx + std::cos(a) * v * t, y = fy - 30.0F + std::sin(a) * v * t * 0.6F - 40.0F * t + 200.0F * t * t;
+		const float k = 1.0F - t / 0.5F;
+		const float ex = std::cos(a) * 2.0F, ey = std::sin(a) * 1.2F; // a splinter: a short bright line along its flight
+		px.add(static_cast<int>(x), static_cast<int>(y), 235, 248, 255, k);
+		px.add(static_cast<int>(x - ex), static_cast<int>(y - ey), 150, 200, 255, 0.7F * k);
+	}
+}
+
+void DrawFrostNovaFx(const Surface &out, Point centre, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > FrostNovaSeconds)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	constexpr uint32_t Seed = 4621;
+	constexpr float Rmax = 150.0F; // across; half that down (the floor's diamond)
+	const float cx = static_cast<float>(centre.x), cy = static_cast<float>(centre.y);
+	// The ring: out fast, slowing toward its reach.
+	const float R = Rmax * (1.0F - std::exp(-age / 0.2F));
+	const float ringK = Clamp01(1.0F - (age - 0.35F) / 0.45F);
+	// When the ring reached radius r (0..Rmax).
+	const auto reachedAt = [](float r) { return -0.2F * std::log(std::max(0.001F, 1.0F - r / Rmax)); };
+
+	if (floorLayer) {
+		// The cold sheen inside the ring, lifting as it thaws.
+		const float sheen = Clamp01(1.0F - (age - 0.6F) / 0.6F);
+		for (int dy = -static_cast<int>(R * 0.5F); dy <= static_cast<int>(R * 0.5F); dy++)
+			for (int dx = -static_cast<int>(R); dx <= static_cast<int>(R); dx++) {
+				const float d = std::sqrt(static_cast<float>(dx * dx) + static_cast<float>(dy * dy) * 4.0F);
+				if (d > R)
+					continue;
+				// Patchy, as frost takes a floor: denser in places, thin in others.
+				const float patch = 0.45F + 0.55F * std::max(0.0F, std::sin(static_cast<float>(dx) * 0.11F + static_cast<float>(dy) * 0.23F) * std::sin(static_cast<float>(dx) * 0.07F - static_cast<float>(dy) * 0.31F + 1.3F) + 0.3F);
+				const float f = (0.4F + 0.6F * d / Rmax) * sheen * patch;
+				px.mix(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, 150, 190, 230, 0.12F * f);
+				px.add(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, 60, 110, 220, 0.10F * f);
+			}
+		// The ring of frost light running out, and the air bending with it.
+		if (ringK > 0) {
+			for (int s = 0; s < 360; s++) {
+				const float a = static_cast<float>(s) / 360.0F * TwoPi;
+				for (int w = -3; w <= 3; w++) {
+					const float rr = R + static_cast<float>(w);
+					const float k = ringK * (1.0F - std::abs(static_cast<float>(w)) / 4.0F);
+					px.add(static_cast<int>(cx + std::cos(a) * rr), static_cast<int>(cy + std::sin(a) * rr * 0.5F), 190, 225, 255, 0.55F * k);
+				}
+			}
+			Ripple(out, centre, R, 4.0F * ringK);
+		}
+		// Hoarfrost left behind the ring.
+		for (uint32_t i = 0; i < 34; i++) {
+			const float a = Unit(Hash(i, Seed)) * TwoPi;
+			const float r = Rmax * (0.2F + 0.75F * std::sqrt(Unit(Hash(i, Seed + 1))));
+			const float grown = Clamp01((age - reachedAt(r)) / 0.2F);
+			const float melt = Clamp01(1.0F - (age - 0.75F - 0.3F * Unit(Hash(i, Seed + 2))) / 0.35F);
+			const float x = cx + std::cos(a) * r, y = cy + std::sin(a) * r * 0.5F;
+			FrostFern(px, x, y, a + (Unit(Hash(i, Seed + 3)) - 0.5F) * 1.2F, 6.0F + 9.0F * Unit(Hash(i, Seed + 4)), grown, melt, Hash(i, Seed + 5));
+		}
+		return;
+	}
+
+	// ---- In the air ----
+	// The burst at the caster: a white-blue flash.
+	if (age < 0.18F) {
+		const float k = 1.0F - age / 0.18F;
+		for (int dy = -20; dy <= 20; dy++)
+			for (int dx = -26; dx <= 26; dx++) {
+				const float d2 = static_cast<float>(dx * dx) / 676.0F + static_cast<float>(dy * dy) / 400.0F;
+				if (d2 < 1.0F)
+					px.add(static_cast<int>(cx) + dx, static_cast<int>(cy) - 26 + dy, 190, 225, 255, 0.8F * k * (1.0F - d2) * (1.0F - d2));
+			}
+	}
+	// The mist riding the ring: puffs along its front, rolling outward and thinning.
+	if (ringK > 0)
+		for (uint32_t i = 0; i < 30; i++) {
+			const float a = (static_cast<float>(i) + Unit(Hash(i, Seed + 10))) / 30.0F * TwoPi;
+			const float x = cx + std::cos(a) * (R - 4.0F), y = cy + std::sin(a) * (R - 4.0F) * 0.5F - 6.0F;
+			const float size = 7.0F + 6.0F * Unit(Hash(i, Seed + 11)) + 6.0F * age;
+			const float alpha = 0.32F * ringK;
+			const int s = static_cast<int>(size);
+			for (int dy = -s / 2; dy <= s / 2; dy++)
+				for (int dx = -s; dx <= s; dx++) {
+					const float d2 = static_cast<float>(dx * dx) / (size * size) + static_cast<float>(dy * dy * 4) / (size * size);
+					if (d2 < 1.0F)
+						px.mix(static_cast<int>(x) + dx, static_cast<int>(y) + dy, 214, 234, 255, alpha * (1.0F - d2));
+				}
+		}
+	// Ice spikes bursting up from the floor as the ring passes, standing a moment, then shattering into falling shards.
+	for (uint32_t i = 0; i < 30; i++) {
+		const float a = Unit(Hash(i, Seed + 20)) * TwoPi;
+		const float r = Rmax * (0.3F + 0.68F * Unit(Hash(i, Seed + 21)));
+		const float t = age - reachedAt(r);
+		if (t < 0)
+			continue;
+		const float x = cx + std::cos(a) * r, y = cy + std::sin(a) * r * 0.5F;
+		const float h = 10.0F + 14.0F * Unit(Hash(i, Seed + 22));
+		const float lean = (Unit(Hash(i, Seed + 23)) - 0.5F) * 0.6F + std::cos(a) * 0.25F; // leaning outward a little
+		constexpr float Stand = 0.35F;
+		if (t < Stand) {
+			const float up = Clamp01(t / 0.07F);
+			const float hh = h * up;
+			for (float z = 0; z <= hh; z += 1.0F) {
+				const float w = 2.6F * (1.0F - z / (h + 0.01F));
+				const int iy = static_cast<int>(y - z), ix0 = static_cast<int>(x + lean * z);
+				for (int o = -static_cast<int>(w + 0.5F); o <= static_cast<int>(w + 0.5F); o++) {
+					// Lit from the upper left: the left face white, the right face blue.
+					if (o < 0)
+						px.mix(ix0 + o, iy, 225, 242, 255, 0.85F);
+					else
+						px.mix(ix0 + o, iy, 120, 170, 225, 0.85F);
+				}
+			}
+			px.add(static_cast<int>(x + lean * hh), static_cast<int>(y - hh), 255, 255, 255, 0.9F); // a glint at its point
+			continue;
+		}
+		// Shattered: a few shards thrown out and falling.
+		const float ts = t - Stand;
+		if (ts > 0.45F)
+			continue;
+		for (uint32_t s = 0; s < 4; s++) {
+			const float sa = Unit(Hash(i, Seed + 30, s)) * TwoPi;
+			const float v = 20.0F + 40.0F * Unit(Hash(i, Seed + 31, s));
+			const float sx = x + std::cos(sa) * v * ts, sy = y - h * 0.5F + std::sin(sa) * v * ts * 0.5F - 30.0F * ts + 220.0F * ts * ts;
+			if (sy > y + 4.0F)
+				continue;
+			const float k = 1.0F - ts / 0.45F;
+			px.add(static_cast<int>(sx), static_cast<int>(sy), 230, 245, 255, k);
+			px.add(static_cast<int>(sx) + 1, static_cast<int>(sy), 140, 190, 245, 0.6F * k);
+		}
+	}
+	// Crystals glittering in the cold air over the whole area.
+	for (uint32_t i = 0; i < 40; i++) {
+		const float a = Unit(Hash(i, Seed + 40)) * TwoPi;
+		const float r = Rmax * std::sqrt(Unit(Hash(i, Seed + 41)));
+		const float t = age - reachedAt(r);
+		if (t < 0 || t > 0.8F)
+			continue;
+		const float x = cx + std::cos(a) * r, y = cy + std::sin(a) * r * 0.5F - 8.0F - 20.0F * Unit(Hash(i, Seed + 42)) + 10.0F * t;
+		const float tw = std::pow(0.5F + 0.5F * std::sin(t * 36.0F + static_cast<float>(i) * 1.7F), 6.0F);
+		px.add(static_cast<int>(x), static_cast<int>(y), 240, 250, 255, (1.0F - t / 0.8F) * (0.3F + 0.7F * tw));
+	}
+}
+
+namespace {
+
+/** The orb's facets: fixed points on the unit sphere, each the centre of one face of ice. */
+struct OrbFacets {
+	float p[18][3];
+	OrbFacets()
+	{
+		for (uint32_t i = 0; i < 18; i++) {
+			// Spread evenly (a Fibonacci sphere), nudged so the faces are not regular.
+			const float y = 1.0F - (static_cast<float>(i) + 0.5F) / 9.0F;
+			const float r = std::sqrt(std::max(0.0F, 1.0F - y * y));
+			const float a = static_cast<float>(i) * 2.39996F + (Unit(Hash(i, 7707)) - 0.5F) * 0.5F;
+			p[i][0] = std::cos(a) * r;
+			p[i][1] = y;
+			p[i][2] = std::sin(a) * r;
+		}
+	}
+};
+
+} // namespace
+
+void DrawFrozenOrbFx(const Surface &out, Point start, Point at, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0)
+		return;
+	static const OrbFacets Facets;
+	const Px px { &out, out.w(), out.h() };
+	constexpr uint32_t Seed = 4733;
+	constexpr float R = FrozenOrbRadius;
+	const float ax = static_cast<float>(at.x), ay = static_cast<float>(at.y);
+	const float tx = ax - static_cast<float>(start.x), ty = ay - static_cast<float>(start.y);
+	const float screenDist = std::sqrt(tx * tx + ty * ty);
+	const float ux = screenDist > 0 ? tx / screenDist : 1.0F, uy = screenDist > 0 ? ty / screenDist : 0.0F;
+	// How far it has rolled over the floor (worked out flat, y doubled): the turn of the ball.
+	const float flatDist = std::sqrt(tx * tx + ty * ty * 4.0F);
+	const float turn = flatDist / R;
+
+	if (floorLayer) {
+		// The frost it leaves: a pale band along its track, hoarfrost feathering off it, thawing behind it.
+		for (float s = 0; s <= screenDist; s += 1.0F) {
+			const float behind = screenDist - s;
+			const float k = Clamp01(1.0F - behind / 150.0F) * Clamp01(age / 0.1F);
+			if (k <= 0)
+				continue;
+			const float x = static_cast<float>(start.x) + ux * s, y = static_cast<float>(start.y) + uy * s;
+			const float wob = std::sin(s * 0.21F) * 1.2F;
+			for (int o = -4; o <= 4; o++) {
+				const float e = 1.0F - std::abs(static_cast<float>(o)) / 5.0F;
+				px.mix(static_cast<int>(x - uy * (static_cast<float>(o) + wob)), static_cast<int>(y + ux * (static_cast<float>(o) + wob) * 0.5F), 196, 226, 252, 0.35F * e * k);
+			}
+			if (static_cast<int>(s) % 16 == 7) {
+				const uint32_t h = Hash(static_cast<uint32_t>(s), Seed);
+				const float side = (h & 1) ? 1.0F : -1.0F;
+				const float a = std::atan2(uy * 2.0F, ux) + side * (0.9F + 0.5F * Unit(h >> 4));
+				FrostFern(px, x, y, a, 3.0F + 4.0F * Unit(h >> 8), 1.0F, 0.7F * k, h);
+			}
+		}
+		// Its shadow, and its cold light on the floor round it.
+		for (int dy = -6; dy <= 6; dy++)
+			for (int dx = -14; dx <= 14; dx++) {
+				const float d2 = static_cast<float>(dx * dx) / 196.0F + static_cast<float>(dy * dy) / 36.0F;
+				if (d2 < 1.0F)
+					px.mix(static_cast<int>(ax) + dx, static_cast<int>(ay) + dy + 1, 8, 10, 16, 0.45F * (1.0F - d2));
+			}
+		for (int dy = -20; dy <= 20; dy++)
+			for (int dx = -40; dx <= 40; dx++) {
+				const float d2 = static_cast<float>(dx * dx) / 1600.0F + static_cast<float>(dy * dy) / 400.0F;
+				if (d2 < 1.0F)
+					px.add(static_cast<int>(ax) + dx, static_cast<int>(ay) + dy, 90, 150, 255, 0.28F * (1.0F - d2) * (1.0F - d2));
+			}
+		return;
+	}
+
+	// ---- In the air ----
+	// Mist streaming off its back.
+	for (int i = 1; i <= 7; i++) {
+		const float back = static_cast<float>(i) * 6.0F;
+		if (back > screenDist + 2.0F)
+			break;
+		const float wob = std::sin(age * 9.0F + static_cast<float>(i) * 1.7F) * 2.0F;
+		const float x = ax - ux * back - uy * wob, y = ay - uy * back + ux * wob - R - 1.0F + static_cast<float>(i) * 0.6F;
+		const float size = 5.0F + static_cast<float>(i) * 1.3F;
+		const float alpha = 0.32F * (1.0F - static_cast<float>(i) / 8.0F);
+		const int s = static_cast<int>(size);
+		for (int dy = -s; dy <= s; dy++)
+			for (int dx = -s; dx <= s; dx++) {
+				const float d2 = static_cast<float>(dx * dx + dy * dy) / (size * size);
+				if (d2 < 1.0F)
+					px.mix(static_cast<int>(x) + dx, static_cast<int>(y) + dy, 214, 234, 255, alpha * (1.0F - d2));
+			}
+	}
+	// The ball: a sphere of ice resting on the floor, rolling about the axis across its path - its facets turn the way it goes.
+	const float cx = ax, cy = ay - R - 1.0F;
+	// The roll as a rotation of the surface about the on-screen axis across the path (-uy, ux, 0), by -turn so the front
+	// face rolls down and forward.
+	const float kx = -uy, ky = ux; // the axis (unit, in the picture plane)
+	const float cs = std::cos(-turn), sn = std::sin(-turn);
+	const float Lx = -0.45F, Ly = -0.65F, Lz = 0.61F; // light from the upper left, toward the eye
+	for (int dy = -static_cast<int>(R) - 1; dy <= static_cast<int>(R) + 1; dy++)
+		for (int dx = -static_cast<int>(R) - 1; dx <= static_cast<int>(R) + 1; dx++) {
+			const float fx = (static_cast<float>(dx) + 0.5F) / R, fy = (static_cast<float>(dy) + 0.5F) / R;
+			const float rr = fx * fx + fy * fy;
+			if (rr >= 1.0F)
+				continue;
+			const float nz = std::sqrt(1.0F - rr);
+			// The surface point turned back by the roll (Rodrigues about k), to find which facet shows here.
+			const float dot = kx * fx + ky * fy;
+			const float crx = ky * nz, cry = -kx * nz, crz = kx * fy - ky * fx; // k x n
+			const float qx = fx * cs + crx * sn + kx * dot * (1.0F - cs);
+			const float qy = fy * cs + cry * sn + ky * dot * (1.0F - cs);
+			const float qz = nz * cs + crz * sn;
+			float best = -2.0F, second = -2.0F;
+			int bi = 0;
+			for (int i = 0; i < 18; i++) {
+				const float d = qx * Facets.p[i][0] + qy * Facets.p[i][1] + qz * Facets.p[i][2];
+				if (d > best) {
+					second = best;
+					best = d;
+					bi = i;
+				} else if (d > second) {
+					second = d;
+				}
+			}
+			const float edge = best - second; // small at a facet's edge
+			// A faceted look: each face lit a little differently, as if cut flat.
+			const float faceShade = 0.6F + 0.75F * Unit(Hash(static_cast<uint32_t>(bi), Seed + 1));
+			const float diffuse = std::max(0.0F, fx * Lx + fy * Ly + nz * Lz) * faceShade;
+			const float rim = (1.0F - nz) * (1.0F - nz);
+			float r = 60 + 150 * diffuse + 120 * rim, g = 110 + 125 * diffuse + 120 * rim, b = 190 + 65 * diffuse + 60 * rim;
+			// The cold glowing inside it, strongest at the middle.
+			r += 30 * nz;
+			g += 50 * nz;
+			b += 40 * nz;
+			if (edge < 0.05F) { // the cracks between faces catch the light
+				const float c = 1.0F - edge / 0.05F;
+				r += 120 * c;
+				g += 110 * c;
+				b += 60 * c;
+			}
+			// A highlight where the light glances off.
+			const float hx = Lx, hy = Ly, hz = Lz + 1.0F, hl = std::sqrt(hx * hx + hy * hy + hz * hz);
+			const float spec = std::pow(std::max(0.0F, (fx * hx + fy * hy + nz * hz) / hl), 40.0F);
+			r += 255 * spec;
+			g += 255 * spec;
+			b += 255 * spec;
+			// Its edge pixel half-covered: soften the outline.
+			const float cover = std::min(1.0F, (1.0F - std::sqrt(rr)) * R * 1.5F + 0.2F);
+			px.mix(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, std::min(255.0F, r), std::min(255.0F, g), std::min(255.0F, b), 0.93F * cover);
+		}
+	// A halo of cold round it.
+	for (int dy = -18; dy <= 18; dy++)
+		for (int dx = -18; dx <= 18; dx++) {
+			const float d = std::sqrt(static_cast<float>(dx * dx + dy * dy));
+			if (d <= R || d > 18.0F)
+				continue;
+			const float f = 1.0F - (d - R) / (18.0F - R);
+			px.add(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, 110, 170, 255, 0.35F * f * f);
+		}
+	// Crystals flung off as it turns: each from where the orb was a moment ago, outward and falling, twinkling.
+	for (uint32_t i = 0; i < 16; i++) {
+		const float period = 0.5F;
+		const float phase = Frac(age / period + Unit(Hash(i, Seed + 10)));
+		const uint32_t round = static_cast<uint32_t>(age / period + Unit(Hash(i, Seed + 10)));
+		const float t = phase * period;
+		const uint32_t h = Hash(i, round, Seed + 11);
+		const float back = std::min(screenDist, t * 70.0F); // it has rolled on since
+		const float a = Unit(h) * TwoPi;
+		const float v = 18.0F + 22.0F * Unit(h >> 8);
+		const float x = ax - ux * back + std::cos(a) * v * t;
+		const float y = ay - uy * back - R + std::sin(a) * v * t * 0.6F - 20.0F * t + 60.0F * t * t;
+		const float tw = std::pow(0.5F + 0.5F * std::sin(t * 40.0F + static_cast<float>(i)), 5.0F);
+		px.add(static_cast<int>(x), static_cast<int>(y), 235, 248, 255, (1.0F - phase) * (0.35F + 0.65F * tw));
+	}
+}
+
+void DrawFrozenOrbBurstFx(const Surface &out, Point centre, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > FrozenOrbBurstSeconds)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	constexpr uint32_t Seed = 4877;
+	const float cx = static_cast<float>(centre.x), cy = static_cast<float>(centre.y);
+	if (floorLayer) {
+		// A star of hoarfrost thrown across the floor, and a ring of cold light running out.
+		const float melt = Clamp01(1.0F - (age - 0.5F) / 0.4F);
+		for (uint32_t i = 0; i < 12; i++) {
+			const float a = static_cast<float>(i) / 12.0F * TwoPi + Unit(Hash(i, Seed)) * 0.3F;
+			FrostFern(px, cx + std::cos(a) * 6.0F, cy + std::sin(a) * 3.0F, a, 14.0F + 14.0F * Unit(Hash(i, Seed + 1)), Clamp01(age / 0.12F), melt, Hash(i, Seed + 2));
+		}
+		const float u = Clamp01(age / 0.4F);
+		if (u < 1.0F) {
+			const float Rr = 10.0F + 55.0F * std::sqrt(u);
+			for (int s = 0; s < 180; s++) {
+				const float a = static_cast<float>(s) / 180.0F * TwoPi;
+				px.add(static_cast<int>(cx + std::cos(a) * Rr), static_cast<int>(cy + std::sin(a) * Rr * 0.5F), 190, 225, 255, 0.6F * (1.0F - u));
+			}
+			Ripple(out, centre, Rr, 3.0F * (1.0F - u));
+		}
+		return;
+	}
+	// The flash as it shatters.
+	const float flash = std::exp(-age / 0.08F);
+	for (int dy = -22; dy <= 22; dy++)
+		for (int dx = -22; dx <= 22; dx++) {
+			const float d2 = static_cast<float>(dx * dx + dy * dy) / 484.0F;
+			if (d2 < 1.0F)
+				px.add(static_cast<int>(cx) + dx, static_cast<int>(cy) - static_cast<int>(FrozenOrbRadius) + dy, 200, 230, 255, flash * (1.0F - d2) * (1.0F - d2));
+		}
+	// Shards of the ball flying out and falling: each a little wedge of ice, tumbling.
+	for (uint32_t i = 0; i < 14; i++) {
+		const float a = Unit(Hash(i, Seed + 3)) * TwoPi;
+		const float v = 50.0F + 60.0F * Unit(Hash(i, Seed + 4));
+		if (age > 0.6F)
+			continue;
+		const float x = cx + std::cos(a) * v * age, y = cy - FrozenOrbRadius + std::sin(a) * v * age * 0.55F - 50.0F * age + 200.0F * age * age;
+		if (y > cy + std::sin(a) * v * age * 0.55F + 2.0F)
+			continue; // landed
+		const float spin = age * 20.0F + static_cast<float>(i);
+		const float k = 1.0F - age / 0.6F;
+		for (int s = -2; s <= 2; s++) {
+			const int ix = static_cast<int>(x + std::cos(spin) * static_cast<float>(s)), iy = static_cast<int>(y + std::sin(spin) * static_cast<float>(s));
+			px.mix(ix, iy, s < 0 ? 225 : 130, s < 0 ? 242 : 180, s < 0 ? 255 : 235, 0.9F * k);
+		}
+	}
+	// Crystals hanging in the air.
+	for (uint32_t i = 0; i < 24; i++) {
+		const float a = Unit(Hash(i, Seed + 5)) * TwoPi, r = 40.0F * std::sqrt(Unit(Hash(i, Seed + 6))) * Clamp01(age / 0.2F + 0.2F);
+		const float x = cx + std::cos(a) * r, y = cy - 12.0F + std::sin(a) * r * 0.5F + 12.0F * age;
+		const float tw = std::pow(0.5F + 0.5F * std::sin(age * 36.0F + static_cast<float>(i) * 1.9F), 5.0F);
+		px.add(static_cast<int>(x), static_cast<int>(y), 240, 250, 255, (1.0F - age / FrozenOrbBurstSeconds) * (0.3F + 0.7F * tw));
+	}
+}
+
+namespace {
+
+constexpr float AzR = 120.0F;        // the frozen area across; half that down
+constexpr float AzBlast = 0.3F;      // the detonation, after the implosion
+constexpr float AzVortexFrom = 0.45F;
+constexpr float AzVortexTo = 7.45F;  // seven seconds of vortex
+
+/** When the detonation's front reached flat radius @p r. */
+float AzReached(float r)
+{
+	return AzBlast + 0.4F * (r / (AzR * 1.4F)) * (r / (AzR * 1.4F));
+}
+
+/** A faceted spike of ice @p h tall and @p w wide at its foot (@p x, @p y), leaning @p lean, at strength @p k. */
+void IceSpire(const Px &px, float x, float y, float h, float w, float lean, float k)
+{
+	for (float z = 0; z <= h; z += 1.0F) {
+		const float t = z / h;
+		const float half = w * (1.0F - t) + 0.5F;
+		const float mx = x + lean * z;
+		const int iy = static_cast<int>(y - z);
+		for (int o = -static_cast<int>(half); o <= static_cast<int>(half); o++) {
+			const float s = static_cast<float>(o) / std::max(1.0F, half);
+			float r, g, b;
+			if (s < -0.15F) { // the lit face
+				r = 200 + 40 * t;
+				g = 228 + 20 * t;
+				b = 255;
+			} else if (s < 0.1F) { // the ridge
+				r = 245;
+				g = 252;
+				b = 255;
+			} else { // the face in shadow
+				r = 70 + 50 * t;
+				g = 120 + 50 * t;
+				b = 200 + 30 * t;
+			}
+			px.mix(static_cast<int>(mx) + o, iy, r, g, b, 0.9F * k);
+		}
+	}
+	px.add(static_cast<int>(x + lean * h), static_cast<int>(y - h), 255, 255, 255, k);
+}
+
+} // namespace
+
+void DrawAbsoluteZeroFx(const Surface &out, Point castAt, Point heroAt, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > AbsoluteZeroSeconds)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	constexpr uint32_t Seed = 5003;
+	const float cx = static_cast<float>(castAt.x), cy = static_cast<float>(castAt.y);
+	const float vx = static_cast<float>(heroAt.x), vy = static_cast<float>(heroAt.y);
+	const float vortex = Clamp01((age - AzVortexFrom) / 0.5F) * Clamp01((AzVortexTo - age) / 0.6F);
+	const float freeze = Clamp01((age - AzBlast) / 0.1F) * Clamp01(1.0F - (age - 6.8F) / 1.0F); // the ice sheet
+
+	if (floorLayer) {
+		// The implosion: the floor darkening as the warmth is drawn in.
+		if (age < AzBlast + 0.1F) {
+			const float k = Clamp01(age / AzBlast) * (age < AzBlast ? 1.0F : 1.0F - (age - AzBlast) / 0.1F);
+			for (int dy = -static_cast<int>(AzR * 0.6F); dy <= static_cast<int>(AzR * 0.6F); dy++)
+				for (int dx = -static_cast<int>(AzR * 1.2F); dx <= static_cast<int>(AzR * 1.2F); dx++) {
+					const float d2 = static_cast<float>(dx * dx) / (AzR * AzR * 1.44F) + static_cast<float>(dy * dy) / (AzR * AzR * 0.36F);
+					if (d2 < 1.0F)
+						px.mix(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, 4, 8, 20, 0.45F * k * (1.0F - d2));
+				}
+		}
+		// The ice sheet: the floor frozen glassy over the area, cracked, a sheen sliding across it; thawing at the end.
+		if (freeze > 0) {
+			const float sheet = AzR * Clamp01((age - AzBlast) / 0.35F);
+			const float slide = age * 40.0F;
+			for (int dy = -static_cast<int>(sheet * 0.5F); dy <= static_cast<int>(sheet * 0.5F); dy++)
+				for (int dx = -static_cast<int>(sheet); dx <= static_cast<int>(sheet); dx++) {
+					const float d = std::sqrt(static_cast<float>(dx * dx) + static_cast<float>(dy * dy) * 4.0F);
+					if (d > sheet)
+						continue;
+					const float edge = Clamp01((sheet - d) / 10.0F);
+					const float gloss = std::pow(0.5F + 0.5F * std::sin((static_cast<float>(dx) + static_cast<float>(dy) * 1.6F - slide) * 0.045F), 8.0F);
+					px.mix(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, 150, 196, 236, 0.36F * freeze * edge);
+					px.add(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, 120, 170, 255, (0.10F + 0.22F * gloss) * freeze * edge);
+				}
+			// Cracks across the ice: white lines branching out from under her.
+			for (uint32_t i = 0; i < 14; i++) {
+				float ang = Unit(Hash(i, Seed)) * TwoPi;
+				float x = cx, y = cy;
+				const float len = Clamp01((age - AzBlast) / 0.25F) * (0.6F + 0.4F * Unit(Hash(i, Seed + 1)));
+				for (int k = 1; k <= 12; k++) {
+					const float q = static_cast<float>(k) / 12.0F;
+					if (q > len)
+						break;
+					ang += (Unit(Hash(i, Seed + 2, static_cast<uint32_t>(k))) - 0.5F) * 0.5F;
+					const float nx = cx + std::cos(ang) * AzR * q, ny = cy + std::sin(ang) * AzR * q * 0.5F;
+					const int steps = static_cast<int>(std::max(std::abs(nx - x), std::abs(ny - y))) + 1;
+					for (int j = 0; j <= steps; j++) {
+						const float u = static_cast<float>(j) / static_cast<float>(steps);
+						px.mix(static_cast<int>(x + (nx - x) * u), static_cast<int>(y + (ny - y) * u), 235, 248, 255, 0.75F * freeze);
+					}
+					x = nx;
+					y = ny;
+				}
+			}
+		}
+		// The detonation's shockwave running out, the air bending with it.
+		const float sinceBlast = age - AzBlast;
+		if (sinceBlast >= 0 && sinceBlast < 0.5F) {
+			const float u = sinceBlast / 0.5F;
+			const float Rr = AzR * 1.4F * std::sqrt(u);
+			for (int s = 0; s < 480; s++) {
+				const float a = static_cast<float>(s) / 480.0F * TwoPi;
+				for (int w = -4; w <= 4; w++)
+					px.add(static_cast<int>(cx + std::cos(a) * (Rr + static_cast<float>(w))), static_cast<int>(cy + std::sin(a) * (Rr + static_cast<float>(w)) * 0.5F), 220, 240, 255,
+					    0.8F * (1.0F - u) * (1.0F - std::abs(static_cast<float>(w)) / 5.0F));
+			}
+			Ripple(out, castAt, Rr, 8.0F * (1.0F - u));
+		}
+		// The vortex's arms of frost light turning on the ice round her, and a ring pulsing with each strike.
+		if (vortex > 0) {
+			const float spin = age * 2.4F;
+			for (int arm = 0; arm < 3; arm++)
+				for (float r = 8.0F; r < AzR; r += 1.5F) {
+					const float a = spin + static_cast<float>(arm) * TwoPi / 3.0F + r * 0.035F;
+					const float k = vortex * 0.35F * (1.0F - r / AzR);
+					for (int w = -2; w <= 2; w++)
+						px.add(static_cast<int>(vx + std::cos(a) * r + static_cast<float>(w)), static_cast<int>(vy + std::sin(a) * r * 0.5F), 140, 200, 255, k * (1.0F - std::abs(static_cast<float>(w)) / 3.0F));
+				}
+			const float pulse = Frac((age - AzVortexFrom) / 0.25F);
+			const float pk = vortex * (1.0F - pulse) * 0.45F;
+			const float Rp = AzR * (0.75F + 0.25F * pulse);
+			for (int s = 0; s < 240; s++) {
+				const float a = static_cast<float>(s) / 240.0F * TwoPi;
+				px.add(static_cast<int>(vx + std::cos(a) * Rp), static_cast<int>(vy + std::sin(a) * Rp * 0.5F), 190, 225, 255, pk);
+			}
+		}
+		return;
+	}
+
+	// ---- In the air ----
+	// The implosion: streams of mist and light drawn inward to a swelling core above her.
+	if (age < AzBlast) {
+		const float u = age / AzBlast;
+		for (uint32_t i = 0; i < 40; i++) {
+			const float a = Unit(Hash(i, Seed + 10)) * TwoPi;
+			const float r0 = AzR * (0.8F + 0.6F * Unit(Hash(i, Seed + 11)));
+			const float r1 = r0 * (1.0F - u * u);
+			const float h = 40.0F * u;
+			for (float s = 0; s < 14.0F; s += 1.0F) {
+				const float r = r1 + s * 1.5F;
+				px.add(static_cast<int>(cx + std::cos(a) * r), static_cast<int>(cy + std::sin(a) * r * 0.5F - h * (1.0F - r / (r0 + 30.0F))), 170, 215, 255, 0.5F * (1.0F - s / 14.0F) * u);
+			}
+		}
+		const float core = 6.0F + 18.0F * u;
+		for (int dy = -static_cast<int>(core); dy <= static_cast<int>(core); dy++)
+			for (int dx = -static_cast<int>(core); dx <= static_cast<int>(core); dx++) {
+				const float d2 = static_cast<float>(dx * dx + dy * dy) / (core * core);
+				if (d2 < 1.0F)
+					px.add(static_cast<int>(cx) + dx, static_cast<int>(cy) - 46 + dy, 200, 235, 255, u * (1.0F - d2) * (1.0F - d2));
+			}
+	}
+	// The detonation: a blinding flash.
+	const float sinceBlast = age - AzBlast;
+	if (sinceBlast >= 0 && sinceBlast < 0.5F) {
+		const float f = std::exp(-sinceBlast / 0.1F);
+		for (int dy = -70; dy <= 70; dy++)
+			for (int dx = -110; dx <= 110; dx++) {
+				const float d2 = static_cast<float>(dx * dx) / 12100.0F + static_cast<float>(dy * dy) / 4900.0F;
+				if (d2 < 1.0F)
+					px.add(static_cast<int>(cx) + dx, static_cast<int>(cy) - 30 + dy, 235, 248, 255, f * (1.0F - d2));
+			}
+	}
+	// The spires: great faceted spikes of ice erupting round her as the blast reaches them, standing through the freeze,
+	// then shattering.
+	for (uint32_t i = 0; i < 18; i++) {
+		const float a = (static_cast<float>(i) + Unit(Hash(i, Seed + 20)) * 0.8F) / 18.0F * TwoPi;
+		const float r = AzR * (0.55F + 0.5F * Unit(Hash(i, Seed + 21)));
+		const float t = age - AzReached(r);
+		if (t < 0)
+			continue;
+		const float x = cx + std::cos(a) * r, y = cy + std::sin(a) * r * 0.5F;
+		const float h = 26.0F + 36.0F * Unit(Hash(i, Seed + 22));
+		const float w = 5.0F + 4.0F * Unit(Hash(i, Seed + 23));
+		const float lean = std::cos(a) * 0.3F + (Unit(Hash(i, Seed + 24)) - 0.5F) * 0.2F;
+		const float stand = 2.0F + 0.15F * Unit(Hash(i, Seed + 25));
+		if (t < stand) {
+			const float up = Clamp01(t / 0.07F);
+			IceSpire(px, x, y, h * up, w, lean, 1.0F);
+			if (Unit(Hash(i, Seed + 26)) > 0.4F) // a smaller one beside it
+				IceSpire(px, x + 7.0F, y + 2.0F, h * 0.5F * up, w * 0.6F, lean + 0.25F, 1.0F);
+			continue;
+		}
+		const float ts = t - stand;
+		if (ts > 0.6F)
+			continue;
+		for (uint32_t s = 0; s < 8; s++) {
+			const float sa = Unit(Hash(i, Seed + 30, s)) * TwoPi;
+			const float sv = 30.0F + 50.0F * Unit(Hash(i, Seed + 31, s));
+			const float sz = h * Unit(Hash(i, Seed + 32, s));
+			const float sx = x + std::cos(sa) * sv * ts, sy = y - sz + std::sin(sa) * sv * ts * 0.5F - 30.0F * ts + 260.0F * ts * ts;
+			if (sy > y + 3.0F)
+				continue;
+			const float k = 1.0F - ts / 0.6F;
+			px.mix(static_cast<int>(sx), static_cast<int>(sy), 225, 242, 255, k);
+			px.mix(static_cast<int>(sx) + 1, static_cast<int>(sy), 120, 170, 230, k);
+			px.mix(static_cast<int>(sx), static_cast<int>(sy) + 1, 160, 205, 245, k);
+		}
+	}
+	// The vortex: a funnel of snow spinning round her, wider as it rises; shards of ice orbiting in it; mist rolling at its foot.
+	if (vortex > 0) {
+		for (uint32_t i = 0; i < 220; i++) {
+			const float hz = Unit(Hash(i, Seed + 40)); // 0 at the floor, 1 at the top
+			const float h = 8.0F + 120.0F * hz;
+			const float r = (16.0F + AzR * 0.55F * hz + 28.0F * Unit(Hash(i, Seed + 41))) * (0.85F + 0.15F * std::sin(age * 3.0F + static_cast<float>(i)));
+			const float w = 3.5F + 50.0F / r;
+			const float a = Unit(Hash(i, Seed + 42)) * TwoPi + w * age;
+			const float x = vx + std::cos(a) * r, y = vy + std::sin(a) * r * 0.45F - h;
+			const float back = std::sin(a) < 0 ? 0.45F : 1.0F; // the far side dimmer
+			const float k = vortex * back * (0.4F + 0.6F * (1.0F - hz * 0.6F));
+			// A short streak along its turn.
+			const float tx = -std::sin(a), ty = std::cos(a) * 0.45F;
+			for (int s = 0; s < 4; s++)
+				px.add(static_cast<int>(x - tx * static_cast<float>(s)), static_cast<int>(y - ty * static_cast<float>(s)), 230, 245, 255, k * (1.0F - static_cast<float>(s) / 4.0F));
+		}
+		for (uint32_t i = 0; i < 10; i++) {
+			const float a = static_cast<float>(i) / 10.0F * TwoPi + age * 2.2F;
+			const float r = AzR * (0.6F + 0.15F * std::sin(age * 1.7F + static_cast<float>(i)));
+			const float h = 18.0F + 22.0F * Unit(Hash(i, Seed + 50)) + 6.0F * std::sin(age * 4.0F + static_cast<float>(i));
+			const float x = vx + std::cos(a) * r, y = vy + std::sin(a) * r * 0.5F - h;
+			const float back = std::sin(a) < 0 ? 0.5F : 1.0F;
+			const float spin = age * 9.0F + static_cast<float>(i);
+			for (int s = -4; s <= 4; s++) {
+				const float e = 1.0F - std::abs(static_cast<float>(s)) / 5.0F;
+				px.mix(static_cast<int>(x + std::cos(spin) * static_cast<float>(s)), static_cast<int>(y + std::sin(spin) * static_cast<float>(s) * 0.6F), s < 0 ? 230 : 130, s < 0 ? 245 : 180, 255, 0.9F * vortex * back * e);
+			}
+			px.add(static_cast<int>(x), static_cast<int>(y) - 1, 255, 255, 255, 0.6F * vortex * back);
+		}
+		for (uint32_t i = 0; i < 16; i++) {
+			const float a = static_cast<float>(i) / 16.0F * TwoPi + age * 1.6F;
+			const float r = AzR * 0.85F;
+			const float x = vx + std::cos(a) * r, y = vy + std::sin(a) * r * 0.5F - 6.0F;
+			const float size = 12.0F + 4.0F * std::sin(age * 2.0F + static_cast<float>(i));
+			const int s = static_cast<int>(size);
+			for (int dy = -s / 2; dy <= s / 2; dy++)
+				for (int dx = -s; dx <= s; dx++) {
+					const float d2 = static_cast<float>(dx * dx) / (size * size) + static_cast<float>(dy * dy * 4) / (size * size);
+					if (d2 < 1.0F)
+						px.mix(static_cast<int>(x) + dx, static_cast<int>(y) + dy, 214, 234, 255, 0.28F * vortex * (1.0F - d2));
+				}
+		}
+	}
+}
+
+void DrawIceEncaseFx(const Surface &out, Point foot, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > IceEncaseSeconds + 0.6F)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float fx = static_cast<float>(foot.x), fy = static_cast<float>(foot.y);
+	if (floorLayer) {
+		const float k = Clamp01(age / 0.1F) * Clamp01(1.0F - (age - IceEncaseSeconds) / 0.3F);
+		for (int dy = -8; dy <= 8; dy++)
+			for (int dx = -20; dx <= 20; dx++) {
+				const float d2 = static_cast<float>(dx * dx) / 400.0F + static_cast<float>(dy * dy) / 64.0F;
+				if (d2 < 1.0F)
+					px.mix(static_cast<int>(fx) + dx, static_cast<int>(fy) + dy, 190, 225, 250, 0.5F * k * (1.0F - d2));
+			}
+		return;
+	}
+	if (age < IceEncaseSeconds) {
+		// A block of ice grown up round the body: translucent, its faces lit differently, bright edges, a glint sliding down.
+		const float up = Clamp01(age / 0.12F);
+		const float H = 66.0F * up, W = 19.0F;
+		const float glint = Frac(age * 0.7F) * 90.0F - 10.0F;
+		for (float z = 0; z <= H; z += 1.0F) {
+			const float taper = z > H - 12.0F ? (H - z) / 12.0F : 1.0F; // the top cut at an angle
+			const int half = static_cast<int>(W * (0.55F + 0.45F * taper));
+			const int iy = static_cast<int>(fy - z);
+			for (int o = -half; o <= half; o++) {
+				const float s = static_cast<float>(o) / static_cast<float>(half);
+				const bool edgeLine = std::abs(o) == half || std::abs(o) == half - 1 || std::abs(s) < 0.06F || z >= H - 1.0F;
+				if (edgeLine) {
+					px.mix(static_cast<int>(fx) + o, iy, 230, 246, 255, 0.75F);
+					continue;
+				}
+				if (s < 0)
+					px.mix(static_cast<int>(fx) + o, iy, 175, 215, 250, 0.32F);
+				else
+					px.mix(static_cast<int>(fx) + o, iy, 90, 140, 215, 0.36F);
+				const float g = 1.0F - std::abs((H - z) - glint - s * 10.0F) / 4.0F;
+				if (g > 0)
+					px.add(static_cast<int>(fx) + o, iy, 255, 255, 255, 0.5F * g);
+			}
+		}
+		return;
+	}
+	// Shattering: the block in pieces, thrown out and falling.
+	const float ts = age - IceEncaseSeconds;
+	for (uint32_t i = 0; i < 22; i++) {
+		const float a = Unit(Hash(i, 5101)) * TwoPi;
+		const float v = 30.0F + 50.0F * Unit(Hash(i, 5102));
+		const float z = 66.0F * Unit(Hash(i, 5103));
+		const float x = fx + std::cos(a) * v * ts, y = fy - z + std::sin(a) * v * ts * 0.5F - 20.0F * ts + 300.0F * ts * ts;
+		if (y > fy + 3.0F)
+			continue;
+		const float k = 1.0F - ts / 0.6F;
+		for (int s = 0; s < 3; s++)
+			px.mix(static_cast<int>(x) + s, static_cast<int>(y), s == 0 ? 235 : 140, s == 0 ? 248 : 190, 255, 0.85F * k);
+	}
+}
+
+void ApplyAbsoluteZeroGrade(const Surface &out, float age)
+{
+	if (out.isIndexed() || age < AzBlast || age > AbsoluteZeroSeconds)
+		return;
+	// The world draining to frozen blue while it lasts, and frost creeping in over the edges of the picture.
+	const float k = Clamp01((age - AzBlast) / 0.5F) * Clamp01((AbsoluteZeroSeconds - age) / 0.8F);
+	const float creep = Clamp01((age - AzBlast) / 1.2F) * Clamp01((AbsoluteZeroSeconds - age) / 0.8F);
+	const int W = out.w(), H = out.h();
+	const float reach = 70.0F * creep; // how far in from the edge the frost has grown
+	for (int y = 0; y < H; y++) {
+		uint32_t *row = out.at<uint32_t>(0, y);
+		for (int x = 0; x < W; x++) {
+			const uint32_t c = row[x];
+			float r = static_cast<float>((c >> 16) & 0xFF), g = static_cast<float>((c >> 8) & 0xFF), b = static_cast<float>(c & 0xFF);
+			const float l = 0.3F * r + 0.59F * g + 0.11F * b;
+			// Desaturated and cooled.
+			r += (l * 0.78F - r) * 0.55F * k;
+			g += (l * 0.95F - g) * 0.55F * k;
+			b += (std::min(255.0F, l * 1.25F + 12.0F) - b) * 0.55F * k;
+			// The frost at the edges: a crystalline rime, thicker at the corners, with a fern-like grain.
+			const float edge = std::min({ static_cast<float>(x), static_cast<float>(W - 1 - x), static_cast<float>(y) * 1.3F, static_cast<float>(H - 1 - y) * 1.3F });
+			// Ragged: the frost reaches further in some places than others.
+			const float ragged = 0.5F + 0.5F * std::sin(static_cast<float>(x) * 0.043F + std::sin(static_cast<float>(y) * 0.031F) * 2.0F) * std::sin(static_cast<float>(y) * 0.052F + std::sin(static_cast<float>(x) * 0.027F) * 2.0F);
+			const float reachHere = reach * (0.45F + 0.75F * ragged);
+			if (edge < reachHere) {
+				const float grain = 0.5F + 0.5F * std::sin(static_cast<float>(x) * 0.31F + std::sin(static_cast<float>(y) * 0.17F) * 3.0F) * std::sin(static_cast<float>(y) * 0.27F + std::sin(static_cast<float>(x) * 0.13F) * 3.0F);
+				const float f = std::pow(1.0F - edge / std::max(1.0F, reachHere), 1.5F) * (0.8F + 0.2F * grain);
+				r += (215.0F - r) * 0.75F * f;
+				g += (235.0F - g) * 0.75F * f;
+				b += (255.0F - b) * 0.75F * f;
+			}
+			row[x] = (static_cast<uint32_t>(std::min(255.0F, r)) << 16) | (static_cast<uint32_t>(std::min(255.0F, g)) << 8) | static_cast<uint32_t>(std::min(255.0F, b));
+		}
+	}
+}
+
+namespace {
+
+/** A jagged bolt from (@p x0, @p y0) to (@p x1, @p y1) by midpoint displacement, @p rough pixels at its first split. */
+void ArcBolt(const Px &px, float x0, float y0, float x1, float y1, float rough, uint32_t seed, float k, bool thick)
+{
+	float xs[33], ys[33];
+	xs[0] = x0;
+	ys[0] = y0;
+	xs[32] = x1;
+	ys[32] = y1;
+	for (int step = 16, level = 0; step >= 1; step /= 2, level++) {
+		const float spread = rough / static_cast<float>(1 << level);
+		for (int i = step; i < 32; i += step * 2) {
+			const float mx = (xs[i - step] + xs[i + step]) * 0.5F, my = (ys[i - step] + ys[i + step]) * 0.5F;
+			const float sx = -(ys[i + step] - ys[i - step]), sy = xs[i + step] - xs[i - step];
+			const float l = std::max(1.0F, std::sqrt(sx * sx + sy * sy));
+			const float off = (Unit(Hash(seed, static_cast<uint32_t>(i), static_cast<uint32_t>(level))) - 0.5F) * spread;
+			xs[i] = mx + sx / l * off;
+			ys[i] = my + sy / l * off;
+		}
+	}
+	for (int i = 0; i < 32; i++) {
+		const int n = static_cast<int>(std::max(std::abs(xs[i + 1] - xs[i]), std::abs(ys[i + 1] - ys[i]))) + 1;
+		for (int j = 0; j <= n; j++) {
+			const float u = static_cast<float>(j) / static_cast<float>(n);
+			const int x = static_cast<int>(xs[i] + (xs[i + 1] - xs[i]) * u), y = static_cast<int>(ys[i] + (ys[i + 1] - ys[i]) * u);
+			px.add(x, y, 235, 245, 255, k);
+			px.add(x + 1, y, 120, 170, 255, 0.5F * k);
+			px.add(x - 1, y, 120, 170, 255, 0.5F * k);
+			px.add(x, y - 1, 120, 170, 255, 0.4F * k);
+			if (thick) {
+				px.add(x, y + 1, 200, 225, 255, 0.7F * k);
+				px.add(x + 2, y, 80, 130, 255, 0.25F * k);
+				px.add(x - 2, y, 80, 130, 255, 0.25F * k);
+			}
+		}
+	}
+}
+
+/** A soft round glow, added. */
+void Halo(const Px &px, float cx, float cy, float rx, float ry, float r, float g, float b, float k)
+{
+	if (k <= 0.004F)
+		return;
+	for (int dy = -static_cast<int>(ry); dy <= static_cast<int>(ry); dy++)
+		for (int dx = -static_cast<int>(rx); dx <= static_cast<int>(rx); dx++) {
+			const float d2 = static_cast<float>(dx * dx) / (rx * rx) + static_cast<float>(dy * dy) / (ry * ry);
+			if (d2 < 1.0F)
+				px.add(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, r, g, b, k * (1.0F - d2) * (1.0F - d2));
+		}
+}
+
+/** Fire's colour at heat @p h (1 white-hot .. 0 dying red), added at strength @p k. */
+void FireAdd(const Px &px, int x, int y, float h, float k)
+{
+	const float r = 255.0F, g = 60.0F + 190.0F * std::min(1.0F, h * 1.2F), b = 20.0F + 200.0F * std::max(0.0F, h - 0.6F) * 2.5F;
+	px.add(x, y, r, g, std::min(255.0F, b), k);
+}
+
+/** A tongue of flame @p h tall from (@p x, @p y), swaying with @p t; @p w wide at its foot. */
+void FlameTongue(const Px &px, float x, float y, float h, float w, float t, float sway, float k)
+{
+	for (float z = 0; z <= h; z += 1.0F) {
+		const float q = z / h;
+		const float half = w * std::pow(1.0F - q, 0.7F) * (0.6F + 0.4F * std::sin(q * Pi));
+		const float mx = x + std::sin(z * 0.22F + t * 13.0F + sway) * z * 0.12F;
+		for (int o = -static_cast<int>(half + 0.5F); o <= static_cast<int>(half + 0.5F); o++) {
+			const float e = 1.0F - std::abs(static_cast<float>(o)) / (half + 1.0F);
+			FireAdd(px, static_cast<int>(mx) + o, static_cast<int>(y - z), (1.0F - q) * e, k * (0.45F + 0.55F * e) * (1.0F - q * 0.5F));
+		}
+	}
+}
+
+} // namespace
+
+void DrawStaticChargeFx(const Surface &out, Point foot, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	constexpr uint32_t Seed = 5203;
+	const float fx = static_cast<float>(foot.x), fy = static_cast<float>(foot.y);
+	const float on = Clamp01(age / 0.3F);
+	// A surge every so often: everything brighter for a moment.
+	const float surge = std::pow(std::max(0.0F, std::sin(age * 5.6F)), 24.0F);
+	if (floorLayer) {
+		Halo(px, fx, fy, 30, 14, 90, 150, 255, (0.22F + 0.25F * surge) * on);
+		// Sparks crackling on the floor round his feet.
+		const uint32_t tick = static_cast<uint32_t>(age * 14.0F);
+		for (uint32_t i = 0; i < 6; i++) {
+			const uint32_t h = Hash(i, tick, Seed);
+			const float a = Unit(h) * TwoPi, r = 10.0F + 14.0F * Unit(h >> 8);
+			px.add(static_cast<int>(fx + std::cos(a) * r), static_cast<int>(fy + std::sin(a) * r * 0.5F), 200, 230, 255, 0.9F * on);
+		}
+		return;
+	}
+	// The charge crawling over him: arcs between points round his body, new ones fourteen times a second.
+	const uint32_t tick = static_cast<uint32_t>(age * 14.0F);
+	const float cx = fx, cy = fy - 30.0F;
+	const int arcs = 4 + static_cast<int>(surge * 4.0F);
+	for (int i = 0; i < arcs; i++) {
+		const uint32_t h = Hash(static_cast<uint32_t>(i), tick, Seed + 1);
+		const float a0 = Unit(h) * TwoPi, a1 = a0 + (0.5F + 1.2F * Unit(h >> 8)) * ((h & 1) ? 1.0F : -1.0F);
+		const float x0 = cx + std::cos(a0) * 13.0F, y0 = cy + std::sin(a0) * 26.0F, x1 = cx + std::cos(a1) * 13.0F, y1 = cy + std::sin(a1) * 26.0F;
+		ArcBolt(px, x0, y0, x1, y1, 9.0F, h, (0.55F + 0.45F * surge) * on, false);
+	}
+	// Now and then an arc leaping to the floor.
+	if ((Hash(tick, Seed + 2) & 3) == 0) {
+		const uint32_t h = Hash(tick, Seed + 3);
+		const float a = Unit(h) * TwoPi;
+		ArcBolt(px, cx + std::cos(a) * 10.0F, cy + 20.0F, fx + std::cos(a) * 26.0F, fy + std::sin(a) * 10.0F, 8.0F, h, 0.8F * on, false);
+	}
+	// Charged motes circling him, each with a short tail.
+	for (int i = 0; i < 6; i++) {
+		const float a = age * (2.6F + 0.3F * static_cast<float>(i)) + static_cast<float>(i) * 1.05F;
+		const float h = -12.0F + 28.0F * Unit(Hash(static_cast<uint32_t>(i), Seed + 4)) + 4.0F * std::sin(age * 3.0F + static_cast<float>(i));
+		for (int s = 0; s < 5; s++) {
+			const float aa = a - static_cast<float>(s) * 0.09F;
+			const float x = cx + std::cos(aa) * 20.0F, y = cy + h + std::sin(aa) * 8.0F;
+			const float back = std::sin(aa) < 0 ? 0.45F : 1.0F;
+			px.add(static_cast<int>(x), static_cast<int>(y), 200, 230, 255, (1.0F - static_cast<float>(s) / 5.0F) * 0.9F * back * on);
+		}
+	}
+	Halo(px, cx, cy, 20, 32, 90, 150, 255, (0.12F + 0.3F * surge) * on);
+}
+
+void DrawStaticDischargeFx(const Surface &out, Point from, Point to, float age)
+{
+	if (out.isIndexed() || age < 0 || age > StaticDischargeSeconds)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float k = std::exp(-age / 0.09F) * 0.7F + 0.3F * (1.0F - age / StaticDischargeSeconds);
+	const uint32_t seed = Hash(static_cast<uint32_t>(age * 30.0F), static_cast<uint32_t>(to.x * 7 + to.y), 5301);
+	const float x0 = static_cast<float>(from.x), y0 = static_cast<float>(from.y) - 30.0F;
+	const float x1 = static_cast<float>(to.x), y1 = static_cast<float>(to.y) - 30.0F;
+	ArcBolt(px, x0, y0, x1, y1, 22.0F, seed, k, true);
+	ArcBolt(px, x0, y0, x1 + 6.0F, y1 - 8.0F, 16.0F, seed + 9, 0.5F * k, false);
+	Halo(px, x1, y1, 22, 26, 140, 190, 255, 0.8F * k);
+	Halo(px, x0, y0, 14, 18, 140, 190, 255, 0.5F * k);
+	// Sparks thrown off where it struck.
+	for (uint32_t i = 0; i < 10; i++) {
+		const float a = Unit(Hash(i, 5302)) * TwoPi, v = 40.0F + 60.0F * Unit(Hash(i, 5303));
+		const float x = x1 + std::cos(a) * v * age, y = y1 + std::sin(a) * v * age + 150.0F * age * age;
+		px.add(static_cast<int>(x), static_cast<int>(y), 220, 240, 255, 1.0F - age / StaticDischargeSeconds);
+	}
+}
+
+void DrawCinderTouchFx(const Surface &out, Point foot, Point target, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > CinderTouchSeconds)
+		return;
+	const Px px { &out, out.w(), out.h() };
+	constexpr uint32_t Seed = 5401;
+	const float hx = static_cast<float>(foot.x), hy = static_cast<float>(foot.y) - 30.0F;
+	const float tx = static_cast<float>(target.x), ty = static_cast<float>(target.y);
+	if (floorLayer) {
+		// The fire's light on the floor under it, flickering; a scorched ring where it stood, cooling.
+		const float burn = Clamp01((age - 0.08F) / 0.1F) * Clamp01((CinderTouchSeconds - 0.3F - age) / 0.4F);
+		const float flick = 0.8F + 0.2F * std::sin(age * 23.0F) * std::sin(age * 9.0F);
+		Halo(px, tx, ty, 46, 22, 255, 130, 40, 0.45F * burn * flick);
+		for (int dy = -7; dy <= 7; dy++)
+			for (int dx = -18; dx <= 18; dx++) {
+				const float d2 = static_cast<float>(dx * dx) / 324.0F + static_cast<float>(dy * dy) / 49.0F;
+				if (d2 < 1.0F)
+					px.mix(static_cast<int>(tx) + dx, static_cast<int>(ty) + dy, 26, 16, 10, 0.35F * Clamp01(age / 0.5F) * (1.0F - d2));
+			}
+		return;
+	}
+	// The touch: embers swept from her hand onto it, and a flash where they strike.
+	if (age < 0.25F) {
+		for (uint32_t i = 0; i < 26; i++) {
+			const float t0 = Unit(Hash(i, Seed)) * 0.08F;
+			const float u = Clamp01((age - t0) / 0.12F);
+			if (u <= 0 || u >= 1.0F)
+				continue;
+			const float bend = (Unit(Hash(i, Seed + 1)) - 0.5F) * 30.0F * std::sin(u * Pi);
+			const float x = hx + (tx - hx) * u, y = hy + (ty - 30.0F - hy) * u + bend;
+			FireAdd(px, static_cast<int>(x), static_cast<int>(y), 0.9F, 1.0F);
+			FireAdd(px, static_cast<int>(x) - 1, static_cast<int>(y), 0.5F, 0.6F);
+		}
+	}
+	const float flash = std::exp(-std::max(0.0F, age - 0.1F) / 0.08F) * (age > 0.1F ? 1.0F : 0.0F);
+	Halo(px, tx, ty - 30.0F, 24, 30, 255, 200, 110, flash);
+	// It burns: tongues of flame licking up its body, flickering, embers and smoke rising off it.
+	const float burn = Clamp01((age - 0.1F) / 0.15F) * Clamp01((CinderTouchSeconds - 0.3F - age) / 0.5F);
+	if (burn > 0) {
+		for (int j = 0; j < 7; j++) {
+			const float ox = (static_cast<float>(j) - 3.0F) * 4.2F + std::sin(age * 3.0F + static_cast<float>(j)) * 1.5F;
+			const float base = ty - 6.0F - 30.0F * Unit(Hash(static_cast<uint32_t>(j), Seed + 2)) * (1.0F - std::abs(static_cast<float>(j) - 3.0F) / 4.0F);
+			const float h = (18.0F + 20.0F * Unit(Hash(static_cast<uint32_t>(j), Seed + 3))) * (0.7F + 0.3F * std::sin(age * (11.0F + static_cast<float>(j)) + static_cast<float>(j) * 2.0F)) * burn;
+			FlameTongue(px, tx + ox, base, h, 4.0F + 2.5F * Unit(Hash(static_cast<uint32_t>(j), Seed + 4)), age, static_cast<float>(j) * 1.3F, 0.85F * burn);
+		}
+		for (uint32_t i = 0; i < 18; i++) {
+			const float period = 0.9F;
+			const float ph = Frac(age / period + Unit(Hash(i, Seed + 5)));
+			const float x = tx + (Unit(Hash(i, Seed + 6)) - 0.5F) * 26.0F + std::sin(ph * 6.0F + static_cast<float>(i)) * 4.0F;
+			const float y = ty - 20.0F - 70.0F * ph;
+			FireAdd(px, static_cast<int>(x), static_cast<int>(y), 0.7F * (1.0F - ph), (1.0F - ph) * burn);
+		}
+		for (uint32_t i = 0; i < 5; i++) {
+			const float ph = Frac(age / 1.4F + static_cast<float>(i) / 5.0F);
+			const float x = tx + std::sin(ph * 4.0F + static_cast<float>(i)) * 6.0F, y = ty - 50.0F - 40.0F * ph;
+			const float size = 4.0F + 8.0F * ph;
+			const int s = static_cast<int>(size);
+			for (int dy = -s; dy <= s; dy++)
+				for (int dx = -s; dx <= s; dx++) {
+					const float d2 = static_cast<float>(dx * dx + dy * dy) / (size * size);
+					if (d2 < 1.0F)
+						px.mix(static_cast<int>(x) + dx, static_cast<int>(y) + dy, 50, 44, 40, 0.22F * std::sin(ph * Pi) * burn * (1.0F - d2));
+				}
+		}
+		Halo(px, tx, ty - 26.0F, 22, 30, 255, 140, 50, 0.3F * burn);
+	}
+}
+
+void DrawFurnaceFlameFx(const Surface &out, Point floor, int dirX, int dirY, float age, bool floorLayer)
+{
+	if (out.isIndexed() || age < 0 || age > FurnaceFlameSeconds || (dirX == 0 && dirY == 0))
+		return;
+	const Px px { &out, out.w(), out.h() };
+	constexpr uint32_t Seed = 5503;
+	// Its head on the furnace: forward of the floor point along the facing, raised to the dragon's mouth.
+	const float stepX = static_cast<float>(dirX - dirY) * 32.0F, stepY = static_cast<float>(dirX + dirY) * 16.0F;
+	const float sl = std::sqrt(stepX * stepX + stepY * stepY);
+	const float ux = stepX / sl, uy = stepY / sl;
+	const float mx = static_cast<float>(floor.x) + ux * 20.0F, my = static_cast<float>(floor.y) + uy * 20.0F - 34.0F;
+	const float reach = sl * 3.2F;
+	// The breath: catching, roaring, dying away.
+	const float roar = Clamp01(age / 0.06F) * Clamp01((FurnaceFlameSeconds - 0.12F - age) / 0.2F);
+	if (floorLayer) {
+		// Its light running out along the floor under the stream, and the floor scorching where it lands.
+		for (float s = 10.0F; s < reach; s += 4.0F) {
+			const float q = s / reach;
+			const float flick = 0.7F + 0.3F * std::sin(age * 31.0F + s * 0.2F);
+			Halo(px, static_cast<float>(floor.x) + ux * s, static_cast<float>(floor.y) + uy * s, 18.0F + 16.0F * q, 9.0F + 8.0F * q, 255, 140, 40, 0.07F * roar * flick * (1.0F - q * 0.4F));
+		}
+		const float scorch = Clamp01(age / 0.4F) * Clamp01((FurnaceFlameSeconds + 0.6F - age) / 0.8F);
+		Halo(px, static_cast<float>(floor.x) + ux * reach * 0.8F, static_cast<float>(floor.y) + uy * reach * 0.8F, 26, 12, 255, 90, 20, 0.25F * scorch);
+		Ripple(out, { static_cast<int>(static_cast<float>(floor.x) + ux * reach * 0.6F), static_cast<int>(static_cast<float>(floor.y) + uy * reach * 0.6F) - 20 }, 24.0F, 2.5F * roar);
+		return;
+	}
+	// The flame: a stream of burning gas from the mouth - white-hot near it, through yellow and orange to dying red, then
+	// smoke - widening and curling as it goes, sinking toward the floor at its far end and rising as it dies.
+	constexpr int N = 380;
+	constexpr float Life = 0.42F, Emit = 0.72F;
+	for (int i = 0; i < N; i++) {
+		const float born = static_cast<float>(i) / static_cast<float>(N) * Emit;
+		const float t = age - born;
+		if (t < 0 || t > Life)
+			continue;
+		const float u = t / Life;
+		const uint32_t h = Hash(static_cast<uint32_t>(i), Seed);
+		const float dist = reach * (1.0F - std::exp(-u * 2.2F)) / (1.0F - std::exp(-2.2F));
+		const float spread = (Unit(h) - 0.5F) * dist * 0.32F;
+		const float curl = std::sin(t * 14.0F + static_cast<float>(i)) * dist * 0.06F;
+		const float drop = 22.0F * (dist / reach) * (dist / reach); // the stream falls toward the floor
+		const float rise = 26.0F * std::max(0.0F, u - 0.6F);     // the burnt-out end lifts as smoke
+		const float x = mx + ux * dist - uy * (spread + curl);
+		const float y = my + uy * dist + ux * (spread + curl) * 0.5F + drop - rise;
+		const float size = 3.5F + 15.0F * u;
+		const float heat = 1.0F - u;
+		const int s = static_cast<int>(size);
+		if (u < 0.75F) {
+			for (int dy = -s; dy <= s; dy++)
+				for (int dx = -s; dx <= s; dx++) {
+					const float d2 = static_cast<float>(dx * dx + dy * dy) / (size * size);
+					if (d2 < 1.0F)
+						FireAdd(px, static_cast<int>(x) + dx, static_cast<int>(y) + dy, heat * (1.0F - d2 * 0.5F), 0.16F * (1.0F - d2) * roar);
+				}
+		} else {
+			for (int dy = -s; dy <= s; dy++)
+				for (int dx = -s; dx <= s; dx++) {
+					const float d2 = static_cast<float>(dx * dx + dy * dy) / (size * size);
+					if (d2 < 1.0F)
+						px.mix(static_cast<int>(x) + dx, static_cast<int>(y) + dy, 46, 40, 36, 0.18F * (1.0F - d2) * (1.0F - u) * 4.0F * roar);
+				}
+		}
+	}
+	// The white-hot core at the mouth.
+	for (float s = 0; s < 26.0F; s += 1.0F)
+		Halo(px, mx + ux * s, my + uy * s + 0.5F * s * s / reach, 3.0F, 3.0F, 255, 245, 200, 0.5F * roar * (1.0F - s / 26.0F));
+	Halo(px, mx, my, 10, 8, 255, 220, 140, 0.8F * roar);
+	// Embers thrown out of the stream, arcing and falling.
+	for (uint32_t i = 0; i < 24; i++) {
+		const float born = Unit(Hash(i, Seed + 1)) * Emit;
+		const float t = age - born;
+		if (t < 0 || t > 0.6F)
+			continue;
+		const float v = 120.0F + 120.0F * Unit(Hash(i, Seed + 2));
+		const float side = (Unit(Hash(i, Seed + 3)) - 0.5F) * 80.0F;
+		const float x = mx + ux * v * t - uy * side * t, y = my + uy * v * t + ux * side * t * 0.5F - 40.0F * t + 160.0F * t * t;
+		FireAdd(px, static_cast<int>(x), static_cast<int>(y), 0.8F * (1.0F - t / 0.6F), 1.0F - t / 0.6F);
+	}
+}
+
+void DrawFurnaceLife(const Surface &out, Point floor, int dirX, int dirY, float sinceBreath, float age)
+{
+	if (out.isIndexed())
+		return;
+	const Px px { &out, out.w(), out.h() };
+	const float stepX = static_cast<float>(dirX - dirY) * 32.0F, stepY = static_cast<float>(dirX + dirY) * 16.0F;
+	const float sl = std::max(1.0F, std::sqrt(stepX * stepX + stepY * stepY));
+	const float ux = stepX / sl, uy = stepY / sl;
+	const float mx = static_cast<float>(floor.x) + ux * 20.0F, my = static_cast<float>(floor.y) + uy * 20.0F - 34.0F;
+	// The coals inside it glowing through the grille, brightest as it breathes; and its mouth smouldering between breaths.
+	const float breath = sinceBreath >= 0 && sinceBreath < FurnaceFlameSeconds ? 1.0F : 0.0F;
+	const float ember = 0.55F + 0.2F * std::sin(age * 7.0F) * std::sin(age * 3.1F) + 0.4F * breath;
+	Halo(px, static_cast<float>(floor.x), static_cast<float>(floor.y) - 10.0F, 26, 14, 255, 110, 30, 0.35F * ember);
+	Halo(px, mx, my, 8, 6, 255, 160, 60, 0.5F * ember);
+	// Heat shimmering over it.
+	Ripple(out, { static_cast<int>(floor.x), static_cast<int>(floor.y) - 50 }, 10.0F + 6.0F * Frac(age * 1.5F), 1.6F);
+	// Smoke curling from its back.
+	for (uint32_t i = 0; i < 4; i++) {
+		const float ph = Frac(age / 1.6F + static_cast<float>(i) / 4.0F);
+		const float x = static_cast<float>(floor.x) - ux * 10.0F + std::sin(ph * 5.0F + static_cast<float>(i)) * 5.0F, y = static_cast<float>(floor.y) - 40.0F - 50.0F * ph;
+		const float size = 3.0F + 7.0F * ph;
+		const int s = static_cast<int>(size);
+		for (int dy = -s; dy <= s; dy++)
+			for (int dx = -s; dx <= s; dx++) {
+				const float d2 = static_cast<float>(dx * dx + dy * dy) / (size * size);
+				if (d2 < 1.0F)
+					px.mix(static_cast<int>(x) + dx, static_cast<int>(y) + dy, 52, 46, 42, 0.2F * std::sin(ph * Pi) * (1.0F - d2));
+			}
+	}
+}
+
 } // namespace devilution::oracool

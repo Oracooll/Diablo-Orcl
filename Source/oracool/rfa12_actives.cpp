@@ -1004,6 +1004,13 @@ constexpr int FuneralSpiralTicks = 46;
 constexpr double FuneralSpiralTurn = 0.14;
 constexpr double FuneralSpiralGrow = 4.0;
 constexpr int FuneralSpiralMark = 0x4653;
+/**
+ * Each ball leaves this many ticks after the one before and flies its own whole spiral (user, 2026-10-12: "make sure every
+ * fireball completes full length spiral movement, dont let them dissapear simultaniously"): the field lasts until the last
+ * one is done.
+ */
+constexpr int FuneralSpiralStagger = 2;
+constexpr int FuneralSpiralFieldTicks = FuneralSpiralTicks + (FuneralSpiralBalls - 1) * FuneralSpiralStagger;
 constexpr int FurnaceFlameTicks = 12; // each spit's flame on screen
 constexpr int PoisonExplosionCloudTicks = 3 * TicksPerSecond; // the burst's cloud, a poison pulse a second (user, 2026-10-06)
 std::array<Field, MaxFields> Fields;
@@ -1021,6 +1028,20 @@ Field *NewField(const Player &player, SpellID spell, Point tile, int ticks, int 
 	slot->rank = rank;
 	slot->stamp = ++FieldStamp;
 	return &*slot;
+}
+
+/** @brief Funeral Spiral's ball @p ball leaving @p player at the field's tile - its own spiral's whole flight ahead of it. */
+Missile *LaunchFuneralBall(const Player &player, const Field &field, int ball)
+{
+	Missile *fireball = AddArtEffectFacing(field.tile, MissileGraphicID::Fireball, static_cast<int>(player.getId()), 0, FuneralSpiralTicks + 2);
+	if (fireball == nullptr)
+		return nullptr;
+	fireball->_mirange = FuneralSpiralTicks + 2;
+	fireball->var2 = ball;
+	fireball->var5 = field.stamp;
+	fireball->var6 = FuneralSpiralMark;
+	fireball->_mlid = AddLight(field.tile, 3);
+	return fireball;
 }
 
 // =================================================================================================
@@ -2401,18 +2422,10 @@ bool CastOnce(Player &player, SpellID spell, Point target, int r)
 		StartBuff(player, Buff::Immolate, EffectTicks(spell, r), r);
 		return true;
 	case SpellID::FuneralStar: {
-		// Funeral Spiral (user, 2026-10-01): twelve fireballs burst from her at once and spiral out (TickField moves them).
-		Field *f = NewField(player, spell, here, FuneralSpiralTicks, r);
-		for (int ball = 0; ball < FuneralSpiralBalls; ball++) {
-			Missile *fireball = AddArtEffectFacing(here, MissileGraphicID::Fireball, static_cast<int>(player.getId()), 0, FuneralSpiralTicks + 2);
-			if (fireball == nullptr)
-				break;
-			fireball->_mirange = FuneralSpiralTicks + 2;
-			fireball->var2 = ball;
-			fireball->var5 = f->stamp;
-			fireball->var6 = FuneralSpiralMark;
-			fireball->_mlid = AddLight(here, 3);
-		}
+		// Funeral Spiral (user, 2026-10-01): twelve fireballs spiral out from her (TickField moves them) - the first now, the
+		// rest one after another, FuneralSpiralStagger ticks apart, as TickField launches them (2026-10-12).
+		Field *f = NewField(player, spell, here, FuneralSpiralFieldTicks, r);
+		LaunchFuneralBall(player, *f, 0);
 		// Without the Fireball sheet (headless, a missing graphic) no ball flies: the blow lands round her at once, with the
 		// ring, rather than a paid cast doing nothing (round 66 audit).
 		if (!MissileArtLoaded(MissileGraphicID::Fireball)) {
@@ -3657,12 +3670,16 @@ void TickField(Player &player, Field &field)
 		// Funeral Spiral: each fireball on its arm of the spiral, from where she cast; the first enemy it meets takes the blow
 		// and the ball bursts in Fireball's explosion. A wall ends a ball too.
 		const Range d = SkillDamage(field.spell, r);
-		const double t = field.clock;
+		// The next ball leaves on its tick (ball 0 left with the cast).
+		if (field.clock % FuneralSpiralStagger == 0 && field.clock / FuneralSpiralStagger < FuneralSpiralBalls)
+			LaunchFuneralBall(player, field, field.clock / FuneralSpiralStagger);
 		const bool last = field.ticksLeft <= 1; // the balls go with the field, not two ticks after it (round 66 audit)
 		for (Missile &ball : Missiles) {
 			if (ball._miDelFlag || ball.var6 != FuneralSpiralMark || ball.var5 != field.stamp || ball._misource != field.owner || ball._mirange <= 1)
 				continue;
-			if (last) {
+			// Its own time on its spiral, from when it left; done at the spiral's whole length.
+			const double t = field.clock - ball.var2 * FuneralSpiralStagger;
+			if (last || t >= FuneralSpiralTicks) {
 				ball._mirange = 1;
 				continue;
 			}
