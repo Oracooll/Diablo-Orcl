@@ -164,4 +164,54 @@ void DrawFurnaceFlameFx(const Surface &out, Point floor, int dirX, int dirY, flo
  * smouldering, heat shimmering over it and smoke from its back. @p sinceBreath: seconds since its last breath began. */
 void DrawFurnaceLife(const Surface &out, Point floor, int dirX, int dirY, float sinceBreath, float age);
 
+/**
+ * @brief A weapon's swing drawn as a crescent of light (user, 2026-10-12, the Rogue's and the Monk's weapon skills): the tip
+ * going round @p centre on the floor from angle @p from to @p to (radians on the floor, y doubled; 0 east), @p radius flat
+ * pixels out and @p height above the floor, in @p swing seconds; the trail in @p rgb, fading behind the tip, a white edge
+ * and a glint at the tip; @p dust (0..1) kicked along a low one.
+ */
+struct WeaponArc {
+	Point centre;
+	float from, to, radius, height, swing, dust;
+	uint32_t rgb;
+};
+void DrawWeaponArcFx(const Surface &out, const WeaponArc &arc, float age, bool floorLayer);
+/** @brief A blow landing on the body standing at @p foot: a slash of light across it in @p rgb, and sparks. */
+void DrawStrikeFlashFx(const Surface &out, Point foot, uint32_t rgb, float age);
+
+/** @brief A thrust from @p from to @p to (screen points at the weapon's height, @p height above the floor) in @p rgb. */
+struct Thrust {
+	Point from, to;
+	float height;
+	uint32_t rgb;
+};
+/** @brief The thrust drawn: a tapered streak shooting out, rings of pressure riding it, a flash at its point. */
+void DrawThrustFx(const Surface &out, const Thrust &th, float age, bool floorLayer);
+
+/** @brief How long a hurled spear's landing lasts, and Tiger Claw's rakes and bleeding, in seconds. */
+constexpr float HurledSpearImpactSeconds = 0.8F;
+constexpr float ClawRakeSeconds = 3.3F;
+/**
+ * @brief The drawn Valkyrie's Spear: a spear hurled from @p from to @p to (feet) on a shallow arc - its shaft and steel head,
+ * a trail of pale gold and two wings of light swept back from its head; planted slanting in the floor where it lands, a burst
+ * of rays, a ring of light across the tile and the air bending.
+ */
+void DrawHurledSpearFx(const Surface &out, Point from, Point to, float age, bool floorLayer);
+/** @brief A column of ki light where a staff is planted at @p foot (Mountain Pole), motes rising up it. */
+void DrawKiPillarFx(const Surface &out, Point foot, uint32_t rgb, float age);
+/** @brief Rings going out from the body at @p foot one after another, like a struck bell (Staff of Echoes). */
+void DrawEchoRingsFx(const Surface &out, Point foot, uint32_t rgb, float age);
+/** @brief Slivers of jade light drifting down round @p centre like bamboo leaves (Bamboo Rain). */
+void DrawJadeLeavesFx(const Surface &out, Point centre, float age);
+/**
+ * @brief The drawn Heaven Splitter: an overhead arc of light coming down in front of the Monk at @p foot, then a white-gold
+ * fissure racing @p tiles tiles along the tile direction (@p dirX, @p dirY) with a curtain of light rising behind its front
+ * and stone thrown up either side.
+ */
+void DrawHeavenSplitterFx(const Surface &out, Point foot, int dirX, int dirY, int tiles, float age, bool floorLayer);
+/** @brief A flurry from body to body through @p stops (feet), a streak of ki in @p rgb along each leg, a blur at each stop. */
+void DrawFlurryPathFx(const Surface &out, const Point *stops, int count, uint32_t rgb, float age);
+/** @brief Tiger Claw on the body at @p foot: three glowing rakes one after another, then the wounds dripping, a pool under it. */
+void DrawClawRakeFx(const Surface &out, Point foot, float age, bool floorLayer);
+
 } // namespace devilution::oracool
