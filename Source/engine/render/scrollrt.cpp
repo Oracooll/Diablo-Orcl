@@ -1662,11 +1662,14 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 			if (InDungeonBounds(tilePosition) && woodsGround) {
 				LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 				oracool::DrawWoodsGroundTile(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
+				oracool::DrawWoodsGateTint(out, tilePosition, targetBufferPosition); // the road back, marked
 				if (!DeferFloorObjectsThisFrame && !TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid))
 					DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
 			} else if (InDungeonBounds(tilePosition)) {
-				if (!TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid))
+				if (!TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid)) {
 					DrawFloor(out, tilePosition, targetBufferPosition);
+					oracool::DrawWoodsGateTint(out, tilePosition, targetBufferPosition); // Tristram's road to the woods, marked
+				}
 				else if (DeferFloorObjectsThisFrame)
 					DrawWallFloorTriangles(out, tilePosition, targetBufferPosition);
 			} else {

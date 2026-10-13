@@ -60,6 +60,14 @@ bool WoodsArtActive(const Surface &out);
  */
 void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light, bool fullBright);
 
+/**
+ * @brief The roads' markers (user, 2026-10-13: "colour somehow the ground which acts as an entrance ... brighter green
+ * tint ... make it clear to me where i need to take my hero"): over the floor of a gate tile, a pulsing bright-green glow -
+ * Tristram's road out to the woods, and the woods' road back - or amber on a way on that is not open yet. Nothing on any
+ * other tile.
+ */
+void DrawWoodsGateTint(const Surface &out, Point tile, Point target);
+
 /** @brief What stands on a woods tile, drawn in the figures' order: a tree, or a small thing on the ground. */
 void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light);
 

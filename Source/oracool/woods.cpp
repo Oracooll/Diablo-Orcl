@@ -668,6 +668,53 @@ void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light
 	}
 }
 
+void DrawWoodsGateTint(const Surface &out, Point tile, Point target)
+{
+	if (out.isIndexed())
+		return;
+	// Which road, if any, this tile belongs to.
+	bool open = false;
+	bool closed = false;
+	if (leveltype == DTYPE_TOWN) {
+		open = OnTownGate(tile);
+	} else if (leveltype == DTYPE_WOODS && setlevel) {
+		open = tile.x >= Hi - 1 && std::abs(tile.y - Arrival.y) <= 1;
+		closed = tile.x <= Lo + 1 && std::abs(tile.y - WayOn.y) <= 1;
+	}
+	if (!open && !closed)
+		return;
+	// Green for a road you can take, amber for one not open yet; a slow pulse, a little stronger toward the tile's centre.
+	const int tr = open ? 120 : 236;
+	const int tg = open ? 255 : 170;
+	const int tb = open ? 110 : 60;
+	const float pulse = 0.5F + 0.5F * std::sin(static_cast<float>(SDL_GetTicks() % 100000U) * 0.004F);
+	const int base = static_cast<int>((open ? 70.0F : 55.0F) + 50.0F * pulse); // of 256
+	for (int k = 0; k < 31; k++) {
+		const int y = target.y - k;
+		if (y < 0 || y >= out.h())
+			continue;
+		const int inset = k < 16 ? 30 - 2 * k : 2 * (k - 15);
+		const int x0 = std::max(target.x + inset, 0);
+		const int x1 = std::min(target.x + 63 - inset, out.w() - 1);
+		uint32_t *row = out.at<uint32_t>(0, y);
+		const int dy = std::abs(k - 15);
+		for (int x = x0; x <= x1; x++) {
+			const int dx = std::abs(x - (target.x + 32));
+			const int centre = 256 - std::min(256, (dx * 4 + dy * 8)); // 256 at the centre, 0 at the corners
+			const int a = base * (160 + centre) / 416;
+			const uint32_t c = row[x];
+			const int r = static_cast<int>((c >> 16) & 0xFF);
+			const int g = static_cast<int>((c >> 8) & 0xFF);
+			const int b = static_cast<int>(c & 0xFF);
+			// Mixed toward the tint and brightened, so it reads on dark grass and on bright paving alike.
+			const int nr = std::min(255, r + ((tr - r) * a >> 8) + (a >> 3));
+			const int ng = std::min(255, g + ((tg - g) * a >> 8) + (a >> 3));
+			const int nb = std::min(255, b + ((tb - b) * a >> 8) + (a >> 3));
+			row[x] = static_cast<uint32_t>((std::max(nr, 1) << 16) | (std::max(ng, 1) << 8) | std::max(nb, 1));
+		}
+	}
+}
+
 uint8_t WoodsGroundAt(Point tile)
 {
 	return InDungeonBounds(tile) ? Ground[tile.x][tile.y] : Forest;
