@@ -88,6 +88,13 @@ void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light
  */
 void DrawWoodsGateTint(const Surface &out, Point tile, Point target);
 
+/**
+ * @brief The Mixed look's ground, over the tile Tristram's cels just drew: the painted dirt road on and along the road, its
+ * edge frayed by the same world-pinned noise as the painted look, and the rest of Tristram's grass graded toward the painted
+ * trees' olive. Nothing on another look.
+ */
+void DrawWoodsMixedGround(const Surface &out, Point tile, Point target, int light, bool fullBright);
+
 /** @brief What stands on a woods tile, drawn in the figures' order: a tree, or a small thing on the ground. */
 void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light);
 

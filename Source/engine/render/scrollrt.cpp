@@ -1673,6 +1673,8 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 			} else if (InDungeonBounds(tilePosition)) {
 				if (!TileHasAny(oracool::WoodsDrawnPiece(tilePosition), TileProperties::Solid)) {
 					DrawFloor(out, tilePosition, targetBufferPosition);
+					// The woods' Mixed look: the painted road and the graded grass over Tristram's cels (oracool/woods.h).
+					oracool::DrawWoodsMixedGround(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
 					oracool::DrawWoodsGateTint(out, tilePosition, targetBufferPosition); // Tristram's road to the woods, marked
 				}
 				else if (DeferFloorObjectsThisFrame)

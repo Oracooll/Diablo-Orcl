@@ -85,6 +85,12 @@ uint8_t Scatter[MAXDUNX][MAXDUNY];
 /** @brief Each tree's small offset from its tile's centre, so the woods do not stand in rows. */
 int8_t TreeJitterX[MAXDUNX][MAXDUNY];
 int8_t TreeJitterY[MAXDUNX][MAXDUNY];
+/**
+ * @brief A tree that is there (it blocks) but is not drawn: deep in the forest, hidden behind the trees in front of it. The
+ * user's play test, 2026-10-13: by the map's edge every tile was a tree and the frame rate fell; three tiles into solid forest
+ * only one tree in four is drawn, and the canopies still meet.
+ */
+bool TreeHidden[MAXDUNX][MAXDUNY];
 
 Point Arrival { 88, 48 };
 Point WayOn { 22, 62 };
@@ -253,6 +259,33 @@ void SealUnreachable()
 	}
 }
 
+/** @brief Fills TreeHidden: a tree three tiles or more from any open tile keeps only the 2 x 2 lattice's one tree in four. */
+void HideDeepForest()
+{
+	// Distance in tiles (8-neighbour) to the nearest tile without a tree, by two sweeps.
+	static uint8_t depth[MAXDUNX][MAXDUNY];
+	for (int y = 0; y < MAXDUNY; y++)
+		for (int x = 0; x < MAXDUNX; x++)
+			depth[x][y] = Tree[x][y] == NoTree ? 0 : 255;
+	for (int y = 0; y < MAXDUNY; y++)
+		for (int x = 0; x < MAXDUNX; x++)
+			for (const Displacement d : { Displacement { -1, 0 }, Displacement { 0, -1 }, Displacement { -1, -1 }, Displacement { 1, -1 } }) {
+				const Point n = Point { x, y } + d;
+				if (InDungeonBounds(n))
+					depth[x][y] = static_cast<uint8_t>(std::min<int>(depth[x][y], depth[n.x][n.y] + 1));
+			}
+	for (int y = MAXDUNY - 1; y >= 0; y--)
+		for (int x = MAXDUNX - 1; x >= 0; x--)
+			for (const Displacement d : { Displacement { 1, 0 }, Displacement { 0, 1 }, Displacement { 1, 1 }, Displacement { -1, 1 } }) {
+				const Point n = Point { x, y } + d;
+				if (InDungeonBounds(n))
+					depth[x][y] = static_cast<uint8_t>(std::min<int>(depth[x][y], depth[n.x][n.y] + 1));
+			}
+	for (int y = 0; y < MAXDUNY; y++)
+		for (int x = 0; x < MAXDUNX; x++)
+			TreeHidden[x][y] = depth[x][y] >= 3 && ((x | y) & 1) != 0;
+}
+
 void Generate(uint32_t seed)
 {
 	std::memset(Ground, Grass, sizeof(Ground));
@@ -331,6 +364,7 @@ void Generate(uint32_t seed)
 			}
 		}
 	}
+	HideDeepForest();
 }
 
 // ---------------------------------------------------------------- the art
@@ -339,6 +373,9 @@ struct Picture {
 	int w = 0;
 	int h = 0;
 	std::vector<uint32_t> px; // 0x00RRGGBB, with the top byte 0xFF where opaque in a sprite
+	/** @brief A sprite's opaque columns per row, [first, last); empty rows have first == last. */
+	std::vector<int16_t> spanFirst;
+	std::vector<int16_t> spanLast;
 	int footX = 0;
 	int footY = 0;
 };
@@ -413,6 +450,19 @@ bool LoadHalved(const char *path, Picture &out, bool sprite)
 		}
 	}
 	SDL_FreeSurface(rgba);
+	out.spanFirst.assign(static_cast<size_t>(out.h), 0);
+	out.spanLast.assign(static_cast<size_t>(out.h), 0);
+	for (int y = 0; y < out.h; y++) {
+		const uint32_t *row = &out.px[static_cast<size_t>(y) * out.w];
+		int first = 0;
+		while (first < out.w && (row[first] & 0xFF000000U) == 0)
+			first++;
+		int last = out.w;
+		while (last > first && (row[last - 1] & 0xFF000000U) == 0)
+			last--;
+		out.spanFirst[y] = static_cast<int16_t>(first);
+		out.spanLast[y] = static_cast<int16_t>(last);
+	}
 	return true;
 }
 
@@ -556,24 +606,13 @@ void BuildVanilla(uint32_t seed, bool paintedTrees)
 			const int edge = std::min({ mx, my, DMAXX - 1 - mx, DMAXY - 1 - my });
 			const float u = Unit(h);
 			int mega;
-			if (cellHasPath(mx, my)) {
-				mega = Pick(VanillaDirt, h >> 8);
-			} else if (paintedTrees) {
-				// The Mixed look: the painted trees stand on Tristram's grass (laid below as the tiles' look); between them and in
-				// the open, Tristram's own undergrowth and rock - bushes, a boulder, now and then an outcrop of the rock mass.
-				const bool byPath = cellHasPath(mx + 1, my) || cellHasPath(mx - 1, my) || cellHasPath(mx, my + 1) || cellHasPath(mx, my - 1);
+			if (paintedTrees) {
+				// The Mixed look: Tristram's grass only, worn by the road and in the dry patches. The road itself is the painted
+				// dirt, drawn over it (DrawWoodsMixedGround); the trees and the ground details are the painted ones.
+				const bool byPath = cellHasPath(mx, my) || cellHasPath(mx + 1, my) || cellHasPath(mx - 1, my) || cellHasPath(mx, my + 1) || cellHasPath(mx, my - 1);
 				mega = byPath || dry >= 2 ? Pick(VanillaWornGrass, h >> 8) : Pick(VanillaGrass, h >> 8);
-				if (trees == 0) {
-					const float scatter = Unit(h >> 4);
-					if (scatter < 0.012F)
-						mega = VanillaRockMass;
-					else if (scatter < 0.032F)
-						mega = Pick(VanillaBigRocks, h >> 12);
-					else if (scatter < 0.055F)
-						mega = Pick(VanillaSmallRocks, h >> 12);
-					else if (scatter < 0.11F)
-						mega = Pick(VanillaBushes, h >> 12);
-				}
+			} else if (cellHasPath(mx, my)) {
+				mega = Pick(VanillaDirt, h >> 8);
 			} else if (trees >= 3) {
 				if (edge <= 1)
 					mega = u < 0.85F ? VanillaRockMass : Pick(VanillaBigRocks, h >> 8);
@@ -822,6 +861,76 @@ void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light
 	}
 }
 
+void DrawWoodsMixedGround(const Surface &out, Point tile, Point target, int light, bool fullBright)
+{
+	if (leveltype != DTYPE_WOODS || !BuiltMixed || out.isIndexed() || GroundArt[Path].px.empty())
+		return;
+	const int brightness = (fullBright && light < LightsMax) || light < 0 ? 256 : BrightnessFor(light);
+	const Picture &road = GroundArt[Path];
+	const int originX = (tile.x - tile.y) * 32;
+	const int originY = (tile.x + tile.y) * 16;
+	const int centreX = target.x + 32;
+	const int centreY = target.y - 15;
+	// Only a tile within two of the road carries any of it; the rest is graded and left.
+	const auto onRoad = [](int x, int y) {
+		x = std::clamp(x, 0, MAXDUNX - 1);
+		y = std::clamp(y, 0, MAXDUNY - 1);
+		return Ground[x][y] == Path && Tree[x][y] == NoTree ? 1 : 0;
+	};
+	bool nearRoad = false;
+	for (int dy = -2; dy <= 2 && !nearRoad; dy++)
+		for (int dx = -2; dx <= 2 && !nearRoad; dx++) {
+			const Point p = tile + Displacement { dx, dy };
+			nearRoad = InDungeonBounds(p) && Ground[p.x][p.y] == Path && Tree[p.x][p.y] == NoTree;
+		}
+	for (int k = 0; k < 31; k++) {
+		const int y = target.y - k;
+		if (y < 0 || y >= out.h())
+			continue;
+		const int inset = k < 16 ? 30 - 2 * k : 2 * (k - 15);
+		const int x0 = std::max(target.x + inset, 0);
+		const int x1 = std::min(target.x + 63 - inset, out.w() - 1);
+		uint32_t *row = out.at<uint32_t>(0, y);
+		const int wy = originY + (y - target.y) + (1 << 20);
+		const int dy = y - centreY;
+		for (int x = x0; x <= x1; x++) {
+			const uint32_t c = row[x];
+			// Tristram's grey-green grass toward the painted trees' olive (the user's frame, graded three ways: this one read
+			// as the same woods): red x0.85, green x1.08, blue x0.62.
+			uint32_t r = std::max<uint32_t>(((c >> 16) & 0xFF) * 218 >> 8, 1);
+			uint32_t g = std::max<uint32_t>(std::min<uint32_t>(255, ((c >> 8) & 0xFF) * 276 >> 8), 1);
+			uint32_t b = std::max<uint32_t>((c & 0xFF) * 159 >> 8, 1);
+			if (nearRoad) {
+				// How much road this pixel is (user, 2026-10-13: "a fading effect where road tiles spill into grass, not sharp
+				// edges"): the road tiles' share blended across the tile centres, nudged by the world-pinned noise so the edge
+				// frays, then eased over the middle half - about a tile of fade.
+				const int wx = originX + (x - target.x) + (1 << 20);
+				const auto &n = EdgeNoise[static_cast<size_t>((wy >> 3) & (NoiseSize - 1)) * NoiseSize + ((wx >> 3) & (NoiseSize - 1))];
+				const int dx = x - centreX;
+				const int u = tile.x * 64 + dx + 2 * dy + 64 * 4; // in 1/64 tile, tile centres on multiples of 64
+				const int v = tile.y * 64 + 2 * dy - dx + 64 * 4;
+				const int ui = u / 64 - 4;
+				const int vi = v / 64 - 4;
+				const int fu = u & 63;
+				const int fv = v & 63;
+				int share = (onRoad(ui, vi) * (64 - fu) + onRoad(ui + 1, vi) * fu) * (64 - fv)
+				    + (onRoad(ui, vi + 1) * (64 - fu) + onRoad(ui + 1, vi + 1) * fu) * fv; // 0..4096
+				share += (n[0] + n[1]) * 8;
+				int a = std::clamp((share - 1024) * 256 / 2048, 0, 256);
+				a = a * a * (768 - 2 * a) >> 16; // smoothstep, 0..256
+				if (a > 0) {
+					uint32_t t = road.px[static_cast<size_t>(wy % road.h) * road.w + (wx % road.w)];
+					t = brightness >= 256 ? t : Shade(t, brightness);
+					r = (((t >> 16) & 0xFF) * a + r * (256 - a)) >> 8;
+					g = (((t >> 8) & 0xFF) * a + g * (256 - a)) >> 8;
+					b = ((t & 0xFF) * a + b * (256 - a)) >> 8;
+				}
+			}
+			row[x] = (std::max<uint32_t>(r, 1) << 16) | (std::max<uint32_t>(g, 1) << 8) | std::max<uint32_t>(b, 1);
+		}
+	}
+}
+
 namespace {
 
 /**
@@ -840,20 +949,26 @@ void DrawPicture(const Surface &out, const Picture &pic, int left, int top, int 
 	if (brightness <= 0)
 		return;
 	const int r2 = hole.radius * hole.radius;
-	for (int y = 0; y < h; y++) {
+	const int y0 = std::max(0, -top);
+	const int y1 = std::min(h, out.h() - top);
+	const bool wholeRows = srcX == 0 && w == pic.w && !pic.spanFirst.empty();
+	for (int y = y0; y < y1; y++) {
 		const int sy = top + y;
-		if (sy < 0 || sy >= out.h())
-			continue;
 		uint32_t *row = out.at<uint32_t>(0, sy);
 		const uint32_t *src = &pic.px[static_cast<size_t>(srcY + y) * pic.w + srcX];
-		for (int x = 0; x < w; x++) {
+		// Clipped to the screen, and to the row's opaque span when the whole picture is drawn.
+		int x0 = std::max(0, -left);
+		int x1 = std::min(w, out.w() - left);
+		if (wholeRows) {
+			x0 = std::max<int>(x0, pic.spanFirst[srcY + y]);
+			x1 = std::min<int>(x1, pic.spanLast[srcY + y]);
+		}
+		for (int x = x0; x < x1; x++) {
 			const int sx = left + x;
-			if (sx < 0 || sx >= out.w())
-				continue;
 			const uint32_t c = src[x];
 			if ((c & 0xFF000000U) == 0)
 				continue;
-			const uint32_t lit = Shade(c, brightness);
+			const uint32_t lit = brightness >= 256 ? (c & 0xFFFFFF) | 0x010101 : Shade(c, brightness);
 			if (r2 > 0) {
 				const int ddx = sx - hole.x;
 				const int ddy = (sy - hole.y) * 3 / 2; // a little taller than wide, as a figure is
@@ -882,6 +997,8 @@ void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light
 	const int footX = target.x + 32;
 	const int footY = target.y - 15;
 	if (const uint8_t kind = Tree[tile.x][tile.y]; kind != NoTree) {
+		if (TreeHidden[tile.x][tile.y])
+			return; // deep in the forest, behind the trees in front
 		const Picture &pic = TreeArt[kind];
 		if (pic.px.empty())
 			return;
