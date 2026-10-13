@@ -674,6 +674,8 @@ void SaveOptions()
 	    "; On: Fist of the Heavens and Wrath of the Heavens strike with lightning drawn in real time instead of their painted sheets.");
 	setBoolean("Drawn Skills", *sgOptions.Oracool.drawnSkills,
 	    "; On: skill effects drawn in real time - frost, fire, lightning, light, weapon trails - in place of their painted\n; sheets, for every class.");
+	setBoolean("Living Backgrounds", *sgOptions.Oracool.livingBackgrounds,
+	    "; On: the menu paintings live - their flames glow and flicker, banners barely stir, the forge chimney smokes.");
 	setBoolean("Drawn Earth", *sgOptions.Oracool.drawnEarth,
 	    "; On: Ground Stomp, Seismic Slam and Earthquake are drawn in real time - cracks, stone, dust and falling rocks - instead of\n; their painted sheets, and Hammer of the Ancients cracks the floor.");
 	setBoolean("Armour Sparks", *sgOptions.Oracool.armourSparks,
@@ -1892,6 +1894,7 @@ OracoolOptions::OracoolOptions()
     , drawnLightning("Drawn Lightning", OptionEntryFlags::None, N_("Drawn Lightning"), N_("Fist of the Heavens and Wrath of the Heavens strike with lightning drawn in real time instead of their painted sheets."), true)
     , drawnEarth("Drawn Earth", OptionEntryFlags::None, N_("Drawn Earth"), N_("Ground Stomp, Seismic Slam and Earthquake drawn in real time - cracks, stone, dust and falling rocks - instead of their painted sheets."), true)
     , drawnSkills("Drawn Skills", OptionEntryFlags::None, N_("Drawn Skills"), N_("Skill effects drawn in real time - frost, fire, lightning, light, weapon trails - in place of their painted sheets, for every class."), true)
+    , livingBackgrounds("Living Backgrounds", OptionEntryFlags::None, N_("Living Backgrounds"), N_("The menu paintings live: their flames glow and flicker, banners barely stir, the forge chimney smokes."), true)
     , armourSparks("Armour Sparks", OptionEntryFlags::None, N_("Armour Sparks"), N_("A melee blow on a skeleton, a knight, a golem or a gargoyle throws white-gold sparks."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
@@ -2071,6 +2074,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&drawnLightning,
 		&drawnEarth,
 		&drawnSkills,
+		&livingBackgrounds,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,

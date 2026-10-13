@@ -21,6 +21,8 @@
 #include "utils/surface_to_clx.hpp"
 #include "DiabloUI/diabloui.h" // DiabloUiSurface: which format the front end draws into
 #include "engine/render/primitive_render.hpp" // PackArgb
+#include "oracool/ui_background_life.h"
+#include "options.h"
 
 namespace devilution::oracool {
 
@@ -39,6 +41,8 @@ struct BackgroundSlot {
 	std::array<SDL_Color, 256> builtForPalette {};
 	/** Set once the asset has been looked for, so a missing file is not re-opened on every visit. */
 	bool loadFailed = false;
+	/** The part of the painting `argb` shows, in its own pixels: where its living spots land (oracool/ui_background_life.h). */
+	Rectangle crop {};
 };
 
 // Indexed by UiBackground; the static_assert below keeps the two in step.
@@ -204,6 +208,7 @@ bool Build(BackgroundSlot &slot)
 			}
 		}
 		slot.builtForScreen = screen;
+		slot.crop = crop;
 		return true;
 	}
 
@@ -234,6 +239,18 @@ bool Build(BackgroundSlot &slot)
 	slot.builtForScreen = screen;
 	std::memcpy(slot.builtForPalette.data(), orig_palette.data(), sizeof(slot.builtForPalette));
 	return true;
+}
+
+void AnimatePainting(int which)
+{
+	if (!*sgOptions.Oracool.livingBackgrounds)
+		return;
+	const BackgroundSlot &slot = Slots[static_cast<size_t>(which)];
+	if (slot.argb.empty())
+		return;
+	const Surface out(DiabloUiSurface());
+	AnimateUiBackground(out, static_cast<UiBackground>(which), slot.crop, Rectangle { { 0, 0 }, slot.builtForScreen },
+	    static_cast<float>(SDL_GetTicks() % 3600000U) / 1000.0F);
 }
 
 } // namespace
@@ -289,9 +306,13 @@ bool AddUiBackground(std::vector<std::unique_ptr<UiItemBase>> *vecDialog, UiBack
 	// 640x480 plate inside the 640x480 UI rect, which sits inset in the screen. This sprite IS the
 	// screen, so both of those adjustments would move it off by the size of the inset.
 	std::unique_ptr<UiItemBase> item;
-	if (!slot.argb.empty())
-		item = std::make_unique<UiImageRgb>(slot.argb.data(), slot.builtForScreen.width, slot.builtForScreen.height, MakeSdlRect(0, 0, 0, 0));
-	else
+	if (!slot.argb.empty()) {
+		auto image = std::make_unique<UiImageRgb>(slot.argb.data(), slot.builtForScreen.width, slot.builtForScreen.height, MakeSdlRect(0, 0, 0, 0));
+		// The painting alive (user, 2026-10-13: "upload animated backgrounds so i can test ingame"): every frame, right after
+		// it is blitted and before the screen's words and buttons go over it, its flames glow and its banners stir.
+		image->setAfterDraw(&AnimatePainting, static_cast<int>(which));
+		item = std::move(image);
+	} else
 		item = std::make_unique<UiImageClx>((*slot.sprite)[0], MakeSdlRect(0, 0, 0, 0));
 	if (atFront)
 		vecDialog->insert(vecDialog->begin(), std::move(item));

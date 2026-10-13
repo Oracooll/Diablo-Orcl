@@ -71,7 +71,7 @@ void Add(const Surface &out, const Map &m, int x, int y, float r, float g, float
 	const int cr = std::min(255, static_cast<int>((c >> 16) & 0xFF) + static_cast<int>(r * k));
 	const int cg = std::min(255, static_cast<int>((c >> 8) & 0xFF) + static_cast<int>(g * k));
 	const int cb = std::min(255, static_cast<int>(c & 0xFF) + static_cast<int>(b * k));
-	c = (static_cast<uint32_t>(cr) << 16) | (static_cast<uint32_t>(cg) << 8) | static_cast<uint32_t>(cb);
+	c = (c & 0xFF000000U) | (static_cast<uint32_t>(cr) << 16) | (static_cast<uint32_t>(cg) << 8) | static_cast<uint32_t>(cb);
 }
 
 void Mix(const Surface &out, const Map &m, int x, int y, float r, float g, float b, float a)
@@ -81,7 +81,7 @@ void Mix(const Surface &out, const Map &m, int x, int y, float r, float g, float
 	a = std::min(a, 1.0F);
 	uint32_t &c = *out.at<uint32_t>(x, y);
 	const float cr = static_cast<float>((c >> 16) & 0xFF), cg = static_cast<float>((c >> 8) & 0xFF), cb = static_cast<float>(c & 0xFF);
-	c = (static_cast<uint32_t>(cr + (r - cr) * a) << 16) | (static_cast<uint32_t>(cg + (g - cg) * a) << 8) | static_cast<uint32_t>(cb + (b - cb) * a);
+	c = (c & 0xFF000000U) | (static_cast<uint32_t>(cr + (r - cr) * a) << 16) | (static_cast<uint32_t>(cg + (g - cg) * a) << 8) | static_cast<uint32_t>(cb + (b - cb) * a);
 }
 
 /**

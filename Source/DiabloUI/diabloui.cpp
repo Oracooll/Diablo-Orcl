@@ -1364,6 +1364,7 @@ void Render(const UiImageRgb &uiImage)
 {
 	BlitArgb(Surface(DiabloUiSurface()), uiImage.pixels(), uiImage.width(),
 	    MakeSdlRect(0, 0, uiImage.width(), uiImage.height()), { uiImage.m_rect.x, uiImage.m_rect.y });
+	uiImage.runAfterDraw();
 }
 
 void Render(const UiImageAnimatedClx &uiImage)

@@ -139,10 +139,25 @@ public:
 	[[nodiscard]] int width() const { return width_; }
 	[[nodiscard]] int height() const { return height_; }
 
+	/** @brief Drawn over the image each frame right after it is blitted (oracool: the paintings' life), or nothing. */
+	using AfterDraw = void (*)(int context);
+	void setAfterDraw(AfterDraw fn, int context)
+	{
+		afterDraw_ = fn;
+		afterDrawContext_ = context;
+	}
+	void runAfterDraw() const
+	{
+		if (afterDraw_ != nullptr)
+			afterDraw_(afterDrawContext_);
+	}
+
 private:
 	const uint32_t *pixels_;
 	int width_;
 	int height_;
+	AfterDraw afterDraw_ = nullptr;
+	int afterDrawContext_ = 0;
 };
 
 //=============================================================================

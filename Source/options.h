@@ -1068,6 +1068,8 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean drawnEarth;
 	/** @brief The drawn skills of every class (user, 2026-10-12; oracool/drawn_fx.h, played by oracool/scene_glow.h). */
 	OptionEntryBoolean drawnSkills;
+	/** @brief The front end's paintings alive - flames glowing, banners stirring (user, 2026-10-13; oracool/ui_background_life.h). */
+	OptionEntryBoolean livingBackgrounds;
 	/**
 	 * @brief The item tooltip's layout: ON is the card (user, 2026-09-26, after a Diablo IV tooltip:
 	 * the name large, type and tier under it, the armour or damage as one big number, the item's
