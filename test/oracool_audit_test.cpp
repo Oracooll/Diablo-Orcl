@@ -20179,6 +20179,301 @@ TEST(OracoolUiBackgroundLife, DrawsNothingOutsideItsScreenRect)
 	}
 }
 
+#include "controls/plrctrls.h"
+#include "oracool/hidden_classes.h"
+#include "oracool/item_tiers.h"
+#include "oracool/level_requirement.h"
+#include "oracool/item_sets.h"
+#include "oracool/runewords.h"
+
+namespace {
+
+/** A JSON string literal of @p text. */
+std::string SiteJson(const std::string &text)
+{
+	std::string out = "\"";
+	for (const char c : text) {
+		if (c == '"' || c == '\\')
+			out += '\\';
+		if (static_cast<unsigned char>(c) < 0x20) {
+			char buf[8];
+			std::snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned>(static_cast<unsigned char>(c)));
+			out += buf;
+			continue;
+		}
+		out += c;
+	}
+	return out + "\"";
+}
+
+/** A file name for @p name: lower case, words joined by dashes. */
+std::string SiteSlug(const std::string &name)
+{
+	std::string out;
+	for (const char c : name) {
+		if (std::isalnum(static_cast<unsigned char>(c)) != 0)
+			out += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+		else if (!out.empty() && out.back() != '-')
+			out += '-';
+	}
+	while (!out.empty() && out.back() == '-')
+		out.pop_back();
+	return out.empty() ? "item" : out;
+}
+
+/** What an item is, for the website's filters: weapon, armour, jewellery, rune, gem, ... */
+const char *SiteKind(const devilution::Item &item)
+{
+	const int idx = item.IDidx;
+	if (IsOracoolRuneIdx(idx))
+		return "rune";
+	if (IsOracoolGemIdx(idx))
+		return "gem";
+	if (IsOracoolJewelIdx(idx))
+		return "jewel";
+	if (IsOracoolCharmIdx(idx))
+		return "charm";
+	if (IsOracoolShardIdx(idx))
+		return "shard";
+	if (IsOracoolSalvageIdx(idx))
+		return "salvage";
+	if (IsOracoolSignetIdx(idx) || IsOracoolEncounterMapIdx(idx) || idx == IDI_ORACOOL_KEYSTONE)
+		return "special";
+	if (item._iClass == ICLASS_WEAPON)
+		return "weapon";
+	if (item._iClass == ICLASS_ARMOR)
+		return "armour";
+	if (item._iLoc == ILOC_RING || item._iLoc == ILOC_AMULET)
+		return "jewellery";
+	return "consumable";
+}
+
+} // namespace
+
+/**
+ * The website's Items page (user, 2026-10-13: "items section with tabs for each item type and items with pictures and popup
+ * stats"): every unique, every set piece and every base the game makes, each with its inventory picture as the game draws it
+ * and its tooltip exactly as the backpack hover builds it (row text and colour). Writes ORCL_SITE_ITEMS_OUT/items.json and
+ * ORCL_SITE_ITEMS_OUT/pics/<slug>.png - each picture on a magenta key (255, 0, 255) for the site's build to cut out.
+ */
+TEST(OracoolPreview, DISABLED_WebsiteItemExport)
+{
+	const char *outDir = std::getenv("ORCL_SITE_ITEMS_OUT");
+	ASSERT_NE(outDir, nullptr) << "set ORCL_SITE_ITEMS_OUT";
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir / "pics");
+	MountTestArchives(true);
+	EnsureCursorSpritesLoaded();
+	PreviewLoadPalette();
+	InitPNG();
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	gbIsMultiplayer = false;
+	sgGameInitInfo.nDifficulty = DIFF_NORMAL;
+	SetRndSeed(0x51735EEDU);
+	ControlMode = ControlTypes::KeyboardAndMouse;
+
+	Players.resize(1);
+	devilution::Player &hero = Players[0];
+	hero = devilution::Player {};
+	MyPlayer = &hero;
+	InspectPlayer = MyPlayer;
+	hero._pClass = HeroClass::Warrior;
+	hero._pLevel = static_cast<int8_t>(MaxCharacterLevel);
+	hero._pStrength = hero._pBaseStr = 500;
+	hero._pMagic = hero._pBaseMag = 500;
+	hero._pDexterity = hero._pBaseDex = 500;
+	hero._pVitality = hero._pBaseVit = 500;
+	hero._pmode = PM_STAND;
+	hero._pMaxHP = hero._pHitPoints = 100 << 6;
+	hero._pMaxHPBase = hero._pHPBase = 100 << 6;
+	hero._pNumInv = 0;
+	std::memset(hero.InvGrid, 0, sizeof(hero.InvGrid));
+
+	std::set<std::string> slugs;
+	std::vector<devilution::Item> worn_;
+	std::string json = "{\"items\":[";
+	bool first = true;
+	const auto add = [&](devilution::Item item, const char *quality, const std::string &extra) {
+		if (item.isEmpty())
+			return;
+		item._iIdentified = true;
+		item._iStatFlag = true;
+		const std::string name(item.getName().str());
+		// One picture per inventory graphic: a magic, rare and primal sword are drawn alike.
+		const std::string slug = "c" + std::to_string(item._iCurs);
+
+		// The tooltip, as the backpack hover builds it.
+		const bool savedHeadless = HeadlessMode;
+		HeadlessMode = false;
+		ClearPanelStrings();
+		SetPanelString(item.getName(), item.getTextColor());
+		PrintItemDetails(item);
+		HeadlessMode = savedHeadless;
+		const std::string text(InfoString.str());
+		const std::vector<UiFlags> colours = InfoStringLineColors;
+		ClearPanelStrings();
+		std::string rows = "[";
+		size_t start = 0;
+		for (size_t line = 0; start <= text.size(); line++) {
+			size_t end = text.find('\n', start);
+			if (end == std::string::npos)
+				end = text.size();
+			const UiFlags colour = line < colours.size() ? colours[line] : UiFlags::ColorWhite;
+			rows += (line == 0 ? "" : ",") + std::string("[") + SiteJson(text.substr(start, end - start)) + "," + std::to_string(UiFlagsColorIndex(colour)) + "]";
+			start = end + 1;
+		}
+		rows += "]";
+
+		// The picture, as the backpack draws it.
+		const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
+		if (slugs.insert(slug).second) {
+		OwnedSurface pic = OwnedSurface::Rgb(sprite.width(), sprite.height());
+		for (int y = 0; y < pic.h(); y++)
+			for (int x = 0; x < pic.w(); x++)
+				*pic.at<uint32_t>(x, y) = 0x00FF00FFU;
+		DrawItem(item, pic, { 0, sprite.height() - 1 }, sprite);
+		PreviewSave(pic, (dir / "pics" / (slug + ".png")).string().c_str());
+		}
+
+		json += (first ? "" : ",") + std::string("{\"name\":") + SiteJson(name) + ",\"quality\":" + SiteJson(quality) + ",\"kind\":" + SiteJson(SiteKind(item)) + ",\"pic\":" + SiteJson(slug)
+		    + ",\"w\":" + std::to_string(sprite.width()) + ",\"h\":" + std::to_string(sprite.height()) + ",\"type\":" + std::to_string(static_cast<int>(item._itype))
+		    + ",\"loc\":" + std::to_string(static_cast<int>(item._iLoc)) + ",\"rows\":" + rows + extra + "}";
+		first = false;
+	};
+
+	// Every unique, through the Unique shelf.
+	hero._pClass = HeroClass::Necromancer; // the shrunken heads' uniques are shelved for a Necromancer only
+	for (size_t u = 0; u + 1 < UniqueItemCount; u++) {
+		if (!IsUniqueAvailable(static_cast<int>(u)))
+			continue;
+		devilution::Item unique {};
+		if (CreateUniqueVendorItem(hero, unique, static_cast<_unique_items>(u)))
+			add(unique, "unique", "");
+	}
+	hero._pClass = HeroClass::Warrior;
+
+	// Every set piece, through the Set shelf until it has nothing left, tagged with its set.
+	std::set<const oracool::SetItemDefinition *> shelved;
+	const auto alreadyStocked = [&shelved](const oracool::SetItemDefinition &def) { return shelved.count(&def) != 0; };
+	for (size_t guard = 0; guard <= oracool::ItemSetItemCount; guard++) {
+		devilution::Item piece {};
+		const oracool::SetItemDefinition *chosen = nullptr;
+		if (!CreateSetVendorItem(hero, piece, 40, alreadyStocked, &chosen) || chosen == nullptr)
+			break;
+		shelved.insert(chosen);
+		const oracool::ItemSetDefinition *set = oracool::FindItemSetOwning(chosen->id);
+		add(piece, "set", ",\"set\":" + SiteJson(set != nullptr ? set->name : "") + ",\"setOrder\":" + std::to_string(chosen - oracool::ItemSetItems));
+	}
+
+	// Every base: the smith's route at vendor level 30.
+	for (int i = IDI_GOLD + 1; i <= IDI_LAST; i++) {
+		const ItemData &data = AllItemsList[static_cast<size_t>(i)];
+		if (data.iName == nullptr || !IsItemAvailable(i) || oracool::IsHiddenItemIdx(i) || i == IDI_EAR || data.iMiscId == IMISC_UNIQUE || data.iClass == ICLASS_QUEST)
+			continue;
+		devilution::Item item {};
+		if (data.iRnd == IDROP_NEVER && i < IDI_FIRSTQUEST) {
+			InitializeItem(item, static_cast<_item_indexes>(i));
+			item._iOracoolItemLevel = 1;
+		} else {
+			item._iSeed = AdvanceRndSeed();
+			SetRndSeed(item._iSeed);
+			oracool::StampVendorItemLevel(item, 30);
+			GetItemAttrs(item, static_cast<_item_indexes>(i), 30);
+			item._iCreateInfo = 30;
+		}
+		add(item, "basic", "");
+		const bool worn = item._iLoc != ILOC_NONE && item._iLoc != ILOC_UNEQUIPABLE && item._iLoc != ILOC_BELT && item._itype != ItemType::Misc && item._itype != ItemType::Gold;
+		if (!worn)
+			continue;
+		worn_.push_back(item);
+		// Magic: Wirt's gamble on the base, until the roll comes out plain magic.
+		for (int attempt = 0; attempt < 30; attempt++) {
+			devilution::Item magic {};
+			RollGambleResult(magic, static_cast<_item_indexes>(i), 30);
+			if (!magic.isEmpty() && magic._iMagical == ITEM_QUALITY_MAGIC && !magic.hasOracoolTier() && !magic._iOracoolEthereal) {
+				add(magic, "magic", "");
+				break;
+			}
+		}
+		for (const auto &[tier, word] : { std::pair { OracoolItemTier::Rare, "rare" }, std::pair { OracoolItemTier::Primal, "primal" } }) {
+			devilution::Item tiered = item;
+			if (RetierOracoolItem(tiered, tier))
+				add(tiered, word, "");
+		}
+		devilution::Item ethereal = item;
+		if (MakeItemEthereal(ethereal))
+			add(ethereal, "ethereal", "");
+	}
+
+	// Every runeword, rune by rune, on the first plain base of its host that holds its sockets.
+	for (size_t w = 0; w < oracool::RunewordCount(); w++) {
+		const oracool::RunewordDefinition *word = oracool::RunewordAt(w);
+		if (word == nullptr)
+			break;
+		for (const devilution::Item &base : worn_) {
+			if (base._iMagical != ITEM_QUALITY_NORMAL || base.hasOracoolTier() || static_cast<uint8_t>(oracool::RunewordHostForItemType(base._itype)) != word->host)
+				continue;
+			if (!oracool::CanItemHaveSockets(base) || oracool::MaxSocketsForItem(base) < word->runeCount)
+				continue;
+			devilution::Item item = base;
+			item._iSocketCount = static_cast<uint8_t>(word->runeCount);
+			item.normalizeSockets();
+			bool seated = true;
+			for (int r = 0; r < word->runeCount; r++) {
+				devilution::Item rune {};
+				InitializeItem(rune, static_cast<_item_indexes>(word->runes[r]));
+				GenerateNewSeed(rune);
+				rune._iIdentified = true;
+				seated = seated && oracool::TrySocketGem(item, rune);
+			}
+			if (seated && oracool::TryCompleteRuneword(item) && oracool::GetActiveRuneword(item) == word)
+				add(item, "runeword", ",\"word\":" + SiteJson(word->name));
+			break;
+		}
+	}
+
+	// The sets, with their bonus ladders.
+	json += "],\"sets\":[";
+	for (size_t s = 0; s < oracool::ItemSetCount; s++) {
+		const oracool::ItemSetDefinition &set = oracool::ItemSets[s];
+		json += (s == 0 ? "" : ",") + std::string("{\"name\":") + SiteJson(set.name) + ",\"level\":" + std::to_string(set.requiredLevel) + ",\"bonuses\":[";
+		for (int b = 0; b < set.bonusCount; b++) {
+			const oracool::SetBonusDefinition &bonus = oracool::ItemSetBonuses[set.firstBonus + b];
+			json += (b == 0 ? "" : ",") + std::string("{\"pieces\":") + std::to_string(bonus.pieces) + ",\"name\":" + SiteJson(bonus.name) + "}";
+		}
+		json += "]}";
+	}
+	json += "]";
+	// Each text colour as the game draws it: the commonest lit pixel of a few capitals in that colour.
+	json += ",\"colors\":{";
+	for (unsigned c = 1; c <= 38; c++) {
+		OwnedSurface probe = OwnedSurface::Rgb(120, 30);
+		for (int y = 0; y < probe.h(); y++)
+			for (int x = 0; x < probe.w(); x++)
+				*probe.at<uint32_t>(x, y) = 0;
+		DrawString(probe, "HHMMEE", Rectangle { { 2, 2 }, { 116, 26 } }, { .flags = static_cast<UiFlags>(static_cast<uint64_t>(c) << UiFlagsColorShift) });
+		// The glyphs' face, not their shading: the lit pixel at the 85th percentile of brightness.
+		std::vector<std::pair<int, uint32_t>> lit;
+		for (int y = 0; y < probe.h(); y++)
+			for (int x = 0; x < probe.w(); x++) {
+				const uint32_t px = *probe.at<uint32_t>(x, y) & 0xFFFFFFU;
+				const int lum = static_cast<int>((px >> 16) & 0xFF) * 3 + static_cast<int>((px >> 8) & 0xFF) * 6 + static_cast<int>(px & 0xFF);
+				if (lum > 200)
+					lit.emplace_back(lum, px);
+			}
+		std::sort(lit.begin(), lit.end());
+		const uint32_t best = lit.empty() ? 0xFFFFFFU : lit[lit.size() * 85 / 100].second;
+		char hex[16];
+		std::snprintf(hex, sizeof(hex), "#%06x", best);
+		json += (c == 1 ? "" : ",") + std::string("\"") + std::to_string(c) + "\":\"" + hex + "\"";
+	}
+	json += "}}";
+	std::ofstream(dir / "items.json", std::ios::binary) << json;
+	hero = devilution::Player {};
+	gbIsHellfire = savedHellfire;
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"
