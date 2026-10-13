@@ -29,6 +29,23 @@ struct Player;
 
 namespace devilution::oracool {
 
+/**
+ * @brief The piece a woods tile is DRAWN with, where that differs from the one that decides its walking (dPiece): on the
+ * Mixed look a painted tree's tile is solid, yet shows Tristram's grass under the tree. 0 where they are the same.
+ */
+extern uint16_t WoodsLookPiece[MAXDUNX][MAXDUNY];
+
+/** @brief The piece the renderer draws for @p tile: dPiece, or the woods' look piece where it has one. */
+inline uint16_t WoodsDrawnPiece(Point tile)
+{
+	if (leveltype == DTYPE_WOODS && WoodsLookPiece[tile.x][tile.y] != 0)
+		return WoodsLookPiece[tile.x][tile.y];
+	return dPiece[tile.x][tile.y];
+}
+
+/** @brief The Mixed look is on for the floor last built: painted trees and ground details over Tristram's tiles. */
+bool WoodsSpritesOverTiles(const Surface &out);
+
 /** @brief Forgets the woods' layouts and their monsters' levels: a new game draws new woods (decisions D3, D4). */
 void ResetWoodsForNewGame();
 
@@ -49,6 +66,9 @@ bool CheckWoodsEdges();
 
 /** @brief The woods floor's own name, for the floor banner and the map. */
 const char *WoodsFloorName(_setlevels level);
+
+/** @brief Whether the Woods Painted Art option asks for the painted woods; off, a woods floor is built from Tristram's tiles. */
+bool WoodsPaintedArtChosen();
 
 /** @brief True while the woods' true-colour ground and trees replace the tileset's drawing on @p out. */
 bool WoodsArtActive(const Surface &out);

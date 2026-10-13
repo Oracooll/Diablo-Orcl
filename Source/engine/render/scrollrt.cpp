@@ -1039,7 +1039,8 @@ bool FloorSmoothedThisFrame = false;
 bool DeferFloorObjectsThisFrame = false;
 void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
-	const uint16_t levelPieceId = dPiece[tilePosition.x][tilePosition.y];
+	const uint16_t levelPieceId = oracool::WoodsDrawnPiece(tilePosition); // dPiece, or how a woods tile looks
+
 	const MICROS *pMap = &DPieceMicros[levelPieceId];
 
 	const uint8_t *tbl = LightTables[LightTableIndex].data();
@@ -1176,7 +1177,7 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 		tbl = GetPauseTRN();
 #endif
 
-	const uint16_t levelPieceId = dPiece[tilePosition.x][tilePosition.y];
+	const uint16_t levelPieceId = oracool::WoodsDrawnPiece(tilePosition); // dPiece, or how a woods tile looks
 	{
 		const LevelCelBlock levelCelBlock { DPieceMicros[levelPieceId].mt[0] };
 		if (levelCelBlock.hasValue()) {
@@ -1208,7 +1209,7 @@ void DrawWallFloorTriangles(const Surface &out, Point tilePosition, Point target
 {
 	LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 	const uint8_t *tbl = LightTables[SmoothFloorThisFrame && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
-	const MICROS &micros = DPieceMicros[dPiece[tilePosition.x][tilePosition.y]];
+	const MICROS &micros = DPieceMicros[oracool::WoodsDrawnPiece(tilePosition)];
 	const LevelCelBlock left { micros.mt[0] };
 	if (left.hasValue() && left.type() == TileType::LeftTriangle)
 		RenderTile(out, targetBufferPosition, left, MaskType::Solid, tbl);
@@ -1551,10 +1552,13 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 
 	// The woods draw no tile art (oracool/woods.h): what stands on the tile - a tree, a small thing on the ground - in its
 	// place, in the figures' order.
-	if (oracool::WoodsArtActive(out))
+	if (oracool::WoodsArtActive(out)) {
 		oracool::DrawWoodsTileSprite(out, tilePosition, targetBufferPosition, LightTableIndex);
-	else
+	} else {
 		DrawCell(out, tilePosition, targetBufferPosition);
+		if (oracool::WoodsSpritesOverTiles(out)) // the Mixed look: the painted trees over Tristram's tiles
+			oracool::DrawWoodsTileSprite(out, tilePosition, targetBufferPosition, LightTableIndex);
+	}
 	LightTableIndex = dLight[tilePosition.x][tilePosition.y];
 
 	int8_t bDead = dCorpse[tilePosition.x][tilePosition.y];
@@ -1615,7 +1619,8 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 	DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::AfterCharacters);
 	DrawItem(out, tilePosition, targetBufferPosition, false);
 
-	if (leveltype != DTYPE_TOWN) {
+	// The woods are on Tristram's tileset: their dSpecial are its tree leaves, drawn as the town draws them (oracool/woods.h).
+	if (leveltype != DTYPE_TOWN && leveltype != DTYPE_WOODS) {
 		char bArch = dSpecial[tilePosition.x][tilePosition.y];
 		if (bArch != 0) {
 			bool transparency = TransList[bMap];
@@ -1666,7 +1671,7 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 				if (!DeferFloorObjectsThisFrame && !TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid))
 					DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
 			} else if (InDungeonBounds(tilePosition)) {
-				if (!TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid)) {
+				if (!TileHasAny(oracool::WoodsDrawnPiece(tilePosition), TileProperties::Solid)) {
 					DrawFloor(out, tilePosition, targetBufferPosition);
 					oracool::DrawWoodsGateTint(out, tilePosition, targetBufferPosition); // Tristram's road to the woods, marked
 				}

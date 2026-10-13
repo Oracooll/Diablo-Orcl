@@ -21,6 +21,7 @@
 #include "levels/gendung.h"
 #include "levels/trigs.h"
 #include "lighting.h"
+#include "options.h"
 #include "oracool/colour_light.h"
 #include "player.h"
 #include "plrmsg.h"
@@ -29,6 +30,8 @@
 #include "utils/png.h"
 
 namespace devilution::oracool {
+
+uint16_t WoodsLookPiece[MAXDUNX][MAXDUNY];
 
 namespace {
 
@@ -368,6 +371,10 @@ std::array<Picture, TreeKindCount> TreeArt;
 Picture ScatterArt; // twelve 32 x 32 cells after halving, 4 x 3
 bool ArtLoaded = false;
 bool ArtTried = false;
+/** @brief The floor last built was built from Tristram's own tiles (the Woods Painted Art option off). */
+bool BuiltVanilla = true;
+/** @brief ... and its trees and ground details are the painted ones, over Tristram's ground (the Mixed look). */
+bool BuiltMixed = false;
 
 /** @brief A PNG from the archives as RGBA bytes, halved (the art is drawn at twice the game's size, D6). */
 bool LoadHalved(const char *path, Picture &out, bool sprite)
@@ -472,12 +479,170 @@ void ResetWoodsForNewGame()
 	Game = {};
 }
 
+namespace {
+
+/**
+ * Tristram's own tiles for the woods (user, 2026-10-13: "generate Woods level 1 using vanilla assets ... Using tristram
+ * textures"), found by OracoolPreview.DISABLED_TownSceneryMegatiles: the megatiles the town's sectors use past its walk
+ * limit, and its grass. Ids as FillTile takes them (1-based).
+ */
+constexpr int VanillaGrass[] = { 1, 2, 3, 4 };
+constexpr int VanillaWornGrass[] = { 5, 6, 7, 8 }; // grass with patches of bare earth
+constexpr int VanillaDirt[] = { 306, 307 };
+constexpr int VanillaBushes[] = { 27, 28, 29, 30 };
+constexpr int VanillaSmallRocks[] = { 57, 58, 59, 60 };
+constexpr int VanillaTrees[] = { 34, 41, 44, 47 };
+constexpr int VanillaBigRocks[] = { 61, 62 };
+constexpr int VanillaRockMass = 63; // all four pieces solid: the forest's edge
+
+template <size_t N>
+int Pick(const int (&from)[N], uint32_t h)
+{
+	return from[h % N];
+}
+
+/** @brief Tristram's tree-leaf overlays for the pieces that carry them (town.cpp InitTownPieces). */
+void VanillaLeaves()
+{
+	constexpr std::pair<uint16_t, int8_t> Leaves[] = { { 359, 1 }, { 357, 2 }, { 128, 6 }, { 129, 7 }, { 127, 8 }, { 116, 9 }, { 156, 10 },
+		{ 157, 11 }, { 155, 12 }, { 161, 13 }, { 159, 14 }, { 213, 15 }, { 211, 16 }, { 216, 17 }, { 215, 18 } };
+	for (int y = 0; y < MAXDUNY; y++) {
+		for (int x = 0; x < MAXDUNX; x++) {
+			for (const auto &[piece, special] : Leaves) {
+				if (dPiece[x][y] == piece) {
+					dSpecial[x][y] = special;
+					break;
+				}
+			}
+		}
+	}
+}
+
+/**
+ * @brief The floor from Tristram's tiles: each megatile of the 40 x 40 dungeon from the woods' own map of it - the road in
+ * dirt edged with worn grass, the forest's edge in the rock mass, groves in Tristram's trees, bushes and rocks, open ground in
+ * grass with a few bushes and stones - and the rock mass all round outside.
+ */
+void BuildVanilla(uint32_t seed, bool paintedTrees)
+{
+	for (int y = 0; y < MAXDUNY; y += 2) {
+		for (int x = 0; x < MAXDUNX; x += 2) {
+			if (x < 16 || y < 16 || x >= 96 || y >= 96)
+				FillMegatile(x, y, VanillaRockMass);
+		}
+	}
+	const auto cellHasPath = [](int mx, int my) {
+		if (mx < 0 || my < 0 || mx >= DMAXX || my >= DMAXY)
+			return false;
+		for (int t = 0; t < 4; t++) {
+			const int x = 16 + 2 * mx + (t & 1);
+			const int y = 16 + 2 * my + (t >> 1);
+			if (Tree[x][y] == NoTree && Ground[x][y] == Path)
+				return true;
+		}
+		return false;
+	};
+	for (int my = 0; my < DMAXY; my++) {
+		for (int mx = 0; mx < DMAXX; mx++) {
+			int trees = 0;
+			int dry = 0;
+			for (int t = 0; t < 4; t++) {
+				const int x = 16 + 2 * mx + (t & 1);
+				const int y = 16 + 2 * my + (t >> 1);
+				trees += Tree[x][y] != NoTree ? 1 : 0;
+				dry += Ground[x][y] == GrassDry ? 1 : 0;
+			}
+			const uint32_t h = Hash(static_cast<uint32_t>(mx), static_cast<uint32_t>(my), seed ^ 0x7A11U);
+			const int edge = std::min({ mx, my, DMAXX - 1 - mx, DMAXY - 1 - my });
+			const float u = Unit(h);
+			int mega;
+			if (cellHasPath(mx, my)) {
+				mega = Pick(VanillaDirt, h >> 8);
+			} else if (paintedTrees) {
+				// The Mixed look: the painted trees stand on Tristram's grass (laid below as the tiles' look); between them and in
+				// the open, Tristram's own undergrowth and rock - bushes, a boulder, now and then an outcrop of the rock mass.
+				const bool byPath = cellHasPath(mx + 1, my) || cellHasPath(mx - 1, my) || cellHasPath(mx, my + 1) || cellHasPath(mx, my - 1);
+				mega = byPath || dry >= 2 ? Pick(VanillaWornGrass, h >> 8) : Pick(VanillaGrass, h >> 8);
+				if (trees == 0) {
+					const float scatter = Unit(h >> 4);
+					if (scatter < 0.012F)
+						mega = VanillaRockMass;
+					else if (scatter < 0.032F)
+						mega = Pick(VanillaBigRocks, h >> 12);
+					else if (scatter < 0.055F)
+						mega = Pick(VanillaSmallRocks, h >> 12);
+					else if (scatter < 0.11F)
+						mega = Pick(VanillaBushes, h >> 12);
+				}
+			} else if (trees >= 3) {
+				if (edge <= 1)
+					mega = u < 0.85F ? VanillaRockMass : Pick(VanillaBigRocks, h >> 8);
+				else
+					mega = u < 0.55F ? Pick(VanillaTrees, h >> 8) : u < 0.75F ? Pick(VanillaBushes, h >> 8) : u < 0.90F ? Pick(VanillaBigRocks, h >> 8) : VanillaRockMass;
+			} else if (trees >= 1) {
+				mega = u < 0.55F ? Pick(VanillaTrees, h >> 8) : Pick(VanillaBushes, h >> 8);
+			} else {
+				const bool byPath = cellHasPath(mx + 1, my) || cellHasPath(mx - 1, my) || cellHasPath(mx, my + 1) || cellHasPath(mx, my - 1);
+				mega = byPath || dry >= 2 ? Pick(VanillaWornGrass, h >> 8) : Pick(VanillaGrass, h >> 8);
+				const float scatter = Unit(h >> 4);
+				if (scatter < 0.035F)
+					mega = Pick(VanillaSmallRocks, h >> 12);
+				else if (scatter < 0.085F)
+					mega = Pick(VanillaBushes, h >> 12);
+			}
+			// The minimap marks the forest as Tristram's rock mass, whichever way it is drawn.
+			dungeon[mx][my] = static_cast<uint8_t>(std::min(paintedTrees && trees >= 3 ? VanillaRockMass : mega, 255));
+			FillMegatile(16 + 2 * mx, 16 + 2 * my, mega);
+			if (paintedTrees) {
+				// A painted tree's tile blocks as a trunk does, and is drawn as the grass it stands on.
+				for (int t = 0; t < 4; t++) {
+					const int x = 16 + 2 * mx + (t & 1);
+					const int y = 16 + 2 * my + (t >> 1);
+					if (Tree[x][y] == NoTree)
+						continue;
+					WoodsLookPiece[x][y] = dPiece[x][y];
+					dPiece[x][y] = SolidPiece;
+				}
+			}
+		}
+	}
+	if (!paintedTrees)
+		VanillaLeaves();
+}
+
+} // namespace
+
+bool WoodsPaintedArtChosen()
+{
+	return *sgOptions.Oracool.woodsPaintedArt;
+}
+
 void CreateWoods(uint32_t seed, lvl_entry /*entry*/)
 {
 	// The tile data before the generator: it picks its solid piece from it (LoadGameLevel loads it after LoadSetMap).
 	LoadLevelSOLData();
 	FindSolidPiece();
 	Generate(seed);
+	BuiltVanilla = !WoodsPaintedArtChosen();
+	BuiltMixed = BuiltVanilla && *sgOptions.Oracool.woodsPaintedTrees;
+	std::memset(WoodsLookPiece, 0, sizeof(WoodsLookPiece));
+	if (!BuiltMixed && BuiltVanilla) {
+		// Tristram's trees: the painted trees' map is not used for drawing, so it holds nothing.
+		std::memset(Scatter, 0, sizeof(Scatter));
+	}
+	if (BuiltVanilla) {
+		BuildVanilla(seed, BuiltMixed);
+		if (BuiltMixed) {
+			// The painted ground details only where Tristram's ground is open, and half as many: they are a second voice here.
+			for (int y = 0; y < MAXDUNY; y++)
+				for (int x = 0; x < MAXDUNX; x++)
+					if (Scatter[x][y] != 0 && (TileHasAny(dPiece[x][y], TileProperties::Solid) || (Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed) & 1) != 0))
+						Scatter[x][y] = 0;
+		}
+		std::memset(dLight, 3, sizeof(dLight));
+		ViewPosition = Arrival;
+		return;
+	}
 	for (int y = 0; y < MAXDUNY; y += 2) {
 		for (int x = 0; x < MAXDUNX; x += 2)
 			FillMegatile(x, y, 1 + static_cast<int>(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed) % GrassMegatiles));
@@ -609,9 +774,14 @@ const char *WoodsFloorName(_setlevels level)
 	return Names[FloorIndex(level)];
 }
 
+bool WoodsSpritesOverTiles(const Surface &out)
+{
+	return leveltype == DTYPE_WOODS && BuiltMixed && ArtLoaded && !out.isIndexed();
+}
+
 bool WoodsArtActive(const Surface &out)
 {
-	return leveltype == DTYPE_WOODS && ArtLoaded && !out.isIndexed();
+	return leveltype == DTYPE_WOODS && !BuiltVanilla && ArtLoaded && !out.isIndexed();
 }
 
 void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light, bool fullBright)

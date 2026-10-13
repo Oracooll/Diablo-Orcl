@@ -20686,6 +20686,59 @@ TEST(OracoolPreview, DISABLED_WoodsFloor1)
 	PreviewSave(view, (dir / "woods_view.png").string().c_str());
 }
 
+/**
+ * Tristram's scenery megatiles (Orcl Act, 2026-10-13: "generate Woods level 1 using vanilla assets ... Using tristram
+ * textures"): every megatile of the four town sectors, counted where it stands - past the town's walk limit (the trees and
+ * rocks round the edge) or inside it - with how many of its four pieces are solid and the pieces themselves. Writes
+ * ORCL_WOODS_OUT/town_megatiles.csv: id,scenery,town,solid,p1,p2,p3,p4.
+ */
+TEST(OracoolPreview, DISABLED_TownSceneryMegatiles)
+{
+	const char *outDir = std::getenv("ORCL_WOODS_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	gbIsHellfire = true;
+	leveltype = DTYPE_TOWN;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
+	LoadLevelSOLData();
+	struct Sector {
+		const char *path;
+		int x, y;
+	};
+	const Sector sectors[] = { { "levels\\towndata\\sector1s.dun", 46, 46 }, { "levels\\towndata\\sector2s.dun", 46, 0 },
+		{ "levels\\towndata\\sector3s.dun", 0, 46 }, { "levels\\towndata\\sector4s.dun", 0, 0 } };
+	std::map<int, std::pair<int, int>> counts; // megatile id (1-based, as FillTile takes it) -> scenery, town
+	for (const Sector &sector : sectors) {
+		auto dun = LoadFileInMem<uint16_t>(sector.path);
+		const int w = SDL_SwapLE16(dun[0]);
+		const int h = SDL_SwapLE16(dun[1]);
+		for (int j = 0; j < h; j++) {
+			for (int i = 0; i < w; i++) {
+				const int id = SDL_SwapLE16(dun[2 + j * w + i]);
+				if (id <= 0)
+					continue;
+				const int x = sector.x + 2 * i;
+				const int y = sector.y + 2 * j;
+				const bool scenery = x < 10 || y < 10 || x > 84 || y > 84;
+				(scenery ? counts[id].first : counts[id].second)++;
+			}
+		}
+	}
+	std::ofstream csv(dir / "town_megatiles.csv");
+	csv << "id,scenery,town,solid,p1,p2,p3,p4\n";
+	for (const auto &[id, n] : counts) {
+		const MegaTile mega = pMegaTiles[id - 1];
+		const int pieces[4] = { SDL_SwapLE16(mega.micro1), SDL_SwapLE16(mega.micro2), SDL_SwapLE16(mega.micro3), SDL_SwapLE16(mega.micro4) };
+		int solid = 0;
+		for (const int piece : pieces)
+			solid += TileHasAny(piece, TileProperties::Solid) ? 1 : 0;
+		csv << id << ',' << n.first << ',' << n.second << ',' << solid << ',' << pieces[0] << ',' << pieces[1] << ',' << pieces[2] << ',' << pieces[3] << '\n';
+	}
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"

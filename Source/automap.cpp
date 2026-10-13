@@ -21,6 +21,7 @@
 #include "oracool/area_level.h"
 #include "oracool/named_encounters.h" // an arena's own name on the map
 #include "oracool/ornate_border.h"
+#include "oracool/woods.h"
 #include "oracool/stonegate.h" // StonegateEntryTile - the Rift Monument's mini-map marker
 #include "player.h"
 #include "portal.h"
@@ -883,6 +884,9 @@ std::unique_ptr<AutomapTile[]> LoadAutomapData(size_t &tileCount)
 	case DTYPE_CRYPT:
 		return LoadFileInMem<AutomapTile>("nlevels\\l5data\\l5.amp", &tileCount);
 	case DTYPE_WOODS: {
+		// Built from Tristram's tiles (the Woods Painted Art option off): Tristram's own automap tiles.
+		if (!oracool::WoodsPaintedArtChosen())
+			return LoadFileInMem<AutomapTile>("levels\\towndata\\automap.amp", &tileCount);
 		// The woods have no .amp: their four megatile classes (oracool/woods.cpp CreateWoods) - open ground, the forest's
 		// edge drawn as the obstacle marker, the road as dotted ground, deep forest left blank.
 		tileCount = 4;

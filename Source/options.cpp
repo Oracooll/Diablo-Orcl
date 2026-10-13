@@ -676,6 +676,10 @@ void SaveOptions()
 	    "; On: skill effects drawn in real time - frost, fire, lightning, light, weapon trails - in place of their painted\n; sheets, for every class.");
 	setBoolean("Living Backgrounds", *sgOptions.Oracool.livingBackgrounds,
 	    "; On: the menu paintings live - their flames glow and flicker, banners barely stir, the forge chimney smokes.");
+	setBoolean("Woods Painted Art", *sgOptions.Oracool.woodsPaintedArt,
+	    "; On: the Orcl Act's woods drawn in the painted art; off: built from Tristram's own grass, trees and rocks.");
+	setBoolean("Woods Painted Trees", *sgOptions.Oracool.woodsPaintedTrees,
+	    "; On (with Woods Painted Art off): the painted trees and ground details stand on Tristram's grass, the Mixed look.");
 	setBoolean("Drawn Earth", *sgOptions.Oracool.drawnEarth,
 	    "; On: Ground Stomp, Seismic Slam and Earthquake are drawn in real time - cracks, stone, dust and falling rocks - instead of\n; their painted sheets, and Hammer of the Ancients cracks the floor.");
 	setBoolean("Armour Sparks", *sgOptions.Oracool.armourSparks,
@@ -1895,6 +1899,8 @@ OracoolOptions::OracoolOptions()
     , drawnEarth("Drawn Earth", OptionEntryFlags::None, N_("Drawn Earth"), N_("Ground Stomp, Seismic Slam and Earthquake drawn in real time - cracks, stone, dust and falling rocks - instead of their painted sheets."), true)
     , drawnSkills("Drawn Skills", OptionEntryFlags::None, N_("Drawn Skills"), N_("Skill effects drawn in real time - frost, fire, lightning, light, weapon trails - in place of their painted sheets, for every class."), true)
     , livingBackgrounds("Living Backgrounds", OptionEntryFlags::None, N_("Living Backgrounds"), N_("The menu paintings live: their flames glow and flicker, banners barely stir, the forge chimney smokes."), true)
+    , woodsPaintedArt("Woods Painted Art", OptionEntryFlags::None, N_("Woods Painted Art"), N_("The Orcl Act's woods drawn in the painted art. Off: built from Tristram's own grass, trees and rocks. Takes effect on the next woods floor you enter."), false)
+    , woodsPaintedTrees("Woods Painted Trees", OptionEntryFlags::None, N_("Woods Painted Trees"), N_("With Woods Painted Art off: the painted trees and ground details stand on Tristram's grass, rocks and dirt roads. Off: Tristram's own trees. Takes effect on the next woods floor you enter."), true)
     , armourSparks("Armour Sparks", OptionEntryFlags::None, N_("Armour Sparks"), N_("A melee blow on a skeleton, a knight, a golem or a gargoyle throws white-gold sparks."), true)
     , itemTooltipCard("Item Tooltip Card", OptionEntryFlags::None, N_("Item Tooltip Card"), N_("The item tooltip as a card: name large, armour or damage as a big number, the item's picture, requirements at the foot. Off: the earlier centred panel."), true)
     , heroSheetGrouped("Grouped Hero Sheet", OptionEntryFlags::None, N_("Grouped Hero Sheet"), N_("The character sheet in boxes: name and an experience bar on top, attributes left, damage, defence and resistances right, and an Advanced Stats button for the rarer bonuses. Off: the earlier two-column list."), true)
@@ -2075,6 +2081,8 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&drawnEarth,
 		&drawnSkills,
 		&livingBackgrounds,
+		&woodsPaintedArt,
+		&woodsPaintedTrees,
 		&itemTooltipCard,
 		&heroSheetGrouped,
 		&eventLog,
