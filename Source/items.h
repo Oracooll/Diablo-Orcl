@@ -1032,6 +1032,8 @@ struct CornerStoneStruct {
 
 /** Contains the items on ground in the current game. */
 extern DVL_API_FOR_TEST Item Items[MAXITEMS + 1];
+/** @brief A base tier SetupAllItems keeps instead of rolling one (RetierOracoolItem; the website's item export pins all four). */
+extern DVL_API_FOR_TEST std::optional<oracool::BaseItemTier> PinnedBaseTier;
 extern DVL_API_FOR_TEST uint8_t ActiveItems[MAXITEMS];
 extern DVL_API_FOR_TEST uint8_t ActiveItemCount;
 /** Contains the location of dropped items. */
@@ -1079,7 +1081,8 @@ bool RebuildOracoolItemWithAffixes(const Player &player, Item &item, const Oraco
 int GetItemSellValue(const Item &item);
 bool IsItemAvailable(int i);
 bool IsUniqueAvailable(int i);
-bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid);
+/** @param baseTier The base tier to build it on, as a drop applies one before the unique's powers; the shelf's Normal when empty. */
+bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid, std::optional<oracool::BaseItemTier> baseTier = std::nullopt);
 
 /**
  * @brief Rolls one identified RARE-tier item of Griswold's kinds at @p lvl. False if it could not.

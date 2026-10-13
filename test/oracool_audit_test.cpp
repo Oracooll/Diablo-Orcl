@@ -20252,9 +20252,12 @@ const char *SiteKind(const devilution::Item &item)
 
 /**
  * The website's Items page (user, 2026-10-13: "items section with tabs for each item type and items with pictures and popup
- * stats"): every unique, every set piece and every base the game makes, each with its inventory picture as the game draws it
- * and its tooltip exactly as the backpack hover builds it (row text and colour). Writes ORCL_SITE_ITEMS_OUT/items.json and
- * ORCL_SITE_ITEMS_OUT/pics/<slug>.png - each picture on a magenta key (255, 0, 255) for the site's build to cut out.
+ * stats"; "popups to include stats for all 4 tiers"): every unique, every set piece and every base the game makes, a magic,
+ * rare, primal and ethereal roll of every worn base and every runeword - each built FOUR times, once on each base tier
+ * (Normal, Nightmare, Hell, Torment), through the path that makes it with the tier pinned and the same seed, so the four
+ * differ only by the tier. Each with its inventory picture as the game draws it and its tooltip row by row as the backpack
+ * hover builds it. Writes ORCL_SITE_ITEMS_OUT/items.json and ORCL_SITE_ITEMS_OUT/pics/c<cursor>.png - each picture on a
+ * magenta key (255, 0, 255) for the site's import to cut out.
  */
 TEST(OracoolPreview, DISABLED_WebsiteItemExport)
 {
@@ -20290,20 +20293,12 @@ TEST(OracoolPreview, DISABLED_WebsiteItemExport)
 	hero._pNumInv = 0;
 	std::memset(hero.InvGrid, 0, sizeof(hero.InvGrid));
 
-	std::set<std::string> slugs;
-	std::vector<devilution::Item> worn_;
-	std::string json = "{\"items\":[";
-	bool first = true;
-	const auto add = [&](devilution::Item item, const char *quality, const std::string &extra) {
-		if (item.isEmpty())
-			return;
-		item._iIdentified = true;
-		item._iStatFlag = true;
-		const std::string name(item.getName().str());
-		// One picture per inventory graphic: a magic, rare and primal sword are drawn alike.
-		const std::string slug = "c" + std::to_string(item._iCurs);
+	using Tier = oracool::BaseItemTier;
+	constexpr Tier Tiers[] = { Tier::Normal, Tier::Nightmare, Tier::Hell, Tier::Torment };
+	using Make = std::function<devilution::Item(Tier)>;
 
-		// The tooltip, as the backpack hover builds it.
+	// The tooltip, as the backpack hover builds it: rows of [text, colour index].
+	const auto tooltip = [](const devilution::Item &item) {
 		const bool savedHeadless = HeadlessMode;
 		HeadlessMode = false;
 		ClearPanelStrings();
@@ -20323,87 +20318,144 @@ TEST(OracoolPreview, DISABLED_WebsiteItemExport)
 			rows += (line == 0 ? "" : ",") + std::string("[") + SiteJson(text.substr(start, end - start)) + "," + std::to_string(UiFlagsColorIndex(colour)) + "]";
 			start = end + 1;
 		}
-		rows += "]";
+		return rows + "]";
+	};
+	const auto finish = [](devilution::Item item) {
+		item._iIdentified = true;
+		item._iStatFlag = true;
+		return item;
+	};
 
-		// The picture, as the backpack draws it.
-		const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
-		if (slugs.insert(slug).second) {
-		OwnedSurface pic = OwnedSurface::Rgb(sprite.width(), sprite.height());
-		for (int y = 0; y < pic.h(); y++)
-			for (int x = 0; x < pic.w(); x++)
-				*pic.at<uint32_t>(x, y) = 0x00FF00FFU;
-		DrawItem(item, pic, { 0, sprite.height() - 1 }, sprite);
-		PreviewSave(pic, (dir / "pics" / (slug + ".png")).string().c_str());
+	std::set<std::string> slugs;
+	std::string json = "{\"items\":[";
+	bool first = true;
+	const auto add = [&](const Make &make, const char *quality, const std::string &extra) {
+		std::string tiers = "[";
+		devilution::Item normal {};
+		for (size_t t = 0; t < std::size(Tiers); t++) {
+			const devilution::Item item = finish(make(Tiers[t]));
+			if (item.isEmpty())
+				return;
+			if (t == 0)
+				normal = item;
+			tiers += (t == 0 ? "" : ",") + tooltip(item);
 		}
-
-		json += (first ? "" : ",") + std::string("{\"name\":") + SiteJson(name) + ",\"quality\":" + SiteJson(quality) + ",\"kind\":" + SiteJson(SiteKind(item)) + ",\"pic\":" + SiteJson(slug)
-		    + ",\"w\":" + std::to_string(sprite.width()) + ",\"h\":" + std::to_string(sprite.height()) + ",\"type\":" + std::to_string(static_cast<int>(item._itype))
-		    + ",\"loc\":" + std::to_string(static_cast<int>(item._iLoc)) + ",\"rows\":" + rows + extra + "}";
+		tiers += "]";
+		// One picture per inventory graphic: a magic, rare and primal sword are drawn alike.
+		const std::string slug = "c" + std::to_string(normal._iCurs);
+		const ClxSprite sprite = GetInvItemSprite(normal._iCurs + CURSOR_FIRSTITEM);
+		if (slugs.insert(slug).second) {
+			OwnedSurface pic = OwnedSurface::Rgb(sprite.width(), sprite.height());
+			for (int y = 0; y < pic.h(); y++)
+				for (int x = 0; x < pic.w(); x++)
+					*pic.at<uint32_t>(x, y) = 0x00FF00FFU;
+			DrawItem(normal, pic, { 0, sprite.height() - 1 }, sprite);
+			PreviewSave(pic, (dir / "pics" / (slug + ".png")).string().c_str());
+		}
+		json += (first ? "" : ",") + std::string("{\"name\":") + SiteJson(std::string(normal.getName().str())) + ",\"quality\":" + SiteJson(quality) + ",\"kind\":" + SiteJson(SiteKind(normal))
+		    + ",\"pic\":" + SiteJson(slug) + ",\"w\":" + std::to_string(sprite.width()) + ",\"h\":" + std::to_string(sprite.height()) + ",\"tiers\":" + tiers + extra + "}";
 		first = false;
 	};
 
-	// Every unique, through the Unique shelf.
+	// Every unique, through the Unique shelf - on each tier as a drop puts it, before the unique's powers.
 	hero._pClass = HeroClass::Necromancer; // the shrunken heads' uniques are shelved for a Necromancer only
 	for (size_t u = 0; u + 1 < UniqueItemCount; u++) {
 		if (!IsUniqueAvailable(static_cast<int>(u)))
 			continue;
-		devilution::Item unique {};
-		if (CreateUniqueVendorItem(hero, unique, static_cast<_unique_items>(u)))
-			add(unique, "unique", "");
+		const uint32_t seed = AdvanceRndSeed();
+		add([&, u, seed](Tier tier) {
+			devilution::Item unique {};
+			SetRndSeed(seed);
+			if (!CreateUniqueVendorItem(hero, unique, static_cast<_unique_items>(u), tier))
+				unique.clear();
+			return unique;
+		}, "unique", "");
 	}
 	hero._pClass = HeroClass::Warrior;
 
-	// Every set piece, through the Set shelf until it has nothing left, tagged with its set.
-	std::set<const oracool::SetItemDefinition *> shelved;
-	const auto alreadyStocked = [&shelved](const oracool::SetItemDefinition &def) { return shelved.count(&def) != 0; };
-	for (size_t guard = 0; guard <= oracool::ItemSetItemCount; guard++) {
-		devilution::Item piece {};
-		const oracool::SetItemDefinition *chosen = nullptr;
-		if (!CreateSetVendorItem(hero, piece, 40, alreadyStocked, &chosen) || chosen == nullptr)
-			break;
-		shelved.insert(chosen);
-		const oracool::ItemSetDefinition *set = oracool::FindItemSetOwning(chosen->id);
-		add(piece, "set", ",\"set\":" + SiteJson(set != nullptr ? set->name : "") + ",\"setOrder\":" + std::to_string(chosen - oracool::ItemSetItems));
+	// Every set piece, finished as the shelf finishes one (FinalizeSetPiece), the tier kept.
+	for (size_t p = 0; p < oracool::ItemSetItemCount; p++) {
+		const oracool::SetItemDefinition &def = oracool::ItemSetItems[p];
+		const int base = oracool::BaseItemForSetPiece(def);
+		if (base < 0)
+			continue;
+		const uint32_t seed = AdvanceRndSeed();
+		const oracool::ItemSetDefinition *set = oracool::FindItemSetOwning(def.id);
+		add([&def, base, seed](Tier tier) {
+			devilution::Item piece {};
+			InitializeItem(piece, static_cast<_item_indexes>(base));
+			oracool::MakeSetItem(piece, def);
+			SetRndSeed(seed);
+			FinalizeSetPiece(piece, std::max(oracool::VendorItemLevel(40), def.requiredLevel), /*allowEtherealRoll=*/false, tier);
+			return piece;
+		}, "set", ",\"set\":" + SiteJson(set != nullptr ? set->name : "") + ",\"setOrder\":" + std::to_string(p));
 	}
 
-	// Every base: the smith's route at vendor level 30.
+	// Every base: the smith's route at vendor level 30, the tier on the base numbers as SetupAllItems puts it.
+	struct Base {
+		int idx;
+		uint32_t seed;
+	};
+	std::vector<Base> worn;
+	const auto basic = [](int idx, uint32_t seed, Tier tier) {
+		const ItemData &data = AllItemsList[static_cast<size_t>(idx)];
+		devilution::Item item {};
+		if (data.iRnd == IDROP_NEVER && idx < IDI_FIRSTQUEST) {
+			InitializeItem(item, static_cast<_item_indexes>(idx));
+			item._iOracoolItemLevel = 1;
+		} else {
+			item._iSeed = seed;
+			SetRndSeed(seed);
+			oracool::StampVendorItemLevel(item, 30);
+			GetItemAttrs(item, static_cast<_item_indexes>(idx), 30);
+			item._iCreateInfo = 30;
+		}
+		oracool::ApplyBaseTier(item, tier);
+		return item;
+	};
 	for (int i = IDI_GOLD + 1; i <= IDI_LAST; i++) {
 		const ItemData &data = AllItemsList[static_cast<size_t>(i)];
 		if (data.iName == nullptr || !IsItemAvailable(i) || oracool::IsHiddenItemIdx(i) || i == IDI_EAR || data.iMiscId == IMISC_UNIQUE || data.iClass == ICLASS_QUEST)
 			continue;
-		devilution::Item item {};
-		if (data.iRnd == IDROP_NEVER && i < IDI_FIRSTQUEST) {
-			InitializeItem(item, static_cast<_item_indexes>(i));
-			item._iOracoolItemLevel = 1;
-		} else {
-			item._iSeed = AdvanceRndSeed();
-			SetRndSeed(item._iSeed);
-			oracool::StampVendorItemLevel(item, 30);
-			GetItemAttrs(item, static_cast<_item_indexes>(i), 30);
-			item._iCreateInfo = 30;
-		}
-		add(item, "basic", "");
-		const bool worn = item._iLoc != ILOC_NONE && item._iLoc != ILOC_UNEQUIPABLE && item._iLoc != ILOC_BELT && item._itype != ItemType::Misc && item._itype != ItemType::Gold;
-		if (!worn)
+		const uint32_t seed = AdvanceRndSeed();
+		add([&basic, i, seed](Tier tier) { return basic(i, seed, tier); }, "basic", "");
+		const devilution::Item probe = basic(i, seed, Tier::Normal);
+		const bool isWorn = probe._iLoc != ILOC_NONE && probe._iLoc != ILOC_UNEQUIPABLE && probe._iLoc != ILOC_BELT && probe._itype != ItemType::Misc && probe._itype != ItemType::Gold;
+		if (!isWorn)
 			continue;
-		worn_.push_back(item);
-		// Magic: Wirt's gamble on the base, until the roll comes out plain magic.
-		for (int attempt = 0; attempt < 30; attempt++) {
-			devilution::Item magic {};
-			RollGambleResult(magic, static_cast<_item_indexes>(i), 30);
-			if (!magic.isEmpty() && magic._iMagical == ITEM_QUALITY_MAGIC && !magic.hasOracoolTier() && !magic._iOracoolEthereal) {
-				add(magic, "magic", "");
-				break;
+		worn.push_back({ i, seed });
+		// Magic: Wirt's gamble on the base, until the roll comes out plain magic - the same draws on every tier.
+		const uint32_t gamble = AdvanceRndSeed();
+		add([i, gamble](Tier tier) {
+			PinnedBaseTier = tier;
+			SetRndSeed(gamble);
+			devilution::Item found {};
+			for (int attempt = 0; attempt < 30; attempt++) {
+				devilution::Item magic {};
+				RollGambleResult(magic, static_cast<_item_indexes>(i), 30);
+				if (!magic.isEmpty() && magic._iMagical == ITEM_QUALITY_MAGIC && !magic.hasOracoolTier() && !magic._iOracoolEthereal) {
+					found = magic;
+					break;
+				}
 			}
+			PinnedBaseTier = std::nullopt;
+			return found;
+		}, "magic", "");
+		for (const auto &[quality, word] : { std::pair { OracoolItemTier::Rare, "rare" }, std::pair { OracoolItemTier::Primal, "primal" } }) {
+			const OracoolItemTier q = quality;
+			add([&basic, i, seed, q](Tier tier) {
+				devilution::Item item = basic(i, seed, tier);
+				if (!RetierOracoolItem(item, q))
+					item.clear();
+				return item;
+			}, word, "");
 		}
-		for (const auto &[tier, word] : { std::pair { OracoolItemTier::Rare, "rare" }, std::pair { OracoolItemTier::Primal, "primal" } }) {
-			devilution::Item tiered = item;
-			if (RetierOracoolItem(tiered, tier))
-				add(tiered, word, "");
-		}
-		devilution::Item ethereal = item;
-		if (MakeItemEthereal(ethereal))
-			add(ethereal, "ethereal", "");
+		add([&basic, i, seed](Tier tier) {
+			devilution::Item item = basic(i, seed, tier);
+			if (!MakeItemEthereal(item))
+				item.clear();
+			return item;
+		}, "ethereal", "");
 	}
 
 	// Every runeword, rune by rune, on the first plain base of its host that holds its sockets.
@@ -20411,24 +20463,28 @@ TEST(OracoolPreview, DISABLED_WebsiteItemExport)
 		const oracool::RunewordDefinition *word = oracool::RunewordAt(w);
 		if (word == nullptr)
 			break;
-		for (const devilution::Item &base : worn_) {
-			if (base._iMagical != ITEM_QUALITY_NORMAL || base.hasOracoolTier() || static_cast<uint8_t>(oracool::RunewordHostForItemType(base._itype)) != word->host)
+		for (const Base &host : worn) {
+			const devilution::Item probe = basic(host.idx, host.seed, Tier::Normal);
+			if (probe._iMagical != ITEM_QUALITY_NORMAL || probe.hasOracoolTier() || static_cast<uint8_t>(oracool::RunewordHostForItemType(probe._itype)) != word->host)
 				continue;
-			if (!oracool::CanItemHaveSockets(base) || oracool::MaxSocketsForItem(base) < word->runeCount)
+			if (!oracool::CanItemHaveSockets(probe) || oracool::MaxSocketsForItem(probe) < word->runeCount)
 				continue;
-			devilution::Item item = base;
-			item._iSocketCount = static_cast<uint8_t>(word->runeCount);
-			item.normalizeSockets();
-			bool seated = true;
-			for (int r = 0; r < word->runeCount; r++) {
-				devilution::Item rune {};
-				InitializeItem(rune, static_cast<_item_indexes>(word->runes[r]));
-				GenerateNewSeed(rune);
-				rune._iIdentified = true;
-				seated = seated && oracool::TrySocketGem(item, rune);
-			}
-			if (seated && oracool::TryCompleteRuneword(item) && oracool::GetActiveRuneword(item) == word)
-				add(item, "runeword", ",\"word\":" + SiteJson(word->name));
+			add([&basic, host, word](Tier tier) {
+				devilution::Item item = basic(host.idx, host.seed, tier);
+				item._iSocketCount = static_cast<uint8_t>(word->runeCount);
+				item.normalizeSockets();
+				bool seated = true;
+				for (int r = 0; r < word->runeCount; r++) {
+					devilution::Item rune {};
+					InitializeItem(rune, static_cast<_item_indexes>(word->runes[r]));
+					GenerateNewSeed(rune);
+					rune._iIdentified = true;
+					seated = seated && oracool::TrySocketGem(item, rune);
+				}
+				if (!seated || !oracool::TryCompleteRuneword(item) || oracool::GetActiveRuneword(item) != word)
+					item.clear();
+				return item;
+			}, "runeword", ",\"word\":" + SiteJson(word->name));
 			break;
 		}
 	}

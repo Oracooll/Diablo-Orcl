@@ -496,6 +496,13 @@ int8_t GetItemDropAnimIndexFor(const Item &item)
 	}
 }
 
+/**
+ * @brief A base tier SetupAllItems keeps instead of rolling one - set by RetierOracoolItem. The Cube's rerolls and crafts
+ * rolled a fresh tier, so a Torment base came out of "Reroll Rares" as Hell or lower four times in ten, while Ennoble,
+ * Recast and the Mystic kept it (round 14 audit, v1.12.239).
+ */
+std::optional<oracool::BaseItemTier> PinnedBaseTier;
+
 namespace {
 
 OptionalOwnedClxSpriteList itemanims[ITEMTYPES];
@@ -518,12 +525,6 @@ enum class PlayerArmorGraphic : uint8_t {
  * left set across a frame boundary, since RndPL is also used outside item generation.
  */
 bool ForcePerfectAffixRoll = false;
-/**
- * @brief A base tier SetupAllItems keeps instead of rolling one - set by RetierOracoolItem. The Cube's rerolls and crafts
- * rolled a fresh tier, so a Torment base came out of "Reroll Rares" as Hell or lower four times in ten, while Ennoble,
- * Recast and the Mystic kept it (round 14 audit, v1.12.239).
- */
-std::optional<oracool::BaseItemTier> PinnedBaseTier;
 
 /** Holds item get records, tracking items being recently looted. This is in an effort to prevent items being picked up more than once. */
 ItemGetRecordStruct itemrecord[MAXITEMS];
@@ -4858,7 +4859,7 @@ bool IsUniqueAvailable(int i)
 	return gbIsHellfire || i <= 89;
 }
 
-bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid)
+bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid, std::optional<oracool::BaseItemTier> baseTier)
 {
 	if (uid == UITEM_INVALID || !IsUniqueAvailable(uid))
 		return false;
@@ -4884,6 +4885,9 @@ bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid)
 	item._iSeed = AdvanceRndSeed();
 	SetRndSeed(item._iSeed);
 	GetItemAttrs(item, baseItemIndex, UniqueItems[uid].UIMinLvl);
+	// Where a drop puts it: on the base numbers, before the unique's own powers (SetupAllItems' order).
+	if (baseTier)
+		oracool::ApplyBaseTier(item, *baseTier);
 	// An item level, which this shelf never stamped (sweep, 2026-09-25): every unique bought here carried ilvl 0,
 	// so the Cube's Reroll Uniques and Awaken - which roll at the item's own level - found no unique within reach
 	// and nothing to roll. At least the unique's own level, lifted into the difficulty's block the way every
