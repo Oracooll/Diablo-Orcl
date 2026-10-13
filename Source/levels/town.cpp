@@ -242,6 +242,17 @@ void DrlgTPass3()
 		FillTile(60, 70, 71);
 	}
 
+	// Oracool: the road out to the woods (the Orcl Act, oracool/woods.h; user, 2026-10-13: "there are a lot of rocks on
+	// the road there. i cant walk through them"). Plain grass over the town's last rows below Pepin's house, x 50-59 at
+	// y 82-85, and a way round the house's east side at x 56-59, y 80-81. The grass megatiles are 1-4 (the closed Hell
+	// entrance above uses them); picked from the position, not the random stream, so the rest of the town rolls as before.
+	for (int y = 82; y <= 84; y += 2) {
+		for (int x = 50; x <= 58; x += 2)
+			FillTile(x, y, 1 + (x / 2 + y / 2) % 4);
+	}
+	for (int x = 56; x <= 58; x += 2)
+		FillTile(x, 80, 1 + (x / 2 + 40) % 4);
+
 	InitTownPieces();
 }
 
