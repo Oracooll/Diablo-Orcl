@@ -252,6 +252,13 @@ void DrlgTPass3()
 	}
 	for (int x = 56; x <= 58; x += 2)
 		FillTile(x, 80, 1 + (x / 2 + 40) % 4);
+	// And on through the rocks past the old walk limit to the map's edge (user, 2026-10-13, a screenshot with the path
+	// drawn in red: "i want the entrance to the woods to be where the green circle is and i want the red path there to be
+	// clear of rocks"): x 56-59 down to row 95, where the entrance now is (oracool/woods.cpp, OnTownGate).
+	for (int y = 86; y <= 94; y += 2) {
+		for (int x = 56; x <= 58; x += 2)
+			FillTile(x, y, 1 + (x / 2 + y / 2) % 4);
+	}
 
 	InitTownPieces();
 }
@@ -372,7 +379,8 @@ void CleanTownFountain()
 void CreateTown(lvl_entry entry)
 {
 	dminPosition = { 10, 10 };
-	dmaxPosition = { 84, 84 };
+	// Row 95, not 84 (Oracool, the Orcl Act): the road to the woods runs down past the old limit to the map's edge.
+	dmaxPosition = { 84, 95 };
 
 	if (entry == ENTRY_MAIN) { // New game
 		// Oracool: user request - matches SetupLocalPositions()'s local-player spawn tile

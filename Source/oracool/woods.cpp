@@ -550,13 +550,14 @@ void BuildWoodsLevel(bool fresh)
 namespace {
 
 /**
- * @brief The road out of Tristram: a strip at the town's south-west edge, west of Pepin's house (user, 2026-10-13: "Going
- * west of Pepin takes us to the four grass/woods levels"). Standing on it loads woods floor 1.
+ * @brief The road out of Tristram: at the end of the cleared path below Pepin's house, on the map's south-west edge (user,
+ * 2026-10-13: "Going west of Pepin takes us to the four grass/woods levels"; then, with a screenshot, "i want the entrance to
+ * the woods to be where the green circle is"). Standing on it loads woods floor 1.
  */
-constexpr int GateX0 = 50;
-constexpr int GateX1 = 58;
-constexpr int GateY0 = 83;
-constexpr int GateY1 = 84;
+constexpr int GateX0 = 56;
+constexpr int GateX1 = 59;
+constexpr int GateY0 = 94;
+constexpr int GateY1 = 95;
 
 bool OnTownGate(Point tile)
 {
@@ -570,7 +571,7 @@ bool AtWayOnBefore = false;
 
 Point WoodsTownReturnTile()
 {
-	return { 56, 81 }; // open ground two rows above the gate strip ((54,80) is Pepin's house)
+	return { 57, GateY0 - 2 }; // on the cleared path, two rows above the entrance
 }
 
 bool CheckWoodsEdges()

@@ -20560,10 +20560,10 @@ TEST(OracoolPreview, DISABLED_TownWalkMap)
 	std::ofstream txt(dir / "town_walk_map.txt");
 	for (int y = 0; y < MAXDUNY; y++) {
 		for (int x = 0; x < MAXDUNX; x++) {
-			const bool bounds = x >= 10 && y >= 10 && x <= 84 && y <= 84;
+			const bool bounds = x >= 10 && y >= 10 && x <= 84 && y <= 95;
 			const bool solid = TileHasAny(dPiece[x][y], TileProperties::Solid);
 			uint32_t c = !bounds ? 0x404040U : solid ? 0x601818U : 0x2E7A2EU;
-			char ch = !bounds ? ' ' : solid ? '#' : '.';
+			char ch = !bounds ? (solid ? 'X' : ',') : solid ? '#' : '.'; // past the walk limit: X solid, , open
 			const Point p { x, y };
 			if (p == Point { 55, 79 }) {
 				c = 0xFFFFFFU;
@@ -20575,7 +20575,7 @@ TEST(OracoolPreview, DISABLED_TownWalkMap)
 				c = 0x8A5A2AU;
 				ch = 'C';
 			}
-			if (x >= 50 && x <= 58 && y >= 83 && y <= 84) {
+			if (x >= 56 && x <= 59 && y >= 94 && y <= 95) {
 				c = (c & 0xFEFEFEU) / 2 + 0x0000A0U;
 				ch = ch == '.' ? 'g' : 'G';
 			}
