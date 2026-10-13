@@ -285,7 +285,7 @@ void Generate(uint32_t seed)
 				Tree[x][y] = PickTree(Forest, h);
 			} else if (grove > 0.60F) {
 				Ground[x][y] = Forest;
-				if (Unit(h) < 0.42F)
+				if (Unit(h) < 0.22F) // a grove you can see into (the play test: at 0.42 the canopies were one carpet)
 					Tree[x][y] = PickTree(Forest, h >> 3);
 			} else if (Unit(h) < 0.025F) {
 				Tree[x][y] = PickTree(static_cast<Material>(Ground[x][y]), h >> 3); // a lone tree in the grass
@@ -488,6 +488,36 @@ void CreateWoods(uint32_t seed, lvl_entry /*entry*/)
 				dPiece[x][y] = SolidPiece;
 		}
 	}
+	// The minimap's map (automap.cpp reads dungeon[][]): each megatile 1 open ground, 2 the forest's edge, 3 road, 4 deep
+	// forest. Before this the woods kept Tristram's dungeon[][] and the minimap drew the town (the play test, 2026-10-13).
+	for (int my = 0; my < DMAXY; my++) {
+		for (int mx = 0; mx < DMAXX; mx++) {
+			int trees = 0;
+			bool road = false;
+			for (int t = 0; t < 4; t++) {
+				const int x = 16 + 2 * mx + (t & 1);
+				const int y = 16 + 2 * my + (t >> 1);
+				trees += Tree[x][y] != NoTree ? 1 : 0;
+				road = road || (Tree[x][y] == NoTree && Ground[x][y] == Path);
+			}
+			uint8_t kind = trees >= 3 ? 4 : road ? 3 : 1;
+			if (kind == 4) {
+				// The edge: deep forest beside open ground.
+				for (int d = 0; d < 4 && kind == 4; d++) {
+					const int nx = mx + (d == 0 ? 1 : d == 1 ? -1 : 0);
+					const int ny = my + (d == 2 ? 1 : d == 3 ? -1 : 0);
+					if (nx < 0 || ny < 0 || nx >= DMAXX || ny >= DMAXY)
+						continue;
+					int open = 0;
+					for (int t = 0; t < 4; t++)
+						open += Tree[16 + 2 * nx + (t & 1)][16 + 2 * ny + (t >> 1)] == NoTree ? 1 : 0;
+					if (open >= 2)
+						kind = 2;
+				}
+			}
+			dungeon[mx][my] = kind;
+		}
+	}
 	// Outdoors under the sky: the ground is lit all round, not dark beyond the hero's torch (Tristram's light is 0).
 	std::memset(dLight, 3, sizeof(dLight));
 	ViewPosition = Arrival;
@@ -623,10 +653,22 @@ void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light
 
 namespace {
 
-void DrawPicture(const Surface &out, const Picture &pic, int left, int top, int srcX, int srcY, int w, int h, int brightness)
+/**
+ * @brief Where a tree in front of the hero must let him show (user's play test, 2026-10-13: the canopies hid the hero):
+ * the hero's chest on screen and the circle round it the tree is drawn see-through in. Set per tree by
+ * DrawWoodsTileSprite; radius 0 for none.
+ */
+struct SeeThrough {
+	int x = 0;
+	int y = 0;
+	int radius = 0;
+};
+
+void DrawPicture(const Surface &out, const Picture &pic, int left, int top, int srcX, int srcY, int w, int h, int brightness, SeeThrough hole = {})
 {
 	if (brightness <= 0)
 		return;
+	const int r2 = hole.radius * hole.radius;
 	for (int y = 0; y < h; y++) {
 		const int sy = top + y;
 		if (sy < 0 || sy >= out.h())
@@ -640,7 +682,21 @@ void DrawPicture(const Surface &out, const Picture &pic, int left, int top, int 
 			const uint32_t c = src[x];
 			if ((c & 0xFF000000U) == 0)
 				continue;
-			row[sx] = Shade(c, brightness);
+			const uint32_t lit = Shade(c, brightness);
+			if (r2 > 0) {
+				const int ddx = sx - hole.x;
+				const int ddy = (sy - hole.y) * 3 / 2; // a little taller than wide, as a figure is
+				const int d2 = ddx * ddx + ddy * ddy;
+				if (d2 < r2) {
+					// A quarter of the tree at the centre, all of it at the circle's edge.
+					const int keep = 64 + 192 * d2 / r2;
+					const uint32_t bg = row[sx];
+					const auto mix = [&](int shift) { return ((((lit >> shift) & 0xFF) * keep + ((bg >> shift) & 0xFF) * (256 - keep)) >> 8) & 0xFF; };
+					row[sx] = (static_cast<uint32_t>(mix(16)) << 16) | (static_cast<uint32_t>(mix(8)) << 8) | static_cast<uint32_t>(mix(0));
+					continue;
+				}
+			}
+			row[sx] = lit;
 		}
 	}
 }
@@ -658,7 +714,20 @@ void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light
 		const Picture &pic = TreeArt[kind];
 		if (pic.px.empty())
 			return;
-		DrawPicture(out, pic, footX + TreeJitterX[tile.x][tile.y] - pic.footX, footY + TreeJitterY[tile.x][tile.y] - pic.footY, 0, 0, pic.w, pic.h, brightness);
+		const int left = footX + TreeJitterX[tile.x][tile.y] - pic.footX;
+		const int top = footY + TreeJitterY[tile.x][tile.y] - pic.footY;
+		SeeThrough hole;
+		// In front of the hero (drawn after his row) and over him on screen: the circle round his chest is see-through.
+		if (MyPlayer != nullptr && MyPlayer->isOnActiveLevel()) {
+			const Point hero = MyPlayer->position.tile;
+			if (hero.x + hero.y < tile.x + tile.y) {
+				const int heroX = footX + ((hero.x - tile.x) - (hero.y - tile.y)) * 32;
+				const int heroY = footY + ((hero.x - tile.x) + (hero.y - tile.y)) * 16 - 36;
+				if (heroX > left - 40 && heroX < left + pic.w + 40 && heroY > top - 40 && heroY < top + pic.h + 40)
+					hole = { heroX, heroY, 70 };
+			}
+		}
+		DrawPicture(out, pic, left, top, 0, 0, pic.w, pic.h, brightness, hole);
 		return;
 	}
 	if (const uint8_t cell = Scatter[tile.x][tile.y]; cell != 0 && !ScatterArt.px.empty()) {

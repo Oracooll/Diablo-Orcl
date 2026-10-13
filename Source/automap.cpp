@@ -882,6 +882,17 @@ std::unique_ptr<AutomapTile[]> LoadAutomapData(size_t &tileCount)
 		return LoadFileInMem<AutomapTile>("nlevels\\l6data\\l6.amp", &tileCount);
 	case DTYPE_CRYPT:
 		return LoadFileInMem<AutomapTile>("nlevels\\l5data\\l5.amp", &tileCount);
+	case DTYPE_WOODS: {
+		// The woods have no .amp: their four megatile classes (oracool/woods.cpp CreateWoods) - open ground, the forest's
+		// edge drawn as the obstacle marker, the road as dotted ground, deep forest left blank.
+		tileCount = 4;
+		auto tiles = std::make_unique<AutomapTile[]>(tileCount);
+		tiles[0] = { AutomapTile::Types::None, {} };
+		tiles[1] = { AutomapTile::Types::Diamond, {} };
+		tiles[2] = { AutomapTile::Types::None, AutomapTile::Flags::Dirt };
+		tiles[3] = { AutomapTile::Types::None, {} };
+		return tiles;
+	}
 	default:
 		return nullptr;
 	}
