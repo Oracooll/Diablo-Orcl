@@ -20530,6 +20530,162 @@ TEST(OracoolPreview, DISABLED_WebsiteItemExport)
 	gbIsHellfire = savedHellfire;
 }
 
+#include "levels/town.h"
+#include "oracool/woods.h"
+
+/**
+ * Tristram's walkable tiles, for placing the road to the woods (Orcl Act, 2026-10-13): the town built as LoadGameLevel
+ * builds it, each tile 6 px - walkable green, solid dark red, outside the walk bounds grey - Pepin white, Wirt yellow, the
+ * cows brown, the woods gate strip blue. Writes ORCL_WOODS_OUT/town_walk_map.png and town_walk_map.txt (the rows near the
+ * south-west edge as characters).
+ */
+TEST(OracoolPreview, DISABLED_TownWalkMap)
+{
+	const char *outDir = std::getenv("ORCL_WOODS_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	gbIsHellfire = true;
+	leveltype = DTYPE_TOWN;
+	currlevel = 0;
+	setlevel = false;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til"); // the town tileset's megatiles, as LoadLvlGFX loads them
+	LoadLevelSOLData();
+	CreateTown(ENTRY_MAIN);
+	constexpr int Cell = 6;
+	OwnedSurface out = OwnedSurface::Rgb(MAXDUNX * Cell, MAXDUNY * Cell);
+	std::ofstream txt(dir / "town_walk_map.txt");
+	for (int y = 0; y < MAXDUNY; y++) {
+		for (int x = 0; x < MAXDUNX; x++) {
+			const bool bounds = x >= 10 && y >= 10 && x <= 84 && y <= 84;
+			const bool solid = TileHasAny(dPiece[x][y], TileProperties::Solid);
+			uint32_t c = !bounds ? 0x404040U : solid ? 0x601818U : 0x2E7A2EU;
+			char ch = !bounds ? ' ' : solid ? '#' : '.';
+			const Point p { x, y };
+			if (p == Point { 55, 79 }) {
+				c = 0xFFFFFFU;
+				ch = 'P';
+			} else if (p == Point { 54, 72 }) {
+				c = 0xFFE040U;
+				ch = 'W';
+			} else if (p == Point { 58, 16 } || p == Point { 56, 14 } || p == Point { 59, 20 }) {
+				c = 0x8A5A2AU;
+				ch = 'C';
+			}
+			if (x >= 50 && x <= 58 && y >= 83 && y <= 84) {
+				c = (c & 0xFEFEFEU) / 2 + 0x0000A0U;
+				ch = ch == '.' ? 'g' : 'G';
+			}
+			for (int dy = 0; dy < Cell; dy++)
+				for (int dx = 0; dx < Cell; dx++)
+					*out.at<uint32_t>(x * Cell + dx, y * Cell + dy) = (dx == Cell - 1 || dy == Cell - 1) ? (c & 0xFEFEFEU) / 2 : c;
+			if (y >= 60 && x >= 30)
+				txt << ch;
+		}
+		if (y >= 60)
+			txt << "   y=" << y << "\n";
+	}
+	PreviewSave(out, (dir / "town_walk_map.png").string().c_str());
+}
+
+/**
+ * Woods floor 1 as generated (Orcl Act milestone 1): ORCL_WOODS_OUT/woods_map.png - the ground materials, 4 px a tile, trees
+ * as dark dots, the arrival white and the way on red - and woods_view.png, a 1280 x 720 isometric view round the arrival drawn
+ * by the game's own woods ground and sprite calls in the game's tile order. Asserts the way on is reachable on foot.
+ */
+TEST(OracoolPreview, DISABLED_WoodsFloor1)
+{
+	const char *outDir = std::getenv("ORCL_WOODS_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	setlvlnum = SL_ORCL_WOODS_1;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til"); // the town tileset's megatiles, as LoadLvlGFX loads them
+	const char *seedText = std::getenv("ORCL_WOODS_SEED");
+	const uint32_t seed = seedText != nullptr ? static_cast<uint32_t>(std::strtoul(seedText, nullptr, 0)) : 0x6E00D5U;
+	CreateDungeon(seed, ENTRY_SETLVL);
+	const Point arrival = oracool::WoodsArrival();
+	const Point wayOn = oracool::WoodsWayOn();
+
+	// Reachable: a walk over open tiles from the arrival to the way on.
+	{
+		std::vector<Point> stack { arrival };
+		std::set<int> seen { arrival.x * MAXDUNY + arrival.y };
+		bool reached = false;
+		while (!stack.empty() && !reached) {
+			const Point p = stack.back();
+			stack.pop_back();
+			for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 } }) {
+				const Point n = p + d;
+				if (!InDungeonBounds(n) || TileHasAny(dPiece[n.x][n.y], TileProperties::Solid) || !seen.insert(n.x * MAXDUNY + n.y).second)
+					continue;
+				if (n == wayOn)
+					reached = true;
+				stack.push_back(n);
+			}
+		}
+		EXPECT_TRUE(reached) << "the way on cannot be walked to from the arrival";
+	}
+
+	constexpr uint32_t Colours[] = { 0x4E6A2CU, 0x34502AU, 0x8A7A42U, 0x6A5638U, 0x4A3A24U };
+	constexpr int Cell = 4;
+	OwnedSurface map = OwnedSurface::Rgb(MAXDUNX * Cell, MAXDUNY * Cell);
+	for (int y = 0; y < MAXDUNY; y++) {
+		for (int x = 0; x < MAXDUNX; x++) {
+			const Point p { x, y };
+			uint32_t c = Colours[std::min<int>(oracool::WoodsGroundAt(p), 4)];
+			for (int dy = 0; dy < Cell; dy++)
+				for (int dx = 0; dx < Cell; dx++) {
+					uint32_t px = c;
+					if (oracool::WoodsTreeAt(p) && dx >= 1 && dx <= 2 && dy >= 1 && dy <= 2)
+						px = 0x142010U;
+					if (p == arrival)
+						px = 0xFFFFFFU;
+					if (p == wayOn)
+						px = 0xFF3030U;
+					*map.at<uint32_t>(x * Cell + dx, y * Cell + dy) = px;
+				}
+		}
+	}
+	PreviewSave(map, (dir / "woods_map.png").string().c_str());
+
+	// The isometric view round the arrival, as scrollrt draws it: the ground pass over every tile, then each tile's sprite in
+	// the game's row order.
+	oracool::LoadWoodsArtForTest();
+	OwnedSurface view = OwnedSurface::Rgb(1280, 720);
+	const Point centre = arrival + Displacement { -6, 2 };
+	const auto screenOf = [&](Point tile) {
+		return Point { 640 - 32 + (tile.x - centre.x) * 32 - (tile.y - centre.y) * 32, 360 + 15 + (tile.x - centre.x) * 16 + (tile.y - centre.y) * 16 };
+	};
+	for (int pass = 0; pass < 2; pass++) {
+		for (int sum = 2 * 0; sum <= 2 * (MAXDUNX - 1); sum++) {
+			for (int x = 0; x <= MAXDUNX - 1; x++) {
+				const int y = sum - x;
+				const Point tile { x, y };
+				if (!InDungeonBounds(tile))
+					continue;
+				const Point at = screenOf(tile);
+				if (at.x < -96 || at.x > 1280 + 32 || at.y < -32 || at.y > 720 + 260)
+					continue;
+				if (pass == 0)
+					oracool::DrawWoodsGroundTile(view, tile, at, -1, false);
+				else
+					oracool::DrawWoodsTileSprite(view, tile, at, -1);
+			}
+		}
+	}
+	PreviewSave(view, (dir / "woods_view.png").string().c_str());
+}
+
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----
 
 #include "oracool/rogue_arrows.h"

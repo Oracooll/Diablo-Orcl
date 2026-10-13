@@ -216,6 +216,7 @@ Cutscenes GetCutSceneFromLevelType(dungeon_type type)
 {
 	switch (type) {
 	case DTYPE_TOWN:
+	case DTYPE_WOODS: // out of town by the road, and back: Tristram's painting both ways (oracool/woods.h)
 		return CutTown;
 	case DTYPE_CATHEDRAL:
 		return CutLevel1;
@@ -261,6 +262,8 @@ Cutscenes PickCutscene(interface_mode uMsg)
 		// portal loading screens"). Before this a rift fell through to the Cathedral's.
 		if (oracool::IsRiftLevel(setlvlnum))
 			return setlvlnum == oracool::RiftLevelFor(oracool::RiftKind::Guardian) ? CutRiftGuardian : CutRiftNephalem;
+		if (IsWoodsLevel(setlvlnum))
+			return CutTown;
 		if (setlvlnum == SL_BONECHAMB)
 			return CutLevel2;
 		if (setlvlnum == SL_VILEBETRAYER)

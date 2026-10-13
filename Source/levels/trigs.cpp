@@ -17,6 +17,7 @@
 #include "options.h"
 #include "oracool/oracool.h"
 #include "oracool/rift.h"
+#include "oracool/woods.h"
 #include "utils/language.h"
 #include "utils/utf8.hpp"
 
@@ -867,6 +868,10 @@ void CheckTriggers()
 	Player &myPlayer = *MyPlayer;
 
 	if (myPlayer._pmode != PM_STAND)
+		return;
+
+	// The Orcl Act: the road out of Tristram into the woods, and the woods' roads (oracool/woods.h).
+	if (oracool::CheckWoodsEdges())
 		return;
 
 	for (int i = 0; i < numtrigs; i++) {

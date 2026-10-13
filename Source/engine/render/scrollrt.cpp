@@ -40,6 +40,7 @@
 #include "oracool/advanced_stats.h" // the right-hand slot's third window, and IsRightPanelOpen's third answer
 #include "oracool/attack_skills.h"
 #include "oracool/colour_light.h" // smooth and coloured lighting
+#include "oracool/woods.h" // the woods' true-colour ground and trees
 #include "oracool/companion.h"
 #include "oracool/frame_blend.h" // Smooth animation: a frame cross-faded into the next
 #include "oracool/frame_timing.h"
@@ -1548,7 +1549,12 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 	// again, so its corpses, items and missiles stay unseen (audit round 1).
 	LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 
-	DrawCell(out, tilePosition, targetBufferPosition);
+	// The woods draw no tile art (oracool/woods.h): what stands on the tile - a tree, a small thing on the ground - in its
+	// place, in the figures' order.
+	if (oracool::WoodsArtActive(out))
+		oracool::DrawWoodsTileSprite(out, tilePosition, targetBufferPosition, LightTableIndex);
+	else
+		DrawCell(out, tilePosition, targetBufferPosition);
 	LightTableIndex = dLight[tilePosition.x][tilePosition.y];
 
 	int8_t bDead = dCorpse[tilePosition.x][tilePosition.y];
@@ -1648,9 +1654,17 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
  */
 void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
 {
+	// The woods' ground under every tile, the trees' included (oracool/woods.h): the true-colour textures in place of the
+	// town tileset's cels, at full brightness when the smooth pass darkens the floor after.
+	const bool woodsGround = oracool::WoodsArtActive(out);
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < columns; j++) {
-			if (InDungeonBounds(tilePosition)) {
+			if (InDungeonBounds(tilePosition) && woodsGround) {
+				LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
+				oracool::DrawWoodsGroundTile(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
+				if (!DeferFloorObjectsThisFrame && !TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid))
+					DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
+			} else if (InDungeonBounds(tilePosition)) {
 				if (!TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid))
 					DrawFloor(out, tilePosition, targetBufferPosition);
 				else if (DeferFloorObjectsThisFrame)

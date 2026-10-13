@@ -48,10 +48,24 @@ enum _setlevels : int8_t {
 	SL_RIFT_NEPHALEM,
 	SL_RIFT_GUARDIAN,
 
+	// Oracool: the Orcl Act (user, 2026-10-13): the woods west of Tristram, four floors, each a set level generated from a
+	// seed the way the rifts are (oracool/woods.h). The desert east of the cows follows with its own four.
+	SL_ORCL_WOODS_1,
+	SL_ORCL_WOODS_2,
+	SL_ORCL_WOODS_3,
+	SL_ORCL_WOODS_4,
+
 	SL_FIRST_ARENA = SL_ARENA_CHURCH,
 	SL_LAST_ARENA = SL_ARENA_CIRCLE_OF_LIFE,
-	SL_LAST = SL_RIFT_GUARDIAN,
+	SL_FIRST_WOODS = SL_ORCL_WOODS_1,
+	SL_LAST_WOODS = SL_ORCL_WOODS_4,
+	SL_LAST = SL_ORCL_WOODS_4,
 };
+
+inline bool IsWoodsLevel(_setlevels setLevel)
+{
+	return setLevel >= SL_FIRST_WOODS && setLevel <= SL_LAST_WOODS;
+}
 
 inline bool IsArenaLevel(_setlevels setLevel)
 {
@@ -73,8 +87,11 @@ enum dungeon_type : int8_t {
 	DTYPE_HELL,
 	DTYPE_NEST,
 	DTYPE_CRYPT,
+	// Oracool: the Orcl Act's woods (oracool/woods.h). A dungeon in every rule (monsters, light, exploration) on the town
+	// tileset's data, its ground and trees drawn in true colour from the woods art.
+	DTYPE_WOODS,
 
-	DTYPE_LAST = DTYPE_CRYPT,
+	DTYPE_LAST = DTYPE_WOODS,
 	DTYPE_NONE = -1,
 };
 

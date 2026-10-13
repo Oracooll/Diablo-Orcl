@@ -86,6 +86,7 @@
 #include "oracool/workshop.h"
 #include "oracool/levski_roar.h"
 #include "oracool/rift.h"
+#include "oracool/woods.h"
 #include "oracool/stonegate.h"
 #include "oracool/wirt_cart.h"
 #include "oracool/runeword_book.h"
@@ -252,6 +253,7 @@ void FreeGame()
 	// next hero.
 	oracool::ResetWorkshopForNewGame();
 	oracool::ResetRiftForNewGame(); // a rift open in one game must not be open in the next (oracool/rift.h)
+	oracool::ResetWoodsForNewGame(); // nor the last game's woods (oracool/woods.h)
 	oracool::ResetNamedEncountersForNewGame(); // nor an arena's free re-entry
 #ifdef _DEBUG
 	DebugGodMode = false; // god mode is one game's, not the next one's (round 89 audit)
@@ -2400,6 +2402,7 @@ void LoadLvlGFX()
 
 	switch (leveltype) {
 	case DTYPE_TOWN:
+	case DTYPE_WOODS: // the town tileset, never drawn there (oracool/woods.h)
 		if (gbIsHellfire) {
 			pDungeonCels = LoadFileInMem("nlevels\\towndata\\town.cel");
 			pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
@@ -2486,6 +2489,8 @@ void CreateLevel(lvl_entry entry)
 	case DTYPE_CRYPT:
 		InitCryptTriggers();
 		break;
+	case DTYPE_WOODS:
+		break; // a set level: its edges are oracool::CheckWoodsEdges's
 	default:
 		app_fatal("CreateLevel");
 	}
