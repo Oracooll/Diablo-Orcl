@@ -21343,6 +21343,99 @@ TEST(OracoolPreview, DISABLED_WoodsDesignerStamps)
 }
 
 /**
+ * The Woods Levels Designer's mob roster (2026-10-14): every monster kind of the game, its first standing frame facing south as
+ * the game loads it (InitMonsterGFX, its TRN applied) in the palette of the first floor it lives on - ORCL_DESIGNER_OUT/mobs/
+ * mob_NNN.png (NNN its _monster_id) and mobs.json: id, name, floors, availability (0 never, 1 always, 2 retail), level.
+ */
+TEST(OracoolPreview, DISABLED_WoodsDesignerMobs)
+{
+	const char *outDir = std::getenv("ORCL_DESIGNER_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir = std::filesystem::path(outDir) / "mobs";
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	gbIsHellfire = true;
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const std::array<uint32_t, 256> savedPalette = PaletteRGB;
+	const auto loadPalette = [](int floor) {
+		const char *path = floor <= 4 ? "levels\\l1data\\l1_1.pal" : floor <= 8 ? "levels\\l2data\\l2_1.pal" : floor <= 12 ? "levels\\l3data\\l3_1.pal"
+		    : floor <= 16                                     ? "levels\\l4data\\l4_1.pal"
+		    : floor <= 20                                     ? "nlevels\\l6data\\l6base1.pal"
+		                                                      : "nlevels\\l5data\\l5base.pal";
+		size_t n = 0;
+		auto pal = LoadFileInMem<uint8_t>(path, &n);
+		for (int i = 0; i < 256 && 3 * i + 2 < static_cast<int>(n); i++)
+			PaletteRGB[i] = (static_cast<uint32_t>(pal[3 * i]) << 16) | (static_cast<uint32_t>(pal[3 * i + 1]) << 8) | pal[3 * i + 2];
+	};
+	std::ofstream manifest(dir / "mobs.json");
+	manifest << "[\n";
+	bool first = true;
+	for (int id = MT_NZOMBIE; id < NUM_MTYPES; id++) {
+		const MonsterData &data = MonstersData[id];
+		if (data.assetsSuffix == nullptr || data.name == nullptr || id == MT_DARKMAGE)
+			continue; // the dark mage's sprite is a placeholder the CL2 conversion fails on (it crashed here)
+		// Not every kind's sprite is in the archives (the unused worm): those are left out.
+		{
+			const std::string standPath = std::string("monsters\\") + data.assetsSuffix + "n.cl2";
+			AssetHandle handle = OpenAsset(standPath.c_str());
+			if (!handle.ok())
+				continue;
+		}
+		CMonster kind {};
+		kind.type = static_cast<_monster_id>(id);
+		InitMonsterGFX(kind);
+		if (!kind.anims[0].sprites)
+			continue;
+		const ClxSpriteListOrSheet &sprites = *kind.anims[0].sprites;
+		const ClxSprite sprite = sprites.isSheet() ? sprites.sheet()[0][0] : sprites.list()[0];
+		loadPalette(std::max<int>(1, data.minDunLvl));
+		const int w = sprite.width() + 4;
+		const int h = sprite.height() + 4;
+		OwnedSurface canvas = OwnedSurface::Rgb(w, h);
+		const Surface out = canvas;
+		constexpr uint32_t Unwritten = 0xFF000000U;
+		for (int y = 0; y < h; y++)
+			for (int x = 0; x < w; x++)
+				*out.at<uint32_t>(x, y) = Unwritten;
+		ClxDraw(out, { 2, h - 2 }, sprite);
+		int x0 = w, y0 = h, x1 = -1, y1 = -1;
+		for (int y = 0; y < h; y++)
+			for (int x = 0; x < w; x++)
+				if (*out.at<uint32_t>(x, y) != Unwritten) {
+					x0 = std::min(x0, x); y0 = std::min(y0, y); x1 = std::max(x1, x); y1 = std::max(y1, y);
+				}
+		if (x1 < 0)
+			continue;
+		SDL_Surface *png = SDL_CreateRGBSurfaceWithFormat(0, x1 - x0 + 1, y1 - y0 + 1, 32, SDL_PIXELFORMAT_ARGB8888);
+		ASSERT_NE(png, nullptr);
+		for (int y = y0; y <= y1; y++) {
+			auto *row = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(png->pixels) + static_cast<size_t>(y - y0) * png->pitch);
+			for (int x = x0; x <= x1; x++) {
+				const uint32_t c = *out.at<uint32_t>(x, y);
+				row[x - x0] = c == Unwritten ? 0 : (0xFF000000U | (c & 0xFFFFFFU));
+			}
+		}
+		char file[32];
+		std::snprintf(file, sizeof(file), "mob_%03d.png", id);
+		ASSERT_EQ(IMG_SavePNG(png, (dir / file).string().c_str()), 0) << file;
+		SDL_FreeSurface(png);
+		std::string name = data.name;
+		for (char &c : name)
+			if (c == '"' || c == '\\')
+				c = '\'';
+		manifest << (first ? "" : ",\n") << "  {\"id\":" << id << ",\"name\":\"" << name << "\",\"file\":\"" << file << "\",\"min\":" << static_cast<int>(data.minDunLvl)
+		         << ",\"max\":" << static_cast<int>(data.maxDunLvl) << ",\"availability\":" << static_cast<int>(data.availability) << ",\"level\":" << static_cast<int>(data.level)
+		         << ",\"w\":" << (x1 - x0 + 1) << ",\"h\":" << (y1 - y0 + 1) << "}";
+		first = false;
+	}
+	manifest << "\n]\n";
+	PaletteRGB = savedPalette;
+	HeadlessMode = savedHeadless;
+}
+
+/**
  * Tristram's scenery megatiles (Orcl Act, 2026-10-13: "generate Woods level 1 using vanilla assets ... Using tristram
  * textures"): every megatile of the four town sectors, counted where it stands - past the town's walk limit (the trees and
  * rocks round the edge) or inside it - with how many of its four pieces are solid and the pieces themselves. Writes
