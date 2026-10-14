@@ -421,8 +421,12 @@ bool BuiltVanilla = true;
 /** @brief ... and its trees and ground details are the painted ones, over Tristram's ground (the Mixed look). */
 bool BuiltMixed = false;
 
-/** @brief A PNG from the archives as RGBA bytes, halved (the art is drawn at twice the game's size, D6). */
-bool LoadHalved(const char *path, Picture &out, bool sprite)
+/**
+ * @brief A PNG from the archives, shrunk by @p factor (each pixel the average of a factor x factor block): 2 for the sprites
+ * (the art is drawn at twice the game's size, D6), 4 for the ground (user, 2026-10-14: the grass, dirt and ground "seem a bit
+ * oversized ... shrink them to 50%" - every stone and blade half as large beside the heroes as at the halving).
+ */
+bool LoadShrunk(const char *path, Picture &out, bool sprite, int factor)
 {
 	SDL_Surface *png = LoadPNG(path);
 	if (png == nullptr) {
@@ -433,16 +437,16 @@ bool LoadHalved(const char *path, Picture &out, bool sprite)
 	SDL_FreeSurface(png);
 	if (rgba == nullptr)
 		return false;
-	out.w = rgba->w / 2;
-	out.h = rgba->h / 2;
+	out.w = rgba->w / factor;
+	out.h = rgba->h / factor;
 	out.px.assign(static_cast<size_t>(out.w) * out.h, 0);
 	const auto *bytes = static_cast<const uint8_t *>(rgba->pixels);
 	for (int y = 0; y < out.h; y++) {
 		for (int x = 0; x < out.w; x++) {
 			int r = 0, g = 0, b = 0, n = 0;
-			for (int sy = 0; sy < 2; sy++) {
-				for (int sx = 0; sx < 2; sx++) {
-					const uint8_t *q = bytes + static_cast<size_t>(2 * y + sy) * rgba->pitch + static_cast<size_t>(2 * x + sx) * 4;
+			for (int sy = 0; sy < factor; sy++) {
+				for (int sx = 0; sx < factor; sx++) {
+					const uint8_t *q = bytes + static_cast<size_t>(factor * y + sy) * rgba->pitch + static_cast<size_t>(factor * x + sx) * 4;
 					if (sprite && q[3] < 128)
 						continue;
 					r += q[0];
@@ -452,7 +456,7 @@ bool LoadHalved(const char *path, Picture &out, bool sprite)
 				}
 			}
 			// A sprite pixel is opaque where most of its four were; the ground is always opaque.
-			if (n == 0 || (sprite && n < 2))
+			if (n == 0 || (sprite && 2 * n < factor * factor))
 				continue;
 			out.px[static_cast<size_t>(y) * out.w + x] = 0xFF000000U | (static_cast<uint32_t>(r / n) << 16) | (static_cast<uint32_t>(g / n) << 8) | static_cast<uint32_t>(b / n);
 		}
@@ -481,13 +485,13 @@ void LoadArt()
 	ArtTried = true;
 	bool ok = true;
 	for (int m = 0; m < MaterialCount; m++)
-		ok = LoadHalved(GroundFiles[m], GroundArt[m], false) && ok;
+		ok = LoadShrunk(GroundFiles[m], GroundArt[m], false, 4) && ok;
 	for (int t = 1; t < TreeKindCount; t++) {
-		ok = LoadHalved(TreeFiles[t].path, TreeArt[t], true) && ok;
+		ok = LoadShrunk(TreeFiles[t].path, TreeArt[t], true, 2) && ok;
 		TreeArt[t].footX = TreeFiles[t].footX / 2;
 		TreeArt[t].footY = TreeFiles[t].footY / 2;
 	}
-	ok = LoadHalved("levels\\woods\\scatter_sheet.png", ScatterArt, true) && ok;
+	ok = LoadShrunk("levels\\woods\\scatter_sheet.png", ScatterArt, true, 2) && ok;
 	ArtLoaded = ok;
 }
 

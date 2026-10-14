@@ -12,6 +12,7 @@
 #include "levels/drlg_l4.h"
 #include "levels/town.h"
 #include "lighting.h"
+#include "oracool/borrowed_tiles.h"
 #include "oracool/woods.h"
 #include "oracool/zone_registry.h"
 #include "options.h"
@@ -479,6 +480,8 @@ void LoadLevelSOLData()
 	default:
 		app_fatal("LoadLevelSOLData");
 	}
+	// The pieces borrowed from other tilesets keep their own sets' properties (oracool/borrowed_tiles.h).
+	oracool::ApplyBorrowedSol();
 }
 
 void SetDungeonMicros()

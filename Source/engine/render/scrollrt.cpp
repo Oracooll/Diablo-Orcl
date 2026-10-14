@@ -40,6 +40,7 @@
 #include "oracool/advanced_stats.h" // the right-hand slot's third window, and IsRightPanelOpen's third answer
 #include "oracool/attack_skills.h"
 #include "oracool/colour_light.h" // smooth and coloured lighting
+#include "oracool/borrowed_tiles.h" // the pieces a level borrows from other tilesets
 #include "oracool/woods.h" // the woods' true-colour ground and trees
 #include "oracool/companion.h"
 #include "oracool/frame_blend.h" // Smooth animation: a frame cross-faded into the next
@@ -1040,6 +1041,11 @@ bool DeferFloorObjectsThisFrame = false;
 void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
 	const uint16_t levelPieceId = oracool::WoodsDrawnPiece(tilePosition); // dPiece, or how a woods tile looks
+	// A piece of another tileset (oracool/borrowed_tiles.h): its own picture, in its own set's colours.
+	if (oracool::IsBorrowedPiece(levelPieceId)) {
+		oracool::DrawBorrowedCell(out, tilePosition, levelPieceId, targetBufferPosition, LightTableIndex, !FloorSmoothedThisFrame);
+		return;
+	}
 
 	const MICROS *pMap = &DPieceMicros[levelPieceId];
 
@@ -1178,6 +1184,12 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 #endif
 
 	const uint16_t levelPieceId = oracool::WoodsDrawnPiece(tilePosition); // dPiece, or how a woods tile looks
+	if (oracool::IsBorrowedPiece(levelPieceId)) {
+		oracool::DrawBorrowedFloor(out, levelPieceId, targetBufferPosition, SmoothFloorThisFrame && LightTableIndex < LightsMax ? -1 : LightTableIndex);
+		if (!DeferFloorObjectsThisFrame)
+			DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
+		return;
+	}
 	{
 		const LevelCelBlock levelCelBlock { DPieceMicros[levelPieceId].mt[0] };
 		if (levelCelBlock.hasValue()) {
@@ -1209,6 +1221,10 @@ void DrawWallFloorTriangles(const Surface &out, Point tilePosition, Point target
 {
 	LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 	const uint8_t *tbl = LightTables[SmoothFloorThisFrame && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
+	if (const uint16_t piece = oracool::WoodsDrawnPiece(tilePosition); oracool::IsBorrowedPiece(piece)) {
+		oracool::DrawBorrowedFloor(out, piece, targetBufferPosition, SmoothFloorThisFrame && LightTableIndex < LightsMax ? -1 : LightTableIndex);
+		return;
+	}
 	const MICROS &micros = DPieceMicros[oracool::WoodsDrawnPiece(tilePosition)];
 	const LevelCelBlock left { micros.mt[0] };
 	if (left.hasValue() && left.type() == TileType::LeftTriangle)
@@ -1552,7 +1568,7 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 
 	// The woods draw no tile art (oracool/woods.h): what stands on the tile - a tree, a small thing on the ground - in its
 	// place, in the figures' order.
-	if (oracool::WoodsArtActive(out)) {
+	if (oracool::WoodsArtActive(out) && !oracool::IsBorrowedPiece(dPiece[tilePosition.x][tilePosition.y])) {
 		oracool::DrawWoodsTileSprite(out, tilePosition, targetBufferPosition, LightTableIndex);
 	} else {
 		DrawCell(out, tilePosition, targetBufferPosition);
@@ -1664,7 +1680,7 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 	const bool woodsGround = oracool::WoodsArtActive(out);
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < columns; j++) {
-			if (InDungeonBounds(tilePosition) && woodsGround) {
+			if (InDungeonBounds(tilePosition) && woodsGround && !oracool::IsBorrowedPiece(dPiece[tilePosition.x][tilePosition.y])) {
 				LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 				oracool::DrawWoodsGroundTile(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
 				oracool::DrawWoodsGateTint(out, tilePosition, targetBufferPosition); // the road back, marked

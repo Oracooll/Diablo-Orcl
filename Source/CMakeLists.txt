@@ -93,6 +93,7 @@ set(libdevilutionx_SRCS
   oracool/drawn_fx.cpp
   oracool/ui_background_life.cpp
   oracool/woods.cpp
+  oracool/borrowed_tiles.cpp
   oracool/post_fx.cpp
   oracool/rogue_arrows.cpp
   oracool/melee_skills.cpp

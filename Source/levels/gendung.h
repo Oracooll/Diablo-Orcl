@@ -28,7 +28,9 @@ namespace devilution {
 #define MAXDUNY (16 + DMAXY * 2 + 16)
 
 #define MAXTHEMES 50
-#define MAXTILES 1379
+// 1379 for the largest native tileset, and room past it for the pieces a level borrows from the others (oracool/
+// borrowed_tiles.h, 2026-10-14).
+#define MAXTILES (1379 + 4096)
 
 enum _setlevels : int8_t {
 	SL_NONE,

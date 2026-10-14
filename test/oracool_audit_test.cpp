@@ -20537,7 +20537,51 @@ TEST(OracoolPreview, DISABLED_WebsiteItemExport)
 }
 
 #include "levels/town.h"
+#include "oracool/borrowed_tiles.h"
 #include "oracool/woods.h"
+
+/**
+ * Tiles from every vanilla tileset on one level (user, 2026-10-14): a Caves fence borrowed into a woods floor walks as the
+ * Caves' .sol says, keeps it through the level's own SOL load, has a picture to draw, and is borrowed once; the level's own set
+ * comes back native. Reads the player's archives, as the game does.
+ */
+TEST(OracoolAudit, BorrowedTilesKeepTheirOwnSetsRules)
+{
+	MountTestArchives(true);
+	const bool savedHellfire = gbIsHellfire;
+	const dungeon_type savedType = leveltype;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	EXPECT_EQ(oracool::BorrowPiece(DTYPE_TOWN, 5), 5) << "the level's own set is native";
+	// A Caves fence post: solid by the Caves' corrected .sol (LoadLevelSOLData marks 481 and 487 solid).
+	const uint16_t fence = oracool::BorrowPiece(DTYPE_CAVES, 481);
+	ASSERT_TRUE(oracool::IsBorrowedPiece(fence)) << "the Caves' files did not load";
+	EXPECT_EQ(oracool::BorrowPiece(DTYPE_CAVES, 481), fence) << "borrowed once, the same id after";
+	dungeon_type set {};
+	uint16_t native = 0;
+	ASSERT_TRUE(oracool::BorrowedPieceSourceForTest(fence, set, native));
+	EXPECT_EQ(set, DTYPE_CAVES);
+	EXPECT_EQ(native, 481);
+	EXPECT_TRUE(TileHasAny(fence, TileProperties::Solid));
+	LoadLevelSOLData(); // the woods' own load, as LoadGameLevel runs it more than once
+	EXPECT_TRUE(TileHasAny(fence, TileProperties::Solid)) << "the level's SOL load kept the borrowed piece's";
+	// Every Caves megatile can be borrowed, and draws something.
+	const int megatiles = oracool::BorrowedMegatileCount(DTYPE_CAVES);
+	EXPECT_GT(megatiles, 100);
+	int drawn = 0;
+	for (int m = 1; m <= megatiles; m++) {
+		ASSERT_TRUE(oracool::BorrowMegatile(DTYPE_CAVES, m, 40, 40)) << "megatile " << m;
+		for (const Point p : { Point { 40, 40 }, Point { 41, 40 }, Point { 40, 41 }, Point { 41, 41 } }) {
+			int floorPixels = 0;
+			int cellPixels = 0;
+			oracool::BorrowedPiecePixelsForTest(dPiece[p.x][p.y], floorPixels, cellPixels);
+			drawn += floorPixels + cellPixels > 0 ? 1 : 0;
+		}
+	}
+	EXPECT_GT(drawn, megatiles * 3) << "most borrowed pieces have pixels";
+	leveltype = savedType;
+	gbIsHellfire = savedHellfire;
+}
 
 /**
  * The woods' monsters (Orcl Act milestone 3, 2026-10-14): every rung a woods floor can stand on offers the four kinds its roster
