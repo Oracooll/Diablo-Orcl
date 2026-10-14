@@ -27,6 +27,7 @@ namespace devilution {
 struct Surface;
 struct Player;
 struct MonsterData;
+struct Monster;
 } // namespace devilution
 
 namespace devilution::oracool {
@@ -132,8 +133,35 @@ bool WoodsCaveMouthHover(Point tile, Point &entrance, const char *&text);
  */
 int WoodsBandFloor();
 
-/** @brief A monster type the current woods floor may draw: of its rung, never a boss or a summon. */
+/**
+ * @brief A monster type the current woods floor may draw: one of the user's Mob Roster (the Woods Levels Designer's tab 2,
+ * 2026-10-14), of its rung - or, where fewer than four of them live that deep, the four nearest it (ScaleWoodsMonster makes
+ * up the difference). Never a boss or a summon.
+ */
 bool WoodsAcceptsMonster(const MonsterData &data);
+
+/**
+ * @brief The kind the woods' last floor's boss is made of this game: one of the user's four (the Skeleton King, the Butcher,
+ * the Reaper, Diablo - Mob Roster notes "use as boss"), picked from the floor's seed, so it is rolled anew each new game and
+ * holds still for the rest of it. -1 before the floor has a seed.
+ */
+int WoodsBossKind();
+
+/** @brief @p monster is the woods' last floor's boss (its kind, on that floor). */
+bool IsWoodsBoss(const Monster &monster);
+
+/** @brief The size the woods boss is drawn at, so each stands as tall as Diablo (the user's notes); 0 when @p monster is not him. */
+unsigned WoodsBossSizePercent(const Monster &monster);
+
+/** @brief Where the woods boss waits: open ground inside the fence, a few steps in from the way on. */
+Point WoodsBossSpot();
+
+/**
+ * @brief A woods or cave monster brought up to the floor's rung: a kind whose own floors end above it gains 12% life and
+ * damage per floor between (the Hell-depth rungs, where none of the user's kinds lives); the boss is set to the rung from his
+ * own floors either way - up or down - then given three times the life and a quarter more damage. Does nothing elsewhere.
+ */
+void ScaleWoodsMonster(Monster &monster);
 
 /** @brief Some champion (a non-speaking unique row) is made of monster kind @p type: a Dread boss can wear it. */
 bool IsChampionKind(int type);
@@ -211,5 +239,7 @@ void SetWoodsCaveMouthFloorForTest(int floorIndex);
 Point StampWoodsCaveMouthForTest();
 /** @brief Test hook: sets floor @p floorIndex's rung as its first visit would. */
 void SetWoodsRungForTest(int floorIndex, int rung);
+/** @brief Test hook: floor @p floorIndex's seed (0: not yet entered). */
+void SetWoodsSeedForTest(int floorIndex, uint32_t seed);
 
 } // namespace devilution::oracool

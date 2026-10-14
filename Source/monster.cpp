@@ -888,6 +888,45 @@ void PlaceUniqueMonsters()
  * @brief Fills a woods floor (oracool/woods.h) as InitMonsters fills a dungeon floor: packs of the floor's roster over the open
  * ground, kept off both roads' ends (BuildWoodsLevel marks them), a little sparser than a dungeon - the woods are open.
  */
+/**
+ * @brief The woods' last floor's boss (user, 2026-10-14, the Mob Roster's notes): the kind WoodsBossKind rolled for this game,
+ * by the way on, dressed as a rift dresses its guardian - the King and the Butcher in their unique rows, the Reaper and Diablo
+ * as they are - and drawn at Diablo's height (WoodsBossSizePercent). Never immune to all three elements.
+ */
+void PlaceWoodsBoss()
+{
+	if (setlvlnum != SL_LAST_WOODS || oracool::WoodsBossKind() < 0 || !EnemyMonsterRoomLeft(1))
+		return;
+	const auto kind = static_cast<_monster_id>(oracool::WoodsBossKind());
+	const size_t typeIndex = GetMonsterTypeIndex(kind);
+	if (typeIndex == LevelMonsterTypeCount)
+		return;
+	const Point spot = oracool::WoodsBossSpot();
+	if (dMonster[spot.x][spot.y] != 0 || IsTileSolid(spot))
+		return;
+	Monster &monster = Monsters[ActiveMonsters[ActiveMonsterCount++]];
+	dMonster[spot.x][spot.y] = monster.getId() + 1;
+	InitMonster(monster, Direction::South, typeIndex, spot, /*ordinary=*/false);
+	std::optional<UniqueMonsterType> unique;
+	if (kind == MT_SKING)
+		unique = UniqueMonsterType::SkeletonKing;
+	else if (kind == MT_CLEAVER)
+		unique = UniqueMonsterType::Butcher;
+	if (unique) {
+		size_t minionType = typeIndex;
+		for (size_t i = 0; i < LevelMonsterTypeCount && *unique == UniqueMonsterType::SkeletonKing; i++) {
+			if (IsSkel(LevelMonsterTypes[i].type) && !LevelMonsterTypes[i].minionOnly) {
+				minionType = i;
+				break;
+			}
+		}
+		PrepareUniqueMonst(monster, *unique, minionType, 0, UniqueMonstersData[static_cast<size_t>(*unique)]);
+	}
+	constexpr uint16_t AllThree = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
+	if ((monster.resistance & AllThree) == AllThree)
+		monster.resistance = oracool::DemoteImmunitiesToResistances(monster.resistance) | (monster.resistance & IMMUNE_ACID);
+}
+
 void PlaceWoodsMonsters()
 {
 	if (!setlevel || !IsOrclActLevel(setlvlnum))
@@ -907,7 +946,11 @@ void PlaceWoodsMonsters()
 	// The woods a little sparser than a dungeon floor, they are open; their caves as a dungeon floor.
 	// Champions and the Dread boss first, as a floor places them, for the scatter's cap to count them (InitMonsters).
 	PlaceLesserUniques();
-	PlaceEndgameBoss();
+	// The last floor's boss is the user's (PlaceWoodsBoss); the caves keep the Dread boss of a dungeon floor.
+	if (setlvlnum == SL_LAST_WOODS)
+		PlaceWoodsBoss();
+	else
+		PlaceEndgameBoss();
 	int numplacemonsters = na / (IsWoodsCaveLevel(setlvlnum) ? 30 : 36) * *sgOptions.Oracool.monsterDensityPercent / 100;
 	const size_t scatterCap = MaxEnemyMonsters - 10;
 	if (ActiveMonsterCount >= scatterCap)
@@ -933,6 +976,9 @@ void PlaceWoodsMonsters()
 		for (int t = -2; t < 2; t++)
 			DoUnVision(arrival + Displacement { s, t }, 15);
 	}
+	// Every kind brought up to the floor's rung, the boss to his (oracool::ScaleWoodsMonster).
+	for (size_t i = 0; i < ActiveMonsterCount; i++)
+		oracool::ScaleWoodsMonster(Monsters[ActiveMonsters[i]]);
 }
 
 void PlaceRiftMonsters()
@@ -2364,7 +2410,7 @@ void MonsterDeath(Monster &monster)
 {
 	monster.var1++;
 	// A rift's Diablo dies as any monster does: no camera pan, no ending (oracool/rift.h).
-	if (monster.type().type == MT_DIABLO && !oracool::InRift()) {
+	if (monster.type().type == MT_DIABLO && !oracool::InRift() && !oracool::IsWoodsBoss(monster)) {
 		if (monster.position.tile.x < ViewPosition.x) {
 			ViewPosition.x--;
 		} else if (monster.position.tile.x > ViewPosition.x) {
@@ -2489,6 +2535,8 @@ void SpawnSkeleton(Point position, Direction dir)
 	Monster *skeleton = AddSkeleton(position, dir, true);
 	if (skeleton != nullptr && oracool::InRift())
 		oracool::ScaleRiftMonster(*skeleton); // a rift Leoric's raised dead fight at the rift's scale (round 21 audit)
+	else if (skeleton != nullptr)
+		oracool::ScaleWoodsMonster(*skeleton); // and the woods King's at the floor's rung
 	if (skeleton != nullptr)
 		StartSpecialStand(*skeleton, dir);
 }
@@ -4316,18 +4364,17 @@ void GetLevelMTypes()
 		// Twice a floor's budget: the Caves' and Hell's big sprites let only two or three kinds into 4000 on rungs 9-13
 		// (OracoolAudit.WoodsRosterHasFourKindsOnEveryRung); the figure is 1996's memory, not a limit of today's.
 		constexpr int WoodsImageBudget = 8000;
-		// The woods' last floor guards its boss (D10): its roster leads with a kind some champion is made of, so the Dread boss
-		// has a body to wear (PlaceEndgameBoss takes its row from the loaded kinds).
-		if (setlvlnum == SL_LAST_WOODS) {
-			const int start = nt > 0 ? GenerateRnd(nt) : 0;
-			for (int k = 0; k < nt; k++) {
-				const int i = (start + k) % nt; // from a random place in the list: not always the same kind on a rung
-				if (!oracool::IsChampionKind(typelist[i]) || MonstersData[typelist[i]].image > WoodsImageBudget - monstimgtot)
-					continue;
-				AddMonsterType(typelist[i], PLACE_SCATTER);
-				typelist[i] = typelist[--nt];
-				break;
-			}
+		// The woods' last floor guards its boss (D10): since 2026-10-14 one of the user's four (oracool::WoodsBossKind), loaded
+		// here off the floor's image budget as a rift's guardian is - Diablo's or the Reaper's sheets would leave no room for the
+		// roster. A Skeleton King gets one of the user's skeletons to raise, not scattered (PlaceWoodsMonsters scatters
+		// PLACE_SCATTER only).
+		if (setlvlnum == SL_LAST_WOODS && oracool::WoodsBossKind() >= 0) {
+			const int budgetBeforeBoss = monstimgtot;
+			const auto bossKind = static_cast<_monster_id>(oracool::WoodsBossKind());
+			AddMonsterType(bossKind, PLACE_SPECIAL);
+			if (bossKind == MT_SKING)
+				AddMonsterType(GenerateRnd(2) == 0 ? MT_WSKELAX : MT_WSKELSD, PLACE_SPECIAL);
+			monstimgtot = budgetBeforeBoss;
 		}
 		constexpr int WoodsRosterSize = 4;
 		int picked = 0;
@@ -5032,6 +5079,8 @@ Monster *SpawnRiftBossMinion(size_t typeIndex, Point near, bool rise)
 		return nullptr;
 	if (oracool::InRift())
 		oracool::ScaleRiftMonster(*minion);
+	else
+		oracool::ScaleWoodsMonster(*minion);
 	if (rise && IsSkel(minion->type().type))
 		StartSpecialStand(*minion, facing); // the climb out of the floor, as the Skeleton King's raised dead
 	else
@@ -5088,6 +5137,8 @@ void AddDoppelganger(Monster &monster)
 		// monster (round 22 audit, v1.12.247).
 		if (clone != nullptr && oracool::InRift())
 			oracool::ScaleRiftMonster(*clone);
+		else if (clone != nullptr)
+			oracool::ScaleWoodsMonster(*clone);
 	}
 }
 
@@ -5504,7 +5555,8 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 
 	// Diablo's death is the game's end everywhere but in a rift, where he is the guardian and dies
 	// like the Butcher does (oracool/rift.h).
-	if (monster.type().type == MT_DIABLO && !oracool::InRift())
+	// Nor on the woods' last floor, where he may be its boss (oracool/woods.h).
+	if (monster.type().type == MT_DIABLO && !oracool::InRift() && !oracool::IsWoodsBoss(monster))
 		DiabloDeath(monster, true);
 	else if (const _sfx_id minionCry = oracool::MinionDeathSfx(monster); minionCry != SFX_NONE)
 		PlaySfxLoc(minionCry, monster.position.tile); // the Fire Golem's explosion, not the golem's groan (v1.12.369)

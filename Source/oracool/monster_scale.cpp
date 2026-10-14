@@ -20,6 +20,7 @@
 #include "oracool/minions.h" // GetMinionAnim: the Fire Golem's run sheet
 #include "oracool/rift_bosses.h" // RiftBossSizePercent: a rift boss's own size, up to 250%
 #include "oracool/sprite_scale.h"
+#include "oracool/woods.h" // WoodsBossSizePercent: the woods boss at Diablo's height
 #include "player.h"
 
 namespace devilution::oracool {
@@ -397,6 +398,8 @@ unsigned DrawPercentOf(const Monster &monster)
 	if (GolemKindOf(monster) != GolemKind::None)
 		return 125;
 	if (const unsigned boss = RiftBossSizePercent(monster); boss != 0)
+		return boss;
+	if (const unsigned boss = WoodsBossSizePercent(monster); boss != 0)
 		return boss;
 	return MonsterSizePercent(GetMonsterSize(monster));
 }

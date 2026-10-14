@@ -27,6 +27,7 @@
 #include "levels/gendung.h"
 #include "levels/trigs.h"
 #include "monstdat.h"
+#include "monster.h" // ScaleWoodsMonster, the boss's spot
 #include "oracool/area_level.h"
 #include "oracool/borrowed_tiles.h" // the Caves' fences on the woods floors
 #include "oracool/oracool.h"       // AddGeneratedLevelWaypointSigil, EnsureWaypointGraphicsLoaded
@@ -1631,25 +1632,168 @@ int WoodsBandFloor()
 	return rung == 0 ? 1 : rung;
 }
 
-bool WoodsAcceptsMonster(const MonsterData &data)
+namespace {
+
+/**
+ * @brief The user's Mob Roster (Woods Levels Designer, 2026-10-14: "If i tick a mob, you can use it on Woods Act"): the 40 kinds
+ * ticked there that are not bosses. Only these walk the woods and their caves.
+ */
+constexpr _monster_id WoodsKinds[] = {
+	MT_NZOMBIE,
+	MT_RFALLSP, MT_DFALLSP, MT_YFALLSP, MT_BFALLSP,
+	MT_WSKELAX, MT_TSKELAX, MT_RSKELAX, MT_XSKELAX,
+	MT_RFALLSD, MT_DFALLSD, MT_YFALLSD, MT_BFALLSD,
+	MT_NSCAV, MT_BSCAV, MT_WSCAV, MT_YSCAV,
+	MT_WSKELBW, MT_TSKELBW, MT_RSKELBW, MT_XSKELBW,
+	MT_WSKELSD, MT_TSKELSD, MT_RSKELSD, MT_XSKELSD,
+	MT_LRDSAYTR,
+	MT_NGOATMC, MT_BGOATMC, MT_RGOATMC, MT_GGOATMC,
+	MT_NGOATBW, MT_BGOATBW, MT_RGOATBW, MT_GGOATBW,
+	MT_FAT, MT_TOAD,
+	MT_HORNED, MT_MUDRUN, MT_FROSTC, MT_OBLORD,
+	MT_SUCCUBUS,
+};
+
+/**
+ * @brief The bosses of the Mob Roster's notes ("use as boss. scaled up to be diablo size"), each with the size that makes him
+ * Diablo's height - the designer's sprite heights: Diablo 151 px, the King 118, the Butcher 69, the Reaper 86. The fifth note,
+ * oldboned, is on a kind left unticked (and Hellfire's unused one, with no sounds of its own), so it is not among them.
+ */
+struct WoodsBossRow {
+	_monster_id kind;
+	unsigned sizePercent;
+};
+constexpr WoodsBossRow WoodsBosses[] = {
+	{ MT_SKING, 128 },
+	{ MT_CLEAVER, 219 },
+	{ MT_REAPER, 176 },
+	{ MT_DIABLO, 100 },
+};
+
+bool WoodsKindAvailable(const MonsterData &data)
 {
 	if (data.availability == MonsterAvailability::Never)
 		return false;
-	if (gbIsSpawn && data.availability == MonsterAvailability::Retail)
+	return !(gbIsSpawn && data.availability == MonsterAvailability::Retail);
+}
+
+/** @brief How many floors @p data's own band stands from @p floor: 0 inside it. */
+int BandGap(const MonsterData &data, int floor)
+{
+	if (floor < data.minDunLvl)
+		return data.minDunLvl - floor;
+	if (floor > data.maxDunLvl)
+		return floor - data.maxDunLvl;
+	return 0;
+}
+
+/** @brief 100 * 1.12^@p gap, in whole percent - a floor's worth of life and damage per step. */
+int FloorStepPercent(int gap)
+{
+	return static_cast<int>(std::lround(100.0 * std::pow(1.12, static_cast<double>(gap))));
+}
+
+} // namespace
+
+bool WoodsAcceptsMonster(const MonsterData &data)
+{
+	if (!WoodsKindAvailable(data))
 		return false;
-	if (&data == &MonstersData[MT_HORKSPWN] || &data == &MonstersData[MT_GOLEM])
+	bool listed = false;
+	for (const _monster_id kind : WoodsKinds)
+		listed = listed || &data == &MonstersData[kind];
+	if (!listed)
 		return false;
-	// Not the quest and story bosses, and nothing that lives only as something else's summon.
-	for (const _monster_id boss : { MT_DIABLO, MT_NAKRUL, MT_SKING, MT_CLEAVER, MT_DEFILER }) {
-		if (&data == &MonstersData[boss])
-			return false;
-	}
+	// The nearest gap that gives four kinds: 0 where four of the user's kinds live on this rung, more where they thin out.
 	const int floor = WoodsBandFloor();
-	if (floor >= data.minDunLvl && floor <= data.maxDunLvl)
-		return true;
-	// The Hive's and the Crypt's monsters stand on the Caves' and Hell's rungs (area_level.cpp), as in a rift.
-	const int twin = floor + 2 * FloorsPerArea;
-	return floor > 2 * FloorsPerArea && twin >= data.minDunLvl && twin <= data.maxDunLvl;
+	int reach = 0;
+	for (;; reach++) {
+		int kinds = 0;
+		for (const _monster_id kind : WoodsKinds)
+			kinds += WoodsKindAvailable(MonstersData[kind]) && BandGap(MonstersData[kind], floor) <= reach ? 1 : 0;
+		if (kinds >= 4 || reach >= 32)
+			break;
+	}
+	return BandGap(data, floor) <= reach;
+}
+
+int WoodsBossKind()
+{
+	const uint32_t seed = Game.seed[WoodsFloors - 1];
+	if (seed == 0)
+		return -1;
+	// The seed's high bits: its low ones also build the floor, and a pick tied to them would tie the boss to the map.
+	return WoodsBosses[(seed >> 20) % std::size(WoodsBosses)].kind;
+}
+
+bool IsWoodsBoss(const Monster &monster)
+{
+	if (!setlevel || setlvlnum != SL_LAST_WOODS || monster.isPlayerMinion())
+		return false;
+	return monster.type().type == WoodsBossKind();
+}
+
+unsigned WoodsBossSizePercent(const Monster &monster)
+{
+	if (!IsWoodsBoss(monster))
+		return 0;
+	for (const WoodsBossRow &row : WoodsBosses) {
+		if (row.kind == monster.type().type)
+			return row.sizePercent;
+	}
+	return 0;
+}
+
+Point WoodsBossSpot()
+{
+	// Six steps in from the way on and further, the nearest open tile inside the fence: he guards the way out of the woods.
+	for (int radius = 6; radius <= 40; radius++) {
+		for (int dx = -radius; dx <= radius; dx++) {
+			for (int dy = -radius; dy <= radius; dy++) {
+				if (std::max(std::abs(dx), std::abs(dy)) != radius)
+					continue;
+				const Point p = WayOn + Displacement { dx, dy };
+				if (!InDungeonBounds(p) || !Inside(p) || IsTileSolid(p) || dMonster[p.x][p.y] != 0 || dPlayer[p.x][p.y] != 0
+				    || dObject[p.x][p.y] != 0 || InRiver(p) || InMouth(p))
+					continue;
+				return p;
+			}
+		}
+	}
+	return WayOn;
+}
+
+void ScaleWoodsMonster(Monster &monster)
+{
+	if (!setlevel || !IsOrclActLevel(setlvlnum) || monster.isPlayerMinion() || monster.type().type == MT_GOLEM)
+		return;
+	const int floor = WoodsBandFloor();
+	const bool boss = IsWoodsBoss(monster);
+	const MonsterData &data = monster.data();
+	int pct;
+	int lifePct;
+	int damagePct;
+	if (boss) {
+		// Set to the rung from his own floors, down as well as up (Diablo is a floor-16 monster, the Butcher a floor-one), not
+		// below a quarter; then a boss's share on top.
+		const int gap = floor - data.maxDunLvl;
+		pct = std::max(25, FloorStepPercent(gap));
+		lifePct = pct * 3;
+		damagePct = pct * 5 / 4;
+	} else {
+		const int gap = floor - data.maxDunLvl;
+		if (gap <= 0)
+			return;
+		pct = FloorStepPercent(gap);
+		lifePct = pct;
+		damagePct = pct;
+	}
+	const auto scale = [](int value, int percent) { return static_cast<int>(static_cast<int64_t>(value) * percent / 100); };
+	monster.maxHitPoints = std::max(64, scale(monster.maxHitPoints, lifePct));
+	monster.hitPoints = monster.maxHitPoints;
+	ScaleMonsterDamage(monster, damagePct, damagePct);
+	if (pct > 100)
+		monster.armorClass = static_cast<uint8_t>(std::min(255, monster.armorClass + (pct - 100) / 6));
 }
 
 bool IsChampionKind(int type)
@@ -2212,6 +2356,11 @@ Point StampWoodsCaveMouthForTest()
 void SetWoodsRungForTest(int floorIndex, int rung)
 {
 	Game.rung[std::clamp(floorIndex, 0, WoodsFloors - 1)] = static_cast<uint8_t>(rung);
+}
+
+void SetWoodsSeedForTest(int floorIndex, uint32_t seed)
+{
+	Game.seed[std::clamp(floorIndex, 0, WoodsFloors - 1)] = seed;
 }
 
 void LoadWoodsArtForTest()

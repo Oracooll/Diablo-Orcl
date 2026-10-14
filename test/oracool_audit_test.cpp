@@ -20775,20 +20775,43 @@ TEST(OracoolAudit, WoodsRosterHasFourKindsOnEveryRung)
 			EXPECT_GE(scatter, 4) << "rung " << rung << ": the woods' roster";
 			EXPECT_EQ(ActiveMonsterCount, savedActive + MAX_PLRS) << "the golem holding cells the summons need";
 		}
-		// The last floor (D10): a boss always, and a kind among its roster that a champion is made of, on every rung.
+		// The last floor (D10): the user's boss (Mob Roster notes, 2026-10-14) - one of four, rolled from the floor's seed, so
+		// new games see all four - loaded beside the roster on every rung, the King with a skeleton to raise.
 		setlvlnum = SL_LAST_WOODS;
 		currlevel = static_cast<uint8_t>(setlvlnum);
 		EXPECT_EQ(oracool::BossCountForLevel(), 1) << "the woods' last floor guards a boss";
-		for (int rung = 1; rung <= oracool::RungsPerDifficulty; rung++) {
-			oracool::SetWoodsRungForTest(3, rung);
-			ActiveMonsterCount = savedActive;
-			ResetLevelMonsterTypesForTest();
-			GetLevelMTypes();
-			bool champion = false;
-			for (size_t i = 0; i < LevelMonsterTypeCount && !champion; i++)
-				champion = oracool::IsChampionKind(LevelMonsterTypes[i].type);
-			EXPECT_TRUE(champion) << "rung " << rung << ": no champion kind for the boss to wear";
+		oracool::SetWoodsSeedForTest(3, 0);
+		EXPECT_EQ(oracool::WoodsBossKind(), -1) << "no boss before the floor has a seed";
+		std::set<int> bossKinds;
+		for (uint32_t seed = 1; seed < 64; seed++) {
+			oracool::SetWoodsSeedForTest(3, seed * 0x9E3779B1U | 1U);
+			const int kind = oracool::WoodsBossKind();
+			EXPECT_TRUE(IsAnyOf(static_cast<_monster_id>(kind), MT_SKING, MT_CLEAVER, MT_REAPER, MT_DIABLO)) << kind;
+			bossKinds.insert(kind);
 		}
+		EXPECT_EQ(bossKinds.size(), 4U) << "every one of the four comes up across new games";
+		for (const uint32_t seed : { 0x00000001U, 0x00100001U, 0x00200001U, 0x00300001U }) {
+			oracool::SetWoodsSeedForTest(3, seed);
+			const auto boss = static_cast<_monster_id>(oracool::WoodsBossKind());
+			for (int rung = 1; rung <= oracool::RungsPerDifficulty; rung++) {
+				oracool::SetWoodsRungForTest(3, rung);
+				ActiveMonsterCount = savedActive;
+				ResetLevelMonsterTypesForTest();
+				GetLevelMTypes();
+				bool loaded = false;
+				bool skeleton = false;
+				int scatter = 0;
+				for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+					loaded = loaded || LevelMonsterTypes[i].type == boss;
+					skeleton = skeleton || IsSkel(LevelMonsterTypes[i].type);
+					scatter += (LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0 ? 1 : 0;
+				}
+				EXPECT_TRUE(loaded) << "rung " << rung << ": the boss's kind " << boss << " not loaded";
+				EXPECT_TRUE(boss != MT_SKING || skeleton) << "rung " << rung << ": the King has nothing to raise";
+				EXPECT_GE(scatter, 4) << "rung " << rung << ": the boss crowded out the roster";
+			}
+		}
+		oracool::SetWoodsSeedForTest(3, 0);
 		oracool::SetWoodsRungForTest(3, 0);
 		setlvlnum = SL_ORCL_WOODS_2;
 		ResetLevelMonsterTypesForTest();

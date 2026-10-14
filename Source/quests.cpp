@@ -570,6 +570,9 @@ void CheckQuestKill(const Monster &monster, bool sendmsg)
 	// him there settles no quest (oracool/rift.h).
 	if (oracool::InRift())
 		return;
+	// Nor the woods' boss, who may be the King or the Butcher in body (oracool/woods.h).
+	if (oracool::IsWoodsBoss(monster))
+		return;
 
 	Player &myPlayer = *MyPlayer;
 
