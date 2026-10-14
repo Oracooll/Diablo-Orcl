@@ -575,7 +575,7 @@ void TickWeather(float dt)
 
 bool WeatherShows()
 {
-	return leveltype == DTYPE_TOWN && *sgOptions.Oracool.weather && Current != Weather::Clear && Intensity > 0.01F;
+	return IsUnderSky(leveltype) && *sgOptions.Oracool.weather && Current != Weather::Clear && Intensity > 0.01F;
 }
 
 // ---- Fog -----------------------------------------------------------------------------------------------------------------
@@ -695,7 +695,7 @@ void AdvanceSceneClock()
 		NextChange = -1;
 		NextFlash = -1;
 	}
-	if (leveltype == DTYPE_TOWN)
+	if (IsUnderSky(leveltype))
 		TickWeather(dt);
 	// The low health warning's heartbeat: a strong beat and a softer one after it, quicker as he weakens.
 	HeartSeverity = 0;
@@ -1155,7 +1155,7 @@ bool DissolvesOnDeath(const Monster &monster)
 
 void ApplyWeatherGround(const Surface &out, Point firstTile, Point firstTileBuffer)
 {
-	if (leveltype != DTYPE_TOWN || out.isIndexed() || !WeatherShows())
+	if (!IsUnderSky(leveltype) || out.isIndexed() || !WeatherShows())
 		return;
 	const int w = out.w();
 	const int h = out.h();
@@ -1655,7 +1655,7 @@ void ApplyAfterWorld(const Surface &world)
 	}
 
 	// Lightning far off on a rainy night: a double flash every half minute or so.
-	if (leveltype == DTYPE_TOWN && *sgOptions.Oracool.weather && Current == Weather::Rain && Intensity > 0.6F && TownIsDark()) {
+	if (IsUnderSky(leveltype) && *sgOptions.Oracool.weather && Current == Weather::Rain && Intensity > 0.6F && TownIsDark()) {
 		const float now = Now();
 		if (NextFlash < 0 || NextFlash - now > 60.0F)
 			NextFlash = now + 15.0F + WeatherRand() * 30.0F;

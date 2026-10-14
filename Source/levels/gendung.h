@@ -114,6 +114,15 @@ enum dungeon_type : int8_t {
 	DTYPE_NONE = -1,
 };
 
+/**
+ * @brief The level stands under the sky - Tristram, or the Orcl Act's woods (D8, 2026-10-14): the weather, its rain and
+ * puddles, the cloud shadows, the footprints and the fireflies are Tristram's and theirs.
+ */
+inline bool IsUnderSky(dungeon_type type)
+{
+	return type == DTYPE_TOWN || type == DTYPE_WOODS;
+}
+
 enum lvl_entry : uint8_t {
 	ENTRY_MAIN,
 	ENTRY_PREV,
