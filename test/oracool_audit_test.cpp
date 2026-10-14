@@ -21036,7 +21036,7 @@ TEST(OracoolPreview, DISABLED_WoodsMixedView)
 						continue;
 					}
 					// DrawCell: a borrowed piece's upright, or the native piece's micros above its floor; then the painted sprite.
-					if (oracool::IsBorrowedPiece(raw)) {
+					if (oracool::WoodsShellAt(tile) == 0 && oracool::IsBorrowedPiece(raw)) {
 						oracool::DrawBorrowedCell(out, tile, raw, at, -1, drawn == raw);
 					} else {
 						const bool solid = TileHasAny(drawn, TileProperties::Solid);
@@ -21054,7 +21054,6 @@ TEST(OracoolPreview, DISABLED_WoodsMixedView)
 					}
 					if (leveltype == DTYPE_WOODS) {
 						oracool::DrawWoodsTileSprite(out, tile, at, -1);
-						oracool::DrawWoodsRoofAfterTile(out, tile, at, -1);
 					}
 				}
 			}
@@ -21065,8 +21064,15 @@ TEST(OracoolPreview, DISABLED_WoodsMixedView)
 	renderAround(mouth + Displacement { 2, 1 }, "woods_mixed_mouth.png");
 	if (bridge != Point(0, 0))
 		renderAround(bridge, "woods_mixed_bridge.png");
-	if (oracool::WoodsHouseCountForTest() > 0)
+	if (oracool::WoodsHouseCountForTest() > 0) {
+		// The cottage whole, then gone as when the hero stands inside it: the Catacombs room under it.
 		renderAround(oracool::WoodsHouseInsideForTest(0) + Displacement { -2, -3 }, "woods_mixed_house.png");
+		oracool::WoodsShellState[0] = 0;
+		oracool::WoodsShellState[1] = 0;
+		renderAround(oracool::WoodsHouseInsideForTest(0) + Displacement { -2, -3 }, "woods_mixed_house_inside.png");
+		oracool::WoodsShellState[0] = 2;
+		oracool::WoodsShellState[1] = 2;
+	}
 	renderAround(oracool::WoodsArrival() + Displacement { 3, 0 }, "woods_mixed_gate.png");
 	oracool::SetWoodsCaveMouthFloorForTest(-1);
 
@@ -21093,6 +21099,24 @@ TEST(OracoolPreview, DISABLED_WoodsMixedView)
 	renderAround({ 17, 67 }, "town_cave_entrance.png");
 	// The whole town, for its rivers and bridges (the woods' river is the west one's cells, woods.cpp RiverPieces).
 	renderAround({ 48, 48 }, "town_overview.png", 6400, 3400);
+	// Any corners of town asked for: ORCL_TOWN_VIEWS="x,y;x,y" writes town_view_X_Y.png each.
+	if (const char *views = std::getenv("ORCL_TOWN_VIEWS"); views != nullptr) {
+		std::string list = views;
+		size_t pos = 0;
+		while (pos < list.size()) {
+			const size_t end = list.find(';', pos);
+			const std::string item = list.substr(pos, end == std::string::npos ? std::string::npos : end - pos);
+			const size_t comma = item.find(',');
+			if (comma != std::string::npos) {
+				const int vx = std::atoi(item.substr(0, comma).c_str());
+				const int vy = std::atoi(item.substr(comma + 1).c_str());
+				renderAround({ vx, vy }, ("town_view_" + std::to_string(vx) + "_" + std::to_string(vy) + ".png").c_str());
+			}
+			if (end == std::string::npos)
+				break;
+			pos = end + 1;
+		}
+	}
 	leveltype = DTYPE_WOODS;
 	PaletteRGB = savedPalette;
 	pDungeonCels = std::move(savedCels);

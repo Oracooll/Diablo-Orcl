@@ -1042,7 +1042,7 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 {
 	// A piece of another tileset (oracool/borrowed_tiles.h): its own picture, in its own set's colours - without its floor
 	// triangles on a woods floor, whose own ground is under it (a Caves fence on the grass).
-	if (const uint16_t piece = dPiece[tilePosition.x][tilePosition.y]; oracool::IsBorrowedPiece(piece)) {
+	if (const uint16_t piece = dPiece[tilePosition.x][tilePosition.y]; oracool::WoodsShellAt(tilePosition) == 0 && oracool::IsBorrowedPiece(piece)) {
 		oracool::DrawBorrowedCell(out, tilePosition, piece, targetBufferPosition, LightTableIndex, !FloorSmoothedThisFrame && oracool::WoodsDrawnPiece(tilePosition) == piece);
 		return;
 	}
@@ -1056,7 +1056,8 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 		tbl = GetPauseTRN();
 #endif
 
-	bool transparency = TileHasAny(levelPieceId, TileProperties::Transparent) && TransList[dTransVal[tilePosition.x][tilePosition.y]];
+	bool transparency = (TileHasAny(levelPieceId, TileProperties::Transparent) && TransList[dTransVal[tilePosition.x][tilePosition.y]])
+	    || oracool::WoodsShellSeeThrough(tilePosition); // a woods cottage the hero stands behind (oracool/woods.h)
 #ifdef _DEBUG
 	if ((SDL_GetModState() & KMOD_ALT) != 0)
 		transparency = false;
@@ -1577,6 +1578,9 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 			oracool::DrawWoodsTileSprite(out, tilePosition, targetBufferPosition, LightTableIndex);
 	}
 	LightTableIndex = dLight[tilePosition.x][tilePosition.y];
+	// Inside a woods house whose cottage stands whole over it: its figures, items and bodies are under the roof (oracool/woods.h).
+	if (oracool::WoodsShellCovers(tilePosition))
+		return;
 
 	int8_t bDead = dCorpse[tilePosition.x][tilePosition.y];
 	int8_t bMap = dTransVal[tilePosition.x][tilePosition.y];
@@ -1664,8 +1668,6 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 			}
 		}
 	}
-	// A woods house's roof, after its front-most tile (oracool/woods.h).
-	oracool::DrawWoodsRoofAfterTile(out, tilePosition, targetBufferPosition, LightTableIndex);
 }
 
 /**
@@ -1681,6 +1683,7 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 	// The woods' ground under every tile, the trees' included (oracool/woods.h): the true-colour textures in place of the
 	// town tileset's cels, at full brightness when the smooth pass darkens the floor after.
 	const bool woodsGround = oracool::WoodsArtActive(out);
+	oracool::UpdateWoodsShells(); // the cottages, whole or gone, for this frame
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < columns; j++) {
 			// A borrowed piece with no woods ground under it (a house's stone floor) draws its own floor.

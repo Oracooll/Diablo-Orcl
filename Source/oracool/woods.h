@@ -36,13 +36,49 @@ namespace devilution::oracool {
  */
 extern DVL_API_FOR_TEST uint16_t WoodsLookPiece[MAXDUNX][MAXDUNY];
 
-/** @brief The piece the renderer draws for @p tile: dPiece, or the woods' look piece where it has one. */
+/**
+ * @brief The houses' outsides (woods.cpp CottageShell): a Tristram cottage's town piece over each of a house's tiles, 0 for none;
+ * the house it belongs to; and each house's state this frame - 0 gone (the hero is inside), 1 see-through (he is behind it),
+ * 2 whole. UpdateWoodsShells sets the states, once a frame.
+ */
+extern DVL_API_FOR_TEST uint16_t WoodsShell[MAXDUNX][MAXDUNY];
+extern DVL_API_FOR_TEST int8_t WoodsShellOwner[MAXDUNX][MAXDUNY];
+extern DVL_API_FOR_TEST uint8_t WoodsShellState[2];
+
+/** @brief The cottage's piece drawn on @p tile this frame, or 0. */
+inline uint16_t WoodsShellAt(Point tile)
+{
+	if (leveltype != DTYPE_WOODS)
+		return 0;
+	const uint16_t shell = WoodsShell[tile.x][tile.y];
+	const int owner = WoodsShellOwner[tile.x][tile.y];
+	return shell != 0 && owner >= 0 && owner < 2 && WoodsShellState[owner] != 0 ? shell : 0;
+}
+
+/** @brief The cottage on @p tile is drawn see-through this frame. */
+inline bool WoodsShellSeeThrough(Point tile)
+{
+	const int owner = WoodsShellOwner[tile.x][tile.y];
+	return WoodsShellAt(tile) != 0 && WoodsShellState[owner] == 1;
+}
+
+/** @brief The piece the renderer draws for @p tile: a cottage's, else the woods' look piece where it has one, else dPiece. */
 inline uint16_t WoodsDrawnPiece(Point tile)
 {
-	if (leveltype == DTYPE_WOODS && WoodsLookPiece[tile.x][tile.y] != 0)
-		return WoodsLookPiece[tile.x][tile.y];
+	if (leveltype == DTYPE_WOODS) {
+		if (const uint16_t shell = WoodsShellAt(tile); shell != 0)
+			return shell;
+		if (WoodsLookPiece[tile.x][tile.y] != 0)
+			return WoodsLookPiece[tile.x][tile.y];
+	}
 	return dPiece[tile.x][tile.y];
 }
+
+/** @brief The cottages' states for this frame, from where the hero stands. Once a frame, before the floor is drawn. */
+void UpdateWoodsShells();
+
+/** @brief A whole cottage stands over @p tile, inside its house: what stands there is hidden under its roof. */
+bool WoodsShellCovers(Point tile);
 
 /** @brief The Mixed look is on for the floor last built: painted trees and ground details over Tristram's tiles. */
 bool WoodsSpritesOverTiles(const Surface &out);
@@ -64,12 +100,6 @@ Point WoodsTownReturnTile();
  * floor 1; on a woods floor, its arrival road leads back. True when a level change was started.
  */
 bool CheckWoodsEdges();
-
-/**
- * @brief The houses' roofs (oracool/woods.cpp House): each drawn after its house's front-most tile, so all inside it is under
- * the roof and all in front of it over; gone while the hero is inside, half while he stands behind it.
- */
-void DrawWoodsRoofAfterTile(const Surface &out, Point tile, Point target, int light);
 
 /** @brief After a woods floor's items are made: on its first visit, what its houses hold. */
 void FinishWoodsLevel(bool fresh);

@@ -42,6 +42,9 @@
 namespace devilution::oracool {
 
 uint16_t WoodsLookPiece[MAXDUNX][MAXDUNY];
+uint16_t WoodsShell[MAXDUNX][MAXDUNY];
+int8_t WoodsShellOwner[MAXDUNX][MAXDUNY];
+uint8_t WoodsShellState[2] = { 2, 2 };
 
 namespace {
 
@@ -183,14 +186,29 @@ uint8_t RiverCell[DMAXX][DMAXY];
  */
 struct House {
 	int x0, y0, x1, y1; // the ring of wall cells, inclusive
-	int doorX;          // the arch, in the south wall (row y1)
+	int doorY;          // the arch, in the east wall (column x1)
 };
 constexpr int MaxHouses = 2;
 std::array<House, MaxHouses> Houses;
 int HouseCount = 0;
-/** @brief Each house's roof, 0 gone to 256 whole, eased toward its target each frame. */
-std::array<int, MaxHouses> RoofAlpha {};
-std::array<uint32_t, MaxHouses> RoofTicks {};
+
+/**
+ * @brief What a house looks like from outside (user, 2026-10-14: "Game drawn roofs dont look good. We remove them. We do have
+ * vanilla roofs in tristram houses. Can we use those?"): Tristram's own hip-roofed cottage, its town tiles (36..43, 64..69) as
+ * the town lays them - roof, walls, door and the rock beside it. Drawn in place of the house's tiles while the hero is outside
+ * it, see-through while he stands behind it, gone while he is inside, where the Catacombs room under it shows. Its walls stand
+ * on the room's ring: the cottage's walls are 38..42 by 64..68, its door on the east face at 66..67. Rows y, then x.
+ */
+constexpr uint16_t CottageShell[6][8] = {
+	{ 230, 231, 476, 477, 218, 218, 484, 485 },
+	{ 232, 233, 478, 479, 218, 218, 486, 487 },
+	{ 465, 25, 218, 218, 218, 218, 480, 481 },
+	{ 466, 467, 218, 218, 218, 218, 482, 483 },
+	{ 457, 458, 468, 469, 472, 473, 453, 454 },
+	{ 459, 460, 470, 471, 474, 475, 455, 456 },
+};
+/** @brief The cottage block's place in a house's 5 x 4 cells: two tiles in from the west, two from the north. */
+constexpr Displacement CottageShellOffset { 2, 2 };
 
 /** @brief -1: the seed decides whether a floor has a river; 0 or 1: the test hook's answer. */
 int RiverForced = -1;
@@ -378,10 +396,11 @@ void LayPath(Point from, Point to, int width, uint32_t seed)
 
 TreeKind PickTree(Material ground, uint32_t h)
 {
+	(void)ground;
+	// The mix the user set on the Orcl Testing Ground (2026-10-14): large oak 10, tall pine 12, small oak 12, small pine 2, large
+	// dead 12, small dead 11 - in the groves and in the open alike.
 	const float u = Unit(h);
-	if (ground == Forest)
-		return u < 0.30F ? OakLarge : u < 0.52F ? PineTall : u < 0.70F ? OakSmall : u < 0.84F ? PineSmall : u < 0.94F ? DeadLarge : DeadSmall;
-	return u < 0.30F ? OakSmall : u < 0.55F ? PineSmall : u < 0.75F ? OakLarge : u < 0.88F ? DeadSmall : u < 0.95F ? PineTall : DeadLarge;
+	return u < 0.169F ? OakLarge : u < 0.373F ? PineTall : u < 0.576F ? OakSmall : u < 0.610F ? PineSmall : u < 0.814F ? DeadLarge : DeadSmall;
 }
 
 /** @brief Every walkable tile reachable from the arrival; the rest of the open ground becomes thicket. */
@@ -570,39 +589,35 @@ void PlanHouses(uint32_t seed)
 	HouseCount = 0;
 	const Point keepAway[] = { Arrival, WayOn, MouthOnFloor ? MouthEntrance : Arrival, Arrival + Displacement { -2, -2 } };
 	const int want = 1 + static_cast<int>(Hash(seed, 9, 9) % 2);
-	// Every position, from a seeded start: random spots seldom missed both roads, the groves and the river at once (one house
-	// on six floors).
-	const int positions = (DMAXX - 13) * (DMAXY - 13);
+	// Every position, from a seeded start: random spots seldom missed both roads, the groves and the river at once.
+	constexpr int W = 5; // the cottage's block, in cells
+	constexpr int D = 4;
+	const int positions = (DMAXX - 12) * (DMAXY - 12);
 	const int start = static_cast<int>(Hash(seed, 0x40E, 1) % static_cast<uint32_t>(positions));
 	for (int k = 0; k < positions && HouseCount < want; k++) {
 		const int at = (start + k * 7919) % positions; // a stride prime to the count: every position once, scattered
-		const uint32_t h = Hash(seed, static_cast<uint32_t>(at), 0x0405EU);
-		const int w = 4 + static_cast<int>(h % 2);
-		const int d = 4;
-		const int mx0 = 4 + at % (DMAXX - 13);
-		const int my0 = 4 + at / (DMAXX - 13);
-		if (mx0 + w + 1 >= DMAXX - 3 || my0 + d + 2 >= DMAXY - 3)
+		const int bx = 4 + at % (DMAXX - 12);
+		const int by = 4 + at / (DMAXX - 12);
+		if (bx + W + 2 >= DMAXX - 3 || by + D + 1 >= DMAXY - 3)
 			continue;
 		bool fits = true;
-		// The house, a cell round it, and one more in front of its door: no road, grove, river or fence there; a stray tree
-		// is cleared (requiring none, no house fitted on six floors in six).
-		for (int my = my0 - 1; my <= my0 + d + 1 && fits; my++)
-			for (int mx = mx0 - 1; mx <= mx0 + w && fits; mx++)
+		// The block, a cell round it, and one more in front of the east door: no road, grove, river or fence there.
+		for (int my = by - 1; my <= by + D && fits; my++)
+			for (int mx = bx - 1; mx <= bx + W + 1 && fits; mx++)
 				fits = CellBuildable(mx, my) && FenceCell[mx][my] == 0;
-		const Point centre { 16 + 2 * mx0 + w, 16 + 2 * my0 + d };
+		const Point centre { 16 + 2 * bx + W, 16 + 2 * by + D };
 		for (const Point p : keepAway)
 			fits = fits && centre.WalkingDistance(p) > 10;
 		if (MouthOnFloor)
 			fits = fits && std::abs(centre.x - (MouthOrigin.x + MouthWidth / 2)) + std::abs(centre.y - (MouthOrigin.y + MouthHeight / 2)) > 14;
 		for (int i = 0; i < HouseCount && fits; i++)
-			fits = std::abs(Houses[i].x0 - mx0) > w + 3 || std::abs(Houses[i].y0 - my0) > d + 3;
+			fits = std::abs(Houses[i].x0 - bx) > W + 3 || std::abs(Houses[i].y0 - by) > D + 3;
 		if (!fits)
 			continue;
-		RoofAlpha[HouseCount] = 256;
-		House &house = Houses[HouseCount++];
-		house = { mx0, my0, mx0 + w - 1, my0 + d - 1, mx0 + 1 + static_cast<int>((h >> 20) % static_cast<uint32_t>(w - 2)) };
-		for (int my = my0 - 1; my <= my0 + d + 1; my++)
-			for (int mx = mx0 - 1; mx <= mx0 + w; mx++)
+		// The ring under the cottage's walls (38..42 by 64..68 of its block 34..43 by 62..69): cells 2..4 by 1..3 of the block.
+		Houses[HouseCount++] = { bx + 2, by + 1, bx + 4, by + 3, by + 2 };
+		for (int my = by - 1; my <= by + D; my++)
+			for (int mx = bx - 1; mx <= bx + W + 1; mx++)
 				if (mx >= 0 && my >= 0 && mx < DMAXX && my < DMAXY)
 					ClearCell(mx, my);
 	}
@@ -627,12 +642,12 @@ int HouseMegatile(const House &house, int mx, int my, bool &outside)
 		return 9;
 	if (south && east)
 		return 6;
-	if (west || east)
+	if (east)
+		return my == house.doorY ? 4 : 1; // the arch where the cottage's door is
+	if (west)
 		return 1;
-	if (north)
+	if (north || south)
 		return 2;
-	if (south)
-		return mx == house.doorX ? 5 : 2;
 	return 3;
 }
 
@@ -727,6 +742,8 @@ void PlanFences(uint32_t seed)
 /** @brief The planned houses laid over the built floor: each cell the Catacombs' pieces, grass under the front walls' outer halves. */
 void LayHouses()
 {
+	std::memset(WoodsShell, 0, sizeof(WoodsShell));
+	std::memset(WoodsShellOwner, -1, sizeof(WoodsShellOwner));
 	for (int i = 0; i < HouseCount; i++) {
 		const House &house = Houses[i];
 		for (int my = house.y0; my <= house.y1; my++) {
@@ -749,6 +766,17 @@ void LayHouses()
 						WoodsLookPiece[x][y] = 0;
 					dPiece[x][y] = id;
 				}
+			}
+		}
+		// The cottage over it: its block from two tiles west and north of the ring's west and north walls.
+		const Point origin { 16 + 2 * (house.x0 - 2) + CottageShellOffset.deltaX, 16 + 2 * (house.y0 - 1) + CottageShellOffset.deltaY };
+		for (int ry = 0; ry < 6; ry++) {
+			for (int rx = 0; rx < 8; rx++) {
+				const Point tile = origin + Displacement { rx, ry };
+				if (!InDungeonBounds(tile))
+					continue;
+				WoodsShell[tile.x][tile.y] = CottageShell[ry][rx];
+				WoodsShellOwner[tile.x][tile.y] = static_cast<int8_t>(i);
 			}
 		}
 	}
@@ -809,7 +837,8 @@ void HideDeepForest()
 			}
 	for (int y = 0; y < MAXDUNY; y++)
 		for (int x = 0; x < MAXDUNX; x++)
-			TreeHidden[x][y] = depth[x][y] >= 3 && ((x | y) & 1) != 0;
+			// One in two (the checker of x + y): at a quarter of the painted size (v1.201.017) the trees no longer meet at one in four.
+			TreeHidden[x][y] = depth[x][y] >= 3 && ((x + y) & 1) != 0;
 }
 
 void Generate(uint32_t seed)
@@ -837,7 +866,8 @@ void Generate(uint32_t seed)
 			}
 			// Moisture picks the grass; groves are their own noise.
 			const float moist = ValueNoise(x, y, 11.0F, seed ^ 0x3331U);
-			Ground[x][y] = moist > 0.64F ? GrassDark : moist < 0.32F ? GrassDry : Grass;
+			// The grasses as the user shared them on the Testing Ground (53 grass, 44 dark, 15 dry): about half, four in ten, one in ten.
+			Ground[x][y] = moist > 0.56F ? GrassDark : moist < 0.30F ? GrassDry : Grass;
 			const float grove = ValueNoise(x, y, 8.0F, seed ^ 0x6A7EU);
 			const int edge = std::min({ x - Lo, y - Lo, Hi - x, Hi - y });
 			// Thinner than at first (user, 2026-10-14: "reduce number of trees on woods levels, and outline levels borders
@@ -970,11 +1000,10 @@ bool BuiltVanilla = true;
 bool BuiltMixed = false;
 
 /**
- * @brief A PNG from the archives, shrunk by @p factor (each pixel the average of a factor x factor block): 2 for the sprites
- * (the art is drawn at twice the game's size, D6), 4 for the ground (user, 2026-10-14: the grass, dirt and ground "seem a bit
- * oversized ... shrink them to 50%" - every stone and blade half as large beside the heroes as at the halving).
+ * @brief A PNG from the archives at @p percent of its painted size, each pixel the average of the block of the painting it
+ * covers (an area resample, any ratio). A sprite pixel is opaque where at least half its block was.
  */
-bool LoadShrunk(const char *path, Picture &out, bool sprite, int factor)
+bool LoadScaled(const char *path, Picture &out, bool sprite, int percent)
 {
 	SDL_Surface *png = LoadPNG(path);
 	if (png == nullptr) {
@@ -985,16 +1014,20 @@ bool LoadShrunk(const char *path, Picture &out, bool sprite, int factor)
 	SDL_FreeSurface(png);
 	if (rgba == nullptr)
 		return false;
-	out.w = rgba->w / factor;
-	out.h = rgba->h / factor;
+	out.w = std::max(1, (rgba->w * percent + 50) / 100);
+	out.h = std::max(1, (rgba->h * percent + 50) / 100);
 	out.px.assign(static_cast<size_t>(out.w) * out.h, 0);
 	const auto *bytes = static_cast<const uint8_t *>(rgba->pixels);
 	for (int y = 0; y < out.h; y++) {
+		const int sy0 = y * rgba->h / out.h;
+		const int sy1 = std::max(sy0 + 1, (y + 1) * rgba->h / out.h);
 		for (int x = 0; x < out.w; x++) {
+			const int sx0 = x * rgba->w / out.w;
+			const int sx1 = std::max(sx0 + 1, (x + 1) * rgba->w / out.w);
 			int r = 0, g = 0, b = 0, n = 0;
-			for (int sy = 0; sy < factor; sy++) {
-				for (int sx = 0; sx < factor; sx++) {
-					const uint8_t *q = bytes + static_cast<size_t>(factor * y + sy) * rgba->pitch + static_cast<size_t>(factor * x + sx) * 4;
+			for (int sy = sy0; sy < sy1; sy++) {
+				for (int sx = sx0; sx < sx1; sx++) {
+					const uint8_t *q = bytes + static_cast<size_t>(sy) * rgba->pitch + static_cast<size_t>(sx) * 4;
 					if (sprite && q[3] < 128)
 						continue;
 					r += q[0];
@@ -1003,8 +1036,8 @@ bool LoadShrunk(const char *path, Picture &out, bool sprite, int factor)
 					n++;
 				}
 			}
-			// A sprite pixel is opaque where most of its four were; the ground is always opaque.
-			if (n == 0 || (sprite && 2 * n < factor * factor))
+			// The ground is always opaque.
+			if (n == 0 || (sprite && 2 * n < (sx1 - sx0) * (sy1 - sy0)))
 				continue;
 			out.px[static_cast<size_t>(y) * out.w + x] = 0xFF000000U | (static_cast<uint32_t>(r / n) << 16) | (static_cast<uint32_t>(g / n) << 8) | static_cast<uint32_t>(b / n);
 		}
@@ -1026,20 +1059,28 @@ bool LoadShrunk(const char *path, Picture &out, bool sprite, int factor)
 	return true;
 }
 
+/** @brief The ground details' sheet, in percent of the painting: 25, a 16 px cell (the Testing Ground's 24-30). */
+constexpr int ScatterPercent = 25;
+
 void LoadArt()
 {
 	if (ArtTried)
 		return;
 	ArtTried = true;
 	bool ok = true;
+	// The scales the user chose on the Orcl Testing Ground (2026-10-14, its settings/current), in percent of the painted art:
+	// the grasses at 13-14, the forest floor at 16, the dirt road kept at 25; every tree at 25; the ground details at 25 (the
+	// page's 24-30 per detail, one sheet here).
+	constexpr int GroundPercent[MaterialCount] = { 14, 13, 14, 25, 16 }; // Grass, GrassDark, GrassDry, Path, Forest
+	constexpr int TreePercent = 25;
 	for (int m = 0; m < MaterialCount; m++)
-		ok = LoadShrunk(GroundFiles[m], GroundArt[m], false, 4) && ok;
+		ok = LoadScaled(GroundFiles[m], GroundArt[m], false, GroundPercent[m]) && ok;
 	for (int t = 1; t < TreeKindCount; t++) {
-		ok = LoadShrunk(TreeFiles[t].path, TreeArt[t], true, 2) && ok;
-		TreeArt[t].footX = TreeFiles[t].footX / 2;
-		TreeArt[t].footY = TreeFiles[t].footY / 2;
+		ok = LoadScaled(TreeFiles[t].path, TreeArt[t], true, TreePercent) && ok;
+		TreeArt[t].footX = TreeFiles[t].footX * TreePercent / 100;
+		TreeArt[t].footY = TreeFiles[t].footY * TreePercent / 100;
 	}
-	ok = LoadShrunk("levels\\woods\\scatter_sheet.png", ScatterArt, true, 2) && ok;
+	ok = LoadScaled("levels\\woods\\scatter_sheet.png", ScatterArt, true, ScatterPercent) && ok;
 	ArtLoaded = ok;
 }
 
@@ -1453,138 +1494,32 @@ bool InsideHouse(const House &house, Point tile)
 	return tile.x > wx0 && tile.x < wx1 && tile.y > wy0 && tile.y < wy1;
 }
 
-struct ScreenPoint {
-	float x;
-	float y;
-};
-
-/** @brief A convex polygon in @p colour, its alpha @p alpha of 256, with a thatch or plank grain along @p grain (0 none). */
-void FillRoofFace(const Surface &out, const ScreenPoint *pts, int n, uint32_t colour, int alpha, int grain, int brightness)
-{
-	float minY = pts[0].y;
-	float maxY = pts[0].y;
-	for (int i = 1; i < n; i++) {
-		minY = std::min(minY, pts[i].y);
-		maxY = std::max(maxY, pts[i].y);
-	}
-	const int y0 = std::max(0, static_cast<int>(std::ceil(minY)));
-	const int y1 = std::min(out.h() - 1, static_cast<int>(std::floor(maxY)));
-	for (int y = y0; y <= y1; y++) {
-		const float fy = static_cast<float>(y) + 0.5F;
-		float left = 1e9F;
-		float right = -1e9F;
-		for (int i = 0; i < n; i++) {
-			const ScreenPoint a = pts[i];
-			const ScreenPoint b = pts[(i + 1) % n];
-			if ((a.y <= fy && b.y > fy) || (b.y <= fy && a.y > fy)) {
-				const float x = a.x + (fy - a.y) * (b.x - a.x) / (b.y - a.y);
-				left = std::min(left, x);
-				right = std::max(right, x);
-			}
-		}
-		if (left > right)
-			continue;
-		const int x0 = std::max(0, static_cast<int>(std::ceil(left)));
-		const int x1 = std::min(out.w() - 1, static_cast<int>(std::floor(right)));
-		uint32_t *row = out.at<uint32_t>(0, y);
-		for (int x = x0; x <= x1; x++) {
-			int r = static_cast<int>((colour >> 16) & 0xFF);
-			int g = static_cast<int>((colour >> 8) & 0xFF);
-			int b = static_cast<int>(colour & 0xFF);
-			if (grain != 0) {
-				// Courses of thatch or planks: a dark line every few pixels across the grain, a little noise in between.
-				const int along = grain > 0 ? x + 2 * y : x - 2 * y;
-				const int course = ((along % 7) + 7) % 7;
-				const int noise = static_cast<int>(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), 0x7EA7U) % 25U) - 12;
-				const int shade = (course == 0 ? -34 : 0) + noise;
-				r = std::clamp(r + shade, 0, 255);
-				g = std::clamp(g + shade, 0, 255);
-				b = std::clamp(b + shade, 0, 255);
-			}
-			r = r * brightness >> 8;
-			g = g * brightness >> 8;
-			b = b * brightness >> 8;
-			const uint32_t bg = row[x];
-			const auto mix = [alpha](int c, uint32_t under) { return (c * alpha + static_cast<int>(under & 0xFF) * (256 - alpha)) >> 8; };
-			row[x] = (static_cast<uint32_t>(std::max(mix(r, bg >> 16), 1)) << 16) | (static_cast<uint32_t>(std::max(mix(g, bg >> 8), 1)) << 8)
-			    | static_cast<uint32_t>(std::max(mix(b, bg), 1));
-		}
-	}
-}
-
 } // namespace
 
-void DrawWoodsRoofAfterTile(const Surface &out, Point tile, Point target, int light)
+void UpdateWoodsShells()
 {
-	if (leveltype != DTYPE_WOODS || !setlevel || out.isIndexed())
+	for (int i = 0; i < MaxHouses; i++)
+		WoodsShellState[i] = 2;
+	if (leveltype != DTYPE_WOODS || !setlevel || MyPlayer == nullptr || !MyPlayer->isOnActiveLevel())
 		return;
+	const Point hero = MyPlayer->position.tile;
 	for (int i = 0; i < HouseCount; i++) {
 		const House &house = Houses[i];
 		int wx0, wy0, wx1, wy1;
 		HouseCorners(house, wx0, wy0, wx1, wy1);
-		// Drawn after the house's front-most tile: everything inside it under the roof, everything in front of it over.
-		if (tile != Point { wx1, wy1 })
-			continue;
-		// The fade: gone while the hero is inside, half while he stands behind it, whole otherwise; a quarter second either way.
-		int targetAlpha = 256;
-		if (MyPlayer != nullptr && MyPlayer->isOnActiveLevel()) {
-			const Point hero = MyPlayer->position.tile;
-			if (InsideHouse(house, hero))
-				targetAlpha = 0;
-			else if (hero.x >= wx0 - 5 && hero.x <= wx1 && hero.y >= wy0 - 5 && hero.y <= wy1 && (hero.x < wx0 || hero.y < wy0))
-				targetAlpha = 110;
-		}
-		const uint32_t now = SDL_GetTicks();
-		const int step = static_cast<int>(std::min<uint32_t>(now - RoofTicks[i], 100U)) * 256 / 250;
-		RoofTicks[i] = now;
-		if (step > 0) {
-			if (RoofAlpha[i] < targetAlpha)
-				RoofAlpha[i] = std::min(targetAlpha, RoofAlpha[i] + step);
-			else
-				RoofAlpha[i] = std::max(targetAlpha, RoofAlpha[i] - step);
-		}
-		const int alpha = RoofAlpha[i];
-		if (alpha <= 0)
-			continue;
-		const int brightness = light < 0 ? 256 : (light >= LightsMax ? 0 : SmoothLevelBrightness(static_cast<uint8_t>(light)));
-		if (brightness <= 0)
-			continue;
-		// World corners to the screen: the anchor tile's top vertex, raised by a height in pixels.
-		const ScreenPoint top { static_cast<float>(target.x + 32), static_cast<float>(target.y - 31) };
-		const auto at = [&](float wx, float wy, float height) {
-			return ScreenPoint { top.x + ((wx - wx1) - (wy - wy1)) * 32.0F, top.y + ((wx - wx1) + (wy - wy1)) * 16.0F - height };
-		};
-		constexpr float Eave = 96.0F;  // the Catacombs' wall tops (DISABLED_WoodsMixedView)
-		constexpr float Ridge = 64.0F; // above the eaves
-		constexpr float Over = 0.35F;  // the eaves' overhang, in tiles
-		const float ax0 = static_cast<float>(wx0) - Over;
-		const float ay0 = static_cast<float>(wy0) - Over;
-		const float ax1 = static_cast<float>(wx1) + Over;
-		const float ay1 = static_cast<float>(wy1) + Over;
-		// Weathered thatch and old timber, as dark as Tristram's own roofs (the first preview's straw read mustard on the woods).
-		constexpr uint32_t ThatchLit = 0x6A5838;
-		constexpr uint32_t ThatchShade = 0x463A26;
-		constexpr uint32_t Gable = 0x4A3424;
-		if (wx1 - wx0 >= wy1 - wy0) {
-			// The ridge along x: the north slope, then the south slope over it, then the east gable.
-			const float mid = (static_cast<float>(wy0) + static_cast<float>(wy1)) / 2.0F;
-			const ScreenPoint northSlope[4] = { at(ax0, ay0, Eave), at(ax1, ay0, Eave), at(ax1, mid, Eave + Ridge), at(ax0, mid, Eave + Ridge) };
-			const ScreenPoint southSlope[4] = { at(ax0, mid, Eave + Ridge), at(ax1, mid, Eave + Ridge), at(ax1, ay1, Eave), at(ax0, ay1, Eave) };
-			const ScreenPoint eastGable[3] = { at(ax1 - Over, ay0 + Over, Eave), at(ax1 - Over, mid, Eave + Ridge - 6.0F), at(ax1 - Over, ay1 - Over, Eave) };
-			FillRoofFace(out, northSlope, 4, ThatchShade, alpha, 1, brightness);
-			FillRoofFace(out, southSlope, 4, ThatchLit, alpha, 1, brightness);
-			FillRoofFace(out, eastGable, 3, Gable, alpha, -1, brightness);
-		} else {
-			// The ridge along y: the west slope, then the east slope, then the south gable.
-			const float mid = (static_cast<float>(wx0) + static_cast<float>(wx1)) / 2.0F;
-			const ScreenPoint westSlope[4] = { at(ax0, ay0, Eave), at(mid, ay0, Eave + Ridge), at(mid, ay1, Eave + Ridge), at(ax0, ay1, Eave) };
-			const ScreenPoint eastSlope[4] = { at(mid, ay0, Eave + Ridge), at(ax1, ay0, Eave), at(ax1, ay1, Eave), at(mid, ay1, Eave + Ridge) };
-			const ScreenPoint southGable[3] = { at(ax0 + Over, ay1 - Over, Eave), at(mid, ay1 - Over, Eave + Ridge - 6.0F), at(ax1 - Over, ay1 - Over, Eave) };
-			FillRoofFace(out, westSlope, 4, ThatchShade, alpha, -1, brightness);
-			FillRoofFace(out, eastSlope, 4, ThatchLit, alpha, -1, brightness);
-			FillRoofFace(out, southGable, 3, Gable, alpha, 1, brightness);
-		}
+		if (InsideHouse(house, hero))
+			WoodsShellState[i] = 0; // the cottage gone: the room under it
+		else if (hero.x >= wx0 - 6 && hero.x <= wx1 + 1 && hero.y >= wy0 - 6 && hero.y <= wy1 + 1 && (hero.x <= wx0 || hero.y <= wy0))
+			WoodsShellState[i] = 1; // behind it: see-through, as Tristram's own walls are
 	}
+}
+
+bool WoodsShellCovers(Point tile)
+{
+	if (leveltype != DTYPE_WOODS || WoodsShellAt(tile) == 0)
+		return false;
+	const int owner = WoodsShellOwner[tile.x][tile.y];
+	return owner >= 0 && owner < HouseCount && WoodsShellState[owner] == 2 && InsideHouse(Houses[owner], tile);
 }
 
 void FinishWoodsLevel(bool fresh)
@@ -1613,7 +1548,7 @@ Point WoodsHouseDoorForTest(int index)
 	if (index < 0 || index >= HouseCount)
 		return { 0, 0 };
 	const House &house = Houses[index];
-	return { 16 + 2 * house.doorX + 1, 16 + 2 * house.y1 + 1 };
+	return { 16 + 2 * house.x1 + 1, 16 + 2 * house.doorY + 1 }; // outside the east arch
 }
 
 Point WoodsHouseInsideForTest(int index)
@@ -1621,7 +1556,7 @@ Point WoodsHouseInsideForTest(int index)
 	if (index < 0 || index >= HouseCount)
 		return { 0, 0 };
 	const House &house = Houses[index];
-	return { 16 + 2 * house.doorX + 1, 16 + 2 * house.y1 - 1 };
+	return { 16 + 2 * house.x1 - 1, 16 + 2 * house.doorY + 1 }; // inside it
 }
 
 int WoodsFloorRung(int floorIndex)
@@ -1636,7 +1571,7 @@ void EnterWoodsAtCaveMouthNext()
 
 bool WoodsTileUsesCels(Point tile)
 {
-	return leveltype == DTYPE_WOODS && (InMouth(tile) || InRiver(tile));
+	return leveltype == DTYPE_WOODS && (InMouth(tile) || InRiver(tile) || WoodsShellAt(tile) != 0);
 }
 
 bool WoodsCaveMouthHover(Point tile, Point &entrance, const char *&text)
@@ -1918,8 +1853,9 @@ void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light
 	}
 	if (const uint8_t cell = Scatter[tile.x][tile.y]; cell != 0 && !ScatterArt.px.empty()) {
 		const int index = cell - 1;
-		// A 32 x 32 cell after halving; its item stands at the cell's bottom centre.
-		DrawPicture(out, ScatterArt, footX - 16, footY - 28, (index % 4) * 32, (index / 4) * 32, 32, 32, brightness);
+		// A cell of the 4 x 3 sheet at its scale; its item stands at the cell's bottom centre.
+		const int size = ScatterArt.w / 4;
+		DrawPicture(out, ScatterArt, footX - size / 2, footY - size * 7 / 8, (index % 4) * size, (index / 4) * size, size, size, brightness);
 	}
 }
 
