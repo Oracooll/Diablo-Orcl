@@ -2249,13 +2249,31 @@ void DrawPictureSwaying(const Surface &out, const Picture &pic, int left, int to
 namespace {
 /** @brief A mirrored tree past the map's edge is being drawn: it is never in front of the hero, so it opens no see-through. */
 bool DrawingBeyondMap = false;
+
+/**
+ * @brief The mirror of a tile past the edge, moved a band (six tiles) along the edge where it lies by a road's end: the band's
+ * tiles beside the box's road strip blended its dirt, and the mirror repeated it every six tiles out (audit round 2).
+ */
+Point BeyondMapMirror(Point tile)
+{
+	const Point m = WoodsMirrorBeyondMap(tile);
+	if (!TileNearRoad(m))
+		return m;
+	for (const Displacement d : { Displacement { 0, Lo }, Displacement { 0, -Lo }, Displacement { Lo, 0 }, Displacement { -Lo, 0 },
+	         Displacement { 0, 2 * Lo }, Displacement { 0, -2 * Lo }, Displacement { 2 * Lo, 0 }, Displacement { -2 * Lo, 0 } }) {
+		const Point n = m + d;
+		if (InDungeonBounds(n) && !Inside(n) && !TileNearRoad(n))
+			return n;
+	}
+	return m;
+}
 } // namespace
 
 bool DrawWoodsBeyondMapFloor(const Surface &out, Point tile, Point target, bool fullBright)
 {
 	if (leveltype != DTYPE_WOODS || InDungeonBounds(tile))
 		return false;
-	const Point m = WoodsMirrorBeyondMap(tile);
+	const Point m = BeyondMapMirror(tile);
 	const int light = ExplorationMemoryLight(m, dLight[m.x][m.y]);
 	if (WoodsArtActive(out) && !WoodsTileUsesCels(m)) {
 		DrawGroundAt(out, m, tile, target, light, fullBright); // the texture pinned to where the tile is, not its mirror
@@ -2276,7 +2294,7 @@ void DrawWoodsBeyondMapTree(const Surface &out, Point tile, Point target)
 	// own cels instead (WoodsBeyondMapUsesCels).
 	if (leveltype != DTYPE_WOODS || InDungeonBounds(tile) || out.isIndexed() || !(WoodsArtActive(out) || BuiltMixed))
 		return;
-	const Point m = WoodsMirrorBeyondMap(tile);
+	const Point m = BeyondMapMirror(tile);
 	DrawingBeyondMap = true;
 	DrawWoodsTileSprite(out, m, target, ExplorationMemoryLight(m, dLight[m.x][m.y]));
 	DrawingBeyondMap = false;

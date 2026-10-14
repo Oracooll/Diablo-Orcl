@@ -2239,8 +2239,10 @@ bool MonsterRangedSpecialAttack(Monster &monster)
 {
 	// The stored base (Diablo's 40) with the damage percent, in an int at the release (round 123 audit: scaled into the int8 var3
 	// it wrapped). 0 stays 0 - the others' missiles roll their own.
-	const int specialDamage = static_cast<int>(static_cast<int64_t>(monster.var3) * oracool::RiftBossDamagePercent(monster) / 100
-	    * oracool::WoodsBossDamagePercent(monster) / 100); // the woods boss's Diablo at the floor's rung (audit round 1)
+	// The woods boss's Diablo at his own percent, which already holds what ScaleWoodsMonster gave him - the overflow in
+	// RiftBossDamagePercent is that same percent past 255, and counted it twice (audit round 2).
+	const int damagePercent = oracool::IsWoodsBoss(monster) ? oracool::WoodsBossDamagePercent(monster) : oracool::RiftBossDamagePercent(monster);
+	const int specialDamage = static_cast<int>(static_cast<int64_t>(monster.var3) * damagePercent / 100);
 	if (monster.animInfo.currentFrame == monster.data().animFrameNumSpecial - 1 && monster.animInfo.tickCounterOfCurrentFrame == 0 && (monster.ai != MonsterAIID::Mega || monster.var2 == 0)) {
 		if (AddMissile(
 		        monster.position.tile,
