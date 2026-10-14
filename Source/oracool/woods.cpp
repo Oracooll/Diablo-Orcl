@@ -1730,14 +1730,15 @@ bool WoodsAcceptsMonster(const MonsterData &data)
 		listed = listed || &data == &MonstersData[kind];
 	if (!listed)
 		return false;
-	// The nearest gap that gives four kinds: 0 where four of the user's kinds live on this rung, more where they thin out.
+	// The nearest gap that gives eight kinds to choose from (dev note, 2026-10-14: "mix and diversify mobs on the levels. they
+	// are now all the same" - four of one rung were often four goatmen): ScaleWoodsMonster brings each to the rung.
 	const int floor = WoodsBandFloor();
 	int reach = 0;
 	for (;; reach++) {
 		int kinds = 0;
 		for (const _monster_id kind : WoodsKinds)
 			kinds += WoodsKindAvailable(MonstersData[kind]) && BandGap(MonstersData[kind], floor) <= reach ? 1 : 0;
-		if (kinds >= 4 || reach >= 32)
+		if (kinds >= 8 || reach >= 32)
 			break;
 	}
 	return BandGap(data, floor) <= reach;
@@ -1765,6 +1766,19 @@ bool IsWoodsBoss(const Monster &monster)
 	if (!setlevel || setlvlnum != SL_LAST_WOODS || monster.isPlayerMinion())
 		return false;
 	return monster.type().type == WoodsBossKind();
+}
+
+int WoodsFamilyOf(int kind)
+{
+	// The sprite's folder, by its first three letters: "falspear" and "falsword" are both the Fallen, "skelaxe" and "skelbow"
+	// both skeletons, "goatmace" and "goatbow" both goatmen.
+	const char *path = MonstersData[kind].assetsSuffix;
+	if (path == nullptr)
+		return kind;
+	int family = 0;
+	for (int i = 0; i < 3 && path[i] != '\0'; i++)
+		family = family * 256 + static_cast<unsigned char>(path[i]);
+	return family;
 }
 
 unsigned WoodsBossSizePercent(const Monster &monster)
@@ -1831,10 +1845,12 @@ void ScaleWoodsMonster(Monster &monster)
 		lifePct = pct * 3;
 		damagePct = pct * 5 / 4;
 	} else {
-		const int gap = floor - LadderMax(data);
-		if (gap <= 0)
+		// Up for a kind whose floors end above the rung, down (not below half) for one whose floors start below it: the roster
+		// reaches either way for its eight kinds.
+		const int gap = floor > LadderMax(data) ? floor - LadderMax(data) : floor < LadderMin(data) ? floor - LadderMin(data) : 0;
+		if (gap == 0)
 			return;
-		pct = FloorStepPercent(gap);
+		pct = std::max(50, FloorStepPercent(gap));
 		lifePct = pct;
 		damagePct = pct;
 	}
@@ -1927,10 +1943,6 @@ void DrawGroundAt(const Surface &out, Point tile, Point world, Point target, int
 
 } // namespace
 
-void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light, bool fullBright)
-{
-	DrawGroundAt(out, tile, tile, target, light, fullBright);
-}
 
 namespace {
 
@@ -1953,6 +1965,14 @@ uint32_t FloorCachePalette = 0;
 const FloorPicture *FloorOfTile[MAXDUNX][MAXDUNY];
 /** @brief The tile was looked up and is drawn as it is (the river, the mouth, a cottage, a borrowed piece). */
 bool FloorNotCached[MAXDUNX][MAXDUNY];
+/**
+ * @brief The Painted Art look's ground, a picture per tile once it is seen (user, 2026-10-14: the painted look for real, "so i can
+ * test it in real life what we achieved with the size calibration"; DISABLED_WoodsFrameBenchmark timed its per-pixel blend at
+ * 60 ms a Debug frame). At most PaintedCacheCap of them (8 KB each); past it the cache starts again.
+ */
+std::unique_ptr<FloorPicture> PaintedOfTile[MAXDUNX][MAXDUNY];
+size_t PaintedCount = 0;
+constexpr size_t PaintedCacheCap = 6000;
 
 bool BlitFloorPicture(const Surface &out, const FloorPicture &pic, Point target, int light, bool fullBright);
 
@@ -1973,6 +1993,10 @@ bool TileNearRoad(Point tile)
 
 void ForgetWoodsMixedFloor()
 {
+	for (auto &column : PaintedOfTile)
+		for (auto &picture : column)
+			picture.reset();
+	PaintedCount = 0;
 	FloorByPiece.clear();
 	FloorByTile.clear();
 	std::memset(FloorOfTile, 0, sizeof(FloorOfTile));
@@ -2054,6 +2078,39 @@ bool BlitFloorPicture(const Surface &out, const FloorPicture &pic, Point target,
 }
 
 } // namespace
+
+void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light, bool fullBright)
+{
+	if (out.isIndexed() || !InDungeonBounds(tile)) {
+		DrawGroundAt(out, tile, tile, target, light, fullBright);
+		return;
+	}
+	std::unique_ptr<FloorPicture> &slot = PaintedOfTile[tile.x][tile.y];
+	if (slot == nullptr) {
+		if (PaintedCount >= PaintedCacheCap) {
+			for (auto &column : PaintedOfTile)
+				for (auto &picture : column)
+					picture.reset();
+			PaintedCount = 0;
+		}
+		// Drawn once at full light into a tile-sized picture, then copied with the light every frame.
+		OwnedSurface canvas = OwnedSurface::Rgb(64, 32);
+		const Surface surface = canvas;
+		for (int y = 0; y < 32; y++)
+			std::fill_n(surface.at<uint32_t>(0, y), 64, 0U);
+		DrawGroundAt(surface, tile, tile, { 0, 31 }, -1, true);
+		auto picture = std::make_unique<FloorPicture>();
+		for (int k = 0; k < 31; k++) {
+			const int inset = k < 16 ? 30 - 2 * k : 2 * (k - 15);
+			const uint32_t *row = surface.at<uint32_t>(0, 31 - k);
+			for (int x = inset; x <= 63 - inset; x++)
+				picture->px[static_cast<size_t>(k) * 64 + x] = (row[x] & 0xFFFFFFU) | 0x01000000U;
+		}
+		PaintedOfTile[tile.x][tile.y] = std::move(picture);
+		PaintedCount++;
+	}
+	BlitFloorPicture(out, *PaintedOfTile[tile.x][tile.y], target, light, fullBright);
+}
 
 void DrawWoodsMixedGround(const Surface &out, Point tile, Point target, int light, bool fullBright)
 {

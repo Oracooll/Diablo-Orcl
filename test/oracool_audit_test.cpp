@@ -21502,7 +21502,7 @@ TEST(OracoolPreview, DISABLED_WoodsFrameBenchmark)
 		const auto screenOf = [&](Point tile) {
 			return Point { 960 - 32 + (tile.x - centre.x) * 32 - (tile.y - centre.y) * 32, 540 + 15 + (tile.x - centre.x) * 16 + (tile.y - centre.y) * 16 };
 		};
-		double floorCels = 0, mixed = 0, sprites = 0, borrowed = 0, cells = 0;
+		double floorCels = 0, mixed = 0, sprites = 0, borrowed = 0, cells = 0, painted = 0;
 		int tiles = 0;
 		constexpr int Frames = 20;
 		for (int frame = 0; frame < Frames; frame++) {
@@ -21533,6 +21533,10 @@ TEST(OracoolPreview, DISABLED_WoodsFrameBenchmark)
 								oracool::DrawWoodsMixedGround(out, tile, at, 3, false);
 								mixed += ms(Clock::now() - t1);
 							}
+							// The Painted Art look's ground, every tile, as DrawFloor draws it there (not cached).
+							const auto t2 = Clock::now();
+							oracool::DrawWoodsGroundTile(out, tile, at, 3, false);
+							painted += ms(Clock::now() - t2);
 							continue;
 						}
 						auto t0 = Clock::now();
@@ -21562,7 +21566,8 @@ TEST(OracoolPreview, DISABLED_WoodsFrameBenchmark)
 			}
 		}
 		std::cout << "WOODSBENCH " << label << " tiles=" << tiles << " per frame ms: floorCels=" << floorCels / Frames << " mixedGround=" << mixed / Frames
-		          << " cells=" << cells / Frames << " borrowed=" << borrowed / Frames << " treesAndDetails=" << sprites / Frames << std::endl;
+		          << " cells=" << cells / Frames << " borrowed=" << borrowed / Frames << " treesAndDetails=" << sprites / Frames
+			          << " paintedGround=" << painted / Frames << std::endl;
 	}
 	PaletteRGB = savedPalette;
 	pDungeonCels = std::move(savedCels);

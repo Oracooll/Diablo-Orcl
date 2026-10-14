@@ -148,6 +148,9 @@ bool WoodsAcceptsMonster(const MonsterData &data);
  */
 int WoodsBossKind();
 
+/** @brief A monster kind's look, for the roster's mix: kinds of one sprite family (the Fallen, the skeletons, the goatmen) share it. */
+int WoodsFamilyOf(int kind);
+
 /** @brief @p monster is the woods' last floor's boss (its kind, on that floor). */
 bool IsWoodsBoss(const Monster &monster);
 

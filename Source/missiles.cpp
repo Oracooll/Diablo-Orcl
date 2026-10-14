@@ -3622,7 +3622,8 @@ void AddGenericMagicMissile(Missile &missile, AddMissileParameter &parameter)
 	missile._mirange = 256;
 	missile.var1 = missile.position.start.x;
 	missile.var2 = missile.position.start.y;
-	missile._mlid = AddLight(missile.position.start, 8);
+	// Half vanilla's 8 (dev note, 2026-10-14: "blood star missile seem to light up a huge area. reduce its light radius by half").
+	missile._mlid = AddLight(missile.position.start, 4);
 	if (missile._micaster != TARGET_MONSTERS && missile._misource > 0) {
 		auto &monster = Monsters[missile._misource];
 		if (monster.type().type == MT_SUCCUBUS)

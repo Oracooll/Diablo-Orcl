@@ -929,6 +929,13 @@ void DrawCard(const Surface &out, const Card &card, const CardLayout &l, Point o
 
 /** @brief The text ShowPanelStringsAsHintCard asked to be drawn as a card, or empty - see DrawHintCard. */
 std::string HintCardText;
+/**
+ * @brief The tooltip draw HintCardText was asked for in: that draw shows the card whatever came after (dev note, 2026-10-14:
+ * "description popup of skill in lmb/rmb menus with superlarge dimmensions" - the picker's hover text was changed later in the
+ * frame, and a stale item hover then drew it as an item card, its sprite slot blank and screen-high).
+ */
+uint32_t TooltipDraw = 0;
+uint32_t HintCardDraw = UINT32_MAX;
 constexpr int HintCardMaxWidth = 250;
 /** @brief The unique item's gold (RimGlowHue, inv.cpp) - the hint cards wear its design. */
 constexpr uint32_t HintCardHue = 0xD4A23C;
@@ -939,7 +946,7 @@ constexpr uint32_t HintCardHue = 0xD4A23C;
  */
 void DrawHintCard(const Surface &out)
 {
-	const std::string text(InfoString.str());
+	const std::string text = HintCardText;
 	Card card;
 	card.hue = HintCardHue;
 	const unsigned wrapWidth = HintCardMaxWidth - 2 * CardPadX;
@@ -1104,6 +1111,7 @@ void DrawCardTooltip(const Surface &out)
 void ShowPanelStringsAsHintCard()
 {
 	HintCardText = std::string(InfoString.str());
+	HintCardDraw = TooltipDraw;
 }
 
 bool HintCardRequested()
@@ -1114,6 +1122,14 @@ bool HintCardRequested()
 void DrawCursorTooltip(const Surface &out)
 {
 	PrevTooltipRect = {};
+	const bool hintThisDraw = HintCardDraw == TooltipDraw;
+	TooltipDraw++;
+
+	// A hint card asked for in this draw: the card, before anything that could take the text for an item's.
+	if (!talkflag && hintThisDraw && !HintCardText.empty() && !out.isIndexed()) {
+		DrawHintCard(out);
+		return;
+	}
 
 	if (talkflag || InfoString.empty())
 		return;

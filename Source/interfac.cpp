@@ -262,10 +262,11 @@ Cutscenes PickCutscene(interface_mode uMsg)
 		// portal loading screens"). Before this a rift fell through to the Cathedral's.
 		if (oracool::IsRiftLevel(setlvlnum))
 			return setlvlnum == oracool::RiftLevelFor(oracool::RiftKind::Guardian) ? CutRiftGuardian : CutRiftNephalem;
+		// Into the woods and their caves, their own paintings (gendata\cutwoods, cutwcave); back to Tristram, its own.
 		if (IsWoodsLevel(setlvlnum))
-			return CutTown;
+			return uMsg == WM_DIABRTNLVL ? CutTown : CutWoods;
 		if (IsWoodsCaveLevel(setlvlnum))
-			return GetCutSceneFromLevelType(DTYPE_CAVES);
+			return CutWoodsCave;
 		if (setlvlnum == SL_BONECHAMB)
 			return CutLevel2;
 		if (setlvlnum == SL_VILEBETRAYER)
@@ -362,6 +363,21 @@ void LoadCutsceneBackground(interface_mode uMsg)
 		celPath = "gendata\\cutportl";
 		palPath = "gendata\\cutportl.pal";
 		pngBase = PickCutscene(uMsg) == CutRiftGuardian ? "gendata\\cutriftg" : "gendata\\cutriftn";
+		progress_id = 1;
+		break;
+	case CutWoods:
+		// The painting when oracool.mpq has it; Tristram's CEL is the fallback, as before.
+		ArtCutsceneWidescreen = LoadOptionalClx("gendata\\cutttw.clx");
+		celPath = "gendata\\cuttt";
+		palPath = "gendata\\cuttt.pal";
+		pngBase = "gendata\\cutwoods";
+		progress_id = 1;
+		break;
+	case CutWoodsCave:
+		ArtCutsceneWidescreen = LoadOptionalClx("gendata\\cut3w.clx");
+		celPath = "gendata\\cut3";
+		palPath = "gendata\\cut3.pal";
+		pngBase = "gendata\\cutwcave";
 		progress_id = 1;
 		break;
 	}

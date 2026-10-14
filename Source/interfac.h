@@ -54,6 +54,10 @@ enum Cutscenes : uint8_t {
 	CutRiftNephalem,
 	/** The Guardian Rift's purple portal, the same both ways. */
 	CutRiftGuardian,
+	/** Into the Orcl Act's woods (dev note, 2026-10-14: "we need to design new loading screens"); Tristram's until it is painted. */
+	CutWoods,
+	/** Down into a woods cave; the Caves' painting until its own is. */
+	CutWoodsCave,
 };
 
 void interface_msg_pump();

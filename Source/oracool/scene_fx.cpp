@@ -755,7 +755,7 @@ void BeginFigureGround(const Surface &out, Point firstTile, Point firstTileBuffe
 		return;
 	if (Ground.layer.size() != static_cast<size_t>(Ground.w) * Ground.h)
 		Ground.layer.assign(static_cast<size_t>(Ground.w) * Ground.h, 0);
-	if (leveltype == DTYPE_TOWN && !TownIsDark()) {
+	if (IsUnderSky(leveltype) && !TownIsDark()) { // and in the woods: the sun, not the hero's torch (the black shadows, 2026-10-14)
 		// By day in Tristram, the sun: the shadow swings from left to right as it crosses the sky, longest at either end.
 		// With Day and Night off the town stands at mid-morning, and so does the sun; with it on, the shadows fade in and
 		// out with the daylight instead of popping at the edge of night.
@@ -780,7 +780,7 @@ void BeginFigureGround(const Surface &out, Point firstTile, Point firstTileBuffe
 	}
 	// In town after dark, the lamps' shadows fade in as the daylight goes, where the sun's faded out (round 3 audit).
 	Ground.lampFade = 1.0F;
-	if (leveltype == DTYPE_TOWN && *sgOptions.Oracool.dayNightCycle) {
+	if (IsUnderSky(leveltype) && *sgOptions.Oracool.dayNightCycle) {
 		const LightTint now = TownAmbientAt(TownHour());
 		const LightTint noon = TownAmbientAt(12.0F);
 		const float a = static_cast<float>(now.r + now.g + now.b);

@@ -749,8 +749,8 @@ const std::vector<TownLight> &GatherTownLights()
 		}
 		lights.push_back({ x, y, &player == MyPlayer ? 9.5F : 7.0F, 1.0F, 1.0F, 0.92F, 0.80F });
 	}
-	for (size_t t = 0; t < NUM_TOWNERS; t++) {
-		const Towner &towner = Towners[t];
+	for (size_t t = 0; t < NUM_TOWNERS && leveltype == DTYPE_TOWN; t++) { // the townsfolk's lamps in town only: in the woods
+		const Towner &towner = Towners[t];                                // dMonster holds monsters, and the slots last game's
 		// Only one standing where it says (audit round 1): InitTowners fills only the townsfolk present, and a slot past
 		// them still holds whoever stood there last game. The town's dMonster holds a towner's index + 1.
 		const Point at = towner.position;
@@ -1349,7 +1349,9 @@ void ApplyReliefPlan(const Surface &out, const uint32_t *kept, const ReliefPlan 
 
 bool PlanTownDayNight(const Surface &out, Point firstTile, Point firstTileBuffer, TintPlan &plan)
 {
-	if (!*sgOptions.Oracool.dayNightCycle || out.isIndexed() || leveltype != DTYPE_TOWN || out.w() <= 0 || out.h() <= 0)
+	// Tristram and the Orcl Act's woods, the levels under the sky (user, 2026-10-14: "7 minutes in game i dont really notice
+	// night time" - the woods had none).
+	if (!*sgOptions.Oracool.dayNightCycle || out.isIndexed() || !IsUnderSky(leveltype) || out.w() <= 0 || out.h() <= 0)
 		return false;
 	float ar, ag, ab;
 	AmbientAt(TownClock, ar, ag, ab);

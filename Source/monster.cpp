@@ -4388,8 +4388,11 @@ void GetLevelMTypes()
 				AddMonsterType(GenerateRnd(2) == 0 ? MT_WSKELAX : MT_WSKELSD, PLACE_SPECIAL);
 			monstimgtot = budgetBeforeBoss;
 		}
-		constexpr int WoodsRosterSize = 4;
+		// Six kinds, each of a family not yet on the floor while one is left (dev note, 2026-10-14: "mix and diversify mobs on the
+		// levels. they are now all the same"): skeletons beside goatmen beside the Fallen, not four colours of one.
+		constexpr int WoodsRosterSize = 6;
 		int picked = 0;
+		int families[WoodsRosterSize] = {};
 		while (nt > 0 && picked < WoodsRosterSize && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < WoodsImageBudget) {
 			for (int i = 0; i < nt;) {
 				if (MonstersData[typelist[i]].image > WoodsImageBudget - monstimgtot) {
@@ -4400,7 +4403,15 @@ void GetLevelMTypes()
 			}
 			if (nt == 0)
 				break;
-			const int i = GenerateRnd(nt);
+			int fresh[NUM_MTYPES];
+			int nf = 0;
+			for (int i = 0; i < nt; i++) {
+				const int family = oracool::WoodsFamilyOf(typelist[i]);
+				if (std::find(families, families + picked, family) == families + picked)
+					fresh[nf++] = i;
+			}
+			const int i = nf > 0 ? fresh[GenerateRnd(nf)] : GenerateRnd(nt);
+			families[picked] = oracool::WoodsFamilyOf(typelist[i]);
 			AddMonsterType(typelist[i], PLACE_SCATTER);
 			typelist[i] = typelist[--nt];
 			picked++;
