@@ -1664,6 +1664,8 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 			}
 		}
 	}
+	// A woods house's roof, after its front-most tile (oracool/woods.h).
+	oracool::DrawWoodsRoofAfterTile(out, tilePosition, targetBufferPosition, LightTableIndex);
 }
 
 /**
@@ -1681,7 +1683,9 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 	const bool woodsGround = oracool::WoodsArtActive(out);
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < columns; j++) {
-			if (InDungeonBounds(tilePosition) && woodsGround && !oracool::WoodsTileUsesCels(tilePosition)) {
+			// A borrowed piece with no woods ground under it (a house's stone floor) draws its own floor.
+			if (InDungeonBounds(tilePosition) && woodsGround && !oracool::WoodsTileUsesCels(tilePosition)
+			    && !(oracool::IsBorrowedPiece(dPiece[tilePosition.x][tilePosition.y]) && oracool::WoodsDrawnPiece(tilePosition) == dPiece[tilePosition.x][tilePosition.y])) {
 				LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 				oracool::DrawWoodsGroundTile(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
 				oracool::DrawWoodsGateTint(out, tilePosition, targetBufferPosition); // the road back, marked

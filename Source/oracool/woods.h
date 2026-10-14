@@ -65,6 +65,20 @@ Point WoodsTownReturnTile();
  */
 bool CheckWoodsEdges();
 
+/**
+ * @brief The houses' roofs (oracool/woods.cpp House): each drawn after its house's front-most tile, so all inside it is under
+ * the roof and all in front of it over; gone while the hero is inside, half while he stands behind it.
+ */
+void DrawWoodsRoofAfterTile(const Surface &out, Point tile, Point target, int light);
+
+/** @brief After a woods floor's items are made: on its first visit, what its houses hold. */
+void FinishWoodsLevel(bool fresh);
+
+/** @brief Test hooks: the floor last generated's houses, a house's arch and a tile inside it. */
+int WoodsHouseCountForTest();
+Point WoodsHouseDoorForTest(int index);
+Point WoodsHouseInsideForTest(int index);
+
 /** @brief Woods floor @p floorIndex's rung, 0 until it is first entered in this game. */
 int WoodsFloorRung(int floorIndex);
 

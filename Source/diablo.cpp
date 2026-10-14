@@ -4682,6 +4682,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 		if (firstflag || lvldir == ENTRY_LOAD || !myPlayer._pSLvlVisited[setlvlnum] || gbIsMultiplayer) {
 			InitItems();
 			oracool::FinishRiftLevel(/*fresh=*/true); // a rift's theme rooms, after the items as a floor's are
+			oracool::FinishWoodsLevel(/*fresh=*/true); // and a woods floor's houses their loot
 			SavePreLighting();
 		} else {
 			LoadLevel();

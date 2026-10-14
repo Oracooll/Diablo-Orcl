@@ -20605,6 +20605,7 @@ TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
 	// Every floor here has a river (2026-10-14), so the walk below crosses it by its bridges where the roads do.
 	oracool::SetWoodsRiverForTest(1);
 	int floorsWithRiver = 0;
+	int houses = 0;
 	for (const uint32_t seed : { 0x6E00D5U, 0x12345U, 0xBEEF01U, 0x77AA33U, 0x3141U, 0x2718U }) {
 		oracool::SetWoodsCaveMouthFloorForTest(0);
 		CreateDungeon(seed, ENTRY_SETLVL);
@@ -20641,10 +20642,17 @@ TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
 			for (int x = 0; x < MAXDUNX; x++)
 				fenced += oracool::IsBorrowedPiece(dPiece[x][y]) ? 1 : 0;
 		EXPECT_GT(fenced, 400) << "seed " << seed << ": the ring of Caves fences is not laid";
+		// The houses (2026-10-14): in by the arch, onto the stone floor.
+		for (int i = 0; i < oracool::WoodsHouseCountForTest(); i++) {
+			EXPECT_TRUE(walked(oracool::WoodsHouseDoorForTest(i))) << "seed " << seed << ": house " << i << "'s arch cannot be reached";
+			EXPECT_TRUE(walked(oracool::WoodsHouseInsideForTest(i))) << "seed " << seed << ": house " << i << " cannot be walked into";
+		}
+		houses += oracool::WoodsHouseCountForTest();
 	}
 	oracool::SetWoodsCaveMouthFloorForTest(-1);
 	oracool::SetWoodsRiverForTest(-1);
 	EXPECT_GE(floorsWithRiver, 4) << "the river fits on most floors";
+	EXPECT_GE(houses, 4) << "the six floors have houses";
 
 	// The cave floors: the Caves DRLG as BuildWoodsCaveLevel runs it.
 	leveltype = DTYPE_CAVES;
@@ -21028,8 +21036,10 @@ TEST(OracoolPreview, DISABLED_WoodsMixedView)
 							up.y -= 32;
 						}
 					}
-					if (leveltype == DTYPE_WOODS)
+					if (leveltype == DTYPE_WOODS) {
 						oracool::DrawWoodsTileSprite(out, tile, at, -1);
+						oracool::DrawWoodsRoofAfterTile(out, tile, at, -1);
+					}
 				}
 			}
 		}
@@ -21039,6 +21049,8 @@ TEST(OracoolPreview, DISABLED_WoodsMixedView)
 	renderAround(mouth + Displacement { 2, 1 }, "woods_mixed_mouth.png");
 	if (bridge != Point(0, 0))
 		renderAround(bridge, "woods_mixed_bridge.png");
+	if (oracool::WoodsHouseCountForTest() > 0)
+		renderAround(oracool::WoodsHouseInsideForTest(0) + Displacement { -2, -3 }, "woods_mixed_house.png");
 	renderAround(oracool::WoodsArrival() + Displacement { 3, 0 }, "woods_mixed_gate.png");
 	oracool::SetWoodsCaveMouthFloorForTest(-1);
 
@@ -21068,6 +21080,51 @@ TEST(OracoolPreview, DISABLED_WoodsMixedView)
 	leveltype = DTYPE_WOODS;
 	PaletteRGB = savedPalette;
 	pDungeonCels = std::move(savedCels);
+}
+
+/**
+ * Every megatile of a vanilla tileset as a woods floor would borrow it (oracool/borrowed_tiles.h, 2026-10-14): its four pieces
+ * placed as a megatile stands, floor then upright, one PNG each - ORCL_SHEET_OUT/mega_NNN.png (1-based, as dungeon[][] and
+ * FillTile number them). ORCL_SHEET_SET is the dungeon_type (1 Cathedral, 2 Catacombs, 3 Caves, 4 Hell, 5 Nest, 6 Crypt).
+ */
+TEST(OracoolPreview, DISABLED_TilesetMegatileSheet)
+{
+	const char *outDir = std::getenv("ORCL_SHEET_OUT");
+	const char *setText = std::getenv("ORCL_SHEET_SET");
+	ASSERT_NE(outDir, nullptr);
+	ASSERT_NE(setText, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	const OrclActMapGuard mapGuard;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	const auto set = static_cast<dungeon_type>(std::atoi(setText));
+	const int count = oracool::BorrowedMegatileCount(set);
+	ASSERT_GT(count, 0);
+	for (int m = 1; m <= count; m++) {
+		uint16_t pieces[4];
+		ASSERT_TRUE(oracool::BorrowedMegatilePieces(set, m, pieces));
+		OwnedSurface cell = OwnedSurface::Rgb(128, 300);
+		const Surface out = cell;
+		for (int y = 0; y < 300; y++)
+			for (int x = 0; x < 128; x++)
+				*out.at<uint32_t>(x, y) = 0x101010;
+		// The pieces where they stand in a megatile: (0,0) top, (1,0) right, (0,1) left, (1,1) bottom; each target the tile's
+		// bottom-left, as DrawCell takes it.
+		const Point targets[4] = { { 32, 299 - 32 }, { 64, 299 - 16 }, { 0, 299 - 16 }, { 32, 299 } };
+		uint16_t ids[4];
+		for (int t = 0; t < 4; t++)
+			ids[t] = oracool::BorrowPiece(set, pieces[t]);
+		for (int t = 0; t < 4; t++)
+			oracool::DrawBorrowedFloor(out, ids[t], targets[t], -1);
+		for (const int t : { 0, 1, 2, 3 })
+			oracool::DrawBorrowedCell(out, { 0, 0 }, ids[t], targets[t], -1, true);
+		char name[32];
+		std::snprintf(name, sizeof(name), "mega_%03d.png", m);
+		PreviewSave(cell, (dir / name).string().c_str());
+	}
 }
 
 /**

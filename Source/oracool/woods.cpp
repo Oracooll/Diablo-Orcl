@@ -20,6 +20,7 @@
 #include "engine/surface.hpp"
 #include "init.h" // gbIsHellfire - the cave mouth is Hellfire's town art
 #include "interfac.h"
+#include "items.h" // CreateRndItem - what the houses hold
 #include "levels/gendung.h"
 #include "levels/trigs.h"
 #include "monstdat.h"
@@ -172,6 +173,25 @@ constexpr uint16_t RiverPieces[7][4] = {
 	{ 309, 310, 311, 312 }, // crossed along its bottom row (311, 312); 309 and 310 are its rail
 };
 uint8_t RiverCell[DMAXX][DMAXY];
+/**
+ * @brief The houses (user, 2026-10-13: "houses which can be entered and their roof fading away when in. chests inside. stone
+ * walls"; then "walk-in building using wall assets from catacombs and gamedrawn roof, fade-away roof"): rooms of the Catacombs'
+ * own wall megatiles (drlg_l2.cpp's patterns: 1 a wall on a cell's west edge, 2 on its north edge, 3 floor, 5 an arch in a
+ * north-edge wall, 8 / 7 / 9 / 6 the north-west, north-east, south-west and south-east corners), borrowed onto the woods
+ * (oracool/borrowed_tiles.h). Cells x0..x1, y0..y1 by dungeon cell, walls on the outer ring of them; the front walls' outer
+ * halves stand on the woods' grass. The roof is the game's own, drawn over it (DrawWoodsRoofAfterTile).
+ */
+struct House {
+	int x0, y0, x1, y1; // the ring of wall cells, inclusive
+	int doorX;          // the arch, in the south wall (row y1)
+};
+constexpr int MaxHouses = 2;
+std::array<House, MaxHouses> Houses;
+int HouseCount = 0;
+/** @brief Each house's roof, 0 gone to 256 whole, eased toward its target each frame. */
+std::array<int, MaxHouses> RoofAlpha {};
+std::array<uint32_t, MaxHouses> RoofTicks {};
+
 /** @brief -1: the seed decides whether a floor has a river; 0 or 1: the test hook's answer. */
 int RiverForced = -1;
 
@@ -523,6 +543,99 @@ void PlanRiver(uint32_t seed)
 	}
 }
 
+/** @brief Ground a house can be built on: no road, grove or river on or beside it; trees may stand there, they are cleared. */
+bool CellBuildable(int mx, int my)
+{
+	if (mx < 0 || my < 0 || mx >= DMAXX || my >= DMAXY)
+		return false;
+	for (int dy = -1; dy <= 1; dy++)
+		for (int dx = -1; dx <= 1; dx++)
+			if (mx + dx >= 0 && my + dy >= 0 && mx + dx < DMAXX && my + dy < DMAXY && RiverCell[mx + dx][my + dy] != NoRiver)
+				return false;
+	for (int t = 0; t < 4; t++) {
+		const int x = 16 + 2 * mx + (t & 1);
+		const int y = 16 + 2 * my + (t >> 1);
+		if (Ground[x][y] == Path || Ground[x][y] == Forest)
+			return false;
+	}
+	return true;
+}
+
+/**
+ * @brief One or two houses on open ground, away from the roads, the glade, the mouth, the waypoint and the pens: four or five
+ * cells by four, an arch in the south wall, open ground in front of it.
+ */
+void PlanHouses(uint32_t seed)
+{
+	HouseCount = 0;
+	const Point keepAway[] = { Arrival, WayOn, MouthOnFloor ? MouthEntrance : Arrival, Arrival + Displacement { -2, -2 } };
+	const int want = 1 + static_cast<int>(Hash(seed, 9, 9) % 2);
+	// Every position, from a seeded start: random spots seldom missed both roads, the groves and the river at once (one house
+	// on six floors).
+	const int positions = (DMAXX - 13) * (DMAXY - 13);
+	const int start = static_cast<int>(Hash(seed, 0x40E, 1) % static_cast<uint32_t>(positions));
+	for (int k = 0; k < positions && HouseCount < want; k++) {
+		const int at = (start + k * 7919) % positions; // a stride prime to the count: every position once, scattered
+		const uint32_t h = Hash(seed, static_cast<uint32_t>(at), 0x0405EU);
+		const int w = 4 + static_cast<int>(h % 2);
+		const int d = 4;
+		const int mx0 = 4 + at % (DMAXX - 13);
+		const int my0 = 4 + at / (DMAXX - 13);
+		if (mx0 + w + 1 >= DMAXX - 3 || my0 + d + 2 >= DMAXY - 3)
+			continue;
+		bool fits = true;
+		// The house, a cell round it, and one more in front of its door: no road, grove, river or fence there; a stray tree
+		// is cleared (requiring none, no house fitted on six floors in six).
+		for (int my = my0 - 1; my <= my0 + d + 1 && fits; my++)
+			for (int mx = mx0 - 1; mx <= mx0 + w && fits; mx++)
+				fits = CellBuildable(mx, my) && FenceCell[mx][my] == 0;
+		const Point centre { 16 + 2 * mx0 + w, 16 + 2 * my0 + d };
+		for (const Point p : keepAway)
+			fits = fits && centre.WalkingDistance(p) > 10;
+		if (MouthOnFloor)
+			fits = fits && std::abs(centre.x - (MouthOrigin.x + MouthWidth / 2)) + std::abs(centre.y - (MouthOrigin.y + MouthHeight / 2)) > 14;
+		for (int i = 0; i < HouseCount && fits; i++)
+			fits = std::abs(Houses[i].x0 - mx0) > w + 3 || std::abs(Houses[i].y0 - my0) > d + 3;
+		if (!fits)
+			continue;
+		RoofAlpha[HouseCount] = 256;
+		House &house = Houses[HouseCount++];
+		house = { mx0, my0, mx0 + w - 1, my0 + d - 1, mx0 + 1 + static_cast<int>((h >> 20) % static_cast<uint32_t>(w - 2)) };
+		for (int my = my0 - 1; my <= my0 + d + 1; my++)
+			for (int mx = mx0 - 1; mx <= mx0 + w; mx++)
+				if (mx >= 0 && my >= 0 && mx < DMAXX && my < DMAXY)
+					ClearCell(mx, my);
+	}
+}
+
+/** @brief The Catacombs megatile of a house's cell, or 0 off it. @p outside is set for the front walls' cells. */
+int HouseMegatile(const House &house, int mx, int my, bool &outside)
+{
+	outside = false;
+	if (mx < house.x0 || mx > house.x1 || my < house.y0 || my > house.y1)
+		return 0;
+	const bool west = mx == house.x0;
+	const bool east = mx == house.x1;
+	const bool north = my == house.y0;
+	const bool south = my == house.y1;
+	outside = east || south;
+	if (north && west)
+		return 8;
+	if (north && east)
+		return 7;
+	if (south && west)
+		return 9;
+	if (south && east)
+		return 6;
+	if (west || east)
+		return 1;
+	if (north)
+		return 2;
+	if (south)
+		return mx == house.doorX ? 5 : 2;
+	return 3;
+}
+
 /**
  * @brief The fence ring round the floor with a gate where each road crosses it, and two or three fenced pens with a gate each
  * on open grass, away from the roads, the glade, the cave mouth and the waypoint.
@@ -607,6 +720,37 @@ void PlanFences(uint32_t seed)
 			for (int mx = mx0; mx <= x1; mx++)
 				ClearCell(mx, my);
 		pens++;
+	}
+	PlanHouses(seed);
+}
+
+/** @brief The planned houses laid over the built floor: each cell the Catacombs' pieces, grass under the front walls' outer halves. */
+void LayHouses()
+{
+	for (int i = 0; i < HouseCount; i++) {
+		const House &house = Houses[i];
+		for (int my = house.y0; my <= house.y1; my++) {
+			for (int mx = house.x0; mx <= house.x1; mx++) {
+				bool outside = false;
+				const int mega = HouseMegatile(house, mx, my, outside);
+				uint16_t pieces[4];
+				if (mega == 0 || !BorrowedMegatilePieces(DTYPE_CATACOMBS, mega, pieces))
+					continue;
+				for (int t = 0; t < 4; t++) {
+					const int x = 16 + 2 * mx + (t & 1);
+					const int y = 16 + 2 * my + (t >> 1);
+					const uint16_t id = BorrowPiece(DTYPE_CATACOMBS, pieces[t]);
+					if (id == 0)
+						continue;
+					// A front wall's open half is outside the house: the woods' ground. Inside, the Catacombs' stone floor.
+					if (outside && !TileHasAny(id, TileProperties::Solid) && WoodsLookPiece[x][y] == 0)
+						WoodsLookPiece[x][y] = dPiece[x][y];
+					else if (!outside)
+						WoodsLookPiece[x][y] = 0;
+					dPiece[x][y] = id;
+				}
+			}
+		}
 	}
 }
 
@@ -1177,6 +1321,7 @@ void BuildWoodsLevel(bool fresh)
 	StampRiver();
 	StampCaveMouth();
 	LayFences();
+	LayHouses();
 	ViewPosition = EnterAtWayOn ? Point { WayOn.x + 2, WayOn.y } : Arrival;
 	EnterAtWayOn = false;
 	InitNoTriggers();
@@ -1288,6 +1433,195 @@ bool CheckWoodsEdges()
 		EventPlrMsg("The path ends here, at the heart of the woods.", UiFlags::ColorWhite);
 	AtWayOnBefore = atWayOn;
 	return false;
+}
+
+namespace {
+
+/** @brief A house's footprint in world tile corners: west and north walls' lines to the east and south walls'. */
+void HouseCorners(const House &house, int &wx0, int &wy0, int &wx1, int &wy1)
+{
+	wx0 = 16 + 2 * house.x0;
+	wy0 = 16 + 2 * house.y0;
+	wx1 = 16 + 2 * house.x1;
+	wy1 = 16 + 2 * house.y1;
+}
+
+bool InsideHouse(const House &house, Point tile)
+{
+	int wx0, wy0, wx1, wy1;
+	HouseCorners(house, wx0, wy0, wx1, wy1);
+	return tile.x > wx0 && tile.x < wx1 && tile.y > wy0 && tile.y < wy1;
+}
+
+struct ScreenPoint {
+	float x;
+	float y;
+};
+
+/** @brief A convex polygon in @p colour, its alpha @p alpha of 256, with a thatch or plank grain along @p grain (0 none). */
+void FillRoofFace(const Surface &out, const ScreenPoint *pts, int n, uint32_t colour, int alpha, int grain, int brightness)
+{
+	float minY = pts[0].y;
+	float maxY = pts[0].y;
+	for (int i = 1; i < n; i++) {
+		minY = std::min(minY, pts[i].y);
+		maxY = std::max(maxY, pts[i].y);
+	}
+	const int y0 = std::max(0, static_cast<int>(std::ceil(minY)));
+	const int y1 = std::min(out.h() - 1, static_cast<int>(std::floor(maxY)));
+	for (int y = y0; y <= y1; y++) {
+		const float fy = static_cast<float>(y) + 0.5F;
+		float left = 1e9F;
+		float right = -1e9F;
+		for (int i = 0; i < n; i++) {
+			const ScreenPoint a = pts[i];
+			const ScreenPoint b = pts[(i + 1) % n];
+			if ((a.y <= fy && b.y > fy) || (b.y <= fy && a.y > fy)) {
+				const float x = a.x + (fy - a.y) * (b.x - a.x) / (b.y - a.y);
+				left = std::min(left, x);
+				right = std::max(right, x);
+			}
+		}
+		if (left > right)
+			continue;
+		const int x0 = std::max(0, static_cast<int>(std::ceil(left)));
+		const int x1 = std::min(out.w() - 1, static_cast<int>(std::floor(right)));
+		uint32_t *row = out.at<uint32_t>(0, y);
+		for (int x = x0; x <= x1; x++) {
+			int r = static_cast<int>((colour >> 16) & 0xFF);
+			int g = static_cast<int>((colour >> 8) & 0xFF);
+			int b = static_cast<int>(colour & 0xFF);
+			if (grain != 0) {
+				// Courses of thatch or planks: a dark line every few pixels across the grain, a little noise in between.
+				const int along = grain > 0 ? x + 2 * y : x - 2 * y;
+				const int course = ((along % 7) + 7) % 7;
+				const int noise = static_cast<int>(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), 0x7EA7U) % 25U) - 12;
+				const int shade = (course == 0 ? -34 : 0) + noise;
+				r = std::clamp(r + shade, 0, 255);
+				g = std::clamp(g + shade, 0, 255);
+				b = std::clamp(b + shade, 0, 255);
+			}
+			r = r * brightness >> 8;
+			g = g * brightness >> 8;
+			b = b * brightness >> 8;
+			const uint32_t bg = row[x];
+			const auto mix = [alpha](int c, uint32_t under) { return (c * alpha + static_cast<int>(under & 0xFF) * (256 - alpha)) >> 8; };
+			row[x] = (static_cast<uint32_t>(std::max(mix(r, bg >> 16), 1)) << 16) | (static_cast<uint32_t>(std::max(mix(g, bg >> 8), 1)) << 8)
+			    | static_cast<uint32_t>(std::max(mix(b, bg), 1));
+		}
+	}
+}
+
+} // namespace
+
+void DrawWoodsRoofAfterTile(const Surface &out, Point tile, Point target, int light)
+{
+	if (leveltype != DTYPE_WOODS || !setlevel || out.isIndexed())
+		return;
+	for (int i = 0; i < HouseCount; i++) {
+		const House &house = Houses[i];
+		int wx0, wy0, wx1, wy1;
+		HouseCorners(house, wx0, wy0, wx1, wy1);
+		// Drawn after the house's front-most tile: everything inside it under the roof, everything in front of it over.
+		if (tile != Point { wx1, wy1 })
+			continue;
+		// The fade: gone while the hero is inside, half while he stands behind it, whole otherwise; a quarter second either way.
+		int targetAlpha = 256;
+		if (MyPlayer != nullptr && MyPlayer->isOnActiveLevel()) {
+			const Point hero = MyPlayer->position.tile;
+			if (InsideHouse(house, hero))
+				targetAlpha = 0;
+			else if (hero.x >= wx0 - 5 && hero.x <= wx1 && hero.y >= wy0 - 5 && hero.y <= wy1 && (hero.x < wx0 || hero.y < wy0))
+				targetAlpha = 110;
+		}
+		const uint32_t now = SDL_GetTicks();
+		const int step = static_cast<int>(std::min<uint32_t>(now - RoofTicks[i], 100U)) * 256 / 250;
+		RoofTicks[i] = now;
+		if (step > 0) {
+			if (RoofAlpha[i] < targetAlpha)
+				RoofAlpha[i] = std::min(targetAlpha, RoofAlpha[i] + step);
+			else
+				RoofAlpha[i] = std::max(targetAlpha, RoofAlpha[i] - step);
+		}
+		const int alpha = RoofAlpha[i];
+		if (alpha <= 0)
+			continue;
+		const int brightness = light < 0 ? 256 : (light >= LightsMax ? 0 : SmoothLevelBrightness(static_cast<uint8_t>(light)));
+		if (brightness <= 0)
+			continue;
+		// World corners to the screen: the anchor tile's top vertex, raised by a height in pixels.
+		const ScreenPoint top { static_cast<float>(target.x + 32), static_cast<float>(target.y - 31) };
+		const auto at = [&](float wx, float wy, float height) {
+			return ScreenPoint { top.x + ((wx - wx1) - (wy - wy1)) * 32.0F, top.y + ((wx - wx1) + (wy - wy1)) * 16.0F - height };
+		};
+		constexpr float Eave = 96.0F;  // the Catacombs' wall tops (DISABLED_WoodsMixedView)
+		constexpr float Ridge = 64.0F; // above the eaves
+		constexpr float Over = 0.35F;  // the eaves' overhang, in tiles
+		const float ax0 = static_cast<float>(wx0) - Over;
+		const float ay0 = static_cast<float>(wy0) - Over;
+		const float ax1 = static_cast<float>(wx1) + Over;
+		const float ay1 = static_cast<float>(wy1) + Over;
+		// Weathered thatch and old timber, as dark as Tristram's own roofs (the first preview's straw read mustard on the woods).
+		constexpr uint32_t ThatchLit = 0x6A5838;
+		constexpr uint32_t ThatchShade = 0x463A26;
+		constexpr uint32_t Gable = 0x4A3424;
+		if (wx1 - wx0 >= wy1 - wy0) {
+			// The ridge along x: the north slope, then the south slope over it, then the east gable.
+			const float mid = (static_cast<float>(wy0) + static_cast<float>(wy1)) / 2.0F;
+			const ScreenPoint northSlope[4] = { at(ax0, ay0, Eave), at(ax1, ay0, Eave), at(ax1, mid, Eave + Ridge), at(ax0, mid, Eave + Ridge) };
+			const ScreenPoint southSlope[4] = { at(ax0, mid, Eave + Ridge), at(ax1, mid, Eave + Ridge), at(ax1, ay1, Eave), at(ax0, ay1, Eave) };
+			const ScreenPoint eastGable[3] = { at(ax1 - Over, ay0 + Over, Eave), at(ax1 - Over, mid, Eave + Ridge - 6.0F), at(ax1 - Over, ay1 - Over, Eave) };
+			FillRoofFace(out, northSlope, 4, ThatchShade, alpha, 1, brightness);
+			FillRoofFace(out, southSlope, 4, ThatchLit, alpha, 1, brightness);
+			FillRoofFace(out, eastGable, 3, Gable, alpha, -1, brightness);
+		} else {
+			// The ridge along y: the west slope, then the east slope, then the south gable.
+			const float mid = (static_cast<float>(wx0) + static_cast<float>(wx1)) / 2.0F;
+			const ScreenPoint westSlope[4] = { at(ax0, ay0, Eave), at(mid, ay0, Eave + Ridge), at(mid, ay1, Eave + Ridge), at(ax0, ay1, Eave) };
+			const ScreenPoint eastSlope[4] = { at(mid, ay0, Eave + Ridge), at(ax1, ay0, Eave), at(ax1, ay1, Eave), at(mid, ay1, Eave + Ridge) };
+			const ScreenPoint southGable[3] = { at(ax0 + Over, ay1 - Over, Eave), at(mid, ay1 - Over, Eave + Ridge - 6.0F), at(ax1 - Over, ay1 - Over, Eave) };
+			FillRoofFace(out, westSlope, 4, ThatchShade, alpha, -1, brightness);
+			FillRoofFace(out, eastSlope, 4, ThatchLit, alpha, -1, brightness);
+			FillRoofFace(out, southGable, 3, Gable, alpha, 1, brightness);
+		}
+	}
+}
+
+void FinishWoodsLevel(bool fresh)
+{
+	if (!fresh || !setlevel || !IsWoodsLevel(setlvlnum))
+		return;
+	// What each house holds on the first visit: three things on its floor, one of them a good one.
+	for (int i = 0; i < HouseCount; i++) {
+		const House &house = Houses[i];
+		for (int k = 0; k < 3; k++) {
+			const Point at { 16 + 2 * house.x0 + 2 + static_cast<int>(Hash(static_cast<uint32_t>(i), static_cast<uint32_t>(k), 0x100DU) % static_cast<uint32_t>(2 * (house.x1 - house.x0) - 3)),
+				16 + 2 * house.y0 + 2 + static_cast<int>(Hash(static_cast<uint32_t>(k), static_cast<uint32_t>(i), 0x100EU) % static_cast<uint32_t>(2 * (house.y1 - house.y0) - 3)) };
+			if (!IsTileSolid(at))
+				CreateRndItem(at, /*onlygood=*/k == 0, /*sendmsg=*/false, /*delta=*/false);
+		}
+	}
+}
+
+int WoodsHouseCountForTest()
+{
+	return HouseCount;
+}
+
+Point WoodsHouseDoorForTest(int index)
+{
+	if (index < 0 || index >= HouseCount)
+		return { 0, 0 };
+	const House &house = Houses[index];
+	return { 16 + 2 * house.doorX + 1, 16 + 2 * house.y1 + 1 };
+}
+
+Point WoodsHouseInsideForTest(int index)
+{
+	if (index < 0 || index >= HouseCount)
+		return { 0, 0 };
+	const House &house = Houses[index];
+	return { 16 + 2 * house.doorX + 1, 16 + 2 * house.y1 - 1 };
 }
 
 int WoodsFloorRung(int floorIndex)
@@ -1670,6 +2004,7 @@ Point StampWoodsCaveMouthForTest()
 	StampRiver();
 	StampCaveMouth();
 	LayFences();
+	LayHouses();
 	return MouthOnFloor ? MouthEntrance : Point { 0, 0 };
 }
 
