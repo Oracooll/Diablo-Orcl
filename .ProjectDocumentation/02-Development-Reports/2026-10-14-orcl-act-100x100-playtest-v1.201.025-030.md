@@ -56,3 +56,28 @@ Five rounds:
 4. A check of the round 3 fixes.
 
 None of these changes has been seen on screen yet.
+
+## v1.201.032-033: the world along the roads (no new art)
+
+The user asked for "health shrines, mana shrines, lanterns along the roads, and other world enriching assets", then "go with your first and second batches ... no new assets for now".
+
+`PlanWoodsWorld` in woods.cpp builds the plan from each floor's own generation on every build. The objects are added on the first visit only.
+
+**Vanilla objects:**
+- The Blood Fountain beside the road, and the Purifying Spring by the river.
+- A goat shrine or a cauldron in the first pen.
+- From floor 2, one sarcophagus in the second pen; chests in the other pens.
+- Candle stands either side of each cottage door, and barrels (one in four explosive).
+- The headless dead to search, the tortured by the way on, and a skull pile by the way back.
+- On floor 4 the burning cross. Its damage table is clamped so it no longer reads past the end (audit P1).
+
+**Drawn by the game:**
+- Two will-o'-wisps drift from the road to a chest in the forest. A wisp is gone once its chest is opened.
+- A fairy ring in the glade gives 3% of the hero's mana a second while he stands in it.
+- Mist in the woods by night and at dawn (`FogStrength`).
+- The cottages' lamps, candles, wisps and ring light the night (`WoodsNightLamps` into `GatherTownLights`).
+
+**Checks:**
+- OracoolAudit.WoodsCaveMouthIsReachable now plans the world on six floors and checks every piece.
+- ctest 1066/1066. Release v1.201.033 built.
+- Not yet seen on screen. Objects drawn in the town palette may show off colours.
