@@ -242,6 +242,24 @@ void DrlgTPass3()
 		FillTile(60, 70, 71);
 	}
 
+	// Oracool: the road out to the woods (the Orcl Act, oracool/woods.h; user, 2026-10-13: "there are a lot of rocks on
+	// the road there. i cant walk through them"). Plain grass over the town's last rows below Pepin's house, x 50-59 at
+	// y 82-85, and a way round the house's east side at x 56-59, y 80-81. The grass megatiles are 1-4 (the closed Hell
+	// entrance above uses them); picked from the position, not the random stream, so the rest of the town rolls as before.
+	for (int y = 82; y <= 84; y += 2) {
+		for (int x = 50; x <= 58; x += 2)
+			FillTile(x, y, 1 + (x / 2 + y / 2) % 4);
+	}
+	for (int x = 56; x <= 58; x += 2)
+		FillTile(x, 80, 1 + (x / 2 + 40) % 4);
+	// And on through the rocks past the old walk limit to the map's edge (user, 2026-10-13, a screenshot with the path
+	// drawn in red: "i want the entrance to the woods to be where the green circle is and i want the red path there to be
+	// clear of rocks"): x 56-59 down to row 95, where the entrance now is (oracool/woods.cpp, OnTownGate).
+	for (int y = 86; y <= 94; y += 2) {
+		for (int x = 56; x <= 58; x += 2)
+			FillTile(x, y, 1 + (x / 2 + y / 2) % 4);
+	}
+
 	InitTownPieces();
 }
 
@@ -361,7 +379,8 @@ void CleanTownFountain()
 void CreateTown(lvl_entry entry)
 {
 	dminPosition = { 10, 10 };
-	dmaxPosition = { 84, 84 };
+	// Row 95, not 84 (Oracool, the Orcl Act): the road to the woods runs down past the old limit to the map's edge.
+	dmaxPosition = { 84, 95 };
 
 	if (entry == ENTRY_MAIN) { // New game
 		// Oracool: user request - matches SetupLocalPositions()'s local-player spawn tile

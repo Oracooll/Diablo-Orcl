@@ -110,6 +110,11 @@ bool PlanTownDayNight(const Surface &out, Point firstTile, Point firstTileBuffer
 void AdvanceTownDayNightClock();
 /** @brief The CPU's per-pixel work for a plan. */
 void ApplyTintPlan(const Surface &out, const TintPlan &plan);
+/**
+ * @brief One plan that does what @p colour then @p dayNight do (the GPU takes one tint): the two fields multiplied over the
+ * day-and-night plan's rectangle. Both are on the same GroundMap - planned for the same frame.
+ */
+TintPlan CombineTintPlans(const TintPlan &colour, const TintPlan &dayNight);
 
 /** @brief The relief's numbers: its direction field (FieldW x FieldH, x major, 8.8), the outline colours it leaves be. */
 struct ReliefPlan {

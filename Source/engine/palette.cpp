@@ -296,7 +296,7 @@ void LoadRndLvlPal(dungeon_type l)
 	if (HeadlessMode)
 		return;
 
-	if (l == DTYPE_TOWN) {
+	if (l == DTYPE_TOWN || l == DTYPE_WOODS) { // the woods' tileset is the town's (oracool/woods.h)
 		LoadPalette("levels\\towndata\\town.pal");
 		return;
 	}

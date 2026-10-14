@@ -19,6 +19,7 @@
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 #include "oracool/rift.h" // InRift - the generated set level
+#include "oracool/woods.h" // IsWoodsBossFloor
 
 namespace devilution::oracool {
 
@@ -36,7 +37,8 @@ bool LevelHasMonsterType(_monster_id type)
 		// In a rift, only a type the level scatters: the Skeleton King's rift loads a floor 1-6 skeleton for him to raise
 		// (PLACE_SPECIAL), and eight of those carry a champion row - a floor-3 champion and escort in a rung-16 rift (round
 		// 30 audit; round 13 closed the same door for the scatter).
-		return !InRift() || (LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0;
+		// Nor on the woods' last floor, whose King loads one the same way (audit round 1).
+		return !(InRift() || IsWoodsBossFloor()) || (LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0;
 	}
 	return false;
 }
@@ -207,7 +209,8 @@ int LesserUniqueCountForLevel()
 	// generated - dropping a random pack into Lachdanan's tomb would be vandalism, not variety.
 	// A rift is the one set level that is GENERATED, and it asks for champions and a boss (PlaceRiftMonsters) -
 	// which this refused, so none ever came (audit, 2026-09-27).
-	if (currlevel == 0 || (setlevel && !InRift()))
+	// ... and so are the Orcl Act's woods and caves (oracool/woods.h, 2026-10-14).
+	if (currlevel == 0 || (setlevel && !InRift() && !IsOrclActLevel(setlvlnum)))
 		return 0;
 	// Oracool: user call after playing it (2026-08-15) - "one pack per level is not ok. increase
 	// packs 2-3 per normal. 3-4 nightmare. 4-5 hell. 5-6 torment."

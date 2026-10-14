@@ -5,6 +5,7 @@
 #include "multi.h"
 #include "oracool/named_encounters.h"
 #include "oracool/rift.h"
+#include "oracool/woods.h"
 #include "quests.h"
 #include "utils/language.h"
 
@@ -31,6 +32,19 @@ int DifficultyBlock(_difficulty difficulty)
 /** @brief The Hive's first floor - where the dungeon stops descending and steps sideways instead. */
 constexpr int FirstSideStepFloor = 17;
 
+
+/** @brief The area names, in floor order. */
+const char *const AreaNames[AreaCount] = {
+	N_("Cathedral"),
+	N_("Catacombs"),
+	N_("Caves"),
+	N_("Hell"),
+	N_("Nest"),
+	N_("Crypt"),
+};
+
+} // namespace
+
 /**
  * @brief Where @p floor sits on the LADDER, which is no longer always where it sits in the dungeon.
  *
@@ -46,18 +60,6 @@ int LadderFloorOf(int floor)
 {
 	return floor >= FirstSideStepFloor ? floor - 2 * FloorsPerArea : floor;
 }
-
-/** @brief The area names, in floor order. */
-const char *const AreaNames[AreaCount] = {
-	N_("Cathedral"),
-	N_("Catacombs"),
-	N_("Caves"),
-	N_("Hell"),
-	N_("Nest"),
-	N_("Crypt"),
-};
-
-} // namespace
 
 int AreaLevel(int floor, _difficulty difficulty)
 {
@@ -80,6 +82,9 @@ int CurrentAreaLevel()
 		// ilvl-16 loot (round 10 audit, v1.12.235).
 		if (IsRiftLevel(setlvlnum))
 			return std::clamp(RiftTier(), AreaLevel(1, sgGameInitInfo.nDifficulty), MaxAreaLevel);
+		// A woods floor stands on its own rung, fixed at its first visit (oracool/woods.h).
+		if (IsOrclActLevel(setlvlnum))
+			return AreaLevel(WoodsBandFloor(), sgGameInitInfo.nDifficulty);
 		switch (setlvlnum) {
 		case SL_SKELKING:
 			floor = Quests[Q_SKELKING]._qlevel;

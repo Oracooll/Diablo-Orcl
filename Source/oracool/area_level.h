@@ -57,6 +57,9 @@ constexpr int AreaFloorCount = 24;
 
 /** @brief Floors per area, and the six areas the floors group into. */
 constexpr int FloorsPerArea = 4;
+
+/** @brief The ladder floor (1-16) a dungeon floor's monsters stand on: the Hive's and the Crypt's eight below their number. */
+int LadderFloorOf(int floor);
 constexpr int AreaCount = 6;
 
 /**

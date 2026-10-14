@@ -30,6 +30,7 @@
 #include "oracool/event_log.h"
 #include "oracool/hud_art.h"
 #include "oracool/rift.h"
+#include "oracool/woods.h"
 #include "oracool/stonegate.h"
 #include "oracool/ornate_border.h"
 #include "panels/ui_panels.hpp"
@@ -569,6 +570,9 @@ void CheckQuestKill(const Monster &monster, bool sendmsg)
 	// him there settles no quest (oracool/rift.h).
 	if (oracool::InRift())
 		return;
+	// Nor the woods' boss, who may be the King or the Butcher in body (oracool/woods.h).
+	if (oracool::IsWoodsBoss(monster))
+		return;
 
 	Player &myPlayer = *MyPlayer;
 
@@ -696,6 +700,9 @@ Point GetMapReturnPosition()
 	// town (RiftReturnTile).
 	if (oracool::IsRiftLevel(setlvlnum))
 		return oracool::RiftReturnTile();
+	// Out of the woods by the road, onto the road at Tristram's edge (oracool/woods.h).
+	if (IsWoodsLevel(setlvlnum))
+		return oracool::WoodsTownReturnTile();
 	// A Sealed Map's arena returns to the middle of town, the new game's spawn, not beside Farnham in the far corner -
 	// the complaint the rifts were fixed for (round 10 audit, v1.12.235).
 	if (IsArenaLevel(setlvlnum))

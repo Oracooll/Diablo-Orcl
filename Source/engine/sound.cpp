@@ -268,6 +268,7 @@ _music_id GetLevelMusic(dungeon_type dungeonType)
 {
 	switch (dungeonType) {
 	case DTYPE_TOWN:
+	case DTYPE_WOODS: // the woods under the sky, Tristram's music for now (oracool/woods.h)
 		return TMUSIC_TOWN;
 	case DTYPE_CATHEDRAL:
 		return TMUSIC_CATHEDRAL;

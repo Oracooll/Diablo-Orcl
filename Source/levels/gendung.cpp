@@ -12,6 +12,8 @@
 #include "levels/drlg_l4.h"
 #include "levels/town.h"
 #include "lighting.h"
+#include "oracool/borrowed_tiles.h"
+#include "oracool/woods.h"
 #include "oracool/zone_registry.h"
 #include "options.h"
 
@@ -59,6 +61,7 @@ std::unique_ptr<uint16_t[]> LoadMinData(size_t &tileCount)
 {
 	switch (leveltype) {
 	case DTYPE_TOWN:
+	case DTYPE_WOODS: // the town tileset's pieces (oracool/woods.h)
 		if (gbIsHellfire)
 			return LoadFileInMem<uint16_t>("nlevels\\towndata\\town.min", &tileCount);
 		return LoadFileInMem<uint16_t>("levels\\towndata\\town.min", &tileCount);
@@ -396,6 +399,9 @@ void CreateDungeon(uint32_t rseed, lvl_entry entry)
 	case DTYPE_HELL:
 		CreateL4Dungeon(rseed, entry);
 		break;
+	case DTYPE_WOODS:
+		oracool::CreateWoods(rseed, entry);
+		break;
 	default:
 		app_fatal("Invalid level type");
 	}
@@ -412,6 +418,7 @@ void LoadLevelSOLData()
 {
 	switch (leveltype) {
 	case DTYPE_TOWN:
+	case DTYPE_WOODS:
 		if (gbIsHellfire)
 			LoadFileInMem("nlevels\\towndata\\town.sol", SOLData);
 		else
@@ -473,6 +480,8 @@ void LoadLevelSOLData()
 	default:
 		app_fatal("LoadLevelSOLData");
 	}
+	// The pieces borrowed from other tilesets keep their own sets' properties (oracool/borrowed_tiles.h).
+	oracool::ApplyBorrowedSol();
 }
 
 void SetDungeonMicros()
@@ -480,7 +489,7 @@ void SetDungeonMicros()
 	MicroTileLen = 10;
 	size_t blocks = 10;
 
-	if (leveltype == DTYPE_TOWN) {
+	if (leveltype == DTYPE_TOWN || leveltype == DTYPE_WOODS) {
 		MicroTileLen = 16;
 		blocks = 16;
 	} else if (leveltype == DTYPE_HELL) {

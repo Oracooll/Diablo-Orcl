@@ -52,6 +52,7 @@
 #include "oracool/wirt_cart.h"
 #include "oracool/oracool.h"
 #include "oracool/rift.h" // IsRiftLevel, RiftMonsterBandFloor - rift chests and shrines
+#include "oracool/woods.h" // WoodsBandFloor - the woods' chests and shrines
 #include "oracool/waypoint_menu.h"
 #include "qol/stash.h"
 #include "stores.h"
@@ -441,8 +442,8 @@ void InitRndLocObj(int min, int max, _object_id objtype)
 
 	for (int i = 0; i < numobjs; i++) {
 		while (true) {
-			int xp = GenerateRnd(80) + 16;
-			int yp = GenerateRnd(80) + 16;
+			int xp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
+			int yp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
 			if (RndLocOk(xp - 1, yp - 1)
 			    && RndLocOk(xp, yp - 1)
 			    && RndLocOk(xp + 1, yp - 1)
@@ -464,8 +465,8 @@ void InitRndLocBigObj(int min, int max, _object_id objtype)
 	int numobjs = GenerateRnd(max - min) + min;
 	for (int i = 0; i < numobjs; i++) {
 		while (true) {
-			int xp = GenerateRnd(80) + 16;
-			int yp = GenerateRnd(80) + 16;
+			int xp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
+			int yp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
 			if (RndLocOk(xp - 1, yp - 2)
 			    && RndLocOk(xp, yp - 2)
 			    && RndLocOk(xp + 1, yp - 2)
@@ -500,7 +501,7 @@ bool CanPlaceRandomObject(Point position, Displacement standoff)
 std::optional<Point> GetRandomObjectPosition(Displacement standoff)
 {
 	for (int i = 0; i <= 20000; i++) {
-		Point position = Point { GenerateRnd(80), GenerateRnd(80) } + Displacement { 16, 16 };
+		Point position = Point { GenerateRnd(PlayAreaTiles()), GenerateRnd(PlayAreaTiles()) } + Displacement { PlayAreaOrigin(), PlayAreaOrigin() };
 		if (CanPlaceRandomObject(position, standoff))
 			return position;
 	}
@@ -608,8 +609,8 @@ void InitRndBarrels()
 		int xp;
 		int yp;
 		do {
-			xp = GenerateRnd(80) + 16;
-			yp = GenerateRnd(80) + 16;
+			xp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
+			yp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
 		} while (!RndLocOk(xp, yp));
 		_object_id o = FlipCoin(4) ? explosiveBarrelId : barrelId;
 		AddObject(o, { xp, yp });
@@ -957,8 +958,8 @@ void AddCryptStoryBook(int s)
 void AddNakrulLever()
 {
 	while (true) {
-		int xp = GenerateRnd(80) + 16;
-		int yp = GenerateRnd(80) + 16;
+		int xp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
+		int yp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
 		if (RndLocOk(xp - 1, yp - 1)
 		    && RndLocOk(xp, yp - 1)
 		    && RndLocOk(xp + 1, yp - 1)
@@ -1086,8 +1087,8 @@ void AddLazStand()
 	bool found = false;
 	while (!found) {
 		found = true;
-		xp = GenerateRnd(80) + 16;
-		yp = GenerateRnd(80) + 16;
+		xp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
+		yp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
 		for (int yy = -3; yy <= 3; yy++) {
 			for (int xx = -2; xx <= 3; xx++) {
 				if (!RndLocOk(xp + xx, yp + yy))
@@ -1134,7 +1135,7 @@ void DeleteObject(int oi, int i)
  */
 bool IsQuestSetLevel()
 {
-	return setlevel && !oracool::IsRiftLevel(setlvlnum);
+	return setlevel && !oracool::IsRiftLevel(setlvlnum) && !IsOrclActLevel(setlvlnum);
 }
 
 /** @brief The floor a shrine's reward scales with: in a rift, the rung its tier stands on, not the set-level id (9 or 10). */
@@ -1142,6 +1143,8 @@ int ShrineFloor()
 {
 	if (setlevel && oracool::IsRiftLevel(setlvlnum))
 		return oracool::RiftMonsterBandFloor();
+	if (setlevel && IsOrclActLevel(setlvlnum))
+		return oracool::WoodsBandFloor();
 	return currlevel;
 }
 
@@ -1892,7 +1895,12 @@ void UpdateFlameTrap(Object &trap)
 
 void UpdateBurningCrossDamage(Object &cross)
 {
-	int damage[6] = { 6, 8, 10, 12, 10, 12 };
+	const int damageByType[6] = { 6, 8, 10, 12, 10, 12 };
+	// The Orcl Act's woods are past the six dungeon types (audit, 2026-10-14: the cross at the woods' end read damage[6] every
+	// tick): Hell's figure there.
+	int damage = damageByType[std::clamp(static_cast<int>(leveltype) - 1, 0, 5)];
+	if (leveltype == DTYPE_WOODS)
+		damage = damageByType[3];
 
 	Player &myPlayer = *MyPlayer;
 
@@ -1902,12 +1910,12 @@ void UpdateBurningCrossDamage(Object &cross)
 	int8_t fireResist = myPlayer._pFireResist;
 	// Negative fire resistance burns hotter (D2 rules, 2026-09-13).
 	if (fireResist != 0)
-		damage[leveltype - 1] -= fireResist * damage[leveltype - 1] / 100;
+		damage -= fireResist * damage / 100;
 
 	if (myPlayer.position.tile != cross.position + Displacement { 0, -1 })
 		return;
 
-	ApplyPlrDamage(DamageType::Fire, myPlayer, 0, 0, damage[leveltype - 1]);
+	ApplyPlrDamage(DamageType::Fire, myPlayer, 0, 0, damage);
 	if (myPlayer._pHitPoints >> 6 > 0) {
 		myPlayer.Say(HeroSpeech::Argh);
 	}
@@ -3286,8 +3294,8 @@ void OperateShrineSecluded(const Player &player)
 	if (&player != MyPlayer)
 		return;
 
-	for (int x = 0; x < DMAXX; x++)
-		for (int y = 0; y < DMAXY; y++)
+	for (int x = 0; x < PlayAreaCells(); x++)
+		for (int y = 0; y < PlayAreaCells(); y++)
 			UpdateAutomapExplorer({ x, y }, MAP_EXP_SHRINE);
 
 	InitDiabloMsg(EMSG_SHRINE_SECLUDED);
@@ -4911,6 +4919,18 @@ void EnsureWaypointGraphicsLoaded()
  * randomly-placed object in this engine already works. Called from diablo.cpp's town branch
  * (town) and InitObjects() (levels 1-16) respectively.
  */
+void AddGeneratedLevelWaypointSigil(Point tile, int index)
+{
+	ClrAllObjects();
+	memset(dObject, 0, sizeof(dObject)); // ClrAllObjects leaves the map's references; the previous level's would remain
+	EnsureObjectGraphicsLoaded(OFILE_ORCLWAYP, AllObjects[OBJ_WAYPOINT].animWidth);
+	Object *sigil = AddObject(OBJ_WAYPOINT, tile);
+	if (sigil == nullptr)
+		return;
+	sigil->_oVar1 = index;
+	sigil->_oAnimFrame = IsWaypointUnlocked(index) ? 2 : 1;
+}
+
 void AddWaypointSigilObject()
 {
 	if (setlevel)

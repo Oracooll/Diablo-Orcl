@@ -40,6 +40,8 @@
 #include "oracool/advanced_stats.h" // the right-hand slot's third window, and IsRightPanelOpen's third answer
 #include "oracool/attack_skills.h"
 #include "oracool/colour_light.h" // smooth and coloured lighting
+#include "oracool/borrowed_tiles.h" // the pieces a level borrows from other tilesets
+#include "oracool/woods.h" // the woods' true-colour ground and trees
 #include "oracool/companion.h"
 #include "oracool/frame_blend.h" // Smooth animation: a frame cross-faded into the next
 #include "oracool/frame_timing.h"
@@ -1050,16 +1052,27 @@ bool FloorSmoothedThisFrame = false;
 bool DeferFloorObjectsThisFrame = false;
 void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
-	const uint16_t levelPieceId = dPiece[tilePosition.x][tilePosition.y];
+	// A piece of another tileset (oracool/borrowed_tiles.h): its own picture, in its own set's colours - without its floor
+	// triangles on a woods floor, whose own ground is under it (a Caves fence on the grass).
+	if (const uint16_t piece = dPiece[tilePosition.x][tilePosition.y]; oracool::WoodsShellAt(tilePosition) == 0 && oracool::IsBorrowedPiece(piece)) {
+		oracool::DrawBorrowedCell(out, tilePosition, piece, targetBufferPosition, LightTableIndex, !FloorSmoothedThisFrame && oracool::WoodsDrawnPiece(tilePosition) == piece);
+		return;
+	}
+	const uint16_t levelPieceId = oracool::WoodsDrawnPiece(tilePosition); // dPiece, or how a woods tile looks
+
 	const MICROS *pMap = &DPieceMicros[levelPieceId];
 
-	const uint8_t *tbl = LightTables[LightTableIndex].data();
+	// The woods draw Tristram's pieces unshaded, as Tristram does (the seam survey, 2026-10-14: its palette has no ramps of
+	// sixteen, and the woods' light of 3 turned the cottages' roofs and the cave mouth's rocks to red and green speckle); the
+	// painted ground and the night's tint carry the woods' light.
+	const uint8_t *tbl = LightTables[leveltype == DTYPE_WOODS && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
 #ifdef _DEBUG
 	if (DebugPath && MyPlayer->IsPositionInPath(tilePosition))
 		tbl = GetPauseTRN();
 #endif
 
-	bool transparency = TileHasAny(levelPieceId, TileProperties::Transparent) && TransList[dTransVal[tilePosition.x][tilePosition.y]];
+	bool transparency = (TileHasAny(levelPieceId, TileProperties::Transparent) && TransList[dTransVal[tilePosition.x][tilePosition.y]])
+	    || oracool::WoodsShellSeeThrough(tilePosition); // a woods cottage the hero stands behind (oracool/woods.h)
 #ifdef _DEBUG
 	if ((SDL_GetModState() & KMOD_ALT) != 0)
 		transparency = false;
@@ -1181,13 +1194,19 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 {
 	LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 
-	const uint8_t *tbl = LightTables[SmoothFloorThisFrame && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
+	const uint8_t *tbl = LightTables[(SmoothFloorThisFrame || leveltype == DTYPE_WOODS) && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
 #ifdef _DEBUG
 	if (DebugPath && MyPlayer->IsPositionInPath(tilePosition))
 		tbl = GetPauseTRN();
 #endif
 
-	const uint16_t levelPieceId = dPiece[tilePosition.x][tilePosition.y];
+	const uint16_t levelPieceId = oracool::WoodsDrawnPiece(tilePosition); // dPiece, or how a woods tile looks
+	if (oracool::IsBorrowedPiece(levelPieceId)) {
+		oracool::DrawBorrowedFloor(out, levelPieceId, targetBufferPosition, SmoothFloorThisFrame && LightTableIndex < LightsMax ? -1 : LightTableIndex);
+		if (!DeferFloorObjectsThisFrame)
+			DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
+		return;
+	}
 	{
 		const LevelCelBlock levelCelBlock { DPieceMicros[levelPieceId].mt[0] };
 		if (levelCelBlock.hasValue()) {
@@ -1218,8 +1237,12 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 void DrawWallFloorTriangles(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
 	LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
-	const uint8_t *tbl = LightTables[SmoothFloorThisFrame && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
-	const MICROS &micros = DPieceMicros[dPiece[tilePosition.x][tilePosition.y]];
+	const uint8_t *tbl = LightTables[(SmoothFloorThisFrame || leveltype == DTYPE_WOODS) && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
+	if (const uint16_t piece = oracool::WoodsDrawnPiece(tilePosition); oracool::IsBorrowedPiece(piece)) {
+		oracool::DrawBorrowedFloor(out, piece, targetBufferPosition, SmoothFloorThisFrame && LightTableIndex < LightsMax ? -1 : LightTableIndex);
+		return;
+	}
+	const MICROS &micros = DPieceMicros[oracool::WoodsDrawnPiece(tilePosition)];
 	const LevelCelBlock left { micros.mt[0] };
 	if (left.hasValue() && left.type() == TileType::LeftTriangle)
 		RenderTile(out, targetBufferPosition, left, MaskType::Solid, tbl);
@@ -1560,8 +1583,20 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 	// again, so its corpses, items and missiles stay unseen (audit round 1).
 	LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 
-	DrawCell(out, tilePosition, targetBufferPosition);
+	// The woods draw no tile art (oracool/woods.h): what stands on the tile - a tree, a small thing on the ground - in its
+	// place, in the figures' order.
+	if (oracool::WoodsArtActive(out) && !oracool::IsBorrowedPiece(dPiece[tilePosition.x][tilePosition.y]) && !oracool::WoodsTileUsesCels(tilePosition)) {
+		oracool::DrawWoodsTileSprite(out, tilePosition, targetBufferPosition, LightTableIndex);
+	} else {
+		DrawCell(out, tilePosition, targetBufferPosition);
+		oracool::RepaintWoodsCelGround(out, tilePosition, targetBufferPosition, LightTableIndex); // a mouth rock's dark earth
+		if (oracool::WoodsSpritesOverTiles(out)) // the Mixed look: the painted trees over Tristram's tiles
+			oracool::DrawWoodsTileSprite(out, tilePosition, targetBufferPosition, LightTableIndex);
+	}
 	LightTableIndex = dLight[tilePosition.x][tilePosition.y];
+	// Inside a woods house whose cottage stands whole over it: its figures, items and bodies are under the roof (oracool/woods.h).
+	if (oracool::WoodsShellCovers(tilePosition))
+		return;
 
 	int8_t bDead = dCorpse[tilePosition.x][tilePosition.y];
 	int8_t bMap = dTransVal[tilePosition.x][tilePosition.y];
@@ -1621,7 +1656,8 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 	DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::AfterCharacters);
 	DrawItem(out, tilePosition, targetBufferPosition, false);
 
-	if (leveltype != DTYPE_TOWN) {
+	// The woods are on Tristram's tileset: their dSpecial are its tree leaves, drawn as the town draws them (oracool/woods.h).
+	if (leveltype != DTYPE_TOWN && leveltype != DTYPE_WOODS) {
 		char bArch = dSpecial[tilePosition.x][tilePosition.y];
 		if (bArch != 0) {
 			bool transparency = TransList[bMap];
@@ -1660,14 +1696,40 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
  */
 void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPosition, int rows, int columns)
 {
+	// The woods' ground under every tile, the trees' included (oracool/woods.h): the true-colour textures in place of the
+	// town tileset's cels, at full brightness when the smooth pass darkens the floor after.
+	const bool woodsGround = oracool::WoodsArtActive(out);
+	oracool::UpdateWoodsShells(); // the cottages, whole or gone, for this frame
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < columns; j++) {
-			if (InDungeonBounds(tilePosition)) {
-				if (!TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid))
-					DrawFloor(out, tilePosition, targetBufferPosition);
+			// A borrowed piece with no woods ground under it (a house's stone floor) draws its own floor.
+			if (InDungeonBounds(tilePosition) && woodsGround && !oracool::WoodsTileUsesCels(tilePosition)
+			    && !(oracool::IsBorrowedPiece(dPiece[tilePosition.x][tilePosition.y]) && oracool::WoodsDrawnPiece(tilePosition) == dPiece[tilePosition.x][tilePosition.y])) {
+				LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
+				oracool::DrawWoodsGroundTile(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
+				oracool::DrawWoodsGateTint(out, tilePosition, targetBufferPosition); // the road back, marked
+				if (!DeferFloorObjectsThisFrame && !TileHasAny(dPiece[tilePosition.x][tilePosition.y], TileProperties::Solid))
+					DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
+			} else if (InDungeonBounds(tilePosition)) {
+				if (!TileHasAny(oracool::WoodsDrawnPiece(tilePosition), TileProperties::Solid)) {
+					// The woods' Mixed look: Tristram's cels with the painted road and the graded grass, from the floor's cache when
+					// it has the tile (oracool/woods.h), drawn as before when it does not.
+					LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
+					if (oracool::DrawWoodsMixedFloorCached(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame)) {
+						if (!DeferFloorObjectsThisFrame)
+							DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
+					} else {
+						DrawFloor(out, tilePosition, targetBufferPosition);
+						oracool::DrawWoodsMixedGround(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
+						oracool::RepaintWoodsCelGrass(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
+					}
+					oracool::DrawWoodsGateTint(out, tilePosition, targetBufferPosition); // Tristram's road to the woods, marked
+				}
 				else if (DeferFloorObjectsThisFrame)
 					DrawWallFloorTriangles(out, tilePosition, targetBufferPosition);
-			} else {
+			} else if (oracool::WoodsBeyondMapUsesCels(out)) {
+				DrawFloor(out, oracool::WoodsMirrorBeyondMap(tilePosition), targetBufferPosition); // Tristram's rock mass, mirrored
+			} else if (!oracool::DrawWoodsBeyondMapFloor(out, tilePosition, targetBufferPosition, SmoothFloorThisFrame)) {
 				world_draw_black_tile(out, targetBufferPosition.x, targetBufferPosition.y);
 			}
 			tilePosition += Direction::East;
@@ -1758,6 +1820,12 @@ void DrawTileContent(const Surface &out, Point tilePosition, Point targetBufferP
 					}
 				}
 				DrawDungeon(out, tilePosition, targetBufferPosition);
+			} else if (oracool::WoodsBeyondMapUsesCels(out)) {
+				const Point mirror = oracool::WoodsMirrorBeyondMap(tilePosition);
+				LightTableIndex = oracool::ExplorationMemoryLight(mirror, dLight[mirror.x][mirror.y]);
+				DrawCell(out, mirror, targetBufferPosition); // and its upright parts
+			} else {
+				oracool::DrawWoodsBeyondMapTree(out, tilePosition, targetBufferPosition); // the forest past the woods' edge
 			}
 			tilePosition += Direction::East;
 			targetBufferPosition.x += TILE_WIDTH;
@@ -2174,7 +2242,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	const bool anyStage3 = gpu.perPixelLights || gpu.litSprites || gpu.wideBloom || gpu.lightShafts || gpu.heatDistortion || gpu.filmicGrade;
 	const bool reliefNow = oracool::SurfaceReliefActive(visible);
 	const bool gpuWorth = anyStage3 || gpu.bloom || gpu.mood || gpu.vignette || gpu.zoom == oracool::GpuZoom::Filtered || gpu.zoom == oracool::GpuZoom::Smooth || reliefNow
-	    || oracool::ColouredLightActive(visible) || (leveltype == DTYPE_TOWN && *sgOptions.Oracool.dayNightCycle)
+	    || oracool::ColouredLightActive(visible) || (IsUnderSky(leveltype) && *sgOptions.Oracool.dayNightCycle)
 	    || (leveltype != DTYPE_TOWN && *sgOptions.Oracool.heatHaze) || (leveltype == DTYPE_TOWN && *sgOptions.Oracool.heatHaze && *sgOptions.Oracool.livingTown);
 	const bool gpuFrame = !visible.isIndexed() && gpuWorth && oracool::GpuWorldPostAvailable();
 
@@ -2208,12 +2276,17 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 		oracool::AdvanceTownDayNightClock();
 		oracool::TintPlan tint;
 		bool hasTint = oracool::PlanLightColour(visible, position, visibleStart, tint);
-		if (!hasTint)
-			hasTint = oracool::PlanTownDayNight(visible, position, visibleStart, tint);
+		// The woods have the dungeon's coloured light and the sky's day and night both: one plan of the two, as the CPU path
+		// lays one then the other (audit round 3).
+		oracool::TintPlan dayNight;
+		if (oracool::PlanTownDayNight(visible, position, visibleStart, dayNight)) {
+			tint = hasTint ? oracool::CombineTintPlans(tint, dayNight) : dayNight;
+			hasTint = true;
+		}
 		static std::vector<oracool::Splat> splats;
 		splats.clear();
 		oracool::BeginSplatCollection(&splats);
-		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); oracool::DrawSceneLifeLights(visible, position, visibleStart); oracool::DrawSceneFeelLights(visible, position, visibleStart); oracool::DrawSceneGlowLights(visible, position, visibleStart); }
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); oracool::DrawSceneLifeLights(visible, position, visibleStart); oracool::DrawWoodsGlows(visible, position, visibleStart); oracool::DrawSceneFeelLights(visible, position, visibleStart); oracool::DrawSceneGlowLights(visible, position, visibleStart); }
 		{ oracool::ScopedFramePass timed(oracool::FramePass::Particles); oracool::UpdateAndDrawParticles(visible, position, visibleStart); }
 		oracool::EndSplatCollection();
 		oracool::HazePlan haze;
@@ -2272,7 +2345,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 		// Day and night in Tristram (user, 2026-10-11): the town's own light over the finished town; then the loot beams,
 		// which are light and stay bright at night, and bloom with the rest.
 		{ oracool::ScopedFramePass timed(oracool::FramePass::DayNight); oracool::ApplyTownDayNight(visible, position, visibleStart); }
-		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); oracool::DrawSceneLifeLights(visible, position, visibleStart); oracool::DrawSceneFeelLights(visible, position, visibleStart); oracool::DrawSceneGlowLights(visible, position, visibleStart); }
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); oracool::DrawSceneLifeLights(visible, position, visibleStart); oracool::DrawWoodsGlows(visible, position, visibleStart); oracool::DrawSceneFeelLights(visible, position, visibleStart); oracool::DrawSceneGlowLights(visible, position, visibleStart); }
 		// The other visual techniques (user, 2026-10-10: "i like all 9"), each behind its own option: particles over the
 		// lit world, the haze before the bloom so shimmered lava still glows, the area mood and vignette last so they
 		// cover the glow too - all before the outlines (the cursor's own colour) and the zoom.

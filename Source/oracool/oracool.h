@@ -114,6 +114,12 @@ void ProcessTownStashChest();
 void AddWaypointSigilObject();
 
 /**
+ * @brief A generated set level's sigil (the Orcl Act's woods, 2026-10-14): the object pool emptied first - the level has no
+ * other objects and its build does not run InitObjects - then the sigil on @p tile, list index @p index, lit if it was reached.
+ */
+void AddGeneratedLevelWaypointSigil(Point tile, int index);
+
+/**
  * @brief Oracool: user report ("wp frequently spawns in odd places") - moves a freshly generated
  * dungeon waypoint to a spot that suits a two-tile-wide landmark platform.
  *

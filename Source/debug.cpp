@@ -596,8 +596,8 @@ std::string DebugCmdLighting(const string_view parameter)
 
 std::string DebugCmdMapReveal(const string_view parameter)
 {
-	for (int x = 0; x < DMAXX; x++)
-		for (int y = 0; y < DMAXY; y++)
+	for (int x = 0; x < PlayAreaCells(); x++)
+		for (int y = 0; y < PlayAreaCells(); y++)
 			UpdateAutomapExplorer({ x, y }, MAP_EXP_SHRINE);
 
 	return "The way is made clear when viewed from above";
@@ -605,8 +605,8 @@ std::string DebugCmdMapReveal(const string_view parameter)
 
 std::string DebugCmdMapHide(const string_view parameter)
 {
-	for (int x = 0; x < DMAXX; x++)
-		for (int y = 0; y < DMAXY; y++)
+	for (int x = 0; x < PlayAreaCells(); x++)
+		for (int y = 0; y < PlayAreaCells(); y++)
 			AutomapView[x][y] = MAP_EXP_NONE;
 
 	return "The way is made unclear when viewed from below";
@@ -684,7 +684,7 @@ std::string DebugCmdGiveWaypoints(const string_view parameter)
 	// Oracool: user request - unlocks every waypoint (1-16; Tristram/0 is always unlocked
 	// already) on the current difficulty, so all 17 travel-list entries can be tried without
 	// having to actually find and activate every sigil first.
-	for (int i = 1; i <= 24; i++) // the Hellfire act too (round 9 audit)
+	for (int i = 1; i < oracool::FirstWoodsWaypoint + oracool::WoodsWaypointCount; i++) // the Hellfire and Orcl acts too
 		oracool::UnlockWaypoint(i);
 	return "The way is open.";
 }

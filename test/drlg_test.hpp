@@ -38,6 +38,8 @@ int GetTileCount(dungeon_type levelType)
 		return 166;
 	case DTYPE_CRYPT:
 		return 217;
+	case DTYPE_WOODS:
+		return 376;
 	default:
 		app_fatal("Invalid level type");
 	}

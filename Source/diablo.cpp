@@ -86,6 +86,7 @@
 #include "oracool/workshop.h"
 #include "oracool/levski_roar.h"
 #include "oracool/rift.h"
+#include "oracool/woods.h"
 #include "oracool/stonegate.h"
 #include "oracool/wirt_cart.h"
 #include "oracool/runeword_book.h"
@@ -252,6 +253,7 @@ void FreeGame()
 	// next hero.
 	oracool::ResetWorkshopForNewGame();
 	oracool::ResetRiftForNewGame(); // a rift open in one game must not be open in the next (oracool/rift.h)
+	oracool::ResetWoodsForNewGame(); // nor the last game's woods (oracool/woods.h)
 	oracool::ResetNamedEncountersForNewGame(); // nor an arena's free re-entry
 #ifdef _DEBUG
 	DebugGodMode = false; // god mode is one game's, not the next one's (round 89 audit)
@@ -2400,6 +2402,7 @@ void LoadLvlGFX()
 
 	switch (leveltype) {
 	case DTYPE_TOWN:
+	case DTYPE_WOODS: // the town tileset, never drawn there (oracool/woods.h)
 		if (gbIsHellfire) {
 			pDungeonCels = LoadFileInMem("nlevels\\towndata\\town.cel");
 			pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
@@ -2486,6 +2489,8 @@ void CreateLevel(lvl_entry entry)
 	case DTYPE_CRYPT:
 		InitCryptTriggers();
 		break;
+	case DTYPE_WOODS:
+		break; // a set level: its edges are oracool::CheckWoodsEdges's
 	default:
 		app_fatal("CreateLevel");
 	}
@@ -2566,6 +2571,7 @@ void GameLogic()
 		ProcessMonsters();
 		gGameLogicStep = GameLogicStep::ProcessObjects;
 		ProcessObjects();
+		oracool::TickWoods(); // the fairy ring (oracool/woods.h)
 		gGameLogicStep = GameLogicStep::ProcessMissiles;
 		ProcessMissiles();
 		gGameLogicStep = GameLogicStep::ProcessItems;
@@ -4349,6 +4355,9 @@ void DisableInputEventHandler(const SDL_Event &event, uint16_t modState)
 
 void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 {
+	// The woods' ground pictures (up to 100 MB) are not kept off the woods (audit round 4).
+	if (leveltype != DTYPE_WOODS)
+		oracool::ForgetWoodsMixedFloor();
 	// The afterimages, a guardian's entrance, the fades: per level, so a new level (or a new game) starts without them
 	// (audit round 1: a new rift on the same level stamp drew the last hero's trail).
 	oracool::ForgetSceneFx();
@@ -4677,6 +4686,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 		if (firstflag || lvldir == ENTRY_LOAD || !myPlayer._pSLvlVisited[setlvlnum] || gbIsMultiplayer) {
 			InitItems();
 			oracool::FinishRiftLevel(/*fresh=*/true); // a rift's theme rooms, after the items as a floor's are
+			oracool::FinishWoodsLevel(/*fresh=*/true); // and a woods floor's houses their loot
 			SavePreLighting();
 		} else {
 			LoadLevel();

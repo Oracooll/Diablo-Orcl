@@ -28,7 +28,9 @@ namespace devilution {
 #define MAXDUNY (16 + DMAXY * 2 + 16)
 
 #define MAXTHEMES 50
-#define MAXTILES 1379
+// 1379 for the largest native tileset, and room past it for the pieces a level borrows from the others (oracool/
+// borrowed_tiles.h, 2026-10-14).
+#define MAXTILES (1379 + 4096)
 
 enum _setlevels : int8_t {
 	SL_NONE,
@@ -48,10 +50,41 @@ enum _setlevels : int8_t {
 	SL_RIFT_NEPHALEM,
 	SL_RIFT_GUARDIAN,
 
+	// Oracool: the Orcl Act (user, 2026-10-13): the woods west of Tristram, four floors, each a set level generated from a
+	// seed the way the rifts are (oracool/woods.h). The desert east of the cows follows with its own four.
+	SL_ORCL_WOODS_1,
+	SL_ORCL_WOODS_2,
+	SL_ORCL_WOODS_3,
+	SL_ORCL_WOODS_4,
+	// Their caves (oracool/woods_caves.h, 2026-10-14): generated on the Caves tileset under a woods floor.
+	SL_ORCL_CAVE_1,
+	SL_ORCL_CAVE_2,
+	SL_ORCL_CAVE_3,
+
 	SL_FIRST_ARENA = SL_ARENA_CHURCH,
 	SL_LAST_ARENA = SL_ARENA_CIRCLE_OF_LIFE,
-	SL_LAST = SL_RIFT_GUARDIAN,
+	SL_FIRST_WOODS = SL_ORCL_WOODS_1,
+	SL_LAST_WOODS = SL_ORCL_WOODS_4,
+	SL_FIRST_WOODS_CAVE = SL_ORCL_CAVE_1,
+	SL_LAST_WOODS_CAVE = SL_ORCL_CAVE_3,
+	SL_LAST = SL_ORCL_CAVE_3,
 };
+
+inline bool IsWoodsLevel(_setlevels setLevel)
+{
+	return setLevel >= SL_FIRST_WOODS && setLevel <= SL_LAST_WOODS;
+}
+
+inline bool IsWoodsCaveLevel(_setlevels setLevel)
+{
+	return setLevel >= SL_FIRST_WOODS_CAVE && setLevel <= SL_LAST_WOODS_CAVE;
+}
+
+/** @brief A level of the Orcl Act: a woods floor or one of their caves - generated, with the act's own rung (oracool/woods.h). */
+inline bool IsOrclActLevel(_setlevels setLevel)
+{
+	return IsWoodsLevel(setLevel) || IsWoodsCaveLevel(setLevel);
+}
 
 inline bool IsArenaLevel(_setlevels setLevel)
 {
@@ -73,10 +106,22 @@ enum dungeon_type : int8_t {
 	DTYPE_HELL,
 	DTYPE_NEST,
 	DTYPE_CRYPT,
+	// Oracool: the Orcl Act's woods (oracool/woods.h). A dungeon in every rule (monsters, light, exploration) on the town
+	// tileset's data, its ground and trees drawn in true colour from the woods art.
+	DTYPE_WOODS,
 
-	DTYPE_LAST = DTYPE_CRYPT,
+	DTYPE_LAST = DTYPE_WOODS,
 	DTYPE_NONE = -1,
 };
+
+/**
+ * @brief The level stands under the sky - Tristram, or the Orcl Act's woods (D8, 2026-10-14): the weather, its rain and
+ * puddles, the cloud shadows, the footprints and the fireflies are Tristram's and theirs.
+ */
+inline bool IsUnderSky(dungeon_type type)
+{
+	return type == DTYPE_TOWN || type == DTYPE_WOODS;
+}
 
 enum lvl_entry : uint8_t {
 	ENTRY_MAIN,
@@ -185,6 +230,27 @@ extern WorldTilePosition dminPosition;
 extern WorldTilePosition dmaxPosition;
 /** Specifies the active dungeon type of the current game. */
 extern DVL_API_FOR_TEST dungeon_type leveltype;
+
+/**
+ * @brief The floor's play area in world tiles: 80 x 80 from tile 16 on every floor of the game, 100 x 100 from tile 6 on the
+ * Orcl Act's woods (user, 2026-10-14: "go with 100x100 for now"; 224 x 224 is on the roadmap). Random placement and the
+ * minimap ask here; the vanilla generators keep their 40 x 40 dungeon[][] at 16.
+ */
+inline int PlayAreaOrigin()
+{
+	return leveltype == DTYPE_WOODS ? 6 : 16;
+}
+inline int PlayAreaTiles()
+{
+	return leveltype == DTYPE_WOODS ? 100 : 80;
+}
+/** @brief The play area in megatiles (the minimap's cells): 40, or 50 in the woods. */
+inline int PlayAreaCells()
+{
+	return PlayAreaTiles() / 2;
+}
+/** @brief The most megatiles any floor has across (the minimap's array). */
+constexpr int MaxPlayAreaCells = 50;
 /** Specifies the active dungeon level of the current game. */
 extern DVL_API_FOR_TEST uint8_t currlevel;
 extern DVL_API_FOR_TEST bool setlevel;
@@ -201,7 +267,7 @@ extern std::array<bool, 256> TransList;
 /** Contains the piece IDs of each tile on the map. */
 extern DVL_API_FOR_TEST uint16_t dPiece[MAXDUNX][MAXDUNY];
 /** Map of micros that comprises a full tile for any given dungeon piece. */
-extern MICROS DPieceMicros[MAXTILES];
+extern DVL_API_FOR_TEST MICROS DPieceMicros[MAXTILES];
 /** Specifies the transparency at each coordinate of the map. */
 extern DVL_API_FOR_TEST int8_t dTransVal[MAXDUNX][MAXDUNY];
 /** Current realtime lighting. Per tile. */

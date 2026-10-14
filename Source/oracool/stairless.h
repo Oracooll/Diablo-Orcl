@@ -12,6 +12,7 @@
 #pragma once
 
 #include "engine/point.hpp"
+#include "utils/attributes.h"
 
 namespace devilution::oracool {
 
@@ -20,6 +21,12 @@ namespace devilution::oracool {
  * CreateDungeon). Every normal floor generates with it false.
  */
 extern bool GeneratingStairlessLevel;
+
+/**
+ * @brief True only while the last floor of an Orcl Act cave is generated (woods_caves.cpp): the Caves DRLG places its up stairs
+ * and no down stairs. Every other floor generates with it false.
+ */
+extern DVL_API_FOR_TEST bool GeneratingCaveWithoutWayDown;
 
 /**
  * @brief Remembers dungeon[][] as it stands. A DRLG calls it right before it places its stairs.

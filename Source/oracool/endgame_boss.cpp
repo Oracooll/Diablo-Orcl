@@ -8,6 +8,7 @@
 #include "utils/language.h"
 #include "oracool/rift.h" // InRift - the generated set level
 #include "oracool/rift_bosses.h" // RiftBossIsSteady
+#include "oracool/woods.h"       // IsWoodsBoss
 
 namespace devilution::oracool {
 
@@ -69,7 +70,8 @@ bool IsEndgameBoss(const Monster &monster)
 bool FightsAsUnique(const Monster &monster)
 {
 	// And a rift's guardian, whatever monster he is built on (the Rift Boss Roster, 2026-10-04).
-	return monster.isUnique() || monster.type().type == MT_DIABLO || IsEndgameBoss(monster) || IsRiftGuardian(monster);
+	// And the woods' boss (oracool/woods.h): the Reaper has no unique row (audit round 1 - frozen, berserked, cloned as anyone).
+	return monster.isUnique() || monster.type().type == MT_DIABLO || IsEndgameBoss(monster) || IsRiftGuardian(monster) || IsWoodsBoss(monster);
 }
 
 BossTrait SecondaryTraitOf(uint16_t seed)
@@ -109,8 +111,11 @@ int BossCountForLevel()
 	// dropping a boss into Lachdanan's tomb is vandalism rather than variety.
 	// A rift is the one set level that is GENERATED, and it asks for champions and a boss (PlaceRiftMonsters) -
 	// which this refused, so none ever came (audit, 2026-09-27).
-	if (currlevel == 0 || (setlevel && !InRift()))
+	// The Orcl Act's floors are generated too (oracool/woods.h, 2026-10-14); the woods' last floor always has its boss (D10).
+	if (currlevel == 0 || (setlevel && !InRift() && !IsOrclActLevel(setlvlnum)))
 		return 0;
+	if (setlevel && setlvlnum == SL_LAST_WOODS)
+		return 1;
 
 	const int alvl = CurrentAreaLevel();
 	if (alvl >= BossGuaranteedAreaLevel)

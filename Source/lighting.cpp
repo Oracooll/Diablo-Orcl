@@ -270,8 +270,23 @@ void DoLighting(Point position, uint8_t radius, DisplacementOf<int8_t> offset)
 	}
 }
 
+namespace {
+/**
+ * @brief Outdoors, the hero sees what stands on the screen (user, 2026-10-14, the woods: "mobs just appear out of thin air",
+ * "mobs dissapearing and reappearing depending on range away from me"): the woods' tiles within this many of him are Lit -
+ * drawn - though only his vision's own (radius 15 at most, line of sight) are Visible, which is what the monsters' notice asks.
+ */
+constexpr int OutdoorSightRadius = 20;
+bool OutdoorSight()
+{
+	return leveltype == DTYPE_WOODS;
+}
+} // namespace
+
 void DoUnVision(Point position, uint8_t radius)
 {
+	if (OutdoorSight())
+		radius = static_cast<uint8_t>(std::max<int>(radius, OutdoorSightRadius));
 	radius++;
 	radius++; // increasing the radius even further here prevents leaving stray vision tiles behind and doesn't seem to affect monster AI - applying new vision happens in the same tick
 
@@ -286,6 +301,12 @@ void DoUnVision(Point position, uint8_t radius)
 void DoVision(Point position, uint8_t radius, MapExplorationType doAutomap, bool visible)
 {
 	DoVisionFlags(position, doAutomap, visible);
+	if (visible && OutdoorSight()) {
+		for (WorldTilePosition tile : PointsInRectangle(WorldTileRectangle { position, OutdoorSightRadius })) {
+			if (InDungeonBounds(tile))
+				dFlags[tile.x][tile.y] |= DungeonFlag::Lit;
+		}
+	}
 
 	static const Displacement factors[] = { { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } };
 	for (auto factor : factors) {
@@ -583,6 +604,11 @@ void ProcessLightList()
 			i--;
 			continue;
 		}
+		// Off the map: a missile's light a tile past the edge for the frame before the missile goes (the woods' bolts fly over the
+		// trees to the map's edge, where a dungeon's outer wall had always stopped them first - the user's play test, 2026-10-14:
+		// "assertion failed ... lighting.cpp:212 InDungeonBounds(position)").
+		if (!InDungeonBounds(light.position.tile))
+			continue;
 		if (TileHasAny(dPiece[light.position.tile.x][light.position.tile.y], TileProperties::Solid))
 			continue; // Monster hidden in a wall, don't spoil the surprise
 		DoLighting(light.position.tile, light.radius, light.position.offset);

@@ -40,6 +40,7 @@
 #include "oracool/post_fx.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/rift.h"
+#include "oracool/woods.h" // IsWoodsBoss - he dissolves as a rift guardian does
 #include "oracool/rift_bosses.h"
 #include "oracool/scene_feel.h"
 #include "oracool/scene_glow.h"
@@ -575,7 +576,7 @@ void TickWeather(float dt)
 
 bool WeatherShows()
 {
-	return leveltype == DTYPE_TOWN && *sgOptions.Oracool.weather && Current != Weather::Clear && Intensity > 0.01F;
+	return IsUnderSky(leveltype) && *sgOptions.Oracool.weather && Current != Weather::Clear && Intensity > 0.01F;
 }
 
 // ---- Fog -----------------------------------------------------------------------------------------------------------------
@@ -620,6 +621,28 @@ float ValueNoise(float x, float y)
 	return (a + (b - a) * tx) + ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
 }
 
+/**
+ * @brief How thick the mist lies: 1 in the Caves and the Crypt; in the woods by the hour (user, 2026-10-14: the ground mist,
+ * "low fog in hollows by night and at dawn") - none by day, rising at dusk, thickest at dawn, gone by mid-morning.
+ */
+float FogStrength()
+{
+	if (leveltype != DTYPE_WOODS)
+		return 1.0F;
+	if (!*sgOptions.Oracool.dayNightCycle)
+		return 0.0F;
+	const float h = TownHour();
+	if (h >= 21.0F || h < 4.0F)
+		return 0.8F;
+	if (h < 6.5F)
+		return 0.8F + 0.5F * (h - 4.0F) / 2.5F; // to dawn
+	if (h < 9.5F)
+		return 1.3F * (9.5F - h) / 3.0F; // burnt off by the morning
+	if (h >= 18.0F)
+		return 0.8F * (h - 18.0F) / 3.0F; // gathering at dusk
+	return 0.0F;
+}
+
 bool FogLevel(uint32_t &rgb)
 {
 	if (!*sgOptions.Oracool.groundFog)
@@ -627,6 +650,7 @@ bool FogLevel(uint32_t &rgb)
 	switch (leveltype) {
 	case DTYPE_CAVES: rgb = SFX_PACK(160, 168, 178); return true;
 	case DTYPE_CRYPT: rgb = SFX_PACK(150, 140, 176); return true;
+	case DTYPE_WOODS: rgb = SFX_PACK(196, 204, 212); return FogStrength() > 0.0F;
 	default: return false;
 	}
 }
@@ -695,7 +719,7 @@ void AdvanceSceneClock()
 		NextChange = -1;
 		NextFlash = -1;
 	}
-	if (leveltype == DTYPE_TOWN)
+	if (IsUnderSky(leveltype))
 		TickWeather(dt);
 	// The low health warning's heartbeat: a strong beat and a softer one after it, quicker as he weakens.
 	HeartSeverity = 0;
@@ -754,7 +778,7 @@ void BeginFigureGround(const Surface &out, Point firstTile, Point firstTileBuffe
 		return;
 	if (Ground.layer.size() != static_cast<size_t>(Ground.w) * Ground.h)
 		Ground.layer.assign(static_cast<size_t>(Ground.w) * Ground.h, 0);
-	if (leveltype == DTYPE_TOWN && !TownIsDark()) {
+	if (IsUnderSky(leveltype) && !TownIsDark()) { // and in the woods: the sun, not the hero's torch (the black shadows, 2026-10-14)
 		// By day in Tristram, the sun: the shadow swings from left to right as it crosses the sky, longest at either end.
 		// With Day and Night off the town stands at mid-morning, and so does the sun; with it on, the shadows fade in and
 		// out with the daylight instead of popping at the edge of night.
@@ -779,7 +803,7 @@ void BeginFigureGround(const Surface &out, Point firstTile, Point firstTileBuffe
 	}
 	// In town after dark, the lamps' shadows fade in as the daylight goes, where the sun's faded out (round 3 audit).
 	Ground.lampFade = 1.0F;
-	if (leveltype == DTYPE_TOWN && *sgOptions.Oracool.dayNightCycle) {
+	if (IsUnderSky(leveltype) && *sgOptions.Oracool.dayNightCycle) {
 		const LightTint now = TownAmbientAt(TownHour());
 		const LightTint noon = TownAmbientAt(12.0F);
 		const float a = static_cast<float>(now.r + now.g + now.b);
@@ -1148,14 +1172,14 @@ void DrawMonsterStatus(const Surface &out, const Monster &monster, Point spriteB
 
 bool DissolvesOnDeath(const Monster &monster)
 {
-	return *sgOptions.Oracool.dissolveEffects && (IsRiftGuardian(monster) || IsFallenRiftGuardian(monster));
+	return *sgOptions.Oracool.dissolveEffects && (IsRiftGuardian(monster) || IsFallenRiftGuardian(monster) || IsWoodsBoss(monster));
 }
 
 // ==== World passes ======================================================================================================
 
 void ApplyWeatherGround(const Surface &out, Point firstTile, Point firstTileBuffer)
 {
-	if (leveltype != DTYPE_TOWN || out.isIndexed() || !WeatherShows())
+	if (!IsUnderSky(leveltype) || out.isIndexed() || !WeatherShows())
 		return;
 	const int w = out.w();
 	const int h = out.h();
@@ -1200,6 +1224,7 @@ void ApplyGroundFog(const Surface &out, Point firstTile, Point firstTileBuffer)
 	const float t = Now();
 	const int w = out.w();
 	const int h = out.h();
+	const float strength = FogStrength();
 	// The mist lies on the floor, drifting slowly; it shows by the light that is there (dLight: 0 bright .. 15 dark), so it
 	// never glows in the dark. Worked on an 8 px grid, blended between.
 	constexpr int Cell = 8;
@@ -1232,7 +1257,7 @@ void ApplyGroundFog(const Surface &out, Point firstTile, Point firstTileBuffer)
 			if (d <= 0)
 				continue;
 			d = d > 1.0F ? 1.0F : d;
-			d = d * d * (3.0F - 2.0F * d) * 0.30F;
+			d = d * d * (3.0F - 2.0F * d) * 0.30F * strength;
 			const float lit = 1.0F - static_cast<float>(light) / static_cast<float>(LightsMax);
 			d *= lit * lit;
 			const int value = static_cast<int>(d * 256.0F);
@@ -1655,7 +1680,7 @@ void ApplyAfterWorld(const Surface &world)
 	}
 
 	// Lightning far off on a rainy night: a double flash every half minute or so.
-	if (leveltype == DTYPE_TOWN && *sgOptions.Oracool.weather && Current == Weather::Rain && Intensity > 0.6F && TownIsDark()) {
+	if (IsUnderSky(leveltype) && *sgOptions.Oracool.weather && Current == Weather::Rain && Intensity > 0.6F && TownIsDark()) {
 		const float now = Now();
 		if (NextFlash < 0 || NextFlash - now > 60.0F)
 			NextFlash = now + 15.0F + WeatherRand() * 30.0F;

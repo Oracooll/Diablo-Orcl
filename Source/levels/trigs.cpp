@@ -17,6 +17,8 @@
 #include "options.h"
 #include "oracool/oracool.h"
 #include "oracool/rift.h"
+#include "oracool/woods.h"
+#include "oracool/woods_caves.h"
 #include "utils/language.h"
 #include "utils/utf8.hpp"
 
@@ -493,6 +495,46 @@ bool ForceL2Trig()
 	return false;
 }
 
+/** @brief The cave mouth on a woods floor (oracool/woods.h): "Down to <cave>", the click walks to its entrance. */
+bool ForceWoodsTrig()
+{
+	Point entrance;
+	const char *text = nullptr;
+	if (!oracool::WoodsCaveMouthHover(cursPosition, entrance, text))
+		return false;
+	InfoString = std::string(text);
+	cursPosition = entrance;
+	return true;
+}
+
+/** @brief An Orcl Act cave's stairs (oracool/woods_caves.h): ForceL3Trig's tiles, with where they lead by name. */
+bool ForceWoodsCaveTrig()
+{
+	for (const uint16_t tileId : L3UpList) {
+		if (dPiece[cursPosition.x][cursPosition.y] == tileId) {
+			for (int j = 0; j < numtrigs; j++) {
+				if (trigs[j]._tmsg == WM_DIABPREVLVL && std::abs(trigs[j].position.x - cursPosition.x) < 4 && std::abs(trigs[j].position.y - cursPosition.y) < 4) {
+					InfoString = std::string(oracool::WoodsCaveStairsText(true));
+					cursPosition = trigs[j].position;
+					return true;
+				}
+			}
+		}
+	}
+	for (const uint16_t tileId : L3DownList) {
+		if (dPiece[cursPosition.x][cursPosition.y] == tileId || dPiece[cursPosition.x + 1][cursPosition.y] == tileId || dPiece[cursPosition.x + 2][cursPosition.y] == tileId) {
+			for (int j = 0; j < numtrigs; j++) {
+				if (trigs[j]._tmsg == WM_DIABNEXTLVL) {
+					InfoString = std::string(oracool::WoodsCaveStairsText(false));
+					cursPosition = trigs[j].position;
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
 bool ForceL3Trig()
 {
 	for (const uint16_t tileId : L3UpList) {
@@ -857,6 +899,10 @@ void CheckTrigForce()
 		default:
 			if (IsArenaLevel(setlvlnum))
 				trigflag = ForceArenaTrig();
+			else if (IsWoodsLevel(setlvlnum))
+				trigflag = ForceWoodsTrig();
+			else if (IsWoodsCaveLevel(setlvlnum))
+				trigflag = ForceWoodsCaveTrig();
 			break;
 		}
 	}
@@ -867,6 +913,10 @@ void CheckTriggers()
 	Player &myPlayer = *MyPlayer;
 
 	if (myPlayer._pmode != PM_STAND)
+		return;
+
+	// The Orcl Act: the road out of Tristram into the woods, and the woods' roads (oracool/woods.h).
+	if (oracool::CheckWoodsEdges())
 		return;
 
 	for (int i = 0; i < numtrigs; i++) {

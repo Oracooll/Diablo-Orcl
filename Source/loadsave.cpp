@@ -2391,8 +2391,8 @@ void SaveLevel(SaveWriter &saveWriter, LevelConversionData *levelConversionData)
 			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
 				file.WriteLE<uint8_t>(dPreLight[i][j]);
 		}
-		for (int j = 0; j < DMAXY; j++) {
-			for (int i = 0; i < DMAXX; i++) // NOLINT(modernize-loop-convert)
+		for (int j = 0; j < PlayAreaCells(); j++) {
+			for (int i = 0; i < PlayAreaCells(); i++) // NOLINT(modernize-loop-convert)
 				file.WriteLE<uint8_t>(AutomapView[i][j]);
 		}
 		SaveCorpseTable(file); // the bodies a Necromancer can use, with the level they lie on (round 47 audit)
@@ -2503,8 +2503,8 @@ void LoadLevel(LevelConversionData *levelConversionData)
 			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
 				dPreLight[i][j] = std::min<uint8_t>(file.NextLE<uint8_t>(), static_cast<uint8_t>(LightsMax));
 		}
-		for (int j = 0; j < DMAXY; j++) {
-			for (int i = 0; i < DMAXX; i++) { // NOLINT(modernize-loop-convert)
+		for (int j = 0; j < PlayAreaCells(); j++) {
+			for (int i = 0; i < PlayAreaCells(); i++) { // NOLINT(modernize-loop-convert)
 				const auto automapView = static_cast<MapExplorationType>(file.NextLE<uint8_t>());
 				AutomapView[i][j] = automapView == MAP_EXP_OLD ? MAP_EXP_SELF : automapView;
 			}
@@ -3621,8 +3621,8 @@ void LoadGame(bool firstflag)
 			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
 				dPreLight[i][j] = file.NextLE<uint8_t>();
 		}
-		for (int j = 0; j < DMAXY; j++) {
-			for (int i = 0; i < DMAXX; i++) { // NOLINT(modernize-loop-convert)
+		for (int j = 0; j < PlayAreaCells(); j++) {
+			for (int i = 0; i < PlayAreaCells(); i++) { // NOLINT(modernize-loop-convert)
 				const auto automapView = static_cast<MapExplorationType>(file.NextLE<uint8_t>());
 				AutomapView[i][j] = automapView == MAP_EXP_OLD ? MAP_EXP_SELF : automapView;
 			}
@@ -3942,8 +3942,8 @@ void SaveGameData(SaveWriter &saveWriter)
 			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
 				file.WriteLE<uint8_t>(dPreLight[i][j]);
 		}
-		for (int j = 0; j < DMAXY; j++) {
-			for (int i = 0; i < DMAXX; i++) // NOLINT(modernize-loop-convert)
+		for (int j = 0; j < PlayAreaCells(); j++) {
+			for (int i = 0; i < PlayAreaCells(); i++) // NOLINT(modernize-loop-convert)
 				file.WriteLE<uint8_t>(AutomapView[i][j]);
 		}
 		for (int j = 0; j < MAXDUNY; j++) {

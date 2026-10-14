@@ -14708,7 +14708,13 @@ TEST(OracoolWaypointActs, EveryDungeonLevelSitsOnExactlyOneAct)
 
 	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Diablo), 17u);
 	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Hellfire), 9u);
-	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Orcl), 1u) << "the Orcl act is Tristram alone until an Orcl area gets a sigil";
+	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Orcl), 1u + oracool::WoodsWaypointCount) << "Tristram and the four woods floors";
+	for (int floor = 0; floor < oracool::WoodsWaypointCount; floor++) {
+		const int index = oracool::FirstWoodsWaypoint + floor;
+		EXPECT_EQ(oracool::WaypointActLevelAt(oracool::WaypointAct::Orcl, static_cast<size_t>(1 + floor)), index) << "woods floor " << floor + 1;
+		EXPECT_EQ(oracool::WaypointActOfLevel(index), oracool::WaypointAct::Orcl) << "woods floor " << floor + 1;
+		EXPECT_LE(index, 32) << "carried by the hero file's 32-bit waypoint mask";
+	}
 
 	for (const auto act : { oracool::WaypointAct::Diablo, oracool::WaypointAct::Hellfire, oracool::WaypointAct::Orcl }) {
 		EXPECT_EQ(oracool::WaypointActLevelAt(act, 0), 0) << "Tristram heads act " << static_cast<int>(act);
@@ -20528,6 +20534,1246 @@ TEST(OracoolPreview, DISABLED_WebsiteItemExport)
 	std::ofstream(dir / "items.json", std::ios::binary) << json;
 	hero = devilution::Player {};
 	gbIsHellfire = savedHellfire;
+}
+
+#include "levels/town.h"
+#include "engine/render/dun_render.hpp"
+#include "oracool/borrowed_tiles.h"
+#include "oracool/stairless.h"
+#include "oracool/woods.h"
+#include "oracool/woods_caves.h"
+#include "levels/trigs.h"
+
+/**
+ * @brief The map the Orcl Act tests build over (2026-10-14: a borrowed fence left at (40,40) stood under a later test's golem in
+ * the shuffled run): every grid a level build writes, and the tile data, saved on entry and put back on exit.
+ */
+struct OrclActMapGuard {
+	std::vector<unsigned char> piece, flags, light, trans, dun, sol;
+	std::unique_ptr<MegaTile[]> megaTiles;
+	int triggers;
+	template <typename T>
+	static std::vector<unsigned char> Save(const T &grid)
+	{
+		std::vector<unsigned char> copy(sizeof(grid));
+		std::memcpy(copy.data(), &grid, sizeof(grid));
+		return copy;
+	}
+	template <typename T>
+	static void Restore(T &grid, const std::vector<unsigned char> &copy)
+	{
+		std::memcpy(&grid, copy.data(), sizeof(grid));
+	}
+	OrclActMapGuard()
+	    : piece(Save(dPiece)), flags(Save(dFlags)), light(Save(dLight)), trans(Save(dTransVal)), dun(Save(dungeon)), sol(Save(SOLData)),
+	      megaTiles(std::move(pMegaTiles)), triggers(numtrigs)
+	{
+	}
+	~OrclActMapGuard()
+	{
+		Restore(dPiece, piece);
+		Restore(dFlags, flags);
+		Restore(dLight, light);
+		Restore(dTransVal, trans);
+		Restore(dungeon, dun);
+		Restore(SOLData, sol);
+		pMegaTiles = std::move(megaTiles);
+		numtrigs = triggers;
+	}
+};
+
+/**
+ * The woods' caves (Orcl Act, 2026-10-14). The cave mouth stamped beside a floor's glade has its entrance on open ground the
+ * hero can walk to from the arrival; and a cave floor's DRLG lays its way up always and its way down only where the cave goes on.
+ */
+TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
+{
+	MountTestArchives(true);
+	const OrclActMapGuard mapGuard;
+	const bool savedHellfire = gbIsHellfire;
+	const dungeon_type savedType = leveltype;
+	const bool savedSetlevel = setlevel;
+	const _setlevels savedSetLevelNum = setlvlnum;
+	const uint8_t savedCurrlevel = currlevel;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	setlvlnum = SL_ORCL_WOODS_1;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
+	EXPECT_NE(oracool::WoodsCaveOnFloor(0), SL_NONE) << "the first woods floor has a cave";
+	// Every floor here has a river (2026-10-14), so the walk below crosses it by its bridges where the roads do.
+	oracool::SetWoodsRiverForTest(1);
+	int floorsWithRiver = 0;
+	int houses = 0;
+	for (const uint32_t seed : { 0x6E00D5U, 0x12345U, 0xBEEF01U, 0x77AA33U, 0x3141U, 0x2718U }) {
+		oracool::SetWoodsCaveMouthFloorForTest(0);
+		CreateDungeon(seed, ENTRY_SETLVL);
+		const Point entrance = oracool::StampWoodsCaveMouthForTest();
+		bool river = false;
+		for (int y = 6; y < 106 && !river; y++)
+			for (int x = 6; x < 106 && !river; x++)
+				river = oracool::WoodsRiverAtForTest({ x, y });
+		floorsWithRiver += river ? 1 : 0;
+		ASSERT_NE(entrance, Point(0, 0)) << "seed " << seed << ": no mouth";
+		LoadLevelSOLData();
+		EXPECT_FALSE(TileHasAny(dPiece[entrance.x][entrance.y], TileProperties::Solid)) << "seed " << seed << ": the entrance is solid";
+		const Point arrival = oracool::WoodsArrival();
+		std::vector<Point> stack { arrival };
+		std::set<int> seen { arrival.x * MAXDUNY + arrival.y };
+		while (!stack.empty()) {
+			const Point p = stack.back();
+			stack.pop_back();
+			for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 } }) {
+				const Point n = p + d;
+				if (!InDungeonBounds(n) || TileHasAny(dPiece[n.x][n.y], TileProperties::Solid) || !seen.insert(n.x * MAXDUNY + n.y).second)
+					continue;
+				stack.push_back(n);
+			}
+		}
+		const auto walked = [&seen](Point p) { return seen.count(p.x * MAXDUNY + p.y) != 0; };
+		EXPECT_TRUE(walked(entrance)) << "seed " << seed << ": the cave mouth cannot be walked to from the arrival";
+		// The fence ring (2026-10-14) is crossed by both roads through their gates, out to the edges that change the floor.
+		const Point wayOn = oracool::WoodsWayOn();
+		EXPECT_TRUE(walked({ 104, arrival.y })) << "seed " << seed << ": the road back is fenced off";
+		EXPECT_TRUE(walked({ 7, wayOn.y })) << "seed " << seed << ": the way on is fenced off";
+		int fenced = 0;
+		for (int y = 0; y < MAXDUNY; y++)
+			for (int x = 0; x < MAXDUNX; x++)
+				fenced += oracool::IsBorrowedPiece(dPiece[x][y]) ? 1 : 0;
+		EXPECT_GT(fenced, 400) << "seed " << seed << ": the ring of Caves fences is not laid";
+		// The houses (2026-10-14): in by the arch, onto the stone floor.
+		for (int i = 0; i < oracool::WoodsHouseCountForTest(); i++) {
+			EXPECT_TRUE(walked(oracool::WoodsHouseDoorForTest(i))) << "seed " << seed << ": house " << i << "'s arch cannot be reached";
+			EXPECT_TRUE(walked(oracool::WoodsHouseInsideForTest(i))) << "seed " << seed << ": house " << i << " cannot be walked into";
+		}
+		houses += oracool::WoodsHouseCountForTest();
+		// What stands along the roads (2026-10-14): the health and the mana shrine, a goat shrine or a cauldron, two wisps over
+		// their chests - each on open ground the hero can walk to (beside it: the object itself is solid).
+		const oracool::WoodsWorldPlanForTest world = oracool::PlanWoodsWorldForTest(seed, 3);
+		std::map<int, int> kinds;
+		for (const auto &[type, at] : world.objects) {
+			kinds[type]++;
+			EXPECT_FALSE(TileHasAny(dPiece[at.x][at.y], TileProperties::Solid)) << "seed " << seed << ": object " << type << " on a solid tile";
+			bool reachable = false;
+			for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 }, Displacement { 1, 1 }, Displacement { -1, -1 }, Displacement { 1, -1 }, Displacement { -1, 1 } })
+				reachable = reachable || walked(at + d) || walked(at);
+			EXPECT_TRUE(reachable) << "seed " << seed << ": object " << type << " at " << at.x << "," << at.y << " cannot be reached";
+		}
+		EXPECT_EQ(kinds[OBJ_BLOODFTN], 1) << "seed " << seed << ": the health shrine";
+		EXPECT_EQ(kinds[OBJ_PURIFYINGFTN], 1) << "seed " << seed << ": the mana shrine";
+		EXPECT_EQ(kinds[OBJ_CAULDRON] + kinds[OBJ_GOATSHRINE], 1) << "seed " << seed << ": the shrine";
+		EXPECT_EQ(kinds[OBJ_BCROSS], 1) << "seed " << seed << ": the last floor's burning cross";
+		EXPECT_GE(kinds[OBJ_BARREL] + kinds[OBJ_BARRELEX], 3) << "seed " << seed << ": the barrels";
+		EXPECT_EQ(world.wisps, 2) << "seed " << seed << ": the wisps";
+		EXPECT_TRUE(world.fairyRing) << "seed " << seed << ": the fairy ring";
+	}
+	oracool::SetWoodsCaveMouthFloorForTest(-1);
+	oracool::SetWoodsRiverForTest(-1);
+	EXPECT_GE(floorsWithRiver, 4) << "the river fits on most floors";
+	EXPECT_GE(houses, 4) << "the six floors have houses";
+
+	// The cave floors: the Caves DRLG as BuildWoodsCaveLevel runs it.
+	leveltype = DTYPE_CAVES;
+	setlvlnum = SL_ORCL_CAVE_2;
+	currlevel = 10;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("levels\\l3data\\l3.til");
+	for (const bool last : { false, true }) {
+		oracool::GeneratingCaveWithoutWayDown = last;
+		CreateDungeon(0x5EED0 + (last ? 1 : 0), ENTRY_MAIN);
+		oracool::GeneratingCaveWithoutWayDown = false;
+		InitL3Triggers();
+		int up = 0;
+		int down = 0;
+		for (int i = 0; i < numtrigs; i++) {
+			up += trigs[i]._tmsg == WM_DIABPREVLVL ? 1 : 0;
+			down += trigs[i]._tmsg == WM_DIABNEXTLVL ? 1 : 0;
+		}
+		EXPECT_GE(up, 1) << (last ? "the last floor" : "a floor with a way on") << " has no way up";
+		if (last)
+			EXPECT_EQ(down, 0) << "the cave's last floor has stairs down";
+		else
+			EXPECT_GE(down, 1) << "a floor with a way on has no stairs down";
+	}
+	leveltype = savedType;
+	setlevel = savedSetlevel;
+	setlvlnum = savedSetLevelNum;
+	currlevel = savedCurrlevel;
+	gbIsHellfire = savedHellfire;
+}
+
+/**
+ * Tiles from every vanilla tileset on one level (user, 2026-10-14): a Caves fence borrowed into a woods floor walks as the
+ * Caves' .sol says, keeps it through the level's own SOL load, has a picture to draw, and is borrowed once; the level's own set
+ * comes back native. Reads the player's archives, as the game does.
+ */
+TEST(OracoolAudit, BorrowedTilesKeepTheirOwnSetsRules)
+{
+	MountTestArchives(true);
+	const OrclActMapGuard mapGuard;
+	const bool savedHellfire = gbIsHellfire;
+	const dungeon_type savedType = leveltype;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	EXPECT_EQ(oracool::BorrowPiece(DTYPE_TOWN, 5), 5) << "the level's own set is native";
+	// A Caves fence post: solid by the Caves' corrected .sol (LoadLevelSOLData marks 481 and 487 solid).
+	const uint16_t fence = oracool::BorrowPiece(DTYPE_CAVES, 481);
+	ASSERT_TRUE(oracool::IsBorrowedPiece(fence)) << "the Caves' files did not load";
+	EXPECT_EQ(oracool::BorrowPiece(DTYPE_CAVES, 481), fence) << "borrowed once, the same id after";
+	dungeon_type set {};
+	uint16_t native = 0;
+	ASSERT_TRUE(oracool::BorrowedPieceSourceForTest(fence, set, native));
+	EXPECT_EQ(set, DTYPE_CAVES);
+	EXPECT_EQ(native, 481);
+	EXPECT_TRUE(TileHasAny(fence, TileProperties::Solid));
+	LoadLevelSOLData(); // the woods' own load, as LoadGameLevel runs it more than once
+	EXPECT_TRUE(TileHasAny(fence, TileProperties::Solid)) << "the level's SOL load kept the borrowed piece's";
+	// Every Caves megatile can be borrowed, and draws something.
+	const int megatiles = oracool::BorrowedMegatileCount(DTYPE_CAVES);
+	EXPECT_GT(megatiles, 100);
+	int drawn = 0;
+	for (int m = 1; m <= megatiles; m++) {
+		ASSERT_TRUE(oracool::BorrowMegatile(DTYPE_CAVES, m, 40, 40)) << "megatile " << m;
+		for (const Point p : { Point { 40, 40 }, Point { 41, 40 }, Point { 40, 41 }, Point { 41, 41 } }) {
+			int floorPixels = 0;
+			int cellPixels = 0;
+			oracool::BorrowedPiecePixelsForTest(dPiece[p.x][p.y], floorPixels, cellPixels);
+			drawn += floorPixels + cellPixels > 0 ? 1 : 0;
+		}
+	}
+	EXPECT_GT(drawn, megatiles * 3) << "most borrowed pieces have pixels";
+	leveltype = savedType;
+	gbIsHellfire = savedHellfire;
+}
+
+/**
+ * The woods' monsters (Orcl Act milestone 3, 2026-10-14): every rung a woods floor can stand on offers the four kinds its roster
+ * takes, none of them a story boss, the Golem or the Hork Demon's spawn; and the floor's rung is its area level.
+ */
+TEST(OracoolAudit, WoodsRosterHasFourKindsOnEveryRung)
+{
+	const bool savedSetLevel = setlevel;
+	const _setlevels savedSetLevelNum = setlvlnum;
+	const bool savedSpawn = gbIsSpawn;
+	const _difficulty savedDifficulty = sgGameInitInfo.nDifficulty;
+	setlevel = true;
+	setlvlnum = SL_ORCL_WOODS_2;
+	gbIsSpawn = false;
+	for (int rung = 1; rung <= oracool::RungsPerDifficulty; rung++) {
+		oracool::SetWoodsRungForTest(1, rung);
+		EXPECT_EQ(oracool::WoodsBandFloor(), rung);
+		int kinds = 0;
+		for (int i = MT_NZOMBIE; i < NUM_MTYPES; i++) {
+			if (!oracool::WoodsAcceptsMonster(MonstersData[i]))
+				continue;
+			kinds++;
+			EXPECT_FALSE(IsAnyOf(static_cast<_monster_id>(i), MT_DIABLO, MT_NAKRUL, MT_SKING, MT_CLEAVER, MT_GOLEM, MT_HORKSPWN)) << "rung " << rung;
+		}
+		EXPECT_GE(kinds, 4) << "rung " << rung;
+		for (const _difficulty difficulty : { DIFF_NORMAL, DIFF_NIGHTMARE, DIFF_HELL, DIFF_TORMENT }) {
+			sgGameInitInfo.nDifficulty = difficulty;
+			EXPECT_EQ(oracool::CurrentAreaLevel(), oracool::AreaLevel(rung, difficulty)) << "rung " << rung;
+		}
+	}
+	// The roster itself, under the image budget, as a level load builds it: four kinds, scattered, on every rung.
+	{
+		const uint8_t savedCurrlevel = currlevel;
+		const bool savedHeadless = HeadlessMode;
+		const size_t savedActive = ActiveMonsterCount;
+		HeadlessMode = true; // the type list only - no sprites
+		currlevel = static_cast<uint8_t>(setlvlnum);
+		for (int rung = 1; rung <= oracool::RungsPerDifficulty; rung++) {
+			oracool::SetWoodsRungForTest(1, rung);
+			ActiveMonsterCount = savedActive;
+			ResetLevelMonsterTypesForTest();
+			GetLevelMTypes();
+			int scatter = 0;
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+				scatter += (LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0 ? 1 : 0;
+			EXPECT_GE(scatter, 4) << "rung " << rung << ": the woods' roster";
+			EXPECT_EQ(ActiveMonsterCount, savedActive + MAX_PLRS) << "the golem holding cells the summons need";
+		}
+		// The last floor (D10): the user's boss (Mob Roster notes, 2026-10-14) - one of four, rolled from the floor's seed, so
+		// new games see all four - loaded beside the roster on every rung, the King with a skeleton to raise.
+		setlvlnum = SL_LAST_WOODS;
+		currlevel = static_cast<uint8_t>(setlvlnum);
+		EXPECT_EQ(oracool::BossCountForLevel(), 1) << "the woods' last floor guards a boss";
+		oracool::SetWoodsSeedForTest(3, 0);
+		EXPECT_EQ(oracool::WoodsBossKind(), -1) << "no boss before the floor has a seed";
+		std::set<int> bossKinds;
+		for (uint32_t seed = 1; seed < 64; seed++) {
+			oracool::SetWoodsSeedForTest(3, seed * 0x9E3779B1U | 1U);
+			const int kind = oracool::WoodsBossKind();
+			EXPECT_TRUE(IsAnyOf(static_cast<_monster_id>(kind), MT_SKING, MT_CLEAVER, MT_REAPER, MT_DIABLO)) << kind;
+			bossKinds.insert(kind);
+		}
+		EXPECT_EQ(bossKinds.size(), 4U) << "every one of the four comes up across new games";
+		for (const uint32_t seed : { 0x00000001U, 0x00100001U, 0x00200001U, 0x00300001U }) {
+			oracool::SetWoodsSeedForTest(3, seed);
+			const auto boss = static_cast<_monster_id>(oracool::WoodsBossKind());
+			for (int rung = 1; rung <= oracool::RungsPerDifficulty; rung++) {
+				oracool::SetWoodsRungForTest(3, rung);
+				ActiveMonsterCount = savedActive;
+				ResetLevelMonsterTypesForTest();
+				GetLevelMTypes();
+				bool loaded = false;
+				bool skeleton = false;
+				int scatter = 0;
+				for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+					loaded = loaded || LevelMonsterTypes[i].type == boss;
+					skeleton = skeleton || IsSkel(LevelMonsterTypes[i].type);
+					scatter += (LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0 ? 1 : 0;
+				}
+				EXPECT_TRUE(loaded) << "rung " << rung << ": the boss's kind " << boss << " not loaded";
+				EXPECT_TRUE(boss != MT_SKING || skeleton) << "rung " << rung << ": the King has nothing to raise";
+				EXPECT_GE(scatter, 4) << "rung " << rung << ": the boss crowded out the roster";
+			}
+		}
+		oracool::SetWoodsSeedForTest(3, 0);
+		oracool::SetWoodsRungForTest(3, 0);
+		setlvlnum = SL_ORCL_WOODS_2;
+		ResetLevelMonsterTypesForTest();
+		ActiveMonsterCount = savedActive;
+		HeadlessMode = savedHeadless;
+		currlevel = savedCurrlevel;
+	}
+	oracool::SetWoodsRungForTest(1, 0);
+	EXPECT_EQ(oracool::WoodsBandFloor(), 1) << "a floor not yet entered stands on rung 1";
+	setlevel = savedSetLevel;
+	setlvlnum = savedSetLevelNum;
+	gbIsSpawn = savedSpawn;
+	sgGameInitInfo.nDifficulty = savedDifficulty;
+}
+
+/**
+ * Tristram's walkable tiles, for placing the road to the woods (Orcl Act, 2026-10-13): the town built as LoadGameLevel
+ * builds it, each tile 6 px - walkable green, solid dark red, outside the walk bounds grey - Pepin white, Wirt yellow, the
+ * cows brown, the woods gate strip blue. Writes ORCL_WOODS_OUT/town_walk_map.png and town_walk_map.txt (the rows near the
+ * south-west edge as characters).
+ */
+TEST(OracoolPreview, DISABLED_TownWalkMap)
+{
+	const char *outDir = std::getenv("ORCL_WOODS_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	gbIsHellfire = true;
+	leveltype = DTYPE_TOWN;
+	currlevel = 0;
+	setlevel = false;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til"); // the town tileset's megatiles, as LoadLvlGFX loads them
+	LoadLevelSOLData();
+	CreateTown(ENTRY_MAIN);
+	constexpr int Cell = 6;
+	OwnedSurface out = OwnedSurface::Rgb(MAXDUNX * Cell, MAXDUNY * Cell);
+	std::ofstream txt(dir / "town_walk_map.txt");
+	for (int y = 0; y < MAXDUNY; y++) {
+		for (int x = 0; x < MAXDUNX; x++) {
+			const bool bounds = x >= 10 && y >= 10 && x <= 84 && y <= 95;
+			const bool solid = TileHasAny(dPiece[x][y], TileProperties::Solid);
+			uint32_t c = !bounds ? 0x404040U : solid ? 0x601818U : 0x2E7A2EU;
+			char ch = !bounds ? (solid ? 'X' : ',') : solid ? '#' : '.'; // past the walk limit: X solid, , open
+			const Point p { x, y };
+			if (p == Point { 55, 79 }) {
+				c = 0xFFFFFFU;
+				ch = 'P';
+			} else if (p == Point { 54, 72 }) {
+				c = 0xFFE040U;
+				ch = 'W';
+			} else if (p == Point { 58, 16 } || p == Point { 56, 14 } || p == Point { 59, 20 }) {
+				c = 0x8A5A2AU;
+				ch = 'C';
+			}
+			if (x >= 56 && x <= 59 && y >= 94 && y <= 95) {
+				c = (c & 0xFEFEFEU) / 2 + 0x0000A0U;
+				ch = ch == '.' ? 'g' : 'G';
+			}
+			for (int dy = 0; dy < Cell; dy++)
+				for (int dx = 0; dx < Cell; dx++)
+					*out.at<uint32_t>(x * Cell + dx, y * Cell + dy) = (dx == Cell - 1 || dy == Cell - 1) ? (c & 0xFEFEFEU) / 2 : c;
+			if (y >= 60 && x >= 30)
+				txt << ch;
+		}
+		if (y >= 60)
+			txt << "   y=" << y << "\n";
+	}
+	PreviewSave(out, (dir / "town_walk_map.png").string().c_str());
+}
+
+/**
+ * Woods floor 1 as generated (Orcl Act milestone 1): ORCL_WOODS_OUT/woods_map.png - the ground materials, 4 px a tile, trees
+ * as dark dots, the arrival white and the way on red - and woods_view.png, a 1280 x 720 isometric view round the arrival drawn
+ * by the game's own woods ground and sprite calls in the game's tile order. Asserts the way on is reachable on foot.
+ */
+TEST(OracoolPreview, DISABLED_WoodsFloor1)
+{
+	const char *outDir = std::getenv("ORCL_WOODS_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	setlvlnum = SL_ORCL_WOODS_1;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til"); // the town tileset's megatiles, as LoadLvlGFX loads them
+	const char *seedText = std::getenv("ORCL_WOODS_SEED");
+	const uint32_t seed = seedText != nullptr ? static_cast<uint32_t>(std::strtoul(seedText, nullptr, 0)) : 0x6E00D5U;
+	CreateDungeon(seed, ENTRY_SETLVL);
+	const Point arrival = oracool::WoodsArrival();
+	const Point wayOn = oracool::WoodsWayOn();
+
+	// Reachable: a walk over open tiles from the arrival to the way on.
+	{
+		std::vector<Point> stack { arrival };
+		std::set<int> seen { arrival.x * MAXDUNY + arrival.y };
+		bool reached = false;
+		while (!stack.empty() && !reached) {
+			const Point p = stack.back();
+			stack.pop_back();
+			for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 } }) {
+				const Point n = p + d;
+				if (!InDungeonBounds(n) || TileHasAny(dPiece[n.x][n.y], TileProperties::Solid) || !seen.insert(n.x * MAXDUNY + n.y).second)
+					continue;
+				if (n == wayOn)
+					reached = true;
+				stack.push_back(n);
+			}
+		}
+		EXPECT_TRUE(reached) << "the way on cannot be walked to from the arrival";
+	}
+
+	constexpr uint32_t Colours[] = { 0x4E6A2CU, 0x34502AU, 0x8A7A42U, 0x6A5638U, 0x4A3A24U };
+	constexpr int Cell = 4;
+	OwnedSurface map = OwnedSurface::Rgb(MAXDUNX * Cell, MAXDUNY * Cell);
+	for (int y = 0; y < MAXDUNY; y++) {
+		for (int x = 0; x < MAXDUNX; x++) {
+			const Point p { x, y };
+			uint32_t c = Colours[std::min<int>(oracool::WoodsGroundAt(p), 4)];
+			for (int dy = 0; dy < Cell; dy++)
+				for (int dx = 0; dx < Cell; dx++) {
+					uint32_t px = c;
+					if (oracool::WoodsTreeAt(p) && dx >= 1 && dx <= 2 && dy >= 1 && dy <= 2)
+						px = 0x142010U;
+					if (p == arrival)
+						px = 0xFFFFFFU;
+					if (p == wayOn)
+						px = 0xFF3030U;
+					*map.at<uint32_t>(x * Cell + dx, y * Cell + dy) = px;
+				}
+		}
+	}
+	PreviewSave(map, (dir / "woods_map.png").string().c_str());
+
+	// The isometric view round the arrival, as scrollrt draws it: the ground pass over every tile, then each tile's sprite in
+	// the game's row order.
+	oracool::LoadWoodsArtForTest();
+	OwnedSurface view = OwnedSurface::Rgb(1280, 720);
+	const Point centre = arrival + Displacement { -6, 2 };
+	const auto screenOf = [&](Point tile) {
+		return Point { 640 - 32 + (tile.x - centre.x) * 32 - (tile.y - centre.y) * 32, 360 + 15 + (tile.x - centre.x) * 16 + (tile.y - centre.y) * 16 };
+	};
+	for (int pass = 0; pass < 2; pass++) {
+		for (int sum = 2 * 0; sum <= 2 * (MAXDUNX - 1); sum++) {
+			for (int x = 0; x <= MAXDUNX - 1; x++) {
+				const int y = sum - x;
+				const Point tile { x, y };
+				if (!InDungeonBounds(tile))
+					continue;
+				const Point at = screenOf(tile);
+				if (at.x < -96 || at.x > 1280 + 32 || at.y < -32 || at.y > 720 + 260)
+					continue;
+				if (pass == 0)
+					oracool::DrawWoodsGroundTile(view, tile, at, -1, false);
+				else
+					oracool::DrawWoodsTileSprite(view, tile, at, -1);
+			}
+		}
+	}
+	PreviewSave(view, (dir / "woods_view.png").string().c_str());
+}
+
+/**
+ * The woods' Painted Art look as scrollrt draws it (user, 2026-10-14: "look for sharp borders between assets and terain"): the
+ * painted ground, the cottages, the river and the cave mouth through the game's own woods calls - round a cottage, the bridge, the
+ * mouth and the arrival's gate. Writes ORCL_WOODS_OUT/woods_painted_<place>.png (seed ORCL_WOODS_SEED).
+ */
+TEST(OracoolPreview, DISABLED_WoodsPaintedView)
+{
+	const char *outDir = std::getenv("ORCL_WOODS_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	const OrclActMapGuard mapGuard;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	setlvlnum = SL_ORCL_WOODS_1;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
+	std::unique_ptr<byte[]> savedCels = std::move(pDungeonCels);
+	pDungeonCels = LoadFileInMem("nlevels\\towndata\\town.cel");
+	const std::array<uint32_t, 256> savedPalette = PaletteRGB;
+	{
+		size_t n = 0;
+		auto pal = LoadFileInMem<uint8_t>("levels\\towndata\\town.pal", &n);
+		for (int i = 0; i < 256 && 3 * i + 2 < static_cast<int>(n); i++)
+			PaletteRGB[i] = (static_cast<uint32_t>(pal[3 * i]) << 16) | (static_cast<uint32_t>(pal[3 * i + 1]) << 8) | pal[3 * i + 2];
+	}
+	const char *seedText = std::getenv("ORCL_WOODS_SEED");
+	const uint32_t seed = seedText != nullptr ? static_cast<uint32_t>(std::strtoul(seedText, nullptr, 0)) : 0x6E00D5U;
+	oracool::SetWoodsCaveMouthFloorForTest(0);
+	oracool::SetWoodsRiverForTest(1);
+	oracool::LoadWoodsArtForTest();
+	CreateDungeon(seed, ENTRY_SETLVL);
+	oracool::SetWoodsRiverForTest(-1);
+	const Point mouth = oracool::StampWoodsCaveMouthForTest();
+	LoadLevelSOLData();
+	oracool::LoadWoodsArtForTest();
+	Point bridge { 0, 0 };
+	for (int y = 6; y < 106; y++)
+		for (int x = 6; x < 106; x++)
+			if (oracool::WoodsRiverAtForTest({ x, y }) && bridge == Point(0, 0) && x > 30 && y > 30)
+				bridge = { x, y };
+	std::array<uint8_t, 256> identity;
+	for (int i = 0; i < 256; i++)
+		identity[i] = static_cast<uint8_t>(i);
+	const auto renderAround = [&](Point centre, const char *name) {
+		constexpr int viewW = 1280, viewH = 720;
+		OwnedSurface view = OwnedSurface::Rgb(viewW, viewH);
+		const Surface out = view;
+		for (int y = 0; y < viewH; y++)
+			std::fill_n(out.at<uint32_t>(0, y), viewW, 0xFF00FFU); // magenta: what nothing was drawn on
+		ASSERT_TRUE(oracool::WoodsArtActive(out)) << "the painted look is not built";
+		const auto screenOf = [&](Point tile) {
+			return Point { viewW / 2 - 32 + (tile.x - centre.x) * 32 - (tile.y - centre.y) * 32, viewH / 2 + 15 + (tile.x - centre.x) * 16 + (tile.y - centre.y) * 16 };
+		};
+		for (int pass = 0; pass < 2; pass++) {
+			for (int sum = 0; sum <= 2 * (MAXDUNX - 1); sum++) {
+				for (int x = 0; x <= MAXDUNX - 1; x++) {
+					const Point tile { x, sum - x };
+					if (!InDungeonBounds(tile))
+						continue;
+					const Point at = screenOf(tile);
+					if (at.x < -96 || at.x > viewW + 32 || at.y < -32 || at.y > viewH + 300)
+						continue;
+					const uint16_t drawn = oracool::WoodsDrawnPiece(tile);
+					const uint16_t raw = dPiece[tile.x][tile.y];
+					const bool cels = oracool::WoodsTileUsesCels(tile);
+					if (pass == 0) {
+						// DrawFloor's woods branches: the painted ground, a house's own stone floor, or the cels with their grass repainted.
+						if (!cels && !(oracool::IsBorrowedPiece(raw) && drawn == raw)) {
+							oracool::DrawWoodsGroundTile(out, tile, at, -1, false);
+						} else if (oracool::IsBorrowedPiece(drawn)) {
+							oracool::DrawBorrowedFloor(out, drawn, at, -1);
+						} else if (!TileHasAny(drawn, TileProperties::Solid)) {
+							for (int side = 0; side < 2; side++) {
+								const LevelCelBlock block { DPieceMicros[drawn].mt[side] };
+								if (block.hasValue())
+									RenderTile(out, at + Displacement { side * 32, 0 }, block, MaskType::Solid, identity.data());
+							}
+							oracool::RepaintWoodsCelGrass(out, tile, at, -1, false);
+						}
+						continue;
+					}
+					// DrawDungeon's: the painted sprite where the tile is the woods' own, the cell (borrowed or native) where not.
+					if (!cels && !oracool::IsBorrowedPiece(raw)) {
+						oracool::DrawWoodsTileSprite(out, tile, at, -1);
+						continue;
+					}
+					if (oracool::WoodsShellAt(tile) == 0 && oracool::IsBorrowedPiece(raw)) {
+						oracool::DrawBorrowedCell(out, tile, raw, at, -1, drawn == raw);
+					} else {
+						const bool solid = TileHasAny(drawn, TileProperties::Solid);
+						Point up = at;
+						for (int i = 0; i < 16; i += 2) {
+							for (int side = 0; side < 2; side++) {
+								const LevelCelBlock block { DPieceMicros[drawn].mt[i + side] };
+								if (!block.hasValue() || (i == 0 && !solid && block.type() != TileType::TransparentSquare))
+									continue;
+								RenderTile(out, up + Displacement { side * 32, 0 }, block,
+								    i == 0 && !solid ? (side == 0 ? MaskType::LeftFoliage : MaskType::RightFoliage) : MaskType::Solid, identity.data());
+							}
+							up.y -= 32;
+						}
+						oracool::RepaintWoodsCelGround(out, tile, at, -1); // a mouth rock's dark earth
+					}
+				}
+			}
+		}
+		PreviewSave(view, (dir / name).string().c_str());
+	};
+	ASSERT_NE(mouth, Point(0, 0));
+	renderAround(mouth + Displacement { 2, 1 }, "woods_painted_mouth.png");
+	if (bridge != Point(0, 0))
+		renderAround(bridge, "woods_painted_bridge.png");
+	if (oracool::WoodsHouseCountForTest() > 0) {
+		renderAround(oracool::WoodsHouseInsideForTest(0) + Displacement { -2, -3 }, "woods_painted_house.png");
+		// See-through, as when the hero stands behind it.
+		oracool::WoodsShellState[0] = 1;
+		oracool::WoodsShellState[1] = 1;
+		renderAround(oracool::WoodsHouseInsideForTest(0) + Displacement { -2, -3 }, "woods_painted_house_behind.png");
+		oracool::WoodsShellState[0] = 2;
+		oracool::WoodsShellState[1] = 2;
+	}
+	renderAround(oracool::WoodsArrival() + Displacement { -6, 0 }, "woods_painted_gate.png");
+	oracool::SetWoodsCaveMouthFloorForTest(-1);
+	PaletteRGB = savedPalette;
+	pDungeonCels = std::move(savedCels);
+}
+
+/**
+ * The woods' Mixed look as scrollrt draws it (Orcl Act, 2026-10-14): Tristram's own cels through the game's tile renderer in the
+ * town palette, the painted road and grade over them, the borrowed Caves fences, the cave mouth's cels, the painted trees - round
+ * the cave mouth and round the arrival's gate. Writes ORCL_WOODS_OUT/woods_mixed_mouth.png and woods_mixed_gate.png.
+ */
+TEST(OracoolPreview, DISABLED_WoodsMixedView)
+{
+	const char *outDir = std::getenv("ORCL_WOODS_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	const OrclActMapGuard mapGuard;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	setlvlnum = SL_ORCL_WOODS_1;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
+	std::unique_ptr<byte[]> savedCels = std::move(pDungeonCels);
+	pDungeonCels = LoadFileInMem("nlevels\\towndata\\town.cel");
+	const std::array<uint32_t, 256> savedPalette = PaletteRGB;
+	{
+		size_t n = 0;
+		auto pal = LoadFileInMem<uint8_t>("levels\\towndata\\town.pal", &n);
+		for (int i = 0; i < 256 && 3 * i + 2 < static_cast<int>(n); i++)
+			PaletteRGB[i] = (static_cast<uint32_t>(pal[3 * i]) << 16) | (static_cast<uint32_t>(pal[3 * i + 1]) << 8) | pal[3 * i + 2];
+	}
+	const char *seedText = std::getenv("ORCL_WOODS_SEED");
+	const uint32_t seed = seedText != nullptr ? static_cast<uint32_t>(std::strtoul(seedText, nullptr, 0)) : 0x6E00D5U;
+	oracool::SetWoodsCaveMouthFloorForTest(0);
+	oracool::SetWoodsRiverForTest(1);
+	CreateDungeon(seed, ENTRY_SETLVL);
+	oracool::SetWoodsRiverForTest(-1);
+	const Point mouth = oracool::StampWoodsCaveMouthForTest();
+	LoadLevelSOLData();
+	oracool::LoadWoodsArtForTest();
+	Point bridge { 0, 0 };
+	for (int y = 16; y < 96; y++)
+		for (int x = 16; x < 96; x++)
+			if (dPiece[x][y] == 311 && bridge == Point(0, 0))
+				bridge = { x, y };
+	std::cout << "BRIDGE " << bridge.x << " " << bridge.y << std::endl;
+	std::array<uint8_t, 256> identity;
+	for (int i = 0; i < 256; i++)
+		identity[i] = static_cast<uint8_t>(i);
+	const auto renderAround = [&](Point centre, const char *name, int viewW = 1280, int viewH = 720) {
+		OwnedSurface view = OwnedSurface::Rgb(viewW, viewH);
+		const Surface out = view;
+		const auto screenOf = [&](Point tile) {
+			return Point { viewW / 2 - 32 + (tile.x - centre.x) * 32 - (tile.y - centre.y) * 32, viewH / 2 + 15 + (tile.x - centre.x) * 16 + (tile.y - centre.y) * 16 };
+		};
+		for (int pass = 0; pass < 2; pass++) {
+			for (int sum = 0; sum <= 2 * (MAXDUNX - 1); sum++) {
+				for (int x = 0; x <= MAXDUNX - 1; x++) {
+					const Point tile { x, sum - x };
+					if (!InDungeonBounds(tile))
+						continue;
+					const Point at = screenOf(tile);
+					if (at.x < -96 || at.x > viewW + 32 || at.y < -32 || at.y > viewH + 300)
+						continue;
+					const uint16_t drawn = oracool::WoodsDrawnPiece(tile);
+					const uint16_t raw = dPiece[tile.x][tile.y];
+					if (pass == 0) {
+						// DrawFloor: the floor of how the tile looks, then the Mixed look's road and grade.
+						if (oracool::IsBorrowedPiece(drawn)) {
+							oracool::DrawBorrowedFloor(out, drawn, at, -1);
+						} else if (!TileHasAny(drawn, TileProperties::Solid)) {
+							for (int side = 0; side < 2; side++) {
+								const LevelCelBlock block { DPieceMicros[drawn].mt[side] };
+								if (block.hasValue())
+									RenderTile(out, at + Displacement { side * 32, 0 }, block, MaskType::Solid, identity.data());
+							}
+							oracool::DrawWoodsMixedGround(out, tile, at, -1, false);
+						}
+						continue;
+					}
+					// DrawCell: a borrowed piece's upright, or the native piece's micros above its floor; then the painted sprite.
+					if (oracool::WoodsShellAt(tile) == 0 && oracool::IsBorrowedPiece(raw)) {
+						oracool::DrawBorrowedCell(out, tile, raw, at, -1, drawn == raw);
+					} else {
+						const bool solid = TileHasAny(drawn, TileProperties::Solid);
+						Point up = at;
+						for (int i = 0; i < 16; i += 2) {
+							for (int side = 0; side < 2; side++) {
+								const LevelCelBlock block { DPieceMicros[drawn].mt[i + side] };
+								if (!block.hasValue() || (i == 0 && !solid && block.type() != TileType::TransparentSquare))
+									continue;
+								RenderTile(out, up + Displacement { side * 32, 0 }, block,
+								    i == 0 && !solid ? (side == 0 ? MaskType::LeftFoliage : MaskType::RightFoliage) : MaskType::Solid, identity.data());
+							}
+							up.y -= 32;
+						}
+					}
+					if (leveltype == DTYPE_WOODS) {
+						oracool::DrawWoodsTileSprite(out, tile, at, -1);
+					}
+				}
+			}
+		}
+		PreviewSave(view, (dir / name).string().c_str());
+	};
+	ASSERT_NE(mouth, Point(0, 0));
+	renderAround(mouth + Displacement { 2, 1 }, "woods_mixed_mouth.png");
+	if (bridge != Point(0, 0))
+		renderAround(bridge, "woods_mixed_bridge.png");
+	if (oracool::WoodsHouseCountForTest() > 0) {
+		// The cottage whole, then gone as when the hero stands inside it: the Catacombs room under it.
+		renderAround(oracool::WoodsHouseInsideForTest(0) + Displacement { -2, -3 }, "woods_mixed_house.png");
+		oracool::WoodsShellState[0] = 0;
+		oracool::WoodsShellState[1] = 0;
+		renderAround(oracool::WoodsHouseInsideForTest(0) + Displacement { -2, -3 }, "woods_mixed_house_inside.png");
+		oracool::WoodsShellState[0] = 2;
+		oracool::WoodsShellState[1] = 2;
+	}
+	renderAround(oracool::WoodsArrival() + Displacement { 3, 0 }, "woods_mixed_gate.png");
+	oracool::SetWoodsCaveMouthFloorForTest(-1);
+
+	// Tristram's own cave entrance (pieces 1198-1219, trigs.cpp ForceTownTrig), where the town has it: its block of pieces
+	// printed as a table, and the corner of town round it.
+	leveltype = DTYPE_TOWN;
+	setlevel = false;
+	currlevel = 0;
+	CreateTown(ENTRY_MAIN);
+	LoadLevelSOLData();
+	int x0 = MAXDUNX, y0 = MAXDUNY, x1 = -1, y1 = -1;
+	for (int y = 0; y < MAXDUNY; y++)
+		for (int x = 0; x < MAXDUNX; x++)
+			if (dPiece[x][y] >= 1198 && dPiece[x][y] <= 1219) {
+				x0 = std::min(x0, x); y0 = std::min(y0, y); x1 = std::max(x1, x); y1 = std::max(y1, y);
+			}
+	std::cout << "CAVEWARP " << x0 << " " << y0 << " " << x1 << " " << y1 << std::endl;
+	for (int y = y0 - 2; y <= y1 + 2; y++) {
+		std::cout << "CAVEROW " << y << ":";
+		for (int x = x0 - 2; x <= x1 + 2; x++)
+			std::cout << " " << dPiece[x][y] << (TileHasAny(dPiece[x][y], TileProperties::Solid) ? "s" : "");
+		std::cout << std::endl;
+	}
+	renderAround({ 17, 67 }, "town_cave_entrance.png");
+	// The whole town, for its rivers and bridges (the woods' river is the west one's cells, woods.cpp RiverPieces).
+	renderAround({ 48, 48 }, "town_overview.png", 6400, 3400);
+	// Any corners of town asked for: ORCL_TOWN_VIEWS="x,y;x,y" writes town_view_X_Y.png each.
+	if (const char *views = std::getenv("ORCL_TOWN_VIEWS"); views != nullptr) {
+		std::string list = views;
+		size_t pos = 0;
+		while (pos < list.size()) {
+			const size_t end = list.find(';', pos);
+			const std::string item = list.substr(pos, end == std::string::npos ? std::string::npos : end - pos);
+			const size_t comma = item.find(',');
+			if (comma != std::string::npos) {
+				const int vx = std::atoi(item.substr(0, comma).c_str());
+				const int vy = std::atoi(item.substr(comma + 1).c_str());
+				renderAround({ vx, vy }, ("town_view_" + std::to_string(vx) + "_" + std::to_string(vy) + ".png").c_str());
+			}
+			if (end == std::string::npos)
+				break;
+			pos = end + 1;
+		}
+	}
+	leveltype = DTYPE_WOODS;
+	PaletteRGB = savedPalette;
+	pDungeonCels = std::move(savedCels);
+}
+
+/**
+ * Every megatile of a vanilla tileset as a woods floor would borrow it (oracool/borrowed_tiles.h, 2026-10-14): its four pieces
+ * placed as a megatile stands, floor then upright, one PNG each - ORCL_SHEET_OUT/mega_NNN.png (1-based, as dungeon[][] and
+ * FillTile number them). ORCL_SHEET_SET is the dungeon_type (1 Cathedral, 2 Catacombs, 3 Caves, 4 Hell, 5 Nest, 6 Crypt).
+ */
+TEST(OracoolPreview, DISABLED_TilesetMegatileSheet)
+{
+	const char *outDir = std::getenv("ORCL_SHEET_OUT");
+	const char *setText = std::getenv("ORCL_SHEET_SET");
+	ASSERT_NE(outDir, nullptr);
+	ASSERT_NE(setText, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	const OrclActMapGuard mapGuard;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	const auto set = static_cast<dungeon_type>(std::atoi(setText));
+	const int count = oracool::BorrowedMegatileCount(set);
+	ASSERT_GT(count, 0);
+	for (int m = 1; m <= count; m++) {
+		uint16_t pieces[4];
+		ASSERT_TRUE(oracool::BorrowedMegatilePieces(set, m, pieces));
+		OwnedSurface cell = OwnedSurface::Rgb(128, 300);
+		const Surface out = cell;
+		for (int y = 0; y < 300; y++)
+			for (int x = 0; x < 128; x++)
+				*out.at<uint32_t>(x, y) = 0x101010;
+		// The pieces where they stand in a megatile: (0,0) top, (1,0) right, (0,1) left, (1,1) bottom; each target the tile's
+		// bottom-left, as DrawCell takes it.
+		const Point targets[4] = { { 32, 299 - 32 }, { 64, 299 - 16 }, { 0, 299 - 16 }, { 32, 299 } };
+		uint16_t ids[4];
+		for (int t = 0; t < 4; t++)
+			ids[t] = oracool::BorrowPiece(set, pieces[t]);
+		for (int t = 0; t < 4; t++)
+			oracool::DrawBorrowedFloor(out, ids[t], targets[t], -1);
+		for (const int t : { 0, 1, 2, 3 })
+			oracool::DrawBorrowedCell(out, { 0, 0 }, ids[t], targets[t], -1, true);
+		char name[32];
+		std::snprintf(name, sizeof(name), "mega_%03d.png", m);
+		PreviewSave(cell, (dir / name).string().c_str());
+	}
+}
+
+/**
+ * The Woods Levels Designer's stamps (2026-10-14): every vanilla piece of scenery the woods use, rendered through the game's own
+ * tile code - Tristram's pieces in the town palette, the Caves' fences and the Catacombs' room through the borrowed tiles - each
+ * twice, whole ("<name>.png") and its uprights alone ("<name>_up.png": no open ground), cropped, with the pixel where its
+ * tile (0,0)'s top vertex lies. Writes ORCL_DESIGNER_OUT/stamps.json and the PNGs (true colour, transparent where nothing is).
+ */
+TEST(OracoolPreview, DISABLED_WoodsDesignerStamps)
+{
+	const char *outDir = std::getenv("ORCL_DESIGNER_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	const OrclActMapGuard mapGuard;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	SetDungeonMicros();
+	LoadLevelSOLData();
+	std::unique_ptr<byte[]> savedCels = std::move(pDungeonCels);
+	pDungeonCels = LoadFileInMem("nlevels\\towndata\\town.cel");
+	const std::array<uint32_t, 256> savedPalette = PaletteRGB;
+	{
+		size_t n = 0;
+		auto pal = LoadFileInMem<uint8_t>("levels\\towndata\\town.pal", &n);
+		for (int i = 0; i < 256 && 3 * i + 2 < static_cast<int>(n); i++)
+			PaletteRGB[i] = (static_cast<uint32_t>(pal[3 * i]) << 16) | (static_cast<uint32_t>(pal[3 * i + 1]) << 8) | pal[3 * i + 2];
+	}
+	std::array<uint8_t, 256> identity;
+	for (int i = 0; i < 256; i++)
+		identity[i] = static_cast<uint8_t>(i);
+
+	struct Stamp {
+		std::string name;
+		std::string label;
+		int w, h;                    // tiles
+		std::vector<uint16_t> piece; // dPiece ids (native town, or borrowed)
+		bool walls;                  // it blocks (fences, walls, the cottage) - drawn uprights-only by default
+	};
+	std::vector<Stamp> stamps;
+	const auto addTown = [&](int which, const char *name, const char *label, bool walls) {
+		Stamp st { name, label, 0, 0, {}, walls };
+		ASSERT_TRUE(oracool::WoodsStampForTest(which, st.piece, st.w, st.h));
+		stamps.push_back(st);
+	};
+	addTown(0, "cottage", "Tristram cottage", true);
+	addTown(1, "cave_mouth", "Cave mouth", false);
+	addTown(2, "river_m1", "River, diagonal (M1)", false);
+	addTown(3, "river_m2", "River, diagonal (M2)", false);
+	addTown(4, "river_m3", "River, diagonal (M3)", false);
+	addTown(5, "river_m4", "River, diagonal (M4)", false);
+	addTown(6, "river_straight", "River, straight", false);
+	addTown(7, "river_bridge", "River with bridge", false);
+	// Borrowed megatiles, laid as cells of 2 x 2 tiles: { set, megatile } per cell, rows of cells.
+	const auto addBorrowed = [&](const char *name, const char *label, dungeon_type set, int cw, int ch, std::vector<int> megas, bool walls,
+	                             std::vector<std::pair<uint16_t, uint16_t>> swaps = {}) {
+		Stamp st { name, label, 2 * cw, 2 * ch, std::vector<uint16_t>(static_cast<size_t>(4 * cw * ch), 0), walls };
+		for (int cy = 0; cy < ch; cy++) {
+			for (int cx = 0; cx < cw; cx++) {
+				uint16_t pieces[4];
+				ASSERT_TRUE(oracool::BorrowedMegatilePieces(set, megas[static_cast<size_t>(cy * cw + cx)], pieces)) << name;
+				for (int t = 0; t < 4; t++) {
+					uint16_t native = pieces[t];
+					for (const auto &[from, to] : swaps)
+						if (native == from)
+							native = to;
+					st.piece[static_cast<size_t>((2 * cy + (t >> 1)) * st.w + 2 * cx + (t & 1))] = oracool::BorrowPiece(set, native);
+				}
+			}
+		}
+		stamps.push_back(st);
+	};
+	const std::vector<std::pair<uint16_t, uint16_t>> openGates { { 530, 537 }, { 533, 540 } };
+	addBorrowed("fence_x", "Fence, along x", DTYPE_CAVES, 1, 1, { 134 }, true);
+	addBorrowed("fence_x2", "Fence, along x (2)", DTYPE_CAVES, 1, 1, { 136 }, true);
+	addBorrowed("fence_y", "Fence, along y", DTYPE_CAVES, 1, 1, { 135 }, true);
+	addBorrowed("fence_y2", "Fence, along y (2)", DTYPE_CAVES, 1, 1, { 137 }, true);
+	addBorrowed("fence_post", "Fence post", DTYPE_CAVES, 1, 1, { 138 }, true);
+	addBorrowed("fence_gate_x", "Fence gate, along x", DTYPE_CAVES, 1, 1, { 146 }, true, openGates);
+	addBorrowed("fence_gate_y", "Fence gate, along y", DTYPE_CAVES, 1, 1, { 147 }, true, openGates);
+	addBorrowed("stone_room", "Stone room (the cottage's)", DTYPE_CATACOMBS, 3, 3, { 8, 2, 7, 1, 3, 4, 9, 2, 6 }, true);
+	addBorrowed("stone_hall", "Stone hall, 5 x 4", DTYPE_CATACOMBS, 5, 4, { 8, 2, 2, 2, 7, 1, 3, 3, 3, 4, 1, 3, 3, 3, 1, 9, 2, 5, 2, 6 }, true);
+
+	std::ofstream manifest(dir / "stamps.json");
+	manifest << "[\n";
+	bool firstEntry = true;
+	for (const Stamp &st : stamps) {
+		for (const bool uprightsOnly : { false, true }) {
+			const int cw = (st.w + st.h) * 32 + 64;
+			const int chh = (st.w + st.h) * 16 + 400;
+			OwnedSurface canvas = OwnedSurface::Rgb(cw, chh);
+			const Surface out = canvas;
+			constexpr uint32_t Unwritten = 0xFF000000U;
+			for (int y = 0; y < chh; y++)
+				for (int x = 0; x < cw; x++)
+					*out.at<uint32_t>(x, y) = Unwritten;
+			const Point origin { st.h * 32 + 32, 360 }; // tile (0,0)'s top vertex
+			const auto targetOf = [&](int x, int y) { return Point { origin.x + (x - y) * 32 - 32, origin.y + (x + y) * 16 + 31 }; };
+			for (int pass = 0; pass < 2; pass++) {
+				for (int sum = 0; sum <= st.w + st.h - 2; sum++) {
+					for (int x = 0; x < st.w; x++) {
+						const int y = sum - x;
+						if (y < 0 || y >= st.h)
+							continue;
+						const uint16_t id = st.piece[static_cast<size_t>(y * st.w + x)];
+						const Point at = targetOf(x, y);
+						const bool solid = TileHasAny(id, TileProperties::Solid);
+						if (pass == 0) {
+							if (uprightsOnly)
+								continue;
+							if (oracool::IsBorrowedPiece(id)) {
+								oracool::DrawBorrowedFloor(out, id, at, -1);
+							} else if (!solid) {
+								for (int side = 0; side < 2; side++) {
+									const LevelCelBlock block { DPieceMicros[id].mt[side] };
+									if (block.hasValue())
+										RenderTile(out, at + Displacement { side * 32, 0 }, block, MaskType::Solid, identity.data());
+								}
+							}
+							continue;
+						}
+						if (oracool::IsBorrowedPiece(id)) {
+							oracool::DrawBorrowedCell(out, { 0, 0 }, id, at, -1, true); // a solid piece's triangles are its own art
+							continue;
+						}
+						Point up = at;
+						for (int i = 0; i < 16; i += 2) {
+							for (int side = 0; side < 2; side++) {
+								const LevelCelBlock block { DPieceMicros[id].mt[i + side] };
+								if (!block.hasValue())
+									continue;
+								// An open piece's floor is left out (its foliage kept); a solid piece's triangles are part of it - a roof's
+								// slope, a wall's foot (the first export left holes there).
+								if (i == 0 && !solid && block.type() != TileType::TransparentSquare)
+									continue;
+								RenderTile(out, up + Displacement { side * 32, 0 }, block,
+								    i == 0 && !solid ? (side == 0 ? MaskType::LeftFoliage : MaskType::RightFoliage) : MaskType::Solid, identity.data());
+							}
+							up.y -= 32;
+						}
+					}
+				}
+			}
+			// Cropped to what was drawn, into a transparent 32-bit image.
+			int x0 = cw, y0 = chh, x1 = -1, y1 = -1;
+			for (int y = 0; y < chh; y++)
+				for (int x = 0; x < cw; x++)
+					if (*out.at<uint32_t>(x, y) != Unwritten) {
+						x0 = std::min(x0, x); y0 = std::min(y0, y); x1 = std::max(x1, x); y1 = std::max(y1, y);
+					}
+			if (x1 < 0)
+				continue;
+			SDL_Surface *png = SDL_CreateRGBSurfaceWithFormat(0, x1 - x0 + 1, y1 - y0 + 1, 32, SDL_PIXELFORMAT_ARGB8888);
+			ASSERT_NE(png, nullptr);
+			for (int y = y0; y <= y1; y++) {
+				auto *row = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(png->pixels) + static_cast<size_t>(y - y0) * png->pitch);
+				for (int x = x0; x <= x1; x++) {
+					const uint32_t c = *out.at<uint32_t>(x, y);
+					row[x - x0] = c == Unwritten ? 0 : (0xFF000000U | (c & 0xFFFFFFU));
+				}
+			}
+			const std::string file = st.name + (uprightsOnly ? "_up.png" : ".png");
+			ASSERT_EQ(IMG_SavePNG(png, (dir / file).string().c_str()), 0) << file;
+			SDL_FreeSurface(png);
+			manifest << (firstEntry ? "" : ",\n") << "  {\"name\":\"" << st.name << (uprightsOnly ? "_up" : "") << "\",\"stamp\":\"" << st.name
+			         << "\",\"label\":\"" << st.label << "\",\"uprights\":" << (uprightsOnly ? "true" : "false") << ",\"walls\":" << (st.walls ? "true" : "false")
+			         << ",\"file\":\"" << file << "\",\"w\":" << st.w << ",\"h\":" << st.h << ",\"ax\":" << (origin.x - x0) << ",\"ay\":" << (origin.y - y0) << "}";
+			firstEntry = false;
+		}
+	}
+	manifest << "\n]\n";
+	PaletteRGB = savedPalette;
+	pDungeonCels = std::move(savedCels);
+}
+
+/**
+ * The Woods Levels Designer's mob roster (2026-10-14): every monster kind of the game, its first standing frame facing south as
+ * the game loads it (InitMonsterGFX, its TRN applied) in the palette of the first floor it lives on - ORCL_DESIGNER_OUT/mobs/
+ * mob_NNN.png (NNN its _monster_id) and mobs.json: id, name, floors, availability (0 never, 1 always, 2 retail), level.
+ */
+TEST(OracoolPreview, DISABLED_WoodsDesignerMobs)
+{
+	const char *outDir = std::getenv("ORCL_DESIGNER_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir = std::filesystem::path(outDir) / "mobs";
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	gbIsHellfire = true;
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const std::array<uint32_t, 256> savedPalette = PaletteRGB;
+	const auto loadPalette = [](int floor) {
+		const char *path = floor <= 4 ? "levels\\l1data\\l1_1.pal" : floor <= 8 ? "levels\\l2data\\l2_1.pal" : floor <= 12 ? "levels\\l3data\\l3_1.pal"
+		    : floor <= 16                                     ? "levels\\l4data\\l4_1.pal"
+		    : floor <= 20                                     ? "nlevels\\l6data\\l6base1.pal"
+		                                                      : "nlevels\\l5data\\l5base.pal";
+		size_t n = 0;
+		auto pal = LoadFileInMem<uint8_t>(path, &n);
+		for (int i = 0; i < 256 && 3 * i + 2 < static_cast<int>(n); i++)
+			PaletteRGB[i] = (static_cast<uint32_t>(pal[3 * i]) << 16) | (static_cast<uint32_t>(pal[3 * i + 1]) << 8) | pal[3 * i + 2];
+	};
+	std::ofstream manifest(dir / "mobs.json");
+	manifest << "[\n";
+	bool first = true;
+	for (int id = MT_NZOMBIE; id < NUM_MTYPES; id++) {
+		const MonsterData &data = MonstersData[id];
+		if (data.assetsSuffix == nullptr || data.name == nullptr || id == MT_DARKMAGE)
+			continue; // the dark mage's sprite is a placeholder the CL2 conversion fails on (it crashed here)
+		// Not every kind's sprite is in the archives (the unused worm): those are left out.
+		{
+			const std::string standPath = std::string("monsters\\") + data.assetsSuffix + "n.cl2";
+			AssetHandle handle = OpenAsset(standPath.c_str());
+			if (!handle.ok())
+				continue;
+		}
+		CMonster kind {};
+		kind.type = static_cast<_monster_id>(id);
+		InitMonsterGFX(kind);
+		if (!kind.anims[0].sprites)
+			continue;
+		const ClxSpriteListOrSheet &sprites = *kind.anims[0].sprites;
+		const ClxSprite sprite = sprites.isSheet() ? sprites.sheet()[0][0] : sprites.list()[0];
+		loadPalette(std::max<int>(1, data.minDunLvl));
+		const int w = sprite.width() + 4;
+		const int h = sprite.height() + 4;
+		OwnedSurface canvas = OwnedSurface::Rgb(w, h);
+		const Surface out = canvas;
+		constexpr uint32_t Unwritten = 0xFF000000U;
+		for (int y = 0; y < h; y++)
+			for (int x = 0; x < w; x++)
+				*out.at<uint32_t>(x, y) = Unwritten;
+		ClxDraw(out, { 2, h - 2 }, sprite);
+		int x0 = w, y0 = h, x1 = -1, y1 = -1;
+		for (int y = 0; y < h; y++)
+			for (int x = 0; x < w; x++)
+				if (*out.at<uint32_t>(x, y) != Unwritten) {
+					x0 = std::min(x0, x); y0 = std::min(y0, y); x1 = std::max(x1, x); y1 = std::max(y1, y);
+				}
+		if (x1 < 0)
+			continue;
+		SDL_Surface *png = SDL_CreateRGBSurfaceWithFormat(0, x1 - x0 + 1, y1 - y0 + 1, 32, SDL_PIXELFORMAT_ARGB8888);
+		ASSERT_NE(png, nullptr);
+		for (int y = y0; y <= y1; y++) {
+			auto *row = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(png->pixels) + static_cast<size_t>(y - y0) * png->pitch);
+			for (int x = x0; x <= x1; x++) {
+				const uint32_t c = *out.at<uint32_t>(x, y);
+				row[x - x0] = c == Unwritten ? 0 : (0xFF000000U | (c & 0xFFFFFFU));
+			}
+		}
+		char file[32];
+		std::snprintf(file, sizeof(file), "mob_%03d.png", id);
+		ASSERT_EQ(IMG_SavePNG(png, (dir / file).string().c_str()), 0) << file;
+		SDL_FreeSurface(png);
+		std::string name = data.name;
+		for (char &c : name)
+			if (c == '"' || c == '\\')
+				c = '\'';
+		manifest << (first ? "" : ",\n") << "  {\"id\":" << id << ",\"name\":\"" << name << "\",\"file\":\"" << file << "\",\"min\":" << static_cast<int>(data.minDunLvl)
+		         << ",\"max\":" << static_cast<int>(data.maxDunLvl) << ",\"availability\":" << static_cast<int>(data.availability) << ",\"level\":" << static_cast<int>(data.level)
+		         << ",\"w\":" << (x1 - x0 + 1) << ",\"h\":" << (y1 - y0 + 1) << "}";
+		first = false;
+	}
+	manifest << "\n]\n";
+	PaletteRGB = savedPalette;
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * Where a woods frame's time goes (user, 2026-10-14: "levels prove to be hard on the cpu and it hits the frames"): a 1920 x 1080
+ * view of the Mixed look round the arrival and round the map's edge, drawn 20 times through the game's own calls, each pass
+ * timed - the floor's cels, the Mixed ground (road and grade), the trees and details, the borrowed fences. Prints WOODSBENCH lines.
+ */
+TEST(OracoolPreview, DISABLED_WoodsFrameBenchmark)
+{
+	MountTestArchives(true);
+	InitPNG();
+	const OrclActMapGuard mapGuard;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	setlvlnum = SL_ORCL_WOODS_1;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
+	std::unique_ptr<byte[]> savedCels = std::move(pDungeonCels);
+	pDungeonCels = LoadFileInMem("nlevels\\towndata\\town.cel");
+	const std::array<uint32_t, 256> savedPalette = PaletteRGB;
+	{
+		size_t n = 0;
+		auto pal = LoadFileInMem<uint8_t>("levels\\towndata\\town.pal", &n);
+		for (int i = 0; i < 256 && 3 * i + 2 < static_cast<int>(n); i++)
+			PaletteRGB[i] = (static_cast<uint32_t>(pal[3 * i]) << 16) | (static_cast<uint32_t>(pal[3 * i + 1]) << 8) | pal[3 * i + 2];
+	}
+	oracool::SetWoodsCaveMouthFloorForTest(0);
+	oracool::SetWoodsRiverForTest(1);
+	CreateDungeon(0x6E00D5U, ENTRY_SETLVL);
+	oracool::SetWoodsRiverForTest(-1);
+	oracool::StampWoodsCaveMouthForTest();
+	oracool::SetWoodsCaveMouthFloorForTest(-1);
+	LoadLevelSOLData();
+	oracool::LoadWoodsArtForTest();
+	std::array<uint8_t, 256> identity;
+	for (int i = 0; i < 256; i++)
+		identity[i] = static_cast<uint8_t>(i);
+	using Clock = std::chrono::steady_clock;
+	const auto ms = [](Clock::duration d) { return std::chrono::duration<double, std::milli>(d).count(); };
+	for (const auto &[label, centre] : { std::pair<const char *, Point> { "arrival", oracool::WoodsArrival() + Displacement { -6, 0 } }, { "edge", Point { 100, 100 } } }) {
+		OwnedSurface view = OwnedSurface::Rgb(1920, 1080);
+		const Surface out = view;
+		const auto screenOf = [&](Point tile) {
+			return Point { 960 - 32 + (tile.x - centre.x) * 32 - (tile.y - centre.y) * 32, 540 + 15 + (tile.x - centre.x) * 16 + (tile.y - centre.y) * 16 };
+		};
+		double floorCels = 0, mixed = 0, sprites = 0, borrowed = 0, cells = 0, painted = 0;
+		int tiles = 0;
+		constexpr int Frames = 20;
+		for (int frame = 0; frame < Frames; frame++) {
+			for (int pass = 0; pass < 2; pass++) {
+				for (int sum = 0; sum <= 2 * (MAXDUNX - 1); sum++) {
+					for (int x = 0; x <= MAXDUNX - 1; x++) {
+						const Point tile { x, sum - x };
+						if (!InDungeonBounds(tile))
+							continue;
+						const Point at = screenOf(tile);
+						if (at.x < -96 || at.x > 1920 + 32 || at.y < -32 || at.y > 1080 + 300)
+							continue;
+						const uint16_t drawn = oracool::WoodsDrawnPiece(tile);
+						const uint16_t raw = dPiece[tile.x][tile.y];
+						if (pass == 0) {
+							tiles += frame == 0 ? 1 : 0;
+							auto t0 = Clock::now();
+							if (!TileHasAny(drawn, TileProperties::Solid) && oracool::DrawWoodsMixedFloorCached(out, tile, at, 3, false)) {
+								floorCels += ms(Clock::now() - t0); // the cache: cels, grade and road at once
+							} else if (!oracool::IsBorrowedPiece(drawn) && !TileHasAny(drawn, TileProperties::Solid)) {
+								for (int side = 0; side < 2; side++) {
+									const LevelCelBlock block { DPieceMicros[drawn].mt[side] };
+									if (block.hasValue())
+										RenderTile(out, at + Displacement { side * 32, 0 }, block, MaskType::Solid, identity.data());
+								}
+								auto t1 = Clock::now();
+								floorCels += ms(t1 - t0);
+								oracool::DrawWoodsMixedGround(out, tile, at, 3, false);
+								mixed += ms(Clock::now() - t1);
+							}
+							// The Painted Art look's ground, every tile, as DrawFloor draws it there (not cached).
+							const auto t2 = Clock::now();
+							oracool::DrawWoodsGroundTile(out, tile, at, 3, false);
+							painted += ms(Clock::now() - t2);
+							continue;
+						}
+						auto t0 = Clock::now();
+						if (oracool::WoodsShellAt(tile) == 0 && oracool::IsBorrowedPiece(raw)) {
+							oracool::DrawBorrowedCell(out, tile, raw, at, 3, drawn == raw);
+							borrowed += ms(Clock::now() - t0);
+						} else {
+							const bool solid = TileHasAny(drawn, TileProperties::Solid);
+							Point up = at;
+							for (int i = 0; i < 16; i += 2) {
+								for (int side = 0; side < 2; side++) {
+									const LevelCelBlock block { DPieceMicros[drawn].mt[i + side] };
+									if (!block.hasValue() || (i == 0 && !solid && block.type() != TileType::TransparentSquare))
+										continue;
+									RenderTile(out, up + Displacement { side * 32, 0 }, block,
+									    i == 0 && !solid ? (side == 0 ? MaskType::LeftFoliage : MaskType::RightFoliage) : MaskType::Solid, identity.data());
+								}
+								up.y -= 32;
+							}
+							cells += ms(Clock::now() - t0);
+						}
+						auto t1 = Clock::now();
+						oracool::DrawWoodsTileSprite(out, tile, at, -1); // full light: at 3 the test's empty light tables drew nothing
+						sprites += ms(Clock::now() - t1);
+					}
+				}
+			}
+		}
+		std::cout << "WOODSBENCH " << label << " tiles=" << tiles << " per frame ms: floorCels=" << floorCels / Frames << " mixedGround=" << mixed / Frames
+		          << " cells=" << cells / Frames << " borrowed=" << borrowed / Frames << " treesAndDetails=" << sprites / Frames
+			          << " paintedGround=" << painted / Frames << std::endl;
+	}
+	PaletteRGB = savedPalette;
+	pDungeonCels = std::move(savedCels);
+}
+
+/**
+ * Tristram's scenery megatiles (Orcl Act, 2026-10-13: "generate Woods level 1 using vanilla assets ... Using tristram
+ * textures"): every megatile of the four town sectors, counted where it stands - past the town's walk limit (the trees and
+ * rocks round the edge) or inside it - with how many of its four pieces are solid and the pieces themselves. Writes
+ * ORCL_WOODS_OUT/town_megatiles.csv: id,scenery,town,solid,p1,p2,p3,p4.
+ */
+TEST(OracoolPreview, DISABLED_TownSceneryMegatiles)
+{
+	const char *outDir = std::getenv("ORCL_WOODS_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	gbIsHellfire = true;
+	leveltype = DTYPE_TOWN;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
+	LoadLevelSOLData();
+	struct Sector {
+		const char *path;
+		int x, y;
+	};
+	const Sector sectors[] = { { "levels\\towndata\\sector1s.dun", 46, 46 }, { "levels\\towndata\\sector2s.dun", 46, 0 },
+		{ "levels\\towndata\\sector3s.dun", 0, 46 }, { "levels\\towndata\\sector4s.dun", 0, 0 } };
+	std::map<int, std::pair<int, int>> counts; // megatile id (1-based, as FillTile takes it) -> scenery, town
+	for (const Sector &sector : sectors) {
+		auto dun = LoadFileInMem<uint16_t>(sector.path);
+		const int w = SDL_SwapLE16(dun[0]);
+		const int h = SDL_SwapLE16(dun[1]);
+		for (int j = 0; j < h; j++) {
+			for (int i = 0; i < w; i++) {
+				const int id = SDL_SwapLE16(dun[2 + j * w + i]);
+				if (id <= 0)
+					continue;
+				const int x = sector.x + 2 * i;
+				const int y = sector.y + 2 * j;
+				const bool scenery = x < 10 || y < 10 || x > 84 || y > 84;
+				(scenery ? counts[id].first : counts[id].second)++;
+			}
+		}
+	}
+	std::ofstream csv(dir / "town_megatiles.csv");
+	csv << "id,scenery,town,solid,p1,p2,p3,p4\n";
+	for (const auto &[id, n] : counts) {
+		const MegaTile mega = pMegaTiles[id - 1];
+		const int pieces[4] = { SDL_SwapLE16(mega.micro1), SDL_SwapLE16(mega.micro2), SDL_SwapLE16(mega.micro3), SDL_SwapLE16(mega.micro4) };
+		int solid = 0;
+		for (const int piece : pieces)
+			solid += TileHasAny(piece, TileProperties::Solid) ? 1 : 0;
+		csv << id << ',' << n.first << ',' << n.second << ',' << solid << ',' << pieces[0] << ',' << pieces[1] << ',' << pieces[2] << ',' << pieces[3] << '\n';
+	}
 }
 
 // ---- The Rogue Skill Cards page's notes (v1.12.375, 2026-10-04) ----

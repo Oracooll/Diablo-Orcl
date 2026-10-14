@@ -3422,8 +3422,9 @@ void CreatePlayer(Player &player, HeroClass c)
 		levelVisited = false;
 	}
 
-	for (int i = 0; i < 10; i++) {
-		player._pSLvlVisited[i] = false;
+	// All of them (Oracool): the rifts' and the woods' ids are past the ten vanilla knew.
+	for (bool &levelVisited : player._pSLvlVisited) {
+		levelVisited = false;
 	}
 
 	player._pLvlChanging = false;

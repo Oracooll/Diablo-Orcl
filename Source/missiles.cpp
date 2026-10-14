@@ -2223,6 +2223,8 @@ void AddWarp(Missile &missile, AddMissileParameter &parameter)
 				if (IsAnyOf(trg->_tmsg, WM_DIABTWARPUP, WM_DIABPREVLVL, WM_DIABRTNLVL))
 					return Displacement { 1, 1 };
 				return Displacement { 0, 1 }; // WM_DIABNEXTLVL
+			case DTYPE_WOODS:
+				return Displacement { 0, 1 };
 			case DTYPE_TOWN:
 				app_fatal("invalid leveltype: DTYPE_TOWN");
 			case DTYPE_NONE:
@@ -3620,7 +3622,9 @@ void AddGenericMagicMissile(Missile &missile, AddMissileParameter &parameter)
 	missile._mirange = 256;
 	missile.var1 = missile.position.start.x;
 	missile.var2 = missile.position.start.y;
-	missile._mlid = AddLight(missile.position.start, 8);
+	// Blood Star at half vanilla's 8 (dev note, 2026-10-14: "blood star missile seem to light up a huge area. reduce its light
+	// radius by half"); the flares this function also fires keep theirs (audit round 4).
+	missile._mlid = AddLight(missile.position.start, missile._mitype == MissileID::BloodStar ? 4 : 8);
 	if (missile._micaster != TARGET_MONSTERS && missile._misource > 0) {
 		auto &monster = Monsters[missile._misource];
 		if (monster.type().type == MT_SUCCUBUS)
@@ -5494,8 +5498,9 @@ void ProcessGenericProjectile(Missile &missile)
 		if (missile.position.tile != Point { missile.var1, missile.var2 }) {
 			missile.var1 = missile.position.tile.x;
 			missile.var2 = missile.position.tile.y;
+			// Moved, at the radius it was lit with (audit round 3: a hard 8 here undid Blood Star's halved light after one tile).
 			if (missile._mlid != NO_LIGHT)
-				ChangeLight(missile._mlid, missile.position.tile, 8);
+				ChangeLightXY(missile._mlid, missile.position.tile);
 		}
 		PutMissile(missile);
 	}

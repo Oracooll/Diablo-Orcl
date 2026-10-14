@@ -171,6 +171,10 @@ void BuildCutsceneRgb(const char *celPath, const char *pngBase)
 	CutsceneRgb = nullptr;
 	if (LoadCutscenePng(pngBase))
 		return;
+	// A painting of its own not yet made (the woods' and their caves', 2026-10-14): the 21:9 painting of the screen it stands in
+	// for, before the 640 x 480 CEL (audit round 3).
+	if (std::string_view(pngBase) != celPath && LoadCutscenePng(celPath))
+		return;
 	if (!sgpBackCel)
 		return;
 	const ClxSprite sprite = (*sgpBackCel)[0];
@@ -216,6 +220,7 @@ Cutscenes GetCutSceneFromLevelType(dungeon_type type)
 {
 	switch (type) {
 	case DTYPE_TOWN:
+	case DTYPE_WOODS: // out of town by the road, and back: Tristram's painting both ways (oracool/woods.h)
 		return CutTown;
 	case DTYPE_CATHEDRAL:
 		return CutLevel1;
@@ -261,6 +266,11 @@ Cutscenes PickCutscene(interface_mode uMsg)
 		// portal loading screens"). Before this a rift fell through to the Cathedral's.
 		if (oracool::IsRiftLevel(setlvlnum))
 			return setlvlnum == oracool::RiftLevelFor(oracool::RiftKind::Guardian) ? CutRiftGuardian : CutRiftNephalem;
+		// Into the woods and their caves, their own paintings (gendata\cutwoods, cutwcave); back to Tristram, its own.
+		if (IsWoodsLevel(setlvlnum))
+			return uMsg == WM_DIABRTNLVL ? CutTown : CutWoods;
+		if (IsWoodsCaveLevel(setlvlnum))
+			return CutWoodsCave;
 		if (setlvlnum == SL_BONECHAMB)
 			return CutLevel2;
 		if (setlvlnum == SL_VILEBETRAYER)
@@ -357,6 +367,21 @@ void LoadCutsceneBackground(interface_mode uMsg)
 		celPath = "gendata\\cutportl";
 		palPath = "gendata\\cutportl.pal";
 		pngBase = PickCutscene(uMsg) == CutRiftGuardian ? "gendata\\cutriftg" : "gendata\\cutriftn";
+		progress_id = 1;
+		break;
+	case CutWoods:
+		// The painting when oracool.mpq has it; Tristram's CEL is the fallback, as before.
+		ArtCutsceneWidescreen = LoadOptionalClx("gendata\\cutttw.clx");
+		celPath = "gendata\\cuttt";
+		palPath = "gendata\\cuttt.pal";
+		pngBase = "gendata\\cutwoods";
+		progress_id = 1;
+		break;
+	case CutWoodsCave:
+		ArtCutsceneWidescreen = LoadOptionalClx("gendata\\cut3w.clx");
+		celPath = "gendata\\cut3";
+		palPath = "gendata\\cut3.pal";
+		pngBase = "gendata\\cutwcave";
 		progress_id = 1;
 		break;
 	}
@@ -691,17 +716,27 @@ void ShowProgress(interface_mode uMsg)
 		LoadGameLevel(false, ENTRY_PREV);
 		IncProgress();
 		break;
-	case WM_DIABSETLVL:
-		// Note: ReturnLevel, ReturnLevelType and ReturnLvlPosition is only set to ensure vanilla compatibility
-		ReturnLevel = GetMapReturnLevel();
-		ReturnLevelType = GetLevelType(ReturnLevel);
-		ReturnLvlPosition = GetMapReturnPosition();
+	case WM_DIABSETLVL: {
+		// From one set level straight into another (the Orcl Act's woods floors, oracool/woods.h): the way back to the map is
+		// the one the first set level took, and the floor being left is saved under ITS number - StartNewLvl has already put
+		// the next floor's in setlvlnum, and the save is named from it, so the floor left was filed as the next (2026-10-14).
+		const bool fromSetLevel = setlevel;
+		const _setlevels nextSetLevel = setlvlnum;
+		if (!fromSetLevel) {
+			// Note: ReturnLevel, ReturnLevelType and ReturnLvlPosition is only set to ensure vanilla compatibility
+			ReturnLevel = GetMapReturnLevel();
+			ReturnLevelType = GetLevelType(ReturnLevel);
+			ReturnLvlPosition = GetMapReturnPosition();
+		} else {
+			setlvlnum = static_cast<_setlevels>(currlevel); // a set level's currlevel holds its own number (below)
+		}
 		IncProgress();
 		if (!gbIsMultiplayer) {
 			pfile_save_level();
 		} else {
 			DeltaSaveLevel();
 		}
+		setlvlnum = nextSetLevel;
 		IncProgress();
 		setlevel = true;
 		leveltype = setlvltype;
@@ -709,8 +744,10 @@ void ShowProgress(interface_mode uMsg)
 		FreeGameMem();
 		IncProgress();
 		LoadGameLevel(false, ENTRY_SETLVL);
+		oracool::ApplyPendingWaypointSpawn(); // a waypoint journey into a woods floor lands on its sigil (as WM_DIABNEXTLVL's)
 		IncProgress();
 		break;
+	}
 	case WM_DIABRTNLVL:
 		IncProgress();
 		if (!gbIsMultiplayer) {

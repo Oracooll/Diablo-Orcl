@@ -364,7 +364,7 @@ Displacement WalkOffset(const Player &player)
 
 void TickFootprints()
 {
-	if (!*sgOptions.Oracool.footprints || leveltype != DTYPE_TOWN || MyPlayer == nullptr) {
+	if (!*sgOptions.Oracool.footprints || !IsUnderSky(leveltype) || MyPlayer == nullptr) {
 		HavePrintPlace = false;
 		return;
 	}
@@ -839,7 +839,7 @@ void NoteWorldView(const Surface &visible, const Surface &fullOut, Point firstTi
 	float dt = LastTick < 0 || now < LastTick ? 0.0F : now - LastTick;
 	dt = dt > 0.25F ? 0.25F : dt;
 	LastTick = now;
-	if (leveltype == DTYPE_TOWN)
+	if (IsUnderSky(leveltype))
 		TickWetness(dt);
 	TickFootprints();
 	TickCrows(dt);
@@ -852,7 +852,7 @@ void NoteWorldView(const Surface &visible, const Surface &fullOut, Point firstTi
 
 void ApplySceneLifeGround(const Surface &out, Point firstTile, Point firstTileBuffer)
 {
-	if (out.isIndexed() || leveltype != DTYPE_TOWN || out.w() <= 0 || out.h() <= 0)
+	if (out.isIndexed() || !IsUnderSky(leveltype) || out.w() <= 0 || out.h() <= 0)
 		return;
 	const View v = MakeView(out, firstTile, firstTileBuffer);
 	const float now = Now();
@@ -981,7 +981,7 @@ void DrawSceneLifeBodies(const Surface &out, Point firstTile, Point firstTileBuf
 	const int w = out.w();
 	const int h = out.h();
 
-	if (leveltype == DTYPE_TOWN) {
+	if (IsUnderSky(leveltype)) {
 		float weather = 0;
 		const Weather shown = ShownWeather(weather);
 		const float day = Daylight();
@@ -1222,7 +1222,7 @@ void DrawSceneLifeLights(const Surface &out, Point firstTile, Point firstTileBuf
 	// Fireflies over Tristram at night, over open ground.
 	float weather = 0;
 	const Weather shown = ShownWeather(weather);
-	if (leveltype == DTYPE_TOWN && *sgOptions.Oracool.townLife && TownIsDark() && (shown == Weather::Clear || weather < 0.3F)) {
+	if (IsUnderSky(leveltype) && *sgOptions.Oracool.townLife && TownIsDark() && (shown == Weather::Clear || weather < 0.3F)) {
 		int x0, x1, y0, y1;
 		ViewTiles(v, x0, x1, y0, y1);
 		constexpr uint32_t Glow = SL_PACK(205, 255, 125);
