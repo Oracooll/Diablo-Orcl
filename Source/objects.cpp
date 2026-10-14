@@ -52,6 +52,7 @@
 #include "oracool/wirt_cart.h"
 #include "oracool/oracool.h"
 #include "oracool/rift.h" // IsRiftLevel, RiftMonsterBandFloor - rift chests and shrines
+#include "oracool/woods.h" // WoodsBandFloor - the woods' chests and shrines
 #include "oracool/waypoint_menu.h"
 #include "qol/stash.h"
 #include "stores.h"
@@ -1134,7 +1135,7 @@ void DeleteObject(int oi, int i)
  */
 bool IsQuestSetLevel()
 {
-	return setlevel && !oracool::IsRiftLevel(setlvlnum);
+	return setlevel && !oracool::IsRiftLevel(setlvlnum) && !IsWoodsLevel(setlvlnum);
 }
 
 /** @brief The floor a shrine's reward scales with: in a rift, the rung its tier stands on, not the set-level id (9 or 10). */
@@ -1142,6 +1143,8 @@ int ShrineFloor()
 {
 	if (setlevel && oracool::IsRiftLevel(setlvlnum))
 		return oracool::RiftMonsterBandFloor();
+	if (setlevel && IsWoodsLevel(setlvlnum))
+		return oracool::WoodsBandFloor();
 	return currlevel;
 }
 
@@ -4911,6 +4914,18 @@ void EnsureWaypointGraphicsLoaded()
  * randomly-placed object in this engine already works. Called from diablo.cpp's town branch
  * (town) and InitObjects() (levels 1-16) respectively.
  */
+void AddGeneratedLevelWaypointSigil(Point tile, int index)
+{
+	ClrAllObjects();
+	memset(dObject, 0, sizeof(dObject)); // ClrAllObjects leaves the map's references; the previous level's would remain
+	EnsureObjectGraphicsLoaded(OFILE_ORCLWAYP, AllObjects[OBJ_WAYPOINT].animWidth);
+	Object *sigil = AddObject(OBJ_WAYPOINT, tile);
+	if (sigil == nullptr)
+		return;
+	sigil->_oVar1 = index;
+	sigil->_oAnimFrame = IsWaypointUnlocked(index) ? 2 : 1;
+}
+
 void AddWaypointSigilObject()
 {
 	if (setlevel)

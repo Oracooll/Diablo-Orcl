@@ -694,17 +694,27 @@ void ShowProgress(interface_mode uMsg)
 		LoadGameLevel(false, ENTRY_PREV);
 		IncProgress();
 		break;
-	case WM_DIABSETLVL:
-		// Note: ReturnLevel, ReturnLevelType and ReturnLvlPosition is only set to ensure vanilla compatibility
-		ReturnLevel = GetMapReturnLevel();
-		ReturnLevelType = GetLevelType(ReturnLevel);
-		ReturnLvlPosition = GetMapReturnPosition();
+	case WM_DIABSETLVL: {
+		// From one set level straight into another (the Orcl Act's woods floors, oracool/woods.h): the way back to the map is
+		// the one the first set level took, and the floor being left is saved under ITS number - StartNewLvl has already put
+		// the next floor's in setlvlnum, and the save is named from it, so the floor left was filed as the next (2026-10-14).
+		const bool fromSetLevel = setlevel;
+		const _setlevels nextSetLevel = setlvlnum;
+		if (!fromSetLevel) {
+			// Note: ReturnLevel, ReturnLevelType and ReturnLvlPosition is only set to ensure vanilla compatibility
+			ReturnLevel = GetMapReturnLevel();
+			ReturnLevelType = GetLevelType(ReturnLevel);
+			ReturnLvlPosition = GetMapReturnPosition();
+		} else {
+			setlvlnum = static_cast<_setlevels>(currlevel); // a set level's currlevel holds its own number (below)
+		}
 		IncProgress();
 		if (!gbIsMultiplayer) {
 			pfile_save_level();
 		} else {
 			DeltaSaveLevel();
 		}
+		setlvlnum = nextSetLevel;
 		IncProgress();
 		setlevel = true;
 		leveltype = setlvltype;
@@ -712,8 +722,10 @@ void ShowProgress(interface_mode uMsg)
 		FreeGameMem();
 		IncProgress();
 		LoadGameLevel(false, ENTRY_SETLVL);
+		oracool::ApplyPendingWaypointSpawn(); // a waypoint journey into a woods floor lands on its sigil (as WM_DIABNEXTLVL's)
 		IncProgress();
 		break;
+	}
 	case WM_DIABRTNLVL:
 		IncProgress();
 		if (!gbIsMultiplayer) {

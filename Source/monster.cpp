@@ -59,6 +59,7 @@
 #include "oracool/monster_scale.h"
 #include "oracool/named_encounters.h"
 #include "oracool/rift.h" // the rift floor's roster, its guardian, its kill bar (2026-09-20)
+#include "oracool/woods.h" // the Orcl Act's woods: their roster and their scatter (2026-10-14)
 #include "oracool/rfa12_actives.h" // SightLineClear - a rift boss blinks and summons in sight (round 101)
 #include "oracool/rift_bosses.h" // the guardian roster: who rises, how big, how fast, what he does (2026-10-04)
 #include "oracool/signets.h"
@@ -883,6 +884,53 @@ void PlaceUniqueMonsters()
  * Then the tier's scaling over everything standing. The guardian is NOT placed here: he rises when
  * the kill bar fills (SpawnRiftGuardian).
  */
+/**
+ * @brief Fills a woods floor (oracool/woods.h) as InitMonsters fills a dungeon floor: packs of the floor's roster over the open
+ * ground, kept off both roads' ends (BuildWoodsLevel marks them), a little sparser than a dungeon - the woods are open.
+ */
+void PlaceWoodsMonsters()
+{
+	if (!setlevel || !IsWoodsLevel(setlvlnum))
+		return;
+	const Point arrival = ViewPosition;
+	for (int s = -2; s < 2; s++) {
+		for (int t = -2; t < 2; t++)
+			DoVision(arrival + Displacement { s, t }, 15, MAP_EXP_NONE, false);
+	}
+	int na = 0;
+	for (int s = 16; s < 96; s++) {
+		for (int t = 16; t < 96; t++) {
+			if (!IsTileSolid({ s, t }))
+				na++;
+		}
+	}
+	int numplacemonsters = na / 36 * *sgOptions.Oracool.monsterDensityPercent / 100;
+	const size_t scatterCap = MaxEnemyMonsters - 10;
+	if (ActiveMonsterCount >= scatterCap)
+		numplacemonsters = 0;
+	else if (ActiveMonsterCount + numplacemonsters > scatterCap)
+		numplacemonsters = static_cast<int>(scatterCap - ActiveMonsterCount);
+	totalmonsters = ActiveMonsterCount + numplacemonsters;
+	size_t scattertypes[NUM_MTYPES];
+	int numscattypes = 0;
+	for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+		if ((LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0)
+			scattertypes[numscattypes++] = i;
+	}
+	while (numscattypes > 0 && ActiveMonsterCount < totalmonsters) {
+		const size_t before = ActiveMonsterCount;
+		const size_t typeIndex = scattertypes[GenerateRnd(numscattypes)];
+		const int na2 = FlipCoin() ? 1 : GenerateRnd(3) + 3;
+		PlaceGroup(typeIndex, na2);
+		if (ActiveMonsterCount == before)
+			break;
+	}
+	for (int s = -2; s < 2; s++) {
+		for (int t = -2; t < 2; t++)
+			DoUnVision(arrival + Displacement { s, t }, 15);
+	}
+}
+
 void PlaceRiftMonsters()
 {
 	if (!oracool::InRift())
@@ -4248,6 +4296,39 @@ void GetLevelMTypes()
 				typelist[i] = typelist[--nt];
 			}
 		}
+	} else if (IsWoodsLevel(setlvlnum)) {
+		// The Orcl Act's woods (oracool/woods.h): generated, so no .dun gives them the golem bodies a set level gets - added
+		// here, or the companions and the Golem spell have no slot (the town's crash, v1.12.012).
+		SetRndSeed(oracool::WoodsRosterSeed()); // the same roster on every build: a revisit restores the saved types by index
+		for (int i = 0; i < MAX_PLRS; i++)
+			AddMonster(GolemHoldingCell, Direction::South, 0, false);
+		// Four kinds of the floor's rung, from the whole game, under a floor's image budget.
+		_monster_id typelist[NUM_MTYPES];
+		int nt = 0;
+		for (int i = MT_NZOMBIE; i < NUM_MTYPES; i++) {
+			if (oracool::WoodsAcceptsMonster(MonstersData[i]))
+				typelist[nt++] = static_cast<_monster_id>(i);
+		}
+		constexpr int WoodsRosterSize = 4;
+		// Twice a floor's budget: the Caves' and Hell's big sprites let only two or three kinds into 4000 on rungs 9-13
+		// (OracoolAudit.WoodsRosterHasFourKindsOnEveryRung); the figure is 1996's memory, not a limit of today's.
+		constexpr int WoodsImageBudget = 8000;
+		int picked = 0;
+		while (nt > 0 && picked < WoodsRosterSize && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < WoodsImageBudget) {
+			for (int i = 0; i < nt;) {
+				if (MonstersData[typelist[i]].image > WoodsImageBudget - monstimgtot) {
+					typelist[i] = typelist[--nt];
+					continue;
+				}
+				i++;
+			}
+			if (nt == 0)
+				break;
+			const int i = GenerateRnd(nt);
+			AddMonsterType(typelist[i], PLACE_SCATTER);
+			typelist[i] = typelist[--nt];
+			picked++;
+		}
 	} else if (oracool::IsRiftLevel(setlvlnum)) {
 		// The SAME roster on every build of this floor: a revisit restores each saved monster's type
 		// INDEX, so a re-rolled list would dress the survivors in other types' sprites and animation
@@ -4535,6 +4616,7 @@ void InitMonsters()
 	// deliberately not scattered.
 	PlaceNamedEncounter();
 	PlaceRiftMonsters(); // a rift floor is a set level too, and wants a floor's population (oracool/rift.h)
+	PlaceWoodsMonsters(); // and so is a woods floor (oracool/woods.h)
 	if (!setlevel) {
 		if (!gbIsSpawn)
 			PlaceUniqueMonsters();

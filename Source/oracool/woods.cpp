@@ -20,6 +20,10 @@
 #include "interfac.h"
 #include "levels/gendung.h"
 #include "levels/trigs.h"
+#include "monstdat.h"
+#include "oracool/area_level.h"
+#include "oracool/oracool.h"       // AddGeneratedLevelWaypointSigil, EnsureWaypointGraphicsLoaded
+#include "oracool/waypoint_menu.h" // FirstWoodsWaypoint
 #include "lighting.h"
 #include "options.h"
 #include "oracool/colour_light.h"
@@ -42,6 +46,8 @@ constexpr int WoodsFloors = SL_LAST_WOODS - SL_FIRST_WOODS + 1;
 /** @brief One game's woods: each floor's seed, rolled on its first visit and kept for the rest of the game (D4). */
 struct WoodsGame {
 	std::array<uint32_t, WoodsFloors> seed {};
+	/** @brief Each floor's rung (WoodsBandFloor), 0 until it is first entered. */
+	std::array<uint8_t, WoodsFloors> rung {};
 };
 WoodsGame Game;
 
@@ -93,6 +99,8 @@ int8_t TreeJitterY[MAXDUNX][MAXDUNY];
 bool TreeHidden[MAXDUNX][MAXDUNY];
 
 Point Arrival { 88, 48 };
+/** @brief The next woods floor built is entered from the deeper one: the hero stands at its way on, not its arrival. */
+bool EnterAtWayOn = false;
 Point WayOn { 22, 62 };
 
 // ---------------------------------------------------------------- deterministic noise, independent of the game's stream
@@ -729,22 +737,38 @@ void CreateWoods(uint32_t seed, lvl_entry /*entry*/)
 
 void BuildWoodsLevel(bool fresh)
 {
-	(void)fresh;
 	const int floor = FloorIndex(setlvlnum);
 	if (Game.seed[floor] == 0)
 		Game.seed[floor] = (static_cast<uint32_t>(AdvanceRndSeed()) ^ (SDL_GetTicks() * 2654435761U)) | 1U;
+	if (Game.rung[floor] == 0) {
+		// D3: the floor's depth is fixed the first time it is entered in a game - by the hero who enters it.
+		const int heroLevel = MyPlayer != nullptr ? MyPlayer->_pLevel : 1;
+		Game.rung[floor] = static_cast<uint8_t>(std::clamp(std::clamp(heroLevel / 3, 1, RungsPerDifficulty) + floor, 1, RungsPerDifficulty));
+	}
 	CreateDungeon(Game.seed[floor], ENTRY_SETLVL);
+	ViewPosition = EnterAtWayOn ? Point { WayOn.x + 2, WayOn.y } : Arrival;
+	EnterAtWayOn = false;
 	InitNoTriggers();
 	LoadRndLvlPal(leveltype);
 	LoadLevelSOLData();
-	// No pack on the hero's landing (no monsters yet in milestone 1; the flag is what the scatter will read).
-	for (int dy = -3; dy <= 3; dy++) {
-		for (int dx = -3; dx <= 3; dx++) {
-			const Point tile = Arrival + Displacement { dx, dy };
-			if (InDungeonBounds(tile))
-				dFlags[tile.x][tile.y] |= DungeonFlag::Populated;
+	// No pack on either road's end: the hero arrives at one, and may come back by the other.
+	for (const Point end : { Arrival, WayOn }) {
+		for (int dy = -5; dy <= 5; dy++) {
+			for (int dx = -5; dx <= 5; dx++) {
+				const Point tile = end + Displacement { dx, dy };
+				if (InDungeonBounds(tile))
+					dFlags[tile.x][tile.y] |= DungeonFlag::Populated;
+			}
 		}
 	}
+	// The floor's waypoint (D9): in the arrival's clearing, two tiles up the screen from where the hero lands. A revisit's comes
+	// back with the level's save; its graphic is loaded on every build, or a restored sigil draws from nothing.
+	const Point sigil = Arrival + Displacement { -2, -2 };
+	Scatter[sigil.x][sigil.y] = 0;
+	if (fresh)
+		AddGeneratedLevelWaypointSigil(sigil, FirstWoodsWaypoint + floor);
+	else
+		EnsureWaypointGraphicsLoaded();
 	if (!HeadlessMode) {
 		LoadArt();
 		BuildEdgeNoise();
@@ -795,16 +819,69 @@ bool CheckWoodsEdges()
 	}
 	if (leveltype != DTYPE_WOODS || !setlevel)
 		return false;
-	// The road back: the last tiles of the arrival road, at the map's edge.
+	const int floor = FloorIndex(setlvlnum);
+	// The road back: the last tiles of the arrival road, at the map's edge - to Tristram from the first floor, to the way on
+	// of the floor before from the others (milestone 2: four linked floors).
 	if (tile.x >= Hi - 1 && std::abs(tile.y - Arrival.y) <= 1) {
-		StartNewLvl(player, WM_DIABRTNLVL, GetMapReturnLevel());
+		if (floor == 0) {
+			StartNewLvl(player, WM_DIABRTNLVL, GetMapReturnLevel());
+		} else {
+			setlvltype = DTYPE_WOODS;
+			EnterAtWayOn = true;
+			StartNewLvl(player, WM_DIABSETLVL, static_cast<int>(SL_FIRST_WOODS) + floor - 1);
+		}
 		return true;
 	}
 	const bool atWayOn = tile.x <= Lo + 1 && std::abs(tile.y - WayOn.y) <= 1;
+	if (atWayOn && floor + 1 < WoodsFloors) {
+		setlvltype = DTYPE_WOODS;
+		EnterAtWayOn = false;
+		StartNewLvl(player, WM_DIABSETLVL, static_cast<int>(SL_FIRST_WOODS) + floor + 1);
+		return true;
+	}
 	if (atWayOn && !AtWayOnBefore)
-		EventPlrMsg("The path on into the woods is not open yet.", UiFlags::ColorWhite);
+		EventPlrMsg("The path ends here, at the heart of the woods.", UiFlags::ColorWhite);
 	AtWayOnBefore = atWayOn;
 	return false;
+}
+
+int WoodsBandFloor()
+{
+	if (!setlevel || !IsWoodsLevel(setlvlnum))
+		return 1;
+	const int rung = Game.rung[FloorIndex(setlvlnum)];
+	return rung == 0 ? 1 : rung;
+}
+
+bool WoodsAcceptsMonster(const MonsterData &data)
+{
+	if (data.availability == MonsterAvailability::Never)
+		return false;
+	if (gbIsSpawn && data.availability == MonsterAvailability::Retail)
+		return false;
+	if (&data == &MonstersData[MT_HORKSPWN] || &data == &MonstersData[MT_GOLEM])
+		return false;
+	// Not the quest and story bosses, and nothing that lives only as something else's summon.
+	for (const _monster_id boss : { MT_DIABLO, MT_NAKRUL, MT_SKING, MT_CLEAVER, MT_DEFILER }) {
+		if (&data == &MonstersData[boss])
+			return false;
+	}
+	const int floor = WoodsBandFloor();
+	if (floor >= data.minDunLvl && floor <= data.maxDunLvl)
+		return true;
+	// The Hive's and the Crypt's monsters stand on the Caves' and Hell's rungs (area_level.cpp), as in a rift.
+	const int twin = floor + 2 * FloorsPerArea;
+	return floor > 2 * FloorsPerArea && twin >= data.minDunLvl && twin <= data.maxDunLvl;
+}
+
+uint32_t WoodsRosterSeed()
+{
+	return Game.seed[FloorIndex(setlvlnum)] ^ 0x0AC7U;
+}
+
+Point WoodsEntryTile()
+{
+	return ViewPosition;
 }
 
 const char *WoodsFloorName(_setlevels level)
@@ -1090,6 +1167,11 @@ Point WoodsArrival()
 Point WoodsWayOn()
 {
 	return WayOn;
+}
+
+void SetWoodsRungForTest(int floorIndex, int rung)
+{
+	Game.rung[std::clamp(floorIndex, 0, WoodsFloors - 1)] = static_cast<uint8_t>(rung);
 }
 
 void LoadWoodsArtForTest()

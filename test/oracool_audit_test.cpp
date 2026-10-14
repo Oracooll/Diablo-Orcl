@@ -14708,7 +14708,13 @@ TEST(OracoolWaypointActs, EveryDungeonLevelSitsOnExactlyOneAct)
 
 	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Diablo), 17u);
 	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Hellfire), 9u);
-	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Orcl), 1u) << "the Orcl act is Tristram alone until an Orcl area gets a sigil";
+	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Orcl), 1u + oracool::WoodsWaypointCount) << "Tristram and the four woods floors";
+	for (int floor = 0; floor < oracool::WoodsWaypointCount; floor++) {
+		const int index = oracool::FirstWoodsWaypoint + floor;
+		EXPECT_EQ(oracool::WaypointActLevelAt(oracool::WaypointAct::Orcl, static_cast<size_t>(1 + floor)), index) << "woods floor " << floor + 1;
+		EXPECT_EQ(oracool::WaypointActOfLevel(index), oracool::WaypointAct::Orcl) << "woods floor " << floor + 1;
+		EXPECT_LE(index, 32) << "carried by the hero file's 32-bit waypoint mask";
+	}
 
 	for (const auto act : { oracool::WaypointAct::Diablo, oracool::WaypointAct::Hellfire, oracool::WaypointAct::Orcl }) {
 		EXPECT_EQ(oracool::WaypointActLevelAt(act, 0), 0) << "Tristram heads act " << static_cast<int>(act);
@@ -20532,6 +20538,66 @@ TEST(OracoolPreview, DISABLED_WebsiteItemExport)
 
 #include "levels/town.h"
 #include "oracool/woods.h"
+
+/**
+ * The woods' monsters (Orcl Act milestone 3, 2026-10-14): every rung a woods floor can stand on offers the four kinds its roster
+ * takes, none of them a story boss, the Golem or the Hork Demon's spawn; and the floor's rung is its area level.
+ */
+TEST(OracoolAudit, WoodsRosterHasFourKindsOnEveryRung)
+{
+	const bool savedSetLevel = setlevel;
+	const _setlevels savedSetLevelNum = setlvlnum;
+	const bool savedSpawn = gbIsSpawn;
+	const _difficulty savedDifficulty = sgGameInitInfo.nDifficulty;
+	setlevel = true;
+	setlvlnum = SL_ORCL_WOODS_2;
+	gbIsSpawn = false;
+	for (int rung = 1; rung <= oracool::RungsPerDifficulty; rung++) {
+		oracool::SetWoodsRungForTest(1, rung);
+		EXPECT_EQ(oracool::WoodsBandFloor(), rung);
+		int kinds = 0;
+		for (int i = MT_NZOMBIE; i < NUM_MTYPES; i++) {
+			if (!oracool::WoodsAcceptsMonster(MonstersData[i]))
+				continue;
+			kinds++;
+			EXPECT_FALSE(IsAnyOf(static_cast<_monster_id>(i), MT_DIABLO, MT_NAKRUL, MT_SKING, MT_CLEAVER, MT_GOLEM, MT_HORKSPWN)) << "rung " << rung;
+		}
+		EXPECT_GE(kinds, 4) << "rung " << rung;
+		for (const _difficulty difficulty : { DIFF_NORMAL, DIFF_NIGHTMARE, DIFF_HELL, DIFF_TORMENT }) {
+			sgGameInitInfo.nDifficulty = difficulty;
+			EXPECT_EQ(oracool::CurrentAreaLevel(), oracool::AreaLevel(rung, difficulty)) << "rung " << rung;
+		}
+	}
+	// The roster itself, under the image budget, as a level load builds it: four kinds, scattered, on every rung.
+	{
+		const uint8_t savedCurrlevel = currlevel;
+		const bool savedHeadless = HeadlessMode;
+		const size_t savedActive = ActiveMonsterCount;
+		HeadlessMode = true; // the type list only - no sprites
+		currlevel = static_cast<uint8_t>(setlvlnum);
+		for (int rung = 1; rung <= oracool::RungsPerDifficulty; rung++) {
+			oracool::SetWoodsRungForTest(1, rung);
+			ActiveMonsterCount = savedActive;
+			ResetLevelMonsterTypesForTest();
+			GetLevelMTypes();
+			int scatter = 0;
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++)
+				scatter += (LevelMonsterTypes[i].placeFlags & PLACE_SCATTER) != 0 ? 1 : 0;
+			EXPECT_GE(scatter, 4) << "rung " << rung << ": the woods' roster";
+			EXPECT_EQ(ActiveMonsterCount, savedActive + MAX_PLRS) << "the golem holding cells the summons need";
+		}
+		ResetLevelMonsterTypesForTest();
+		ActiveMonsterCount = savedActive;
+		HeadlessMode = savedHeadless;
+		currlevel = savedCurrlevel;
+	}
+	oracool::SetWoodsRungForTest(1, 0);
+	EXPECT_EQ(oracool::WoodsBandFloor(), 1) << "a floor not yet entered stands on rung 1";
+	setlevel = savedSetLevel;
+	setlvlnum = savedSetLevelNum;
+	gbIsSpawn = savedSpawn;
+	sgGameInitInfo.nDifficulty = savedDifficulty;
+}
 
 /**
  * Tristram's walkable tiles, for placing the road to the woods (Orcl Act, 2026-10-13): the town built as LoadGameLevel

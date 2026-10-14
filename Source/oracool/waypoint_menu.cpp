@@ -14,6 +14,7 @@
 #include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo
 #include "engine/render/text_render.hpp"
 #include "oracool/area_level.h" // AreaLevel - the number in a waypoint's name
+#include "oracool/woods.h"      // WoodsFloorName - the Orcl Act's rows
 #include "oracool/levski_roar.h" // the Cube shares this rect
 #include "oracool/ornate_border.h"
 #include "oracool/workshop.h" // and so does the workshop
@@ -61,7 +62,7 @@ namespace {
 //
 // So "Caves Level 9" and "Nest Level 9" both exist, and that is the point: they are the same depth
 // in two different places, and the region word is what tells them apart.
-constexpr size_t WaypointLevelCount = 25;
+constexpr size_t WaypointLevelCount = FirstWoodsWaypoint + WoodsWaypointCount; // 0-24 the dungeon, 25-28 the woods
 
 /**
  * @brief The region a dungeon level belongs to - the word in front of the number.
@@ -91,8 +92,11 @@ string_view WaypointName(int level)
 	static std::array<std::string, WaypointLevelCount> names;
 	if (names[0].empty()) {
 		names[0] = WaypointRegionName(0);
-		for (size_t i = 1; i < names.size(); i++)
+		for (size_t i = 1; i < static_cast<size_t>(FirstWoodsWaypoint); i++)
 			names[i] = StrCat(WaypointRegionName(static_cast<int>(i)), " Level ", AreaLevel(static_cast<int>(i), DIFF_NORMAL));
+		// The woods' floors by name: their depth is the hero's, fixed per game, so a number in the name would lie.
+		for (int i = 0; i < WoodsWaypointCount; i++)
+			names[static_cast<size_t>(FirstWoodsWaypoint + i)] = WoodsFloorName(static_cast<_setlevels>(SL_FIRST_WOODS + i));
 	}
 	return names[static_cast<size_t>(level)];
 }
@@ -129,10 +133,12 @@ constexpr std::array<uint8_t, 9> HellfireActLevels { {
 } };
 
 /**
- * @brief The Orcl act has no areas yet - the Stonegate's rifts are set levels reached through the
- * gate, not waypoints. Tristram alone, so the tab is a tab and not a dead button; the list says so.
+ * @brief The Orcl act: Tristram, then the four woods floors (2026-10-14). The Stonegate's rifts are set levels reached through
+ * the gate, not waypoints.
  */
-constexpr std::array<uint8_t, 1> OrclActLevels { { 0 } };
+constexpr std::array<uint8_t, 1 + WoodsWaypointCount> OrclActLevels { { 0, FirstWoodsWaypoint, FirstWoodsWaypoint + 1, FirstWoodsWaypoint + 2, FirstWoodsWaypoint + 3 } };
+/** @brief A plain Diablo game's Hellfire tab: Tristram alone, and the note under it. */
+constexpr std::array<uint8_t, 1> TristramOnlyLevels { { 0 } };
 
 /** @brief Which act's list is showing. Persists across opens on purpose - see OpenWaypointMenu. */
 WaypointAct ActiveAct = WaypointAct::Diablo;
@@ -167,7 +173,7 @@ std::pair<const uint8_t *, size_t> ActTable(WaypointAct act)
 	switch (act) {
 	case WaypointAct::Hellfire:
 		if (!gbIsHellfire)
-			return { OrclActLevels.data(), OrclActLevels.size() };
+			return { TristramOnlyLevels.data(), TristramOnlyLevels.size() };
 		return { HellfireActLevels.data(), HellfireActLevels.size() };
 	case WaypointAct::Orcl:
 		return { OrclActLevels.data(), OrclActLevels.size() };
@@ -552,6 +558,8 @@ void OpenWaypointMenu(Point sigilPosition)
 	// no act of its own, and the tab you were on is the tab you most likely want again.
 	if (!setlevel && currlevel > 0)
 		ActiveAct = WaypointActOfLevel(currlevel);
+	if (setlevel && IsWoodsLevel(setlvlnum))
+		ActiveAct = WaypointAct::Orcl;
 }
 
 WaypointAct ActiveWaypointAct()
@@ -579,6 +587,8 @@ int WaypointActLevelAt(WaypointAct act, size_t row)
 
 WaypointAct WaypointActOfLevel(int level)
 {
+	if (level >= FirstWoodsWaypoint)
+		return WaypointAct::Orcl;
 	if (level >= 17 && level <= 24)
 		return WaypointAct::Hellfire;
 	return WaypointAct::Diablo;
@@ -880,6 +890,18 @@ void TravelToWaypointEntry(int entry)
 	// Travelling and "already there" are both a row chosen, and both close the list.
 	PlayUiSelectSound();
 	CloseWaypointMenu();
+
+	if (level >= FirstWoodsWaypoint) {
+		// A woods floor is a set level: there by WM_DIABSETLVL, which lands the hero on its sigil as the dungeon's journey
+		// does (interfac.cpp, ApplyPendingWaypointSpawn).
+		const auto woods = static_cast<_setlevels>(SL_FIRST_WOODS + (level - FirstWoodsWaypoint));
+		if (setlevel && setlvlnum == woods)
+			return; // already there
+		WaypointSpawnRequested = true;
+		setlvltype = DTYPE_WOODS;
+		StartNewLvl(*MyPlayer, WM_DIABSETLVL, static_cast<int>(woods));
+		return;
+	}
 
 	if (!setlevel && MyPlayer->isOnLevel(level))
 		return; // already there

@@ -5,6 +5,7 @@
 #include "multi.h"
 #include "oracool/named_encounters.h"
 #include "oracool/rift.h"
+#include "oracool/woods.h"
 #include "quests.h"
 #include "utils/language.h"
 
@@ -80,6 +81,9 @@ int CurrentAreaLevel()
 		// ilvl-16 loot (round 10 audit, v1.12.235).
 		if (IsRiftLevel(setlvlnum))
 			return std::clamp(RiftTier(), AreaLevel(1, sgGameInitInfo.nDifficulty), MaxAreaLevel);
+		// A woods floor stands on its own rung, fixed at its first visit (oracool/woods.h).
+		if (IsWoodsLevel(setlvlnum))
+			return AreaLevel(WoodsBandFloor(), sgGameInitInfo.nDifficulty);
 		switch (setlvlnum) {
 		case SL_SKELKING:
 			floor = Quests[Q_SKELKING]._qlevel;

@@ -25,6 +25,7 @@
 namespace devilution {
 struct Surface;
 struct Player;
+struct MonsterData;
 } // namespace devilution
 
 namespace devilution::oracool {
@@ -63,6 +64,22 @@ Point WoodsTownReturnTile();
  * floor 1; on a woods floor, its arrival road leads back. True when a level change was started.
  */
 bool CheckWoodsEdges();
+
+/**
+ * @brief The rung (1-16 inside the difficulty's block) the current woods floor's monsters and loot stand on: the hero's level
+ * by the Nephalem Rift's rule (one rung per three levels, the user's pick of 2026-09-24), one rung deeper per woods floor, and
+ * fixed the first time the floor is entered in a game (D3). 1 off the woods.
+ */
+int WoodsBandFloor();
+
+/** @brief A monster type the current woods floor may draw: of its rung, never a boss or a summon. */
+bool WoodsAcceptsMonster(const MonsterData &data);
+
+/** @brief The seed of the floor's monster roster: the same on every build, so a revisit's saved monsters keep their types. */
+uint32_t WoodsRosterSeed();
+
+/** @brief Where the hero stands on a woods floor he has just entered: the arrival road, or the way on coming back up. */
+Point WoodsEntryTile();
 
 /** @brief The woods floor's own name, for the floor banner and the map. */
 const char *WoodsFloorName(_setlevels level);
@@ -107,5 +124,7 @@ Point WoodsArrival();
 Point WoodsWayOn();
 /** @brief Test hook: loads the woods art as BuildWoodsLevel does outside headless mode. */
 void LoadWoodsArtForTest();
+/** @brief Test hook: sets floor @p floorIndex's rung as its first visit would. */
+void SetWoodsRungForTest(int floorIndex, int rung);
 
 } // namespace devilution::oracool

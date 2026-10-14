@@ -684,7 +684,7 @@ std::string DebugCmdGiveWaypoints(const string_view parameter)
 	// Oracool: user request - unlocks every waypoint (1-16; Tristram/0 is always unlocked
 	// already) on the current difficulty, so all 17 travel-list entries can be tried without
 	// having to actually find and activate every sigil first.
-	for (int i = 1; i <= 24; i++) // the Hellfire act too (round 9 audit)
+	for (int i = 1; i < oracool::FirstWoodsWaypoint + oracool::WoodsWaypointCount; i++) // the Hellfire and Orcl acts too
 		oracool::UnlockWaypoint(i);
 	return "The way is open.";
 }

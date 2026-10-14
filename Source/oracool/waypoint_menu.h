@@ -117,6 +117,13 @@ void CheckWaypointMenuClick(Point mousePosition);
 bool IsWaypointUnlocked(int index);
 
 /**
+ * @brief The Orcl Act's waypoints (D9, 2026-10-14): one on each woods floor, list indices 25-28 after the dungeon's 0-24. The
+ * hero file's 32-bit mask carries them (pack.cpp PackedWaypointBits).
+ */
+constexpr int FirstWoodsWaypoint = 25;
+constexpr int WoodsWaypointCount = 4;
+
+/**
  * @brief Marks waypoint list entry/dungeon level `index` unlocked on the current difficulty
  * (Player::_pWaypointUnlocked). Safe to call repeatedly; a no-op for index 0 (Tristram), which is
  * always unlocked regardless of stored state.
