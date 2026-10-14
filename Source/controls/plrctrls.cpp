@@ -309,10 +309,6 @@ bool CanTargetMonster(const Monster &monster)
 
 	if (!IsTileLit(monster.position.tile)) // not visible
 		return false;
-	// The woods draw all within 20 tiles (lighting.cpp's outdoor sight), behind trees too: the gamepad aims at what the hero's
-	// own vision reaches (audit round 3).
-	if (leveltype == DTYPE_WOODS && !IsTileVisible(monster.position.tile))
-		return false;
 
 	const int mx = monster.position.tile.x;
 	const int my = monster.position.tile.y;

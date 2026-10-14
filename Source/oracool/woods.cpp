@@ -1972,8 +1972,10 @@ bool FloorNotCached[MAXDUNX][MAXDUNY];
  */
 std::unique_ptr<FloorPicture> PaintedOfTile[MAXDUNX][MAXDUNY];
 size_t PaintedCount = 0;
-/** @brief Every tile of the map (audit round 3: a cap of 6000 under a 4K screen's ~8000 tiles cleared and rebuilt each frame). */
-constexpr size_t PaintedCacheCap = static_cast<size_t>(MAXDUNX) * MAXDUNY;
+/**
+ * @brief No cap: room for every tile of the map, about 100 MB at the most (audit round 3: a cap of 6000 under a 4K screen's ~8000
+ * tiles cleared and rebuilt each frame). Freed with the floor, and when the hero leaves the woods (LoadGameLevel).
+ */
 
 bool BlitFloorPicture(const Surface &out, const FloorPicture &pic, Point target, int light, bool fullBright);
 
@@ -2088,12 +2090,6 @@ void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light
 	}
 	std::unique_ptr<FloorPicture> &slot = PaintedOfTile[tile.x][tile.y];
 	if (slot == nullptr) {
-		if (PaintedCount >= PaintedCacheCap) {
-			for (auto &column : PaintedOfTile)
-				for (auto &picture : column)
-					picture.reset();
-			PaintedCount = 0;
-		}
 		// Drawn once at full light into a tile-sized picture, then copied with the light every frame.
 		OwnedSurface canvas = OwnedSurface::Rgb(64, 32);
 		const Surface surface = canvas;

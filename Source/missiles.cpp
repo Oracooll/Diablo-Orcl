@@ -3622,8 +3622,9 @@ void AddGenericMagicMissile(Missile &missile, AddMissileParameter &parameter)
 	missile._mirange = 256;
 	missile.var1 = missile.position.start.x;
 	missile.var2 = missile.position.start.y;
-	// Half vanilla's 8 (dev note, 2026-10-14: "blood star missile seem to light up a huge area. reduce its light radius by half").
-	missile._mlid = AddLight(missile.position.start, 4);
+	// Blood Star at half vanilla's 8 (dev note, 2026-10-14: "blood star missile seem to light up a huge area. reduce its light
+	// radius by half"); the flares this function also fires keep theirs (audit round 4).
+	missile._mlid = AddLight(missile.position.start, missile._mitype == MissileID::BloodStar ? 4 : 8);
 	if (missile._micaster != TARGET_MONSTERS && missile._misource > 0) {
 		auto &monster = Monsters[missile._misource];
 		if (monster.type().type == MT_SUCCUBUS)

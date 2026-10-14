@@ -2222,7 +2222,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	const bool anyStage3 = gpu.perPixelLights || gpu.litSprites || gpu.wideBloom || gpu.lightShafts || gpu.heatDistortion || gpu.filmicGrade;
 	const bool reliefNow = oracool::SurfaceReliefActive(visible);
 	const bool gpuWorth = anyStage3 || gpu.bloom || gpu.mood || gpu.vignette || gpu.zoom == oracool::GpuZoom::Filtered || gpu.zoom == oracool::GpuZoom::Smooth || reliefNow
-	    || oracool::ColouredLightActive(visible) || (leveltype == DTYPE_TOWN && *sgOptions.Oracool.dayNightCycle)
+	    || oracool::ColouredLightActive(visible) || (IsUnderSky(leveltype) && *sgOptions.Oracool.dayNightCycle)
 	    || (leveltype != DTYPE_TOWN && *sgOptions.Oracool.heatHaze) || (leveltype == DTYPE_TOWN && *sgOptions.Oracool.heatHaze && *sgOptions.Oracool.livingTown);
 	const bool gpuFrame = !visible.isIndexed() && gpuWorth && oracool::GpuWorldPostAvailable();
 

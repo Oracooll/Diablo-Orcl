@@ -4354,6 +4354,9 @@ void DisableInputEventHandler(const SDL_Event &event, uint16_t modState)
 
 void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 {
+	// The woods' ground pictures (up to 100 MB) are not kept off the woods (audit round 4).
+	if (leveltype != DTYPE_WOODS)
+		oracool::ForgetWoodsMixedFloor();
 	// The afterimages, a guardian's entrance, the fades: per level, so a new level (or a new game) starts without them
 	// (audit round 1: a new rift on the same level stamp drew the last hero's trail).
 	oracool::ForgetSceneFx();
