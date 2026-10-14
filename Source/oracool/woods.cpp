@@ -97,6 +97,8 @@ uint8_t Ground[MAXDUNX][MAXDUNY];
 uint8_t Tree[MAXDUNX][MAXDUNY];
 /** @brief A small thing on the ground: a scatter cell + 1 (RfA-62's sheet), 0 for none. */
 uint8_t Scatter[MAXDUNX][MAXDUNY];
+/** @brief How often each ground detail is laid, as the Orcl Testing Ground counted them (2026-10-14): weights. */
+constexpr int ScatterWeight[12] = { 3, 3, 3, 3, 3, 3, 3, 3, 2, 4, 5, 2 };
 /** @brief Each tree's small offset from its tile's centre, so the woods do not stand in rows. */
 int8_t TreeJitterX[MAXDUNX][MAXDUNY];
 int8_t TreeJitterY[MAXDUNX][MAXDUNY];
@@ -929,10 +931,14 @@ void Generate(uint32_t seed)
 				TreeJitterX[x][y] = static_cast<int8_t>(static_cast<int>(h & 15) - 8);
 				TreeJitterY[x][y] = static_cast<int8_t>(static_cast<int>((h >> 4) & 7) - 4);
 			} else if (Inside({ x, y }) && Ground[x][y] != Path && Unit(h >> 8) < 0.07F) {
-				// The bone (cell 11) is the rarest of the twelve.
-				int cell = static_cast<int>((h >> 16) % 12);
-				if (cell == 10 && (h & 0x300) != 0)
-					cell = static_cast<int>((h >> 20) % 10);
+				// Weighted as the Testing Ground counted them (ScatterWeight).
+				int total = 0;
+				for (const int w : ScatterWeight)
+					total += w;
+				int pick = static_cast<int>((h >> 16) % static_cast<uint32_t>(total));
+				int cell = 0;
+				while (cell < 11 && pick >= ScatterWeight[cell])
+					pick -= ScatterWeight[cell++];
 				Scatter[x][y] = static_cast<uint8_t>(cell + 1);
 			}
 		}
@@ -991,7 +997,7 @@ constexpr TreeFile TreeFiles[TreeKindCount] = {
 
 std::array<Picture, MaterialCount> GroundArt;
 std::array<Picture, TreeKindCount> TreeArt;
-Picture ScatterArt; // twelve 32 x 32 cells after halving, 4 x 3
+std::array<Picture, 12> ScatterCells; // the sheet's twelve cells, each at its own scale
 bool ArtLoaded = false;
 bool ArtTried = false;
 /** @brief The floor last built was built from Tristram's own tiles (the Woods Painted Art option off). */
@@ -999,31 +1005,35 @@ bool BuiltVanilla = true;
 /** @brief ... and its trees and ground details are the painted ones, over Tristram's ground (the Mixed look). */
 bool BuiltMixed = false;
 
-/**
- * @brief A PNG from the archives at @p percent of its painted size, each pixel the average of the block of the painting it
- * covers (an area resample, any ratio). A sprite pixel is opaque where at least half its block was.
- */
-bool LoadScaled(const char *path, Picture &out, bool sprite, int percent)
+/** @brief A PNG from the archives as 32-bit RGBA, or nullptr (logged). The caller frees it. */
+SDL_Surface *LoadRgba(const char *path)
 {
 	SDL_Surface *png = LoadPNG(path);
 	if (png == nullptr) {
 		LogWarn("Woods art missing: {}", path);
-		return false;
+		return nullptr;
 	}
 	SDL_Surface *rgba = SDL_ConvertSurfaceFormat(png, SDL_PIXELFORMAT_ABGR8888, 0);
 	SDL_FreeSurface(png);
-	if (rgba == nullptr)
-		return false;
-	out.w = std::max(1, (rgba->w * percent + 50) / 100);
-	out.h = std::max(1, (rgba->h * percent + 50) / 100);
+	return rgba;
+}
+
+/**
+ * @brief The rectangle (@p rx, @p ry, @p rw, @p rh) of a loaded painting at @p percent of its size, each pixel the average of
+ * the block it covers (an area resample, any ratio). A sprite pixel is opaque where at least half its block was.
+ */
+void ResampleRgba(const SDL_Surface *rgba, int rx, int ry, int rw, int rh, Picture &out, bool sprite, int percent)
+{
+	out.w = std::max(1, (rw * percent + 50) / 100);
+	out.h = std::max(1, (rh * percent + 50) / 100);
 	out.px.assign(static_cast<size_t>(out.w) * out.h, 0);
 	const auto *bytes = static_cast<const uint8_t *>(rgba->pixels);
 	for (int y = 0; y < out.h; y++) {
-		const int sy0 = y * rgba->h / out.h;
-		const int sy1 = std::max(sy0 + 1, (y + 1) * rgba->h / out.h);
+		const int sy0 = ry + y * rh / out.h;
+		const int sy1 = std::max(sy0 + 1, ry + (y + 1) * rh / out.h);
 		for (int x = 0; x < out.w; x++) {
-			const int sx0 = x * rgba->w / out.w;
-			const int sx1 = std::max(sx0 + 1, (x + 1) * rgba->w / out.w);
+			const int sx0 = rx + x * rw / out.w;
+			const int sx1 = std::max(sx0 + 1, rx + (x + 1) * rw / out.w);
 			int r = 0, g = 0, b = 0, n = 0;
 			for (int sy = sy0; sy < sy1; sy++) {
 				for (int sx = sx0; sx < sx1; sx++) {
@@ -1042,7 +1052,6 @@ bool LoadScaled(const char *path, Picture &out, bool sprite, int percent)
 			out.px[static_cast<size_t>(y) * out.w + x] = 0xFF000000U | (static_cast<uint32_t>(r / n) << 16) | (static_cast<uint32_t>(g / n) << 8) | static_cast<uint32_t>(b / n);
 		}
 	}
-	SDL_FreeSurface(rgba);
 	out.spanFirst.assign(static_cast<size_t>(out.h), 0);
 	out.spanLast.assign(static_cast<size_t>(out.h), 0);
 	for (int y = 0; y < out.h; y++) {
@@ -1056,11 +1065,24 @@ bool LoadScaled(const char *path, Picture &out, bool sprite, int percent)
 		out.spanFirst[y] = static_cast<int16_t>(first);
 		out.spanLast[y] = static_cast<int16_t>(last);
 	}
+}
+
+/** @brief A PNG from the archives at @p percent of its painted size (ResampleRgba over the whole of it). */
+bool LoadScaled(const char *path, Picture &out, bool sprite, int percent)
+{
+	SDL_Surface *rgba = LoadRgba(path);
+	if (rgba == nullptr)
+		return false;
+	ResampleRgba(rgba, 0, 0, rgba->w, rgba->h, out, sprite, percent);
+	SDL_FreeSurface(rgba);
 	return true;
 }
 
-/** @brief The ground details' sheet, in percent of the painting: 25, a 16 px cell (the Testing Ground's 24-30). */
-constexpr int ScatterPercent = 25;
+/**
+ * @brief The ground details, each its own scale (the Orcl Testing Ground's second save, 2026-10-14), in percent of the painting:
+ * the sheet's twelve 64 px cells, 4 x 3, cut apart and each scaled on its own.
+ */
+constexpr int ScatterPercent[12] = { 73, 88, 72, 79, 120, 120, 65, 43, 93, 85, 120, 50 };
 
 void LoadArt()
 {
@@ -1068,19 +1090,29 @@ void LoadArt()
 		return;
 	ArtTried = true;
 	bool ok = true;
-	// The scales the user chose on the Orcl Testing Ground (2026-10-14, its settings/current), in percent of the painted art:
-	// the grasses at 13-14, the forest floor at 16, the dirt road kept at 25; every tree at 25; the ground details at 25 (the
-	// page's 24-30 per detail, one sheet here).
+	// The scales the user chose on the Orcl Testing Ground (its settings/current, saved 2026-10-14 15:19), in percent of the
+	// painted art: the grasses at 13-14, the forest floor at 16, the dirt road at 25; each tree its own.
 	constexpr int GroundPercent[MaterialCount] = { 14, 13, 14, 25, 16 }; // Grass, GrassDark, GrassDry, Path, Forest
-	constexpr int TreePercent = 25;
+	constexpr int TreePercent[TreeKindCount] = { 0, 29, 29, 35, 28, 17, 25 }; // -, oak large, oak small, pine tall, pine small, dead large, dead small
 	for (int m = 0; m < MaterialCount; m++)
 		ok = LoadScaled(GroundFiles[m], GroundArt[m], false, GroundPercent[m]) && ok;
 	for (int t = 1; t < TreeKindCount; t++) {
-		ok = LoadScaled(TreeFiles[t].path, TreeArt[t], true, TreePercent) && ok;
-		TreeArt[t].footX = TreeFiles[t].footX * TreePercent / 100;
-		TreeArt[t].footY = TreeFiles[t].footY * TreePercent / 100;
+		ok = LoadScaled(TreeFiles[t].path, TreeArt[t], true, TreePercent[t]) && ok;
+		TreeArt[t].footX = TreeFiles[t].footX * TreePercent[t] / 100;
+		TreeArt[t].footY = TreeFiles[t].footY * TreePercent[t] / 100;
 	}
-	ok = LoadScaled("levels\\woods\\scatter_sheet.png", ScatterArt, true, ScatterPercent) && ok;
+	if (SDL_Surface *sheet = LoadRgba("levels\\woods\\scatter_sheet.png"); sheet != nullptr) {
+		const int cell = sheet->w / 4;
+		for (int c = 0; c < 12; c++) {
+			ResampleRgba(sheet, (c % 4) * cell, (c / 4) * cell, cell, cell, ScatterCells[c], true, ScatterPercent[c]);
+			// Each stands at its cell's bottom centre, as on the sheet (32, 56 of 64).
+			ScatterCells[c].footX = ScatterCells[c].w / 2;
+			ScatterCells[c].footY = ScatterCells[c].h * 7 / 8;
+		}
+		SDL_FreeSurface(sheet);
+	} else {
+		ok = false;
+	}
 	ArtLoaded = ok;
 }
 
@@ -1851,11 +1883,9 @@ void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light
 		DrawPicture(out, pic, left, top, 0, 0, pic.w, pic.h, brightness, hole);
 		return;
 	}
-	if (const uint8_t cell = Scatter[tile.x][tile.y]; cell != 0 && !ScatterArt.px.empty()) {
-		const int index = cell - 1;
-		// A cell of the 4 x 3 sheet at its scale; its item stands at the cell's bottom centre.
-		const int size = ScatterArt.w / 4;
-		DrawPicture(out, ScatterArt, footX - size / 2, footY - size * 7 / 8, (index % 4) * size, (index / 4) * size, size, size, brightness);
+	if (const uint8_t cell = Scatter[tile.x][tile.y]; cell != 0 && cell <= ScatterCells.size() && !ScatterCells[cell - 1].px.empty()) {
+		const Picture &pic = ScatterCells[cell - 1];
+		DrawPicture(out, pic, footX - pic.footX, footY - pic.footY, 0, 0, pic.w, pic.h, brightness);
 	}
 }
 
