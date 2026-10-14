@@ -129,6 +129,10 @@ bool TreeHidden[MAXDUNX][MAXDUNY];
 Point Arrival { 88, 48 };
 /** @brief The glade's middle: its side path's end, the cave mouth's clearing, the fairy ring's place. */
 Point GladeCentre {};
+/** @brief The floor last built was built from Tristram's own tiles (the Woods Painted Art option off). */
+bool BuiltVanilla = true;
+/** @brief ... and its trees and ground details are the painted ones, over Tristram's ground (the Mixed look). */
+bool BuiltMixed = false;
 /** @brief The next woods floor built is entered from the deeper one: the hero stands at its way on, not its arrival. */
 bool EnterAtWayOn = false;
 /** @brief ... or from its cave: by the cave's mouth. */
@@ -214,6 +218,17 @@ struct House {
 constexpr int MaxHouses = 2;
 std::array<House, MaxHouses> Houses;
 int HouseCount = 0;
+/** @brief @p tile is under a house's walls or inside them (its ring of wall cells, inclusive). */
+bool InHouseFootprint(Point tile)
+{
+	for (int i = 0; i < HouseCount; i++) {
+		const House &house = Houses[i];
+		if (tile.x >= Lo + 2 * house.x0 && tile.x <= Lo + 2 * house.x1 + 1 && tile.y >= Lo + 2 * house.y0 && tile.y <= Lo + 2 * house.y1 + 1)
+			return true;
+	}
+	return false;
+}
+
 /** @brief The fenced pens, by cell (their fence ring inclusive) and the tile in their middle - what stands in them (PlanWoodsWorld). */
 struct Pen {
 	int mx0, my0, x1, y1;
@@ -280,7 +295,21 @@ void StampRiver()
 	}
 }
 
-/** @brief The outcrop's town pieces over the floor's tiles. */
+/**
+ * @brief Which of the outcrop's tiles carry its pieces: its rocks and its hole. Its flat ground - Tristram's grass and dark earth,
+ * a square slab on the painted woods (the seam survey, 2026-10-14) - is left to the woods' own ground in the painted look.
+ */
+bool MouthTileStamped[MouthHeight][MouthWidth] {};
+
+bool MouthPieceIsFlat(uint16_t piece)
+{
+	for (size_t i = 2; i < std::size(DPieceMicros[piece].mt); i++)
+		if (LevelCelBlock { DPieceMicros[piece].mt[i] }.hasValue())
+			return false;
+	return !TileHasAny(piece, TileProperties::Solid);
+}
+
+/** @brief The outcrop's town pieces over the floor's tiles: all of them in the Tristram looks, its rocks and its hole in the painted. */
 void StampCaveMouth()
 {
 	if (!MouthOnFloor)
@@ -288,10 +317,23 @@ void StampCaveMouth()
 	for (int dy = 0; dy < MouthHeight; dy++) {
 		for (int dx = 0; dx < MouthWidth; dx++) {
 			const Point tile = MouthOrigin + Displacement { dx, dy };
-			dPiece[tile.x][tile.y] = MouthStamp[dy][dx];
+			const uint16_t piece = MouthStamp[dy][dx];
+			const bool nearHole = std::abs(dx - MouthEntranceOffset.deltaX) <= 1 && std::abs(dy - MouthEntranceOffset.deltaY) <= 1;
+			MouthTileStamped[dy][dx] = BuiltVanilla || nearHole || !MouthPieceIsFlat(piece);
+			if (!MouthTileStamped[dy][dx])
+				continue;
+			dPiece[tile.x][tile.y] = piece;
 			WoodsLookPiece[tile.x][tile.y] = 0;
 		}
 	}
+}
+
+/** @brief @p tile is one of the outcrop's stamped tiles (drawn from its cels). */
+bool InMouthStamp(Point tile)
+{
+	if (!InMouth(tile))
+		return false;
+	return MouthTileStamped[tile.y - MouthOrigin.y][tile.x - MouthOrigin.x];
 }
 Point WayOn { 22, 62 };
 
@@ -804,6 +846,19 @@ void LayHouses()
 		}
 		// The cottage over it: its block from two tiles west and north of the ring's west and north walls.
 		const Point origin { Lo + 2 * (house.x0 - 2) + CottageShellOffset.deltaX, Lo + 2 * (house.y0 - 1) + CottageShellOffset.deltaY };
+		// A worn yard round it (user, 2026-10-14: "sharp borders between assets and terain"): dry, trodden grass over the block and
+		// a ragged ring past it, so the walls stand in their own ground and not on fresh green.
+		for (int ry = -2; ry < 8; ry++) {
+			for (int rx = -2; rx < 10; rx++) {
+				const Point tile = origin + Displacement { rx, ry };
+				if (!InDungeonBounds(tile) || !Inside(tile) || (Ground[tile.x][tile.y] != Grass && Ground[tile.x][tile.y] != GrassDark))
+					continue;
+				const int out = std::max({ -rx, -ry, rx - 7, ry - 5, 0 });
+				const uint32_t h = Hash(static_cast<uint32_t>(tile.x), static_cast<uint32_t>(tile.y), 0xEA2DU);
+				if (out == 0 || (out == 1 && h % 100 < 70) || (out == 2 && h % 100 < 30))
+					Ground[tile.x][tile.y] = GrassDry;
+			}
+		}
 		for (int ry = 0; ry < 6; ry++) {
 			for (int rx = 0; rx < 8; rx++) {
 				const Point tile = origin + Displacement { rx, ry };
@@ -841,6 +896,17 @@ void LayFences()
 					continue;
 				if (WoodsLookPiece[x][y] == 0)
 					WoodsLookPiece[x][y] = dPiece[x][y]; // the ground under the fence
+				// Worn ground along it, so its posts' dark earth stands in its own (the sharp borders, 2026-10-14): the fence's
+				// tiles dry grass, half of those beside them too.
+				for (int dy = -1; dy <= 1; dy++) {
+					for (int dx = -1; dx <= 1; dx++) {
+						const Point p { x + dx, y + dy };
+						if (!InDungeonBounds(p) || (Ground[p.x][p.y] != Grass && Ground[p.x][p.y] != GrassDark))
+							continue;
+						if ((dx == 0 && dy == 0) || Hash(static_cast<uint32_t>(p.x), static_cast<uint32_t>(p.y), 0xFE2CU) % 2 == 0)
+							Ground[p.x][p.y] = GrassDry;
+					}
+				}
 				dPiece[x][y] = id;
 			}
 		}
@@ -908,10 +974,17 @@ void Generate(uint32_t seed)
 			// Thinner than at first (user, 2026-10-14: "reduce number of trees on woods levels, and outline levels borders
 			// with fences"): a band of one to three tiles inside the fence, the forest proper beyond it.
 			const float borderDepth = 1.0F + 2.0F * ValueNoise(x, y, 5.0F, seed ^ 0xB0DEU);
+			// The forest's floor reaches further than its trees, by a wandering depth of one to eight tiles (the sharp borders,
+			// 2026-10-14: the litter's edge ran parallel to the map's, one long straight line on the screen).
+			const float litterDepth = 1.0F + 5.0F * ValueNoise(x, y, 11.0F, seed ^ 0x1177U) + 2.0F * ValueNoise(x, y, 4.0F, seed ^ 0x1178U);
 			const uint32_t h = Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x7EE5U);
 			if (static_cast<float>(edge) < borderDepth) {
 				Ground[x][y] = Forest;
 				Tree[x][y] = PickTree(Forest, h);
+			} else if (static_cast<float>(edge) < litterDepth && grove <= 0.64F) {
+				Ground[x][y] = Forest;
+				if (Unit(h) < 0.015F)
+					Tree[x][y] = PickTree(Forest, h >> 3);
 			} else if (grove > 0.64F) {
 				Ground[x][y] = Forest;
 				if (Unit(h) < 0.17F) // a grove you can see into (the play test: at 0.42 the canopies were one carpet; 0.22 then)
@@ -1034,10 +1107,6 @@ std::array<Picture, TreeKindCount> TreeArt;
 std::array<Picture, 12> ScatterCells; // the sheet's twelve cells, each at its own scale
 bool ArtLoaded = false;
 bool ArtTried = false;
-/** @brief The floor last built was built from Tristram's own tiles (the Woods Painted Art option off). */
-bool BuiltVanilla = true;
-/** @brief ... and its trees and ground details are the painted ones, over Tristram's ground (the Mixed look). */
-bool BuiltMixed = false;
 
 /** @brief A PNG from the archives as 32-bit RGBA, or nullptr (logged). The caller frees it. */
 SDL_Surface *LoadRgba(const char *path)
@@ -2027,9 +2096,37 @@ void EnterWoodsAtCaveMouthNext()
 	EnterAtCaveMouth = true;
 }
 
+namespace {
+
+/**
+ * @brief A town piece with nothing above its floor: the ground round a Tristram cottage. Its stone-dark diamond sat on the painted
+ * grass with straight edges (user, 2026-10-14: "look for sharp borders between assets and terain"); the woods' own ground is
+ * drawn there instead. Asked of the town's micros once a piece.
+ */
+bool ShellPieceIsFlat(uint16_t piece)
+{
+	static std::array<int8_t, MAXTILES> known {}; // 0 not asked, 1 flat, 2 not
+	if (piece >= known.size())
+		return false;
+	if (known[piece] == 0) {
+		bool flat = true;
+		for (size_t i = 2; i < std::size(DPieceMicros[piece].mt) && flat; i++)
+			flat = !LevelCelBlock { DPieceMicros[piece].mt[i] }.hasValue();
+		known[piece] = flat ? 1 : 2;
+	}
+	return known[piece] == 1;
+}
+
+} // namespace
+
 bool WoodsTileUsesCels(Point tile)
 {
-	return leveltype == DTYPE_WOODS && (InMouth(tile) || InRiver(tile) || WoodsShellAt(tile) != 0);
+	if (leveltype != DTYPE_WOODS)
+		return false;
+	if (InMouthStamp(tile) || InRiver(tile))
+		return true;
+	const uint16_t shell = WoodsShellAt(tile);
+	return shell != 0 && !ShellPieceIsFlat(shell);
 }
 
 bool WoodsCaveMouthHover(Point tile, Point &entrance, const char *&text)
@@ -2334,17 +2431,76 @@ void DrawGroundAt(const Surface &out, Point tile, Point world, Point target, int
 		const int dy = y - centreY;
 		for (int x = x0; x <= x1; x++) {
 			const int wx = originX + (x - target.x) + (1 << 20);
-			// Which material this pixel takes: its own tile's, or a neighbour's where the world-pinned noise pushes the
-			// edge across - so the grass, the path and the forest floor meet along an irregular line, not the tile grid.
+			// Which materials this pixel takes, and how much of each (user, 2026-10-14: "identify sharp straight lines. they
+			// indicate nonhumogenous stitching"): each material's share of the four tile centres round the pixel, bilinear in
+			// tile space, so a patch of dry grass is a rounded blob and not a staircase of diamonds; nudged by the world-pinned
+			// noise, so its edge wanders; and where two shares come close the two textures are mixed, not cut.
 			const auto &n = EdgeNoise[static_cast<size_t>((wy >> 3) & (NoiseSize - 1)) * NoiseSize + ((wx >> 3) & (NoiseSize - 1))];
+			const auto &n2 = EdgeNoise[static_cast<size_t>((wy >> 5) & (NoiseSize - 1)) * NoiseSize + ((wx >> 5) & (NoiseSize - 1))];
 			const int dx = x - centreX;
-			// Tile-space position of the pixel relative to the tile's centre, in 1/64 tile, plus the noise.
-			const int fu = dx + 2 * dy + n[0];
-			const int fv = 2 * dy - dx + n[1];
-			const int tu = std::clamp(tile.x + (fu >= 32 ? 1 : fu < -32 ? -1 : 0), 0, MAXDUNX - 1);
-			const int tv = std::clamp(tile.y + (fv >= 32 ? 1 : fv < -32 ? -1 : 0), 0, MAXDUNY - 1);
-			const Picture &tex = GroundArt[Ground[tu][tv]];
-			const uint32_t c = tex.px[static_cast<size_t>(wy % tex.h) * tex.w + (wx % tex.w)];
+			// The pixel in tile space: the tile's centre plus its offset in 1/64 tile.
+			const float u = static_cast<float>(tile.x) + static_cast<float>(dx + 2 * dy) / 64.0F;
+			const float v = static_cast<float>(tile.y) + static_cast<float>(2 * dy - dx) / 64.0F;
+			const int i0 = static_cast<int>(std::floor(u));
+			const int j0 = static_cast<int>(std::floor(v));
+			const float fx = u - static_cast<float>(i0);
+			const float fy = v - static_cast<float>(j0);
+			uint8_t mats[4];
+			float weights[4];
+			int count = 0;
+			for (int c = 0; c < 4; c++) {
+				const int ti = std::clamp(i0 + (c & 1), 0, MAXDUNX - 1);
+				const int tj = std::clamp(j0 + (c >> 1), 0, MAXDUNY - 1);
+				const float w = ((c & 1) != 0 ? fx : 1.0F - fx) * ((c >> 1) != 0 ? fy : 1.0F - fy);
+				const uint8_t m = Ground[ti][tj];
+				int k2 = 0;
+				while (k2 < count && mats[k2] != m)
+					k2++;
+				if (k2 == count) {
+					mats[count] = m;
+					weights[count++] = 0.0F;
+				}
+				weights[k2] += w;
+			}
+			// The noise: each material's share pushed up or down by its own channel, fine and coarse.
+			for (int k2 = 0; k2 < count; k2++) {
+				const int fine = (mats[k2] & 1) != 0 ? n[0] : n[1];
+				const int coarse = (mats[k2] & 1) != 0 ? n2[1] : n2[0];
+				weights[k2] += (static_cast<float>(fine) * 0.0030F + static_cast<float>(coarse) * 0.0035F) * (mats[k2] == Path ? 0.6F : 1.0F);
+			}
+			int best = 0, second = -1;
+			for (int k2 = 1; k2 < count; k2++) {
+				if (weights[k2] > weights[best]) {
+					second = best;
+					best = k2;
+				} else if (second < 0 || weights[k2] > weights[second]) {
+					second = k2;
+				}
+			}
+			const Picture &tex = GroundArt[mats[best]];
+			uint32_t c = tex.px[static_cast<size_t>(wy % tex.h) * tex.w + (wx % tex.w)];
+			{
+				// The same texture again from far across it, mixed in by the coarse noise (the seam survey, 2026-10-14: the
+				// litter's twigs and the grass's tufts fell on the same place in every tile, a lattice over a whole meadow).
+				const int t = std::clamp(128 + n2[0] * 3, 0, 256);
+				if (t > 8) {
+					const uint32_t o = tex.px[static_cast<size_t>((wy + 357) % tex.h) * tex.w + ((wx + 211) % tex.w)];
+					const auto mix = [t](uint32_t p, uint32_t q, int sh) { return ((((p >> sh) & 0xFF) * (256 - t) + ((q >> sh) & 0xFF) * t) >> 8) & 0xFF; };
+					c = (mix(c, o, 16) << 16) | (mix(c, o, 8) << 8) | mix(c, o, 0);
+				}
+			}
+			if (second >= 0) {
+				// Mixed within a narrow band of the two shares, the second fading out as the first leads.
+				const float lead = weights[best] - weights[second];
+				const float a = std::clamp(0.5F - lead * 2.2F, 0.0F, 0.5F);
+				if (a > 0.0F) {
+					const Picture &other = GroundArt[mats[second]];
+					const uint32_t o = other.px[static_cast<size_t>(wy % other.h) * other.w + (wx % other.w)];
+					const int ai = static_cast<int>(a * 256.0F);
+					const auto mix = [ai](uint32_t p, uint32_t q, int sh) { return ((((p >> sh) & 0xFF) * (256 - ai) + ((q >> sh) & 0xFF) * ai) >> 8) & 0xFF; };
+					c = (mix(c, o, 16) << 16) | (mix(c, o, 8) << 8) | mix(c, o, 0);
+				}
+			}
 			row[x] = brightness >= 256 ? (c & 0xFFFFFF) | 0x010101 : Shade(c, brightness);
 		}
 	}
@@ -2516,6 +2672,157 @@ void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light
 		PaintedCount++;
 	}
 	BlitFloorPicture(out, *PaintedOfTile[tile.x][tile.y], target, light, fullBright);
+}
+
+void RepaintWoodsCelGrass(const Surface &out, Point tile, Point target, int light, bool fullBright)
+{
+	// The river's banks and the cave mouth's rock are Tristram's pieces, and their grass is Tristram's: a hard line where it meets
+	// the painted woods (user, 2026-10-14: "river to grass. underground entrance to grass."). Each of their floor pixels is
+	// read as it was drawn - green or dry-gold where it is grass, grey where rock, blue-green where water - and the grass taken
+	// over by the woods' own ground at the same light, the more the greener; the water, the stones and the earth are kept.
+	if (leveltype != DTYPE_WOODS || out.isIndexed() || !WoodsArtActive(out) || !InDungeonBounds(tile) || !(InRiver(tile) || InMouthStamp(tile)))
+		return;
+	std::unique_ptr<FloorPicture> &slot = PaintedOfTile[tile.x][tile.y];
+	if (slot == nullptr) {
+		OwnedSurface canvas = OwnedSurface::Rgb(64, 32);
+		const Surface surface = canvas;
+		for (int y = 0; y < 32; y++)
+			std::fill_n(surface.at<uint32_t>(0, y), 64, 0U);
+		DrawGroundAt(surface, tile, tile, { 0, 31 }, -1, true);
+		auto picture = std::make_unique<FloorPicture>();
+		for (int k = 0; k < 31; k++) {
+			const int inset = k < 16 ? 30 - 2 * k : 2 * (k - 15);
+			const uint32_t *row = surface.at<uint32_t>(0, 31 - k);
+			for (int x = inset; x <= 63 - inset; x++)
+				picture->px[static_cast<size_t>(k) * 64 + x] = (row[x] & 0xFFFFFFU) | 0x01000000U;
+		}
+		slot = std::move(picture);
+		PaintedCount++;
+	}
+	const FloorPicture &pic = *slot;
+	const int brightness = (fullBright && light < LightsMax) ? 256 : light < 0 ? 256 : BrightnessFor(light);
+	// The cave mouth's block is a square of Tristram's dark earth: over its outer two tiles the woods' ground takes it over
+	// whatever its colour, all of it at the block's edge, none two tiles in - its rocks stand in the middle.
+	const bool mouth = InMouthStamp(tile);
+	// The river's banks are Tristram's dry earth, flat and grey (the seam survey, 2026-10-14): within three quarters of a tile
+	// of the woods' ground beside the river the woods' ground takes it over, the more the nearer.
+	const bool river = InRiver(tile);
+	Point dry[8];
+	int dryCount = 0;
+	if (river) {
+		for (int ny = -1; ny <= 1; ny++)
+			for (int nx = -1; nx <= 1; nx++) {
+				const Point p = tile + Displacement { nx, ny };
+				if ((nx != 0 || ny != 0) && InDungeonBounds(p) && !InRiver(p))
+					dry[dryCount++] = p;
+			}
+	}
+	const float mouthLo = static_cast<float>(MouthOrigin.x) - 0.5F, mouthHiX = static_cast<float>(MouthOrigin.x + MouthWidth) - 0.5F;
+	const float mouthLoY = static_cast<float>(MouthOrigin.y) - 0.5F, mouthHiY = static_cast<float>(MouthOrigin.y + MouthHeight) - 0.5F;
+	for (int k = 0; k < 31; k++) {
+		const int y = target.y - k;
+		if (y < 0 || y >= out.h())
+			continue;
+		const int inset = k < 16 ? 30 - 2 * k : 2 * (k - 15);
+		const int x0 = std::max(inset, -target.x);
+		const int x1 = std::min(63 - inset, out.w() - 1 - target.x);
+		uint32_t *row = out.at<uint32_t>(0, y) + target.x;
+		const uint32_t *src = &pic.px[static_cast<size_t>(k) * 64];
+		const int dy = 15 - k; // the row's offset from the tile's centre line, down the screen
+		for (int x = x0; x <= x1; x++) {
+			float edge = 0.0F;
+			const int dx = x - 32;
+			const float u = static_cast<float>(tile.x) + static_cast<float>(dx + 2 * dy) / 64.0F;
+			const float v = static_cast<float>(tile.y) + static_cast<float>(2 * dy - dx) / 64.0F;
+			if (mouth) {
+				const float inside = std::min({ u - mouthLo, mouthHiX - u, v - mouthLoY, mouthHiY - v });
+				edge = std::clamp(1.0F - inside / 2.0F, 0.0F, 1.0F);
+			}
+			for (int d = 0; d < dryCount; d++) {
+				const float ex = std::max(0.0F, std::abs(u - static_cast<float>(dry[d].x)) - 0.5F);
+				const float ey = std::max(0.0F, std::abs(v - static_cast<float>(dry[d].y)) - 0.5F);
+				edge = std::max(edge, std::clamp(1.0F - std::sqrt(ex * ex + ey * ey) / 0.75F, 0.0F, 1.0F));
+			}
+			const uint32_t c = row[x];
+			const int r = static_cast<int>((c >> 16) & 0xFF), g = static_cast<int>((c >> 8) & 0xFF), b = static_cast<int>(c & 0xFF);
+			const int hi = std::max({ r, g, b });
+			if (hi < 10 && edge <= 0.0F)
+				continue;
+			// Green over the other two, or a dry grass's gold (red and green together well over blue).
+			const float green = hi > 0 ? static_cast<float>(g - std::max(r, b)) / static_cast<float>(hi) : 0.0F;
+			const float gold = hi > 0 && g * 10 >= r * 8 ? static_cast<float>(std::min(r, g) - b) / static_cast<float>(hi) - 0.22F : -1.0F;
+			float w = std::max({ (green - 0.03F) / 0.12F, gold / 0.18F, edge });
+			// Round the hole, its dull dark earth too (the hole's own tile keeps its dark).
+			if (mouth && tile != MouthEntrance) {
+				const float dark = std::clamp((90.0F - static_cast<float>(hi)) / 40.0F, 0.0F, 1.0F);
+				const float notBlue = std::clamp(static_cast<float>(std::max(r, g) + 6 - b) / 12.0F, 0.0F, 1.0F);
+				w = std::max(w, dark * notBlue);
+			}
+			if (w <= 0.0F)
+				continue;
+			w = std::min(w, 1.0F);
+			w = w * w * (3.0F - 2.0F * w);
+			const uint32_t p = src[x];
+			const uint32_t lit = brightness >= 256 ? p & 0xFFFFFFU : Shade(p, brightness);
+			const int a = static_cast<int>(w * 256.0F);
+			const auto mix = [a](int under, int over) { return (under * (256 - a) + over * a) >> 8; };
+			row[x] = (c & 0xFF000000U) | (static_cast<uint32_t>(mix(r, static_cast<int>((lit >> 16) & 0xFF))) << 16)
+			    | (static_cast<uint32_t>(mix(g, static_cast<int>((lit >> 8) & 0xFF))) << 8) | static_cast<uint32_t>(mix(b, static_cast<int>(lit & 0xFF)));
+		}
+	}
+}
+
+void RepaintWoodsCelGround(const Surface &out, Point tile, Point target, int light)
+{
+	if (leveltype != DTYPE_WOODS || out.isIndexed() || !WoodsArtActive(out) || !InDungeonBounds(tile) || !InMouthStamp(tile)
+	    || !TileHasAny(dPiece[tile.x][tile.y], TileProperties::Solid))
+		return;
+	std::unique_ptr<FloorPicture> &slot = PaintedOfTile[tile.x][tile.y];
+	if (slot == nullptr) {
+		OwnedSurface canvas = OwnedSurface::Rgb(64, 32);
+		const Surface surface = canvas;
+		for (int y = 0; y < 32; y++)
+			std::fill_n(surface.at<uint32_t>(0, y), 64, 0U);
+		DrawGroundAt(surface, tile, tile, { 0, 31 }, -1, true);
+		auto picture = std::make_unique<FloorPicture>();
+		for (int k = 0; k < 31; k++) {
+			const int inset = k < 16 ? 30 - 2 * k : 2 * (k - 15);
+			const uint32_t *row = surface.at<uint32_t>(0, 31 - k);
+			for (int x = inset; x <= 63 - inset; x++)
+				picture->px[static_cast<size_t>(k) * 64 + x] = (row[x] & 0xFFFFFFU) | 0x01000000U;
+		}
+		slot = std::move(picture);
+		PaintedCount++;
+	}
+	const FloorPicture &pic = *slot;
+	const int brightness = light < 0 ? 256 : BrightnessFor(light);
+	for (int k = 0; k < 31; k++) {
+		const int y = target.y - k;
+		if (y < 0 || y >= out.h())
+			continue;
+		const int inset = k < 16 ? 30 - 2 * k : 2 * (k - 15);
+		const int x0 = std::max(inset, -target.x);
+		const int x1 = std::min(63 - inset, out.w() - 1 - target.x);
+		uint32_t *row = out.at<uint32_t>(0, y) + target.x;
+		const uint32_t *src = &pic.px[static_cast<size_t>(k) * 64];
+		for (int x = x0; x <= x1; x++) {
+			const uint32_t c = row[x];
+			const int r = static_cast<int>((c >> 16) & 0xFF), g = static_cast<int>((c >> 8) & 0xFF), b = static_cast<int>(c & 0xFF);
+			// Earth: dull and dark, its blue no stronger than its red and green (the town's rocks are blue-grey).
+			const int hi = std::max({ r, g, b });
+			const float dark = std::clamp((90.0F - static_cast<float>(hi)) / 40.0F, 0.0F, 1.0F);
+			const float notBlue = std::clamp(static_cast<float>(std::max(r, g) + 6 - b) / 12.0F, 0.0F, 1.0F);
+			const float w = dark * notBlue;
+			if (w <= 0.02F)
+				continue;
+			const uint32_t p = src[x];
+			const uint32_t lit = brightness >= 256 ? p & 0xFFFFFFU : Shade(p, brightness);
+			const int a = static_cast<int>(w * 256.0F);
+			const auto mix = [a](int under, int over) { return (under * (256 - a) + over * a) >> 8; };
+			row[x] = (c & 0xFF000000U) | (static_cast<uint32_t>(mix(r, static_cast<int>((lit >> 16) & 0xFF))) << 16)
+			    | (static_cast<uint32_t>(mix(g, static_cast<int>((lit >> 8) & 0xFF))) << 8) | static_cast<uint32_t>(mix(b, static_cast<int>(lit & 0xFF)));
+		}
+	}
 }
 
 void DrawWoodsMixedGround(const Surface &out, Point tile, Point target, int light, bool fullBright)
@@ -2813,20 +3120,34 @@ void DrawWoodsGateTint(const Surface &out, Point tile, Point target)
 {
 	if (out.isIndexed())
 		return;
-	// Which road, if any, this tile belongs to.
-	bool open = false;
-	bool closed = false;
+	// The marks: a soft round glow over each way out, centred on its strip, fading to nothing by its radius (the seam survey,
+	// 2026-10-14: the tinted strips were flat blocks of tiles with straight edges). Each tile nearest one takes its share.
+	struct Mark {
+		float x, y, radius;
+		bool open;
+	};
+	Mark marks[3];
+	int markCount = 0;
 	if (leveltype == DTYPE_TOWN) {
-		open = OnTownGate(tile);
+		marks[markCount++] = { (GateX0 + GateX1) * 0.5F, (GateY0 + GateY1) * 0.5F, 2.6F, true };
 	} else if (leveltype == DTYPE_WOODS && setlevel) {
-		const bool wayOn = tile.x <= Lo + 1 && std::abs(tile.y - WayOn.y) <= 1;
 		const bool lastFloor = FloorIndex(setlvlnum) == WoodsFloors - 1;
 		// The road back, the way on to the next floor (amber on the last, where it ends), the cave's entrance.
-		open = (tile.x >= Hi - 1 && std::abs(tile.y - Arrival.y) <= 1) || (wayOn && !lastFloor) || (MouthOnFloor && tile == MouthEntrance);
-		closed = wayOn && lastFloor;
+		marks[markCount++] = { static_cast<float>(Hi) - 0.5F, static_cast<float>(Arrival.y), 2.4F, true };
+		marks[markCount++] = { static_cast<float>(Lo) + 0.5F, static_cast<float>(WayOn.y), 2.4F, !lastFloor };
+		if (MouthOnFloor)
+			marks[markCount++] = { static_cast<float>(MouthEntrance.x), static_cast<float>(MouthEntrance.y), 1.4F, true };
 	}
-	if (!open && !closed)
+	int nearest = -1;
+	for (int m = 0; m < markCount; m++) {
+		const float ddx = static_cast<float>(tile.x) - marks[m].x, ddy = static_cast<float>(tile.y) - marks[m].y;
+		if (std::sqrt(ddx * ddx + ddy * ddy) < marks[m].radius + 1.0F)
+			nearest = m;
+	}
+	if (nearest < 0)
 		return;
+	const Mark mark = marks[nearest];
+	const bool open = mark.open;
 	// Green for a road you can take, amber for one not open yet; a slow pulse, a little stronger toward the tile's centre.
 	const int tr = open ? 120 : 236;
 	const int tg = open ? 255 : 170;
@@ -2841,11 +3162,15 @@ void DrawWoodsGateTint(const Surface &out, Point tile, Point target)
 		const int x0 = std::max(target.x + inset, 0);
 		const int x1 = std::min(target.x + 63 - inset, out.w() - 1);
 		uint32_t *row = out.at<uint32_t>(0, y);
-		const int dy = std::abs(k - 15);
+		const int dy = 15 - k;
 		for (int x = x0; x <= x1; x++) {
-			const int dx = std::abs(x - (target.x + 32));
-			const int centre = 256 - std::min(256, (dx * 4 + dy * 8)); // 256 at the centre, 0 at the corners
-			const int a = base * (160 + centre) / 416;
+			const int dx = x - (target.x + 32);
+			const float u = static_cast<float>(tile.x) + static_cast<float>(dx + 2 * dy) / 64.0F - mark.x;
+			const float v = static_cast<float>(tile.y) + static_cast<float>(2 * dy - dx) / 64.0F - mark.y;
+			const float fall = 1.0F - std::sqrt(u * u + v * v) / mark.radius;
+			if (fall <= 0.0F)
+				continue;
+			const int a = static_cast<int>(static_cast<float>(base) * fall * fall * (3.0F - 2.0F * fall));
 			const uint32_t c = row[x];
 			const int r = static_cast<int>((c >> 16) & 0xFF);
 			const int g = static_cast<int>((c >> 8) & 0xFF);

@@ -1050,7 +1050,10 @@ void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition
 
 	const MICROS *pMap = &DPieceMicros[levelPieceId];
 
-	const uint8_t *tbl = LightTables[LightTableIndex].data();
+	// The woods draw Tristram's pieces unshaded, as Tristram does (the seam survey, 2026-10-14: its palette has no ramps of
+	// sixteen, and the woods' light of 3 turned the cottages' roofs and the cave mouth's rocks to red and green speckle); the
+	// painted ground and the night's tint carry the woods' light.
+	const uint8_t *tbl = LightTables[leveltype == DTYPE_WOODS && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
 #ifdef _DEBUG
 	if (DebugPath && MyPlayer->IsPositionInPath(tilePosition))
 		tbl = GetPauseTRN();
@@ -1179,7 +1182,7 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 {
 	LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 
-	const uint8_t *tbl = LightTables[SmoothFloorThisFrame && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
+	const uint8_t *tbl = LightTables[(SmoothFloorThisFrame || leveltype == DTYPE_WOODS) && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
 #ifdef _DEBUG
 	if (DebugPath && MyPlayer->IsPositionInPath(tilePosition))
 		tbl = GetPauseTRN();
@@ -1222,7 +1225,7 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 void DrawWallFloorTriangles(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
 	LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
-	const uint8_t *tbl = LightTables[SmoothFloorThisFrame && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
+	const uint8_t *tbl = LightTables[(SmoothFloorThisFrame || leveltype == DTYPE_WOODS) && LightTableIndex < LightsMax ? 0 : LightTableIndex].data();
 	if (const uint16_t piece = oracool::WoodsDrawnPiece(tilePosition); oracool::IsBorrowedPiece(piece)) {
 		oracool::DrawBorrowedFloor(out, piece, targetBufferPosition, SmoothFloorThisFrame && LightTableIndex < LightsMax ? -1 : LightTableIndex);
 		return;
@@ -1574,6 +1577,7 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 		oracool::DrawWoodsTileSprite(out, tilePosition, targetBufferPosition, LightTableIndex);
 	} else {
 		DrawCell(out, tilePosition, targetBufferPosition);
+		oracool::RepaintWoodsCelGround(out, tilePosition, targetBufferPosition, LightTableIndex); // a mouth rock's dark earth
 		if (oracool::WoodsSpritesOverTiles(out)) // the Mixed look: the painted trees over Tristram's tiles
 			oracool::DrawWoodsTileSprite(out, tilePosition, targetBufferPosition, LightTableIndex);
 	}
@@ -1705,6 +1709,7 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 					} else {
 						DrawFloor(out, tilePosition, targetBufferPosition);
 						oracool::DrawWoodsMixedGround(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
+						oracool::RepaintWoodsCelGrass(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
 					}
 					oracool::DrawWoodsGateTint(out, tilePosition, targetBufferPosition); // Tristram's road to the woods, marked
 				}

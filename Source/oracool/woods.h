@@ -122,6 +122,18 @@ void EnterWoodsAtCaveMouthNext();
 bool WoodsTileUsesCels(Point tile);
 
 /**
+ * @brief The Painted Art look: the Tristram grass of a river or cave-mouth piece just drawn on @p tile repainted with the woods'
+ * own ground, by how green each pixel is - its water, rock and earth kept - so its edge meets the painted grass softly.
+ */
+void RepaintWoodsCelGrass(const Surface &out, Point tile, Point target, int light, bool fullBright);
+
+/**
+ * @brief And the dark earth of a cave-mouth rock's piece just drawn (its floor half, under the rock): repainted with the woods'
+ * ground where it is a dull dark grey-brown, the rock's own blue kept - so the rocks stand in the grass, not on a slab.
+ */
+void RepaintWoodsCelGround(const Surface &out, Point tile, Point target, int light);
+
+/**
  * @brief The hover over the cave mouth at @p tile: its entrance and the text ("Down to The Mossbound Den").
  * @return false off the mouth
  */
