@@ -1853,6 +1853,67 @@ void DrawPicture(const Surface &out, const Picture &pic, int left, int top, int 
 	}
 }
 
+/**
+ * @brief A tree that sways (user, 2026-10-14: "animate a bit the trees like we did in tristram"): @p pic drawn as DrawPicture
+ * draws it, each row shifted by @p wave times its share of the sway - nothing at the foot (@p footRow, the picture's own row),
+ * full from 48 px up, eased in as the town's foliage is (scene_fx.cpp ApplyFoliageSway). A shift between whole pixels blends the
+ * two source pixels it falls between, so the crown moves smoothly rather than a pixel at a time.
+ */
+void DrawPictureSwaying(const Surface &out, const Picture &pic, int left, int top, int brightness, SeeThrough hole, float wave, int footRow)
+{
+	if (brightness <= 0)
+		return;
+	const int r2 = hole.radius * hole.radius;
+	const int y0 = std::max(0, -top);
+	const int y1 = std::min(pic.h, out.h() - top);
+	const int w = pic.w;
+	for (int y = y0; y < y1; y++) {
+		const int sy = top + y;
+		uint32_t *row = out.at<uint32_t>(0, sy);
+		const uint32_t *src = &pic.px[static_cast<size_t>(y) * w];
+		const float up = std::min(1.0F, static_cast<float>(std::max(0, footRow - y)) / 48.0F);
+		const float shift = wave * std::pow(up, 1.3F);
+		const int whole = static_cast<int>(std::floor(shift));
+		const int part = static_cast<int>((shift - static_cast<float>(whole)) * 256.0F); // the share of the pixel to the left
+		const int first = pic.spanFirst.empty() ? 0 : pic.spanFirst[y];
+		const int last = pic.spanLast.empty() ? w : pic.spanLast[y];
+		const int x0 = std::max(first + whole, -left);
+		const int x1 = std::min(last + whole + 1, out.w() - left);
+		for (int x = x0; x < x1; x++) {
+			const int i1 = x - whole;     // the pixel the shift's whole part lands here
+			const int i0 = i1 - 1;        // and the one to its left, which the fraction brings in
+			const uint32_t c1 = i1 >= 0 && i1 < w ? src[i1] : 0;
+			const uint32_t c0 = i0 >= 0 && i0 < w ? src[i0] : 0;
+			const bool o1 = (c1 & 0xFF000000U) != 0;
+			const bool o0 = (c0 & 0xFF000000U) != 0;
+			uint32_t c;
+			if (o1 && o0) {
+				const auto blend = [&](int sh) { return ((((c1 >> sh) & 0xFF) * (256 - part) + ((c0 >> sh) & 0xFF) * part) >> 8) & 0xFF; };
+				c = 0xFF000000U | (static_cast<uint32_t>(blend(16)) << 16) | (static_cast<uint32_t>(blend(8)) << 8) | static_cast<uint32_t>(blend(0));
+			} else if (part < 128 ? o1 : o0) {
+				c = part < 128 ? c1 : c0; // an edge: the nearer of the two, or nothing
+			} else {
+				continue;
+			}
+			const int sx = left + x;
+			const uint32_t lit = brightness >= 256 ? (c & 0xFFFFFF) | 0x010101 : Shade(c, brightness);
+			if (r2 > 0) {
+				const int ddx = sx - hole.x;
+				const int ddy = (sy - hole.y) * 3 / 2;
+				const int d2 = ddx * ddx + ddy * ddy;
+				if (d2 < r2) {
+					const int keep = 64 + 192 * d2 / r2;
+					const uint32_t bg = row[sx];
+					const auto mix = [&](int sh) { return ((((lit >> sh) & 0xFF) * keep + ((bg >> sh) & 0xFF) * (256 - keep)) >> 8) & 0xFF; };
+					row[sx] = (static_cast<uint32_t>(mix(16)) << 16) | (static_cast<uint32_t>(mix(8)) << 8) | static_cast<uint32_t>(mix(0));
+					continue;
+				}
+			}
+			row[sx] = lit;
+		}
+	}
+}
+
 } // namespace
 
 void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light)
@@ -1881,7 +1942,18 @@ void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light
 					hole = { heroX, heroY, 70 };
 			}
 		}
-		DrawPicture(out, pic, left, top, 0, 0, pic.w, pic.h, brightness, hole);
+		// The sway (Living Town, as Tristram's trees): the trees of the playable woods, each on its own phase from where it
+		// stands; the forest beyond the fence stands still - it is the costly part of the picture and no one walks there.
+		if (*sgOptions.Oracool.livingTown && Inside(tile) && !out.isIndexed()) {
+			const float t = static_cast<float>(SDL_GetTicks() % 3600000U) / 1000.0F;
+			const float phase = static_cast<float>((tile.x - tile.y) * 32) * 0.012F + static_cast<float>(TreeJitterX[tile.x][tile.y]) * 0.21F;
+			// A taller tree sways a little further: 1.2 px at the crown of a small one, up to 2 px for the tallest.
+			const float reach = std::min(2.0F, 1.2F + static_cast<float>(pic.h) / 300.0F);
+			const float wave = reach * (std::sin(t * 1.1F + phase) + 0.3F * std::sin(t * 2.7F + phase * 2.0F)) / 1.3F;
+			DrawPictureSwaying(out, pic, left, top, brightness, hole, wave, pic.footY);
+		} else {
+			DrawPicture(out, pic, left, top, 0, 0, pic.w, pic.h, brightness, hole);
+		}
 		return;
 	}
 	if (const uint8_t cell = Scatter[tile.x][tile.y]; cell != 0 && cell <= ScatterCells.size() && !ScatterCells[cell - 1].px.empty()) {
