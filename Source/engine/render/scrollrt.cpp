@@ -1040,12 +1040,13 @@ bool FloorSmoothedThisFrame = false;
 bool DeferFloorObjectsThisFrame = false;
 void DrawCell(const Surface &out, Point tilePosition, Point targetBufferPosition)
 {
-	const uint16_t levelPieceId = oracool::WoodsDrawnPiece(tilePosition); // dPiece, or how a woods tile looks
-	// A piece of another tileset (oracool/borrowed_tiles.h): its own picture, in its own set's colours.
-	if (oracool::IsBorrowedPiece(levelPieceId)) {
-		oracool::DrawBorrowedCell(out, tilePosition, levelPieceId, targetBufferPosition, LightTableIndex, !FloorSmoothedThisFrame);
+	// A piece of another tileset (oracool/borrowed_tiles.h): its own picture, in its own set's colours - without its floor
+	// triangles on a woods floor, whose own ground is under it (a Caves fence on the grass).
+	if (const uint16_t piece = dPiece[tilePosition.x][tilePosition.y]; oracool::IsBorrowedPiece(piece)) {
+		oracool::DrawBorrowedCell(out, tilePosition, piece, targetBufferPosition, LightTableIndex, !FloorSmoothedThisFrame && oracool::WoodsDrawnPiece(tilePosition) == piece);
 		return;
 	}
+	const uint16_t levelPieceId = oracool::WoodsDrawnPiece(tilePosition); // dPiece, or how a woods tile looks
 
 	const MICROS *pMap = &DPieceMicros[levelPieceId];
 
@@ -1680,7 +1681,7 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 	const bool woodsGround = oracool::WoodsArtActive(out);
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < columns; j++) {
-			if (InDungeonBounds(tilePosition) && woodsGround && !oracool::IsBorrowedPiece(dPiece[tilePosition.x][tilePosition.y]) && !oracool::WoodsTileUsesCels(tilePosition)) {
+			if (InDungeonBounds(tilePosition) && woodsGround && !oracool::WoodsTileUsesCels(tilePosition)) {
 				LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 				oracool::DrawWoodsGroundTile(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
 				oracool::DrawWoodsGateTint(out, tilePosition, targetBufferPosition); // the road back, marked

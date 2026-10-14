@@ -389,6 +389,19 @@ bool BorrowMegatile(dungeon_type set, int megatile, int x, int y)
 	return true;
 }
 
+bool BorrowedMegatilePieces(dungeon_type set, int megatile, uint16_t (&pieces)[4])
+{
+	Tileset *ts = LoadSet(FilesOf(set));
+	if (ts == nullptr || megatile <= 0 || static_cast<size_t>(megatile) > ts->megatiles.size())
+		return false;
+	const MegaTile &mega = ts->megatiles[static_cast<size_t>(megatile - 1)];
+	pieces[0] = SDL_SwapLE16(mega.micro1);
+	pieces[1] = SDL_SwapLE16(mega.micro2);
+	pieces[2] = SDL_SwapLE16(mega.micro3);
+	pieces[3] = SDL_SwapLE16(mega.micro4);
+	return true;
+}
+
 int BorrowedMegatileCount(dungeon_type set)
 {
 	Tileset *ts = LoadSet(FilesOf(set));

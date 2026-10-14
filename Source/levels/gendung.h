@@ -237,7 +237,7 @@ extern std::array<bool, 256> TransList;
 /** Contains the piece IDs of each tile on the map. */
 extern DVL_API_FOR_TEST uint16_t dPiece[MAXDUNX][MAXDUNY];
 /** Map of micros that comprises a full tile for any given dungeon piece. */
-extern MICROS DPieceMicros[MAXTILES];
+extern DVL_API_FOR_TEST MICROS DPieceMicros[MAXTILES];
 /** Specifies the transparency at each coordinate of the map. */
 extern DVL_API_FOR_TEST int8_t dTransVal[MAXDUNX][MAXDUNY];
 /** Current realtime lighting. Per tile. */

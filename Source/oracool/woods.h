@@ -34,7 +34,7 @@ namespace devilution::oracool {
  * @brief The piece a woods tile is DRAWN with, where that differs from the one that decides its walking (dPiece): on the
  * Mixed look a painted tree's tile is solid, yet shows Tristram's grass under the tree. 0 where they are the same.
  */
-extern uint16_t WoodsLookPiece[MAXDUNX][MAXDUNY];
+extern DVL_API_FOR_TEST uint16_t WoodsLookPiece[MAXDUNX][MAXDUNY];
 
 /** @brief The piece the renderer draws for @p tile: dPiece, or the woods' look piece where it has one. */
 inline uint16_t WoodsDrawnPiece(Point tile)

@@ -24,6 +24,7 @@
 #include "levels/trigs.h"
 #include "monstdat.h"
 #include "oracool/area_level.h"
+#include "oracool/borrowed_tiles.h" // the Caves' fences on the woods floors
 #include "oracool/oracool.h"       // AddGeneratedLevelWaypointSigil, EnsureWaypointGraphicsLoaded
 #include "oracool/stairless.h"     // OpenFloorNear - the landing by the cave mouth
 #include "oracool/waypoint_menu.h" // FirstWoodsWaypoint
@@ -109,26 +110,43 @@ bool EnterAtWayOn = false;
 bool EnterAtCaveMouth = false;
 
 /**
- * @brief The cave mouth (oracool/woods_caves.h): Hellfire's open Hive mound, the town's own cels (town.cpp TownOpenHive), 9 x 6
- * tiles stamped beside the floor's glade. Its entrance - the tile the town's Hive trigger stands on - is (2, 2) into it.
+ * @brief The cave mouth (oracool/woods_caves.h): Tristram's own way down to the Caves - the dark hole in the rock outcrop by the
+ * river, town tiles (12..19, 66..73), copied as the town has them (OracoolPreview.DISABLED_WoodsMixedView prints the block).
+ * It replaced Hellfire's Hive mound on 2026-10-14: the mound is a blighted 9 x 6 slab that read as a rectangle on the grass.
+ * Rows of 8, y then x; its entrance - the tile the town's caves trigger stands on, (17, 69) - is (5, 3) into it.
  */
-struct MouthPiece {
-	int8_t dx;
-	int8_t dy;
-	uint16_t piece;
+constexpr uint16_t MouthStamp[8][8] = {
+	{ 223, 25, 230, 231, 226, 227, 219, 220 },
+	{ 224, 225, 232, 233, 228, 229, 18, 19 },
+	{ 219, 220, 221, 21, 1209, 1210, 28, 29 },
+	{ 18, 19, 22, 23, 1211, 1212, 30, 31 },
+	{ 223, 25, 1202, 1199, 1205, 1206, 217, 25 },
+	{ 224, 225, 1203, 1204, 1207, 1208, 218, 27 },
+	{ 230, 231, 222, 25, 230, 231, 223, 25 },
+	{ 232, 233, 26, 27, 232, 233, 224, 225 },
 };
-constexpr MouthPiece MouthStamp[] = {
-	{ 0, 0, 0x489 }, { 1, 0, 0x48a }, { 0, 1, 0x48b }, { 1, 1, 0x50d }, { 0, 2, 0x4ed }, { 0, 3, 0x4ef }, { 1, 2, 0x50f },
-	{ 1, 3, 0x510 }, { 1, 4, 0x511 }, { 0, 4, 0x119 }, { 0, 5, 0x11b }, { 1, 5, 0x11c }, { 2, 0, 0x512 }, { 2, 1, 0x514 },
-	{ 3, 1, 0x515 }, { 4, 0, 0x516 }, { 5, 0, 0x517 }, { 4, 1, 0x518 }, { 5, 1, 0x519 }, { 2, 2, 0x51a }, { 3, 2, 0x51b },
-	{ 2, 3, 0x51c }, { 3, 3, 0x51d }, { 2, 4, 0x51e }, { 3, 4, 0x51f }, { 2, 5, 0x520 }, { 3, 5, 0x521 }, { 4, 4, 0x526 },
-	{ 5, 4, 0x527 }, { 4, 5, 0x528 }, { 5, 5, 0x529 }, { 4, 2, 0x522 }, { 5, 2, 0x523 }, { 4, 3, 0x524 }, { 5, 3, 0x525 },
-	{ 6, 1, 0x117 }, { 6, 2, 0x117 }, { 6, 3, 0x117 }, { 7, 0, 0x117 }, { 7, 1, 0x117 }, { 7, 3, 7 }, { 7, 4, 7 },
-	{ 8, 0, 0xd8 }, { 8, 1, 0x17 }, { 7, 2, 0x12 }, { 6, 4, 0x117 },
-};
-constexpr int MouthWidth = 9;
-constexpr int MouthHeight = 6;
-constexpr Displacement MouthEntranceOffset { 2, 2 };
+constexpr int MouthWidth = 8;
+constexpr int MouthHeight = 8;
+constexpr Displacement MouthEntranceOffset { 5, 3 };
+/**
+ * @brief The fences (user, 2026-10-14: "outline levels borders with fences and maybe put a fence door to next area. we can also
+ * have fenced areas with doors sporadically dispersed among the level as we have in levels 9-12"): the Caves' own fence
+ * megatiles, by dungeon cell (the 40 x 40 grid of 2 x 2 tiles), 0 where there is none. Borrowed from the Caves tileset
+ * (oracool/borrowed_tiles.h), each over the woods' own ground.
+ */
+uint8_t FenceCell[DMAXX][DMAXY];
+/** @brief The Caves' fence megatiles (drlg_l3.cpp Fence): along x, along y, a post where two meet, the gates in each. */
+constexpr uint8_t FenceAlongX[] = { 134, 136 };
+constexpr uint8_t FenceAlongY[] = { 135, 137 };
+constexpr uint8_t FencePost = 138;
+constexpr uint8_t GateAlongX = 146;
+constexpr uint8_t GateAlongY = 147;
+/** @brief The Caves' gate leaves, closed to open (objects.cpp OperateL3Door): the woods' gates stand open. */
+constexpr std::pair<uint16_t, uint16_t> GateOpen[] = { { 530, 537 }, { 533, 540 } };
+/** @brief The ring's cells: one in from the dungeon's edge, so the playable box's outermost tiles are the forest beyond it. */
+constexpr int RingLo = 1;
+constexpr int RingHi = DMAXX - 2;
+
 /** @brief The floor being generated has a cave mouth (BuildWoodsLevel sets it from WoodsCaveOnFloor). */
 int MouthFloor = -1;
 bool MouthOnFloor = false;
@@ -140,15 +158,17 @@ bool InMouth(Point tile)
 	return MouthOnFloor && tile.x >= MouthOrigin.x && tile.x < MouthOrigin.x + MouthWidth && tile.y >= MouthOrigin.y && tile.y < MouthOrigin.y + MouthHeight;
 }
 
-/** @brief The mound's cels over the floor's tiles; only on Hellfire, whose town tileset carries them. */
+/** @brief The outcrop's town pieces over the floor's tiles. */
 void StampCaveMouth()
 {
-	if (!MouthOnFloor || !gbIsHellfire)
+	if (!MouthOnFloor)
 		return;
-	for (const MouthPiece &m : MouthStamp) {
-		const Point tile = MouthOrigin + Displacement { m.dx, m.dy };
-		dPiece[tile.x][tile.y] = m.piece;
-		WoodsLookPiece[tile.x][tile.y] = 0;
+	for (int dy = 0; dy < MouthHeight; dy++) {
+		for (int dx = 0; dx < MouthWidth; dx++) {
+			const Point tile = MouthOrigin + Displacement { dx, dy };
+			dPiece[tile.x][tile.y] = MouthStamp[dy][dx];
+			WoodsLookPiece[tile.x][tile.y] = 0;
+		}
 	}
 }
 Point WayOn { 22, 62 };
@@ -317,6 +337,152 @@ void SealUnreachable()
 	}
 }
 
+/** @brief A dungeon cell's four tiles cleared for a fence: no tree, no ground detail. */
+void ClearCell(int mx, int my)
+{
+	for (int t = 0; t < 4; t++) {
+		const int x = 16 + 2 * mx + (t & 1);
+		const int y = 16 + 2 * my + (t >> 1);
+		Tree[x][y] = NoTree;
+		Scatter[x][y] = 0;
+	}
+}
+
+bool CellHasPath(int mx, int my)
+{
+	for (int t = 0; t < 4; t++) {
+		if (Ground[16 + 2 * mx + (t & 1)][16 + 2 * my + (t >> 1)] == Path)
+			return true;
+	}
+	return false;
+}
+
+bool CellOpen(int mx, int my)
+{
+	for (int t = 0; t < 4; t++) {
+		const int x = 16 + 2 * mx + (t & 1);
+		const int y = 16 + 2 * my + (t >> 1);
+		if (Tree[x][y] != NoTree || Ground[x][y] == Path || Ground[x][y] == Forest)
+			return false;
+	}
+	return true;
+}
+
+/**
+ * @brief The fence ring round the floor with a gate where each road crosses it, and two or three fenced pens with a gate each
+ * on open grass, away from the roads, the glade, the cave mouth and the waypoint.
+ */
+void PlanFences(uint32_t seed)
+{
+	std::memset(FenceCell, 0, sizeof(FenceCell));
+	const auto pick = [seed](const uint8_t(&from)[2], int mx, int my) { return from[Hash(static_cast<uint32_t>(mx), static_cast<uint32_t>(my), seed ^ 0xFE7CU) & 1]; };
+	for (int m = RingLo; m <= RingHi; m++) {
+		FenceCell[m][RingLo] = pick(FenceAlongX, m, RingLo);
+		FenceCell[m][RingHi] = pick(FenceAlongX, m, RingHi);
+		FenceCell[RingLo][m] = pick(FenceAlongY, RingLo, m);
+		FenceCell[RingHi][m] = pick(FenceAlongY, RingHi, m);
+	}
+	for (const int a : { RingLo, RingHi })
+		for (const int b : { RingLo, RingHi })
+			FenceCell[a][b] = FencePost;
+	// Where a road crosses the ring: the gate on the road's middle cell, the ring open where the road's other tiles run.
+	const auto gateAt = [](int mx, int my, bool alongY) {
+		for (int d = -2; d <= 2; d++) {
+			const int cx = alongY ? mx : mx + d;
+			const int cy = alongY ? my + d : my;
+			if (cx < 0 || cy < 0 || cx >= DMAXX || cy >= DMAXY)
+				continue;
+			if (d != 0 && CellHasPath(cx, cy))
+				FenceCell[cx][cy] = 0;
+		}
+		FenceCell[mx][my] = alongY ? GateAlongY : GateAlongX;
+	};
+	gateAt(RingHi, (Arrival.y - 16) / 2, true);
+	gateAt(RingLo, (WayOn.y - 16) / 2, true);
+	for (int my = 0; my < DMAXY; my++)
+		for (int mx = 0; mx < DMAXX; mx++)
+			if (FenceCell[mx][my] != 0)
+				ClearCell(mx, my);
+
+	// The pens.
+	const Point keepAway[] = { Arrival, WayOn, MouthOnFloor ? MouthEntrance : Arrival, Arrival + Displacement { -2, -2 } };
+	int pens = 0;
+	const int want = 2 + static_cast<int>(Hash(seed, 7, 7) % 2);
+	for (int attempt = 0; attempt < 60 && pens < want; attempt++) {
+		const uint32_t h = Hash(seed, static_cast<uint32_t>(attempt), 0xBE2U);
+		const int w = 3 + static_cast<int>(h % 2);
+		const int d = 3 + static_cast<int>((h >> 3) % 2);
+		const int mx0 = 4 + static_cast<int>((h >> 6) % static_cast<uint32_t>(DMAXX - 8 - w));
+		const int my0 = 4 + static_cast<int>((h >> 14) % static_cast<uint32_t>(DMAXY - 8 - d));
+		bool fits = true;
+		for (int my = my0 - 1; my <= my0 + d && fits; my++)
+			for (int mx = mx0 - 1; mx <= mx0 + w && fits; mx++)
+				fits = CellOpen(mx, my) && FenceCell[mx][my] == 0;
+		const Point centre { 16 + 2 * mx0 + w, 16 + 2 * my0 + d };
+		for (const Point p : keepAway)
+			fits = fits && centre.WalkingDistance(p) > 12;
+		if (MouthOnFloor)
+			fits = fits && std::abs(centre.x - (MouthOrigin.x + MouthWidth / 2)) + std::abs(centre.y - (MouthOrigin.y + MouthHeight / 2)) > 16;
+		if (!fits)
+			continue;
+		const int x1 = mx0 + w - 1;
+		const int y1 = my0 + d - 1;
+		for (int mx = mx0; mx <= x1; mx++) {
+			FenceCell[mx][my0] = pick(FenceAlongX, mx, my0);
+			FenceCell[mx][y1] = pick(FenceAlongX, mx, y1);
+		}
+		for (int my = my0; my <= y1; my++) {
+			FenceCell[mx0][my] = pick(FenceAlongY, mx0, my);
+			FenceCell[x1][my] = pick(FenceAlongY, x1, my);
+		}
+		for (const int a : { mx0, x1 })
+			for (const int b : { my0, y1 })
+				FenceCell[a][b] = FencePost;
+		// One gate, mid-side, on a side picked by the seed.
+		switch ((h >> 20) % 4) {
+		case 0: FenceCell[mx0 + w / 2][my0] = GateAlongX; break;
+		case 1: FenceCell[mx0 + w / 2][y1] = GateAlongX; break;
+		case 2: FenceCell[mx0][my0 + d / 2] = GateAlongY; break;
+		default: FenceCell[x1][my0 + d / 2] = GateAlongY; break;
+		}
+		for (int my = my0; my <= y1; my++)
+			for (int mx = mx0; mx <= x1; mx++)
+				ClearCell(mx, my);
+		pens++;
+	}
+}
+
+/**
+ * @brief The planned fences laid over the built floor: each tile the Caves' fence piece for walking and its upright, the woods'
+ * own ground for its floor (WoodsLookPiece), a gate's leaf swapped for the open one.
+ */
+void LayFences()
+{
+	for (int my = 0; my < DMAXY; my++) {
+		for (int mx = 0; mx < DMAXX; mx++) {
+			const uint8_t mega = FenceCell[mx][my];
+			uint16_t pieces[4];
+			if (mega == 0 || !BorrowedMegatilePieces(DTYPE_CAVES, mega, pieces))
+				continue;
+			for (int t = 0; t < 4; t++) {
+				const int x = 16 + 2 * mx + (t & 1);
+				const int y = 16 + 2 * my + (t >> 1);
+				uint16_t native = pieces[t];
+				for (const auto &[closed, open] : GateOpen) {
+					if (native == closed)
+						native = open;
+				}
+				const uint16_t id = BorrowPiece(DTYPE_CAVES, native);
+				if (id == 0)
+					continue;
+				if (WoodsLookPiece[x][y] == 0)
+					WoodsLookPiece[x][y] = dPiece[x][y]; // the ground under the fence
+				dPiece[x][y] = id;
+			}
+		}
+	}
+}
+
 /** @brief Fills TreeHidden: a tree three tiles or more from any open tile keeps only the 2 x 2 lattice's one tree in four. */
 void HideDeepForest()
 {
@@ -372,16 +538,18 @@ void Generate(uint32_t seed)
 			Ground[x][y] = moist > 0.64F ? GrassDark : moist < 0.32F ? GrassDry : Grass;
 			const float grove = ValueNoise(x, y, 8.0F, seed ^ 0x6A7EU);
 			const int edge = std::min({ x - Lo, y - Lo, Hi - x, Hi - y });
-			const float borderDepth = 2.0F + 4.0F * ValueNoise(x, y, 5.0F, seed ^ 0xB0DEU);
+			// Thinner than at first (user, 2026-10-14: "reduce number of trees on woods levels, and outline levels borders
+			// with fences"): a band of one to three tiles inside the fence, the forest proper beyond it.
+			const float borderDepth = 1.0F + 2.0F * ValueNoise(x, y, 5.0F, seed ^ 0xB0DEU);
 			const uint32_t h = Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x7EE5U);
 			if (static_cast<float>(edge) < borderDepth) {
 				Ground[x][y] = Forest;
 				Tree[x][y] = PickTree(Forest, h);
-			} else if (grove > 0.60F) {
+			} else if (grove > 0.64F) {
 				Ground[x][y] = Forest;
-				if (Unit(h) < 0.22F) // a grove you can see into (the play test: at 0.42 the canopies were one carpet)
+				if (Unit(h) < 0.17F) // a grove you can see into (the play test: at 0.42 the canopies were one carpet; 0.22 then)
 					Tree[x][y] = PickTree(Forest, h >> 3);
-			} else if (Unit(h) < 0.025F) {
+			} else if (Unit(h) < 0.015F) {
 				Tree[x][y] = PickTree(static_cast<Material>(Ground[x][y]), h >> 3); // a lone tree in the grass
 			}
 		}
@@ -395,7 +563,7 @@ void Generate(uint32_t seed)
 	// The cave mouth on the glade's far side, its entrance facing into the glade; trees and ground details kept off it.
 	MouthOnFloor = MouthFloor >= 0;
 	if (MouthOnFloor) {
-		MouthOrigin = glade + Displacement { -8, -3 };
+		MouthOrigin = glade + Displacement { -9, -4 }; // the entrance (5, 3) in, facing east into the glade
 		MouthEntrance = MouthOrigin + MouthEntranceOffset;
 		for (int y = MouthOrigin.y - 2; y < MouthOrigin.y + MouthHeight + 2; y++) {
 			for (int x = MouthOrigin.x - 2; x < MouthOrigin.x + MouthWidth + 3; x++) {
@@ -437,6 +605,18 @@ void Generate(uint32_t seed)
 			}
 		}
 	}
+	// Each road's end past the fence ring kept clear of trees: the forest beyond the ring stands in front of it on screen and
+	// hid the gate and the way out (preview, 2026-10-14).
+	for (const Point end : { Point { Hi, Arrival.y }, Point { Lo, WayOn.y } }) {
+		for (int dy = -6; dy <= 6; dy++) {
+			for (int dx = -6; dx <= 6; dx++) {
+				const Point p = end + Displacement { dx, dy };
+				if (InDungeonBounds(p) && dx * dx + dy * dy <= 36)
+					Tree[p.x][p.y] = NoTree;
+			}
+		}
+	}
+	PlanFences(seed);
 	HideDeepForest();
 }
 
@@ -657,8 +837,18 @@ void BuildVanilla(uint32_t seed, bool paintedTrees)
 {
 	for (int y = 0; y < MAXDUNY; y += 2) {
 		for (int x = 0; x < MAXDUNX; x += 2) {
-			if (x < 16 || y < 16 || x >= 96 || y >= 96)
+			if (x < 16 || y < 16 || x >= 96 || y >= 96) {
 				FillMegatile(x, y, VanillaRockMass);
+				if (paintedTrees && pMegaTiles != nullptr) {
+					// The Mixed look: the forest beyond the map stands on grass, as inside - its trees are drawn one in four
+					// (TreeHidden), and between them the rock mass showed as dark blue stone (preview, 2026-10-14). Still solid.
+					const MegaTile grass = pMegaTiles[Pick(VanillaGrass, Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed)) - 1];
+					WoodsLookPiece[x][y] = SDL_SwapLE16(grass.micro1);
+					WoodsLookPiece[x + 1][y] = SDL_SwapLE16(grass.micro2);
+					WoodsLookPiece[x][y + 1] = SDL_SwapLE16(grass.micro3);
+					WoodsLookPiece[x + 1][y + 1] = SDL_SwapLE16(grass.micro4);
+				}
+			}
 		}
 	}
 	const auto cellHasPath = [](int mx, int my) {
@@ -826,6 +1016,7 @@ void BuildWoodsLevel(bool fresh)
 				Scatter[x][y] = 0;
 	}
 	StampCaveMouth();
+	LayFences();
 	ViewPosition = EnterAtWayOn ? Point { WayOn.x + 2, WayOn.y } : Arrival;
 	EnterAtWayOn = false;
 	InitNoTriggers();
@@ -1236,8 +1427,11 @@ void DrawWoodsGateTint(const Surface &out, Point tile, Point target)
 	if (leveltype == DTYPE_TOWN) {
 		open = OnTownGate(tile);
 	} else if (leveltype == DTYPE_WOODS && setlevel) {
-		open = tile.x >= Hi - 1 && std::abs(tile.y - Arrival.y) <= 1;
-		closed = tile.x <= Lo + 1 && std::abs(tile.y - WayOn.y) <= 1;
+		const bool wayOn = tile.x <= Lo + 1 && std::abs(tile.y - WayOn.y) <= 1;
+		const bool lastFloor = FloorIndex(setlvlnum) == WoodsFloors - 1;
+		// The road back, the way on to the next floor (amber on the last, where it ends), the cave's entrance.
+		open = (tile.x >= Hi - 1 && std::abs(tile.y - Arrival.y) <= 1) || (wayOn && !lastFloor) || (MouthOnFloor && tile == MouthEntrance);
+		closed = wayOn && lastFloor;
 	}
 	if (!open && !closed)
 		return;
@@ -1302,6 +1496,7 @@ Point StampWoodsCaveMouthForTest()
 {
 	MouthFloor = -1;
 	StampCaveMouth();
+	LayFences();
 	return MouthOnFloor ? MouthEntrance : Point { 0, 0 };
 }
 

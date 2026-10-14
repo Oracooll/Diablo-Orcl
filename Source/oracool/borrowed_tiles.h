@@ -48,6 +48,9 @@ bool BorrowMegatile(dungeon_type set, int megatile, int x, int y);
 /** @brief The borrowed pieces' tile properties back into SOLData: after every LoadLevelSOLData. */
 void ApplyBorrowedSol();
 
+/** @brief The four native pieces of megatile @p megatile (1-based) of @p set - top, right, left, bottom. */
+bool BorrowedMegatilePieces(dungeon_type set, int megatile, uint16_t (&pieces)[4]);
+
 /** @brief How many megatiles tileset @p set has (0 when its files are missing). */
 int BorrowedMegatileCount(dungeon_type set);
 
