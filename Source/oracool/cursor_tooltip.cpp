@@ -936,6 +936,8 @@ std::string HintCardText;
  */
 uint32_t TooltipDraw = 0;
 uint32_t HintCardDraw = UINT32_MAX;
+/** @brief HintCardText's line colours, kept with it (audit round 3: read from InfoString's, which a later hover rewrites). */
+std::vector<UiFlags> HintCardColors;
 constexpr int HintCardMaxWidth = 250;
 /** @brief The unique item's gold (RimGlowHue, inv.cpp) - the hint cards wear its design. */
 constexpr uint32_t HintCardHue = 0xD4A23C;
@@ -954,7 +956,7 @@ void DrawHintCard(const Surface &out)
 	for (size_t i = 0;; i++) {
 		const size_t newline = text.find('\n', start);
 		const std::string line = text.substr(start, newline == std::string::npos ? std::string::npos : newline - start);
-		const UiFlags color = i < InfoStringLineColors.size() ? InfoStringLineColors[i] : UiFlags::ColorWhite;
+		const UiFlags color = i < HintCardColors.size() ? HintCardColors[i] : UiFlags::ColorWhite;
 		if (i == 0) {
 			card.title.text = line;
 			card.title.color = color;
@@ -1111,6 +1113,7 @@ void DrawCardTooltip(const Surface &out)
 void ShowPanelStringsAsHintCard()
 {
 	HintCardText = std::string(InfoString.str());
+	HintCardColors.assign(InfoStringLineColors.begin(), InfoStringLineColors.end());
 	HintCardDraw = TooltipDraw;
 }
 

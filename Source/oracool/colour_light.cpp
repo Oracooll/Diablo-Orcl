@@ -1157,6 +1157,26 @@ void ApplyLightColour(const Surface &out, Point firstTile, Point firstTileBuffer
 		ApplyTintPlan(out, plan);
 }
 
+TintPlan CombineTintPlans(const TintPlan &colour, const TintPlan &dayNight)
+{
+	// The woods have both (audit round 3: the GPU path took the colour plan alone, and a fireball or a unique's light lifted
+	// the night for its frames - the CPU path applies the colour, then the night).
+	static std::vector<LightTint> combined;
+	combined.resize(static_cast<size_t>(FieldW) * FieldH);
+	for (size_t i = 0; i < combined.size(); i++) {
+		const LightTint &a = colour.tints[i];
+		const LightTint &b = dayNight.tints[i];
+		combined[i] = {
+			static_cast<uint16_t>(std::min<uint32_t>(static_cast<uint32_t>(a.r) * b.r / One, 400U)),
+			static_cast<uint16_t>(std::min<uint32_t>(static_cast<uint32_t>(a.g) * b.g / One, 400U)),
+			static_cast<uint16_t>(std::min<uint32_t>(static_cast<uint32_t>(a.b) * b.b / One, 400U)),
+		};
+	}
+	TintPlan plan = dayNight;
+	plan.tints = combined.data();
+	return plan;
+}
+
 void ApplyTintPlan(const Surface &out, const TintPlan &plan)
 {
 	if (plan.tints == nullptr || plan.left > plan.right || plan.top > plan.bottom)

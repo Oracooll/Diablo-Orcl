@@ -171,6 +171,10 @@ void BuildCutsceneRgb(const char *celPath, const char *pngBase)
 	CutsceneRgb = nullptr;
 	if (LoadCutscenePng(pngBase))
 		return;
+	// A painting of its own not yet made (the woods' and their caves', 2026-10-14): the 21:9 painting of the screen it stands in
+	// for, before the 640 x 480 CEL (audit round 3).
+	if (std::string_view(pngBase) != celPath && LoadCutscenePng(celPath))
+		return;
 	if (!sgpBackCel)
 		return;
 	const ClxSprite sprite = (*sgpBackCel)[0];

@@ -2253,8 +2253,13 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 		oracool::AdvanceTownDayNightClock();
 		oracool::TintPlan tint;
 		bool hasTint = oracool::PlanLightColour(visible, position, visibleStart, tint);
-		if (!hasTint)
-			hasTint = oracool::PlanTownDayNight(visible, position, visibleStart, tint);
+		// The woods have the dungeon's coloured light and the sky's day and night both: one plan of the two, as the CPU path
+		// lays one then the other (audit round 3).
+		oracool::TintPlan dayNight;
+		if (oracool::PlanTownDayNight(visible, position, visibleStart, dayNight)) {
+			tint = hasTint ? oracool::CombineTintPlans(tint, dayNight) : dayNight;
+			hasTint = true;
+		}
 		static std::vector<oracool::Splat> splats;
 		splats.clear();
 		oracool::BeginSplatCollection(&splats);

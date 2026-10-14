@@ -1972,7 +1972,8 @@ bool FloorNotCached[MAXDUNX][MAXDUNY];
  */
 std::unique_ptr<FloorPicture> PaintedOfTile[MAXDUNX][MAXDUNY];
 size_t PaintedCount = 0;
-constexpr size_t PaintedCacheCap = 6000;
+/** @brief Every tile of the map (audit round 3: a cap of 6000 under a 4K screen's ~8000 tiles cleared and rebuilt each frame). */
+constexpr size_t PaintedCacheCap = static_cast<size_t>(MAXDUNX) * MAXDUNY;
 
 bool BlitFloorPicture(const Surface &out, const FloorPicture &pic, Point target, int light, bool fullBright);
 

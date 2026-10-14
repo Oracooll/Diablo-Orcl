@@ -5497,8 +5497,9 @@ void ProcessGenericProjectile(Missile &missile)
 		if (missile.position.tile != Point { missile.var1, missile.var2 }) {
 			missile.var1 = missile.position.tile.x;
 			missile.var2 = missile.position.tile.y;
+			// Moved, at the radius it was lit with (audit round 3: a hard 8 here undid Blood Star's halved light after one tile).
 			if (missile._mlid != NO_LIGHT)
-				ChangeLight(missile._mlid, missile.position.tile, 8);
+				ChangeLightXY(missile._mlid, missile.position.tile);
 		}
 		PutMissile(missile);
 	}
