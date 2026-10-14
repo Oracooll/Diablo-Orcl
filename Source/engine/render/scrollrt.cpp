@@ -556,6 +556,18 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::FrozenRgbTable(LightTableIndex));
 		return;
 	}
+	// Chilled - slowed, not frozen solid: a light-blue glaze for as long as the chill holds (RTM dev note, 2026-10-11:
+	// "chilled enemies to be tinted light blue"), the chilled hero's own look (Tint::Ice, 2026-10-04) and lighter than the
+	// frost above, which greys the body first. Lit as it stands and through its own colours: a unique's translation unlit
+	// (they glow), a variant's lit, as below. Stone and infravision win, as they win over the ice.
+	if (!out.isIndexed() && oracool::IsMonsterChilled(monster) && (trn == nullptr || trn == monster.uniqueMonsterTRN.get())) {
+		const uint32_t *lit = oracool::LitPaletteTable(trn != nullptr && monster.isUnique() ? 0 : LightTableIndex);
+		std::array<uint32_t, 256> own;
+		for (size_t i = 0; i < own.size(); i++)
+			own[i] = lit[trn != nullptr ? trn[i] : i];
+		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::TintedTable(own.data(), oracool::Tint::Ice, 0, 0.0));
+		return;
+	}
 	// Healed by Dark Mending: a lavender glow fading off it (v1.12.211). Ice, stone and infravision win; a variant's colours
 	// give way to it for the second it lasts.
 	if (const double mend = oracool::MinionMendGlow(monster); mend > 0 && !out.isIndexed() && (trn == nullptr || trn == monster.uniqueMonsterTRN.get())) {
@@ -2132,6 +2144,9 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// for the relief and Lit Sprites - which read anything changed after the keep as a wall or a sprite (audit round 1).
 	oracool::ApplyGroundFog(visible, position, visibleStart);
 	DrawFigureGroundPass(out, position, Point {} + offset, rows, columns);
+	// The floor under the rings, kept so their glow can tell what DrawTileContent lays over it - a house's roof the hero
+	// walked behind (user, 2026-10-12; oracool/aura_ground.h).
+	oracool::KeepAuraGlowFloor(visible);
 	oracool::EndFramePass(oracool::FramePass::FloorThings);
 	// The GPU renderer plan (oracool/gpu_post.h, user 2026-10-11): everything after the sprites in one trip to the
 	// graphics card - Stage 2's relief, coloured light or day and night, beams and particles (as splats) and haze, Stage
@@ -2174,6 +2189,9 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	oracool::EndFramePass(oracool::FramePass::Relief);
 	{ oracool::ScopedFramePass timed(oracool::FramePass::Sprites); DrawTileContent(out, position, Point {} + offset, rows, columns); }
 	FloorSmoothedThisFrame = false;
+	// What now stands over the rings' floor: their glow lights none of it. Before the sway and the cloud shadows, which
+	// change the floor without covering it.
+	oracool::NoteAuraGlowCover(visible);
 	// The trees' sway (oracool/scene_fx.h): over the figures, before the light passes, so the night falls on it too.
 	oracool::ApplyTownSway(out, position, Point {} + offset);
 	// Cloud shadows, crows, leaves and torch smoke (oracool/scene_life.h): before the light passes, so night falls on them.

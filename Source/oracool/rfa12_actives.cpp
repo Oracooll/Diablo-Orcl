@@ -4863,6 +4863,14 @@ bool CastRfa12Active(Player &player, SpellID spell, Point target)
 	return true;
 }
 
+bool Rfa12CastFindsNoFoe(const Player &player, SpellID spell)
+{
+	if (spell != SpellID::Earthquake)
+		return false;
+	// CastOnce's own test, from where he stands now: the quake is centred on him, so its centre and his sight are one tile.
+	return MonstersWithin(player.position.tile, ReachTiles(spell, RankOf(player, spell))).empty();
+}
+
 int Rfa12CooldownTicksLeft(const Player &player, SpellID spell)
 {
 	for (const auto &[cooling, ticks] : StateOf(player).cooldowns) {

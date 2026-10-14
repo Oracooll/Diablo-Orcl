@@ -399,6 +399,25 @@ struct GlowRing {
 };
 std::vector<GlowRing> GlowRings;
 
+/**
+ * What stands over the rings' floor this frame (user, 2026-10-12: "lights under auras need to render under houses in town.
+ * right now they are visible when hero is hidden behind a house roof."). The glow is light added after the whole world, so
+ * on its own it lit a roof as readily as the floor. The floor under every noted ring is kept once the floor pass is done
+ * (KeepAuraGlowFloor), and after the walls, roofs and figures (NoteAuraGlowCover) every pixel that changed is marked as
+ * covered: the glow then lights only the floor that is still to be seen, as the ring itself is. One box, the union of the
+ * rings' glow, in the whole buffer's pixels.
+ */
+struct GlowCover {
+	int x = 0, y = 0, w = 0, h = 0;
+	std::vector<uint32_t> floor;
+	std::vector<uint8_t> covered;
+	bool kept = false, measured = false;
+};
+GlowCover Cover;
+
+/** The glow's reach past a ring's own radii (DrawAuraGlow lights 1.7 radii out). */
+constexpr float GlowReach = 1.7F;
+
 void NoteRingForGlow(const Surface &out, const AuraArt &art, Point centre, int dstW, int dstH, int pulsePercent, uint32_t hue)
 {
 	if (!*sgOptions.Oracool.auraGlow || GlowRings.size() >= 24)
@@ -598,6 +617,68 @@ int AuraRingClockOverrideMs = -1;
 void BeginAuraGlowFrame()
 {
 	GlowRings.clear();
+	Cover.kept = Cover.measured = false;
+}
+
+void KeepAuraGlowFloor(const Surface &out)
+{
+	Cover.kept = Cover.measured = false;
+	if (GlowRings.empty() || out.isIndexed() || out.w() <= 0 || out.h() <= 0)
+		return;
+	// The union of the rings' glow, clipped to @p out - in the whole buffer's pixels, as the rings are noted.
+	int x0 = out.region.x + out.w(), y0 = out.region.y + out.h(), x1 = out.region.x, y1 = out.region.y;
+	for (const GlowRing &ring : GlowRings) {
+		const int ex = static_cast<int>(ring.w * 0.5F * GlowReach) + 1, ey = static_cast<int>(ring.h * 0.5F * GlowReach) + 1;
+		x0 = std::min(x0, ring.centre.x - ex);
+		y0 = std::min(y0, ring.centre.y - ey);
+		x1 = std::max(x1, ring.centre.x + ex + 1);
+		y1 = std::max(y1, ring.centre.y + ey + 1);
+	}
+	x0 = std::max(x0, static_cast<int>(out.region.x));
+	y0 = std::max(y0, static_cast<int>(out.region.y));
+	x1 = std::min(x1, static_cast<int>(out.region.x + out.w()));
+	y1 = std::min(y1, static_cast<int>(out.region.y + out.h()));
+	if (x0 >= x1 || y0 >= y1)
+		return;
+	Cover.x = x0;
+	Cover.y = y0;
+	Cover.w = x1 - x0;
+	Cover.h = y1 - y0;
+	Cover.floor.resize(static_cast<size_t>(Cover.w) * Cover.h);
+	for (int y = 0; y < Cover.h; y++)
+		std::memcpy(&Cover.floor[static_cast<size_t>(y) * Cover.w], out.at<uint32_t>(x0 - out.region.x, y0 - out.region.y + y),
+		    static_cast<size_t>(Cover.w) * sizeof(uint32_t));
+	Cover.kept = true;
+}
+
+void NoteAuraGlowCover(const Surface &out)
+{
+	Cover.measured = false;
+	if (!Cover.kept || out.isIndexed())
+		return;
+	Cover.kept = false;
+	// The kept box must still lie inside @p out (the same world region both times).
+	if (Cover.x < out.region.x || Cover.y < out.region.y || Cover.x + Cover.w > out.region.x + out.w() || Cover.y + Cover.h > out.region.y + out.h())
+		return;
+	Cover.covered.resize(Cover.floor.size());
+	for (int y = 0; y < Cover.h; y++) {
+		const uint32_t *now = out.at<uint32_t>(Cover.x - out.region.x, Cover.y - out.region.y + y);
+		const uint32_t *was = &Cover.floor[static_cast<size_t>(y) * Cover.w];
+		uint8_t *mark = &Cover.covered[static_cast<size_t>(y) * Cover.w];
+		for (int x = 0; x < Cover.w; x++)
+			mark[x] = ((now[x] ^ was[x]) & 0xFFFFFFU) != 0 ? 1 : 0;
+	}
+	Cover.measured = true;
+}
+
+bool AuraGlowCoveredAt(Point bufferPixel)
+{
+	if (!Cover.measured)
+		return false;
+	const int x = bufferPixel.x - Cover.x, y = bufferPixel.y - Cover.y;
+	if (x < 0 || y < 0 || x >= Cover.w || y >= Cover.h)
+		return false;
+	return Cover.covered[static_cast<size_t>(y) * Cover.w + x] != 0;
 }
 
 size_t AuraGlowRingCount()
@@ -610,6 +691,8 @@ void DrawAuraGlow(const Surface &out, bool ringItself)
 	if (GlowRings.empty() || out.isIndexed() || out.w() <= 0 || out.h() <= 0)
 		return;
 	std::vector<Splat> *splats = SplatCollection();
+	// Only the floor still to be seen is lit (NoteAuraGlowCover): not a roof the hero walked behind (user, 2026-10-12).
+	const auto covered = [&out](int x, int y) { return AuraGlowCoveredAt({ x + out.region.x, y + out.region.y }); };
 	const double seconds = static_cast<double>(AuraRingClockOverrideMs >= 0 ? AuraRingClockOverrideMs : static_cast<int>(SDL_GetTicks())) / 1000.0;
 	for (size_t n = 0; n < GlowRings.size(); n++) {
 		const GlowRing &ring = GlowRings[n];
@@ -653,6 +736,8 @@ void DrawAuraGlow(const Surface &out, bool ringItself)
 				}
 				if (f <= 0.004F)
 					continue;
+				if (covered(x, y))
+					continue; // a roof, a wall or a figure stands over this floor
 				const int f8 = static_cast<int>(f * 256.0F);
 				AddLight(out, splats, x, y, (kr * f8) >> 8, (kg * f8) >> 8, (kb * f8) >> 8);
 			}
@@ -675,7 +760,7 @@ void DrawAuraGlow(const Surface &out, bool ringItself)
 					continue;
 				const size_t at = static_cast<size_t>(sy) * ArtWidth + static_cast<size_t>(dx * ArtWidth / ring.w);
 				const int a = art.alpha[at];
-				if (a == 0)
+				if (a == 0 || covered(x, y))
 					continue;
 				const uint32_t own = ring.hue == 0 ? art.rgb[at] : RingColourInHue(art.rgb[at], ring.hue);
 				const int q = a * candle256 / 256 * ring.pulse / 100; // 0..~180

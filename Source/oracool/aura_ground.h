@@ -80,6 +80,18 @@ void DrawMinionFrenzyRings(const Surface &out, Point tilePosition, Point targetB
 void BeginAuraGlowFrame();
 /** @brief The glow of every ring noted this frame, onto @p out (the world region) or the graphics card's splats. */
 void DrawAuraGlow(const Surface &out, bool ringItself = true);
+/**
+ * @brief Keeps the floor under this frame's noted rings (user, 2026-10-12: "lights under auras need to render under houses in
+ * town"). Call once the floor pass is done - the rings and the figures' shadows on it - before DrawTileContent.
+ */
+void KeepAuraGlowFloor(const Surface &out);
+/**
+ * @brief After DrawTileContent, before anything else is laid over the world: every kept pixel that changed is covered - a
+ * roof, a wall, a figure - and DrawAuraGlow lights none of them. Without a keep this frame nothing is covered.
+ */
+void NoteAuraGlowCover(const Surface &out);
+/** @brief Whether the glow is kept off @p bufferPixel (in the whole buffer's pixels) this frame. */
+DVL_API_FOR_TEST bool AuraGlowCoveredAt(Point bufferPixel);
 /** @brief Test hook: the rings noted this frame. */
 size_t AuraGlowRingCount();
 

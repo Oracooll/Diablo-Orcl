@@ -569,6 +569,10 @@ void StartSpell(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord c
 			if (const auto skill = oracool::PaladinSkillForSpell(player.queuedSpell.spellId); skill && oracool::IsCastPaladinSkill(*skill))
 				isValid = oracool::CanStartRangedPaladinSkill(player, *skill);
 		}
+		// Not on empty ground (dev note, 2026-10-13: "earthquake always happens regardless of nearby enemies"): refused here, the
+		// whole cast and its cue played before the release turned it down (oracool/rfa12_actives.h).
+		if (isValid && oracool::Rfa12CastFindsNoFoe(player, player.queuedSpell.spellId))
+			isValid = false;
 		break;
 	case SpellType::Scroll:
 		isValid = CanUseScroll(player, player.queuedSpell.spellId);

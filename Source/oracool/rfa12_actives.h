@@ -105,6 +105,14 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 /** @brief Performs a cast RfA-12 active at its cast frame. False if it had nothing to do. */
 bool CastRfa12Active(Player &player, SpellID spell, Point target);
 
+/**
+ * @brief Whether @p spell, cast by @p player now, would be refused at its cast frame for having no foe in its reach - asked by
+ * StartSpell, so such a cast never begins (dev note, 2026-10-13: "earthquake always happens regardless of nearby enemies").
+ * Earthquake only: it was refused unpaid at the release since v1.12.417, but the Barbarian's whole cast and its cue still
+ * played first, which read as the quake going off on empty ground.
+ */
+bool Rfa12CastFindsNoFoe(const Player &player, SpellID spell);
+
 /** @brief Ticks before @p spell can be cast again (Absolute Zero's 30 seconds, 2026-10-01). Zero when it is ready. */
 int Rfa12CooldownTicksLeft(const Player &player, SpellID spell);
 /** @brief How far @p spell's cooldown has run, 0 just cast to 1 ready - the skill well's band. 1 for a skill with none. */

@@ -21420,3 +21420,90 @@ TEST(OracoolFrameSmoothing, MinionPreloadNeverTakesTheLastTypeSlots)
 	leveltype = savedLevelType;
 	HeadlessMode = savedHeadless;
 }
+
+/**
+ * The aura rings' glow lights only the floor still to be seen (dev note, 2026-10-12: "lights under auras need to render under
+ * houses in town. right now they are visible when hero is hidden behind a house roof."): a ring on a plain floor, the floor
+ * kept, a "roof" laid over part of the glow, and the glow drawn - the roof's pixels are left as they were, the open floor
+ * beside it is lit, and the next frame forgets the cover.
+ */
+TEST(OracoolDev1057, AuraGlowStaysOffWhatCoversTheFloor)
+{
+	MountTestArchives(true);
+	InitPNG();
+	PreviewLoadPalette();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const bool savedGlow = *sgOptions.Oracool.auraGlow;
+	sgOptions.Oracool.auraGlow.SetValue(true);
+	oracool::AuraRingClockOverrideMs = 0;
+
+	OwnedSurface out = OwnedSurface::Rgb(400, 240);
+	constexpr uint32_t Floor = 0x30281E, Roof = 0x5A2814;
+	for (int y = 0; y < out.h(); y++)
+		for (int x = 0; x < out.w(); x++)
+			*out.at<uint32_t>(x, y) = Floor;
+	const Point centre { 200, 120 };
+	oracool::BeginAuraGlowFrame();
+	if (!oracool::DrawAuraRingPreview(out, oracool::ClassTreeSkill::Might, centre, 6)) {
+		sgOptions.Oracool.auraGlow.SetValue(savedGlow);
+		HeadlessMode = savedHeadless;
+		oracool::AuraRingClockOverrideMs = -1;
+		GTEST_SKIP() << "ui\aura_might.png is needed";
+	}
+	ASSERT_EQ(oracool::AuraGlowRingCount(), 1u);
+	oracool::KeepAuraGlowFloor(out);
+	// The roof: over the ring's left half and the floor round it.
+	const Rectangle roof { { 60, 40 }, { 140, 160 } };
+	for (int y = roof.position.y; y < roof.position.y + roof.size.height; y++)
+		for (int x = roof.position.x; x < roof.position.x + roof.size.width; x++)
+			*out.at<uint32_t>(x, y) = Roof;
+	oracool::NoteAuraGlowCover(out);
+	EXPECT_TRUE(oracool::AuraGlowCoveredAt({ 150, 120 }));
+	EXPECT_FALSE(oracool::AuraGlowCoveredAt({ 260, 120 }));
+
+	std::vector<uint32_t> before(static_cast<size_t>(out.w()) * out.h());
+	for (int y = 0; y < out.h(); y++)
+		for (int x = 0; x < out.w(); x++)
+			before[static_cast<size_t>(y) * out.w() + x] = *out.at<uint32_t>(x, y);
+	oracool::DrawAuraGlow(out);
+	int roofLit = 0, floorLit = 0;
+	for (int y = 0; y < out.h(); y++) {
+		for (int x = 0; x < out.w(); x++) {
+			if (*out.at<uint32_t>(x, y) == before[static_cast<size_t>(y) * out.w() + x])
+				continue;
+			if (roof.contains(x, y))
+				roofLit++;
+			else
+				floorLit++;
+		}
+	}
+	EXPECT_EQ(roofLit, 0) << "the glow lit the roof over the ring";
+	EXPECT_GT(floorLit, 500) << "the open floor beside the roof is lit";
+
+	oracool::BeginAuraGlowFrame();
+	EXPECT_FALSE(oracool::AuraGlowCoveredAt({ 150, 120 })) << "a frame's cover is that frame's";
+
+	oracool::AuraRingClockOverrideMs = -1;
+	sgOptions.Oracool.auraGlow.SetValue(savedGlow);
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * Earthquake on empty ground never begins (dev note, 2026-10-13: "earthquake always happens regardless of nearby enemies"):
+ * StartSpell asks Rfa12CastFindsNoFoe, so the cast and its cue are not played for a quake the release would refuse.
+ */
+TEST(OracoolDev1057, EarthquakeWithNoFoeInReachIsNotStarted)
+{
+	const dungeon_type savedType = leveltype;
+	const size_t savedCount = ActiveMonsterCount;
+	leveltype = DTYPE_CATHEDRAL;
+	ActiveMonsterCount = 0;
+	devilution::Player &player = FreshHero(HeroClass::Barbarian);
+	player.position.tile = { 40, 40 };
+	EXPECT_TRUE(oracool::Rfa12CastFindsNoFoe(player, SpellID::Earthquake));
+	EXPECT_FALSE(oracool::Rfa12CastFindsNoFoe(player, SpellID::WarCry)) << "a cry rings out on empty ground (2026-09-29)";
+	EXPECT_FALSE(oracool::Rfa12CastFindsNoFoe(player, SpellID::Firebolt));
+	leveltype = savedType;
+	ActiveMonsterCount = savedCount;
+}
