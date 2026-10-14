@@ -207,7 +207,8 @@ int LesserUniqueCountForLevel()
 	// generated - dropping a random pack into Lachdanan's tomb would be vandalism, not variety.
 	// A rift is the one set level that is GENERATED, and it asks for champions and a boss (PlaceRiftMonsters) -
 	// which this refused, so none ever came (audit, 2026-09-27).
-	if (currlevel == 0 || (setlevel && !InRift()))
+	// ... and so are the Orcl Act's woods and caves (oracool/woods.h, 2026-10-14).
+	if (currlevel == 0 || (setlevel && !InRift() && !IsOrclActLevel(setlvlnum)))
 		return 0;
 	// Oracool: user call after playing it (2026-08-15) - "one pack per level is not ok. increase
 	// packs 2-3 per normal. 3-4 nightmare. 4-5 hell. 5-6 torment."

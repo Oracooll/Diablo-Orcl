@@ -20775,6 +20775,22 @@ TEST(OracoolAudit, WoodsRosterHasFourKindsOnEveryRung)
 			EXPECT_GE(scatter, 4) << "rung " << rung << ": the woods' roster";
 			EXPECT_EQ(ActiveMonsterCount, savedActive + MAX_PLRS) << "the golem holding cells the summons need";
 		}
+		// The last floor (D10): a boss always, and a kind among its roster that a champion is made of, on every rung.
+		setlvlnum = SL_LAST_WOODS;
+		currlevel = static_cast<uint8_t>(setlvlnum);
+		EXPECT_EQ(oracool::BossCountForLevel(), 1) << "the woods' last floor guards a boss";
+		for (int rung = 1; rung <= oracool::RungsPerDifficulty; rung++) {
+			oracool::SetWoodsRungForTest(3, rung);
+			ActiveMonsterCount = savedActive;
+			ResetLevelMonsterTypesForTest();
+			GetLevelMTypes();
+			bool champion = false;
+			for (size_t i = 0; i < LevelMonsterTypeCount && !champion; i++)
+				champion = oracool::IsChampionKind(LevelMonsterTypes[i].type);
+			EXPECT_TRUE(champion) << "rung " << rung << ": no champion kind for the boss to wear";
+		}
+		oracool::SetWoodsRungForTest(3, 0);
+		setlvlnum = SL_ORCL_WOODS_2;
 		ResetLevelMonsterTypesForTest();
 		ActiveMonsterCount = savedActive;
 		HeadlessMode = savedHeadless;

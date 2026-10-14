@@ -109,8 +109,11 @@ int BossCountForLevel()
 	// dropping a boss into Lachdanan's tomb is vandalism rather than variety.
 	// A rift is the one set level that is GENERATED, and it asks for champions and a boss (PlaceRiftMonsters) -
 	// which this refused, so none ever came (audit, 2026-09-27).
-	if (currlevel == 0 || (setlevel && !InRift()))
+	// The Orcl Act's floors are generated too (oracool/woods.h, 2026-10-14); the woods' last floor always has its boss (D10).
+	if (currlevel == 0 || (setlevel && !InRift() && !IsOrclActLevel(setlvlnum)))
 		return 0;
+	if (setlevel && setlvlnum == SL_LAST_WOODS)
+		return 1;
 
 	const int alvl = CurrentAreaLevel();
 	if (alvl >= BossGuaranteedAreaLevel)

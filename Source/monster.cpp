@@ -905,6 +905,9 @@ void PlaceWoodsMonsters()
 		}
 	}
 	// The woods a little sparser than a dungeon floor, they are open; their caves as a dungeon floor.
+	// Champions and the Dread boss first, as a floor places them, for the scatter's cap to count them (InitMonsters).
+	PlaceLesserUniques();
+	PlaceEndgameBoss();
 	int numplacemonsters = na / (IsWoodsCaveLevel(setlvlnum) ? 30 : 36) * *sgOptions.Oracool.monsterDensityPercent / 100;
 	const size_t scatterCap = MaxEnemyMonsters - 10;
 	if (ActiveMonsterCount >= scatterCap)
@@ -4310,10 +4313,23 @@ void GetLevelMTypes()
 			if (oracool::WoodsAcceptsMonster(MonstersData[i]))
 				typelist[nt++] = static_cast<_monster_id>(i);
 		}
-		constexpr int WoodsRosterSize = 4;
 		// Twice a floor's budget: the Caves' and Hell's big sprites let only two or three kinds into 4000 on rungs 9-13
 		// (OracoolAudit.WoodsRosterHasFourKindsOnEveryRung); the figure is 1996's memory, not a limit of today's.
 		constexpr int WoodsImageBudget = 8000;
+		// The woods' last floor guards its boss (D10): its roster leads with a kind some champion is made of, so the Dread boss
+		// has a body to wear (PlaceEndgameBoss takes its row from the loaded kinds).
+		if (setlvlnum == SL_LAST_WOODS) {
+			const int start = nt > 0 ? GenerateRnd(nt) : 0;
+			for (int k = 0; k < nt; k++) {
+				const int i = (start + k) % nt; // from a random place in the list: not always the same kind on a rung
+				if (!oracool::IsChampionKind(typelist[i]) || MonstersData[typelist[i]].image > WoodsImageBudget - monstimgtot)
+					continue;
+				AddMonsterType(typelist[i], PLACE_SCATTER);
+				typelist[i] = typelist[--nt];
+				break;
+			}
+		}
+		constexpr int WoodsRosterSize = 4;
 		int picked = 0;
 		while (nt > 0 && picked < WoodsRosterSize && LevelMonsterTypeCount < MaxLvlMTypes && monstimgtot < WoodsImageBudget) {
 			for (int i = 0; i < nt;) {

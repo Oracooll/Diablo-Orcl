@@ -104,6 +104,9 @@ int WoodsBandFloor();
 /** @brief A monster type the current woods floor may draw: of its rung, never a boss or a summon. */
 bool WoodsAcceptsMonster(const MonsterData &data);
 
+/** @brief Some champion (a non-speaking unique row) is made of monster kind @p type: a Dread boss can wear it. */
+bool IsChampionKind(int type);
+
 /** @brief The seed of the floor's monster roster: the same on every build, so a revisit's saved monsters keep their types. */
 uint32_t WoodsRosterSeed();
 

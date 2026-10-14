@@ -1681,6 +1681,16 @@ bool WoodsAcceptsMonster(const MonsterData &data)
 	return floor > 2 * FloorsPerArea && twin >= data.minDunLvl && twin <= data.maxDunLvl;
 }
 
+bool IsChampionKind(int type)
+{
+	for (size_t u = 0; UniqueMonstersData[u].mtype != -1; u++) {
+		const UniqueMonsterData &row = UniqueMonstersData[u];
+		if (row.mtype == type && row.mtalkmsg == TEXT_NONE)
+			return true;
+	}
+	return false;
+}
+
 uint32_t WoodsRosterSeed()
 {
 	if (setlevel && IsWoodsCaveLevel(setlvlnum))
