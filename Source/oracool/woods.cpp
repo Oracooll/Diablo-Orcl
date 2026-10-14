@@ -42,6 +42,7 @@
 #include "oracool/splats.h"       // the wisps' glow handed to the graphics card with the other lights
 #include "objects.h"              // the vanilla objects along the roads
 #include "engine/backbuffer_state.hpp" // RedrawComponent - the fairy ring's mana
+#include "oracool/rage.h"                // UsesRage - the Barbarian has no mana for the ring to speed
 #include "player.h"
 #include "plrmsg.h"
 #include "quests.h"
@@ -1540,7 +1541,6 @@ void PlanWoodsWorld(uint32_t seed, int floor)
 	});
 	const auto along = [&](int percent) { return road[std::min(road.size() - 1, road.size() * static_cast<size_t>(percent) / 100)]; };
 	const auto open = [](Point p) { return WorldOpen(p); };
-	const auto loose = [](Point p) { return WorldLoose(p); };
 	// The fairy ring in the glade's middle, where nothing else stands.
 	HasFairyRing = WorldLoose(GladeCentre) && !TileHasAny(dPiece[GladeCentre.x][GladeCentre.y], TileProperties::Solid);
 	if (HasFairyRing)
@@ -1578,10 +1578,9 @@ void PlanWoodsWorld(uint32_t seed, int floor)
 	for (int i = 1; i < PenCount; i++) {
 		const Point c = Pens[i].centre;
 		if (i == 1 && floor >= 1) {
-			Put(OBJ_SARC, WorldLoose(c) ? std::optional<Point>(c) : std::nullopt, 0);
-			const Point second = c + Displacement { 1, 0 };
-			if (WorldLoose(second) && !TileHasAny(dPiece[second.x + 1][second.y], TileProperties::Solid))
-				Put(OBJ_SARC, second, 0);
+			// One, in the middle: a second one east of it stood in the fence's column, and in its gate on an east-gated pen
+			// (audit, 2026-10-14). It is two tiles tall, so its tile and the one north of it are taken.
+			Put(OBJ_SARC, WorldLoose(c) ? std::optional<Point>(c) : std::nullopt, 1);
 		} else if (WorldLoose(c)) {
 			Put(chest, c);
 		}
@@ -1611,8 +1610,12 @@ void PlanWoodsWorld(uint32_t seed, int floor)
 		Put(tortured[Hash(seed, 10, k) % 4], NearOff(WayOn + Displacement { 5, 0 }, 2, 5, Hash(seed, 11, k), open));
 	Put(OBJ_SKPILE, NearOff(Arrival + Displacement { -5, 0 }, 2, 5, Hash(seed, 12, 0), open));
 	// And on the last floor, at the end of the path, the burning cross.
+	// Its burning tile (the one north of it, UpdateBurningCrossDamage) off the road, where the hero walks.
 	if (floor == WoodsFloors - 1)
-		Put(OBJ_BCROSS, NearOff(WayOn + Displacement { 3, 0 }, 1, 4, Hash(seed, 13, 0), open), 2);
+		Put(OBJ_BCROSS, NearOff(WayOn + Displacement { 3, 0 }, 2, 6, Hash(seed, 13, 0), [](Point p) {
+			const Point burn = p + Displacement { 0, -1 };
+			return WorldOpen(p) && InDungeonBounds(burn) && Ground[burn.x][burn.y] != Path;
+		}), 2);
 	// Two will-o'-wisps, each over a chest in a pocket of the forest six to ten tiles off the road.
 	for (const int percent : { 30, 70 }) {
 		if (WispCount >= static_cast<int>(Wisps.size()))
@@ -1627,7 +1630,6 @@ void PlanWoodsWorld(uint32_t seed, int floor)
 		Put(OBJ_CHEST2, pocket, 2);
 		Wisps[WispCount++] = { from, *pocket, static_cast<float>(h % 1000) / 1000.0F };
 	}
-	(void)loose;
 }
 
 void EnsureWoodsWorldGraphics()
@@ -1666,7 +1668,7 @@ bool WispLives(const Wisp &wisp)
 	if (id == 0)
 		return false;
 	const Object &object = Objects[std::abs(id) - 1];
-	return object._oSelFlag != 0;
+	return object._otype == OBJ_CHEST2 && object._oSelFlag != 0;
 }
 
 } // namespace
@@ -1682,8 +1684,12 @@ const std::vector<WoodsLamp> &WoodsNightLamps()
 		const House &house = Houses[i];
 		lamps.push_back({ static_cast<float>(Lo + 2 * house.x1 - 1), static_cast<float>(Lo + 2 * house.doorY + 1), 5.0F, 0.9F, 0xFFB464U });
 	}
-	for (const Point candle : CandleStands)
+	for (const Point candle : CandleStands) {
+		const int id = dObject[candle.x][candle.y];
+		if (id == 0 || Objects[std::abs(id) - 1]._otype != OBJ_CANDLE2)
+			continue; // the plan and the saved floor apart (the woods' look changed between visits)
 		lamps.push_back({ static_cast<float>(candle.x), static_cast<float>(candle.y), 3.5F, 0.8F, 0xFFC878U });
+	}
 	for (int i = 0; i < WispCount; i++) {
 		if (!WispLives(Wisps[i]))
 			continue;
@@ -1770,8 +1776,10 @@ void TickWoods()
 	if (leveltype != DTYPE_WOODS || !setlevel || !IsWoodsLevel(setlvlnum) || MyPlayer == nullptr || !HasFairyRing)
 		return;
 	Player &player = *MyPlayer;
-	const bool in = player._pHitPoints > 0 && player.position.tile.WalkingDistance(GladeCentre) <= 2;
-	if (in && !InFairyRingBefore)
+	// In at two tiles, out past three: along its edge the message came at every step (audit, 2026-10-14).
+	const int distance = player.position.tile.WalkingDistance(GladeCentre);
+	const bool in = player._pHitPoints > 0 && (distance <= 2 || (InFairyRingBefore && distance <= 3));
+	if (in && !InFairyRingBefore && player._pMaxMana > 0 && !UsesRage(player))
 		EventPlrMsg("The fairy ring hums. Your mana flows faster here.", UiFlags::ColorWhite);
 	InFairyRingBefore = in;
 	if (!in || ++FairyRingTicks % 20 != 0)

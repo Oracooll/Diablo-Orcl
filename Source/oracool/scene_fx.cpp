@@ -1224,6 +1224,7 @@ void ApplyGroundFog(const Surface &out, Point firstTile, Point firstTileBuffer)
 	const float t = Now();
 	const int w = out.w();
 	const int h = out.h();
+	const float strength = FogStrength();
 	// The mist lies on the floor, drifting slowly; it shows by the light that is there (dLight: 0 bright .. 15 dark), so it
 	// never glows in the dark. Worked on an 8 px grid, blended between.
 	constexpr int Cell = 8;
@@ -1256,7 +1257,7 @@ void ApplyGroundFog(const Surface &out, Point firstTile, Point firstTileBuffer)
 			if (d <= 0)
 				continue;
 			d = d > 1.0F ? 1.0F : d;
-			d = d * d * (3.0F - 2.0F * d) * 0.30F * FogStrength();
+			d = d * d * (3.0F - 2.0F * d) * 0.30F * strength;
 			const float lit = 1.0F - static_cast<float>(light) / static_cast<float>(LightsMax);
 			d *= lit * lit;
 			const int value = static_cast<int>(d * 256.0F);

@@ -1895,7 +1895,12 @@ void UpdateFlameTrap(Object &trap)
 
 void UpdateBurningCrossDamage(Object &cross)
 {
-	int damage[6] = { 6, 8, 10, 12, 10, 12 };
+	const int damageByType[6] = { 6, 8, 10, 12, 10, 12 };
+	// The Orcl Act's woods are past the six dungeon types (audit, 2026-10-14: the cross at the woods' end read damage[6] every
+	// tick): Hell's figure there.
+	int damage = damageByType[std::clamp(static_cast<int>(leveltype) - 1, 0, 5)];
+	if (leveltype == DTYPE_WOODS)
+		damage = damageByType[3];
 
 	Player &myPlayer = *MyPlayer;
 
@@ -1905,12 +1910,12 @@ void UpdateBurningCrossDamage(Object &cross)
 	int8_t fireResist = myPlayer._pFireResist;
 	// Negative fire resistance burns hotter (D2 rules, 2026-09-13).
 	if (fireResist != 0)
-		damage[leveltype - 1] -= fireResist * damage[leveltype - 1] / 100;
+		damage -= fireResist * damage / 100;
 
 	if (myPlayer.position.tile != cross.position + Displacement { 0, -1 })
 		return;
 
-	ApplyPlrDamage(DamageType::Fire, myPlayer, 0, 0, damage[leveltype - 1]);
+	ApplyPlrDamage(DamageType::Fire, myPlayer, 0, 0, damage);
 	if (myPlayer._pHitPoints >> 6 > 0) {
 		myPlayer.Say(HeroSpeech::Argh);
 	}
