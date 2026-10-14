@@ -901,12 +901,14 @@ void PlaceWoodsBoss()
 	const size_t typeIndex = GetMonsterTypeIndex(kind);
 	if (typeIndex == LevelMonsterTypeCount)
 		return;
-	const Point spot = oracool::WoodsBossSpot();
-	if (dMonster[spot.x][spot.y] != 0 || IsTileSolid(spot))
+	const std::optional<Point> spot = oracool::WoodsBossSpot();
+	if (!spot) {
+		LogError("The woods boss found no open tile by the way on: the floor has no boss");
 		return;
+	}
 	Monster &monster = Monsters[ActiveMonsters[ActiveMonsterCount++]];
-	dMonster[spot.x][spot.y] = monster.getId() + 1;
-	InitMonster(monster, Direction::South, typeIndex, spot, /*ordinary=*/false);
+	dMonster[spot->x][spot->y] = monster.getId() + 1;
+	InitMonster(monster, Direction::South, typeIndex, *spot, /*ordinary=*/false);
 	std::optional<UniqueMonsterType> unique;
 	if (kind == MT_SKING)
 		unique = UniqueMonsterType::SkeletonKing;
@@ -1550,6 +1552,11 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		// random items, not the uniques they drop when killed in quest"). SpawnItem skips his special treasure.
 		if (oracool::IsRiftGuardian(monster)) {
 			for (int i = 1; i < oracool::RiftGuardianItemCount(); i++)
+				SpawnItem(monster, monster.position.tile, sendmsg);
+		}
+		// And the woods boss, as a rift's: a pile of four (oracool/woods.h).
+		if (oracool::IsWoodsBoss(monster)) {
+			for (int i = 1; i < 4; i++)
 				SpawnItem(monster, monster.position.tile, sendmsg);
 		}
 		// Oracool: a champion is the reason to fight it, which is what D2 and D3 both understood.
@@ -2232,7 +2239,8 @@ bool MonsterRangedSpecialAttack(Monster &monster)
 {
 	// The stored base (Diablo's 40) with the damage percent, in an int at the release (round 123 audit: scaled into the int8 var3
 	// it wrapped). 0 stays 0 - the others' missiles roll their own.
-	const int specialDamage = static_cast<int>(static_cast<int64_t>(monster.var3) * oracool::RiftBossDamagePercent(monster) / 100);
+	const int specialDamage = static_cast<int>(static_cast<int64_t>(monster.var3) * oracool::RiftBossDamagePercent(monster) / 100
+	    * oracool::WoodsBossDamagePercent(monster) / 100); // the woods boss's Diablo at the floor's rung (audit round 1)
 	if (monster.animInfo.currentFrame == monster.data().animFrameNumSpecial - 1 && monster.animInfo.tickCounterOfCurrentFrame == 0 && (monster.ai != MonsterAIID::Mega || monster.var2 == 0)) {
 		if (AddMissile(
 		        monster.position.tile,
@@ -2444,6 +2452,8 @@ void MonsterDeath(Monster &monster)
 			corpse.laid = true;
 			AddCorpse(monster.position.tile, monster.corpseId, monster.direction);
 			oracool::RecordCorpse(monster); // what it was, for the Necromancer (oracool/corpses.h)
+		} else if (!monster.isUnique() && oracool::WoodsBossSizePercent(monster) > 100) {
+			// The woods' Reaper, drawn at 176%: his type's body is the 100% one, and it lay shrunk where he fell (audit round 1).
 		} else if (monster.type().corpseId != 0) {
 			// A type loaded mid-floor (a raised skeleton, a mage) has no body sheet: id 0 with the direction bits wrote a
 			// non-zero tile the draw read as Corpses[-1] (round 14 audit, v1.12.239).

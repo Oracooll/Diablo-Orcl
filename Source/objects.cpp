@@ -3289,8 +3289,8 @@ void OperateShrineSecluded(const Player &player)
 	if (&player != MyPlayer)
 		return;
 
-	for (int x = 0; x < DMAXX; x++)
-		for (int y = 0; y < DMAXY; y++)
+	for (int x = 0; x < PlayAreaCells(); x++)
+		for (int y = 0; y < PlayAreaCells(); y++)
 			UpdateAutomapExplorer({ x, y }, MAP_EXP_SHRINE);
 
 	InitDiabloMsg(EMSG_SHRINE_SECLUDED);

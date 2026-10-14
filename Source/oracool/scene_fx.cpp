@@ -40,6 +40,7 @@
 #include "oracool/post_fx.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/rift.h"
+#include "oracool/woods.h" // IsWoodsBoss - he dissolves as a rift guardian does
 #include "oracool/rift_bosses.h"
 #include "oracool/scene_feel.h"
 #include "oracool/scene_glow.h"
@@ -1148,7 +1149,7 @@ void DrawMonsterStatus(const Surface &out, const Monster &monster, Point spriteB
 
 bool DissolvesOnDeath(const Monster &monster)
 {
-	return *sgOptions.Oracool.dissolveEffects && (IsRiftGuardian(monster) || IsFallenRiftGuardian(monster));
+	return *sgOptions.Oracool.dissolveEffects && (IsRiftGuardian(monster) || IsFallenRiftGuardian(monster) || IsWoodsBoss(monster));
 }
 
 // ==== World passes ======================================================================================================

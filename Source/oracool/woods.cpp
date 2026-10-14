@@ -1348,7 +1348,9 @@ void CreateWoods(uint32_t seed, lvl_entry /*entry*/)
 	}
 	for (int y = 0; y < MAXDUNY; y++) {
 		for (int x = 0; x < MAXDUNX; x++) {
-			if (Tree[x][y] != NoTree)
+			// Outside the box too, a tree or none: the road ends' clearings reach the map's edge since the 100 x 100 floors, and
+			// the hero walked out past the way's strip there (audit round 1).
+			if (Tree[x][y] != NoTree || !Inside({ x, y }))
 				dPiece[x][y] = SolidPiece;
 		}
 	}
@@ -1687,13 +1689,27 @@ bool WoodsKindAvailable(const MonsterData &data)
 	return !(gbIsSpawn && data.availability == MonsterAvailability::Retail);
 }
 
+/**
+ * @brief A kind's own floors on the ladder (1-16): the Hive's and the Crypt's eight below their number (LadderFloorOf), as their
+ * monsters stand in a rift; Diablo's row says 26 to keep him out of the rosters, and his floor is 16 (audit round 1: the boss
+ * scaled from 26 was a flat quarter on most rungs, and the Satyr Lord - 21-22 - came only on rung 16).
+ */
+int LadderMin(const MonsterData &data)
+{
+	return &data == &MonstersData[MT_DIABLO] ? 16 : LadderFloorOf(data.minDunLvl);
+}
+int LadderMax(const MonsterData &data)
+{
+	return &data == &MonstersData[MT_DIABLO] ? 16 : LadderFloorOf(data.maxDunLvl);
+}
+
 /** @brief How many floors @p data's own band stands from @p floor: 0 inside it. */
 int BandGap(const MonsterData &data, int floor)
 {
-	if (floor < data.minDunLvl)
-		return data.minDunLvl - floor;
-	if (floor > data.maxDunLvl)
-		return floor - data.maxDunLvl;
+	if (floor < LadderMin(data))
+		return LadderMin(data) - floor;
+	if (floor > LadderMax(data))
+		return floor - LadderMax(data);
 	return 0;
 }
 
@@ -1732,8 +1748,16 @@ int WoodsBossKind()
 	const uint32_t seed = Game.seed[WoodsFloors - 1];
 	if (seed == 0)
 		return -1;
-	// The seed's high bits: its low ones also build the floor, and a pick tied to them would tie the boss to the map.
-	return WoodsBosses[(seed >> 20) % std::size(WoodsBosses)].kind;
+	// The seed's high bits: its low ones also build the floor, and a pick tied to them would tie the boss to the map. Only the
+	// kinds this game has the sprites of (the shareware has no Reaper and no Diablo): the next one on where the pick is not.
+	const size_t first = (seed >> 20) % std::size(WoodsBosses);
+	for (size_t k = 0; k < std::size(WoodsBosses); k++) {
+		const WoodsBossRow &row = WoodsBosses[(first + k) % std::size(WoodsBosses)];
+		const MonsterData &data = MonstersData[row.kind];
+		if (!(gbIsSpawn && data.availability == MonsterAvailability::Retail))
+			return row.kind;
+	}
+	return -1;
 }
 
 bool IsWoodsBoss(const Monster &monster)
@@ -1754,23 +1778,39 @@ unsigned WoodsBossSizePercent(const Monster &monster)
 	return 0;
 }
 
-Point WoodsBossSpot()
+std::optional<Point> WoodsBossSpot()
 {
-	// Six steps in from the way on and further, the nearest open tile inside the fence: he guards the way out of the woods.
-	for (int radius = 6; radius <= 40; radius++) {
+	// The open tile nearest six steps in from the way on: inside the fence ring (its cells' tiles and the box's edge outside it
+	// are off - audit round 1: the scan began at the map's edge, west of the fence), off the river, the cave mouth and the
+	// houses. He guards the way out of the woods.
+	const int fenceIn = Lo + 2 * (RingLo + 1);    // the first tile inside the ring
+	const int fenceOut = Lo + 2 * RingHi - 1;     // the last
+	const Point aim = WayOn + Displacement { 6, 0 };
+	for (int radius = 0; radius <= 40; radius++) {
 		for (int dx = -radius; dx <= radius; dx++) {
 			for (int dy = -radius; dy <= radius; dy++) {
 				if (std::max(std::abs(dx), std::abs(dy)) != radius)
 					continue;
-				const Point p = WayOn + Displacement { dx, dy };
-				if (!InDungeonBounds(p) || !Inside(p) || IsTileSolid(p) || dMonster[p.x][p.y] != 0 || dPlayer[p.x][p.y] != 0
-				    || dObject[p.x][p.y] != 0 || InRiver(p) || InMouth(p))
+				const Point p = aim + Displacement { dx, dy };
+				if (p.x < fenceIn || p.y < fenceIn || p.x > fenceOut || p.y > fenceOut || IsTileSolid(p) || dMonster[p.x][p.y] != 0
+				    || dPlayer[p.x][p.y] != 0 || dObject[p.x][p.y] != 0 || InRiver(p) || InMouth(p))
 					continue;
-				return p;
+				bool inHouse = false;
+				for (int i = 0; i < HouseCount && !inHouse; i++)
+					inHouse = InsideHouse(Houses[i], p) || WoodsShellAt(p) != 0;
+				if (!inHouse)
+					return p;
 			}
 		}
 	}
-	return WayOn;
+	return std::nullopt;
+}
+
+int WoodsBossDamagePercent(const Monster &monster)
+{
+	if (!IsWoodsBoss(monster))
+		return 100;
+	return std::max(25, FloorStepPercent(WoodsBandFloor() - LadderMax(monster.data()))) * 5 / 4;
 }
 
 void ScaleWoodsMonster(Monster &monster)
@@ -1786,12 +1826,12 @@ void ScaleWoodsMonster(Monster &monster)
 	if (boss) {
 		// Set to the rung from his own floors, down as well as up (Diablo is a floor-16 monster, the Butcher a floor-one), not
 		// below a quarter; then a boss's share on top.
-		const int gap = floor - data.maxDunLvl;
+		const int gap = floor - LadderMax(data);
 		pct = std::max(25, FloorStepPercent(gap));
 		lifePct = pct * 3;
 		damagePct = pct * 5 / 4;
 	} else {
-		const int gap = floor - data.maxDunLvl;
+		const int gap = floor - LadderMax(data);
 		if (gap <= 0)
 			return;
 		pct = FloorStepPercent(gap);
@@ -1844,12 +1884,15 @@ bool WoodsArtActive(const Surface &out)
 	return leveltype == DTYPE_WOODS && !BuiltVanilla && ArtLoaded && !out.isIndexed();
 }
 
-void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light, bool fullBright)
+namespace {
+
+/** @brief DrawWoodsGroundTile's body: the materials of @p tile and its neighbours, the texture pinned where @p world lies. */
+void DrawGroundAt(const Surface &out, Point tile, Point world, Point target, int light, bool fullBright)
 {
 	const int brightness = (fullBright && light < LightsMax) || light < 0 ? 256 : BrightnessFor(light);
 	// The tile's diamond: 31 rows ending on the tile's bottom line, as dun_render draws a floor's two triangles.
-	const int originX = (tile.x - tile.y) * 32; // where the tile lies in the world, in pixels
-	const int originY = (tile.x + tile.y) * 16;
+	const int originX = (world.x - world.y) * 32; // where the tile lies in the world, in pixels
+	const int originY = (world.x + world.y) * 16;
 	const int centreX = target.x + 32;
 	const int centreY = target.y - 15;
 	for (int k = 0; k < 31; k++) {
@@ -1880,6 +1923,13 @@ void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light
 			row[x] = brightness >= 256 ? (c & 0xFFFFFF) | 0x010101 : Shade(c, brightness);
 		}
 	}
+}
+
+} // namespace
+
+void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light, bool fullBright)
+{
+	DrawGroundAt(out, tile, tile, target, light, fullBright);
 }
 
 namespace {
@@ -2208,15 +2258,23 @@ bool DrawWoodsBeyondMapFloor(const Surface &out, Point tile, Point target, bool 
 	const Point m = WoodsMirrorBeyondMap(tile);
 	const int light = ExplorationMemoryLight(m, dLight[m.x][m.y]);
 	if (WoodsArtActive(out) && !WoodsTileUsesCels(m)) {
-		DrawWoodsGroundTile(out, m, target, light, fullBright);
+		DrawGroundAt(out, m, tile, target, light, fullBright); // the texture pinned to where the tile is, not its mirror
 		return true;
 	}
 	return DrawWoodsMixedFloorCached(out, m, target, light, fullBright);
 }
 
+bool WoodsBeyondMapUsesCels(const Surface &out)
+{
+	return leveltype == DTYPE_WOODS && !WoodsArtActive(out) && !(BuiltMixed && !out.isIndexed());
+}
+
 void DrawWoodsBeyondMapTree(const Surface &out, Point tile, Point target)
 {
-	if (leveltype != DTYPE_WOODS || InDungeonBounds(tile))
+	// The painted trees only where the look draws them (the Painted Art, or the Mixed look's trees over Tristram's cels) and
+	// on a true-colour surface: DrawPicture writes 32-bit pixels (audit round 1). The pure Tristram look draws the mirror's
+	// own cels instead (WoodsBeyondMapUsesCels).
+	if (leveltype != DTYPE_WOODS || InDungeonBounds(tile) || out.isIndexed() || !(WoodsArtActive(out) || BuiltMixed))
 		return;
 	const Point m = WoodsMirrorBeyondMap(tile);
 	DrawingBeyondMap = true;
@@ -2349,13 +2407,14 @@ uint8_t WoodsAutomapCell(Point cell)
 
 Point WoodsMirrorBeyondMap(Point tile)
 {
-	// Into the forest band between the map's edge and the box (tiles 0..Lo-1, and Hi+1..MAXDUNX-1), reflected at the edge and
-	// repeated, so the trees run on past the map instead of the void.
+	// Into the forest band between the map's edge and the box (tiles 0..Lo-1, and the last Lo), shifted by whole bands - Lo is
+	// six, a multiple of both TreeHidden lattices (2 x 2 and 3 x 3), so the hidden and drawn trees keep their rhythm and no
+	// tile repeats its neighbour (a reflection twinned the edge row, audit round 1).
 	const auto fold = [](int v, int size) {
 		if (v < 0)
-			return (-1 - v) % Lo;
+			return ((v % Lo) + Lo) % Lo;
 		if (v >= size)
-			return size - 1 - (v - size) % Lo;
+			return size - Lo + (v - size) % Lo;
 		return v;
 	};
 	return { fold(tile.x, MAXDUNX), fold(tile.y, MAXDUNY) };

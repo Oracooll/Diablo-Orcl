@@ -596,8 +596,8 @@ std::string DebugCmdLighting(const string_view parameter)
 
 std::string DebugCmdMapReveal(const string_view parameter)
 {
-	for (int x = 0; x < DMAXX; x++)
-		for (int y = 0; y < DMAXY; y++)
+	for (int x = 0; x < PlayAreaCells(); x++)
+		for (int y = 0; y < PlayAreaCells(); y++)
 			UpdateAutomapExplorer({ x, y }, MAP_EXP_SHRINE);
 
 	return "The way is made clear when viewed from above";
@@ -605,8 +605,8 @@ std::string DebugCmdMapReveal(const string_view parameter)
 
 std::string DebugCmdMapHide(const string_view parameter)
 {
-	for (int x = 0; x < DMAXX; x++)
-		for (int y = 0; y < DMAXY; y++)
+	for (int x = 0; x < PlayAreaCells(); x++)
+		for (int y = 0; y < PlayAreaCells(); y++)
 			AutomapView[x][y] = MAP_EXP_NONE;
 
 	return "The way is made unclear when viewed from below";

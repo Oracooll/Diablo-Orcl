@@ -32,6 +32,19 @@ int DifficultyBlock(_difficulty difficulty)
 /** @brief The Hive's first floor - where the dungeon stops descending and steps sideways instead. */
 constexpr int FirstSideStepFloor = 17;
 
+
+/** @brief The area names, in floor order. */
+const char *const AreaNames[AreaCount] = {
+	N_("Cathedral"),
+	N_("Catacombs"),
+	N_("Caves"),
+	N_("Hell"),
+	N_("Nest"),
+	N_("Crypt"),
+};
+
+} // namespace
+
 /**
  * @brief Where @p floor sits on the LADDER, which is no longer always where it sits in the dungeon.
  *
@@ -47,18 +60,6 @@ int LadderFloorOf(int floor)
 {
 	return floor >= FirstSideStepFloor ? floor - 2 * FloorsPerArea : floor;
 }
-
-/** @brief The area names, in floor order. */
-const char *const AreaNames[AreaCount] = {
-	N_("Cathedral"),
-	N_("Catacombs"),
-	N_("Caves"),
-	N_("Hell"),
-	N_("Nest"),
-	N_("Crypt"),
-};
-
-} // namespace
 
 int AreaLevel(int floor, _difficulty difficulty)
 {

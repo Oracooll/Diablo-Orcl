@@ -20611,8 +20611,8 @@ TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
 		CreateDungeon(seed, ENTRY_SETLVL);
 		const Point entrance = oracool::StampWoodsCaveMouthForTest();
 		bool river = false;
-		for (int y = 16; y < 96 && !river; y++)
-			for (int x = 16; x < 96 && !river; x++)
+		for (int y = 6; y < 106 && !river; y++)
+			for (int x = 6; x < 106 && !river; x++)
 				river = oracool::WoodsRiverAtForTest({ x, y });
 		floorsWithRiver += river ? 1 : 0;
 		ASSERT_NE(entrance, Point(0, 0)) << "seed " << seed << ": no mouth";
@@ -20635,8 +20635,8 @@ TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
 		EXPECT_TRUE(walked(entrance)) << "seed " << seed << ": the cave mouth cannot be walked to from the arrival";
 		// The fence ring (2026-10-14) is crossed by both roads through their gates, out to the edges that change the floor.
 		const Point wayOn = oracool::WoodsWayOn();
-		EXPECT_TRUE(walked({ 94, arrival.y })) << "seed " << seed << ": the road back is fenced off";
-		EXPECT_TRUE(walked({ 17, wayOn.y })) << "seed " << seed << ": the way on is fenced off";
+		EXPECT_TRUE(walked({ 104, arrival.y })) << "seed " << seed << ": the road back is fenced off";
+		EXPECT_TRUE(walked({ 7, wayOn.y })) << "seed " << seed << ": the way on is fenced off";
 		int fenced = 0;
 		for (int y = 0; y < MAXDUNY; y++)
 			for (int x = 0; x < MAXDUNX; x++)
@@ -21496,7 +21496,7 @@ TEST(OracoolPreview, DISABLED_WoodsFrameBenchmark)
 		identity[i] = static_cast<uint8_t>(i);
 	using Clock = std::chrono::steady_clock;
 	const auto ms = [](Clock::duration d) { return std::chrono::duration<double, std::milli>(d).count(); };
-	for (const auto &[label, centre] : { std::pair<const char *, Point> { "arrival", oracool::WoodsArrival() + Displacement { -6, 0 } }, { "edge", Point { 90, 90 } } }) {
+	for (const auto &[label, centre] : { std::pair<const char *, Point> { "arrival", oracool::WoodsArrival() + Displacement { -6, 0 } }, { "edge", Point { 100, 100 } } }) {
 		OwnedSurface view = OwnedSurface::Rgb(1920, 1080);
 		const Surface out = view;
 		const auto screenOf = [&](Point tile) {

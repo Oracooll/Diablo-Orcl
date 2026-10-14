@@ -41,6 +41,7 @@
 #include "oracool/hidden_classes.h"
 #include "oracool/necro_items.h"
 #include "oracool/rift.h" // IsRiftGuardian - a rift guardian drops random items, not his quest unique
+#include "oracool/woods.h" // IsWoodsBoss - and so does the woods' boss
 #include "oracool/item_tiers.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/sprite_mix.h"
@@ -6131,7 +6132,7 @@ int ItemLevelOfMonster(const Monster &monster)
 	// A rift guardian pays as a unique: Diablo, who has no unique row, paid an ordinary monster's level (round 11 audit).
 	// A champion carries a uniqueType too (PrepareUniqueMonst), so it is asked for first: every champion paid +3, and
 	// the health bar showed it (round 23 audit, v1.12.248). A Dread boss is a unique's +3.
-	if (oracool::IsEndgameBoss(monster) || oracool::IsRiftGuardian(monster))
+	if (oracool::IsEndgameBoss(monster) || oracool::IsRiftGuardian(monster) || oracool::IsWoodsBoss(monster))
 		level += 3;
 	else if (monster.lesserAffix != LesserUniqueAffix::None)
 		level += 2;
@@ -6147,7 +6148,8 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 
 	// A rift's guardian is the Skeleton King or the Butcher without his quest (2026-09-26 dev note): no Undead Crown, no
 	// Cleaver - the unique monster's random item instead, the better base and the better quality roll.
-	bool dropsSpecialTreasure = (monster.data().treasure & T_UNIQ) != 0 && !oracool::IsRiftGuardian(monster);
+	// The woods' boss as a rift's guardian (audit round 1: the King and the Butcher dropped their crown and cleaver every game).
+	bool dropsSpecialTreasure = (monster.data().treasure & T_UNIQ) != 0 && !oracool::IsRiftGuardian(monster) && !oracool::IsWoodsBoss(monster);
 	// Not on a floor that is thrown away - a rift or a Sealed Map arena: the Brain left there was gone for good and the quest
 	// could never finish (round 15 audit, v1.12.240).
 	const bool disposableFloor = setlevel && (oracool::IsRiftLevel(setlvlnum) || IsArenaLevel(setlvlnum));
@@ -6158,7 +6160,7 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		if (uniqueItem != nullptr && sendmsg)
 			NetSendCmdPItem(false, CMD_DROPITEM, uniqueItem->position, *uniqueItem);
 		return;
-	} else if (monster.isUnique() || dropsSpecialTreasure || oracool::IsRiftGuardian(monster)) {
+	} else if (monster.isUnique() || dropsSpecialTreasure || oracool::IsRiftGuardian(monster) || oracool::IsWoodsBoss(monster)) {
 		// Unqiue monster is killed => use better item base (for example no gold)
 		// A rift guardian too: Diablo's six pile rolls were an ordinary monster's - mostly nothing and gold - beside
 		// the other three guardians' unique-grade piles (round 11 audit, v1.12.236).
@@ -6205,7 +6207,7 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 	int ii = AllocateItem();
 	auto &item = Items[ii];
 	GetSuperItemSpace(position, ii);
-	int uper = (monster.isUnique() || oracool::IsRiftGuardian(monster)) ? 15 : 1;
+	int uper = (monster.isUnique() || oracool::IsRiftGuardian(monster) || oracool::IsWoodsBoss(monster)) ? 15 : 1;
 
 	// THE MONSTER'S LOOT LEVEL, not its authored level (audit, 2026-09-13: "rare items still seem very rare
 	// and i am now in hell/hell", then "make sure drops reflect our vision ... progressive difficulty with

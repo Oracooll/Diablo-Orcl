@@ -1710,6 +1710,8 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 				}
 				else if (DeferFloorObjectsThisFrame)
 					DrawWallFloorTriangles(out, tilePosition, targetBufferPosition);
+			} else if (oracool::WoodsBeyondMapUsesCels(out)) {
+				DrawFloor(out, oracool::WoodsMirrorBeyondMap(tilePosition), targetBufferPosition); // Tristram's rock mass, mirrored
 			} else if (!oracool::DrawWoodsBeyondMapFloor(out, tilePosition, targetBufferPosition, SmoothFloorThisFrame)) {
 				world_draw_black_tile(out, targetBufferPosition.x, targetBufferPosition.y);
 			}
@@ -1801,6 +1803,10 @@ void DrawTileContent(const Surface &out, Point tilePosition, Point targetBufferP
 					}
 				}
 				DrawDungeon(out, tilePosition, targetBufferPosition);
+			} else if (oracool::WoodsBeyondMapUsesCels(out)) {
+				const Point mirror = oracool::WoodsMirrorBeyondMap(tilePosition);
+				LightTableIndex = oracool::ExplorationMemoryLight(mirror, dLight[mirror.x][mirror.y]);
+				DrawCell(out, mirror, targetBufferPosition); // and its upright parts
 			} else {
 				oracool::DrawWoodsBeyondMapTree(out, tilePosition, targetBufferPosition); // the forest past the woods' edge
 			}

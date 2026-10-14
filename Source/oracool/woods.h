@@ -18,6 +18,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "engine/point.hpp"
@@ -153,8 +154,17 @@ bool IsWoodsBoss(const Monster &monster);
 /** @brief The size the woods boss is drawn at, so each stands as tall as Diablo (the user's notes); 0 when @p monster is not him. */
 unsigned WoodsBossSizePercent(const Monster &monster);
 
-/** @brief Where the woods boss waits: open ground inside the fence, a few steps in from the way on. */
-Point WoodsBossSpot();
+/** @brief Where the woods boss waits: open ground inside the fence, a few steps in from the way on; none if the floor has none. */
+std::optional<Point> WoodsBossSpot();
+
+/** @brief The damage percent ScaleWoodsMonster gave the woods boss (100 for any other): his Apocalypse takes it too. */
+int WoodsBossDamagePercent(const Monster &monster);
+
+/** @brief The woods' last floor, whose boss's own kinds (the King's skeletons) are loaded but never scattered. */
+inline bool IsWoodsBossFloor()
+{
+	return setlevel && setlvlnum == SL_LAST_WOODS;
+}
 
 /**
  * @brief A woods or cave monster brought up to the floor's rung: a kind whose own floors end above it gains 12% life and
@@ -236,6 +246,8 @@ Point WoodsMirrorBeyondMap(Point tile);
 bool DrawWoodsBeyondMapFloor(const Surface &out, Point tile, Point target, bool fullBright);
 /** @brief And its tree (DrawTileContent). */
 void DrawWoodsBeyondMapTree(const Surface &out, Point tile, Point target);
+/** @brief The look draws the forest past the edge from the mirror's own cels (Tristram's tiles, nothing painted over them). */
+bool WoodsBeyondMapUsesCels(const Surface &out);
 /** @brief Test hook: loads the woods art as BuildWoodsLevel does outside headless mode. */
 void LoadWoodsArtForTest();
 /**
