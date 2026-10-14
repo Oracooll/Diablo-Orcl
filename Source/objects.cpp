@@ -1135,7 +1135,7 @@ void DeleteObject(int oi, int i)
  */
 bool IsQuestSetLevel()
 {
-	return setlevel && !oracool::IsRiftLevel(setlvlnum) && !IsWoodsLevel(setlvlnum);
+	return setlevel && !oracool::IsRiftLevel(setlvlnum) && !IsOrclActLevel(setlvlnum);
 }
 
 /** @brief The floor a shrine's reward scales with: in a rift, the rung its tier stands on, not the set-level id (9 or 10). */
@@ -1143,7 +1143,7 @@ int ShrineFloor()
 {
 	if (setlevel && oracool::IsRiftLevel(setlvlnum))
 		return oracool::RiftMonsterBandFloor();
-	if (setlevel && IsWoodsLevel(setlvlnum))
+	if (setlevel && IsOrclActLevel(setlvlnum))
 		return oracool::WoodsBandFloor();
 	return currlevel;
 }

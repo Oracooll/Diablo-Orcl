@@ -335,8 +335,10 @@ uint16_t BorrowPiece(dungeon_type set, uint16_t piece)
 	if (set == FilesOf(leveltype))
 		return piece; // the level's own
 	const uint32_t key = (static_cast<uint32_t>(set) << 16) | piece;
-	if (const auto found = PieceIds.find(key); found != PieceIds.end())
+	if (const auto found = PieceIds.find(key); found != PieceIds.end()) {
+		SOLData[found->second] = Pieces[found->second - BorrowedPieceBase].sol; // whatever wrote SOLData since, the piece's own
 		return found->second;
+	}
 	if (static_cast<int>(Pieces.size()) >= BorrowedPieceCapacity)
 		return 0;
 	Tileset *ts = LoadSet(set);

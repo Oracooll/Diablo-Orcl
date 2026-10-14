@@ -1941,12 +1941,14 @@ bool PlaceCaveStairs(lvl_entry entry)
 	if (entry == ENTRY_MAIN)
 		ViewPosition = position->megaToWorld() + Displacement { 1, 3 };
 
-	// Place stairs down
-	position = PlaceMiniSet(L3DOWN);
-	if (!position)
-		return false;
-	if (entry == ENTRY_PREV)
-		ViewPosition = position->megaToWorld() + Displacement { 3, 1 };
+	// Place stairs down - not on an Orcl Act cave's last floor (oracool/stairless.h)
+	if (!oracool::GeneratingCaveWithoutWayDown) {
+		position = PlaceMiniSet(L3DOWN);
+		if (!position)
+			return false;
+		if (entry == ENTRY_PREV)
+			ViewPosition = position->megaToWorld() + Displacement { 3, 1 };
+	}
 
 	// Place town warp stairs
 	if (currlevel == 9) {

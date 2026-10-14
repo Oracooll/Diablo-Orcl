@@ -56,17 +56,34 @@ enum _setlevels : int8_t {
 	SL_ORCL_WOODS_2,
 	SL_ORCL_WOODS_3,
 	SL_ORCL_WOODS_4,
+	// Their caves (oracool/woods_caves.h, 2026-10-14): generated on the Caves tileset under a woods floor.
+	SL_ORCL_CAVE_1,
+	SL_ORCL_CAVE_2,
+	SL_ORCL_CAVE_3,
 
 	SL_FIRST_ARENA = SL_ARENA_CHURCH,
 	SL_LAST_ARENA = SL_ARENA_CIRCLE_OF_LIFE,
 	SL_FIRST_WOODS = SL_ORCL_WOODS_1,
 	SL_LAST_WOODS = SL_ORCL_WOODS_4,
-	SL_LAST = SL_ORCL_WOODS_4,
+	SL_FIRST_WOODS_CAVE = SL_ORCL_CAVE_1,
+	SL_LAST_WOODS_CAVE = SL_ORCL_CAVE_3,
+	SL_LAST = SL_ORCL_CAVE_3,
 };
 
 inline bool IsWoodsLevel(_setlevels setLevel)
 {
 	return setLevel >= SL_FIRST_WOODS && setLevel <= SL_LAST_WOODS;
+}
+
+inline bool IsWoodsCaveLevel(_setlevels setLevel)
+{
+	return setLevel >= SL_FIRST_WOODS_CAVE && setLevel <= SL_LAST_WOODS_CAVE;
+}
+
+/** @brief A level of the Orcl Act: a woods floor or one of their caves - generated, with the act's own rung (oracool/woods.h). */
+inline bool IsOrclActLevel(_setlevels setLevel)
+{
+	return IsWoodsLevel(setLevel) || IsWoodsCaveLevel(setLevel);
 }
 
 inline bool IsArenaLevel(_setlevels setLevel)

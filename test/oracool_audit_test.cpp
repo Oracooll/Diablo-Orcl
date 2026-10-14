@@ -20538,7 +20538,124 @@ TEST(OracoolPreview, DISABLED_WebsiteItemExport)
 
 #include "levels/town.h"
 #include "oracool/borrowed_tiles.h"
+#include "oracool/stairless.h"
 #include "oracool/woods.h"
+#include "oracool/woods_caves.h"
+#include "levels/trigs.h"
+
+/**
+ * @brief The map the Orcl Act tests build over (2026-10-14: a borrowed fence left at (40,40) stood under a later test's golem in
+ * the shuffled run): every grid a level build writes, and the tile data, saved on entry and put back on exit.
+ */
+struct OrclActMapGuard {
+	std::vector<unsigned char> piece, flags, light, trans, dun, sol;
+	std::unique_ptr<MegaTile[]> megaTiles;
+	int triggers;
+	template <typename T>
+	static std::vector<unsigned char> Save(const T &grid)
+	{
+		std::vector<unsigned char> copy(sizeof(grid));
+		std::memcpy(copy.data(), &grid, sizeof(grid));
+		return copy;
+	}
+	template <typename T>
+	static void Restore(T &grid, const std::vector<unsigned char> &copy)
+	{
+		std::memcpy(&grid, copy.data(), sizeof(grid));
+	}
+	OrclActMapGuard()
+	    : piece(Save(dPiece)), flags(Save(dFlags)), light(Save(dLight)), trans(Save(dTransVal)), dun(Save(dungeon)), sol(Save(SOLData)),
+	      megaTiles(std::move(pMegaTiles)), triggers(numtrigs)
+	{
+	}
+	~OrclActMapGuard()
+	{
+		Restore(dPiece, piece);
+		Restore(dFlags, flags);
+		Restore(dLight, light);
+		Restore(dTransVal, trans);
+		Restore(dungeon, dun);
+		Restore(SOLData, sol);
+		pMegaTiles = std::move(megaTiles);
+		numtrigs = triggers;
+	}
+};
+
+/**
+ * The woods' caves (Orcl Act, 2026-10-14). The cave mouth stamped beside a floor's glade has its entrance on open ground the
+ * hero can walk to from the arrival; and a cave floor's DRLG lays its way up always and its way down only where the cave goes on.
+ */
+TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
+{
+	MountTestArchives(true);
+	const OrclActMapGuard mapGuard;
+	const bool savedHellfire = gbIsHellfire;
+	const dungeon_type savedType = leveltype;
+	const bool savedSetlevel = setlevel;
+	const _setlevels savedSetLevelNum = setlvlnum;
+	const uint8_t savedCurrlevel = currlevel;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	setlvlnum = SL_ORCL_WOODS_1;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
+	EXPECT_NE(oracool::WoodsCaveOnFloor(0), SL_NONE) << "the first woods floor has a cave";
+	for (const uint32_t seed : { 0x6E00D5U, 0x12345U, 0xBEEF01U, 0x77AA33U }) {
+		oracool::SetWoodsCaveMouthFloorForTest(0);
+		CreateDungeon(seed, ENTRY_SETLVL);
+		const Point entrance = oracool::StampWoodsCaveMouthForTest();
+		ASSERT_NE(entrance, Point(0, 0)) << "seed " << seed << ": no mouth";
+		LoadLevelSOLData();
+		EXPECT_FALSE(TileHasAny(dPiece[entrance.x][entrance.y], TileProperties::Solid)) << "seed " << seed << ": the entrance is solid";
+		const Point arrival = oracool::WoodsArrival();
+		std::vector<Point> stack { arrival };
+		std::set<int> seen { arrival.x * MAXDUNY + arrival.y };
+		bool reached = false;
+		while (!stack.empty() && !reached) {
+			const Point p = stack.back();
+			stack.pop_back();
+			for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 } }) {
+				const Point n = p + d;
+				if (!InDungeonBounds(n) || TileHasAny(dPiece[n.x][n.y], TileProperties::Solid) || !seen.insert(n.x * MAXDUNY + n.y).second)
+					continue;
+				reached = reached || n == entrance;
+				stack.push_back(n);
+			}
+		}
+		EXPECT_TRUE(reached) << "seed " << seed << ": the cave mouth cannot be walked to from the arrival";
+	}
+	oracool::SetWoodsCaveMouthFloorForTest(-1);
+
+	// The cave floors: the Caves DRLG as BuildWoodsCaveLevel runs it.
+	leveltype = DTYPE_CAVES;
+	setlvlnum = SL_ORCL_CAVE_2;
+	currlevel = 10;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("levels\\l3data\\l3.til");
+	for (const bool last : { false, true }) {
+		oracool::GeneratingCaveWithoutWayDown = last;
+		CreateDungeon(0x5EED0 + (last ? 1 : 0), ENTRY_MAIN);
+		oracool::GeneratingCaveWithoutWayDown = false;
+		InitL3Triggers();
+		int up = 0;
+		int down = 0;
+		for (int i = 0; i < numtrigs; i++) {
+			up += trigs[i]._tmsg == WM_DIABPREVLVL ? 1 : 0;
+			down += trigs[i]._tmsg == WM_DIABNEXTLVL ? 1 : 0;
+		}
+		EXPECT_GE(up, 1) << (last ? "the last floor" : "a floor with a way on") << " has no way up";
+		if (last)
+			EXPECT_EQ(down, 0) << "the cave's last floor has stairs down";
+		else
+			EXPECT_GE(down, 1) << "a floor with a way on has no stairs down";
+	}
+	leveltype = savedType;
+	setlevel = savedSetlevel;
+	setlvlnum = savedSetLevelNum;
+	currlevel = savedCurrlevel;
+	gbIsHellfire = savedHellfire;
+}
 
 /**
  * Tiles from every vanilla tileset on one level (user, 2026-10-14): a Caves fence borrowed into a woods floor walks as the
@@ -20548,6 +20665,7 @@ TEST(OracoolPreview, DISABLED_WebsiteItemExport)
 TEST(OracoolAudit, BorrowedTilesKeepTheirOwnSetsRules)
 {
 	MountTestArchives(true);
+	const OrclActMapGuard mapGuard;
 	const bool savedHellfire = gbIsHellfire;
 	const dungeon_type savedType = leveltype;
 	gbIsHellfire = true;

@@ -18,6 +18,7 @@
 #include "objects.h"
 #include "oracool/rift.h" // BuildRiftLevel: the two generated set levels (2026-09-20)
 #include "oracool/woods.h"
+#include "oracool/woods_caves.h"
 #include "player.h"
 #include "quests.h"
 #include "utils/language.h"
@@ -46,6 +47,10 @@ const char *const QuestLevelNames[] = {
 	N_("Thornmoor"),
 	N_("The Hanging Wood"),
 	N_("Witchbark Hollow"),
+	// Their caves (oracool/woods_caves.h, WoodsCaveName).
+	N_("The Mossbound Den"),
+	N_("The Underroot"),
+	N_("The Underroot Depths"),
 };
 static_assert(sizeof(QuestLevelNames) / sizeof(QuestLevelNames[0]) == SL_LAST + 1,
     "QuestLevelNames needs one row per _setlevels id - the automap header reads it by setlvlnum");
@@ -188,6 +193,11 @@ void LoadSetMap()
 	case SL_ORCL_WOODS_4:
 		// Generated, not loaded (oracool/woods.h): the floor from this game's seed for it.
 		oracool::BuildWoodsLevel(/*fresh=*/MyPlayer == nullptr || !MyPlayer->_pSLvlVisited[setlvlnum]);
+		break;
+	case SL_ORCL_CAVE_1:
+	case SL_ORCL_CAVE_2:
+	case SL_ORCL_CAVE_3:
+		oracool::BuildWoodsCaveLevel(/*fresh=*/MyPlayer == nullptr || !MyPlayer->_pSLvlVisited[setlvlnum]);
 		break;
 	case SL_NONE:
 #ifdef _DEBUG

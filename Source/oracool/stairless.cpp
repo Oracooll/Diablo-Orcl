@@ -15,6 +15,7 @@
 namespace devilution::oracool {
 
 bool GeneratingStairlessLevel = false;
+bool GeneratingCaveWithoutWayDown = false;
 
 namespace {
 

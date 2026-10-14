@@ -1568,7 +1568,7 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 
 	// The woods draw no tile art (oracool/woods.h): what stands on the tile - a tree, a small thing on the ground - in its
 	// place, in the figures' order.
-	if (oracool::WoodsArtActive(out) && !oracool::IsBorrowedPiece(dPiece[tilePosition.x][tilePosition.y])) {
+	if (oracool::WoodsArtActive(out) && !oracool::IsBorrowedPiece(dPiece[tilePosition.x][tilePosition.y]) && !oracool::WoodsTileUsesCels(tilePosition)) {
 		oracool::DrawWoodsTileSprite(out, tilePosition, targetBufferPosition, LightTableIndex);
 	} else {
 		DrawCell(out, tilePosition, targetBufferPosition);
@@ -1680,7 +1680,7 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 	const bool woodsGround = oracool::WoodsArtActive(out);
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < columns; j++) {
-			if (InDungeonBounds(tilePosition) && woodsGround && !oracool::IsBorrowedPiece(dPiece[tilePosition.x][tilePosition.y])) {
+			if (InDungeonBounds(tilePosition) && woodsGround && !oracool::IsBorrowedPiece(dPiece[tilePosition.x][tilePosition.y]) && !oracool::WoodsTileUsesCels(tilePosition)) {
 				LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
 				oracool::DrawWoodsGroundTile(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
 				oracool::DrawWoodsGateTint(out, tilePosition, targetBufferPosition); // the road back, marked

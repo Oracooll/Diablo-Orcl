@@ -264,6 +264,8 @@ Cutscenes PickCutscene(interface_mode uMsg)
 			return setlvlnum == oracool::RiftLevelFor(oracool::RiftKind::Guardian) ? CutRiftGuardian : CutRiftNephalem;
 		if (IsWoodsLevel(setlvlnum))
 			return CutTown;
+		if (IsWoodsCaveLevel(setlvlnum))
+			return GetCutSceneFromLevelType(DTYPE_CAVES);
 		if (setlvlnum == SL_BONECHAMB)
 			return CutLevel2;
 		if (setlvlnum == SL_VILEBETRAYER)

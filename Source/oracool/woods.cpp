@@ -9,6 +9,7 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include <SDL.h>
@@ -17,13 +18,16 @@
 #include "engine/palette.h"
 #include "engine/random.hpp"
 #include "engine/surface.hpp"
+#include "init.h" // gbIsHellfire - the cave mouth is Hellfire's town art
 #include "interfac.h"
 #include "levels/gendung.h"
 #include "levels/trigs.h"
 #include "monstdat.h"
 #include "oracool/area_level.h"
 #include "oracool/oracool.h"       // AddGeneratedLevelWaypointSigil, EnsureWaypointGraphicsLoaded
+#include "oracool/stairless.h"     // OpenFloorNear - the landing by the cave mouth
 #include "oracool/waypoint_menu.h" // FirstWoodsWaypoint
+#include "oracool/woods_caves.h"   // the caves under the floors
 #include "lighting.h"
 #include "options.h"
 #include "oracool/colour_light.h"
@@ -101,6 +105,52 @@ bool TreeHidden[MAXDUNX][MAXDUNY];
 Point Arrival { 88, 48 };
 /** @brief The next woods floor built is entered from the deeper one: the hero stands at its way on, not its arrival. */
 bool EnterAtWayOn = false;
+/** @brief ... or from its cave: by the cave's mouth. */
+bool EnterAtCaveMouth = false;
+
+/**
+ * @brief The cave mouth (oracool/woods_caves.h): Hellfire's open Hive mound, the town's own cels (town.cpp TownOpenHive), 9 x 6
+ * tiles stamped beside the floor's glade. Its entrance - the tile the town's Hive trigger stands on - is (2, 2) into it.
+ */
+struct MouthPiece {
+	int8_t dx;
+	int8_t dy;
+	uint16_t piece;
+};
+constexpr MouthPiece MouthStamp[] = {
+	{ 0, 0, 0x489 }, { 1, 0, 0x48a }, { 0, 1, 0x48b }, { 1, 1, 0x50d }, { 0, 2, 0x4ed }, { 0, 3, 0x4ef }, { 1, 2, 0x50f },
+	{ 1, 3, 0x510 }, { 1, 4, 0x511 }, { 0, 4, 0x119 }, { 0, 5, 0x11b }, { 1, 5, 0x11c }, { 2, 0, 0x512 }, { 2, 1, 0x514 },
+	{ 3, 1, 0x515 }, { 4, 0, 0x516 }, { 5, 0, 0x517 }, { 4, 1, 0x518 }, { 5, 1, 0x519 }, { 2, 2, 0x51a }, { 3, 2, 0x51b },
+	{ 2, 3, 0x51c }, { 3, 3, 0x51d }, { 2, 4, 0x51e }, { 3, 4, 0x51f }, { 2, 5, 0x520 }, { 3, 5, 0x521 }, { 4, 4, 0x526 },
+	{ 5, 4, 0x527 }, { 4, 5, 0x528 }, { 5, 5, 0x529 }, { 4, 2, 0x522 }, { 5, 2, 0x523 }, { 4, 3, 0x524 }, { 5, 3, 0x525 },
+	{ 6, 1, 0x117 }, { 6, 2, 0x117 }, { 6, 3, 0x117 }, { 7, 0, 0x117 }, { 7, 1, 0x117 }, { 7, 3, 7 }, { 7, 4, 7 },
+	{ 8, 0, 0xd8 }, { 8, 1, 0x17 }, { 7, 2, 0x12 }, { 6, 4, 0x117 },
+};
+constexpr int MouthWidth = 9;
+constexpr int MouthHeight = 6;
+constexpr Displacement MouthEntranceOffset { 2, 2 };
+/** @brief The floor being generated has a cave mouth (BuildWoodsLevel sets it from WoodsCaveOnFloor). */
+int MouthFloor = -1;
+bool MouthOnFloor = false;
+Point MouthOrigin {};
+Point MouthEntrance {};
+
+bool InMouth(Point tile)
+{
+	return MouthOnFloor && tile.x >= MouthOrigin.x && tile.x < MouthOrigin.x + MouthWidth && tile.y >= MouthOrigin.y && tile.y < MouthOrigin.y + MouthHeight;
+}
+
+/** @brief The mound's cels over the floor's tiles; only on Hellfire, whose town tileset carries them. */
+void StampCaveMouth()
+{
+	if (!MouthOnFloor || !gbIsHellfire)
+		return;
+	for (const MouthPiece &m : MouthStamp) {
+		const Point tile = MouthOrigin + Displacement { m.dx, m.dy };
+		dPiece[tile.x][tile.y] = m.piece;
+		WoodsLookPiece[tile.x][tile.y] = 0;
+	}
+}
 Point WayOn { 22, 62 };
 
 // ---------------------------------------------------------------- deterministic noise, independent of the game's stream
@@ -342,6 +392,21 @@ void Generate(uint32_t seed)
 	const Point glade { Lo + span / 2 + static_cast<int>((Unit(Hash(seed, 3, 0)) - 0.5F) * 20), Lo + span / 2 + static_cast<int>((Unit(Hash(seed, 4, 0)) - 0.5F) * 30) };
 	Clearing(glade, 6, Grass);
 	LayPath(glade, { (Arrival.x + WayOn.x) / 2, (Arrival.y + WayOn.y) / 2 }, 2, seed ^ 0x51DEU);
+	// The cave mouth on the glade's far side, its entrance facing into the glade; trees and ground details kept off it.
+	MouthOnFloor = MouthFloor >= 0;
+	if (MouthOnFloor) {
+		MouthOrigin = glade + Displacement { -8, -3 };
+		MouthEntrance = MouthOrigin + MouthEntranceOffset;
+		for (int y = MouthOrigin.y - 2; y < MouthOrigin.y + MouthHeight + 2; y++) {
+			for (int x = MouthOrigin.x - 2; x < MouthOrigin.x + MouthWidth + 3; x++) {
+				if (!Inside({ x, y }))
+					continue;
+				Tree[x][y] = NoTree;
+				if (Ground[x][y] == Forest)
+					Ground[x][y] = Grass;
+			}
+		}
+	}
 	Clearing(Arrival, 4, Path);
 	Clearing(WayOn, 4, Path);
 	// The roads off the map's edge: back toward Tristram and on into the woods.
@@ -539,6 +604,9 @@ int BrightnessFor(int light)
 void ResetWoodsForNewGame()
 {
 	Game = {};
+	EnterAtWayOn = false;
+	EnterAtCaveMouth = false;
+	ResetWoodsCavesForNewGame();
 }
 
 namespace {
@@ -749,14 +817,30 @@ void BuildWoodsLevel(bool fresh)
 		const int heroLevel = MyPlayer != nullptr ? MyPlayer->_pLevel : 1;
 		Game.rung[floor] = static_cast<uint8_t>(std::clamp(std::clamp(heroLevel / 3, 1, RungsPerDifficulty) + floor, 1, RungsPerDifficulty));
 	}
+	MouthFloor = WoodsCaveOnFloor(floor) != SL_NONE ? floor : -1;
 	CreateDungeon(Game.seed[floor], ENTRY_SETLVL);
+	MouthFloor = -1;
+	if (MouthOnFloor) {
+		for (int y = MouthOrigin.y; y < MouthOrigin.y + MouthHeight; y++)
+			for (int x = MouthOrigin.x; x < MouthOrigin.x + MouthWidth; x++)
+				Scatter[x][y] = 0;
+	}
+	StampCaveMouth();
 	ViewPosition = EnterAtWayOn ? Point { WayOn.x + 2, WayOn.y } : Arrival;
 	EnterAtWayOn = false;
 	InitNoTriggers();
 	LoadRndLvlPal(leveltype);
 	LoadLevelSOLData();
+	if (EnterAtCaveMouth && MouthOnFloor) {
+		// Out of the cave: open ground in front of the mouth, never its entrance (that would send the hero straight back).
+		Point landing = OpenFloorNear(MouthEntrance + Displacement { 4, 3 });
+		if (landing.WalkingDistance(MouthEntrance) < 2)
+			landing = MouthEntrance + Displacement { 4, 3 };
+		ViewPosition = landing;
+	}
+	EnterAtCaveMouth = false;
 	// No pack on either road's end: the hero arrives at one, and may come back by the other.
-	for (const Point end : { Arrival, WayOn }) {
+	for (const Point end : { Arrival, WayOn, MouthOnFloor ? MouthEntrance : Arrival }) {
 		for (int dy = -5; dy <= 5; dy++) {
 			for (int dx = -5; dx <= 5; dx++) {
 				const Point tile = end + Displacement { dx, dy };
@@ -810,6 +894,8 @@ bool CheckWoodsEdges()
 {
 	if (MyPlayer == nullptr)
 		return false;
+	if (setlevel && IsWoodsCaveLevel(setlvlnum))
+		return MyPlayer->_pmode == PM_STAND && !MyPlayer->_pLvlChanging && CheckWoodsCaveExits();
 	Player &player = *MyPlayer;
 	if (player._pmode != PM_STAND || player._pLvlChanging)
 		return false;
@@ -824,6 +910,10 @@ bool CheckWoodsEdges()
 	if (leveltype != DTYPE_WOODS || !setlevel)
 		return false;
 	const int floor = FloorIndex(setlvlnum);
+	if (MouthOnFloor && tile == MouthEntrance) {
+		EnterWoodsCaveFromMouth(floor);
+		return true;
+	}
 	// The road back: the last tiles of the arrival road, at the map's edge - to Tristram from the first floor, to the way on
 	// of the floor before from the others (milestone 2: four linked floors).
 	if (tile.x >= Hi - 1 && std::abs(tile.y - Arrival.y) <= 1) {
@@ -849,8 +939,36 @@ bool CheckWoodsEdges()
 	return false;
 }
 
+int WoodsFloorRung(int floorIndex)
+{
+	return Game.rung[std::clamp(floorIndex, 0, WoodsFloors - 1)];
+}
+
+void EnterWoodsAtCaveMouthNext()
+{
+	EnterAtCaveMouth = true;
+}
+
+bool WoodsTileUsesCels(Point tile)
+{
+	return leveltype == DTYPE_WOODS && InMouth(tile);
+}
+
+bool WoodsCaveMouthHover(Point tile, Point &entrance, const char *&text)
+{
+	if (leveltype != DTYPE_WOODS || !setlevel || !InMouth(tile))
+		return false;
+	static std::string hover;
+	hover = std::string("Down to ") + WoodsCaveName(WoodsCaveOnFloor(FloorIndex(setlvlnum)));
+	entrance = MouthEntrance;
+	text = hover.c_str();
+	return true;
+}
+
 int WoodsBandFloor()
 {
+	if (setlevel && IsWoodsCaveLevel(setlvlnum))
+		return WoodsCaveRung();
 	if (!setlevel || !IsWoodsLevel(setlvlnum))
 		return 1;
 	const int rung = Game.rung[FloorIndex(setlvlnum)];
@@ -880,6 +998,8 @@ bool WoodsAcceptsMonster(const MonsterData &data)
 
 uint32_t WoodsRosterSeed()
 {
+	if (setlevel && IsWoodsCaveLevel(setlvlnum))
+		return WoodsCaveRosterSeed();
 	return Game.seed[FloorIndex(setlvlnum)] ^ 0x0AC7U;
 }
 
@@ -1171,6 +1291,18 @@ Point WoodsArrival()
 Point WoodsWayOn()
 {
 	return WayOn;
+}
+
+void SetWoodsCaveMouthFloorForTest(int floorIndex)
+{
+	MouthFloor = floorIndex;
+}
+
+Point StampWoodsCaveMouthForTest()
+{
+	MouthFloor = -1;
+	StampCaveMouth();
+	return MouthOnFloor ? MouthEntrance : Point { 0, 0 };
 }
 
 void SetWoodsRungForTest(int floorIndex, int rung)

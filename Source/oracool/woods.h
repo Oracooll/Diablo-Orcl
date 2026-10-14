@@ -65,6 +65,21 @@ Point WoodsTownReturnTile();
  */
 bool CheckWoodsEdges();
 
+/** @brief Woods floor @p floorIndex's rung, 0 until it is first entered in this game. */
+int WoodsFloorRung(int floorIndex);
+
+/** @brief The next woods floor built is entered from its cave: the hero stands by the cave's mouth. */
+void EnterWoodsAtCaveMouthNext();
+
+/** @brief The cave mouth's tiles are Tristram's own cels, drawn by DrawCell even on the painted look. */
+bool WoodsTileUsesCels(Point tile);
+
+/**
+ * @brief The hover over the cave mouth at @p tile: its entrance and the text ("Down to The Mossbound Den").
+ * @return false off the mouth
+ */
+bool WoodsCaveMouthHover(Point tile, Point &entrance, const char *&text);
+
 /**
  * @brief The rung (1-16 inside the difficulty's block) the current woods floor's monsters and loot stand on: the hero's level
  * by the Nephalem Rift's rule (one rung per three levels, the user's pick of 2026-09-24), one rung deeper per woods floor, and
@@ -124,6 +139,10 @@ Point WoodsArrival();
 Point WoodsWayOn();
 /** @brief Test hook: loads the woods art as BuildWoodsLevel does outside headless mode. */
 void LoadWoodsArtForTest();
+/** @brief Test hook: the next floor generated has the cave mouth of woods floor @p floorIndex (-1: none). */
+void SetWoodsCaveMouthFloorForTest(int floorIndex);
+/** @brief Test hook: stamps the mouth into the floor last generated; its entrance, or {0,0} for none. */
+Point StampWoodsCaveMouthForTest();
 /** @brief Test hook: sets floor @p floorIndex's rung as its first visit would. */
 void SetWoodsRungForTest(int floorIndex, int rung);
 

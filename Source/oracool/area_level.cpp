@@ -82,7 +82,7 @@ int CurrentAreaLevel()
 		if (IsRiftLevel(setlvlnum))
 			return std::clamp(RiftTier(), AreaLevel(1, sgGameInitInfo.nDifficulty), MaxAreaLevel);
 		// A woods floor stands on its own rung, fixed at its first visit (oracool/woods.h).
-		if (IsWoodsLevel(setlvlnum))
+		if (IsOrclActLevel(setlvlnum))
 			return AreaLevel(WoodsBandFloor(), sgGameInitInfo.nDifficulty);
 		switch (setlvlnum) {
 		case SL_SKELKING:

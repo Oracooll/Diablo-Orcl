@@ -890,7 +890,7 @@ void PlaceUniqueMonsters()
  */
 void PlaceWoodsMonsters()
 {
-	if (!setlevel || !IsWoodsLevel(setlvlnum))
+	if (!setlevel || !IsOrclActLevel(setlvlnum))
 		return;
 	const Point arrival = ViewPosition;
 	for (int s = -2; s < 2; s++) {
@@ -904,7 +904,8 @@ void PlaceWoodsMonsters()
 				na++;
 		}
 	}
-	int numplacemonsters = na / 36 * *sgOptions.Oracool.monsterDensityPercent / 100;
+	// The woods a little sparser than a dungeon floor, they are open; their caves as a dungeon floor.
+	int numplacemonsters = na / (IsWoodsCaveLevel(setlvlnum) ? 30 : 36) * *sgOptions.Oracool.monsterDensityPercent / 100;
 	const size_t scatterCap = MaxEnemyMonsters - 10;
 	if (ActiveMonsterCount >= scatterCap)
 		numplacemonsters = 0;
@@ -4296,8 +4297,8 @@ void GetLevelMTypes()
 				typelist[i] = typelist[--nt];
 			}
 		}
-	} else if (IsWoodsLevel(setlvlnum)) {
-		// The Orcl Act's woods (oracool/woods.h): generated, so no .dun gives them the golem bodies a set level gets - added
+	} else if (IsOrclActLevel(setlvlnum)) {
+		// The Orcl Act's woods and caves (oracool/woods.h): generated, so no .dun gives them the golem bodies a set level gets - added
 		// here, or the companions and the Golem spell have no slot (the town's crash, v1.12.012).
 		SetRndSeed(oracool::WoodsRosterSeed()); // the same roster on every build: a revisit restores the saved types by index
 		for (int i = 0; i < MAX_PLRS; i++)
