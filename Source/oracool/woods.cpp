@@ -10,12 +10,15 @@
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <memory>
+#include <unordered_map>
 #include <vector>
 
 #include <SDL.h>
 
 #include "diablo.h"
 #include "engine/palette.h"
+#include "engine/render/dun_render.hpp" // RenderTile - the Mixed floor's cache is drawn by it once
 #include "engine/random.hpp"
 #include "engine/surface.hpp"
 #include "init.h" // gbIsHellfire - the cave mouth is Hellfire's town art
@@ -1137,12 +1140,11 @@ void BuildEdgeNoise()
 	}
 }
 
-uint32_t Shade(uint32_t c, int brightness)
+/** @brief @p c at @p brightness of 256: red and blue in one multiply, green in another, never pure black (black is "nothing"). */
+inline uint32_t Shade(uint32_t c, int brightness)
 {
-	const uint32_t r = std::max<uint32_t>(1, (((c >> 16) & 0xFF) * brightness) >> 8);
-	const uint32_t g = std::max<uint32_t>(1, (((c >> 8) & 0xFF) * brightness) >> 8);
-	const uint32_t b = std::max<uint32_t>(1, ((c & 0xFF) * brightness) >> 8);
-	return (r << 16) | (g << 8) | b;
+	const uint32_t b = static_cast<uint32_t>(brightness);
+	return ((((c & 0xFF00FFU) * b) >> 8) & 0xFF00FFU) | ((((c & 0x00FF00U) * b) >> 8) & 0x00FF00U) | 0x010101U;
 }
 
 int BrightnessFor(int light)
@@ -1385,6 +1387,7 @@ void BuildWoodsLevel(bool fresh)
 		Game.rung[floor] = static_cast<uint8_t>(std::clamp(std::clamp(heroLevel / 3, 1, RungsPerDifficulty) + floor, 1, RungsPerDifficulty));
 	}
 	MouthFloor = WoodsCaveOnFloor(floor) != SL_NONE ? floor : -1;
+	ForgetWoodsMixedFloor(); // the last floor's ground pictures
 	CreateDungeon(Game.seed[floor], ENTRY_SETLVL);
 	MouthFloor = -1;
 	if (MouthOnFloor) {
@@ -1724,6 +1727,129 @@ void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light
 		}
 	}
 }
+
+namespace {
+
+/** @brief One floor tile's finished picture: the 31 rows of the diamond, 64 wide, bottom row first; 0 off the diamond. */
+struct FloorPicture {
+	std::array<uint32_t, 64 * 31> px {};
+};
+
+/**
+ * @brief The Mixed look's floor, made once and kept (the user's frame-rate complaint of 2026-10-14; DISABLED_WoodsFrameBenchmark
+ * timed the per-frame grade and road at 72 ms and Tristram's floor cels under them at 13 ms, a Debug 1920 x 1080 frame): a tile's
+ * ground never changes, so each is drawn whole - its cels at full light, the grade, the road - the first time it is seen, then
+ * copied with its light. Grass far from the road by its piece (one picture serves every tile of that piece); a tile within two of
+ * the road by itself, since the road's blend is its own. Rebuilt for a new floor and when the palette changes.
+ */
+std::unordered_map<uint16_t, std::unique_ptr<FloorPicture>> FloorByPiece;
+std::unordered_map<uint32_t, std::unique_ptr<FloorPicture>> FloorByTile;
+uint32_t FloorCachePalette = 0;
+/** @brief Each tile's picture once it has been looked up (null: not yet, or the tile is not drawn from the cache). */
+const FloorPicture *FloorOfTile[MAXDUNX][MAXDUNY];
+/** @brief The tile was looked up and is drawn as it is (the river, the mouth, a cottage, a borrowed piece). */
+bool FloorNotCached[MAXDUNX][MAXDUNY];
+
+bool BlitFloorPicture(const Surface &out, const FloorPicture &pic, Point target, int light, bool fullBright);
+
+bool TileNearRoad(Point tile)
+{
+	if (InRiver(tile))
+		return false;
+	for (int dy = -2; dy <= 2; dy++)
+		for (int dx = -2; dx <= 2; dx++) {
+			const Point p = tile + Displacement { dx, dy };
+			if (InDungeonBounds(p) && Ground[p.x][p.y] == Path && Tree[p.x][p.y] == NoTree)
+				return true;
+		}
+	return false;
+}
+
+} // namespace
+
+void ForgetWoodsMixedFloor()
+{
+	FloorByPiece.clear();
+	FloorByTile.clear();
+	std::memset(FloorOfTile, 0, sizeof(FloorOfTile));
+	std::memset(FloorNotCached, 0, sizeof(FloorNotCached));
+}
+
+bool DrawWoodsMixedFloorCached(const Surface &out, Point tile, Point target, int light, bool fullBright)
+{
+	if (leveltype != DTYPE_WOODS || !BuiltMixed || out.isIndexed() || GroundArt[Path].px.empty() || pDungeonCels == nullptr)
+		return false;
+	if (FloorCachePalette != PaletteRgbGeneration) {
+		ForgetWoodsMixedFloor();
+		FloorCachePalette = PaletteRgbGeneration;
+	}
+	// A cottage comes and goes as the hero enters it: asked every frame. The rest is looked up once a floor.
+	if (WoodsShellAt(tile) != 0 || FloorNotCached[tile.x][tile.y])
+		return false;
+	if (const FloorPicture *known = FloorOfTile[tile.x][tile.y]; known != nullptr)
+		return BlitFloorPicture(out, *known, target, light, fullBright);
+	if (InMouth(tile) || InRiver(tile) || IsBorrowedPiece(WoodsDrawnPiece(tile))) {
+		FloorNotCached[tile.x][tile.y] = true; // drawn as they are: the water's colours cycle, the rest is not plain ground
+		return false;
+	}
+	const uint16_t piece = WoodsDrawnPiece(tile);
+	const bool own = TileNearRoad(tile);
+	std::unique_ptr<FloorPicture> &slot = own ? FloorByTile[static_cast<uint32_t>(tile.y) * MAXDUNX + static_cast<uint32_t>(tile.x)] : FloorByPiece[piece];
+	if (slot == nullptr) {
+		// Drawn once: the piece's two floor micros at full light, then the grade and the road, into a tile-sized picture.
+		OwnedSurface canvas = OwnedSurface::Rgb(64, 32);
+		const Surface surface = canvas;
+		for (int y = 0; y < 32; y++)
+			std::fill_n(surface.at<uint32_t>(0, y), 64, 0U);
+		const uint8_t *full = LightTables[0].data();
+		for (int side = 0; side < 2; side++) {
+			const LevelCelBlock block { DPieceMicros[piece].mt[side] };
+			if (block.hasValue())
+				RenderTile(surface, { side * 32, 31 }, block, MaskType::Solid, full);
+		}
+		DrawWoodsMixedGround(surface, tile, { 0, 31 }, -1, true);
+		slot = std::make_unique<FloorPicture>();
+		for (int k = 0; k < 31; k++) {
+			const int inset = k < 16 ? 30 - 2 * k : 2 * (k - 15);
+			const uint32_t *row = surface.at<uint32_t>(0, 31 - k);
+			for (int x = inset; x <= 63 - inset; x++)
+				slot->px[static_cast<size_t>(k) * 64 + x] = (row[x] & 0xFFFFFFU) | 0x01000000U; // the top byte marks the diamond
+		}
+	}
+	FloorOfTile[tile.x][tile.y] = slot.get();
+	return BlitFloorPicture(out, *slot, target, light, fullBright);
+}
+
+namespace {
+
+bool BlitFloorPicture(const Surface &out, const FloorPicture &pic, Point target, int light, bool fullBright)
+{
+	const int brightness = (fullBright && light < LightsMax) ? 256 : light < 0 ? 256 : BrightnessFor(light);
+	for (int k = 0; k < 31; k++) {
+		const int y = target.y - k;
+		if (y < 0 || y >= out.h())
+			continue;
+		const int inset = k < 16 ? 30 - 2 * k : 2 * (k - 15);
+		const int x0 = std::max(inset, -target.x);
+		const int x1 = std::min(63 - inset, out.w() - 1 - target.x);
+		uint32_t *row = out.at<uint32_t>(0, y) + target.x;
+		const uint32_t *src = &pic.px[static_cast<size_t>(k) * 64];
+		if (brightness >= 256) {
+			for (int x = x0; x <= x1; x++)
+				row[x] = src[x] & 0xFFFFFFU;
+		} else {
+			// Red and blue in one multiply, green in another (the per-pixel Shade call was most of the copy in a Debug build).
+			const uint32_t b = static_cast<uint32_t>(brightness);
+			for (int x = x0; x <= x1; x++) {
+				const uint32_t p = src[x];
+				row[x] = ((((p & 0xFF00FFU) * b) >> 8) & 0xFF00FFU) | ((((p & 0x00FF00U) * b) >> 8) & 0x00FF00U) | 0x010101U;
+			}
+		}
+	}
+	return true;
+}
+
+} // namespace
 
 void DrawWoodsMixedGround(const Surface &out, Point tile, Point target, int light, bool fullBright)
 {

@@ -272,12 +272,10 @@ int BrightnessOf(int light)
 	return SmoothLevelBrightness(static_cast<uint8_t>(light));
 }
 
-uint32_t ShadeRgb(uint32_t c, int brightness)
+inline uint32_t ShadeRgb(uint32_t c, int brightness)
 {
-	const uint32_t r = std::max<uint32_t>(1, (((c >> 16) & 0xFF) * brightness) >> 8);
-	const uint32_t g = std::max<uint32_t>(1, (((c >> 8) & 0xFF) * brightness) >> 8);
-	const uint32_t b = std::max<uint32_t>(1, ((c & 0xFF) * brightness) >> 8);
-	return (r << 16) | (g << 8) | b;
+	const uint32_t b = static_cast<uint32_t>(brightness);
+	return ((((c & 0xFF00FFU) * b) >> 8) & 0xFF00FFU) | ((((c & 0x00FF00U) * b) >> 8) & 0x00FF00U) | 0x010101U;
 }
 
 /** @brief @p pic with its bottom line at @p target's row; see-through inside the circle (@p holeX, @p holeY, @p radius). */

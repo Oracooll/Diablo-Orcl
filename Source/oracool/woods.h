@@ -175,6 +175,15 @@ void DrawWoodsGateTint(const Surface &out, Point tile, Point target);
  */
 void DrawWoodsMixedGround(const Surface &out, Point tile, Point target, int light, bool fullBright);
 
+/**
+ * @brief The Mixed look's floor tile from its cache - Tristram's cels, the grade and the road made once, copied with the light
+ * each frame. False where the tile is drawn as it is (the river, the cave mouth, a cottage, a borrowed piece, another look).
+ */
+bool DrawWoodsMixedFloorCached(const Surface &out, Point tile, Point target, int light, bool fullBright);
+
+/** @brief The Mixed floor's cached pictures dropped (a new floor). */
+void ForgetWoodsMixedFloor();
+
 /** @brief What stands on a woods tile, drawn in the figures' order: a tree, or a small thing on the ground. */
 void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light);
 

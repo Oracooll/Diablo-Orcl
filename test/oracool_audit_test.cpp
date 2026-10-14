@@ -21436,6 +21436,116 @@ TEST(OracoolPreview, DISABLED_WoodsDesignerMobs)
 }
 
 /**
+ * Where a woods frame's time goes (user, 2026-10-14: "levels prove to be hard on the cpu and it hits the frames"): a 1920 x 1080
+ * view of the Mixed look round the arrival and round the map's edge, drawn 20 times through the game's own calls, each pass
+ * timed - the floor's cels, the Mixed ground (road and grade), the trees and details, the borrowed fences. Prints WOODSBENCH lines.
+ */
+TEST(OracoolPreview, DISABLED_WoodsFrameBenchmark)
+{
+	MountTestArchives(true);
+	InitPNG();
+	const OrclActMapGuard mapGuard;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	setlvlnum = SL_ORCL_WOODS_1;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
+	std::unique_ptr<byte[]> savedCels = std::move(pDungeonCels);
+	pDungeonCels = LoadFileInMem("nlevels\\towndata\\town.cel");
+	const std::array<uint32_t, 256> savedPalette = PaletteRGB;
+	{
+		size_t n = 0;
+		auto pal = LoadFileInMem<uint8_t>("levels\\towndata\\town.pal", &n);
+		for (int i = 0; i < 256 && 3 * i + 2 < static_cast<int>(n); i++)
+			PaletteRGB[i] = (static_cast<uint32_t>(pal[3 * i]) << 16) | (static_cast<uint32_t>(pal[3 * i + 1]) << 8) | pal[3 * i + 2];
+	}
+	oracool::SetWoodsCaveMouthFloorForTest(0);
+	oracool::SetWoodsRiverForTest(1);
+	CreateDungeon(0x6E00D5U, ENTRY_SETLVL);
+	oracool::SetWoodsRiverForTest(-1);
+	oracool::StampWoodsCaveMouthForTest();
+	oracool::SetWoodsCaveMouthFloorForTest(-1);
+	LoadLevelSOLData();
+	oracool::LoadWoodsArtForTest();
+	std::array<uint8_t, 256> identity;
+	for (int i = 0; i < 256; i++)
+		identity[i] = static_cast<uint8_t>(i);
+	using Clock = std::chrono::steady_clock;
+	const auto ms = [](Clock::duration d) { return std::chrono::duration<double, std::milli>(d).count(); };
+	for (const auto &[label, centre] : { std::pair<const char *, Point> { "arrival", oracool::WoodsArrival() + Displacement { -6, 0 } }, { "edge", Point { 90, 90 } } }) {
+		OwnedSurface view = OwnedSurface::Rgb(1920, 1080);
+		const Surface out = view;
+		const auto screenOf = [&](Point tile) {
+			return Point { 960 - 32 + (tile.x - centre.x) * 32 - (tile.y - centre.y) * 32, 540 + 15 + (tile.x - centre.x) * 16 + (tile.y - centre.y) * 16 };
+		};
+		double floorCels = 0, mixed = 0, sprites = 0, borrowed = 0, cells = 0;
+		int tiles = 0;
+		constexpr int Frames = 20;
+		for (int frame = 0; frame < Frames; frame++) {
+			for (int pass = 0; pass < 2; pass++) {
+				for (int sum = 0; sum <= 2 * (MAXDUNX - 1); sum++) {
+					for (int x = 0; x <= MAXDUNX - 1; x++) {
+						const Point tile { x, sum - x };
+						if (!InDungeonBounds(tile))
+							continue;
+						const Point at = screenOf(tile);
+						if (at.x < -96 || at.x > 1920 + 32 || at.y < -32 || at.y > 1080 + 300)
+							continue;
+						const uint16_t drawn = oracool::WoodsDrawnPiece(tile);
+						const uint16_t raw = dPiece[tile.x][tile.y];
+						if (pass == 0) {
+							tiles += frame == 0 ? 1 : 0;
+							auto t0 = Clock::now();
+							if (!TileHasAny(drawn, TileProperties::Solid) && oracool::DrawWoodsMixedFloorCached(out, tile, at, 3, false)) {
+								floorCels += ms(Clock::now() - t0); // the cache: cels, grade and road at once
+							} else if (!oracool::IsBorrowedPiece(drawn) && !TileHasAny(drawn, TileProperties::Solid)) {
+								for (int side = 0; side < 2; side++) {
+									const LevelCelBlock block { DPieceMicros[drawn].mt[side] };
+									if (block.hasValue())
+										RenderTile(out, at + Displacement { side * 32, 0 }, block, MaskType::Solid, identity.data());
+								}
+								auto t1 = Clock::now();
+								floorCels += ms(t1 - t0);
+								oracool::DrawWoodsMixedGround(out, tile, at, 3, false);
+								mixed += ms(Clock::now() - t1);
+							}
+							continue;
+						}
+						auto t0 = Clock::now();
+						if (oracool::WoodsShellAt(tile) == 0 && oracool::IsBorrowedPiece(raw)) {
+							oracool::DrawBorrowedCell(out, tile, raw, at, 3, drawn == raw);
+							borrowed += ms(Clock::now() - t0);
+						} else {
+							const bool solid = TileHasAny(drawn, TileProperties::Solid);
+							Point up = at;
+							for (int i = 0; i < 16; i += 2) {
+								for (int side = 0; side < 2; side++) {
+									const LevelCelBlock block { DPieceMicros[drawn].mt[i + side] };
+									if (!block.hasValue() || (i == 0 && !solid && block.type() != TileType::TransparentSquare))
+										continue;
+									RenderTile(out, up + Displacement { side * 32, 0 }, block,
+									    i == 0 && !solid ? (side == 0 ? MaskType::LeftFoliage : MaskType::RightFoliage) : MaskType::Solid, identity.data());
+								}
+								up.y -= 32;
+							}
+							cells += ms(Clock::now() - t0);
+						}
+						auto t1 = Clock::now();
+						oracool::DrawWoodsTileSprite(out, tile, at, -1); // full light: at 3 the test's empty light tables drew nothing
+						sprites += ms(Clock::now() - t1);
+					}
+				}
+			}
+		}
+		std::cout << "WOODSBENCH " << label << " tiles=" << tiles << " per frame ms: floorCels=" << floorCels / Frames << " mixedGround=" << mixed / Frames
+		          << " cells=" << cells / Frames << " borrowed=" << borrowed / Frames << " treesAndDetails=" << sprites / Frames << std::endl;
+	}
+	PaletteRGB = savedPalette;
+	pDungeonCels = std::move(savedCels);
+}
+
+/**
  * Tristram's scenery megatiles (Orcl Act, 2026-10-13: "generate Woods level 1 using vanilla assets ... Using tristram
  * textures"): every megatile of the four town sectors, counted where it stands - past the town's walk limit (the trees and
  * rocks round the edge) or inside it - with how many of its four pieces are solid and the pieces themselves. Writes

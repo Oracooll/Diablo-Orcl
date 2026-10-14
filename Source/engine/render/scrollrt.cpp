@@ -1696,9 +1696,16 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 					DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
 			} else if (InDungeonBounds(tilePosition)) {
 				if (!TileHasAny(oracool::WoodsDrawnPiece(tilePosition), TileProperties::Solid)) {
-					DrawFloor(out, tilePosition, targetBufferPosition);
-					// The woods' Mixed look: the painted road and the graded grass over Tristram's cels (oracool/woods.h).
-					oracool::DrawWoodsMixedGround(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
+					// The woods' Mixed look: Tristram's cels with the painted road and the graded grass, from the floor's cache when
+					// it has the tile (oracool/woods.h), drawn as before when it does not.
+					LightTableIndex = oracool::ExplorationMemoryLight(tilePosition, dLight[tilePosition.x][tilePosition.y]);
+					if (oracool::DrawWoodsMixedFloorCached(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame)) {
+						if (!DeferFloorObjectsThisFrame)
+							DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
+					} else {
+						DrawFloor(out, tilePosition, targetBufferPosition);
+						oracool::DrawWoodsMixedGround(out, tilePosition, targetBufferPosition, LightTableIndex, SmoothFloorThisFrame);
+					}
 					oracool::DrawWoodsGateTint(out, tilePosition, targetBufferPosition); // Tristram's road to the woods, marked
 				}
 				else if (DeferFloorObjectsThisFrame)
