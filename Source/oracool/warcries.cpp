@@ -765,7 +765,11 @@ void ProcessWarcriesTick(Player &player)
 		// Once a second, the nearest corpse in the field is consumed for life and mana: a fiftieth
 		// of each, and a hundredth more a point.
 		static int redemptionClock = 0;
-		if (++redemptionClock % TicksPerSecond == 0) {
+		// Not while there is nothing to restore (dev note, 2026-10-14: "redemption to not redeem corpses when life/mana are
+		// full"): a hero at full life and full mana - or with no mana to fill - leaves the corpses lying.
+		const bool manaFull = player._pMana >= player._pMaxMana || HasAnyOf(player._pIFlags, ItemSpecialEffect::NoMana);
+		const bool needsAny = player._pHitPoints < player._pMaxHP || !manaFull;
+		if (++redemptionClock % TicksPerSecond == 0 && needsAny) {
 			if (const std::optional<Point> corpse = CorpseNear(player.position.tile, radius, player.position.tile); corpse) {
 				ConsumeCorpse(*corpse);
 				// Seen and heard (dev note, 2026-09-27): a beam rises where the corpse lay, to the Resurrect spell's own cast

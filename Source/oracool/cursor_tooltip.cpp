@@ -1125,22 +1125,26 @@ bool HintCardRequested()
 void DrawCursorTooltip(const Surface &out)
 {
 	PrevTooltipRect = {};
-	const bool hintThisDraw = HintCardDraw == TooltipDraw;
 	TooltipDraw++;
-
-	// A hint card asked for in this draw: the card, before anything that could take the text for an item's.
-	if (!talkflag && hintThisDraw && !HintCardText.empty() && !out.isIndexed()) {
-		DrawHintCard(out);
-		return;
-	}
 
 	if (talkflag || InfoString.empty())
 		return;
 
-	// A hint card, when one was asked for this text and the text has not changed since (2026-09-27).
-	if (!HintCardText.empty() && !out.isIndexed() && HintCardText == InfoString.str()) {
-		DrawHintCard(out);
-		return;
+	// A hint card while the panel still says what the card was asked for - its title the same (dev note, 2026-10-14: "still big
+	// size skill popup occur"). The HUD's buttons ask from the game tick, 20 a second, and the screen draws three times as
+	// often: the one-draw rule of v1.201.029 let two draws in three fall to the item card, and a click opening the menu showed
+	// the button's text in it, screen-high. Lines added after the request (a hotkey, a cost) ride along in the card.
+	if (!HintCardText.empty() && !out.isIndexed()) {
+		const std::string_view now = InfoString.str();
+		const auto title = [](std::string_view text) { return text.substr(0, text.find('\n')); };
+		if (title(now) == title(HintCardText)) {
+			if (now != HintCardText) {
+				HintCardText = std::string(now);
+				HintCardColors.assign(InfoStringLineColors.begin(), InfoStringLineColors.end());
+			}
+			DrawHintCard(out);
+			return;
+		}
 	}
 
 	const bool asPanel = IsHoveringItem();
