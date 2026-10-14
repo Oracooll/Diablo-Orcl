@@ -2571,6 +2571,7 @@ void GameLogic()
 		ProcessMonsters();
 		gGameLogicStep = GameLogicStep::ProcessObjects;
 		ProcessObjects();
+		oracool::TickWoods(); // the fairy ring (oracool/woods.h)
 		gGameLogicStep = GameLogicStep::ProcessMissiles;
 		ProcessMissiles();
 		gGameLogicStep = GameLogicStep::ProcessItems;

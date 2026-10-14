@@ -20648,6 +20648,25 @@ TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
 			EXPECT_TRUE(walked(oracool::WoodsHouseInsideForTest(i))) << "seed " << seed << ": house " << i << " cannot be walked into";
 		}
 		houses += oracool::WoodsHouseCountForTest();
+		// What stands along the roads (2026-10-14): the health and the mana shrine, a goat shrine or a cauldron, two wisps over
+		// their chests - each on open ground the hero can walk to (beside it: the object itself is solid).
+		const oracool::WoodsWorldPlanForTest world = oracool::PlanWoodsWorldForTest(seed, 3);
+		std::map<int, int> kinds;
+		for (const auto &[type, at] : world.objects) {
+			kinds[type]++;
+			EXPECT_FALSE(TileHasAny(dPiece[at.x][at.y], TileProperties::Solid)) << "seed " << seed << ": object " << type << " on a solid tile";
+			bool reachable = false;
+			for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 }, Displacement { 1, 1 }, Displacement { -1, -1 }, Displacement { 1, -1 }, Displacement { -1, 1 } })
+				reachable = reachable || walked(at + d) || walked(at);
+			EXPECT_TRUE(reachable) << "seed " << seed << ": object " << type << " at " << at.x << "," << at.y << " cannot be reached";
+		}
+		EXPECT_EQ(kinds[OBJ_BLOODFTN], 1) << "seed " << seed << ": the health shrine";
+		EXPECT_EQ(kinds[OBJ_PURIFYINGFTN], 1) << "seed " << seed << ": the mana shrine";
+		EXPECT_EQ(kinds[OBJ_CAULDRON] + kinds[OBJ_GOATSHRINE], 1) << "seed " << seed << ": the shrine";
+		EXPECT_EQ(kinds[OBJ_BCROSS], 1) << "seed " << seed << ": the last floor's burning cross";
+		EXPECT_GE(kinds[OBJ_BARREL] + kinds[OBJ_BARRELEX], 3) << "seed " << seed << ": the barrels";
+		EXPECT_EQ(world.wisps, 2) << "seed " << seed << ": the wisps";
+		EXPECT_TRUE(world.fairyRing) << "seed " << seed << ": the fairy ring";
 	}
 	oracool::SetWoodsCaveMouthFloorForTest(-1);
 	oracool::SetWoodsRiverForTest(-1);

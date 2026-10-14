@@ -621,6 +621,28 @@ float ValueNoise(float x, float y)
 	return (a + (b - a) * tx) + ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
 }
 
+/**
+ * @brief How thick the mist lies: 1 in the Caves and the Crypt; in the woods by the hour (user, 2026-10-14: the ground mist,
+ * "low fog in hollows by night and at dawn") - none by day, rising at dusk, thickest at dawn, gone by mid-morning.
+ */
+float FogStrength()
+{
+	if (leveltype != DTYPE_WOODS)
+		return 1.0F;
+	if (!*sgOptions.Oracool.dayNightCycle)
+		return 0.0F;
+	const float h = TownHour();
+	if (h >= 21.0F || h < 4.0F)
+		return 0.8F;
+	if (h < 6.5F)
+		return 0.8F + 0.5F * (h - 4.0F) / 2.5F; // to dawn
+	if (h < 9.5F)
+		return 1.3F * (9.5F - h) / 3.0F; // burnt off by the morning
+	if (h >= 18.0F)
+		return 0.8F * (h - 18.0F) / 3.0F; // gathering at dusk
+	return 0.0F;
+}
+
 bool FogLevel(uint32_t &rgb)
 {
 	if (!*sgOptions.Oracool.groundFog)
@@ -628,6 +650,7 @@ bool FogLevel(uint32_t &rgb)
 	switch (leveltype) {
 	case DTYPE_CAVES: rgb = SFX_PACK(160, 168, 178); return true;
 	case DTYPE_CRYPT: rgb = SFX_PACK(150, 140, 176); return true;
+	case DTYPE_WOODS: rgb = SFX_PACK(196, 204, 212); return FogStrength() > 0.0F;
 	default: return false;
 	}
 }
@@ -1233,7 +1256,7 @@ void ApplyGroundFog(const Surface &out, Point firstTile, Point firstTileBuffer)
 			if (d <= 0)
 				continue;
 			d = d > 1.0F ? 1.0F : d;
-			d = d * d * (3.0F - 2.0F * d) * 0.30F;
+			d = d * d * (3.0F - 2.0F * d) * 0.30F * FogStrength();
 			const float lit = 1.0F - static_cast<float>(light) / static_cast<float>(LightsMax);
 			d *= lit * lit;
 			const int value = static_cast<int>(d * 256.0F);

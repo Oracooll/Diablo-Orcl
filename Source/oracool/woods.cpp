@@ -38,6 +38,10 @@
 #include "options.h"
 #include "oracool/colour_light.h"
 #include "oracool/scene_fx.h" // ExplorationMemoryLight - the forest past the map's edge
+#include "oracool/colour_light.h" // TownIsDark - the wisps and the ring brighter by night
+#include "oracool/splats.h"       // the wisps' glow handed to the graphics card with the other lights
+#include "objects.h"              // the vanilla objects along the roads
+#include "engine/backbuffer_state.hpp" // RedrawComponent - the fairy ring's mana
 #include "player.h"
 #include "plrmsg.h"
 #include "quests.h"
@@ -122,6 +126,8 @@ int8_t TreeJitterY[MAXDUNX][MAXDUNY];
 bool TreeHidden[MAXDUNX][MAXDUNY];
 
 Point Arrival { 88, 48 };
+/** @brief The glade's middle: its side path's end, the cave mouth's clearing, the fairy ring's place. */
+Point GladeCentre {};
 /** @brief The next woods floor built is entered from the deeper one: the hero stands at its way on, not its arrival. */
 bool EnterAtWayOn = false;
 /** @brief ... or from its cave: by the cave's mouth. */
@@ -207,6 +213,14 @@ struct House {
 constexpr int MaxHouses = 2;
 std::array<House, MaxHouses> Houses;
 int HouseCount = 0;
+/** @brief The fenced pens, by cell (their fence ring inclusive) and the tile in their middle - what stands in them (PlanWoodsWorld). */
+struct Pen {
+	int mx0, my0, x1, y1;
+	Point centre;
+};
+constexpr int MaxPens = 3;
+std::array<Pen, MaxPens> Pens;
+int PenCount = 0;
 
 /**
  * @brief What a house looks like from outside (user, 2026-10-14: "Game drawn roofs dont look good. We remove them. We do have
@@ -709,6 +723,7 @@ void PlanFences(uint32_t seed)
 	// The pens.
 	const Point keepAway[] = { Arrival, WayOn, MouthOnFloor ? MouthEntrance : Arrival, Arrival + Displacement { -2, -2 } };
 	int pens = 0;
+	PenCount = 0;
 	const int want = 2 + static_cast<int>(Hash(seed, 7, 7) % 2);
 	for (int attempt = 0; attempt < 60 && pens < want; attempt++) {
 		const uint32_t h = Hash(seed, static_cast<uint32_t>(attempt), 0xBE2U);
@@ -750,6 +765,8 @@ void PlanFences(uint32_t seed)
 		for (int my = my0; my <= y1; my++)
 			for (int mx = mx0; mx <= x1; mx++)
 				ClearCell(mx, my);
+		if (PenCount < MaxPens)
+			Pens[PenCount++] = { mx0, my0, x1, y1, centre };
 		pens++;
 	}
 	PlanHouses(seed);
@@ -908,6 +925,7 @@ void Generate(uint32_t seed)
 	// A side path to a clearing, so the floor is more than one road.
 	const Point glade { Lo + span / 2 + static_cast<int>((Unit(Hash(seed, 3, 0)) - 0.5F) * 20), Lo + span / 2 + static_cast<int>((Unit(Hash(seed, 4, 0)) - 0.5F) * 30) };
 	Clearing(glade, 6, Grass);
+	GladeCentre = glade;
 	LayPath(glade, { (Arrival.x + WayOn.x) / 2, (Arrival.y + WayOn.y) / 2 }, 2, seed ^ 0x51DEU);
 	// The cave mouth on the glade's far side, its entrance facing into the glade; trees and ground details kept off it.
 	MouthOnFloor = MouthFloor >= 0;
@@ -1389,6 +1407,384 @@ void CreateWoods(uint32_t seed, lvl_entry /*entry*/)
 	ViewPosition = Arrival;
 }
 
+
+// ---------------------------------------------------------------- the world along the roads
+
+/** @brief objects.cpp's: loads object sheet @p ofile for this level if it is not loaded yet. */
+void EnsureObjectGraphicsLoaded(object_graphic_id ofile, uint16_t animWidth);
+
+namespace {
+
+/**
+ * @brief What stands along the woods' roads (user, 2026-10-14: "we need to introduce health shrines, mana shrines, lanterns along the
+ * roads, and other world enriching assets in the woods act", then "go with your first and second batches of suggestion. no new
+ * assets for now"): vanilla objects - the Blood Fountain, the Purifying Spring, a goat shrine or a cauldron, sarcophagi, chests,
+ * barrels, the headless dead, the tortured, a skull pile, the burning cross - and what the game draws itself: will-o'-wisps
+ * that lead off the road to a chest, a fairy ring, the cottages' lamps by night. Planned from the floor's own generation on
+ * every build, so a revisit finds its wisps and its ring where its saved objects stand; the objects are added once, fresh.
+ */
+struct WorldPiece {
+	_object_id type;
+	Point at;
+};
+std::vector<WorldPiece> WorldPieces;
+struct Wisp {
+	Point road;
+	Point chest;
+	float phase;
+};
+std::array<Wisp, 2> Wisps;
+int WispCount = 0;
+bool HasFairyRing = false;
+/** @brief The candle stands by the cottages' doors: lit by night (WoodsNightLamps). */
+std::vector<Point> CandleStands;
+bool Taken[MAXDUNX][MAXDUNY];
+bool InFairyRingBefore = false;
+uint32_t FairyRingTicks = 0;
+
+bool InHouseBounds(Point p, int margin)
+{
+	for (int i = 0; i < HouseCount; i++) {
+		const House &house = Houses[i];
+		if (p.x >= Lo + 2 * house.x0 - margin && p.x <= Lo + 2 * house.x1 + 1 + margin && p.y >= Lo + 2 * house.y0 - margin
+		    && p.y <= Lo + 2 * house.y1 + 1 + margin)
+			return true;
+	}
+	return false;
+}
+
+/** @brief A tile an object may stand on: open ground off the road, the river, the mouth and the houses, not in anything's way. */
+bool WorldLoose(Point p)
+{
+	if (!InDungeonBounds(p) || !Inside(p) || Taken[p.x][p.y])
+		return false;
+	if (TileHasAny(dPiece[p.x][p.y], TileProperties::Solid) || Tree[p.x][p.y] != NoTree || InRiver(p) || InMouth(p))
+		return false;
+	return true;
+}
+
+/** @brief And with room round it: the eight tiles about it walkable, the roads' ends, the waypoint and the mouth kept clear. */
+bool WorldOpen(Point p)
+{
+	if (!WorldLoose(p) || Ground[p.x][p.y] == Path || InHouseBounds(p, 1))
+		return false;
+	for (const Point keep : { Arrival, WayOn, Arrival + Displacement { -2, -2 } }) {
+		if (p.WalkingDistance(keep) < 4)
+			return false;
+	}
+	if (MouthOnFloor && p.WalkingDistance(MouthEntrance) < 5)
+		return false;
+	if (HasFairyRing && p.WalkingDistance(GladeCentre) < 5)
+		return false;
+	for (int dy = -1; dy <= 1; dy++) {
+		for (int dx = -1; dx <= 1; dx++) {
+			const Point q = p + Displacement { dx, dy };
+			if (!InDungeonBounds(q) || TileHasAny(dPiece[q.x][q.y], TileProperties::Solid))
+				return false;
+		}
+	}
+	return true;
+}
+
+void Take(Point p, int radius)
+{
+	for (int dy = -radius; dy <= radius; dy++)
+		for (int dx = -radius; dx <= radius; dx++)
+			if (InDungeonBounds(p + Displacement { dx, dy }))
+				Taken[p.x + dx][p.y + dy] = true;
+}
+
+/** @brief The first tile @p minD..@p maxD from @p from (the ring of each, from a place @p h picks) that @p ok takes. */
+template <typename Ok>
+std::optional<Point> NearOff(Point from, int minD, int maxD, uint32_t h, Ok ok)
+{
+	for (int d = minD; d <= maxD; d++) {
+		std::vector<Point> ring;
+		for (int dy = -d; dy <= d; dy++)
+			for (int dx = -d; dx <= d; dx++)
+				if (std::max(std::abs(dx), std::abs(dy)) == d)
+					ring.push_back(from + Displacement { dx, dy });
+		const size_t start = h % ring.size();
+		for (size_t k = 0; k < ring.size(); k++) {
+			const Point p = ring[(start + k) % ring.size()];
+			if (ok(p))
+				return p;
+		}
+	}
+	return std::nullopt;
+}
+
+void Put(_object_id type, std::optional<Point> at, int spacing = 2)
+{
+	if (!at)
+		return;
+	WorldPieces.push_back({ type, *at });
+	Take(*at, spacing);
+}
+
+void PlanWoodsWorld(uint32_t seed, int floor)
+{
+	WorldPieces.clear();
+	CandleStands.clear();
+	WispCount = 0;
+	std::memset(Taken, 0, sizeof(Taken));
+	// The road, from the arrival to the way on and the glade's path: its tiles by their distance from the arrival.
+	std::vector<Point> road;
+	for (int y = Lo; y <= Hi; y++)
+		for (int x = Lo; x <= Hi; x++)
+			if (Ground[x][y] == Path && Tree[x][y] == NoTree && !InRiver({ x, y }))
+				road.push_back({ x, y });
+	std::sort(road.begin(), road.end(), [](Point a, Point b) {
+		const int da = a.WalkingDistance(Arrival), db = b.WalkingDistance(Arrival);
+		return da != db ? da < db : (a.y != b.y ? a.y < b.y : a.x < b.x);
+	});
+	const auto along = [&](int percent) { return road[std::min(road.size() - 1, road.size() * static_cast<size_t>(percent) / 100)]; };
+	const auto open = [](Point p) { return WorldOpen(p); };
+	const auto loose = [](Point p) { return WorldLoose(p); };
+	// The fairy ring in the glade's middle, where nothing else stands.
+	HasFairyRing = WorldLoose(GladeCentre) && !TileHasAny(dPiece[GladeCentre.x][GladeCentre.y], TileProperties::Solid);
+	if (HasFairyRing)
+		Take(GladeCentre, 3);
+	if (road.empty())
+		return;
+	// The health shrine by the road a third of the way along; the mana shrine by the river, or two thirds along.
+	Put(OBJ_BLOODFTN, NearOff(along(35), 2, 5, Hash(seed, 1, 0xF0), open), 3);
+	std::optional<Point> spring;
+	{
+		std::vector<Point> bank;
+		for (int y = Lo; y <= Hi; y++)
+			for (int x = Lo; x <= Hi; x++) {
+				if (!InRiver({ x, y }))
+					continue;
+				for (const Displacement d : { Displacement { 2, 0 }, Displacement { -2, 0 }, Displacement { 0, 2 }, Displacement { 0, -2 } })
+					bank.push_back(Point { x, y } + d);
+			}
+		const size_t start = bank.empty() ? 0 : Hash(seed, 2, 0xF1) % bank.size();
+		for (size_t k = 0; k < bank.size() && !spring; k++)
+			if (WorldOpen(bank[(start + k) % bank.size()]))
+				spring = bank[(start + k) % bank.size()];
+		if (!spring)
+			spring = NearOff(along(65), 3, 6, Hash(seed, 3, 0xF2), open);
+	}
+	Put(OBJ_PURIFYINGFTN, spring, 3);
+	// A shrine in the first pen - the goat shrine on even floors, the cauldron on odd - or near the glade.
+	const _object_id shrine = floor % 2 == 0 ? OBJ_GOATSHRINE : OBJ_CAULDRON;
+	if (PenCount > 0 && WorldLoose(Pens[0].centre))
+		Put(shrine, Pens[0].centre);
+	else
+		Put(shrine, NearOff(GladeCentre, 5, 8, Hash(seed, 4, 0xF3), open));
+	// The second pen a little graveyard below the first floor, a chest's otherwise; the others a chest each.
+	const _object_id chest = floor <= 1 ? OBJ_CHEST1 : floor == 2 ? OBJ_CHEST2 : OBJ_CHEST3;
+	for (int i = 1; i < PenCount; i++) {
+		const Point c = Pens[i].centre;
+		if (i == 1 && floor >= 1) {
+			Put(OBJ_SARC, WorldLoose(c) ? std::optional<Point>(c) : std::nullopt, 0);
+			const Point second = c + Displacement { 1, 0 };
+			if (WorldLoose(second) && !TileHasAny(dPiece[second.x + 1][second.y], TileProperties::Solid))
+				Put(OBJ_SARC, second, 0);
+		} else if (WorldLoose(c)) {
+			Put(chest, c);
+		}
+	}
+	// Each cottage: a candle stand either side of its door, a barrel near it.
+	for (int i = 0; i < HouseCount; i++) {
+		const House &house = Houses[i];
+		const int doorX = Lo + 2 * house.x1 + 1;
+		const int archY0 = Lo + 2 * house.doorY;
+		for (const Point candle : { Point { doorX, archY0 - 1 }, Point { doorX, archY0 + 2 } }) {
+			if (WorldLoose(candle)) {
+				Put(OBJ_CANDLE2, candle, 0);
+				CandleStands.push_back(candle);
+			}
+		}
+		Put(Hash(seed, 5, static_cast<uint32_t>(i)) % 4 == 0 ? OBJ_BARRELEX : OBJ_BARREL, NearOff({ doorX, archY0 }, 3, 5, Hash(seed, 6, static_cast<uint32_t>(i)), open));
+	}
+	// Barrels by the road, one in four of them the kind that bursts.
+	for (const int percent : { 20, 50, 80 })
+		Put(Hash(seed, 7, static_cast<uint32_t>(percent)) % 4 == 0 ? OBJ_BARRELEX : OBJ_BARREL, NearOff(along(percent), 2, 3, Hash(seed, 8, static_cast<uint32_t>(percent)), open));
+	// The headless dead by the road, to be searched.
+	for (const int percent : { 15, 75 })
+		Put(OBJ_DECAP, NearOff(along(percent), 2, 3, Hash(seed, 9, static_cast<uint32_t>(percent)), open));
+	// The grim ones at the gates: the tortured by the way on, a skull pile by the way back.
+	const _object_id tortured[] = { OBJ_TNUDEM1, OBJ_TNUDEM2, OBJ_TNUDEM3, OBJ_TNUDEM4 };
+	for (uint32_t k = 0; k < 2; k++)
+		Put(tortured[Hash(seed, 10, k) % 4], NearOff(WayOn + Displacement { 5, 0 }, 2, 5, Hash(seed, 11, k), open));
+	Put(OBJ_SKPILE, NearOff(Arrival + Displacement { -5, 0 }, 2, 5, Hash(seed, 12, 0), open));
+	// And on the last floor, at the end of the path, the burning cross.
+	if (floor == WoodsFloors - 1)
+		Put(OBJ_BCROSS, NearOff(WayOn + Displacement { 3, 0 }, 1, 4, Hash(seed, 13, 0), open), 2);
+	// Two will-o'-wisps, each over a chest in a pocket of the forest six to ten tiles off the road.
+	for (const int percent : { 30, 70 }) {
+		if (WispCount >= static_cast<int>(Wisps.size()))
+			break;
+		const Point from = along(percent);
+		const uint32_t h = Hash(seed, 14, static_cast<uint32_t>(percent));
+		std::optional<Point> pocket = NearOff(from, 6, 10, h, [](Point p) { return WorldLoose(p) && Ground[p.x][p.y] == Forest && !InHouseBounds(p, 2); });
+		if (!pocket)
+			pocket = NearOff(from, 6, 10, h, open);
+		if (!pocket)
+			continue;
+		Put(OBJ_CHEST2, pocket, 2);
+		Wisps[WispCount++] = { from, *pocket, static_cast<float>(h % 1000) / 1000.0F };
+	}
+	(void)loose;
+}
+
+void EnsureWoodsWorldGraphics()
+{
+	for (const _object_id type : { OBJ_BLOODFTN, OBJ_PURIFYINGFTN, OBJ_GOATSHRINE, OBJ_CAULDRON, OBJ_SARC, OBJ_CHEST1, OBJ_CHEST2, OBJ_CHEST3,
+	         OBJ_CANDLE2, OBJ_BARREL, OBJ_BARRELEX, OBJ_DECAP, OBJ_TNUDEM1, OBJ_SKPILE, OBJ_BCROSS })
+		EnsureObjectGraphicsLoaded(AllObjects[type].ofindex, AllObjects[type].animWidth);
+}
+
+void PlaceWoodsWorldObjects()
+{
+	for (const WorldPiece &piece : WorldPieces) {
+		if (dObject[piece.at.x][piece.at.y] != 0 || TileHasAny(dPiece[piece.at.x][piece.at.y], TileProperties::Solid))
+			continue;
+		AddObject(piece.type, piece.at);
+	}
+}
+
+/** @brief A wisp's place now, in tiles: drifting between the road and its chest and back, swaying as it goes. */
+void WispAt(const Wisp &wisp, float &x, float &y)
+{
+	const float t = static_cast<float>(SDL_GetTicks() % 3600000U) / 1000.0F;
+	const float u = 0.5F - 0.5F * std::cos(6.2831853F * (t / 18.0F + wisp.phase));
+	const float dx = static_cast<float>(wisp.chest.x - wisp.road.x);
+	const float dy = static_cast<float>(wisp.chest.y - wisp.road.y);
+	const float len = std::max(1.0F, std::sqrt(dx * dx + dy * dy));
+	const float sway = 0.45F * std::sin(t * 1.7F + wisp.phase * 6.0F);
+	x = static_cast<float>(wisp.road.x) + dx * u - dy / len * sway;
+	y = static_cast<float>(wisp.road.y) + dy * u + dx / len * sway;
+}
+
+/** @brief The wisp's chest still shut: once it is opened, its wisp is gone. */
+bool WispLives(const Wisp &wisp)
+{
+	const int id = dObject[wisp.chest.x][wisp.chest.y];
+	if (id == 0)
+		return false;
+	const Object &object = Objects[std::abs(id) - 1];
+	return object._oSelFlag != 0;
+}
+
+} // namespace
+
+const std::vector<WoodsLamp> &WoodsNightLamps()
+{
+	static std::vector<WoodsLamp> lamps;
+	lamps.clear();
+	if (leveltype != DTYPE_WOODS || !setlevel || !IsWoodsLevel(setlvlnum))
+		return lamps;
+	// The cottages' lamps behind their doors, and their candle stands outside.
+	for (int i = 0; i < HouseCount; i++) {
+		const House &house = Houses[i];
+		lamps.push_back({ static_cast<float>(Lo + 2 * house.x1 - 1), static_cast<float>(Lo + 2 * house.doorY + 1), 5.0F, 0.9F, 0xFFB464U });
+	}
+	for (const Point candle : CandleStands)
+		lamps.push_back({ static_cast<float>(candle.x), static_cast<float>(candle.y), 3.5F, 0.8F, 0xFFC878U });
+	for (int i = 0; i < WispCount; i++) {
+		if (!WispLives(Wisps[i]))
+			continue;
+		float x, y;
+		WispAt(Wisps[i], x, y);
+		lamps.push_back({ x, y, 3.0F, 0.7F, 0xA0D2FFU });
+	}
+	if (HasFairyRing)
+		lamps.push_back({ static_cast<float>(GladeCentre.x), static_cast<float>(GladeCentre.y), 3.5F, 0.6F, 0x78F0C8U });
+	return lamps;
+}
+
+void DrawWoodsGlows(const Surface &out, Point firstTile, Point firstTileBuffer)
+{
+	if (leveltype != DTYPE_WOODS || !setlevel || !IsWoodsLevel(setlvlnum) || out.isIndexed() || out.w() <= 0 || out.h() <= 0)
+		return;
+	std::vector<Splat> *splats = SplatCollection();
+	const auto add = [&](int px, int py, int r, int g, int b) {
+		if (px < 0 || py < 0 || px >= out.w() || py >= out.h() || (r | g | b) <= 0)
+			return;
+		r = std::min(r, 255);
+		g = std::min(g, 255);
+		b = std::min(b, 255);
+		if (splats != nullptr) {
+			splats->push_back({ static_cast<float>(px), static_cast<float>(py), static_cast<float>(r) / 255.0F, static_cast<float>(g) / 255.0F, static_cast<float>(b) / 255.0F, 0.0F });
+			return;
+		}
+		uint32_t &c = *out.at<uint32_t>(px, py);
+		const int cr = std::min(255, static_cast<int>((c >> 16) & 0xFF) + r);
+		const int cg = std::min(255, static_cast<int>((c >> 8) & 0xFF) + g);
+		const int cb = std::min(255, static_cast<int>(c & 0xFF) + b);
+		c = (c & 0xFF000000U) | (static_cast<uint32_t>(cr) << 16) | (static_cast<uint32_t>(cg) << 8) | static_cast<uint32_t>(cb);
+	};
+	const auto glow = [&](float cx, float cy, int radius, uint32_t rgb, float k) {
+		if (cx < -radius || cy < -radius || cx > out.w() + radius || cy > out.h() + radius || k <= 0.01F)
+			return;
+		const int x0 = static_cast<int>(cx);
+		const int y0 = static_cast<int>(cy);
+		for (int dy = -radius; dy <= radius; dy++) {
+			for (int dx = -radius; dx <= radius; dx++) {
+				const float d = std::sqrt(static_cast<float>(dx * dx + dy * dy)) / static_cast<float>(radius);
+				if (d >= 1.0F)
+					continue;
+				const float f = (1.0F - d) * (1.0F - d) * k;
+				add(x0 + dx, y0 + dy, static_cast<int>(static_cast<float>((rgb >> 16) & 0xFF) * f), static_cast<int>(static_cast<float>((rgb >> 8) & 0xFF) * f),
+				    static_cast<int>(static_cast<float>(rgb & 0xFF) * f));
+			}
+		}
+	};
+	const auto screen = [&](float tx, float ty, float &sx, float &sy) {
+		const float ux = tx - static_cast<float>(firstTile.x);
+		const float uy = ty - static_cast<float>(firstTile.y);
+		sx = static_cast<float>(firstTileBuffer.x) + 32.0F + (ux - uy) * 32.0F;
+		sy = static_cast<float>(firstTileBuffer.y) - 15.0F + (ux + uy) * 16.0F;
+	};
+	const float t = static_cast<float>(SDL_GetTicks() % 3600000U) / 1000.0F;
+	// Brighter by night; by day a faint shimmer.
+	const float night = TownIsDark() ? 1.0F : 0.4F;
+	for (int i = 0; i < WispCount; i++) {
+		if (!WispLives(Wisps[i]))
+			continue;
+		float x, y, sx, sy;
+		WispAt(Wisps[i], x, y);
+		screen(x, y, sx, sy);
+		sy -= 34.0F + 6.0F * std::sin(t * 2.3F + Wisps[i].phase * 9.0F); // it floats at a man's chest
+		const float flicker = 0.85F + 0.15F * std::sin(t * 11.0F + Wisps[i].phase * 4.0F);
+		glow(sx, sy, 18, 0x6EA8FFU, 0.55F * night * flicker);
+		glow(sx, sy, 5, 0xE6F4FFU, 1.1F * night * flicker);
+	}
+	if (HasFairyRing) {
+		for (int k = 0; k < 11; k++) {
+			const float a = 6.2831853F * static_cast<float>(k) / 11.0F;
+			float sx, sy;
+			screen(static_cast<float>(GladeCentre.x) + 2.4F * std::cos(a), static_cast<float>(GladeCentre.y) + 2.4F * std::sin(a), sx, sy);
+			const float pulse = 0.55F + 0.45F * std::sin(t * 1.3F + static_cast<float>(k) * 1.7F);
+			glow(sx, sy - 3.0F, 9, 0x50E6B4U, 0.45F * night * pulse);
+			glow(sx, sy - 3.0F, 3, 0xD2FFF0U, 0.9F * night * pulse);
+		}
+	}
+}
+
+void TickWoods()
+{
+	if (leveltype != DTYPE_WOODS || !setlevel || !IsWoodsLevel(setlvlnum) || MyPlayer == nullptr || !HasFairyRing)
+		return;
+	Player &player = *MyPlayer;
+	const bool in = player._pHitPoints > 0 && player.position.tile.WalkingDistance(GladeCentre) <= 2;
+	if (in && !InFairyRingBefore)
+		EventPlrMsg("The fairy ring hums. Your mana flows faster here.", UiFlags::ColorWhite);
+	InFairyRingBefore = in;
+	if (!in || ++FairyRingTicks % 20 != 0)
+		return;
+	// Three percent of the hero's mana a second while he stands in it.
+	const int add = player._pMaxMana * 3 / 100;
+	if (add <= 0 || player._pMana >= player._pMaxMana)
+		return;
+	player._pMana = std::min(player._pMana + add, player._pMaxMana);
+	player._pManaBase = std::min(player._pManaBase + add, player._pMaxManaBase);
+	RedrawComponent(PanelDrawComponent::Mana);
+}
+
 void BuildWoodsLevel(bool fresh)
 {
 	const int floor = FloorIndex(setlvlnum);
@@ -1443,6 +1839,11 @@ void BuildWoodsLevel(bool fresh)
 		AddGeneratedLevelWaypointSigil(sigil, FirstWoodsWaypoint + floor);
 	else
 		EnsureWaypointGraphicsLoaded();
+	// What stands along the roads (PlanWoodsWorld): planned on every build, its objects added on the first.
+	PlanWoodsWorld(Game.seed[floor], floor);
+	EnsureWoodsWorldGraphics();
+	if (fresh)
+		PlaceWoodsWorldObjects();
 	if (!HeadlessMode) {
 		LoadArt();
 		BuildEdgeNoise();
@@ -2546,6 +2947,18 @@ Point StampWoodsCaveMouthForTest()
 void SetWoodsRungForTest(int floorIndex, int rung)
 {
 	Game.rung[std::clamp(floorIndex, 0, WoodsFloors - 1)] = static_cast<uint8_t>(rung);
+}
+
+WoodsWorldPlanForTest PlanWoodsWorldForTest(uint32_t seed, int floor)
+{
+	PlanWoodsWorld(seed, floor);
+	WoodsWorldPlanForTest plan;
+	for (const WorldPiece &piece : WorldPieces)
+		plan.objects.emplace_back(static_cast<int>(piece.type), piece.at);
+	plan.wisps = WispCount;
+	plan.fairyRing = HasFairyRing;
+	plan.fairyRingAt = GladeCentre;
+	return plan;
 }
 
 void SetWoodsSeedForTest(int floorIndex, uint32_t seed)

@@ -21,6 +21,7 @@
 #include "engine/surface.hpp"
 #include "items.h"
 #include "levels/gendung.h"
+#include "oracool/woods.h" // WoodsNightLamps - the woods' lights by night
 #include "lighting.h"
 #include "misdat.h"
 #include "missiles.h"
@@ -761,6 +762,9 @@ const std::vector<TownLight> &GatherTownLights()
 	}
 	// The homes' windows and the forge (the sixth graphics batch, oracool/scene_glow.h).
 	for (const HomeLamp &lamp : TownHomeLamps())
+		addRgb(lamp.x, lamp.y, lamp.reach, lamp.strength, lamp.rgb);
+	// The woods' cottages, candles, wisps and fairy ring (oracool/woods.h).
+	for (const WoodsLamp &lamp : WoodsNightLamps())
 		addRgb(lamp.x, lamp.y, lamp.reach, lamp.strength, lamp.rgb);
 	for (const Missile &missile : Missiles) {
 		// A portal in town has no light of its own (ProcessTownPortal lights it only in the dungeon): by its kind.

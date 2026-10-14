@@ -232,6 +232,18 @@ void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light
 uint8_t WoodsGroundAt(Point tile);
 /** @brief Test hook: whether a woods tile holds a tree. */
 bool WoodsTreeAt(Point tile);
+/** @brief A light the woods hold by night: the cottages' lamps and candles, the wisps, the fairy ring (colour_light's night). */
+struct WoodsLamp {
+	float x, y, reach, strength;
+	uint32_t rgb;
+};
+/** @brief This frame's woods lamps (empty off the woods). */
+const std::vector<WoodsLamp> &WoodsNightLamps();
+/** @brief The wisps and the fairy ring, drawn as light with the other lights (scrollrt's Beams pass; splats on the card). */
+void DrawWoodsGlows(const Surface &out, Point firstTile, Point firstTileBuffer);
+/** @brief Once a game tick on a woods floor: the fairy ring's mana. */
+void TickWoods();
+
 /** @brief Test hook: the arrival and the way on of the floor last built. */
 Point WoodsArrival();
 Point WoodsWayOn();
@@ -268,6 +280,14 @@ void SetWoodsCaveMouthFloorForTest(int floorIndex);
 Point StampWoodsCaveMouthForTest();
 /** @brief Test hook: sets floor @p floorIndex's rung as its first visit would. */
 void SetWoodsRungForTest(int floorIndex, int rung);
+/** @brief Test hook: PlanWoodsWorld for the floor last built - each planned object's kind and tile, the wisps, the fairy ring. */
+struct WoodsWorldPlanForTest {
+	std::vector<std::pair<int, Point>> objects;
+	int wisps = 0;
+	bool fairyRing = false;
+	Point fairyRingAt {};
+};
+WoodsWorldPlanForTest PlanWoodsWorldForTest(uint32_t seed, int floor);
 /** @brief Test hook: floor @p floorIndex's seed (0: not yet entered). */
 void SetWoodsSeedForTest(int floorIndex, uint32_t seed);
 
