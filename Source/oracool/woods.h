@@ -222,6 +222,20 @@ bool WoodsTreeAt(Point tile);
 /** @brief Test hook: the arrival and the way on of the floor last built. */
 Point WoodsArrival();
 Point WoodsWayOn();
+
+/** @brief The minimap's type of woods megatile @p cell (0..49 each way; 0 off it): what dungeon[][] holds on other floors. */
+uint8_t WoodsAutomapCell(Point cell);
+
+/**
+ * @brief The forest tile drawn for @p tile past the map's edge (the woods' box runs to six tiles of it since the 100 x 100
+ * floors): the band between the edge and the box, mirrored. @p tile itself where it is on the map.
+ */
+Point WoodsMirrorBeyondMap(Point tile);
+
+/** @brief The floor of @p tile past the woods' map edge, from its mirror (scrollrt's DrawFloor); false off the woods or on the map. */
+bool DrawWoodsBeyondMapFloor(const Surface &out, Point tile, Point target, bool fullBright);
+/** @brief And its tree (DrawTileContent). */
+void DrawWoodsBeyondMapTree(const Surface &out, Point tile, Point target);
 /** @brief Test hook: loads the woods art as BuildWoodsLevel does outside headless mode. */
 void LoadWoodsArtForTest();
 /**

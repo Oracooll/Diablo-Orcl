@@ -38,7 +38,7 @@ extern DVL_API_FOR_TEST bool AutomapActive;
  */
 extern DVL_API_FOR_TEST bool MiniMapActive;
 /** Tracks the explored areas of the map. */
-extern uint8_t AutomapView[DMAXX][DMAXY];
+extern uint8_t AutomapView[MaxPlayAreaCells][MaxPlayAreaCells];
 /** Specifies the scale of the automap. */
 extern DVL_API_FOR_TEST int AutoMapScale;
 extern DVL_API_FOR_TEST Displacement AutomapOffset;

@@ -230,6 +230,27 @@ extern WorldTilePosition dminPosition;
 extern WorldTilePosition dmaxPosition;
 /** Specifies the active dungeon type of the current game. */
 extern DVL_API_FOR_TEST dungeon_type leveltype;
+
+/**
+ * @brief The floor's play area in world tiles: 80 x 80 from tile 16 on every floor of the game, 100 x 100 from tile 6 on the
+ * Orcl Act's woods (user, 2026-10-14: "go with 100x100 for now"; 224 x 224 is on the roadmap). Random placement and the
+ * minimap ask here; the vanilla generators keep their 40 x 40 dungeon[][] at 16.
+ */
+inline int PlayAreaOrigin()
+{
+	return leveltype == DTYPE_WOODS ? 6 : 16;
+}
+inline int PlayAreaTiles()
+{
+	return leveltype == DTYPE_WOODS ? 100 : 80;
+}
+/** @brief The play area in megatiles (the minimap's cells): 40, or 50 in the woods. */
+inline int PlayAreaCells()
+{
+	return PlayAreaTiles() / 2;
+}
+/** @brief The most megatiles any floor has across (the minimap's array). */
+constexpr int MaxPlayAreaCells = 50;
 /** Specifies the active dungeon level of the current game. */
 extern DVL_API_FOR_TEST uint8_t currlevel;
 extern DVL_API_FOR_TEST bool setlevel;

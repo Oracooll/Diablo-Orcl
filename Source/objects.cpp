@@ -442,8 +442,8 @@ void InitRndLocObj(int min, int max, _object_id objtype)
 
 	for (int i = 0; i < numobjs; i++) {
 		while (true) {
-			int xp = GenerateRnd(80) + 16;
-			int yp = GenerateRnd(80) + 16;
+			int xp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
+			int yp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
 			if (RndLocOk(xp - 1, yp - 1)
 			    && RndLocOk(xp, yp - 1)
 			    && RndLocOk(xp + 1, yp - 1)
@@ -465,8 +465,8 @@ void InitRndLocBigObj(int min, int max, _object_id objtype)
 	int numobjs = GenerateRnd(max - min) + min;
 	for (int i = 0; i < numobjs; i++) {
 		while (true) {
-			int xp = GenerateRnd(80) + 16;
-			int yp = GenerateRnd(80) + 16;
+			int xp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
+			int yp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
 			if (RndLocOk(xp - 1, yp - 2)
 			    && RndLocOk(xp, yp - 2)
 			    && RndLocOk(xp + 1, yp - 2)
@@ -501,7 +501,7 @@ bool CanPlaceRandomObject(Point position, Displacement standoff)
 std::optional<Point> GetRandomObjectPosition(Displacement standoff)
 {
 	for (int i = 0; i <= 20000; i++) {
-		Point position = Point { GenerateRnd(80), GenerateRnd(80) } + Displacement { 16, 16 };
+		Point position = Point { GenerateRnd(PlayAreaTiles()), GenerateRnd(PlayAreaTiles()) } + Displacement { PlayAreaOrigin(), PlayAreaOrigin() };
 		if (CanPlaceRandomObject(position, standoff))
 			return position;
 	}
@@ -609,8 +609,8 @@ void InitRndBarrels()
 		int xp;
 		int yp;
 		do {
-			xp = GenerateRnd(80) + 16;
-			yp = GenerateRnd(80) + 16;
+			xp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
+			yp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
 		} while (!RndLocOk(xp, yp));
 		_object_id o = FlipCoin(4) ? explosiveBarrelId : barrelId;
 		AddObject(o, { xp, yp });
@@ -958,8 +958,8 @@ void AddCryptStoryBook(int s)
 void AddNakrulLever()
 {
 	while (true) {
-		int xp = GenerateRnd(80) + 16;
-		int yp = GenerateRnd(80) + 16;
+		int xp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
+		int yp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
 		if (RndLocOk(xp - 1, yp - 1)
 		    && RndLocOk(xp, yp - 1)
 		    && RndLocOk(xp + 1, yp - 1)
@@ -1087,8 +1087,8 @@ void AddLazStand()
 	bool found = false;
 	while (!found) {
 		found = true;
-		xp = GenerateRnd(80) + 16;
-		yp = GenerateRnd(80) + 16;
+		xp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
+		yp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
 		for (int yy = -3; yy <= 3; yy++) {
 			for (int xx = -2; xx <= 3; xx++) {
 				if (!RndLocOk(xp + xx, yp + yy))

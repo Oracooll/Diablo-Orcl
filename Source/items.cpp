@@ -868,7 +868,7 @@ Point GetRandomAvailableItemPosition()
 {
 	Point position = {};
 	do {
-		position = Point { GenerateRnd(80), GenerateRnd(80) } + Displacement { 16, 16 };
+		position = Point { GenerateRnd(PlayAreaTiles()), GenerateRnd(PlayAreaTiles()) } + Displacement { PlayAreaOrigin(), PlayAreaOrigin() };
 	} while (!ItemPlace(position));
 
 	return position;

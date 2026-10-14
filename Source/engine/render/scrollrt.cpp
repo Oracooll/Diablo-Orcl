@@ -1710,7 +1710,7 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 				}
 				else if (DeferFloorObjectsThisFrame)
 					DrawWallFloorTriangles(out, tilePosition, targetBufferPosition);
-			} else {
+			} else if (!oracool::DrawWoodsBeyondMapFloor(out, tilePosition, targetBufferPosition, SmoothFloorThisFrame)) {
 				world_draw_black_tile(out, targetBufferPosition.x, targetBufferPosition.y);
 			}
 			tilePosition += Direction::East;
@@ -1801,6 +1801,8 @@ void DrawTileContent(const Surface &out, Point tilePosition, Point targetBufferP
 					}
 				}
 				DrawDungeon(out, tilePosition, targetBufferPosition);
+			} else {
+				oracool::DrawWoodsBeyondMapTree(out, tilePosition, targetBufferPosition); // the forest past the woods' edge
 			}
 			tilePosition += Direction::East;
 			targetBufferPosition.x += TILE_WIDTH;

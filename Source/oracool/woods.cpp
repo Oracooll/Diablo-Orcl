@@ -37,6 +37,7 @@
 #include "lighting.h"
 #include "options.h"
 #include "oracool/colour_light.h"
+#include "oracool/scene_fx.h" // ExplorationMemoryLight - the forest past the map's edge
 #include "player.h"
 #include "plrmsg.h"
 #include "quests.h"
@@ -93,9 +94,16 @@ enum TreeKind : uint8_t {
 	TreeKindCount,
 };
 
-/** @brief The floor's playable box in world tiles: the dungeon's 40 x 40 megatiles, with trees all round it. */
-constexpr int Lo = 16;
-constexpr int Hi = 95;
+/**
+ * @brief The floor's playable box in world tiles: 50 x 50 megatiles from tile 6 (user, 2026-10-14: "go with 100x100 for now";
+ * it was the dungeon's 40 x 40 from 16), with trees all round it. Past the map's edge the forest is drawn mirrored
+ * (DrawWoodsBeyondMap), so the six tiles left over are enough.
+ */
+constexpr int Lo = 6;
+constexpr int Hi = 105;
+/** @brief The box in megatiles (the woods' own cell grids, not the dungeon's 40 x 40 dungeon[][]). */
+constexpr int WoodsCells = (Hi - Lo + 1) / 2;
+static_assert(WoodsCells <= MaxPlayAreaCells && Lo % 2 == 0);
 
 uint8_t Ground[MAXDUNX][MAXDUNY];
 uint8_t Tree[MAXDUNX][MAXDUNY];
@@ -144,7 +152,9 @@ constexpr Displacement MouthEntranceOffset { 5, 3 };
  * megatiles, by dungeon cell (the 40 x 40 grid of 2 x 2 tiles), 0 where there is none. Borrowed from the Caves tileset
  * (oracool/borrowed_tiles.h), each over the woods' own ground.
  */
-uint8_t FenceCell[DMAXX][DMAXY];
+uint8_t FenceCell[WoodsCells][WoodsCells];
+/** @brief The minimap's type of each megatile (automap.cpp, WoodsAutomapCell): dungeon[][] is the vanilla 40 x 40. */
+uint8_t MapCell[WoodsCells][WoodsCells];
 /** @brief The Caves' fence megatiles (drlg_l3.cpp Fence): along x, along y, a post where two meet, the gates in each. */
 constexpr uint8_t FenceAlongX[] = { 134, 136 };
 constexpr uint8_t FenceAlongY[] = { 135, 137 };
@@ -155,7 +165,7 @@ constexpr uint8_t GateAlongY = 147;
 constexpr std::pair<uint16_t, uint16_t> GateOpen[] = { { 530, 537 }, { 533, 540 } };
 /** @brief The ring's cells: one in from the dungeon's edge, so the playable box's outermost tiles are the forest beyond it. */
 constexpr int RingLo = 1;
-constexpr int RingHi = DMAXX - 2;
+constexpr int RingHi = WoodsCells - 2;
 
 /**
  * @brief The river (user, 2026-10-13: "grass, rivers, bridges"): Tristram's own stream, its cells as the town lays them
@@ -181,7 +191,7 @@ constexpr uint16_t RiverPieces[7][4] = {
 	{ 261, 262, 263, 264 },
 	{ 309, 310, 311, 312 }, // crossed along its bottom row (311, 312); 309 and 310 are its rail
 };
-uint8_t RiverCell[DMAXX][DMAXY];
+uint8_t RiverCell[WoodsCells][WoodsCells];
 /**
  * @brief The houses (user, 2026-10-13: "houses which can be entered and their roof fading away when in. chests inside. stone
  * walls"; then "walk-in building using wall assets from catacombs and gamedrawn roof, fade-away roof"): rooms of the Catacombs'
@@ -227,9 +237,9 @@ Point MouthEntrance {};
 
 bool InRiver(Point tile)
 {
-	if (tile.x < 16 || tile.y < 16 || tile.x >= 96 || tile.y >= 96)
+	if (tile.x < Lo || tile.y < Lo || tile.x > Hi || tile.y > Hi)
 		return false;
-	return RiverCell[(tile.x - 16) / 2][(tile.y - 16) / 2] != NoRiver;
+	return RiverCell[(tile.x - Lo) / 2][(tile.y - Lo) / 2] != NoRiver;
 }
 
 bool InMouth(Point tile)
@@ -240,14 +250,14 @@ bool InMouth(Point tile)
 /** @brief The river's town pieces over the floor's tiles. */
 void StampRiver()
 {
-	for (int my = 0; my < DMAXY; my++) {
-		for (int mx = 0; mx < DMAXX; mx++) {
+	for (int my = 0; my < WoodsCells; my++) {
+		for (int mx = 0; mx < WoodsCells; mx++) {
 			const uint8_t part = RiverCell[mx][my];
 			if (part == NoRiver)
 				continue;
 			for (int t = 0; t < 4; t++) {
-				const int x = 16 + 2 * mx + (t & 1);
-				const int y = 16 + 2 * my + (t >> 1);
+				const int x = Lo + 2 * mx + (t & 1);
+				const int y = Lo + 2 * my + (t >> 1);
 				dPiece[x][y] = RiverPieces[part][t];
 				WoodsLookPiece[x][y] = 0;
 			}
@@ -439,8 +449,8 @@ void SealUnreachable()
 void ClearCell(int mx, int my)
 {
 	for (int t = 0; t < 4; t++) {
-		const int x = 16 + 2 * mx + (t & 1);
-		const int y = 16 + 2 * my + (t >> 1);
+		const int x = Lo + 2 * mx + (t & 1);
+		const int y = Lo + 2 * my + (t >> 1);
 		Tree[x][y] = NoTree;
 		Scatter[x][y] = 0;
 	}
@@ -449,7 +459,7 @@ void ClearCell(int mx, int my)
 bool CellHasPath(int mx, int my)
 {
 	for (int t = 0; t < 4; t++) {
-		if (Ground[16 + 2 * mx + (t & 1)][16 + 2 * my + (t >> 1)] == Path)
+		if (Ground[Lo + 2 * mx + (t & 1)][Lo + 2 * my + (t >> 1)] == Path)
 			return true;
 	}
 	return false;
@@ -459,11 +469,11 @@ bool CellOpen(int mx, int my)
 {
 	for (int dy = -1; dy <= 1; dy++)
 		for (int dx = -1; dx <= 1; dx++)
-			if (mx + dx >= 0 && my + dy >= 0 && mx + dx < DMAXX && my + dy < DMAXY && RiverCell[mx + dx][my + dy] != NoRiver)
+			if (mx + dx >= 0 && my + dy >= 0 && mx + dx < WoodsCells && my + dy < WoodsCells && RiverCell[mx + dx][my + dy] != NoRiver)
 				return false;
 	for (int t = 0; t < 4; t++) {
-		const int x = 16 + 2 * mx + (t & 1);
-		const int y = 16 + 2 * my + (t >> 1);
+		const int x = Lo + 2 * mx + (t & 1);
+		const int y = Lo + 2 * my + (t >> 1);
 		if (Tree[x][y] != NoTree || Ground[x][y] == Path || Ground[x][y] == Forest)
 			return false;
 	}
@@ -473,7 +483,7 @@ bool CellOpen(int mx, int my)
 /** @brief A road on any of the cell's four tiles. */
 bool PathInCell(int mx, int my)
 {
-	if (mx < 0 || my < 0 || mx >= DMAXX || my >= DMAXY)
+	if (mx < 0 || my < 0 || mx >= WoodsCells || my >= WoodsCells)
 		return false;
 	return CellHasPath(mx, my);
 }
@@ -490,8 +500,8 @@ void PlanRiver(uint32_t seed)
 	const bool wanted = RiverForced >= 0 ? RiverForced != 0 : Hash(seed, 0x51BE, 3) % 10 < 7;
 	if (!wanted)
 		return;
-	const int arrivalCell = (Arrival.x - 16) / 2;
-	const int wayOnCell = (WayOn.x - 16) / 2;
+	const int arrivalCell = (Arrival.x - Lo) / 2;
+	const int wayOnCell = (WayOn.x - Lo) / 2;
 	bool accepted = false;
 	for (int attempt = 0; attempt < 24; attempt++) {
 		std::memset(RiverCell, 0, sizeof(RiverCell));
@@ -499,7 +509,7 @@ void PlanRiver(uint32_t seed)
 		bool ok = true;
 		bool diagonalNext = true;
 		int j = 0;
-		while (j < DMAXY && ok) {
+		while (j < WoodsCells && ok) {
 			if (diagonalNext) {
 				if (PathInCell(c, j) || PathInCell(c + 1, j) || PathInCell(c, j + 1) || PathInCell(c + 1, j + 1)) {
 					ok = false; // a road on a diagonal: another column
@@ -507,7 +517,7 @@ void PlanRiver(uint32_t seed)
 				}
 				RiverCell[c][j] = RiverM3;
 				RiverCell[c + 1][j] = RiverM4;
-				if (j + 1 < DMAXY) {
+				if (j + 1 < WoodsCells) {
 					RiverCell[c][j + 1] = RiverM1;
 					RiverCell[c + 1][j + 1] = RiverM2;
 				}
@@ -529,11 +539,11 @@ void PlanRiver(uint32_t seed)
 		}
 		if (ok) {
 			// Off the mouth (and a cell round it), never through a road's end.
-			for (int my = 0; my < DMAXY && ok; my++) {
-				for (int mx = 0; mx < DMAXX && ok; mx++) {
+			for (int my = 0; my < WoodsCells && ok; my++) {
+				for (int mx = 0; mx < WoodsCells && ok; mx++) {
 					if (RiverCell[mx][my] == NoRiver)
 						continue;
-					const Point centre { 16 + 2 * mx + 1, 16 + 2 * my + 1 };
+					const Point centre { Lo + 2 * mx + 1, Lo + 2 * my + 1 };
 					if (MouthOnFloor && centre.x >= MouthOrigin.x - 3 && centre.x < MouthOrigin.x + MouthWidth + 3 && centre.y >= MouthOrigin.y - 3
 					    && centre.y < MouthOrigin.y + MouthHeight + 3)
 						ok = false;
@@ -552,12 +562,12 @@ void PlanRiver(uint32_t seed)
 		return;
 	}
 	// Its banks: a tile either side of each river cell kept open.
-	for (int my = 0; my < DMAXY; my++) {
-		for (int mx = 0; mx < DMAXX; mx++) {
+	for (int my = 0; my < WoodsCells; my++) {
+		for (int mx = 0; mx < WoodsCells; mx++) {
 			if (RiverCell[mx][my] == NoRiver)
 				continue;
-			for (int y = 16 + 2 * my; y < 18 + 2 * my; y++) {
-				for (int x = 15 + 2 * mx; x < 19 + 2 * mx; x++) {
+			for (int y = Lo + 2 * my; y < Lo + 2 + 2 * my; y++) {
+				for (int x = Lo - 1 + 2 * mx; x < Lo + 3 + 2 * mx; x++) {
 					if (InDungeonBounds({ x, y })) {
 						Tree[x][y] = NoTree;
 						Scatter[x][y] = 0;
@@ -571,15 +581,15 @@ void PlanRiver(uint32_t seed)
 /** @brief Ground a house can be built on: no road, grove or river on or beside it; trees may stand there, they are cleared. */
 bool CellBuildable(int mx, int my)
 {
-	if (mx < 0 || my < 0 || mx >= DMAXX || my >= DMAXY)
+	if (mx < 0 || my < 0 || mx >= WoodsCells || my >= WoodsCells)
 		return false;
 	for (int dy = -1; dy <= 1; dy++)
 		for (int dx = -1; dx <= 1; dx++)
-			if (mx + dx >= 0 && my + dy >= 0 && mx + dx < DMAXX && my + dy < DMAXY && RiverCell[mx + dx][my + dy] != NoRiver)
+			if (mx + dx >= 0 && my + dy >= 0 && mx + dx < WoodsCells && my + dy < WoodsCells && RiverCell[mx + dx][my + dy] != NoRiver)
 				return false;
 	for (int t = 0; t < 4; t++) {
-		const int x = 16 + 2 * mx + (t & 1);
-		const int y = 16 + 2 * my + (t >> 1);
+		const int x = Lo + 2 * mx + (t & 1);
+		const int y = Lo + 2 * my + (t >> 1);
 		if (Ground[x][y] == Path || Ground[x][y] == Forest)
 			return false;
 	}
@@ -598,20 +608,20 @@ void PlanHouses(uint32_t seed)
 	// Every position, from a seeded start: random spots seldom missed both roads, the groves and the river at once.
 	constexpr int W = 5; // the cottage's block, in cells
 	constexpr int D = 4;
-	const int positions = (DMAXX - 12) * (DMAXY - 12);
+	const int positions = (WoodsCells - 12) * (WoodsCells - 12);
 	const int start = static_cast<int>(Hash(seed, 0x40E, 1) % static_cast<uint32_t>(positions));
 	for (int k = 0; k < positions && HouseCount < want; k++) {
 		const int at = (start + k * 7919) % positions; // a stride prime to the count: every position once, scattered
-		const int bx = 4 + at % (DMAXX - 12);
-		const int by = 4 + at / (DMAXX - 12);
-		if (bx + W + 2 >= DMAXX - 3 || by + D + 1 >= DMAXY - 3)
+		const int bx = 4 + at % (WoodsCells - 12);
+		const int by = 4 + at / (WoodsCells - 12);
+		if (bx + W + 2 >= WoodsCells - 3 || by + D + 1 >= WoodsCells - 3)
 			continue;
 		bool fits = true;
 		// The block, a cell round it, and one more in front of the east door: no road, grove, river or fence there.
 		for (int my = by - 1; my <= by + D && fits; my++)
 			for (int mx = bx - 1; mx <= bx + W + 1 && fits; mx++)
 				fits = CellBuildable(mx, my) && FenceCell[mx][my] == 0;
-		const Point centre { 16 + 2 * bx + W, 16 + 2 * by + D };
+		const Point centre { Lo + 2 * bx + W, Lo + 2 * by + D };
 		for (const Point p : keepAway)
 			fits = fits && centre.WalkingDistance(p) > 10;
 		if (MouthOnFloor)
@@ -624,7 +634,7 @@ void PlanHouses(uint32_t seed)
 		Houses[HouseCount++] = { bx + 2, by + 1, bx + 4, by + 3, by + 2 };
 		for (int my = by - 1; my <= by + D; my++)
 			for (int mx = bx - 1; mx <= bx + W + 1; mx++)
-				if (mx >= 0 && my >= 0 && mx < DMAXX && my < DMAXY)
+				if (mx >= 0 && my >= 0 && mx < WoodsCells && my < WoodsCells)
 					ClearCell(mx, my);
 	}
 }
@@ -679,17 +689,17 @@ void PlanFences(uint32_t seed)
 		for (int d = -2; d <= 2; d++) {
 			const int cx = alongY ? mx : mx + d;
 			const int cy = alongY ? my + d : my;
-			if (cx < 0 || cy < 0 || cx >= DMAXX || cy >= DMAXY)
+			if (cx < 0 || cy < 0 || cx >= WoodsCells || cy >= WoodsCells)
 				continue;
 			if (d != 0 && CellHasPath(cx, cy))
 				FenceCell[cx][cy] = 0;
 		}
 		FenceCell[mx][my] = alongY ? GateAlongY : GateAlongX;
 	};
-	gateAt(RingHi, (Arrival.y - 16) / 2, true);
-	gateAt(RingLo, (WayOn.y - 16) / 2, true);
-	for (int my = 0; my < DMAXY; my++)
-		for (int mx = 0; mx < DMAXX; mx++) {
+	gateAt(RingHi, (Arrival.y - Lo) / 2, true);
+	gateAt(RingLo, (WayOn.y - Lo) / 2, true);
+	for (int my = 0; my < WoodsCells; my++)
+		for (int mx = 0; mx < WoodsCells; mx++) {
 			if (RiverCell[mx][my] != NoRiver)
 				FenceCell[mx][my] = 0; // the river runs under the ring
 			if (FenceCell[mx][my] != 0)
@@ -704,13 +714,13 @@ void PlanFences(uint32_t seed)
 		const uint32_t h = Hash(seed, static_cast<uint32_t>(attempt), 0xBE2U);
 		const int w = 3 + static_cast<int>(h % 2);
 		const int d = 3 + static_cast<int>((h >> 3) % 2);
-		const int mx0 = 4 + static_cast<int>((h >> 6) % static_cast<uint32_t>(DMAXX - 8 - w));
-		const int my0 = 4 + static_cast<int>((h >> 14) % static_cast<uint32_t>(DMAXY - 8 - d));
+		const int mx0 = 4 + static_cast<int>((h >> 6) % static_cast<uint32_t>(WoodsCells - 8 - w));
+		const int my0 = 4 + static_cast<int>((h >> 14) % static_cast<uint32_t>(WoodsCells - 8 - d));
 		bool fits = true;
 		for (int my = my0 - 1; my <= my0 + d && fits; my++)
 			for (int mx = mx0 - 1; mx <= mx0 + w && fits; mx++)
 				fits = CellOpen(mx, my) && FenceCell[mx][my] == 0;
-		const Point centre { 16 + 2 * mx0 + w, 16 + 2 * my0 + d };
+		const Point centre { Lo + 2 * mx0 + w, Lo + 2 * my0 + d };
 		for (const Point p : keepAway)
 			fits = fits && centre.WalkingDistance(p) > 12;
 		if (MouthOnFloor)
@@ -760,8 +770,8 @@ void LayHouses()
 				if (mega == 0 || !BorrowedMegatilePieces(DTYPE_CATACOMBS, mega, pieces))
 					continue;
 				for (int t = 0; t < 4; t++) {
-					const int x = 16 + 2 * mx + (t & 1);
-					const int y = 16 + 2 * my + (t >> 1);
+					const int x = Lo + 2 * mx + (t & 1);
+					const int y = Lo + 2 * my + (t >> 1);
 					const uint16_t id = BorrowPiece(DTYPE_CATACOMBS, pieces[t]);
 					if (id == 0)
 						continue;
@@ -775,7 +785,7 @@ void LayHouses()
 			}
 		}
 		// The cottage over it: its block from two tiles west and north of the ring's west and north walls.
-		const Point origin { 16 + 2 * (house.x0 - 2) + CottageShellOffset.deltaX, 16 + 2 * (house.y0 - 1) + CottageShellOffset.deltaY };
+		const Point origin { Lo + 2 * (house.x0 - 2) + CottageShellOffset.deltaX, Lo + 2 * (house.y0 - 1) + CottageShellOffset.deltaY };
 		for (int ry = 0; ry < 6; ry++) {
 			for (int rx = 0; rx < 8; rx++) {
 				const Point tile = origin + Displacement { rx, ry };
@@ -794,15 +804,15 @@ void LayHouses()
  */
 void LayFences()
 {
-	for (int my = 0; my < DMAXY; my++) {
-		for (int mx = 0; mx < DMAXX; mx++) {
+	for (int my = 0; my < WoodsCells; my++) {
+		for (int mx = 0; mx < WoodsCells; mx++) {
 			const uint8_t mega = FenceCell[mx][my];
 			uint16_t pieces[4];
 			if (mega == 0 || !BorrowedMegatilePieces(DTYPE_CAVES, mega, pieces))
 				continue;
 			for (int t = 0; t < 4; t++) {
-				const int x = 16 + 2 * mx + (t & 1);
-				const int y = 16 + 2 * my + (t >> 1);
+				const int x = Lo + 2 * mx + (t & 1);
+				const int y = Lo + 2 * my + (t >> 1);
 				uint16_t native = pieces[t];
 				for (const auto &[closed, open] : GateOpen) {
 					if (native == closed)
@@ -1217,7 +1227,7 @@ void BuildVanilla(uint32_t seed, bool paintedTrees)
 {
 	for (int y = 0; y < MAXDUNY; y += 2) {
 		for (int x = 0; x < MAXDUNX; x += 2) {
-			if (x < 16 || y < 16 || x >= 96 || y >= 96) {
+			if (x < Lo || y < Lo || x > Hi || y > Hi) {
 				FillMegatile(x, y, VanillaRockMass);
 				if (paintedTrees && pMegaTiles != nullptr) {
 					// The Mixed look: the forest beyond the map stands on grass, as inside - its trees are drawn one in four
@@ -1232,28 +1242,28 @@ void BuildVanilla(uint32_t seed, bool paintedTrees)
 		}
 	}
 	const auto cellHasPath = [](int mx, int my) {
-		if (mx < 0 || my < 0 || mx >= DMAXX || my >= DMAXY)
+		if (mx < 0 || my < 0 || mx >= WoodsCells || my >= WoodsCells)
 			return false;
 		for (int t = 0; t < 4; t++) {
-			const int x = 16 + 2 * mx + (t & 1);
-			const int y = 16 + 2 * my + (t >> 1);
+			const int x = Lo + 2 * mx + (t & 1);
+			const int y = Lo + 2 * my + (t >> 1);
 			if (Tree[x][y] == NoTree && Ground[x][y] == Path)
 				return true;
 		}
 		return false;
 	};
-	for (int my = 0; my < DMAXY; my++) {
-		for (int mx = 0; mx < DMAXX; mx++) {
+	for (int my = 0; my < WoodsCells; my++) {
+		for (int mx = 0; mx < WoodsCells; mx++) {
 			int trees = 0;
 			int dry = 0;
 			for (int t = 0; t < 4; t++) {
-				const int x = 16 + 2 * mx + (t & 1);
-				const int y = 16 + 2 * my + (t >> 1);
+				const int x = Lo + 2 * mx + (t & 1);
+				const int y = Lo + 2 * my + (t >> 1);
 				trees += Tree[x][y] != NoTree ? 1 : 0;
 				dry += Ground[x][y] == GrassDry ? 1 : 0;
 			}
 			const uint32_t h = Hash(static_cast<uint32_t>(mx), static_cast<uint32_t>(my), seed ^ 0x7A11U);
-			const int edge = std::min({ mx, my, DMAXX - 1 - mx, DMAXY - 1 - my });
+			const int edge = std::min({ mx, my, WoodsCells - 1 - mx, WoodsCells - 1 - my });
 			const float u = Unit(h);
 			int mega;
 			if (paintedTrees) {
@@ -1280,13 +1290,13 @@ void BuildVanilla(uint32_t seed, bool paintedTrees)
 					mega = Pick(VanillaBushes, h >> 12);
 			}
 			// The minimap marks the forest as Tristram's rock mass, whichever way it is drawn.
-			dungeon[mx][my] = static_cast<uint8_t>(std::min(paintedTrees && trees >= 3 ? VanillaRockMass : mega, 255));
-			FillMegatile(16 + 2 * mx, 16 + 2 * my, mega);
+			MapCell[mx][my] = static_cast<uint8_t>(std::min(paintedTrees && trees >= 3 ? VanillaRockMass : mega, 255));
+			FillMegatile(Lo + 2 * mx, Lo + 2 * my, mega);
 			if (paintedTrees) {
 				// A painted tree's tile blocks as a trunk does, and is drawn as the grass it stands on.
 				for (int t = 0; t < 4; t++) {
-					const int x = 16 + 2 * mx + (t & 1);
-					const int y = 16 + 2 * my + (t >> 1);
+					const int x = Lo + 2 * mx + (t & 1);
+					const int y = Lo + 2 * my + (t >> 1);
 					if (Tree[x][y] == NoTree)
 						continue;
 					WoodsLookPiece[x][y] = dPiece[x][y];
@@ -1342,15 +1352,15 @@ void CreateWoods(uint32_t seed, lvl_entry /*entry*/)
 				dPiece[x][y] = SolidPiece;
 		}
 	}
-	// The minimap's map (automap.cpp reads dungeon[][]): each megatile 1 open ground, 2 the forest's edge, 3 road, 4 deep
+	// The minimap's map (automap.cpp reads MapCell through WoodsAutomapCell): each megatile 1 open ground, 2 the forest's edge, 3 road, 4 deep
 	// forest. Before this the woods kept Tristram's dungeon[][] and the minimap drew the town (the play test, 2026-10-13).
-	for (int my = 0; my < DMAXY; my++) {
-		for (int mx = 0; mx < DMAXX; mx++) {
+	for (int my = 0; my < WoodsCells; my++) {
+		for (int mx = 0; mx < WoodsCells; mx++) {
 			int trees = 0;
 			bool road = false;
 			for (int t = 0; t < 4; t++) {
-				const int x = 16 + 2 * mx + (t & 1);
-				const int y = 16 + 2 * my + (t >> 1);
+				const int x = Lo + 2 * mx + (t & 1);
+				const int y = Lo + 2 * my + (t >> 1);
 				trees += Tree[x][y] != NoTree ? 1 : 0;
 				road = road || (Tree[x][y] == NoTree && Ground[x][y] == Path);
 			}
@@ -1360,16 +1370,16 @@ void CreateWoods(uint32_t seed, lvl_entry /*entry*/)
 				for (int d = 0; d < 4 && kind == 4; d++) {
 					const int nx = mx + (d == 0 ? 1 : d == 1 ? -1 : 0);
 					const int ny = my + (d == 2 ? 1 : d == 3 ? -1 : 0);
-					if (nx < 0 || ny < 0 || nx >= DMAXX || ny >= DMAXY)
+					if (nx < 0 || ny < 0 || nx >= WoodsCells || ny >= WoodsCells)
 						continue;
 					int open = 0;
 					for (int t = 0; t < 4; t++)
-						open += Tree[16 + 2 * nx + (t & 1)][16 + 2 * ny + (t >> 1)] == NoTree ? 1 : 0;
+						open += Tree[Lo + 2 * nx + (t & 1)][Lo + 2 * ny + (t >> 1)] == NoTree ? 1 : 0;
 					if (open >= 2)
 						kind = 2;
 				}
 			}
-			dungeon[mx][my] = kind;
+			MapCell[mx][my] = kind;
 		}
 	}
 	// Outdoors under the sky: the ground is lit all round, not dark beyond the hero's torch (Tristram's light is 0).
@@ -1518,10 +1528,10 @@ namespace {
 /** @brief A house's footprint in world tile corners: west and north walls' lines to the east and south walls'. */
 void HouseCorners(const House &house, int &wx0, int &wy0, int &wx1, int &wy1)
 {
-	wx0 = 16 + 2 * house.x0;
-	wy0 = 16 + 2 * house.y0;
-	wx1 = 16 + 2 * house.x1;
-	wy1 = 16 + 2 * house.y1;
+	wx0 = Lo + 2 * house.x0;
+	wy0 = Lo + 2 * house.y0;
+	wx1 = Lo + 2 * house.x1;
+	wy1 = Lo + 2 * house.y1;
 }
 
 bool InsideHouse(const House &house, Point tile)
@@ -1567,8 +1577,8 @@ void FinishWoodsLevel(bool fresh)
 	for (int i = 0; i < HouseCount; i++) {
 		const House &house = Houses[i];
 		for (int k = 0; k < 3; k++) {
-			const Point at { 16 + 2 * house.x0 + 2 + static_cast<int>(Hash(static_cast<uint32_t>(i), static_cast<uint32_t>(k), 0x100DU) % static_cast<uint32_t>(2 * (house.x1 - house.x0) - 3)),
-				16 + 2 * house.y0 + 2 + static_cast<int>(Hash(static_cast<uint32_t>(k), static_cast<uint32_t>(i), 0x100EU) % static_cast<uint32_t>(2 * (house.y1 - house.y0) - 3)) };
+			const Point at { Lo + 2 * house.x0 + 2 + static_cast<int>(Hash(static_cast<uint32_t>(i), static_cast<uint32_t>(k), 0x100DU) % static_cast<uint32_t>(2 * (house.x1 - house.x0) - 3)),
+				Lo + 2 * house.y0 + 2 + static_cast<int>(Hash(static_cast<uint32_t>(k), static_cast<uint32_t>(i), 0x100EU) % static_cast<uint32_t>(2 * (house.y1 - house.y0) - 3)) };
 			if (!IsTileSolid(at))
 				CreateRndItem(at, /*onlygood=*/k == 0, /*sendmsg=*/false, /*delta=*/false);
 		}
@@ -1585,7 +1595,7 @@ Point WoodsHouseDoorForTest(int index)
 	if (index < 0 || index >= HouseCount)
 		return { 0, 0 };
 	const House &house = Houses[index];
-	return { 16 + 2 * house.x1 + 1, 16 + 2 * house.doorY + 1 }; // outside the east arch
+	return { Lo + 2 * house.x1 + 1, Lo + 2 * house.doorY + 1 }; // outside the east arch
 }
 
 Point WoodsHouseInsideForTest(int index)
@@ -1593,7 +1603,7 @@ Point WoodsHouseInsideForTest(int index)
 	if (index < 0 || index >= HouseCount)
 		return { 0, 0 };
 	const House &house = Houses[index];
-	return { 16 + 2 * house.x1 - 1, 16 + 2 * house.doorY + 1 }; // inside it
+	return { Lo + 2 * house.x1 - 1, Lo + 2 * house.doorY + 1 }; // inside it
 }
 
 int WoodsFloorRung(int floorIndex)
@@ -2186,6 +2196,34 @@ void DrawPictureSwaying(const Surface &out, const Picture &pic, int left, int to
 
 } // namespace
 
+namespace {
+/** @brief A mirrored tree past the map's edge is being drawn: it is never in front of the hero, so it opens no see-through. */
+bool DrawingBeyondMap = false;
+} // namespace
+
+bool DrawWoodsBeyondMapFloor(const Surface &out, Point tile, Point target, bool fullBright)
+{
+	if (leveltype != DTYPE_WOODS || InDungeonBounds(tile))
+		return false;
+	const Point m = WoodsMirrorBeyondMap(tile);
+	const int light = ExplorationMemoryLight(m, dLight[m.x][m.y]);
+	if (WoodsArtActive(out) && !WoodsTileUsesCels(m)) {
+		DrawWoodsGroundTile(out, m, target, light, fullBright);
+		return true;
+	}
+	return DrawWoodsMixedFloorCached(out, m, target, light, fullBright);
+}
+
+void DrawWoodsBeyondMapTree(const Surface &out, Point tile, Point target)
+{
+	if (leveltype != DTYPE_WOODS || InDungeonBounds(tile))
+		return;
+	const Point m = WoodsMirrorBeyondMap(tile);
+	DrawingBeyondMap = true;
+	DrawWoodsTileSprite(out, m, target, ExplorationMemoryLight(m, dLight[m.x][m.y]));
+	DrawingBeyondMap = false;
+}
+
 void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light)
 {
 	if (!InDungeonBounds(tile))
@@ -2203,7 +2241,7 @@ void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light
 		const int top = footY + TreeJitterY[tile.x][tile.y] - pic.footY;
 		SeeThrough hole;
 		// In front of the hero (drawn after his row) and over him on screen: the circle round his chest is see-through.
-		if (MyPlayer != nullptr && MyPlayer->isOnActiveLevel()) {
+		if (MyPlayer != nullptr && MyPlayer->isOnActiveLevel() && !DrawingBeyondMap) {
 			const Point hero = MyPlayer->position.tile;
 			if (hero.x + hero.y < tile.x + tile.y) {
 				const int heroX = footX + ((hero.x - tile.x) - (hero.y - tile.y)) * 32;
@@ -2300,6 +2338,27 @@ Point WoodsArrival()
 Point WoodsWayOn()
 {
 	return WayOn;
+}
+
+uint8_t WoodsAutomapCell(Point cell)
+{
+	if (cell.x < 0 || cell.y < 0 || cell.x >= WoodsCells || cell.y >= WoodsCells)
+		return 0;
+	return MapCell[cell.x][cell.y];
+}
+
+Point WoodsMirrorBeyondMap(Point tile)
+{
+	// Into the forest band between the map's edge and the box (tiles 0..Lo-1, and Hi+1..MAXDUNX-1), reflected at the edge and
+	// repeated, so the trees run on past the map instead of the void.
+	const auto fold = [](int v, int size) {
+		if (v < 0)
+			return (-1 - v) % Lo;
+		if (v >= size)
+			return size - 1 - (v - size) % Lo;
+		return v;
+	};
+	return { fold(tile.x, MAXDUNX), fold(tile.y, MAXDUNY) };
 }
 
 bool WoodsStampForTest(int which, std::vector<uint16_t> &pieces, int &w, int &h)

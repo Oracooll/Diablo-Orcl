@@ -225,11 +225,11 @@ struct DLevel {
 
 #pragma pack(push, 1)
 struct LocalLevel {
-	LocalLevel(const uint8_t (&other)[DMAXX][DMAXY])
+	LocalLevel(const uint8_t (&other)[MaxPlayAreaCells][MaxPlayAreaCells])
 	{
 		memcpy(&automapsv, &other, sizeof(automapsv));
 	}
-	uint8_t automapsv[DMAXX][DMAXY];
+	uint8_t automapsv[MaxPlayAreaCells][MaxPlayAreaCells];
 };
 
 struct DPortal {

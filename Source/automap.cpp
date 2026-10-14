@@ -436,16 +436,24 @@ void DrawCaveVertical(const Surface &out, Point center, AutomapTile tile, uint8_
 	}
 }
 
+/** @brief The megatile type at minimap cell @p position: dungeon[][], or the woods' own map of 50 x 50 (oracool/woods.h). */
+uint8_t AutomapCellType(Point position)
+{
+	if (leveltype == DTYPE_WOODS)
+		return oracool::WoodsAutomapCell(position);
+	return dungeon[position.x][position.y];
+}
+
 /**
  * @brief Check if a given tile has the provided AutomapTile flag
  */
 bool HasAutomapFlag(Point position, AutomapTile::Flags type)
 {
-	if (position.x < 0 || position.x >= DMAXX || position.y < 0 || position.y >= DMAXX) {
+	if (position.x < 0 || position.x >= PlayAreaCells() || position.y < 0 || position.y >= PlayAreaCells()) {
 		return false;
 	}
 
-	return AutomapTypeTiles[dungeon[position.x][position.y]].HasFlag(type);
+	return AutomapTypeTiles[AutomapCellType(position)].HasFlag(type);
 }
 
 /**
@@ -453,11 +461,11 @@ bool HasAutomapFlag(Point position, AutomapTile::Flags type)
  */
 AutomapTile GetAutomapType(Point position)
 {
-	if (position.x < 0 || position.x >= DMAXX || position.y < 0 || position.y >= DMAXX) {
+	if (position.x < 0 || position.x >= PlayAreaCells() || position.y < 0 || position.y >= PlayAreaCells()) {
 		return {};
 	}
 
-	AutomapTile tile = AutomapTypeTiles[dungeon[position.x][position.y]];
+	AutomapTile tile = AutomapTypeTiles[AutomapCellType(position)];
 	if (tile.type == AutomapTile::Types::Corner) {
 		if (HasAutomapFlag({ position.x - 1, position.y }, AutomapTile::Flags::HorizontalArch)) {
 			if (HasAutomapFlag({ position.x, position.y - 1 }, AutomapTile::Flags::VerticalArch)) {
@@ -474,24 +482,24 @@ AutomapTile GetAutomapType(Point position)
  */
 AutomapTile GetAutomapTypeView(Point map)
 {
-	if (map.x == -1 && map.y >= 0 && map.y < DMAXY && AutomapView[0][map.y] != MAP_EXP_NONE) {
+	if (map.x == -1 && map.y >= 0 && map.y < PlayAreaCells() && AutomapView[0][map.y] != MAP_EXP_NONE) {
 		if (HasAutomapFlag({ 0, map.y + 1 }, AutomapTile::Flags::Dirt) && HasAutomapFlag({ 0, map.y }, AutomapTile::Flags::Dirt) && HasAutomapFlag({ 0, map.y - 1 }, AutomapTile::Flags::Dirt)) {
 			return {};
 		}
 		return { AutomapTile::Types::None, AutomapTile::Flags::Dirt };
 	}
 
-	if (map.y == -1 && map.x >= 0 && map.x < DMAXY && AutomapView[map.x][0] != MAP_EXP_NONE) {
+	if (map.y == -1 && map.x >= 0 && map.x < PlayAreaCells() && AutomapView[map.x][0] != MAP_EXP_NONE) {
 		if (HasAutomapFlag({ map.x + 1, 0 }, AutomapTile::Flags::Dirt) && HasAutomapFlag({ map.x, 0 }, AutomapTile::Flags::Dirt) && HasAutomapFlag({ map.x - 1, 0 }, AutomapTile::Flags::Dirt)) {
 			return {};
 		}
 		return { AutomapTile::Types::None, AutomapTile::Flags::Dirt };
 	}
 
-	if (map.x < 0 || map.x >= DMAXX) {
+	if (map.x < 0 || map.x >= PlayAreaCells()) {
 		return {};
 	}
-	if (map.y < 0 || map.y >= DMAXX) {
+	if (map.y < 0 || map.y >= PlayAreaCells()) {
 		return {};
 	}
 	if (AutomapView[map.x][map.y] == MAP_EXP_NONE) {
@@ -509,7 +517,7 @@ void DrawAutomapTile(const Surface &out, Point center, Point map)
 	AutomapTile tile = GetAutomapTypeView(map);
 	uint8_t colorBright = MapColorsBright;
 	uint8_t colorDim = MapColorsDim;
-	MapExplorationType explorationType = static_cast<MapExplorationType>(AutomapView[clamp(map.x, 0, DMAXX - 1)][clamp(map.y, 0, DMAXY - 1)]);
+	MapExplorationType explorationType = static_cast<MapExplorationType>(AutomapView[clamp(map.x, 0, PlayAreaCells() - 1)][clamp(map.y, 0, PlayAreaCells() - 1)]);
 
 	switch (explorationType) {
 	case MAP_EXP_SHRINE:
@@ -906,7 +914,7 @@ std::unique_ptr<AutomapTile[]> LoadAutomapData(size_t &tileCount)
 
 bool AutomapActive;
 bool MiniMapActive;
-uint8_t AutomapView[DMAXX][DMAXY];
+uint8_t AutomapView[MaxPlayAreaCells][MaxPlayAreaCells];
 int AutoMapScale;
 Displacement AutomapOffset;
 int MiniMapScale;
@@ -1117,18 +1125,19 @@ void DrawAutomapWaypointsAndPortals(const Surface &out, Point screenCenter, cons
  */
 void DrawAutomapCore(const Surface &out, Point screenCenter, int cellsBasisWidth, bool applyPanelAvoidance)
 {
-	Automap = { (ViewPosition.x - 8) / 2, (ViewPosition.y - 8) / 2 };
+	// The view's cell from the play area's origin (16, or 6 in the woods): (x - origin + 8) / 2, less the four below.
+	Automap = { (ViewPosition.x - PlayAreaOrigin() + 8) / 2, (ViewPosition.y - PlayAreaOrigin() + 8) / 2 };
 	if (leveltype != DTYPE_TOWN) {
 		Automap += { -4, -4 };
 	}
 	while (Automap.x + AutomapOffset.deltaX < 0)
 		AutomapOffset.deltaX++;
-	while (Automap.x + AutomapOffset.deltaX >= DMAXX)
+	while (Automap.x + AutomapOffset.deltaX >= PlayAreaCells())
 		AutomapOffset.deltaX--;
 
 	while (Automap.y + AutomapOffset.deltaY < 0)
 		AutomapOffset.deltaY++;
-	while (Automap.y + AutomapOffset.deltaY >= DMAXY)
+	while (Automap.y + AutomapOffset.deltaY >= PlayAreaCells())
 		AutomapOffset.deltaY--;
 
 	Automap += AutomapOffset;
@@ -1373,9 +1382,9 @@ void UpdateAutomapExplorer(Point map, MapExplorationType explorer)
 
 void SetAutomapView(Point position, MapExplorationType explorer)
 {
-	const Point map { (position.x - 16) / 2, (position.y - 16) / 2 };
+	const Point map { (position.x - PlayAreaOrigin()) / 2, (position.y - PlayAreaOrigin()) / 2 };
 
-	if (map.x < 0 || map.x >= DMAXX || map.y < 0 || map.y >= DMAXY) {
+	if (map.x < 0 || map.x >= PlayAreaCells() || map.y < 0 || map.y >= PlayAreaCells()) {
 		return;
 	}
 

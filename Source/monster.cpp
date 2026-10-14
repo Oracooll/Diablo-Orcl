@@ -371,8 +371,8 @@ void PlaceGroup(size_t typeIndex, unsigned num, Monster *leader = nullptr, bool 
 			// corpse table). A crowded level should drop a group, not hang.
 			bool found = false;
 			for (int spot = 0; spot < 500; spot++) {
-				xp = GenerateRnd(80) + 16;
-				yp = GenerateRnd(80) + 16;
+				xp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
+				yp = GenerateRnd(PlayAreaTiles()) + PlayAreaOrigin();
 				if (CanPlaceMonster({ xp, yp })) {
 					found = true;
 					break;
@@ -501,7 +501,7 @@ std::optional<Point> GetUniqueMonstPosition(UniqueMonsterType uniqindex)
 		// with no free tile spun forever. The caller drops the placement.
 		if (++tries > 5000)
 			return std::nullopt;
-		position = Point { GenerateRnd(80), GenerateRnd(80) } + Displacement { 16, 16 };
+		position = Point { GenerateRnd(PlayAreaTiles()), GenerateRnd(PlayAreaTiles()) } + Displacement { PlayAreaOrigin(), PlayAreaOrigin() };
 		int count2 = 0;
 		for (int x = position.x - 3; x < position.x + 3; x++) {
 			for (int y = position.y - 3; y < position.y + 3; y++) {
@@ -937,8 +937,8 @@ void PlaceWoodsMonsters()
 			DoVision(arrival + Displacement { s, t }, 15, MAP_EXP_NONE, false);
 	}
 	int na = 0;
-	for (int s = 16; s < 96; s++) {
-		for (int t = 16; t < 96; t++) {
+	for (int s = PlayAreaOrigin(); s < PlayAreaOrigin() + PlayAreaTiles(); s++) {
+		for (int t = PlayAreaOrigin(); t < PlayAreaOrigin() + PlayAreaTiles(); t++) {
 			if (!IsTileSolid({ s, t }))
 				na++;
 		}
