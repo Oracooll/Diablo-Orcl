@@ -583,6 +583,11 @@ void ProcessLightList()
 			i--;
 			continue;
 		}
+		// Off the map: a missile's light a tile past the edge for the frame before the missile goes (the woods' bolts fly over the
+		// trees to the map's edge, where a dungeon's outer wall had always stopped them first - the user's play test, 2026-10-14:
+		// "assertion failed ... lighting.cpp:212 InDungeonBounds(position)").
+		if (!InDungeonBounds(light.position.tile))
+			continue;
 		if (TileHasAny(dPiece[light.position.tile.x][light.position.tile.y], TileProperties::Solid))
 			continue; // Monster hidden in a wall, don't spoil the surprise
 		DoLighting(light.position.tile, light.radius, light.position.offset);

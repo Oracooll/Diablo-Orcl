@@ -18,6 +18,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 #include "engine/point.hpp"
 #include "levels/gendung.h"
@@ -186,6 +187,11 @@ Point WoodsArrival();
 Point WoodsWayOn();
 /** @brief Test hook: loads the woods art as BuildWoodsLevel does outside headless mode. */
 void LoadWoodsArtForTest();
+/**
+ * @brief Test hook (the Woods Levels Designer's exporter): stamp @p which as town pieces, rows of @p w - 0 the cottage, 1 the cave
+ * mouth, 2..7 the river's parts (M1, M2, M3, M4, straight, bridge; one cell each). False past the last.
+ */
+bool WoodsStampForTest(int which, std::vector<uint16_t> &pieces, int &w, int &h);
 /** @brief Test hook: -1 the seed decides whether a floor has a river, 0 none, 1 always. */
 void SetWoodsRiverForTest(int mode);
 /** @brief Test hook: the floor last generated has its river on @p tile. */

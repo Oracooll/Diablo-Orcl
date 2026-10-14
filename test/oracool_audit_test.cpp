@@ -21168,6 +21168,181 @@ TEST(OracoolPreview, DISABLED_TilesetMegatileSheet)
 }
 
 /**
+ * The Woods Levels Designer's stamps (2026-10-14): every vanilla piece of scenery the woods use, rendered through the game's own
+ * tile code - Tristram's pieces in the town palette, the Caves' fences and the Catacombs' room through the borrowed tiles - each
+ * twice, whole ("<name>.png") and its uprights alone ("<name>_up.png": no open ground), cropped, with the pixel where its
+ * tile (0,0)'s top vertex lies. Writes ORCL_DESIGNER_OUT/stamps.json and the PNGs (true colour, transparent where nothing is).
+ */
+TEST(OracoolPreview, DISABLED_WoodsDesignerStamps)
+{
+	const char *outDir = std::getenv("ORCL_DESIGNER_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	const OrclActMapGuard mapGuard;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	SetDungeonMicros();
+	LoadLevelSOLData();
+	std::unique_ptr<byte[]> savedCels = std::move(pDungeonCels);
+	pDungeonCels = LoadFileInMem("nlevels\\towndata\\town.cel");
+	const std::array<uint32_t, 256> savedPalette = PaletteRGB;
+	{
+		size_t n = 0;
+		auto pal = LoadFileInMem<uint8_t>("levels\\towndata\\town.pal", &n);
+		for (int i = 0; i < 256 && 3 * i + 2 < static_cast<int>(n); i++)
+			PaletteRGB[i] = (static_cast<uint32_t>(pal[3 * i]) << 16) | (static_cast<uint32_t>(pal[3 * i + 1]) << 8) | pal[3 * i + 2];
+	}
+	std::array<uint8_t, 256> identity;
+	for (int i = 0; i < 256; i++)
+		identity[i] = static_cast<uint8_t>(i);
+
+	struct Stamp {
+		std::string name;
+		std::string label;
+		int w, h;                    // tiles
+		std::vector<uint16_t> piece; // dPiece ids (native town, or borrowed)
+		bool walls;                  // it blocks (fences, walls, the cottage) - drawn uprights-only by default
+	};
+	std::vector<Stamp> stamps;
+	const auto addTown = [&](int which, const char *name, const char *label, bool walls) {
+		Stamp st { name, label, 0, 0, {}, walls };
+		ASSERT_TRUE(oracool::WoodsStampForTest(which, st.piece, st.w, st.h));
+		stamps.push_back(st);
+	};
+	addTown(0, "cottage", "Tristram cottage", true);
+	addTown(1, "cave_mouth", "Cave mouth", false);
+	addTown(2, "river_m1", "River, diagonal (M1)", false);
+	addTown(3, "river_m2", "River, diagonal (M2)", false);
+	addTown(4, "river_m3", "River, diagonal (M3)", false);
+	addTown(5, "river_m4", "River, diagonal (M4)", false);
+	addTown(6, "river_straight", "River, straight", false);
+	addTown(7, "river_bridge", "River with bridge", false);
+	// Borrowed megatiles, laid as cells of 2 x 2 tiles: { set, megatile } per cell, rows of cells.
+	const auto addBorrowed = [&](const char *name, const char *label, dungeon_type set, int cw, int ch, std::vector<int> megas, bool walls,
+	                             std::vector<std::pair<uint16_t, uint16_t>> swaps = {}) {
+		Stamp st { name, label, 2 * cw, 2 * ch, std::vector<uint16_t>(static_cast<size_t>(4 * cw * ch), 0), walls };
+		for (int cy = 0; cy < ch; cy++) {
+			for (int cx = 0; cx < cw; cx++) {
+				uint16_t pieces[4];
+				ASSERT_TRUE(oracool::BorrowedMegatilePieces(set, megas[static_cast<size_t>(cy * cw + cx)], pieces)) << name;
+				for (int t = 0; t < 4; t++) {
+					uint16_t native = pieces[t];
+					for (const auto &[from, to] : swaps)
+						if (native == from)
+							native = to;
+					st.piece[static_cast<size_t>((2 * cy + (t >> 1)) * st.w + 2 * cx + (t & 1))] = oracool::BorrowPiece(set, native);
+				}
+			}
+		}
+		stamps.push_back(st);
+	};
+	const std::vector<std::pair<uint16_t, uint16_t>> openGates { { 530, 537 }, { 533, 540 } };
+	addBorrowed("fence_x", "Fence, along x", DTYPE_CAVES, 1, 1, { 134 }, true);
+	addBorrowed("fence_x2", "Fence, along x (2)", DTYPE_CAVES, 1, 1, { 136 }, true);
+	addBorrowed("fence_y", "Fence, along y", DTYPE_CAVES, 1, 1, { 135 }, true);
+	addBorrowed("fence_y2", "Fence, along y (2)", DTYPE_CAVES, 1, 1, { 137 }, true);
+	addBorrowed("fence_post", "Fence post", DTYPE_CAVES, 1, 1, { 138 }, true);
+	addBorrowed("fence_gate_x", "Fence gate, along x", DTYPE_CAVES, 1, 1, { 146 }, true, openGates);
+	addBorrowed("fence_gate_y", "Fence gate, along y", DTYPE_CAVES, 1, 1, { 147 }, true, openGates);
+	addBorrowed("stone_room", "Stone room (the cottage's)", DTYPE_CATACOMBS, 3, 3, { 8, 2, 7, 1, 3, 4, 9, 2, 6 }, true);
+	addBorrowed("stone_hall", "Stone hall, 5 x 4", DTYPE_CATACOMBS, 5, 4, { 8, 2, 2, 2, 7, 1, 3, 3, 3, 4, 1, 3, 3, 3, 1, 9, 2, 5, 2, 6 }, true);
+
+	std::ofstream manifest(dir / "stamps.json");
+	manifest << "[\n";
+	bool firstEntry = true;
+	for (const Stamp &st : stamps) {
+		for (const bool uprightsOnly : { false, true }) {
+			const int cw = (st.w + st.h) * 32 + 64;
+			const int chh = (st.w + st.h) * 16 + 400;
+			OwnedSurface canvas = OwnedSurface::Rgb(cw, chh);
+			const Surface out = canvas;
+			constexpr uint32_t Unwritten = 0xFF000000U;
+			for (int y = 0; y < chh; y++)
+				for (int x = 0; x < cw; x++)
+					*out.at<uint32_t>(x, y) = Unwritten;
+			const Point origin { st.h * 32 + 32, 360 }; // tile (0,0)'s top vertex
+			const auto targetOf = [&](int x, int y) { return Point { origin.x + (x - y) * 32 - 32, origin.y + (x + y) * 16 + 31 }; };
+			for (int pass = 0; pass < 2; pass++) {
+				for (int sum = 0; sum <= st.w + st.h - 2; sum++) {
+					for (int x = 0; x < st.w; x++) {
+						const int y = sum - x;
+						if (y < 0 || y >= st.h)
+							continue;
+						const uint16_t id = st.piece[static_cast<size_t>(y * st.w + x)];
+						const Point at = targetOf(x, y);
+						const bool solid = TileHasAny(id, TileProperties::Solid);
+						if (pass == 0) {
+							if (uprightsOnly)
+								continue;
+							if (oracool::IsBorrowedPiece(id)) {
+								oracool::DrawBorrowedFloor(out, id, at, -1);
+							} else if (!solid) {
+								for (int side = 0; side < 2; side++) {
+									const LevelCelBlock block { DPieceMicros[id].mt[side] };
+									if (block.hasValue())
+										RenderTile(out, at + Displacement { side * 32, 0 }, block, MaskType::Solid, identity.data());
+								}
+							}
+							continue;
+						}
+						if (oracool::IsBorrowedPiece(id)) {
+							oracool::DrawBorrowedCell(out, { 0, 0 }, id, at, -1, true); // a solid piece's triangles are its own art
+							continue;
+						}
+						Point up = at;
+						for (int i = 0; i < 16; i += 2) {
+							for (int side = 0; side < 2; side++) {
+								const LevelCelBlock block { DPieceMicros[id].mt[i + side] };
+								if (!block.hasValue())
+									continue;
+								// An open piece's floor is left out (its foliage kept); a solid piece's triangles are part of it - a roof's
+								// slope, a wall's foot (the first export left holes there).
+								if (i == 0 && !solid && block.type() != TileType::TransparentSquare)
+									continue;
+								RenderTile(out, up + Displacement { side * 32, 0 }, block,
+								    i == 0 && !solid ? (side == 0 ? MaskType::LeftFoliage : MaskType::RightFoliage) : MaskType::Solid, identity.data());
+							}
+							up.y -= 32;
+						}
+					}
+				}
+			}
+			// Cropped to what was drawn, into a transparent 32-bit image.
+			int x0 = cw, y0 = chh, x1 = -1, y1 = -1;
+			for (int y = 0; y < chh; y++)
+				for (int x = 0; x < cw; x++)
+					if (*out.at<uint32_t>(x, y) != Unwritten) {
+						x0 = std::min(x0, x); y0 = std::min(y0, y); x1 = std::max(x1, x); y1 = std::max(y1, y);
+					}
+			if (x1 < 0)
+				continue;
+			SDL_Surface *png = SDL_CreateRGBSurfaceWithFormat(0, x1 - x0 + 1, y1 - y0 + 1, 32, SDL_PIXELFORMAT_ARGB8888);
+			ASSERT_NE(png, nullptr);
+			for (int y = y0; y <= y1; y++) {
+				auto *row = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(png->pixels) + static_cast<size_t>(y - y0) * png->pitch);
+				for (int x = x0; x <= x1; x++) {
+					const uint32_t c = *out.at<uint32_t>(x, y);
+					row[x - x0] = c == Unwritten ? 0 : (0xFF000000U | (c & 0xFFFFFFU));
+				}
+			}
+			const std::string file = st.name + (uprightsOnly ? "_up.png" : ".png");
+			ASSERT_EQ(IMG_SavePNG(png, (dir / file).string().c_str()), 0) << file;
+			SDL_FreeSurface(png);
+			manifest << (firstEntry ? "" : ",\n") << "  {\"name\":\"" << st.name << (uprightsOnly ? "_up" : "") << "\",\"stamp\":\"" << st.name
+			         << "\",\"label\":\"" << st.label << "\",\"uprights\":" << (uprightsOnly ? "true" : "false") << ",\"walls\":" << (st.walls ? "true" : "false")
+			         << ",\"file\":\"" << file << "\",\"w\":" << st.w << ",\"h\":" << st.h << ",\"ax\":" << (origin.x - x0) << ",\"ay\":" << (origin.y - y0) << "}";
+			firstEntry = false;
+		}
+	}
+	manifest << "\n]\n";
+	PaletteRGB = savedPalette;
+	pDungeonCels = std::move(savedCels);
+}
+
+/**
  * Tristram's scenery megatiles (Orcl Act, 2026-10-13: "generate Woods level 1 using vanilla assets ... Using tristram
  * textures"): every megatile of the four town sectors, counted where it stands - past the town's walk limit (the trees and
  * rocks round the edge) or inside it - with how many of its four pieces are solid and the pieces themselves. Writes

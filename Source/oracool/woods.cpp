@@ -839,8 +839,9 @@ void HideDeepForest()
 			}
 	for (int y = 0; y < MAXDUNY; y++)
 		for (int x = 0; x < MAXDUNX; x++)
-			// One in two (the checker of x + y): at a quarter of the painted size (v1.201.017) the trees no longer meet at one in four.
-			TreeHidden[x][y] = depth[x][y] >= 3 && ((x + y) & 1) != 0;
+			// Three tiles in, one tree in four (the 2 x 2 lattice); seven in, one in nine (the 3 x 3). At the Testing Ground's 29-35 %
+			// (v1.201.019) the canopies still meet; one in two drew hundreds of them by any edge (the play test of 2026-10-14).
+			TreeHidden[x][y] = (depth[x][y] >= 7 && (x % 3 != 0 || y % 3 != 0)) || (depth[x][y] >= 3 && ((x | y) & 1) != 0);
 }
 
 void Generate(uint32_t seed)
@@ -1957,6 +1958,32 @@ Point WoodsArrival()
 Point WoodsWayOn()
 {
 	return WayOn;
+}
+
+bool WoodsStampForTest(int which, std::vector<uint16_t> &pieces, int &w, int &h)
+{
+	pieces.clear();
+	if (which == 0) {
+		w = 8;
+		h = 6;
+		for (const auto &row : CottageShell)
+			pieces.insert(pieces.end(), std::begin(row), std::end(row));
+		return true;
+	}
+	if (which == 1) {
+		w = MouthWidth;
+		h = MouthHeight;
+		for (const auto &row : MouthStamp)
+			pieces.insert(pieces.end(), std::begin(row), std::end(row));
+		return true;
+	}
+	if (which >= 2 && which <= 7) {
+		w = 2;
+		h = 2;
+		pieces.assign(std::begin(RiverPieces[which - 1]), std::end(RiverPieces[which - 1]));
+		return true;
+	}
+	return false;
 }
 
 void SetWoodsRiverForTest(int mode)
