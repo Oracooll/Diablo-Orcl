@@ -147,15 +147,68 @@ constexpr std::pair<uint16_t, uint16_t> GateOpen[] = { { 530, 537 }, { 533, 540 
 constexpr int RingLo = 1;
 constexpr int RingHi = DMAXX - 2;
 
+/**
+ * @brief The river (user, 2026-10-13: "grass, rivers, bridges"): Tristram's own stream, its cells as the town lays them
+ * (OracoolPreview.DISABLED_WoodsMixedView traced the west river): a diagonal of two cells a row - M3 M4, then M1 M2 under them,
+ * then the pair one cell east - with straight stretches of one cell a row between, and the town's wooden bridge in a straight
+ * stretch where a road crosses. Each a 2 x 2 of town pieces: top, right, left, bottom.
+ */
+enum RiverPart : uint8_t {
+	NoRiver,
+	RiverM1,
+	RiverM2,
+	RiverM3,
+	RiverM4,
+	RiverStraight,
+	RiverBridge,
+};
+constexpr uint16_t RiverPieces[7][4] = {
+	{ 0, 0, 0, 0 },
+	{ 277, 278, 279, 280 },
+	{ 285, 286, 287, 288 },
+	{ 281, 282, 283, 284 },
+	{ 289, 290, 291, 292 },
+	{ 261, 262, 263, 264 },
+	{ 309, 310, 311, 312 }, // crossed along its bottom row (311, 312); 309 and 310 are its rail
+};
+uint8_t RiverCell[DMAXX][DMAXY];
+/** @brief -1: the seed decides whether a floor has a river; 0 or 1: the test hook's answer. */
+int RiverForced = -1;
+
 /** @brief The floor being generated has a cave mouth (BuildWoodsLevel sets it from WoodsCaveOnFloor). */
 int MouthFloor = -1;
 bool MouthOnFloor = false;
 Point MouthOrigin {};
 Point MouthEntrance {};
 
+bool InRiver(Point tile)
+{
+	if (tile.x < 16 || tile.y < 16 || tile.x >= 96 || tile.y >= 96)
+		return false;
+	return RiverCell[(tile.x - 16) / 2][(tile.y - 16) / 2] != NoRiver;
+}
+
 bool InMouth(Point tile)
 {
 	return MouthOnFloor && tile.x >= MouthOrigin.x && tile.x < MouthOrigin.x + MouthWidth && tile.y >= MouthOrigin.y && tile.y < MouthOrigin.y + MouthHeight;
+}
+
+/** @brief The river's town pieces over the floor's tiles. */
+void StampRiver()
+{
+	for (int my = 0; my < DMAXY; my++) {
+		for (int mx = 0; mx < DMAXX; mx++) {
+			const uint8_t part = RiverCell[mx][my];
+			if (part == NoRiver)
+				continue;
+			for (int t = 0; t < 4; t++) {
+				const int x = 16 + 2 * mx + (t & 1);
+				const int y = 16 + 2 * my + (t >> 1);
+				dPiece[x][y] = RiverPieces[part][t];
+				WoodsLookPiece[x][y] = 0;
+			}
+		}
+	}
 }
 
 /** @brief The outcrop's town pieces over the floor's tiles. */
@@ -359,6 +412,10 @@ bool CellHasPath(int mx, int my)
 
 bool CellOpen(int mx, int my)
 {
+	for (int dy = -1; dy <= 1; dy++)
+		for (int dx = -1; dx <= 1; dx++)
+			if (mx + dx >= 0 && my + dy >= 0 && mx + dx < DMAXX && my + dy < DMAXY && RiverCell[mx + dx][my + dy] != NoRiver)
+				return false;
 	for (int t = 0; t < 4; t++) {
 		const int x = 16 + 2 * mx + (t & 1);
 		const int y = 16 + 2 * my + (t >> 1);
@@ -366,6 +423,104 @@ bool CellOpen(int mx, int my)
 			return false;
 	}
 	return true;
+}
+
+/** @brief A road on any of the cell's four tiles. */
+bool PathInCell(int mx, int my)
+{
+	if (mx < 0 || my < 0 || mx >= DMAXX || my >= DMAXY)
+		return false;
+	return CellHasPath(mx, my);
+}
+
+/**
+ * @brief The river from the floor's top edge to its bottom (cell rows 0-39), drifting east as it goes: two diagonal rows,
+ * then straight stretches. A straight stretch wherever the next diagonal cells hold a road, bridged where the road crosses.
+ * Kept clear of both roads' ends, the glade's cave mouth and the ring's corners; tried again from another column when it
+ * cannot be, and left out after 24 tries. Trees and ground details cleared off it and its banks.
+ */
+void PlanRiver(uint32_t seed)
+{
+	std::memset(RiverCell, 0, sizeof(RiverCell));
+	const bool wanted = RiverForced >= 0 ? RiverForced != 0 : Hash(seed, 0x51BE, 3) % 10 < 7;
+	if (!wanted)
+		return;
+	const int arrivalCell = (Arrival.x - 16) / 2;
+	const int wayOnCell = (WayOn.x - 16) / 2;
+	bool accepted = false;
+	for (int attempt = 0; attempt < 24; attempt++) {
+		std::memset(RiverCell, 0, sizeof(RiverCell));
+		int c = wayOnCell + 5 + static_cast<int>(Hash(seed, static_cast<uint32_t>(attempt), 0x51BE) % 8U);
+		bool ok = true;
+		bool diagonalNext = true;
+		int j = 0;
+		while (j < DMAXY && ok) {
+			if (diagonalNext) {
+				if (PathInCell(c, j) || PathInCell(c + 1, j) || PathInCell(c, j + 1) || PathInCell(c + 1, j + 1)) {
+					ok = false; // a road on a diagonal: another column
+					break;
+				}
+				RiverCell[c][j] = RiverM3;
+				RiverCell[c + 1][j] = RiverM4;
+				if (j + 1 < DMAXY) {
+					RiverCell[c][j + 1] = RiverM1;
+					RiverCell[c + 1][j + 1] = RiverM2;
+				}
+				j += 2;
+				diagonalNext = false;
+				continue;
+			}
+			// After a diagonal: straight down column c + 1, or the next diagonal one cell east.
+			const bool roadAhead = PathInCell(c + 1, j) || PathInCell(c + 2, j) || PathInCell(c + 1, j + 1) || PathInCell(c + 2, j + 1);
+			const bool straight = roadAhead || Unit(Hash(seed ^ 0x57A1U, static_cast<uint32_t>(j), static_cast<uint32_t>(attempt))) < 0.45F;
+			if (straight) {
+				RiverCell[c + 1][j] = PathInCell(c + 1, j) ? RiverBridge : RiverStraight;
+				j++;
+			} else {
+				c++;
+				diagonalNext = true;
+			}
+			ok = c + 2 < arrivalCell - 3;
+		}
+		if (ok) {
+			// Off the mouth (and a cell round it), never through a road's end.
+			for (int my = 0; my < DMAXY && ok; my++) {
+				for (int mx = 0; mx < DMAXX && ok; mx++) {
+					if (RiverCell[mx][my] == NoRiver)
+						continue;
+					const Point centre { 16 + 2 * mx + 1, 16 + 2 * my + 1 };
+					if (MouthOnFloor && centre.x >= MouthOrigin.x - 3 && centre.x < MouthOrigin.x + MouthWidth + 3 && centre.y >= MouthOrigin.y - 3
+					    && centre.y < MouthOrigin.y + MouthHeight + 3)
+						ok = false;
+					if (centre.WalkingDistance(Arrival) < 8 || centre.WalkingDistance(WayOn) < 8)
+						ok = false;
+				}
+			}
+		}
+		if (ok) {
+			accepted = true;
+			break;
+		}
+	}
+	if (!accepted) {
+		std::memset(RiverCell, 0, sizeof(RiverCell)); // no try fitted: this floor has no river
+		return;
+	}
+	// Its banks: a tile either side of each river cell kept open.
+	for (int my = 0; my < DMAXY; my++) {
+		for (int mx = 0; mx < DMAXX; mx++) {
+			if (RiverCell[mx][my] == NoRiver)
+				continue;
+			for (int y = 16 + 2 * my; y < 18 + 2 * my; y++) {
+				for (int x = 15 + 2 * mx; x < 19 + 2 * mx; x++) {
+					if (InDungeonBounds({ x, y })) {
+						Tree[x][y] = NoTree;
+						Scatter[x][y] = 0;
+					}
+				}
+			}
+		}
+	}
 }
 
 /**
@@ -400,9 +555,12 @@ void PlanFences(uint32_t seed)
 	gateAt(RingHi, (Arrival.y - 16) / 2, true);
 	gateAt(RingLo, (WayOn.y - 16) / 2, true);
 	for (int my = 0; my < DMAXY; my++)
-		for (int mx = 0; mx < DMAXX; mx++)
+		for (int mx = 0; mx < DMAXX; mx++) {
+			if (RiverCell[mx][my] != NoRiver)
+				FenceCell[mx][my] = 0; // the river runs under the ring
 			if (FenceCell[mx][my] != 0)
 				ClearCell(mx, my);
+		}
 
 	// The pens.
 	const Point keepAway[] = { Arrival, WayOn, MouthOnFloor ? MouthEntrance : Arrival, Arrival + Displacement { -2, -2 } };
@@ -616,6 +774,7 @@ void Generate(uint32_t seed)
 			}
 		}
 	}
+	PlanRiver(seed);
 	PlanFences(seed);
 	HideDeepForest();
 }
@@ -1015,6 +1174,7 @@ void BuildWoodsLevel(bool fresh)
 			for (int x = MouthOrigin.x; x < MouthOrigin.x + MouthWidth; x++)
 				Scatter[x][y] = 0;
 	}
+	StampRiver();
 	StampCaveMouth();
 	LayFences();
 	ViewPosition = EnterAtWayOn ? Point { WayOn.x + 2, WayOn.y } : Arrival;
@@ -1142,7 +1302,7 @@ void EnterWoodsAtCaveMouthNext()
 
 bool WoodsTileUsesCels(Point tile)
 {
-	return leveltype == DTYPE_WOODS && InMouth(tile);
+	return leveltype == DTYPE_WOODS && (InMouth(tile) || InRiver(tile));
 }
 
 bool WoodsCaveMouthHover(Point tile, Point &entrance, const char *&text)
@@ -1275,6 +1435,8 @@ void DrawWoodsMixedGround(const Surface &out, Point tile, Point target, int ligh
 			const Point p = tile + Displacement { dx, dy };
 			nearRoad = InDungeonBounds(p) && Ground[p.x][p.y] == Path && Tree[p.x][p.y] == NoTree;
 		}
+	if (InRiver(tile))
+		nearRoad = false; // the bridge's planks and the water, not the painted road
 	for (int k = 0; k < 31; k++) {
 		const int y = target.y - k;
 		if (y < 0 || y >= out.h())
@@ -1487,6 +1649,16 @@ Point WoodsWayOn()
 	return WayOn;
 }
 
+void SetWoodsRiverForTest(int mode)
+{
+	RiverForced = mode;
+}
+
+bool WoodsRiverAtForTest(Point tile)
+{
+	return InRiver(tile);
+}
+
 void SetWoodsCaveMouthFloorForTest(int floorIndex)
 {
 	MouthFloor = floorIndex;
@@ -1495,6 +1667,7 @@ void SetWoodsCaveMouthFloorForTest(int floorIndex)
 Point StampWoodsCaveMouthForTest()
 {
 	MouthFloor = -1;
+	StampRiver();
 	StampCaveMouth();
 	LayFences();
 	return MouthOnFloor ? MouthEntrance : Point { 0, 0 };

@@ -20602,10 +20602,18 @@ TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
 	SetDungeonMicros();
 	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
 	EXPECT_NE(oracool::WoodsCaveOnFloor(0), SL_NONE) << "the first woods floor has a cave";
-	for (const uint32_t seed : { 0x6E00D5U, 0x12345U, 0xBEEF01U, 0x77AA33U }) {
+	// Every floor here has a river (2026-10-14), so the walk below crosses it by its bridges where the roads do.
+	oracool::SetWoodsRiverForTest(1);
+	int floorsWithRiver = 0;
+	for (const uint32_t seed : { 0x6E00D5U, 0x12345U, 0xBEEF01U, 0x77AA33U, 0x3141U, 0x2718U }) {
 		oracool::SetWoodsCaveMouthFloorForTest(0);
 		CreateDungeon(seed, ENTRY_SETLVL);
 		const Point entrance = oracool::StampWoodsCaveMouthForTest();
+		bool river = false;
+		for (int y = 16; y < 96 && !river; y++)
+			for (int x = 16; x < 96 && !river; x++)
+				river = oracool::WoodsRiverAtForTest({ x, y });
+		floorsWithRiver += river ? 1 : 0;
 		ASSERT_NE(entrance, Point(0, 0)) << "seed " << seed << ": no mouth";
 		LoadLevelSOLData();
 		EXPECT_FALSE(TileHasAny(dPiece[entrance.x][entrance.y], TileProperties::Solid)) << "seed " << seed << ": the entrance is solid";
@@ -20635,6 +20643,8 @@ TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
 		EXPECT_GT(fenced, 400) << "seed " << seed << ": the ring of Caves fences is not laid";
 	}
 	oracool::SetWoodsCaveMouthFloorForTest(-1);
+	oracool::SetWoodsRiverForTest(-1);
+	EXPECT_GE(floorsWithRiver, 4) << "the river fits on most floors";
 
 	// The cave floors: the Caves DRLG as BuildWoodsCaveLevel runs it.
 	leveltype = DTYPE_CAVES;
@@ -20955,18 +20965,26 @@ TEST(OracoolPreview, DISABLED_WoodsMixedView)
 	const char *seedText = std::getenv("ORCL_WOODS_SEED");
 	const uint32_t seed = seedText != nullptr ? static_cast<uint32_t>(std::strtoul(seedText, nullptr, 0)) : 0x6E00D5U;
 	oracool::SetWoodsCaveMouthFloorForTest(0);
+	oracool::SetWoodsRiverForTest(1);
 	CreateDungeon(seed, ENTRY_SETLVL);
+	oracool::SetWoodsRiverForTest(-1);
 	const Point mouth = oracool::StampWoodsCaveMouthForTest();
 	LoadLevelSOLData();
 	oracool::LoadWoodsArtForTest();
+	Point bridge { 0, 0 };
+	for (int y = 16; y < 96; y++)
+		for (int x = 16; x < 96; x++)
+			if (dPiece[x][y] == 311 && bridge == Point(0, 0))
+				bridge = { x, y };
+	std::cout << "BRIDGE " << bridge.x << " " << bridge.y << std::endl;
 	std::array<uint8_t, 256> identity;
 	for (int i = 0; i < 256; i++)
 		identity[i] = static_cast<uint8_t>(i);
-	const auto renderAround = [&](Point centre, const char *name) {
-		OwnedSurface view = OwnedSurface::Rgb(1280, 720);
+	const auto renderAround = [&](Point centre, const char *name, int viewW = 1280, int viewH = 720) {
+		OwnedSurface view = OwnedSurface::Rgb(viewW, viewH);
 		const Surface out = view;
 		const auto screenOf = [&](Point tile) {
-			return Point { 640 - 32 + (tile.x - centre.x) * 32 - (tile.y - centre.y) * 32, 360 + 15 + (tile.x - centre.x) * 16 + (tile.y - centre.y) * 16 };
+			return Point { viewW / 2 - 32 + (tile.x - centre.x) * 32 - (tile.y - centre.y) * 32, viewH / 2 + 15 + (tile.x - centre.x) * 16 + (tile.y - centre.y) * 16 };
 		};
 		for (int pass = 0; pass < 2; pass++) {
 			for (int sum = 0; sum <= 2 * (MAXDUNX - 1); sum++) {
@@ -20975,7 +20993,7 @@ TEST(OracoolPreview, DISABLED_WoodsMixedView)
 					if (!InDungeonBounds(tile))
 						continue;
 					const Point at = screenOf(tile);
-					if (at.x < -96 || at.x > 1280 + 32 || at.y < -32 || at.y > 720 + 300)
+					if (at.x < -96 || at.x > viewW + 32 || at.y < -32 || at.y > viewH + 300)
 						continue;
 					const uint16_t drawn = oracool::WoodsDrawnPiece(tile);
 					const uint16_t raw = dPiece[tile.x][tile.y];
@@ -21019,6 +21037,8 @@ TEST(OracoolPreview, DISABLED_WoodsMixedView)
 	};
 	ASSERT_NE(mouth, Point(0, 0));
 	renderAround(mouth + Displacement { 2, 1 }, "woods_mixed_mouth.png");
+	if (bridge != Point(0, 0))
+		renderAround(bridge, "woods_mixed_bridge.png");
 	renderAround(oracool::WoodsArrival() + Displacement { 3, 0 }, "woods_mixed_gate.png");
 	oracool::SetWoodsCaveMouthFloorForTest(-1);
 
@@ -21043,6 +21063,8 @@ TEST(OracoolPreview, DISABLED_WoodsMixedView)
 		std::cout << std::endl;
 	}
 	renderAround({ 17, 67 }, "town_cave_entrance.png");
+	// The whole town, for its rivers and bridges (the woods' river is the west one's cells, woods.cpp RiverPieces).
+	renderAround({ 48, 48 }, "town_overview.png", 6400, 3400);
 	leveltype = DTYPE_WOODS;
 	PaletteRGB = savedPalette;
 	pDungeonCels = std::move(savedCels);

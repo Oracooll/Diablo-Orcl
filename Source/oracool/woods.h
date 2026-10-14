@@ -139,6 +139,10 @@ Point WoodsArrival();
 Point WoodsWayOn();
 /** @brief Test hook: loads the woods art as BuildWoodsLevel does outside headless mode. */
 void LoadWoodsArtForTest();
+/** @brief Test hook: -1 the seed decides whether a floor has a river, 0 none, 1 always. */
+void SetWoodsRiverForTest(int mode);
+/** @brief Test hook: the floor last generated has its river on @p tile. */
+bool WoodsRiverAtForTest(Point tile);
 /** @brief Test hook: the next floor generated has the cave mouth of woods floor @p floorIndex (-1: none). */
 void SetWoodsCaveMouthFloorForTest(int floorIndex);
 /** @brief Test hook: stamps the mouth into the floor last generated; its entrance, or {0,0} for none. */
