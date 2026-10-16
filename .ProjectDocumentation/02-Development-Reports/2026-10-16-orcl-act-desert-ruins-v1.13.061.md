@@ -98,3 +98,18 @@ Eight pieces, approved as delivered (batch-105).
 - **Tests:**
   - New hook `DesertCampsForTest`; the walk test checks there are never more camps than due, and always at least one on the Salt Road.
   - `DISABLED_DesertFloors` renders a camp view.
+
+## v1.13.068 (2026-10-17): the Sun-Eater's arena (RfA-74)
+Seven pieces, approved as delivered (batch-106). ChatGPT rewrote the folder a minute after it was approved; the copy is byte-identical and was left in place.
+- **Placing the arena (`PlanArena`, the Tomb only):**
+  - It is centred near WayOn + (11, 0), on the first spot whose 5 x 5 middle is off the road and 16 tiles or more from the court.
+  - The ground within about 5.6 tiles becomes buried paving, and everything else within 7 is cleared.
+  - Nothing else is placed within 14 of it by the spot finder, nor within 8 by the roadside.
+- **In the arena:**
+  - The eclipse altar in the middle, with a brazier either side.
+  - A ring of six black pillars (two kinds, one broken) 4.2 tiles out. Where the road crosses the ring, a pillar shifts in to 3.4 or out to 5, or turns a little round it.
+  - The temple front at the back (-6, -6).
+  - The wall's end, run and corner along whichever side (y +6 or -6) the road leaves clear.
+  - The temple and the altar block their footprints, and the wall's end blocks the tile it spans, as the run does.
+- **The boss:** on the Tomb it now waits before the altar, at arena + (2, 2) (`WoodsBossSpot`).
+- **Tests:** the arena is on the Tomb only and its altar can be reached; the Tomb has 2-4 braziers (court plus arena); `DISABLED_DesertFloors` renders an arena view.

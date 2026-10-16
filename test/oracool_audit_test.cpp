@@ -20946,7 +20946,22 @@ TEST(OracoolAudit, DesertFloorsAreWalkableAndHoldTheirSights)
 				if (ruins != Point(0, 0))
 					EXPECT_TRUE(walked(ruins)) << at << ": the ruins' middle cannot be walked to";
 			}
-			EXPECT_EQ(braziers, floor == 3 ? 2 : 0) << at << ": the Tomb's braziers";
+			// The court's two and the arena's two (RfA-74), each pair placed only where the road leaves room.
+			if (floor == 3) {
+				EXPECT_GE(braziers, 2) << at << ": the Tomb's braziers";
+				EXPECT_LE(braziers, 4) << at << ": the Tomb's braziers";
+			} else {
+				EXPECT_EQ(braziers, 0) << at << ": braziers off the Tomb";
+			}
+			// The Sun-Eater's arena on the Tomb alone, its altar reachable.
+			const Point arena = oracool::DesertArenaForTest();
+			EXPECT_EQ(arena != Point(0, 0), floor == 3) << at << ": the arena";
+			if (arena != Point(0, 0)) {
+				bool beside = false;
+				for (const Displacement d : { Displacement { 1, 1 }, Displacement { 2, 2 }, Displacement { -1, -1 }, Displacement { 1, -1 }, Displacement { -1, 1 } })
+					beside = beside || walked(arena + d);
+				EXPECT_TRUE(beside) << at << ": the arena's altar cannot be reached";
+			}
 			// The Glass Flats' scorched craters (RfA-72b), and none elsewhere.
 			EXPECT_EQ(oracool::DesertCraterForTest() != Point(0, 0), floor == 2) << at << ": the craters";
 			// The nomad camps (RfA-73): two on the Salt Road, one on each of the next two, none at the Tomb; at least one where any is due.
@@ -21186,6 +21201,8 @@ TEST(OracoolPreview, DISABLED_DesertFloors)
 			places.emplace_back("ruins", ruins);
 		if (const Point crater = oracool::DesertCraterForTest(); crater != Point(0, 0))
 			places.emplace_back("crater", crater);
+		if (const Point arena = oracool::DesertArenaForTest(); arena != Point(0, 0))
+			places.emplace_back("arena", arena);
 		if (Point lantern; oracool::DesertCampsForTest(&lantern) > 0)
 			places.emplace_back("camp", lantern + Displacement { -1, 3 });
 		for (const auto &[name, centre] : places) {

@@ -178,6 +178,14 @@ enum TreeKind : uint8_t {
 	WaterskinsRack,
 	SaltPiles,
 	HitchingPost,
+	// The Sun-Eater's arena (RfA-74): the black pillars, the temple front, the altar; the broken wall's corner and end.
+	PillarBlackA,
+	PillarBlackB,
+	PillarBlackBroken,
+	TempleFront,
+	AltarEclipse,
+	WallCorner,
+	WallEnd,
 	Blocker,
 	TreeKindCount,
 };
@@ -376,6 +384,8 @@ Point OasisCentre {};
 float OasisRadius = 0.0F;
 /** @brief The buried ruins' middle (their paving), or {0,0}. */
 Point RuinsCentre {};
+/** @brief The Tomb of the Sun-Eater's arena (RfA-74), where its boss waits by the way on; {} on every other floor. */
+Point ArenaCentre {};
 /** @brief The Tomb's braziers (RfA-70), lit by the game: their fire drawn with the glows, their light one of the night's lamps. */
 std::vector<Point> Braziers;
 /** @brief The Ash Dunes' ember-cracked boulders and smoking vents, the Glass Flats' pale crystals (RfA-72, 72b): glows and smoke. */
@@ -1151,7 +1161,8 @@ std::optional<Point> FindDesertSpot(uint32_t seed, uint32_t salt)
 			continue;
 		if (MouthOnFloor && p.WalkingDistance(MouthEntrance) < 12)
 			continue;
-		if ((OasisRadius > 0.0F && p.WalkingDistance(OasisCentre) < 16) || (RuinsCentre != Point {} && p.WalkingDistance(RuinsCentre) < 16))
+		if ((OasisRadius > 0.0F && p.WalkingDistance(OasisCentre) < 16) || (RuinsCentre != Point {} && p.WalkingDistance(RuinsCentre) < 16)
+		    || (ArenaCentre != Point {} && p.WalkingDistance(ArenaCentre) < 14))
 			continue;
 		bool nearRoad = false;
 		for (int dy = -5; dy <= 5 && !nearRoad; dy++)
@@ -1297,6 +1308,86 @@ void PlanRuins(Point centre, uint32_t seed, int floor)
 }
 
 /**
+ * @brief The Tomb of the Sun-Eater's arena (RfA-74), where the desert's boss waits by the way on: a round of old paving ringed by six
+ * black pillars (two kinds whole, one broken), the eclipse altar in its middle with a brazier burning either side, the temple's front
+ * at its back and a run of the city's broken wall along one side. Its middle is off the road; the road may cross its edge, where
+ * nothing stands.
+ */
+void PlanArena(uint32_t seed)
+{
+	const Point aim = WayOn + Displacement { 11, 0 };
+	const auto fits = [](Point c) {
+		if (c.x - 8 < Lo || c.y - 8 < Lo || c.x + 8 > Hi || c.y + 8 > Hi || c.WalkingDistance(WayOn) < 7)
+			return false;
+		for (int dy = -2; dy <= 2; dy++)
+			for (int dx = -2; dx <= 2; dx++)
+				if (Ground[c.x + dx][c.y + dy] == Path)
+					return false;
+		return !(RuinsCentre != Point {} && c.WalkingDistance(RuinsCentre) < 16);
+	};
+	std::optional<Point> centre;
+	for (int radius = 0; radius <= 12 && !centre; radius++)
+		for (int dy = -radius; dy <= radius && !centre; dy++)
+			for (int dx = -radius; dx <= radius && !centre; dx++)
+				if (std::max(std::abs(dx), std::abs(dy)) == radius && fits(aim + Displacement { dx, dy }))
+					centre = aim + Displacement { dx, dy };
+	if (!centre)
+		return;
+	const Point c = *centre;
+	ArenaCentre = c;
+	ClearRound(c, 7);
+	for (int dy = -6; dy <= 6; dy++)
+		for (int dx = -6; dx <= 6; dx++) {
+			const Point p = c + Displacement { dx, dy };
+			const float d = std::sqrt(static_cast<float>(dx * dx + dy * dy)) + (ValueNoise(p.x, p.y, 3.0F, seed ^ 0xA7E4U) - 0.5F) * 1.6F;
+			if (d <= 5.6F && Ground[p.x][p.y] != Path)
+				Ground[p.x][p.y] = Paving;
+		}
+	const auto stand = [](Point p, TreeKind kind) {
+		if (!InDungeonBounds(p) || Ground[p.x][p.y] == Path || Tree[p.x][p.y] != NoTree)
+			return false;
+		Tree[p.x][p.y] = kind;
+		if (kind == Brazier)
+			Braziers.push_back(p);
+		return true;
+	};
+	stand(c, AltarEclipse);
+	// The braziers either side of the altar on screen (one step up-right and down-left of it), lit by the game.
+	stand(c + Displacement { 2, -2 }, Brazier);
+	stand(c + Displacement { -2, 2 }, Brazier);
+	// The ring: six pillars round it four tiles out, one broken.
+	// Where the road crosses the ring, a pillar shifts in or out, or a little round it, to the nearest open tile (the first preview:
+	// half the ring fell on the road and was left out).
+	const int broken = static_cast<int>(Hash(seed, 0xA7E5U, 6) % 6U);
+	for (int k = 0; k < 6; k++) {
+		const TreeKind kind = k == broken ? PillarBlackBroken : (k & 1) != 0 ? PillarBlackB : PillarBlackA;
+		bool placed = false;
+		for (const float radius : { 4.2F, 3.4F, 5.0F })
+			for (const float turn : { 0.0F, 0.22F, -0.22F })
+				if (!placed) {
+					const float a = 6.2831853F * (static_cast<float>(k) + 0.5F) / 6.0F + turn;
+					placed = stand(c + Displacement { static_cast<int>(std::lround(std::cos(a) * radius)), static_cast<int>(std::lround(std::sin(a) * radius)) }, kind);
+				}
+	}
+	// The temple's front at the arena's back (up the screen: -x and -y), facing the altar.
+	stand(c + Displacement { -6, -6 }, TempleFront);
+	// The broken wall down its right-hand side, one piece two tiles apart: its end, its run, its corner.
+	// On whichever side the road leaves clear: the right-hand side first, else the left (+x runs on either).
+	for (const int side : { 6, -6 }) {
+		bool clear = true;
+		for (int dx = -2; dx <= 5 && clear; dx++)
+			clear = Ground[c.x + dx][c.y + side] != Path && Tree[c.x + dx][c.y + side] == NoTree;
+		if (!clear)
+			continue;
+		stand(c + Displacement { -2, side }, WallEnd);
+		stand(c + Displacement { 0, side }, WallBroken);
+		stand(c + Displacement { 2, side }, WallBroken);
+		stand(c + Displacement { 4, side }, WallCorner);
+		break;
+	}
+}
+
+/**
  * @brief The Salt Road's sights (user, 2026-10-16; RfA-69): what lies beside the road from the arrival to the way on, @p road its tiles
  * from the arrival on. Milestones a quarter of the way apart on every floor; a wrecked caravan - the wagon on its side, its wheel, its
  * spilled cargo, its torn tarp - on the first two floors; a wayside shrine on the first and third; the gallows where the glade's path
@@ -1309,7 +1400,8 @@ void PlaceRoadside(const std::vector<Point> &road, uint32_t seed, int floor)
 	const auto free = [](Point p) {
 		if (!Inside(p) || Tree[p.x][p.y] != NoTree || Ground[p.x][p.y] == Path || Ground[p.x][p.y] == OasisMud)
 			return false;
-		if (p.WalkingDistance(Arrival) < 5 || p.WalkingDistance(WayOn) < 5 || (MouthOnFloor && p.WalkingDistance(MouthEntrance) < 4))
+		if (p.WalkingDistance(Arrival) < 5 || p.WalkingDistance(WayOn) < 5 || (MouthOnFloor && p.WalkingDistance(MouthEntrance) < 4)
+		    || (ArenaCentre != Point {} && p.WalkingDistance(ArenaCentre) < 8))
 			return false;
 		for (int dy = -1; dy <= 1; dy++)
 			for (int dx = -1; dx <= 1; dx++) {
@@ -1458,6 +1550,7 @@ void GenerateDesert(uint32_t seed)
 	OasisCentre = {};
 	OasisRadius = 0.0F;
 	RuinsCentre = {};
+	ArenaCentre = {};
 	Braziers.clear();
 	EmberRocks.clear();
 	SmokeVents.clear();
@@ -1584,6 +1677,7 @@ void GenerateDesert(uint32_t seed)
 		break;
 	default:
 		PlanRuins(glade, seed, floor);
+		PlanArena(seed);
 		if (const std::optional<Point> at = FindDesertSpot(seed, 0x81CU))
 			PlaceRibcage(*at);
 		break;
@@ -1664,13 +1758,13 @@ void GenerateDesert(uint32_t seed)
 		for (int x = Lo; x <= Hi; x++)
 			if (Tree[x][y] == Outcrop || Tree[x][y] == Ribcage || Tree[x][y] == Wagon || Tree[x][y] == ArchRuined || Tree[x][y] == ColumnFallen
 			    || Tree[x][y] == StatueHead || Tree[x][y] == GuardianLion || Tree[x][y] == AqueductArch || Tree[x][y] == WallStub || Tree[x][y] == SiegeBurnt
-			    || Tree[x][y] == TentOpen || Tree[x][y] == TentCollapsed)
+			    || Tree[x][y] == TentOpen || Tree[x][y] == TentCollapsed || Tree[x][y] == TempleFront || Tree[x][y] == AltarEclipse)
 				BlockFootprint({ x, y });
 	// The broken wall runs along the ground's diagonal (top-left to bottom-right on screen: +x), each piece over two tiles: the next
 	// one along it is solid too, so a run of pieces two apart leaves no gap (RfA-70b).
 	for (int y = Lo; y <= Hi; y++)
 		for (int x = Lo; x < Hi; x++)
-			if (Tree[x][y] == WallBroken && Tree[x + 1][y] == NoTree && Ground[x + 1][y] != Path)
+			if ((Tree[x][y] == WallBroken || Tree[x][y] == WallEnd) && Tree[x + 1][y] == NoTree && Ground[x + 1][y] != Path)
 				Tree[x + 1][y] = Blocker;
 	SealUnreachable();
 
@@ -1735,6 +1829,7 @@ void Generate(uint32_t seed)
 	OasisCentre = {};
 	OasisRadius = 0.0F;
 	RuinsCentre = {};
+	ArenaCentre = {};
 	Braziers.clear();
 	EmberRocks.clear();
 	SmokeVents.clear();
@@ -1979,6 +2074,13 @@ constexpr TreeFile TreeFiles[TreeKindCount] = {
 	{ "levels\\desert\\waterskins_rack.png", 64, 164, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\salt_piles.png", 72, 84, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\hitching_post.png", 48, 148, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\pillar_black_a.png", 56, 388, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\pillar_black_b.png", 56, 388, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\pillar_black_broken.png", 56, 244, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\temple_front.png", 224, 436, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\altar_eclipse.png", 96, 148, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\wall_corner.png", 112, 212, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\wall_end.png", 80, 212, 29, false, OrclArea::Desert },
 	{ nullptr, 0, 0, 0, false, OrclArea::Desert }, // Blocker: never drawn
 };
 
@@ -3687,7 +3789,8 @@ std::optional<Point> WoodsBossSpot()
 	// houses. He guards the way out of the woods.
 	const int fenceIn = Lo + 2 * (RingLo + 1);    // the first tile inside the ring
 	const int fenceOut = Lo + 2 * RingHi - 1;     // the last
-	const Point aim = WayOn + Displacement { 6, 0 };
+	// In the desert's Tomb, before the Sun-Eater's altar (RfA-74), facing it from the arena's open front.
+	const Point aim = Desert && ArenaCentre != Point {} ? ArenaCentre + Displacement { 2, 2 } : WayOn + Displacement { 6, 0 };
 	for (int radius = 0; radius <= 40; radius++) {
 		for (int dx = -radius; dx <= radius; dx++) {
 			for (int dy = -radius; dy <= radius; dy++) {
@@ -4833,6 +4936,11 @@ void SetWoodsSeedForTest(int floorIndex, uint32_t seed, OrclArea area)
 Point DesertOasisForTest()
 {
 	return OasisRadius > 0.0F ? OasisCentre : Point { 0, 0 };
+}
+
+Point DesertArenaForTest()
+{
+	return ArenaCentre;
 }
 
 int DesertCampsForTest(Point *first)
