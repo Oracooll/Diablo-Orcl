@@ -71,3 +71,18 @@ RfA-75 delivered four 3440 x 1440 paintings (batch-102), all approved as deliver
   - Going down into a desert cave shows `gendata\cutdcave`, with the Caves' CEL as the fallback.
 - **Frost pair:** kept in `batch-102-loading-screens-APPROVED/gendata/` until the Frost Caves are built. They are not shipped yet.
 - **One framing note:** `cutfrost`'s frozen barbarian sits right of the 4:3 safe area, so a 4:3 screen crops it. The torch, the banner and the path still carry the scene.
+
+## v1.13.066: the Ash Dunes and the Glass Flats (RfA-72, 72b)
+Twelve pieces, approved as delivered (batch-103, batch-104); every content height is in range.
+- **The Ash Dunes (floor 2):**
+  - Its open sand now takes charred stumps and ash boulders among the dead palms (`PickDesertOpen` case 1).
+  - Two burnt siege engines are landmarks, with their footprints blocked.
+  - Burnt-out campfires, charred bones and smoke vents lie about as decor (ScatterSlots 22).
+  - **Drawn by the game:** the ash boulders' cracks breathe a dull red ember glow, and the vents send up thin grey smoke that leans with a sandstorm's wind.
+- **The Glass Flats (floor 3):**
+  - Obsidian spires, glass shards, fulgurite and pale crystals join the petrified trees.
+  - There are three scorched craters, at least 14 tiles apart. Each is laid into the ground the way the ways down are (`LoadDecal` at 40%, tinted to the floor's sand, oval fade), with a glassed corpse and a cluster of shards beside it.
+  - **Drawn by the game:** the crystals glow a faint pulsing green-white, and each is a small night lamp.
+- **Tests:**
+  - New hook `DesertCraterForTest`; the walk test checks that craters lie on the Glass Flats only.
+  - `DISABLED_DesertFloors` renders a crater view.

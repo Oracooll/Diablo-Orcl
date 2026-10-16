@@ -161,6 +161,16 @@ enum TreeKind : uint8_t {
 	Cairn,
 	WallStub,
 	WallBroken,
+	// The Ash Dunes' (RfA-72): what burned here.
+	StumpCharred,
+	BoulderAsh,
+	SiegeBurnt,
+	// The Glass Flats' (RfA-72b): sand fused by fire from the sky.
+	ObsidianSpire,
+	GlassShards,
+	Fulgurite,
+	CrystalPale,
+	CorpseGlassed,
 	Blocker,
 	TreeKindCount,
 };
@@ -177,6 +187,9 @@ enum DesertDecor : uint8_t {
 	DecorBasket,
 	DecorWheel, // a cart wheel lying in the sand (RfA-69)
 	DecorLid,   // a sarcophagus lid lying in the sand (RfA-70b)
+	DecorCampfire, // the Ash Dunes' lying things (RfA-72): a burnt-out campfire, charred bones, a smoking vent
+	DecorBonesCharred,
+	DecorVent,
 	ScatterSlots,
 };
 
@@ -356,6 +369,12 @@ float OasisRadius = 0.0F;
 Point RuinsCentre {};
 /** @brief The Tomb's braziers (RfA-70), lit by the game: their fire drawn with the glows, their light one of the night's lamps. */
 std::vector<Point> Braziers;
+/** @brief The Ash Dunes' ember-cracked boulders and smoking vents, the Glass Flats' pale crystals (RfA-72, 72b): glows and smoke. */
+std::vector<Point> EmberRocks;
+std::vector<Point> SmokeVents;
+std::vector<Point> PaleCrystals;
+/** @brief The Glass Flats' scorched craters (RfA-72b), laid into the ground as the ways down are. */
+std::vector<Point> Craters;
 
 /** @brief The sand hole's radius, in tiles: the pit the hero walks to the middle of to go down (the desert's cave mouth). */
 constexpr float SandHoleRadius = 1.7F;
@@ -1065,8 +1084,13 @@ TreeKind PickDesertOpen(uint32_t h, int floor)
 {
 	const float u = Unit(h);
 	switch (floor) {
+	case 1:
+		// The Ash Dunes: what burned (RfA-72) among the dead palms.
+		return u < 0.20F ? StumpCharred : u < 0.36F ? BoulderAsh : u < 0.48F ? PalmDead : u < 0.58F ? Acacia : u < 0.70F ? Thicket : u < 0.84F ? BoulderD : RocksD;
 	case 2:
-		return u < 0.30F ? Petrified : u < 0.50F ? RocksD : u < 0.64F ? Thicket : u < 0.80F ? BoulderD : u < 0.90F ? Hoodoo : Acacia;
+		// The Glass Flats: the fallen fire's glass (RfA-72b) among the petrified trees.
+		return u < 0.20F ? Petrified : u < 0.30F ? ObsidianSpire : u < 0.44F ? GlassShards : u < 0.54F ? Fulgurite : u < 0.62F ? CrystalPale : u < 0.74F ? RocksD
+		    : u < 0.82F ? Thicket : u < 0.92F ? BoulderD : Hoodoo;
 	case 3:
 		return u < 0.25F ? Thicket : u < 0.45F ? RocksD : u < 0.60F ? PalmDead : u < 0.74F ? Acacia : u < 0.88F ? BoulderD : Petrified;
 	default:
@@ -1370,6 +1394,10 @@ void GenerateDesert(uint32_t seed)
 	OasisRadius = 0.0F;
 	RuinsCentre = {};
 	Braziers.clear();
+	EmberRocks.clear();
+	SmokeVents.clear();
+	PaleCrystals.clear();
+	Craters.clear();
 
 	const int span = Hi - Lo;
 	Arrival = { Hi - 4, Lo + span / 4 + static_cast<int>(Unit(Hash(seed, 1, 0)) * static_cast<float>(span) / 2) };
@@ -1494,6 +1522,29 @@ void GenerateDesert(uint32_t seed)
 			PlaceRibcage(*at);
 		break;
 	}
+	// The Ash Dunes' burnt siege engines, two out in the dunes (RfA-72).
+	if (floor == 1) {
+		for (const uint32_t salt : { 0x72A1U, 0x72A2U })
+			if (const std::optional<Point> at = FindDesertSpot(seed, salt))
+				Tree[at->x][at->y] = SiegeBurnt;
+	}
+	// The Glass Flats' craters (RfA-72b), three, each with the glassed dead and the shards round it: where the fire fell.
+	if (floor == 2) {
+		// Spread out: each at least fourteen tiles from the others (the first preview: three side by side).
+		for (uint32_t salt = 0x72B1U; salt < 0x72B1U + 24U && Craters.size() < 3; salt++) {
+			const std::optional<Point> at = FindDesertSpot(seed, salt);
+			if (!at || std::any_of(Craters.begin(), Craters.end(), [&](Point c) { return c.WalkingDistance(*at) < 14; }))
+				continue;
+			ClearRound(*at, 2);
+			Craters.push_back(*at);
+			const Point corpse = *at + Displacement { 2, -2 };
+			if (Inside(corpse) && Ground[corpse.x][corpse.y] != Path)
+				Tree[corpse.x][corpse.y] = CorpseGlassed;
+			const Point shards = *at + Displacement { -2, 2 };
+			if (Inside(shards) && Ground[shards.x][shards.y] != Path)
+				Tree[shards.x][shards.y] = GlassShards;
+		}
+	}
 	// The buried city further out on its two floors (RfA-70): a broken column with its fallen drums beside it, and on the Tomb's
 	// floor a lone obelisk and a lone stele out in the dunes.
 	if (floor >= 2) {
@@ -1546,7 +1597,7 @@ void GenerateDesert(uint32_t seed)
 	for (int y = Lo; y <= Hi; y++)
 		for (int x = Lo; x <= Hi; x++)
 			if (Tree[x][y] == Outcrop || Tree[x][y] == Ribcage || Tree[x][y] == Wagon || Tree[x][y] == ArchRuined || Tree[x][y] == ColumnFallen
-			    || Tree[x][y] == StatueHead || Tree[x][y] == GuardianLion || Tree[x][y] == AqueductArch || Tree[x][y] == WallStub)
+			    || Tree[x][y] == StatueHead || Tree[x][y] == GuardianLion || Tree[x][y] == AqueductArch || Tree[x][y] == WallStub || Tree[x][y] == SiegeBurnt)
 				BlockFootprint({ x, y });
 	// The broken wall runs along the ground's diagonal (top-left to bottom-right on screen: +x), each piece over two tiles: the next
 	// one along it is solid too, so a run of pieces two apart leaves no gap (RfA-70b).
@@ -1569,6 +1620,8 @@ void GenerateDesert(uint32_t seed)
 			}
 			if (!Inside({ x, y }) || Ground[x][y] == Path || Scatter[x][y] != 0 || inHole({ x, y }) || Ground[x][y] == OasisMud)
 				continue;
+			if (std::any_of(Craters.begin(), Craters.end(), [&](Point c) { return c.WalkingDistance(Point { x, y }) <= 2; }))
+				continue;
 			const float u = Unit(h >> 8);
 			if (u < 0.06F) {
 				int weights[12];
@@ -1586,9 +1639,23 @@ void GenerateDesert(uint32_t seed)
 				// A saltbush on sand and clay, dune grass in the ripples, bones anywhere.
 				const uint32_t k = (h >> 20) % 4U;
 				Scatter[x][y] = static_cast<uint8_t>((Ground[x][y] == GrassDark && k < 2 ? DecorDuneGrass : k == 3 ? DecorBones : DecorSaltbush) + 1);
+			} else if (floor == 1 && u < 0.085F) {
+				// The Ash Dunes' burnt leavings (RfA-72): campfires and charred bones, a vent smoking now and then.
+				const uint32_t k = (h >> 20) % 5U;
+				Scatter[x][y] = static_cast<uint8_t>((k < 2 ? DecorCampfire : k < 4 ? DecorBonesCharred : DecorVent) + 1);
 			}
 		}
 	}
+	// What the game lights or smokes (RfA-72, 72b): found once the floor is laid.
+	for (int y = Lo; y <= Hi; y++)
+		for (int x = Lo; x <= Hi; x++) {
+			if (Tree[x][y] == BoulderAsh)
+				EmberRocks.push_back({ x, y });
+			else if (Tree[x][y] == CrystalPale)
+				PaleCrystals.push_back({ x, y });
+			if (Scatter[x][y] == DecorVent + 1)
+				SmokeVents.push_back({ x, y });
+		}
 	HideDeepForest();
 }
 
@@ -1602,6 +1669,10 @@ void Generate(uint32_t seed)
 	OasisRadius = 0.0F;
 	RuinsCentre = {};
 	Braziers.clear();
+	EmberRocks.clear();
+	SmokeVents.clear();
+	PaleCrystals.clear();
+	Craters.clear();
 	std::memset(Ground, Grass, sizeof(Ground));
 	std::memset(Tree, NoTree, sizeof(Tree));
 	std::memset(Scatter, 0, sizeof(Scatter));
@@ -1826,6 +1897,14 @@ constexpr TreeFile TreeFiles[TreeKindCount] = {
 	{ "levels\\desert\\cairn.png", 56, 132, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\wall_stub.png", 112, 148, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\wall_broken.png", 112, 212, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\stump_charred.png", 64, 132, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\boulder_ash.png", 96, 148, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\siege_burnt.png", 192, 244, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\obsidian_spire.png", 80, 372, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\glass_shards.png", 80, 132, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\fulgurite.png", 64, 164, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\crystal_pale.png", 88, 180, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\corpse_glassed.png", 64, 212, 29, false, OrclArea::Desert },
 	{ nullptr, 0, 0, 0, false, OrclArea::Desert }, // Blocker: never drawn
 };
 
@@ -1838,6 +1917,9 @@ constexpr TreeFile DecorFiles[ScatterSlots - 12] = {
 	{ "levels\\desert\\basket_woven.png", 32, 56, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\cart_wheel.png", 56, 70, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\sarcophagus_lid.png", 112, 100, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\campfire_burnt.png", 48, 54, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\bones_charred.png", 64, 70, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\smoke_vent.png", 48, 54, 29, false, OrclArea::Desert },
 };
 
 /** @brief One area's pictures, loaded the first time one of its floors is built. */
@@ -1847,6 +1929,8 @@ struct AreaArtSet {
 	std::array<Picture, ScatterSlots> scatter; // the sheet's twelve cells, each at its own scale, then the desert's decor
 	/** @brief The desert's two ways down (RfA-71b), soft alpha in the top byte, footX/footY the middle the hero stands on. */
 	std::array<Picture, 2> entrances;
+	/** @brief The Glass Flats' scorched crater (RfA-72b), the same kind of ground picture. */
+	Picture crater;
 	bool loaded = false;
 	bool tried = false;
 };
@@ -2099,6 +2183,8 @@ void LoadArt()
 			ch /= static_cast<double>(std::max<size_t>(art.ground[Grass].px.size(), 1));
 		for (int e = 0; e < 2; e++)
 			LoadDecal(EntranceFiles[e], art.entrances[e], EntrancePercent, sandRgb);
+		constexpr EntranceFile CraterFile { "levels\\desert\\crater_scorched.png", 128, 64 };
+		LoadDecal(CraterFile, art.crater, 40, sandRgb);
 		// Each ground near the sand's brightness (the first preview, 2026-10-16: the bedrock lay on the sand as dark slabs, and where
 		// two grounds of such different light meet, the tile grid shows as straight lines): the salt road a little lighter so it
 		// reads as a road, the mud darker as wet ground is, the rest within a few percent of the sand.
@@ -2688,6 +2774,9 @@ const std::vector<WoodsLamp> &WoodsNightLamps()
 	for (const Point brazier : Braziers)
 		if (Tree[brazier.x][brazier.y] == Brazier)
 			lamps.push_back({ static_cast<float>(brazier.x), static_cast<float>(brazier.y), 5.0F, 0.95F, 0xFF9A48U });
+	for (const Point crystal : PaleCrystals)
+		if (Tree[crystal.x][crystal.y] == CrystalPale)
+			lamps.push_back({ static_cast<float>(crystal.x), static_cast<float>(crystal.y), 3.0F, 0.45F, 0xA8E8C8U });
 	for (int i = 0; i < WispCount; i++) {
 		if (!WispLives(Wisps[i]))
 			continue;
@@ -2757,6 +2846,33 @@ void DrawWoodsGlows(const Surface &out, Point firstTile, Point firstTileBuffer)
 		glow(sx, sy, 18, 0x6EA8FFU, 0.55F * night * flicker);
 		glow(sx, sy, 5, 0xE6F4FFU, 1.1F * night * flicker);
 	}
+	// The Ash Dunes' boulders: embers deep in their cracks, a dull red breathing slowly (RfA-72 paints them dark).
+	for (const Point rock : EmberRocks) {
+		if (Tree[rock.x][rock.y] != BoulderAsh)
+			continue;
+		float sx, sy;
+		screen(static_cast<float>(rock.x), static_cast<float>(rock.y), sx, sy);
+		sx += static_cast<float>(TreeJitterX[rock.x][rock.y]);
+		sy += static_cast<float>(TreeJitterY[rock.x][rock.y]);
+		const float seed = static_cast<float>(rock.x * 13 + rock.y * 7);
+		const float breathe = 0.55F + 0.45F * std::sin(t * 0.9F + seed);
+		const float night = TownIsDark() ? 1.0F : 0.55F;
+		glow(sx - 6.0F, sy - 18.0F, 7, 0xFF4A14U, 0.45F * breathe * night);
+		glow(sx + 7.0F, sy - 12.0F, 5, 0xFF6A20U, 0.40F * (1.0F - 0.6F * breathe) * night);
+	}
+	// The Glass Flats' pale crystals: a faint cold glow, pulsing (RfA-72b paints them unlit).
+	for (const Point crystal : PaleCrystals) {
+		if (Tree[crystal.x][crystal.y] != CrystalPale)
+			continue;
+		const Picture &pic = Art().trees[CrystalPale];
+		float sx, sy;
+		screen(static_cast<float>(crystal.x), static_cast<float>(crystal.y), sx, sy);
+		sx += static_cast<float>(TreeJitterX[crystal.x][crystal.y]);
+		sy += static_cast<float>(TreeJitterY[crystal.x][crystal.y]) - static_cast<float>(pic.footY) * 0.55F;
+		const float pulse = 0.65F + 0.35F * std::sin(t * 0.7F + static_cast<float>(crystal.x + crystal.y));
+		glow(sx, sy, 20, 0xB8F0D0U, 0.22F * pulse);
+		glow(sx, sy, 6, 0xE8FFF0U, 0.35F * pulse);
+	}
 	// The Tomb's braziers (RfA-70 paints them cold): a fire in each bowl, flickering, with tongues rising off it.
 	for (const Point brazier : Braziers) {
 		if (Tree[brazier.x][brazier.y] != Brazier)
@@ -2815,6 +2931,29 @@ void DrawDesertSky(const Surface &out, Point firstTile, Point firstTileBuffer)
 	float storm = 0.0F;
 	const bool stormy = CurrentWeather(&storm) == Weather::Sandstorm && storm > 0.2F && *sgOptions.Oracool.weather;
 	const bool day = !TownIsDark();
+
+	// The Ash Dunes' vents (RfA-72): thin grey smoke rising and spreading, each puff fading as it climbs; leaning with the wind in a
+	// storm.
+	for (const Point vent : SmokeVents) {
+		float sx, sy;
+		screen(static_cast<float>(vent.x), static_cast<float>(vent.y), sx, sy);
+		if (sx < -40.0F || sx > static_cast<float>(w) + 40.0F || sy < -80.0F || sy > static_cast<float>(h) + 20.0F)
+			continue;
+		for (uint32_t k = 0; k < 6; k++) {
+			const float life = std::fmod(t * 0.32F + static_cast<float>(k) / 6.0F + Unit(Hash(static_cast<uint32_t>(vent.x), static_cast<uint32_t>(vent.y), k)) * 0.2F, 1.0F);
+			const float radius = 2.5F + life * 7.0F;
+			const float cx = sx + std::sin(t * 0.8F + static_cast<float>(k) * 1.7F) * 3.0F * life + (stormy ? -life * 22.0F : 0.0F);
+			const float cy = sy - 6.0F - life * 46.0F;
+			const int alpha = static_cast<int>(70.0F * (1.0F - life));
+			const int ri = static_cast<int>(radius);
+			for (int dy = -ri; dy <= ri; dy++)
+				for (int dx = -ri; dx <= ri; dx++) {
+					const float d = std::sqrt(static_cast<float>(dx * dx + dy * dy)) / radius;
+					if (d < 1.0F)
+						blend(static_cast<int>(cx) + dx, static_cast<int>(cy) + dy, 120, 116, 110, static_cast<int>(static_cast<float>(alpha) * (1.0F - d)));
+				}
+		}
+	}
 
 	// The sand hole: grains sliding down its inner wall into the dark, each on its own path round the funnel - the painted sinkhole's
 	// narrower one (RfA-71b); none down the painted stairway.
@@ -3614,6 +3753,25 @@ uint32_t DesertGroundFeature(uint32_t c, float u, float v, int wx, int wy)
 				const uint32_t water = (static_cast<uint32_t>(std::min(r, 255.0F)) << 16) | (static_cast<uint32_t>(std::min(g, 255.0F)) << 8) | static_cast<uint32_t>(std::min(b, 255.0F));
 				c = MixRgb(water, static_cast<float>((c >> 16) & 0xFF) * 0.55F, static_cast<float>((c >> 8) & 0xFF) * 0.55F, static_cast<float>(c & 0xFF) * 0.55F, shore);
 			}
+		}
+	}
+	// The Glass Flats' craters (RfA-72b): laid over the ground as the painted ways down are, each by its soft alpha.
+	if (!Craters.empty() && !Art().crater.px.empty()) {
+		const Picture &crater = Art().crater;
+		for (const Point at : Craters) {
+			const float du = u - static_cast<float>(at.x), dv = v - static_cast<float>(at.y);
+			if (std::abs(du) > 3.0F || std::abs(dv) > 3.0F)
+				continue;
+			const int px = crater.footX + static_cast<int>(std::lround((du - dv) * 32.0F));
+			const int py = crater.footY + static_cast<int>(std::lround((du + dv) * 16.0F));
+			if (px < 0 || py < 0 || px >= crater.w || py >= crater.h)
+				continue;
+			const uint32_t d = crater.px[static_cast<size_t>(py) * crater.w + px];
+			const uint32_t a = d >> 24;
+			if (a == 0)
+				continue;
+			const auto mix = [a](uint32_t q, uint32_t r, int sh) { return ((((q >> sh) & 0xFF) * (255 - a) + ((r >> sh) & 0xFF) * a) / 255) & 0xFF; };
+			c = (mix(c, d, 16) << 16) | (mix(c, d, 8) << 8) | mix(c, d, 0);
 		}
 	}
 	if (const Picture *entrance = DesertEntrancePicture(); entrance != nullptr) {
@@ -4580,6 +4738,11 @@ void SetWoodsSeedForTest(int floorIndex, uint32_t seed, OrclArea area)
 Point DesertOasisForTest()
 {
 	return OasisRadius > 0.0F ? OasisCentre : Point { 0, 0 };
+}
+
+Point DesertCraterForTest()
+{
+	return Craters.empty() ? Point { 0, 0 } : Craters.front();
 }
 
 Point DesertRuinsForTest(int *braziers)

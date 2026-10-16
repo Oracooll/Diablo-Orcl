@@ -20947,6 +20947,8 @@ TEST(OracoolAudit, DesertFloorsAreWalkableAndHoldTheirSights)
 					EXPECT_TRUE(walked(ruins)) << at << ": the ruins' middle cannot be walked to";
 			}
 			EXPECT_EQ(braziers, floor == 3 ? 2 : 0) << at << ": the Tomb's braziers";
+			// The Glass Flats' scorched craters (RfA-72b), and none elsewhere.
+			EXPECT_EQ(oracool::DesertCraterForTest() != Point(0, 0), floor == 2) << at << ": the craters";
 			// Sand mostly, the salt road through it, no Caves fences or Catacombs walls (no pens, no cottages).
 			int sand = 0, road = 0, inside = 0, borrowed = 0;
 			for (int y = 6; y <= 105; y++)
@@ -21177,6 +21179,8 @@ TEST(OracoolPreview, DISABLED_DesertFloors)
 			places.emplace_back("hole", entrance);
 		if (const Point ruins = oracool::DesertRuinsForTest(); ruins != Point(0, 0))
 			places.emplace_back("ruins", ruins);
+		if (const Point crater = oracool::DesertCraterForTest(); crater != Point(0, 0))
+			places.emplace_back("crater", crater);
 		for (const auto &[name, centre] : places) {
 			OwnedSurface view = OwnedSurface::Rgb(1280, 720);
 			const auto screenOf = [&](Point tile) {

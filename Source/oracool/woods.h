@@ -348,6 +348,8 @@ void SetWoodsSeedForTest(int floorIndex, uint32_t seed, OrclArea area = OrclArea
 Point DesertOasisForTest();
 /** @brief Test hook: the floor last generated's buried ruins (their centre, or {0,0} for none) and its braziers' count (RfA-70). */
 Point DesertRuinsForTest(int *braziers = nullptr);
+/** @brief Test hook: the floor last generated's first scorched crater (RfA-72b), or {0,0} for none. */
+Point DesertCraterForTest();
 /** @brief Test hook: the kinds the area's Mob Roster lets walk its floors and caves. */
 std::vector<int> AreaRosterForTest(OrclArea area);
 
