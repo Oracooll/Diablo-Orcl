@@ -136,6 +136,14 @@ enum TreeKind : uint8_t {
 	Stakes,
 	Totem,
 	PalmOasis,
+	// The Salt Road's (RfA-69): the travellers who never arrived.
+	Wagon,
+	CargoSpill,
+	TarpPoles,
+	Milestone,
+	WayShrine,
+	Gallows,
+	WellStone,
 	Blocker,
 	TreeKindCount,
 };
@@ -150,6 +158,7 @@ enum DesertDecor : uint8_t {
 	DecorBones,
 	DecorUrn,
 	DecorBasket,
+	DecorWheel, // a cart wheel lying in the sand (RfA-69)
 	ScatterSlots,
 };
 
@@ -1170,6 +1179,81 @@ void PlanRuins(Point centre, uint32_t seed)
 	}
 }
 
+/**
+ * @brief The Salt Road's sights (user, 2026-10-16; RfA-69): what lies beside the road from the arrival to the way on, @p road its tiles
+ * from the arrival on. Milestones a quarter of the way apart on every floor; a wrecked caravan - the wagon on its side, its wheel, its
+ * spilled cargo, its torn tarp - on the first two floors; a wayside shrine on the first and third; the gallows where the glade's path
+ * meets the road on the first and the last; a stone well by the oasis. Each stands two to four tiles off the road, never on it.
+ */
+void PlaceRoadside(const std::vector<Point> &road, uint32_t seed, int floor)
+{
+	if (road.size() < 20)
+		return;
+	const auto free = [](Point p) {
+		if (!Inside(p) || Tree[p.x][p.y] != NoTree || Ground[p.x][p.y] == Path || Ground[p.x][p.y] == OasisMud)
+			return false;
+		if (p.WalkingDistance(Arrival) < 5 || p.WalkingDistance(WayOn) < 5 || (MouthOnFloor && p.WalkingDistance(MouthEntrance) < 4))
+			return false;
+		for (int dy = -1; dy <= 1; dy++)
+			for (int dx = -1; dx <= 1; dx++) {
+				const Point q = p + Displacement { dx, dy };
+				if (!Inside(q) || Ground[q.x][q.y] == Path || Tree[q.x][q.y] != NoTree)
+					return false;
+			}
+		return true;
+	};
+	const auto beside = [&](Point from, uint32_t h) -> std::optional<Point> {
+		for (int d = 2; d <= 4; d++) {
+			std::vector<Point> ring;
+			for (int dy = -d; dy <= d; dy++)
+				for (int dx = -d; dx <= d; dx++)
+					if (std::max(std::abs(dx), std::abs(dy)) == d)
+						ring.push_back(from + Displacement { dx, dy });
+			const size_t start = h % ring.size();
+			for (size_t k = 0; k < ring.size(); k++)
+				if (free(ring[(start + k) % ring.size()]))
+					return ring[(start + k) % ring.size()];
+		}
+		return std::nullopt;
+	};
+	const auto along = [&](int percent) { return road[std::min(road.size() - 1, road.size() * static_cast<size_t>(percent) / 100)]; };
+	const auto stand = [&](Point p, TreeKind kind) {
+		if (free(p))
+			Tree[p.x][p.y] = kind;
+	};
+	for (const int percent : { 12, 37, 62, 87 })
+		if (const std::optional<Point> at = beside(along(percent), Hash(seed, 0x3117U, static_cast<uint32_t>(percent))))
+			Tree[at->x][at->y] = Milestone;
+	if (floor <= 1) {
+		if (const std::optional<Point> at = beside(along(45), Hash(seed, 0x3A6U, 1))) {
+			Tree[at->x][at->y] = Wagon;
+			stand(*at + Displacement { 2, 1 }, CargoSpill);
+			stand(*at + Displacement { -1, 2 }, TarpPoles);
+			const Point wheel = *at + Displacement { 1, -2 };
+			if (free(wheel))
+				Scatter[wheel.x][wheel.y] = DecorWheel + 1;
+		}
+	}
+	if (floor == 0 || floor == 2)
+		if (const std::optional<Point> at = beside(along(70), Hash(seed, 0x5A1U, 2)))
+			Tree[at->x][at->y] = WayShrine;
+	if (floor == 0 || floor == 3) {
+		const Point fork { (Arrival.x + WayOn.x) / 2, (Arrival.y + WayOn.y) / 2 }; // where the glade's path ends on the road
+		if (const std::optional<Point> at = beside(fork, Hash(seed, 0x6A1U, 3)))
+			Tree[at->x][at->y] = Gallows;
+	}
+	if (OasisRadius > 0.0F) {
+		for (int k = 0; k < 12; k++) {
+			const float a = 6.2831853F * (static_cast<float>(k) / 12.0F + Unit(Hash(seed, 0x3E1U, 4)));
+			const Point p = OasisCentre + Displacement { static_cast<int>(std::lround(std::cos(a) * 6.0F)), static_cast<int>(std::lround(std::sin(a) * 6.0F)) };
+			if (free(p)) {
+				Tree[p.x][p.y] = WellStone;
+				break;
+			}
+		}
+	}
+}
+
 /** @brief The giant beast's rib cage (RfA-66), a landmark in the open: room round it, its footprint solid. */
 void PlaceRibcage(Point at)
 {
@@ -1247,6 +1331,16 @@ void GenerateDesert(uint32_t seed)
 	}
 
 	LayPath(Arrival, WayOn, 3, seed ^ 0x9A7EU);
+	// The salt road's tiles from the arrival on, before the glade's path joins it: what stands beside it is placed along it.
+	std::vector<Point> road;
+	for (int y = Lo; y <= Hi; y++)
+		for (int x = Lo; x <= Hi; x++)
+			if (Ground[x][y] == Path)
+				road.push_back({ x, y });
+	std::sort(road.begin(), road.end(), [](Point a, Point b) {
+		const int da = a.WalkingDistance(Arrival), db = b.WalkingDistance(Arrival);
+		return da != db ? da < db : (a.y != b.y ? a.y < b.y : a.x < b.x);
+	});
 	const Point glade { Lo + span / 2 + static_cast<int>((Unit(Hash(seed, 3, 0)) - 0.5F) * 20), Lo + span / 2 + static_cast<int>((Unit(Hash(seed, 4, 0)) - 0.5F) * 30) };
 	// How near the salt road passes the glade, before the glade's own path joins it: the oasis does not sit on the road.
 	int roadToGlade = 99;
@@ -1325,6 +1419,7 @@ void GenerateDesert(uint32_t seed)
 			Ground[x][y] = Path;
 			Tree[x][y] = NoTree;
 		}
+	PlaceRoadside(road, seed, floor);
 	// Each road's end past the box kept clear (as the woods'), before the footprints: a cleared prop leaves no Blocker behind.
 	for (const Point end : { Point { Hi, Arrival.y }, Point { Lo, WayOn.y } }) {
 		for (int dy = -6; dy <= 6; dy++) {
@@ -1338,7 +1433,7 @@ void GenerateDesert(uint32_t seed)
 	// The wide props' footprints before the walk is sealed, so a gap they close is sealed with it.
 	for (int y = Lo; y <= Hi; y++)
 		for (int x = Lo; x <= Hi; x++)
-			if (Tree[x][y] == Outcrop || Tree[x][y] == Ribcage)
+			if (Tree[x][y] == Outcrop || Tree[x][y] == Ribcage || Tree[x][y] == Wagon)
 				BlockFootprint({ x, y });
 	SealUnreachable();
 
@@ -1589,6 +1684,13 @@ constexpr TreeFile TreeFiles[TreeKindCount] = {
 	{ "levels\\desert\\skulls_on_stakes.png", 64, 212, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\bone_totem.png", 56, 244, 29, true, OrclArea::Desert },
 	{ "levels\\desert\\palm_oasis.png", 112, 432, 29, true, OrclArea::Desert },
+	{ "levels\\desert\\wagon_wrecked.png", 160, 208, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\cargo_spill.png", 80, 116, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\tarp_poles.png", 96, 212, 29, true, OrclArea::Desert },
+	{ "levels\\desert\\milestone.png", 40, 150, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\wayside_shrine.png", 64, 212, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\gallows.png", 96, 340, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\well_stone.png", 80, 180, 29, false, OrclArea::Desert },
 	{ nullptr, 0, 0, 0, false, OrclArea::Desert }, // Blocker: never drawn
 };
 
@@ -1599,6 +1701,7 @@ constexpr TreeFile DecorFiles[ScatterSlots - 12] = {
 	{ "levels\\desert\\bones_spear.png", 80, 84, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\urn_clay.png", 40, 102, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\basket_woven.png", 32, 56, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\cart_wheel.png", 56, 70, 29, false, OrclArea::Desert },
 };
 
 /** @brief One area's pictures, loaded the first time one of its floors is built. */
