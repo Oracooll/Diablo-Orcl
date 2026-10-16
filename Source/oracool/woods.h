@@ -346,6 +346,8 @@ WoodsWorldPlanForTest PlanWoodsWorldForTest(uint32_t seed, int floor);
 void SetWoodsSeedForTest(int floorIndex, uint32_t seed, OrclArea area = OrclArea::Woods);
 /** @brief Test hook: the floor last generated's oasis pool (its centre, or {0,0} for none) and its sand hole's entrance. */
 Point DesertOasisForTest();
+/** @brief Test hook: the floor last generated's buried ruins (their centre, or {0,0} for none) and its braziers' count (RfA-70). */
+Point DesertRuinsForTest(int *braziers = nullptr);
 /** @brief Test hook: the kinds the area's Mob Roster lets walk its floors and caves. */
 std::vector<int> AreaRosterForTest(OrclArea area);
 

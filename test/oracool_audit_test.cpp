@@ -20938,6 +20938,15 @@ TEST(OracoolAudit, DesertFloorsAreWalkableAndHoldTheirSights)
 				}
 				EXPECT_TRUE(shore) << at << ": no way to the oasis's water";
 			}
+			// The buried city (RfA-70) on the Glass Flats and the Tomb; the Tomb's court with its two braziers burning.
+			int braziers = 0;
+			const Point ruins = oracool::DesertRuinsForTest(&braziers);
+			if (floor >= 2) {
+				EXPECT_NE(ruins, Point(0, 0)) << at << ": no ruins";
+				if (ruins != Point(0, 0))
+					EXPECT_TRUE(walked(ruins)) << at << ": the ruins' middle cannot be walked to";
+			}
+			EXPECT_EQ(braziers, floor == 3 ? 2 : 0) << at << ": the Tomb's braziers";
 			// Sand mostly, the salt road through it, no Caves fences or Catacombs walls (no pens, no cottages).
 			int sand = 0, road = 0, inside = 0, borrowed = 0;
 			for (int y = 6; y <= 105; y++)
@@ -21166,6 +21175,8 @@ TEST(OracoolPreview, DISABLED_DesertFloors)
 			places.emplace_back("oasis", oasis);
 		if (entrance != Point(0, 0))
 			places.emplace_back("hole", entrance);
+		if (const Point ruins = oracool::DesertRuinsForTest(); ruins != Point(0, 0))
+			places.emplace_back("ruins", ruins);
 		for (const auto &[name, centre] : places) {
 			OwnedSurface view = OwnedSurface::Rgb(1280, 720);
 			const auto screenOf = [&](Point tile) {

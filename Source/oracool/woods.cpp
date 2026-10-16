@@ -144,6 +144,15 @@ enum TreeKind : uint8_t {
 	WayShrine,
 	Gallows,
 	WellStone,
+	// The buried city's stones (RfA-70): the Glass Flats' ruins and the Tomb of the Sun-Eater's.
+	ColumnBroken,
+	ColumnFallen,
+	StatueHead,
+	Obelisk,
+	SteleEclipse,
+	ArchRuined,
+	StatueHeadless,
+	Brazier,
 	Blocker,
 	TreeKindCount,
 };
@@ -336,6 +345,8 @@ Point OasisCentre {};
 float OasisRadius = 0.0F;
 /** @brief The buried ruins' middle (their paving), or {0,0}. */
 Point RuinsCentre {};
+/** @brief The Tomb's braziers (RfA-70), lit by the game: their fire drawn with the glows, their light one of the night's lamps. */
+std::vector<Point> Braziers;
 
 /** @brief The sand hole's radius, in tiles: the pit the hero walks to the middle of to go down (the desert's cave mouth). */
 constexpr float SandHoleRadius = 1.7F;
@@ -1148,10 +1159,13 @@ void PlanOasis(Point centre, uint32_t seed)
 }
 
 /**
- * @brief The buried ruins round @p centre: old paving showing through the drifts (RfA-68), and the bones of whoever kept them - the
- * giant skull, skulls on stakes, a bone totem (RfA-67) - among broken urns.
+ * @brief The buried ruins round @p centre: old paving showing through the drifts (RfA-68), the bones of whoever kept them - the giant
+ * skull, skulls on stakes, a bone totem (RfA-67) - among broken urns, and the city's stones (RfA-70). On the Glass Flats (@p floor 2)
+ * a broken column, a fallen one, a toppled head and an eclipse stele; on the Tomb of the Sun-Eater (the last floor) a court: the arch
+ * at its head between two broken columns, the obelisk, the stele, two headless statues, the fallen column and the head, and two
+ * braziers burning either side of its middle.
  */
-void PlanRuins(Point centre, uint32_t seed)
+void PlanRuins(Point centre, uint32_t seed, int floor)
 {
 	RuinsCentre = centre;
 	ClearRound(centre, 7);
@@ -1165,11 +1179,63 @@ void PlanRuins(Point centre, uint32_t seed)
 				Ground[p.x][p.y] = Paving;
 		}
 	}
-	const std::pair<Displacement, TreeKind> standing[] = { { { 2, -2 }, SkullGiant }, { { -3, 1 }, Stakes }, { { 1, 3 }, Totem }, { { -2, -3 }, RocksD } };
-	for (const auto &[d, kind] : standing) {
+	const auto stand = [&](Displacement d, TreeKind kind) {
 		const Point p = centre + d;
-		if (Inside(p) && Ground[p.x][p.y] != Path)
-			Tree[p.x][p.y] = kind;
+		if (!Inside(p) || Ground[p.x][p.y] == Path || Tree[p.x][p.y] != NoTree)
+			return;
+		Tree[p.x][p.y] = kind;
+		if (kind == Brazier)
+			Braziers.push_back(p);
+	};
+	if (floor >= 3) {
+		const std::pair<Displacement, TreeKind> court[] = {
+			{ { -4, -4 }, ArchRuined }, { { -6, -1 }, ColumnBroken }, { { -1, -6 }, ColumnBroken }, { { 4, -4 }, Obelisk },
+			{ { -4, 3 }, SteleEclipse }, { { 5, 1 }, StatueHeadless }, { { -2, 5 }, StatueHeadless }, { { 2, 6 }, ColumnFallen },
+			{ { 6, 4 }, StatueHead }, { { 2, -5 }, SkullGiant }, { { -5, 0 }, Stakes },
+		};
+		for (const auto &[d, kind] : court)
+			stand(d, kind);
+		// The braziers face each other across the court's middle, off the roads that may cross it: the nearest such pair; failing
+		// one, the two nearest open tiles.
+		const auto open = [&](Displacement d) {
+			const Point p = centre + d;
+			return Inside(p) && Ground[p.x][p.y] != Path && Tree[p.x][p.y] == NoTree;
+		};
+		std::vector<Displacement> round;
+		for (int dy = -5; dy <= 5; dy++)
+			for (int dx = -5; dx <= 5; dx++)
+				if (std::max(std::abs(dx), std::abs(dy)) >= 2)
+					round.push_back({ dx, dy });
+		std::stable_sort(round.begin(), round.end(), [](Displacement a, Displacement b) {
+			return a.deltaX * a.deltaX + a.deltaY * a.deltaY < b.deltaX * b.deltaX + b.deltaY * b.deltaY;
+		});
+		bool lit = false;
+		for (const Displacement d : round) {
+			const Displacement e { -d.deltaX, -d.deltaY };
+			if (open(d) && open(e)) {
+				stand(d, Brazier);
+				stand(e, Brazier);
+				lit = true;
+				break;
+			}
+		}
+		for (size_t k = 0, placed = 0; !lit && k < round.size() && placed < 2; k++) {
+			if (open(round[k]) && open(round[k] + Displacement { 1, 1 }) && open(round[k] - Displacement { 1, 1 })) {
+				stand(round[k], Brazier);
+				placed++;
+			}
+		}
+	} else {
+		const std::pair<Displacement, TreeKind> standing[] = {
+			{ { 2, -2 }, SkullGiant }, { { -3, 1 }, Stakes }, { { 1, 3 }, Totem }, { { -2, -3 }, RocksD },
+		};
+		for (const auto &[d, kind] : standing)
+			stand(d, kind);
+		if (floor == 2) {
+			const std::pair<Displacement, TreeKind> stones[] = { { { -5, -1 }, ColumnBroken }, { { 3, -5 }, ColumnFallen }, { { 5, 2 }, StatueHead }, { { -1, -5 }, SteleEclipse } };
+			for (const auto &[d, kind] : stones)
+				stand(d, kind);
+		}
 	}
 	const std::pair<Displacement, uint8_t> lying[] = { { { 0, 0 }, DecorBones + 1 }, { { 3, 1 }, DecorUrn + 1 }, { { -1, 4 }, DecorBones + 1 }, { { 4, -1 }, DecorBasket + 1 } };
 	for (const auto &[d, decor] : lying) {
@@ -1283,6 +1349,7 @@ void GenerateDesert(uint32_t seed)
 	OasisCentre = {};
 	OasisRadius = 0.0F;
 	RuinsCentre = {};
+	Braziers.clear();
 
 	const int span = Hi - Lo;
 	Arrival = { Hi - 4, Lo + span / 4 + static_cast<int>(Unit(Hash(seed, 1, 0)) * static_cast<float>(span) / 2) };
@@ -1399,13 +1466,33 @@ void GenerateDesert(uint32_t seed)
 		break;
 	case 2:
 		if (const std::optional<Point> at = FindDesertSpot(seed, 0x2B1U))
-			PlanRuins(*at, seed);
+			PlanRuins(*at, seed, floor);
 		break;
 	default:
-		PlanRuins(glade, seed);
+		PlanRuins(glade, seed, floor);
 		if (const std::optional<Point> at = FindDesertSpot(seed, 0x81CU))
 			PlaceRibcage(*at);
 		break;
+	}
+	// The buried city further out on its two floors (RfA-70): a broken column with its fallen drums beside it, and on the Tomb's
+	// floor a lone obelisk and a lone stele out in the dunes.
+	if (floor >= 2) {
+		const auto lone = [&](uint32_t salt, TreeKind kind, std::optional<TreeKind> beside) {
+			const std::optional<Point> at = FindDesertSpot(seed, salt);
+			if (!at)
+				return;
+			Tree[at->x][at->y] = kind;
+			if (beside) {
+				const Point q = *at + Displacement { 2, 1 };
+				if (Inside(q) && Tree[q.x][q.y] == NoTree && Ground[q.x][q.y] != Path)
+					Tree[q.x][q.y] = *beside;
+			}
+		};
+		lone(0x70A1U, ColumnBroken, ColumnFallen);
+		if (floor >= 3) {
+			lone(0x70A2U, Obelisk, std::nullopt);
+			lone(0x70A3U, SteleEclipse, std::nullopt);
+		}
 	}
 	Clearing(Arrival, 4, Path);
 	Clearing(WayOn, 4, Path);
@@ -1433,7 +1520,8 @@ void GenerateDesert(uint32_t seed)
 	// The wide props' footprints before the walk is sealed, so a gap they close is sealed with it.
 	for (int y = Lo; y <= Hi; y++)
 		for (int x = Lo; x <= Hi; x++)
-			if (Tree[x][y] == Outcrop || Tree[x][y] == Ribcage || Tree[x][y] == Wagon)
+			if (Tree[x][y] == Outcrop || Tree[x][y] == Ribcage || Tree[x][y] == Wagon || Tree[x][y] == ArchRuined || Tree[x][y] == ColumnFallen
+			    || Tree[x][y] == StatueHead)
 				BlockFootprint({ x, y });
 	SealUnreachable();
 
@@ -1482,6 +1570,7 @@ void Generate(uint32_t seed)
 	OasisCentre = {};
 	OasisRadius = 0.0F;
 	RuinsCentre = {};
+	Braziers.clear();
 	std::memset(Ground, Grass, sizeof(Ground));
 	std::memset(Tree, NoTree, sizeof(Tree));
 	std::memset(Scatter, 0, sizeof(Scatter));
@@ -1691,6 +1780,14 @@ constexpr TreeFile TreeFiles[TreeKindCount] = {
 	{ "levels\\desert\\wayside_shrine.png", 64, 212, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\gallows.png", 96, 340, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\well_stone.png", 80, 180, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\column_broken.png", 64, 372, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\column_fallen.png", 160, 148, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\statue_head.png", 128, 212, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\obelisk.png", 64, 436, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\stele_eclipse.png", 64, 212, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\arch_ruined.png", 144, 340, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\statue_headless.png", 64, 276, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\brazier_stand.png", 40, 164, 29, false, OrclArea::Desert },
 	{ nullptr, 0, 0, 0, false, OrclArea::Desert }, // Blocker: never drawn
 };
 
@@ -2435,6 +2532,9 @@ const std::vector<WoodsLamp> &WoodsNightLamps()
 			continue; // the plan and the saved floor apart (the woods' look changed between visits)
 		lamps.push_back({ static_cast<float>(candle.x), static_cast<float>(candle.y), 3.5F, 0.8F, 0xFFC878U });
 	}
+	for (const Point brazier : Braziers)
+		if (Tree[brazier.x][brazier.y] == Brazier)
+			lamps.push_back({ static_cast<float>(brazier.x), static_cast<float>(brazier.y), 5.0F, 0.95F, 0xFF9A48U });
 	for (int i = 0; i < WispCount; i++) {
 		if (!WispLives(Wisps[i]))
 			continue;
@@ -2503,6 +2603,28 @@ void DrawWoodsGlows(const Surface &out, Point firstTile, Point firstTileBuffer)
 		const float flicker = 0.85F + 0.15F * std::sin(t * 11.0F + Wisps[i].phase * 4.0F);
 		glow(sx, sy, 18, 0x6EA8FFU, 0.55F * night * flicker);
 		glow(sx, sy, 5, 0xE6F4FFU, 1.1F * night * flicker);
+	}
+	// The Tomb's braziers (RfA-70 paints them cold): a fire in each bowl, flickering, with tongues rising off it.
+	for (const Point brazier : Braziers) {
+		if (Tree[brazier.x][brazier.y] != Brazier)
+			continue;
+		const Picture &pic = Art().trees[Brazier];
+		if (pic.px.empty())
+			continue;
+		float sx, sy;
+		screen(static_cast<float>(brazier.x), static_cast<float>(brazier.y), sx, sy);
+		sx += static_cast<float>(TreeJitterX[brazier.x][brazier.y]);
+		sy += static_cast<float>(TreeJitterY[brazier.x][brazier.y]) - static_cast<float>(pic.footY) * 0.86F; // the bowl's rim
+		const float seed = static_cast<float>(brazier.x * 7 + brazier.y * 13);
+		const float flicker = 0.80F + 0.12F * std::sin(t * 13.0F + seed) + 0.08F * std::sin(t * 29.0F + seed * 1.7F);
+		const float fire = TownIsDark() ? 1.0F : 0.7F;
+		glow(sx, sy - 4.0F, 22, 0xFF7A28U, 0.42F * fire * flicker);
+		glow(sx, sy - 3.0F, 7, 0xFFC060U, 0.95F * fire * flicker);
+		for (int k = 0; k < 3; k++) {
+			const float life = std::fmod(t * 1.6F + static_cast<float>(k) / 3.0F + seed * 0.01F, 1.0F);
+			const float drift = std::sin(t * 5.0F + static_cast<float>(k) * 2.1F + seed) * 2.5F;
+			glow(sx + static_cast<float>(k - 1) * 3.0F + drift, sy - 5.0F - life * 12.0F, 3, 0xFFD890U, 0.8F * fire * (1.0F - life));
+		}
 	}
 	if (HasFairyRing) {
 		for (int k = 0; k < 11; k++) {
@@ -4287,6 +4409,13 @@ void SetWoodsSeedForTest(int floorIndex, uint32_t seed, OrclArea area)
 Point DesertOasisForTest()
 {
 	return OasisRadius > 0.0F ? OasisCentre : Point { 0, 0 };
+}
+
+Point DesertRuinsForTest(int *braziers)
+{
+	if (braziers != nullptr)
+		*braziers = static_cast<int>(std::count_if(Braziers.begin(), Braziers.end(), [](Point p) { return Tree[p.x][p.y] == Brazier; }));
+	return RuinsCentre;
 }
 
 std::vector<int> AreaRosterForTest(OrclArea area)
