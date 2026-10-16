@@ -1806,6 +1806,8 @@ struct AreaArtSet {
 	std::array<Picture, MaterialCount> ground;
 	std::array<Picture, TreeKindCount> trees;
 	std::array<Picture, ScatterSlots> scatter; // the sheet's twelve cells, each at its own scale, then the desert's decor
+	/** @brief The desert's two ways down (RfA-71b), soft alpha in the top byte, footX/footY the middle the hero stands on. */
+	std::array<Picture, 2> entrances;
 	bool loaded = false;
 	bool tried = false;
 };
@@ -1911,6 +1913,107 @@ bool LoadStanding(const TreeFile &file, Picture &out)
 	return true;
 }
 
+/** @brief This floor's painted way down (RfA-71b), or nullptr: the sinkhole above the Sand Warrens, the stairway above the Buried Halls. */
+const Picture *DesertEntrancePicture()
+{
+	if (!MouthOnFloor || !Desert)
+		return nullptr;
+	const Picture &pic = Art().entrances[WoodsCaveOnFloor(GenFloor, OrclArea::Desert) == SL_ORCL_DESERT_CAVE_1 ? 0 : 1];
+	return pic.px.empty() ? nullptr : &pic;
+}
+
+/**
+ * @brief The desert's two ways down, painted (RfA-71b): the Salt Road's sinkhole into the Sand Warrens and the Glass Flats' stairway
+ * into the Buried Halls. Ground pictures with a soft edge: each is laid into the floor's ground at the sand hole's entrance in place
+ * of the game-drawn funnel, its outer fade melting into the sand. At half the painted size, which puts the hero (150 px painted) at
+ * the game's own height and the sinkhole's mouth at the game-drawn pit's width.
+ */
+struct EntranceFile {
+	const char *path;
+	int middleX;
+	int middleY;
+};
+constexpr EntranceFile EntranceFiles[2] = {
+	{ "levels\\desert\\sinkhole_warrens.png", 224, 128 },
+	{ "levels\\desert\\stairs_buried_halls.png", 224, 192 },
+};
+constexpr int EntrancePercent = 50;
+
+/**
+ * @brief A soft-edged ground picture at @p percent: each pixel its block's alpha-weighted colour, its alpha the block's mean. Then
+ * matched to the floor's own sand @p sand (its mean colour; the first in-game view, 2026-10-16: the painting's sand_a showed as a
+ * paler rectangle on the game's sand) - the whole picture tinted so its outer sand has the floor's colour - and faded out in an oval
+ * well inside its edge, so what is left of its own sand melts into the floor's.
+ */
+bool LoadDecal(const EntranceFile &file, Picture &out, int percent, const std::array<double, 3> &sand)
+{
+	SDL_Surface *rgba = LoadRgba(file.path);
+	if (rgba == nullptr)
+		return false;
+	out.w = std::max(1, (rgba->w * percent + 50) / 100);
+	out.h = std::max(1, (rgba->h * percent + 50) / 100);
+	out.px.assign(static_cast<size_t>(out.w) * out.h, 0);
+	const auto *bytes = static_cast<const uint8_t *>(rgba->pixels);
+	for (int y = 0; y < out.h; y++) {
+		const int sy0 = y * rgba->h / out.h;
+		const int sy1 = std::max(sy0 + 1, (y + 1) * rgba->h / out.h);
+		for (int x = 0; x < out.w; x++) {
+			const int sx0 = x * rgba->w / out.w;
+			const int sx1 = std::max(sx0 + 1, (x + 1) * rgba->w / out.w);
+			int r = 0, g = 0, bl = 0, a = 0, n = 0;
+			for (int sy = sy0; sy < sy1; sy++) {
+				for (int sx = sx0; sx < sx1; sx++) {
+					const uint8_t *q = bytes + static_cast<size_t>(sy) * rgba->pitch + static_cast<size_t>(sx) * 4;
+					r += q[0] * q[3];
+					g += q[1] * q[3];
+					bl += q[2] * q[3];
+					a += q[3];
+					n++;
+				}
+			}
+			if (a == 0)
+				continue;
+			out.px[static_cast<size_t>(y) * out.w + x] = (static_cast<uint32_t>(a / n) << 24) | (static_cast<uint32_t>(r / a) << 16) | (static_cast<uint32_t>(g / a) << 8)
+			    | static_cast<uint32_t>(bl / a);
+		}
+	}
+	SDL_FreeSurface(rgba);
+	out.footX = file.middleX * percent / 100;
+	out.footY = file.middleY * percent / 100;
+	const float cx = static_cast<float>(out.w) * 0.5F, cy = static_cast<float>(out.h) * 0.5F;
+	const auto oval = [&](int x, int y) {
+		const float dx = (static_cast<float>(x) + 0.5F - cx) / cx, dy = (static_cast<float>(y) + 0.5F - cy) / cy;
+		return std::sqrt(dx * dx + dy * dy);
+	};
+	// The painting's own sand: its opaque pixels in the band between the entrance and the fade.
+	std::array<double, 3> own { 0, 0, 0 };
+	int count = 0;
+	for (int y = 0; y < out.h; y++)
+		for (int x = 0; x < out.w; x++) {
+			const uint32_t c = out.px[static_cast<size_t>(y) * out.w + x];
+			const float r = oval(x, y);
+			if ((c >> 24) == 255 && r >= 0.62F && r < 0.80F) {
+				own[0] += (c >> 16) & 0xFF;
+				own[1] += (c >> 8) & 0xFF;
+				own[2] += c & 0xFF;
+				count++;
+			}
+		}
+	float k[3] = { 1.0F, 1.0F, 1.0F };
+	if (count > 0 && sand[0] > 1.0)
+		for (int i = 0; i < 3; i++)
+			k[i] = std::clamp(static_cast<float>(sand[i] * count / std::max(own[i], 1.0)), 0.6F, 1.6F);
+	for (int y = 0; y < out.h; y++)
+		for (int x = 0; x < out.w; x++) {
+			uint32_t &c = out.px[static_cast<size_t>(y) * out.w + x];
+			const float t = std::clamp((0.86F - oval(x, y)) / 0.30F, 0.0F, 1.0F);
+			const float fade = t * t * (3.0F - 2.0F * t);
+			const uint32_t a = static_cast<uint32_t>(static_cast<float>(c >> 24) * fade);
+			c = (a << 24) | ScaleRgb(c, k[0], k[1], k[2]);
+		}
+	return true;
+}
+
 /** @brief The pictures of the floor last built's area, the first time one of its floors is built. */
 void LoadArt()
 {
@@ -1946,6 +2049,17 @@ void LoadArt()
 	if (Desert) {
 		for (int d = 0; d < ScatterSlots - 12; d++)
 			LoadStanding(DecorFiles[d], art.scatter[12 + d]);
+		// A way down that fails to load leaves the game-drawn funnel in its place.
+		std::array<double, 3> sandRgb { 0, 0, 0 };
+		for (const uint32_t c : art.ground[Grass].px) {
+			sandRgb[0] += (c >> 16) & 0xFF;
+			sandRgb[1] += (c >> 8) & 0xFF;
+			sandRgb[2] += c & 0xFF;
+		}
+		for (double &ch : sandRgb)
+			ch /= static_cast<double>(std::max<size_t>(art.ground[Grass].px.size(), 1));
+		for (int e = 0; e < 2; e++)
+			LoadDecal(EntranceFiles[e], art.entrances[e], EntrancePercent, sandRgb);
 		// Each ground near the sand's brightness (the first preview, 2026-10-16: the bedrock lay on the sand as dark slabs, and where
 		// two grounds of such different light meet, the tile grid shows as straight lines): the salt road a little lighter so it
 		// reads as a road, the mud darker as wet ground is, the rest within a few percent of the sand.
@@ -2663,13 +2777,17 @@ void DrawDesertSky(const Surface &out, Point firstTile, Point firstTileBuffer)
 	const bool stormy = CurrentWeather(&storm) == Weather::Sandstorm && storm > 0.2F && *sgOptions.Oracool.weather;
 	const bool day = !TownIsDark();
 
-	// The sand hole: grains sliding down its inner wall into the dark, each on its own path round the funnel.
-	if (MouthOnFloor) {
+	// The sand hole: grains sliding down its inner wall into the dark, each on its own path round the funnel - the painted sinkhole's
+	// narrower one (RfA-71b); none down the painted stairway.
+	const Picture *painted = DesertEntrancePicture();
+	const bool stairway = painted != nullptr && painted == &Art().entrances[1];
+	const float funnel = painted != nullptr ? 0.62F : 1.0F;
+	if (MouthOnFloor && !stairway) {
 		for (uint32_t k = 0; k < 18; k++) {
 			const float phase = Unit(Hash(k, 0x5A9DU, 1));
 			const float a = 6.2831853F * Unit(Hash(k, 0x5A9DU, 2)) + t * 0.15F;
 			const float p = std::fmod(t * (0.22F + 0.18F * Unit(Hash(k, 0x5A9DU, 3))) + phase, 1.0F);
-			const float radius = SandHoleRadius * (0.92F - 0.52F * p);
+			const float radius = SandHoleRadius * funnel * (0.92F - 0.52F * p);
 			float sx, sy;
 			screen(static_cast<float>(MouthEntrance.x) + std::cos(a) * radius, static_cast<float>(MouthEntrance.y) + std::sin(a) * radius, sx, sy);
 			const int alpha = static_cast<int>(200.0F * (1.0F - p) * (1.0F - p));
@@ -3458,6 +3576,20 @@ uint32_t DesertGroundFeature(uint32_t c, float u, float v, int wx, int wy)
 				c = MixRgb(water, static_cast<float>((c >> 16) & 0xFF) * 0.55F, static_cast<float>((c >> 8) & 0xFF) * 0.55F, static_cast<float>(c & 0xFF) * 0.55F, shore);
 			}
 		}
+	}
+	if (const Picture *entrance = DesertEntrancePicture(); entrance != nullptr) {
+		// The painted way down, its middle on the entrance tile's centre, laid over the sand by its soft alpha.
+		const float du = u - static_cast<float>(MouthEntrance.x), dv = v - static_cast<float>(MouthEntrance.y);
+		const int px = entrance->footX + static_cast<int>(std::lround((du - dv) * 32.0F));
+		const int py = entrance->footY + static_cast<int>(std::lround((du + dv) * 16.0F));
+		if (px < 0 || py < 0 || px >= entrance->w || py >= entrance->h)
+			return c;
+		const uint32_t d = entrance->px[static_cast<size_t>(py) * entrance->w + px];
+		const uint32_t a = d >> 24;
+		if (a == 0)
+			return c;
+		const auto mix = [a](uint32_t p, uint32_t q, int sh) { return ((((p >> sh) & 0xFF) * (255 - a) + ((q >> sh) & 0xFF) * a) / 255) & 0xFF; };
+		return (mix(c, d, 16) << 16) | (mix(c, d, 8) << 8) | mix(c, d, 0);
 	}
 	if (MouthOnFloor) {
 		const float du = u - static_cast<float>(MouthEntrance.x), dv = v - static_cast<float>(MouthEntrance.y);

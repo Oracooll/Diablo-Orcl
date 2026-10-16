@@ -32,3 +32,19 @@ The paintings read well: the sinkhole with its stake and rope, and the stairway 
 | stairway | a warm band | (104,92,74) |
 
 RfA-71b asks for the sand round each entrance to be repainted to `sand_a` (each channel within 8 of its mean), and allows a larger sinkhole mouth. Until it arrives, the game keeps drawing its own hole.
+
+## v1.13.062: RfA-71b approved, the painted ways down in the game
+RfA-71b came back with the rim sand at (102,89,71), against sand_a's (104,92,74). The halo is gone, and it is approved as delivered (batch-100b).
+
+**What the game draws:**
+- The Salt Road's sinkhole and the Glass Flats' stairway replace the game-drawn funnel.
+- `DesertGroundFeature` lays each into the cached ground with its middle on the entrance tile's centre, blended by its soft alpha.
+- The hover, the entry and the walkable entrance are unchanged.
+- The game-drawn funnel stays as the fallback if a painting fails to load.
+
+**Loading (`LoadDecal`):**
+- **Size:** both entrances load at 50% of their painted size. That puts the 150 px painted hero at the game's height and the sinkhole's mouth at the old pit's width.
+- **Colour:** the first in-game render showed each as a paler rectangle, because the game's sand is shaded differently from raw sand_a. So each picture is tinted until the sand round its entrance matches the floor's own sand.
+- **Fade:** each is also faded out in an oval, from 0.56 to 0.86 of its half-size.
+
+**The trickling grains:** they follow the painted sinkhole's narrower funnel (0.62 of the old radius). None are drawn on the stairway.
