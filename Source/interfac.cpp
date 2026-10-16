@@ -266,16 +266,16 @@ Cutscenes PickCutscene(interface_mode uMsg)
 		// portal loading screens"). Before this a rift fell through to the Cathedral's.
 		if (oracool::IsRiftLevel(setlvlnum))
 			return setlvlnum == oracool::RiftLevelFor(oracool::RiftKind::Guardian) ? CutRiftGuardian : CutRiftNephalem;
-		// Into the woods and their caves, their own paintings (gendata\cutwoods, cutwcave); back to Tristram, its own. The desert
-		// has no painting of its own yet (2026-10-16): Tristram's out to it, the Caves' down into its caves.
+		// Into the woods and the desert and their caves, their own paintings (gendata\cutwoods, cutwcave; RfA-75's cutdesert,
+		// cutdcave); back to Tristram, its own.
 		if (IsWoodsLevel(setlvlnum))
 			return uMsg == WM_DIABRTNLVL ? CutTown : CutWoods;
 		if (IsDesertLevel(setlvlnum))
-			return CutTown;
+			return uMsg == WM_DIABRTNLVL ? CutTown : CutDesert;
 		if (IsWoodsCaveLevel(setlvlnum))
 			return CutWoodsCave;
 		if (IsDesertCaveLevel(setlvlnum))
-			return GetCutSceneFromLevelType(DTYPE_CAVES);
+			return CutDesertCave;
 		if (setlvlnum == SL_BONECHAMB)
 			return CutLevel2;
 		if (setlvlnum == SL_VILEBETRAYER)
@@ -387,6 +387,21 @@ void LoadCutsceneBackground(interface_mode uMsg)
 		celPath = "gendata\\cut3";
 		palPath = "gendata\\cut3.pal";
 		pngBase = "gendata\\cutwcave";
+		progress_id = 1;
+		break;
+	case CutDesert:
+		// RfA-75's painting; Tristram's CEL is the fallback, as the woods'.
+		ArtCutsceneWidescreen = LoadOptionalClx("gendata\\cutttw.clx");
+		celPath = "gendata\\cuttt";
+		palPath = "gendata\\cuttt.pal";
+		pngBase = "gendata\\cutdesert";
+		progress_id = 1;
+		break;
+	case CutDesertCave:
+		ArtCutsceneWidescreen = LoadOptionalClx("gendata\\cut3w.clx");
+		celPath = "gendata\\cut3";
+		palPath = "gendata\\cut3.pal";
+		pngBase = "gendata\\cutdcave";
 		progress_id = 1;
 		break;
 	}

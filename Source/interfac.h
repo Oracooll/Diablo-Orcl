@@ -58,6 +58,10 @@ enum Cutscenes : uint8_t {
 	CutWoods,
 	/** Down into a woods cave; the Caves' painting until its own is. */
 	CutWoodsCave,
+	/** Out of Tristram onto the desert's floors (RfA-75, gendata\cutdesert); Tristram's until it is painted. */
+	CutDesert,
+	/** Down into a desert cave (RfA-75, gendata\cutdcave); the Caves' painting until its own is. */
+	CutDesertCave,
 };
 
 void interface_msg_pump();

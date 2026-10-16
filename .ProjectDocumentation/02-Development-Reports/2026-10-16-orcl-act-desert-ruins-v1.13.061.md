@@ -62,3 +62,12 @@ Eight more pieces, approved as delivered (batch-101). All are within their conte
 - **Footprints:**
   - The guardian, the aqueduct and the wall stub block theirs.
   - The broken wall runs along +x (top-left to bottom-right on screen) and spans two tiles, so the tile after each piece is a Blocker. A run laid two tiles apart leaves no gap.
+
+## v1.13.065: the desert's loading screens (RfA-75)
+RfA-75 delivered four 3440 x 1440 paintings (batch-102), all approved as delivered: `cutdesert`, `cutdcave`, `cutfrost` and `cutfriver`.
+- **Desert pair, in the game now:**
+  - `Cutscenes` gains `CutDesert` and `CutDesertCave`.
+  - Going onto a desert floor shows `gendata\cutdesert`, with Tristram's CEL as the fallback. The way back to Tristram keeps Tristram's screen.
+  - Going down into a desert cave shows `gendata\cutdcave`, with the Caves' CEL as the fallback.
+- **Frost pair:** kept in `batch-102-loading-screens-APPROVED/gendata/` until the Frost Caves are built. They are not shipped yet.
+- **One framing note:** `cutfrost`'s frozen barbarian sits right of the 4:3 safe area, so a 4:3 screen crops it. The torch, the banner and the path still carry the scene.
