@@ -102,6 +102,10 @@ inline uint32_t PaletteIndexToRgb(uint8_t index)
 }
 void palette_init();
 void LoadPalette(const char *pszFileName, bool blend = true);
+/** @brief orig_palette made the game's: the blend table, gamma, the 32-bit colour table and the display palette (LoadPalette's tail). */
+void ApplyOrigPalette(bool blend);
+/** @brief The Caves' palette just loaded, tinted to the desert's sandstone (oracool/woods_caves.h, the desert's caves). */
+void TintDesertCavePalette();
 void LoadRndLvlPal(dungeon_type l);
 void IncreaseGamma();
 void ApplyGamma(std::array<SDL_Color, 256> &dst, const std::array<SDL_Color, 256> &src, int n);

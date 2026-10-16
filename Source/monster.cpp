@@ -895,7 +895,7 @@ void PlaceUniqueMonsters()
  */
 void PlaceWoodsBoss()
 {
-	if (setlvlnum != SL_LAST_WOODS || oracool::WoodsBossKind() < 0 || !EnemyMonsterRoomLeft(1))
+	if (!IsActBossLevel(setlvlnum) || oracool::WoodsBossKind() < 0 || !EnemyMonsterRoomLeft(1))
 		return;
 	const auto kind = static_cast<_monster_id>(oracool::WoodsBossKind());
 	const size_t typeIndex = GetMonsterTypeIndex(kind);
@@ -949,11 +949,11 @@ void PlaceWoodsMonsters()
 	// Champions and the Dread boss first, as a floor places them, for the scatter's cap to count them (InitMonsters).
 	PlaceLesserUniques();
 	// The last floor's boss is the user's (PlaceWoodsBoss); the caves keep the Dread boss of a dungeon floor.
-	if (setlvlnum == SL_LAST_WOODS)
+	if (IsActBossLevel(setlvlnum))
 		PlaceWoodsBoss();
 	else
 		PlaceEndgameBoss();
-	int numplacemonsters = na / (IsWoodsCaveLevel(setlvlnum) ? 30 : 36) * *sgOptions.Oracool.monsterDensityPercent / 100;
+	int numplacemonsters = na / (IsActCaveLevel(setlvlnum) ? 30 : 36) * *sgOptions.Oracool.monsterDensityPercent / 100;
 	const size_t scatterCap = MaxEnemyMonsters - 10;
 	if (ActiveMonsterCount >= scatterCap)
 		numplacemonsters = 0;
@@ -1871,6 +1871,8 @@ int CheckReflect(Monster &monster, Player &player, int dam)
 
 int GetMinHit()
 {
+	if (setlevel)
+		return 15; // Hell's floors' numbers are also the Orcl Act's set levels' (audit, 2026-10-16)
 	switch (currlevel) {
 	case 16:
 		return 30;
@@ -4282,24 +4284,29 @@ void InitLevelMonsters()
 void GetLevelMTypes()
 {
 	AddMonsterType(MT_GOLEM, PLACE_SPECIAL);
-	if (currlevel == 16) {
+	// The dungeon's own floors only: on a set level currlevel holds the set level's id, and the Orcl Act's (11-24) are the Hell,
+	// Nest and Crypt floors' numbers - the Underroot was Diablo's floor 16, the desert's floors the Hive's and the Crypt's (audit,
+	// 2026-10-16).
+	if (!setlevel && currlevel == 16) {
 		AddMonsterType(MT_ADVOCATE, PLACE_SCATTER);
 		AddMonsterType(MT_RBLACK, PLACE_SCATTER);
 		AddMonsterType(MT_DIABLO, PLACE_SPECIAL);
 		return;
 	}
 
-	if (currlevel == 18)
-		AddMonsterType(MT_HORKSPWN, PLACE_SCATTER);
-	if (currlevel == 19) {
-		AddMonsterType(MT_HORKSPWN, PLACE_SCATTER);
-		AddMonsterType(MT_HORKDMN, PLACE_UNIQUE);
-	}
-	if (currlevel == 20)
-		AddMonsterType(MT_DEFILER, PLACE_UNIQUE);
-	if (currlevel == 24) {
-		AddMonsterType(MT_ARCHLICH, PLACE_SCATTER);
-		AddMonsterType(MT_NAKRUL, PLACE_SPECIAL);
+	if (!setlevel) {
+		if (currlevel == 18)
+			AddMonsterType(MT_HORKSPWN, PLACE_SCATTER);
+		if (currlevel == 19) {
+			AddMonsterType(MT_HORKSPWN, PLACE_SCATTER);
+			AddMonsterType(MT_HORKDMN, PLACE_UNIQUE);
+		}
+		if (currlevel == 20)
+			AddMonsterType(MT_DEFILER, PLACE_UNIQUE);
+		if (currlevel == 24) {
+			AddMonsterType(MT_ARCHLICH, PLACE_SCATTER);
+			AddMonsterType(MT_NAKRUL, PLACE_SPECIAL);
+		}
 	}
 
 	if (!setlevel) {
@@ -4380,7 +4387,7 @@ void GetLevelMTypes()
 		// here off the floor's image budget as a rift's guardian is - Diablo's or the Reaper's sheets would leave no room for the
 		// roster. A Skeleton King gets one of the user's skeletons to raise, not scattered (PlaceWoodsMonsters scatters
 		// PLACE_SCATTER only).
-		if (setlvlnum == SL_LAST_WOODS && oracool::WoodsBossKind() >= 0) {
+		if (IsActBossLevel(setlvlnum) && oracool::WoodsBossKind() >= 0) {
 			const int budgetBeforeBoss = monstimgtot;
 			const auto bossKind = static_cast<_monster_id>(oracool::WoodsBossKind());
 			AddMonsterType(bossKind, PLACE_SPECIAL);
@@ -4649,7 +4656,7 @@ void InitMonsterGFX(CMonster &monsterType)
 
 void WeakenNaKrul()
 {
-	if (currlevel != 24 || static_cast<size_t>(UberDiabloMonsterIndex) >= ActiveMonsterCount)
+	if (setlevel || currlevel != 24 || static_cast<size_t>(UberDiabloMonsterIndex) >= ActiveMonsterCount)
 		return;
 
 	auto &monster = Monsters[UberDiabloMonsterIndex];
@@ -4688,7 +4695,7 @@ void InitMonsters()
 		LoadDiabMonsts();
 
 	int nt = numtrigs;
-	if (currlevel == 15)
+	if (!setlevel && currlevel == 15) // Hell 15's, not the woods' first cave (set level 15)
 		nt = 1;
 	for (int i = 0; i < nt; i++) {
 		for (int s = -2; s < 2; s++) {

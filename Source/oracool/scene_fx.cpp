@@ -548,6 +548,14 @@ float WeatherRand()
 	return Unit(WeatherRng);
 }
 
+/** @brief @p weather belongs to the sky the hero stands under: the sandstorm the desert's alone, rain and snow everywhere else. */
+bool WeatherFitsHere(Weather weather)
+{
+	if (weather == Weather::Clear)
+		return true;
+	return OnDesertFloor() == (weather == Weather::Sandstorm);
+}
+
 void TickWeather(float dt)
 {
 	const float now = Now();
@@ -557,8 +565,12 @@ void TickWeather(float dt)
 	}
 	if (now >= NextChange) {
 		const float r = WeatherRand();
-		if (Current != Weather::Clear)
+		// A roll is for the sky the hero stands under. The other sky's weather is only hidden while he is away (CurrentWeather,
+		// WeatherShows): a short walk into the desert and back leaves the woods' rain falling (audit, 2026-10-16).
+		if (Current != Weather::Clear && WeatherFitsHere(Current))
 			Target = r < 0.7F ? Weather::Clear : Current;
+		else if (OnDesertFloor())
+			Target = r < 0.30F ? Weather::Sandstorm : Weather::Clear; // the desert: a storm now and then, dry otherwise
 		else
 			Target = r < 0.33F ? Weather::Rain : (r < 0.45F ? Weather::Snow : Weather::Clear);
 		NextChange = now + 150.0F + WeatherRand() * 210.0F;
@@ -576,7 +588,26 @@ void TickWeather(float dt)
 
 bool WeatherShows()
 {
-	return IsUnderSky(leveltype) && *sgOptions.Oracool.weather && Current != Weather::Clear && Intensity > 0.01F;
+	return IsUnderSky(leveltype) && *sgOptions.Oracool.weather && Current != Weather::Clear && Intensity > 0.01F && WeatherFitsHere(Current);
+}
+
+/**
+ * @brief The desert's heat by the hour (0..1): the air shimmering over the sand from late morning, strongest after noon, gone by
+ * evening; none in a storm. Half all day with the day and night cycle off.
+ */
+float DesertHeat()
+{
+	if (!OnDesertFloor() || !*sgOptions.Oracool.heatHaze)
+		return 0.0F;
+	float storm = 0.0F;
+	if (Current == Weather::Sandstorm && *sgOptions.Oracool.weather)
+		storm = Intensity;
+	float heat = 0.5F;
+	if (*sgOptions.Oracool.dayNightCycle) {
+		const float h = TownHour();
+		heat = h < 10.0F || h > 17.5F ? 0.0F : h < 13.5F ? (h - 10.0F) / 3.5F : 1.0F - (h - 13.5F) / 4.0F;
+	}
+	return Clamp01(heat * (1.0F - storm * 1.5F));
 }
 
 // ---- Fog -----------------------------------------------------------------------------------------------------------------
@@ -629,6 +660,9 @@ float FogStrength()
 {
 	if (leveltype != DTYPE_WOODS)
 		return 1.0F;
+	// The desert's is blown sand, not mist: always a little drifting low over the ground, much more in a sandstorm.
+	if (OnDesertFloor())
+		return 0.45F + (Current == Weather::Sandstorm && *sgOptions.Oracool.weather ? Intensity * 1.1F : 0.0F);
 	if (!*sgOptions.Oracool.dayNightCycle)
 		return 0.0F;
 	const float h = TownHour();
@@ -650,7 +684,9 @@ bool FogLevel(uint32_t &rgb)
 	switch (leveltype) {
 	case DTYPE_CAVES: rgb = SFX_PACK(160, 168, 178); return true;
 	case DTYPE_CRYPT: rgb = SFX_PACK(150, 140, 176); return true;
-	case DTYPE_WOODS: rgb = SFX_PACK(196, 204, 212); return FogStrength() > 0.0F;
+	case DTYPE_WOODS:
+		rgb = OnDesertFloor() ? SFX_PACK(208, 182, 138) : SFX_PACK(196, 204, 212);
+		return FogStrength() > 0.0F;
 	default: return false;
 	}
 }
@@ -1225,6 +1261,7 @@ void ApplyGroundFog(const Surface &out, Point firstTile, Point firstTileBuffer)
 	const int w = out.w();
 	const int h = out.h();
 	const float strength = FogStrength();
+	const bool desertSand = OnDesertFloor();
 	// The mist lies on the floor, drifting slowly; it shows by the light that is there (dLight: 0 bright .. 15 dark), so it
 	// never glows in the dark. Worked on an 8 px grid, blended between.
 	constexpr int Cell = 8;
@@ -1251,8 +1288,10 @@ void ApplyGroundFog(const Surface &out, Point firstTile, Point firstTileBuffer)
 				continue;
 			const float wx = static_cast<float>(sx) + worldX0;
 			const float wy = static_cast<float>(sy) + worldY0;
-			const float n = TableNoise((wx + t * 9.0F) / 150.0F, (wy * 1.7F + t * 4.0F) / 150.0F) * 0.65F
-			    + TableNoise((wx - t * 6.0F) / 55.0F, (wy * 1.7F) / 55.0F) * 0.35F;
+			// The mist drifts slow and round; the desert's sand runs fast with the wind in long low streaks.
+			const float n = desertSand
+			    ? TableNoise((wx - t * 85.0F) / 130.0F, (wy * 1.7F) / 60.0F) * 0.6F + TableNoise((wx - t * 140.0F) / 60.0F, (wy * 1.7F) / 32.0F) * 0.4F
+			    : TableNoise((wx + t * 9.0F) / 150.0F, (wy * 1.7F + t * 4.0F) / 150.0F) * 0.65F + TableNoise((wx - t * 6.0F) / 55.0F, (wy * 1.7F) / 55.0F) * 0.35F;
 			float d = (n - 0.42F) / 0.36F;
 			if (d <= 0)
 				continue;
@@ -1633,7 +1672,61 @@ void ApplyAfterWorld(const Surface &world)
 			dim = b > 0 ? Clamp01(a / b) : 1.0F;
 			dim = dim < 0.3F ? 0.3F : dim;
 		}
-		if (Current == Weather::Rain) {
+		if (Current == Weather::Sandstorm) {
+			// The sandstorm (user, 2026-10-16): the air thick with sand - a tan haze over everything, thicker where a gust passes
+			// (noise moving with the wind, on a 16 px grid blended between) - and grit streaking past, low and fast.
+			const float sr = 196.0F * dim, sg = 160.0F * dim, sb = 110.0F * dim;
+			constexpr int Cell = 16;
+			const int gw = w / Cell + 2;
+			const int gh = h / Cell + 2;
+			static std::vector<int> Gust;
+			Gust.assign(static_cast<size_t>(gw) * gh, 0);
+			for (int gy = 0; gy < gh; gy++)
+				for (int gx = 0; gx < gw; gx++) {
+					const float n = TableNoise((static_cast<float>(gx * Cell) - t * 260.0F) / 260.0F, static_cast<float>(gy * Cell) / 150.0F) * 0.7F
+					    + TableNoise((static_cast<float>(gx * Cell) - t * 420.0F) / 90.0F, static_cast<float>(gy * Cell) / 60.0F) * 0.3F;
+					Gust[static_cast<size_t>(gy) * gw + gx] = static_cast<int>(Intensity * (70.0F + 120.0F * n)); // of 256
+				}
+			const int *gust = Gust.data();
+			const int ir = static_cast<int>(sr), ig = static_cast<int>(sg), ib = static_cast<int>(sb);
+			for (int gy = 0; gy * Cell < h; gy++) {
+				const int *r0 = gust + static_cast<size_t>(gy) * gw;
+				const int *r1 = r0 + gw;
+				for (int fy = 0; fy < Cell && gy * Cell + fy < h; fy++) {
+					uint32_t *row = world.at<uint32_t>(0, gy * Cell + fy);
+					for (int gx = 0; gx * Cell < w; gx++) {
+						const int left = r0[gx] + (((r1[gx] - r0[gx]) * fy) >> 4);
+						const int right = r0[gx + 1] + (((r1[gx + 1] - r0[gx + 1]) * fy) >> 4);
+						for (int fx = 0; fx < Cell; fx++) {
+							const int x = gx * Cell + fx;
+							if (x >= w)
+								break;
+							const int a = left + (((right - left) * fx) >> 4);
+							if (a > 0)
+								row[x] = SFX_MIX(row[x], ir, ig, ib, a);
+						}
+					}
+				}
+			}
+			const int cr = static_cast<int>(226.0F * dim), cg = static_cast<int>(202.0F * dim), cb = static_cast<int>(156.0F * dim);
+			const int grains = static_cast<int>(560.0F * Intensity);
+			const float spanX = static_cast<float>(w + 120);
+			for (int i = 0; i < grains; i++) {
+				const uint32_t s = Hash(static_cast<uint32_t>(i), 61);
+				const float speed = 900.0F + Unit(s) * 500.0F;
+				const int len = 8 + static_cast<int>(Unit(s >> 3) * 12.0F);
+				const float x = std::fmod(Unit(Hash(s, 2)) * spanX + t * speed, spanX) - 60.0F;
+				const float y = Unit(Hash(s, 3)) * static_cast<float>(h) + std::sin(t * 2.0F + Unit(s >> 7) * 6.28F) * 6.0F + x * 0.05F;
+				for (int k = 0; k < len; k++) {
+					const int px = static_cast<int>(x) - k;
+					const int py = static_cast<int>(y + static_cast<float>(k) * 0.05F);
+					if (px < 0 || py < 0 || px >= w || py >= h)
+						continue;
+					uint32_t &c = *world.at<uint32_t>(px, py);
+					c = SFX_MIX(c, cr, cg, cb, 110 - k * 5);
+				}
+			}
+		} else if (Current == Weather::Rain) {
 			const int cr = static_cast<int>(178.0F * dim), cg = static_cast<int>(192.0F * dim), cb = static_cast<int>(212.0F * dim);
 			const int drops = static_cast<int>(420.0F * Intensity);
 			const float span = static_cast<float>(h + 60);
@@ -1679,8 +1772,59 @@ void ApplyAfterWorld(const Surface &world)
 		}
 	}
 
+	// The desert's heat (my suggestions, the Desert Asset Catalogue's J, user 2026-10-16: "implement all the weather effects"): the
+	// air shimmering over the sand - the upper part of the picture, the far ground, its rows wavering a pixel or so - and a mirage's
+	// pale glare along the top edge at the hottest hours.
+	if (const float heat = DesertHeat(); heat > 0.01F) {
+		const float t = Now();
+		const int top = static_cast<int>(static_cast<float>(h) * 0.62F);
+		static std::vector<uint32_t> Line;
+		Line.resize(static_cast<size_t>(w));
+		for (int y = 0; y < top; y++) {
+			const float strength = heat * (1.0F - static_cast<float>(y) / static_cast<float>(top));
+			const float off = (std::sin(static_cast<float>(y) * 0.19F + t * 3.7F) * 0.7F + std::sin(static_cast<float>(y) * 0.071F - t * 2.3F) * 0.5F) * 1.3F * strength;
+			if (std::abs(off) < 0.06F)
+				continue;
+			const int whole = static_cast<int>(std::floor(off));
+			const int frac = static_cast<int>((off - static_cast<float>(whole)) * 256.0F);
+			if (whole == 0 && frac == 0)
+				continue;
+			uint32_t *row = world.at<uint32_t>(0, y);
+			std::memcpy(Line.data(), row, static_cast<size_t>(w) * 4);
+			const uint32_t *line = Line.data();
+			// The middle of the row reads inside it unclamped; only its ends need the edge repeated.
+			const int x0 = std::max(0, whole + 1);
+			const int x1 = std::min(w, w + whole);
+			const auto edge = [&](int x) {
+				const uint32_t a = line[std::clamp(x - whole, 0, w - 1)], b = line[std::clamp(x - whole - 1, 0, w - 1)];
+				row[x] = SFX_MIX(a, SFX_R(b), SFX_G(b), SFX_B(b), frac);
+			};
+			for (int x = 0; x < std::min(x0, w); x++)
+				edge(x);
+			for (int x = x0; x < x1; x++) {
+				const uint32_t a = line[x - whole], b = line[x - whole - 1];
+				row[x] = SFX_MIX(a, SFX_R(b), SFX_G(b), SFX_B(b), frac);
+			}
+			for (int x = std::max(x1, x0); x < w; x++)
+				edge(x);
+		}
+		const int band = static_cast<int>(static_cast<float>(h) * 0.10F);
+		if (heat > 0.5F && band > 0) {
+			for (int y = 0; y < band; y++) {
+				uint32_t *row = world.at<uint32_t>(0, y);
+				const float fade = (1.0F - static_cast<float>(y) / static_cast<float>(band)) * (heat - 0.5F) * 2.0F;
+				for (int x = 0; x < w; x++) {
+					const float wave = 0.6F + 0.4F * std::sin(static_cast<float>(x) * 0.031F + t * 0.8F + static_cast<float>(y) * 0.2F);
+					const int a = static_cast<int>(34.0F * fade * wave);
+					if (a > 0)
+						row[x] = SFX_MIX(row[x], 214, 220, 222, a);
+				}
+			}
+		}
+	}
+
 	// Lightning far off on a rainy night: a double flash every half minute or so.
-	if (IsUnderSky(leveltype) && *sgOptions.Oracool.weather && Current == Weather::Rain && Intensity > 0.6F && TownIsDark()) {
+	if (IsUnderSky(leveltype) && *sgOptions.Oracool.weather && Current == Weather::Rain && Intensity > 0.6F && TownIsDark() && WeatherFitsHere(Current)) {
 		const float now = Now();
 		if (NextFlash < 0 || NextFlash - now > 60.0F)
 			NextFlash = now + 15.0F + WeatherRand() * 30.0F;
@@ -1852,9 +1996,11 @@ bool GuardianEntranceActive()
 
 Weather CurrentWeather(float *intensity)
 {
+	// The other sky's weather passing off is not this sky's (the desert's sandstorm over Tristram, the rain over the desert).
+	const bool fits = WeatherFitsHere(Current);
 	if (intensity != nullptr)
-		*intensity = Intensity;
-	return Current;
+		*intensity = fits ? Intensity : 0.0F;
+	return fits ? Current : Weather::Clear;
 }
 
 void SetWeather(Weather weather)

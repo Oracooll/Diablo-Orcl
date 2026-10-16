@@ -681,10 +681,10 @@ std::string DebugCmdLevelUp(const string_view parameter)
 
 std::string DebugCmdGiveWaypoints(const string_view parameter)
 {
-	// Oracool: user request - unlocks every waypoint (1-16; Tristram/0 is always unlocked
+	// Oracool: user request - unlocks every waypoint (1-32; Tristram/0 is always unlocked
 	// already) on the current difficulty, so all 17 travel-list entries can be tried without
 	// having to actually find and activate every sigil first.
-	for (int i = 1; i < oracool::FirstWoodsWaypoint + oracool::WoodsWaypointCount; i++) // the Hellfire and Orcl acts too
+	for (int i = 1; i < oracool::OrclWaypointEnd; i++) // the Hellfire and Orcl acts too
 		oracool::UnlockWaypoint(i);
 	return "The way is open.";
 }
@@ -1218,7 +1218,7 @@ std::string DebugCmdTimeOfDay(const string_view parameter)
 std::string DebugCmdWeather(const string_view parameter)
 {
 	// Weather in Tristram (user, 2026-10-11): read or set, so rain, snow and a clear sky can be seen at once.
-	const auto name = [](oracool::Weather w) { return w == oracool::Weather::Rain ? "rain" : (w == oracool::Weather::Snow ? "snow" : "clear"); };
+	const auto name = [](oracool::Weather w) { return w == oracool::Weather::Rain ? "rain" : w == oracool::Weather::Snow ? "snow" : w == oracool::Weather::Sandstorm ? "sandstorm" : "clear"; };
 	if (parameter.empty()) {
 		float intensity = 0;
 		const oracool::Weather now = oracool::CurrentWeather(&intensity);
@@ -1235,6 +1235,8 @@ std::string DebugCmdWeather(const string_view parameter)
 		w = oracool::Weather::Rain;
 	else if (text == "snow")
 		w = oracool::Weather::Snow;
+	else if (text == "sandstorm")
+		w = oracool::Weather::Sandstorm; // shown on a desert floor only
 	else if (text == "clear")
 		w = oracool::Weather::Clear;
 	else
@@ -1680,7 +1682,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "help", "Prints help overview or help for a specific command.", "({command})", &DebugCmdHelp },
 	{ "givegold", "Fills the inventory with gold.", "", &DebugCmdGiveGoldCheat },
 	{ "givexp", "Levels the player up (min 1 level or {levels}).", "({levels})", &DebugCmdLevelUp },
-	{ "givewp", "Unlocks every waypoint (1-24) on the current difficulty.", "", &DebugCmdGiveWaypoints },
+	{ "givewp", "Unlocks every waypoint (1-24, and the Orcl Act's 25-32) on the current difficulty.", "", &DebugCmdGiveWaypoints },
 	{ "maxstats", "Sets all stat values to maximum.", "", &DebugCmdMaxStats },
 	{ "minstats", "Sets all stat values to minimum.", "", &DebugCmdMinStats },
 	// Oracool: reworded 2026-08-15. It said "Set spell level to {level} for all spells", which

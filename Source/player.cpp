@@ -1862,7 +1862,7 @@ void TryDisarm(const Player &player, Object &object)
 	if (!object._oTrapFlag) {
 		return;
 	}
-	int trapdisper = 2 * player._pDexterity - 5 * currlevel;
+	int trapdisper = 2 * player._pDexterity - 5 * TrapFloor(); // its floor's depth, not a set level's id
 	if (GenerateRnd(100) > trapdisper) {
 		return;
 	}

@@ -1038,7 +1038,7 @@ extern DVL_API_FOR_TEST uint8_t ActiveItems[MAXITEMS];
 extern DVL_API_FOR_TEST uint8_t ActiveItemCount;
 /** Contains the location of dropped items. */
 extern int8_t dItem[MAXDUNX][MAXDUNY];
-extern CornerStoneStruct CornerStone;
+extern DVL_API_FOR_TEST CornerStoneStruct CornerStone;
 extern bool UniqueItemFlags[MaxUniqueItems];
 
 uint8_t GetOutlineColor(const Item &item, bool checkReq);

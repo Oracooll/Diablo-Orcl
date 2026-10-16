@@ -899,9 +899,9 @@ void CheckTrigForce()
 		default:
 			if (IsArenaLevel(setlvlnum))
 				trigflag = ForceArenaTrig();
-			else if (IsWoodsLevel(setlvlnum))
+			else if (IsOutdoorActLevel(setlvlnum))
 				trigflag = ForceWoodsTrig();
-			else if (IsWoodsCaveLevel(setlvlnum))
+			else if (IsActCaveLevel(setlvlnum))
 				trigflag = ForceWoodsCaveTrig();
 			break;
 		}

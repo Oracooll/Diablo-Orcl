@@ -2488,7 +2488,7 @@ size_t OnSetReflect(const TCmd *pCmd, Player &player)
 size_t OnNakrul(const TCmd *pCmd)
 {
 	if (gbBufferMsgs != 1) {
-		if (currlevel == 24) {
+		if (!setlevel && currlevel == 24) {
 			PlaySfxLoc(IS_CROPEN, { UberRow, UberCol });
 			SyncNakrulRoom();
 		}

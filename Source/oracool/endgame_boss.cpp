@@ -114,7 +114,7 @@ int BossCountForLevel()
 	// The Orcl Act's floors are generated too (oracool/woods.h, 2026-10-14); the woods' last floor always has its boss (D10).
 	if (currlevel == 0 || (setlevel && !InRift() && !IsOrclActLevel(setlvlnum)))
 		return 0;
-	if (setlevel && setlvlnum == SL_LAST_WOODS)
+	if (setlevel && IsActBossLevel(setlvlnum))
 		return 1;
 
 	const int alvl = CurrentAreaLevel();

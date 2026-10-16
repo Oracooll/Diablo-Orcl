@@ -266,11 +266,16 @@ Cutscenes PickCutscene(interface_mode uMsg)
 		// portal loading screens"). Before this a rift fell through to the Cathedral's.
 		if (oracool::IsRiftLevel(setlvlnum))
 			return setlvlnum == oracool::RiftLevelFor(oracool::RiftKind::Guardian) ? CutRiftGuardian : CutRiftNephalem;
-		// Into the woods and their caves, their own paintings (gendata\cutwoods, cutwcave); back to Tristram, its own.
+		// Into the woods and their caves, their own paintings (gendata\cutwoods, cutwcave); back to Tristram, its own. The desert
+		// has no painting of its own yet (2026-10-16): Tristram's out to it, the Caves' down into its caves.
 		if (IsWoodsLevel(setlvlnum))
 			return uMsg == WM_DIABRTNLVL ? CutTown : CutWoods;
+		if (IsDesertLevel(setlvlnum))
+			return CutTown;
 		if (IsWoodsCaveLevel(setlvlnum))
 			return CutWoodsCave;
+		if (IsDesertCaveLevel(setlvlnum))
+			return GetCutSceneFromLevelType(DTYPE_CAVES);
 		if (setlvlnum == SL_BONECHAMB)
 			return CutLevel2;
 		if (setlvlnum == SL_VILEBETRAYER)

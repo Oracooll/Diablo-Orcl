@@ -51,9 +51,20 @@ const char *const QuestLevelNames[] = {
 	N_("The Mossbound Den"),
 	N_("The Underroot"),
 	N_("The Underroot Depths"),
+	// The desert (oracool/woods.h, WoodsFloorName) and its caves (WoodsCaveName).
+	N_("The Salt Road"),
+	N_("The Ash Dunes"),
+	N_("The Glass Flats"),
+	N_("Tomb of the Sun-Eater"),
+	N_("The Sand Warrens"),
+	N_("The Buried Halls"),
+	N_("The Buried Halls Depths"),
 };
 static_assert(sizeof(QuestLevelNames) / sizeof(QuestLevelNames[0]) == SL_LAST + 1,
     "QuestLevelNames needs one row per _setlevels id - the automap header reads it by setlvlnum");
+// Each set level has a visited flag in the hero (Player::_pSLvlVisited, NUMLEVELS of them): the desert's floors and caves took
+// the last free ones (2026-10-16).
+static_assert(SL_LAST < NUMLEVELS, "a set level past the hero's visited flags");
 
 namespace {
 
@@ -191,12 +202,19 @@ void LoadSetMap()
 	case SL_ORCL_WOODS_2:
 	case SL_ORCL_WOODS_3:
 	case SL_ORCL_WOODS_4:
+	case SL_ORCL_DESERT_1:
+	case SL_ORCL_DESERT_2:
+	case SL_ORCL_DESERT_3:
+	case SL_ORCL_DESERT_4:
 		// Generated, not loaded (oracool/woods.h): the floor from this game's seed for it.
 		oracool::BuildWoodsLevel(/*fresh=*/MyPlayer == nullptr || !MyPlayer->_pSLvlVisited[setlvlnum]);
 		break;
 	case SL_ORCL_CAVE_1:
 	case SL_ORCL_CAVE_2:
 	case SL_ORCL_CAVE_3:
+	case SL_ORCL_DESERT_CAVE_1:
+	case SL_ORCL_DESERT_CAVE_2:
+	case SL_ORCL_DESERT_CAVE_3:
 		oracool::BuildWoodsCaveLevel(/*fresh=*/MyPlayer == nullptr || !MyPlayer->_pSLvlVisited[setlvlnum]);
 		break;
 	case SL_NONE:

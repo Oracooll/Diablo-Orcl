@@ -2064,10 +2064,11 @@ void UpdateLeverState(Object &object)
 	object._oSelFlag = 0;
 	object._oAnimFrame++;
 
-	if (currlevel == 16 && !AreAllLeversActivated(object._oVar8))
+	// Diablo's floor and Na-Krul's, not the Orcl Act's set levels that share their numbers (audit, 2026-10-16).
+	if (!setlevel && currlevel == 16 && !AreAllLeversActivated(object._oVar8))
 		return;
 
-	if (currlevel == 24) {
+	if (!setlevel && currlevel == 24) {
 		SyncNakrulRoom();
 		IsUberLeverActivated = true;
 		return;
@@ -2089,7 +2090,7 @@ void OperateLever(Object &object, bool sendmsg)
 
 	UpdateLeverState(object);
 
-	if (currlevel == 24) {
+	if (!setlevel && currlevel == 24) {
 		PlaySfxLoc(IS_CROPEN, { UberRow, UberCol });
 		Quests[Q_NAKRUL]._qactive = QUEST_DONE;
 		NetSendCmdQuest(true, Quests[Q_NAKRUL]);
@@ -4007,7 +4008,7 @@ void OperateStoryBook(Object &storyBook)
 	storyBook._oAnimFrame = storyBook._oVar4;
 	PlaySfxLoc(IS_ISCROL, storyBook.position);
 	auto msg = static_cast<_speech_id>(storyBook._oVar2);
-	if (storyBook._oVar8 != 0 && currlevel == 24) {
+	if (storyBook._oVar8 != 0 && !setlevel && currlevel == 24) {
 		if (!IsUberLeverActivated && Quests[Q_NAKRUL]._qactive != QUEST_DONE && OperateNakrulBook(storyBook._oVar8)) {
 			NetSendCmd(false, CMD_NAKRUL);
 			return;
@@ -4160,7 +4161,7 @@ void SyncLever(const Object &lever)
 	if (lever._oSelFlag != 0)
 		return;
 
-	if (currlevel == 16 && !AreAllLeversActivated(lever._oVar8))
+	if (!setlevel && currlevel == 16 && !AreAllLeversActivated(lever._oVar8))
 		return;
 
 	ObjChangeMap(lever._oVar1, lever._oVar2, lever._oVar3, lever._oVar4);
@@ -6500,6 +6501,11 @@ void SyncNakrulRoom()
 	dPiece[UberRow][UberCol - 1] = 300;
 	dPiece[UberRow][UberCol - 2] = 299;
 	dPiece[UberRow][UberCol + 1] = 298;
+}
+
+int TrapFloor()
+{
+	return ShrineFloor();
 }
 
 } // namespace devilution

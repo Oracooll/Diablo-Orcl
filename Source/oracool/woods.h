@@ -14,6 +14,12 @@
  *
  * Milestone 1 (this file's first version): floor 1, The Greywood Verge - the road out of Tristram west of Pepin, the
  * generated woods, the way back. No monsters yet; the way on to floor 2 is not open yet.
+ *
+ * The desert (user, 2026-10-16: "design the 100x100 levels of Desert Area. Implement whatever assets we now have into them"): a
+ * second AREA on the same generator - four more floors, SL_ORCL_DESERT_1..4, also DTYPE_WOODS (the act's outdoor level type, so
+ * the sky, the day, the light and the play area are the woods'), out of Tristram east of the cows. Its own ground (RfA-65, 68),
+ * its rocks, palms and bones where the woods have trees (RfA-66, 67), an oasis, buried ruins, a sand hole down to its caves, its
+ * own Mob Roster and weather; no fences, cottages or river. A floor's "area" is the woods' (0) or the desert's (1).
  */
 #pragma once
 
@@ -32,6 +38,30 @@ struct Monster;
 } // namespace devilution
 
 namespace devilution::oracool {
+
+/** @brief The Orcl Act's areas under the sky: each has four floors, numbered 0-3 within it. */
+enum class OrclArea : uint8_t {
+	Woods,
+	Desert,
+};
+
+/** @brief The area @p level belongs to: a floor's or a cave's (the woods for anything else). */
+inline OrclArea AreaOfLevel(_setlevels level)
+{
+	return IsDesertLevel(level) || IsDesertCaveLevel(level) ? OrclArea::Desert : OrclArea::Woods;
+}
+
+/** @brief Floor @p floor (0-3) of @p area as a set level. */
+inline _setlevels OutdoorFloorLevel(OrclArea area, int floor)
+{
+	return static_cast<_setlevels>((area == OrclArea::Desert ? SL_FIRST_DESERT : SL_FIRST_WOODS) + floor);
+}
+
+/** @brief The hero stands on a desert floor (not its caves): its weather, its dusk, its sky. */
+inline bool OnDesertFloor()
+{
+	return leveltype == DTYPE_WOODS && setlevel && IsDesertLevel(setlvlnum);
+}
 
 /**
  * @brief The piece a woods tile is DRAWN with, where that differs from the one that decides its walking (dPiece): on the
@@ -95,7 +125,7 @@ void CreateWoods(uint32_t seed, lvl_entry entry);
 /** @brief LoadSetMap's arm for a woods floor: the floor from its seed, its tile data, its palette and its art. */
 void BuildWoodsLevel(bool fresh);
 
-/** @brief Where the hero stands in Tristram coming back out of the woods: on the west road, clear of the gate. */
+/** @brief Where the hero stands in Tristram coming back out of the area setlvlnum names: on its road, clear of its gate. */
 Point WoodsTownReturnTile();
 
 /**
@@ -112,11 +142,14 @@ int WoodsHouseCountForTest();
 Point WoodsHouseDoorForTest(int index);
 Point WoodsHouseInsideForTest(int index);
 
-/** @brief Woods floor @p floorIndex's rung, 0 until it is first entered in this game. */
-int WoodsFloorRung(int floorIndex);
+/** @brief Floor @p floorIndex of @p area's rung, 0 until it is first entered in this game. */
+int WoodsFloorRung(int floorIndex, OrclArea area = OrclArea::Woods);
 
 /** @brief The next woods floor built is entered from its cave: the hero stands by the cave's mouth. */
 void EnterWoodsAtCaveMouthNext();
+
+/** @brief The floor last built is a desert floor (its art, its generator; what the drawing calls draw). */
+bool DesertBuilt();
 
 /** @brief The cave mouth's tiles are Tristram's own cels, drawn by DrawCell even on the painted look. */
 bool WoodsTileUsesCels(Point tile);
@@ -175,10 +208,10 @@ std::optional<Point> WoodsBossSpot();
 /** @brief The damage percent ScaleWoodsMonster gave the woods boss (100 for any other): his Apocalypse takes it too. */
 int WoodsBossDamagePercent(const Monster &monster);
 
-/** @brief The woods' last floor, whose boss's own kinds (the King's skeletons) are loaded but never scattered. */
+/** @brief An area's last floor, whose boss's own kinds (the King's skeletons) are loaded but never scattered. */
 inline bool IsWoodsBossFloor()
 {
-	return setlevel && setlvlnum == SL_LAST_WOODS;
+	return setlevel && IsActBossLevel(setlvlnum);
 }
 
 /**
@@ -240,7 +273,10 @@ void ForgetWoodsMixedFloor();
 /** @brief What stands on a woods tile, drawn in the figures' order: a tree, or a small thing on the ground. */
 void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light);
 
-/** @brief Test hook: the ground material of a woods tile (0 grass, 1 dark grass, 2 dry grass, 3 path, 4 forest floor). */
+/**
+ * @brief Test hook: the ground material of a woods tile (0 grass, 1 dark grass, 2 dry grass, 3 path, 4 forest floor; on the desert
+ * 0 sand, 1 dune ripples, 2 cracked clay, 3 the salt road, 4 bedrock, 5 oasis grass, 6 mud, 7 reeds, 8 buried paving).
+ */
 uint8_t WoodsGroundAt(Point tile);
 /** @brief Test hook: whether a woods tile holds a tree. */
 bool WoodsTreeAt(Point tile);
@@ -255,6 +291,12 @@ const std::vector<WoodsLamp> &WoodsNightLamps();
 void DrawWoodsGlows(const Surface &out, Point firstTile, Point firstTileBuffer);
 /** @brief Once a game tick on a woods floor: the fairy ring's mana. */
 void TickWoods();
+/**
+ * @brief The desert's sky over the ground (user, 2026-10-16: "implement all the weather effects including your suggestions of sand
+ * storm"): the dust devils wandering the sand, the vultures' shadows gliding over it by day, the grains trickling into the sand
+ * hole. Drawn with the lights (scrollrt's Beams pass); nothing off a desert floor.
+ */
+void DrawDesertSky(const Surface &out, Point firstTile, Point firstTileBuffer);
 
 /** @brief Test hook: the arrival and the way on of the floor last built. */
 Point WoodsArrival();
@@ -291,7 +333,7 @@ void SetWoodsCaveMouthFloorForTest(int floorIndex);
 /** @brief Test hook: stamps the mouth into the floor last generated; its entrance, or {0,0} for none. */
 Point StampWoodsCaveMouthForTest();
 /** @brief Test hook: sets floor @p floorIndex's rung as its first visit would. */
-void SetWoodsRungForTest(int floorIndex, int rung);
+void SetWoodsRungForTest(int floorIndex, int rung, OrclArea area = OrclArea::Woods);
 /** @brief Test hook: PlanWoodsWorld for the floor last built - each planned object's kind and tile, the wisps, the fairy ring. */
 struct WoodsWorldPlanForTest {
 	std::vector<std::pair<int, Point>> objects;
@@ -301,6 +343,10 @@ struct WoodsWorldPlanForTest {
 };
 WoodsWorldPlanForTest PlanWoodsWorldForTest(uint32_t seed, int floor);
 /** @brief Test hook: floor @p floorIndex's seed (0: not yet entered). */
-void SetWoodsSeedForTest(int floorIndex, uint32_t seed);
+void SetWoodsSeedForTest(int floorIndex, uint32_t seed, OrclArea area = OrclArea::Woods);
+/** @brief Test hook: the floor last generated's oasis pool (its centre, or {0,0} for none) and its sand hole's entrance. */
+Point DesertOasisForTest();
+/** @brief Test hook: the kinds the area's Mob Roster lets walk its floors and caves. */
+std::vector<int> AreaRosterForTest(OrclArea area);
 
 } // namespace devilution::oracool

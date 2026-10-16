@@ -17,6 +17,7 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 
+#include "objects.h" // TrapFloor
 #include "DiabloUI/ui_flags.hpp"
 #include "controls/plrctrls.h"
 #include "cursor.h"
@@ -9947,7 +9948,7 @@ int ItemNoFlippy()
 int SpellBookDropLevel(SpellID ispell)
 {
 	if (!gbIsHellfire)
-		return currlevel;
+		return TrapFloor(); // the floor's own depth: a set level's id is not one
 
 	const int vanilla = GetSpellBookLevel(ispell) + 1;
 	if (vanilla < 1)
@@ -11052,7 +11053,7 @@ StringOrView Item::getName() const
 
 bool CornerStoneStruct::isAvailable()
 {
-	return currlevel == 21 && !gbIsMultiplayer;
+	return !setlevel && currlevel == 21 && !gbIsMultiplayer; // the Crypt's first floor, not the set level numbered 21 (the desert's last)
 }
 
 void initItemGetRecords()

@@ -122,6 +122,11 @@ bool IsWaypointUnlocked(int index);
  */
 constexpr int FirstWoodsWaypoint = 25;
 constexpr int WoodsWaypointCount = 4;
+/** @brief The desert's, after the woods' (2026-10-16): list indices 29-32, in the hero file's 64-bit chunk (HeroChunkWaypoints64). */
+constexpr int FirstDesertWaypoint = FirstWoodsWaypoint + WoodsWaypointCount;
+constexpr int DesertWaypointCount = 4;
+/** @brief One past the last waypoint index any list shows. */
+constexpr int OrclWaypointEnd = FirstDesertWaypoint + DesertWaypointCount;
 
 /**
  * @brief Marks waypoint list entry/dungeon level `index` unlocked on the current difficulty

@@ -2286,7 +2286,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 		static std::vector<oracool::Splat> splats;
 		splats.clear();
 		oracool::BeginSplatCollection(&splats);
-		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); oracool::DrawSceneLifeLights(visible, position, visibleStart); oracool::DrawWoodsGlows(visible, position, visibleStart); oracool::DrawSceneFeelLights(visible, position, visibleStart); oracool::DrawSceneGlowLights(visible, position, visibleStart); }
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); oracool::DrawSceneLifeLights(visible, position, visibleStart); oracool::DrawWoodsGlows(visible, position, visibleStart); oracool::DrawDesertSky(visible, position, visibleStart); oracool::DrawSceneFeelLights(visible, position, visibleStart); oracool::DrawSceneGlowLights(visible, position, visibleStart); }
 		{ oracool::ScopedFramePass timed(oracool::FramePass::Particles); oracool::UpdateAndDrawParticles(visible, position, visibleStart); }
 		oracool::EndSplatCollection();
 		oracool::HazePlan haze;
@@ -2345,7 +2345,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 		// Day and night in Tristram (user, 2026-10-11): the town's own light over the finished town; then the loot beams,
 		// which are light and stay bright at night, and bloom with the rest.
 		{ oracool::ScopedFramePass timed(oracool::FramePass::DayNight); oracool::ApplyTownDayNight(visible, position, visibleStart); }
-		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); oracool::DrawSceneLifeLights(visible, position, visibleStart); oracool::DrawWoodsGlows(visible, position, visibleStart); oracool::DrawSceneFeelLights(visible, position, visibleStart); oracool::DrawSceneGlowLights(visible, position, visibleStart); }
+		{ oracool::ScopedFramePass timed(oracool::FramePass::Beams); oracool::DrawLootBeams(visible, position, visibleStart); oracool::DrawGuardianBeam(visible, position, visibleStart); oracool::DrawSceneLifeLights(visible, position, visibleStart); oracool::DrawWoodsGlows(visible, position, visibleStart); oracool::DrawDesertSky(visible, position, visibleStart); oracool::DrawSceneFeelLights(visible, position, visibleStart); oracool::DrawSceneGlowLights(visible, position, visibleStart); }
 		// The other visual techniques (user, 2026-10-10: "i like all 9"), each behind its own option: particles over the
 		// lit world, the haze before the bloom so shimmered lava still glows, the area mood and vignette last so they
 		// cover the glow too - all before the outlines (the cursor's own colour) and the zoom.

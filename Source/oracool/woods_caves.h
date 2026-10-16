@@ -13,14 +13,15 @@
 
 #include "engine/point.hpp"
 #include "levels/gendung.h"
+#include "oracool/woods.h"
 
 namespace devilution::oracool {
 
 /** @brief A new game: every cave's seed and rung forgotten. */
 void ResetWoodsCavesForNewGame();
 
-/** @brief The cave whose mouth stands on woods floor @p floorIndex (0-3), or SL_NONE. */
-_setlevels WoodsCaveOnFloor(int floorIndex);
+/** @brief The cave whose mouth stands on floor @p floorIndex (0-3) of @p area, or SL_NONE. */
+_setlevels WoodsCaveOnFloor(int floorIndex, OrclArea area = OrclArea::Woods);
 
 /** @brief The cave's name, for the automap, the hover and the waypoint-less level name. */
 const char *WoodsCaveName(_setlevels level);
@@ -40,8 +41,8 @@ uint32_t WoodsCaveRosterSeed();
  */
 bool CheckWoodsCaveExits();
 
-/** @brief Into the cave on woods floor @p floorIndex, from its mouth. */
-void EnterWoodsCaveFromMouth(int floorIndex);
+/** @brief Into the cave on floor @p floorIndex of @p area, from its mouth. */
+void EnterWoodsCaveFromMouth(int floorIndex, OrclArea area = OrclArea::Woods);
 
 /** @brief The hover text for the cave's stairs at @p tile, or nullptr. @p up is set to the stairs' way. */
 const char *WoodsCaveStairsText(bool up);

@@ -60,6 +60,15 @@ enum _setlevels : int8_t {
 	SL_ORCL_CAVE_1,
 	SL_ORCL_CAVE_2,
 	SL_ORCL_CAVE_3,
+	// The desert east of the cows (user, 2026-10-16: "design the 100x100 levels of Desert Area"): four floors on the woods'
+	// generator, its own art (oracool/woods.h), and the caves under its sand holes.
+	SL_ORCL_DESERT_1,
+	SL_ORCL_DESERT_2,
+	SL_ORCL_DESERT_3,
+	SL_ORCL_DESERT_4,
+	SL_ORCL_DESERT_CAVE_1,
+	SL_ORCL_DESERT_CAVE_2,
+	SL_ORCL_DESERT_CAVE_3,
 
 	SL_FIRST_ARENA = SL_ARENA_CHURCH,
 	SL_LAST_ARENA = SL_ARENA_CIRCLE_OF_LIFE,
@@ -67,7 +76,11 @@ enum _setlevels : int8_t {
 	SL_LAST_WOODS = SL_ORCL_WOODS_4,
 	SL_FIRST_WOODS_CAVE = SL_ORCL_CAVE_1,
 	SL_LAST_WOODS_CAVE = SL_ORCL_CAVE_3,
-	SL_LAST = SL_ORCL_CAVE_3,
+	SL_FIRST_DESERT = SL_ORCL_DESERT_1,
+	SL_LAST_DESERT = SL_ORCL_DESERT_4,
+	SL_FIRST_DESERT_CAVE = SL_ORCL_DESERT_CAVE_1,
+	SL_LAST_DESERT_CAVE = SL_ORCL_DESERT_CAVE_3,
+	SL_LAST = SL_ORCL_DESERT_CAVE_3,
 };
 
 inline bool IsWoodsLevel(_setlevels setLevel)
@@ -80,10 +93,38 @@ inline bool IsWoodsCaveLevel(_setlevels setLevel)
 	return setLevel >= SL_FIRST_WOODS_CAVE && setLevel <= SL_LAST_WOODS_CAVE;
 }
 
-/** @brief A level of the Orcl Act: a woods floor or one of their caves - generated, with the act's own rung (oracool/woods.h). */
+inline bool IsDesertLevel(_setlevels setLevel)
+{
+	return setLevel >= SL_FIRST_DESERT && setLevel <= SL_LAST_DESERT;
+}
+
+inline bool IsDesertCaveLevel(_setlevels setLevel)
+{
+	return setLevel >= SL_FIRST_DESERT_CAVE && setLevel <= SL_LAST_DESERT_CAVE;
+}
+
+/** @brief An Orcl Act floor under the sky: the woods' or the desert's (DTYPE_WOODS, the act's outdoor level type). */
+inline bool IsOutdoorActLevel(_setlevels setLevel)
+{
+	return IsWoodsLevel(setLevel) || IsDesertLevel(setLevel);
+}
+
+/** @brief One of the Orcl Act's caves, under the woods or the desert (the Caves tileset). */
+inline bool IsActCaveLevel(_setlevels setLevel)
+{
+	return IsWoodsCaveLevel(setLevel) || IsDesertCaveLevel(setLevel);
+}
+
+/** @brief An area's last floor, where its boss waits (D10): the woods' fourth, the desert's fourth. */
+inline bool IsActBossLevel(_setlevels setLevel)
+{
+	return setLevel == SL_LAST_WOODS || setLevel == SL_LAST_DESERT;
+}
+
+/** @brief A level of the Orcl Act: a floor of an area or one of its caves - generated, with the act's own rung (oracool/woods.h). */
 inline bool IsOrclActLevel(_setlevels setLevel)
 {
-	return IsWoodsLevel(setLevel) || IsWoodsCaveLevel(setLevel);
+	return IsOutdoorActLevel(setLevel) || IsActCaveLevel(setLevel);
 }
 
 inline bool IsArenaLevel(_setlevels setLevel)

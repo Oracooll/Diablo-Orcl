@@ -5,6 +5,7 @@
  */
 #include "engine/palette.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 
@@ -259,6 +260,11 @@ void LoadPalette(const char *pszFileName, bool blend /*= true*/)
 	// 32-bit screen: set-item text (RgbDefinedColors), the green skill plate (spell_icons.cpp), the
 	// runeword socket border (inv.cpp). The palette is vanilla's again.
 
+	ApplyOrigPalette(blend);
+}
+
+void ApplyOrigPalette(bool blend)
+{
 	if (blend) {
 		if (leveltype == DTYPE_CAVES || leveltype == DTYPE_CRYPT) {
 			GenerateBlendedLookupTable(orig_palette, 1, 31);
@@ -289,6 +295,27 @@ void LoadPalette(const char *pszFileName, bool blend /*= true*/)
 	}
 	if (!HeadlessMode)
 		palette_update();
+}
+
+void TintDesertCavePalette()
+{
+	if (HeadlessMode)
+		return;
+	// The Caves' blue-grey rock to sandstone (user, 2026-10-16: "Invent properly tinted Desert Caves"): each colour toward a warm
+	// ochre ramp of its own brightness, two thirds of the way - light ochre in its lights, a burnt brown in its darks. Only the level's
+	// own half (32-127): the cycling lava and water (1-31) keep theirs, and 128-255 are everyone's - the heroes, the monsters, the
+	// items, the HUD (audit round 2: tinted, the hero and his globes went ochre too).
+	for (int i = 32; i < 128; i++) {
+		SDL_Color &c = orig_palette[i];
+		const float l = 0.30F * static_cast<float>(c.r) + 0.59F * static_cast<float>(c.g) + 0.11F * static_cast<float>(c.b);
+		const float to[3] = { l * 1.20F + 6.0F, l * 0.98F + 3.0F, l * 0.68F };
+		Uint8 *channel[3] = { &c.r, &c.g, &c.b };
+		for (int k = 0; k < 3; k++) {
+			const float value = static_cast<float>(*channel[k]) * 0.34F + to[k] * 0.66F;
+			*channel[k] = static_cast<Uint8>(std::clamp(value, 0.0F, 255.0F));
+		}
+	}
+	ApplyOrigPalette(true);
 }
 
 void LoadRndLvlPal(dungeon_type l)

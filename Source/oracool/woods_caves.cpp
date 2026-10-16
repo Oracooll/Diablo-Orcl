@@ -30,17 +30,24 @@ namespace {
 
 struct CaveDef {
 	_setlevels level;
-	int woodsFloor; // the woods floor (0-3) its mouth stands on
+	OrclArea area;  // the area whose floor its mouth stands on
+	int woodsFloor; // that floor (0-3)
 	int depth;      // 0 for the floor under the mouth
 	bool last;      // no way further down
 	const char *name;
 };
 
-/** @brief The caves (2026-10-14): a one-floor den on the first woods floor, a two-floor cave under the third. */
-constexpr std::array<CaveDef, 3> Caves { {
-	{ SL_ORCL_CAVE_1, 0, 0, true, "The Mossbound Den" },
-	{ SL_ORCL_CAVE_2, 2, 0, false, "The Underroot" },
-	{ SL_ORCL_CAVE_3, 2, 1, true, "The Underroot Depths" },
+/**
+ * @brief The caves (2026-10-14): a one-floor den on the first woods floor, a two-floor cave under the third. The desert's the same
+ * (2026-10-16), under its sand holes: the Sand Warrens below the Salt Road, the Buried Halls below the Glass Flats.
+ */
+constexpr std::array<CaveDef, 6> Caves { {
+	{ SL_ORCL_CAVE_1, OrclArea::Woods, 0, 0, true, "The Mossbound Den" },
+	{ SL_ORCL_CAVE_2, OrclArea::Woods, 2, 0, false, "The Underroot" },
+	{ SL_ORCL_CAVE_3, OrclArea::Woods, 2, 1, true, "The Underroot Depths" },
+	{ SL_ORCL_DESERT_CAVE_1, OrclArea::Desert, 0, 0, true, "The Sand Warrens" },
+	{ SL_ORCL_DESERT_CAVE_2, OrclArea::Desert, 2, 0, false, "The Buried Halls" },
+	{ SL_ORCL_DESERT_CAVE_3, OrclArea::Desert, 2, 1, true, "The Buried Halls Depths" },
 } };
 
 /** @brief One game's caves: each floor's seed and rung, rolled on its first visit (as the woods' are). */
@@ -73,10 +80,10 @@ void ResetWoodsCavesForNewGame()
 	EnterFromBelow = false;
 }
 
-_setlevels WoodsCaveOnFloor(int floorIndex)
+_setlevels WoodsCaveOnFloor(int floorIndex, OrclArea area)
 {
 	for (const CaveDef &cave : Caves) {
-		if (cave.woodsFloor == floorIndex && cave.depth == 0)
+		if (cave.area == area && cave.woodsFloor == floorIndex && cave.depth == 0)
 			return cave.level;
 	}
 	return SL_NONE;
@@ -95,7 +102,7 @@ void BuildWoodsCaveLevel(bool fresh)
 		Game.seed[index] = (static_cast<uint32_t>(AdvanceRndSeed()) ^ (SDL_GetTicks() * 2246822519U)) | 1U;
 	if (Game.rung[index] == 0) {
 		// A rung deeper than the woods floor above, one more per floor down; that floor's rung if it has one, else the hero's.
-		int above = WoodsFloorRung(cave.woodsFloor);
+		int above = WoodsFloorRung(cave.woodsFloor, cave.area);
 		if (above == 0) {
 			const int heroLevel = MyPlayer != nullptr ? MyPlayer->_pLevel : 1;
 			above = std::clamp(heroLevel / 3, 1, RungsPerDifficulty) + cave.woodsFloor;
@@ -111,6 +118,8 @@ void BuildWoodsCaveLevel(bool fresh)
 	GeneratingCaveWithoutWayDown = false;
 	EnterFromBelow = false;
 	LoadRndLvlPal(leveltype);
+	if (cave.area == OrclArea::Desert)
+		TintDesertCavePalette();
 	LoadLevelSOLData();
 	InitL3Triggers(); // the stairs' triggers; CheckWoodsCaveExits says where they lead
 	// No pack on the landing: a floor's stairs keep theirs through Freeupstairs, a set level has none.
@@ -133,7 +142,7 @@ void BuildWoodsCaveLevel(bool fresh)
 
 int WoodsCaveRung()
 {
-	if (!setlevel || !IsWoodsCaveLevel(setlvlnum))
+	if (!setlevel || !IsActCaveLevel(setlvlnum))
 		return 1;
 	const int rung = Game.rung[IndexOf(setlvlnum)];
 	return rung == 0 ? 1 : rung;
@@ -144,9 +153,9 @@ uint32_t WoodsCaveRosterSeed()
 	return Game.seed[IndexOf(setlvlnum)] ^ 0x0AC7U;
 }
 
-void EnterWoodsCaveFromMouth(int floorIndex)
+void EnterWoodsCaveFromMouth(int floorIndex, OrclArea area)
 {
-	const _setlevels cave = WoodsCaveOnFloor(floorIndex);
+	const _setlevels cave = WoodsCaveOnFloor(floorIndex, area);
 	if (cave == SL_NONE || MyPlayer == nullptr)
 		return;
 	EnterFromBelow = false;
@@ -156,7 +165,7 @@ void EnterWoodsCaveFromMouth(int floorIndex)
 
 bool CheckWoodsCaveExits()
 {
-	if (MyPlayer == nullptr || !setlevel || !IsWoodsCaveLevel(setlvlnum))
+	if (MyPlayer == nullptr || !setlevel || !IsActCaveLevel(setlvlnum))
 		return false;
 	Player &player = *MyPlayer;
 	const CaveDef &cave = Caves[IndexOf(setlvlnum)];
@@ -165,10 +174,10 @@ bool CheckWoodsCaveExits()
 			continue;
 		if (trigs[i]._tmsg == WM_DIABPREVLVL) {
 			if (cave.depth == 0) {
-				// Out by the mouth, onto the woods floor it stands on.
+				// Out by the mouth (or the sand hole), onto the floor it stands on.
 				EnterWoodsAtCaveMouthNext();
 				setlvltype = DTYPE_WOODS;
-				StartNewLvl(player, WM_DIABSETLVL, static_cast<int>(SL_FIRST_WOODS) + cave.woodsFloor);
+				StartNewLvl(player, WM_DIABSETLVL, static_cast<int>(OutdoorFloorLevel(cave.area, cave.woodsFloor)));
 			} else {
 				EnterFromBelow = true;
 				setlvltype = DTYPE_CAVES;
@@ -194,7 +203,7 @@ const char *WoodsCaveStairsText(bool up)
 	static std::string text;
 	const CaveDef &cave = Caves[IndexOf(setlvlnum)];
 	if (up)
-		text = StrCat("Up to ", cave.depth == 0 ? WoodsFloorName(static_cast<_setlevels>(SL_FIRST_WOODS + cave.woodsFloor)) : Caves[IndexOf(setlvlnum) - 1].name);
+		text = StrCat("Up to ", cave.depth == 0 ? WoodsFloorName(OutdoorFloorLevel(cave.area, cave.woodsFloor)) : Caves[IndexOf(setlvlnum) - 1].name);
 	else
 		text = StrCat("Down to ", cave.last ? cave.name : Caves[IndexOf(setlvlnum) + 1].name);
 	return text.c_str();

@@ -308,6 +308,11 @@ void AddL2Objs(int x1, int y1, int x2, int y2);
 void AddL3Objs(int x1, int y1, int x2, int y2);
 void AddCryptObjects(int x1, int y1, int x2, int y2);
 void InitObjects();
+/**
+ * @brief The floor a shrine's reward and a trap's strength scale with: the dungeon's own floor, a rift's tier's rung, the Orcl Act's
+ * rung - never a set level's id, which a set level keeps in currlevel.
+ */
+int TrapFloor();
 /** @brief A revisited level's burning flame traps get lights of their own again (the pool was emptied). */
 void RelightLoadedFlameTraps();
 void SetMapObjects(const uint16_t *dunData, int startx, int starty);

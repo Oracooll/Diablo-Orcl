@@ -35,6 +35,7 @@
 #include "oracool/rift_bosses.h"
 #include "oracool/scene_fx.h"
 #include "oracool/splats.h"
+#include "oracool/woods.h" // OnDesertFloor - no fireflies over the desert
 #include "player.h"
 
 #ifdef _MSC_VER
@@ -371,7 +372,7 @@ void TickFootprints()
 	float snow = 0;
 	const Weather w = ShownWeather(snow);
 	const bool snowy = w == Weather::Snow && snow > 0.25F;
-	const bool wet = Wetness > 0.25F;
+	const bool wet = Wetness > 0.25F && !OnDesertFloor(); // the woods' rain does not wet the desert's sand
 	const Player &player = *MyPlayer;
 	const Displacement walk = WalkOffset(player);
 	const float x = WorldX(player.position.tile) + static_cast<float>(walk.deltaX);
@@ -863,7 +864,7 @@ void ApplySceneLifeGround(const Surface &out, Point firstTile, Point firstTileBu
 	float rain = 0;
 	const bool raining = ShownWeather(rain) == Weather::Rain && rain > 0.05F;
 	const float size = std::sqrt(Clamp01(Wetness * 1.5F));
-	if (*sgOptions.Oracool.puddles && Wetness > 0.04F) {
+	if (*sgOptions.Oracool.puddles && Wetness > 0.04F && !OnDesertFloor()) {
 		int x0, x1, y0, y1;
 		ViewTiles(v, x0, x1, y0, y1);
 		for (int ty = y0; ty <= y1; ty++) {
@@ -990,7 +991,7 @@ void DrawSceneLifeBodies(const Surface &out, Point firstTile, Point firstTileBuf
 		// alone whitened the floor tiles and left every tree's and rock's ground piece dark - a checkerboard). Even over
 		// everything: rain darkens and greys it a little, snow cools it, greys it and lifts it a little - roofs, trees and
 		// ground alike.
-		if (shown != Weather::Clear && weather > 0.01F) {
+		if ((shown == Weather::Rain || shown == Weather::Snow) && weather > 0.01F) {
 			const bool snow = shown == Weather::Snow;
 			const int grey = static_cast<int>((snow ? 70.0F : 40.0F) * weather);
 			const uint32_t keep = static_cast<uint32_t>(256 - static_cast<int>((snow ? 0.0F : 30.0F) * weather));
@@ -1222,7 +1223,7 @@ void DrawSceneLifeLights(const Surface &out, Point firstTile, Point firstTileBuf
 	// Fireflies over Tristram at night, over open ground.
 	float weather = 0;
 	const Weather shown = ShownWeather(weather);
-	if (IsUnderSky(leveltype) && *sgOptions.Oracool.townLife && TownIsDark() && (shown == Weather::Clear || weather < 0.3F)) {
+	if (IsUnderSky(leveltype) && !OnDesertFloor() && *sgOptions.Oracool.townLife && TownIsDark() && (shown == Weather::Clear || weather < 0.3F)) {
 		int x0, x1, y0, y1;
 		ViewTiles(v, x0, x1, y0, y1);
 		constexpr uint32_t Glow = SL_PACK(205, 255, 125);

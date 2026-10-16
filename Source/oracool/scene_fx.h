@@ -144,6 +144,8 @@ enum class Weather : uint8_t {
 	Clear,
 	Rain,
 	Snow,
+	/** @brief The desert's (user, 2026-10-16): a tan haze that gusts, grit streaking past, sand drifting low over the ground. */
+	Sandstorm,
 };
 /** @brief Tristram's weather now, and how far it has set in (0..1). */
 Weather CurrentWeather(float *intensity = nullptr);

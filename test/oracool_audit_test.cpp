@@ -14708,12 +14708,13 @@ TEST(OracoolWaypointActs, EveryDungeonLevelSitsOnExactlyOneAct)
 
 	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Diablo), 17u);
 	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Hellfire), 9u);
-	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Orcl), 1u + oracool::WoodsWaypointCount) << "Tristram and the four woods floors";
-	for (int floor = 0; floor < oracool::WoodsWaypointCount; floor++) {
-		const int index = oracool::FirstWoodsWaypoint + floor;
-		EXPECT_EQ(oracool::WaypointActLevelAt(oracool::WaypointAct::Orcl, static_cast<size_t>(1 + floor)), index) << "woods floor " << floor + 1;
-		EXPECT_EQ(oracool::WaypointActOfLevel(index), oracool::WaypointAct::Orcl) << "woods floor " << floor + 1;
-		EXPECT_LE(index, 32) << "carried by the hero file's 32-bit waypoint mask";
+	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Orcl), 1u + oracool::WoodsWaypointCount + oracool::DesertWaypointCount)
+	    << "Tristram, the four woods floors and the desert's four";
+	for (int floor = 0; floor < oracool::WoodsWaypointCount + oracool::DesertWaypointCount; floor++) {
+		const int index = oracool::FirstWoodsWaypoint + floor; // the desert's follow the woods' (29-32)
+		EXPECT_EQ(oracool::WaypointActLevelAt(oracool::WaypointAct::Orcl, static_cast<size_t>(1 + floor)), index) << "Orcl floor " << floor + 1;
+		EXPECT_EQ(oracool::WaypointActOfLevel(index), oracool::WaypointAct::Orcl) << "Orcl floor " << floor + 1;
+		EXPECT_LE(index, 32) << "carried by the hero file's 32-bit waypoint mask as well as its 64-bit chunk";
 	}
 
 	for (const auto act : { oracool::WaypointAct::Diablo, oracool::WaypointAct::Hellfire, oracool::WaypointAct::Orcl }) {
@@ -20756,10 +20757,12 @@ TEST(OracoolAudit, WoodsRosterHasFourKindsOnEveryRung)
 	const bool savedSetLevel = setlevel;
 	const _setlevels savedSetLevelNum = setlvlnum;
 	const bool savedSpawn = gbIsSpawn;
+	const bool savedHellfire = gbIsHellfire;
 	const _difficulty savedDifficulty = sgGameInitInfo.nDifficulty;
 	setlevel = true;
 	setlvlnum = SL_ORCL_WOODS_2;
 	gbIsSpawn = false;
+	gbIsHellfire = true; // the Orcl game is Hellfire's: the Reaper is one of the four (a Diablo game has not his sprites)
 	for (int rung = 1; rung <= oracool::RungsPerDifficulty; rung++) {
 		oracool::SetWoodsRungForTest(1, rung);
 		EXPECT_EQ(oracool::WoodsBandFloor(), rung);
@@ -20843,7 +20846,351 @@ TEST(OracoolAudit, WoodsRosterHasFourKindsOnEveryRung)
 	setlevel = savedSetLevel;
 	setlvlnum = savedSetLevelNum;
 	gbIsSpawn = savedSpawn;
+	gbIsHellfire = savedHellfire;
 	sgGameInitInfo.nDifficulty = savedDifficulty;
+}
+
+#include "oracool/scene_fx.h"
+
+namespace {
+
+/** @brief Every tile walkable from @p from (the four steps), as a set of x * MAXDUNY + y. */
+std::set<int> WalkableFrom(Point from)
+{
+	std::vector<Point> stack { from };
+	std::set<int> seen { from.x * MAXDUNY + from.y };
+	while (!stack.empty()) {
+		const Point p = stack.back();
+		stack.pop_back();
+		for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 } }) {
+			const Point n = p + d;
+			if (!InDungeonBounds(n) || TileHasAny(dPiece[n.x][n.y], TileProperties::Solid) || !seen.insert(n.x * MAXDUNY + n.y).second)
+				continue;
+			stack.push_back(n);
+		}
+	}
+	return seen;
+}
+
+} // namespace
+
+/**
+ * The desert (user, 2026-10-16: "design the 100x100 levels of Desert Area"): each of its four floors, from several seeds, can be walked
+ * from the arrival to both roads' ends and to its sand hole; its oasis pool is water no one walks on, beside mud one does; it has no
+ * fences, cottages, river, wisps or fairy ring; its ground is mostly sand with the salt road through it; and what stands along its
+ * roads can be reached.
+ */
+TEST(OracoolAudit, DesertFloorsAreWalkableAndHoldTheirSights)
+{
+	MountTestArchives(true);
+	const OrclActMapGuard mapGuard;
+	const bool savedHellfire = gbIsHellfire;
+	const dungeon_type savedType = leveltype;
+	const bool savedSetlevel = setlevel;
+	const _setlevels savedSetLevelNum = setlvlnum;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
+	EXPECT_EQ(oracool::WoodsCaveOnFloor(0, oracool::OrclArea::Desert), SL_ORCL_DESERT_CAVE_1) << "the Salt Road's sand hole";
+	EXPECT_EQ(oracool::WoodsCaveOnFloor(2, oracool::OrclArea::Desert), SL_ORCL_DESERT_CAVE_2) << "the Glass Flats' sand hole";
+	EXPECT_EQ(oracool::WoodsCaveOnFloor(1, oracool::OrclArea::Desert), SL_NONE);
+	EXPECT_EQ(oracool::WoodsCaveOnFloor(0, oracool::OrclArea::Woods), SL_ORCL_CAVE_1) << "the woods keep theirs";
+	int oases = 0;
+	for (int floor = 0; floor < 4; floor++) {
+		setlvlnum = static_cast<_setlevels>(SL_FIRST_DESERT + floor);
+		constexpr const char *Names[] = { "The Salt Road", "The Ash Dunes", "The Glass Flats", "Tomb of the Sun-Eater" };
+		EXPECT_STREQ(oracool::WoodsFloorName(setlvlnum), Names[floor]);
+		const bool hole = oracool::WoodsCaveOnFloor(floor, oracool::OrclArea::Desert) != SL_NONE;
+		for (const uint32_t seed : { 0x6E00D5U, 0x12345U, 0xBEEF01U, 0x77AA33U, 0x3141U }) {
+			oracool::SetWoodsCaveMouthFloorForTest(hole ? floor : -1);
+			CreateDungeon(seed, ENTRY_SETLVL);
+			const Point entrance = oracool::StampWoodsCaveMouthForTest();
+			ASSERT_TRUE(oracool::DesertBuilt()) << "floor " << floor;
+			LoadLevelSOLData();
+			const Point arrival = oracool::WoodsArrival();
+			const Point wayOn = oracool::WoodsWayOn();
+			const std::set<int> seen = WalkableFrom(arrival);
+			const auto walked = [&seen](Point p) { return seen.count(p.x * MAXDUNY + p.y) != 0; };
+			const std::string at = "floor " + std::to_string(floor) + " seed " + std::to_string(seed);
+			EXPECT_TRUE(walked({ 104, arrival.y })) << at << ": the road back cannot be walked to";
+			EXPECT_TRUE(walked({ 7, wayOn.y })) << at << ": the way on cannot be walked to";
+			if (hole) {
+				ASSERT_NE(entrance, Point(0, 0)) << at << ": no sand hole";
+				EXPECT_TRUE(walked(entrance)) << at << ": the sand hole cannot be walked to";
+				// Off the roads (audit, 2026-10-16): a click that ended on the road's middle tile dropped the hero in.
+				int roadNear = 0;
+				for (int dy = -1; dy <= 1; dy++)
+					for (int dx = -1; dx <= 1; dx++)
+						roadNear += oracool::WoodsGroundAt(entrance + Displacement { dx, dy }) == 3 ? 1 : 0;
+				EXPECT_EQ(roadNear, 0) << at << ": the sand hole is on a road";
+			} else {
+				EXPECT_EQ(entrance, Point(0, 0)) << at << ": a sand hole on a floor without a cave";
+			}
+			if (const Point oasis = oracool::DesertOasisForTest(); oasis != Point(0, 0)) {
+				oases++;
+				EXPECT_TRUE(TileHasAny(dPiece[oasis.x][oasis.y], TileProperties::Solid)) << at << ": the oasis's water can be walked on";
+				bool shore = false;
+				for (int k = 0; k < 16 && !shore; k++) {
+					const float a = 6.2831853F * static_cast<float>(k) / 16.0F;
+					shore = walked(oasis + Displacement { static_cast<int>(std::lround(std::cos(a) * 3.0F)), static_cast<int>(std::lround(std::sin(a) * 3.0F)) });
+				}
+				EXPECT_TRUE(shore) << at << ": no way to the oasis's water";
+			}
+			// Sand mostly, the salt road through it, no Caves fences or Catacombs walls (no pens, no cottages).
+			int sand = 0, road = 0, inside = 0, borrowed = 0;
+			for (int y = 6; y <= 105; y++)
+				for (int x = 6; x <= 105; x++) {
+					inside++;
+					const uint8_t ground = oracool::WoodsGroundAt({ x, y });
+					sand += ground <= 2 || ground == 8 ? 1 : 0; // the sands, the clay and the buried paving
+					road += ground == 3 ? 1 : 0;
+					borrowed += oracool::IsBorrowedPiece(dPiece[x][y]) ? 1 : 0;
+				}
+			EXPECT_GT(sand, inside / 2) << at << ": not a desert";
+			EXPECT_GT(road, 300) << at << ": no salt road";
+			EXPECT_EQ(borrowed, 0) << at << ": the woods' fences or cottages in the desert";
+			EXPECT_EQ(oracool::WoodsHouseCountForTest(), 0) << at;
+			const oracool::WoodsWorldPlanForTest world = oracool::PlanWoodsWorldForTest(seed, floor);
+			EXPECT_EQ(world.wisps, 0) << at << ": wisps in the desert";
+			EXPECT_FALSE(world.fairyRing) << at << ": a fairy ring in the desert";
+			std::map<int, int> kinds;
+			for (const auto &[type, place] : world.objects) {
+				kinds[type]++;
+				bool reachable = walked(place);
+				for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 }, Displacement { 1, 1 }, Displacement { -1, -1 }, Displacement { 1, -1 }, Displacement { -1, 1 } })
+					reachable = reachable || walked(place + d);
+				EXPECT_TRUE(reachable) << at << ": object " << type << " at " << place.x << "," << place.y << " cannot be reached";
+			}
+			EXPECT_EQ(kinds[OBJ_BLOODFTN], 1) << at << ": the health shrine";
+			EXPECT_EQ(kinds[OBJ_PURIFYINGFTN], 1) << at << ": the mana shrine";
+			EXPECT_GE(kinds[OBJ_URN] + kinds[OBJ_URNEX], 3) << at << ": the clay urns by the road";
+		}
+	}
+	EXPECT_GE(oases, 8) << "the Ash Dunes always have their oasis, the Salt Road nearly always";
+	oracool::SetWoodsCaveMouthFloorForTest(-1);
+	leveltype = savedType;
+	setlevel = savedSetlevel;
+	setlvlnum = savedSetLevelNum;
+	gbIsHellfire = savedHellfire;
+}
+
+/**
+ * The desert's monsters (2026-10-16): its own roster - none of the woods' goatmen, Fallen or Succubi - with four kinds on every rung
+ * on its floors and in its caves, and its own boss on its last floor, rolled apart from the woods'.
+ */
+TEST(OracoolAudit, DesertRosterHasFourKindsOnEveryRung)
+{
+	const bool savedSetLevel = setlevel;
+	const _setlevels savedSetLevelNum = setlvlnum;
+	const bool savedSpawn = gbIsSpawn;
+	const bool savedHellfire = gbIsHellfire;
+	setlevel = true;
+	gbIsSpawn = false;
+	gbIsHellfire = true;
+	const std::vector<int> desert = oracool::AreaRosterForTest(oracool::OrclArea::Desert);
+	const std::vector<int> woods = oracool::AreaRosterForTest(oracool::OrclArea::Woods);
+	// The user's desert roster (2026-10-16): its 28 kinds, none of its bosses among them; and its own, not the woods'.
+	EXPECT_EQ(desert.size(), 28U);
+	for (const int kind : { MT_SKING, MT_CLEAVER, MT_REAPER, MT_DIABLO })
+		EXPECT_EQ(std::count(desert.begin(), desert.end(), kind), 0) << kind << ": a boss in the desert's roster";
+	for (const int kind : { MT_STINGER, MT_BICLOPS, MT_GRAVEDIG })
+		EXPECT_EQ(std::count(woods.begin(), woods.end(), kind), 0) << kind << ": a desert kind in the woods";
+	for (const _setlevels level : { SL_ORCL_DESERT_2, SL_ORCL_DESERT_CAVE_1 }) {
+		setlvlnum = level;
+		for (int rung = 1; rung <= oracool::RungsPerDifficulty; rung++) {
+			oracool::SetWoodsRungForTest(1, rung, oracool::OrclArea::Desert);
+			int kinds = 0;
+			for (int i = MT_NZOMBIE; i < NUM_MTYPES; i++) {
+				if (!oracool::WoodsAcceptsMonster(MonstersData[i]))
+					continue;
+				kinds++;
+				EXPECT_NE(std::count(desert.begin(), desert.end(), i), 0) << "rung " << rung << ": " << i << " is not the desert's";
+			}
+			if (level == SL_ORCL_DESERT_2) {
+				EXPECT_EQ(oracool::WoodsBandFloor(), rung);
+				EXPECT_GE(kinds, 4) << "rung " << rung;
+			} else {
+				EXPECT_GE(kinds, 4) << "the cave, rung " << oracool::WoodsBandFloor();
+			}
+		}
+	}
+	// The roster a desert floor's load builds (audit, 2026-10-16): only the desert's kinds - the Hive's and the Crypt's floor numbers
+	// (18-24) are the desert's set level ids, and their own kinds came in by currlevel.
+	{
+		const uint8_t savedCurrlevel = currlevel;
+		const bool savedHeadless = HeadlessMode;
+		const size_t savedActive = ActiveMonsterCount;
+		HeadlessMode = true;
+		for (const _setlevels level : { SL_ORCL_DESERT_1, SL_ORCL_DESERT_2, SL_ORCL_DESERT_3, SL_ORCL_DESERT_CAVE_3 }) {
+			setlvlnum = level;
+			currlevel = static_cast<uint8_t>(level);
+			oracool::SetWoodsRungForTest(1, 8, oracool::OrclArea::Desert);
+			ActiveMonsterCount = savedActive;
+			ResetLevelMonsterTypesForTest();
+			GetLevelMTypes();
+			for (size_t i = 0; i < LevelMonsterTypeCount; i++) {
+				const int kind = LevelMonsterTypes[i].type;
+				if (kind == MT_GOLEM)
+					continue;
+				EXPECT_NE(std::count(desert.begin(), desert.end(), kind), 0) << "set level " << level << ": " << kind << " is not the desert's";
+			}
+		}
+		// And the Cornerstone of the World is the Crypt's first floor's, not the desert's last (set level 21).
+		setlvlnum = SL_LAST_DESERT;
+		currlevel = static_cast<uint8_t>(SL_LAST_DESERT);
+		EXPECT_FALSE(CornerStone.isAvailable());
+		ResetLevelMonsterTypesForTest();
+		ActiveMonsterCount = savedActive;
+		HeadlessMode = savedHeadless;
+		currlevel = savedCurrlevel;
+	}
+	// Diablo without Hellfire has not the Stingers' sprites: none of Hellfire's own then.
+	gbIsHellfire = false;
+	setlvlnum = SL_ORCL_DESERT_2;
+	for (int i = MT_HELLBOAR; i < NUM_MTYPES; i++)
+		EXPECT_FALSE(oracool::WoodsAcceptsMonster(MonstersData[i])) << i;
+	gbIsHellfire = true;
+	// The boss: the desert's last floor guards one, from its own seed - the woods' seed does not decide it.
+	setlvlnum = SL_LAST_DESERT;
+	const uint8_t savedCurrlevel = currlevel;
+	currlevel = static_cast<uint8_t>(setlvlnum); // as a level load has it (BossCountForLevel asks for a floor)
+	EXPECT_EQ(oracool::BossCountForLevel(), 1) << "the desert's last floor guards a boss";
+	currlevel = savedCurrlevel;
+	oracool::SetWoodsSeedForTest(3, 0x00300001U, oracool::OrclArea::Woods);
+	oracool::SetWoodsSeedForTest(3, 0, oracool::OrclArea::Desert);
+	EXPECT_EQ(oracool::WoodsBossKind(), -1) << "no desert boss before its last floor has a seed";
+	std::set<int> bossKinds;
+	for (uint32_t seed = 1; seed < 64; seed++) {
+		oracool::SetWoodsSeedForTest(3, seed * 0x9E3779B1U | 1U, oracool::OrclArea::Desert);
+		const int kind = oracool::WoodsBossKind();
+		EXPECT_TRUE(IsAnyOf(static_cast<_monster_id>(kind), MT_SKING, MT_CLEAVER, MT_REAPER)) << kind << ": not one of the desert's three";
+		bossKinds.insert(kind);
+	}
+	EXPECT_EQ(bossKinds.size(), 3U) << "each of the desert's three bosses comes up across new games";
+	oracool::SetWoodsSeedForTest(3, 0, oracool::OrclArea::Woods);
+	oracool::SetWoodsSeedForTest(3, 0, oracool::OrclArea::Desert);
+	oracool::SetWoodsRungForTest(1, 0, oracool::OrclArea::Desert);
+	setlevel = savedSetLevel;
+	setlvlnum = savedSetLevelNum;
+	gbIsSpawn = savedSpawn;
+	gbIsHellfire = savedHellfire;
+}
+
+/**
+ * Each sky its own weather (user, 2026-10-16: "implement all the weather effects including your suggestions of sand storm"): a
+ * sandstorm over the desert and nowhere else, no rain or snow over the desert.
+ */
+TEST(OracoolAudit, SandstormsBelongToTheDesert)
+{
+	const dungeon_type savedType = leveltype;
+	const bool savedSetlevel = setlevel;
+	const _setlevels savedSetLevelNum = setlvlnum;
+	float intensity = 0;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	setlvlnum = SL_ORCL_DESERT_1;
+	oracool::SetWeather(oracool::Weather::Sandstorm);
+	EXPECT_EQ(oracool::CurrentWeather(&intensity), oracool::Weather::Sandstorm);
+	EXPECT_GT(intensity, 0.5F);
+	oracool::SetWeather(oracool::Weather::Rain);
+	EXPECT_EQ(oracool::CurrentWeather(&intensity), oracool::Weather::Clear) << "rain over the desert";
+	EXPECT_EQ(intensity, 0.0F);
+	setlvlnum = SL_ORCL_WOODS_1;
+	EXPECT_EQ(oracool::CurrentWeather(), oracool::Weather::Rain) << "the woods' rain";
+	oracool::SetWeather(oracool::Weather::Sandstorm);
+	EXPECT_EQ(oracool::CurrentWeather(), oracool::Weather::Clear) << "a sandstorm in the woods";
+	leveltype = DTYPE_TOWN;
+	setlevel = false;
+	EXPECT_EQ(oracool::CurrentWeather(), oracool::Weather::Clear) << "a sandstorm over Tristram";
+	oracool::SetWeather(oracool::Weather::Clear);
+	leveltype = savedType;
+	setlevel = savedSetlevel;
+	setlvlnum = savedSetLevelNum;
+}
+
+/**
+ * The desert's floors as the game draws them (2026-10-16): ORCL_WOODS_OUT/desert_<floor>_map.png - the ground, 4 px a tile, things
+ * that stand as dark dots - and desert_<floor>_<place>.png, 1280 x 720 isometric views round the arrival, the oasis and the sand hole
+ * through the game's own woods calls (seed ORCL_WOODS_SEED).
+ */
+TEST(OracoolPreview, DISABLED_DesertFloors)
+{
+	const char *outDir = std::getenv("ORCL_WOODS_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
+	const char *seedText = std::getenv("ORCL_WOODS_SEED");
+	const uint32_t seed = seedText != nullptr ? static_cast<uint32_t>(std::strtoul(seedText, nullptr, 0)) : 0x6E00D5U;
+	constexpr uint32_t Colours[] = { 0x9A8462U, 0x7C6A4EU, 0x6E5240U, 0xC0B090U, 0x5A544CU, 0x6A7040U, 0x3A3024U, 0x5A6440U, 0xA89670U };
+	for (int floor = 0; floor < 4; floor++) {
+		setlvlnum = static_cast<_setlevels>(SL_FIRST_DESERT + floor);
+		const bool hole = oracool::WoodsCaveOnFloor(floor, oracool::OrclArea::Desert) != SL_NONE;
+		oracool::SetWoodsCaveMouthFloorForTest(hole ? floor : -1);
+		CreateDungeon(seed, ENTRY_SETLVL);
+		const Point entrance = oracool::StampWoodsCaveMouthForTest();
+		const Point oasis = oracool::DesertOasisForTest();
+		constexpr int Cell = 4;
+		OwnedSurface map = OwnedSurface::Rgb(MAXDUNX * Cell, MAXDUNY * Cell);
+		for (int y = 0; y < MAXDUNY; y++)
+			for (int x = 0; x < MAXDUNX; x++) {
+				const Point p { x, y };
+				const uint32_t c = Colours[std::min<int>(oracool::WoodsGroundAt(p), 8)];
+				for (int dy = 0; dy < Cell; dy++)
+					for (int dx = 0; dx < Cell; dx++) {
+						uint32_t px = c;
+						if (oracool::WoodsTreeAt(p) && dx >= 1 && dx <= 2 && dy >= 1 && dy <= 2)
+							px = 0x201810U;
+						if (p == oracool::WoodsArrival())
+							px = 0xFFFFFFU;
+						if (p == oracool::WoodsWayOn())
+							px = 0xFF3030U;
+						if (p == entrance)
+							px = 0x000000U;
+						*map.at<uint32_t>(x * Cell + dx, y * Cell + dy) = px;
+					}
+			}
+		PreviewSave(map, (dir / ("desert_" + std::to_string(floor + 1) + "_map.png")).string().c_str());
+		oracool::ForgetWoodsMixedFloor(); // the last floor's ground pictures
+		oracool::LoadWoodsArtForTest();
+		std::vector<std::pair<std::string, Point>> places { { "arrival", oracool::WoodsArrival() + Displacement { -6, 2 } } };
+		if (oasis != Point(0, 0))
+			places.emplace_back("oasis", oasis);
+		if (entrance != Point(0, 0))
+			places.emplace_back("hole", entrance);
+		for (const auto &[name, centre] : places) {
+			OwnedSurface view = OwnedSurface::Rgb(1280, 720);
+			const auto screenOf = [&](Point tile) {
+				return Point { 640 - 32 + (tile.x - centre.x) * 32 - (tile.y - centre.y) * 32, 360 + 15 + (tile.x - centre.x) * 16 + (tile.y - centre.y) * 16 };
+			};
+			for (int pass = 0; pass < 2; pass++) {
+				for (int sum = 0; sum <= 2 * (MAXDUNX - 1); sum++) {
+					for (int x = 0; x <= MAXDUNX - 1; x++) {
+						const Point tile { x, sum - x };
+						if (!InDungeonBounds(tile))
+							continue;
+						const Point at = screenOf(tile);
+						if (at.x < -96 || at.x > 1280 + 32 || at.y < -32 || at.y > 720 + 260)
+							continue;
+						if (pass == 0)
+							oracool::DrawWoodsGroundTile(view, tile, at, -1, false);
+						else
+							oracool::DrawWoodsTileSprite(view, tile, at, -1);
+					}
+				}
+			}
+			PreviewSave(view, (dir / ("desert_" + std::to_string(floor + 1) + "_" + name + ".png")).string().c_str());
+		}
+	}
+	oracool::SetWoodsCaveMouthFloorForTest(-1);
 }
 
 /**

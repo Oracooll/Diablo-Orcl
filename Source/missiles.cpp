@@ -4,6 +4,7 @@
  * Implementation of missile functionality.
  */
 #include "missiles.h"
+#include "objects.h" // TrapFloor
 #include "qol/stash.h" // AutoPlaceItemInStash - a stolen potion's last resort
 #include "oracool/sat_math.h" // AddPercentSat - the damage passives past int (round 27 audit)
 
@@ -333,9 +334,11 @@ void OnMonsterMissileLanded(Player &player, Monster &monster, int dam, int poiso
 	oracool::OnRiftBossDealtBlow(monster, player, dam, /*missile=*/true); // the Swarm Mother's venom rides her acid
 }
 
+// A trap's strength is its floor's (TrapFloor): a rift's tier, the Orcl Act's rung - not a set level's id in currlevel, which on
+// the Act's caves (15-17, 22-24) is Hell's and the Crypt's floors (audit, 2026-10-16).
 int ProjectileTrapDamage(Missile &missile)
 {
-	return currlevel + GenerateRnd(2 * currlevel);
+	return TrapFloor() + GenerateRnd(2 * TrapFloor());
 }
 
 namespace {
@@ -1589,11 +1592,11 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	}
 
 	int minhit = 10;
-	if (currlevel == 14)
+	if (!setlevel && currlevel == 14) // Hell's floors, not the Orcl Act's set levels that share their numbers
 		minhit = 20;
-	if (currlevel == 15)
+	if (!setlevel && currlevel == 15)
 		minhit = 25;
-	if (currlevel == 16)
+	if (!setlevel && currlevel == 16)
 		minhit = 30;
 	hper = std::max(hper, minhit);
 
@@ -3250,13 +3253,13 @@ void AddNovaBall(Missile &missile, AddMissileParameter &parameter)
 void AddFireWall(Missile &missile, AddMissileParameter &parameter)
 {
 	missile._midam = GenerateRndSum(10, 2) + 2;
-	missile._midam += missile._misource >= 0 ? Players[missile._misource]._pLevel : currlevel; // BUGFIX: missing parenthesis around ternary (fixed)
+	missile._midam += missile._misource >= 0 ? Players[missile._misource]._pLevel : TrapFloor(); // BUGFIX: missing parenthesis around ternary (fixed)
 	missile._midam <<= 3;
 	UpdateMissileVelocity(missile, parameter.dst, 16);
 	// (10 x (level + 1), or 10 at level 0, plus the dungeon level for a trap's or monster's) x 16.
 	missile._mirange = FireWallDurationTicks(missile._mispllvl);
 	if (missile._micaster == TARGET_PLAYERS || missile._misource < 0)
-		missile._mirange += 16 * currlevel;
+		missile._mirange += 16 * TrapFloor();
 	missile.var1 = missile._mirange - missile._miAnimLen;
 }
 
@@ -3455,7 +3458,7 @@ void AddFlashBottom(Missile &missile, AddMissileParameter & /*parameter*/)
 		missile._midam = missile.sourceMonster()->level(sgGameInitInfo.nDifficulty) * 2;
 		break;
 	case MissileSource::Trap:
-		missile._midam = currlevel / 2;
+		missile._midam = TrapFloor() / 2;
 		break;
 	}
 
@@ -3472,7 +3475,7 @@ void AddFlashTop(Missile &missile, AddMissileParameter & /*parameter*/)
 			missile._midam = ScaleSpellEffect(dmg, missile._mispllvl);
 			missile._midam += missile._midam / 2;
 		} else {
-			missile._midam = currlevel / 2;
+			missile._midam = TrapFloor() / 2;
 		}
 	}
 	missile._miPreFlag = true;
@@ -4964,7 +4967,7 @@ void AddNova(Missile &missile, AddMissileParameter &parameter)
 		int dmg = GenerateRndSum(6, 5) + player._pLevel + 5;
 		missile._midam = ScaleSpellEffect(dmg / 2, missile._mispllvl);
 	} else {
-		missile._midam = (currlevel / 2) + GenerateRndSum(3, 3);
+		missile._midam = (TrapFloor() / 2) + GenerateRndSum(3, 3);
 	}
 
 	missile._mirange = 1;
@@ -5081,8 +5084,8 @@ void AddInferno(Missile &missile, AddMissileParameter &parameter)
 		int minDamage = 0;
 		int maxDamage = 0;
 		if (!LiveMonsterDamageRange(missile, minDamage, maxDamage)) {
-			minDamage = currlevel; // a caster gone: a trap's, as the arrows fall back (round 29 audit)
-			maxDamage = 2 * currlevel;
+			minDamage = TrapFloor(); // a caster gone: a trap's, as the arrows fall back (round 29 audit)
+			maxDamage = 2 * TrapFloor();
 		}
 		missile._midam = minDamage + GenerateRnd(maxDamage - minDamage + 1);
 	}
@@ -5335,13 +5338,13 @@ void ProcessElementalArrow(Missile &missile)
 			} else {
 				// While the slot still holds the archer, with its pack's Might (round 28 audit); after, as a trap's.
 				if (!LiveMonsterDamageRange(missile, mind, maxd)) {
-					mind = currlevel;
-					maxd = 2 * currlevel;
+					mind = TrapFloor();
+					maxd = 2 * TrapFloor();
 				}
 			}
 		} else {
-			mind = GenerateRnd(10) + 1 + currlevel;
-			maxd = GenerateRnd(10) + 1 + currlevel * 2;
+			mind = GenerateRnd(10) + 1 + TrapFloor();
+			maxd = GenerateRnd(10) + 1 + TrapFloor() * 2;
 		}
 		MoveMissileAndCheckMissileCol(missile, DamageType::Physical, mind, maxd, true, false);
 		if (missile._mirange == 0) {
@@ -5361,8 +5364,8 @@ void ProcessElementalArrow(Missile &missile)
 					eMind = player._pILMinDam;
 					eMaxd = player._pILMaxDam;
 				} else {
-					eMind = GenerateRnd(10) + 1 + currlevel;
-					eMaxd = GenerateRnd(10) + 1 + currlevel * 2;
+					eMind = GenerateRnd(10) + 1 + TrapFloor();
+					eMaxd = GenerateRnd(10) + 1 + TrapFloor() * 2;
 				}
 				eAnim = MissileGraphicID::ChargedBolt;
 				damageType = DamageType::Lightning;
@@ -5374,8 +5377,8 @@ void ProcessElementalArrow(Missile &missile)
 					eMind = player._pIFMinDam;
 					eMaxd = player._pIFMaxDam;
 				} else {
-					eMind = GenerateRnd(10) + 1 + currlevel;
-					eMaxd = GenerateRnd(10) + 1 + currlevel * 2;
+					eMind = GenerateRnd(10) + 1 + TrapFloor();
+					eMaxd = GenerateRnd(10) + 1 + TrapFloor() * 2;
 				}
 				eAnim = MissileGraphicID::MagmaBallExplosion;
 				damageType = DamageType::Fire;
@@ -5427,13 +5430,13 @@ void ProcessArrow(Missile &missile)
 		// Oracool: while the slot still holds the archer (round 12 audit); after, the arrow lands as a trap's.
 		// With the pack's Might (round 28 audit: round 11 reached only the missiles that read _midam).
 		if (!LiveMonsterDamageRange(missile, mind, maxd)) {
-			mind = currlevel;
-			maxd = 2 * currlevel;
+			mind = TrapFloor();
+			maxd = 2 * TrapFloor();
 		}
 	} break;
 	case MissileSource::Trap:
-		mind = currlevel;
-		maxd = 2 * currlevel;
+		mind = TrapFloor();
+		maxd = 2 * TrapFloor();
 		break;
 	}
 	MoveMissileAndCheckMissileCol(missile, GetMissileData(missile._mitype).damageType(), mind, maxd, true, false);
@@ -5724,7 +5727,7 @@ void ProcessRingOfFire(Missile &missile)
 {
 	missile._miDelFlag = true;
 	int8_t src = missile._misource;
-	uint8_t lvl = missile._micaster == TARGET_MONSTERS ? Players[src]._pLevel : currlevel;
+	uint8_t lvl = missile._micaster == TARGET_MONSTERS ? Players[src]._pLevel : TrapFloor();
 	int dmg = 16 * (GenerateRndSum(10, 2) + lvl + 2) / 2;
 
 	if (missile.limitReached)
@@ -5890,7 +5893,7 @@ void ProcessLightningControl(Missile &missile)
 	int dam;
 	if (missile.IsTrap()) {
 		// BUGFIX: damage of missile should be encoded in missile struct; monster can be dead before missile arrives.
-		dam = GenerateRnd(currlevel) + 2 * currlevel;
+		dam = GenerateRnd(TrapFloor()) + 2 * TrapFloor();
 	} else if (missile._micaster == TARGET_MONSTERS) {
 		// BUGFIX: damage of missile should be encoded in missile struct; player can be dead/have left the game before missile arrives.
 		dam = (GenerateRnd(2) + GenerateRnd(Players[missile._misource]._pLevel) + 2) << 6;
@@ -5900,7 +5903,7 @@ void ProcessLightningControl(Missile &missile)
 		if (LiveMonsterDamageRange(missile, minDamage, maxDamage)) // the live caster, with its pack's Might (round 28 audit)
 			dam = 2 * (minDamage + GenerateRnd(maxDamage - minDamage + 1));
 		else
-			dam = GenerateRnd(currlevel) + 2 * currlevel; // a caster gone: as the trap's bolt above
+			dam = GenerateRnd(TrapFloor()) + 2 * TrapFloor(); // a caster gone: as the trap's bolt above
 	}
 
 	SpawnLightning(missile, dam);

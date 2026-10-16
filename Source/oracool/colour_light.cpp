@@ -699,12 +699,26 @@ void AdvanceTownClock()
 	TownClock = std::fmod(TownClock + dt * 24.0F / DaySeconds, 24.0F);
 }
 
-/** The town's ambient light at @p hour, per channel 0..1. */
+/**
+ * @brief The desert's own light over Tristram's hours (my suggestion J, user 2026-10-16): a red sun low at dawn and dusk - most at
+ * about six and seven. Midday is the town's, so its broad-day frames skip the tint pass as the town's do (audit, 2026-10-16).
+ */
+void DesertAmbient(float hour, float &r, float &g, float &b)
+{
+	const auto bell = [](float x, float centre, float width) { const float d = (x - centre) / width; return d * d < 1.0F ? (1.0F - d * d) * (1.0F - d * d) : 0.0F; };
+	const float low = std::max(bell(hour, 6.2F, 1.8F), bell(hour, 18.8F, 2.0F));
+	r *= 1.0F + 0.20F * low;
+	g *= 1.0F - 0.04F * low;
+	b *= 1.0F - 0.26F * low;
+}
+
+/** The town's ambient light at @p hour, per channel 0..1 (the desert's own on its floors). */
 void AmbientAt(float hour, float &r, float &g, float &b)
 {
 	hour = std::fmod(hour, 24.0F);
 	if (hour < 0)
 		hour += 24.0F;
+	r = g = b = 1.0F;
 	for (size_t i = 1; i < sizeof(AmbientKeys) / sizeof(AmbientKeys[0]); i++) {
 		const AmbientKey &k1 = AmbientKeys[i];
 		if (hour > k1.hour)
@@ -714,9 +728,10 @@ void AmbientAt(float hour, float &r, float &g, float &b)
 		r = k0.r + (k1.r - k0.r) * t;
 		g = k0.g + (k1.g - k0.g) * t;
 		b = k0.b + (k1.b - k0.b) * t;
-		return;
+		break;
 	}
-	r = g = b = 1.0F;
+	if (OnDesertFloor())
+		DesertAmbient(hour, r, g, b);
 }
 
 struct TownLight {

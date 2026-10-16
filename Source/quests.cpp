@@ -700,8 +700,8 @@ Point GetMapReturnPosition()
 	// town (RiftReturnTile).
 	if (oracool::IsRiftLevel(setlvlnum))
 		return oracool::RiftReturnTile();
-	// Out of the woods by the road, onto the road at Tristram's edge (oracool/woods.h).
-	if (IsWoodsLevel(setlvlnum))
+	// Out of the woods or the desert by the road, onto its road at Tristram's edge (oracool/woods.h).
+	if (IsOutdoorActLevel(setlvlnum))
 		return oracool::WoodsTownReturnTile();
 	// A Sealed Map's arena returns to the middle of town, the new game's spawn, not beside Farnham in the far corner -
 	// the complaint the rifts were fixed for (round 10 audit, v1.12.235).

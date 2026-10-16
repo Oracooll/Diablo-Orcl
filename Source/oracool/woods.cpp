@@ -60,34 +60,60 @@ namespace {
 
 // ---------------------------------------------------------------- the per-game state
 
+/** @brief An area's floors: four each (the woods', the desert's). */
 constexpr int WoodsFloors = SL_LAST_WOODS - SL_FIRST_WOODS + 1;
+static_assert(SL_LAST_DESERT - SL_FIRST_DESERT + 1 == WoodsFloors, "the desert has as many floors as the woods");
+constexpr int OrclAreaCount = 2;
 
-/** @brief One game's woods: each floor's seed, rolled on its first visit and kept for the rest of the game (D4). */
+/** @brief One game's Orcl Act: each area's floors' seeds, rolled on their first visit and kept for the rest of the game (D4). */
 struct WoodsGame {
-	std::array<uint32_t, WoodsFloors> seed {};
+	std::array<std::array<uint32_t, WoodsFloors>, OrclAreaCount> seed {};
 	/** @brief Each floor's rung (WoodsBandFloor), 0 until it is first entered. */
-	std::array<uint8_t, WoodsFloors> rung {};
+	std::array<std::array<uint8_t, WoodsFloors>, OrclAreaCount> rung {};
 };
 WoodsGame Game;
 
+int AreaIndex(OrclArea area)
+{
+	return area == OrclArea::Desert ? 1 : 0;
+}
+
+/** @brief @p level's floor within its area, 0-3 (a cave's is its own area's first). */
 int FloorIndex(_setlevels level)
 {
-	return std::clamp(static_cast<int>(level) - static_cast<int>(SL_FIRST_WOODS), 0, WoodsFloors - 1);
+	const int first = IsDesertLevel(level) ? static_cast<int>(SL_FIRST_DESERT) : static_cast<int>(SL_FIRST_WOODS);
+	return std::clamp(static_cast<int>(level) - first, 0, WoodsFloors - 1);
 }
+
+/** @brief The floor last built (or being built) is the desert's: its generator, its art, its rules. */
+bool Desert = false;
+/** @brief The floor being generated, 0-3 within its area. */
+int GenFloor = 0;
 
 // ---------------------------------------------------------------- the map of the floor last built
 
-/** @brief The ground materials, in the order of the textures. */
+/**
+ * @brief The ground materials, in the order of the textures. On the desert the first five are its own (RfA-65) in the woods' roles -
+ * Grass the sand, GrassDark the dune ripples, GrassDry the cracked clay, Path the salt road, Forest the bedrock - and four more are
+ * the desert's alone (RfA-68): the oasis's grass, mud and reeds, and the buried ruins' paving.
+ */
 enum Material : uint8_t {
 	Grass,
 	GrassDark,
 	GrassDry,
 	Path,
 	Forest,
+	OasisGrass,
+	OasisMud,
+	Reeds,
+	Paving,
 	MaterialCount,
 };
 
-/** @brief The tree pictures (RfA-63), and what each needs. */
+/**
+ * @brief What stands on a tile and blocks it: the woods' trees (RfA-63), the desert's rocks, palms and bones in their place (RfA-66,
+ * 67, 68), and a Blocker - a tile under a wide prop's footprint or the oasis pool, solid and never drawn.
+ */
 enum TreeKind : uint8_t {
 	NoTree,
 	OakLarge,
@@ -96,7 +122,35 @@ enum TreeKind : uint8_t {
 	PineSmall,
 	DeadLarge,
 	DeadSmall,
+	Hoodoo,
+	BoulderD,
+	Outcrop,
+	PalmDead,
+	PalmBroken,
+	Acacia,
+	Petrified,
+	Ribcage,
+	RocksD,
+	Thicket,
+	SkullGiant,
+	Stakes,
+	Totem,
+	PalmOasis,
+	Blocker,
 	TreeKindCount,
+};
+
+/**
+ * @brief The desert's things that stand on the sand and do not block (RfA-67, 68), after the scatter sheet's twelve cells: the
+ * Scatter map holds a cell + 1, so these are 13 on.
+ */
+enum DesertDecor : uint8_t {
+	DecorSaltbush = 12,
+	DecorDuneGrass,
+	DecorBones,
+	DecorUrn,
+	DecorBasket,
+	ScatterSlots,
 };
 
 /**
@@ -265,6 +319,18 @@ bool MouthOnFloor = false;
 Point MouthOrigin {};
 Point MouthEntrance {};
 
+/**
+ * @brief The desert's oasis (user, 2026-10-16; RfA-68's ground): a pool of dark water ringed by mud, reeds and grass, drawn by the
+ * game into the ground (DrawGroundAt) - its tiles a Blocker, so no one walks on the water. 0 radius: none on the floor.
+ */
+Point OasisCentre {};
+float OasisRadius = 0.0F;
+/** @brief The buried ruins' middle (their paving), or {0,0}. */
+Point RuinsCentre {};
+
+/** @brief The sand hole's radius, in tiles: the pit the hero walks to the middle of to go down (the desert's cave mouth). */
+constexpr float SandHoleRadius = 1.7F;
+
 bool InRiver(Point tile)
 {
 	if (tile.x < Lo || tile.y < Lo || tile.x > Hi || tile.y > Hi)
@@ -274,7 +340,11 @@ bool InRiver(Point tile)
 
 bool InMouth(Point tile)
 {
-	return MouthOnFloor && tile.x >= MouthOrigin.x && tile.x < MouthOrigin.x + MouthWidth && tile.y >= MouthOrigin.y && tile.y < MouthOrigin.y + MouthHeight;
+	if (!MouthOnFloor)
+		return false;
+	if (Desert) // the sand hole: its pit and its lip
+		return std::max(std::abs(tile.x - MouthEntrance.x), std::abs(tile.y - MouthEntrance.y)) <= 1;
+	return tile.x >= MouthOrigin.x && tile.x < MouthOrigin.x + MouthWidth && tile.y >= MouthOrigin.y && tile.y < MouthOrigin.y + MouthHeight;
 }
 
 /** @brief The river's town pieces over the floor's tiles. */
@@ -312,7 +382,7 @@ bool MouthPieceIsFlat(uint16_t piece)
 /** @brief The outcrop's town pieces over the floor's tiles: all of them in the Tristram looks, its rocks and its hole in the painted. */
 void StampCaveMouth()
 {
-	if (!MouthOnFloor)
+	if (!MouthOnFloor || Desert) // the sand hole is the desert's ground, drawn by the game, not Tristram's pieces
 		return;
 	for (int dy = 0; dy < MouthHeight; dy++) {
 		for (int dx = 0; dx < MouthWidth; dx++) {
@@ -331,7 +401,7 @@ void StampCaveMouth()
 /** @brief @p tile is one of the outcrop's stamped tiles (drawn from its cels). */
 bool InMouthStamp(Point tile)
 {
-	if (!InMouth(tile))
+	if (Desert || !InMouth(tile))
 		return false;
 	return MouthTileStamped[tile.y - MouthOrigin.y][tile.x - MouthOrigin.x];
 }
@@ -497,7 +567,7 @@ void SealUnreachable()
 	for (int y = Lo; y <= Hi; y++) {
 		for (int x = Lo; x <= Hi; x++) {
 			if (Tree[x][y] == NoTree && !seen[x][y])
-				Tree[x][y] = PineSmall;
+				Tree[x][y] = Desert ? RocksD : PineSmall;
 		}
 	}
 }
@@ -942,8 +1012,381 @@ void HideDeepForest()
 			TreeHidden[x][y] = (depth[x][y] >= 7 && (x % 3 != 0 || y % 3 != 0)) || (depth[x][y] >= 3 && ((x | y) & 1) != 0);
 }
 
+// ---------------------------------------------------------------- the desert's generator
+
+/** @brief The desert's edge (its forest): rock walls - pillars, outcrops, boulders and rock clusters. */
+TreeKind PickDesertEdge(uint32_t h)
+{
+	const float u = Unit(h);
+	return u < 0.30F ? Hoodoo : u < 0.52F ? Outcrop : u < 0.78F ? BoulderD : RocksD;
+}
+
+/** @brief What stands on the bedrock patches. */
+TreeKind PickDesertRock(uint32_t h)
+{
+	const float u = Unit(h);
+	return u < 0.38F ? RocksD : u < 0.68F ? BoulderD : u < 0.88F ? Hoodoo : Outcrop;
+}
+
+/**
+ * @brief A lone thing in the open sand, by the floor: dead palms and acacias along the Salt Road and the Ash Dunes, petrified trees
+ * on the Glass Flats, thorn and rock round the Sun-Eater's tomb.
+ */
+TreeKind PickDesertOpen(uint32_t h, int floor)
+{
+	const float u = Unit(h);
+	switch (floor) {
+	case 2:
+		return u < 0.30F ? Petrified : u < 0.50F ? RocksD : u < 0.64F ? Thicket : u < 0.80F ? BoulderD : u < 0.90F ? Hoodoo : Acacia;
+	case 3:
+		return u < 0.25F ? Thicket : u < 0.45F ? RocksD : u < 0.60F ? PalmDead : u < 0.74F ? Acacia : u < 0.88F ? BoulderD : Petrified;
+	default:
+		return u < 0.22F ? PalmDead : u < 0.36F ? PalmBroken : u < 0.54F ? Acacia : u < 0.74F ? Thicket : u < 0.88F ? BoulderD : RocksD;
+	}
+}
+
+/** @brief A wide prop's footprint: the tiles either side of it along the screen's row (x + 1, y - 1 and x - 1, y + 1) solid too. */
+void BlockFootprint(Point at)
+{
+	for (const Displacement d : { Displacement { 1, -1 }, Displacement { -1, 1 } }) {
+		const Point p = at + d;
+		if (InDungeonBounds(p) && Tree[p.x][p.y] == NoTree && Ground[p.x][p.y] != Path)
+			Tree[p.x][p.y] = Blocker;
+	}
+}
+
+/** @brief A round patch cleared of whatever stands or lies on it: a place keeps its ground and nothing else. */
+void ClearRound(Point centre, int radius)
+{
+	for (int dy = -radius; dy <= radius; dy++)
+		for (int dx = -radius; dx <= radius; dx++) {
+			const Point p = centre + Displacement { dx, dy };
+			if (Inside(p) && dx * dx + dy * dy <= radius * radius) {
+				Tree[p.x][p.y] = NoTree;
+				Scatter[p.x][p.y] = 0;
+			}
+		}
+}
+
+/**
+ * @brief A place for one of the floor's sights: open ground eleven tiles or more in from the edge, away from the road (five tiles),
+ * the glade, the roads' ends and the sand hole. Every candidate from a seeded start, so a floor always finds one if it has room.
+ */
+std::optional<Point> FindDesertSpot(uint32_t seed, uint32_t salt)
+{
+	constexpr int Margin = 11;
+	const int side = Hi - Lo + 1 - 2 * Margin;
+	if (side <= 0)
+		return std::nullopt;
+	const int positions = side * side;
+	const int start = static_cast<int>(Hash(seed, salt, 0x5B07U) % static_cast<uint32_t>(positions));
+	for (int k = 0; k < positions; k++) {
+		const int at = (start + k * 7919) % positions;
+		const Point p { Lo + Margin + at % side, Lo + Margin + at / side };
+		if (p.WalkingDistance(GladeCentre) < 16 || p.WalkingDistance(Arrival) < 14 || p.WalkingDistance(WayOn) < 14)
+			continue;
+		if (MouthOnFloor && p.WalkingDistance(MouthEntrance) < 12)
+			continue;
+		if ((OasisRadius > 0.0F && p.WalkingDistance(OasisCentre) < 16) || (RuinsCentre != Point {} && p.WalkingDistance(RuinsCentre) < 16))
+			continue;
+		bool nearRoad = false;
+		for (int dy = -5; dy <= 5 && !nearRoad; dy++)
+			for (int dx = -5; dx <= 5 && !nearRoad; dx++)
+				nearRoad = Ground[p.x + dx][p.y + dy] == Path;
+		if (!nearRoad)
+			return p;
+	}
+	return std::nullopt;
+}
+
+/**
+ * @brief The oasis round @p centre (user, 2026-10-16; RfA-68): the pool - drawn by the game into the ground, its tiles solid - its
+ * wet mud, a ring of reeds, the oasis grass fading out into the sand along a wandering edge, three living palms round it, and urns
+ * and a basket by the water.
+ */
+void PlanOasis(Point centre, uint32_t seed)
+{
+	OasisCentre = centre;
+	OasisRadius = 2.2F;
+	for (int dy = -8; dy <= 8; dy++) {
+		for (int dx = -8; dx <= 8; dx++) {
+			const Point p = centre + Displacement { dx, dy };
+			const float r = std::sqrt(static_cast<float>(dx * dx + dy * dy));
+			// The road keeps its way past the oasis; a path that ends in it (the glade's) ends at the water's edge.
+			if (!Inside(p) || (Ground[p.x][p.y] == Path && r > 3.4F))
+				continue;
+			const float d = r + (ValueNoise(p.x, p.y, 3.0F, seed ^ 0x0A51U) - 0.5F) * 1.6F;
+			if (d > 7.0F)
+				continue;
+			Tree[p.x][p.y] = r <= OasisRadius ? Blocker : NoTree;
+			Scatter[p.x][p.y] = 0;
+			Ground[p.x][p.y] = d <= 3.4F ? OasisMud : d <= 4.7F ? Reeds : OasisGrass;
+		}
+	}
+	for (uint32_t k = 0; k < 3; k++) {
+		const float a = 6.2831853F * (static_cast<float>(k) / 3.0F + Unit(Hash(seed, k, 0x9A1U)) * 0.18F);
+		const Point p = centre + Displacement { static_cast<int>(std::lround(std::cos(a) * 4.6F)), static_cast<int>(std::lround(std::sin(a) * 4.6F)) };
+		if (Inside(p) && Ground[p.x][p.y] != Path)
+			Tree[p.x][p.y] = PalmOasis;
+	}
+	const uint8_t byWater[] = { DecorUrn + 1, DecorBasket + 1, DecorUrn + 1 };
+	for (uint32_t k = 0; k < 3; k++) {
+		const float a = 6.2831853F * (static_cast<float>(k) / 3.0F + 0.5F + Unit(Hash(seed, k, 0x9A2U)) * 0.15F);
+		const Point p = centre + Displacement { static_cast<int>(std::lround(std::cos(a) * 3.0F)), static_cast<int>(std::lround(std::sin(a) * 3.0F)) };
+		if (Inside(p) && Tree[p.x][p.y] == NoTree)
+			Scatter[p.x][p.y] = byWater[k];
+	}
+}
+
+/**
+ * @brief The buried ruins round @p centre: old paving showing through the drifts (RfA-68), and the bones of whoever kept them - the
+ * giant skull, skulls on stakes, a bone totem (RfA-67) - among broken urns.
+ */
+void PlanRuins(Point centre, uint32_t seed)
+{
+	RuinsCentre = centre;
+	ClearRound(centre, 7);
+	for (int dy = -7; dy <= 7; dy++) {
+		for (int dx = -7; dx <= 7; dx++) {
+			const Point p = centre + Displacement { dx, dy };
+			if (!Inside(p) || Ground[p.x][p.y] == Path)
+				continue;
+			const float d = std::sqrt(static_cast<float>(dx * dx + dy * dy)) + (ValueNoise(p.x, p.y, 3.0F, seed ^ 0x2B1AU) - 0.5F) * 2.4F;
+			if (d <= 5.5F)
+				Ground[p.x][p.y] = Paving;
+		}
+	}
+	const std::pair<Displacement, TreeKind> standing[] = { { { 2, -2 }, SkullGiant }, { { -3, 1 }, Stakes }, { { 1, 3 }, Totem }, { { -2, -3 }, RocksD } };
+	for (const auto &[d, kind] : standing) {
+		const Point p = centre + d;
+		if (Inside(p) && Ground[p.x][p.y] != Path)
+			Tree[p.x][p.y] = kind;
+	}
+	const std::pair<Displacement, uint8_t> lying[] = { { { 0, 0 }, DecorBones + 1 }, { { 3, 1 }, DecorUrn + 1 }, { { -1, 4 }, DecorBones + 1 }, { { 4, -1 }, DecorBasket + 1 } };
+	for (const auto &[d, decor] : lying) {
+		const Point p = centre + d;
+		if (Inside(p) && Tree[p.x][p.y] == NoTree)
+			Scatter[p.x][p.y] = decor;
+	}
+}
+
+/** @brief The giant beast's rib cage (RfA-66), a landmark in the open: room round it, its footprint solid. */
+void PlaceRibcage(Point at)
+{
+	ClearRound(at, 3);
+	Tree[at.x][at.y] = Ribcage;
+}
+
+/**
+ * @brief The desert floor (user, 2026-10-16): sand under dune ripples, cracked clay and bedrock, each floor its own mix - the Ash
+ * Dunes more dunes, the Glass Flats more clay and rock, the Sun-Eater's tomb old paving in the sand; rock walls round the edge where
+ * the woods have forest; the salt road from the arrival to the way on, a side path to the glade; and each floor's sights - the sand
+ * hole down to the caves on the first and third, the oasis on the first two, the ruins on the last two, the rib cage on the second
+ * and the last. No river, fences or cottages.
+ */
+void GenerateDesert(uint32_t seed)
+{
+	const int floor = GenFloor;
+	std::memset(Ground, Grass, sizeof(Ground));
+	std::memset(Tree, NoTree, sizeof(Tree));
+	std::memset(Scatter, 0, sizeof(Scatter));
+	std::memset(TreeJitterX, 0, sizeof(TreeJitterX));
+	std::memset(TreeJitterY, 0, sizeof(TreeJitterY));
+	std::memset(RiverCell, 0, sizeof(RiverCell));
+	std::memset(FenceCell, 0, sizeof(FenceCell));
+	HouseCount = 0;
+	PenCount = 0;
+	OasisCentre = {};
+	OasisRadius = 0.0F;
+	RuinsCentre = {};
+
+	const int span = Hi - Lo;
+	Arrival = { Hi - 4, Lo + span / 4 + static_cast<int>(Unit(Hash(seed, 1, 0)) * static_cast<float>(span) / 2) };
+	WayOn = { Lo + 4, Lo + span / 4 + static_cast<int>(Unit(Hash(seed, 2, 0)) * static_cast<float>(span) / 2) };
+
+	const float duneAt = floor == 1 ? 0.46F : 0.60F;
+	const float clayAt = floor == 2 ? 0.40F : 0.26F;
+	const float rockAt = floor == 2 ? 0.66F : 0.74F;
+	for (int y = 0; y < MAXDUNY; y++) {
+		for (int x = 0; x < MAXDUNX; x++) {
+			const Point p { x, y };
+			const uint32_t h = Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0xDE5EU);
+			if (!Inside(p)) {
+				Tree[x][y] = PickDesertEdge(h);
+				Ground[x][y] = Forest;
+				continue;
+			}
+			uint8_t ground = Grass;
+			if (ValueNoise(x, y, 9.0F, seed ^ 0xD11EU) > duneAt)
+				ground = GrassDark;
+			if (ValueNoise(x, y, 13.0F, seed ^ 0xF1A7U) < clayAt)
+				ground = GrassDry;
+			if (ValueNoise(x, y, 7.0F, seed ^ 0x50C4U) > rockAt)
+				ground = Forest;
+			if (floor == 3 && ValueNoise(x, y, 10.0F, seed ^ 0x9A7EU) > 0.70F)
+				ground = Paving;
+			Ground[x][y] = ground;
+			const int edge = std::min({ x - Lo, y - Lo, Hi - x, Hi - y });
+			const float borderDepth = 1.0F + 2.5F * ValueNoise(x, y, 5.0F, seed ^ 0xB0DEU);
+			// The bedrock under the walls reaches out past them a wandering way (the seams of 2026-10-14: no line along the edge).
+			const float shelfDepth = 1.0F + 4.0F * ValueNoise(x, y, 11.0F, seed ^ 0x1177U) + 2.0F * ValueNoise(x, y, 4.0F, seed ^ 0x1178U);
+			if (static_cast<float>(edge) < borderDepth) {
+				Ground[x][y] = Forest;
+				Tree[x][y] = PickDesertEdge(h);
+			} else if (static_cast<float>(edge) < shelfDepth) {
+				Ground[x][y] = Forest;
+				if (Unit(h) < 0.05F)
+					Tree[x][y] = PickDesertRock(h >> 3);
+			} else if (ground == Forest) {
+				if (Unit(h) < 0.10F)
+					Tree[x][y] = PickDesertRock(h >> 3);
+			} else if (Unit(h) < 0.012F) {
+				Tree[x][y] = PickDesertOpen(h >> 3, floor);
+			}
+		}
+	}
+
+	LayPath(Arrival, WayOn, 3, seed ^ 0x9A7EU);
+	const Point glade { Lo + span / 2 + static_cast<int>((Unit(Hash(seed, 3, 0)) - 0.5F) * 20), Lo + span / 2 + static_cast<int>((Unit(Hash(seed, 4, 0)) - 0.5F) * 30) };
+	// How near the salt road passes the glade, before the glade's own path joins it: the oasis does not sit on the road.
+	int roadToGlade = 99;
+	for (int dy = -8; dy <= 8; dy++)
+		for (int dx = -8; dx <= 8; dx++) {
+			const Point p = glade + Displacement { dx, dy };
+			if (Inside(p) && Ground[p.x][p.y] == Path)
+				roadToGlade = std::min(roadToGlade, std::max(std::abs(dx), std::abs(dy)));
+		}
+	Clearing(glade, 6, Grass);
+	GladeCentre = glade;
+	LayPath(glade, { (Arrival.x + WayOn.x) / 2, (Arrival.y + WayOn.y) / 2 }, 2, seed ^ 0x51DEU);
+	// The sand hole at the glade's edge, on open sand off both paths (audit, 2026-10-16: on the road, a click that ended on its middle
+	// tile dropped the hero into the caves): the first of a few places round the glade with no road within two tiles.
+	MouthOnFloor = MouthFloor >= 0;
+	if (MouthOnFloor) {
+		const auto offRoad = [](Point p) {
+			for (int dy = -2; dy <= 2; dy++)
+				for (int dx = -2; dx <= 2; dx++)
+					if (!Inside(p + Displacement { dx, dy }) || Ground[p.x + dx][p.y + dy] == Path)
+						return false;
+			return true;
+		};
+		MouthEntrance = glade + Displacement { -4, -1 };
+		for (const Displacement d : { Displacement { -4, -1 }, Displacement { 4, 1 }, Displacement { -1, -4 }, Displacement { 1, 4 }, Displacement { -4, 3 },
+		         Displacement { 4, -3 }, Displacement { -3, -4 }, Displacement { 3, 4 } }) {
+			if (offRoad(glade + d)) {
+				MouthEntrance = glade + d;
+				break;
+			}
+		}
+		MouthOrigin = MouthEntrance - Displacement { 2, 2 };
+		for (int dy = -3; dy <= 3; dy++)
+			for (int dx = -3; dx <= 3; dx++) {
+				const Point p = MouthEntrance + Displacement { dx, dy };
+				if (!Inside(p))
+					continue;
+				Tree[p.x][p.y] = NoTree;
+				if (Ground[p.x][p.y] != Path)
+					Ground[p.x][p.y] = Grass;
+			}
+	}
+	switch (floor) {
+	case 0:
+		if (const std::optional<Point> at = FindDesertSpot(seed, 0x0A5U))
+			PlanOasis(*at, seed);
+		break;
+	case 1:
+		// At the glade, unless the salt road passes within reach of the water; then somewhere off it.
+		if (roadToGlade > 7)
+			PlanOasis(glade, seed);
+		else if (const std::optional<Point> at = FindDesertSpot(seed, 0x0A6U))
+			PlanOasis(*at, seed);
+		if (const std::optional<Point> at = FindDesertSpot(seed, 0x81BU))
+			PlaceRibcage(*at);
+		break;
+	case 2:
+		if (const std::optional<Point> at = FindDesertSpot(seed, 0x2B1U))
+			PlanRuins(*at, seed);
+		break;
+	default:
+		PlanRuins(glade, seed);
+		if (const std::optional<Point> at = FindDesertSpot(seed, 0x81CU))
+			PlaceRibcage(*at);
+		break;
+	}
+	Clearing(Arrival, 4, Path);
+	Clearing(WayOn, 4, Path);
+	for (int x = Arrival.x; x <= Hi; x++)
+		for (int y = Arrival.y - 1; y <= Arrival.y + 1; y++) {
+			Ground[x][y] = Path;
+			Tree[x][y] = NoTree;
+		}
+	for (int x = Lo; x <= WayOn.x; x++)
+		for (int y = WayOn.y - 1; y <= WayOn.y + 1; y++) {
+			Ground[x][y] = Path;
+			Tree[x][y] = NoTree;
+		}
+	// Each road's end past the box kept clear (as the woods'), before the footprints: a cleared prop leaves no Blocker behind.
+	for (const Point end : { Point { Hi, Arrival.y }, Point { Lo, WayOn.y } }) {
+		for (int dy = -6; dy <= 6; dy++) {
+			for (int dx = -6; dx <= 6; dx++) {
+				const Point p = end + Displacement { dx, dy };
+				if (InDungeonBounds(p) && dx * dx + dy * dy <= 36)
+					Tree[p.x][p.y] = NoTree;
+			}
+		}
+	}
+	// The wide props' footprints before the walk is sealed, so a gap they close is sealed with it.
+	for (int y = Lo; y <= Hi; y++)
+		for (int x = Lo; x <= Hi; x++)
+			if (Tree[x][y] == Outcrop || Tree[x][y] == Ribcage)
+				BlockFootprint({ x, y });
+	SealUnreachable();
+
+	// The ground details (RfA-65's sheet) and the things that lie on the sand (RfA-67, 68); none on the road, the hole or the water.
+	constexpr int DesertScatterWeight[12] = { 3, 3, 2, 3, 4, 4, 2, 2, 2, 2, 2, 1 };
+	const auto inHole = [](Point p) { return MouthOnFloor && p.WalkingDistance(MouthEntrance) <= 3; };
+	for (int y = 0; y < MAXDUNY; y++) {
+		for (int x = 0; x < MAXDUNX; x++) {
+			const uint32_t h = Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x5CA7U);
+			if (Tree[x][y] != NoTree) {
+				TreeJitterX[x][y] = static_cast<int8_t>(static_cast<int>(h & 15) - 8);
+				TreeJitterY[x][y] = static_cast<int8_t>(static_cast<int>((h >> 4) & 7) - 4);
+				continue;
+			}
+			if (!Inside({ x, y }) || Ground[x][y] == Path || Scatter[x][y] != 0 || inHole({ x, y }) || Ground[x][y] == OasisMud)
+				continue;
+			const float u = Unit(h >> 8);
+			if (u < 0.06F) {
+				int weights[12];
+				std::copy(std::begin(DesertScatterWeight), std::end(DesertScatterWeight), weights);
+				weights[6] = floor == 2 ? 6 : 1; // the black glass lies on the Glass Flats
+				int total = 0;
+				for (const int w : weights)
+					total += w;
+				int pick = static_cast<int>((h >> 16) % static_cast<uint32_t>(total));
+				int cell = 0;
+				while (cell < 11 && pick >= weights[cell])
+					pick -= weights[cell++];
+				Scatter[x][y] = static_cast<uint8_t>(cell + 1);
+			} else if (u < 0.075F) {
+				// A saltbush on sand and clay, dune grass in the ripples, bones anywhere.
+				const uint32_t k = (h >> 20) % 4U;
+				Scatter[x][y] = static_cast<uint8_t>((Ground[x][y] == GrassDark && k < 2 ? DecorDuneGrass : k == 3 ? DecorBones : DecorSaltbush) + 1);
+			}
+		}
+	}
+	HideDeepForest();
+}
+
 void Generate(uint32_t seed)
 {
+	if (Desert) {
+		GenerateDesert(seed);
+		return;
+	}
+	OasisCentre = {};
+	OasisRadius = 0.0F;
+	RuinsCentre = {};
 	std::memset(Ground, Grass, sizeof(Ground));
 	std::memset(Tree, NoTree, sizeof(Tree));
 	std::memset(Scatter, 0, sizeof(Scatter));
@@ -1079,34 +1522,100 @@ struct Picture {
 	int footY = 0;
 };
 
-constexpr const char *GroundFiles[MaterialCount] = {
-	"levels\\woods\\grass_a.png",
-	"levels\\woods\\grass_b.png",
-	"levels\\woods\\grass_dry.png",
-	"levels\\woods\\dirt_path.png",
-	"levels\\woods\\forest_floor.png",
+/** @brief Each area's ground textures, in Material's order, and the scale each is drawn at (percent of the painting). */
+struct GroundFile {
+	const char *path;
+	int percent;
+};
+constexpr GroundFile GroundFiles[OrclAreaCount][MaterialCount] = {
+	{
+		// The scales the user chose on the Orcl Testing Ground (its settings/current, saved 2026-10-14 15:19): the grasses at
+		// 13-14, the forest floor at 16, the dirt road at 25. The woods have no oasis or paving.
+		{ "levels\\woods\\grass_a.png", 14 },
+		{ "levels\\woods\\grass_b.png", 13 },
+		{ "levels\\woods\\grass_dry.png", 14 },
+		{ "levels\\woods\\dirt_path.png", 25 },
+		{ "levels\\woods\\forest_floor.png", 16 },
+		{ nullptr, 0 },
+		{ nullptr, 0 },
+		{ nullptr, 0 },
+		{ nullptr, 0 },
+	},
+	{
+		// The Orcl Act Level Designer's Desert tab's starting values (2026-10-16), until the user saves his own.
+		{ "levels\\desert\\sand_a.png", 14 },
+		{ "levels\\desert\\sand_ripple.png", 20 },
+		{ "levels\\desert\\cracked_earth.png", 16 },
+		{ "levels\\desert\\salt_road.png", 25 },
+		{ "levels\\desert\\rock_shelf.png", 16 },
+		{ "levels\\desert\\oasis_grass.png", 14 },
+		{ "levels\\desert\\oasis_mud.png", 16 },
+		{ "levels\\desert\\marsh_reeds.png", 14 },
+		{ "levels\\desert\\buried_paving.png", 20 },
+	},
 };
 
+/** @brief A standing picture: its file, its foot point in the painting, its scale, whether it sways in the wind, its area. */
 struct TreeFile {
 	const char *path;
 	int footX;
 	int footY;
+	int percent;
+	bool sway;
+	OrclArea area;
 };
 constexpr TreeFile TreeFiles[TreeKindCount] = {
-	{ nullptr, 0, 0 },
-	{ "levels\\woods\\oak_large.png", 160, 432 },
-	{ "levels\\woods\\oak_small.png", 112, 306 },
-	{ "levels\\woods\\pine_tall.png", 96, 464 },
-	{ "levels\\woods\\pine_small.png", 72, 274 },
-	{ "levels\\woods\\dead_large.png", 144, 400 },
-	{ "levels\\woods\\dead_small.png", 96, 274 },
+	{ nullptr, 0, 0, 0, false, OrclArea::Woods },
+	// The woods' trees, each its own scale (the Testing Ground, v1.201.019).
+	{ "levels\\woods\\oak_large.png", 160, 432, 29, true, OrclArea::Woods },
+	{ "levels\\woods\\oak_small.png", 112, 306, 29, true, OrclArea::Woods },
+	{ "levels\\woods\\pine_tall.png", 96, 464, 35, true, OrclArea::Woods },
+	{ "levels\\woods\\pine_small.png", 72, 274, 28, true, OrclArea::Woods },
+	{ "levels\\woods\\dead_large.png", 144, 400, 17, true, OrclArea::Woods },
+	{ "levels\\woods\\dead_small.png", 96, 274, 25, true, OrclArea::Woods },
+	// The desert's (RfA-66, 67, 68), at the trees' 29 %: the rocks stand still; the palms, the acacia, the thorn and the totem's
+	// rags move in the wind.
+	{ "levels\\desert\\hoodoo_pillar.png", 96, 368, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\boulder_desert.png", 96, 148, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\rock_outcrop.png", 160, 208, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\palm_dead_tall.png", 112, 432, 29, true, OrclArea::Desert },
+	{ "levels\\desert\\palm_broken.png", 64, 164, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\acacia_dead.png", 144, 304, 29, true, OrclArea::Desert },
+	{ "levels\\desert\\tree_petrified.png", 112, 336, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\ribcage_giant.png", 192, 236, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\rocks_cluster_desert.png", 80, 100, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\thorn_thicket.png", 88, 132, 29, true, OrclArea::Desert },
+	{ "levels\\desert\\skull_giant.png", 96, 132, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\skulls_on_stakes.png", 64, 212, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\bone_totem.png", 56, 244, 29, true, OrclArea::Desert },
+	{ "levels\\desert\\palm_oasis.png", 112, 432, 29, true, OrclArea::Desert },
+	{ nullptr, 0, 0, 0, false, OrclArea::Desert }, // Blocker: never drawn
 };
 
-std::array<Picture, MaterialCount> GroundArt;
-std::array<Picture, TreeKindCount> TreeArt;
-std::array<Picture, 12> ScatterCells; // the sheet's twelve cells, each at its own scale
-bool ArtLoaded = false;
-bool ArtTried = false;
+/** @brief The desert's things that lie on the sand (DesertDecor), after the scatter sheet's cells. */
+constexpr TreeFile DecorFiles[ScatterSlots - 12] = {
+	{ "levels\\desert\\saltbush.png", 72, 100, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\dune_grass_tall.png", 72, 116, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\bones_spear.png", 80, 84, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\urn_clay.png", 40, 102, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\basket_woven.png", 32, 56, 29, false, OrclArea::Desert },
+};
+
+/** @brief One area's pictures, loaded the first time one of its floors is built. */
+struct AreaArtSet {
+	std::array<Picture, MaterialCount> ground;
+	std::array<Picture, TreeKindCount> trees;
+	std::array<Picture, ScatterSlots> scatter; // the sheet's twelve cells, each at its own scale, then the desert's decor
+	bool loaded = false;
+	bool tried = false;
+};
+std::array<AreaArtSet, OrclAreaCount> AreaArt;
+
+/** @brief The pictures of the floor last built's area. */
+AreaArtSet &Art()
+{
+	return AreaArt[Desert ? 1 : 0];
+}
 
 /** @brief A PNG from the archives as 32-bit RGBA, or nullptr (logged). The caller frees it. */
 SDL_Surface *LoadRgba(const char *path)
@@ -1183,40 +1692,82 @@ bool LoadScaled(const char *path, Picture &out, bool sprite, int percent)
 
 /**
  * @brief The ground details, each its own scale (the Orcl Testing Ground's second save, 2026-10-14), in percent of the painting:
- * the sheet's twelve 64 px cells, 4 x 3, cut apart and each scaled on its own.
+ * the sheet's twelve 64 px cells, 4 x 3, cut apart and each scaled on its own. The desert's at the Level Designer's 80.
  */
-constexpr int ScatterPercent[12] = { 73, 88, 72, 79, 120, 120, 65, 43, 93, 85, 120, 50 };
+constexpr int ScatterPercent[OrclAreaCount][12] = {
+	{ 73, 88, 72, 79, 120, 120, 65, 43, 93, 85, 120, 50 },
+	{ 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80 },
+};
 
+uint32_t ScaleRgb(uint32_t c, float kr, float kg, float kb); // below, with the desert's ground features
+
+/** @brief A standing picture @p file into @p out at its scale, its foot point scaled with it. */
+bool LoadStanding(const TreeFile &file, Picture &out)
+{
+	if (!LoadScaled(file.path, out, true, file.percent))
+		return false;
+	out.footX = file.footX * file.percent / 100;
+	out.footY = file.footY * file.percent / 100;
+	return true;
+}
+
+/** @brief The pictures of the floor last built's area, the first time one of its floors is built. */
 void LoadArt()
 {
-	if (ArtTried)
+	AreaArtSet &art = Art();
+	if (art.tried)
 		return;
-	ArtTried = true;
+	art.tried = true;
+	const OrclArea area = Desert ? OrclArea::Desert : OrclArea::Woods;
+	const int a = AreaIndex(area);
 	bool ok = true;
-	// The scales the user chose on the Orcl Testing Ground (its settings/current, saved 2026-10-14 15:19), in percent of the
-	// painted art: the grasses at 13-14, the forest floor at 16, the dirt road at 25; each tree its own.
-	constexpr int GroundPercent[MaterialCount] = { 14, 13, 14, 25, 16 }; // Grass, GrassDark, GrassDry, Path, Forest
-	constexpr int TreePercent[TreeKindCount] = { 0, 29, 29, 35, 28, 17, 25 }; // -, oak large, oak small, pine tall, pine small, dead large, dead small
-	for (int m = 0; m < MaterialCount; m++)
-		ok = LoadScaled(GroundFiles[m], GroundArt[m], false, GroundPercent[m]) && ok;
-	for (int t = 1; t < TreeKindCount; t++) {
-		ok = LoadScaled(TreeFiles[t].path, TreeArt[t], true, TreePercent[t]) && ok;
-		TreeArt[t].footX = TreeFiles[t].footX * TreePercent[t] / 100;
-		TreeArt[t].footY = TreeFiles[t].footY * TreePercent[t] / 100;
+	for (int m = 0; m < MaterialCount; m++) {
+		if (GroundFiles[a][m].path != nullptr)
+			ok = LoadScaled(GroundFiles[a][m].path, art.ground[m], false, GroundFiles[a][m].percent) && ok;
 	}
-	if (SDL_Surface *sheet = LoadRgba("levels\\woods\\scatter_sheet.png"); sheet != nullptr) {
+	// A standing picture that fails to load is left out (DrawWoodsTileSprite skips an empty one; LoadRgba logs it): the floor keeps
+	// its painted look. Only a missing ground or scatter sheet falls back (audit, 2026-10-16).
+	for (int t = 1; t < TreeKindCount; t++) {
+		if (TreeFiles[t].path != nullptr && TreeFiles[t].area == area)
+			LoadStanding(TreeFiles[t], art.trees[t]);
+	}
+	if (SDL_Surface *sheet = LoadRgba(Desert ? "levels\\desert\\scatter_sheet.png" : "levels\\woods\\scatter_sheet.png"); sheet != nullptr) {
 		const int cell = sheet->w / 4;
 		for (int c = 0; c < 12; c++) {
-			ResampleRgba(sheet, (c % 4) * cell, (c / 4) * cell, cell, cell, ScatterCells[c], true, ScatterPercent[c]);
+			ResampleRgba(sheet, (c % 4) * cell, (c / 4) * cell, cell, cell, art.scatter[c], true, ScatterPercent[a][c]);
 			// Each stands at its cell's bottom centre, as on the sheet (32, 56 of 64).
-			ScatterCells[c].footX = ScatterCells[c].w / 2;
-			ScatterCells[c].footY = ScatterCells[c].h * 7 / 8;
+			art.scatter[c].footX = art.scatter[c].w / 2;
+			art.scatter[c].footY = art.scatter[c].h * 7 / 8;
 		}
 		SDL_FreeSurface(sheet);
 	} else {
 		ok = false;
 	}
-	ArtLoaded = ok;
+	if (Desert) {
+		for (int d = 0; d < ScatterSlots - 12; d++)
+			LoadStanding(DecorFiles[d], art.scatter[12 + d]);
+		// Each ground near the sand's brightness (the first preview, 2026-10-16: the bedrock lay on the sand as dark slabs, and where
+		// two grounds of such different light meet, the tile grid shows as straight lines): the salt road a little lighter so it
+		// reads as a road, the mud darker as wet ground is, the rest within a few percent of the sand.
+		constexpr float Target[MaterialCount] = { 1.00F, 1.00F, 0.96F, 1.14F, 0.93F, 0.95F, 0.72F, 0.90F, 1.03F };
+		const auto meanLight = [](const Picture &pic) {
+			double sum = 0;
+			for (const uint32_t c : pic.px)
+				sum += 0.30 * ((c >> 16) & 0xFF) + 0.59 * ((c >> 8) & 0xFF) + 0.11 * (c & 0xFF);
+			return pic.px.empty() ? 0.0 : sum / static_cast<double>(pic.px.size());
+		};
+		const double sand = meanLight(art.ground[Grass]);
+		for (int m = 1; m < MaterialCount && sand > 1.0; m++) {
+			Picture &pic = art.ground[m];
+			const double mean = meanLight(pic);
+			if (mean <= 1.0)
+				continue;
+			const float k = std::clamp(static_cast<float>(sand * Target[m] / mean), 0.6F, 1.8F);
+			for (uint32_t &c : pic.px)
+				c = (c & 0xFF000000U) | ScaleRgb(c, k, k, k);
+		}
+	}
+	art.loaded = ok;
 }
 
 /** @brief A world-pinned table of small offsets, in tiles, that makes the edges between materials irregular. */
@@ -1406,11 +1957,14 @@ bool WoodsPaintedArtChosen()
 
 void CreateWoods(uint32_t seed, lvl_entry /*entry*/)
 {
+	Desert = setlevel && IsDesertLevel(setlvlnum);
+	GenFloor = FloorIndex(setlvlnum);
 	// The tile data before the generator: it picks its solid piece from it (LoadGameLevel loads it after LoadSetMap).
 	LoadLevelSOLData();
 	FindSolidPiece();
 	Generate(seed);
-	BuiltVanilla = !WoodsPaintedArtChosen();
+	// The desert has no Tristram look: its floors are always the painted ones.
+	BuiltVanilla = !Desert && !WoodsPaintedArtChosen();
 	BuiltMixed = BuiltVanilla && *sgOptions.Oracool.woodsPaintedTrees;
 	std::memset(WoodsLookPiece, 0, sizeof(WoodsLookPiece));
 	if (!BuiltMixed && BuiltVanilla) {
@@ -1610,8 +2164,8 @@ void PlanWoodsWorld(uint32_t seed, int floor)
 	});
 	const auto along = [&](int percent) { return road[std::min(road.size() - 1, road.size() * static_cast<size_t>(percent) / 100)]; };
 	const auto open = [](Point p) { return WorldOpen(p); };
-	// The fairy ring in the glade's middle, where nothing else stands.
-	HasFairyRing = WorldLoose(GladeCentre) && !TileHasAny(dPiece[GladeCentre.x][GladeCentre.y], TileProperties::Solid);
+	// The fairy ring in the glade's middle, where nothing else stands (the woods' alone).
+	HasFairyRing = !Desert && WorldLoose(GladeCentre) && !TileHasAny(dPiece[GladeCentre.x][GladeCentre.y], TileProperties::Solid);
 	if (HasFairyRing)
 		Take(GladeCentre, 3);
 	if (road.empty())
@@ -1628,6 +2182,13 @@ void PlanWoodsWorld(uint32_t seed, int floor)
 				for (const Displacement d : { Displacement { 2, 0 }, Displacement { -2, 0 }, Displacement { 0, 2 }, Displacement { 0, -2 } })
 					bank.push_back(Point { x, y } + d);
 			}
+		// The desert's spring by its oasis: round the pool, past its mud.
+		if (OasisRadius > 0.0F) {
+			for (int k = 0; k < 16; k++) {
+				const float a = 6.2831853F * static_cast<float>(k) / 16.0F;
+				bank.push_back(OasisCentre + Displacement { static_cast<int>(std::lround(std::cos(a) * 5.5F)), static_cast<int>(std::lround(std::sin(a) * 5.5F)) });
+			}
+		}
 		const size_t start = bank.empty() ? 0 : Hash(seed, 2, 0xF1) % bank.size();
 		for (size_t k = 0; k < bank.size() && !spring; k++)
 			if (WorldOpen(bank[(start + k) % bank.size()]))
@@ -1644,6 +2205,11 @@ void PlanWoodsWorld(uint32_t seed, int floor)
 		Put(shrine, NearOff(GladeCentre, 5, 8, Hash(seed, 4, 0xF3), open));
 	// The second pen a little graveyard below the first floor, a chest's otherwise; the others a chest each.
 	const _object_id chest = floor <= 1 ? OBJ_CHEST1 : floor == 2 ? OBJ_CHEST2 : OBJ_CHEST3;
+	// The desert has no pens: a chest in its ruins, one by its oasis.
+	if (RuinsCentre != Point {})
+		Put(chest, NearOff(RuinsCentre, 2, 4, Hash(seed, 15, 0xF4), open));
+	if (OasisRadius > 0.0F)
+		Put(chest, NearOff(OasisCentre, 5, 7, Hash(seed, 16, 0xF5), open));
 	for (int i = 1; i < PenCount; i++) {
 		const Point c = Pens[i].centre;
 		if (i == 1 && floor >= 1) {
@@ -1667,9 +2233,12 @@ void PlanWoodsWorld(uint32_t seed, int floor)
 		}
 		Put(Hash(seed, 5, static_cast<uint32_t>(i)) % 4 == 0 ? OBJ_BARRELEX : OBJ_BARREL, NearOff({ doorX, archY0 }, 3, 5, Hash(seed, 6, static_cast<uint32_t>(i)), open));
 	}
-	// Barrels by the road, one in four of them the kind that bursts.
-	for (const int percent : { 20, 50, 80 })
-		Put(Hash(seed, 7, static_cast<uint32_t>(percent)) % 4 == 0 ? OBJ_BARRELEX : OBJ_BARREL, NearOff(along(percent), 2, 3, Hash(seed, 8, static_cast<uint32_t>(percent)), open));
+	// Barrels by the road, one in four of them the kind that bursts; the desert's are clay urns (Hellfire's, where it has them).
+	const bool urns = Desert && gbIsHellfire;
+	for (const int percent : { 20, 50, 80 }) {
+		const bool bursts = Hash(seed, 7, static_cast<uint32_t>(percent)) % 4 == 0;
+		Put(urns ? (bursts ? OBJ_URNEX : OBJ_URN) : (bursts ? OBJ_BARRELEX : OBJ_BARREL), NearOff(along(percent), 2, 3, Hash(seed, 8, static_cast<uint32_t>(percent)), open));
+	}
 	// The headless dead by the road, to be searched.
 	for (const int percent : { 15, 75 })
 		Put(OBJ_DECAP, NearOff(along(percent), 2, 3, Hash(seed, 9, static_cast<uint32_t>(percent)), open));
@@ -1685,9 +2254,9 @@ void PlanWoodsWorld(uint32_t seed, int floor)
 			const Point burn = p + Displacement { 0, -1 };
 			return WorldOpen(p) && InDungeonBounds(burn) && Ground[burn.x][burn.y] != Path;
 		}), 2);
-	// Two will-o'-wisps, each over a chest in a pocket of the forest six to ten tiles off the road.
+	// Two will-o'-wisps, each over a chest in a pocket of the forest six to ten tiles off the road (the woods' alone).
 	for (const int percent : { 30, 70 }) {
-		if (WispCount >= static_cast<int>(Wisps.size()))
+		if (Desert || WispCount >= static_cast<int>(Wisps.size()))
 			break;
 		const Point from = along(percent);
 		const uint32_t h = Hash(seed, 14, static_cast<uint32_t>(percent));
@@ -1706,6 +2275,10 @@ void EnsureWoodsWorldGraphics()
 	for (const _object_id type : { OBJ_BLOODFTN, OBJ_PURIFYINGFTN, OBJ_GOATSHRINE, OBJ_CAULDRON, OBJ_SARC, OBJ_CHEST1, OBJ_CHEST2, OBJ_CHEST3,
 	         OBJ_CANDLE2, OBJ_BARREL, OBJ_BARRELEX, OBJ_DECAP, OBJ_TNUDEM1, OBJ_SKPILE, OBJ_BCROSS })
 		EnsureObjectGraphicsLoaded(AllObjects[type].ofindex, AllObjects[type].animWidth);
+	if (Desert && gbIsHellfire) {
+		for (const _object_id type : { OBJ_URN, OBJ_URNEX })
+			EnsureObjectGraphicsLoaded(AllObjects[type].ofindex, AllObjects[type].animWidth);
+	}
 }
 
 void PlaceWoodsWorldObjects()
@@ -1746,7 +2319,7 @@ const std::vector<WoodsLamp> &WoodsNightLamps()
 {
 	static std::vector<WoodsLamp> lamps;
 	lamps.clear();
-	if (leveltype != DTYPE_WOODS || !setlevel || !IsWoodsLevel(setlvlnum))
+	if (leveltype != DTYPE_WOODS || !setlevel || !IsOutdoorActLevel(setlvlnum))
 		return lamps;
 	// The cottages' lamps behind their doors, and their candle stands outside.
 	for (int i = 0; i < HouseCount; i++) {
@@ -1773,7 +2346,7 @@ const std::vector<WoodsLamp> &WoodsNightLamps()
 
 void DrawWoodsGlows(const Surface &out, Point firstTile, Point firstTileBuffer)
 {
-	if (leveltype != DTYPE_WOODS || !setlevel || !IsWoodsLevel(setlvlnum) || out.isIndexed() || out.w() <= 0 || out.h() <= 0)
+	if (leveltype != DTYPE_WOODS || !setlevel || !IsOutdoorActLevel(setlvlnum) || out.isIndexed() || out.w() <= 0 || out.h() <= 0)
 		return;
 	std::vector<Splat> *splats = SplatCollection();
 	const auto add = [&](int px, int py, int r, int g, int b) {
@@ -1840,9 +2413,124 @@ void DrawWoodsGlows(const Surface &out, Point firstTile, Point firstTileBuffer)
 	}
 }
 
+void DrawDesertSky(const Surface &out, Point firstTile, Point firstTileBuffer)
+{
+	if (!OnDesertFloor() || !Desert || out.isIndexed() || out.w() <= 0 || out.h() <= 0)
+		return;
+	const int w = out.w();
+	const int h = out.h();
+	const float t = static_cast<float>(SDL_GetTicks() % 3600000U) / 1000.0F;
+	const auto screen = [&](float tx, float ty, float &sx, float &sy) {
+		const float ux = tx - static_cast<float>(firstTile.x);
+		const float uy = ty - static_cast<float>(firstTile.y);
+		sx = static_cast<float>(firstTileBuffer.x) + 32.0F + (ux - uy) * 32.0F;
+		sy = static_cast<float>(firstTileBuffer.y) - 15.0F + (ux + uy) * 16.0F;
+	};
+	const auto blend = [&](int px, int py, int r, int g, int b, int a) {
+		if (px < 0 || py < 0 || px >= w || py >= h || a <= 0)
+			return;
+		uint32_t &c = *out.at<uint32_t>(px, py);
+		a = std::min(a, 256);
+		const auto ch = [a](uint32_t under, int over) { return static_cast<uint32_t>((static_cast<int>(under) * (256 - a) + over * a) >> 8); };
+		c = (c & 0xFF000000U) | (ch((c >> 16) & 0xFF, r) << 16) | (ch((c >> 8) & 0xFF, g) << 8) | ch(c & 0xFF, b);
+	};
+	float storm = 0.0F;
+	const bool stormy = CurrentWeather(&storm) == Weather::Sandstorm && storm > 0.2F && *sgOptions.Oracool.weather;
+	const bool day = !TownIsDark();
+
+	// The sand hole: grains sliding down its inner wall into the dark, each on its own path round the funnel.
+	if (MouthOnFloor) {
+		for (uint32_t k = 0; k < 18; k++) {
+			const float phase = Unit(Hash(k, 0x5A9DU, 1));
+			const float a = 6.2831853F * Unit(Hash(k, 0x5A9DU, 2)) + t * 0.15F;
+			const float p = std::fmod(t * (0.22F + 0.18F * Unit(Hash(k, 0x5A9DU, 3))) + phase, 1.0F);
+			const float radius = SandHoleRadius * (0.92F - 0.52F * p);
+			float sx, sy;
+			screen(static_cast<float>(MouthEntrance.x) + std::cos(a) * radius, static_cast<float>(MouthEntrance.y) + std::sin(a) * radius, sx, sy);
+			const int alpha = static_cast<int>(200.0F * (1.0F - p) * (1.0F - p));
+			const int shade = static_cast<int>(196.0F - 90.0F * p);
+			blend(static_cast<int>(sx), static_cast<int>(sy), shade, shade * 88 / 100, shade * 68 / 100, alpha);
+			if (k % 3 == 0)
+				blend(static_cast<int>(sx) + 1, static_cast<int>(sy), shade, shade * 88 / 100, shade * 68 / 100, alpha / 2);
+		}
+	}
+
+	// The vultures' shadows by day: three birds circling high over the floor's middle, their shadows soft dark wings on the sand
+	// (none in a storm: the sun is gone).
+	if (day && !stormy) {
+		for (uint32_t k = 0; k < 3; k++) {
+			const float radius = 7.0F + 3.0F * static_cast<float>(k);
+			const float speed = (0.05F + 0.015F * static_cast<float>(k)) * ((k & 1) != 0 ? -1.0F : 1.0F);
+			const float a = t * speed * 6.2831853F + static_cast<float>(k) * 2.1F;
+			const float cx = static_cast<float>(GladeCentre.x) + std::cos(a) * radius;
+			const float cy = static_cast<float>(GladeCentre.y) + std::sin(a) * radius;
+			float sx, sy;
+			screen(cx, cy, sx, sy);
+			if (sx < -60 || sy < -40 || sx > w + 60 || sy > h + 40)
+				continue;
+			// The bird's heading on the screen, and a slow flap.
+			const float hx = -std::sin(a) * speed, hy = std::cos(a) * speed;
+			const float dirX = (hx - hy) * 32.0F, dirY = (hx + hy) * 16.0F;
+			const float len = std::max(0.001F, std::sqrt(dirX * dirX + dirY * dirY));
+			const float fx = dirX / len, fy = dirY / len; // forward
+			const float flap = 0.75F + 0.25F * std::sin(t * 2.6F + static_cast<float>(k));
+			for (int dy = -16; dy <= 16; dy++) {
+				for (int dx = -26; dx <= 26; dx++) {
+					// Into the bird's frame: along its heading and across it.
+					const float along = static_cast<float>(dx) * fx + static_cast<float>(dy) * fy;
+					const float across = -static_cast<float>(dx) * fy + static_cast<float>(dy) * fx;
+					const float span = std::abs(across);
+					if (span > 24.0F * flap)
+						continue;
+					// The wings sweep back toward their tips; the body a short line along the middle.
+					const float sweep = -span * 0.35F;
+					const float wing = std::abs(along - sweep) - (5.0F - span * 0.16F);
+					const float body = span < 2.5F ? std::abs(along) - 7.0F : 1e9F;
+					const float inside = -std::min(wing, body);
+					if (inside <= -1.5F)
+						continue;
+					const int alpha = static_cast<int>(std::clamp((inside + 1.5F) / 3.0F, 0.0F, 1.0F) * 70.0F);
+					blend(static_cast<int>(sx) + dx, static_cast<int>(sy) + dy, 20, 16, 12, alpha);
+				}
+			}
+		}
+	}
+
+	// The dust devils: two whirls of sand wandering the open floor by day, each a column of grains spiralling up and widening, a
+	// ring of dust at its foot (in a storm the wind tears them apart).
+	if (day && !stormy) {
+		for (uint32_t k = 0; k < 2; k++) {
+			const float s = static_cast<float>(k) * 3.7F;
+			const float cx = static_cast<float>(GladeCentre.x) + 14.0F * std::sin(t * 0.021F + s) + 6.0F * std::sin(t * 0.053F + s * 2.0F);
+			const float cy = static_cast<float>(GladeCentre.y) + 12.0F * std::cos(t * 0.017F + s * 1.3F) + 5.0F * std::cos(t * 0.047F + s);
+			const int tx = static_cast<int>(cx), ty = static_cast<int>(cy);
+			if (!InDungeonBounds({ tx, ty }) || !Inside({ tx, ty }) || Tree[tx][ty] != NoTree)
+				continue; // it dies against a rock and comes back elsewhere
+			float sx, sy;
+			screen(cx, cy, sx, sy);
+			if (sx < -60 || sy < -120 || sx > w + 60 || sy > h + 30)
+				continue;
+			for (int g = 0; g < 110; g++) {
+				const uint32_t hh = Hash(static_cast<uint32_t>(g), k, 0xD05DU);
+				const float height = Unit(hh) * 78.0F; // up the column
+				const float spin = t * (5.5F - height * 0.03F) + Unit(hh >> 5) * 6.2831853F;
+				const float radius = 3.0F + height * 0.22F + 2.0F * std::sin(t * 1.3F + static_cast<float>(g));
+				const int px = static_cast<int>(sx + std::cos(spin) * radius + std::sin(t * 0.9F + height * 0.05F) * height * 0.08F);
+				const int py = static_cast<int>(sy - height + std::sin(spin) * radius * 0.35F);
+				const int alpha = static_cast<int>((1.0F - height / 90.0F) * 120.0F * (std::sin(spin) > 0 ? 1.0F : 0.6F));
+				blend(px, py, 206, 182, 138, alpha);
+			}
+			for (int g = 0; g < 26; g++) {
+				const float a = 6.2831853F * static_cast<float>(g) / 26.0F + t * 2.0F;
+				blend(static_cast<int>(sx + std::cos(a) * 9.0F), static_cast<int>(sy + std::sin(a) * 3.5F), 190, 166, 124, 60);
+			}
+		}
+	}
+}
+
 void TickWoods()
 {
-	if (leveltype != DTYPE_WOODS || !setlevel || !IsWoodsLevel(setlvlnum) || MyPlayer == nullptr || !HasFairyRing)
+	if (leveltype != DTYPE_WOODS || !setlevel || !IsOutdoorActLevel(setlvlnum) || MyPlayer == nullptr || !HasFairyRing)
 		return;
 	Player &player = *MyPlayer;
 	// In at two tiles, out past three: along its edge the message came at every step (audit, 2026-10-14).
@@ -1864,17 +2552,20 @@ void TickWoods()
 
 void BuildWoodsLevel(bool fresh)
 {
+	const OrclArea area = AreaOfLevel(setlvlnum);
+	const int a = AreaIndex(area);
 	const int floor = FloorIndex(setlvlnum);
-	if (Game.seed[floor] == 0)
-		Game.seed[floor] = (static_cast<uint32_t>(AdvanceRndSeed()) ^ (SDL_GetTicks() * 2654435761U)) | 1U;
-	if (Game.rung[floor] == 0) {
+	uint32_t &seed = Game.seed[a][floor];
+	if (seed == 0)
+		seed = (static_cast<uint32_t>(AdvanceRndSeed()) ^ (SDL_GetTicks() * 2654435761U)) | 1U;
+	if (Game.rung[a][floor] == 0) {
 		// D3: the floor's depth is fixed the first time it is entered in a game - by the hero who enters it.
 		const int heroLevel = MyPlayer != nullptr ? MyPlayer->_pLevel : 1;
-		Game.rung[floor] = static_cast<uint8_t>(std::clamp(std::clamp(heroLevel / 3, 1, RungsPerDifficulty) + floor, 1, RungsPerDifficulty));
+		Game.rung[a][floor] = static_cast<uint8_t>(std::clamp(std::clamp(heroLevel / 3, 1, RungsPerDifficulty) + floor, 1, RungsPerDifficulty));
 	}
-	MouthFloor = WoodsCaveOnFloor(floor) != SL_NONE ? floor : -1;
+	MouthFloor = WoodsCaveOnFloor(floor, area) != SL_NONE ? floor : -1;
 	ForgetWoodsMixedFloor(); // the last floor's ground pictures
-	CreateDungeon(Game.seed[floor], ENTRY_SETLVL);
+	CreateDungeon(seed, ENTRY_SETLVL);
 	MouthFloor = -1;
 	if (MouthOnFloor) {
 		for (int y = MouthOrigin.y; y < MouthOrigin.y + MouthHeight; y++)
@@ -1913,11 +2604,11 @@ void BuildWoodsLevel(bool fresh)
 	const Point sigil = Arrival + Displacement { -2, -2 };
 	Scatter[sigil.x][sigil.y] = 0;
 	if (fresh)
-		AddGeneratedLevelWaypointSigil(sigil, FirstWoodsWaypoint + floor);
+		AddGeneratedLevelWaypointSigil(sigil, (area == OrclArea::Desert ? FirstDesertWaypoint : FirstWoodsWaypoint) + floor);
 	else
 		EnsureWaypointGraphicsLoaded();
 	// What stands along the roads (PlanWoodsWorld): planned on every build, its objects added on the first.
-	PlanWoodsWorld(Game.seed[floor], floor);
+	PlanWoodsWorld(seed, floor);
 	EnsureWoodsWorldGraphics();
 	if (fresh)
 		PlaceWoodsWorldObjects();
@@ -1944,6 +2635,20 @@ bool OnTownGate(Point tile)
 	return tile.x >= GateX0 && tile.x <= GateX1 && tile.y >= GateY0 && tile.y <= GateY1;
 }
 
+/**
+ * @brief The road out to the desert: on Tristram's north-east edge, east of the cows' pen (user, 2026-10-13: "the desert east of the
+ * cows"), the open row at the map's top edge past the pen's fence. Standing on it loads desert floor 1.
+ */
+constexpr int DesertGateX0 = 72;
+constexpr int DesertGateX1 = 75;
+constexpr int DesertGateY0 = 11; // the top open row (10 is the map's edge), and the one below it
+constexpr int DesertGateY1 = 12;
+
+bool OnDesertGate(Point tile)
+{
+	return tile.x >= DesertGateX0 && tile.x <= DesertGateX1 && tile.y >= DesertGateY0 && tile.y <= DesertGateY1;
+}
+
 /** @brief Whether the hero last stood in the woods' way-on strip, so its message shows once per visit to it. */
 bool AtWayOnBefore = false;
 
@@ -1951,6 +2656,8 @@ bool AtWayOnBefore = false;
 
 Point WoodsTownReturnTile()
 {
+	if (IsDesertLevel(setlvlnum))
+		return { (DesertGateX0 + DesertGateX1) / 2, DesertGateY1 + 2 }; // two rows in from the desert's gate
 	return { 57, GateY0 - 2 }; // on the cleared path, two rows above the entrance
 }
 
@@ -1958,24 +2665,26 @@ bool CheckWoodsEdges()
 {
 	if (MyPlayer == nullptr)
 		return false;
-	if (setlevel && IsWoodsCaveLevel(setlvlnum))
+	if (setlevel && IsActCaveLevel(setlvlnum))
 		return MyPlayer->_pmode == PM_STAND && !MyPlayer->_pLvlChanging && CheckWoodsCaveExits();
 	Player &player = *MyPlayer;
 	if (player._pmode != PM_STAND || player._pLvlChanging)
 		return false;
 	const Point tile = player.position.tile;
 	if (leveltype == DTYPE_TOWN) {
-		if (!OnTownGate(tile))
+		const bool woods = OnTownGate(tile);
+		if (!woods && !OnDesertGate(tile))
 			return false;
-		setlvltype = DTYPE_WOODS; // BEFORE StartNewLvl: the level loads its tileset from this
-		StartNewLvl(player, WM_DIABSETLVL, SL_ORCL_WOODS_1);
+		setlvltype = DTYPE_WOODS; // BEFORE StartNewLvl: the level loads its tileset from this (the desert's too)
+		StartNewLvl(player, WM_DIABSETLVL, woods ? SL_ORCL_WOODS_1 : SL_ORCL_DESERT_1);
 		return true;
 	}
-	if (leveltype != DTYPE_WOODS || !setlevel)
+	if (leveltype != DTYPE_WOODS || !setlevel || !IsOutdoorActLevel(setlvlnum))
 		return false;
+	const OrclArea area = AreaOfLevel(setlvlnum);
 	const int floor = FloorIndex(setlvlnum);
 	if (MouthOnFloor && tile == MouthEntrance) {
-		EnterWoodsCaveFromMouth(floor);
+		EnterWoodsCaveFromMouth(floor, area);
 		return true;
 	}
 	// The road back: the last tiles of the arrival road, at the map's edge - to Tristram from the first floor, to the way on
@@ -1986,7 +2695,7 @@ bool CheckWoodsEdges()
 		} else {
 			setlvltype = DTYPE_WOODS;
 			EnterAtWayOn = true;
-			StartNewLvl(player, WM_DIABSETLVL, static_cast<int>(SL_FIRST_WOODS) + floor - 1);
+			StartNewLvl(player, WM_DIABSETLVL, static_cast<int>(OutdoorFloorLevel(area, floor - 1)));
 		}
 		return true;
 	}
@@ -1994,11 +2703,11 @@ bool CheckWoodsEdges()
 	if (atWayOn && floor + 1 < WoodsFloors) {
 		setlvltype = DTYPE_WOODS;
 		EnterAtWayOn = false;
-		StartNewLvl(player, WM_DIABSETLVL, static_cast<int>(SL_FIRST_WOODS) + floor + 1);
+		StartNewLvl(player, WM_DIABSETLVL, static_cast<int>(OutdoorFloorLevel(area, floor + 1)));
 		return true;
 	}
 	if (atWayOn && !AtWayOnBefore)
-		EventPlrMsg("The path ends here, at the heart of the woods.", UiFlags::ColorWhite);
+		EventPlrMsg(area == OrclArea::Desert ? "The salt road ends here, at the Sun-Eater's tomb." : "The path ends here, at the heart of the woods.", UiFlags::ColorWhite);
 	AtWayOnBefore = atWayOn;
 	return false;
 }
@@ -2086,9 +2795,14 @@ Point WoodsHouseInsideForTest(int index)
 	return { Lo + 2 * house.x1 - 1, Lo + 2 * house.doorY + 1 }; // inside it
 }
 
-int WoodsFloorRung(int floorIndex)
+int WoodsFloorRung(int floorIndex, OrclArea area)
 {
-	return Game.rung[std::clamp(floorIndex, 0, WoodsFloors - 1)];
+	return Game.rung[AreaIndex(area)][std::clamp(floorIndex, 0, WoodsFloors - 1)];
+}
+
+bool DesertBuilt()
+{
+	return Desert;
 }
 
 void EnterWoodsAtCaveMouthNext()
@@ -2121,7 +2835,7 @@ bool ShellPieceIsFlat(uint16_t piece)
 
 bool WoodsTileUsesCels(Point tile)
 {
-	if (leveltype != DTYPE_WOODS)
+	if (leveltype != DTYPE_WOODS || Desert)
 		return false;
 	if (InMouthStamp(tile) || InRiver(tile))
 		return true;
@@ -2134,7 +2848,7 @@ bool WoodsCaveMouthHover(Point tile, Point &entrance, const char *&text)
 	if (leveltype != DTYPE_WOODS || !setlevel || !InMouth(tile))
 		return false;
 	static std::string hover;
-	hover = std::string("Down to ") + WoodsCaveName(WoodsCaveOnFloor(FloorIndex(setlvlnum)));
+	hover = std::string("Down to ") + WoodsCaveName(WoodsCaveOnFloor(FloorIndex(setlvlnum), AreaOfLevel(setlvlnum)));
 	entrance = MouthEntrance;
 	text = hover.c_str();
 	return true;
@@ -2142,11 +2856,11 @@ bool WoodsCaveMouthHover(Point tile, Point &entrance, const char *&text)
 
 int WoodsBandFloor()
 {
-	if (setlevel && IsWoodsCaveLevel(setlvlnum))
+	if (setlevel && IsActCaveLevel(setlvlnum))
 		return WoodsCaveRung();
-	if (!setlevel || !IsWoodsLevel(setlvlnum))
+	if (!setlevel || !IsOutdoorActLevel(setlvlnum))
 		return 1;
-	const int rung = Game.rung[FloorIndex(setlvlnum)];
+	const int rung = Game.rung[AreaIndex(AreaOfLevel(setlvlnum))][FloorIndex(setlvlnum)];
 	return rung == 0 ? 1 : rung;
 }
 
@@ -2173,14 +2887,39 @@ constexpr _monster_id WoodsKinds[] = {
 };
 
 /**
- * @brief The bosses of the Mob Roster's notes ("use as boss. scaled up to be diablo size"), each with the size that makes him
- * Diablo's height - the designer's sprite heights: Diablo 151 px, the King 118, the Butcher 69, the Reaper 86. The fifth note,
- * oldboned, is on a kind left unticked (and Hellfire's unused one, with no sounds of its own), so it is not among them.
+ * @brief The desert's Mob Roster (the Orcl Act Level Designer's desert roster, saved by the user 2026-10-16 11:54): the 28 kinds ticked
+ * there that are not bosses. Only these walk the desert's floors and its caves.
  */
+constexpr _monster_id DesertKinds[] = {
+	MT_RFALLSP, MT_RFALLSD,
+	MT_WSKELAX, MT_TSKELAX, MT_WSKELBW, MT_TSKELBW, MT_WSKELSD, MT_TSKELSD,
+	MT_NSCAV, MT_YSCAV,
+	MT_UNSEEN, MT_GLOOM,
+	MT_BGOATMC, MT_BGOATBW,
+	MT_TOAD, MT_YMAGMA,
+	MT_HORNED, MT_MUDRUN,
+	MT_GARGOYLE, MT_BSNAKE,
+	MT_NBLACK, MT_UNRAV, MT_SUCCUBUS,
+	MT_STINGER, MT_GRAVEDIG, MT_TOMBRAT, MT_SKLWING, MT_BICLOPS,
+};
+
+/** @brief The Mob Roster of the area the current level belongs to (its floors and its caves). */
+std::pair<const _monster_id *, size_t> AreaKinds(OrclArea area)
+{
+	if (area == OrclArea::Desert)
+		return { DesertKinds, std::size(DesertKinds) };
+	return { WoodsKinds, std::size(WoodsKinds) };
+}
+
 struct WoodsBossRow {
 	_monster_id kind;
 	unsigned sizePercent;
 };
+/**
+ * @brief The bosses of the Mob Roster's notes ("use as boss. scaled up to be diablo size"), each with the size that makes him
+ * Diablo's height - the designer's sprite heights: Diablo 151 px, the King 118, the Butcher 69, the Reaper 86. The fifth note,
+ * oldboned, is on a kind left unticked (and Hellfire's unused one, with no sounds of its own), so it is not among them.
+ */
 constexpr WoodsBossRow WoodsBosses[] = {
 	{ MT_SKING, 128 },
 	{ MT_CLEAVER, 219 },
@@ -2188,9 +2927,31 @@ constexpr WoodsBossRow WoodsBosses[] = {
 	{ MT_DIABLO, 100 },
 };
 
+/**
+ * @brief The desert's bosses, the woods' rule (user, 2026-10-16: "check which were used as bosses in woods and apply same rule here"):
+ * of the kinds ticked on the desert's roster, the ones the woods use as bosses - the Skeleton King, the Butcher and the Reaper (Diablo
+ * is not ticked there) - each drawn at Diablo's height as in the woods.
+ */
+constexpr WoodsBossRow DesertBosses[] = {
+	{ MT_SKING, 128 },
+	{ MT_CLEAVER, 219 },
+	{ MT_REAPER, 176 },
+};
+
+/** @brief The bosses @p area's last floor may roll. */
+std::pair<const WoodsBossRow *, size_t> AreaBosses(OrclArea area)
+{
+	if (area == OrclArea::Desert)
+		return { DesertBosses, std::size(DesertBosses) };
+	return { WoodsBosses, std::size(WoodsBosses) };
+}
+
 bool WoodsKindAvailable(const MonsterData &data)
 {
 	if (data.availability == MonsterAvailability::Never)
+		return false;
+	// Hellfire's own (the Stingers, the Lashworm, the Tomb Rats ...) only in a Hellfire game: Diablo has not their sprites.
+	if (!gbIsHellfire && &data >= &MonstersData[MT_HELLBOAR])
 		return false;
 	return !(gbIsSpawn && data.availability == MonsterAvailability::Retail);
 }
@@ -2231,9 +2992,11 @@ bool WoodsAcceptsMonster(const MonsterData &data)
 {
 	if (!WoodsKindAvailable(data))
 		return false;
+	const auto [kindsFirst, kindsCount] = AreaKinds(AreaOfLevel(setlvlnum));
+	const _monster_id *const kindsLast = kindsFirst + kindsCount;
 	bool listed = false;
-	for (const _monster_id kind : WoodsKinds)
-		listed = listed || &data == &MonstersData[kind];
+	for (const _monster_id *kind = kindsFirst; kind != kindsLast; kind++)
+		listed = listed || &data == &MonstersData[*kind];
 	if (!listed)
 		return false;
 	// The nearest gap that gives eight kinds to choose from (dev note, 2026-10-14: "mix and diversify mobs on the levels. they
@@ -2242,8 +3005,8 @@ bool WoodsAcceptsMonster(const MonsterData &data)
 	int reach = 0;
 	for (;; reach++) {
 		int kinds = 0;
-		for (const _monster_id kind : WoodsKinds)
-			kinds += WoodsKindAvailable(MonstersData[kind]) && BandGap(MonstersData[kind], floor) <= reach ? 1 : 0;
+		for (const _monster_id *kind = kindsFirst; kind != kindsLast; kind++)
+			kinds += WoodsKindAvailable(MonstersData[*kind]) && BandGap(MonstersData[*kind], floor) <= reach ? 1 : 0;
 		if (kinds >= 8 || reach >= 32)
 			break;
 	}
@@ -2252,16 +3015,18 @@ bool WoodsAcceptsMonster(const MonsterData &data)
 
 int WoodsBossKind()
 {
-	const uint32_t seed = Game.seed[WoodsFloors - 1];
+	// The boss of the area being built or stood in: its last floor's seed (each area its own pick, each new game anew).
+	const uint32_t seed = Game.seed[AreaIndex(AreaOfLevel(setlvlnum))][WoodsFloors - 1];
 	if (seed == 0)
 		return -1;
 	// The seed's high bits: its low ones also build the floor, and a pick tied to them would tie the boss to the map. Only the
 	// kinds this game has the sprites of (the shareware has no Reaper and no Diablo): the next one on where the pick is not.
-	const size_t first = (seed >> 20) % std::size(WoodsBosses);
-	for (size_t k = 0; k < std::size(WoodsBosses); k++) {
-		const WoodsBossRow &row = WoodsBosses[(first + k) % std::size(WoodsBosses)];
+	const auto [bosses, count] = AreaBosses(AreaOfLevel(setlvlnum));
+	const size_t first = (seed >> 20) % count;
+	for (size_t k = 0; k < count; k++) {
+		const WoodsBossRow &row = bosses[(first + k) % count];
 		const MonsterData &data = MonstersData[row.kind];
-		if (!(gbIsSpawn && data.availability == MonsterAvailability::Retail))
+		if (!(gbIsSpawn && data.availability == MonsterAvailability::Retail) && (gbIsHellfire || row.kind < MT_HELLBOAR))
 			return row.kind;
 	}
 	return -1;
@@ -2269,7 +3034,7 @@ int WoodsBossKind()
 
 bool IsWoodsBoss(const Monster &monster)
 {
-	if (!setlevel || setlvlnum != SL_LAST_WOODS || monster.isPlayerMinion())
+	if (!setlevel || !IsActBossLevel(setlvlnum) || monster.isPlayerMinion())
 		return false;
 	return monster.type().type == WoodsBossKind();
 }
@@ -2291,9 +3056,10 @@ unsigned WoodsBossSizePercent(const Monster &monster)
 {
 	if (!IsWoodsBoss(monster))
 		return 0;
-	for (const WoodsBossRow &row : WoodsBosses) {
-		if (row.kind == monster.type().type)
-			return row.sizePercent;
+	const auto [bosses, count] = AreaBosses(AreaOfLevel(setlvlnum));
+	for (size_t k = 0; k < count; k++) {
+		if (bosses[k].kind == monster.type().type)
+			return bosses[k].sizePercent;
 	}
 	return 0;
 }
@@ -2380,9 +3146,9 @@ bool IsChampionKind(int type)
 
 uint32_t WoodsRosterSeed()
 {
-	if (setlevel && IsWoodsCaveLevel(setlvlnum))
+	if (setlevel && IsActCaveLevel(setlvlnum))
 		return WoodsCaveRosterSeed();
-	return Game.seed[FloorIndex(setlvlnum)] ^ 0x0AC7U;
+	return Game.seed[AreaIndex(AreaOfLevel(setlvlnum))][FloorIndex(setlvlnum)] ^ 0x0AC7U;
 }
 
 Point WoodsEntryTile()
@@ -2392,21 +3158,132 @@ Point WoodsEntryTile()
 
 const char *WoodsFloorName(_setlevels level)
 {
-	constexpr const char *Names[WoodsFloors] = { "The Greywood Verge", "Thornmoor", "The Hanging Wood", "Witchbark Hollow" };
-	return Names[FloorIndex(level)];
+	constexpr const char *Names[OrclAreaCount][WoodsFloors] = {
+		{ "The Greywood Verge", "Thornmoor", "The Hanging Wood", "Witchbark Hollow" },
+		{ "The Salt Road", "The Ash Dunes", "The Glass Flats", "Tomb of the Sun-Eater" },
+	};
+	return Names[AreaIndex(AreaOfLevel(level))][FloorIndex(level)];
 }
 
 bool WoodsSpritesOverTiles(const Surface &out)
 {
-	return leveltype == DTYPE_WOODS && BuiltMixed && ArtLoaded && !out.isIndexed();
+	return leveltype == DTYPE_WOODS && BuiltMixed && Art().loaded && !out.isIndexed();
 }
 
 bool WoodsArtActive(const Surface &out)
 {
-	return leveltype == DTYPE_WOODS && !BuiltVanilla && ArtLoaded && !out.isIndexed();
+	return leveltype == DTYPE_WOODS && !BuiltVanilla && Art().loaded && !out.isIndexed();
 }
 
 namespace {
+
+/** @brief @p c scaled by @p k (0..2), each channel clamped. */
+uint32_t ScaleRgb(uint32_t c, float kr, float kg, float kb)
+{
+	const auto ch = [](uint32_t v, float k) { return static_cast<uint32_t>(std::clamp(static_cast<float>(v) * k, 0.0F, 255.0F)); };
+	return (ch((c >> 16) & 0xFF, kr) << 16) | (ch((c >> 8) & 0xFF, kg) << 8) | ch(c & 0xFF, kb);
+}
+
+uint32_t MixRgb(uint32_t c, float r, float g, float b, float a)
+{
+	a = std::clamp(a, 0.0F, 1.0F);
+	const auto ch = [a](uint32_t v, float to) { return static_cast<uint32_t>(std::clamp(static_cast<float>(v) + (to - static_cast<float>(v)) * a, 0.0F, 255.0F)); };
+	return (ch((c >> 16) & 0xFF, r) << 16) | (ch((c >> 8) & 0xFF, g) << 8) | ch(c & 0xFF, b);
+}
+
+/**
+ * @brief What the desert's ground holds that no texture paints, drawn into it at the pixel's tile-space place (@p u, @p v) over its
+ * ground @p c (user, 2026-10-16: "Try to draw an in-game Sand Hole which takes player to Desert Caves"):
+ * - the oasis pool: dark still water, deeper to its middle, the grey sky on its far side, a few glints, its mud wet round it;
+ * - the sand hole: a funnel of the floor's own sand slumping into a black pit - its inner wall lit where it faces the top-left sun
+ *   and shadowed where it turns away, streaked where the sand slides, a raised lip, and the sand round it cracked and sunken.
+ */
+uint32_t DesertGroundFeature(uint32_t c, float u, float v, int wx, int wy)
+{
+	// The sun's direction in tile space: toward the screen's top left, (-1, -0.4) normalised.
+	constexpr float Lu = -0.928F, Lv = -0.371F;
+	if (OasisRadius > 0.0F) {
+		const float du = u - static_cast<float>(OasisCentre.x), dv = v - static_cast<float>(OasisCentre.y);
+		// Most of the ground is nowhere near the pool: no square root there.
+		const float reach = OasisRadius + 0.7F;
+		const float d2 = du * du + dv * dv;
+		const float d = d2 < reach * reach ? std::sqrt(d2) : reach;
+		if (d < OasisRadius + 0.7F) {
+			if (d >= OasisRadius) {
+				// The wet edge: the mud darker and a little sheen, fading out over most of a tile.
+				const float wet = 1.0F - (d - OasisRadius) / 0.7F;
+				c = ScaleRgb(c, 1.0F - 0.38F * wet * wet, 1.0F - 0.36F * wet * wet, 1.0F - 0.30F * wet * wet);
+			} else {
+				const float depth = d / OasisRadius; // 0 the middle, 1 the shore
+				float r = 16.0F + 18.0F * depth, g = 24.0F + 20.0F * depth, b = 27.0F + 18.0F * depth;
+				// The sky in it on its far side (up the screen: u + v smaller), grey-blue, brighter toward the far shore.
+				const float far = std::clamp(-(du + dv) / (2.0F * OasisRadius) + 0.15F, 0.0F, 1.0F);
+				r += 34.0F * far * far;
+				g += 42.0F * far * far;
+				b += 48.0F * far * far;
+				// Still water's few glints: thin world-pinned lines, broken.
+				const float line = std::sin(static_cast<float>(wy) * 0.85F + std::sin(static_cast<float>(wx) * 0.045F) * 5.0F);
+				if (line > 0.94F && ((wx / 7 + wy / 3) & 3) != 0) {
+					r += 20.0F;
+					g += 24.0F;
+					b += 26.0F;
+				}
+				const float shore = std::clamp((depth - 0.86F) / 0.14F, 0.0F, 1.0F);
+				const uint32_t water = (static_cast<uint32_t>(std::min(r, 255.0F)) << 16) | (static_cast<uint32_t>(std::min(g, 255.0F)) << 8) | static_cast<uint32_t>(std::min(b, 255.0F));
+				c = MixRgb(water, static_cast<float>((c >> 16) & 0xFF) * 0.55F, static_cast<float>((c >> 8) & 0xFF) * 0.55F, static_cast<float>(c & 0xFF) * 0.55F, shore);
+			}
+		}
+	}
+	if (MouthOnFloor) {
+		const float du = u - static_cast<float>(MouthEntrance.x), dv = v - static_cast<float>(MouthEntrance.y);
+		// The ragged rim is never less than 0.78 of the radius: past this nothing of the hole is drawn (audit, 2026-10-16).
+		constexpr float Reach = SandHoleRadius * 1.9F / 0.78F;
+		if (du * du + dv * dv >= Reach * Reach)
+			return c;
+		const float angle = std::atan2(dv, du);
+		// A collapse, not a well: its rim wanders in and out round the hole (the first preview: a perfect ellipse read as a manhole).
+		const float ragged = 1.0F + 0.11F * std::sin(angle * 3.0F + 1.3F) + 0.07F * std::sin(angle * 5.0F + 0.4F) + 0.04F * std::sin(angle * 11.0F + 2.1F);
+		const float d = std::sqrt(du * du + dv * dv) / ragged;
+		constexpr float R = SandHoleRadius;
+		if (d < R * 1.9F) {
+			const float nu = d > 0.001F ? du / (d * ragged) : 0.0F, nv = d > 0.001F ? dv / (d * ragged) : 0.0F;
+			// Where the sand slides: thin radial streaks that wander.
+			const float streak = 0.5F + 0.5F * std::sin(angle * 23.0F + std::sin(angle * 5.0F + d * 3.0F) * 2.2F + d * 4.0F);
+			if (d < R * 0.42F) {
+				// The pit: the dark of a hole in the ground, a little lighter at its edge.
+				const float t = d / (R * 0.42F);
+				const float k = 0.05F + 0.13F * t * t;
+				c = ScaleRgb(c, k * 0.95F, k * 0.85F, k * 0.75F);
+			} else if (d < R * 0.92F) {
+				// The funnel's inner wall: lit where it faces the sun (its far side from the sun), shadowed where it faces away,
+				// darker the deeper it goes, the slides' streaks over it.
+				const float t = (d - R * 0.42F) / (R * 0.50F); // 0 at the pit, 1 at the lip
+				const float lit = std::clamp(-(nu * Lu + nv * Lv), -1.0F, 1.0F);
+				float k = 0.22F + 0.62F * t;
+				k *= 0.80F + 0.32F * lit;
+				k *= 0.86F + 0.18F * streak;
+				c = ScaleRgb(c, k * 1.02F, k, k * 0.94F);
+			} else if (d < R * 1.06F) {
+				// The lip: the edge where the sand breaks over, a little raised, catching the sun on its top-left side - eased in and
+				// out so it is a crest and not a drawn ring.
+				const float lit = std::clamp(nu * Lu + nv * Lv, -1.0F, 1.0F);
+				const float m = std::sin((d - R * 0.92F) / (R * 0.14F) * 3.1415927F);
+				const float k = 1.0F + (0.03F + 0.09F * lit) * m;
+				c = ScaleRgb(c, k, k, k * 0.98F);
+			} else {
+				// The sand round it: sunken toward the hole, sliding into it in streaks, cracked where it pulled away; fading out.
+				const float t = (d - R * 1.06F) / (R * 0.84F); // 0 at the lip, 1 outside
+				const float sink = (1.0F - t) * (1.0F - t);
+				float k = 1.0F - 0.14F * sink - 0.08F * sink * streak;
+				const float crack = std::abs(std::sin(angle * 7.0F + std::sin(d * 2.3F + angle * 3.0F) * 1.6F));
+				if (crack < 0.06F * (1.0F - t) * (1.0F - t))
+					k *= 0.66F;
+				c = ScaleRgb(c, k, k, k * 0.99F);
+			}
+		}
+	}
+	return c;
+}
 
 /** @brief DrawWoodsGroundTile's body: the materials of @p tile and its neighbours, the texture pinned where @p world lies. */
 void DrawGroundAt(const Surface &out, Point tile, Point world, Point target, int light, bool fullBright)
@@ -2466,7 +3343,8 @@ void DrawGroundAt(const Surface &out, Point tile, Point world, Point target, int
 			for (int k2 = 0; k2 < count; k2++) {
 				const int fine = (mats[k2] & 1) != 0 ? n[0] : n[1];
 				const int coarse = (mats[k2] & 1) != 0 ? n2[1] : n2[0];
-				weights[k2] += (static_cast<float>(fine) * 0.0030F + static_cast<float>(coarse) * 0.0035F) * (mats[k2] == Path ? 0.6F : 1.0F);
+				// The desert's twice as far: its grounds lie in big soft patches, not the woods' fine weave of grasses.
+				weights[k2] += (static_cast<float>(fine) * 0.0030F + static_cast<float>(coarse) * 0.0035F) * (mats[k2] == Path ? 0.6F : 1.0F) * (Desert ? 1.9F : 1.0F);
 			}
 			int best = 0, second = -1;
 			for (int k2 = 1; k2 < count; k2++) {
@@ -2477,7 +3355,7 @@ void DrawGroundAt(const Surface &out, Point tile, Point world, Point target, int
 					second = k2;
 				}
 			}
-			const Picture &tex = GroundArt[mats[best]];
+			const Picture &tex = Art().ground[mats[best]];
 			uint32_t c = tex.px[static_cast<size_t>(wy % tex.h) * tex.w + (wx % tex.w)];
 			{
 				// The same texture again from far across it, mixed in by the coarse noise (the seam survey, 2026-10-14: the
@@ -2494,13 +3372,15 @@ void DrawGroundAt(const Surface &out, Point tile, Point world, Point target, int
 				const float lead = weights[best] - weights[second];
 				const float a = std::clamp(0.5F - lead * 2.2F, 0.0F, 0.5F);
 				if (a > 0.0F) {
-					const Picture &other = GroundArt[mats[second]];
+					const Picture &other = Art().ground[mats[second]];
 					const uint32_t o = other.px[static_cast<size_t>(wy % other.h) * other.w + (wx % other.w)];
 					const int ai = static_cast<int>(a * 256.0F);
 					const auto mix = [ai](uint32_t p, uint32_t q, int sh) { return ((((p >> sh) & 0xFF) * (256 - ai) + ((q >> sh) & 0xFF) * ai) >> 8) & 0xFF; };
 					c = (mix(c, o, 16) << 16) | (mix(c, o, 8) << 8) | mix(c, o, 0);
 				}
 			}
+			if (Desert)
+				c = DesertGroundFeature(c, u, v, wx, wy);
 			row[x] = brightness >= 256 ? (c & 0xFFFFFF) | 0x010101 : Shade(c, brightness);
 		}
 	}
@@ -2573,7 +3453,7 @@ void ForgetWoodsMixedFloor()
 
 bool DrawWoodsMixedFloorCached(const Surface &out, Point tile, Point target, int light, bool fullBright)
 {
-	if (leveltype != DTYPE_WOODS || !BuiltMixed || out.isIndexed() || GroundArt[Path].px.empty() || pDungeonCels == nullptr)
+	if (leveltype != DTYPE_WOODS || !BuiltMixed || out.isIndexed() || Art().ground[Path].px.empty() || pDungeonCels == nullptr)
 		return false;
 	if (FloorCachePalette != PaletteRgbGeneration) {
 		ForgetWoodsMixedFloor();
@@ -2827,10 +3707,10 @@ void RepaintWoodsCelGround(const Surface &out, Point tile, Point target, int lig
 
 void DrawWoodsMixedGround(const Surface &out, Point tile, Point target, int light, bool fullBright)
 {
-	if (leveltype != DTYPE_WOODS || !BuiltMixed || out.isIndexed() || GroundArt[Path].px.empty())
+	if (leveltype != DTYPE_WOODS || !BuiltMixed || out.isIndexed() || Art().ground[Path].px.empty())
 		return;
 	const int brightness = (fullBright && light < LightsMax) || light < 0 ? 256 : BrightnessFor(light);
-	const Picture &road = GroundArt[Path];
+	const Picture &road = Art().ground[Path];
 	const int originX = (tile.x - tile.y) * 32;
 	const int originY = (tile.x + tile.y) * 16;
 	const int centreX = target.x + 32;
@@ -3080,7 +3960,7 @@ void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light
 	if (const uint8_t kind = Tree[tile.x][tile.y]; kind != NoTree) {
 		if (TreeHidden[tile.x][tile.y])
 			return; // deep in the forest, behind the trees in front
-		const Picture &pic = TreeArt[kind];
+		const Picture &pic = Art().trees[kind];
 		if (pic.px.empty())
 			return;
 		const int left = footX + TreeJitterX[tile.x][tile.y] - pic.footX;
@@ -3097,8 +3977,9 @@ void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light
 			}
 		}
 		// The sway (Living Town, as Tristram's trees): the trees of the playable woods, each on its own phase from where it
-		// stands; the forest beyond the fence stands still - it is the costly part of the picture and no one walks there.
-		if (*sgOptions.Oracool.livingTown && Inside(tile) && !out.isIndexed()) {
+		// stands; the forest beyond the fence stands still - it is the costly part of the picture and no one walks there. The
+		// desert's rocks and bones never move; its palms, acacias and thorn do.
+		if (*sgOptions.Oracool.livingTown && TreeFiles[kind].sway && Inside(tile) && !out.isIndexed()) {
 			const float t = static_cast<float>(SDL_GetTicks() % 3600000U) / 1000.0F;
 			const float phase = static_cast<float>((tile.x - tile.y) * 32) * 0.012F + static_cast<float>(TreeJitterX[tile.x][tile.y]) * 0.21F;
 			// A taller tree sways a little further: 1.2 px at the crown of a small one, up to 2 px for the tallest.
@@ -3110,8 +3991,8 @@ void DrawWoodsTileSprite(const Surface &out, Point tile, Point target, int light
 		}
 		return;
 	}
-	if (const uint8_t cell = Scatter[tile.x][tile.y]; cell != 0 && cell <= ScatterCells.size() && !ScatterCells[cell - 1].px.empty()) {
-		const Picture &pic = ScatterCells[cell - 1];
+	if (const uint8_t cell = Scatter[tile.x][tile.y]; cell != 0 && cell <= Art().scatter.size() && !Art().scatter[cell - 1].px.empty()) {
+		const Picture &pic = Art().scatter[cell - 1];
 		DrawPicture(out, pic, footX - pic.footX, footY - pic.footY, 0, 0, pic.w, pic.h, brightness);
 	}
 }
@@ -3130,6 +4011,7 @@ void DrawWoodsGateTint(const Surface &out, Point tile, Point target)
 	int markCount = 0;
 	if (leveltype == DTYPE_TOWN) {
 		marks[markCount++] = { (GateX0 + GateX1) * 0.5F, (GateY0 + GateY1) * 0.5F, 2.6F, true };
+		marks[markCount++] = { (DesertGateX0 + DesertGateX1) * 0.5F, (DesertGateY0 + DesertGateY1) * 0.5F, 2.6F, true };
 	} else if (leveltype == DTYPE_WOODS && setlevel) {
 		const bool lastFloor = FloorIndex(setlvlnum) == WoodsFloors - 1;
 		// The road back, the way on to the next floor (amber on the last, where it ends), the cave's entrance.
@@ -3277,9 +4159,9 @@ Point StampWoodsCaveMouthForTest()
 	return MouthOnFloor ? MouthEntrance : Point { 0, 0 };
 }
 
-void SetWoodsRungForTest(int floorIndex, int rung)
+void SetWoodsRungForTest(int floorIndex, int rung, OrclArea area)
 {
-	Game.rung[std::clamp(floorIndex, 0, WoodsFloors - 1)] = static_cast<uint8_t>(rung);
+	Game.rung[AreaIndex(area)][std::clamp(floorIndex, 0, WoodsFloors - 1)] = static_cast<uint8_t>(rung);
 }
 
 WoodsWorldPlanForTest PlanWoodsWorldForTest(uint32_t seed, int floor)
@@ -3294,14 +4176,28 @@ WoodsWorldPlanForTest PlanWoodsWorldForTest(uint32_t seed, int floor)
 	return plan;
 }
 
-void SetWoodsSeedForTest(int floorIndex, uint32_t seed)
+void SetWoodsSeedForTest(int floorIndex, uint32_t seed, OrclArea area)
 {
-	Game.seed[std::clamp(floorIndex, 0, WoodsFloors - 1)] = seed;
+	Game.seed[AreaIndex(area)][std::clamp(floorIndex, 0, WoodsFloors - 1)] = seed;
+}
+
+Point DesertOasisForTest()
+{
+	return OasisRadius > 0.0F ? OasisCentre : Point { 0, 0 };
+}
+
+std::vector<int> AreaRosterForTest(OrclArea area)
+{
+	const auto [first, count] = AreaKinds(area);
+	std::vector<int> kinds;
+	for (size_t i = 0; i < count; i++)
+		kinds.push_back(first[i]);
+	return kinds;
 }
 
 void LoadWoodsArtForTest()
 {
-	ArtTried = false;
+	Art().tried = false;
 	LoadArt();
 	BuildEdgeNoise();
 }
