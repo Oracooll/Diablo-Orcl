@@ -80,3 +80,7 @@ Candidate places, from the town's walk map:
 4. The catalogue and the first RfAs: ground, then blockers.
 5. The Tristram entrance (its RfA plus the frost and mist round it).
 6. The roster (a Frost tab on the Designer's Mob Roster), the bosses (the woods' rule), weather, then the audit loop.
+
+## 8. Monsters (decided 2026-10-16)
+- **No new monster art.** The roster is the existing kinds, picked on a Frost tab of the Designer's Mob Roster.
+- **Their frost look is drawn by the game:** ramp recolours and retints toward ice (the 32-bit `FrozenRgbTable` look is the starting point), and game-drawn touches such as a frost breath, rime glints and a cold trail.
