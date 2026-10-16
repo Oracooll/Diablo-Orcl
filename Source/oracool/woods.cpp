@@ -153,6 +153,14 @@ enum TreeKind : uint8_t {
 	ArchRuined,
 	StatueHeadless,
 	Brazier,
+	// More of it (RfA-70b): the guardian, the aqueduct and the city's lesser stones.
+	GuardianLion,
+	AqueductArch,
+	BurialUrns,
+	SundialPlinth,
+	Cairn,
+	WallStub,
+	WallBroken,
 	Blocker,
 	TreeKindCount,
 };
@@ -168,6 +176,7 @@ enum DesertDecor : uint8_t {
 	DecorUrn,
 	DecorBasket,
 	DecorWheel, // a cart wheel lying in the sand (RfA-69)
+	DecorLid,   // a sarcophagus lid lying in the sand (RfA-70b)
 	ScatterSlots,
 };
 
@@ -1192,6 +1201,10 @@ void PlanRuins(Point centre, uint32_t seed, int floor)
 			{ { -4, -4 }, ArchRuined }, { { -6, -1 }, ColumnBroken }, { { -1, -6 }, ColumnBroken }, { { 4, -4 }, Obelisk },
 			{ { -4, 3 }, SteleEclipse }, { { 5, 1 }, StatueHeadless }, { { -2, 5 }, StatueHeadless }, { { 2, 6 }, ColumnFallen },
 			{ { 6, 4 }, StatueHead }, { { 2, -5 }, SkullGiant }, { { -5, 0 }, Stakes },
+			// RfA-70b: the guardian lying beside the arch, looking out over the court; urns, the sundial and a stub of wall in it.
+			{ { -1, -4 }, GuardianLion }, { { 4, 3 }, BurialUrns }, { { -3, 6 }, BurialUrns }, { { 3, -2 }, SundialPlinth }, { { 6, -1 }, WallStub },
+			// The court's back wall: a broken run along its far edge, one piece every two tiles (each spans two).
+			{ { -7, -7 }, WallBroken }, { { -5, -7 }, WallBroken }, { { 1, -7 }, WallBroken },
 		};
 		for (const auto &[d, kind] : court)
 			stand(d, kind);
@@ -1232,12 +1245,15 @@ void PlanRuins(Point centre, uint32_t seed, int floor)
 		for (const auto &[d, kind] : standing)
 			stand(d, kind);
 		if (floor == 2) {
-			const std::pair<Displacement, TreeKind> stones[] = { { { -5, -1 }, ColumnBroken }, { { 3, -5 }, ColumnFallen }, { { 5, 2 }, StatueHead }, { { -1, -5 }, SteleEclipse } };
+			const std::pair<Displacement, TreeKind> stones[] = { { { -5, -1 }, ColumnBroken }, { { 3, -5 }, ColumnFallen }, { { 5, 2 }, StatueHead },
+				{ { -1, -5 }, SteleEclipse }, { { 4, 4 }, BurialUrns }, { { -4, 4 }, SundialPlinth }, { { 6, -2 }, WallStub }, { { -6, -4 }, WallBroken },
+				{ { -4, -4 }, WallBroken } };
 			for (const auto &[d, kind] : stones)
 				stand(d, kind);
 		}
 	}
-	const std::pair<Displacement, uint8_t> lying[] = { { { 0, 0 }, DecorBones + 1 }, { { 3, 1 }, DecorUrn + 1 }, { { -1, 4 }, DecorBones + 1 }, { { 4, -1 }, DecorBasket + 1 } };
+	const std::pair<Displacement, uint8_t> lying[] = { { { 0, 0 }, DecorBones + 1 }, { { 3, 1 }, DecorUrn + 1 }, { { -1, 4 }, DecorBones + 1 }, { { 4, -1 }, DecorBasket + 1 },
+		{ { -2, 2 }, DecorLid + 1 } };
 	for (const auto &[d, decor] : lying) {
 		const Point p = centre + d;
 		if (Inside(p) && Tree[p.x][p.y] == NoTree)
@@ -1290,6 +1306,10 @@ void PlaceRoadside(const std::vector<Point> &road, uint32_t seed, int floor)
 	for (const int percent : { 12, 37, 62, 87 })
 		if (const std::optional<Point> at = beside(along(percent), Hash(seed, 0x3117U, static_cast<uint32_t>(percent))))
 			Tree[at->x][at->y] = Milestone;
+	// A travellers' cairn between the milestones, twice a floor (RfA-70b).
+	for (const int percent : { 25, 75 })
+		if (const std::optional<Point> at = beside(along(percent), Hash(seed, 0xCA1EU, static_cast<uint32_t>(percent))))
+			Tree[at->x][at->y] = Cairn;
 	if (floor <= 1) {
 		if (const std::optional<Point> at = beside(along(45), Hash(seed, 0x3A6U, 1))) {
 			Tree[at->x][at->y] = Wagon;
@@ -1489,9 +1509,14 @@ void GenerateDesert(uint32_t seed)
 			}
 		};
 		lone(0x70A1U, ColumnBroken, ColumnFallen);
+		lone(0x70B1U, AqueductArch, WallStub); // RfA-70b
+		if (floor == 2) {
+			lone(0x70B2U, WallBroken, WallBroken);
+		}
 		if (floor >= 3) {
 			lone(0x70A2U, Obelisk, std::nullopt);
 			lone(0x70A3U, SteleEclipse, std::nullopt);
+			lone(0x70B3U, GuardianLion, BurialUrns);
 		}
 	}
 	Clearing(Arrival, 4, Path);
@@ -1521,8 +1546,14 @@ void GenerateDesert(uint32_t seed)
 	for (int y = Lo; y <= Hi; y++)
 		for (int x = Lo; x <= Hi; x++)
 			if (Tree[x][y] == Outcrop || Tree[x][y] == Ribcage || Tree[x][y] == Wagon || Tree[x][y] == ArchRuined || Tree[x][y] == ColumnFallen
-			    || Tree[x][y] == StatueHead)
+			    || Tree[x][y] == StatueHead || Tree[x][y] == GuardianLion || Tree[x][y] == AqueductArch || Tree[x][y] == WallStub)
 				BlockFootprint({ x, y });
+	// The broken wall runs along the ground's diagonal (top-left to bottom-right on screen: +x), each piece over two tiles: the next
+	// one along it is solid too, so a run of pieces two apart leaves no gap (RfA-70b).
+	for (int y = Lo; y <= Hi; y++)
+		for (int x = Lo; x < Hi; x++)
+			if (Tree[x][y] == WallBroken && Tree[x + 1][y] == NoTree && Ground[x + 1][y] != Path)
+				Tree[x + 1][y] = Blocker;
 	SealUnreachable();
 
 	// The ground details (RfA-65's sheet) and the things that lie on the sand (RfA-67, 68); none on the road, the hole or the water.
@@ -1788,6 +1819,13 @@ constexpr TreeFile TreeFiles[TreeKindCount] = {
 	{ "levels\\desert\\arch_ruined.png", 144, 340, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\statue_headless.png", 64, 276, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\brazier_stand.png", 40, 164, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\guardian_lion.png", 192, 276, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\aqueduct_arch.png", 192, 340, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\burial_urns.png", 72, 116, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\sundial_plinth.png", 64, 148, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\cairn.png", 56, 132, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\wall_stub.png", 112, 148, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\wall_broken.png", 112, 212, 29, false, OrclArea::Desert },
 	{ nullptr, 0, 0, 0, false, OrclArea::Desert }, // Blocker: never drawn
 };
 
@@ -1799,6 +1837,7 @@ constexpr TreeFile DecorFiles[ScatterSlots - 12] = {
 	{ "levels\\desert\\urn_clay.png", 40, 102, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\basket_woven.png", 32, 56, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\cart_wheel.png", 56, 70, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\sarcophagus_lid.png", 112, 100, 29, false, OrclArea::Desert },
 };
 
 /** @brief One area's pictures, loaded the first time one of its floors is built. */

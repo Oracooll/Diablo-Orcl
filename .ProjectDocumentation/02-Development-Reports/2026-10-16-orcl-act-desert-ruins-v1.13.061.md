@@ -48,3 +48,17 @@ RfA-71b came back with the rim sand at (102,89,71), against sand_a's (104,92,74)
 - **Fade:** each is also faded out in an oval, from 0.56 to 0.86 of its half-size.
 
 **The trickling grains:** they follow the painted sinkhole's narrower funnel (0.62 of the old radius). None are drawn on the stairway.
+
+## v1.13.064: RfA-70b, more of the buried city
+Eight more pieces, approved as delivered (batch-101). All are within their content heights, with binary alpha.
+- **The Tomb's court:**
+  - the lion guardian lying beside the arch;
+  - two burial urns, the sundial and a stub of wall;
+  - a broken back wall along its far edge.
+- **The Glass Flats' ruins:** urns, the sundial, a wall stub and two broken-wall pieces join the four RfA-70 stones.
+- **Every ruins floor:** a sarcophagus lid lies in the sand, as decor (`DecorLid`, ScatterSlots 19).
+- **Out in the dunes:** an aqueduct with a wall stub beside it on floors 3 and 4; a lone wall run on the Glass Flats; the guardian's twin with urns on the Tomb's floor.
+- **By every road:** two travellers' cairns per floor, between the milestones.
+- **Footprints:**
+  - The guardian, the aqueduct and the wall stub block theirs.
+  - The broken wall runs along +x (top-left to bottom-right on screen) and spans two tiles, so the tile after each piece is a Blocker. A run laid two tiles apart leaves no gap.
