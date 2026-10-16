@@ -21911,8 +21911,10 @@ TEST(OracoolPreview, DISABLED_WoodsDesignerMobs)
 		{
 			const std::string standPath = std::string("monsters\\") + data.assetsSuffix + "n.cl2";
 			AssetHandle handle = OpenAsset(standPath.c_str());
-			if (!handle.ok())
+			if (!handle.ok()) {
+				std::cerr << "no stand sprite: " << id << " " << data.name << " " << standPath << '\n';
 				continue;
+			}
 		}
 		CMonster kind {};
 		kind.type = static_cast<_monster_id>(id);
@@ -21937,8 +21939,10 @@ TEST(OracoolPreview, DISABLED_WoodsDesignerMobs)
 				if (*out.at<uint32_t>(x, y) != Unwritten) {
 					x0 = std::min(x0, x); y0 = std::min(y0, y); x1 = std::max(x1, x); y1 = std::max(y1, y);
 				}
-		if (x1 < 0)
+		if (x1 < 0) {
+			std::cerr << "empty first frame: " << id << " " << data.name << '\n';
 			continue;
+		}
 		SDL_Surface *png = SDL_CreateRGBSurfaceWithFormat(0, x1 - x0 + 1, y1 - y0 + 1, 32, SDL_PIXELFORMAT_ARGB8888);
 		ASSERT_NE(png, nullptr);
 		for (int y = y0; y <= y1; y++) {
