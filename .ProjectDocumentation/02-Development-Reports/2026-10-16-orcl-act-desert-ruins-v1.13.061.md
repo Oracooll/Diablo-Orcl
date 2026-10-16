@@ -86,3 +86,15 @@ Twelve pieces, approved as delivered (batch-103, batch-104); every content heigh
 - **Tests:**
   - New hook `DesertCraterForTest`; the walk test checks that craters lie on the Glass Flats only.
   - `DISABLED_DesertFloors` renders a crater view.
+
+## v1.13.067 (2026-10-17): the nomad camps (RfA-73)
+Eight pieces, approved as delivered (batch-105).
+- **Where the camps go:** two on the Salt Road and one each on the Ash Dunes and the Glass Flats; the Tomb gets none. Each sits 6-9 tiles off the road, at 30% and 72% of its length.
+- **Clearance:** each camp keeps 10 tiles from the arrival, the way on, the sand hole and the oasis, and 12 from the ruins, with a 9 x 9 box clear of road and props.
+- **One camp:** the open tent with its lantern, the collapsed tent, the water-skin rack, salt piles and a hitching post round a burnt-out campfire, with the rug beside it. Both tents block their footprints.
+- **The lantern:** lit by night only. The game draws a small flickering flame behind its glass, and it is one of the night's lamps.
+- **Round the oases:** dry reeds as decor, ten round each pool's mud ring; they sway.
+- **Decor:** ScatterSlots now 24.
+- **Tests:**
+  - New hook `DesertCampsForTest`; the walk test checks there are never more camps than due, and always at least one on the Salt Road.
+  - `DISABLED_DesertFloors` renders a camp view.

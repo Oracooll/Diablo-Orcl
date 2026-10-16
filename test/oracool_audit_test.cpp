@@ -20949,6 +20949,11 @@ TEST(OracoolAudit, DesertFloorsAreWalkableAndHoldTheirSights)
 			EXPECT_EQ(braziers, floor == 3 ? 2 : 0) << at << ": the Tomb's braziers";
 			// The Glass Flats' scorched craters (RfA-72b), and none elsewhere.
 			EXPECT_EQ(oracool::DesertCraterForTest() != Point(0, 0), floor == 2) << at << ": the craters";
+			// The nomad camps (RfA-73): two on the Salt Road, one on each of the next two, none at the Tomb; at least one where any is due.
+			const int camps = oracool::DesertCampsForTest();
+			EXPECT_LE(camps, floor == 0 ? 2 : floor <= 2 ? 1 : 0) << at << ": too many camps";
+			if (floor == 0)
+				EXPECT_GE(camps, 1) << at << ": the Salt Road has no camp";
 			// Sand mostly, the salt road through it, no Caves fences or Catacombs walls (no pens, no cottages).
 			int sand = 0, road = 0, inside = 0, borrowed = 0;
 			for (int y = 6; y <= 105; y++)
@@ -21181,6 +21186,8 @@ TEST(OracoolPreview, DISABLED_DesertFloors)
 			places.emplace_back("ruins", ruins);
 		if (const Point crater = oracool::DesertCraterForTest(); crater != Point(0, 0))
 			places.emplace_back("crater", crater);
+		if (Point lantern; oracool::DesertCampsForTest(&lantern) > 0)
+			places.emplace_back("camp", lantern + Displacement { -1, 3 });
 		for (const auto &[name, centre] : places) {
 			OwnedSurface view = OwnedSurface::Rgb(1280, 720);
 			const auto screenOf = [&](Point tile) {

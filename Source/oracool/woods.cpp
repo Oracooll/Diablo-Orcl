@@ -171,6 +171,13 @@ enum TreeKind : uint8_t {
 	Fulgurite,
 	CrystalPale,
 	CorpseGlassed,
+	// The nomad camps' (RfA-73): what is left of them.
+	TentOpen,
+	TentCollapsed,
+	LanternPole,
+	WaterskinsRack,
+	SaltPiles,
+	HitchingPost,
 	Blocker,
 	TreeKindCount,
 };
@@ -190,6 +197,8 @@ enum DesertDecor : uint8_t {
 	DecorCampfire, // the Ash Dunes' lying things (RfA-72): a burnt-out campfire, charred bones, a smoking vent
 	DecorBonesCharred,
 	DecorVent,
+	DecorRug,   // the camps' rug with its pots (RfA-73)
+	DecorReeds, // a clump of dry reeds by the water (RfA-73)
 	ScatterSlots,
 };
 
@@ -375,6 +384,8 @@ std::vector<Point> SmokeVents;
 std::vector<Point> PaleCrystals;
 /** @brief The Glass Flats' scorched craters (RfA-72b), laid into the ground as the ways down are. */
 std::vector<Point> Craters;
+/** @brief The nomad camps' lanterns (RfA-73 paints them cold): lit by night, a small flame and a night lamp. */
+std::vector<Point> CampLanterns;
 
 /** @brief The sand hole's radius, in tiles: the pit the hero walks to the middle of to go down (the desert's cave mouth). */
 constexpr float SandHoleRadius = 1.7F;
@@ -1361,6 +1372,60 @@ void PlaceRoadside(const std::vector<Point> &road, uint32_t seed, int floor)
 				break;
 			}
 		}
+		// Dry reeds round the dying water (RfA-73), in the mud's ring and just past it.
+		for (int k = 0; k < 10; k++) {
+			const float a = 6.2831853F * (static_cast<float>(k) / 10.0F + 0.37F * Unit(Hash(seed, 0x4EEDU, static_cast<uint32_t>(k))));
+			const float r = OasisRadius + 0.6F + 1.6F * Unit(Hash(seed, 0x4EEEU, static_cast<uint32_t>(k)));
+			const Point q = OasisCentre + Displacement { static_cast<int>(std::lround(std::cos(a) * r)), static_cast<int>(std::lround(std::sin(a) * r)) };
+			if (Inside(q) && Tree[q.x][q.y] == NoTree && Ground[q.x][q.y] != Path && Scatter[q.x][q.y] == 0)
+				Scatter[q.x][q.y] = DecorReeds + 1;
+		}
+	}
+	// The nomad camps (RfA-73): a few tents round a dead fire, six to nine tiles off the road, on the first three floors - two on the
+	// Salt Road, one on each of the next two. Nobody is there; the lantern burns by night.
+	const auto campSpot = [&](Point from, uint32_t h) -> std::optional<Point> {
+		for (int d = 6; d <= 9; d++) {
+			std::vector<Point> ring;
+			for (int dy = -d; dy <= d; dy++)
+				for (int dx = -d; dx <= d; dx++)
+					if (std::max(std::abs(dx), std::abs(dy)) == d)
+						ring.push_back(from + Displacement { dx, dy });
+			const size_t start = h % ring.size();
+			for (size_t k = 0; k < ring.size(); k++) {
+				const Point c = ring[(start + k) % ring.size()];
+				bool open = c.x - 4 >= Lo && c.x + 4 <= Hi && c.y - 4 >= Lo && c.y + 4 <= Hi && c.WalkingDistance(Arrival) >= 10 && c.WalkingDistance(WayOn) >= 10
+				    && !(MouthOnFloor && c.WalkingDistance(MouthEntrance) < 10) && !(OasisRadius > 0.0F && c.WalkingDistance(OasisCentre) < 10)
+				    && !(RuinsCentre != Point {} && c.WalkingDistance(RuinsCentre) < 12);
+				for (int dy = -4; dy <= 4 && open; dy++)
+					for (int dx = -4; dx <= 4 && open; dx++) {
+						const Point q = c + Displacement { dx, dy };
+						open = Ground[q.x][q.y] != Path && Ground[q.x][q.y] != OasisMud && Tree[q.x][q.y] == NoTree;
+					}
+				if (open)
+					return c;
+			}
+		}
+		return std::nullopt;
+	};
+	const int campCount = floor == 0 ? 2 : floor <= 2 ? 1 : 0;
+	for (int i = 0; i < campCount; i++) {
+		const std::optional<Point> at = campSpot(along(i == 0 ? 30 : 72), Hash(seed, 0xCA4FU, static_cast<uint32_t>(i)));
+		if (!at)
+			continue;
+		const Point c = *at;
+		ClearRound(c, 3);
+		const std::pair<Displacement, TreeKind> standing[] = {
+			{ { -1, -3 }, TentOpen }, { { 3, -1 }, TentCollapsed }, { { 1, -3 }, LanternPole }, { { -3, 0 }, WaterskinsRack },
+			{ { 2, 3 }, SaltPiles }, { { -3, 3 }, HitchingPost },
+		};
+		for (const auto &[d, kind] : standing) {
+			const Point q = c + d;
+			Tree[q.x][q.y] = kind;
+			if (kind == LanternPole)
+				CampLanterns.push_back(q);
+		}
+		Scatter[c.x][c.y] = DecorCampfire + 1;
+		Scatter[c.x - 1][c.y + 1] = DecorRug + 1;
 	}
 }
 
@@ -1398,6 +1463,7 @@ void GenerateDesert(uint32_t seed)
 	SmokeVents.clear();
 	PaleCrystals.clear();
 	Craters.clear();
+	CampLanterns.clear();
 
 	const int span = Hi - Lo;
 	Arrival = { Hi - 4, Lo + span / 4 + static_cast<int>(Unit(Hash(seed, 1, 0)) * static_cast<float>(span) / 2) };
@@ -1597,7 +1663,8 @@ void GenerateDesert(uint32_t seed)
 	for (int y = Lo; y <= Hi; y++)
 		for (int x = Lo; x <= Hi; x++)
 			if (Tree[x][y] == Outcrop || Tree[x][y] == Ribcage || Tree[x][y] == Wagon || Tree[x][y] == ArchRuined || Tree[x][y] == ColumnFallen
-			    || Tree[x][y] == StatueHead || Tree[x][y] == GuardianLion || Tree[x][y] == AqueductArch || Tree[x][y] == WallStub || Tree[x][y] == SiegeBurnt)
+			    || Tree[x][y] == StatueHead || Tree[x][y] == GuardianLion || Tree[x][y] == AqueductArch || Tree[x][y] == WallStub || Tree[x][y] == SiegeBurnt
+			    || Tree[x][y] == TentOpen || Tree[x][y] == TentCollapsed)
 				BlockFootprint({ x, y });
 	// The broken wall runs along the ground's diagonal (top-left to bottom-right on screen: +x), each piece over two tiles: the next
 	// one along it is solid too, so a run of pieces two apart leaves no gap (RfA-70b).
@@ -1673,6 +1740,7 @@ void Generate(uint32_t seed)
 	SmokeVents.clear();
 	PaleCrystals.clear();
 	Craters.clear();
+	CampLanterns.clear();
 	std::memset(Ground, Grass, sizeof(Ground));
 	std::memset(Tree, NoTree, sizeof(Tree));
 	std::memset(Scatter, 0, sizeof(Scatter));
@@ -1905,6 +1973,12 @@ constexpr TreeFile TreeFiles[TreeKindCount] = {
 	{ "levels\\desert\\fulgurite.png", 64, 164, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\crystal_pale.png", 88, 180, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\corpse_glassed.png", 64, 212, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\tent_open.png", 160, 244, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\tent_collapsed.png", 144, 148, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\lantern_pole.png", 32, 180, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\waterskins_rack.png", 64, 164, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\salt_piles.png", 72, 84, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\hitching_post.png", 48, 148, 29, false, OrclArea::Desert },
 	{ nullptr, 0, 0, 0, false, OrclArea::Desert }, // Blocker: never drawn
 };
 
@@ -1920,6 +1994,8 @@ constexpr TreeFile DecorFiles[ScatterSlots - 12] = {
 	{ "levels\\desert\\campfire_burnt.png", 48, 54, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\bones_charred.png", 64, 70, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\smoke_vent.png", 48, 54, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\rug_pots.png", 80, 84, 29, false, OrclArea::Desert },
+	{ "levels\\desert\\reed_clump.png", 48, 116, 29, true, OrclArea::Desert },
 };
 
 /** @brief One area's pictures, loaded the first time one of its floors is built. */
@@ -2777,6 +2853,9 @@ const std::vector<WoodsLamp> &WoodsNightLamps()
 	for (const Point crystal : PaleCrystals)
 		if (Tree[crystal.x][crystal.y] == CrystalPale)
 			lamps.push_back({ static_cast<float>(crystal.x), static_cast<float>(crystal.y), 3.0F, 0.45F, 0xA8E8C8U });
+	for (const Point lantern : CampLanterns)
+		if (Tree[lantern.x][lantern.y] == LanternPole)
+			lamps.push_back({ static_cast<float>(lantern.x), static_cast<float>(lantern.y), 4.0F, 0.85F, 0xFFB868U });
 	for (int i = 0; i < WispCount; i++) {
 		if (!WispLives(Wisps[i]))
 			continue;
@@ -2859,6 +2938,22 @@ void DrawWoodsGlows(const Surface &out, Point firstTile, Point firstTileBuffer)
 		const float night = TownIsDark() ? 1.0F : 0.55F;
 		glow(sx - 6.0F, sy - 18.0F, 7, 0xFF4A14U, 0.45F * breathe * night);
 		glow(sx + 7.0F, sy - 12.0F, 5, 0xFF6A20U, 0.40F * (1.0F - 0.6F * breathe) * night);
+	}
+	// The camps' lanterns by night (RfA-73 paints them cold): a small flame behind the glass, flickering; out by day.
+	if (TownIsDark()) {
+		for (const Point lantern : CampLanterns) {
+			if (Tree[lantern.x][lantern.y] != LanternPole)
+				continue;
+			const Picture &pic = Art().trees[LanternPole];
+			float sx, sy;
+			screen(static_cast<float>(lantern.x), static_cast<float>(lantern.y), sx, sy);
+			// The lantern hangs left of the pole, a little below its top (the painting: 64 x 192, the glass at about (18, 60)).
+			sx += static_cast<float>(TreeJitterX[lantern.x][lantern.y]) - static_cast<float>(pic.footX) * 0.45F;
+			sy += static_cast<float>(TreeJitterY[lantern.x][lantern.y]) - static_cast<float>(pic.footY) * 0.66F;
+			const float flicker = 0.82F + 0.12F * std::sin(t * 9.0F + static_cast<float>(lantern.x)) + 0.06F * std::sin(t * 23.0F + static_cast<float>(lantern.y));
+			glow(sx, sy, 16, 0xFFA040U, 0.40F * flicker);
+			glow(sx, sy, 4, 0xFFE0A0U, 1.00F * flicker);
+		}
 	}
 	// The Glass Flats' pale crystals: a faint cold glow, pulsing (RfA-72b paints them unlit).
 	for (const Point crystal : PaleCrystals) {
@@ -4738,6 +4833,13 @@ void SetWoodsSeedForTest(int floorIndex, uint32_t seed, OrclArea area)
 Point DesertOasisForTest()
 {
 	return OasisRadius > 0.0F ? OasisCentre : Point { 0, 0 };
+}
+
+int DesertCampsForTest(Point *first)
+{
+	if (first != nullptr)
+		*first = CampLanterns.empty() ? Point { 0, 0 } : CampLanterns.front();
+	return static_cast<int>(CampLanterns.size());
 }
 
 Point DesertCraterForTest()

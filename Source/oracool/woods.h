@@ -350,6 +350,8 @@ Point DesertOasisForTest();
 Point DesertRuinsForTest(int *braziers = nullptr);
 /** @brief Test hook: the floor last generated's first scorched crater (RfA-72b), or {0,0} for none. */
 Point DesertCraterForTest();
+/** @brief Test hook: the floor last generated's nomad camps (RfA-73), counted by their lanterns, and the first one's lantern. */
+int DesertCampsForTest(Point *first = nullptr);
 /** @brief Test hook: the kinds the area's Mob Roster lets walk its floors and caves. */
 std::vector<int> AreaRosterForTest(OrclArea area);
 
