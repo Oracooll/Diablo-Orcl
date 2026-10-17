@@ -2309,6 +2309,11 @@ void GenerateFrost(uint32_t seed)
 			if (Tree[x][y] == Blocker && FrostRockDepth[x][y] == 2 && Unit(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x7A12U)) < 0.4F)
 				Tree[x][y] = Unit(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x7A13U)) < 0.5F ? FrostWallA : FrostWallB;
 
+	// The way on (RfA-79): the passage into the rock at the trodden way's far end, just past its last tile, on every floor but the
+	// last (its throne hall ends the caves).
+	if (floor < WoodsFloors - 1)
+		Tree[Lo - 1][WayOn.y] = PassageOn;
+
 	// The ground details (RfA-76's sheet) and the lying things (RfA-78b, 80b); none on the way, the hole or the walls.
 	constexpr int FrostScatterWeight[12] = { 4, 2, 3, 3, 2, 2, 1, 1, 2, 2, 2, 1 };
 	for (int y = 0; y < MAXDUNY; y++) {

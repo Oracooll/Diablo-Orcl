@@ -21221,6 +21221,8 @@ TEST(OracoolPreview, DISABLED_FrostFloors)
 			places.emplace_back("hole", entrance);
 		if (const Point hall = oracool::DesertArenaForTest(); hall != Point(0, 0))
 			places.emplace_back("hall", hall);
+		if (floor < 3)
+			places.emplace_back("wayon", oracool::WoodsWayOn() + Displacement { 1, 2 });
 		for (const auto &[name, centre] : places) {
 			OwnedSurface view = OwnedSurface::Rgb(1280, 720);
 			const auto screenOf = [&](Point tile) {
