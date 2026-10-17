@@ -26,6 +26,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "engine/point.hpp"
@@ -162,6 +163,8 @@ void EnterWoodsAtCaveMouthNext();
 bool DesertBuilt();
 /** @brief The floor last built is the Frost Caves' (2026-10-17). */
 bool FrostBuilt();
+/** @brief Where the Frost Caves floor last built's crystal lights go, and their radius: open tiles beside the crystals (BuildWoodsLevel). */
+std::vector<std::pair<Point, int>> FrostCrystalLightSpots();
 /** @brief The Frost Caves floor last built's light shafts (RfA-79b), for the tests. */
 std::vector<Point> FrostLightShaftsForTest();
 /**

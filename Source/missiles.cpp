@@ -5664,7 +5664,11 @@ void ProcessHorkSpawn(Missile &missile)
 			auto facing = static_cast<Direction>(missile.var1);
 			Monster *monster = AddMonster(*spawnPosition, facing, 1, true);
 			if (monster != nullptr) {
-				oracool::ScaleWoodsMonster(*monster); // at the floor's rung, as its parent (audit, 2026-10-17)
+				// At the rift's scale or the floor's rung, as its parent (audit, 2026-10-17), as a raised skeleton is.
+				if (oracool::InRift())
+					oracool::ScaleRiftMonster(*monster);
+				else
+					oracool::ScaleWoodsMonster(*monster);
 				M_StartStand(*monster, facing);
 			}
 		}

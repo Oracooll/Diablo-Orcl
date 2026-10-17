@@ -463,6 +463,8 @@ std::vector<Point> Craters;
  * craters are, with a light of its own over it - the game draws the light; the picture is only the snow.
  */
 std::vector<Point> LightShafts;
+/** @brief The desert's lone sights placed so far this floor (FindDesertSpot): each keeps its room from the next (audit round 2). */
+std::vector<Point> DesertSpots;
 /**
  * @brief The Frost Caves' build masks (audit, 2026-10-17): the open floor the trodden way reaches before the sights go in (a sight
  * set in a cavern the way never crossed was sealed into the rock with it), the wide props' invisible footprints (the wall pass took
@@ -1245,12 +1247,19 @@ std::optional<Point> FindDesertSpot(uint32_t seed, uint32_t salt)
 		if ((OasisRadius > 0.0F && p.WalkingDistance(OasisCentre) < 16) || (RuinsCentre != Point {} && p.WalkingDistance(RuinsCentre) < 16)
 		    || (ArenaCentre != Point {} && p.WalkingDistance(ArenaCentre) < 14))
 			continue;
+		// Nor on a crater, an earlier sight, or anything already standing (audit round 2: a column on a crater's middle, a siege
+		// engine on the rib cage, one lone piece over another).
+		if (Tree[p.x][p.y] != NoTree || std::any_of(Craters.begin(), Craters.end(), [&](Point c) { return c.WalkingDistance(p) < 8; })
+		    || std::any_of(DesertSpots.begin(), DesertSpots.end(), [&](Point c) { return c.WalkingDistance(p) < 6; }))
+			continue;
 		bool nearRoad = false;
 		for (int dy = -5; dy <= 5 && !nearRoad; dy++)
 			for (int dx = -5; dx <= 5 && !nearRoad; dx++)
 				nearRoad = Ground[p.x + dx][p.y + dy] == Path;
-		if (!nearRoad)
+		if (!nearRoad) {
+			DesertSpots.push_back(p);
 			return p;
+		}
 	}
 	return std::nullopt;
 }
@@ -1568,7 +1577,8 @@ void PlaceRoadside(const std::vector<Point> &road, uint32_t seed, int floor)
 				const Point c = ring[(start + k) % ring.size()];
 				bool open = c.x - 4 >= Lo && c.x + 4 <= Hi && c.y - 4 >= Lo && c.y + 4 <= Hi && c.WalkingDistance(Arrival) >= 10 && c.WalkingDistance(WayOn) >= 10
 				    && !(MouthOnFloor && c.WalkingDistance(MouthEntrance) < 10) && !(OasisRadius > 0.0F && c.WalkingDistance(OasisCentre) < 10)
-				    && !(RuinsCentre != Point {} && c.WalkingDistance(RuinsCentre) < 12);
+				    && !(RuinsCentre != Point {} && c.WalkingDistance(RuinsCentre) < 12)
+				    && std::none_of(Craters.begin(), Craters.end(), [&](Point cr) { return cr.WalkingDistance(c) < 9; }); // nor on a crater (audit round 2)
 				for (int dy = -4; dy <= 4 && open; dy++)
 					for (int dx = -4; dx <= 4 && open; dx++) {
 						const Point q = c + Displacement { dx, dy };
@@ -1638,6 +1648,7 @@ void GenerateDesert(uint32_t seed)
 	PaleCrystals.clear();
 	Craters.clear();
 	LightShafts.clear();
+	DesertSpots.clear();
 	CampLanterns.clear();
 
 	const int span = Hi - Lo;
@@ -1721,13 +1732,24 @@ void GenerateDesert(uint32_t seed)
 			return true;
 		};
 		MouthEntrance = glade + Displacement { -4, -1 };
+		bool placed = false;
 		for (const Displacement d : { Displacement { -4, -1 }, Displacement { 4, 1 }, Displacement { -1, -4 }, Displacement { 1, 4 }, Displacement { -4, 3 },
 		         Displacement { 4, -3 }, Displacement { -3, -4 }, Displacement { 3, 4 } }) {
 			if (offRoad(glade + d)) {
 				MouthEntrance = glade + d;
+				placed = true;
 				break;
 			}
 		}
+		// None of the eight off the road (audit round 2: the hole then fell on the road, and a click past it dropped the hero in):
+		// the nearest ring further out that is.
+		for (int r = 5; r <= 9 && !placed; r++)
+			for (int dy = -r; dy <= r && !placed; dy++)
+				for (int dx = -r; dx <= r && !placed; dx++)
+					if (std::max(std::abs(dx), std::abs(dy)) == r && offRoad(glade + Displacement { dx, dy })) {
+						MouthEntrance = glade + Displacement { dx, dy };
+						placed = true;
+					}
 		MouthOrigin = MouthEntrance - Displacement { 2, 2 };
 		for (int dy = -3; dy <= 3; dy++)
 			for (int dx = -3; dx <= 3; dx++) {
@@ -1904,6 +1926,7 @@ void GenerateDesert(uint32_t seed)
 
 /** @brief The Frost Caves' lights (2026-10-17): the crystals' cold glow, lit as a dungeon's lights are (BuildWoodsLevel). */
 std::vector<Point> FrostLights;
+
 /** @brief How deep each tile lies in the Frost Caves' rock: 0 open, 1 the wall's face, more behind (the dark over the rock). */
 uint8_t FrostRockDepth[MAXDUNX][MAXDUNY];
 
@@ -1989,6 +2012,7 @@ void GenerateFrost(uint32_t seed)
 	PaleCrystals.clear();
 	Craters.clear();
 	LightShafts.clear();
+	DesertSpots.clear();
 	CampLanterns.clear();
 	FrostLights.clear();
 
@@ -2340,7 +2364,7 @@ void GenerateFrost(uint32_t seed)
 				bool face = false;
 				for (int dy = -1; dy <= 1 && !face; dy++)
 					for (int dx = -1; dx <= 1 && !face; dx++)
-						face = InDungeonBounds({ x + dx, y + dy }) && !rock(x + dx, y + dy);
+						face = InDungeonBounds({ x + dx, y + dy }) && !rock(x + dx, y + dy) && !FrostFootprint[x + dx][y + dy]; // a prop's footprint is no open floor to face (audit round 2)
 				if (face) {
 					FrostRockDepth[x][y] = 1;
 					frontier.push_back({ x, y });
@@ -2427,6 +2451,7 @@ void Generate(uint32_t seed)
 	PaleCrystals.clear();
 	Craters.clear();
 	LightShafts.clear();
+	DesertSpots.clear();
 	CampLanterns.clear();
 	std::memset(Ground, Grass, sizeof(Ground));
 	std::memset(Tree, NoTree, sizeof(Tree));
@@ -3399,8 +3424,8 @@ bool WorldOpen(Point p)
 	// Nor on a light shaft's snow, nor in the Throne of Winter's hall (audit, 2026-10-17).
 	if (std::any_of(LightShafts.begin(), LightShafts.end(), [&](Point c) { return c.WalkingDistance(p) <= 2; }))
 		return false;
-	if (Frost && ArenaCentre != Point {} && p.WalkingDistance(ArenaCentre) <= 6)
-		return false;
+	if (ArenaCentre != Point {} && p.WalkingDistance(ArenaCentre) <= 6)
+		return false; // the Throne of Winter's hall, the Sun-Eater's arena
 	for (int dy = -1; dy <= 1; dy++) {
 		for (int dx = -1; dx <= 1; dx++) {
 			const Point q = p + Displacement { dx, dy };
@@ -4036,8 +4061,8 @@ void BuildWoodsLevel(bool fresh)
 		PlaceWoodsWorldObjects();
 	// The Frost Caves' crystals light the dark round them, as a dungeon's lights do (2026-10-17).
 	if (area == OrclArea::Frost) {
-		for (const Point at : FrostLights)
-			AddLight(at, Tree[at.x][at.y] == CrystalsSmall ? 4 : 7);
+		for (const auto &[at, radius] : FrostCrystalLightSpots())
+			AddLight(at, radius);
 		for (const Point at : LightShafts)
 			AddLight(at, 6); // the grey daylight falling through the roof
 	}
@@ -4351,7 +4376,32 @@ int WoodsKindAtForTest(Point tile)
 
 int FrostLightCountForTest()
 {
-	return static_cast<int>(FrostLights.size());
+	return static_cast<int>(FrostCrystalLightSpots().size());
+}
+
+std::vector<std::pair<Point, int>> FrostCrystalLightSpots()
+{
+	// From an open tile beside each crystal (audit round 2: a crystal stands on a solid tile, and the light pass skips a light in a
+	// wall, so none of them lit anything), one light for crystals standing together, at most twenty a floor (the light pool is the
+	// spells' too).
+	std::vector<std::pair<Point, int>> spots;
+	std::vector<Point> lit;
+	for (const Point at : FrostLights) {
+		if (lit.size() >= 20)
+			break;
+		if (std::any_of(lit.begin(), lit.end(), [&](Point l) { return l.WalkingDistance(at) < 4; }))
+			continue;
+		for (const Displacement d : { Displacement { 1, 1 }, Displacement { 1, 0 }, Displacement { 0, 1 }, Displacement { -1, 1 }, Displacement { 1, -1 },
+		         Displacement { -1, 0 }, Displacement { 0, -1 }, Displacement { -1, -1 } }) {
+			const Point q = at + d;
+			if (InDungeonBounds(q) && Tree[q.x][q.y] == NoTree && !TileHasAny(dPiece[q.x][q.y], TileProperties::Solid)) {
+				spots.emplace_back(q, Tree[at.x][at.y] == CrystalsSmall ? 4 : 7);
+				lit.push_back(at);
+				break;
+			}
+		}
+	}
+	return spots;
 }
 
 void EnterWoodsAtCaveMouthNext()

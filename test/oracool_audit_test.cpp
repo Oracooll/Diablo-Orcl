@@ -21113,6 +21113,9 @@ TEST(OracoolAudit, FrostCavesAreWalkableCaverns)
 			EXPECT_LT(open, inside * 3 / 5) << at << ": too much open floor for a cave";
 			if (floor == 1)
 				EXPECT_GT(oracool::FrostLightCountForTest(), 0) << at << ": the Hollows' crystals light nothing";
+			// Each crystal light on an open tile (audit round 2: on the crystal's own, solid, tile the light pass skipped it).
+			for (const auto &[spot, radius] : oracool::FrostCrystalLightSpots())
+				EXPECT_FALSE(oracool::WoodsTreeAt(spot)) << at << ": a crystal's light stands in the crystal";
 			// The light shafts (RfA-79b): two, each on open floor the hero can walk to.
 			const std::vector<Point> shafts = oracool::FrostLightShaftsForTest();
 			EXPECT_EQ(shafts.size(), 2U) << at << ": the light shafts";
