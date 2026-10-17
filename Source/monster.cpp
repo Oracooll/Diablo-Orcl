@@ -2862,6 +2862,12 @@ MissileID GetMissileType(MonsterAIID ai)
 	}
 }
 
+/** @brief GetMissileType, in its ice version in the Frost Caves (oracool::FrostMissileFor). */
+MissileID GetMonsterMissile(MonsterAIID ai)
+{
+	return static_cast<MissileID>(oracool::FrostMissileFor(static_cast<int>(GetMissileType(ai))));
+}
+
 void AiRanged(Monster &monster)
 {
 	if (monster.mode != MonsterMode::Stand) {
@@ -2881,7 +2887,7 @@ void AiRanged(Monster &monster)
 		}
 		if (monster.mode == MonsterMode::Stand) {
 			if (LineClearMissile(monster.position.tile, monster.enemyPosition)) {
-				MissileID missileType = GetMissileType(monster.ai);
+				MissileID missileType = GetMonsterMissile(monster.ai);
 				if (monster.ai == MonsterAIID::AcidUnique)
 					StartRangedSpecialAttack(monster, missileType, 0);
 				else
@@ -2912,7 +2918,7 @@ void AiRangedAvoidance(Monster &monster)
 	// The base only: var3 is an int8, and the percent scaled in here wrapped past 127 to a 1-damage Apocalypse (round 123 audit).
 	// MonsterRangedSpecialAttack lays his damage percent on at the release, in an int.
 	int dam = (monster.ai == MonsterAIID::Diablo) ? 40 : 0;
-	MissileID missileType = GetMissileType(monster.ai);
+	MissileID missileType = GetMonsterMissile(monster.ai);
 	int v = GenerateRnd(10000);
 	unsigned distanceToEnemy = monster.distanceToEnemy();
 	if (distanceToEnemy >= 2 && monster.activeForTicks == UINT8_MAX && dTransVal[monster.position.tile.x][monster.position.tile.y] == dTransVal[monster.enemyPosition.x][monster.enemyPosition.y]) {
@@ -3064,7 +3070,7 @@ void SkeletonBowAi(Monster &monster)
 	if (!walking) {
 		if (GenerateRnd(100) < 2 * monster.intelligence + 3) {
 			if (LineClearMissile(monster.position.tile, monster.enemyPosition))
-				StartRangedAttack(monster, MissileID::Arrow, 4);
+				StartRangedAttack(monster, static_cast<MissileID>(oracool::FrostMissileFor(static_cast<int>(MissileID::Arrow))), 4);
 		}
 	}
 

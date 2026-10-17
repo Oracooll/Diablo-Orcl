@@ -26,6 +26,7 @@
 #include "items.h" // CreateRndItem - what the houses hold
 #include "levels/gendung.h"
 #include "levels/trigs.h"
+#include "missiles.h" // FrostMissileFor - the ice versions of the monsters' shots
 #include "monstdat.h"
 #include "monster.h" // ScaleWoodsMonster, the boss's spot
 #include "oracool/area_level.h"
@@ -4179,6 +4180,34 @@ bool FrostBuilt()
 	return Frost;
 }
 
+
+int FrostMissileFor(int missile)
+{
+	if (!setlevel || (!IsFrostLevel(setlvlnum) && !IsFrostRiverLevel(setlvlnum)))
+		return missile;
+	// The cold projectiles that roll a monster's own damage when a monster fires them (AddFirebolt, RollColdDamage); the frost arrow
+	// does not (ProcessRogueArrow deals 1 from a monster), so an archer's arrow becomes an ice bolt.
+	switch (static_cast<MissileID>(missile)) {
+	case MissileID::Arrow:
+	case MissileID::Firebolt:
+	case MissileID::OrangeFlare:
+	case MissileID::YellowFlare:
+	case MissileID::BlueFlare:
+	case MissileID::RedFlare:
+	case MissileID::BlueFlare2:
+		return static_cast<int>(MissileID::IceBolt);
+	case MissileID::Acid:
+	case MissileID::BloodStar:
+	case MissileID::Fireball:
+	case MissileID::MagmaBall:
+		return static_cast<int>(MissileID::IceBlast);
+	case MissileID::DiabloApocalypse:
+	case MissileID::ThinLightningControl:
+		return static_cast<int>(MissileID::GlacialSpike);
+	default:
+		return missile;
+	}
+}
 
 const uint32_t *FrostLookTable(FrostLook look, const uint32_t *lit, std::array<uint32_t, 256> &out)
 {

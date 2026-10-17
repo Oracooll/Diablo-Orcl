@@ -169,6 +169,13 @@ enum class FrostLook : uint8_t {
 	Frostbite,
 	BlackIce,
 };
+/**
+ * @brief A monster's ranged attack @p missile as the Frost Caves have it (the Designer's Frost Caves roster, "we will make them shoot ice
+ * shards, or diablo can produce ice spikes instead of appocalypse flames. acid spiters can spit ice shards"): on a Frost Caves floor
+ * or frozen river, its ice version - arrows, firebolts and flares an ice bolt; acid, blood stars, fireballs and magma ice blast shards;
+ * Apocalypse and lightning glacial spikes. @p missile itself anywhere else, and for anything with no ice version.
+ */
+int FrostMissileFor(int missile);
 /** @brief The look @p kind wears on a Frost Caves floor or frozen river; None anywhere else. */
 FrostLook FrostLookFor(int kind);
 /** @brief @p lit (256 lit palette colours) in @p look, into @p out; returns out. */

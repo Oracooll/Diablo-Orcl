@@ -21120,6 +21120,15 @@ TEST(OracoolAudit, FrostCavesMonstersWearTheirFrostLook)
 		}
 		EXPECT_LT(((dark >> 16) & 0xFF) + ((dark >> 8) & 0xFF) + (dark & 0xFF), 240U) << "look " << static_cast<int>(look) << ": the dark is lifted";
 	}
+	// Their attacks in ice (2026-10-17): the archers, the spitters, Diablo; nothing changes outside.
+	setlevel = true;
+	setlvlnum = SL_ORCL_FROST_1;
+	EXPECT_EQ(oracool::FrostMissileFor(static_cast<int>(MissileID::Arrow)), static_cast<int>(MissileID::IceBolt));
+	EXPECT_EQ(oracool::FrostMissileFor(static_cast<int>(MissileID::Acid)), static_cast<int>(MissileID::IceBlast));
+	EXPECT_EQ(oracool::FrostMissileFor(static_cast<int>(MissileID::DiabloApocalypse)), static_cast<int>(MissileID::GlacialSpike));
+	EXPECT_EQ(oracool::FrostMissileFor(static_cast<int>(MissileID::Rhino)), static_cast<int>(MissileID::Rhino)) << "a charge stays a charge";
+	setlvlnum = SL_ORCL_WOODS_2;
+	EXPECT_EQ(oracool::FrostMissileFor(static_cast<int>(MissileID::Acid)), static_cast<int>(MissileID::Acid));
 	setlevel = savedSetlevel;
 	setlvlnum = savedSetLevelNum;
 }
