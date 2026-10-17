@@ -6395,6 +6395,8 @@ StringOrView Object::name() const
 	case OBJ_CHEST3:
 		if (currlevel == 0 && position == StashChestPosition)
 			return _("Stash");
+		if (oracool::IsStillRiverCaptive(_otype, _oVar3))
+			return _("Frozen Captive"); // the Still River's (RfA-85): the treasure he carries
 		return _("Large Chest");
 	case OBJ_TCHEST3:
 	case OBJ_SIGNCHEST:

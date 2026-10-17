@@ -5604,6 +5604,8 @@ constexpr AreaObjectFile DesertSarcophagus { "levels\\desert\\objects\\sarcophag
 constexpr AreaObjectFile DesertShrine { "levels\\desert\\objects\\shrine_sun.png", "levels\\desert\\objects\\shrine_sun_spent.png", 64, 180 };
 constexpr AreaObjectFile DesertBrazier { "levels\\desert\\objects\\brazier_tripod.png", "levels\\desert\\objects\\brazier_tripod_out.png", 40, 148 };
 constexpr AreaObjectFile DesertCorpse { "levels\\desert\\objects\\corpse_bier.png", "levels\\desert\\objects\\corpse_bier_searched.png", 96, 100 };
+// The Still River's captive (RfA-85): the robed figure in its ice, the ice shattered and the robe empty once opened.
+constexpr AreaObjectFile FrostCaptive { "levels\\frost\\objects\\captive_ice.png", "levels\\frost\\objects\\captive_ice_broken.png", 80, 276 };
 // The waypoints (RfA-79, RfA-84): a frost pad lit pale ice-blue, a sun pad lit gold.
 constexpr AreaObjectFile FrostWaypoint { "levels\\frost\\waypoint_frost.png", "levels\\frost\\waypoint_frost.png", 96, 100, 75, 0x8CC8FFU };
 constexpr AreaObjectFile DesertWaypoint { "levels\\desert\\objects\\waypoint_sun.png", "levels\\desert\\objects\\waypoint_sun.png", 96, 100, 75, 0xFFC860U };
@@ -5615,6 +5617,8 @@ constexpr AreaObjectFile DesertWaypoint { "levels\\desert\\objects\\waypoint_sun
  */
 const AreaObjectFile *AreaObjectFor(OrclArea area, int type)
 {
+	if (type == CaptiveObjectType)
+		return area == OrclArea::Frost ? &FrostCaptive : nullptr;
 	switch (static_cast<_object_id>(type)) {
 	case OBJ_BARREL:
 	case OBJ_BARRELEX:
@@ -5668,6 +5672,11 @@ const char *AreaObjectPath(int type, bool used)
 }
 
 } // namespace
+
+bool IsStillRiverCaptive(int type, int var3)
+{
+	return setlevel && setlvlnum == SL_ORCL_FROST_RIVER_4 && type == OBJ_CHEST3 && var3 == CaptiveMark;
+}
 
 const char *AreaObjectPictureForTest(int objectType, bool used)
 {

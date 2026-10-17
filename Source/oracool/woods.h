@@ -299,6 +299,14 @@ void DrawTownFrostMouth(const Surface &out, Point tile, Point target, int light)
  * False (nothing drawn) for a type the area has no painting of, anywhere else, or on an indexed target: the vanilla sprite then.
  */
 bool DrawAreaObject(const Surface &out, int objectType, bool used, Point foot, bool hovered, int light); // a waypoint's used = lit
+/**
+ * @brief The Still River's captive (RfA-85, user 2026-10-17: "the Still River captive carries a treasure"): a large chest, marked by
+ * CaptiveMark in its _oVar3, no quest. Drawn as the frozen robed figure (DrawAreaObject's CaptiveObjectType), shattered once opened.
+ */
+constexpr int CaptiveMark = 0x0CA97;
+constexpr int CaptiveObjectType = -2;
+/** @brief An object of @p type whose _oVar3 is @p var3 is the Still River's captive, here. */
+bool IsStillRiverCaptive(int type, int var3);
 /** @brief The painting DrawAreaObject would draw for @p objectType here (its path), or nullptr; for the tests. */
 const char *AreaObjectPictureForTest(int objectType, bool used);
 

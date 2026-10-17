@@ -20700,6 +20700,24 @@ TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
 		else
 			EXPECT_GE(down, 1) << "a floor with a way on has no stairs down";
 	}
+	// The Still River's captive (RfA-85): built with the floor, the treasure of three real items, away from the landing.
+	{
+		const bool savedHeadless = HeadlessMode;
+		HeadlessMode = true;
+		setlevel = true;
+		setlvlnum = SL_ORCL_FROST_RIVER_4;
+		oracool::BuildWoodsCaveLevel(true);
+		const Point captive = oracool::StillRiverCaptiveForTest();
+		EXPECT_NE(captive, Point(0, 0)) << "the Still River has its captive";
+		const int id = dObject[captive.x][captive.y];
+		ASSERT_GT(id, 0);
+		const Object &chest = Objects[id - 1];
+		EXPECT_EQ(chest._oVar1, 3);
+		EXPECT_FALSE(chest._oTrapFlag);
+		EXPECT_EQ(chest.name().str(), "Frozen Captive");
+		EXPECT_GT(std::abs(captive.x - ViewPosition.x) + std::abs(captive.y - ViewPosition.y), 15) << "away from the landing";
+		HeadlessMode = savedHeadless;
+	}
 	leveltype = savedType;
 	setlevel = savedSetlevel;
 	setlvlnum = savedSetLevelNum;

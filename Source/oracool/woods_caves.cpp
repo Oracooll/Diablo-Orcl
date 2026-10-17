@@ -7,11 +7,14 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include <SDL.h>
 
 #include "diablo.h"
+#include "engine/path.h" // IsTileWalkable - the captive's spot
 #include "engine/palette.h"
 #include "engine/random.hpp"
 #include "interfac.h"
@@ -99,6 +102,10 @@ const char *WoodsCaveName(_setlevels level)
 	return Caves[IndexOf(level)].name;
 }
 
+namespace {
+void PlaceStillRiverCaptive(uint32_t seed); // after the build, below
+} // namespace
+
 void BuildWoodsCaveLevel(bool fresh)
 {
 	const int index = IndexOf(setlvlnum);
@@ -142,9 +149,85 @@ void BuildWoodsCaveLevel(bool fresh)
 	numthemes = 0;
 	if (!HeadlessMode)
 		InitObjectGFX();
-	if (fresh)
+	if (fresh) {
 		InitObjects();
+		if (setlvlnum == SL_ORCL_FROST_RIVER_4)
+			PlaceStillRiverCaptive(Game.seed[index]);
+	}
 	currlevel = savedLevel;
+}
+
+namespace {
+
+/**
+ * @brief The Still River's captive (RfA-85): a large chest of three real items, untrapped, marked as the captive, standing in the
+ * open far from where the hero arrives - the tile the longest walk from the landing with its eight neighbours walkable and empty, ties
+ * broken by a hash of the floor's seed. Placed once, on the floor's first build: the save keeps it.
+ */
+void PlaceStillRiverCaptive(uint32_t seed)
+{
+	const auto clear = [](Point p) {
+		for (int dy = -1; dy <= 1; dy++)
+			for (int dx = -1; dx <= 1; dx++) {
+				const Point q = p + Displacement { dx, dy };
+				if (!InDungeonBounds(q) || !IsTileWalkable(q) || dObject[q.x][q.y] != 0)
+					return false;
+			}
+		return true;
+	};
+	// Walking distance from the landing, so the captive is never in a pocket the hero cannot reach.
+	std::vector<int> steps(static_cast<size_t>(MAXDUNX) * MAXDUNY, -1);
+	std::vector<Point> queue { ViewPosition };
+	if (InDungeonBounds(ViewPosition))
+		steps[static_cast<size_t>(ViewPosition.y) * MAXDUNX + ViewPosition.x] = 0;
+	for (size_t head = 0; head < queue.size(); head++) {
+		const Point at = queue[head];
+		for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 } }) {
+			const Point q = at + d;
+			if (!InDungeonBounds(q) || !IsTileWalkable(q))
+				continue;
+			int &s = steps[static_cast<size_t>(q.y) * MAXDUNX + q.x];
+			if (s >= 0)
+				continue;
+			s = steps[static_cast<size_t>(at.y) * MAXDUNX + at.x] + 1;
+			queue.push_back(q);
+		}
+	}
+	std::optional<Point> best;
+	int bestScore = -1;
+	for (int y = 2; y < MAXDUNY - 2; y++)
+		for (int x = 2; x < MAXDUNX - 2; x++) {
+			const Point p { x, y };
+			const int walk = steps[static_cast<size_t>(y) * MAXDUNX + x];
+			if (walk < 0 || !clear(p))
+				continue;
+			const int score = walk * 16 + static_cast<int>((seed ^ (static_cast<uint32_t>(x) * 73856093U) ^ (static_cast<uint32_t>(y) * 19349663U)) & 15U);
+			if (score > bestScore) {
+				bestScore = score;
+				best = p;
+			}
+		}
+	if (!best)
+		return;
+	Object *captive = AddObject(OBJ_CHEST3, *best);
+	if (captive == nullptr)
+		return;
+	captive->_oVar1 = 3;  // three items
+	captive->_oVar2 = 1;  // real ones, never only potions and scrolls
+	captive->_oVar3 = CaptiveMark;
+	captive->_oTrapFlag = false;
+}
+
+} // namespace
+
+Point StillRiverCaptiveForTest()
+{
+	for (int i = 0; i < ActiveObjectCount; i++) {
+		const Object &object = Objects[ActiveObjects[i]];
+		if (IsStillRiverCaptive(object._otype, object._oVar3))
+			return object.position;
+	}
+	return {};
 }
 
 int WoodsCaveRung()

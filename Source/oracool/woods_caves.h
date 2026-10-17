@@ -31,6 +31,8 @@ void BuildWoodsCaveLevel(bool fresh);
 
 /** @brief The current cave floor's rung (1-16 inside the difficulty's block), 1 off the caves. */
 int WoodsCaveRung();
+/** @brief Where the Still River's captive stands on the floor last built, or (0, 0); for the tests. */
+Point StillRiverCaptiveForTest();
 
 /** @brief The seed of the current cave floor's monster roster: the same on every build. */
 uint32_t WoodsCaveRosterSeed();
