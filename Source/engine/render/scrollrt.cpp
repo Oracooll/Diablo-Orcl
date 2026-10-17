@@ -1590,6 +1590,7 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 	} else {
 		DrawCell(out, tilePosition, targetBufferPosition);
 		oracool::RepaintWoodsCelGround(out, tilePosition, targetBufferPosition, LightTableIndex); // a mouth rock's dark earth
+		oracool::DrawTownFrostMouth(out, tilePosition, targetBufferPosition, LightTableIndex); // the Frost Caves' mouth on Tristram's east edge
 		if (oracool::WoodsSpritesOverTiles(out)) // the Mixed look: the painted trees over Tristram's tiles
 			oracool::DrawWoodsTileSprite(out, tilePosition, targetBufferPosition, LightTableIndex);
 	}

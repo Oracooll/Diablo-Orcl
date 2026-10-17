@@ -52,3 +52,19 @@ User, 2026-10-17: "start the frost caves engine work while waiting". Plan: `.Pro
 - The frost roster with its recolours and ice attacks (the Designer's Frost Caves roster).
 - The Frost tab in the Level Designer.
 - The audit loop.
+
+## v1.13.072: the Hollows' lakes, the Deep's dead, Tristram's mouth, the crystals' glow
+- **The Glacial Hollows' frozen lakes (RfA-81):**
+  - Two pools of black ice (the `OasisMud` slot of the Frost ground table), each ringed with lake stones (decor).
+  - One or two holes of dark water in each pool, and a fish frozen in a block of ice on the shore.
+  - Two crevasse lips, which block their footprints.
+  - Two crystal spires, which are lights.
+- **The Frostbound Deep (RfA-81b):**
+  - A barrow field of two burial mounds and a rune stone.
+  - Chains with the kneeling dead, plus a lone kneeling corpse and a lone rune stone.
+  - One wall piece in six holds the dead (`WallFaces`).
+  - A tomb door is cut into the wall once, where open floor lies in front of it.
+- **Tristram's mouth:** RfA-79's painted `mouth_tristram` stands behind the east gate (`DrawTownFrostMouth`, from scrollrt's town cell pass), at half its painted size and lit with the town.
+- **The crystals' glow:** clusters, small crystals and spires each get a slow cold blue shine in the glow pass, on top of their `AddLight`.
+- **A bug caught in the render:** `Unit()` reads the low 24 bits, so `Unit(h >> 12)` never passes 0.0625, and every Deep wall had become a wall of faces. The faces now roll their own hash. The `h >> 8` uses elsewhere keep 24 bits and are fine.
+- **Tests:** full suite 1072 of 1072.

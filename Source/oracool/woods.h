@@ -260,6 +260,11 @@ void DrawWoodsGroundTile(const Surface &out, Point tile, Point target, int light
  * other tile.
  */
 void DrawWoodsGateTint(const Surface &out, Point tile, Point target);
+/**
+ * @brief Tristram's way down into the Frost Caves, painted (RfA-79's mouth_tristram): a cave mouth in a turf hill behind the east
+ * edge's gate, drawn with the town's cells when the tile it stands on is drawn. Nothing on an indexed surface or off that tile.
+ */
+void DrawTownFrostMouth(const Surface &out, Point tile, Point target, int light);
 
 /**
  * @brief The Mixed look's ground, over the tile Tristram's cels just drew: the painted dirt road on and along the road, its
