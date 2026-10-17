@@ -458,6 +458,11 @@ std::vector<Point> SmokeVents;
 std::vector<Point> PaleCrystals;
 /** @brief The Glass Flats' scorched craters (RfA-72b), laid into the ground as the ways down are. */
 std::vector<Point> Craters;
+/**
+ * @brief The Frost Caves' light shafts (RfA-79/79b): a heap of fresh snow under a hole in the roof, laid into the ground as the
+ * craters are, with a light of its own over it - the game draws the light; the picture is only the snow.
+ */
+std::vector<Point> LightShafts;
 /** @brief The nomad camps' lanterns (RfA-73 paints them cold): lit by night, a small flame and a night lamp. */
 std::vector<Point> CampLanterns;
 
@@ -1620,6 +1625,7 @@ void GenerateDesert(uint32_t seed)
 	SmokeVents.clear();
 	PaleCrystals.clear();
 	Craters.clear();
+	LightShafts.clear();
 	CampLanterns.clear();
 
 	const int span = Hi - Lo;
@@ -1965,6 +1971,7 @@ void GenerateFrost(uint32_t seed)
 	SmokeVents.clear();
 	PaleCrystals.clear();
 	Craters.clear();
+	LightShafts.clear();
 	CampLanterns.clear();
 	FrostLights.clear();
 
@@ -2204,6 +2211,7 @@ void GenerateFrost(uint32_t seed)
 	}
 	}
 
+
 	// The clutter on open floor (RfA-78b, 80b), each floor its own mix.
 	for (int y = Lo + 2; y <= Hi - 2; y++)
 		for (int x = Lo + 2; x <= Hi - 2; x++) {
@@ -2233,6 +2241,14 @@ void GenerateFrost(uint32_t seed)
 			    || Tree[x][y] == SledFrozen || Tree[x][y] == CrevasseLip || Tree[x][y] == BurialMound || Tree[x][y] == ThroneFrozen || Tree[x][y] == ArchIce)
 				BlockFootprint({ x, y });
 	SealUnreachable();
+
+	// Two light shafts a floor (RfA-79b): snow heaped under a hole in the roof, in the open, apart from each
+	// other and the sights; after the seal, so never in a pocket it walled up.
+	for (uint32_t salt = 0x5AF7U; salt < 0x5AF7U + 16U && LightShafts.size() < 2; salt++)
+		if (const std::optional<Point> at = FindFrostSpot(seed, salt, 2, taken, 12)) {
+			taken.push_back(*at);
+			LightShafts.push_back(*at);
+		}
 
 	// The rock that faces open ground stands as the wall pieces, every other tile and a third of the rest, so the wall reads whole;
 	// the rest of the rock stays unseen.
@@ -2369,6 +2385,7 @@ void Generate(uint32_t seed)
 	SmokeVents.clear();
 	PaleCrystals.clear();
 	Craters.clear();
+	LightShafts.clear();
 	CampLanterns.clear();
 	std::memset(Ground, Grass, sizeof(Ground));
 	std::memset(Tree, NoTree, sizeof(Tree));
@@ -2706,6 +2723,8 @@ struct AreaArtSet {
 	std::array<Picture, 2> entrances;
 	/** @brief The Glass Flats' scorched crater (RfA-72b), the same kind of ground picture. */
 	Picture crater;
+	/** @brief The Frost Caves' light shaft's snow heap (RfA-79b), the same kind again. */
+	Picture shaft;
 	bool loaded = false;
 	bool tried = false;
 };
@@ -2972,6 +2991,12 @@ void LoadArt()
 		if (Desert) {
 			constexpr EntranceFile CraterFile { "levels\\desert\\crater_scorched.png", 128, 64 };
 			LoadDecal(CraterFile, art.crater, 40, sandRgb);
+		}
+		if (Frost) {
+			// 256 x 256, its middle at (128, 160); at 40 % about a tile and a half across. Missing (RfA-79b not yet delivered), the
+			// shafts keep only their light.
+			constexpr EntranceFile ShaftFile { "levels\\frost\\light_shaft.png", 128, 160 };
+			LoadDecal(ShaftFile, art.shaft, 40, sandRgb);
 		}
 		// Each ground near the sand's brightness (the first preview, 2026-10-16: the bedrock lay on the sand as dark slabs, and where
 		// two grounds of such different light meet, the tile grid shows as straight lines): the salt road a little lighter so it
@@ -3967,6 +3992,8 @@ void BuildWoodsLevel(bool fresh)
 	if (area == OrclArea::Frost) {
 		for (const Point at : FrostLights)
 			AddLight(at, Tree[at.x][at.y] == CrystalsSmall ? 4 : 7);
+		for (const Point at : LightShafts)
+			AddLight(at, 6); // the grey daylight falling through the roof
 	}
 	if (!HeadlessMode) {
 		LoadArt();
@@ -4184,6 +4211,11 @@ bool DesertBuilt()
 bool FrostBuilt()
 {
 	return Frost;
+}
+
+std::vector<Point> FrostLightShaftsForTest()
+{
+	return LightShafts;
 }
 
 
@@ -4804,10 +4836,14 @@ uint32_t DesertGroundFeature(uint32_t c, float u, float v, int wx, int wy)
 			}
 		}
 	}
-	// The Glass Flats' craters (RfA-72b): laid over the ground as the painted ways down are, each by its soft alpha.
-	if (!Craters.empty() && !Art().crater.px.empty()) {
-		const Picture &crater = Art().crater;
-		for (const Point at : Craters) {
+	// The Glass Flats' craters (RfA-72b) and the Frost Caves' light shafts (RfA-79b): laid over the ground as the painted ways down
+	// are, each by its soft alpha.
+	for (int set = 0; set < 2; set++) {
+		const std::vector<Point> &spots = set == 0 ? Craters : LightShafts;
+		const Picture &crater = set == 0 ? Art().crater : Art().shaft;
+		if (spots.empty() || crater.px.empty())
+			continue;
+		for (const Point at : spots) {
 			const float du = u - static_cast<float>(at.x), dv = v - static_cast<float>(at.y);
 			if (std::abs(du) > 3.0F || std::abs(dv) > 3.0F)
 				continue;

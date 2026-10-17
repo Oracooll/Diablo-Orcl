@@ -21113,6 +21113,11 @@ TEST(OracoolAudit, FrostCavesAreWalkableCaverns)
 			EXPECT_LT(open, inside * 3 / 5) << at << ": too much open floor for a cave";
 			if (floor == 1)
 				EXPECT_GT(oracool::FrostLightCountForTest(), 0) << at << ": the Hollows' crystals light nothing";
+			// The light shafts (RfA-79b): two, each on open floor the hero can walk to.
+			const std::vector<Point> shafts = oracool::FrostLightShaftsForTest();
+			EXPECT_EQ(shafts.size(), 2U) << at << ": the light shafts";
+			for (const Point shaft : shafts)
+				EXPECT_TRUE(walked(shaft)) << at << ": a light shaft cannot be walked to";
 			// The Throne of Winter's hall (RfA-82): its throne stands, and the floor before it can be reached.
 			if (floor == 3) {
 				const Point hall = oracool::DesertArenaForTest();

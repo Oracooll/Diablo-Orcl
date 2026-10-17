@@ -162,6 +162,8 @@ void EnterWoodsAtCaveMouthNext();
 bool DesertBuilt();
 /** @brief The floor last built is the Frost Caves' (2026-10-17). */
 bool FrostBuilt();
+/** @brief The Frost Caves floor last built's light shafts (RfA-79b), for the tests. */
+std::vector<Point> FrostLightShaftsForTest();
 /**
  * @brief The Frost Caves' monster looks (the Orcl Act Level Designer's Frost Caves roster, 2026-10-16): each kind there recoloured,
  * never redrawn. 0 as it is; Rime the game's own frozen look; Glacier every colour ice-blue at its own lightness; Hoarfrost bleached
