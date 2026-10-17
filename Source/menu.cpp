@@ -6,8 +6,11 @@
 
 #include <cstdint>
 
+#include <SDL.h>
+
 #include "DiabloUI/diabloui.h"
 #include "DiabloUI/settingsmenu.h"
+#include "engine/assets.hpp" // FindAsset - which intro clips the archives hold
 #include "engine/demomode.h"
 #include "init.h"
 #include "movie.h"
@@ -92,10 +95,16 @@ bool InitMultiPlayerMenu()
 void PlayIntro()
 {
 	music_stop();
-	if (gbIsHellfire)
-		play_movie("gendata\\Hellfire.smk", true);
-	else
-		play_movie("gendata\\diablo1.smk", true);
+	// The idle menu's clip (user, 2026-10-17: "when idle in main menu, run vanilla diablo or hellfire clips on random choice, not
+	// only hellfire clip"): Diablo's or Hellfire's, a coin toss each time, each only if the player's archives hold it. Its own roll,
+	// not the game's generator, so sitting at the menu changes no seed.
+	static uint32_t Roll = SDL_GetTicks() * 2654435761U | 1U;
+	Roll = Roll * 1664525U + 1013904223U;
+	const char *const own = gbIsHellfire ? "gendata\\Hellfire.smk" : "gendata\\diablo1.smk";
+	const char *clip = gbIsHellfire && ((Roll >> 16) & 1U) == 0 ? "gendata\\diablo1.smk" : own;
+	if (!FindAsset(clip).ok())
+		clip = own;
+	play_movie(clip, true);
 	RefreshMusic();
 }
 

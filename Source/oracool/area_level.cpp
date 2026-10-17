@@ -1,6 +1,8 @@
 #include "oracool/area_level.h"
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
 
 #include "multi.h"
 #include "oracool/named_encounters.h"
@@ -32,6 +34,9 @@ int DifficultyBlock(_difficulty difficulty)
 /** @brief The Hive's first floor - where the dungeon stops descending and steps sideways instead. */
 constexpr int FirstSideStepFloor = 17;
 
+/** @brief This game's Hive and Crypt rungs, floors 17-24; 0 for a floor not yet entered (HellfireFloorRung). */
+std::array<uint8_t, 8> HellfireRungs {};
+
 
 /** @brief The area names, in floor order. */
 const char *const AreaNames[AreaCount] = {
@@ -61,10 +66,34 @@ int LadderFloorOf(int floor)
 	return floor >= FirstSideStepFloor ? floor - 2 * FloorsPerArea : floor;
 }
 
+int HellfireFloorRung(int floor)
+{
+	if (floor < FirstSideStepFloor || floor > AreaFloorCount)
+		return 0;
+	return HellfireRungs[static_cast<size_t>(floor - FirstSideStepFloor)];
+}
+
+void FixHellfireFloorRung(int floor, int heroLevel)
+{
+	if (floor < FirstSideStepFloor || floor > AreaFloorCount)
+		return;
+	uint8_t &rung = HellfireRungs[static_cast<size_t>(floor - FirstSideStepFloor)];
+	if (rung != 0)
+		return;
+	const int down = (floor - FirstSideStepFloor) % FloorsPerArea;
+	rung = static_cast<uint8_t>(std::clamp(std::clamp(heroLevel / 3, 1, RungsPerDifficulty) + down, 1, RungsPerDifficulty));
+}
+
+void ResetHellfireRungsForNewGame()
+{
+	HellfireRungs.fill(0);
+}
+
 int AreaLevel(int floor, _difficulty difficulty)
 {
 	const int clampedFloor = std::clamp(floor, 1, AreaFloorCount);
-	return LadderFloorOf(clampedFloor) + RungsPerDifficulty * DifficultyBlock(difficulty);
+	const int fixed = HellfireFloorRung(clampedFloor);
+	return (fixed != 0 ? fixed : LadderFloorOf(clampedFloor)) + RungsPerDifficulty * DifficultyBlock(difficulty);
 }
 
 int CurrentAreaLevel()

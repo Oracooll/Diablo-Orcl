@@ -122,6 +122,12 @@ bool WoodsSpritesOverTiles(const Surface &out);
 
 /** @brief Forgets the woods' layouts and their monsters' levels: a new game draws new woods (decisions D3, D4). */
 void ResetWoodsForNewGame();
+/**
+ * @brief The Hive's or the Crypt's monsters brought to the floor's rung, fixed for this game from the hero's level
+ * (HellfireFloorRung): each kind up or down by the gap between the rung and its own floors, as a woods floor's are. Fresh
+ * generation only, after the theme rooms; a no-op off floors 17-24.
+ */
+void ScaleHellfireFloorMonsters();
 
 /** @brief The woods generator, CreateDungeon's DTYPE_WOODS arm: the floor setlvlnum names, from @p seed. */
 void CreateWoods(uint32_t seed, lvl_entry entry);

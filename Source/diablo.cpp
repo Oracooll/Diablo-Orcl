@@ -86,6 +86,7 @@
 #include "oracool/workshop.h"
 #include "oracool/levski_roar.h"
 #include "oracool/rift.h"
+#include "oracool/area_level.h" // the Hive and Crypt rungs, fixed and reset
 #include "oracool/woods.h"
 #include "oracool/stonegate.h"
 #include "oracool/wirt_cart.h"
@@ -254,6 +255,7 @@ void FreeGame()
 	oracool::ResetWorkshopForNewGame();
 	oracool::ResetRiftForNewGame(); // a rift open in one game must not be open in the next (oracool/rift.h)
 	oracool::ResetWoodsForNewGame(); // nor the last game's woods (oracool/woods.h)
+	oracool::ResetHellfireRungsForNewGame(); // nor its Hive and Crypt rungs (oracool/area_level.h)
 	oracool::ResetNamedEncountersForNewGame(); // nor an arena's free re-entry
 #ifdef _DEBUG
 	DebugGodMode = false; // god mode is one game's, not the next one's (round 89 audit)
@@ -4545,6 +4547,10 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 
 		if (leveltype != DTYPE_TOWN) {
 			if (firstflag || lvldir == ENTRY_LOAD || !myPlayer._pLvlVisited[currlevel] || gbIsMultiplayer) {
+				// A Hive or Crypt floor's rung, fixed by the hero entering it first this game (oracool/area_level.h): before
+				// anything is placed, so its chests, floor items and monsters all stand on it.
+				if (!setlevel && gbIsHellfire)
+					oracool::FixHellfireFloorRung(currlevel, myPlayer._pLevel);
 				HoldThemeRooms();
 				[[maybe_unused]] uint32_t mid1Seed = GetLCGEngineState();
 				InitGolems();
@@ -4554,6 +4560,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 				InitMonsters();
 				InitItems();
 				CreateThemeRooms();
+				oracool::ScaleHellfireFloorMonsters(); // the Hive's and the Crypt's at the rung just fixed, theme rooms' too
 				// Oracool: user report - the waypoint is placed back in InitObjects, before this
 				// level had any monsters or items to avoid, using the engine's generic
 				// "2x2 of floor will do" search. Now that everything is placed, re-pick its spot

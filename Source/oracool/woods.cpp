@@ -4618,6 +4618,40 @@ int WoodsBossDamagePercent(const Monster &monster)
 	return std::max(25, FloorStepPercent(WoodsBandFloor() - LadderMax(monster.data()))) * 5 / 4;
 }
 
+namespace {
+
+/** @brief A kind brought to @p rung: up for one whose floors end above it, down (not below half) for one whose floors start below. */
+void ScaleKindToRung(Monster &monster, int rung)
+{
+	const MonsterData &data = monster.data();
+	const int gap = rung > LadderMax(data) ? rung - LadderMax(data) : rung < LadderMin(data) ? rung - LadderMin(data) : 0;
+	if (gap == 0)
+		return;
+	const int pct = std::max(50, FloorStepPercent(gap));
+	monster.maxHitPoints = std::max(64, static_cast<int>(static_cast<int64_t>(monster.maxHitPoints) * pct / 100));
+	monster.hitPoints = monster.maxHitPoints;
+	ScaleMonsterDamage(monster, pct, pct);
+	if (pct > 100)
+		monster.armorClass = static_cast<uint8_t>(std::min(255, monster.armorClass + (pct - 100) / 6));
+}
+
+} // namespace
+
+void ScaleHellfireFloorMonsters()
+{
+	if (setlevel || currlevel < 17 || currlevel > 24)
+		return;
+	const int rung = HellfireFloorRung(currlevel);
+	if (rung == 0)
+		return;
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		Monster &monster = Monsters[ActiveMonsters[i]];
+		if (monster.isPlayerMinion() || monster.type().type == MT_GOLEM)
+			continue;
+		ScaleKindToRung(monster, rung);
+	}
+}
+
 void ScaleWoodsMonster(Monster &monster)
 {
 	if (!setlevel || !IsOrclActLevel(setlvlnum) || monster.isPlayerMinion() || monster.type().type == MT_GOLEM)

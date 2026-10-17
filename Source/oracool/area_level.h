@@ -81,6 +81,18 @@ int AreaLevel(int floor, _difficulty difficulty);
 /** @brief The alvl of wherever the player is standing right now, quest set-levels included. */
 int CurrentAreaLevel();
 
+/**
+ * @brief The Hellfire act scales with the hero (user, 2026-10-17: "make hellfire act level also scale related to player level"):
+ * each Hive and Crypt floor (17-24) takes its rung the first time it is entered in a game, from the hero who enters it - a third
+ * of his level, at least 1, and one rung more for each floor down its area - as the Orcl Act's floors do. Until then, and on a
+ * game without Hellfire, the ladder's fixed rung (LadderFloorOf). Replaces the 2026-09-12 decision to keep them fixed.
+ */
+int HellfireFloorRung(int floor);
+/** @brief Fixes floor @p floor's rung from @p heroLevel if this game has not yet (a no-op off floors 17-24 or once fixed). */
+void FixHellfireFloorRung(int floor, int heroLevel);
+/** @brief A new game: every Hellfire floor's rung to be fixed again. */
+void ResetHellfireRungsForNewGame();
+
 /** @brief Which of the six areas @p floor belongs to (0 = Cathedral .. 5 = Crypt). */
 int AreaIndexOfFloor(int floor);
 

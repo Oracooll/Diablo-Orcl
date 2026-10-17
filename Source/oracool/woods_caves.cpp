@@ -14,7 +14,7 @@
 #include <SDL.h>
 
 #include "diablo.h"
-#include "engine/path.h" // IsTileWalkable - the captive's spot
+#include "engine/path.h" // IsTileWalkable, IsTileSolid - the captive's spot and the walk to it
 #include "engine/palette.h"
 #include "engine/random.hpp"
 #include "interfac.h"
@@ -104,6 +104,57 @@ const char *WoodsCaveName(_setlevels level)
 
 namespace {
 void PlaceStillRiverCaptive(uint32_t seed); // after the build, below
+int StillRiverReach = 0;            // the tiles its walk from the landing reached, for the tests
+int RebuildsForTest = 0;
+int FirstReachPercent = 0;            // how many builds the last floor took past its first (CaveRebuildsForTest)
+
+/**
+ * @brief Each tile's walking distance from the landing into @p steps (-1 where the hero cannot walk to), over the floor's tiles
+ * alone - a barrel in a passage breaks; from every open tile round the landing (the hero may stand in the stairs' pocket), and
+ * on the diagonals where one side is open, as the hero walks (the Caves' passages often meet only corner to corner). Returns how
+ * many tiles it reached. The level's SOL data must be loaded.
+ */
+int WalkFromLanding(std::vector<int> &steps)
+{
+	steps.assign(static_cast<size_t>(MAXDUNX) * MAXDUNY, -1);
+	std::vector<Point> queue;
+	for (int dy = -3; dy <= 3; dy++)
+		for (int dx = -3; dx <= 3; dx++) {
+			const Point q = ViewPosition + Displacement { dx, dy };
+			if (InDungeonBounds(q) && !IsTileSolid(q)) {
+				steps[static_cast<size_t>(q.y) * MAXDUNX + q.x] = 0;
+				queue.push_back(q);
+			}
+		}
+	for (size_t head = 0; head < queue.size(); head++) {
+		const Point at = queue[head];
+		for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 },
+		         Displacement { 1, 1 }, Displacement { -1, -1 }, Displacement { 1, -1 }, Displacement { -1, 1 } }) {
+			const Point q = at + d;
+			if (!InDungeonBounds(q) || IsTileSolid(q))
+				continue;
+			if (d.deltaX != 0 && d.deltaY != 0 && IsTileSolid(at + Displacement { d.deltaX, 0 }) && IsTileSolid(at + Displacement { 0, d.deltaY }))
+				continue;
+			int &s = steps[static_cast<size_t>(q.y) * MAXDUNX + q.x];
+			if (s >= 0)
+				continue;
+			s = steps[static_cast<size_t>(at.y) * MAXDUNX + at.x] + 1;
+			queue.push_back(q);
+		}
+	}
+	return static_cast<int>(queue.size());
+}
+
+/** @brief The floor's open tiles, every one (IsTileSolid's complement in the dungeon's bounds). */
+int OpenTiles()
+{
+	int open = 0;
+	for (int y = 0; y < MAXDUNY; y++)
+		for (int x = 0; x < MAXDUNX; x++)
+			open += IsTileSolid({ x, y }) ? 0 : 1;
+	return open;
+}
+
 } // namespace
 
 void BuildWoodsCaveLevel(bool fresh)
@@ -125,8 +176,22 @@ void BuildWoodsCaveLevel(bool fresh)
 	// floor for the whole build, as a rift's (rift.cpp BuildRiftLevel). The quests are off on any set level.
 	const uint8_t savedLevel = currlevel;
 	currlevel = GenerationFloor;
+	const lvl_entry entry = EnterFromBelow ? ENTRY_PREV : ENTRY_MAIN;
 	GeneratingCaveWithoutWayDown = cave.last;
-	CreateDungeon(Game.seed[index], EnterFromBelow ? ENTRY_PREV : ENTRY_MAIN);
+	CreateDungeon(Game.seed[index], entry);
+	LoadLevelSOLData();
+	// A landing the floor cannot be walked to from (audit, 2026-10-17: a third of the first builds reached under four fifths of
+	// their floor, some only the stairs' corner): the Caves generator checks its floor joins up before laying the lava rivers and
+	// the fences, and one-tile lines of them can then wall the stairs' corner off from the rest. Such a floor is built again from
+	// the next seed, kept as the floor's own, so a revisit builds the floor that was played.
+	std::vector<int> steps;
+	RebuildsForTest = 0;
+	FirstReachPercent = OpenTiles() > 0 ? WalkFromLanding(steps) * 100 / OpenTiles() : 0;
+	for (int tries = 0; tries < 12 && WalkFromLanding(steps) * 10 < OpenTiles() * 8; tries++) {
+		Game.seed[index] = (Game.seed[index] * 2654435761U + 0x9E3779B9U) | 1U;
+		CreateDungeon(Game.seed[index], entry);
+		RebuildsForTest++;
+	}
 	GeneratingCaveWithoutWayDown = false;
 	EnterFromBelow = false;
 	LoadRndLvlPal(leveltype);
@@ -134,7 +199,6 @@ void BuildWoodsCaveLevel(bool fresh)
 		TintDesertCavePalette();
 	else if (cave.area == OrclArea::Frost)
 		TintFrostCavePalette();
-	LoadLevelSOLData();
 	InitL3Triggers(); // the stairs' triggers; CheckWoodsCaveExits says where they lead
 	// No pack on the landing: a floor's stairs keep theirs through Freeupstairs, a set level has none.
 	for (int dy = -3; dy <= 3; dy++) {
@@ -176,23 +240,8 @@ void PlaceStillRiverCaptive(uint32_t seed)
 		return true;
 	};
 	// Walking distance from the landing, so the captive is never in a pocket the hero cannot reach.
-	std::vector<int> steps(static_cast<size_t>(MAXDUNX) * MAXDUNY, -1);
-	std::vector<Point> queue { ViewPosition };
-	if (InDungeonBounds(ViewPosition))
-		steps[static_cast<size_t>(ViewPosition.y) * MAXDUNX + ViewPosition.x] = 0;
-	for (size_t head = 0; head < queue.size(); head++) {
-		const Point at = queue[head];
-		for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 } }) {
-			const Point q = at + d;
-			if (!InDungeonBounds(q) || !IsTileWalkable(q))
-				continue;
-			int &s = steps[static_cast<size_t>(q.y) * MAXDUNX + q.x];
-			if (s >= 0)
-				continue;
-			s = steps[static_cast<size_t>(at.y) * MAXDUNX + at.x] + 1;
-			queue.push_back(q);
-		}
-	}
+	std::vector<int> steps;
+	StillRiverReach = WalkFromLanding(steps);
 	std::optional<Point> best;
 	int bestScore = -1;
 	for (int y = 2; y < MAXDUNY - 2; y++)
@@ -219,6 +268,28 @@ void PlaceStillRiverCaptive(uint32_t seed)
 }
 
 } // namespace
+
+int StillRiverReachForTest()
+{
+	return StillRiverReach;
+}
+
+int CaveFirstReachPercentForTest()
+{
+	return FirstReachPercent;
+}
+
+int CaveRebuildsForTest()
+{
+	return RebuildsForTest;
+}
+
+int CaveLandingReachPercentForTest()
+{
+	std::vector<int> steps;
+	const int open = OpenTiles();
+	return open > 0 ? WalkFromLanding(steps) * 100 / open : 0;
+}
 
 Point StillRiverCaptiveForTest()
 {

@@ -33,6 +33,13 @@ void BuildWoodsCaveLevel(bool fresh);
 int WoodsCaveRung();
 /** @brief Where the Still River's captive stands on the floor last built, or (0, 0); for the tests. */
 Point StillRiverCaptiveForTest();
+/** @brief How many tiles the captive's walk from the landing reached; for the tests. */
+int StillRiverReachForTest();
+/** @brief How many times the floor last built was built again for a walled-off landing; for the tests. */
+int CaveRebuildsForTest();
+int CaveFirstReachPercentForTest();
+/** @brief The share (percent) of the floor last built the hero can walk to from its landing; for the tests. */
+int CaveLandingReachPercentForTest();
 
 /** @brief The seed of the current cave floor's monster roster: the same on every build. */
 uint32_t WoodsCaveRosterSeed();

@@ -13845,6 +13845,22 @@ TEST(OracoolAudit, TheAreaLadderIsSixteenRungsADifficultyAndEndsAtHellHell)
 	EXPECT_EQ(AreaLevel(21, DIFF_TORMENT), 61);
 	EXPECT_EQ(AreaLevel(24, DIFF_TORMENT), MaxAreaLevel) << "Torment's Crypt shares Torment's Hell, the deepest rung";
 
+	// The Hellfire act scales with the hero (user, 2026-10-17): a floor's rung fixed by the hero who first enters it this game -
+	// a third of his level, one more each floor down - kept once fixed, and cleared by a new game.
+	ResetHellfireRungsForNewGame();
+	FixHellfireFloorRung(18, 12);
+	EXPECT_EQ(AreaLevel(18, DIFF_NORMAL), 5) << "a level-12 hero's Hive 2: 12/3 + 1";
+	EXPECT_EQ(AreaLevel(18, DIFF_NIGHTMARE), 21);
+	FixHellfireFloorRung(18, 45);
+	EXPECT_EQ(AreaLevel(18, DIFF_NORMAL), 5) << "fixed at the first visit";
+	FixHellfireFloorRung(24, 50);
+	EXPECT_EQ(AreaLevel(24, DIFF_NORMAL), 16) << "never past the ladder's top";
+	FixHellfireFloorRung(21, 1);
+	EXPECT_EQ(AreaLevel(21, DIFF_NORMAL), 1) << "a low hero's Crypt 1";
+	EXPECT_EQ(AreaLevel(17, DIFF_NORMAL), 9) << "a floor not yet entered keeps the ladder's rung";
+	ResetHellfireRungsForNewGame();
+	EXPECT_EQ(AreaLevel(18, DIFF_NORMAL), 10);
+
 	// Everything is droppable by Hell/Hell: the deepest banded qlvl is 48, and a plain monster there
 	// carries 48 as its loot level.
 	int deepest = 0;
@@ -20706,6 +20722,7 @@ TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
 		HeadlessMode = true;
 		setlevel = true;
 		setlvlnum = SL_ORCL_FROST_RIVER_4;
+		oracool::ResetWoodsCavesForNewGame(); // entered from the floor above, whatever a test before left
 		oracool::BuildWoodsCaveLevel(true);
 		const Point captive = oracool::StillRiverCaptiveForTest();
 		EXPECT_NE(captive, Point(0, 0)) << "the Still River has its captive";
@@ -20716,6 +20733,19 @@ TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
 		EXPECT_FALSE(chest._oTrapFlag);
 		EXPECT_EQ(chest.name().str(), "Frozen Captive");
 		EXPECT_GT(std::abs(captive.x - ViewPosition.x) + std::abs(captive.y - ViewPosition.y), 15) << "away from the landing";
+		// Every Orcl cave's landing reaches its floor (audit, 2026-10-17: a lava river or fence line
+		// walling the stairs' corner off; a third of first builds fell short): thirty builds of each, fresh seeds.
+		int rebuilt = 0;
+		for (const _setlevels river : { SL_ORCL_FROST_RIVER_1, SL_ORCL_FROST_RIVER_2, SL_ORCL_FROST_RIVER_3, SL_ORCL_FROST_RIVER_4, SL_ORCL_CAVE_2, SL_ORCL_DESERT_CAVE_2 }) {
+			setlvlnum = river;
+			for (int build = 0; build < 30; build++) {
+				oracool::ResetWoodsCavesForNewGame();
+				oracool::BuildWoodsCaveLevel(false);
+				EXPECT_GE(oracool::CaveLandingReachPercentForTest(), 80) << "set level " << river << ", build " << build << ": the landing is walled off";
+				rebuilt += oracool::CaveRebuildsForTest();
+			}
+		}
+		RecordProperty("cave_rebuilds", rebuilt);
 		HeadlessMode = savedHeadless;
 	}
 	leveltype = savedType;
