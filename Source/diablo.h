@@ -39,7 +39,9 @@ constexpr uint32_t GameIdHellfireFull = LoadBE32("HRTL");
 constexpr uint32_t GameIdHellfireSpawn = LoadBE32("HSHR");
 #define GAME_ID (gbIsHellfire ? (gbIsSpawn ? GameIdHellfireSpawn : GameIdHellfireFull) : (gbIsSpawn ? GameIdDiabloSpawn : GameIdDiabloFull))
 
-#define NUMLEVELS 25
+// Oracool: 40 (2026-10-17, the Frost Caves' eight levels): the set levels index the same per-level tables (glSeedTbl, the
+// visited flags, the level files) and the Orcl Act's ran to 24. A save written with 40 says so in its header (loadsave.cpp).
+#define NUMLEVELS 40
 
 enum clicktype : int8_t {
 	CLICK_NONE,

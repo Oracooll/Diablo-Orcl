@@ -2849,9 +2849,34 @@ _item_indexes RemapItemIdxToSpawn(_item_indexes i)
 	return static_cast<_item_indexes>(GetItemIdValue(i));
 }
 
+/**
+ * @brief A save written with every level (NUMLEVELS, 40 since 2026-10-17: the Frost Caves'): its seeds, visited flags and level
+ * files run to the Orcl Act's last set level. The four old headers below still load, with the old 17 or 25.
+ */
+bool SaveHasEveryLevel = false;
+
 bool IsHeaderValid(uint32_t magicNumber)
 {
 	gbIsHellfireSaveGame = false;
+	SaveHasEveryLevel = false;
+	if (magicNumber == LoadLE32("OSHR")) {
+		SaveHasEveryLevel = true;
+		return true;
+	}
+	if (magicNumber == LoadLE32("OSHL")) {
+		gbIsHellfireSaveGame = true;
+		SaveHasEveryLevel = true;
+		return true;
+	}
+	if (!gbIsSpawn && magicNumber == LoadLE32("ORTL")) {
+		SaveHasEveryLevel = true;
+		return true;
+	}
+	if (!gbIsSpawn && magicNumber == LoadLE32("OHLF")) {
+		gbIsHellfireSaveGame = true;
+		SaveHasEveryLevel = true;
+		return true;
+	}
 	if (magicNumber == LoadLE32("SHAR")) {
 		return true;
 	}
@@ -3448,11 +3473,11 @@ void LoadGame(bool firstflag)
 		app_fatal(_("Invalid save file"));
 
 	if (gbIsHellfireSaveGame) {
-		giNumberOfLevels = 25;
+		giNumberOfLevels = SaveHasEveryLevel ? NUMLEVELS : 25;
 		giNumberQuests = 24;
 	} else {
 		// Todo initialize additional levels and quests if we are running Hellfire
-		giNumberOfLevels = 17;
+		giNumberOfLevels = SaveHasEveryLevel ? NUMLEVELS : 17;
 		giNumberQuests = 16;
 	}
 	// Oracool: the premium stock is SMITH_PREMIUM_ITEMS long in both games now (the shop grid holds
@@ -3804,24 +3829,20 @@ void SaveGameData(SaveWriter &saveWriter)
 {
 	SaveHelper file(saveWriter, "game", 512 * 1024); // a full floor and more (round 62 audit: 320 KiB was short of it)
 
+	// Every level since 2026-10-17 (IsHeaderValid): the Orcl Act's set levels ran past the old 17 and 25.
 	if (gbIsSpawn && !gbIsHellfire)
-		file.WriteLE<uint32_t>(LoadLE32("SHAR"));
+		file.WriteLE<uint32_t>(LoadLE32("OSHR"));
 	else if (gbIsSpawn && gbIsHellfire)
-		file.WriteLE<uint32_t>(LoadLE32("SHLF"));
+		file.WriteLE<uint32_t>(LoadLE32("OSHL"));
 	else if (!gbIsSpawn && gbIsHellfire)
-		file.WriteLE<uint32_t>(LoadLE32("HELF"));
+		file.WriteLE<uint32_t>(LoadLE32("OHLF"));
 	else if (!gbIsSpawn && !gbIsHellfire)
-		file.WriteLE<uint32_t>(LoadLE32("RETL"));
+		file.WriteLE<uint32_t>(LoadLE32("ORTL"));
 	else
 		app_fatal(_("Invalid game state"));
 
-	if (gbIsHellfire) {
-		giNumberOfLevels = 25;
-		giNumberQuests = 24;
-	} else {
-		giNumberOfLevels = 17;
-		giNumberQuests = 16;
-	}
+	giNumberOfLevels = NUMLEVELS;
+	giNumberQuests = gbIsHellfire ? 24 : 16;
 	// Must match the load path's width exactly - see the note there.
 	giNumberOfSmithPremiumItems = SMITH_PREMIUM_ITEMS;
 

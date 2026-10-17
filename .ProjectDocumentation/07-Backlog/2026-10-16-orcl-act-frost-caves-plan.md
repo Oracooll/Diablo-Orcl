@@ -80,6 +80,7 @@ Candidate places, from the town's walk map:
 4. The catalogue and the first RfAs: ground, then blockers.
 5. The Tristram entrance (its RfA plus the frost and mist round it).
 6. The roster (a Frost tab on the Designer's Mob Roster), the bosses (the woods' rule), weather, then the audit loop.
+7. A **Frost tab in the Orcl Act Level Designer** (user, 2026-10-17), like the desert's: the frost ground, walls and props to tune shares and scales, once the art is wired in.
 
 ## 8. Monsters (decided 2026-10-16)
 - **No new monster art.** The roster is the existing kinds, picked on a Frost tab of the Designer's Mob Roster.

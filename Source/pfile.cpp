@@ -94,10 +94,11 @@ std::string GetStashSavePath()
 bool GetSaveNames(uint8_t index, string_view prefix, char *out)
 {
 	char suf;
-	if (index < giNumberOfLevels)
+	// By NUMLEVELS, not the save's own count (2026-10-17): a level's file keeps its name whichever layout the save has.
+	if (index < NUMLEVELS)
 		suf = 'l';
-	else if (index < giNumberOfLevels * 2) {
-		index -= giNumberOfLevels;
+	else if (index < NUMLEVELS * 2) {
+		index -= NUMLEVELS;
 		suf = 's';
 	} else {
 		return false;
@@ -242,11 +243,11 @@ bool GetFileName(uint8_t lvl, char *dst)
 	if (GetPermSaveNames(lvl, dst)) {
 		return true;
 	}
-	if (lvl == giNumberOfLevels * 2) {
+	if (lvl == NUMLEVELS * 2) {
 		memcpy(dst, "game", 5);
 		return true;
 	}
-	if (lvl == giNumberOfLevels * 2 + 1) {
+	if (lvl == NUMLEVELS * 2 + 1) {
 		memcpy(dst, "hero", 5);
 		return true;
 	}
@@ -970,7 +971,7 @@ bool pfile_ui_save_create(_uiheroinfo *heroinfo)
 	heroinfo->saveNumber = saveNum;
 	InvTabsFileRefused = false; // a new hero starts with pages of his own (round 29 audit)
 
-	giNumberOfLevels = gbIsHellfire ? 25 : 17;
+	giNumberOfLevels = NUMLEVELS;
 
 	// Audit finding, 2026-08-26. This wrote four records and then returned `true` no matter what
 	// any of them did, so a disk that was full at character creation produced a character the menu
