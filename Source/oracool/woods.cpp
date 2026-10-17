@@ -12,6 +12,7 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <SDL.h>
@@ -2197,7 +2198,7 @@ void GenerateFrost(uint32_t seed)
 				}
 			for (const Displacement d : { Displacement { 1, -1 }, Displacement { -2, 1 } }) {
 				const Point q = *at + d;
-				if (Inside(q) && Tree[q.x][q.y] == NoTree && Unit(Hash(seed, salt, static_cast<uint32_t>(d.deltaX + 8))) < 0.7F)
+				if (Inside(q) && Tree[q.x][q.y] == NoTree && Ground[q.x][q.y] != Path && Unit(Hash(seed, salt, static_cast<uint32_t>(d.deltaX + 8))) < 0.7F)
 					Tree[q.x][q.y] = IceHole; // over nothing already standing (audit round 4)
 			}
 			const Point shore = *at + Displacement { static_cast<int>(radius) + 1, 1 };
