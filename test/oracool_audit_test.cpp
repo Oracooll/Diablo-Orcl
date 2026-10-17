@@ -21129,6 +21129,7 @@ TEST(OracoolAudit, FrostCavesMonstersWearTheirFrostLook)
 	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_CHEST2, true), "levels\\frost\\objects\\chest_ice_open.png");
 	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_CANDLE2, true), "levels\\frost\\objects\\torch_stand.png");
 	EXPECT_EQ(oracool::AreaObjectPictureForTest(OBJ_BCROSS, false), nullptr);
+	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_WAYPOINT, true), "levels\\frost\\waypoint_frost.png");
 	setlvlnum = static_cast<_setlevels>(SL_FIRST_DESERT);
 	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_SARC, true), "levels\\desert\\objects\\sarcophagus_open.png");
 	EXPECT_EQ(oracool::AreaObjectPictureForTest(OBJ_BARREL, false), nullptr);
@@ -21226,12 +21227,12 @@ TEST(OracoolPreview, DISABLED_FrostFloors)
 			if (floor == 0 && name == "middle") {
 				// The area objects (RfA-83, RfA-84) at game size on the floor: each before and after, the frost row then the desert's,
 				// the first hovered.
-				constexpr int Types[] = { OBJ_BARREL, OBJ_CHEST1, OBJ_GOATSHRINE, OBJ_CANDLE2, OBJ_DECAP, OBJ_SARC };
+				constexpr int Types[] = { OBJ_BARREL, OBJ_CHEST1, OBJ_GOATSHRINE, OBJ_CANDLE2, OBJ_DECAP, OBJ_SARC, OBJ_WAYPOINT };
 				const _setlevels saved = setlvlnum;
 				for (int row = 0; row < 2; row++) {
 					setlvlnum = row == 0 ? SL_FIRST_FROST : static_cast<_setlevels>(SL_FIRST_DESERT);
-					for (int i = 0; i < 12; i++) {
-						const Point at = screenOf(centre + Displacement { i - 6, -(i - 6) + 4 * row - 2 });
+					for (int i = 0; i < 14; i++) {
+						const Point at = screenOf(centre + Displacement { i - 7, -(i - 7) + 4 * row - 2 });
 						oracool::DrawAreaObject(view, Types[i / 2], (i & 1) != 0, at + Displacement { 32, -15 }, i == 0, -1);
 					}
 				}

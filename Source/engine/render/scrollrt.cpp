@@ -1030,7 +1030,8 @@ void DrawObject(const Surface &out, Point tilePosition, Point targetBufferPositi
 		Point foot = targetBufferPosition + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 + 1 };
 		if (objectToDraw.position != tilePosition)
 			foot -= (objectToDraw.position - tilePosition).worldToScreen();
-		if (oracool::DrawAreaObject(out, objectToDraw._otype, objectToDraw._oSelFlag == 0, foot, &objectToDraw == ObjectUnderCursor,
+		const bool used = objectToDraw._otype == OBJ_WAYPOINT ? objectToDraw._oAnimFrame == 2 : objectToDraw._oSelFlag == 0; // a waypoint: lit
+		if (oracool::DrawAreaObject(out, objectToDraw._otype, used, foot, &objectToDraw == ObjectUnderCursor,
 		        objectToDraw.applyLighting ? LightTableIndex : 0))
 			return;
 	}

@@ -5582,15 +5582,19 @@ void DrawTownFrostMouth(const Surface &out, Point tile, Point target, int light)
 
 namespace {
 
-/** @brief One area object's two paintings (before, after) and where each stands. */
+/**
+ * @brief One area object's two paintings (before, after) and where each stands. A waypoint has one painting, lit by a glow of
+ * @p glow's colour once it is (its after state); every other object at half the paintings' size, as the frost mouth (the briefs
+ * paint a hero 150 px tall), the waypoint at the width of the game's own pad (144 of its 192).
+ */
 struct AreaObjectFile {
 	const char *before;
 	const char *after;
 	int footX;
 	int footY;
+	int percent = 50;
+	uint32_t glow = 0;
 };
-// At half the paintings' size, as the frost mouth: the briefs paint a hero 150 px tall.
-constexpr int AreaObjectPercent = 50;
 constexpr AreaObjectFile FrostBarrel { "levels\\frost\\objects\\barrel_frozen.png", "levels\\frost\\objects\\barrel_frozen_broken.png", 48, 116 };
 constexpr AreaObjectFile FrostChest { "levels\\frost\\objects\\chest_ice.png", "levels\\frost\\objects\\chest_ice_open.png", 64, 100 };
 constexpr AreaObjectFile FrostShrine { "levels\\frost\\objects\\shrine_ice.png", "levels\\frost\\objects\\shrine_ice_spent.png", 64, 180 };
@@ -5600,6 +5604,9 @@ constexpr AreaObjectFile DesertSarcophagus { "levels\\desert\\objects\\sarcophag
 constexpr AreaObjectFile DesertShrine { "levels\\desert\\objects\\shrine_sun.png", "levels\\desert\\objects\\shrine_sun_spent.png", 64, 180 };
 constexpr AreaObjectFile DesertBrazier { "levels\\desert\\objects\\brazier_tripod.png", "levels\\desert\\objects\\brazier_tripod_out.png", 40, 148 };
 constexpr AreaObjectFile DesertCorpse { "levels\\desert\\objects\\corpse_bier.png", "levels\\desert\\objects\\corpse_bier_searched.png", 96, 100 };
+// The waypoints (RfA-79, RfA-84): a frost pad lit pale ice-blue, a sun pad lit gold.
+constexpr AreaObjectFile FrostWaypoint { "levels\\frost\\waypoint_frost.png", "levels\\frost\\waypoint_frost.png", 96, 100, 75, 0x8CC8FFU };
+constexpr AreaObjectFile DesertWaypoint { "levels\\desert\\objects\\waypoint_sun.png", "levels\\desert\\objects\\waypoint_sun.png", 96, 100, 75, 0xFFC860U };
 
 /**
  * @brief The painting @p type wears in @p area: the Frost Caves have barrels (urns too), chests, shrines, candle stands and corpses
@@ -5629,6 +5636,8 @@ const AreaObjectFile *AreaObjectFor(OrclArea area, int type)
 		return area == OrclArea::Frost ? &FrostCorpse : area == OrclArea::Desert ? &DesertCorpse : nullptr;
 	case OBJ_SARC:
 		return area == OrclArea::Frost ? &FrostCorpse : area == OrclArea::Desert ? &DesertSarcophagus : nullptr;
+	case OBJ_WAYPOINT:
+		return area == OrclArea::Frost ? &FrostWaypoint : area == OrclArea::Desert ? &DesertWaypoint : nullptr;
 	default:
 		return nullptr;
 	}
@@ -5655,7 +5664,7 @@ const char *AreaObjectPath(int type, bool used)
 	const AreaObjectFile *file = AreaObjectFor(*area, type);
 	if (file == nullptr)
 		return nullptr;
-	return used && type != OBJ_CANDLE2 ? file->after : file->before;
+	return used && type != OBJ_CANDLE2 ? file->after : file->before; // a waypoint's two are the one painting
 }
 
 } // namespace
@@ -5681,7 +5690,7 @@ bool DrawAreaObject(const Surface &out, int objectType, bool used, Point foot, b
 	const char *path = after ? file->after : file->before;
 	auto [it, added] = pictures.try_emplace(path);
 	if (added) {
-		const TreeFile asTree { path, file->footX, file->footY, AreaObjectPercent, false, *area };
+		const TreeFile asTree { path, file->footX, file->footY, file->percent, false, *area };
 		LoadStanding(asTree, it->second);
 	}
 	const Picture &pic = it->second;
@@ -5710,6 +5719,32 @@ bool DrawAreaObject(const Surface &out, int objectType, bool used, Point foot, b
 		}
 	}
 	DrawPicture(out, pic, left, top, 0, 0, pic.w, pic.h, BrightnessFor(light));
+	if (after && file->glow != 0) {
+		// A lit waypoint: a soft glow over the pad, brightest at its middle and gone by its rim, added to the painting (the game's
+		// own pad glows in its lit frame; the paintings are unlit by brief).
+		const float rx = pic.w * 0.42F, ry = rx * 0.5F;
+		const int cy = foot.y - static_cast<int>(ry * 0.6F);
+		const float gr = static_cast<float>((file->glow >> 16) & 0xFF), gg = static_cast<float>((file->glow >> 8) & 0xFF), gb = static_cast<float>(file->glow & 0xFF);
+		const float strength = 0.55F * static_cast<float>(BrightnessFor(light)) / 256.0F;
+		for (int y = static_cast<int>(-ry); y <= static_cast<int>(ry); y++) {
+			const int sy = cy + y;
+			if (sy < 0 || sy >= out.h())
+				continue;
+			uint32_t *row = out.at<uint32_t>(0, sy);
+			for (int x = static_cast<int>(-rx); x <= static_cast<int>(rx); x++) {
+				const int sx = foot.x + x;
+				if (sx < 0 || sx >= out.w())
+					continue;
+				const float d = (x * x) / (rx * rx) + (y * y) / (ry * ry);
+				if (d >= 1.0F)
+					continue;
+				const float k = strength * (1.0F - d) * (1.0F - d);
+				const uint32_t c = row[sx];
+				const auto add = [&](int shift, float g) { return static_cast<uint32_t>(std::min(255.0F, static_cast<float>((c >> shift) & 0xFF) + g * k)); };
+				row[sx] = (add(16, gr) << 16) | (add(8, gg) << 8) | add(0, gb);
+			}
+		}
+	}
 	return true;
 }
 

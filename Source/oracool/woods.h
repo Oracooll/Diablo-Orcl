@@ -298,7 +298,7 @@ void DrawTownFrostMouth(const Surface &out, Point tile, Point target, int light)
  * (broken, opened, spent, searched) - standing on @p foot (the tile's middle on screen), outlined when @p hovered, at @p light.
  * False (nothing drawn) for a type the area has no painting of, anywhere else, or on an indexed target: the vanilla sprite then.
  */
-bool DrawAreaObject(const Surface &out, int objectType, bool used, Point foot, bool hovered, int light);
+bool DrawAreaObject(const Surface &out, int objectType, bool used, Point foot, bool hovered, int light); // a waypoint's used = lit
 /** @brief The painting DrawAreaObject would draw for @p objectType here (its path), or nullptr; for the tests. */
 const char *AreaObjectPictureForTest(int objectType, bool used);
 
