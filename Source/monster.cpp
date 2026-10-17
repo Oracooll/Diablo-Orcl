@@ -924,6 +924,9 @@ void PlaceWoodsBoss()
 		}
 		PrepareUniqueMonst(monster, *unique, minionType, 0, UniqueMonstersData[static_cast<size_t>(*unique)]);
 	}
+	// A rift roster row's boss (v1.13.090): named, coloured, sized and given his trick and escort by his row.
+	if (const oracool::RiftBossDef *def = oracool::WoodsBossRosterDef(); def != nullptr)
+		oracool::BindActBoss(monster, *def);
 	constexpr uint16_t AllThree = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
 	if ((monster.resistance & AllThree) == AllThree)
 		monster.resistance = oracool::DemoteImmunitiesToResistances(monster.resistance) | (monster.resistance & IMMUNE_ACID);
@@ -4399,6 +4402,13 @@ void GetLevelMTypes()
 			AddMonsterType(bossKind, PLACE_SPECIAL);
 			if (bossKind == MT_SKING)
 				AddMonsterType(GenerateRnd(2) == 0 ? MT_WSKELAX : MT_WSKELSD, PLACE_SPECIAL);
+			// A roster boss's escort and what he raises (v1.13.090), as a rift loads them (RiftBossExtraTypes).
+			if (const oracool::RiftBossDef *def = oracool::WoodsBossRosterDef(); def != nullptr) {
+				if (def->escort != MT_INVALID && def->escortCount > 0)
+					AddMonsterType(def->escort, PLACE_SPECIAL);
+				if (def->summon != MT_INVALID)
+					AddMonsterType(def->summon, PLACE_SPECIAL);
+			}
 			monstimgtot = budgetBeforeBoss;
 		}
 		// Six kinds, each of a family not yet on the floor while one is left (dev note, 2026-10-14: "mix and diversify mobs on the
@@ -6915,6 +6925,8 @@ bool Monster::isImmune(MissileID missileType, DamageType missileElement) const
 	    || ((effective & IMMUNE_LIGHTNING) != 0 && missileElement == DamageType::Lightning)
 	    || ((effective & IMMUNE_ACID) != 0 && missileElement == DamageType::Acid))
 		return true;
+	if (missileElement == DamageType::Cold && oracool::ColdImmuneHere(*this))
+		return true; // the Frost Caves' own (oracool/chill.h)
 	if (missileType == MissileID::HolyBolt && type().type != MT_DIABLO && data().monsterClass != MonsterClass::Undead)
 		return true;
 	return false;

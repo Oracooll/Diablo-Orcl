@@ -86,6 +86,7 @@
 #include "oracool/workshop.h"
 #include "oracool/levski_roar.h"
 #include "oracool/rift.h"
+#include "oracool/rift_bosses.h" // ProcessActBoss - an Orcl Act boss's clocks
 #include "oracool/area_level.h" // the Hive and Crypt rungs, fixed and reset
 #include "oracool/woods.h"
 #include "oracool/stonegate.h"
@@ -2567,6 +2568,7 @@ void GameLogic()
 		ProcessPlayers();
 	}
 	oracool::ProcessRift(); // the Guardian clock (everywhere), the guardian's arrival (in the rift), the gate's entry tile (in town)
+	oracool::ProcessActBoss(); // an Orcl Act area boss's clocks and thresholds (oracool/rift_bosses.h)
 	oracool::TelemetryTick(); // the kill clocks count game ticks (round 11 audit)
 	if (leveltype != DTYPE_TOWN) {
 		gGameLogicStep = GameLogicStep::ProcessMonsters;

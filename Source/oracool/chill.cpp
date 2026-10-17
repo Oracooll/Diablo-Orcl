@@ -3,7 +3,11 @@
 #include <algorithm>
 #include <array>
 
+#include "levels/gendung.h" // InFrostCaves
 #include "monster.h"
+#include "oracool/companion.h" // IsCompanion
+#include "oracool/minions.h"   // IsMinion
+#include "oracool/warcries.h"  // IsMonsterConverted
 
 namespace devilution::oracool {
 
@@ -21,9 +25,14 @@ std::array<uint16_t, MaxMonsters> FreezeTicks {};
 
 } // namespace
 
+bool ColdImmuneHere(const Monster &monster)
+{
+	return InFrostCaves() && !monster.isPlayerMinion() && !IsCompanion(monster) && !IsMinion(monster) && !IsMonsterConverted(monster);
+}
+
 void ChillMonster(const Monster &monster, int ticks)
 {
-	if (ticks <= 0)
+	if (ticks <= 0 || ColdImmuneHere(monster))
 		return;
 	const size_t id = monster.getId();
 	if (id >= ChillTicks.size())
@@ -65,7 +74,7 @@ bool IsMonsterChilled(const Monster &monster)
 
 void FreezeMonster(const Monster &monster, int ticks)
 {
-	if (ticks <= 0)
+	if (ticks <= 0 || ColdImmuneHere(monster))
 		return;
 	const size_t id = monster.getId();
 	if (id >= FreezeTicks.size())

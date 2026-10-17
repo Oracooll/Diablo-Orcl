@@ -575,7 +575,8 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 	// The hero's side keeps its own looks (audit, 2026-10-17: a converted monster, a golem, the decoy, a companion all turned frost
 	// grey with the enemy, and a mended minion lost its glow).
 	const bool heroSide = monster.isPlayerMinion() || oracool::IsCompanion(monster) || oracool::IsMinion(monster) || oracool::IsDecoyBody(monster)
-	    || oracool::IsMonsterConverted(monster) || oracool::MinionMendGlow(monster) > 0;
+	    || oracool::IsMonsterConverted(monster) || oracool::MinionMendGlow(monster) > 0
+	    || oracool::ActiveRiftBossFor(monster) != nullptr; // and a boss wears his own frost colours (v1.13.090)
 	if (!out.isIndexed() && !heroSide && (trn == nullptr || trn == monster.uniqueMonsterTRN.get())) {
 		if (const oracool::FrostLook look = oracool::FrostLookFor(monster.type().type); look != oracool::FrostLook::None) {
 			const uint32_t *lit = oracool::LitPaletteTable(trn != nullptr && monster.isUnique() ? 0 : LightTableIndex);

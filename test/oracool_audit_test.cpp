@@ -20859,10 +20859,14 @@ TEST(OracoolAudit, WoodsRosterHasFourKindsOnEveryRung)
 		for (uint32_t seed = 1; seed < 64; seed++) {
 			oracool::SetWoodsSeedForTest(3, seed * 0x9E3779B1U | 1U);
 			const int kind = oracool::WoodsBossKind();
-			EXPECT_TRUE(IsAnyOf(static_cast<_monster_id>(kind), MT_SKING, MT_CLEAVER, MT_REAPER, MT_DIABLO)) << kind;
+			// The four of old and the roster's seven since v1.13.090 (Andariel, the Countess, Maghda, Pindleskin, Mephisto, Lilith,
+			// the Lord of Terror).
+			EXPECT_TRUE(IsAnyOf(static_cast<_monster_id>(kind), MT_SKING, MT_CLEAVER, MT_REAPER, MT_DIABLO, MT_HLSPWN, MT_SUCCUBUS, MT_SNOWWICH,
+			    MT_GZOMBIE, MT_ADVOCATE, MT_SOLBRNR))
+			    << kind;
 			bossKinds.insert(kind);
 		}
-		EXPECT_EQ(bossKinds.size(), 4U) << "every one of the four comes up across new games";
+		EXPECT_GE(bossKinds.size(), 8U) << "most of the woods' bosses come up across new games";
 		for (const uint32_t seed : { 0x00000001U, 0x00100001U, 0x00200001U, 0x00300001U }) {
 			oracool::SetWoodsSeedForTest(3, seed);
 			const auto boss = static_cast<_monster_id>(oracool::WoodsBossKind());
@@ -21408,10 +21412,11 @@ TEST(OracoolAudit, DesertRosterHasFourKindsOnEveryRung)
 	for (uint32_t seed = 1; seed < 64; seed++) {
 		oracool::SetWoodsSeedForTest(3, seed * 0x9E3779B1U | 1U, oracool::OrclArea::Desert);
 		const int kind = oracool::WoodsBossKind();
-		EXPECT_TRUE(IsAnyOf(static_cast<_monster_id>(kind), MT_SKING, MT_CLEAVER, MT_REAPER)) << kind << ": not one of the desert's three";
+		EXPECT_TRUE(IsAnyOf(static_cast<_monster_id>(kind), MT_SKING, MT_CLEAVER, MT_REAPER, MT_XSKELAX, MT_COUNSLR, MT_MAGISTR, MT_SUCCUBUS))
+		    << kind << ": not one of the desert's seven";
 		bossKinds.insert(kind);
 	}
-	EXPECT_EQ(bossKinds.size(), 3U) << "each of the desert's three bosses comes up across new games";
+	EXPECT_GE(bossKinds.size(), 5U) << "most of the desert's seven bosses come up across new games";
 	oracool::SetWoodsSeedForTest(3, 0, oracool::OrclArea::Woods);
 	oracool::SetWoodsSeedForTest(3, 0, oracool::OrclArea::Desert);
 	oracool::SetWoodsRungForTest(1, 0, oracool::OrclArea::Desert);
@@ -22782,6 +22787,63 @@ TEST(OracoolRiftBosses, TheRosterKeepsTheFourFacesAndThePagesThirtyTwo)
 	// Diablo II's and III's (2026-10-17): every one findable by name, Mephisto among them.
 	for (const char *name : { "Andariel", "Mephisto", "Lilith", "Azmodan", "Pindleskin", "Diablo, Lord of Terror" })
 		EXPECT_TRUE(oracool::FindRiftBoss(name).has_value()) << name;
+}
+
+// The Orcl Act's area bosses (user, 2026-10-18: "Use these bosses also as bosses in orcl act areas"; "Frost bosses to be frost
+// themed - tint and skills. Desert ones to be desert tinted. Frost units to be cold imune").
+TEST(OracoolRiftBosses, TheOrclActAreasWearTheRosterBosses)
+{
+	using oracool::OrclArea;
+	using Sig = oracool::BossSignature;
+	int named[3] = {};
+	for (const OrclArea area : { OrclArea::Woods, OrclArea::Desert, OrclArea::Frost }) {
+		const size_t count = oracool::AreaBossCountForTest(area);
+		ASSERT_GT(count, 0U);
+		for (size_t i = 0; i < count; i++) {
+			int kind = -1;
+			oracool::RiftBossDef def {};
+			if (!oracool::AreaBossForTest(area, i, kind, def))
+				continue;
+			named[static_cast<int>(area)]++;
+			SCOPED_TRACE(def.name);
+			EXPECT_EQ(static_cast<int>(def.type), kind) << "the row's body is the area's kind";
+			EXPECT_NE(def.tint, oracool::Tint::None);
+			if (area == OrclArea::Frost) {
+				// Ice colours (blue the strongest channel), a cold trick.
+				const int r = (def.rgb >> 16) & 0xFF, g = (def.rgb >> 8) & 0xFF, b = def.rgb & 0xFF;
+				EXPECT_GE(b, r) << "an ice colour";
+				EXPECT_GE(b, g) << "an ice colour";
+				EXPECT_TRUE(IsAnyOf(def.signature, Sig::FrostNovaRaise, Sig::ChillOnHit, Sig::BlinkBoltRing, Sig::Split)) << "a cold trick";
+			}
+			if (area == OrclArea::Desert) {
+				// Sand and gold: red over green over blue.
+				const int r = (def.rgb >> 16) & 0xFF, g = (def.rgb >> 8) & 0xFF, b = def.rgb & 0xFF;
+				EXPECT_GT(r, g);
+				EXPECT_GT(g, b);
+			}
+		}
+	}
+	EXPECT_EQ(named[0], 7) << "the woods' seven";
+	EXPECT_EQ(named[1], 4) << "the desert's four";
+	EXPECT_EQ(named[2], 8) << "the Frost Caves' eight";
+
+	// The Frost Caves' monsters shrug off cold; the hero's golem does not, nor anything elsewhere.
+	const bool savedSetlevel = setlevel;
+	const _setlevels savedSetLevelNum = setlvlnum;
+	Monster &monster = Monsters[0]; // a real slot: the side checks find a monster by it
+	const uint16_t savedFlags = monster.flags;
+	monster.flags = 0;
+	setlevel = true;
+	setlvlnum = SL_ORCL_FROST_2;
+	EXPECT_TRUE(oracool::ColdImmuneHere(monster));
+	monster.flags = MFLAG_GOLEM;
+	EXPECT_FALSE(oracool::ColdImmuneHere(monster)) << "the hero's golem";
+	monster.flags = 0;
+	setlvlnum = SL_ORCL_DESERT_2;
+	EXPECT_FALSE(oracool::ColdImmuneHere(monster)) << "only down in the Frost Caves";
+	monster.flags = savedFlags;
+	setlevel = savedSetlevel;
+	setlvlnum = savedSetLevelNum;
 }
 
 TEST(OracoolRiftBosses, EveryKindMeetsSomebodyAtEveryRungAndTheBandsHold)

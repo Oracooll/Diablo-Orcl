@@ -237,6 +237,13 @@ bool WoodsAcceptsMonster(const MonsterData &data);
  * holds still for the rest of it. -1 before the floor has a seed.
  */
 int WoodsBossKind();
+struct RiftBossDef;
+/** @brief The rift roster row the area's drawn boss wears, in the area's colours and tricks; nullptr for the four of old. */
+const RiftBossDef *WoodsBossRosterDef();
+/** @brief How many bosses @p area's last floor may roll; for the tests. */
+size_t AreaBossCountForTest(OrclArea area);
+/** @brief @p area's boss row @p index: its kind, and its roster row as the area dresses it (false for one of the four of old). */
+bool AreaBossForTest(OrclArea area, size_t index, int &kind, RiftBossDef &def);
 
 /** @brief A monster kind's look, for the roster's mix: kinds of one sprite family (the Fallen, the skeletons, the goatmen) share it. */
 int WoodsFamilyOf(int kind);

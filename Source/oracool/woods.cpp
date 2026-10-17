@@ -44,6 +44,7 @@
 #include "oracool/splats.h"       // the wisps' glow handed to the graphics card with the other lights
 #include "objects.h"              // the vanilla objects along the roads
 #include "oracool/missile_tint.h" // LitPaletteTable - the area objects' hover outline
+#include "oracool/rift_bosses.h"  // the rift roster rows the area bosses wear
 #include "engine/backbuffer_state.hpp" // RedrawComponent - the fairy ring's mana
 #include "oracool/rage.h"                // UsesRage - the Barbarian has no mana for the ring to speed
 #include "player.h"
@@ -4576,7 +4577,18 @@ std::pair<const _monster_id *, size_t> AreaKinds(OrclArea area)
 struct WoodsBossRow {
 	_monster_id kind;
 	unsigned sizePercent;
+	/**
+	 * A rift roster row this boss wears (user, 2026-10-18: "Use these bosses also as bosses in orcl act areas"): its name, colour,
+	 * size, trick, escort; nullptr for the four of old. Then the area's own colour over the row's (Tint::None keeps the row's) and
+	 * the area's own trick (-1 keeps it), with what that trick raises (MT_INVALID keeps the row's).
+	 */
+	const char *roster = nullptr;
+	Tint tint = Tint::None;
+	uint32_t rgb = 0;
+	int signature = -1;
+	_monster_id summon = MT_INVALID;
 };
+constexpr int OwnTrick(BossSignature signature) { return static_cast<int>(signature); }
 /**
  * @brief The bosses of the Mob Roster's notes ("use as boss. scaled up to be diablo size"), each with the size that makes him
  * Diablo's height - the designer's sprite heights: Diablo 151 px, the King 118, the Butcher 69, the Reaper 86. The fifth note,
@@ -4587,6 +4599,14 @@ constexpr WoodsBossRow WoodsBosses[] = {
 	{ MT_CLEAVER, 219 },
 	{ MT_REAPER, 176 },
 	{ MT_DIABLO, 100 },
+	// Diablo II's first act and III's, the Lord of Hatred's jungle and Lilith (v1.13.090), as the rift roster has them.
+	{ MT_HLSPWN, 0, "Andariel, Maiden of Anguish" },
+	{ MT_SUCCUBUS, 0, "The Countess" },
+	{ MT_SNOWWICH, 0, "Maghda, the Moth Witch" },
+	{ MT_GZOMBIE, 0, "Pindleskin" },
+	{ MT_ADVOCATE, 0, "Mephisto, Lord of Hatred" },
+	{ MT_SOLBRNR, 0, "Lilith, Queen of the Succubi" },
+	{ MT_DIABLO, 0, "Diablo, Lord of Terror" },
 };
 
 /**
@@ -4598,6 +4618,28 @@ constexpr WoodsBossRow DesertBosses[] = {
 	{ MT_SKING, 128 },
 	{ MT_CLEAVER, 219 },
 	{ MT_REAPER, 176 },
+	// Diablo II's and III's second acts (v1.13.090), in the desert's colours (user, 2026-10-18: "Desert ones to be desert
+	// tinted"): sand, ochre, the sun's gold.
+	{ MT_XSKELAX, 0, "Radament", Tint::Hue, 0xC8A060 },
+	{ MT_COUNSLR, 0, "The Summoner", Tint::Hue, 0xD8B070 },
+	{ MT_MAGISTR, 0, "Zoltun Kulle", Tint::Glint, 0xE8C060 },
+	{ MT_SUCCUBUS, 0, "Adria, the Witch", Tint::Hue, 0xB0804A },
+};
+
+/**
+ * @brief The Frost Caves' bosses (v1.13.090; until now the woods' list): Diablo II's fifth act and Diablo III's Arreat, and the
+ * Lord of Terror himself, all frost (user, 2026-10-18: "Frost bosses to be frost themed - tint and skills"): ice colours, a cold
+ * trick each, their rings ice (FireRing) and their shots ice (FrostMissileFor) down here.
+ */
+constexpr WoodsBossRow FrostBosses[] = {
+	{ MT_DIABLO, 0, "Diablo, Lord of Terror", Tint::Glint, 0x9AD8FF, OwnTrick(BossSignature::FrostNovaRaise) },
+	{ MT_CABALIST, 0, "Nihlathak", Tint::Glint, 0xB8E8FF, OwnTrick(BossSignature::FrostNovaRaise) },
+	{ MT_GUARD, 0, "Lister the Tormentor", Tint::Hue, 0x8AAAD8, OwnTrick(BossSignature::ChillOnHit) },
+	{ MT_DEATHW, 0, "Izual, the Fallen Angel", Tint::Glint, 0x8AB4FF, OwnTrick(BossSignature::ChillOnHit) },
+	{ MT_FAT, 0, "Ghom, Lord of Gluttony", Tint::Hue, 0x7AA8C8, OwnTrick(BossSignature::FrostNovaRaise) },
+	{ MT_MEGA, 0, "Rakanoth, Lord of Despair", Tint::Hue, 0x5A7AB8, OwnTrick(BossSignature::BlinkBoltRing) },
+	{ MT_UNSEEN, 0, "Iskatu, the Shadow of Terror", Tint::Hue, 0x6A7AAA, OwnTrick(BossSignature::Split) },
+	{ MT_BALROG, 0, "Azmodan, Lord of Sin", Tint::Hue, 0x9CC8F0, OwnTrick(BossSignature::FrostNovaRaise) },
 };
 
 /** @brief The bosses @p area's last floor may roll. */
@@ -4605,6 +4647,8 @@ std::pair<const WoodsBossRow *, size_t> AreaBosses(OrclArea area)
 {
 	if (area == OrclArea::Desert)
 		return { DesertBosses, std::size(DesertBosses) };
+	if (area == OrclArea::Frost)
+		return { FrostBosses, std::size(FrostBosses) };
 	return { WoodsBosses, std::size(WoodsBosses) };
 }
 
@@ -4686,12 +4730,15 @@ bool WoodsAcceptsMonster(const MonsterData &data)
 	return BandGap(data, floor) <= reach;
 }
 
-int WoodsBossKind()
+namespace {
+
+/** @brief The row the area being built or stood in has drawn for its boss, or nullptr. */
+const WoodsBossRow *PickedWoodsBoss()
 {
-	// The boss of the area being built or stood in: its last floor's seed (each area its own pick, each new game anew).
+	// Its last floor's seed (each area its own pick, each new game anew).
 	const uint32_t seed = Game.seed[AreaIndex(AreaOfLevel(setlvlnum))][WoodsFloors - 1];
 	if (seed == 0)
-		return -1;
+		return nullptr;
 	// The seed's high bits: its low ones also build the floor, and a pick tied to them would tie the boss to the map. Only the
 	// kinds this game has the sprites of (the shareware has no Reaper and no Diablo): the next one on where the pick is not.
 	const auto [bosses, count] = AreaBosses(AreaOfLevel(setlvlnum));
@@ -4700,16 +4747,77 @@ int WoodsBossKind()
 		const WoodsBossRow &row = bosses[(first + k) % count];
 		const MonsterData &data = MonstersData[row.kind];
 		if (!(gbIsSpawn && data.availability == MonsterAvailability::Retail) && (gbIsHellfire || row.kind < MT_HELLBOAR))
-			return row.kind;
+			return &row;
 	}
-	return -1;
+	return nullptr;
+}
+
+} // namespace
+
+int WoodsBossKind()
+{
+	const WoodsBossRow *row = PickedWoodsBoss();
+	return row != nullptr ? row->kind : -1;
+}
+
+namespace {
+
+/** @brief @p row's roster row in its area's colours and trick, into @p def; false for one of the four of old or a missing name. */
+bool RosterDefFor(const WoodsBossRow &row, RiftBossDef &def)
+{
+	if (row.roster == nullptr)
+		return false;
+	const std::optional<size_t> at = FindRiftBoss(row.roster);
+	if (!at)
+		return false;
+	def = RiftBossAt(*at);
+	if (row.tint != Tint::None) {
+		def.tint = row.tint;
+		def.rgb = row.rgb;
+	}
+	if (row.signature >= 0)
+		def.signature = static_cast<BossSignature>(row.signature);
+	if (row.summon != MT_INVALID)
+		def.summon = row.summon;
+	return true;
+}
+
+} // namespace
+
+const RiftBossDef *WoodsBossRosterDef()
+{
+	const WoodsBossRow *row = PickedWoodsBoss();
+	static RiftBossDef def;
+	if (row == nullptr || !RosterDefFor(*row, def))
+		return nullptr;
+	return &def;
+}
+
+size_t AreaBossCountForTest(OrclArea area)
+{
+	return AreaBosses(area).second;
+}
+
+bool AreaBossForTest(OrclArea area, size_t index, int &kind, RiftBossDef &def)
+{
+	const auto [bosses, count] = AreaBosses(area);
+	if (index >= count)
+		return false;
+	kind = bosses[index].kind;
+	return RosterDefFor(bosses[index], def);
 }
 
 bool IsWoodsBoss(const Monster &monster)
 {
 	if (!setlevel || !IsActBossLevel(setlvlnum) || monster.isPlayerMinion())
 		return false;
-	return monster.type().type == WoodsBossKind();
+	const WoodsBossRow *row = PickedWoodsBoss();
+	if (row == nullptr)
+		return false;
+	// A roster boss is known by his slot (his body may walk the floor as an ordinary kind too: the Succubi, the Fat Overlord).
+	if (row->roster != nullptr)
+		return ActBossFor(monster) != nullptr;
+	return monster.type().type == row->kind;
 }
 
 int WoodsFamilyOf(int kind)
@@ -4729,12 +4837,9 @@ unsigned WoodsBossSizePercent(const Monster &monster)
 {
 	if (!IsWoodsBoss(monster))
 		return 0;
-	const auto [bosses, count] = AreaBosses(AreaOfLevel(setlvlnum));
-	for (size_t k = 0; k < count; k++) {
-		if (bosses[k].kind == monster.type().type)
-			return bosses[k].sizePercent;
-	}
-	return 0;
+	// A roster boss's size is his row's (RiftBossSizePercent answers it first).
+	const WoodsBossRow *row = PickedWoodsBoss();
+	return row != nullptr && row->roster == nullptr ? row->sizePercent : 0;
 }
 
 std::optional<Point> WoodsBossSpot()

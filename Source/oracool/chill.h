@@ -41,6 +41,11 @@ constexpr int IceBoltChillTicks = 40;
  * Extends rather than adds: a monster under continuous fire stays at half speed for as long as the
  * shots keep landing, and stacking would let a few seconds of casting freeze something for a minute.
  */
+/**
+ * @brief The Frost Caves' monsters are immune to cold (user, 2026-10-18: "Frost units to be cold imune"): no cold damage, no chill,
+ * no freeze - every one on a Frost Caves floor or frozen river but the hero's own side (golems, minions, companions, the converted).
+ */
+bool ColdImmuneHere(const Monster &monster);
 void ChillMonster(const Monster &monster, int ticks);
 
 /** @brief Whether @p monster is chilled right now - for the tint, and for anything that asks. */

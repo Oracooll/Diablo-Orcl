@@ -17,6 +17,7 @@
 #include "oracool/monster_difficulty.h" // DemoteImmunitiesToResistances
 #include "oracool/rfa12_actives.h" // SightLineClear
 #include "oracool/venom.h"
+#include "oracool/woods.h" // AreaOfLevel, FrostMissileFor - the Orcl Act's bosses, the Frost Caves' ice
 #include "player.h"
 
 namespace devilution::oracool {
@@ -265,6 +266,9 @@ Player *HeroInReach(const Monster &monster, int tiles)
 /** @brief @p count missiles of @p type from the boss to every side, at the boss's own damage. */
 void FireRing(Monster &monster, MissileID type, int count)
 {
+	// In the Frost Caves a boss's ring is ice as the monsters' shots are (user, 2026-10-18: "Frost bosses to be frost themed -
+	// tint and skills"): flares an ice bolt, blood stars an ice blast.
+	type = static_cast<MissileID>(FrostMissileFor(static_cast<int>(type)));
 	const Point from = monster.position.tile;
 	for (int k = 0; k < count; k++) {
 		const auto dir = static_cast<Direction>((k * 8 / count) % 8);
@@ -425,11 +429,76 @@ const RiftBossDef &ActiveRiftBoss()
 	return RiftBossAt(RiftBossIndex());
 }
 
+namespace {
+
+/** @brief Each Orcl Act area's bound boss, this game: his slot and type, and the row as his area dresses it. */
+struct ActBinding {
+	int slot = -1;
+	_monster_id type = MT_INVALID;
+	RiftBossDef def {};
+};
+std::array<ActBinding, 3> ActBindings {}; // by OrclArea: the woods, the desert, the Frost Caves
+
+/** @brief The hero stands where a boss's hooks run: a rift, or an Orcl Act area's last floor. */
+bool BossHooksLive()
+{
+	return InRift() || (setlevel && IsActBossLevel(setlvlnum));
+}
+
+} // namespace
+
 const RiftBossDef *ActiveRiftBossFor(const Monster &monster)
 {
-	if (!IsRiftGuardian(monster))
+	if (IsRiftGuardian(monster))
+		return &ActiveRiftBoss();
+	return ActBossFor(monster);
+}
+
+const RiftBossDef *ActBossFor(const Monster &monster)
+{
+	if (!setlevel || !IsActBossLevel(setlvlnum))
 		return nullptr;
-	return &ActiveRiftBoss();
+	const ActBinding &binding = ActBindings[static_cast<size_t>(AreaOfLevel(setlvlnum))];
+	if (binding.slot < 0 || static_cast<int>(monster.getId()) != binding.slot || monster.type().type != binding.type)
+		return nullptr;
+	if (IsRiftConjured(monster))
+		return nullptr; // a split copy shares his type, never his slot - asked anyway
+	return &binding.def;
+}
+
+void BindActBoss(Monster &monster, const RiftBossDef &def)
+{
+	if (!setlevel || !IsActBossLevel(setlvlnum))
+		return;
+	ActBinding &binding = ActBindings[static_cast<size_t>(AreaOfLevel(setlvlnum))];
+	binding.slot = static_cast<int>(monster.getId());
+	binding.type = monster.type().type;
+	binding.def = def;
+	RunState = Run {};
+	monster.resistance |= def.resistAdd;
+	constexpr uint16_t AllThree = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
+	if ((monster.resistance & AllThree) == AllThree)
+		monster.resistance = DemoteImmunitiesToResistances(monster.resistance) | (monster.resistance & IMMUNE_ACID);
+	if (def.signature == BossSignature::Knockback)
+		monster.flags |= MFLAG_KNOCKBACK;
+	if (def.signature == BossSignature::AcidPoolOnHit && !HeadlessMode)
+		GetMissileSpriteData(MissileGraphicID::AcidPuddle).LoadGFX();
+	CallEscort(monster, def, def.escortCount);
+	// Rebound at his size: InitMonster bound his stand before he was named the boss.
+	M_StartStand(monster, monster.direction);
+}
+
+void ProcessActBoss()
+{
+	if (!setlevel || !IsActBossLevel(setlvlnum))
+		return;
+	TickRiftConjured();
+	const ActBinding &binding = ActBindings[static_cast<size_t>(AreaOfLevel(setlvlnum))];
+	if (binding.slot < 0 || binding.slot >= static_cast<int>(MaxMonsters))
+		return;
+	Monster &boss = Monsters[binding.slot];
+	if (boss.type().type == binding.type && boss.hitPoints > 0 && boss.mode != MonsterMode::Death)
+		TickRiftBoss(boss);
 }
 
 std::string RiftBossName()
@@ -809,9 +878,9 @@ void RiftBossExtraShots(Monster &monster, MissileID missile, int damage)
 
 bool IsRiftConjured(const Monster &monster)
 {
-	// Only inside the rift (audit, 2026-10-04): a copy alive when the hero left would leave its slot id behind, and the next
-	// monster in that slot on a dungeon floor would drop nothing.
-	if (!InRift())
+	// Only inside the rift or on an Orcl Act boss floor (audit, 2026-10-04): a copy alive when the hero left would leave its slot
+	// id behind, and the next monster in that slot on a dungeon floor would drop nothing.
+	if (!BossHooksLive())
 		return false;
 	const int id = static_cast<int>(monster.getId());
 	return std::any_of(RunState.conjured.begin(), RunState.conjured.end(), [id](const Conjured &entry) { return entry.id == id; });
@@ -820,8 +889,8 @@ bool IsRiftConjured(const Monster &monster)
 void ForgetRiftConjured(const Monster &monster)
 {
 	// The rift's own slots only (round 95 audit): a dungeon monster dying in a copy's slot number, the copy still alive in the
-	// rift left behind, struck the copy off - it never went, and paid in full when killed.
-	if (!InRift())
+	// rift left behind, struck the copy off - it never went, and paid in full when killed. An Orcl Act boss floor's too.
+	if (!BossHooksLive())
 		return;
 	const int id = static_cast<int>(monster.getId());
 	RunState.conjured.erase(std::remove_if(RunState.conjured.begin(), RunState.conjured.end(), [id](const Conjured &entry) { return entry.id == id; }),
@@ -837,6 +906,7 @@ void ResetRiftBossRun()
 void ResetRiftBossesForNewGame()
 {
 	RunState = Run {};
+	ActBindings = {};
 	LastMet = { -1, -1, -1 };
 	Forced.reset();
 }

@@ -188,6 +188,18 @@ void ForgetRiftConjured(const Monster &monster);
 void ResetRiftBossRun();
 void ResetRiftBossesForNewGame();
 
+/**
+ * @brief The Orcl Act's area bosses that wear a roster row (user, 2026-10-18: "Use these bosses also as bosses in orcl act
+ * areas"; woods.cpp AreaBosses): @p monster, just placed on its area's last floor, is that area's boss as @p def says - its
+ * name, colour, size, trick, escort and resists; its strength stays the area's own boss rule (ScaleWoodsMonster). The
+ * binding is by slot and type, for this game; every hook that asks ActiveRiftBossFor gets the row back for him.
+ */
+void BindActBoss(Monster &monster, const RiftBossDef &def);
+/** @brief The row @p monster wears as its area's bound boss, on its last floor; nullptr for anything else. */
+const RiftBossDef *ActBossFor(const Monster &monster);
+/** @brief Per game tick on an Orcl Act boss floor: the bound boss's clocks and thresholds, his split copies' ten seconds. */
+void ProcessActBoss();
+
 /** @brief The `riftboss` debug command: the next rift opened draws row @p index, on one of its homes. */
 void ForceNextRiftBoss(size_t index);
 /** @brief Drops a forced row that was never drawn (the debug command's rift did not open). */
