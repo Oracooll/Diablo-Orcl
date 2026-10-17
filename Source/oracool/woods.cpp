@@ -2195,9 +2195,11 @@ void GenerateFrost(uint32_t seed)
 					else if (d <= radius + 1.0F && ((q.x + q.y) % 3) == 0)
 						Scatter[q.x][q.y] = DecorLakeStones + 1;
 				}
-			for (const Displacement d : { Displacement { 1, -1 }, Displacement { -2, 1 } })
-				if (Unit(Hash(seed, salt, static_cast<uint32_t>(d.deltaX + 8))) < 0.7F)
-					Tree[at->x + d.deltaX][at->y + d.deltaY] = IceHole;
+			for (const Displacement d : { Displacement { 1, -1 }, Displacement { -2, 1 } }) {
+				const Point q = *at + d;
+				if (Inside(q) && Tree[q.x][q.y] == NoTree && Unit(Hash(seed, salt, static_cast<uint32_t>(d.deltaX + 8))) < 0.7F)
+					Tree[q.x][q.y] = IceHole; // over nothing already standing (audit round 4)
+			}
 			const Point shore = *at + Displacement { static_cast<int>(radius) + 1, 1 };
 			if (Inside(shore) && Tree[shore.x][shore.y] == NoTree && Ground[shore.x][shore.y] != Path)
 				Tree[shore.x][shore.y] = FishInIce;
@@ -4395,15 +4397,20 @@ std::vector<std::pair<Point, int>> FrostCrystalLightSpots()
 	// spells' too).
 	// The big crystals first, then the small, each kind from a spread start (audit round 3: in the floor's row order the twenty went
 	// to the top rows and left the bottom of the cavern dark); a group lit at its biggest crystal's radius.
+	// Each kind shuffled (a seeded Fisher-Yates: a fixed stride walked the row order again for many counts, audit round 4), the
+	// same on every build of the floor.
 	std::vector<Point> order;
 	const size_t n = FrostLights.size();
 	for (int pass = 0; pass < 2; pass++) {
-		const size_t start = n == 0 ? 0 : static_cast<size_t>(Hash(static_cast<uint32_t>(n), 0x11C7U, static_cast<uint32_t>(pass)) % n);
-		for (size_t k = 0; k < n; k++) {
-			const Point at = FrostLights[(start + k * 7919) % n];
+		std::vector<Point> kind;
+		for (const Point at : FrostLights)
 			if ((Tree[at.x][at.y] == CrystalsSmall) == (pass == 1))
-				order.push_back(at);
+				kind.push_back(at);
+		for (size_t i = kind.size(); i > 1; i--) {
+			const size_t j = Hash(static_cast<uint32_t>(n), 0x11C7U + static_cast<uint32_t>(pass), static_cast<uint32_t>(i)) % i;
+			std::swap(kind[i - 1], kind[j]);
 		}
+		order.insert(order.end(), kind.begin(), kind.end());
 	}
 	std::vector<std::pair<Point, int>> spots;
 	std::vector<Point> lit;
