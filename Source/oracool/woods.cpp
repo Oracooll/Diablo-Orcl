@@ -4179,6 +4179,57 @@ bool FrostBuilt()
 	return Frost;
 }
 
+
+const uint32_t *FrostLookTable(FrostLook look, const uint32_t *lit, std::array<uint32_t, 256> &out)
+{
+	// The Designer's five looks (scratchpad frost_looks.js, the previews the user picks from), per lit colour.
+	const auto clamp8 = [](float v) { return static_cast<uint32_t>(std::clamp(v, 0.0F, 255.0F)); };
+	for (size_t i = 0; i < out.size(); i++) {
+		const uint32_t c = lit[i];
+		float r = static_cast<float>((c >> 16) & 0xFF), g = static_cast<float>((c >> 8) & 0xFF), b = static_cast<float>(c & 0xFF);
+		const float y = 0.299F * r + 0.587F * g + 0.114F * b;
+		const float l = y / 255.0F;
+		switch (look) {
+		case FrostLook::Rime:
+			r += (y - r) * 0.75F; g += (y - g) * 0.75F; b += (y - b) * 0.75F;
+			r = r * 0.82F + 8.0F; g = g * 0.94F + 12.0F; b = b * 1.18F + 24.0F;
+			break;
+		case FrostLook::Glacier: {
+			// Hue 205, saturation 0.42, the colour's own lightness a little lifted.
+			const float L = std::min(1.0F, l * 1.06F), S = 0.42F;
+			const float ch = (1.0F - std::abs(2.0F * L - 1.0F)) * S, m = L - ch / 2.0F;
+			const float x = ch * (1.0F - std::abs(std::fmod(205.0F / 60.0F, 2.0F) - 1.0F));
+			r = m * 255.0F; g = (x + m) * 255.0F; b = (ch + m) * 255.0F;
+			break;
+		}
+		case FrostLook::Hoarfrost: {
+			const float lift = std::min(1.0F, y / 48.0F);
+			const float k = 0.62F * y + 70.0F * lift;
+			r = k * 0.90F; g = k * 0.97F; b = k * 1.06F + 6.0F * lift;
+			break;
+		}
+		case FrostLook::Frostbite: {
+			r += (y - r) * 0.55F; g += (y - g) * 0.55F; b += (y - b) * 0.55F;
+			r *= 0.90F; b = b * 1.10F + 6.0F;
+			const float sh = std::max(0.0F, (0.45F - l) / 0.45F), hi = std::max(0.0F, (l - 0.45F) / 0.55F), shadow = std::min(1.0F, y / 24.0F);
+			r = r * (1 - 0.75F * sh) + 16 * 0.75F * sh * shadow; g = g * (1 - 0.75F * sh) + 30 * 0.75F * sh * shadow; b = b * (1 - 0.75F * sh) + 70 * 0.75F * sh * shadow;
+			r = r * (1 - 0.8F * hi) + 214 * 0.8F * hi; g = g * (1 - 0.8F * hi) + 234 * 0.8F * hi; b = b * (1 - 0.8F * hi) + 255 * 0.8F * hi;
+			break;
+		}
+		case FrostLook::BlackIce: {
+			const float d = std::pow(l, 1.35F) * 255.0F * 0.82F, hi = std::max(0.0F, (l - 0.62F) / 0.38F);
+			r = d * 0.50F + 110.0F * hi; g = d * 0.72F + 170.0F * hi; b = d * 1.05F + 200.0F * hi + 6.0F;
+			break;
+		}
+		case FrostLook::None:
+			break;
+		}
+		out[i] = (clamp8(r) << 16) | (clamp8(g) << 8) | clamp8(b);
+	}
+	out[0] = lit[0]; // the sprite's transparent index stays as it is
+	return out.data();
+}
+
 int WoodsKindAtForTest(Point tile)
 {
 	return InDungeonBounds(tile) ? Tree[tile.x][tile.y] : 0;
@@ -4287,9 +4338,43 @@ constexpr _monster_id DesertKinds[] = {
 	MT_STINGER, MT_GRAVEDIG, MT_TOMBRAT, MT_SKLWING, MT_BICLOPS,
 };
 
+/**
+ * @brief The Frost Caves' Mob Roster, each kind with its look (the Orcl Act Level Designer's Frost Caves roster): until the user saves
+ * his picks there, the woods' kinds - their ice-dwellers among them - all in Rime, the game's own frozen look.
+ */
+struct FrostMobRow {
+	_monster_id kind;
+	FrostLook look;
+};
+constexpr FrostMobRow FrostKinds[] = {
+	{ MT_NZOMBIE, FrostLook::Rime },
+	{ MT_WSKELAX, FrostLook::Rime }, { MT_TSKELAX, FrostLook::Rime }, { MT_RSKELAX, FrostLook::Rime }, { MT_XSKELAX, FrostLook::Rime },
+	{ MT_NSCAV, FrostLook::Rime }, { MT_BSCAV, FrostLook::Rime }, { MT_WSCAV, FrostLook::Rime }, { MT_YSCAV, FrostLook::Rime },
+	{ MT_WSKELBW, FrostLook::Rime }, { MT_TSKELBW, FrostLook::Rime }, { MT_RSKELBW, FrostLook::Rime }, { MT_XSKELBW, FrostLook::Rime },
+	{ MT_WSKELSD, FrostLook::Rime }, { MT_TSKELSD, FrostLook::Rime }, { MT_RSKELSD, FrostLook::Rime }, { MT_XSKELSD, FrostLook::Rime },
+	{ MT_NGOATMC, FrostLook::Rime }, { MT_BGOATMC, FrostLook::Rime }, { MT_RGOATMC, FrostLook::Rime }, { MT_GGOATMC, FrostLook::Rime },
+	{ MT_NGOATBW, FrostLook::Rime }, { MT_BGOATBW, FrostLook::Rime }, { MT_RGOATBW, FrostLook::Rime }, { MT_GGOATBW, FrostLook::Rime },
+	{ MT_FAT, FrostLook::Rime }, { MT_TOAD, FrostLook::Rime },
+	{ MT_HORNED, FrostLook::Rime }, { MT_MUDRUN, FrostLook::Rime }, { MT_FROSTC, FrostLook::Rime }, { MT_OBLORD, FrostLook::Rime },
+	{ MT_SUCCUBUS, FrostLook::Rime },
+};
+/** @brief The Frost Caves' kinds alone, in FrostKinds' order (AreaKinds' list). */
+const std::array<_monster_id, std::size(FrostKinds)> &FrostKindList()
+{
+	static const std::array<_monster_id, std::size(FrostKinds)> list = [] {
+		std::array<_monster_id, std::size(FrostKinds)> out {};
+		for (size_t i = 0; i < out.size(); i++)
+			out[i] = FrostKinds[i].kind;
+		return out;
+	}();
+	return list;
+}
+
 /** @brief The Mob Roster of the area the current level belongs to (its floors and its caves). */
 std::pair<const _monster_id *, size_t> AreaKinds(OrclArea area)
 {
+	if (area == OrclArea::Frost)
+		return { FrostKindList().data(), FrostKindList().size() };
 	if (area == OrclArea::Desert)
 		return { DesertKinds, std::size(DesertKinds) };
 	return { WoodsKinds, std::size(WoodsKinds) };
@@ -4371,6 +4456,17 @@ int FloorStepPercent(int gap)
 }
 
 } // namespace
+
+FrostLook FrostLookFor(int kind)
+{
+	if (!setlevel || (!IsFrostLevel(setlvlnum) && !IsFrostRiverLevel(setlvlnum)))
+		return FrostLook::None;
+	for (const FrostMobRow &row : FrostKinds)
+		if (row.kind == kind)
+			return row.look;
+	// A kind off the roster (a boss, a rift's guest): the game's own frozen look, so nothing in the Frost Caves is warm.
+	return FrostLook::Rime;
+}
 
 bool WoodsAcceptsMonster(const MonsterData &data)
 {

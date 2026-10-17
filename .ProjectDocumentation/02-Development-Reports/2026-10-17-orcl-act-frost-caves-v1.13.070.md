@@ -86,3 +86,10 @@ User, 2026-10-17: "start the frost caves engine work while waiting". Plan: `.Pro
   - `FrostCavesAreWalkableCaverns`: the hall is on the Throne of Winter alone, and the floor before the throne can be reached.
   - The preview renders the hall.
   - Full suite 1072 of 1072.
+
+## v1.13.074: the Frost Caves' monsters in their frost looks
+- **The looks:** every monster on a Frost Caves floor or frozen river draws in its kind's frost look (`FrostLookFor`), on the 32-bit screen and lit as it stands. A unique's own colours go under it, unlit, as uniques glow. Ice, stone, infravision and the chill win, as they do over everything.
+- **Ported:** the five looks are the Designer's preview colour maps (`FrostLookTable`): Rime (the game's frozen look), Glacier, Hoarfrost, Frostbite and Black ice.
+- **The roster (`FrostKinds`):** the woods' kinds, all in Rime, until the Designer's Frost Caves roster is saved (none saved yet). A kind off the roster, such as a boss, wears Rime too.
+- **RfA-83:** the interactive objects are approved and in the package (`levels/frost/objects/`); swapping them in for the vanilla objects is a later engine step.
+- **Tests:** `FrostCavesMonstersWearTheirFrostLook` checks the look is used in the Frost Caves alone, that each look turns a warm colour cold (Frostbite mutes it) and that dark colours stay dark. Full suite 1073 of 1073.

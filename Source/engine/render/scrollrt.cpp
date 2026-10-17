@@ -570,6 +570,19 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::TintedTable(own.data(), oracool::Tint::Ice, 0, 0.0));
 		return;
 	}
+	// The Frost Caves (2026-10-17): every monster there in its kind's frost look (the Designer's Frost Caves roster), lit as it
+	// stands - a unique's own colours under it, unlit as uniques glow. Ice, stone, infravision and the chill win, as above.
+	if (!out.isIndexed() && (trn == nullptr || trn == monster.uniqueMonsterTRN.get())) {
+		if (const oracool::FrostLook look = oracool::FrostLookFor(monster.type().type); look != oracool::FrostLook::None) {
+			const uint32_t *lit = oracool::LitPaletteTable(trn != nullptr && monster.isUnique() ? 0 : LightTableIndex);
+			std::array<uint32_t, 256> own;
+			for (size_t i = 0; i < own.size(); i++)
+				own[i] = lit[trn != nullptr ? trn[i] : i];
+			std::array<uint32_t, 256> frosted;
+			ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::FrostLookTable(look, own.data(), frosted));
+			return;
+		}
+	}
 	// Healed by Dark Mending: a lavender glow fading off it (v1.12.211). Ice, stone and infravision win; a variant's colours
 	// give way to it for the second it lasts.
 	if (const double mend = oracool::MinionMendGlow(monster); mend > 0 && !out.isIndexed() && (trn == nullptr || trn == monster.uniqueMonsterTRN.get())) {

@@ -21086,6 +21086,45 @@ TEST(OracoolAudit, FrostCavesAreWalkableCaverns)
 }
 
 /**
+ * The Frost Caves' monster looks (2026-10-17): every kind there wears one (Rime until the Designer's Frost roster says otherwise),
+ * nothing elsewhere does, and each look turns a warm red cold - blue above red; Frostbite only mutes it - while keeping a dark
+ * colour dark.
+ */
+TEST(OracoolAudit, FrostCavesMonstersWearTheirFrostLook)
+{
+	const bool savedSetlevel = setlevel;
+	const _setlevels savedSetLevelNum = setlvlnum;
+	setlevel = true;
+	setlvlnum = SL_ORCL_FROST_2;
+	EXPECT_EQ(oracool::FrostLookFor(MT_NZOMBIE), oracool::FrostLook::Rime);
+	EXPECT_EQ(oracool::FrostLookFor(MT_DIABLO), oracool::FrostLook::Rime) << "a kind off the roster is frosted too";
+	setlvlnum = SL_ORCL_FROST_RIVER_3;
+	EXPECT_EQ(oracool::FrostLookFor(MT_NZOMBIE), oracool::FrostLook::Rime) << "the frozen rivers too";
+	setlvlnum = SL_ORCL_DESERT_2;
+	EXPECT_EQ(oracool::FrostLookFor(MT_NZOMBIE), oracool::FrostLook::None);
+	setlevel = false;
+	EXPECT_EQ(oracool::FrostLookFor(MT_NZOMBIE), oracool::FrostLook::None);
+	std::array<uint32_t, 256> lit {};
+	lit[1] = 0xC03020U; // a warm red
+	lit[2] = 0x101010U; // near black
+	for (const auto look : { oracool::FrostLook::Rime, oracool::FrostLook::Glacier, oracool::FrostLook::Hoarfrost, oracool::FrostLook::Frostbite, oracool::FrostLook::BlackIce }) {
+		std::array<uint32_t, 256> out {};
+		oracool::FrostLookTable(look, lit.data(), out);
+		const uint32_t red = out[1], dark = out[2];
+		if (look == oracool::FrostLook::Frostbite) {
+			// Frostbite keeps the kind's own colours, muted (the Designer's preview): the red stays a red, but greyer.
+			const int spread = static_cast<int>((red >> 16) & 0xFF) - static_cast<int>(red & 0xFF);
+			EXPECT_LT(spread, 0xC0 - 0x20) << "Frostbite does not mute the red";
+		} else {
+			EXPECT_GT(red & 0xFF, (red >> 16) & 0xFF) << "look " << static_cast<int>(look) << ": the red is not cold";
+		}
+		EXPECT_LT(((dark >> 16) & 0xFF) + ((dark >> 8) & 0xFF) + (dark & 0xFF), 240U) << "look " << static_cast<int>(look) << ": the dark is lifted";
+	}
+	setlevel = savedSetlevel;
+	setlvlnum = savedSetLevelNum;
+}
+
+/**
  * The Frost Caves' floors as the game draws them (2026-10-17): ORCL_WOODS_OUT/frost_<floor>_map.png and 1280 x 720 views round the
  * arrival, the way down and the floor's middle, through the game's own woods calls (seed ORCL_WOODS_SEED). Drawn full bright: the
  * game's own dark is not applied here.

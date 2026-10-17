@@ -23,6 +23,7 @@
  */
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -155,6 +156,23 @@ void EnterWoodsAtCaveMouthNext();
 bool DesertBuilt();
 /** @brief The floor last built is the Frost Caves' (2026-10-17). */
 bool FrostBuilt();
+/**
+ * @brief The Frost Caves' monster looks (the Orcl Act Level Designer's Frost Caves roster, 2026-10-16): each kind there recoloured,
+ * never redrawn. 0 as it is; Rime the game's own frozen look; Glacier every colour ice-blue at its own lightness; Hoarfrost bleached
+ * toward white; Frostbite its colours muted, its shadows deep blue and its highlights frost; Black ice dark glassy blue-black.
+ */
+enum class FrostLook : uint8_t {
+	None,
+	Rime,
+	Glacier,
+	Hoarfrost,
+	Frostbite,
+	BlackIce,
+};
+/** @brief The look @p kind wears on a Frost Caves floor or frozen river; None anywhere else. */
+FrostLook FrostLookFor(int kind);
+/** @brief @p lit (256 lit palette colours) in @p look, into @p out; returns out. */
+const uint32_t *FrostLookTable(FrostLook look, const uint32_t *lit, std::array<uint32_t, 256> &out);
 /** @brief Test hook: the Frost Caves floor last built's lights (its crystals). */
 int FrostLightCountForTest();
 /** @brief Test hook: what stands on @p tile, as the generator's kind number (0 none). */
