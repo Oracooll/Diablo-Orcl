@@ -21263,6 +21263,8 @@ TEST(OracoolPreview, DISABLED_FrostFloors)
 			places.emplace_back("hall", hall);
 		if (floor < 3)
 			places.emplace_back("wayon", oracool::WoodsWayOn() + Displacement { 1, 2 });
+		if (const std::vector<Point> shafts = oracool::FrostLightShaftsForTest(); !shafts.empty())
+			places.emplace_back("shaft", shafts.front());
 		for (const auto &[name, centre] : places) {
 			OwnedSurface view = OwnedSurface::Rgb(1280, 720);
 			const auto screenOf = [&](Point tile) {
@@ -21283,6 +21285,8 @@ TEST(OracoolPreview, DISABLED_FrostFloors)
 							oracool::DrawWoodsTileSprite(view, tile, at, -1);
 					}
 				}
+				if (pass == 0 && name == "shaft") // the ground alone: the light shaft's snow (RfA-79b), whatever stands in front
+					PreviewSave(view, (dir / ("frost_" + std::to_string(floor + 1) + "_shaft_ground.png")).string().c_str());
 			}
 			if (floor == 0 && name == "middle") {
 				// The area objects (RfA-83, RfA-84) at game size on the floor: each before and after, the frost row then the desert's,
